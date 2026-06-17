@@ -201,6 +201,28 @@
 
   #relock{position:fixed;inset:0;z-index:38;display:none;align-items:center;justify-content:center;cursor:pointer;
     background:rgba(0,6,14,.5);font-size:14px;letter-spacing:.5em;color:#eaffff;text-shadow:0 0 14px var(--cy)}
+  /* mission panel */
+  #missions{position:fixed;top:20px;right:20px;width:260px;padding:14px 18px;max-height:50vh;overflow-y:auto}
+  #missions h3{font-family:var(--mono);font-size:11px;letter-spacing:.4em;color:var(--cy);margin-bottom:10px}
+  .mission{font-size:11px;letter-spacing:.1em;color:#7fb4c8;margin-top:6px;padding:5px 8px;border-left:2px solid var(--cy-faint)}
+  .mission.active{color:#eaffff;border-left-color:var(--cy)}
+  .mission.done{color:#5a8a6a;border-left-color:var(--grn);text-decoration:line-through}
+  .mission .obj{font-size:10px;color:var(--cy-dim);margin-top:2px}
+  /* scanner overlay */
+  #scanOverlay{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);width:200px;height:200px;
+    border:1px solid var(--cy);border-radius:50%;opacity:0;transition:opacity .2s;pointer-events:none}
+  #scanOverlay .scanline{position:absolute;left:10%;right:10%;top:50%;height:1px;background:var(--cy);
+    box-shadow:0 0 8px var(--cy);animation:scanmove 1.5s ease-in-out infinite}
+  @keyframes scanmove{0%,100%{top:20%}50%{top:80%}}
+  #scanInfo{position:fixed;left:50%;top:62%;transform:translateX(-50%);font-size:12px;letter-spacing:.18em;
+    color:var(--cy);text-shadow:0 0 10px var(--cy-dim);opacity:0;transition:opacity .3s;pointer-events:none;text-align:center}
+  /* vehicle HUD */
+  #vehicleHud{position:fixed;left:50%;bottom:170px;transform:translateX(-50%);font-size:11px;letter-spacing:.2em;
+    color:var(--cy);opacity:0;transition:opacity .3s;pointer-events:none;text-align:center}
+  #vehicleHud .vname{font-family:var(--mono);font-size:14px;color:#eaffff}
+  /* chromatic aberration */
+  #chromatic{position:fixed;inset:0;pointer-events:none;opacity:0;transition:opacity 1s;
+    background:linear-gradient(90deg,rgba(255,0,0,.03),transparent 20%,transparent 80%,rgba(0,0,255,.03));mix-blend-mode:screen}
 </style>
 </head>
 <body>
@@ -224,12 +246,16 @@
       <b>MOUSE</b><span>look</span>
       <b>SPACE / CTRL</b><span>ascend / descend</span>
       <b>SHIFT</b><span>seaglide boost (burns O₂)</span>
-      <b>1</b><span>THERMAL LANCE — hold LMB to mine nodes</span>
-      <b>2</b><span>FABRICATOR — LMB places hologram</span>
+      <b>1</b><span>THERMAL LANCE — hold LMB to mine</span>
+      <b>2</b><span>FABRICATOR — LMB places structure</span>
+      <b>3</b><span>SCANNER — hold LMB to scan creatures</span>
+      <b>4</b><span>REPAIR TOOL — fixes structures</span>
+      <b>5</b><span>KNIFE — defense and harvesting</span>
+      <b>6</b><span>FLASHLIGHT — illuminates deep areas</span>
       <b>B</b><span>open construction menu</span>
       <b>TAB</b><span>open inventory</span>
       <b>SCROLL / R</b><span>cycle module / rotate</span>
-      <b>E</b><span>harvest flora · catch fish</span>
+      <b>E</b><span>interact · harvest · enter vehicle</span>
       <b>F / G</b><span>eat ration / drink hydro-cell</span>
       <b>ESC</b><span>pause</span>
     </div>
@@ -269,6 +295,7 @@
 <div class="overlay" id="vignette"></div>
 <div class="overlay" id="grain"></div>
 <div class="overlay" id="hurt"></div>
+<div class="overlay" id="chromatic"></div>
 <div class="overlay" id="fade"></div>
 
 <!-- ====== HUD ====== -->
@@ -310,6 +337,14 @@
         <svg viewBox="0 0 24 24"><path d="M3 14 L13 14 L20 10 M13 14 L20 18 M3 11 L3 17 M6 11 L6 17"/><circle cx="21" cy="14" r="1.6"/></svg></div>
       <div class="slot" id="slot2"><span class="k">2</span>
         <svg viewBox="0 0 24 24"><path d="M4 20 L20 20 M6 20 L6 10 L12 6 L18 10 L18 20 M9 20 L9 14 L15 14 L15 20"/></svg></div>
+      <div class="slot" id="slot3"><span class="k">3</span>
+        <svg viewBox="0 0 24 24"><rect x="6" y="4" width="12" height="16" rx="2"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="9" y1="12" x2="15" y2="12"/><circle cx="12" cy="16" r="1.5"/></svg></div>
+      <div class="slot" id="slot4"><span class="k">4</span>
+        <svg viewBox="0 0 24 24"><path d="M6 18 L6 8 L12 4 L18 8 L18 18"/><path d="M10 14 L14 14 L14 18 L10 18Z"/><circle cx="12" cy="10" r="2"/></svg></div>
+      <div class="slot" id="slot5"><span class="k">5</span>
+        <svg viewBox="0 0 24 24"><path d="M12 3 L14 10 L12 21 M12 3 L10 10 L12 21" fill="none"/><path d="M8 8 L16 8 L14 10 L10 10Z"/></svg></div>
+      <div class="slot" id="slot6"><span class="k">6</span>
+        <svg viewBox="0 0 24 24"><path d="M10 20 L10 8 L8 8 L12 3 L16 8 L14 8 L14 20Z"/><path d="M6 6 L4 10 M18 6 L20 10 M8 4 L6 2 M16 4 L18 2" stroke-dasharray="1 1"/></svg></div>
     </div>
     <div id="modInfo"><b id="modName">FOUNDATION</b><br><span id="modCost"></span></div>
     <div id="hint"><b>B</b> BUILD MENU &nbsp;·&nbsp; <b>TAB</b> INVENTORY</div>
@@ -322,6 +357,13 @@
   </svg>
   <div id="prompt"><b>E</b><span id="promptTxt"></span></div>
   <div id="toasts"></div>
+  <div id="missions" class="panel">
+    <h3>MISSIONS</h3>
+    <div id="missionList"></div>
+  </div>
+  <div id="scanOverlay"><div class="scanline"></div></div>
+  <div id="scanInfo"></div>
+  <div id="vehicleHud"><div class="vname">TADPOLE</div><div id="vehO2">O2: 100</div><div id="vehDepth">DEPTH: 0M</div></div>
 </div>
 
 <script type="importmap">
@@ -707,6 +749,12 @@ const MIN_TYPES={
   titanium:{label:'TITANIUM',key:'titanium'},
   copper:{label:'COPPER',key:'copper'},
   quartz:{label:'QUARTZ',key:'quartz'},
+  gold:{label:'GOLD',key:'gold'},
+  silver:{label:'SILVER',key:'silver'},
+  diamond:{label:'DIAMOND',key:'diamond'},
+  lead:{label:'LEAD',key:'lead'},
+  lithium:{label:'LITHIUM',key:'lithium'},
+  magnetite:{label:'MAGNETITE',key:'magnetite'},
 };
 const minerals=[],mineralMeshes=[];
 function spikeCluster(grp,color,emissive,glow){
@@ -726,6 +774,18 @@ function makeMineral(typeKey){
   base.scale.y=.55; grp.add(base);
   if(typeKey==='quartz') spikeCluster(grp,0xbff2ff,0x35b8de,1.7);
   else if(typeKey==='copper') spikeCluster(grp,0xffa050,0xc2551a,1.2);
+  else if(typeKey==='gold') spikeCluster(grp,0xffd700,0xb8960f,1.8);
+  else if(typeKey==='silver') spikeCluster(grp,0xc0c0c0,0x808080,1.0);
+  else if(typeKey==='diamond') spikeCluster(grp,0xe0f0ff,0x88ccff,2.5);
+  else if(typeKey==='lead') {
+    const mat=new THREE.MeshStandardMaterial({color:0x4a4a5a,roughness:.8,metalness:.6,emissive:0x1a1a2a,emissiveIntensity:.3});
+    for(let j=0;j<3;j++){
+      const c=new THREE.Mesh(new THREE.BoxGeometry(rand(.3,.5),rand(.3,.5),rand(.3,.5)),mat);
+      c.position.set(rand(-.6,.6),rand(.2,.6),rand(-.6,.6)); c.rotation.set(rand(0,3),rand(0,3),0); grp.add(c);
+    }
+  }
+  else if(typeKey==='lithium') spikeCluster(grp,0xff88cc,0xcc2288,1.5);
+  else if(typeKey==='magnetite') spikeCluster(grp,0x333333,0x111144,0.8);
   else { // titanium = metallic ore chunks
     const mat=new THREE.MeshStandardMaterial({color:0xd9e2ea,roughness:.3,metalness:.95,emissive:0x2c3940,emissiveIntensity:.4});
     for(let j=0;j<4;j++){
@@ -739,8 +799,8 @@ function makeMineral(typeKey){
   grp.children.forEach(c=>{ c.userData.node=node; mineralMeshes.push(c); });
   scene.add(grp); minerals.push(node);
 }
-const spread=['titanium','titanium','titanium','copper','copper','quartz','quartz'];
-for(let i=0;i<66;i++)makeMineral(spread[i%spread.length]);
+const spread=['titanium','titanium','titanium','copper','copper','quartz','quartz','gold','silver','diamond','lead','lithium','magnetite'];
+for(let i=0;i<100;i++)makeMineral(spread[i%spread.length]);
 
 /* bubble vents */
 const vents=[];
@@ -1036,6 +1096,52 @@ function buildModule(id,ghost){
       const li=new THREE.PointLight(0x8fe9ff,2,24,1.4); li.position.y=3.1; grp.add(li);
       grp.userData.pulseOrb=orb;
     }
+  } else if(id==='largeRoom'){
+    mk(new THREE.BoxGeometry(8,.3,8),baseMat).position.y=.15;
+    for(const sx of [-1,1]){
+      mk(new THREE.BoxGeometry(.2,3.2,8),baseMat2).position.set(sx*4,1.8,0);
+      mk(new THREE.BoxGeometry(8,.2,3.2),baseMat2).position.set(0,1.8,sx*4);
+    }
+    mk(new THREE.BoxGeometry(8.2,.2,8.2),baseMat).position.y=3.5;
+    mk(new THREE.BoxGeometry(8.2,.08,8.2),trimMat).position.y=3.62;
+    if(!ghost){ const li=new THREE.PointLight(0xcfeeff,2.5,16,1.5); li.position.y=3.2; grp.add(li); }
+  } else if(id==='storage'){
+    mk(new THREE.BoxGeometry(1.2,1.8,.5),baseMat).position.y=1.2;
+    mk(new THREE.BoxGeometry(1.3,.06,.55),trimMat).position.y=2.12;
+    mk(new THREE.BoxGeometry(1.3,.06,.55),trimMat).position.y=.32;
+  } else if(id==='solar'){
+    mk(new THREE.CylinderGeometry(.08,.12,6,6),baseMat).position.y=3;
+    mk(new THREE.BoxGeometry(4,.1,3),new THREE.MeshStandardMaterial({color:0x223366,roughness:.2,metalness:.5})).position.y=6.1;
+    mk(new THREE.BoxGeometry(4.1,.06,3.1),trimMat).position.y=6.16;
+  } else if(id==='moonpool'){
+    mk(new THREE.BoxGeometry(10,.3,10),baseMat).position.y=.15;
+    for(const sx of [-1,1]) mk(new THREE.BoxGeometry(.2,3.5,10),baseMat2).position.set(sx*5,1.9,0);
+    mk(new THREE.BoxGeometry(10.2,.2,10.2),baseMat).position.y=3.7;
+    mk(new THREE.TorusGeometry(3,.15,8,20),trimMat).position.y=.2;
+    if(!ghost){ const li=new THREE.PointLight(0x88ddff,2,15); li.position.y=2; grp.add(li); }
+  } else if(id==='bed'){
+    mk(new THREE.BoxGeometry(1.8,.3,3),baseDark).position.set(0,.4,0);
+    mk(new THREE.BoxGeometry(1.8,.5,.3),baseMat).position.set(0,.55,1.35);
+    mk(new THREE.BoxGeometry(1.6,.15,2.8),new THREE.MeshStandardMaterial({color:0x445588,roughness:.9})).position.set(0,.52,-.05);
+  } else if(id==='desk'){
+    mk(new THREE.BoxGeometry(2,.1,1),baseMat).position.y=1.1;
+    mk(new THREE.CylinderGeometry(.06,.06,1.1,6),baseDark).position.set(-.8,.55,.3);
+    mk(new THREE.CylinderGeometry(.06,.06,1.1,6),baseDark).position.set(.8,.55,.3);
+  } else if(id==='planter'){
+    mk(new THREE.BoxGeometry(2,.8,1),baseDark).position.y=.4;
+    mk(new THREE.BoxGeometry(1.8,.3,.8),new THREE.MeshStandardMaterial({color:0x3a5a33,roughness:.9})).position.y=.65;
+  } else if(id==='aquarium'){
+    mk(new THREE.BoxGeometry(2,1.5,1),glassMat).position.y=.95;
+    mk(new THREE.BoxGeometry(2.1,.08,1.1),trimMat).position.y=.2;
+    mk(new THREE.BoxGeometry(2.1,.08,1.1),trimMat).position.y=1.72;
+  } else if(id==='tadpole'){
+    // Vehicle spawns separately
+  } else if(id==='rocket'){
+    mk(new THREE.CylinderGeometry(4,4.5,.5,12),baseMat).position.y=.25;
+    mk(new THREE.CylinderGeometry(4.1,4.1,.1,12),trimMat).position.y=.52;
+    mk(new THREE.CylinderGeometry(.5,.5,8,8),baseMat).position.y=4.5;
+    mk(new THREE.ConeGeometry(1,3,8),new THREE.MeshStandardMaterial({color:0xcc3322,roughness:.3})).position.y=10;
+    if(!ghost){ const li=new THREE.PointLight(0xff6633,3,20); li.position.y=5; grp.add(li); }
   }
   return grp;
 }
@@ -1053,7 +1159,7 @@ function pay(c){ Object.entries(c).forEach(([k,v])=>res[k]-=v); }
 /* ============================================================
    STATE / INPUT / UI FLOW
    ============================================================ */
-const res={titanium:8,copper:3,quartz:3,rations:2,h2o:2};
+const res={titanium:8,copper:3,quartz:3,gold:0,silver:0,diamond:0,lead:0,lithium:0,magnetite:0,rations:2,h2o:2,glass:0,titaniumIngot:0,copperWire:0,fiberMesh:0};
 const stats={hp:100,o2:100,food:100,h2o:100};
 let curTool=1,mouseDown=false,started=false,paused=true,uiOpen=null;
 let lastAlarm=0,hurtFlash=0,whaleT=20;
@@ -1134,6 +1240,17 @@ function renderInventory(){
     mat('g-ti','TITANIUM','Structural alloy. Primary construction material.',res.titanium)+
     mat('g-cu','COPPER','Conductive ore. Powers lights and electronics.',res.copper)+
     mat('g-qz','QUARTZ','Resonant crystal. Pressurization and optics.',res.quartz)+
+    mat('g-ti','GOLD','Precious metal. Advanced electronics.',res.gold)+
+    mat('g-cu','SILVER','Conductive metal. Wiring and components.',res.silver)+
+    mat('g-qz','DIAMOND','Ultra-hard crystal. Cutting tools and optics.',res.diamond)+
+    mat('g-ti','LEAD','Dense metal. Radiation shielding and ballast.',res.lead)+
+    mat('g-cu','LITHIUM','Reactive element. Battery components.',res.lithium)+
+    mat('g-ti','MAGNETITE','Magnetic mineral. Advanced fabrication.',res.magnetite)+
+    `<div class="isec">— CRAFTED</div>`+
+    mat('g-ti','TITANIUM INGOT','Refined titanium. Used in advanced builds.',res.titaniumIngot)+
+    mat('g-cu','COPPER WIRE','Conductive wiring. Electronics component.',res.copperWire)+
+    mat('g-qz','GLASS','Transparent silicate. Viewports and optics.',res.glass)+
+    mat('g-ti','FIBER MESH','Woven material. Comfort and insulation.',res.fiberMesh)+
     `<div class="isec">— CONSUMABLES</div>`+
     `<div class="irow"><div class="igem g-ra"><i></i></div>
       <div class="nm"><b>RATION</b><span>Restores 38 nutrition. From amber pods &amp; reef fish.</span></div>
@@ -1176,8 +1293,7 @@ document.addEventListener('keydown',e=>{
     return;
   }
   if(paused)return;
-  if(e.code==='Digit1'&&curTool!==1){ curTool=1; toolSwitchT=0; updateToolHud(); blip(740,.07,'square',.07); }
-  if(e.code==='Digit2'&&curTool!==2){ curTool=2; toolSwitchT=0; updateToolHud(); blip(840,.07,'square',.07); }
+  for(let ti=1;ti<=6;ti++) if(e.code==='Digit'+ti&&curTool!==ti){ curTool=ti; toolSwitchT=0; updateToolHud(); blip(640+ti*40,.07,'square',.07); }
   if(e.code==='KeyB')openUI('build');
   if(e.code==='Tab')openUI('inv');
   if(e.code==='KeyR'&&curTool===2){ modRot=(modRot+Math.PI/4)%(Math.PI*2); blip(520,.04,'square',.05); }
@@ -1197,10 +1313,10 @@ function toast(msg){
   $('toasts').appendChild(d); setTimeout(()=>d.remove(),3900);
   while($('toasts').children.length>4)$('toasts').firstChild.remove();
 }
+const TOOL_NAMES={1:'THERMAL LANCE',2:'FABRICATOR',3:'SCANNER',4:'REPAIR TOOL',5:'KNIFE',6:'FLASHLIGHT'};
 function updateToolHud(){
-  $('toolName').textContent=curTool===1?'THERMAL LANCE':'FABRICATOR';
-  $('slot1').classList.toggle('on',curTool===1);
-  $('slot2').classList.toggle('on',curTool===2);
+  $('toolName').textContent=TOOL_NAMES[curTool]||'UNKNOWN';
+  for(let i=1;i<=6;i++){ const s=$('slot'+i); if(s)s.classList.toggle('on',curTool===i); }
   $('modInfo').style.display=curTool===2?'block':'none';
   const m=MODULES[modIndex];
   $('modName').textContent=m.name;
@@ -1239,9 +1355,7 @@ function hudTick(){
   const sv=$('statusVal'); sv.classList.remove('int','surf');
   if(insideBase){ sv.textContent='HABITAT · PRESSURIZED'; sv.classList.add('int'); }
   else if(camWorld.y>-.3){ sv.textContent='SURFACE'; sv.classList.add('surf'); }
-  else if(d<18)sv.textContent='SUNLIT SHALLOWS';
-  else if(d<32)sv.textContent='KELP TERRACES';
-  else sv.textContent='ABYSSAL SHELF';
+  else { const biome=getBiome(d); sv.textContent=biome.name; }
   $('deepTint').style.opacity=insideBase?0:clamp((d-12)/42,0,.85);
   const heading=((Math.atan2(camDir.x,-camDir.z)*180/Math.PI)%360+360)%360;
   $('compInner').style.transform=`translateX(${180-(heading+180)*3}px)`;
@@ -1284,6 +1398,318 @@ function tryInteract(){
 }
 
 /* ============================================================
+   BIOME SYSTEM
+   ============================================================ */
+const BIOMES=[
+  {name:'SHALLOW REEF',minD:0,maxD:15,fog:new THREE.Color(0x0a6890),den:.01,light:1.0},
+  {name:'KELP FOREST',minD:15,maxD:30,fog:new THREE.Color(0x064a3a),den:.018,light:.7},
+  {name:'DEEP REEF',minD:30,maxD:50,fog:new THREE.Color(0x031a2e),den:.025,light:.35},
+  {name:'ABYSS',minD:50,maxD:80,fog:new THREE.Color(0x010810),den:.04,light:.12},
+  {name:'THE VOID',minD:80,maxD:999,fog:new THREE.Color(0x000204),den:.06,light:.04},
+];
+function getBiome(depth){
+  for(const b of BIOMES) if(depth>=b.minD&&depth<b.maxD) return b;
+  return BIOMES[BIOMES.length-1];
+}
+
+/* ============================================================
+   MISSION SYSTEM
+   ============================================================ */
+const MISSION_LIST=[
+  {id:'survive',name:'SURVIVE',desc:'Gather your first resources',check:()=>res.titanium>=3&&res.copper>=1},
+  {id:'base',name:'ESTABLISH BASE',desc:'Build your first habitat pod',check:()=>placed.some(b=>b.id==='room')},
+  {id:'deeper',name:'GO DEEPER',desc:'Explore below 40m depth',check:()=>missionState.maxDepth>=40},
+  {id:'scan5',name:'SCAN THE UNKNOWN',desc:'Scan 5 creatures',check:()=>missionState.scanned>=5},
+  {id:'signal',name:'THE SIGNAL',desc:'Find the beacon at depth 60m',check:()=>missionState.foundBeacon},
+  {id:'leviathan',name:"LEVIATHAN'S DOMAIN",desc:'Survive a leviathan encounter',check:()=>missionState.leviathanEncounter},
+  {id:'vehicle',name:'BUILD THE TADPOLE',desc:'Craft the submersible vehicle',check:()=>missionState.builtVehicle},
+  {id:'abyss',name:'THE ABYSS',desc:'Reach 80m depth',check:()=>missionState.maxDepth>=80},
+  {id:'data',name:'ANCIENT DATA',desc:'Find 3 data terminals in the deep',check:()=>missionState.dataFound>=3},
+  {id:'escape',name:'ESCAPE',desc:'Build the rocket platform',check:()=>missionState.rocketBuilt},
+];
+const missionState={maxDepth:0,scanned:0,foundBeacon:false,leviathanEncounter:false,builtVehicle:false,dataFound:0,rocketBuilt:false,curMission:0};
+let lastMissionCheck=0;
+function updateMissions(){
+  const list=$('missionList'); if(!list)return;
+  let html='';
+  for(let i=0;i<=Math.min(missionState.curMission+1,MISSION_LIST.length-1);i++){
+    const m=MISSION_LIST[i];
+    const done=i<missionState.curMission, active=i===missionState.curMission;
+    html+=`<div class="mission${done?' done':''}${active?' active':''}">${i+1}. ${m.name}<div class="obj">${m.desc}</div></div>`;
+  }
+  list.innerHTML=html;
+  if(missionState.curMission<MISSION_LIST.length&&MISSION_LIST[missionState.curMission].check()){
+    toast('MISSION COMPLETE: '+MISSION_LIST[missionState.curMission].name);
+    blip(440,.3,'sine',.15); blip(660,.2,'sine',.12);
+    missionState.curMission++;
+    if(missionState.curMission<MISSION_LIST.length)
+      setTimeout(()=>toast('NEW OBJECTIVE: '+MISSION_LIST[missionState.curMission].name),3000);
+  }
+}
+
+/* ============================================================
+   LEVIATHAN
+   ============================================================ */
+const leviathanGroup=new THREE.Group();
+const levSegments=[];
+{
+  const headMat=new THREE.MeshStandardMaterial({color:0x1a3344,roughness:.6,metalness:.3,emissive:0x0a1a2a,emissiveIntensity:.5});
+  const bodyMat2=new THREE.MeshStandardMaterial({color:0x152833,roughness:.7,metalness:.2,emissive:0x081520,emissiveIntensity:.3});
+  const eyeMat2=new THREE.MeshStandardMaterial({color:0xff2020,emissive:0xff0000,emissiveIntensity:3});
+  const head=new THREE.Mesh(new THREE.SphereGeometry(2.5,12,10),headMat);
+  head.scale.set(1,.7,1.3); leviathanGroup.add(head);
+  for(const sx of [-1,1]){
+    const eye=new THREE.Mesh(new THREE.SphereGeometry(.35,8,6),eyeMat2);
+    eye.position.set(sx*1.6,.4,2.2); leviathanGroup.add(eye);
+  }
+  const jaw=new THREE.Mesh(new THREE.ConeGeometry(1.8,2,8,1,true),headMat);
+  jaw.rotation.x=Math.PI/2; jaw.position.set(0,-.5,2.5); leviathanGroup.add(jaw);
+  for(let i=0;i<12;i++){
+    const r=2.2-i*.12;
+    const seg=new THREE.Mesh(new THREE.CylinderGeometry(r,r-.05,2.8,10),bodyMat2);
+    seg.rotation.x=Math.PI/2; seg.position.z=-i*2.6;
+    if(i%3===0){
+      const finMat2=new THREE.MeshStandardMaterial({color:0x1a4455,roughness:.5,transparent:true,opacity:.7,side:THREE.DoubleSide});
+      for(const sx of [-1,1]){
+        const fin=new THREE.Mesh(new THREE.PlaneGeometry(3,1.5),finMat2);
+        fin.position.set(sx*(r+.5),0,0); fin.rotation.y=sx*Math.PI/4; seg.add(fin);
+      }
+    }
+    leviathanGroup.add(seg); levSegments.push(seg);
+  }
+  const tailFin2=new THREE.Mesh(new THREE.PlaneGeometry(4,3),new THREE.MeshStandardMaterial({
+    color:0x1a3344,roughness:.5,transparent:true,opacity:.7,side:THREE.DoubleSide}));
+  tailFin2.position.z=-12*2.6; tailFin2.rotation.y=Math.PI/2; leviathanGroup.add(tailFin2);
+  leviathanGroup.position.set(0,-65,0); scene.add(leviathanGroup);
+}
+let levAngle=0,levRoarCd=0;
+function leviathanRoar(){
+  if(!AC)return;
+  const t0=AC.currentTime,o=AC.createOscillator(),g=AC.createGain();
+  o.type='sawtooth'; o.frequency.setValueAtTime(35,t0);
+  o.frequency.exponentialRampToValueAtTime(80,t0+.5);
+  o.frequency.exponentialRampToValueAtTime(25,t0+2);
+  g.gain.setValueAtTime(0,t0); g.gain.linearRampToValueAtTime(.12,t0+.3);
+  g.gain.linearRampToValueAtTime(0,t0+2.2);
+  o.connect(g); g.connect(master); o.start(t0); o.stop(t0+2.3);
+}
+
+/* ============================================================
+   TADPOLE VEHICLE
+   ============================================================ */
+const vehicleGroup=new THREE.Group();
+let vehicleBuilt=false, inVehicle=false, vehicleO2=100;
+{
+  const hullMat=new THREE.MeshStandardMaterial({color:0xd0dde5,roughness:.25,metalness:.7});
+  const glassMat3=new THREE.MeshStandardMaterial({color:0x88ddff,roughness:.05,metalness:.1,transparent:true,opacity:.3});
+  const accentMat=new THREE.MeshStandardMaterial({color:0x44aacc,emissive:0x22aadd,emissiveIntensity:1.2,roughness:.3});
+  const hull=new THREE.Mesh(new THREE.CapsuleGeometry(1.5,3,12,18),hullMat);
+  hull.rotation.z=Math.PI/2; vehicleGroup.add(hull);
+  const vGlass=new THREE.Mesh(new THREE.SphereGeometry(1.3,16,12,0,Math.PI*2,0,Math.PI/2),glassMat3);
+  vGlass.rotation.x=-Math.PI/2; vGlass.position.z=1.5; vehicleGroup.add(vGlass);
+  for(const sx of [-1,1]){
+    const fin=new THREE.Mesh(new THREE.BoxGeometry(.1,1.5,1.2),hullMat);
+    fin.position.set(sx*1.8,-.3,-.5); fin.rotation.z=sx*.3; vehicleGroup.add(fin);
+  }
+  const vTail=new THREE.Mesh(new THREE.BoxGeometry(.1,1.8,1),hullMat);
+  vTail.position.set(0,.2,-2.5); vehicleGroup.add(vTail);
+  const eng=new THREE.Mesh(new THREE.CylinderGeometry(.5,.3,.6,10),accentMat);
+  eng.rotation.x=Math.PI/2; eng.position.z=-2.8; vehicleGroup.add(eng);
+  for(const sx of [-1,1]){
+    const vl=new THREE.Mesh(new THREE.SphereGeometry(.15,8,6),new THREE.MeshStandardMaterial({
+      color:0xffffff,emissive:0xffeedd,emissiveIntensity:3}));
+    vl.position.set(sx*.8,0,2.2); vehicleGroup.add(vl);
+  }
+  const vehLight=new THREE.PointLight(0xddeeff,3,25); vehLight.position.z=2.5; vehicleGroup.add(vehLight);
+  vehicleGroup.position.set(5,-8,25); vehicleGroup.visible=false; scene.add(vehicleGroup);
+}
+
+/* ============================================================
+   MORE FISH SPECIES
+   ============================================================ */
+const peeperTex=fishTexture('#1a3a5a','#ffee88','#ff6622');
+const boomerangTex=fishTexture('#667788','#aabbcc','#445566');
+const stalkerTex=fishTexture('#2a2a3a','#556677','#334455');
+const peepers=[];
+for(let i=0;i<12;i++){
+  const f=makeFish(rand(.6,.9),peeperTex,0xffcc44);
+  const cx=rand(-160,160),cz=rand(-160,160);
+  f.userData.a={c:V3(cx,clamp(terrainHeight(cx,cz)+rand(5,12),-45,-5),cz),r:rand(4,10),w:rand(.4,.8)*(Math.random()<.5?-1:1),ph:rand(0,9),alive:true,respawn:0};
+  const glowL=new THREE.PointLight(0xffaa22,.8,6); glowL.position.z=.3; f.add(glowL);
+  scene.add(f); peepers.push(f);
+}
+const boomerangs=[];
+for(let i=0;i<8;i++){
+  const f=makeFish(rand(.5,.7),boomerangTex,0x8899aa);
+  f.scale.y=.4;
+  const cx=rand(-140,140),cz=rand(-140,140);
+  f.userData.a={c:V3(cx,clamp(terrainHeight(cx,cz)+rand(3,8),-40,-5),cz),r:rand(5,12),w:rand(.3,.6)*(Math.random()<.5?-1:1),ph:rand(0,9),alive:true,respawn:0};
+  scene.add(f); boomerangs.push(f);
+}
+const gasopods=[];
+for(let i=0;i<3;i++){
+  const f=makeFish(rand(2.5,3.5),fishTexture('#3a5a2a','#88aa66','#556633'),0x88aa44);
+  const cx=rand(-120,120),cz=rand(-120,120);
+  f.userData.a={c:V3(cx,clamp(terrainHeight(cx,cz)+rand(4,8),-35,-8),cz),r:rand(8,16),w:rand(.15,.3)*(Math.random()<.5?-1:1),ph:rand(0,9),alive:true,respawn:0};
+  f.userData.toxic=true;
+  scene.add(f); gasopods.push(f);
+}
+const stalkers=[];
+for(let i=0;i<5;i++){
+  const f=makeFish(rand(1.8,2.5),stalkerTex,0x556677);
+  const cx=rand(-160,160),cz=rand(-160,160);
+  f.userData.a={c:V3(cx,clamp(terrainHeight(cx,cz)+rand(5,12),-50,-8),cz),r:rand(6,14),w:rand(.4,.7)*(Math.random()<.5?-1:1),ph:rand(0,9),alive:true,respawn:0};
+  f.userData.predator=true;
+  scene.add(f); stalkers.push(f);
+}
+
+/* ============================================================
+   SCANNER STATE
+   ============================================================ */
+let scanning=false,scanTarget=null,scanProgress=0;
+const scannedSet=new Set();
+
+/* ============================================================
+   DATA TERMINALS
+   ============================================================ */
+const dataTerminals=[];
+{let dtAttempts=0;
+for(let i=0;i<5&&dtAttempts<200;dtAttempts++){
+  const x=rand(-150,150),z=rand(-150,150),ty=terrainHeight(x,z);
+  if(ty>-40)continue;
+  const grp=new THREE.Group();
+  grp.add(new THREE.Mesh(new THREE.CylinderGeometry(.5,.6,.3,8),new THREE.MeshStandardMaterial({color:0x222233,roughness:.5,metalness:.7})));
+  const pillar=new THREE.Mesh(new THREE.CylinderGeometry(.15,.15,2,6),new THREE.MeshStandardMaterial({color:0x334455,roughness:.4,metalness:.5}));
+  pillar.position.y=1.15; grp.add(pillar);
+  const scr=new THREE.Mesh(new THREE.BoxGeometry(.8,.6,.1),new THREE.MeshStandardMaterial({color:0x00ffaa,emissive:0x00ffaa,emissiveIntensity:2.5}));
+  scr.position.y=2; grp.add(scr);
+  const gl=new THREE.PointLight(0x00ffaa,1.5,12); gl.position.y=2; grp.add(gl);
+  grp.position.set(x,ty,z); grp.userData={kind:'terminal',collected:false};
+  scene.add(grp); dataTerminals.push(grp); i++;
+}}
+
+/* ============================================================
+   DEEP SIGNAL BEACON
+   ============================================================ */
+const signalBeacon=(()=>{
+  const grp=new THREE.Group();
+  grp.add(new THREE.Mesh(new THREE.CylinderGeometry(.4,.5,.4,8),new THREE.MeshStandardMaterial({color:0x445566,roughness:.4,metalness:.6})));
+  const pole=new THREE.Mesh(new THREE.CylinderGeometry(.08,.08,3,6),baseMat);
+  pole.position.y=1.7; grp.add(pole);
+  const orb=new THREE.Mesh(new THREE.SphereGeometry(.4,12,10),new THREE.MeshStandardMaterial({color:0xff4400,emissive:0xff4400,emissiveIntensity:3}));
+  orb.position.y=3.4; grp.add(orb);
+  const li=new THREE.PointLight(0xff4400,2,20); li.position.y=3.4; grp.add(li);
+  let bx,bz,by; do{ bx=rand(-80,80); bz=rand(-80,80); by=terrainHeight(bx,bz); }while(by>-55);
+  grp.position.set(bx,by,bz); grp.userData={kind:'beacon'};
+  scene.add(grp); return grp;
+})();
+
+/* ============================================================
+   STARTER BASE
+   ============================================================ */
+{
+  const sf=buildModule('foundation',false);
+  sf.position.set(8,-8.5,22); scene.add(sf);
+  placed.push({id:'foundation',x:8,y:-8.5,z:22,rot:0,grp:sf});
+  const tg2=new THREE.PlaneGeometry(6,6); tg2.rotateX(-Math.PI/2);
+  const top2=new THREE.Mesh(tg2,new THREE.MeshBasicMaterial({visible:false}));
+  top2.position.set(8,-8.07,22); scene.add(top2); foundationTops.push(top2);
+  const sr=buildModule('room',false);
+  sr.position.set(8,-8.07,22); scene.add(sr);
+  placed.push({id:'room',x:8,y:-8.07,z:22,rot:0,grp:sr});
+}
+
+/* ============================================================
+   MORE CORAL TYPES
+   ============================================================ */
+const fireCorals=[];
+{
+  const branchMat2=new THREE.MeshStandardMaterial({color:0xff6688,roughness:.6,emissive:0x881133,emissiveIntensity:.4});
+  for(let i=0;i<20;i++){
+    const x=rand(-190,190),z=rand(-190,190),y=terrainHeight(x,z);
+    if(y<-40)continue;
+    const grp=new THREE.Group(); grp.position.set(x,y,z);
+    const th=rand(1.5,3);
+    const trunk=new THREE.Mesh(new THREE.CylinderGeometry(.08,.15,th,6),branchMat2);
+    trunk.position.y=th/2; grp.add(trunk);
+    for(let j=0;j<4+Math.floor(Math.random()*4);j++){
+      const bh=rand(.8,1.8);
+      const br=new THREE.Mesh(new THREE.CylinderGeometry(.03,.07,bh,5),branchMat2);
+      br.position.set(rand(-.3,.3),rand(1,2.5),rand(-.3,.3));
+      br.rotation.set(rand(-.5,.5),rand(0,3),rand(-.5,.5)); grp.add(br);
+    }
+    scene.add(grp);
+  }
+  const plateMat2=new THREE.MeshStandardMaterial({color:0x44bbaa,roughness:.5,emissive:0x117766,emissiveIntensity:.3,side:THREE.DoubleSide});
+  for(let i=0;i<16;i++){
+    const x=rand(-185,185),z=rand(-185,185),y=terrainHeight(x,z);
+    const pl=new THREE.Mesh(new THREE.CylinderGeometry(rand(1,2.5),.2,.15,12),plateMat2);
+    pl.position.set(x,y+.1,z); pl.rotation.set(rand(-.2,.2),rand(0,3),rand(-.2,.2));
+    scene.add(pl);
+  }
+  const mushMat2=new THREE.MeshStandardMaterial({color:0xddaa55,roughness:.7,emissive:0x553311,emissiveIntensity:.2});
+  for(let i=0;i<14;i++){
+    const x=rand(-185,185),z=rand(-185,185),y=terrainHeight(x,z);
+    const grp=new THREE.Group(); grp.position.set(x,y,z);
+    const sh=rand(.8,1.5);
+    const stem=new THREE.Mesh(new THREE.CylinderGeometry(.12,.18,sh,7),mushMat2);
+    stem.position.y=sh/2; grp.add(stem);
+    const cap=new THREE.Mesh(new THREE.SphereGeometry(rand(.5,1.2),10,8,0,Math.PI*2,0,Math.PI/2),mushMat2);
+    cap.position.y=sh; cap.scale.y=.5; grp.add(cap);
+    scene.add(grp);
+  }
+  const fireMat2=new THREE.MeshStandardMaterial({color:0xff3300,roughness:.4,emissive:0xff2200,emissiveIntensity:1.5});
+  for(let i=0;i<10;i++){
+    const x=rand(-180,180),z=rand(-180,180),y=terrainHeight(x,z);
+    const grp=new THREE.Group(); grp.position.set(x,y,z);
+    for(let j=0;j<5+Math.floor(Math.random()*4);j++){
+      const bh2=rand(.6,1.4);
+      const blade=new THREE.Mesh(new THREE.BoxGeometry(.08,bh2,.3),fireMat2);
+      blade.position.set(rand(-.5,.5),bh2/2,rand(-.5,.5));
+      blade.rotation.set(rand(-.2,.2),rand(0,3),rand(-.2,.2)); grp.add(blade);
+    }
+    grp.userData={kind:'fireCoral'};
+    scene.add(grp); fireCorals.push(grp);
+  }
+}
+
+/* ============================================================
+   ADDITIONAL BUILD MODULES
+   ============================================================ */
+MODULES.push(
+  {id:'largeRoom',name:'LARGE ROOM',cost:{titanium:5,quartz:2},enter:true,
+   desc:'Spacious pressurized chamber with reinforced hull.',
+   icon:'<svg viewBox="0 0 54 46"><rect x="7" y="8" width="40" height="30" rx="3"/><path d="M7 22 L47 22 M23 22 L23 38 M31 22 L31 38"/></svg>'},
+  {id:'storage',name:'STORAGE LOCKER',cost:{titanium:2},enter:false,
+   desc:'Wall-mounted cargo container.',
+   icon:'<svg viewBox="0 0 54 46"><rect x="12" y="6" width="30" height="34"/><line x1="12" y1="20" x2="42" y2="20"/><line x1="27" y1="6" x2="27" y2="40"/></svg>'},
+  {id:'solar',name:'SOLAR PANEL',cost:{quartz:2,copper:1},enter:false,
+   desc:'Surface-tethered photovoltaic array.',
+   icon:'<svg viewBox="0 0 54 46"><path d="M27 38 L27 20 M17 38 L37 38"/><rect x="12" y="8" width="30" height="14" rx="1"/><line x1="22" y1="8" x2="22" y2="22"/><line x1="32" y1="8" x2="32" y2="22"/></svg>'},
+  {id:'moonpool',name:'MOONPOOL',cost:{titanium:4,lead:2},enter:true,
+   desc:'Vehicle docking bay with moon pool opening.',
+   icon:'<svg viewBox="0 0 54 46"><rect x="8" y="6" width="38" height="34" rx="2"/><ellipse cx="27" cy="30" rx="12" ry="6"/></svg>'},
+  {id:'bed',name:'BED',cost:{titanium:1},enter:false,
+   desc:'Rest station for saving progress.',
+   icon:'<svg viewBox="0 0 54 46"><path d="M6 32 L48 32 L48 24 L28 24 L28 18 L6 18Z M6 32 L6 38 M48 32 L48 38"/></svg>'},
+  {id:'desk',name:'DESK',cost:{titanium:1},enter:false,
+   desc:'Work surface for planning.',
+   icon:'<svg viewBox="0 0 54 46"><path d="M8 22 L46 22 L46 18 L8 18Z M12 22 L12 36 M42 22 L42 36"/></svg>'},
+  {id:'planter',name:'PLANTER',cost:{titanium:1},enter:false,
+   desc:'Hydroponic bed for growing food.',
+   icon:'<svg viewBox="0 0 54 46"><path d="M10 28 L44 28 L40 38 L14 38Z"/><path d="M20 28 L22 16 M27 28 L27 12 M34 28 L32 18"/></svg>'},
+  {id:'aquarium',name:'AQUARIUM',cost:{quartz:3,titanium:1},enter:false,
+   desc:'Observation tank for captured fauna.',
+   icon:'<svg viewBox="0 0 54 46"><rect x="8" y="8" width="38" height="28" rx="2"/><path d="M18 22 Q22 18 26 22 Q30 26 34 22"/></svg>'},
+  {id:'tadpole',name:'TADPOLE SUB',cost:{titanium:6,copper:3,quartz:2,lead:2},enter:false,
+   desc:'Personal submersible with headlights and O2 supply.',
+   icon:'<svg viewBox="0 0 54 46"><ellipse cx="27" cy="23" rx="18" ry="10"/><path d="M9 23 Q9 13 27 13 Q45 13 45 23"/></svg>'},
+  {id:'rocket',name:'ROCKET PLATFORM',cost:{titanium:10,diamond:3,gold:2,copper:4},enter:false,
+   desc:'Escape vehicle launch pad. Build to complete the mission.',
+   icon:'<svg viewBox="0 0 54 46"><path d="M27 4 L32 18 L32 36 L22 36 L22 18Z"/><path d="M22 36 L18 42 M32 36 L36 42"/><path d="M24 28 L30 28 L30 32 L24 32Z"/></svg>'},
+);
+
+/* ============================================================
    MAIN LOOP
    ============================================================ */
 const clock=new THREE.Clock();
@@ -1314,7 +1740,7 @@ function animate(){
     camera.getWorldDirection(FWD);
     RIGHT.crossVectors(FWD,UP).normalize();
     const boost=keys.ShiftLeft||keys.ShiftRight;
-    const sp=(underwater?26:9)*(boost?1.85:1);
+    const sp=(underwater?(inVehicle?42:26):9)*(boost?1.85:1);
     tmpV.set(0,0,0);
     if(keys.KeyW)tmpV.add(FWD); if(keys.KeyS)tmpV.sub(FWD);
     if(keys.KeyD)tmpV.add(RIGHT); if(keys.KeyA)tmpV.sub(RIGHT);
@@ -1382,14 +1808,18 @@ function animate(){
   hurtFlash=Math.max(0,hurtFlash-dt*1.2);
   $('hurt').style.opacity=hurtFlash;
 
-  /* atmosphere */
-  const targCol=underwater?UW_FOG:SF_FOG;
-  const targDen=insideBase?IN_DEN:(underwater?UW_DEN:SF_DEN);
+  /* atmosphere + biome */
+  const curDepth=Math.max(0,-camWorld.y);
+  const biome=getBiome(curDepth);
+  if(curDepth>missionState.maxDepth) missionState.maxDepth=curDepth;
+  const targCol=underwater?biome.fog:SF_FOG;
+  const targDen=insideBase?IN_DEN:(underwater?biome.den:SF_DEN);
   fogColCur.lerp(targCol,1-Math.pow(.02,dt));
   fogDenCur=lerp(fogDenCur,targDen,1-Math.pow(.02,dt));
   scene.fog.color.copy(fogColCur); scene.fog.density=fogDenCur;
   scene.background=scene.fog.color;
-  hemi.intensity=underwater?lerp(1,.42,clamp(-camWorld.y/46,0,1)):1.15;
+  if($('chromatic'))$('chromatic').style.opacity=clamp((curDepth-30)/50,0,.6);
+  hemi.intensity=underwater?biome.light:1.15;
   sun.intensity=underwater?1.8:2.5;
   if(AC&&ambGain)ambGain.gain.value=insideBase?.1:(underwater?.4:.18);
 
