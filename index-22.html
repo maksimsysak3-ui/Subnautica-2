@@ -1394,6 +1394,22 @@ function tryInteract(){
     nf.u.alive=false; nf.u.respawn=45; nf.f.visible=false;
     res.rations++; toast('REEF FISH CAUGHT — RATION +1');
     blip(660,.1,'triangle',.1); spawnSparks(nf.f.position,8,true); bubbleSnd();
+    return;
+  }
+  // data terminals
+  for(const dt2 of dataTerminals){
+    if(dt2.userData.collected)continue;
+    if(camWorld.distanceTo(dt2.position)<4){
+      dt2.userData.collected=true; missionState.dataFound++;
+      dt2.visible=false;
+      toast('DATA TERMINAL ACCESSED — ANCIENT RECORDS ('+missionState.dataFound+'/3)');
+      blip(660,.3,'sine',.12); return;
+    }
+  }
+  // vehicle enter/exit
+  if(vehicleBuilt){
+    if(inVehicle){ inVehicle=false; toast('EXITED TADPOLE'); return; }
+    if(camWorld.distanceTo(vehicleGroup.position)<5){ inVehicle=true; toast('ENTERED TADPOLE — VEHICLE O2 ACTIVE'); blip(440,.15,'sine',.1); return; }
   }
 }
 
@@ -1979,6 +1995,125 @@ function animate(){
   }
   $('prompt').style.opacity=prompt?1:0;
   if(prompt)$('promptTxt').textContent=' '+prompt;
+
+  /* leviathan AI */
+  if(started&&!paused){
+    levAngle+=dt*.15;
+    const levR=60,levDepth=-62;
+    const levX=Math.cos(levAngle)*levR,levZ=Math.sin(levAngle)*levR;
+    leviathanGroup.position.set(levX,levDepth,levZ);
+    leviathanGroup.lookAt(Math.cos(levAngle+.1)*levR,levDepth,Math.sin(levAngle+.1)*levR);
+    for(let i=0;i<levSegments.length;i++){
+      levSegments[i].position.x=Math.sin(t*2+i*.5)*.8;
+      levSegments[i].position.y=Math.cos(t*1.5+i*.4)*.4;
+    }
+    const levDist=camWorld.distanceTo(leviathanGroup.position);
+    if(levDist<25&&curDepth>40){
+      missionState.leviathanEncounter=true;
+      const chaseDir=new THREE.Vector3().subVectors(camWorld,leviathanGroup.position).normalize();
+      leviathanGroup.position.addScaledVector(chaseDir,dt*8);
+      leviathanGroup.lookAt(camWorld);
+      if(levDist<6){ stats.hp=clamp(stats.hp-25*dt,0,100); hurtFlash=Math.max(hurtFlash,.8); camera.position.x=rand(-.1,.1); camera.position.y=rand(-.1,.1); }
+      levRoarCd-=dt; if(levRoarCd<=0){ leviathanRoar(); levRoarCd=4; }
+    }
+  }
+
+  /* vehicle */
+  if(started&&!paused){
+    if($('vehicleHud'))$('vehicleHud').style.opacity=inVehicle?1:0;
+    if(inVehicle){
+      vehicleGroup.position.copy(player.position); vehicleGroup.rotation.copy(player.rotation);
+      if($('vehO2'))$('vehO2').textContent='O2: '+Math.ceil(vehicleO2);
+      if($('vehDepth'))$('vehDepth').textContent='DEPTH: '+Math.max(0,-player.position.y).toFixed(0)+'M';
+      vehicleO2=clamp(vehicleO2-dt*(100/300),0,100);
+      if(vehicleO2>0) stats.o2=100;
+    }
+    if(!inVehicle&&vehicleBuilt){
+      const vDist=camWorld.distanceTo(vehicleGroup.position);
+      if(vDist<5&&!prompt){ prompt='ENTER TADPOLE'; }
+    }
+  }
+
+  /* scanner */
+  if(started&&!paused&&curTool===3){
+    if($('scanOverlay'))$('scanOverlay').style.opacity=mouseDown?.8:0;
+    if(mouseDown){
+      raycaster.setFromCamera({x:0,y:0},camera); raycaster.far=12;
+      const allFish=[...school,...ambient,...peepers,...boomerangs,...gasopods,...stalkers];
+      const fishMeshes=[];
+      allFish.forEach(f=>{ if(f.visible) f.traverse(c=>{ if(c.isMesh)fishMeshes.push(c); }); });
+      const sh=raycaster.intersectObjects(fishMeshes,false)[0];
+      if(sh){
+        scanProgress+=dt*33;
+        if(scanProgress>=100){
+          const names=['AZURE JACK','AMBER REEF','ROSE FIN','PEEPER','BOOMERANG','GASOPOD','STALKER'];
+          const info=['Common schooling fish','Solitary reef dweller','Colorful reef species','Bioluminescent prey','Flat bottom-feeder','Large toxic herbivore','Aggressive predator'];
+          const idx=Math.floor(Math.random()*names.length);
+          if(!scannedSet.has(idx)){ scannedSet.add(idx); missionState.scanned=scannedSet.size; }
+          toast('SCANNED: '+names[idx]+' — '+info[idx]); blip(880,.15,'sine',.1); scanProgress=0;
+        }
+      } else {
+        const mh=raycaster.intersectObjects(mineralMeshes,false)[0];
+        if(mh&&mh.object.userData.node){ scanProgress+=dt*50; if(scanProgress>=100){ const n=mh.object.userData.node; toast('SCANNED: '+MIN_TYPES[n.type].label+' NODE'); blip(880,.15,'sine',.1); scanProgress=0; } }
+        else scanProgress=Math.max(0,scanProgress-dt*60);
+      }
+    } else scanProgress=Math.max(0,scanProgress-dt*80);
+  } else { if($('scanOverlay'))$('scanOverlay').style.opacity=0; }
+
+  /* knife */
+  if(started&&!paused&&curTool===5&&mouseDown){
+    const ld=camWorld.distanceTo(leviathanGroup.position);
+    if(ld<5){ const pd=new THREE.Vector3().subVectors(leviathanGroup.position,camWorld).normalize(); leviathanGroup.position.addScaledVector(pd,dt*15); spawnSparks(camWorld.clone().add(camDir.clone().multiplyScalar(2)),3,false); }
+  }
+
+  /* flashlight */
+  if(curTool===6){
+    if(!toolRoot.userData.flashlight){
+      const fl=new THREE.SpotLight(0xffeedd,5,40,Math.PI/5,.3);
+      fl.target.position.set(0,0,-5); camera.add(fl); camera.add(fl.target);
+      toolRoot.userData.flashlight=fl;
+    }
+    toolRoot.userData.flashlight.visible=true;
+  } else if(toolRoot.userData.flashlight) toolRoot.userData.flashlight.visible=false;
+
+  /* extra fish animation */
+  for(const arr of [peepers,boomerangs,gasopods,stalkers]){
+    for(const f of arr){
+      const u=f.userData.a,an=f.userData.anim;
+      if(!u||!an)continue;
+      if(!u.alive){ u.respawn-=dt; if(u.respawn<=0){u.alive=true;f.visible=true;} continue; }
+      const a=u.w*t+u.ph;
+      f.position.set(u.c.x+Math.cos(a)*u.r,u.c.y+Math.sin(t*.7+u.ph)*1.2,u.c.z+Math.sin(a)*u.r);
+      f.lookAt(f.position.x-Math.sin(a)*u.w,f.position.y+Math.cos(t*.7+u.ph)*.2,f.position.z+Math.cos(a)*u.w);
+      an.tailPivot.rotation.y=Math.sin(t*10+an.ph)*.55;
+      an.finL.rotation.z=.7+Math.sin(t*6+an.ph)*.3;
+      an.finR.rotation.z=-.7-Math.sin(t*6+an.ph)*.3;
+      if(f.userData.predator){
+        const sd=f.position.distanceTo(camWorld);
+        if(sd<8){ const ch=new THREE.Vector3().subVectors(camWorld,f.position).normalize(); f.position.addScaledVector(ch,dt*3); f.lookAt(camWorld); if(sd<2.5){ stats.hp=clamp(stats.hp-8*dt,0,100); hurtFlash=Math.max(hurtFlash,.4); } }
+      }
+      if(f.userData.toxic){ const gd=f.position.distanceTo(camWorld); if(gd<6){ stats.hp=clamp(stats.hp-3*dt,0,100); } }
+    }
+  }
+
+  /* fire coral damage */
+  for(const fc of fireCorals){ if(camWorld.distanceTo(fc.position)<2){ stats.hp=clamp(stats.hp-5*dt,0,100); hurtFlash=Math.max(hurtFlash,.3); } }
+
+  /* data terminal + signal beacon */
+  for(const dt3 of dataTerminals){ if(!dt3.userData.collected&&camWorld.distanceTo(dt3.position)<4&&!prompt){ prompt='DOWNLOAD DATA'; } }
+  if(signalBeacon&&!missionState.foundBeacon&&camWorld.distanceTo(signalBeacon.position)<5){ missionState.foundBeacon=true; toast('SIGNAL SOURCE FOUND — ALIEN BEACON DETECTED'); blip(440,.4,'sine',.15); }
+
+  /* vehicle/rocket build detection */
+  if(started) for(const b of placed){
+    if(b.id==='tadpole'&&!vehicleBuilt){ vehicleBuilt=true; vehicleGroup.visible=true; vehicleGroup.position.set(b.x,b.y+2,b.z); missionState.builtVehicle=true; toast('TADPOLE SUBMERSIBLE DEPLOYED'); }
+    if(b.id==='rocket'&&!missionState.rocketBuilt){ missionState.rocketBuilt=true; toast('ROCKET PLATFORM COMPLETE — MISSION ACCOMPLISHED!'); blip(440,.5,'sine',.2); }
+  }
+
+  /* missions */
+  if(started&&!paused){ lastMissionCheck+=dt; if(lastMissionCheck>2){ lastMissionCheck=0; updateMissions(); } }
+
+  /* screen shake */
+  if(hurtFlash>.2){ camera.position.x+=rand(-.03,.03)*hurtFlash; camera.position.y+=rand(-.03,.03)*hurtFlash; }
 
   if(started)hudTick();
   composer.render();
