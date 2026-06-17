@@ -1,0 +1,1738 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ABYSSAL</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#000;overflow:hidden;font-family:'Segoe UI',Arial,sans-serif;color:#7fdbca;cursor:none}
+canvas{display:block}
+#ui-layer{position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:10}
+.hud-bar{position:absolute;height:6px;border-radius:3px;background:rgba(0,0,0,0.5);border:1px solid rgba(127,219,202,0.3)}
+.hud-fill{height:100%;border-radius:2px;transition:width 0.3s}
+#cursor{position:fixed;width:24px;height:24px;pointer-events:none;z-index:1000;transform:translate(-50%,-50%)}
+#cursor .h{position:absolute;width:24px;height:2px;background:rgba(127,219,202,0.7);top:11px;left:0}
+#cursor .v{position:absolute;width:2px;height:24px;background:rgba(127,219,202,0.7);top:0;left:11px}
+#cursor .dot{position:absolute;width:4px;height:4px;border-radius:50%;background:#7fdbca;top:10px;left:10px}
+#depth-gauge{position:absolute;right:20px;top:50%;transform:translateY(-50%);width:4px;height:200px;background:rgba(0,0,0,0.5);border:1px solid rgba(127,219,202,0.2);border-radius:2px}
+#depth-marker{position:absolute;width:12px;height:3px;background:#7fdbca;right:-4px;border-radius:1px;transition:top 0.3s}
+#depth-text{position:absolute;right:40px;color:#7fdbca;font-size:14px;font-family:'Courier New',monospace;text-shadow:0 0 10px rgba(127,219,202,0.5)}
+#stats{position:absolute;bottom:20px;left:20px;display:flex;gap:15px;align-items:flex-end}
+.stat-group{display:flex;flex-direction:column;align-items:center;gap:4px}
+.stat-label{font-size:9px;letter-spacing:2px;text-transform:uppercase;opacity:0.6}
+.stat-bar-outer{width:120px;height:5px;background:rgba(0,0,0,0.6);border:1px solid rgba(127,219,202,0.2);border-radius:3px;overflow:hidden}
+.stat-bar-inner{height:100%;border-radius:2px;transition:width 0.5s}
+.stat-value{font-size:11px;font-family:'Courier New',monospace}
+#hotbar{position:absolute;bottom:20px;left:50%;transform:translateX(-50%);display:flex;gap:4px}
+.hotbar-slot{width:52px;height:52px;background:rgba(0,20,30,0.7);border:1px solid rgba(127,219,202,0.2);border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:10px;text-align:center;position:relative}
+.hotbar-slot.active{border-color:#7fdbca;box-shadow:0 0 10px rgba(127,219,202,0.3)}
+.hotbar-key{position:absolute;top:2px;left:4px;font-size:8px;opacity:0.5}
+#minimap{position:absolute;top:20px;right:20px;width:140px;height:140px;border-radius:50%;border:2px solid rgba(127,219,202,0.3);overflow:hidden;background:rgba(0,20,30,0.7)}
+#minimap canvas{border-radius:50%}
+#compass{position:absolute;top:15px;left:50%;transform:translateX(-50%);font-family:'Courier New',monospace;font-size:12px;letter-spacing:4px;opacity:0.6}
+#interaction{position:absolute;bottom:90px;left:50%;transform:translateX(-50%);font-size:13px;background:rgba(0,20,30,0.8);padding:6px 16px;border-radius:4px;border:1px solid rgba(127,219,202,0.2);display:none;white-space:nowrap}
+#pda-overlay{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,10,20,0.92);z-index:100;display:none;pointer-events:all}
+#pda-content{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:700px;max-height:80vh;background:rgba(0,30,50,0.95);border:1px solid rgba(127,219,202,0.3);border-radius:8px;padding:30px;overflow-y:auto}
+#pda-content::-webkit-scrollbar{width:4px}
+#pda-content::-webkit-scrollbar-thumb{background:rgba(127,219,202,0.3);border-radius:2px}
+#pda-title{font-size:24px;margin-bottom:20px;letter-spacing:4px;border-bottom:1px solid rgba(127,219,202,0.2);padding-bottom:10px}
+#pda-tabs{display:flex;gap:2px;margin-bottom:20px}
+.pda-tab{padding:8px 16px;background:rgba(127,219,202,0.05);border:1px solid rgba(127,219,202,0.1);border-radius:4px 4px 0 0;cursor:pointer;pointer-events:all;font-size:12px;letter-spacing:1px;color:#7fdbca}
+.pda-tab.active{background:rgba(127,219,202,0.15);border-bottom-color:transparent}
+#pda-body{font-size:14px;line-height:1.8;color:rgba(127,219,202,0.8)}
+.log-entry{padding:12px;margin:8px 0;background:rgba(0,0,0,0.3);border-left:2px solid rgba(127,219,202,0.3);border-radius:0 4px 4px 0;cursor:pointer;pointer-events:all}
+.log-entry:hover{background:rgba(127,219,202,0.05)}
+.log-entry h4{color:#7fdbca;margin-bottom:4px;font-size:13px}
+.log-entry p{font-size:12px;opacity:0.6}
+#inventory-overlay{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,10,20,0.92);z-index:100;display:none;pointer-events:all}
+#inventory-grid{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);display:grid;grid-template-columns:repeat(6,64px);gap:6px}
+.inv-slot{width:64px;height:64px;background:rgba(0,30,50,0.9);border:1px solid rgba(127,219,202,0.15);border-radius:4px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:10px;cursor:pointer;pointer-events:all;position:relative}
+.inv-slot:hover{border-color:rgba(127,219,202,0.5);background:rgba(0,40,60,0.9)}
+.inv-icon{font-size:22px;margin-bottom:2px}
+.inv-count{position:absolute;bottom:2px;right:4px;font-size:9px;opacity:0.7}
+#craft-panel{position:absolute;top:50%;right:60px;transform:translateY(-50%);width:260px;background:rgba(0,30,50,0.95);border:1px solid rgba(127,219,202,0.3);border-radius:8px;padding:20px;display:none;pointer-events:all;max-height:70vh;overflow-y:auto}
+#craft-panel::-webkit-scrollbar{width:4px}
+#craft-panel::-webkit-scrollbar-thumb{background:rgba(127,219,202,0.3);border-radius:2px}
+.craft-item{padding:10px;margin:4px 0;background:rgba(0,0,0,0.3);border:1px solid rgba(127,219,202,0.1);border-radius:4px;cursor:pointer;pointer-events:all}
+.craft-item:hover{border-color:rgba(127,219,202,0.4)}
+.craft-item.can-craft{border-left:2px solid #4fc3a0}
+.craft-item.cannot-craft{opacity:0.5}
+.craft-name{font-size:12px;margin-bottom:4px}
+.craft-req{font-size:10px;opacity:0.6}
+#notification{position:absolute;top:80px;left:50%;transform:translateX(-50%);font-size:14px;color:#7fdbca;text-align:center;opacity:0;transition:opacity 0.5s;text-shadow:0 0 10px rgba(127,219,202,0.5);pointer-events:none}
+#title-screen{position:fixed;top:0;left:0;width:100%;height:100%;z-index:200;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#000;pointer-events:all;cursor:default}
+#title-name{font-size:72px;letter-spacing:20px;color:#7fdbca;text-shadow:0 0 40px rgba(127,219,202,0.4),0 0 80px rgba(127,219,202,0.2);margin-bottom:10px;animation:pulse 3s ease-in-out infinite}
+#title-sub{font-size:14px;letter-spacing:8px;opacity:0.4;margin-bottom:60px}
+#play-btn{padding:12px 40px;background:transparent;border:1px solid rgba(127,219,202,0.4);color:#7fdbca;font-size:16px;letter-spacing:4px;cursor:pointer;border-radius:4px;transition:all 0.3s;pointer-events:all}
+#play-btn:hover{background:rgba(127,219,202,0.1);border-color:#7fdbca;box-shadow:0 0 20px rgba(127,219,202,0.2)}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.8}}
+#scanner-overlay{position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:50;display:none}
+#scan-ring{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:200px;height:200px;border:2px solid rgba(127,219,202,0.3);border-radius:50%;display:flex;align-items:center;justify-content:center}
+#scan-progress{position:absolute;bottom:30%;left:50%;transform:translateX(-50%);font-size:12px;color:#7fdbca}
+#story-overlay{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,5,10,0.95);z-index:150;display:none;pointer-events:all;cursor:default}
+#story-text{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);max-width:600px;text-align:center;font-size:18px;line-height:2;color:rgba(127,219,202,0.8);letter-spacing:1px}
+#story-continue{position:absolute;bottom:15%;left:50%;transform:translateX(-50%);font-size:12px;opacity:0.4;letter-spacing:3px;animation:pulse 2s ease-in-out infinite}
+#build-menu{position:absolute;bottom:90px;left:50%;transform:translateX(-50%);background:rgba(0,20,30,0.9);border:1px solid rgba(127,219,202,0.3);border-radius:8px;padding:15px;display:none;pointer-events:all;z-index:60}
+#build-menu .build-grid{display:grid;grid-template-columns:repeat(4,70px);gap:6px}
+.build-item{width:70px;height:60px;background:rgba(0,30,50,0.8);border:1px solid rgba(127,219,202,0.15);border-radius:4px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:9px;cursor:pointer;pointer-events:all;text-align:center;padding:4px}
+.build-item:hover{border-color:#7fdbca;background:rgba(0,40,60,0.8)}
+.build-item .bi-icon{font-size:20px;margin-bottom:2px}
+#death-screen{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.95);z-index:300;display:none;flex-direction:column;align-items:center;justify-content:center;pointer-events:all;cursor:default}
+#death-screen h1{font-size:48px;color:#ff4444;letter-spacing:10px;margin-bottom:20px;text-shadow:0 0 30px rgba(255,0,0,0.3)}
+#death-screen p{color:rgba(255,100,100,0.6);margin-bottom:40px;font-size:14px}
+#respawn-btn{padding:10px 30px;background:transparent;border:1px solid rgba(255,100,100,0.4);color:#ff6666;cursor:pointer;border-radius:4px;font-size:14px;letter-spacing:3px;pointer-events:all}
+#respawn-btn:hover{background:rgba(255,100,100,0.1);border-color:#ff6666}
+#vignette{position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:5;background:radial-gradient(ellipse at center,transparent 60%,rgba(0,0,0,0.6) 100%)}
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+<div id="vignette"></div>
+<div id="ui-layer">
+<div id="cursor"><div class="h"></div><div class="v"></div><div class="dot"></div></div>
+<div id="compass">N</div>
+<div id="stats">
+<div class="stat-group"><div class="stat-bar-outer"><div class="stat-bar-inner" id="hp-bar" style="width:100%;background:linear-gradient(90deg,#ff4444,#ff6b6b)"></div></div><div class="stat-label">HEALTH</div></div>
+<div class="stat-group"><div class="stat-bar-outer"><div class="stat-bar-inner" id="o2-bar" style="width:100%;background:linear-gradient(90deg,#44aaff,#66ccff)"></div></div><div class="stat-label">OXYGEN</div></div>
+<div class="stat-group"><div class="stat-bar-outer"><div class="stat-bar-inner" id="food-bar" style="width:100%;background:linear-gradient(90deg,#ffaa44,#ffcc66)"></div></div><div class="stat-label">FOOD</div></div>
+<div class="stat-group"><div class="stat-bar-outer"><div class="stat-bar-inner" id="water-bar" style="width:100%;background:linear-gradient(90deg,#44dddd,#66eeff)"></div></div><div class="stat-label">WATER</div></div>
+</div>
+<div id="depth-text" style="top:50%;right:40px">0m</div>
+<div id="hotbar"></div>
+<div id="minimap"><canvas id="minimap-canvas" width="140" height="140"></canvas></div>
+<div id="interaction"></div>
+<div id="notification"></div>
+</div>
+<div id="pda-overlay">
+<div id="pda-content">
+<div id="pda-title">PDA - PERSONAL DATA ASSISTANT</div>
+<div id="pda-tabs"></div>
+<div id="pda-body"></div>
+</div>
+</div>
+<div id="inventory-overlay">
+<div id="inventory-grid"></div>
+<div id="craft-panel"></div>
+</div>
+<div id="scanner-overlay">
+<div id="scan-ring"></div>
+<div id="scan-progress"></div>
+</div>
+<div id="build-menu"><div class="build-grid" id="build-grid"></div></div>
+<div id="story-overlay">
+<div id="story-text"></div>
+<div id="story-continue">CLICK TO CONTINUE</div>
+</div>
+<div id="title-screen">
+<div id="title-name">ABYSSAL</div>
+<div id="title-sub">THE DEEP AWAITS</div>
+<button id="play-btn">DIVE IN</button>
+</div>
+<div id="death-screen">
+<h1>LOST AT SEA</h1>
+<p>Your body drifts into the abyss...</p>
+<button id="respawn-btn">RESURFACE</button>
+</div>
+<script>
+const C=document.getElementById('game'),X=C.getContext('2d');
+const MC=document.getElementById('minimap-canvas'),MX=MC.getContext('2d');
+let W=window.innerWidth,H=window.innerHeight;
+C.width=W;C.height=H;
+
+// Game state
+const G={
+  running:false,time:0,dayTime:0,dayLength:600,
+  camera:{x:0,y:0},
+  mouse:{x:W/2,y:H/2,down:false},
+  keys:{},
+  paused:false,
+  showPDA:false,showInv:false,showBuild:false
+};
+
+// Player
+const P={
+  x:0,y:0,depth:0,angle:0,speed:0,
+  hp:100,maxHp:100,
+  o2:100,maxO2:100,
+  food:80,water:80,
+  temperature:25,
+  inventory:[],
+  hotbar:[null,null,null,null,null,null,null,null],
+  activeSlot:0,
+  blueprints:new Set(['knife','scanner','flashlight','fins','basic_tank','cooked_fish','filtered_water','repair_tool']),
+  scannedEntities:new Set(),
+  logsFound:[],
+  storyProgress:0,
+  hasInfection:false,
+  infectionLevel:0,
+  baseBuilt:[],
+  vehicleOut:null,
+  inVehicle:false,
+  swimSpeed:2.2,
+  maxDepthSafe:100,
+};
+
+// Initialize inventory
+P.inventory=[
+  {id:'titanium',name:'Titanium',icon:'🔩',count:4,type:'resource'},
+  {id:'copper',name:'Copper Ore',icon:'🟤',count:2,type:'resource'},
+  {id:'knife',name:'Survival Knife',icon:'🔪',count:1,type:'tool'},
+  {id:'scanner',name:'Scanner',icon:'📡',count:1,type:'tool'},
+  {id:'flashlight',name:'Flashlight',icon:'🔦',count:1,type:'tool'},
+];
+P.hotbar[0]={id:'knife',name:'Survival Knife',icon:'🔪'};
+P.hotbar[1]={id:'scanner',name:'Scanner',icon:'📡'};
+P.hotbar[2]={id:'flashlight',name:'Flashlight',icon:'🔦'};
+
+// Biome definitions
+const BIOMES=[
+  {id:'safe_shoals',name:'Safe Shoals',color:[0,180,170],fogColor:[10,120,130],depth:[0,50],danger:0,resources:['titanium','copper','quartz','coral_sample'],desc:'Shallow coral reefs teeming with small fish.'},
+  {id:'kelp_forest',name:'Kelp Forest',color:[20,100,60],fogColor:[10,70,40],depth:[30,120],danger:1,resources:['titanium','copper','silver','vine_sample'],desc:'Towering kelp strands sway in deep currents.'},
+  {id:'red_reefs',name:'Red Reefs',color:[140,40,50],fogColor:[80,20,30],depth:[60,180],danger:2,resources:['gold','lithium','ruby_coral'],desc:'Crimson coral formations glow with inner heat.'},
+  {id:'jelly_caves',name:'Jelly Caves',color:[80,20,120],fogColor:[40,10,80],depth:[100,300],danger:2,resources:['lithium','gold','jelly_sample'],desc:'Vast caverns filled with drifting luminous organisms.'},
+  {id:'mushroom_forest',name:'Mushroom Forest',color:[60,90,70],fogColor:[30,60,40],depth:[80,200],danger:1,resources:['nickel','lithium','fungal_sample'],desc:'Giant fungal trees tower above ancient wreckage.'},
+  {id:'blood_trench',name:'Blood Trench',color:[100,10,10],fogColor:[60,5,5],depth:[200,500],danger:4,resources:['kyanite','uranium','blood_oil'],desc:'Red fog obscures apex predators in the deep.'},
+  {id:'crystal_canyons',name:'Crystal Canyons',color:[60,80,160],fogColor:[30,40,100],depth:[150,400],danger:3,resources:['kyanite','crystal_core','quartz'],desc:'Massive crystal formations pulse with unknown energy.'},
+  {id:'thermal_depths',name:'Thermal Depths',color:[160,80,20],fogColor:[100,40,10],depth:[300,600],danger:3,resources:['uranium','kyanite','thermal_crystal'],desc:'Volcanic vents illuminate the crushing depths.'},
+  {id:'void_edge',name:'Void Edge',color:[5,5,20],fogColor:[2,2,10],depth:[400,1200],danger:5,resources:['crystal_core','alien_biomass'],desc:'The abyss stares back. Leviathans patrol the void.'},
+  {id:'abyss_core',name:'The Abyss Core',color:[10,0,30],fogColor:[5,0,15],depth:[800,1500],danger:5,resources:['alien_biomass','precursor_relic'],desc:'Ancient alien structures hum with dormant power.'},
+];
+
+// Biome map - procedural zones using polar coordinates from center
+function getBiome(wx,wy){
+  const dist=Math.sqrt(wx*wx+wy*wy);
+  const angle=Math.atan2(wy,wx);
+  if(dist<600) return BIOMES[0]; // safe shoals
+  if(dist<1200){
+    const sector=((angle+Math.PI)/(Math.PI*2)*4)|0;
+    return BIOMES[[1,2,4,1][sector]];
+  }
+  if(dist<2000){
+    const sector=((angle+Math.PI)/(Math.PI*2)*4)|0;
+    return BIOMES[[3,5,6,4][sector]];
+  }
+  if(dist<3000){
+    const sector=((angle+Math.PI)/(Math.PI*2)*3)|0;
+    return BIOMES[[7,6,5][sector]];
+  }
+  if(dist<4000) return BIOMES[8];
+  return BIOMES[9];
+}
+
+function getDepth(wx,wy){
+  const biome=getBiome(wx,wy);
+  const dist=Math.sqrt(wx*wx+wy*wy);
+  const noise=Math.sin(wx*0.003)*20+Math.cos(wy*0.004)*15+Math.sin((wx+wy)*0.002)*10;
+  const base=biome.depth[0]+(biome.depth[1]-biome.depth[0])*(Math.min(dist,4000)/4000);
+  return Math.max(0,base+noise);
+}
+
+// Creature definitions
+const CREATURE_TYPES=[
+  {id:'floater',name:'Floater',size:8,speed:0.5,behavior:'passive',color:'#66eeff',hp:5,biomes:['safe_shoals','kelp_forest'],icon:'🐟',desc:'A small bioluminescent fish that drifts on currents. Harmless and abundant in shallow waters. Can be caught for food.',drops:['raw_fish']},
+  {id:'glider',name:'Glider',size:10,speed:0.7,behavior:'passive',color:'#aaffcc',hp:8,biomes:['safe_shoals','mushroom_forest'],icon:'🐠',desc:'Flat-bodied fish with wing-like fins. Glides gracefully between coral formations.',drops:['raw_fish']},
+  {id:'spinefish',name:'Spinefish',size:7,speed:0.8,behavior:'neutral',color:'#ffaa44',hp:10,biomes:['safe_shoals','red_reefs'],icon:'🐡',desc:'Covered in retractable barbs. Will defend itself if threatened, releasing a mild toxin.',drops:['raw_fish','spine_sample']},
+  {id:'blinkfish',name:'Blinkfish',size:6,speed:1.2,behavior:'passive',color:'#ff66ff',hp:4,biomes:['jelly_caves','mushroom_forest'],icon:'✨',desc:'Tiny organisms that flash in synchronized patterns. Used by researchers to study neural networks.',drops:['blink_sample']},
+  {id:'reef_hunter',name:'Reef Hunter',size:18,speed:1.0,behavior:'aggressive',color:'#ff4444',hp:30,biomes:['red_reefs','kelp_forest'],icon:'🦈',desc:'A fast predator with serrated jaw plates. Hunts in pairs. Aggressive toward anything that bleeds.',drops:['predator_tooth'],damage:15},
+  {id:'shellback',name:'Shellback',size:22,speed:0.3,behavior:'passive',color:'#8B7355',hp:50,biomes:['safe_shoals','mushroom_forest'],icon:'🐢',desc:'Massive armored herbivore. Its shell contains trace minerals. Docile unless provoked.',drops:['shell_plate','titanium']},
+  {id:'hammerfin',name:'Hammerfin',size:30,speed:0.8,behavior:'territorial',color:'#336699',hp:80,biomes:['kelp_forest','crystal_canyons'],icon:'🔨',desc:'Uses its hammer-shaped head to break open mineral deposits. Territorial around feeding grounds.',drops:['hammerfin_scale'],damage:20},
+  {id:'glowwhale',name:'Glowwhale',size:60,speed:0.3,behavior:'passive',color:'#4488ff',hp:200,biomes:['mushroom_forest','void_edge'],icon:'🐋',desc:'Gentle giant whose bioluminescent patterns communicate across vast distances. Ancient and wise.',drops:['whale_oil','biolum_sample']},
+  {id:'stalker',name:'Stalker',size:20,speed:1.1,behavior:'aggressive',color:'#997733',hp:40,biomes:['kelp_forest'],icon:'🐊',desc:'Collects metal scrap and hoards it. Will attack to defend its collection. Can be distracted with scrap metal.',drops:['stalker_tooth','titanium'],damage:18},
+  {id:'crabmaw',name:'Crabmaw',size:25,speed:0.6,behavior:'aggressive',color:'#cc3300',hp:60,biomes:['red_reefs','blood_trench'],icon:'🦀',desc:'Armored predator with crushing mandibles. Lurks in caves and ambushes prey.',drops:['crabmaw_shell','blood_oil'],damage:25},
+  {id:'jellyswarm',name:'Jellyswarm',size:12,speed:0.2,behavior:'passive',color:'#ff88ff',hp:3,biomes:['jelly_caves'],icon:'🎐',desc:'Colony organisms that drift together. Contact causes mild electrical shock.',drops:['jelly_sample'],damage:5},
+  {id:'bubble_eel',name:'Bubble Eel',size:15,speed:0.9,behavior:'neutral',color:'#00ddaa',hp:20,biomes:['safe_shoals','jelly_caves'],icon:'🐍',desc:'Produces streams of oxygen-rich bubbles. Sought after for life support applications.',drops:['eel_sample']},
+];
+
+const LEVIATHANS=[
+  {id:'titan_eel',name:'Titan Eel',size:120,speed:1.5,hp:500,color:'#00ffaa',biomes:['jelly_caves','crystal_canyons'],icon:'🐉',desc:'A serpentine leviathan that navigates cave systems at terrifying speed. Bioluminescent lures along its body attract prey into its maw.',damage:50,attackRange:150},
+  {id:'void_reaper',name:'Void Reaper',size:150,speed:1.2,hp:800,color:'#ff0044',biomes:['void_edge','blood_trench'],icon:'👹',desc:'The apex predator of the open abyss. Four mandibles, echolocation, and a body built for pursuit. Few survive an encounter.',damage:65,attackRange:200},
+  {id:'mawback',name:'Mawback',size:180,speed:0.6,hp:1200,color:'#886644',biomes:['thermal_depths','blood_trench'],icon:'🦕',desc:'An armored behemoth with a cavernous mouth. So large that entire ecosystems grow on its back. Territorial and immovable.',damage:80,attackRange:180},
+  {id:'crystal_serpent',name:'Crystal Serpent',size:100,speed:1.0,hp:600,color:'#8844ff',biomes:['crystal_canyons','abyss_core'],icon:'💎',desc:'A leviathan whose body is encrusted with energy-conducting crystals. Discharges devastating electrical attacks.',damage:55,attackRange:160},
+  {id:'ancient_king',name:'The Ancient King',size:250,speed:0.4,hp:2000,color:'#ffaa00',biomes:['abyss_core'],icon:'👑',desc:'The first. The oldest. A living relic of the precursor age. Its awakening signals the endgame. To face it is to face the planet itself.',damage:100,attackRange:250},
+];
+
+// Resources
+const RESOURCES={
+  titanium:{name:'Titanium',icon:'🔩',type:'resource'},
+  copper:{name:'Copper Ore',icon:'🟤',type:'resource'},
+  quartz:{name:'Quartz',icon:'💎',type:'resource'},
+  gold:{name:'Gold',icon:'🥇',type:'resource'},
+  silver:{name:'Silver',icon:'⚪',type:'resource'},
+  lithium:{name:'Lithium',icon:'🔵',type:'resource'},
+  nickel:{name:'Nickel',icon:'⚙️',type:'resource'},
+  kyanite:{name:'Kyanite',icon:'🔷',type:'resource'},
+  uranium:{name:'Uranium',icon:'☢️',type:'resource'},
+  crystal_core:{name:'Crystal Core',icon:'✴️',type:'resource'},
+  alien_biomass:{name:'Alien Biomass',icon:'🧬',type:'resource'},
+  precursor_relic:{name:'Precursor Relic',icon:'🏛️',type:'resource'},
+  coral_sample:{name:'Coral Sample',icon:'🪸',type:'resource'},
+  vine_sample:{name:'Vine Sample',icon:'🌿',type:'resource'},
+  ruby_coral:{name:'Ruby Coral',icon:'❤️',type:'resource'},
+  jelly_sample:{name:'Jelly Sample',icon:'🫧',type:'resource'},
+  fungal_sample:{name:'Fungal Sample',icon:'🍄',type:'resource'},
+  blood_oil:{name:'Blood Oil',icon:'🩸',type:'resource'},
+  thermal_crystal:{name:'Thermal Crystal',icon:'🔥',type:'resource'},
+  raw_fish:{name:'Raw Fish',icon:'🐟',type:'food'},
+  cooked_fish:{name:'Cooked Fish',icon:'🍳',type:'food'},
+  filtered_water:{name:'Filtered Water',icon:'💧',type:'water'},
+  predator_tooth:{name:'Predator Tooth',icon:'🦷',type:'resource'},
+  stalker_tooth:{name:'Stalker Tooth',icon:'🦷',type:'resource'},
+  shell_plate:{name:'Shell Plate',icon:'🛡️',type:'resource'},
+  spine_sample:{name:'Spine Sample',icon:'📌',type:'resource'},
+  blink_sample:{name:'Blink Sample',icon:'💡',type:'resource'},
+  eel_sample:{name:'Eel Sample',icon:'🫧',type:'resource'},
+  hammerfin_scale:{name:'Hammerfin Scale',icon:'🪙',type:'resource'},
+  whale_oil:{name:'Whale Oil',icon:'🛢️',type:'resource'},
+  biolum_sample:{name:'Biolum Sample',icon:'✨',type:'resource'},
+  crabmaw_shell:{name:'Crabmaw Shell',icon:'🦀',type:'resource'},
+  battery:{name:'Battery',icon:'🔋',type:'component'},
+  wiring:{name:'Wiring Kit',icon:'🔌',type:'component'},
+  glass:{name:'Glass',icon:'🪟',type:'component'},
+  computer_chip:{name:'Computer Chip',icon:'💻',type:'component'},
+  adv_wiring:{name:'Adv. Wiring Kit',icon:'⚡',type:'component'},
+  plasteel:{name:'Plasteel Ingot',icon:'🧱',type:'component'},
+  enameled_glass:{name:'Enameled Glass',icon:'🔲',type:'component'},
+  fiber_mesh:{name:'Fiber Mesh',icon:'🧶',type:'component'},
+  silicone:{name:'Silicone Rubber',icon:'🟡',type:'component'},
+  titanium_ingot:{name:'Titanium Ingot',icon:'🔧',type:'component'},
+  lubricant:{name:'Lubricant',icon:'💦',type:'component'},
+};
+
+// Crafting recipes
+const RECIPES=[
+  {id:'cooked_fish',name:'Cooked Fish',icon:'🍳',req:{raw_fish:1},cat:'survival'},
+  {id:'filtered_water',name:'Filtered Water',icon:'💧',req:{coral_sample:1},cat:'survival'},
+  {id:'battery',name:'Battery',icon:'🔋',req:{copper:1,lithium:1},cat:'component'},
+  {id:'wiring',name:'Wiring Kit',icon:'🔌',req:{silver:2},cat:'component'},
+  {id:'glass',name:'Glass',icon:'🪟',req:{quartz:2},cat:'component'},
+  {id:'computer_chip',name:'Computer Chip',icon:'💻',req:{gold:1,copper:1,quartz:1},cat:'component'},
+  {id:'silicone',name:'Silicone Rubber',icon:'🟡',req:{fungal_sample:2},cat:'component'},
+  {id:'fiber_mesh',name:'Fiber Mesh',icon:'🧶',req:{vine_sample:2},cat:'component'},
+  {id:'titanium_ingot',name:'Titanium Ingot',icon:'🔧',req:{titanium:10},cat:'component'},
+  {id:'plasteel',name:'Plasteel Ingot',icon:'🧱',req:{titanium_ingot:1,lithium:2},cat:'component'},
+  {id:'lubricant',name:'Lubricant',icon:'💦',req:{vine_sample:1},cat:'component'},
+  {id:'enameled_glass',name:'Enameled Glass',icon:'🔲',req:{glass:1,stalker_tooth:1},cat:'component'},
+  {id:'adv_wiring',name:'Adv. Wiring Kit',icon:'⚡',req:{wiring:1,gold:2,computer_chip:1},cat:'component'},
+  {id:'knife',name:'Survival Knife',icon:'🔪',req:{titanium:1,silicone:1},cat:'tool'},
+  {id:'scanner',name:'Scanner',icon:'📡',req:{titanium:1,battery:1},cat:'tool'},
+  {id:'flashlight',name:'Flashlight',icon:'🔦',req:{glass:1,battery:1},cat:'tool'},
+  {id:'repair_tool',name:'Repair Tool',icon:'🔧',req:{titanium:1,silicone:1,copper:1},cat:'tool'},
+  {id:'fins',name:'Swim Fins',icon:'🦶',req:{silicone:2},cat:'equipment'},
+  {id:'basic_tank',name:'Standard O2 Tank',icon:'🫁',req:{titanium:3},cat:'equipment'},
+  {id:'high_tank',name:'High Capacity Tank',icon:'🫁',req:{titanium:4,glass:2,silver:1},cat:'equipment'},
+  {id:'rebreather',name:'Rebreather',icon:'😷',req:{wiring:1,fiber_mesh:1,silicone:1},cat:'equipment'},
+  {id:'radiation_suit',name:'Radiation Suit',icon:'☢️',req:{fiber_mesh:2,wiring:1},cat:'equipment'},
+  {id:'reinforced_suit',name:'Reinforced Dive Suit',icon:'🦺',req:{fiber_mesh:1,silicone:1,titanium:2},cat:'equipment'},
+  {id:'depth_module_1',name:'Depth Module MK1',icon:'📐',req:{titanium_ingot:1,glass:1,copper:3},cat:'vehicle'},
+  {id:'habitat_builder',name:'Habitat Builder',icon:'🏗️',req:{wiring:1,computer_chip:1,battery:1},cat:'tool'},
+  {id:'laser_cutter',name:'Laser Cutter',icon:'🔫',req:{titanium:2,battery:1,crystal_core:1},cat:'tool'},
+  {id:'stasis_rifle',name:'Stasis Rifle',icon:'🔫',req:{titanium:2,battery:2,computer_chip:1,crystal_core:1},cat:'weapon'},
+  {id:'propulsion_cannon',name:'Propulsion Cannon',icon:'🧲',req:{titanium:2,battery:1,wiring:1},cat:'tool'},
+];
+
+// Build pieces
+const BUILD_PIECES=[
+  {id:'foundation',name:'Foundation',icon:'⬜',req:{titanium:2},size:60},
+  {id:'corridor',name:'Corridor',icon:'▬',req:{titanium:3},size:80},
+  {id:'multi_room',name:'Multi Room',icon:'⬛',req:{titanium:6},size:100},
+  {id:'glass_corridor',name:'Glass Corridor',icon:'🪟',req:{glass:2,titanium:1},size:80},
+  {id:'observatory',name:'Observatory',icon:'🔭',req:{enameled_glass:2,titanium:1},size:60},
+  {id:'moonpool',name:'Moonpool',icon:'🌙',req:{titanium_ingot:2,lubricant:1},size:120},
+  {id:'fabricator_module',name:'Fabricator',icon:'⚙️',req:{titanium:1,computer_chip:1},size:30},
+  {id:'storage_module',name:'Storage Locker',icon:'📦',req:{titanium:2},size:30},
+  {id:'solar_panel',name:'Solar Panel',icon:'☀️',req:{titanium:2,quartz:2,copper:1},size:40},
+  {id:'thermal_plant',name:'Thermal Plant',icon:'🌡️',req:{titanium:5,kyanite:2},size:50},
+  {id:'water_filter',name:'Water Filtration',icon:'💧',req:{titanium:3,copper:1,wiring:1},size:40},
+  {id:'farm_tray',name:'Growbed',icon:'🌱',req:{titanium:2},size:50},
+  {id:'med_kit',name:'Med Kit Fabricator',icon:'➕',req:{titanium:2,fiber_mesh:1,computer_chip:1},size:30},
+  {id:'beacon',name:'Beacon',icon:'📍',req:{titanium:1,copper:1},size:10},
+];
+
+// Story logs
+const LOGS=[
+  {id:'log_1',title:'Emergency Log - Day 1',sender:'Lifepod AI',text:'Colony ship AURORA PRIME destroyed in orbit. Cause unknown. Emergency pod deployed. One survivor detected. Location: uncharted ocean planet, designation pending. No rescue beacon signal possible - comms array destroyed on impact. Recommend immediate survival protocol.',act:1,triggerDist:0},
+  {id:'log_2',title:'Damaged Habitat Analysis',sender:'Scanner AI',text:'Analysis of abandoned habitat complete. Structure predates your arrival by approximately 6 months. Previous occupant(s) unknown. Equipment shows signs of deliberate shutdown, not failure. Someone chose to leave. But where would they go? No landmass detected within scanner range.',act:1,triggerDist:200},
+  {id:'log_3',title:'Signal Fragment Alpha',sender:'Unknown',text:'...if anyone receives this... the quarantine is real... do NOT attempt to breach the... they built it to keep something IN not out... previous expedition... all dead... the infection... it changes you...',act:1,triggerDist:600},
+  {id:'log_4',title:'Ecological Report',sender:'Dr. Y. Chen (prev. expedition)',text:'The ecosystem on this planet operates on principles we\'ve never seen. Predator-prey relationships are almost... designed. The food chains are too perfect. Too balanced. As if something engineered them. I\'ve been studying the deep coral formations. They\'re not geological. They\'re technological. Someone built the reefs.',act:2,triggerDist:1000},
+  {id:'log_5',title:'The Infection',sender:'Dr. Y. Chen',text:'It\'s confirmed. There is a bacterial organism in the water. It\'s in everything - the fish, the coral, the water itself. Initial scans showed nothing, but at depth, our instruments detected it. It\'s ancient. Older than this planet\'s current ecosystem. And it\'s... communicating. Not with us. With something below.',act:2,triggerDist:1500},
+  {id:'log_6',title:'Alien Ruin Discovery',sender:'Explorer Log',text:'Found it. 400 meters down in the crystal canyons. A structure. Not human. The geometry is wrong - angles that shouldn\'t exist, surfaces that seem to shift when observed indirectly. Inside, we found what appears to be a data terminal. Still active after... millions of years? The power source is beyond anything we understand.',act:2,triggerDist:2000},
+  {id:'log_7',title:'Translation Fragment',sender:'Precursor Terminal',text:'[PARTIAL TRANSLATION] ...containment protocol active... biological threat classification: EXTINCTION LEVEL... quarantine field: ACTIVE... cure synthesis: INCOMPLETE... the DEEP ONE sleeps... must not wake... must not...',act:3,triggerDist:2500},
+  {id:'log_8',title:'The Cure',sender:'Dr. Y. Chen (final log)',text:'I found the enzyme. It\'s produced by one organism on this planet - the Ancient King. The leviathan that dwells in the deepest core. Its blood contains the cure. But reaching it... I couldn\'t. My equipment wasn\'t enough. My oxygen wasn\'t enough. My courage wasn\'t enough. I\'m sealing this data and heading for the surface. Maybe someone braver will find it.',act:3,triggerDist:3000},
+  {id:'log_9',title:'Quarantine Signal',sender:'Orbital Defense Network',text:'AUTOMATED MESSAGE: This planet is under quarantine protocol OMEGA-7. Any vessel approaching will be destroyed. The infection must not spread. Colony ship AURORA PRIME was destroyed per protocol. There is no rescue. There will be no rescue. Cure the infection or remain. These are your only options.',act:3,triggerDist:3500},
+  {id:'log_10',title:'The Ancient King',sender:'Precursor Archive',text:'[FULL TRANSLATION] The one you call the Ancient King is not merely a creature. It is the last guardian. Created by us to produce the enzyme that fights the infection. It is also the lock on the cage. The Deep One - the source of the infection - sleeps in the Abyss Core. If the King dies, the cage opens. If the King lives, the cure flows. Choose wisely, surface-dweller.',act:4,triggerDist:4000},
+];
+
+// World entities
+let creatures=[];
+let resources_world=[];
+let particles=[];
+let bases=[];
+let beacons=[];
+let wrecks=[];
+
+// Seeded random
+function seededRandom(seed){let s=seed;return()=>{s=Math.sin(s*127.1+311.7)*43758.5453;return s-Math.floor(s)}}
+
+function initWorld(){
+  const rng=seededRandom(42);
+  // Spawn creatures
+  for(let i=0;i<300;i++){
+    const angle=rng()*Math.PI*2;
+    const dist=rng()*4500;
+    const wx=Math.cos(angle)*dist;
+    const wy=Math.sin(angle)*dist;
+    const biome=getBiome(wx,wy);
+    const validTypes=CREATURE_TYPES.filter(t=>t.biomes.includes(biome.id));
+    if(validTypes.length===0) continue;
+    const type=validTypes[(rng()*validTypes.length)|0];
+    creatures.push({
+      ...type,x:wx,y:wy,
+      vx:(rng()-0.5)*type.speed,vy:(rng()-0.5)*type.speed,
+      hp:type.hp,maxHp:type.hp,
+      targetX:wx+(rng()-0.5)*200,targetY:wy+(rng()-0.5)*200,
+      aggroTimer:0,wanderTimer:rng()*200,
+      alive:true,alpha:1
+    });
+  }
+  // Spawn leviathans
+  for(const lev of LEVIATHANS){
+    const count=lev.id==='ancient_king'?1:2;
+    for(let i=0;i<count;i++){
+      const validBiomes=BIOMES.filter(b=>lev.biomes.includes(b.id));
+      let wx,wy,attempts=0;
+      do{
+        const angle=Math.random()*Math.PI*2;
+        const dist=1000+Math.random()*3500;
+        wx=Math.cos(angle)*dist;
+        wy=Math.sin(angle)*dist;
+        attempts++;
+      }while(!lev.biomes.includes(getBiome(wx,wy).id)&&attempts<50);
+      creatures.push({
+        ...lev,x:wx,y:wy,
+        vx:(Math.random()-0.5)*lev.speed*0.5,vy:(Math.random()-0.5)*lev.speed*0.5,
+        hp:lev.hp,maxHp:lev.hp,
+        targetX:wx+(Math.random()-0.5)*400,targetY:wy+(Math.random()-0.5)*400,
+        aggroTimer:0,wanderTimer:Math.random()*300,
+        alive:true,alpha:1,isLeviathan:true
+      });
+    }
+  }
+  // Spawn resources
+  for(let i=0;i<500;i++){
+    const angle=rng()*Math.PI*2;
+    const dist=rng()*4500;
+    const wx=Math.cos(angle)*dist;
+    const wy=Math.sin(angle)*dist;
+    const biome=getBiome(wx,wy);
+    if(biome.resources.length===0) continue;
+    const resId=biome.resources[(rng()*biome.resources.length)|0];
+    if(!RESOURCES[resId]) continue;
+    resources_world.push({
+      id:resId,...RESOURCES[resId],
+      x:wx,y:wy,collected:false,
+      respawnTimer:0,size:6+rng()*6
+    });
+  }
+  // Spawn wrecks
+  const wreckPositions=[[400,300],[800,-500],[-600,700],[1200,1000],[-1500,800],[2000,-1500],[-2500,2000],[3000,1000]];
+  for(const [wx,wy] of wreckPositions){
+    const logIdx=wrecks.length;
+    wrecks.push({x:wx,y:wy,size:40,explored:false,logIndex:logIdx+1});
+  }
+  // Starter base
+  bases.push({x:50,y:50,type:'multi_room',size:100,color:'#1a3a4a'});
+  bases.push({x:50,y:-60,type:'solar_panel',size:40,color:'#2a5a3a'});
+  // Initial beacon at lifepod
+  beacons.push({x:0,y:0,name:'Lifepod',color:'#44aaff'});
+}
+
+// Inventory helpers
+function countItem(id){return P.inventory.filter(i=>i.id===id).reduce((s,i)=>s+i.count,0)}
+function addItem(id,count=1){
+  const existing=P.inventory.find(i=>i.id===id);
+  if(existing){existing.count+=count;return true}
+  const res=RESOURCES[id];
+  if(res){P.inventory.push({id,name:res.name,icon:res.icon,count,type:res.type||'resource'});return true}
+  const recipe=RECIPES.find(r=>r.id===id);
+  if(recipe){P.inventory.push({id,name:recipe.name,icon:recipe.icon,count,type:'crafted'});return true}
+  return false;
+}
+function removeItem(id,count=1){
+  const idx=P.inventory.findIndex(i=>i.id===id);
+  if(idx===-1) return false;
+  P.inventory[idx].count-=count;
+  if(P.inventory[idx].count<=0) P.inventory.splice(idx,1);
+  return true;
+}
+function canCraft(recipe){
+  for(const [id,count] of Object.entries(recipe.req)){
+    if(countItem(id)<count) return false;
+  }
+  return true;
+}
+function craft(recipe){
+  if(!canCraft(recipe)) return false;
+  for(const [id,count] of Object.entries(recipe.req)) removeItem(id,count);
+  addItem(recipe.id,1);
+  notify(`Crafted ${recipe.name}`);
+  return true;
+}
+
+// Notifications
+let notifTimer=0;
+function notify(text,duration=3){
+  const el=document.getElementById('notification');
+  el.textContent=text;
+  el.style.opacity='1';
+  notifTimer=duration;
+}
+
+// Audio system using Web Audio API
+let audioCtx;
+function initAudio(){
+  audioCtx=new(window.AudioContext||window.webkitAudioContext)();
+}
+function playTone(freq,duration=0.1,vol=0.1,type='sine'){
+  if(!audioCtx) return;
+  const osc=audioCtx.createOscillator();
+  const gain=audioCtx.createGain();
+  osc.type=type;
+  osc.frequency.setValueAtTime(freq,audioCtx.currentTime);
+  gain.gain.setValueAtTime(vol,audioCtx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001,audioCtx.currentTime+duration);
+  osc.connect(gain);
+  gain.connect(audioCtx.destination);
+  osc.start();
+  osc.stop(audioCtx.currentTime+duration);
+}
+function playAmbient(){
+  if(!audioCtx) return;
+  const playDrone=()=>{
+    if(!G.running) return;
+    const depth=P.depth;
+    const freq=40+Math.random()*20-depth*0.02;
+    const dur=2+Math.random()*4;
+    playTone(Math.max(20,freq),dur,0.02+(depth/1500)*0.03,'sine');
+    if(Math.random()<0.3){
+      const wf=100+Math.random()*200;
+      playTone(wf,1+Math.random()*2,0.01,'sine');
+    }
+    if(depth>200&&Math.random()<0.15){
+      playTone(30+Math.random()*15,3,0.04,'sawtooth');
+    }
+    setTimeout(playDrone,3000+Math.random()*5000);
+  };
+  setTimeout(playDrone,1000);
+}
+function playPickup(){playTone(600,0.08,0.08);setTimeout(()=>playTone(900,0.08,0.06),80)}
+function playScan(){playTone(800,0.3,0.05);setTimeout(()=>playTone(1200,0.2,0.04),150)}
+function playDamage(){playTone(100,0.2,0.15,'sawtooth');playTone(80,0.3,0.1,'square')}
+function playCraft(){playTone(500,0.1,0.06);setTimeout(()=>playTone(700,0.1,0.05),100);setTimeout(()=>playTone(1000,0.15,0.06),200)}
+function playBuild(){playTone(300,0.15,0.08,'triangle');setTimeout(()=>playTone(450,0.15,0.06,'triangle'),120)}
+
+// Scanning system
+let scanning={active:false,target:null,progress:0,duration:3};
+
+// Input
+document.addEventListener('mousemove',e=>{
+  G.mouse.x=e.clientX;G.mouse.y=e.clientY;
+  const cursor=document.getElementById('cursor');
+  cursor.style.left=e.clientX+'px';
+  cursor.style.top=e.clientY+'px';
+  const dx=e.clientX-W/2,dy=e.clientY-H/2;
+  P.angle=Math.atan2(dy,dx);
+});
+document.addEventListener('mousedown',e=>{G.mouse.down=true;handleClick(e)});
+document.addEventListener('mouseup',()=>{G.mouse.down=false;scanning.active=false});
+document.addEventListener('keydown',e=>{
+  G.keys[e.key.toLowerCase()]=true;
+  if(e.key>='1'&&e.key<='8') P.activeSlot=parseInt(e.key)-1;
+  if(e.key.toLowerCase()==='e') toggleInventory();
+  if(e.key==='Tab'){e.preventDefault();togglePDA()}
+  if(e.key.toLowerCase()==='q') toggleBuildMenu();
+  if(e.key==='Escape'){closePDA();closeInventory();closeBuildMenu()}
+});
+document.addEventListener('keyup',e=>{G.keys[e.key.toLowerCase()]=false});
+window.addEventListener('resize',()=>{W=window.innerWidth;H=window.innerHeight;C.width=W;C.height=H});
+
+function handleClick(e){
+  if(G.showPDA||G.showInv) return;
+  const worldX=P.x+(e.clientX-W/2);
+  const worldY=P.y+(e.clientY-H/2);
+  const activeTool=P.hotbar[P.activeSlot];
+  // Check resource pickup
+  for(const res of resources_world){
+    if(res.collected) continue;
+    const dx=res.x-worldX,dy=res.y-worldY;
+    if(Math.sqrt(dx*dx+dy*dy)<30){
+      res.collected=true;
+      res.respawnTimer=1800;
+      addItem(res.id);
+      playPickup();
+      notify(`Picked up ${res.name}`);
+      return;
+    }
+  }
+  // Attack with knife
+  if(activeTool&&activeTool.id==='knife'){
+    for(const c of creatures){
+      if(!c.alive) continue;
+      const dx=c.x-worldX,dy=c.y-worldY;
+      if(Math.sqrt(dx*dx+dy*dy)<c.size+20){
+        c.hp-=20;
+        playTone(200,0.1,0.1,'sawtooth');
+        if(c.hp<=0){
+          c.alive=false;
+          if(c.drops){
+            for(const drop of c.drops){
+              addItem(drop);
+            }
+            notify(`Killed ${c.name}`);
+          }
+        }
+        c.aggroTimer=300;
+        return;
+      }
+    }
+  }
+  // Scanner
+  if(activeTool&&activeTool.id==='scanner'){
+    for(const c of creatures){
+      if(!c.alive) continue;
+      const dx=c.x-worldX,dy=c.y-worldY;
+      if(Math.sqrt(dx*dx+dy*dy)<c.size+40){
+        scanning={active:true,target:c,progress:0,duration:3};
+        playScan();
+        return;
+      }
+    }
+    for(const w of wrecks){
+      const dx=w.x-worldX,dy=w.y-worldY;
+      if(Math.sqrt(dx*dx+dy*dy)<w.size+30){
+        scanning={active:true,target:w,progress:0,duration:2,isWreck:true};
+        playScan();
+        return;
+      }
+    }
+  }
+  // Build mode placement
+  if(G.buildPlacing){
+    const piece=BUILD_PIECES.find(b=>b.id===G.buildPlacing);
+    if(piece&&canCraft({req:piece.req})){
+      for(const [id,count] of Object.entries(piece.req)) removeItem(id,count);
+      bases.push({x:worldX,y:worldY,type:piece.id,size:piece.size,color:'#1a3a4a'});
+      playBuild();
+      notify(`Built ${piece.name}`);
+      if(piece.id==='beacon') beacons.push({x:worldX,y:worldY,name:'Beacon',color:'#ffaa44'});
+    } else {
+      notify('Missing materials');
+    }
+    G.buildPlacing=null;
+    return;
+  }
+}
+
+// UI toggles
+function togglePDA(){
+  G.showPDA=!G.showPDA;
+  document.getElementById('pda-overlay').style.display=G.showPDA?'block':'none';
+  if(G.showPDA) renderPDA();
+  G.paused=G.showPDA||G.showInv;
+}
+function closePDA(){G.showPDA=false;document.getElementById('pda-overlay').style.display='none';G.paused=G.showInv}
+function toggleInventory(){
+  G.showInv=!G.showInv;
+  document.getElementById('inventory-overlay').style.display=G.showInv?'flex':'none';
+  document.getElementById('craft-panel').style.display=G.showInv?'block':'none';
+  if(G.showInv){renderInventory();renderCrafting()}
+  G.paused=G.showPDA||G.showInv;
+}
+function closeInventory(){G.showInv=false;document.getElementById('inventory-overlay').style.display='none';document.getElementById('craft-panel').style.display='none';G.paused=G.showPDA}
+function toggleBuildMenu(){
+  G.showBuild=!G.showBuild;
+  document.getElementById('build-menu').style.display=G.showBuild?'block':'none';
+  if(G.showBuild) renderBuildMenu();
+}
+function closeBuildMenu(){G.showBuild=false;document.getElementById('build-menu').style.display='none';G.buildPlacing=null}
+
+// PDA rendering
+function renderPDA(tab='logs'){
+  const tabs=document.getElementById('pda-tabs');
+  const body=document.getElementById('pda-body');
+  tabs.innerHTML=['logs','encyclopedia','map','story'].map(t=>
+    `<div class="pda-tab ${t===tab?'active':''}" onclick="renderPDA('${t}')">${t.toUpperCase()}</div>`
+  ).join('');
+  if(tab==='logs'){
+    const found=LOGS.filter(l=>{
+      const dist=Math.sqrt(P.x*P.x+P.y*P.y);
+      return dist>=l.triggerDist||P.logsFound.includes(l.id);
+    });
+    found.forEach(l=>{if(!P.logsFound.includes(l.id)){P.logsFound.push(l.id);notify(`New log: ${l.title}`)}});
+    body.innerHTML=found.length===0?'<p style="opacity:0.5">No logs discovered yet. Explore to find data entries.</p>':
+      found.map(l=>`<div class="log-entry" onclick="showLog('${l.id}')"><h4>[${l.sender}] ${l.title}</h4><p>Act ${l.act} - Click to read</p></div>`).join('');
+  } else if(tab==='encyclopedia'){
+    const scanned=[...P.scannedEntities];
+    body.innerHTML=scanned.length===0?'<p style="opacity:0.5">No organisms scanned. Use the Scanner tool to catalog lifeforms.</p>':
+      scanned.map(id=>{
+        const c=CREATURE_TYPES.find(t=>t.id===id)||LEVIATHANS.find(t=>t.id===id);
+        if(!c) return '';
+        return `<div class="log-entry"><h4>${c.icon} ${c.name} ${c.isLeviathan?'[LEVIATHAN]':''}</h4><p style="opacity:0.8;line-height:1.6">${c.desc}</p><p>Size: ${c.size}m | Behavior: ${c.behavior||'aggressive'} | HP: ${c.hp}</p></div>`;
+      }).join('');
+  } else if(tab==='map'){
+    body.innerHTML='<p style="opacity:0.5;margin-bottom:15px">Biome proximity data:</p>'+
+      BIOMES.map(b=>{
+        const visited=Math.sqrt(P.x*P.x+P.y*P.y)>=(b.depth[0]*5)||b.id==='safe_shoals';
+        return `<div class="log-entry" style="border-left-color:rgb(${b.color.join(',')})"><h4>${visited?b.name:'???'}</h4><p>${visited?b.desc:'Unexplored'} | Depth: ${b.depth[0]}m-${b.depth[1]}m</p></div>`;
+      }).join('');
+  } else if(tab==='story'){
+    const acts=['Act 1: Survival','Act 2: Discovery','Act 3: The Infection','Act 4: The Deep','Act 5: Endgame'];
+    body.innerHTML=acts.map((a,i)=>{
+      const unlocked=P.storyProgress>=i;
+      return `<div class="log-entry" style="opacity:${unlocked?1:0.3}"><h4>${a}</h4><p>${unlocked?['Survive the crash. Build shelter. Explore the shallows.','Discover alien ruins. Find previous expedition logs.','Learn of the infection. Search for the cure.','Reach the Abyss Core. Face the Ancient King.','Choose your ending. Escape or stay.'][i]:'???'}</p></div>`;
+    }).join('');
+  }
+}
+window.showLog=function(id){
+  const log=LOGS.find(l=>l.id===id);
+  if(!log) return;
+  document.getElementById('pda-body').innerHTML=
+    `<div style="padding:20px"><h3 style="margin-bottom:15px;color:#7fdbca">${log.title}</h3><p style="font-size:11px;opacity:0.5;margin-bottom:15px">[${log.sender}]</p><p style="line-height:2;color:rgba(127,219,202,0.85)">${log.text}</p><br><div class="pda-tab" onclick="renderPDA('logs')" style="display:inline-block">← BACK</div></div>`;
+};
+
+// Inventory rendering
+function renderInventory(){
+  const grid=document.getElementById('inventory-grid');
+  grid.innerHTML='';
+  for(let i=0;i<30;i++){
+    const item=P.inventory[i];
+    const slot=document.createElement('div');
+    slot.className='inv-slot';
+    if(item){
+      slot.innerHTML=`<div class="inv-icon">${item.icon}</div><div style="font-size:9px">${item.name}</div>${item.count>1?`<div class="inv-count">x${item.count}</div>`:''}`;
+      slot.onclick=()=>{
+        if(item.type==='food'){removeItem(item.id);P.food=Math.min(100,P.food+25);notify('Ate '+item.name);renderInventory()}
+        else if(item.type==='water'){removeItem(item.id);P.water=Math.min(100,P.water+25);notify('Drank '+item.name);renderInventory()}
+        else if(item.type==='tool'||item.type==='weapon'){
+          const emptySlot=P.hotbar.findIndex(h=>h===null);
+          const slot=emptySlot>=0?emptySlot:P.activeSlot;
+          P.hotbar[slot]={id:item.id,name:item.name,icon:item.icon};
+          notify(`Equipped ${item.name}`);
+        }
+      };
+    }
+    grid.appendChild(slot);
+  }
+}
+
+// Crafting rendering
+function renderCrafting(){
+  const panel=document.getElementById('craft-panel');
+  const cats=['survival','component','tool','equipment','weapon','vehicle'];
+  panel.innerHTML='<div style="font-size:14px;margin-bottom:15px;letter-spacing:2px">FABRICATOR</div>'+
+    cats.map(cat=>{
+      const items=RECIPES.filter(r=>r.cat===cat&&P.blueprints.has(r.id));
+      if(items.length===0) return '';
+      return `<div style="font-size:10px;opacity:0.5;margin:10px 0 5px;letter-spacing:2px">${cat.toUpperCase()}</div>`+
+        items.map(r=>{
+          const can=canCraft(r);
+          return `<div class="craft-item ${can?'can-craft':'cannot-craft'}" onclick="doCraft('${r.id}')">
+            <div class="craft-name">${r.icon} ${r.name}</div>
+            <div class="craft-req">${Object.entries(r.req).map(([id,c])=>`${RESOURCES[id]?.name||id}: ${countItem(id)}/${c}`).join(' | ')}</div>
+          </div>`;
+        }).join('');
+    }).join('');
+}
+window.doCraft=function(id){
+  const recipe=RECIPES.find(r=>r.id===id);
+  if(recipe&&craft(recipe)){
+    playCraft();
+    renderInventory();renderCrafting();
+    // Unlock deeper recipes based on crafted items
+    if(id==='battery'){P.blueprints.add('wiring');P.blueprints.add('flashlight');P.blueprints.add('scanner')}
+    if(id==='wiring'){P.blueprints.add('computer_chip');P.blueprints.add('repair_tool');P.blueprints.add('rebreather');P.blueprints.add('habitat_builder')}
+    if(id==='computer_chip'){P.blueprints.add('stasis_rifle');P.blueprints.add('propulsion_cannon');P.blueprints.add('depth_module_1')}
+    if(id==='glass'){P.blueprints.add('enameled_glass');P.blueprints.add('high_tank')}
+    if(id==='silicone'){P.blueprints.add('reinforced_suit')}
+    if(id==='habitat_builder'){P.blueprints.add('laser_cutter')}
+    // Equipment effects
+    if(id==='fins') P.swimSpeed=3.0;
+    if(id==='basic_tank') P.maxO2=130;
+    if(id==='high_tank') P.maxO2=180;
+    if(id==='rebreather') P.maxO2=200;
+    if(id==='reinforced_suit') P.maxDepthSafe=300;
+    if(id==='depth_module_1') P.maxDepthSafe=500;
+    if(id==='radiation_suit') P.hasRadSuit=true;
+  }
+};
+
+// Build menu
+function renderBuildMenu(){
+  const grid=document.getElementById('build-grid');
+  grid.innerHTML=BUILD_PIECES.map(p=>{
+    const can=canCraft({req:p.req});
+    return `<div class="build-item" style="opacity:${can?1:0.4}" onclick="startBuild('${p.id}')">
+      <div class="bi-icon">${p.icon}</div>${p.name}
+    </div>`;
+  }).join('');
+}
+window.startBuild=function(id){
+  G.buildPlacing=id;
+  closeBuildMenu();
+  notify('Click to place structure');
+};
+
+// Story sequences
+const STORY_SEQUENCES=[
+  ['You awaken to the sound of water.','Your lifepod has breached.','The colony ship... gone. Destroyed in orbit.','You are alone on an alien ocean world.','Survive.'],
+  ['Fragments of the truth emerge from the deep.','Previous expeditions came here. They found something.','Alien ruins. Ancient technology. A quarantine.','Something was locked away beneath this ocean.','And it\'s still down there.'],
+  ['The infection is real.','It\'s in the water. In the fish. In you.','Your cells are changing. Slowly.','There is a cure. But it lies in the deepest abyss.','With the most dangerous creature on this planet.'],
+  ['The Ancient King awaits in the Abyss Core.','Guardian of the cage. Source of the cure.','To kill it would doom this world.','To harvest its enzyme would save you.','The choice is yours.'],
+];
+
+function playStorySequence(actIndex){
+  if(actIndex>=STORY_SEQUENCES.length) return;
+  const seq=STORY_SEQUENCES[actIndex];
+  let lineIdx=0;
+  const overlay=document.getElementById('story-overlay');
+  const text=document.getElementById('story-text');
+  overlay.style.display='block';
+  G.paused=true;
+  const showLine=()=>{
+    if(lineIdx>=seq.length){
+      overlay.style.display='none';
+      G.paused=false;
+      P.storyProgress=actIndex+1;
+      return;
+    }
+    text.style.opacity='0';
+    setTimeout(()=>{
+      text.textContent=seq[lineIdx];
+      text.style.opacity='1';
+      text.style.transition='opacity 1s';
+    },300);
+    lineIdx++;
+  };
+  showLine();
+  overlay.onclick=showLine;
+}
+
+// Death/respawn
+function die(){
+  G.running=false;
+  document.getElementById('death-screen').style.display='flex';
+}
+document.getElementById('respawn-btn').onclick=()=>{
+  P.hp=P.maxHp;P.o2=P.maxO2;P.food=70;P.water=70;
+  P.x=0;P.y=0;
+  document.getElementById('death-screen').style.display='none';
+  G.running=true;
+};
+
+// Main game update
+function update(dt){
+  if(G.paused||!G.running) return;
+  G.time+=dt;
+  G.dayTime=(G.dayTime+dt)%G.dayLength;
+
+  // Player movement
+  let mx=0,my=0;
+  if(G.keys['w']||G.keys['arrowup']) my=-1;
+  if(G.keys['s']||G.keys['arrowdown']) my=1;
+  if(G.keys['a']||G.keys['arrowleft']) mx=-1;
+  if(G.keys['d']||G.keys['arrowright']) mx=1;
+  if(mx||my){
+    const len=Math.sqrt(mx*mx+my*my);
+    mx/=len;my/=len;
+    P.x+=mx*P.swimSpeed;
+    P.y+=my*P.swimSpeed;
+  }
+
+  // Depth
+  P.depth=getDepth(P.x,P.y);
+
+  // Survival
+  P.o2-=dt*0.8*(P.depth>100?1.5:1);
+  P.food-=dt*0.15;
+  P.water-=dt*0.2;
+
+  // Near surface or base = refill O2
+  if(P.depth<5){P.o2=Math.min(P.maxO2,P.o2+dt*20)}
+  for(const b of bases){
+    const dx=b.x-P.x,dy=b.y-P.y;
+    if(Math.sqrt(dx*dx+dy*dy)<b.size){P.o2=Math.min(P.maxO2,P.o2+dt*15);break}
+  }
+
+  // Water filtration base
+  for(const b of bases){
+    if(b.type==='water_filter'){
+      const dx=b.x-P.x,dy=b.y-P.y;
+      if(Math.sqrt(dx*dx+dy*dy)<80){
+        if(!b.lastProduce||G.time-b.lastProduce>60){
+          b.lastProduce=G.time;
+          addItem('filtered_water');
+          notify('Water filtration produced water');
+        }
+      }
+    }
+    if(b.type==='med_kit'){
+      const dx=b.x-P.x,dy=b.y-P.y;
+      if(Math.sqrt(dx*dx+dy*dy)<60){
+        if(!b.lastProduce||G.time-b.lastProduce>90){
+          b.lastProduce=G.time;
+          P.hp=Math.min(P.maxHp,P.hp+30);
+          notify('Med kit applied');
+        }
+      }
+    }
+    if(b.type==='farm_tray'){
+      const dx=b.x-P.x,dy=b.y-P.y;
+      if(Math.sqrt(dx*dx+dy*dy)<60){
+        if(!b.lastProduce||G.time-b.lastProduce>45){
+          b.lastProduce=G.time;
+          addItem('raw_fish');addItem('coral_sample');
+          notify('Growbed harvested');
+        }
+      }
+    }
+  }
+
+  // Damage checks
+  if(P.o2<=0){P.hp-=dt*10;P.o2=0}
+  if(P.food<=0){P.hp-=dt*3;P.food=0}
+  if(P.water<=0){P.hp-=dt*5;P.water=0}
+  if(P.depth>P.maxDepthSafe){P.hp-=dt*5*(P.depth-P.maxDepthSafe)/100}
+  if(P.hp<=0) die();
+
+  // Infection progression
+  if(P.depth>200&&!P.hasInfection&&P.storyProgress>=2){
+    P.hasInfection=true;
+    notify('WARNING: Foreign bacteria detected in bloodstream');
+  }
+  if(P.hasInfection){P.infectionLevel=Math.min(100,P.infectionLevel+dt*0.01)}
+
+  // Story triggers
+  const dist=Math.sqrt(P.x*P.x+P.y*P.y);
+  if(P.storyProgress===0&&G.time>2) playStorySequence(0);
+  if(P.storyProgress===1&&dist>1200) playStorySequence(1);
+  if(P.storyProgress===2&&dist>2500) playStorySequence(2);
+  if(P.storyProgress===3&&dist>3800) playStorySequence(3);
+
+  // Log discovery
+  for(const log of LOGS){
+    if(!P.logsFound.includes(log.id)&&dist>=log.triggerDist){
+      P.logsFound.push(log.id);
+      notify(`New log discovered: ${log.title}`);
+      playTone(400,0.3,0.05);
+      setTimeout(()=>playTone(600,0.3,0.04),200);
+    }
+  }
+
+  // Creature AI
+  for(const c of creatures){
+    if(!c.alive) continue;
+    const cdx=P.x-c.x,cdy=P.y-c.y;
+    const pdist=Math.sqrt(cdx*cdx+cdy*cdy);
+    const aggroRange=c.isLeviathan?300:120;
+
+    // Wander
+    c.wanderTimer-=dt;
+    if(c.wanderTimer<=0){
+      c.wanderTimer=100+Math.random()*200;
+      c.targetX=c.x+(Math.random()-0.5)*300;
+      c.targetY=c.y+(Math.random()-0.5)*300;
+    }
+
+    // Aggro
+    if(c.aggroTimer>0) c.aggroTimer-=dt;
+    if((c.behavior==='aggressive'||c.isLeviathan)&&pdist<aggroRange){
+      c.targetX=P.x;c.targetY=P.y;
+      c.aggroTimer=200;
+    }
+    if(c.behavior==='passive'&&pdist<80){
+      c.targetX=c.x-cdx*3;c.targetY=c.y-cdy*3;
+    }
+    if(c.behavior==='territorial'&&pdist<100){
+      c.targetX=P.x;c.targetY=P.y;c.aggroTimer=150;
+    }
+
+    // Movement
+    const tx=c.targetX-c.x,ty=c.targetY-c.y;
+    const tlen=Math.sqrt(tx*tx+ty*ty);
+    if(tlen>2){
+      const spd=c.aggroTimer>0?c.speed*1.5:c.speed;
+      c.vx+=(tx/tlen*spd-c.vx)*0.02;
+      c.vy+=(ty/tlen*spd-c.vy)*0.02;
+    }
+    c.x+=c.vx;c.y+=c.vy;
+    c.vx*=0.99;c.vy*=0.99;
+
+    // Attack player
+    if(c.damage&&pdist<c.size+15&&c.aggroTimer>0){
+      if(!c._lastAttack||G.time-c._lastAttack>1.5){
+        c._lastAttack=G.time;
+        P.hp-=c.damage;
+        playDamage();
+        notify(`${c.name} attacks! -${c.damage} HP`);
+        if(c.isLeviathan){
+          const knockback=20;
+          P.x-=cdx/pdist*knockback;
+          P.y-=cdy/pdist*knockback;
+        }
+      }
+    }
+  }
+
+  // Scanning
+  if(scanning.active&&scanning.target){
+    scanning.progress+=dt;
+    if(scanning.progress>=scanning.duration){
+      scanning.active=false;
+      if(scanning.isWreck){
+        const w=scanning.target;
+        if(!w.explored){
+          w.explored=true;
+          const rewards=['titanium','titanium','copper','quartz','battery','glass'];
+          const r=rewards[(Math.random()*rewards.length)|0];
+          addItem(r,2);
+          addItem('titanium',3);
+          // Unlock some blueprints from wrecks
+          const unlocks=['battery','wiring','glass','silicone','fiber_mesh','computer_chip','habitat_builder','laser_cutter'];
+          const unlock=unlocks[(Math.random()*unlocks.length)|0];
+          P.blueprints.add(unlock);
+          notify(`Wreck scanned! Found ${RESOURCES[r]?.name||r}. Blueprint: ${unlock}`);
+        }
+      } else {
+        const t=scanning.target;
+        if(!P.scannedEntities.has(t.id)){
+          P.scannedEntities.add(t.id);
+          notify(`Scanned: ${t.name}`);
+          playScan();
+        }
+      }
+    }
+  }
+
+  // Resource respawn
+  for(const r of resources_world){
+    if(r.collected){
+      r.respawnTimer-=dt;
+      if(r.respawnTimer<=0) r.collected=false;
+    }
+  }
+
+  // Notification timer
+  if(notifTimer>0){
+    notifTimer-=dt;
+    if(notifTimer<=0) document.getElementById('notification').style.opacity='0';
+  }
+
+  // Particles
+  if(Math.random()<0.3){
+    particles.push({
+      x:P.x+(Math.random()-0.5)*W,
+      y:P.y+(Math.random()-0.5)*H,
+      vx:(Math.random()-0.5)*0.3,
+      vy:-0.2-Math.random()*0.3,
+      life:3+Math.random()*3,
+      maxLife:6,
+      size:1+Math.random()*2,
+      type:Math.random()<0.7?'bubble':'particle'
+    });
+  }
+  for(let i=particles.length-1;i>=0;i--){
+    const p=particles[i];
+    p.x+=p.vx;p.y+=p.vy;
+    p.life-=dt;
+    if(p.life<=0) particles.splice(i,1);
+  }
+}
+
+// Rendering
+function render(){
+  const biome=getBiome(P.x,P.y);
+  const depth=P.depth;
+  const dayFactor=Math.sin(G.dayTime/G.dayLength*Math.PI*2)*0.3+0.7;
+  const depthDarken=Math.max(0,1-depth/800);
+
+  // Background color based on biome and depth
+  const bgR=Math.floor(biome.fogColor[0]*depthDarken*dayFactor);
+  const bgG=Math.floor(biome.fogColor[1]*depthDarken*dayFactor);
+  const bgB=Math.floor(biome.fogColor[2]*depthDarken*dayFactor);
+  X.fillStyle=`rgb(${bgR},${bgG},${bgB})`;
+  X.fillRect(0,0,W,H);
+
+  // Camera
+  const cx=P.x-W/2,cy=P.y-H/2;
+
+  // God rays (surface only)
+  if(depth<150){
+    const rayAlpha=(1-depth/150)*0.15*dayFactor;
+    for(let i=0;i<5;i++){
+      const rx=(Math.sin(G.time*0.1+i*1.3)*0.3+0.5)*W;
+      const rw=40+Math.sin(G.time*0.15+i)*20;
+      const grad=X.createLinearGradient(rx,0,rx+rw,H);
+      grad.addColorStop(0,`rgba(200,240,255,${rayAlpha})`);
+      grad.addColorStop(1,`rgba(200,240,255,0)`);
+      X.fillStyle=grad;
+      X.fillRect(rx,0,rw,H);
+    }
+  }
+
+  // Caustics pattern (shallow)
+  if(depth<100){
+    const caustAlpha=(1-depth/100)*0.08;
+    X.strokeStyle=`rgba(150,220,255,${caustAlpha})`;
+    X.lineWidth=1;
+    for(let i=0;i<12;i++){
+      const ox=((G.time*15+i*120+cx*0.5)%W)-50;
+      const oy=((G.time*10+i*80+cy*0.5)%H)-50;
+      X.beginPath();
+      X.arc(ox,oy,20+Math.sin(G.time+i)*10,0,Math.PI*2);
+      X.stroke();
+    }
+  }
+
+  // Terrain features (biome-specific decorations)
+  renderBiomeFeatures(cx,cy,biome,depth,depthDarken);
+
+  // Resources
+  for(const r of resources_world){
+    if(r.collected) continue;
+    const sx=r.x-cx,sy=r.y-cy;
+    if(sx<-50||sx>W+50||sy<-50||sy>H+50) continue;
+    const glow=Math.sin(G.time*2+r.x)*0.3+0.7;
+    X.globalAlpha=glow*depthDarken;
+    X.fillStyle=biome.color[0]>100?'#ffaa66':'#66ffcc';
+    X.beginPath();
+    X.arc(sx,sy,r.size,0,Math.PI*2);
+    X.fill();
+    X.fillStyle='rgba(255,255,255,0.3)';
+    X.beginPath();
+    X.arc(sx-r.size*0.3,sy-r.size*0.3,r.size*0.3,0,Math.PI*2);
+    X.fill();
+    X.globalAlpha=1;
+    // Icon
+    X.font=`${r.size+6}px serif`;
+    X.textAlign='center';
+    X.fillText(r.icon,sx,sy+r.size+14);
+  }
+
+  // Wrecks
+  for(const w of wrecks){
+    const sx=w.x-cx,sy=w.y-cy;
+    if(sx<-100||sx>W+100||sy<-100||sy>H+100) continue;
+    X.globalAlpha=depthDarken*0.8;
+    X.fillStyle=w.explored?'#333':'#445566';
+    X.fillRect(sx-w.size,sy-w.size/2,w.size*2,w.size);
+    X.strokeStyle=w.explored?'#555':'#66aacc';
+    X.lineWidth=2;
+    X.strokeRect(sx-w.size,sy-w.size/2,w.size*2,w.size);
+    // Details
+    X.fillStyle='#556677';
+    X.fillRect(sx-w.size+5,sy-w.size/2+5,15,w.size-10);
+    X.fillRect(sx+w.size-20,sy-w.size/2+5,15,w.size-10);
+    if(!w.explored){
+      X.fillStyle=`rgba(100,200,255,${0.3+Math.sin(G.time*2)*0.2})`;
+      X.fillRect(sx-5,sy-5,10,10);
+    }
+    X.globalAlpha=1;
+    X.font='14px serif';
+    X.textAlign='center';
+    X.fillText(w.explored?'📦':'🔍',sx,sy-w.size/2-8);
+  }
+
+  // Bases
+  for(const b of bases){
+    const sx=b.x-cx,sy=b.y-cy;
+    if(sx<-150||sx>W+150||sy<-150||sy>H+150) continue;
+    X.globalAlpha=0.9;
+    X.fillStyle=b.color||'#1a3a4a';
+    X.strokeStyle='rgba(127,219,202,0.4)';
+    X.lineWidth=2;
+    if(b.type==='multi_room'||b.type==='foundation'){
+      X.fillRect(sx-b.size/2,sy-b.size/2,b.size,b.size);
+      X.strokeRect(sx-b.size/2,sy-b.size/2,b.size,b.size);
+      // Windows
+      X.fillStyle='rgba(100,200,220,0.15)';
+      X.fillRect(sx-b.size/2+8,sy-b.size/2+8,b.size-16,b.size-16);
+    } else if(b.type==='corridor'||b.type==='glass_corridor'){
+      X.fillRect(sx-b.size/2,sy-10,b.size,20);
+      X.strokeRect(sx-b.size/2,sy-10,b.size,20);
+      if(b.type==='glass_corridor'){
+        X.fillStyle='rgba(100,200,255,0.1)';
+        X.fillRect(sx-b.size/2+2,sy-8,b.size-4,16);
+      }
+    } else if(b.type==='moonpool'){
+      X.beginPath();X.arc(sx,sy,b.size/2,0,Math.PI*2);X.fill();X.stroke();
+      X.fillStyle='rgba(50,150,200,0.3)';
+      X.beginPath();X.arc(sx,sy,b.size/3,0,Math.PI*2);X.fill();
+    } else {
+      X.beginPath();X.arc(sx,sy,b.size/2,0,Math.PI*2);X.fill();X.stroke();
+    }
+    X.globalAlpha=1;
+    const pieceInfo=BUILD_PIECES.find(p=>p.id===b.type);
+    if(pieceInfo){
+      X.font='16px serif';X.textAlign='center';
+      X.fillText(pieceInfo.icon,sx,sy+5);
+    }
+  }
+
+  // Beacons
+  for(const b of beacons){
+    const sx=b.x-cx,sy=b.y-cy;
+    const pulse=Math.sin(G.time*3)*0.3+0.7;
+    X.strokeStyle=b.color||'#44aaff';
+    X.globalAlpha=pulse*0.6;
+    X.lineWidth=1;
+    X.beginPath();X.arc(sx,sy,15+Math.sin(G.time*2)*5,0,Math.PI*2);X.stroke();
+    X.globalAlpha=1;
+    X.font='10px monospace';X.textAlign='center';
+    X.fillStyle=b.color||'#44aaff';
+    X.fillText(b.name,sx,sy-20);
+    X.fillText('📍',sx,sy+4);
+  }
+
+  // Creatures
+  for(const c of creatures){
+    if(!c.alive) continue;
+    const sx=c.x-cx,sy=c.y-cy;
+    const viewDist=c.isLeviathan?800:400;
+    if(sx<-viewDist||sx>W+viewDist||sy<-viewDist||sy>H+viewDist) continue;
+    const dist=Math.sqrt((sx-W/2)**2+(sy-H/2)**2);
+    const fadeAlpha=Math.min(1,Math.max(0.1,(viewDist-dist)/200))*depthDarken;
+    X.globalAlpha=fadeAlpha;
+
+    // Body
+    const angle=Math.atan2(c.vy,c.vx);
+    X.save();
+    X.translate(sx,sy);
+    X.rotate(angle);
+
+    if(c.isLeviathan){
+      // Leviathan - complex body
+      const segments=8;
+      const segLen=c.size/segments;
+      X.fillStyle=c.color;
+      X.strokeStyle=c.color;
+      X.lineWidth=3;
+      for(let s=0;s<segments;s++){
+        const segX=-s*segLen;
+        const segW=c.size/4*(1-s*0.08);
+        const wobble=Math.sin(G.time*2+s*0.5)*segW*0.15;
+        X.beginPath();
+        X.ellipse(segX,wobble,segLen*0.6,segW,0,0,Math.PI*2);
+        X.fill();
+      }
+      // Eyes
+      X.fillStyle='#ff0000';
+      X.beginPath();X.arc(c.size/6,c.size/8,4,0,Math.PI*2);X.fill();
+      X.beginPath();X.arc(c.size/6,-c.size/8,4,0,Math.PI*2);X.fill();
+      // Glow
+      const glowGrad=X.createRadialGradient(0,0,c.size/4,0,0,c.size);
+      glowGrad.addColorStop(0,c.color+'33');
+      glowGrad.addColorStop(1,'transparent');
+      X.fillStyle=glowGrad;
+      X.beginPath();X.arc(0,0,c.size,0,Math.PI*2);X.fill();
+    } else {
+      // Regular creature
+      X.fillStyle=c.color;
+      // Body shape varies by size
+      if(c.size<12){
+        // Small fish - simple oval
+        X.beginPath();
+        X.ellipse(0,0,c.size,c.size*0.4,0,0,Math.PI*2);
+        X.fill();
+        // Tail
+        X.beginPath();
+        X.moveTo(-c.size,0);
+        X.lineTo(-c.size-6,c.size*0.5*Math.sin(G.time*5+c.x));
+        X.lineTo(-c.size-6,-c.size*0.5*Math.sin(G.time*5+c.x));
+        X.fill();
+      } else {
+        // Larger creature
+        X.beginPath();
+        X.ellipse(0,0,c.size*0.7,c.size*0.35,0,0,Math.PI*2);
+        X.fill();
+        // Fins
+        X.beginPath();
+        X.moveTo(0,-c.size*0.35);
+        X.lineTo(-c.size*0.2,-c.size*0.6);
+        X.lineTo(-c.size*0.4,-c.size*0.35);
+        X.fill();
+        X.beginPath();
+        X.moveTo(0,c.size*0.35);
+        X.lineTo(-c.size*0.2,c.size*0.6);
+        X.lineTo(-c.size*0.4,c.size*0.35);
+        X.fill();
+        // Tail
+        const tailWag=Math.sin(G.time*3+c.y)*c.size*0.3;
+        X.beginPath();
+        X.moveTo(-c.size*0.7,0);
+        X.lineTo(-c.size,tailWag);
+        X.lineTo(-c.size*0.9,-tailWag*0.5);
+        X.fill();
+      }
+      // Eye
+      X.fillStyle='#fff';
+      X.beginPath();X.arc(c.size*0.3,c.size*-0.1,c.size*0.1,0,Math.PI*2);X.fill();
+      X.fillStyle='#000';
+      X.beginPath();X.arc(c.size*0.35,c.size*-0.1,c.size*0.05,0,Math.PI*2);X.fill();
+
+      // Bioluminescence in deep water
+      if(depth>150){
+        const glowA=0.2+Math.sin(G.time*1.5+c.x*0.01)*0.15;
+        X.fillStyle=`rgba(${parseInt(c.color.slice(1,3),16)},${parseInt(c.color.slice(3,5),16)},${parseInt(c.color.slice(5,7),16)},${glowA})`;
+        X.beginPath();X.arc(0,0,c.size*1.5,0,Math.PI*2);X.fill();
+      }
+    }
+
+    X.restore();
+
+    // Health bar for damaged creatures
+    if(c.hp<c.maxHp){
+      X.fillStyle='rgba(0,0,0,0.5)';
+      X.fillRect(sx-15,sy-c.size-10,30,4);
+      X.fillStyle='#ff4444';
+      X.fillRect(sx-15,sy-c.size-10,30*(c.hp/c.maxHp),4);
+    }
+
+    // Name for nearby creatures
+    if(dist<200){
+      X.font='10px monospace';X.textAlign='center';
+      X.fillStyle=`rgba(127,219,202,${Math.min(1,(200-dist)/100)})`;
+      X.fillText(c.name,sx,sy-c.size-14);
+    }
+
+    X.globalAlpha=1;
+  }
+
+  // Particles
+  for(const p of particles){
+    const sx=p.x-cx,sy=p.y-cy;
+    if(sx<0||sx>W||sy<0||sy>H) continue;
+    const alpha=(p.life/p.maxLife)*depthDarken*0.5;
+    if(p.type==='bubble'){
+      X.strokeStyle=`rgba(200,240,255,${alpha})`;
+      X.lineWidth=1;
+      X.beginPath();X.arc(sx,sy,p.size,0,Math.PI*2);X.stroke();
+    } else {
+      X.fillStyle=`rgba(180,220,240,${alpha*0.5})`;
+      X.fillRect(sx,sy,p.size,p.size);
+    }
+  }
+
+  // Player
+  X.save();
+  X.translate(W/2,H/2);
+  X.rotate(P.angle);
+  // Suit body
+  X.fillStyle='#334455';
+  X.beginPath();X.ellipse(0,0,16,10,0,0,Math.PI*2);X.fill();
+  X.strokeStyle='#7fdbca';X.lineWidth=1.5;
+  X.beginPath();X.ellipse(0,0,16,10,0,0,Math.PI*2);X.stroke();
+  // Visor
+  X.fillStyle='rgba(100,200,220,0.4)';
+  X.beginPath();X.arc(8,0,6,0,Math.PI*2);X.fill();
+  X.strokeStyle='#7fdbca';
+  X.beginPath();X.arc(8,0,6,0,Math.PI*2);X.stroke();
+  // Fins
+  X.fillStyle='#445566';
+  X.beginPath();X.moveTo(-10,-8);X.lineTo(-18,-14);X.lineTo(-16,-6);X.fill();
+  X.beginPath();X.moveTo(-10,8);X.lineTo(-18,14);X.lineTo(-16,6);X.fill();
+  // Flashlight beam
+  if(P.hotbar[P.activeSlot]?.id==='flashlight'){
+    const beamGrad=X.createRadialGradient(12,0,5,100,0,150);
+    beamGrad.addColorStop(0,'rgba(200,240,255,0.15)');
+    beamGrad.addColorStop(1,'transparent');
+    X.fillStyle=beamGrad;
+    X.beginPath();X.moveTo(12,-8);X.lineTo(200,-60);X.lineTo(200,60);X.lineTo(12,8);X.fill();
+  }
+  X.restore();
+
+  // Depth darkness overlay
+  if(depth>100){
+    const darkAlpha=Math.min(0.7,(depth-100)/600);
+    X.fillStyle=`rgba(0,0,10,${darkAlpha})`;
+    X.fillRect(0,0,W,H);
+  }
+
+  // Bioluminescence in very deep areas
+  if(depth>300){
+    const count=Math.floor((depth-300)/100)*3;
+    for(let i=0;i<count;i++){
+      const bx=((G.time*20+i*173)%W);
+      const by=((G.time*15+i*237)%H);
+      const pulse=Math.sin(G.time+i)*0.3+0.5;
+      const colors=['#ff66ff','#66ffff','#44ff44','#ffaa44','#8844ff'];
+      X.fillStyle=colors[i%colors.length];
+      X.globalAlpha=pulse*0.3;
+      X.beginPath();X.arc(bx,by,2+Math.sin(G.time+i)*1,0,Math.PI*2);X.fill();
+    }
+    X.globalAlpha=1;
+  }
+
+  // Scanning overlay
+  if(scanning.active){
+    const el=document.getElementById('scanner-overlay');
+    el.style.display='block';
+    const prog=scanning.progress/scanning.duration;
+    document.getElementById('scan-progress').textContent=`SCANNING... ${Math.floor(prog*100)}%`;
+    const ring=document.getElementById('scan-ring');
+    ring.style.border=`2px solid rgba(127,219,202,${0.3+prog*0.5})`;
+    ring.style.boxShadow=`0 0 ${20+prog*30}px rgba(127,219,202,${prog*0.3})`;
+  } else {
+    document.getElementById('scanner-overlay').style.display='none';
+  }
+
+  // Build placement ghost
+  if(G.buildPlacing){
+    const piece=BUILD_PIECES.find(b=>b.id===G.buildPlacing);
+    if(piece){
+      X.globalAlpha=0.4;
+      X.fillStyle='#1a5a6a';
+      X.strokeStyle='#7fdbca';
+      X.lineWidth=2;
+      const mx=G.mouse.x,my=G.mouse.y;
+      X.fillRect(mx-piece.size/2,my-piece.size/2,piece.size,piece.size);
+      X.strokeRect(mx-piece.size/2,my-piece.size/2,piece.size,piece.size);
+      X.font='20px serif';X.textAlign='center';
+      X.fillStyle='#7fdbca';
+      X.fillText(piece.icon,mx,my+6);
+      X.globalAlpha=1;
+    }
+  }
+
+  // Pressure warning
+  if(P.depth>P.maxDepthSafe){
+    const warnAlpha=Math.sin(G.time*4)*0.15+0.15;
+    X.fillStyle=`rgba(255,0,0,${warnAlpha})`;
+    X.fillRect(0,0,W,H);
+  }
+
+  // Infection visual
+  if(P.hasInfection&&P.infectionLevel>10){
+    const infAlpha=P.infectionLevel/500;
+    X.fillStyle=`rgba(0,255,100,${infAlpha})`;
+    X.fillRect(0,0,W,H);
+  }
+
+  // Update HUD
+  updateHUD();
+  renderMinimap(cx,cy);
+}
+
+function renderBiomeFeatures(cx,cy,biome,depth,depthDarken){
+  const id=biome.id;
+  X.globalAlpha=depthDarken;
+
+  if(id==='safe_shoals'){
+    // Coral formations
+    for(let i=0;i<20;i++){
+      const hash=Math.sin(i*127.1)*43758.5453;
+      const bx=((hash*5000)%2000-1000)-cx%500+W/2;
+      const by=((Math.sin(i*311.7)*43758.5453*5000)%2000-1000)-cy%500+H/2;
+      if(bx<-50||bx>W+50||by<-50||by>H+50) continue;
+      const colors=['#ff7766','#ff9944','#ffcc44','#66ccaa','#ff88aa'];
+      X.fillStyle=colors[i%5];
+      // Coral branch
+      for(let b=0;b<3;b++){
+        const bangle=b*0.8-0.8+Math.sin(G.time*0.5+i)*0.1;
+        X.beginPath();
+        X.moveTo(bx,by);
+        X.quadraticCurveTo(bx+Math.cos(bangle)*15,by+Math.sin(bangle)*15-20,bx+Math.cos(bangle)*8,by-30-b*8);
+        X.lineWidth=3;X.strokeStyle=colors[(i+b)%5];X.stroke();
+        X.beginPath();X.arc(bx+Math.cos(bangle)*8,by-30-b*8,4,0,Math.PI*2);X.fill();
+      }
+    }
+  } else if(id==='kelp_forest'){
+    // Kelp strands
+    for(let i=0;i<30;i++){
+      const hash=Math.sin(i*127.1)*43758.5453;
+      const bx=((hash*6000)%2500-1250)-cx%600+W/2;
+      const by0=((Math.sin(i*311.7)*43758.5453*6000)%2500-1250)-cy%600+H/2;
+      if(bx<-30||bx>W+30) continue;
+      X.strokeStyle=`rgba(30,${100+Math.sin(i)*30},40,0.6)`;
+      X.lineWidth=4;
+      X.beginPath();
+      X.moveTo(bx,by0+60);
+      const sway=Math.sin(G.time*0.8+i*0.5)*15;
+      X.quadraticCurveTo(bx+sway*0.5,by0+20,bx+sway,by0-80);
+      X.stroke();
+      // Leaves
+      for(let l=0;l<3;l++){
+        const ly=by0+60-l*40;
+        const lx=bx+sway*(1-l*0.3)*0.5;
+        X.fillStyle=`rgba(40,${120+l*20},50,0.5)`;
+        X.beginPath();
+        X.ellipse(lx+10,ly,12,4,0.3+Math.sin(G.time+i+l)*0.2,0,Math.PI*2);
+        X.fill();
+      }
+    }
+  } else if(id==='red_reefs'){
+    for(let i=0;i<15;i++){
+      const hash=Math.sin(i*127.1)*43758.5453;
+      const bx=((hash*4000)%2000-1000)-cx%400+W/2;
+      const by=((Math.sin(i*311.7)*43758.5453*4000)%2000-1000)-cy%400+H/2;
+      if(bx<-50||bx>W+50||by<-50||by>H+50) continue;
+      const glow=Math.sin(G.time*1.5+i)*0.3+0.7;
+      X.fillStyle=`rgba(200,40,40,${0.3*glow})`;
+      X.beginPath();X.arc(bx,by,20+Math.sin(i)*10,0,Math.PI*2);X.fill();
+      X.fillStyle=`rgba(255,60,60,${0.5*glow})`;
+      X.beginPath();X.arc(bx,by,10+Math.sin(i)*5,0,Math.PI*2);X.fill();
+    }
+  } else if(id==='jelly_caves'){
+    for(let i=0;i<20;i++){
+      const hash=Math.sin(i*127.1)*43758.5453;
+      const bx=((hash*5000)%2500-1250)-cx%500+W/2;
+      const by=((Math.sin(i*311.7)*43758.5453*5000)%2500-1250)-cy%500+H/2;
+      if(bx<-40||bx>W+40||by<-40||by>H+40) continue;
+      const pulse=Math.sin(G.time+i*0.7)*0.4+0.6;
+      X.fillStyle=`rgba(180,80,220,${0.15*pulse})`;
+      X.beginPath();X.arc(bx,by,25,0,Math.PI*2);X.fill();
+      X.fillStyle=`rgba(220,120,255,${0.3*pulse})`;
+      X.beginPath();X.arc(bx,by,8,0,Math.PI*2);X.fill();
+      // Tendrils
+      X.strokeStyle=`rgba(200,100,240,${0.2*pulse})`;
+      X.lineWidth=1;
+      for(let t=0;t<3;t++){
+        X.beginPath();X.moveTo(bx,by+8);
+        X.quadraticCurveTo(bx+Math.sin(G.time+t)*10,by+30,bx+Math.sin(G.time*0.5+t)*15,by+50);
+        X.stroke();
+      }
+    }
+  } else if(id==='mushroom_forest'){
+    for(let i=0;i<12;i++){
+      const hash=Math.sin(i*127.1)*43758.5453;
+      const bx=((hash*5000)%2500-1250)-cx%500+W/2;
+      const by=((Math.sin(i*311.7)*43758.5453*5000)%2500-1250)-cy%500+H/2;
+      if(bx<-60||bx>W+60||by<-60||by>H+60) continue;
+      // Stem
+      X.fillStyle='rgba(80,100,70,0.6)';
+      X.fillRect(bx-4,by-20,8,50);
+      // Cap
+      X.fillStyle=`rgba(120,160,100,${0.5+Math.sin(G.time*0.5+i)*0.1})`;
+      X.beginPath();X.ellipse(bx,by-25,25+i%3*5,12,0,0,Math.PI*2);X.fill();
+      // Glow dots
+      X.fillStyle=`rgba(150,255,150,${0.3+Math.sin(G.time+i)*0.2})`;
+      X.beginPath();X.arc(bx-8,by-28,3,0,Math.PI*2);X.fill();
+      X.beginPath();X.arc(bx+10,by-22,2,0,Math.PI*2);X.fill();
+    }
+  } else if(id==='blood_trench'){
+    // Red fog particles
+    for(let i=0;i<25;i++){
+      const bx=((G.time*10+i*197)%W);
+      const by=((G.time*8+i*283)%H);
+      X.fillStyle=`rgba(150,20,20,${0.05+Math.sin(G.time*0.5+i)*0.03})`;
+      X.beginPath();X.arc(bx,by,30+Math.sin(i)*15,0,Math.PI*2);X.fill();
+    }
+  } else if(id==='crystal_canyons'){
+    for(let i=0;i<15;i++){
+      const hash=Math.sin(i*127.1)*43758.5453;
+      const bx=((hash*5000)%2500-1250)-cx%500+W/2;
+      const by=((Math.sin(i*311.7)*43758.5453*5000)%2500-1250)-cy%500+H/2;
+      if(bx<-50||bx>W+50||by<-50||by>H+50) continue;
+      const pulse=Math.sin(G.time*1.2+i)*0.4+0.6;
+      // Crystal shape
+      X.fillStyle=`rgba(80,100,200,${0.4*pulse})`;
+      X.beginPath();
+      X.moveTo(bx,by-35);X.lineTo(bx+12,by);X.lineTo(bx,by+5);X.lineTo(bx-12,by);
+      X.fill();
+      X.strokeStyle=`rgba(130,160,255,${0.6*pulse})`;X.lineWidth=1;
+      X.beginPath();X.moveTo(bx,by-35);X.lineTo(bx+12,by);X.lineTo(bx,by+5);X.lineTo(bx-12,by);X.closePath();X.stroke();
+      // Glow
+      X.fillStyle=`rgba(100,130,255,${0.1*pulse})`;
+      X.beginPath();X.arc(bx,by-15,20,0,Math.PI*2);X.fill();
+    }
+  } else if(id==='thermal_depths'){
+    // Lava vents
+    for(let i=0;i<10;i++){
+      const hash=Math.sin(i*127.1)*43758.5453;
+      const bx=((hash*4000)%2000-1000)-cx%400+W/2;
+      const by=((Math.sin(i*311.7)*43758.5453*4000)%2000-1000)-cy%400+H/2;
+      if(bx<-40||bx>W+40||by<-40||by>H+40) continue;
+      X.fillStyle=`rgba(200,80,20,${0.3+Math.sin(G.time*2+i)*0.2})`;
+      X.beginPath();X.arc(bx,by,15,0,Math.PI*2);X.fill();
+      X.fillStyle=`rgba(255,150,50,${0.5+Math.sin(G.time*3+i)*0.3})`;
+      X.beginPath();X.arc(bx,by,6,0,Math.PI*2);X.fill();
+      // Heat shimmer
+      for(let s=0;s<3;s++){
+        const sy2=by-20-s*15-Math.sin(G.time*2+s)*5;
+        X.fillStyle=`rgba(255,200,100,${0.1-s*0.03})`;
+        X.beginPath();X.arc(bx+Math.sin(G.time+s+i)*8,sy2,4,0,Math.PI*2);X.fill();
+      }
+    }
+  } else if(id==='void_edge'||id==='abyss_core'){
+    // Sparse bioluminescent dots
+    for(let i=0;i<30;i++){
+      const bx=((G.time*5+i*347)%W);
+      const by=((G.time*3+i*523)%H);
+      const pulse=Math.sin(G.time*0.8+i)*0.4+0.5;
+      const colors=['#ff44ff','#44ffff','#8844ff','#ffaa00'];
+      X.fillStyle=colors[i%4];
+      X.globalAlpha=pulse*0.4;
+      X.beginPath();X.arc(bx,by,1.5,0,Math.PI*2);X.fill();
+    }
+  }
+  X.globalAlpha=1;
+}
+
+function updateHUD(){
+  document.getElementById('hp-bar').style.width=Math.max(0,P.hp/P.maxHp*100)+'%';
+  document.getElementById('o2-bar').style.width=Math.max(0,P.o2/P.maxO2*100)+'%';
+  document.getElementById('food-bar').style.width=Math.max(0,P.food)+'%';
+  document.getElementById('water-bar').style.width=Math.max(0,P.water)+'%';
+
+  if(P.hp<30) document.getElementById('hp-bar').style.background='linear-gradient(90deg,#ff0000,#ff4444)';
+  else document.getElementById('hp-bar').style.background='linear-gradient(90deg,#ff4444,#ff6b6b)';
+  if(P.o2<25) document.getElementById('o2-bar').style.background='linear-gradient(90deg,#ff4444,#ff6666)';
+  else document.getElementById('o2-bar').style.background='linear-gradient(90deg,#44aaff,#66ccff)';
+
+  document.getElementById('depth-text').textContent=Math.floor(P.depth)+'m';
+  document.getElementById('depth-text').style.top=`calc(50% - ${Math.min(90,P.depth/15)}px)`;
+
+  // Compass
+  const dirs=['N','NE','E','SE','S','SW','W','NW'];
+  const dirIdx=Math.round(((P.angle+Math.PI)/(Math.PI*2))*8)%8;
+  document.getElementById('compass').textContent=dirs[dirIdx]+' '+Math.floor(P.depth)+'m';
+
+  // Hotbar
+  const hotbar=document.getElementById('hotbar');
+  if(!hotbar.children.length||hotbar.dataset.update!==JSON.stringify(P.hotbar.map(h=>h?.id))+P.activeSlot){
+    hotbar.dataset.update=JSON.stringify(P.hotbar.map(h=>h?.id))+P.activeSlot;
+    hotbar.innerHTML=P.hotbar.map((item,i)=>
+      `<div class="hotbar-slot ${i===P.activeSlot?'active':''}"><div class="hotbar-key">${i+1}</div>${item?`<div style="font-size:18px">${item.icon}</div><div style="font-size:8px">${item.name}</div>`:''}</div>`
+    ).join('');
+  }
+
+  // Interaction prompt
+  const interEl=document.getElementById('interaction');
+  const worldMX=P.x+(G.mouse.x-W/2);
+  const worldMY=P.y+(G.mouse.y-H/2);
+  let interText='';
+  for(const r of resources_world){
+    if(r.collected) continue;
+    const d=Math.sqrt((r.x-worldMX)**2+(r.y-worldMY)**2);
+    if(d<30){interText=`[Click] Pick up ${r.name}`;break}
+  }
+  if(!interText){
+    for(const c of creatures){
+      if(!c.alive) continue;
+      const d=Math.sqrt((c.x-worldMX)**2+(c.y-worldMY)**2);
+      if(d<c.size+30){
+        const tool=P.hotbar[P.activeSlot];
+        if(tool?.id==='scanner') interText=`[Hold Click] Scan ${c.name}`;
+        else if(tool?.id==='knife') interText=`[Click] Attack ${c.name}`;
+        else interText=c.name+(c.isLeviathan?' [LEVIATHAN]':'');
+        break;
+      }
+    }
+  }
+  if(!interText){
+    for(const w of wrecks){
+      const d=Math.sqrt((w.x-worldMX)**2+(w.y-worldMY)**2);
+      if(d<w.size+30){interText=w.explored?'Explored Wreckage':'[Scanner] Scan Wreckage';break}
+    }
+  }
+  if(!interText){
+    for(const b of bases){
+      const d=Math.sqrt((b.x-worldMX)**2+(b.y-worldMY)**2);
+      if(d<b.size){interText=`Base: ${BUILD_PIECES.find(p=>p.id===b.type)?.name||b.type}`;break}
+    }
+  }
+  if(interText){interEl.textContent=interText;interEl.style.display='block'}
+  else{interEl.style.display='none'}
+
+  // Biome name display
+  const biome=getBiome(P.x,P.y);
+  document.getElementById('compass').textContent=`${dirs[dirIdx]}  ·  ${biome.name}  ·  ${Math.floor(P.depth)}m`;
+}
+
+function renderMinimap(cx,cy){
+  MX.fillStyle='rgba(0,20,30,0.8)';
+  MX.fillRect(0,0,140,140);
+  const scale=0.02;
+  // Draw biome colors
+  for(let y=0;y<140;y+=4){
+    for(let x=0;x<140;x+=4){
+      const wx=P.x+(x-70)/scale;
+      const wy=P.y+(y-70)/scale;
+      const b=getBiome(wx,wy);
+      MX.fillStyle=`rgb(${Math.floor(b.color[0]*0.5)},${Math.floor(b.color[1]*0.5)},${Math.floor(b.color[2]*0.5)})`;
+      MX.fillRect(x,y,4,4);
+    }
+  }
+  // Beacons
+  for(const b of beacons){
+    const bx=70+(b.x-P.x)*scale;
+    const by=70+(b.y-P.y)*scale;
+    if(bx>5&&bx<135&&by>5&&by<135){
+      MX.fillStyle=b.color;
+      MX.fillRect(bx-1,by-1,3,3);
+    }
+  }
+  // Player dot
+  MX.fillStyle='#7fdbca';
+  MX.beginPath();MX.arc(70,70,3,0,Math.PI*2);MX.fill();
+  // Direction indicator
+  MX.strokeStyle='#7fdbca';MX.lineWidth=1;
+  MX.beginPath();MX.moveTo(70,70);
+  MX.lineTo(70+Math.cos(P.angle)*10,70+Math.sin(P.angle)*10);
+  MX.stroke();
+}
+
+// Game loop
+let lastTime=0;
+function gameLoop(timestamp){
+  const dt=Math.min((timestamp-lastTime)/1000,0.05);
+  lastTime=timestamp;
+  if(G.running){
+    update(dt);
+    render();
+  }
+  requestAnimationFrame(gameLoop);
+}
+
+// Start game
+document.getElementById('play-btn').onclick=()=>{
+  document.getElementById('title-screen').style.display='none';
+  initAudio();
+  initWorld();
+  G.running=true;
+  playAmbient();
+  lastTime=performance.now();
+  requestAnimationFrame(gameLoop);
+};
+
+// Start the render loop (for title screen background)
+requestAnimationFrame(gameLoop);
+
+// Title screen ambient animation
+(function titleAnim(){
+  if(document.getElementById('title-screen').style.display==='none') return;
+  const tc=document.getElementById('game').getContext('2d');
+  tc.fillStyle='#000810';
+  tc.fillRect(0,0,W,H);
+  const t=performance.now()/1000;
+  // Floating particles
+  for(let i=0;i<50;i++){
+    const x=((t*10+i*137)%W);
+    const y=((t*8+i*253)%H);
+    const a=Math.sin(t+i)*0.3+0.4;
+    tc.fillStyle=`rgba(127,219,202,${a*0.2})`;
+    tc.beginPath();tc.arc(x,y,1+Math.sin(t+i)*0.5,0,Math.PI*2);tc.fill();
+  }
+  // God rays
+  for(let i=0;i<3;i++){
+    const rx=(Math.sin(t*0.1+i*2)*0.3+0.5)*W;
+    const grad=tc.createLinearGradient(rx,0,rx+30,H);
+    grad.addColorStop(0,'rgba(127,219,202,0.03)');
+    grad.addColorStop(1,'transparent');
+    tc.fillStyle=grad;
+    tc.fillRect(rx,0,30,H);
+  }
+  requestAnimationFrame(titleAnim);
+})();
+</script>
+</body>
+</html>
