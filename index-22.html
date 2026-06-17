@@ -1417,11 +1417,11 @@ function tryInteract(){
    BIOME SYSTEM
    ============================================================ */
 const BIOMES=[
-  {name:'SHALLOW REEF',minD:0,maxD:15,fog:new THREE.Color(0x0a6890),den:.01,light:1.0},
-  {name:'KELP FOREST',minD:15,maxD:30,fog:new THREE.Color(0x064a3a),den:.018,light:.7},
-  {name:'DEEP REEF',minD:30,maxD:50,fog:new THREE.Color(0x031a2e),den:.025,light:.35},
-  {name:'ABYSS',minD:50,maxD:80,fog:new THREE.Color(0x010810),den:.04,light:.12},
-  {name:'THE VOID',minD:80,maxD:999,fog:new THREE.Color(0x000204),den:.06,light:.04},
+  {name:'SHALLOW REEF',minD:0,maxD:10,fog:new THREE.Color(0x0a6890),den:.01,light:1.0},
+  {name:'KELP FOREST',minD:10,maxD:20,fog:new THREE.Color(0x064a3a),den:.018,light:.7},
+  {name:'DEEP REEF',minD:20,maxD:28,fog:new THREE.Color(0x031a2e),den:.025,light:.35},
+  {name:'ABYSS',minD:28,maxD:35,fog:new THREE.Color(0x010810),den:.04,light:.12},
+  {name:'THE VOID',minD:35,maxD:999,fog:new THREE.Color(0x000204),den:.06,light:.04},
 ];
 function getBiome(depth){
   for(const b of BIOMES) if(depth>=b.minD&&depth<b.maxD) return b;
@@ -1434,12 +1434,12 @@ function getBiome(depth){
 const MISSION_LIST=[
   {id:'survive',name:'SURVIVE',desc:'Gather your first resources',check:()=>res.titanium>=3&&res.copper>=1},
   {id:'base',name:'ESTABLISH BASE',desc:'Build your first habitat pod',check:()=>placed.some(b=>b.id==='room')},
-  {id:'deeper',name:'GO DEEPER',desc:'Explore below 40m depth',check:()=>missionState.maxDepth>=40},
+  {id:'deeper',name:'GO DEEPER',desc:'Explore below 25m depth',check:()=>missionState.maxDepth>=25},
   {id:'scan5',name:'SCAN THE UNKNOWN',desc:'Scan 5 creatures',check:()=>missionState.scanned>=5},
-  {id:'signal',name:'THE SIGNAL',desc:'Find the beacon at depth 60m',check:()=>missionState.foundBeacon},
+  {id:'signal',name:'THE SIGNAL',desc:'Find the deep beacon',check:()=>missionState.foundBeacon},
   {id:'leviathan',name:"LEVIATHAN'S DOMAIN",desc:'Survive a leviathan encounter',check:()=>missionState.leviathanEncounter},
   {id:'vehicle',name:'BUILD THE TADPOLE',desc:'Craft the submersible vehicle',check:()=>missionState.builtVehicle},
-  {id:'abyss',name:'THE ABYSS',desc:'Reach 80m depth',check:()=>missionState.maxDepth>=80},
+  {id:'abyss',name:'THE ABYSS',desc:'Reach 35m depth',check:()=>missionState.maxDepth>=35},
   {id:'data',name:'ANCIENT DATA',desc:'Find 3 data terminals in the deep',check:()=>missionState.dataFound>=3},
   {id:'escape',name:'ESCAPE',desc:'Build the rocket platform',check:()=>missionState.rocketBuilt},
 ];
@@ -1496,7 +1496,7 @@ const levSegments=[];
   const tailFin2=new THREE.Mesh(new THREE.PlaneGeometry(4,3),new THREE.MeshStandardMaterial({
     color:0x1a3344,roughness:.5,transparent:true,opacity:.7,side:THREE.DoubleSide}));
   tailFin2.position.z=-12*2.6; tailFin2.rotation.y=Math.PI/2; leviathanGroup.add(tailFin2);
-  leviathanGroup.position.set(0,-65,0); scene.add(leviathanGroup);
+  leviathanGroup.position.set(0,-34,0); scene.add(leviathanGroup);
 }
 let levAngle=0,levRoarCd=0;
 function leviathanRoar(){
@@ -1592,7 +1592,7 @@ const dataTerminals=[];
 {let dtAttempts=0;
 for(let i=0;i<5&&dtAttempts<200;dtAttempts++){
   const x=rand(-150,150),z=rand(-150,150),ty=terrainHeight(x,z);
-  if(ty>-40)continue;
+  if(ty>-25)continue;
   const grp=new THREE.Group();
   grp.add(new THREE.Mesh(new THREE.CylinderGeometry(.5,.6,.3,8),new THREE.MeshStandardMaterial({color:0x222233,roughness:.5,metalness:.7})));
   const pillar=new THREE.Mesh(new THREE.CylinderGeometry(.15,.15,2,6),new THREE.MeshStandardMaterial({color:0x334455,roughness:.4,metalness:.5}));
@@ -1615,7 +1615,8 @@ const signalBeacon=(()=>{
   const orb=new THREE.Mesh(new THREE.SphereGeometry(.4,12,10),new THREE.MeshStandardMaterial({color:0xff4400,emissive:0xff4400,emissiveIntensity:3}));
   orb.position.y=3.4; grp.add(orb);
   const li=new THREE.PointLight(0xff4400,2,20); li.position.y=3.4; grp.add(li);
-  let bx,bz,by; do{ bx=rand(-80,80); bz=rand(-80,80); by=terrainHeight(bx,bz); }while(by>-55);
+  let bx,bz,by,att=0; do{ bx=rand(-180,180); bz=rand(-180,180); by=terrainHeight(bx,bz); att++; }while(by>-30&&att<500);
+  if(by>-30) by=-35;
   grp.position.set(bx,by,bz); grp.userData={kind:'beacon'};
   scene.add(grp); return grp;
 })();
@@ -1999,7 +2000,7 @@ function animate(){
   /* leviathan AI */
   if(started&&!paused){
     levAngle+=dt*.15;
-    const levR=60,levDepth=-62;
+    const levR=60,levDepth=-32;
     const levX=Math.cos(levAngle)*levR,levZ=Math.sin(levAngle)*levR;
     leviathanGroup.position.set(levX,levDepth,levZ);
     leviathanGroup.lookAt(Math.cos(levAngle+.1)*levR,levDepth,Math.sin(levAngle+.1)*levR);
@@ -2008,7 +2009,7 @@ function animate(){
       levSegments[i].position.y=Math.cos(t*1.5+i*.4)*.4;
     }
     const levDist=camWorld.distanceTo(leviathanGroup.position);
-    if(levDist<25&&curDepth>40){
+    if(levDist<25&&curDepth>22){
       missionState.leviathanEncounter=true;
       const chaseDir=new THREE.Vector3().subVectors(camWorld,leviathanGroup.position).normalize();
       leviathanGroup.position.addScaledVector(chaseDir,dt*8);
