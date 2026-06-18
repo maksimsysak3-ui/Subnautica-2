@@ -59,17 +59,14 @@
 
   /* vitals (bottom-left) */
   #vitals{position:fixed;left:20px;bottom:22px;width:264px;padding:14px 18px 16px}
-  .vrow{margin-top:10px}.vrow:first-of-type{margin-top:6px}
-  .vrow .top{display:flex;justify-content:space-between;align-items:center;font-size:11px;letter-spacing:.26em;color:#9fd3e4;font-weight:600}
-  .vrow .top .num{font-size:12px;color:#eaffff}
-  .vico{display:inline-block;width:8px;height:8px;transform:rotate(45deg);margin-right:8px;vertical-align:1px}
-  .track{height:6px;margin-top:5px;background:rgba(127,233,255,.1);position:relative;overflow:hidden}
-  .track::after{content:'';position:absolute;inset:0;
-    background:repeating-linear-gradient(90deg,transparent 0 14px,rgba(2,12,20,.7) 14px 16px)}
-  .fill{height:100%;width:100%;transform-origin:left;transition:transform .25s linear}
-  #hpFill{background:linear-gradient(90deg,#ff5d6c,#ffb0a0)} .i-hp{background:#ff7585;box-shadow:0 0 8px #ff5d6c}
-  #foodFill{background:linear-gradient(90deg,#ffae4f,#ffe19b)} .i-fd{background:#ffc06a;box-shadow:0 0 8px #ffae4f}
-  #h2oFill{background:linear-gradient(90deg,#36b3ff,#a8e9ff)} .i-wt{background:#5fc8ff;box-shadow:0 0 8px #36b3ff}
+  .gauge-wrap{display:flex;gap:16px;margin-top:10px;justify-content:center}
+  .gauge{position:relative;width:56px;height:56px;text-align:center}
+  .gauge svg{transform:rotate(-90deg)}
+  .gauge-bg{fill:none;stroke:rgba(127,233,255,.1);stroke-width:4}
+  .gauge-fill{fill:none;stroke-width:4;stroke-linecap:round;transition:stroke-dashoffset .3s}
+  .gauge .g-val{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+  .gauge .g-num{font-family:var(--mono);font-size:13px;color:#eaffff}
+  .gauge .g-lbl{font-size:8px;letter-spacing:.3em;color:var(--cy-dim);margin-top:1px}
 
   /* O2 ring */
   #o2wrap{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);width:132px;height:132px;text-align:center}
@@ -349,12 +346,11 @@
 
   <div id="vitals" class="panel">
     <div class="lbl">Vitals</div>
-    <div class="vrow"><div class="top"><span><i class="vico i-hp"></i>INTEGRITY</span><span class="num" id="hpPct">100</span></div>
-      <div class="track"><div class="fill" id="hpFill"></div></div></div>
-    <div class="vrow"><div class="top"><span><i class="vico i-fd"></i>NUTRITION</span><span class="num" id="foodPct">100</span></div>
-      <div class="track"><div class="fill" id="foodFill"></div></div></div>
-    <div class="vrow"><div class="top"><span><i class="vico i-wt"></i>HYDRATION</span><span class="num" id="h2oPct">100</span></div>
-      <div class="track"><div class="fill" id="h2oFill"></div></div></div>
+    <div class="gauge-wrap">
+      <div class="gauge"><svg width="56" height="56" viewBox="0 0 56 56"><circle class="gauge-bg" cx="28" cy="28" r="24"/><circle id="hpGauge" class="gauge-fill" cx="28" cy="28" r="24" stroke="#ff5d6c" stroke-dasharray="150.8" stroke-dashoffset="0" style="filter:drop-shadow(0 0 4px #ff5d6c)"/></svg><div class="g-val"><div class="g-num" id="hpPct">100</div><div class="g-lbl">HP</div></div></div>
+      <div class="gauge"><svg width="56" height="56" viewBox="0 0 56 56"><circle class="gauge-bg" cx="28" cy="28" r="24"/><circle id="foodGauge" class="gauge-fill" cx="28" cy="28" r="24" stroke="#ffae4f" stroke-dasharray="150.8" stroke-dashoffset="0" style="filter:drop-shadow(0 0 4px #ffae4f)"/></svg><div class="g-val"><div class="g-num" id="foodPct">100</div><div class="g-lbl">FOOD</div></div></div>
+      <div class="gauge"><svg width="56" height="56" viewBox="0 0 56 56"><circle class="gauge-bg" cx="28" cy="28" r="24"/><circle id="h2oGauge" class="gauge-fill" cx="28" cy="28" r="24" stroke="#36b3ff" stroke-dasharray="150.8" stroke-dashoffset="0" style="filter:drop-shadow(0 0 4px #36b3ff)"/></svg><div class="g-val"><div class="g-num" id="h2oPct">100</div><div class="g-lbl">H₂O</div></div></div>
+    </div>
   </div>
 
   <div id="o2wrap">
@@ -490,7 +486,7 @@ const IN_DEN=.005;
 scene.fog=new THREE.FogExp2(UW_FOG.clone(),UW_DEN);
 scene.background=scene.fog.color;
 
-const camera=new THREE.PerspectiveCamera(72,innerWidth/innerHeight,.08,900);
+const camera=new THREE.PerspectiveCamera(68,innerWidth/innerHeight,.1,800);
 const pitchObj=new THREE.Object3D(); pitchObj.add(camera);
 const player=new THREE.Object3D(); player.add(pitchObj);
 player.position.set(0,-7,30);
@@ -498,7 +494,7 @@ scene.add(player);
 
 const composer=new EffectComposer(renderer);
 composer.addPass(new RenderPass(scene,camera));
-const bloom=new UnrealBloomPass(new THREE.Vector2(innerWidth,innerHeight), .55, .7, .72);
+const bloom=new UnrealBloomPass(new THREE.Vector2(innerWidth,innerHeight), .3, .8, .85);
 composer.addPass(bloom);
 composer.addPass(new OutputPass());
 
@@ -514,9 +510,9 @@ applyQuality();
 const uTime={value:0};
 
 /* lights */
-const hemi=new THREE.HemisphereLight(0x8ad8f2,0x0a2433,1.3); scene.add(hemi);
-const sun=new THREE.DirectionalLight(0xd4f0ff,1.2); sun.position.set(40,120,-30); scene.add(sun);
-const ambLight=new THREE.AmbientLight(0x1a3a50,.6); scene.add(ambLight);
+const hemi=new THREE.HemisphereLight(0x8ad8f2,0x0a2433,1.0); scene.add(hemi);
+const sun=new THREE.DirectionalLight(0xd4f0ff,.8); sun.position.set(40,120,-30); scene.add(sun);
+const ambLight=new THREE.AmbientLight(0x1a4a60,.9); scene.add(ambLight);
 
 /* canvas-texture helpers */
 function ctex(w,h,fn){
@@ -543,19 +539,28 @@ function vnoise(x,z){
 function fbm(x,z){ let v=0,a=.5,f=1; for(let i=0;i<5;i++){ v+=a*vnoise(x*f,z*f); a*=.5; f*=2; } return v; }
 function terrainHeight(x,z){
   const dist=Math.sqrt(x*x+z*z);
-  // Gradual base depth curve - NOT a cliff
-  const base=-8-dist*.35;
-  // Biome-specific terrain features using noise at different scales
-  const ridges=Math.abs(Math.sin(x*.008+z*.012))*25*(1-Math.exp(-dist*.003));
-  const plateaus=Math.max(0,fbm(x*.006+5,z*.006+3)-.3)*80;
-  const valleys=Math.min(0,fbm(x*.004-2,z*.004+8)-.6)*120;
-  const detail=fbm(x*.012+7.3,z*.012+2.1)*12+vnoise(x*.08,z*.08)*3;
-  const dunes=Math.sin(x*.02+Math.sin(z*.015)*3)*4;
-  const trench=(vnoise(x*.003,z*.003)>.7)?-80:0;
-  let h=base+ridges+plateaus+valleys+detail+dunes+trench;
-  // Clamp - shallow near center, deep at edges
-  if(dist<60) h=Math.max(h,-15);
-  return clamp(h,-500,3);
+  const base=-6-dist*.28;
+  const ridges=Math.abs(Math.sin(x*.008+z*.012))*22*(1-Math.exp(-dist*.003));
+  const plateaus=Math.max(0,fbm(x*.006+5,z*.006+3)-.3)*70;
+  const valleys=Math.min(0,fbm(x*.004-2,z*.004+8)-.55)*100;
+  const detail=fbm(x*.012+7.3,z*.012+2.1)*14+vnoise(x*.08,z*.08)*4;
+  const dunes=Math.sin(x*.02+Math.sin(z*.015)*3)*5;
+  const trench=(vnoise(x*.003,z*.003)>.68)?-90:0;
+  // Canyon systems - deep cuts through terrain
+  const canyonNoise=Math.abs(Math.sin(x*.005+2.1)*Math.cos(z*.007+1.3));
+  const canyon=canyonNoise<.06?-40*(1-canyonNoise/.06):0;
+  // Massive pillars in deep areas
+  const pillarN=vnoise(x*.01+50,z*.01+50);
+  const pillar=pillarN>.82?((pillarN-.82)*500)*Math.min(1,dist/200):0;
+  // Reef arches / overpasses
+  const archN=vnoise(x*.007+20,z*.007+20);
+  const arch=archN>.78?Math.sin(dist*.02)*30*(archN-.78)*5:0;
+  // Shelf ledges
+  const shelfRaw=base+ridges;
+  const shelf=(shelfRaw<-60&&shelfRaw>-80)?Math.max(0,Math.sin(x*.03)*12+8):0;
+  let h=base+ridges+plateaus+valleys+detail+dunes+trench+canyon+pillar+arch+shelf;
+  if(dist<50) h=Math.max(h,-12);
+  return clamp(h,-550,3);
 }
 function smoothstep(edge0,edge1,x){const t=clamp((x-edge0)/(edge1-edge0),0,1);return t*t*(3-2*t);}
 const terrain=(()=>{
@@ -566,11 +571,14 @@ const terrain=(()=>{
     const x=pos.getX(i),z=pos.getZ(i),y=terrainHeight(x,z);
     pos.setY(i,y);
     const t=clamp((y+500)/503,0,1), c=new THREE.Color();
-    const cAbyss=new THREE.Color(0x060e14),cDeepReef=new THREE.Color(0x0e2c38),cKelp=new THREE.Color(0x1a5e3a),cSandB=new THREE.Color(0xb39d6f),cShallow=new THREE.Color(0x6a9a78);
-    if(t<.15)c.lerpColors(cAbyss,cDeepReef,t/.15);
-    else if(t<.4)c.lerpColors(cDeepReef,cKelp,(t-.15)/.25);
-    else if(t<.7)c.lerpColors(cKelp,cSandB,(t-.4)/.3);
-    else c.lerpColors(cSandB,cShallow,(t-.7)/.3);
+    const cAbyss=new THREE.Color(0x040810),cCrystal=new THREE.Color(0x0a0824),cThermal=new THREE.Color(0x1a0c06),cBlood=new THREE.Color(0x2a1212),cDeepReef=new THREE.Color(0x0e2c38),cKelp=new THREE.Color(0x1a5e3a),cSandB=new THREE.Color(0xb39d6f),cShallow=new THREE.Color(0x6a9a78);
+    if(t<.08)c.lerpColors(cAbyss,cCrystal,t/.08);
+    else if(t<.18)c.lerpColors(cCrystal,cThermal,(t-.08)/.1);
+    else if(t<.3)c.lerpColors(cThermal,cBlood,(t-.18)/.12);
+    else if(t<.45)c.lerpColors(cBlood,cDeepReef,(t-.3)/.15);
+    else if(t<.65)c.lerpColors(cDeepReef,cKelp,(t-.45)/.2);
+    else if(t<.82)c.lerpColors(cKelp,cSandB,(t-.65)/.17);
+    else c.lerpColors(cSandB,cShallow,(t-.82)/.18);
     const patch=vnoise(x*.05+40,z*.05+9);
     if(patch>.72)c.lerp(cRed,(patch-.72)*1.6);
     c.offsetHSL(0,0,(hash(x*3.1,z*1.7)-.5)*.08);
@@ -1539,31 +1547,49 @@ function renderCraftMenu(){
   const cats={materials:'MATERIALS',food:'SUSTENANCE',tools:'TOOLS',equipment:'EQUIPMENT'};
   let html='<div style="display:flex;gap:10px;margin-bottom:18px;grid-column:1/-1">';
   for(const [key,label] of Object.entries(cats)){
-    html+=`<div class="xbtn" onclick="filterCraft('${key}')" style="pointer-events:auto;cursor:pointer" id="catBtn_${key}">${label}</div>`;
+    html+=`<div class="xbtn craftTab" onclick="filterCraft('${key}')" style="pointer-events:auto;cursor:pointer" id="catBtn_${key}">${label}</div>`;
   }
-  html+='</div>';
-  host.innerHTML=html;
+  html+='</div><div class="craft-grid" style="display:flex;flex-wrap:wrap;gap:18px;grid-column:1/-1">';
   window.filterCraft=function(cat){
-    const cards=host.querySelectorAll('.card'); cards.forEach(c=>c.style.display=c.dataset.cat===cat||!cat?'':'none');
-    host.querySelectorAll('.xbtn').forEach(b=>b.style.borderColor='');
+    host.querySelectorAll('.craft-bubble').forEach(c=>c.style.display=c.dataset.cat===cat||!cat?'':'none');
+    host.querySelectorAll('.craftTab').forEach(b=>b.style.borderColor='');
     const btn=$('catBtn_'+cat); if(btn)btn.style.borderColor='var(--cy)';
   };
   for(const [key,recipe] of Object.entries(RECIPES)){
     if(!unlockedBlueprints.has(key))continue;
     const afford=Object.entries(recipe.cost).every(([k,v])=>(res[k]||0)>=v);
-    const card=document.createElement('div');
-    card.className='card'+(afford?'':' cant'); card.dataset.cat=recipe.cat||'materials';
-    card.innerHTML=`<h4>${recipe.name}</h4><div class="cost">${costStr(recipe.cost)}</div><div class="desc">${recipe.desc}</div>`;
-    card.addEventListener('click',()=>{
-      if(!Object.entries(recipe.cost).every(([k,v])=>(res[k]||0)>=v))return;
-      Object.entries(recipe.cost).forEach(([k,v])=>res[k]-=v);
-      res[key]=(res[key]||0)+1;
-      toast(recipe.name+' FABRICATED'); blip(440,.2,'sine',.12);
-      renderCraftMenu();
-    });
-    host.appendChild(card);
+    const colors={materials:'#7fe9ff',food:'#ffae4f',tools:'#7dffa8',equipment:'#c97fff'};
+    const col=colors[recipe.cat]||'#7fe9ff';
+    html+=`<div class="craft-bubble" data-cat="${recipe.cat||'materials'}"
+      style="width:72px;height:72px;border-radius:50%;border:2px solid ${afford?col:'rgba(127,233,255,.2)'};
+      background:${afford?'rgba(127,233,255,.08)':'rgba(127,233,255,.02)'};
+      display:flex;align-items:center;justify-content:center;cursor:pointer;position:relative;
+      transition:all .25s;flex-direction:column;opacity:${afford?1:.4}"
+      onmouseenter="this.querySelector('.craft-tip').style.opacity=1;this.querySelector('.craft-tip').style.transform='translateX(-50%) translateY(0)'"
+      onmouseleave="this.querySelector('.craft-tip').style.opacity=0;this.querySelector('.craft-tip').style.transform='translateX(-50%) translateY(8px)'"
+      onclick="craftItem('${key}')">
+      <div style="width:32px;height:32px;border-radius:50%;background:${col};box-shadow:0 0 12px ${col};opacity:.85"></div>
+      <div style="font-size:7px;letter-spacing:.15em;color:${col};margin-top:4px;text-align:center;max-width:66px;overflow:hidden;white-space:nowrap">${recipe.name}</div>
+      <div class="craft-tip" style="position:absolute;bottom:calc(100% + 10px);left:50%;transform:translateX(-50%) translateY(8px);
+        background:rgba(3,17,28,.95);border:1px solid ${col};padding:10px 14px;border-radius:8px;min-width:180px;
+        pointer-events:none;opacity:0;transition:all .2s;z-index:50;text-align:left">
+        <div style="font-size:12px;font-weight:700;letter-spacing:.2em;color:#eaffff;margin-bottom:4px">${recipe.name}</div>
+        <div style="font-size:10px;color:#7fb4c8;margin-bottom:6px">${recipe.desc}</div>
+        <div style="font-size:10px;color:#ffd9a0;letter-spacing:.1em">${costStr(recipe.cost)}</div>
+      </div>
+    </div>`;
   }
-  if(host.querySelectorAll('.card').length===0) host.innerHTML+='<div style="color:var(--cy-dim);letter-spacing:.3em;padding:20px;grid-column:1/-1">SCAN WRECKS TO UNLOCK BLUEPRINTS</div>';
+  html+='</div>';
+  if(Object.keys(RECIPES).filter(k=>unlockedBlueprints.has(k)).length===0) html+='<div style="color:var(--cy-dim);letter-spacing:.3em;padding:20px;grid-column:1/-1">SCAN WRECKS TO UNLOCK BLUEPRINTS</div>';
+  host.innerHTML=html;
+  window.craftItem=function(key){
+    const recipe=RECIPES[key]; if(!recipe)return;
+    if(!Object.entries(recipe.cost).every(([k,v])=>(res[k]||0)>=v))return;
+    Object.entries(recipe.cost).forEach(([k,v])=>res[k]-=v);
+    res[key]=(res[key]||0)+1;
+    toast(recipe.name+' FABRICATED'); blip(440,.2,'sine',.12);
+    renderCraftMenu();
+  };
 }
 function renderEquipMenu(){
   const host=$('equipSlots'); if(!host)return;
@@ -1658,9 +1684,10 @@ function hudTick(){
   $('o2num').textContent=Math.ceil(stats.o2);
   $('o2ring').style.strokeDashoffset=O2C*(1-stats.o2/100);
   $('o2wrap').classList.toggle('crit',stats.o2<25);
-  $('hpFill').style.transform=`scaleX(${stats.hp/100})`;
-  $('foodFill').style.transform=`scaleX(${stats.food/100})`;
-  $('h2oFill').style.transform=`scaleX(${stats.h2o/100})`;
+  const GC=150.8;
+  $('hpGauge').style.strokeDashoffset=GC*(1-stats.hp/100);
+  $('foodGauge').style.strokeDashoffset=GC*(1-stats.food/100);
+  $('h2oGauge').style.strokeDashoffset=GC*(1-stats.h2o/100);
   $('hpPct').textContent=Math.ceil(stats.hp);
   $('foodPct').textContent=Math.ceil(stats.food);
   $('h2oPct').textContent=Math.ceil(stats.h2o);
@@ -1737,11 +1764,13 @@ function tryInteract(){
    BIOME SYSTEM
    ============================================================ */
 const BIOMES=[
-  {name:'SUNLIT SHALLOWS',minD:0,maxD:30,fog:new THREE.Color(0x0a8aaa),den:.006,light:1.0},
-  {name:'KELP FOREST',minD:30,maxD:80,fog:new THREE.Color(0x065a4a),den:.012,light:.65},
-  {name:'DEEP REEF',minD:80,maxD:180,fog:new THREE.Color(0x031a2e),den:.02,light:.3},
-  {name:'TWILIGHT ZONE',minD:180,maxD:300,fog:new THREE.Color(0x010a14),den:.035,light:.1},
-  {name:'THE ABYSS',minD:300,maxD:999,fog:new THREE.Color(0x000204),den:.055,light:.03},
+  {name:'SAFE SHOALS',minD:0,maxD:30,fog:new THREE.Color(0x1aadcc),den:.005,light:1.0},
+  {name:'KELP FOREST',minD:30,maxD:80,fog:new THREE.Color(0x0a6a3a),den:.01,light:.7},
+  {name:'DEEP REEF',minD:80,maxD:150,fog:new THREE.Color(0x082844),den:.018,light:.35},
+  {name:'BLOOD TRENCH',minD:150,maxD:250,fog:new THREE.Color(0x1a0808),den:.028,light:.15},
+  {name:'THERMAL ZONE',minD:250,maxD:350,fog:new THREE.Color(0x0a0400),den:.035,light:.08},
+  {name:'CRYSTAL CAVES',minD:350,maxD:420,fog:new THREE.Color(0x0a0520),den:.04,light:.06},
+  {name:'THE ABYSS',minD:420,maxD:999,fog:new THREE.Color(0x000102),den:.055,light:.02},
 ];
 function getBiome(depth){
   for(const b of BIOMES) if(depth>=b.minD&&depth<b.maxD) return b;
