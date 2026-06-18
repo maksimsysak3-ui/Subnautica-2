@@ -195,7 +195,7 @@
   .irow .act:hover{background:#fff;box-shadow:0 0 16px var(--cy)}
   .irow .act:disabled{opacity:.25;cursor:default}
   .isec{font-size:10px;letter-spacing:.4em;color:var(--cy-dim);margin:22px 0 2px;font-weight:700}
-  .inv-grid{display:grid;grid-template-columns:repeat(8,1fr);gap:6px;margin-top:12px}
+  .inv-grid{display:grid;grid-template-columns:repeat(10,1fr);gap:5px;margin-top:12px}
   .inv-slot{width:100%;aspect-ratio:1;border:1px solid var(--cy-faint);background:rgba(127,233,255,.04);
     display:flex;flex-direction:column;align-items:center;justify-content:center;position:relative;cursor:pointer;transition:all .15s}
   .inv-slot:hover{border-color:var(--cy);background:rgba(127,233,255,.12)}
@@ -586,7 +586,7 @@ const terrain=(()=>{
   }
   g.setAttribute('color',new THREE.Float32BufferAttribute(colors,3));
   g.computeVertexNormals();
-  const m=new THREE.MeshStandardMaterial({vertexColors:true,roughness:.95,metalness:.02});
+  const m=new THREE.MeshStandardMaterial({vertexColors:true,roughness:.98,metalness:.01,flatShading:false});
   m.onBeforeCompile=sh=>{ // animated caustic light dapple
     sh.uniforms.uTime=uTime;
     sh.vertexShader=sh.vertexShader
@@ -622,11 +622,19 @@ const terrain=(()=>{
       void main(){
         float w = sin(vW.x*0.25+uTime*1.3)+sin(vW.z*0.22-uTime)+sin((vW.x-vW.z)*0.14+uTime*0.7);
         float w2= sin(vW.x*0.6+uTime*2.0)*sin(vW.z*0.55-uTime*1.6);
-        float s = smoothstep(-0.3,2.7,w+w2*0.6);
-        vec3 col = mix(vec3(0.005,0.19,0.30), vec3(0.55,0.9,0.97), s*0.78+0.08);
-        col += vec3(pow(smoothstep(0.78,1.0,s),3.0));
+        float w3= sin(vW.x*1.2-uTime*3.0)*sin(vW.z*1.1+uTime*2.4)*.15;
+        float s = smoothstep(-0.3,2.7,w+w2*0.6+w3);
+        vec3 deepCol=vec3(0.003,0.12,0.22);
+        vec3 midCol=vec3(0.02,0.28,0.38);
+        vec3 brightCol=vec3(0.45,0.82,0.92);
+        vec3 foamCol=vec3(0.7,0.95,1.0);
+        vec3 col=mix(deepCol,midCol,smoothstep(0.0,0.4,s));
+        col=mix(col,brightCol,smoothstep(0.4,0.75,s));
+        col=mix(col,foamCol,pow(smoothstep(0.82,1.0,s),2.0));
+        float fresnel=pow(1.0-abs(dot(normalize(cameraPosition-vW),vec3(0,1,0))),3.0);
+        col=mix(col,vec3(0.6,0.92,1.0),fresnel*0.3);
         float d=length(vW.xz-cameraPosition.xz);
-        gl_FragColor=vec4(col, mix(0.9,0.5,clamp(d/750.0,0.0,1.0)));
+        gl_FragColor=vec4(col, mix(0.88,0.45,clamp(d/700.0,0.0,1.0)));
       }`
   });
   const mesh=new THREE.Mesh(g,m); scene.add(mesh);
@@ -642,7 +650,7 @@ const rayGroup=(()=>{
   const grp=new THREE.Group();
   for(let i=0;i<18;i++){
     const m=new THREE.MeshBasicMaterial({map:tex,transparent:true,depthWrite:false,
-      blending:THREE.AdditiveBlending,side:THREE.DoubleSide,opacity:rand(.03,.085)});
+      blending:THREE.AdditiveBlending,side:THREE.DoubleSide,opacity:rand(.02,.05)});
     const p=new THREE.Mesh(new THREE.PlaneGeometry(rand(7,32),140),m);
     const a=rand(0,Math.PI*2), r=rand(12,90);
     p.position.set(Math.cos(a)*r,-30,Math.sin(a)*r);
@@ -761,7 +769,7 @@ const fanMat=addSway(new THREE.MeshStandardMaterial({map:fanTex,transparent:true
     scene.add(b);
   }
   // glowing anemones (deep)
-  const anemMat=new THREE.MeshStandardMaterial({color:0x6fe8ff,emissive:0x2fc8e8,emissiveIntensity:1.8,roughness:.5});
+  const anemMat=new THREE.MeshStandardMaterial({color:0x6fe8ff,emissive:0x2fc8e8,emissiveIntensity:1.0,roughness:.6});
   for(let i=0;i<300;i++){
     const x=rand(-800,800),z=rand(-800,800),y=terrainHeight(x,z);
     if(y>-26)continue;
@@ -775,7 +783,7 @@ const fanMat=addSway(new THREE.MeshStandardMaterial({map:fanTex,transparent:true
     scene.add(grp);
   }
   // rocks
-  const rockMat=new THREE.MeshStandardMaterial({color:0x46565e,roughness:1});
+  const rockMat=new THREE.MeshStandardMaterial({color:0x3a4a52,roughness:.95,metalness:.05,flatShading:true});
   for(let i=0;i<200;i++){
     const x=rand(-900,900),z=rand(-900,900);
     const r=new THREE.Mesh(new THREE.DodecahedronGeometry(rand(.7,3.8),0),rockMat);
@@ -794,7 +802,7 @@ function makePlant(type){
     new THREE.MeshStandardMaterial({color:0x35604a,roughness:.9}));
   stem.position.y=.8; grp.add(stem);
   const col=type==='food'?0xffa040:0x4fc6ff;
-  const podMat=new THREE.MeshStandardMaterial({color:col,emissive:col,emissiveIntensity:2.2,roughness:.35});
+  const podMat=new THREE.MeshStandardMaterial({color:col,emissive:col,emissiveIntensity:1.2,roughness:.45});
   for(let i=0;i<3;i++){
     const pod=new THREE.Mesh(new THREE.SphereGeometry(rand(.17,.27),12,10),podMat);
     pod.scale.y=1.35;
@@ -1247,30 +1255,46 @@ function buildModule(id,ghost){
     for(const [dx,dz] of [[-2.6,-2.6],[2.6,-2.6],[-2.6,2.6],[2.6,2.6]])
       mk(new THREE.CylinderGeometry(.15,.22,2.6,8),baseDark).position.set(dx,-1.1,dz);
   } else if(id==='room'){
-    const wall=mk(new THREE.CylinderGeometry(4.1,4.1,3,32,1,true,Math.PI+.42,Math.PI*2-.84),baseMat2);
-    wall.position.y=1.5;
-    const band=mk(new THREE.CylinderGeometry(4.12,4.12,.95,32,1,true,Math.PI+.42,Math.PI*2-.84),glassMat);
-    band.position.y=1.95;
-    const dome=mk(new THREE.SphereGeometry(4.1,32,12,0,Math.PI*2,0,Math.PI/2),baseMat2);
-    dome.position.y=3;
-    const domeRing=mk(new THREE.TorusGeometry(4.12,.08,8,44),trimMat);
-    domeRing.rotation.x=Math.PI/2; domeRing.position.y=3;
-    mk(new THREE.CylinderGeometry(4.1,4.25,.3,32),baseDark).position.y=.15;
-    const skirt=mk(new THREE.TorusGeometry(4.16,.07,8,44),trimMat);
-    skirt.rotation.x=Math.PI/2; skirt.position.y=.34;
+    const R=5.5;
+    const wall=mk(new THREE.CylinderGeometry(R,R,3.5,32,1,true,Math.PI+.42,Math.PI*2-.84),baseMat2);
+    wall.position.y=1.75;
+    const band=mk(new THREE.CylinderGeometry(R+.02,R+.02,1.1,32,1,true,Math.PI+.42,Math.PI*2-.84),glassMat);
+    band.position.y=2.2;
+    const dome=mk(new THREE.SphereGeometry(R,32,12,0,Math.PI*2,0,Math.PI/2),baseMat2);
+    dome.position.y=3.5;
+    const domeRing=mk(new THREE.TorusGeometry(R+.02,.1,8,44),trimMat);
+    domeRing.rotation.x=Math.PI/2; domeRing.position.y=3.5;
+    mk(new THREE.CylinderGeometry(R,R+.15,.35,32),baseDark).position.y=.17;
+    const skirt=mk(new THREE.TorusGeometry(R+.06,.08,8,44),trimMat);
+    skirt.rotation.x=Math.PI/2; skirt.position.y=.38;
+    // reinforced ribs
+    for(let ri=0;ri<8;ri++){
+      const a=ri*(Math.PI*2/8);
+      const rib=mk(new THREE.BoxGeometry(.08,3.2,.12),baseDark);
+      rib.position.set(Math.cos(a)*(R-.1),1.8,Math.sin(a)*(R-.1));
+      rib.rotation.y=-a;
+    }
     // door frame
-    const fr=mk(new THREE.BoxGeometry(1.9,.14,.34),trimMat); fr.position.set(0,2.75,-4.0);
-    for(const sx of [-1,1]){ const p=mk(new THREE.BoxGeometry(.14,2.5,.34),trimMat); p.position.set(sx*.95,1.55,-4.0); }
-    for(const [dx,dz] of [[-2.8,-2.8],[2.8,-2.8],[-2.8,2.8],[2.8,2.8]])
-      mk(new THREE.CylinderGeometry(.16,.24,2.8,8),baseDark).position.set(dx,-1.2,dz);
+    const fr=mk(new THREE.BoxGeometry(2.1,.16,.38),trimMat); fr.position.set(0,3.2,-R);
+    for(const sx of [-1,1]){ const p=mk(new THREE.BoxGeometry(.16,3,.38),trimMat); p.position.set(sx*1.05,1.7,-R); }
+    // floor panels
+    mk(new THREE.CylinderGeometry(R-.3,R-.3,.08,32),baseDark).position.y=.04;
+    for(const [dx,dz] of [[-3.5,-3.5],[3.5,-3.5],[-3.5,3.5],[3.5,3.5]])
+      mk(new THREE.CylinderGeometry(.18,.28,3.2,8),baseDark).position.set(dx,-1.4,dz);
     if(!ghost){
-      // interior fit-out
-      const li=new THREE.PointLight(0xcfeeff,1.2,18,1); li.position.set(0,2.7,0); grp.add(li);
-      mk(new THREE.CylinderGeometry(.4,.4,.05,16),trimMat).position.set(0,2.96,0);
-      const console_=mk(new THREE.BoxGeometry(1.7,.9,.5),baseDark); console_.position.set(0,.75,3.4);
-      const screen=mk(new THREE.PlaneGeometry(1.4,.55),screenMat);
-      screen.position.set(0,1.05,3.13); screen.rotation.x=-.25; screen.rotation.y=Math.PI;
-      const locker=mk(new THREE.BoxGeometry(.8,1.9,.5),baseMat); locker.position.set(2.9,1.25,1.8); locker.rotation.y=-.6;
+      const li=new THREE.PointLight(0xcfeeff,1.5,22,1); li.position.set(0,3.2,0); grp.add(li);
+      mk(new THREE.CylinderGeometry(.5,.5,.06,16),trimMat).position.set(0,3.46,0);
+      // console/fabricator
+      const console_=mk(new THREE.BoxGeometry(2,.95,.6),baseDark); console_.position.set(0,.8,R-1.2);
+      const screenP=mk(new THREE.PlaneGeometry(1.6,.65),screenMat);
+      screenP.position.set(0,1.2,R-1.45); screenP.rotation.x=-.2; screenP.rotation.y=Math.PI;
+      // pipe details
+      for(const sx of [-1,1]){
+        const pipe=mk(new THREE.CylinderGeometry(.04,.04,2.8,6),baseDark);
+        pipe.position.set(sx*4.5,1.8,0);
+      }
+      const locker=mk(new THREE.BoxGeometry(1,2.2,.6),baseMat); locker.position.set(3.8,1.4,2.2); locker.rotation.y=-.5;
+      const locker2=mk(new THREE.BoxGeometry(1,2.2,.6),baseMat); locker2.position.set(-3.8,1.4,2.2); locker2.rotation.y=.5;
     }
   } else if(id==='corridor'){
     mk(new THREE.BoxGeometry(2.6,.2,6),baseDark).position.y=.1;
@@ -1380,7 +1404,7 @@ function pay(c){ Object.entries(c).forEach(([k,v])=>res[k]-=v); }
 const res={titanium:0,copper:0,quartz:0,gold:0,silver:0,diamond:0,lead:0,lithium:0,magnetite:0,rations:1,h2o:1,
   titaniumIngot:0,copperWire:0,glass:0,fiberMesh:0,advancedTank:0,reinforcedSuit:0,ultraFins:0,
   lubricant:0,siliconeRubber:0,computerChip:0,bleach:0,disinfectedWater:0,curedFish:0,medPack:0,depthModule:0,heatResistSuit:0};
-const unlockedBlueprints=new Set(['titaniumIngot','copperWire','glass','fiberMesh','cookedFish','filteredWater','battery','firstAidKit','beacon','wiring','lubricant','siliconeRubber','bleach','curedFish','disinfectedWater']);
+const unlockedBlueprints=new Set(['titaniumIngot','copperWire','glass','fiberMesh','cookedFish','filteredWater','battery','firstAidKit','beacon','wiring','lubricant','siliconeRubber','bleach','curedFish','disinfectedWater','thermalLance','fabricatorTool','scannerTool','repairTool','propulsionEngine','flashlightTool']);
 const RECIPES={
   titaniumIngot:{name:'TITANIUM INGOT',cost:{titanium:4},cat:'materials',desc:'Compressed titanium alloy.'},
   copperWire:{name:'COPPER WIRE',cost:{copper:2},cat:'materials',desc:'Conductive wiring.'},
@@ -1404,6 +1428,14 @@ const RECIPES={
   medPack:{name:'MEDICAL PACK',cost:{firstAidKit:2,fiberMesh:1},cat:'tools',desc:'Full restore. Heals 100 HP.'},
   depthModule:{name:'DEPTH MODULE MK1',cost:{titaniumIngot:2,glass:1,magnetite:1},cat:'equipment',desc:'Vehicle depth rating +200m.'},
   heatResistSuit:{name:'HEAT RESIST SUIT',cost:{fiberMesh:2,lithium:1,diamond:1},cat:'equipment',desc:'Withstand thermal vents.'},
+  thermalLance:{name:'THERMAL LANCE',cost:{titanium:3,copper:2,battery:1},cat:'tools',desc:'Plasma mining drill. Extracts ore deposits.'},
+  fabricatorTool:{name:'FABRICATOR TOOL',cost:{titanium:2,copperWire:1,computerChip:1},cat:'tools',desc:'Handheld structure projector.'},
+  scannerTool:{name:'SCANNER',cost:{titanium:1,copper:1,glass:1},cat:'tools',desc:'Analyzes creatures and wrecks.'},
+  repairTool:{name:'REPAIR TOOL',cost:{titanium:1,copperWire:1},cat:'tools',desc:'Fixes damaged structures.'},
+  propulsionEngine:{name:'PROPULSION ENGINE',cost:{titanium:2,battery:1,lubricant:1},cat:'tools',desc:'Handheld underwater scooter.'},
+  flashlightTool:{name:'FLASHLIGHT',cost:{titanium:1,battery:1,glass:1},cat:'tools',desc:'Portable illumination device.'},
+  surfaceRunner:{name:'SURFACE RUNNER',cost:{titanium:4,copperWire:2,glass:1,lubricant:1},cat:'equipment',desc:'Fast surface scouting vehicle.'},
+  mantaSub:{name:'MANTA SUB',cost:{titaniumIngot:3,glass:2,computerChip:1,lead:2},cat:'equipment',desc:'Mid-depth exploration submersible.'},
 };
 const equipped={suit:null,tank:null,fins:null};
 const stats={hp:100,o2:100,food:100,h2o:100};
@@ -1586,10 +1618,38 @@ function renderCraftMenu(){
   window.craftItem=function(key){
     const recipe=RECIPES[key]; if(!recipe)return;
     if(!Object.entries(recipe.cost).every(([k,v])=>(res[k]||0)>=v))return;
+    if(window._crafting)return;
+    window._crafting=true;
     Object.entries(recipe.cost).forEach(([k,v])=>res[k]-=v);
-    res[key]=(res[key]||0)+1;
-    toast(recipe.name+' FABRICATED'); blip(440,.2,'sine',.12);
-    renderCraftMenu();
+    // Crafting animation overlay
+    const anim=document.createElement('div');
+    anim.style.cssText='position:fixed;inset:0;z-index:50;display:flex;align-items:center;justify-content:center;background:rgba(0,6,14,.7);pointer-events:none';
+    anim.innerHTML=`<div style="text-align:center">
+      <div style="width:120px;height:120px;border:2px solid var(--cy);border-radius:50%;margin:0 auto;position:relative;overflow:hidden">
+        <div id="craftFill" style="position:absolute;bottom:0;left:0;right:0;height:0%;background:linear-gradient(0deg,rgba(127,233,255,.3),rgba(127,233,255,.1));transition:height 1.5s ease-out"></div>
+        <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:10px;letter-spacing:.4em;color:var(--cy)">FABRICATING</div>
+      </div>
+      <div style="font-family:var(--mono);font-size:14px;letter-spacing:.3em;color:#eaffff;margin-top:16px">${recipe.name}</div>
+      <div id="craftSparks" style="font-size:10px;color:var(--cy-dim);margin-top:8px;letter-spacing:.3em">◆ ◇ ◆ ◇ ◆</div>
+    </div>`;
+    document.body.appendChild(anim);
+    requestAnimationFrame(()=>{const f=document.getElementById('craftFill');if(f)f.style.height='100%';});
+    blip(220,.3,'sine',.08); blip(660,.1,'square',.04);
+    let sparkI=0;
+    const sparkInt=setInterval(()=>{
+      sparkI++;
+      const sp=document.getElementById('craftSparks');
+      if(sp)sp.textContent=['◇ ◆ ◇ ◆ ◇','◆ ◇ ◆ ◇ ◆','◇ ◆ ◆ ◆ ◇','◆ ◆ ◇ ◆ ◆'][sparkI%4];
+      blip(300+sparkI*80,.05,'sine',.03);
+    },300);
+    setTimeout(()=>{
+      clearInterval(sparkInt);
+      res[key]=(res[key]||0)+1;
+      if(missionState){missionState.craftCount=(missionState.craftCount||0)+1;}
+      anim.remove(); window._crafting=false;
+      toast(recipe.name+' FABRICATED'); blip(880,.2,'sine',.15); blip(440,.15,'triangle',.1);
+      renderCraftMenu();
+    },1800);
   };
 }
 function renderEquipMenu(){
@@ -2182,6 +2242,174 @@ const fireCorals=[];
     }
     grp.userData={kind:'fireCoral'};
     scene.add(grp); fireCorals.push(grp);
+  }
+}
+
+/* ============================================================
+   BIOME-SPECIFIC CONTENT — unique flora, fauna, features per zone
+   ============================================================ */
+{
+  // BLOOD TRENCH — dark red fleshy plants, predator nests
+  const fleshMat=new THREE.MeshStandardMaterial({color:0x8a2233,roughness:.7,emissive:0x441122,emissiveIntensity:.3});
+  const veinMat=new THREE.MeshStandardMaterial({color:0xcc3344,roughness:.5,emissive:0x661122,emissiveIntensity:.6});
+  for(let i=0;i<120;i++){
+    const x=rand(-800,800),z=rand(-800,800),y=terrainHeight(x,z);
+    if(y>-150||y<-250)continue;
+    const grp=new THREE.Group(); grp.position.set(x,y,z);
+    // fleshy tendril plants
+    for(let j=0;j<3+Math.floor(Math.random()*4);j++){
+      const h=rand(2,5);
+      const tendril=new THREE.Mesh(new THREE.CylinderGeometry(.06,.12,h,6),fleshMat);
+      tendril.position.set(rand(-.8,.8),h/2,rand(-.8,.8));
+      tendril.rotation.set(rand(-.3,.3),0,rand(-.3,.3)); grp.add(tendril);
+      const bulb=new THREE.Mesh(new THREE.SphereGeometry(rand(.15,.3),8,6),veinMat);
+      bulb.position.copy(tendril.position); bulb.position.y+=h/2; grp.add(bulb);
+    }
+    scene.add(grp);
+  }
+  // Blood trench predator nests (bone-like structures)
+  const boneMat=new THREE.MeshStandardMaterial({color:0xccbbaa,roughness:.8,metalness:.1});
+  for(let i=0;i<30;i++){
+    const x=rand(-700,700),z=rand(-700,700),y=terrainHeight(x,z);
+    if(y>-160||y<-240)continue;
+    const grp=new THREE.Group(); grp.position.set(x,y,z);
+    for(let j=0;j<6;j++){
+      const bone=new THREE.Mesh(new THREE.CylinderGeometry(.05,.08,rand(1.5,4),5),boneMat);
+      bone.position.set(rand(-1.5,1.5),rand(.5,2),rand(-1.5,1.5));
+      bone.rotation.set(rand(-1,1),rand(0,3),rand(-1,1)); grp.add(bone);
+    }
+    const skull=new THREE.Mesh(new THREE.SphereGeometry(rand(.5,1),8,6),boneMat);
+    skull.scale.set(1,.7,.9); skull.position.y=.3; grp.add(skull);
+    scene.add(grp);
+  }
+
+  // THERMAL ZONE — heat vents, molten cracks, resistant flora
+  const ventMat=new THREE.MeshStandardMaterial({color:0x332211,roughness:.9,metalness:.2});
+  const lavaMat=new THREE.MeshStandardMaterial({color:0xff6600,emissive:0xff4400,emissiveIntensity:3,roughness:.3});
+  const heatPlantMat=new THREE.MeshStandardMaterial({color:0x886622,roughness:.6,emissive:0x442200,emissiveIntensity:.4});
+  for(let i=0;i<60;i++){
+    const x=rand(-800,800),z=rand(-800,800),y=terrainHeight(x,z);
+    if(y>-250||y<-350)continue;
+    const grp=new THREE.Group(); grp.position.set(x,y,z);
+    // volcanic vent chimney
+    const chimney=new THREE.Mesh(new THREE.CylinderGeometry(rand(.3,.6),rand(.8,1.5),rand(3,8),8),ventMat);
+    chimney.position.y=chimney.geometry.parameters.height/2; grp.add(chimney);
+    const lavaPool=new THREE.Mesh(new THREE.CylinderGeometry(rand(.4,.8),.1,.2,8),lavaMat);
+    lavaPool.position.y=chimney.geometry.parameters.height+.1; grp.add(lavaPool);
+    const gl=new THREE.PointLight(0xff4400,1.5,12); gl.position.y=chimney.geometry.parameters.height; grp.add(gl);
+    // heat-resistant tube worms
+    for(let j=0;j<4;j++){
+      const worm=new THREE.Mesh(new THREE.CylinderGeometry(.03,.05,rand(1,2.5),5),heatPlantMat);
+      worm.position.set(rand(-.8,.8),rand(.5,1.5),rand(-.8,.8));
+      worm.rotation.set(rand(-.4,.4),0,rand(-.4,.4)); grp.add(worm);
+    }
+    scene.add(grp);
+  }
+  // Molten cracks on thermal zone floor
+  for(let i=0;i<40;i++){
+    const x=rand(-700,700),z=rand(-700,700),y=terrainHeight(x,z);
+    if(y>-260||y<-340)continue;
+    const crack=new THREE.Mesh(new THREE.BoxGeometry(rand(.1,.3),.05,rand(4,12)),lavaMat);
+    crack.position.set(x,y+.1,z); crack.rotation.y=rand(0,Math.PI);
+    scene.add(crack);
+    const gl=new THREE.PointLight(0xff3300,.6,6); gl.position.set(x,y+.3,z); scene.add(gl);
+  }
+
+  // CRYSTAL CAVES — reflective crystals, refracted lighting
+  const crystalMat=new THREE.MeshStandardMaterial({color:0x8866ff,roughness:.05,metalness:.3,emissive:0x4422aa,emissiveIntensity:1.5,transparent:true,opacity:.8});
+  const crystalMat2=new THREE.MeshStandardMaterial({color:0x44ddff,roughness:.05,metalness:.2,emissive:0x2288cc,emissiveIntensity:1.2,transparent:true,opacity:.75});
+  for(let i=0;i<80;i++){
+    const x=rand(-800,800),z=rand(-800,800),y=terrainHeight(x,z);
+    if(y>-350||y<-420)continue;
+    const grp=new THREE.Group(); grp.position.set(x,y,z);
+    const mat=Math.random()>.5?crystalMat:crystalMat2;
+    for(let j=0;j<3+Math.floor(Math.random()*5);j++){
+      const h=rand(2,8),r=rand(.2,.6);
+      const crystal=new THREE.Mesh(new THREE.CylinderGeometry(0,r,h,6),mat);
+      crystal.position.set(rand(-2,2),h/2,rand(-2,2));
+      crystal.rotation.set(rand(-.3,.3),rand(0,3),rand(-.3,.3)); grp.add(crystal);
+    }
+    const gl=new THREE.PointLight(Math.random()>.5?0x8866ff:0x44ddff,1,10);
+    gl.position.y=3; grp.add(gl);
+    scene.add(grp);
+  }
+
+  // ABYSS — massive pillars, giant bioluminescent flora, terrifying atmosphere
+  const abyssPlantMat=new THREE.MeshStandardMaterial({color:0x113322,roughness:.5,emissive:0x00ff66,emissiveIntensity:2,transparent:true,opacity:.7});
+  const abyssStemMat=new THREE.MeshStandardMaterial({color:0x0a1a15,roughness:.8});
+  for(let i=0;i<40;i++){
+    const x=rand(-800,800),z=rand(-800,800),y=terrainHeight(x,z);
+    if(y>-420)continue;
+    const grp=new THREE.Group(); grp.position.set(x,y,z);
+    // Giant bioluminescent trees
+    const trunkH=rand(15,35);
+    const trunk=new THREE.Mesh(new THREE.CylinderGeometry(rand(.3,.6),rand(.8,1.2),trunkH,8),abyssStemMat);
+    trunk.position.y=trunkH/2; grp.add(trunk);
+    for(let j=0;j<5+Math.floor(Math.random()*5);j++){
+      const leafR=rand(2,6);
+      const leaf=new THREE.Mesh(new THREE.SphereGeometry(leafR,8,6),abyssPlantMat);
+      leaf.scale.y=.3; leaf.position.set(rand(-3,3),trunkH+rand(-2,3),rand(-3,3)); grp.add(leaf);
+    }
+    const gl=new THREE.PointLight(0x00ff66,1.5,20); gl.position.y=trunkH; grp.add(gl);
+    scene.add(grp);
+  }
+  // Abyss giant flower structures
+  const flowerMat=new THREE.MeshStandardMaterial({color:0xff22aa,emissive:0xcc0088,emissiveIntensity:2.5,transparent:true,opacity:.8,side:THREE.DoubleSide});
+  for(let i=0;i<15;i++){
+    const x=rand(-700,700),z=rand(-700,700),y=terrainHeight(x,z);
+    if(y>-430)continue;
+    const grp=new THREE.Group(); grp.position.set(x,y,z);
+    const stemH=rand(8,20);
+    const stem=new THREE.Mesh(new THREE.CylinderGeometry(.15,.3,stemH,6),abyssStemMat);
+    stem.position.y=stemH/2; grp.add(stem);
+    for(let j=0;j<6;j++){
+      const petal=new THREE.Mesh(new THREE.PlaneGeometry(rand(3,6),rand(2,4)),flowerMat);
+      petal.position.y=stemH;
+      petal.rotation.set(-Math.PI/3,j*(Math.PI*2/6),0);
+      petal.position.x+=Math.cos(j*(Math.PI*2/6))*2;
+      petal.position.z+=Math.sin(j*(Math.PI*2/6))*2;
+      grp.add(petal);
+    }
+    const gl=new THREE.PointLight(0xff22aa,2,15); gl.position.y=stemH; grp.add(gl);
+    grp.userData={kind:'giantFlower'};
+    scene.add(grp);
+  }
+
+  // SAFE SHOALS — soft coral, colorful reefs, seagrass
+  const seagrassMat=addSway(new THREE.MeshStandardMaterial({color:0x66bb55,roughness:.8,side:THREE.DoubleSide,transparent:true,alphaTest:.3}),.6);
+  for(let i=0;i<200;i++){
+    const x=rand(-800,800),z=rand(-800,800),y=terrainHeight(x,z);
+    if(y<-30||y>0)continue;
+    const h=rand(1,3);
+    const grass=new THREE.Mesh(new THREE.PlaneGeometry(.3,h,1,4),seagrassMat);
+    grass.geometry=grass.geometry.clone(); grass.geometry.translate(0,h/2,0);
+    grass.position.set(x,y,z); grass.rotation.y=rand(0,Math.PI);
+    scene.add(grass);
+  }
+  // Soft rounded corals for shallows
+  const softCoralCols=[0xff8899,0x88ccff,0xffcc66,0x99eebb];
+  for(let i=0;i<100;i++){
+    const x=rand(-600,600),z=rand(-600,600),y=terrainHeight(x,z);
+    if(y<-35||y>0)continue;
+    const col=softCoralCols[i%softCoralCols.length];
+    const c=new THREE.Mesh(new THREE.SphereGeometry(rand(.4,1.2),10,8),
+      new THREE.MeshStandardMaterial({color:col,roughness:.6,emissive:col,emissiveIntensity:.15}));
+    c.scale.y=rand(.5,.8); c.position.set(x,y+.2,z);
+    scene.add(c);
+  }
+
+  // DEEP REEF — larger reef formations, sponges
+  const spongeMat=new THREE.MeshStandardMaterial({color:0xddaa44,roughness:.9,emissive:0x553300,emissiveIntensity:.15});
+  for(let i=0;i<60;i++){
+    const x=rand(-800,800),z=rand(-800,800),y=terrainHeight(x,z);
+    if(y>-80||y<-150)continue;
+    const grp=new THREE.Group(); grp.position.set(x,y,z);
+    const h=rand(2,5);
+    const sponge=new THREE.Mesh(new THREE.CylinderGeometry(rand(.5,1.2),rand(.3,.6),h,8,1,true),spongeMat);
+    sponge.position.y=h/2; grp.add(sponge);
+    const rim=new THREE.Mesh(new THREE.TorusGeometry(rand(.5,1.2),.08,6,12),spongeMat);
+    rim.rotation.x=Math.PI/2; rim.position.y=h; grp.add(rim);
+    scene.add(grp);
   }
 }
 
