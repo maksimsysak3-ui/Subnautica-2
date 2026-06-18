@@ -504,17 +504,23 @@ function vnoise(x,z){
 }
 function fbm(x,z){ let v=0,a=.5,f=1; for(let i=0;i<5;i++){ v+=a*vnoise(x*f,z*f); a*=.5; f*=2; } return v; }
 function terrainHeight(x,z){
-  const dune=Math.sin(x*.045+Math.sin(z*.03)*2)*1.4;
-  return -45 + fbm(x*.012+7.3,z*.012+2.1)*38 + vnoise(x*.08,z*.08)*1.8 + dune;
+  const distFromCenter=Math.sqrt(x*x+z*z);
+  const depthCurve=clamp(distFromCenter/400,0,1);
+  const shelfDrop=smoothstep(80,250,distFromCenter)*-350;
+  const trench=smoothstep(350,500,distFromCenter)*-150;
+  const detail=fbm(x*.012+7.3,z*.012+2.1)*15+vnoise(x*.08,z*.08)*3;
+  const dune=Math.sin(x*.045+Math.sin(z*.03)*2)*2;
+  return -12+shelfDrop+trench+detail+dune;
 }
+function smoothstep(edge0,edge1,x){const t=clamp((x-edge0)/(edge1-edge0),0,1);return t*t*(3-2*t);}
 const terrain=(()=>{
-  const g=new THREE.PlaneGeometry(440,440,150,150); g.rotateX(-Math.PI/2);
+  const g=new THREE.PlaneGeometry(2000,2000,200,200); g.rotateX(-Math.PI/2);
   const pos=g.attributes.position, colors=[];
   const cDeep=new THREE.Color(0x0e2c38),cMid=new THREE.Color(0x2f5e52),cSand=new THREE.Color(0xb39d6f),cRed=new THREE.Color(0x6e4a3e);
   for(let i=0;i<pos.count;i++){
     const x=pos.getX(i),z=pos.getZ(i),y=terrainHeight(x,z);
     pos.setY(i,y);
-    const t=clamp((y+45)/38,0,1), c=new THREE.Color();
+    const t=clamp((y+500)/500,0,1), c=new THREE.Color();
     if(t<.5)c.lerpColors(cDeep,cMid,t/.5); else c.lerpColors(cMid,cSand,(t-.5)/.5);
     const patch=vnoise(x*.05+40,z*.05+9);
     if(patch>.72)c.lerp(cRed,(patch-.72)*1.6);
@@ -544,7 +550,7 @@ const terrain=(()=>{
 
 /* ---------------- water surface ---------------- */
 {
-  const g=new THREE.PlaneGeometry(1700,1700,80,80); g.rotateX(-Math.PI/2);
+  const g=new THREE.PlaneGeometry(4000,4000,80,80); g.rotateX(-Math.PI/2);
   const m=new THREE.ShaderMaterial({
     transparent:true,side:THREE.DoubleSide,depthWrite:false,
     uniforms:{uTime},
@@ -1182,7 +1188,7 @@ $('btnDive').addEventListener('click',()=>{
     $('fade').style.transition='opacity .5s'; $('fade').style.opacity=1;
     setTimeout(()=>{
       started=true;
-      player.position.set(0,-7,30); player.rotation.y=0; pitchObj.rotation.x=0; vel.set(0,0,0);
+      player.position.set(0,-7,30); player.rotation.set(0,0,0); pitchObj.rotation.set(0,0,0); vel.set(0,0,0);
       document.body.classList.add('live');
       hideMenu(); tryLock();
       $('fade').style.transition='opacity 2.2s'; $('fade').style.opacity=0;
@@ -1417,11 +1423,11 @@ function tryInteract(){
    BIOME SYSTEM
    ============================================================ */
 const BIOMES=[
-  {name:'SHALLOW REEF',minD:0,maxD:10,fog:new THREE.Color(0x0a6890),den:.01,light:1.0},
-  {name:'KELP FOREST',minD:10,maxD:20,fog:new THREE.Color(0x064a3a),den:.018,light:.7},
-  {name:'DEEP REEF',minD:20,maxD:28,fog:new THREE.Color(0x031a2e),den:.025,light:.35},
-  {name:'ABYSS',minD:28,maxD:35,fog:new THREE.Color(0x010810),den:.04,light:.12},
-  {name:'THE VOID',minD:35,maxD:999,fog:new THREE.Color(0x000204),den:.06,light:.04},
+  {name:'SUNLIT SHALLOWS',minD:0,maxD:30,fog:new THREE.Color(0x0a8aaa),den:.006,light:1.0},
+  {name:'KELP FOREST',minD:30,maxD:80,fog:new THREE.Color(0x065a4a),den:.012,light:.65},
+  {name:'DEEP REEF',minD:80,maxD:180,fog:new THREE.Color(0x031a2e),den:.02,light:.3},
+  {name:'TWILIGHT ZONE',minD:180,maxD:300,fog:new THREE.Color(0x010a14),den:.035,light:.1},
+  {name:'THE ABYSS',minD:300,maxD:999,fog:new THREE.Color(0x000204),den:.055,light:.03},
 ];
 function getBiome(depth){
   for(const b of BIOMES) if(depth>=b.minD&&depth<b.maxD) return b;
@@ -1434,12 +1440,12 @@ function getBiome(depth){
 const MISSION_LIST=[
   {id:'survive',name:'SURVIVE',desc:'Gather your first resources',check:()=>res.titanium>=3&&res.copper>=1},
   {id:'base',name:'ESTABLISH BASE',desc:'Build your first habitat pod',check:()=>placed.some(b=>b.id==='room')},
-  {id:'deeper',name:'GO DEEPER',desc:'Explore below 25m depth',check:()=>missionState.maxDepth>=25},
+  {id:'deeper',name:'GO DEEPER',desc:'Explore below 100m depth',check:()=>missionState.maxDepth>=100},
   {id:'scan5',name:'SCAN THE UNKNOWN',desc:'Scan 5 creatures',check:()=>missionState.scanned>=5},
   {id:'signal',name:'THE SIGNAL',desc:'Find the deep beacon',check:()=>missionState.foundBeacon},
   {id:'leviathan',name:"LEVIATHAN'S DOMAIN",desc:'Survive a leviathan encounter',check:()=>missionState.leviathanEncounter},
   {id:'vehicle',name:'BUILD THE TADPOLE',desc:'Craft the submersible vehicle',check:()=>missionState.builtVehicle},
-  {id:'abyss',name:'THE ABYSS',desc:'Reach 35m depth',check:()=>missionState.maxDepth>=35},
+  {id:'abyss',name:'THE ABYSS',desc:'Reach 400m depth',check:()=>missionState.maxDepth>=400},
   {id:'data',name:'ANCIENT DATA',desc:'Find 3 data terminals in the deep',check:()=>missionState.dataFound>=3},
   {id:'escape',name:'ESCAPE',desc:'Build the rocket platform',check:()=>missionState.rocketBuilt},
 ];
@@ -1743,8 +1749,11 @@ function animate(){
   /* menu cinematic camera */
   if(!started){
     const a=t*.05;
-    player.position.set(Math.cos(a)*34,-9+Math.sin(t*.03)*2.5,Math.sin(a)*34);
-    player.lookAt(0,-20,0); player.rotateY(Math.PI);
+    camera.getWorldPosition(camWorld);
+    camera.getWorldDirection(camDir);
+    const cx=Math.cos(a)*34, cz=Math.sin(a)*34;
+    player.position.set(cx,-9+Math.sin(t*.03)*2.5,cz);
+    player.rotation.set(0,Math.atan2(-cx,-cz)+Math.PI,0);
     pitchObj.rotation.x=-.3;
   }
 
@@ -1770,8 +1779,8 @@ function animate(){
     const ty=terrainHeight(player.position.x,player.position.z)+1.5;
     if(player.position.y<ty){ player.position.y=ty; if(vel.y<0)vel.y=0; }
     if(player.position.y>2.5){ player.position.y=2.5; if(vel.y>0)vel.y=0; }
-    player.position.x=clamp(player.position.x,-205,205);
-    player.position.z=clamp(player.position.z,-205,205);
+    player.position.x=clamp(player.position.x,-950,950);
+    player.position.z=clamp(player.position.z,-950,950);
     const mv=Math.min(vel.length()/8,1);
     camera.position.y=Math.sin(t*2.2)*.035*mv;
     toolRoot.position.x=.44+Math.sin(t*1.7)*.012;
