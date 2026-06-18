@@ -201,6 +201,8 @@
   .irow .nm b{font-size:14px;letter-spacing:.24em;color:#eaffff}
   .irow .nm span{display:block;font-size:11px;letter-spacing:.08em;color:#7fb4c8;margin-top:3px}
   .irow .ct{font-family:var(--mono);font-size:20px;color:#eaffff;text-shadow:0 0 10px var(--cy-dim);min-width:52px;text-align:right}
+  .color-swatch{width:28px;height:28px;border-radius:50%;border:2px solid transparent;cursor:pointer;display:inline-block;margin:3px;transition:border-color .2s}
+  .color-swatch:hover,.color-swatch.active{border-color:var(--cy)}
   .irow .act{cursor:pointer;font-size:11px;letter-spacing:.3em;font-weight:700;color:#0a2030;background:var(--cy);
     padding:9px 18px;border:0;transition:all .2s;font-family:var(--font)}
   .irow .act:hover{background:#fff;box-shadow:0 0 16px var(--cy)}
@@ -225,9 +227,9 @@
   .mission .obj{font-size:10px;color:var(--cy-dim);margin-top:2px}
   /* scanner overlay */
   #scanOverlay{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);width:200px;height:200px;
-    border:1px solid var(--cy);border-radius:50%;opacity:0;transition:opacity .2s;pointer-events:none}
-  #scanOverlay .scanline{position:absolute;left:10%;right:10%;top:50%;height:1px;background:var(--cy);
-    box-shadow:0 0 8px var(--cy);animation:scanmove 1.5s ease-in-out infinite}
+    border:1px solid rgba(68,255,170,.35);border-radius:50%;opacity:0;transition:opacity .2s;pointer-events:none}
+  #scanOverlay .scanline{position:absolute;left:10%;right:10%;top:50%;height:1px;background:rgba(68,255,170,.5);
+    box-shadow:0 0 4px rgba(68,255,170,.4);animation:scanmove 1.5s ease-in-out infinite}
   @keyframes scanmove{0%,100%{top:20%}50%{top:80%}}
   #scanInfo{position:fixed;left:50%;top:62%;transform:translateX(-50%);font-size:12px;letter-spacing:.18em;
     color:var(--cy);text-shadow:0 0 10px var(--cy-dim);opacity:0;transition:opacity .3s;pointer-events:none;text-align:center}
@@ -371,6 +373,17 @@
       <div class="xbtn" id="equipX">CLOSE</div>
     </div>
     <div id="equipSlots"></div>
+  </div>
+</div>
+
+<!-- CUSTOMIZATION -->
+<div class="screen" id="customScreen">
+  <div class="sframe" style="width:min(700px,94vw)">
+    <div class="shead">
+      <div><h2>SUIT CUSTOMIZATION</h2><div class="sub">MODIFY YOUR DIVE SUIT</div></div>
+      <div class="xbtn" id="customX">CLOSE</div>
+    </div>
+    <div id="customSlots"></div>
   </div>
 </div>
 
@@ -566,7 +579,7 @@ scene.add(player);
 
 const composer=new EffectComposer(renderer);
 composer.addPass(new RenderPass(scene,camera));
-const bloom=new UnrealBloomPass(new THREE.Vector2(innerWidth,innerHeight), .3, .8, .85);
+const bloom=new UnrealBloomPass(new THREE.Vector2(innerWidth,innerHeight), .2, .64, .85);
 composer.addPass(bloom);
 composer.addPass(new OutputPass());
 
@@ -920,6 +933,12 @@ const MIN_TYPES={
   lead:{label:'LEAD',key:'lead'},
   lithium:{label:'LITHIUM',key:'lithium'},
   magnetite:{label:'MAGNETITE',key:'magnetite'},
+  obsidian:{label:'OBSIDIAN',key:'obsidian'},
+  thermalCrystal:{label:'THERMAL CRYSTAL',key:'thermalCrystal'},
+  voidstone:{label:'VOIDSTONE',key:'voidstone'},
+  pressureGel:{label:'PRESSURE GEL',key:'pressureGel'},
+  frozenAlloy:{label:'FROZEN ALLOY',key:'frozenAlloy'},
+  bioMetal:{label:'BIO METAL',key:'bioMetal'},
 };
 const minerals=[],mineralMeshes=[];
 function spikeCluster(grp,color,emissive,glow){
@@ -1519,10 +1538,10 @@ function pay(c){ Object.entries(c).forEach(([k,v])=>res[k]-=v); }
 /* ============================================================
    STATE / INPUT / UI FLOW
    ============================================================ */
-const res={titanium:0,copper:0,quartz:0,gold:0,silver:0,diamond:0,lead:0,lithium:0,magnetite:0,rations:1,h2o:1,
+const res={titanium:0,copper:0,quartz:0,gold:0,silver:0,diamond:0,lead:0,lithium:0,magnetite:0,obsidian:0,thermalCrystal:0,voidstone:0,pressureGel:0,frozenAlloy:0,bioMetal:0,rations:1,h2o:1,
   titaniumIngot:0,copperWire:0,glass:0,fiberMesh:0,advancedTank:0,reinforcedSuit:0,ultraFins:0,
   rawFish:0,lubricant:0,siliconeRubber:0,computerChip:0,bleach:0,disinfectedWater:0,curedFish:0,medPack:0,depthModule:0,heatResistSuit:0};
-const unlockedBlueprints=new Set(['titaniumIngot','copperWire','glass','fiberMesh','cookedFish','filteredWater','battery','firstAidKit','beacon','wiring','lubricant','siliconeRubber','bleach','curedFish','disinfectedWater','thermalLance','fabricatorTool','scannerTool','repairTool','propulsionEngine','flashlightTool']);
+const unlockedBlueprints=new Set(['titaniumIngot','copperWire','glass','fiberMesh','cookedFish','filteredWater','battery','firstAidKit','beacon','wiring','lubricant','siliconeRubber','bleach','curedFish','disinfectedWater','thermalLance','fabricatorTool','scannerTool','repairTool','propulsionEngine','flashlightTool','resourceDetector','deepSonar','creatureTracker','beaconLauncher']);
 const RECIPES={
   titaniumIngot:{name:'TITANIUM INGOT',cost:{titanium:4},cat:'materials',desc:'Compressed titanium alloy.'},
   copperWire:{name:'COPPER WIRE',cost:{copper:2},cat:'materials',desc:'Conductive wiring.'},
@@ -1560,6 +1579,10 @@ const RECIPES={
   beaconLauncher:{name:'BEACON LAUNCHER',cost:{titanium:2,copper:1,battery:1},cat:'tools',desc:'Fires placeable beacons at range.'},
 };
 const equipped={suit:null,tank:null,fins:null};
+const suitCustom={primary:'#1a3a4a',secondary:'#0a2a3a',visor:'#44ccff',decal:'none'};
+const SUIT_COLORS=['#1a3a4a','#2a1a1a','#1a2a1a','#3a3a1a','#1a1a3a','#3a1a2a','#2a2a2a','#4a2a0a','#0a3a2a','#3a0a3a'];
+const VISOR_TINTS=['#44ccff','#ff4444','#44ff44','#ffaa00','#ff44ff','#ffffff','#44ffff'];
+const DECALS=['none','stripe','chevron','skull','wave','star'];
 const stats={hp:100,o2:100,food:100,h2o:100};
 let curTool=1,mouseDown=false,started=false,paused=true,uiOpen=null;
 let dayTime=0; const DAY_LENGTH=300; // 5 min
@@ -1619,6 +1642,7 @@ function openUI(kind){
   else if(kind==='craft'){$('craftScreen').classList.add('open'); renderCraftMenu();}
   else if(kind==='equip'){$('equipScreen').classList.add('open'); renderEquipMenu();}
   else if(kind==='storage'){$('storageScreen').classList.add('open'); renderStorage();}
+  else if(kind==='custom'){$('customScreen').classList.add('open'); renderCustom();}
   if(kind==='build')renderBuildMenu(); if(kind==='inv')renderInventory();
   document.exitPointerLock();
 }
@@ -1628,6 +1652,7 @@ function closeUI(){
   if($('craftScreen'))$('craftScreen').classList.remove('open');
   if($('equipScreen'))$('equipScreen').classList.remove('open');
   if($('storageScreen'))$('storageScreen').classList.remove('open');
+  if($('customScreen'))$('customScreen').classList.remove('open');
   uiOpen=null; tryLock();
 }
 $('buildX').addEventListener('click',closeUI);
@@ -1635,9 +1660,10 @@ $('invX').addEventListener('click',closeUI);
 if($('craftX'))$('craftX').addEventListener('click',closeUI);
 if($('equipX'))$('equipX').addEventListener('click',closeUI);
 if($('storageX'))$('storageX').addEventListener('click',closeUI);
+if($('customX'))$('customX').addEventListener('click',closeUI);
 
 /* ---- base storage (shared locker) ---- */
-const baseStorage={titanium:0,copper:0,quartz:0,gold:0,silver:0,diamond:0,lead:0,lithium:0,magnetite:0,rawFish:0,rations:0,h2o:0,
+const baseStorage={titanium:0,copper:0,quartz:0,gold:0,silver:0,diamond:0,lead:0,lithium:0,magnetite:0,obsidian:0,thermalCrystal:0,voidstone:0,pressureGel:0,frozenAlloy:0,bioMetal:0,rawFish:0,rations:0,h2o:0,
   titaniumIngot:0,copperWire:0,glass:0,fiberMesh:0,battery:0,wiring:0,cookedFish:0,filteredWater:0,firstAidKit:0,beacon:0,
   lubricant:0,siliconeRubber:0,computerChip:0,bleach:0,disinfectedWater:0,curedFish:0,medPack:0};
 const lockerMeshes=[];
@@ -1851,6 +1877,26 @@ function renderEquipMenu(){
         <div style="font-size:60px;opacity:.3">🤿</div>
         <div style="position:absolute;bottom:8px;font-size:9px;letter-spacing:.15em;color:var(--cy-dim)">LOADOUT</div>
       </div>
+    </div>
+    <div style="margin-top:16px;text-align:center"><button class="act" onclick="closeUI();setTimeout(()=>openUI('custom'),100)">CUSTOMIZE SUIT</button></div>`;
+}
+function renderCustom(){
+  const swatches=(arr,current,prop)=>arr.map(c=>`<span class="color-swatch${c===current?' active':''}" style="background:${c}" onclick="suitCustom.${prop}='${c}';renderCustom()"></span>`).join('');
+  $('customSlots').innerHTML=`
+    <div style="display:flex;gap:24px;flex-wrap:wrap;padding:10px">
+      <div style="flex:1;min-width:200px">
+        <div style="font-size:10px;letter-spacing:.3em;color:var(--cy);margin:10px 0 6px">PRIMARY COLOR</div>
+        <div>${swatches(SUIT_COLORS,suitCustom.primary,'primary')}</div>
+        <div style="font-size:10px;letter-spacing:.3em;color:var(--cy);margin:14px 0 6px">SECONDARY COLOR</div>
+        <div>${swatches(SUIT_COLORS,suitCustom.secondary,'secondary')}</div>
+        <div style="font-size:10px;letter-spacing:.3em;color:var(--cy);margin:14px 0 6px">VISOR TINT</div>
+        <div>${swatches(VISOR_TINTS,suitCustom.visor,'visor')}</div>
+        <div style="font-size:10px;letter-spacing:.3em;color:var(--cy);margin:14px 0 6px">SUIT DECAL</div>
+        <div>${DECALS.map(d=>`<button onclick="suitCustom.decal='${d}';renderCustom()" style="margin:3px;padding:4px 10px;background:${suitCustom.decal===d?'rgba(68,204,255,.2)':'transparent'};border:1px solid ${suitCustom.decal===d?'var(--cy)':'var(--cy-faint)'};color:#eaffff;font-family:var(--mono);font-size:10px;letter-spacing:.15em;cursor:pointer">${d.toUpperCase()}</button>`).join('')}</div>
+      </div>
+      <div style="width:160px;height:280px;border:1px solid var(--cy-faint);border-radius:12px;display:flex;align-items:center;justify-content:center;background:linear-gradient(180deg,${suitCustom.primary},${suitCustom.secondary})">
+        <div style="font-size:48px;opacity:.5;filter:drop-shadow(0 0 8px ${suitCustom.visor})">🤿</div>
+      </div>
     </div>`;
 }
 function eat(){
@@ -1986,6 +2032,38 @@ function tryInteract(){
   for(const b of placed){
     if(b.id==='room' && camWorld.distanceTo(new THREE.Vector3(b.x,b.y+.75,b.z+3.4))<3){
       openUI('craft'); blip(440,.1,'sine',.08); return;
+    }
+  }
+  // Grow bed interaction
+  {
+    const gbMeshes=[];
+    placed.forEach(b=>{ if(b.id==='growbed'&&b.grp) b.grp.traverse(c=>{ if(c.isMesh) gbMeshes.push(c); }); });
+    if(gbMeshes.length>0){
+      raycaster.setFromCamera({x:0,y:0},camera); raycaster.far=5;
+      const gbHit=raycaster.intersectObjects(gbMeshes,false)[0];
+      if(gbHit){
+        let gbOwner=gbHit.object.parent;
+        while(gbOwner&&!gbOwner.userData.growBed) gbOwner=gbOwner.parent;
+        const gb=gbOwner?gbOwner.userData.growBed:null;
+        if(gb){
+          for(let i=0;i<4;i++){
+            if(gb.slots[i]&&gb.growTimers[i]>=60){
+              gb.slots[i]=null; gb.growTimers[i]=0;
+              res.cookedFish=(res.cookedFish||0)+1; res.rations++;
+              const plt=gbOwner.getObjectByName('plant_'+i);
+              if(plt) gbOwner.remove(plt);
+              toast('CROP HARVESTED — COOKED FISH +1');
+              blip(560,.1,'triangle',.1); return;
+            }
+          }
+          const emptySlot=gb.slots.indexOf(null);
+          if(emptySlot>=0&&res.rawFish>0){
+            res.rawFish--; gb.slots[emptySlot]='growing'; gb.growTimers[emptySlot]=0;
+            toast('SEED PLANTED — SLOT '+(emptySlot+1));
+            blip(440,.1,'sine',.08); return;
+          }
+        }
+      }
     }
   }
   raycaster.setFromCamera({x:0,y:0},camera); raycaster.far=5.5;
@@ -2619,25 +2697,38 @@ const fireCorals=[];
     const gl=new THREE.PointLight(0x00ff66,1.5,20); gl.position.y=trunkH; grp.add(gl);
     scene.add(grp);
   }
-  // Abyss giant flower structures
+  // Abyss giant flower structures — massive, ancient, event-like
+  const traitFlowers=[];
   const flowerMat=new THREE.MeshStandardMaterial({color:0xff22aa,emissive:0xcc0088,emissiveIntensity:2.5,transparent:true,opacity:.8,side:THREE.DoubleSide});
   for(let i=0;i<15;i++){
     const x=rand(-700,700),z=rand(-700,700),y=terrainHeight(x,z);
     if(y>-430)continue;
     const grp=new THREE.Group(); grp.position.set(x,y,z);
-    const stemH=rand(8,20);
-    const stem=new THREE.Mesh(new THREE.CylinderGeometry(.15,.3,stemH,6),abyssStemMat);
+    const stemH=rand(24,50);
+    const stem=new THREE.Mesh(new THREE.CylinderGeometry(.5,1.2,stemH,8),abyssStemMat);
     stem.position.y=stemH/2; grp.add(stem);
-    for(let j=0;j<6;j++){
-      const petal=new THREE.Mesh(new THREE.PlaneGeometry(rand(3,6),rand(2,4)),flowerMat);
+    for(let j=0;j<8;j++){
+      const petal=new THREE.Mesh(new THREE.PlaneGeometry(rand(10,20),rand(7,14)),flowerMat);
       petal.position.y=stemH;
-      petal.rotation.set(-Math.PI/3,j*(Math.PI*2/6),0);
-      petal.position.x+=Math.cos(j*(Math.PI*2/6))*2;
-      petal.position.z+=Math.sin(j*(Math.PI*2/6))*2;
+      petal.rotation.set(-Math.PI/3,j*(Math.PI*2/8),0);
+      petal.position.x+=Math.cos(j*(Math.PI*2/8))*6;
+      petal.position.z+=Math.sin(j*(Math.PI*2/8))*6;
       grp.add(petal);
     }
-    const gl=new THREE.PointLight(0xff22aa,2,15); gl.position.y=stemH; grp.add(gl);
-    grp.userData={kind:'giantFlower'};
+    const coreMat=new THREE.MeshStandardMaterial({color:0xff44cc,emissive:0xff22aa,emissiveIntensity:3,transparent:true,opacity:.9});
+    const core=new THREE.Mesh(new THREE.SphereGeometry(2.5,12,10),coreMat);
+    core.position.y=stemH; grp.add(core);
+    for(let k=0;k<6;k++){
+      const orb=new THREE.Mesh(new THREE.SphereGeometry(.4,6,6),new THREE.MeshStandardMaterial({color:0xff88dd,emissive:0xff44aa,emissiveIntensity:2.5,transparent:true,opacity:.7}));
+      orb.position.y=stemH;
+      orb.userData.orbitAngle=k*(Math.PI*2/6);orb.userData.orbitR=rand(4,7);orb.userData.orbitSpeed=rand(.5,1.2);orb.userData.orbitY=stemH;
+      grp.add(orb);
+    }
+    const gl=new THREE.PointLight(0xff22aa,3,30); gl.position.y=stemH; grp.add(gl);
+    const traitLight=new THREE.PointLight(0x44ffaa,1.5,15);
+    traitLight.position.set(0,stemH+3,0); grp.add(traitLight);
+    grp.userData={kind:'giantFlower',flowerMat:flowerMat,coreMat:coreMat};
+    traitFlowers.push(grp);
     scene.add(grp);
   }
 
@@ -3152,6 +3243,17 @@ function animate(){
   const biome=getBiome(curDepth);
   if(curDepth>missionState.maxDepth) missionState.maxDepth=curDepth;
   if(!paused&&started&&underwater)checkTraitDamage(biome,dt);
+  // Trait flower pulsing glow + orbiting particles
+  for(const tf of traitFlowers){
+    if(tf.userData.coreMat) tf.userData.coreMat.emissiveIntensity=3+Math.sin(t*1.5)*.8;
+    if(tf.userData.flowerMat) tf.userData.flowerMat.emissiveIntensity=2.5+Math.sin(t*2)*.6;
+    tf.traverse(c=>{if(c.userData.orbitAngle!==undefined){
+      c.userData.orbitAngle+=c.userData.orbitSpeed*dt;
+      c.position.x=Math.cos(c.userData.orbitAngle)*c.userData.orbitR;
+      c.position.z=Math.sin(c.userData.orbitAngle)*c.userData.orbitR;
+      c.position.y=c.userData.orbitY+Math.sin(t*2+c.userData.orbitAngle)*1.5;
+    }});
+  }
   const targCol=underwater?biome.fog:SF_FOG;
   const targDen=insideBase?IN_DEN:(underwater?biome.den:SF_DEN);
   fogColCur.lerp(targCol,1-Math.pow(.02,dt));
@@ -3251,6 +3353,26 @@ function animate(){
   placed.forEach(b=>{
     const orb=b.grp.userData.pulseOrb;
     if(orb)orb.scale.setScalar(1+Math.sin(t*3+b.x)*.18);
+    // Grow bed updates
+    if(b.id==='growbed'&&b.grp.userData.growBed){
+      const gb=b.grp.userData.growBed;
+      for(let s=0;s<4;s++){
+        if(gb.slots[s]){
+          gb.growTimers[s]+=dt;
+          const plantId='plant_'+s;
+          let plant=b.grp.getObjectByName(plantId);
+          if(!plant){
+            plant=new THREE.Mesh(new THREE.ConeGeometry(.1,.3,5),new THREE.MeshStandardMaterial({color:0x44aa44}));
+            plant.name=plantId;
+            plant.position.set(-1+s*.7,.3,0);
+            b.grp.add(plant);
+          }
+          const growth=Math.min(gb.growTimers[s]/60,1);
+          plant.scale.set(growth*2,.5+growth*2,growth*2);
+          if(growth>=1) plant.material.color.setHex(0xaacc44);
+        }
+      }
+    }
   });
   for(const v of vents)
     if(underwater&&Math.random()<dt*2.2)spawnSparks(v,1,true,rand(2,3.5));
@@ -3339,9 +3461,9 @@ function animate(){
         mouseDown=false;
         pay(mod.cost);
         const real=buildModule(mod.id,false);
-        real.position.copy(hit.point); real.rotation.y=modRot;
+        real.position.copy(ghostMesh.position); real.rotation.y=ghostMesh.rotation.y;
         scene.add(real);
-        placed.push({id:mod.id,x:hit.point.x,y:hit.point.y,z:hit.point.z,rot:modRot,grp:real});
+        placed.push({id:mod.id,x:ghostMesh.position.x,y:ghostMesh.position.y,z:ghostMesh.position.z,rot:ghostMesh.rotation.y,grp:real});
         if(mod.id==='foundation'){
           const tg=new THREE.PlaneGeometry(6,6); tg.rotateX(-Math.PI/2);
           const top=new THREE.Mesh(tg,new THREE.MeshBasicMaterial({visible:false}));
@@ -3384,6 +3506,26 @@ function animate(){
       const lh2=raycaster.intersectObjects(allLockers,false)[0];
       if(lh2) prompt='OPEN LOCKER [E]';
       raycaster.far=5.5;
+    }
+    // Grow bed interaction prompt
+    if(!prompt){
+      const gbMeshes=[];
+      placed.forEach(b=>{ if(b.id==='growbed'&&b.grp) b.grp.traverse(c=>{ if(c.isMesh) gbMeshes.push(c); }); });
+      if(gbMeshes.length>0){
+        raycaster.far=5;
+        const gbHit=raycaster.intersectObjects(gbMeshes,false)[0];
+        if(gbHit){
+          let gbOwner=gbHit.object.parent;
+          while(gbOwner&&!gbOwner.userData.growBed) gbOwner=gbOwner.parent;
+          const gb=gbOwner?gbOwner.userData.growBed:null;
+          if(gb){
+            if(gb.slots.some((s,i)=>s&&gb.growTimers[i]>=60)) prompt='HARVEST CROP [E]';
+            else if(gb.slots.indexOf(null)>=0&&res.rawFish>0) prompt='PLANT SEED [E]';
+            else if(gb.slots.some(s=>s)) prompt='GROWING...';
+          }
+        }
+        raycaster.far=5.5;
+      }
     }
     if(!prompt){
       const ph=raycaster.intersectObjects(podTargets(),false)[0];
@@ -3512,8 +3654,8 @@ function animate(){
         const scanTip=new THREE.Vector3(); camera.getWorldPosition(scanTip); scanTip.add(camDir.clone().multiplyScalar(.5));
         scanBeam.position.copy(scanTip); scanBeam.lookAt(scanHitPos); scanBeam.scale.z=scanTip.distanceTo(scanHitPos);
         scanRing.visible=true; scanRing.position.copy(scanHitPos);
-        scanRing.rotation.set(Math.random()*.2,Math.random()*.2,t*3);
-        scanRing.scale.setScalar(.5+scanProgress/100*1.5);
+        scanRing.rotation.z=t*3;
+        scanRing.scale.setScalar((0.5+scanProgress/100*1.5)*(1+Math.sin(t*8)*.15));
       } else { scanBeam.visible=false; scanRing.visible=false; }
     } else { scanProgress=Math.max(0,scanProgress-dt*80); scanBeam.visible=false; scanRing.visible=false; }
   } else { if($('scanOverlay'))$('scanOverlay').style.opacity=0; scanBeam.visible=false; scanRing.visible=false; }
