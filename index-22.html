@@ -570,12 +570,12 @@ function getItemIcon(key){
   const g=c.getContext('2d');const cx=32,cy=32;
   const bg=g.createRadialGradient(cx,cy,0,cx,cy,30);bg.addColorStop(0,'rgba(20,60,100,.3)');bg.addColorStop(.7,'rgba(10,30,50,.55)');bg.addColorStop(1,'rgba(5,15,30,0)');g.beginPath();g.arc(cx,cy,30,0,Math.PI*2);g.fillStyle=bg;g.fill();g.strokeStyle='rgba(127,233,255,.25)';g.lineWidth=1.5;g.stroke();
   const draw={
-    titanium(){g.fillStyle='#b0bec5';g.fillRect(16,22,32,18);g.fillStyle='#cfd8dc';g.fillRect(18,24,28,6);g.fillStyle='rgba(255,255,255,.4)';g.fillRect(20,25,12,3);},
-    copper(){g.fillStyle='#bf6930';g.beginPath();g.moveTo(18,40);g.lineTo(24,20);g.lineTo(40,20);g.lineTo(46,40);g.closePath();g.fill();g.fillStyle='#e8944a';g.fillRect(26,22,12,6);},
-    quartz(){g.fillStyle='rgba(180,230,255,.5)';g.beginPath();g.moveTo(32,10);g.lineTo(44,24);g.lineTo(40,50);g.lineTo(24,50);g.lineTo(20,24);g.closePath();g.fill();g.strokeStyle='rgba(255,255,255,.6)';g.lineWidth=1;g.stroke();g.fillStyle='rgba(255,255,255,.3)';g.beginPath();g.moveTo(30,16);g.lineTo(36,24);g.lineTo(32,34);g.lineTo(28,24);g.closePath();g.fill();},
-    gold(){g.fillStyle='#ffd700';g.fillRect(16,24,32,16);g.fillStyle='#ffec80';g.fillRect(18,26,28,5);g.fillStyle='#fff';g.globalAlpha=.5;g.beginPath();g.arc(38,28,3,0,Math.PI*2);g.fill();g.globalAlpha=1;},
+    titanium(){const gr=g.createLinearGradient(16,22,48,40);gr.addColorStop(0,'#d0d8e0');gr.addColorStop(.3,'#b8c4cc');gr.addColorStop(.6,'#8a9aa8');gr.addColorStop(1,'#6a7a88');g.fillStyle=gr;g.fillRect(16,22,32,18);const hi=g.createLinearGradient(18,24,46,30);hi.addColorStop(0,'rgba(255,255,255,.6)');hi.addColorStop(.4,'rgba(255,255,255,.2)');hi.addColorStop(1,'rgba(255,255,255,0)');g.fillStyle=hi;g.fillRect(18,24,28,6);g.fillStyle='rgba(255,255,255,.5)';g.fillRect(20,25,10,2);g.strokeStyle='rgba(80,100,120,.6)';g.lineWidth=1;g.strokeRect(16,22,32,18);g.fillStyle='rgba(200,220,240,.15)';g.fillRect(16,22,32,2);},
+    copper(){const gr=g.createLinearGradient(18,20,46,40);gr.addColorStop(0,'#e8944a');gr.addColorStop(.4,'#bf6930');gr.addColorStop(.8,'#8a4a1a');gr.addColorStop(1,'#6a3a10');g.fillStyle=gr;g.beginPath();g.moveTo(18,40);g.lineTo(24,20);g.lineTo(40,20);g.lineTo(46,40);g.closePath();g.fill();const sh=g.createLinearGradient(26,20,38,28);sh.addColorStop(0,'rgba(255,200,140,.7)');sh.addColorStop(1,'rgba(255,180,100,0)');g.fillStyle=sh;g.fillRect(26,22,12,6);g.fillStyle='rgba(255,255,255,.3)';g.beginPath();g.arc(30,24,2,0,Math.PI*2);g.fill();g.strokeStyle='rgba(100,60,20,.5)';g.lineWidth=.8;g.beginPath();g.moveTo(18,40);g.lineTo(24,20);g.lineTo(40,20);g.lineTo(46,40);g.closePath();g.stroke();},
+    quartz(){const gr=g.createLinearGradient(20,10,40,50);gr.addColorStop(0,'rgba(220,240,255,.6)');gr.addColorStop(.5,'rgba(180,230,255,.35)');gr.addColorStop(1,'rgba(140,200,240,.2)');g.fillStyle=gr;g.beginPath();g.moveTo(32,10);g.lineTo(44,24);g.lineTo(40,50);g.lineTo(24,50);g.lineTo(20,24);g.closePath();g.fill();g.strokeStyle='rgba(200,240,255,.6)';g.lineWidth=1;g.stroke();const rf=g.createLinearGradient(28,14,36,36);rf.addColorStop(0,'rgba(255,255,255,.45)');rf.addColorStop(1,'rgba(255,255,255,0)');g.fillStyle=rf;g.beginPath();g.moveTo(30,16);g.lineTo(36,24);g.lineTo(32,34);g.lineTo(28,24);g.closePath();g.fill();g.strokeStyle='rgba(255,255,255,.25)';g.lineWidth=.5;g.beginPath();g.moveTo(26,30);g.lineTo(38,22);g.stroke();g.beginPath();g.moveTo(24,40);g.lineTo(36,32);g.stroke();g.fillStyle='rgba(255,255,255,.5)';g.beginPath();g.arc(34,18,1.5,0,Math.PI*2);g.fill();},
+    gold(){const gr=g.createLinearGradient(16,24,48,40);gr.addColorStop(0,'#ffec80');gr.addColorStop(.3,'#ffd700');gr.addColorStop(.7,'#cc9f00');gr.addColorStop(1,'#aa8500');g.fillStyle=gr;g.fillRect(16,24,32,16);const hi=g.createLinearGradient(18,26,46,31);hi.addColorStop(0,'rgba(255,255,200,.5)');hi.addColorStop(.3,'rgba(255,245,150,.3)');hi.addColorStop(1,'rgba(255,230,100,0)');g.fillStyle=hi;g.fillRect(18,26,28,5);g.fillStyle='rgba(255,255,255,.7)';g.beginPath();g.arc(38,28,3,0,Math.PI*2);g.fill();g.fillStyle='rgba(255,255,240,.3)';g.beginPath();g.arc(36,29,1.5,0,Math.PI*2);g.fill();g.strokeStyle='rgba(150,120,0,.5)';g.lineWidth=1;g.strokeRect(16,24,32,16);},
     silver(){g.fillStyle='#b0b8c0';g.fillRect(18,24,28,16);g.fillStyle='#d0d8e0';g.fillRect(20,26,24,5);},
-    diamond(){g.fillStyle='#88ccff';g.beginPath();g.moveTo(32,8);g.lineTo(48,24);g.lineTo(32,54);g.lineTo(16,24);g.closePath();g.fill();g.strokeStyle='#aaddff';g.lineWidth=1;g.stroke();g.fillStyle='rgba(255,255,255,.25)';g.beginPath();g.moveTo(26,24);g.lineTo(32,16);g.lineTo(38,24);g.lineTo(32,40);g.closePath();g.fill();},
+    diamond(){const gr=g.createLinearGradient(16,8,48,54);gr.addColorStop(0,'#ccecff');gr.addColorStop(.3,'#88ccff');gr.addColorStop(.7,'#5599dd');gr.addColorStop(1,'#3366aa');g.fillStyle=gr;g.beginPath();g.moveTo(32,8);g.lineTo(48,24);g.lineTo(32,54);g.lineTo(16,24);g.closePath();g.fill();g.strokeStyle='rgba(180,220,255,.7)';g.lineWidth=1;g.stroke();const fc=g.createLinearGradient(26,16,38,40);fc.addColorStop(0,'rgba(255,255,255,.4)');fc.addColorStop(1,'rgba(255,255,255,0)');g.fillStyle=fc;g.beginPath();g.moveTo(26,24);g.lineTo(32,16);g.lineTo(38,24);g.lineTo(32,40);g.closePath();g.fill();g.strokeStyle='rgba(255,255,255,.2)';g.lineWidth=.5;g.beginPath();g.moveTo(32,8);g.lineTo(32,54);g.stroke();g.beginPath();g.moveTo(16,24);g.lineTo(48,24);g.stroke();g.fillStyle='rgba(255,255,255,.8)';g.beginPath();g.arc(28,18,1.5,0,Math.PI*2);g.fill();g.beginPath();g.arc(38,20,1,0,Math.PI*2);g.fill();g.beginPath();g.arc(24,28,1,0,Math.PI*2);g.fill();},
     lead(){g.fillStyle='#3a3a4a';g.fillRect(16,20,32,24);g.fillStyle='#4a4a5a';g.fillRect(18,22,28,8);g.strokeStyle='#2a2a3a';g.lineWidth=1;g.strokeRect(16,20,32,24);},
     lithium(){g.fillStyle='#e060a0';g.beginPath();g.moveTo(32,10);g.lineTo(46,28);g.lineTo(38,54);g.lineTo(26,54);g.lineTo(18,28);g.closePath();g.fill();g.fillStyle='#ff80c0';g.beginPath();g.moveTo(32,16);g.lineTo(40,28);g.lineTo(32,40);g.closePath();g.fill();},
     magnetite(){g.fillStyle='#2a3a5a';g.beginPath();g.moveTo(20,20);g.lineTo(44,18);g.lineTo(46,44);g.lineTo(18,46);g.closePath();g.fill();g.strokeStyle='#5588cc';g.lineWidth=1.5;g.setLineDash([3,3]);g.beginPath();g.arc(32,32,12,0,Math.PI*2);g.stroke();g.setLineDash([]);},
@@ -2249,6 +2249,71 @@ const crabsquids=[];
   }
 }
 
+
+// Deep anglerfish — large, slow, bioluminescent, aggressive
+const anglerfish=[];
+for(let i=0;i<12;i++){
+  const f=makeFish(rand(3,5),fishTexture('#0a0a1a','#1a1a3a','#0044ff'),0x2244ff);
+  const cx=rand(-600,600),cz=rand(-600,600),cy=terrainHeight(cx,cz);
+  f.userData.a={c:V3(cx,clamp(cy+rand(8,20),-450,-200),cz),r:rand(10,20),w:rand(.1,.2)*(Math.random()<.5?-1:1),ph:rand(0,9),alive:true,respawn:0};
+  f.userData.predator=true; f.scale.set(2,1.5,2);
+  // Add glowing lure
+  const lure=new THREE.Mesh(new THREE.SphereGeometry(.3,6,6),new THREE.MeshStandardMaterial({color:0x44aaff,emissive:0x44aaff,emissiveIntensity:3}));
+  lure.position.set(0,.5,2); f.add(lure);
+  const lureLight=new THREE.PointLight(0x44aaff,.8,8); lureLight.position.copy(lure.position); f.add(lureLight);
+  scene.add(f); anglerfish.push(f);
+}
+
+// Giant jellyfish — passive, huge, bioluminescent
+const jellyfish=[];
+{
+  const jellyMat=new THREE.MeshStandardMaterial({color:0xff66aa,roughness:.3,emissive:0xff3388,emissiveIntensity:.8,transparent:true,opacity:.5,side:THREE.DoubleSide});
+  for(let i=0;i<20;i++){
+    const grp=new THREE.Group();
+    const sz=rand(3,7);
+    const bell=new THREE.Mesh(new THREE.SphereGeometry(sz,12,8,0,Math.PI*2,0,Math.PI/2),jellyMat);
+    grp.add(bell);
+    // Trailing tentacles
+    const tentMat=new THREE.MeshStandardMaterial({color:0xff88cc,emissive:0xff4488,emissiveIntensity:.6,transparent:true,opacity:.4});
+    for(let j=0;j<8;j++){
+      const th=rand(sz*2,sz*5);
+      const tent=new THREE.Mesh(new THREE.CylinderGeometry(.05,.02,th,4),tentMat);
+      tent.position.set(rand(-sz*.6,sz*.6),-th/2,rand(-sz*.6,sz*.6));
+      grp.add(tent);
+    }
+    const cx=rand(-700,700),cz=rand(-700,700),cy=terrainHeight(cx,cz);
+    grp.position.set(cx,clamp(cy+rand(15,40),-350,-30),cz);
+    grp.userData.a={c:grp.position.clone(),r:rand(5,15),w:rand(.05,.15)*(Math.random()<.5?-1:1),ph:rand(0,9),alive:true,respawn:0};
+    scene.add(grp); jellyfish.push(grp);
+  }
+}
+
+// Pack hunters — small, fast, travel in groups
+const packHunters=[];
+for(let i=0;i<25;i++){
+  const f=makeFish(rand(1,1.5),fishTexture('#2a2a3a','#4a4a5a','#ff4400'),0xff6622);
+  const packCx=rand(-400,400),packCz=rand(-400,400),packCy=terrainHeight(packCx,packCz);
+  f.userData.a={c:V3(packCx,clamp(packCy+rand(5,12),-200,-20),packCz),r:rand(4,8),w:rand(.6,1)*(Math.random()<.5?-1:1),ph:rand(0,9),alive:true,respawn:0};
+  f.userData.predator=true;
+  scene.add(f); packHunters.push(f);
+}
+
+// Manta rays — large, passive, majestic
+const mantas=[];
+for(let i=0;i<8;i++){
+  const grp=new THREE.Group();
+  const body=new THREE.Mesh(new THREE.BoxGeometry(6,.3,4),new THREE.MeshStandardMaterial({color:0x2a3a4a,roughness:.7}));
+  grp.add(body);
+  const wing1=new THREE.Mesh(new THREE.BoxGeometry(5,.15,3),new THREE.MeshStandardMaterial({color:0x3a4a5a,roughness:.7}));
+  wing1.position.set(4,0,0); wing1.rotation.z=-.15; grp.add(wing1);
+  const wing2=wing1.clone(); wing2.position.set(-4,0,0); wing2.rotation.z=.15; grp.add(wing2);
+  const tail=new THREE.Mesh(new THREE.CylinderGeometry(.05,.2,4,6),new THREE.MeshStandardMaterial({color:0x2a3a4a,roughness:.7}));
+  tail.rotation.x=Math.PI/2; tail.position.set(0,0,-3); grp.add(tail);
+  const cx=rand(-500,500),cz=rand(-500,500),cy=terrainHeight(cx,cz);
+  grp.position.set(cx,clamp(cy+rand(20,50),-250,-15),cz);
+  grp.userData.a={c:grp.position.clone(),r:rand(15,30),w:rand(.08,.18)*(Math.random()<.5?-1:1),ph:rand(0,9),alive:true,respawn:0};
+  scene.add(grp); mantas.push(grp);
+}
 /* ============================================================
    SCANNER STATE
    ============================================================ */
@@ -2569,6 +2634,100 @@ const fireCorals=[];
   }
 }
 
+
+/* ============================================================
+   DEEP ZONE DENSITY BOOST — fill empty areas
+   ============================================================ */
+{
+  // Deep reef massive sponge forests (y: -60 to -150)
+  const spongeColors=[0x2288aa,0x338866,0x557799,0x446688];
+  for(let i=0;i<300;i++){
+    const x=rand(-800,800),z=rand(-800,800),y=terrainHeight(x,z);
+    if(y>-60||y<-150)continue;
+    const grp=new THREE.Group(); grp.position.set(x,y,z);
+    const col=spongeColors[i%4];
+    const mat=new THREE.MeshStandardMaterial({color:col,roughness:.8,emissive:col,emissiveIntensity:.1});
+    for(let j=0;j<2+Math.floor(Math.random()*4);j++){
+      const h=rand(3,8),r=rand(.5,1.5);
+      const tube=new THREE.Mesh(new THREE.CylinderGeometry(r*.6,r,h,8,1,true),mat);
+      tube.position.set(rand(-2,2),h/2,rand(-2,2));
+      grp.add(tube);
+    }
+    scene.add(grp);
+  }
+  // Blood Trench bone forests (y: -150 to -250)
+  const boneMat2=new THREE.MeshStandardMaterial({color:0xccbbaa,roughness:.9});
+  for(let i=0;i<200;i++){
+    const x=rand(-800,800),z=rand(-800,800),y=terrainHeight(x,z);
+    if(y>-150||y<-280)continue;
+    const grp=new THREE.Group(); grp.position.set(x,y,z);
+    for(let j=0;j<3+Math.floor(Math.random()*5);j++){
+      const h=rand(4,12);
+      const bone=new THREE.Mesh(new THREE.CylinderGeometry(rand(.1,.3),rand(.3,.6),h,6),boneMat2);
+      bone.position.set(rand(-3,3),h/2,rand(-3,3));
+      bone.rotation.set(rand(-.3,.3),rand(0,3),rand(-.3,.3));
+      grp.add(bone);
+    }
+    scene.add(grp);
+  }
+  // Thermal zone smoker chimneys (y: -250 to -380)
+  const chimneyMat=new THREE.MeshStandardMaterial({color:0x2a1a0a,roughness:.95,emissive:0x331100,emissiveIntensity:.2});
+  for(let i=0;i<150;i++){
+    const x=rand(-800,800),z=rand(-800,800),y=terrainHeight(x,z);
+    if(y>-250||y<-400)continue;
+    const h=rand(5,15);
+    const chimney=new THREE.Mesh(new THREE.CylinderGeometry(rand(.3,.8),rand(1,2.5),h,7),chimneyMat);
+    chimney.position.set(x,y+h/2,z);
+    scene.add(chimney);
+  }
+  // Crystal Caves glowing clusters (y: -300 to -420)
+  const crystalColors=[0x8844ff,0x44aaff,0xff44aa,0x44ffaa];
+  for(let i=0;i<250;i++){
+    const x=rand(-800,800),z=rand(-800,800),y=terrainHeight(x,z);
+    if(y>-300||y<-450)continue;
+    const grp=new THREE.Group(); grp.position.set(x,y,z);
+    const col=crystalColors[i%4];
+    const mat=new THREE.MeshStandardMaterial({color:col,roughness:.3,emissive:col,emissiveIntensity:.6,transparent:true,opacity:.8});
+    for(let j=0;j<3+Math.floor(Math.random()*6);j++){
+      const h=rand(2,7),w=rand(.2,.6);
+      const crystal=new THREE.Mesh(new THREE.ConeGeometry(w,h,5),mat);
+      crystal.position.set(rand(-2,2),h/2,rand(-2,2));
+      crystal.rotation.set(rand(-.4,.4),rand(0,3),rand(-.4,.4));
+      grp.add(crystal);
+    }
+    scene.add(grp);
+  }
+  // Abyss bioluminescent gardens (y: -420 to -550)
+  const bioColors=[0x00ffaa,0x00aaff,0xff00aa,0xaaff00];
+  for(let i=0;i<200;i++){
+    const x=rand(-800,800),z=rand(-800,800),y=terrainHeight(x,z);
+    if(y>-420)continue;
+    const grp=new THREE.Group(); grp.position.set(x,y,z);
+    const col=bioColors[i%4];
+    const mat=new THREE.MeshStandardMaterial({color:col,roughness:.4,emissive:col,emissiveIntensity:1.2});
+    for(let j=0;j<2+Math.floor(Math.random()*3);j++){
+      const h=rand(6,18);
+      const stalk=new THREE.Mesh(new THREE.CylinderGeometry(.1,.3,h,6),mat);
+      stalk.position.set(rand(-3,3),h/2,rand(-3,3));
+      grp.add(stalk);
+      const orb=new THREE.Mesh(new THREE.SphereGeometry(rand(.5,1.5),8,6),mat);
+      orb.position.copy(stalk.position); orb.position.y+=h/2;
+      grp.add(orb);
+    }
+    scene.add(grp);
+  }
+  // Vine curtains across all deep areas (y < -80)
+  const vineMat=new THREE.MeshStandardMaterial({color:0x1a4a2a,roughness:.85,side:THREE.DoubleSide,transparent:true,opacity:.7});
+  for(let i=0;i<400;i++){
+    const x=rand(-800,800),z=rand(-800,800),y=terrainHeight(x,z);
+    if(y>-80)continue;
+    const h=rand(5,20),w=rand(.3,1);
+    const vine=new THREE.Mesh(new THREE.PlaneGeometry(w,h,1,6),vineMat);
+    vine.geometry=vine.geometry.clone(); vine.geometry.translate(0,h/2,0);
+    vine.position.set(x,y,z); vine.rotation.y=rand(0,Math.PI);
+    scene.add(vine);
+  }
+}
 /* wrecks for scanning blueprints */
 const wrecks=[];
 const wreckMat=new THREE.MeshStandardMaterial({color:0x3a4a52,roughness:.8,metalness:.4});
@@ -3253,7 +3412,7 @@ function animate(){
     if($('scanOverlay'))$('scanOverlay').style.opacity=mouseDown?.8:0;
     if(mouseDown){
       raycaster.setFromCamera({x:0,y:0},camera); raycaster.far=12;
-      const allFish=[...school,...ambient,...peepers,...boomerangs,...gasopods,...stalkers,...crabsquids];
+      const allFish=[...school,...ambient,...peepers,...boomerangs,...gasopods,...stalkers,...crabsquids,...anglerfish,...packHunters];
       const fishMeshes=[];
       allFish.forEach(f=>{ if(f.visible) f.traverse(c=>{ if(c.isMesh)fishMeshes.push(c); }); });
       const sh=raycaster.intersectObjects(fishMeshes,false)[0];
@@ -3320,7 +3479,7 @@ function animate(){
   } else if(toolRoot.userData.flashlight) toolRoot.userData.flashlight.visible=false;
 
   /* extra fish animation */
-  for(const arr of [peepers,boomerangs,gasopods,stalkers,crabsquids]){
+  for(const arr of [peepers,boomerangs,gasopods,stalkers,crabsquids,anglerfish,packHunters]){
     for(const f of arr){
       const u=f.userData.a,an=f.userData.anim;
       if(!u||!an)continue;
@@ -3344,6 +3503,33 @@ function animate(){
     }
   }
 
+
+  // Predator chase AI for new fish types
+  [...anglerfish,...packHunters].forEach(f=>{
+    if(!f.userData||!f.userData.a||!f.userData.a.alive)return;
+    const d=camWorld.distanceTo(f.position);
+    if(d<25&&d>2){
+      const dir=new THREE.Vector3().subVectors(camWorld,f.position).normalize();
+      f.position.addScaledVector(dir,dt*(f.userData.toxic?4:6));
+      f.lookAt(camWorld);
+      if(d<4){
+        stats.hp=clamp(stats.hp-(f.userData.toxic?8:5)*dt,0,100);
+        hurtFlash=Math.max(hurtFlash,.4);
+        missionState.predatorEncounter=true;
+      }
+    }
+  });
+
+  // Jellyfish and mantas passive animation
+  [...jellyfish,...mantas].forEach(f=>{
+    if(!f.userData.a)return;
+    const a=f.userData.a;
+    a.ph+=a.w*dt;
+    f.position.x=a.c.x+Math.cos(a.ph)*a.r;
+    f.position.z=a.c.z+Math.sin(a.ph)*a.r;
+    f.position.y=a.c.y+Math.sin(a.ph*2)*.5;
+    f.rotation.y=a.ph+Math.PI/2*(a.w>0?1:-1);
+  });
   /* fire coral damage */
   for(const fc of fireCorals){ if(camWorld.distanceTo(fc.position)<2){ stats.hp=clamp(stats.hp-5*dt,0,100); hurtFlash=Math.max(hurtFlash,.3); } }
 
