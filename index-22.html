@@ -300,6 +300,36 @@
   </div>
 </div>
 
+<!-- ====== DEVLOG / ROADMAP ====== -->
+<div id="devlog" style="position:fixed;inset:0;z-index:60;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.85)">
+  <div style="max-width:600px;max-height:80vh;overflow-y:auto;padding:30px 40px;border:1px solid var(--cy-faint);background:rgba(8,16,24,.95);border-radius:4px">
+    <h2 style="font-family:var(--mono);font-size:14px;letter-spacing:.4em;color:var(--cy);margin-bottom:16px">ABYSSAL DAWN — ROADMAP</h2>
+    <div style="font-size:11px;line-height:1.8;color:#8ab4c8">
+      <div style="color:var(--cy);font-size:10px;letter-spacing:.3em;margin:14px 0 6px">✓ CURRENT BUILD</div>
+      <div>· 7 unique biomes with distinct flora and fauna</div>
+      <div>· 18 mission progression system</div>
+      <div>· Base building with functional lockers</div>
+      <div>· 6 craftable tools + advanced equipment</div>
+      <div>· 3 leviathan-class creatures</div>
+      <div>· Trait adaptation system</div>
+      <div>· Vehicle construction</div>
+      <div>· 36 explorable wrecks</div>
+      <div style="color:#ffaa44;font-size:10px;letter-spacing:.3em;margin:14px 0 6px">◇ IN DEVELOPMENT</div>
+      <div>· Character customization (suits, helmets, visors)</div>
+      <div>· Advanced vehicles (Deepwalker, Leviathan Class)</div>
+      <div>· Underwater cave network system</div>
+      <div>· Creature breeding and ecosystem</div>
+      <div style="color:#ff6666;font-size:10px;letter-spacing:.3em;margin:14px 0 6px">○ PLANNED</div>
+      <div>· Multiplayer co-op exploration</div>
+      <div>· Procedural world generation</div>
+      <div>· Alien civilization ruins</div>
+      <div>· Surface island biomes</div>
+      <div>· Weather and current systems</div>
+    </div>
+    <button onclick="this.parentElement.parentElement.style.display='none'" style="margin-top:20px;padding:8px 24px;background:transparent;border:1px solid var(--cy);color:var(--cy);font-family:var(--mono);font-size:11px;letter-spacing:.3em;cursor:pointer">CONTINUE</button>
+  </div>
+</div>
+
 <!-- ====== BUILD MENU ====== -->
 <div class="screen" id="buildScreen">
   <div class="sframe">
@@ -579,19 +609,19 @@ function getItemIcon(key){
     lead(){g.fillStyle='#3a3a4a';g.fillRect(16,20,32,24);g.fillStyle='#4a4a5a';g.fillRect(18,22,28,8);g.strokeStyle='#2a2a3a';g.lineWidth=1;g.strokeRect(16,20,32,24);},
     lithium(){g.fillStyle='#e060a0';g.beginPath();g.moveTo(32,10);g.lineTo(46,28);g.lineTo(38,54);g.lineTo(26,54);g.lineTo(18,28);g.closePath();g.fill();g.fillStyle='#ff80c0';g.beginPath();g.moveTo(32,16);g.lineTo(40,28);g.lineTo(32,40);g.closePath();g.fill();},
     magnetite(){g.fillStyle='#2a3a5a';g.beginPath();g.moveTo(20,20);g.lineTo(44,18);g.lineTo(46,44);g.lineTo(18,46);g.closePath();g.fill();g.strokeStyle='#5588cc';g.lineWidth=1.5;g.setLineDash([3,3]);g.beginPath();g.arc(32,32,12,0,Math.PI*2);g.stroke();g.setLineDash([]);},
-    rawFish(){g.fillStyle='#3a99a8';g.beginPath();g.ellipse(32,32,18,10,0,0,Math.PI*2);g.fill();g.fillStyle='#2a7888';g.beginPath();g.moveTo(48,32);g.lineTo(58,22);g.lineTo(58,42);g.closePath();g.fill();g.fillStyle='#fff';g.beginPath();g.arc(20,28,3,0,Math.PI*2);g.fill();g.fillStyle='#111';g.beginPath();g.arc(20,28,1.5,0,Math.PI*2);g.fill();},
+    rawFish(){const bd=g.createLinearGradient(14,22,50,42);bd.addColorStop(0,'#2a7888');bd.addColorStop(.4,'#3a99a8');bd.addColorStop(.8,'#4aabb8');bd.addColorStop(1,'#3a99a8');g.fillStyle=bd;g.beginPath();g.ellipse(30,32,18,10,0,0,Math.PI*2);g.fill();const tl=g.createLinearGradient(46,22,56,42);tl.addColorStop(0,'#2a6878');tl.addColorStop(1,'#1a5868');g.fillStyle=tl;g.beginPath();g.moveTo(46,32);g.lineTo(56,22);g.lineTo(56,42);g.closePath();g.fill();g.strokeStyle='rgba(60,140,160,.5)';g.lineWidth=.5;for(let r=0;r<3;r++){g.beginPath();g.arc(28+r*5,32,8-r,-.3,.3);g.stroke();}g.fillStyle='#ddeeff';g.beginPath();g.arc(18,28,3,0,Math.PI*2);g.fill();g.fillStyle='#112233';g.beginPath();g.arc(18,28,1.5,0,Math.PI*2);g.fill();g.fillStyle='rgba(255,255,255,.3)';g.beginPath();g.arc(17,27,1,0,Math.PI*2);g.fill();g.fillStyle='rgba(80,180,200,.3)';g.beginPath();g.ellipse(30,38,10,3,0,0,Math.PI*2);g.fill();},
     cookedFish(){g.fillStyle='#a06830';g.beginPath();g.ellipse(32,32,18,10,0,0,Math.PI*2);g.fill();g.fillStyle='#805020';g.beginPath();g.moveTo(48,32);g.lineTo(56,24);g.lineTo(56,40);g.closePath();g.fill();g.strokeStyle='#604018';g.lineWidth=1;g.beginPath();for(let i=0;i<4;i++){g.moveTo(22+i*6,26);g.lineTo(22+i*6,38);}g.stroke();},
     titaniumIngot(){g.fillStyle='#8a9aaa';g.fillRect(12,18,40,28);g.fillStyle='#a0b0c0';g.fillRect(14,20,36,10);g.fillStyle='rgba(255,255,255,.3)';g.fillRect(16,22,16,5);g.strokeStyle='#6a7a8a';g.lineWidth=1;g.strokeRect(12,18,40,28);},
     copperWire(){g.strokeStyle='#e08030';g.lineWidth=3;g.beginPath();for(let i=0;i<5;i++){g.arc(32,22+i*5,6,Math.PI*(i%2),Math.PI*(1+i%2));}g.stroke();},
     glass(){g.fillStyle='rgba(200,230,255,.2)';g.fillRect(14,14,36,36);g.strokeStyle='rgba(200,230,255,.5)';g.lineWidth=1.5;g.strokeRect(14,14,36,36);g.fillStyle='rgba(255,255,255,.15)';g.fillRect(16,16,14,14);},
     fiberMesh(){g.strokeStyle='#7a9a7a';g.lineWidth=1.5;for(let i=0;i<7;i++){g.beginPath();g.moveTo(14+i*5,14);g.lineTo(14+i*5,50);g.stroke();g.beginPath();g.moveTo(14,14+i*5);g.lineTo(50,14+i*5);g.stroke();}},
-    battery(){g.fillStyle='#55aa30';g.fillRect(20,18,24,34);g.fillStyle='#70cc40';g.fillRect(22,20,20,14);g.fillStyle='#888';g.fillRect(28,12,8,6);g.fillStyle='#ffdd44';g.font='bold 12px sans-serif';g.textAlign='center';g.fillText('+',32,16);},
-    firstAidKit(){g.fillStyle='#eee';g.fillRect(16,18,32,28);g.strokeStyle='#ccc';g.lineWidth=1;g.strokeRect(16,18,32,28);g.fillStyle='#e02020';g.fillRect(28,22,8,20);g.fillRect(22,28,20,8);},
+    battery(){const gr=g.createLinearGradient(20,18,44,52);gr.addColorStop(0,'#70cc40');gr.addColorStop(.4,'#55aa30');gr.addColorStop(1,'#338820');g.fillStyle=gr;g.fillRect(20,18,24,34);const hi=g.createLinearGradient(22,20,42,34);hi.addColorStop(0,'rgba(150,255,100,.4)');hi.addColorStop(1,'rgba(100,200,60,0)');g.fillStyle=hi;g.fillRect(22,20,20,14);g.fillStyle='#999';g.fillRect(28,12,8,6);g.fillStyle='#aaa';g.fillRect(29,13,6,4);g.strokeStyle='rgba(40,80,20,.5)';g.lineWidth=1;g.strokeRect(20,18,24,34);g.fillStyle='#ffee44';g.font='bold 14px sans-serif';g.textAlign='center';g.fillText('+',32,17);g.fillStyle='rgba(255,255,255,.15)';g.fillRect(20,18,4,34);},
+    firstAidKit(){const bx=g.createLinearGradient(16,18,48,46);bx.addColorStop(0,'#f4f4f4');bx.addColorStop(.5,'#eee');bx.addColorStop(1,'#ccc');g.fillStyle=bx;g.fillRect(16,18,32,28);g.strokeStyle='#bbb';g.lineWidth=1;g.strokeRect(16,18,32,28);g.fillStyle='rgba(0,0,0,.06)';g.fillRect(16,40,32,6);const cr=g.createLinearGradient(28,22,36,42);cr.addColorStop(0,'#ff3030');cr.addColorStop(1,'#cc1818');g.fillStyle=cr;g.fillRect(28,22,8,20);g.fillRect(22,28,20,8);g.fillStyle='rgba(255,255,255,.2)';g.fillRect(29,23,2,18);g.fillRect(23,29,18,2);},
     beacon(){g.fillStyle='#888';g.fillRect(28,24,8,28);g.fillStyle='#ff8800';g.beginPath();g.moveTo(32,14);g.lineTo(36,24);g.lineTo(28,24);g.closePath();g.fill();g.strokeStyle='rgba(255,170,0,.5)';g.lineWidth=1.5;g.beginPath();g.arc(32,18,10,-.8*Math.PI,-.2*Math.PI);g.stroke();g.beginPath();g.arc(32,18,16,-.75*Math.PI,-.25*Math.PI);g.stroke();},
     filteredWater(){g.fillStyle='rgba(80,180,255,.3)';g.fillRect(22,16,20,36);g.strokeStyle='#66ccff';g.lineWidth=1.5;g.strokeRect(22,16,20,36);g.fillStyle='rgba(80,180,255,.6)';g.fillRect(22,30,20,22);},
     h2o(){g.fillStyle='#4499dd';g.beginPath();g.moveTo(32,10);g.bezierCurveTo(32,10,48,30,48,40);g.bezierCurveTo(48,50,40,56,32,56);g.bezierCurveTo(24,56,16,50,16,40);g.bezierCurveTo(16,30,32,10,32,10);g.fill();g.fillStyle='rgba(255,255,255,.3)';g.beginPath();g.ellipse(28,36,4,8,-.3,0,Math.PI*2);g.fill();},
     rations(){g.fillStyle='#cc9944';g.fillRect(14,24,36,18);g.fillStyle='#ddaa55';g.fillRect(16,26,32,6);g.strokeStyle='#aa7733';g.lineWidth=1;g.strokeRect(14,24,36,18);g.fillStyle='#eee';g.font='8px sans-serif';g.textAlign='center';g.fillText('MRE',32,38);},
-    thermalLance(){g.fillStyle='#666';g.fillRect(28,14,8,38);g.fillStyle='#888';g.fillRect(24,40,16,10);g.fillStyle='#ee3322';g.beginPath();g.moveTo(28,14);g.lineTo(36,14);g.lineTo(34,6);g.lineTo(30,6);g.closePath();g.fill();},
+    thermalLance(){const sh=g.createLinearGradient(28,14,36,52);sh.addColorStop(0,'#888');sh.addColorStop(.5,'#666');sh.addColorStop(1,'#555');g.fillStyle=sh;g.fillRect(28,14,8,38);g.fillStyle='rgba(255,255,255,.15)';g.fillRect(28,14,2,38);const hd=g.createLinearGradient(24,40,40,50);hd.addColorStop(0,'#999');hd.addColorStop(1,'#666');g.fillStyle=hd;g.fillRect(24,40,16,10);const fl=g.createLinearGradient(28,6,36,14);fl.addColorStop(0,'#ff6644');fl.addColorStop(.5,'#ee3322');fl.addColorStop(1,'#cc2211');g.fillStyle=fl;g.beginPath();g.moveTo(28,14);g.lineTo(36,14);g.lineTo(34,6);g.lineTo(30,6);g.closePath();g.fill();g.fillStyle='rgba(255,200,100,.4)';g.beginPath();g.moveTo(30,8);g.lineTo(34,8);g.lineTo(33,4);g.lineTo(31,4);g.closePath();g.fill();g.strokeStyle='rgba(80,80,80,.4)';g.lineWidth=.5;g.strokeRect(28,14,8,38);},
     fabricatorTool(){g.fillStyle='#3388cc';g.fillRect(26,10,12,38);g.fillStyle='#44aaee';g.fillRect(28,12,8,14);g.fillStyle='#2266aa';g.beginPath();g.moveTo(22,48);g.lineTo(26,36);g.lineTo(38,36);g.lineTo(42,48);g.closePath();g.fill();},
     scannerTool(){g.fillStyle='#338855';g.fillRect(26,16,12,32);g.fillStyle='#44bb66';g.fillRect(28,18,8,12);g.fillStyle='#55dd88';g.beginPath();g.arc(32,12,6,0,Math.PI*2);g.fill();},
     repairTool(){g.fillStyle='#ccaa22';g.beginPath();g.moveTo(22,46);g.lineTo(26,42);g.lineTo(40,18);g.lineTo(44,22);g.lineTo(30,46);g.closePath();g.fill();g.fillStyle='#eedd44';g.beginPath();g.moveTo(40,18);g.lineTo(44,14);g.lineTo(48,18);g.lineTo(44,22);g.closePath();g.fill();},
@@ -1306,6 +1336,9 @@ const MODULES=[
   {id:'beacon',name:'GLOW BEACON',cost:{quartz:1},enter:false,
    desc:'Pulsing quartz marker. Never lose your base in the dark again.',
    icon:'<svg viewBox="0 0 54 46"><circle cx="27" cy="12" r="6"/><path d="M27 18 L27 40 M20 40 L34 40 M14 12 L8 12 M46 12 L40 12 M27 1 L27 0"/></svg>'},
+  {id:'growbed',name:'GROW BED',cost:{titanium:2,quartz:1},enter:false,
+   desc:'Hydroponic planter with 4 slots. Plant raw fish to grow food over 60 seconds.',
+   icon:'<svg viewBox="0 0 54 46"><rect x="5" y="24" width="44" height="12" rx="1"/><rect x="8" y="20" width="38" height="6" fill="none" stroke="currentColor"/><path d="M14 20 L14 12 M22 20 L22 10 M30 20 L30 14 M38 20 L38 8" stroke="currentColor" stroke-width="1.5"/><circle cx="14" cy="10" r="2"/><circle cx="22" cy="8" r="2"/><circle cx="30" cy="12" r="2"/><circle cx="38" cy="6" r="2"/></svg>'},
 ];
 function costStr(c){ return Object.entries(c).map(([k,v])=>v+' '+k.toUpperCase()).join(' · '); }
 
@@ -1453,6 +1486,14 @@ function buildModule(id,ghost){
     mk(new THREE.BoxGeometry(2,1.5,1),glassMat).position.y=.95;
     mk(new THREE.BoxGeometry(2.1,.08,1.1),trimMat).position.y=.2;
     mk(new THREE.BoxGeometry(2.1,.08,1.1),trimMat).position.y=1.72;
+  } else if(id==='growbed'){
+    const bed=mk(new THREE.BoxGeometry(3,.3,2),new THREE.MeshStandardMaterial({color:0x2a4a3a,roughness:.7}));
+    bed.position.y=.15;
+    const rim=mk(new THREE.BoxGeometry(3.2,.4,2.2),new THREE.MeshStandardMaterial({color:0x3a3a3a,roughness:.8}));
+    rim.position.y=.1;
+    const soil=mk(new THREE.BoxGeometry(2.8,.15,1.8),new THREE.MeshStandardMaterial({color:0x3a2a1a,roughness:1}));
+    soil.position.y=.3;
+    grp.userData.growBed={slots:[null,null,null,null],growTimers:[0,0,0,0]};
   } else if(id==='tadpole'){
     // Vehicle spawns separately
   } else if(id==='rocket'){
@@ -1513,6 +1554,10 @@ const RECIPES={
   flashlightTool:{name:'FLASHLIGHT',cost:{titanium:1,battery:1,glass:1},cat:'tools',desc:'Portable illumination device.'},
   surfaceRunner:{name:'SURFACE RUNNER',cost:{titanium:4,copperWire:2,glass:1,lubricant:1},cat:'equipment',desc:'Fast surface scouting vehicle.'},
   mantaSub:{name:'MANTA SUB',cost:{titaniumIngot:3,glass:2,computerChip:1,lead:2},cat:'equipment',desc:'Mid-depth exploration submersible.'},
+  resourceDetector:{name:'RESOURCE DETECTOR',cost:{copperWire:2,gold:1,battery:1},cat:'tools',desc:'Highlights nearby ore nodes through walls. Range 30m.'},
+  deepSonar:{name:'DEEP SONAR',cost:{titaniumIngot:1,copperWire:2,magnetite:1},cat:'tools',desc:'Sends sonar pulse revealing terrain and creatures.'},
+  creatureTracker:{name:'CREATURE TRACKER',cost:{computerChip:1,copperWire:1,battery:1},cat:'tools',desc:'Tags and tracks creature movements.'},
+  beaconLauncher:{name:'BEACON LAUNCHER',cost:{titanium:2,copper:1,battery:1},cat:'tools',desc:'Fires placeable beacons at range.'},
 };
 const equipped={suit:null,tank:null,fins:null};
 const stats={hp:100,o2:100,food:100,h2o:100};
@@ -3345,6 +3390,18 @@ function animate(){
       if(ph)prompt='HARVEST '+(ph.object.userData.plant.userData.type==='food'?'AMBER POD':'AQUA BULB');
       else if(nearbyFish())prompt='CATCH REEF FISH';
     }
+  }
+  if(!prompt&&curTool===3){
+    raycaster.setFromCamera({x:0,y:0},camera);
+    raycaster.far=8;
+    const scanHits=raycaster.intersectObjects(scene.children,true);
+    for(const h of scanHits){
+      const o=h.object;
+      if(o.userData&&o.userData.kind&&!scannedSet.has(o.userData.kind)){
+        prompt='SCAN AVAILABLE [3]'; break;
+      }
+    }
+    raycaster.far=5.5;
   }
   $('prompt').style.opacity=prompt?1:0;
   if(prompt)$('promptTxt').textContent=' '+prompt;
