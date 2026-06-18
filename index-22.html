@@ -2744,7 +2744,7 @@ const fireCorals=[];
     scene.add(grp);
   }
   // Abyss giant flower structures — massive, ancient, event-like
-  const traitFlowers=[];
+  var traitFlowers=[];
   const flowerMat=new THREE.MeshStandardMaterial({color:0xff22aa,emissive:0xcc0088,emissiveIntensity:2.5,transparent:true,opacity:.8,side:THREE.DoubleSide});
   for(let i=0;i<15;i++){
     const x=rand(-700,700),z=rand(-700,700),y=terrainHeight(x,z);
