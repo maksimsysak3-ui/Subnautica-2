@@ -2849,7 +2849,26 @@ function animate(){
           top.position.copy(hit.point); top.position.y+=.43; top.rotation.y=modRot;
           scene.add(top); foundationTops.push(top);
         }
-        toast(mod.name+' CONSTRUCTED');
+        /* build animation — scale Y from 0→1, opacity 0.3→1 over 2s */
+        real.scale.y=0.01;
+        const buildMats=[];
+        real.traverse(c=>{ if(c.isMesh&&c.material){
+          const m=c.material; if(!m._origOpacity){ m._origOpacity=m.opacity; m._origTransparent=m.transparent; }
+          m.transparent=true; m.opacity=0.3; buildMats.push(m);
+        }});
+        const buildStart=performance.now();
+        const buildDur=2000;
+        function animBuild(){
+          const el=performance.now()-buildStart;
+          const p=Math.min(el/buildDur,1);
+          const eased=1-Math.pow(1-p,3); /* ease-out cubic */
+          real.scale.y=Math.max(0.01,eased);
+          buildMats.forEach(m=>{ m.opacity=0.3+0.7*eased; });
+          if(p<1) requestAnimationFrame(animBuild);
+          else { real.scale.y=1; buildMats.forEach(m=>{ m.opacity=m._origOpacity||1; m.transparent=m._origTransparent||false; delete m._origOpacity; delete m._origTransparent; }); }
+        }
+        requestAnimationFrame(animBuild);
+        toast(mod.name+' CONSTRUCTING...');
         blip(140,.35,'sine',.2); blip(900,.1,'square',.05);
         spawnSparks(hit.point.clone().add(V3(0,1,0)),14,true);
       }
