@@ -2744,6 +2744,29 @@ for(let i=0;i<36;i++){
   scene.add(grp); wrecks.push(grp);
 }
 
+// Scannable wreck debris
+const wreckDebris=[];
+wrecks.forEach(w=>{
+  for(let d=0;d<3;d++){
+    const types=['console','engine_fragment','o2_tank','battery_module','old_tool'];
+    const type=types[Math.floor(Math.random()*types.length)];
+    const debris=new THREE.Group();
+    const base=new THREE.Mesh(new THREE.BoxGeometry(rand(.5,1.2),rand(.3,.8),rand(.4,.9)),
+      new THREE.MeshStandardMaterial({color:0x445566,roughness:.8,metalness:.4}));
+    debris.add(base);
+    if(type==='console'){
+      const screen=new THREE.Mesh(new THREE.PlaneGeometry(.6,.4),
+        new THREE.MeshStandardMaterial({color:0x00ff88,emissive:0x00ff88,emissiveIntensity:.8,side:THREE.DoubleSide}));
+      screen.position.set(0,.3,.2); debris.add(screen);
+    }
+    const wx=w.position.x+rand(-8,8),wz=w.position.z+rand(-8,8);
+    debris.position.set(wx,terrainHeight(wx,wz)+.2,wz);
+    debris.rotation.set(rand(-.3,.3),rand(0,6),rand(-.3,.3));
+    debris.userData={kind:'wreckDebris',type:type,scanned:false};
+    scene.add(debris); wreckDebris.push(debris);
+  }
+});
+
 /* ============================================================
    ADDITIONAL BUILD MODULES
    ============================================================ */
