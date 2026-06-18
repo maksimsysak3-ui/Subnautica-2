@@ -1801,18 +1801,26 @@ function checkTraitDamage(biome,dt2){
    MISSION SYSTEM
    ============================================================ */
 const MISSION_LIST=[
-  {id:'survive',name:'SURVIVE',desc:'Gather your first resources',check:()=>res.titanium>=3&&res.copper>=1},
+  {id:'survive',name:'SURVIVE',desc:'Gather your first resources',check:()=>res.titanium>=3||res.copper>=1||res.quartz>=1},
   {id:'base',name:'ESTABLISH BASE',desc:'Build your first habitat pod',check:()=>placed.some(b=>b.id==='room')},
-  {id:'deeper',name:'GO DEEPER',desc:'Explore below 100m depth',check:()=>missionState.maxDepth>=100},
+  {id:'craft3',name:'FABRICATION',desc:'Craft 3 different items',check:()=>missionState.craftCount>=3},
+  {id:'deeper',name:'GO DEEPER',desc:'Explore below 80m depth',check:()=>missionState.maxDepth>=80},
   {id:'scan5',name:'SCAN THE UNKNOWN',desc:'Scan 5 creatures',check:()=>missionState.scanned>=5},
+  {id:'wreck',name:'LOST WRECKAGE',desc:'Scan 3 wrecks for blueprints',check:()=>missionState.wrecksScanned>=3},
   {id:'signal',name:'THE SIGNAL',desc:'Find the deep beacon',check:()=>missionState.foundBeacon},
-  {id:'leviathan',name:"LEVIATHAN'S DOMAIN",desc:'Survive a leviathan encounter',check:()=>missionState.leviathanEncounter},
+  {id:'predator',name:'APEX ENCOUNTER',desc:'Survive a predator attack',check:()=>missionState.predatorEncounter},
   {id:'vehicle',name:'BUILD THE TADPOLE',desc:'Craft the submersible vehicle',check:()=>missionState.builtVehicle},
-  {id:'abyss',name:'THE ABYSS',desc:'Reach 400m depth',check:()=>missionState.maxDepth>=400},
+  {id:'leviathan',name:"LEVIATHAN'S DOMAIN",desc:'Survive a leviathan encounter',check:()=>missionState.leviathanEncounter},
+  {id:'blood',name:'BLOOD TRENCH',desc:'Explore the Blood Trench (150m+)',check:()=>missionState.maxDepth>=150},
+  {id:'thermal',name:'THERMAL ZONE',desc:'Reach the Thermal Zone (250m+)',check:()=>missionState.maxDepth>=250},
+  {id:'abyss',name:'THE ABYSS',desc:'Reach 420m depth',check:()=>missionState.maxDepth>=420},
   {id:'data',name:'ANCIENT DATA',desc:'Find 3 data terminals in the deep',check:()=>missionState.dataFound>=3},
+  {id:'pods',name:'LOST PODS',desc:'Recover 5 escape pods',check:()=>missionState.podsFound>=5},
+  {id:'alien',name:'ALIEN TOWER',desc:'Activate an alien tower',check:()=>missionState.alienTower},
+  {id:'eggs',name:'RARE EGGS',desc:'Collect 3 rare creature eggs',check:()=>missionState.eggsCollected>=3},
   {id:'escape',name:'ESCAPE',desc:'Build the rocket platform',check:()=>missionState.rocketBuilt},
 ];
-const missionState={maxDepth:0,scanned:0,foundBeacon:false,leviathanEncounter:false,builtVehicle:false,dataFound:0,rocketBuilt:false,curMission:0};
+const missionState={maxDepth:0,scanned:0,foundBeacon:false,leviathanEncounter:false,builtVehicle:false,dataFound:0,rocketBuilt:false,curMission:0,craftCount:0,wrecksScanned:0,predatorEncounter:false,podsFound:0,alienTower:false,eggsCollected:0};
 let lastMissionCheck=0;
 function updateMissions(){
   const list=$('missionList'); if(!list)return;
