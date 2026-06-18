@@ -1139,8 +1139,8 @@ const ambient=[];
 const gunmetal=new THREE.MeshStandardMaterial({color:0x232f38,roughness:.35,metalness:.85});
 const gunDark=new THREE.MeshStandardMaterial({color:0x10191f,roughness:.6,metalness:.6});
 const whiteShell=new THREE.MeshStandardMaterial({color:0xdfe9ee,roughness:.25,metalness:.4});
-const ambGlow=new THREE.MeshStandardMaterial({color:0xffc97f,emissive:0xff9020,emissiveIntensity:2.6});
-const grnGlow=new THREE.MeshStandardMaterial({color:0x9fffc0,emissive:0x2fd065,emissiveIntensity:2.4});
+const ambGlow=new THREE.MeshStandardMaterial({color:0xffc97f,emissive:0xff9020,emissiveIntensity:1.0});
+const grnGlow=new THREE.MeshStandardMaterial({color:0x9fffc0,emissive:0x2fd065,emissiveIntensity:0.9});
 
 const toolRoot=new THREE.Group();
 toolRoot.position.set(.44,-.36,-.8); camera.add(toolRoot);
@@ -1202,7 +1202,7 @@ const scannerModel=new THREE.Group(); toolRoot.add(scannerModel); scannerModel.v
   const screen=new THREE.Mesh(new THREE.PlaneGeometry(.12,.16),new THREE.MeshStandardMaterial({color:0x00ffaa,emissive:0x00dd88,emissiveIntensity:1.8}));
   screen.position.z=.051; scannerModel.add(screen);
   const screenFrame=new THREE.Mesh(new THREE.BoxGeometry(.14,.18,.02),gunmetal); screenFrame.position.z=.05; scannerModel.add(screenFrame);
-  const scanLine=new THREE.Mesh(new THREE.BoxGeometry(.11,.005,.001),new THREE.MeshStandardMaterial({color:0x88ffcc,emissive:0x44ffaa,emissiveIntensity:3}));
+  const scanLine=new THREE.Mesh(new THREE.BoxGeometry(.11,.005,.001),new THREE.MeshStandardMaterial({color:0x88ffcc,emissive:0x44ffaa,emissiveIntensity:1.0}));
   scanLine.position.z=.052; scannerModel.add(scanLine); scannerModel.userData.scanLine=scanLine;
   for(const sx of [-1,1]){
     const rail=new THREE.Mesh(new THREE.BoxGeometry(.015,.26,.04),gunDark);
