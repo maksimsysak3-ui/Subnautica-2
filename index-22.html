@@ -595,9 +595,9 @@ applyQuality();
 const uTime={value:0};
 
 /* lights */
-const hemi=new THREE.HemisphereLight(0x8ad8f2,0x0a2433,1.0); scene.add(hemi);
+const hemi=new THREE.HemisphereLight(0x87ceeb,0x1a3a2a,0.7); scene.add(hemi);
 /* DirectionalLight removed for soft ambient-only lighting */
-const ambLight=new THREE.AmbientLight(0x1a4a60,.9); scene.add(ambLight);
+const ambLight=new THREE.AmbientLight(0x3a6a7a,1.2); scene.add(ambLight);
 
 /* canvas-texture helpers */
 function ctex(w,h,fn){
@@ -849,7 +849,7 @@ const fanMat=addSway(new THREE.MeshStandardMaterial({map:fanTex,transparent:true
   const tubeCols=[0xff8c5a,0xd45a9e,0x46c8b4,0xe8c45a];
   for(let i=0;i<600;i++){
     const x=rand(-800,800),z=rand(-800,800),y=terrainHeight(x,z);
-    if(y<-200)continue;
+    if(y<-450)continue;
     const grp=new THREE.Group(); grp.position.set(x,y,z);
     const col=tubeCols[i%tubeCols.length];
     const mat=new THREE.MeshStandardMaterial({color:col,roughness:.75,emissive:col,emissiveIntensity:.12});
@@ -2589,7 +2589,7 @@ const fireCorals=[];
   const branchMat2=new THREE.MeshStandardMaterial({color:0xff6688,roughness:.6,emissive:0x881133,emissiveIntensity:.4});
   for(let i=0;i<400;i++){
     const x=rand(-800,800),z=rand(-800,800),y=terrainHeight(x,z);
-    if(y<-200)continue;
+    if(y<-450)continue;
     const grp=new THREE.Group(); grp.position.set(x,y,z);
     const th=rand(3,7);
     const trunk=new THREE.Mesh(new THREE.CylinderGeometry(.15,.3,th,6),branchMat2);
@@ -2912,206 +2912,80 @@ const fireCorals=[];
 }
 /* wrecks for scanning blueprints */
 const wrecks=[];
-const wreckMat=new THREE.MeshStandardMaterial({color:0x3a4a52,roughness:.8,metalness:.4});
-const rustMat=new THREE.MeshStandardMaterial({color:0x6a3a28,roughness:.9,metalness:.2});
-const wreckGlow=new THREE.MeshStandardMaterial({color:0x44ddff,emissive:0x22aadd,emissiveIntensity:1.5});
-const darkHullMat=new THREE.MeshStandardMaterial({color:0x2a3540,roughness:.85,metalness:.5});
-const charredMat=new THREE.MeshStandardMaterial({color:0x1a1a1a,roughness:.95,metalness:.3});
+const wreckMat=new THREE.MeshStandardMaterial({color:0x556672,roughness:.82,metalness:.35});
+const rustMat=new THREE.MeshStandardMaterial({color:0x7a5a3a,roughness:.9,metalness:.15});
+const wreckGlow=new THREE.MeshStandardMaterial({color:0x44ddff,emissive:0x22aadd,emissiveIntensity:.8});
 const blueprintList=['advancedTank','reinforcedSuit','ultraFins','seamothUpgrade','laserCutter','propulsionCannon','stasisRifle','cyclops','prawnSuit','habitatBuilder','gravitySphere','thermalReactor'];
-/* wreck types: 0=standard hull, 1=massive ship section, 2=engine room, 3=cargo bay */
-for(let i=0;i<36;i++){
-  const wtype=i<12?0:i<20?1:i<28?2:3;
-  const x=rand(-900,900),z=rand(-900,900),y=terrainHeight(x,z);
+
+for(let i=0;i<24;i++){
+  const wtype=i%4;
+  const x=rand(-700,700),z=rand(-700,700),y=terrainHeight(x,z);
   const grp=new THREE.Group(); grp.position.set(x,y,z);
-  const size=wtype===1?rand(3,5.5):wtype===2?rand(2.5,4):wtype===3?rand(2.8,4.5):rand(2,3.6);
+  grp.rotation.y=rand(0,Math.PI*2);
+
   if(wtype===0){
-    /* standard hull wreck - scaled up */
-    const hull=new THREE.Mesh(new THREE.CylinderGeometry(3*size,3.5*size,12*size,12,1,true),wreckMat);
-    hull.rotation.set(rand(-.3,.3),rand(0,3),rand(-.2,.2)+Math.PI/2);
-    hull.position.y=3*size; grp.add(hull);
-    const cap=new THREE.Mesh(new THREE.SphereGeometry(3*size,12,8,0,Math.PI*2,0,Math.PI/2),wreckMat);
-    cap.rotation.x=-Math.PI/2; cap.position.set(6*size*Math.cos(hull.rotation.y),3*size,6*size*Math.sin(hull.rotation.y)); grp.add(cap);
-    for(let j=0;j<5;j++){
-      const rib=new THREE.Mesh(new THREE.TorusGeometry(3.2*size,.2,6,16,Math.PI*1.5),wreckMat);
-      rib.position.set((-4+j*2)*size,3*size,0); rib.rotation.y=hull.rotation.y; grp.add(rib);
-    }
-    for(let j=0;j<8;j++){
-      const plate=new THREE.Mesh(new THREE.BoxGeometry(rand(2,6)*size,rand(.1,.2),rand(2,5)*size),rustMat);
-      plate.position.set(rand(-8,8)*size,rand(.3,6)*size,rand(-6,6)*size);
-      plate.rotation.set(rand(-.8,.8),rand(0,3),rand(-.5,.5)); grp.add(plate);
-    }
-    for(let j=0;j<6;j++){
-      const pipe=new THREE.Mesh(new THREE.CylinderGeometry(.15,.15,rand(4,12)*size,6),wreckMat);
-      pipe.position.set(rand(-5,5)*size,rand(.5,5)*size,rand(-5,5)*size);
-      pipe.rotation.set(rand(-1,1),0,rand(-1,1)); grp.add(pipe);
-    }
-    /* bent/warped hull plates */
-    for(let j=0;j<4;j++){
-      const warp=new THREE.Mesh(new THREE.BoxGeometry(rand(2,4)*size,rand(.08,.15),rand(1.5,3)*size),rustMat);
-      warp.position.set(rand(-6,6)*size,rand(1,5)*size,rand(-5,5)*size);
-      warp.rotation.set(rand(-.6,.6),rand(0,6),rand(-.9,.9)); grp.add(warp);
-    }
-    /* broken window holes with cyan screen fragments */
-    for(let j=0;j<3;j++){
-      const hole=new THREE.Mesh(new THREE.BoxGeometry(rand(.8,1.5)*size,rand(.6,1)*size,.15),
-        new THREE.MeshStandardMaterial({color:0x0a0a0a,roughness:1,metalness:0}));
-      hole.position.set(rand(-4,4)*size,rand(2,5)*size,rand(-4,4)*size);
-      hole.rotation.y=rand(0,6); grp.add(hole);
-      const frag=new THREE.Mesh(new THREE.PlaneGeometry(rand(.2,.5)*size,rand(.15,.3)*size),
-        new THREE.MeshStandardMaterial({color:0x22ddff,emissive:0x22ddff,emissiveIntensity:.6,side:THREE.DoubleSide}));
-      frag.position.copy(hole.position); frag.position.x+=rand(-.3,.3)*size; frag.position.y+=rand(-.2,.2)*size;
-      frag.rotation.set(rand(-.3,.3),rand(0,6),rand(-.2,.2)); grp.add(frag);
-    }
-    /* exposed pipe bundles */
-    for(let j=0;j<4;j++){
-      for(let k=0;k<3;k++){
-        const bp=new THREE.Mesh(new THREE.CylinderGeometry(.06,.06,rand(2,5)*size,5),wreckMat);
-        bp.position.set(rand(-5,5)*size+k*.15,rand(1,4)*size,rand(-5,5)*size);
-        bp.rotation.set(rand(-.8,.8),0,rand(-.8,.8)); grp.add(bp);
-      }
-    }
-    /* barnacle/growth clusters */
-    for(let j=0;j<10;j++){
-      const barn=new THREE.Mesh(new THREE.SphereGeometry(rand(.08,.25)*size,6,5),
-        new THREE.MeshStandardMaterial({color:0x3a6655,roughness:.9,metalness:.1}));
-      barn.position.set(rand(-6,6)*size,rand(.5,5)*size,rand(-5,5)*size); grp.add(barn);
-    }
+    // Research pod — simple cylinder with dome cap, tipped on side
+    const body=new THREE.Mesh(new THREE.CylinderGeometry(2.5,2.5,8,10,1,false),wreckMat);
+    body.rotation.z=Math.PI/2+rand(-.15,.15); body.position.y=2.5; grp.add(body);
+    const dome=new THREE.Mesh(new THREE.SphereGeometry(2.5,10,6,0,Math.PI*2,0,Math.PI/2),wreckMat);
+    dome.rotation.z=Math.PI/2; dome.position.set(4,2.5,0); grp.add(dome);
+    // Window
+    const win=new THREE.Mesh(new THREE.CircleGeometry(.8,8),new THREE.MeshStandardMaterial({color:0x1a3a4a,roughness:.2,metalness:.6,side:THREE.DoubleSide}));
+    win.position.set(0,3.5,2.5); win.rotation.x=-.3; grp.add(win);
+    // Hatch (open door)
+    const hatch=new THREE.Mesh(new THREE.BoxGeometry(1.5,2,.1),rustMat);
+    hatch.position.set(-4.2,1.5,0); hatch.rotation.y=.4; grp.add(hatch);
   } else if(wtype===1){
-    /* massive ship hull section */
-    const hull=new THREE.Mesh(new THREE.CylinderGeometry(5*size,6*size,25*size,16,1,true),darkHullMat);
-    hull.rotation.set(rand(-.15,.15),rand(0,3),Math.PI/2+rand(-.1,.1));
-    hull.position.y=5*size; grp.add(hull);
-    /* torn end caps */
-    const cap1=new THREE.Mesh(new THREE.SphereGeometry(5*size,12,8,0,Math.PI*2,0,Math.PI*.4),charredMat);
-    cap1.rotation.x=-Math.PI/2; cap1.position.set(12*size*Math.cos(hull.rotation.y),5*size,12*size*Math.sin(hull.rotation.y)); grp.add(cap1);
-    /* internal decks */
-    for(let j=0;j<4;j++){
-      const deck=new THREE.Mesh(new THREE.BoxGeometry(8*size,.15,4*size),wreckMat);
-      deck.position.set((-6+j*4)*size,2+j*2.5*size,0);deck.rotation.y=hull.rotation.y;grp.add(deck);
-    }
-    /* structural beams */
-    for(let j=0;j<8;j++){
-      const beam=new THREE.Mesh(new THREE.BoxGeometry(.3,rand(6,14)*size,.3),wreckMat);
-      beam.position.set(rand(-8,8)*size,rand(1,8)*size,rand(-6,6)*size);
-      beam.rotation.set(rand(-.3,.3),0,rand(-.4,.4)); grp.add(beam);
-    }
-    for(let j=0;j<12;j++){
-      const plate=new THREE.Mesh(new THREE.BoxGeometry(rand(3,8)*size,rand(.1,.25),rand(2,6)*size),rustMat);
-      plate.position.set(rand(-12,12)*size,rand(.3,8)*size,rand(-8,8)*size);
-      plate.rotation.set(rand(-.8,.8),rand(0,3),rand(-.5,.5)); grp.add(plate);
-    }
-    /* internal deck layers visible through torn hull */
-    for(let j=0;j<3;j++){
-      const innerDeck=new THREE.Mesh(new THREE.BoxGeometry(6*size,.1,3*size),
-        new THREE.MeshStandardMaterial({color:0x4a5a62,roughness:.7,metalness:.5}));
-      innerDeck.position.set(rand(-4,4)*size,1+j*2.2*size,rand(-2,2)*size);
-      innerDeck.rotation.y=hull.rotation.y; grp.add(innerDeck);
-      /* railing on deck */
-      const rail=new THREE.Mesh(new THREE.BoxGeometry(5*size,.06,.06),wreckMat);
-      rail.position.copy(innerDeck.position); rail.position.y+=.4; rail.rotation.y=hull.rotation.y; grp.add(rail);
-    }
-    /* debris scattered on the seabed around wreck */
-    for(let j=0;j<8;j++){
-      const deb=new THREE.Mesh(new THREE.BoxGeometry(rand(.5,2)*size,rand(.3,1)*size,rand(.5,1.5)*size),rustMat);
-      deb.position.set(rand(-15,15)*size,rand(.1,.5),rand(-15,15)*size);
-      deb.rotation.set(rand(-.5,.5),rand(0,6),rand(-.4,.4)); grp.add(deb);
-    }
-    /* torn metal shards jutting out */
-    for(let j=0;j<6;j++){
-      const shard=new THREE.Mesh(new THREE.BoxGeometry(rand(.1,.2),rand(1.5,4)*size,rand(.3,.8)*size),charredMat);
-      shard.position.set(rand(-8,8)*size,rand(2,7)*size,rand(-6,6)*size);
-      shard.rotation.set(rand(-.6,.6),rand(0,3),rand(-.8,.8)); grp.add(shard);
-    }
+    // Cargo container — simple box with doors
+    const box=new THREE.Mesh(new THREE.BoxGeometry(10,4,5),wreckMat);
+    box.position.y=2; grp.add(box);
+    // Rust patches
+    const patch=new THREE.Mesh(new THREE.PlaneGeometry(3,2),rustMat);
+    patch.position.set(0,2.5,2.51); grp.add(patch);
+    // Open door
+    const door=new THREE.Mesh(new THREE.BoxGeometry(2,3.5,.12),rustMat);
+    door.position.set(5.1,1.8,1.2); door.rotation.y=-.6; grp.add(door);
+    // Interior shelf
+    const shelf=new THREE.Mesh(new THREE.BoxGeometry(8,.1,4),new THREE.MeshStandardMaterial({color:0x3a4a52,roughness:.85}));
+    shelf.position.set(0,2.8,0); grp.add(shelf);
   } else if(wtype===2){
-    /* engine room wreck */
-    const housing=new THREE.Mesh(new THREE.BoxGeometry(8*size,6*size,10*size),darkHullMat);
-    housing.position.y=3*size; housing.rotation.y=rand(0,3); grp.add(housing);
-    /* engine cylinders */
-    for(let j=0;j<3;j++){
-      const cyl=new THREE.Mesh(new THREE.CylinderGeometry(1.2*size,1.2*size,6*size,12),
-        new THREE.MeshStandardMaterial({color:0x2a3a44,roughness:.6,metalness:.7}));
-      cyl.position.set((-2+j*2)*size,2*size,rand(-3,3)*size);
-      cyl.rotation.z=Math.PI/2+rand(-.2,.2); grp.add(cyl);
-    }
-    /* exhaust nozzles */
-    for(let j=0;j<2;j++){
-      const noz=new THREE.Mesh(new THREE.CylinderGeometry(2*size,1*size,4*size,10,1,true),charredMat);
-      noz.position.set((j*6-3)*size,3*size,-5*size);noz.rotation.x=Math.PI/2; grp.add(noz);
-    }
-    for(let j=0;j<8;j++){
-      const pipe=new THREE.Mesh(new THREE.CylinderGeometry(.2,.2,rand(3,10)*size,6),wreckMat);
-      pipe.position.set(rand(-5,5)*size,rand(.5,5)*size,rand(-5,5)*size);
-      pipe.rotation.set(rand(-1,1),0,rand(-1,1)); grp.add(pipe);
-    }
-    for(let j=0;j<6;j++){
-      const plate=new THREE.Mesh(new THREE.BoxGeometry(rand(2,5)*size,rand(.08,.2),rand(2,5)*size),rustMat);
-      plate.position.set(rand(-6,6)*size,rand(.3,5)*size,rand(-6,6)*size);
-      plate.rotation.set(rand(-.8,.8),rand(0,3),rand(-.5,.5)); grp.add(plate);
-    }
-    /* glowing damaged reactor */
-    const reactor=new THREE.Mesh(new THREE.SphereGeometry(1.2*size,10,8),
-      new THREE.MeshStandardMaterial({color:0xff4400,emissive:0xff3300,emissiveIntensity:1.8}));
-    reactor.position.set(0,2.5*size,0); grp.add(reactor);
-    const reactorGlow=new THREE.PointLight(0xff5500,1.2,18); reactorGlow.position.copy(reactor.position); grp.add(reactorGlow);
-    const reactorShell=new THREE.Mesh(new THREE.SphereGeometry(1.6*size,8,6,0,Math.PI*1.4),
-      new THREE.MeshStandardMaterial({color:0x2a2a2a,roughness:.8,metalness:.6,side:THREE.DoubleSide}));
-    reactorShell.position.copy(reactor.position); reactorShell.rotation.y=rand(0,3); grp.add(reactorShell);
-    /* dripping pipe details */
-    for(let j=0;j<5;j++){
-      const drip=new THREE.Mesh(new THREE.CylinderGeometry(.08,.08,rand(1,3)*size,5),wreckMat);
-      drip.position.set(rand(-3,3)*size,rand(3,5)*size,rand(-3,3)*size);
-      drip.rotation.set(rand(-.5,.5),0,rand(.3,1.2)); grp.add(drip);
-    }
+    // Mining rig — tall frame with arm
+    const frame=new THREE.Mesh(new THREE.BoxGeometry(3,6,3),wreckMat);
+    frame.position.y=3; grp.add(frame);
+    const arm=new THREE.Mesh(new THREE.CylinderGeometry(.3,.2,7,6),rustMat);
+    arm.position.set(1.5,5,0); arm.rotation.z=-.6; grp.add(arm);
+    const drill=new THREE.Mesh(new THREE.ConeGeometry(.5,1.5,6),rustMat);
+    drill.position.set(5,2,0); drill.rotation.z=-Math.PI/2; grp.add(drill);
+    // Base plate
+    const base=new THREE.Mesh(new THREE.BoxGeometry(5,.2,5),wreckMat);
+    base.position.y=.1; grp.add(base);
   } else {
-    /* cargo bay wreck */
-    const bay=new THREE.Mesh(new THREE.BoxGeometry(12*size,5*size,8*size),darkHullMat);
-    bay.position.y=2.5*size; bay.rotation.y=rand(0,3); grp.add(bay);
-    /* cargo containers */
-    for(let j=0;j<6;j++){
-      const box=new THREE.Mesh(new THREE.BoxGeometry(rand(1.5,3)*size,rand(1,2.5)*size,rand(1.5,3)*size),
-        new THREE.MeshStandardMaterial({color:[0x884422,0x446688,0x668844,0x886644][j%4],roughness:.7,metalness:.3}));
-      box.position.set(rand(-5,5)*size,rand(.5,3)*size,rand(-3,3)*size);
-      box.rotation.y=rand(0,3); grp.add(box);
-    }
-    /* collapsed roof panels */
-    for(let j=0;j<4;j++){
-      const roof=new THREE.Mesh(new THREE.BoxGeometry(rand(4,8)*size,.12,rand(3,6)*size),rustMat);
-      roof.position.set(rand(-6,6)*size,rand(3,6)*size,rand(-4,4)*size);
-      roof.rotation.set(rand(-.5,.5),rand(0,3),rand(-.3,.3)); grp.add(roof);
-    }
-    for(let j=0;j<5;j++){
-      const pipe=new THREE.Mesh(new THREE.CylinderGeometry(.15,.15,rand(3,8)*size,6),wreckMat);
-      pipe.position.set(rand(-6,6)*size,rand(.5,4)*size,rand(-4,4)*size);
-      pipe.rotation.set(rand(-1,1),0,rand(-1,1)); grp.add(pipe);
-    }
-    /* scattered cargo containers on the seabed nearby */
-    for(let j=0;j<4;j++){
-      const sc=new THREE.Mesh(new THREE.BoxGeometry(rand(1.5,3)*size,rand(1,2)*size,rand(1.5,2.5)*size),
-        new THREE.MeshStandardMaterial({color:[0x884422,0x446688,0x668844,0x886644][j%4],roughness:.7,metalness:.3}));
-      sc.position.set(rand(-18,18)*size,rand(.2,.6),rand(-18,18)*size);
-      sc.rotation.set(rand(-.3,.3),rand(0,6),rand(-.3,.3)); grp.add(sc);
-    }
-    /* broken doors hanging open */
-    for(let j=0;j<2;j++){
-      const door=new THREE.Mesh(new THREE.BoxGeometry(1.5*size,2.2*size,.1),
-        new THREE.MeshStandardMaterial({color:0x3a4a52,roughness:.8,metalness:.5}));
-      door.position.set(rand(-5,5)*size,1.5*size,rand(-3,3)*size);
-      door.rotation.set(0,rand(.4,1.2)*(j===0?1:-1),rand(-.2,.2)); grp.add(door);
-    }
+    // Transport ship hull section — half-buried cylinder
+    const hull=new THREE.Mesh(new THREE.CylinderGeometry(4,4.5,14,12,1,true,0,Math.PI),wreckMat);
+    hull.rotation.z=Math.PI/2; hull.position.y=3; grp.add(hull);
+    // Floor inside
+    const floor=new THREE.Mesh(new THREE.BoxGeometry(12,.15,7),new THREE.MeshStandardMaterial({color:0x4a5560,roughness:.85}));
+    floor.position.y=.5; grp.add(floor);
+    // Broken bulkhead
+    const wall=new THREE.Mesh(new THREE.BoxGeometry(.15,5,6),wreckMat);
+    wall.position.set(3,2.5,0); wall.rotation.z=rand(-.1,.1); grp.add(wall);
+    // Doorway hole
+    const doorFrame=new THREE.Mesh(new THREE.BoxGeometry(.2,3,1.8),rustMat);
+    doorFrame.position.set(3,1.5,0); grp.add(doorFrame);
   }
-  /* all wrecks get an engine block and terminal */
-  const engine=new THREE.Mesh(new THREE.BoxGeometry(2.5*size,2*size,3*size),
-    new THREE.MeshStandardMaterial({color:0x2a3a44,roughness:.6,metalness:.7}));
-  engine.position.set(rand(-3,3)*size,1.5*size,rand(-3,3)*size); engine.rotation.y=rand(0,3); grp.add(engine);
-  const termBase=new THREE.Mesh(new THREE.CylinderGeometry(.4,.5,.3,8),
-    new THREE.MeshStandardMaterial({color:0x334455,roughness:.5,metalness:.6}));
-  termBase.position.set(rand(-2,2)*size,1,rand(-2,2)*size); grp.add(termBase);
-  const termPillar=new THREE.Mesh(new THREE.CylinderGeometry(.12,.12,1.5,6),wreckMat);
-  termPillar.position.copy(termBase.position); termPillar.position.y+=1; grp.add(termPillar);
-  const termScreen=new THREE.Mesh(new THREE.BoxGeometry(.7,.5,.08),wreckGlow);
-  termScreen.position.copy(termBase.position); termScreen.position.y+=1.9; grp.add(termScreen);
-  const termLight=new THREE.PointLight(0x44ddff,.8,15); termLight.position.copy(termScreen.position); grp.add(termLight);
-  grp.userData={kind:'wreck',scanned:false,blueprint:blueprintList[i%12]};
+
+  // Every wreck gets a glowing scannable terminal
+  const termBase=new THREE.Mesh(new THREE.CylinderGeometry(.4,.5,.2,8),wreckMat);
+  termBase.position.y=.1; grp.add(termBase);
+  const termPillar=new THREE.Mesh(new THREE.CylinderGeometry(.1,.1,1.2,6),wreckMat);
+  termPillar.position.y=.7; grp.add(termPillar);
+  const termScreen=new THREE.Mesh(new THREE.BoxGeometry(.6,.4,.08),wreckGlow);
+  termScreen.position.y=1.4; grp.add(termScreen);
+  const termLight=new THREE.PointLight(0x44ddff,.5,6);
+  termLight.position.y=1.4; grp.add(termLight);
+
+  grp.userData={kind:'wreck',idx:i,scanned:false,blueprint:blueprintList[i%blueprintList.length]};
+  grp.children.forEach(c=>{c.userData.node=grp;});
   scene.add(grp); wrecks.push(grp);
 }
 
@@ -3749,8 +3623,8 @@ function animate(){
   /* flashlight */
   if(curTool===6){
     if(!toolRoot.userData.flashlight){
-      const fl=new THREE.SpotLight(0xffeedd,5,40,Math.PI/5,.3);
-      fl.target.position.set(0,0,-5); camera.add(fl); camera.add(fl.target);
+      const fl=new THREE.PointLight(0xeef4ff,3,35);
+      camera.add(fl);
       toolRoot.userData.flashlight=fl;
     }
     toolRoot.userData.flashlight.visible=true;
