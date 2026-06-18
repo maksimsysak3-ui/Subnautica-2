@@ -121,7 +121,18 @@
 
   /* ============ MAIN MENU ============ */
   #menu{position:fixed;inset:0;z-index:45;display:flex;transition:opacity .9s;
-    background:linear-gradient(100deg, rgba(0,8,16,.92) 0%, rgba(0,10,20,.55) 46%, rgba(0,8,18,.15) 100%)}
+    background:linear-gradient(180deg,#0a1520 0%,#0d2a3a 30%,#062838 60%,#040e18 100%);
+    overflow:hidden}
+  #menu::before{content:'';position:absolute;inset:0;
+    background:radial-gradient(ellipse 120% 60% at 50% 40%,rgba(20,80,120,.3),transparent),
+      radial-gradient(ellipse 80% 40% at 70% 60%,rgba(10,60,100,.2),transparent);
+    animation:menuWave 8s ease-in-out infinite alternate}
+  @keyframes menuWave{0%{opacity:.6;transform:translateY(0) scale(1)}100%{opacity:1;transform:translateY(-10px) scale(1.02)}}
+  #menu::after{content:'';position:absolute;inset:0;
+    background:repeating-linear-gradient(0deg,transparent,transparent 3px,rgba(20,180,220,.02) 3px,rgba(20,180,220,.02) 4px);
+    pointer-events:none}
+  .menuParticle{position:absolute;width:2px;height:2px;background:rgba(120,200,255,.3);border-radius:50%;animation:menuFloat 6s ease-in-out infinite}
+  @keyframes menuFloat{0%,100%{transform:translateY(0);opacity:.2}50%{transform:translateY(-30px);opacity:.5}}
   #menu.hide{opacity:0;pointer-events:none}
   #menuL{display:flex;flex-direction:column;justify-content:center;padding:0 7vw;max-width:760px}
   #mTag{font-size:11px;letter-spacing:.7em;color:var(--cy-dim);margin-bottom:14px;animation:mfade 1.4s both .2s}
@@ -227,12 +238,31 @@
   /* chromatic aberration */
   #chromatic{position:fixed;inset:0;pointer-events:none;opacity:0;transition:opacity 1s;
     background:linear-gradient(90deg,rgba(255,0,0,.03),transparent 20%,transparent 80%,rgba(0,0,255,.03));mix-blend-mode:screen}
+  #bubbleTransition{position:fixed;inset:0;z-index:50;pointer-events:none;opacity:0;transition:opacity .5s}
+  #bubbleTransition.active{opacity:1}
+  @keyframes bubbleRise{0%{transform:translateY(0) scale(.5);opacity:0}20%{opacity:1;transform:translateY(-20vh) scale(.8)}100%{transform:translateY(-110vh) scale(1);opacity:0}}
+  #waypoint{position:fixed;z-index:22;pointer-events:none;display:none;flex-direction:column;align-items:center;font-family:var(--mono);font-size:10px;color:var(--cy);letter-spacing:.15em}
+  #waypoint .diamond{width:12px;height:12px;background:var(--cy);transform:rotate(45deg);margin-bottom:4px;box-shadow:0 0 8px var(--cy)}
+  #waypoint .wdist{opacity:.7}
+  #waypoint .wname{font-size:9px;opacity:.5;margin-top:2px}
 </style>
 </head>
 <body>
 
 <!-- ====== MAIN MENU ====== -->
 <div id="menu">
+  <span class="menuParticle" style="left:10%;top:80%;animation-delay:0s"></span>
+  <span class="menuParticle" style="left:25%;top:70%;animation-delay:.8s"></span>
+  <span class="menuParticle" style="left:40%;top:85%;animation-delay:1.6s"></span>
+  <span class="menuParticle" style="left:55%;top:75%;animation-delay:2.4s"></span>
+  <span class="menuParticle" style="left:70%;top:90%;animation-delay:3.2s"></span>
+  <span class="menuParticle" style="left:85%;top:65%;animation-delay:4s"></span>
+  <span class="menuParticle" style="left:15%;top:50%;animation-delay:4.8s"></span>
+  <span class="menuParticle" style="left:60%;top:40%;animation-delay:5.6s"></span>
+  <span class="menuParticle" style="left:90%;top:55%;animation-delay:1.2s"></span>
+  <span class="menuParticle" style="left:35%;top:60%;animation-delay:2s"></span>
+  <span class="menuParticle" style="left:5%;top:45%;animation-delay:3.5s"></span>
+  <span class="menuParticle" style="left:75%;top:35%;animation-delay:4.4s"></span>
   <div id="menuL">
     <div id="mTag">ARKWRIGHT DEEP-SEA DIVISION // 2186</div>
     <h1>ABYSSAL<br><span>DAWN</span></h1>
@@ -1492,6 +1522,15 @@ function hideMenu(){ $('menu').classList.add('hide'); $('brief').classList.remov
 $('btnDive').addEventListener('click',()=>{
   initAudio(); if(AC&&AC.state==='suspended')AC.resume();
   if(!started){
+    // Bubble transition
+    const bt=$('bubbleTransition');bt.classList.add('active');
+    bt.innerHTML='';
+    for(let i=0;i<30;i++){
+      const b=document.createElement('div');
+      const sz=Math.random()*20+8;
+      b.style.cssText=`position:absolute;border-radius:50%;border:1.5px solid rgba(120,220,255,.5);background:rgba(80,180,240,.15);width:${sz}px;height:${sz}px;left:${Math.random()*100}%;bottom:-${sz}px;animation:bubbleRise ${1.5+Math.random()*1.5}s ease-out ${Math.random()*.8}s forwards`;
+      bt.appendChild(b);
+    }
     $('fade').style.transition='opacity .5s'; $('fade').style.opacity=1;
     setTimeout(()=>{
       started=true;
@@ -1499,9 +1538,10 @@ $('btnDive').addEventListener('click',()=>{
       document.body.classList.add('live');
       hideMenu(); tryLock();
       $('fade').style.transition='opacity 2.2s'; $('fade').style.opacity=0;
+      bt.classList.remove('active'); bt.innerHTML='';
       toast('LIFE-SUPPORT ONLINE — WELCOME TO THE TERRACES');
       setTimeout(()=>toast('PRESS B FOR THE BUILD MENU · TAB FOR INVENTORY'),4000);
-    },550);
+    },2000);
   } else { hideMenu(); tryLock(); }
 });
 $('btnBrief').addEventListener('click',()=>$('brief').classList.toggle('open'));
@@ -2534,6 +2574,37 @@ for(let i=0;i<36;i++){
       pipe.position.set(rand(-5,5)*size,rand(.5,5)*size,rand(-5,5)*size);
       pipe.rotation.set(rand(-1,1),0,rand(-1,1)); grp.add(pipe);
     }
+    /* bent/warped hull plates */
+    for(let j=0;j<4;j++){
+      const warp=new THREE.Mesh(new THREE.BoxGeometry(rand(2,4)*size,rand(.08,.15),rand(1.5,3)*size),rustMat);
+      warp.position.set(rand(-6,6)*size,rand(1,5)*size,rand(-5,5)*size);
+      warp.rotation.set(rand(-.6,.6),rand(0,6),rand(-.9,.9)); grp.add(warp);
+    }
+    /* broken window holes with cyan screen fragments */
+    for(let j=0;j<3;j++){
+      const hole=new THREE.Mesh(new THREE.BoxGeometry(rand(.8,1.5)*size,rand(.6,1)*size,.15),
+        new THREE.MeshStandardMaterial({color:0x0a0a0a,roughness:1,metalness:0}));
+      hole.position.set(rand(-4,4)*size,rand(2,5)*size,rand(-4,4)*size);
+      hole.rotation.y=rand(0,6); grp.add(hole);
+      const frag=new THREE.Mesh(new THREE.PlaneGeometry(rand(.2,.5)*size,rand(.15,.3)*size),
+        new THREE.MeshStandardMaterial({color:0x22ddff,emissive:0x22ddff,emissiveIntensity:.6,side:THREE.DoubleSide}));
+      frag.position.copy(hole.position); frag.position.x+=rand(-.3,.3)*size; frag.position.y+=rand(-.2,.2)*size;
+      frag.rotation.set(rand(-.3,.3),rand(0,6),rand(-.2,.2)); grp.add(frag);
+    }
+    /* exposed pipe bundles */
+    for(let j=0;j<4;j++){
+      for(let k=0;k<3;k++){
+        const bp=new THREE.Mesh(new THREE.CylinderGeometry(.06,.06,rand(2,5)*size,5),wreckMat);
+        bp.position.set(rand(-5,5)*size+k*.15,rand(1,4)*size,rand(-5,5)*size);
+        bp.rotation.set(rand(-.8,.8),0,rand(-.8,.8)); grp.add(bp);
+      }
+    }
+    /* barnacle/growth clusters */
+    for(let j=0;j<10;j++){
+      const barn=new THREE.Mesh(new THREE.SphereGeometry(rand(.08,.25)*size,6,5),
+        new THREE.MeshStandardMaterial({color:0x3a6655,roughness:.9,metalness:.1}));
+      barn.position.set(rand(-6,6)*size,rand(.5,5)*size,rand(-5,5)*size); grp.add(barn);
+    }
   } else if(wtype===1){
     /* massive ship hull section */
     const hull=new THREE.Mesh(new THREE.CylinderGeometry(5*size,6*size,25*size,16,1,true),darkHullMat);
@@ -2557,6 +2628,28 @@ for(let i=0;i<36;i++){
       const plate=new THREE.Mesh(new THREE.BoxGeometry(rand(3,8)*size,rand(.1,.25),rand(2,6)*size),rustMat);
       plate.position.set(rand(-12,12)*size,rand(.3,8)*size,rand(-8,8)*size);
       plate.rotation.set(rand(-.8,.8),rand(0,3),rand(-.5,.5)); grp.add(plate);
+    }
+    /* internal deck layers visible through torn hull */
+    for(let j=0;j<3;j++){
+      const innerDeck=new THREE.Mesh(new THREE.BoxGeometry(6*size,.1,3*size),
+        new THREE.MeshStandardMaterial({color:0x4a5a62,roughness:.7,metalness:.5}));
+      innerDeck.position.set(rand(-4,4)*size,1+j*2.2*size,rand(-2,2)*size);
+      innerDeck.rotation.y=hull.rotation.y; grp.add(innerDeck);
+      /* railing on deck */
+      const rail=new THREE.Mesh(new THREE.BoxGeometry(5*size,.06,.06),wreckMat);
+      rail.position.copy(innerDeck.position); rail.position.y+=.4; rail.rotation.y=hull.rotation.y; grp.add(rail);
+    }
+    /* debris scattered on the seabed around wreck */
+    for(let j=0;j<8;j++){
+      const deb=new THREE.Mesh(new THREE.BoxGeometry(rand(.5,2)*size,rand(.3,1)*size,rand(.5,1.5)*size),rustMat);
+      deb.position.set(rand(-15,15)*size,rand(.1,.5),rand(-15,15)*size);
+      deb.rotation.set(rand(-.5,.5),rand(0,6),rand(-.4,.4)); grp.add(deb);
+    }
+    /* torn metal shards jutting out */
+    for(let j=0;j<6;j++){
+      const shard=new THREE.Mesh(new THREE.BoxGeometry(rand(.1,.2),rand(1.5,4)*size,rand(.3,.8)*size),charredMat);
+      shard.position.set(rand(-8,8)*size,rand(2,7)*size,rand(-6,6)*size);
+      shard.rotation.set(rand(-.6,.6),rand(0,3),rand(-.8,.8)); grp.add(shard);
     }
   } else if(wtype===2){
     /* engine room wreck */
@@ -2584,6 +2677,20 @@ for(let i=0;i<36;i++){
       plate.position.set(rand(-6,6)*size,rand(.3,5)*size,rand(-6,6)*size);
       plate.rotation.set(rand(-.8,.8),rand(0,3),rand(-.5,.5)); grp.add(plate);
     }
+    /* glowing damaged reactor */
+    const reactor=new THREE.Mesh(new THREE.SphereGeometry(1.2*size,10,8),
+      new THREE.MeshStandardMaterial({color:0xff4400,emissive:0xff3300,emissiveIntensity:1.8}));
+    reactor.position.set(0,2.5*size,0); grp.add(reactor);
+    const reactorGlow=new THREE.PointLight(0xff5500,1.2,18); reactorGlow.position.copy(reactor.position); grp.add(reactorGlow);
+    const reactorShell=new THREE.Mesh(new THREE.SphereGeometry(1.6*size,8,6,0,Math.PI*1.4),
+      new THREE.MeshStandardMaterial({color:0x2a2a2a,roughness:.8,metalness:.6,side:THREE.DoubleSide}));
+    reactorShell.position.copy(reactor.position); reactorShell.rotation.y=rand(0,3); grp.add(reactorShell);
+    /* dripping pipe details */
+    for(let j=0;j<5;j++){
+      const drip=new THREE.Mesh(new THREE.CylinderGeometry(.08,.08,rand(1,3)*size,5),wreckMat);
+      drip.position.set(rand(-3,3)*size,rand(3,5)*size,rand(-3,3)*size);
+      drip.rotation.set(rand(-.5,.5),0,rand(.3,1.2)); grp.add(drip);
+    }
   } else {
     /* cargo bay wreck */
     const bay=new THREE.Mesh(new THREE.BoxGeometry(12*size,5*size,8*size),darkHullMat);
@@ -2605,6 +2712,20 @@ for(let i=0;i<36;i++){
       const pipe=new THREE.Mesh(new THREE.CylinderGeometry(.15,.15,rand(3,8)*size,6),wreckMat);
       pipe.position.set(rand(-6,6)*size,rand(.5,4)*size,rand(-4,4)*size);
       pipe.rotation.set(rand(-1,1),0,rand(-1,1)); grp.add(pipe);
+    }
+    /* scattered cargo containers on the seabed nearby */
+    for(let j=0;j<4;j++){
+      const sc=new THREE.Mesh(new THREE.BoxGeometry(rand(1.5,3)*size,rand(1,2)*size,rand(1.5,2.5)*size),
+        new THREE.MeshStandardMaterial({color:[0x884422,0x446688,0x668844,0x886644][j%4],roughness:.7,metalness:.3}));
+      sc.position.set(rand(-18,18)*size,rand(.2,.6),rand(-18,18)*size);
+      sc.rotation.set(rand(-.3,.3),rand(0,6),rand(-.3,.3)); grp.add(sc);
+    }
+    /* broken doors hanging open */
+    for(let j=0;j<2;j++){
+      const door=new THREE.Mesh(new THREE.BoxGeometry(1.5*size,2.2*size,.1),
+        new THREE.MeshStandardMaterial({color:0x3a4a52,roughness:.8,metalness:.5}));
+      door.position.set(rand(-5,5)*size,1.5*size,rand(-3,3)*size);
+      door.rotation.set(0,rand(.4,1.2)*(j===0?1:-1),rand(-.2,.2)); grp.add(door);
     }
   }
   /* all wrecks get an engine block and terminal */
@@ -3159,7 +3280,12 @@ function animate(){
       an.finR.rotation.z=-.7-Math.sin(t*6+an.ph)*.3;
       if(f.userData.predator){
         const sd=f.position.distanceTo(camWorld);
-        if(sd<8){ const ch=new THREE.Vector3().subVectors(camWorld,f.position).normalize(); f.position.addScaledVector(ch,dt*3); f.lookAt(camWorld); if(sd<2.5){ stats.hp=clamp(stats.hp-8*dt,0,100); hurtFlash=Math.max(hurtFlash,.4); missionState.predatorEncounter=true; } }
+        if(sd<25&&sd>2){
+          const ch=new THREE.Vector3().subVectors(camWorld,f.position).normalize();
+          f.position.addScaledVector(ch,dt*(f.userData.toxic?4:6));
+          f.lookAt(camWorld);
+          if(sd<4){ stats.hp=clamp(stats.hp-(f.userData.toxic?8:5)*dt,0,100); hurtFlash=Math.max(hurtFlash,.4); missionState.predatorEncounter=true; }
+        }
       }
       if(f.userData.toxic){ const gd=f.position.distanceTo(camWorld); if(gd<6){ stats.hp=clamp(stats.hp-3*dt,0,100); } }
     }
@@ -3180,6 +3306,36 @@ function animate(){
 
   /* missions */
   if(started&&!paused){ lastMissionCheck+=dt; if(lastMissionCheck>2){ lastMissionCheck=0; updateMissions(); } }
+
+  // Mission waypoint
+  if(started&&!paused){
+    const wp=$('waypoint');
+    const curM=MISSION_LIST[missionState.curMission];
+    if(curM&&!curM.check()){
+      const wposMap={survive:new THREE.Vector3(10,-5,20),base:new THREE.Vector3(8,-5,22),craft3:new THREE.Vector3(0,-7,30),
+        deeper:new THREE.Vector3(30,-85,30),scan5:new THREE.Vector3(0,-30,60),wreck:new THREE.Vector3(60,-40,80),
+        signal:new THREE.Vector3(-80,-120,-80),predator:new THREE.Vector3(100,-40,100),vehicle:new THREE.Vector3(0,-7,30),
+        leviathan:new THREE.Vector3(0,-290,0),blood:new THREE.Vector3(-50,-160,50),thermal:new THREE.Vector3(40,-260,40),
+        abyss:new THREE.Vector3(0,-420,0),data:new THREE.Vector3(70,-100,70),pods:new THREE.Vector3(-40,-60,-40),
+        alien:new THREE.Vector3(90,-200,90),eggs:new THREE.Vector3(-60,-80,60),escape:new THREE.Vector3(0,-7,30)};
+      const wpos=wposMap[curM.id];
+      if(wpos){
+        const projected=wpos.clone().project(camera);
+        const behind=projected.z>1;
+        let sx=(projected.x+1)/2*window.innerWidth;
+        let sy=(-projected.y+1)/2*window.innerHeight;
+        if(behind){sx=window.innerWidth-sx;sy=window.innerHeight-sy;}
+        sx=Math.max(30,Math.min(window.innerWidth-30,sx));
+        sy=Math.max(30,Math.min(window.innerHeight-60,sy));
+        const dist=camWorld.distanceTo(wpos);
+        wp.style.display='flex';
+        wp.style.left=sx+'px'; wp.style.top=sy+'px';
+        wp.style.transform='translate(-50%,-50%)';
+        wp.querySelector('.wdist').textContent=Math.round(dist)+'M';
+        wp.querySelector('.wname').textContent=curM.name;
+      }
+    } else { wp.style.display='none'; }
+  }
 
   /* screen shake */
   if(hurtFlash>.2){ camera.position.x+=rand(-.03,.03)*hurtFlash; camera.position.y+=rand(-.03,.03)*hurtFlash; }
@@ -3234,5 +3390,7 @@ playCinematic();
 animate();
 setTimeout(()=>$('fade').style.opacity=0,9500);
 </script>
+<div id="bubbleTransition"></div>
+<div id="waypoint"><div class="diamond"></div><div class="wdist"></div><div class="wname"></div></div>
 </body>
 </html>
