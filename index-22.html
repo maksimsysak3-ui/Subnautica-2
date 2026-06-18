@@ -198,6 +198,13 @@
   .irow .act:hover{background:#fff;box-shadow:0 0 16px var(--cy)}
   .irow .act:disabled{opacity:.25;cursor:default}
   .isec{font-size:10px;letter-spacing:.4em;color:var(--cy-dim);margin:22px 0 2px;font-weight:700}
+  .inv-grid{display:grid;grid-template-columns:repeat(8,1fr);gap:6px;margin-top:12px}
+  .inv-slot{width:100%;aspect-ratio:1;border:1px solid var(--cy-faint);background:rgba(127,233,255,.04);
+    display:flex;flex-direction:column;align-items:center;justify-content:center;position:relative;cursor:pointer;transition:all .15s}
+  .inv-slot:hover{border-color:var(--cy);background:rgba(127,233,255,.12)}
+  .inv-slot .inv-icon{width:28px;height:28px;border-radius:3px;margin-bottom:2px}
+  .inv-slot .inv-ct{font-family:var(--mono);font-size:10px;color:#eaffff;position:absolute;bottom:2px;right:4px;text-shadow:0 0 4px rgba(0,0,0,.8)}
+  .inv-slot .inv-nm{font-size:8px;letter-spacing:.1em;color:var(--cy-dim);text-align:center;overflow:hidden;white-space:nowrap;max-width:95%}
 
   #relock{position:fixed;inset:0;z-index:38;display:none;align-items:center;justify-content:center;cursor:pointer;
     background:rgba(0,6,14,.5);font-size:14px;letter-spacing:.5em;color:#eaffff;text-shadow:0 0 14px var(--cy)}
@@ -318,11 +325,13 @@
 <div class="overlay" id="grain"></div>
 <div class="overlay" id="hurt"></div>
 <div class="overlay" id="chromatic"></div>
-<div id="cinematic" style="position:fixed;inset:0;z-index:70;background:#000;display:flex;align-items:center;justify-content:center;flex-direction:column">
-  <div id="cinStudio" style="font-family:var(--mono);font-size:clamp(14px,2vw,22px);letter-spacing:1em;color:rgba(127,233,255,.7);opacity:0;transition:opacity 1.5s">ARKWRIGHT STUDIOS PRESENTS</div>
-  <div id="cinTitle" style="font-family:var(--mono);font-size:clamp(42px,7vw,80px);font-weight:700;letter-spacing:.4em;color:#eaffff;text-shadow:0 0 40px rgba(127,233,255,.9),0 0 120px rgba(40,150,210,.6);opacity:0;transition:opacity 2s;margin-top:30px">ABYSSAL DAWN</div>
-  <div id="cinSub" style="font-size:clamp(11px,1.4vw,16px);letter-spacing:.6em;color:rgba(127,233,255,.5);opacity:0;transition:opacity 1.5s;margin-top:18px">SURVEY PROTOCOL 7</div>
-  <canvas id="cinWater" style="position:absolute;inset:0;opacity:0;transition:opacity 2s" width="800" height="600"></canvas>
+<div id="cinematic" style="position:fixed;inset:0;z-index:70;background:#000;display:flex;align-items:center;justify-content:center;flex-direction:column;cursor:pointer" onclick="skipCinematic()">
+  <div id="cinSkip" style="position:absolute;bottom:30px;right:40px;font-size:11px;letter-spacing:.5em;color:rgba(127,233,255,.3);opacity:0;transition:opacity 1s">CLICK TO SKIP</div>
+  <div id="cinStudio" style="font-family:var(--mono);font-size:clamp(14px,2vw,22px);letter-spacing:1.2em;color:rgba(127,233,255,0);transition:color 2s">ARKWRIGHT DEEP-SEA DIVISION</div>
+  <div id="cinYear" style="font-family:var(--mono);font-size:clamp(10px,1.2vw,14px);letter-spacing:2em;color:rgba(127,233,255,0);transition:color 1.5s;margin-top:8px">2 1 8 6</div>
+  <div id="cinTitle" style="font-family:var(--mono);font-size:clamp(48px,8vw,90px);font-weight:700;letter-spacing:.5em;color:rgba(255,255,255,0);text-shadow:0 0 60px rgba(127,233,255,0);transition:all 2.5s;margin-top:40px">ABYSSAL DAWN</div>
+  <div id="cinSub" style="font-size:clamp(11px,1.4vw,16px);letter-spacing:.8em;color:rgba(127,233,255,0);transition:color 2s;margin-top:14px">SURVEY PROTOCOL 7</div>
+  <canvas id="cinWater" style="position:absolute;inset:0;opacity:0;transition:opacity 2.5s;pointer-events:none" width="800" height="600"></canvas>
 </div>
 <div class="overlay" id="fade"></div>
 
@@ -505,8 +514,9 @@ applyQuality();
 const uTime={value:0};
 
 /* lights */
-const hemi=new THREE.HemisphereLight(0x8ad8f2,0x0a2433,.95); scene.add(hemi);
-const sun=new THREE.DirectionalLight(0xd4f0ff,1.8); sun.position.set(40,120,-30); scene.add(sun);
+const hemi=new THREE.HemisphereLight(0x8ad8f2,0x0a2433,1.3); scene.add(hemi);
+const sun=new THREE.DirectionalLight(0xd4f0ff,1.2); sun.position.set(40,120,-30); scene.add(sun);
+const ambLight=new THREE.AmbientLight(0x1a3a50,.6); scene.add(ambLight);
 
 /* canvas-texture helpers */
 function ctex(w,h,fn){
@@ -695,7 +705,7 @@ const fanMat=addSway(new THREE.MeshStandardMaterial({map:fanTex,transparent:true
 
 {
   // kelp forest
-  for(let i=0;i<300;i++){
+  for(let i=0;i<800;i++){
     const x=rand(-800,800),z=rand(-800,800),y=terrainHeight(x,z);
     const h=rand(8,19);
     const k=new THREE.Mesh(new THREE.PlaneGeometry(rand(.9,1.5),h,1,8),kelpMat);
@@ -704,7 +714,7 @@ const fanMat=addSway(new THREE.MeshStandardMaterial({map:fanTex,transparent:true
     scene.add(k);
   }
   // sea fans
-  for(let i=0;i<120;i++){
+  for(let i=0;i<350;i++){
     const x=rand(-800,800),z=rand(-800,800),y=terrainHeight(x,z);
     const s=rand(2,4.6);
     const f=new THREE.Mesh(new THREE.PlaneGeometry(s,s,1,4),fanMat);
@@ -714,7 +724,7 @@ const fanMat=addSway(new THREE.MeshStandardMaterial({map:fanTex,transparent:true
   }
   // tube coral clusters
   const tubeCols=[0xff8c5a,0xd45a9e,0x46c8b4,0xe8c45a];
-  for(let i=0;i<100;i++){
+  for(let i=0;i<250;i++){
     const x=rand(-800,800),z=rand(-800,800),y=terrainHeight(x,z);
     if(y<-200)continue;
     const grp=new THREE.Group(); grp.position.set(x,y,z);
@@ -735,7 +745,7 @@ const fanMat=addSway(new THREE.MeshStandardMaterial({map:fanTex,transparent:true
   }
   // brain corals
   const brainMat=new THREE.MeshStandardMaterial({color:0xc9a05e,roughness:1});
-  for(let i=0;i<80;i++){
+  for(let i=0;i<200;i++){
     const x=rand(-800,800),z=rand(-800,800),y=terrainHeight(x,z);
     const b=new THREE.Mesh(new THREE.IcosahedronGeometry(rand(.7,2.8),1),brainMat);
     b.scale.y=rand(.5,.7); b.position.set(x,y+.15,z);
@@ -744,7 +754,7 @@ const fanMat=addSway(new THREE.MeshStandardMaterial({map:fanTex,transparent:true
   }
   // glowing anemones (deep)
   const anemMat=new THREE.MeshStandardMaterial({color:0x6fe8ff,emissive:0x2fc8e8,emissiveIntensity:1.8,roughness:.5});
-  for(let i=0;i<100;i++){
+  for(let i=0;i<300;i++){
     const x=rand(-800,800),z=rand(-800,800),y=terrainHeight(x,z);
     if(y>-26)continue;
     const grp=new THREE.Group(); grp.position.set(x,y,z);
@@ -758,7 +768,7 @@ const fanMat=addSway(new THREE.MeshStandardMaterial({map:fanTex,transparent:true
   }
   // rocks
   const rockMat=new THREE.MeshStandardMaterial({color:0x46565e,roughness:1});
-  for(let i=0;i<64;i++){
+  for(let i=0;i<200;i++){
     const x=rand(-900,900),z=rand(-900,900);
     const r=new THREE.Mesh(new THREE.DodecahedronGeometry(rand(.7,3.8),0),rockMat);
     r.position.set(x,terrainHeight(x,z)+.2,z);
@@ -786,8 +796,8 @@ function makePlant(type){
   grp.userData={kind:'plant',type,ready:true,regrow:0};
   scene.add(grp); plants.push(grp);
 }
-for(let i=0;i<26;i++)makePlant('food');
-for(let i=0;i<26;i++)makePlant('water');
+for(let i=0;i<80;i++)makePlant('food');
+for(let i=0;i<80;i++)makePlant('water');
 
 /* ---------------- minerals ---------------- */
 const MIN_TYPES={
@@ -814,38 +824,90 @@ function spikeCluster(grp,color,emissive,glow){
 function makeMineral(typeKey){
   const x=rand(-800,800),z=rand(-800,800),y=terrainHeight(x,z);
   const grp=new THREE.Group(); grp.position.set(x,y,z);
-  const base=new THREE.Mesh(new THREE.DodecahedronGeometry(rand(.7,1.1),0),
-    new THREE.MeshStandardMaterial({color:0x2c3a40,roughness:1}));
-  base.scale.y=.55; grp.add(base);
-  if(typeKey==='quartz') spikeCluster(grp,0xbff2ff,0x35b8de,1.7);
-  else if(typeKey==='copper') spikeCluster(grp,0xffa050,0xc2551a,1.2);
-  else if(typeKey==='gold') spikeCluster(grp,0xffd700,0xb8960f,1.8);
-  else if(typeKey==='silver') spikeCluster(grp,0xc0c0c0,0x808080,1.0);
-  else if(typeKey==='diamond') spikeCluster(grp,0xe0f0ff,0x88ccff,2.5);
-  else if(typeKey==='lead') {
-    const mat=new THREE.MeshStandardMaterial({color:0x4a4a5a,roughness:.8,metalness:.6,emissive:0x1a1a2a,emissiveIntensity:.3});
+  if(typeKey==='quartz'){
+    for(let j=0;j<4+Math.floor(Math.random()*4);j++){
+      const h=rand(1.2,2.8),r=rand(.12,.3);
+      const s=new THREE.Mesh(new THREE.CylinderGeometry(0,r,h,6),
+        new THREE.MeshStandardMaterial({color:0xccf5ff,emissive:0x55ccee,emissiveIntensity:1.8,roughness:.1,metalness:.2,transparent:true,opacity:.75}));
+      s.position.set(rand(-.7,.7),h/2,rand(-.7,.7));
+      s.rotation.set(rand(-.3,.3),rand(0,3),rand(-.3,.3)); grp.add(s);
+    }
+  } else if(typeKey==='copper'){
+    const base=new THREE.Mesh(new THREE.DodecahedronGeometry(rand(.8,1.2),0),
+      new THREE.MeshStandardMaterial({color:0xcc6633,roughness:.7,metalness:.6}));
+    base.scale.y=.6; grp.add(base);
     for(let j=0;j<3;j++){
-      const c=new THREE.Mesh(new THREE.BoxGeometry(rand(.3,.5),rand(.3,.5),rand(.3,.5)),mat);
-      c.position.set(rand(-.6,.6),rand(.2,.6),rand(-.6,.6)); c.rotation.set(rand(0,3),rand(0,3),0); grp.add(c);
+      const chunk=new THREE.Mesh(new THREE.DodecahedronGeometry(rand(.3,.6),0),
+        new THREE.MeshStandardMaterial({color:0xdd7744,roughness:.6,metalness:.5,emissive:0x441100,emissiveIntensity:.3}));
+      chunk.position.set(rand(-.6,.6),rand(.2,.8),rand(-.6,.6)); chunk.rotation.set(rand(0,3),rand(0,3),0); grp.add(chunk);
     }
-  }
-  else if(typeKey==='lithium') spikeCluster(grp,0xff88cc,0xcc2288,1.5);
-  else if(typeKey==='magnetite') spikeCluster(grp,0x333333,0x111144,0.8);
-  else { // titanium = metallic ore chunks
-    const mat=new THREE.MeshStandardMaterial({color:0xd9e2ea,roughness:.3,metalness:.95,emissive:0x2c3940,emissiveIntensity:.4});
+    const ox=new THREE.Mesh(new THREE.SphereGeometry(.4,8,6),
+      new THREE.MeshStandardMaterial({color:0x44aa88,roughness:.9,transparent:true,opacity:.6}));
+    ox.position.set(rand(-.3,.3),.5,rand(-.3,.3)); ox.scale.y=.3; grp.add(ox);
+  } else if(typeKey==='titanium'){
     for(let j=0;j<4;j++){
-      const c=new THREE.Mesh(new THREE.DodecahedronGeometry(rand(.32,.55),0),mat);
+      const c=new THREE.Mesh(new THREE.DodecahedronGeometry(rand(.35,.6),0),
+        new THREE.MeshStandardMaterial({color:0xd9e5ee,roughness:.2,metalness:.95,emissive:0x334455,emissiveIntensity:.2}));
       c.position.set(rand(-.7,.7),rand(.25,.7),rand(-.7,.7));
-      c.rotation.set(rand(0,3),rand(0,3),rand(0,3));
-      grp.add(c);
+      c.rotation.set(rand(0,3),rand(0,3),rand(0,3)); grp.add(c);
     }
+  } else if(typeKey==='gold'){
+    const rock=new THREE.Mesh(new THREE.DodecahedronGeometry(.9,0),
+      new THREE.MeshStandardMaterial({color:0x2a2a2a,roughness:1}));
+    rock.scale.y=.5; grp.add(rock);
+    for(let j=0;j<5;j++){
+      const nug=new THREE.Mesh(new THREE.SphereGeometry(rand(.1,.25),8,6),
+        new THREE.MeshStandardMaterial({color:0xffcc00,roughness:.2,metalness:1,emissive:0xaa8800,emissiveIntensity:.8}));
+      nug.position.set(rand(-.6,.6),rand(.1,.6),rand(-.6,.6)); grp.add(nug);
+    }
+  } else if(typeKey==='silver'){
+    const rock=new THREE.Mesh(new THREE.DodecahedronGeometry(.8,0),
+      new THREE.MeshStandardMaterial({color:0x3a3a3a,roughness:1}));
+    rock.scale.y=.6; grp.add(rock);
+    for(let j=0;j<4;j++){
+      const vein=new THREE.Mesh(new THREE.BoxGeometry(rand(.05,.1),rand(.4,1),rand(.05,.1)),
+        new THREE.MeshStandardMaterial({color:0xccddee,roughness:.1,metalness:1,emissive:0x667788,emissiveIntensity:.5}));
+      vein.position.set(rand(-.5,.5),rand(.1,.6),rand(-.5,.5));
+      vein.rotation.set(rand(-.5,.5),rand(0,3),rand(-.5,.5)); grp.add(vein);
+    }
+  } else if(typeKey==='diamond'){
+    for(let j=0;j<3;j++){
+      const d=new THREE.Mesh(new THREE.OctahedronGeometry(rand(.2,.4),0),
+        new THREE.MeshStandardMaterial({color:0xeeffff,roughness:.02,metalness:.1,emissive:0xaaddff,emissiveIntensity:2.5,transparent:true,opacity:.85}));
+      d.position.set(rand(-.4,.4),rand(.3,.9),rand(-.4,.4)); grp.add(d);
+    }
+    const glow=new THREE.PointLight(0xaaddff,.5,5); glow.position.y=.5; grp.add(glow);
+  } else if(typeKey==='lead'){
+    for(let j=0;j<3;j++){
+      const c=new THREE.Mesh(new THREE.BoxGeometry(rand(.4,.7),rand(.4,.7),rand(.4,.7)),
+        new THREE.MeshStandardMaterial({color:0x3a3a44,roughness:.8,metalness:.5}));
+      c.position.set(rand(-.5,.5),rand(.2,.6),rand(-.5,.5));
+      c.rotation.set(rand(0,.5),rand(0,.5),0); grp.add(c);
+    }
+  } else if(typeKey==='lithium'){
+    for(let j=0;j<4;j++){
+      const c=new THREE.Mesh(new THREE.CylinderGeometry(0,rand(.15,.3),rand(.8,1.6),5),
+        new THREE.MeshStandardMaterial({color:0xff6688,roughness:.3,metalness:.2,emissive:0xaa2244,emissiveIntensity:1}));
+      c.position.set(rand(-.6,.6),rand(.3,.8),rand(-.6,.6));
+      c.rotation.set(rand(-.4,.4),rand(0,3),rand(-.4,.4)); grp.add(c);
+    }
+  } else if(typeKey==='magnetite'){
+    const rock=new THREE.Mesh(new THREE.IcosahedronGeometry(.7,0),
+      new THREE.MeshStandardMaterial({color:0x1a1a2a,roughness:.5,metalness:.9}));
+    grp.add(rock);
+    for(let j=0;j<3;j++){
+      const arc=new THREE.Mesh(new THREE.TorusGeometry(.5+j*.15,.02,6,12,Math.PI*.7),
+        new THREE.MeshStandardMaterial({color:0x4488ff,emissive:0x2244cc,emissiveIntensity:2,transparent:true,opacity:.6}));
+      arc.rotation.set(rand(0,3),rand(0,3),rand(0,3)); arc.position.y=.3; grp.add(arc);
+    }
+    const glow=new THREE.PointLight(0x4488ff,.4,4); glow.position.y=.4; grp.add(glow);
   }
   const node={grp,type:typeKey,hp:100,max:100,dead:false,respawn:0};
   grp.children.forEach(c=>{ c.userData.node=node; mineralMeshes.push(c); });
   scene.add(grp); minerals.push(node);
 }
-const spread=['titanium','titanium','titanium','copper','copper','quartz','quartz','gold','silver','diamond','lead','lithium','magnetite'];
-for(let i=0;i<100;i++)makeMineral(spread[i%spread.length]);
+const spread=['titanium','titanium','titanium','copper','copper','copper','quartz','quartz','quartz','gold','gold','silver','silver','diamond','lead','lead','lithium','lithium','magnetite','magnetite'];
+for(let i=0;i<200;i++)makeMineral(spread[i%spread.length]);
 
 /* bubble vents */
 const vents=[];
@@ -914,7 +976,7 @@ const roseTex=fishTexture('#5e2c3e','#ffd9e0','#ff7a96');
 
 /* the cinematic school — azure jacks */
 const school=[];
-for(let i=0;i<26;i++){
+for(let i=0;i<60;i++){
   const f=makeFish(rand(.9,1.25),jackTex,0x9fdcff);
   f.position.set(rand(-20,20),-16+rand(-4,4),rand(-20,20));
   f.userData.s={
@@ -933,7 +995,7 @@ function schoolTarget(t,out){
 const ambient=[];
 {
   const texes=[amberTex,roseTex,jackTex];
-  for(let i=0;i<15;i++){
+  for(let i=0;i<40;i++){
     const f=makeFish(rand(.45,.75),texes[i%3],[0xffd27f,0xffa8b8,0x9fdcff][i%3]);
     const cx=rand(-150,150),cz=rand(-150,150);
     f.userData.a={c:V3(cx,clamp(terrainHeight(cx,cz)+rand(4,9),-40,-5),cz),
@@ -1316,17 +1378,23 @@ function pay(c){ Object.entries(c).forEach(([k,v])=>res[k]-=v); }
 /* ============================================================
    STATE / INPUT / UI FLOW
    ============================================================ */
-const res={titanium:8,copper:3,quartz:3,gold:0,silver:0,diamond:0,lead:0,lithium:0,magnetite:0,rations:2,h2o:2,
-  titaniumIngot:0,copperWire:0,glass:0,fiberMesh:0,advancedTank:0,reinforcedSuit:0,ultraFins:0};
-const unlockedBlueprints=new Set(['titaniumIngot','copperWire','glass','fiberMesh']);
+const res={titanium:20,copper:8,quartz:8,gold:3,silver:3,diamond:1,lead:4,lithium:3,magnetite:2,rations:5,h2o:5,
+  titaniumIngot:2,copperWire:2,glass:2,fiberMesh:1,advancedTank:0,reinforcedSuit:0,ultraFins:0};
+const unlockedBlueprints=new Set(['titaniumIngot','copperWire','glass','fiberMesh','cookedFish','filteredWater','battery','firstAidKit','beacon','wiring']);
 const RECIPES={
-  titaniumIngot:{name:'TITANIUM INGOT',cost:{titanium:4},desc:'Compressed titanium alloy for advanced construction.'},
-  copperWire:{name:'COPPER WIRE',cost:{copper:2},desc:'Conductive wiring for electronics.'},
-  glass:{name:'GLASS PANEL',cost:{quartz:2},desc:'Reinforced glass for viewports.'},
-  fiberMesh:{name:'FIBER MESH',cost:{titanium:1,quartz:1},desc:'Woven composite material.'},
-  advancedTank:{name:'HIGH-CAP O2 TANK',cost:{titanium:2,glass:1,copperWire:1},desc:'Doubles oxygen capacity. Equip in suit slot.'},
-  reinforcedSuit:{name:'REINFORCED SUIT',cost:{titaniumIngot:1,fiberMesh:2,diamond:1},desc:'Reduces damage by 50%. Equip in suit slot.'},
-  ultraFins:{name:'ULTRA FINS',cost:{titaniumIngot:1,copperWire:1,silicone:1},desc:'Swim 40% faster. Equip in suit slot.'},
+  titaniumIngot:{name:'TITANIUM INGOT',cost:{titanium:4},cat:'materials',desc:'Compressed titanium alloy.'},
+  copperWire:{name:'COPPER WIRE',cost:{copper:2},cat:'materials',desc:'Conductive wiring.'},
+  glass:{name:'GLASS PANEL',cost:{quartz:2},cat:'materials',desc:'Reinforced glass.'},
+  fiberMesh:{name:'FIBER MESH',cost:{titanium:1,quartz:1},cat:'materials',desc:'Woven composite.'},
+  wiring:{name:'WIRING KIT',cost:{silver:2},cat:'materials',desc:'Advanced circuitry components.'},
+  battery:{name:'BATTERY',cost:{copper:1,lithium:1},cat:'materials',desc:'Portable power cell.'},
+  cookedFish:{name:'COOKED FISH',cost:{rations:1},cat:'food',desc:'Nutrient-rich meal. +50 nutrition.'},
+  filteredWater:{name:'FILTERED WATER',cost:{h2o:1},cat:'food',desc:'Purified water. +60 hydration.'},
+  firstAidKit:{name:'FIRST AID KIT',cost:{fiberMesh:1,titanium:1},cat:'tools',desc:'Restores 50 health.'},
+  beacon:{name:'DIVE BEACON',cost:{copper:1,titanium:1},cat:'tools',desc:'Placeable location marker.'},
+  advancedTank:{name:'HIGH-CAP O2 TANK',cost:{titanium:2,glass:1,copperWire:1},cat:'equipment',desc:'Doubles oxygen capacity.'},
+  reinforcedSuit:{name:'REINFORCED SUIT',cost:{titaniumIngot:1,fiberMesh:2,diamond:1},cat:'equipment',desc:'50% damage reduction.'},
+  ultraFins:{name:'ULTRA FINS',cost:{titaniumIngot:1,copperWire:1,lead:1},cat:'equipment',desc:'40% swim speed boost.'},
 };
 const equipped={suit:null,tank:null,fins:null};
 const stats={hp:100,o2:100,food:100,h2o:100};
@@ -1410,45 +1478,84 @@ function renderBuildMenu(){
 }
 function renderInventory(){
   const host=$('invList');
-  const mat=(cls,name,desc,n)=>`<div class="irow"><div class="igem ${cls}"><i></i></div>
-    <div class="nm"><b>${name}</b><span>${desc}</span></div><div class="ct">${n}</div></div>`;
-  host.innerHTML=
-    `<div class="isec">— MATERIALS</div>`+
-    mat('g-ti','TITANIUM','Structural alloy. Primary construction material.',res.titanium)+
-    mat('g-cu','COPPER','Conductive ore. Powers lights and electronics.',res.copper)+
-    mat('g-qz','QUARTZ','Resonant crystal. Pressurization and optics.',res.quartz)+
-    mat('g-ti','GOLD','Precious metal. Advanced electronics.',res.gold)+
-    mat('g-cu','SILVER','Conductive metal. Wiring and components.',res.silver)+
-    mat('g-qz','DIAMOND','Ultra-hard crystal. Cutting tools and optics.',res.diamond)+
-    mat('g-ti','LEAD','Dense metal. Radiation shielding and ballast.',res.lead)+
-    mat('g-cu','LITHIUM','Reactive element. Battery components.',res.lithium)+
-    mat('g-ti','MAGNETITE','Magnetic mineral. Advanced fabrication.',res.magnetite)+
-    `<div class="isec">— CRAFTED</div>`+
-    mat('g-ti','TITANIUM INGOT','Refined titanium. Used in advanced builds.',res.titaniumIngot)+
-    mat('g-cu','COPPER WIRE','Conductive wiring. Electronics component.',res.copperWire)+
-    mat('g-qz','GLASS','Transparent silicate. Viewports and optics.',res.glass)+
-    mat('g-ti','FIBER MESH','Woven material. Comfort and insulation.',res.fiberMesh)+
-    `<div class="isec">— CONSUMABLES</div>`+
-    `<div class="irow"><div class="igem g-ra"><i></i></div>
-      <div class="nm"><b>RATION</b><span>Restores 38 nutrition. From amber pods &amp; reef fish.</span></div>
-      <div class="ct">${res.rations}</div><button class="act" id="actEat" ${res.rations?'':'disabled'}>EAT [F]</button></div>`+
-    `<div class="irow"><div class="igem g-wa"><i></i></div>
-      <div class="nm"><b>HYDRO-CELL</b><span>Restores 45 hydration. From aqua bulbs.</span></div>
-      <div class="ct">${res.h2o}</div><button class="act" id="actDrink" ${res.h2o?'':'disabled'}>DRINK [G]</button></div>`;
+  const items=[
+    {key:'titanium',name:'Titanium',color:'#cfd6dd',shape:'diamond'},
+    {key:'copper',name:'Copper',color:'#ff9550',shape:'diamond'},
+    {key:'quartz',name:'Quartz',color:'#9be8ff',shape:'diamond'},
+    {key:'gold',name:'Gold',color:'#ffcc00',shape:'circle'},
+    {key:'silver',name:'Silver',color:'#ccddee',shape:'diamond'},
+    {key:'diamond',name:'Diamond',color:'#aaddff',shape:'octagon'},
+    {key:'lead',name:'Lead',color:'#555566',shape:'square'},
+    {key:'lithium',name:'Lithium',color:'#ff6688',shape:'diamond'},
+    {key:'magnetite',name:'Magnetite',color:'#4488ff',shape:'circle'},
+    {key:'titaniumIngot',name:'Ti Ingot',color:'#aabbcc',shape:'square'},
+    {key:'copperWire',name:'Cu Wire',color:'#ff8833',shape:'line'},
+    {key:'glass',name:'Glass',color:'#bbddee',shape:'square'},
+    {key:'fiberMesh',name:'Fiber',color:'#88aa88',shape:'square'},
+    {key:'battery',name:'Battery',color:'#ffdd44',shape:'square'},
+    {key:'wiring',name:'Wiring',color:'#aaccdd',shape:'line'},
+    {key:'rations',name:'Ration',color:'#ffd27f',shape:'circle'},
+    {key:'h2o',name:'Hydro',color:'#8fd5ff',shape:'circle'},
+    {key:'firstAidKit',name:'Med Kit',color:'#ff6666',shape:'cross'},
+    {key:'cookedFish',name:'Cooked',color:'#ffaa66',shape:'circle'},
+    {key:'filteredWater',name:'Filtered',color:'#66ccff',shape:'circle'},
+    {key:'advancedTank',name:'O2 Tank',color:'#66ffaa',shape:'square'},
+    {key:'reinforcedSuit',name:'Suit',color:'#aabbdd',shape:'square'},
+    {key:'ultraFins',name:'Fins',color:'#66ddff',shape:'square'},
+    {key:'beacon',name:'Beacon',color:'#ffaa44',shape:'circle'},
+  ];
+  const shapeCSS={
+    diamond:'width:16px;height:16px;transform:rotate(45deg);',
+    circle:'width:18px;height:18px;border-radius:50%;',
+    square:'width:16px;height:16px;border-radius:2px;',
+    octagon:'width:16px;height:16px;border-radius:4px;transform:rotate(22.5deg);',
+    line:'width:20px;height:6px;border-radius:2px;',
+    cross:'width:16px;height:16px;clip-path:polygon(35% 0%,65% 0%,65% 35%,100% 35%,100% 65%,65% 65%,65% 100%,35% 100%,35% 65%,0% 65%,0% 35%,35% 35%);',
+  };
+  let html='<div class="isec">— RESOURCES</div><div class="inv-grid">';
+  for(const item of items){
+    const ct=res[item.key]||0;
+    if(ct<=0)continue;
+    const sh=shapeCSS[item.shape]||shapeCSS.square;
+    html+=`<div class="inv-slot" title="${item.name}: ${ct}">
+      <div style="${sh}background:${item.color};box-shadow:0 0 8px ${item.color}"></div>
+      <div class="inv-nm">${item.name}</div>
+      <div class="inv-ct">${ct}</div></div>`;
+  }
+  html+='</div>';
+  html+=`<div class="isec" style="margin-top:18px">— ACTIONS</div>
+    <div style="display:flex;gap:10px;margin-top:8px">
+      <button class="act" id="actEat" ${(res.rations||0)>0?'':'disabled'} style="pointer-events:auto">EAT [F]</button>
+      <button class="act" id="actDrink" ${(res.h2o||0)>0?'':'disabled'} style="pointer-events:auto">DRINK [G]</button>
+      <button class="act" style="pointer-events:auto" onclick="openUI('equip')">EQUIPMENT [Q]</button>
+    </div>`;
+  host.innerHTML=html;
   const eb=$('actEat'),db=$('actDrink');
   if(eb)eb.addEventListener('click',()=>{ if(eat())renderInventory(); });
   if(db)db.addEventListener('click',()=>{ if(drink())renderInventory(); });
 }
 function renderCraftMenu(){
-  const host=$('craftCards'); if(!host)return; host.innerHTML='';
+  const host=$('craftCards'); if(!host)return;
+  const cats={materials:'MATERIALS',food:'SUSTENANCE',tools:'TOOLS',equipment:'EQUIPMENT'};
+  let html='<div style="display:flex;gap:10px;margin-bottom:18px;grid-column:1/-1">';
+  for(const [key,label] of Object.entries(cats)){
+    html+=`<div class="xbtn" onclick="filterCraft('${key}')" style="pointer-events:auto;cursor:pointer" id="catBtn_${key}">${label}</div>`;
+  }
+  html+='</div>';
+  host.innerHTML=html;
+  window.filterCraft=function(cat){
+    const cards=host.querySelectorAll('.card'); cards.forEach(c=>c.style.display=c.dataset.cat===cat||!cat?'':'none');
+    host.querySelectorAll('.xbtn').forEach(b=>b.style.borderColor='');
+    const btn=$('catBtn_'+cat); if(btn)btn.style.borderColor='var(--cy)';
+  };
   for(const [key,recipe] of Object.entries(RECIPES)){
     if(!unlockedBlueprints.has(key))continue;
-    const afford=Object.entries(recipe.cost).every(([k,v])=>res[k]>=v);
+    const afford=Object.entries(recipe.cost).every(([k,v])=>(res[k]||0)>=v);
     const card=document.createElement('div');
-    card.className='card'+(afford?'':' cant');
+    card.className='card'+(afford?'':' cant'); card.dataset.cat=recipe.cat||'materials';
     card.innerHTML=`<h4>${recipe.name}</h4><div class="cost">${costStr(recipe.cost)}</div><div class="desc">${recipe.desc}</div>`;
     card.addEventListener('click',()=>{
-      if(!afford)return;
+      if(!Object.entries(recipe.cost).every(([k,v])=>(res[k]||0)>=v))return;
       Object.entries(recipe.cost).forEach(([k,v])=>res[k]-=v);
       res[key]=(res[key]||0)+1;
       toast(recipe.name+' FABRICATED'); blip(440,.2,'sine',.12);
@@ -1456,7 +1563,7 @@ function renderCraftMenu(){
     });
     host.appendChild(card);
   }
-  if(host.children.length===0) host.innerHTML='<div style="color:var(--cy-dim);letter-spacing:.3em;padding:20px">SCAN WRECKS TO UNLOCK BLUEPRINTS</div>';
+  if(host.querySelectorAll('.card').length===0) host.innerHTML+='<div style="color:var(--cy-dim);letter-spacing:.3em;padding:20px;grid-column:1/-1">SCAN WRECKS TO UNLOCK BLUEPRINTS</div>';
 }
 function renderEquipMenu(){
   const host=$('equipSlots'); if(!host)return;
@@ -1780,7 +1887,7 @@ const peeperTex=fishTexture('#1a3a5a','#ffee88','#ff6622');
 const boomerangTex=fishTexture('#667788','#aabbcc','#445566');
 const stalkerTex=fishTexture('#2a2a3a','#556677','#334455');
 const peepers=[];
-for(let i=0;i<12;i++){
+for(let i=0;i<36;i++){
   const f=makeFish(rand(.6,.9),peeperTex,0xffcc44);
   const cx=rand(-160,160),cz=rand(-160,160);
   f.userData.a={c:V3(cx,clamp(terrainHeight(cx,cz)+rand(5,12),-45,-5),cz),r:rand(4,10),w:rand(.4,.8)*(Math.random()<.5?-1:1),ph:rand(0,9),alive:true,respawn:0};
@@ -1788,7 +1895,7 @@ for(let i=0;i<12;i++){
   scene.add(f); peepers.push(f);
 }
 const boomerangs=[];
-for(let i=0;i<8;i++){
+for(let i=0;i<24;i++){
   const f=makeFish(rand(.5,.7),boomerangTex,0x8899aa);
   f.scale.y=.4;
   const cx=rand(-140,140),cz=rand(-140,140);
@@ -1796,7 +1903,7 @@ for(let i=0;i<8;i++){
   scene.add(f); boomerangs.push(f);
 }
 const gasopods=[];
-for(let i=0;i<3;i++){
+for(let i=0;i<9;i++){
   const f=makeFish(rand(2.5,3.5),fishTexture('#3a5a2a','#88aa66','#556633'),0x88aa44);
   const cx=rand(-120,120),cz=rand(-120,120);
   f.userData.a={c:V3(cx,clamp(terrainHeight(cx,cz)+rand(4,8),-35,-8),cz),r:rand(8,16),w:rand(.15,.3)*(Math.random()<.5?-1:1),ph:rand(0,9),alive:true,respawn:0};
@@ -1804,7 +1911,7 @@ for(let i=0;i<3;i++){
   scene.add(f); gasopods.push(f);
 }
 const stalkers=[];
-for(let i=0;i<5;i++){
+for(let i=0;i<15;i++){
   const f=makeFish(rand(1.8,2.5),stalkerTex,0x556677);
   const cx=rand(-160,160),cz=rand(-160,160);
   f.userData.a={c:V3(cx,clamp(terrainHeight(cx,cz)+rand(5,12),-50,-8),cz),r:rand(6,14),w:rand(.4,.7)*(Math.random()<.5?-1:1),ph:rand(0,9),alive:true,respawn:0};
@@ -1813,7 +1920,7 @@ for(let i=0;i<5;i++){
 }
 const crabsquids=[];
 {
-  for(let i=0;i<8;i++){
+  for(let i=0;i<15;i++){
     const f=makeFish(rand(1.5,2.2),roseTex,0xff5566);
     const cx=rand(-500,500),cz=rand(-500,500),cy=terrainHeight(cx,cz);
     f.userData.a={c:V3(cx,clamp(cy+rand(6,15),-300,-20),cz),
@@ -1887,7 +1994,7 @@ const signalBeacon=(()=>{
 const fireCorals=[];
 {
   const branchMat2=new THREE.MeshStandardMaterial({color:0xff6688,roughness:.6,emissive:0x881133,emissiveIntensity:.4});
-  for(let i=0;i<60;i++){
+  for(let i=0;i<180;i++){
     const x=rand(-800,800),z=rand(-800,800),y=terrainHeight(x,z);
     if(y<-200)continue;
     const grp=new THREE.Group(); grp.position.set(x,y,z);
@@ -1903,14 +2010,14 @@ const fireCorals=[];
     scene.add(grp);
   }
   const plateMat2=new THREE.MeshStandardMaterial({color:0x44bbaa,roughness:.5,emissive:0x117766,emissiveIntensity:.3,side:THREE.DoubleSide});
-  for(let i=0;i<16;i++){
+  for(let i=0;i<60;i++){
     const x=rand(-800,800),z=rand(-800,800),y=terrainHeight(x,z);
     const pl=new THREE.Mesh(new THREE.CylinderGeometry(rand(1,2.5),.2,.15,12),plateMat2);
     pl.position.set(x,y+.1,z); pl.rotation.set(rand(-.2,.2),rand(0,3),rand(-.2,.2));
     scene.add(pl);
   }
   const mushMat2=new THREE.MeshStandardMaterial({color:0xddaa55,roughness:.7,emissive:0x553311,emissiveIntensity:.2});
-  for(let i=0;i<14;i++){
+  for(let i=0;i<50;i++){
     const x=rand(-800,800),z=rand(-800,800),y=terrainHeight(x,z);
     const grp=new THREE.Group(); grp.position.set(x,y,z);
     const sh=rand(.8,1.5);
@@ -1921,7 +2028,7 @@ const fireCorals=[];
     scene.add(grp);
   }
   const fireMat2=new THREE.MeshStandardMaterial({color:0xff3300,roughness:.4,emissive:0xff2200,emissiveIntensity:1.5});
-  for(let i=0;i<10;i++){
+  for(let i=0;i<30;i++){
     const x=rand(-800,800),z=rand(-800,800),y=terrainHeight(x,z);
     const grp=new THREE.Group(); grp.position.set(x,y,z);
     for(let j=0;j<5+Math.floor(Math.random()*4);j++){
