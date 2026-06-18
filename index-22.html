@@ -984,7 +984,7 @@ const roseTex=fishTexture('#5e2c3e','#ffd9e0','#ff7a96');
 
 /* the cinematic school — azure jacks */
 const school=[];
-for(let i=0;i<60;i++){
+for(let i=0;i<30;i++){
   const f=makeFish(rand(.9,1.25),jackTex,0x9fdcff);
   f.position.set(rand(-20,20),-16+rand(-4,4),rand(-20,20));
   f.userData.s={
@@ -1754,6 +1754,24 @@ function tryInteract(){
       blip(660,.3,'sine',.12); return;
     }
   }
+  // escape pods
+  for(const ep of escapePods){
+    if(ep.userData.collected)continue;
+    if(camWorld.distanceTo(ep.position)<4){
+      ep.userData.collected=true; missionState.podsFound=(missionState.podsFound||0)+1;
+      toast('ESCAPE POD RECOVERED ('+missionState.podsFound+'/5)');
+      blip(550,.2,'sine',.1); return;
+    }
+  }
+  // alien towers
+  for(const at of alienTowers){
+    if(at.userData.activated)continue;
+    if(camWorld.distanceTo(at.position)<5){
+      at.userData.activated=true; missionState.alienTower=true;
+      toast('ALIEN TOWER ACTIVATED — UNKNOWN SIGNAL TRANSMITTED');
+      blip(220,.5,'sine',.15); blip(440,.4,'sine',.12); return;
+    }
+  }
   // vehicle enter/exit
   if(vehicleBuilt){
     if(inVehicle){ inVehicle=false; toast('EXITED TADPOLE'); return; }
@@ -1895,7 +1913,35 @@ const levSegments=[];
 // Second leviathan
 const leviathan2=leviathanGroup.clone();
 leviathan2.position.set(0,-300,0); scene.add(leviathan2);
-let levAngle=0,levRoarCd=0,lev2Angle=Math.PI;
+// ABYSSAL TITAN - massive deep-exclusive leviathan
+const abyssalTitan=new THREE.Group();
+{
+  const tMat=new THREE.MeshStandardMaterial({color:0x0a0a18,roughness:.5,metalness:.4,emissive:0x050510,emissiveIntensity:.3});
+  const tEye=new THREE.MeshStandardMaterial({color:0xff0044,emissive:0xff0022,emissiveIntensity:4});
+  const tGlow=new THREE.MeshStandardMaterial({color:0xff2244,emissive:0xcc0033,emissiveIntensity:3,transparent:true,opacity:.8});
+  const tHead=new THREE.Mesh(new THREE.SphereGeometry(12,16,12),tMat);
+  tHead.scale.set(1.2,.8,1.5); abyssalTitan.add(tHead);
+  for(const sx of [-1,1]){
+    const eye=new THREE.Mesh(new THREE.SphereGeometry(2,10,8),tEye);
+    eye.position.set(sx*8,2,12); abyssalTitan.add(eye);
+    for(let j=0;j<8;j++){
+      const tooth=new THREE.Mesh(new THREE.ConeGeometry(.4,2,5),new THREE.MeshStandardMaterial({color:0xddeeff,roughness:.15,metalness:.9}));
+      tooth.position.set(sx*3+j*sx*.3,-6+j*.2,10+j*.8); tooth.rotation.z=sx*.4; abyssalTitan.add(tooth);
+    }
+  }
+  for(let i=0;i<25;i++){
+    const r=11-i*.35;
+    const seg=new THREE.Mesh(new THREE.CylinderGeometry(r,r-.15,10,14),tMat);
+    seg.rotation.x=Math.PI/2; seg.position.z=-i*10;
+    if(i%2===0){
+      const strip=new THREE.Mesh(new THREE.BoxGeometry(r*2,.4,.6),tGlow);
+      strip.position.set(0,r*.8,0); seg.add(strip);
+    }
+    abyssalTitan.add(seg);
+  }
+  abyssalTitan.position.set(0,-450,0); scene.add(abyssalTitan);
+}
+let levAngle=0,levRoarCd=0,lev2Angle=Math.PI,titanAngle=Math.PI*.5;
 function leviathanRoar(){
   if(!AC)return;
   const t0=AC.currentTime,o=AC.createOscillator(),g=AC.createGain();
@@ -2017,6 +2063,40 @@ for(let i=0;i<5&&dtAttempts<200;dtAttempts++){
   grp.position.set(x,ty,z); grp.userData={kind:'terminal',collected:false};
   scene.add(grp); dataTerminals.push(grp); i++;
 }}
+
+/* ESCAPE PODS scattered around map */
+const escapePods=[];
+for(let i=0;i<8;i++){
+  const x=rand(-600,600),z=rand(-600,600),y=terrainHeight(x,z);
+  const grp=new THREE.Group(); grp.position.set(x,y,z);
+  const pod=new THREE.Mesh(new THREE.CapsuleGeometry(1.2,2,8,12),new THREE.MeshStandardMaterial({color:0xcc6633,roughness:.7,metalness:.3}));
+  pod.rotation.set(rand(-.5,.5),rand(0,3),rand(-.3,.3)); pod.position.y=1.5; grp.add(pod);
+  const light=new THREE.Mesh(new THREE.SphereGeometry(.2,8,6),new THREE.MeshStandardMaterial({color:0xff8800,emissive:0xff6600,emissiveIntensity:2}));
+  light.position.set(0,3,0); grp.add(light);
+  const gl=new THREE.PointLight(0xff8800,.8,10); gl.position.y=3; grp.add(gl);
+  grp.userData={kind:'escapePod',collected:false};
+  scene.add(grp); escapePods.push(grp);
+}
+
+/* ALIEN TOWERS */
+const alienTowers=[];
+for(let i=0;i<3;i++){
+  const x=rand(-500,500),z=rand(-500,500),y=terrainHeight(x,z);
+  if(y>-60)continue;
+  const grp=new THREE.Group(); grp.position.set(x,y,z);
+  const towerMat=new THREE.MeshStandardMaterial({color:0x112233,roughness:.2,metalness:.9,emissive:0x003355,emissiveIntensity:.5});
+  const glowMat2=new THREE.MeshStandardMaterial({color:0x00ffaa,emissive:0x00ff88,emissiveIntensity:3});
+  const base=new THREE.Mesh(new THREE.CylinderGeometry(2,3,.8,6),towerMat); grp.add(base);
+  const pillar=new THREE.Mesh(new THREE.CylinderGeometry(.8,.8,12,6),towerMat); pillar.position.y=6.5; grp.add(pillar);
+  for(let j=0;j<4;j++){
+    const ring=new THREE.Mesh(new THREE.TorusGeometry(1.2,.08,6,12),glowMat2);
+    ring.position.y=3+j*3; ring.rotation.x=Math.PI/2; grp.add(ring);
+  }
+  const orb=new THREE.Mesh(new THREE.OctahedronGeometry(.8,1),glowMat2); orb.position.y=13; grp.add(orb);
+  const gl=new THREE.PointLight(0x00ffaa,2,20); gl.position.y=13; grp.add(gl);
+  grp.userData={kind:'alienTower',activated:false};
+  scene.add(grp); alienTowers.push(grp);
+}
 
 /* ============================================================
    DEEP SIGNAL BEACON
@@ -2298,6 +2378,7 @@ function animate(){
   const curDepth=Math.max(0,-camWorld.y);
   const biome=getBiome(curDepth);
   if(curDepth>missionState.maxDepth) missionState.maxDepth=curDepth;
+  if(!paused&&started&&underwater)checkTraitDamage(biome,dt);
   const targCol=underwater?biome.fog:SF_FOG;
   const targDen=insideBase?IN_DEN:(underwater?biome.den:SF_DEN);
   fogColCur.lerp(targCol,1-Math.pow(.02,dt));
@@ -2514,6 +2595,18 @@ function animate(){
       levSegments[i].position.x=Math.sin(t*2+i*.5)*2;
       levSegments[i].position.y=Math.cos(t*1.5+i*.4)*1;
     }
+    // Abyssal Titan patrol
+    titanAngle+=dt*.08;
+    const tR=250,tDepth=-430;
+    abyssalTitan.position.set(Math.cos(titanAngle)*tR,tDepth,Math.sin(titanAngle)*tR);
+    abyssalTitan.lookAt(Math.cos(titanAngle+.1)*tR,tDepth,Math.sin(titanAngle+.1)*tR);
+    const titanDist=camWorld.distanceTo(abyssalTitan.position);
+    if(titanDist<50&&curDepth>380){
+      const chD=new THREE.Vector3().subVectors(camWorld,abyssalTitan.position).normalize();
+      abyssalTitan.position.addScaledVector(chD,dt*16);
+      abyssalTitan.lookAt(camWorld);
+      if(titanDist<12){ stats.hp=clamp(stats.hp-40*dt,0,100); hurtFlash=Math.max(hurtFlash,1); camera.position.x=rand(-.25,.25); camera.position.y=rand(-.25,.25); }
+    }
     const levDist=camWorld.distanceTo(leviathanGroup.position);
     const lev2Dist=camWorld.distanceTo(leviathan2.position);
     const closestLev=levDist<lev2Dist?leviathanGroup:leviathan2;
@@ -2574,7 +2667,7 @@ function animate(){
               scanHitPos=w.position.clone(); scanHitPos.y+=2;
               scanProgress+=dt*25;
               if(scanProgress>=100){
-                w.userData.scanned=true;
+                w.userData.scanned=true; missionState.wrecksScanned=(missionState.wrecksScanned||0)+1;
                 const bp=w.userData.blueprint;
                 if(bp && !unlockedBlueprints.has(bp)){ unlockedBlueprints.add(bp); toast('BLUEPRINT UNLOCKED: '+(RECIPES[bp]?RECIPES[bp].name:bp.toUpperCase())); }
                 else toast('WRECK SCANNED — NO NEW DATA');
@@ -2629,7 +2722,7 @@ function animate(){
       an.finR.rotation.z=-.7-Math.sin(t*6+an.ph)*.3;
       if(f.userData.predator){
         const sd=f.position.distanceTo(camWorld);
-        if(sd<8){ const ch=new THREE.Vector3().subVectors(camWorld,f.position).normalize(); f.position.addScaledVector(ch,dt*3); f.lookAt(camWorld); if(sd<2.5){ stats.hp=clamp(stats.hp-8*dt,0,100); hurtFlash=Math.max(hurtFlash,.4); } }
+        if(sd<8){ const ch=new THREE.Vector3().subVectors(camWorld,f.position).normalize(); f.position.addScaledVector(ch,dt*3); f.lookAt(camWorld); if(sd<2.5){ stats.hp=clamp(stats.hp-8*dt,0,100); hurtFlash=Math.max(hurtFlash,.4); missionState.predatorEncounter=true; } }
       }
       if(f.userData.toxic){ const gd=f.position.distanceTo(camWorld); if(gd<6){ stats.hp=clamp(stats.hp-3*dt,0,100); } }
     }
