@@ -839,7 +839,7 @@ const fanMat=addSway(new THREE.MeshStandardMaterial({map:fanTex,transparent:true
   // sea fans
   for(let i=0;i<600;i++){
     const x=rand(-800,800),z=rand(-800,800),y=terrainHeight(x,z);
-    const s=rand(4,9);
+    const s=rand(6,14);
     const f=new THREE.Mesh(new THREE.PlaneGeometry(s,s,1,4),fanMat);
     f.geometry=f.geometry.clone(); f.geometry.translate(0,s/2,0);
     f.position.set(x,y-.1,z); f.rotation.y=rand(0,Math.PI);
