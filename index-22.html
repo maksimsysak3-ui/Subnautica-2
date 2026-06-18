@@ -338,13 +338,13 @@
       <div class="slot" id="slot2"><span class="k">2</span>
         <svg viewBox="0 0 24 24"><path d="M4 20 L20 20 M6 20 L6 10 L12 6 L18 10 L18 20 M9 20 L9 14 L15 14 L15 20"/></svg></div>
       <div class="slot" id="slot3"><span class="k">3</span>
-        <svg viewBox="0 0 24 24"><rect x="6" y="4" width="12" height="16" rx="2"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="9" y1="12" x2="15" y2="12"/><circle cx="12" cy="16" r="1.5"/></svg></div>
+        <svg viewBox="0 0 24 24"><rect x="6" y="3" width="12" height="16" rx="1" fill="none"/><rect x="8" y="5" width="8" height="10" fill="none"/><path d="M12 19 L12 22 M9 22 L15 22"/><circle cx="15" cy="4" r="1"/></svg></div>
       <div class="slot" id="slot4"><span class="k">4</span>
-        <svg viewBox="0 0 24 24"><path d="M6 18 L6 8 L12 4 L18 8 L18 18"/><path d="M10 14 L14 14 L14 18 L10 18Z"/><circle cx="12" cy="10" r="2"/></svg></div>
+        <svg viewBox="0 0 24 24"><path d="M12 3 L12 14 M8 14 L16 14 L14 18 L10 18 Z"/><circle cx="12" cy="5" r="2.5" fill="none"/><path d="M9 18 L9 21 M15 18 L15 21"/></svg></div>
       <div class="slot" id="slot5"><span class="k">5</span>
-        <svg viewBox="0 0 24 24"><path d="M12 3 L14 10 L12 21 M12 3 L10 10 L12 21" fill="none"/><path d="M8 8 L16 8 L14 10 L10 10Z"/></svg></div>
+        <svg viewBox="0 0 24 24"><path d="M12 2 L14 12 L13 13 L16 20 L14 21 L11 14 L10 13 L8 12 Z M10 13 L14 13"/></svg></div>
       <div class="slot" id="slot6"><span class="k">6</span>
-        <svg viewBox="0 0 24 24"><path d="M10 20 L10 8 L8 8 L12 3 L16 8 L14 8 L14 20Z"/><path d="M6 6 L4 10 M18 6 L20 10 M8 4 L6 2 M16 4 L18 2" stroke-dasharray="1 1"/></svg></div>
+        <svg viewBox="0 0 24 24"><path d="M8 4 L16 4 L18 8 L18 12 L6 12 L6 8 Z"/><rect x="9" y="12" width="6" height="10" rx="1"/><circle cx="12" cy="8" r="2.5" fill="none"/></svg></div>
     </div>
     <div id="modInfo"><b id="modName">FOUNDATION</b><br><span id="modCost"></span></div>
     <div id="hint"><b>B</b> BUILD MENU &nbsp;·&nbsp; <b>TAB</b> INVENTORY</div>
@@ -656,8 +656,8 @@ const fanMat=addSway(new THREE.MeshStandardMaterial({map:fanTex,transparent:true
 
 {
   // kelp forest
-  for(let i=0;i<90;i++){
-    const x=rand(-195,195),z=rand(-195,195),y=terrainHeight(x,z);
+  for(let i=0;i<300;i++){
+    const x=rand(-800,800),z=rand(-800,800),y=terrainHeight(x,z);
     const h=rand(8,19);
     const k=new THREE.Mesh(new THREE.PlaneGeometry(rand(.9,1.5),h,1,8),kelpMat);
     k.geometry=k.geometry.clone(); k.geometry.translate(0,h/2,0);
@@ -665,8 +665,8 @@ const fanMat=addSway(new THREE.MeshStandardMaterial({map:fanTex,transparent:true
     scene.add(k);
   }
   // sea fans
-  for(let i=0;i<36;i++){
-    const x=rand(-190,190),z=rand(-190,190),y=terrainHeight(x,z);
+  for(let i=0;i<120;i++){
+    const x=rand(-800,800),z=rand(-800,800),y=terrainHeight(x,z);
     const s=rand(2,4.6);
     const f=new THREE.Mesh(new THREE.PlaneGeometry(s,s,1,4),fanMat);
     f.geometry=f.geometry.clone(); f.geometry.translate(0,s/2,0);
@@ -675,9 +675,9 @@ const fanMat=addSway(new THREE.MeshStandardMaterial({map:fanTex,transparent:true
   }
   // tube coral clusters
   const tubeCols=[0xff8c5a,0xd45a9e,0x46c8b4,0xe8c45a];
-  for(let i=0;i<34;i++){
-    const x=rand(-190,190),z=rand(-190,190),y=terrainHeight(x,z);
-    if(y<-36)continue;
+  for(let i=0;i<100;i++){
+    const x=rand(-800,800),z=rand(-800,800),y=terrainHeight(x,z);
+    if(y<-200)continue;
     const grp=new THREE.Group(); grp.position.set(x,y,z);
     const col=tubeCols[i%tubeCols.length];
     const mat=new THREE.MeshStandardMaterial({color:col,roughness:.75,emissive:col,emissiveIntensity:.12});
@@ -696,17 +696,17 @@ const fanMat=addSway(new THREE.MeshStandardMaterial({map:fanTex,transparent:true
   }
   // brain corals
   const brainMat=new THREE.MeshStandardMaterial({color:0xc9a05e,roughness:1});
-  for(let i=0;i<26;i++){
-    const x=rand(-190,190),z=rand(-190,190),y=terrainHeight(x,z);
-    const b=new THREE.Mesh(new THREE.IcosahedronGeometry(rand(.7,1.9),1),brainMat);
+  for(let i=0;i<80;i++){
+    const x=rand(-800,800),z=rand(-800,800),y=terrainHeight(x,z);
+    const b=new THREE.Mesh(new THREE.IcosahedronGeometry(rand(.7,2.8),1),brainMat);
     b.scale.y=rand(.5,.7); b.position.set(x,y+.15,z);
     b.rotation.set(rand(0,3),rand(0,3),0);
     scene.add(b);
   }
   // glowing anemones (deep)
   const anemMat=new THREE.MeshStandardMaterial({color:0x6fe8ff,emissive:0x2fc8e8,emissiveIntensity:1.8,roughness:.5});
-  for(let i=0;i<30;i++){
-    const x=rand(-195,195),z=rand(-195,195),y=terrainHeight(x,z);
+  for(let i=0;i<100;i++){
+    const x=rand(-800,800),z=rand(-800,800),y=terrainHeight(x,z);
     if(y>-26)continue;
     const grp=new THREE.Group(); grp.position.set(x,y,z);
     for(let j=0;j<7;j++){
@@ -720,7 +720,7 @@ const fanMat=addSway(new THREE.MeshStandardMaterial({map:fanTex,transparent:true
   // rocks
   const rockMat=new THREE.MeshStandardMaterial({color:0x46565e,roughness:1});
   for(let i=0;i<64;i++){
-    const x=rand(-205,205),z=rand(-205,205);
+    const x=rand(-900,900),z=rand(-900,900);
     const r=new THREE.Mesh(new THREE.DodecahedronGeometry(rand(.7,3.8),0),rockMat);
     r.position.set(x,terrainHeight(x,z)+.2,z);
     r.rotation.set(rand(0,3),rand(0,3),rand(0,3)); r.scale.y=rand(.45,.85);
@@ -731,7 +731,7 @@ const fanMat=addSway(new THREE.MeshStandardMaterial({map:fanTex,transparent:true
 /* harvestable pods */
 const plants=[];
 function makePlant(type){
-  const x=rand(-185,185),z=rand(-185,185),y=terrainHeight(x,z);
+  const x=rand(-800,800),z=rand(-800,800),y=terrainHeight(x,z);
   const grp=new THREE.Group(); grp.position.set(x,y,z);
   const stem=new THREE.Mesh(new THREE.CylinderGeometry(.05,.1,1.6,5),
     new THREE.MeshStandardMaterial({color:0x35604a,roughness:.9}));
@@ -773,7 +773,7 @@ function spikeCluster(grp,color,emissive,glow){
   }
 }
 function makeMineral(typeKey){
-  const x=rand(-195,195),z=rand(-195,195),y=terrainHeight(x,z);
+  const x=rand(-800,800),z=rand(-800,800),y=terrainHeight(x,z);
   const grp=new THREE.Group(); grp.position.set(x,y,z);
   const base=new THREE.Mesh(new THREE.DodecahedronGeometry(rand(.7,1.1),0),
     new THREE.MeshStandardMaterial({color:0x2c3a40,roughness:1}));
@@ -965,6 +965,49 @@ let fabTip,fabHolo,fabBlink;
   fabHolo.position.set(0,.16,-.3); fab.add(fabHolo);
   fabTip=new THREE.Object3D(); fabTip.position.z=-.36; fab.add(fabTip);
 }
+const scannerModel=new THREE.Group(); toolRoot.add(scannerModel); scannerModel.visible=false;
+{
+  const body=new THREE.Mesh(new THREE.BoxGeometry(.14,.22,.08),whiteShell); scannerModel.add(body);
+  const screen=new THREE.Mesh(new THREE.PlaneGeometry(.1,.14),new THREE.MeshStandardMaterial({color:0x00ffaa,emissive:0x00ffaa,emissiveIntensity:1.5}));
+  screen.position.z=.041; scannerModel.add(screen);
+  const ant=new THREE.Mesh(new THREE.CylinderGeometry(.006,.006,.12,5),gunDark);
+  ant.position.set(.04,.16,0); scannerModel.add(ant);
+  const tip=new THREE.Mesh(new THREE.SphereGeometry(.015,6,4),grnGlow);
+  tip.position.set(.04,.22,0); scannerModel.add(tip);
+  const grip=new THREE.Mesh(new THREE.BoxGeometry(.05,.14,.06),gunDark);
+  grip.position.set(0,-.16,0); scannerModel.add(grip);
+}
+const repairModel=new THREE.Group(); toolRoot.add(repairModel); repairModel.visible=false;
+{
+  const body=new THREE.Mesh(new THREE.CylinderGeometry(.04,.06,.3,8),gunmetal);
+  body.rotation.x=Math.PI/2; repairModel.add(body);
+  const head=new THREE.Mesh(new THREE.SphereGeometry(.07,8,6),whiteShell);
+  head.position.z=-.16; repairModel.add(head);
+  const glow=new THREE.Mesh(new THREE.SphereGeometry(.04,6,4),new THREE.MeshStandardMaterial({color:0x44aaff,emissive:0x2288ff,emissiveIntensity:2}));
+  glow.position.z=-.2; repairModel.add(glow);
+  const grip=new THREE.Mesh(new THREE.BoxGeometry(.05,.15,.06),gunDark);
+  grip.position.set(0,-.12,.08); repairModel.add(grip);
+}
+const knifeModel=new THREE.Group(); toolRoot.add(knifeModel); knifeModel.visible=false;
+{
+  const grip=new THREE.Mesh(new THREE.BoxGeometry(.05,.18,.04),gunDark); grip.position.y=-.06; knifeModel.add(grip);
+  const guard=new THREE.Mesh(new THREE.BoxGeometry(.1,.02,.05),gunmetal); guard.position.y=.04; knifeModel.add(guard);
+  const blade=new THREE.Mesh(new THREE.BoxGeometry(.03,.26,.01),new THREE.MeshStandardMaterial({color:0xd0dce5,roughness:.15,metalness:.95}));
+  blade.position.set(0,.17,0); knifeModel.add(blade);
+  const edge=new THREE.Mesh(new THREE.BoxGeometry(.035,.26,.003),new THREE.MeshStandardMaterial({color:0xeeffff,emissive:0x88ccff,emissiveIntensity:.3}));
+  edge.position.set(0,.17,.006); knifeModel.add(edge);
+}
+const flashModel=new THREE.Group(); toolRoot.add(flashModel); flashModel.visible=false;
+{
+  const body=new THREE.Mesh(new THREE.CylinderGeometry(.035,.04,.28,8),gunDark);
+  body.rotation.x=Math.PI/2; flashModel.add(body);
+  const head=new THREE.Mesh(new THREE.CylinderGeometry(.055,.035,.08,10),gunmetal);
+  head.rotation.x=Math.PI/2; head.position.z=-.16; flashModel.add(head);
+  const lens=new THREE.Mesh(new THREE.CircleGeometry(.055,12),new THREE.MeshStandardMaterial({color:0xfff8e0,emissive:0xffeebb,emissiveIntensity:2}));
+  lens.position.z=-.2; flashModel.add(lens);
+  const grip=new THREE.Mesh(new THREE.BoxGeometry(.04,.12,.04),gunDark);
+  grip.position.set(0,-.1,.04); flashModel.add(grip);
+}
 let toolSwitchT=1;
 
 /* mining beam + impact fx */
@@ -1000,7 +1043,7 @@ const baseMat2=new THREE.MeshStandardMaterial({color:0xa9bcc4,roughness:.3,metal
 const baseDark=new THREE.MeshStandardMaterial({color:0x33444d,roughness:.5,metalness:.65,side:THREE.DoubleSide});
 const trimMat=new THREE.MeshStandardMaterial({color:0x7fe9ff,emissive:0x2fb9d8,emissiveIntensity:2,roughness:.3});
 const glassMat=new THREE.MeshStandardMaterial({color:0xafe2ff,roughness:.04,metalness:.1,
-  transparent:true,opacity:.16,side:THREE.DoubleSide});
+  transparent:true,opacity:.35,side:THREE.DoubleSide});
 const screenMat=new THREE.MeshStandardMaterial({color:0x9fffd8,emissive:0x25d8a0,emissiveIntensity:1.6});
 
 const MODULES=[
@@ -1039,7 +1082,7 @@ function buildModule(id,ghost){
     wall.position.y=1.5;
     const band=mk(new THREE.CylinderGeometry(4.12,4.12,.95,32,1,true,Math.PI+.42,Math.PI*2-.84),glassMat);
     band.position.y=1.95;
-    const dome=mk(new THREE.SphereGeometry(4.1,32,12,0,Math.PI*2,0,Math.PI/2),glassMat);
+    const dome=mk(new THREE.SphereGeometry(4.1,32,12,0,Math.PI*2,0,Math.PI/2),baseMat2);
     dome.position.y=3;
     const domeRing=mk(new THREE.TorusGeometry(4.12,.08,8,44),trimMat);
     domeRing.rotation.x=Math.PI/2; domeRing.position.y=3;
@@ -1053,7 +1096,7 @@ function buildModule(id,ghost){
       mk(new THREE.CylinderGeometry(.16,.24,2.8,8),baseDark).position.set(dx,-1.2,dz);
     if(!ghost){
       // interior fit-out
-      const li=new THREE.PointLight(0xcfeeff,2,13,1.5); li.position.set(0,2.7,0); grp.add(li);
+      const li=new THREE.PointLight(0xcfeeff,1.2,18,1); li.position.set(0,2.7,0); grp.add(li);
       mk(new THREE.CylinderGeometry(.4,.4,.05,16),trimMat).position.set(0,2.96,0);
       const console_=mk(new THREE.BoxGeometry(1.7,.9,.5),baseDark); console_.position.set(0,.75,3.4);
       const screen=mk(new THREE.PlaneGeometry(1.4,.55),screenMat);
@@ -1088,7 +1131,7 @@ function buildModule(id,ghost){
       color:0xfff2d8,emissive:0xffd9a0,emissiveIntensity:2.6}));
     lens.position.set(0,3.07,.31); lens.rotation.x=-1.07+Math.PI;
     if(!ghost){
-      const li=new THREE.PointLight(0xffe2b8,2.6,30,1.3); li.position.set(0,3,1); grp.add(li);
+      const li=new THREE.PointLight(0xffe2b8,1.5,45,1); li.position.set(0,3,1); grp.add(li);
       const cone=new THREE.Mesh(new THREE.ConeGeometry(2.6,7,16,1,true),
         new THREE.MeshBasicMaterial({color:0xffe8c8,transparent:true,opacity:.05,
           blending:THREE.AdditiveBlending,depthWrite:false,side:THREE.DoubleSide}));
@@ -1478,42 +1521,62 @@ const levSegments=[];
   const headMat=new THREE.MeshStandardMaterial({color:0x1a3344,roughness:.6,metalness:.3,emissive:0x0a1a2a,emissiveIntensity:.5});
   const bodyMat2=new THREE.MeshStandardMaterial({color:0x152833,roughness:.7,metalness:.2,emissive:0x081520,emissiveIntensity:.3});
   const eyeMat2=new THREE.MeshStandardMaterial({color:0xff2020,emissive:0xff0000,emissiveIntensity:3});
-  const head=new THREE.Mesh(new THREE.SphereGeometry(2.5,12,10),headMat);
+  const glowStrip=new THREE.MeshStandardMaterial({color:0x44ffff,emissive:0x22cccc,emissiveIntensity:3,transparent:true,opacity:.8});
+  const head=new THREE.Mesh(new THREE.SphereGeometry(8,16,12),headMat);
   head.scale.set(1,.7,1.3); leviathanGroup.add(head);
   for(const sx of [-1,1]){
-    const eye=new THREE.Mesh(new THREE.SphereGeometry(.35,8,6),eyeMat2);
-    eye.position.set(sx*1.6,.4,2.2); leviathanGroup.add(eye);
+    const eye=new THREE.Mesh(new THREE.SphereGeometry(1.2,10,8),eyeMat2);
+    eye.position.set(sx*5,1.5,7); leviathanGroup.add(eye);
   }
-  const jaw=new THREE.Mesh(new THREE.ConeGeometry(1.8,2,8,1,true),headMat);
-  jaw.rotation.x=Math.PI/2; jaw.position.set(0,-.5,2.5); leviathanGroup.add(jaw);
-  for(let i=0;i<12;i++){
-    const r=2.2-i*.12;
-    const seg=new THREE.Mesh(new THREE.CylinderGeometry(r,r-.05,2.8,10),bodyMat2);
-    seg.rotation.x=Math.PI/2; seg.position.z=-i*2.6;
+  const jaw=new THREE.Mesh(new THREE.ConeGeometry(6,5,10,1,true),headMat);
+  jaw.rotation.x=Math.PI/2; jaw.position.set(0,-2,8); leviathanGroup.add(jaw);
+  // mandibles/teeth
+  for(const sx of [-1,1]){
+    const mandible=new THREE.Mesh(new THREE.BoxGeometry(.8,1.5,4),headMat);
+    mandible.position.set(sx*4,-3,8); mandible.rotation.z=sx*.3; leviathanGroup.add(mandible);
+    for(let ti=0;ti<5;ti++){
+      const tooth=new THREE.Mesh(new THREE.ConeGeometry(.25,1.2,5),new THREE.MeshStandardMaterial({color:0xddeeff,roughness:.2,metalness:.8}));
+      tooth.position.set(sx*3.5,-4+ti*.1,6+ti*1); tooth.rotation.z=sx*.5; leviathanGroup.add(tooth);
+    }
+  }
+  for(let i=0;i<20;i++){
+    const r=7-i*.25;
+    const seg=new THREE.Mesh(new THREE.CylinderGeometry(r,r-.1,8,12),bodyMat2);
+    seg.rotation.x=Math.PI/2; seg.position.z=-i*8;
     if(i%3===0){
       const finMat2=new THREE.MeshStandardMaterial({color:0x1a4455,roughness:.5,transparent:true,opacity:.7,side:THREE.DoubleSide});
       for(const sx of [-1,1]){
-        const fin=new THREE.Mesh(new THREE.PlaneGeometry(3,1.5),finMat2);
-        fin.position.set(sx*(r+.5),0,0); fin.rotation.y=sx*Math.PI/4; seg.add(fin);
+        const fin=new THREE.Mesh(new THREE.PlaneGeometry(8,4),finMat2);
+        fin.position.set(sx*(r+1),0,0); fin.rotation.y=sx*Math.PI/4; seg.add(fin);
       }
+    }
+    // bioluminescent strips
+    if(i%2===0){
+      const strip=new THREE.Mesh(new THREE.BoxGeometry(r*1.8,.3,.5),glowStrip);
+      strip.position.set(0,r*.7,0); seg.add(strip);
+      const strip2=new THREE.Mesh(new THREE.BoxGeometry(r*1.8,.3,.5),glowStrip);
+      strip2.position.set(0,-r*.7,0); seg.add(strip2);
     }
     leviathanGroup.add(seg); levSegments.push(seg);
   }
-  const tailFin2=new THREE.Mesh(new THREE.PlaneGeometry(4,3),new THREE.MeshStandardMaterial({
+  const tailFin2=new THREE.Mesh(new THREE.PlaneGeometry(12,8),new THREE.MeshStandardMaterial({
     color:0x1a3344,roughness:.5,transparent:true,opacity:.7,side:THREE.DoubleSide}));
-  tailFin2.position.z=-12*2.6; tailFin2.rotation.y=Math.PI/2; leviathanGroup.add(tailFin2);
-  leviathanGroup.position.set(0,-34,0); scene.add(leviathanGroup);
+  tailFin2.position.z=-20*8; tailFin2.rotation.y=Math.PI/2; leviathanGroup.add(tailFin2);
+  leviathanGroup.position.set(0,-300,0); scene.add(leviathanGroup);
 }
-let levAngle=0,levRoarCd=0;
+// Second leviathan
+const leviathan2=leviathanGroup.clone();
+leviathan2.position.set(0,-300,0); scene.add(leviathan2);
+let levAngle=0,levRoarCd=0,lev2Angle=Math.PI;
 function leviathanRoar(){
   if(!AC)return;
   const t0=AC.currentTime,o=AC.createOscillator(),g=AC.createGain();
-  o.type='sawtooth'; o.frequency.setValueAtTime(35,t0);
-  o.frequency.exponentialRampToValueAtTime(80,t0+.5);
-  o.frequency.exponentialRampToValueAtTime(25,t0+2);
-  g.gain.setValueAtTime(0,t0); g.gain.linearRampToValueAtTime(.12,t0+.3);
-  g.gain.linearRampToValueAtTime(0,t0+2.2);
-  o.connect(g); g.connect(master); o.start(t0); o.stop(t0+2.3);
+  o.type='sawtooth'; o.frequency.setValueAtTime(22,t0);
+  o.frequency.exponentialRampToValueAtTime(55,t0+.7);
+  o.frequency.exponentialRampToValueAtTime(18,t0+3);
+  g.gain.setValueAtTime(0,t0); g.gain.linearRampToValueAtTime(.25,t0+.4);
+  g.gain.linearRampToValueAtTime(0,t0+3.2);
+  o.connect(g); g.connect(master); o.start(t0); o.stop(t0+3.3);
 }
 
 /* ============================================================
@@ -1648,9 +1711,9 @@ const signalBeacon=(()=>{
 const fireCorals=[];
 {
   const branchMat2=new THREE.MeshStandardMaterial({color:0xff6688,roughness:.6,emissive:0x881133,emissiveIntensity:.4});
-  for(let i=0;i<20;i++){
-    const x=rand(-190,190),z=rand(-190,190),y=terrainHeight(x,z);
-    if(y<-40)continue;
+  for(let i=0;i<60;i++){
+    const x=rand(-800,800),z=rand(-800,800),y=terrainHeight(x,z);
+    if(y<-200)continue;
     const grp=new THREE.Group(); grp.position.set(x,y,z);
     const th=rand(1.5,3);
     const trunk=new THREE.Mesh(new THREE.CylinderGeometry(.08,.15,th,6),branchMat2);
@@ -1665,14 +1728,14 @@ const fireCorals=[];
   }
   const plateMat2=new THREE.MeshStandardMaterial({color:0x44bbaa,roughness:.5,emissive:0x117766,emissiveIntensity:.3,side:THREE.DoubleSide});
   for(let i=0;i<16;i++){
-    const x=rand(-185,185),z=rand(-185,185),y=terrainHeight(x,z);
+    const x=rand(-800,800),z=rand(-800,800),y=terrainHeight(x,z);
     const pl=new THREE.Mesh(new THREE.CylinderGeometry(rand(1,2.5),.2,.15,12),plateMat2);
     pl.position.set(x,y+.1,z); pl.rotation.set(rand(-.2,.2),rand(0,3),rand(-.2,.2));
     scene.add(pl);
   }
   const mushMat2=new THREE.MeshStandardMaterial({color:0xddaa55,roughness:.7,emissive:0x553311,emissiveIntensity:.2});
   for(let i=0;i<14;i++){
-    const x=rand(-185,185),z=rand(-185,185),y=terrainHeight(x,z);
+    const x=rand(-800,800),z=rand(-800,800),y=terrainHeight(x,z);
     const grp=new THREE.Group(); grp.position.set(x,y,z);
     const sh=rand(.8,1.5);
     const stem=new THREE.Mesh(new THREE.CylinderGeometry(.12,.18,sh,7),mushMat2);
@@ -1683,7 +1746,7 @@ const fireCorals=[];
   }
   const fireMat2=new THREE.MeshStandardMaterial({color:0xff3300,roughness:.4,emissive:0xff2200,emissiveIntensity:1.5});
   for(let i=0;i<10;i++){
-    const x=rand(-180,180),z=rand(-180,180),y=terrainHeight(x,z);
+    const x=rand(-800,800),z=rand(-800,800),y=terrainHeight(x,z);
     const grp=new THREE.Group(); grp.position.set(x,y,z);
     for(let j=0;j<5+Math.floor(Math.random()*4);j++){
       const bh2=rand(.6,1.4);
@@ -1791,7 +1854,7 @@ function animate(){
   toolSwitchT=Math.min(1,toolSwitchT+dt*3.2);
   const dip=Math.sin(toolSwitchT*Math.PI)*.5;
   toolRoot.position.y=-.36-dip;
-  if(toolSwitchT>.5){ lance.visible=curTool===1; fab.visible=curTool===2; }
+  if(toolSwitchT>.5){ lance.visible=curTool===1; fab.visible=curTool===2; scannerModel.visible=curTool===3; repairModel.visible=curTool===4; knifeModel.visible=curTool===5; flashModel.visible=curTool===6; }
   fabHolo.rotation.y+=dt*1.6; fabHolo.rotation.x+=dt*.9;
   fabBlink.material.emissiveIntensity=2+Math.sin(t*6)*1.8;
 
@@ -2009,21 +2072,29 @@ function animate(){
   /* leviathan AI */
   if(started&&!paused){
     levAngle+=dt*.15;
-    const levR=60,levDepth=-32;
+    const levR=200,levDepth=-300;
     const levX=Math.cos(levAngle)*levR,levZ=Math.sin(levAngle)*levR;
     leviathanGroup.position.set(levX,levDepth,levZ);
     leviathanGroup.lookAt(Math.cos(levAngle+.1)*levR,levDepth,Math.sin(levAngle+.1)*levR);
+    // second leviathan
+    lev2Angle+=dt*.12;
+    const lev2X=Math.cos(lev2Angle)*levR,lev2Z=Math.sin(lev2Angle)*levR;
+    leviathan2.position.set(lev2X,levDepth,lev2Z);
+    leviathan2.lookAt(Math.cos(lev2Angle+.1)*levR,levDepth,Math.sin(lev2Angle+.1)*levR);
     for(let i=0;i<levSegments.length;i++){
-      levSegments[i].position.x=Math.sin(t*2+i*.5)*.8;
-      levSegments[i].position.y=Math.cos(t*1.5+i*.4)*.4;
+      levSegments[i].position.x=Math.sin(t*2+i*.5)*2;
+      levSegments[i].position.y=Math.cos(t*1.5+i*.4)*1;
     }
     const levDist=camWorld.distanceTo(leviathanGroup.position);
-    if(levDist<25&&curDepth>22){
+    const lev2Dist=camWorld.distanceTo(leviathan2.position);
+    const closestLev=levDist<lev2Dist?leviathanGroup:leviathan2;
+    const closestDist=Math.min(levDist,lev2Dist);
+    if(closestDist<35&&curDepth>250){
       missionState.leviathanEncounter=true;
-      const chaseDir=new THREE.Vector3().subVectors(camWorld,leviathanGroup.position).normalize();
-      leviathanGroup.position.addScaledVector(chaseDir,dt*8);
-      leviathanGroup.lookAt(camWorld);
-      if(levDist<6){ stats.hp=clamp(stats.hp-25*dt,0,100); hurtFlash=Math.max(hurtFlash,.8); camera.position.x=rand(-.1,.1); camera.position.y=rand(-.1,.1); }
+      const chaseDir=new THREE.Vector3().subVectors(camWorld,closestLev.position).normalize();
+      closestLev.position.addScaledVector(chaseDir,dt*12);
+      closestLev.lookAt(camWorld);
+      if(closestDist<8){ stats.hp=clamp(stats.hp-25*dt,0,100); hurtFlash=Math.max(hurtFlash,.8); camera.position.x=rand(-.15,.15); camera.position.y=rand(-.15,.15); }
       levRoarCd-=dt; if(levRoarCd<=0){ leviathanRoar(); levRoarCd=4; }
     }
   }
