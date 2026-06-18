@@ -1575,7 +1575,7 @@ function pay(c){ Object.entries(c).forEach(([k,v])=>res[k]-=v); }
 const res={titanium:0,copper:0,quartz:0,gold:0,silver:0,diamond:0,lead:0,lithium:0,magnetite:0,obsidian:0,thermalCrystal:0,voidstone:0,pressureGel:0,frozenAlloy:0,bioMetal:0,rations:1,h2o:1,
   titaniumIngot:0,copperWire:0,glass:0,fiberMesh:0,advancedTank:0,reinforcedSuit:0,ultraFins:0,
   rawFish:0,lubricant:0,siliconeRubber:0,computerChip:0,bleach:0,disinfectedWater:0,curedFish:0,medPack:0,depthModule:0,heatResistSuit:0};
-const unlockedBlueprints=new Set(['titaniumIngot','copperWire','glass','fiberMesh','cookedFish','filteredWater','battery','firstAidKit','beacon','wiring','lubricant','siliconeRubber','bleach','curedFish','disinfectedWater','thermalLance','fabricatorTool','scannerTool','repairTool','propulsionEngine','flashlightTool','resourceDetector','deepSonar','creatureTracker','beaconLauncher']);
+const unlockedBlueprints=new Set(['titaniumIngot','copperWire','glass','fiberMesh','cookedFish','filteredWater','battery','firstAidKit','beacon','wiring','lubricant','siliconeRubber','bleach','curedFish','disinfectedWater','thermalLance','fabricatorTool','scannerTool','repairTool','propulsionEngine','flashlightTool','resourceDetector','deepSonar','creatureTracker','beaconLauncher','pressureSuit','voidLens','thermalReactor','bioArmor']);
 const RECIPES={
   titaniumIngot:{name:'TITANIUM INGOT',cost:{titanium:4},cat:'materials',desc:'Compressed titanium alloy.'},
   copperWire:{name:'COPPER WIRE',cost:{copper:2},cat:'materials',desc:'Conductive wiring.'},
@@ -1611,6 +1611,10 @@ const RECIPES={
   deepSonar:{name:'DEEP SONAR',cost:{titaniumIngot:1,copperWire:2,magnetite:1},cat:'tools',desc:'Sends sonar pulse revealing terrain and creatures.'},
   creatureTracker:{name:'CREATURE TRACKER',cost:{computerChip:1,copperWire:1,battery:1},cat:'tools',desc:'Tags and tracks creature movements.'},
   beaconLauncher:{name:'BEACON LAUNCHER',cost:{titanium:2,copper:1,battery:1},cat:'tools',desc:'Fires placeable beacons at range.'},
+  pressureSuit:{name:'PRESSURE SUIT',cost:{pressureGel:2,titaniumIngot:1,fiberMesh:1},cat:'equipment',desc:'Withstand extreme deep pressure.'},
+  voidLens:{name:'VOID LENS',cost:{voidstone:2,glass:1,diamond:1},cat:'tools',desc:'See in total darkness. Passive night vision.'},
+  thermalReactor:{name:'THERMAL REACTOR',cost:{thermalCrystal:3,copperWire:2,titaniumIngot:1},cat:'materials',desc:'Infinite power cell.'},
+  bioArmor:{name:'BIO ARMOR',cost:{bioMetal:3,fiberMesh:2},cat:'equipment',desc:'Living armor that regenerates.'},
 };
 const equipped={suit:null,tank:null,fins:null};
 const suitCustom={primary:'#1a3a4a',secondary:'#0a2a3a',visor:'#44ccff',decal:'none'};
@@ -1707,6 +1711,8 @@ function renderStorage(){
     {key:'titanium',name:'Titanium'},{key:'copper',name:'Copper'},{key:'quartz',name:'Quartz'},
     {key:'gold',name:'Gold'},{key:'silver',name:'Silver'},{key:'diamond',name:'Diamond'},
     {key:'lead',name:'Lead'},{key:'lithium',name:'Lithium'},{key:'magnetite',name:'Magnetite'},
+    {key:'obsidian',name:'Obsidian'},{key:'thermalCrystal',name:'Thermal Crystal'},{key:'voidstone',name:'Voidstone'},
+    {key:'pressureGel',name:'Pressure Gel'},{key:'frozenAlloy',name:'Frozen Alloy'},{key:'bioMetal',name:'Bio Metal'},
     {key:'rawFish',name:'Raw Fish'},{key:'rations',name:'Ration'},{key:'h2o',name:'Hydro'},
     {key:'cookedFish',name:'Cooked Fish'},{key:'filteredWater',name:'Filtered Water'},
     {key:'firstAidKit',name:'Med Kit'},{key:'battery',name:'Battery'},{key:'beacon',name:'Beacon'},
@@ -1778,6 +1784,12 @@ function renderInventory(){
     {key:'reinforcedSuit',name:'Suit',color:'#aabbdd',shape:'square'},
     {key:'ultraFins',name:'Fins',color:'#66ddff',shape:'square'},
     {key:'beacon',name:'Beacon',color:'#ffaa44',shape:'circle'},
+    {key:'obsidian',name:'Obsidian',color:'#1a1a2a',shape:'diamond'},
+    {key:'thermalCrystal',name:'Thermal',color:'#ff6600',shape:'diamond'},
+    {key:'voidstone',name:'Voidstone',color:'#2a0a4a',shape:'octagon'},
+    {key:'pressureGel',name:'P.Gel',color:'#22aaaa',shape:'circle'},
+    {key:'frozenAlloy',name:'F.Alloy',color:'#88ccdd',shape:'square'},
+    {key:'bioMetal',name:'BioMetal',color:'#2a6a2a',shape:'diamond'},
   ];
   const shapeCSS={
     diamond:'width:16px;height:16px;transform:rotate(45deg);',
@@ -3125,6 +3137,39 @@ wrecks.forEach(w=>{
     scene.add(debris); wreckDebris.push(debris);
   }
 });
+
+// Abandoned base wrecks (5th type)
+for(let i=0;i<8;i++){
+  const x=rand(-600,600),z=rand(-600,600),ty=terrainHeight(x,z);
+  if(ty>-15)continue;
+  const grp=new THREE.Group();
+  const rustMat=new THREE.MeshStandardMaterial({color:0x4a3a2a,roughness:.95,metalness:.3});
+  const darkMat=new THREE.MeshStandardMaterial({color:0x1a1a1a,roughness:.9});
+  // Main habitat pod (like player room but weathered)
+  const shell=new THREE.Mesh(new THREE.SphereGeometry(5.5,12,8),rustMat);
+  shell.scale.y=.6; grp.add(shell);
+  // Broken window
+  const bWindow=new THREE.Mesh(new THREE.CircleGeometry(1.2,8),new THREE.MeshStandardMaterial({color:0x112233,roughness:.3,metalness:.5}));
+  bWindow.position.set(0,1,5.4); grp.add(bWindow);
+  // Broken corridor stub
+  const corr=new THREE.Mesh(new THREE.CylinderGeometry(1.8,1.8,6,8,1,true),rustMat);
+  corr.rotation.z=Math.PI/2; corr.position.set(5.5,0,0); grp.add(corr);
+  // Interior furniture debris
+  const table=new THREE.Mesh(new THREE.BoxGeometry(1.5,.1,1),darkMat);
+  table.position.set(-1,-.5,0); table.rotation.z=rand(-.3,.3); grp.add(table);
+  const chair=new THREE.Mesh(new THREE.BoxGeometry(.5,.8,.5),darkMat);
+  chair.position.set(-1,-.2,.8); chair.rotation.set(rand(-.5,.5),rand(0,3),rand(-.5,.5)); grp.add(chair);
+  // Broken locker
+  const locker=new THREE.Mesh(new THREE.BoxGeometry(.6,1.5,.4),new THREE.MeshStandardMaterial({color:0x2a3a4a,roughness:.8}));
+  locker.position.set(2,.2,-2); locker.rotation.z=rand(-.2,.2); grp.add(locker);
+  // Glowing damaged screen
+  const abScreen=new THREE.Mesh(new THREE.PlaneGeometry(.8,.5),new THREE.MeshStandardMaterial({color:0x00ff88,emissive:0x00ff88,emissiveIntensity:.6,side:THREE.DoubleSide}));
+  abScreen.position.set(-3,1,1); abScreen.rotation.y=Math.PI/4; grp.add(abScreen);
+  // Data log (scannable)
+  grp.userData={kind:'abandonedBase',scanned:false};
+  grp.position.set(x,ty,z); grp.rotation.y=rand(0,Math.PI*2);
+  scene.add(grp);
+}
 
 /* ============================================================
    ADDITIONAL BUILD MODULES
