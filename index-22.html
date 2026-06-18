@@ -1002,7 +1002,7 @@ function makeMineral(typeKey){
   } else if(typeKey==='diamond'){
     for(let j=0;j<3;j++){
       const d=new THREE.Mesh(new THREE.OctahedronGeometry(rand(.2,.4),0),
-        new THREE.MeshStandardMaterial({color:0xeeffff,roughness:.02,metalness:.1,emissive:0xaaddff,emissiveIntensity:2.5,transparent:true,opacity:.85}));
+        new THREE.MeshStandardMaterial({color:0xeeffff,roughness:.02,metalness:.1,emissive:0xaaddff,emissiveIntensity:0.9,transparent:true,opacity:.85}));
       d.position.set(rand(-.4,.4),rand(.3,.9),rand(-.4,.4)); grp.add(d);
     }
     const glow=new THREE.PointLight(0xaaddff,.5,5); glow.position.y=.5; grp.add(glow);
@@ -1030,12 +1030,46 @@ function makeMineral(typeKey){
       arc.rotation.set(rand(0,3),rand(0,3),rand(0,3)); arc.position.y=.3; grp.add(arc);
     }
     const glow=new THREE.PointLight(0x4488ff,.4,4); glow.position.y=.4; grp.add(glow);
+  } else if(typeKey==='obsidian'){
+    for(let j=0;j<3;j++){
+      const c=new THREE.Mesh(new THREE.DodecahedronGeometry(rand(.5,.9),0),
+        new THREE.MeshStandardMaterial({color:0x0a0a0a,emissive:0x1a0a2a,emissiveIntensity:.4,roughness:.05,metalness:.9}));
+      c.position.set(rand(-.6,.6),rand(.2,.7),rand(-.6,.6)); grp.add(c);
+    }
+  } else if(typeKey==='thermalCrystal'){
+    for(let j=0;j<5;j++){
+      const c=new THREE.Mesh(new THREE.CylinderGeometry(0,rand(.15,.3),rand(.8,1.8),6),
+        new THREE.MeshStandardMaterial({color:0xff6600,emissive:0xff3300,emissiveIntensity:2,roughness:.2}));
+      c.position.set(rand(-.6,.6),rand(.2,.8),rand(-.6,.6));
+      c.rotation.set(rand(-.4,.4),rand(0,3),rand(-.4,.4)); grp.add(c);
+    }
+    const glowTC=new THREE.PointLight(0xff4400,.6,5); glowTC.position.y=.5; grp.add(glowTC);
+  } else if(typeKey==='voidstone'){
+    const rock2=new THREE.Mesh(new THREE.IcosahedronGeometry(.8,0),
+      new THREE.MeshStandardMaterial({color:0x1a0a2a,emissive:0x2a0a4a,emissiveIntensity:1,roughness:.4,metalness:.7}));
+    grp.add(rock2);
+    const glowVS=new THREE.PointLight(0x2a0a4a,.3,4); glowVS.position.y=.4; grp.add(glowVS);
+  } else if(typeKey==='pressureGel'){
+    const blob=new THREE.Mesh(new THREE.SphereGeometry(rand(.5,.8),10,8),
+      new THREE.MeshStandardMaterial({color:0x22aaaa,transparent:true,opacity:.7,roughness:.3,metalness:.1}));
+    blob.scale.y=.7; grp.add(blob);
+  } else if(typeKey==='frozenAlloy'){
+    for(let j=0;j<3;j++){
+      const c=new THREE.Mesh(new THREE.BoxGeometry(rand(.3,.6),rand(.5,.9),rand(.3,.6)),
+        new THREE.MeshStandardMaterial({color:0x88ccdd,roughness:.15,metalness:.8,emissive:0x334455,emissiveIntensity:.3}));
+      c.position.set(rand(-.5,.5),rand(.2,.6),rand(-.5,.5)); grp.add(c);
+    }
+  } else if(typeKey==='bioMetal'){
+    const bm=new THREE.Mesh(new THREE.DodecahedronGeometry(rand(.6,.9),0),
+      new THREE.MeshStandardMaterial({color:0x2a6a2a,emissive:0x1a4a1a,emissiveIntensity:.8,roughness:.6,metalness:.5}));
+    grp.add(bm);
+    const glowBM=new THREE.PointLight(0x1a4a1a,.3,4); glowBM.position.y=.4; grp.add(glowBM);
   }
   const node={grp,type:typeKey,hp:100,max:100,dead:false,respawn:0};
   grp.children.forEach(c=>{ c.userData.node=node; mineralMeshes.push(c); });
   scene.add(grp); minerals.push(node);
 }
-const spread=['titanium','titanium','titanium','titanium','titanium','titanium','titanium','titanium','copper','copper','copper','copper','copper','copper','copper','quartz','quartz','quartz','quartz','quartz','gold','gold','silver','silver','diamond','lead','lead','lithium','magnetite'];
+const spread=['titanium','titanium','titanium','titanium','titanium','titanium','titanium','titanium','copper','copper','copper','copper','copper','copper','copper','quartz','quartz','quartz','quartz','quartz','gold','gold','silver','silver','diamond','lead','lead','lithium','magnetite','obsidian','thermalCrystal','voidstone','pressureGel','frozenAlloy','bioMetal'];
 for(let i=0;i<500;i++)makeMineral(spread[i%spread.length]);
 
 /* bubble vents */
@@ -1291,7 +1325,7 @@ const flashModel=new THREE.Group(); toolRoot.add(flashModel); flashModel.visible
     new THREE.MeshStandardMaterial({color:0xcccccc,roughness:.05,metalness:1,side:THREE.BackSide}));
   reflector.rotation.x=Math.PI/2; reflector.position.z=-.24; flashModel.add(reflector);
   const lens=new THREE.Mesh(new THREE.CircleGeometry(.055,14),
-    new THREE.MeshStandardMaterial({color:0xfff8d0,emissive:0xffeebb,emissiveIntensity:2.5,transparent:true,opacity:.9}));
+    new THREE.MeshStandardMaterial({color:0xfff8d0,emissive:0xffeebb,emissiveIntensity:0.9,transparent:true,opacity:.9}));
   lens.position.z=-.26; flashModel.add(lens);
   const clip=new THREE.Mesh(new THREE.BoxGeometry(.01,.06,.22),gunmetal);
   clip.position.set(0,.045,-.02); flashModel.add(clip);
@@ -1450,7 +1484,7 @@ function buildModule(id,ghost){
     const head=mk(new THREE.BoxGeometry(.62,.34,.42),baseDark);
     head.position.set(0,3.15,.1); head.rotation.x=.5;
     const lens=mk(new THREE.PlaneGeometry(.5,.24),new THREE.MeshStandardMaterial({
-      color:0xfff2d8,emissive:0xffd9a0,emissiveIntensity:2.6}));
+      color:0xfff2d8,emissive:0xffd9a0,emissiveIntensity:0.9}));
     lens.position.set(0,3.07,.31); lens.rotation.x=-1.07+Math.PI;
     if(!ghost){
       const li=new THREE.PointLight(0xffe2b8,1.5,45,1); li.position.set(0,3,1); grp.add(li);
@@ -2381,7 +2415,7 @@ for(let i=0;i<12;i++){
   f.userData.a={c:V3(cx,clamp(cy+rand(8,20),-450,-200),cz),r:rand(10,20),w:rand(.1,.2)*(Math.random()<.5?-1:1),ph:rand(0,9),alive:true,respawn:0};
   f.userData.predator=true; f.scale.set(2,1.5,2);
   // Add glowing lure
-  const lure=new THREE.Mesh(new THREE.SphereGeometry(.3,6,6),new THREE.MeshStandardMaterial({color:0x44aaff,emissive:0x44aaff,emissiveIntensity:3}));
+  const lure=new THREE.Mesh(new THREE.SphereGeometry(.3,6,6),new THREE.MeshStandardMaterial({color:0x44aaff,emissive:0x44aaff,emissiveIntensity:1.0}));
   lure.position.set(0,.5,2); f.add(lure);
   const lureLight=new THREE.PointLight(0x44aaff,.8,8); lureLight.position.copy(lure.position); f.add(lureLight);
   scene.add(f); anglerfish.push(f);
@@ -2461,7 +2495,7 @@ for(let i=0;i<5&&dtAttempts<200;dtAttempts++){
   grp.add(new THREE.Mesh(new THREE.CylinderGeometry(.5,.6,.3,8),new THREE.MeshStandardMaterial({color:0x222233,roughness:.5,metalness:.7})));
   const pillar=new THREE.Mesh(new THREE.CylinderGeometry(.15,.15,2,6),new THREE.MeshStandardMaterial({color:0x334455,roughness:.4,metalness:.5}));
   pillar.position.y=1.15; grp.add(pillar);
-  const scr=new THREE.Mesh(new THREE.BoxGeometry(.8,.6,.1),new THREE.MeshStandardMaterial({color:0x00ffaa,emissive:0x00ffaa,emissiveIntensity:2.5}));
+  const scr=new THREE.Mesh(new THREE.BoxGeometry(.8,.6,.1),new THREE.MeshStandardMaterial({color:0x00ffaa,emissive:0x00ffaa,emissiveIntensity:1.0}));
   scr.position.y=2; grp.add(scr);
   const gl=new THREE.PointLight(0x00ffaa,1.5,12); gl.position.y=2; grp.add(gl);
   grp.position.set(x,ty,z); grp.userData={kind:'terminal',collected:false};
@@ -2489,7 +2523,7 @@ for(let i=0;i<3;i++){
   if(y>-60)continue;
   const grp=new THREE.Group(); grp.position.set(x,y,z);
   const towerMat=new THREE.MeshStandardMaterial({color:0x112233,roughness:.2,metalness:.9,emissive:0x003355,emissiveIntensity:.5});
-  const glowMat2=new THREE.MeshStandardMaterial({color:0x00ffaa,emissive:0x00ff88,emissiveIntensity:3});
+  const glowMat2=new THREE.MeshStandardMaterial({color:0x00ffaa,emissive:0x00ff88,emissiveIntensity:1.0});
   const base=new THREE.Mesh(new THREE.CylinderGeometry(2,3,.8,6),towerMat); grp.add(base);
   const pillar=new THREE.Mesh(new THREE.CylinderGeometry(.8,.8,12,6),towerMat); pillar.position.y=6.5; grp.add(pillar);
   for(let j=0;j<4;j++){
@@ -2510,7 +2544,7 @@ const signalBeacon=(()=>{
   grp.add(new THREE.Mesh(new THREE.CylinderGeometry(.4,.5,.4,8),new THREE.MeshStandardMaterial({color:0x445566,roughness:.4,metalness:.6})));
   const pole=new THREE.Mesh(new THREE.CylinderGeometry(.08,.08,3,6),baseMat);
   pole.position.y=1.7; grp.add(pole);
-  const orb=new THREE.Mesh(new THREE.SphereGeometry(.4,12,10),new THREE.MeshStandardMaterial({color:0xff4400,emissive:0xff4400,emissiveIntensity:3}));
+  const orb=new THREE.Mesh(new THREE.SphereGeometry(.4,12,10),new THREE.MeshStandardMaterial({color:0xff4400,emissive:0xff4400,emissiveIntensity:1.0}));
   orb.position.y=3.4; grp.add(orb);
   const li=new THREE.PointLight(0xff4400,2,20); li.position.y=3.4; grp.add(li);
   let bx,bz,by,att=0; do{ bx=rand(-180,180); bz=rand(-180,180); by=terrainHeight(bx,bz); att++; }while(by>-30&&att<500);
@@ -2629,7 +2663,7 @@ const fireCorals=[];
 
   // THERMAL ZONE — heat vents, molten cracks, resistant flora
   const ventMat=new THREE.MeshStandardMaterial({color:0x332211,roughness:.9,metalness:.2});
-  const lavaMat=new THREE.MeshStandardMaterial({color:0xff6600,emissive:0xff4400,emissiveIntensity:3,roughness:.3});
+  const lavaMat=new THREE.MeshStandardMaterial({color:0xff6600,emissive:0xff4400,emissiveIntensity:1.0,roughness:.3});
   const heatPlantMat=new THREE.MeshStandardMaterial({color:0x886622,roughness:.6,emissive:0x442200,emissiveIntensity:.4});
   for(let i=0;i<60;i++){
     const x=rand(-800,800),z=rand(-800,800),y=terrainHeight(x,z);
