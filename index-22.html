@@ -288,6 +288,28 @@
   </div>
 </div>
 
+<!-- CRAFTER -->
+<div class="screen" id="craftScreen">
+  <div class="sframe" style="width:min(780px,94vw)">
+    <div class="shead">
+      <div><h2>CRAFTER</h2><div class="sub">FABRICATE ITEMS FROM RAW MATERIALS</div></div>
+      <div class="xbtn" id="craftX">CLOSE [ESC]</div>
+    </div>
+    <div class="cards" id="craftCards"></div>
+  </div>
+</div>
+
+<!-- EQUIPMENT -->
+<div class="screen" id="equipScreen">
+  <div class="sframe" style="width:min(640px,94vw)">
+    <div class="shead">
+      <div><h2>EQUIPMENT</h2><div class="sub">SUIT LOADOUT</div></div>
+      <div class="xbtn" id="equipX">CLOSE</div>
+    </div>
+    <div id="equipSlots"></div>
+  </div>
+</div>
+
 <div id="relock">CLICK TO RESUME DIVE</div>
 
 <div class="cbar" id="barT"></div><div class="cbar" id="barB"></div>
@@ -1294,7 +1316,19 @@ function pay(c){ Object.entries(c).forEach(([k,v])=>res[k]-=v); }
 /* ============================================================
    STATE / INPUT / UI FLOW
    ============================================================ */
-const res={titanium:8,copper:3,quartz:3,gold:0,silver:0,diamond:0,lead:0,lithium:0,magnetite:0,rations:2,h2o:2,glass:0,titaniumIngot:0,copperWire:0,fiberMesh:0};
+const res={titanium:8,copper:3,quartz:3,gold:0,silver:0,diamond:0,lead:0,lithium:0,magnetite:0,rations:2,h2o:2,
+  titaniumIngot:0,copperWire:0,glass:0,fiberMesh:0,advancedTank:0,reinforcedSuit:0,ultraFins:0};
+const unlockedBlueprints=new Set(['titaniumIngot','copperWire','glass','fiberMesh']);
+const RECIPES={
+  titaniumIngot:{name:'TITANIUM INGOT',cost:{titanium:4},desc:'Compressed titanium alloy for advanced construction.'},
+  copperWire:{name:'COPPER WIRE',cost:{copper:2},desc:'Conductive wiring for electronics.'},
+  glass:{name:'GLASS PANEL',cost:{quartz:2},desc:'Reinforced glass for viewports.'},
+  fiberMesh:{name:'FIBER MESH',cost:{titanium:1,quartz:1},desc:'Woven composite material.'},
+  advancedTank:{name:'HIGH-CAP O2 TANK',cost:{titanium:2,glass:1,copperWire:1},desc:'Doubles oxygen capacity. Equip in suit slot.'},
+  reinforcedSuit:{name:'REINFORCED SUIT',cost:{titaniumIngot:1,fiberMesh:2,diamond:1},desc:'Reduces damage by 50%. Equip in suit slot.'},
+  ultraFins:{name:'ULTRA FINS',cost:{titaniumIngot:1,copperWire:1,silicone:1},desc:'Swim 40% faster. Equip in suit slot.'},
+};
+const equipped={suit:null,tank:null,fins:null};
 const stats={hp:100,o2:100,food:100,h2o:100};
 let curTool=1,mouseDown=false,started=false,paused=true,uiOpen=null;
 let dayTime=0; const DAY_LENGTH=300; // 5 min
@@ -1339,17 +1373,24 @@ document.addEventListener('pointerlockchange',()=>{
 /* modal helpers */
 function openUI(kind){
   uiOpen=kind;
-  $(kind==='build'?'buildScreen':'invScreen').classList.add('open');
-  if(kind==='build')renderBuildMenu(); else renderInventory();
+  if(kind==='build')$('buildScreen').classList.add('open');
+  else if(kind==='inv')$('invScreen').classList.add('open');
+  else if(kind==='craft'){$('craftScreen').classList.add('open'); renderCraftMenu();}
+  else if(kind==='equip'){$('equipScreen').classList.add('open'); renderEquipMenu();}
+  if(kind==='build')renderBuildMenu(); if(kind==='inv')renderInventory();
   document.exitPointerLock();
 }
 function closeUI(){
   $('buildScreen').classList.remove('open');
   $('invScreen').classList.remove('open');
+  if($('craftScreen'))$('craftScreen').classList.remove('open');
+  if($('equipScreen'))$('equipScreen').classList.remove('open');
   uiOpen=null; tryLock();
 }
 $('buildX').addEventListener('click',closeUI);
 $('invX').addEventListener('click',closeUI);
+if($('craftX'))$('craftX').addEventListener('click',closeUI);
+if($('equipX'))$('equipX').addEventListener('click',closeUI);
 
 function renderBuildMenu(){
   const host=$('buildCards'); host.innerHTML='';
@@ -1398,6 +1439,35 @@ function renderInventory(){
   if(eb)eb.addEventListener('click',()=>{ if(eat())renderInventory(); });
   if(db)db.addEventListener('click',()=>{ if(drink())renderInventory(); });
 }
+function renderCraftMenu(){
+  const host=$('craftCards'); if(!host)return; host.innerHTML='';
+  for(const [key,recipe] of Object.entries(RECIPES)){
+    if(!unlockedBlueprints.has(key))continue;
+    const afford=Object.entries(recipe.cost).every(([k,v])=>res[k]>=v);
+    const card=document.createElement('div');
+    card.className='card'+(afford?'':' cant');
+    card.innerHTML=`<h4>${recipe.name}</h4><div class="cost">${costStr(recipe.cost)}</div><div class="desc">${recipe.desc}</div>`;
+    card.addEventListener('click',()=>{
+      if(!afford)return;
+      Object.entries(recipe.cost).forEach(([k,v])=>res[k]-=v);
+      res[key]=(res[key]||0)+1;
+      toast(recipe.name+' FABRICATED'); blip(440,.2,'sine',.12);
+      renderCraftMenu();
+    });
+    host.appendChild(card);
+  }
+  if(host.children.length===0) host.innerHTML='<div style="color:var(--cy-dim);letter-spacing:.3em;padding:20px">SCAN WRECKS TO UNLOCK BLUEPRINTS</div>';
+}
+function renderEquipMenu(){
+  const host=$('equipSlots'); if(!host)return;
+  host.innerHTML=`<div class="isec">— SUIT SLOTS</div>
+    <div class="irow"><div class="nm"><b>SUIT</b><span>${equipped.suit||'NONE'}</span></div>
+      ${res.reinforcedSuit>0?'<button class="act" onclick="equipped.suit=\'REINFORCED\';res.reinforcedSuit--;renderEquipMenu()">EQUIP</button>':''}</div>
+    <div class="irow"><div class="nm"><b>O2 TANK</b><span>${equipped.tank||'STANDARD'}</span></div>
+      ${res.advancedTank>0?'<button class="act" onclick="equipped.tank=\'HIGH-CAP\';res.advancedTank--;renderEquipMenu()">EQUIP</button>':''}</div>
+    <div class="irow"><div class="nm"><b>FINS</b><span>${equipped.fins||'STANDARD'}</span></div>
+      ${res.ultraFins>0?'<button class="act" onclick="equipped.fins=\'ULTRA\';res.ultraFins--;renderEquipMenu()">EQUIP</button>':''}</div>`;
+}
 function eat(){
   if(res.rations<=0){ toast('NO RATIONS — HARVEST AMBER PODS OR CATCH FISH'); return false; }
   res.rations--; stats.food=clamp(stats.food+38,0,100); stats.h2o=clamp(stats.h2o+4,0,100);
@@ -1425,7 +1495,7 @@ document.addEventListener('keydown',e=>{
   if(e.code==='Tab')e.preventDefault();
   keys[e.code]=true;
   if(uiOpen){
-    if(e.code==='Escape'||e.code==='Tab'||e.code==='KeyB')closeUI();
+    if(e.code==='Escape'||e.code==='Tab'||e.code==='KeyB'||e.code==='KeyQ')closeUI();
     return;
   }
   if(paused)return;
@@ -1435,6 +1505,7 @@ document.addEventListener('keydown',e=>{
   if(e.code==='KeyR'&&curTool===2){ modRot=(modRot+Math.PI/4)%(Math.PI*2); blip(520,.04,'square',.05); }
   if(e.code==='KeyF')eat();
   if(e.code==='KeyG')drink();
+  if(e.code==='KeyQ')openUI('equip');
   if(e.code==='KeyE')tryInteract();
 });
 document.addEventListener('keyup',e=>{ keys[e.code]=false; });
@@ -1518,7 +1589,7 @@ function tryInteract(){
   // fabricator interaction
   for(const b of placed){
     if(b.id==='room' && camWorld.distanceTo(new THREE.Vector3(b.x,b.y+.75,b.z+3.4))<3){
-      openUI('build'); blip(440,.1,'sine',.08); return;
+      openUI('craft'); blip(440,.1,'sine',.08); return;
     }
   }
   raycaster.setFromCamera({x:0,y:0},camera); raycaster.far=5.5;
@@ -1740,6 +1811,17 @@ for(let i=0;i<5;i++){
   f.userData.predator=true;
   scene.add(f); stalkers.push(f);
 }
+const crabsquids=[];
+{
+  for(let i=0;i<8;i++){
+    const f=makeFish(rand(1.5,2.2),roseTex,0xff5566);
+    const cx=rand(-500,500),cz=rand(-500,500),cy=terrainHeight(cx,cz);
+    f.userData.a={c:V3(cx,clamp(cy+rand(6,15),-300,-20),cz),
+      r:rand(8,18),w:rand(.2,.4)*(Math.random()<.5?-1:1),ph:rand(0,9),alive:true,respawn:0};
+    f.userData.predator=true; f.scale.set(1.5,1,1.5);
+    scene.add(f); crabsquids.push(f);
+  }
+}
 
 /* ============================================================
    SCANNER STATE
@@ -1787,15 +1869,16 @@ const signalBeacon=(()=>{
    STARTER BASE
    ============================================================ */
 {
+  const sby=terrainHeight(8,22);
   const sf=buildModule('foundation',false);
-  sf.position.set(8,-8.5,22); scene.add(sf);
-  placed.push({id:'foundation',x:8,y:-8.5,z:22,rot:0,grp:sf});
+  sf.position.set(8,sby,22); scene.add(sf);
+  placed.push({id:'foundation',x:8,y:sby,z:22,rot:0,grp:sf});
   const tg2=new THREE.PlaneGeometry(6,6); tg2.rotateX(-Math.PI/2);
   const top2=new THREE.Mesh(tg2,new THREE.MeshBasicMaterial({visible:false}));
-  top2.position.set(8,-8.07,22); scene.add(top2); foundationTops.push(top2);
+  top2.position.set(8,sby+.43,22); scene.add(top2); foundationTops.push(top2);
   const sr=buildModule('room',false);
-  sr.position.set(8,-8.07,22); scene.add(sr);
-  placed.push({id:'room',x:8,y:-8.07,z:22,rot:0,grp:sr});
+  sr.position.set(8,sby+.43,22); scene.add(sr);
+  placed.push({id:'room',x:8,y:sby+.43,z:22,rot:0,grp:sr});
 }
 
 /* ============================================================
@@ -1850,6 +1933,37 @@ const fireCorals=[];
     grp.userData={kind:'fireCoral'};
     scene.add(grp); fireCorals.push(grp);
   }
+}
+
+/* wrecks for scanning blueprints */
+const wrecks=[];
+const wreckMat=new THREE.MeshStandardMaterial({color:0x3a4a52,roughness:.8,metalness:.4});
+const rustMat=new THREE.MeshStandardMaterial({color:0x6a3a28,roughness:.9,metalness:.2,emissive:0x1a0a04,emissiveIntensity:.1});
+for(let i=0;i<12;i++){
+  const x=rand(-700,700),z=rand(-700,700),y=terrainHeight(x,z);
+  const grp=new THREE.Group(); grp.position.set(x,y,z);
+  // hull fragment
+  const hull=new THREE.Mesh(new THREE.BoxGeometry(rand(4,8),rand(2,4),rand(3,6)),wreckMat);
+  hull.rotation.set(rand(-.4,.4),rand(0,3),rand(-.3,.3)); hull.position.y=1.5; grp.add(hull);
+  // torn panels
+  for(let j=0;j<3+Math.floor(Math.random()*4);j++){
+    const panel=new THREE.Mesh(new THREE.BoxGeometry(rand(1,3),rand(.8,2),rand(.05,.15)),rustMat);
+    panel.position.set(rand(-4,4),rand(.5,3),rand(-4,4));
+    panel.rotation.set(rand(-1,1),rand(0,3),rand(-1,1)); grp.add(panel);
+  }
+  // pipes
+  for(let j=0;j<2;j++){
+    const pipe=new THREE.Mesh(new THREE.CylinderGeometry(.08,.08,rand(2,5),6),wreckMat);
+    pipe.position.set(rand(-3,3),rand(.3,2),rand(-3,3));
+    pipe.rotation.set(rand(-1,1),0,rand(-1,1)); grp.add(pipe);
+  }
+  // scannable data box (glowing)
+  const dataBox=new THREE.Mesh(new THREE.BoxGeometry(.6,.4,.6),new THREE.MeshStandardMaterial({
+    color:0x44ddff,emissive:0x22aadd,emissiveIntensity:1.5}));
+  dataBox.position.set(rand(-2,2),1.2,rand(-2,2)); grp.add(dataBox);
+  const boxLight=new THREE.PointLight(0x44ddff,.8,8); boxLight.position.copy(dataBox.position); grp.add(boxLight);
+  grp.userData={kind:'wreck',scanned:false,blueprint:['advancedTank','reinforcedSuit','ultraFins','seamothUpgrade','laserCutter','propulsionCannon','stasisRifle','cyclops','prawnSuit','habitatBuilder','gravitySphere','thermalReactor'][i%12]};
+  scene.add(grp); wrecks.push(grp);
 }
 
 /* ============================================================
@@ -1950,6 +2064,13 @@ function animate(){
   if(toolSwitchT>.5){ lance.visible=curTool===1; fab.visible=curTool===2; scannerModel.visible=curTool===3; repairModel.visible=curTool===4; knifeModel.visible=curTool===5; flashModel.visible=curTool===6; }
   fabHolo.rotation.y+=dt*1.6; fabHolo.rotation.x+=dt*.9;
   fabBlink.material.emissiveIntensity=2+Math.sin(t*6)*1.8;
+  // tool idle animations
+  if(curTool===3 && scannerModel.userData.scanLine){
+    scannerModel.userData.scanLine.position.y=Math.sin(t*3)*.07;
+  }
+  if(curTool===5){ knifeModel.rotation.x=Math.sin(t*1.2)*.03; knifeModel.rotation.z=Math.sin(t*.9)*.02; }
+  if(curTool===6){ flashModel.rotation.x=Math.sin(t*.8)*.015; }
+  if(curTool===4){ repairModel.rotation.z=Math.sin(t*1.5)*.02; }
 
   /* interior detection */
   insideBase=false;
@@ -2226,7 +2347,7 @@ function animate(){
     if($('scanOverlay'))$('scanOverlay').style.opacity=mouseDown?.8:0;
     if(mouseDown){
       raycaster.setFromCamera({x:0,y:0},camera); raycaster.far=12;
-      const allFish=[...school,...ambient,...peepers,...boomerangs,...gasopods,...stalkers];
+      const allFish=[...school,...ambient,...peepers,...boomerangs,...gasopods,...stalkers,...crabsquids];
       const fishMeshes=[];
       allFish.forEach(f=>{ if(f.visible) f.traverse(c=>{ if(c.isMesh)fishMeshes.push(c); }); });
       const sh=raycaster.intersectObjects(fishMeshes,false)[0];
@@ -2242,7 +2363,24 @@ function animate(){
       } else {
         const mh=raycaster.intersectObjects(mineralMeshes,false)[0];
         if(mh&&mh.object.userData.node){ scanProgress+=dt*50; if(scanProgress>=100){ const n=mh.object.userData.node; toast('SCANNED: '+MIN_TYPES[n.type].label+' NODE'); blip(880,.15,'sine',.1); scanProgress=0; } }
-        else scanProgress=Math.max(0,scanProgress-dt*60);
+        else {
+          let wreckScanned=false;
+          for(const w of wrecks){
+            if(!w.userData.scanned && camWorld.distanceTo(w.position)<8){
+              scanProgress+=dt*25;
+              if(scanProgress>=100){
+                w.userData.scanned=true;
+                const bp=w.userData.blueprint;
+                if(bp && !unlockedBlueprints.has(bp)){ unlockedBlueprints.add(bp); toast('BLUEPRINT UNLOCKED: '+(RECIPES[bp]?RECIPES[bp].name:bp.toUpperCase())); }
+                else toast('WRECK SCANNED — NO NEW DATA');
+                blip(880,.2,'sine',.12); scanProgress=0;
+              }
+              wreckScanned=true;
+              break;
+            }
+          }
+          if(!wreckScanned) scanProgress=Math.max(0,scanProgress-dt*60);
+        }
       }
     } else scanProgress=Math.max(0,scanProgress-dt*80);
   } else { if($('scanOverlay'))$('scanOverlay').style.opacity=0; }
@@ -2264,7 +2402,7 @@ function animate(){
   } else if(toolRoot.userData.flashlight) toolRoot.userData.flashlight.visible=false;
 
   /* extra fish animation */
-  for(const arr of [peepers,boomerangs,gasopods,stalkers]){
+  for(const arr of [peepers,boomerangs,gasopods,stalkers,crabsquids]){
     for(const f of arr){
       const u=f.userData.a,an=f.userData.anim;
       if(!u||!an)continue;
