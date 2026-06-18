@@ -314,6 +314,18 @@
   </div>
 </div>
 
+<!-- ====== BASE STORAGE (LOCKER) ====== -->
+<div class="screen" id="storageScreen">
+  <div class="sframe" style="width:min(640px,94vw)">
+    <div class="shead">
+      <div><h2>BASE STORAGE</h2><div class="sub">HABITAT LOCKER CONTENTS</div></div>
+      <div class="xbtn" id="storageX">CLOSE [ESC]</div>
+    </div>
+    <div id="storageList"></div>
+    <div id="storageActions" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px"></div>
+  </div>
+</div>
+
 <div id="relock">CLICK TO RESUME DIVE</div>
 
 <div class="cbar" id="barT"></div><div class="cbar" id="barB"></div>
@@ -511,7 +523,7 @@ const uTime={value:0};
 
 /* lights */
 const hemi=new THREE.HemisphereLight(0x8ad8f2,0x0a2433,1.0); scene.add(hemi);
-const sun=new THREE.DirectionalLight(0xd4f0ff,.8); sun.position.set(40,120,-30); scene.add(sun);
+/* DirectionalLight removed for soft ambient-only lighting */
 const ambLight=new THREE.AmbientLight(0x1a4a60,.9); scene.add(ambLight);
 
 /* canvas-texture helpers */
@@ -564,7 +576,7 @@ function terrainHeight(x,z){
 }
 function smoothstep(edge0,edge1,x){const t=clamp((x-edge0)/(edge1-edge0),0,1);return t*t*(3-2*t);}
 const terrain=(()=>{
-  const g=new THREE.PlaneGeometry(2000,2000,280,280); g.rotateX(-Math.PI/2);
+  const g=new THREE.PlaneGeometry(2000,2000,220,220); g.rotateX(-Math.PI/2);
   const pos=g.attributes.position, colors=[];
   const cDeep=new THREE.Color(0x0e2c38),cMid=new THREE.Color(0x2f5e52),cSand=new THREE.Color(0xb39d6f),cRed=new THREE.Color(0x6e4a3e);
   for(let i=0;i<pos.count;i++){
@@ -643,7 +655,7 @@ const terrain=(()=>{
 /* god rays removed — ambient light only */
 
 /* ---------------- particles : marine snow + plankton ---------------- */
-const SNOW_N=900,SNOW_R=42;
+const SNOW_N=200,SNOW_R=35;
 function makeCloud(n,size,color,op){
   const g=new THREE.BufferGeometry(),arr=new Float32Array(n*3);
   for(let i=0;i<n*3;i++)arr[i]=rand(-SNOW_R,SNOW_R);
@@ -653,7 +665,7 @@ function makeCloud(n,size,color,op){
   scene.add(pts); return pts;
 }
 const snow=makeCloud(SNOW_N,.13,0xbfe8f5,.5);
-const plankton=makeCloud(220,.22,0x4fffd8,.65);
+const plankton=makeCloud(70,.22,0x4fffd8,.65);
 
 /* ---------------- seabed dressing : corals / kelp / fans / anemones ---------------- */
 const swayMats=[]; // materials with wind-style vertex sway
@@ -903,7 +915,7 @@ function makeMineral(typeKey){
   grp.children.forEach(c=>{ c.userData.node=node; mineralMeshes.push(c); });
   scene.add(grp); minerals.push(node);
 }
-const spread=['titanium','titanium','titanium','titanium','copper','copper','copper','copper','quartz','quartz','quartz','quartz','gold','gold','gold','silver','silver','silver','diamond','diamond','lead','lead','lead','lithium','lithium','lithium','magnetite','magnetite','magnetite'];
+const spread=['titanium','titanium','titanium','titanium','titanium','titanium','titanium','titanium','copper','copper','copper','copper','copper','copper','copper','quartz','quartz','quartz','quartz','quartz','gold','gold','silver','silver','diamond','lead','lead','lithium','magnetite'];
 for(let i=0;i<500;i++)makeMineral(spread[i%spread.length]);
 
 /* bubble vents */
@@ -1274,8 +1286,8 @@ function buildModule(id,ghost){
         const pipe=mk(new THREE.CylinderGeometry(.04,.04,2.8,6),baseDark);
         pipe.position.set(sx*4.5,1.8,0);
       }
-      const locker=mk(new THREE.BoxGeometry(1,2.2,.6),baseMat); locker.position.set(3.8,1.4,2.2); locker.rotation.y=-.5;
-      const locker2=mk(new THREE.BoxGeometry(1,2.2,.6),baseMat); locker2.position.set(-3.8,1.4,2.2); locker2.rotation.y=.5;
+      const locker=mk(new THREE.BoxGeometry(1,2.2,.6),baseMat); locker.position.set(3.8,1.4,2.2); locker.rotation.y=-.5; locker.userData.isLocker=true;
+      const locker2=mk(new THREE.BoxGeometry(1,2.2,.6),baseMat); locker2.position.set(-3.8,1.4,2.2); locker2.rotation.y=.5; locker2.userData.isLocker=true;
     }
   } else if(id==='corridor'){
     mk(new THREE.BoxGeometry(2.6,.2,6),baseDark).position.y=.1;
@@ -1384,7 +1396,7 @@ function pay(c){ Object.entries(c).forEach(([k,v])=>res[k]-=v); }
    ============================================================ */
 const res={titanium:0,copper:0,quartz:0,gold:0,silver:0,diamond:0,lead:0,lithium:0,magnetite:0,rations:1,h2o:1,
   titaniumIngot:0,copperWire:0,glass:0,fiberMesh:0,advancedTank:0,reinforcedSuit:0,ultraFins:0,
-  lubricant:0,siliconeRubber:0,computerChip:0,bleach:0,disinfectedWater:0,curedFish:0,medPack:0,depthModule:0,heatResistSuit:0};
+  rawFish:0,lubricant:0,siliconeRubber:0,computerChip:0,bleach:0,disinfectedWater:0,curedFish:0,medPack:0,depthModule:0,heatResistSuit:0};
 const unlockedBlueprints=new Set(['titaniumIngot','copperWire','glass','fiberMesh','cookedFish','filteredWater','battery','firstAidKit','beacon','wiring','lubricant','siliconeRubber','bleach','curedFish','disinfectedWater','thermalLance','fabricatorTool','scannerTool','repairTool','propulsionEngine','flashlightTool']);
 const RECIPES={
   titaniumIngot:{name:'TITANIUM INGOT',cost:{titanium:4},cat:'materials',desc:'Compressed titanium alloy.'},
@@ -1393,7 +1405,7 @@ const RECIPES={
   fiberMesh:{name:'FIBER MESH',cost:{titanium:1,quartz:1},cat:'materials',desc:'Woven composite.'},
   wiring:{name:'WIRING KIT',cost:{silver:2},cat:'materials',desc:'Advanced circuitry components.'},
   battery:{name:'BATTERY',cost:{copper:1,lithium:1},cat:'materials',desc:'Portable power cell.'},
-  cookedFish:{name:'COOKED FISH',cost:{rations:1},cat:'food',desc:'Nutrient-rich meal. +50 nutrition.'},
+  cookedFish:{name:'COOKED FISH',cost:{rawFish:1},cat:'food',desc:'Nutrient-rich meal. +50 nutrition.'},
   filteredWater:{name:'FILTERED WATER',cost:{h2o:1},cat:'food',desc:'Purified water. +60 hydration.'},
   firstAidKit:{name:'FIRST AID KIT',cost:{fiberMesh:1,titanium:1},cat:'tools',desc:'Restores 50 health.'},
   beacon:{name:'DIVE BEACON',cost:{copper:1,titanium:1},cat:'tools',desc:'Placeable location marker.'},
@@ -1467,6 +1479,7 @@ function openUI(kind){
   else if(kind==='inv')$('invScreen').classList.add('open');
   else if(kind==='craft'){$('craftScreen').classList.add('open'); renderCraftMenu();}
   else if(kind==='equip'){$('equipScreen').classList.add('open'); renderEquipMenu();}
+  else if(kind==='storage'){$('storageScreen').classList.add('open'); renderStorage();}
   if(kind==='build')renderBuildMenu(); if(kind==='inv')renderInventory();
   document.exitPointerLock();
 }
@@ -1475,12 +1488,52 @@ function closeUI(){
   $('invScreen').classList.remove('open');
   if($('craftScreen'))$('craftScreen').classList.remove('open');
   if($('equipScreen'))$('equipScreen').classList.remove('open');
+  if($('storageScreen'))$('storageScreen').classList.remove('open');
   uiOpen=null; tryLock();
 }
 $('buildX').addEventListener('click',closeUI);
 $('invX').addEventListener('click',closeUI);
 if($('craftX'))$('craftX').addEventListener('click',closeUI);
 if($('equipX'))$('equipX').addEventListener('click',closeUI);
+if($('storageX'))$('storageX').addEventListener('click',closeUI);
+
+/* ---- base storage (shared locker) ---- */
+const baseStorage={titanium:0,copper:0,quartz:0,gold:0,silver:0,diamond:0,lead:0,lithium:0,magnetite:0,rawFish:0,rations:0,h2o:0,
+  titaniumIngot:0,copperWire:0,glass:0,fiberMesh:0,battery:0,wiring:0,cookedFish:0,filteredWater:0,firstAidKit:0,beacon:0,
+  lubricant:0,siliconeRubber:0,computerChip:0,bleach:0,disinfectedWater:0,curedFish:0,medPack:0};
+const lockerMeshes=[];
+function renderStorage(){
+  const host=$('storageList'); if(!host)return;
+  const items=[
+    {key:'titanium',name:'Titanium'},{key:'copper',name:'Copper'},{key:'quartz',name:'Quartz'},
+    {key:'gold',name:'Gold'},{key:'silver',name:'Silver'},{key:'diamond',name:'Diamond'},
+    {key:'lead',name:'Lead'},{key:'lithium',name:'Lithium'},{key:'magnetite',name:'Magnetite'},
+    {key:'rawFish',name:'Raw Fish'},{key:'rations',name:'Ration'},{key:'h2o',name:'Hydro'},
+    {key:'cookedFish',name:'Cooked Fish'},{key:'filteredWater',name:'Filtered Water'},
+    {key:'firstAidKit',name:'Med Kit'},{key:'battery',name:'Battery'},{key:'beacon',name:'Beacon'},
+  ];
+  let html='<div class="isec">— STORED ITEMS</div><div class="inv-grid">';
+  for(const it of items){
+    const ct=baseStorage[it.key]||0;
+    if(ct>0) html+=`<div class="inv-slot"><div style="width:16px;height:16px;border-radius:3px;background:#667"></div><div class="inv-nm">${it.name}</div><div class="inv-ct">${ct}</div></div>`;
+  }
+  html+='</div><div class="isec" style="margin-top:14px">— TRANSFER FROM INVENTORY</div><div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">';
+  for(const it of items){
+    if((res[it.key]||0)>0) html+=`<button class="act storeDep" data-k="${it.key}" style="pointer-events:auto;font-size:11px">STORE ${it.name} (${res[it.key]})</button>`;
+  }
+  html+='</div><div class="isec" style="margin-top:14px">— WITHDRAW TO INVENTORY</div><div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">';
+  for(const it of items){
+    if((baseStorage[it.key]||0)>0) html+=`<button class="act storeWith" data-k="${it.key}" style="pointer-events:auto;font-size:11px">TAKE ${it.name} (${baseStorage[it.key]})</button>`;
+  }
+  html+='</div>';
+  host.innerHTML=html;
+  host.querySelectorAll('.storeDep').forEach(b=>b.addEventListener('click',()=>{
+    const k=b.dataset.k; res[k]--; baseStorage[k]++; renderStorage();
+  }));
+  host.querySelectorAll('.storeWith').forEach(b=>b.addEventListener('click',()=>{
+    const k=b.dataset.k; baseStorage[k]--; res[k]++; renderStorage();
+  }));
+}
 
 function renderBuildMenu(){
   const host=$('buildCards'); host.innerHTML='';
@@ -1516,6 +1569,7 @@ function renderInventory(){
     {key:'fiberMesh',name:'Fiber',color:'#88aa88',shape:'square'},
     {key:'battery',name:'Battery',color:'#ffdd44',shape:'square'},
     {key:'wiring',name:'Wiring',color:'#aaccdd',shape:'line'},
+    {key:'rawFish',name:'Raw Fish',color:'#ff8877',shape:'circle'},
     {key:'rations',name:'Ration',color:'#ffd27f',shape:'circle'},
     {key:'h2o',name:'Hydro',color:'#8fd5ff',shape:'circle'},
     {key:'firstAidKit',name:'Med Kit',color:'#ff6666',shape:'cross'},
@@ -1762,6 +1816,16 @@ function nearbyFish(){
   return null;
 }
 function tryInteract(){
+  // locker interaction (inside base)
+  if(insideBase){
+    raycaster.setFromCamera({x:0,y:0},camera); raycaster.far=4;
+    const allLockers=[];
+    placed.forEach(b=>{ if(b.id==='room'&&b.grp) b.grp.traverse(c=>{ if(c.isMesh&&c.userData.isLocker) allLockers.push(c); }); });
+    const lh=raycaster.intersectObjects(allLockers,false)[0];
+    if(lh){
+      openUI('storage'); blip(440,.1,'sine',.08); return;
+    }
+  }
   // fabricator interaction
   for(const b of placed){
     if(b.id==='room' && camWorld.distanceTo(new THREE.Vector3(b.x,b.y+.75,b.z+3.4))<3){
@@ -1781,7 +1845,7 @@ function tryInteract(){
   const nf=nearbyFish();
   if(nf){
     nf.u.alive=false; nf.u.respawn=45; nf.f.visible=false;
-    res.rations++; toast('REEF FISH CAUGHT — RATION +1');
+    res.rawFish++; toast('REEF FISH CAUGHT — RAW FISH +1');
     blip(660,.1,'triangle',.1); spawnSparks(nf.f.position,8,true); bubbleSnd();
     return;
   }
@@ -2482,6 +2546,7 @@ const FWD=new THREE.Vector3(),RIGHT=new THREE.Vector3(),UP=V3(0,1,0);
 const tmpV=new THREE.Vector3(),tmpT=new THREE.Vector3();
 const fogColCur=UW_FOG.clone(); let fogDenCur=UW_DEN;
 
+let _cullFrame=0;
 function animate(){
   requestAnimationFrame(animate);
   const dt=Math.min(clock.getDelta(),.05);
@@ -2602,8 +2667,7 @@ function animate(){
   const isNight=dayPhase>.5;
   const nightFactor=isNight?clamp((dayPhase-.5)*4,0,1)*clamp((1-dayPhase)*4,0,1):0;
   const dayFactor=1-nightFactor;
-  sun.intensity=(underwater?1.8:2.5)*dayFactor;
-  sun.position.set(40*Math.cos(sunAngle),120*Math.abs(Math.sin(sunAngle))+10,-30);
+  /* sun removed — ambient only */
   sunDisc.material.opacity=dayFactor;
   if(!underwater){
     const nightSky=new THREE.Color(0x010818);
@@ -2612,18 +2676,22 @@ function animate(){
   }
   if(AC&&ambGain)ambGain.gain.value=insideBase?.1:(underwater?.4:.18);
 
-  /* distance + frustum culling */
-  const _cullM=new THREE.Matrix4().multiplyMatrices(camera.projectionMatrix,camera.matrixWorldInverse);
-  const _cullFrustum=new THREE.Frustum(); _cullFrustum.setFromProjectionMatrix(_cullM);
-  const _cullPos=new THREE.Vector3();
-  scene.traverse(c=>{
-    if(!c.isMesh&&!c.isGroup)return;
-    if(c===terrain||c.parent===toolRoot||c.parent===vehicleGroup)return;
-    _cullPos.setFromMatrixPosition(c.matrixWorld);
-    const d=_cullPos.distanceTo(player.position);
-    if(d>250){c.visible=false;return;}
-    if(c.isMesh){c.visible=_cullFrustum.intersectsObject(c)||d<30;}
-  });
+  /* distance + frustum culling (every 10 frames) */
+  _cullFrame++;
+  if(_cullFrame%10===0){
+    const _cullM=new THREE.Matrix4().multiplyMatrices(camera.projectionMatrix,camera.matrixWorldInverse);
+    const _cullFrustum=new THREE.Frustum(); _cullFrustum.setFromProjectionMatrix(_cullM);
+    const _cullPos=new THREE.Vector3();
+    for(let i=0;i<scene.children.length;i++){
+      const c=scene.children[i];
+      if(!c.isMesh&&!c.isGroup)continue;
+      if(c===terrain||c===toolRoot||c===vehicleGroup)continue;
+      _cullPos.setFromMatrixPosition(c.matrixWorld);
+      const d=_cullPos.distanceTo(player.position);
+      if(d>250){c.visible=false;continue;}
+      if(c.isMesh){c.visible=_cullFrustum.intersectsObject(c)||d<30;}
+    }
+  }
 
   /* environment animation */
 
@@ -2791,9 +2859,19 @@ function animate(){
   /* E prompt */
   if(!paused&&started&&!prompt){
     raycaster.setFromCamera({x:0,y:0},camera); raycaster.far=5.5;
-    const ph=raycaster.intersectObjects(podTargets(),false)[0];
-    if(ph)prompt='HARVEST '+(ph.object.userData.plant.userData.type==='food'?'AMBER POD':'AQUA BULB');
-    else if(nearbyFish())prompt='CATCH REEF FISH';
+    if(insideBase&&!prompt){
+      raycaster.far=4;
+      const allLockers=[];
+      placed.forEach(b=>{ if(b.id==='room'&&b.grp) b.grp.traverse(c=>{ if(c.isMesh&&c.userData.isLocker) allLockers.push(c); }); });
+      const lh2=raycaster.intersectObjects(allLockers,false)[0];
+      if(lh2) prompt='OPEN LOCKER [E]';
+      raycaster.far=5.5;
+    }
+    if(!prompt){
+      const ph=raycaster.intersectObjects(podTargets(),false)[0];
+      if(ph)prompt='HARVEST '+(ph.object.userData.plant.userData.type==='food'?'AMBER POD':'AQUA BULB');
+      else if(nearbyFish())prompt='CATCH REEF FISH';
+    }
   }
   $('prompt').style.opacity=prompt?1:0;
   if(prompt)$('promptTxt').textContent=' '+prompt;
