@@ -510,13 +510,20 @@ function vnoise(x,z){
 }
 function fbm(x,z){ let v=0,a=.5,f=1; for(let i=0;i<5;i++){ v+=a*vnoise(x*f,z*f); a*=.5; f*=2; } return v; }
 function terrainHeight(x,z){
-  const distFromCenter=Math.sqrt(x*x+z*z);
-  const depthCurve=clamp(distFromCenter/400,0,1);
-  const shelfDrop=smoothstep(80,250,distFromCenter)*-350;
-  const trench=smoothstep(350,500,distFromCenter)*-150;
-  const detail=fbm(x*.012+7.3,z*.012+2.1)*15+vnoise(x*.08,z*.08)*3;
-  const dune=Math.sin(x*.045+Math.sin(z*.03)*2)*2;
-  return -12+shelfDrop+trench+detail+dune;
+  const dist=Math.sqrt(x*x+z*z);
+  // Gradual base depth curve - NOT a cliff
+  const base=-8-dist*.35;
+  // Biome-specific terrain features using noise at different scales
+  const ridges=Math.abs(Math.sin(x*.008+z*.012))*25*(1-Math.exp(-dist*.003));
+  const plateaus=Math.max(0,fbm(x*.006+5,z*.006+3)-.3)*80;
+  const valleys=Math.min(0,fbm(x*.004-2,z*.004+8)-.6)*120;
+  const detail=fbm(x*.012+7.3,z*.012+2.1)*12+vnoise(x*.08,z*.08)*3;
+  const dunes=Math.sin(x*.02+Math.sin(z*.015)*3)*4;
+  const trench=(vnoise(x*.003,z*.003)>.7)?-80:0;
+  let h=base+ridges+plateaus+valleys+detail+dunes+trench;
+  // Clamp - shallow near center, deep at edges
+  if(dist<60) h=Math.max(h,-15);
+  return clamp(h,-500,3);
 }
 function smoothstep(edge0,edge1,x){const t=clamp((x-edge0)/(edge1-edge0),0,1);return t*t*(3-2*t);}
 const terrain=(()=>{
@@ -526,8 +533,12 @@ const terrain=(()=>{
   for(let i=0;i<pos.count;i++){
     const x=pos.getX(i),z=pos.getZ(i),y=terrainHeight(x,z);
     pos.setY(i,y);
-    const t=clamp((y+500)/500,0,1), c=new THREE.Color();
-    if(t<.5)c.lerpColors(cDeep,cMid,t/.5); else c.lerpColors(cMid,cSand,(t-.5)/.5);
+    const t=clamp((y+500)/503,0,1), c=new THREE.Color();
+    const cAbyss=new THREE.Color(0x060e14),cDeepReef=new THREE.Color(0x0e2c38),cKelp=new THREE.Color(0x1a5e3a),cSandB=new THREE.Color(0xb39d6f),cShallow=new THREE.Color(0x6a9a78);
+    if(t<.15)c.lerpColors(cAbyss,cDeepReef,t/.15);
+    else if(t<.4)c.lerpColors(cDeepReef,cKelp,(t-.15)/.25);
+    else if(t<.7)c.lerpColors(cKelp,cSandB,(t-.4)/.3);
+    else c.lerpColors(cSandB,cShallow,(t-.7)/.3);
     const patch=vnoise(x*.05+40,z*.05+9);
     if(patch>.72)c.lerp(cRed,(patch-.72)*1.6);
     c.offsetHSL(0,0,(hash(x*3.1,z*1.7)-.5)*.08);
@@ -973,46 +984,115 @@ let fabTip,fabHolo,fabBlink;
 }
 const scannerModel=new THREE.Group(); toolRoot.add(scannerModel); scannerModel.visible=false;
 {
-  const body=new THREE.Mesh(new THREE.BoxGeometry(.14,.22,.08),whiteShell); scannerModel.add(body);
-  const screen=new THREE.Mesh(new THREE.PlaneGeometry(.1,.14),new THREE.MeshStandardMaterial({color:0x00ffaa,emissive:0x00ffaa,emissiveIntensity:1.5}));
-  screen.position.z=.041; scannerModel.add(screen);
-  const ant=new THREE.Mesh(new THREE.CylinderGeometry(.006,.006,.12,5),gunDark);
-  ant.position.set(.04,.16,0); scannerModel.add(ant);
-  const tip=new THREE.Mesh(new THREE.SphereGeometry(.015,6,4),grnGlow);
-  tip.position.set(.04,.22,0); scannerModel.add(tip);
-  const grip=new THREE.Mesh(new THREE.BoxGeometry(.05,.14,.06),gunDark);
-  grip.position.set(0,-.16,0); scannerModel.add(grip);
+  const housing=new THREE.Mesh(new THREE.BoxGeometry(.16,.24,.1),whiteShell); scannerModel.add(housing);
+  const backPlate=new THREE.Mesh(new THREE.BoxGeometry(.17,.25,.02),gunDark); backPlate.position.z=-.05; scannerModel.add(backPlate);
+  const screen=new THREE.Mesh(new THREE.PlaneGeometry(.12,.16),new THREE.MeshStandardMaterial({color:0x00ffaa,emissive:0x00dd88,emissiveIntensity:1.8}));
+  screen.position.z=.051; scannerModel.add(screen);
+  const screenFrame=new THREE.Mesh(new THREE.BoxGeometry(.14,.18,.02),gunmetal); screenFrame.position.z=.05; scannerModel.add(screenFrame);
+  const scanLine=new THREE.Mesh(new THREE.BoxGeometry(.11,.005,.001),new THREE.MeshStandardMaterial({color:0x88ffcc,emissive:0x44ffaa,emissiveIntensity:3}));
+  scanLine.position.z=.052; scannerModel.add(scanLine); scannerModel.userData.scanLine=scanLine;
+  for(const sx of [-1,1]){
+    const rail=new THREE.Mesh(new THREE.BoxGeometry(.015,.26,.04),gunDark);
+    rail.position.set(sx*.085,0,-.02); scannerModel.add(rail);
+  }
+  const ant1=new THREE.Mesh(new THREE.CylinderGeometry(.005,.005,.14,6),gunmetal);
+  ant1.position.set(.06,.18,0); scannerModel.add(ant1);
+  const ant2=new THREE.Mesh(new THREE.CylinderGeometry(.005,.005,.1,6),gunmetal);
+  ant2.position.set(-.04,.17,0); ant2.rotation.z=.2; scannerModel.add(ant2);
+  const tip1=new THREE.Mesh(new THREE.SphereGeometry(.012,6,4),grnGlow);
+  tip1.position.set(.06,.25,0); scannerModel.add(tip1);
+  const tip2=new THREE.Mesh(new THREE.SphereGeometry(.01,6,4),grnGlow);
+  tip2.position.set(-.04,.22,0); scannerModel.add(tip2);
+  const grip=new THREE.Mesh(new THREE.BoxGeometry(.06,.16,.07),gunDark); grip.position.set(0,-.18,0); scannerModel.add(grip);
+  const trigger=new THREE.Mesh(new THREE.BoxGeometry(.02,.05,.03),gunmetal); trigger.position.set(0,-.12,-.04); trigger.rotation.x=.3; scannerModel.add(trigger);
+  const emitter=new THREE.Mesh(new THREE.CylinderGeometry(.04,.02,.06,8),whiteShell);
+  emitter.rotation.x=Math.PI/2; emitter.position.set(0,0,-.08); scannerModel.add(emitter);
+  const emitRing=new THREE.Mesh(new THREE.TorusGeometry(.035,.008,6,12),grnGlow);
+  emitRing.position.set(0,0,-.1); scannerModel.add(emitRing);
 }
 const repairModel=new THREE.Group(); toolRoot.add(repairModel); repairModel.visible=false;
 {
-  const body=new THREE.Mesh(new THREE.CylinderGeometry(.04,.06,.3,8),gunmetal);
-  body.rotation.x=Math.PI/2; repairModel.add(body);
-  const head=new THREE.Mesh(new THREE.SphereGeometry(.07,8,6),whiteShell);
-  head.position.z=-.16; repairModel.add(head);
-  const glow=new THREE.Mesh(new THREE.SphereGeometry(.04,6,4),new THREE.MeshStandardMaterial({color:0x44aaff,emissive:0x2288ff,emissiveIntensity:2}));
-  glow.position.z=-.2; repairModel.add(glow);
-  const grip=new THREE.Mesh(new THREE.BoxGeometry(.05,.15,.06),gunDark);
-  grip.position.set(0,-.12,.08); repairModel.add(grip);
+  const cyGlow=new THREE.MeshStandardMaterial({color:0x44aaff,emissive:0x2288ff,emissiveIntensity:2.2});
+  const mainBody=new THREE.Mesh(new THREE.CylinderGeometry(.045,.06,.32,10),gunmetal);
+  mainBody.rotation.x=Math.PI/2; repairModel.add(mainBody);
+  const midRing=new THREE.Mesh(new THREE.TorusGeometry(.063,.012,6,14),cyGlow);
+  midRing.position.z=-.06; repairModel.add(midRing);
+  const rearRing=new THREE.Mesh(new THREE.TorusGeometry(.055,.01,6,14),gunDark);
+  rearRing.position.z=.12; repairModel.add(rearRing);
+  const headCasing=new THREE.Mesh(new THREE.CylinderGeometry(.07,.05,.1,10),whiteShell);
+  headCasing.rotation.x=Math.PI/2; headCasing.position.z=-.2; repairModel.add(headCasing);
+  const emitter=new THREE.Mesh(new THREE.SphereGeometry(.04,10,8),cyGlow);
+  emitter.position.z=-.26; repairModel.add(emitter);
+  for(const sx of [-1,1]){
+    const prong=new THREE.Mesh(new THREE.BoxGeometry(.015,.03,.12),gunmetal);
+    prong.position.set(sx*.05,0,-.22); prong.rotation.y=sx*.15; repairModel.add(prong);
+    const prongTip=new THREE.Mesh(new THREE.SphereGeometry(.012,6,4),cyGlow);
+    prongTip.position.set(sx*.058,0,-.28); repairModel.add(prongTip);
+  }
+  for(const sx of [-1,1]){
+    const vent=new THREE.Mesh(new THREE.BoxGeometry(.01,.06,.08),new THREE.MeshStandardMaterial({color:0x1a2a35,roughness:.5}));
+    vent.position.set(sx*.055,.01,.04); repairModel.add(vent);
+  }
+  const grip=new THREE.Mesh(new THREE.BoxGeometry(.055,.17,.065),gunDark); grip.position.set(0,-.14,.06); repairModel.add(grip);
+  const trigGuard=new THREE.Mesh(new THREE.TorusGeometry(.03,.005,4,8,Math.PI),gunmetal);
+  trigGuard.position.set(0,-.09,-.02); trigGuard.rotation.x=Math.PI/2; repairModel.add(trigGuard);
+  const trigger=new THREE.Mesh(new THREE.BoxGeometry(.015,.04,.02),gunmetal);
+  trigger.position.set(0,-.1,-.015); trigger.rotation.x=.25; repairModel.add(trigger);
 }
 const knifeModel=new THREE.Group(); toolRoot.add(knifeModel); knifeModel.visible=false;
 {
-  const grip=new THREE.Mesh(new THREE.BoxGeometry(.05,.18,.04),gunDark); grip.position.y=-.06; knifeModel.add(grip);
-  const guard=new THREE.Mesh(new THREE.BoxGeometry(.1,.02,.05),gunmetal); guard.position.y=.04; knifeModel.add(guard);
-  const blade=new THREE.Mesh(new THREE.BoxGeometry(.03,.26,.01),new THREE.MeshStandardMaterial({color:0xd0dce5,roughness:.15,metalness:.95}));
-  blade.position.set(0,.17,0); knifeModel.add(blade);
-  const edge=new THREE.Mesh(new THREE.BoxGeometry(.035,.26,.003),new THREE.MeshStandardMaterial({color:0xeeffff,emissive:0x88ccff,emissiveIntensity:.3}));
-  edge.position.set(0,.17,.006); knifeModel.add(edge);
+  const bladeMat=new THREE.MeshStandardMaterial({color:0xd0dce5,roughness:.12,metalness:.95});
+  const edgeMat=new THREE.MeshStandardMaterial({color:0xeeffff,emissive:0x88ccff,emissiveIntensity:.4});
+  const grip=new THREE.Mesh(new THREE.BoxGeometry(.048,.19,.04),gunDark); grip.position.y=-.08; knifeModel.add(grip);
+  for(let i=0;i<4;i++){
+    const ridge=new THREE.Mesh(new THREE.BoxGeometry(.05,.008,.042),gunmetal);
+    ridge.position.set(0,-.16+i*.04,0); knifeModel.add(ridge);
+  }
+  const pommel=new THREE.Mesh(new THREE.CylinderGeometry(.03,.025,.03,8),gunmetal);
+  pommel.position.y=-.19; knifeModel.add(pommel);
+  const guard=new THREE.Mesh(new THREE.BoxGeometry(.11,.025,.05),gunmetal); guard.position.y=.02; knifeModel.add(guard);
+  const guardDetail=new THREE.Mesh(new THREE.BoxGeometry(.12,.01,.052),ambGlow); guardDetail.position.y=.03; knifeModel.add(guardDetail);
+  const blade=new THREE.Mesh(new THREE.BoxGeometry(.028,.28,.012),bladeMat); blade.position.set(0,.18,0); knifeModel.add(blade);
+  const bladeEdge=new THREE.Mesh(new THREE.BoxGeometry(.032,.28,.004),edgeMat); bladeEdge.position.set(0,.18,.007); knifeModel.add(bladeEdge);
+  const bladeSpine=new THREE.Mesh(new THREE.BoxGeometry(.012,.28,.006),gunmetal); bladeSpine.position.set(0,.18,-.008); knifeModel.add(bladeSpine);
+  const tipGeo=new THREE.BufferGeometry();
+  const verts=new Float32Array([0,.32,0, -.014,.28,.006, .014,.28,.006, -.014,.28,-.006, .014,.28,-.006]);
+  const idx=new Uint16Array([0,1,2, 0,2,4, 0,4,3, 0,3,1]);
+  tipGeo.setAttribute('position',new THREE.BufferAttribute(verts,3));
+  tipGeo.setIndex(new THREE.BufferAttribute(idx,1));
+  tipGeo.computeVertexNormals();
+  const tipMesh=new THREE.Mesh(tipGeo,bladeMat); knifeModel.add(tipMesh);
+  for(let i=0;i<3;i++){
+    const serr=new THREE.Mesh(new THREE.BoxGeometry(.035,.006,.003),edgeMat);
+    serr.position.set(0,.06+i*.025,.009); knifeModel.add(serr);
+  }
 }
 const flashModel=new THREE.Group(); toolRoot.add(flashModel); flashModel.visible=false;
 {
-  const body=new THREE.Mesh(new THREE.CylinderGeometry(.035,.04,.28,8),gunDark);
+  const body=new THREE.Mesh(new THREE.CylinderGeometry(.032,.038,.3,10),gunDark);
   body.rotation.x=Math.PI/2; flashModel.add(body);
-  const head=new THREE.Mesh(new THREE.CylinderGeometry(.055,.035,.08,10),gunmetal);
-  head.rotation.x=Math.PI/2; head.position.z=-.16; flashModel.add(head);
-  const lens=new THREE.Mesh(new THREE.CircleGeometry(.055,12),new THREE.MeshStandardMaterial({color:0xfff8e0,emissive:0xffeebb,emissiveIntensity:2}));
-  lens.position.z=-.2; flashModel.add(lens);
-  const grip=new THREE.Mesh(new THREE.BoxGeometry(.04,.12,.04),gunDark);
-  grip.position.set(0,-.1,.04); flashModel.add(grip);
+  const rearCap=new THREE.Mesh(new THREE.SphereGeometry(.032,8,6),gunmetal);
+  rearCap.position.z=.15; flashModel.add(rearCap);
+  for(let i=0;i<3;i++){
+    const ring=new THREE.Mesh(new THREE.TorusGeometry(.039,.006,6,14),gunmetal);
+    ring.position.z=.08-i*.08; flashModel.add(ring);
+  }
+  const switchBtn=new THREE.Mesh(new THREE.BoxGeometry(.015,.02,.03),ambGlow);
+  switchBtn.position.set(0,.038,.02); flashModel.add(switchBtn);
+  const head=new THREE.Mesh(new THREE.CylinderGeometry(.058,.038,.1,12),gunmetal);
+  head.rotation.x=Math.PI/2; head.position.z=-.18; flashModel.add(head);
+  const headRing=new THREE.Mesh(new THREE.TorusGeometry(.059,.007,6,16),ambGlow);
+  headRing.position.z=-.22; flashModel.add(headRing);
+  const reflector=new THREE.Mesh(new THREE.CylinderGeometry(.055,.03,.04,12,1,true),
+    new THREE.MeshStandardMaterial({color:0xcccccc,roughness:.05,metalness:1,side:THREE.BackSide}));
+  reflector.rotation.x=Math.PI/2; reflector.position.z=-.24; flashModel.add(reflector);
+  const lens=new THREE.Mesh(new THREE.CircleGeometry(.055,14),
+    new THREE.MeshStandardMaterial({color:0xfff8d0,emissive:0xffeebb,emissiveIntensity:2.5,transparent:true,opacity:.9}));
+  lens.position.z=-.26; flashModel.add(lens);
+  const clip=new THREE.Mesh(new THREE.BoxGeometry(.01,.06,.22),gunmetal);
+  clip.position.set(0,.045,-.02); flashModel.add(clip);
+  const grip=new THREE.Mesh(new THREE.BoxGeometry(.04,.13,.045),gunDark);
+  grip.position.set(0,-.08,.04); flashModel.add(grip);
 }
 let toolSwitchT=1;
 
