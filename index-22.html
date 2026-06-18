@@ -3026,6 +3026,160 @@ for(let i=0;i<8;i++){
 }
 
 /* ============================================================
+   WORLD DENSITY PASS — massive flora/ore/coral everywhere
+   ============================================================ */
+{
+  // Giant kelp towers everywhere (shallow to mid)
+  for(let i=0;i<400;i++){
+    const x=rand(-900,900),z=rand(-900,900),y=terrainHeight(x,z);
+    if(y<-200||y>-3)continue;
+    const h=rand(12,30);
+    const k=new THREE.Mesh(new THREE.PlaneGeometry(rand(1,2.5),h,1,8),kelpMat);
+    k.geometry=k.geometry.clone();k.geometry.translate(0,h/2,0);
+    k.position.set(x,y-.2,z);k.rotation.y=rand(0,Math.PI);
+    scene.add(k);
+  }
+  // Massive boulder fields (all depths)
+  const boulderMat=new THREE.MeshStandardMaterial({color:0x3a4a4a,roughness:.95,flatShading:true});
+  for(let i=0;i<500;i++){
+    const x=rand(-900,900),z=rand(-900,900),y=terrainHeight(x,z);
+    const r=rand(1,5);
+    const b=new THREE.Mesh(new THREE.IcosahedronGeometry(r,1),boulderMat);
+    b.scale.set(rand(.6,1.4),rand(.4,.8),rand(.6,1.4));
+    b.position.set(x,y+r*.3,z);b.rotation.set(rand(0,3),rand(0,3),0);
+    scene.add(b);
+  }
+  // Seagrass carpets (shallow -3 to -60)
+  const grassMat=new THREE.MeshStandardMaterial({color:0x2a6a3a,roughness:.85,side:THREE.DoubleSide,transparent:true,opacity:.8});
+  for(let i=0;i<800;i++){
+    const x=rand(-900,900),z=rand(-900,900),y=terrainHeight(x,z);
+    if(y<-60||y>-3)continue;
+    const h=rand(1,3);
+    const blade=new THREE.Mesh(new THREE.PlaneGeometry(.15,h,1,3),grassMat);
+    blade.geometry=blade.geometry.clone();blade.geometry.translate(0,h/2,0);
+    blade.position.set(x,y,z);blade.rotation.y=rand(0,Math.PI);
+    scene.add(blade);
+  }
+  // Mid-depth coral gardens (-60 to -200)
+  const gardenCols=[0xff6677,0x44bbaa,0xddaa55,0x7766dd,0xff9944,0x44ddaa];
+  for(let i=0;i<600;i++){
+    const x=rand(-900,900),z=rand(-900,900),y=terrainHeight(x,z);
+    if(y>-60||y<-200)continue;
+    const col=gardenCols[i%6];
+    const mat=new THREE.MeshStandardMaterial({color:col,roughness:.7});
+    const type=i%3;
+    if(type===0){
+      const grp=new THREE.Group();grp.position.set(x,y,z);
+      const h=rand(3,8);
+      const trunk=new THREE.Mesh(new THREE.CylinderGeometry(.15,.35,h,6),mat);
+      trunk.position.y=h/2;grp.add(trunk);
+      for(let j=0;j<4+Math.floor(Math.random()*4);j++){
+        const bh=rand(1.5,4);
+        const br=new THREE.Mesh(new THREE.CylinderGeometry(.06,.15,bh,5),mat);
+        br.position.set(rand(-.5,.5),rand(h*.3,h*.9),rand(-.5,.5));
+        br.rotation.set(rand(-.5,.5),rand(0,3),rand(-.5,.5));grp.add(br);
+      }
+      scene.add(grp);
+    } else if(type===1){
+      const tc=new THREE.Mesh(new THREE.CylinderGeometry(rand(2,5),.3,.2,10),mat);
+      tc.position.set(x,y+.1,z);tc.rotation.set(rand(-.15,.15),0,rand(-.15,.15));
+      scene.add(tc);
+    } else {
+      const bc=new THREE.Mesh(new THREE.SphereGeometry(rand(1,3),8,6),mat);
+      bc.scale.y=rand(.5,.8);bc.position.set(x,y+.5,z);
+      scene.add(bc);
+    }
+  }
+  // Deep zone massive structures (-200 to -400)
+  const deepMat=new THREE.MeshStandardMaterial({color:0x1a2a3a,roughness:.9});
+  const deepGlowCols=[0x2244ff,0x22ffaa,0xff2288,0xffaa22];
+  for(let i=0;i<400;i++){
+    const x=rand(-900,900),z=rand(-900,900),y=terrainHeight(x,z);
+    if(y>-200||y<-400)continue;
+    const col=deepGlowCols[i%4];
+    const mat=new THREE.MeshStandardMaterial({color:col,roughness:.5,emissive:col,emissiveIntensity:.4});
+    const type=i%4;
+    if(type===0){
+      const h=rand(5,15);
+      const t=new THREE.Mesh(new THREE.CylinderGeometry(.05,.2,h,5),mat);
+      t.position.set(x,y+h/2,z);t.rotation.set(rand(-.2,.2),0,rand(-.2,.2));
+      scene.add(t);
+    } else if(type===1){
+      const grp=new THREE.Group();grp.position.set(x,y,z);
+      for(let j=0;j<3+Math.floor(Math.random()*4);j++){
+        const orb=new THREE.Mesh(new THREE.SphereGeometry(rand(.3,1.2),6,5),mat);
+        orb.position.set(rand(-2,2),rand(.5,3),rand(-2,2));grp.add(orb);
+      }
+      scene.add(grp);
+    } else if(type===2){
+      const s=rand(5,12);
+      const fan=new THREE.Mesh(new THREE.PlaneGeometry(s,s,1,4),new THREE.MeshStandardMaterial({
+        color:col,roughness:.6,emissive:col,emissiveIntensity:.2,side:THREE.DoubleSide,transparent:true,opacity:.7}));
+      fan.geometry=fan.geometry.clone();fan.geometry.translate(0,s/2,0);
+      fan.position.set(x,y,z);fan.rotation.y=rand(0,Math.PI);
+      scene.add(fan);
+    } else {
+      const h=rand(8,25);
+      const p=new THREE.Mesh(new THREE.CylinderGeometry(rand(.5,1.5),rand(1,3),h,7),deepMat);
+      p.position.set(x,y+h/2,z);
+      scene.add(p);
+    }
+  }
+  // Abyss content (-400 to -550)
+  for(let i=0;i<300;i++){
+    const x=rand(-900,900),z=rand(-900,900),y=terrainHeight(x,z);
+    if(y>-400)continue;
+    const col=deepGlowCols[i%4];
+    const mat=new THREE.MeshStandardMaterial({color:col,roughness:.4,emissive:col,emissiveIntensity:.6});
+    const type=i%3;
+    if(type===0){
+      const h=rand(10,30);
+      const t=new THREE.Mesh(new THREE.CylinderGeometry(.08,.4,h,5),mat);
+      t.position.set(x,y+h/2,z);t.rotation.set(rand(-.15,.15),0,rand(-.15,.15));
+      scene.add(t);
+    } else if(type===1){
+      const grp=new THREE.Group();grp.position.set(x,y,z);
+      const sh=rand(4,10);
+      const stem=new THREE.Mesh(new THREE.CylinderGeometry(.1,.2,sh,5),mat);
+      stem.position.y=sh/2;grp.add(stem);
+      for(let j=0;j<5;j++){
+        const petal=new THREE.Mesh(new THREE.SphereGeometry(rand(1,2.5),6,5),mat);
+        const a=j/5*Math.PI*2;
+        petal.position.set(Math.cos(a)*2,sh,Math.sin(a)*2);
+        petal.scale.y=.4;grp.add(petal);
+      }
+      scene.add(grp);
+    } else {
+      const h=rand(5,15);
+      const sp=new THREE.Mesh(new THREE.ConeGeometry(rand(.3,.8),h,5),
+        new THREE.MeshStandardMaterial({color:0x6644aa,roughness:.3,emissive:0x4422aa,emissiveIntensity:.3,transparent:true,opacity:.7}));
+      sp.position.set(x,y+h/2,z);sp.rotation.set(rand(-.2,.2),0,rand(-.2,.2));
+      scene.add(sp);
+    }
+  }
+  // Extra ore nodes spread everywhere
+  for(let i=0;i<300;i++){
+    const types=['titanium','titanium','titanium','copper','copper','copper','quartz','quartz','gold','silver','diamond','lead','lithium','magnetite','obsidian','thermalCrystal','voidstone'];
+    makeMineral(types[i%types.length]);
+  }
+  // Extra wrecks in deep areas
+  for(let i=0;i<12;i++){
+    const x=rand(-800,800),z=rand(-800,800),y=terrainHeight(x,z);
+    if(y>-100)continue;
+    const grp=new THREE.Group();grp.position.set(x,y,z);grp.rotation.y=rand(0,6);
+    const hull=new THREE.Mesh(new THREE.CylinderGeometry(2,2.5,6,8,1,true,0,Math.PI*1.5),wreckMat);
+    hull.rotation.z=Math.PI/2;hull.position.y=2;grp.add(hull);
+    const floor=new THREE.Mesh(new THREE.BoxGeometry(5,.1,3.5),wreckMat);
+    floor.position.y=.2;grp.add(floor);
+    const termScreen=new THREE.Mesh(new THREE.BoxGeometry(.5,.35,.06),wreckGlow);
+    termScreen.position.set(0,1.2,1.5);grp.add(termScreen);
+    grp.userData={kind:'wreck',idx:24+i,scanned:false,blueprint:blueprintList[i%blueprintList.length]};
+    grp.children.forEach(c=>{c.userData.node=grp;});
+    scene.add(grp);wrecks.push(grp);
+  }
+}
+
+/* ============================================================
    ADDITIONAL BUILD MODULES
    ============================================================ */
 MODULES.push(
