@@ -247,6 +247,8 @@
   #waypoint .diamond{width:12px;height:12px;background:var(--cy);transform:rotate(45deg);margin-bottom:4px;box-shadow:0 0 8px var(--cy)}
   #waypoint .wdist{opacity:.7}
   #waypoint .wname{font-size:9px;opacity:.5;margin-top:2px}
+  #baseWaypoint{position:fixed;z-index:22;pointer-events:none;display:none;flex-direction:column;align-items:center;font-family:var(--mono);font-size:10px;color:var(--grn);letter-spacing:.15em}
+  #baseWaypoint .diamond{width:10px;height:10px;background:var(--grn);transform:rotate(45deg);margin-bottom:4px;box-shadow:0 0 6px var(--grn)}
 </style>
 </head>
 <body>
@@ -1005,7 +1007,6 @@ function makeMineral(typeKey){
         new THREE.MeshStandardMaterial({color:0xeeffff,roughness:.02,metalness:.1,emissive:0xaaddff,emissiveIntensity:0.9,transparent:true,opacity:.85}));
       d.position.set(rand(-.4,.4),rand(.3,.9),rand(-.4,.4)); grp.add(d);
     }
-    const glow=new THREE.PointLight(0xaaddff,.5,5); glow.position.y=.5; grp.add(glow);
   } else if(typeKey==='lead'){
     for(let j=0;j<3;j++){
       const c=new THREE.Mesh(new THREE.BoxGeometry(rand(.4,.7),rand(.4,.7),rand(.4,.7)),
@@ -1029,7 +1030,6 @@ function makeMineral(typeKey){
         new THREE.MeshStandardMaterial({color:0x4488ff,emissive:0x2244cc,emissiveIntensity:2,transparent:true,opacity:.6}));
       arc.rotation.set(rand(0,3),rand(0,3),rand(0,3)); arc.position.y=.3; grp.add(arc);
     }
-    const glow=new THREE.PointLight(0x4488ff,.4,4); glow.position.y=.4; grp.add(glow);
   } else if(typeKey==='obsidian'){
     for(let j=0;j<3;j++){
       const c=new THREE.Mesh(new THREE.DodecahedronGeometry(rand(.5,.9),0),
@@ -1043,12 +1043,10 @@ function makeMineral(typeKey){
       c.position.set(rand(-.6,.6),rand(.2,.8),rand(-.6,.6));
       c.rotation.set(rand(-.4,.4),rand(0,3),rand(-.4,.4)); grp.add(c);
     }
-    const glowTC=new THREE.PointLight(0xff4400,.6,5); glowTC.position.y=.5; grp.add(glowTC);
   } else if(typeKey==='voidstone'){
     const rock2=new THREE.Mesh(new THREE.IcosahedronGeometry(.8,0),
       new THREE.MeshStandardMaterial({color:0x1a0a2a,emissive:0x2a0a4a,emissiveIntensity:1,roughness:.4,metalness:.7}));
     grp.add(rock2);
-    const glowVS=new THREE.PointLight(0x2a0a4a,.3,4); glowVS.position.y=.4; grp.add(glowVS);
   } else if(typeKey==='pressureGel'){
     const blob=new THREE.Mesh(new THREE.SphereGeometry(rand(.5,.8),10,8),
       new THREE.MeshStandardMaterial({color:0x22aaaa,transparent:true,opacity:.7,roughness:.3,metalness:.1}));
@@ -1063,7 +1061,6 @@ function makeMineral(typeKey){
     const bm=new THREE.Mesh(new THREE.DodecahedronGeometry(rand(.6,.9),0),
       new THREE.MeshStandardMaterial({color:0x2a6a2a,emissive:0x1a4a1a,emissiveIntensity:.8,roughness:.6,metalness:.5}));
     grp.add(bm);
-    const glowBM=new THREE.PointLight(0x1a4a1a,.3,4); glowBM.position.y=.4; grp.add(glowBM);
   }
   const node={grp,type:typeKey,hp:100,max:100,dead:false,respawn:0};
   grp.children.forEach(c=>{ c.userData.node=node; mineralMeshes.push(c); });
@@ -2364,7 +2361,6 @@ let vehicleBuilt=false, inVehicle=false, vehicleO2=100;
       color:0xffffff,emissive:0xffeedd,emissiveIntensity:3}));
     vl.position.set(sx*.8,0,2.2); vehicleGroup.add(vl);
   }
-  const vehLight=new THREE.PointLight(0xddeeff,3,25); vehLight.position.z=2.5; vehicleGroup.add(vehLight);
   vehicleGroup.position.set(5,-8,25); vehicleGroup.visible=false; scene.add(vehicleGroup);
 }
 
@@ -2379,7 +2375,6 @@ for(let i=0;i<36;i++){
   const f=makeFish(rand(.6,.9),peeperTex,0xffcc44);
   const cx=rand(-160,160),cz=rand(-160,160);
   f.userData.a={c:V3(cx,clamp(terrainHeight(cx,cz)+rand(5,12),-45,-5),cz),r:rand(4,10),w:rand(.4,.8)*(Math.random()<.5?-1:1),ph:rand(0,9),alive:true,respawn:0};
-  const glowL=new THREE.PointLight(0xffaa22,.8,6); glowL.position.z=.3; f.add(glowL);
   scene.add(f); peepers.push(f);
 }
 const boomerangs=[];
@@ -2429,7 +2424,6 @@ for(let i=0;i<12;i++){
   // Add glowing lure
   const lure=new THREE.Mesh(new THREE.SphereGeometry(.3,6,6),new THREE.MeshStandardMaterial({color:0x44aaff,emissive:0x44aaff,emissiveIntensity:1.0}));
   lure.position.set(0,.5,2); f.add(lure);
-  const lureLight=new THREE.PointLight(0x44aaff,.8,8); lureLight.position.copy(lure.position); f.add(lureLight);
   scene.add(f); anglerfish.push(f);
 }
 
@@ -2509,7 +2503,6 @@ for(let i=0;i<5&&dtAttempts<200;dtAttempts++){
   pillar.position.y=1.15; grp.add(pillar);
   const scr=new THREE.Mesh(new THREE.BoxGeometry(.8,.6,.1),new THREE.MeshStandardMaterial({color:0x00ffaa,emissive:0x00ffaa,emissiveIntensity:1.0}));
   scr.position.y=2; grp.add(scr);
-  const gl=new THREE.PointLight(0x00ffaa,1.5,12); gl.position.y=2; grp.add(gl);
   grp.position.set(x,ty,z); grp.userData={kind:'terminal',collected:false};
   scene.add(grp); dataTerminals.push(grp); i++;
 }}
@@ -2523,7 +2516,6 @@ for(let i=0;i<8;i++){
   pod.rotation.set(rand(-.5,.5),rand(0,3),rand(-.3,.3)); pod.position.y=1.5; grp.add(pod);
   const light=new THREE.Mesh(new THREE.SphereGeometry(.2,8,6),new THREE.MeshStandardMaterial({color:0xff8800,emissive:0xff6600,emissiveIntensity:2}));
   light.position.set(0,3,0); grp.add(light);
-  const gl=new THREE.PointLight(0xff8800,.8,10); gl.position.y=3; grp.add(gl);
   grp.userData={kind:'escapePod',collected:false};
   scene.add(grp); escapePods.push(grp);
 }
@@ -2543,7 +2535,6 @@ for(let i=0;i<3;i++){
     ring.position.y=3+j*3; ring.rotation.x=Math.PI/2; grp.add(ring);
   }
   const orb=new THREE.Mesh(new THREE.OctahedronGeometry(.8,1),glowMat2); orb.position.y=13; grp.add(orb);
-  const gl=new THREE.PointLight(0x00ffaa,2,20); gl.position.y=13; grp.add(gl);
   grp.userData={kind:'alienTower',activated:false};
   scene.add(grp); alienTowers.push(grp);
 }
@@ -2558,7 +2549,6 @@ const signalBeacon=(()=>{
   pole.position.y=1.7; grp.add(pole);
   const orb=new THREE.Mesh(new THREE.SphereGeometry(.4,12,10),new THREE.MeshStandardMaterial({color:0xff4400,emissive:0xff4400,emissiveIntensity:1.0}));
   orb.position.y=3.4; grp.add(orb);
-  const li=new THREE.PointLight(0xff4400,2,20); li.position.y=3.4; grp.add(li);
   let bx,bz,by,att=0; do{ bx=rand(-180,180); bz=rand(-180,180); by=terrainHeight(bx,bz); att++; }while(by>-30&&att<500);
   if(by>-30) by=-35;
   grp.position.set(bx,by,bz); grp.userData={kind:'beacon'};
@@ -2571,13 +2561,13 @@ const signalBeacon=(()=>{
 {
   const sby=terrainHeight(8,22);
   const sf=buildModule('foundation',false);
-  sf.position.set(8,sby,22); scene.add(sf);
+  sf.position.set(8,sby,22); sf.userData.placed=true; scene.add(sf);
   placed.push({id:'foundation',x:8,y:sby,z:22,rot:0,grp:sf});
   const tg2=new THREE.PlaneGeometry(6,6); tg2.rotateX(-Math.PI/2);
   const top2=new THREE.Mesh(tg2,new THREE.MeshBasicMaterial({visible:false}));
   top2.position.set(8,sby+.43,22); scene.add(top2); foundationTops.push(top2);
   const sr=buildModule('room',false);
-  sr.position.set(8,sby+.43,22); scene.add(sr);
+  sr.position.set(8,sby+.43,22); sr.userData.placed=true; scene.add(sr);
   placed.push({id:'room',x:8,y:sby+.43,z:22,rot:0,grp:sr});
 }
 
@@ -2686,7 +2676,6 @@ const fireCorals=[];
     chimney.position.y=chimney.geometry.parameters.height/2; grp.add(chimney);
     const lavaPool=new THREE.Mesh(new THREE.CylinderGeometry(rand(.4,.8),.1,.2,8),lavaMat);
     lavaPool.position.y=chimney.geometry.parameters.height+.1; grp.add(lavaPool);
-    const gl=new THREE.PointLight(0xff4400,1.5,12); gl.position.y=chimney.geometry.parameters.height; grp.add(gl);
     // heat-resistant tube worms
     for(let j=0;j<4;j++){
       const worm=new THREE.Mesh(new THREE.CylinderGeometry(.03,.05,rand(1,2.5),5),heatPlantMat);
@@ -2702,7 +2691,6 @@ const fireCorals=[];
     const crack=new THREE.Mesh(new THREE.BoxGeometry(rand(.1,.3),.05,rand(4,12)),lavaMat);
     crack.position.set(x,y+.1,z); crack.rotation.y=rand(0,Math.PI);
     scene.add(crack);
-    const gl=new THREE.PointLight(0xff3300,.6,6); gl.position.set(x,y+.3,z); scene.add(gl);
   }
 
   // CRYSTAL CAVES — reflective crystals, refracted lighting
@@ -2719,8 +2707,6 @@ const fireCorals=[];
       crystal.position.set(rand(-2,2),h/2,rand(-2,2));
       crystal.rotation.set(rand(-.3,.3),rand(0,3),rand(-.3,.3)); grp.add(crystal);
     }
-    const gl=new THREE.PointLight(Math.random()>.5?0x8866ff:0x44ddff,1,10);
-    gl.position.y=3; grp.add(gl);
     scene.add(grp);
   }
 
@@ -2740,7 +2726,6 @@ const fireCorals=[];
       const leaf=new THREE.Mesh(new THREE.SphereGeometry(leafR,8,6),abyssPlantMat);
       leaf.scale.y=.3; leaf.position.set(rand(-3,3),trunkH+rand(-2,3),rand(-3,3)); grp.add(leaf);
     }
-    const gl=new THREE.PointLight(0x00ff66,1.5,20); gl.position.y=trunkH; grp.add(gl);
     scene.add(grp);
   }
   // Abyss giant flower structures — massive, ancient, event-like
@@ -2770,9 +2755,6 @@ const fireCorals=[];
       orb.userData.orbitAngle=k*(Math.PI*2/6);orb.userData.orbitR=rand(4,7);orb.userData.orbitSpeed=rand(.5,1.2);orb.userData.orbitY=stemH;
       grp.add(orb);
     }
-    const gl=new THREE.PointLight(0xff22aa,3,30); gl.position.y=stemH; grp.add(gl);
-    const traitLight=new THREE.PointLight(0x44ffaa,1.5,15);
-    traitLight.position.set(0,stemH+3,0); grp.add(traitLight);
     grp.userData={kind:'giantFlower',flowerMat:flowerMat,coreMat:coreMat};
     traitFlowers.push(grp);
     scene.add(grp);
@@ -2981,8 +2963,6 @@ for(let i=0;i<24;i++){
   termPillar.position.y=.7; grp.add(termPillar);
   const termScreen=new THREE.Mesh(new THREE.BoxGeometry(.6,.4,.08),wreckGlow);
   termScreen.position.y=1.4; grp.add(termScreen);
-  const termLight=new THREE.PointLight(0x44ddff,.5,6);
-  termLight.position.y=1.4; grp.add(termLight);
 
   grp.userData={kind:'wreck',idx:i,scanned:false,blueprint:blueprintList[i%blueprintList.length]};
   grp.children.forEach(c=>{c.userData.node=grp;});
@@ -3230,20 +3210,20 @@ function animate(){
   }
   if(AC&&ambGain)ambGain.gain.value=insideBase?.1:(underwater?.4:.18);
 
-  /* distance + frustum culling (every 10 frames) */
+  /* distance culling (every 10 frames) — skip bases, fish, lights */
   _cullFrame++;
   if(_cullFrame%10===0){
-    const _cullM=new THREE.Matrix4().multiplyMatrices(camera.projectionMatrix,camera.matrixWorldInverse);
-    const _cullFrustum=new THREE.Frustum(); _cullFrustum.setFromProjectionMatrix(_cullM);
-    const _cullPos=new THREE.Vector3();
     for(let i=0;i<scene.children.length;i++){
       const c=scene.children[i];
       if(!c.isMesh&&!c.isGroup)continue;
       if(c===terrain||c===toolRoot||c===vehicleGroup)continue;
+      // Never cull player buildings, fish, or lights
+      if(c.userData&&(c.userData.placed||c.userData.a||c.userData.isBuilding))continue;
+      if(c.isLight)continue;
+      const _cullPos=new THREE.Vector3();
       _cullPos.setFromMatrixPosition(c.matrixWorld);
       const d=_cullPos.distanceTo(player.position);
-      if(d>250){c.visible=false;continue;}
-      if(c.isMesh){c.visible=_cullFrustum.intersectsObject(c)||d<30;}
+      c.visible=d<300;
     }
   }
 
@@ -3416,6 +3396,7 @@ function animate(){
         const real=buildModule(mod.id,false);
         real.position.copy(ghostMesh.position); real.rotation.y=ghostMesh.rotation.y;
         scene.add(real);
+        real.userData.placed=true;
         placed.push({id:mod.id,x:ghostMesh.position.x,y:ghostMesh.position.y,z:ghostMesh.position.z,rot:ghostMesh.rotation.y,grp:real});
         if(mod.id==='foundation'){
           const tg=new THREE.PlaneGeometry(6,6); tg.rotateX(-Math.PI/2);
@@ -3728,6 +3709,26 @@ function animate(){
     } else { wp.style.display='none'; }
   }
 
+  // Base waypoint
+  if(started&&!paused&&placed.length>0){
+    const bw=$('baseWaypoint');
+    const firstBase=placed[0];
+    const bpos=new THREE.Vector3(firstBase.x,firstBase.y+3,firstBase.z);
+    const bp=bpos.clone().project(camera);
+    let bsx=(bp.x+1)/2*window.innerWidth;
+    let bsy=(-bp.y+1)/2*window.innerHeight;
+    if(bp.z>1){bsx=window.innerWidth-bsx;bsy=window.innerHeight-bsy;}
+    bsx=Math.max(30,Math.min(window.innerWidth-30,bsx));
+    bsy=Math.max(30,Math.min(window.innerHeight-60,bsy));
+    const bdist=camWorld.distanceTo(bpos);
+    if(bdist>15){
+      bw.style.display='flex';
+      bw.style.left=bsx+'px';bw.style.top=bsy+'px';
+      bw.style.transform='translate(-50%,-50%)';
+      bw.querySelector('.bwdist').textContent=Math.round(bdist)+'M';
+    } else { bw.style.display='none'; }
+  } else if($('baseWaypoint')) $('baseWaypoint').style.display='none';
+
   /* screen shake */
   if(hurtFlash>.2){ camera.position.x+=rand(-.03,.03)*hurtFlash; camera.position.y+=rand(-.03,.03)*hurtFlash; }
 
@@ -3783,5 +3784,6 @@ setTimeout(()=>$('fade').style.opacity=0,9500);
 </script>
 <div id="bubbleTransition"></div>
 <div id="waypoint"><div class="diamond"></div><div class="wdist"></div><div class="wname"></div></div>
+<div id="baseWaypoint"><div class="diamond"></div><div class="bwdist"></div><div class="bwname">BASE</div></div>
 </body>
 </html>
