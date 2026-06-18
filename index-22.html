@@ -1935,6 +1935,12 @@ const crabsquids=[];
    ============================================================ */
 let scanning=false,scanTarget=null,scanProgress=0;
 const scannedSet=new Set();
+const scanBeamMat=new THREE.MeshBasicMaterial({color:0x44ffaa,transparent:true,opacity:.4,blending:THREE.AdditiveBlending,depthWrite:false});
+const scanBeamGeo=new THREE.CylinderGeometry(.02,.04,1,6,1,true);
+scanBeamGeo.translate(0,.5,0); scanBeamGeo.rotateX(Math.PI/2);
+const scanBeam=new THREE.Mesh(scanBeamGeo,scanBeamMat); scanBeam.visible=false; scene.add(scanBeam);
+const scanRing=new THREE.Mesh(new THREE.TorusGeometry(.8,.03,8,24),new THREE.MeshBasicMaterial({color:0x44ffaa,transparent:true,opacity:.5,blending:THREE.AdditiveBlending,depthWrite:false}));
+scanRing.visible=false; scene.add(scanRing);
 
 /* ============================================================
    DATA TERMINALS
@@ -2045,30 +2051,43 @@ const fireCorals=[];
 /* wrecks for scanning blueprints */
 const wrecks=[];
 const wreckMat=new THREE.MeshStandardMaterial({color:0x3a4a52,roughness:.8,metalness:.4});
-const rustMat=new THREE.MeshStandardMaterial({color:0x6a3a28,roughness:.9,metalness:.2,emissive:0x1a0a04,emissiveIntensity:.1});
+const rustMat=new THREE.MeshStandardMaterial({color:0x6a3a28,roughness:.9,metalness:.2});
+const wreckGlow=new THREE.MeshStandardMaterial({color:0x44ddff,emissive:0x22aadd,emissiveIntensity:1.5});
 for(let i=0;i<12;i++){
-  const x=rand(-700,700),z=rand(-700,700),y=terrainHeight(x,z);
+  const x=rand(-650,650),z=rand(-650,650),y=terrainHeight(x,z);
   const grp=new THREE.Group(); grp.position.set(x,y,z);
-  // hull fragment
-  const hull=new THREE.Mesh(new THREE.BoxGeometry(rand(4,8),rand(2,4),rand(3,6)),wreckMat);
-  hull.rotation.set(rand(-.4,.4),rand(0,3),rand(-.3,.3)); hull.position.y=1.5; grp.add(hull);
-  // torn panels
-  for(let j=0;j<3+Math.floor(Math.random()*4);j++){
-    const panel=new THREE.Mesh(new THREE.BoxGeometry(rand(1,3),rand(.8,2),rand(.05,.15)),rustMat);
-    panel.position.set(rand(-4,4),rand(.5,3),rand(-4,4));
-    panel.rotation.set(rand(-1,1),rand(0,3),rand(-1,1)); grp.add(panel);
+  const size=rand(1,1.8);
+  const hull=new THREE.Mesh(new THREE.CylinderGeometry(3*size,3.5*size,12*size,12,1,true),wreckMat);
+  hull.rotation.set(rand(-.3,.3),rand(0,3),rand(-.2,.2)+Math.PI/2);
+  hull.position.y=3*size; grp.add(hull);
+  const cap=new THREE.Mesh(new THREE.SphereGeometry(3*size,12,8,0,Math.PI*2,0,Math.PI/2),wreckMat);
+  cap.rotation.x=-Math.PI/2; cap.position.set(6*size*Math.cos(hull.rotation.y),3*size,6*size*Math.sin(hull.rotation.y)); grp.add(cap);
+  for(let j=0;j<5;j++){
+    const rib=new THREE.Mesh(new THREE.TorusGeometry(3.2*size,.12,6,16,Math.PI*1.5),wreckMat);
+    rib.position.set((-4+j*2)*size,3*size,0); rib.rotation.y=hull.rotation.y;
+    grp.add(rib);
   }
-  // pipes
-  for(let j=0;j<2;j++){
-    const pipe=new THREE.Mesh(new THREE.CylinderGeometry(.08,.08,rand(2,5),6),wreckMat);
-    pipe.position.set(rand(-3,3),rand(.3,2),rand(-3,3));
+  for(let j=0;j<6;j++){
+    const plate=new THREE.Mesh(new THREE.BoxGeometry(rand(2,5)*size,rand(.08,.15),rand(1.5,4)*size),rustMat);
+    plate.position.set(rand(-6,6)*size,rand(.3,5)*size,rand(-5,5)*size);
+    plate.rotation.set(rand(-.8,.8),rand(0,3),rand(-.5,.5)); grp.add(plate);
+  }
+  for(let j=0;j<4;j++){
+    const pipe=new THREE.Mesh(new THREE.CylinderGeometry(.1,.1,rand(3,8)*size,6),wreckMat);
+    pipe.position.set(rand(-4,4)*size,rand(.5,4)*size,rand(-4,4)*size);
     pipe.rotation.set(rand(-1,1),0,rand(-1,1)); grp.add(pipe);
   }
-  // scannable data box (glowing)
-  const dataBox=new THREE.Mesh(new THREE.BoxGeometry(.6,.4,.6),new THREE.MeshStandardMaterial({
-    color:0x44ddff,emissive:0x22aadd,emissiveIntensity:1.5}));
-  dataBox.position.set(rand(-2,2),1.2,rand(-2,2)); grp.add(dataBox);
-  const boxLight=new THREE.PointLight(0x44ddff,.8,8); boxLight.position.copy(dataBox.position); grp.add(boxLight);
+  const engine=new THREE.Mesh(new THREE.BoxGeometry(2.5*size,2*size,3*size),
+    new THREE.MeshStandardMaterial({color:0x2a3a44,roughness:.6,metalness:.7}));
+  engine.position.set(rand(-3,3)*size,1.5*size,rand(-3,3)*size); engine.rotation.y=rand(0,3); grp.add(engine);
+  const termBase=new THREE.Mesh(new THREE.CylinderGeometry(.4,.5,.3,8),
+    new THREE.MeshStandardMaterial({color:0x334455,roughness:.5,metalness:.6}));
+  termBase.position.set(rand(-2,2)*size,1,rand(-2,2)*size); grp.add(termBase);
+  const termPillar=new THREE.Mesh(new THREE.CylinderGeometry(.12,.12,1.5,6),wreckMat);
+  termPillar.position.copy(termBase.position); termPillar.position.y+=1; grp.add(termPillar);
+  const termScreen=new THREE.Mesh(new THREE.BoxGeometry(.7,.5,.08),wreckGlow);
+  termScreen.position.copy(termBase.position); termScreen.position.y+=1.9; grp.add(termScreen);
+  const termLight=new THREE.PointLight(0x44ddff,.6,10); termLight.position.copy(termScreen.position); grp.add(termLight);
   grp.userData={kind:'wreck',scanned:false,blueprint:['advancedTank','reinforcedSuit','ultraFins','seamothUpgrade','laserCutter','propulsionCannon','stasisRifle','cyclops','prawnSuit','habitatBuilder','gravitySphere','thermalReactor'][i%12]};
   scene.add(grp); wrecks.push(grp);
 }
@@ -2370,6 +2389,25 @@ function animate(){
     if(hit){
       ghostMesh.visible=true;
       ghostMesh.position.copy(hit.point); ghostMesh.rotation.y=modRot;
+      // snap corridors to room doors
+      if(mod.id==='corridor'){
+        for(const b of placed){
+          if(b.id==='room'){
+            const doorPos=new THREE.Vector3(b.x-Math.sin(b.rot)*4,b.y+.1,b.z-Math.cos(b.rot)*4);
+            if(hit.point.distanceTo(doorPos)<5){
+              ghostMesh.position.copy(doorPos); ghostMesh.rotation.y=b.rot; modRot=b.rot; break;
+            }
+          }
+          if(b.id==='corridor'){
+            for(const end of [-1,1]){
+              const endPos=new THREE.Vector3(b.x+Math.sin(b.rot)*3*end,b.y,b.z+Math.cos(b.rot)*3*end);
+              if(hit.point.distanceTo(endPos)<4){
+                ghostMesh.position.copy(endPos); ghostMesh.rotation.y=b.rot; modRot=b.rot; break;
+              }
+            }
+          }
+        }
+      }
       const ok=canAfford(mod.cost)&&hit.distance>3.2;
       ghostMatG.color.set(ok?0x6fff9a:0xff5d6c);
       prompt=ok?'':(canAfford(mod.cost)?'TOO CLOSE':'INSUFFICIENT MATERIALS — '+costStr(mod.cost));
@@ -2458,6 +2496,8 @@ function animate(){
       const fishMeshes=[];
       allFish.forEach(f=>{ if(f.visible) f.traverse(c=>{ if(c.isMesh)fishMeshes.push(c); }); });
       const sh=raycaster.intersectObjects(fishMeshes,false)[0];
+      let scanHitPos=null;
+      if(sh){ scanHitPos=sh.point; }
       if(sh){
         scanProgress+=dt*33;
         if(scanProgress>=100){
@@ -2469,11 +2509,12 @@ function animate(){
         }
       } else {
         const mh=raycaster.intersectObjects(mineralMeshes,false)[0];
-        if(mh&&mh.object.userData.node){ scanProgress+=dt*50; if(scanProgress>=100){ const n=mh.object.userData.node; toast('SCANNED: '+MIN_TYPES[n.type].label+' NODE'); blip(880,.15,'sine',.1); scanProgress=0; } }
+        if(mh&&mh.object.userData.node){ scanHitPos=mh.point; scanProgress+=dt*50; if(scanProgress>=100){ const n=mh.object.userData.node; toast('SCANNED: '+MIN_TYPES[n.type].label+' NODE'); blip(880,.15,'sine',.1); scanProgress=0; } }
         else {
           let wreckScanned=false;
           for(const w of wrecks){
             if(!w.userData.scanned && camWorld.distanceTo(w.position)<8){
+              scanHitPos=w.position.clone(); scanHitPos.y+=2;
               scanProgress+=dt*25;
               if(scanProgress>=100){
                 w.userData.scanned=true;
@@ -2489,8 +2530,16 @@ function animate(){
           if(!wreckScanned) scanProgress=Math.max(0,scanProgress-dt*60);
         }
       }
-    } else scanProgress=Math.max(0,scanProgress-dt*80);
-  } else { if($('scanOverlay'))$('scanOverlay').style.opacity=0; }
+      if(scanHitPos){
+        scanBeam.visible=true;
+        const scanTip=new THREE.Vector3(); camera.getWorldPosition(scanTip); scanTip.add(camDir.clone().multiplyScalar(.5));
+        scanBeam.position.copy(scanTip); scanBeam.lookAt(scanHitPos); scanBeam.scale.z=scanTip.distanceTo(scanHitPos);
+        scanRing.visible=true; scanRing.position.copy(scanHitPos);
+        scanRing.rotation.set(Math.random()*.2,Math.random()*.2,t*3);
+        scanRing.scale.setScalar(.5+scanProgress/100*1.5);
+      } else { scanBeam.visible=false; scanRing.visible=false; }
+    } else { scanProgress=Math.max(0,scanProgress-dt*80); scanBeam.visible=false; scanRing.visible=false; }
+  } else { if($('scanOverlay'))$('scanOverlay').style.opacity=0; scanBeam.visible=false; scanRing.visible=false; }
 
   /* knife */
   if(started&&!paused&&curTool===5&&mouseDown){
@@ -2551,46 +2600,51 @@ function animate(){
   composer.render();
 }
 // Opening cinematic
+let cinSkipped=false;
+window.skipCinematic=function(){
+  if(cinSkipped)return; cinSkipped=true;
+  const cin=$('cinematic'); if(!cin)return;
+  cin.style.transition='opacity .5s'; cin.style.opacity=0;
+  setTimeout(()=>cin.style.display='none',600);
+  $('fade').style.transition='opacity 1s'; $('fade').style.opacity=0;
+};
 function playCinematic(){
-  const cin=$('cinematic');
-  if(!cin)return;
-  const wc=$('cinWater'), wctx=wc.getContext('2d');
+  const cin=$('cinematic'); if(!cin)return;
+  const wc=$('cinWater'),wctx=wc.getContext('2d');
   wc.width=innerWidth; wc.height=innerHeight;
   let wt=0;
   function drawWater(){
-    wt+=.02;
-    wctx.fillStyle='rgba(0,8,16,.15)';
+    if(cinSkipped)return;
+    wt+=.016;
+    wctx.fillStyle='rgba(0,4,10,.12)';
     wctx.fillRect(0,0,wc.width,wc.height);
-    for(let i=0;i<8;i++){
-      const y=wc.height*.3+Math.sin(wt+i*.8)*40+i*25;
-      wctx.strokeStyle=`rgba(127,233,255,${.08-i*.008})`;
-      wctx.lineWidth=2;
+    for(let i=0;i<12;i++){
+      const y=wc.height*.25+Math.sin(wt*.8+i*.6)*50+i*30;
+      const g=wctx.createLinearGradient(0,y-20,0,y+20);
+      g.addColorStop(0,'rgba(127,233,255,0)');g.addColorStop(.5,`rgba(127,233,255,${.06-i*.004})`);g.addColorStop(1,'rgba(127,233,255,0)');
+      wctx.strokeStyle=g; wctx.lineWidth=1.5;
       wctx.beginPath();
-      for(let x=0;x<wc.width;x+=4){
-        wctx.lineTo(x,y+Math.sin(x*.008+wt+i)*20+Math.sin(x*.015-wt*1.3)*10);
-      }
+      for(let x=0;x<wc.width;x+=3)wctx.lineTo(x,y+Math.sin(x*.006+wt+i)*25+Math.sin(x*.015-wt*1.5)*12);
       wctx.stroke();
     }
-    for(let i=0;i<3;i++){
-      const px=Math.random()*wc.width, py=Math.random()*wc.height;
-      wctx.fillStyle=`rgba(127,233,255,${Math.random()*.3})`;
-      wctx.fillRect(px,py,2,2);
+    for(let i=0;i<5;i++){
+      wctx.fillStyle=`rgba(127,233,255,${Math.random()*.15})`;
+      wctx.beginPath(); wctx.arc(Math.random()*wc.width,Math.random()*wc.height,Math.random()*2+.5,0,Math.PI*2); wctx.fill();
     }
+    requestAnimationFrame(drawWater);
   }
-  const waterInt=setInterval(drawWater,33);
-  setTimeout(()=>$('cinStudio').style.opacity=1,500);
-  setTimeout(()=>$('cinStudio').style.opacity=0,3000);
-  setTimeout(()=>{$('cinTitle').style.opacity=1;$('cinWater').style.opacity=.3;},3500);
-  setTimeout(()=>$('cinSub').style.opacity=1,4500);
-  setTimeout(()=>{
-    cin.style.transition='opacity 2s';
-    cin.style.opacity=0;
-    setTimeout(()=>{cin.style.display='none';clearInterval(waterInt);},2200);
-  },7000);
+  drawWater();
+  setTimeout(()=>{$('cinSkip').style.opacity=1},800);
+  setTimeout(()=>{$('cinStudio').style.color='rgba(127,233,255,.7)'},1000);
+  setTimeout(()=>{$('cinYear').style.color='rgba(127,233,255,.4)'},1800);
+  setTimeout(()=>{$('cinStudio').style.color='rgba(127,233,255,0)';$('cinYear').style.color='rgba(127,233,255,0)'},4000);
+  setTimeout(()=>{$('cinWater').style.opacity='.25';$('cinTitle').style.color='#eaffff';$('cinTitle').style.textShadow='0 0 60px rgba(127,233,255,.9),0 0 160px rgba(40,150,210,.5)'},4800);
+  setTimeout(()=>{$('cinSub').style.color='rgba(127,233,255,.6)'},6000);
+  setTimeout(()=>{if(!cinSkipped){cin.style.transition='opacity 2.5s';cin.style.opacity=0;setTimeout(()=>cin.style.display='none',2600);}},9000);
 }
 playCinematic();
 animate();
-setTimeout(()=>$('fade').style.opacity=0,7500);
+setTimeout(()=>$('fade').style.opacity=0,9500);
 </script>
 </body>
 </html>
