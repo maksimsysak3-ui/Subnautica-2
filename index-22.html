@@ -543,8 +543,8 @@ function terrainHeight(x,z){
   const ridges=Math.abs(Math.sin(x*.008+z*.012))*22*(1-Math.exp(-dist*.003));
   const plateaus=Math.max(0,fbm(x*.006+5,z*.006+3)-.3)*70;
   const valleys=Math.min(0,fbm(x*.004-2,z*.004+8)-.55)*100;
-  const detail=fbm(x*.012+7.3,z*.012+2.1)*14+vnoise(x*.08,z*.08)*4;
-  const dunes=Math.sin(x*.02+Math.sin(z*.015)*3)*5;
+  const detail=fbm(x*.012+7.3,z*.012+2.1)*18+vnoise(x*.08,z*.08)*6+fbm(x*.03+1.1,z*.03+4.4)*8;
+  const dunes=Math.sin(x*.02+Math.sin(z*.015)*3)*8;
   const trench=(vnoise(x*.003,z*.003)>.68)?-90:0;
   // Canyon systems - deep cuts through terrain
   const canyonNoise=Math.abs(Math.sin(x*.005+2.1)*Math.cos(z*.007+1.3));
@@ -564,7 +564,7 @@ function terrainHeight(x,z){
 }
 function smoothstep(edge0,edge1,x){const t=clamp((x-edge0)/(edge1-edge0),0,1);return t*t*(3-2*t);}
 const terrain=(()=>{
-  const g=new THREE.PlaneGeometry(2000,2000,200,200); g.rotateX(-Math.PI/2);
+  const g=new THREE.PlaneGeometry(2000,2000,280,280); g.rotateX(-Math.PI/2);
   const pos=g.attributes.position, colors=[];
   const cDeep=new THREE.Color(0x0e2c38),cMid=new THREE.Color(0x2f5e52),cSand=new THREE.Color(0xb39d6f),cRed=new THREE.Color(0x6e4a3e);
   for(let i=0;i<pos.count;i++){
@@ -640,26 +640,7 @@ const terrain=(()=>{
   const mesh=new THREE.Mesh(g,m); scene.add(mesh);
 }
 
-/* ---------------- god rays ---------------- */
-const rayGroup=(()=>{
-  const tex=ctex(64,256,(g)=>{
-    const gr=g.createLinearGradient(0,0,0,256);
-    gr.addColorStop(0,'rgba(200,240,255,0.9)'); gr.addColorStop(.45,'rgba(150,215,250,0.28)'); gr.addColorStop(1,'rgba(120,200,240,0)');
-    g.fillStyle=gr; g.fillRect(0,0,64,256);
-  });
-  const grp=new THREE.Group();
-  for(let i=0;i<18;i++){
-    const m=new THREE.MeshBasicMaterial({map:tex,transparent:true,depthWrite:false,
-      blending:THREE.AdditiveBlending,side:THREE.DoubleSide,opacity:rand(.02,.05)});
-    const p=new THREE.Mesh(new THREE.PlaneGeometry(rand(7,32),140),m);
-    const a=rand(0,Math.PI*2), r=rand(12,90);
-    p.position.set(Math.cos(a)*r,-30,Math.sin(a)*r);
-    p.rotation.y=rand(0,Math.PI); p.rotation.z=rand(-.14,-.05);
-    p.userData={base:m.opacity,ph:rand(0,9)};
-    grp.add(p);
-  }
-  scene.add(grp); return grp;
-})();
+/* god rays removed — ambient light only */
 
 /* ---------------- particles : marine snow + plankton ---------------- */
 const SNOW_N=900,SNOW_R=42;
@@ -730,9 +711,9 @@ const fanMat=addSway(new THREE.MeshStandardMaterial({map:fanTex,transparent:true
     scene.add(k);
   }
   // sea fans
-  for(let i=0;i<350;i++){
+  for(let i=0;i<600;i++){
     const x=rand(-800,800),z=rand(-800,800),y=terrainHeight(x,z);
-    const s=rand(2,4.6);
+    const s=rand(4,9);
     const f=new THREE.Mesh(new THREE.PlaneGeometry(s,s,1,4),fanMat);
     f.geometry=f.geometry.clone(); f.geometry.translate(0,s/2,0);
     f.position.set(x,y-.1,z); f.rotation.y=rand(0,Math.PI);
@@ -740,17 +721,17 @@ const fanMat=addSway(new THREE.MeshStandardMaterial({map:fanTex,transparent:true
   }
   // tube coral clusters
   const tubeCols=[0xff8c5a,0xd45a9e,0x46c8b4,0xe8c45a];
-  for(let i=0;i<250;i++){
+  for(let i=0;i<600;i++){
     const x=rand(-800,800),z=rand(-800,800),y=terrainHeight(x,z);
     if(y<-200)continue;
     const grp=new THREE.Group(); grp.position.set(x,y,z);
     const col=tubeCols[i%tubeCols.length];
     const mat=new THREE.MeshStandardMaterial({color:col,roughness:.75,emissive:col,emissiveIntensity:.12});
     const rim=new THREE.MeshStandardMaterial({color:0x21353a,roughness:.9});
-    for(let j=0;j<3+Math.floor(Math.random()*5);j++){
-      const th=rand(.7,2.4),tr=rand(.16,.34);
-      const tube=new THREE.Mesh(new THREE.CylinderGeometry(tr,tr*.7,th,8,1,true),mat);
-      tube.position.set(rand(-.9,.9),th/2,rand(-.9,.9));
+    for(let j=0;j<5+Math.floor(Math.random()*8);j++){
+      const th=rand(2,6),tr=rand(.3,.7);
+      const tube=new THREE.Mesh(new THREE.CylinderGeometry(tr,tr*.5,th,8,1,true),mat);
+      tube.position.set(rand(-2,2),th/2,rand(-2,2));
       tube.rotation.set(rand(-.2,.2),0,rand(-.2,.2));
       grp.add(tube);
       const ring=new THREE.Mesh(new THREE.TorusGeometry(tr,.045,6,12),rim);
@@ -761,16 +742,16 @@ const fanMat=addSway(new THREE.MeshStandardMaterial({map:fanTex,transparent:true
   }
   // brain corals
   const brainMat=new THREE.MeshStandardMaterial({color:0xc9a05e,roughness:1});
-  for(let i=0;i<200;i++){
+  for(let i=0;i<500;i++){
     const x=rand(-800,800),z=rand(-800,800),y=terrainHeight(x,z);
-    const b=new THREE.Mesh(new THREE.IcosahedronGeometry(rand(.7,2.8),1),brainMat);
+    const b=new THREE.Mesh(new THREE.IcosahedronGeometry(rand(1.5,6),1),brainMat);
     b.scale.y=rand(.5,.7); b.position.set(x,y+.15,z);
     b.rotation.set(rand(0,3),rand(0,3),0);
     scene.add(b);
   }
   // glowing anemones (deep)
   const anemMat=new THREE.MeshStandardMaterial({color:0x6fe8ff,emissive:0x2fc8e8,emissiveIntensity:1.0,roughness:.6});
-  for(let i=0;i<300;i++){
+  for(let i=0;i<500;i++){
     const x=rand(-800,800),z=rand(-800,800),y=terrainHeight(x,z);
     if(y>-26)continue;
     const grp=new THREE.Group(); grp.position.set(x,y,z);
@@ -922,8 +903,8 @@ function makeMineral(typeKey){
   grp.children.forEach(c=>{ c.userData.node=node; mineralMeshes.push(c); });
   scene.add(grp); minerals.push(node);
 }
-const spread=['titanium','titanium','titanium','copper','copper','copper','quartz','quartz','quartz','gold','gold','silver','silver','diamond','lead','lead','lithium','lithium','magnetite','magnetite'];
-for(let i=0;i<200;i++)makeMineral(spread[i%spread.length]);
+const spread=['titanium','titanium','titanium','titanium','copper','copper','copper','copper','quartz','quartz','quartz','quartz','gold','gold','gold','silver','silver','silver','diamond','diamond','lead','lead','lead','lithium','lithium','lithium','magnetite','magnetite','magnetite'];
+for(let i=0;i<500;i++)makeMineral(spread[i%spread.length]);
 
 /* bubble vents */
 const vents=[];
@@ -2197,12 +2178,12 @@ const signalBeacon=(()=>{
 const fireCorals=[];
 {
   const branchMat2=new THREE.MeshStandardMaterial({color:0xff6688,roughness:.6,emissive:0x881133,emissiveIntensity:.4});
-  for(let i=0;i<180;i++){
+  for(let i=0;i<400;i++){
     const x=rand(-800,800),z=rand(-800,800),y=terrainHeight(x,z);
     if(y<-200)continue;
     const grp=new THREE.Group(); grp.position.set(x,y,z);
-    const th=rand(1.5,3);
-    const trunk=new THREE.Mesh(new THREE.CylinderGeometry(.08,.15,th,6),branchMat2);
+    const th=rand(3,7);
+    const trunk=new THREE.Mesh(new THREE.CylinderGeometry(.15,.3,th,6),branchMat2);
     trunk.position.y=th/2; grp.add(trunk);
     for(let j=0;j<4+Math.floor(Math.random()*4);j++){
       const bh=rand(.8,1.8);
@@ -2213,20 +2194,20 @@ const fireCorals=[];
     scene.add(grp);
   }
   const plateMat2=new THREE.MeshStandardMaterial({color:0x44bbaa,roughness:.5,emissive:0x117766,emissiveIntensity:.3,side:THREE.DoubleSide});
-  for(let i=0;i<60;i++){
+  for(let i=0;i<200;i++){
     const x=rand(-800,800),z=rand(-800,800),y=terrainHeight(x,z);
-    const pl=new THREE.Mesh(new THREE.CylinderGeometry(rand(1,2.5),.2,.15,12),plateMat2);
+    const pl=new THREE.Mesh(new THREE.CylinderGeometry(rand(2,5),.2,.15,12),plateMat2);
     pl.position.set(x,y+.1,z); pl.rotation.set(rand(-.2,.2),rand(0,3),rand(-.2,.2));
     scene.add(pl);
   }
   const mushMat2=new THREE.MeshStandardMaterial({color:0xddaa55,roughness:.7,emissive:0x553311,emissiveIntensity:.2});
-  for(let i=0;i<50;i++){
+  for(let i=0;i<180;i++){
     const x=rand(-800,800),z=rand(-800,800),y=terrainHeight(x,z);
     const grp=new THREE.Group(); grp.position.set(x,y,z);
-    const sh=rand(.8,1.5);
+    const sh=rand(1.5,4);
     const stem=new THREE.Mesh(new THREE.CylinderGeometry(.12,.18,sh,7),mushMat2);
     stem.position.y=sh/2; grp.add(stem);
-    const cap=new THREE.Mesh(new THREE.SphereGeometry(rand(.5,1.2),10,8,0,Math.PI*2,0,Math.PI/2),mushMat2);
+    const cap=new THREE.Mesh(new THREE.SphereGeometry(rand(1,3),10,8,0,Math.PI*2,0,Math.PI/2),mushMat2);
     cap.position.y=sh; cap.scale.y=.5; grp.add(cap);
     scene.add(grp);
   }
@@ -2631,10 +2612,20 @@ function animate(){
   }
   if(AC&&ambGain)ambGain.gain.value=insideBase?.1:(underwater?.4:.18);
 
+  /* distance + frustum culling */
+  const _cullM=new THREE.Matrix4().multiplyMatrices(camera.projectionMatrix,camera.matrixWorldInverse);
+  const _cullFrustum=new THREE.Frustum(); _cullFrustum.setFromProjectionMatrix(_cullM);
+  const _cullPos=new THREE.Vector3();
+  scene.traverse(c=>{
+    if(!c.isMesh&&!c.isGroup)return;
+    if(c===terrain||c.parent===toolRoot||c.parent===vehicleGroup)return;
+    _cullPos.setFromMatrixPosition(c.matrixWorld);
+    const d=_cullPos.distanceTo(player.position);
+    if(d>250){c.visible=false;return;}
+    if(c.isMesh){c.visible=_cullFrustum.intersectsObject(c)||d<30;}
+  });
+
   /* environment animation */
-  rayGroup.position.set(player.position.x,0,player.position.z);
-  rayGroup.rotation.y=t*.012; rayGroup.visible=underwater;
-  rayGroup.children.forEach(p=>{ p.material.opacity=p.userData.base*(0.7+0.3*Math.sin(t*.5+p.userData.ph)); });
 
   for(const [pts,fall] of [[snow,.4],[plankton,.12]]){
     pts.position.copy(player.position); pts.visible=underwater;
