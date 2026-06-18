@@ -532,6 +532,47 @@ function ctex(w,h,fn){
   fn(c.getContext('2d'),w,h);
   const t=new THREE.CanvasTexture(c); t.colorSpace=THREE.SRGBColorSpace; return t;
 }
+/* item icon cache */
+const _iconCache={};
+function getItemIcon(key){
+  if(_iconCache[key])return _iconCache[key];
+  const c=document.createElement('canvas');c.width=64;c.height=64;
+  const g=c.getContext('2d');const cx=32,cy=32;
+  g.beginPath();g.arc(cx,cy,30,0,Math.PI*2);g.fillStyle='rgba(10,30,50,.55)';g.fill();g.strokeStyle='rgba(127,233,255,.25)';g.lineWidth=1.5;g.stroke();
+  const draw={
+    titanium(){g.fillStyle='#b0bec5';g.fillRect(16,22,32,18);g.fillStyle='#cfd8dc';g.fillRect(18,24,28,6);g.fillStyle='rgba(255,255,255,.4)';g.fillRect(20,25,12,3);},
+    copper(){g.fillStyle='#bf6930';g.beginPath();g.moveTo(18,40);g.lineTo(24,20);g.lineTo(40,20);g.lineTo(46,40);g.closePath();g.fill();g.fillStyle='#e8944a';g.fillRect(26,22,12,6);},
+    quartz(){g.fillStyle='rgba(180,230,255,.5)';g.beginPath();g.moveTo(32,10);g.lineTo(44,24);g.lineTo(40,50);g.lineTo(24,50);g.lineTo(20,24);g.closePath();g.fill();g.strokeStyle='rgba(255,255,255,.6)';g.lineWidth=1;g.stroke();g.fillStyle='rgba(255,255,255,.3)';g.beginPath();g.moveTo(30,16);g.lineTo(36,24);g.lineTo(32,34);g.lineTo(28,24);g.closePath();g.fill();},
+    gold(){g.fillStyle='#ffd700';g.fillRect(16,24,32,16);g.fillStyle='#ffec80';g.fillRect(18,26,28,5);g.fillStyle='#fff';g.globalAlpha=.5;g.beginPath();g.arc(38,28,3,0,Math.PI*2);g.fill();g.globalAlpha=1;},
+    silver(){g.fillStyle='#b0b8c0';g.fillRect(18,24,28,16);g.fillStyle='#d0d8e0';g.fillRect(20,26,24,5);},
+    diamond(){g.fillStyle='#88ccff';g.beginPath();g.moveTo(32,8);g.lineTo(48,24);g.lineTo(32,54);g.lineTo(16,24);g.closePath();g.fill();g.strokeStyle='#aaddff';g.lineWidth=1;g.stroke();g.fillStyle='rgba(255,255,255,.25)';g.beginPath();g.moveTo(26,24);g.lineTo(32,16);g.lineTo(38,24);g.lineTo(32,40);g.closePath();g.fill();},
+    lead(){g.fillStyle='#3a3a4a';g.fillRect(16,20,32,24);g.fillStyle='#4a4a5a';g.fillRect(18,22,28,8);g.strokeStyle='#2a2a3a';g.lineWidth=1;g.strokeRect(16,20,32,24);},
+    lithium(){g.fillStyle='#e060a0';g.beginPath();g.moveTo(32,10);g.lineTo(46,28);g.lineTo(38,54);g.lineTo(26,54);g.lineTo(18,28);g.closePath();g.fill();g.fillStyle='#ff80c0';g.beginPath();g.moveTo(32,16);g.lineTo(40,28);g.lineTo(32,40);g.closePath();g.fill();},
+    magnetite(){g.fillStyle='#2a3a5a';g.beginPath();g.moveTo(20,20);g.lineTo(44,18);g.lineTo(46,44);g.lineTo(18,46);g.closePath();g.fill();g.strokeStyle='#5588cc';g.lineWidth=1.5;g.setLineDash([3,3]);g.beginPath();g.arc(32,32,12,0,Math.PI*2);g.stroke();g.setLineDash([]);},
+    rawFish(){g.fillStyle='#3a99a8';g.beginPath();g.ellipse(32,32,18,10,0,0,Math.PI*2);g.fill();g.fillStyle='#2a7888';g.beginPath();g.moveTo(48,32);g.lineTo(58,22);g.lineTo(58,42);g.closePath();g.fill();g.fillStyle='#fff';g.beginPath();g.arc(20,28,3,0,Math.PI*2);g.fill();g.fillStyle='#111';g.beginPath();g.arc(20,28,1.5,0,Math.PI*2);g.fill();},
+    cookedFish(){g.fillStyle='#a06830';g.beginPath();g.ellipse(32,32,18,10,0,0,Math.PI*2);g.fill();g.fillStyle='#805020';g.beginPath();g.moveTo(48,32);g.lineTo(56,24);g.lineTo(56,40);g.closePath();g.fill();g.strokeStyle='#604018';g.lineWidth=1;g.beginPath();for(let i=0;i<4;i++){g.moveTo(22+i*6,26);g.lineTo(22+i*6,38);}g.stroke();},
+    titaniumIngot(){g.fillStyle='#8a9aaa';g.fillRect(12,18,40,28);g.fillStyle='#a0b0c0';g.fillRect(14,20,36,10);g.fillStyle='rgba(255,255,255,.3)';g.fillRect(16,22,16,5);g.strokeStyle='#6a7a8a';g.lineWidth=1;g.strokeRect(12,18,40,28);},
+    copperWire(){g.strokeStyle='#e08030';g.lineWidth=3;g.beginPath();for(let i=0;i<5;i++){g.arc(32,22+i*5,6,Math.PI*(i%2),Math.PI*(1+i%2));}g.stroke();},
+    glass(){g.fillStyle='rgba(200,230,255,.2)';g.fillRect(14,14,36,36);g.strokeStyle='rgba(200,230,255,.5)';g.lineWidth=1.5;g.strokeRect(14,14,36,36);g.fillStyle='rgba(255,255,255,.15)';g.fillRect(16,16,14,14);},
+    fiberMesh(){g.strokeStyle='#7a9a7a';g.lineWidth=1.5;for(let i=0;i<7;i++){g.beginPath();g.moveTo(14+i*5,14);g.lineTo(14+i*5,50);g.stroke();g.beginPath();g.moveTo(14,14+i*5);g.lineTo(50,14+i*5);g.stroke();}},
+    battery(){g.fillStyle='#55aa30';g.fillRect(20,18,24,34);g.fillStyle='#70cc40';g.fillRect(22,20,20,14);g.fillStyle='#888';g.fillRect(28,12,8,6);g.fillStyle='#ffdd44';g.font='bold 12px sans-serif';g.textAlign='center';g.fillText('+',32,16);},
+    firstAidKit(){g.fillStyle='#eee';g.fillRect(16,18,32,28);g.strokeStyle='#ccc';g.lineWidth=1;g.strokeRect(16,18,32,28);g.fillStyle='#e02020';g.fillRect(28,22,8,20);g.fillRect(22,28,20,8);},
+    beacon(){g.fillStyle='#888';g.fillRect(28,24,8,28);g.fillStyle='#ff8800';g.beginPath();g.moveTo(32,14);g.lineTo(36,24);g.lineTo(28,24);g.closePath();g.fill();g.strokeStyle='rgba(255,170,0,.5)';g.lineWidth=1.5;g.beginPath();g.arc(32,18,10,-.8*Math.PI,-.2*Math.PI);g.stroke();g.beginPath();g.arc(32,18,16,-.75*Math.PI,-.25*Math.PI);g.stroke();},
+    filteredWater(){g.fillStyle='rgba(80,180,255,.3)';g.fillRect(22,16,20,36);g.strokeStyle='#66ccff';g.lineWidth=1.5;g.strokeRect(22,16,20,36);g.fillStyle='rgba(80,180,255,.6)';g.fillRect(22,30,20,22);},
+    h2o(){g.fillStyle='#4499dd';g.beginPath();g.moveTo(32,10);g.bezierCurveTo(32,10,48,30,48,40);g.bezierCurveTo(48,50,40,56,32,56);g.bezierCurveTo(24,56,16,50,16,40);g.bezierCurveTo(16,30,32,10,32,10);g.fill();g.fillStyle='rgba(255,255,255,.3)';g.beginPath();g.ellipse(28,36,4,8,-.3,0,Math.PI*2);g.fill();},
+    rations(){g.fillStyle='#cc9944';g.fillRect(14,24,36,18);g.fillStyle='#ddaa55';g.fillRect(16,26,32,6);g.strokeStyle='#aa7733';g.lineWidth=1;g.strokeRect(14,24,36,18);g.fillStyle='#eee';g.font='8px sans-serif';g.textAlign='center';g.fillText('MRE',32,38);},
+    thermalLance(){g.fillStyle='#666';g.fillRect(28,14,8,38);g.fillStyle='#888';g.fillRect(24,40,16,10);g.fillStyle='#ee3322';g.beginPath();g.moveTo(28,14);g.lineTo(36,14);g.lineTo(34,6);g.lineTo(30,6);g.closePath();g.fill();},
+    fabricatorTool(){g.fillStyle='#3388cc';g.fillRect(26,10,12,38);g.fillStyle='#44aaee';g.fillRect(28,12,8,14);g.fillStyle='#2266aa';g.beginPath();g.moveTo(22,48);g.lineTo(26,36);g.lineTo(38,36);g.lineTo(42,48);g.closePath();g.fill();},
+    scannerTool(){g.fillStyle='#338855';g.fillRect(26,16,12,32);g.fillStyle='#44bb66';g.fillRect(28,18,8,12);g.fillStyle='#55dd88';g.beginPath();g.arc(32,12,6,0,Math.PI*2);g.fill();},
+    repairTool(){g.fillStyle='#ccaa22';g.beginPath();g.moveTo(22,46);g.lineTo(26,42);g.lineTo(40,18);g.lineTo(44,22);g.lineTo(30,46);g.closePath();g.fill();g.fillStyle='#eedd44';g.beginPath();g.moveTo(40,18);g.lineTo(44,14);g.lineTo(48,18);g.lineTo(44,22);g.closePath();g.fill();},
+    propulsionEngine(){g.fillStyle='#556677';g.beginPath();g.ellipse(32,32,16,16,0,0,Math.PI*2);g.fill();g.strokeStyle='#8899aa';g.lineWidth=2;for(let a=0;a<6;a++){const r=a*Math.PI/3;g.beginPath();g.moveTo(32+6*Math.cos(r),32+6*Math.sin(r));g.lineTo(32+15*Math.cos(r),32+15*Math.sin(r));g.stroke();}g.fillStyle='#aabbcc';g.beginPath();g.arc(32,32,4,0,Math.PI*2);g.fill();},
+    flashlightTool(){g.fillStyle='#999';g.fillRect(26,28,12,26);g.fillStyle='#aaa';g.fillRect(24,24,16,8);g.fillStyle='#ffee88';g.beginPath();g.moveTo(24,24);g.lineTo(20,8);g.lineTo(44,8);g.lineTo(40,24);g.closePath();g.fill();}
+  };
+  if(draw[key])draw[key]();
+  else{g.fillStyle='#7fe9ff';g.beginPath();g.arc(cx,cy,12,0,Math.PI*2);g.fill();}
+  _iconCache[key]=c.toDataURL();
+  return _iconCache[key];
+}
 const glowTex=ctex(128,128,(g,w,h)=>{
   const gr=g.createRadialGradient(64,64,0,64,64,64);
   gr.addColorStop(0,'rgba(255,255,245,1)'); gr.addColorStop(.3,'rgba(220,245,255,.8)'); gr.addColorStop(1,'rgba(160,220,255,0)');
@@ -1592,9 +1633,9 @@ function renderInventory(){
   for(const item of items){
     const ct=res[item.key]||0;
     if(ct<=0)continue;
-    const sh=shapeCSS[item.shape]||shapeCSS.square;
+    const ico=getItemIcon(item.key);
     html+=`<div class="inv-slot" title="${item.name}: ${ct}">
-      <div style="${sh}background:${item.color};box-shadow:0 0 8px ${item.color}"></div>
+      <img src="${ico}" style="width:36px;height:36px;image-rendering:pixelated" draggable="false">
       <div class="inv-nm">${item.name}</div>
       <div class="inv-ct">${ct}</div></div>`;
   }
@@ -1636,7 +1677,7 @@ function renderCraftMenu(){
       onmouseenter="this.querySelector('.craft-tip').style.opacity=1;this.querySelector('.craft-tip').style.transform='translateX(-50%) translateY(0)'"
       onmouseleave="this.querySelector('.craft-tip').style.opacity=0;this.querySelector('.craft-tip').style.transform='translateX(-50%) translateY(8px)'"
       onclick="craftItem('${key}')">
-      <div style="width:32px;height:32px;border-radius:50%;background:${col};box-shadow:0 0 12px ${col};opacity:.85"></div>
+      <img src="${getItemIcon(key)}" style="width:40px;height:40px;image-rendering:pixelated;filter:drop-shadow(0 0 6px ${col})" draggable="false">
       <div style="font-size:7px;letter-spacing:.15em;color:${col};margin-top:4px;text-align:center;max-width:66px;overflow:hidden;white-space:nowrap">${recipe.name}</div>
       <div class="craft-tip" style="position:absolute;bottom:calc(100% + 10px);left:50%;transform:translateX(-50%) translateY(8px);
         background:rgba(3,17,28,.95);border:1px solid ${col};padding:10px 14px;border-radius:8px;min-width:180px;
@@ -2463,30 +2504,110 @@ const wrecks=[];
 const wreckMat=new THREE.MeshStandardMaterial({color:0x3a4a52,roughness:.8,metalness:.4});
 const rustMat=new THREE.MeshStandardMaterial({color:0x6a3a28,roughness:.9,metalness:.2});
 const wreckGlow=new THREE.MeshStandardMaterial({color:0x44ddff,emissive:0x22aadd,emissiveIntensity:1.5});
-for(let i=0;i<12;i++){
-  const x=rand(-650,650),z=rand(-650,650),y=terrainHeight(x,z);
+const darkHullMat=new THREE.MeshStandardMaterial({color:0x2a3540,roughness:.85,metalness:.5});
+const charredMat=new THREE.MeshStandardMaterial({color:0x1a1a1a,roughness:.95,metalness:.3});
+const blueprintList=['advancedTank','reinforcedSuit','ultraFins','seamothUpgrade','laserCutter','propulsionCannon','stasisRifle','cyclops','prawnSuit','habitatBuilder','gravitySphere','thermalReactor'];
+/* wreck types: 0=standard hull, 1=massive ship section, 2=engine room, 3=cargo bay */
+for(let i=0;i<36;i++){
+  const wtype=i<12?0:i<20?1:i<28?2:3;
+  const x=rand(-900,900),z=rand(-900,900),y=terrainHeight(x,z);
   const grp=new THREE.Group(); grp.position.set(x,y,z);
-  const size=rand(1,1.8);
-  const hull=new THREE.Mesh(new THREE.CylinderGeometry(3*size,3.5*size,12*size,12,1,true),wreckMat);
-  hull.rotation.set(rand(-.3,.3),rand(0,3),rand(-.2,.2)+Math.PI/2);
-  hull.position.y=3*size; grp.add(hull);
-  const cap=new THREE.Mesh(new THREE.SphereGeometry(3*size,12,8,0,Math.PI*2,0,Math.PI/2),wreckMat);
-  cap.rotation.x=-Math.PI/2; cap.position.set(6*size*Math.cos(hull.rotation.y),3*size,6*size*Math.sin(hull.rotation.y)); grp.add(cap);
-  for(let j=0;j<5;j++){
-    const rib=new THREE.Mesh(new THREE.TorusGeometry(3.2*size,.12,6,16,Math.PI*1.5),wreckMat);
-    rib.position.set((-4+j*2)*size,3*size,0); rib.rotation.y=hull.rotation.y;
-    grp.add(rib);
+  const size=wtype===1?rand(3,5.5):wtype===2?rand(2.5,4):wtype===3?rand(2.8,4.5):rand(2,3.6);
+  if(wtype===0){
+    /* standard hull wreck - scaled up */
+    const hull=new THREE.Mesh(new THREE.CylinderGeometry(3*size,3.5*size,12*size,12,1,true),wreckMat);
+    hull.rotation.set(rand(-.3,.3),rand(0,3),rand(-.2,.2)+Math.PI/2);
+    hull.position.y=3*size; grp.add(hull);
+    const cap=new THREE.Mesh(new THREE.SphereGeometry(3*size,12,8,0,Math.PI*2,0,Math.PI/2),wreckMat);
+    cap.rotation.x=-Math.PI/2; cap.position.set(6*size*Math.cos(hull.rotation.y),3*size,6*size*Math.sin(hull.rotation.y)); grp.add(cap);
+    for(let j=0;j<5;j++){
+      const rib=new THREE.Mesh(new THREE.TorusGeometry(3.2*size,.2,6,16,Math.PI*1.5),wreckMat);
+      rib.position.set((-4+j*2)*size,3*size,0); rib.rotation.y=hull.rotation.y; grp.add(rib);
+    }
+    for(let j=0;j<8;j++){
+      const plate=new THREE.Mesh(new THREE.BoxGeometry(rand(2,6)*size,rand(.1,.2),rand(2,5)*size),rustMat);
+      plate.position.set(rand(-8,8)*size,rand(.3,6)*size,rand(-6,6)*size);
+      plate.rotation.set(rand(-.8,.8),rand(0,3),rand(-.5,.5)); grp.add(plate);
+    }
+    for(let j=0;j<6;j++){
+      const pipe=new THREE.Mesh(new THREE.CylinderGeometry(.15,.15,rand(4,12)*size,6),wreckMat);
+      pipe.position.set(rand(-5,5)*size,rand(.5,5)*size,rand(-5,5)*size);
+      pipe.rotation.set(rand(-1,1),0,rand(-1,1)); grp.add(pipe);
+    }
+  } else if(wtype===1){
+    /* massive ship hull section */
+    const hull=new THREE.Mesh(new THREE.CylinderGeometry(5*size,6*size,25*size,16,1,true),darkHullMat);
+    hull.rotation.set(rand(-.15,.15),rand(0,3),Math.PI/2+rand(-.1,.1));
+    hull.position.y=5*size; grp.add(hull);
+    /* torn end caps */
+    const cap1=new THREE.Mesh(new THREE.SphereGeometry(5*size,12,8,0,Math.PI*2,0,Math.PI*.4),charredMat);
+    cap1.rotation.x=-Math.PI/2; cap1.position.set(12*size*Math.cos(hull.rotation.y),5*size,12*size*Math.sin(hull.rotation.y)); grp.add(cap1);
+    /* internal decks */
+    for(let j=0;j<4;j++){
+      const deck=new THREE.Mesh(new THREE.BoxGeometry(8*size,.15,4*size),wreckMat);
+      deck.position.set((-6+j*4)*size,2+j*2.5*size,0);deck.rotation.y=hull.rotation.y;grp.add(deck);
+    }
+    /* structural beams */
+    for(let j=0;j<8;j++){
+      const beam=new THREE.Mesh(new THREE.BoxGeometry(.3,rand(6,14)*size,.3),wreckMat);
+      beam.position.set(rand(-8,8)*size,rand(1,8)*size,rand(-6,6)*size);
+      beam.rotation.set(rand(-.3,.3),0,rand(-.4,.4)); grp.add(beam);
+    }
+    for(let j=0;j<12;j++){
+      const plate=new THREE.Mesh(new THREE.BoxGeometry(rand(3,8)*size,rand(.1,.25),rand(2,6)*size),rustMat);
+      plate.position.set(rand(-12,12)*size,rand(.3,8)*size,rand(-8,8)*size);
+      plate.rotation.set(rand(-.8,.8),rand(0,3),rand(-.5,.5)); grp.add(plate);
+    }
+  } else if(wtype===2){
+    /* engine room wreck */
+    const housing=new THREE.Mesh(new THREE.BoxGeometry(8*size,6*size,10*size),darkHullMat);
+    housing.position.y=3*size; housing.rotation.y=rand(0,3); grp.add(housing);
+    /* engine cylinders */
+    for(let j=0;j<3;j++){
+      const cyl=new THREE.Mesh(new THREE.CylinderGeometry(1.2*size,1.2*size,6*size,12),
+        new THREE.MeshStandardMaterial({color:0x2a3a44,roughness:.6,metalness:.7}));
+      cyl.position.set((-2+j*2)*size,2*size,rand(-3,3)*size);
+      cyl.rotation.z=Math.PI/2+rand(-.2,.2); grp.add(cyl);
+    }
+    /* exhaust nozzles */
+    for(let j=0;j<2;j++){
+      const noz=new THREE.Mesh(new THREE.CylinderGeometry(2*size,1*size,4*size,10,1,true),charredMat);
+      noz.position.set((j*6-3)*size,3*size,-5*size);noz.rotation.x=Math.PI/2; grp.add(noz);
+    }
+    for(let j=0;j<8;j++){
+      const pipe=new THREE.Mesh(new THREE.CylinderGeometry(.2,.2,rand(3,10)*size,6),wreckMat);
+      pipe.position.set(rand(-5,5)*size,rand(.5,5)*size,rand(-5,5)*size);
+      pipe.rotation.set(rand(-1,1),0,rand(-1,1)); grp.add(pipe);
+    }
+    for(let j=0;j<6;j++){
+      const plate=new THREE.Mesh(new THREE.BoxGeometry(rand(2,5)*size,rand(.08,.2),rand(2,5)*size),rustMat);
+      plate.position.set(rand(-6,6)*size,rand(.3,5)*size,rand(-6,6)*size);
+      plate.rotation.set(rand(-.8,.8),rand(0,3),rand(-.5,.5)); grp.add(plate);
+    }
+  } else {
+    /* cargo bay wreck */
+    const bay=new THREE.Mesh(new THREE.BoxGeometry(12*size,5*size,8*size),darkHullMat);
+    bay.position.y=2.5*size; bay.rotation.y=rand(0,3); grp.add(bay);
+    /* cargo containers */
+    for(let j=0;j<6;j++){
+      const box=new THREE.Mesh(new THREE.BoxGeometry(rand(1.5,3)*size,rand(1,2.5)*size,rand(1.5,3)*size),
+        new THREE.MeshStandardMaterial({color:[0x884422,0x446688,0x668844,0x886644][j%4],roughness:.7,metalness:.3}));
+      box.position.set(rand(-5,5)*size,rand(.5,3)*size,rand(-3,3)*size);
+      box.rotation.y=rand(0,3); grp.add(box);
+    }
+    /* collapsed roof panels */
+    for(let j=0;j<4;j++){
+      const roof=new THREE.Mesh(new THREE.BoxGeometry(rand(4,8)*size,.12,rand(3,6)*size),rustMat);
+      roof.position.set(rand(-6,6)*size,rand(3,6)*size,rand(-4,4)*size);
+      roof.rotation.set(rand(-.5,.5),rand(0,3),rand(-.3,.3)); grp.add(roof);
+    }
+    for(let j=0;j<5;j++){
+      const pipe=new THREE.Mesh(new THREE.CylinderGeometry(.15,.15,rand(3,8)*size,6),wreckMat);
+      pipe.position.set(rand(-6,6)*size,rand(.5,4)*size,rand(-4,4)*size);
+      pipe.rotation.set(rand(-1,1),0,rand(-1,1)); grp.add(pipe);
+    }
   }
-  for(let j=0;j<6;j++){
-    const plate=new THREE.Mesh(new THREE.BoxGeometry(rand(2,5)*size,rand(.08,.15),rand(1.5,4)*size),rustMat);
-    plate.position.set(rand(-6,6)*size,rand(.3,5)*size,rand(-5,5)*size);
-    plate.rotation.set(rand(-.8,.8),rand(0,3),rand(-.5,.5)); grp.add(plate);
-  }
-  for(let j=0;j<4;j++){
-    const pipe=new THREE.Mesh(new THREE.CylinderGeometry(.1,.1,rand(3,8)*size,6),wreckMat);
-    pipe.position.set(rand(-4,4)*size,rand(.5,4)*size,rand(-4,4)*size);
-    pipe.rotation.set(rand(-1,1),0,rand(-1,1)); grp.add(pipe);
-  }
+  /* all wrecks get an engine block and terminal */
   const engine=new THREE.Mesh(new THREE.BoxGeometry(2.5*size,2*size,3*size),
     new THREE.MeshStandardMaterial({color:0x2a3a44,roughness:.6,metalness:.7}));
   engine.position.set(rand(-3,3)*size,1.5*size,rand(-3,3)*size); engine.rotation.y=rand(0,3); grp.add(engine);
@@ -2497,8 +2618,8 @@ for(let i=0;i<12;i++){
   termPillar.position.copy(termBase.position); termPillar.position.y+=1; grp.add(termPillar);
   const termScreen=new THREE.Mesh(new THREE.BoxGeometry(.7,.5,.08),wreckGlow);
   termScreen.position.copy(termBase.position); termScreen.position.y+=1.9; grp.add(termScreen);
-  const termLight=new THREE.PointLight(0x44ddff,.6,10); termLight.position.copy(termScreen.position); grp.add(termLight);
-  grp.userData={kind:'wreck',scanned:false,blueprint:['advancedTank','reinforcedSuit','ultraFins','seamothUpgrade','laserCutter','propulsionCannon','stasisRifle','cyclops','prawnSuit','habitatBuilder','gravitySphere','thermalReactor'][i%12]};
+  const termLight=new THREE.PointLight(0x44ddff,.8,15); termLight.position.copy(termScreen.position); grp.add(termLight);
+  grp.userData={kind:'wreck',scanned:false,blueprint:blueprintList[i%12]};
   scene.add(grp); wrecks.push(grp);
 }
 
