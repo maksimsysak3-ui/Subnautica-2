@@ -254,7 +254,7 @@
       <b>2</b><span>FABRICATOR — LMB places structure</span>
       <b>3</b><span>SCANNER — hold LMB to scan creatures</span>
       <b>4</b><span>REPAIR TOOL — fixes structures</span>
-      <b>5</b><span>KNIFE — defense and harvesting</span>
+      <b>5</b><span>PROPULSION ENGINE — hold LMB for speed boost</span>
       <b>6</b><span>FLASHLIGHT — illuminates deep areas</span>
       <b>B</b><span>open construction menu</span>
       <b>TAB</b><span>open inventory</span>
@@ -375,7 +375,7 @@
       <div class="slot" id="slot4"><span class="k">4</span>
         <svg viewBox="0 0 24 24"><path d="M12 3 L12 14 M8 14 L16 14 L14 18 L10 18 Z"/><circle cx="12" cy="5" r="2.5" fill="none"/><path d="M9 18 L9 21 M15 18 L15 21"/></svg></div>
       <div class="slot" id="slot5"><span class="k">5</span>
-        <svg viewBox="0 0 24 24"><path d="M12 2 L14 12 L13 13 L16 20 L14 21 L11 14 L10 13 L8 12 Z M10 13 L14 13"/></svg></div>
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="10" r="5" fill="none"/><path d="M12 15 L12 22 M9 22 L15 22 M7 10 L4 10 M17 10 L20 10"/><circle cx="12" cy="10" r="2"/></svg></div>
       <div class="slot" id="slot6"><span class="k">6</span>
         <svg viewBox="0 0 24 24"><path d="M8 4 L16 4 L18 8 L18 12 L6 12 L6 8 Z"/><rect x="9" y="12" width="6" height="10" rx="1"/><circle cx="12" cy="8" r="2.5" fill="none"/></svg></div>
     </div>
@@ -1133,31 +1133,22 @@ const repairModel=new THREE.Group(); toolRoot.add(repairModel); repairModel.visi
 }
 const knifeModel=new THREE.Group(); toolRoot.add(knifeModel); knifeModel.visible=false;
 {
-  const bladeMat=new THREE.MeshStandardMaterial({color:0xd0dce5,roughness:.12,metalness:.95});
-  const edgeMat=new THREE.MeshStandardMaterial({color:0xeeffff,emissive:0x88ccff,emissiveIntensity:.4});
-  const grip=new THREE.Mesh(new THREE.BoxGeometry(.048,.19,.04),gunDark); grip.position.y=-.08; knifeModel.add(grip);
-  for(let i=0;i<4;i++){
-    const ridge=new THREE.Mesh(new THREE.BoxGeometry(.05,.008,.042),gunmetal);
-    ridge.position.set(0,-.16+i*.04,0); knifeModel.add(ridge);
+  const propMat=new THREE.MeshStandardMaterial({color:0xd0dce5,roughness:.25,metalness:.7});
+  const body=new THREE.Mesh(new THREE.CylinderGeometry(.06,.045,.35,10),propMat);
+  body.rotation.x=Math.PI/2; knifeModel.add(body);
+  const nose=new THREE.Mesh(new THREE.SphereGeometry(.045,10,8),propMat);
+  nose.position.z=-.18; knifeModel.add(nose);
+  const cage=new THREE.Mesh(new THREE.CylinderGeometry(.07,.07,.08,8,1,true),gunDark);
+  cage.rotation.x=Math.PI/2; cage.position.z=.18; knifeModel.add(cage);
+  const prop=new THREE.Mesh(new THREE.BoxGeometry(.12,.015,.04),ambGlow);
+  prop.position.z=.2; knifeModel.add(prop); knifeModel.userData.prop=prop;
+  const prop2=prop.clone(); prop2.rotation.z=Math.PI/2; prop2.position.z=.2; knifeModel.add(prop2); knifeModel.userData.prop2=prop2;
+  for(const sx of [-1,1]){
+    const handle=new THREE.Mesh(new THREE.BoxGeometry(.02,.12,.06),gunDark);
+    handle.position.set(sx*.06,-.06,0); knifeModel.add(handle);
   }
-  const pommel=new THREE.Mesh(new THREE.CylinderGeometry(.03,.025,.03,8),gunmetal);
-  pommel.position.y=-.19; knifeModel.add(pommel);
-  const guard=new THREE.Mesh(new THREE.BoxGeometry(.11,.025,.05),gunmetal); guard.position.y=.02; knifeModel.add(guard);
-  const guardDetail=new THREE.Mesh(new THREE.BoxGeometry(.12,.01,.052),ambGlow); guardDetail.position.y=.03; knifeModel.add(guardDetail);
-  const blade=new THREE.Mesh(new THREE.BoxGeometry(.028,.28,.012),bladeMat); blade.position.set(0,.18,0); knifeModel.add(blade);
-  const bladeEdge=new THREE.Mesh(new THREE.BoxGeometry(.032,.28,.004),edgeMat); bladeEdge.position.set(0,.18,.007); knifeModel.add(bladeEdge);
-  const bladeSpine=new THREE.Mesh(new THREE.BoxGeometry(.012,.28,.006),gunmetal); bladeSpine.position.set(0,.18,-.008); knifeModel.add(bladeSpine);
-  const tipGeo=new THREE.BufferGeometry();
-  const verts=new Float32Array([0,.32,0, -.014,.28,.006, .014,.28,.006, -.014,.28,-.006, .014,.28,-.006]);
-  const idx=new Uint16Array([0,1,2, 0,2,4, 0,4,3, 0,3,1]);
-  tipGeo.setAttribute('position',new THREE.BufferAttribute(verts,3));
-  tipGeo.setIndex(new THREE.BufferAttribute(idx,1));
-  tipGeo.computeVertexNormals();
-  const tipMesh=new THREE.Mesh(tipGeo,bladeMat); knifeModel.add(tipMesh);
-  for(let i=0;i<3;i++){
-    const serr=new THREE.Mesh(new THREE.BoxGeometry(.035,.006,.003),edgeMat);
-    serr.position.set(0,.06+i*.025,.009); knifeModel.add(serr);
-  }
+  const light=new THREE.Mesh(new THREE.SphereGeometry(.02,6,4),new THREE.MeshStandardMaterial({color:0x44ff88,emissive:0x22dd66,emissiveIntensity:2}));
+  light.position.set(0,.045,-.1); knifeModel.add(light);
 }
 const flashModel=new THREE.Group(); toolRoot.add(flashModel); flashModel.visible=false;
 {
@@ -1386,9 +1377,10 @@ function pay(c){ Object.entries(c).forEach(([k,v])=>res[k]-=v); }
 /* ============================================================
    STATE / INPUT / UI FLOW
    ============================================================ */
-const res={titanium:20,copper:8,quartz:8,gold:3,silver:3,diamond:1,lead:4,lithium:3,magnetite:2,rations:5,h2o:5,
-  titaniumIngot:2,copperWire:2,glass:2,fiberMesh:1,advancedTank:0,reinforcedSuit:0,ultraFins:0};
-const unlockedBlueprints=new Set(['titaniumIngot','copperWire','glass','fiberMesh','cookedFish','filteredWater','battery','firstAidKit','beacon','wiring']);
+const res={titanium:0,copper:0,quartz:0,gold:0,silver:0,diamond:0,lead:0,lithium:0,magnetite:0,rations:1,h2o:1,
+  titaniumIngot:0,copperWire:0,glass:0,fiberMesh:0,advancedTank:0,reinforcedSuit:0,ultraFins:0,
+  lubricant:0,siliconeRubber:0,computerChip:0,bleach:0,disinfectedWater:0,curedFish:0,medPack:0,depthModule:0,heatResistSuit:0};
+const unlockedBlueprints=new Set(['titaniumIngot','copperWire','glass','fiberMesh','cookedFish','filteredWater','battery','firstAidKit','beacon','wiring','lubricant','siliconeRubber','bleach','curedFish','disinfectedWater']);
 const RECIPES={
   titaniumIngot:{name:'TITANIUM INGOT',cost:{titanium:4},cat:'materials',desc:'Compressed titanium alloy.'},
   copperWire:{name:'COPPER WIRE',cost:{copper:2},cat:'materials',desc:'Conductive wiring.'},
@@ -1403,6 +1395,15 @@ const RECIPES={
   advancedTank:{name:'HIGH-CAP O2 TANK',cost:{titanium:2,glass:1,copperWire:1},cat:'equipment',desc:'Doubles oxygen capacity.'},
   reinforcedSuit:{name:'REINFORCED SUIT',cost:{titaniumIngot:1,fiberMesh:2,diamond:1},cat:'equipment',desc:'50% damage reduction.'},
   ultraFins:{name:'ULTRA FINS',cost:{titaniumIngot:1,copperWire:1,lead:1},cat:'equipment',desc:'40% swim speed boost.'},
+  lubricant:{name:'LUBRICANT',cost:{titanium:1},cat:'materials',desc:'Synthetic grease for machinery.'},
+  siliconeRubber:{name:'SILICONE RUBBER',cost:{quartz:1},cat:'materials',desc:'Flexible sealant compound.'},
+  computerChip:{name:'COMPUTER CHIP',cost:{gold:1,copperWire:1},cat:'materials',desc:'Processing unit for electronics.'},
+  bleach:{name:'BLEACH',cost:{h2o:2},cat:'materials',desc:'Disinfectant and cleaning agent.'},
+  disinfectedWater:{name:'DISINFECTED WATER',cost:{bleach:1,h2o:1},cat:'food',desc:'Safe drinking water. +80 hydration.'},
+  curedFish:{name:'CURED FISH',cost:{cookedFish:1},cat:'food',desc:'Preserved protein. +70 nutrition.'},
+  medPack:{name:'MEDICAL PACK',cost:{firstAidKit:2,fiberMesh:1},cat:'tools',desc:'Full restore. Heals 100 HP.'},
+  depthModule:{name:'DEPTH MODULE MK1',cost:{titaniumIngot:2,glass:1,magnetite:1},cat:'equipment',desc:'Vehicle depth rating +200m.'},
+  heatResistSuit:{name:'HEAT RESIST SUIT',cost:{fiberMesh:2,lithium:1,diamond:1},cat:'equipment',desc:'Withstand thermal vents.'},
 };
 const equipped={suit:null,tank:null,fins:null};
 const stats={hp:100,o2:100,food:100,h2o:100};
@@ -1653,7 +1654,7 @@ function toast(msg){
   $('toasts').appendChild(d); setTimeout(()=>d.remove(),3900);
   while($('toasts').children.length>4)$('toasts').firstChild.remove();
 }
-const TOOL_NAMES={1:'THERMAL LANCE',2:'FABRICATOR',3:'SCANNER',4:'REPAIR TOOL',5:'KNIFE',6:'FLASHLIGHT'};
+const TOOL_NAMES={1:'THERMAL LANCE',2:'FABRICATOR',3:'SCANNER',4:'REPAIR TOOL',5:'PROPULSION ENGINE',6:'FLASHLIGHT'};
 function updateToolHud(){
   $('toolName').textContent=TOOL_NAMES[curTool]||'UNKNOWN';
   for(let i=1;i<=6;i++){ const s=$('slot'+i); if(s)s.classList.toggle('on',curTool===i); }
@@ -1775,6 +1776,25 @@ const BIOMES=[
 function getBiome(depth){
   for(const b of BIOMES) if(depth>=b.minD&&depth<b.maxD) return b;
   return BIOMES[BIOMES.length-1];
+}
+
+/* TRAIT ADAPTATION SYSTEM */
+const traits={
+  heatResist:false, pressureResist:false, toxinResist:false,
+  darkVision:false, oxygenEfficiency:false, coldResist:false
+};
+const TRAIT_INFO={
+  heatResist:{name:'HEAT RESISTANCE',desc:'Survive thermal vent areas',biome:'THERMAL ZONE'},
+  pressureResist:{name:'PRESSURE RESISTANCE',desc:'Withstand extreme depth pressure',biome:'THE ABYSS'},
+  toxinResist:{name:'TOXIN RESISTANCE',desc:'Immune to toxic flora and fauna',biome:'BLOOD TRENCH'},
+  darkVision:{name:'DARK VISION',desc:'See clearly in pitch darkness',biome:'CRYSTAL CAVES'},
+  oxygenEfficiency:{name:'OXYGEN EFFICIENCY',desc:'O2 consumption halved',biome:'DEEP REEF'},
+  coldResist:{name:'COLD RESISTANCE',desc:'Withstand freezing temperatures',biome:'KELP FOREST'},
+};
+function checkTraitDamage(biome,dt2){
+  if(biome.name==='THERMAL ZONE'&&!traits.heatResist){ stats.hp=clamp(stats.hp-4*dt2,0,100); hurtFlash=Math.max(hurtFlash,.2); }
+  if(biome.name==='THE ABYSS'&&!traits.pressureResist){ stats.hp=clamp(stats.hp-6*dt2,0,100); hurtFlash=Math.max(hurtFlash,.3); }
+  if(biome.name==='BLOOD TRENCH'&&!traits.toxinResist){ stats.hp=clamp(stats.hp-2*dt2,0,100); }
 }
 
 /* ============================================================
@@ -2223,7 +2243,7 @@ function animate(){
   if(curTool===3 && scannerModel.userData.scanLine){
     scannerModel.userData.scanLine.position.y=Math.sin(t*3)*.07;
   }
-  if(curTool===5){ knifeModel.rotation.x=Math.sin(t*1.2)*.03; knifeModel.rotation.z=Math.sin(t*.9)*.02; }
+  if(curTool===5){ knifeModel.rotation.x=Math.sin(t*1.2)*.03; knifeModel.rotation.z=Math.sin(t*.9)*.02; if(knifeModel.userData.prop){knifeModel.userData.prop.rotation.z+=dt*25;if(knifeModel.userData.prop2)knifeModel.userData.prop2.rotation.z+=dt*25;} }
   if(curTool===6){ flashModel.rotation.x=Math.sin(t*.8)*.015; }
   if(curTool===4){ repairModel.rotation.z=Math.sin(t*1.5)*.02; }
 
@@ -2570,10 +2590,11 @@ function animate(){
     } else { scanProgress=Math.max(0,scanProgress-dt*80); scanBeam.visible=false; scanRing.visible=false; }
   } else { if($('scanOverlay'))$('scanOverlay').style.opacity=0; scanBeam.visible=false; scanRing.visible=false; }
 
-  /* knife */
+  /* propulsion engine */
   if(started&&!paused&&curTool===5&&mouseDown){
-    const ld=camWorld.distanceTo(leviathanGroup.position);
-    if(ld<5){ const pd=new THREE.Vector3().subVectors(leviathanGroup.position,camWorld).normalize(); leviathanGroup.position.addScaledVector(pd,dt*15); spawnSparks(camWorld.clone().add(camDir.clone().multiplyScalar(2)),3,false); }
+    camera.getWorldDirection(FWD);
+    vel.addScaledVector(FWD,dt*45);
+    if(Math.random()<dt*8)spawnSparks(camWorld.clone().sub(FWD.clone().multiplyScalar(1)),2,true,rand(.3,.8));
   }
 
   /* flashlight */
