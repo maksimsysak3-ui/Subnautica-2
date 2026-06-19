@@ -716,18 +716,15 @@ const terrain=(()=>{
   g.setAttribute('color',new THREE.Float32BufferAttribute(colors,3));
   g.computeVertexNormals();
   const rockTex=ctex(512,512,(g,w,h)=>{
-    // Base rock color
-    g.fillStyle='#4a5a5a'; g.fillRect(0,0,w,h);
-    // Random rock grain
-    for(let i=0;i<8000;i++){
+    g.fillStyle='#c8ccc8'; g.fillRect(0,0,w,h);
+    for(let i=0;i<6000;i++){
       const x=Math.random()*w,y=Math.random()*h;
-      const v=Math.floor(50+Math.random()*40);
-      g.fillStyle=`rgba(${v},${v+10},${v+5},0.3)`;
+      const v=Math.floor(160+Math.random()*60);
+      g.fillStyle=`rgba(${v},${v+5},${v+2},0.25)`;
       g.fillRect(x,y,1+Math.random()*3,1+Math.random()*3);
     }
-    // Cracks
-    g.strokeStyle='rgba(20,30,30,0.6)'; g.lineWidth=1;
-    for(let i=0;i<40;i++){
+    g.strokeStyle='rgba(80,90,85,0.35)'; g.lineWidth=1;
+    for(let i=0;i<35;i++){
       g.beginPath();
       let cx=Math.random()*w,cy=Math.random()*h;
       g.moveTo(cx,cy);
@@ -737,14 +734,12 @@ const terrain=(()=>{
       }
       g.stroke();
     }
-    // Larger rock patches
-    for(let i=0;i<30;i++){
+    for(let i=0;i<25;i++){
       const x=Math.random()*w,y=Math.random()*h,r=10+Math.random()*30;
-      const v=Math.floor(40+Math.random()*50);
-      g.fillStyle=`rgba(${v},${v+8},${v+4},0.2)`;
+      const v=Math.floor(140+Math.random()*60);
+      g.fillStyle=`rgba(${v},${v+5},${v+3},0.15)`;
       g.beginPath(); g.arc(x,y,r,0,Math.PI*2); g.fill();
     }
-    // Fine detail noise
     for(let i=0;i<3000;i++){
       const x=Math.random()*w,y=Math.random()*h;
       g.fillStyle=`rgba(${Math.random()>0.5?80:30},${Math.random()>0.5?90:40},${Math.random()>0.5?80:35},0.15)`;
