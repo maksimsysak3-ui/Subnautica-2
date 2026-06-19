@@ -64,18 +64,18 @@
   #statusVal.int{color:var(--grn)} #statusVal.surf{color:#ffe9a0}
 
   /* vitals (bottom-left) */
-  #vitals{position:fixed;left:20px;bottom:22px;width:264px;padding:14px 18px 16px}
-  .gauge-wrap{display:flex;gap:16px;margin-top:10px;justify-content:center}
-  .gauge{position:relative;width:56px;height:56px;text-align:center}
-  .gauge svg{transform:rotate(-90deg)}
-  .gauge-bg{fill:none;stroke:rgba(127,233,255,.1);stroke-width:4}
-  .gauge-fill{fill:none;stroke-width:4;stroke-linecap:round;transition:stroke-dashoffset .3s}
+  #vitals{position:fixed;left:20px;bottom:22px;width:280px;padding:16px 20px 18px}
+  .gauge-wrap{display:flex;gap:12px;margin-top:10px;justify-content:center}
+  .gauge{position:relative;width:62px;height:62px;text-align:center}
+  .gauge svg{transform:rotate(-90deg);filter:drop-shadow(0 0 4px currentColor)}
+  .gauge-bg{fill:none;stroke:rgba(127,233,255,.08);stroke-width:5}
+  .gauge-fill{fill:none;stroke-width:5;stroke-linecap:round;transition:stroke-dashoffset .3s;filter:drop-shadow(0 0 3px currentColor)}
   .gauge .g-val{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
-  .gauge .g-num{font-family:var(--mono);font-size:13px;color:#eaffff}
-  .gauge .g-lbl{font-size:8px;letter-spacing:.3em;color:var(--cy-dim);margin-top:1px}
+  .gauge .g-num{font-family:var(--mono);font-size:14px;color:#eaffff;text-shadow:0 0 6px rgba(127,233,255,.4)}
+  .gauge .g-lbl{font-size:8px;letter-spacing:.3em;color:var(--cy-dim);margin-top:2px}
 
   /* O2 ring */
-  #o2wrap{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);width:132px;height:132px;text-align:center}
+  #o2wrap{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);width:140px;height:140px;text-align:center}
   #o2wrap svg{position:absolute;inset:0;transform:rotate(-90deg)}
   .o2tick{fill:none;stroke:rgba(127,233,255,.18);stroke-width:2;stroke-dasharray:2 7.05}
   #o2ringBg{fill:none;stroke:rgba(127,233,255,.1);stroke-width:7}
@@ -118,12 +118,16 @@
   #prompt b{color:var(--cy);border:1px solid var(--cy-dim);padding:1px 7px;margin-right:8px;background:rgba(127,233,255,.08)}
 
   /* toasts */
-  #toasts{position:fixed;left:50%;bottom:178px;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:6px}
-  .toast{font-size:12px;letter-spacing:.24em;font-weight:600;padding:7px 22px;color:#eaffff;background:var(--panel2);
-    border:1px solid rgba(127,233,255,.35);border-left:3px solid var(--cy);text-shadow:0 0 10px rgba(127,233,255,.7);
-    animation:tin .35s ease, tout .6s ease 3.1s forwards}
-  @keyframes tin{from{opacity:0;transform:translateY(14px)}}
-  @keyframes tout{to{opacity:0;transform:translateY(-12px)}}
+  #toasts{position:fixed;left:50%;bottom:185px;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:8px;z-index:25}
+  .toast{font-size:12px;letter-spacing:.26em;font-weight:600;padding:8px 26px;color:#eaffff;
+    background:linear-gradient(90deg,rgba(5,26,40,.9),rgba(5,26,40,.7));
+    border:1px solid rgba(127,233,255,.25);border-left:3px solid var(--cy);
+    text-shadow:0 0 10px rgba(127,233,255,.7);
+    box-shadow:0 0 20px rgba(0,40,60,.4),inset 0 0 30px rgba(127,233,255,.03);
+    border-radius:2px;backdrop-filter:blur(8px);
+    animation:tin .4s cubic-bezier(.2,.8,.3,1), tout .8s ease 3s forwards}
+  @keyframes tin{from{opacity:0;transform:translateY(18px) scale(.95)}}
+  @keyframes tout{to{opacity:0;transform:translateY(-14px) scale(.98)}}
 
   /* ============ MAIN MENU ============ */
   #menu{position:fixed;inset:0;z-index:45;display:flex;transition:opacity .9s;
@@ -813,7 +817,7 @@ function terrainHeight(x,z){
   // Dramatic drop-off ring at distance 300-400
   const dropoff=(dist>300&&dist<420)?-(dist-300)*.4*fbm(x*.01+5,z*.01+8):0;
   let h=base+ridges+plateaus+valleys+detail+dunes+cliff+hills+trench+canyon+pillar+arch+shelf+biomeVar+dropoff;
-  if(dist<50) h=Math.max(h,-12);
+  if(dist<35) h=-8; else if(dist<55) h=h*(dist-35)/20 + (-8)*(1-(dist-35)/20);
   return clamp(h,-550,3);
 }
 function smoothstep(edge0,edge1,x){const t=clamp((x-edge0)/(edge1-edge0),0,1);return t*t*(3-2*t);}
@@ -825,7 +829,7 @@ const terrain=(()=>{
     const x=pos.getX(i),z=pos.getZ(i),y=terrainHeight(x,z);
     pos.setY(i,y);
     const t=clamp((y+500)/503,0,1), c=new THREE.Color();
-    const cAbyss=new THREE.Color(0x060d14),cCrystal=new THREE.Color(0x0c0a20),cThermal=new THREE.Color(0x1c1008),cBlood=new THREE.Color(0x241414),cDeepReef=new THREE.Color(0x123840),cKelp=new THREE.Color(0x1e6040),cSandB=new THREE.Color(0xc4a878),cShallow=new THREE.Color(0x78a888);
+    const cAbyss=new THREE.Color(0x040810),cCrystal=new THREE.Color(0x140a30),cThermal=new THREE.Color(0x2a1808),cBlood=new THREE.Color(0x3a1018),cDeepReef=new THREE.Color(0x0e4858),cKelp=new THREE.Color(0x1a7844),cSandB=new THREE.Color(0xd4b888),cShallow=new THREE.Color(0x88ccaa);
     if(t<.08)c.lerpColors(cAbyss,cCrystal,t/.08);
     else if(t<.18)c.lerpColors(cCrystal,cThermal,(t-.08)/.1);
     else if(t<.3)c.lerpColors(cThermal,cBlood,(t-.18)/.12);
@@ -852,19 +856,30 @@ const terrain=(()=>{
     const img=g.createImageData(w,h);
     for(let y=0;y<h;y++) for(let x=0;x<w;x++){
       const nx=x/w*8,ny=y/h*8;
-      const angle=0.4;
-      const rx=nx*Math.cos(angle)+ny*Math.sin(angle);
-      const warp=nfbm(nx*0.4+3,ny*0.4+7)*2.5;
-      const ridge=Math.sin((rx*5.0+warp))*0.18;
-      const ridge2=Math.sin((rx*9.0+nfbm(nx*0.7,ny*0.7)*1.8))*0.07;
-      const drdx=(Math.sin(((rx+0.008)*5.0+warp))-Math.sin((rx*5.0+warp)))*60;
-      const shadow=clamp(0.55-drdx*0.18,0.3,1.0);
-      const v=(ridge+ridge2)*shadow;
-      const base=Math.floor(clamp(v*60+225,210,250));
+      const warp1=nfbm(nx*0.5+3,ny*0.5+7)*2.0;
+      const warp2=nfbm(nx*0.3+10,ny*0.3+20)*1.5;
+      const c1=Math.sin(nx*4.0+ny*2.0+warp1);
+      const c2=Math.sin(nx*2.5-ny*5.0+warp2);
+      const c3=Math.sin((nx+ny)*3.0+nfbm(nx*0.6,ny*0.6)*2.0);
+      const c4=Math.sin(nx*7.0+ny*1.5+warp1*1.3);
+      const caustic1=Math.pow(Math.max(0,c1),6.0)*0.4;
+      const caustic2=Math.pow(Math.max(0,c2),6.0)*0.3;
+      const caustic3=Math.pow(Math.max(0,c3),5.0)*0.25;
+      const caustic4=Math.pow(Math.max(0,c4),8.0)*0.2;
+      const causticTotal=caustic1+caustic2+caustic3+caustic4;
+      const ridge=Math.sin((nx*Math.cos(0.4)+ny*Math.sin(0.4))*5.0+warp1)*0.5+0.5;
+      const shadowTeal=1.0-ridge*0.3;
+      const baseR=185*shadowTeal+causticTotal*70;
+      const baseG=215*shadowTeal+causticTotal*55;
+      const baseB=195*shadowTeal+causticTotal*40;
+      const tealR=baseR*(1.0-ridge*0.15);
+      const tealG=baseG*(1.0+ridge*0.05);
+      const tealB=baseB*(1.0+ridge*0.1);
+      const grain=(pn(nx*50,ny*50)-0.5)*8;
       const idx=(y*w+x)*4;
-      img.data[idx]=Math.min(255,base+10);
-      img.data[idx+1]=Math.min(255,base-2);
-      img.data[idx+2]=Math.floor(base*0.72);
+      img.data[idx]=clamp(Math.floor(tealR+grain),140,255);
+      img.data[idx+1]=clamp(Math.floor(tealG+grain),160,255);
+      img.data[idx+2]=clamp(Math.floor(tealB+grain),140,255);
       img.data[idx+3]=255;
     }
     g.putImageData(img,0,0);
@@ -908,29 +923,32 @@ const terrain=(()=>{
       float vnoise(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.0-2.0*f);
         return mix(mix(hash(i),hash(i+vec2(1,0)),f.x),mix(hash(i+vec2(0,1)),hash(i+vec2(1,1)),f.x),f.y);}
       void main(){
-        float t=uTime*0.18;
-        vec2 uv=vW.xz*0.008;
+        float t=uTime*0.15;
+        vec2 uv=vW.xz*0.006;
         // Large gentle swells
-        float swell=sin(uv.x*2.0+t*2.5)*sin(uv.y*1.7-t*1.9)*0.3;
-        // Medium waves
-        float med=sin(uv.x*5.5-t*3.2)*sin(uv.y*4.8+t*2.7)*0.15;
-        // Fine ripple detail via noise
-        float fine=vnoise(uv*30.0+vec2(t*1.5,-t*1.2))*0.12;
-        float fine2=vnoise(uv*55.0+vec2(-t*0.8,t*1.0))*0.06;
-        float pattern=swell+med+fine+fine2;
-        // Deep ocean blue palette (like reference photo)
-        vec3 deepCol=vec3(0.04,0.14,0.24);
-        vec3 midCol=vec3(0.07,0.22,0.36);
-        vec3 brightCol=vec3(0.12,0.30,0.46);
+        float swell=sin(uv.x*1.8+t*2.0)*sin(uv.y*1.4-t*1.6)*0.25;
+        // Medium waves - smoother
+        float med=sin(uv.x*4.0-t*2.5)*sin(uv.y*3.5+t*2.0)*0.12;
+        // Soft ripple detail
+        float fine=vnoise(uv*20.0+vec2(t*1.2,-t*0.9))*0.08;
+        float pattern=swell+med+fine;
+        // Tropical teal palette
+        vec3 deepCol=vec3(0.02,0.12,0.20);
+        vec3 midCol=vec3(0.06,0.25,0.38);
+        vec3 brightCol=vec3(0.15,0.40,0.50);
         float blend=pattern+0.5;
-        vec3 col=mix(deepCol,midCol,smoothstep(0.3,0.55,blend));
-        col=mix(col,brightCol,smoothstep(0.6,0.8,blend));
-        // Subtle sun highlight near camera
+        vec3 col=mix(deepCol,midCol,smoothstep(0.25,0.50,blend));
+        col=mix(col,brightCol,smoothstep(0.55,0.75,blend));
+        // Foam at wave peaks
+        float foam=smoothstep(0.78,0.92,blend)*0.3;
+        col+=vec3(foam*0.8,foam*0.9,foam);
+        // Fresnel-like effect and sun glint
         float d=length(vW.xz-cameraPosition.xz);
-        float sunGlint=exp(-d*d*0.00001)*0.06;
-        col+=vec3(sunGlint*0.5,sunGlint*0.7,sunGlint);
-        float fade=clamp(d/900.0,0.0,1.0);
-        gl_FragColor=vec4(col,mix(0.5,0.1,fade));
+        float fresnel=clamp(d/600.0,0.0,1.0);
+        float sunGlint=exp(-d*d*0.000008)*0.12;
+        col+=vec3(sunGlint*0.6,sunGlint*0.8,sunGlint);
+        float alpha=mix(0.35,0.7,fresnel);
+        gl_FragColor=vec4(col,alpha);
       }`
   });
   const mesh=new THREE.Mesh(g,m); scene.add(mesh);
@@ -2606,6 +2624,14 @@ document.addEventListener('keydown',e=>{
   if(e.code==='KeyQ')openUI('equip');
   if(e.code==='KeyP')openUI('bp');
   if(e.code==='KeyE')tryInteract();
+  if(e.key==='r'&&!paused&&started&&(res.resourceDetector||0)>0){
+    minerals.forEach(n=>{if(!n.dead){
+      const d=camera.position.distanceTo(new THREE.Vector3(n.x,n.y,n.z));
+      if(d<40){n.grp.children.forEach(c=>{if(c.material){c.material.emissive=new THREE.Color(0x44ffaa);c.material.emissiveIntensity=1;}});
+      setTimeout(()=>n.grp.children.forEach(c=>{if(c.material){c.material.emissive=new THREE.Color(0x000000);c.material.emissiveIntensity=0;}}),4000);}
+    }});
+    toast('RADAR PING — RESOURCES HIGHLIGHTED');blip(600,.2,'sine',.1);blip(900,.1,'sine',.05);
+  }
 });
 document.addEventListener('keyup',e=>{ keys[e.code]=false; });
 addEventListener('resize',()=>{
