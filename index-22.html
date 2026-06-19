@@ -18,7 +18,7 @@
     font-family:var(--font);color:#cfeefb;-webkit-user-select:none;user-select:none}
   canvas{display:block}
   .overlay{position:fixed;inset:0;pointer-events:none}
-  #vignette{background:radial-gradient(ellipse at center, transparent 48%, rgba(0,6,14,.62) 100%)}
+  #vignette{background:radial-gradient(ellipse at center, transparent 55%, rgba(0,8,18,0.5) 100%);z-index:4}
   #grain{background:repeating-linear-gradient(0deg, rgba(255,255,255,.015) 0 1px, transparent 1px 3px);mix-blend-mode:overlay}
   #deepTint{background:linear-gradient(180deg, rgba(0,18,42,0), rgba(0,6,26,.6));opacity:0;transition:opacity 1s}
   #hurt{background:radial-gradient(ellipse at center, transparent 38%, rgba(255,28,40,.5) 100%);opacity:0;transition:opacity .15s}
@@ -37,6 +37,9 @@
 
   /* ============ HUD ============ */
   #hud{position:fixed;inset:0;pointer-events:none;opacity:0;transition:opacity 1.4s;z-index:20}
+  #hud::before{content:'';position:absolute;top:0;left:0;width:100%;height:100%;
+    background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,20,40,0.03) 2px,rgba(0,20,40,0.03) 4px);
+    pointer-events:none;z-index:1}
   body.live #hud{opacity:1}
 
   /* compass */
@@ -539,13 +542,26 @@ function whaleCall(){
   if(!AC) return;
   const t0=AC.currentTime, o=AC.createOscillator(), g=AC.createGain();
   o.type='sine';
-  o.frequency.setValueAtTime(64,t0);
-  o.frequency.exponentialRampToValueAtTime(150,t0+1.3);
-  o.frequency.exponentialRampToValueAtTime(52,t0+3.6);
-  g.gain.setValueAtTime(0,t0);
-  g.gain.linearRampToValueAtTime(.05,t0+.8);
-  g.gain.linearRampToValueAtTime(0,t0+3.8);
-  o.connect(g); g.connect(master); o.start(t0); o.stop(t0+3.9);
+  if(Math.random()<0.5){
+    // Original call
+    o.frequency.setValueAtTime(64,t0);
+    o.frequency.exponentialRampToValueAtTime(150,t0+1.3);
+    o.frequency.exponentialRampToValueAtTime(52,t0+3.6);
+    g.gain.setValueAtTime(0,t0);
+    g.gain.linearRampToValueAtTime(.05,t0+.8);
+    g.gain.linearRampToValueAtTime(0,t0+3.8);
+    o.connect(g); g.connect(master); o.start(t0); o.stop(t0+3.9);
+  } else {
+    // Variant: deeper, longer moan
+    o.frequency.setValueAtTime(42,t0);
+    o.frequency.exponentialRampToValueAtTime(80,t0+2);
+    o.frequency.exponentialRampToValueAtTime(36,t0+5);
+    g.gain.setValueAtTime(0,t0);
+    g.gain.linearRampToValueAtTime(.04,t0+1.2);
+    g.gain.linearRampToValueAtTime(.03,t0+3);
+    g.gain.linearRampToValueAtTime(0,t0+5.2);
+    o.connect(g); g.connect(master); o.start(t0); o.stop(t0+5.3);
+  }
 }
 function setMiningSound(on){
   if(!AC) return;
@@ -787,7 +803,17 @@ const terrain=(()=>{
   const mesh=new THREE.Mesh(g,m); scene.add(mesh);
 }
 
-/* god rays removed — ambient light only */
+/* volumetric light shafts */
+const shaftGeo=new THREE.PlaneGeometry(3,80,1,1);
+const shaftMat=new THREE.MeshBasicMaterial({color:0x6abed8,transparent:true,opacity:0.015,side:THREE.DoubleSide,depthWrite:false,blending:THREE.NormalBlending});
+const lightShafts=[];
+for(let i=0;i<8;i++){
+  const shaft=new THREE.Mesh(shaftGeo,shaftMat.clone());
+  shaft.rotation.set(0.15+Math.random()*0.1,Math.random()*Math.PI*2,0);
+  shaft.position.set(Math.random()*60-30,20,Math.random()*60-30);
+  shaft.userData.baseX=shaft.position.x;shaft.userData.baseZ=shaft.position.z;shaft.userData.phase=Math.random()*6;
+  scene.add(shaft); lightShafts.push(shaft);
+}
 
 /* ---------------- particles : marine snow + plankton ---------------- */
 const SNOW_N=80,SNOW_R=35;
@@ -801,6 +827,13 @@ function makeCloud(n,size,color,op){
 }
 const snow=makeCloud(SNOW_N,.08,0x8ac8d5,.25);
 const plankton=makeCloud(30,.12,0x3abba8,.3);
+// Ambient dust motes — very subtle drifting particles
+const dustGeo=new THREE.BufferGeometry();
+const dustN=50,dustArr=new Float32Array(dustN*3);
+for(let i=0;i<dustN*3;i++)dustArr[i]=rand(-25,25);
+dustGeo.setAttribute('position',new THREE.BufferAttribute(dustArr,3));
+const dustPts=new THREE.Points(dustGeo,new THREE.PointsMaterial({color:0x8ab8c8,size:.04,transparent:true,opacity:.15,depthWrite:false}));
+scene.add(dustPts);
 
 /* ---------------- seabed dressing : corals / kelp / fans / anemones ---------------- */
 const swayMats=[]; // materials with wind-style vertex sway
@@ -848,10 +881,10 @@ const fanMat=addSway(new THREE.MeshStandardMaterial({map:fanTex,transparent:true
   side:THREE.DoubleSide,roughness:.8,emissive:0x611428,emissiveIntensity:.3}),.3);
 
 {
-  // kelp forest
-  for(let i=0;i<800;i++){
+  // kelp forest — dense canopy
+  for(let i=0;i<1200;i++){
     const x=rand(-800,800),z=rand(-800,800),y=terrainHeight(x,z);
-    const h=rand(8,19);
+    const h=rand(10,26);
     const k=new THREE.Mesh(new THREE.PlaneGeometry(rand(.9,1.5),h,1,8),kelpMat);
     k.geometry=k.geometry.clone(); k.geometry.translate(0,h/2,0);
     k.position.set(x,y-.2,z); k.rotation.y=rand(0,Math.PI);
@@ -1640,7 +1673,7 @@ const DECALS=['none','stripe','chevron','skull','wave','star'];
 const stats={hp:100,o2:100,food:100,h2o:100};
 let curTool=1,mouseDown=false,started=false,paused=true,uiOpen=null;
 let dayTime=0; const DAY_LENGTH=300; // 5 min
-let lastAlarm=0,hurtFlash=0,whaleT=20;
+let lastAlarm=0,hurtFlash=0,whaleT=20,lastDmgDir=null,lastDmgT=0,scannerPingT=0;
 const vel=new THREE.Vector3(),keys={};
 const canvas=renderer.domElement;
 
@@ -2078,7 +2111,13 @@ function hudTick(){
   $('foodPct').textContent=Math.ceil(stats.food);
   $('h2oPct').textContent=Math.ceil(stats.h2o);
   const d=Math.max(0,-camWorld.y);
-  $('depthVal').textContent=d.toFixed(0);
+  $('depthVal').textContent=d.toFixed(1);
+  if(d>400){
+    const crushEl=$('crushWarn')||document.createElement('div');
+    if(!crushEl.id){crushEl.id='crushWarn';crushEl.style.cssText='position:fixed;top:12%;left:50%;transform:translateX(-50%);color:#ff4444;font:bold 14px monospace;letter-spacing:3px;z-index:100;text-shadow:0 0 10px #ff0000';document.body.appendChild(crushEl);}
+    crushEl.style.opacity=Math.sin(t*4)>0?'1':'0';
+    crushEl.textContent='⚠ CRUSH DEPTH WARNING ⚠';
+  }else if($('crushWarn'))$('crushWarn').remove();
   const sv=$('statusVal'); sv.classList.remove('int','surf');
   if(insideBase){ sv.textContent='HABITAT · PRESSURIZED'; sv.classList.add('int'); }
   else if(camWorld.y>-.3){ sv.textContent='SURFACE'; sv.classList.add('surf'); }
@@ -2487,14 +2526,16 @@ const peeperTex=fishTexture('#1a3a5a','#ffee88','#ff6622');
 const boomerangTex=fishTexture('#667788','#aabbcc','#445566');
 const stalkerTex=fishTexture('#2a2a3a','#556677','#334455');
 const peepers=[];
-for(let i=0;i<36;i++){
+// Schooling behavior — peepers travel in loose groups
+for(let i=0;i<54;i++){
   const f=makeFish(rand(.6,.9),peeperTex,0xffcc44);
   const cx=rand(-160,160),cz=rand(-160,160);
   f.userData.a={c:V3(cx,clamp(terrainHeight(cx,cz)+rand(5,12),-45,-5),cz),r:rand(4,10),w:rand(.4,.8)*(Math.random()<.5?-1:1),ph:rand(0,9),alive:true,respawn:0};
   scene.add(f); peepers.push(f);
 }
 const boomerangs=[];
-for(let i=0;i<24;i++){
+// Schooling behavior — boomerangs form flat shoals
+for(let i=0;i<36;i++){
   const f=makeFish(rand(.5,.7),boomerangTex,0x8899aa);
   f.scale.y=.4;
   const cx=rand(-140,140),cz=rand(-140,140);
@@ -2519,7 +2560,7 @@ for(let i=0;i<15;i++){
 }
 const crabsquids=[];
 {
-  for(let i=0;i<15;i++){
+  for(let i=0;i<20;i++){
     const f=makeFish(rand(1.5,2.2),roseTex,0xff5566);
     const cx=rand(-500,500),cz=rand(-500,500),cy=terrainHeight(cx,cz);
     f.userData.a={c:V3(cx,clamp(cy+rand(6,15),-300,-20),cz),
@@ -2532,7 +2573,7 @@ const crabsquids=[];
 
 // Deep anglerfish — large, slow, bioluminescent, aggressive
 const anglerfish=[];
-for(let i=0;i<12;i++){
+for(let i=0;i<16;i++){
   const f=makeFish(rand(3,5),fishTexture('#0a0a1a','#1a1a3a','#0044ff'),0x2244ff);
   const cx=rand(-600,600),cz=rand(-600,600),cy=terrainHeight(cx,cz);
   f.userData.a={c:V3(cx,clamp(cy+rand(8,20),-450,-200),cz),r:rand(10,20),w:rand(.1,.2)*(Math.random()<.5?-1:1),ph:rand(0,9),alive:true,respawn:0};
@@ -2569,7 +2610,7 @@ const jellyfish=[];
 
 // Pack hunters — small, fast, travel in groups
 const packHunters=[];
-for(let i=0;i<25;i++){
+for(let i=0;i<35;i++){
   const f=makeFish(rand(1,1.5),fishTexture('#2a2a3a','#4a4a5a','#ff4400'),0xff6622);
   const packCx=rand(-400,400),packCz=rand(-400,400),packCy=terrainHeight(packCx,packCz);
   f.userData.a={c:V3(packCx,clamp(packCy+rand(5,12),-200,-20),packCz),r:rand(4,8),w:rand(.6,1)*(Math.random()<.5?-1:1),ph:rand(0,9),alive:true,respawn:0};
@@ -2579,7 +2620,7 @@ for(let i=0;i<25;i++){
 
 // Deep zone additional fish — guaranteed population below -200m
 const deepPredators=[];
-for(let i=0;i<20;i++){
+for(let i=0;i<28;i++){
   const f=makeFish(rand(2,4),fishTexture('#1a1a2a','#2a2a4a','#4444ff'),0x3333aa);
   const cx=rand(-700,700),cz=rand(-700,700),cy=terrainHeight(cx,cz);
   f.userData.a={c:V3(cx,clamp(cy+rand(10,25),-500,-200),cz),r:rand(8,20),w:rand(.2,.4)*(Math.random()<.5?-1:1),ph:rand(0,9),alive:true,respawn:0};
@@ -2588,7 +2629,7 @@ for(let i=0;i<20;i++){
 }
 // Abyss giant eels
 const abyssEels=[];
-for(let i=0;i<8;i++){
+for(let i=0;i<12;i++){
   const f=makeFish(rand(4,7),fishTexture('#0a0a1a','#1a1a2a','#22ff66'),0x11aa44);
   const cx=rand(-600,600),cz=rand(-600,600),cy=terrainHeight(cx,cz);
   f.userData.a={c:V3(cx,clamp(cy+rand(15,35),-550,-380),cz),r:rand(12,25),w:rand(.1,.25)*(Math.random()<.5?-1:1),ph:rand(0,9),alive:true,respawn:0};
@@ -2913,7 +2954,7 @@ const fireCorals=[];
 
   // SAFE SHOALS — soft coral, colorful reefs, seagrass
   const seagrassMat=addSway(new THREE.MeshStandardMaterial({color:0x66bb55,roughness:.8,side:THREE.DoubleSide,transparent:true,alphaTest:.3}),.6);
-  for(let i=0;i<200;i++){
+  for(let i=0;i<350;i++){
     const x=rand(-800,800),z=rand(-800,800),y=terrainHeight(x,z);
     if(y<-30||y>0)continue;
     const h=rand(1,3);
@@ -2924,14 +2965,37 @@ const fireCorals=[];
   }
   // Soft rounded corals for shallows
   const softCoralCols=[0xff8899,0x88ccff,0xffcc66,0x99eebb];
-  for(let i=0;i<100;i++){
+  for(let i=0;i<200;i++){
     const x=rand(-600,600),z=rand(-600,600),y=terrainHeight(x,z);
     if(y<-35||y>0)continue;
     const col=softCoralCols[i%softCoralCols.length];
-    const c=new THREE.Mesh(new THREE.SphereGeometry(rand(.4,1.2),10,8),
+    const c=new THREE.Mesh(new THREE.SphereGeometry(rand(.7,2.2),10,8),
       new THREE.MeshStandardMaterial({color:col,roughness:.6,emissive:col,emissiveIntensity:.15}));
     c.scale.y=rand(.5,.8); c.position.set(x,y+.2,z);
     scene.add(c);
+  }
+
+  // Branching coral trees — mid depth
+  const branchCoralCols=[0xee7788,0x77bbdd,0xeebb55,0x88ddaa,0xdd88cc];
+  for(let i=0;i<80;i++){
+    const x=rand(-700,700),z=rand(-700,700),y=terrainHeight(x,z);
+    if(y>-20||y<-180)continue;
+    const grp=new THREE.Group(); grp.position.set(x,y,z);
+    const col=branchCoralCols[i%branchCoralCols.length];
+    const mat=new THREE.MeshStandardMaterial({color:col,roughness:.7,emissive:col,emissiveIntensity:.06});
+    const trunkH=rand(2,5);
+    const trunk=new THREE.Mesh(new THREE.CylinderGeometry(.08,.15,trunkH,6),mat);
+    trunk.position.y=trunkH/2; grp.add(trunk);
+    for(let j=0;j<4+Math.floor(Math.random()*5);j++){
+      const bh=rand(1,3),ba=rand(0,Math.PI*2);
+      const branch=new THREE.Mesh(new THREE.CylinderGeometry(.03,.07,bh,5),mat);
+      branch.position.set(Math.cos(ba)*.2,trunkH*.5+rand(0,trunkH*.4),Math.sin(ba)*.2);
+      branch.rotation.set(rand(-.6,.6),ba,rand(-.4,.4)); grp.add(branch);
+      const tip=new THREE.Mesh(new THREE.SphereGeometry(rand(.15,.35),6,5),mat);
+      tip.position.set(Math.cos(ba)*(bh*.4),trunkH*.5+rand(0,trunkH*.5)+bh*.3,Math.sin(ba)*(bh*.4));
+      grp.add(tip);
+    }
+    scene.add(grp);
   }
 
   // DEEP REEF — larger reef formations, sponges
@@ -3328,6 +3392,25 @@ for(let i=0;i<8;i++){
     grp.children.forEach(c=>{c.userData.node=grp;});
     scene.add(grp);wrecks.push(grp);
   }
+  // Extra deep scattered wrecks
+  for(let i=0;i<15;i++){
+    const x=rand(-900,900),z=rand(-900,900),y=terrainHeight(x,z);
+    if(y>-100)continue;
+    const grp=new THREE.Group(); grp.position.set(x,y,z); grp.rotation.y=rand(0,Math.PI*2);
+    // Collapsed hull section
+    const hull=new THREE.Mesh(new THREE.BoxGeometry(rand(4,8),.3,rand(3,6)),wreckMat);
+    hull.rotation.set(rand(-.3,.3),0,rand(-.2,.2)); grp.add(hull);
+    const wall=new THREE.Mesh(new THREE.BoxGeometry(.2,rand(2,4),rand(3,5)),rustMat);
+    wall.position.set(rand(-2,2),rand(1,2),0); wall.rotation.z=rand(-.4,.4); grp.add(wall);
+    // Scattered debris
+    for(let j=0;j<3;j++){
+      const d=new THREE.Mesh(new THREE.BoxGeometry(rand(.3,1),rand(.2,.5),rand(.3,1)),rustMat);
+      d.position.set(rand(-4,4),rand(0,.5),rand(-4,4)); d.rotation.set(rand(0,1),rand(0,3),rand(0,1));
+      grp.add(d);
+    }
+    scene.add(grp);
+    wrecks.push(grp);
+  }
 }
 
 /* ============================================================
@@ -3526,7 +3609,7 @@ function animate(){
     camera.getWorldDirection(FWD);
     RIGHT.crossVectors(FWD,UP).normalize();
     const boost=keys.ShiftLeft||keys.ShiftRight;
-    const sp=(underwater?(inVehicle?42:26):9)*(boost?1.85:1);
+    const sp=(underwater?(inVehicle?42:26):9)*(boost?2.0:1);
     tmpV.set(0,0,0);
     if(keys.KeyW)tmpV.add(FWD); if(keys.KeyS)tmpV.sub(FWD);
     if(keys.KeyD)tmpV.add(RIGHT); if(keys.KeyA)tmpV.sub(RIGHT);
@@ -3557,6 +3640,8 @@ function animate(){
   // tool idle animations
   if(curTool===3 && scannerModel.userData.scanLine){
     scannerModel.userData.scanLine.position.y=Math.sin(t*3)*.07;
+    /* Scanner sonar ping */
+    if(t-scannerPingT>3){ scannerPingT=t; blip(220,.12,'sine',.06); setTimeout(()=>blip(330,.08,'sine',.04),120); }
   }
   if(curTool===5){ knifeModel.rotation.x=Math.sin(t*1.2)*.03; knifeModel.rotation.z=Math.sin(t*.9)*.02; if(knifeModel.userData.prop){knifeModel.userData.prop.rotation.z+=dt*25;if(knifeModel.userData.prop2)knifeModel.userData.prop2.rotation.z+=dt*25;} }
   if(curTool===6){ flashModel.rotation.x=Math.sin(t*.8)*.015; }
@@ -3579,7 +3664,7 @@ function animate(){
   /* survival */
   if(!paused&&started){
     const boost=keys.ShiftLeft||keys.ShiftRight;
-    if(underwater&&!insideBase)stats.o2-=dt*(100/60)*(boost?1.6:1);
+    if(underwater&&!insideBase)stats.o2-=dt*(100/60)*(boost?2.0:1);
     else stats.o2+=dt*30;
     stats.o2=clamp(stats.o2,0,100);
     stats.food=clamp(stats.food-dt*100/620,0,100);
@@ -3589,17 +3674,55 @@ function animate(){
     if(dmg>0){ stats.hp=clamp(stats.hp-dmg*dt,0,100); hurtFlash=Math.max(hurtFlash,.6); }
     else if(stats.food>30&&stats.h2o>30&&stats.o2>20)stats.hp=clamp(stats.hp+1.4*dt,0,100);
     if(stats.o2<22&&underwater&&!insideBase&&t-lastAlarm>1.5){ lastAlarm=t; blip(960,.13,'square',.08); }
+    /* O2 warning overlay */
+    const o2pct=stats.o2/100;
+    const warnEl=$('o2warn')||document.createElement('div');
+    if(!warnEl.id){warnEl.id='o2warn';warnEl.style.cssText='position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:6;border:0 solid rgba(255,30,30,0)';document.body.appendChild(warnEl);}
+    if(o2pct<0.3&&underwater&&!insideBase){
+      const severity=clamp((0.3-o2pct)/0.3,0,1);
+      const bw=Math.floor(severity*20);
+      warnEl.style.border=bw+'px solid rgba(255,30,30,'+severity*0.4+')';
+      if(o2pct<0.15&&Math.floor(t*4)%2===0) blip(800,.05,'square',.04);
+      if(o2pct<0.05&&Math.floor(t*8)%2===0) blip(1200,.08,'square',.06);
+    }else{warnEl.style.border='0 solid transparent';}
     if(stats.hp<=0){
+      /* Death screen with fade-to-black */
+      const deathEl=$('deathScreen')||document.createElement('div');
+      if(!deathEl.id){
+        deathEl.id='deathScreen';
+        deathEl.style.cssText='position:fixed;top:0;left:0;width:100%;height:100%;background:black;color:#0ff;display:flex;align-items:center;justify-content:center;font-family:monospace;font-size:28px;z-index:100;opacity:0;transition:opacity 0.5s;pointer-events:none';
+        deathEl.textContent='EMERGENCY RESUSCITATION';
+        document.body.appendChild(deathEl);
+      }
+      deathEl.style.opacity='1';
+      setTimeout(()=>{deathEl.style.opacity='0';},2000);
       stats.hp=55; stats.o2=100; vel.set(0,0,0);
-      player.position.set(0,-5,30);
-      toast('VITALS LOST — DROP-ZONE DRONE REVIVED YOU');
+      let respawnPos=new THREE.Vector3(0,-5,30);
+      for(const b of placed){if(b.id==='room'){respawnPos.set(b.x,b.y+1.5,b.z);break;}}
+      player.position.copy(respawnPos);
+      toast('EMERGENCY RESUSCITATION — SYSTEMS REBOOTING');
       hurtFlash=1;
     }
     whaleT-=dt;
-    if(whaleT<=0){ whaleT=rand(35,75); if(underwater)whaleCall(); }
+    if(whaleT<=0){ whaleT=rand(25,55); if(underwater)whaleCall(); }
   }
   hurtFlash=Math.max(0,hurtFlash-dt*1.2);
   $('hurt').style.opacity=hurtFlash;
+  /* Directional damage indicator */
+  const dmgIndEl=$('dmgInd')||document.createElement('div');
+  if(!dmgIndEl.id){dmgIndEl.id='dmgInd';dmgIndEl.style.cssText='position:fixed;width:80px;height:80px;pointer-events:none;z-index:7;opacity:0;transition:opacity 0.3s;font-size:60px;color:rgba(255,40,40,0.7)';dmgIndEl.textContent='\u25C0';document.body.appendChild(dmgIndEl);}
+  if(lastDmgDir&&t-lastDmgT<1.5){
+    dmgIndEl.style.opacity=clamp(1.5-(t-lastDmgT),0,1);
+    const fwd=new THREE.Vector3();camera.getWorldDirection(fwd);
+    const right=new THREE.Vector3().crossVectors(fwd,new THREE.Vector3(0,1,0)).normalize();
+    const dot=lastDmgDir.dot(right);
+    const dotFwd=lastDmgDir.dot(fwd);
+    const angle=Math.atan2(dot,dotFwd);
+    const cx=window.innerWidth/2+Math.sin(angle)*Math.min(window.innerWidth,window.innerHeight)*0.38;
+    const cy=window.innerHeight/2-Math.cos(angle)*Math.min(window.innerWidth,window.innerHeight)*0.38;
+    dmgIndEl.style.left=(cx-40)+'px';dmgIndEl.style.top=(cy-40)+'px';
+    dmgIndEl.style.transform='rotate('+(angle*180/Math.PI)+'deg)';
+  }else{dmgIndEl.style.opacity='0';}
 
   /* atmosphere + biome */
   const curDepth=Math.max(0,-camWorld.y);
@@ -3628,9 +3751,29 @@ function animate(){
   fogDenCur=lerp(fogDenCur,targDen,1-Math.pow(.02,dt));
   scene.fog.color.copy(fogColCur); scene.fog.density=fogDenCur;
   scene.background=scene.fog.color;
+  /* depth-based color grading overlay */
+  const cgEl=$('colorGrade')||document.createElement('div');
+  if(!cgEl.id){cgEl.id='colorGrade';cgEl.style.cssText='position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:5;mix-blend-mode:multiply';document.body.appendChild(cgEl);}
+  if(underwater){
+    const dp=clamp(curDepth/400,0,1);
+    const r=Math.floor(lerp(140,20,dp)),gv=Math.floor(lerp(210,40,dp)),b=Math.floor(lerp(230,80,dp));
+    cgEl.style.background=`rgba(${r},${gv},${b},${lerp(0.08,0.35,dp)})`;
+  }else{cgEl.style.background='none';}
+  /* thermal zone warm overlay */
+  if(biome.name==='THERMAL ZONE'){
+    cgEl.style.background='rgba(180,60,20,0.12)';cgEl.style.mixBlendMode='screen';
+  }else{cgEl.style.mixBlendMode='multiply';}
   if($('chromatic'))$('chromatic').style.opacity=clamp((curDepth-30)/50,0,.6);
-  hemi.intensity=underwater?biome.light:1.15;
-  sunDir.intensity=clamp(0.4-curDepth*0.003,0,0.4);
+  /* Day/night visual cycle */
+  const dayPhaseSin=(Math.sin(dayPhase*Math.PI*2-Math.PI/2)+1)/2;
+  if(underwater){
+    hemi.color.setHSL(.52,lerp(.3,.5,dayPhaseSin),lerp(.25,.45,dayPhaseSin));
+    ambLight.intensity=lerp(.7,1.15,dayPhaseSin);
+    sunDir.intensity=lerp(.1,.5,dayPhaseSin);
+  }else{
+    hemi.intensity=1.15;
+    sunDir.intensity=clamp(0.4-curDepth*0.003,0,0.4);
+  }
   dayTime=(dayTime+dt)%DAY_LENGTH;
   const dayPhase=dayTime/DAY_LENGTH;
   const sunAngle=dayPhase*Math.PI*2;
@@ -3675,6 +3818,7 @@ function animate(){
     }
     pts.geometry.attributes.position.needsUpdate=true;
   }
+  dustPts.position.copy(player.position); dustPts.visible=underwater;
 
   /* fish — school */
   schoolTarget(t,tmpT);
@@ -3770,6 +3914,12 @@ function animate(){
     s.scale.setScalar(Math.max(.05,Math.min(1.4,s.userData.life)));
   }
   sunDisc.position.set(player.position.x+120,330,player.position.z-90);
+  lightShafts.forEach(s=>{
+    s.position.x=player.position.x+s.userData.baseX+Math.sin(t*0.2+s.userData.phase)*5;
+    s.position.z=player.position.z+s.userData.baseZ+Math.cos(t*0.15+s.userData.phase)*5;
+    s.position.y=Math.min(-5,camWorld.y+40);
+    s.material.opacity=underwater?clamp(0.018-curDepth*0.00008,0,0.018):0;
+  });
 
   /* tools */
   let prompt='';
@@ -3978,6 +4128,14 @@ function animate(){
     const lev2Dist=camWorld.distanceTo(leviathan2.position);
     const closestLev=levDist<lev2Dist?leviathanGroup:leviathan2;
     const closestDist=Math.min(levDist,lev2Dist);
+    // Leviathan rumble warning
+    if(closestDist<100&&closestDist>=35&&curDepth>250){
+      blip(28+Math.sin(t*3)*5,.015,'sine',.3);
+    }
+    if(closestDist<40){
+      camera.rotation.x+=Math.sin(t*15)*0.003;
+      camera.rotation.z+=Math.cos(t*12)*0.002;
+    }
     if(closestDist<35&&curDepth>250){
       missionState.leviathanEncounter=true;
       const chaseDir=new THREE.Vector3().subVectors(camWorld,closestLev.position).normalize();
@@ -4083,18 +4241,27 @@ function animate(){
       if(!u||!an)continue;
       if(!u.alive){ u.respawn-=dt; if(u.respawn<=0){u.alive=true;f.visible=true;} continue; }
       const a=u.w*t+u.ph;
-      f.position.set(u.c.x+Math.cos(a)*u.r,u.c.y+Math.sin(t*.7+u.ph)*1.2,u.c.z+Math.sin(a)*u.r);
+      f.position.set(u.c.x+Math.cos(a)*u.r,u.c.y+Math.sin(t*.8+u.ph)*1.5,u.c.z+Math.sin(a)*u.r);
       f.lookAt(f.position.x-Math.sin(a)*u.w,f.position.y+Math.cos(t*.7+u.ph)*.2,f.position.z+Math.cos(a)*u.w);
+      f.rotation.z=Math.sin(t*u.w+u.ph)*0.15;
       an.tailPivot.rotation.y=Math.sin(t*10+an.ph)*.55;
       an.finL.rotation.z=.7+Math.sin(t*6+an.ph)*.3;
       an.finR.rotation.z=-.7-Math.sin(t*6+an.ph)*.3;
+      // Passive fish flee from player
+      if(!f.userData.predator&&!f.userData.toxic){
+        const playerDist=f.position.distanceTo(camWorld);
+        if(playerDist<8){
+          const away=f.position.clone().sub(camWorld).normalize();
+          f.position.add(away.clone().multiplyScalar(dt*4));
+        }
+      }
       if(f.userData.predator){
         const sd=f.position.distanceTo(camWorld);
         if(sd<25&&sd>2){
           const ch=new THREE.Vector3().subVectors(camWorld,f.position).normalize();
           f.position.addScaledVector(ch,dt*(f.userData.toxic?4:6));
           f.lookAt(camWorld);
-          if(sd<4){ stats.hp=clamp(stats.hp-(f.userData.toxic?8:5)*dt,0,100); hurtFlash=Math.max(hurtFlash,.4); missionState.predatorEncounter=true; }
+          if(sd<4){ stats.hp=clamp(stats.hp-(f.userData.toxic?8:5)*dt,0,100); hurtFlash=Math.max(hurtFlash,.4); missionState.predatorEncounter=true; lastDmgDir=new THREE.Vector3().subVectors(f.position,camWorld).normalize(); lastDmgT=t; }
         }
       }
       if(f.userData.toxic){ const gd=f.position.distanceTo(camWorld); if(gd<6){ stats.hp=clamp(stats.hp-3*dt,0,100); } }
@@ -4114,12 +4281,25 @@ function animate(){
         stats.hp=clamp(stats.hp-(f.userData.toxic?8:5)*dt,0,100);
         hurtFlash=Math.max(hurtFlash,.4);
         missionState.predatorEncounter=true;
+        lastDmgDir=new THREE.Vector3().subVectors(f.position,camWorld).normalize(); lastDmgT=t;
       }
     }
   });
 
-  // Jellyfish and mantas passive animation
-  [...jellyfish,...mantas].forEach(f=>{
+  // Jellyfish pulsing animation
+  jellyfish.forEach(j=>{
+    if(!j.userData.a)return;
+    const a=j.userData.a;
+    a.ph+=a.w*dt;
+    j.position.x=a.c.x+Math.cos(a.ph)*a.r;
+    j.position.z=a.c.z+Math.sin(a.ph)*a.r;
+    j.position.y=a.c.y+Math.sin(a.ph*2)*.5;
+    j.rotation.y=a.ph+Math.PI/2*(a.w>0?1:-1);
+    const pulse=0.9+Math.sin(t*1.2+j.position.x)*0.1;
+    j.scale.set(pulse,0.8+Math.sin(t*1.5+j.position.z)*0.15,pulse);
+  });
+  // Manta ray gliding with banking
+  mantas.forEach(f=>{
     if(!f.userData.a)return;
     const a=f.userData.a;
     a.ph+=a.w*dt;
@@ -4127,6 +4307,8 @@ function animate(){
     f.position.z=a.c.z+Math.sin(a.ph)*a.r;
     f.position.y=a.c.y+Math.sin(a.ph*2)*.5;
     f.rotation.y=a.ph+Math.PI/2*(a.w>0?1:-1);
+    f.rotation.z=Math.sin(a.ph)*0.2;
+    f.rotation.x=Math.sin(t*0.6+a.ph)*0.08;
   });
   /* fire coral damage */
   for(const fc of fireCorals){ if(camWorld.distanceTo(fc.position)<2){ stats.hp=clamp(stats.hp-5*dt,0,100); hurtFlash=Math.max(hurtFlash,.3); } }
