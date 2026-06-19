@@ -3894,7 +3894,7 @@ function animate(){
     if($('scanOverlay'))$('scanOverlay').style.opacity=mouseDown?.8:0;
     if(mouseDown){
       raycaster.setFromCamera({x:0,y:0},camera); raycaster.far=12;
-      const allFish=[...school,...ambient,...peepers,...boomerangs,...gasopods,...stalkers,...crabsquids,...anglerfish,...packHunters];
+      const allFish=[...school,...ambient,...peepers,...boomerangs,...gasopods,...stalkers,...crabsquids,...anglerfish,...packHunters,...deepPredators,...abyssEels];
       const fishMeshes=[];
       allFish.forEach(f=>{ if(f.visible) f.traverse(c=>{ if(c.isMesh)fishMeshes.push(c); }); });
       const sh=raycaster.intersectObjects(fishMeshes,false)[0];
@@ -3962,7 +3962,7 @@ function animate(){
   } else if(toolRoot.userData.flashlight) toolRoot.userData.flashlight.visible=false;
 
   /* extra fish animation */
-  for(const arr of [peepers,boomerangs,gasopods,stalkers,crabsquids,anglerfish,packHunters]){
+  for(const arr of [peepers,boomerangs,gasopods,stalkers,crabsquids,anglerfish,packHunters,deepPredators,abyssEels]){
     for(const f of arr){
       const u=f.userData.a,an=f.userData.anim;
       if(!u||!an)continue;
