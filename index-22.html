@@ -597,9 +597,9 @@ applyQuality();
 const uTime={value:0};
 
 /* lights — soft ambient ocean, no point sources */
-const hemi=new THREE.HemisphereLight(0x5a9ab8,0x1a3a2a,0.8); scene.add(hemi);
-const ambLight=new THREE.AmbientLight(0x3a7a8a,1.0); scene.add(ambLight);
-const sunDir=new THREE.DirectionalLight(0x7ab8c8,0.4);
+const hemi=new THREE.HemisphereLight(0x6aaccc,0x2a5a4a,0.9); scene.add(hemi);
+const ambLight=new THREE.AmbientLight(0x4a8a9a,1.15); scene.add(ambLight);
+const sunDir=new THREE.DirectionalLight(0x8ac8d8,0.5);
 sunDir.position.set(200,400,100); scene.add(sunDir);
 
 /* canvas-texture helpers */
@@ -668,32 +668,29 @@ function vnoise(x,z){
 function fbm(x,z){ let v=0,a=.5,f=1; for(let i=0;i<5;i++){ v+=a*vnoise(x*f,z*f); a*=.5; f*=2; } return v; }
 function terrainHeight(x,z){
   const dist=Math.sqrt(x*x+z*z);
-  const base=-6-dist*.28;
-  const ridges=Math.abs(Math.sin(x*.008+z*.012))*22*(1-Math.exp(-dist*.003));
-  const plateaus=Math.max(0,fbm(x*.006+5,z*.006+3)-.3)*70;
-  const valleys=Math.min(0,fbm(x*.004-2,z*.004+8)-.55)*100;
-  const detail=fbm(x*.012+7.3,z*.012+2.1)*18+vnoise(x*.08,z*.08)*6+fbm(x*.03+1.1,z*.03+4.4)*8+vnoise(x*.15,z*.15)*2.5;
-  const dunes=Math.sin(x*.02+Math.sin(z*.015)*3)*8;
-  const trench=(vnoise(x*.003,z*.003)>.68)?-90:0;
-  // Canyon systems - deep cuts through terrain
-  const canyonNoise=Math.abs(Math.sin(x*.005+2.1)*Math.cos(z*.007+1.3));
-  const canyon=canyonNoise<.06?-40*(1-canyonNoise/.06):0;
-  // Massive pillars in deep areas
-  const pillarN=vnoise(x*.01+50,z*.01+50);
-  const pillar=pillarN>.82?((pillarN-.82)*500)*Math.min(1,dist/200):0;
-  // Reef arches / overpasses
-  const archN=vnoise(x*.007+20,z*.007+20);
-  const arch=archN>.78?Math.sin(dist*.02)*30*(archN-.78)*5:0;
-  // Shelf ledges
+  const base=-6-dist*.26;
+  const ridges=fbm(x*.007+1.5,z*.009+2.3)*24*(1-Math.exp(-dist*.004));
+  const plateaus=Math.max(0,fbm(x*.005+5,z*.005+3)-.35)*55;
+  const valleys=Math.min(0,fbm(x*.004-2,z*.004+8)-.55)*80;
+  const detail=fbm(x*.015+7.3,z*.015+2.1)*14+fbm(x*.04+1.1,z*.04+4.4)*6+vnoise(x*.08,z*.08)*3;
+  const dunes=fbm(x*.018+3,z*.014+7)*10;
+  const trenchN=fbm(x*.003+.5,z*.003+.8);
+  const trench=trenchN>.65?-(trenchN-.65)*260:0;
+  const canyonN=fbm(x*.006+2.1,z*.008+1.3);
+  const canyon=canyonN>.7?-(canyonN-.7)*130:0;
+  const pillarN=fbm(x*.009+50,z*.009+50);
+  const pillar=pillarN>.78?((pillarN-.78)*220)*Math.min(1,dist/250):0;
+  const archN=fbm(x*.006+20,z*.006+20);
+  const arch=archN>.75?fbm(x*.02+9,z*.02+11)*25*(archN-.75)*4:0;
   const shelfRaw=base+ridges;
-  const shelf=(shelfRaw<-60&&shelfRaw>-80)?Math.max(0,Math.sin(x*.03)*12+8):0;
+  const shelf=(shelfRaw<-55&&shelfRaw>-85)?Math.max(0,fbm(x*.025+4,z*.025+6)-.4)*18:0;
   let h=base+ridges+plateaus+valleys+detail+dunes+trench+canyon+pillar+arch+shelf;
   if(dist<50) h=Math.max(h,-12);
   return clamp(h,-550,3);
 }
 function smoothstep(edge0,edge1,x){const t=clamp((x-edge0)/(edge1-edge0),0,1);return t*t*(3-2*t);}
 const terrain=(()=>{
-  const g=new THREE.PlaneGeometry(2400,2400,240,240); g.rotateX(-Math.PI/2);
+  const g=new THREE.PlaneGeometry(2400,2400,320,320); g.rotateX(-Math.PI/2);
   const pos=g.attributes.position, colors=[];
   const cDeep=new THREE.Color(0x0e2c38),cMid=new THREE.Color(0x2f5e52),cSand=new THREE.Color(0xb39d6f),cRed=new THREE.Color(0x6e4a3e);
   for(let i=0;i<pos.count;i++){
@@ -716,38 +713,32 @@ const terrain=(()=>{
   g.setAttribute('color',new THREE.Float32BufferAttribute(colors,3));
   g.computeVertexNormals();
   const rockTex=ctex(512,512,(g,w,h)=>{
-    g.fillStyle='#c8ccc8'; g.fillRect(0,0,w,h);
-    for(let i=0;i<6000;i++){
-      const x=Math.random()*w,y=Math.random()*h;
-      const v=Math.floor(160+Math.random()*60);
-      g.fillStyle=`rgba(${v},${v+5},${v+2},0.25)`;
-      g.fillRect(x,y,1+Math.random()*3,1+Math.random()*3);
+    function pn(px,py){
+      const n=Math.sin(px*127.1+py*311.7)*43758.5453;
+      return n-Math.floor(n);
     }
-    g.strokeStyle='rgba(80,90,85,0.35)'; g.lineWidth=1;
-    for(let i=0;i<35;i++){
-      g.beginPath();
-      let cx=Math.random()*w,cy=Math.random()*h;
-      g.moveTo(cx,cy);
-      for(let j=0;j<5+Math.random()*8;j++){
-        cx+=Math.random()*30-15; cy+=Math.random()*30-15;
-        g.lineTo(cx,cy);
-      }
-      g.stroke();
+    function smooth(px,py){
+      const xi=Math.floor(px),yi=Math.floor(py),xf=px-xi,yf=py-yi;
+      const sx=xf*xf*(3-2*xf),sy=yf*yf*(3-2*yf);
+      const a=pn(xi,yi),b=pn(xi+1,yi),c=pn(xi,yi+1),d=pn(xi+1,yi+1);
+      return a+(b-a)*sx+(c-a)*sy+(a-b-c+d)*sx*sy;
     }
-    for(let i=0;i<25;i++){
-      const x=Math.random()*w,y=Math.random()*h,r=10+Math.random()*30;
-      const v=Math.floor(140+Math.random()*60);
-      g.fillStyle=`rgba(${v},${v+5},${v+3},0.15)`;
-      g.beginPath(); g.arc(x,y,r,0,Math.PI*2); g.fill();
+    function nfbm(px,py){let v=0,a=.5,f=1;for(let i=0;i<5;i++){v+=a*smooth(px*f,py*f);a*=.48;f*=2.1;}return v;}
+    const img=g.createImageData(w,h);
+    for(let y=0;y<h;y++) for(let x=0;x<w;x++){
+      const nx=x/w*8,ny=y/h*8;
+      const n1=nfbm(nx+3.2,ny+1.7);
+      const n2=nfbm(nx*2.1+7,ny*2.1+4)*.4;
+      const n3=nfbm(nx*4+12,ny*4+9)*.15;
+      const base=n1+n2+n3;
+      const v=Math.floor(clamp(base*280+100,120,240));
+      const idx=(y*w+x)*4;
+      img.data[idx]=v-2; img.data[idx+1]=v+1; img.data[idx+2]=v-1; img.data[idx+3]=255;
     }
-    for(let i=0;i<3000;i++){
-      const x=Math.random()*w,y=Math.random()*h;
-      g.fillStyle=`rgba(${Math.random()>0.5?80:30},${Math.random()>0.5?90:40},${Math.random()>0.5?80:35},0.15)`;
-      g.fillRect(x,y,1,1);
-    }
+    g.putImageData(img,0,0);
   });
   rockTex.wrapS=rockTex.wrapT=THREE.RepeatWrapping;
-  rockTex.repeat.set(120,120);
+  rockTex.repeat.set(80,80);
   const m=new THREE.MeshStandardMaterial({vertexColors:true,roughness:.98,metalness:.01,flatShading:false,map:rockTex});
   m.onBeforeCompile=sh=>{ // animated caustic light dapple
     sh.uniforms.uTime=uTime;
