@@ -1936,8 +1936,34 @@ function renderCustom(){
         <div style="font-size:10px;letter-spacing:.3em;color:var(--cy);margin:14px 0 6px">SUIT DECAL</div>
         <div>${DECALS.map(d=>`<button onclick="suitCustom.decal='${d}';renderCustom()" style="margin:3px;padding:4px 10px;background:${suitCustom.decal===d?'rgba(68,204,255,.2)':'transparent'};border:1px solid ${suitCustom.decal===d?'var(--cy)':'var(--cy-faint)'};color:#eaffff;font-family:var(--mono);font-size:10px;letter-spacing:.15em;cursor:pointer">${d.toUpperCase()}</button>`).join('')}</div>
       </div>
-      <div style="width:160px;height:280px;border:1px solid var(--cy-faint);border-radius:12px;display:flex;align-items:center;justify-content:center;background:linear-gradient(180deg,${suitCustom.primary},${suitCustom.secondary})">
-        <div style="font-size:48px;opacity:.5;filter:drop-shadow(0 0 8px ${suitCustom.visor})">🤿</div>
+      <div style="width:180px;height:320px;position:relative;border:1px solid var(--cy-faint);border-radius:12px;background:rgba(5,15,25,.8)">
+        <svg viewBox="0 0 180 320" style="width:100%;height:100%">
+          <!-- Character silhouette -->
+          <ellipse cx="90" cy="45" rx="22" ry="25" fill="${suitCustom.primary}" stroke="rgba(68,204,255,.3)" stroke-width="1"/>
+          <rect x="18" y="38" width="10" height="6" rx="3" fill="${suitCustom.visor}" opacity=".8"/>
+          <rect x="60" y="70" width="60" height="90" rx="8" fill="${suitCustom.primary}" stroke="rgba(68,204,255,.3)" stroke-width="1"/>
+          <rect x="65" y="80" width="50" height="30" rx="4" fill="${suitCustom.secondary}"/>
+          <rect x="30" y="75" width="28" height="12" rx="6" fill="${suitCustom.primary}" transform="rotate(-15,44,81)"/>
+          <rect x="122" y="75" width="28" height="12" rx="6" fill="${suitCustom.primary}" transform="rotate(15,136,81)"/>
+          <rect x="32" y="90" width="25" height="12" rx="6" fill="${suitCustom.secondary}" transform="rotate(-25,44,96)"/>
+          <rect x="123" y="90" width="25" height="12" rx="6" fill="${suitCustom.secondary}" transform="rotate(25,136,96)"/>
+          <circle cx="28" cy="108" r="8" fill="${suitCustom.primary}" stroke="rgba(68,204,255,.3)" stroke-width="1"/>
+          <circle cx="152" cy="108" r="8" fill="${suitCustom.primary}" stroke="rgba(68,204,255,.3)" stroke-width="1"/>
+          <rect x="65" y="162" width="25" height="80" rx="6" fill="${suitCustom.secondary}"/>
+          <rect x="92" y="162" width="25" height="80" rx="6" fill="${suitCustom.secondary}"/>
+          <ellipse cx="77" cy="248" rx="14" ry="8" fill="${suitCustom.primary}"/>
+          <ellipse cx="105" cy="248" rx="14" ry="8" fill="${suitCustom.primary}"/>
+          <!-- O2 tank on back -->
+          <rect x="105" y="50" width="16" height="35" rx="5" fill="#2a3a4a" stroke="rgba(68,204,255,.2)" stroke-width="1"/>
+          <!-- Equipment indicator circles -->
+          <circle cx="90" cy="20" r="12" fill="none" stroke="var(--cy)" stroke-width="1" stroke-dasharray="3,2"/>
+          <text x="90" y="24" fill="var(--cy)" font-size="7" text-anchor="middle" font-family="monospace">${equipped.tank?'O2+':'STD'}</text>
+          <circle cx="90" cy="130" r="12" fill="none" stroke="var(--cy)" stroke-width="1" stroke-dasharray="3,2"/>
+          <text x="90" y="134" fill="var(--cy)" font-size="7" text-anchor="middle" font-family="monospace">${equipped.suit?'ARM':'STD'}</text>
+          <circle cx="77" cy="268" r="10" fill="none" stroke="var(--cy)" stroke-width="1" stroke-dasharray="3,2"/>
+          <text x="77" y="271" fill="var(--cy)" font-size="6" text-anchor="middle" font-family="monospace">${equipped.fins?'ULT':'STD'}</text>
+        </svg>
+        <div style="position:absolute;bottom:6px;width:100%;text-align:center;font-size:8px;letter-spacing:.2em;color:var(--cy-dim)">LOADOUT PREVIEW</div>
       </div>
     </div>`;
 }
