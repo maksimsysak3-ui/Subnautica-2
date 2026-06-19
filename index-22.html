@@ -2334,10 +2334,12 @@ function renderInventory(){
     const ct=res[item.key]||0;
     if(ct<=0)continue;
     const ico=getItemIcon(item.key);
-    html+=`<div class="inv-slot" title="${item.name}: ${ct}">
+    const usable=['cookedFish','curedFish','filteredWater','disinfectedWater','firstAidKit','medPack','beacon','battery','resourceDetector'].includes(item.key);
+    html+=`<div class="inv-slot" title="${item.name}: ${ct}" ${usable?`onclick="useItem('${item.key}')" style="cursor:pointer"`:''}>
       <img src="${ico}" style="width:36px;height:36px;image-rendering:pixelated" draggable="false">
       <div class="inv-nm">${item.name}</div>
-      <div class="inv-ct">${ct}</div></div>`;
+      <div class="inv-ct">${ct}</div>
+      ${usable?'<div style="font-size:8px;color:var(--cy);letter-spacing:.1em;margin-top:2px">USE</div>':''}</div>`;
   }
   html+='</div>';
   html+=`<div class="isec" style="margin-top:18px">— ACTIONS</div>
@@ -2392,22 +2394,36 @@ function renderCraftMenu(){
     // Crafting animation overlay
     const anim=document.createElement('div');
     anim.style.cssText='position:fixed;inset:0;z-index:50;display:flex;align-items:center;justify-content:center;background:rgba(0,6,14,.7);pointer-events:none';
-    anim.innerHTML=`<div style="text-align:center">
-      <div style="width:120px;height:120px;border:2px solid var(--cy);border-radius:50%;margin:0 auto;position:relative;overflow:hidden">
-        <div id="craftFill" style="position:absolute;bottom:0;left:0;right:0;height:0%;background:linear-gradient(0deg,rgba(127,233,255,.3),rgba(127,233,255,.1));transition:height 1.5s ease-out"></div>
-        <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:10px;letter-spacing:.4em;color:var(--cy)">FABRICATING</div>
+    anim.innerHTML=`<div style="text-align:center;perspective:600px">
+      <div style="width:160px;height:160px;margin:0 auto;position:relative">
+        <div id="craftRing" style="width:160px;height:160px;border:2px solid var(--cy);border-radius:50%;position:absolute;animation:craftSpin 2s linear infinite;box-shadow:0 0 20px rgba(127,233,255,.3)"></div>
+        <div style="width:140px;height:140px;border:1px solid rgba(127,233,255,.3);border-radius:50%;position:absolute;left:10px;top:10px;animation:craftSpin 3s linear reverse infinite"></div>
+        <div id="craftFill" style="position:absolute;bottom:10px;left:10px;right:10px;height:0%;max-height:140px;background:linear-gradient(0deg,rgba(127,233,255,.35),rgba(68,200,255,.05));border-radius:0 0 70px 70px;transition:height 1.5s ease-out;box-shadow:0 0 15px rgba(127,233,255,.2)"></div>
+        <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center">
+          <div style="font-family:var(--mono);font-size:9px;letter-spacing:.5em;color:var(--cy);text-shadow:0 0 8px rgba(127,233,255,.6)">FABRICATING</div>
+          <div id="craftPct" style="font-family:var(--mono);font-size:20px;color:#eaffff;margin-top:4px;text-shadow:0 0 12px rgba(127,233,255,.8)">0%</div>
+        </div>
       </div>
-      <div style="font-family:var(--mono);font-size:14px;letter-spacing:.3em;color:#eaffff;margin-top:16px">${recipe.name}</div>
+      <div style="font-family:var(--mono);font-size:14px;letter-spacing:.3em;color:#eaffff;margin-top:18px;text-shadow:0 0 8px rgba(127,233,255,.4)">${recipe.name}</div>
       <div id="craftSparks" style="font-size:10px;color:var(--cy-dim);margin-top:8px;letter-spacing:.3em">◆ ◇ ◆ ◇ ◆</div>
-    </div>`;
+      <div style="width:200px;height:3px;background:rgba(127,233,255,.1);margin:12px auto 0;border-radius:2px;overflow:hidden">
+        <div id="craftBar" style="width:0%;height:100%;background:var(--cy);transition:width 1.5s ease-out;box-shadow:0 0 8px var(--cy)"></div>
+      </div>
+    </div>
+    <style>@keyframes craftSpin{to{transform:rotate(360deg)}}</style>`;
     document.body.appendChild(anim);
-    requestAnimationFrame(()=>{const f=document.getElementById('craftFill');if(f)f.style.height='100%';});
+    requestAnimationFrame(()=>{
+      const f=document.getElementById('craftFill');if(f)f.style.height='100%';
+      const b=document.getElementById('craftBar');if(b)b.style.width='100%';
+    });
     blip(220,.3,'sine',.08); blip(660,.1,'square',.04);
     let sparkI=0;
     const sparkInt=setInterval(()=>{
       sparkI++;
       const sp=document.getElementById('craftSparks');
       if(sp)sp.textContent=['◇ ◆ ◇ ◆ ◇','◆ ◇ ◆ ◇ ◆','◇ ◆ ◆ ◆ ◇','◆ ◆ ◇ ◆ ◆'][sparkI%4];
+      const pct=document.getElementById('craftPct');
+      if(pct)pct.textContent=Math.min(100,Math.round(sparkI/6*100))+'%';
       blip(300+sparkI*80,.05,'sine',.03);
     },300);
     setTimeout(()=>{
@@ -2526,6 +2542,30 @@ function drink(){
   if(res.h2o<=0){ toast('NO HYDRO-CELLS — HARVEST BLUE AQUA BULBS'); return false; }
   res.h2o--; stats.h2o=clamp(stats.h2o+45,0,100);
   toast('HYDRO-CELL CONSUMED'); blip(430,.18,'triangle',.1); bubbleSnd(); return true;
+}
+
+function useItem(key){
+  if((res[key]||0)<=0)return false;
+  const actions={
+    cookedFish:()=>{ stats.food=clamp(stats.food+50,0,100); toast('COOKED FISH CONSUMED — +50 NUTRITION'); },
+    curedFish:()=>{ stats.food=clamp(stats.food+70,0,100); toast('CURED FISH CONSUMED — +70 NUTRITION'); },
+    filteredWater:()=>{ stats.h2o=clamp(stats.h2o+60,0,100); toast('FILTERED WATER — +60 HYDRATION'); },
+    disinfectedWater:()=>{ stats.h2o=clamp(stats.h2o+80,0,100); toast('DISINFECTED WATER — +80 HYDRATION'); },
+    firstAidKit:()=>{ stats.hp=clamp(stats.hp+50,0,100); toast('FIRST AID — +50 HP'); },
+    medPack:()=>{ stats.hp=100; stats.food=clamp(stats.food+20,0,100); stats.h2o=clamp(stats.h2o+20,0,100); toast('MEDICAL PACK — FULL RESTORE'); },
+    beacon:()=>{ const bx=camera.position.x,bz=camera.position.z,by=terrainHeight(bx,bz);
+      const bMesh=new THREE.Mesh(new THREE.ConeGeometry(.3,1,6),new THREE.MeshStandardMaterial({color:0xffaa00,emissive:0xff8800,emissiveIntensity:.5}));
+      bMesh.position.set(bx,by+.5,bz); scene.add(bMesh); toast('BEACON PLACED'); },
+    battery:()=>{ if(vehicleBuilt){vehicleBattery=clamp(vehicleBattery+50,0,100);toast('BATTERY INSTALLED — +50% CHARGE');} else {toast('NO VEHICLE TO CHARGE');return false;} },
+    resourceDetector:()=>{ minerals.forEach(n=>{if(!n.dead&&camera.position.distanceTo(new THREE.Vector3(n.x,n.y,n.z))<30){n.grp.children.forEach(c=>{if(c.material)c.material.emissiveIntensity=1;});setTimeout(()=>n.grp.children.forEach(c=>{if(c.material)c.material.emissiveIntensity=.3;}),3000);}}); toast('RESOURCE SCAN — NODES HIGHLIGHTED'); return true; },
+  };
+  if(!actions[key]){toast('ITEM HAS NO USE');return false;}
+  const result=actions[key]();
+  if(result===false)return false;
+  res[key]--;
+  blip(440,.15,'sine',.1);
+  if(uiOpen)renderInventory();
+  return true;
 }
 
 /* menu parallax */
