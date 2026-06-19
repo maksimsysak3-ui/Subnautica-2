@@ -785,40 +785,40 @@ function fbm(x,z){ let v=0,a=.5,f=1; for(let i=0;i<5;i++){ v+=a*vnoise(x*f,z*f);
 function terrainHeight(x,z){
   const dist=Math.sqrt(x*x+z*z);
   const ang=Math.atan2(z,x);
-  const base=-6-dist*.22;
-  const ridges=fbm(x*.007+1.5,z*.009+2.3)*28*(1-Math.exp(-dist*.004));
-  const plateaus=Math.max(0,fbm(x*.005+5,z*.005+3)-.3)*65;
-  const valleys=Math.min(0,fbm(x*.004-2,z*.004+8)-.5)*100;
-  const detail=fbm(x*.015+7.3,z*.015+2.1)*16+fbm(x*.04+1.1,z*.04+4.4)*8+vnoise(x*.08,z*.08)*4;
-  const dunes=fbm(x*.018+3,z*.014+7)*12;
+  const base=-10-dist*.25;
+  const ridges=fbm(x*.007+1.5,z*.009+2.3)*14*(1-Math.exp(-dist*.004));
+  const plateaus=Math.max(0,fbm(x*.005+5,z*.005+3)-.45)*40;
+  const valleys=Math.min(0,fbm(x*.004-2,z*.004+8)-.5)*120;
+  const detail=fbm(x*.015+7.3,z*.015+2.1)*8+fbm(x*.04+1.1,z*.04+4.4)*4+vnoise(x*.08,z*.08)*2;
+  const dunes=fbm(x*.018+3,z*.014+7)*6;
   // Steep cliffs — sharp drop-offs
   const cliffN=fbm(x*.003+10,z*.004+15);
   const cliff=cliffN>.6?-(cliffN-.6)*350*(1-Math.exp(-dist*.003)):0;
-  // Underwater hills/mounds near spawn
-  const hillN=fbm(x*.012+30,z*.011+25);
-  const hills=dist<200?hillN*hillN*35:0;
+  // Mountain peaks — rare, only where noise is very high
+  const hillN=fbm(x*.008+30,z*.008+25);
+  const hills=hillN>.7?((hillN-.7)*120)*Math.min(1,dist/150):0;
   // Deep trenches with steep walls
   const trenchN=fbm(x*.003+.5,z*.003+.8);
   const trench=trenchN>.62?-(trenchN-.62)*320:0;
   // Canyons cutting through terrain
   const canyonN=fbm(x*.006+2.1,z*.008+1.3);
   const canyon=canyonN>.65?-(canyonN-.65)*160:0;
-  // Rocky pillars and spires
+  // Rocky pillars and spires — rarer
   const pillarN=fbm(x*.009+50,z*.009+50);
-  const pillar=pillarN>.75?((pillarN-.75)*280)*Math.min(1,dist/200):0;
-  // Cave overhangs (shelf with gap beneath)
+  const pillar=pillarN>.8?((pillarN-.8)*200)*Math.min(1,dist/250):0;
+  // Cave overhangs
   const archN=fbm(x*.006+20,z*.006+20);
-  const arch=archN>.72?fbm(x*.02+9,z*.02+11)*30*(archN-.72)*5:0;
+  const arch=archN>.75?fbm(x*.02+9,z*.02+11)*20*(archN-.75)*4:0;
   // Rock shelves at medium depth
   const shelfRaw=base+ridges;
-  const shelf=(shelfRaw<-40&&shelfRaw>-90)?Math.max(0,fbm(x*.025+4,z*.025+6)-.35)*24:0;
+  const shelf=(shelfRaw<-40&&shelfRaw>-90)?Math.max(0,fbm(x*.025+4,z*.025+6)-.4)*16:0;
   // Biome-based terrain variation (horizontal)
-  const biomeVar=Math.sin(ang*2+1.5)*fbm(x*.008+100,z*.008+100)*15;
+  const biomeVar=Math.sin(ang*2+1.5)*fbm(x*.008+100,z*.008+100)*8;
   // Dramatic drop-off ring at distance 300-400
   const dropoff=(dist>300&&dist<420)?-(dist-300)*.4*fbm(x*.01+5,z*.01+8):0;
   let h=base+ridges+plateaus+valleys+detail+dunes+cliff+hills+trench+canyon+pillar+arch+shelf+biomeVar+dropoff;
-  if(dist<35) h=-8; else if(dist<55) h=h*(dist-35)/20 + (-8)*(1-(dist-35)/20);
-  return clamp(h,-550,3);
+  if(dist<35) h=-10; else if(dist<60) h=h*(dist-35)/25 + (-10)*(1-(dist-35)/25);
+  return clamp(h,-550,-2);
 }
 function smoothstep(edge0,edge1,x){const t=clamp((x-edge0)/(edge1-edge0),0,1);return t*t*(3-2*t);}
 const terrain=(()=>{
@@ -855,31 +855,25 @@ const terrain=(()=>{
     function nfbm(px,py){let v=0,a=.5,f=1;for(let i=0;i<7;i++){v+=a*smooth(px*f,py*f);a*=.46;f*=2.03;}return v;}
     const img=g.createImageData(w,h);
     for(let y=0;y<h;y++) for(let x=0;x<w;x++){
-      const nx=x/w*8,ny=y/h*8;
-      const warp1=nfbm(nx*0.5+3,ny*0.5+7)*2.0;
-      const warp2=nfbm(nx*0.3+10,ny*0.3+20)*1.5;
-      const c1=Math.sin(nx*4.0+ny*2.0+warp1);
-      const c2=Math.sin(nx*2.5-ny*5.0+warp2);
-      const c3=Math.sin((nx+ny)*3.0+nfbm(nx*0.6,ny*0.6)*2.0);
-      const c4=Math.sin(nx*7.0+ny*1.5+warp1*1.3);
-      const caustic1=Math.pow(Math.max(0,c1),6.0)*0.4;
-      const caustic2=Math.pow(Math.max(0,c2),6.0)*0.3;
-      const caustic3=Math.pow(Math.max(0,c3),5.0)*0.25;
-      const caustic4=Math.pow(Math.max(0,c4),8.0)*0.2;
-      const causticTotal=caustic1+caustic2+caustic3+caustic4;
-      const ridge=Math.sin((nx*Math.cos(0.4)+ny*Math.sin(0.4))*5.0+warp1)*0.5+0.5;
-      const shadowTeal=1.0-ridge*0.3;
-      const baseR=185*shadowTeal+causticTotal*70;
-      const baseG=215*shadowTeal+causticTotal*55;
-      const baseB=195*shadowTeal+causticTotal*40;
-      const tealR=baseR*(1.0-ridge*0.15);
-      const tealG=baseG*(1.0+ridge*0.05);
-      const tealB=baseB*(1.0+ridge*0.1);
-      const grain=(pn(nx*50,ny*50)-0.5)*8;
+      const nx=x/w*10,ny=y/h*10;
+      const warp=nfbm(nx*0.3+3,ny*0.3+7)*1.2;
+      // Small, thin caustic light lines — not full stripes
+      const c1=Math.sin(nx*6.0+ny*3.5+warp);
+      const c2=Math.sin(nx*3.0-ny*7.0+nfbm(nx*0.4+10,ny*0.4+20));
+      const c3=Math.sin((nx*1.5+ny*1.5)*4.0+warp*0.8);
+      // Very sharp peaks = thin bright lines
+      const caustic=Math.pow(Math.max(0,c1),12.0)*0.25+Math.pow(Math.max(0,c2),12.0)*0.2+Math.pow(Math.max(0,c3),10.0)*0.15;
+      // Soft gentle sand ripples — very subtle, no dark stripes
+      const ripple=Math.sin((nx*Math.cos(0.3)+ny*Math.sin(0.3))*3.0+warp*0.5)*0.03;
+      // Clean warm sand base — consistent brightness, no dark shadows
+      const baseR=195+ripple*15+caustic*60;
+      const baseG=210+ripple*10+caustic*50;
+      const baseB=195+ripple*12+caustic*40;
+      const grain=(pn(nx*40,ny*40)-0.5)*4;
       const idx=(y*w+x)*4;
-      img.data[idx]=clamp(Math.floor(tealR+grain),140,255);
-      img.data[idx+1]=clamp(Math.floor(tealG+grain),160,255);
-      img.data[idx+2]=clamp(Math.floor(tealB+grain),140,255);
+      img.data[idx]=clamp(Math.floor(baseR+grain),180,255);
+      img.data[idx+1]=clamp(Math.floor(baseG+grain),190,255);
+      img.data[idx+2]=clamp(Math.floor(baseB+grain),175,255);
       img.data[idx+3]=255;
     }
     g.putImageData(img,0,0);
