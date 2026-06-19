@@ -283,6 +283,8 @@
       EXTRACT. FABRICATE. SURVIVE THE BLUE.</div>
     <div class="mbtn" id="btnDive"><span id="btnDiveTxt">BEGIN DIVE</span><small>ENTER</small></div>
     <div class="mbtn" id="btnBrief"><span>MISSION BRIEFING</span><small>CONTROLS</small></div>
+    <div class="mbtn" id="btnSave"><span>SAVE GAME</span><small>LOCAL</small></div>
+    <div class="mbtn" id="btnLoad"><span>LOAD GAME</span><small>LOCAL</small></div>
     <div class="mbtn" id="btnQual"><span>GRAPHICS&nbsp;<b id="qualTxt" style="color:var(--cy)">CINEMATIC</b></span><small>TOGGLE</small></div>
   </div>
   <div id="mFoot">SINGLE-FILE BUILD · THREE.JS · AUDIO SYNTHESIZED IN-BROWSER · v2.2</div>
@@ -476,15 +478,15 @@
       <div class="slot on" id="slot1"><span class="k">1</span>
         <svg viewBox="0 0 24 24"><path d="M3 14 L13 14 L20 10 M13 14 L20 18 M3 11 L3 17 M6 11 L6 17"/><circle cx="21" cy="14" r="1.6"/></svg></div>
       <div class="slot" id="slot2"><span class="k">2</span>
-        <svg viewBox="0 0 24 24"><path d="M4 20 L20 20 M6 20 L6 10 L12 6 L18 10 L18 20 M9 20 L9 14 L15 14 L15 20"/></svg></div>
+        <svg viewBox="0 0 24 24"><rect x="7" y="11" width="10" height="9" rx="1" fill="none"/><path d="M9 11 V8 a3 3 0 0 1 6 0 V11"/></svg></div>
       <div class="slot" id="slot3"><span class="k">3</span>
-        <svg viewBox="0 0 24 24"><rect x="6" y="3" width="12" height="16" rx="1" fill="none"/><rect x="8" y="5" width="8" height="10" fill="none"/><path d="M12 19 L12 22 M9 22 L15 22"/><circle cx="15" cy="4" r="1"/></svg></div>
+        <svg viewBox="0 0 24 24"><rect x="7" y="11" width="10" height="9" rx="1" fill="none"/><path d="M9 11 V8 a3 3 0 0 1 6 0 V11"/></svg></div>
       <div class="slot" id="slot4"><span class="k">4</span>
-        <svg viewBox="0 0 24 24"><path d="M12 3 L12 14 M8 14 L16 14 L14 18 L10 18 Z"/><circle cx="12" cy="5" r="2.5" fill="none"/><path d="M9 18 L9 21 M15 18 L15 21"/></svg></div>
+        <svg viewBox="0 0 24 24"><rect x="7" y="11" width="10" height="9" rx="1" fill="none"/><path d="M9 11 V8 a3 3 0 0 1 6 0 V11"/></svg></div>
       <div class="slot" id="slot5"><span class="k">5</span>
-        <svg viewBox="0 0 24 24"><circle cx="12" cy="10" r="5" fill="none"/><path d="M12 15 L12 22 M9 22 L15 22 M7 10 L4 10 M17 10 L20 10"/><circle cx="12" cy="10" r="2"/></svg></div>
+        <svg viewBox="0 0 24 24"><rect x="7" y="11" width="10" height="9" rx="1" fill="none"/><path d="M9 11 V8 a3 3 0 0 1 6 0 V11"/></svg></div>
       <div class="slot" id="slot6"><span class="k">6</span>
-        <svg viewBox="0 0 24 24"><path d="M8 4 L16 4 L18 8 L18 12 L6 12 L6 8 Z"/><rect x="9" y="12" width="6" height="10" rx="1"/><circle cx="12" cy="8" r="2.5" fill="none"/></svg></div>
+        <svg viewBox="0 0 24 24"><rect x="7" y="11" width="10" height="9" rx="1" fill="none"/><path d="M9 11 V8 a3 3 0 0 1 6 0 V11"/></svg></div>
     </div>
     <div id="modInfo"><b id="modName">FOUNDATION</b><br><span id="modCost"></span></div>
     <div id="hint"><b>B</b> BUILD MENU &nbsp;·&nbsp; <b>TAB</b> INVENTORY</div>
@@ -778,23 +780,39 @@ function vnoise(x,z){
 function fbm(x,z){ let v=0,a=.5,f=1; for(let i=0;i<5;i++){ v+=a*vnoise(x*f,z*f); a*=.5; f*=2; } return v; }
 function terrainHeight(x,z){
   const dist=Math.sqrt(x*x+z*z);
-  const base=-6-dist*.26;
-  const ridges=fbm(x*.007+1.5,z*.009+2.3)*24*(1-Math.exp(-dist*.004));
-  const plateaus=Math.max(0,fbm(x*.005+5,z*.005+3)-.35)*55;
-  const valleys=Math.min(0,fbm(x*.004-2,z*.004+8)-.55)*80;
-  const detail=fbm(x*.015+7.3,z*.015+2.1)*14+fbm(x*.04+1.1,z*.04+4.4)*6+vnoise(x*.08,z*.08)*3;
-  const dunes=fbm(x*.018+3,z*.014+7)*10;
+  const ang=Math.atan2(z,x);
+  const base=-6-dist*.22;
+  const ridges=fbm(x*.007+1.5,z*.009+2.3)*28*(1-Math.exp(-dist*.004));
+  const plateaus=Math.max(0,fbm(x*.005+5,z*.005+3)-.3)*65;
+  const valleys=Math.min(0,fbm(x*.004-2,z*.004+8)-.5)*100;
+  const detail=fbm(x*.015+7.3,z*.015+2.1)*16+fbm(x*.04+1.1,z*.04+4.4)*8+vnoise(x*.08,z*.08)*4;
+  const dunes=fbm(x*.018+3,z*.014+7)*12;
+  // Steep cliffs — sharp drop-offs
+  const cliffN=fbm(x*.003+10,z*.004+15);
+  const cliff=cliffN>.6?-(cliffN-.6)*350*(1-Math.exp(-dist*.003)):0;
+  // Underwater hills/mounds near spawn
+  const hillN=fbm(x*.012+30,z*.011+25);
+  const hills=dist<200?hillN*hillN*35:0;
+  // Deep trenches with steep walls
   const trenchN=fbm(x*.003+.5,z*.003+.8);
-  const trench=trenchN>.65?-(trenchN-.65)*260:0;
+  const trench=trenchN>.62?-(trenchN-.62)*320:0;
+  // Canyons cutting through terrain
   const canyonN=fbm(x*.006+2.1,z*.008+1.3);
-  const canyon=canyonN>.7?-(canyonN-.7)*130:0;
+  const canyon=canyonN>.65?-(canyonN-.65)*160:0;
+  // Rocky pillars and spires
   const pillarN=fbm(x*.009+50,z*.009+50);
-  const pillar=pillarN>.78?((pillarN-.78)*220)*Math.min(1,dist/250):0;
+  const pillar=pillarN>.75?((pillarN-.75)*280)*Math.min(1,dist/200):0;
+  // Cave overhangs (shelf with gap beneath)
   const archN=fbm(x*.006+20,z*.006+20);
-  const arch=archN>.75?fbm(x*.02+9,z*.02+11)*25*(archN-.75)*4:0;
+  const arch=archN>.72?fbm(x*.02+9,z*.02+11)*30*(archN-.72)*5:0;
+  // Rock shelves at medium depth
   const shelfRaw=base+ridges;
-  const shelf=(shelfRaw<-55&&shelfRaw>-85)?Math.max(0,fbm(x*.025+4,z*.025+6)-.4)*18:0;
-  let h=base+ridges+plateaus+valleys+detail+dunes+trench+canyon+pillar+arch+shelf;
+  const shelf=(shelfRaw<-40&&shelfRaw>-90)?Math.max(0,fbm(x*.025+4,z*.025+6)-.35)*24:0;
+  // Biome-based terrain variation (horizontal)
+  const biomeVar=Math.sin(ang*2+1.5)*fbm(x*.008+100,z*.008+100)*15;
+  // Dramatic drop-off ring at distance 300-400
+  const dropoff=(dist>300&&dist<420)?-(dist-300)*.4*fbm(x*.01+5,z*.01+8):0;
+  let h=base+ridges+plateaus+valleys+detail+dunes+cliff+hills+trench+canyon+pillar+arch+shelf+biomeVar+dropoff;
   if(dist<50) h=Math.max(h,-12);
   return clamp(h,-550,3);
 }
@@ -1357,194 +1375,441 @@ const lance=new THREE.Group(); toolRoot.add(lance);
 const lanceCoils=[];
 let lanceTip;
 {
-  const body=new THREE.Mesh(new THREE.CapsuleGeometry(.055,.35,6,12),whiteShell);
-  body.rotation.x=Math.PI/2; lance.add(body);
-  const stripe=new THREE.Mesh(new THREE.BoxGeometry(.02,.045,.4),blueStripe);
-  stripe.position.set(.045,0,0); lance.add(stripe);
-  const stripe2=new THREE.Mesh(new THREE.BoxGeometry(.02,.045,.4),blueStripe);
-  stripe2.position.set(-.045,0,0); lance.add(stripe2);
-  const grip=new THREE.Mesh(new THREE.CapsuleGeometry(.03,.1,4,8),gunDark);
-  grip.position.set(0,-.1,.1); grip.rotation.x=0.15; lance.add(grip);
-  const barrel=new THREE.Mesh(new THREE.CylinderGeometry(.04,.055,.25,10),gunmetal);
-  barrel.rotation.x=Math.PI/2; barrel.position.z=-.28; lance.add(barrel);
+  /* Main body — elongated octagonal housing */
+  const body1=new THREE.Mesh(new THREE.BoxGeometry(.09,.09,.38),whiteShell);
+  body1.rotation.x=Math.PI/2; lance.add(body1);
+  const body2=new THREE.Mesh(new THREE.BoxGeometry(.075,.075,.38),whiteShell);
+  body2.rotation.x=Math.PI/2; body2.rotation.z=Math.PI/4; lance.add(body2);
+  /* Blue accent lines along body */
+  for(const sx of [-1,1]){
+    const acLine=new THREE.Mesh(new THREE.BoxGeometry(.008,.04,.36),blueStripe);
+    acLine.position.set(sx*.048,0,0); lance.add(acLine);
+  }
+  const topAccent=new THREE.Mesh(new THREE.BoxGeometry(.04,.008,.36),blueStripe);
+  topAccent.position.y=.048; lance.add(topAccent);
+  /* Rear grip section — dark ergonomic pistol grip */
+  const grip=new THREE.Mesh(new THREE.BoxGeometry(.035,.13,.05),gunDark);
+  grip.position.set(0,-.11,.12); grip.rotation.x=0.2; lance.add(grip);
+  const gripBase=new THREE.Mesh(new THREE.BoxGeometry(.04,.03,.06),gunDark);
+  gripBase.position.set(0,-.17,.13); lance.add(gripBase);
+  /* Trigger guard — half torus */
+  const trigGuard=new THREE.Mesh(new THREE.TorusGeometry(.025,.005,6,10,Math.PI),gunmetal);
+  trigGuard.position.set(0,-.08,.1); trigGuard.rotation.y=Math.PI/2; trigGuard.rotation.x=Math.PI/2; lance.add(trigGuard);
+  const trigger=new THREE.Mesh(new THREE.BoxGeometry(.012,.03,.008),gunmetal);
+  trigger.position.set(0,-.07,.1); trigger.rotation.x=0.3; lance.add(trigger);
+  /* Grip ribs — rubber texture */
+  for(let i=0;i<4;i++){
+    const rib=new THREE.Mesh(new THREE.BoxGeometry(.038,.006,.008),darkPanel);
+    rib.position.set(0,-.06-.025*i,.12); rib.rotation.x=0.2; lance.add(rib);
+  }
+  /* Mid section — energy coils */
   for(let i=0;i<2;i++){
     const coil=new THREE.Group();
-    const ring=new THREE.Mesh(new THREE.TorusGeometry(.065,.01,6,16),ambGlow); coil.add(ring);
-    coil.position.z=-.22-i*.1; lance.add(coil); lanceCoils.push(coil);
+    const ring=new THREE.Mesh(new THREE.TorusGeometry(.065,.012,8,20),ambGlow); coil.add(ring);
+    coil.position.z=-.08-i*.09; lance.add(coil); lanceCoils.push(coil);
   }
+  /* Status screen */
+  const statusScreen=new THREE.Mesh(new THREE.PlaneGeometry(.035,.02),screenGlow);
+  statusScreen.position.set(.05,.03,-.02); statusScreen.rotation.y=Math.PI/2*.3; lance.add(statusScreen);
+  /* Ventilation slits on sides */
+  for(let i=0;i<3;i++){
+    for(const sx of [-1,1]){
+      const slit=new THREE.Mesh(new THREE.BoxGeometry(.004,.015,.025),darkPanel);
+      slit.position.set(sx*.05,.025,-.03-i*.04); lance.add(slit);
+    }
+  }
+  /* Barrel — tapered cylinder */
+  const barrel=new THREE.Mesh(new THREE.CylinderGeometry(.035,.05,.22,10),gunmetal);
+  barrel.rotation.x=Math.PI/2; barrel.position.z=-.28; lance.add(barrel);
+  /* Heat rings on barrel */
+  for(let i=0;i<3;i++){
+    const hRing=new THREE.Mesh(new THREE.TorusGeometry(.04+i*.003,.005,6,14),orangeAccent);
+    hRing.position.z=-.22-i*.06; lance.add(hRing);
+  }
+  /* Twin plasma prongs */
   for(const sx of [-1,1]){
-    const prong=new THREE.Mesh(new THREE.BoxGeometry(.018,.03,.2),whiteShell);
-    prong.position.set(sx*.05,0,-.48); prong.rotation.y=sx*.12; lance.add(prong);
-    const tip=new THREE.Mesh(new THREE.SphereGeometry(.012,6,4),ambGlow);
-    tip.position.set(sx*.055,0,-.59); lance.add(tip);
+    const prong=new THREE.Mesh(new THREE.BoxGeometry(.015,.02,.18),whiteShell);
+    prong.position.set(sx*.04,0,-.46); prong.rotation.y=sx*.1; lance.add(prong);
+    const prongTip=new THREE.Mesh(new THREE.CylinderGeometry(.008,.003,.04,6),orangeAccent);
+    prongTip.rotation.x=Math.PI/2; prongTip.position.set(sx*.055,0,-.56); lance.add(prongTip);
+    const tipGlow=new THREE.Mesh(new THREE.SphereGeometry(.01,8,6),ambGlow);
+    tipGlow.position.set(sx*.055,0,-.58); lance.add(tipGlow);
   }
-  lanceTip=new THREE.Mesh(new THREE.SphereGeometry(.025,10,8),ambGlow);
+  /* Energy arc between prong tips */
+  const arcCurve=new THREE.Mesh(new THREE.CylinderGeometry(.004,.004,.1,6),ambGlow);
+  arcCurve.position.z=-.57; arcCurve.rotation.z=Math.PI/2; lance.add(arcCurve);
+  /* Main tip */
+  lanceTip=new THREE.Mesh(new THREE.SphereGeometry(.02,10,8),ambGlow);
   lanceTip.position.z=-.52; lance.add(lanceTip);
+  /* Warning triangle decal */
+  const warnTri=new THREE.Mesh(new THREE.ConeGeometry(.012,.02,3),orangeAccent);
+  warnTri.position.set(-.05,.02,.05); warnTri.rotation.x=Math.PI/2; lance.add(warnTri);
+  /* Power indicator */
+  const pwrInd=new THREE.Mesh(new THREE.SphereGeometry(.005,6,4),grnGlow);
+  pwrInd.position.set(.05,.035,.05); lance.add(pwrInd);
+  /* Cable conduit along body */
+  const cable=new THREE.Mesh(new THREE.CylinderGeometry(.004,.004,.3,5),gunDark);
+  cable.rotation.x=Math.PI/2; cable.position.set(-.04,-.035,-.05); lance.add(cable);
 }
-/* FABRICATOR — sleek white construction tool */
+/* FABRICATOR — habitat builder / construction projector */
 const fab=new THREE.Group(); toolRoot.add(fab); fab.visible=false;
 let fabTip,fabHolo,fabBlink;
+const fabDish=new THREE.Group();
 {
-  const shell=new THREE.Mesh(new THREE.CapsuleGeometry(.06,.3,6,12),whiteShell);
-  shell.rotation.x=Math.PI/2; fab.add(shell);
-  const band1=new THREE.Mesh(new THREE.BoxGeometry(.015,.05,.32),blueStripe);
-  band1.position.set(.05,0,0); fab.add(band1);
-  const band2=new THREE.Mesh(new THREE.BoxGeometry(.015,.05,.32),blueStripe);
-  band2.position.set(-.05,0,0); fab.add(band2);
-  const grip=new THREE.Mesh(new THREE.CapsuleGeometry(.025,.1,4,8),gunDark);
-  grip.position.set(0,-.1,.1); grip.rotation.x=.15; fab.add(grip);
-  const dish=new THREE.Mesh(new THREE.CylinderGeometry(.08,.04,.08,12,1,true),whiteShell);
-  dish.rotation.x=-Math.PI/2; dish.position.z=-.22; fab.add(dish);
-  const ring=new THREE.Mesh(new THREE.TorusGeometry(.075,.01,6,18),ambGlow);
-  ring.position.z=-.27; fab.add(ring);
-  fabBlink=new THREE.Mesh(new THREE.SphereGeometry(.012,8,6),ambGlow.clone());
-  fabBlink.position.set(0,.04,-.15); fab.add(fabBlink);
+  /* Base — compact white body, wider than tall */
+  const shell=new THREE.Mesh(new THREE.BoxGeometry(.14,.08,.28),whiteShell); fab.add(shell);
+  const shellRound=new THREE.Mesh(new THREE.CylinderGeometry(.04,.04,.28,8),whiteShell);
+  shellRound.rotation.x=Math.PI/2; shellRound.position.y=-.02; fab.add(shellRound);
+  /* Bottom-mounted dark pistol grip */
+  const grip=new THREE.Mesh(new THREE.BoxGeometry(.032,.12,.045),gunDark);
+  grip.position.set(0,-.1,.06); grip.rotation.x=.18; fab.add(grip);
+  const gripEnd=new THREE.Mesh(new THREE.BoxGeometry(.038,.025,.05),gunDark);
+  gripEnd.position.set(0,-.16,.08); fab.add(gripEnd);
+  const trigger=new THREE.Mesh(new THREE.BoxGeometry(.012,.035,.01),gunmetal);
+  trigger.position.set(0,-.06,.035); trigger.rotation.x=.35; fab.add(trigger);
+  /* Top — holographic projector dish (inverted cone) */
+  const dishBase=new THREE.Mesh(new THREE.CylinderGeometry(.02,.06,.05,12,1,true),whiteShell);
+  dishBase.position.set(0,.065,-.08); fabDish.add(dishBase);
+  const dishRing=new THREE.Mesh(new THREE.TorusGeometry(.06,.008,6,18),ambGlow);
+  dishRing.position.set(0,.09,-.08); dishRing.rotation.x=Math.PI/2; fabDish.add(dishRing);
+  fab.add(fabDish);
+  /* Front — lens array (3 cylinders in triangle) */
+  const lensPositions=[[0,.015],[-.015,-.01],[.015,-.01]];
+  for(const [lx,ly] of lensPositions){
+    const lens=new THREE.Mesh(new THREE.CylinderGeometry(.015,.015,.03,8),gunmetal);
+    lens.rotation.x=Math.PI/2; lens.position.set(lx,ly,-.16); fab.add(lens);
+    const lGlow=new THREE.Mesh(new THREE.CircleGeometry(.013,8),ambGlow);
+    lGlow.position.set(lx,ly,-.175); fab.add(lGlow);
+  }
+  /* Side panels — blue accent strips */
+  for(const sx of [-1,1]){
+    const strip=new THREE.Mesh(new THREE.BoxGeometry(.005,.04,.22),blueStripe);
+    strip.position.set(sx*.072,0,-.02); fab.add(strip);
+    const strip2=new THREE.Mesh(new THREE.BoxGeometry(.005,.02,.18),blueStripe);
+    strip2.position.set(sx*.072,.025,-.02); fab.add(strip2);
+  }
+  /* Status readout screen on side */
+  const sideScreen=new THREE.Mesh(new THREE.PlaneGeometry(.04,.025),screenGlow);
+  sideScreen.position.set(.073,.01,0); sideScreen.rotation.y=Math.PI/2; fab.add(sideScreen);
+  /* Short articulated antenna */
+  const ant1=new THREE.Mesh(new THREE.CylinderGeometry(.004,.004,.05,5),gunmetal);
+  ant1.position.set(.03,.065,-.04); fab.add(ant1);
+  const ant2=new THREE.Mesh(new THREE.CylinderGeometry(.003,.003,.035,5),gunmetal);
+  ant2.position.set(.03,.1,-.045); ant2.rotation.z=.2; fab.add(ant2);
+  const antTip=new THREE.Mesh(new THREE.SphereGeometry(.006,6,4),orangeAccent);
+  antTip.position.set(.034,.115,-.045); fab.add(antTip);
+  /* ALTERRA style accent lines */
+  for(let i=0;i<3;i++){
+    const aLine=new THREE.Mesh(new THREE.BoxGeometry(.12,.003,.008),blueStripe);
+    aLine.position.set(0,.042,-.08+i*.06); fab.add(aLine);
+  }
+  /* Power cell slot on side */
+  const cellSlot=new THREE.Mesh(new THREE.BoxGeometry(.01,.035,.06),darkPanel);
+  cellSlot.position.set(-.072,-.01,.06); fab.add(cellSlot);
+  /* Blinker */
+  fabBlink=new THREE.Mesh(new THREE.SphereGeometry(.008,8,6),ambGlow.clone());
+  fabBlink.position.set(0,.042,-.12); fab.add(fabBlink);
+  /* Holographic projection wireframe */
   fabHolo=new THREE.LineSegments(
     new THREE.EdgesGeometry(new THREE.BoxGeometry(.1,.1,.1)),
     new THREE.LineBasicMaterial({color:0x7dffa8,transparent:true,opacity:.9}));
-  fabHolo.position.set(0,.16,-.3); fab.add(fabHolo);
-  fabTip=new THREE.Object3D(); fabTip.position.z=-.36; fab.add(fabTip);
+  fabHolo.position.set(0,.18,-.08); fab.add(fabHolo);
+  fabTip=new THREE.Object3D(); fabTip.position.z=-.2; fab.add(fabTip);
+  /* Dark panel details */
+  const bottomPanel=new THREE.Mesh(new THREE.BoxGeometry(.1,.005,.2),darkPanel);
+  bottomPanel.position.set(0,-.042,-.02); fab.add(bottomPanel);
+  /* Warning label */
+  const warnStrip=new THREE.Mesh(new THREE.BoxGeometry(.03,.003,.015),orangeAccent);
+  warnStrip.position.set(-.04,.042,.08); fab.add(warnStrip);
 }
+/* SCANNER — handheld data scanner */
 const scannerModel=new THREE.Group(); toolRoot.add(scannerModel); scannerModel.visible=false;
+const scanRingParts=[];
 {
-  const cyGlow=new THREE.MeshStandardMaterial({color:0x55ccff,emissive:0x2090dd,emissiveIntensity:0.15,transparent:true,opacity:.9});
-  const lensGlow=new THREE.MeshStandardMaterial({color:0x44ddff,emissive:0x22aaee,emissiveIntensity:0.2,transparent:true,opacity:.8});
-  /* main body — sleek rounded capsule, white with blue stripe */
-  const mainBody=new THREE.Mesh(new THREE.CapsuleGeometry(.04,.28,6,12),whiteShell);
-  mainBody.rotation.x=Math.PI/2; scannerModel.add(mainBody);
-  const stripe1=new THREE.Mesh(new THREE.BoxGeometry(.015,.035,.3),blueStripe);
-  stripe1.position.set(.035,0,0); scannerModel.add(stripe1);
-  const stripe2=new THREE.Mesh(new THREE.BoxGeometry(.015,.035,.3),blueStripe);
-  stripe2.position.set(-.035,0,0); scannerModel.add(stripe2);
-  /* front lens housing — holographic projector */
-  const lensCasing=new THREE.Mesh(new THREE.CylinderGeometry(.05,.04,.06,10),gunmetal);
+  /* Body — chunky rectangular, white */
+  const mainBody=new THREE.Mesh(new THREE.BoxGeometry(.08,.07,.3),whiteShell); scannerModel.add(mainBody);
+  const bodyRound1=new THREE.Mesh(new THREE.CylinderGeometry(.035,.035,.3,8),whiteShell);
+  bodyRound1.rotation.x=Math.PI/2; bodyRound1.position.set(.04,0,0); scannerModel.add(bodyRound1);
+  const bodyRound2=new THREE.Mesh(new THREE.CylinderGeometry(.035,.035,.3,8),whiteShell);
+  bodyRound2.rotation.x=Math.PI/2; bodyRound2.position.set(-.04,0,0); scannerModel.add(bodyRound2);
+  /* Front — large circular scanning lens */
+  const lensCasing=new THREE.Mesh(new THREE.CylinderGeometry(.045,.04,.04,12),gunmetal);
   lensCasing.rotation.x=Math.PI/2; lensCasing.position.z=-.17; scannerModel.add(lensCasing);
-  const lens=new THREE.Mesh(new THREE.SphereGeometry(.035,10,8),lensGlow);
+  const lens=new THREE.Mesh(new THREE.SphereGeometry(.035,12,10),
+    new THREE.MeshStandardMaterial({color:0x44ddff,emissive:0x22aaee,emissiveIntensity:0.2,transparent:true,opacity:.8}));
   lens.position.z=-.2; scannerModel.add(lens); scannerModel.userData.lens=lens;
-  const lensRing=new THREE.Mesh(new THREE.TorusGeometry(.048,.006,6,16),cyGlow);
-  lensRing.position.z=-.18; scannerModel.add(lensRing); scannerModel.userData.lensRing=lensRing;
-  /* emitter prongs — two arms flanking the lens */
-  for(const sx of [-1,1]){
-    const arm=new THREE.Mesh(new THREE.BoxGeometry(.012,.025,.1),whiteShell);
-    arm.position.set(sx*.04,0,-.22); scannerModel.add(arm);
-    const tip=new THREE.Mesh(new THREE.SphereGeometry(.008,6,4),cyGlow);
-    tip.position.set(sx*.04,0,-.275); scannerModel.add(tip);
+  /* Segmented ring around lens (4 arc pieces) */
+  for(let i=0;i<4;i++){
+    const arc=new THREE.Mesh(new THREE.TorusGeometry(.05,.006,6,8,Math.PI/2.5),ambGlow);
+    arc.position.z=-.18; arc.rotation.z=i*(Math.PI/2)+.15; scannerModel.add(arc);
+    scanRingParts.push(arc);
   }
-  /* small screen on top */
-  const screenMat=new THREE.MeshStandardMaterial({color:0x55ddff,emissive:0x33aadd,emissiveIntensity:.2,transparent:true,opacity:.85});
-  const screen=new THREE.Mesh(new THREE.PlaneGeometry(.04,.025),screenMat);
-  screen.position.set(0,.042,.02); screen.rotation.x=-0.3; scannerModel.add(screen);
+  const lensRing=new THREE.Mesh(new THREE.TorusGeometry(.055,.004,6,20),ambGlow);
+  lensRing.position.z=-.17; scannerModel.add(lensRing); scannerModel.userData.lensRing=lensRing;
+  /* Top — flip-up display screen */
+  const screenMount=new THREE.Mesh(new THREE.BoxGeometry(.05,.005,.04),gunmetal);
+  screenMount.position.set(0,.038,.02); scannerModel.add(screenMount);
+  const screen=new THREE.Mesh(new THREE.PlaneGeometry(.048,.032),screenGlow);
+  screen.position.set(0,.05,.035); screen.rotation.x=-0.5; scannerModel.add(screen);
   scannerModel.userData.screen=screen;
-  /* grip */
-  const grip=new THREE.Mesh(new THREE.CapsuleGeometry(.025,.1,4,8),gunDark);
-  grip.position.set(0,-.1,.08); grip.rotation.x=0.2; scannerModel.add(grip);
-  const trigger=new THREE.Mesh(new THREE.BoxGeometry(.012,.035,.02),gunmetal);
-  trigger.position.set(0,-.06,.04); trigger.rotation.x=.3; scannerModel.add(trigger);
-  /* rear detail */
-  const rearCap=new THREE.Mesh(new THREE.SphereGeometry(.035,8,6),gunmetal);
-  rearCap.position.z=.15; scannerModel.add(rearCap);
-  const rearVent=new THREE.Mesh(new THREE.BoxGeometry(.06,.008,.04),blueStripe);
-  rearVent.position.set(0,-.02,.12); scannerModel.add(rearVent);
+  const screenBorder=new THREE.Mesh(new THREE.BoxGeometry(.054,.003,.038),darkPanel);
+  screenBorder.position.set(0,.048,.033); screenBorder.rotation.x=-0.5; scannerModel.add(screenBorder);
+  /* Right side — data port / cartridge slot */
+  const dataPort=new THREE.Mesh(new THREE.BoxGeometry(.008,.03,.05),darkPanel);
+  dataPort.position.set(.044,0,.04); scannerModel.add(dataPort);
+  const portFrame=new THREE.Mesh(new THREE.BoxGeometry(.005,.035,.055),gunmetal);
+  portFrame.position.set(.045,0,.04); scannerModel.add(portFrame);
+  /* Grip — integrated pistol grip underneath */
+  const grip=new THREE.Mesh(new THREE.BoxGeometry(.032,.11,.04),gunDark);
+  grip.position.set(0,-.09,.06); grip.rotation.x=.2; scannerModel.add(grip);
+  const gripEnd=new THREE.Mesh(new THREE.BoxGeometry(.038,.02,.045),gunDark);
+  gripEnd.position.set(0,-.14,.08); scannerModel.add(gripEnd);
+  /* Grip rubber ribs */
+  for(let i=0;i<3;i++){
+    const rib=new THREE.Mesh(new THREE.BoxGeometry(.035,.005,.008),darkPanel);
+    rib.position.set(0,-.06-.025*i,.06); rib.rotation.x=.2; scannerModel.add(rib);
+  }
+  const trigger=new THREE.Mesh(new THREE.BoxGeometry(.012,.03,.008),gunmetal);
+  trigger.position.set(0,-.05,.04); trigger.rotation.x=.3; scannerModel.add(trigger);
+  /* Back — rounded rear cap */
+  const rearCap=new THREE.Mesh(new THREE.SphereGeometry(.04,10,8),gunmetal);
+  rearCap.position.z=.16; rearCap.scale.set(1,.85,0.6); scannerModel.add(rearCap);
+  /* Exhaust vent slits on rear */
+  for(let i=0;i<3;i++){
+    const vent=new THREE.Mesh(new THREE.BoxGeometry(.04,.005,.01),darkPanel);
+    vent.position.set(0,-.015+i*.015,.14); scannerModel.add(vent);
+  }
+  /* Antenna nub */
+  const antNub=new THREE.Mesh(new THREE.CylinderGeometry(.005,.005,.025,5),gunmetal);
+  antNub.position.set(0,.04,.13); scannerModel.add(antNub);
+  /* Status LEDs */
+  for(let i=0;i<3;i++){
+    const led=new THREE.Mesh(new THREE.SphereGeometry(.004,5,4),[grnGlow,ambGlow,orangeAccent][i]);
+    led.position.set(.044,.025-.012*i,0); scannerModel.add(led);
+  }
+  /* Blue accent stripes */
+  for(const sx of [-1,1]){
+    const stripe=new THREE.Mesh(new THREE.BoxGeometry(.005,.035,.25),blueStripe);
+    stripe.position.set(sx*.043,.025,-.02); scannerModel.add(stripe);
+  }
 }
+/* REPAIR TOOL — welding/repair device */
 const repairModel=new THREE.Group(); toolRoot.add(repairModel); repairModel.visible=false;
+const repairProngs=[];
 {
-  const mainBody=new THREE.Mesh(new THREE.CapsuleGeometry(.04,.28,6,12),whiteShell);
-  mainBody.rotation.x=Math.PI/2; repairModel.add(mainBody);
-  const stripe=new THREE.Mesh(new THREE.BoxGeometry(.018,.035,.3),blueStripe);
-  stripe.position.y=.035; repairModel.add(stripe);
-  const midRing=new THREE.Mesh(new THREE.TorusGeometry(.048,.008,6,14),ambGlow);
-  midRing.position.z=-.06; repairModel.add(midRing);
-  const headCasing=new THREE.Mesh(new THREE.CylinderGeometry(.055,.04,.08,10),whiteShell);
-  headCasing.rotation.x=Math.PI/2; headCasing.position.z=-.18; repairModel.add(headCasing);
-  const emitter=new THREE.Mesh(new THREE.SphereGeometry(.03,10,8),ambGlow);
-  emitter.position.z=-.23; repairModel.add(emitter);
-  for(const sx of [-1,1]){
-    const prong=new THREE.Mesh(new THREE.BoxGeometry(.012,.025,.08),whiteShell);
-    prong.position.set(sx*.035,0,-.2); prong.rotation.y=sx*.12; repairModel.add(prong);
+  /* Body — compact white housing, bulkier at front */
+  const mainBody=new THREE.Mesh(new THREE.BoxGeometry(.08,.07,.26),whiteShell); repairModel.add(mainBody);
+  const frontBulk=new THREE.Mesh(new THREE.BoxGeometry(.09,.08,.08),whiteShell);
+  frontBulk.position.z=-.14; repairModel.add(frontBulk);
+  const bodyRound=new THREE.Mesh(new THREE.CylinderGeometry(.035,.035,.26,8),whiteShell);
+  bodyRound.rotation.x=Math.PI/2; repairModel.add(bodyRound);
+  /* Three-pronged welding head in Y-pattern */
+  const prongAngles=[0,Math.PI*2/3,Math.PI*4/3];
+  for(let i=0;i<3;i++){
+    const px=Math.cos(prongAngles[i])*.03;
+    const py=Math.sin(prongAngles[i])*.03;
+    const prong=new THREE.Mesh(new THREE.CylinderGeometry(.008,.006,.1,6),whiteShell);
+    prong.rotation.x=Math.PI/2; prong.position.set(px,py,-.22); repairModel.add(prong);
+    repairProngs.push(prong);
+    const arcTip=new THREE.Mesh(new THREE.SphereGeometry(.008,6,5),ambGlow);
+    arcTip.position.set(px,py,-.27); repairModel.add(arcTip);
   }
-  const grip=new THREE.Mesh(new THREE.CapsuleGeometry(.025,.1,4,8),gunDark);
-  grip.position.set(0,-.1,.08); grip.rotation.x=.15; repairModel.add(grip);
-  const trigger=new THREE.Mesh(new THREE.BoxGeometry(.012,.035,.02),gunmetal);
-  trigger.position.set(0,-.06,.04); trigger.rotation.x=.3; repairModel.add(trigger);
+  /* Medical cross emblem on side */
+  const crossH=new THREE.Mesh(new THREE.BoxGeometry(.005,.008,.025),ambGlow);
+  crossH.position.set(.044,.01,0); repairModel.add(crossH);
+  const crossV=new THREE.Mesh(new THREE.BoxGeometry(.005,.025,.008),ambGlow);
+  crossV.position.set(.044,.01,0); repairModel.add(crossV);
+  /* Power cell window — transparent orange */
+  const cellWindow=new THREE.Mesh(new THREE.BoxGeometry(.03,.025,.045),
+    new THREE.MeshStandardMaterial({color:0xff8844,emissive:0xff6600,emissiveIntensity:0.08,transparent:true,opacity:0.6}));
+  cellWindow.position.set(0,.01,.04); repairModel.add(cellWindow);
+  const cellInner=new THREE.Mesh(new THREE.BoxGeometry(.02,.015,.035),orangeAccent);
+  cellInner.position.set(0,.01,.04); repairModel.add(cellInner);
+  /* Angled pistol grip */
+  const grip=new THREE.Mesh(new THREE.BoxGeometry(.03,.11,.04),gunDark);
+  grip.position.set(0,-.09,.06); grip.rotation.x=.18; repairModel.add(grip);
+  const gripEnd=new THREE.Mesh(new THREE.BoxGeometry(.035,.02,.045),gunDark);
+  gripEnd.position.set(0,-.14,.08); repairModel.add(gripEnd);
+  /* Comfort ridges on grip */
+  for(let i=0;i<3;i++){
+    const ridge=new THREE.Mesh(new THREE.BoxGeometry(.033,.005,.008),darkPanel);
+    ridge.position.set(0,-.06-.025*i,.06); ridge.rotation.x=.18; repairModel.add(ridge);
+  }
+  const trigger=new THREE.Mesh(new THREE.BoxGeometry(.012,.03,.008),gunmetal);
+  trigger.position.set(0,-.05,.04); trigger.rotation.x=.3; repairModel.add(trigger);
+  /* Fold-out diagnostic display */
+  const diagScreen=new THREE.Mesh(new THREE.PlaneGeometry(.03,.02),screenGlow);
+  diagScreen.position.set(0,.04,.02); diagScreen.rotation.x=-0.4; repairModel.add(diagScreen);
+  const diagFrame=new THREE.Mesh(new THREE.BoxGeometry(.035,.003,.025),gunmetal);
+  diagFrame.position.set(0,.039,.018); diagFrame.rotation.x=-0.4; repairModel.add(diagFrame);
+  /* Warning stripes at front */
+  for(let i=0;i<4;i++){
+    const wStripe=new THREE.Mesh(new THREE.BoxGeometry(.06,.004,.008),i%2===0?orangeAccent:darkPanel);
+    wStripe.position.set(0,-.025+i*.012,-.17); repairModel.add(wStripe);
+  }
+  /* Cable from grip to body */
+  const cable=new THREE.Mesh(new THREE.CylinderGeometry(.004,.004,.08,5),gunDark);
+  cable.position.set(.02,-.04,.08); cable.rotation.z=.4; repairModel.add(cable);
+  /* Blue accent stripes */
+  for(const sx of [-1,1]){
+    const accent=new THREE.Mesh(new THREE.BoxGeometry(.005,.035,.2),blueStripe);
+    accent.position.set(sx*.043,.025,-.02); repairModel.add(accent);
+  }
+  /* Status LEDs */
+  const led1=new THREE.Mesh(new THREE.SphereGeometry(.005,5,4),grnGlow);
+  led1.position.set(-.044,.025,.06); repairModel.add(led1);
+  const led2=new THREE.Mesh(new THREE.SphereGeometry(.005,5,4),ambGlow);
+  led2.position.set(-.044,.025,.04); repairModel.add(led2);
 }
-/* PROPULSION ENGINE — wide-barrel gravity cannon with intake vents and grav-coils */
+/* PROPULSION ENGINE — handheld thruster/propulsion cannon */
 const knifeModel=new THREE.Group(); toolRoot.add(knifeModel); knifeModel.visible=false;
+const turbineBlades=[];
 {
-  /* main housing — wide flat rectangular body */
-  const housing=new THREE.Mesh(new THREE.BoxGeometry(.16,.1,.4),whiteShell); knifeModel.add(housing);
-  /* blue accent panels on sides */
+  /* Body — long cylindrical white housing */
+  const housing=new THREE.Mesh(new THREE.CylinderGeometry(.055,.06,.4,12),whiteShell);
+  housing.rotation.x=Math.PI/2; knifeModel.add(housing);
+  /* Blue accent panels */
   for(const sx of [-1,1]){
-    const panel=new THREE.Mesh(new THREE.BoxGeometry(.005,.08,.32),blueStripe);
-    panel.position.set(sx*.082,0,0); knifeModel.add(panel);
+    const panel=new THREE.Mesh(new THREE.BoxGeometry(.005,.06,.35),blueStripe);
+    panel.position.set(sx*.058,0,0); knifeModel.add(panel);
   }
-  /* front barrel — wide intake with ring */
-  const barrel=new THREE.Mesh(new THREE.CylinderGeometry(.065,.08,.12,10,1,true),gunmetal);
-  barrel.rotation.x=Math.PI/2; barrel.position.z=-.22; knifeModel.add(barrel);
-  const intakeRing=new THREE.Mesh(new THREE.TorusGeometry(.082,.008,6,16),ambGlow);
-  intakeRing.position.z=-.28; knifeModel.add(intakeRing);
-  const innerLens=new THREE.Mesh(new THREE.CircleGeometry(.05,12),
-    new THREE.MeshStandardMaterial({color:0x55ccff,emissive:0x3399dd,emissiveIntensity:.15,transparent:true,opacity:.7}));
-  innerLens.position.z=-.285; knifeModel.add(innerLens);
-  /* rear exhaust with spinning propeller */
-  const rearHousing=new THREE.Mesh(new THREE.CylinderGeometry(.06,.05,.08,10),gunDark);
-  rearHousing.rotation.x=Math.PI/2; rearHousing.position.z=.22; knifeModel.add(rearHousing);
-  const prop=new THREE.Mesh(new THREE.BoxGeometry(.14,.012,.035),ambGlow);
-  prop.position.z=.26; knifeModel.add(prop); knifeModel.userData.prop=prop;
-  const prop2=prop.clone(); prop2.rotation.z=Math.PI/3; prop2.position.z=.26; knifeModel.add(prop2); knifeModel.userData.prop2=prop2;
-  const prop3=prop.clone(); prop3.rotation.z=-Math.PI/3; prop3.position.z=.26; knifeModel.add(prop3);
-  /* gravity coils around barrel */
+  const topStripe=new THREE.Mesh(new THREE.BoxGeometry(.04,.005,.35),blueStripe);
+  topStripe.position.y=.058; knifeModel.add(topStripe);
+  /* Front intake — wide cone funnel */
+  const intake=new THREE.Mesh(new THREE.CylinderGeometry(.09,.06,.1,14,1,true),gunmetal);
+  intake.rotation.x=Math.PI/2; intake.position.z=-.25; knifeModel.add(intake);
+  const intakeRing=new THREE.Mesh(new THREE.TorusGeometry(.09,.008,6,18),ambGlow);
+  intakeRing.position.z=-.3; knifeModel.add(intakeRing);
+  /* Spinning turbine blades (3 planes) */
+  for(let i=0;i<3;i++){
+    const blade=new THREE.Mesh(new THREE.PlaneGeometry(.07,.015),
+      new THREE.MeshStandardMaterial({color:0x88bbcc,roughness:.3,metalness:.6,side:THREE.DoubleSide}));
+    blade.position.z=-.28; blade.rotation.z=i*(Math.PI/1.5);
+    knifeModel.add(blade); turbineBlades.push(blade);
+  }
+  const turbineHub=new THREE.Mesh(new THREE.SphereGeometry(.015,8,6),gunmetal);
+  turbineHub.position.z=-.28; knifeModel.add(turbineHub);
+  /* Mid section — visible water channel with blue internal glow */
+  const channel=new THREE.Mesh(new THREE.CylinderGeometry(.04,.04,.12,10,1,true),
+    new THREE.MeshStandardMaterial({color:0x3399cc,emissive:0x2266aa,emissiveIntensity:0.15,transparent:true,opacity:0.5,side:THREE.DoubleSide}));
+  channel.rotation.x=Math.PI/2; channel.position.z=-.08; knifeModel.add(channel);
+  /* Rear — thrust nozzle with blue glow ring */
+  const nozzle=new THREE.Mesh(new THREE.CylinderGeometry(.04,.055,.1,10),gunmetal);
+  nozzle.rotation.x=Math.PI/2; nozzle.position.z=.22; knifeModel.add(nozzle);
+  const nozzleRing=new THREE.Mesh(new THREE.TorusGeometry(.055,.008,6,16),ambGlow);
+  nozzleRing.position.z=.27; knifeModel.add(nozzleRing);
+  const nozzleGlow=new THREE.Mesh(new THREE.CircleGeometry(.04,12),
+    new THREE.MeshStandardMaterial({color:0x44aaff,emissive:0x2288dd,emissiveIntensity:.2,transparent:true,opacity:.6}));
+  nozzleGlow.position.z=.275; knifeModel.add(nozzleGlow);
+  /* Adjustable rear fins */
+  for(const sx of [-1,1]){
+    const fin=new THREE.Mesh(new THREE.BoxGeometry(.003,.04,.05),whiteShell);
+    fin.position.set(sx*.06,0,.2); fin.rotation.z=sx*.15; knifeModel.add(fin);
+  }
+  /* Dual handles — main pistol grip + forward stabilizer */
+  const mainGrip=new THREE.Mesh(new THREE.BoxGeometry(.032,.11,.04),gunDark);
+  mainGrip.position.set(0,-.1,.06); mainGrip.rotation.x=.15; knifeModel.add(mainGrip);
+  const mainGripEnd=new THREE.Mesh(new THREE.BoxGeometry(.038,.02,.045),gunDark);
+  mainGripEnd.position.set(0,-.15,.08); knifeModel.add(mainGripEnd);
+  const fwdGrip=new THREE.Mesh(new THREE.BoxGeometry(.025,.06,.03),gunDark);
+  fwdGrip.position.set(0,-.07,-.12); fwdGrip.rotation.x=.1; knifeModel.add(fwdGrip);
+  const trigger=new THREE.Mesh(new THREE.BoxGeometry(.012,.03,.008),gunmetal);
+  trigger.position.set(0,-.05,.04); trigger.rotation.x=.3; knifeModel.add(trigger);
+  /* Flow direction arrows */
   for(let i=0;i<2;i++){
-    const coil=new THREE.Mesh(new THREE.TorusGeometry(.09,.006,4,12),ambGlow);
-    coil.position.z=-.12-i*.08; knifeModel.add(coil);
+    const arrow=new THREE.Mesh(new THREE.ConeGeometry(.008,.02,3),orangeAccent);
+    arrow.position.set(.06,0,-.05+i*.15); arrow.rotation.x=-Math.PI/2; knifeModel.add(arrow);
   }
-  /* twin handles — ergonomic dual grip */
-  for(const sx of [-1,1]){
-    const handle=new THREE.Mesh(new THREE.CapsuleGeometry(.015,.09,4,6),gunDark);
-    handle.position.set(sx*.065,-.08,.08); handle.rotation.x=.1; knifeModel.add(handle);
+  /* Status display */
+  const statusDisp=new THREE.Mesh(new THREE.PlaneGeometry(.03,.02),screenGlow);
+  statusDisp.position.set(.06,.02,.04); statusDisp.rotation.y=Math.PI/2; knifeModel.add(statusDisp);
+  /* Water flow indicator LEDs */
+  for(let i=0;i<4;i++){
+    const led=new THREE.Mesh(new THREE.SphereGeometry(.004,5,4),ambGlow);
+    led.position.set(0,.06,-.15+i*.1); knifeModel.add(led);
   }
-  /* top sight rail */
-  const rail=new THREE.Mesh(new THREE.BoxGeometry(.02,.012,.25),gunmetal);
-  rail.position.set(0,.058,-.04); knifeModel.add(rail);
-  const sight=new THREE.Mesh(new THREE.BoxGeometry(.025,.02,.01),ambGlow);
-  sight.position.set(0,.07,-.12); knifeModel.add(sight);
+  /* Set userData for animation compat */
+  knifeModel.userData.prop=turbineBlades[0];
+  knifeModel.userData.prop2=turbineBlades[1];
+  /* Grip ribs */
+  for(let i=0;i<3;i++){
+    const rib=new THREE.Mesh(new THREE.BoxGeometry(.035,.005,.008),darkPanel);
+    rib.position.set(0,-.07-.02*i,.06); rib.rotation.x=.15; knifeModel.add(rib);
+  }
 }
-/* FLASHLIGHT — compact dive torch with wide beam head and wrist strap */
+/* FLASHLIGHT — proper dive flashlight */
 const flashModel=new THREE.Group(); toolRoot.add(flashModel); flashModel.visible=false;
 {
-  /* body — tapered cylinder, white with blue band */
-  const body=new THREE.Mesh(new THREE.CylinderGeometry(.028,.035,.24,10),whiteShell);
+  /* Body — cylindrical white tube, tapered slightly toward rear */
+  const body=new THREE.Mesh(new THREE.CylinderGeometry(.025,.032,.26,12),whiteShell);
   body.rotation.x=Math.PI/2; flashModel.add(body);
-  const blueRing=new THREE.Mesh(new THREE.CylinderGeometry(.036,.036,.03,10),blueStripe);
-  blueRing.rotation.x=Math.PI/2; blueRing.position.z=.02; flashModel.add(blueRing);
-  /* rear cap with lanyard loop */
-  const rearCap=new THREE.Mesh(new THREE.SphereGeometry(.029,8,6),gunDark);
-  rearCap.position.z=.13; flashModel.add(rearCap);
-  const loop=new THREE.Mesh(new THREE.TorusGeometry(.015,.004,4,8),gunmetal);
-  loop.position.z=.16; loop.rotation.x=Math.PI/2; flashModel.add(loop);
-  /* wide beam head — flared cone with reflector */
-  const headOuter=new THREE.Mesh(new THREE.CylinderGeometry(.065,.035,.1,12),whiteShell);
-  headOuter.rotation.x=Math.PI/2; headOuter.position.z=-.17; flashModel.add(headOuter);
-  const headInner=new THREE.Mesh(new THREE.CylinderGeometry(.058,.03,.06,12,1,true),
-    new THREE.MeshStandardMaterial({color:0xbbbbbb,roughness:.3,metalness:.4,side:THREE.BackSide}));
-  headInner.rotation.x=Math.PI/2; headInner.position.z=-.2; flashModel.add(headInner);
-  /* lens with warm glow */
-  const lens=new THREE.Mesh(new THREE.CircleGeometry(.06,14),
-    new THREE.MeshStandardMaterial({color:0xfff8d0,emissive:0xffeebb,emissiveIntensity:0.12,transparent:true,opacity:.85}));
-  lens.position.z=-.23; flashModel.add(lens);
-  /* accent ring around head */
-  const headRing=new THREE.Mesh(new THREE.TorusGeometry(.066,.006,6,16),ambGlow);
-  headRing.position.z=-.14; flashModel.add(headRing);
-  /* power button */
-  const btn=new THREE.Mesh(new THREE.CylinderGeometry(.008,.008,.01,6),ambGlow);
-  btn.rotation.z=Math.PI/2; btn.position.set(0,.035,.04); flashModel.add(btn);
-  /* textured grip section */
-  for(let i=0;i<4;i++){
-    const rib=new THREE.Mesh(new THREE.BoxGeometry(.038,.004,.012),gunDark);
-    rib.position.set(0,-.025,.06+i*.025); flashModel.add(rib);
+  /* ALTERRA accent stripe along body */
+  const accentStripe=new THREE.Mesh(new THREE.BoxGeometry(.005,.025,.24),blueStripe);
+  accentStripe.position.set(0,.03,0); flashModel.add(accentStripe);
+  const accentStripe2=new THREE.Mesh(new THREE.BoxGeometry(.005,.025,.24),blueStripe);
+  accentStripe2.position.set(0,-.03,0); flashModel.add(accentStripe2);
+  /* Head — large parabolic reflector */
+  const headOuter=new THREE.Mesh(new THREE.CylinderGeometry(.07,.035,.1,14),whiteShell);
+  headOuter.rotation.x=Math.PI/2; headOuter.position.z=-.18; flashModel.add(headOuter);
+  /* Chrome interior reflector */
+  const reflector=new THREE.Mesh(new THREE.ConeGeometry(.06,.08,14,1,true),
+    new THREE.MeshStandardMaterial({color:0xdddddd,roughness:.1,metalness:.9,side:THREE.BackSide}));
+  reflector.rotation.x=-Math.PI/2; reflector.position.z=-.2; flashModel.add(reflector);
+  /* Warm LED array — cluster of 3 small spheres */
+  const ledMat=new THREE.MeshStandardMaterial({color:0xfff4c0,emissive:0xffe880,emissiveIntensity:0.25});
+  const ledPositions=[[0,.005],[-.008,-.005],[.008,-.005]];
+  for(const [lx,ly] of ledPositions){
+    const led=new THREE.Mesh(new THREE.SphereGeometry(.006,6,5),ledMat);
+    led.position.set(lx,ly,-.22); flashModel.add(led);
   }
-  /* bottom clip */
-  const clip=new THREE.Mesh(new THREE.BoxGeometry(.008,.015,.18),gunmetal);
-  clip.position.set(0,-.04,-.02); flashModel.add(clip);
+  /* Clear glass lens cover */
+  const lensCover=new THREE.Mesh(new THREE.CircleGeometry(.065,16),
+    new THREE.MeshStandardMaterial({color:0xffffff,transparent:true,opacity:0.15,roughness:0,metalness:.1}));
+  lensCover.position.z=-.24; flashModel.add(lensCover);
+  /* Accent ring around head */
+  const headRing=new THREE.Mesh(new THREE.TorusGeometry(.072,.006,6,18),ambGlow);
+  headRing.position.z=-.14; flashModel.add(headRing);
+  /* Mid body — rubber grip section with crosshatch */
+  const gripSection=new THREE.Mesh(new THREE.CylinderGeometry(.03,.03,.1,10),gunDark);
+  gripSection.rotation.x=Math.PI/2; gripSection.position.z=.02; flashModel.add(gripSection);
+  /* Crosshatch pattern — rotated small boxes */
+  for(let i=0;i<5;i++){
+    for(let j=0;j<2;j++){
+      const hatch=new THREE.Mesh(new THREE.BoxGeometry(.004,.004,.015),darkPanel);
+      const angle=(i*.7+j*1.5);
+      hatch.position.set(Math.cos(angle)*.031,Math.sin(angle)*.031,-.01+i*.02);
+      hatch.rotation.z=angle+Math.PI/4; flashModel.add(hatch);
+    }
+  }
+  /* Rear — waterproof end cap */
+  const rearCap=new THREE.Mesh(new THREE.SphereGeometry(.027,10,8),gunDark);
+  rearCap.position.z=.14; rearCap.scale.z=.5; flashModel.add(rearCap);
+  /* Magnetic base */
+  const magBase=new THREE.Mesh(new THREE.CylinderGeometry(.025,.025,.008,10),gunmetal);
+  magBase.rotation.x=Math.PI/2; magBase.position.z=.145; flashModel.add(magBase);
+  /* Lanyard attachment ring */
+  const lanyard=new THREE.Mesh(new THREE.TorusGeometry(.012,.004,6,10),gunmetal);
+  lanyard.position.z=.155; lanyard.rotation.x=Math.PI/2; flashModel.add(lanyard);
+  /* Brightness dial on side */
+  const dial=new THREE.Mesh(new THREE.CylinderGeometry(.008,.008,.01,8),gunmetal);
+  dial.rotation.z=Math.PI/2; dial.position.set(.035,0,-.04); flashModel.add(dial);
+  /* Power button — raised orange dot */
+  const pwrBtn=new THREE.Mesh(new THREE.CylinderGeometry(.006,.006,.008,6),orangeAccent);
+  pwrBtn.rotation.z=Math.PI/2; pwrBtn.position.set(0,.034,.04); flashModel.add(pwrBtn);
+  /* Beam mode selector switch */
+  const modeSwitch=new THREE.Mesh(new THREE.BoxGeometry(.015,.008,.025),gunmetal);
+  modeSwitch.position.set(-.033,0,-.02); flashModel.add(modeSwitch);
+  /* Depth rating markings area */
+  const markingArea=new THREE.Mesh(new THREE.BoxGeometry(.025,.003,.04),darkPanel);
+  markingArea.position.set(.02,-.03,.06); flashModel.add(markingArea);
+  /* Additional body detail rings */
+  for(let i=0;i<2;i++){
+    const ring=new THREE.Mesh(new THREE.TorusGeometry(.033,.004,6,12),blueStripe);
+    ring.position.z=-.06+i*.16; flashModel.add(ring);
+  }
+  /* Bottom clip */
+  const clip=new THREE.Mesh(new THREE.BoxGeometry(.008,.012,.2),gunmetal);
+  clip.position.set(0,-.035,-.02); flashModel.add(clip);
 }
 let toolSwitchT=1;
 
@@ -1885,6 +2150,48 @@ $('btnDive').addEventListener('click',()=>{
 });
 $('btnBrief').addEventListener('click',()=>$('brief').classList.toggle('open'));
 $('btnQual').addEventListener('click',()=>{ quality=1-quality; applyQuality(); });
+/* ---- SAVE / LOAD SYSTEM ---- */
+function saveGame(){
+  const data={
+    pos:[player.position.x,player.position.y,player.position.z],
+    res:Object.assign({},res),
+    blueprints:[...unlockedBlueprints],
+    tools:[...unlockedTools],
+    scanned:[...scannedSet],
+    missions:Object.assign({},missionState),
+    vehicleBuilt,vehiclePos:vehicleBuilt?[vehicleGroup.position.x,vehicleGroup.position.y,vehicleGroup.position.z]:null,
+    vehicleBattery,curTool,
+    stats:{hp:stats.hp,food:stats.food,water:stats.water,o2:stats.o2},
+    equipped:Object.assign({},equipped),
+    dayTime:typeof dayTime!=='undefined'?dayTime:0
+  };
+  localStorage.setItem('abyssalDawnSave',JSON.stringify(data));
+  toast('GAME SAVED'); blip(660,.1,'sine',.08);
+}
+function loadGame(){
+  const raw=localStorage.getItem('abyssalDawnSave');
+  if(!raw){toast('NO SAVE FOUND');return false;}
+  try{
+    const d=JSON.parse(raw);
+    if(d.pos)player.position.set(d.pos[0],d.pos[1],d.pos[2]);
+    if(d.res)Object.assign(res,d.res);
+    if(d.blueprints){unlockedBlueprints.clear();d.blueprints.forEach(b=>unlockedBlueprints.add(b));}
+    if(d.tools){unlockedTools.clear();d.tools.forEach(t=>unlockedTools.add(t));}
+    if(d.scanned){scannedSet.clear();d.scanned.forEach(s=>scannedSet.add(s));}
+    if(d.missions)Object.assign(missionState,d.missions);
+    if(d.vehicleBuilt){vehicleBuilt=true;vehicleGroup.visible=true;if(d.vehiclePos)vehicleGroup.position.set(d.vehiclePos[0],d.vehiclePos[1],d.vehiclePos[2]);}
+    if(d.vehicleBattery!=null)vehicleBattery=d.vehicleBattery;
+    if(d.curTool)curTool=d.curTool;
+    if(d.stats)Object.assign(stats,d.stats);
+    if(d.equipped)Object.assign(equipped,d.equipped);
+    updateToolHud();
+    toast('GAME LOADED'); blip(880,.1,'sine',.08);
+    return true;
+  }catch(e){toast('LOAD FAILED');return false;}
+}
+let autoSaveTimer=0;
+$('btnSave').addEventListener('click',saveGame);
+$('btnLoad').addEventListener('click',()=>{loadGame();$('menu').classList.add('hide');started=true;paused=false;tryLock();});
 
 document.addEventListener('pointerlockchange',()=>{
   const locked=document.pointerLockElement===canvas;
@@ -2254,7 +2561,7 @@ document.addEventListener('keydown',e=>{
   if(e.code==='KeyB')openUI('build');
   if(e.code==='Tab')openUI('inv');
   if(e.code==='KeyR'&&curTool===2){ modRot=(modRot+Math.PI/4)%(Math.PI*2); blip(520,.04,'square',.05); }
-  if(e.code==='KeyF')eat();
+  if(e.code==='KeyF'){if(inVehicle){vehLightOn=!vehLightOn;toast(vehLightOn?'HEADLIGHT ON':'HEADLIGHT OFF');blip(440,.05,'sine',.05);}else eat();}
   if(e.code==='KeyG')drink();
   if(e.code==='KeyQ')openUI('equip');
   if(e.code==='KeyP')openUI('bp');
@@ -2276,9 +2583,24 @@ function toast(msg,dur){
 }
 const TOOL_NAMES={1:'THERMAL LANCE',2:'FABRICATOR',3:'SCANNER',4:'REPAIR TOOL',5:'PROPULSION ENGINE',6:'FLASHLIGHT'};
 const unlockedTools=new Set([1]);
+const TOOL_SVGS={
+  1:'<path d="M3 14 L13 14 L20 10 M13 14 L20 18 M3 11 L3 17 M6 11 L6 17"/><circle cx="21" cy="14" r="1.6"/>',
+  2:'<path d="M4 20 L20 20 M6 20 L6 10 L12 6 L18 10 L18 20 M9 20 L9 14 L15 14 L15 20"/>',
+  3:'<rect x="6" y="4" width="12" height="14" rx="2" fill="none"/><circle cx="12" cy="11" r="3" fill="none"/><path d="M12 18 L12 21"/>',
+  4:'<path d="M12 3 L12 14 M8 14 L16 14 L14 18 L10 18 Z"/><circle cx="12" cy="5" r="2.5" fill="none"/>',
+  5:'<circle cx="12" cy="10" r="5" fill="none"/><path d="M12 15 L12 22 M7 10 L4 10 M17 10 L20 10"/><circle cx="12" cy="10" r="2"/>',
+  6:'<path d="M8 4 L16 4 L18 8 L18 12 L6 12 L6 8 Z"/><rect x="9" y="12" width="6" height="10" rx="1"/><circle cx="12" cy="8" r="2.5" fill="none"/>'
+};
+const LOCK_SVG='<rect x="7" y="11" width="10" height="9" rx="1" fill="none"/><path d="M9 11 V8 a3 3 0 0 1 6 0 V11"/>';
 function updateToolHud(){
   $('toolName').textContent=TOOL_NAMES[curTool]||'UNKNOWN';
-  for(let i=1;i<=6;i++){ const s=$('slot'+i); if(s){ s.classList.toggle('on',curTool===i); s.style.opacity=unlockedTools.has(i)?1:.2; } }
+  for(let i=1;i<=6;i++){
+    const s=$('slot'+i); if(!s)continue;
+    s.classList.toggle('on',curTool===i);
+    s.style.opacity=unlockedTools.has(i)?1:.2;
+    const svg=s.querySelector('svg');
+    if(svg) svg.innerHTML=unlockedTools.has(i)?(TOOL_SVGS[i]||LOCK_SVG):LOCK_SVG;
+  }
   $('modInfo').style.display=curTool===2?'block':'none';
   const m=MODULES[modIndex];
   $('modName').textContent=m.name;
@@ -2709,28 +3031,66 @@ function leviathanRoar(){
    TADPOLE VEHICLE
    ============================================================ */
 const vehicleGroup=new THREE.Group();
-let vehicleBuilt=false, inVehicle=false, vehicleO2=100;
+let vehicleBuilt=false, inVehicle=false, vehicleO2=100, vehicleBattery=100, vehLightOn=false;
 {
-  const hullMat=new THREE.MeshStandardMaterial({color:0xd0dde5,roughness:.6,metalness:.3});
-  const glassMat3=new THREE.MeshStandardMaterial({color:0x88ddff,roughness:.35,metalness:.05,transparent:true,opacity:.3});
-  const accentMat=new THREE.MeshStandardMaterial({color:0x44aacc,emissive:0x22aadd,emissiveIntensity:0.12,roughness:.6});
-  const hull=new THREE.Mesh(new THREE.CapsuleGeometry(1.5,3,12,18),hullMat);
-  hull.rotation.z=Math.PI/2; vehicleGroup.add(hull);
-  const vGlass=new THREE.Mesh(new THREE.SphereGeometry(1.3,16,12,0,Math.PI*2,0,Math.PI/2),glassMat3);
-  vGlass.rotation.x=-Math.PI/2; vGlass.position.z=1.5; vehicleGroup.add(vGlass);
+  const hullMat=new THREE.MeshStandardMaterial({color:0xeaf0f4,roughness:.4,metalness:.25});
+  const darkMat=new THREE.MeshStandardMaterial({color:0x1a2832,roughness:.5,metalness:.6});
+  const glassMat3=new THREE.MeshStandardMaterial({color:0x66ccee,roughness:.2,metalness:.05,transparent:true,opacity:.35});
+  const orangeAcc=new THREE.MeshStandardMaterial({color:0xff6a2a,emissive:0xff4400,emissiveIntensity:.1,roughness:.5});
+  const blueGlow=new THREE.MeshStandardMaterial({color:0x44bbff,emissive:0x2299ee,emissiveIntensity:.15});
+  /* streamlined teardrop hull */
+  const frontDome=new THREE.Mesh(new THREE.SphereGeometry(1.6,18,14,0,Math.PI*2,0,Math.PI*.6),hullMat);
+  frontDome.rotation.x=-Math.PI/2; frontDome.position.z=.8; vehicleGroup.add(frontDome);
+  const midBody=new THREE.Mesh(new THREE.CylinderGeometry(1.55,1.3,3.5,16),hullMat);
+  midBody.rotation.x=Math.PI/2; midBody.position.z=-.8; vehicleGroup.add(midBody);
+  const rearTaper=new THREE.Mesh(new THREE.CylinderGeometry(1.3,.6,2,14),hullMat);
+  rearTaper.rotation.x=Math.PI/2; rearTaper.position.z=-2.8; vehicleGroup.add(rearTaper);
+  /* glass canopy */
+  const canopy=new THREE.Mesh(new THREE.SphereGeometry(1.35,16,12,0,Math.PI*2,0,Math.PI*.45),glassMat3);
+  canopy.rotation.x=-Math.PI/2; canopy.position.set(0,.4,1.2); vehicleGroup.add(canopy);
+  /* orange accent stripes */
   for(const sx of [-1,1]){
-    const fin=new THREE.Mesh(new THREE.BoxGeometry(.1,1.5,1.2),hullMat);
-    fin.position.set(sx*1.8,-.3,-.5); fin.rotation.z=sx*.3; vehicleGroup.add(fin);
+    const stripe=new THREE.Mesh(new THREE.BoxGeometry(.08,.12,4.5),orangeAcc);
+    stripe.position.set(sx*1.35,.3,-.5); vehicleGroup.add(stripe);
   }
-  const vTail=new THREE.Mesh(new THREE.BoxGeometry(.1,1.8,1),hullMat);
-  vTail.position.set(0,.2,-2.5); vehicleGroup.add(vTail);
-  const eng=new THREE.Mesh(new THREE.CylinderGeometry(.5,.3,.6,10),accentMat);
-  eng.rotation.x=Math.PI/2; eng.position.z=-2.8; vehicleGroup.add(eng);
+  /* side thruster nacelles */
   for(const sx of [-1,1]){
-    const vl=new THREE.Mesh(new THREE.SphereGeometry(.15,8,6),new THREE.MeshStandardMaterial({
-      color:0xffffff,emissive:0xffeedd,emissiveIntensity:0.1}));
-    vl.position.set(sx*.8,0,2.2); vehicleGroup.add(vl);
+    const nacelle=new THREE.Mesh(new THREE.CylinderGeometry(.4,.35,.9,10),darkMat);
+    nacelle.rotation.x=Math.PI/2; nacelle.position.set(sx*1.9,-.2,-1.5); vehicleGroup.add(nacelle);
+    const intake=new THREE.Mesh(new THREE.TorusGeometry(.38,.04,6,12),blueGlow);
+    intake.position.set(sx*1.9,-.2,-1.0); vehicleGroup.add(intake);
+    const nozzle=new THREE.Mesh(new THREE.CylinderGeometry(.3,.25,.15,10),blueGlow);
+    nozzle.rotation.x=Math.PI/2; nozzle.position.set(sx*1.9,-.2,-2.0); vehicleGroup.add(nozzle);
   }
+  /* rear propulsion */
+  const rearNozzle=new THREE.Mesh(new THREE.CylinderGeometry(.5,.35,.4,12),darkMat);
+  rearNozzle.rotation.x=Math.PI/2; rearNozzle.position.z=-3.8; vehicleGroup.add(rearNozzle);
+  const rearGlow=new THREE.Mesh(new THREE.CircleGeometry(.33,12),blueGlow);
+  rearGlow.position.z=-4.0; vehicleGroup.add(rearGlow);
+  /* stabilizer fins */
+  for(const sx of [-1,1]){
+    const hFin=new THREE.Mesh(new THREE.BoxGeometry(1.2,.06,.8),hullMat);
+    hFin.position.set(sx*1.0,0,-3.0); hFin.rotation.z=sx*.15; vehicleGroup.add(hFin);
+    const vFin=new THREE.Mesh(new THREE.BoxGeometry(.06,.8,.7),hullMat);
+    vFin.position.set(sx*.3,.5,-3.2); vehicleGroup.add(vFin);
+  }
+  const topFin=new THREE.Mesh(new THREE.BoxGeometry(.06,1,.9),hullMat);
+  topFin.position.set(0,.9,-2.8); vehicleGroup.add(topFin);
+  /* running lights */
+  for(const sx of [-1,1]){
+    const fl=new THREE.Mesh(new THREE.SphereGeometry(.12,8,6),new THREE.MeshStandardMaterial({color:0xffffff,emissive:0xffeedd,emissiveIntensity:.15}));
+    fl.position.set(sx*.7,.1,2.0); vehicleGroup.add(fl);
+    const rl=new THREE.Mesh(new THREE.SphereGeometry(.08,6,4),new THREE.MeshStandardMaterial({color:0xff3333,emissive:0xff2222,emissiveIntensity:.1}));
+    rl.position.set(sx*.6,0,-3.6); vehicleGroup.add(rl);
+  }
+  /* headlight (toggle with F) */
+  const vehLight=new THREE.SpotLight(0xfff8e0,0,30,Math.PI/4,.5,1.5);
+  vehLight.position.set(0,0,2.2); vehLight.target.position.set(0,0,10);
+  vehicleGroup.add(vehLight); vehicleGroup.add(vehLight.target);
+  vehicleGroup.userData.headlight=vehLight;
+  /* dark panel details */
+  const belly=new THREE.Mesh(new THREE.BoxGeometry(2,.06,3),darkMat);
+  belly.position.set(0,-1.3,-.5); vehicleGroup.add(belly);
   vehicleGroup.position.set(5,-8,25); vehicleGroup.visible=false; scene.add(vehicleGroup);
 }
 
@@ -3158,13 +3518,14 @@ const fireCorals=[];
   function makeTraitFlower(x,z,traitIdx){
     const y=terrainHeight(x,z);
     const grp=new THREE.Group(); grp.position.set(x,y,z);
-    // Small ground flower — 5 petals radiating from center, ~1m tall
     const cMat=new THREE.MeshStandardMaterial({color:0xff44cc,emissive:0xff22aa,emissiveIntensity:0.12,transparent:true,opacity:.9});
-    const core=new THREE.Mesh(new THREE.SphereGeometry(.15,8,6),cMat);
-    core.position.y=.5; grp.add(core);
-    for(let j=0;j<5;j++){
-      const petal=new THREE.Mesh(new THREE.PlaneGeometry(.6,.4),flowerMat);
-      petal.position.y=.4;
+    const core=new THREE.Mesh(new THREE.SphereGeometry(.4,8,6),cMat);
+    core.position.y=1.2; grp.add(core);
+    const stem=new THREE.Mesh(new THREE.CylinderGeometry(.06,.08,1.2,6),new THREE.MeshStandardMaterial({color:0x2a6a3a,roughness:.8}));
+    stem.position.y=.6; grp.add(stem);
+    for(let j=0;j<7;j++){
+      const petal=new THREE.Mesh(new THREE.PlaneGeometry(1.5,1.0),flowerMat);
+      petal.position.y=1.0;
       const a=j*(Math.PI*2/5);
       petal.position.x=Math.cos(a)*.35; petal.position.z=Math.sin(a)*.35;
       petal.rotation.set(-Math.PI/4,a,0);
@@ -3929,15 +4290,18 @@ function animate(){
   if(toolSwitchT>.5){ lance.visible=curTool===1; fab.visible=curTool===2; scannerModel.visible=curTool===3; repairModel.visible=curTool===4; knifeModel.visible=curTool===5; flashModel.visible=curTool===6; }
   fabHolo.rotation.y+=dt*1.6; fabHolo.rotation.x+=dt*.9;
   fabBlink.material.emissiveIntensity=0.4+Math.sin(t*6)*.3;
+  if(typeof fabDish!=='undefined') fabDish.rotation.y+=dt*0.4;
   // tool idle animations
   if(curTool===3 && scannerModel.userData.scanLine){
     scannerModel.userData.scanLine.position.y=Math.sin(t*3)*.07;
     /* Scanner sonar ping */
     if(t-scannerPingT>3){ scannerPingT=t; blip(220,.12,'sine',.06); setTimeout(()=>blip(330,.08,'sine',.04),120); }
   }
-  if(curTool===5){ knifeModel.rotation.x=Math.sin(t*1.2)*.03; knifeModel.rotation.z=Math.sin(t*.9)*.02; if(knifeModel.userData.prop){knifeModel.userData.prop.rotation.z+=dt*25;if(knifeModel.userData.prop2)knifeModel.userData.prop2.rotation.z+=dt*25;} }
-  if(curTool===6){ flashModel.rotation.x=Math.sin(t*.8)*.015; }
-  if(curTool===4){ repairModel.rotation.z=Math.sin(t*1.5)*.02; }
+  if(curTool===3 && typeof scanRingParts!=='undefined'){ scanRingParts.forEach((p,i)=>p.rotation.z+=dt*(1.2+i*.3)); }
+  if(curTool===5){ knifeModel.rotation.x=Math.sin(t*1.2)*.03; knifeModel.rotation.z=Math.sin(t*.9)*.02; if(knifeModel.userData.prop){knifeModel.userData.prop.rotation.z+=dt*25;if(knifeModel.userData.prop2)knifeModel.userData.prop2.rotation.z+=dt*25;} if(typeof turbineBlades!=='undefined')turbineBlades.forEach(b=>b.rotation.z+=dt*18); }
+  if(curTool===6){ flashModel.rotation.x=Math.sin(t*.8)*.015; flashModel.rotation.z=Math.sin(t*1.1)*.008; }
+  if(curTool===4){ repairModel.rotation.z=Math.sin(t*1.5)*.02; if(typeof repairProngs!=='undefined')repairProngs.forEach(p=>{p.rotation.x=Math.PI/2+Math.sin(t*12+Math.random()*.1)*.01;}); }
+  if(curTool===1){ lanceCoils.forEach((c,i)=>c.rotation.z+=dt*(8+i*3)); }
 
   /* interior detection */
   insideBase=false;
@@ -4594,10 +4958,13 @@ function animate(){
     if($('vehicleHud'))$('vehicleHud').style.opacity=inVehicle?1:0;
     if(inVehicle){
       vehicleGroup.position.copy(player.position); vehicleGroup.rotation.copy(player.rotation);
-      if($('vehO2'))$('vehO2').textContent='O2: '+Math.ceil(vehicleO2);
+      if($('vehO2'))$('vehO2').textContent='O2: '+Math.ceil(vehicleO2)+' | BAT: '+Math.ceil(vehicleBattery)+'%';
       if($('vehDepth'))$('vehDepth').textContent='DEPTH: '+Math.max(0,-player.position.y).toFixed(0)+'M';
       vehicleO2=clamp(vehicleO2-dt*(100/300),0,100);
       if(vehicleO2>0) stats.o2=100;
+      vehicleBattery=clamp(vehicleBattery-dt*1.5,0,100);
+      if(vehicleBattery<=0){vel.multiplyScalar(.2);}
+      if(vehicleGroup.userData.headlight) vehicleGroup.userData.headlight.intensity=vehLightOn?2:0;
     }
     if(!inVehicle&&vehicleBuilt){
       const vDist=camWorld.distanceTo(vehicleGroup.position);
@@ -4786,6 +5153,7 @@ function animate(){
 
   /* missions */
   if(started&&!paused){ lastMissionCheck+=dt; if(lastMissionCheck>2){ lastMissionCheck=0; updateMissions(); } }
+  if(started&&!paused){ autoSaveTimer+=dt; if(autoSaveTimer>60){ autoSaveTimer=0; saveGame(); } }
 
   // Mission waypoint
   if(started&&!paused){
