@@ -1058,7 +1058,7 @@ function makeMineral(typeKey){
     }
   } else if(typeKey==='bioMetal'){
     const bm=new THREE.Mesh(new THREE.DodecahedronGeometry(rand(.6,.9),0),
-      new THREE.MeshStandardMaterial({color:0x2a6a2a,emissive:0x1a4a1a,emissiveIntensity:.8,roughness:.6,metalness:.5}));
+      new THREE.MeshStandardMaterial({color:0x2a6a2a,emissive:0x1a4a1a,emissiveIntensity:.3,roughness:.6,metalness:.5}));
     grp.add(bm);
   }
   const node={grp,type:typeKey,hp:100,max:100,dead:false,respawn:0};
@@ -2526,7 +2526,7 @@ for(let i=0;i<12;i++){
 // Giant jellyfish — passive, huge, bioluminescent
 const jellyfish=[];
 {
-  const jellyMat=new THREE.MeshStandardMaterial({color:0xff66aa,roughness:.3,emissive:0xff3388,emissiveIntensity:.8,transparent:true,opacity:.5,side:THREE.DoubleSide});
+  const jellyMat=new THREE.MeshStandardMaterial({color:0xff66aa,roughness:.3,emissive:0xff3388,emissiveIntensity:.3,transparent:true,opacity:.5,side:THREE.DoubleSide});
   for(let i=0;i<20;i++){
     const grp=new THREE.Group();
     const sz=rand(3,7);
@@ -3027,7 +3027,7 @@ const fireCorals=[];
 const wrecks=[];
 const wreckMat=new THREE.MeshStandardMaterial({color:0x556672,roughness:.82,metalness:.35});
 const rustMat=new THREE.MeshStandardMaterial({color:0x7a5a3a,roughness:.9,metalness:.15});
-const wreckGlow=new THREE.MeshStandardMaterial({color:0x44ddff,emissive:0x22aadd,emissiveIntensity:.8});
+const wreckGlow=new THREE.MeshStandardMaterial({color:0x44ddff,emissive:0x22aadd,emissiveIntensity:.3});
 const blueprintList=['advancedTank','reinforcedSuit','ultraFins','seamothUpgrade','laserCutter','propulsionCannon','stasisRifle','cyclops','prawnSuit','habitatBuilder','gravitySphere','thermalReactor'];
 
 for(let i=0;i<24;i++){
@@ -3112,7 +3112,7 @@ wrecks.forEach(w=>{
     debris.add(base);
     if(type==='console'){
       const screen=new THREE.Mesh(new THREE.PlaneGeometry(.6,.4),
-        new THREE.MeshStandardMaterial({color:0x00ff88,emissive:0x00ff88,emissiveIntensity:.8,side:THREE.DoubleSide}));
+        new THREE.MeshStandardMaterial({color:0x00ff88,emissive:0x00ff88,emissiveIntensity:.3,side:THREE.DoubleSide}));
       screen.position.set(0,.3,.2); debris.add(screen);
     }
     const wx=w.position.x+rand(-8,8),wz=w.position.z+rand(-8,8);
