@@ -1349,50 +1349,53 @@ const grnGlow=new THREE.MeshStandardMaterial({color:0x70d8ff,emissive:0x2090cc,e
 const toolRoot=new THREE.Group();
 toolRoot.position.set(.44,-.36,-.8); camera.add(toolRoot);
 
-/* THERMAL LANCE (the "destroyer") — industrial twin-prong plasma drill */
+/* THERMAL LANCE (the "destroyer") — sleek white plasma cutter */
 const lance=new THREE.Group(); toolRoot.add(lance);
 const lanceCoils=[];
 let lanceTip;
 {
-  const body=new THREE.Mesh(new THREE.BoxGeometry(.2,.18,.5),gunmetal); lance.add(body);
-  const spine=new THREE.Mesh(new THREE.BoxGeometry(.06,.06,.62),gunDark); spine.position.y=.12; lance.add(spine);
-  const grip=new THREE.Mesh(new THREE.BoxGeometry(.07,.2,.11),gunDark); grip.position.set(0,-.17,.14); lance.add(grip);
-  for(const sx of [-1,1]){
-    const vent=new THREE.Mesh(new THREE.BoxGeometry(.012,.09,.26),ambGlow);
-    vent.position.set(sx*.103,.01,.02); lance.add(vent);
-  }
-  const barrel=new THREE.Mesh(new THREE.CylinderGeometry(.05,.068,.4,10),gunmetal);
-  barrel.rotation.x=Math.PI/2; barrel.position.z=-.42; lance.add(barrel);
-  for(let i=0;i<3;i++){
+  const body=new THREE.Mesh(new THREE.CapsuleGeometry(.055,.35,6,12),whiteShell);
+  body.rotation.x=Math.PI/2; lance.add(body);
+  const stripe=new THREE.Mesh(new THREE.BoxGeometry(.02,.045,.4),blueStripe);
+  stripe.position.set(.045,0,0); lance.add(stripe);
+  const stripe2=new THREE.Mesh(new THREE.BoxGeometry(.02,.045,.4),blueStripe);
+  stripe2.position.set(-.045,0,0); lance.add(stripe2);
+  const grip=new THREE.Mesh(new THREE.CapsuleGeometry(.03,.1,4,8),gunDark);
+  grip.position.set(0,-.1,.1); grip.rotation.x=0.15; lance.add(grip);
+  const barrel=new THREE.Mesh(new THREE.CylinderGeometry(.04,.055,.25,10),gunmetal);
+  barrel.rotation.x=Math.PI/2; barrel.position.z=-.28; lance.add(barrel);
+  for(let i=0;i<2;i++){
     const coil=new THREE.Group();
-    const ring=new THREE.Mesh(new THREE.TorusGeometry(.085,.016,6,16),ambGlow); coil.add(ring);
-    const knob=new THREE.Mesh(new THREE.BoxGeometry(.03,.03,.03),gunDark); knob.position.y=.085; coil.add(knob);
-    coil.position.z=-.3-i*.12; lance.add(coil); lanceCoils.push(coil);
+    const ring=new THREE.Mesh(new THREE.TorusGeometry(.065,.01,6,16),ambGlow); coil.add(ring);
+    coil.position.z=-.22-i*.1; lance.add(coil); lanceCoils.push(coil);
   }
   for(const sx of [-1,1]){
-    const prong=new THREE.Mesh(new THREE.BoxGeometry(.03,.05,.3),gunmetal);
-    prong.position.set(sx*.075,0,-.72); prong.rotation.y=sx*.14; lance.add(prong);
+    const prong=new THREE.Mesh(new THREE.BoxGeometry(.018,.03,.2),whiteShell);
+    prong.position.set(sx*.05,0,-.48); prong.rotation.y=sx*.12; lance.add(prong);
+    const tip=new THREE.Mesh(new THREE.SphereGeometry(.012,6,4),ambGlow);
+    tip.position.set(sx*.055,0,-.59); lance.add(tip);
   }
-  lanceTip=new THREE.Mesh(new THREE.SphereGeometry(.045,10,8),ambGlow);
-  lanceTip.position.z=-.74; lance.add(lanceTip);
+  lanceTip=new THREE.Mesh(new THREE.SphereGeometry(.025,10,8),ambGlow);
+  lanceTip.position.z=-.52; lance.add(lanceTip);
 }
-/* FABRICATOR — sleek white holo-projector */
+/* FABRICATOR — sleek white construction tool */
 const fab=new THREE.Group(); toolRoot.add(fab); fab.visible=false;
 let fabTip,fabHolo,fabBlink;
 {
-  const shell=new THREE.Mesh(new THREE.CapsuleGeometry(.085,.34,4,12),whiteShell);
+  const shell=new THREE.Mesh(new THREE.CapsuleGeometry(.06,.3,6,12),whiteShell);
   shell.rotation.x=Math.PI/2; fab.add(shell);
-  const band=new THREE.Mesh(new THREE.CylinderGeometry(.09,.09,.05,12),grnGlow);
-  band.rotation.x=Math.PI/2; band.position.z=-.08; fab.add(band);
-  const grip=new THREE.Mesh(new THREE.BoxGeometry(.06,.18,.1),gunDark); grip.position.set(0,-.15,.12); fab.add(grip);
-  const dish=new THREE.Mesh(new THREE.CylinderGeometry(.13,.05,.1,14,1,true),whiteShell);
-  dish.rotation.x=-Math.PI/2; dish.position.z=-.3; fab.add(dish);
-  const ring=new THREE.Mesh(new THREE.TorusGeometry(.115,.016,6,18),grnGlow);
-  ring.position.z=-.345; fab.add(ring);
-  const ant=new THREE.Mesh(new THREE.CylinderGeometry(.008,.008,.16,5),gunDark);
-  ant.position.set(.05,.14,.1); fab.add(ant);
-  fabBlink=new THREE.Mesh(new THREE.SphereGeometry(.018,8,6),grnGlow.clone());
-  fabBlink.position.set(.05,.23,.1); fab.add(fabBlink);
+  const band1=new THREE.Mesh(new THREE.BoxGeometry(.015,.05,.32),blueStripe);
+  band1.position.set(.05,0,0); fab.add(band1);
+  const band2=new THREE.Mesh(new THREE.BoxGeometry(.015,.05,.32),blueStripe);
+  band2.position.set(-.05,0,0); fab.add(band2);
+  const grip=new THREE.Mesh(new THREE.CapsuleGeometry(.025,.1,4,8),gunDark);
+  grip.position.set(0,-.1,.1); grip.rotation.x=.15; fab.add(grip);
+  const dish=new THREE.Mesh(new THREE.CylinderGeometry(.08,.04,.08,12,1,true),whiteShell);
+  dish.rotation.x=-Math.PI/2; dish.position.z=-.22; fab.add(dish);
+  const ring=new THREE.Mesh(new THREE.TorusGeometry(.075,.01,6,18),ambGlow);
+  ring.position.z=-.27; fab.add(ring);
+  fabBlink=new THREE.Mesh(new THREE.SphereGeometry(.012,8,6),ambGlow.clone());
+  fabBlink.position.set(0,.04,-.15); fab.add(fabBlink);
   fabHolo=new THREE.LineSegments(
     new THREE.EdgesGeometry(new THREE.BoxGeometry(.1,.1,.1)),
     new THREE.LineBasicMaterial({color:0x7dffa8,transparent:true,opacity:.9}));
@@ -1442,78 +1445,103 @@ const scannerModel=new THREE.Group(); toolRoot.add(scannerModel); scannerModel.v
 }
 const repairModel=new THREE.Group(); toolRoot.add(repairModel); repairModel.visible=false;
 {
-  const cyGlow=new THREE.MeshStandardMaterial({color:0x44aaff,emissive:0x2288ff,emissiveIntensity:0.12});
-  const mainBody=new THREE.Mesh(new THREE.CylinderGeometry(.045,.06,.32,10),gunmetal);
+  const mainBody=new THREE.Mesh(new THREE.CapsuleGeometry(.04,.28,6,12),whiteShell);
   mainBody.rotation.x=Math.PI/2; repairModel.add(mainBody);
-  const midRing=new THREE.Mesh(new THREE.TorusGeometry(.063,.012,6,14),cyGlow);
+  const stripe=new THREE.Mesh(new THREE.BoxGeometry(.018,.035,.3),blueStripe);
+  stripe.position.y=.035; repairModel.add(stripe);
+  const midRing=new THREE.Mesh(new THREE.TorusGeometry(.048,.008,6,14),ambGlow);
   midRing.position.z=-.06; repairModel.add(midRing);
-  const rearRing=new THREE.Mesh(new THREE.TorusGeometry(.055,.01,6,14),gunDark);
-  rearRing.position.z=.12; repairModel.add(rearRing);
-  const headCasing=new THREE.Mesh(new THREE.CylinderGeometry(.07,.05,.1,10),whiteShell);
-  headCasing.rotation.x=Math.PI/2; headCasing.position.z=-.2; repairModel.add(headCasing);
-  const emitter=new THREE.Mesh(new THREE.SphereGeometry(.04,10,8),cyGlow);
-  emitter.position.z=-.26; repairModel.add(emitter);
+  const headCasing=new THREE.Mesh(new THREE.CylinderGeometry(.055,.04,.08,10),whiteShell);
+  headCasing.rotation.x=Math.PI/2; headCasing.position.z=-.18; repairModel.add(headCasing);
+  const emitter=new THREE.Mesh(new THREE.SphereGeometry(.03,10,8),ambGlow);
+  emitter.position.z=-.23; repairModel.add(emitter);
   for(const sx of [-1,1]){
-    const prong=new THREE.Mesh(new THREE.BoxGeometry(.015,.03,.12),gunmetal);
-    prong.position.set(sx*.05,0,-.22); prong.rotation.y=sx*.15; repairModel.add(prong);
-    const prongTip=new THREE.Mesh(new THREE.SphereGeometry(.012,6,4),cyGlow);
-    prongTip.position.set(sx*.058,0,-.28); repairModel.add(prongTip);
+    const prong=new THREE.Mesh(new THREE.BoxGeometry(.012,.025,.08),whiteShell);
+    prong.position.set(sx*.035,0,-.2); prong.rotation.y=sx*.12; repairModel.add(prong);
   }
-  for(const sx of [-1,1]){
-    const vent=new THREE.Mesh(new THREE.BoxGeometry(.01,.06,.08),new THREE.MeshStandardMaterial({color:0x1a2a35,roughness:.5}));
-    vent.position.set(sx*.055,.01,.04); repairModel.add(vent);
-  }
-  const grip=new THREE.Mesh(new THREE.BoxGeometry(.055,.17,.065),gunDark); grip.position.set(0,-.14,.06); repairModel.add(grip);
-  const trigGuard=new THREE.Mesh(new THREE.TorusGeometry(.03,.005,4,8,Math.PI),gunmetal);
-  trigGuard.position.set(0,-.09,-.02); trigGuard.rotation.x=Math.PI/2; repairModel.add(trigGuard);
-  const trigger=new THREE.Mesh(new THREE.BoxGeometry(.015,.04,.02),gunmetal);
-  trigger.position.set(0,-.1,-.015); trigger.rotation.x=.25; repairModel.add(trigger);
+  const grip=new THREE.Mesh(new THREE.CapsuleGeometry(.025,.1,4,8),gunDark);
+  grip.position.set(0,-.1,.08); grip.rotation.x=.15; repairModel.add(grip);
+  const trigger=new THREE.Mesh(new THREE.BoxGeometry(.012,.035,.02),gunmetal);
+  trigger.position.set(0,-.06,.04); trigger.rotation.x=.3; repairModel.add(trigger);
 }
+/* PROPULSION ENGINE — wide-barrel gravity cannon with intake vents and grav-coils */
 const knifeModel=new THREE.Group(); toolRoot.add(knifeModel); knifeModel.visible=false;
 {
-  const propMat=new THREE.MeshStandardMaterial({color:0xd0dce5,roughness:.6,metalness:.3});
-  const body=new THREE.Mesh(new THREE.CylinderGeometry(.06,.045,.35,10),propMat);
-  body.rotation.x=Math.PI/2; knifeModel.add(body);
-  const nose=new THREE.Mesh(new THREE.SphereGeometry(.045,10,8),propMat);
-  nose.position.z=-.18; knifeModel.add(nose);
-  const cage=new THREE.Mesh(new THREE.CylinderGeometry(.07,.07,.08,8,1,true),gunDark);
-  cage.rotation.x=Math.PI/2; cage.position.z=.18; knifeModel.add(cage);
-  const prop=new THREE.Mesh(new THREE.BoxGeometry(.12,.015,.04),ambGlow);
-  prop.position.z=.2; knifeModel.add(prop); knifeModel.userData.prop=prop;
-  const prop2=prop.clone(); prop2.rotation.z=Math.PI/2; prop2.position.z=.2; knifeModel.add(prop2); knifeModel.userData.prop2=prop2;
+  /* main housing — wide flat rectangular body */
+  const housing=new THREE.Mesh(new THREE.BoxGeometry(.16,.1,.4),whiteShell); knifeModel.add(housing);
+  /* blue accent panels on sides */
   for(const sx of [-1,1]){
-    const handle=new THREE.Mesh(new THREE.BoxGeometry(.02,.12,.06),gunDark);
-    handle.position.set(sx*.06,-.06,0); knifeModel.add(handle);
+    const panel=new THREE.Mesh(new THREE.BoxGeometry(.005,.08,.32),blueStripe);
+    panel.position.set(sx*.082,0,0); knifeModel.add(panel);
   }
-  const light=new THREE.Mesh(new THREE.SphereGeometry(.02,6,4),new THREE.MeshStandardMaterial({color:0x44ff88,emissive:0x22dd66,emissiveIntensity:0.12}));
-  light.position.set(0,.045,-.1); knifeModel.add(light);
+  /* front barrel — wide intake with ring */
+  const barrel=new THREE.Mesh(new THREE.CylinderGeometry(.065,.08,.12,10,1,true),gunmetal);
+  barrel.rotation.x=Math.PI/2; barrel.position.z=-.22; knifeModel.add(barrel);
+  const intakeRing=new THREE.Mesh(new THREE.TorusGeometry(.082,.008,6,16),ambGlow);
+  intakeRing.position.z=-.28; knifeModel.add(intakeRing);
+  const innerLens=new THREE.Mesh(new THREE.CircleGeometry(.05,12),
+    new THREE.MeshStandardMaterial({color:0x55ccff,emissive:0x3399dd,emissiveIntensity:.15,transparent:true,opacity:.7}));
+  innerLens.position.z=-.285; knifeModel.add(innerLens);
+  /* rear exhaust with spinning propeller */
+  const rearHousing=new THREE.Mesh(new THREE.CylinderGeometry(.06,.05,.08,10),gunDark);
+  rearHousing.rotation.x=Math.PI/2; rearHousing.position.z=.22; knifeModel.add(rearHousing);
+  const prop=new THREE.Mesh(new THREE.BoxGeometry(.14,.012,.035),ambGlow);
+  prop.position.z=.26; knifeModel.add(prop); knifeModel.userData.prop=prop;
+  const prop2=prop.clone(); prop2.rotation.z=Math.PI/3; prop2.position.z=.26; knifeModel.add(prop2); knifeModel.userData.prop2=prop2;
+  const prop3=prop.clone(); prop3.rotation.z=-Math.PI/3; prop3.position.z=.26; knifeModel.add(prop3);
+  /* gravity coils around barrel */
+  for(let i=0;i<2;i++){
+    const coil=new THREE.Mesh(new THREE.TorusGeometry(.09,.006,4,12),ambGlow);
+    coil.position.z=-.12-i*.08; knifeModel.add(coil);
+  }
+  /* twin handles — ergonomic dual grip */
+  for(const sx of [-1,1]){
+    const handle=new THREE.Mesh(new THREE.CapsuleGeometry(.015,.09,4,6),gunDark);
+    handle.position.set(sx*.065,-.08,.08); handle.rotation.x=.1; knifeModel.add(handle);
+  }
+  /* top sight rail */
+  const rail=new THREE.Mesh(new THREE.BoxGeometry(.02,.012,.25),gunmetal);
+  rail.position.set(0,.058,-.04); knifeModel.add(rail);
+  const sight=new THREE.Mesh(new THREE.BoxGeometry(.025,.02,.01),ambGlow);
+  sight.position.set(0,.07,-.12); knifeModel.add(sight);
 }
+/* FLASHLIGHT — compact dive torch with wide beam head and wrist strap */
 const flashModel=new THREE.Group(); toolRoot.add(flashModel); flashModel.visible=false;
 {
-  const body=new THREE.Mesh(new THREE.CylinderGeometry(.032,.038,.3,10),gunDark);
+  /* body — tapered cylinder, white with blue band */
+  const body=new THREE.Mesh(new THREE.CylinderGeometry(.028,.035,.24,10),whiteShell);
   body.rotation.x=Math.PI/2; flashModel.add(body);
-  const rearCap=new THREE.Mesh(new THREE.SphereGeometry(.032,8,6),gunmetal);
-  rearCap.position.z=.15; flashModel.add(rearCap);
-  for(let i=0;i<3;i++){
-    const ring=new THREE.Mesh(new THREE.TorusGeometry(.039,.006,6,14),gunmetal);
-    ring.position.z=.08-i*.08; flashModel.add(ring);
+  const blueRing=new THREE.Mesh(new THREE.CylinderGeometry(.036,.036,.03,10),blueStripe);
+  blueRing.rotation.x=Math.PI/2; blueRing.position.z=.02; flashModel.add(blueRing);
+  /* rear cap with lanyard loop */
+  const rearCap=new THREE.Mesh(new THREE.SphereGeometry(.029,8,6),gunDark);
+  rearCap.position.z=.13; flashModel.add(rearCap);
+  const loop=new THREE.Mesh(new THREE.TorusGeometry(.015,.004,4,8),gunmetal);
+  loop.position.z=.16; loop.rotation.x=Math.PI/2; flashModel.add(loop);
+  /* wide beam head — flared cone with reflector */
+  const headOuter=new THREE.Mesh(new THREE.CylinderGeometry(.065,.035,.1,12),whiteShell);
+  headOuter.rotation.x=Math.PI/2; headOuter.position.z=-.17; flashModel.add(headOuter);
+  const headInner=new THREE.Mesh(new THREE.CylinderGeometry(.058,.03,.06,12,1,true),
+    new THREE.MeshStandardMaterial({color:0xbbbbbb,roughness:.3,metalness:.4,side:THREE.BackSide}));
+  headInner.rotation.x=Math.PI/2; headInner.position.z=-.2; flashModel.add(headInner);
+  /* lens with warm glow */
+  const lens=new THREE.Mesh(new THREE.CircleGeometry(.06,14),
+    new THREE.MeshStandardMaterial({color:0xfff8d0,emissive:0xffeebb,emissiveIntensity:0.12,transparent:true,opacity:.85}));
+  lens.position.z=-.23; flashModel.add(lens);
+  /* accent ring around head */
+  const headRing=new THREE.Mesh(new THREE.TorusGeometry(.066,.006,6,16),ambGlow);
+  headRing.position.z=-.14; flashModel.add(headRing);
+  /* power button */
+  const btn=new THREE.Mesh(new THREE.CylinderGeometry(.008,.008,.01,6),ambGlow);
+  btn.rotation.z=Math.PI/2; btn.position.set(0,.035,.04); flashModel.add(btn);
+  /* textured grip section */
+  for(let i=0;i<4;i++){
+    const rib=new THREE.Mesh(new THREE.BoxGeometry(.038,.004,.012),gunDark);
+    rib.position.set(0,-.025,.06+i*.025); flashModel.add(rib);
   }
-  const switchBtn=new THREE.Mesh(new THREE.BoxGeometry(.015,.02,.03),ambGlow);
-  switchBtn.position.set(0,.038,.02); flashModel.add(switchBtn);
-  const head=new THREE.Mesh(new THREE.CylinderGeometry(.058,.038,.1,12),gunmetal);
-  head.rotation.x=Math.PI/2; head.position.z=-.18; flashModel.add(head);
-  const headRing=new THREE.Mesh(new THREE.TorusGeometry(.059,.007,6,16),ambGlow);
-  headRing.position.z=-.22; flashModel.add(headRing);
-  const reflector=new THREE.Mesh(new THREE.CylinderGeometry(.055,.03,.04,12,1,true),
-    new THREE.MeshStandardMaterial({color:0xcccccc,roughness:.4,metalness:.3,side:THREE.BackSide}));
-  reflector.rotation.x=Math.PI/2; reflector.position.z=-.24; flashModel.add(reflector);
-  const lens=new THREE.Mesh(new THREE.CircleGeometry(.055,14),
-    new THREE.MeshStandardMaterial({color:0xfff8d0,emissive:0xffeebb,emissiveIntensity:0.1,transparent:true,opacity:.9}));
-  lens.position.z=-.26; flashModel.add(lens);
-  const clip=new THREE.Mesh(new THREE.BoxGeometry(.01,.06,.22),gunmetal);
-  clip.position.set(0,.045,-.02); flashModel.add(clip);
-  const grip=new THREE.Mesh(new THREE.BoxGeometry(.04,.13,.045),gunDark);
-  grip.position.set(0,-.08,.04); flashModel.add(grip);
+  /* bottom clip */
+  const clip=new THREE.Mesh(new THREE.BoxGeometry(.008,.015,.18),gunmetal);
+  clip.position.set(0,-.04,-.02); flashModel.add(clip);
 }
 let toolSwitchT=1;
 
@@ -1758,7 +1786,7 @@ function pay(c){ Object.entries(c).forEach(([k,v])=>res[k]-=v); }
 const res={titanium:0,copper:0,quartz:0,gold:0,silver:0,diamond:0,lead:0,lithium:0,magnetite:0,obsidian:0,thermalCrystal:0,voidstone:0,pressureGel:0,frozenAlloy:0,bioMetal:0,rations:1,h2o:1,
   titaniumIngot:0,copperWire:0,glass:0,fiberMesh:0,advancedTank:0,reinforcedSuit:0,ultraFins:0,
   rawFish:0,lubricant:0,siliconeRubber:0,computerChip:0,bleach:0,disinfectedWater:0,curedFish:0,medPack:0,depthModule:0,heatResistSuit:0};
-const unlockedBlueprints=new Set(['titaniumIngot','copperWire','glass','fiberMesh','cookedFish','filteredWater','battery','firstAidKit','beacon','wiring','lubricant','siliconeRubber','bleach','curedFish','disinfectedWater','thermalLance','fabricatorTool','scannerTool','repairTool','propulsionEngine','flashlightTool','resourceDetector','deepSonar','creatureTracker','beaconLauncher','pressureSuit','voidLens','thermalReactor','bioArmor']);
+const unlockedBlueprints=new Set(['titaniumIngot','copperWire','glass','fiberMesh','cookedFish','filteredWater','battery','firstAidKit','beacon','wiring','lubricant','siliconeRubber','bleach','curedFish','disinfectedWater']);
 const RECIPES={
   titaniumIngot:{name:'TITANIUM INGOT',cost:{titanium:4},cat:'materials',desc:'Compressed titanium alloy.'},
   copperWire:{name:'COPPER WIRE',cost:{copper:2},cat:'materials',desc:'Conductive wiring.'},
@@ -2017,34 +2045,25 @@ function renderCraftMenu(){
   for(const [key,label] of Object.entries(cats)){
     html+=`<div class="xbtn craftTab" onclick="filterCraft('${key}')" style="pointer-events:auto;cursor:pointer" id="catBtn_${key}">${label}</div>`;
   }
-  html+='</div><div class="craft-grid" style="display:flex;flex-wrap:wrap;gap:18px;grid-column:1/-1">';
+  html+='</div><div style="display:flex;flex-wrap:wrap;gap:12px;grid-column:1/-1">';
   window.filterCraft=function(cat){
-    host.querySelectorAll('.craft-bubble').forEach(c=>c.style.display=c.dataset.cat===cat||!cat?'':'none');
+    host.querySelectorAll('.craft-item').forEach(c=>c.style.display=c.dataset.cat===cat||!cat?'':'none');
     host.querySelectorAll('.craftTab').forEach(b=>b.style.borderColor='');
     const btn=$('catBtn_'+cat); if(btn)btn.style.borderColor='var(--cy)';
   };
   for(const [key,recipe] of Object.entries(RECIPES)){
     if(!unlockedBlueprints.has(key))continue;
     const afford=Object.entries(recipe.cost).every(([k,v])=>(res[k]||0)>=v);
-    const colors={materials:'#7fe9ff',food:'#ffae4f',tools:'#7dffa8',equipment:'#c97fff'};
-    const col=colors[recipe.cat]||'#7fe9ff';
-    html+=`<div class="craft-bubble" data-cat="${recipe.cat||'materials'}"
-      style="width:72px;height:72px;border-radius:50%;border:2px solid ${afford?col:'rgba(127,233,255,.2)'};
-      background:${afford?'rgba(127,233,255,.08)':'rgba(127,233,255,.02)'};
-      display:flex;align-items:center;justify-content:center;cursor:pointer;position:relative;
-      transition:all .25s;flex-direction:column;opacity:${afford?1:.4}"
-      onmouseenter="this.querySelector('.craft-tip').style.opacity=1;this.querySelector('.craft-tip').style.transform='translateX(-50%) translateY(0)'"
-      onmouseleave="this.querySelector('.craft-tip').style.opacity=0;this.querySelector('.craft-tip').style.transform='translateX(-50%) translateY(8px)'"
+    html+=`<div class="craft-item" data-cat="${recipe.cat||'materials'}"
+      style="padding:10px 14px;border:1px solid ${afford?'rgba(68,200,255,.4)':'rgba(68,200,255,.12)'};
+      border-radius:6px;background:${afford?'rgba(68,200,255,.06)':'rgba(68,200,255,.02)'};
+      cursor:pointer;min-width:140px;opacity:${afford?1:.45};transition:all .2s"
+      onmouseenter="this.style.borderColor='var(--cy)';this.style.background='rgba(68,200,255,.1)'"
+      onmouseleave="this.style.borderColor='${afford?'rgba(68,200,255,.4)':'rgba(68,200,255,.12)'}';this.style.background='${afford?'rgba(68,200,255,.06)':'rgba(68,200,255,.02)'}'"
       onclick="craftItem('${key}')">
-      <div style="width:28px;height:28px;border-radius:50%;border:1px solid ${col};background:rgba(127,233,255,.06);display:flex;align-items:center;justify-content:center;font-size:16px;color:${col}">&#9670;</div>
-      <div style="font-size:7px;letter-spacing:.15em;color:${col};margin-top:4px;text-align:center;max-width:66px;overflow:hidden;white-space:nowrap">${recipe.name}</div>
-      <div class="craft-tip" style="position:absolute;bottom:calc(100% + 10px);left:50%;transform:translateX(-50%) translateY(8px);
-        background:rgba(3,17,28,.95);border:1px solid ${col};padding:10px 14px;border-radius:8px;min-width:180px;
-        pointer-events:none;opacity:0;transition:all .2s;z-index:50;text-align:left">
-        <div style="font-size:12px;font-weight:700;letter-spacing:.2em;color:#eaffff;margin-bottom:4px">${recipe.name}</div>
-        <div style="font-size:10px;color:#7fb4c8;margin-bottom:6px">${recipe.desc}</div>
-        <div style="font-size:10px;color:#ffd9a0;letter-spacing:.1em">${costStr(recipe.cost)}</div>
-      </div>
+      <div style="font-size:12px;letter-spacing:.15em;color:#eaffff;margin-bottom:3px">${recipe.name}</div>
+      <div style="font-size:9px;color:#5a8a9a;letter-spacing:.1em;margin-bottom:4px">${recipe.desc||''}</div>
+      <div style="font-size:9px;color:${afford?'#6ac8a0':'#886a6a'};letter-spacing:.08em">${costStr(recipe.cost)}</div>
     </div>`;
   }
   html+='</div>';
@@ -2081,6 +2100,8 @@ function renderCraftMenu(){
       clearInterval(sparkInt);
       res[key]=(res[key]||0)+1;
       if(missionState){missionState.craftCount=(missionState.craftCount||0)+1;}
+      const toolMap={thermalLance:1,fabricatorTool:2,scannerTool:3,repairTool:4,propulsionEngine:5,flashlightTool:6};
+      if(toolMap[key]){unlockedTools.add(toolMap[key]);updateToolHud();toast('TOOL UNLOCKED: '+recipe.name);}
       anim.remove(); window._crafting=false;
       toast(recipe.name+' FABRICATED'); blip(880,.2,'sine',.15); blip(440,.15,'triangle',.1);
       renderCraftMenu();
@@ -2222,7 +2243,7 @@ document.addEventListener('keydown',e=>{
     return;
   }
   if(paused)return;
-  for(let ti=1;ti<=6;ti++) if(e.code==='Digit'+ti&&curTool!==ti){ curTool=ti; toolSwitchT=0; toolSwitchAnim=1; updateToolHud(); blip(640+ti*40,.07,'square',.07); }
+  for(let ti=1;ti<=6;ti++) if(e.code==='Digit'+ti&&curTool!==ti&&unlockedTools.has(ti)){ curTool=ti; toolSwitchT=0; toolSwitchAnim=1; updateToolHud(); blip(640+ti*40,.07,'square',.07); }
   if(e.code==='KeyB')openUI('build');
   if(e.code==='Tab')openUI('inv');
   if(e.code==='KeyR'&&curTool===2){ modRot=(modRot+Math.PI/4)%(Math.PI*2); blip(520,.04,'square',.05); }
@@ -2247,9 +2268,10 @@ function toast(msg,dur){
   setTimeout(()=>{d.style.right='-400px';setTimeout(()=>d.remove(),500);},dur||3000);
 }
 const TOOL_NAMES={1:'THERMAL LANCE',2:'FABRICATOR',3:'SCANNER',4:'REPAIR TOOL',5:'PROPULSION ENGINE',6:'FLASHLIGHT'};
+const unlockedTools=new Set([1]);
 function updateToolHud(){
   $('toolName').textContent=TOOL_NAMES[curTool]||'UNKNOWN';
-  for(let i=1;i<=6;i++){ const s=$('slot'+i); if(s)s.classList.toggle('on',curTool===i); }
+  for(let i=1;i<=6;i++){ const s=$('slot'+i); if(s){ s.classList.toggle('on',curTool===i); s.style.opacity=unlockedTools.has(i)?1:.2; } }
   $('modInfo').style.display=curTool===2?'block':'none';
   const m=MODULES[modIndex];
   $('modName').textContent=m.name;
