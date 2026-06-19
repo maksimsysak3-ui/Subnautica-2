@@ -581,7 +581,7 @@ scene.add(player);
 
 const composer=new EffectComposer(renderer);
 composer.addPass(new RenderPass(scene,camera));
-const bloom=new UnrealBloomPass(new THREE.Vector2(innerWidth,innerHeight), .03, .3, .98);
+const bloom=new UnrealBloomPass(new THREE.Vector2(innerWidth,innerHeight), .01, .2, 1.0);
 composer.addPass(bloom);
 composer.addPass(new OutputPass());
 
@@ -596,9 +596,11 @@ applyQuality();
 
 const uTime={value:0};
 
-/* lights */
-const hemi=new THREE.HemisphereLight(0x6ab8d0,0x1a4a3a,0.7); scene.add(hemi);
-const ambLight=new THREE.AmbientLight(0x4a8a9a,1.2); scene.add(ambLight);
+/* lights — soft ambient ocean, no point sources */
+const hemi=new THREE.HemisphereLight(0x5a9ab8,0x1a3a2a,0.8); scene.add(hemi);
+const ambLight=new THREE.AmbientLight(0x3a7a8a,1.0); scene.add(ambLight);
+const sunDir=new THREE.DirectionalLight(0x7ab8c8,0.4);
+sunDir.position.set(200,400,100); scene.add(sunDir);
 
 /* canvas-texture helpers */
 function ctex(w,h,fn){
@@ -726,7 +728,7 @@ const terrain=(()=>{
         'float cw2=sin(vWp.x*0.9-uTime*1.4)+sin(vWp.z*0.83+uTime*1.1);\n'+
         'float cau=pow(clamp(cw1*0.3333,-1.0,1.0)*0.5+0.5,6.0)+pow(clamp(cw2*0.5,-1.0,1.0)*0.5+0.5,8.0)*0.5;\n'+
         'float datt=clamp(1.0-(-vWp.y-6.0)/44.0,0.1,1.0);\n'+
-        'gl_FragColor.rgb+=vec3(0.30,0.55,0.58)*cau*datt*0.8;\n'+
+        'gl_FragColor.rgb+=vec3(0.12,0.22,0.25)*cau*datt*0.4;\n'+
         '#include <dithering_fragment>');
   };
   const mesh=new THREE.Mesh(g,m); scene.add(mesh); return mesh;
@@ -943,7 +945,7 @@ const MIN_TYPES={
 };
 const minerals=[],mineralMeshes=[];
 function spikeCluster(grp,color,emissive,glow){
-  const mat=new THREE.MeshStandardMaterial({color,emissive,emissiveIntensity:glow,roughness:.18,metalness:.3});
+  const mat=new THREE.MeshStandardMaterial({color,emissive,emissiveIntensity:glow,roughness:.65,metalness:.15});
   for(let j=0;j<4+Math.floor(Math.random()*4);j++){
     const s=new THREE.Mesh(new THREE.CylinderGeometry(0,rand(.2,.4),rand(1.1,2.4),6),mat);
     s.position.set(rand(-.85,.85),rand(.2,.55),rand(-.85,.85));
@@ -958,7 +960,7 @@ function makeMineral(typeKey){
     for(let j=0;j<4+Math.floor(Math.random()*4);j++){
       const h=rand(1.2,2.8),r=rand(.12,.3);
       const s=new THREE.Mesh(new THREE.CylinderGeometry(0,r,h,6),
-        new THREE.MeshStandardMaterial({color:0xccf5ff,emissive:0x55ccee,emissiveIntensity:.35,roughness:.1,metalness:.2,transparent:true,opacity:.75}));
+        new THREE.MeshStandardMaterial({color:0xccf5ff,emissive:0x55ccee,emissiveIntensity:.35,roughness:.6,metalness:.1,transparent:true,opacity:.75}));
       s.position.set(rand(-.7,.7),h/2,rand(-.7,.7));
       s.rotation.set(rand(-.3,.3),rand(0,3),rand(-.3,.3)); grp.add(s);
     }
@@ -977,7 +979,7 @@ function makeMineral(typeKey){
   } else if(typeKey==='titanium'){
     for(let j=0;j<4;j++){
       const c=new THREE.Mesh(new THREE.DodecahedronGeometry(rand(.35,.6),0),
-        new THREE.MeshStandardMaterial({color:0xd9e5ee,roughness:.2,metalness:.95,emissive:0x334455,emissiveIntensity:.2}));
+        new THREE.MeshStandardMaterial({color:0xd9e5ee,roughness:.7,metalness:.3,emissive:0x334455,emissiveIntensity:.2}));
       c.position.set(rand(-.7,.7),rand(.25,.7),rand(-.7,.7));
       c.rotation.set(rand(0,3),rand(0,3),rand(0,3)); grp.add(c);
     }
@@ -987,7 +989,7 @@ function makeMineral(typeKey){
     rock.scale.y=.5; grp.add(rock);
     for(let j=0;j<5;j++){
       const nug=new THREE.Mesh(new THREE.SphereGeometry(rand(.1,.25),8,6),
-        new THREE.MeshStandardMaterial({color:0xffcc00,roughness:.2,metalness:1,emissive:0xaa8800,emissiveIntensity:.3}));
+        new THREE.MeshStandardMaterial({color:0xffcc00,roughness:.7,metalness:.3,emissive:0xaa8800,emissiveIntensity:.3}));
       nug.position.set(rand(-.6,.6),rand(.1,.6),rand(-.6,.6)); grp.add(nug);
     }
   } else if(typeKey==='silver'){
@@ -996,14 +998,14 @@ function makeMineral(typeKey){
     rock.scale.y=.6; grp.add(rock);
     for(let j=0;j<4;j++){
       const vein=new THREE.Mesh(new THREE.BoxGeometry(rand(.05,.1),rand(.4,1),rand(.05,.1)),
-        new THREE.MeshStandardMaterial({color:0xccddee,roughness:.1,metalness:1,emissive:0x667788,emissiveIntensity:.5}));
+        new THREE.MeshStandardMaterial({color:0xccddee,roughness:.65,metalness:.3,emissive:0x667788,emissiveIntensity:.5}));
       vein.position.set(rand(-.5,.5),rand(.1,.6),rand(-.5,.5));
       vein.rotation.set(rand(-.5,.5),rand(0,3),rand(-.5,.5)); grp.add(vein);
     }
   } else if(typeKey==='diamond'){
     for(let j=0;j<3;j++){
       const d=new THREE.Mesh(new THREE.OctahedronGeometry(rand(.2,.4),0),
-        new THREE.MeshStandardMaterial({color:0xeeffff,roughness:.02,metalness:.1,emissive:0xaaddff,emissiveIntensity:0.15,transparent:true,opacity:.85}));
+        new THREE.MeshStandardMaterial({color:0xeeffff,roughness:.5,metalness:.05,emissive:0xaaddff,emissiveIntensity:0.12,transparent:true,opacity:.85}));
       d.position.set(rand(-.4,.4),rand(.3,.9),rand(-.4,.4)); grp.add(d);
     }
   } else if(typeKey==='lead'){
@@ -1016,7 +1018,7 @@ function makeMineral(typeKey){
   } else if(typeKey==='lithium'){
     for(let j=0;j<4;j++){
       const c=new THREE.Mesh(new THREE.CylinderGeometry(0,rand(.15,.3),rand(.8,1.6),5),
-        new THREE.MeshStandardMaterial({color:0xff6688,roughness:.3,metalness:.2,emissive:0xaa2244,emissiveIntensity:0.15}));
+        new THREE.MeshStandardMaterial({color:0xff6688,roughness:.3,metalness:.2,emissive:0xaa2244,emissiveIntensity:0.12}));
       c.position.set(rand(-.6,.6),rand(.3,.8),rand(-.6,.6));
       c.rotation.set(rand(-.4,.4),rand(0,3),rand(-.4,.4)); grp.add(c);
     }
@@ -1026,25 +1028,25 @@ function makeMineral(typeKey){
     grp.add(rock);
     for(let j=0;j<3;j++){
       const arc=new THREE.Mesh(new THREE.TorusGeometry(.5+j*.15,.02,6,12,Math.PI*.7),
-        new THREE.MeshStandardMaterial({color:0x4488ff,emissive:0x2244cc,emissiveIntensity:0.2,transparent:true,opacity:.6}));
+        new THREE.MeshStandardMaterial({color:0x4488ff,emissive:0x2244cc,emissiveIntensity:0.12,transparent:true,opacity:.6}));
       arc.rotation.set(rand(0,3),rand(0,3),rand(0,3)); arc.position.y=.3; grp.add(arc);
     }
   } else if(typeKey==='obsidian'){
     for(let j=0;j<3;j++){
       const c=new THREE.Mesh(new THREE.DodecahedronGeometry(rand(.5,.9),0),
-        new THREE.MeshStandardMaterial({color:0x0a0a0a,emissive:0x1a0a2a,emissiveIntensity:.4,roughness:.05,metalness:.9}));
+        new THREE.MeshStandardMaterial({color:0x0a0a0a,emissive:0x1a0a2a,emissiveIntensity:.4,roughness:.55,metalness:.3}));
       c.position.set(rand(-.6,.6),rand(.2,.7),rand(-.6,.6)); grp.add(c);
     }
   } else if(typeKey==='thermalCrystal'){
     for(let j=0;j<5;j++){
       const c=new THREE.Mesh(new THREE.CylinderGeometry(0,rand(.15,.3),rand(.8,1.8),6),
-        new THREE.MeshStandardMaterial({color:0xff6600,emissive:0xff3300,emissiveIntensity:0.2,roughness:.2}));
+        new THREE.MeshStandardMaterial({color:0xff6600,emissive:0xff3300,emissiveIntensity:0.12,roughness:.6}));
       c.position.set(rand(-.6,.6),rand(.2,.8),rand(-.6,.6));
       c.rotation.set(rand(-.4,.4),rand(0,3),rand(-.4,.4)); grp.add(c);
     }
   } else if(typeKey==='voidstone'){
     const rock2=new THREE.Mesh(new THREE.IcosahedronGeometry(.8,0),
-      new THREE.MeshStandardMaterial({color:0x1a0a2a,emissive:0x2a0a4a,emissiveIntensity:0.15,roughness:.4,metalness:.7}));
+      new THREE.MeshStandardMaterial({color:0x1a0a2a,emissive:0x2a0a4a,emissiveIntensity:0.12,roughness:.4,metalness:.7}));
     grp.add(rock2);
   } else if(typeKey==='pressureGel'){
     const blob=new THREE.Mesh(new THREE.SphereGeometry(rand(.5,.8),10,8),
@@ -1121,7 +1123,7 @@ function makeFish(len,tex,finCol){
   finL.rotation.y=Math.PI/2; finL.rotation.z=.7; finL.position.set(len*.08,-len*.02,len*.22); inner.add(finL);
   const finR=finL.clone(); finR.rotation.z=-.7; finR.position.x=-len*.08; inner.add(finR);
   // eyes
-  const eyeMat=new THREE.MeshStandardMaterial({color:0x0a0e10,roughness:.2,metalness:.5});
+  const eyeMat=new THREE.MeshStandardMaterial({color:0x0a0e10,roughness:.55,metalness:.25});
   for(const sx of [-1,1]){
     const e=new THREE.Mesh(new THREE.SphereGeometry(len*.035,8,6),eyeMat);
     e.position.set(sx*len*.075,len*.05,len*.37); inner.add(e);
@@ -1169,8 +1171,8 @@ const ambient=[];
 const gunmetal=new THREE.MeshStandardMaterial({color:0x232f38,roughness:.35,metalness:.85});
 const gunDark=new THREE.MeshStandardMaterial({color:0x10191f,roughness:.6,metalness:.6});
 const whiteShell=new THREE.MeshStandardMaterial({color:0xdfe9ee,roughness:.25,metalness:.4});
-const ambGlow=new THREE.MeshStandardMaterial({color:0xffc97f,emissive:0xff9020,emissiveIntensity:0.15});
-const grnGlow=new THREE.MeshStandardMaterial({color:0x9fffc0,emissive:0x2fd065,emissiveIntensity:0.15});
+const ambGlow=new THREE.MeshStandardMaterial({color:0xffc97f,emissive:0xff9020,emissiveIntensity:0.12});
+const grnGlow=new THREE.MeshStandardMaterial({color:0x9fffc0,emissive:0x2fd065,emissiveIntensity:0.12});
 
 const toolRoot=new THREE.Group();
 toolRoot.position.set(.44,-.36,-.8); camera.add(toolRoot);
@@ -1229,10 +1231,10 @@ const scannerModel=new THREE.Group(); toolRoot.add(scannerModel); scannerModel.v
 {
   const housing=new THREE.Mesh(new THREE.BoxGeometry(.16,.24,.1),whiteShell); scannerModel.add(housing);
   const backPlate=new THREE.Mesh(new THREE.BoxGeometry(.17,.25,.02),gunDark); backPlate.position.z=-.05; scannerModel.add(backPlate);
-  const screen=new THREE.Mesh(new THREE.PlaneGeometry(.12,.16),new THREE.MeshStandardMaterial({color:0x00ffaa,emissive:0x00dd88,emissiveIntensity:0.17}));
+  const screen=new THREE.Mesh(new THREE.PlaneGeometry(.12,.16),new THREE.MeshStandardMaterial({color:0x00ffaa,emissive:0x00dd88,emissiveIntensity:0.12}));
   screen.position.z=.051; scannerModel.add(screen);
   const screenFrame=new THREE.Mesh(new THREE.BoxGeometry(.14,.18,.02),gunmetal); screenFrame.position.z=.05; scannerModel.add(screenFrame);
-  const scanLine=new THREE.Mesh(new THREE.BoxGeometry(.11,.005,.001),new THREE.MeshStandardMaterial({color:0x88ffcc,emissive:0x44ffaa,emissiveIntensity:0.15}));
+  const scanLine=new THREE.Mesh(new THREE.BoxGeometry(.11,.005,.001),new THREE.MeshStandardMaterial({color:0x88ffcc,emissive:0x44ffaa,emissiveIntensity:0.12}));
   scanLine.position.z=.052; scannerModel.add(scanLine); scannerModel.userData.scanLine=scanLine;
   for(const sx of [-1,1]){
     const rail=new THREE.Mesh(new THREE.BoxGeometry(.015,.26,.04),gunDark);
@@ -1255,7 +1257,7 @@ const scannerModel=new THREE.Group(); toolRoot.add(scannerModel); scannerModel.v
 }
 const repairModel=new THREE.Group(); toolRoot.add(repairModel); repairModel.visible=false;
 {
-  const cyGlow=new THREE.MeshStandardMaterial({color:0x44aaff,emissive:0x2288ff,emissiveIntensity:0.2});
+  const cyGlow=new THREE.MeshStandardMaterial({color:0x44aaff,emissive:0x2288ff,emissiveIntensity:0.12});
   const mainBody=new THREE.Mesh(new THREE.CylinderGeometry(.045,.06,.32,10),gunmetal);
   mainBody.rotation.x=Math.PI/2; repairModel.add(mainBody);
   const midRing=new THREE.Mesh(new THREE.TorusGeometry(.063,.012,6,14),cyGlow);
@@ -1284,7 +1286,7 @@ const repairModel=new THREE.Group(); toolRoot.add(repairModel); repairModel.visi
 }
 const knifeModel=new THREE.Group(); toolRoot.add(knifeModel); knifeModel.visible=false;
 {
-  const propMat=new THREE.MeshStandardMaterial({color:0xd0dce5,roughness:.25,metalness:.7});
+  const propMat=new THREE.MeshStandardMaterial({color:0xd0dce5,roughness:.6,metalness:.3});
   const body=new THREE.Mesh(new THREE.CylinderGeometry(.06,.045,.35,10),propMat);
   body.rotation.x=Math.PI/2; knifeModel.add(body);
   const nose=new THREE.Mesh(new THREE.SphereGeometry(.045,10,8),propMat);
@@ -1298,7 +1300,7 @@ const knifeModel=new THREE.Group(); toolRoot.add(knifeModel); knifeModel.visible
     const handle=new THREE.Mesh(new THREE.BoxGeometry(.02,.12,.06),gunDark);
     handle.position.set(sx*.06,-.06,0); knifeModel.add(handle);
   }
-  const light=new THREE.Mesh(new THREE.SphereGeometry(.02,6,4),new THREE.MeshStandardMaterial({color:0x44ff88,emissive:0x22dd66,emissiveIntensity:0.2}));
+  const light=new THREE.Mesh(new THREE.SphereGeometry(.02,6,4),new THREE.MeshStandardMaterial({color:0x44ff88,emissive:0x22dd66,emissiveIntensity:0.12}));
   light.position.set(0,.045,-.1); knifeModel.add(light);
 }
 const flashModel=new THREE.Group(); toolRoot.add(flashModel); flashModel.visible=false;
@@ -1318,7 +1320,7 @@ const flashModel=new THREE.Group(); toolRoot.add(flashModel); flashModel.visible
   const headRing=new THREE.Mesh(new THREE.TorusGeometry(.059,.007,6,16),ambGlow);
   headRing.position.z=-.22; flashModel.add(headRing);
   const reflector=new THREE.Mesh(new THREE.CylinderGeometry(.055,.03,.04,12,1,true),
-    new THREE.MeshStandardMaterial({color:0xcccccc,roughness:.05,metalness:1,side:THREE.BackSide}));
+    new THREE.MeshStandardMaterial({color:0xcccccc,roughness:.4,metalness:.3,side:THREE.BackSide}));
   reflector.rotation.x=Math.PI/2; reflector.position.z=-.24; flashModel.add(reflector);
   const lens=new THREE.Mesh(new THREE.CircleGeometry(.055,14),
     new THREE.MeshStandardMaterial({color:0xfff8d0,emissive:0xffeebb,emissiveIntensity:0.1,transparent:true,opacity:.9}));
@@ -1358,13 +1360,13 @@ function spawnSparks(p,n,bub,life){
 /* ============================================================
    BASE BUILDING
    ============================================================ */
-const baseMat=new THREE.MeshStandardMaterial({color:0xa9bcc4,roughness:.3,metalness:.8});
-const baseMat2=new THREE.MeshStandardMaterial({color:0xa9bcc4,roughness:.3,metalness:.8,side:THREE.DoubleSide});
+const baseMat=new THREE.MeshStandardMaterial({color:0xa9bcc4,roughness:.6,metalness:.4});
+const baseMat2=new THREE.MeshStandardMaterial({color:0xa9bcc4,roughness:.6,metalness:.4,side:THREE.DoubleSide});
 const baseDark=new THREE.MeshStandardMaterial({color:0x33444d,roughness:.5,metalness:.65,side:THREE.DoubleSide});
-const trimMat=new THREE.MeshStandardMaterial({color:0x7fe9ff,emissive:0x2fb9d8,emissiveIntensity:0.2,roughness:.3});
-const glassMat=new THREE.MeshStandardMaterial({color:0xafe2ff,roughness:.04,metalness:.1,
+const trimMat=new THREE.MeshStandardMaterial({color:0x7fe9ff,emissive:0x2fb9d8,emissiveIntensity:0.12,roughness:.6});
+const glassMat=new THREE.MeshStandardMaterial({color:0xafe2ff,roughness:.3,metalness:.05,
   transparent:true,opacity:.35,side:THREE.DoubleSide});
-const screenMat=new THREE.MeshStandardMaterial({color:0x9fffd8,emissive:0x25d8a0,emissiveIntensity:0.17});
+const screenMat=new THREE.MeshStandardMaterial({color:0x9fffd8,emissive:0x25d8a0,emissiveIntensity:0.12});
 
 const MODULES=[
   {id:'foundation',name:'FOUNDATION',cost:{titanium:2},enter:false,
@@ -1428,7 +1430,7 @@ function buildModule(id,ghost){
     for(const [dx,dz] of [[-3.5,-3.5],[3.5,-3.5],[-3.5,3.5],[3.5,3.5]])
       mk(new THREE.CylinderGeometry(.18,.28,3.2,8),baseDark).position.set(dx,-1.4,dz);
     if(!ghost){
-      const li=new THREE.PointLight(0xcfeeff,.25,5,2); li.position.set(0,3.2,0); grp.add(li);
+      /* removed PointLight — use ambient only */
       mk(new THREE.CylinderGeometry(.5,.5,.06,16),trimMat).position.set(0,3.46,0);
       // console/fabricator
       const console_=mk(new THREE.BoxGeometry(2,.95,.6),baseDark); console_.position.set(0,.8,R-1.2);
@@ -1467,7 +1469,7 @@ function buildModule(id,ghost){
         srib.position.set(sx*1.28,1.35,z);
       }
     }
-    if(!ghost){ const li=new THREE.PointLight(0xcfeeff,.2,4,2); li.position.set(0,2.2,0); grp.add(li); }
+    /* removed PointLight */
   } else if(id==='wall'){
     mk(new THREE.BoxGeometry(3,2.8,.16),baseMat2).position.y=1.4;
     mk(new THREE.BoxGeometry(3.1,.1,.22),trimMat).position.y=2.82;
@@ -1483,7 +1485,7 @@ function buildModule(id,ghost){
       color:0xfff2d8,emissive:0xffd9a0,emissiveIntensity:0.1}));
     lens.position.set(0,3.07,.31); lens.rotation.x=-1.07+Math.PI;
     if(!ghost){
-      const li=new THREE.PointLight(0xffe2b8,.2,5,2); li.position.set(0,3,1); grp.add(li);
+      /* removed PointLight */
       const cone=new THREE.Mesh(new THREE.ConeGeometry(2.6,7,16,1,true),
         new THREE.MeshBasicMaterial({color:0xdde8e8,transparent:true,opacity:.02,
           blending:THREE.NormalBlending,depthWrite:false,side:THREE.DoubleSide}));
@@ -1494,7 +1496,7 @@ function buildModule(id,ghost){
     mk(new THREE.CylinderGeometry(.05,.08,2.8,8),baseMat).position.y=1.5;
     const orb=mk(new THREE.SphereGeometry(.36,14,12),trimMat); orb.position.y=3.1;
     if(!ghost){
-      const li=new THREE.PointLight(0x8fe9ff,.2,5,2); li.position.y=3.1; grp.add(li);
+      /* removed PointLight */
       grp.userData.pulseOrb=orb;
     }
   } else if(id==='largeRoom'){
@@ -1505,21 +1507,21 @@ function buildModule(id,ghost){
     }
     mk(new THREE.BoxGeometry(8.2,.2,8.2),baseMat).position.y=3.5;
     mk(new THREE.BoxGeometry(8.2,.08,8.2),trimMat).position.y=3.62;
-    if(!ghost){ const li=new THREE.PointLight(0xcfeeff,.2,4,2); li.position.y=3.2; grp.add(li); }
+    /* removed PointLight */
   } else if(id==='storage'){
     mk(new THREE.BoxGeometry(1.2,1.8,.5),baseMat).position.y=1.2;
     mk(new THREE.BoxGeometry(1.3,.06,.55),trimMat).position.y=2.12;
     mk(new THREE.BoxGeometry(1.3,.06,.55),trimMat).position.y=.32;
   } else if(id==='solar'){
     mk(new THREE.CylinderGeometry(.08,.12,6,6),baseMat).position.y=3;
-    mk(new THREE.BoxGeometry(4,.1,3),new THREE.MeshStandardMaterial({color:0x223366,roughness:.2,metalness:.5})).position.y=6.1;
+    mk(new THREE.BoxGeometry(4,.1,3),new THREE.MeshStandardMaterial({color:0x223366,roughness:.55,metalness:.25})).position.y=6.1;
     mk(new THREE.BoxGeometry(4.1,.06,3.1),trimMat).position.y=6.16;
   } else if(id==='moonpool'){
     mk(new THREE.BoxGeometry(10,.3,10),baseMat).position.y=.15;
     for(const sx of [-1,1]) mk(new THREE.BoxGeometry(.2,3.5,10),baseMat2).position.set(sx*5,1.9,0);
     mk(new THREE.BoxGeometry(10.2,.2,10.2),baseMat).position.y=3.7;
     mk(new THREE.TorusGeometry(3,.15,8,20),trimMat).position.y=.2;
-    if(!ghost){ const li=new THREE.PointLight(0x88ddff,.2,4); li.position.y=2; grp.add(li); }
+    /* removed PointLight */
   } else if(id==='bed'){
     mk(new THREE.BoxGeometry(1.8,.3,3),baseDark).position.set(0,.4,0);
     mk(new THREE.BoxGeometry(1.8,.5,.3),baseMat).position.set(0,.55,1.35);
@@ -1550,7 +1552,7 @@ function buildModule(id,ghost){
     mk(new THREE.CylinderGeometry(4.1,4.1,.1,12),trimMat).position.y=.52;
     mk(new THREE.CylinderGeometry(.5,.5,8,8),baseMat).position.y=4.5;
     mk(new THREE.ConeGeometry(1,3,8),new THREE.MeshStandardMaterial({color:0xcc3322,roughness:.3})).position.y=10;
-    if(!ghost){ const li=new THREE.PointLight(0xff6633,.2,5); li.position.y=5; grp.add(li); }
+    /* removed PointLight */
   }
   return grp;
 }
@@ -2344,8 +2346,8 @@ const levSegments=[];
 {
   const headMat=new THREE.MeshStandardMaterial({color:0x1a3344,roughness:.6,metalness:.3,emissive:0x0a1a2a,emissiveIntensity:.5});
   const bodyMat2=new THREE.MeshStandardMaterial({color:0x152833,roughness:.7,metalness:.2,emissive:0x081520,emissiveIntensity:.3});
-  const eyeMat2=new THREE.MeshStandardMaterial({color:0xff2020,emissive:0xff0000,emissiveIntensity:0.25});
-  const glowStrip=new THREE.MeshStandardMaterial({color:0x44ffff,emissive:0x22cccc,emissiveIntensity:0.25,transparent:true,opacity:.8});
+  const eyeMat2=new THREE.MeshStandardMaterial({color:0xff2020,emissive:0xff0000,emissiveIntensity:0.12});
+  const glowStrip=new THREE.MeshStandardMaterial({color:0x44ffff,emissive:0x22cccc,emissiveIntensity:0.12,transparent:true,opacity:.8});
   const head=new THREE.Mesh(new THREE.SphereGeometry(8,16,12),headMat);
   head.scale.set(1,.7,1.3); leviathanGroup.add(head);
   for(const sx of [-1,1]){
@@ -2359,7 +2361,7 @@ const levSegments=[];
     const mandible=new THREE.Mesh(new THREE.BoxGeometry(.8,1.5,4),headMat);
     mandible.position.set(sx*4,-3,8); mandible.rotation.z=sx*.3; leviathanGroup.add(mandible);
     for(let ti=0;ti<5;ti++){
-      const tooth=new THREE.Mesh(new THREE.ConeGeometry(.25,1.2,5),new THREE.MeshStandardMaterial({color:0xddeeff,roughness:.2,metalness:.8}));
+      const tooth=new THREE.Mesh(new THREE.ConeGeometry(.25,1.2,5),new THREE.MeshStandardMaterial({color:0xddeeff,roughness:.6,metalness:.3}));
       tooth.position.set(sx*3.5,-4+ti*.1,6+ti*1); tooth.rotation.z=sx*.5; leviathanGroup.add(tooth);
     }
   }
@@ -2395,15 +2397,15 @@ leviathan2.position.set(0,-300,0); scene.add(leviathan2);
 const abyssalTitan=new THREE.Group();
 {
   const tMat=new THREE.MeshStandardMaterial({color:0x0a0a18,roughness:.5,metalness:.4,emissive:0x050510,emissiveIntensity:.3});
-  const tEye=new THREE.MeshStandardMaterial({color:0xff0044,emissive:0xff0022,emissiveIntensity:0.25});
-  const tGlow=new THREE.MeshStandardMaterial({color:0xff2244,emissive:0xcc0033,emissiveIntensity:0.25,transparent:true,opacity:.8});
+  const tEye=new THREE.MeshStandardMaterial({color:0xff0044,emissive:0xff0022,emissiveIntensity:0.12});
+  const tGlow=new THREE.MeshStandardMaterial({color:0xff2244,emissive:0xcc0033,emissiveIntensity:0.12,transparent:true,opacity:.8});
   const tHead=new THREE.Mesh(new THREE.SphereGeometry(12,16,12),tMat);
   tHead.scale.set(1.2,.8,1.5); abyssalTitan.add(tHead);
   for(const sx of [-1,1]){
     const eye=new THREE.Mesh(new THREE.SphereGeometry(2,10,8),tEye);
     eye.position.set(sx*8,2,12); abyssalTitan.add(eye);
     for(let j=0;j<8;j++){
-      const tooth=new THREE.Mesh(new THREE.ConeGeometry(.4,2,5),new THREE.MeshStandardMaterial({color:0xddeeff,roughness:.15,metalness:.9}));
+      const tooth=new THREE.Mesh(new THREE.ConeGeometry(.4,2,5),new THREE.MeshStandardMaterial({color:0xddeeff,roughness:.6,metalness:.3}));
       tooth.position.set(sx*3+j*sx*.3,-6+j*.2,10+j*.8); tooth.rotation.z=sx*.4; abyssalTitan.add(tooth);
     }
   }
@@ -2437,9 +2439,9 @@ function leviathanRoar(){
 const vehicleGroup=new THREE.Group();
 let vehicleBuilt=false, inVehicle=false, vehicleO2=100;
 {
-  const hullMat=new THREE.MeshStandardMaterial({color:0xd0dde5,roughness:.25,metalness:.7});
-  const glassMat3=new THREE.MeshStandardMaterial({color:0x88ddff,roughness:.05,metalness:.1,transparent:true,opacity:.3});
-  const accentMat=new THREE.MeshStandardMaterial({color:0x44aacc,emissive:0x22aadd,emissiveIntensity:0.15,roughness:.3});
+  const hullMat=new THREE.MeshStandardMaterial({color:0xd0dde5,roughness:.6,metalness:.3});
+  const glassMat3=new THREE.MeshStandardMaterial({color:0x88ddff,roughness:.35,metalness:.05,transparent:true,opacity:.3});
+  const accentMat=new THREE.MeshStandardMaterial({color:0x44aacc,emissive:0x22aadd,emissiveIntensity:0.12,roughness:.6});
   const hull=new THREE.Mesh(new THREE.CapsuleGeometry(1.5,3,12,18),hullMat);
   hull.rotation.z=Math.PI/2; vehicleGroup.add(hull);
   const vGlass=new THREE.Mesh(new THREE.SphereGeometry(1.3,16,12,0,Math.PI*2,0,Math.PI/2),glassMat3);
@@ -2518,7 +2520,7 @@ for(let i=0;i<12;i++){
   f.userData.a={c:V3(cx,clamp(cy+rand(8,20),-450,-200),cz),r:rand(10,20),w:rand(.1,.2)*(Math.random()<.5?-1:1),ph:rand(0,9),alive:true,respawn:0};
   f.userData.predator=true; f.scale.set(2,1.5,2);
   // Add glowing lure
-  const lure=new THREE.Mesh(new THREE.SphereGeometry(.3,6,6),new THREE.MeshStandardMaterial({color:0x44aaff,emissive:0x44aaff,emissiveIntensity:0.15}));
+  const lure=new THREE.Mesh(new THREE.SphereGeometry(.3,6,6),new THREE.MeshStandardMaterial({color:0x44aaff,emissive:0x44aaff,emissiveIntensity:0.12}));
   lure.position.set(0,.5,2); f.add(lure);
   scene.add(f); anglerfish.push(f);
 }
@@ -2616,7 +2618,7 @@ for(let i=0;i<5&&dtAttempts<200;dtAttempts++){
   grp.add(new THREE.Mesh(new THREE.CylinderGeometry(.5,.6,.3,8),new THREE.MeshStandardMaterial({color:0x222233,roughness:.5,metalness:.7})));
   const pillar=new THREE.Mesh(new THREE.CylinderGeometry(.15,.15,2,6),new THREE.MeshStandardMaterial({color:0x334455,roughness:.4,metalness:.5}));
   pillar.position.y=1.15; grp.add(pillar);
-  const scr=new THREE.Mesh(new THREE.BoxGeometry(.8,.6,.1),new THREE.MeshStandardMaterial({color:0x00ffaa,emissive:0x00ffaa,emissiveIntensity:0.15}));
+  const scr=new THREE.Mesh(new THREE.BoxGeometry(.8,.6,.1),new THREE.MeshStandardMaterial({color:0x00ffaa,emissive:0x00ffaa,emissiveIntensity:0.12}));
   scr.position.y=2; grp.add(scr);
   grp.position.set(x,ty,z); grp.userData={kind:'terminal',collected:false};
   scene.add(grp); dataTerminals.push(grp); i++;
@@ -2629,7 +2631,7 @@ for(let i=0;i<8;i++){
   const grp=new THREE.Group(); grp.position.set(x,y,z);
   const pod=new THREE.Mesh(new THREE.CapsuleGeometry(1.2,2,8,12),new THREE.MeshStandardMaterial({color:0xcc6633,roughness:.7,metalness:.3}));
   pod.rotation.set(rand(-.5,.5),rand(0,3),rand(-.3,.3)); pod.position.y=1.5; grp.add(pod);
-  const light=new THREE.Mesh(new THREE.SphereGeometry(.2,8,6),new THREE.MeshStandardMaterial({color:0xff8800,emissive:0xff6600,emissiveIntensity:0.2}));
+  const light=new THREE.Mesh(new THREE.SphereGeometry(.2,8,6),new THREE.MeshStandardMaterial({color:0xff8800,emissive:0xff6600,emissiveIntensity:0.12}));
   light.position.set(0,3,0); grp.add(light);
   grp.userData={kind:'escapePod',collected:false};
   scene.add(grp); escapePods.push(grp);
@@ -2641,8 +2643,8 @@ for(let i=0;i<3;i++){
   const x=rand(-500,500),z=rand(-500,500),y=terrainHeight(x,z);
   if(y>-60)continue;
   const grp=new THREE.Group(); grp.position.set(x,y,z);
-  const towerMat=new THREE.MeshStandardMaterial({color:0x112233,roughness:.2,metalness:.9,emissive:0x003355,emissiveIntensity:.5});
-  const glowMat2=new THREE.MeshStandardMaterial({color:0x00ffaa,emissive:0x00ff88,emissiveIntensity:0.15});
+  const towerMat=new THREE.MeshStandardMaterial({color:0x112233,roughness:.6,metalness:.4,emissive:0x003355,emissiveIntensity:.5});
+  const glowMat2=new THREE.MeshStandardMaterial({color:0x00ffaa,emissive:0x00ff88,emissiveIntensity:0.12});
   const base=new THREE.Mesh(new THREE.CylinderGeometry(2,3,.8,6),towerMat); grp.add(base);
   const pillar=new THREE.Mesh(new THREE.CylinderGeometry(.8,.8,12,6),towerMat); pillar.position.y=6.5; grp.add(pillar);
   for(let j=0;j<4;j++){
@@ -2662,7 +2664,7 @@ const signalBeacon=(()=>{
   grp.add(new THREE.Mesh(new THREE.CylinderGeometry(.4,.5,.4,8),new THREE.MeshStandardMaterial({color:0x445566,roughness:.4,metalness:.6})));
   const pole=new THREE.Mesh(new THREE.CylinderGeometry(.08,.08,3,6),baseMat);
   pole.position.y=1.7; grp.add(pole);
-  const orb=new THREE.Mesh(new THREE.SphereGeometry(.4,12,10),new THREE.MeshStandardMaterial({color:0xff4400,emissive:0xff4400,emissiveIntensity:0.15}));
+  const orb=new THREE.Mesh(new THREE.SphereGeometry(.4,12,10),new THREE.MeshStandardMaterial({color:0xff4400,emissive:0xff4400,emissiveIntensity:0.12}));
   orb.position.y=3.4; grp.add(orb);
   let bx,bz,by,att=0; do{ bx=rand(-180,180); bz=rand(-180,180); by=terrainHeight(bx,bz); att++; }while(by>-30&&att<500);
   if(by>-30) by=-35;
@@ -2725,7 +2727,7 @@ const fireCorals=[];
     cap.position.y=sh; cap.scale.y=.5; grp.add(cap);
     scene.add(grp);
   }
-  const fireMat2=new THREE.MeshStandardMaterial({color:0xff3300,roughness:.4,emissive:0xff2200,emissiveIntensity:0.17});
+  const fireMat2=new THREE.MeshStandardMaterial({color:0xff3300,roughness:.4,emissive:0xff2200,emissiveIntensity:0.12});
   for(let i=0;i<30;i++){
     const x=rand(-800,800),z=rand(-800,800),y=terrainHeight(x,z);
     const grp=new THREE.Group(); grp.position.set(x,y,z);
@@ -2780,7 +2782,7 @@ const fireCorals=[];
 
   // THERMAL ZONE — heat vents, molten cracks, resistant flora
   const ventMat=new THREE.MeshStandardMaterial({color:0x332211,roughness:.9,metalness:.2});
-  const lavaMat=new THREE.MeshStandardMaterial({color:0xff6600,emissive:0xff4400,emissiveIntensity:0.15,roughness:.3});
+  const lavaMat=new THREE.MeshStandardMaterial({color:0xff6600,emissive:0xff4400,emissiveIntensity:0.12,roughness:.6});
   const heatPlantMat=new THREE.MeshStandardMaterial({color:0x886622,roughness:.6,emissive:0x442200,emissiveIntensity:.4});
   for(let i=0;i<60;i++){
     const x=rand(-800,800),z=rand(-800,800),y=terrainHeight(x,z);
@@ -2809,8 +2811,8 @@ const fireCorals=[];
   }
 
   // CRYSTAL CAVES — reflective crystals, refracted lighting
-  const crystalMat=new THREE.MeshStandardMaterial({color:0x8866ff,roughness:.05,metalness:.3,emissive:0x4422aa,emissiveIntensity:0.17,transparent:true,opacity:.8});
-  const crystalMat2=new THREE.MeshStandardMaterial({color:0x44ddff,roughness:.05,metalness:.2,emissive:0x2288cc,emissiveIntensity:0.15,transparent:true,opacity:.75});
+  const crystalMat=new THREE.MeshStandardMaterial({color:0x8866ff,roughness:.35,metalness:.15,emissive:0x4422aa,emissiveIntensity:0.12,transparent:true,opacity:.8});
+  const crystalMat2=new THREE.MeshStandardMaterial({color:0x44ddff,roughness:.35,metalness:.1,emissive:0x2288cc,emissiveIntensity:0.12,transparent:true,opacity:.75});
   for(let i=0;i<80;i++){
     const x=rand(-800,800),z=rand(-800,800),y=terrainHeight(x,z);
     if(y>-350||y<-420)continue;
@@ -2826,7 +2828,7 @@ const fireCorals=[];
   }
 
   // ABYSS — massive pillars, giant bioluminescent flora, terrifying atmosphere
-  const abyssPlantMat=new THREE.MeshStandardMaterial({color:0x113322,roughness:.5,emissive:0x00ff66,emissiveIntensity:0.2,transparent:true,opacity:.7});
+  const abyssPlantMat=new THREE.MeshStandardMaterial({color:0x113322,roughness:.5,emissive:0x00ff66,emissiveIntensity:0.12,transparent:true,opacity:.7});
   const abyssStemMat=new THREE.MeshStandardMaterial({color:0x0a1a15,roughness:.8});
   for(let i=0;i<40;i++){
     const x=rand(-800,800),z=rand(-800,800),y=terrainHeight(x,z);
@@ -2844,13 +2846,13 @@ const fireCorals=[];
     scene.add(grp);
   }
   var traitFlowers=[];
-  const flowerMat=new THREE.MeshStandardMaterial({color:0xff22aa,emissive:0xcc0088,emissiveIntensity:0.2,transparent:true,opacity:.8,side:THREE.DoubleSide});
+  const flowerMat=new THREE.MeshStandardMaterial({color:0xff22aa,emissive:0xcc0088,emissiveIntensity:0.12,transparent:true,opacity:.8,side:THREE.DoubleSide});
   const traitNames=['Speed Boost','Heat Resist','Pressure Shield','Night Vision','O2 Efficiency'];
   function makeTraitFlower(x,z,traitIdx){
     const y=terrainHeight(x,z);
     const grp=new THREE.Group(); grp.position.set(x,y,z);
     // Small ground flower — 5 petals radiating from center, ~1m tall
-    const cMat=new THREE.MeshStandardMaterial({color:0xff44cc,emissive:0xff22aa,emissiveIntensity:0.2,transparent:true,opacity:.9});
+    const cMat=new THREE.MeshStandardMaterial({color:0xff44cc,emissive:0xff22aa,emissiveIntensity:0.12,transparent:true,opacity:.9});
     const core=new THREE.Mesh(new THREE.SphereGeometry(.15,8,6),cMat);
     core.position.y=.5; grp.add(core);
     for(let j=0;j<5;j++){
@@ -2999,7 +3001,7 @@ const fireCorals=[];
     if(y>-420)continue;
     const grp=new THREE.Group(); grp.position.set(x,y,z);
     const col=bioColors[i%4];
-    const mat=new THREE.MeshStandardMaterial({color:col,roughness:.4,emissive:col,emissiveIntensity:0.15});
+    const mat=new THREE.MeshStandardMaterial({color:col,roughness:.4,emissive:col,emissiveIntensity:0.12});
     for(let j=0;j<2+Math.floor(Math.random()*3);j++){
       const h=rand(6,18);
       const stalk=new THREE.Mesh(new THREE.CylinderGeometry(.1,.3,h,6),mat);
@@ -3043,7 +3045,7 @@ for(let i=0;i<24;i++){
     const dome=new THREE.Mesh(new THREE.SphereGeometry(2.5,10,6,0,Math.PI*2,0,Math.PI/2),wreckMat);
     dome.rotation.z=Math.PI/2; dome.position.set(4,2.5,0); grp.add(dome);
     // Window
-    const win=new THREE.Mesh(new THREE.CircleGeometry(.8,8),new THREE.MeshStandardMaterial({color:0x1a3a4a,roughness:.2,metalness:.6,side:THREE.DoubleSide}));
+    const win=new THREE.Mesh(new THREE.CircleGeometry(.8,8),new THREE.MeshStandardMaterial({color:0x1a3a4a,roughness:.55,metalness:.3,side:THREE.DoubleSide}));
     win.position.set(0,3.5,2.5); win.rotation.x=-.3; grp.add(win);
     // Hatch (open door)
     const hatch=new THREE.Mesh(new THREE.BoxGeometry(1.5,2,.1),rustMat);
@@ -3397,7 +3399,7 @@ for(let i=0;i<8;i++){
     scene.add(grp);
   }
   // Crystal Caves (-350 to -430m) — Giant Crystal Spire, 30-45m
-  const crystMat2=new THREE.MeshStandardMaterial({color:0x8844ff,roughness:.25,emissive:0x6622cc,emissiveIntensity:.3,transparent:true,opacity:.75});
+  const crystMat2=new THREE.MeshStandardMaterial({color:0x8844ff,roughness:.55,emissive:0x6622cc,emissiveIntensity:.3,transparent:true,opacity:.75});
   for(let i=0;i<5;i++){
     const x=rand(-800,800),z=rand(-800,800),y=terrainHeight(x,z);
     if(y>-350||y<-430)continue;
@@ -3610,6 +3612,7 @@ function animate(){
   scene.background=scene.fog.color;
   if($('chromatic'))$('chromatic').style.opacity=clamp((curDepth-30)/50,0,.6);
   hemi.intensity=underwater?biome.light:1.15;
+  sunDir.intensity=clamp(0.4-curDepth*0.003,0,0.4);
   dayTime=(dayTime+dt)%DAY_LENGTH;
   const dayPhase=dayTime/DAY_LENGTH;
   const sunAngle=dayPhase*Math.PI*2;
