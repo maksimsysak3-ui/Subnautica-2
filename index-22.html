@@ -81,7 +81,23 @@
   #o2ringBg{fill:none;stroke:rgba(127,233,255,.1);stroke-width:7}
   #o2ring{fill:none;stroke:var(--cy);stroke-width:7;stroke-linecap:round;
     filter:drop-shadow(0 0 8px rgba(127,233,255,.85));transition:stroke .3s}
-  #o2txt{position:absolute;inset:0;display:flex;flex-direction:column;justify-content:center}
+  #o2water{position:absolute;left:50%;top:50%;width:88px;height:88px;transform:translate(-50%,-50%);
+    border-radius:50%;overflow:hidden;pointer-events:none}
+  #o2waterFill{position:absolute;bottom:0;left:0;width:100%;height:100%;
+    background:linear-gradient(0deg,rgba(20,140,200,.35),rgba(30,160,210,.18) 60%,rgba(40,180,220,.06));
+    transition:height .4s}
+  #o2waterLine{position:absolute;left:-10%;width:120%;height:6px;
+    background:linear-gradient(90deg,transparent,rgba(127,233,255,.5),rgba(200,240,255,.3),rgba(127,233,255,.5),transparent);
+    border-radius:50%;animation:o2wave 2s ease-in-out infinite alternate;transition:bottom .4s}
+  @keyframes o2wave{0%{transform:translateX(-4%) scaleY(.8)}100%{transform:translateX(4%) scaleY(1.2)}}
+  #o2bubbles{position:absolute;bottom:0;left:0;width:100%;height:100%;pointer-events:none}
+  .o2bub{position:absolute;border-radius:50%;background:rgba(127,233,255,.25);animation:o2bub 3s ease-in infinite}
+  .o2bub:nth-child(1){width:4px;height:4px;left:30%;animation-delay:0s;animation-duration:2.8s}
+  .o2bub:nth-child(2){width:3px;height:3px;left:55%;animation-delay:.8s;animation-duration:3.2s}
+  .o2bub:nth-child(3){width:5px;height:5px;left:40%;animation-delay:1.5s;animation-duration:2.5s}
+  .o2bub:nth-child(4){width:3px;height:3px;left:65%;animation-delay:2.1s;animation-duration:3s}
+  @keyframes o2bub{0%{bottom:5%;opacity:.6;transform:translateX(0)}50%{opacity:.4;transform:translateX(3px)}100%{bottom:85%;opacity:0;transform:translateX(-2px)}}
+  #o2txt{position:absolute;inset:0;display:flex;flex-direction:column;justify-content:center;z-index:2}
   #o2num{font-family:var(--mono);font-size:28px;font-weight:500;color:#eaffff;text-shadow:0 0 16px rgba(127,233,255,.7)}
   #o2lbl{font-size:10px;letter-spacing:.5em;color:var(--cy-dim);margin-top:3px;margin-left:.5em}
   #o2wrap.crit #o2ring{stroke:var(--danger)}
@@ -472,6 +488,11 @@
       <circle id="o2ringBg" cx="66" cy="66" r="50"/>
       <circle id="o2ring" cx="66" cy="66" r="50" stroke-dasharray="314.16" stroke-dashoffset="0"/>
     </svg>
+    <div id="o2water">
+      <div id="o2waterFill"></div>
+      <div id="o2waterLine"></div>
+      <div id="o2bubbles"><div class="o2bub"></div><div class="o2bub"></div><div class="o2bub"></div><div class="o2bub"></div></div>
+    </div>
     <div id="o2txt"><div id="o2num">100</div><div id="o2lbl">O₂</div></div>
   </div>
 
@@ -2697,6 +2718,10 @@ let insideBase=false;
 function hudTick(){
   $('o2num').textContent=Math.ceil(stats.o2);
   $('o2ring').style.strokeDashoffset=O2C*(1-stats.o2/100);
+  const o2pct=stats.o2/100;
+  const o2f=$('o2waterFill'),o2l=$('o2waterLine');
+  if(o2f)o2f.style.height=(o2pct*100)+'%';
+  if(o2l)o2l.style.bottom=(o2pct*88-3)+'px';
   $('o2wrap').classList.toggle('crit',stats.o2<25);
   if(stats.o2<30){$('o2wrap').style.transform='translateX(-50%) scale('+(1.15+Math.sin(Date.now()/300)*0.08)+')';$('o2num').style.fontSize='34px';}
   else{$('o2wrap').style.transform='translateX(-50%) scale(1)';$('o2num').style.fontSize='28px';}
