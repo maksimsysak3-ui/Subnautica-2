@@ -655,18 +655,15 @@ const underwaterShader={
       float depthF=clamp(uDepth/500.0,0.0,1.0);
       vec3 col=texture2D(tDiffuse,vUv).rgb;
       // Warm teal color grade — brightens shallow, cools deep
-      vec3 tint=mix(vec3(1.0,1.05,1.08),vec3(0.7,0.85,1.1),depthF);
+      vec3 tint=mix(vec3(1.05,1.08,1.12),vec3(0.75,0.88,1.1),depthF);
       col*=tint;
-      // Subtle screen-space caustics (shallow only)
-      float cx=sin(vUv.x*14.0+uTime*1.0)*sin(vUv.y*11.0-uTime*.7);
-      float caustic=pow(max(cx,0.0),4.0)*0.04*(1.0-depthF*1.5);
-      col+=vec3(caustic*0.5,caustic*0.8,caustic);
-      // Gentle vignette
-      float vig=1.0-smoothstep(0.5,1.1,length(vUv-0.5)*1.3);
-      col*=mix(1.0,vig,0.15+depthF*0.25);
-      // Light desaturation at extreme depth only
+      // No caustics, no grain — clean bright look
+      // Very subtle vignette at depth only
+      float vig=1.0-smoothstep(0.6,1.2,length(vUv-0.5)*1.2);
+      col*=mix(1.0,vig,depthF*0.2);
+      // Minimal desaturation at extreme depth
       float lum=dot(col,vec3(0.299,0.587,0.114));
-      col=mix(col,vec3(lum),depthF*0.2);
+      col=mix(col,vec3(lum),depthF*0.15);
       gl_FragColor=vec4(col,1.0);
     }`
 };
@@ -686,10 +683,10 @@ applyQuality();
 
 const uTime={value:0};
 
-/* lights — soft ambient ocean, no point sources */
-const hemi=new THREE.HemisphereLight(0x7abcdc,0x3a6a5a,1.0); scene.add(hemi);
-const ambLight=new THREE.AmbientLight(0x5a9aaa,1.3); scene.add(ambLight);
-const sunDir=new THREE.DirectionalLight(0x9ad0e0,0.65);
+/* lights — bright natural ocean with sunlight */
+const hemi=new THREE.HemisphereLight(0x87ceeb,0x4a8a6a,1.6); scene.add(hemi);
+const ambLight=new THREE.AmbientLight(0x6ab8cc,1.8); scene.add(ambLight);
+const sunDir=new THREE.DirectionalLight(0xffe8c0,1.2);
 sunDir.position.set(200,400,100); scene.add(sunDir);
 sunDir.castShadow=true;
 sunDir.shadow.mapSize.width=1024;
@@ -824,25 +821,26 @@ const terrain=(()=>{
     function nfbm(px,py){let v=0,a=.5,f=1;for(let i=0;i<7;i++){v+=a*smooth(px*f,py*f);a*=.46;f*=2.03;}return v;}
     const img=g.createImageData(w,h);
     for(let y=0;y<h;y++) for(let x=0;x<w;x++){
-      const nx=x/w*10,ny=y/h*10;
-      // Multi-layer sand
-      const coarse=nfbm(nx*.8+1.3,ny*.8+2.7)*.5;
-      const medium=nfbm(nx*1.6+5,ny*1.6+3)*.25;
-      const fine=nfbm(nx*4+9,ny*4+7)*.1;
-      // Directional ripples (like wind-blown sand)
-      const angle=.4;
+      const nx=x/w*12,ny=y/h*12;
+      // Large wavy dune ridges (like reference image)
+      const angle=0.35;
       const rx=nx*Math.cos(angle)+ny*Math.sin(angle);
-      const ripple1=Math.sin(rx*8+nfbm(nx,ny)*2.5)*.06;
-      const ripple2=Math.sin(rx*16+nfbm(nx*2,ny*2)*1.5)*.025;
-      // Micro grain
-      const grain=pn(x*2.3+.5,y*2.7+.3)*.03;
-      const v=coarse+medium+fine+ripple1+ripple2+grain;
-      const base=Math.floor(clamp(v*160+185,155,240));
+      const warp=nfbm(nx*0.5+3.1,ny*0.5+7.2)*3.0;
+      const ridge1=Math.sin((rx*4.0+warp)*1.0)*0.5;
+      const ridge2=Math.sin((rx*7.5+nfbm(nx*0.8,ny*0.8)*2.0))*0.22;
+      const ridge3=Math.sin((rx*13.0+nfbm(nx*1.5,ny*1.5)*1.2))*0.08;
+      // Soft shadow in valleys — simulates light from top-left
+      const drdx=(Math.sin(((rx+0.01)*4.0+warp))-Math.sin((rx*4.0+warp)))*50;
+      const shadow=clamp(0.5-drdx*0.25,0.15,1.0);
+      // Subtle grain
+      const grain=pn(x*3.1+.5,y*3.3+.3)*0.015;
+      const v=(ridge1+ridge2+ridge3+grain)*shadow;
+      const base=Math.floor(clamp(v*120+210,175,248));
       const idx=(y*w+x)*4;
-      // Warm sand: R slightly warm, G neutral, B cooler
-      img.data[idx]=Math.min(255,base+12);
-      img.data[idx+1]=Math.min(255,base+2);
-      img.data[idx+2]=Math.floor(base*.68);
+      // Warm beige sand like reference
+      img.data[idx]=Math.min(255,base+18);    // R warm
+      img.data[idx+1]=Math.min(255,base+4);   // G
+      img.data[idx+2]=Math.floor(base*0.62);  // B cooler
       img.data[idx+3]=255;
     }
     g.putImageData(img,0,0);
@@ -886,22 +884,27 @@ const terrain=(()=>{
       float vnoise(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.0-2.0*f);
         return mix(mix(hash(i),hash(i+vec2(1,0)),f.x),mix(hash(i+vec2(0,1)),hash(i+vec2(1,1)),f.x),f.y);}
       void main(){
-        vec2 uv=vW.xz*0.025;
-        float t=uTime*0.3;
-        float w1=sin(uv.x*3.2+t*1.7)*sin(uv.y*2.8-t*1.3)*0.5;
-        float w2=sin(uv.x*5.7-t*2.1)*sin(uv.y*6.3+t*1.8)*0.25;
-        float w3=sin((uv.x+uv.y)*2.1+t*0.9)*0.35;
-        float n1=vnoise(uv*8.0+t*0.5)*0.3;
-        float n2=vnoise(uv*16.0-t*0.7)*0.15;
-        float n3=vnoise(uv*32.0+vec2(t*0.3,-t*0.4))*0.08;
-        float pattern=(w1+w2+w3+n1+n2+n3)*0.3;
-        vec3 deepBlue=vec3(0.03,0.12,0.22);
-        vec3 midBlue=vec3(0.06,0.20,0.34);
-        vec3 surfBlue=vec3(0.10,0.28,0.42);
-        float blend=pattern*0.5+0.5;
-        vec3 col=mix(deepBlue,midBlue,smoothstep(0.25,0.55,blend));
-        col=mix(col,surfBlue,smoothstep(0.55,0.8,blend));
+        float t=uTime*0.18;
+        vec2 uv=vW.xz*0.008;
+        // Large gentle swells
+        float swell=sin(uv.x*2.0+t*2.5)*sin(uv.y*1.7-t*1.9)*0.3;
+        // Medium waves
+        float med=sin(uv.x*5.5-t*3.2)*sin(uv.y*4.8+t*2.7)*0.15;
+        // Fine ripple detail via noise
+        float fine=vnoise(uv*30.0+vec2(t*1.5,-t*1.2))*0.12;
+        float fine2=vnoise(uv*55.0+vec2(-t*0.8,t*1.0))*0.06;
+        float pattern=swell+med+fine+fine2;
+        // Deep ocean blue palette (like reference photo)
+        vec3 deepCol=vec3(0.04,0.14,0.24);
+        vec3 midCol=vec3(0.07,0.22,0.36);
+        vec3 brightCol=vec3(0.12,0.30,0.46);
+        float blend=pattern+0.5;
+        vec3 col=mix(deepCol,midCol,smoothstep(0.3,0.55,blend));
+        col=mix(col,brightCol,smoothstep(0.6,0.8,blend));
+        // Subtle sun highlight near camera
         float d=length(vW.xz-cameraPosition.xz);
+        float sunGlint=exp(-d*d*0.00001)*0.06;
+        col+=vec3(sunGlint*0.5,sunGlint*0.7,sunGlint);
         float fade=clamp(d/900.0,0.0,1.0);
         gl_FragColor=vec4(col,mix(0.5,0.1,fade));
       }`
@@ -921,25 +924,11 @@ for(let i=0;i<8;i++){
   scene.add(shaft); lightShafts.push(shaft);
 }
 
-/* ---------------- particles : marine snow + plankton ---------------- */
-const SNOW_N=80,SNOW_R=35;
-function makeCloud(n,size,color,op){
-  const g=new THREE.BufferGeometry(),arr=new Float32Array(n*3);
-  for(let i=0;i<n*3;i++)arr[i]=rand(-SNOW_R,SNOW_R);
-  g.setAttribute('position',new THREE.BufferAttribute(arr,3));
-  const pts=new THREE.Points(g,new THREE.PointsMaterial({color,size,transparent:true,opacity:op,
-    depthWrite:false,blending:THREE.NormalBlending}));
-  scene.add(pts); return pts;
-}
-const snow=makeCloud(SNOW_N,.08,0x8ac8d5,.25);
-const plankton=makeCloud(30,.12,0x3abba8,.3);
-// Ambient dust motes — very subtle drifting particles
-const dustGeo=new THREE.BufferGeometry();
-const dustN=50,dustArr=new Float32Array(dustN*3);
-for(let i=0;i<dustN*3;i++)dustArr[i]=rand(-25,25);
-dustGeo.setAttribute('position',new THREE.BufferAttribute(dustArr,3));
-const dustPts=new THREE.Points(dustGeo,new THREE.PointsMaterial({color:0x8ab8c8,size:.04,transparent:true,opacity:.15,depthWrite:false}));
-scene.add(dustPts);
+/* ---------------- particles : REMOVED — clean ocean look ---------------- */
+const SNOW_N=0,SNOW_R=35;
+const snow={position:{copy(){},x:0,y:0,z:0},visible:false,geometry:{attributes:{position:{array:new Float32Array(0),needsUpdate:false}}}};
+const plankton={position:{copy(){},x:0,y:0,z:0},visible:false,geometry:{attributes:{position:{array:new Float32Array(0),needsUpdate:false}}}};
+const dustPts={position:{copy(){},x:0,y:0,z:0},visible:false};
 
 /* ---------------- seabed dressing : corals / kelp / fans / anemones ---------------- */
 const swayMats=[]; // materials with wind-style vertex sway
@@ -3845,8 +3834,8 @@ function animate(){
     RIGHT.crossVectors(FWD,UP).normalize();
     const boost=keys.ShiftLeft||keys.ShiftRight;
     const finBonus=equipped.fins?1.15:1.0;
-    const maxSp=(underwater?(inVehicle?42:26):9)*(boost?2.0:1)*finBonus;
-    const accel=underwater?12:18;
+    const maxSp=(underwater?(inVehicle?30:14):7)*(boost?1.8:1)*finBonus;
+    const accel=underwater?8:14;
     const drag=underwater?3.1:1.5;
     tmpV.set(0,0,0);
     if(keys.KeyW)tmpV.add(FWD); if(keys.KeyS)tmpV.sub(FWD);
