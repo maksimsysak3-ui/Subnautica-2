@@ -567,7 +567,7 @@ renderer.toneMappingExposure=1.1;
 document.body.appendChild(renderer.domElement);
 
 const scene=new THREE.Scene();
-const UW_FOG=new THREE.Color(0x05314d), UW_DEN=.013;
+const UW_FOG=new THREE.Color(0x05314d), UW_DEN=.0086;
 const SF_FOG=new THREE.Color(0xaadcec), SF_DEN=.0016;
 const IN_DEN=.005;
 scene.fog=new THREE.FogExp2(UW_FOG.clone(),UW_DEN);
@@ -670,7 +670,7 @@ function terrainHeight(x,z){
   const ridges=Math.abs(Math.sin(x*.008+z*.012))*22*(1-Math.exp(-dist*.003));
   const plateaus=Math.max(0,fbm(x*.006+5,z*.006+3)-.3)*70;
   const valleys=Math.min(0,fbm(x*.004-2,z*.004+8)-.55)*100;
-  const detail=fbm(x*.012+7.3,z*.012+2.1)*18+vnoise(x*.08,z*.08)*6+fbm(x*.03+1.1,z*.03+4.4)*8;
+  const detail=fbm(x*.012+7.3,z*.012+2.1)*18+vnoise(x*.08,z*.08)*6+fbm(x*.03+1.1,z*.03+4.4)*8+vnoise(x*.15,z*.15)*2.5;
   const dunes=Math.sin(x*.02+Math.sin(z*.015)*3)*8;
   const trench=(vnoise(x*.003,z*.003)>.68)?-90:0;
   // Canyon systems - deep cuts through terrain
@@ -691,7 +691,7 @@ function terrainHeight(x,z){
 }
 function smoothstep(edge0,edge1,x){const t=clamp((x-edge0)/(edge1-edge0),0,1);return t*t*(3-2*t);}
 const terrain=(()=>{
-  const g=new THREE.PlaneGeometry(2000,2000,220,220); g.rotateX(-Math.PI/2);
+  const g=new THREE.PlaneGeometry(2400,2400,240,240); g.rotateX(-Math.PI/2);
   const pos=g.attributes.position, colors=[];
   const cDeep=new THREE.Color(0x0e2c38),cMid=new THREE.Color(0x2f5e52),cSand=new THREE.Color(0xb39d6f),cRed=new THREE.Color(0x6e4a3e);
   for(let i=0;i<pos.count;i++){
