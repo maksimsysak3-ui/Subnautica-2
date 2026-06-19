@@ -431,7 +431,7 @@
 <div class="overlay" id="grain"></div>
 <div class="overlay" id="hurt"></div>
 <div class="overlay" id="chromatic"></div>
-<div id="cinematic" style="position:fixed;inset:0;z-index:70;background:#000;display:flex;align-items:center;justify-content:center;flex-direction:column;cursor:pointer" onclick="skipCinematic()">
+<div id="cinematic" style="position:fixed;inset:0;z-index:70;background:#000;display:flex;align-items:center;justify-content:center;flex-direction:column;cursor:pointer" onclick="if(window.skipCinematic)skipCinematic()">
   <div id="cinSkip" style="position:absolute;bottom:30px;right:40px;font-size:11px;letter-spacing:.5em;color:rgba(127,233,255,.3);opacity:0;transition:opacity 1s">CLICK TO SKIP</div>
   <div id="cinStudio" style="font-family:var(--mono);font-size:clamp(14px,2vw,22px);letter-spacing:1.2em;color:rgba(127,233,255,0);transition:color 2s">ARKWRIGHT DEEP-SEA DIVISION</div>
   <div id="cinYear" style="font-family:var(--mono);font-size:clamp(10px,1.2vw,14px);letter-spacing:2em;color:rgba(127,233,255,0);transition:color 1.5s;margin-top:8px">2 1 8 6</div>
@@ -3658,9 +3658,6 @@ const fireCorals=[];
       petal.rotation.set(-Math.PI/4,a,0);
       grp.add(petal);
     }
-    // Thin stem
-    const stem=new THREE.Mesh(new THREE.CylinderGeometry(.03,.05,.5,6),new THREE.MeshStandardMaterial({color:0x228844,roughness:.8}));
-    stem.position.y=.25; grp.add(stem);
     // Small leaves
     const leafMat=new THREE.MeshStandardMaterial({color:0x33aa55,roughness:.7,side:THREE.DoubleSide});
     for(let j=0;j<3;j++){
