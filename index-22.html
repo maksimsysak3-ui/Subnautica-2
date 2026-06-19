@@ -653,29 +653,20 @@ const underwaterShader={
     void main(){
       if(uUnderwater<.5){gl_FragColor=texture2D(tDiffuse,vUv);return;}
       float depthF=clamp(uDepth/500.0,0.0,1.0);
-      // Subtle chromatic shift
-      float shift=0.001+depthF*0.002;
-      float r=texture2D(tDiffuse,vUv+vec2(shift,0.0)).r;
-      float g=texture2D(tDiffuse,vUv).g;
-      float b=texture2D(tDiffuse,vUv-vec2(shift,0.0)).b;
-      vec3 col=vec3(r,g,b);
-      // Underwater color grading — push toward teal/blue
-      vec3 tint=mix(vec3(0.85,1.0,1.05),vec3(0.5,0.7,1.1),depthF);
+      vec3 col=texture2D(tDiffuse,vUv).rgb;
+      // Warm teal color grade — brightens shallow, cools deep
+      vec3 tint=mix(vec3(1.0,1.05,1.08),vec3(0.7,0.85,1.1),depthF);
       col*=tint;
-      // Soft caustic pattern on screen
-      float cx=sin(vUv.x*18.0+uTime*1.2)*sin(vUv.y*14.0-uTime*.9);
-      float cy=sin(vUv.x*12.0-uTime*0.7)*sin(vUv.y*20.0+uTime*1.1);
-      float caustic=pow(max(cx*cy,0.0),3.0)*0.08*(1.0-depthF);
-      col+=vec3(caustic*0.6,caustic*0.9,caustic);
-      // Depth haze — edges darken
-      float vig=1.0-smoothstep(0.3,0.9,length(vUv-0.5)*1.4);
-      col*=mix(1.0,vig,0.3+depthF*0.4);
-      // Slight desaturation at depth
+      // Subtle screen-space caustics (shallow only)
+      float cx=sin(vUv.x*14.0+uTime*1.0)*sin(vUv.y*11.0-uTime*.7);
+      float caustic=pow(max(cx,0.0),4.0)*0.04*(1.0-depthF*1.5);
+      col+=vec3(caustic*0.5,caustic*0.8,caustic);
+      // Gentle vignette
+      float vig=1.0-smoothstep(0.5,1.1,length(vUv-0.5)*1.3);
+      col*=mix(1.0,vig,0.15+depthF*0.25);
+      // Light desaturation at extreme depth only
       float lum=dot(col,vec3(0.299,0.587,0.114));
-      col=mix(col,vec3(lum),depthF*0.35);
-      // Film grain (very subtle)
-      float grain=fract(sin(dot(vUv*uTime*100.0,vec2(12.9898,78.233)))*43758.5453);
-      col+=vec3(grain-.5)*0.015;
+      col=mix(col,vec3(lum),depthF*0.2);
       gl_FragColor=vec4(col,1.0);
     }`
 };
@@ -696,9 +687,9 @@ applyQuality();
 const uTime={value:0};
 
 /* lights — soft ambient ocean, no point sources */
-const hemi=new THREE.HemisphereLight(0x6aaccc,0x2a5a4a,0.9); scene.add(hemi);
-const ambLight=new THREE.AmbientLight(0x4a8a9a,1.15); scene.add(ambLight);
-const sunDir=new THREE.DirectionalLight(0x8ac8d8,0.5);
+const hemi=new THREE.HemisphereLight(0x7abcdc,0x3a6a5a,1.0); scene.add(hemi);
+const ambLight=new THREE.AmbientLight(0x5a9aaa,1.3); scene.add(ambLight);
+const sunDir=new THREE.DirectionalLight(0x9ad0e0,0.65);
 sunDir.position.set(200,400,100); scene.add(sunDir);
 sunDir.castShadow=true;
 sunDir.shadow.mapSize.width=1024;
@@ -822,7 +813,7 @@ const terrain=(()=>{
   }
   g.setAttribute('color',new THREE.Float32BufferAttribute(colors,3));
   g.computeVertexNormals();
-  const sandTex=ctex(512,512,(g,w,h)=>{
+  const sandTex=ctex(1024,1024,(g,w,h)=>{
     function pn(px,py){const n=Math.sin(px*127.1+py*311.7)*43758.5453;return n-Math.floor(n);}
     function smooth(px,py){
       const xi=Math.floor(px),yi=Math.floor(py),xf=px-xi,yf=py-yi;
@@ -830,22 +821,34 @@ const terrain=(()=>{
       const a=pn(xi,yi),b=pn(xi+1,yi),c=pn(xi,yi+1),d=pn(xi+1,yi+1);
       return a+(b-a)*sx+(c-a)*sy+(a-b-c+d)*sx*sy;
     }
-    function nfbm(px,py){let v=0,a=.5,f=1;for(let i=0;i<6;i++){v+=a*smooth(px*f,py*f);a*=.47;f*=2.05;}return v;}
+    function nfbm(px,py){let v=0,a=.5,f=1;for(let i=0;i<7;i++){v+=a*smooth(px*f,py*f);a*=.46;f*=2.03;}return v;}
     const img=g.createImageData(w,h);
     for(let y=0;y<h;y++) for(let x=0;x<w;x++){
-      const nx=x/w*6,ny=y/h*6;
-      const sand=nfbm(nx+1.3,ny+2.7);
-      const ripple=Math.sin(nx*12+nfbm(nx*2,ny*2)*4)*.08;
-      const grain=pn(x*3.7,y*4.1)*.06;
-      const v=sand+ripple+grain;
-      const base=Math.floor(clamp(v*120+175,140,235));
+      const nx=x/w*10,ny=y/h*10;
+      // Multi-layer sand
+      const coarse=nfbm(nx*.8+1.3,ny*.8+2.7)*.5;
+      const medium=nfbm(nx*1.6+5,ny*1.6+3)*.25;
+      const fine=nfbm(nx*4+9,ny*4+7)*.1;
+      // Directional ripples (like wind-blown sand)
+      const angle=.4;
+      const rx=nx*Math.cos(angle)+ny*Math.sin(angle);
+      const ripple1=Math.sin(rx*8+nfbm(nx,ny)*2.5)*.06;
+      const ripple2=Math.sin(rx*16+nfbm(nx*2,ny*2)*1.5)*.025;
+      // Micro grain
+      const grain=pn(x*2.3+.5,y*2.7+.3)*.03;
+      const v=coarse+medium+fine+ripple1+ripple2+grain;
+      const base=Math.floor(clamp(v*160+185,155,240));
       const idx=(y*w+x)*4;
-      img.data[idx]=base+8; img.data[idx+1]=base-2; img.data[idx+2]=Math.floor(base*.72); img.data[idx+3]=255;
+      // Warm sand: R slightly warm, G neutral, B cooler
+      img.data[idx]=Math.min(255,base+12);
+      img.data[idx+1]=Math.min(255,base+2);
+      img.data[idx+2]=Math.floor(base*.68);
+      img.data[idx+3]=255;
     }
     g.putImageData(img,0,0);
   });
   sandTex.wrapS=sandTex.wrapT=THREE.RepeatWrapping;
-  sandTex.repeat.set(60,60);
+  sandTex.repeat.set(45,45);
   const m=new THREE.MeshStandardMaterial({vertexColors:true,roughness:.95,metalness:.02,flatShading:false,map:sandTex});
   m.onBeforeCompile=sh=>{ // animated caustic light dapple
     sh.uniforms.uTime=uTime;
@@ -879,22 +882,28 @@ const terrain=(()=>{
         gl_Position=projectionMatrix*modelViewMatrix*vec4(p,1.0);
       }`,
     fragmentShader:`uniform float uTime; varying vec3 vW;
+      float hash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
+      float vnoise(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.0-2.0*f);
+        return mix(mix(hash(i),hash(i+vec2(1,0)),f.x),mix(hash(i+vec2(0,1)),hash(i+vec2(1,1)),f.x),f.y);}
       void main(){
-        float nx=vW.x*0.03,nz=vW.z*0.03;
-        float w1=sin(nx*2.7+uTime*0.5)*sin(nz*3.1-uTime*0.4);
-        float w2=sin(nx*5.3-uTime*0.7)*sin(nz*4.7+uTime*0.6)*.4;
-        float w3=sin((nx+nz)*1.8+uTime*0.3)*.3;
-        float w4=sin(nx*8.1+uTime*1.1)*sin(nz*7.3-uTime*0.9)*.15;
-        float pattern=(w1+w2+w3+w4)*0.25;
-        vec3 deepBlue=vec3(0.02,0.10,0.18);
-        vec3 midBlue=vec3(0.04,0.16,0.28);
-        vec3 surfBlue=vec3(0.06,0.22,0.34);
+        vec2 uv=vW.xz*0.025;
+        float t=uTime*0.3;
+        float w1=sin(uv.x*3.2+t*1.7)*sin(uv.y*2.8-t*1.3)*0.5;
+        float w2=sin(uv.x*5.7-t*2.1)*sin(uv.y*6.3+t*1.8)*0.25;
+        float w3=sin((uv.x+uv.y)*2.1+t*0.9)*0.35;
+        float n1=vnoise(uv*8.0+t*0.5)*0.3;
+        float n2=vnoise(uv*16.0-t*0.7)*0.15;
+        float n3=vnoise(uv*32.0+vec2(t*0.3,-t*0.4))*0.08;
+        float pattern=(w1+w2+w3+n1+n2+n3)*0.3;
+        vec3 deepBlue=vec3(0.03,0.12,0.22);
+        vec3 midBlue=vec3(0.06,0.20,0.34);
+        vec3 surfBlue=vec3(0.10,0.28,0.42);
         float blend=pattern*0.5+0.5;
-        vec3 col=mix(deepBlue,midBlue,smoothstep(0.3,0.6,blend));
-        col=mix(col,surfBlue,smoothstep(0.6,0.85,blend));
+        vec3 col=mix(deepBlue,midBlue,smoothstep(0.25,0.55,blend));
+        col=mix(col,surfBlue,smoothstep(0.55,0.8,blend));
         float d=length(vW.xz-cameraPosition.xz);
         float fade=clamp(d/900.0,0.0,1.0);
-        gl_FragColor=vec4(col,mix(0.55,0.12,fade));
+        gl_FragColor=vec4(col,mix(0.5,0.1,fade));
       }`
   });
   const mesh=new THREE.Mesh(g,m); scene.add(mesh);
