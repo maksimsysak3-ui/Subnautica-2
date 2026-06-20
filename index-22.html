@@ -878,15 +878,13 @@ const terrain=(()=>{
       const grain=(pn(nx*30+1,ny*30+2)-0.5)*2;
       const speckle=(pn(nx*60+7,ny*60+13)-0.5)*4;
       const dark=(pn(nx*15+3,ny*15+9)<0.12)?-8:0;
-
-
-
-
-      const baseB=190+v*12+grain;
+      const baseR=195+v*25+grain+speckle+dark;
+      const baseG=205+v*20+grain+speckle+dark;
+      const baseB=185+v*15+grain+speckle*0.7+dark;
       const idx=(y*w+x)*4;
-      img.data[idx]=clamp(Math.floor(baseR),185,230);
-      img.data[idx+1]=clamp(Math.floor(baseG),195,235);
-      img.data[idx+2]=clamp(Math.floor(baseB),175,220);
+      img.data[idx]=clamp(Math.floor(baseR),175,225);
+      img.data[idx+1]=clamp(Math.floor(baseG),185,230);
+      img.data[idx+2]=clamp(Math.floor(baseB),165,215);
       img.data[idx+3]=255;
     }
     g.putImageData(img,0,0);
@@ -1025,12 +1023,12 @@ const fanMat=addSway(new THREE.MeshStandardMaterial({map:fanTex,transparent:true
   side:THREE.DoubleSide,roughness:.8,emissive:0x611428,emissiveIntensity:.3}),.3);
 
 {
-  // kelp forest — only in kelp depth range (-30 to -80)
+  // kelp forest — near KELP FOREST biome center, thick & tall
   for(let i=0;i<1200;i++){
-    const x=rand(-800,800),z=rand(-800,800),y=terrainHeight(x,z);
-    if(y>-25||y<-85)continue;
-    const h=rand(10,26);
-    const k=new THREE.Mesh(new THREE.PlaneGeometry(rand(.9,1.5),h,1,8),kelpMat);
+    const p=randInBiome('KELP FOREST');
+    const x=p.x,z=p.z,y=terrainHeight(x,z);
+    const h=rand(15,35);
+    const k=new THREE.Mesh(new THREE.PlaneGeometry(rand(1.5,3),h,1,8),kelpMat);
     k.geometry=k.geometry.clone(); k.geometry.translate(0,h/2,0);
     k.position.set(x,y-.2,z); k.rotation.y=rand(0,Math.PI);
     scene.add(k);
@@ -1096,6 +1094,35 @@ const fanMat=addSway(new THREE.MeshStandardMaterial({map:fanTex,transparent:true
     r.position.set(x,terrainHeight(x,z)+.2,z);
     r.rotation.set(rand(0,3),rand(0,3),rand(0,3)); r.scale.y=rand(.45,.85);
     scene.add(r);
+  }
+  // small seafloor grass tufts everywhere
+  const miniGrassMat=new THREE.MeshStandardMaterial({color:0x3a7a4a,roughness:.9,side:THREE.DoubleSide,transparent:true,opacity:.7});
+  for(let i=0;i<2000;i++){
+    const x=rand(-800,800),z=rand(-800,800),y=terrainHeight(x,z);
+    const grp=new THREE.Group();grp.position.set(x,y,z);
+    for(let j=0;j<3+Math.floor(Math.random()*4);j++){
+      const h=rand(.3,.8);
+      const bl=new THREE.Mesh(new THREE.PlaneGeometry(.08,h,1,2),miniGrassMat);
+      bl.geometry=bl.geometry.clone();bl.geometry.translate(0,h/2,0);
+      bl.position.set(rand(-.3,.3),0,rand(-.3,.3));
+      bl.rotation.y=rand(0,Math.PI);grp.add(bl);
+    }
+    scene.add(grp);
+  }
+  // mini coral formations on seafloor everywhere
+  const miniCoralCols=[0xff7766,0x66bbaa,0xddaa44,0xaa66dd,0xff9955];
+  for(let i=0;i<500;i++){
+    const x=rand(-800,800),z=rand(-800,800),y=terrainHeight(x,z);
+    const col=miniCoralCols[i%5];
+    const mat=new THREE.MeshStandardMaterial({color:col,roughness:.75,emissive:col,emissiveIntensity:.05});
+    const grp=new THREE.Group();grp.position.set(x,y,z);
+    for(let j=0;j<2+Math.floor(Math.random()*3);j++){
+      const h=rand(.4,1.2);
+      const c=new THREE.Mesh(new THREE.CylinderGeometry(rand(.05,.12),rand(.08,.15),h,5),mat);
+      c.position.set(rand(-.4,.4),h/2,rand(-.4,.4));
+      c.rotation.set(rand(-.3,.3),0,rand(-.3,.3));grp.add(c);
+    }
+    scene.add(grp);
   }
 }
 
@@ -2947,6 +2974,17 @@ const BIOMES=[
   {name:'SPARSE REEF',cx:-350,cz:-350,r:180,fog:new THREE.Color(0x1a3a4a),den:.008,light:.8},
   {name:'THE ABYSS',cx:0,cz:0,r:9999,fog:new THREE.Color(0x000102),den:.055,light:.02},
 ];
+function randInBiome(name){
+  const b=BIOMES.find(b=>b.name===name)||BIOMES[0];
+  const a=Math.random()*Math.PI*2,r=Math.random()*b.r*.9;
+  return{x:b.cx+Math.cos(a)*r,z:b.cz+Math.sin(a)*r};
+}
+function isInBiome(x,z,name){
+  const b=BIOMES.find(b=>b.name===name);
+  if(!b)return false;
+  const dx=x-b.cx,dz=z-b.cz;
+  return Math.sqrt(dx*dx+dz*dz)<b.r;
+}
 var lastBiomeName='';
 function getBiome(depth,x,z){
   if(x===undefined){x=0;z=0;}
@@ -4049,12 +4087,12 @@ for(let i=0;i<8;i++){
    WORLD DENSITY PASS — massive flora/ore/coral everywhere
    ============================================================ */
 {
-  // Giant kelp towers everywhere (shallow to mid)
+  // Giant kelp towers in kelp forest biome
   for(let i=0;i<400;i++){
-    const x=rand(-900,900),z=rand(-900,900),y=terrainHeight(x,z);
-    if(y<-200||y>-3)continue;
-    const h=rand(12,30);
-    const k=new THREE.Mesh(new THREE.PlaneGeometry(rand(1,2.5),h,1,8),kelpMat);
+    const p=randInBiome('KELP FOREST');
+    const x=p.x,z=p.z,y=terrainHeight(x,z);
+    const h=rand(15,35);
+    const k=new THREE.Mesh(new THREE.PlaneGeometry(rand(1.5,3.5),h,1,8),kelpMat);
     k.geometry=k.geometry.clone();k.geometry.translate(0,h/2,0);
     k.position.set(x,y-.2,z);k.rotation.y=rand(0,Math.PI);
     scene.add(k);
@@ -4069,22 +4107,24 @@ for(let i=0;i<8;i++){
     b.position.set(x,y+r*.3,z);b.rotation.set(rand(0,3),rand(0,3),0);
     scene.add(b);
   }
-  // Seagrass carpets (shallow -3 to -60)
+  // Seagrass in SAFE SHOALS and GRASSY PLATEAUS
   const grassMat=new THREE.MeshStandardMaterial({color:0x2a6a3a,roughness:.85,side:THREE.DoubleSide,transparent:true,opacity:.8});
   for(let i=0;i<800;i++){
-    const x=rand(-900,900),z=rand(-900,900),y=terrainHeight(x,z);
-    if(y<-60||y>-3)continue;
+    const biName=i<400?'SAFE SHOALS':'GRASSY PLATEAUS';
+    const p=randInBiome(biName);
+    const x=p.x,z=p.z,y=terrainHeight(x,z);
     const h=rand(1,3);
     const blade=new THREE.Mesh(new THREE.PlaneGeometry(.15,h,1,3),grassMat);
     blade.geometry=blade.geometry.clone();blade.geometry.translate(0,h/2,0);
     blade.position.set(x,y,z);blade.rotation.y=rand(0,Math.PI);
     scene.add(blade);
   }
-  // Mid-depth coral gardens (-60 to -200)
+  // Coral gardens in DEEP REEF and GRASSY PLATEAUS
   const gardenCols=[0xff6677,0x44bbaa,0xddaa55,0x7766dd,0xff9944,0x44ddaa];
   for(let i=0;i<600;i++){
-    const x=rand(-900,900),z=rand(-900,900),y=terrainHeight(x,z);
-    if(y>-60||y<-200)continue;
+    const biName=i<300?'DEEP REEF':'GRASSY PLATEAUS';
+    const p=randInBiome(biName);
+    const x=p.x,z=p.z,y=terrainHeight(x,z);
     const col=gardenCols[i%6];
     const mat=new THREE.MeshStandardMaterial({color:col,roughness:.7});
     const type=i%3;
@@ -4110,12 +4150,13 @@ for(let i=0;i<8;i++){
       scene.add(bc);
     }
   }
-  // Deep zone massive structures (-200 to -400)
+  // Deep zone structures in BLOOD TRENCH, CRAG FIELD, MUSHROOM FOREST
   const deepMat=new THREE.MeshStandardMaterial({color:0x1a2a3a,roughness:.9});
   const deepGlowCols=[0x2244ff,0x22ffaa,0xff2288,0xffaa22];
+  const deepBiomes=['BLOOD TRENCH','CRAG FIELD','MUSHROOM FOREST','DEEP REEF'];
   for(let i=0;i<400;i++){
-    const x=rand(-900,900),z=rand(-900,900),y=terrainHeight(x,z);
-    if(y>-200||y<-400)continue;
+    const p=randInBiome(deepBiomes[i%deepBiomes.length]);
+    const x=p.x,z=p.z,y=terrainHeight(x,z);
     const col=deepGlowCols[i%4];
     const mat=new THREE.MeshStandardMaterial({color:col,roughness:.5,emissive:col,emissiveIntensity:.4});
     const type=i%4;
@@ -4145,10 +4186,11 @@ for(let i=0;i<8;i++){
       scene.add(p);
     }
   }
-  // Abyss content (-400 to -550)
+  // Abyss content — far edges of map + THERMAL ZONE and CRYSTAL CAVES
+  const abyssBiomes=['THERMAL ZONE','CRYSTAL CAVES','BLOOD TRENCH'];
   for(let i=0;i<300;i++){
-    const x=rand(-900,900),z=rand(-900,900),y=terrainHeight(x,z);
-    if(y>-400)continue;
+    const p=randInBiome(abyssBiomes[i%abyssBiomes.length]);
+    const x=p.x,z=p.z,y=terrainHeight(x,z);
     const col=deepGlowCols[i%4];
     const mat=new THREE.MeshStandardMaterial({color:col,roughness:.4,emissive:col,emissiveIntensity:.6});
     const type=i%3;
@@ -4216,17 +4258,12 @@ for(let i=0;i<8;i++){
     scene.add(grp);
     wrecks.push(grp);
   }
-  // Strategic deep wrecks — 5 in deep reef, 5 in blood trench, 5 in abyss
-  const deepWreckZones=[
-    {minY:-180,maxY:-100,label:'deep reef'},
-    {minY:-280,maxY:-180,label:'blood trench'},
-    {minY:-600,maxY:-420,label:'abyss'}
-  ];
-  deepWreckZones.forEach((zone,zi)=>{
+  // Strategic wrecks — 5 per biome: DEEP REEF, BLOOD TRENCH, CRYSTAL CAVES
+  const deepWreckBiomes=['DEEP REEF','BLOOD TRENCH','CRYSTAL CAVES'];
+  deepWreckBiomes.forEach((bName,zi)=>{
     for(let i=0;i<5;i++){
-      let x,z,y,tries=0;
-      do{ x=rand(-800,800);z=rand(-800,800);y=terrainHeight(x,z);tries++; }while((y>zone.maxY||y<zone.minY)&&tries<80);
-      if(tries>=80)continue;
+      const p=randInBiome(bName);
+      const x=p.x,z=p.z,y=terrainHeight(x,z);
       const grp=new THREE.Group();grp.position.set(x,y,z);grp.rotation.y=rand(0,Math.PI*2);
       const sz=zi===2?2.0:zi===1?1.4:1.0;
       const hull=new THREE.Mesh(new THREE.CylinderGeometry(2.5*sz,3*sz,10*sz,10,1,true,0,Math.PI*1.5),wreckMat);
@@ -4252,11 +4289,11 @@ for(let i=0;i<8;i++){
    GIANT SIGNATURE CORALS — one massive type per biome
    ============================================================ */
 {
-  // Safe Shoals (0 to -30m) — Giant Sunburst Coral, 8-12m tall
+  // Safe Shoals — Giant Sunburst Coral, 8-12m tall
   const sunburstMat=new THREE.MeshStandardMaterial({color:0xffcc44,roughness:.6,emissive:0xcc8811,emissiveIntensity:.15});
   for(let i=0;i<15;i++){
-    const x=rand(-600,600),z=rand(-600,600),y=terrainHeight(x,z);
-    if(y<-30||y>-3)continue;
+    const p=randInBiome('SAFE SHOALS');
+    const x=p.x,z=p.z,y=terrainHeight(x,z);
     const grp=new THREE.Group();grp.position.set(x,y,z);
     const h=rand(8,12);
     const trunk=new THREE.Mesh(new THREE.CylinderGeometry(.8,1.5,h,8),sunburstMat);
@@ -4271,11 +4308,11 @@ for(let i=0;i<8;i++){
     }
     scene.add(grp);
   }
-  // Kelp Forest (-30 to -80m) — Giant Crown Coral, 12-18m
+  // Kelp Forest — Giant Crown Coral, 12-18m
   const crownMat=new THREE.MeshStandardMaterial({color:0x22aa66,roughness:.65,emissive:0x115533,emissiveIntensity:.1});
   for(let i=0;i<12;i++){
-    const x=rand(-700,700),z=rand(-700,700),y=terrainHeight(x,z);
-    if(y>-30||y<-80)continue;
+    const p=randInBiome('KELP FOREST');
+    const x=p.x,z=p.z,y=terrainHeight(x,z);
     const grp=new THREE.Group();grp.position.set(x,y,z);
     const h=rand(12,18);
     const trunk=new THREE.Mesh(new THREE.CylinderGeometry(1,2,h,8),crownMat);
@@ -4288,11 +4325,11 @@ for(let i=0;i<8;i++){
     }
     scene.add(grp);
   }
-  // Deep Reef (-80 to -150m) — Giant Spiral Coral, 15-22m
+  // Deep Reef — Giant Spiral Coral, 15-22m
   const spiralMat=new THREE.MeshStandardMaterial({color:0x6644aa,roughness:.5,emissive:0x332266,emissiveIntensity:.15});
   for(let i=0;i<10;i++){
-    const x=rand(-800,800),z=rand(-800,800),y=terrainHeight(x,z);
-    if(y>-80||y<-150)continue;
+    const p=randInBiome('DEEP REEF');
+    const x=p.x,z=p.z,y=terrainHeight(x,z);
     const grp=new THREE.Group();grp.position.set(x,y,z);
     const h=rand(15,22);
     for(let j=0;j<30;j++){
@@ -4302,11 +4339,11 @@ for(let i=0;i<8;i++){
     }
     scene.add(grp);
   }
-  // Blood Trench (-150 to -250m) — Giant Vein Coral, 20-30m
+  // Blood Trench — Giant Vein Coral, 20-30m
   const veinMat2=new THREE.MeshStandardMaterial({color:0xaa2233,roughness:.6,emissive:0x661122,emissiveIntensity:.2});
   for(let i=0;i<8;i++){
-    const x=rand(-800,800),z=rand(-800,800),y=terrainHeight(x,z);
-    if(y>-150||y<-250)continue;
+    const p=randInBiome('BLOOD TRENCH');
+    const x=p.x,z=p.z,y=terrainHeight(x,z);
     const grp=new THREE.Group();grp.position.set(x,y,z);
     const h=rand(20,30);
     const core=new THREE.Mesh(new THREE.CylinderGeometry(1.5,3,h,8),veinMat2);
@@ -4319,11 +4356,11 @@ for(let i=0;i<8;i++){
     }
     scene.add(grp);
   }
-  // Thermal Zone (-250 to -350m) — Giant Magma Coral, 25-35m
+  // Thermal Zone — Giant Magma Coral, 25-35m
   const magmaMat=new THREE.MeshStandardMaterial({color:0xff4400,roughness:.4,emissive:0xcc2200,emissiveIntensity:.3});
   for(let i=0;i<6;i++){
-    const x=rand(-800,800),z=rand(-800,800),y=terrainHeight(x,z);
-    if(y>-250||y<-350)continue;
+    const p=randInBiome('THERMAL ZONE');
+    const x=p.x,z=p.z,y=terrainHeight(x,z);
     const grp=new THREE.Group();grp.position.set(x,y,z);
     const h=rand(25,35);
     const chimney=new THREE.Mesh(new THREE.CylinderGeometry(2,4,h,10),new THREE.MeshStandardMaterial({color:0x2a1a0a,roughness:.95}));
@@ -4334,11 +4371,11 @@ for(let i=0;i<8;i++){
     }
     scene.add(grp);
   }
-  // Crystal Caves (-350 to -430m) — Giant Crystal Spire, 30-45m
+  // Crystal Caves — Giant Crystal Spire, 30-45m
   const crystMat2=new THREE.MeshStandardMaterial({color:0x8844ff,roughness:.55,emissive:0x6622cc,emissiveIntensity:.3,transparent:true,opacity:.75});
   for(let i=0;i<5;i++){
-    const x=rand(-800,800),z=rand(-800,800),y=terrainHeight(x,z);
-    if(y>-350||y<-430)continue;
+    const p=randInBiome('CRYSTAL CAVES');
+    const x=p.x,z=p.z,y=terrainHeight(x,z);
     const grp=new THREE.Group();grp.position.set(x,y,z);
     const h=rand(30,45);
     const spire=new THREE.Mesh(new THREE.ConeGeometry(3,h,7),crystMat2);
@@ -4351,11 +4388,11 @@ for(let i=0;i<8;i++){
     }
     scene.add(grp);
   }
-  // The Abyss (-430m+) — Giant Abyssal Maw, 40-60m (biggest)
+  // The Abyss — Giant Abyssal Maw, 40-60m (biggest) — spawns at map edges far from all biomes
   const mawMat=new THREE.MeshStandardMaterial({color:0x00ffaa,roughness:.3,emissive:0x00cc88,emissiveIntensity:.5});
   for(let i=0;i<4;i++){
-    const x=rand(-800,800),z=rand(-800,800),y=terrainHeight(x,z);
-    if(y>-430)continue;
+    const a=rand(0,Math.PI*2),r=rand(500,800);
+    const x=Math.cos(a)*r,z=Math.sin(a)*r,y=terrainHeight(x,z);
     const grp=new THREE.Group();grp.position.set(x,y,z);
     const h=rand(40,60);
     const stalk=new THREE.Mesh(new THREE.CylinderGeometry(2,5,h,8),new THREE.MeshStandardMaterial({color:0x0a2a1a,roughness:.85}));
