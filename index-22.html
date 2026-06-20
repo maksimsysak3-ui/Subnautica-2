@@ -186,6 +186,17 @@
   #brief .bg b{color:#eaffff;font-family:var(--mono);font-size:11px;font-weight:500}
   #brief p{margin:22px 0 0;font-size:12px;line-height:1.9;letter-spacing:.12em;color:#7fb4c8}
 
+  #creaturesScreen{z-index:41}
+  .hex-grid{display:flex;flex-wrap:wrap;gap:14px;justify-content:center;padding:20px}
+  .hex{width:80px;height:90px;clip-path:polygon(50% 0%,100% 25%,100% 75%,50% 100%,0% 75%,0% 25%);
+    background:#0a0a0a;border:none;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    transition:all .3s;position:relative}
+  .hex.unlocked{background:rgba(20,60,80,.8);box-shadow:0 0 12px rgba(127,233,255,.2)}
+  .hex .hex-icon{width:40px;height:40px;border-radius:4px;margin-bottom:4px}
+  .hex .hex-name{font-size:8px;letter-spacing:.15em;color:var(--cy-dim);text-align:center}
+  .hex.unlocked .hex-name{color:#eaffff}
+  .hex-cat{font-family:var(--mono);font-size:11px;letter-spacing:.4em;color:var(--cy);margin:16px 0 8px;width:100%;text-align:left;padding-left:10px}
+
   /* ============ modal screens (build / inventory) ============ */
   .screen{position:fixed;inset:0;z-index:40;display:none;align-items:center;justify-content:center;
     background:rgba(0,6,14,.72);backdrop-filter:blur(4px)}
@@ -530,6 +541,14 @@
   </div>
   <div id="scanOverlay"><div class="scanline"></div></div>
   <div id="scanInfo"></div>
+  <div id="creaturesScreen" class="screen">
+    <div class="sframe"><div class="shead"><h2>CREATURE ENCYCLOPEDIA</h2><div class="xbtn" onclick="closeUI()">CLOSE [G]</div></div>
+    <div id="creatureGrid"></div></div>
+  </div>
+  <div id="upgradeScreen" class="screen">
+    <div class="sframe"><div class="shead"><h2>UPGRADE STATION</h2><div class="xbtn" onclick="closeUI()">CLOSE [ESC]</div></div>
+    <div id="upgradeCards" style="display:flex;flex-wrap:wrap;gap:14px;justify-content:center"></div></div>
+  </div>
   <div id="vehicleHud"><div class="vname">TADPOLE</div><div id="vehO2">O2: 100</div><div id="vehDepth">DEPTH: 0M</div></div>
 </div>
 
@@ -1298,27 +1317,22 @@ function makeMineral(typeKey,forceX,forceZ){
   grp.children.forEach(c=>{ c.userData.node=node; mineralMeshes.push(c); });
   scene.add(grp); minerals.push(node);
 }
-const spread=['titanium','titanium','titanium','titanium','titanium','titanium','titanium','titanium','titanium','titanium','titanium','titanium','copper','copper','copper','copper','copper','quartz','quartz','quartz','quartz','gold','gold','silver','silver','diamond','lead','lead','lithium','magnetite','obsidian','thermalCrystal','voidstone','pressureGel','frozenAlloy','bioMetal'];
-for(let i=0;i<500;i++)makeMineral(spread[i%spread.length]);
-// Extra titanium everywhere — should be the most common resource
-for(let i=0;i<250;i++){
-  const x=rand(-900,900),z=rand(-900,900),y=terrainHeight(x,z);
-  if(y>2)continue;
-  const grp=new THREE.Group();grp.position.set(x,y+.3,z);
-  const typeKey='titanium';
-  const base=new THREE.Mesh(new THREE.DodecahedronGeometry(rand(1.0,1.5),0),
-    new THREE.MeshStandardMaterial({color:0x88aacc,roughness:.5,metalness:.7,emissive:0x334466,emissiveIntensity:.2}));
-  base.scale.y=.7;grp.add(base);
-  for(let j=0;j<2;j++){
-    const chunk=new THREE.Mesh(new THREE.DodecahedronGeometry(rand(.4,.7),0),
-      new THREE.MeshStandardMaterial({color:0x99bbdd,roughness:.4,metalness:.6,emissive:0x445577,emissiveIntensity:.15}));
-    chunk.position.set(rand(-.5,.5),rand(.3,.9),rand(-.5,.5));grp.add(chunk);
-  }
-  grp.scale.setScalar(1.3);
-  const node={grp,type:typeKey,hp:100,max:100,dead:false,respawn:0};
-  grp.children.forEach(c=>{c.userData.node=node;mineralMeshes.push(c);});
-  scene.add(grp);minerals.push(node);
-}
+// Biome-aware mineral spawning
+function spawnBiomeMineral(tk,ct,mnY,mxY,bn){for(let i=0;i<ct;i++){let x,z,y,t=0,ok=false;while(t<60){x=rand(-800,800);z=rand(-800,800);y=terrainHeight(x,z);t++;if(y<mnY||y>mxY)continue;if(bn){const b=getBiome(-y,x,z);if(b.name!==bn)continue;}ok=true;break;}if(!ok)continue;makeMineral(tk,x,z);}}
+spawnBiomeMineral('titanium',200,-50,0,null);spawnBiomeMineral('quartz',80,-50,0,null);
+spawnBiomeMineral('copper',60,-80,0,'SAFE SHOALS');spawnBiomeMineral('copper',60,-80,0,'KELP FOREST');
+spawnBiomeMineral('lead',40,-80,0,'SAFE SHOALS');spawnBiomeMineral('lead',40,-80,0,'KELP FOREST');
+spawnBiomeMineral('silver',50,-150,-80,'DEEP REEF');spawnBiomeMineral('gold',40,-150,-80,'DEEP REEF');
+spawnBiomeMineral('lithium',50,-420,-350,'CRYSTAL CAVES');
+spawnBiomeMineral('magnetite',50,-250,-150,'BLOOD TRENCH');
+spawnBiomeMineral('nickel',40,-350,-250,'THERMAL ZONE');spawnBiomeMineral('ruby',35,-350,-250,'THERMAL ZONE');
+spawnBiomeMineral('kyanite',30,-999,-420,'THE ABYSS');spawnBiomeMineral('diamond',25,-999,-420,'THE ABYSS');
+spawnBiomeMineral('uraninite',15,-999,-350,null);
+spawnBiomeMineral('obsidian',30,-350,-250,'THERMAL ZONE');spawnBiomeMineral('thermalCrystal',30,-350,-250,'THERMAL ZONE');
+spawnBiomeMineral('voidstone',20,-999,-350,null);spawnBiomeMineral('pressureGel',20,-999,-250,null);
+spawnBiomeMineral('frozenAlloy',15,-999,-300,null);spawnBiomeMineral('bioMetal',15,-420,-150,null);
+// Extra titanium in shallow — most common resource
+for(let i=0;i<150;i++){const x=rand(-900,900),z=rand(-900,900),y=terrainHeight(x,z);if(y<-50||y>0)continue;makeMineral('titanium',x,z);}
 
 /* bubble vents */
 const vents=[];
@@ -1942,6 +1956,9 @@ const MODULES=[
   {id:'growbed',name:'GROW BED',cost:{titanium:2,quartz:1},enter:false,
    desc:'Hydroponic planter with 4 slots. Plant raw fish to grow food over 60 seconds.',
    icon:'<svg viewBox="0 0 54 46"><rect x="5" y="24" width="44" height="12" rx="1"/><rect x="8" y="20" width="38" height="6" fill="none" stroke="currentColor"/><path d="M14 20 L14 12 M22 20 L22 10 M30 20 L30 14 M38 20 L38 8" stroke="currentColor" stroke-width="1.5"/><circle cx="14" cy="10" r="2"/><circle cx="22" cy="8" r="2"/><circle cx="30" cy="12" r="2"/><circle cx="38" cy="6" r="2"/></svg>'},
+  {id:'upgradeStation',name:'UPGRADE STATION',cost:{titanium:4,copper:2,quartz:2},enter:false,
+   desc:'Advanced fabrication bench. Upgrade tools for enhanced performance and unlock new tool slots.',
+   icon:'<svg viewBox="0 0 54 46"><rect x="8" y="20" width="38" height="18" rx="2"/><path d="M12 20 L12 10 L42 10 L42 20"/><circle cx="20" cy="29" r="4"/><circle cx="34" cy="29" r="4"/><path d="M27 10 L27 4 M22 4 L32 4" stroke-width="2"/></svg>'},
 ];
 function costStr(c){ return Object.entries(c).map(([k,v])=>v+' '+k.toUpperCase()).join(' · '); }
 
@@ -2105,6 +2122,24 @@ function buildModule(id,ghost){
     grp.userData.growBed={slots:[null,null,null,null],growTimers:[0,0,0,0]};
   } else if(id==='tadpole'){
     // Vehicle spawns separately
+  } else if(id==='upgradeStation'){
+    const bench=mk(new THREE.BoxGeometry(3,.3,2),new THREE.MeshStandardMaterial({color:0x2a4455,roughness:.4,metalness:.5}));
+    bench.position.y=1.0;
+    const leg1=mk(new THREE.CylinderGeometry(.08,.08,1,6),baseDark); leg1.position.set(-1.2,.5,-.7);
+    const leg2=mk(new THREE.CylinderGeometry(.08,.08,1,6),baseDark); leg2.position.set(1.2,.5,-.7);
+    const leg3=mk(new THREE.CylinderGeometry(.08,.08,1,6),baseDark); leg3.position.set(-1.2,.5,.7);
+    const leg4=mk(new THREE.CylinderGeometry(.08,.08,1,6),baseDark); leg4.position.set(1.2,.5,.7);
+    const backPanel=mk(new THREE.BoxGeometry(3.2,2,.15),new THREE.MeshStandardMaterial({color:0x1a2a3a,roughness:.3,metalness:.6}));
+    backPanel.position.set(0,2.1,-1);
+    const screen=mk(new THREE.BoxGeometry(2,.8,.05),new THREE.MeshStandardMaterial({color:0x44ddff,emissive:0x22aacc,emissiveIntensity:.2,transparent:true,opacity:.7}));
+    screen.position.set(0,2.2,-.92);
+    const arm1=mk(new THREE.CylinderGeometry(.04,.04,.8,6),new THREE.MeshStandardMaterial({color:0x889999,roughness:.3,metalness:.7}));
+    arm1.position.set(-.8,1.5,0); arm1.rotation.z=.4;
+    const arm2=mk(new THREE.CylinderGeometry(.04,.04,.8,6),new THREE.MeshStandardMaterial({color:0x889999,roughness:.3,metalness:.7}));
+    arm2.position.set(.8,1.5,0); arm2.rotation.z=-.4;
+    const glow=mk(new THREE.BoxGeometry(2.6,.05,1.6),new THREE.MeshStandardMaterial({color:0x44ffaa,emissive:0x22dd88,emissiveIntensity:.15,transparent:true,opacity:.4}));
+    glow.position.y=1.18;
+    grp.userData.isUpgradeStation=true;
   } else if(id==='rocket'){
     mk(new THREE.CylinderGeometry(4,4.5,.5,12),baseMat).position.y=.25;
     mk(new THREE.CylinderGeometry(4.1,4.1,.1,12),trimMat).position.y=.52;
@@ -2131,7 +2166,8 @@ function pay(c){ Object.entries(c).forEach(([k,v])=>res[k]-=v); }
 const res={titanium:0,copper:0,quartz:0,gold:0,silver:0,diamond:0,lead:0,lithium:0,magnetite:0,obsidian:0,thermalCrystal:0,voidstone:0,pressureGel:0,frozenAlloy:0,bioMetal:0,rations:1,h2o:1,
   titaniumIngot:0,copperWire:0,glass:0,fiberMesh:0,advancedTank:0,reinforcedSuit:0,ultraFins:0,
   rawFish:0,lubricant:0,siliconeRubber:0,computerChip:0,bleach:0,disinfectedWater:0,curedFish:0,medPack:0,depthModule:0,heatResistSuit:0};
-const unlockedBlueprints=new Set(['titaniumIngot','copperWire','glass','fiberMesh','cookedFish','filteredWater','battery','firstAidKit','beacon','wiring','lubricant','siliconeRubber','bleach','curedFish','disinfectedWater','fabricatorTool','scannerTool','repairTool','propulsionEngine','flashlightTool','thermalLance','computerChip','medPack']);
+const unlockedBlueprints=new Set();
+const starterRecipes=new Set(['titaniumIngot','copperWire','glass','cookedFish','filteredWater']);
 const RECIPES={
   titaniumIngot:{name:'TITANIUM INGOT',cost:{titanium:4},cat:'materials',desc:'Compressed titanium alloy.'},
   copperWire:{name:'COPPER WIRE',cost:{copper:2},cat:'materials',desc:'Conductive wiring.'},
@@ -2282,6 +2318,8 @@ function openUI(kind){
   else if(kind==='storage'){$('storageScreen').classList.add('open'); renderStorage();}
   else if(kind==='custom'){$('customScreen').classList.add('open'); renderCustom();}
   else if(kind==='bp'){$('bpScreen').classList.add('open'); renderBlueprints();}
+  else if(kind==='creatures'){$('creaturesScreen').classList.add('open'); renderCreatures();}
+  else if(kind==='upgrade'){$('upgradeScreen').classList.add('open'); renderUpgrades();}
   if(kind==='build')renderBuildMenu(); if(kind==='inv')renderInventory();
   document.exitPointerLock();
 }
@@ -2293,6 +2331,8 @@ function closeUI(){
   if($('storageScreen'))$('storageScreen').classList.remove('open');
   if($('customScreen'))$('customScreen').classList.remove('open');
   if($('bpScreen'))$('bpScreen').classList.remove('open');
+  if($('creaturesScreen'))$('creaturesScreen').classList.remove('open');
+  if($('upgradeScreen'))$('upgradeScreen').classList.remove('open');
   uiOpen=null; tryLock();
 }
 $('buildX').addEventListener('click',closeUI);
@@ -2441,7 +2481,7 @@ function renderCraftMenu(){
     const btn=$('catBtn_'+cat); if(btn)btn.style.borderColor='var(--cy)';
   };
   for(const [key,recipe] of Object.entries(RECIPES)){
-    if(!unlockedBlueprints.has(key))continue;
+    if(!unlockedBlueprints.has(key)&&!starterRecipes.has(key))continue;
     const afford=Object.entries(recipe.cost).every(([k,v])=>(res[k]||0)>=v);
     html+=`<div class="craft-item" data-cat="${recipe.cat||'materials'}"
       style="padding:10px 14px;border:1px solid ${afford?'rgba(68,200,255,.4)':'rgba(68,200,255,.12)'};
@@ -2561,6 +2601,85 @@ function renderBlueprints(){
   }
   host.innerHTML=html;
 }
+const ALL_CREATURES=[
+  {id:'azureJack',name:'AZURE JACK',cat:'SCHOOLING',icon:'azureJack',desc:'Common schooling fish found in shallow waters'},
+  {id:'amberReef',name:'AMBER REEF',cat:'SCHOOLING',icon:'amberReef',desc:'Solitary reef dweller with amber coloring'},
+  {id:'roseFin',name:'ROSE FIN',cat:'SCHOOLING',icon:'roseFin',desc:'Colorful reef species'},
+  {id:'peeper',name:'PEEPER',cat:'PREY',icon:'peeper',desc:'Bioluminescent prey fish with large eyes'},
+  {id:'boomerang',name:'BOOMERANG',cat:'PREY',icon:'boomerang',desc:'Flat bottom-feeding fish'},
+  {id:'gasopod',name:'GASOPOD',cat:'HERBIVORE',icon:'gasopod',desc:'Large toxic gas-releasing herbivore'},
+  {id:'stalker',name:'STALKER',cat:'PREDATOR',icon:'stalker',desc:'Aggressive territorial predator with metal teeth'},
+  {id:'crabsquid',name:'CRAB SQUID',cat:'PREDATOR',icon:'crabsquid',desc:'Deep-sea EMP-capable predator'},
+  {id:'anglerfish',name:'ANGLERFISH',cat:'PREDATOR',icon:'anglerfish',desc:'Lure-bearing deep ambush predator'},
+  {id:'packHunter',name:'PACK HUNTER',cat:'PREDATOR',icon:'packHunter',desc:'Coordinated pack predators in blood trench'},
+  {id:'deepPredator',name:'DEEP PREDATOR',cat:'PREDATOR',icon:'deepPredator',desc:'Thermal zone apex hunter'},
+  {id:'abyssEel',name:'ABYSS EEL',cat:'LEVIATHAN',icon:'abyssEel',desc:'Massive serpentine abyss dweller'},
+  {id:'reefback',name:'REEFBACK',cat:'LEVIATHAN',icon:'reefback',desc:'Gentle giant with coral-covered shell'},
+  {id:'ghostLeviathan',name:'GHOST LEVIATHAN',cat:'LEVIATHAN',icon:'ghostLeviathan',desc:'Translucent deep-sea terror'},
+  {id:'abyssalTitan',name:'ABYSSAL TITAN',cat:'LEVIATHAN',icon:'abyssalTitan',desc:'Largest known creature in the abyss'},
+];
+const scannedCreatures=new Set();
+function renderCreatures(){
+  const host=$('creatureGrid'); if(!host)return;
+  const cats=['SCHOOLING','PREY','HERBIVORE','PREDATOR','LEVIATHAN'];
+  let html='';
+  for(const cat of cats){
+    html+=`<div class="hex-cat">${cat}</div><div class="hex-grid">`;
+    for(const c of ALL_CREATURES.filter(x=>x.cat===cat)){
+      const unlocked=scannedCreatures.has(c.id);
+      html+=`<div class="hex${unlocked?' unlocked':''}" title="${unlocked?c.desc:'???'}">`;
+      if(unlocked){
+        html+=`<div class="hex-icon" style="background:#1a3a4a;border-radius:50%"></div>`;
+        html+=`<div class="hex-name">${c.name}</div>`;
+      } else {
+        html+=`<div style="font-size:20px;opacity:.2">?</div>`;
+        html+=`<div class="hex-name">???</div>`;
+      }
+      html+=`</div>`;
+    }
+    html+=`</div>`;
+  }
+  host.innerHTML=html;
+}
+const TOOL_UPGRADES={
+  1:{name:'THERMAL LANCE MK2',cost:{titaniumIngot:2,magnetite:1,battery:1},unlocksSlot:3,desc:'Enhanced cutting power. Unlocks Scanner slot.',tier:2},
+  3:{name:'SCANNER MK2',cost:{computerChip:1,gold:1,copperWire:2},unlocksSlot:4,desc:'Faster scan speed, wider range. Unlocks Repair Tool slot.',tier:2},
+  4:{name:'REPAIR TOOL MK2',cost:{titaniumIngot:1,lubricant:1,copperWire:1},unlocksSlot:5,desc:'Faster repairs. Unlocks Propulsion Engine slot.',tier:2},
+  5:{name:'PROPULSION MK2',cost:{nickel:1,titaniumIngot:2,battery:1},unlocksSlot:6,desc:'More thrust power. Unlocks Flashlight slot.',tier:2},
+};
+const toolUpgraded=new Set();
+function renderUpgrades(){
+  const host=$('upgradeCards'); if(!host)return;
+  let html='<div style="width:100%;margin-bottom:16px;font-size:11px;letter-spacing:.2em;color:var(--cy-dim)">Upgrade tools to unlock new slots and enhance performance</div>';
+  for(const [tid,upg] of Object.entries(TOOL_UPGRADES)){
+    const toolId=parseInt(tid);
+    const hasBase=unlockedTools.has(toolId);
+    const alreadyUpgraded=toolUpgraded.has(toolId);
+    const afford=hasBase&&!alreadyUpgraded&&Object.entries(upg.cost).every(([k,v])=>(res[k]||0)>=v);
+    html+=`<div style="padding:14px 18px;border:1px solid ${alreadyUpgraded?'var(--grn)':afford?'var(--cy)':'var(--cy-faint)'};
+      border-radius:6px;background:${alreadyUpgraded?'rgba(125,255,168,.06)':'rgba(127,233,255,.04)'};min-width:180px;max-width:220px;
+      cursor:${afford?'pointer':'default'};opacity:${hasBase?1:.3};transition:all .2s"
+      ${afford?`onclick="doUpgrade(${toolId})"`:''}>
+      <div style="font-size:13px;letter-spacing:.15em;color:${alreadyUpgraded?'var(--grn)':'#eaffff'};margin-bottom:4px">${upg.name}</div>
+      <div style="font-size:10px;color:#7fb4c8;margin-bottom:6px">${upg.desc}</div>
+      <div style="font-size:9px;color:${afford?'#6ac8a0':'#886a6a'};letter-spacing:.08em">${Object.entries(upg.cost).map(([k,v])=>v+' '+k.toUpperCase()).join(' · ')}</div>
+      ${alreadyUpgraded?'<div style="font-size:9px;color:var(--grn);margin-top:4px;letter-spacing:.2em">✓ UPGRADED</div>':''}
+      ${!hasBase?'<div style="font-size:9px;color:var(--danger);margin-top:4px;letter-spacing:.15em">TOOL NOT OWNED</div>':''}
+    </div>`;
+  }
+  host.innerHTML=html;
+}
+window.doUpgrade=function(toolId){
+  const upg=TOOL_UPGRADES[toolId]; if(!upg)return;
+  if(toolUpgraded.has(toolId))return;
+  if(!Object.entries(upg.cost).every(([k,v])=>(res[k]||0)>=v))return;
+  Object.entries(upg.cost).forEach(([k,v])=>res[k]-=v);
+  toolUpgraded.add(toolId);
+  if(upg.unlocksSlot){ unlockedTools.add(upg.unlocksSlot); }
+  toast(upg.name+' COMPLETE — SLOT '+upg.unlocksSlot+' UNLOCKED');
+  blip(880,.2,'sine',.15); blip(1200,.15,'triangle',.1);
+  updateToolHud(); renderUpgrades();
+};
 function renderCustom(){
   const swatches=(arr,current,prop)=>arr.map(c=>`<span class="color-swatch${c===current?' active':''}" style="background:${c}" onclick="suitCustom.${prop}='${c}';renderCustom()"></span>`).join('');
   $('customSlots').innerHTML=`
@@ -2673,6 +2792,7 @@ document.addEventListener('keydown',e=>{
   for(let ti=1;ti<=6;ti++) if(e.code==='Digit'+ti&&curTool!==ti&&unlockedTools.has(ti)){ curTool=ti; toolSwitchT=0; toolSwitchAnim=1; updateToolHud(); blip(640+ti*40,.07,'square',.07); }
   if(e.code==='KeyB')openUI('build');
   if(e.code==='Tab')openUI('inv');
+  if(e.code==='KeyG'&&!uiOpen){ openUI('creatures'); return; }
   if(e.code==='KeyR'&&curTool===2){ modRot=(modRot+Math.PI/4)%(Math.PI*2); blip(520,.04,'square',.05); }
   if(e.code==='KeyF'){if(inVehicle){vehLightOn=!vehLightOn;toast(vehLightOn?'HEADLIGHT ON':'HEADLIGHT OFF');blip(440,.05,'sine',.05);}else eat();}
   if(e.code==='KeyG')drink();
@@ -2914,6 +3034,13 @@ function tryInteract(){
           }
         }
       }
+    }
+  }
+  // Upgrade station interaction
+  for(const b of placed){
+    if(b.grp && b.grp.userData.isUpgradeStation){
+      const d=camWorld.distanceTo(b.grp.position);
+      if(d<5){ openUI('upgrade'); return; }
     }
   }
   raycaster.setFromCamera({x:0,y:0},camera); raycaster.far=5.5;
@@ -4213,11 +4340,14 @@ for(let i=0;i<8;i++){
       scene.add(sp);
     }
   }
-  // Extra ore nodes spread everywhere — titanium heavily weighted
-  for(let i=0;i<400;i++){
-    const types=['titanium','titanium','titanium','titanium','titanium','titanium','copper','copper','copper','quartz','quartz','gold','silver','diamond','lead','lithium','magnetite','obsidian','thermalCrystal','voidstone'];
-    makeMineral(types[i%types.length]);
-  }
+  // Extra biome-aware ore nodes
+  spawnBiomeMineral('titanium',100,-50,0,null);spawnBiomeMineral('quartz',40,-50,0,null);
+  spawnBiomeMineral('copper',30,-80,0,null);spawnBiomeMineral('lead',20,-80,0,null);
+  spawnBiomeMineral('silver',25,-150,-80,null);spawnBiomeMineral('gold',20,-150,-80,null);
+  spawnBiomeMineral('magnetite',20,-250,-150,null);spawnBiomeMineral('lithium',20,-420,-350,null);
+  spawnBiomeMineral('nickel',15,-350,-250,null);spawnBiomeMineral('ruby',15,-350,-250,null);
+  spawnBiomeMineral('kyanite',10,-999,-420,null);spawnBiomeMineral('diamond',10,-999,-350,null);
+  spawnBiomeMineral('uraninite',8,-999,-400,null);
   // Extra wrecks in deep areas
   for(let i=0;i<12;i++){
     const x=rand(-800,800),z=rand(-800,800),y=terrainHeight(x,z);
@@ -5246,6 +5376,8 @@ function animate(){
           const info=['Common schooling fish','Solitary reef dweller','Colorful reef species','Bioluminescent prey','Flat bottom-feeder','Large toxic herbivore','Aggressive predator'];
           const idx=Math.floor(Math.random()*names.length);
           if(!scannedSet.has(idx)){ scannedSet.add(idx); missionState.scanned=scannedSet.size; }
+          const creatureIds=['azureJack','amberReef','roseFin','peeper','boomerang','gasopod','stalker'];
+          if(creatureIds[idx]) scannedCreatures.add(creatureIds[idx]);
           toast('SCAN COMPLETE: '+names[idx]+' — '+info[idx]); blip(1200,.12,'sine',.08); blip(880,.15,'sine',.12); scanProgress=0;
         }
       } else {
