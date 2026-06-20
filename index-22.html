@@ -3147,30 +3147,26 @@ function tryInteract(){
    BIOME SYSTEM
    ============================================================ */
 const BIOMES=[
-  {name:'SAFE SHOALS',cx:0,cz:0,r:120,minD:0,maxD:60,fog:new THREE.Color(0x1aadcc),den:.005,light:1.0},
-  {name:'KELP FOREST',cx:-200,cz:100,r:160,minD:0,maxD:100,fog:new THREE.Color(0x0a6a3a),den:.01,light:.7},
-  {name:'MUSHROOM FOREST',cx:250,cz:150,r:140,minD:20,maxD:120,fog:new THREE.Color(0x1a4a2a),den:.012,light:.6},
-  {name:'DEEP REEF',cx:100,cz:-250,r:150,minD:40,maxD:180,fog:new THREE.Color(0x082844),den:.018,light:.35},
-  {name:'SPARSE REEF',cx:-250,cz:-200,r:140,minD:10,maxD:100,fog:new THREE.Color(0x1a3a4a),den:.008,light:.75},
-  {name:'BLOOD TRENCH',cx:0,cz:-350,r:130,minD:100,maxD:280,fog:new THREE.Color(0x1a0808),den:.028,light:.15},
-  {name:'THERMAL ZONE',cx:-150,cz:-400,r:120,minD:150,maxD:380,fog:new THREE.Color(0x0a0400),den:.035,light:.08},
-  {name:'CRYSTAL CAVES',cx:200,cz:-400,r:130,minD:200,maxD:450,fog:new THREE.Color(0x0a0520),den:.04,light:.06},
+  {name:'SAFE SHOALS',cx:0,cz:0,r:120,fog:new THREE.Color(0x1aadcc),den:.005,light:1.0},
+  {name:'KELP FOREST',cx:-200,cz:100,r:160,fog:new THREE.Color(0x0a6a3a),den:.01,light:.7},
+  {name:'MUSHROOM FOREST',cx:250,cz:150,r:140,fog:new THREE.Color(0x1a4a2a),den:.012,light:.6},
+  {name:'DEEP REEF',cx:100,cz:-250,r:150,fog:new THREE.Color(0x082844),den:.018,light:.35},
+  {name:'SPARSE REEF',cx:-250,cz:-200,r:140,fog:new THREE.Color(0x1a3a4a),den:.008,light:.75},
+  {name:'BLOOD TRENCH',cx:0,cz:-350,r:130,fog:new THREE.Color(0x1a0808),den:.028,light:.15},
+  {name:'THERMAL ZONE',cx:-150,cz:-400,r:120,fog:new THREE.Color(0x0a0400),den:.035,light:.08},
+  {name:'CRYSTAL CAVES',cx:200,cz:-400,r:130,fog:new THREE.Color(0x0a0520),den:.04,light:.06},
 ];
 const ABYSS_BIOME={name:'THE ABYSS',fog:new THREE.Color(0x000102),den:.055,light:.02};
 function getBiome(depth,x,z){
-  if(x===undefined||z===undefined){
-    if(depth>=420) return ABYSS_BIOME;
-    for(const b of BIOMES) if(depth>=b.minD&&depth<b.maxD) return b;
-    return BIOMES[0];
-  }
+  if(depth>=400) return ABYSS_BIOME;
+  if(x===undefined||z===undefined) return BIOMES[0];
   let best=null,bestD=Infinity;
   for(const b of BIOMES){
     const dx=x-b.cx,dz=z-b.cz,dist=Math.sqrt(dx*dx+dz*dz);
-    if(dist<b.r&&depth>=b.minD&&depth<b.maxD) return b;
+    if(dist<b.r) return b;
     const score=dist/b.r;
     if(score<bestD){bestD=score;best=b;}
   }
-  if(depth>=420) return ABYSS_BIOME;
   return best||BIOMES[0];
 }
 
