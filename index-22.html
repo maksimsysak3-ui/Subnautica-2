@@ -1318,17 +1318,26 @@ function makeMineral(typeKey,forceX,forceZ){
   scene.add(grp); minerals.push(node);
 }
 // Biome-aware mineral spawning
-function spawnBiomeMineral(tk,ct,mnY,mxY,bn){for(let i=0;i<ct;i++){let x,z,y,t=0,ok=false;while(t<60){x=rand(-800,800);z=rand(-800,800);y=terrainHeight(x,z);t++;if(y<mnY||y>mxY)continue;if(bn){const b=getBiome(-y,x,z);if(b.name!==bn)continue;}ok=true;break;}if(!ok)continue;makeMineral(tk,x,z);}}
+function spawnBiomeMineral(tk,ct,mnY,mxY,hb){for(let i=0;i<ct;i++){let x,z,y,t=0,ok=false;while(t<60){x=rand(-800,800);z=rand(-800,800);y=terrainHeight(x,z);t++;if(y<mnY||y>mxY)continue;if(hb){const dx=x-hb.cx,dz=z-hb.cz;if(Math.sqrt(dx*dx+dz*dz)>hb.r)continue;}ok=true;break;}if(!ok)continue;makeMineral(tk,x,z);}}
+// Titanium & Quartz — Shallow (0-50m), all biomes, common
 spawnBiomeMineral('titanium',200,-50,0,null);spawnBiomeMineral('quartz',80,-50,0,null);
-spawnBiomeMineral('copper',60,-80,0,'SAFE SHOALS');spawnBiomeMineral('copper',60,-80,0,'KELP FOREST');
-spawnBiomeMineral('lead',40,-80,0,'SAFE SHOALS');spawnBiomeMineral('lead',40,-80,0,'KELP FOREST');
-spawnBiomeMineral('silver',50,-150,-80,'DEEP REEF');spawnBiomeMineral('gold',40,-150,-80,'DEEP REEF');
-spawnBiomeMineral('lithium',50,-420,-350,'CRYSTAL CAVES');
-spawnBiomeMineral('magnetite',50,-250,-150,'BLOOD TRENCH');
-spawnBiomeMineral('nickel',40,-350,-250,'THERMAL ZONE');spawnBiomeMineral('ruby',35,-350,-250,'THERMAL ZONE');
-spawnBiomeMineral('kyanite',30,-999,-420,'THE ABYSS');spawnBiomeMineral('diamond',25,-999,-420,'THE ABYSS');
+// Copper & Lead — Shallow/Kelp (0-80m)
+spawnBiomeMineral('copper',120,-80,0,null);spawnBiomeMineral('lead',80,-80,0,null);
+// Silver & Gold — Deep Reef (80-150m)
+spawnBiomeMineral('silver',50,-150,-80,null);spawnBiomeMineral('gold',40,-150,-80,null);
+// Lithium — Crystal Caves depth (350-420m)
+spawnBiomeMineral('lithium',50,-420,-350,null);
+// Magnetite — Blood Trench (150-250m)
+spawnBiomeMineral('magnetite',50,-250,-150,null);
+// Nickel & Ruby — Thermal Zone (250-350m)
+spawnBiomeMineral('nickel',40,-350,-250,null);spawnBiomeMineral('ruby',35,-350,-250,null);
+// Kyanite & Diamond — The Abyss (420m+)
+spawnBiomeMineral('kyanite',30,-999,-420,null);spawnBiomeMineral('diamond',25,-999,-420,null);
+// Uraninite — deep only (350m+)
 spawnBiomeMineral('uraninite',15,-999,-350,null);
-spawnBiomeMineral('obsidian',30,-350,-250,'THERMAL ZONE');spawnBiomeMineral('thermalCrystal',30,-350,-250,'THERMAL ZONE');
+// Obsidian & thermalCrystal — Thermal Zone (250-350m)
+spawnBiomeMineral('obsidian',30,-350,-250,null);spawnBiomeMineral('thermalCrystal',30,-350,-250,null);
+// Voidstone, pressureGel, frozenAlloy, bioMetal — deep
 spawnBiomeMineral('voidstone',20,-999,-350,null);spawnBiomeMineral('pressureGel',20,-999,-250,null);
 spawnBiomeMineral('frozenAlloy',15,-999,-300,null);spawnBiomeMineral('bioMetal',15,-420,-150,null);
 // Extra titanium in shallow — most common resource
@@ -2163,7 +2172,7 @@ function pay(c){ Object.entries(c).forEach(([k,v])=>res[k]-=v); }
 /* ============================================================
    STATE / INPUT / UI FLOW
    ============================================================ */
-const res={titanium:0,copper:0,quartz:0,gold:0,silver:0,diamond:0,lead:0,lithium:0,magnetite:0,obsidian:0,thermalCrystal:0,voidstone:0,pressureGel:0,frozenAlloy:0,bioMetal:0,rations:1,h2o:1,
+const res={titanium:0,copper:0,quartz:0,gold:0,silver:0,diamond:0,lead:0,lithium:0,magnetite:0,obsidian:0,thermalCrystal:0,voidstone:0,pressureGel:0,frozenAlloy:0,bioMetal:0,nickel:0,ruby:0,kyanite:0,uraninite:0,rations:1,h2o:1,
   titaniumIngot:0,copperWire:0,glass:0,fiberMesh:0,advancedTank:0,reinforcedSuit:0,ultraFins:0,
   rawFish:0,lubricant:0,siliconeRubber:0,computerChip:0,bleach:0,disinfectedWater:0,curedFish:0,medPack:0,depthModule:0,heatResistSuit:0};
 const unlockedBlueprints=new Set();
@@ -3529,6 +3538,53 @@ for(let i=0;i<12;i++){
   scene.add(f); abyssEels.push(f);
 }
 
+// Kelp Forest — bright clownfish (orange/white, small, schooling)
+for(let i=0;i<25;i++){
+  const f=makeFish(rand(.3,.5),fishTexture('#ff6600','#ffffff','#ff8833'),0xff8844);
+  const cx=rand(-300,300),cz=rand(-300,300),cy=terrainHeight(cx,cz);
+  if(cy>-15||cy<-70)continue;
+  f.userData.a={c:V3(cx,clamp(cy+rand(3,8),-65,-18),cz),r:rand(3,6),w:rand(.5,.9)*(Math.random()<.5?-1:1),ph:rand(0,9),alive:true,respawn:0};
+  scene.add(f);
+}
+// Deep Reef — bioluminescent lanternfish (blue glow)
+for(let i=0;i<20;i++){
+  const f=makeFish(rand(.4,.7),fishTexture('#0a1a3a','#2244aa','#4488ff'),0x4488ff);
+  const cx=rand(-600,600),cz=rand(-600,600),cy=terrainHeight(cx,cz);
+  if(cy>-85||cy<-145)continue;
+  f.userData.a={c:V3(cx,clamp(cy+rand(5,12),-140,-85),cz),r:rand(5,10),w:rand(.3,.6)*(Math.random()<.5?-1:1),ph:rand(0,9),alive:true,respawn:0};
+  const lure=new THREE.Mesh(new THREE.SphereGeometry(.1,4,4),new THREE.MeshStandardMaterial({color:0x4488ff,emissive:0x4488ff,emissiveIntensity:.8}));
+  lure.position.set(0,.15,.3);f.add(lure);
+  scene.add(f);
+}
+// Blood Trench — red barb predators (aggressive, red/black)
+for(let i=0;i<18;i++){
+  const f=makeFish(rand(1.5,2.5),fishTexture('#2a0a0a','#661122','#ff2244'),0xff2244);
+  const cx=rand(-600,600),cz=rand(-600,600),cy=terrainHeight(cx,cz);
+  if(cy>-155||cy<-245)continue;
+  f.userData.a={c:V3(cx,clamp(cy+rand(5,15),-240,-160),cz),r:rand(8,15),w:rand(.4,.7)*(Math.random()<.5?-1:1),ph:rand(0,9),alive:true,respawn:0};
+  f.userData.predator=true;f.scale.set(1.3,1,1.3);
+  scene.add(f);
+}
+// Crystal Caves — prismatic shimmer fish (multi-color glow)
+for(let i=0;i<15;i++){
+  const cols=['#8844ff','#44aaff','#ff44aa','#44ffaa'];
+  const c=cols[i%4];
+  const f=makeFish(rand(.5,.8),fishTexture('#1a1a2a',c,c),parseInt(c.replace('#','0x')));
+  const cx=rand(-600,600),cz=rand(-600,600),cy=terrainHeight(cx,cz);
+  if(cy>-355||cy<-415)continue;
+  f.userData.a={c:V3(cx,clamp(cy+rand(5,12),-410,-360),cz),r:rand(5,10),w:rand(.3,.5)*(Math.random()<.5?-1:1),ph:rand(0,9),alive:true,respawn:0};
+  scene.add(f);
+}
+// Thermal Zone — armored magma fish (orange/dark, tough)
+for(let i=0;i<12;i++){
+  const f=makeFish(rand(1,1.8),fishTexture('#1a0a00','#663300','#ff6600'),0xff4400);
+  const cx=rand(-600,600),cz=rand(-600,600),cy=terrainHeight(cx,cz);
+  if(cy>-255||cy<-345)continue;
+  f.userData.a={c:V3(cx,clamp(cy+rand(5,12),-340,-260),cz),r:rand(6,12),w:rand(.2,.4)*(Math.random()<.5?-1:1),ph:rand(0,9),alive:true,respawn:0};
+  f.userData.predator=true;
+  scene.add(f);
+}
+
 // Manta rays — large, passive, majestic
 const mantas=[];
 for(let i=0;i<8;i++){
@@ -4078,6 +4134,105 @@ const fireCorals=[];
     sponge.position.y=h/2; grp.add(sponge);
     const rim=new THREE.Mesh(new THREE.TorusGeometry(rand(.5,1.2),.08,6,12),spongeMat);
     rim.rotation.x=Math.PI/2; rim.position.y=h; grp.add(rim);
+    scene.add(grp);
+  }
+
+  // SAFE SHOALS — anemone clusters
+  const anemoneCols=[0xff6699,0xffaa44,0x66ccff,0xaaff66];
+  for(let i=0;i<80;i++){
+    const x=rand(-400,400),z=rand(-400,400),y=terrainHeight(x,z);
+    if(y<-25||y>0)continue;
+    const grp=new THREE.Group();grp.position.set(x,y,z);
+    const col=anemoneCols[i%4];
+    const mat=new THREE.MeshStandardMaterial({color:col,roughness:.5,emissive:col,emissiveIntensity:.2,side:THREE.DoubleSide});
+    for(let j=0;j<8+Math.floor(Math.random()*6);j++){
+      const h=rand(.8,2.2),a=rand(0,Math.PI*2);
+      const tent=new THREE.Mesh(new THREE.CylinderGeometry(.03,.06,h,4),mat);
+      tent.position.set(Math.cos(a)*rand(.2,.5),h/2,Math.sin(a)*rand(.2,.5));
+      tent.rotation.set(rand(-.4,.4),0,rand(-.4,.4));grp.add(tent);
+    }
+    const base2=new THREE.Mesh(new THREE.CylinderGeometry(.5,.3,.3,8),mat);grp.add(base2);
+    scene.add(grp);
+  }
+
+  // KELP FOREST — spiral kelp with bulb floats
+  const spiralKelpMat=new THREE.MeshStandardMaterial({color:0x2a7a3a,roughness:.7,side:THREE.DoubleSide,transparent:true,opacity:.8});
+  for(let i=0;i<60;i++){
+    const x=rand(-500,500),z=rand(-500,500),y=terrainHeight(x,z);
+    if(y<-70||y>-15)continue;
+    const grp=new THREE.Group();grp.position.set(x,y,z);
+    const h=rand(8,20);
+    for(let j=0;j<3;j++){
+      const ribbon=new THREE.Mesh(new THREE.PlaneGeometry(rand(.8,1.5),h,1,12),spiralKelpMat);
+      ribbon.geometry=ribbon.geometry.clone();ribbon.geometry.translate(0,h/2,0);
+      ribbon.rotation.y=j*Math.PI*2/3+rand(0,.5);grp.add(ribbon);
+    }
+    const bulbMat2=new THREE.MeshStandardMaterial({color:0x55cc44,roughness:.5,emissive:0x227711,emissiveIntensity:.2});
+    for(let j=0;j<2+Math.floor(Math.random()*3);j++){
+      const bulb=new THREE.Mesh(new THREE.SphereGeometry(rand(.3,.6),6,5),bulbMat2);
+      bulb.position.set(rand(-.5,.5),h+rand(-2,1),rand(-.5,.5));grp.add(bulb);
+    }
+    scene.add(grp);
+  }
+
+  // BLOOD TRENCH — pulsating sac plants
+  const sacMat=new THREE.MeshStandardMaterial({color:0xaa2244,roughness:.4,emissive:0x661133,emissiveIntensity:.4,transparent:true,opacity:.7});
+  for(let i=0;i<50;i++){
+    const x=rand(-700,700),z=rand(-700,700),y=terrainHeight(x,z);
+    if(y>-155||y<-245)continue;
+    const grp=new THREE.Group();grp.position.set(x,y,z);
+    for(let j=0;j<2+Math.floor(Math.random()*3);j++){
+      const sac=new THREE.Mesh(new THREE.SphereGeometry(rand(.5,1.5),8,6),sacMat);
+      sac.scale.y=rand(1.2,1.8);sac.position.set(rand(-1.5,1.5),rand(.5,2),rand(-1.5,1.5));grp.add(sac);
+      const stalk=new THREE.Mesh(new THREE.CylinderGeometry(.04,.08,rand(.5,1.5),4),new THREE.MeshStandardMaterial({color:0x551122,roughness:.8}));
+      stalk.position.copy(sac.position);stalk.position.y-=1;grp.add(stalk);
+    }
+    scene.add(grp);
+  }
+
+  // THERMAL ZONE — fire fern fronds
+  const fernMat2=new THREE.MeshStandardMaterial({color:0xcc6622,roughness:.6,emissive:0x883311,emissiveIntensity:.3,side:THREE.DoubleSide,transparent:true,opacity:.8});
+  for(let i=0;i<40;i++){
+    const x=rand(-700,700),z=rand(-700,700),y=terrainHeight(x,z);
+    if(y>-255||y<-345)continue;
+    const grp=new THREE.Group();grp.position.set(x,y,z);
+    for(let j=0;j<3+Math.floor(Math.random()*3);j++){
+      const fw=rand(2,4),fh=rand(3,6);
+      const frond=new THREE.Mesh(new THREE.PlaneGeometry(fw,fh,1,4),fernMat2);
+      frond.geometry=frond.geometry.clone();frond.geometry.translate(0,fh/2,0);
+      frond.rotation.set(rand(-.3,.1),rand(0,Math.PI*2),0);grp.add(frond);
+    }
+    scene.add(grp);
+  }
+
+  // CRYSTAL CAVES — prismatic bell flowers
+  const bellMat=new THREE.MeshStandardMaterial({color:0xaa55ff,roughness:.3,emissive:0x7733cc,emissiveIntensity:.5,transparent:true,opacity:.7,side:THREE.DoubleSide});
+  for(let i=0;i<50;i++){
+    const x=rand(-700,700),z=rand(-700,700),y=terrainHeight(x,z);
+    if(y>-355||y<-415)continue;
+    const grp=new THREE.Group();grp.position.set(x,y,z);
+    const stemH=rand(2,5);
+    const stem2=new THREE.Mesh(new THREE.CylinderGeometry(.04,.06,stemH,5),new THREE.MeshStandardMaterial({color:0x4422aa,roughness:.6,emissive:0x2211aa,emissiveIntensity:.3}));
+    stem2.position.y=stemH/2;grp.add(stem2);
+    const bell=new THREE.Mesh(new THREE.CylinderGeometry(rand(.3,.8),0,rand(1,2),8,1,true),bellMat);
+    bell.position.y=stemH;bell.rotation.x=Math.PI;grp.add(bell);
+    scene.add(grp);
+  }
+
+  // ABYSS — ghostly filament webs
+  const filamentMat=new THREE.MeshStandardMaterial({color:0x22ffaa,roughness:.3,emissive:0x11cc88,emissiveIntensity:.6,transparent:true,opacity:.4,side:THREE.DoubleSide});
+  for(let i=0;i<35;i++){
+    const x=rand(-700,700),z=rand(-700,700),y=terrainHeight(x,z);
+    if(y>-425)continue;
+    const grp=new THREE.Group();grp.position.set(x,y,z);
+    for(let j=0;j<6+Math.floor(Math.random()*6);j++){
+      const h=rand(5,15);
+      const strand=new THREE.Mesh(new THREE.CylinderGeometry(.02,.01,h,3),filamentMat);
+      strand.position.set(rand(-3,3),h/2,rand(-3,3));
+      strand.rotation.set(rand(-.2,.2),rand(0,3),rand(-.2,.2));grp.add(strand);
+    }
+    const gNode=new THREE.Mesh(new THREE.SphereGeometry(rand(.3,.8),6,5),new THREE.MeshStandardMaterial({color:0x44ffcc,emissive:0x22ffaa,emissiveIntensity:.8}));
+    gNode.position.y=rand(3,8);grp.add(gNode);
     scene.add(grp);
   }
 }
