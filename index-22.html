@@ -2935,29 +2935,41 @@ function tryInteract(){
    BIOME SYSTEM
    ============================================================ */
 const BIOMES=[
-  {name:'SAFE SHOALS',minD:0,maxD:30,fog:new THREE.Color(0x1aadcc),den:.005,light:1.0},
-  {name:'KELP FOREST',minD:30,maxD:80,fog:new THREE.Color(0x0a6a3a),den:.01,light:.7},
-  {name:'DEEP REEF',minD:80,maxD:150,fog:new THREE.Color(0x082844),den:.018,light:.35},
-  {name:'BLOOD TRENCH',minD:150,maxD:250,fog:new THREE.Color(0x1a0808),den:.028,light:.15},
-  {name:'THERMAL ZONE',minD:250,maxD:350,fog:new THREE.Color(0x0a0400),den:.035,light:.08},
-  {name:'CRYSTAL CAVES',minD:350,maxD:420,fog:new THREE.Color(0x0a0520),den:.04,light:.06},
-  {name:'THE ABYSS',minD:420,maxD:999,fog:new THREE.Color(0x000102),den:.055,light:.02},
+  {name:'SAFE SHOALS',cx:0,cz:0,r:180,fog:new THREE.Color(0x1aadcc),den:.005,light:1.0},
+  {name:'KELP FOREST',cx:-200,cz:150,r:200,fog:new THREE.Color(0x0a6a3a),den:.01,light:.7},
+  {name:'GRASSY PLATEAUS',cx:180,cz:180,r:180,fog:new THREE.Color(0x10805a),den:.007,light:.8},
+  {name:'MUSHROOM FOREST',cx:300,cz:-100,r:170,fog:new THREE.Color(0x1a4a2a),den:.012,light:.6},
+  {name:'DEEP REEF',cx:-100,cz:-250,r:190,fog:new THREE.Color(0x082844),den:.018,light:.35},
+  {name:'DUNES',cx:-350,cz:-100,r:200,fog:new THREE.Color(0x1a3020),den:.008,light:.75},
+  {name:'BLOOD TRENCH',cx:0,cz:-450,r:180,fog:new THREE.Color(0x1a0808),den:.028,light:.15},
+  {name:'CRAG FIELD',cx:400,cz:200,r:170,fog:new THREE.Color(0x0a2a3a),den:.015,light:.5},
+  {name:'THERMAL ZONE',cx:-400,cz:300,r:170,fog:new THREE.Color(0x0a0400),den:.035,light:.08},
+  {name:'CRYSTAL CAVES',cx:350,cz:-350,r:160,fog:new THREE.Color(0x0a0520),den:.04,light:.06},
+  {name:'SPARSE REEF',cx:-350,cz:-350,r:180,fog:new THREE.Color(0x1a3a4a),den:.008,light:.8},
+  {name:'THE ABYSS',cx:0,cz:0,r:9999,fog:new THREE.Color(0x000102),den:.055,light:.02},
 ];
-const HBIOMES=[
-  {name:'MUSHROOM FOREST',fog:new THREE.Color(0x1a4a2a),den:.012,light:.6,cx:300,cz:100,r:150,minD:20,maxD:120},
-  {name:'SPARSE REEF',fog:new THREE.Color(0x1a3a4a),den:.008,light:.8,cx:-250,cz:-200,r:160,minD:10,maxD:90},
-  {name:'DUNES',fog:new THREE.Color(0x2a3a1a),den:.006,light:.9,cx:-100,cz:350,r:180,minD:15,maxD:70},
-  {name:'CRAG FIELD',fog:new THREE.Color(0x0a2a3a),den:.015,light:.5,cx:200,cz:-300,r:140,minD:30,maxD:130},
-];
+var lastBiomeName='';
 function getBiome(depth,x,z){
-  if(x!==undefined&&z!==undefined){
-    for(const hb of HBIOMES){
-      const dx=x-hb.cx,dz=z-hb.cz,d=Math.sqrt(dx*dx+dz*dz);
-      if(d<hb.r&&depth>=hb.minD&&depth<hb.maxD) return hb;
-    }
+  if(x===undefined){x=0;z=0;}
+  let best=null,bestD=Infinity;
+  for(let i=0;i<BIOMES.length-1;i++){
+    const b=BIOMES[i];
+    const dx=x-b.cx,dz=z-b.cz,d=Math.sqrt(dx*dx+dz*dz);
+    if(d<b.r&&d<bestD){best=b;bestD=d;}
   }
-  for(const b of BIOMES) if(depth>=b.minD&&depth<b.maxD) return b;
-  return BIOMES[BIOMES.length-1];
+  return best||BIOMES[BIOMES.length-1];
+}
+function showBiomeEntry(name){
+  if(name===lastBiomeName)return;
+  lastBiomeName=name;
+  let el=$('biomeEntry');
+  if(el)el.remove();
+  el=document.createElement('div');el.id='biomeEntry';
+  el.style.cssText='position:fixed;top:30%;left:50%;transform:translateX(-50%);z-index:30;text-align:center;pointer-events:none;opacity:0;transition:opacity .8s';
+  el.innerHTML='<div style="font-family:var(--mono);font-size:28px;letter-spacing:.5em;color:#eaffff;text-shadow:0 0 30px rgba(127,233,255,.6)">'+name+'</div><div style="width:200px;height:1px;background:linear-gradient(90deg,transparent,var(--cy),transparent);margin:10px auto"></div>';
+  document.body.appendChild(el);
+  requestAnimationFrame(()=>el.style.opacity='1');
+  setTimeout(()=>{el.style.opacity='0';setTimeout(()=>el.remove(),1000);},3000);
 }
 
 /* TRAIT ADAPTATION SYSTEM */
@@ -4594,6 +4606,7 @@ function animate(){
   /* atmosphere + biome */
   const curDepth=Math.max(0,-camWorld.y);
   const biome=getBiome(curDepth,camera.position.x,camera.position.z);
+  if(underwater&&started)showBiomeEntry(biome.name);
   /* crush depth warning */
   if(curDepth>400&&underwater){
     let cw=$('crushWarn');
