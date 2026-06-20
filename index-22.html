@@ -855,7 +855,7 @@ function terrainHeight(x,z){
   // Biome-based terrain variation (horizontal)
   const biomeVar=Math.sin(ang*2+1.5)*fbm(x*.008+100,z*.008+100)*8;
   // Dramatic drop-off ring at distance 300-400
-  const dropoff=(dist>300&&dist<420)?-(dist-300)*.4*fbm(x*.01+5,z*.01+8):0;
+  const dropoff=(dist>700&&dist<900)?-(dist-700)*.4*fbm(x*.01+5,z*.01+8):0;
   let h=base+ridges+plateaus+valleys+detail+dunes+cliff+hills+trench+canyon+pillar+arch+shelf+biomeVar+dropoff;
   if(dist<35) h=-10; else if(dist<60) h=h*(dist-35)/25 + (-10)*(1-(dist-35)/25);
   return clamp(h,-550,-2);
@@ -1045,74 +1045,147 @@ const fanMat=addSway(new THREE.MeshStandardMaterial({map:fanTex,transparent:true
   side:THREE.DoubleSide,roughness:.8,emissive:0x611428,emissiveIntensity:.3}),.3);
 
 {
-  // kelp forest — only in kelp depth range (-30 to -80)
-  for(let i=0;i<1200;i++){
-    const x=rand(-800,800),z=rand(-800,800),y=terrainHeight(x,z);
-    if(y>-25||y<-85)continue;
+  function spawnInBiome(biome,count,cb){
+    for(let i=0;i<count;i++){
+      const ang=Math.random()*Math.PI*2;
+      const dist=Math.random()*biome.r;
+      const x=biome.cx+Math.cos(ang)*dist;
+      const z=biome.cz+Math.sin(ang)*dist;
+      const y=terrainHeight(x,z);
+      cb(x,y,z);
+    }
+  }
+  const _BIOME_COORDS=[
+    {name:'SAFE SHOALS',cx:0,cz:0,r:250},
+    {name:'KELP FOREST',cx:-500,cz:300,r:300},
+    {name:'MUSHROOM FOREST',cx:500,cz:400,r:280},
+    {name:'DEEP REEF',cx:500,cz:-400,r:300},
+    {name:'SPARSE REEF',cx:-550,cz:-300,r:280},
+    {name:'BLOOD TRENCH',cx:0,cz:-650,r:260},
+    {name:'THERMAL ZONE',cx:-500,cz:-700,r:260},
+    {name:'CRYSTAL CAVES',cx:500,cz:-700,r:260},
+  ];
+  const SB=n=>_BIOME_COORDS.find(b=>b.name===n);
+
+  // KELP — only in Kelp Forest
+  spawnInBiome(SB('KELP FOREST'),800,function(x,y,z){
     const h=rand(10,26);
     const k=new THREE.Mesh(new THREE.PlaneGeometry(rand(.9,1.5),h,1,8),kelpMat);
     k.geometry=k.geometry.clone(); k.geometry.translate(0,h/2,0);
     k.position.set(x,y-.2,z); k.rotation.y=rand(0,Math.PI);
     scene.add(k);
-  }
-  // sea fans
-  for(let i=0;i<600;i++){
-    const x=rand(-800,800),z=rand(-800,800),y=terrainHeight(x,z);
-    const s=rand(6,14);
-    const f=new THREE.Mesh(new THREE.PlaneGeometry(s,s,1,4),fanMat);
-    f.geometry=f.geometry.clone(); f.geometry.translate(0,s/2,0);
-    f.position.set(x,y-.1,z); f.rotation.y=rand(0,Math.PI);
-    scene.add(f);
-  }
-  // tube coral clusters
+  });
+
+  // SEA FANS — Safe Shoals and Sparse Reef
+  [SB('SAFE SHOALS'),SB('SPARSE REEF')].forEach(b=>{
+    spawnInBiome(b,200,function(x,y,z){
+      const s=rand(6,14);
+      const f=new THREE.Mesh(new THREE.PlaneGeometry(s,s,1,4),fanMat);
+      f.geometry=f.geometry.clone(); f.geometry.translate(0,s/2,0);
+      f.position.set(x,y-.1,z); f.rotation.y=rand(0,Math.PI);
+      scene.add(f);
+    });
+  });
+
+  // TUBE CORALS — Safe Shoals, Deep Reef
   const tubeCols=[0xff8c5a,0xd45a9e,0x46c8b4,0xe8c45a];
-  for(let i=0;i<600;i++){
-    const x=rand(-800,800),z=rand(-800,800),y=terrainHeight(x,z);
-    if(y<-450)continue;
-    const grp=new THREE.Group(); grp.position.set(x,y,z);
-    const col=tubeCols[i%tubeCols.length];
-    const mat=new THREE.MeshStandardMaterial({color:col,roughness:.75,emissive:col,emissiveIntensity:.12});
-    const rim=new THREE.MeshStandardMaterial({color:0x21353a,roughness:.9});
-    for(let j=0;j<5+Math.floor(Math.random()*8);j++){
-      const th=rand(2,6),tr=rand(.3,.7);
-      const tube=new THREE.Mesh(new THREE.CylinderGeometry(tr,tr*.5,th,8,1,true),mat);
-      tube.position.set(rand(-2,2),th/2,rand(-2,2));
-      tube.rotation.set(rand(-.2,.2),0,rand(-.2,.2));
-      grp.add(tube);
-      const ring=new THREE.Mesh(new THREE.TorusGeometry(tr,.045,6,12),rim);
-      ring.rotation.x=Math.PI/2; ring.position.copy(tube.position); ring.position.y=th*.98;
-      grp.add(ring);
-    }
-    scene.add(grp);
-  }
-  // brain corals
+  [SB('SAFE SHOALS'),SB('DEEP REEF')].forEach(b=>{
+    spawnInBiome(b,200,function(x,y,z){
+      const grp=new THREE.Group(); grp.position.set(x,y,z);
+      const col=tubeCols[Math.floor(Math.random()*4)];
+      const mat=new THREE.MeshStandardMaterial({color:col,roughness:.75,emissive:col,emissiveIntensity:.12});
+      const rim=new THREE.MeshStandardMaterial({color:0x21353a,roughness:.9});
+      for(let j=0;j<5+Math.floor(Math.random()*8);j++){
+        const th=rand(2,6),tr=rand(.3,.7);
+        const tube=new THREE.Mesh(new THREE.CylinderGeometry(tr,tr*.5,th,8,1,true),mat);
+        tube.position.set(rand(-2,2),th/2,rand(-2,2));
+        tube.rotation.set(rand(-.2,.2),0,rand(-.2,.2));
+        grp.add(tube);
+        const ring=new THREE.Mesh(new THREE.TorusGeometry(tr,.045,6,12),rim);
+        ring.rotation.x=Math.PI/2; ring.position.copy(tube.position); ring.position.y=th*.98;
+        grp.add(ring);
+      }
+      scene.add(grp);
+    });
+  });
+
+  // BRAIN CORALS — Deep Reef, Sparse Reef
   const brainMat=new THREE.MeshStandardMaterial({color:0xc9a05e,roughness:1});
-  for(let i=0;i<500;i++){
-    const x=rand(-800,800),z=rand(-800,800),y=terrainHeight(x,z);
-    const b=new THREE.Mesh(new THREE.IcosahedronGeometry(rand(1.5,6),1),brainMat);
-    b.scale.y=rand(.5,.7); b.position.set(x,y+.15,z);
-    b.rotation.set(rand(0,3),rand(0,3),0);
-    scene.add(b);
-  }
-  // glowing anemones (deep)
+  [SB('DEEP REEF'),SB('SPARSE REEF')].forEach(b=>{
+    spawnInBiome(b,150,function(x,y,z){
+      const bc=new THREE.Mesh(new THREE.IcosahedronGeometry(rand(1.5,6),1),brainMat);
+      bc.scale.y=rand(.5,.7); bc.position.set(x,y+.15,z);
+      bc.rotation.set(rand(0,3),rand(0,3),0);
+      scene.add(bc);
+    });
+  });
+
+  // GLOWING ANEMONES — Blood Trench, Crystal Caves
   const anemMat=new THREE.MeshStandardMaterial({color:0x6fe8ff,emissive:0x2fc8e8,emissiveIntensity:.3,roughness:.6});
-  for(let i=0;i<500;i++){
-    const x=rand(-800,800),z=rand(-800,800),y=terrainHeight(x,z);
-    if(y>-26)continue;
+  [SB('BLOOD TRENCH'),SB('CRYSTAL CAVES')].forEach(b=>{
+    spawnInBiome(b,150,function(x,y,z){
+      const grp=new THREE.Group(); grp.position.set(x,y,z);
+      for(let j=0;j<7;j++){
+        const t=new THREE.Mesh(new THREE.ConeGeometry(.045,rand(.5,1),5),anemMat);
+        t.position.set(rand(-.25,.25),.3,rand(-.25,.25));
+        t.rotation.set(rand(-.5,.5),0,rand(-.5,.5));
+        grp.add(t);
+      }
+      scene.add(grp);
+    });
+  });
+
+  // MUSHROOM CAPS — Mushroom Forest only
+  const mushMat=new THREE.MeshStandardMaterial({color:0x8855aa,emissive:0x553388,emissiveIntensity:.15,roughness:.6});
+  const mushStemMat=new THREE.MeshStandardMaterial({color:0xccbbaa,roughness:.8});
+  spawnInBiome(SB('MUSHROOM FOREST'),300,function(x,y,z){
     const grp=new THREE.Group(); grp.position.set(x,y,z);
-    for(let j=0;j<7;j++){
-      const t=new THREE.Mesh(new THREE.ConeGeometry(.045,rand(.5,1),5),anemMat);
-      t.position.set(rand(-.25,.25),.3,rand(-.25,.25));
-      t.rotation.set(rand(-.5,.5),0,rand(-.5,.5));
-      grp.add(t);
+    const h=rand(4,15);
+    const stem=new THREE.Mesh(new THREE.CylinderGeometry(rand(.3,.8),rand(.4,1),h,8),mushStemMat);
+    stem.position.y=h/2; grp.add(stem);
+    const cap=new THREE.Mesh(new THREE.SphereGeometry(rand(2,5),10,8,0,Math.PI*2,0,Math.PI*.5),mushMat);
+    cap.position.y=h; grp.add(cap);
+    scene.add(grp);
+  });
+
+  // THERMAL VENTS — Thermal Zone only
+  const ventMat=new THREE.MeshStandardMaterial({color:0x332211,roughness:.9,emissive:0xff4400,emissiveIntensity:.08});
+  spawnInBiome(SB('THERMAL ZONE'),200,function(x,y,z){
+    const grp=new THREE.Group(); grp.position.set(x,y,z);
+    const chimney=new THREE.Mesh(new THREE.CylinderGeometry(rand(.5,1.5),rand(1,2),rand(3,8),7),ventMat);
+    chimney.position.y=chimney.geometry.parameters.height/2; grp.add(chimney);
+    scene.add(grp);
+  });
+
+  // CRYSTAL FORMATIONS — Crystal Caves only
+  const crystMat=new THREE.MeshStandardMaterial({color:0x9944ff,emissive:0x6622cc,emissiveIntensity:.25,roughness:.2,metalness:.3,transparent:true,opacity:.8});
+  spawnInBiome(SB('CRYSTAL CAVES'),250,function(x,y,z){
+    const grp=new THREE.Group(); grp.position.set(x,y,z);
+    for(let j=0;j<rand(2,6);j++){
+      const ch=rand(2,8);
+      const c=new THREE.Mesh(new THREE.ConeGeometry(rand(.3,1),ch,5),crystMat);
+      c.position.set(rand(-2,2),ch/2,rand(-2,2));
+      c.rotation.set(rand(-.3,.3),0,rand(-.3,.3));
+      grp.add(c);
     }
     scene.add(grp);
-  }
-  // rocks
-  const rockMat=new THREE.MeshStandardMaterial({color:0x3a4a52,roughness:.95,metalness:.05,flatShading:true});
+  });
+
+  // BLOOD VINES — Blood Trench only
+  const bloodVineMat=new THREE.MeshStandardMaterial({color:0x8a1a1a,emissive:0x550000,emissiveIntensity:.1,roughness:.7,side:THREE.DoubleSide});
+  spawnInBiome(SB('BLOOD TRENCH'),200,function(x,y,z){
+    const h=rand(5,15);
+    const vine=new THREE.Mesh(new THREE.PlaneGeometry(rand(.3,.8),h,1,6),bloodVineMat);
+    vine.geometry=vine.geometry.clone(); vine.geometry.translate(0,h/2,0);
+    vine.position.set(x,y-.1,z); vine.rotation.y=rand(0,Math.PI);
+    scene.add(vine);
+  });
+
+  // ROCKS — everywhere but sparse
   for(let i=0;i<200;i++){
-    const x=rand(-900,900),z=rand(-900,900);
-    const r=new THREE.Mesh(new THREE.DodecahedronGeometry(rand(.7,3.8),0),rockMat);
+    const x=rand(-1200,1200),z=rand(-1200,1200);
+    const rockMat2=new THREE.MeshStandardMaterial({color:0x3a4a52,roughness:.95,metalness:.05,flatShading:true});
+    const r=new THREE.Mesh(new THREE.DodecahedronGeometry(rand(.7,3.8),0),rockMat2);
     r.position.set(x,terrainHeight(x,z)+.2,z);
     r.rotation.set(rand(0,3),rand(0,3),rand(0,3)); r.scale.y=rand(.45,.85);
     scene.add(r);
@@ -1122,7 +1195,7 @@ const fanMat=addSway(new THREE.MeshStandardMaterial({map:fanTex,transparent:true
 /* harvestable pods */
 const plants=[];
 function makePlant(type){
-  const x=rand(-800,800),z=rand(-800,800),y=terrainHeight(x,z);
+  const x=rand(-1200,1200),z=rand(-1200,1200),y=terrainHeight(x,z);
   const grp=new THREE.Group(); grp.position.set(x,y,z);
   const stem=new THREE.Mesh(new THREE.CylinderGeometry(.05,.1,1.6,5),
     new THREE.MeshStandardMaterial({color:0x35604a,roughness:.9}));
@@ -1174,7 +1247,7 @@ function spikeCluster(grp,color,emissive,glow){
   }
 }
 function makeMineral(typeKey,forceX,forceZ){
-  const x=forceX!==undefined?forceX:rand(-800,800),z=forceZ!==undefined?forceZ:rand(-800,800),y=terrainHeight(x,z);
+  const x=forceX!==undefined?forceX:rand(-1200,1200),z=forceZ!==undefined?forceZ:rand(-1200,1200),y=terrainHeight(x,z);
   const grp=new THREE.Group(); grp.position.set(x,y,z);
   if(typeKey==='nickel'){
     const rock=new THREE.Mesh(new THREE.DodecahedronGeometry(rand(.7,1),0),
@@ -1318,7 +1391,7 @@ function makeMineral(typeKey,forceX,forceZ){
   scene.add(grp); minerals.push(node);
 }
 // Biome-aware mineral spawning
-function spawnBiomeMineral(tk,ct,mnY,mxY,hb){for(let i=0;i<ct;i++){let x,z,y,t=0,ok=false;while(t<60){x=rand(-800,800);z=rand(-800,800);y=terrainHeight(x,z);t++;if(y<mnY||y>mxY)continue;if(hb){const dx=x-hb.cx,dz=z-hb.cz;if(Math.sqrt(dx*dx+dz*dz)>hb.r)continue;}ok=true;break;}if(!ok)continue;makeMineral(tk,x,z);}}
+function spawnBiomeMineral(tk,ct,mnY,mxY,hb){for(let i=0;i<ct;i++){let x,z,y,t=0,ok=false;while(t<60){x=rand(-1200,1200);z=rand(-1200,1200);y=terrainHeight(x,z);t++;if(y<mnY||y>mxY)continue;if(hb){const dx=x-hb.cx,dz=z-hb.cz;if(Math.sqrt(dx*dx+dz*dz)>hb.r)continue;}ok=true;break;}if(!ok)continue;makeMineral(tk,x,z);}}
 // Titanium & Quartz — Shallow (0-50m), all biomes, common
 spawnBiomeMineral('titanium',72,-50,0,null);spawnBiomeMineral('quartz',30,-50,0,null);
 // Copper & Lead — Shallow/Kelp (0-80m)
@@ -1341,12 +1414,12 @@ spawnBiomeMineral('obsidian',12,-350,-250,null);spawnBiomeMineral('thermalCrysta
 spawnBiomeMineral('voidstone',7,-999,-350,null);spawnBiomeMineral('pressureGel',7,-999,-250,null);
 spawnBiomeMineral('frozenAlloy',6,-999,-300,null);spawnBiomeMineral('bioMetal',6,-420,-150,null);
 // Extra titanium in shallow — most common resource
-for(let i=0;i<36;i++){const x=rand(-900,900),z=rand(-900,900),y=terrainHeight(x,z);if(y<-50||y>0)continue;makeMineral('titanium',x,z);}
+for(let i=0;i<36;i++){const x=rand(-1200,1200),z=rand(-1200,1200),y=terrainHeight(x,z);if(y<-50||y>0)continue;makeMineral('titanium',x,z);}
 
 /* bubble vents */
 const vents=[];
 for(let i=0;i<7;i++){
-  const x=rand(-160,160),z=rand(-160,160);
+  const x=rand(-700,700),z=rand(-700,700);
   vents.push(V3(x,terrainHeight(x,z)+.3,z));
 }
 
@@ -3147,14 +3220,14 @@ function tryInteract(){
    BIOME SYSTEM
    ============================================================ */
 const BIOMES=[
-  {name:'SAFE SHOALS',cx:0,cz:50,r:150,fog:new THREE.Color(0x1aadcc),den:.005,light:1.0},
-  {name:'KELP FOREST',cx:-300,cz:200,r:200,fog:new THREE.Color(0x0a6a3a),den:.01,light:.7},
-  {name:'MUSHROOM FOREST',cx:350,cz:250,r:200,fog:new THREE.Color(0x1a4a2a),den:.012,light:.6},
-  {name:'DEEP REEF',cx:300,cz:-200,r:200,fog:new THREE.Color(0x082844),den:.018,light:.35},
-  {name:'SPARSE REEF',cx:-350,cz:-150,r:200,fog:new THREE.Color(0x1a3a4a),den:.008,light:.75},
-  {name:'BLOOD TRENCH',cx:0,cz:-400,r:200,fog:new THREE.Color(0x1a0808),den:.028,light:.15},
-  {name:'THERMAL ZONE',cx:-350,cz:-450,r:200,fog:new THREE.Color(0x0a0400),den:.035,light:.08},
-  {name:'CRYSTAL CAVES',cx:350,cz:-450,r:200,fog:new THREE.Color(0x0a0520),den:.04,light:.06},
+  {name:'SAFE SHOALS',cx:0,cz:0,r:250,fog:new THREE.Color(0x1aadcc),den:.005,light:1.0},
+  {name:'KELP FOREST',cx:-500,cz:300,r:300,fog:new THREE.Color(0x0a6a3a),den:.012,light:.65},
+  {name:'MUSHROOM FOREST',cx:500,cz:400,r:280,fog:new THREE.Color(0x1a4a2a),den:.014,light:.55},
+  {name:'DEEP REEF',cx:500,cz:-400,r:300,fog:new THREE.Color(0x082844),den:.02,light:.3},
+  {name:'SPARSE REEF',cx:-550,cz:-300,r:280,fog:new THREE.Color(0x1a3a4a),den:.008,light:.7},
+  {name:'BLOOD TRENCH',cx:0,cz:-650,r:260,fog:new THREE.Color(0x1a0808),den:.03,light:.12},
+  {name:'THERMAL ZONE',cx:-500,cz:-700,r:260,fog:new THREE.Color(0x0a0400),den:.038,light:.06},
+  {name:'CRYSTAL CAVES',cx:500,cz:-700,r:260,fog:new THREE.Color(0x0a0520),den:.042,light:.05},
 ];
 const ABYSS_BIOME={name:'THE ABYSS',fog:new THREE.Color(0x000102),den:.055,light:.02};
 function getBiome(depth,x,z){
@@ -3408,7 +3481,7 @@ const peepers=[];
 // Schooling behavior — peepers travel in loose groups
 for(let i=0;i<54;i++){
   const f=makeFish(rand(.6,.9),peeperTex,0xffcc44);
-  const cx=rand(-160,160),cz=rand(-160,160);
+  const cx=rand(-700,700),cz=rand(-700,700);
   f.userData.a={c:V3(cx,clamp(terrainHeight(cx,cz)+rand(5,12),-45,-5),cz),r:rand(4,10),w:rand(.4,.8)*(Math.random()<.5?-1:1),ph:rand(0,9),alive:true,respawn:0};
   scene.add(f); peepers.push(f);
 }
@@ -3417,14 +3490,14 @@ const boomerangs=[];
 for(let i=0;i<36;i++){
   const f=makeFish(rand(.5,.7),boomerangTex,0x8899aa);
   f.scale.y=.4;
-  const cx=rand(-140,140),cz=rand(-140,140);
+  const cx=rand(-700,700),cz=rand(-700,700);
   f.userData.a={c:V3(cx,clamp(terrainHeight(cx,cz)+rand(3,8),-40,-5),cz),r:rand(5,12),w:rand(.3,.6)*(Math.random()<.5?-1:1),ph:rand(0,9),alive:true,respawn:0};
   scene.add(f); boomerangs.push(f);
 }
 const gasopods=[];
 for(let i=0;i<9;i++){
   const f=makeFish(rand(2.5,3.5),fishTexture('#3a5a2a','#88aa66','#556633'),0x88aa44);
-  const cx=rand(-120,120),cz=rand(-120,120);
+  const cx=rand(-350,350),cz=rand(-350,350);
   f.userData.a={c:V3(cx,clamp(terrainHeight(cx,cz)+rand(4,8),-35,-8),cz),r:rand(8,16),w:rand(.15,.3)*(Math.random()<.5?-1:1),ph:rand(0,9),alive:true,respawn:0};
   f.userData.toxic=true;
   scene.add(f); gasopods.push(f);
@@ -3432,7 +3505,7 @@ for(let i=0;i<9;i++){
 const stalkers=[];
 for(let i=0;i<15;i++){
   const f=makeFish(rand(1.8,2.5),stalkerTex,0x556677);
-  const cx=rand(-160,160),cz=rand(-160,160);
+  const cx=rand(-700,700),cz=rand(-700,700);
   f.userData.a={c:V3(cx,clamp(terrainHeight(cx,cz)+rand(5,12),-50,-8),cz),r:rand(6,14),w:rand(.4,.7)*(Math.random()<.5?-1:1),ph:rand(0,9),alive:true,respawn:0};
   f.userData.predator=true;
   scene.add(f); stalkers.push(f);
@@ -3441,7 +3514,7 @@ for(let i=0;i<15;i++){
 for(let i=0;i<30;i++){
   const f=makeFish(rand(.5,.7),boomerangTex,0x8899aa);
   f.scale.y=.4;
-  const cx=rand(-600,600),cz=rand(-600,600),y=terrainHeight(cx,cz);
+  const cx=rand(-900,900),cz=rand(-900,900),y=terrainHeight(cx,cz);
   if(y>-80||y<-200)continue;
   f.userData.a={c:V3(cx,clamp(y+rand(5,15),-180,-80),cz),r:rand(5,12),w:rand(.3,.6)*(Math.random()<.5?-1:1),ph:rand(0,9),alive:true,respawn:0};
   scene.add(f); boomerangs.push(f);
@@ -3449,7 +3522,7 @@ for(let i=0;i<30;i++){
 // Blood trench gasopods
 for(let i=0;i<20;i++){
   const f=makeFish(rand(2.5,3.5),fishTexture('#3a5a2a','#88aa66','#556633'),0x88aa44);
-  const cx=rand(-600,600),cz=rand(-600,600),y=terrainHeight(cx,cz);
+  const cx=rand(-900,900),cz=rand(-900,900),y=terrainHeight(cx,cz);
   if(y>-180||y<-350)continue;
   f.userData.a={c:V3(cx,clamp(y+rand(5,12),-340,-180),cz),r:rand(8,16),w:rand(.15,.3)*(Math.random()<.5?-1:1),ph:rand(0,9),alive:true,respawn:0};
   f.userData.toxic=true;
@@ -3459,7 +3532,7 @@ const crabsquids=[];
 {
   for(let i=0;i<20;i++){
     const f=makeFish(rand(1.5,2.2),roseTex,0xff5566);
-    const cx=rand(-500,500),cz=rand(-500,500),cy=terrainHeight(cx,cz);
+    const cx=rand(-800,800),cz=rand(-800,800),cy=terrainHeight(cx,cz);
     f.userData.a={c:V3(cx,clamp(cy+rand(6,15),-300,-20),cz),
       r:rand(8,18),w:rand(.2,.4)*(Math.random()<.5?-1:1),ph:rand(0,9),alive:true,respawn:0};
     f.userData.predator=true; f.scale.set(1.5,1,1.5);
@@ -3472,7 +3545,7 @@ const crabsquids=[];
 const anglerfish=[];
 for(let i=0;i<16;i++){
   const f=makeFish(rand(3,5),fishTexture('#0a0a1a','#1a1a3a','#0044ff'),0x2244ff);
-  const cx=rand(-600,600),cz=rand(-600,600),cy=terrainHeight(cx,cz);
+  const cx=rand(-900,900),cz=rand(-900,900),cy=terrainHeight(cx,cz);
   f.userData.a={c:V3(cx,clamp(cy+rand(8,20),-450,-200),cz),r:rand(10,20),w:rand(.1,.2)*(Math.random()<.5?-1:1),ph:rand(0,9),alive:true,respawn:0};
   f.userData.predator=true; f.scale.set(2,1.5,2);
   // Add glowing lure
@@ -3498,7 +3571,7 @@ const jellyfish=[];
       tent.position.set(rand(-sz*.6,sz*.6),-th/2,rand(-sz*.6,sz*.6));
       grp.add(tent);
     }
-    const cx=rand(-700,700),cz=rand(-700,700),cy=terrainHeight(cx,cz);
+    const cx=rand(-1000,1000),cz=rand(-1000,1000),cy=terrainHeight(cx,cz);
     grp.position.set(cx,clamp(cy+rand(15,40),-350,-30),cz);
     grp.userData.a={c:grp.position.clone(),r:rand(5,15),w:rand(.05,.15)*(Math.random()<.5?-1:1),ph:rand(0,9),alive:true,respawn:0};
     scene.add(grp); jellyfish.push(grp);
@@ -3509,7 +3582,7 @@ const jellyfish=[];
 const packHunters=[];
 for(let i=0;i<35;i++){
   const f=makeFish(rand(1,1.5),fishTexture('#2a2a3a','#4a4a5a','#ff4400'),0xff6622);
-  const packCx=rand(-400,400),packCz=rand(-400,400),packCy=terrainHeight(packCx,packCz);
+  const packCx=rand(-700,700),packCz=rand(-700,700),packCy=terrainHeight(packCx,packCz);
   f.userData.a={c:V3(packCx,clamp(packCy+rand(5,12),-200,-20),packCz),r:rand(4,8),w:rand(.6,1)*(Math.random()<.5?-1:1),ph:rand(0,9),alive:true,respawn:0};
   f.userData.predator=true;
   scene.add(f); packHunters.push(f);
@@ -3519,7 +3592,7 @@ for(let i=0;i<35;i++){
 const deepPredators=[];
 for(let i=0;i<28;i++){
   const f=makeFish(rand(2,4),fishTexture('#1a1a2a','#2a2a4a','#4444ff'),0x3333aa);
-  const cx=rand(-700,700),cz=rand(-700,700),cy=terrainHeight(cx,cz);
+  const cx=rand(-1000,1000),cz=rand(-1000,1000),cy=terrainHeight(cx,cz);
   f.userData.a={c:V3(cx,clamp(cy+rand(10,25),-500,-200),cz),r:rand(8,20),w:rand(.2,.4)*(Math.random()<.5?-1:1),ph:rand(0,9),alive:true,respawn:0};
   f.userData.predator=true; f.scale.set(1.8,1.3,1.8);
   scene.add(f); deepPredators.push(f);
@@ -3528,7 +3601,7 @@ for(let i=0;i<28;i++){
 const abyssEels=[];
 for(let i=0;i<12;i++){
   const f=makeFish(rand(4,7),fishTexture('#0a0a1a','#1a1a2a','#22ff66'),0x11aa44);
-  const cx=rand(-600,600),cz=rand(-600,600),cy=terrainHeight(cx,cz);
+  const cx=rand(-900,900),cz=rand(-900,900),cy=terrainHeight(cx,cz);
   f.userData.a={c:V3(cx,clamp(cy+rand(15,35),-550,-380),cz),r:rand(12,25),w:rand(.1,.25)*(Math.random()<.5?-1:1),ph:rand(0,9),alive:true,respawn:0};
   f.userData.predator=true; f.scale.set(2.5,1,2.5);
   scene.add(f); abyssEels.push(f);
@@ -3615,7 +3688,7 @@ for(let i=0;i<8;i++){
   const wing2=wing1.clone(); wing2.position.set(-4,0,0); wing2.rotation.z=.15; grp.add(wing2);
   const tail=new THREE.Mesh(new THREE.CylinderGeometry(.05,.2,4,6),new THREE.MeshStandardMaterial({color:0x2a3a4a,roughness:.7}));
   tail.rotation.x=Math.PI/2; tail.position.set(0,0,-3); grp.add(tail);
-  const cx=rand(-500,500),cz=rand(-500,500),cy=terrainHeight(cx,cz);
+  const cx=rand(-800,800),cz=rand(-800,800),cy=terrainHeight(cx,cz);
   grp.position.set(cx,clamp(cy+rand(20,50),-250,-15),cz);
   grp.userData.a={c:grp.position.clone(),r:rand(15,30),w:rand(.08,.18)*(Math.random()<.5?-1:1),ph:rand(0,9),alive:true,respawn:0};
   scene.add(grp); mantas.push(grp);
@@ -3667,7 +3740,7 @@ const giantCrabs=[];
       const eye=new THREE.Mesh(new THREE.SphereGeometry(sz*.08,6,6),crabEye);
       eye.position.set(s*sz*.3,sz*.8,sz*.5); grp.add(eye);
     }
-    const cx=rand(-600,600),cz=rand(-600,600),cy=terrainHeight(cx,cz);
+    const cx=rand(-900,900),cz=rand(-900,900),cy=terrainHeight(cx,cz);
     grp.position.set(cx,cy,cz);
     grp.userData.a={c:V3(cx,cy,cz),r:rand(8,20),w:rand(.08,.2)*(Math.random()<.5?-1:1),ph:rand(0,9),alive:true,respawn:0};
     grp.userData.predator=true;
@@ -3679,7 +3752,7 @@ const giantCrabs=[];
 {
   const rockMat=new THREE.MeshStandardMaterial({color:0x556055,roughness:.95,metalness:.05});
   for(let i=0;i<300;i++){
-    const x=rand(-800,800),z=rand(-800,800),y=terrainHeight(x,z);
+    const x=rand(-1200,1200),z=rand(-1200,1200),y=terrainHeight(x,z);
     if(y>0)continue;
     const sz=rand(.5,3);
     const rock=new THREE.Mesh(new THREE.DodecahedronGeometry(sz,0),rockMat);
@@ -3743,7 +3816,7 @@ for(let i=0;i<5&&dtAttempts<200;dtAttempts++){
 /* ESCAPE PODS scattered around map */
 const escapePods=[];
 for(let i=0;i<8;i++){
-  const x=rand(-600,600),z=rand(-600,600),y=terrainHeight(x,z);
+  const x=rand(-900,900),z=rand(-900,900),y=terrainHeight(x,z);
   const grp=new THREE.Group(); grp.position.set(x,y,z);
   const pod=new THREE.Mesh(new THREE.CapsuleGeometry(1.2,2,8,12),new THREE.MeshStandardMaterial({color:0xcc6633,roughness:.7,metalness:.3}));
   pod.rotation.set(rand(-.5,.5),rand(0,3),rand(-.3,.3)); pod.position.y=1.5; grp.add(pod);
@@ -3756,7 +3829,7 @@ for(let i=0;i<8;i++){
 /* ALIEN TOWERS */
 const alienTowers=[];
 for(let i=0;i<3;i++){
-  const x=rand(-500,500),z=rand(-500,500),y=terrainHeight(x,z);
+  const x=rand(-800,800),z=rand(-800,800),y=terrainHeight(x,z);
   if(y>-60)continue;
   const grp=new THREE.Group(); grp.position.set(x,y,z);
   const towerMat=new THREE.MeshStandardMaterial({color:0x112233,roughness:.6,metalness:.4,emissive:0x003355,emissiveIntensity:.5});
@@ -3811,7 +3884,7 @@ const fireCorals=[];
 {
   const branchMat2=new THREE.MeshStandardMaterial({color:0xff6688,roughness:.6,emissive:0x881133,emissiveIntensity:.4});
   for(let i=0;i<400;i++){
-    const x=rand(-800,800),z=rand(-800,800),y=terrainHeight(x,z);
+    const x=rand(-1200,1200),z=rand(-1200,1200),y=terrainHeight(x,z);
     if(y<-450)continue;
     const grp=new THREE.Group(); grp.position.set(x,y,z);
     const th=rand(3,7);
@@ -3827,14 +3900,14 @@ const fireCorals=[];
   }
   const plateMat2=new THREE.MeshStandardMaterial({color:0x44bbaa,roughness:.5,emissive:0x117766,emissiveIntensity:.3,side:THREE.DoubleSide});
   for(let i=0;i<200;i++){
-    const x=rand(-800,800),z=rand(-800,800),y=terrainHeight(x,z);
+    const x=rand(-1200,1200),z=rand(-1200,1200),y=terrainHeight(x,z);
     const pl=new THREE.Mesh(new THREE.CylinderGeometry(rand(2,5),.2,.15,12),plateMat2);
     pl.position.set(x,y+.1,z); pl.rotation.set(rand(-.2,.2),rand(0,3),rand(-.2,.2));
     scene.add(pl);
   }
   const mushMat2=new THREE.MeshStandardMaterial({color:0xddaa55,roughness:.7,emissive:0x553311,emissiveIntensity:.2});
   for(let i=0;i<180;i++){
-    const x=rand(-800,800),z=rand(-800,800),y=terrainHeight(x,z);
+    const x=rand(-1200,1200),z=rand(-1200,1200),y=terrainHeight(x,z);
     const grp=new THREE.Group(); grp.position.set(x,y,z);
     const sh=rand(1.5,4);
     const stem=new THREE.Mesh(new THREE.CylinderGeometry(.12,.18,sh,7),mushMat2);
@@ -3845,7 +3918,7 @@ const fireCorals=[];
   }
   const fireMat2=new THREE.MeshStandardMaterial({color:0xff3300,roughness:.4,emissive:0xff2200,emissiveIntensity:0.12});
   for(let i=0;i<30;i++){
-    const x=rand(-800,800),z=rand(-800,800),y=terrainHeight(x,z);
+    const x=rand(-1200,1200),z=rand(-1200,1200),y=terrainHeight(x,z);
     const grp=new THREE.Group(); grp.position.set(x,y,z);
     for(let j=0;j<5+Math.floor(Math.random()*4);j++){
       const bh2=rand(.6,1.4);
@@ -3866,7 +3939,7 @@ const fireCorals=[];
   const fleshMat=new THREE.MeshStandardMaterial({color:0x8a2233,roughness:.7,emissive:0x441122,emissiveIntensity:.3});
   const veinMat=new THREE.MeshStandardMaterial({color:0xcc3344,roughness:.5,emissive:0x661122,emissiveIntensity:.6});
   for(let i=0;i<120;i++){
-    const x=rand(-800,800),z=rand(-800,800),y=terrainHeight(x,z);
+    const x=rand(-1200,1200),z=rand(-1200,1200),y=terrainHeight(x,z);
     if(y>-150||y<-250)continue;
     const grp=new THREE.Group(); grp.position.set(x,y,z);
     // fleshy tendril plants
@@ -3883,7 +3956,7 @@ const fireCorals=[];
   // Blood trench predator nests (bone-like structures)
   const boneMat=new THREE.MeshStandardMaterial({color:0xccbbaa,roughness:.8,metalness:.1});
   for(let i=0;i<30;i++){
-    const x=rand(-700,700),z=rand(-700,700),y=terrainHeight(x,z);
+    const x=rand(-1000,1000),z=rand(-1000,1000),y=terrainHeight(x,z);
     if(y>-160||y<-240)continue;
     const grp=new THREE.Group(); grp.position.set(x,y,z);
     for(let j=0;j<6;j++){
@@ -3901,7 +3974,7 @@ const fireCorals=[];
   const lavaMat=new THREE.MeshStandardMaterial({color:0xff6600,emissive:0xff4400,emissiveIntensity:0.12,roughness:.6});
   const heatPlantMat=new THREE.MeshStandardMaterial({color:0x886622,roughness:.6,emissive:0x442200,emissiveIntensity:.4});
   for(let i=0;i<60;i++){
-    const x=rand(-800,800),z=rand(-800,800),y=terrainHeight(x,z);
+    const x=rand(-1200,1200),z=rand(-1200,1200),y=terrainHeight(x,z);
     if(y>-250||y<-350)continue;
     const grp=new THREE.Group(); grp.position.set(x,y,z);
     // volcanic vent chimney
@@ -3919,7 +3992,7 @@ const fireCorals=[];
   }
   // Molten cracks on thermal zone floor
   for(let i=0;i<40;i++){
-    const x=rand(-700,700),z=rand(-700,700),y=terrainHeight(x,z);
+    const x=rand(-1000,1000),z=rand(-1000,1000),y=terrainHeight(x,z);
     if(y>-260||y<-340)continue;
     const crack=new THREE.Mesh(new THREE.BoxGeometry(rand(.1,.3),.05,rand(4,12)),lavaMat);
     crack.position.set(x,y+.1,z); crack.rotation.y=rand(0,Math.PI);
@@ -3930,7 +4003,7 @@ const fireCorals=[];
   const crystalMat=new THREE.MeshStandardMaterial({color:0x8866ff,roughness:.35,metalness:.15,emissive:0x4422aa,emissiveIntensity:0.12,transparent:true,opacity:.8});
   const crystalMat2=new THREE.MeshStandardMaterial({color:0x44ddff,roughness:.35,metalness:.1,emissive:0x2288cc,emissiveIntensity:0.12,transparent:true,opacity:.75});
   for(let i=0;i<80;i++){
-    const x=rand(-800,800),z=rand(-800,800),y=terrainHeight(x,z);
+    const x=rand(-1200,1200),z=rand(-1200,1200),y=terrainHeight(x,z);
     if(y>-350||y<-420)continue;
     const grp=new THREE.Group(); grp.position.set(x,y,z);
     const mat=Math.random()>.5?crystalMat:crystalMat2;
@@ -3947,7 +4020,7 @@ const fireCorals=[];
   const abyssPlantMat=new THREE.MeshStandardMaterial({color:0x113322,roughness:.5,emissive:0x00ff66,emissiveIntensity:0.12,transparent:true,opacity:.7});
   const abyssStemMat=new THREE.MeshStandardMaterial({color:0x0a1a15,roughness:.8});
   for(let i=0;i<40;i++){
-    const x=rand(-800,800),z=rand(-800,800),y=terrainHeight(x,z);
+    const x=rand(-1200,1200),z=rand(-1200,1200),y=terrainHeight(x,z);
     if(y>-420)continue;
     const grp=new THREE.Group(); grp.position.set(x,y,z);
     // Giant bioluminescent trees
@@ -4006,13 +4079,13 @@ const fireCorals=[];
     for(let i=0;i<3;i++){
       let placed2=false;
       for(let attempt=0;attempt<30&&!placed2;attempt++){
-        const ax=rand(-700,700),az=rand(-700,700);
+        const ax=rand(-1000,1000),az=rand(-1000,1000);
         const ay=terrainHeight(ax,az);
         if(Math.abs(-ay - tfDef.borderDepth) < 25){
           makeTraitFlower(ax,az,tfDef); placed2=true;
         }
       }
-      if(!placed2){ makeTraitFlower(rand(-400,400),rand(-400,400),tfDef); }
+      if(!placed2){ makeTraitFlower(rand(-700,700),rand(-700,700),tfDef); }
     }
   }
   // Guaranteed starter flower near spawn (oxygen efficiency)
@@ -4099,7 +4172,7 @@ const fireCorals=[];
   // SAFE SHOALS — soft coral, colorful reefs, seagrass
   const seagrassMat=addSway(new THREE.MeshStandardMaterial({color:0x66bb55,roughness:.8,side:THREE.DoubleSide,transparent:true,alphaTest:.3}),.6);
   for(let i=0;i<350;i++){
-    const x=rand(-800,800),z=rand(-800,800),y=terrainHeight(x,z);
+    const x=rand(-1200,1200),z=rand(-1200,1200),y=terrainHeight(x,z);
     if(y<-30||y>0)continue;
     const h=rand(1,3);
     const grass=new THREE.Mesh(new THREE.PlaneGeometry(.3,h,1,4),seagrassMat);
@@ -4110,7 +4183,7 @@ const fireCorals=[];
   // Soft rounded corals for shallows
   const softCoralCols=[0xff8899,0x88ccff,0xffcc66,0x99eebb];
   for(let i=0;i<200;i++){
-    const x=rand(-600,600),z=rand(-600,600),y=terrainHeight(x,z);
+    const x=rand(-900,900),z=rand(-900,900),y=terrainHeight(x,z);
     if(y<-35||y>0)continue;
     const col=softCoralCols[i%softCoralCols.length];
     const c=new THREE.Mesh(new THREE.SphereGeometry(rand(.7,2.2),10,8),
@@ -4122,7 +4195,7 @@ const fireCorals=[];
   // Branching coral trees — mid depth
   const branchCoralCols=[0xee7788,0x77bbdd,0xeebb55,0x88ddaa,0xdd88cc];
   for(let i=0;i<80;i++){
-    const x=rand(-700,700),z=rand(-700,700),y=terrainHeight(x,z);
+    const x=rand(-1000,1000),z=rand(-1000,1000),y=terrainHeight(x,z);
     if(y>-20||y<-180)continue;
     const grp=new THREE.Group(); grp.position.set(x,y,z);
     const col=branchCoralCols[i%branchCoralCols.length];
@@ -4247,7 +4320,7 @@ const fireCorals=[];
   // ABYSS — ghostly filament webs
   const filamentMat=new THREE.MeshStandardMaterial({color:0x22ffaa,roughness:.3,emissive:0x11cc88,emissiveIntensity:.6,transparent:true,opacity:.4,side:THREE.DoubleSide});
   for(let i=0;i<35;i++){
-    const x=rand(-700,700),z=rand(-700,700),y=terrainHeight(x,z);
+    const x=rand(-1000,1000),z=rand(-1000,1000),y=terrainHeight(x,z);
     if(y>-425)continue;
     const grp=new THREE.Group();grp.position.set(x,y,z);
     for(let j=0;j<6+Math.floor(Math.random()*6);j++){
@@ -4270,7 +4343,7 @@ const fireCorals=[];
   // Deep reef massive sponge forests (y: -60 to -150)
   const spongeColors=[0x2288aa,0x338866,0x557799,0x446688];
   for(let i=0;i<300;i++){
-    const x=rand(-800,800),z=rand(-800,800),y=terrainHeight(x,z);
+    const x=rand(-1200,1200),z=rand(-1200,1200),y=terrainHeight(x,z);
     if(y>-60||y<-150)continue;
     const grp=new THREE.Group(); grp.position.set(x,y,z);
     const col=spongeColors[i%4];
@@ -4286,7 +4359,7 @@ const fireCorals=[];
   // Blood Trench bone forests (y: -150 to -250)
   const boneMat2=new THREE.MeshStandardMaterial({color:0xccbbaa,roughness:.9});
   for(let i=0;i<200;i++){
-    const x=rand(-800,800),z=rand(-800,800),y=terrainHeight(x,z);
+    const x=rand(-1200,1200),z=rand(-1200,1200),y=terrainHeight(x,z);
     if(y>-150||y<-280)continue;
     const grp=new THREE.Group(); grp.position.set(x,y,z);
     for(let j=0;j<3+Math.floor(Math.random()*5);j++){
@@ -4301,7 +4374,7 @@ const fireCorals=[];
   // Thermal zone smoker chimneys (y: -250 to -380)
   const chimneyMat=new THREE.MeshStandardMaterial({color:0x2a1a0a,roughness:.95,emissive:0x331100,emissiveIntensity:.2});
   for(let i=0;i<150;i++){
-    const x=rand(-800,800),z=rand(-800,800),y=terrainHeight(x,z);
+    const x=rand(-1200,1200),z=rand(-1200,1200),y=terrainHeight(x,z);
     if(y>-250||y<-400)continue;
     const h=rand(5,15);
     const chimney=new THREE.Mesh(new THREE.CylinderGeometry(rand(.3,.8),rand(1,2.5),h,7),chimneyMat);
@@ -4311,7 +4384,7 @@ const fireCorals=[];
   // Crystal Caves glowing clusters (y: -300 to -420)
   const crystalColors=[0x8844ff,0x44aaff,0xff44aa,0x44ffaa];
   for(let i=0;i<250;i++){
-    const x=rand(-800,800),z=rand(-800,800),y=terrainHeight(x,z);
+    const x=rand(-1200,1200),z=rand(-1200,1200),y=terrainHeight(x,z);
     if(y>-300||y<-450)continue;
     const grp=new THREE.Group(); grp.position.set(x,y,z);
     const col=crystalColors[i%4];
@@ -4328,7 +4401,7 @@ const fireCorals=[];
   // Abyss bioluminescent gardens (y: -420 to -550)
   const bioColors=[0x00ffaa,0x00aaff,0xff00aa,0xaaff00];
   for(let i=0;i<200;i++){
-    const x=rand(-800,800),z=rand(-800,800),y=terrainHeight(x,z);
+    const x=rand(-1200,1200),z=rand(-1200,1200),y=terrainHeight(x,z);
     if(y>-420)continue;
     const grp=new THREE.Group(); grp.position.set(x,y,z);
     const col=bioColors[i%4];
@@ -4347,7 +4420,7 @@ const fireCorals=[];
   // Vine curtains across all deep areas (y < -80)
   const vineMat=new THREE.MeshStandardMaterial({color:0x1a4a2a,roughness:.85,side:THREE.DoubleSide,transparent:true,opacity:.7});
   for(let i=0;i<400;i++){
-    const x=rand(-800,800),z=rand(-800,800),y=terrainHeight(x,z);
+    const x=rand(-1200,1200),z=rand(-1200,1200),y=terrainHeight(x,z);
     if(y>-80)continue;
     const h=rand(5,20),w=rand(.3,1);
     const vine=new THREE.Mesh(new THREE.PlaneGeometry(w,h,1,6),vineMat);
@@ -4509,7 +4582,7 @@ wrecks.forEach(w=>{
 
 // Abandoned base wrecks (5th type)
 for(let i=0;i<8;i++){
-  const x=rand(-600,600),z=rand(-600,600),ty=terrainHeight(x,z);
+  const x=rand(-900,900),z=rand(-900,900),ty=terrainHeight(x,z);
   if(ty>-15)continue;
   const grp=new THREE.Group();
   const rustMat=new THREE.MeshStandardMaterial({color:0x4a3a2a,roughness:.95,metalness:.3});
@@ -4546,7 +4619,7 @@ for(let i=0;i<8;i++){
 {
   // Giant kelp towers everywhere (shallow to mid)
   for(let i=0;i<400;i++){
-    const x=rand(-900,900),z=rand(-900,900),y=terrainHeight(x,z);
+    const x=rand(-1200,1200),z=rand(-1200,1200),y=terrainHeight(x,z);
     if(y<-200||y>-3)continue;
     const h=rand(12,30);
     const k=new THREE.Mesh(new THREE.PlaneGeometry(rand(1,2.5),h,1,8),kelpMat);
@@ -4557,7 +4630,7 @@ for(let i=0;i<8;i++){
   // Massive boulder fields (all depths)
   const boulderMat=new THREE.MeshStandardMaterial({color:0x3a4a4a,roughness:.95,flatShading:true});
   for(let i=0;i<500;i++){
-    const x=rand(-900,900),z=rand(-900,900),y=terrainHeight(x,z);
+    const x=rand(-1200,1200),z=rand(-1200,1200),y=terrainHeight(x,z);
     const r=rand(1,5);
     const b=new THREE.Mesh(new THREE.IcosahedronGeometry(r,1),boulderMat);
     b.scale.set(rand(.6,1.4),rand(.4,.8),rand(.6,1.4));
@@ -4567,7 +4640,7 @@ for(let i=0;i<8;i++){
   // Seagrass carpets (shallow -3 to -60)
   const grassMat=new THREE.MeshStandardMaterial({color:0x2a6a3a,roughness:.85,side:THREE.DoubleSide,transparent:true,opacity:.8});
   for(let i=0;i<800;i++){
-    const x=rand(-900,900),z=rand(-900,900),y=terrainHeight(x,z);
+    const x=rand(-1200,1200),z=rand(-1200,1200),y=terrainHeight(x,z);
     if(y<-60||y>-3)continue;
     const h=rand(1,3);
     const blade=new THREE.Mesh(new THREE.PlaneGeometry(.15,h,1,3),grassMat);
@@ -4578,7 +4651,7 @@ for(let i=0;i<8;i++){
   // Mid-depth coral gardens (-60 to -200)
   const gardenCols=[0xff6677,0x44bbaa,0xddaa55,0x7766dd,0xff9944,0x44ddaa];
   for(let i=0;i<600;i++){
-    const x=rand(-900,900),z=rand(-900,900),y=terrainHeight(x,z);
+    const x=rand(-1200,1200),z=rand(-1200,1200),y=terrainHeight(x,z);
     if(y>-60||y<-200)continue;
     const col=gardenCols[i%6];
     const mat=new THREE.MeshStandardMaterial({color:col,roughness:.7});
@@ -4609,7 +4682,7 @@ for(let i=0;i<8;i++){
   const deepMat=new THREE.MeshStandardMaterial({color:0x1a2a3a,roughness:.9});
   const deepGlowCols=[0x2244ff,0x22ffaa,0xff2288,0xffaa22];
   for(let i=0;i<400;i++){
-    const x=rand(-900,900),z=rand(-900,900),y=terrainHeight(x,z);
+    const x=rand(-1200,1200),z=rand(-1200,1200),y=terrainHeight(x,z);
     if(y>-200||y<-400)continue;
     const col=deepGlowCols[i%4];
     const mat=new THREE.MeshStandardMaterial({color:col,roughness:.5,emissive:col,emissiveIntensity:.4});
@@ -4642,7 +4715,7 @@ for(let i=0;i<8;i++){
   }
   // Abyss content (-400 to -550)
   for(let i=0;i<300;i++){
-    const x=rand(-900,900),z=rand(-900,900),y=terrainHeight(x,z);
+    const x=rand(-1200,1200),z=rand(-1200,1200),y=terrainHeight(x,z);
     if(y>-400)continue;
     const col=deepGlowCols[i%4];
     const mat=new THREE.MeshStandardMaterial({color:col,roughness:.4,emissive:col,emissiveIntensity:.6});
@@ -4677,7 +4750,7 @@ for(let i=0;i<8;i++){
   spawnBiomeMineral('copper',4,-80,0,null);spawnBiomeMineral('lead',3,-80,0,null);
   // Extra wrecks in deep areas
   for(let i=0;i<12;i++){
-    const x=rand(-800,800),z=rand(-800,800),y=terrainHeight(x,z);
+    const x=rand(-1200,1200),z=rand(-1200,1200),y=terrainHeight(x,z);
     if(y>-100)continue;
     const grp=new THREE.Group();grp.position.set(x,y,z);grp.rotation.y=rand(0,6);
     const hull=new THREE.Mesh(new THREE.CylinderGeometry(2,2.5,6,8,1,true,0,Math.PI*1.5),wreckMat);
@@ -4692,7 +4765,7 @@ for(let i=0;i<8;i++){
   }
   // Extra deep scattered wrecks
   for(let i=0;i<15;i++){
-    const x=rand(-900,900),z=rand(-900,900),y=terrainHeight(x,z);
+    const x=rand(-1200,1200),z=rand(-1200,1200),y=terrainHeight(x,z);
     if(y>-100)continue;
     const grp=new THREE.Group(); grp.position.set(x,y,z); grp.rotation.y=rand(0,Math.PI*2);
     // Collapsed hull section
@@ -4718,7 +4791,7 @@ for(let i=0;i<8;i++){
   deepWreckZones.forEach((zone,zi)=>{
     for(let i=0;i<5;i++){
       let x,z,y,tries=0;
-      do{ x=rand(-800,800);z=rand(-800,800);y=terrainHeight(x,z);tries++; }while((y>zone.maxY||y<zone.minY)&&tries<80);
+      do{ x=rand(-1200,1200);z=rand(-1200,1200);y=terrainHeight(x,z);tries++; }while((y>zone.maxY||y<zone.minY)&&tries<80);
       if(tries>=80)continue;
       const grp=new THREE.Group();grp.position.set(x,y,z);grp.rotation.y=rand(0,Math.PI*2);
       const sz=zi===2?2.0:zi===1?1.4:1.0;
@@ -4853,7 +4926,7 @@ for(let i=0;i<8;i++){
   // The Abyss (-430m+) — Giant Abyssal Maw, 40-60m (biggest)
   const mawMat=new THREE.MeshStandardMaterial({color:0x00ffaa,roughness:.3,emissive:0x00cc88,emissiveIntensity:.5});
   for(let i=0;i<4;i++){
-    const x=rand(-800,800),z=rand(-800,800),y=terrainHeight(x,z);
+    const x=rand(-1200,1200),z=rand(-1200,1200),y=terrainHeight(x,z);
     if(y>-430)continue;
     const grp=new THREE.Group();grp.position.set(x,y,z);
     const h=rand(40,60);
@@ -5328,7 +5401,7 @@ function animate(){
     window._oreRegenTimer=0;
     for(const m of minerals){
       if(m.dead){
-        const nx=rand(-800,800),nz=rand(-800,800);
+        const nx=rand(-1200,1200),nz=rand(-1200,1200);
         m.grp.position.set(nx,terrainHeight(nx,nz),nz);
         m.dead=false; m.hp=m.max;
         m.grp.visible=true;
