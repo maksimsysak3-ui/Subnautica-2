@@ -2985,7 +2985,7 @@ function hudTick(){
   const sv=$('statusVal'); sv.classList.remove('int','surf');
   if(insideBase){ sv.textContent='HABITAT · PRESSURIZED'; sv.classList.add('int'); }
   else if(camWorld.y>-.3){ sv.textContent='SURFACE'; sv.classList.add('surf'); }
-  else { const biome=getBiome(d,camera.position.x,camera.position.z); sv.textContent=biome.name; }
+  else { const biome=getBiome(d,camWorld.x,camWorld.z); sv.textContent=biome.name; }
   const depthFrac=clamp(d/500,0,1);
   $('deepTint').style.opacity=insideBase?0:clamp(depthFrac*depthFrac*.9,0,.9);
   $('deepTint').style.background='linear-gradient(180deg, rgba(0,'+Math.floor(18-14*depthFrac)+','+Math.floor(42-30*depthFrac)+',0), rgba(0,'+Math.floor(6-4*depthFrac)+','+Math.floor(26+10*depthFrac)+','+(.3+depthFrac*.5).toFixed(2)+'))';
@@ -5176,7 +5176,7 @@ function animate(){
 
   /* atmosphere + biome */
   const curDepth=Math.max(0,-camWorld.y);
-  const biome=getBiome(curDepth,camera.position.x,camera.position.z);
+  const biome=getBiome(curDepth,camWorld.x,camWorld.z);
   /* crush depth warning */
   if(curDepth>400&&underwater){
     let cw=$('crushWarn');
