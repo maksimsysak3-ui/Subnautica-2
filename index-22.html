@@ -1320,28 +1320,28 @@ function makeMineral(typeKey,forceX,forceZ){
 // Biome-aware mineral spawning
 function spawnBiomeMineral(tk,ct,mnY,mxY,hb){for(let i=0;i<ct;i++){let x,z,y,t=0,ok=false;while(t<60){x=rand(-800,800);z=rand(-800,800);y=terrainHeight(x,z);t++;if(y<mnY||y>mxY)continue;if(hb){const dx=x-hb.cx,dz=z-hb.cz;if(Math.sqrt(dx*dx+dz*dz)>hb.r)continue;}ok=true;break;}if(!ok)continue;makeMineral(tk,x,z);}}
 // Titanium & Quartz — Shallow (0-50m), all biomes, common
-spawnBiomeMineral('titanium',60,-50,0,null);spawnBiomeMineral('quartz',25,-50,0,null);
+spawnBiomeMineral('titanium',72,-50,0,null);spawnBiomeMineral('quartz',30,-50,0,null);
 // Copper & Lead — Shallow/Kelp (0-80m)
-spawnBiomeMineral('copper',35,-80,0,null);spawnBiomeMineral('lead',25,-80,0,null);
+spawnBiomeMineral('copper',42,-80,0,null);spawnBiomeMineral('lead',30,-80,0,null);
 // Silver & Gold — Deep Reef (80-150m)
-spawnBiomeMineral('silver',15,-150,-80,null);spawnBiomeMineral('gold',12,-150,-80,null);
+spawnBiomeMineral('silver',18,-150,-80,null);spawnBiomeMineral('gold',14,-150,-80,null);
 // Lithium — Crystal Caves depth (350-420m)
-spawnBiomeMineral('lithium',15,-420,-350,null);
+spawnBiomeMineral('lithium',18,-420,-350,null);
 // Magnetite — Blood Trench (150-250m)
-spawnBiomeMineral('magnetite',15,-250,-150,null);
+spawnBiomeMineral('magnetite',18,-250,-150,null);
 // Nickel & Ruby — Thermal Zone (250-350m)
-spawnBiomeMineral('nickel',12,-350,-250,null);spawnBiomeMineral('ruby',10,-350,-250,null);
+spawnBiomeMineral('nickel',14,-350,-250,null);spawnBiomeMineral('ruby',12,-350,-250,null);
 // Kyanite & Diamond — The Abyss (420m+)
-spawnBiomeMineral('kyanite',8,-999,-420,null);spawnBiomeMineral('diamond',7,-999,-420,null);
+spawnBiomeMineral('kyanite',10,-999,-420,null);spawnBiomeMineral('diamond',8,-999,-420,null);
 // Uraninite — deep only (350m+)
-spawnBiomeMineral('uraninite',5,-999,-350,null);
+spawnBiomeMineral('uraninite',6,-999,-350,null);
 // Obsidian & thermalCrystal — Thermal Zone (250-350m)
-spawnBiomeMineral('obsidian',10,-350,-250,null);spawnBiomeMineral('thermalCrystal',10,-350,-250,null);
+spawnBiomeMineral('obsidian',12,-350,-250,null);spawnBiomeMineral('thermalCrystal',12,-350,-250,null);
 // Voidstone, pressureGel, frozenAlloy, bioMetal — deep
-spawnBiomeMineral('voidstone',6,-999,-350,null);spawnBiomeMineral('pressureGel',6,-999,-250,null);
-spawnBiomeMineral('frozenAlloy',5,-999,-300,null);spawnBiomeMineral('bioMetal',5,-420,-150,null);
+spawnBiomeMineral('voidstone',7,-999,-350,null);spawnBiomeMineral('pressureGel',7,-999,-250,null);
+spawnBiomeMineral('frozenAlloy',6,-999,-300,null);spawnBiomeMineral('bioMetal',6,-420,-150,null);
 // Extra titanium in shallow — most common resource
-for(let i=0;i<30;i++){const x=rand(-900,900),z=rand(-900,900),y=terrainHeight(x,z);if(y<-50||y>0)continue;makeMineral('titanium',x,z);}
+for(let i=0;i<36;i++){const x=rand(-900,900),z=rand(-900,900),y=terrainHeight(x,z);if(y<-50||y>0)continue;makeMineral('titanium',x,z);}
 
 /* bubble vents */
 const vents=[];
@@ -3147,14 +3147,14 @@ function tryInteract(){
    BIOME SYSTEM
    ============================================================ */
 const BIOMES=[
-  {name:'SAFE SHOALS',cx:0,cz:0,r:120,fog:new THREE.Color(0x1aadcc),den:.005,light:1.0},
-  {name:'KELP FOREST',cx:-200,cz:100,r:160,fog:new THREE.Color(0x0a6a3a),den:.01,light:.7},
-  {name:'MUSHROOM FOREST',cx:250,cz:150,r:140,fog:new THREE.Color(0x1a4a2a),den:.012,light:.6},
-  {name:'DEEP REEF',cx:100,cz:-250,r:150,fog:new THREE.Color(0x082844),den:.018,light:.35},
-  {name:'SPARSE REEF',cx:-250,cz:-200,r:140,fog:new THREE.Color(0x1a3a4a),den:.008,light:.75},
-  {name:'BLOOD TRENCH',cx:0,cz:-350,r:130,fog:new THREE.Color(0x1a0808),den:.028,light:.15},
-  {name:'THERMAL ZONE',cx:-150,cz:-400,r:120,fog:new THREE.Color(0x0a0400),den:.035,light:.08},
-  {name:'CRYSTAL CAVES',cx:200,cz:-400,r:130,fog:new THREE.Color(0x0a0520),den:.04,light:.06},
+  {name:'SAFE SHOALS',cx:0,cz:50,r:150,fog:new THREE.Color(0x1aadcc),den:.005,light:1.0},
+  {name:'KELP FOREST',cx:-300,cz:200,r:200,fog:new THREE.Color(0x0a6a3a),den:.01,light:.7},
+  {name:'MUSHROOM FOREST',cx:350,cz:250,r:200,fog:new THREE.Color(0x1a4a2a),den:.012,light:.6},
+  {name:'DEEP REEF',cx:300,cz:-200,r:200,fog:new THREE.Color(0x082844),den:.018,light:.35},
+  {name:'SPARSE REEF',cx:-350,cz:-150,r:200,fog:new THREE.Color(0x1a3a4a),den:.008,light:.75},
+  {name:'BLOOD TRENCH',cx:0,cz:-400,r:200,fog:new THREE.Color(0x1a0808),den:.028,light:.15},
+  {name:'THERMAL ZONE',cx:-350,cz:-450,r:200,fog:new THREE.Color(0x0a0400),den:.035,light:.08},
+  {name:'CRYSTAL CAVES',cx:350,cz:-450,r:200,fog:new THREE.Color(0x0a0520),den:.04,light:.06},
 ];
 const ABYSS_BIOME={name:'THE ABYSS',fog:new THREE.Color(0x000102),den:.055,light:.02};
 function getBiome(depth,x,z){
@@ -3163,9 +3163,7 @@ function getBiome(depth,x,z){
   let best=null,bestD=Infinity;
   for(const b of BIOMES){
     const dx=x-b.cx,dz=z-b.cz,dist=Math.sqrt(dx*dx+dz*dz);
-    if(dist<b.r) return b;
-    const score=dist/b.r;
-    if(score<bestD){bestD=score;best=b;}
+    if(dist<bestD){bestD=dist;best=b;}
   }
   return best||BIOMES[0];
 }
