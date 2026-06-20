@@ -2904,7 +2904,9 @@ function hudTick(){
   if(insideBase){ sv.textContent='HABITAT · PRESSURIZED'; sv.classList.add('int'); }
   else if(camWorld.y>-.3){ sv.textContent='SURFACE'; sv.classList.add('surf'); }
   else { const biome=getBiome(d,camera.position.x,camera.position.z); sv.textContent=biome.name; }
-  $('deepTint').style.opacity=insideBase?0:clamp((d-12)/42,0,.85);
+  const depthFrac=clamp(d/500,0,1);
+  $('deepTint').style.opacity=insideBase?0:clamp(depthFrac*depthFrac*.9,0,.9);
+  $('deepTint').style.background='linear-gradient(180deg, rgba(0,'+Math.floor(18-14*depthFrac)+','+Math.floor(42-30*depthFrac)+',0), rgba(0,'+Math.floor(6-4*depthFrac)+','+Math.floor(26+10*depthFrac)+','+(.3+depthFrac*.5).toFixed(2)+'))';
   const heading=((Math.atan2(camDir.x,-camDir.z)*180/Math.PI)%360+360)%360;
   $('compInner').style.transform=`translateX(${180-(heading+180)*3}px)`;
 }
@@ -2976,11 +2978,14 @@ function endTraitMinigame(won){
   if(won&&traitMinigameFlower){
     traitMinigameFlower.userData.claimed=true;
     const name=traitMinigameFlower.userData.traitName;
+    const tKey=traitMinigameFlower.userData.traitKey;
     playerTraits[name]=true;
-    toast('TRAIT ACQUIRED: '+name);
-    blip(880,.15,'sine',.12);
+    if(tKey && traits.hasOwnProperty(tKey)) traits[tKey]=true;
+    toast('TRAIT UNLOCKED: '+name);
+    blip(880,.15,'sine',.12); blip(1100,.1,'sine',.08);
     traitMinigameFlower.traverse(c=>{if(c.isMesh)c.material=c.material.clone();});
     traitMinigameFlower.traverse(c=>{if(c.isMesh){c.material.opacity=.3;c.material.emissiveIntensity=.1;}});
+    if(traitMinigameFlower.userData.glowLight) traitMinigameFlower.userData.glowLight.intensity=0;
   }else if(!won){
     toast('MINIGAME FAILED — TRY AGAIN');
     blip(180,.15,'sawtooth',.1);
@@ -3088,6 +3093,31 @@ function tryInteract(){
       blip(220,.5,'sine',.15); blip(440,.4,'sine',.12); return;
     }
   }
+  // Alien artifact interaction (Crystal Caves)
+  if(typeof alienArtifactObj!=='undefined'&&alienArtifactObj&&!alienArtifactObj.userData.collected){
+    if(camWorld.distanceTo(alienArtifactObj.position)<4){
+      alienArtifactObj.userData.collected=true; missionState.alienArtifact=true;
+      toast('ALIEN ARTIFACT RECOVERED — UNKNOWN TECHNOLOGY');
+      blip(330,.4,'sine',.15); blip(660,.3,'sine',.12);
+    }
+  }
+  // Signal beacon interaction
+  if(typeof signalBeacons!=='undefined') for(const sb of signalBeacons){
+    if(sb.userData.activated)continue;
+    if(camWorld.distanceTo(sb.position)<4){
+      sb.userData.activated=true; missionState.signalBeaconsFound=(missionState.signalBeaconsFound||0)+1;
+      toast('SIGNAL BEACON ACTIVATED ('+missionState.signalBeaconsFound+'/3)');
+      blip(550,.3,'sine',.12);
+    }
+  }
+  // Abyss alien flower interaction
+  if(typeof abyssAlienFlower!=='undefined'&&abyssAlienFlower&&!abyssAlienFlower.userData.collected){
+    if(camWorld.distanceTo(abyssAlienFlower.position)<4){
+      abyssAlienFlower.userData.collected=true; missionState.abyssFlowerCollected=true;
+      toast('THE FLOWER OF THE ABYSS COLLECTED — A GIFT FROM THE DEEP');
+      blip(220,.5,'sine',.2); blip(440,.4,'sine',.15); blip(880,.3,'sine',.1);
+    }
+  }
   // Trait flower interaction
   for(const tf of traitFlowers){
     if(tf.userData.claimed)continue;
@@ -3174,8 +3204,12 @@ const MISSION_LIST=[
   {id:'alien',name:'ALIEN TOWER',desc:'Activate an alien tower',check:()=>missionState.alienTower},
   {id:'eggs',name:'RARE EGGS',desc:'Collect 3 rare creature eggs',check:()=>missionState.eggsCollected>=3},
   {id:'escape',name:'ESCAPE',desc:'Build the rocket platform',check:()=>missionState.rocketBuilt},
+  {id:'alienArtifact',name:'ALIEN ARTIFACT',desc:'Find an alien artifact in Crystal Caves',check:()=>missionState.alienArtifact},
+  {id:'signalDecoded',name:'SIGNAL DECODED',desc:'Find and activate 3 signal beacons',check:()=>missionState.signalBeaconsFound>=3},
+  {id:'abyssFlower',name:'THE FLOWER OF THE ABYSS',desc:'Descend to 500m and collect the alien flower',check:()=>missionState.abyssFlowerCollected},
+  {id:'finalAscent',name:'FINAL ASCENT',desc:'Return to the surface with the alien flower',check:()=>missionState.abyssFlowerCollected&&missionState.maxDepth>=500&&missionState.returnedToSurface},
 ];
-const missionState={maxDepth:0,scanned:0,foundBeacon:false,leviathanEncounter:false,builtVehicle:false,dataFound:0,rocketBuilt:false,curMission:0,craftCount:0,wrecksScanned:0,predatorEncounter:false,podsFound:0,alienTower:false,eggsCollected:0};
+const missionState={maxDepth:0,scanned:0,foundBeacon:false,leviathanEncounter:false,builtVehicle:false,dataFound:0,rocketBuilt:false,curMission:0,craftCount:0,wrecksScanned:0,predatorEncounter:false,podsFound:0,alienTower:false,eggsCollected:0,alienArtifact:false,signalBeaconsFound:0,abyssFlowerCollected:false,returnedToSurface:false};
 const playerTraits={};
 let lastMissionCheck=0;
 function updateMissions(){
@@ -3853,49 +3887,138 @@ const fireCorals=[];
     scene.add(grp);
   }
   var traitFlowers=[];
-  const flowerMat=new THREE.MeshStandardMaterial({color:0xff22aa,emissive:0xcc0088,emissiveIntensity:0.12,transparent:true,opacity:.8,side:THREE.DoubleSide});
-  const traitNames=['Speed Boost','Heat Resist','Pressure Shield','Night Vision','O2 Efficiency'];
-  function makeTraitFlower(x,z,traitIdx){
+  // Biome-specific trait flower definitions — each traitKey maps to traits{} object
+  const TRAIT_FLOWERS=[
+    {traitKey:'heatResist',name:'HEAT RESISTANCE',color:0xff4400,emissive:0xff2200,glowColor:0xff6622,borderDepth:245},
+    {traitKey:'pressureResist',name:'PRESSURE RESISTANCE',color:0x8822cc,emissive:0x6611aa,glowColor:0xaa44ff,borderDepth:415},
+    {traitKey:'toxinResist',name:'TOXIN RESISTANCE',color:0x22cc44,emissive:0x11aa22,glowColor:0x44ff66,borderDepth:145},
+    {traitKey:'darkVision',name:'DARK VISION',color:0x4488ff,emissive:0x2266dd,glowColor:0x66aaff,borderDepth:345},
+    {traitKey:'oxygenEfficiency',name:'OXYGEN EFFICIENCY',color:0x22dddd,emissive:0x11aaaa,glowColor:0x44ffee,borderDepth:75},
+    {traitKey:'coldResist',name:'COLD RESISTANCE',color:0x88ccff,emissive:0x6699dd,glowColor:0xaaddff,borderDepth:25},
+  ];
+  function makeTraitFlower(x,z,tfDef){
     const y=terrainHeight(x,z);
     const grp=new THREE.Group(); grp.position.set(x,y,z);
-    const cMat=new THREE.MeshStandardMaterial({color:0xff44cc,emissive:0xff22aa,emissiveIntensity:0.12,transparent:true,opacity:.9});
-    const core=new THREE.Mesh(new THREE.SphereGeometry(.4,8,6),cMat);
-    core.position.y=1.2; grp.add(core);
-    const stem=new THREE.Mesh(new THREE.CylinderGeometry(.06,.08,1.2,6),new THREE.MeshStandardMaterial({color:0x2a6a3a,roughness:.8}));
-    stem.position.y=.6; grp.add(stem);
-    for(let j=0;j<7;j++){
-      const petal=new THREE.Mesh(new THREE.PlaneGeometry(1.5,1.0),flowerMat);
-      petal.position.y=1.0;
-      const a=j*(Math.PI*2/5);
-      petal.position.x=Math.cos(a)*.35; petal.position.z=Math.sin(a)*.35;
-      petal.rotation.set(-Math.PI/4,a,0);
+    const petalMat=new THREE.MeshStandardMaterial({color:tfDef.color,emissive:tfDef.emissive,emissiveIntensity:.6,transparent:true,opacity:.85,side:THREE.DoubleSide});
+    const cMat=new THREE.MeshStandardMaterial({color:0xffffff,emissive:tfDef.glowColor,emissiveIntensity:.8,transparent:true,opacity:.95});
+    const core=new THREE.Mesh(new THREE.SphereGeometry(.45,10,8),cMat);
+    core.position.y=1.5; grp.add(core);
+    const stemMat=new THREE.MeshStandardMaterial({color:0x2a6a3a,roughness:.8,emissive:tfDef.emissive,emissiveIntensity:.1});
+    const stem=new THREE.Mesh(new THREE.CylinderGeometry(.06,.1,1.5,6),stemMat);
+    stem.position.y=.75; grp.add(stem);
+    for(let j=0;j<8;j++){
+      const petal=new THREE.Mesh(new THREE.ConeGeometry(.6,1.2,4),petalMat);
+      const a=j*(Math.PI*2/8);
+      petal.position.set(Math.cos(a)*.5,1.3,Math.sin(a)*.5);
+      petal.rotation.set(-Math.PI/3.5,a,0);
       grp.add(petal);
     }
-    // Small leaves
     const leafMat=new THREE.MeshStandardMaterial({color:0x33aa55,roughness:.7,side:THREE.DoubleSide});
     for(let j=0;j<3;j++){
-      const leaf=new THREE.Mesh(new THREE.PlaneGeometry(.25,.12),leafMat);
-      leaf.position.set(Math.cos(j*2.1)*.12,.15+j*.1,Math.sin(j*2.1)*.12);
+      const leaf=new THREE.Mesh(new THREE.PlaneGeometry(.3,.15),leafMat);
+      leaf.position.set(Math.cos(j*2.1)*.15,.15+j*.1,Math.sin(j*2.1)*.15);
       leaf.rotation.set(-.3,j*2.1,0); grp.add(leaf);
     }
-    grp.userData={kind:'traitFlower',flowerMat:flowerMat,coreMat:cMat,traitIdx:traitIdx,traitName:traitNames[traitIdx%traitNames.length],claimed:false};
+    const glow=new THREE.PointLight(tfDef.glowColor,.8,8);
+    glow.position.y=1.5; grp.add(glow);
+    grp.userData={kind:'traitFlower',flowerMat:petalMat,coreMat:cMat,glowLight:glow,traitKey:tfDef.traitKey,traitName:tfDef.name,claimed:false};
     traitFlowers.push(grp);
     scene.add(grp);
     return grp;
   }
-  // Abyss trait flowers
-  for(let i=0;i<15;i++){
-    const x=rand(-700,700),z=rand(-700,700);
-    const y=terrainHeight(x,z);
-    if(y>-430)continue;
-    makeTraitFlower(x,z,i);
+  // Place trait flowers at biome BORDERS — 3 per biome for findability
+  for(const tfDef of TRAIT_FLOWERS){
+    for(let i=0;i<3;i++){
+      let placed2=false;
+      for(let attempt=0;attempt<30&&!placed2;attempt++){
+        const ax=rand(-700,700),az=rand(-700,700);
+        const ay=terrainHeight(ax,az);
+        if(Math.abs(-ay - tfDef.borderDepth) < 25){
+          makeTraitFlower(ax,az,tfDef); placed2=true;
+        }
+      }
+      if(!placed2){ makeTraitFlower(rand(-400,400),rand(-400,400),tfDef); }
+    }
   }
-  // Guaranteed trait flower near starter base
-  makeTraitFlower(25,35,0);
-  // Extra trait flowers in various biomes
-  for(let i=0;i<8;i++){
-    const x=rand(-500,500),z=rand(-500,500);
-    makeTraitFlower(x,z,i+1);
+  // Guaranteed starter flower near spawn (oxygen efficiency)
+  makeTraitFlower(25,35,TRAIT_FLOWERS[4]);
+
+  // === ABYSS ALIEN FLOWER — the final quest object at ~500m depth ===
+  var abyssAlienFlower;
+  {
+    const afx=50,afz=-50;
+    let afy=terrainHeight(afx,afz);
+    if(afy>-480) afy=-500; // force deep placement
+    const grp=new THREE.Group(); grp.position.set(afx,afy,afz);
+    // Central stalk
+    const stalkMat=new THREE.MeshStandardMaterial({color:0x2a1a4a,roughness:.5,emissive:0x6622cc,emissiveIntensity:.4});
+    const stalk=new THREE.Mesh(new THREE.CylinderGeometry(.08,.15,3,8),stalkMat);
+    stalk.position.y=1.5; grp.add(stalk);
+    // Glowing alien core
+    const coreMat=new THREE.MeshStandardMaterial({color:0xffcc00,emissive:0xffaa00,emissiveIntensity:1.0,transparent:true,opacity:.95});
+    const core=new THREE.Mesh(new THREE.SphereGeometry(.6,12,10),coreMat);
+    core.position.y=3.2; grp.add(core);
+    // Alien petals — cone geometry, purple/gold
+    for(let j=0;j<12;j++){
+      const petalCol=j%2===0?0xaa44ff:0xffcc44;
+      const pMat=new THREE.MeshStandardMaterial({color:petalCol,emissive:petalCol,emissiveIntensity:.5,transparent:true,opacity:.8,side:THREE.DoubleSide});
+      const petal=new THREE.Mesh(new THREE.ConeGeometry(.8,2.0,4),pMat);
+      const a=j*(Math.PI*2/12);
+      petal.position.set(Math.cos(a)*.7,2.8,Math.sin(a)*.7);
+      petal.rotation.set(-Math.PI/3,a,0);
+      grp.add(petal);
+    }
+    // Bright glow light
+    const gl=new THREE.PointLight(0xffaa44,2,20);
+    gl.position.y=3; grp.add(gl);
+    const gl2=new THREE.PointLight(0xaa44ff,1.5,15);
+    gl2.position.y=3; grp.add(gl2);
+    grp.userData={kind:'abyssFlower',collected:false,coreMat:coreMat,glowLights:[gl,gl2]};
+    abyssAlienFlower=grp;
+    scene.add(grp);
+  }
+
+  // === ALIEN ARTIFACT in Crystal Caves ===
+  var alienArtifactObj;
+  {
+    const aax=120,aaz=-80;
+    let aay=terrainHeight(aax,aaz);
+    if(aay>-360) aay=-380;
+    const grp=new THREE.Group(); grp.position.set(aax,aay,aaz);
+    const artMat=new THREE.MeshStandardMaterial({color:0x44ddff,emissive:0x22aacc,emissiveIntensity:.7,metalness:.4,roughness:.3});
+    // Floating geometric artifact
+    const oct=new THREE.Mesh(new THREE.OctahedronGeometry(1.2,0),artMat);
+    oct.position.y=2; grp.add(oct);
+    const ring=new THREE.Mesh(new THREE.TorusGeometry(1.8,.08,8,24),artMat);
+    ring.position.y=2; ring.rotation.x=Math.PI/4; grp.add(ring);
+    const gl=new THREE.PointLight(0x44ddff,1.5,12);
+    gl.position.y=2; grp.add(gl);
+    grp.userData={kind:'alienArtifact',collected:false};
+    alienArtifactObj=grp;
+    scene.add(grp);
+  }
+
+  // === SIGNAL BEACONS — 3 scattered at various depths ===
+  var signalBeacons=[];
+  {
+    const beaconPositions=[{x:-200,z:150,d:-100},{x:300,z:-250,d:-200},{x:-150,z:-350,d:-300}];
+    for(const bp of beaconPositions){
+      let by=terrainHeight(bp.x,bp.z);
+      if(by>bp.d) by=bp.d;
+      const grp=new THREE.Group(); grp.position.set(bp.x,by,bp.z);
+      const baseMat=new THREE.MeshStandardMaterial({color:0x888888,roughness:.6,metalness:.3});
+      const base=new THREE.Mesh(new THREE.CylinderGeometry(.3,.5,1.5,8),baseMat);
+      base.position.y=.75; grp.add(base);
+      const antenna=new THREE.Mesh(new THREE.CylinderGeometry(.04,.04,3,6),baseMat);
+      antenna.position.y=3; grp.add(antenna);
+      const light=new THREE.Mesh(new THREE.SphereGeometry(.15,8,6),new THREE.MeshStandardMaterial({color:0x00ff44,emissive:0x00ff44,emissiveIntensity:1}));
+      light.position.y=4.5; grp.add(light);
+      const gl=new THREE.PointLight(0x00ff44,.6,8);
+      gl.position.y=4.5; grp.add(gl);
+      grp.userData={kind:'signalBeacon',activated:false};
+      signalBeacons.push(grp);
+      scene.add(grp);
+    }
   }
 
   // SAFE SHOALS — soft coral, colorful reefs, seagrass
@@ -4123,34 +4246,65 @@ const rustMat=new THREE.MeshStandardMaterial({color:0x7a5a3a,roughness:.9,metaln
 const wreckGlow=new THREE.MeshStandardMaterial({color:0x44ddff,emissive:0x22aadd,emissiveIntensity:.3});
 const blueprintList=['advancedTank','reinforcedSuit','ultraFins','seamothUpgrade','laserCutter','propulsionCannon','stasisRifle','cyclops','prawnSuit','habitatBuilder','gravitySphere','thermalReactor'];
 
-for(let i=0;i<24;i++){
-  const wtype=i%2;
-  const x=rand(-700,700),z=rand(-700,700),y=terrainHeight(x,z);
-  const grp=new THREE.Group(); grp.position.set(x,y,z);
-  grp.rotation.y=rand(0,Math.PI*2);
-
-  if(wtype===0){
-    // Crashed pod — tilted cylinder
+// Fixed wreck positions spanning all biomes with varied shapes
+const wreckDefs=[
+  // Safe Shoals
+  {x:50,z:40,bp:'habitatBuilder',shape:'pod'},{x:-80,z:60,bp:'ultraFins',shape:'cargo'},{x:120,z:-30,bp:'advancedTank',shape:'cargo'},
+  // Kelp Forest
+  {x:250,z:80,bp:'laserCutter',shape:'hull'},{x:-150,z:130,bp:'propulsionCannon',shape:'pod'},{x:180,z:-100,bp:'reinforcedSuit',shape:'lab'},
+  // Mushroom Forest
+  {x:340,z:120,bp:'seamothUpgrade',shape:'cargo'},{x:280,z:60,bp:'gravitySphere',shape:'hull'},
+  // Sparse Reef
+  {x:-280,z:-180,bp:'stasisRifle',shape:'pod'},{x:-220,z:-240,bp:'thermalReactor',shape:'lab'},
+  // Dunes
+  {x:-60,z:380,bp:'advancedTank',shape:'cargo'},{x:-140,z:320,bp:'ultraFins',shape:'hull'},
+  // Crag Field
+  {x:220,z:-320,bp:'laserCutter',shape:'pod'},{x:180,z:-280,bp:'propulsionCannon',shape:'cargo'},
+  // Deep Reef
+  {x:400,z:200,bp:'cyclops',shape:'hull'},{x:-400,z:300,bp:'prawnSuit',shape:'lab'},{x:350,z:-400,bp:'seamothUpgrade',shape:'hull'},
+  // Blood Trench
+  {x:-500,z:-100,bp:'stasisRifle',shape:'hull'},{x:500,z:-200,bp:'reinforcedSuit',shape:'lab'},{x:-300,z:500,bp:'gravitySphere',shape:'pod'},
+  // Thermal Zone
+  {x:600,z:100,bp:'thermalReactor',shape:'hull'},{x:-600,z:-300,bp:'cyclops',shape:'lab'},
+  // Crystal Caves
+  {x:100,z:-600,bp:'prawnSuit',shape:'cargo'},
+  // The Abyss
+  {x:-200,z:-500,bp:'habitatBuilder',shape:'hull'},
+];
+function buildWreck(def,idx){
+  const grp=new THREE.Group();const x=def.x,z=def.z,y=terrainHeight(x,z);
+  grp.position.set(x,y,z);grp.rotation.y=rand(0,Math.PI*2);
+  if(def.shape==='pod'){
     const body=new THREE.Mesh(new THREE.CylinderGeometry(2,2.2,6,8),wreckMat);
-    body.rotation.set(rand(-.3,.3),0,Math.PI/2+rand(-.2,.2)); body.position.y=2; grp.add(body);
+    body.rotation.set(rand(-.3,.3),0,Math.PI/2+rand(-.2,.2));body.position.y=2;grp.add(body);
     const cap=new THREE.Mesh(new THREE.SphereGeometry(2,8,6,0,Math.PI*2,0,Math.PI/2),wreckMat);
-    cap.rotation.z=Math.PI/2; cap.position.set(3,2,0); grp.add(cap);
-  } else {
-    // Cargo crate — simple box, slightly tilted
+    cap.rotation.z=Math.PI/2;cap.position.set(3,2,0);grp.add(cap);
+  } else if(def.shape==='cargo'){
     const box=new THREE.Mesh(new THREE.BoxGeometry(5,3,4),wreckMat);
-    box.position.y=1.5; box.rotation.set(rand(-.1,.1),0,rand(-.1,.1)); grp.add(box);
+    box.position.y=1.5;box.rotation.set(rand(-.1,.1),0,rand(-.1,.1));grp.add(box);
     const lid=new THREE.Mesh(new THREE.BoxGeometry(5,.15,4),rustMat);
-    lid.position.set(.3,3.1,0); lid.rotation.z=rand(.1,.4); grp.add(lid);
+    lid.position.set(.3,3.1,0);lid.rotation.z=rand(.1,.4);grp.add(lid);
+  } else if(def.shape==='hull'){
+    const hull=new THREE.Mesh(new THREE.CylinderGeometry(2.5,3,10,10,1,true,0,Math.PI*1.5),wreckMat);
+    hull.rotation.z=Math.PI/2;hull.position.y=2.5;grp.add(hull);
+    const floor=new THREE.Mesh(new THREE.BoxGeometry(8,.15,5),wreckMat);
+    floor.position.y=.2;grp.add(floor);
+    for(let j=0;j<3;j++){const rib=new THREE.Mesh(new THREE.BoxGeometry(.15,2.5,.15),rustMat);rib.position.set(-3+j*3,1.5,0);rib.rotation.z=rand(-.3,.3);grp.add(rib);}
+  } else if(def.shape==='lab'){
+    const shell=new THREE.Mesh(new THREE.BoxGeometry(6,4,5),wreckMat);shell.position.y=2;grp.add(shell);
+    const win=new THREE.Mesh(new THREE.PlaneGeometry(2,1.5),new THREE.MeshStandardMaterial({color:0x112244,roughness:.3,metalness:.5,transparent:true,opacity:.6}));
+    win.position.set(0,3,2.51);grp.add(win);
+    const tbl=new THREE.Mesh(new THREE.BoxGeometry(2,.1,1.2),rustMat);tbl.position.set(0,1.2,0);tbl.rotation.z=rand(-.15,.15);grp.add(tbl);
+    const eq=new THREE.Mesh(new THREE.CylinderGeometry(.3,.3,1.5,6),new THREE.MeshStandardMaterial({color:0x334455,roughness:.7,metalness:.6}));
+    eq.position.set(-1.5,1,1);eq.rotation.z=rand(-.5,.5);grp.add(eq);
   }
-
-  // Scannable terminal
   const term=new THREE.Mesh(new THREE.BoxGeometry(.5,.35,.08),wreckGlow);
-  term.position.set(0,wtype===0?3:3.3,wtype===0?2.1:2.1); grp.add(term);
-
-  grp.userData={kind:'wreck',idx:i,scanned:false,blueprint:blueprintList[i%blueprintList.length]};
+  term.position.set(0,def.shape==='pod'?3:def.shape==='hull'?1.2:3.3,def.shape==='lab'?2.5:2.1);grp.add(term);
+  grp.userData={kind:'wreck',idx:idx,scanned:false,blueprint:def.bp};
   grp.children.forEach(c=>{c.userData.node=grp;});
-  scene.add(grp); wrecks.push(grp);
+  scene.add(grp);wrecks.push(grp);
 }
+wreckDefs.forEach((def,i)=>buildWreck(def,i));
 
 // Scannable wreck debris
 const wreckDebris=[];
@@ -4782,8 +4936,9 @@ function animate(){
   // Trait flower pulsing glow
   for(const tf of traitFlowers){
     if(tf.userData.claimed)continue;
-    if(tf.userData.coreMat) tf.userData.coreMat.emissiveIntensity=.4+Math.sin(t*1.5)*.15;
-    if(tf.userData.flowerMat) tf.userData.flowerMat.emissiveIntensity=.35+Math.sin(t*2)*.1;
+    if(tf.userData.coreMat) tf.userData.coreMat.emissiveIntensity=.6+Math.sin(t*1.5)*.25;
+    if(tf.userData.flowerMat) tf.userData.flowerMat.emissiveIntensity=.45+Math.sin(t*2)*.15;
+    if(tf.userData.glowLight) tf.userData.glowLight.intensity=.6+Math.sin(t*1.8)*.3;
   }
   // Show E prompt near trait flowers
   let nearFlower=false;
@@ -4795,6 +4950,80 @@ function animate(){
     fp.style.cssText='position:fixed;bottom:30%;left:50%;transform:translateX(-50%);color:#ff44cc;font:18px monospace;text-shadow:0 0 8px #ff22aa;z-index:100';
     fp.textContent='Press E to interact with flower';document.body.appendChild(fp);
   }else if(!nearFlower&&$('flowerPrompt')){$('flowerPrompt').remove();}
+  // Caustic light — subtle animated PointLight near player in shallow water
+  if(!window._causticLight){
+    window._causticLight=new THREE.PointLight(0x88ddff,.0,25);
+    scene.add(window._causticLight);
+  }
+  if(underwater&&curDepth<50){
+    window._causticLight.position.copy(camWorld).add(new THREE.Vector3(0,2,0));
+    window._causticLight.intensity=(.3+Math.sin(t*3)*.15+Math.sin(t*5.3)*.1)*clamp(1-curDepth/50,0,1);
+  }else{ window._causticLight.intensity=0; }
+  // Plankton particle motes — small drifting dots near camera
+  if(!window._planktonPts){
+    const pGeom=new THREE.BufferGeometry();
+    const pCount=100;
+    const pPos=new Float32Array(pCount*3);
+    const pVel=new Float32Array(pCount*3);
+    for(let i=0;i<pCount;i++){
+      pPos[i*3]=Math.random()*40-20; pPos[i*3+1]=Math.random()*30-15; pPos[i*3+2]=Math.random()*40-20;
+      pVel[i*3]=(Math.random()-.5)*.3; pVel[i*3+1]=(Math.random()-.5)*.15; pVel[i*3+2]=(Math.random()-.5)*.3;
+    }
+    pGeom.setAttribute('position',new THREE.BufferAttribute(pPos,3));
+    const pMat=new THREE.PointsMaterial({color:0x88eeff,size:.12,transparent:true,opacity:.4,sizeAttenuation:true});
+    window._planktonPts=new THREE.Points(pGeom,pMat);
+    window._planktonVel=pVel;
+    scene.add(window._planktonPts);
+  }
+  if(underwater){
+    window._planktonPts.visible=true;
+    const pp=window._planktonPts.geometry.attributes.position;
+    const pv=window._planktonVel;
+    for(let i=0;i<pp.count;i++){
+      pp.array[i*3]+=pv[i*3]*dt; pp.array[i*3+1]+=pv[i*3+1]*dt; pp.array[i*3+2]+=pv[i*3+2]*dt;
+      // Wrap around camera
+      if(Math.abs(pp.array[i*3]-camWorld.x)>20) pp.array[i*3]=camWorld.x+(Math.random()-.5)*40;
+      if(Math.abs(pp.array[i*3+1]-camWorld.y)>15) pp.array[i*3+1]=camWorld.y+(Math.random()-.5)*30;
+      if(Math.abs(pp.array[i*3+2]-camWorld.z)>20) pp.array[i*3+2]=camWorld.z+(Math.random()-.5)*40;
+    }
+    pp.needsUpdate=true;
+    window._planktonPts.material.opacity=clamp(.4-curDepth*.002,0.05,.4);
+  }else{ window._planktonPts.visible=false; }
+  // Volumetric light shafts at depth >100m — semi-transparent tall planes
+  if(!window._volShafts){
+    window._volShafts=[];
+    for(let i=0;i<3;i++){
+      const shaftGeo=new THREE.PlaneGeometry(3,40);
+      const shaftMat2=new THREE.MeshBasicMaterial({color:0x4488aa,transparent:true,opacity:.03,side:THREE.DoubleSide,blending:THREE.AdditiveBlending,depthWrite:false});
+      const shaft=new THREE.Mesh(shaftGeo,shaftMat2);
+      shaft.visible=false;
+      scene.add(shaft);
+      window._volShafts.push(shaft);
+    }
+  }
+  if(underwater&&curDepth>100){
+    for(let i=0;i<window._volShafts.length;i++){
+      const vs=window._volShafts[i];
+      vs.visible=true;
+      const angle=t*.05+i*(Math.PI*2/3);
+      vs.position.set(camWorld.x+Math.cos(angle)*12,camWorld.y,camWorld.z+Math.sin(angle)*12);
+      vs.rotation.y=angle+t*.02;
+      vs.material.opacity=clamp(.03*(curDepth-100)/200,0,.04);
+    }
+  }else{ for(const vs of (window._volShafts||[])) vs.visible=false; }
+  // Abyss alien flower pulsing animation
+  if(typeof abyssAlienFlower!=='undefined'&&abyssAlienFlower&&!abyssAlienFlower.userData.collected){
+    if(abyssAlienFlower.userData.coreMat) abyssAlienFlower.userData.coreMat.emissiveIntensity=.8+Math.sin(t*1.2)*.3;
+    for(const gl of (abyssAlienFlower.userData.glowLights||[])) gl.intensity=1.5+Math.sin(t*1.5)*.5;
+    abyssAlienFlower.rotation.y=t*.15;
+  }
+  // Alien artifact rotation
+  if(typeof alienArtifactObj!=='undefined'&&alienArtifactObj&&!alienArtifactObj.userData.collected){
+    alienArtifactObj.children[0].rotation.y=t*.3; alienArtifactObj.children[0].rotation.x=t*.2;
+    alienArtifactObj.children[1].rotation.z=t*.5;
+  }
+  // Track return to surface for final mission
+  if(missionState.abyssFlowerCollected&&camWorld.y>-1) missionState.returnedToSurface=true;
   const targCol=underwater?biome.fog:SF_FOG;
   const targDen=insideBase?IN_DEN:(underwater?biome.den:SF_DEN);
   fogColCur.lerp(targCol,1-Math.pow(.02,dt));
