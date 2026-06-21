@@ -1282,7 +1282,7 @@ const fanMat=addSway(new THREE.MeshStandardMaterial({map:fanTex,transparent:true
     scene.add(grp);
   });
   const obsidianMat=new THREE.MeshStandardMaterial({color:0x111115,roughness:.3,metalness:.4,flatShading:true});
-  spawnInBiome(SB('THERMAL ZONE'),150,function(x,y,z){
+  spawnInBiome(SB('THERMAL ZONE'),1500,function(x,y,z){
     const h=rand(2,7);
     const o=new THREE.Mesh(new THREE.ConeGeometry(rand(.3,1),h,4),obsidianMat);
     o.position.set(x,y+h/2,z); o.rotation.set(rand(-.1,.1),rand(0,3),rand(-.1,.1)); scene.add(o);
@@ -1290,7 +1290,7 @@ const fanMat=addSway(new THREE.MeshStandardMaterial({map:fanTex,transparent:true
 
   /* ═══ CRYSTAL CAVES — glowing crystal wonderland ═══ */
   const crystCols=[0x9944ff,0x6688ff,0xff44aa,0x44ddff];
-  spawnInBiome(SB('CRYSTAL CAVES'),350,function(x,y,z){
+  spawnInBiome(SB('CRYSTAL CAVES'),3500,function(x,y,z){
     const grp=new THREE.Group(); grp.position.set(x,y,z);
     const col=crystCols[Math.floor(Math.random()*4)];
     const mat=new THREE.MeshStandardMaterial({color:col,emissive:col,emissiveIntensity:.25,roughness:.15,metalness:.3,transparent:true,opacity:.8});
@@ -1303,12 +1303,12 @@ const fanMat=addSway(new THREE.MeshStandardMaterial({map:fanTex,transparent:true
     scene.add(grp);
   });
   const lichenMat=new THREE.MeshStandardMaterial({color:0x4488cc,emissive:0x2266aa,emissiveIntensity:.15,roughness:.9,side:THREE.DoubleSide});
-  spawnInBiome(SB('CRYSTAL CAVES'),200,function(x,y,z){
+  spawnInBiome(SB('CRYSTAL CAVES'),2000,function(x,y,z){
     const l=new THREE.Mesh(new THREE.CircleGeometry(rand(.5,2.5),7),lichenMat);
     l.rotation.x=-Math.PI/2+rand(-.15,.15); l.position.set(x,y+.03,z); scene.add(l);
   });
   const crystShardMat=new THREE.MeshStandardMaterial({color:0xbb66ff,emissive:0x8844cc,emissiveIntensity:.2,roughness:.1,transparent:true,opacity:.6});
-  spawnInBiome(SB('CRYSTAL CAVES'),250,function(x,y,z){
+  spawnInBiome(SB('CRYSTAL CAVES'),2500,function(x,y,z){
     const h=rand(.5,2);
     const s=new THREE.Mesh(new THREE.ConeGeometry(rand(.05,.2),h,4),crystShardMat);
     s.position.set(x,y+h/2,z); s.rotation.set(rand(-.2,.2),rand(0,3),rand(-.2,.2)); scene.add(s);
@@ -2413,7 +2413,7 @@ const res={titanium:0,copper:0,quartz:0,gold:0,silver:0,diamond:0,lead:0,lithium
   titaniumIngot:0,copperWire:0,glass:0,fiberMesh:0,advancedTank:0,reinforcedSuit:0,ultraFins:0,
   rawFish:0,lubricant:0,siliconeRubber:0,computerChip:0,bleach:0,disinfectedWater:0,curedFish:0,medPack:0,depthModule:0,heatResistSuit:0};
 const unlockedBlueprints=new Set();
-const starterRecipes=new Set(['titaniumIngot','copperWire','glass','cookedFish','filteredWater','fiberMesh','wiring','battery','siliconeRubber','bleach','disinfectedWater','curedFish','lubricant','firstAidKit','beacon','thermalLance','scannerTool','repairTool','flashlightTool','fabricatorTool','advancedTank']);
+const starterRecipes=new Set(['titaniumIngot','copperWire','glass','cookedFish','filteredWater','fiberMesh','wiring','battery','siliconeRubber','bleach','disinfectedWater','curedFish','lubricant','firstAidKit','beacon','thermalLance','scannerTool','repairTool','flashlightTool','fabricatorTool','advancedTank','ultraFins','propulsionEngine','computerChip','medPack','reinforcedSuit','heatResistSuit','depthModule']);
 const RECIPES={
   titaniumIngot:{name:'TITANIUM INGOT',cost:{titanium:4},cat:'materials',desc:'Compressed titanium alloy.'},
   copperWire:{name:'COPPER WIRE',cost:{copper:2},cat:'materials',desc:'Conductive wiring.'},
@@ -2742,7 +2742,7 @@ function renderCraftMenu(){
     </div>`;
   }
   html+='</div>';
-  if(Object.keys(RECIPES).filter(k=>unlockedBlueprints.has(k)).length===0) html+='<div style="color:var(--cy-dim);letter-spacing:.3em;padding:20px;grid-column:1/-1">SCAN WRECKS TO UNLOCK BLUEPRINTS</div>';
+  html+='<div style="color:var(--cy-dim);letter-spacing:.15em;padding:12px;grid-column:1/-1;font-size:10px;opacity:.5">SCAN WRECKS TO DISCOVER MORE BLUEPRINTS</div>';
   host.innerHTML=html;
   window.craftItem=function(key){
     const recipe=RECIPES[key]; if(!recipe)return;
