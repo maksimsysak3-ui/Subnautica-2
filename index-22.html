@@ -2874,6 +2874,10 @@ const ALL_CREATURES=[
   {id:'crystalWisp',name:'CRYSTAL WISP',cat:'PREY',icon:'crystalWisp',desc:'Tiny luminous crystal caves fish'},
   {id:'mantaRay',name:'MANTA RAY',cat:'HERBIVORE',icon:'mantaRay',desc:'Majestic passive giant glider'},
   {id:'giantCrab',name:'GIANT CRAB',cat:'PREDATOR',icon:'giantCrab',desc:'Armored bottom-dwelling crustacean'},
+  {id:'grouper',name:'REEF GROUPER',cat:'PREY',icon:'grouper',desc:'Large slow-moving reef dweller, prized catch'},
+  {id:'bigManta',name:'OCEANIC MANTA',cat:'HERBIVORE',icon:'bigManta',desc:'Enormous winged filter feeder, gentle giant'},
+  {id:'sunfish',name:'OCEAN SUNFISH',cat:'PREY',icon:'sunfish',desc:'Bizarre disc-shaped giant, drifts with currents'},
+  {id:'morayEel',name:'MORAY EEL',cat:'PREDATOR',icon:'morayEel',desc:'Serpentine ambush predator lurking in crevices'},
 ];
 const scannedCreatures=new Set();
 function renderCreatures(){
@@ -4767,26 +4771,34 @@ const wrecks=[];
 const wreckMat=new THREE.MeshStandardMaterial({color:0x556672,roughness:.82,metalness:.35});
 const rustMat=new THREE.MeshStandardMaterial({color:0x7a5a3a,roughness:.9,metalness:.15});
 const wreckGlow=new THREE.MeshStandardMaterial({color:0x44ddff,emissive:0x22aadd,emissiveIntensity:.3});
-const blueprintList=['advancedTank','reinforcedSuit','ultraFins','seamothUpgrade','laserCutter','propulsionCannon','stasisRifle','cyclops','prawnSuit','habitatBuilder','gravitySphere','thermalReactor'];
+const blueprintList=['surfaceRunner','mantaSub','resourceDetector','deepSonar','creatureTracker','beaconLauncher','pressureSuit','voidLens','thermalReactor','bioArmor'];
 
 // Fixed wreck positions spanning all biomes with varied shapes
 const wreckDefs=[
-  // Safe Shoals (cx:0, cz:0, r:120)
-  {x:50,z:40,bp:'habitatBuilder',shape:'pod'},{x:-80,z:60,bp:'ultraFins',shape:'cargo'},{x:90,z:-30,bp:'advancedTank',shape:'cargo'},
-  // Kelp Forest (cx:-200, cz:100, r:160)
-  {x:-250,z:80,bp:'laserCutter',shape:'hull'},{x:-150,z:180,bp:'propulsionCannon',shape:'pod'},{x:-280,z:50,bp:'reinforcedSuit',shape:'lab'},
-  // Mushroom Forest (cx:250, cz:150, r:140)
-  {x:280,z:180,bp:'seamothUpgrade',shape:'cargo'},{x:220,z:120,bp:'gravitySphere',shape:'hull'},{x:300,z:200,bp:'ultraFins',shape:'pod'},
-  // Deep Reef (cx:100, cz:-250, r:150)
-  {x:130,z:-220,bp:'cyclops',shape:'hull'},{x:60,z:-300,bp:'prawnSuit',shape:'lab'},{x:170,z:-280,bp:'seamothUpgrade',shape:'hull'},
-  // Sparse Reef (cx:-250, cz:-200, r:140)
-  {x:-280,z:-180,bp:'stasisRifle',shape:'pod'},{x:-220,z:-240,bp:'thermalReactor',shape:'lab'},{x:-300,z:-160,bp:'advancedTank',shape:'cargo'},
-  // Blood Trench (cx:0, cz:-350, r:130)
-  {x:30,z:-330,bp:'stasisRifle',shape:'hull'},{x:-50,z:-380,bp:'reinforcedSuit',shape:'lab'},{x:80,z:-400,bp:'gravitySphere',shape:'pod'},
-  // Thermal Zone (cx:-150, cz:-400, r:120)
-  {x:-130,z:-380,bp:'thermalReactor',shape:'hull'},{x:-180,z:-430,bp:'cyclops',shape:'lab'},{x:-110,z:-450,bp:'laserCutter',shape:'cargo'},
-  // Crystal Caves (cx:200, cz:-400, r:130)
-  {x:220,z:-380,bp:'prawnSuit',shape:'cargo'},{x:180,z:-430,bp:'propulsionCannon',shape:'hull'},{x:250,z:-420,bp:'habitatBuilder',shape:'lab'},
+  // Safe Shoals (cx:0, cz:0, r:320)
+  {x:60,z:50,bp:'resourceDetector',shape:'pod'},{x:-90,z:80,bp:'beaconLauncher',shape:'cargo'},{x:120,z:-60,bp:'deepSonar',shape:'cargo'},{x:-50,z:-100,bp:'creatureTracker',shape:'lab'},
+  // Kelp Forest (cx:-550, cz:400, r:300)
+  {x:-580,z:380,bp:'surfaceRunner',shape:'hull'},{x:-500,z:450,bp:'mantaSub',shape:'pod'},{x:-620,z:350,bp:'resourceDetector',shape:'lab'},{x:-480,z:420,bp:'beaconLauncher',shape:'cargo'},
+  // Mushroom Forest (cx:550, cz:450, r:280)
+  {x:580,z:470,bp:'deepSonar',shape:'cargo'},{x:520,z:420,bp:'creatureTracker',shape:'hull'},{x:600,z:500,bp:'surfaceRunner',shape:'pod'},{x:530,z:480,bp:'mantaSub',shape:'lab'},
+  // Deep Reef (cx:550, cz:-450, r:300)
+  {x:570,z:-430,bp:'thermalReactor',shape:'hull'},{x:520,z:-500,bp:'pressureSuit',shape:'lab'},{x:600,z:-470,bp:'voidLens',shape:'hull'},{x:540,z:-420,bp:'bioArmor',shape:'cargo'},
+  // Sparse Reef (cx:-600, cz:-300, r:280)
+  {x:-620,z:-280,bp:'beaconLauncher',shape:'pod'},{x:-580,z:-340,bp:'thermalReactor',shape:'lab'},{x:-640,z:-260,bp:'surfaceRunner',shape:'cargo'},{x:-560,z:-320,bp:'deepSonar',shape:'hull'},
+  // Blood Trench (cx:0, cz:-700, r:280)
+  {x:30,z:-680,bp:'pressureSuit',shape:'hull'},{x:-50,z:-730,bp:'voidLens',shape:'lab'},{x:80,z:-750,bp:'bioArmor',shape:'pod'},{x:-30,z:-660,bp:'thermalReactor',shape:'cargo'},
+  // Thermal Zone (cx:-550, cz:-750, r:280)
+  {x:-530,z:-730,bp:'thermalReactor',shape:'hull'},{x:-580,z:-780,bp:'pressureSuit',shape:'lab'},{x:-510,z:-770,bp:'voidLens',shape:'cargo'},{x:-560,z:-710,bp:'bioArmor',shape:'pod'},
+  // Crystal Caves (cx:550, cz:-750, r:280)
+  {x:570,z:-730,bp:'mantaSub',shape:'cargo'},{x:530,z:-780,bp:'surfaceRunner',shape:'hull'},{x:580,z:-770,bp:'resourceDetector',shape:'lab'},{x:520,z:-710,bp:'creatureTracker',shape:'pod'},
+  // Coral Gardens (cx:450, cz:0, r:280)
+  {x:470,z:20,bp:'surfaceRunner',shape:'pod'},{x:430,z:-30,bp:'mantaSub',shape:'cargo'},{x:480,z:40,bp:'beaconLauncher',shape:'hull'},{x:440,z:-50,bp:'deepSonar',shape:'lab'},
+  // Ghost Forest (cx:-400, cz:-50, r:280)
+  {x:-420,z:-30,bp:'bioArmor',shape:'hull'},{x:-380,z:-70,bp:'voidLens',shape:'lab'},{x:-430,z:-60,bp:'pressureSuit',shape:'cargo'},{x:-370,z:-40,bp:'creatureTracker',shape:'pod'},
+  // Brine Flats (cx:0, cz:500, r:280)
+  {x:20,z:520,bp:'resourceDetector',shape:'cargo'},{x:-30,z:480,bp:'beaconLauncher',shape:'pod'},{x:50,z:540,bp:'mantaSub',shape:'hull'},{x:-20,z:460,bp:'deepSonar',shape:'lab'},
+  // Lava Fields (cx:0, cz:-1200, r:300)
+  {x:20,z:-1180,bp:'thermalReactor',shape:'hull'},{x:-30,z:-1230,bp:'pressureSuit',shape:'lab'},{x:50,z:-1210,bp:'voidLens',shape:'cargo'},{x:-40,z:-1190,bp:'bioArmor',shape:'pod'},
 ];
 function buildWreck(def,idx){
   const grp=new THREE.Group();const x=def.x,z=def.z,y=terrainHeight(x,z);
@@ -4822,6 +4834,66 @@ function buildWreck(def,idx){
   scene.add(grp);wrecks.push(grp);
 }
 wreckDefs.forEach((def,i)=>buildWreck(def,i));
+
+/* ═══ BIGGER FISH — medium-large non-leviathan species ═══ */
+const bigFishTex1=fishTexture(0x2266aa,0xaaccdd,0x44aadd);
+const bigFishTex2=fishTexture(0x448844,0xbbddbb,0x66cc88);
+const bigFishTex3=fishTexture(0x885522,0xddbb88,0xaa7744);
+const bigFishTex4=fishTexture(0x664488,0xccaadd,0x8866bb);
+const groupers=[];
+for(let i=0;i<30;i++){
+  const cx=rand(-1800,1800),cz=rand(-1800,1800),cy=terrainHeight(cx,cz);
+  if(cy>-4||cy<-350)continue;
+  const f=makeFish(rand(3,5.5),bigFishTex1,0x3388cc);
+  f.position.set(cx,cy+rand(3,8),cz);f.rotation.y=rand(0,6.28);
+  f.userData={vel:new THREE.Vector3(rand(-.3,.3),0,rand(-.3,.3)),home:new THREE.Vector3(cx,cy+5,cz),kind:'fish'};
+  scene.add(f);groupers.push(f);
+}
+const bigMantas=[];
+for(let i=0;i<18;i++){
+  const cx=rand(-1800,1800),cz=rand(-1800,1800),cy=terrainHeight(cx,cz);
+  if(cy>-8||cy<-300)continue;
+  const body=new THREE.Group();
+  const torso=new THREE.Mesh(new THREE.SphereGeometry(1.5,8,6),new THREE.MeshStandardMaterial({map:bigFishTex2,roughness:.6}));
+  torso.scale.set(1,.3,2);body.add(torso);
+  for(const sx of [-1,1]){
+    const wing=new THREE.Mesh(new THREE.PlaneGeometry(4,2.5,4,2),new THREE.MeshStandardMaterial({map:bigFishTex2,roughness:.6,side:THREE.DoubleSide}));
+    wing.position.set(sx*2.5,0,-.5);wing.rotation.z=sx*-.1;body.add(wing);
+  }
+  const tail=new THREE.Mesh(new THREE.ConeGeometry(.3,3,4),new THREE.MeshStandardMaterial({map:bigFishTex2,roughness:.6}));
+  tail.position.set(0,0,-3);tail.rotation.x=Math.PI/2;body.add(tail);
+  body.position.set(cx,cy+rand(5,15),cz);body.rotation.y=rand(0,6.28);
+  body.userData={vel:new THREE.Vector3(rand(-.2,.2),0,rand(-.2,.2)),home:new THREE.Vector3(cx,cy+10,cz),kind:'fish'};
+  scene.add(body);bigMantas.push(body);
+}
+const sunfish=[];
+for(let i=0;i<22;i++){
+  const cx=rand(-1800,1800),cz=rand(-1800,1800),cy=terrainHeight(cx,cz);
+  if(cy>-5||cy<-250)continue;
+  const body=new THREE.Group();
+  const main=new THREE.Mesh(new THREE.SphereGeometry(2,10,8),new THREE.MeshStandardMaterial({map:bigFishTex3,roughness:.7}));
+  main.scale.set(.6,1,.8);body.add(main);
+  const dorsal=new THREE.Mesh(new THREE.PlaneGeometry(1,2.5,1,3),new THREE.MeshStandardMaterial({map:bigFishTex3,roughness:.7,side:THREE.DoubleSide}));
+  dorsal.position.set(0,1.8,0);body.add(dorsal);
+  const anal=new THREE.Mesh(new THREE.PlaneGeometry(1,2,1,2),new THREE.MeshStandardMaterial({map:bigFishTex3,roughness:.7,side:THREE.DoubleSide}));
+  anal.position.set(0,-1.5,0);body.add(anal);
+  body.position.set(cx,cy+rand(4,12),cz);body.rotation.y=rand(0,6.28);
+  body.userData={vel:new THREE.Vector3(rand(-.15,.15),0,rand(-.15,.15)),home:new THREE.Vector3(cx,cy+8,cz),kind:'fish'};
+  scene.add(body);sunfish.push(body);
+}
+const morayEels=[];
+for(let i=0;i<28;i++){
+  const cx=rand(-1800,1800),cz=rand(-1800,1800),cy=terrainHeight(cx,cz);
+  if(cy>-8||cy<-400)continue;
+  const body=new THREE.Group();
+  for(let s=0;s<8;s++){
+    const seg=new THREE.Mesh(new THREE.SphereGeometry(rand(.25,.4),6,5),new THREE.MeshStandardMaterial({map:bigFishTex4,roughness:.6}));
+    seg.scale.set(.6,1,.8);seg.position.z=-s*.7;body.add(seg);
+  }
+  body.position.set(cx,cy+rand(2,6),cz);body.rotation.y=rand(0,6.28);
+  body.userData={vel:new THREE.Vector3(rand(-.3,.3),0,rand(-.3,.3)),home:new THREE.Vector3(cx,cy+4,cz),kind:'fish'};
+  scene.add(body);morayEels.push(body);
+}
 
 // Scannable wreck debris
 const wreckDebris=[];
@@ -6110,7 +6182,7 @@ function animate(){
     if($('scanOverlay'))$('scanOverlay').style.opacity=mouseDown?.15:0;
     if(mouseDown){
       raycaster.setFromCamera({x:0,y:0},camera); raycaster.far=12;
-      const allFish=[...school,...ambient,...peepers,...boomerangs,...gasopods,...stalkers,...crabsquids,...anglerfish,...packHunters,...deepPredators,...abyssEels,...parrotfish,...butterflyfish,...seaDragons,...sporeJelly,...deepAnglers,...sandDarters,...bloodCrawlers,...lavaSerpents,...crystalWisps];
+      const allFish=[...school,...ambient,...peepers,...boomerangs,...gasopods,...stalkers,...crabsquids,...anglerfish,...packHunters,...deepPredators,...abyssEels,...parrotfish,...butterflyfish,...seaDragons,...sporeJelly,...deepAnglers,...sandDarters,...bloodCrawlers,...lavaSerpents,...crystalWisps,...groupers,...bigMantas,...sunfish,...morayEels];
       const fishMeshes=[];
       allFish.forEach(f=>{ if(f.visible) f.traverse(c=>{ if(c.isMesh)fishMeshes.push(c); }); });
       const sh=raycaster.intersectObjects(fishMeshes,false)[0];
@@ -6119,11 +6191,11 @@ function animate(){
       if(sh){
         scanProgress+=dt*33;
         if(scanProgress>=100){
-          const names=['AZURE JACK','AMBER REEF','ROSE FIN','PEEPER','BOOMERANG','GASOPOD','STALKER','PARROTFISH','BUTTERFLY FISH','LEAFY SEA DRAGON','SPORE DRIFTER','DEEP ANGLER','SAND DARTER','BLOOD CRAWLER','LAVA SERPENT','CRYSTAL WISP','MANTA RAY','GIANT CRAB'];
-          const info=['Common schooling fish','Solitary reef dweller','Colorful reef species','Bioluminescent prey','Flat bottom-feeder','Large toxic herbivore','Aggressive predator','Coral-crunching reef fish','Delicate shallow species','Camouflaged kelp dweller','Mushroom forest jellyfish','Deep reef ambush predator','Fast sparse reef fish','Blood trench hunter','Thermal zone predator','Crystal caves fish','Passive giant glider','Armored crustacean'];
+          const names=['AZURE JACK','AMBER REEF','ROSE FIN','PEEPER','BOOMERANG','GASOPOD','STALKER','PARROTFISH','BUTTERFLY FISH','LEAFY SEA DRAGON','SPORE DRIFTER','DEEP ANGLER','SAND DARTER','BLOOD CRAWLER','LAVA SERPENT','CRYSTAL WISP','MANTA RAY','GIANT CRAB','REEF GROUPER','OCEANIC MANTA','OCEAN SUNFISH','MORAY EEL'];
+          const info=['Common schooling fish','Solitary reef dweller','Colorful reef species','Bioluminescent prey','Flat bottom-feeder','Large toxic herbivore','Aggressive predator','Coral-crunching reef fish','Delicate shallow species','Camouflaged kelp dweller','Mushroom forest jellyfish','Deep reef ambush predator','Fast sparse reef fish','Blood trench hunter','Thermal zone predator','Crystal caves fish','Passive giant glider','Armored crustacean','Large slow reef dweller','Enormous winged filter feeder','Bizarre disc-shaped giant','Serpentine ambush predator'];
           const idx=Math.floor(Math.random()*names.length);
           if(!scannedSet.has(idx)){ scannedSet.add(idx); missionState.scanned=scannedSet.size; }
-          const creatureIds=['azureJack','amberReef','roseFin','peeper','boomerang','gasopod','stalker','parrotfish','butterflyfish','seaDragon','sporeJelly','deepAngler','sandDarter','bloodCrawler','lavaSerpent','crystalWisp','mantaRay','giantCrab'];
+          const creatureIds=['azureJack','amberReef','roseFin','peeper','boomerang','gasopod','stalker','parrotfish','butterflyfish','seaDragon','sporeJelly','deepAngler','sandDarter','bloodCrawler','lavaSerpent','crystalWisp','mantaRay','giantCrab','grouper','bigManta','sunfish','morayEel'];
           if(creatureIds[idx]) scannedCreatures.add(creatureIds[idx]);
           toast('SCAN COMPLETE: '+names[idx]+' — '+info[idx]); blip(1200,.12,'sine',.08); blip(880,.15,'sine',.12); scanProgress=0;
         }
