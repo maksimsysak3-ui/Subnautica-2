@@ -1065,7 +1065,7 @@ const fanMat=addSway(new THREE.MeshStandardMaterial({map:fanTex,transparent:true
   ];
   function spawnInBiome(biome,count,cb){
     for(let i=0;i<count;i++){
-      const ang=Math.random()*Math.PI*2,dist=Math.random()*biome.r;
+      const ang=Math.random()*Math.PI*2,dist=Math.sqrt(Math.random())*biome.r;
       const x=biome.cx+Math.cos(ang)*dist,z=biome.cz+Math.sin(ang)*dist;
       cb(x,terrainHeight(x,z),z);
     }
@@ -1074,7 +1074,7 @@ const fanMat=addSway(new THREE.MeshStandardMaterial({map:fanTex,transparent:true
 
   /* ═══ SAFE SHOALS — vibrant coral paradise ═══ */
   const tubeCols=[0xff8c5a,0xd45a9e,0x46c8b4,0xe8c45a,0xff6688,0x66ddaa];
-  spawnInBiome(SB('SAFE SHOALS'),4000,function(x,y,z){
+  spawnInBiome(SB('SAFE SHOALS'),2000,function(x,y,z){
     const grp=new THREE.Group(); grp.position.set(x,y,z);
     const col=tubeCols[Math.floor(Math.random()*6)];
     const mat=new THREE.MeshStandardMaterial({color:col,roughness:.7,emissive:col,emissiveIntensity:.15});
@@ -1086,21 +1086,21 @@ const fanMat=addSway(new THREE.MeshStandardMaterial({map:fanTex,transparent:true
     }
     scene.add(grp);
   });
-  spawnInBiome(SB('SAFE SHOALS'),3000,function(x,y,z){
+  spawnInBiome(SB('SAFE SHOALS'),1500,function(x,y,z){
     const s=rand(5,12);
     const f=new THREE.Mesh(new THREE.PlaneGeometry(s,s,1,4),fanMat);
     f.geometry=f.geometry.clone(); f.geometry.translate(0,s/2,0);
     f.position.set(x,y-.1,z); f.rotation.y=rand(0,Math.PI); scene.add(f);
   });
   const shallowGrassMat=addSway(new THREE.MeshStandardMaterial({color:0x44aa55,roughness:.85,side:THREE.DoubleSide,transparent:true,opacity:.7}),.6);
-  spawnInBiome(SB('SAFE SHOALS'),5000,function(x,y,z){
+  spawnInBiome(SB('SAFE SHOALS'),1200,function(x,y,z){
     const h=rand(.4,1.2);
     const g=new THREE.Mesh(new THREE.PlaneGeometry(rand(.2,.5),h,1,3),shallowGrassMat);
     g.geometry=g.geometry.clone(); g.geometry.translate(0,h/2,0);
     g.position.set(x,y,z); g.rotation.y=rand(0,Math.PI); scene.add(g);
   });
   const smallAnemCols=[0xff6699,0xff9944,0x44ddff,0xaaff44,0xff44aa];
-  spawnInBiome(SB('SAFE SHOALS'),2000,function(x,y,z){
+  spawnInBiome(SB('SAFE SHOALS'),1000,function(x,y,z){
     const grp=new THREE.Group(); grp.position.set(x,y,z);
     const col=smallAnemCols[Math.floor(Math.random()*5)];
     const mat=new THREE.MeshStandardMaterial({color:col,emissive:col,emissiveIntensity:.12,roughness:.5});
@@ -1113,27 +1113,27 @@ const fanMat=addSway(new THREE.MeshStandardMaterial({map:fanTex,transparent:true
   });
   // Safe Shoals — sandy pebbles + ripples
   const pebbleMat=new THREE.MeshStandardMaterial({color:0xbbaa88,roughness:.95,flatShading:true});
-  spawnInBiome(SB('SAFE SHOALS'),3000,function(x,y,z){
+  spawnInBiome(SB('SAFE SHOALS'),1500,function(x,y,z){
     const p=new THREE.Mesh(new THREE.DodecahedronGeometry(rand(.1,.4),0),pebbleMat);
     p.position.set(x,y+.05,z); p.scale.y=rand(.3,.6); scene.add(p);
   });
 
   /* ═══ KELP FOREST — dense tall kelp + grassy floor ═══ */
-  spawnInBiome(SB('KELP FOREST'),12000,function(x,y,z){
+  spawnInBiome(SB('KELP FOREST'),3000,function(x,y,z){
     const h=rand(12,30);
     const k=new THREE.Mesh(new THREE.PlaneGeometry(rand(.9,1.6),h,1,8),kelpMat);
     k.geometry=k.geometry.clone(); k.geometry.translate(0,h/2,0);
     k.position.set(x,y-.2,z); k.rotation.y=rand(0,Math.PI); scene.add(k);
   });
   const kelpGrassMat=addSway(new THREE.MeshStandardMaterial({color:0x2a8a3a,roughness:.8,side:THREE.DoubleSide,transparent:true,opacity:.75}),.8);
-  spawnInBiome(SB('KELP FOREST'),8000,function(x,y,z){
+  spawnInBiome(SB('KELP FOREST'),2000,function(x,y,z){
     const h=rand(.5,1.8);
     const g=new THREE.Mesh(new THREE.PlaneGeometry(rand(.15,.4),h,1,3),kelpGrassMat);
     g.geometry=g.geometry.clone(); g.geometry.translate(0,h/2,0);
     g.position.set(x,y,z); g.rotation.y=rand(0,Math.PI); scene.add(g);
   });
   const kelpBulbMat=new THREE.MeshStandardMaterial({color:0x88cc44,emissive:0x44aa22,emissiveIntensity:.1,roughness:.5});
-  spawnInBiome(SB('KELP FOREST'),2000,function(x,y,z){
+  spawnInBiome(SB('KELP FOREST'),1000,function(x,y,z){
     const grp=new THREE.Group(); grp.position.set(x,y,z);
     const h=rand(3,8);
     const stk=new THREE.Mesh(new THREE.CylinderGeometry(.03,.05,h,5),new THREE.MeshStandardMaterial({color:0x336633,roughness:.9}));
@@ -1146,7 +1146,7 @@ const fanMat=addSway(new THREE.MeshStandardMaterial({map:fanTex,transparent:true
   /* ═══ MUSHROOM FOREST — giant bioluminescent mushrooms ═══ */
   const mushCols=[0x8855aa,0x6644cc,0x9966bb,0xaa55dd];
   const mushStemMat=new THREE.MeshStandardMaterial({color:0xccbbaa,roughness:.8});
-  spawnInBiome(SB('MUSHROOM FOREST'),4000,function(x,y,z){
+  spawnInBiome(SB('MUSHROOM FOREST'),2000,function(x,y,z){
     const grp=new THREE.Group(); grp.position.set(x,y,z);
     const h=rand(5,20); const col=mushCols[Math.floor(Math.random()*4)];
     const capMat=new THREE.MeshStandardMaterial({color:col,emissive:col,emissiveIntensity:.2,roughness:.5});
@@ -1156,11 +1156,11 @@ const fanMat=addSway(new THREE.MeshStandardMaterial({map:fanTex,transparent:true
     cap.position.y=h; grp.add(cap); scene.add(grp);
   });
   const mossMat=new THREE.MeshStandardMaterial({color:0x55cc66,emissive:0x33aa44,emissiveIntensity:.12,roughness:.9,side:THREE.DoubleSide});
-  spawnInBiome(SB('MUSHROOM FOREST'),4000,function(x,y,z){
+  spawnInBiome(SB('MUSHROOM FOREST'),2000,function(x,y,z){
     const m=new THREE.Mesh(new THREE.CircleGeometry(rand(.5,2),8),mossMat);
     m.rotation.x=-Math.PI/2+rand(-.1,.1); m.position.set(x,y+.05,z); scene.add(m);
   });
-  spawnInBiome(SB('MUSHROOM FOREST'),2000,function(x,y,z){
+  spawnInBiome(SB('MUSHROOM FOREST'),1000,function(x,y,z){
     const grp=new THREE.Group(); grp.position.set(x,y,z);
     const h=rand(1,3); const col=mushCols[Math.floor(Math.random()*4)];
     const mat=new THREE.MeshStandardMaterial({color:col,emissive:col,emissiveIntensity:.15,roughness:.6});
@@ -1172,13 +1172,13 @@ const fanMat=addSway(new THREE.MeshStandardMaterial({map:fanTex,transparent:true
 
   /* ═══ DEEP REEF — massive sponges, plate corals, sea whips ═══ */
   const spongeMat=new THREE.MeshStandardMaterial({color:0xaa7733,roughness:.85,emissive:0x553311,emissiveIntensity:.05});
-  spawnInBiome(SB('DEEP REEF'),3000,function(x,y,z){
+  spawnInBiome(SB('DEEP REEF'),1500,function(x,y,z){
     const h=rand(3,10),r2=rand(.5,2);
     const s=new THREE.Mesh(new THREE.CylinderGeometry(r2,r2*.7,h,8,1,true),spongeMat);
     s.position.set(x,y+h/2,z); scene.add(s);
   });
   const plateMat=new THREE.MeshStandardMaterial({color:0x668899,roughness:.6,emissive:0x224455,emissiveIntensity:.06});
-  spawnInBiome(SB('DEEP REEF'),2500,function(x,y,z){
+  spawnInBiome(SB('DEEP REEF'),1200,function(x,y,z){
     const grp=new THREE.Group(); grp.position.set(x,y,z);
     for(let j=0;j<rand(2,4);j++){
       const plate=new THREE.Mesh(new THREE.CylinderGeometry(rand(1,3),.01,.15,12),plateMat);
@@ -1187,26 +1187,26 @@ const fanMat=addSway(new THREE.MeshStandardMaterial({map:fanTex,transparent:true
     scene.add(grp);
   });
   const whipMat=addSway(new THREE.MeshStandardMaterial({color:0xccaa66,roughness:.7,side:THREE.DoubleSide}),.4);
-  spawnInBiome(SB('DEEP REEF'),2000,function(x,y,z){
+  spawnInBiome(SB('DEEP REEF'),1000,function(x,y,z){
     const h=rand(4,12);
     const w=new THREE.Mesh(new THREE.PlaneGeometry(.08,h,1,6),whipMat);
     w.geometry=w.geometry.clone(); w.geometry.translate(0,h/2,0);
     w.position.set(x,y,z); w.rotation.y=rand(0,Math.PI); scene.add(w);
   });
   const deepRockMat=new THREE.MeshStandardMaterial({color:0x2a3a44,roughness:.95,flatShading:true});
-  spawnInBiome(SB('DEEP REEF'),2500,function(x,y,z){
+  spawnInBiome(SB('DEEP REEF'),1200,function(x,y,z){
     const r3=new THREE.Mesh(new THREE.DodecahedronGeometry(rand(.3,1.5),0),deepRockMat);
     r3.position.set(x,y+.1,z); r3.scale.y=rand(.4,.7); scene.add(r3);
   });
 
   /* ═══ SPARSE REEF — scattered, minimal, sandy ═══ */
   const sandMoundMat=new THREE.MeshStandardMaterial({color:0xccbb88,roughness:1,flatShading:true});
-  spawnInBiome(SB('SPARSE REEF'),1500,function(x,y,z){
+  spawnInBiome(SB('SPARSE REEF'),750,function(x,y,z){
     const m=new THREE.Mesh(new THREE.SphereGeometry(rand(1,4),8,6),sandMoundMat);
     m.scale.y=rand(.2,.4); m.position.set(x,y+.1,z); scene.add(m);
   });
   const deadCoralMat=new THREE.MeshStandardMaterial({color:0xccccbb,roughness:.9});
-  spawnInBiome(SB('SPARSE REEF'),1200,function(x,y,z){
+  spawnInBiome(SB('SPARSE REEF'),600,function(x,y,z){
     const grp=new THREE.Group(); grp.position.set(x,y,z);
     for(let j=0;j<rand(2,5);j++){
       const b=new THREE.Mesh(new THREE.CylinderGeometry(.05,.08,rand(1,3),4),deadCoralMat);
@@ -1216,7 +1216,7 @@ const fanMat=addSway(new THREE.MeshStandardMaterial({map:fanTex,transparent:true
     scene.add(grp);
   });
   const paleGrassMat=addSway(new THREE.MeshStandardMaterial({color:0x88aa77,roughness:.85,side:THREE.DoubleSide,transparent:true,opacity:.6}),.5);
-  spawnInBiome(SB('SPARSE REEF'),2000,function(x,y,z){
+  spawnInBiome(SB('SPARSE REEF'),1000,function(x,y,z){
     const h=rand(.3,.8);
     const g=new THREE.Mesh(new THREE.PlaneGeometry(rand(.15,.3),h,1,2),paleGrassMat);
     g.geometry=g.geometry.clone(); g.geometry.translate(0,h/2,0);
@@ -1225,25 +1225,25 @@ const fanMat=addSway(new THREE.MeshStandardMaterial({map:fanTex,transparent:true
 
   /* ═══ BLOOD TRENCH — alien hostile flora ═══ */
   const bloodVineMat=new THREE.MeshStandardMaterial({color:0x8a1a1a,emissive:0x550000,emissiveIntensity:.12,roughness:.7,side:THREE.DoubleSide});
-  spawnInBiome(SB('BLOOD TRENCH'),3500,function(x,y,z){
+  spawnInBiome(SB('BLOOD TRENCH'),1750,function(x,y,z){
     const h=rand(6,18);
     const v=new THREE.Mesh(new THREE.PlaneGeometry(rand(.3,.8),h,1,6),bloodVineMat);
     v.geometry=v.geometry.clone(); v.geometry.translate(0,h/2,0);
     v.position.set(x,y-.1,z); v.rotation.y=rand(0,Math.PI); scene.add(v);
   });
   const sacMat=new THREE.MeshStandardMaterial({color:0x661122,emissive:0x440011,emissiveIntensity:.15,roughness:.5});
-  spawnInBiome(SB('BLOOD TRENCH'),2000,function(x,y,z){
+  spawnInBiome(SB('BLOOD TRENCH'),1000,function(x,y,z){
     const s=new THREE.Mesh(new THREE.SphereGeometry(rand(.4,1.5),8,6),sacMat);
     s.scale.y=rand(1.2,2); s.position.set(x,y+rand(.3,1),z); scene.add(s);
   });
   const boneMat=new THREE.MeshStandardMaterial({color:0xddccbb,roughness:.8});
-  spawnInBiome(SB('BLOOD TRENCH'),1500,function(x,y,z){
+  spawnInBiome(SB('BLOOD TRENCH'),750,function(x,y,z){
     const h=rand(2,6);
     const b=new THREE.Mesh(new THREE.CylinderGeometry(.08,.15,h,5),boneMat);
     b.position.set(x,y+h/2,z); b.rotation.set(rand(-.3,.3),0,rand(-.5,.5)); scene.add(b);
   });
   const toxicMat=new THREE.MeshStandardMaterial({color:0x44ff44,emissive:0x22cc22,emissiveIntensity:.2,roughness:.4});
-  spawnInBiome(SB('BLOOD TRENCH'),1000,function(x,y,z){
+  spawnInBiome(SB('BLOOD TRENCH'),500,function(x,y,z){
     const grp=new THREE.Group(); grp.position.set(x,y,z);
     for(let j=0;j<rand(3,6);j++){
       const p=new THREE.Mesh(new THREE.SphereGeometry(rand(.05,.15),6,5),toxicMat);
@@ -1254,7 +1254,7 @@ const fanMat=addSway(new THREE.MeshStandardMaterial({map:fanTex,transparent:true
 
   /* ═══ THERMAL ZONE — volcanic, mineral-rich ═══ */
   const ventMat=new THREE.MeshStandardMaterial({color:0x332211,roughness:.9,emissive:0xff4400,emissiveIntensity:.1});
-  spawnInBiome(SB('THERMAL ZONE'),3000,function(x,y,z){
+  spawnInBiome(SB('THERMAL ZONE'),1500,function(x,y,z){
     const grp=new THREE.Group(); grp.position.set(x,y,z);
     const h=rand(3,10);
     const ch=new THREE.Mesh(new THREE.CylinderGeometry(rand(.4,1.2),rand(.8,1.8),h,7),ventMat);
@@ -1264,13 +1264,13 @@ const fanMat=addSway(new THREE.MeshStandardMaterial({map:fanTex,transparent:true
     scene.add(grp);
   });
   const sulfurMat=new THREE.MeshStandardMaterial({color:0xddcc22,roughness:.7,emissive:0xaaaa00,emissiveIntensity:.08,flatShading:true});
-  spawnInBiome(SB('THERMAL ZONE'),2000,function(x,y,z){
+  spawnInBiome(SB('THERMAL ZONE'),1000,function(x,y,z){
     const s=new THREE.Mesh(new THREE.IcosahedronGeometry(rand(.3,1.2),0),sulfurMat);
     s.position.set(x,y+.2,z); s.rotation.set(rand(0,3),rand(0,3),0); scene.add(s);
   });
   const tubeWormMat=new THREE.MeshStandardMaterial({color:0x663333,roughness:.7});
   const tubeWormTipMat=new THREE.MeshStandardMaterial({color:0xff4444,emissive:0xcc2222,emissiveIntensity:.15});
-  spawnInBiome(SB('THERMAL ZONE'),2000,function(x,y,z){
+  spawnInBiome(SB('THERMAL ZONE'),1000,function(x,y,z){
     const grp=new THREE.Group(); grp.position.set(x,y,z);
     for(let j=0;j<rand(3,7);j++){
       const h=rand(1,4);
@@ -1282,7 +1282,7 @@ const fanMat=addSway(new THREE.MeshStandardMaterial({map:fanTex,transparent:true
     scene.add(grp);
   });
   const obsidianMat=new THREE.MeshStandardMaterial({color:0x111115,roughness:.3,metalness:.4,flatShading:true});
-  spawnInBiome(SB('THERMAL ZONE'),1500,function(x,y,z){
+  spawnInBiome(SB('THERMAL ZONE'),750,function(x,y,z){
     const h=rand(2,7);
     const o=new THREE.Mesh(new THREE.ConeGeometry(rand(.3,1),h,4),obsidianMat);
     o.position.set(x,y+h/2,z); o.rotation.set(rand(-.1,.1),rand(0,3),rand(-.1,.1)); scene.add(o);
@@ -1290,7 +1290,7 @@ const fanMat=addSway(new THREE.MeshStandardMaterial({map:fanTex,transparent:true
 
   /* ═══ CRYSTAL CAVES — glowing crystal wonderland ═══ */
   const crystCols=[0x9944ff,0x6688ff,0xff44aa,0x44ddff];
-  spawnInBiome(SB('CRYSTAL CAVES'),3500,function(x,y,z){
+  spawnInBiome(SB('CRYSTAL CAVES'),1750,function(x,y,z){
     const grp=new THREE.Group(); grp.position.set(x,y,z);
     const col=crystCols[Math.floor(Math.random()*4)];
     const mat=new THREE.MeshStandardMaterial({color:col,emissive:col,emissiveIntensity:.25,roughness:.15,metalness:.3,transparent:true,opacity:.8});
@@ -1303,15 +1303,112 @@ const fanMat=addSway(new THREE.MeshStandardMaterial({map:fanTex,transparent:true
     scene.add(grp);
   });
   const lichenMat=new THREE.MeshStandardMaterial({color:0x4488cc,emissive:0x2266aa,emissiveIntensity:.15,roughness:.9,side:THREE.DoubleSide});
-  spawnInBiome(SB('CRYSTAL CAVES'),2000,function(x,y,z){
+  spawnInBiome(SB('CRYSTAL CAVES'),1000,function(x,y,z){
     const l=new THREE.Mesh(new THREE.CircleGeometry(rand(.5,2.5),7),lichenMat);
     l.rotation.x=-Math.PI/2+rand(-.15,.15); l.position.set(x,y+.03,z); scene.add(l);
   });
   const crystShardMat=new THREE.MeshStandardMaterial({color:0xbb66ff,emissive:0x8844cc,emissiveIntensity:.2,roughness:.1,transparent:true,opacity:.6});
-  spawnInBiome(SB('CRYSTAL CAVES'),2500,function(x,y,z){
+  spawnInBiome(SB('CRYSTAL CAVES'),1250,function(x,y,z){
     const h=rand(.5,2);
     const s=new THREE.Mesh(new THREE.ConeGeometry(rand(.05,.2),h,4),crystShardMat);
     s.position.set(x,y+h/2,z); s.rotation.set(rand(-.2,.2),rand(0,3),rand(-.2,.2)); scene.add(s);
+  });
+
+  /* ═══ CORAL GARDENS — vibrant branching corals ═══ */
+  const coralBranchCols=[0xff6644,0xff44aa,0xffaa22,0x44ddaa,0xdd44ff];
+  spawnInBiome(SB('CORAL GARDENS'),2500,function(x,y,z){
+    const grp=new THREE.Group(); grp.position.set(x,y,z);
+    const col=coralBranchCols[Math.floor(Math.random()*5)];
+    const mat=new THREE.MeshStandardMaterial({color:col,emissive:col,emissiveIntensity:.12,roughness:.6});
+    for(let j=0;j<rand(3,8);j++){
+      const h=rand(1,5);
+      const b=new THREE.Mesh(new THREE.CylinderGeometry(.04,rand(.1,.3),h,5),mat);
+      b.position.set(rand(-1,1),h/2,rand(-1,1));
+      b.rotation.set(rand(-.3,.3),0,rand(-.4,.4)); grp.add(b);
+    }
+    scene.add(grp);
+  });
+  spawnInBiome(SB('CORAL GARDENS'),1500,function(x,y,z){
+    const grp=new THREE.Group(); grp.position.set(x,y,z);
+    const base=new THREE.Mesh(new THREE.CylinderGeometry(.3,.5,.4,8),new THREE.MeshStandardMaterial({color:0xff77aa,emissive:0xdd4488,emissiveIntensity:.18,roughness:.4}));
+    grp.add(base);
+    for(let j=0;j<rand(6,14);j++){
+      const t=new THREE.Mesh(new THREE.ConeGeometry(.03,rand(.4,1.2),4),new THREE.MeshStandardMaterial({color:0xff77aa,emissive:0xdd4488,emissiveIntensity:.18,roughness:.4}));
+      t.position.set(rand(-.3,.3),rand(.2,.5),rand(-.3,.3));
+      t.rotation.set(rand(-.5,.5),0,rand(-.5,.5)); grp.add(t);
+    }
+    scene.add(grp);
+  });
+  spawnInBiome(SB('CORAL GARDENS'),2000,function(x,y,z){
+    const h=rand(.3,1);
+    const g=new THREE.Mesh(new THREE.PlaneGeometry(rand(.15,.4),h,1,2),addSway(new THREE.MeshStandardMaterial({color:0x55cc88,roughness:.8,side:THREE.DoubleSide,transparent:true,opacity:.7}),.5));
+    g.geometry=g.geometry.clone(); g.geometry.translate(0,h/2,0);
+    g.position.set(x,y,z); g.rotation.y=rand(0,Math.PI); scene.add(g);
+  });
+
+  /* ═══ GHOST FOREST — pale dead trees, eerie ═══ */
+  const ghostTreeMat=new THREE.MeshStandardMaterial({color:0x889999,roughness:.9,emissive:0x334444,emissiveIntensity:.04});
+  spawnInBiome(SB('GHOST FOREST'),1500,function(x,y,z){
+    const grp=new THREE.Group(); grp.position.set(x,y,z);
+    const h=rand(8,25);
+    const trunk=new THREE.Mesh(new THREE.CylinderGeometry(rand(.1,.4),rand(.3,.8),h,6),ghostTreeMat);
+    trunk.position.y=h/2; grp.add(trunk);
+    for(let j=0;j<rand(2,5);j++){
+      const bh=rand(2,6);
+      const br=new THREE.Mesh(new THREE.CylinderGeometry(.03,.1,bh,4),ghostTreeMat);
+      br.position.set(rand(-.5,.5),h*rand(.4,.9),rand(-.5,.5));
+      br.rotation.set(rand(-.8,.8),0,rand(-1,1)); grp.add(br);
+    }
+    scene.add(grp);
+  });
+  spawnInBiome(SB('GHOST FOREST'),2000,function(x,y,z){
+    const h=rand(1,5);
+    const m=new THREE.Mesh(new THREE.PlaneGeometry(rand(.3,1.5),h,1,4),addSway(new THREE.MeshStandardMaterial({color:0x556666,emissive:0x224444,emissiveIntensity:.06,roughness:.95,side:THREE.DoubleSide,transparent:true,opacity:.5}),.3));
+    m.geometry=m.geometry.clone(); m.geometry.translate(0,h/2,0);
+    m.position.set(x,y,z); m.rotation.y=rand(0,Math.PI); scene.add(m);
+  });
+  spawnInBiome(SB('GHOST FOREST'),1000,function(x,y,z){
+    const s=new THREE.Mesh(new THREE.SphereGeometry(rand(.08,.25),5,4),new THREE.MeshStandardMaterial({color:0x88ffcc,emissive:0x44cc88,emissiveIntensity:.3,transparent:true,opacity:.6}));
+    s.position.set(x,y+rand(.5,3),z); scene.add(s);
+  });
+
+  /* ═══ BRINE FLATS — salt crystals, brine pools ═══ */
+  spawnInBiome(SB('BRINE FLATS'),1500,function(x,y,z){
+    const h=rand(.5,3);
+    const c=new THREE.Mesh(new THREE.ConeGeometry(rand(.1,.5),h,4),new THREE.MeshStandardMaterial({color:0xeeddcc,roughness:.3,metalness:.2,flatShading:true}));
+    c.position.set(x,y+h/2,z); c.rotation.set(rand(-.15,.15),rand(0,3),rand(-.15,.15)); scene.add(c);
+  });
+  spawnInBiome(SB('BRINE FLATS'),750,function(x,y,z){
+    const r2=rand(1,4);
+    const p=new THREE.Mesh(new THREE.CylinderGeometry(r2,r2,.1,10),new THREE.MeshStandardMaterial({color:0x44aa88,emissive:0x228866,emissiveIntensity:.1,roughness:.2,transparent:true,opacity:.7}));
+    p.position.set(x,y+.05,z); scene.add(p);
+  });
+  spawnInBiome(SB('BRINE FLATS'),1000,function(x,y,z){
+    const h=rand(1,5);
+    const p=new THREE.Mesh(new THREE.CylinderGeometry(rand(.15,.5),rand(.2,.6),h,5),new THREE.MeshStandardMaterial({color:0xddccbb,roughness:.6,flatShading:true}));
+    p.position.set(x,y+h/2,z); scene.add(p);
+  });
+
+  /* ═══ LAVA FIELDS — magma cracks, obsidian ═══ */
+  const lavaRockMat=new THREE.MeshStandardMaterial({color:0x1a1015,roughness:.85,flatShading:true});
+  const magmaMat=new THREE.MeshStandardMaterial({color:0xff4400,emissive:0xff2200,emissiveIntensity:.5,roughness:.3});
+  spawnInBiome(SB('LAVA FIELDS'),1000,function(x,y,z){
+    const r2=rand(.5,2);
+    const rock=new THREE.Mesh(new THREE.DodecahedronGeometry(r2,1),lavaRockMat);
+    rock.position.set(x,y+r2*.3,z); rock.scale.y=rand(.3,.7); scene.add(rock);
+  });
+  spawnInBiome(SB('LAVA FIELDS'),500,function(x,y,z){
+    const crack=new THREE.Mesh(new THREE.PlaneGeometry(rand(.3,1.5),rand(2,8),1,1),magmaMat);
+    crack.rotation.x=-Math.PI/2; crack.position.set(x,y+.03,z); crack.rotation.z=rand(0,Math.PI); scene.add(crack);
+  });
+  spawnInBiome(SB('LAVA FIELDS'),750,function(x,y,z){
+    const h=rand(3,10);
+    const spire=new THREE.Mesh(new THREE.ConeGeometry(rand(.3,1.2),h,5),lavaRockMat);
+    spire.position.set(x,y+h/2,z); scene.add(spire);
+  });
+  spawnInBiome(SB('LAVA FIELDS'),400,function(x,y,z){
+    const pool=new THREE.Mesh(new THREE.CylinderGeometry(rand(.5,2),rand(.5,2),.15,8),magmaMat);
+    pool.position.set(x,y+.08,z); scene.add(pool);
   });
 
   // Rocks — scattered everywhere
