@@ -5363,7 +5363,7 @@ function animate(){
     if(underwater&&(keys.KeyW||keys.KeyS)&&Math.random()<.15*dt)swimBubble();
     // Ocean current drift — gentle push in deep water
     if(underwater&&!insideBase&&!inVehicle){
-      const currentStr=clamp(curDepth/200,0,.6)*dt;
+      const currentStr=clamp(Math.max(0,-camWorld.y)/200,0,.6)*dt;
       const cx2=Math.sin(t*.07)*currentStr, cz2=Math.cos(t*.09)*currentStr;
       vel.x+=cx2; vel.z+=cz2;
     }
