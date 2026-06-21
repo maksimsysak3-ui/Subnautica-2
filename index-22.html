@@ -4933,10 +4933,10 @@ function buildWreck(def,idx){
 wreckDefs.forEach((def,i)=>buildWreck(def,i));
 
 /* ═══ BIGGER FISH — medium-large non-leviathan species ═══ */
-const bigFishTex1=fishTexture(0x2266aa,0xaaccdd,0x44aadd);
-const bigFishTex2=fishTexture(0x448844,0xbbddbb,0x66cc88);
-const bigFishTex3=fishTexture(0x885522,0xddbb88,0xaa7744);
-const bigFishTex4=fishTexture(0x664488,0xccaadd,0x8866bb);
+const bigFishTex1=fishTexture('#2266aa','#aaccdd','#44aadd');
+const bigFishTex2=fishTexture('#448844','#bbddbb','#66cc88');
+const bigFishTex3=fishTexture('#885522','#ddbb88','#aa7744');
+const bigFishTex4=fishTexture('#664488','#ccaadd','#8866bb');
 const groupers=[];
 for(let i=0;i<30;i++){
   const cx=rand(-1800,1800),cz=rand(-1800,1800),cy=terrainHeight(cx,cz);
