@@ -688,7 +688,7 @@ const IN_DEN=.005;
 scene.fog=new THREE.FogExp2(UW_FOG.clone(),UW_DEN);
 scene.background=scene.fog.color;
 
-const camera=new THREE.PerspectiveCamera(68,innerWidth/innerHeight,.1,800);
+const camera=new THREE.PerspectiveCamera(68,innerWidth/innerHeight,.1,400);
 const pitchObj=new THREE.Object3D(); pitchObj.add(camera);
 const player=new THREE.Object3D(); player.add(pitchObj);
 player.position.set(0,-7,30);
@@ -5473,21 +5473,7 @@ function animate(){
   }
   if(AC&&ambGain)ambGain.gain.value=insideBase?.1:(underwater?.4:.18);
 
-  /* distance culling (every 15 frames) — skip bases, fish, lights */
   _cullFrame++;
-  if(_cullFrame%15===0){
-    const px=camWorld.x,py=camWorld.y,pz=camWorld.z;
-    for(let i=0;i<scene.children.length;i++){
-      const c=scene.children[i];
-      if(!c.isMesh&&!c.isGroup)continue;
-      if(c===terrain||c===toolRoot||c===vehicleGroup)continue;
-      if(c.userData&&(c.userData.placed||c.userData.a||c.userData.isBuilding))continue;
-      if(c.isLight)continue;
-      const me=c.matrixWorld.elements;
-      const dx=me[12]-px,dy=me[13]-py,dz=me[14]-pz;
-      c.visible=(dx*dx+dy*dy+dz*dz)<62500;
-    }
-  }
 
   /* environment animation */
 
@@ -5976,70 +5962,60 @@ function animate(){
   if(started&&!paused&&curTool===3){
     if($('scanOverlay'))$('scanOverlay').style.opacity=mouseDown?.15:0;
     if(mouseDown){
-      raycaster.setFromCamera({x:0,y:0},camera); raycaster.far=12;
-      const fishMeshes=[];
-      for(const f of _allFishCached){ if(f.visible&&f.position.distanceToSquared(camWorld)<144) f.traverse(c=>{ if(c.isMesh)fishMeshes.push(c); }); }
-      const sh=raycaster.intersectObjects(fishMeshes,false)[0];
       let scanHitPos=null;
-      if(sh){ scanHitPos=sh.point; }
-      if(sh){
-        scanProgress+=dt*33;
-        if(scanProgress>=100){
-          const names=['AZURE JACK','AMBER REEF','ROSE FIN','PEEPER','BOOMERANG','GASOPOD','STALKER','PARROTFISH','BUTTERFLY FISH','LEAFY SEA DRAGON','SPORE DRIFTER','DEEP ANGLER','SAND DARTER','BLOOD CRAWLER','LAVA SERPENT','CRYSTAL WISP','MANTA RAY','GIANT CRAB','REEF GROUPER','OCEANIC MANTA','OCEAN SUNFISH','MORAY EEL'];
-          const info=['Common schooling fish','Solitary reef dweller','Colorful reef species','Bioluminescent prey','Flat bottom-feeder','Large toxic herbivore','Aggressive predator','Coral-crunching reef fish','Delicate shallow species','Camouflaged kelp dweller','Mushroom forest jellyfish','Deep reef ambush predator','Fast sparse reef fish','Blood trench hunter','Thermal zone predator','Crystal caves fish','Passive giant glider','Armored crustacean','Large slow reef dweller','Enormous winged filter feeder','Bizarre disc-shaped giant','Serpentine ambush predator'];
-          const idx=Math.floor(Math.random()*names.length);
-          if(!scannedSet.has(idx)){ scannedSet.add(idx); missionState.scanned=scannedSet.size; }
-          const creatureIds=['azureJack','amberReef','roseFin','peeper','boomerang','gasopod','stalker','parrotfish','butterflyfish','seaDragon','sporeJelly','deepAngler','sandDarter','bloodCrawler','lavaSerpent','crystalWisp','mantaRay','giantCrab','grouper','bigManta','sunfish','morayEel'];
-          if(creatureIds[idx]) scannedCreatures.add(creatureIds[idx]);
-          toast('SCAN COMPLETE: '+names[idx]+' — '+info[idx]); blip(1200,.12,'sine',.08); blip(880,.15,'sine',.12); scanProgress=0;
-        }
-      } else {
-        const mh=raycaster.intersectObjects(mineralMeshes,false)[0];
-        if(mh&&mh.object.userData.node){ scanHitPos=mh.point; scanProgress+=dt*50; if(scanProgress>=100){ const n=mh.object.userData.node; toast('SCANNED: '+MIN_TYPES[n.type].label+' NODE'); blip(880,.15,'sine',.1); scanProgress=0; } }
-        else {
-          let wreckScanned=false;
-          for(const w of wrecks){
-            if(!w.userData.scanned && camWorld.distanceTo(w.position)<8){
-              scanHitPos=w.position.clone(); scanHitPos.y+=2;
-              scanProgress+=dt*25;
-              if(scanProgress>=100){
-                w.userData.scanned=true; missionState.wrecksScanned=(missionState.wrecksScanned||0)+1;
-                const bp=w.userData.blueprint;
-                if(bp && !unlockedBlueprints.has(bp)){ unlockedBlueprints.add(bp); toast('BLUEPRINT UNLOCKED: '+(RECIPES[bp]?RECIPES[bp].name:bp.toUpperCase())); }
-                else toast('WRECK SCANNED — NO NEW DATA');
-                blip(880,.2,'sine',.12); scanProgress=0;
-              }
-              wreckScanned=true;
-              break;
-            }
+      // Check wrecks first (simple distance, no raycast)
+      let wreckScanned=false;
+      for(const w of wrecks){
+        if(!w.userData.scanned && camWorld.distanceTo(w.position)<8){
+          scanHitPos=tmpV.copy(w.position); scanHitPos.y+=2;
+          scanProgress+=dt*25;
+          if(scanProgress>=100){
+            w.userData.scanned=true; missionState.wrecksScanned=(missionState.wrecksScanned||0)+1;
+            const bp=w.userData.blueprint;
+            if(bp && !unlockedBlueprints.has(bp)){ unlockedBlueprints.add(bp); toast('BLUEPRINT UNLOCKED: '+(RECIPES[bp]?RECIPES[bp].name:bp.toUpperCase())); }
+            else toast('WRECK SCANNED — NO NEW DATA');
+            blip(880,.2,'sine',.12); scanProgress=0;
           }
-          if(!wreckScanned) scanProgress=Math.max(0,scanProgress-dt*60);
+          wreckScanned=true; break;
+        }
+      }
+      // Check fish via simple proximity (no raycast/traverse)
+      if(!wreckScanned){
+        let closestFish=null,closestDist=144;
+        for(const f of _allFishCached){
+          if(!f.visible)continue;
+          const d2=f.position.distanceToSquared(camWorld);
+          if(d2<closestDist){closestDist=d2;closestFish=f;}
+        }
+        if(closestFish){
+          scanHitPos=closestFish.position;
+          scanProgress+=dt*33;
+          if(scanProgress>=100){
+            const names=['AZURE JACK','AMBER REEF','ROSE FIN','PEEPER','BOOMERANG','GASOPOD','STALKER','PARROTFISH','BUTTERFLY FISH','LEAFY SEA DRAGON','SPORE DRIFTER','DEEP ANGLER','SAND DARTER','BLOOD CRAWLER','LAVA SERPENT','CRYSTAL WISP','MANTA RAY','GIANT CRAB','REEF GROUPER','OCEANIC MANTA','OCEAN SUNFISH','MORAY EEL'];
+            const info=['Common schooling fish','Solitary reef dweller','Colorful reef species','Bioluminescent prey','Flat bottom-feeder','Large toxic herbivore','Aggressive predator','Coral-crunching reef fish','Delicate shallow species','Camouflaged kelp dweller','Mushroom forest jellyfish','Deep reef ambush predator','Fast sparse reef fish','Blood trench hunter','Thermal zone predator','Crystal caves fish','Passive giant glider','Armored crustacean','Large slow reef dweller','Enormous winged filter feeder','Bizarre disc-shaped giant','Serpentine ambush predator'];
+            const idx=Math.floor(Math.random()*names.length);
+            if(!scannedSet.has(idx)){ scannedSet.add(idx); missionState.scanned=scannedSet.size; }
+            const creatureIds=['azureJack','amberReef','roseFin','peeper','boomerang','gasopod','stalker','parrotfish','butterflyfish','seaDragon','sporeJelly','deepAngler','sandDarter','bloodCrawler','lavaSerpent','crystalWisp','mantaRay','giantCrab','grouper','bigManta','sunfish','morayEel'];
+            if(creatureIds[idx]) scannedCreatures.add(creatureIds[idx]);
+            toast('SCAN COMPLETE: '+names[idx]+' — '+info[idx]); blip(1200,.12,'sine',.08); blip(880,.15,'sine',.12); scanProgress=0;
+          }
+        } else {
+          scanProgress=Math.max(0,scanProgress-dt*60);
         }
       }
       if(scanHitPos){
         scanBeam.visible=true;
-        const scanTip=new THREE.Vector3(); camera.getWorldPosition(scanTip); scanTip.add(camDir.clone().multiplyScalar(.5));
-        scanBeam.position.copy(scanTip); scanBeam.lookAt(scanHitPos);
-        const dist=scanTip.distanceTo(scanHitPos);
+        scanBeam.position.copy(camWorld); scanBeam.lookAt(scanHitPos);
+        const dist=camWorld.distanceTo(scanHitPos);
         scanBeam.scale.set(1+scanProgress/100*.5,1+scanProgress/100*.5,dist);
         scanBeamMat.opacity=.08+scanProgress/100*.12;
-        /* target reticle */
         scanRing.visible=true; scanRing.position.copy(scanHitPos);
-        scanRing.lookAt(scanTip); scanRing.rotation.z+=dt*3;
+        scanRing.lookAt(camWorld); scanRing.rotation.z+=dt*3;
         scanRing.scale.setScalar((0.4+scanProgress/100*0.8)*(1+Math.sin(t*6)*.08));
-        /* multi-ring scan effect */
         scanRayGroup.visible=true; scanRayGroup.position.copy(scanHitPos);
-        const prog=scanProgress/100;
-        scanRayGroup.children.forEach((c,i)=>{
-          if(c===scanHLine){ c.position.y=-1.2+((t*0.8+i)%1)*2.4; c.scale.x=0.5+prog; }
-          else { c.rotation.x=t*1.5+i*0.5; c.rotation.y=t*2.0+i*1.2; c.scale.setScalar(0.5+prog*0.8+Math.sin(t*4+i)*0.05); }
-        });
-        /* scanner lens glow pulse */
-        if(scannerModel.userData.lens) scannerModel.userData.lens.material.emissiveIntensity=0.15+prog*0.3+Math.sin(t*8)*0.05;
-        if(scannerModel.userData.lensRing) scannerModel.userData.lensRing.material.opacity=0.5+prog*0.4;
-        /* scan info UI */
+        if(scannerModel.userData.lens) scannerModel.userData.lens.material.emissiveIntensity=0.15+scanProgress/100*0.3;
         if($('scanInfo')){ $('scanInfo').style.opacity=1; $('scanInfo').textContent='SCANNING... '+Math.floor(scanProgress)+'%'; }
-        if($('scanOverlay')) $('scanOverlay').style.opacity=0.3+prog*0.5;
+        if($('scanOverlay')) $('scanOverlay').style.opacity=0.3+scanProgress/100*0.5;
       } else { scanBeam.visible=false; scanRing.visible=false; scanRayGroup.visible=false; if($('scanInfo'))$('scanInfo').style.opacity=0; }
     } else { scanProgress=Math.max(0,scanProgress-dt*80); scanBeam.visible=false; scanRing.visible=false; scanRayGroup.visible=false; if($('scanInfo'))$('scanInfo').style.opacity=0; }
   } else { if($('scanOverlay'))$('scanOverlay').style.opacity=0; scanBeam.visible=false; scanRing.visible=false; scanRayGroup.visible=false; if($('scanInfo'))$('scanInfo').style.opacity=0; }
@@ -6048,7 +6024,7 @@ function animate(){
   if(started&&!paused&&curTool===5&&mouseDown){
     camera.getWorldDirection(FWD);
     vel.addScaledVector(FWD,dt*45);
-    if(Math.random()<dt*8)spawnSparks(camWorld.clone().sub(FWD.clone().multiplyScalar(1)),2,true,rand(.3,.8));
+    if(Math.random()<dt*8){tmpV.copy(camWorld).sub(FWD);spawnSparks(tmpV,2,true,rand(.3,.8));}
   }
 
   /* flashlight */
