@@ -5191,7 +5191,9 @@ MODULES.push(
 const clock=new THREE.Clock();
 const FWD=new THREE.Vector3(),RIGHT=new THREE.Vector3(),UP=V3(0,1,0);
 const tmpV=new THREE.Vector3(),tmpT=new THREE.Vector3();
+const _wposMapCached={survive:V3(10,-5,20),base:V3(8,-5,22),craft3:V3(0,-7,30),deeper:V3(30,-85,30),scan5:V3(0,-30,60),wreck:V3(60,-40,80),signal:V3(-80,-120,-80),predator:V3(100,-40,100),vehicle:V3(0,-7,30),leviathan:V3(0,-290,0),blood:V3(-50,-160,50),thermal:V3(40,-260,40),abyss:V3(0,-420,0),data:V3(70,-100,70),pods:V3(-40,-60,-40),alien:V3(90,-200,90),eggs:V3(-60,-80,60),escape:V3(0,-7,30)};
 const fogColCur=UW_FOG.clone(); let fogDenCur=UW_DEN;
+const _nightSkyCol=new THREE.Color(0x010818);
 
 let _cullFrame=0;
 function animate(){
@@ -5359,22 +5361,36 @@ function animate(){
     window._groanT-=dt;
     if(window._groanT<=0&&underwater){distantGroan();window._groanT=rand(50,90);}
     if(underwater&&(keys.KeyW||keys.KeyS)&&Math.random()<.15*dt)swimBubble();
+    // Ocean current drift — gentle push in deep water
+    if(underwater&&!insideBase&&!inVehicle){
+      const currentStr=clamp(curDepth/200,0,.6)*dt;
+      const cx2=Math.sin(t*.07)*currentStr, cz2=Math.cos(t*.09)*currentStr;
+      vel.x+=cx2; vel.z+=cz2;
+    }
   }
   hurtFlash=Math.max(0,hurtFlash-dt*1.2);
   $('hurt').style.opacity=hurtFlash;
+  // Low HP heartbeat
+  if(started&&!paused&&stats.hp<25&&stats.hp>0){
+    if(!window._hbT)window._hbT=0;
+    window._hbT-=dt;
+    if(window._hbT<=0){
+      const rate=stats.hp<12?.6:1.0;
+      window._hbT=rate;
+      blip(55,.15,'sine',.12);setTimeout(()=>blip(45,.1,'sine',.08),120);
+    }
+  }
   /* Directional damage indicator */
   const dmgIndEl=$('dmgInd')||document.createElement('div');
   if(!dmgIndEl.id){dmgIndEl.id='dmgInd';dmgIndEl.style.cssText='position:fixed;width:80px;height:80px;pointer-events:none;z-index:7;opacity:0;transition:opacity 0.3s;font-size:60px;color:rgba(255,40,40,0.7)';dmgIndEl.textContent='\u25C0';document.body.appendChild(dmgIndEl);}
   if(lastDmgDir&&t-lastDmgT<1.5){
     dmgIndEl.style.opacity=clamp(1.5-(t-lastDmgT),0,1);
-    const fwd=new THREE.Vector3();camera.getWorldDirection(fwd);
-    const right=new THREE.Vector3().crossVectors(fwd,new THREE.Vector3(0,1,0)).normalize();
-    const dot=lastDmgDir.dot(right);
-    const dotFwd=lastDmgDir.dot(fwd);
+    const dot=lastDmgDir.dot(RIGHT);
+    const dotFwd=lastDmgDir.dot(FWD);
     const angle=Math.atan2(dot,dotFwd);
-    const cx=window.innerWidth/2+Math.sin(angle)*Math.min(window.innerWidth,window.innerHeight)*0.38;
-    const cy=window.innerHeight/2-Math.cos(angle)*Math.min(window.innerWidth,window.innerHeight)*0.38;
-    dmgIndEl.style.left=(cx-40)+'px';dmgIndEl.style.top=(cy-40)+'px';
+    const cx2=window.innerWidth/2+Math.sin(angle)*Math.min(window.innerWidth,window.innerHeight)*0.38;
+    const cy2=window.innerHeight/2-Math.cos(angle)*Math.min(window.innerWidth,window.innerHeight)*0.38;
+    dmgIndEl.style.left=(cx2-40)+'px';dmgIndEl.style.top=(cy2-40)+'px';
     dmgIndEl.style.transform='rotate('+(angle*180/Math.PI)+'deg)';
   }else{dmgIndEl.style.opacity='0';}
 
@@ -5412,7 +5428,7 @@ function animate(){
     scene.add(window._causticLight);
   }
   if(underwater&&curDepth<50){
-    window._causticLight.position.copy(camWorld).add(new THREE.Vector3(0,2,0));
+    window._causticLight.position.set(camWorld.x,camWorld.y+2,camWorld.z);
     window._causticLight.intensity=(.3+Math.sin(t*3)*.15+Math.sin(t*5.3)*.1)*clamp(1-curDepth/50,0,1);
   }else{ window._causticLight.intensity=0; }
   /* plankton & volumetric shafts removed for performance */
@@ -5448,6 +5464,13 @@ function animate(){
     cgEl.style.background='rgba(180,60,20,0.12)';cgEl.style.mixBlendMode='screen';
   }else{cgEl.style.mixBlendMode='multiply';}
   if($('chromatic'))$('chromatic').style.opacity=clamp((curDepth-30)/50,0,.6);
+  // Depth pressure vignette
+  let vigEl=$('depthVig');
+  if(!vigEl){vigEl=document.createElement('div');vigEl.id='depthVig';vigEl.style.cssText='position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:5';document.body.appendChild(vigEl);}
+  if(underwater&&curDepth>80){
+    const vi=clamp((curDepth-80)/300,0,.7);
+    vigEl.style.background=`radial-gradient(ellipse at center,transparent 40%,rgba(0,2,8,${vi}) 100%)`;
+  }else{vigEl.style.background='none';}
   /* Day/night visual cycle */
   dayTime=(dayTime+dt)%DAY_LENGTH;
   const dayPhase=dayTime/DAY_LENGTH;
@@ -5467,7 +5490,7 @@ function animate(){
   /* sun removed — ambient only */
   sunDisc.material.opacity=dayFactor;
   if(!underwater){
-    const nightSky=new THREE.Color(0x010818);
+    const nightSky=_nightSkyCol;
     const daySky=SF_FOG;
     scene.fog.color.lerp(isNight?nightSky:daySky,1-Math.pow(.1,dt));
   }
@@ -5479,9 +5502,10 @@ function animate(){
 
   /* snow/plankton/dust particles removed for performance */
 
-  /* fish — school */
+  /* fish — school (skip terrain check, just clamp y) */
   schoolTarget(t,tmpT);
-  for(const f of school){
+  for(let fi=0;fi<school.length;fi++){
+    const f=school[fi];
     const u=f.userData.s,an=f.userData.anim;
     if(!u.alive){ u.respawn-=dt; if(u.respawn<=0){u.alive=true;f.visible=true;} continue; }
     u.off.applyAxisAngle(UP,dt*.12);
@@ -5489,28 +5513,20 @@ function animate(){
     u.vel.addScaledVector(tmpV,dt*1.1);
     u.vel.clampLength(0,6.2);
     f.position.addScaledVector(u.vel,dt);
-    const fy=terrainHeight(f.position.x,f.position.z)+1.6;
-    if(f.position.y<fy)f.position.y=fy;
     if(f.position.y>-1.6)f.position.y=-1.6;
     tmpV.copy(f.position).add(u.vel);
     f.lookAt(tmpV);
-    an.inner.rotation.y=Math.sin(t*6+an.ph)*.1;
     an.tailPivot.rotation.y=Math.sin(t*9+an.ph)*.5;
-    an.finL.rotation.z=.7+Math.sin(t*5+an.ph)*.25;
-    an.finR.rotation.z=-.7-Math.sin(t*5+an.ph)*.25;
   }
-  /* fish — ambient wanderers */
-  for(const f of ambient){
+  /* fish — ambient wanderers (only animate nearby fish) */
+  for(let fi=0;fi<ambient.length;fi++){
+    const f=ambient[fi];
     const u=f.userData.a,an=f.userData.anim;
     if(!u.alive){ u.respawn-=dt; if(u.respawn<=0){u.alive=true;f.visible=true;} continue; }
     const a=u.w*t+u.ph;
-    const px=u.c.x+Math.cos(a)*u.r,pz=u.c.z+Math.sin(a)*u.r;
-    const py=u.c.y+Math.sin(t*.7+u.ph)*1.2;
-    f.position.set(px,py,pz);
-    f.lookAt(px-Math.sin(a)*u.w,py+Math.cos(t*.7+u.ph)*.2,pz+Math.cos(a)*u.w);
+    f.position.set(u.c.x+Math.cos(a)*u.r,u.c.y+Math.sin(t*.7+u.ph)*1.2,u.c.z+Math.sin(a)*u.r);
+    f.lookAt(f.position.x-Math.sin(a)*u.w,f.position.y+Math.cos(t*.7+u.ph)*.2,f.position.z+Math.cos(a)*u.w);
     an.tailPivot.rotation.y=Math.sin(t*10+an.ph)*.55;
-    an.finL.rotation.z=.7+Math.sin(t*6+an.ph)*.3;
-    an.finR.rotation.z=-.7-Math.sin(t*6+an.ph)*.3;
   }
 
   plants.forEach(p=>{
@@ -5563,7 +5579,7 @@ function animate(){
     }
   });
   for(const v of vents)
-    if(underwater&&Math.random()<dt*2.2)spawnSparks(v,1,true,rand(2,3.5));
+    if(underwater&&Math.random()<dt*2.2&&camWorld.distanceToSquared(v)<10000)spawnSparks(v,1,true,rand(2,3.5));
   for(let i=sparks.length-1;i>=0;i--){
     const s=sparks[i]; s.userData.life-=dt;
     if(s.userData.life<=0||(s.userData.bub&&s.position.y>0)){ scene.remove(s); sparks.splice(i,1); continue; }
@@ -5898,10 +5914,10 @@ function animate(){
     // Pull leviathans toward player when in deep zone
     if(curDepth>250){
       const pullStrength=Math.min(1,(curDepth-250)/100)*dt*8;
-      const toPlayer=new THREE.Vector3().subVectors(camWorld,leviathanGroup.position).normalize();
-      leviathanGroup.position.addScaledVector(toPlayer,pullStrength);
-      const toPlayer2=new THREE.Vector3().subVectors(camWorld,leviathan2.position).normalize();
-      leviathan2.position.addScaledVector(toPlayer2,pullStrength*.7);
+      tmpV.subVectors(camWorld,leviathanGroup.position).normalize();
+      leviathanGroup.position.addScaledVector(tmpV,pullStrength);
+      tmpV.subVectors(camWorld,leviathan2.position).normalize();
+      leviathan2.position.addScaledVector(tmpV,pullStrength*.7);
     }
     // Abyssal Titan patrol
     titanAngle+=dt*.08;
@@ -5910,7 +5926,7 @@ function animate(){
     abyssalTitan.lookAt(Math.cos(titanAngle+.1)*tR,tDepth,Math.sin(titanAngle+.1)*tR);
     const titanDist=camWorld.distanceTo(abyssalTitan.position);
     if(titanDist<50&&curDepth>380){
-      const chD=new THREE.Vector3().subVectors(camWorld,abyssalTitan.position).normalize();
+      const chD=tmpV.subVectors(camWorld,abyssalTitan.position).normalize();
       abyssalTitan.position.addScaledVector(chD,dt*16);
       abyssalTitan.lookAt(camWorld);
       if(titanDist<12){ const suitMul=equipped.suit?0.8:1.0; stats.hp=clamp(stats.hp-40*dt*suitMul,0,100); hurtFlash=Math.max(hurtFlash,1); camera.position.x=rand(-.25,.25); camera.position.y=rand(-.25,.25); }
@@ -5929,7 +5945,7 @@ function animate(){
     }
     if(closestDist<35&&curDepth>250){
       missionState.leviathanEncounter=true;
-      const chaseDir=new THREE.Vector3().subVectors(camWorld,closestLev.position).normalize();
+      const chaseDir=tmpV.subVectors(camWorld,closestLev.position).normalize();
       closestLev.position.addScaledVector(chaseDir,dt*12);
       closestLev.lookAt(camWorld);
       if(closestDist<8){ const suitMul=equipped.suit?0.8:1.0; stats.hp=clamp(stats.hp-25*dt*suitMul,0,100); hurtFlash=Math.max(hurtFlash,.8); camera.position.x=rand(-.15,.15); camera.position.y=rand(-.15,.15); }
@@ -6044,6 +6060,7 @@ function animate(){
       const u=f.userData.a,an=f.userData.anim;
       if(!u||!an)continue;
       if(!u.alive){ u.respawn-=dt; if(u.respawn<=0){u.alive=true;f.visible=true;} continue; }
+      if(u.c.distanceToSquared(camWorld)>90000)continue;
       const a=u.w*t+u.ph;
       f.position.set(u.c.x+Math.cos(a)*u.r,u.c.y+Math.sin(t*.8+u.ph)*1.5,u.c.z+Math.sin(a)*u.r);
       f.lookAt(f.position.x-Math.sin(a)*u.w,f.position.y+Math.cos(t*.7+u.ph)*.2,f.position.z+Math.cos(a)*u.w);
@@ -6051,21 +6068,20 @@ function animate(){
       an.tailPivot.rotation.y=Math.sin(t*10+an.ph)*.55;
       an.finL.rotation.z=.7+Math.sin(t*6+an.ph)*.3;
       an.finR.rotation.z=-.7-Math.sin(t*6+an.ph)*.3;
-      // Passive fish flee from player
       if(!f.userData.predator&&!f.userData.toxic){
-        const playerDist=f.position.distanceTo(camWorld);
-        if(playerDist<8){
-          const away=f.position.clone().sub(camWorld).normalize();
-          f.position.add(away.clone().multiplyScalar(dt*4));
+        const pd2=f.position.distanceToSquared(camWorld);
+        if(pd2<64){
+          tmpT.subVectors(f.position,camWorld).normalize();
+          f.position.addScaledVector(tmpT,dt*4);
         }
       }
       if(f.userData.predator){
-        const sd=f.position.distanceTo(camWorld);
-        if(sd<25&&sd>2){
-          const ch=new THREE.Vector3().subVectors(camWorld,f.position).normalize();
-          f.position.addScaledVector(ch,dt*(f.userData.toxic?4:6));
+        const sd=f.position.distanceToSquared(camWorld);
+        if(sd<625&&sd>4){
+          tmpT.subVectors(camWorld,f.position).normalize();
+          f.position.addScaledVector(tmpT,dt*(f.userData.toxic?4:6));
           f.lookAt(camWorld);
-          if(sd<4){ const suitMul=equipped.suit?0.8:1.0; stats.hp=clamp(stats.hp-(f.userData.toxic?8:5)*dt*suitMul,0,100); hurtFlash=Math.max(hurtFlash,.4); missionState.predatorEncounter=true; lastDmgDir=new THREE.Vector3().subVectors(f.position,camWorld).normalize(); lastDmgT=t; }
+          if(sd<16){ const suitMul=equipped.suit?0.8:1.0; stats.hp=clamp(stats.hp-(f.userData.toxic?8:5)*dt*suitMul,0,100); hurtFlash=Math.max(hurtFlash,.4); missionState.predatorEncounter=true; tmpT.subVectors(f.position,camWorld).normalize(); lastDmgDir=tmpT.clone(); lastDmgT=t; }
         }
       }
       if(f.userData.toxic){ const gd=f.position.distanceTo(camWorld); if(gd<6){ stats.hp=clamp(stats.hp-3*dt,0,100); } }
@@ -6073,28 +6089,13 @@ function animate(){
   }
 
 
-  // Predator chase AI for new fish types
-  [...anglerfish,...packHunters].forEach(f=>{
-    if(!f.userData||!f.userData.a||!f.userData.a.alive)return;
-    const d=camWorld.distanceTo(f.position);
-    if(d<25&&d>2){
-      const dir=new THREE.Vector3().subVectors(camWorld,f.position).normalize();
-      f.position.addScaledVector(dir,dt*(f.userData.toxic?4:6));
-      f.lookAt(camWorld);
-      if(d<4){
-        const suitMul=equipped.suit?0.8:1.0;
-        stats.hp=clamp(stats.hp-(f.userData.toxic?8:5)*dt*suitMul,0,100);
-        hurtFlash=Math.max(hurtFlash,.4);
-        missionState.predatorEncounter=true;
-        lastDmgDir=new THREE.Vector3().subVectors(f.position,camWorld).normalize(); lastDmgT=t;
-      }
-    }
-  });
+  // Predator chase AI already handled in extra fish animation loop above
 
-  // Jellyfish pulsing animation
-  jellyfish.forEach(j=>{
-    if(!j.userData.a)return;
+  // Jellyfish pulsing animation (skip if far)
+  for(let ji=0;ji<jellyfish.length;ji++){
+    const j=jellyfish[ji]; if(!j.userData.a)continue;
     const a=j.userData.a;
+    if(a.c.distanceToSquared(camWorld)>90000)continue;
     a.ph+=a.w*dt;
     j.position.x=a.c.x+Math.cos(a.ph)*a.r;
     j.position.z=a.c.z+Math.sin(a.ph)*a.r;
@@ -6102,11 +6103,12 @@ function animate(){
     j.rotation.y=a.ph+Math.PI/2*(a.w>0?1:-1);
     const pulse=0.9+Math.sin(t*1.2+j.position.x)*0.1;
     j.scale.set(pulse,0.8+Math.sin(t*1.5+j.position.z)*0.15,pulse);
-  });
-  // Manta ray gliding with banking
-  mantas.forEach(f=>{
-    if(!f.userData.a)return;
+  }
+  // Manta ray gliding (skip if far)
+  for(let mi=0;mi<mantas.length;mi++){
+    const f=mantas[mi]; if(!f.userData.a)continue;
     const a=f.userData.a;
+    if(a.c.distanceToSquared(camWorld)>90000)continue;
     a.ph+=a.w*dt;
     f.position.x=a.c.x+Math.cos(a.ph)*a.r;
     f.position.z=a.c.z+Math.sin(a.ph)*a.r;
@@ -6114,24 +6116,23 @@ function animate(){
     f.rotation.y=a.ph+Math.PI/2*(a.w>0?1:-1);
     f.rotation.z=Math.sin(a.ph)*0.2;
     f.rotation.x=Math.sin(t*0.6+a.ph)*0.08;
-  });
-  // Giant crab walking animation
-  giantCrabs.forEach(g=>{
-    if(!g.userData.a)return;
+  }
+  // Giant crab walking (skip if far, no terrainHeight)
+  for(let gi=0;gi<giantCrabs.length;gi++){
+    const g=giantCrabs[gi]; if(!g.userData.a)continue;
     const a=g.userData.a;
+    if(a.c.distanceToSquared(camWorld)>40000)continue;
     a.ph+=a.w*dt;
-    const ty=terrainHeight(a.c.x+Math.cos(a.ph)*a.r,a.c.z+Math.sin(a.ph)*a.r);
-    g.position.set(a.c.x+Math.cos(a.ph)*a.r,ty,a.c.z+Math.sin(a.ph)*a.r);
+    g.position.set(a.c.x+Math.cos(a.ph)*a.r,a.c.y,a.c.z+Math.sin(a.ph)*a.r);
     g.rotation.y=a.ph+Math.PI/2*(a.w>0?1:-1);
-    // Attack player if close
-    const cd=camWorld.distanceTo(g.position);
-    if(cd<15&&cd>2){
-      const dir=new THREE.Vector3().subVectors(camWorld,g.position).normalize();
-      g.position.addScaledVector(dir,dt*3);
+    const cd2=camWorld.distanceToSquared(g.position);
+    if(cd2<225&&cd2>4){
+      tmpT.subVectors(camWorld,g.position).normalize();
+      g.position.addScaledVector(tmpT,dt*3);
       g.lookAt(camWorld.x,g.position.y,camWorld.z);
-      if(cd<4){ stats.hp=clamp(stats.hp-6*dt*(equipped.suit?.8:1),0,100); hurtFlash=Math.max(hurtFlash,.4); missionState.predatorEncounter=true; }
+      if(cd2<16){ stats.hp=clamp(stats.hp-6*dt*(equipped.suit?.8:1),0,100); hurtFlash=Math.max(hurtFlash,.4); missionState.predatorEncounter=true; }
     }
-  });
+  }
   // Base degradation — modules lose 0.5 health per minute
   if(started&&!paused){
     baseDegradeTimer+=dt;
@@ -6170,12 +6171,7 @@ function animate(){
     const wp=$('waypoint');
     const curM=MISSION_LIST[missionState.curMission];
     if(curM&&!curM.check()){
-      const wposMap={survive:new THREE.Vector3(10,-5,20),base:new THREE.Vector3(8,-5,22),craft3:new THREE.Vector3(0,-7,30),
-        deeper:new THREE.Vector3(30,-85,30),scan5:new THREE.Vector3(0,-30,60),wreck:new THREE.Vector3(60,-40,80),
-        signal:new THREE.Vector3(-80,-120,-80),predator:new THREE.Vector3(100,-40,100),vehicle:new THREE.Vector3(0,-7,30),
-        leviathan:new THREE.Vector3(0,-290,0),blood:new THREE.Vector3(-50,-160,50),thermal:new THREE.Vector3(40,-260,40),
-        abyss:new THREE.Vector3(0,-420,0),data:new THREE.Vector3(70,-100,70),pods:new THREE.Vector3(-40,-60,-40),
-        alien:new THREE.Vector3(90,-200,90),eggs:new THREE.Vector3(-60,-80,60),escape:new THREE.Vector3(0,-7,30)};
+      const wposMap=_wposMapCached;
       const wpos=wposMap[curM.id];
       if(wpos){
         const projected=wpos.clone().project(camera);
@@ -6199,7 +6195,7 @@ function animate(){
   if(started&&!paused&&placed.length>0){
     const bw=$('baseWaypoint');
     const firstBase=placed[0];
-    const bpos=new THREE.Vector3(firstBase.x,firstBase.y+3,firstBase.z);
+    const bpos=tmpT.set(firstBase.x,firstBase.y+3,firstBase.z);
     const bp=bpos.clone().project(camera);
     let bsx=(bp.x+1)/2*window.innerWidth;
     let bsy=(-bp.y+1)/2*window.innerHeight;
