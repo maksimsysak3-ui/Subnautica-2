@@ -268,9 +268,7 @@
   #scanOverlay{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);width:220px;height:220px;
     border:2px solid rgba(68,190,255,.4);border-radius:50%;opacity:0;transition:opacity .2s;pointer-events:none;
     box-shadow:0 0 30px rgba(68,190,255,.1) inset,0 0 15px rgba(68,190,255,.05)}
-  #scanOverlay .scanline{position:absolute;left:10%;right:10%;top:50%;height:2px;background:rgba(68,200,255,.5);
-    box-shadow:0 0 8px rgba(68,200,255,.4);animation:scanmove 1.2s ease-in-out infinite}
-  @keyframes scanmove{0%,100%{top:20%}50%{top:80%}}
+  #scanOverlay .scanline{display:none}
   #scanInfo{position:fixed;left:50%;top:62%;transform:translateX(-50%);font-size:12px;letter-spacing:.18em;
     color:var(--cy);text-shadow:0 0 10px var(--cy-dim);opacity:0;transition:opacity .3s;pointer-events:none;text-align:center}
   /* vehicle HUD */
@@ -4194,9 +4192,7 @@ for(let i=0;i<3;i++){
   scanRayGroup.add(ring);
 }
 /* Horizontal scan line that sweeps up */
-const scanLineMat=new THREE.MeshBasicMaterial({color:0x66ddff,transparent:true,opacity:.25,depthWrite:false,side:THREE.DoubleSide});
-const scanLineGeo=new THREE.PlaneGeometry(2,.02);
-const scanHLine=new THREE.Mesh(scanLineGeo,scanLineMat); scanRayGroup.add(scanHLine);
+/* scanline mesh removed for performance */
 /* Wireframe overlay — appears on scanned object */
 const wireframeMat=new THREE.MeshBasicMaterial({color:0x44ccff,transparent:true,opacity:.2,wireframe:true,depthWrite:false});
 const scanHRing=scanRayGroup.children[0];
@@ -5534,7 +5530,7 @@ function animate(){
   fabBlink.material.emissiveIntensity=0.4+Math.sin(t*6)*.3;
   if(typeof fabDish!=='undefined') fabDish.rotation.y+=dt*0.4;
   // tool idle animations
-  if(curTool===3 && scannerModel.userData.scanLine){
+  if(false && scannerModel.userData.scanLine){
     scannerModel.userData.scanLine.position.y=Math.sin(t*3)*.07;
     /* Scanner sonar ping */
     if(t-scannerPingT>3){ scannerPingT=t; blip(220,.12,'sine',.06); setTimeout(()=>blip(330,.08,'sine',.04),120); }
@@ -5685,58 +5681,7 @@ function animate(){
     window._causticLight.position.copy(camWorld).add(new THREE.Vector3(0,2,0));
     window._causticLight.intensity=(.3+Math.sin(t*3)*.15+Math.sin(t*5.3)*.1)*clamp(1-curDepth/50,0,1);
   }else{ window._causticLight.intensity=0; }
-  // Plankton particle motes — small drifting dots near camera
-  if(!window._planktonPts){
-    const pGeom=new THREE.BufferGeometry();
-    const pCount=100;
-    const pPos=new Float32Array(pCount*3);
-    const pVel=new Float32Array(pCount*3);
-    for(let i=0;i<pCount;i++){
-      pPos[i*3]=Math.random()*40-20; pPos[i*3+1]=Math.random()*30-15; pPos[i*3+2]=Math.random()*40-20;
-      pVel[i*3]=(Math.random()-.5)*.3; pVel[i*3+1]=(Math.random()-.5)*.15; pVel[i*3+2]=(Math.random()-.5)*.3;
-    }
-    pGeom.setAttribute('position',new THREE.BufferAttribute(pPos,3));
-    const pMat=new THREE.PointsMaterial({color:0x88eeff,size:.12,transparent:true,opacity:.4,sizeAttenuation:true});
-    window._planktonPts=new THREE.Points(pGeom,pMat);
-    window._planktonVel=pVel;
-    scene.add(window._planktonPts);
-  }
-  if(underwater){
-    window._planktonPts.visible=true;
-    const pp=window._planktonPts.geometry.attributes.position;
-    const pv=window._planktonVel;
-    for(let i=0;i<pp.count;i++){
-      pp.array[i*3]+=pv[i*3]*dt; pp.array[i*3+1]+=pv[i*3+1]*dt; pp.array[i*3+2]+=pv[i*3+2]*dt;
-      // Wrap around camera
-      if(Math.abs(pp.array[i*3]-camWorld.x)>20) pp.array[i*3]=camWorld.x+(Math.random()-.5)*40;
-      if(Math.abs(pp.array[i*3+1]-camWorld.y)>15) pp.array[i*3+1]=camWorld.y+(Math.random()-.5)*30;
-      if(Math.abs(pp.array[i*3+2]-camWorld.z)>20) pp.array[i*3+2]=camWorld.z+(Math.random()-.5)*40;
-    }
-    pp.needsUpdate=true;
-    window._planktonPts.material.opacity=clamp(.4-curDepth*.002,0.05,.4);
-  }else{ window._planktonPts.visible=false; }
-  // Volumetric light shafts at depth >100m — semi-transparent tall planes
-  if(!window._volShafts){
-    window._volShafts=[];
-    for(let i=0;i<3;i++){
-      const shaftGeo=new THREE.PlaneGeometry(3,40);
-      const shaftMat2=new THREE.MeshBasicMaterial({color:0x4488aa,transparent:true,opacity:.03,side:THREE.DoubleSide,blending:THREE.AdditiveBlending,depthWrite:false});
-      const shaft=new THREE.Mesh(shaftGeo,shaftMat2);
-      shaft.visible=false;
-      scene.add(shaft);
-      window._volShafts.push(shaft);
-    }
-  }
-  if(underwater&&curDepth>100){
-    for(let i=0;i<window._volShafts.length;i++){
-      const vs=window._volShafts[i];
-      vs.visible=true;
-      const angle=t*.05+i*(Math.PI*2/3);
-      vs.position.set(camWorld.x+Math.cos(angle)*12,camWorld.y,camWorld.z+Math.sin(angle)*12);
-      vs.rotation.y=angle+t*.02;
-      vs.material.opacity=clamp(.03*(curDepth-100)/200,0,.04);
-    }
-  }else{ for(const vs of (window._volShafts||[])) vs.visible=false; }
+  /* plankton & volumetric shafts removed for performance */
   // Abyss alien flower pulsing animation
   if(typeof abyssAlienFlower!=='undefined'&&abyssAlienFlower&&!abyssAlienFlower.userData.collected){
     if(abyssAlienFlower.userData.coreMat) abyssAlienFlower.userData.coreMat.emissiveIntensity=.8+Math.sin(t*1.2)*.3;
@@ -5794,36 +5739,25 @@ function animate(){
   }
   if(AC&&ambGain)ambGain.gain.value=insideBase?.1:(underwater?.4:.18);
 
-  /* distance culling (every 10 frames) — skip bases, fish, lights */
+  /* distance culling (every 15 frames) — skip bases, fish, lights */
   _cullFrame++;
-  if(_cullFrame%10===0){
+  if(_cullFrame%15===0){
+    const px=camWorld.x,py=camWorld.y,pz=camWorld.z;
     for(let i=0;i<scene.children.length;i++){
       const c=scene.children[i];
       if(!c.isMesh&&!c.isGroup)continue;
       if(c===terrain||c===toolRoot||c===vehicleGroup)continue;
-      // Never cull player buildings, fish, or lights
       if(c.userData&&(c.userData.placed||c.userData.a||c.userData.isBuilding))continue;
       if(c.isLight)continue;
-      const _cullPos=new THREE.Vector3();
-      _cullPos.setFromMatrixPosition(c.matrixWorld);
-      const d=_cullPos.distanceTo(player.position);
-      c.visible=d<300;
+      const me=c.matrixWorld.elements;
+      const dx=me[12]-px,dy=me[13]-py,dz=me[14]-pz;
+      c.visible=(dx*dx+dy*dy+dz*dz)<62500;
     }
   }
 
   /* environment animation */
 
-  for(const [pts,fall] of [[snow,.4],[plankton,.12]]){
-    pts.position.copy(player.position); pts.visible=underwater;
-    const pa=pts.geometry.attributes.position.array,n=pa.length/3;
-    for(let i=0;i<n;i++){
-      pa[i*3+1]-=dt*(fall+(i%5)*.06);
-      pa[i*3]+=Math.sin(t*.5+i)*.0016;
-      if(pa[i*3+1]<-SNOW_R)pa[i*3+1]=SNOW_R;
-    }
-    pts.geometry.attributes.position.needsUpdate=true;
-  }
-  dustPts.position.copy(player.position); dustPts.visible=underwater;
+  /* snow/plankton/dust particles removed for performance */
 
   /* fish — school */
   schoolTarget(t,tmpT);
