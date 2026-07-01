@@ -6,10 +6,11 @@
 <title>INDUSTRIAL ASCENT</title>
 <style>
   :root{
-    --cyan:#39e6ff; --cyan-dim:#1d7e8f; --orange:#ff8a2b; --amber:#ffc23d;
-    --green:#5dff8f; --red:#ff4d5e; --purple:#b46bff; --bg:#04080d;
-    --panel:rgba(8,18,28,0.86); --panel-solid:#08121c; --line:rgba(57,230,255,0.35);
-    --text:#cfeaf2; --dim:#6f8c98;
+    /* Satisfactory colorway: black/charcoal base, orange + yellow accents */
+    --cyan:#ff9a3c; --cyan-dim:#7a4a15; --orange:#ff8a2b; --amber:#ffc23d;
+    --green:#6ee089; --red:#ff5245; --purple:#c58bff; --bg:#070809;
+    --panel:rgba(17,18,21,0.9); --panel-solid:#101114; --line:rgba(255,150,45,0.3);
+    --text:#e8e4dc; --dim:#8a8d92;
   }
   *{box-sizing:border-box; margin:0; padding:0; -webkit-user-select:none; user-select:none;}
   html,body{width:100%; height:100%; overflow:hidden; background:var(--bg);
@@ -106,8 +107,12 @@
     background:var(--panel); border:1px solid var(--orange); padding:8px 18px; border-radius:8px; font-size:12.5px;
     letter-spacing:.5px; backdrop-filter:blur(6px); z-index:56; white-space:nowrap;}
   #buildHint b{color:var(--orange);}
-  #buildHint .bk{display:inline-block; background:var(--cyan); color:#03121a; border-radius:4px; padding:1px 6px;
-    font-weight:700; margin:0 2px 0 8px; font-size:11px;}
+  #buildHint .bk, #roverHud .bk{display:inline-block; background:var(--cyan); color:#120a02; border-radius:4px; padding:1px 6px;
+    font-weight:700; margin:0 2px; font-size:11px;}
+  #roverHud{position:fixed; bottom:88px; left:50%; transform:translateX(-50%); display:none; pointer-events:none;
+    background:var(--panel); border:1px solid var(--orange); padding:8px 18px; border-radius:8px; font-size:12.5px;
+    letter-spacing:.5px; backdrop-filter:blur(6px); z-index:57; white-space:nowrap;}
+  #roverHud b{color:var(--orange); letter-spacing:2px;}
 
   /* ---------- Big Menus (tablet) ---------- */
   .overlay{position:fixed; inset:0; background:rgba(2,6,10,.55); z-index:200; display:none;
@@ -248,6 +253,7 @@
   </div>
 
   <div id="buildHint"></div>
+  <div id="roverHud"><b>ROVER</b> &nbsp;<span class="bk">W</span>/<span class="bk">S</span> drive <span class="bk">A</span>/<span class="bk">D</span> steer <span class="bk">Space</span> brake <span class="bk">E</span> exit</div>
   <div id="hotbar"></div>
 </div>
 
@@ -426,7 +432,7 @@ const RECIPES = {
 };
 
 /* Buildings catalogue */
-const CAT_ORDER = ['Foundations','Walls','Production','Logistics','Power','City','Decor'];
+const CAT_ORDER = ['Foundations','Walls','Production','Logistics','Power','City','Vehicles','Decor'];
 const BUILD = {
   // --- Foundations ---
   foundation:{cat:'Foundations',n:'Foundation',ic:'▦',w:4,h:0.4,d:4,color:0x4a5560,cost:{concrete:2},tech:null},
@@ -469,8 +475,9 @@ const BUILD = {
   park:{cat:'City',n:'Park',ic:'',w:6,h:0.5,d:6,color:0x4faa55,cost:{concrete:4,wood:6},tech:'city',scrub:0.6,morale:0.1},
   // --- Decor ---
   lamp:{cat:'Decor',n:'Street Lamp',ic:'',w:0.5,h:5,d:0.5,color:0xffe08a,cost:{iron_rod:1,copper_wire:1},tech:null,lamp:true},
-  road:{cat:'Decor',n:'Road',ic:'▭',w:4,h:0.15,d:4,color:0x2a2c30,cost:{concrete:1},tech:null},
+  road:{cat:'Decor',n:'Road',ic:'',w:4,h:0.15,d:4,color:0x2a2c30,cost:{concrete:1},tech:null},
   statue:{cat:'Decor',n:'Statue',ic:'',w:2,h:6,d:2,color:0x9aa0a8,cost:{concrete:8,gold_ingot:2},tech:'city'},
+  rover:{cat:'Vehicles',n:'Rover',ic:'',w:3,h:2.5,d:5,color:0xff8a2b,cost:{iron_plate:12,rubber:6,circuit:2},tech:null,rover:true},
   // --- Rocket (end goal) ---
   silo:{cat:'Production',n:'Rocket Silo',ic:'R',w:9,h:14,d:9,color:0xd6e0e8,cost:{alloy_plate:20,frame:10,computer:6,concrete:40},tech:'rockettech',machine:'silo',pwr:-60},
   // --- Advanced Mode (unlocked by 'advanced' research) ---
@@ -520,15 +527,16 @@ const State = {
   inventory:[],            // {id,count}
   hotbar:['builder','dismantle','clipboard'],
   activeSlot:0,
-  buildings:[], belts:[], workers:[], creatures:[], nodes:[],
+  buildings:[], belts:[], workers:[], creatures:[], nodes:[], rovers:[], driving:null,
   nextId:1,
   power:{cap:0,draw:0,eff:1},
   pollution:null, pollW:48, pollH:48, pollCell:16,
   research:{rp:0, done:{}},
+  achievements:{done:{}},
   selectedBuild:'foundation', buildCat:'Foundations', buildRot:0,
   buildMode:false, beltAnchor:null,
   profile:{name:'Operator-7',body:0,skin:0xd0a080,suit:0xff8a2b,helm:0xffc23d,visor:0x39e6ff},
-  stats:{rocketParts:{}, totalProduced:0, playtime:0, cityPop:0, housing:0},
+  stats:{rocketParts:{}, totalProduced:0, playtime:0, cityPop:0, housing:0, seen:{}, built:{}},
   rocketLaunched:false,
   worldSeed:Math.floor(Math.random()*1e6),
 };
@@ -596,18 +604,20 @@ function initThree(){
 
   renderer = new THREE.WebGLRenderer({antialias:true, powerPreference:'high-performance'});
   renderer.setSize(innerWidth, innerHeight);
-  renderer.setPixelRatio(Math.min(devicePixelRatio,1.35)); // cap DPR for performance
+  renderer.setPixelRatio(Math.min(devicePixelRatio,1)); // cap DPR at 1 for performance
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFShadowMap; // cheaper than PCFSoft
+  renderer.shadowMap.autoUpdate = false; // we update shadows on a throttle (see animate)
   document.getElementById('game').appendChild(renderer.domElement);
 
   // lights
-  const amb = new THREE.HemisphereLight(0xbfe3ff, 0x3a4a3a, 0.9); scene.add(amb);
-  sun = new THREE.DirectionalLight(0xfff2dd, 1.25);
+  const amb = new THREE.HemisphereLight(0xbfe3ff, 0x3a4a3a, 0.95); scene.add(amb);
+  sun = new THREE.DirectionalLight(0xfff2dd, 1.2);
   sun.position.set(120,200,80); sun.castShadow=true;
-  sun.shadow.mapSize.set(1024,1024); // halved from 2048
-  const sc=sun.shadow.camera; sc.left=-130;sc.right=130;sc.top=130;sc.bottom=-130;sc.near=10;sc.far=500;
-  sun.shadow.bias=-0.0005;
+  sun.shadow.mapSize.set(1024,1024);
+  // tight frustum that follows the player -> only nearby casters render into the shadow map
+  const sc=sun.shadow.camera; sc.left=-75;sc.right=75;sc.top=75;sc.bottom=-75;sc.near=10;sc.far=340;
+  sun.shadow.bias=-0.0006;
   scene.add(sun); scene.add(sun.target);
 
   clock = new THREE.Clock();
@@ -657,8 +667,8 @@ function scatterScenery(){
     const bi=biomeAt(x,z); if(bi===2||bi===5) continue; if(Math.hypot(x,z)<30) continue;
     const h=terrainHeight(x,z); if(h<-2) continue;
     const t=new THREE.Group();
-    const trunk=new THREE.Mesh(trunkG,trunkMat); trunk.position.y=2; trunk.castShadow=true;
-    const leaf=new THREE.Mesh(leafG, bi===6?toxicLeaf:treeMat); leaf.position.y=6; leaf.castShadow=true;
+    const trunk=new THREE.Mesh(trunkG,trunkMat); trunk.position.y=2; // no shadow cast (perf)
+    const leaf=new THREE.Mesh(leafG, bi===6?toxicLeaf:treeMat); leaf.position.y=6;
     t.add(trunk); t.add(leaf);
     const s=0.7+randF()*0.9; t.scale.setScalar(s);
     t.position.set(x,h,z); t.userData={tree:true,wood:3+Math.floor(randF()*3)};
@@ -678,7 +688,7 @@ function scatterScenery(){
     const h=terrainHeight(x,z); if(h<-3) continue;
     const r=new THREE.Mesh(rockG,rockMat);
     r.position.set(x,h+0.4,z); r.scale.setScalar(0.6+randF()*1.6);
-    r.rotation.set(randF()*3,randF()*3,randF()*3); r.castShadow=true;
+    r.rotation.set(randF()*3,randF()*3,randF()*3); // no shadow cast (perf)
     r.userData={rock:true,stone:2+Math.floor(randF()*3)};
     rockGroup.add(r);
   }
@@ -716,18 +726,31 @@ function spawnNodes(){
 }
 function createNodeMesh(node){
   const g=new THREE.Group();
-  const baseMat=new THREE.MeshStandardMaterial({color:0x4a4a48,roughness:1,flatShading:true});
-  const base=new THREE.Mesh(new THREE.DodecahedronGeometry(3,0),baseMat);
-  base.position.y=1; base.castShadow=true; base.receiveShadow=true; g.add(base);
   const col=itemColor(node.type);
-  const crystMat=new THREE.MeshStandardMaterial({color:col,emissive:col,emissiveIntensity:0.5,roughness:0.4,metalness:0.3,flatShading:true});
-  for(let i=0;i<6;i++){
-    const c=new THREE.Mesh(new THREE.ConeGeometry(0.5+randF()*0.4,1.6+randF()*1.5,5),crystMat);
-    const a=randF()*6.28, r=0.6+randF()*1.6;
-    c.position.set(Math.cos(a)*r,1.5+randF()*1.2,Math.sin(a)*r);
-    c.rotation.set(randF()*0.6-0.3,randF()*6,randF()*0.6-0.3); c.castShadow=true; g.add(c);
+  // rocky outcrop base (clustered dark boulders like the reference art)
+  const rockMat=new THREE.MeshStandardMaterial({color:0x3c3f45,roughness:1,metalness:0.15,flatShading:true});
+  const rockMat2=new THREE.MeshStandardMaterial({color:0x2c2f34,roughness:1,metalness:0.1,flatShading:true});
+  for(let i=0;i<7;i++){
+    const r=1.0+randF()*1.3;
+    const b=new THREE.Mesh(new THREE.DodecahedronGeometry(r,0), i%2?rockMat2:rockMat);
+    const a=randF()*6.28, rad=randF()*1.8;
+    b.position.set(Math.cos(a)*rad, 0.3+randF()*0.8, Math.sin(a)*rad);
+    b.rotation.set(randF()*3,randF()*3,randF()*3);
+    b.castShadow=true; b.receiveShadow=true; g.add(b);
   }
-  const light=new THREE.PointLight(col,0.6,14); light.position.y=2.5; g.add(light);
+  // faceted ore crystals embedded in the rock (bright, colored, gem-like)
+  const oreMat=new THREE.MeshStandardMaterial({color:col,emissive:col,emissiveIntensity:0.55,roughness:0.25,metalness:0.45,flatShading:true});
+  const oreMat2=new THREE.MeshStandardMaterial({color:col,emissive:col,emissiveIntensity:0.3,roughness:0.4,metalness:0.3,flatShading:true});
+  for(let i=0;i<10;i++){
+    const s=0.35+randF()*0.55;
+    const geo = randF()<0.5? new THREE.OctahedronGeometry(s,0) : new THREE.IcosahedronGeometry(s,0);
+    const c=new THREE.Mesh(geo, i%3?oreMat:oreMat2);
+    const a=randF()*6.28, rad=0.4+randF()*1.7;
+    c.position.set(Math.cos(a)*rad, 0.7+randF()*1.6, Math.sin(a)*rad);
+    c.rotation.set(randF()*3,randF()*3,randF()*3);
+    c.castShadow=true; g.add(c);
+  }
+  const light=new THREE.PointLight(col,0.5,13); light.position.y=2.2; g.add(light);
   g.position.set(node.x,node.y,node.z);
   g.userData={node:node};
   scene.add(g); node.mesh=g;
@@ -953,7 +976,8 @@ function buildAllIcons(){
 /* ----------------------------------------------------------------------------- INVENTORY */
 function invAdd(id,n){
   n=n||1;
-  for(const s of State.inventory){ if(s.id===id){ s.count+=n; State.stats.totalProduced+=0; return true; } }
+  if(State.stats.seen) State.stats.seen[id]=true;
+  for(const s of State.inventory){ if(s.id===id){ s.count+=n; return true; } }
   State.inventory.push({id,count:n}); return true;
 }
 function invCount(id){ for(const s of State.inventory){ if(s.id===id) return s.count; } return 0; }
@@ -966,75 +990,330 @@ function payCost(cost){ if(!canAfford(cost)) return false; for(const k in cost) 
 function refund(cost){ for(const k in cost) invAdd(k,Math.ceil(cost[k]*0.5)); }
 
 /* ----------------------------------------------------------------------------- MACHINE MESHES */
+/* ---- Shared material palette (Satisfactory colorway: charcoal/steel + orange/yellow + blue glow) ---- */
+let MATS=null;
+function initMats(){
+  const S=(c,m,r,e,ei)=>{const mat=new THREE.MeshStandardMaterial({color:c,metalness:m,roughness:r}); if(e!=null){mat.emissive=new THREE.Color(e); mat.emissiveIntensity=ei||0.6;} return mat;};
+  MATS={
+    hull:S(0x33383f,0.55,0.5), hullDark:S(0x20242a,0.5,0.6), hullMid:S(0x2a2f36,0.55,0.55),
+    frame:S(0x121519,0.4,0.7), steel:S(0x9aa2ad,0.9,0.35), steelMid:S(0x6b727b,0.85,0.4), steelDark:S(0x474d55,0.8,0.45),
+    orange:S(0xef7d18,0.45,0.5), orangeGlow:S(0xff8a2b,0.4,0.5,0xff7a10,0.5), yellow:S(0xf4b62c,0.4,0.5), yellowGlow:S(0xffc23d,0.35,0.5,0xf0a000,0.5),
+    tread:S(0x101215,0.3,0.85), rubber:S(0x141518,0.15,0.9),
+    concrete:S(0x929aa4,0.05,0.95), concreteDk:S(0x676e77,0.05,0.95), concreteWarm:S(0x9a8f7e,0.05,0.95),
+    glass:S(0x0e2a38,0.2,0.2,0x1d6f92,0.8), glassBlue:S(0x0a1d30,0.3,0.18,0x2b86d8,1.0), glassDark:S(0x08161f,0.5,0.3,0x0e3346,0.4),
+    lava:S(0xff6a18,0.2,0.4,0xff5410,1.4), core:S(0x39c6ff,0.3,0.2,0x39c6ff,1.6), green:S(0x38c878,0.4,0.4,0x18773f,0.8),
+    roof:S(0x363b42,0.35,0.6), roofRed:S(0x7a3b2f,0.2,0.75), wood:S(0x6a4a28,0.1,0.85), solarPanel:S(0x0a2036,0.55,0.3,0x123a5a,0.5),
+    warn:S(0xf4b62c,0.3,0.5),
+  };
+}
+/* ---- part helpers ---- */
+function _M(geo,mat,x,y,z,shadow){const m=new THREE.Mesh(geo,mat); m.position.set(x||0,y||0,z||0); if(shadow){m.castShadow=true; m.receiveShadow=true;} return m;}
+function _R(mesh,rx,ry,rz){ if(rx)mesh.rotation.x=rx; if(ry)mesh.rotation.y=ry; if(rz)mesh.rotation.z=rz; return mesh; }
+function _box(w,h,d){return new THREE.BoxGeometry(w,h,d);}
+function _cyl(rt,rb,h,s){return new THREE.CylinderGeometry(rt,rb,h,s||16);}
+function machinePlatform(grp,w,dp){
+  const base=_M(_box(w+0.5,0.5,dp+0.5),MATS.hullDark,0,0.25,0,true); grp.add(base);
+  const lip=_M(_box(w+0.2,0.18,dp+0.2),MATS.frame,0,0.55,0); grp.add(lip);
+  [[-1,-1],[1,-1],[-1,1],[1,1]].forEach(([sx,sz])=>{ grp.add(_M(_box(0.5,0.55,0.5),MATS.orange,sx*(w/2+0.12),0.32,sz*(dp/2+0.12))); });
+  return 0.62;
+}
+function windowGrid(grp,w,h,dp,mat,cols,rowH){
+  const rows=Math.max(1,Math.floor(h/rowH));
+  const cc=cols||3;
+  for(let r=0;r<rows;r++)for(let c=0;c<cc;c++){
+    const win=_M(new THREE.PlaneGeometry((w*0.82)/cc-0.25,rowH*0.55),mat,(-w*0.41)+(w*0.82)*(c+0.5)/cc,(r+0.55)*rowH,dp/2+0.03);
+    grp.add(win);
+    const winB=_M(new THREE.PlaneGeometry((w*0.82)/cc-0.25,rowH*0.55),mat,(-w*0.41)+(w*0.82)*(c+0.5)/cc,(r+0.55)*rowH,-dp/2-0.03); winB.rotation.y=Math.PI; grp.add(winB);
+  }
+}
+function pipe(grp,mat,x1,y1,z1,x2,y2,z2,rad){
+  const a=new THREE.Vector3(x1,y1,z1), b=new THREE.Vector3(x2,y2,z2);
+  const len=a.distanceTo(b); const m=_M(_cyl(rad,rad,len,8),mat,(x1+x2)/2,(y1+y2)/2,(z1+z2)/2);
+  m.lookAt(b); m.rotateX(Math.PI/2); grp.add(m); return m;
+}
+
 function createBuildingMesh(def,key){
+  if(!MATS) initMats();
   const grp=new THREE.Group();
-  const d=def;
-  const mainMat=new THREE.MeshStandardMaterial({color:d.color,roughness:0.55,metalness:0.55,flatShading:false});
-  if(d.glass){mainMat.transparent=true;mainMat.opacity=0.4;mainMat.metalness=0.1;mainMat.roughness=0.1;}
-  const w=d.w||2,h=d.h||2,dp=d.d||2;
+  const d=def, w=d.w||2, h=d.h||2, dp=d.d||2;
 
   if(d.belt){ return grp; } // belts handled separately
 
-  if(d.ramp){
-    const geo=new THREE.BoxGeometry(w,0.4,dp); const m=new THREE.Mesh(geo,mainMat);
-    m.geometry.translate(0,0,0); m.rotation.x=-Math.atan2(h,dp); m.position.y=h/2; m.castShadow=true; m.receiveShadow=true; grp.add(m);
-  } else if(d.pole){
-    const pole=new THREE.Mesh(new THREE.CylinderGeometry(0.18,0.22,h,7),new THREE.MeshStandardMaterial({color:0x6a5a3a,roughness:0.8})); pole.position.y=h/2; pole.castShadow=true; grp.add(pole);
-    const top=new THREE.Mesh(new THREE.BoxGeometry(2.4,0.3,0.3),new THREE.MeshStandardMaterial({color:0x444,roughness:0.6})); top.position.y=h-0.6; grp.add(top);
-    const ins=new THREE.MeshStandardMaterial({color:0x39e6ff,emissive:0x39e6ff,emissiveIntensity:0.5});
-    [-1,1].forEach(s=>{const i=new THREE.Mesh(new THREE.SphereGeometry(0.16,6,6),ins); i.position.set(s,h-0.4,0); grp.add(i);});
-  } else if(d.lamp){
-    const pole=new THREE.Mesh(new THREE.CylinderGeometry(0.1,0.14,h,6),new THREE.MeshStandardMaterial({color:0x33373d})); pole.position.y=h/2; grp.add(pole);
-    const head=new THREE.Mesh(new THREE.SphereGeometry(0.4,8,8),new THREE.MeshStandardMaterial({color:0xfff0c0,emissive:0xffe08a,emissiveIntensity:1})); head.position.y=h; grp.add(head);
-    const lp=new THREE.PointLight(0xffe0a0,0.9,18); lp.position.y=h-0.3; grp.add(lp); grp._lamp=lp;
-  } else {
-    // generic machine/building box base
-    const base=new THREE.Mesh(new THREE.BoxGeometry(w,h,dp),mainMat); base.position.y=h/2; base.castShadow=true; base.receiveShadow=true; grp.add(base);
-    // frame edges
-    const edge=new THREE.LineSegments(new THREE.EdgesGeometry(base.geometry),new THREE.LineBasicMaterial({color:0x111417})); edge.position.y=h/2; grp.add(edge);
-
-    if(d.machine==='miner'){
-      const head=new THREE.Mesh(new THREE.ConeGeometry(w*0.4,1.6,7),new THREE.MeshStandardMaterial({color:0x33373d,metalness:0.8,roughness:0.4}));
-      head.position.y=h+0.4; grp.add(head); grp._spin=head;
-      const drill=new THREE.Mesh(new THREE.CylinderGeometry(0.3,0.05,2.2,6),new THREE.MeshStandardMaterial({color:0xffc23d,metalness:0.7,roughness:0.3}));
-      drill.position.y=-1; grp.add(drill); grp._drill=drill;
+  /* ---------------- FOUNDATIONS / RAMP / PILLAR ---------------- */
+  if(d.cat==='Foundations'){
+    if(d.ramp){
+      const g=_M(_box(w,0.45,Math.hypot(h,dp)),MATS.concreteDk,0,h/2,0,true); g.rotation.x=-Math.atan2(h,dp); grp.add(g);
+      grp.add(_M(_box(w*0.9,0.08,Math.hypot(h,dp)*0.9),MATS.frame,0,h/2+0.28,0));
+    } else if(key==='pillar'){
+      grp.add(_M(_box(w*1.4,0.3,dp*1.4),MATS.concreteDk,0,0.15,0,true));
+      grp.add(_M(_box(w,h-0.6,dp),MATS.concrete,0,h/2,0,true));
+      grp.add(_M(_box(w*1.4,0.3,dp*1.4),MATS.concreteDk,0,h-0.15,0));
+      [-1,1].forEach(s=>grp.add(_M(_box(0.12,h-0.6,0.12),MATS.orange,s*w*0.5,h/2,s*dp*0.5)));
+    } else {
+      const slab=_M(_box(w,0.4,dp),MATS.concrete,0,0.2,0,true); grp.add(slab);
+      grp.add(_M(_box(w,0.12,dp),MATS.concreteDk,0,0.02,0));
+      // beveled frame + panel seams
+      grp.add(_M(_box(w-0.15,0.06,0.1),MATS.steelDark,0,0.41,0));
+      grp.add(_M(_box(0.1,0.06,dp-0.15),MATS.steelDark,0,0.41,0));
+      [[-1,-1],[1,-1],[-1,1],[1,1]].forEach(([sx,sz])=>grp.add(_M(_box(0.35,0.44,0.35),MATS.steelMid,sx*(w/2-0.25),0.2,sz*(dp/2-0.25))));
     }
-    if(d.machine==='smelter'||d.machine==='foundry'){
-      const chim=new THREE.Mesh(new THREE.CylinderGeometry(0.4,0.5,2,8),new THREE.MeshStandardMaterial({color:0x2a2a2a})); chim.position.set(w*0.3,h+0.8,dp*0.3); grp.add(chim);
-      grp._glow=new THREE.PointLight(0xff5a1a,0,12); grp._glow.position.set(0,h*0.4,dp*0.5+0.2); grp.add(grp._glow);
-      grp._chim={x:w*0.3,z:dp*0.3,y:h+1.8};
-    }
-    if(d.machine==='constructor'||d.machine==='assembler'||d.machine==='manufacturer'){
-      const gear=new THREE.Mesh(new THREE.TorusGeometry(w*0.28,0.18,6,10),new THREE.MeshStandardMaterial({color:0x39e6ff,emissive:0x1d6a7a,metalness:0.7,roughness:0.3}));
-      gear.position.set(0,h*0.7,dp*0.5+0.05); grp.add(gear); grp._spin=gear;
-      const win=new THREE.Mesh(new THREE.PlaneGeometry(w*0.5,h*0.3),new THREE.MeshStandardMaterial({color:0x0a3a4a,emissive:0x0a5a6a,emissiveIntensity:0.5}));
-      win.position.set(0,h*0.4,dp*0.5+0.06); grp.add(win);
-    }
-    if(d.machine==='generator'){
-      grp._glow=new THREE.PointLight(d.solar?0x39e6ff:0xff8a2b,0.5,16); grp._glow.position.y=h*0.6; grp.add(grp._glow);
-      if(!d.solar){const chim=new THREE.Mesh(new THREE.CylinderGeometry(0.5,0.6,2.5,8),new THREE.MeshStandardMaterial({color:0x222})); chim.position.set(w*0.3,h+1,0); grp.add(chim); grp._chim={x:w*0.3,z:0,y:h+2};}
-      else {const panel=new THREE.Mesh(new THREE.BoxGeometry(w*1.2,0.2,dp*1.2),new THREE.MeshStandardMaterial({color:0x0a2a4a,emissive:0x0a3a5a,emissiveIntensity:0.4,metalness:0.6})); panel.position.y=h+0.2; panel.rotation.x=0.3; grp.add(panel);}
-    }
-    if(d.machine==='scrubber'){
-      const fan=new THREE.Mesh(new THREE.TorusGeometry(w*0.3,0.1,6,12),new THREE.MeshStandardMaterial({color:0x3ad17a,emissive:0x1a7a4a,emissiveIntensity:0.5}));
-      fan.position.y=h+0.2; fan.rotation.x=Math.PI/2; grp.add(fan); grp._spin=fan;
-    }
-    if(d.machine==='silo'){
-      // rocket gantry
-      const gantry=new THREE.Mesh(new THREE.BoxGeometry(0.4,h,0.4),new THREE.MeshStandardMaterial({color:0x555})); gantry.position.set(w*0.4,h/2,w*0.4); grp.add(gantry);
-      grp._rocketMount=new THREE.Group(); grp._rocketMount.position.y=h*0.1; grp.add(grp._rocketMount);
-    }
-    if(d.housing||d.office){
-      // windows
-      const wmat=new THREE.MeshStandardMaterial({color:0x0a3a4a,emissive:0x1a5a6a,emissiveIntensity:0.4});
-      const rows=Math.max(1,Math.floor(h/3));
-      for(let r=0;r<rows;r++)for(let c=-1;c<=1;c++){
-        const win=new THREE.Mesh(new THREE.PlaneGeometry(0.9,1.2),wmat);
-        win.position.set(c*w*0.28,(r+0.6)*(h/rows),dp/2+0.02); grp.add(win);
-      }
-    }
-    if(d.glass){ base.material=mainMat; }
+    grp.userData={building:true}; return grp;
   }
+  /* ---------------- WALLS ---------------- */
+  if(d.cat==='Walls'){
+    const wallMat = d.glass?MATS.glassDark:(key==='wall_reinf'?MATS.steelDark:MATS.hull);
+    grp.add(_M(_box(w,h,dp),wallMat,0,h/2,0,true));
+    // frame border
+    grp.add(_M(_box(w,0.3,dp+0.05),MATS.frame,0,h-0.15,0));
+    grp.add(_M(_box(w,0.3,dp+0.05),MATS.frame,0,0.15,0));
+    [-1,1].forEach(s=>grp.add(_M(_box(0.3,h,dp+0.05),MATS.frame,s*(w/2-0.15),h/2,0)));
+    if(key==='wall_glass'){ grp.add(_M(new THREE.PlaneGeometry(w*0.7,h*0.7),MATS.glassBlue,0,h*0.5,dp/2+0.02)); }
+    if(key==='wall_door'){ grp.add(_M(_box(w*0.4,h*0.72,0.15),MATS.hullDark,0,h*0.36,0)); grp.add(_M(_box(w*0.4,0.12,0.16),MATS.orange,0,h*0.72,0)); }
+    if(key==='wall_metal'){ grp.add(_M(_box(w*0.85,0.1,0.05),MATS.orange,0,h*0.62,dp/2+0.01)); grp.add(_M(_box(w*0.85,0.1,0.05),MATS.orange,0,h*0.38,dp/2+0.01)); }
+    grp.userData={building:true}; return grp;
+  }
+  /* ---------------- POWER POLE ---------------- */
+  if(d.pole){
+    grp.add(_M(_box(0.7,0.3,0.7),MATS.frame,0,0.15,0,true));
+    grp.add(_M(_cyl(0.13,0.18,h,10),MATS.steelMid,0,h/2,0,true));
+    grp.add(_M(_box(2.6,0.22,0.22),MATS.steelDark,0,h-0.5,0));
+    grp.add(_M(_box(2.2,0.18,0.18),MATS.steelDark,0,h-1.1,0));
+    [-1,1].forEach(s=>{ grp.add(_M(_cyl(0.1,0.1,0.35,6),MATS.orange,s*1.2,h-0.28,0)); grp.add(_M(_cyl(0.09,0.09,0.3,6),MATS.orange,s*1,h-0.88,0)); });
+    grp.userData={building:true}; return grp;
+  }
+  /* ---------------- STREET LAMP ---------------- */
+  if(d.lamp){
+    grp.add(_M(_box(0.5,0.25,0.5),MATS.frame,0,0.12,0));
+    grp.add(_M(_cyl(0.08,0.12,h,8),MATS.steelMid,0,h/2,0));
+    grp.add(_M(_box(0.5,0.25,0.9),MATS.hullDark,0,h,0.3));
+    grp.add(_M(_box(0.4,0.08,0.7),MATS.yellowGlow,0,h-0.13,0.3));
+    const lp=new THREE.PointLight(0xffe0a0,0.9,20); lp.position.set(0,h-0.3,0.3); grp.add(lp); grp._lamp=lp;
+    grp.userData={building:true}; return grp;
+  }
+  /* ---------------- ROVER (preview mesh) ---------------- */
+  if(d.rover){ const g=buildRoverMesh(); g.userData={building:true}; return g; }
+  /* ---------------- ROAD ---------------- */
+  if(key==='road'){
+    grp.add(_M(_box(w,0.16,dp),MATS.tread,0,0.08,0,true));
+    grp.add(_M(_box(w*0.09,0.17,dp*0.55),MATS.yellow,0,0.09,0));
+    grp.add(_M(_box(w,0.05,0.14),MATS.steelDark,0,0.14,dp*0.46));
+    grp.add(_M(_box(w,0.05,0.14),MATS.steelDark,0,0.14,-dp*0.46));
+    grp.userData={building:true}; return grp;
+  }
+  /* ---------------- MINER (drills DOWN into the ore, emits particles) ---------------- */
+  if(d.machine==='miner'){
+    const mk2=key==='miner2';
+    const platY=mk2?3.6:3.2, spread=mk2?1.9:1.7;
+    // 4 splayed legs straddling the node
+    [[-1,-1],[1,-1],[-1,1],[1,1]].forEach(([sx,sz])=>{
+      const leg=_M(_cyl(0.14,0.2,platY+0.6,7),MATS.steelDark,sx*spread,platY/2,sz*spread,true);
+      leg.lookAt(new THREE.Vector3(0,platY+0.6,0)); grp.add(leg);
+      grp.add(_M(_box(0.5,0.3,0.5),MATS.frame,sx*spread,0.15,sz*spread));
+    });
+    // platform
+    grp.add(_M(_box(w-0.2,0.4,dp-0.2),MATS.hullDark,0,platY,0,true));
+    grp.add(_M(_box(w+0.2,0.18,dp+0.2),MATS.frame,0,platY+0.22,0));
+    // housing / motor block (yellow rig — Satisfactory miner)
+    const housing=_M(_box(w*0.8,mk2?1.9:1.5,dp*0.8),MATS.yellow,0,platY+0.9,0,true); grp.add(housing);
+    grp.add(_M(_box(w*0.84,0.5,dp*0.84),MATS.hullDark,0,platY+1.7,0));
+    grp.add(_M(_box(w*0.5,0.6,dp*0.5),MATS.hull,0,platY+2.05,0));
+    // motor cowl (rotates)
+    const motor=_M(_cyl(0.5,0.5,0.9,12),MATS.steelDark,0,platY+2.4,0); grp.add(motor); grp._spin=motor;
+    grp.add(_M(_box(0.15,0.9,0.9),MATS.orange,w*0.42,platY+0.9,0));
+    grp.add(_M(_box(0.15,0.9,0.9),MATS.orange,-w*0.42,platY+0.9,0));
+    // vertical drill assembly going DOWN into the ore
+    const drill=new THREE.Group();
+    drill.add(_M(_cyl(0.28,0.28,platY-0.6,10),MATS.steelMid,0,-(platY-0.6)/2,0)); // shaft
+    // helical bit look: stacked cones
+    for(let i=0;i<4;i++){ drill.add(_M(_cyl(0.42-i*0.08,0.32-i*0.07,0.5,8),MATS.warn,0,-(platY-0.4)-i*0.42,0)); }
+    drill.add(_M(new THREE.ConeGeometry(0.28,0.7,8),MATS.steel,0,-(platY-0.4)-4*0.42-0.3,0));
+    drill.position.y=platY; grp.add(drill); grp._drill=drill;
+    // particle emission point at the drill tip (world y = node.y + this)
+    grp._minerTip={x:0,y:1.0,z:0};
+    grp.userData={building:true}; return grp;
+  }
+  /* ---------------- everything else sits on a machine platform ---------------- */
+  const y0=(d.machine||d.housing||d.office||key==='statue')?machinePlatform(grp,w,dp):0;
+  const bodyH=h;
+
+  if(d.machine==='smelter'){
+    // dome furnace with glowing base + chimney
+    grp.add(_M(_cyl(w*0.42,w*0.5,bodyH*0.7,14),MATS.hull,0,y0+bodyH*0.35,0,true));
+    grp.add(_M(new THREE.SphereGeometry(w*0.42,14,10,0,6.28,0,1.4),MATS.hullDark,0,y0+bodyH*0.7,0));
+    grp.add(_M(_cyl(w*0.5,w*0.52,0.4,14),MATS.frame,0,y0+0.2,0));
+    // molten glow ring at base
+    grp.add(_M(_cyl(w*0.44,w*0.44,0.5,14),MATS.lava,0,y0+0.5,0));
+    grp.add(_R(_M(new THREE.TorusGeometry(w*0.3,0.12,8,16),MATS.orange,0,y0+bodyH*0.75,0),Math.PI/2));
+    const chim=_M(_cyl(0.35,0.45,2,10),MATS.steelDark,w*0.28,y0+bodyH+0.6,0,true); grp.add(chim);
+    grp.add(_M(_cyl(0.5,0.42,0.35,10),MATS.frame,w*0.28,y0+bodyH+1.6,0));
+    grp._glow=new THREE.PointLight(0xff5a1a,0,14); grp._glow.position.set(0,y0+0.6,0); grp.add(grp._glow);
+    grp._chim={x:w*0.28,z:0,y:y0+bodyH+1.8};
+  }
+  else if(d.machine==='foundry'){
+    grp.add(_M(_box(w*0.9,bodyH*0.8,dp*0.9),MATS.hull,0,y0+bodyH*0.4,0,true));
+    grp.add(_M(_box(w*0.95,0.4,dp*0.95),MATS.frame,0,y0+bodyH*0.8,0));
+    // molten pour spout (orange lava)
+    grp.add(_M(_box(w*0.35,0.5,0.4),MATS.frame,w*0.45,y0+bodyH*0.45,0));
+    grp.add(_M(_box(0.3,bodyH*0.4,0.3),MATS.lava,w*0.6,y0+bodyH*0.25,0));
+    grp.add(_M(_cyl(0.3,0.3,0.2,10),MATS.lava,w*0.6,y0+0.15,0));
+    grp.add(_M(_box(w*0.6,0.5,dp*0.6),MATS.orangeGlow,0,y0+0.35,0));
+    [-1,1].forEach(s=>grp.add(_M(_cyl(0.3,0.4,2.2,10),MATS.steelDark,s*w*0.28,y0+bodyH+0.8,dp*0.25,true)));
+    grp._glow=new THREE.PointLight(0xff5a1a,0,16); grp._glow.position.set(w*0.5,y0+0.8,0); grp.add(grp._glow);
+    grp._chim={x:w*0.28,z:dp*0.25,y:y0+bodyH+2};
+  }
+  else if(d.machine==='constructor'){
+    // dark hull with big front archway + blue lit interior (like reference)
+    grp.add(_M(_box(w*0.92,bodyH*0.85,dp*0.92),MATS.hull,0,y0+bodyH*0.42,0,true));
+    grp.add(_M(_box(w*0.98,0.35,dp*0.98),MATS.frame,0,y0+bodyH*0.85,0));
+    // arch (torus front)
+    const arch=_M(new THREE.TorusGeometry(w*0.28,0.13,8,18,Math.PI),MATS.steel,0,y0+bodyH*0.4,dp*0.46); grp.add(arch);
+    grp.add(_M(new THREE.PlaneGeometry(w*0.5,bodyH*0.5),MATS.glassBlue,0,y0+bodyH*0.4,dp*0.47));
+    // rotating gear inside
+    const gear=_M(new THREE.TorusGeometry(w*0.2,0.1,6,10),MATS.orange,0,y0+bodyH*0.4,dp*0.3); grp.add(gear); grp._spin=gear;
+    grp.add(_M(_box(w*0.85,0.12,0.06),MATS.orange,0,y0+bodyH*0.72,dp*0.47));
+    grp.add(_M(_box(0.4,0.4,0.4),MATS.yellow,-w*0.42,y0+bodyH*0.7,dp*0.42));
+    grp._glow=new THREE.PointLight(0x2b86d8,0.6,12); grp._glow.position.set(0,y0+bodyH*0.4,dp*0.4); grp.add(grp._glow);
+  }
+  else if(d.machine==='assembler'||d.machine==='manufacturer'){
+    const big=d.machine==='manufacturer';
+    grp.add(_M(_box(w*0.92,bodyH*0.7,dp*0.92),MATS.hull,0,y0+bodyH*0.35,0,true));
+    grp.add(_M(_box(w*0.96,0.4,dp*0.96),MATS.frame,0,y0+bodyH*0.7,0));
+    // rooftop machinery (pipes, tanks, vents)
+    for(let i=-1;i<=1;i+=2){ grp.add(_M(_cyl(0.35,0.35,1.2,10),MATS.steelDark,i*w*0.28,y0+bodyH*0.7+0.6,dp*0.2,true)); }
+    pipe(grp,MATS.steelMid,-w*0.28,y0+bodyH*0.7+1.1,dp*0.2, w*0.28,y0+bodyH*0.7+1.1,dp*0.2,0.1);
+    grp.add(_M(_box(w*0.5,0.5,dp*0.5),MATS.hullDark,0,y0+bodyH*0.7+0.3,-dp*0.2));
+    // blue window band + orange accents
+    grp.add(_M(new THREE.PlaneGeometry(w*0.7,bodyH*0.35),MATS.glassBlue,0,y0+bodyH*0.4,dp*0.47));
+    grp.add(_M(_box(w*0.9,0.14,0.06),MATS.orange,0,y0+bodyH*0.62,dp*0.47));
+    grp.add(_M(_box(w*0.9,0.14,0.06),MATS.orange,0,y0+bodyH*0.18,dp*0.47));
+    const gear=_M(new THREE.TorusGeometry(w*0.16,0.09,6,12),MATS.orange,0,y0+bodyH*0.4,dp*0.36); grp.add(gear); grp._spin=gear;
+    if(big){ grp.add(_M(_box(0.4,0.4,0.4),MATS.yellowGlow,w*0.4,y0+bodyH*0.7+0.9,0)); grp.add(_M(_cyl(0.5,0.55,1.6,12),MATS.steelDark,-w*0.3,y0+bodyH*0.7+0.9,-dp*0.2,true)); }
+    grp._glow=new THREE.PointLight(0x2b86d8,0.5,14); grp._glow.position.set(0,y0+bodyH*0.4,dp*0.4); grp.add(grp._glow);
+  }
+  else if(d.machine==='refinery'){
+    // tall tanks + pipework
+    grp.add(_M(_box(w*0.9,bodyH*0.28,dp*0.9),MATS.hull,0,y0+bodyH*0.14,0,true));
+    [[-0.28,-0.2],[0.28,0.2]].forEach(([sx,sz])=>{ grp.add(_M(_cyl(w*0.24,w*0.24,bodyH*0.7,14),MATS.steelMid,sx*w,y0+bodyH*0.5,sz*dp,true)); grp.add(_M(new THREE.SphereGeometry(w*0.24,12,8,0,6.28,0,1.6),MATS.steelDark,sx*w,y0+bodyH*0.85,sz*dp)); });
+    grp.add(_M(new THREE.PlaneGeometry(w*0.3,bodyH*0.4),MATS.green,0.28*w,y0+bodyH*0.5,0.2*dp+w*0.25));
+    pipe(grp,MATS.steelDark,-0.28*w,y0+bodyH*0.4,-0.2*dp, 0.28*w,y0+bodyH*0.4,0.2*dp,0.12);
+    grp.add(_M(_cyl(0.3,0.36,1.6,10),MATS.frame,0,y0+bodyH+0.2,0,true));
+    grp._chim={x:0,z:0,y:y0+bodyH+1};
+  }
+  else if(d.machine==='scrubber'){
+    grp.add(_M(_cyl(w*0.4,w*0.5,bodyH*0.8,14),MATS.hull,0,y0+bodyH*0.4,0,true));
+    grp.add(_M(_cyl(w*0.44,w*0.4,0.4,14),MATS.frame,0,y0+bodyH*0.8,0));
+    // green vent stripes
+    for(let i=0;i<3;i++) grp.add(_R(_M(new THREE.TorusGeometry(w*0.41,0.06,6,18),MATS.green,0,y0+bodyH*(0.3+i*0.2),0),Math.PI/2));
+    const fan=_M(new THREE.TorusGeometry(w*0.3,0.09,6,14),MATS.green,0,y0+bodyH*0.85,0); fan.rotation.x=Math.PI/2; grp.add(fan); grp._spin=fan;
+    grp.add(_M(_cyl(w*0.28,w*0.3,0.5,10),MATS.steelDark,0,y0+bodyH*0.9,0));
+    grp._glow=new THREE.PointLight(0x38c878,0.4,12); grp._glow.position.set(0,y0+bodyH*0.5,0); grp.add(grp._glow);
+  }
+  else if(d.machine==='generator'){
+    if(d.solar){
+      grp.add(_M(_cyl(0.4,0.5,bodyH,10),MATS.steelMid,0,y0+bodyH/2,0,true));
+      const panel=_M(_box(w*1.4,0.18,dp*1.4),MATS.solarPanel,0,y0+bodyH,0); panel.rotation.x=-0.35; grp.add(panel);
+      grp.add(_M(_box(w*1.4,0.05,0.05),MATS.orange,0,y0+bodyH+0.1,0));
+      grp.add(_M(_box(w*0.3,0.3,dp*0.3),MATS.core,0,y0+bodyH*0.3,0));
+      grp._glow=new THREE.PointLight(0x39c6ff,0.4,14); grp._glow.position.set(0,y0+bodyH*0.5,0); grp.add(grp._glow);
+    } else if(key==='fusion'){
+      grp.add(_M(_cyl(w*0.45,w*0.55,bodyH*0.5,16),MATS.hull,0,y0+bodyH*0.25,0,true));
+      grp.add(_M(_cyl(w*0.2,w*0.2,bodyH*0.9,12),MATS.steelDark,0,y0+bodyH*0.6,0,true));
+      grp.add(_M(new THREE.IcosahedronGeometry(w*0.25,0),MATS.core,0,y0+bodyH*0.95,0));
+      grp.add(_M(new THREE.TorusGeometry(w*0.32,0.12,8,18),MATS.core,0,y0+bodyH*0.7,0));
+      grp._glow=new THREE.PointLight(0x39c6ff,1.4,26); grp._glow.position.set(0,y0+bodyH*0.9,0); grp.add(grp._glow); grp._spin=grp.children[grp.children.length-2];
+    } else if(key==='nuclear'){
+      // hyperbolic cooling tower
+      grp.add(_M(_cyl(w*0.5,w*0.35,bodyH*0.4,20),MATS.concreteDk,0,y0+bodyH*0.2,0,true));
+      grp.add(_M(_cyl(w*0.42,w*0.5,bodyH*0.6,20),MATS.concrete,0,y0+bodyH*0.7,0,true));
+      grp.add(_M(_cyl(w*0.5,w*0.5,0.3,20),MATS.frame,0,y0+bodyH,0));
+      grp.add(_M(_box(w*0.6,0.6,dp*0.6),MATS.warn,w*0.3,y0+0.6,dp*0.4));
+      grp._chim={x:0,z:0,y:y0+bodyH+0.5};
+    } else {
+      // combustion generator: dark hull + tall chimney + pipes
+      grp.add(_M(_box(w*0.9,bodyH*0.7,dp*0.9),MATS.hull,0,y0+bodyH*0.35,0,true));
+      grp.add(_M(_box(w*0.94,0.35,dp*0.94),MATS.frame,0,y0+bodyH*0.7,0));
+      grp.add(_M(_cyl(0.4,0.5,bodyH*0.9,10),MATS.steelDark,w*0.3,y0+bodyH*1.1,-dp*0.2,true));
+      grp.add(_M(_cyl(0.55,0.42,0.4,10),MATS.frame,w*0.3,y0+bodyH*1.55,-dp*0.2));
+      for(let i=-1;i<=1;i+=2) pipe(grp,MATS.steelMid,i*w*0.2,y0+bodyH*0.7,dp*0.3,i*w*0.2,y0+bodyH+0.4,dp*0.1,0.1);
+      grp.add(_M(new THREE.PlaneGeometry(w*0.5,bodyH*0.3),MATS.orangeGlow,0,y0+bodyH*0.35,dp*0.47));
+      grp.add(_M(_box(w*0.9,0.12,0.05),MATS.yellow,0,y0+bodyH*0.55,dp*0.47));
+      grp._glow=new THREE.PointLight(0xff8a2b,0.5,14); grp._glow.position.set(0,y0+bodyH*0.4,dp*0.4); grp.add(grp._glow);
+      grp._chim={x:w*0.3,z:-dp*0.2,y:y0+bodyH*1.55};
+    }
+  }
+  else if(d.machine==='storage'){
+    // shipping-container style crate
+    grp.add(_M(_box(w*0.92,bodyH*0.85,dp*0.92),MATS.hullMid,0,y0+bodyH*0.45,0,true));
+    grp.add(_M(_box(w*0.98,0.25,dp*0.98),MATS.frame,0,y0+bodyH*0.87,0));
+    grp.add(_M(_box(w*0.98,0.25,dp*0.98),MATS.frame,0,y0+0.15,0));
+    // corrugation stripes
+    for(let i=-2;i<=2;i++) grp.add(_M(_box(0.08,bodyH*0.7,dp*0.94),MATS.frame,i*w*0.16,y0+bodyH*0.45,0));
+    grp.add(_M(new THREE.PlaneGeometry(w*0.55,bodyH*0.4),MATS.glassBlue,0,y0+bodyH*0.5,dp*0.47));
+    grp.add(_M(_box(w*0.9,0.14,0.05),MATS.orange,0,y0+bodyH*0.75,dp*0.47));
+    if(key==='quantum_storage'){ grp.add(_M(new THREE.IcosahedronGeometry(0.4,0),MATS.core,0,y0+bodyH+0.4,0)); grp._glow=new THREE.PointLight(0x39c6ff,0.6,12); grp._glow.position.set(0,y0+bodyH*0.5,0); grp.add(grp._glow); }
+    if(key==='splitter'){ const spin=_M(new THREE.TorusGeometry(w*0.25,0.08,6,6),MATS.orange,0,y0+bodyH+0.15,0); spin.rotation.x=Math.PI/2; grp.add(spin); grp._spin=spin; }
+    if(key==='drone_port'){ grp.add(_M(_cyl(w*0.4,w*0.4,0.15,6),MATS.frame,0,y0+bodyH+0.1,0)); grp.add(_R(_M(new THREE.TorusGeometry(w*0.3,0.05,6,6),MATS.yellow,0,y0+bodyH+0.2,0),Math.PI/2)); }
+  }
+  else if(d.lab){
+    // robotics lab: hemispherical dome + blue core (reference)
+    grp.add(_M(_cyl(w*0.5,w*0.52,bodyH*0.35,16),MATS.hull,0,y0+bodyH*0.17,0,true));
+    grp.add(_M(new THREE.SphereGeometry(w*0.45,18,12,0,6.28,0,1.55),MATS.hullDark,0,y0+bodyH*0.35,0,true));
+    grp.add(_R(_M(new THREE.TorusGeometry(w*0.3,0.1,8,20),MATS.core,0,y0+bodyH*0.55,0),Math.PI/2));
+    grp.add(_M(new THREE.IcosahedronGeometry(w*0.18,0),MATS.core,0,y0+bodyH*0.55,0));
+    for(let i=0;i<4;i++){const a=i/4*6.28; grp.add(_M(_box(0.3,0.8,0.3),MATS.orange,Math.cos(a)*w*0.45,y0+bodyH*0.2,Math.sin(a)*w*0.45));}
+    grp._glow=new THREE.PointLight(0x39c6ff,0.8,16); grp._glow.position.set(0,y0+bodyH*0.5,0); grp.add(grp._glow);
+    const spin=_M(new THREE.TorusGeometry(w*0.38,0.05,6,20),MATS.yellow,0,y0+bodyH*0.4,0); spin.rotation.x=Math.PI/2; grp.add(spin); grp._spin=spin;
+  }
+  else if(d.machine==='silo'){
+    grp.add(_M(_cyl(w*0.5,w*0.55,bodyH*0.18,20),MATS.hullDark,0,y0+bodyH*0.09,0,true));
+    // gantry towers
+    [[-1,-1],[1,-1],[-1,1],[1,1]].forEach(([sx,sz])=>{ grp.add(_M(_box(0.4,bodyH*0.9,0.4),MATS.steelDark,sx*w*0.42,y0+bodyH*0.45,sz*w*0.42,true)); });
+    for(let i=1;i<=3;i++) grp.add(_M(_box(w*0.9,0.2,0.2),MATS.steelMid,0,y0+bodyH*0.25*i,w*0.42));
+    grp.add(_R(_M(new THREE.TorusGeometry(w*0.5,0.14,8,22),MATS.orange,0,y0+0.5,0),Math.PI/2));
+    grp._rocketMount=new THREE.Group(); grp._rocketMount.position.y=y0+0.3; grp.add(grp._rocketMount);
+  }
+  else if(d.housing||d.office||key==='statue'){
+    if(key==='statue'){
+      grp.add(_M(_box(w*1.3,0.6,dp*1.3),MATS.concreteDk,0,y0+0.3,0,true));
+      grp.add(_M(_cyl(0.4,0.6,bodyH*0.6,8),MATS.steel,0,y0+bodyH*0.35,0,true));
+      grp.add(_M(new THREE.IcosahedronGeometry(0.7,0),MATS.yellowGlow,0,y0+bodyH*0.75,0));
+    } else if(key==='park'){
+      grp.add(_M(_box(w,0.3,dp),MATS.green,0,y0+0.15,0,true));
+      grp.add(_M(_box(w*0.4,0.05,dp*0.4),MATS.concrete,0,y0+0.32,0));
+      // trees
+      [[-1,-1],[1,1],[1,-1]].forEach(([sx,sz])=>{ grp.add(_M(_cyl(0.15,0.2,0.9,6),MATS.wood,sx*w*0.3,y0+0.7,sz*dp*0.3)); grp.add(_M(new THREE.ConeGeometry(0.7,1.6,7),MATS.green,sx*w*0.3,y0+1.6,sz*dp*0.3)); });
+    } else if(key==='hospital'){
+      grp.add(_M(_box(w,bodyH,dp),MATS.concrete,0,y0+bodyH/2,0,true));
+      grp.add(_M(_box(w+0.2,0.4,dp+0.2),MATS.concreteDk,0,y0+bodyH,0));
+      windowGrid(grp,w,bodyH,dp,MATS.glassBlue,4,2.2);
+      grp.add(_M(_box(0.9,0.25,0.05),MATS.orange,0,y0+bodyH*0.85,dp/2+0.03));
+      grp.add(_M(_box(0.25,0.9,0.05),MATS.orange,0,y0+bodyH*0.85,dp/2+0.03));
+    } else {
+      // house / apartment / tower / office / arcology
+      const glass=(key==='office'||key==='tower'||key==='arcology')?MATS.glassBlue:MATS.glass;
+      const bodyMat=(key==='office'||key==='arcology')?MATS.hull:MATS.concrete;
+      grp.add(_M(_box(w,bodyH,dp),bodyMat,0,y0+bodyH/2,0,true));
+      grp.add(_M(_box(w+0.25,0.4,dp+0.25),MATS.concreteDk,0,y0+bodyH,0));
+      grp.add(_M(_box(w+0.1,0.5,dp+0.1),MATS.frame,0,y0+0.25,0));
+      windowGrid(grp,w,bodyH,dp,glass,key==='house'?2:4,key==='house'?2:2.6);
+      if(key==='house'){ // pitched roof
+        const roof=_M(_box(w+0.4,0.1,dp+0.4),MATS.roofRed,0,y0+bodyH+0.4,0); grp.add(roof);
+        grp.add(_R(_M(new THREE.CylinderGeometry(0.01,w*0.72,1.2,4),MATS.roofRed,0,y0+bodyH+0.9,0),0,Math.PI/4));
+      } else {
+        grp.add(_M(_box(w*0.4,0.6,dp*0.4),MATS.steelDark,0,y0+bodyH+0.3,0)); // rooftop unit
+        grp.add(_M(_box(0.1,0.8,0.1),MATS.orange,w*0.35,y0+bodyH+0.4,dp*0.35));
+      }
+      // orange accent stripe
+      grp.add(_M(_box(w+0.02,0.15,0.03),MATS.orange,0,y0+bodyH*0.5,dp/2+0.03));
+    }
+  }
+  else {
+    // fallback generic machine
+    grp.add(_M(_box(w*0.9,bodyH*0.8,dp*0.9),MATS.hull,0,y0+bodyH*0.4,0,true));
+    grp.add(_M(_box(w*0.95,0.35,dp*0.95),MATS.frame,0,y0+bodyH*0.8,0));
+    grp.add(_M(new THREE.PlaneGeometry(w*0.5,bodyH*0.3),MATS.glassBlue,0,y0+bodyH*0.4,dp*0.46));
+  }
+
   grp.userData={building:true};
   return grp;
 }
@@ -1141,6 +1420,8 @@ function placeBuilding(){
   const pt=getAimPoint(70); if(!pt){ notify('No valid surface','bad'); return; }
   let [sx,sz]=snapPos(pt.x,pt.z);
   if(!canAfford(def.cost)){ notify('Not enough resources','bad'); return; }
+  // Rover: a drivable vehicle, not a static building
+  if(def.rover){ payCost(def.cost); spawnRover(sx,sz); State.stats.built.rover=true; notify('Built Rover — walk up and press E to drive','good'); refreshHUD(); return; }
   if(!validPlacement(def,sx,sz)){ notify(def.machine==='miner'?'Must place on an ore node':'Invalid spot','bad'); return; }
   payCost(def.cost);
   const y=terrainHeight(sx,sz);
@@ -1149,6 +1430,7 @@ function placeBuilding(){
   instantiateBuilding(rec);
   State.buildings.push(rec);
   if(def.housing) State.stats.housing+=def.housing;
+  State.stats.built[State.selectedBuild]=true;
   notify('Built '+def.n,'good');
   recomputePower();
   refreshHUD();
@@ -1249,8 +1531,8 @@ function simStep(dt){
 function tickMiner(b,dt,eff){
   const node=b.nodeId?State.nodes.find(n=>n.id===b.nodeId):null;
   if(!node) return;
-  const powered=b._inGrid?eff:0.0;
-  const rate=(b.def.rate||1)*node.purityMul*(0.25+0.75*powered)*workerBonus(b);
+  if(!b._inGrid){ b._busy=false; return; } // NO POWER = NO MINING
+  const rate=(b.def.rate||1)*node.purityMul*eff*workerBonus(b);
   b._mineAcc=(b._mineAcc||0)+rate*dt;
   if(b._mineAcc>=1){
     const n=Math.floor(b._mineAcc); b._mineAcc-=n;
@@ -1446,6 +1728,17 @@ function emitMachineFx(dt){
       p.add(off);
       const col = d.pollute>1.5?0x3a3a30:0x6a6a66;
       spawnParticle(p,col,{size:0.6,life:2.6,vel:new THREE.Vector3((Math.random()-0.5)*0.6,2.4,(Math.random()-0.5)*0.6),grow:0.7,opacity:0.45});
+    }
+    // MINER: dust + rock chips flying off the drill biting into the ore
+    if(d.machine==='miner' && b._busy && b.mesh && b.mesh._minerTip){
+      const node=b.nodeId?State.nodes.find(n=>n.id===b.nodeId):null;
+      const oreCol=node?itemColor(node.type):0x9a6b4f;
+      for(let k=0;k<2;k++){
+        const p=new THREE.Vector3(b.x+(Math.random()-0.5)*1.2, b.y+b.mesh._minerTip.y+Math.random()*0.6, b.z+(Math.random()-0.5)*1.2);
+        spawnParticle(p, k?0x8a8078:oreCol, {size:0.12+Math.random()*0.12,life:0.7,vel:new THREE.Vector3((Math.random()-0.5)*3,1.5+Math.random()*2,(Math.random()-0.5)*3),grow:0,opacity:0.9});
+      }
+      // occasional dust puff
+      if(Math.random()<0.4) spawnParticle(new THREE.Vector3(b.x,b.y+b.mesh._minerTip.y+0.3,b.z),0x9a8f80,{size:0.5,life:1.1,vel:new THREE.Vector3(0,0.8,0),grow:0.7,opacity:0.4});
     }
   }
 }
@@ -1683,6 +1976,10 @@ function secondaryAction(){
   if(b && (b.def.machine||b.def.belt)){ UI.openMachine(b); }
 }
 function interactE(){
+  // driving? E exits the rover
+  if(State.driving){ exitRover(); return; }
+  // near a rover? enter it
+  const rv=nearestRover(); if(rv){ enterRover(rv); return; }
   const b=getAimBuilding();
   if(b){
     if(b.def.machine==='silo' && b._ready){ launchRocket(b); return; }
@@ -1809,7 +2106,7 @@ function selectSlot(n){
 }
 
 /* ----------------------------------------------------------------------------- TABLET / MENUS */
-const TABS=['Overview','Inventory','Crafting','Building','Research','Power','Pollution','Production','Employees','City','Map','Save'];
+const TABS=['Overview','Inventory','Crafting','Building','Research','Achievements','Power','Pollution','Production','Employees','City','Map','Save'];
 let currentTab='Overview';
 function anyMenuOpen(){ return document.getElementById('tablet').classList.contains('show') || document.getElementById('buildMenu').classList.contains('show') || document.getElementById('charScreen').style.display==='flex' || document.getElementById('machinePop').style.display==='block'; }
 function closeAllMenus(){ document.getElementById('tablet').classList.remove('show'); if(State.buildMenuOpen) closeBuildMenu(); UI.closeMachine(); if(State.started && !State.buildMode) lockPointer(); }
@@ -1914,7 +2211,7 @@ const TabRender={
     html+='</div>'; return html;
   },
   Research(){
-    let html=`<p class="hint" style="margin-bottom:12px">Research Points: <b style="color:var(--cyan)">${Math.floor(State.research.rp)}</b> · RP is generated passively by your produced output and faster with Scientists. </p><div id="techTree">`;
+    let html=`<p class="hint" style="margin-bottom:12px">Research Points: <b style="color:var(--cyan)">${Math.floor(State.research.rp)}</b> · RP is earned mainly by completing <b>Achievements</b> (see the Achievements tab). Scientists &amp; Robotics Labs add a small trickle. </p><div id="techTree">`;
     for(const k in TECH){
       const t=TECH[k]; const done=State.research.done[k];
       const avail=t.req.every(r=>State.research.done[r]);
@@ -1927,6 +2224,33 @@ const TabRender={
       </div>`;
     }
     html+='</div>'; return html;
+  },
+  Achievements(){
+    const done=State.achievements?Object.keys(State.achievements.done).length:0;
+    const total=ACHV.length;
+    const earned=ACHV.filter(a=>State.achievements.done[a.id]).reduce((s,a)=>s+a.rp,0);
+    // group by category
+    const groups={};
+    for(const a of ACHV){ (groups[a.cat]=groups[a.cat]||[]).push(a); }
+    const CATN={prod:'Production',build:'Construction',belt:'Logistics',pow:'Power',work:'Workforce',house:'Housing',pop:'Population',tech:'Research',mine:'Prospecting',made:'Structures Built',craft:'Crafting',eco:'Ecology',rover:'Vehicles',explore:'Exploration',rk:'Rocketry',time:'Dedication'};
+    let html=`<div class="card" style="margin-bottom:14px"><h3>ACHIEVEMENTS</h3>
+      <div class="row"><span>Completed</span><b>${done} / ${total}</b></div>
+      <div class="bar2"><div style="width:${total?done/total*100:0}%;background:var(--orange)"></div></div>
+      <div class="row"><span>RP earned from achievements</span><b>${earned}</b></div>
+      <div class="hint" style="margin-top:6px">Achievements are the primary way to earn Research Points. Keep expanding your factory to unlock more.</div>
+    </div>`;
+    for(const cat in groups){
+      const list=groups[cat]; const cdone=list.filter(a=>State.achievements.done[a.id]).length;
+      html+=`<h3 style="color:var(--orange);letter-spacing:2px;font-size:13px;margin:16px 0 8px">${(CATN[cat]||cat).toUpperCase()} <span class="mini" style="color:var(--dim)">${cdone}/${list.length}</span></h3>`;
+      html+='<div class="grid-cards">';
+      for(const a of list){ const ok=State.achievements.done[a.id];
+        html+=`<div class="card" style="${ok?'border-color:var(--green);background:rgba(93,255,143,.05)':'opacity:.75'}">
+          <div style="display:flex;justify-content:space-between"><h3 style="margin:0">${a.name}</h3><span class="pill" style="${ok?'background:var(--green);color:#04210f':''}">${ok?'DONE':'+'+a.rp+' RP'}</span></div>
+          <p class="mini" style="margin-top:5px;color:var(--dim)">${a.desc}</p></div>`;
+      }
+      html+='</div>';
+    }
+    return html;
   },
   Power(){
     let rows='';
@@ -2133,6 +2457,7 @@ function saveGame(slot){
     profile:State.profile,
     inventory:State.inventory,
     research:State.research,
+    achievements:State.achievements,
     stats:State.stats,
     player:{x:Player.pos.x,y:Player.pos.y,z:Player.pos.z,yaw:Player.yaw,pitch:Player.pitch},
     pollution:Array.from(State.pollution).map(v=>Math.round(v*10)/10),
@@ -2156,13 +2481,18 @@ function loadGame(slot){
   for(const b of State.buildings) scene.remove(b.mesh);
   for(const belt of State.belts) removeBelt(belt);
   for(const w of State.workers) scene.remove(w.mesh);
-  State.buildings=[]; State.belts=[]; State.workers=[];
+  if(State.driving) exitRover();
+  for(const r of State.rovers) scene.remove(r.mesh);
+  State.buildings=[]; State.belts=[]; State.workers=[]; State.rovers=[];
+  if(!State.stats.seen) State.stats.seen={}; if(!State.stats.built) State.stats.built={};
   // restore
   State.nextId=d.nextId||State.nextId;
   State.profile=d.profile||State.profile;
   State.inventory=d.inventory||[];
   State.research=d.research||{rp:0,done:{}};
   State.stats=d.stats||State.stats;
+  if(!State.stats.seen) State.stats.seen={}; if(!State.stats.built) State.stats.built={};
+  State.achievements=d.achievements||{done:{}};
   State.rocketLaunched=d.rocketLaunched||false;
   if(d.pollution&&d.pollution.length===State.pollution.length) State.pollution=Float32Array.from(d.pollution);
   // nodes occupancy
@@ -2197,8 +2527,9 @@ function refreshHUD(){
   renderHotbar();
 }
 function updatePrompt(){
-  const el=document.getElementById('prompt'); if(anyMenuOpen()||State.buildMode){ el.style.display='none'; return; }
+  const el=document.getElementById('prompt'); if(anyMenuOpen()||State.buildMode||State.driving){ el.style.display='none'; return; }
   let txt=null;
+  const rv=nearestRover(); if(rv){ el.innerHTML='<span class="k">E</span> Drive Rover'; el.style.display='block'; return; }
   const b=getAimBuilding();
   if(b){ if(b.def.machine==='silo'&&b._ready) txt='<span class="k">E</span> LAUNCH ROCKET'; else if(b.def.machine||b.def.belt) txt='<span class="k">E</span> Configure '+b.def.n; }
   if(!txt){ const w=getAimWorld(); if(w){ txt='<span class="k">F</span> Harvest '+(w.userData.tree?'Wood':'Stone'); } }
@@ -2214,7 +2545,7 @@ function updateCompass(){
 
 /* ----------------------------------------------------------------------------- PLAYER UPDATE */
 function updatePlayer(dt){
-  if(anyMenuOpen()){ return; }
+  if(anyMenuOpen() || State.driving){ return; } // rover handles camera while driving
   camera.quaternion.setFromEuler(new THREE.Euler(Player.pitch,Player.yaw,0,'YXZ'));
   const forward=new THREE.Vector3(-Math.sin(Player.yaw),0,-Math.cos(Player.yaw));
   const right=new THREE.Vector3(Math.cos(Player.yaw),0,-Math.sin(Player.yaw));
@@ -2243,58 +2574,218 @@ function updatePlayer(dt){
 function animateMachines(dt){
   for(const b of State.buildings){
     const m=b.mesh; if(!m) continue;
-    if(m._spin){ m._spin.rotation.y+=dt*(b._busy?6:1.5); if(b.def.machine==='miner') m._spin.rotation.y+=dt*(b._busy?8:0); }
-    if(m._drill&&b._busy){ m._drill.rotation.y+=dt*14; }
-    if(m._lamp){ m._lamp.intensity = (sunFactor()<0.35)?0.9:0.0; }
+    // frustum-ish cull: skip animating machines far from the camera (perf)
+    if(m.position.distanceToSquared(camera.position) > 32000) continue;
+    if(m._spin){ m._spin.rotation.y+=dt*(b._busy?6:1.2); }
+    if(m._drill&&b._busy){ m._drill.rotation.y+=dt*16; m._drill.position.y = (m._drill.userData.y0||(m._drill.userData.y0=m._drill.position.y)) + Math.sin(performance.now()*0.006)*0.12; }
+    if(m._lamp){ m._lamp.intensity = (sunFactor()<0.35 || Weather.darken>0.4)?0.9:0.0; }
   }
 }
 
 /* ----------------------------------------------------------------------------- RESEARCH/CITY PASSIVE */
+let _achvTimer=0;
 function passiveSystems(dt){
-  // research points from production + scientists
+  // RP is now earned primarily from ACHIEVEMENTS. Only a tiny trickle passively
+  // (scientists + robotics labs give a small research boost).
   const sci=State.workers.filter(w=>w.role==='scientist').length;
   let labRP=0; for(const b of State.buildings){ if(b.def.lab && b._inGrid) labRP+=b.def.lab; }
-  State.research.rp += dt*(0.4 + sci*0.6 + labRP) + dt*productionRPRate();
+  State.research.rp += dt*(0.05 + sci*0.15 + labRP*0.5);
   // city population grows toward housing if pollution low
   const target=State.stats.housing*(avgPollution()<35?1:0.4);
   State.stats.cityPop += (target-State.stats.cityPop)*dt*0.05;
   if(State.stats.cityPop<0) State.stats.cityPop=0;
-}
-let rpAccum=0,lastProduced=0;
-function productionRPRate(){
-  const delta=State.stats.totalProduced-lastProduced; lastProduced=State.stats.totalProduced; return delta*0.5;
+  // check achievements about once a second
+  _achvTimer+=dt; if(_achvTimer>1){ _achvTimer=0; checkAchievements(); }
 }
 
-/* ----------------------------------------------------------------------------- DAY/NIGHT */
+/* ----------------------------------------------------------------------------- WEATHER */
+const Weather={ state:'Clear', darken:0, fog:0, timer:30+Math.random()*40 };
+const WEATHER_TYPES=[
+  {n:'Clear',darken:0,fog:0,rain:0,min:60,max:120},
+  {n:'Cloudy',darken:0.35,fog:0.25,rain:0,min:40,max:80},
+  {n:'Rain',darken:0.6,fog:0.55,rain:1,min:30,max:60},
+  {n:'Storm',darken:0.85,fog:0.75,rain:1.6,min:25,max:45},
+  {n:'Fog',darken:0.3,fog:1.3,rain:0,min:30,max:55},
+];
+let _wTarget=WEATHER_TYPES[0], rainPoints=null, _lightning=0;
+function initRain(){
+  const N=520; const g=new THREE.BufferGeometry(); const pos=new Float32Array(N*3);
+  for(let i=0;i<N;i++){ pos[i*3]=(Math.random()-0.5)*70; pos[i*3+1]=Math.random()*34; pos[i*3+2]=(Math.random()-0.5)*70; }
+  g.setAttribute('position',new THREE.BufferAttribute(pos,3));
+  rainPoints=new THREE.Points(g,new THREE.PointsMaterial({color:0xaac2da,size:0.32,transparent:true,opacity:0.6,depthWrite:false}));
+  rainPoints.visible=false; scene.add(rainPoints);
+}
+function updateWeather(dt){
+  Weather.timer-=dt;
+  if(Weather.timer<=0){ _wTarget=WEATHER_TYPES[Math.floor(Math.random()*WEATHER_TYPES.length)]; Weather.timer=_wTarget.min+Math.random()*(_wTarget.max-_wTarget.min); Weather.state=_wTarget.n; notify('Weather changing to <b>'+_wTarget.n+'</b>', _wTarget.rain>1?'warn':'good'); }
+  Weather.darken += (_wTarget.darken-Weather.darken)*dt*0.4;
+  Weather.fog += (_wTarget.fog-Weather.fog)*dt*0.4;
+  // rain via a single Points cloud that follows the player (1 draw call)
+  if(rainPoints){
+    const inten=_wTarget.rain;
+    rainPoints.visible=inten>0.05;
+    if(rainPoints.visible){
+      rainPoints.position.set(Player.pos.x,Player.pos.y-17,Player.pos.z);
+      rainPoints.material.opacity=Math.min(0.75,inten*0.45);
+      rainPoints.material.size=inten>1.3?0.42:0.3;
+      const arr=rainPoints.geometry.attributes.position.array;
+      const fall=dt*(34+inten*12);
+      for(let i=0;i<arr.length;i+=3){ arr[i+1]-=fall; if(arr[i+1]<0){ arr[i+1]=34; arr[i]=(Math.random()-0.5)*70; arr[i+2]=(Math.random()-0.5)*70; } }
+      rainPoints.geometry.attributes.position.needsUpdate=true;
+      if(_wTarget.n==='Storm' && Math.random()<0.004){ _lightning=0.12; }
+    }
+  }
+  if(_lightning>0){ _lightning-=dt; }
+}
+
+/* ----------------------------------------------------------------------------- ROVER (drivable vehicle) */
+function buildRoverMesh(){
+  if(!MATS) initMats();
+  const g=new THREE.Group();
+  g.add(_M(_box(2.6,0.7,4.4),MATS.hull,0,1.1,0,true));           // chassis
+  g.add(_M(_box(2.4,0.5,2.0),MATS.hullDark,0,1.6,-0.4,true));     // cabin base
+  g.add(_M(_box(2.1,0.9,1.7),MATS.glassBlue,0,2.05,-0.3));        // cabin glass
+  g.add(_M(_box(2.5,0.25,4.5),MATS.orange,0,1.5,0));              // roof rail
+  g.add(_M(_box(0.15,0.9,0.15),MATS.steelDark,-1.1,2.0,0.7)); g.add(_M(_box(0.15,0.9,0.15),MATS.steelDark,1.1,2.0,0.7)); // roll cage
+  g.add(_M(_box(2.5,0.2,0.2),MATS.steelDark,0,2.45,0.7));
+  g.add(_M(_box(2.2,0.35,0.5),MATS.frame,0,1.0,2.2));             // bumper
+  g.add(_M(_box(0.4,0.25,0.1),MATS.yellowGlow,-0.7,1.15,2.25)); g.add(_M(_box(0.4,0.25,0.1),MATS.yellowGlow,0.7,1.15,2.25)); // headlights
+  const wheels=[];
+  const wg=_cyl(0.6,0.6,0.5,14), wm=MATS.rubber;
+  [[-1.35,1.5],[1.35,1.5],[-1.35,0],[1.35,0],[-1.35,-1.5],[1.35,-1.5]].forEach(([wx,wz])=>{
+    const wheel=_M(wg,wm,wx,0.6,wz,true); wheel.rotation.z=Math.PI/2; g.add(wheel);
+    g.add(_R(_M(_cyl(0.22,0.22,0.52,8),MATS.steel,wx,0.6,wz),0,0,Math.PI/2));
+    wheels.push(wheel);
+  });
+  g._wheels=wheels; g.userData={rover:true};
+  return g;
+}
+function spawnRover(x,z){
+  const g=buildRoverMesh();
+  const r={id:State.nextId++, mesh:g, x, z, y:terrainHeight(x,z), heading:0, speed:0, wheels:g._wheels};
+  g.position.set(r.x,r.y,r.z); g.userData.rover=r; scene.add(g);
+  State.rovers.push(r);
+  return r;
+}
+function enterRover(r){
+  State.driving=r; if(Player.arms) Player.arms.visible=false;
+  document.getElementById('roverHud').style.display='block';
+  notify('Driving <b>Rover</b> — WASD to drive, Space brake, E to exit','good',5000);
+}
+function exitRover(){
+  const r=State.driving; State.driving=null; if(Player.arms) Player.arms.visible=true;
+  document.getElementById('roverHud').style.display='none';
+  if(r){ Player.pos.set(r.x+Math.cos(r.heading)*2.5, r.y+Player.eye, r.z-Math.sin(r.heading)*2.5); Player.yaw=r.heading; }
+}
+function nearestRover(){ let best=null,bd=6; for(const r of State.rovers){ const d=Math.hypot(r.x-Player.pos.x,r.z-Player.pos.z); if(d<bd){bd=d;best=r;} } return best; }
+function updateRover(dt){
+  const r=State.driving; if(!r) return;
+  if(anyMenuOpen()) return;
+  const accel=(keys['KeyW']?1:0)-(keys['KeyS']?1:0);
+  const steer=(keys['KeyA']?1:0)-(keys['KeyD']?1:0);
+  r.speed += accel*22*dt; r.speed *= 0.95;
+  if(keys['Space']) r.speed*=0.82;
+  r.speed=Math.max(-18,Math.min(34,r.speed));
+  if(Math.abs(r.speed)>0.4) r.heading += steer*dt*1.5*Math.min(1,Math.abs(r.speed)/8)*(r.speed>=0?1:-1);
+  r.x += Math.cos(r.heading)*r.speed*dt; r.z += -Math.sin(r.heading)*r.speed*dt;
+  const lim=TERR_SIZE*0.47; r.x=Math.max(-lim,Math.min(lim,r.x)); r.z=Math.max(-lim,Math.min(lim,r.z));
+  r.y=terrainHeight(r.x,r.z);
+  r.mesh.position.set(r.x,r.y,r.z); r.mesh.rotation.y=r.heading;
+  if(r.wheels) r.wheels.forEach(wm=>wm.rotation.x-=r.speed*dt*1.6);
+  Player.pos.set(r.x,r.y+1.6,r.z);
+  // chase cam behind heading
+  camera.position.set(r.x-Math.cos(r.heading)*9, r.y+5.5, r.z+Math.sin(r.heading)*9);
+  camera.lookAt(r.x,r.y+1.8,r.z);
+}
+
+/* ----------------------------------------------------------------------------- ACHIEVEMENTS (RP source) */
+const ACHV=[];
+function buildAchievements(){
+  ACHV.length=0;
+  const add=(id,name,desc,rp,check)=>ACHV.push({id,name,desc,rp,check,cat:id.split('_')[0]});
+  // production tiers
+  const prodTiers=[50,150,400,1000,2500,6000,15000,40000,100000,250000];
+  prodTiers.forEach((n,i)=>add('prod_'+n,'Assembly Line '+(i+1),'Produce '+n+' items total.',30+i*25,()=>State.stats.totalProduced>=n));
+  // building count tiers
+  [1,5,10,25,50,100,200,400].forEach((n,i)=>add('build_'+n,'Architect '+(i+1),'Have '+n+' buildings standing.',25+i*30,()=>State.buildings.length>=n));
+  // belt tiers
+  [1,5,15,40,100].forEach((n,i)=>add('belt_'+n,'Logistician '+(i+1),'Lay '+n+' conveyors.',20+i*25,()=>State.belts.length>=n));
+  // power tiers
+  [20,75,200,600,1500,5000].forEach((n,i)=>add('pow_'+n,'Power Grid '+(i+1),'Reach '+n+'MW generation capacity.',30+i*40,()=>State.power.cap>=n));
+  // workers / housing / population
+  [1,5,15,40,100].forEach((n,i)=>add('work_'+n,'Employer '+(i+1),'Employ '+n+' workers.',25+i*30,()=>State.workers.length>=n));
+  [4,20,80,300,1000].forEach((n,i)=>add('house_'+n,'City Planner '+(i+1),'Provide '+n+' housing capacity.',25+i*35,()=>State.stats.housing>=n));
+  [5,25,100,400].forEach((n,i)=>add('pop_'+n,'Metropolis '+(i+1),'House '+n+' residents.',40+i*50,()=>State.stats.cityPop>=n));
+  // research count
+  [1,3,6,9,12].forEach((n,i)=>add('tech_'+n,'Scientist '+(i+1),'Complete '+n+' research techs.',40+i*40,()=>Object.keys(State.research.done).length>=n));
+  // mine each resource
+  NODE_TYPES.forEach(rid=>{ if(ITEMS[rid]) add('mine_'+rid,'Prospector: '+ITEMS[rid].n,'Obtain '+ITEMS[rid].n+' for the first time.',35,()=>!!(State.stats.seen&&State.stats.seen[rid])); });
+  // build each building type
+  BUILD_KEYS.forEach(k=>add('made_'+k,'Constructed: '+BUILD[k].n,'Build a '+BUILD[k].n+'.',30,()=>!!(State.stats.built&&State.stats.built[k])));
+  // craft each item type at least once (in network)
+  ['iron_ingot','copper_ingot','steel_ingot','iron_plate','copper_wire','circuit','computer','frame','alloy_plate','fuel','battery','plastic','rubber','concrete'].forEach(it=>add('craft_'+it,'Crafted: '+itemName(it),'Have '+itemName(it)+' in your inventory.',25,()=>invCount(it)>0));
+  // pollution control
+  add('eco_clean','Green Dream','Keep average pollution below 5% with 10+ buildings.',120,()=>State.buildings.length>=10 && avgPollution()<5);
+  add('eco_scrub','Clean Air Act','Run 3 air scrubbers.',80,()=>State.buildings.filter(b=>b.def.machine==='scrubber'&&b._inGrid).length>=3);
+  // rover / exploration
+  add('rover_build','Road Warrior','Build a Rover.',50,()=>State.rovers.length>=1);
+  add('explore_far','Wanderer','Travel 300m from spawn.',40,()=>Math.hypot(Player.pos.x,Player.pos.z)>300);
+  // rocket
+  ROCKET_PARTS.forEach(p=>add('rk_'+p,'Rocketry: '+itemName(p),'Manufacture a '+itemName(p)+'.',150,()=>(State.stats.rocketParts[p]||0)>0));
+  add('rk_launch','ASCENT','Launch the rocket and reach orbit.',1000,()=>State.rocketLaunched);
+  // playtime
+  [300,900,1800,3600].forEach((n,i)=>add('time_'+n,'Dedication '+(i+1),'Play for '+(n/60)+' minutes.',20+i*20,()=>State.stats.playtime>=n));
+}
+function checkAchievements(){
+  if(!State.achievements) State.achievements={done:{}};
+  let gained=0, names=[];
+  for(const a of ACHV){ if(State.achievements.done[a.id]) continue; let ok=false; try{ok=a.check();}catch(e){} if(ok){ State.achievements.done[a.id]=true; State.research.rp+=a.rp; gained+=a.rp; names.push(a.name); } }
+  if(gained>0){ notify('ACHIEVEMENT'+(names.length>1?'S':'')+': '+names.slice(0,3).join(', ')+(names.length>3?' +'+(names.length-3)+' more':'')+' &nbsp;<b>+'+gained+' RP</b>','good',5000); if(document.getElementById('tablet').classList.contains('show')&&currentTab==='Achievements') renderTab(); }
+}
+
+/* ----------------------------------------------------------------------------- DAY/NIGHT + WEATHER */
+const _skyDay=new THREE.Color(0x9ec6d8), _skyNight=new THREE.Color(0x0a1622), _skyStorm=new THREE.Color(0x565c64), _tmpCol=new THREE.Color();
+const _sunDir=new THREE.Vector3();
 function updateDayNight(){
   const f=sunFactor();
-  sun.intensity=0.3+f*1.1;
-  const skyDay=new THREE.Color(0x9ec6d8), skyNight=new THREE.Color(0x0a1622);
-  const c=skyNight.clone().lerp(skyDay,f);
-  scene.background.copy(c); scene.fog.color.copy(c);
+  const wf=Weather.darken;
+  sun.intensity=(0.3+f*1.1)*(1-wf*0.55);
+  _tmpCol.copy(_skyNight).lerp(_skyDay,f);
+  if(wf>0) _tmpCol.lerp(_skyStorm, wf*0.75);
+  if(_lightning>0){ _tmpCol.lerp(new THREE.Color(0xcfe0f0), Math.min(0.8,_lightning*6)); sun.intensity+=_lightning*8; }
+  scene.background.copy(_tmpCol); scene.fog.color.copy(_tmpCol);
+  scene.fog.density = 0.0016 + Weather.fog*0.0045;
+  // sun direction from time-of-day, kept relative to the player so the tight shadow frustum travels with us
   const ang=(State.stats.playtime%240)/240*Math.PI*2;
-  sun.position.set(Math.cos(ang)*200, Math.max(20,Math.sin(ang)*200+40), 80);
+  _sunDir.set(Math.cos(ang)*0.6, Math.max(0.4,Math.sin(ang)*0.85+0.25), 0.45).normalize();
+  sun.position.copy(Player.pos).addScaledVector(_sunDir,150);
   sun.target.position.copy(Player.pos);
 }
 
 /* ----------------------------------------------------------------------------- MAIN LOOP */
+let frameCount=0;
 function animate(){
   requestAnimationFrame(animate);
   const dt=Math.min(0.05,clock.getDelta());
   if(!State.started){ renderer.render(scene,camera); return; }
   State.stats.playtime+=dt;
+  frameCount++;
   updatePlayer(dt);
+  updateRover(dt);
   if(!State.paused){
     simulate(dt);
     updateParticles(dt);
     emitMachineFx(dt);
     animateMachines(dt);
     passiveSystems(dt);
+    updateWeather(dt);
     tickLaunch(dt);
     autoSave(dt);
   }
   updateDayNight();
   updateGhost();
+  // shadows update on a throttle (autoUpdate is off) -> big perf win
+  if(frameCount%3===0) renderer.shadowMap.needsUpdate=true;
   // periodic UI
   hudT+=dt; if(hudT>0.4){ hudT=0; refreshHUD(); updatePrompt(); updateCompass();
     if(document.getElementById('tablet').classList.contains('show')){ const t=currentTab; if(['Overview','Power','Pollution','Production','Employees','City'].includes(t)) renderTab(); if(t==='Map') drawMap(); }
@@ -2320,13 +2811,17 @@ const Game={
       initPollution();
       setProgress(82,'SPAWNING WILDLIFE…');
       spawnCreatures(8);
+      initRain(); buildAchievements();
       setProgress(88,'RENDERING 3D ICON ATLAS…');
       initIconRenderer(); buildAllIcons();
       setProgress(94,'READY');
       setupCharacterCreator();
       buildArms();
-      // starter inventory
-      State.inventory=[]; invAdd('iron_ore',20); invAdd('copper_ore',10); invAdd('wood',8);
+      // starter inventory — enough to bootstrap mining + power + a small factory
+      State.inventory=[];
+      invAdd('iron_ore',120); invAdd('copper_ore',60); invAdd('coal',40); invAdd('limestone',40);
+      invAdd('wood',60); invAdd('iron_plate',40); invAdd('iron_rod',30); invAdd('copper_wire',30);
+      invAdd('concrete',30);
       renderHotbar();
       setProgress(100,'SYSTEMS ONLINE');
       document.getElementById('loadMsg').textContent='SYSTEMS ONLINE — CONFIGURE OPERATOR';
