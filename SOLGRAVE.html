@@ -2020,8 +2020,8 @@ function updateGame(dt) {
   P.boostCd -= dt;
   P.hp = Math.min(P.maxhp, P.hp + P.regen * dt);
   let ix = 0, iz = 0;
-  if (keys.w || keys.arrowup) iz -= 1;
-  if (keys.s || keys.arrowdown) iz += 1;
+  if (keys.w || keys.arrowup) iz += 1;
+  if (keys.s || keys.arrowdown) iz -= 1;
   if (keys.a || keys.arrowleft) ix -= 1;
   if (keys.d || keys.arrowright) ix += 1;
   // move relative to camera yaw
