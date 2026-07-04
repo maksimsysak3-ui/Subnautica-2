@@ -615,10 +615,10 @@ function forestAt(x,z){
 const m=islandMask(x,z);
 if(m<0.35)return 0;
 const h=heightAt(x,z);
-if(h<2.2||h>78)return 0;
+if(h<1.8||h>78)return 0;
 const f=Mx.fbm(x*0.0016+41.3,z*0.0016+63.9,3);
-const band=Mx.sm(2.2,5,h)*Mx.sm(78,55,h);
-return Mx.clamp((f-0.34)*2.4,0,1)*band*m;
+const band=Mx.sm(1.8,3.6,h)*Mx.sm(78,55,h);
+return Mx.clamp((f-0.22)*3.0,0,1)*band*m;
 }
 /* Deterministic shore-finder: walk outward along a bearing until the terrain
    crosses the target height. Used to pin POIs to real beaches at boot. */
@@ -698,6 +698,37 @@ if(heightAt(x,z)>3){CFG.RUINS.push({x,z});break;}
 }
 if(CFG.RUINS.length===0)CFG.RUINS.push({x:200,z:200});
 }
+const M=CFG.MOUNTAIN;
+CFG.CAVE={x:M.x+Math.sin(0.9)*M.r*1.05,z:M.z+Math.cos(0.9)*M.r*1.05};
+let bestCv=1e9;
+for(let a=0;a<32;a++){
+const ang=a/32*Math.PI*2;
+for(let r=M.r*0.5;r<M.r*1.35;r+=14){
+const x=M.x+Math.sin(ang)*r,z=M.z+Math.cos(ang)*r;
+const h=heightAt(x,z);
+if(h>22&&h<62&&slopeAt(x,z)<1.0){
+const score=Math.abs(h-38)+Math.abs(ang-0.9)*8;
+if(score<bestCv){bestCv=score;CFG.CAVE={x,z};}
+}
+}
+}
+const angW=Math.atan2(CFG.WRECK.x,CFG.WRECK.z);
+const sosP=shorePoint(angW-0.22,1.5,16);
+CFG.SOS={x:sosP.x,z:sosP.z};
+CFG.BOSS={x:0,z:0};
+let bestB=-1;
+for(let a=0;a<30;a++){
+const ang=a/30*Math.PI*2;
+for(let r=260;r<720;r+=26){
+const x=Math.sin(ang)*r,z=Math.cos(ang)*r;
+const h=heightAt(x,z);
+if(h<6||h>32)continue;
+const f=forestAt(x,z);
+const dh=Mx.dist2(x,z,hx,hz);
+if(f>0.5&&dh>180&&f>bestB){bestB=f;CFG.BOSS={x,z};}
+}
+}
+if(bestB<0){CFG.BOSS={x:-CFG.HERMIT.x,z:-CFG.HERMIT.z};}
 }
 /* ============================ WAVE MODEL ================================== */
 const Waves={
@@ -1083,6 +1114,7 @@ useSlot(i,fromWorld){
 const s=this.slots[i];
 if(!s)return;
 const def=ItemDefs[s.id];
+if(['food','drink','medical'].includes(def.type)&&Player.playUse)Player.playUse();
 if(def.type==='food'){
 Player.eat(def);
 if(def.poison&&Math.random()<0.65){Player.hp=Math.max(1,Player.hp-def.poison);UIx.toast('That was a mistake. Cook it next time.','warn');UIx.hurtFlash();}
@@ -1695,8 +1727,8 @@ uniforms:{
 uTime:{value:0},
 uSunDir:{value:new THREE.Vector3(0,1,0)},
 uSunColor:{value:new THREE.Color(0xfff1d6)},
-uDeep:{value:new THREE.Color(0x0a3345)},
-uShallow:{value:new THREE.Color(0x2b9490)},
+uDeep:{value:new THREE.Color(0x0b4152)},
+uShallow:{value:new THREE.Color(0x2ab5ad)},
 uDayF:{value:1},
 uStorm:{value:0},
 uFogColor:{value:new THREE.Color(0xa4c4d8)},
@@ -1809,8 +1841,8 @@ const c=document.createElement('canvas');
 c.width=c.height=R;
 const g=c.getContext('2d');
 const img=g.createImageData(R,R);
-const cDeep=[16,50,62],cShal=[86,134,120],cSandWet=[148,130,94],cSand=[196,176,132],cSandDry=[212,194,150];
-const cGrass=[84,114,60],cForest=[52,80,42],cRock=[104,108,112],cRockHi=[126,128,130],cSnow=[224,230,235],cDirt=[116,96,66];
+const cDeep=[14,58,72],cShal=[96,168,150],cSandWet=[170,152,114],cSand=[220,202,158],cSandDry=[236,222,180];
+const cGrass=[78,124,56],cForest=[42,88,40],cRock=[104,108,112],cRockHi=[126,128,130],cSnow=[224,230,235],cDirt=[112,92,62];
 const px=new Array(3);
 const cell=S/GR;
 for(let y=0;y<R;y++){
@@ -1824,7 +1856,7 @@ else if(h<-0.4){a=cShal;b=cSandWet;t=Mx.sm(-6,-0.4,h);}
 else if(h<1.1){a=cSandWet;b=cSand;t=Mx.sm(-0.2,1.1,h);}
 else if(h<3.2){a=cSand;b=cSandDry;t=Mx.sm(1.1,3.2,h)*(0.5+n*0.5);}
 else if(h<5.2){a=cSandDry;b=cGrass;t=Mx.sm(3.2,5.2,h);}
-else if(h<62){a=cGrass;b=cForest;t=Mx.clamp((Mx.fbm(wx*0.0016+41.3,wz*0.0016+63.9,3)-0.34)*2.4*1.5,0,1)*Mx.sm(2.2,5,h)*Mx.sm(78,55,h);}
+else if(h<62){a=cGrass;b=cForest;t=Mx.clamp((Mx.fbm(wx*0.0016+41.3,wz*0.0016+63.9,3)-0.22)*3.0*1.5,0,1)*Mx.sm(1.8,3.6,h)*Mx.sm(78,55,h);}
 else if(h<86){a=cRock;b=cRockHi;t=n;}
 else{a=cRockHi;b=cSnow;t=Mx.sm(86,98,h);}
 px[0]=a[0]+(b[0]-a[0])*t;px[1]=a[1]+(b[1]-a[1])*t;px[2]=a[2]+(b[2]-a[2])*t;
@@ -2285,9 +2317,9 @@ Mx.reseed(CFG.SEED+101);
 if(!Props.palmGeo)Props.buildPalmGeo();
 if(!Props.pineGeo)Props.buildPineGeo();
 const q=ST.quality;
-this.spawnSpecies(Props.palmGeo,q===0?450:1100,2.5,14,0.34,0.85,1.35,true);
-this.spawnSpecies(Props.pineGeo,q===0?650:1700,13,72,0.30,0.9,1.9,false);
-this.spawnSpecies(Props.pineGeo,q===0?150:400,5,14,0.55,0.7,1.1,false);
+this.spawnSpecies(Props.palmGeo,q===0?700:1700,2.0,15,0.26,0.85,1.4,true);
+this.spawnSpecies(Props.pineGeo,q===0?900:2300,13,72,0.24,0.9,1.9,false);
+this.spawnSpecies(Props.pineGeo,q===0?250:600,4,14,0.45,0.7,1.15,false);
 },
 spawnSpecies(geo,count,minH,maxH,minForest,sMin,sMax,coastal){
 const inst=new THREE.InstancedMesh(geo,MAT_PROP,count);
@@ -3389,6 +3421,7 @@ const eq=Inv.equippedSlot();
 const def=eq?ItemDefs[eq.id]:null;
 if(def&&(def.type==='food'||def.type==='drink'||def.type==='medical')){Inv.useSlot(Inv.selHot,false);}
 else if(def&&def.type==='build'){Inv.useSlot(Inv.selHot,true);}
+else if(def&&def.tool==='rod'){Fishing.click();this.attackCd=0.4;}
 else{
 this.swing=0.45;
 this.swingHit=false;
@@ -4056,17 +4089,43 @@ if(this.onEndFn)this.onEndFn();
 },
 /* ---- shared actors ---- */
 buildIntroBoat(){
-const parts=[
-{g:new THREE.BoxGeometry(3.2,1.6,7.5),m:m4(0,0.8,0),c:0x8c4f3a},
-{g:new THREE.BoxGeometry(3.4,0.4,7.8),m:m4(0,1.7,0),c:0x6e3d2c},
-{g:new THREE.CylinderGeometry(0.01,1.6,2.6,4),m:m4(0,0.9,4.6,Math.PI/2,Math.PI/4,0,1,1,1.1),c:0x8c4f3a},
-{g:new THREE.BoxGeometry(2.2,1.5,2.6),m:m4(0,2.6,-1.4),c:0xb0a48e},
-{g:new THREE.BoxGeometry(2.3,0.18,2.8),m:m4(0,3.4,-1.4),c:0x5c4634},
-{g:new THREE.CylinderGeometry(0.09,0.12,5.4,6),m:m4(0.2,4.2,1.2),c:0x6e5238},
-{g:new THREE.BoxGeometry(0.06,0.9,1.8),m:m4(0.2,5.2,1.2),c:0xd8cdb4}
-];
-const boat=new THREE.Mesh(mergeGeos(parts),MAT_PROP);
-boat.castShadow=true;
+const P=[];
+P.push({g:new THREE.BoxGeometry(2.6,0.9,7.6),m:m4(0,0.45,0),c:0x7e452f});
+P.push({g:new THREE.BoxGeometry(0.4,0.5,7.8),m:m4(0,0.05,0),c:0x5c3322});
+for(let s=-1;s<=1;s+=2){
+P.push({g:new THREE.BoxGeometry(0.14,0.5,7.4),m:m4(s*1.42,0.9,0,0,0,s*0.18),c:0x8c4f3a});
+P.push({g:new THREE.BoxGeometry(0.14,0.44,7.0),m:m4(s*1.54,1.34,0,0,0,s*0.24),c:0x96543c});
+P.push({g:new THREE.BoxGeometry(0.14,0.4,6.6),m:m4(s*1.66,1.76,0,0,0,s*0.28),c:0x8c4f3a});
+P.push({g:new THREE.BoxGeometry(0.1,0.12,6.6),m:m4(s*1.72,2.02,0,0,0,s*0.28),c:0x5c3322});
+for(let k=0;k<5;k++)P.push({g:new THREE.BoxGeometry(0.08,0.5,0.08),m:m4(s*1.7,2.3,-2.4+k*1.2),c:0x5c4634});
+P.push({g:new THREE.BoxGeometry(0.05,0.06,6.2),m:m4(s*1.72,2.56,0),c:0x8a6a48});
+P.push({g:new THREE.BoxGeometry(0.14,1.5,2.6),m:m4(s*1.05,1.2,4.1,0,s*0.42,s*0.1),c:0x96543c});
+}
+P.push({g:new THREE.BoxGeometry(2.9,0.14,5.2),m:m4(0,1.98,-0.6),c:0xa8815a});
+P.push({g:new THREE.BoxGeometry(0.5,1.4,0.9),m:m4(0,1.2,5.05,0.5,0,0),c:0x8c4f3a});
+P.push({g:new THREE.BoxGeometry(2.7,1.3,0.16),m:m4(0,1.3,-3.7),c:0x8c4f3a});
+P.push({g:new THREE.BoxGeometry(1.9,1.4,2.4),m:m4(0,2.75,-1.6),c:0xb8ac92});
+P.push({g:new THREE.BoxGeometry(0.55,0.5,0.06),m:m4(-0.5,2.95,-0.38),c:0x1c2830});
+P.push({g:new THREE.BoxGeometry(0.55,0.5,0.06),m:m4(0.5,2.95,-0.38),c:0x1c2830});
+P.push({g:new THREE.BoxGeometry(0.06,0.45,0.5),m:m4(0.96,2.9,-1.4),c:0x1c2830});
+P.push({g:new THREE.BoxGeometry(0.06,0.45,0.5),m:m4(-0.96,2.9,-1.4),c:0x1c2830});
+P.push({g:new THREE.BoxGeometry(2.1,0.16,2.7),m:m4(0,3.5,-1.6,0.05,0,0),c:0x5c4634});
+P.push({g:new THREE.CylinderGeometry(0.05,0.05,0.5,5),m:m4(0.6,3.8,-2.2),c:0x3e444c});
+P.push({g:new THREE.CylinderGeometry(0.1,0.14,5.6,7),m:m4(0.1,4.4,1.3),c:0x6e5238});
+P.push({g:new THREE.CylinderGeometry(0.06,0.07,2.6,6),m:m4(0.1,3.3,2.4,Math.PI/2-0.5,0,0),c:0x75563a});
+P.push({g:new THREE.CylinderGeometry(0.16,0.2,2.1,7),m:m4(0.1,5.7,1.3,0,0,Math.PI/2),c:0xcabb9c});
+P.push({g:new THREE.CylinderGeometry(0.012,0.012,4.9,4),m:m4(0.1,4.4,3.6,0.63,0,0),c:0x2c3338});
+P.push({g:new THREE.CylinderGeometry(0.012,0.012,4.6,4),m:m4(0.1,4.5,-1.0,-0.72,0,0),c:0x2c3338});
+const hull=new THREE.Mesh(mergeGeos(P),MAT_PROP);
+hull.castShadow=true;
+const boat=new THREE.Group();
+boat.add(hull);
+const lant=new THREE.Mesh(new THREE.SphereGeometry(0.13,8,6),new THREE.MeshBasicMaterial({color:0xffc87a,fog:false}));
+lant.position.set(0.1,7.15,1.3);
+boat.add(lant);
+const lampLight=new THREE.PointLight(0xffb066,1.4,26,1.8);
+lampLight.position.copy(lant.position);
+boat.add(lampLight);
 GFX.scene.add(boat);
 this.introBoat=boat;
 return boat;
@@ -4100,9 +4159,12 @@ const boat=this.buildIntroBoat();
 const boatYaw=Math.atan2(-(bx-ax),-(bz-az));
 const boatAt=t=>{
 const x=Mx.lerp(ax,bx,t),z=Mx.lerp(az,bz,t);
-const y=Waves.heightAt(x,z,Game.elapsed)*0.8;
-boat.position.set(x,y,z);
-boat.rotation.set(Math.sin(Game.elapsed*1.1)*0.14,boatYaw,Math.cos(Game.elapsed*0.8)*0.19);
+const T=Game.elapsed;
+const y=Waves.heightAt(x,z,T)*0.85;
+const yBow=Waves.heightAt(x-Math.sin(boatYaw)*3.6,z-Math.cos(boatYaw)*3.6,T)*0.85;
+const ySide=Waves.heightAt(x+Math.cos(boatYaw)*1.6,z-Math.sin(boatYaw)*1.6,T)*0.85;
+boat.position.set(x,y-0.25,z);
+boat.rotation.set(Math.atan2(yBow-y,3.6)*1.5+Math.sin(T*1.3)*0.03,boatYaw,Math.atan2(ySide-y,1.6)*1.9+Math.cos(T*0.9)*0.05);
 return{x,z};
 };
 boatAt(0);
@@ -4206,15 +4268,13 @@ this.setTitle('','','');
 const back=shorePoint(2.8,-2,-18);
 Raft.group.position.set(back.x,0,back.z);
 Raft.speed=0;
+Raft.autoSpd=0;
 Player.onRaft=true;
 Player.pos.set(back.x,0.6,back.z);
 Game.escaped=true;
 Quests.check();
-UIx.fade(false,2);
-UIx.setHUD(true);
-UIx.centerCard('Chapter One Complete','Free Roam Unlocked','The island remains yours to master');
 Save.write();
-Input.lock();
+Credits.roll();
 });
 }
 };
@@ -4358,8 +4418,11 @@ diamond(CFG.LAKE.x,CFG.LAKE.z,'#5fb8e0',4);
 label(CFG.LAKE.x,CFG.LAKE.z,'Glass Lake');
 if(Quests.flag('hermit_met')){diamond(CFG.HERMIT.x,CFG.HERMIT.z,'#7dc98f',4);label(CFG.HERMIT.x,CFG.HERMIT.z,'Hermit’s Hollow');}
 if(Quests.idx>=4){diamond(CFG.SUMMIT.x,CFG.SUMMIT.z,'#d8d2c4',4);label(CFG.SUMMIT.x,CFG.SUMMIT.z,'The Summit');}
-if(Quests.idx>=5){diamond(CFG.LIGHTHOUSE.x,CFG.LIGHTHOUSE.z,'#f0c078',4);label(CFG.LIGHTHOUSE.x,CFG.LIGHTHOUSE.z,'Lantern Head');}
-if(Quests.idx>=5)CFG.RUINS.forEach((r,i)=>{if(i<3&&!Quests.flag('cell_'+i))diamond(r.x,r.z,'#d4574e',3);});
+if(Quests.idx>=5||Quests.flag('cave_found')){diamond(CFG.CAVE.x,CFG.CAVE.z,'#8fd8ec',4);label(CFG.CAVE.x,CFG.CAVE.z,'The Hollow Mountain');}
+if(Quests.idx>=6){diamond(CFG.LIGHTHOUSE.x,CFG.LIGHTHOUSE.z,'#f0c078',4);label(CFG.LIGHTHOUSE.x,CFG.LIGHTHOUSE.z,'Lantern Head');}
+if(Quests.idx>=6)CFG.RUINS.forEach((r,i)=>{if(i<3&&!Quests.flag('cell_'+i))diamond(r.x,r.z,'#d4574e',3);});
+if(Quests.idx>=7){diamond(CFG.SOS.x,CFG.SOS.z,'#e8dcc8',4);label(CFG.SOS.x,CFG.SOS.z,'Signal Beach');}
+if(Quests.idx>=8&&!Quests.flag('king_slain')){diamond(CFG.BOSS.x,CFG.BOSS.z,'#d4574e',5);label(CFG.BOSS.x,CFG.BOSS.z,'The Old King');}
 for(const f of Build.fires)diamond(f.x,f.z,'#ffa53e',3);
 if(Raft.built&&Raft.group)diamond(Raft.group.position.x,Raft.group.position.z,'#d8cdb4',4);
 const q=Quests.current();
@@ -4606,6 +4669,900 @@ UIx.switchInvTab=function(page){
 _origSwitchTab(page);
 if(page==='log')MoreContent.renderLog();
 };
+/* ============================ EXPANSION II ================================
+   Chapters, hands & in-hand item models, waypoints with distances, fishing,
+   sharks & turtles, the Hollow Mountain cave, the Boar King, the SOS beach,
+   base building (shelter / chest / crystal lamp), credits. */
+ItemDefs.knife={id:'knife',name:'Stone Knife',type:'tool',stack:1,tool:'knife',dmg:9,desc:'A knapped edge lashed to a grip. Fast, close, and honest work.',
+icon:_I('<path d="M14 34 L30 10 C34 14 34 20 30 26 L20 38 Z" fill="#9aa7b2" stroke="#5c6871" stroke-width="1.6"/><path d="M14 34 L10 42" stroke="#8a6134" stroke-width="4"/>')};
+ItemDefs.fishing_rod={id:'fishing_rod',name:'Fishing Rod',type:'tool',stack:1,tool:'rod',dmg:2,desc:'Springy palmwood, fiber line, scrap hook. Cast into the shallows and wait for the pull.',
+icon:_I('<path d="M8 40 C18 30 30 16 40 8" stroke="#b98a52" stroke-width="2.6"/><path d="M40 8 C40 18 38 26 34 32" stroke="#c8dae6" stroke-width="1.2"/><path d="M34 32 C32 35 34 38 36 37" stroke="#c8dae6" stroke-width="1.4" fill="none"/>')};
+ItemDefs.shelter_kit={id:'shelter_kit',name:'Shelter Kit',type:'build',stack:2,places:'shelter',desc:'Frame poles, thatch bundles and lashings. Place on open ground for a dry roof, a bed, and a new respawn point.',
+icon:_I('<path d="M8 36 L24 12 40 36 Z" fill="none" stroke="#b98a52" stroke-width="2.6"/><path d="M14 36 L24 20 34 36" stroke="#8a6134" stroke-width="1.8"/><path d="M8 36 L40 36" stroke="#7a5327" stroke-width="2.6"/>')};
+ItemDefs.chest_kit={id:'chest_kit',name:'Storage Chest Kit',type:'build',stack:2,places:'chest',desc:'Planks and scrap hinges. Place it at camp and dump your haul — press E again to take it all back.',
+icon:_I('<rect x="9" y="18" width="30" height="18" rx="2" fill="#9a7448" stroke="#6e5238" stroke-width="1.8"/><path d="M9 24 L39 24" stroke="#6e5238" stroke-width="1.8"/><rect x="21" y="21" width="6" height="7" rx="1" fill="#c8b26a" stroke="#8f6c35" stroke-width="1.2"/>')};
+ItemDefs.crystal={id:'crystal',name:'Cave Crystal',type:'resource',stack:20,desc:'A cold blue shard from the Hollow Mountain. It drinks the dark and gives back a quiet glow.',
+icon:_I('<path d="M24 6 L32 20 27 40 21 40 16 20 Z" fill="#8fd8ec" stroke="#3e8ba0" stroke-width="1.6"/><path d="M24 6 L24 40 M16 20 L32 20" stroke="#bce9f5" stroke-width="1"/>')};
+ItemDefs.crystal_lamp={id:'crystal_lamp',name:'Crystal Lamp',type:'build',stack:3,places:'lamp',desc:'A cave shard set on a driftwood tripod. Placeable base lighting that never burns out.',
+icon:_I('<path d="M24 8 L30 18 27 26 21 26 18 18 Z" fill="#8fd8ec" stroke="#3e8ba0" stroke-width="1.6"/><path d="M20 26 L14 40 M28 26 L34 40 M24 26 L24 40" stroke="#8a6134" stroke-width="2.4"/>')};
+ItemDefs.pearl={id:'pearl',name:'Reef Pearl',type:'resource',stack:10,desc:'The sea apologizing, in its way. Rare, luminous, and utterly useless for survival — keep it anyway.',
+icon:_I('<circle cx="24" cy="26" r="9" fill="#e8ecf2" stroke="#9aa7b2" stroke-width="1.4"/><circle cx="21" cy="23" r="3" fill="#ffffff"/><path d="M10 30 C12 20 18 14 24 12 30 14 36 20 38 30" fill="none" stroke="#7c9aae" stroke-width="1.6"/>')};
+ItemDefs.kings_tusk={id:'kings_tusk',name:'The Old King’s Tusk',type:'quest',stack:1,desc:'A tusk as long as your forearm, scarred by a decade of fights it won. Proof the deep jungle answers to you now.',
+icon:_I('<path d="M12 38 C14 26 20 14 34 10 32 18 30 22 26 28 22 33 18 36 12 38 Z" fill="#e8dcc8" stroke="#a89f8a" stroke-width="1.8"/><path d="M18 32 C22 28 26 22 29 16" stroke="#c9bfa8" stroke-width="1.4"/>')};
+Craft.recipes.push(
+{out:'knife',n:1,cat:'Tools',req:{wood:1,stone:1,fiber:1},desc:'Quick to make, quick in the hand. The island’s first and most honest tool.'},
+{out:'fishing_rod',n:1,cat:'Tools',req:{wood:2,fiber:3,scrap:1},desc:'Cast from any shore. Fish, and sometimes stranger things, answer.'},
+{out:'shelter_kit',n:1,cat:'Deployables',req:{wood:10,fiber:6,rope:2},desc:'A dry roof and a bed. Sleeping in a shelter sets your respawn and skips to dawn.'},
+{out:'chest_kit',n:1,cat:'Deployables',req:{wood:6,scrap:2},desc:'Storage for your camp. Stops your pockets from deciding your plans.'},
+{out:'crystal_lamp',n:1,cat:'Deployables',req:{crystal:3,wood:2},desc:'Cold blue light for your camp, fed by the mountain’s own stone.'}
+);
+/* ---- In-hand 3D item models ---- */
+const HandModels={
+cache:{},
+get(id){
+if(this.cache[id])return this.cache[id];
+const P=[];
+const box=(w,h,d,x,y,z,c,ry,rz)=>P.push({g:new THREE.BoxGeometry(w,h,d),m:m4(x,y,z,0,ry||0,rz||0),c});
+const cyl=(r0,r1,h,x,y,z,c,rx,rz)=>P.push({g:new THREE.CylinderGeometry(r0,r1,h,6),m:m4(x,y,z,rx||0,0,rz||0),c});
+const sph=(r,x,y,z,c,sx,sy,sz)=>P.push({g:new THREE.SphereGeometry(r,8,6),m:m4(x,y,z,0,0,0,sx||1,sy||sx||1,sz||sx||1),c});
+switch(id){
+case'axe':cyl(0.035,0.045,0.85,0,0.1,0,0xa87c48,0,0.12);box(0.3,0.16,0.05,0.14,0.48,0,0x8f9aa4,0,-0.1);box(0.08,0.2,0.06,0.02,0.47,0,0x6e5238);break;
+case'pickaxe':cyl(0.035,0.045,0.85,0,0.1,0,0xa87c48,0,0.12);P.push({g:new THREE.CylinderGeometry(0.03,0.06,0.5,5),m:m4(0.24,0.5,0,0,0,Math.PI/2-0.3),c:0x8f9aa4});P.push({g:new THREE.CylinderGeometry(0.03,0.06,0.5,5),m:m4(-0.18,0.44,0,0,0,-Math.PI/2+0.3),c:0x8f9aa4});break;
+case'spear':cyl(0.025,0.032,1.5,0,0.25,0,0xa87c48,0.16,0);P.push({g:new THREE.ConeGeometry(0.05,0.24,5),m:m4(0.02,1.05,-0.12,0.16,0,0),c:0x8f9aa4});cyl(0.03,0.03,0.1,0.01,0.86,-0.09,0xc8a05e,0.16,0);break;
+case'torch':cyl(0.03,0.042,0.6,0,0.05,0,0x8a6a48,0,0.1);sph(0.09,0.05,0.42,0,0xffa53e);sph(0.055,0.05,0.5,0,0xffe9a0);break;
+case'shovel':cyl(0.03,0.038,0.8,0,0.08,0,0xa87c48,0,0.1);box(0.18,0.26,0.04,0.08,0.53,0,0x8f9aa4);break;
+case'knife':box(0.05,0.22,0.03,0,0.02,0,0x8a6134);P.push({g:new THREE.ConeGeometry(0.045,0.34,4),m:m4(0,0.3,0,0,0,0.06,1,1,0.4),c:0xaab6bf});break;
+case'fishing_rod':cyl(0.02,0.032,1.6,0,0.3,0,0xb98a52,0.5,0.06);cyl(0.004,0.004,0.9,0.06,0.6,-0.4,0xd8e4ec,0.9,0);sph(0.03,0.1,0.2,-0.75,0xe2a655);break;
+case'coconut':sph(0.14,0,0.1,0,0x7a5530);sph(0.02,0.05,0.2,0.05,0x4a3018);break;
+case'berries':sph(0.06,-0.04,0.1,0,0xc9524a);sph(0.055,0.05,0.12,0.02,0xb8433b);sph(0.05,0,0.05,0.05,0xd4675f);P.push({g:new THREE.PlaneGeometry(0.16,0.12),m:m4(0,0.18,0,-0.6,0.4,0),c:0x5d8b4a});break;
+case'raw_fish':case'cooked_fish':sph(0.09,0,0.12,0,id==='raw_fish'?0x7fb3cf:0xd8985c,1.9,0.8,0.55);P.push({g:new THREE.ConeGeometry(0.06,0.12,4),m:m4(-0.2,0.12,0,0,0,Math.PI/2),c:id==='raw_fish'?0x5b90ad:0xb0763e});break;
+case'raw_meat':case'cooked_meat':sph(0.11,0,0.12,0,id==='raw_meat'?0xc05a52:0xa2643a,1.3,0.9,1);cyl(0.025,0.025,0.3,0.1,0.1,0,0xe8dcc8,0,Math.PI/2);break;
+case'crab_meat':sph(0.1,0,0.1,0,0xdd7f66,1.4,0.7,1);break;
+case'canned_food':cyl(0.09,0.09,0.2,0,0.12,0,0xaebfc9);cyl(0.092,0.092,0.02,0,0.23,0,0x8397a3);break;
+case'trail_mix':sph(0.11,0,0.1,0,0x7ba75b,1,0.8,1);sph(0.03,0.04,0.16,0.04,0xc9524a);sph(0.028,-0.05,0.14,0,0xe8dcc8);break;
+case'flask_empty':case'flask_full':cyl(0.08,0.1,0.24,0,0.12,0,0x9db4c2);cyl(0.03,0.03,0.06,0,0.28,0,0x7c93a1);break;
+case'bandage':cyl(0.08,0.08,0.1,0,0.1,0,0xe8e2d4,Math.PI/2,0);box(0.06,0.02,0.17,0,0.1,0,0xc9524a);break;
+case'medkit':box(0.24,0.16,0.14,0,0.1,0,0xd8dee3);box(0.1,0.03,0.02,0,0.12,0.075,0xc9524a);box(0.03,0.1,0.02,0,0.12,0.075,0xc9524a);break;
+case'campfire_kit':cyl(0.03,0.03,0.34,-0.03,0.1,0,0x8a6a48,0,0.5);cyl(0.03,0.03,0.34,0.05,0.1,0,0x9a7448,0,-0.4);sph(0.06,0,0.02,0,0x7d858d);break;
+case'shelter_kit':cyl(0.025,0.025,0.4,-0.04,0.14,0,0x8a6a48,0,0.3);cyl(0.025,0.025,0.4,0.04,0.14,0,0x9a7448,0,-0.3);P.push({g:new THREE.PlaneGeometry(0.2,0.14),m:m4(0,0.14,0.03,-0.4,0,0),c:0xa8975e});break;
+case'chest_kit':box(0.22,0.14,0.14,0,0.1,0,0x9a7448);box(0.23,0.03,0.15,0,0.16,0,0x6e5238);break;
+case'crystal_lamp':case'crystal':P.push({g:new THREE.ConeGeometry(0.07,0.24,5),m:m4(0,0.2,0),c:0x8fd8ec});if(id==='crystal_lamp'){cyl(0.015,0.015,0.2,-0.05,0.02,0,0x8a6a48,0,0.4);cyl(0.015,0.015,0.2,0.05,0.02,0,0x8a6a48,0,-0.4);}break;
+case'pearl':sph(0.07,0,0.1,0,0xe8ecf2);break;
+case'kings_tusk':P.push({g:new THREE.ConeGeometry(0.05,0.42,6),m:m4(0,0.2,0,0,0,0.5),c:0xe8dcc8});break;
+case'fuel_cell':box(0.14,0.24,0.14,0,0.14,0,0x3f5561);box(0.08,0.04,0.08,0,0.28,0,0x8fb6c9);break;
+case'chart':P.push({g:new THREE.CylinderGeometry(0.04,0.04,0.3,8,1,true),m:m4(0,0.12,0,0,0,Math.PI/2),c:0xe4dcc4});break;
+case'wood':cyl(0.04,0.045,0.4,-0.03,0.1,0,0x9a7448,0,0.2);cyl(0.035,0.04,0.36,0.05,0.12,0,0x8a6134,0,-0.25);break;
+case'stone':sph(0.1,0,0.08,0,0x8b96a0,1,0.8,1);break;
+case'fiber':cyl(0.05,0.02,0.3,0,0.12,0,0x9dc47a,0,0.3);cyl(0.05,0.02,0.28,0.04,0.1,0,0x7ba75b,0,-0.2);break;
+case'scrap':box(0.2,0.02,0.14,0,0.1,0,0x7e9aa8,0.4,0.2);box(0.12,0.02,0.16,0.03,0.14,0,0x6c8794,-0.3,0);break;
+case'cloth':box(0.2,0.06,0.16,0,0.1,0,0xd8cdb4);break;
+case'rope':P.push({g:new THREE.TorusGeometry(0.09,0.03,6,10),m:m4(0,0.12,0,Math.PI/2,0,0),c:0xc8a05e});break;
+default:box(0.16,0.12,0.12,0,0.1,0,0x9a8a6a);break;
+}
+const mesh=new THREE.Mesh(mergeGeos(P),MAT_PROP);
+this.cache[id]=mesh;
+return mesh;
+}
+};
+/* ---- Objective waypoint with live distance ---- */
+const Waypoint={
+el:null,label:null,dist:null,v:new THREE.Vector3(),
+init(){
+this.el=el('div','',$('hud'));
+this.el.style.cssText='position:absolute;transform:translate(-50%,-100%);display:none;flex-direction:column;align-items:center;gap:4px;pointer-events:none;z-index:5;';
+const dia=el('div','',this.el);
+dia.style.cssText='width:12px;height:12px;transform:rotate(45deg);background:rgba(226,166,85,0.9);box-shadow:0 0 14px rgba(226,166,85,0.9);border:1px solid #fff3;';
+const box=el('div','',this.el);
+box.style.cssText='background:rgba(6,10,15,0.78);border:1px solid rgba(226,166,85,0.65);padding:5px 12px;text-align:center;box-shadow:0 6px 18px rgba(0,0,0,0.5);';
+this.label=el('div','',box);
+this.label.style.cssText='font-size:11px;letter-spacing:0.18em;color:#eef5f9;text-transform:uppercase;white-space:nowrap;';
+this.dist=el('div','',box);
+this.dist.style.cssText='font-family:var(--font-m);font-size:13px;color:#f0c078;margin-top:2px;';
+},
+update(){
+if(!this.el)this.init();
+const q=Quests.current();
+if(!q||!q.marker||Cine.active||Game.overlay){this.el.style.display='none';return;}
+const m=typeof q.marker==='function'?q.marker():q.marker;
+if(!m){this.el.style.display='none';return;}
+const d=Mx.dist2(Player.pos.x,Player.pos.z,m.x,m.z);
+this.v.set(m.x,heightAt(m.x,m.z)+9+Math.min(30,d*0.03),m.z);
+this.v.project(GFX.camera);
+if(this.v.z>1||this.v.x<-1.1||this.v.x>1.1||this.v.y<-1.1||this.v.y>1.1){this.el.style.display='none';return;}
+this.el.style.display='flex';
+this.el.style.left=((this.v.x*0.5+0.5)*window.innerWidth)+'px';
+this.el.style.top=((-this.v.y*0.5+0.5)*window.innerHeight)+'px';
+this.label.textContent=q.title;
+this.dist.textContent=d>=1000?(d/1000).toFixed(2)+' km':Math.round(d)+' m';
+}
+};
+/* ---- Fishing minigame ---- */
+const Fishing={
+active:false,waitT:0,biteT:0,count:0,
+canCast(){
+const fx=Player.pos.x-Math.sin(Player.yaw)*6,fz=Player.pos.z-Math.cos(Player.yaw)*6;
+return heightAt(fx,fz)<-0.6;
+},
+click(){
+if(!this.active){
+if(!this.canCast()){UIx.toast('Face open water to cast.','warn');return;}
+this.active=true;
+this.waitT=Mx.rand(2.2,5.5);
+this.biteT=0;
+SFX.play('splash');
+UIx.prompt('LMB','Line cast — wait for the pull…');
+Player.swing=0.4;Player.swingHit=true;
+}else if(this.biteT>0){
+this.land();
+}else{
+this.reset('You pull the line too soon. Nothing.');
+}
+},
+land(){
+this.count++;
+const r=Math.random();
+if(r<0.06){Inv.add('pearl',1);UIx.toast('The hook comes up holding a reef pearl','quest','pearl');}
+else if(r<0.8){Inv.add('raw_fish',1);UIx.toast('Caught a reef fish','ok','raw_fish');Quests.onKill('fish');}
+else{Inv.add(Mx.pick(['fiber','cloth']),1);UIx.toast('You dredge up waterlogged flotsam');}
+SFX.play('splash');
+Game.stats.animalsHunted++;
+this.reset(null);
+},
+reset(msg){
+this.active=false;this.biteT=0;this.waitT=0;
+UIx.prompt(null,null);
+if(msg)UIx.toast(msg,'warn');
+},
+update(dt){
+const eq=Inv.equipped();
+if(this.active&&(!eq||eq.tool!=='rod')){this.reset(null);return;}
+if(!this.active)return;
+if(this.biteT>0){
+this.biteT-=dt;
+if(this.biteT<=0)this.reset('The pull fades. It got away.');
+}else{
+this.waitT-=dt;
+if(this.waitT<=0){
+this.biteT=1.15;
+SFX.play('splash');
+SFX.play('uiClick');
+UIx.prompt('LMB','NOW — strike!');
+GFX.camShake=0.12;
+}
+}
+}
+};
+/* ---- Sea life: sharks patrol the deep, turtles graze the shallows ---- */
+Ents.makeShark=function(x,z){
+const parts=[
+{g:new THREE.SphereGeometry(0.9,10,8),m:m4(0,0,0,0,0,0,2.6,0.9,0.8),c:0x5c6e7a},
+{g:new THREE.SphereGeometry(0.5,8,6),m:m4(2,0,0,0,0,0,1.4,0.7,0.6),c:0x51626d},
+{g:new THREE.ConeGeometry(0.5,1.1,4),m:m4(0.2,0.95,0,0,0,0,1,1,0.3),c:0x46545e},
+{g:new THREE.ConeGeometry(0.5,1.3,4),m:m4(-2.6,0.3,0,0,0,-0.5,1,1,0.24),c:0x46545e},
+{g:new THREE.ConeGeometry(0.3,0.9,4),m:m4(0.4,-0.5,0.5,0,0,2.4,1,1,0.24),c:0x51626d},
+{g:new THREE.ConeGeometry(0.3,0.9,4),m:m4(0.4,-0.5,-0.5,0,0,2.4,1,1,0.24),c:0x51626d}
+];
+const group=new THREE.Group();
+const body=new THREE.Mesh(mergeGeos(parts),MAT_PROP);
+group.add(body);
+group.position.set(x,-1.4,z);
+const e={
+type:'shark',group,dead:false,hp:80,
+cx:x,cz:z,r:Mx.rand(40,90),a:Mx.rand(0,7),spd:Mx.rand(0.1,0.18),t:Mx.rand(0,9),atkCd:0,
+name:'Reef Shark',
+update(dt){
+if(this.dead)return;
+this.t+=dt;this.atkCd-=dt;
+const px=group.position.x,pz=group.position.z;
+const pd=Mx.dist2(px,pz,Player.pos.x,Player.pos.z);
+const playerDeep=Player.swimming&&heightAt(Player.pos.x,Player.pos.z)<-3.5;
+if(playerDeep&&pd<55){
+const dir=Math.atan2(Player.pos.x-px,Player.pos.z-pz);
+const spd=6.2;
+group.position.x+=Math.sin(dir)*spd*dt;
+group.position.z+=Math.cos(dir)*spd*dt;
+group.rotation.y=dir-Math.PI/2+Math.PI;
+if(pd<2.4&&this.atkCd<=0){
+this.atkCd=2.2;
+Player.damage(16,'Taken by a reef shark');
+SFX.play('splash');
+}
+}else{
+this.a+=dt*this.spd;
+const nx=this.cx+Math.sin(this.a)*this.r;
+const nz=this.cz+Math.cos(this.a)*this.r;
+group.position.set(nx,-1.4+Math.sin(this.t*0.7)*0.3,nz);
+group.rotation.y=this.a+Math.PI/2;
+}
+body.rotation.y=Math.sin(this.t*5)*0.12;
+},
+onHit(dmg){
+this.hp-=dmg;
+SFX.play('hitFlesh');
+UIx.floater('-'+dmg,'#ffb3a8');
+if(this.hp<=0){
+this.dead=true;
+Game.stats.animalsHunted++;
+Inv.add('raw_fish',3);
+UIx.toast('The shark rolls belly-up. The reef exhales.','ok','raw_fish');
+Quests.onKill('shark');
+GFX.scene.remove(group);
+}
+}
+};
+return this.add(e);
+};
+Ents.makeTurtle=function(x,z){
+const parts=[
+{g:new THREE.SphereGeometry(0.5,9,7),m:m4(0,0.3,0,0,0,0,1.3,0.6,1.1),c:0x5d7a4a},
+{g:new THREE.SphereGeometry(0.42,9,7),m:m4(0,0.42,0,0,0,0,1.15,0.5,0.95),c:0x4a6238},
+{g:new THREE.SphereGeometry(0.16,7,6),m:m4(0.7,0.26,0,0,0,0,1.3,1,0.9),c:0x6d8a58},
+{g:new THREE.BoxGeometry(0.4,0.08,0.22),m:m4(0.35,0.14,0.42,0,0.5,0),c:0x6d8a58},
+{g:new THREE.BoxGeometry(0.4,0.08,0.22),m:m4(0.35,0.14,-0.42,0,-0.5,0),c:0x6d8a58},
+{g:new THREE.BoxGeometry(0.3,0.07,0.18),m:m4(-0.4,0.14,0.36,0,-0.5,0),c:0x6d8a58},
+{g:new THREE.BoxGeometry(0.3,0.07,0.18),m:m4(-0.4,0.14,-0.36,0,0.5,0),c:0x6d8a58}
+];
+const group=new THREE.Group();
+const body=new THREE.Mesh(mergeGeos(parts),MAT_PROP);
+body.castShadow=ST.quality>=1;
+group.add(body);
+group.position.set(x,heightAt(x,z),z);
+const e={
+type:'turtle',group,dead:false,
+wanderT:0,dir:Mx.rand(0,7),t:Mx.rand(0,9),
+name:'Green Turtle',
+update(dt){
+this.t+=dt;
+const px=group.position.x,pz=group.position.z;
+if(Mx.dist2(px,pz,Player.pos.x,Player.pos.z)>260)return;
+this.wanderT-=dt;
+if(this.wanderT<=0){this.wanderT=Mx.rand(3,8);this.dir=Mx.rand(0,7);this.moving=Mx.srand()<0.7;}
+if(this.moving){
+const nx=px+Math.sin(this.dir)*0.5*dt;
+const nz=pz+Math.cos(this.dir)*0.5*dt;
+const h=heightAt(nx,nz);
+if(h>-2.5&&h<1.6){group.position.set(nx,Math.max(h,-0.55),nz);group.rotation.y=this.dir+Math.PI;}
+else this.dir+=Math.PI/2;
+}
+},
+onHit(){UIx.toast('The old turtle blinks at you, unbothered. Leave it be.');}
+};
+return this.add(e);
+};
+/* ---- The Boar King ---- */
+Ents.makeBoarKing=function(x,z){
+const parts=[
+{g:new THREE.SphereGeometry(0.62,10,8),m:m4(0,0.72,0,0,0,0,1.5,1,1),c:0x3e3226},
+{g:new THREE.SphereGeometry(0.34,8,6),m:m4(0.95,0.62,0,0,0,0,1.15,1,0.9),c:0x342a20},
+{g:new THREE.ConeGeometry(0.07,0.5,5),m:m4(1.3,0.55,0.2,0,0,-1.3),c:0xe8dcc8},
+{g:new THREE.ConeGeometry(0.07,0.5,5),m:m4(1.3,0.55,-0.2,0,0,-1.3),c:0xe8dcc8},
+{g:new THREE.SphereGeometry(0.2,7,6),m:m4(0,1.25,0,0,0,0,1.6,0.5,1),c:0x4e4234},
+{g:new THREE.CylinderGeometry(0.11,0.09,0.66,5),m:m4(0.55,0.3,0.32),c:0x342a20},
+{g:new THREE.CylinderGeometry(0.11,0.09,0.66,5),m:m4(0.55,0.3,-0.32),c:0x342a20},
+{g:new THREE.CylinderGeometry(0.11,0.09,0.66,5),m:m4(-0.55,0.3,0.32),c:0x342a20},
+{g:new THREE.CylinderGeometry(0.11,0.09,0.66,5),m:m4(-0.55,0.3,-0.32),c:0x342a20}
+];
+const group=new THREE.Group();
+const body=new THREE.Mesh(mergeGeos(parts),MAT_PROP);
+body.castShadow=ST.quality>=1;
+group.add(body);
+const S=2.5;
+group.scale.set(S,S,S);
+group.position.set(x,heightAt(x,z),z);
+const tag=nameSprite('The Old King','#e58a83');
+tag.position.y=2.1;
+tag.scale.set(3,0.75,1);
+group.add(tag);
+const e={
+type:'boss',group,hp:150,dead:false,home:{x,z},
+state:'lair',dir:0,atkCd:0,chargeT:0,recoverT:0,roared:false,
+name:'The Old King',
+update(dt){
+if(this.dead)return;
+const px=group.position.x,pz=group.position.z;
+const d=Mx.dist2(px,pz,Player.pos.x,Player.pos.z);
+if(d>200)return;
+this.atkCd-=dt;this.recoverT-=dt;
+if(!this.roared&&d<36){
+this.roared=true;
+SFX.play('boar');SFX.play('thunder',300);
+UIx.centerCard('The Deep Jungle','The Old King','It has been waiting eleven years for a challenger');
+GFX.camShake=0.4;
+}
+if(d<46&&d>2.2&&this.recoverT<=0&&!Player.onRaft&&Player.hp>0){
+if(this.chargeT<=0&&this.atkCd<=0){
+this.chargeT=2.1;
+this.dir=Math.atan2(Player.pos.x-px,Player.pos.z-pz);
+SFX.play('boar');
+}
+if(this.chargeT>0){
+this.chargeT-=dt;
+const spd=this.chargeT>1.7?2.5:10.5;
+const nx=px+Math.sin(this.dir)*spd*dt;
+const nz=pz+Math.cos(this.dir)*spd*dt;
+const h=heightAt(nx,nz);
+if(h>0.5)group.position.set(nx,h,nz);
+if(Mx.dist2(group.position.x,group.position.z,Player.pos.x,Player.pos.z)<3.2){
+Player.damage(24,'Broken by the Old King');
+GFX.camShake=0.6;
+this.chargeT=0;
+this.recoverT=1.6;
+this.atkCd=1.2;
+}
+if(this.chargeT<=0&&this.recoverT<=0)this.recoverT=1.2;
+}
+}else if(d<=2.2&&this.atkCd<=0){
+this.atkCd=1.3;
+Player.damage(16,'Gored by the Old King');
+}
+group.rotation.y=this.dir-Math.PI/2+Math.PI;
+body.position.y=this.chargeT>0&&this.chargeT<1.7?Math.abs(Math.sin(Game.elapsed*11))*0.12:0;
+},
+onHit(dmg){
+this.hp-=dmg;
+SFX.play('hitFlesh');
+UIx.floater('-'+dmg,'#ffb3a8');
+this.recoverT=Math.min(this.recoverT,0.2);
+if(this.hp<=0){
+this.dead=true;
+Game.stats.animalsHunted++;
+SFX.play('boar');SFX.play('questDone');
+Inv.add('kings_tusk',1);
+Inv.add('raw_meat',6);
+UIx.centerCard('Trophy Claimed','The Old King Falls','The deep jungle is quiet at last');
+Quests.onFlag('king_slain');
+GFX.scene.remove(group);
+}
+}
+};
+return this.add(e);
+};
+/* ---- Jungle canopy tree (broadleaf) for the dense-forest look ---- */
+Props.buildJungleGeo=function(){
+const parts=[];
+parts.push({g:new THREE.CylinderGeometry(0.3,0.5,4.6,7),m:m4(0,2.3,0),c:0x6b4e30});
+parts.push({g:new THREE.CylinderGeometry(0.16,0.24,2.4,6),m:m4(0.9,5.2,0.3,0,0,0.5),c:0x75563a});
+parts.push({g:new THREE.CylinderGeometry(0.14,0.22,2.2,6),m:m4(-0.8,5.1,-0.4,0.3,0,-0.5),c:0x6b4e30});
+const blob=(x,y,z,s,c)=>parts.push({g:new THREE.IcosahedronGeometry(s,1),m:m4(x,y,z,0,Mx.rand(0,3),0,1,0.72,1),c});
+blob(0,6.6,0,2.6,0x3f7a3a);
+blob(1.9,6.1,0.9,1.9,0x498a42);
+blob(-1.8,6.0,-0.8,2.0,0x35682f);
+blob(0.6,5.6,-1.7,1.7,0x498a42);
+blob(-0.9,7.4,1.1,1.6,0x54994a);
+this.jungleGeo=mergeGeos(parts);
+};
+/* ---- World build for the expansion ---- */
+const Expansion={
+built:false,
+build(){
+this.built=true;
+Mx.reseed(CFG.SEED+301);
+if(!Props.jungleGeo)Props.buildJungleGeo();
+Forests.spawnSpecies(Props.jungleGeo,ST.quality===0?700:1600,2.2,34,0.3,0.7,1.5,false);
+let placed=0,tries=0;
+while(placed<70&&tries<4000){
+tries++;
+const p=randIslandPoint(2.4,30,0.6);
+if(!p||nearPOI(p.x,p.z,12)||forestAt(p.x,p.z)<0.35)continue;
+const mesh=new THREE.Mesh(Props.jungleGeo,MAT_PROP);
+mesh.position.set(p.x,p.h-0.15,p.z);
+mesh.rotation.y=Mx.rand(0,7);
+const s=Mx.rand(0.8,1.4);
+mesh.scale.set(s,s,s);
+mesh.castShadow=ST.quality>=1;
+World.group.add(mesh);
+World.registerHarvest(mesh,{type:'tree',name:'Jungle Hardwood',hp:4,tool:'axe',yields:{wood:5,fiber:1},failMsg:'This hardwood needs an axe.'});
+placed++;
+}
+this.buildCave();
+this.buildSOSSite();
+this.buildBossLair();
+Mx.reseed(CFG.SEED+307);
+for(let i=0;i<3;i++){
+const a=Mx.rand(0,Math.PI*2);
+const p=shorePoint(a,-4,-130);
+Ents.makeShark(p.x,p.z);
+}
+for(let i=0;i<4;i++){
+const p=beachPoint();
+if(p)Ents.makeTurtle(p.x,p.z);
+}
+},
+buildCave(){
+const C=CFG.CAVE;
+const baseY=heightAt(C.x,C.z);
+const M=CFG.MOUNTAIN;
+const inward=Math.atan2(M.x-C.x,M.z-C.z);
+const ix=Math.sin(inward),iz=Math.cos(inward);
+const shell=new THREE.Mesh(new THREE.SphereGeometry(15,18,12),new THREE.MeshStandardMaterial({color:0x14181c,roughness:1,side:THREE.BackSide}));
+shell.position.set(C.x+ix*13,baseY+2,C.z+iz*13);
+GFX.scene.add(shell);
+const outer=new THREE.Mesh(new THREE.SphereGeometry(15.6,14,10),MAT_PROP_FLAT);
+const n=outer.geometry.attributes.position.count;
+const col=new Float32Array(n*3);
+const cc=new THREE.Color(0x5c646c);
+for(let v=0;v<n;v++){col[v*3]=cc.r;col[v*3+1]=cc.g;col[v*3+2]=cc.b;}
+outer.geometry.setAttribute('color',new THREE.BufferAttribute(col,3));
+outer.position.copy(shell.position);
+outer.scale.set(1,0.86,1);
+GFX.scene.add(outer);
+const mouthParts=[];
+mouthParts.push({g:Props.makeRockGeo(3.4),m:m4(-4.4,0,0),c:0x6a727a});
+mouthParts.push({g:Props.makeRockGeo(3.1),m:m4(4.2,0,0.4),c:0x5f676f});
+mouthParts.push({g:Props.makeRockGeo(2.6),m:m4(0,4.6,0.6),c:0x6a727a});
+const mouth=new THREE.Mesh(mergeGeos(mouthParts),MAT_PROP_FLAT);
+const mn=mouth.geometry.attributes.position.count;
+const mcol=new Float32Array(mn*3);
+for(let v=0;v<mn;v++){mcol[v*3]=cc.r;mcol[v*3+1]=cc.g;mcol[v*3+2]=cc.b;}
+mouth.geometry.setAttribute('color',new THREE.BufferAttribute(mcol,3));
+mouth.position.set(C.x,baseY,C.z);
+mouth.rotation.y=inward;
+GFX.scene.add(mouth);
+Mx.reseed(CFG.SEED+311);
+for(let i=0;i<7;i++){
+const a=Mx.rand(0,Math.PI*2),r=Mx.rand(4,11);
+const px2=shell.position.x+Math.sin(a)*r,pz2=shell.position.z+Math.cos(a)*r;
+const cl=new THREE.Mesh(mergeGeos([
+{g:new THREE.ConeGeometry(0.4,Mx.rand(1.2,2.6),5),m:m4(0,0.8,0,Mx.rand(-0.3,0.3),0,Mx.rand(-0.3,0.3)),c:0x8fd8ec},
+{g:new THREE.ConeGeometry(0.24,Mx.rand(0.8,1.4),5),m:m4(0.5,0.5,0.2,0,0,0.4),c:0xb08ae0}
+]),new THREE.MeshStandardMaterial({vertexColors:true,roughness:0.3,metalness:0.1,emissive:0x3e8ba0,emissiveIntensity:0.7}));
+cl.position.set(px2,shell.position.y-11.5,pz2);
+GFX.scene.add(cl);
+if(i<4)World.registerHarvest(cl,{type:'rock',name:'Crystal Cluster',hp:2,tool:'pick',yields:{crystal:2},failMsg:'You need a pick to break the crystal free.'});
+}
+const caveLight=new THREE.PointLight(0x6fc3d8,1.2,26,1.6);
+caveLight.position.set(shell.position.x,shell.position.y-8,shell.position.z);
+GFX.scene.add(caveLight);
+const cache=new THREE.Mesh(mergeGeos([
+{g:new THREE.BoxGeometry(1.2,0.9,0.9),m:m4(0,0.45,0),c:0x77683a},
+{g:new THREE.BoxGeometry(1.26,0.16,0.96),m:m4(0,0.92,0),c:0x565026}
+]),MAT_PROP);
+cache.position.set(shell.position.x+3,shell.position.y-12.4,shell.position.z+2);
+GFX.scene.add(cache);
+World.registerInteract(cache,{name:'The Deep Cache',verb:'Open the deep cache',once:true,
+fn(){
+Inv.add('crystal',4);Inv.add('pearl',1);Inv.add('medkit',1);Inv.add('rope',2);
+UIx.toast('The mountain gives up its hoard','quest','crystal');
+SFX.play('questDone');
+Quests.onFlag('cave_loot');
+}});
+const page=new THREE.Mesh(new THREE.PlaneGeometry(0.5,0.65),new THREE.MeshStandardMaterial({color:0xe4dcc4,side:THREE.DoubleSide,roughness:0.9}));
+page.position.set(shell.position.x-3,shell.position.y-12.44,shell.position.z-2);
+page.rotation.set(-Math.PI/2,0,0.8);
+GFX.scene.add(page);
+World.registerInteract(page,{name:'Page VI — The Mountain',verb:'Read the weathered page',once:true,
+fn(){
+Game.stats.notesFound++;
+SFX.play('uiOpen');
+UIx.say('The Journal of the Meridian',['Page VI — "The mountain is hollow and the dark inside is older than the light outside. The blue stones hum if you hold them long enough. I took three. I put two back."']);
+UIx.toast('Journal page recovered','quest');
+page.visible=false;
+}});
+},
+buildSOSSite(){
+const S=CFG.SOS;
+const baseY=heightAt(S.x,S.z);
+const ringParts=[];
+for(let i=0;i<8;i++){
+const a=i/8*Math.PI*2;
+ringParts.push({g:new THREE.IcosahedronGeometry(0.2,0),m:m4(Math.sin(a)*1.4,0.1,Math.cos(a)*1.4),c:0x8b96a0});
+}
+const ring=new THREE.Mesh(mergeGeos(ringParts),MAT_PROP);
+ring.position.set(S.x,baseY,S.z);
+GFX.scene.add(ring);
+World.registerInteract(ring,{name:'Signal Site',verb:'Lay out the SOS (12 stone)',
+fn(){
+if(Quests.flag('sos_built')){UIx.toast('The letters stand three metres tall. Any pilot alive could read them.');return;}
+if(Inv.count('stone')<12){UIx.toast('You need 12 stone to shape the letters. You have '+Inv.count('stone')+'.','warn');return;}
+Inv.remove('stone',12);
+Expansion.raiseSOS();
+Quests.onFlag('sos_built');
+UIx.centerCard('The Signal','S O S','Written in stone, read from the sky');
+SFX.play('questDone');
+Ents.makeGull(S.x,S.z);
+Ents.makeGull(S.x+20,S.z+10);
+}});
+},
+raiseSOS(){
+const S=CFG.SOS;
+const CELL=2.4;
+const LS=[[0,0],[1,0],[2,0],[0,1],[0,2],[1,2],[2,2],[2,3],[0,4],[1,4],[2,4]];
+const LO=[[0,0],[1,0],[2,0],[0,1],[2,1],[0,2],[2,2],[0,3],[2,3],[0,4],[1,4],[2,4]];
+const letters=[LS,LO,LS];
+const parts=[];
+const ang=Math.atan2(-S.x,-S.z)+Math.PI/2;
+const ca=Math.cos(ang),sa=Math.sin(ang);
+letters.forEach((cells,li)=>{
+for(const[cx,cy]of cells){
+const lx=(li*4+cx)*CELL-14,lz=cy*CELL-4.8;
+const wx=S.x+lx*ca-lz*sa,wz=S.z+lx*sa+lz*ca;
+for(let k=0;k<2;k++){
+parts.push({g:new THREE.IcosahedronGeometry(Mx.rand(0.3,0.5),0),m:m4(wx-S.x+Mx.rand(-0.4,0.4),0.22,wz-S.z+Mx.rand(-0.4,0.4),0,Mx.rand(0,3),0),c:Mx.pick([0x4e4438,0x5c5648,0x463e30])});
+}
+}
+});
+const sos=new THREE.Mesh(mergeGeos(parts),MAT_PROP);
+sos.position.set(S.x,heightAt(S.x,S.z),S.z);
+GFX.scene.add(sos);
+},
+buildBossLair(){
+const B=CFG.BOSS;
+const baseY=heightAt(B.x,B.z);
+const parts=[];
+for(let i=0;i<8;i++){
+const a=Mx.rand(0,7),r=Mx.rand(2,9);
+parts.push({g:new THREE.ConeGeometry(0.08,Mx.rand(0.6,1.3),4),m:m4(Math.sin(a)*r,0.3,Math.cos(a)*r,Mx.rand(-0.6,0.6),0,Mx.rand(-0.6,0.6)),c:0xe0d6c2});
+}
+parts.push({g:new THREE.CylinderGeometry(4.5,5,0.3,12),m:m4(0,0.05,0),c:0x51422e});
+const lair=new THREE.Mesh(mergeGeos(parts),MAT_PROP);
+lair.position.set(B.x,baseY,B.z);
+GFX.scene.add(lair);
+Ents.makeBoarKing(B.x+3,B.z+3);
+},
+update(dt){
+Fishing.update(dt);
+Waypoint.update();
+}
+};
+/* ---- Credits ---- */
+const Credits={
+roll(){
+const ov=el('div','',document.body);
+ov.style.cssText='position:fixed;inset:0;background:#000;z-index:200;display:flex;align-items:center;justify-content:center;';
+const card=el('div','',ov);
+card.style.cssText='text-align:center;padding:0 10vw;opacity:0;transition:opacity 1.1s ease;';
+const k=el('div','',card);
+k.style.cssText='font-size:11px;letter-spacing:0.55em;text-transform:uppercase;color:#e2a655;margin-bottom:18px;';
+const t=el('div','',card);
+t.style.cssText="font-family:Georgia,serif;font-size:min(7vw,54px);letter-spacing:0.3em;text-transform:uppercase;color:#eef5f9;";
+const s=el('div','',card);
+s.style.cssText="font-family:Georgia,serif;font-style:italic;font-size:15px;color:#7e95a6;margin-top:16px;letter-spacing:0.1em;";
+const cards=[
+['','TIDEBOUND',''],
+['Chapter One','The Wreck of the Meridian','Complete'],
+['Direction, Design & Engineering','Fable Interactive',''],
+['World, Cinematics & Systems','The Tidebound Team',''],
+['Music & Sound','A Procedural WebAudio Score',''],
+['Starring','One Stubborn Castaway','and one very patient hermit'],
+['','The Sea Remembers','Tidebound will continue'],
+['','Thank You For Playing','']
+];
+let i=0;
+const next=()=>{
+if(i>=cards.length){location.reload();return;}
+const[kk,tt,ss]=cards[i++];
+card.style.opacity='0';
+setTimeout(()=>{
+k.textContent=kk;t.textContent=tt;s.textContent=ss;
+card.style.opacity='1';
+},1100);
+setTimeout(next,4400);
+};
+SFX.play('bell');
+next();
+}
+};
+Achieve.defs.push(
+{id:'angler',name:'Angler',desc:'Land 5 catches with the fishing rod.',test:()=>Fishing.count>=5},
+{id:'pearl',name:'Pearl Diver',desc:'Come to own a reef pearl.',test:()=>Inv.count('pearl')>0||Achieve.unlocked.pearl},
+{id:'spelunker',name:'Spelunker',desc:'Open the deep cache inside the Hollow Mountain.',test:()=>Quests.flag('cave_loot')},
+{id:'homemaker',name:'Homemaker',desc:'Build a shelter.',test:()=>Quests.flag('shelter_built')},
+{id:'signalfire',name:'Read From The Sky',desc:'Lay the SOS out on the beach.',test:()=>Quests.flag('sos_built')},
+{id:'kingslayer',name:'Kingslayer',desc:'Defeat the Old King of the deep jungle.',test:()=>Quests.flag('king_slain')}
+);
+/* ---- Base building: shelter, storage chest, crystal lamp ---- */
+Build.others=[];
+Build.tryPlace=function(kind){
+const dx=-Math.sin(Player.yaw)*2.6,dz=-Math.cos(Player.yaw)*2.6;
+const x=Player.pos.x+dx,z=Player.pos.z+dz;
+const h=heightAt(x,z);
+if(h<0.6){UIx.toast('Too close to the water.','warn');return;}
+if(slopeAt(x,z)>0.65){UIx.toast('The ground is too steep here.','warn');return;}
+if(kind==='campfire'){Inv.remove('campfire_kit',1);this.placeFire(x,z,true);Quests.onFlag('campfire_built');UIx.toast('Campfire built. Warmth, light, and a place to cook.');}
+else if(kind==='shelter'){Inv.remove('shelter_kit',1);this.placeShelter(x,z);Quests.onFlag('shelter_built');UIx.toast('Shelter raised. Sleep here to skip to dawn — respawn point set.');}
+else if(kind==='chest'){Inv.remove('chest_kit',1);this.placeChest(x,z);UIx.toast('Storage chest placed. E to deposit resources, E again to withdraw.');}
+else if(kind==='lamp'){Inv.remove('crystal_lamp',1);this.placeLamp(x,z);UIx.toast('The crystal wakes. Your camp holds a piece of the mountain’s light.');}
+SFX.play('craft');
+};
+Build.placeShelter=function(x,z){
+const baseY=heightAt(x,z);
+const parts=[
+{g:new THREE.CylinderGeometry(0.09,0.12,3.4,6),m:m4(-1.7,1.2,-1.5,0,0,0.6),c:0x6e5238},
+{g:new THREE.CylinderGeometry(0.09,0.12,3.4,6),m:m4(1.7,1.2,-1.5,0,0,-0.6),c:0x6e5238},
+{g:new THREE.CylinderGeometry(0.09,0.12,3.4,6),m:m4(-1.7,1.2,1.5,0,0,0.6),c:0x75563a},
+{g:new THREE.CylinderGeometry(0.09,0.12,3.4,6),m:m4(1.7,1.2,1.5,0,0,-0.6),c:0x75563a},
+{g:new THREE.CylinderGeometry(0.07,0.07,3.4,5),m:m4(0,2.4,0,Math.PI/2,0,0),c:0x8a6a48},
+{g:new THREE.PlaneGeometry(2.6,3.6),m:m4(-0.95,1.35,0,0,0,0.62),c:0xa8975e},
+{g:new THREE.PlaneGeometry(2.6,3.6),m:m4(0.95,1.35,0,0,0,-0.62),c:0x98874f},
+{g:new THREE.PlaneGeometry(2.4,3.4),m:m4(-1.0,1.32,0.02,0,0,0.62),c:0x8f7d45},
+{g:new THREE.BoxGeometry(2.6,0.18,3.2),m:m4(0,0.12,0),c:0x94714c},
+{g:new THREE.BoxGeometry(1.8,0.14,0.9),m:m4(0.2,0.26,0.8,0,0.2,0),c:0xc9bfa8}
+];
+const mesh=new THREE.Mesh(mergeGeos(parts),new THREE.MeshStandardMaterial({vertexColors:true,roughness:0.92,side:THREE.DoubleSide}));
+mesh.position.set(x,baseY,z);
+mesh.rotation.y=Player.yaw+Math.PI;
+mesh.castShadow=ST.quality>=1;
+GFX.scene.add(mesh);
+Player.spawnPoint={x,z};
+this.others.push({k:'shelter',x,z});
+World.registerInteract(mesh,{name:'Shelter',verb:'Sleep until dawn',
+fn(){
+if(!DayN.isNight()){UIx.toast('You can only sleep once darkness falls.');return;}
+UIx.fade(true,0.9);
+SFX.play('uiClose');
+setTimeout(()=>{
+if(Game.hour>18)Game.day++;
+Game.hour=6.3;
+Player.stam=100;Player.cold=0;
+Player.hp=Math.min(Player.hpMax,Player.hp+30);
+Player.hunger=Math.max(6,Player.hunger-12);
+Player.thirst=Math.max(6,Player.thirst-16);
+UIx.fade(false,1.4);
+UIx.centerCard('Day '+Game.day,'First Light','You wake dry and rested under thatch');
+UIx.updateHUD();
+},1100);
+}});
+};
+Build.CHEST_ITEMS=['wood','stone','fiber','scrap','cloth','rope','coconut','berries','crystal','raw_fish','raw_meat'];
+Build.placeChest=function(x,z,stash){
+const baseY=heightAt(x,z);
+const parts=[
+{g:new THREE.BoxGeometry(1.3,0.7,0.85),m:m4(0,0.36,0),c:0x8a6a48},
+{g:new THREE.BoxGeometry(1.34,0.24,0.9),m:m4(0,0.8,0,0.08,0,0),c:0x6e5238},
+{g:new THREE.BoxGeometry(0.12,0.7,0.9),m:m4(-0.45,0.38,0),c:0x5c4a34},
+{g:new THREE.BoxGeometry(0.12,0.7,0.9),m:m4(0.45,0.38,0),c:0x5c4a34},
+{g:new THREE.BoxGeometry(0.16,0.2,0.06),m:m4(0,0.6,0.45),c:0xc8b26a}
+];
+const mesh=new THREE.Mesh(mergeGeos(parts),MAT_PROP);
+mesh.position.set(x,baseY,z);
+mesh.rotation.y=Player.yaw+Math.PI;
+mesh.castShadow=ST.quality>=1;
+GFX.scene.add(mesh);
+const rec={k:'chest',x,z,stash:stash||{}};
+this.others.push(rec);
+World.registerInteract(mesh,{name:'Storage Chest',verb:'Deposit / withdraw resources',
+fn(){
+let stored=0;
+for(const id of Build.CHEST_ITEMS){
+const c=Inv.count(id);
+if(c>0){Inv.remove(id,c);rec.stash[id]=(rec.stash[id]||0)+c;stored+=c;}
+}
+if(stored>0){SFX.play('pickup');UIx.toast('Stored '+stored+' resources in the chest');return;}
+let taken=0;
+for(const id in rec.stash){
+const n=rec.stash[id];
+if(n>0){const left=Inv.add(id,n);taken+=n-left;rec.stash[id]=left;}
+}
+if(taken>0){SFX.play('pickup');UIx.toast('Recovered '+taken+' resources from the chest');}
+else UIx.toast('The chest is empty and so are your pockets.');
+}});
+};
+Build.placeLamp=function(x,z){
+const baseY=heightAt(x,z);
+const g=new THREE.Group();
+const legs=new THREE.Mesh(mergeGeos([
+{g:new THREE.CylinderGeometry(0.03,0.04,1.1,5),m:m4(-0.25,0.5,0,0,0,0.4),c:0x8a6a48},
+{g:new THREE.CylinderGeometry(0.03,0.04,1.1,5),m:m4(0.25,0.5,0,0,0,-0.4),c:0x8a6a48},
+{g:new THREE.CylinderGeometry(0.03,0.04,1.1,5),m:m4(0,0.5,0.25,-0.4,0,0),c:0x75563a}
+]),MAT_PROP);
+g.add(legs);
+const shard=new THREE.Mesh(new THREE.ConeGeometry(0.14,0.5,5),new THREE.MeshStandardMaterial({color:0x8fd8ec,emissive:0x6fc3d8,emissiveIntensity:1.2,roughness:0.3}));
+shard.position.y=1.25;
+g.add(shard);
+const light=new THREE.PointLight(0x9fe3f0,1.1,15,2);
+light.position.y=1.4;
+g.add(light);
+g.position.set(x,baseY,z);
+GFX.scene.add(g);
+this.others.push({k:'lamp',x,z});
+};
+const _buildSer=Build.serialize.bind(Build);
+Build.serialize=function(){
+const out=this.fires.map(f=>['campfire',Math.round(f.x*10)/10,Math.round(f.z*10)/10]);
+for(const o of this.others)out.push([o.k,Math.round(o.x*10)/10,Math.round(o.z*10)/10,o.stash||null]);
+return out;
+};
+Build.deserialize=function(arr){
+if(!Array.isArray(arr))return;
+for(const it of arr){
+if(!Array.isArray(it))continue;
+if(it.length===2&&typeof it[0]==='number'){this.placeFire(it[0],it[1],false);continue;}
+const[k,x,z,stash]=it;
+if(k==='campfire')this.placeFire(x,z,false);
+else if(k==='shelter')this.placeShelter(x,z);
+else if(k==='chest')this.placeChest(x,z,stash||{});
+else if(k==='lamp')this.placeLamp(x,z);
+}
+};
+/* ---- First-person hands: both visible, real fingers, item in the right ---- */
+Player.buildViewTools=function(){
+const skin=0xc9a184,sleeve=0x7a4034;
+const mkHand=mirror=>{
+const P=[];
+P.push({g:new THREE.CylinderGeometry(0.05,0.062,0.34,7),m:m4(0,-0.19,0.12,1.05,0,0),c:sleeve});
+P.push({g:new THREE.CylinderGeometry(0.042,0.05,0.08,7),m:m4(0,-0.055,0.035,1.05,0,0),c:skin});
+P.push({g:new THREE.BoxGeometry(0.088,0.05,0.105),m:m4(0,-0.015,-0.02,0.3,0,0),c:skin});
+for(let f=0;f<4;f++){
+P.push({g:new THREE.BoxGeometry(0.017,0.024,0.062),m:m4(-0.031+f*0.0205,0.008,-0.085,0.55,0,0),c:skin});
+P.push({g:new THREE.BoxGeometry(0.016,0.02,0.045),m:m4(-0.031+f*0.0205,0.028,-0.115,1.05,0,0),c:skin});
+}
+P.push({g:new THREE.BoxGeometry(0.022,0.024,0.055),m:m4(mirror?-0.056:0.056,-0.005,-0.03,0.3,mirror?0.7:-0.7,0),c:skin});
+return new THREE.Mesh(mergeGeos(P),MAT_PROP);
+};
+this.handL=new THREE.Group();
+this.handR=new THREE.Group();
+this.handL.add(mkHand(true));
+this.handR.add(mkHand(false));
+this.itemMount=new THREE.Group();
+this.itemMount.position.set(0,0.01,-0.05);
+this.handR.add(this.itemMount);
+this.handL.position.set(-0.23,-0.235,-0.42);
+this.handR.position.set(0.23,-0.235,-0.42);
+this.viewGroup.add(this.handL);
+this.viewGroup.add(this.handR);
+this.curItemId=null;
+this.useT=0;
+this.viewTools={};
+};
+Player.playUse=function(){this.useT=0.85;};
+Player.updateViewmodel=function(dt){
+if(!this.handR)return;
+const inFP=this.mode==='fp'&&!this.onRaft;
+this.handL.visible=inFP;
+this.handR.visible=inFP;
+if(!inFP)return;
+const eq=Inv.equippedSlot();
+const id=eq?eq.id:null;
+if(id!==this.curItemId){
+this.curItemId=id;
+while(this.itemMount.children.length)this.itemMount.remove(this.itemMount.children[0]);
+if(id)this.itemMount.add(HandModels.get(id));
+}
+if(this.useT>0)this.useT-=dt;
+const idle=Math.sin(Game.elapsed*1.4)*0.006;
+const bob=Math.sin(this.bobT)*0.013;
+const bob2=Math.cos(this.bobT)*0.011;
+const sw=this.swing>0?Math.sin((0.45-this.swing)/0.45*Math.PI):0;
+const use=this.useT>0?Math.sin((0.85-this.useT)/0.85*Math.PI):0;
+this.handR.position.set(0.23-use*0.14-sw*0.02,-0.235+bob+idle+use*0.15,-0.42+use*0.04-sw*0.06);
+this.handR.rotation.set(-sw*1.45+use*1.0+0.05,-0.12+sw*0.4,sw*0.28);
+this.handL.position.set(-0.23,-0.235+bob2+idle,-0.42-sw*0.015);
+this.handL.rotation.set(0.08+Math.sin(Game.elapsed*1.1)*0.025,0.12,-0.03);
+};
+/* ---- Chapters: three acts, eleven quests ---- */
+Quests.CHAPTERS={1:'The Castaway',2:'The Island’s Heart',3:'The Long Goodbye'};
+Quests._ch=0;
+Quests.init=function(){
+this.list=[
+{ch:1,id:'washed_ashore',title:'Washed Ashore',
+brief:'The sea spat you out beside the bones of your boat. Salvage what it left you.',
+tasks:[
+{label:'Reach the wreck of the Meridian',done:()=>Quests.flag('reached_wreck')},
+{label:'Search the supply crate',done:()=>Quests.flag('wreck_searched')}
+],
+marker:()=>({x:CFG.WRECK.x,z:CFG.WRECK.z}),
+onComplete(){UIx.toast('The Meridian gave you what she had left.','quest');}},
+{ch:1,id:'bone_and_edge',title:'Bone and Edge',
+brief:'Bare hands will not keep you alive here. Gather driftwood, stone and fiber, and put edges on them. Open crafting with C.',
+tasks:[
+{label:'Craft a Castaway Axe',done:()=>Quests.crafted('axe')},
+{label:'Craft a Fishing Spear',done:()=>Quests.crafted('spear')},
+{label:()=>'Gather driftwood — '+Math.min(Inv.count('wood')+Quests.harvested('tree')*3,6)+' / 6',done:()=>Inv.count('wood')>=6||Quests.harvested('tree')>=2}
+]},
+{ch:1,id:'ember_spring',title:'Ember and Spring',
+brief:'Thirst kills faster than hunger. There is fresh water at the lake in the island’s heart — and no meal is safe raw.',
+tasks:[
+{label:'Drink from the inland spring',done:()=>Quests.flag('drank_spring')},
+{label:'Build a campfire',done:()=>Quests.flag('campfire_built')},
+{label:'Cook a meal over the flames',done:()=>Quests.crafted('cooked_fish')||Quests.crafted('cooked_meat')}
+],
+marker:()=>({x:CFG.SPRING.x,z:CFG.SPRING.z}),
+onComplete(){UIx.toast('Fire, water, food. You are no longer merely drowning slowly.','quest');}},
+{ch:1,id:'hermit',title:'Smoke on the Ridge',
+brief:'A thread of woodsmoke rises from the eastern forest. Someone else survives here — and survivors know things.',
+tasks:[
+{label:'Find the source of the smoke',done:()=>Quests.flag('hermit_met')},
+{label:()=>'Bring Old Man Moss three cooked meals ('+Math.min(Quests.mealsCarried(),3)+' / 3)',done:()=>Quests.flag('hermit_fed')}
+],
+marker:()=>({x:CFG.HERMIT.x,z:CFG.HERMIT.z}),
+onComplete(){UIx.toast('Moss trusts you now. That is not a small thing.','quest');}},
+{ch:2,id:'summit',title:'The Island’s Crown',
+brief:'Moss says the whole island shows itself from the peak — every beach, every ruin, and the one gap in the reef.',
+tasks:[
+{label:'Climb to the summit of Mount Meridian',done:()=>Quests.flag('summit_reached')}
+],
+marker:()=>({x:CFG.SUMMIT.x,z:CFG.SUMMIT.z}),
+onComplete(){UIx.toast('You have seen the shape of your prison — and its door.','quest');}},
+{ch:2,id:'hollow_mountain',title:'The Hollow Mountain',
+brief:'From the crown you saw it: a dark mouth in the mountainside. The old people mined blue fire from that dark. Bring a pick and a torch.',
+tasks:[
+{label:'Find the cave beneath the peak',done:()=>Quests.flag('cave_found')},
+{label:'Open the deep cache',done:()=>Quests.flag('cave_loot')}
+],
+marker:()=>({x:CFG.CAVE.x,z:CFG.CAVE.z}),
+onComplete(){UIx.toast('Crystal in your pack, and the dark behind you.','quest');}},
+{ch:2,id:'keeper',title:'The Keeper’s Charge',
+brief:'The old lighthouse on Lantern Head still has a lamp. The ruins of the old people hide the fuel cells that feed it. Light it, and the night loses its teeth.',
+tasks:[
+{label:()=>'Recover fuel cells from the ruins ('+Math.min(Quests.cellsFound(),3)+' / 3)',done:()=>Quests.cellsFound()>=3},
+{label:'Install the cells in the lighthouse lamp',done:()=>Quests.flag('lighthouse_lit')}
+],
+marker(){
+if(Quests.cellsFound()>=3)return{x:CFG.LIGHTHOUSE.x,z:CFG.LIGHTHOUSE.z};
+for(let i=0;i<3;i++)if(!Quests.flag('cell_'+i)&&CFG.RUINS[i])return{x:CFG.RUINS[i].x,z:CFG.RUINS[i].z};
+return{x:CFG.LIGHTHOUSE.x,z:CFG.LIGHTHOUSE.z};
+},
+onComplete(){UIx.toast('The beam sweeps the water. Ships can see the island again.','quest');}},
+{ch:3,id:'signals',title:'Signals in the Sand',
+brief:'Belt and braces, castaway. Before you trust your life to a raft, give the sky a reason to look down: letters of stone on the open beach.',
+tasks:[
+{label:()=>'Gather stone for the letters ('+Math.min(Inv.count('stone'),12)+' / 12)',done:()=>Inv.count('stone')>=12||Quests.flag('sos_built')},
+{label:'Lay out the SOS at the signal site',done:()=>Quests.flag('sos_built')}
+],
+marker:()=>({x:CFG.SOS.x,z:CFG.SOS.z}),
+onComplete(){UIx.toast('Three letters, three metres tall. The sky has its invitation.','quest');}},
+{ch:3,id:'old_king',title:'The Old King',
+brief:'Moss’s warning: a boar the size of a cart rules the deep jungle, and it has learned where you sleep. Settle it before you sail, or it will settle you.',
+tasks:[
+{label:'Defeat the Old King in his lair',done:()=>Quests.flag('king_slain')}
+],
+marker:()=>({x:CFG.BOSS.x,z:CFG.BOSS.z}),
+onComplete(){UIx.toast('The tusk rides on your pack now. The jungle steps aside.','quest');}},
+{ch:3,id:'seaworthy',title:'Seaworthy',
+brief:'Timber, rope, canvas. The raft will take everything the island has taught you to gather — and then it will take you home.',
+tasks:[
+{label:'Craft the Raft Hull',done:()=>Quests.crafted('raft_hull')},
+{label:'Craft the Mast and Sail',done:()=>Quests.crafted('raft_sail')},
+{label:'Craft the Tiller and Rudder',done:()=>Quests.crafted('raft_rudder')}
+],
+marker:()=>({x:CFG.RAFT_SITE.x,z:CFG.RAFT_SITE.z})},
+{ch:3,id:'cast_off',title:'Cast Off',
+brief:'Assemble the raft on the south beach and take the gap in the reef that Moss marked on the chart. Home is a heading now, not a hope.',
+tasks:[
+{label:'Assemble the raft at the beach site',done:()=>Quests.flag('raft_built')},
+{label:'Board the raft',done:()=>Quests.flag('boarded_raft')},
+{label:'Sail beyond the reef',done:()=>Game.escaped}
+],
+marker:()=>({x:CFG.RAFT_SITE.x,z:CFG.RAFT_SITE.z})}
+];
+};
+Quests.start=function(i){
+this.idx=i;
+const q=this.current();
+if(!q)return;
+if(q.ch&&q.ch!==this._ch){
+this._ch=q.ch;
+const names=['One','Two','Three'];
+UIx.centerCard('Chapter '+names[q.ch-1],this.CHAPTERS[q.ch],'',6);
+SFX.play('bell');
+setTimeout(()=>{if(Game.mode==='play')UIx.questBanner('New Objective',q.title);},2600);
+}else{
+UIx.questBanner('New Objective',q.title);
+}
+SFX.play('uiOpen');
+if(ST.subs&&q.brief)UIx.toast(q.brief,'quest');
+this.refreshMarkers();
+UIx.updateObjectiveUI();
+};
+Quests.update=function(dt){
+if(Game.mode!=='play'||Cine.active)return;
+if(!this.flag('reached_wreck')&&Mx.dist2(Player.pos.x,Player.pos.z,CFG.WRECK.x,CFG.WRECK.z)<20)this.onFlag('reached_wreck');
+if(!this.flag('summit_reached')&&this.idx>=4&&Mx.dist2(Player.pos.x,Player.pos.z,CFG.SUMMIT.x,CFG.SUMMIT.z)<26&&Player.pos.y>CFG.SUMMIT.h-8){
+this.onFlag('summit_reached');
+Cine.play('summit');
+}
+if(!this.flag('cave_found')&&this.idx>=5&&Mx.dist2(Player.pos.x,Player.pos.z,CFG.CAVE.x,CFG.CAVE.z)<20){
+this.onFlag('cave_found');
+UIx.centerCard('Discovery','The Hollow Mountain','The dark breathes cold air out at you');
+}
+if((Game.elapsed|0)%3===0)this.refreshMarkersThrottled();
+};
+Quests._restore=Quests.restore;
+Quests.restore=function(idx,snap){
+this._restore(idx,snap);
+const q=this.current();
+if(q&&q.ch)this._ch=q.ch;
+};
 /* ============================ SETTINGS UI ================================= */
 const SettingsUI={
 init(){
@@ -4763,7 +5720,7 @@ Input.lock();
 const Interact={
 current:null,
 update(){
-if(Game.mode!=='play'||Game.overlay||Cine.active||Player.onRaft&&false){this.set(null);return;}
+if(Game.mode!=='play'||Game.overlay||Cine.active||Fishing.active){this.set(null);return;}
 let best=null,bestScore=1e9;
 const px=Player.pos.x,pz=Player.pos.z;
 const sinY=Math.sin(Player.yaw),cosY=Math.cos(Player.yaw);
@@ -4830,6 +5787,7 @@ HermitCamp.build();
 Notes.build();
 MoreContent.build();
 Achieve.init();
+Expansion.build();
 bar(0.8);
 await this.frame();
 status('Waking the wildlife');
@@ -4920,6 +5878,7 @@ Props.updateMarkers(dt);
 Quests.update(dt);
 Achieve.update(dt);
 MoreContent.update(dt);
+Expansion.update(dt);
 Interact.update();
 UIx.dlgUpdate(dt);
 UIx.updateHUD();
