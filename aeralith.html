@@ -1,0 +1,2691 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AERALITH — The Last Cartographer</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>&#128302;</text></svg>">
+<style>
+:root{
+  --gold:#f0c46a; --teal:#5ee8d2; --violet:#b48cff; --ink:#070b14;
+  --line:rgba(255,255,255,.14); --dim:rgba(255,255,255,.55);
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{width:100%;height:100%;overflow:hidden;background:var(--ink);
+  font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:#e8ecf4;
+  -webkit-user-select:none;user-select:none}
+canvas#gl{position:fixed;inset:0;width:100%;height:100%;display:block;background:#070b14}
+.serif{font-family:Georgia,"Times New Roman",serif}
+.hide{display:none!important}
+
+/* ---------- letterbox + fades ---------- */
+#lbT,#lbB{position:fixed;left:0;width:100%;height:0;background:#000;z-index:40;
+  transition:height .9s cubic-bezier(.4,0,.2,1)}
+#lbT{top:0}#lbB{bottom:0}
+body.cine #lbT,body.cine #lbB{height:11vh}
+#fade{position:fixed;inset:0;background:#000;opacity:1;pointer-events:none;z-index:60;
+  transition:opacity 1.1s ease}
+#fade.white{background:#fff8ea}
+#dmg{position:fixed;inset:0;pointer-events:none;z-index:35;opacity:0;
+  background:radial-gradient(ellipse at center,transparent 42%,rgba(190,30,40,.55) 100%)}
+#heal{position:fixed;inset:0;pointer-events:none;z-index:35;opacity:0;
+  background:radial-gradient(ellipse at center,transparent 45%,rgba(94,232,210,.35) 100%)}
+
+/* ---------- HUD ---------- */
+#hud{position:fixed;inset:0;pointer-events:none;z-index:20;opacity:0;transition:opacity .8s}
+#hud.on{opacity:1}
+.hudlabel{font-size:10px;letter-spacing:.24em;text-transform:uppercase;color:var(--dim)}
+
+#quest{position:absolute;top:26px;left:30px;max-width:360px;text-shadow:0 1px 8px rgba(0,0,0,.8)}
+#questTitle{font-size:10px;letter-spacing:.3em;color:var(--gold);text-transform:uppercase;margin-bottom:5px}
+#questText{font-size:14.5px;line-height:1.45;color:#f2ead6}
+#questSub{font-size:12px;color:var(--dim);margin-top:4px;letter-spacing:.06em}
+
+#wallet{position:absolute;top:26px;right:30px;text-align:right;text-shadow:0 1px 8px rgba(0,0,0,.8)}
+#lumens{font-size:22px;color:var(--gold);letter-spacing:.08em;font-variant-numeric:tabular-nums}
+#lumens::before{content:"\25C8  ";font-size:15px}
+#relicHud{font-size:11.5px;color:var(--violet);letter-spacing:.14em;margin-top:4px}
+#wsHud{font-size:11.5px;color:var(--teal);letter-spacing:.14em;margin-top:2px}
+
+#vitals{position:absolute;left:30px;bottom:30px;text-shadow:0 1px 8px rgba(0,0,0,.8)}
+#hearts{display:flex;gap:7px;margin-bottom:9px}
+.heart{width:15px;height:15px;transform:rotate(45deg);border:1px solid rgba(255,255,255,.5);
+  background:transparent;transition:all .3s}
+.heart.full{background:linear-gradient(135deg,#ffd98a,#e86a4a);border-color:#ffd98a;
+  box-shadow:0 0 9px rgba(255,180,90,.75)}
+#emberWrap{width:190px;height:5px;background:rgba(255,255,255,.12);border-radius:3px;overflow:hidden}
+#emberFill{height:100%;width:60%;border-radius:3px;
+  background:linear-gradient(90deg,#ff8a3c,#ffd98a);box-shadow:0 0 10px rgba(255,170,80,.8);
+  transition:width .12s linear}
+#emberLbl{margin-top:6px}
+
+#flight{position:absolute;right:30px;bottom:30px;text-align:right;text-shadow:0 1px 8px rgba(0,0,0,.8);
+  font-variant-numeric:tabular-nums}
+#speedV{font-size:26px;letter-spacing:.05em;color:#eef3ff}
+#speedV span,#altV span{font-size:10px;color:var(--dim);letter-spacing:.2em}
+#altV{font-size:15px;color:#b9c4d8;margin-top:3px}
+#stallWarn{color:#ff7a6a;font-size:11px;letter-spacing:.3em;margin-top:6px;opacity:0;text-transform:uppercase}
+#stallWarn.on{opacity:1;animation:blink .5s infinite alternate}
+@keyframes blink{from{opacity:.35}to{opacity:1}}
+
+#compassWrap{position:absolute;top:22px;left:50%;transform:translateX(-50%);width:420px;height:44px;
+  -webkit-mask-image:linear-gradient(90deg,transparent,#000 18%,#000 82%,transparent);
+  mask-image:linear-gradient(90deg,transparent,#000 18%,#000 82%,transparent)}
+#compass{width:420px;height:44px}
+
+#reticle{position:absolute;left:50%;top:50%;width:5px;height:5px;border-radius:50%;
+  transform:translate(-50%,-50%);background:rgba(255,255,255,.45);
+  box-shadow:0 0 6px rgba(255,255,255,.5)}
+
+#interact{position:absolute;left:50%;top:58%;transform:translateX(-50%);text-align:center;opacity:0;
+  transition:opacity .3s;text-shadow:0 1px 8px #000}
+#interact.on{opacity:1}
+#interactKey{display:inline-block;border:1px solid rgba(255,255,255,.5);border-radius:5px;
+  padding:2px 9px;font-size:12px;margin-bottom:5px;background:rgba(0,0,0,.35)}
+#interactTxt{font-size:12.5px;letter-spacing:.14em;color:#dfe8f5;text-transform:uppercase}
+
+#channelWrap{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:74px;height:74px;opacity:0;transition:opacity .25s}
+#channelWrap.on{opacity:1}
+#channelRing{width:100%;height:100%;border-radius:50%;
+  background:conic-gradient(var(--teal) calc(var(--p)*1%),rgba(255,255,255,.1) 0)}
+#channelHole{position:absolute;inset:6px;border-radius:50%;background:rgba(4,8,16,.55)}
+
+#bossWrap{position:absolute;top:12vh;left:50%;transform:translateX(-50%);width:min(520px,70vw);
+  text-align:center;opacity:0;transition:opacity .5s}
+#bossWrap.on{opacity:1}
+#bossName{font-size:13px;letter-spacing:.34em;color:#ffb0a0;text-transform:uppercase;
+  text-shadow:0 0 14px rgba(255,80,60,.6);margin-bottom:7px}
+#bossBarBg{height:4px;background:rgba(255,255,255,.13);border-radius:2px;overflow:hidden}
+#bossBar{height:100%;width:100%;background:linear-gradient(90deg,#ff4f5e,#ffb46a);transition:width .25s}
+
+#subtitle{position:fixed;bottom:14vh;left:50%;transform:translateX(-50%);max-width:min(720px,84vw);
+  text-align:center;font-size:clamp(15px,1.9vw,20px);font-style:italic;line-height:1.55;
+  color:#f4efe2;text-shadow:0 2px 14px #000,0 0 30px rgba(0,0,0,.9);z-index:45;opacity:0;
+  transition:opacity .6s;pointer-events:none}
+#subtitle.on{opacity:1}
+#subtitle .who{display:block;font-style:normal;font-size:10px;letter-spacing:.4em;color:var(--teal);
+  margin-bottom:8px;text-transform:uppercase}
+
+#toasts{position:fixed;top:13vh;left:50%;transform:translateX(-50%);z-index:44;display:flex;
+  flex-direction:column;align-items:center;gap:8px;pointer-events:none}
+.toast{padding:9px 22px;border:1px solid var(--line);border-radius:3px;background:rgba(6,10,20,.72);
+  backdrop-filter:blur(6px);font-size:12.5px;letter-spacing:.18em;text-transform:uppercase;color:#f0ead8;
+  animation:toastIn .5s ease,toastOut .8s ease 3.6s forwards;box-shadow:0 4px 30px rgba(0,0,0,.5)}
+.toast.gold{color:var(--gold);border-color:rgba(240,196,106,.4)}
+.toast.teal{color:var(--teal);border-color:rgba(94,232,210,.4)}
+@keyframes toastIn{from{opacity:0;transform:translateY(-14px)}to{opacity:1;transform:none}}
+@keyframes toastOut{to{opacity:0;transform:translateY(-8px)}}
+
+#banner{position:fixed;top:34vh;width:100%;text-align:center;z-index:42;opacity:0;pointer-events:none}
+#banner.on{animation:bannerA 5s ease forwards}
+#bannerName{font-size:clamp(28px,4.6vw,54px);letter-spacing:.42em;color:#fdf6e4;
+  text-shadow:0 0 40px rgba(255,220,150,.35),0 2px 20px #000;text-transform:uppercase;padding-left:.42em}
+#bannerSub{font-size:12px;letter-spacing:.5em;color:var(--dim);margin-top:14px;text-transform:uppercase;padding-left:.5em}
+@keyframes bannerA{0%{opacity:0;transform:translateY(12px)}12%{opacity:1;transform:none}
+  78%{opacity:1}100%{opacity:0;transform:translateY(-10px)}}
+
+/* ---------- screens ---------- */
+.screen{position:fixed;inset:0;z-index:50;display:flex;align-items:center;justify-content:center;
+  flex-direction:column;background:radial-gradient(ellipse at 50% 120%,rgba(20,30,58,.5),rgba(4,7,14,.82));
+  backdrop-filter:blur(3px);opacity:0;pointer-events:none;transition:opacity .6s}
+.screen.on{opacity:1;pointer-events:auto}
+
+#title .rule{width:120px;height:1px;background:linear-gradient(90deg,transparent,var(--gold),transparent);margin:26px 0}
+#titleName{font-size:clamp(40px,7.4vw,96px);letter-spacing:.34em;padding-left:.34em;color:#f7f2e5;
+  text-shadow:0 0 60px rgba(240,196,106,.28),0 4px 30px #000;font-weight:400}
+#titleSub{font-size:clamp(11px,1.3vw,15px);letter-spacing:.62em;padding-left:.62em;color:var(--dim);
+  text-transform:uppercase;margin-top:16px}
+.menu{display:flex;flex-direction:column;gap:4px;margin-top:34px;align-items:center}
+.mbtn{background:none;border:none;color:#c9d2e2;font-family:inherit;font-size:14px;letter-spacing:.34em;
+  padding:11px 34px;cursor:pointer;text-transform:uppercase;transition:all .25s;position:relative}
+.mbtn:hover,.mbtn.sel{color:var(--gold);text-shadow:0 0 18px rgba(240,196,106,.5);letter-spacing:.4em}
+.mbtn:disabled{opacity:.3;cursor:default}
+.mbtn.small{font-size:11.5px;padding:8px 22px}
+#titleFoot{position:absolute;bottom:26px;width:100%;text-align:center;font-size:10.5px;
+  letter-spacing:.24em;color:rgba(255,255,255,.32);text-transform:uppercase}
+#saveInfo{margin-top:10px;font-size:11px;letter-spacing:.2em;color:var(--dim)}
+
+.panel{width:min(860px,92vw);max-height:84vh;overflow:auto;border:1px solid var(--line);border-radius:6px;
+  background:rgba(7,11,22,.9);padding:34px 40px;box-shadow:0 20px 80px rgba(0,0,0,.6)}
+.panel::-webkit-scrollbar{width:8px}.panel::-webkit-scrollbar-thumb{background:rgba(255,255,255,.15);border-radius:4px}
+.ph{font-size:12px;letter-spacing:.4em;color:var(--gold);text-transform:uppercase;margin-bottom:22px}
+.pclose{position:absolute;top:18px;right:22px;background:none;border:1px solid var(--line);color:#aab;
+  border-radius:4px;font-size:11px;letter-spacing:.15em;padding:6px 12px;cursor:pointer;font-family:inherit}
+.pclose:hover{color:#fff;border-color:#fff}
+
+/* controls table */
+.keys{display:grid;grid-template-columns:auto 1fr;gap:9px 26px;font-size:13.5px;color:#cfd8e6}
+.keys b{border:1px solid rgba(255,255,255,.35);border-radius:4px;padding:2px 10px;font-weight:400;
+  font-size:12px;background:rgba(255,255,255,.05);white-space:nowrap;justify-self:start}
+
+/* settings */
+.setrow{display:flex;align-items:center;justify-content:space-between;padding:12px 0;
+  border-bottom:1px solid rgba(255,255,255,.07);font-size:13.5px;letter-spacing:.08em}
+.setrow input[type=range]{width:180px;accent-color:var(--gold)}
+.segbtns{display:flex;gap:6px}
+.seg{border:1px solid var(--line);background:none;color:#9aa5b8;font-family:inherit;font-size:11px;
+  letter-spacing:.12em;padding:5px 13px;border-radius:4px;cursor:pointer;text-transform:uppercase}
+.seg.sel{color:var(--gold);border-color:var(--gold)}
+
+/* upgrades */
+#upGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:14px}
+.upcard{border:1px solid var(--line);border-radius:5px;padding:16px 18px;background:rgba(255,255,255,.025);
+  transition:border-color .25s}
+.upcard:hover{border-color:rgba(240,196,106,.45)}
+.upname{font-size:13px;letter-spacing:.2em;text-transform:uppercase;color:#f0ead6}
+.updesc{font-size:12px;color:var(--dim);margin:7px 0 12px;line-height:1.5;min-height:34px}
+.pips{display:flex;gap:5px;margin-bottom:12px}
+.pip{width:22px;height:4px;background:rgba(255,255,255,.12);border-radius:2px}
+.pip.on{background:var(--gold);box-shadow:0 0 8px rgba(240,196,106,.6)}
+.buyb{width:100%;border:1px solid rgba(240,196,106,.4);background:rgba(240,196,106,.06);color:var(--gold);
+  font-family:inherit;font-size:12px;letter-spacing:.18em;padding:8px;border-radius:4px;cursor:pointer;
+  text-transform:uppercase;transition:all .2s}
+.buyb:hover:not(:disabled){background:rgba(240,196,106,.16)}
+.buyb:disabled{opacity:.35;cursor:default}
+#upWallet{font-size:15px;color:var(--gold);letter-spacing:.1em;margin-bottom:20px}
+
+/* map */
+#mapPanel{width:min(1060px,95vw);height:min(700px,88vh);display:flex;gap:0;padding:0;overflow:hidden}
+#mapSide{width:270px;border-right:1px solid var(--line);padding:26px 22px;display:flex;flex-direction:column;overflow:auto}
+#mapMain{flex:1;position:relative}
+#mapC{width:100%;height:100%;display:block;cursor:crosshair}
+.tabs{display:flex;gap:6px;margin-bottom:18px}
+.tab{flex:1;border:1px solid var(--line);background:none;color:#9aa5b8;font-family:inherit;font-size:10.5px;
+  letter-spacing:.18em;padding:7px 4px;border-radius:4px;cursor:pointer;text-transform:uppercase}
+.tab.sel{color:var(--teal);border-color:rgba(94,232,210,.5)}
+.tabpage{display:none;flex:1}
+.tabpage.on{display:block}
+.statrow{display:flex;justify-content:space-between;font-size:12.5px;padding:7px 0;
+  border-bottom:1px solid rgba(255,255,255,.06);color:#c6cfdd}
+.statrow span:last-child{color:#fff;font-variant-numeric:tabular-nums}
+#codexList{display:flex;flex-direction:column;gap:12px}
+.codexE{border-left:2px solid var(--violet);padding:2px 0 2px 12px}
+.codexT{font-size:11px;letter-spacing:.22em;color:var(--violet);text-transform:uppercase}
+.codexX{font-size:12.5px;color:#c9d0dc;line-height:1.55;margin-top:5px;font-style:italic}
+.codexE.locked{border-color:rgba(255,255,255,.12)}
+.codexE.locked .codexT{color:rgba(255,255,255,.3)}
+#achList{display:flex;flex-direction:column;gap:8px}
+.achE{display:flex;gap:10px;align-items:baseline;font-size:12.5px;color:#7f8798}
+.achE.got{color:#e8dfc8}
+.achE.got::before{content:"\2726";color:var(--gold)}
+.achE::before{content:"\25C7";font-size:10px}
+#mapHint{position:absolute;bottom:14px;left:50%;transform:translateX(-50%);font-size:10.5px;
+  letter-spacing:.2em;color:var(--dim);text-transform:uppercase;pointer-events:none;text-align:center}
+#ngWrap{margin-top:auto;padding-top:18px}
+#ngBtn{width:100%;border:1px solid rgba(180,140,255,.5);background:rgba(180,140,255,.07);color:var(--violet);
+  font-family:inherit;font-size:11px;letter-spacing:.2em;padding:10px;border-radius:4px;cursor:pointer;text-transform:uppercase}
+
+#deathTxt{font-size:clamp(18px,2.4vw,26px);color:#e8dfd0;max-width:560px;text-align:center;line-height:1.7;font-style:italic}
+#deathSub{margin-top:26px;font-size:12px;letter-spacing:.3em;color:var(--dim);text-transform:uppercase;
+  animation:blink 1.2s infinite alternate}
+
+#credits{position:fixed;inset:0;z-index:55;display:flex;align-items:center;justify-content:center;
+  flex-direction:column;text-align:center;opacity:0;transition:opacity 2s;pointer-events:none}
+#credits.on{opacity:1}
+#credits .c1{font-size:clamp(26px,4vw,46px);letter-spacing:.4em;padding-left:.4em;color:#fff7e2;
+  text-shadow:0 0 50px rgba(255,230,160,.5)}
+#credits .c2{font-size:13px;letter-spacing:.4em;color:rgba(255,248,230,.75);margin-top:22px;text-transform:uppercase}
+#credits .c3{font-size:11px;letter-spacing:.25em;color:rgba(255,248,230,.45);margin-top:60px;line-height:2.4;text-transform:uppercase}
+
+#nogl{position:fixed;inset:0;z-index:99;display:none;align-items:center;justify-content:center;text-align:center;
+  background:#070b14;font-size:15px;line-height:2;color:#c9d2e2;padding:30px}
+#hint{position:fixed;bottom:8px;left:50%;transform:translateX(-50%);font-size:10px;letter-spacing:.22em;
+  color:rgba(255,255,255,.28);text-transform:uppercase;z-index:21;pointer-events:none;transition:opacity 1s}
+</style>
+</head>
+<body>
+<canvas id="gl"></canvas>
+<div id="lbT"></div><div id="lbB"></div>
+<div id="dmg"></div><div id="heal"></div>
+
+<div id="hud">
+  <div id="quest">
+    <div id="questTitle">The Spine of the World</div>
+    <div id="questText" class="serif"></div>
+    <div id="questSub"></div>
+  </div>
+  <div id="wallet">
+    <div id="lumens">0</div>
+    <div id="wsHud"></div>
+    <div id="relicHud"></div>
+  </div>
+  <div id="vitals">
+    <div id="hearts"></div>
+    <div id="emberWrap"><div id="emberFill"></div></div>
+    <div id="emberLbl" class="hudlabel">Ember</div>
+  </div>
+  <div id="flight">
+    <div id="speedV">0<span> KN</span></div>
+    <div id="altV">0<span> ALT</span></div>
+    <div id="stallWarn">Stall</div>
+  </div>
+  <div id="compassWrap"><canvas id="compass" width="840" height="88"></canvas></div>
+  <div id="reticle"></div>
+  <div id="interact"><div id="interactKey">E</div><div id="interactTxt"></div></div>
+  <div id="channelWrap"><div id="channelRing" style="--p:0"></div><div id="channelHole"></div></div>
+  <div id="bossWrap"><div id="bossName"></div><div id="bossBarBg"><div id="bossBar"></div></div></div>
+</div>
+
+<div id="subtitle" class="serif"></div>
+<div id="toasts"></div>
+<div id="banner"><div id="bannerName" class="serif"></div><div id="bannerSub"></div></div>
+<div id="hint">Click for mouse steering &nbsp;&middot;&nbsp; H — controls &nbsp;&middot;&nbsp; M — map</div>
+
+<div id="title" class="screen">
+  <div id="titleName" class="serif">AERALITH</div>
+  <div class="rule"></div>
+  <div id="titleSub">The Last Cartographer</div>
+  <div class="menu">
+    <button class="mbtn" id="btnContinue">Continue</button>
+    <button class="mbtn" id="btnNew">New Voyage</button>
+    <button class="mbtn small" id="btnHow">Controls</button>
+    <button class="mbtn small" id="btnSet">Settings</button>
+  </div>
+  <div id="saveInfo"></div>
+  <div id="titleFoot">A single-file WebGL2 odyssey &middot; everything procedural &middot; sound on</div>
+</div>
+
+<div id="howScr" class="screen"><div class="panel" style="position:relative">
+  <button class="pclose" data-close="howScr">Esc</button>
+  <div class="ph">Flight Manual</div>
+  <div class="keys">
+    <b>W / S &nbsp;or&nbsp; Mouse</b><span>Pitch — dive to gain speed, climb to trade it away</span>
+    <b>A / D</b><span>Bank — the Dawnstrider turns into her roll</span>
+    <b>Space</b><span>Ember boost — burns the meter, refills from lumens &amp; diving</span>
+    <b>Shift</b><span>Air brake / hover — hold near waystones to channel</span>
+    <b>F</b><span>Resonant pulse — shatters wisps &amp; wounds Wardens (25 ember)</span>
+    <b>E</b><span>Attune / interact — hold near waystones and beacons</span>
+    <b>M</b><span>Cartographer's table — map, codex, records, fast travel</span>
+    <b>U</b><span>Refit the glider — only in the calm of an attuned waystone</span>
+    <b>Esc</b><span>Pause</span>
+  </div>
+  <p style="margin-top:22px;font-size:12.5px;color:var(--dim);line-height:1.7">
+  The cloud sea below is hungry — stay above it. Waystone light repels the wisps.
+  Speed bleeds off in a climb; when the needle drops she will stall. Dive, recover, live.</p>
+</div></div>
+
+<div id="setScr" class="screen"><div class="panel" style="position:relative">
+  <button class="pclose" data-close="setScr">Esc</button>
+  <div class="ph">Settings</div>
+  <div class="setrow"><span>Music volume</span><input type="range" id="setMus" min="0" max="100" value="70"></div>
+  <div class="setrow"><span>Sound volume</span><input type="range" id="setSfx" min="0" max="100" value="80"></div>
+  <div class="setrow"><span>Render quality</span><div class="segbtns" id="setQual">
+    <button class="seg" data-q="0.55">Mist</button><button class="seg sel" data-q="0.8">Sky</button><button class="seg" data-q="1">Sun</button>
+  </div></div>
+  <div class="setrow"><span>Field of view</span><input type="range" id="setFov" min="50" max="80" value="62"></div>
+  <div class="setrow"><span>Invert mouse Y</span><div class="segbtns" id="setInv">
+    <button class="seg sel" data-i="0">Off</button><button class="seg" data-i="1">On</button>
+  </div></div>
+</div></div>
+
+<div id="pauseScr" class="screen">
+  <div class="serif" style="font-size:30px;letter-spacing:.4em;padding-left:.4em;color:#f0ead8">ADRIFT</div>
+  <div class="menu">
+    <button class="mbtn" id="btnResume">Resume</button>
+    <button class="mbtn small" id="btnPHow">Controls</button>
+    <button class="mbtn small" id="btnPSet">Settings</button>
+    <button class="mbtn small" id="btnQuit">Return to Title</button>
+  </div>
+  <div style="margin-top:22px;font-size:10.5px;letter-spacing:.25em;color:var(--dim);text-transform:uppercase">Voyage is saved automatically</div>
+</div>
+
+<div id="upScr" class="screen"><div class="panel" style="position:relative">
+  <button class="pclose" data-close="upScr">Esc</button>
+  <div class="ph">The Waystone Forge — Refit the Dawnstrider</div>
+  <div id="upWallet"></div>
+  <div id="upGrid"></div>
+</div></div>
+
+<div id="mapScr" class="screen"><div class="panel" id="mapPanel">
+  <div id="mapSide">
+    <div class="tabs">
+      <button class="tab sel" data-tab="tabMap">Chart</button>
+      <button class="tab" data-tab="tabCodex">Codex</button>
+      <button class="tab" data-tab="tabRec">Records</button>
+    </div>
+    <div class="tabpage on" id="tabMap">
+      <div class="statrow"><span>Beacons lit</span><span id="stBeacons">0 / 7</span></div>
+      <div class="statrow"><span>Waystones attuned</span><span id="stWs">0</span></div>
+      <div class="statrow"><span>Relics recovered</span><span id="stRelics">0</span></div>
+      <div class="statrow"><span>Sky-trials won</span><span id="stCourses">0</span></div>
+      <p style="font-size:11.5px;color:var(--dim);line-height:1.7;margin-top:16px">
+      Teal diamonds are attuned waystones — select one to travel along the lattice.
+      The gold mark is the next unlit beacon.</p>
+      <div id="ngWrap" class="hide"><button id="ngBtn">Begin the Second Dawn</button>
+      <p style="font-size:10.5px;color:var(--dim);margin-top:8px;line-height:1.6">Reshapes the entire archipelago with a new seed. Your glider and codex remain.</p></div>
+    </div>
+    <div class="tabpage" id="tabCodex"><div id="codexList"></div></div>
+    <div class="tabpage" id="tabRec">
+      <div class="statrow"><span>Time aloft</span><span id="stTime">0h 0m</span></div>
+      <div class="statrow"><span>Distance flown</span><span id="stDist">0</span></div>
+      <div class="statrow"><span>Lumens gathered</span><span id="stLum">0</span></div>
+      <div class="statrow"><span>Wisps shattered</span><span id="stWisps">0</span></div>
+      <div class="statrow"><span>Falls into the sea</span><span id="stDeaths">0</span></div>
+      <div class="ph" style="margin:22px 0 12px;font-size:10.5px">Feats</div>
+      <div id="achList"></div>
+    </div>
+  </div>
+  <div id="mapMain"><canvas id="mapC"></canvas>
+    <div id="mapHint">Drag to pan &middot; scroll to zoom &middot; click a waystone to travel &middot; M to close</div>
+  </div>
+</div></div>
+
+<div id="deathScr" class="screen">
+  <div id="deathTxt" class="serif"></div>
+  <div id="deathSub">Press Enter — the map remembers</div>
+</div>
+
+<div id="credits">
+  <div class="c1 serif">THE DAWN RETURNS</div>
+  <div class="c2">Aeralith is whole. The sky is yours.</div>
+  <div class="c3">AERALITH — The Last Cartographer<br>every isle, note &amp; photon procedural<br>chart the second dawn, cartographer</div>
+</div>
+
+<div id="fade"></div>
+<div id="nogl"><div>This voyage needs WebGL2.<br>Please use a current version of Chrome, Edge, Firefox or Safari.</div></div>
+<script>
+"use strict";
+/* ============================================================================
+   AERALITH — The Last Cartographer
+   A single-file cinematic 3D odyssey. Custom WebGL2 renderer, procedural
+   worlds, generative music. No libraries, no assets, no network.
+   ========================================================================= */
+
+/* ---------------------------- tiny helpers ------------------------------ */
+const $=id=>document.getElementById(id);
+const clamp=(v,a,b)=>v<a?a:v>b?b:v;
+const lerp=(a,b,t)=>a+(b-a)*t;
+const sm=(a,b,t)=>{t=clamp((t-a)/(b-a),0,1);return t*t*(3-2*t)};
+const TAU=Math.PI*2;
+const wrapPi=a=>{a=(a+Math.PI)%TAU;if(a<0)a+=TAU;return a-Math.PI};
+const dist2=(ax,az,bx,bz)=>Math.hypot(ax-bx,az-bz);
+const fmt=n=>n.toLocaleString("en-US");
+
+/* deterministic hashing / rng */
+function mulberry(seed){let a=seed>>>0;return function(){a|=0;a=a+0x6D2B79F5|0;
+  let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+function hashi(x,y,s){let h=(x*374761393+y*668265263+s*974634541)|0;
+  h=Math.imul(h^h>>>13,1274126177);h^=h>>>16;return(h>>>0)/4294967296}
+
+/* value noise + fbm (seeded by world seed at runtime) */
+let SEED=1347;
+function vnoise2(x,y){
+  const xi=Math.floor(x),yi=Math.floor(y),xf=x-xi,yf=y-yi;
+  const u=xf*xf*(3-2*xf),v=yf*yf*(3-2*yf);
+  const a=hashi(xi,yi,SEED),b=hashi(xi+1,yi,SEED),c=hashi(xi,yi+1,SEED),d=hashi(xi+1,yi+1,SEED);
+  return a+(b-a)*u+(c-a)*v+(a-b-c+d)*u*v;
+}
+function fbm2(x,y,oct){let f=0,amp=.5,tot=0;
+  for(let i=0;i<oct;i++){f+=vnoise2(x,y)*amp;tot+=amp;amp*=.5;x=x*2.03+31.7;y=y*2.01-17.3}
+  return f/tot}
+
+/* ------------------------------ mat4 ------------------------------------ */
+function m4Persp(out,fovy,aspect,near,far){
+  const f=1/Math.tan(fovy/2),nf=1/(near-far);
+  out.fill(0);out[0]=f/aspect;out[5]=f;out[10]=(far+near)*nf;out[11]=-1;out[14]=2*far*near*nf;
+  return out}
+function m4LookAt(out,eye,c,up){
+  let zx=eye[0]-c[0],zy=eye[1]-c[1],zz=eye[2]-c[2];
+  let l=1/(Math.hypot(zx,zy,zz)||1);zx*=l;zy*=l;zz*=l;
+  let xx=up[1]*zz-up[2]*zy,xy=up[2]*zx-up[0]*zz,xz=up[0]*zy-up[1]*zx;
+  l=1/(Math.hypot(xx,xy,xz)||1);xx*=l;xy*=l;xz*=l;
+  const yx=zy*xz-zz*xy,yy=zz*xx-zx*xz,yz=zx*xy-zy*xx;
+  out[0]=xx;out[1]=yx;out[2]=zx;out[3]=0;
+  out[4]=xy;out[5]=yy;out[6]=zy;out[7]=0;
+  out[8]=xz;out[9]=yz;out[10]=zz;out[11]=0;
+  out[12]=-(xx*eye[0]+xy*eye[1]+xz*eye[2]);
+  out[13]=-(yx*eye[0]+yy*eye[1]+yz*eye[2]);
+  out[14]=-(zx*eye[0]+zy*eye[1]+zz*eye[2]);out[15]=1;return out}
+function m4Mul(out,a,b){
+  const o=new Array(16);
+  for(let c=0;c<4;c++)for(let r=0;r<4;r++)
+    o[c*4+r]=a[r]*b[c*4]+a[4+r]*b[c*4+1]+a[8+r]*b[c*4+2]+a[12+r]*b[c*4+3];
+  for(let i=0;i<16;i++)out[i]=o[i];return out}
+function m4Model(out,x,y,z,yaw,pitch,roll,s){
+  const cy=Math.cos(yaw),sy=Math.sin(yaw),cp=Math.cos(pitch),sp=Math.sin(pitch),
+        cr=Math.cos(roll),sr=Math.sin(roll);
+  // R = Ry * Rx * Rz (yaw, pitch, roll)
+  out[0]=(cy*cr+sy*sp*sr)*s; out[1]=cp*sr*s;  out[2]=(-sy*cr+cy*sp*sr)*s; out[3]=0;
+  out[4]=(-cy*sr+sy*sp*cr)*s;out[5]=cp*cr*s;  out[6]=(sy*sr+cy*sp*cr)*s;  out[7]=0;
+  out[8]=(sy*cp)*s;          out[9]=-sp*s;    out[10]=(cy*cp)*s;          out[11]=0;
+  out[12]=x;out[13]=y;out[14]=z;out[15]=1;return out}
+const M_ID=new Float32Array([1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1]);
+
+/* ------------------------------ WebGL ----------------------------------- */
+const canvas=$("gl");
+const gl=canvas.getContext("webgl2",{antialias:false,alpha:false,depth:true,
+  powerPreference:"high-performance"});
+if(!gl){$("nogl").style.display="flex";throw new Error("no webgl2")}
+const EXT_F=gl.getExtension("EXT_color_buffer_float");
+gl.getExtension("OES_texture_float_linear");
+const HDR=!!EXT_F;
+
+function compile(vsSrc,fsSrc,name){
+  const mk=(t,s)=>{const sh=gl.createShader(t);gl.shaderSource(sh,s);gl.compileShader(sh);
+    if(!gl.getShaderParameter(sh,gl.COMPILE_STATUS))
+      throw new Error(name+": "+gl.getShaderInfoLog(sh));return sh};
+  const p=gl.createProgram();
+  gl.attachShader(p,mk(gl.VERTEX_SHADER,vsSrc));gl.attachShader(p,mk(gl.FRAGMENT_SHADER,fsSrc));
+  gl.linkProgram(p);
+  if(!gl.getProgramParameter(p,gl.LINK_STATUS))throw new Error(name+" link: "+gl.getProgramInfoLog(p));
+  const u={},n=gl.getProgramParameter(p,gl.ACTIVE_UNIFORMS);
+  for(let i=0;i<n;i++){const inf=gl.getActiveUniform(p,i);
+    u[inf.name.replace("[0]","")]=gl.getUniformLocation(p,inf.name)}
+  return{p,u}}
+
+/* mesh: interleaved [pos3 norm3 col4], non-indexed, faceted */
+function buildMesh(arr){
+  const vao=gl.createVertexArray();gl.bindVertexArray(vao);
+  const buf=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,buf);
+  const data=arr instanceof Float32Array?arr:new Float32Array(arr);
+  gl.bufferData(gl.ARRAY_BUFFER,data,gl.STATIC_DRAW);
+  gl.enableVertexAttribArray(0);gl.vertexAttribPointer(0,3,gl.FLOAT,false,40,0);
+  gl.enableVertexAttribArray(1);gl.vertexAttribPointer(1,3,gl.FLOAT,false,40,12);
+  gl.enableVertexAttribArray(2);gl.vertexAttribPointer(2,4,gl.FLOAT,false,40,24);
+  gl.bindVertexArray(null);
+  return{vao,buf,n:data.length/10}}
+function freeMesh(m){if(!m)return;gl.deleteBuffer(m.buf);gl.deleteVertexArray(m.vao)}
+
+/* mesh builder with faceted normals */
+function MB(){return{a:[],
+  tri(x1,y1,z1,x2,y2,z2,x3,y3,z3,r,g,b,e){
+    let ax=x2-x1,ay=y2-y1,az=z2-z1,bx=x3-x1,by=y3-y1,bz=z3-z1;
+    let nx=ay*bz-az*by,ny=az*bx-ax*bz,nz=ax*by-ay*bx;
+    const l=1/(Math.hypot(nx,ny,nz)||1);nx*=l;ny*=l;nz*=l;
+    this.a.push(x1,y1,z1,nx,ny,nz,r,g,b,e, x2,y2,z2,nx,ny,nz,r,g,b,e, x3,y3,z3,nx,ny,nz,r,g,b,e)},
+  quad(p1,p2,p3,p4,r,g,b,e){
+    this.tri(p1[0],p1[1],p1[2],p2[0],p2[1],p2[2],p3[0],p3[1],p3[2],r,g,b,e);
+    this.tri(p1[0],p1[1],p1[2],p3[0],p3[1],p3[2],p4[0],p4[1],p4[2],r,g,b,e)}
+}}
+/* cone/frustum ring between two circles */
+function ring(M,cx,cy,cz,r1,y1,r2,y2,segs,col,e,rng,rough){
+  for(let i=0;i<segs;i++){
+    const a1=i/segs*TAU,a2=(i+1)/segs*TAU;
+    const j1=rough?(rng()-.5)*rough:0,j2=rough?(rng()-.5)*rough:0;
+    const p1=[cx+Math.cos(a1)*(r1+j1),cy+y1,cz+Math.sin(a1)*(r1+j1)];
+    const p2=[cx+Math.cos(a2)*(r1+j2),cy+y1,cz+Math.sin(a2)*(r1+j2)];
+    const p3=[cx+Math.cos(a2)*(r2+j2),cy+y2,cz+Math.sin(a2)*(r2+j2)];
+    const p4=[cx+Math.cos(a1)*(r2+j1),cy+y2,cz+Math.sin(a1)*(r2+j1)];
+    M.quad(p2,p1,p4,p3,col[0],col[1],col[2],e)}}
+function octa(M,cx,cy,cz,rx,ry,yaw,col,e){
+  const c=Math.cos(yaw),s=Math.sin(yaw);
+  const pts=[[rx,0,0],[0,0,rx],[-rx,0,0],[0,0,-rx]].map(p=>[cx+p[0]*c-p[2]*s,cy,cz+p[0]*s+p[2]*c]);
+  const top=[cx,cy+ry,cz],bot=[cx,cy-ry*.8,cz];
+  for(let i=0;i<4;i++){const p1=pts[i],p2=pts[(i+1)%4];
+    M.tri(top[0],top[1],top[2],p1[0],p1[1],p1[2],p2[0],p2[1],p2[2],col[0],col[1],col[2],e);
+    M.tri(bot[0],bot[1],bot[2],p2[0],p2[1],p2[2],p1[0],p1[1],p1[2],col[0],col[1],col[2],e)}}
+function box(M,cx,cy,cz,sx,sy,sz,yaw,col,e){
+  const c=Math.cos(yaw),s=Math.sin(yaw);
+  const P=[];for(let i=0;i<8;i++){
+    const x=(i&1?sx:-sx),y=(i&2?sy:-sy),z=(i&4?sz:-sz);
+    P.push([cx+x*c-z*s,cy+y,cz+x*s+z*c])}
+  M.quad(P[1],P[5],P[7],P[3],col[0],col[1],col[2],e); // +x-ish
+  M.quad(P[4],P[0],P[2],P[6],col[0],col[1],col[2],e);
+  M.quad(P[3],P[7],P[6],P[2],col[0],col[1],col[2],e); // top
+  M.quad(P[5],P[1],P[0],P[4],col[0],col[1],col[2],e);
+  M.quad(P[0],P[1],P[3],P[2],col[0],col[1],col[2],e);
+  M.quad(P[5],P[4],P[6],P[7],col[0],col[1],col[2],e)}
+
+/* ------------------------------ shaders --------------------------------- */
+const GLSL_NOISE=`
+float hn(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
+float vn(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);
+  return mix(mix(hn(i),hn(i+vec2(1,0)),f.x),mix(hn(i+vec2(0,1)),hn(i+vec2(1,1)),f.x),f.y);}
+float fb(vec2 p){float v=0.,a=.5;for(int i=0;i<4;i++){v+=vn(p)*a;p=p*2.07+13.1;a*=.5;}return v;}`;
+
+const VS_MESH=`#version 300 es
+layout(location=0) in vec3 aP;layout(location=1) in vec3 aN;layout(location=2) in vec4 aC;
+uniform mat4 uVP,uM;out vec3 vN;out vec4 vC;out vec3 vW;
+void main(){vec4 w=uM*vec4(aP,1.);vW=w.xyz;vN=mat3(uM)*aN;vC=aC;gl_Position=uVP*w;}`;
+
+const FS_MESH=`#version 300 es
+precision highp float;
+in vec3 vN;in vec4 vC;in vec3 vW;out vec4 o;
+uniform vec3 uSun,uCam,uFogCol,uAmb,uSunCol;
+uniform float uFogD,uTime,uFlash;
+void main(){
+  vec3 N=normalize(vN);
+  float dl=dot(N,uSun)*.5+.5;dl*=dl;
+  vec3 V=normalize(uCam-vW);
+  float rim=pow(1.-max(dot(N,V),0.),3.);
+  vec3 col=vC.rgb*(uAmb+uSunCol*dl*1.25)+rim*uFogCol*.4;
+  col+=vC.rgb*vC.a*(2.4+.9*sin(uTime*2.2+vW.x*.13+vW.y*.29));
+  float d=length(uCam-vW);
+  float fog=1.-exp(-d*d*uFogD*uFogD);
+  float hf=clamp(exp(-vW.y*.012),0.,1.)*.55*clamp(d*.004,0.,1.);
+  fog=clamp(fog+hf,0.,1.);
+  col=mix(col,uFogCol,fog);
+  col+=uFlash*vec3(.5,.55,.75);
+  o=vec4(col,1.);}`;
+
+const VS_FST=`#version 300 es
+layout(location=0) in vec2 aP;out vec2 vUV;
+void main(){vUV=aP;gl_Position=vec4(aP,0.,1.);}`;
+
+const FS_SKY=`#version 300 es
+precision highp float;
+in vec2 vUV;out vec4 o;
+uniform vec3 uFwd,uRight,uUp,uSun;
+uniform vec3 uZen,uHor,uFogCol,uSunCol;
+uniform float uTanX,uTanY,uTime,uStars,uAur,uStorm,uFlash;
+${GLSL_NOISE}
+float h3(vec3 p){return fract(sin(dot(p,vec3(12.9898,78.233,54.53)))*43758.5453);}
+void main(){
+  vec3 ray=normalize(uFwd+uRight*vUV.x*uTanX+uUp*vUV.y*uTanY);
+  float y=ray.y;
+  vec3 col=mix(uHor,uZen,pow(clamp(y,0.,1.),.55));
+  if(y<0.)col=mix(uHor,uFogCol,clamp(-y*6.,0.,1.));
+  float sd=dot(ray,uSun);
+  col+=uSunCol*(pow(max(sd,0.),700.)*22.+pow(max(sd,0.),64.)*1.1+pow(max(sd,0.),8.)*.28);
+  // stars
+  if(uStars>0.01&&y>0.){
+    vec3 sp=floor(ray*260.);
+    float st=step(.9985,h3(sp));
+    float tw=.6+.4*sin(uTime*2.+h3(sp+1.)*40.);
+    col+=vec3(.9,.95,1.)*st*tw*uStars*smoothstep(.0,.15,y);}
+  // aurora curtains
+  if(uAur>0.01&&y>0.02){
+    vec2 ap=ray.xz/(y+.25);
+    float band=fb(ap*1.4+vec2(uTime*.03,uTime*.011));
+    float band2=fb(ap*3.1-vec2(uTime*.02,0.));
+    float a=pow(smoothstep(.42,.78,band),2.)*smoothstep(.02,.3,y)*uAur;
+    col+=mix(vec3(.1,.9,.65),vec3(.5,.25,.95),band2)*a*.8;}
+  // horizon cloud bands
+  float cb=fb(ray.xz/(abs(y)+.18)*2.2+vec2(uTime*.008,0.));
+  float cm=smoothstep(.3,.02,abs(y-.02));
+  col=mix(col,mix(uHor,uSunCol,.2)*(.75+.5*cb),cm*.42*cb);
+  col*=1.-uStorm*.45;
+  col+=uFlash*vec3(.6,.65,.85);
+  o=vec4(col,1.);}`;
+
+const VS_SEA=`#version 300 es
+layout(location=0) in vec2 aP;
+uniform mat4 uVP;uniform vec3 uCam;out vec3 vW;
+void main(){vec3 w=vec3(aP.x*4200.+uCam.x,0.,aP.y*4200.+uCam.z);vW=w;gl_Position=uVP*vec4(w,1.);}`;
+
+const FS_SEA=`#version 300 es
+precision highp float;
+in vec3 vW;out vec4 o;
+uniform vec3 uCam,uSun,uFogCol,uSunCol,uSeaA,uSeaB;
+uniform float uTime,uFogD,uFlash;
+${GLSL_NOISE}
+void main(){
+  vec2 p=vW.xz;
+  float n=fb(p*.0045+vec2(uTime*.016,uTime*.007));
+  n=n*.72+fb(p*.017-vec2(uTime*.012,0.))*.28;
+  vec3 col=mix(uSeaA,uSeaB,smoothstep(.28,.78,n));
+  // soft sun path on the mist
+  vec3 V=normalize(uCam-vW);
+  vec2 sd2=normalize(uSun.xz+vec2(1e-5));
+  vec2 vd2=normalize(vW.xz-uCam.xz+vec2(1e-5));
+  float path=pow(max(dot(sd2,vd2),0.),18.)*max(uSun.y+.25,0.);
+  col+=uSunCol*path*.5;
+  col+=uSunCol*pow(1.-abs(V.y),5.)*.16;
+  float glow=pow(fb(p*.002+vec2(0.,uTime*.004)),6.)*2.2;
+  col+=vec3(.35,.6,.8)*glow*.25;
+  float d=length(uCam-vW);
+  float fog=1.-exp(-d*d*uFogD*uFogD);
+  col=mix(col,uFogCol,clamp(fog,0.,1.));
+  col+=uFlash*vec3(.5,.55,.75);
+  o=vec4(col,1.);}`;
+
+const VS_PTS=`#version 300 es
+layout(location=0) in vec3 aP;layout(location=1) in vec4 aC;layout(location=2) in float aS;
+uniform mat4 uVP;uniform vec3 uCam;uniform float uPx,uFogD;
+out vec4 vC;
+void main(){
+  vec4 cp=uVP*vec4(aP,1.);
+  gl_Position=cp;
+  float d=length(uCam-aP);
+  float fog=1.-exp(-d*d*uFogD*uFogD);
+  vC=aC;vC.a*=1.-fog*.92;
+  gl_PointSize=clamp(aS*uPx/max(cp.w,.1),0.,220.);}`;
+
+const FS_PTS=`#version 300 es
+precision highp float;
+in vec4 vC;out vec4 o;
+void main(){
+  vec2 q=gl_PointCoord-.5;
+  float d=length(q);
+  float a=smoothstep(.5,.04,d);
+  a*=a;
+  o=vec4(vC.rgb*vC.a*a,0.);}`;
+
+const FS_BRIGHT=`#version 300 es
+precision highp float;in vec2 vUV;out vec4 o;uniform sampler2D uT;
+void main(){vec3 c=texture(uT,vUV*.5+.5).rgb;
+  float l=dot(c,vec3(.299,.587,.114));
+  o=vec4(c*smoothstep(.82,1.6,l),1.);}`;
+
+const FS_BLUR=`#version 300 es
+precision highp float;in vec2 vUV;out vec4 o;
+uniform sampler2D uT;uniform vec2 uDir;
+void main(){vec2 uv=vUV*.5+.5;vec3 c=texture(uT,uv).rgb*.227;
+  vec2 o1=uDir*1.3846,o2=uDir*3.2308;
+  c+=(texture(uT,uv+o1).rgb+texture(uT,uv-o1).rgb)*.3162;
+  c+=(texture(uT,uv+o2).rgb+texture(uT,uv-o2).rgb)*.0702;
+  o=vec4(c,1.);}`;
+
+const FS_POST=`#version 300 es
+precision highp float;in vec2 vUV;out vec4 o;
+uniform sampler2D uT,uB;uniform float uTime,uVig,uExpo,uShake;
+uniform vec3 uTint;
+vec3 aces(vec3 x){return clamp(x*(2.51*x+.03)/(x*(2.43*x+.59)+.14),0.,1.);}
+void main(){
+  vec2 uv=vUV*.5+.5;
+  vec2 cc=uv-.5;
+  float ca=.0016+uShake*.004;
+  vec3 c;
+  c.r=texture(uT,uv+cc*ca).r;
+  c.g=texture(uT,uv).g;
+  c.b=texture(uT,uv-cc*ca).b;
+  c+=texture(uB,uv).rgb*1.15;
+  c*=uExpo;
+  c=aces(c);
+  c=pow(c,vec3(.96,.98,1.04));
+  c*=uTint;
+  float v=1.-dot(cc,cc)*uVig;
+  c*=v*v;
+  float g=fract(sin(dot(uv*vec2(1920.,1080.)+uTime*60.,vec2(12.9898,78.233)))*43758.5453);
+  c+=(g-.5)*.028;
+  o=vec4(c,1.);}`;
+
+let SH={};
+function initShaders(){
+  SH.mesh=compile(VS_MESH,FS_MESH,"mesh");
+  SH.sky=compile(VS_FST,FS_SKY,"sky");
+  SH.sea=compile(VS_SEA,FS_SEA,"sea");
+  SH.pts=compile(VS_PTS,FS_PTS,"pts");
+  SH.bright=compile(VS_FST,FS_BRIGHT,"bright");
+  SH.blur=compile(VS_FST,FS_BLUR,"blur");
+  SH.post=compile(VS_FST,FS_POST,"post");
+}
+
+/* fullscreen triangle + sea grid */
+let fsVAO,seaVAO,seaN;
+function initStatic(){
+  fsVAO=gl.createVertexArray();gl.bindVertexArray(fsVAO);
+  let b=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,b);
+  gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,3,-1,-1,3]),gl.STATIC_DRAW);
+  gl.enableVertexAttribArray(0);gl.vertexAttribPointer(0,2,gl.FLOAT,false,0,0);
+  // sea: coarse grid quad fan (grid to help fog interpolation)
+  const g=[],N=14;
+  for(let i=0;i<N;i++)for(let j=0;j<N;j++){
+    const x0=i/N*2-1,x1=(i+1)/N*2-1,z0=j/N*2-1,z1=(j+1)/N*2-1;
+    g.push(x0,z0,x1,z0,x1,z1, x0,z0,x1,z1,x0,z1)}
+  seaVAO=gl.createVertexArray();gl.bindVertexArray(seaVAO);
+  b=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,b);
+  gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(g),gl.STATIC_DRAW);
+  gl.enableVertexAttribArray(0);gl.vertexAttribPointer(0,2,gl.FLOAT,false,0,0);
+  seaN=g.length/2;
+  gl.bindVertexArray(null);
+}
+
+/* ------------------------- point sprite batch --------------------------- */
+const PT_CAP=9000;
+const ptData=new Float32Array(PT_CAP*8);
+let ptCount=0,ptVAO,ptBuf;
+function initPts(){
+  ptVAO=gl.createVertexArray();gl.bindVertexArray(ptVAO);
+  ptBuf=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,ptBuf);
+  gl.bufferData(gl.ARRAY_BUFFER,ptData.byteLength,gl.DYNAMIC_DRAW);
+  gl.enableVertexAttribArray(0);gl.vertexAttribPointer(0,3,gl.FLOAT,false,32,0);
+  gl.enableVertexAttribArray(1);gl.vertexAttribPointer(1,4,gl.FLOAT,false,32,12);
+  gl.enableVertexAttribArray(2);gl.vertexAttribPointer(2,1,gl.FLOAT,false,32,28);
+  gl.bindVertexArray(null)}
+function pt(x,y,z,size,r,g,b,a){
+  if(ptCount>=PT_CAP)return;
+  const i=ptCount*8;
+  ptData[i]=x;ptData[i+1]=y;ptData[i+2]=z;
+  ptData[i+3]=r;ptData[i+4]=g;ptData[i+5]=b;ptData[i+6]=a;
+  ptData[i+7]=size;ptCount++}
+
+/* transient physics particles */
+const FX_CAP=1200;
+const fx={x:new Float32Array(FX_CAP),y:new Float32Array(FX_CAP),z:new Float32Array(FX_CAP),
+  vx:new Float32Array(FX_CAP),vy:new Float32Array(FX_CAP),vz:new Float32Array(FX_CAP),
+  life:new Float32Array(FX_CAP),max:new Float32Array(FX_CAP),size:new Float32Array(FX_CAP),
+  r:new Float32Array(FX_CAP),g:new Float32Array(FX_CAP),b:new Float32Array(FX_CAP),
+  grav:new Float32Array(FX_CAP),n:0};
+function spawnFX(x,y,z,vx,vy,vz,life,size,r,g,b,grav){
+  let i;
+  if(fx.n<FX_CAP)i=fx.n++;else{i=(Math.random()*FX_CAP)|0}
+  fx.x[i]=x;fx.y[i]=y;fx.z[i]=z;fx.vx[i]=vx;fx.vy[i]=vy;fx.vz[i]=vz;
+  fx.life[i]=life;fx.max[i]=life;fx.size[i]=size;fx.r[i]=r;fx.g[i]=g;fx.b[i]=b;fx.grav[i]=grav||0}
+function updateFX(dt){
+  for(let i=0;i<fx.n;i++){
+    if(fx.life[i]<=0)continue;
+    fx.life[i]-=dt;
+    fx.vy[i]-=fx.grav[i]*dt;
+    fx.x[i]+=fx.vx[i]*dt;fx.y[i]+=fx.vy[i]*dt;fx.z[i]+=fx.vz[i]*dt;
+    const t=fx.life[i]/fx.max[i];
+    if(t>0)pt(fx.x[i],fx.y[i],fx.z[i],fx.size[i]*(0.4+t*0.6),fx.r[i],fx.g[i],fx.b[i],t)}}
+
+/* ============================================================================
+   CONTENT — biomes, beacons, lore, upgrades, feats
+   ========================================================================= */
+const BIOMES=[
+  {name:"The Verdant Shoals",sub:"where the world still breathes",
+   top:[.32,.62,.38],cliff:[.30,.27,.30],tree:[.16,.44,.30],crys:[.36,.95,.80],
+   zen:[.16,.24,.42],hor:[.85,.62,.45],fog:[.58,.55,.62],sea:[[.10,.13,.22],[.72,.66,.68]],
+   trees:1.0,crysD:.5,wisp:.12,storm:0},
+  {name:"The Amber Reach",sub:"dust of a golden age",
+   top:[.72,.56,.30],cliff:[.42,.30,.24],tree:[.55,.38,.18],crys:[1.0,.72,.30],
+   zen:[.20,.20,.36],hor:[.95,.62,.35],fog:[.66,.55,.50],sea:[[.14,.11,.16],[.80,.62,.52]],
+   trees:.45,crysD:.8,wisp:.3,storm:.15},
+  {name:"The Frostveil",sub:"the long white silence",
+   top:[.82,.88,.95],cliff:[.38,.44,.58],tree:[.30,.52,.55],crys:[.55,.85,1.0],
+   zen:[.10,.16,.32],hor:[.62,.70,.88],fog:[.55,.62,.75],sea:[[.10,.14,.24],[.70,.78,.90]],
+   trees:.6,crysD:1.0,wisp:.5,storm:.3},
+  {name:"The Duskfields",sub:"where the Sundering fell hardest",
+   top:[.40,.24,.38],cliff:[.22,.16,.26],tree:[.34,.16,.30],crys:[.95,.35,.60],
+   zen:[.08,.06,.16],hor:[.48,.22,.36],fog:[.34,.24,.36],sea:[[.08,.06,.14],[.42,.28,.42]],
+   trees:.35,crysD:1.1,wisp:1.0,storm:.75},
+  {name:"The Aurora Steep",sub:"the roof of the broken world",
+   top:[.24,.30,.48],cliff:[.14,.16,.28],tree:[.18,.36,.48],crys:[.55,.95,.85],
+   zen:[.04,.05,.14],hor:[.22,.30,.52],fog:[.18,.22,.38],sea:[[.05,.06,.14],[.30,.42,.60]],
+   trees:.3,crysD:1.4,wisp:1.3,storm:.5},
+];
+function biomeIdxAt(x,z){
+  const d=Math.hypot(x,z)+ (fbm2(x*.0011+7.3,z*.0011-3.1,3)-.5)*900;
+  if(d<2200)return 0;if(d<4200)return 1;if(d<6400)return 2;if(d<8800)return 3;return 4}
+
+const BEACONS=[
+  {name:"Elmspire",d:1800,a:.35,
+   pre:"Elmspire, first vertebra of the Spine. The trees below still remember standing on a mountain.",
+   post:"One light against the dusk. Somewhere, the world exhales."},
+  {name:"Goldwake",d:3000,a:2.27,
+   pre:"Goldwake lit the harvest roads once. Its Warden was a lighthouse keeper, before the mist got in.",
+   post:"Two lights. The Amber Reach glitters like it used to on festival nights."},
+  {name:"Hollowlight",d:4000,a:4.36,
+   pre:"Hollowlight went dark first. Whatever waits there has had the longest to grow strange.",
+   post:"Three. Halfway to a horizon. Halfway home."},
+  {name:"Winterglass",d:5300,a:1.40,
+   pre:"Winterglass is frozen mid-flare — a flame caught in ice. Break the Warden, thaw the fire.",
+   post:"Four lights burn. The Frostveil auroras bow toward them."},
+  {name:"Emberdeep",d:6600,a:3.32,
+   pre:"Emberdeep anchored the Spine's heart. Its Warden wears the storm like a crown.",
+   post:"Five. The Duskfields flinch. The mist is thinner tonight."},
+  {name:"Nightposte",d:8000,a:5.41,
+   pre:"Nightposte watched the void beyond the world. Its Warden watched back too long.",
+   post:"Six lights. Only the Steep remains — the roof of everything."},
+  {name:"Aurorum",d:9600,a:.79,
+   pre:"Aurorum. The first light ever kindled, and the last to fall. End this, Cartographer.",
+   post:"Seven. The Spine of the World is lit. Look east, Fen. Look east."},
+];
+
+const LORE_WAYSTONE=[
+"The masons carved each waystone from the mountain's own marrow, so no isle would ever be a stranger.",
+"Before the Sundering, children raced gliders between these stones. The finish line was always home.",
+"A cartographer's oath: I will draw what is, not what I wish were there.",
+"This stone hums in the old meter — six beats, then silence, then six.",
+"Someone sheltered here after the fall. They scratched a tally of days. It stops at ninety-one.",
+"The lattice was a song once. Every stone a note. You are re-writing the melody one light at a time.",
+"Wind from the east smells of resin and rain. The old charts marked that as a good omen.",
+"They say the mountain dreamed, and the dream was too heavy, and the dream is what broke it.",
+"An inscription: TO THOSE ALOFT — THE GROUND WAS ALWAYS A RUMOR.",
+"The keeper of this stone kept bees. Their descendants still ride the updrafts like gold dust.",
+"Lumen is not fuel. It is attention — the world noticing itself. Spend it kindly.",
+"A half-drawn map was folded into the stone's base. The blank half is labeled: YOURS.",
+"The wisps were people, some say. Others say they are only the shape grief takes at altitude.",
+"This stone is warm on the north face. No one has ever explained that.",
+"Fourteen expeditions set out to count the isles. The stone remembers fourteen departures.",
+"When two waystones sing together, the mist between them forgets to be hungry.",
+"The old tongue had forty words for falling and one for landing. It meant 'forgiven'.",
+"A shrine to the sun sits under the moss here — patient as seed corn, certain of morning.",
+"Whoever lit this stone last left their gloves. Small hands. Steady stitching.",
+"The Spine was never a wall. It was a handrail, for a world learning to walk upright.",
+"Charts rot. Stone forgets. But light, once given, keeps the shape of the giver.",
+"There is a hole in the sky map here, deliberately uncharted. The note reads: LET ONE THING STAY WILD.",
+"The stone's echo returns a half-second late, as if answering from somewhere older.",
+"Migration lines are etched on the plinth — moth-swans, ember-finches, and one line labeled US.",
+"You are not the first to be last. The title passes on. It always finds a keeper.",
+"Rest here. Even light stands still, sometimes, to remember where it is going.",
+];
+
+const CODEX=[
+["The Sundering","No one alive saw it. The isles remember it as a note too low to hear — a night the mountain of Aeralith unclenched like a fist, and the valleys became sky."],
+["The Cartographers","A guild of flyers who stitched the shattered world together with ink and nerve. Their charts were currency, scripture, and love letters all at once."],
+["Fen","The last name on the guild roster. Everything before it is water-stained. Everything after it is blank."],
+["ORO","A compass spirit of brass and patience, older than the guild. It claims to have been a weathervane once, and refuses to elaborate."],
+["The Dawnstrider","A solar glider of elm and lens-cloth. Guild records list her as 'unlucky, beloved'. The two words share a rune."],
+["Lumen","Light that has settled into a shape you can carry. It gathers where the world was recently beautiful."],
+["The Cloud Sea","The mist that swallowed the lowlands. It is not water and it is not air, and it does not give things back."],
+["Wisps","They follow warmth the way debt follows harvest. Waystone light unmakes them; no one knows if that is mercy."],
+["The Wardens","Seven storms that learned to guard. Each one wraps a beacon like a scar wraps a wound."],
+["The Spine of the World","Seven great beacons in a line from shoal to steep. When all seven burn, the old charts say, the sun remembers the way back."],
+["Waystones","Marrow of the old mountain. Each one attuned is a nail driven into the sky, holding the map still."],
+["The Verdant Shoals","The lowest and kindest isles. Orchards gone feral, terraces of moss, weather with good manners."],
+["The Amber Reach","Grain lands, once. The dust that gilds its cliffs is two parts pollen, one part memory."],
+["The Frostveil","High isles where the mist froze mid-reach. Whole flocks hang in the ice, mid-wingbeat, patient."],
+["The Duskfields","Where the Sundering fell hardest. The storms here have opinions."],
+["The Aurora Steep","The rim of the charted world. The lights above it are not weather. They are watching."],
+["Sky-Trials","Ring-courses the young guild flew for rank and for showing off. Mostly for showing off."],
+["Relics","Instruments of the old survey: astrolabes, tone-forks, bottled horizons. Each one remembers a hand."],
+["Updrafts","The world's breath, rising through the wound. Riders call them 'the forgiveness'."],
+["The Second Dawn","A guild heresy: that the world can be re-broken and re-drawn, better, if the cartographer is brave enough to start again."],
+["Ember","Stored warmth from the glider's lens-cloth wings. Burns bright, spends fast, forgives divers."],
+["The Old Tongue","Six beats, then silence, then six. Every waystone still keeps the meter."],
+["Moth-Swans","White gliders of the middle air. They mistake the Dawnstrider for a cousin, which she enjoys."],
+["The Fourteen","Fourteen expeditions to count the isles. The number they agreed on, before vanishing: one more than yesterday."],
+["Tally of Ninety-One","Scratched under a waystone eave. Day 91 has no mark after it — only a small drawing of a sunrise."],
+["The Uncharted Hole","One region every guild chart leaves blank, on purpose. LET ONE THING STAY WILD."],
+["Lens-Cloth","Woven glass that drinks the sun. Warm to the touch for years after the loom stops."],
+["The Handrail","'The Spine was never a wall.' A mason's note, found in three different ruins, in three different hands."],
+];
+
+const ORO={
+  intro1:"There you are. Strap in, Cartographer — the sky kept your seat warm.",
+  intro2:"Seven beacons. One glider. A world worth the ink. Fly, Fen.",
+  firstWisp:"Wisp on the wind — pulse it before it tastes the hull. F, if you recall your letters.",
+  firstWay:"A waystone, attuned. Feel that? The map just stopped squirming.",
+  lowAlt:"The sea is patient, Fen. Do not make it hopeful. Climb.",
+  stall:"Nose down. Trade height for breath. She flies on courage and geometry.",
+  firstBoss:"That is a Warden. It will not move. You will have to be the argument.",
+  bossDown:"The storm remembers it was a keeper. Light the beacon while it dreams.",
+  night:"Night. The wisps grow bold and the stars grow honest. Both are useful.",
+  relic:"An instrument of the old survey. The codex will want a word with it.",
+  course:"Gold rings — a sky-trial! The old flyers left these. Show them your wake.",
+  ember:"Ember runs low. Dive, or drink from the lumens.",
+  travel:"The lattice carries us. Do not blink — some cartographers find it rude.",
+  amb:[
+    "The horizon is a rumor I intend to verify.",
+    "I was a weathervane once. I do not miss the standing still.",
+    "Every isle you chart stops drifting, just a little. They can tell.",
+    "Your predecessor hummed when she flew. Off-key. The sky misses it.",
+    "Mist to port. It is only mist. Probably.",
+    "If we fall, note the heading first. Style matters.",
+    "The moth-swans flew with us for a while. You were watching the needle.",
+    "Somewhere below is my first map. It was wrong about everything except north.",
+    "The beacons are older than the guild. The guild just had better handwriting.",
+    "Do you hear the six-beat? The stones are talking about you.",
+    "A cartographer's compass points at what must be seen. Presently: everything.",
+    "The dawn is not lost, Fen. It is only uncharted.",
+  ]};
+
+const UPG=[
+ {id:"wing",name:"Zephyr Wings",desc:"Re-cambered lens-cloth. Raises the Dawnstrider's top speed.",base:60},
+ {id:"ember",name:"Ember Core",desc:"A deeper heartwood cell. More boost, faster ember regen.",base:60},
+ {id:"pulse",name:"Resonant Bell",desc:"Widens the pulse — shatter wisps from further away.",base:80},
+ {id:"force",name:"Sunder Force",desc:"Each pulse strikes harder. Wardens will notice.",base:120},
+ {id:"hull",name:"Oakenhull",desc:"Laminated ribs. One more heart per fitting.",base:100},
+ {id:"magnet",name:"Lumen Lure",desc:"Polished intake lenses draw lumens from further out.",base:70},
+ {id:"eye",name:"Cartographer's Eye",desc:"Sense waystones farther; reveal more chart per attunement.",base:70},
+ {id:"feather",name:"Featherhelm",desc:"Sharper bank, gentler stall. The sky forgives you sooner.",base:90},
+];
+function upLvl(id){return S.upg[id]|0}
+function upCost(id){const u=UPG.find(u=>u.id===id);return Math.round(u.base*Math.pow(2,upLvl(id))*(1+S.ng*.6))}
+
+const FEATS=[
+ ["way1","First Attunement","attune a waystone"],
+ ["way10","Lattice-Weaver","attune 10 waystones"],
+ ["way25","The Map Holds Still","attune 25 waystones"],
+ ["wisp1","First Light Drawn","shatter a wisp"],
+ ["wisp50","Duskbane","shatter 50 wisps"],
+ ["relic1","Field Archaeologist","recover a relic"],
+ ["relic10","Curator of the Fall","recover 10 relics"],
+ ["course1","Ringrunner","win a sky-trial"],
+ ["course5","Guild Ace","win 5 sky-trials"],
+ ["b1","The First Vertebra","light Elmspire"],
+ ["b4","Half the Spine","light four beacons"],
+ ["b7","The Dawn Returns","light all seven beacons"],
+ ["rich","Gilded Wings","hold 2,000 lumens at once"],
+ ["maxed","Masterwright","max out any refit"],
+ ["allmax","The Perfect Glider","max out every refit"],
+ ["deep","Too Close to the Sea","survive a brush with the cloud sea"],
+];
+
+/* ============================================================================
+   WORLD — chunks, islands, entities
+   ========================================================================= */
+const CHUNK=512,VIEW=4;
+const world={chunks:new Map(),wisps:[],shards:[],boss:null,bossHP:{},buildQ:[],
+  dayT:0.16,night:0,pulseFX:0,bolts:[]};
+
+function chunkOfBeacon(b){
+  const x=Math.cos(b.a)*b.d,z=Math.sin(b.a)*b.d;
+  return[Math.floor(x/CHUNK),Math.floor(z/CHUNK),x,z]}
+let BCHUNKS=[];
+function computeBeaconChunks(){BCHUNKS=BEACONS.map(chunkOfBeacon)}
+
+function islSurfH(isl,x,z){
+  const dx=x-isl.x,dz=z-isl.z,hr=Math.hypot(dx,dz)/isl.r;
+  if(hr>=1)return -1e9;
+  const fall=1-hr*hr;
+  return isl.y+(fbm2((isl.x+dx)*.02+isl.ns,(isl.z+dz)*.02-isl.ns,3)-.35)*isl.hAmp*fall+1.5}
+
+function buildChunk(cx,cz){
+  const key=cx+","+cz;
+  const rng=mulberry((hashi(cx,cz,SEED)*1e9)|0);
+  const ch={cx,cz,key,mesh:null,islands:[],motes:[],ws:null,relic:null,course:null,
+    updrafts:[],beacon:-1,age:0};
+  const bx0=cx*CHUNK,bz0=cz*CHUNK;
+  const M=MB();
+  // beacon chunk / exclusion zone?
+  let isBeacon=-1,nearBeacon=false;
+  for(let i=0;i<BCHUNKS.length;i++){
+    const[bcx,bcz]=BCHUNKS[i];
+    if(cx===bcx&&cz===bcz)isBeacon=i;
+    else if(Math.abs(cx-bcx)<=1&&Math.abs(cz-bcz)<=1)nearBeacon=true}
+  const bio=BIOMES[biomeIdxAt(bx0+CHUNK/2,bz0+CHUNK/2)];
+
+  if(isBeacon>=0){
+    ch.beacon=isBeacon;
+    const[,,bx,bz]=BCHUNKS[isBeacon];
+    const isl={x:bx,z:bz,y:150+isBeacon*14,r:165,hAmp:14,ns:rng()*100,big:true};
+    ch.islands.push(isl);
+    addIslandMesh(M,isl,bio,rng,{flat:true});
+    addBeaconTower(M,isl,isBeacon,bio,rng);
+    haloMotes(ch,isl,rng,26);
+    ch.updrafts.push({x:bx+230,z:bz,r:55,top:isl.y+180},{x:bx-230,z:bz,r:55,top:isl.y+180});
+  }else if(!nearBeacon){
+    // archipelago mask — clusters with open lanes
+    const mask=fbm2(cx*.13+51.7,cz*.13-8.9,3);
+    let n=0;
+    if(mask>.62)n=2+((rng()*1.6)|0);else if(mask>.44)n=1;else if(rng()<.06)n=1;
+    for(let i=0;i<n;i++){
+      const r=34+rng()*rng()*80;
+      const isl={x:bx0+60+rng()*(CHUNK-120),z:bz0+60+rng()*(CHUNK-120),
+        y:70+rng()*230,r,hAmp:8+r*.16,ns:rng()*100,big:r>80};
+      // avoid overlaps
+      let ok=true;
+      for(const o of ch.islands)if(dist2(isl.x,isl.z,o.x,o.z)<isl.r+o.r+30)ok=false;
+      if(!ok)continue;
+      ch.islands.push(isl);
+      addIslandMesh(M,isl,bio,rng,{});
+      haloMotes(ch,isl,rng,isl.big?14:7);
+      if(isl.big&&rng()<.5)ch.updrafts.push({x:isl.x,z:isl.z,r:isl.r*.8,top:isl.y-20});
+    }
+    // POIs on the biggest island
+    if(ch.islands.length){
+      let big=ch.islands[0];for(const o of ch.islands)if(o.r>big.r)big=o;
+      const top=islSurfH(big,big.x,big.z);
+      const roll=rng();
+      if(roll<.17){ // waystone
+        const id="w:"+key;
+        ch.ws={id,x:big.x,z:big.z,y:top,active:!!S.ws[id]};
+        addWaystoneMesh(M,big.x,top,big.z,bio,rng);
+      }else if(roll<.25){ // relic ruin
+        const id="r:"+key;
+        addRuinMesh(M,big.x,top,big.z,rng);
+        if(!S.relics[id])ch.relic={id,x:big.x,y:top+13,z:big.z};
+      }else if(roll<.31&&big.r>55){ // sky-trial
+        const id="c:"+key;
+        const rings=[];const nR=8+((rng()*6)|0);
+        let px=big.x,py=top+40,pz=big.z;
+        const dir=rng()*TAU;let dx=Math.cos(dir),dz=Math.sin(dir);
+        for(let i=0;i<nR;i++){
+          rings.push({x:px,y:Math.max(py,40),z:pz});
+          const turn=(rng()-.5)*1.1;
+          const nx=dx*Math.cos(turn)-dz*Math.sin(turn),nz=dx*Math.sin(turn)+dz*Math.cos(turn);
+          dx=nx;dz=nz;px+=dx*95;pz+=dz*95;py+=(rng()-.42)*46}
+        ch.course={id,rings,next:-1,t:0};
+      }
+      recordPOI(ch);
+    }
+  }
+  if(M.a.length)ch.mesh=buildMesh(M.a);
+  world.chunks.set(key,ch);
+  return ch}
+
+function haloMotes(ch,isl,rng,n){
+  for(let i=0;i<n;i++){
+    const a=rng()*TAU,rr=isl.r*(0.55+rng()*.9);
+    ch.motes.push({x:isl.x+Math.cos(a)*rr,y:isl.y+14+rng()*40,z:isl.z+Math.sin(a)*rr,
+      ph:rng()*TAU,big:rng()<.06,taken:0})}}
+
+function addIslandMesh(M,isl,bio,rng,opt){
+  const segs=isl.big?16:11,rings=isl.big?6:4;
+  const surf=(x,z)=>opt.flat?isl.y+2+(fbm2(x*.02,z*.02,2)-.5)*4:islSurfH(isl,x,z);
+  // top heightfield
+  let prev=null;
+  for(let ri=1;ri<=rings;ri++){
+    const cur=[];
+    const rr=isl.r*ri/rings;
+    for(let si=0;si<segs;si++){
+      const a=si/segs*TAU,j=ri===rings?0:(rng()-.5)*isl.r*.09;
+      const x=isl.x+Math.cos(a)*(rr+j),z=isl.z+Math.sin(a)*(rr+j);
+      cur.push([x,surf(x,z),z])}
+    if(ri===1){
+      const c=[isl.x,surf(isl.x,isl.z),isl.z];
+      for(let s=0;s<segs;s++){const p1=cur[s],p2=cur[(s+1)%segs];
+        const g=grassCol(bio,rng);
+        M.tri(c[0],c[1],c[2],p2[0],p2[1],p2[2],p1[0],p1[1],p1[2],g[0],g[1],g[2],0)}
+    }else{
+      for(let s=0;s<segs;s++){
+        const g=ringsEdge(bio,rng,ri/rings);
+        M.quad(prev[s],prev[(s+1)%segs],cur[(s+1)%segs],cur[s],g[0],g[1],g[2],0)}}
+    prev=cur}
+  // rocky skirt down to a tip
+  const depth=isl.r*(1.1+rng()*.7);
+  let up=prev,upY=0;
+  const steps=3;
+  for(let st=1;st<=steps;st++){
+    const t=st/steps,rr=isl.r*(1-t*t*.96);
+    const yy=isl.y-depth*t*t;
+    const cur=[];
+    for(let s=0;s<segs;s++){
+      const a=s/segs*TAU,j=(rng()-.5)*isl.r*.22*(1-t);
+      cur.push([isl.x+Math.cos(a)*(rr+j),yy+(rng()-.5)*depth*.1,isl.z+Math.sin(a)*(rr+j)])}
+    for(let s=0;s<segs;s++){
+      const c=rockCol(bio,rng);
+      M.quad(up[(s+1)%segs],up[s],cur[s],cur[(s+1)%segs],c[0],c[1],c[2],0)}
+    up=cur}
+  // decorations
+  const area=isl.r*isl.r/900;
+  const nT=opt.flat?0:Math.round(area*bio.trees*(2+rng()*3));
+  for(let i=0;i<nT;i++){
+    const a=rng()*TAU,rr=rng()*isl.r*.78;
+    const x=isl.x+Math.cos(a)*rr,z=isl.z+Math.sin(a)*rr,y=surf(x,z);
+    if(y<isl.y-4)continue;
+    addTree(M,x,y,z,bio,rng)}
+  const nC=Math.round(area*bio.crysD*(1+rng()*2));
+  for(let i=0;i<nC;i++){
+    const a=rng()*TAU,rr=rng()*isl.r*.7;
+    const x=isl.x+Math.cos(a)*rr,z=isl.z+Math.sin(a)*rr,y=surf(x,z);
+    if(y<isl.y-4)continue;
+    const h=3+rng()*7;
+    octa(M,x,y+h*.4,z,h*.3,h,rng()*TAU,bio.crys,.55+rng()*.3)}
+  if(isl.big&&!opt.flat)for(let i=0;i<2+((rng()*3)|0);i++){
+    const a=rng()*TAU,rr=isl.r*(.3+rng()*.5);
+    const x=isl.x+Math.cos(a)*rr,z=isl.z+Math.sin(a)*rr,y=surf(x,z);
+    if(y<isl.y-4)continue;
+    ring(M,x,y,z,3+rng()*3,0,.4,10+rng()*22,5,bio.cliff,0,rng,1.5)}
+}
+function grassCol(b,rng){const j=.9+rng()*.2;return[b.top[0]*j,b.top[1]*j,b.top[2]*j]}
+function ringsEdge(b,rng,t){const j=.85+rng()*.3;
+  return[lerp(b.top[0],b.cliff[0],t*.7)*j,lerp(b.top[1],b.cliff[1],t*.7)*j,lerp(b.top[2],b.cliff[2],t*.7)*j]}
+function rockCol(b,rng){const j=.75+rng()*.5;return[b.cliff[0]*j,b.cliff[1]*j,b.cliff[2]*j]}
+function addTree(M,x,y,z,bio,rng){
+  const h=6+rng()*9,r=h*.32,j=.8+rng()*.4;
+  const col=[bio.tree[0]*j,bio.tree[1]*j,bio.tree[2]*j];
+  ring(M,x,y,z,.6,0,.4,h*.35,4,[.28,.2,.16],0,rng,0);
+  ring(M,x,y+h*.3,z,r,0,0,h*.45,5,col,0,rng,.4);
+  ring(M,x,y+h*.62,z,r*.65,0,0,h*.38,5,col,0,rng,.3)}
+function addWaystoneMesh(M,x,y,z,bio,rng){
+  ring(M,x,y,z,7,0,5.4,1.4,7,[.5,.52,.6],0,rng,.5);            // plinth
+  ring(M,x,y+1.4,z,2.4,0,1.5,13,5,[.42,.45,.55],.06,rng,.3);   // monolith
+  octa(M,x,y+17,z,2.6,4,rng()*TAU,[.6,1,.92],.5);              // floating rune
+}
+function addRuinMesh(M,x,y,z,rng){
+  const st=[.5,.47,.5];
+  box(M,x-7,y+5,z,1.7,5,1.7,.2,st,0);
+  box(M,x+7,y+5,z,1.7,5,1.7,-.15,st,0);
+  box(M,x,y+10.6,z,9.4,1.3,2,0,st,0);
+  for(let i=0;i<4;i++)box(M,x+(rng()-.5)*22,y+1.2,z+(rng()-.5)*22,1.5+rng()*2,1.2,1.5+rng()*2,rng()*3,st,0)}
+function addBeaconTower(M,isl,idx,bio,rng){
+  const x=isl.x,z=isl.z,y=isl.y+2;
+  ring(M,x,y,z,26,0,20,7,9,[.45,.44,.52],0,rng,1);
+  ring(M,x,y+7,z,14,0,10,46,9,[.5,.48,.56],.04,rng,.6);
+  ring(M,x,y+53,z,15,0,11,6,9,[.56,.53,.6],.05,rng,0);
+  ring(M,x,y+59,z,9,0,7,18,9,[.5,.48,.56],.04,rng,0);
+  octa(M,x,y+84,z,7,12,.3,S.beacons[idx]?[1,.85,.45]:[.4,.42,.5],S.beacons[idx]?.9:.12);
+  for(let i=0;i<7;i++){
+    const a=i/7*TAU,rr=60+rng()*70;
+    const cx=x+Math.cos(a)*rr,cz=z+Math.sin(a)*rr;
+    const cy=islSurfH(isl,cx,cz);if(cy<isl.y-8)continue;
+    const h=8+rng()*14;
+    octa(M,cx,cy+h*.4,cz,h*.3,h,rng()*TAU,bio.crys,.5)}
+}
+function recordPOI(ch){
+  const put=(id,kind,x,z)=>{if(!S.pois[id])S.pois[id]={k:kind,x:Math.round(x),z:Math.round(z)}};
+  if(ch.ws)put(ch.ws.id,"w",ch.ws.x,ch.ws.z);
+  if(ch.relic)put(ch.relic.id,"r",ch.relic.x,ch.relic.z);
+  if(ch.course)put(ch.course.id,"c",ch.course.rings[0].x,ch.course.rings[0].z);
+}
+
+function ensureChunks(px,pz){
+  const ccx=Math.floor(px/CHUNK),ccz=Math.floor(pz/CHUNK);
+  let built=0;
+  for(let r=0;r<=VIEW&&built<2;r++)
+    for(let dx=-r;dx<=r&&built<2;dx++)for(let dz=-r;dz<=r&&built<2;dz++){
+      if(Math.max(Math.abs(dx),Math.abs(dz))!==r)continue;
+      const key=(ccx+dx)+","+(ccz+dz);
+      if(!world.chunks.has(key)){buildChunk(ccx+dx,ccz+dz);built++}}
+  // dispose far chunks
+  for(const[key,ch]of world.chunks){
+    if(Math.abs(ch.cx-ccx)>VIEW+2||Math.abs(ch.cz-ccz)>VIEW+2){
+      freeMesh(ch.mesh);world.chunks.delete(key);
+      if(ch.beacon>=0&&world.boss&&world.boss.beacon===ch.beacon)world.boss=null}}
+}
+function resetWorld(){
+  for(const[,ch]of world.chunks)freeMesh(ch.mesh);
+  world.chunks.clear();world.wisps.length=0;world.shards.length=0;
+  world.boss=null;world.bossHP={};fx.n=0;
+  computeBeaconChunks()}
+
+/* collision: returns {hit, pushY} for a world position */
+function terrainAt(x,y,z){
+  const ccx=Math.floor(x/CHUNK),ccz=Math.floor(z/CHUNK);
+  for(let dx=-1;dx<=1;dx++)for(let dz=-1;dz<=1;dz++){
+    const ch=world.chunks.get((ccx+dx)+","+(ccz+dz));
+    if(!ch)continue;
+    for(const isl of ch.islands){
+      const hr=dist2(x,z,isl.x,isl.z);
+      if(hr>isl.r)continue;
+      const top=islSurfH(isl,x,z);
+      const depth=isl.r*1.2*(1-hr/isl.r);
+      if(y<top+1.5&&y>isl.y-depth-6)return{hit:true,top,isl}}}
+  return{hit:false}}
+
+/* ============================================================================
+   AUDIO — generative score + procedural SFX (WebAudio, no assets)
+   ========================================================================= */
+const Audio2={ctx:null,master:null,musG:null,sfxG:null,started:false,
+  musVol:.7,sfxVol:.8,scene:"calm"};
+function audioInit(){
+  if(Audio2.ctx)return;
+  const AC=window.AudioContext||window.webkitAudioContext;if(!AC)return;
+  const ctx=new AC();Audio2.ctx=ctx;
+  Audio2.master=ctx.createGain();Audio2.master.gain.value=.9;Audio2.master.connect(ctx.destination);
+  Audio2.musG=ctx.createGain();Audio2.musG.gain.value=Audio2.musVol;Audio2.musG.connect(Audio2.master);
+  Audio2.sfxG=ctx.createGain();Audio2.sfxG.gain.value=Audio2.sfxVol;Audio2.sfxG.connect(Audio2.master);
+  // reverb
+  const rev=ctx.createConvolver();const len=ctx.sampleRate*2.4;
+  const buf=ctx.createBuffer(2,len,ctx.sampleRate);
+  for(let c=0;c<2;c++){const d=buf.getChannelData(c);
+    for(let i=0;i<len;i++)d[i]=(Math.random()*2-1)*Math.pow(1-i/len,2.6)}
+  rev.buffer=buf;Audio2.rev=rev;
+  const rg=ctx.createGain();rg.gain.value=.32;rev.connect(rg);rg.connect(Audio2.master);
+  Audio2.revIn=rev;
+  startScore();Audio2.started=true}
+function actx(){return Audio2.ctx}
+
+function tone(freq,t0,dur,type,gain,pan,rev){
+  const ctx=Audio2.ctx;if(!ctx)return;
+  const o=ctx.createOscillator();o.type=type||"sine";o.frequency.value=freq;
+  const g=ctx.createGain();
+  g.gain.setValueAtTime(0,t0);
+  g.gain.linearRampToValueAtTime(gain,t0+Math.min(.04,dur*.3));
+  g.gain.exponentialRampToValueAtTime(.0001,t0+dur);
+  o.connect(g);
+  if(pan!==undefined){const p=ctx.createStereoPanner();p.pan.value=pan;g.connect(p);
+    p.connect(Audio2.sfxG);if(rev)p.connect(Audio2.revIn)}
+  else{g.connect(Audio2.sfxG);if(rev)g.connect(Audio2.revIn)}
+  o.start(t0);o.stop(t0+dur+.05)}
+
+function sfx(name,x){
+  const ctx=Audio2.ctx;if(!ctx)return;const t=ctx.currentTime;
+  const pan=x!==undefined?clamp(x,-1,1):0;
+  switch(name){
+    case"pulse":{
+      const o=ctx.createOscillator();o.type="sawtooth";
+      o.frequency.setValueAtTime(680,t);o.frequency.exponentialRampToValueAtTime(120,t+.32);
+      const g=ctx.createGain();g.gain.setValueAtTime(.28,t);g.gain.exponentialRampToValueAtTime(.001,t+.34);
+      const f=ctx.createBiquadFilter();f.type="lowpass";f.frequency.setValueAtTime(2600,t);
+      f.frequency.exponentialRampToValueAtTime(400,t+.3);
+      o.connect(f);f.connect(g);g.connect(Audio2.sfxG);g.connect(Audio2.revIn);o.start(t);o.stop(t+.36);break}
+    case"wisp":{
+      tone(880,t,.18,"triangle",.16,pan,1);tone(1320,t+.02,.14,"sine",.1,pan,1);
+      const nb=noiseBurst(.12,3000);nb.g.gain.setValueAtTime(.08,t);break}
+    case"lumen":{tone(1174,t,.12,"sine",.12,pan,1);tone(1760,t+.05,.16,"sine",.09,pan,1);break}
+    case"attune":{
+      [523,659,784,1046].forEach((f,i)=>tone(f,t+i*.11,.9,"sine",.14,0,1));break}
+    case"relic":{[392,523,659,880,1046].forEach((f,i)=>tone(f,t+i*.09,1.1,"triangle",.12,0,1));break}
+    case"ring":{tone(1568,t,.14,"sine",.14,pan,1);tone(2093,t+.04,.14,"sine",.09,pan,1);break}
+    case"course":{[659,784,988,1318].forEach((f,i)=>tone(f,t+i*.08,.7,"sine",.14,0,1));break}
+    case"boss":{
+      const o=ctx.createOscillator();o.type="sawtooth";o.frequency.setValueAtTime(70,t);
+      o.frequency.exponentialRampToValueAtTime(40,t+1.4);
+      const g=ctx.createGain();g.gain.setValueAtTime(.3,t);g.gain.exponentialRampToValueAtTime(.001,t+1.6);
+      o.connect(g);g.connect(Audio2.sfxG);g.connect(Audio2.revIn);o.start(t);o.stop(t+1.7);
+      noiseBurst(1.2,700);break}
+    case"hit":{
+      const o=ctx.createOscillator();o.type="square";o.frequency.setValueAtTime(180,t);
+      o.frequency.exponentialRampToValueAtTime(60,t+.18);
+      const g=ctx.createGain();g.gain.setValueAtTime(.22,t);g.gain.exponentialRampToValueAtTime(.001,t+.2);
+      o.connect(g);g.connect(Audio2.sfxG);o.start(t);o.stop(t+.22);noiseBurst(.15,1200);break}
+    case"bossdie":{
+      [110,138,164,220].forEach((f,i)=>{const o=ctx.createOscillator();o.type="sawtooth";
+        o.frequency.setValueAtTime(f*2,t);o.frequency.exponentialRampToValueAtTime(f,t+2);
+        const g=ctx.createGain();g.gain.setValueAtTime(.16,t+i*.1);g.gain.exponentialRampToValueAtTime(.001,t+2.4);
+        o.connect(g);g.connect(Audio2.sfxG);g.connect(Audio2.revIn);o.start(t);o.stop(t+2.5)});
+      noiseBurst(2,500);break}
+    case"beacon":{
+      [261,329,392,523,659,784].forEach((f,i)=>tone(f,t+i*.14,2.4,"sine",.14,0,1));
+      tone(130,t,2.6,"sine",.16,0,1);break}
+    case"boost":{const nb=noiseBurst(.4,1400);nb.g.gain.setValueAtTime(.12,t);
+      nb.g.gain.exponentialRampToValueAtTime(.001,t+.4);break}
+    case"stall":{tone(200,t,.5,"square",.1,0,0);tone(150,t+.1,.5,"square",.08,0,0);break}
+    case"click":{tone(660,t,.06,"sine",.1,0,0);break}
+    case"travel":{
+      const o=ctx.createOscillator();o.type="sine";o.frequency.setValueAtTime(200,t);
+      o.frequency.exponentialRampToValueAtTime(1600,t+.6);
+      const g=ctx.createGain();g.gain.setValueAtTime(.18,t);g.gain.exponentialRampToValueAtTime(.001,t+.7);
+      o.connect(g);g.connect(Audio2.sfxG);g.connect(Audio2.revIn);o.start(t);o.stop(t+.75);break}
+    case"death":{
+      const o=ctx.createOscillator();o.type="sine";o.frequency.setValueAtTime(320,t);
+      o.frequency.exponentialRampToValueAtTime(40,t+2.2);
+      const g=ctx.createGain();g.gain.setValueAtTime(.2,t);g.gain.exponentialRampToValueAtTime(.001,t+2.4);
+      o.connect(g);g.connect(Audio2.sfxG);g.connect(Audio2.revIn);o.start(t);o.stop(t+2.5);break}
+  }}
+function noiseBurst(dur,cut){
+  const ctx=Audio2.ctx;const t=ctx.currentTime;
+  const n=ctx.createBufferSource();const len=ctx.sampleRate*dur;
+  const b=ctx.createBuffer(1,len,ctx.sampleRate);const d=b.getChannelData(0);
+  for(let i=0;i<len;i++)d[i]=(Math.random()*2-1)*(1-i/len);
+  n.buffer=b;const f=ctx.createBiquadFilter();f.type="lowpass";f.frequency.value=cut||2000;
+  const g=ctx.createGain();g.gain.value=.1;n.connect(f);f.connect(g);g.connect(Audio2.sfxG);
+  n.start(t);return{g}}
+
+/* generative score: pad + arpeggio + bass, scene-reactive */
+const SCALES={
+  calm:[0,3,5,7,10],       // minor pentatonic, warm
+  dusk:[0,2,3,7,8],        // phrygian-ish
+  boss:[0,1,3,6,7,10],     // tense
+  triumph:[0,2,4,7,9],     // major pentatonic
+};
+let scoreTimer=0,scoreBeat=0,scoreRoot=48;
+function startScore(){/* driven from update via tickScore */}
+function midi(n){return 440*Math.pow(2,(n-69)/12)}
+function tickScore(dt){
+  const ctx=Audio2.ctx;if(!ctx||!Audio2.started)return;
+  scoreTimer-=dt;
+  if(scoreTimer>0)return;
+  const scn=Audio2.scene;
+  const bpm=scn==="boss"?96:scn==="triumph"?84:60;
+  const beatLen=60/bpm/2; // eighth
+  scoreTimer=beatLen;
+  const t=ctx.currentTime+.02;
+  const scale=SCALES[scn]||SCALES.calm;
+  const root=scn==="boss"?43:scn==="triumph"?50:48;
+  // bass every 4 eighths
+  if(scoreBeat%8===0){
+    const bf=midi(root-12+scale[(scoreBeat/8|0)%scale.length]);
+    padTone(bf,t,beatLen*7.5,scn);
+  }
+  // pad chord every 8
+  if(scoreBeat%16===0){
+    const deg=[(scoreBeat/16|0)*2]%scale.length;
+    [0,2,4].forEach(o=>{const f=midi(root+scale[(deg+o)%scale.length]+ (o>=scale.length?12:0));
+      padTone(f,t,beatLen*14,scn,.5)})}
+  // arpeggio sparkle
+  const density=scn==="boss"?.75:scn==="dusk"?.4:.34;
+  if(hashi(scoreBeat,7,SEED*3+ (scoreBeat*13))>1-density){
+    const oct=12*(1+((Math.random()*2)|0));
+    const f=midi(root+oct+scale[(Math.random()*scale.length)|0]);
+    const o=ctx.createOscillator();o.type=scn==="boss"?"triangle":"sine";
+    o.frequency.value=f;
+    const g=ctx.createGain();const vol=.05+Math.random()*.05;
+    g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(vol,t+.02);
+    g.gain.exponentialRampToValueAtTime(.0001,t+beatLen*3);
+    const pan=ctx.createStereoPanner();pan.pan.value=(Math.random()*2-1)*.7;
+    o.connect(g);g.connect(pan);pan.connect(Audio2.musG);pan.connect(Audio2.revIn);
+    o.start(t);o.stop(t+beatLen*3.2)}
+  scoreBeat++}
+function padTone(f,t,dur,scn,mul){
+  const ctx=Audio2.ctx;
+  const o=ctx.createOscillator();o.type="sawtooth";o.frequency.value=f;
+  const o2=ctx.createOscillator();o2.type="sine";o2.frequency.value=f*2.005;
+  const flt=ctx.createBiquadFilter();flt.type="lowpass";
+  flt.frequency.value=scn==="boss"?700:460;flt.Q.value=2;
+  const g=ctx.createGain();const vol=(scn==="triumph"?.09:.07)*(mul||1);
+  g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(vol,t+dur*.25);
+  g.gain.linearRampToValueAtTime(vol*.6,t+dur*.7);
+  g.gain.exponentialRampToValueAtTime(.0001,t+dur);
+  o.connect(flt);o2.connect(flt);flt.connect(g);g.connect(Audio2.musG);g.connect(Audio2.revIn);
+  o.start(t);o.stop(t+dur+.1);o2.start(t);o2.stop(t+dur+.1)}
+function setScene(s){Audio2.scene=s}
+
+/* ============================================================================
+   PLAYER — the Dawnstrider
+   ========================================================================= */
+const P={x:0,y:200,z:-40,vx:0,vy:0,vz:0,yaw:0,pitch:0,roll:0,
+  speed:70,hearts:4,maxHearts:4,ember:1,iframe:0,dead:false,
+  targetRoll:0,camShake:0,engineNode:null,windNode:null,
+  channel:0,channelWS:null,nearWS:null,nearRelic:null,nearBeacon:-1,
+  distFlown:0,pulseCD:0,lastLowAlt:0,brushed:false};
+
+function playerStats(){
+  return{
+    topSpeed:135+upLvl("wing")*26,
+    emberMax:1+upLvl("ember")*.34,
+    emberRegen:.05+upLvl("ember")*.02,
+    pulseR:120+upLvl("pulse")*55,
+    pulseDmg:1+upLvl("force"),
+    maxHearts:4+upLvl("hull"),
+    magnet:40+upLvl("magnet")*34,
+    senseR:1200+upLvl("eye")*550,
+    handling:1+upLvl("feather")*.28,
+  }}
+
+function resetPlayer(atWS){
+  const st=playerStats();
+  P.maxHearts=st.maxHearts;P.hearts=P.maxHearts;
+  P.ember=st.emberMax;P.vx=P.vy=P.vz=0;P.roll=0;P.pitch=0;
+  P.dead=false;P.iframe=1.5;P.speed=70;P.channel=0;
+  if(atWS){P.x=atWS.x;P.y=atWS.y+60;P.z=atWS.z;P.yaw=Math.random()*TAU}
+  else{P.x=0;P.y=230;P.z=-40;P.yaw=0}
+}
+
+function updatePlayer(dt){
+  const st=playerStats();
+  if(P.dead)return;
+  P.iframe=Math.max(0,P.iframe-dt);
+  P.pulseCD=Math.max(0,P.pulseCD-dt);
+  // ---- input to controls ----
+  const inv=S.opt.inv?-1:1;
+  let pitchIn=0,rollIn=0;
+  if(keys["w"]||keys["arrowup"])pitchIn-=1;
+  if(keys["s"]||keys["arrowdown"])pitchIn+=1;
+  if(keys["a"]||keys["arrowleft"])rollIn-=1;
+  if(keys["d"]||keys["arrowright"])rollIn+=1;
+  if(mouseSteer){
+    pitchIn+=clamp(mdy*.06,-1,1)*inv;
+    rollIn+=clamp(mdx*.05,-1,1);
+    mdx*=.6;mdy*=.6}
+  const brake=keys["shift"];
+  const boosting=keys[" "]&&P.ember>.02&&!brake;
+
+  // ---- flight model ----
+  P.pitch+=pitchIn*1.7*dt*st.handling;
+  P.pitch=clamp(P.pitch,-1.2,1.2);
+  P.pitch*=Math.pow(0.16,dt); // auto-level
+  P.targetRoll=clamp(-rollIn,-1,1)*0.85;
+  P.roll=lerp(P.roll,P.targetRoll,1-Math.pow(0.001,dt));
+  // yaw follows roll (banking turn)
+  P.yaw+=Math.sin(P.roll)*1.9*dt*st.handling;
+
+  // speed: gravity accelerates dives, climbs bleed speed
+  const grav=42;
+  P.speed+=Math.sin(P.pitch)*grav*dt;      // pitch>0 = nose down (our pitch matrix)
+  if(boosting){P.speed+=90*dt;P.ember-=dt*(.34-upLvl("ember")*.02);
+    if(Math.random()<.7)spawnFX(P.x-Math.sin(P.yaw)*3,P.y,P.z-Math.cos(P.yaw)*3,
+      (Math.random()-.5)*8,(Math.random()-.5)*8,(Math.random()-.5)*8,.5,3,1,.6,.25,4);}
+  if(brake)P.speed-=P.speed*1.4*dt;
+  // drag toward top speed
+  const top=boosting?st.topSpeed*1.5:st.topSpeed;
+  P.speed-=(P.speed-Math.min(P.speed,top))*.9*dt;
+  P.speed-=P.speed*0.12*dt;
+  P.speed=clamp(P.speed,0,st.topSpeed*1.7);
+
+  // stall
+  const stallSpd=34-upLvl("feather")*3;
+  const stalling=P.speed<stallSpd;
+  if(stalling){P.pitch+=1.6*dt; // nose drops
+    if(P.lastLowAlt<=0){sfx("stall");P.lastLowAlt=1}}
+  else P.lastLowAlt=0;
+  $("stallWarn").classList.toggle("on",stalling);
+
+  // velocity from orientation (forward vector of glider)
+  const cy=Math.cos(P.yaw),sy=Math.sin(P.yaw),cp=Math.cos(P.pitch),sp=Math.sin(P.pitch);
+  const fwd=[sy*cp,-sp,cy*cp];
+  P.vx=fwd[0]*P.speed;P.vy=fwd[1]*P.speed;P.vz=fwd[2]*P.speed;
+
+  // updrafts
+  const ccx=Math.floor(P.x/CHUNK),ccz=Math.floor(P.z/CHUNK);
+  for(let dx=-1;dx<=1;dx++)for(let dz=-1;dz<=1;dz++){
+    const ch=world.chunks.get((ccx+dx)+","+(ccz+dz));if(!ch)continue;
+    for(const u of ch.updrafts){
+      if(dist2(P.x,P.z,u.x,u.z)<u.r&&P.y<u.top){
+        P.vy+=90*dt*60*0;P.y+=70*dt;P.ember=Math.min(st.emberMax,P.ember+dt*.15);
+        if(Math.random()<.4)spawnFX(u.x+(Math.random()-.5)*u.r,P.y-20,u.z+(Math.random()-.5)*u.r,
+          0,30,0,1.4,2.5,.7,.85,1,-6)}}}
+
+  const nx=P.x+P.vx*dt,ny=P.y+P.vy*dt,nz=P.z+P.vz*dt;
+  P.distFlown+=Math.hypot(nx-P.x,ny-P.y,nz-P.z);
+  P.x=nx;P.y=ny;P.z=nz;
+
+  // ember regen from diving + passive
+  if(P.vy<-10)P.ember=Math.min(st.emberMax,P.ember+(-P.vy)*.0006*dt*60);
+  P.ember=Math.min(st.emberMax,P.ember+st.emberRegen*dt);
+  P.ember=clamp(P.ember,0,st.emberMax);
+
+  // ---- terrain / sea collision ----
+  if(P.y<6){ // cloud sea
+    if(!P.brushed&&P.y<14){P.brushed=true}
+    hurt(99,"the cloud sea");
+  }else if(P.y<20&&P.lastLowAlt2<=0){
+    if(oro_lowAltCD<=0){oroSay(ORO.lowAlt);oro_lowAltCD=25}
+    if(!ach("deep")&&P.y<12){giveAch("deep")}
+  }
+  const tr=terrainAt(P.x,P.y,P.z);
+  if(tr.hit){
+    // bounce off / crash
+    if(P.speed>90){hurt(1,"a mountainside")}
+    P.y=tr.top+1.6;
+    if(P.vy<0)P.vy=0;
+    P.speed*=.6;
+    P.camShake=Math.min(1,P.camShake+.5);
+    for(let i=0;i<6;i++)spawnFX(P.x,P.y,P.z,(Math.random()-.5)*20,Math.random()*15,(Math.random()-.5)*20,.6,3,.6,.5,.4,10);
+  }
+  P.camShake*=Math.pow(.02,dt);
+
+  // low alt warning bookkeeping
+  P.lastLowAlt2=P.y<25?1:0;
+
+  updateEngineSound(boosting,brake);
+  // ---- interactions ----
+  updateInteractions(dt,st,brake);
+  // ---- pulse ----
+  if((keys["f"])&&P.pulseCD<=0&&P.ember>=.25){doPulse(st)}
+}
+let oro_lowAltCD=0;
+
+function doPulse(st){
+  P.ember-=.25;P.pulseCD=.5;sfx("pulse");
+  P.camShake=Math.min(1,P.camShake+.25);
+  world.pulseFX=1;
+  for(let i=0;i<20;i++){const a=i/20*TAU;
+    spawnFX(P.x,P.y,P.z,Math.cos(a)*st.pulseR*.9,(Math.random()-.5)*10,Math.sin(a)*st.pulseR*.9,
+      .35,4,.4,1,.9,0)}
+  // wisps
+  for(const w of world.wisps){
+    if(w.dead)continue;
+    if(dist2(P.x,P.z,w.x,w.z)<st.pulseR&&Math.abs(w.y-P.y)<st.pulseR*.7){
+      killWisp(w)}}
+  // boss
+  if(world.boss&&!world.boss.dead){
+    const b=world.boss;
+    if(Math.hypot(P.x-b.x,P.y-b.y,P.z-b.z)<st.pulseR+b.r){
+      damageBoss(st.pulseDmg)}}
+}
+
+function updateEngineSound(boosting,brake){
+  const ctx=Audio2.ctx;if(!ctx)return;
+  if(!P.engineNode){
+    const o=ctx.createOscillator();o.type="sawtooth";o.frequency.value=80;
+    const f=ctx.createBiquadFilter();f.type="lowpass";f.frequency.value=300;
+    const g=ctx.createGain();g.gain.value=0;
+    o.connect(f);f.connect(g);g.connect(Audio2.sfxG);o.start();
+    P.engineNode={o,f,g};
+    // wind
+    const n=ctx.createBufferSource();const len=ctx.sampleRate*2;
+    const b=ctx.createBuffer(1,len,ctx.sampleRate);const d=b.getChannelData(0);
+    for(let i=0;i<len;i++)d[i]=Math.random()*2-1;n.buffer=b;n.loop=true;
+    const wf=ctx.createBiquadFilter();wf.type="bandpass";wf.frequency.value=500;wf.Q.value=.7;
+    const wg=ctx.createGain();wg.gain.value=0;n.connect(wf);wf.connect(wg);wg.connect(Audio2.sfxG);n.start();
+    P.windNode={n,wf,wg}}
+  const spd=P.speed/135;
+  const tgt=boosting?.11:.05;
+  P.engineNode.g.gain.setTargetAtTime(state==="play"?tgt:0,ctx.currentTime,.15);
+  P.engineNode.o.frequency.setTargetAtTime(70+spd*70+(boosting?40:0),ctx.currentTime,.1);
+  P.engineNode.f.frequency.setTargetAtTime(300+spd*900,ctx.currentTime,.1);
+  P.windNode.wg.gain.setTargetAtTime(state==="play"?clamp(spd*.05,0,.07):0,ctx.currentTime,.2);
+  P.windNode.wf.frequency.setTargetAtTime(400+spd*700,ctx.currentTime,.2);
+}
+
+function hurt(n,cause){
+  if(P.iframe>0||P.dead)return;
+  if(n>=99){die(cause);return}
+  P.hearts-=n;P.iframe=1.4;sfx("hit");
+  dmgFlash();P.camShake=Math.min(1,P.camShake+.6);
+  if(P.hearts<=0)die(cause)}
+function heal(n){P.hearts=Math.min(P.maxHearts,P.hearts+n);healFlash()}
+
+/* ============================================================================
+   ENTITIES — wisps, wardens, and interactions
+   ========================================================================= */
+function spawnWisps(dt){
+  const bi=biomeIdxAt(P.x,P.z);const bio=BIOMES[bi];
+  const cap=Math.round(10+bio.wisp*22+S.ng*4);
+  // day/night — wisps stronger at night
+  const nightBoost=world.night>.4?1.5:1;
+  if(world.wisps.length<cap*nightBoost&&Math.random()<bio.wisp*dt*2.4*nightBoost){
+    const a=Math.random()*TAU,d=260+Math.random()*380;
+    const wx=P.x+Math.cos(a)*d,wz=P.z+Math.sin(a)*d;
+    const wy=clamp(P.y+(Math.random()-.5)*180,30,420);
+    world.wisps.push({x:wx,y:wy,z:wz,ph:Math.random()*TAU,dead:false,
+      hp:1,agro:0,r:2.4+Math.random()*1.4})}
+  // update
+  for(const w of world.wisps){
+    if(w.dead)continue;
+    const dd=Math.hypot(P.x-w.x,P.y-w.y,P.z-w.z);
+    if(dd>1400){w.dead=true;continue}
+    w.ph+=dt*2;
+    // drift toward player when close
+    let sp=14;
+    if(dd<420){w.agro=Math.min(1,w.agro+dt*.4);sp=22+w.agro*20}
+    else w.agro=Math.max(0,w.agro-dt*.2);
+    const dx=(P.x-w.x)/dd,dy=(P.y-w.y)/dd,dz=(P.z-w.z)/dd;
+    // repelled by waystone light
+    let rx=0,ry=0,rz=0;
+    const ws=nearestActiveWS(w.x,w.z);
+    if(ws){const wd=dist2(w.x,w.z,ws.x,ws.z);if(wd<150){const k=(150-wd)/150;
+      rx=(w.x-ws.x)/wd*k*40;rz=(w.z-ws.z)/wd*k*40;if(k>.6&&Math.random()<.02)killWisp(w)}}
+    w.x+=(dx*sp+Math.cos(w.ph)*6+rx)*dt;
+    w.y+=(dy*sp*.6+Math.sin(w.ph*1.3)*5+ry)*dt;
+    w.z+=(dz*sp+Math.sin(w.ph)*6+rz)*dt;
+    if(dd<w.r+7&&P.iframe<=0){hurt(1,"a wisp");w.agro=0;
+      // knockback
+      w.x-=dx*30;w.z-=dz*30}
+    // render
+    const fl=.6+.4*Math.sin(w.ph*3);
+    pt(w.x,w.y,w.z,7+w.agro*3,.7+w.agro*.3,.5+fl*.4,1,.9*fl+.1);
+    pt(w.x,w.y,w.z,3,1,1,1,fl);
+    if(Math.random()<.3)spawnFX(w.x,w.y,w.z,(Math.random()-.5)*4,-6,(Math.random()-.5)*4,.6,2,.7,.6,1,2);
+  }
+  // cull dead
+  if(world.wisps.length>240)world.wisps=world.wisps.filter(w=>!w.dead);
+}
+function nearestActiveWS(x,z){
+  let best=null,bd=1e9;
+  for(const[,ch]of world.chunks){if(ch.ws&&ch.ws.active){
+    const d=dist2(x,z,ch.ws.x,ch.ws.z);if(d<bd){bd=d;best=ch.ws}}}
+  return best}
+function killWisp(w){
+  if(w.dead)return;w.dead=true;
+  S.stats.wisps=(S.stats.wisps|0)+1;
+  const lum=2+((Math.random()*3)|0);
+  addLumen(lum,w.x,w.y,w.z);
+  sfx("wisp",panOf(w.x,w.z));
+  for(let i=0;i<10;i++)spawnFX(w.x,w.y,w.z,(Math.random()-.5)*26,(Math.random()-.5)*26,(Math.random()-.5)*26,.7,3,1,.8,.4,2);
+  if(!ach("wisp1"))giveAch("wisp1");
+  if(S.stats.wisps>=50&&!ach("wisp50"))giveAch("wisp50");
+  if(oro_firstWisp){oro_firstWisp=false;oroSay(ORO.firstWisp)}
+}
+let oro_firstWisp=true;
+
+/* ---- Wardens (bosses) ---- */
+function ensureBoss(){
+  // if in a beacon chunk that's unlit and no boss, spawn
+  const ccx=Math.floor(P.x/CHUNK),ccz=Math.floor(P.z/CHUNK);
+  const ch=world.chunks.get(ccx+","+ccz);
+  if(!ch||ch.beacon<0)return;
+  const bi=ch.beacon;
+  if(S.beacons[bi]){return}
+  const[,,bx,bz]=BCHUNKS[bi];
+  if(dist2(P.x,P.z,bx,bz)>340)return;
+  if(world.boss&&world.boss.beacon===bi)return;
+  if(world.boss)return;
+  // spawn Warden
+  const isl=ch.islands[0];
+  const maxhp=(14+bi*7)*(1+S.ng*.5);
+  world.boss={beacon:bi,x:bx,y:(isl?isl.y:160)+140,z:bz,r:16+bi*1.5,
+    hp:world.bossHP[bi]!=null?world.bossHP[bi]:maxhp,max:maxhp,
+    ph:0,atkCD:2.5,dead:false,intro:2.2,name:BEACONS[bi].name};
+  setScene("boss");
+  bannerShow("The Warden of "+BEACONS[bi].name,"stands between you and the light");
+  if(oro_firstBoss){oro_firstBoss=false;oroSay(ORO.firstBoss)}
+  sfx("boss");
+  $("bossWrap").classList.add("on");
+  $("bossName").textContent="Warden of "+BEACONS[bi].name;
+}
+let oro_firstBoss=true;
+function updateBoss(dt){
+  const b=world.boss;if(!b)return;
+  if(b.dead){return}
+  b.ph+=dt;
+  b.intro=Math.max(0,b.intro-dt);
+  // orbit / hover over beacon
+  const orbit=70;
+  b.x=b.hx0!==undefined?b.hx0:b.x;
+  b._t=(b._t||0)+dt;
+  const cx=BCHUNKS[b.beacon][2],cz=BCHUNKS[b.beacon][3];
+  b.x=cx+Math.cos(b._t*.4)*orbit;
+  b.z=cz+Math.sin(b._t*.4)*orbit;
+  b.y+=Math.sin(b._t*.8)*8*dt;
+  // face/attack player
+  const dd=Math.hypot(P.x-b.x,P.y-b.y,P.z-b.z);
+  $("bossBar").style.width=(b.hp/b.max*100)+"%";
+  if(b.intro<=0&&dd<520){
+    b.atkCD-=dt;
+    if(b.atkCD<=0){b.atkCD=1.6+Math.random()*1.4-b.beacon*.1;
+      fireBolt(b)}}
+  // storm body render (points)
+  for(let i=0;i<26;i++){
+    const a=hashi(i,b.beacon,7)*TAU+b._t*(1+i%3*.3);
+    const rr=b.r*(.5+hashi(i,3,9)*.9);
+    const yy=b.y+Math.sin(a*2+i)*b.r*.7;
+    pt(b.x+Math.cos(a)*rr,yy,b.z+Math.sin(a)*rr,10+hashi(i,5,2)*10,
+      .9,.3+.2*Math.sin(b._t+i),.35,.7)}
+  pt(b.x,b.y,b.z,26,1,.7,.4,.5); // core glow
+  // damage on contact
+  if(dd<b.r+7&&P.iframe<=0)hurt(1,"the Warden's fury");
+  // move bolts
+  updateBolts(dt);
+}
+world.bolts=[];
+function fireBolt(b){
+  const dd=Math.hypot(P.x-b.x,P.y-b.y,P.z-b.z)||1;
+  const sp=90;
+  const lead=dd/sp;
+  const tx=P.x+P.vx*lead*.5,ty=P.y+P.vy*lead*.5,tz=P.z+P.vz*lead*.5;
+  const dx=(tx-b.x)/dd,dy=(ty-b.y)/dd,dz=(tz-b.z)/dd;
+  const shots=1+((b.beacon/2)|0);
+  for(let s=0;s<shots;s++){
+    const spread=(s-(shots-1)/2)*.12;
+    const ca=Math.cos(spread),sa=Math.sin(spread);
+    world.bolts.push({x:b.x,y:b.y,z:b.z,
+      vx:(dx*ca-dz*sa)*sp,vy:dy*sp,vz:(dx*sa+dz*ca)*sp,life:4})}
+  sfx("hit",panOf(b.x,b.z))}
+function updateBolts(dt){
+  for(const bl of world.bolts){
+    if(bl.life<=0)continue;bl.life-=dt;
+    bl.x+=bl.vx*dt;bl.y+=bl.vy*dt;bl.z+=bl.vz*dt;
+    pt(bl.x,bl.y,bl.z,12,1,.4,.35,.9);pt(bl.x,bl.y,bl.z,5,1,.9,.7,1);
+    if(Math.random()<.5)spawnFX(bl.x,bl.y,bl.z,0,0,0,.3,4,1,.5,.3,0);
+    if(Math.hypot(P.x-bl.x,P.y-bl.y,P.z-bl.z)<7&&P.iframe<=0){hurt(1,"a Warden's bolt");bl.life=0}}
+  if(world.bolts.length>60)world.bolts=world.bolts.filter(b=>b.life>0);
+}
+function damageBoss(dmg){
+  const b=world.boss;if(!b||b.dead||b.intro>0)return;
+  b.hp-=dmg;world.bossHP[b.beacon]=b.hp;
+  b.y+=2;sfx("hit",panOf(b.x,b.z));
+  for(let i=0;i<8;i++)spawnFX(b.x+(Math.random()-.5)*b.r,b.y+(Math.random()-.5)*b.r,b.z+(Math.random()-.5)*b.r,
+    (Math.random()-.5)*30,(Math.random()-.5)*30,(Math.random()-.5)*30,.6,4,1,.6,.4,0);
+  toast("Warden struck","");
+  if(b.hp<=0)killBoss(b)}
+function killBoss(b){
+  b.dead=true;world.boss=null;delete world.bossHP[b.beacon];
+  sfx("bossdie");
+  for(let i=0;i<80;i++)spawnFX(b.x,b.y,b.z,(Math.random()-.5)*60,(Math.random()-.5)*60,(Math.random()-.5)*60,
+    1.6,4,1,.7+Math.random()*.3,.4,1);
+  $("bossWrap").classList.remove("on");
+  oroSay(ORO.bossDown);
+  // light the beacon
+  lightBeacon(b.beacon);
+  setScene(world.night>.4?"dusk":"calm");
+}
+
+/* ---- interactions (waystones, relics, beacons, courses) ---- */
+function updateInteractions(dt,st,brake){
+  // find nearest waystone
+  let ws=null,wd=1e9;
+  const ccx=Math.floor(P.x/CHUNK),ccz=Math.floor(P.z/CHUNK);
+  for(let dx=-1;dx<=1;dx++)for(let dz=-1;dz<=1;dz++){
+    const ch=world.chunks.get((ccx+dx)+","+(ccz+dz));if(!ch||!ch.ws)continue;
+    const d=Math.hypot(P.x-ch.ws.x,P.y-(ch.ws.y+16),P.z-ch.ws.z);
+    if(d<wd){wd=d;ws=ch.ws}}
+  P.nearWS=(ws&&wd<70)?ws:null;
+
+  // relic
+  let rel=null,rd=1e9;
+  for(let dx=-1;dx<=1;dx++)for(let dz=-1;dz<=1;dz++){
+    const ch=world.chunks.get((ccx+dx)+","+(ccz+dz));if(!ch||!ch.relic)continue;
+    const d=Math.hypot(P.x-ch.relic.x,P.y-ch.relic.y,P.z-ch.relic.z);
+    if(d<rd){rd=d;rel=ch.relic}}
+  if(rel&&rd<60){collectRelic(rel)}
+
+  // interact prompt + channel
+  const intEl=$("interact"),ck=$("channelWrap");
+  if(P.nearWS&&!P.nearWS.active){
+    showInteract("Attune Waystone — hold E");
+    if(keys["e"]&&P.speed<70){
+      P.channel+=dt/2.2;
+      ck.classList.add("on");$("channelRing").style.setProperty("--p",clamp(P.channel*100,0,100));
+      if(P.channel>=1){attuneWaystone(P.nearWS);P.channel=0}
+    }else{P.channel=Math.max(0,P.channel-dt*2);ck.classList.remove("on")}
+  }else if(P.nearWS&&P.nearWS.active){
+    showInteract("Refit at Waystone — U   ·   Rest — E");
+    ck.classList.remove("on");P.channel=0;
+    if(keys["e"]&&restCD<=0){heal(1);restCD=1.2;toast("The waystone steadies you","teal")}
+  }else{intEl.classList.remove("on");ck.classList.remove("on");P.channel=0}
+
+  // beacon proximity
+  P.nearBeacon=-1;
+  const ch=world.chunks.get(ccx+","+ccz);
+  if(ch&&ch.beacon>=0){
+    const[,,bx,bz]=BCHUNKS[ch.beacon];
+    if(dist2(P.x,P.z,bx,bz)<200){P.nearBeacon=ch.beacon;ensureBoss()}}
+
+  // courses
+  updateCourses(dt);
+  restCD=Math.max(0,restCD-dt);
+  // lumen motes
+  collectMotes(dt,st);
+}
+let restCD=0;
+function showInteract(t){$("interactTxt").textContent=t;$("interact").classList.add("on")}
+
+function attuneWaystone(ws){
+  ws.active=true;S.ws[ws.id]=1;
+  S.stats.wsCount=(S.stats.wsCount|0)+1;
+  sfx("attune");toast("Waystone attuned","teal");
+  bannerShow("Waystone Attuned","the lattice holds a little firmer");
+  for(let i=0;i<40;i++){const a=Math.random()*TAU;
+    spawnFX(ws.x,ws.y+16,ws.z,Math.cos(a)*24,Math.random()*30,Math.sin(a)*24,1.4,3,.5,1,.9,2)}
+  const lore=LORE_WAYSTONE[(hashi(Math.round(ws.x),Math.round(ws.z),SEED)*LORE_WAYSTONE.length)|0];
+  subtitle("WAYSTONE",lore,6);
+  const n=Object.keys(S.ws).length;
+  if(!ach("way1"))giveAch("way1");
+  if(n>=10&&!ach("way10"))giveAch("way10");
+  if(n>=25&&!ach("way25"))giveAch("way25");
+  if(oro_firstWay){oro_firstWay=false;setTimeout(()=>oroSay(ORO.firstWay),4000)}
+  addLumen(15,ws.x,ws.y+16,ws.z);
+  revealCodexFor("waystone");
+  saveGame();
+}
+let oro_firstWay=true;
+function collectRelic(rel){
+  if(S.relics[rel.id])return;
+  S.relics[rel.id]=1;
+  // find the chunk and clear
+  for(const[,ch]of world.chunks)if(ch.relic&&ch.relic.id===rel.id)ch.relic=null;
+  sfx("relic");
+  const n=Object.keys(S.relics).length;
+  toast("Relic recovered ("+n+")","gold");
+  bannerShow("Relic of the Old Survey","the codex remembers");
+  oroSay(ORO.relic);
+  for(let i=0;i<30;i++)spawnFX(rel.x,rel.y,rel.z,(Math.random()-.5)*20,Math.random()*24,(Math.random()-.5)*20,1.2,3,.6,.8,1,1);
+  // reveal a codex entry
+  const idx=(n+5)%CODEX.length;S.codex[idx]=1;
+  subtitle("CODEX — "+CODEX[idx][0],CODEX[idx][1],7);
+  addLumen(30,rel.x,rel.y,rel.z);
+  if(!ach("relic1"))giveAch("relic1");
+  if(n>=10&&!ach("relic10"))giveAch("relic10");
+  saveGame();
+}
+function collectMotes(dt,st){
+  const ccx=Math.floor(P.x/CHUNK),ccz=Math.floor(P.z/CHUNK);
+  for(let dx=-1;dx<=1;dx++)for(let dz=-1;dz<=1;dz++){
+    const ch=world.chunks.get((ccx+dx)+","+(ccz+dz));if(!ch)continue;
+    for(const m of ch.motes){
+      if(m.taken>0){m.taken-=dt;continue}
+      m.ph+=dt;
+      const my=m.y+Math.sin(m.ph)*2;
+      const d=Math.hypot(P.x-m.x,P.y-my,P.z-m.z);
+      const col=m.big?[1,.8,.4]:[.6,.9,1];
+      pt(m.x,my,m.z,m.big?7:4.4,col[0],col[1],col[2],.6+.4*Math.sin(m.ph*2));
+      if(d<st.magnet){ // draw in
+        m.x+=(P.x-m.x)*dt*3;m.y+=(P.y-my)*dt*3;m.z+=(P.z-m.z)*dt*3;
+        if(d<10){m.taken=22+Math.random()*20;
+          addLumen(m.big?8:2,m.x,my,m.z);sfx("lumen",panOf(m.x,m.z));
+          spawnFX(m.x,my,m.z,0,10,0,.5,3,col[0],col[1],col[2],0)}}}}
+}
+function updateCourses(dt){
+  const ccx=Math.floor(P.x/CHUNK),ccz=Math.floor(P.z/CHUNK);
+  for(let dx=-2;dx<=2;dx++)for(let dz=-2;dz<=2;dz++){
+    const ch=world.chunks.get((ccx+dx)+","+(ccz+dz));if(!ch||!ch.course)continue;
+    const c=ch.course;
+    if(S.courses[c.id])continue;
+    for(let i=0;i<c.rings.length;i++){
+      const r=c.rings[i];
+      const active=(c.next<0&&i===0)||(i===c.next);
+      const col=active?[1,.85,.4]:(i<c.next||c.next<0&&false)?[.4,.5,.6]:[.35,.55,.7];
+      drawRing(r.x,r.y,r.z,14,col,active?1:.4);
+      if(active){const d=Math.hypot(P.x-r.x,P.y-r.y,P.z-r.z);
+        if(d<15){
+          if(c.next<0){c.next=1;c.t=0;sfx("course");toast("Sky-trial begun!","gold");subtitle("SKY-TRIAL","Fly the rings before the light fades.",4)}
+          else{c.next++;sfx("ring",panOf(r.x,r.z));P.ember=Math.min(playerStats().emberMax,P.ember+.15);
+            spawnFX(r.x,r.y,r.z,0,10,0,.6,4,1,.9,.4,0)}
+          if(c.next>=c.rings.length)finishCourse(ch,c)}}}
+    if(c.next>=0){c.t+=dt;if(c.t>c.rings.length*4){c.next=-1;toast("Trial reset","")}}
+  }
+}
+function finishCourse(ch,c){
+  S.courses[c.id]=1;ch.course=null;
+  const n=Object.keys(S.courses).length;
+  const reward=40+n*10;addLumen(reward,P.x,P.y,P.z);
+  sfx("course");bannerShow("Sky-Trial Cleared","+"+reward+" lumens · guild would be proud");
+  S.stats.courses=n;
+  if(!ach("course1"))giveAch("course1");
+  if(n>=5&&!ach("course5"))giveAch("course5");
+  oroSay(ORO.course);saveGame();
+}
+function drawRing(x,y,z,r,col,a){
+  const segs=20;
+  for(let i=0;i<segs;i++){const ang=i/segs*TAU;
+    pt(x+Math.cos(ang)*r,y+Math.sin(ang)*r,z,5,col[0],col[1],col[2],a)}}
+
+function lightBeacon(bi){
+  if(S.beacons[bi])return;
+  S.beacons[bi]=1;
+  S.stats.beacons=(S.beacons.filter(Boolean).length);
+  sfx("beacon");
+  // rebuild the beacon chunk so the flame turns gold
+  const[bcx,bcz]=BCHUNKS[bi];
+  const key=bcx+","+bcz;const ch=world.chunks.get(key);
+  if(ch){freeMesh(ch.mesh);world.chunks.delete(key)}
+  cine_beacon(bi);
+  const lit=S.beacons.filter(Boolean).length;
+  if(bi===0&&!ach("b1"))giveAch("b1");
+  if(lit>=4&&!ach("b4"))giveAch("b4");
+  if(lit>=7&&!ach("b7")){giveAch("b7");setTimeout(cine_ending,4000)}
+  saveGame();
+  updateNextBeacon();
+}
+function panOf(x,z){
+  // stereo pan by camera-relative angle
+  const dx=x-P.x,dz=z-P.z;
+  const ry=Math.atan2(dx,dz)-P.yaw;
+  return clamp(Math.sin(ry),-1,1)}
+
+/* lumen wallet */
+function addLumen(n,x,y,z){
+  S.lumens+=n;S.stats.lumTotal=(S.stats.lumTotal|0)+n;
+  if(x!==undefined)for(let i=0;i<Math.min(n,8);i++)
+    spawnFX(x,y,z,(Math.random()-.5)*10,Math.random()*12,(Math.random()-.5)*10,.6,2.5,1,.85,.45,-2);
+  if(S.lumens>=2000&&!ach("rich"))giveAch("rich");
+  lumenPulse=1}
+let lumenPulse=0;
+
+/* ============================================================================
+   GLIDER MESH — the Dawnstrider
+   ========================================================================= */
+let GLIDER=null;
+function buildGlider(){
+  const M=MB();const R=mulberry(999);
+  const hull=[.62,.5,.36],hull2=[.42,.32,.24],wing=[.86,.72,.5],wingE=[.95,.82,.6],
+        glass=[.5,.85,.95],trim=[.9,.65,.3];
+  // fuselage — tapered box + nose cone
+  box(M,0,0,0,.9,.7,3.2,0,hull,0);
+  box(M,0,.2,-2.6,.55,.5,1.2,0,hull2,0);
+  ring(M,0,0,3.0,.7,-.3,.05,1.6,7,hull,0,R,0);       // nose taper
+  // cockpit glass
+  box(M,0,.75,-.2,.55,.42,1.1,0,glass,.35);
+  // wings — swept, thin, glowing lens-cloth
+  for(const s of[-1,1]){
+    const wp1=[s*.8,.2,.4],wp2=[s*7.4,.5,-1.1],wp3=[s*7.0,.45,-2.6],wp4=[s*.8,.15,-1.4];
+    M.quad(wp1,wp2,wp3,wp4,wing[0],wing[1],wing[2],.28);
+    M.quad(wp4,wp3,wp2,wp1,wing[0]*.8,wing[1]*.8,wing[2]*.8,.15);
+    // wingtip light strip
+    const tp1=[s*7.4,.5,-1.1],tp2=[s*7.0,.45,-2.6];
+    box(M,(tp1[0]+tp2[0])/2,.48,(tp1[2]+tp2[2])/2,.15,.08,.8,s*.2,[1,.85,.5],1);
+    // strut
+    box(M,s*3,-.1,-.4,2.8,.06,.12,s*.05,trim,.1);
+  }
+  // tail
+  box(M,0,.9,-3.0,.08,1.0,.7,0,wing,.2);
+  for(const s of[-1,1])box(M,s*1.4,.3,-3.0,1.3,.06,.5,s*.1,wing,.15);
+  // solar lens core (glows)
+  octa(M,0,.5,.2,.5,.7,0,[1,.8,.4],.8);
+  GLIDER=buildMesh(M.a);
+}
+
+/* ============================================================================
+   CAMERA + RENDER TARGETS
+   ========================================================================= */
+let RT={};
+function makeRT(w,h,linear,float){
+  const tex=gl.createTexture();gl.bindTexture(gl.TEXTURE_2D,tex);
+  const f=linear?gl.LINEAR:gl.NEAREST;
+  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,f);
+  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,f);
+  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
+  const ifmt=(float&&HDR)?gl.RGBA16F:gl.RGBA8;
+  const type=(float&&HDR)?gl.HALF_FLOAT:gl.UNSIGNED_BYTE;
+  gl.texImage2D(gl.TEXTURE_2D,0,ifmt,w,h,0,gl.RGBA,type,null);
+  const fb=gl.createFramebuffer();gl.bindFramebuffer(gl.FRAMEBUFFER,fb);
+  gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.COLOR_ATTACHMENT0,gl.TEXTURE_2D,tex,0);
+  return{tex,fb,w,h}}
+let sceneDepth=null;
+function allocRT(){
+  for(const k in RT){if(RT[k].fb)gl.deleteFramebuffer(RT[k].fb);if(RT[k].tex)gl.deleteTexture(RT[k].tex)}
+  if(sceneDepth)gl.deleteRenderbuffer(sceneDepth);
+  const w=Math.max(2,Math.floor(canvas.width*RES)),h=Math.max(2,Math.floor(canvas.height*RES));
+  RT.scene=makeRT(w,h,true,true);
+  // depth
+  sceneDepth=gl.createRenderbuffer();gl.bindRenderbuffer(gl.RENDERBUFFER,sceneDepth);
+  gl.renderbufferStorage(gl.RENDERBUFFER,gl.DEPTH_COMPONENT24,w,h);
+  gl.bindFramebuffer(gl.FRAMEBUFFER,RT.scene.fb);
+  gl.framebufferRenderbuffer(gl.FRAMEBUFFER,gl.DEPTH_ATTACHMENT,gl.RENDERBUFFER,sceneDepth);
+  const bw=Math.max(2,w>>1),bh=Math.max(2,h>>1);
+  RT.bA=makeRT(bw,bh,true,true);RT.bB=makeRT(bw,bh,true,true);
+  gl.bindFramebuffer(gl.FRAMEBUFFER,null)}
+
+let RES=0.8;
+
+/* view/projection */
+const VP=new Float32Array(16),PROJ=new Float32Array(16),VIEWM=new Float32Array(16),MODEL=new Float32Array(16);
+const cam={x:0,y:0,z:0,fx:0,fy:0,fz:1,rx:1,ry:0,rz:0,ux:0,uy:1,uz:0};
+let camPos={x:0,y:200,z:-60},camLookYaw=0,camLookPitch=0;
+
+function updateCamera(dt){
+  // chase camera behind + above glider, smoothed
+  const cy=Math.cos(P.yaw),sy=Math.sin(P.yaw);
+  const back=13+P.speed*.02,up=4.2;
+  const desiredX=P.x-sy*Math.cos(P.pitch)*back,
+        desiredY=P.y+up+Math.sin(P.pitch)*back*.6,
+        desiredZ=P.z-cy*Math.cos(P.pitch)*back;
+  const k=1-Math.pow(0.0001,dt);
+  camPos.x=lerp(camPos.x,desiredX,k);
+  camPos.y=lerp(camPos.y,desiredY,k);
+  camPos.z=lerp(camPos.z,desiredZ,k);
+  // avoid clipping into terrain
+  const tr=terrainAt(camPos.x,camPos.y,camPos.z);
+  if(tr.hit&&camPos.y<tr.top+3)camPos.y=tr.top+3;
+  if(camPos.y<8)camPos.y=8;
+  // look slightly ahead of glider
+  const la=[P.x+sy*cp2()*8,P.y-Math.sin(P.pitch)*8+1.5,P.z+cy*cp2()*8];
+  // shake
+  const sh=P.camShake*2.2;
+  const shx=(Math.random()-.5)*sh,shy=(Math.random()-.5)*sh;
+  const eye=[camPos.x+shx,camPos.y+shy,camPos.z];
+  const up3=[Math.sin(P.roll)*.35,1,0];
+  m4LookAt(VIEWM,eye,la,up3);
+  const aspect=canvas.width/canvas.height;
+  m4Persp(PROJ,S.opt.fov*Math.PI/180,aspect,.5,9000);
+  m4Mul(VP,PROJ,VIEWM);
+  cam.x=eye[0];cam.y=eye[1];cam.z=eye[2];
+  // camera basis for sky
+  cam.fx=la[0]-eye[0];cam.fy=la[1]-eye[1];cam.fz=la[2]-eye[2];
+  let l=1/Math.hypot(cam.fx,cam.fy,cam.fz);cam.fx*=l;cam.fy*=l;cam.fz*=l;
+  cam.rx=cam.fy*up3[2]-cam.fz*up3[1];cam.ry=cam.fz*up3[0]-cam.fx*up3[2];cam.rz=cam.fx*up3[1]-cam.fy*up3[0];
+  l=1/Math.hypot(cam.rx,cam.ry,cam.rz);cam.rx*=l;cam.ry*=l;cam.rz*=l;
+  cam.ux=cam.ry*cam.fz-cam.rz*cam.fy;cam.uy=cam.rz*cam.fx-cam.rx*cam.fz;cam.uz=cam.rx*cam.fy-cam.ry*cam.fx;
+}
+function cp2(){return Math.cos(P.pitch)}
+
+/* environment palette (biome + day/night blend) */
+const ENV={zen:[0,0,0],hor:[0,0,0],fog:[0,0,0],sun:[0,0,0],sunCol:[0,0,0],amb:[0,0,0],
+  seaA:[0,0,0],seaB:[0,0,0],stars:0,aur:0,storm:0,sunDir:[0,.6,.4]};
+function updateEnv(dt){
+  const bi=biomeIdxAt(P.x,P.z);const bio=BIOMES[bi];
+  // day cycle: world.dayT in [0,1)
+  world.dayT=(world.dayT+dt/300)%1;              // 5-min day
+  const sunAng=world.dayT*TAU;
+  const sunY=Math.sin(sunAng);
+  world.night=clamp(-sunY*1.4+.3,0,1);
+  const nb=world.night;world.night=nb;
+  ENV.sunDir=[Math.cos(sunAng)*.6,clamp(sunY,-.3,1),.45];
+  const l=1/Math.hypot(...ENV.sunDir);ENV.sunDir=ENV.sunDir.map(v=>v*l);
+  // day vs dusk vs night tint
+  const dusk=sm(0,.35,1-Math.abs(sunY))*(1-nb);
+  const dayZen=bio.zen,dayHor=bio.hor;
+  const nightZen=[.02,.03,.08],nightHor=[.06,.06,.14];
+  for(let i=0;i<3;i++){
+    ENV.zen[i]=lerp(dayZen[i],nightZen[i],nb);
+    ENV.hor[i]=lerp(lerp(dayHor[i],[1,.5,.28][i],dusk*.6),nightHor[i],nb);
+    ENV.fog[i]=lerp(bio.fog[i],nightHor[i],nb*.7);
+    ENV.seaA[i]=lerp(bio.sea[0][i],[.03,.04,.1][i],nb);
+    ENV.seaB[i]=lerp(bio.sea[1][i],[.12,.14,.22][i],nb);
+  }
+  ENV.sunCol=[lerp(1,1,1),lerp(.92,.7,dusk),lerp(.8,.45,dusk)];
+  if(nb>.5)ENV.sunCol=[.6,.7,1]; // moonlight
+  ENV.amb=[lerp(.28,.12,nb),lerp(.3,.14,nb),lerp(.36,.2,nb)];
+  ENV.stars=sm(.4,.8,nb);
+  ENV.aur=lerp(0,.9,sm(.5,1,nb))*(0.3+bio.storm*1.4);
+  ENV.storm=bio.storm*(0.5+nb*.5);
+  // scene music
+  if(!world.boss){
+    if(S.beacons.filter(Boolean).length>=7)setScene("triumph");
+    else if(nb>.5||bio.storm>.5)setScene("dusk");
+    else setScene("calm")}
+}
+
+/* ============================================================================
+   FRAME
+   ========================================================================= */
+let flashV=0;
+function render(){
+  const w=RT.scene.w,h=RT.scene.h;
+  gl.bindFramebuffer(gl.FRAMEBUFFER,RT.scene.fb);
+  gl.viewport(0,0,w,h);
+  gl.clearColor(ENV.fog[0],ENV.fog[1],ENV.fog[2],1);
+  gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
+
+  // --- sky ---
+  gl.disable(gl.DEPTH_TEST);gl.depthMask(false);
+  const sk=SH.sky;gl.useProgram(sk.p);
+  const aspect=canvas.width/canvas.height;
+  const tanY=Math.tan(S.opt.fov*Math.PI/360),tanX=tanY*aspect;
+  gl.uniform3f(sk.u.uFwd,cam.fx,cam.fy,cam.fz);
+  gl.uniform3f(sk.u.uRight,cam.rx,cam.ry,cam.rz);
+  gl.uniform3f(sk.u.uUp,cam.ux,cam.uy,cam.uz);
+  gl.uniform3fv(sk.u.uSun,ENV.sunDir);
+  gl.uniform3fv(sk.u.uZen,ENV.zen);gl.uniform3fv(sk.u.uHor,ENV.hor);
+  gl.uniform3fv(sk.u.uFogCol,ENV.fog);gl.uniform3fv(sk.u.uSunCol,ENV.sunCol);
+  gl.uniform1f(sk.u.uTanX,tanX);gl.uniform1f(sk.u.uTanY,tanY);
+  gl.uniform1f(sk.u.uTime,TIME);gl.uniform1f(sk.u.uStars,ENV.stars);
+  gl.uniform1f(sk.u.uAur,ENV.aur);gl.uniform1f(sk.u.uStorm,ENV.storm);
+  gl.uniform1f(sk.u.uFlash,flashV);
+  gl.bindVertexArray(fsVAO);gl.drawArrays(gl.TRIANGLES,0,3);
+
+  // --- sea ---
+  const se=SH.sea;gl.useProgram(se.p);
+  gl.uniformMatrix4fv(se.u.uVP,false,VP);
+  gl.uniform3f(se.u.uCam,cam.x,cam.y,cam.z);
+  gl.uniform3fv(se.u.uSun,ENV.sunDir);
+  gl.uniform3fv(se.u.uFogCol,ENV.fog);gl.uniform3fv(se.u.uSunCol,ENV.sunCol);
+  gl.uniform3fv(se.u.uSeaA,ENV.seaA);gl.uniform3fv(se.u.uSeaB,ENV.seaB);
+  gl.uniform1f(se.u.uTime,TIME);gl.uniform1f(se.u.uFogD,fogD());gl.uniform1f(se.u.uFlash,flashV);
+  gl.enable(gl.DEPTH_TEST);gl.depthMask(true);
+  gl.bindVertexArray(seaVAO);gl.drawArrays(gl.TRIANGLES,0,seaN);
+
+  // --- meshes: terrain chunks + glider ---
+  const me=SH.mesh;gl.useProgram(me.p);
+  gl.uniformMatrix4fv(me.u.uVP,false,VP);
+  gl.uniform3fv(me.u.uSun,ENV.sunDir);
+  gl.uniform3f(me.u.uCam,cam.x,cam.y,cam.z);
+  gl.uniform3fv(me.u.uFogCol,ENV.fog);gl.uniform3fv(me.u.uAmb,ENV.amb);
+  gl.uniform3fv(me.u.uSunCol,ENV.sunCol);
+  gl.uniform1f(me.u.uFogD,fogD());gl.uniform1f(me.u.uTime,TIME);gl.uniform1f(me.u.uFlash,flashV);
+  for(const[,ch]of world.chunks){
+    if(!ch.mesh)continue;
+    // cull by chunk center distance
+    const cxw=ch.cx*CHUNK+CHUNK/2,czw=ch.cz*CHUNK+CHUNK/2;
+    if(dist2(cam.x,cam.z,cxw,czw)>CHUNK*(VIEW+2))continue;
+    gl.uniformMatrix4fv(me.u.uM,false,M_ID);
+    gl.bindVertexArray(ch.mesh.vao);gl.drawArrays(gl.TRIANGLES,0,ch.mesh.n);}
+  // glider
+  if(GLIDER&&state==="play"&&!P.dead){
+    m4Model(MODEL,P.x,P.y,P.z,P.yaw,P.pitch,-P.roll,1);
+    gl.uniformMatrix4fv(me.u.uM,false,MODEL);
+    gl.bindVertexArray(GLIDER.vao);gl.drawArrays(gl.TRIANGLES,0,GLIDER.n);}
+
+  // --- point sprites (wisps, motes, fx, boss, bolts) ---
+  ptCount=0;
+  drawWorldPoints();
+  gl.useProgram(SH.pts.p);
+  gl.uniformMatrix4fv(SH.pts.u.uVP,false,VP);
+  gl.uniform3f(SH.pts.u.uCam,cam.x,cam.y,cam.z);
+  gl.uniform1f(SH.pts.u.uPx,canvas.height*RES*.9);
+  gl.uniform1f(SH.pts.u.uFogD,fogD());
+  gl.bindVertexArray(ptVAO);gl.bindBuffer(gl.ARRAY_BUFFER,ptBuf);
+  gl.bufferSubData(gl.ARRAY_BUFFER,0,ptData,0,ptCount*8);
+  gl.enable(gl.BLEND);gl.blendFunc(gl.SRC_ALPHA,gl.ONE);gl.depthMask(false);
+  gl.drawArrays(gl.POINTS,0,ptCount);
+  gl.depthMask(true);gl.disable(gl.BLEND);
+
+  // --- bloom ---
+  bloom();
+  // --- composite to screen ---
+  gl.bindFramebuffer(gl.FRAMEBUFFER,null);
+  gl.viewport(0,0,canvas.width,canvas.height);
+  const po=SH.post;gl.useProgram(po.p);
+  gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_2D,RT.scene.tex);gl.uniform1i(po.u.uT,0);
+  gl.activeTexture(gl.TEXTURE1);gl.bindTexture(gl.TEXTURE_2D,RT.bA.tex);gl.uniform1i(po.u.uB,1);
+  gl.uniform1f(po.u.uTime,TIME);
+  gl.uniform1f(po.u.uVig,0.9);
+  gl.uniform1f(po.u.uExpo,1.06);
+  gl.uniform1f(po.u.uShake,P.camShake);
+  const tint=P.dead?[.6,.55,.6]:[1,1,1];
+  gl.uniform3fv(po.u.uTint,tint);
+  gl.disable(gl.DEPTH_TEST);
+  gl.bindVertexArray(fsVAO);gl.drawArrays(gl.TRIANGLES,0,3);
+}
+function fogD(){const bi=biomeIdxAt(P.x,P.z);return (0.00016+BIOMES[bi].storm*.00012)*(1+world.night*.4)}
+
+function drawWorldPoints(){
+  updateFX(DT);
+  // wisps/motes/boss are drawn during their update; ensure those run in update()
+  world.pulseFX=Math.max(0,(world.pulseFX||0)-DT*3);
+}
+
+function bloom(){
+  const src=RT.scene,a=RT.bA,b=RT.bB;
+  gl.disable(gl.DEPTH_TEST);gl.disable(gl.BLEND);
+  // bright pass -> a
+  gl.bindFramebuffer(gl.FRAMEBUFFER,a.fb);gl.viewport(0,0,a.w,a.h);
+  gl.useProgram(SH.bright.p);
+  gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_2D,src.tex);gl.uniform1i(SH.bright.u.uT,0);
+  gl.bindVertexArray(fsVAO);gl.drawArrays(gl.TRIANGLES,0,3);
+  // blur ping-pong
+  gl.useProgram(SH.blur.p);
+  for(let i=0;i<3;i++){
+    gl.bindFramebuffer(gl.FRAMEBUFFER,b.fb);gl.viewport(0,0,b.w,b.h);
+    gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_2D,a.tex);gl.uniform1i(SH.blur.u.uT,0);
+    gl.uniform2f(SH.blur.u.uDir,1.4/a.w,0);gl.drawArrays(gl.TRIANGLES,0,3);
+    gl.bindFramebuffer(gl.FRAMEBUFFER,a.fb);gl.viewport(0,0,a.w,a.h);
+    gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_2D,b.tex);gl.uniform1i(SH.blur.u.uT,0);
+    gl.uniform2f(SH.blur.u.uDir,0,1.4/a.h);gl.drawArrays(gl.TRIANGLES,0,3);
+  }
+}
+
+/* ============================================================================
+   SAVE STATE
+   ========================================================================= */
+const SAVE_KEY="aeralith.v1";
+let S=null;
+function freshSave(){
+  return{seed:(Math.random()*1e6)|0,lumens:0,ng:0,
+    hearts:4,pos:null,
+    upg:{},ws:{},relics:{},courses:{},beacons:[0,0,0,0,0,0,0],
+    codex:[1,1,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0],
+    ach:{},pois:{},
+    stats:{wisps:0,wsCount:0,lumTotal:0,courses:0,beacons:0,deaths:0,time:0,dist:0},
+    opt:{mus:.7,sfx:.8,qual:.8,fov:62,inv:0},
+    seen:{}}
+}
+function saveGame(){
+  if(!S)return;
+  S.pos={x:P.x,y:P.y,z:P.z,yaw:P.yaw};
+  S.hearts=P.hearts;
+  S.stats.time=(S.stats.time|0)+0; // updated in loop
+  S.stats.dist=Math.round(P.distFlown);
+  try{localStorage.setItem(SAVE_KEY,JSON.stringify(S))}catch(e){}
+}
+function loadSave(){
+  try{const raw=localStorage.getItem(SAVE_KEY);if(!raw)return null;
+    const s=JSON.parse(raw);if(!s.seed)return null;return s}catch(e){return null}}
+function hasSave(){return!!loadSave()}
+
+/* ============================================================================
+   UI HELPERS
+   ========================================================================= */
+function toast(txt,cls){
+  const t=document.createElement("div");t.className="toast"+(cls?" "+cls:"");t.textContent=txt;
+  $("toasts").appendChild(t);setTimeout(()=>t.remove(),4600)}
+let subTimer=0;
+function subtitle(who,txt,dur){
+  const el=$("subtitle");
+  el.innerHTML=(who?'<span class="who">'+who+'</span>':'')+txt;
+  el.classList.add("on");subTimer=dur||5}
+function oroSay(txt){subtitle("ORO",txt,5.5)}
+let bannerTimer=0;
+function bannerShow(name,sub){
+  $("bannerName").textContent=name;$("bannerSub").textContent=sub||"";
+  const b=$("banner");b.classList.remove("on");void b.offsetWidth;b.classList.add("on")}
+function dmgFlash(){const d=$("dmg");d.style.transition="none";d.style.opacity=".9";
+  requestAnimationFrame(()=>{d.style.transition="opacity .6s";d.style.opacity="0"})}
+function healFlash(){const d=$("heal");d.style.transition="none";d.style.opacity=".7";
+  requestAnimationFrame(()=>{d.style.transition="opacity .8s";d.style.opacity="0"})}
+function ach(id){return!!(S&&S.ach[id])}
+function giveAch(id){
+  if(!S||S.ach[id])return;S.ach[id]=1;
+  const f=FEATS.find(f=>f[0]===id);
+  toast("Feat — "+(f?f[1]:id),"gold");
+  // meta feats
+  if(id!=="allmax"){
+    const allM=UPG.every(u=>upLvl(u.id)>=5);if(allM)giveAch("allmax")}
+  saveGame()}
+function revealCodexFor(){
+  // reveal a couple locked codex entries on progress
+  for(let i=0;i<CODEX.length;i++)if(!S.codex[i]&&Math.random()<.14){S.codex[i]=1;break}}
+
+/* ============================================================================
+   HUD
+   ========================================================================= */
+let nextBeacon=0;
+function updateNextBeacon(){
+  nextBeacon=-1;
+  for(let i=0;i<BEACONS.length;i++)if(!S.beacons[i]){nextBeacon=i;break}
+}
+function buildHearts(){
+  const h=$("hearts");h.innerHTML="";
+  for(let i=0;i<P.maxHearts;i++){const d=document.createElement("div");
+    d.className="heart"+(i<P.hearts?" full":"");h.appendChild(d)}}
+let lastHearts=-1,lastMaxHearts=-1;
+function updateHUD(){
+  if(P.hearts!==lastHearts||P.maxHearts!==lastMaxHearts){buildHearts();lastHearts=P.hearts;lastMaxHearts=P.maxHearts}
+  const st=playerStats();
+  $("emberFill").style.width=clamp(P.ember/st.emberMax*100,0,100)+"%";
+  $("lumens").textContent=fmt(S.lumens);
+  if(lumenPulse>0){$("lumens").style.transform="scale("+(1+lumenPulse*.12)+")";lumenPulse-=DT*3}
+  else $("lumens").style.transform="";
+  $("speedV").innerHTML=Math.round(P.speed)+"<span> KN</span>";
+  $("altV").innerHTML=Math.round(P.y)+"<span> ALT</span>";
+  const lit=S.beacons.filter(Boolean).length;
+  $("wsHud").textContent=lit+" / 7 beacons lit";
+  $("relicHud").textContent=Object.keys(S.relics).length+" relics · "+Object.keys(S.ws).length+" waystones";
+  // quest
+  if(nextBeacon>=0){
+    const b=BEACONS[nextBeacon];
+    const bx=Math.cos(b.a)*b.d,bz=Math.sin(b.a)*b.d;
+    const d=Math.round(dist2(P.x,P.z,bx,bz));
+    $("questText").textContent="Light the beacon of "+b.name+".";
+    $("questSub").textContent=d+"m · bearing "+bearing(bx-P.x,bz-P.z);
+  }else{
+    $("questText").textContent="The Spine is lit. Fly the second dawn.";
+    $("questSub").textContent="";
+  }
+  drawCompass();
+  // boss bar
+  $("bossWrap").classList.toggle("on",!!world.boss);
+}
+function bearing(dx,dz){
+  const a=Math.atan2(dx,dz);const dirs=["N","NE","E","SE","S","SW","W","NW"];
+  return dirs[Math.round(((a+TAU)%TAU)/TAU*8)%8]}
+const compC=$("compass"),compX=compC.getContext("2d");
+function drawCompass(){
+  const w=compC.width,h=compC.height;compX.clearRect(0,0,w,h);
+  compX.save();compX.translate(w/2,h/2);
+  const cardinals=[[0,"N"],[Math.PI/2,"E"],[Math.PI,"S"],[-Math.PI/2,"W"]];
+  compX.font="20px system-ui";compX.textAlign="center";compX.textBaseline="middle";
+  for(let deg=-90;deg<=90;deg+=15){
+    const rel=wrapPi(deg*Math.PI/180 - (-P.yaw));
+    const px=rel/(Math.PI*.55)*w*.5;
+    if(Math.abs(px)>w*.5)continue;
+    compX.strokeStyle="rgba(255,255,255,.3)";compX.lineWidth=1;
+    compX.beginPath();compX.moveTo(px,-6);compX.lineTo(px,6);compX.stroke()}
+  for(const[ang,lbl]of cardinals){
+    const rel=wrapPi(ang-(-P.yaw));
+    const px=rel/(Math.PI*.55)*w*.5;
+    if(Math.abs(px)>w*.5)continue;
+    compX.fillStyle="rgba(240,230,200,.9)";compX.fillText(lbl,px,-2)}
+  // beacon marker
+  if(nextBeacon>=0){
+    const b=BEACONS[nextBeacon];const bx=Math.cos(b.a)*b.d,bz=Math.sin(b.a)*b.d;
+    const ang=Math.atan2(bx-P.x,bz-P.z);
+    const rel=wrapPi(ang-(-P.yaw));
+    let px=clamp(rel/(Math.PI*.55)*w*.5,-w*.5+8,w*.5-8);
+    compX.fillStyle="#f0c46a";compX.beginPath();
+    compX.moveTo(px,10);compX.lineTo(px-7,22);compX.lineTo(px+7,22);compX.fill()}
+  compX.restore()}
+
+/* ============================================================================
+   INPUT
+   ========================================================================= */
+const keys={};let mouseSteer=false,mdx=0,mdy=0;
+addEventListener("keydown",e=>{
+  const k=e.key.toLowerCase();keys[k]=true;
+  if(["arrowup","arrowdown","arrowleft","arrowright"," "].includes(k))e.preventDefault();
+  if(k==="escape")onEsc();
+  if(state==="play"){
+    if(k==="m")toggleMap();
+    if(k==="u"&&P.nearWS&&P.nearWS.active)openUpgrades();
+    if(k==="h")openScreen("howScr");
+  }
+  if(k==="enter"&&state==="dead")respawn();
+});
+addEventListener("keyup",e=>{keys[e.key.toLowerCase()]=false});
+canvas.addEventListener("click",()=>{
+  audioInit();
+  if(state==="play"&&!mouseSteer){canvas.requestPointerLock&&canvas.requestPointerLock()}});
+document.addEventListener("pointerlockchange",()=>{mouseSteer=document.pointerLockElement===canvas});
+document.addEventListener("mousemove",e=>{if(mouseSteer){mdx+=e.movementX;mdy+=e.movementY}});
+addEventListener("blur",()=>{for(const k in keys)keys[k]=false});
+
+/* ============================================================================
+   STATE MACHINE
+   ========================================================================= */
+let state="boot"; // boot|title|play|pause|map|dead|cine
+function openScreen(id){$(id).classList.add("on")}
+function closeScreen(id){$(id).classList.remove("on")}
+document.querySelectorAll(".pclose").forEach(b=>b.onclick=()=>{sfx("click");closeScreen(b.dataset.close);
+  if(b.dataset.close==="upScr"&&state==="play"){}});
+
+function onEsc(){
+  if(state==="play"){pauseGame()}
+  else if(state==="pause"){resumeGame()}
+  else if(state==="map"){toggleMap()}
+  else{["howScr","setScr","upScr"].forEach(closeScreen);
+    if(state==="pauseSub"){state="pause"}}
+}
+function startPlay(fromSave){
+  audioInit();
+  if(fromSave){
+    SEED=S.seed;
+    resetPlayer(null);
+    if(S.pos){P.x=S.pos.x;P.y=S.pos.y;P.z=S.pos.z;P.yaw=S.pos.yaw||0}
+    P.hearts=S.hearts||P.maxHearts;P.distFlown=S.stats.dist||0;
+  }
+  applyOpts();
+  resetWorld();updateNextBeacon();
+  closeScreen("title");
+  state="play";document.body.classList.remove("cine");
+  $("hud").classList.add("on");
+  fadeIn();
+  setTimeout(()=>$("hint").style.opacity="0",9000);
+}
+function newGame(){
+  S=freshSave();
+  S.opt=Object.assign(freshSave().opt,loadOpts());
+  saveGame();
+  SEED=S.seed;
+  resetPlayer(null);
+  startPlay(false);
+  // opening cinematic
+  cine_open();
+}
+function continueGame(){
+  const s=loadSave();if(!s)return;S=s;
+  // migrate opts
+  S.opt=Object.assign(freshSave().opt,S.opt||{});
+  startPlay(true);
+  bannerShow("AERALITH","voyage resumed · "+S.beacons.filter(Boolean).length+" / 7 beacons");
+}
+function pauseGame(){if(state!=="play")return;state="pause";openScreen("pauseScr");saveGame();
+  if(Audio2.musG)Audio2.musG.gain.setTargetAtTime(Audio2.musVol*.4,Audio2.ctx.currentTime,.3)}
+function resumeGame(){closeScreen("pauseScr");["howScr","setScr"].forEach(closeScreen);state="play";
+  if(Audio2.musG)Audio2.musG.gain.setTargetAtTime(Audio2.musVol,Audio2.ctx.currentTime,.3)}
+function quitToTitle(){
+  saveGame();closeScreen("pauseScr");closeScreen("upScr");closeScreen("mapScr");
+  state="title";$("hud").classList.remove("on");openScreen("title");refreshTitle()}
+
+/* death & respawn */
+const DEATHS=[
+ "The cloud sea took the Dawnstrider gently, the way it takes everything — without malice, without return.",
+ "Somewhere a waystone hums six beats into the mist, and no one answers.",
+ "Fen falls, and the map forgets a single line, and the world drifts a little further apart.",
+ "The sea does not keep what it swallows. But the light you lit still burns. That much is true.",
+ "You were the last cartographer. You are not, it turns out, the last chance.",
+];
+function die(cause){
+  if(P.dead)return;P.dead=true;state="dead";
+  S.stats.deaths=(S.stats.deaths|0)+1;
+  sfx("death");setScene("dusk");
+  for(let i=0;i<60;i++)spawnFX(P.x,P.y,P.z,(Math.random()-.5)*40,(Math.random()-.5)*30,(Math.random()-.5)*40,2,4,.7,.7,.9,1);
+  P.camShake=1;
+  $("deathTxt").textContent=DEATHS[(Math.random()*DEATHS.length)|0];
+  setTimeout(()=>{if(state==="dead")openScreen("deathScr")},1400);
+  saveGame();
+}
+function respawn(){
+  closeScreen("deathScr");
+  // respawn at nearest active waystone or origin
+  let ws=null,bd=1e9;
+  for(const id in S.ws){const p=S.pois[id];if(!p)continue;
+    const d=dist2(P.x,P.z,p.x,p.z);if(d<bd){bd=d;ws={x:p.x,z:p.z,y:180}}}
+  resetPlayer(ws);
+  if(!ws){P.x=0;P.y=230;P.z=-40}
+  world.boss=null;$("bossWrap").classList.remove("on");
+  state="play";fadeIn();setScene("calm");
+}
+
+/* ============================================================================
+   UPGRADES UI
+   ========================================================================= */
+function openUpgrades(){
+  if(state!=="play")return;
+  sfx("click");renderUpgrades();openScreen("upScr")}
+function renderUpgrades(){
+  $("upWallet").textContent="◈ "+fmt(S.lumens)+" lumens";
+  const g=$("upGrid");g.innerHTML="";
+  for(const u of UPG){
+    const lv=upLvl(u.id),cost=upCost(u.id),maxed=lv>=5;
+    const card=document.createElement("div");card.className="upcard";
+    let pips="";for(let i=0;i<6;i++)pips+='<div class="pip'+(i<lv?" on":"")+'"></div>';
+    card.innerHTML='<div class="upname">'+u.name+'</div><div class="updesc">'+u.desc+'</div>'+
+      '<div class="pips">'+pips+'</div>'+
+      (maxed?'<button class="buyb" disabled>Mastered</button>':
+       '<button class="buyb" '+(S.lumens<cost?"disabled":"")+'>Refit — ◈ '+fmt(cost)+'</button>');
+    const btn=card.querySelector("button");
+    if(!maxed&&S.lumens>=cost)btn.onclick=()=>{
+      S.lumens-=cost;S.upg[u.id]=lv+1;sfx("attune");
+      const st=playerStats();if(u.id==="hull"){P.maxHearts=st.maxHearts;P.hearts++}
+      if(lv+1>=5&&!ach("maxed"))giveAch("maxed");
+      renderUpgrades();saveGame()};
+    g.appendChild(card)}
+}
+
+/* ============================================================================
+   MAP / CODEX / RECORDS
+   ========================================================================= */
+let mapPan={x:0,y:0,zoom:.06},mapDrag=null;
+function toggleMap(){
+  if(state==="map"){closeScreen("mapScr");state="play";return}
+  if(state!=="play")return;
+  state="map";sfx("click");openScreen("mapScr");
+  mapPan.x=P.x;mapPan.y=P.z;renderCodex();renderRecords();renderMap();saveGame();
+  $("ngWrap").classList.toggle("hide",S.beacons.filter(Boolean).length<7)}
+const mapC=$("mapC"),mapCtx=mapC.getContext("2d");
+function renderMap(){
+  const dpr=Math.min(2,devicePixelRatio||1);
+  const rect=mapC.getBoundingClientRect();
+  mapC.width=rect.width*dpr;mapC.height=rect.height*dpr;
+  const ctx=mapCtx;ctx.setTransform(dpr,0,0,dpr,0,0);
+  const W=rect.width,H=rect.height;
+  ctx.fillStyle="#070c16";ctx.fillRect(0,0,W,H);
+  const z=mapPan.zoom;
+  const toS=(wx,wz)=>[W/2+(wx-mapPan.x)*z,H/2+(wz-mapPan.y)*z];
+  // biome rings
+  for(let i=BIOMES.length-1;i>=0;i--){
+    const rad=[2200,4200,6400,8800,11000][i]*z;
+    const c=BIOMES[i].hor;
+    ctx.beginPath();ctx.arc(...toS(0,0),rad,0,TAU);
+    ctx.fillStyle="rgba("+(c[0]*90|0)+","+(c[1]*90|0)+","+(c[2]*90|0)+",.14)";ctx.fill()}
+  // lattice lines between attuned waystones
+  const wsPts=[];for(const id in S.ws){const p=S.pois[id];if(p)wsPts.push(p)}
+  ctx.strokeStyle="rgba(94,232,210,.16)";ctx.lineWidth=1;
+  for(let i=0;i<wsPts.length;i++)for(let j=i+1;j<wsPts.length;j++){
+    if(dist2(wsPts[i].x,wsPts[i].z,wsPts[j].x,wsPts[j].z)<1600){
+      ctx.beginPath();ctx.moveTo(...toS(wsPts[i].x,wsPts[i].z));ctx.lineTo(...toS(wsPts[j].x,wsPts[j].z));ctx.stroke()}}
+  // discovered POIs
+  for(const id in S.pois){
+    const p=S.pois[id];const[sx,sy]=toS(p.x,p.z);
+    if(sx<-20||sx>W+20||sy<-20||sy>H+20)continue;
+    if(p.k==="w"){const on=S.ws[id];ctx.fillStyle=on?"#5ee8d2":"rgba(120,140,160,.5)";
+      ctx.save();ctx.translate(sx,sy);ctx.rotate(Math.PI/4);ctx.fillRect(-4,-4,8,8);ctx.restore()}
+    else if(p.k==="r"){ctx.fillStyle=S.relics[id]?"rgba(120,110,140,.4)":"#b48cff";
+      ctx.beginPath();ctx.arc(sx,sy,3.5,0,TAU);ctx.fill()}
+    else if(p.k==="c"){ctx.strokeStyle=S.courses[id]?"rgba(120,110,90,.4)":"#f0c46a";
+      ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(sx,sy,4,0,TAU);ctx.stroke()}}
+  // beacons
+  for(let i=0;i<BEACONS.length;i++){
+    const b=BEACONS[i];const bx=Math.cos(b.a)*b.d,bz=Math.sin(b.a)*b.d;
+    const[sx,sy]=toS(bx,bz);
+    const lit=S.beacons[i];
+    ctx.beginPath();ctx.arc(sx,sy,7,0,TAU);
+    ctx.fillStyle=lit?"#ffd98a":(i===nextBeacon?"#f0c46a":"rgba(150,150,170,.4)");
+    ctx.fill();
+    if(!lit&&i===nextBeacon){ctx.strokeStyle="#f0c46a";ctx.lineWidth=2;
+      ctx.beginPath();ctx.arc(sx,sy,12,0,TAU);ctx.stroke()}
+    ctx.fillStyle=lit?"#ffe9b8":"rgba(200,200,210,.7)";ctx.font="10px system-ui";
+    ctx.textAlign="center";ctx.fillText(b.name,sx,sy-12)}
+  // player
+  const[px,py]=toS(P.x,P.z);
+  ctx.save();ctx.translate(px,py);ctx.rotate(P.yaw);
+  ctx.fillStyle="#fff";ctx.beginPath();ctx.moveTo(0,-8);ctx.lineTo(5,6);ctx.lineTo(-5,6);ctx.fill();ctx.restore();
+  // stats
+  $("stBeacons").textContent=S.beacons.filter(Boolean).length+" / 7";
+  $("stWs").textContent=Object.keys(S.ws).length;
+  $("stRelics").textContent=Object.keys(S.relics).length;
+  $("stCourses").textContent=Object.keys(S.courses).length;
+}
+mapC.addEventListener("mousedown",e=>{mapDrag={x:e.clientX,y:e.clientY,px:mapPan.x,py:mapPan.y,moved:0}});
+addEventListener("mousemove",e=>{if(!mapDrag)return;
+  const dx=e.clientX-mapDrag.x,dy=e.clientY-mapDrag.y;mapDrag.moved+=Math.abs(dx)+Math.abs(dy);
+  mapPan.x=mapDrag.px-dx/mapPan.zoom;mapPan.y=mapDrag.py-dy/mapPan.zoom;renderMap()});
+addEventListener("mouseup",e=>{
+  if(mapDrag&&mapDrag.moved<4&&state==="map"){tryTravel(e)}mapDrag=null});
+mapC.addEventListener("wheel",e=>{e.preventDefault();
+  mapPan.zoom=clamp(mapPan.zoom*(e.deltaY<0?1.15:.87),.012,.4);renderMap()},{passive:false});
+function tryTravel(e){
+  const rect=mapC.getBoundingClientRect();
+  const mx=e.clientX-rect.left,my=e.clientY-rect.top;
+  const z=mapPan.zoom;
+  for(const id in S.ws){const p=S.pois[id];if(!p)continue;
+    const sx=rect.width/2+(p.x-mapPan.x)*z,sy=rect.height/2+(p.z-mapPan.y)*z;
+    if(Math.hypot(mx-sx,my-sy)<12){
+      // fast travel
+      closeScreen("mapScr");sfx("travel");oroSay(ORO.travel);
+      fadeThen(()=>{P.x=p.x;P.z=p.z;P.y=(P.y<180?200:P.y);P.vx=P.vy=P.vz=0;P.speed=70;
+        ensureChunks(P.x,P.z);state="play";fadeIn()});
+      return}}
+}
+function renderCodex(){
+  const list=$("codexList");list.innerHTML="";
+  for(let i=0;i<CODEX.length;i++){
+    const got=S.codex[i];
+    const e=document.createElement("div");e.className="codexE"+(got?"":" locked");
+    e.innerHTML='<div class="codexT">'+(got?CODEX[i][0]:"— sealed —")+'</div>'+
+      (got?'<div class="codexX">'+CODEX[i][1]+'</div>':'<div class="codexX">Recover more relics and attune waystones to unseal this record.</div>');
+    list.appendChild(e)}
+}
+function renderRecords(){
+  const st=S.stats;
+  $("stTime").textContent=Math.floor(st.time/3600)+"h "+Math.floor(st.time%3600/60)+"m";
+  $("stDist").textContent=fmt(Math.round(P.distFlown))+" m";
+  $("stLum").textContent=fmt(st.lumTotal|0);
+  $("stWisps").textContent=fmt(st.wisps|0);
+  $("stDeaths").textContent=st.deaths|0;
+  const a=$("achList");a.innerHTML="";
+  for(const f of FEATS){const got=ach(f[0]);const e=document.createElement("div");
+    e.className="achE"+(got?" got":"");
+    e.innerHTML="<span>"+f[1]+(got?"":" — "+f[2])+"</span>";a.appendChild(e)}
+}
+document.querySelectorAll(".tab").forEach(t=>t.onclick=()=>{
+  sfx("click");
+  document.querySelectorAll(".tab").forEach(x=>x.classList.remove("sel"));t.classList.add("sel");
+  document.querySelectorAll(".tabpage").forEach(p=>p.classList.remove("on"));
+  $(t.dataset.tab).classList.add("on");
+  if(t.dataset.tab==="tabCodex")renderCodex();if(t.dataset.tab==="tabRec")renderRecords()});
+$("ngBtn").onclick=()=>{
+  if(!confirm("Begin the Second Dawn? The archipelago is reshaped with a new seed. Your glider, lumens, and codex remain."))return;
+  S.ng++;S.seed=(Math.random()*1e6)|0;SEED=S.seed;
+  S.ws={};S.relics={};S.courses={};S.beacons=[0,0,0,0,0,0,0];S.pois={};
+  resetWorld();resetPlayer(null);updateNextBeacon();
+  closeScreen("mapScr");state="play";fadeIn();
+  bannerShow("The Second Dawn","the world is new · your wings remember");saveGame()};
+
+/* ============================================================================
+   CINEMATICS
+   ========================================================================= */
+function letterbox(on){document.body.classList.toggle("cine",on)}
+function cine_open(){
+  state="cine";letterbox(true);
+  const lines=[
+    ["ORO",ORO.intro1,4.5],
+    ["ORO",ORO.intro2,4.5],
+    ["",'Seven beacons stand dark along the Spine of the World.',4.5],
+    ["",'You are the last cartographer. Fly.',4],
+  ];
+  let i=0;
+  const run=()=>{
+    if(i>=lines.length||state!=="cine"){endOpen();return}
+    subtitle(lines[i][0],lines[i][1],lines[i][2]);
+    const d=lines[i][2];i++;setTimeout(run,d*1000)};
+  fadeIn();setTimeout(run,1400);
+  // allow skip
+  cineSkip=endOpen;
+}
+function endOpen(){cineSkip=null;letterbox(false);state="play";$("subtitle").classList.remove("on");}
+let cineSkip=null;
+function cine_beacon(bi){
+  bannerShow("Beacon Lit — "+BEACONS[bi].name,BEACONS[bi].post);
+  subtitle("",BEACONS[bi].post,6);
+  flashV=1;
+  // brief golden pulse
+  for(let i=0;i<120;i++){const a=Math.random()*TAU,r=Math.random()*400;
+    const[,,bx,bz]=BCHUNKS[bi];
+    spawnFX(bx+Math.cos(a)*r*.2,150+Math.random()*200,bz+Math.sin(a)*r*.2,
+      Math.cos(a)*40,Math.random()*60,Math.sin(a)*40,2.5,4,1,.85,.5,-3)}
+}
+function cine_ending(){
+  state="cine";letterbox(true);saveGame();
+  const lines=[
+    ["",BEACONS[6].post,6],
+    ["ORO","Seven lights. The Spine of the World remembers its shape.",5.5],
+    ["ORO","Look east, Fen. The dark is only uncharted. Not lost. Never lost.",6],
+    ["","The dawn returns.",4],
+  ];
+  let i=0;const run=()=>{
+    if(i>=lines.length){$("subtitle").classList.remove("on");$("credits").classList.add("on");
+      setTimeout(()=>{$("credits").classList.remove("on");letterbox(false);state="play";},13000);return}
+    subtitle(lines[i][0],lines[i][1],lines[i][2]);const d=lines[i][2];i++;setTimeout(run,d*1000)};
+  run();
+}
+
+/* skip cinematic on key */
+addEventListener("keydown",e=>{if(cineSkip&&(e.key===" "||e.key==="Enter")){cineSkip()}});
+
+/* ============================================================================
+   FADES
+   ========================================================================= */
+function fadeIn(){const f=$("fade");f.classList.remove("white");f.style.opacity="0"}
+function fadeOut(cb){const f=$("fade");f.style.opacity="1";if(cb)setTimeout(cb,1100)}
+function fadeThen(cb){fadeOut(()=>{cb();setTimeout(fadeIn,200)})}
+
+/* ============================================================================
+   OPTIONS
+   ========================================================================= */
+function loadOpts(){try{return JSON.parse(localStorage.getItem("aeralith.opt")||"{}")}catch(e){return{}}}
+function saveOpts(){if(S)localStorage.setItem("aeralith.opt",JSON.stringify(S.opt))}
+function applyOpts(){
+  Audio2.musVol=S.opt.mus;Audio2.sfxVol=S.opt.sfx;
+  if(Audio2.musG)Audio2.musG.gain.value=S.opt.mus;
+  if(Audio2.sfxG)Audio2.sfxG.gain.value=S.opt.sfx;
+  RES=S.opt.qual;allocRT();
+  $("setMus").value=S.opt.mus*100;$("setSfx").value=S.opt.sfx*100;$("setFov").value=S.opt.fov;
+  document.querySelectorAll("#setQual .seg").forEach(b=>b.classList.toggle("sel",+b.dataset.q===S.opt.qual));
+  document.querySelectorAll("#setInv .seg").forEach(b=>b.classList.toggle("sel",+b.dataset.i===S.opt.inv));
+}
+function wireSettings(){
+  $("setMus").oninput=e=>{S.opt.mus=e.target.value/100;Audio2.musVol=S.opt.mus;
+    if(Audio2.musG)Audio2.musG.gain.value=S.opt.mus;saveOpts()};
+  $("setSfx").oninput=e=>{S.opt.sfx=e.target.value/100;Audio2.sfxVol=S.opt.sfx;
+    if(Audio2.sfxG)Audio2.sfxG.gain.value=S.opt.sfx;sfx("click");saveOpts()};
+  $("setFov").oninput=e=>{S.opt.fov=+e.target.value;saveOpts()};
+  document.querySelectorAll("#setQual .seg").forEach(b=>b.onclick=()=>{
+    S.opt.qual=+b.dataset.q;RES=S.opt.qual;allocRT();applyOpts();sfx("click");saveOpts()});
+  document.querySelectorAll("#setInv .seg").forEach(b=>b.onclick=()=>{
+    S.opt.inv=+b.dataset.i;applyOpts();sfx("click");saveOpts()});
+}
+
+/* ============================================================================
+   TITLE
+   ========================================================================= */
+function refreshTitle(){
+  const has=hasSave();
+  $("btnContinue").disabled=!has;
+  if(has){const s=loadSave();
+    $("saveInfo").textContent=s.beacons.filter(Boolean).length+" / 7 beacons · "+
+      Object.keys(s.ws).length+" waystones · "+fmt(s.lumens)+" lumens"+(s.ng?" · Dawn "+(s.ng+1):"");}
+  else $("saveInfo").textContent="No voyage yet — chart your first sky.";
+}
+function wireMenu(){
+  $("btnContinue").onclick=()=>{sfx("click");if(hasSave())continueGame()};
+  $("btnNew").onclick=()=>{sfx("click");
+    if(hasSave()&&!confirm("Start a new voyage? This overwrites your current chart."))return;newGame()};
+  $("btnHow").onclick=()=>{sfx("click");openScreen("howScr")};
+  $("btnSet").onclick=()=>{sfx("click");if(!S)S=freshSave();applyOpts();openScreen("setScr")};
+  $("btnResume").onclick=()=>{sfx("click");resumeGame()};
+  $("btnPHow").onclick=()=>{sfx("click");openScreen("howScr")};
+  $("btnPSet").onclick=()=>{sfx("click");applyOpts();openScreen("setScr")};
+  $("btnQuit").onclick=()=>{sfx("click");quitToTitle()};
+}
+
+/* ============================================================================
+   MAIN LOOP
+   ========================================================================= */
+let TIME=0,DT=0,lastT=0,acc=0;
+function loop(now){
+  requestAnimationFrame(loop);
+  const dt=Math.min(.05,(now-lastT)/1000||0);lastT=now;
+  TIME+=dt;DT=dt;
+  flashV=Math.max(0,flashV-dt*1.5);
+  if(subTimer>0){subTimer-=dt;if(subTimer<=0)$("subtitle").classList.remove("on")}
+
+  if(state==="play"||state==="cine"){
+    if(state==="play"){
+      updatePlayer(dt);
+      spawnWisps(dt);
+      updateBoss(dt);
+      S.stats.time=(S.stats.time||0)+dt;
+      oro_lowAltCD=Math.max(0,oro_lowAltCD-dt);
+      // ambient ORO chatter
+      oroAmbT-=dt;
+      if(oroAmbT<=0){oroAmbT=42+Math.random()*40;
+        if(Math.random()<.6&&subTimer<=0)oroSay(ORO.amb[(Math.random()*ORO.amb.length)|0])}
+      // periodic autosave
+      saveT-=dt;if(saveT<=0){saveT=12;saveGame()}
+    }
+    ensureChunks(P.x,P.z);
+    updateEnv(dt);
+    updateCamera(dt);
+    tickScore(dt);
+    render();
+    if(state==="play")updateHUD();
+  }else{
+    // title/pause: slow orbit camera over the world for a living menu
+    updateEnv(dt);
+    idleCam(dt);
+    tickScore(dt);
+    render();
+  }
+}
+let oroAmbT=30,saveT=12,idleT=0;
+function idleCam(dt){
+  idleT+=dt;
+  // drift a virtual camera over origin islands
+  P.x=Math.cos(idleT*.05)*300;P.z=Math.sin(idleT*.05)*300;P.y=220+Math.sin(idleT*.1)*30;
+  P.yaw=idleT*.05+Math.PI;P.pitch=-.15;P.roll=Math.sin(idleT*.1)*.2;
+  ensureChunks(P.x,P.z);
+  updateCamera(dt);
+}
+
+/* ============================================================================
+   BOOT
+   ========================================================================= */
+function resize(){
+  const dpr=Math.min(2,devicePixelRatio||1);
+  canvas.width=Math.floor(innerWidth*dpr);canvas.height=Math.floor(innerHeight*dpr);
+  allocRT()}
+addEventListener("resize",resize);
+
+function boot(){
+  initShaders();initStatic();initPts();buildGlider();
+  resize();
+  S=loadSave()||freshSave();
+  S.opt=Object.assign(freshSave().opt,loadOpts(),S.opt||{});
+  computeBeaconChunks();
+  wireMenu();wireSettings();applyOpts();refreshTitle();
+  state="title";
+  document.body.classList.add("cine");
+  // warm a few chunks for the menu backdrop
+  SEED=S.seed;idleCam(0);
+  requestAnimationFrame(loop);
+  setTimeout(()=>{$("fade").style.opacity="0";openScreen("title")},400);
+}
+try{boot()}catch(err){
+  console.error(err);
+  $("nogl").style.display="flex";
+  $("nogl").innerHTML="<div>The voyage failed to launch.<br><br><span style='font-size:12px;opacity:.7'>"+
+    (err&&err.message?err.message:err)+"</span></div>";
+}
+</script>
+</body>
+</html>
