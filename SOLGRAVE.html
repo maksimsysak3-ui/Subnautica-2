@@ -86,9 +86,12 @@ body.playing, body.playing canvas#gl{cursor:none}
 @keyframes panelIn{from{opacity:0;transform:translateY(22px) scale(.97)}to{opacity:1;transform:none}}
 
 #title{font-size:64px;font-weight:800;letter-spacing:.34em;padding-left:.34em;line-height:1;
-  background:linear-gradient(180deg,#fff 12%,var(--amber) 55%,#8a4b1d 100%);
+  background:linear-gradient(115deg,#fff 8%,var(--amber) 34%,#8a4b1d 52%,var(--amber) 70%,#fff 96%);
+  background-size:230% 100%;
   -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;
-  filter:drop-shadow(0 0 26px rgba(255,180,84,.35))}
+  filter:drop-shadow(0 0 26px rgba(255,180,84,.35));
+  animation:titleSheen 7s ease-in-out infinite}
+@keyframes titleSheen{0%,100%{background-position:8% 0}50%{background-position:92% 0}}
 #subtitle{margin-top:10px;font-size:12px;letter-spacing:.52em;padding-left:.52em;color:#8fa4bc;text-transform:uppercase}
 #seedlbl{margin-top:14px;font-size:10px;letter-spacing:.3em;color:#5c6f86}
 
@@ -161,6 +164,93 @@ body.playing, body.playing canvas#gl{cursor:none}
   border-radius:4px;padding:1px 7px;margin-right:6px}
 #helpBody .sec{margin-top:10px;color:var(--amber);letter-spacing:.3em;font-weight:800;font-size:11px}
 
+.screen.trans{background:linear-gradient(90deg,rgba(4,6,11,.15) 0%,rgba(4,6,11,0) 45%,rgba(4,6,11,.78) 78%);
+  justify-content:flex-end;align-items:center}
+#hgPanel{width:400px;max-height:88vh;overflow-y:auto;margin-right:3.5vw;background:var(--panel);
+  border:1px solid var(--edge);border-radius:14px;padding:26px 30px;text-align:center;
+  box-shadow:0 24px 80px rgba(0,0,0,.7);backdrop-filter:blur(10px);animation:panelIn .45s cubic-bezier(.2,.9,.3,1.2)}
+#hgHead{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.hgArrow{font-size:34px;line-height:1;color:var(--amber);cursor:pointer;padding:4px 14px;border-radius:8px;
+  transition:all .15s;user-select:none}
+.hgArrow:hover{background:rgba(255,180,84,.15);text-shadow:0 0 14px rgba(255,180,84,.8)}
+#hgName{font-size:21px;font-weight:800;letter-spacing:.22em;color:#fff}
+#hgOwn{font-size:10px;letter-spacing:.34em;color:var(--teal);margin-top:4px}
+#hgBlurb{margin:14px 0 16px;font-size:11.5px;line-height:1.7;color:#8fa4bc;letter-spacing:.05em;min-height:38px}
+.hgstat{display:flex;align-items:center;gap:10px;margin:7px 0}
+.hgstat span{width:92px;text-align:left;font-size:9.5px;letter-spacing:.22em;color:#7d92aa;font-weight:700}
+.hgbar{flex:1;height:7px;border-radius:4px;background:rgba(255,255,255,.08);overflow:hidden}
+.hgbar div{height:100%;border-radius:4px;background:linear-gradient(90deg,#2bbfae,var(--teal));
+  box-shadow:0 0 10px rgba(77,232,210,.6)}
+#hgSwatches{margin-top:16px}
+#hgSwatches .tag{margin:10px 0 6px}
+.swrow{display:flex;justify-content:center;gap:9px;flex-wrap:wrap}
+.sw{width:26px;height:26px;border-radius:50%;cursor:pointer;border:2px solid rgba(255,255,255,.18);
+  transition:all .13s}
+.sw:hover{transform:scale(1.18)}
+.sw.on{border-color:#fff;box-shadow:0 0 12px rgba(255,255,255,.55)}
+.btn.off{opacity:.35;pointer-events:none}
+#hgCores{margin-top:12px;font-size:12px;letter-spacing:.24em;color:var(--amber)}
+/* ------- chronicle book ------- */
+#bookWrap{display:flex;width:min(880px,94vw);min-height:480px;border-radius:14px;position:relative;
+  background:linear-gradient(135deg,#201812 0%,#171009 48%,#100b06 100%);
+  border:1px solid rgba(214,160,86,.34);
+  box-shadow:0 30px 90px rgba(0,0,0,.8),inset 0 0 60px rgba(0,0,0,.55);animation:panelIn .45s cubic-bezier(.2,.9,.3,1.2)}
+#bookWrap::before{content:'';position:absolute;left:50%;top:3%;bottom:3%;width:2px;
+  background:linear-gradient(180deg,transparent,rgba(0,0,0,.75),transparent)}
+.bookPage{flex:1;padding:32px 34px;display:flex;flex-direction:column;align-items:center}
+#bookPageL{border-right:1px solid rgba(0,0,0,.4)}
+#bookMapFrame{position:relative;width:300px;height:300px;border:1px solid rgba(214,160,86,.4);
+  border-radius:6px;overflow:hidden;box-shadow:0 8px 30px rgba(0,0,0,.6),inset 0 0 24px rgba(0,0,0,.5)}
+#bookMap{width:100%;height:100%;display:block;filter:saturate(1.15) contrast(1.05)}
+#bookMapLock{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  background:rgba(8,6,3,.88);font-size:52px;color:rgba(214,160,86,.5)}
+#bookChNum{margin-top:18px;font-family:Georgia,'Times New Roman',serif;font-size:15px;letter-spacing:.5em;
+  padding-left:.5em;color:#d6a056}
+#bookBiomeTag{margin-top:7px;font-size:10px;letter-spacing:.26em;color:#8a7455;text-transform:uppercase}
+#bookTitle{font-family:Georgia,'Times New Roman',serif;font-style:italic;font-size:31px;color:#efe2c4;
+  margin-bottom:4px;text-shadow:0 2px 10px rgba(0,0,0,.7)}
+#bookSub{font-size:10px;letter-spacing:.3em;color:#d6a056;text-transform:uppercase;margin-bottom:16px}
+#bookLore{font-family:Georgia,'Times New Roman',serif;font-size:13.5px;line-height:1.85;color:#c9bda2;
+  text-align:left;max-width:340px}
+#bookLore p{margin-bottom:10px;text-indent:1.4em}
+#bookStatus{margin:12px 0 4px;font-size:10.5px;letter-spacing:.28em;color:#7fae7f;font-weight:700}
+#bookStatus.locked{color:#8a6f55}
+#bookNav{display:flex;gap:26px;align-items:center;margin-top:12px;font-size:12px;letter-spacing:.2em;color:#d6a056}
+#bookNav span{cursor:pointer;padding:5px 10px;border-radius:6px}
+#bookNav span:hover{background:rgba(214,160,86,.14)}
+#bookNav #bookPageNo{cursor:default;color:#8a7455}
+#bookNav #bookPageNo:hover{background:none}
+.bflip{animation:pageFlip .4s ease-out}
+@keyframes pageFlip{from{opacity:0;transform:perspective(900px) rotateY(-14deg)}to{opacity:1;transform:none}}
+#book .btn{width:250px;border-color:rgba(214,160,86,.55);color:#eecf9a;
+  background:linear-gradient(180deg,rgba(214,160,86,.16),rgba(214,160,86,.04))}
+#book .btn:hover{box-shadow:0 0 26px rgba(214,160,86,.35)}
+/* ------- endless select ------- */
+#endlessList{margin-top:18px;display:flex;flex-direction:column;gap:9px}
+.erow{display:flex;align-items:center;gap:14px;background:rgba(16,22,34,.8);border:1px solid rgba(255,255,255,.1);
+  border-radius:10px;padding:12px 16px;width:480px;max-width:84vw;text-align:left;cursor:pointer;transition:all .14s}
+.erow:hover{border-color:var(--amber);background:rgba(30,36,50,.9);transform:translateX(4px)}
+.erow.locked{opacity:.42;pointer-events:none}
+.erow .esw{width:38px;height:38px;border-radius:8px;flex:none;border:1px solid rgba(255,255,255,.2)}
+.erow .ename{font-size:13px;font-weight:800;letter-spacing:.16em;color:#e8f0f8;text-transform:uppercase}
+.erow .etag{font-size:10px;color:#8299b1;margin-top:3px;letter-spacing:.06em}
+.erow .ediff{margin-left:auto;font-size:10px;letter-spacing:.2em;color:var(--amber)}
+/* ------- cinematics ------- */
+#cineTop,#cineBot{position:fixed;left:0;right:0;height:0;background:#000;z-index:15;
+  transition:height .9s cubic-bezier(.3,.85,.25,1)}
+#cineTop{top:0}#cineBot{bottom:0}
+body.cine #cineTop,body.cine #cineBot{height:11vh}
+#cineText{position:fixed;bottom:13.5vh;left:0;width:100%;text-align:center;z-index:16;pointer-events:none;
+  font-family:Georgia,'Times New Roman',serif;font-style:italic;font-size:18px;line-height:1.6;
+  color:#ecdfc2;text-shadow:0 2px 10px #000,0 0 24px rgba(0,0,0,.8);padding:0 12vw;opacity:0;transition:opacity .5s}
+body.cine #cineText{opacity:1}
+#cineSkip{position:fixed;top:calc(11vh + 14px);right:3vw;z-index:16;cursor:pointer;
+  font-size:10px;letter-spacing:.34em;color:#9fb2c8;border:1px solid rgba(255,255,255,.25);
+  border-radius:7px;padding:8px 16px;background:rgba(8,12,19,.6);transition:all .15s}
+#cineSkip:hover{color:#fff;border-color:var(--amber);box-shadow:0 0 16px rgba(255,180,84,.3)}
+#cineHint{position:fixed;bottom:4vh;width:100%;text-align:center;z-index:16;pointer-events:none;
+  font-size:9px;letter-spacing:.4em;color:#5c6f86;opacity:0;transition:opacity .5s}
+body.cine #cineHint{opacity:1}
 #err{position:fixed;inset:auto 0 0 0;z-index:99;background:#3d0a12;color:#ffb3bc;font:12px/1.6 monospace;
   padding:10px 16px;white-space:pre-wrap;display:none}
 #mutehint{position:fixed;top:14px;right:20px;z-index:11;font-size:10px;letter-spacing:.24em;color:#5c6f86;pointer-events:none}
@@ -203,7 +293,9 @@ body.playing, body.playing canvas#gl{cursor:none}
     <div id="title">SOLGRAVE</div>
     <div id="subtitle">Last glaive under a dying sun</div>
     <div id="seedlbl">SECTOR —</div>
-    <div class="btn" id="btnDeploy">Deploy</div>
+    <div class="btn" id="btnDeploy">Campaign</div>
+    <div class="btn" id="btnEndless">Endless</div>
+    <div class="btn teal" id="btnHangar">Hangar</div>
     <div class="btn teal" id="btnArmory">Armory</div>
     <div class="btn teal" id="btnHelp">Protocol</div>
     <div id="menuCores">⬡ 0 CORES</div>
@@ -231,9 +323,11 @@ body.playing, body.playing canvas#gl{cursor:none}
       <div><b>SPACE / SHIFT</b> boost-dash &nbsp; <b>Q / E</b> rotate view &nbsp; <b>WHEEL</b> zoom</div>
       <div><b>P / ESC</b> pause &nbsp; <b>M</b> sound</div>
       <div class="sec">DIRECTIVE</div>
-      <div>Hold the sector as long as you can. Waves escalate forever; a Warden
-      surfaces every fifth wave. Shatter husks, absorb their light to level up,
-      and choose new armaments. Night runs hotter — watch your scanner.</div>
+      <div><b>CAMPAIGN</b> Six chapters, six worlds, six Wardens. Clear each to break the
+      next seal in the Chronicle and unlock its sector for Endless patrol.</div>
+      <div><b>ENDLESS</b> Hold any unlocked sector as long as you can. Waves escalate forever;
+      a Warden surfaces every fifth wave. Night runs hotter — watch your scanner.</div>
+      <div><b>HANGAR</b> Spend cores on new glaives and refits. Every hull flies differently.</div>
       <div class="sec">SALVAGE</div>
       <div>⬡ Cores drop from elites, wardens and survived waves. Spend them in the
       Armory between runs. Every sector is generated fresh from its seed.</div>
@@ -267,6 +361,71 @@ body.playing, body.playing canvas#gl{cursor:none}
     <div class="btn teal small" id="btnQuit">Abandon Run</div>
   </div>
 </div>
+
+<div id="book" class="screen hidden">
+  <div id="bookWrap">
+    <div class="bookPage" id="bookPageL">
+      <div id="bookMapFrame"><canvas id="bookMap" width="340" height="340"></canvas><div id="bookMapLock" class="hidden">✦</div></div>
+      <div id="bookChNum">CHAPTER I</div>
+      <div id="bookBiomeTag"></div>
+    </div>
+    <div class="bookPage" id="bookPageR">
+      <div id="bookTitle"></div>
+      <div id="bookSub"></div>
+      <div id="bookLore"></div>
+      <div id="bookStatus"></div>
+      <div class="btn" id="bookDeploy">Begin Chapter</div>
+      <div id="bookNav"><span id="bookPrev">‹ PREV</span><span id="bookPageNo">1 / 6</span><span id="bookNext">NEXT ›</span></div>
+      <div class="btn teal small" id="btnBookBack">Close Chronicle</div>
+    </div>
+  </div>
+</div>
+
+<div id="endless" class="screen hidden">
+  <div class="panel">
+    <div id="luTitle" style="color:var(--amber);text-shadow:0 0 22px rgba(255,180,84,.5)">ENDLESS PATROL</div>
+    <div id="luSub">PICK A SECTOR · SURVIVE FOREVER · NEW MAP EVERY DROP</div>
+    <div id="endlessList"></div>
+    <div class="btn teal small" id="btnEndlessBack">Back</div>
+  </div>
+</div>
+
+<div id="victory" class="screen hidden">
+  <div class="panel">
+    <div id="deathTitle" style="color:var(--teal);text-shadow:0 0 30px rgba(77,232,210,.6)" >SECTOR SECURED</div>
+    <div id="vicTitle" style="margin-top:10px;font-size:14px;letter-spacing:.3em;color:var(--amber)"></div>
+    <div id="deathStats2"><div id="vicStats" style="margin:16px 0 6px;font-size:13px;letter-spacing:.14em;color:#9fb2c8;line-height:2"></div></div>
+    <div id="vicCores" style="font-size:15px;letter-spacing:.2em;color:var(--amber);margin-bottom:8px"></div>
+    <div class="btn" id="btnVicNext">Next Chapter →</div>
+    <div class="btn teal" id="btnVicBook">Chronicle</div>
+    <div class="btn teal small" id="btnVicMenu">Return</div>
+  </div>
+</div>
+
+<div id="hangar" class="screen trans hidden">
+  <div id="hgPanel">
+    <div id="hgHead">
+      <div class="hgArrow" id="hgArrowL">&#8249;</div>
+      <div><div id="hgName">VANTA GLAIVE</div><div id="hgOwn">EQUIPPED</div></div>
+      <div class="hgArrow" id="hgArrowR">&#8250;</div>
+    </div>
+    <div id="hgBlurb"></div>
+    <div id="hgStats"></div>
+    <div id="hgSwatches">
+      <div class="tag">Hull Finish</div><div id="hgPrims" class="swrow"></div>
+      <div class="tag">Glow Signature</div><div id="hgGlows" class="swrow"></div>
+    </div>
+    <div class="btn" id="hgAction">Equip</div>
+    <div id="hgCores"></div>
+    <div class="btn teal small" id="btnHangarBack">Back</div>
+  </div>
+</div>
+
+<div id="cineTop"></div>
+<div id="cineBot"></div>
+<div id="cineText"></div>
+<div id="cineHint">CLICK · ADVANCE</div>
+<div id="cineSkip" class="hidden">SKIP ▸▸</div>
 
 <div id="err"></div>
 <script>
@@ -633,6 +792,13 @@ function buildModels() {
   addBox(m, { p: [0, 0.22, 1.58], s: [0.22, 0.22, 0.14] }, C_AMBER, 2.2);
   MESH.turret = buildMesh(m);
 
+  m = MB(); // sentry pod (independent of ship customization)
+  addCyl(m, { p: [0, -0.2, 0], s: [1.1, 0.5, 1.1] }, C_HULL, 0, 6, 0.5, 0.4, true);
+  addBox(m, { p: [0, 0.22, 0], s: [0.45, 0.4, 0.5] }, C_HULL2, 0);
+  addBox(m, { p: [0, 0.3, 0.65], s: [0.13, 0.13, 1.1] }, C_HULL, 0);
+  addBox(m, { p: [0, 0.3, 1.18], s: [0.2, 0.2, 0.12] }, [0.4, 1, 0.9], 2.2);
+  MESH.sentryPod = buildMesh(m);
+
   /* --- creatures (unit-ish size, scaled per instance) --- */
   m = MB(); // skitter — fast wedge
   addBipyr(m, { s: [0.9, 2.0, 0.9], rx: PI / 2 }, [0.95, 0.45, 0.15], 0, 4);
@@ -679,6 +845,54 @@ function buildModels() {
   addBox(m, { p: [0, -0.5, 0], s: [1.6, 0.25, 1.6], ry: 0.4 }, [1, 0.28, 0.22], 1.4);
   MESH.boss = buildMesh(m);
 
+  m = MB(); // shade — a thing of the dark
+  addIco(m, { s: 1.5 }, [0.15, 0.09, 0.24], 0, 0.55);
+  addCyl(m, { p: [0, -0.8, 0], s: [0.9, 1.2, 0.9] }, [0.10, 0.06, 0.18], 0, 5, 0.5, 0, false, );
+  addBox(m, { p: [0, 0.15, 0.72], s: [0.7, 0.10, 0.2] }, [0.82, 0.4, 1], 2.8);
+  MESH.shade = buildMesh(m);
+
+  m = MB(); // broodmother — swollen carrier
+  addIco(m, { s: [2.4, 1.9, 2.4] }, [0.42, 0.26, 0.15], 0, 0.4);
+  for (let i = 0; i < 5; i++) {
+    const a = i / 5 * TAU + 0.4;
+    addIco(m, { p: [Math.cos(a) * 1.0, -0.35, Math.sin(a) * 1.0], s: 0.62 }, [1, 0.5, 0.28], 1.4, 0.25);
+  }
+  addBox(m, { p: [0, 0.35, 1.15], s: [0.5, 0.2, 0.25] }, [1, 0.35, 0.2], 2.2);
+  MESH.brood = buildMesh(m);
+
+  m = MB(); // lancer — living spear
+  addBipyr(m, { s: [0.8, 3.2, 0.8], rx: PI / 2 }, [0.62, 0.20, 0.12], 0, 4);
+  addBox(m, { p: [0, 0.35, -0.8], s: [0.12, 0.7, 0.9] }, [0.45, 0.14, 0.10], 0);
+  addBox(m, { p: [-0.55, 0, -0.8], s: [0.7, 0.1, 0.7], ry: 0.4 }, [0.45, 0.14, 0.10], 0);
+  addBox(m, { p: [0.55, 0, -0.8], s: [0.7, 0.1, 0.7], ry: -0.4 }, [0.45, 0.14, 0.10], 0);
+  addBipyr(m, { p: [0, 0, 1.45], s: [0.3, 0.8, 0.3], rx: PI / 2 }, [1, 0.55, 0.25], 2.4, 4);
+  MESH.lancer = buildMesh(m);
+
+  m = MB(); // pylon — rooted sniper
+  addCyl(m, { p: [0, -0.6, 0], s: [1.5, 1.4, 1.5] }, [0.20, 0.20, 0.26], 0, 6, 0.5, 0.32, false);
+  addCyl(m, { p: [0, 0.35, 0], s: [0.5, 0.9, 0.5] }, [0.14, 0.14, 0.18], 0, 6, 0.5, 0.5, false);
+  addBipyr(m, { p: [0, 1.15, 0], s: [1.1, 1.3, 1.1] }, [0.30, 0.30, 0.38], 0, 6);
+  addBox(m, { p: [0, 1.15, 0.5], s: [0.35, 0.35, 0.3] }, [1, 0.18, 0.18], 3.0);
+  MESH.pylon = buildMesh(m);
+
+  m = MB(); // reaver — circling gun platform
+  addBipyr(m, { s: [1.9, 0.5, 1.9] }, [0.24, 0.34, 0.38], 0, 6);
+  addBox(m, { p: [-0.85, 0, 0.35], s: [0.3, 0.3, 1.1] }, [0.14, 0.18, 0.20], 0);
+  addBox(m, { p: [0.85, 0, 0.35], s: [0.3, 0.3, 1.1] }, [0.14, 0.18, 0.20], 0);
+  addBox(m, { p: [-0.85, 0, 0.95], s: [0.2, 0.2, 0.14] }, [0.5, 1, 0.4], 2.2);
+  addBox(m, { p: [0.85, 0, 0.95], s: [0.2, 0.2, 0.14] }, [0.5, 1, 0.4], 2.2);
+  addBox(m, { p: [0, 0.28, 0], s: [0.5, 0.2, 0.5], ry: 0.6 }, [0.5, 0.9, 1], 1.2);
+  MESH.reaver = buildMesh(m);
+
+  m = MB(); // detonator — walking bomb
+  addIco(m, { s: 1.5 }, [0.30, 0.10, 0.08], 0, 0.3);
+  addIco(m, { s: 0.9 }, [1, 0.42, 0.1], 2.4, 0.2);
+  for (let i = 0; i < 4; i++) {
+    const a = i / 4 * TAU + 0.5;
+    addCyl(m, { p: [Math.cos(a) * 0.7, 0.55, Math.sin(a) * 0.7], s: [0.22, 0.7, 0.22], rz: Math.cos(a) * 0.5, rx: -Math.sin(a) * 0.5 }, [0.22, 0.08, 0.06], 0, 4, 0.5, 0, false);
+  }
+  MESH.detonator = buildMesh(m);
+
   /* --- pickups & ordnance --- */
   m = MB(); addBipyr(m, { s: [0.5, 1.0, 0.5] }, [0.35, 1, 0.88], 1.9, 4); MESH.gem = buildMesh(m);
   m = MB(); addBipyr(m, { s: [0.75, 1.2, 0.75] }, [1, 0.72, 0.25], 2.2, 6); MESH.coreP = buildMesh(m);
@@ -704,65 +918,189 @@ function buildModels() {
 }
 
 /* =====================================================================
-   TERRAIN — endless chunked heightfield with baked props
+   TERRAIN — biome-driven endless heightfields, six worlds in one file
    ===================================================================== */
 const CH = 64, CRES = 32, CHUNK_R = 5;
 const chunks = new Map();
 let chunkQueue = [];
+const CITY_CELL = 26;
+
+const BIOMES = {
+  verdant: { name: 'Verdant Reach', pal: 'verdant', hMul: 1, ridge: 1, seaOff: 0, det: 1,
+    waterCol: [0.015, 0.09, 0.12], waterEmis: 0,
+    zenT: [1, 1, 1], horT: [1, 1, 1], sunT: [1, 1, 1], fogMul: 1, cloud: 0.55, dayLock: null, city: 0,
+    props: { count: 13, rock: 0.50, crystal: 0.30, spire: 0.20, big: 1 },
+    bias: {}, tag: 'lush hills · deep lakes · balanced threat' },
+  desert: { name: 'Sunspire Barrens', pal: 'desert', hMul: 0.85, ridge: 0.55, seaOff: 0.09, det: 1.35,
+    waterCol: [0.03, 0.11, 0.10], waterEmis: 0,
+    zenT: [1.05, 0.95, 0.78], horT: [1.18, 0.95, 0.70], sunT: [1.1, 0.92, 0.72], fogMul: 0.85, cloud: 0.22, dayLock: null, city: 0,
+    props: { count: 12, rock: 0.40, crystal: 0.10, spire: 0.14, cactus: 0.36, big: 1 },
+    bias: { skitter: 1.5, lancer: 1.6 }, tag: 'open dunes · fast packs · nowhere to hide' },
+  frost: { name: 'Palewake Expanse', pal: 'frost', hMul: 1.15, ridge: 1.3, seaOff: -0.03, det: 0.8,
+    waterCol: [0.04, 0.13, 0.19], waterEmis: 0,
+    zenT: [0.85, 0.95, 1.2], horT: [0.9, 1.0, 1.15], sunT: [0.9, 0.95, 1.12], fogMul: 1.3, cloud: 0.7, dayLock: null, city: 0,
+    props: { count: 14, rock: 0.32, crystal: 0.22, spire: 0.08, ice: 0.34, big: 1.25 },
+    bias: { bulwark: 1.6, spitter: 1.3 }, tag: 'frozen ridges · armored columns · killing fog' },
+  ash: { name: 'Vulkan Reach', pal: 'ash', hMul: 1.1, ridge: 1.5, seaOff: 0.045, det: 1.1,
+    waterCol: [1.0, 0.24, 0.03], waterEmis: 1,
+    zenT: [0.55, 0.34, 0.34], horT: [1.15, 0.55, 0.35], sunT: [1.15, 0.6, 0.38], fogMul: 1.15, cloud: 0.3, dayLock: null, city: 0,
+    props: { count: 11, rock: 0.58, crystal: 0.14, spire: 0.24, big: 1 },
+    bias: { detonator: 2.2, husk: 1.3 }, tag: 'molten channels · walking bombs · burnt sky' },
+  city: { name: 'Kessa Sprawl', pal: 'city', hMul: 0.2, ridge: 0, seaOff: 0.1, det: 0.5,
+    waterCol: [0.02, 0.06, 0.08], waterEmis: 0,
+    zenT: [0.8, 0.85, 1.0], horT: [0.95, 0.85, 0.92], sunT: [1, 0.9, 0.85], fogMul: 1.1, cloud: 0.6, dayLock: null, city: 1,
+    props: { count: 6, rock: 0.15, rubble: 0.8, big: 0.8 },
+    bias: { reaver: 1.7, pylon: 1.7, shade: 1.3 }, tag: 'dead towers · sniper nests · flooded streets' },
+  void: { name: 'Null Hollow', pal: 'void', hMul: 0.9, ridge: 0.8, seaOff: 0.02, det: 1,
+    waterCol: [0.06, 0.02, 0.12], waterEmis: 0.35,
+    zenT: [1, 1, 1], horT: [1, 1, 1], sunT: [1, 1, 1], fogMul: 1.1, cloud: 0.08, dayLock: 0.97, city: 0,
+    props: { count: 15, rock: 0.22, crystal: 0.58, spire: 0.14, big: 2.3 },
+    bias: { shade: 2.2, stinger: 1.4, brood: 1.4 }, tag: 'endless night · things that blink behind you' },
+};
+const BIOME_ORDER = ['verdant', 'desert', 'city', 'frost', 'ash', 'void'];
+let BIOME_ID = 'verdant', CUR_BIOME = BIOMES.verdant;
+function setBiome(id) { BIOME_ID = id; CUR_BIOME = BIOMES[id] || BIOMES.verdant; }
+
+const BSTYLE = {
+  verdant: { rockP: [0.36, 0.34, 0.41], spire: [0.40, 0.34, 0.48], crys: [[0.25, 0.95, 0.85], [1.0, 0.62, 0.2]] },
+  desert: { rockP: [0.55, 0.33, 0.20], spire: [0.60, 0.40, 0.25], crys: [[1, 0.62, 0.2], [1, 0.62, 0.2]] },
+  frost: { rockP: [0.42, 0.47, 0.58], spire: [0.52, 0.60, 0.72], crys: [[0.55, 0.8, 1], [0.55, 0.8, 1]] },
+  ash: { rockP: [0.10, 0.09, 0.10], spire: [0.16, 0.13, 0.13], crys: [[1, 0.42, 0.08], [1, 0.42, 0.08]] },
+  city: { rockP: [0.30, 0.30, 0.33], spire: [0.30, 0.30, 0.33], crys: [[0.3, 0.9, 1], [0.3, 0.9, 1]] },
+  void: { rockP: [0.13, 0.09, 0.22], spire: [0.22, 0.15, 0.36], crys: [[0.68, 0.35, 1], [0.42, 0.6, 1]] },
+};
 
 function heightAt(x, z) {
+  const B = CUR_BIOME;
   const c = fbm(x * 0.0045 + 40, z * 0.0045 - 40, 4);
-  let h = (c - 0.42) * 46;
-  const rg = fbm(x * 0.016 + 9, z * 0.016 + 3, 4);
-  const ridge = Math.pow(1 - Math.abs(rg * 2 - 1), 2.2);
-  h += ridge * 22 * sstep(0.45, 0.62, c);
-  h += (fbm(x * 0.07, z * 0.07, 2) - 0.5) * 3.2;
+  let h;
+  if (B.city) {
+    h = (c - 0.30) * 12 + (fbm(x * 0.05, z * 0.05, 2) - 0.5) * 1.4;
+  } else {
+    h = (c - 0.42 + B.seaOff) * 46 * B.hMul;
+    const rg = fbm(x * 0.016 + 9, z * 0.016 + 3, 4);
+    const ridge = Math.pow(1 - Math.abs(rg * 2 - 1), 2.2);
+    h += ridge * 22 * B.ridge * sstep(0.45, 0.62, c);
+    h += (fbm(x * 0.07, z * 0.07, 2) - 0.5) * 3.2 * B.det;
+  }
   const d = Math.hypot(x, z);
   const t = sstep(34, 105, d);
-  return h * t + 2.6 * (1 - t);
+  return h * t + 2.4 * (1 - t);
 }
 const groundY = (x, z) => Math.max(heightAt(x, z), 0);
 
-function terrainColor(h, ny, x, z, jit) {
-  const moist = fbm(x * 0.01 + 100, z * 0.01 - 50, 2);
-  let r, g, b;
-  if (h < 0.9) { r = 0.72; g = 0.60; b = 0.44; }
-  else if (h < 9) {
-    const m = sstep(0.35, 0.65, moist);
-    r = lerp(0.55, 0.26, m); g = lerp(0.50, 0.52, m); b = lerp(0.30, 0.38, m);
-    const t = sstep(0.9, 2.2, h);
-    r = lerp(0.72, r, t); g = lerp(0.60, g, t); b = lerp(0.44, b, t);
-  } else if (h < 16) {
-    const t = sstep(9, 12, h);
-    const m = sstep(0.35, 0.65, moist);
-    r = lerp(lerp(0.55, 0.26, m), 0.50, t); g = lerp(lerp(0.50, 0.52, m), 0.36, t); b = lerp(lerp(0.30, 0.38, m), 0.26, t);
-  } else {
-    const t = sstep(16, 21, h), t2 = sstep(23, 28, h);
-    r = lerp(0.50, 0.36, t); g = lerp(0.36, 0.34, t); b = lerp(0.26, 0.41, t);
-    r = lerp(r, 0.80, t2); g = lerp(g, 0.80, t2); b = lerp(b, 0.87, t2);
+/* deterministic city blocks */
+function cityBuilding(cx, cz) {
+  if (!CUR_BIOME.city) return null;
+  const h1 = hash2(cx * 7 + 13, cz * 7 - 31);
+  if (h1 < 0.44) return null;
+  const bx = (cx + 0.5) * CITY_CELL, bz = (cz + 0.5) * CITY_CELL;
+  if (Math.hypot(bx, bz) < 44) return null;
+  const w = 9 + hash2(cx * 3 + 1, cz * 3 + 2) * 9;
+  const d = 9 + hash2(cx * 3 + 4, cz * 3 + 8) * 9;
+  const bh = 7 + Math.pow(hash2(cx * 5 + 9, cz * 5 + 3), 1.6) * 34;
+  return { bx, bz, w, d, h: bh, glow: hash2(cx + 99, cz - 77) };
+}
+function collideCity(px, pz, r) {
+  if (!CUR_BIOME.city) return null;
+  const cx = Math.floor(px / CITY_CELL), cz = Math.floor(pz / CITY_CELL);
+  let hit = false;
+  for (let dx = -1; dx <= 1; dx++) for (let dz = -1; dz <= 1; dz++) {
+    const b = cityBuilding(cx + dx, cz + dz);
+    if (!b || heightAt(b.bx, b.bz) < 0.3) continue;
+    const ex = b.w / 2 + r, ez = b.d / 2 + r;
+    const rx = px - b.bx, rz = pz - b.bz;
+    if (Math.abs(rx) < ex && Math.abs(rz) < ez) {
+      const pxo = ex - Math.abs(rx), pzo = ez - Math.abs(rz);
+      if (pxo < pzo) px = b.bx + (rx >= 0 ? 1 : -1) * ex;
+      else pz = b.bz + (rz >= 0 ? 1 : -1) * ez;
+      hit = true;
+    }
   }
-  // steep faces read as bare rock
+  return hit ? [px, pz] : null;
+}
+function bulletHitsCity(x, y, z) {
+  if (!CUR_BIOME.city) return false;
+  const b = cityBuilding(Math.floor(x / CITY_CELL), Math.floor(z / CITY_CELL));
+  if (!b) return false;
+  const base = heightAt(b.bx, b.bz);
+  return base >= 0.3 && Math.abs(x - b.bx) < b.w / 2 && Math.abs(z - b.bz) < b.d / 2 && y < base + b.h;
+}
+
+/* biome palettes */
+const mix3 = (a, b, t) => [lerp(a[0], b[0], t), lerp(a[1], b[1], t), lerp(a[2], b[2], t)];
+const PALS = {
+  verdant(h, moist) {
+    if (h < 0.9) return [0.72, 0.60, 0.44];
+    const gr = mix3([0.55, 0.50, 0.30], [0.26, 0.52, 0.38], sstep(0.35, 0.65, moist));
+    if (h < 2.2) return mix3([0.72, 0.60, 0.44], gr, sstep(0.9, 2.2, h));
+    if (h < 12) return mix3(gr, [0.50, 0.36, 0.26], sstep(9, 12, h));
+    if (h < 21) return mix3([0.50, 0.36, 0.26], [0.36, 0.34, 0.41], sstep(16, 21, h));
+    return mix3([0.36, 0.34, 0.41], [0.80, 0.80, 0.87], sstep(23, 28, h));
+  },
+  desert(h, moist) {
+    if (h < 1) return [0.62, 0.47, 0.30];
+    const dn = mix3([0.86, 0.66, 0.38], [0.70, 0.50, 0.32], sstep(0.4, 0.7, moist));
+    if (h < 11) return mix3([0.62, 0.47, 0.30], dn, sstep(1, 3, h));
+    if (h < 19) return mix3(dn, [0.60, 0.34, 0.20], sstep(11, 16, h));
+    return mix3([0.60, 0.34, 0.20], [0.90, 0.76, 0.55], sstep(21, 27, h));
+  },
+  frost(h, moist) {
+    if (h < 0.8) return [0.52, 0.62, 0.72];
+    const sn = mix3([0.80, 0.85, 0.92], [0.68, 0.76, 0.88], sstep(0.4, 0.7, moist));
+    if (h < 12) return mix3([0.52, 0.62, 0.72], sn, sstep(0.8, 2.4, h));
+    if (h < 20) return mix3(sn, [0.42, 0.48, 0.60], sstep(12, 17, h));
+    return mix3([0.42, 0.48, 0.60], [0.94, 0.96, 1.0], sstep(21, 26, h));
+  },
+  ash(h, moist) {
+    if (h < 1) return [0.09, 0.05, 0.04];
+    if (h < 9) return mix3([0.09, 0.05, 0.04], [0.17, 0.14, 0.15], sstep(1, 4, h));
+    if (h < 18) return mix3([0.17, 0.14, 0.15], [0.26, 0.22, 0.23], sstep(9, 14, h));
+    return mix3([0.26, 0.22, 0.23], [0.38, 0.32, 0.32], sstep(18, 26, h));
+  },
+  city(h, moist, x, z) {
+    const sx = Math.abs((x / CITY_CELL) - Math.floor(x / CITY_CELL) - 0.5) * CITY_CELL;
+    const sz = Math.abs((z / CITY_CELL) - Math.floor(z / CITY_CELL) - 0.5) * CITY_CELL;
+    if (sx > CITY_CELL / 2 - 2.6 || sz > CITY_CELL / 2 - 2.6)
+      return mix3([0.12, 0.12, 0.14], [0.18, 0.18, 0.20], moist);
+    if (h < 0.8) return [0.10, 0.12, 0.13];
+    return mix3([0.44, 0.43, 0.46], [0.34, 0.35, 0.36], sstep(0.3, 0.7, moist));
+  },
+  void(h, moist) {
+    if (h < 1) return [0.08, 0.05, 0.13];
+    if (h < 10) return mix3([0.08, 0.05, 0.13], [0.15, 0.11, 0.24], sstep(1, 4, h));
+    if (h < 20) return mix3([0.15, 0.11, 0.24], [0.21, 0.16, 0.34], sstep(10, 16, h));
+    return mix3([0.21, 0.16, 0.34], [0.34, 0.28, 0.52], sstep(20, 27, h));
+  },
+};
+
+function terrainColor(h, ny, x, z, jit) {
+  const B = CUR_BIOME;
+  const moist = fbm(x * 0.01 + 100, z * 0.01 - 50, 2);
+  let c = PALS[B.pal](h, moist, x, z);
   const rockT = sstep(0.78, 0.55, ny);
-  r = lerp(r, 0.33, rockT); g = lerp(g, 0.30, rockT); b = lerp(b, 0.36, rockT);
-  // drowned ground darkens
+  const rc = BSTYLE[B.pal].rockP;
+  c = mix3(c, rc, rockT * (B.city ? 0.4 : 1));
   if (h < 0) {
     const t = sstep(0, -7, h);
-    r = lerp(r, 0.07, t); g = lerp(g, 0.16, t); b = lerp(b, 0.20, t);
+    const uc = B.waterEmis > 0.5 ? [0.05, 0.02, 0.02] : [0.07, 0.15, 0.19];
+    c = mix3(c, uc, t);
   }
   const j = (jit - 0.5) * 0.09;
-  return [clamp(r + j, 0, 1), clamp(g + j, 0, 1), clamp(b + j, 0, 1)];
+  return [clamp(c[0] + j, 0, 1), clamp(c[1] + j, 0, 1), clamp(c[2] + j, 0, 1)];
 }
 
 function buildChunk(cx, cz) {
+  const B = CUR_BIOME, ST2 = BSTYLE[B.pal];
   const mb = MB();
   const x0 = cx * CH, z0 = cz * CH, st = CH / CRES;
   const hs = new Float32Array((CRES + 1) * (CRES + 1));
   for (let j = 0; j <= CRES; j++) for (let i = 0; i <= CRES; i++) {
     hs[j * (CRES + 1) + i] = heightAt(x0 + i * st, z0 + j * st);
   }
-  const P = (i, j) => [x0 + i * st, hs[j * (CRES + 1) + i], z0 + j * st];
+  const P2 = (i, j) => [x0 + i * st, hs[j * (CRES + 1) + i], z0 + j * st];
   for (let j = 0; j < CRES; j++) for (let i = 0; i < CRES; i++) {
-    const p00 = P(i, j), p10 = P(i + 1, j), p01 = P(i, j + 1), p11 = P(i + 1, j + 1);
+    const p00 = P2(i, j), p10 = P2(i + 1, j), p01 = P2(i, j + 1), p11 = P2(i + 1, j + 1);
     for (const t of [[p00, p01, p11], [p00, p11, p10]]) {
       const [a, b, c] = t;
       const ux = b[0] - a[0], uy = b[1] - a[1], uz = b[2] - a[2];
@@ -774,34 +1112,80 @@ function buildChunk(cx, cz) {
       tri(mb, a, b, c, col, 0);
     }
   }
-  /* baked props */
+  /* city towers */
+  if (B.city) {
+    const c0x = Math.floor(x0 / CITY_CELL), c1x = Math.floor((x0 + CH) / CITY_CELL);
+    const c0z = Math.floor(z0 / CITY_CELL), c1z = Math.floor((z0 + CH) / CITY_CELL);
+    for (let bx2 = c0x; bx2 <= c1x; bx2++) for (let bz2 = c0z; bz2 <= c1z; bz2++) {
+      const b = cityBuilding(bx2, bz2);
+      if (!b || b.bx < x0 || b.bx >= x0 + CH || b.bz < z0 || b.bz >= z0 + CH) continue;
+      const base = heightAt(b.bx, b.bz);
+      if (base < 0.3) continue;
+      const shade = 0.8 + b.glow * 0.35;
+      addBox(mb, { p: [b.bx, base + b.h / 2 - 0.5, b.bz], s: [b.w, b.h, b.d] },
+        [0.30 * shade, 0.30 * shade, 0.34 * shade], 0);
+      addBox(mb, { p: [b.bx, base + b.h - 0.3, b.bz], s: [b.w * 0.66, 1.0, b.d * 0.66] }, [0.18, 0.18, 0.22], 0);
+      const wc = b.glow > 0.62 ? [1, 0.68, 0.28] : [0.30, 0.85, 1.0];
+      const nstr = 2 + Math.floor(b.glow * 3);
+      for (let s2 = 0; s2 < nstr; s2++) {
+        const off = (s2 / nstr - 0.5 + 0.5 / nstr) * b.w * 0.8;
+        addBox(mb, { p: [b.bx + off, base + b.h * 0.48, b.bz + b.d / 2 + 0.05], s: [0.55, b.h * 0.7, 0.08] }, wc, 0.85);
+        addBox(mb, { p: [b.bx + off, base + b.h * 0.48, b.bz - b.d / 2 - 0.05], s: [0.55, b.h * 0.7, 0.08] }, wc, 0.85);
+      }
+    }
+  }
+  /* scattered props */
   const rng = mulberry32(((cx * 73856093) ^ (cz * 19349663) ^ SEED) >>> 0);
-  for (let k = 0; k < 13; k++) {
+  const pr = B.props, big = pr.big || 1;
+  for (let k = 0; k < pr.count; k++) {
     const px = x0 + rng() * CH, pz = z0 + rng() * CH;
     const h = heightAt(px, pz);
     if (h < 1.4 || Math.hypot(px, pz) < 26) continue;
     if (Math.abs(heightAt(px + 3, pz) - h) > 3.2 || Math.abs(heightAt(px, pz + 3) - h) > 3.2) continue;
-    const roll = rng();
-    if (roll < 0.52) {
-      const s = 1.2 + rng() * 2.6;
+    if (B.city && collideCity(px, pz, 2)) continue;
+    let roll = rng(), acc = 0;
+    if (roll < (acc += pr.rock || 0)) {
+      const sc = (1.2 + rng() * 2.6) * big;
       const shade = 0.75 + rng() * 0.45;
-      addIco(mb, { p: [px, h + s * 0.16, pz], s: s, ry: rng() * TAU },
-        [0.36 * shade, 0.34 * shade, 0.41 * shade], 0, 0.75);
-    } else if (roll < 0.82) {
-      const amber = rng() < 0.22;
-      const col = amber ? [1.0, 0.62, 0.2] : [0.25, 0.95, 0.85];
+      addIco(mb, { p: [px, h + sc * 0.16, pz], s: sc, ry: rng() * TAU },
+        [ST2.rockP[0] * shade, ST2.rockP[1] * shade, ST2.rockP[2] * shade], 0, 0.75);
+    } else if (roll < (acc += pr.crystal || 0)) {
+      const col = ST2.crys[rng() < 0.25 ? 1 : 0];
       const nSh = 2 + Math.floor(rng() * 3);
       for (let s2 = 0; s2 < nSh; s2++) {
-        const sc = 0.8 + rng() * 1.5;
+        const sc = (0.8 + rng() * 1.5) * big;
         addBipyr(mb, {
-          p: [px + (rng() - 0.5) * 2.2, h + sc * 0.5, pz + (rng() - 0.5) * 2.2],
+          p: [px + (rng() - 0.5) * 2.2 * big, h + sc * 0.5, pz + (rng() - 0.5) * 2.2 * big],
           s: [sc * 0.42, sc * 1.7, sc * 0.42], rx: (rng() - 0.5) * 0.7, rz: (rng() - 0.5) * 0.7, ry: rng() * TAU
         }, col, 1.35, 4);
       }
-    } else {
-      const hh = 6 + rng() * 9;
+    } else if (roll < (acc += pr.spire || 0)) {
+      const hh = (6 + rng() * 9) * big;
       addCyl(mb, { p: [px, h + hh * 0.42, pz], s: [1.3 + rng() * 1.2, hh, 1.3 + rng() * 1.2], ry: rng() * TAU },
-        [0.40, 0.34, 0.48], 0, 5, 0.5, 0.06, false);
+        ST2.spire, 0, 5, 0.5, 0.06, false);
+    } else if (roll < (acc += pr.cactus || 0)) {
+      const hh = 3 + rng() * 3;
+      const gc = [0.24, 0.44, 0.20];
+      addCyl(mb, { p: [px, h + hh / 2, pz] , s: [0.9, hh, 0.9] }, gc, 0, 5, 0.5, 0.42, true);
+      addCyl(mb, { p: [px + 0.9, h + hh * 0.62, pz], s: [0.5, hh * 0.5, 0.5], rz: -0.5 }, gc, 0, 5, 0.5, 0.4, true);
+      addCyl(mb, { p: [px - 0.8, h + hh * 0.5, pz + 0.2], s: [0.5, hh * 0.42, 0.5], rz: 0.55 }, gc, 0, 5, 0.5, 0.4, true);
+    } else if (roll < (acc += pr.ice || 0)) {
+      const nSh = 2 + Math.floor(rng() * 2);
+      for (let s2 = 0; s2 < nSh; s2++) {
+        const sc = (1.0 + rng() * 2.0) * big;
+        addBipyr(mb, {
+          p: [px + (rng() - 0.5) * 2.4, h + sc * 0.55, pz + (rng() - 0.5) * 2.4],
+          s: [sc * 0.5, sc * 2.0, sc * 0.5], rx: (rng() - 0.5) * 0.5, rz: (rng() - 0.5) * 0.5
+        }, [0.80, 0.90, 1.0], 0.25, 5);
+      }
+    } else if (roll < (acc += pr.rubble || 0)) {
+      for (let s2 = 0; s2 < 3; s2++) {
+        const sc = 0.8 + rng() * 1.8;
+        addBox(mb, {
+          p: [px + (rng() - 0.5) * 3, h + sc * 0.3, pz + (rng() - 0.5) * 3],
+          s: [sc, sc * 0.7, sc * 1.2], ry: rng() * TAU, rz: (rng() - 0.5) * 0.4
+        }, [0.28 + rng() * 0.1, 0.28 + rng() * 0.1, 0.31 + rng() * 0.1], 0);
+      }
     }
   }
   const mesh = buildMesh(mb);
@@ -832,6 +1216,7 @@ function updateChunks(px, pz, budget) {
     }
   }
 }
+
 /* =====================================================================
    RENDERER — HDR pipeline: sun shadow map, dynamic sky, water,
    instanced entities, additive FX, bloom + filmic composite.
@@ -993,8 +1378,8 @@ void main(){
 const FS_WATER = `#version 300 es
 precision highp float;
 in vec3 vW;
-uniform vec3 uCam, uSunDir, uSunCol, uZen, uHor, uFogCol;
-uniform float uFogDen, uTime;
+uniform vec3 uCam, uSunDir, uSunCol, uZen, uHor, uFogCol, uWCol;
+uniform float uFogDen, uTime, uWEmis;
 out vec4 o;
 ${GLSL_NOISE}
 void main(){
@@ -1007,12 +1392,13 @@ void main(){
   vec3 N = normalize(vec3((h0 - hx) * 1.7, 1.0, (h0 - hz) * 1.7));
   vec3 V = normalize(uCam - vW);
   float fres = pow(1.0 - max(dot(V, N), 0.0), 3.0);
-  vec3 deep = vec3(0.015, 0.09, 0.12);
+  vec3 deep = mix(uWCol, uWCol * 0.12, uWEmis);
   vec3 skyc = mix(uHor, uZen, 0.45);
-  vec3 col = mix(deep, skyc * 0.9, 0.22 + 0.62 * fres);
+  vec3 col = mix(deep, skyc * 0.9, (0.22 + 0.62 * fres) * (1.0 - uWEmis));
   vec3 Hv = normalize(uSunDir + V);
-  col += uSunCol * pow(max(dot(N, Hv), 0.0), 240.0) * 3.2;
-  col += uSunCol * pow(max(dot(N, Hv), 0.0), 24.0) * 0.12;
+  col += uSunCol * pow(max(dot(N, Hv), 0.0), 240.0) * 3.2 * (1.0 - uWEmis);
+  col += uSunCol * pow(max(dot(N, Hv), 0.0), 24.0) * 0.12 * (1.0 - uWEmis);
+  col += uWCol * uWEmis * (0.30 + pow(h0, 2.4) * 2.2);
   float fog = 1.0 - exp(-pow(length(uCam - vW) * uFogDen, 1.5));
   col = mix(col, uFogCol, fog);
   o = vec4(col, 0.88);
@@ -1315,6 +1701,12 @@ function buildBatches() {
   BAT.spitter = new Batch(MESH.spitter, 120);
   BAT.stinger = new Batch(MESH.stinger, 120);
   BAT.boss = new Batch(MESH.boss, 8);
+  BAT.shade = new Batch(MESH.shade, 120);
+  BAT.brood = new Batch(MESH.brood, 60);
+  BAT.lancer = new Batch(MESH.lancer, 120);
+  BAT.pylon = new Batch(MESH.pylon, 60);
+  BAT.reaver = new Batch(MESH.reaver, 120);
+  BAT.detonator = new Batch(MESH.detonator, 140);
   BAT.gem = new Batch(MESH.gem, 500);
   BAT.coreP = new Batch(MESH.coreP, 60);
   BAT.heart = new Batch(MESH.heart, 40);
@@ -1324,10 +1716,11 @@ function buildBatches() {
   BAT.mine = new Batch(MESH.mine, 40);
   BAT.blade = new Batch(MESH.blade, 16);
   BAT.beam = new Batch(MESH.beam, 260);
+  BAT.sentry = new Batch(MESH.sentryPod, 12);
   BAT.debris = new Batch(MESH.debris, 600);
   fxBatch = new FXBatch(800);
 }
-const SHADOW_CASTERS = ['skitter', 'husk', 'bulwark', 'spitter', 'stinger', 'boss', 'missile', 'mine'];
+const SHADOW_CASTERS = ['skitter', 'husk', 'bulwark', 'spitter', 'stinger', 'boss', 'missile', 'mine', 'shade', 'brood', 'lancer', 'pylon', 'reaver', 'detonator'];
 
 /* ---------------- per-frame render state (written by game) ---------------- */
 const RS = {
@@ -1359,10 +1752,16 @@ function computeSun(dayPhase, tSec) {
   hor = mixc(hor, [0.98, 0.48, 0.28], dusk * 0.85);
   sun = mixc(sun, [1.0, 0.52, 0.22], dusk * 0.85);
   amb = mixc(amb, [0.34, 0.24, 0.28], dusk * 0.6);
+  const B = CUR_BIOME;
+  zen = [zen[0] * B.zenT[0], zen[1] * B.zenT[1], zen[2] * B.zenT[2]];
+  hor = [hor[0] * B.horT[0], hor[1] * B.horT[1], hor[2] * B.horT[2]];
+  sun = [sun[0] * B.sunT[0], sun[1] * B.sunT[1], sun[2] * B.sunT[2]];
+  amb = [amb[0] * (0.7 + 0.3 * B.zenT[0]), amb[1] * (0.7 + 0.3 * B.zenT[1]), amb[2] * (0.7 + 0.3 * B.zenT[2])];
   RS.zen = zen; RS.hor = hor; RS.sunCol = sun; RS.amb = amb;
   RS.fogCol = mixc(hor, zen, 0.25);
-  RS.fogDen = lerp(0.005, 0.0034, day);
+  RS.fogDen = lerp(0.005, 0.0034, day) * B.fogMul;
   RS.star = 1 - sstep(-0.18, 0.02, el);
+  RS.cloud = B.cloud;
   RS.dayF = day;
 }
 
@@ -1499,6 +1898,8 @@ function drawFrame() {
   gl.uniform3fv(U(pWater, 'uFogCol'), RS.fogCol);
   gl.uniform1f(U(pWater, 'uFogDen'), RS.fogDen);
   gl.uniform1f(U(pWater, 'uTime'), RS.time);
+  gl.uniform3fv(U(pWater, 'uWCol'), CUR_BIOME.waterCol);
+  gl.uniform1f(U(pWater, 'uWEmis'), CUR_BIOME.waterEmis);
   gl.bindVertexArray(waterVAO);
   gl.drawArrays(gl.TRIANGLES, 0, 6);
 
@@ -1557,10 +1958,11 @@ function drawFrame() {
 /* =====================================================================
    GAME — player glaive, armaments, creatures, waves, wardens, salvage.
    ===================================================================== */
-const ST = { MENU: 0, PLAY: 1, LEVELUP: 2, PAUSE: 3, DEAD: 4 };
+const ST = { MENU: 0, PLAY: 1, LEVELUP: 2, PAUSE: 3, DEAD: 4, HANGAR: 5, BOOK: 6, CUTSCENE: 7, VICTORY: 8, ENDLESSSEL: 9 };
 let state = ST.MENU;
 let gameTime = 0, wave = 1, kills = 0, coresRun = 0, dayPhase = 0.34;
 let pendingLevels = 0, runSeed = 0;
+let RUN = { type: 'endless', biome: 'verdant', diff: 1, bossIdx: 0, finalWave: 0, waveBoost: 0 };
 
 /* ---------------- meta progression ---------------- */
 const META_DEFS = [
@@ -1579,26 +1981,174 @@ function loadMeta() {
     if (!meta.tiers) meta.tiers = {};
     if (!meta.best) meta.best = { time: 0, wave: 0, kills: 0 };
   } catch (e) { /* fresh pilot */ }
+  if (!meta.hangar) meta.hangar = { owned: { vanta: 1 }, sel: 'vanta', prim: 0, glow: 0 };
+  if (!meta.campaign) meta.campaign = { unlocked: 1, done: [] };
 }
 function saveMeta() {
   try { localStorage.setItem('solgrave.meta.v1', JSON.stringify(meta)); } catch (e) { }
 }
 
+/* ---------------- campaign ---------------- */
+const CHAPTERS = [
+  { biome: 'verdant', seed: 311007, title: 'The Landing', waves: 5, diff: 1.0, reward: 60,
+    lore: ['The Solgrave fell for nine days before the Reach finally caught her, and the hills closed over the wreck like water.',
+      'Whatever slept beneath this valley woke hungry. It sends its husks at dusk, and they do not stop coming.',
+      'Hold the crash line, pilot. Absorb their light. And when the ground opens — kill what climbs out.'],
+    sub: 'Survive to Wave 5 · destroy the Vault Warden' },
+  { biome: 'desert', seed: 660214, title: 'Glass and Thirst', waves: 6, diff: 1.35, reward: 90,
+    lore: ['West of the wreck the ground forgot how to hold water. The dunes ring like struck glass when the packs run.',
+      'They are faster here. Leaner. The Tyrant breeds lancers in the deep sand and starves them on purpose.',
+      'There is no cover worth the name. Keep moving or be buried moving.'],
+    sub: 'Survive to Wave 6 · destroy the Dune Tyrant' },
+  { biome: 'city', seed: 918800, title: 'The Sprawl Remembers', waves: 6, diff: 1.7, reward: 120,
+    lore: ['Kessa was a city of four million lights. The lights are still on. Nobody is home.',
+      'Something wears the grid like a crown now. Pylons nest in the towers and paint the streets with fire.',
+      'Fight lane by lane. The Overseer watches every intersection you cross.'],
+    sub: 'Survive to Wave 6 · destroy the Grid Overseer' },
+  { biome: 'frost', seed: 127455, title: 'Palewake', waves: 7, diff: 2.1, reward: 160,
+    lore: ['North past the ash line the fog freezes standing up. Sound dies a metre from its maker.',
+      'Armored things walk the ridgelines in columns, patient as glaciers. They have never once retreated.',
+      'The Sovereign holds court on the frozen lake. Bring everything.'],
+    sub: 'Survive to Wave 7 · destroy the Frost Sovereign' },
+  { biome: 'ash', seed: 874321, title: 'The Cinder Court', waves: 7, diff: 2.5, reward: 210,
+    lore: ['The Vulkan Reach is a wound that never closed. Rivers of fire stitch the black rock together.',
+      'The swarms here carry their own funerals with them — they detonate rather than die.',
+      'At the heart of the Court the Cinder King waits, and the lava bends around his walk.'],
+    sub: 'Survive to Wave 7 · destroy the Cinder King' },
+  { biome: 'void', seed: 432109, title: 'Null and Crown', waves: 8, diff: 3.0, reward: 300,
+    lore: ['There is a hole in the Reach where the sun never reaches. The crystals there grew watching it.',
+      'Everything in the Hollow blinks — out of the dark, behind you, gone again. Trust the scanner, not your eyes.',
+      'The Null Regent is the last crown. Break it, and the Solgrave\u2019s long fall finally means something.'],
+    sub: 'Survive to Wave 8 · destroy the Null Regent' },
+];
+const ROM = ['I', 'II', 'III', 'IV', 'V', 'VI'];
+let lastMode = { type: 'endless', biome: 'verdant' };
+let victoryTimer = 0;
+
+/* ---------------- ships ---------------- */
+const SHIPS = [
+  { id: 'vanta', name: 'Vanta Glaive', cost: 0,
+    blurb: 'Standard-issue survivor of the Solgrave expedition. Balanced in every regard.',
+    st: { hp: 1, spd: 1, dmg: 1, armor: 0, boost: 1 } },
+  { id: 'harrier', name: 'Nyx Harrier', cost: 120,
+    blurb: 'A smuggler\u2019s skiff rebuilt for war. Paper hull, knife speed, cruel guns.',
+    st: { hp: 0.75, spd: 1.2, dmg: 1.15, armor: 0, boost: 0.85, crit: 0.08 } },
+  { id: 'bastion', name: 'Aurex Bastion', cost: 260,
+    blurb: 'A mobile bulwark. Slow, vast, and very hard to open.',
+    st: { hp: 1.5, spd: 0.84, dmg: 0.95, armor: 0.12, boost: 1.15 } },
+  { id: 'ram', name: 'Ember Ram', cost: 420,
+    blurb: 'Its prow has ended more husks than its guns. Boost through everything.',
+    st: { hp: 1.2, spd: 1.02, dmg: 1.0, armor: 0.05, boost: 0.72, ram: 26 } },
+  { id: 'spectre', name: 'Veil Spectre', cost: 650,
+    blurb: 'A twin-hulled ghost. The boost drive barely rests, and salvage bends toward it.',
+    st: { hp: 0.85, spd: 1.12, dmg: 1.08, armor: 0, boost: 0.55, magnet: 1.3 } },
+];
+const PRIM_COLS = [
+  ['Gunmetal', [0.15, 0.16, 0.20]], ['Oxblood', [0.34, 0.10, 0.11]], ['Moss', [0.10, 0.19, 0.13]],
+  ['Ultramarine', [0.11, 0.14, 0.32]], ['Bronze', [0.30, 0.21, 0.10]], ['Bone', [0.42, 0.40, 0.37]],
+  ['Orchid', [0.28, 0.14, 0.30]], ['Onyx', [0.06, 0.06, 0.08]]];
+const GLOW_COLS = [
+  ['Teal', [0.20, 1.0, 0.90]], ['Ember', [1.0, 0.55, 0.15]], ['Crimson', [1.0, 0.22, 0.28]],
+  ['Ion', [0.45, 0.60, 1.0]], ['Acid', [0.55, 1.0, 0.25]], ['Gold', [1.0, 0.85, 0.25]],
+  ['Violet', [0.82, 0.40, 1.0]], ['Arc White', [1.0, 1.0, 1.0]]];
+
+function shipCols() {
+  const h = meta.hangar;
+  const p1 = PRIM_COLS[h.prim % PRIM_COLS.length][1];
+  const G = GLOW_COLS[h.glow % GLOW_COLS.length][1];
+  const p2 = [Math.min(1, p1[0] * 1.9 + 0.12), Math.min(1, p1[1] * 1.9 + 0.12), Math.min(1, p1[2] * 1.9 + 0.12)];
+  return { p1, p2, G };
+}
+function buildShipMesh(id) {
+  if (MESH.ship) { gl.deleteVertexArray(MESH.ship.vao); gl.deleteBuffer(MESH.ship.vbo); }
+  if (MESH.turret) { gl.deleteVertexArray(MESH.turret.vao); gl.deleteBuffer(MESH.turret.vbo); }
+  const { p1, p2, G } = shipCols();
+  let m = MB();
+  if (id === 'harrier') {
+    addBox(m, { p: [0, 0, 0.2], s: [0.95, 0.45, 4.4] }, p1, 0);
+    addCyl(m, { p: [0, 0, 3.2], rx: PI / 2, s: [0.9, 2.0, 0.45] }, p1, 0, 4, 0.5, 0, false);
+    addBox(m, { p: [0, 0.34, 0.9], s: [0.5, 0.26, 1.1] }, G, 1.1);
+    addBox(m, { p: [-1.25, -0.02, 0.35], s: [1.7, 0.08, 1.1], ry: -0.5 }, [p1[0] * 1.5 + 0.06, p1[1] * 1.5 + 0.06, p1[2] * 1.5 + 0.06], 0);
+    addBox(m, { p: [1.25, -0.02, 0.35], s: [1.7, 0.08, 1.1], ry: 0.5 }, [p1[0] * 1.5 + 0.06, p1[1] * 1.5 + 0.06, p1[2] * 1.5 + 0.06], 0);
+    addBox(m, { p: [-1.95, 0, 0.85], s: [0.45, 0.12, 0.55], ry: -0.5 }, G, 1.5);
+    addBox(m, { p: [1.95, 0, 0.85], s: [0.45, 0.12, 0.55], ry: 0.5 }, G, 1.5);
+    addBox(m, { p: [0, 0, -2.15], s: [0.8, 0.55, 1.1] }, p2, 0);
+    addBox(m, { p: [0, 0, -2.75], s: [0.55, 0.4, 0.15] }, G, 2.6);
+    addBox(m, { p: [-0.4, 0.5, -1.9], s: [0.08, 0.7, 0.8], rz: 0.35 }, p2, 0);
+    addBox(m, { p: [0.4, 0.5, -1.9], s: [0.08, 0.7, 0.8], rz: -0.35 }, p2, 0);
+  } else if (id === 'bastion') {
+    addBox(m, { p: [0, 0, 0], s: [2.6, 0.66, 3.4] }, p1, 0);
+    addBox(m, { p: [0, 0.1, 2.1], s: [2.1, 0.5, 1.1], rx: 0.15 }, p2, 0);
+    addBox(m, { p: [0, 0.48, 0.4], s: [0.8, 0.3, 1.0] }, G, 1.1);
+    addBox(m, { p: [0, 0.42, -0.6], s: [1.8, 0.22, 1.8] }, p2, 0);
+    addBox(m, { p: [-1.75, -0.05, -0.7], s: [0.85, 0.72, 2.3] }, p2, 0);
+    addBox(m, { p: [1.75, -0.05, -0.7], s: [0.85, 0.72, 2.3] }, p2, 0);
+    addBox(m, { p: [-1.75, -0.05, -1.9], s: [0.6, 0.5, 0.16] }, G, 2.6);
+    addBox(m, { p: [1.75, -0.05, -1.9], s: [0.6, 0.5, 0.16] }, G, 2.6);
+    addBox(m, { p: [0, -0.1, -1.85], s: [1.2, 0.4, 0.16] }, G, 2.2);
+    addBox(m, { p: [-2.35, 0.05, 0.3], s: [0.5, 0.14, 1.4] }, G, 1.2);
+    addBox(m, { p: [2.35, 0.05, 0.3], s: [0.5, 0.14, 1.4] }, G, 1.2);
+  } else if (id === 'ram') {
+    addBox(m, { p: [0, 0, -0.4], s: [1.7, 0.62, 3.0] }, p1, 0);
+    addCyl(m, { p: [0, 0, 1.9], rx: PI / 2, s: [1.9, 2.4, 1.0] }, p2, 0, 4, 0.5, 0.14, false);
+    addBipyr(m, { p: [0, 0, 3.3], s: [0.3, 1.0, 0.3], rx: PI / 2 }, G, 1.8, 4);
+    addBox(m, { p: [0, 0.44, -0.5], s: [0.6, 0.3, 1.0] }, G, 1.1);
+    addBox(m, { p: [-1.2, -0.15, -0.5], s: [0.7, 0.35, 2.2] }, p2, 0);
+    addBox(m, { p: [1.2, -0.15, -0.5], s: [0.7, 0.35, 2.2] }, p2, 0);
+    addBox(m, { p: [-0.6, -0.05, -2.0], s: [0.5, 0.4, 0.16] }, G, 2.6);
+    addBox(m, { p: [0.6, -0.05, -2.0], s: [0.5, 0.4, 0.16] }, G, 2.6);
+    addBox(m, { p: [0, 0.62, -1.5], s: [0.1, 0.7, 0.9] }, p2, 0);
+  } else if (id === 'spectre') {
+    for (const sx of [-1.15, 1.15]) {
+      addBox(m, { p: [sx, 0, 0], s: [0.55, 0.42, 4.2] }, p1, 0);
+      addCyl(m, { p: [sx, 0, 2.6], rx: PI / 2, s: [0.5, 1.2, 0.4] }, p1, 0, 4, 0.5, 0, false);
+      addBox(m, { p: [sx, 0, -2.25], s: [0.4, 0.3, 0.14] }, G, 2.6);
+      addBox(m, { p: [sx * 1.35, 0.3, -1.4], s: [0.07, 0.6, 0.7], rz: -sx * 0.3 }, p2, 0);
+    }
+    addBox(m, { p: [0, 0.12, 0.2], s: [1.9, 0.22, 1.0] }, p2, 0);
+    addBox(m, { p: [0, 0.38, 0.2], s: [0.6, 0.3, 0.8] }, G, 1.1);
+    addBox(m, { p: [0, 0.05, -0.6], s: [1.6, 0.12, 0.4] }, G, 1.4);
+  } else { // vanta
+    addBox(m, { p: [0, 0, 0.1], s: [1.5, 0.52, 3.2] }, p1, 0);
+    addCyl(m, { p: [0, 0, 2.4], rx: PI / 2, s: [1.3, 1.7, 0.52] }, p1, 0, 4, 0.5, 0, false);
+    addBox(m, { p: [0, 0.4, 0.55], s: [0.66, 0.32, 1.25] }, G, 1.1);
+    addBox(m, { p: [-1.45, -0.02, -0.55], s: [1.9, 0.1, 1.45], ry: 0.42 }, p2, 0);
+    addBox(m, { p: [1.45, -0.02, -0.55], s: [1.9, 0.1, 1.45], ry: -0.42 }, p2, 0);
+    addBox(m, { p: [-2.25, 0.0, -0.95], s: [0.55, 0.14, 0.75], ry: 0.42 }, G, 1.5);
+    addBox(m, { p: [2.25, 0.0, -0.95], s: [0.55, 0.14, 0.75], ry: -0.42 }, G, 1.5);
+    addBox(m, { p: [-0.95, -0.06, -1.7], s: [0.55, 0.46, 1.5] }, p1, 0);
+    addBox(m, { p: [0.95, -0.06, -1.7], s: [0.55, 0.46, 1.5] }, p1, 0);
+    addBox(m, { p: [-0.95, -0.06, -2.5], s: [0.4, 0.3, 0.16] }, G, 2.6);
+    addBox(m, { p: [0.95, -0.06, -2.5], s: [0.4, 0.3, 0.16] }, G, 2.6);
+    addBox(m, { p: [0, 0.6, -1.45], s: [0.1, 0.85, 1.0] }, p2, 0);
+    addBox(m, { p: [0, 1.02, -1.62], s: [0.12, 0.14, 0.6] }, G, 1.6);
+  }
+  MESH.ship = buildMesh(m);
+  m = MB();
+  addBox(m, { p: [0, 0.05, 0], s: [0.55, 0.3, 0.6] }, p2, 0);
+  addBox(m, { p: [0, 0.22, 0.8], s: [0.15, 0.15, 1.6] }, p1, 0);
+  addBox(m, { p: [0, 0.22, 1.58], s: [0.22, 0.22, 0.14] }, G, 2.2);
+  MESH.turret = buildMesh(m);
+}
+function applySelectedShip() { buildShipMesh(meta.hangar.sel); }
+
 /* ---------------- player ---------------- */
 let P = null;
 function newPlayer() {
   const t = meta.tiers;
-  const maxhp = 100 + 15 * (t.vital || 0);
+  const sd = (SHIPS.find(sh => sh.id === meta.hangar.sel) || SHIPS[0]).st;
+  const maxhp = Math.round((100 + 15 * (t.vital || 0)) * sd.hp);
   return {
+    shipRam: sd.ram || 0,
     x: 0, z: 0, y: groundY(0, 0) + 2.3, vx: 0, vz: 0, yaw: 0, roll: 0, bob: 0,
     hp: maxhp, maxhp, regen: 0, iv: 0, flash: 0,
-    speed: 27 * (1 + 0.05 * (t.thrust || 0)),
-    dmgMul: 1 + 0.08 * (t.ord || 0), rateMul: 1,
+    speed: 27 * (1 + 0.05 * (t.thrust || 0)) * sd.spd,
+    dmgMul: (1 + 0.08 * (t.ord || 0)) * sd.dmg, rateMul: 1,
     xpMul: 1 + 0.10 * (t.salv || 0),
-    armor: 0.04 * (t.armor || 0), critC: 0.05, magnet: 11,
-    boostCd: 0, boostCdMax: 2.6 * (1 - 0.09 * (t.react || 0)),
+    armor: Math.min(0.6, 0.04 * (t.armor || 0) + (sd.armor || 0)), critC: 0.05 + (sd.crit || 0), magnet: 11 * (sd.magnet || 1),
+    boostCd: 0, boostCdMax: 2.6 * (1 - 0.09 * (t.react || 0)) * sd.boost,
     lvl: 1, xp: 0, xpNeed: 11,
-    weapons: { pulse: 1 }, statLv: {}, wt: {},
+    weapons: { pulse: 1 }, statLv: {}, wt: {}, shield: 0, shieldRe: 0, shieldT: 0, leech: 0,
     aimX: 0, aimZ: 20, turretYaw: 0
   };
 }
@@ -1614,12 +2164,22 @@ const UPG = [
   { id: 'rail', wpn: 1, max: 5, name: 'Rail Lance', icon: '⇶', d: l => `Piercing hyper-slug along your aim · ${45 + 18 * l} dmg` },
   { id: 'mines', wpn: 1, max: 5, name: 'Static Mines', icon: '⬢', d: l => `Drops up to ${3 + l} proximity mines · ${40 + 12 * l} dmg blast` },
   { id: 'nova', wpn: 1, max: 5, name: 'Nova Core', icon: '◎', d: l => `Radial shockwave every few seconds · ${24 + 10 * l} dmg` },
+  { id: 'flak', wpn: 1, max: 5, name: 'Flak Battery', icon: '✷', d: l => `Airburst over a random foe every ${(1.9 - 0.12 * l).toFixed(1)}s · ${18 + 8 * l} dmg` },
+  { id: 'boomer', wpn: 1, max: 5, name: 'Halo Glaive', icon: '❃', d: l => `Thrown glaive sweeps out and returns · ${10 + 5 * l} dmg per pass${l >= 4 ? ' · two glaives' : ''}` },
+  { id: 'trail', wpn: 1, max: 5, name: 'Cinder Wake', icon: '♨', d: l => `Your wake burns for 3s · ${8 + 4 * l} dmg/s pools` },
+  { id: 'sigil', wpn: 1, max: 5, name: 'Null Sigil', icon: '✇', d: l => `Collapsing sigil drags foes in, then detonates · ${30 + 14 * l} dmg` },
+  { id: 'sentry', wpn: 1, max: 5, name: 'Sentry Pod', icon: '⌬', d: l => `Deploys auto-turrets (${1 + Math.floor(l / 3)} max, 12s) · ${6 + 2 * l} dmg bolts` },
+  { id: 'aura', wpn: 1, max: 5, name: 'Ion Field', icon: '◉', d: l => `Constant crackling aura · ${4 + 2 * l} dmg ticks in ${(7 + 0.6 * l).toFixed(1)}m` },
   { id: 'engine', max: 5, name: 'Engine Tune', icon: '➤', d: () => '+8% thrust speed' },
   { id: 'plating', max: 5, name: 'Hull Weave', icon: '⛨', d: () => '+18 integrity · +0.4/s self-repair' },
   { id: 'overclock', max: 5, name: 'Overclock', icon: '⏩', d: () => '+9% fire rate, all weapons' },
   { id: 'magnet', max: 5, name: 'Tractor Field', icon: '◈', d: () => '+30% light pickup radius' },
   { id: 'amp', max: 5, name: 'Damage Amp', icon: '✹', d: () => '+10% all damage' },
   { id: 'crit', max: 5, name: 'Target Splitter', icon: '❂', d: () => '+7% critical chance (2.2×)' },
+  { id: 'shield', max: 5, name: 'Aegis Cell', icon: '⛉', d: () => 'Blocks one hit outright; recharges faster per rank' },
+  { id: 'leech', max: 5, name: 'Reclaimer', icon: '❥', d: () => '+0.4 integrity restored per kill, per rank' },
+  { id: 'adrenal', max: 5, name: 'Adrenal Core', icon: '↯', d: () => 'Up to +12% damage per rank as hull drops' },
+  { id: 'ram', max: 5, name: 'Ram Plating', icon: '⪢', d: () => 'Boosting through enemies deals 18 dmg per rank' },
 ];
 function upgLevel(u) { return u.wpn ? (P.weapons[u.id] || 0) : (P.statLv[u.id] || 0); }
 function applyUpgrade(u) {
@@ -1633,6 +2193,8 @@ function applyUpgrade(u) {
       case 'magnet': P.magnet *= 1.3; break;
       case 'amp': P.dmgMul *= 1.10; break;
       case 'crit': P.critC += 0.07; break;
+      case 'shield': P.shieldRe = 11 - 1.6 * P.statLv.shield; if (!P.shield) { P.shield = 1; } break;
+      case 'leech': P.leech = P.statLv.leech * 0.4; break;
     }
   }
   updateHUDWeapons();
@@ -1671,7 +2233,8 @@ function gainXP(v) {
 
 /* ---------------- entity stores ---------------- */
 let enemies = [], bulletsP = [], bulletsE = [], gems = [], pickups = [],
-  missiles = [], minesArr = [], novas = [], fxList = [], beams = [], debris = [], dmgTexts = [];
+  missiles = [], minesArr = [], novas = [], fxList = [], beams = [], debris = [], dmgTexts = [],
+  firePatches = [], sentries = [], sigils = [], boomers = [];
 let bossRef = null, bossAnnounced = false, spawnBudget = 0;
 
 const ETYPE = {
@@ -1680,38 +2243,57 @@ const ETYPE = {
   spitter: { hp: 34, sp: 8.5, dmg: 10, r: 1.4, xp: 3, sc: 1.4, cost: 3, min: 2, w: 1.4, ranged: 1 },
   stinger: { hp: 26, sp: 15, dmg: 11, r: 1.1, xp: 3, sc: 1.1, cost: 3, min: 3, w: 1.3, fly: 1 },
   bulwark: { hp: 170, sp: 5.5, dmg: 26, r: 2.3, xp: 8, sc: 2.3, cost: 7, min: 4, w: 0.8 },
+  detonator: { hp: 18, sp: 16, dmg: 0, r: 1.1, xp: 2, sc: 1.1, cost: 2, min: 3, w: 1.2, deton: 1 },
+  shade: { hp: 30, sp: 9.5, dmg: 12, r: 1.2, xp: 4, sc: 1.4, cost: 4, min: 5, w: 1.0, tele: 1 },
+  lancer: { hp: 55, sp: 8.5, dmg: 20, r: 1.4, xp: 5, sc: 1.7, cost: 5, min: 6, w: 1.0, lance: 1 },
+  brood: { hp: 230, sp: 4.5, dmg: 18, r: 2.6, xp: 12, sc: 2.6, cost: 9, min: 7, w: 0.6, brood: 1 },
+  pylon: { hp: 95, sp: 0, dmg: 22, r: 1.8, xp: 8, sc: 2.1, cost: 6, min: 8, w: 0.7, pylon: 1 },
+  reaver: { hp: 42, sp: 14, dmg: 12, r: 1.2, xp: 5, sc: 1.4, cost: 5, min: 9, w: 0.9, reav: 1 },
 };
+const BOSS_DEFS = [
+  { name: 'VAULT WARDEN', tint: [1, 1, 1], burst: 18, chargeV: 46, minion: 'skitter' },
+  { name: 'DUNE TYRANT', tint: [1.25, 0.9, 0.5], burst: 10, chargeV: 64, minion: 'lancer' },
+  { name: 'GRID OVERSEER', tint: [0.6, 1.05, 1.25], burst: 26, chargeV: 40, minion: 'reaver' },
+  { name: 'FROST SOVEREIGN', tint: [0.7, 0.95, 1.45], burst: 22, chargeV: 38, minion: 'bulwark' },
+  { name: 'CINDER KING', tint: [1.35, 0.6, 0.4], burst: 20, chargeV: 52, minion: 'detonator' },
+  { name: 'NULL REGENT', tint: [0.95, 0.5, 1.35], burst: 24, chargeV: 44, minion: 'shade', tele: 1 },
+];
 
 function spawnEnemy(type, elite, x, z) {
   const t = ETYPE[type];
-  const hpMul = (1 + (wave - 1) * 0.16) * (elite ? 3.2 : 1);
+  const ew = wave + RUN.waveBoost;
+  const hpMul = (1 + (ew - 1) * 0.16) * (elite ? 3.2 : 1) * RUN.diff;
   const e = {
     type, x, z, y: groundY(x, z) + 0.9, vx: 0, vz: 0, yaw: 0,
     hp: t.hp * hpMul, maxhp: t.hp * hpMul,
-    dmg: t.dmg * (1 + (wave - 1) * 0.035) * (elite ? 1.5 : 1),
+    dmg: t.dmg * (1 + (ew - 1) * 0.035) * (elite ? 1.5 : 1) * (0.75 + RUN.diff * 0.25),
     sp: t.sp * (0.88 + Math.random() * 0.24), rad: t.r * (elite ? 1.4 : 1),
     sc: t.sc * (elite ? 1.4 : 1), xp: t.xp * (elite ? 6 : 1),
     elite, boss: false, flash: 0, hitCd: Math.random() * 0.5, shootCd: rand(1, 3),
-    stun: 0, bladeCd: 0, seed: Math.random() * TAU, fly: t.fly, ranged: t.ranged
+    stun: 0, bladeCd: 0, seed: Math.random() * TAU, fly: t.fly, ranged: t.ranged,
+    tele: t.tele, deton: t.deton, lance: t.lance, brood: t.brood, pylon: t.pylon, reav: t.reav,
+    teleCd: rand(1.5, 3), lState: 0, lT: 0, pT: rand(1, 2.5), tx: 0, tz: 0, spawnCd: 6, orbDir: Math.random() < 0.5 ? 1 : -1
   };
   enemies.push(e);
   return e;
 }
-function spawnBoss() {
+function spawnBoss(bossIdx) {
+  const bdef = BOSS_DEFS[(bossIdx !== undefined ? bossIdx : RUN.bossIdx) % BOSS_DEFS.length];
   const a = Math.random() * TAU;
   const x = P.x + Math.cos(a) * 62, z = P.z + Math.sin(a) * 62;
-  const hpMul = 1 + (wave / 5 - 1) * 0.55;
+  const hpMul = (1 + ((wave + RUN.waveBoost) / 5 - 1) * 0.55) * RUN.diff;
   const e = {
     type: 'boss', x, z, y: groundY(x, z) + 2, vx: 0, vz: 0, yaw: 0,
     hp: 1500 * hpMul, maxhp: 1500 * hpMul,
     dmg: 34, sp: 7.5, rad: 4.6, sc: 4.4, xp: 150,
-    elite: false, boss: true, flash: 0, hitCd: 0, shootCd: 3,
+    elite: false, boss: true, bdef, flash: 0, hitCd: 0, shootCd: 3,
     stun: 0, bladeCd: 0, seed: 0, burstCd: 3.5, chargeCd: 8, charge: 0, chargeTel: 0,
-    cdx: 0, cdz: 0, minionCd: 12
+    cdx: 0, cdz: 0, minionCd: 12, teleCd: 6
   };
   enemies.push(e);
   bossRef = e;
-  showBanner('VAULT WARDEN', 'SEVER ITS LIGHT', true);
+  $('bossname').textContent = bdef.name;
+  showBanner(bdef.name, 'SEVER ITS LIGHT', true);
   sfxBossRoar();
   return e;
 }
@@ -1719,15 +2301,17 @@ function spawnBoss() {
 function trySpawns(dt) {
   const night = RS.dayF < 0.35;
   if (gameTime < 3.5) return;
-  spawnBudget += dt * (0.55 + wave * 0.34) * (night ? 1.3 : 1);
+  spawnBudget += dt * (0.55 + (wave + RUN.waveBoost) * 0.34) * (night ? 1.3 : 1) * (0.6 + RUN.diff * 0.4);
   const cap = Math.min(18 + wave * 6, 210);
   let guard = 20;
   while (spawnBudget >= 1 && enemies.length < cap && guard-- > 0) {
-    const avail = Object.keys(ETYPE).filter(k => ETYPE[k].min <= wave && ETYPE[k].cost <= spawnBudget);
+    const ew2 = wave + RUN.waveBoost;
+    const avail = Object.keys(ETYPE).filter(k => ETYPE[k].min <= ew2 && ETYPE[k].cost <= spawnBudget);
     if (!avail.length) break;
-    let wsum = 0; for (const k of avail) wsum += ETYPE[k].w;
+    const bias = CUR_BIOME.bias || {};
+    let wsum = 0; for (const k of avail) wsum += ETYPE[k].w * (bias[k] || 1);
     let r = Math.random() * wsum, pick = avail[0];
-    for (const k of avail) { r -= ETYPE[k].w; if (r <= 0) { pick = k; break; } }
+    for (const k of avail) { r -= ETYPE[k].w * (bias[k] || 1); if (r <= 0) { pick = k; break; } }
     const elite = wave >= 3 && Math.random() < 0.045;
     const a = Math.random() * TAU, d = rand(56, 78);
     spawnEnemy(pick, elite, P.x + Math.cos(a) * d, P.z + Math.sin(a) * d);
@@ -1800,9 +2384,16 @@ let shake = 0;
 function addShake(v) { shake = Math.min(1.6, shake + v); }
 
 /* ---------------- combat resolution ---------------- */
+function tickDamage(e, dmg) {
+  const d = dmg * P.dmgMul;
+  e.hp -= d;
+  e.flash = Math.max(e.flash, 0.25);
+  if (Math.random() < 0.2) dmgText(e.x, e.y + e.sc, e.z, d, false);
+  if (e.hp <= 0) killEnemy(e);
+}
 function hitEnemy(e, dmg, opts) {
   opts = opts || {};
-  let d = dmg * P.dmgMul;
+  let d = dmg * P.dmgMul * (1 + (P.statLv.adrenal || 0) * 0.12 * clamp(1 - P.hp / P.maxhp, 0, 1) * 1.6);
   const crit = Math.random() < P.critC;
   if (crit) d *= 2.2;
   e.hp -= d;
@@ -1814,10 +2405,27 @@ function hitEnemy(e, dmg, opts) {
   if (e.hp <= 0) killEnemy(e);
 }
 function killEnemy(e) {
+  if (e.dead) return;
   e.dead = true;
   kills++;
-  const col = e.boss ? [1, 0.3, 0.2] : e.elite ? [1, 0.75, 0.2] : [1, 0.5, 0.2];
-  boom(e.x, e.y, e.z, e.boss ? 7 : e.sc * 1.15, col);
+  if (P.leech) P.hp = Math.min(P.maxhp, P.hp + P.leech);
+  const col = e.boss ? [1, 0.3, 0.2] : e.elite ? [1, 0.75, 0.2] : e.deton ? [1, 0.42, 0.08] : [1, 0.5, 0.2];
+  boom(e.x, e.y, e.z, e.boss ? 7 : e.deton ? 3.6 : e.sc * 1.15, col);
+  if (e.deton) {
+    const pd2 = dist2d(e.x, e.z, P.x, P.z);
+    if (pd2 < 7) hurtPlayer(22 * (1 + (wave + RUN.waveBoost) * 0.03));
+    queryGrid(e.x, e.z, 8, qtmp);
+    for (const qi of qtmp) {
+      const o = enemies[qi];
+      if (o && o !== e && !o.dead && !o.deton && dist2d(e.x, e.z, o.x, o.z) < 6.5 + o.rad) {
+        o.hp -= 34; o.flash = 0.8;
+        if (o.hp <= 0) killEnemy(o);
+      }
+    }
+  }
+  if (e.brood && enemies.length < 220) {
+    for (let i = 0; i < 4; i++) spawnEnemy('skitter', false, e.x + rand(-3, 3), e.z + rand(-3, 3));
+  }
   let xp = e.xp;
   const chunks_ = e.boss ? 14 : xp > 5 ? 3 : xp > 1 ? 2 : 1;
   for (let i = 0; i < chunks_; i++) {
@@ -1840,11 +2448,23 @@ function killEnemy(e) {
   if (e.boss) {
     bossRef = null;
     addShake(0.9);
-    showBanner('WARDEN DOWN', '+5 CORES', false);
+    if (RUN.type === 'campaign' && wave >= RUN.finalWave) {
+      victoryTimer = 2.4;
+      showBanner(e.bdef.name + ' DOWN', 'SECTOR SECURED', false);
+    } else {
+      showBanner('WARDEN DOWN', '+5 CORES', false);
+    }
   }
 }
 function hurtPlayer(d, kx, kz) {
   if (P.iv > 0 || state !== ST.PLAY) return;
+  if (P.shield > 0) {
+    P.shield = 0; P.shieldT = P.shieldRe;
+    P.iv = Math.max(P.iv, 0.55);
+    spawnFX(P.x, P.y + 1, P.z, { s0: 3, s1: 7, life: 0.3, tex: 1, r: 0.4, g: 0.9, b: 1, a0: 1.4 });
+    sfxZap();
+    return;
+  }
   d *= (1 - P.armor);
   P.hp -= d;
   P.iv = 0.4; P.flash = 0.7;
@@ -1983,6 +2603,69 @@ function updateWeapons(dt) {
         minesArr.push({ x: P.x - adx * 2, z: P.z - adz * 2, y: 0, arm: 0.6, dmg: 40 + 12 * lv, t: 0 });
         break;
       }
+      case 'flak': {
+        const list = enemies.filter(e => !e.dead && dist2d(e.x, e.z, P.x, P.z) < 42);
+        if (!list.length) { wts[id] = 0.2; break; }
+        wts[id] = (1.9 - 0.12 * lv) / rm;
+        const tgt = list[Math.floor(Math.random() * list.length)];
+        const fd = 18 + 8 * lv;
+        spawnFX(tgt.x, tgt.y + 2, tgt.z, { s0: 4, s1: 9, life: 0.28, r: 1, g: 0.62, b: 0.2, a0: 1.4 });
+        spawnFX(tgt.x, tgt.y + 2, tgt.z, { s0: 2, s1: 11, life: 0.4, tex: 1, r: 1, g: 0.62, b: 0.2, a0: 1.0 });
+        queryGrid(tgt.x, tgt.z, 6, qtmp);
+        for (const qi of qtmp) {
+          const e2 = enemies[qi];
+          if (e2 && !e2.dead && dist2d(tgt.x, tgt.z, e2.x, e2.z) < 5 + e2.rad) hitEnemy(e2, fd, {});
+        }
+        sfxBoom(1.4);
+        break;
+      }
+      case 'boomer': {
+        const maxOut = 1 + (lv >= 4 ? 1 : 0);
+        if (boomers.length >= maxOut || (!mouse.down && !nearestEnemy(P.x, P.z, 40))) { wts[id] = 0.15; break; }
+        wts[id] = (2.2 - 0.12 * lv) / rm;
+        boomers.push({ x: P.x, y: P.y + 0.6, z: P.z, dx: adx, dz: adz, out: 1, t: 0, dmg: 10 + 5 * lv, dist: 0, spin: 0 });
+        sfxShot(0.8);
+        break;
+      }
+      case 'trail': {
+        wts[id] = 0.24;
+        if (Math.hypot(P.vx, P.vz) > 6 && firePatches.length < 44) {
+          firePatches.push({ x: P.x, z: P.z, y: groundY(P.x, P.z), r: 3, life: 3, t: 0, dps: 8 + 4 * lv, tick: 0 });
+        }
+        break;
+      }
+      case 'sigil': {
+        const tgt = nearestEnemy(P.x + rand(-14, 14), P.z + rand(-14, 14), 46);
+        if (!tgt) { wts[id] = 0.25; break; }
+        wts[id] = (8 - 0.5 * lv) / rm;
+        sigils.push({ x: tgt.x, z: tgt.z, y: tgt.y, t: 0, dur: 1.25, r: 12, dmg: 30 + 14 * lv });
+        sfxZap();
+        break;
+      }
+      case 'sentry': {
+        wts[id] = 6 / rm;
+        if (sentries.length >= 1 + Math.floor(lv / 3)) break;
+        sentries.push({ x: P.x, z: P.z, y: groundY(P.x, P.z) + 0.6, t: 0, life: 12, cd: 0.4, dmg: 6 + 2 * lv, yaw: P.yaw });
+        sfxUI();
+        break;
+      }
+      case 'aura': {
+        wts[id] = 0.5;
+        const ar = 7 + 0.6 * lv, ad = 4 + 2 * lv;
+        queryGrid(P.x, P.z, ar + 3, qtmp);
+        let zapped = false;
+        for (const qi of qtmp) {
+          const e2 = enemies[qi];
+          if (e2 && !e2.dead && dist2d(P.x, P.z, e2.x, e2.z) < ar + e2.rad) {
+            tickDamage(e2, ad);
+            if (!zapped && Math.random() < 0.4) {
+              addBeam(P.x, P.y + 0.5, P.z, e2.x, e2.y + 1, e2.z, 0.08, [0.5, 0.8, 1], 0.1);
+              zapped = true;
+            }
+          }
+        }
+        break;
+      }
       case 'nova': {
         if (!nearestEnemy(P.x, P.z, 18)) { wts[id] = 0.2; break; }
         wts[id] = (6.5 - 0.5 * lv) / rm;
@@ -2004,13 +2687,19 @@ function updateGame(dt) {
   if (newWave !== wave) {
     wave = newWave;
     coresRun++;
-    if (wave % 5 === 0) { bossAnnounced = false; }
+    if ((RUN.type === 'campaign' && wave === RUN.finalWave) || (RUN.type !== 'campaign' && wave % 5 === 0)) bossAnnounced = false;
     showBanner('WAVE ' + wave, '+1 CORE SALVAGED', false);
     sfxWave();
   }
-  if (wave % 5 === 0 && !bossAnnounced && gameTime % 40 > 2 && !bossRef) {
+  if (RUN.type === 'campaign') {
+    if (wave >= RUN.finalWave && !bossAnnounced && !bossRef) { bossAnnounced = true; spawnBoss(RUN.bossIdx); }
+  } else if (wave % 5 === 0 && !bossAnnounced && gameTime % 40 > 2 && !bossRef) {
     bossAnnounced = true;
     spawnBoss();
+  }
+  if (victoryTimer > 0) {
+    victoryTimer -= dt;
+    if (victoryTimer <= 0) { victory(); return; }
   }
   trySpawns(dt);
   rebuildGrid();
@@ -2019,6 +2708,20 @@ function updateGame(dt) {
   P.iv -= dt; P.flash = Math.max(0, P.flash - dt * 3);
   P.boostCd -= dt;
   P.hp = Math.min(P.maxhp, P.hp + P.regen * dt);
+  if (P.statLv.shield && P.shield < 1) {
+    P.shieldT -= dt;
+    if (P.shieldT <= 0) { P.shield = 1; spawnFX(P.x, P.y + 1, P.z, { s0: 1, s1: 4, life: 0.3, tex: 1, r: 0.4, g: 0.9, b: 1, a0: 0.8 }); }
+  }
+  if ((P.statLv.ram || P.shipRam) && P.boostCd > P.boostCdMax - 0.55) {
+    queryGrid(P.x, P.z, 4, qtmp);
+    for (const qi of qtmp) {
+      const e = enemies[qi];
+      if (e && !e.dead && e.bladeCd <= 0 && dist2d(P.x, P.z, e.x, e.z) < 2.6 + e.rad) {
+        e.bladeCd = 0.5;
+        hitEnemy(e, (P.statLv.ram || 0) * 18 + P.shipRam, { kx: (e.x - P.x) * 3, kz: (e.z - P.z) * 3 });
+      }
+    }
+  }
   let ix = 0, iz = 0;
   if (keys.w || keys.arrowup) iz += 1;
   if (keys.s || keys.arrowdown) iz -= 1;
@@ -2050,6 +2753,8 @@ function updateGame(dt) {
   P.vx -= P.vx * Math.min(1, 3.4 * dt);
   P.vz -= P.vz * Math.min(1, 3.4 * dt);
   P.x += P.vx * dt; P.z += P.vz * dt;
+  const ccw = collideCity(P.x, P.z, 1.7);
+  if (ccw) { P.x = ccw[0]; P.z = ccw[1]; }
   const gy = groundY(P.x, P.z) + 2.3;
   P.bob += dt * 3;
   P.y += (gy + Math.sin(P.bob) * 0.16 - P.y) * Math.min(1, dt * 7);
@@ -2077,7 +2782,7 @@ function updateGame(dt) {
         e.burstCd -= dt; e.chargeCd -= dt; e.minionCd -= dt;
         if (e.charge > 0) {
           e.charge -= dt;
-          e.vx = e.cdx * 46; e.vz = e.cdz * 46;
+          e.vx = e.cdx * e.bdef.chargeV; e.vz = e.cdz * e.bdef.chargeV;
         } else if (e.chargeTel > 0) {
           e.chargeTel -= dt;
           e.vx *= 0.8; e.vz *= 0.8;
@@ -2089,7 +2794,7 @@ function updateGame(dt) {
           if (e.chargeCd <= 0 && d < 46) { e.chargeCd = 8; e.chargeTel = 0.8; }
           if (e.burstCd <= 0) {
             e.burstCd = Math.max(2.2, 3.6 - wave * 0.05);
-            const n = 18 + Math.floor(wave / 5) * 3;
+            const n = e.bdef.burst + Math.floor((wave + RUN.waveBoost) / 5) * 3;
             for (let i = 0; i < n; i++) {
               const a = i / n * TAU + gameTime;
               bulletsE.push({ x: e.x, y: e.y + 1.5, z: e.z, vx: Math.sin(a) * 21, vz: Math.cos(a) * 21, dmg: 14, life: 4, t: 0 });
@@ -2098,8 +2803,102 @@ function updateGame(dt) {
           }
           if (e.minionCd <= 0 && e.hp < e.maxhp * 0.55) {
             e.minionCd = 11;
-            for (let i = 0; i < 5; i++) spawnEnemy('skitter', false, e.x + rand(-4, 4), e.z + rand(-4, 4));
+            for (let i = 0; i < 4; i++) spawnEnemy(e.bdef.minion, false, e.x + rand(-4, 4), e.z + rand(-4, 4));
           }
+          if (e.bdef.tele) {
+            e.teleCd -= dt;
+            if (e.teleCd <= 0 && d > 30) {
+              e.teleCd = 7;
+              spawnFX(e.x, e.y + 2, e.z, { s0: 8, s1: 1, life: 0.35, r: 0.8, g: 0.4, b: 1, a0: 1.3 });
+              const ta = Math.random() * TAU;
+              e.x = P.x + Math.cos(ta) * 22; e.z = P.z + Math.sin(ta) * 22;
+              spawnFX(e.x, e.y + 2, e.z, { s0: 1, s1: 9, life: 0.35, r: 0.8, g: 0.4, b: 1, a0: 1.3 });
+              sfxBossRoar();
+            }
+          }
+        }
+      } else if (e.tele) {
+        e.teleCd -= dt;
+        if (e.teleCd <= 0 && d > 7) {
+          e.teleCd = rand(2.8, 4.4);
+          spawnFX(e.x, e.y + 1, e.z, { s0: 2.6, s1: 0.5, life: 0.28, r: 0.7, g: 0.35, b: 1, a0: 1.2 });
+          const ta = Math.random() * TAU, rr = rand(7, 13);
+          e.x = P.x + Math.cos(ta) * rr; e.z = P.z + Math.sin(ta) * rr;
+          e.y = groundY(e.x, e.z) + 0.55 * e.sc;
+          spawnFX(e.x, e.y + 1, e.z, { s0: 0.5, s1: 3.4, life: 0.28, r: 0.7, g: 0.35, b: 1, a0: 1.2 });
+          sfxZap();
+        }
+        e.vx = lerp(e.vx, dirx * e.sp, dt * 3);
+        e.vz = lerp(e.vz, dirz * e.sp, dt * 3);
+      } else if (e.deton) {
+        e.vx = lerp(e.vx, dirx * e.sp, dt * 4);
+        e.vz = lerp(e.vz, dirz * e.sp, dt * 4);
+        if (d < 3.4) { e.hp = 0; killEnemy(e); }
+      } else if (e.lance) {
+        e.lT -= dt;
+        if (e.lState === 0) { // stalk
+          e.vx = lerp(e.vx, dirx * e.sp, dt * 3);
+          e.vz = lerp(e.vz, dirz * e.sp, dt * 3);
+          if (d < 30) { e.lState = 1; e.lT = 0.7; }
+        } else if (e.lState === 1) { // aim
+          e.vx *= 0.85; e.vz *= 0.85;
+          e.flash = Math.max(e.flash, 0.35);
+          e.yaw = Math.atan2(dirx, dirz);
+          if (e.lT <= 0) { e.lState = 2; e.lT = 0.6; e.cdx = dirx; e.cdz = dirz; sfxBoost(); }
+        } else if (e.lState === 2) { // dash
+          e.vx = e.cdx * 46; e.vz = e.cdz * 46;
+          if (e.lT <= 0) { e.lState = 3; e.lT = 1.3; }
+        } else { // recover
+          e.vx *= 0.9; e.vz *= 0.9;
+          if (e.lT <= 0) e.lState = 0;
+        }
+      } else if (e.pylon) {
+        e.vx = 0; e.vz = 0;
+        e.pT -= dt;
+        e.yaw = Math.atan2(dirx, dirz);
+        if (e.pState === 1) { // telegraph on locked line
+          addBeam(e.x, e.y + 2.2, e.z, e.tx, P.y, e.tz, 0.07, [1, 0.15, 0.15], 0.05);
+          if (e.pT <= 0) {
+            e.pState = 0; e.pT = rand(3.4, 4.6);
+            addBeam(e.x, e.y + 2.2, e.z, e.tx, P.y, e.tz, 0.5, [1, 0.4, 0.35], 0.22);
+            spawnFX(e.tx, P.y, e.tz, { s0: 3, s1: 0.6, life: 0.2, r: 1, g: 0.3, b: 0.25, a0: 1.3 });
+            // damage if the pilot stayed on the locked line
+            const lx = e.tx - e.x, lz = e.tz - e.z;
+            const ll = Math.hypot(lx, lz) || 1;
+            const px2 = P.x - e.x, pz2 = P.z - e.z;
+            const proj = (px2 * lx + pz2 * lz) / ll;
+            const perp = Math.abs(px2 * (lz / ll) - pz2 * (lx / ll));
+            if (proj > 0 && proj < ll + 4 && perp < 2.1) hurtPlayer(e.dmg);
+            sfxRail();
+          }
+        } else if (e.pT <= 0 && d < 55) {
+          e.pState = 1; e.pT = 0.85;
+          e.tx = P.x; e.tz = P.z;
+          sfxSpit();
+        }
+      } else if (e.reav) {
+        const orbR = 17;
+        const tx2 = P.x + (-dirz) * e.orbDir * orbR - dirx * 0,
+          tz2 = P.z + (dirx) * e.orbDir * orbR;
+        const ox = tx2 - e.x, oz = tz2 - e.z;
+        const ol = Math.hypot(ox, oz) || 1;
+        e.vx = lerp(e.vx, ox / ol * e.sp, dt * 2.5);
+        e.vz = lerp(e.vz, oz / ol * e.sp, dt * 2.5);
+        e.shootCd -= dt;
+        if (e.shootCd <= 0 && d < 34) {
+          e.shootCd = 1.7;
+          bulletsE.push({ x: e.x, y: e.y + 0.8, z: e.z, vx: dirx * 30, vz: dirz * 30, dmg: e.dmg, life: 2.2, t: 0 });
+          bulletsE.push({ x: e.x, y: e.y + 0.8, z: e.z, vx: dirx * 30 * 0.92, vz: dirz * 30 * 0.92, dmg: e.dmg, life: 2.2, t: -0.08 });
+          sfxSpit();
+        }
+      } else if (e.brood) {
+        e.vx = lerp(e.vx, dirx * e.sp, dt * 2);
+        e.vz = lerp(e.vz, dirz * e.sp, dt * 2);
+        e.spawnCd -= dt;
+        if (e.spawnCd <= 0 && enemies.length < 210) {
+          e.spawnCd = 7;
+          for (let i = 0; i < 2; i++) spawnEnemy('skitter', false, e.x + rand(-3, 3), e.z + rand(-3, 3));
+          spawnFX(e.x, e.y + 1, e.z, { s0: 3, s1: 1, life: 0.3, r: 1, g: 0.5, b: 0.3, a0: 1 });
         }
       } else if (e.ranged) {
         if (d > 26) { e.vx = lerp(e.vx, dirx * e.sp, dt * 3); e.vz = lerp(e.vz, dirz * e.sp, dt * 3); }
@@ -2136,6 +2935,10 @@ function updateGame(dt) {
       }
     }
     e.x += e.vx * dt; e.z += e.vz * dt;
+    if (!e.fly) {
+      const ecc = collideCity(e.x, e.z, e.rad);
+      if (ecc) { e.x = ecc[0]; e.z = ecc[1]; }
+    }
     const eg = groundY(e.x, e.z);
     const targetY = e.fly ? eg + 5.5 + Math.sin(gameTime * 2.4 + e.seed) * 1.4 : eg + 0.55 * e.sc;
     e.y += (targetY - e.y) * Math.min(1, dt * 6);
@@ -2157,6 +2960,7 @@ function updateGame(dt) {
     b.t += dt;
     if (b.t > b.life) { b.dead = true; continue; }
     b.x += b.vx * dt; b.y += b.vy * dt; b.z += b.vz * dt;
+    if (bulletHitsCity(b.x, b.y, b.z)) { b.dead = true; continue; }
     if (b.y < groundY(b.x, b.z)) {
       spawnFX(b.x, b.y + 0.3, b.z, { s0: 1.2, s1: 0.3, life: 0.12, r: 1, g: 0.7, b: 0.3, a0: 0.8 });
       b.dead = true; continue;
@@ -2185,6 +2989,7 @@ function updateGame(dt) {
     b.t += dt;
     if (b.t > b.life) { b.dead = true; continue; }
     b.x += b.vx * dt; b.z += b.vz * dt;
+    if (bulletHitsCity(b.x, b.y, b.z)) { b.dead = true; continue; }
     b.y = Math.max(groundY(b.x, b.z) + 1, b.y - dt * 0.5);
     if (dist2d(b.x, b.z, P.x, P.z) < 1.9) {
       hurtPlayer(b.dmg);
@@ -2245,6 +3050,90 @@ function updateGame(dt) {
     }
   }
   minesArr = minesArr.filter(m => !m.dead);
+
+  /* ---- cinder wake ---- */
+  for (const fp of firePatches) {
+    fp.t += dt; fp.tick -= dt;
+    if (fp.tick <= 0) {
+      fp.tick = 0.5;
+      queryGrid(fp.x, fp.z, 5, qtmp);
+      for (const qi of qtmp) {
+        const e = enemies[qi];
+        if (e && !e.dead && dist2d(fp.x, fp.z, e.x, e.z) < fp.r + e.rad) tickDamage(e, fp.dps * 0.5);
+      }
+    }
+  }
+  firePatches = firePatches.filter(f => f.t < f.life);
+
+  /* ---- null sigils ---- */
+  for (const sg of sigils) {
+    sg.t += dt;
+    const k = sg.t / sg.dur;
+    queryGrid(sg.x, sg.z, sg.r + 4, qtmp);
+    for (const qi of qtmp) {
+      const e = enemies[qi];
+      if (!e || e.dead || e.boss) continue;
+      const d = dist2d(sg.x, sg.z, e.x, e.z);
+      if (d < sg.r && d > 0.5) {
+        e.vx += (sg.x - e.x) / d * 55 * dt * (0.4 + k);
+        e.vz += (sg.z - e.z) / d * 55 * dt * (0.4 + k);
+      }
+    }
+    if (sg.t >= sg.dur && !sg.done) {
+      sg.done = true;
+      boom(sg.x, sg.y, sg.z, 3.2, [0.65, 0.35, 1]);
+      queryGrid(sg.x, sg.z, 8, qtmp);
+      for (const qi of qtmp) {
+        const e = enemies[qi];
+        if (e && !e.dead && dist2d(sg.x, sg.z, e.x, e.z) < 6.5 + e.rad) hitEnemy(e, sg.dmg, {});
+      }
+    }
+  }
+  sigils = sigils.filter(sg => !sg.done);
+
+  /* ---- sentry pods ---- */
+  for (const sn of sentries) {
+    sn.t += dt; sn.cd -= dt;
+    if (sn.cd <= 0) {
+      const tgt = nearestEnemy(sn.x, sn.z, 32);
+      if (tgt) {
+        sn.cd = 0.55;
+        const dx = tgt.x - sn.x, dz = tgt.z - sn.z;
+        const dl = Math.hypot(dx, dz) || 1;
+        sn.yaw = Math.atan2(dx, dz);
+        firePlayerBullet(sn.x, sn.y + 0.8, sn.z, dx / dl, 0, dz / dl, 85, sn.dmg, 0.6);
+        spawnFX(sn.x + dx / dl * 1.4, sn.y + 0.8, sn.z + dz / dl * 1.4, { s0: 1, s1: 0.3, life: 0.06, r: 1, g: 0.75, b: 0.3, a0: 1 });
+      } else sn.cd = 0.2;
+    }
+  }
+  sentries = sentries.filter(sn => sn.t < sn.life);
+
+  /* ---- halo glaives ---- */
+  for (const bo of boomers) {
+    bo.t += dt; bo.spin += dt * 14;
+    const spd = bo.out ? 42 : 50;
+    if (bo.out) {
+      bo.x += bo.dx * spd * dt; bo.z += bo.dz * spd * dt;
+      bo.dist += spd * dt;
+      if (bo.dist > 26) bo.out = 0;
+    } else {
+      const dx = P.x - bo.x, dz = P.z - bo.z;
+      const dl = Math.hypot(dx, dz) || 1;
+      bo.x += dx / dl * spd * dt; bo.z += dz / dl * spd * dt;
+      if (dl < 2.2) bo.dead = true;
+    }
+    bo.y = P.y + 0.4;
+    queryGrid(bo.x, bo.z, 3, qtmp);
+    for (const qi of qtmp) {
+      const e = enemies[qi];
+      if (e && !e.dead && e.bladeCd <= 0 && dist2d(bo.x, bo.z, e.x, e.z) < 2.3 + e.rad) {
+        e.bladeCd = 0.3;
+        hitEnemy(e, bo.dmg, {});
+      }
+    }
+    if (bo.t > 4) bo.dead = true;
+  }
+  boomers = boomers.filter(b => !b.dead);
 
   /* ---- novas ---- */
   for (const nv of novas) {
@@ -2348,6 +3237,32 @@ function updateGame(dt) {
   updateChunks(P.x, P.z, 2);
 }
 
+function victory() {
+  state = ST.VICTORY;
+  const ch = CHAPTERS[RUN.ch];
+  const total = ch.reward + coresRun;
+  meta.cores += total;
+  const first = !meta.campaign.done[RUN.ch];
+  meta.campaign.done[RUN.ch] = true;
+  meta.campaign.unlocked = Math.max(meta.campaign.unlocked, RUN.ch + 2);
+  if (gameTime > meta.best.time) meta.best.time = gameTime;
+  if (kills > meta.best.kills) meta.best.kills = kills;
+  saveMeta();
+  document.body.classList.remove('playing');
+  $('hud').classList.add('hidden');
+  $('vicTitle').textContent = 'CHAPTER ' + ROM[RUN.ch] + ' CLEARED';
+  $('vicStats').innerHTML =
+    '<b>' + CHAPTERS[RUN.ch].title + '</b> · ' + fmtTime(gameTime) + ' · ' + kills + ' kills · level ' + P.lvl;
+  $('vicCores').textContent = '⬡ +' + total + ' CORES' + (first ? ' · FIRST CLEAR' : '');
+  const nxt = $('btnVicNext');
+  if (RUN.ch + 1 < CHAPTERS.length) {
+    nxt.classList.remove('hidden');
+    nxt.textContent = 'CHAPTER ' + ROM[RUN.ch + 1] + ' →';
+  } else nxt.classList.add('hidden');
+  $('victory').classList.remove('hidden');
+  setMusicMode('menu');
+  sfxLevel();
+}
 function die() {
   state = ST.DEAD;
   boom(P.x, P.y, P.z, 6, [1, 0.6, 0.3]);
@@ -2366,13 +3281,26 @@ function resetWorld() {
   for (const ch of chunks.values()) { gl.deleteVertexArray(ch.vao); gl.deleteBuffer(ch.vbo); }
   chunks.clear();
 }
-function startRun() {
-  runSeed = 1 + Math.floor(Math.random() * 999999);
+function startRun(mode) {
+  mode = mode || lastMode || { type: 'endless', biome: 'verdant' };
+  lastMode = mode;
+  if (mode.type === 'campaign') {
+    const ch = CHAPTERS[mode.ch];
+    RUN = { type: 'campaign', ch: mode.ch, biome: ch.biome, diff: ch.diff, bossIdx: mode.ch, finalWave: ch.waves, waveBoost: mode.ch * 3 };
+    runSeed = ch.seed;
+  } else {
+    const bi = Math.max(0, BIOME_ORDER.indexOf(mode.biome || 'verdant'));
+    RUN = { type: 'endless', biome: mode.biome || 'verdant', diff: 1 + bi * 0.18, bossIdx: bi, finalWave: 0, waveBoost: 0 };
+    runSeed = 1 + Math.floor(Math.random() * 999999);
+  }
   SEED = runSeed;
+  setBiome(RUN.biome);
+  victoryTimer = 0;
   resetWorld();
   P = newPlayer();
   enemies = []; bulletsP = []; bulletsE = []; gems = []; pickups = [];
   missiles = []; minesArr = []; novas = []; fxList = []; beams = []; debris = []; dmgTexts = [];
+  firePatches = []; sentries = []; sigils = []; boomers = [];
   bossRef = null; bossAnnounced = false; spawnBudget = 0;
   gameTime = 0; wave = 1; kills = 0; coresRun = 0; dayPhase = 0.34; pendingLevels = 0;
   camYaw = camYawTarget = 0.6;
@@ -2380,18 +3308,80 @@ function startRun() {
   state = ST.PLAY;
   document.body.classList.add('playing');
   document.getElementById('hud').classList.remove('hidden');
-  for (const el of ['menu', 'death', 'pause', 'levelup', 'armory', 'helpPanel'])
+  for (const el of ['menu', 'death', 'pause', 'levelup', 'armory', 'helpPanel', 'book', 'endless', 'victory', 'hangar'])
     document.getElementById(el).classList.add('hidden');
   updateHUDWeapons();
-  showBanner('WAVE 1', 'SECTOR ' + runSeed, false);
+  if (RUN.type === 'campaign')
+    showBanner('CHAPTER ' + ROM[RUN.ch], CHAPTERS[RUN.ch].title.toUpperCase(), false);
+  else
+    showBanner(CUR_BIOME.name.toUpperCase(), 'SECTOR ' + runSeed + ' · ENDLESS', false);
   setMusicMode('combat');
+}
+let cine = null;
+function startChapter(idx) {
+  const ch = CHAPTERS[idx];
+  SEED = ch.seed;
+  setBiome(ch.biome);
+  resetWorld();
+  updateChunks(0, 0, 55);
+  dayPhase = ch.biome === 'ash' ? 0.62 : 0.40;
+  cine = { idx, si: 0, t: 0 };
+  state = ST.CUTSCENE;
+  document.body.classList.add('cine');
+  $('cineSkip').classList.remove('hidden');
+  for (const el of ['menu', 'book', 'victory', 'death'])
+    $(el).classList.add('hidden');
+  setMusicMode('menu');
+}
+function cineShot(si, gy) {
+  if (si === 0) return [[160, gy + 100, -160], [78, gy + 42, -78]];
+  if (si === 1) return [[-58, gy + 8, 34], [-16, gy + 5.5, 10]];
+  return [[12, gy + 5.2, -12], [8.5, gy + 3.6, 8.5]];
+}
+function cineAdvance() {
+  if (!cine) return;
+  cine.si++; cine.t = 0;
+  if (cine.si >= 3) endCutscene();
+}
+function endCutscene() {
+  const idx = cine.idx;
+  cine = null;
+  document.body.classList.remove('cine');
+  $('cineSkip').classList.add('hidden');
+  $('cineText').textContent = '';
+  startRun({ type: 'campaign', ch: idx });
+}
+function updateCutscene(dt) {
+  if (!cine) return;
+  const ch = CHAPTERS[cine.idx];
+  cine.t += dt;
+  const dur = 7.0;
+  if (cine.t >= dur) { cineAdvance(); if (!cine) return; }
+  const gy = groundY(0, 0);
+  const [A, B] = cineShot(cine.si, gy);
+  const k = sstep(0, 1, cine.t / dur);
+  setCamera(
+    [lerp(A[0], B[0], k), lerp(A[1], B[1], k), lerp(A[2], B[2], k)],
+    [0, gy + 2.6, 0]);
+  RS.focusX = 0; RS.focusZ = 0;
+  updateChunks(0, 0, 2);
+  RS.shipModel = m4compose(0, gy + 2.6 + Math.sin(RS.time) * 0.1, 0, 2.4, 0, 0, 1);
+  RS.turretModel = m4compose(0, gy + 3.22 + Math.sin(RS.time) * 0.1, 0, 2.9, 0, 0, 1);
+  const line = ch.lore[cine.si] || '';
+  $('cineText').textContent = line.slice(0, Math.floor(cine.t * 46));
 }
 function quitToMenu() {
   state = ST.MENU;
   document.body.classList.remove('playing');
   document.getElementById('hud').classList.add('hidden');
-  for (const el of ['death', 'pause', 'levelup', 'armory', 'helpPanel'])
+  for (const el of ['death', 'pause', 'levelup', 'armory', 'helpPanel', 'book', 'endless', 'victory', 'hangar'])
     document.getElementById(el).classList.add('hidden');
+  if (BIOME_ID !== 'verdant' || SEED !== MENU_SEED) {
+    setBiome('verdant');
+    SEED = MENU_SEED;
+    resetWorld();
+    updateChunks(0, 0, 30);
+  }
   showMenu();
   setMusicMode('menu');
 }
@@ -2437,7 +3427,12 @@ function updateCamera(dt) {
   let ex = camTX + Math.sin(camYaw) * cp * camDist;
   let ey = camTY + spn * camDist;
   let ez = camTZ + Math.cos(camYaw) * cp * camDist;
-  const minY = groundY(ex, ez) + 2.4;
+  let minY = groundY(ex, ez) + 2.4;
+  if (CUR_BIOME.city) {
+    const bb = cityBuilding(Math.floor(ex / CITY_CELL), Math.floor(ez / CITY_CELL));
+    if (bb && Math.abs(ex - bb.bx) < bb.w / 2 + 3 && Math.abs(ez - bb.bz) < bb.d / 2 + 3 && heightAt(bb.bx, bb.bz) >= 0.3)
+      minY = Math.max(minY, heightAt(bb.bx, bb.bz) + bb.h + 2.5);
+  }
   if (ey < minY) ey = minY;
   const sh = shake * shake;
   const t = performance.now() * 0.001;
@@ -2448,6 +3443,17 @@ function updateCamera(dt) {
   RS.focusX = P.x; RS.focusZ = P.z;
 }
 
+let hgIdx = 0;
+function updateHangarScene(dt) {
+  const gy = groundY(0, 0);
+  const a = RS.time * 0.22;
+  setCamera([Math.sin(a) * 10.5, gy + 4.8, Math.cos(a) * 10.5], [0, gy + 2.7, 0]);
+  RS.focusX = 0; RS.focusZ = 0;
+  updateChunks(0, 0, 2);
+  const bob = Math.sin(RS.time * 1.2) * 0.15;
+  RS.shipModel = m4compose(0, gy + 2.7 + bob, 0, RS.time * 0.45, 0, 0, 1);
+  RS.turretModel = m4compose(0, gy + 3.32 + bob, 0, RS.time * 0.45 + 0.6, 0, 0, 1);
+}
 function updateMenuScene(dt) {
   menuOrbit += dt * 0.07;
   const r = 34;
@@ -2467,8 +3473,8 @@ const ENEMY_TINT = { skitter: [1, 1, 1], husk: [1, 1, 1], bulwark: [1, 1, 1], sp
 function fillBatches() {
   for (const k in BAT) BAT[k].begin();
   fxBatch.begin();
-  if (state === ST.MENU) {
-    // quiet world
+  if (state === ST.MENU || state === ST.HANGAR || state === ST.BOOK || state === ST.CUTSCENE || state === ST.ENDLESSSEL) {
+    // showcase world — ship pose driven by the scene
   } else if (P) {
     if (state === ST.DEAD) {
       RS.shipModel = null;
@@ -2481,8 +3487,10 @@ function fillBatches() {
       if (e.dead) continue;
       const q = qYawPitch(e.yaw, 0);
       const bat = BAT[e.type];
-      const tint = e.elite ? [1.25, 1.05, 0.55] : (ENEMY_TINT[e.type] || [1, 1, 1]);
-      const em = e.boss && e.chargeTel > 0 ? 2.4 : (e.elite ? 1.7 : 1);
+      const tint = e.boss && e.bdef ? e.bdef.tint : e.elite ? [1.25, 1.05, 0.55] : (ENEMY_TINT[e.type] || [1, 1, 1]);
+      let em = e.boss && e.chargeTel > 0 ? 2.4 : (e.elite ? 1.7 : 1);
+      if (e.deton) em = 1.5 + Math.sin(RS.time * 11) * 1.1;
+      if (e.lance && e.lState === 1) em = 2.4;
       bat.push(e.x, e.y, e.z, e.sc, q, tint[0], tint[1], tint[2], e.flash * 0.85, 1, 1, 1, em);
     }
     for (const b of bulletsP) {
@@ -2507,6 +3515,22 @@ function fillBatches() {
     for (const mn of minesArr) {
       const blink = mn.arm <= 0 && Math.sin(mn.t * 9) > 0 ? 2.2 : 0.6;
       BAT.mine.push(mn.x, mn.y, mn.z, 1, Q_ID, 1, 1, 1, 0, 1, 1, 1, blink);
+    }
+    for (const fp of firePatches) {
+      const k = fp.t / fp.life;
+      fxBatch.push(fp.x, fp.y + 0.55, fp.z, 4.5 * (1 - k * 0.4), 1, 0.42, 0.1, 0.55 * (1 - k), fp.t * 2, 0);
+    }
+    for (const sg of sigils) {
+      const k = sg.t / sg.dur;
+      fxBatch.push(sg.x, sg.y + 1, sg.z, sg.r * 2 * (1 - k) + 5, 0.6, 0.32, 1, 0.8, RS.time * 4, 1);
+      fxBatch.push(sg.x, sg.y + 1, sg.z, 3 + k * 3, 0.75, 0.45, 1, 0.9, -RS.time * 5, 0);
+    }
+    for (const sn of sentries) {
+      const blink = sn.life - sn.t < 2 ? (Math.sin(RS.time * 10) > 0 ? 2 : 0.6) : 1;
+      BAT.sentry.push(sn.x, sn.y, sn.z, 1.25, qYawPitch(sn.yaw, 0), 0.8, 1, 1.1, 0, 1, 1, 1, blink);
+    }
+    for (const bo of boomers) {
+      BAT.blade.push(bo.x, bo.y, bo.z, 1.35, qYawPitch(bo.spin, 0), 1, 0.85, 0.5, 0, 1, 1, 1, 1.8);
     }
     const bl = P.weapons.blades;
     if (bl) {
@@ -2535,7 +3559,12 @@ function fillBatches() {
     }
   }
   // headlight / engine glow light
-  if (P && state !== ST.MENU) {
+  if (state === ST.HANGAR) {
+    const gy2 = groundY(0, 0);
+    RS.lightPos = [5, gy2 + 7, 3];
+    RS.lightCol = [1.0, 0.75, 0.45];
+    RS.lightRad = 30;
+  } else if (P && state !== ST.MENU) {
     const night = 1 - RS.dayF;
     RS.lightPos = [P.x, P.y + 3, P.z];
     RS.lightCol = [0.9 * (0.25 + night), 0.75 * (0.25 + night), 0.5 * (0.25 + night)];
@@ -2567,9 +3596,14 @@ window.addEventListener('keydown', e => {
   if (k === 'q' && state === ST.PLAY) camYawTarget += PI / 4;
   if (k === 'e' && state === ST.PLAY) camYawTarget -= PI / 4;
   if (k === 'm') toggleMute();
+  if (state === ST.CUTSCENE && (k === ' ' || k === 'enter')) { cineAdvance(); return; }
+  if (k === 'escape' && state === ST.CUTSCENE) { endCutscene(); return; }
   if (k === 'p' || k === 'escape') {
     if (state === ST.PLAY) { state = ST.PAUSE; $('pause').classList.remove('hidden'); setMusicMode('menu'); }
     else if (state === ST.PAUSE) { state = ST.PLAY; $('pause').classList.add('hidden'); setMusicMode('combat'); }
+    else if (state === ST.HANGAR) closeHangar();
+    else if (state === ST.BOOK) { $('book').classList.add('hidden'); state = ST.MENU; showMenu(); }
+    else if (state === ST.ENDLESSSEL) { $('endless').classList.add('hidden'); state = ST.MENU; showMenu(); }
   }
 });
 window.addEventListener('keyup', e => { keys[e.key.toLowerCase()] = false; });
@@ -2578,7 +3612,11 @@ document.addEventListener('visibilitychange', () => {
   if (document.hidden && state === ST.PLAY) { state = ST.PAUSE; $('pause').classList.remove('hidden'); }
 });
 window.addEventListener('mousemove', e => { mouse.x = e.clientX; mouse.y = e.clientY; });
-window.addEventListener('mousedown', e => { initAudio(); if (e.button === 0) mouse.down = true; });
+window.addEventListener('mousedown', e => {
+  initAudio();
+  if (state === ST.CUTSCENE) { cineAdvance(); return; }
+  if (e.button === 0) mouse.down = true;
+});
 window.addEventListener('mouseup', e => { if (e.button === 0) mouse.down = false; });
 window.addEventListener('wheel', e => { camDist = clamp(camDist + e.deltaY * 0.018, 16, 42); }, { passive: true });
 window.addEventListener('contextmenu', e => e.preventDefault());
@@ -2609,7 +3647,7 @@ function updateHUD() {
   $('hptext').textContent = Math.ceil(P.hp) + ' / ' + P.maxhp;
   $('xpfill').style.transform = 'scaleX(' + clamp(P.xp / P.xpNeed, 0, 1) + ')';
   $('lvltag').textContent = 'LEVEL ' + P.lvl;
-  $('wavetag').textContent = (wave < 10 ? '0' : '') + wave;
+  $('wavetag').textContent = RUN.type === 'campaign' ? wave + '/' + RUN.finalWave : (wave < 10 ? '0' : '') + wave;
   $('timetag').textContent = fmtTime(gameTime);
   $('killtag').innerHTML = 'KILLS <b>' + kills + '</b>';
   $('coretag').innerHTML = 'CORES <b>' + coresRun + '</b>';
@@ -2733,15 +3771,233 @@ function showDeath(nb) {
   $('death').classList.remove('hidden');
 }
 function bootUI() {
-  $('btnDeploy').onclick = () => { initAudio(); sfxUI(); startRun(); };
-  $('btnRetry').onclick = () => { sfxUI(); $('death').classList.add('hidden'); startRun(); };
+  $('btnDeploy').onclick = () => { initAudio(); sfxUI(); openBook(); };
+  $('btnEndless').onclick = () => { initAudio(); sfxUI(); openEndless(); };
+  $('btnEndlessBack').onclick = () => { sfxUI(); $('endless').classList.add('hidden'); state = ST.MENU; showMenu(); };
+  $('bookPrev').onclick = () => { sfxUI(); bookIdx = (bookIdx + CHAPTERS.length - 1) % CHAPTERS.length; renderBook(); };
+  $('bookNext').onclick = () => { sfxUI(); bookIdx = (bookIdx + 1) % CHAPTERS.length; renderBook(); };
+  $('btnBookBack').onclick = () => { sfxUI(); $('book').classList.add('hidden'); state = ST.MENU; showMenu(); };
+  $('bookDeploy').onclick = () => {
+    if (bookIdx >= meta.campaign.unlocked) return;
+    sfxUI();
+    startChapter(bookIdx);
+  };
+  $('btnVicNext').onclick = () => {
+    sfxUI();
+    $('victory').classList.add('hidden');
+    startChapter(Math.min(RUN.ch + 1, CHAPTERS.length - 1));
+  };
+  $('btnVicBook').onclick = () => { sfxUI(); $('victory').classList.add('hidden'); openBook(); };
+  $('btnVicMenu').onclick = () => { sfxUI(); quitToMenu(); };
+  $('cineSkip').onclick = () => { if (cine) endCutscene(); };
+  $('btnRetry').onclick = () => { sfxUI(); $('death').classList.add('hidden'); startRun(lastMode); };
   $('btnMenu').onclick = () => { sfxUI(); quitToMenu(); };
   $('btnArmory').onclick = () => { initAudio(); sfxUI(); $('menu').classList.add('hidden'); renderArmory(); $('armory').classList.remove('hidden'); };
   $('btnArmoryBack').onclick = () => { sfxUI(); $('armory').classList.add('hidden'); showMenu(); };
+  $('btnHangar').onclick = () => { initAudio(); sfxUI(); openHangar(); };
+  $('btnHangarBack').onclick = () => { sfxUI(); closeHangar(); };
+  $('hgArrowL').onclick = () => { sfxUI(); hgIdx = (hgIdx + SHIPS.length - 1) % SHIPS.length; buildShipMesh(SHIPS[hgIdx].id); renderHangar(); };
+  $('hgArrowR').onclick = () => { sfxUI(); hgIdx = (hgIdx + 1) % SHIPS.length; buildShipMesh(SHIPS[hgIdx].id); renderHangar(); };
+  $('hgAction').onclick = () => {
+    const sh = SHIPS[hgIdx];
+    if (!meta.hangar.owned[sh.id]) {
+      if (meta.cores < sh.cost) return;
+      meta.cores -= sh.cost;
+      meta.hangar.owned[sh.id] = 1;
+      sfxCore();
+    } else sfxUI();
+    meta.hangar.sel = sh.id;
+    saveMeta();
+    renderHangar();
+  };
   $('btnHelp').onclick = () => { initAudio(); sfxUI(); $('menu').classList.add('hidden'); $('helpPanel').classList.remove('hidden'); };
   $('btnHelpBack').onclick = () => { sfxUI(); $('helpPanel').classList.add('hidden'); showMenu(); };
   $('btnResume').onclick = () => { sfxUI(); state = ST.PLAY; $('pause').classList.add('hidden'); setMusicMode('combat'); };
   $('btnQuit').onclick = () => { sfxUI(); quitToMenu(); };
+}
+
+/* ---------------- chronicle book ---------------- */
+let bookIdx = 0;
+const thumbCache = {};
+function renderMapThumb(idx) {
+  const disp = $('bookMap');
+  const dctx = disp.getContext('2d');
+  if (!thumbCache[idx]) {
+    const ch = CHAPTERS[idx];
+    const N = 96;
+    const off = document.createElement('canvas');
+    off.width = off.height = N;
+    const ctx2 = off.getContext('2d');
+    const img = ctx2.createImageData(N, N);
+    const oldSeed = SEED, oldBiome = BIOME_ID;
+    SEED = ch.seed; setBiome(ch.biome);
+    const scale = 700 / N;
+    for (let py = 0; py < N; py++) for (let px = 0; px < N; px++) {
+      const wx = (px - N / 2) * scale, wz = (py - N / 2) * scale;
+      const h = heightAt(wx, wz);
+      let c;
+      const B = CUR_BIOME;
+      if (h < 0) {
+        c = B.waterEmis > 0.3 ? [B.waterCol[0] * 0.9, B.waterCol[1] * 0.9, B.waterCol[2] * 0.9]
+          : [B.waterCol[0] * 2.2, B.waterCol[1] * 2.6, B.waterCol[2] * 2.6];
+      } else {
+        c = terrainColor(h, 1, wx, wz, 0.5);
+        const h2 = heightAt(wx + scale * 1.4, wz + scale * 1.4);
+        const li = clamp(0.82 + (h - h2) * 0.09, 0.42, 1.4);
+        c = [c[0] * li, c[1] * li, c[2] * li];
+      }
+      const o = (py * N + px) * 4;
+      img.data[o] = clamp(Math.pow(c[0], 0.7), 0, 1) * 255;
+      img.data[o + 1] = clamp(Math.pow(c[1], 0.7), 0, 1) * 255;
+      img.data[o + 2] = clamp(Math.pow(c[2], 0.7), 0, 1) * 255;
+      img.data[o + 3] = 255;
+    }
+    SEED = oldSeed; setBiome(oldBiome);
+    ctx2.putImageData(img, 0, 0);
+    thumbCache[idx] = off;
+  }
+  dctx.imageSmoothingEnabled = true;
+  dctx.clearRect(0, 0, disp.width, disp.height);
+  dctx.drawImage(thumbCache[idx], 0, 0, disp.width, disp.height);
+  // drop-site marker + sepia vignette
+  const g = dctx.createRadialGradient(disp.width / 2, disp.height / 2, disp.width * 0.32, disp.width / 2, disp.height / 2, disp.width * 0.62);
+  g.addColorStop(0, 'rgba(20,12,4,0)');
+  g.addColorStop(1, 'rgba(16,10,4,0.55)');
+  dctx.fillStyle = g;
+  dctx.fillRect(0, 0, disp.width, disp.height);
+  dctx.strokeStyle = 'rgba(255,214,150,0.9)';
+  dctx.lineWidth = 1.6;
+  const cx2 = disp.width / 2, cy2 = disp.height / 2;
+  dctx.beginPath(); dctx.arc(cx2, cy2, 9, 0, TAU); dctx.stroke();
+  dctx.beginPath();
+  dctx.moveTo(cx2 - 15, cy2); dctx.lineTo(cx2 - 4, cy2);
+  dctx.moveTo(cx2 + 4, cy2); dctx.lineTo(cx2 + 15, cy2);
+  dctx.moveTo(cx2, cy2 - 15); dctx.lineTo(cx2, cy2 - 4);
+  dctx.moveTo(cx2, cy2 + 4); dctx.lineTo(cx2, cy2 + 15);
+  dctx.stroke();
+}
+function openBook() {
+  state = ST.BOOK;
+  $('menu').classList.add('hidden');
+  $('victory').classList.add('hidden');
+  let target = 0;
+  for (let i = 0; i < CHAPTERS.length; i++) if (i < meta.campaign.unlocked && !meta.campaign.done[i]) { target = i; break; }
+  if (meta.campaign.done[Math.min(meta.campaign.unlocked, CHAPTERS.length) - 1]) target = Math.min(meta.campaign.unlocked, CHAPTERS.length) - 1;
+  bookIdx = target;
+  renderBook();
+  $('book').classList.remove('hidden');
+}
+function renderBook() {
+  const ch = CHAPTERS[bookIdx];
+  const locked = bookIdx >= meta.campaign.unlocked;
+  const done = !!meta.campaign.done[bookIdx];
+  for (const pid of ['bookPageL', 'bookPageR']) {
+    const el = $(pid);
+    el.classList.remove('bflip'); void el.offsetWidth; el.classList.add('bflip');
+  }
+  $('bookChNum').textContent = 'CHAPTER ' + ROM[bookIdx];
+  $('bookBiomeTag').textContent = locked ? 'UNCHARTED' : BIOMES[ch.biome].name + ' — ' + BIOMES[ch.biome].tag;
+  $('bookTitle').textContent = locked ? '· · ·' : ch.title;
+  $('bookSub').textContent = locked ? 'RECORD SEALED' : ch.sub;
+  $('bookLore').innerHTML = locked
+    ? '<p>The pages ahead are fused shut, edges burnt to glass.</p><p>Clear the previous chapter to break the seal.</p>'
+    : ch.lore.map(l => '<p>' + l + '</p>').join('');
+  const st2 = $('bookStatus');
+  if (locked) { st2.textContent = '✕ SEALED'; st2.classList.add('locked'); }
+  else if (done) { st2.textContent = '✓ CLEARED — REDEPLOY AT WILL'; st2.classList.remove('locked'); }
+  else { st2.textContent = '◈ AWAITING DEPLOYMENT'; st2.classList.remove('locked'); }
+  $('bookDeploy').classList.toggle('off', locked);
+  $('bookDeploy').textContent = done ? 'Redeploy — Chapter ' + ROM[bookIdx] : 'Begin Chapter ' + ROM[bookIdx];
+  $('bookPageNo').textContent = (bookIdx + 1) + ' / ' + CHAPTERS.length;
+  $('bookMapLock').classList.toggle('hidden', !locked);
+  if (!locked) renderMapThumb(bookIdx);
+  else { const d = $('bookMap').getContext('2d'); d.fillStyle = '#0d0906'; d.fillRect(0, 0, 340, 340); }
+}
+/* ---------------- endless select ---------------- */
+function endlessUnlocked(id) {
+  if (id === 'verdant') return true;
+  const idx = CHAPTERS.findIndex(c => c.biome === id);
+  return idx >= 0 && !!meta.campaign.done[idx];
+}
+function openEndless() {
+  state = ST.ENDLESSSEL;
+  $('menu').classList.add('hidden');
+  const list = $('endlessList');
+  list.innerHTML = '';
+  const swCols = { verdant: '#3f7a58', desert: '#c99a55', city: '#5d6570', frost: '#a9c3dd', ash: '#7a3a24', void: '#5b3e8f' };
+  for (const id of BIOME_ORDER) {
+    const B = BIOMES[id];
+    const un = endlessUnlocked(id);
+    const row = document.createElement('div');
+    row.className = 'erow' + (un ? '' : ' locked');
+    row.innerHTML = '<div class="esw" style="background:' + swCols[id] + '"></div>' +
+      '<div><div class="ename">' + B.name + '</div><div class="etag">' + (un ? B.tag : 'clear its chapter to unlock') + '</div></div>' +
+      '<div class="ediff">' + (un ? 'THREAT ×' + (1 + BIOME_ORDER.indexOf(id) * 0.18).toFixed(2) : '✕') + '</div>';
+    if (un) row.onclick = () => { sfxUI(); startRun({ type: 'endless', biome: id }); };
+    list.appendChild(row);
+  }
+  $('endless').classList.remove('hidden');
+}
+
+/* ---------------- hangar ---------------- */
+function openHangar() {
+  state = ST.HANGAR;
+  $('menu').classList.add('hidden');
+  hgIdx = Math.max(0, SHIPS.findIndex(sh => sh.id === meta.hangar.sel));
+  buildShipMesh(SHIPS[hgIdx].id);
+  renderHangar();
+  $('hangar').classList.remove('hidden');
+}
+function closeHangar() {
+  applySelectedShip();
+  state = ST.MENU;
+  $('hangar').classList.add('hidden');
+  showMenu();
+}
+function renderHangar() {
+  const sh = SHIPS[hgIdx], st = sh.st;
+  $('hgName').textContent = sh.name.toUpperCase();
+  $('hgBlurb').textContent = sh.blurb;
+  const owned = !!meta.hangar.owned[sh.id];
+  $('hgOwn').textContent = owned ? (meta.hangar.sel === sh.id ? '· EQUIPPED ·' : 'IN HANGAR') : 'PRICE ⬡ ' + sh.cost;
+  const rows = [
+    ['INTEGRITY', st.hp / 1.5], ['THRUST', st.spd / 1.25], ['FIREPOWER', (st.dmg + (st.crit || 0) * 2) / 1.35],
+    ['ARMOR', ((st.armor || 0) + (st.ram ? 0.06 : 0)) / 0.13], ['BOOST', (1 / st.boost) / 1.9]];
+  $('hgStats').innerHTML = rows.map(r =>
+    '<div class="hgstat"><span>' + r[0] + '</span><div class="hgbar"><div style="width:' +
+    Math.round(clamp(r[1], 0.08, 1) * 100) + '%"></div></div></div>').join('');
+  const act = $('hgAction');
+  act.classList.remove('off');
+  if (!owned) {
+    act.textContent = 'BUY · ⬡ ' + sh.cost;
+    if (meta.cores < sh.cost) act.classList.add('off');
+  } else if (meta.hangar.sel === sh.id) {
+    act.textContent = 'EQUIPPED';
+    act.classList.add('off');
+  } else {
+    act.textContent = 'EQUIP';
+  }
+  const mkSw = (holder, cols, cur, key) => {
+    holder.innerHTML = '';
+    cols.forEach((c, i) => {
+      const d = document.createElement('div');
+      d.className = 'sw' + (i === cur ? ' on' : '');
+      const rgb = c[1].map(v => Math.round(Math.pow(clamp(v, 0, 1), 0.6) * 255));
+      d.style.background = 'rgb(' + rgb.join(',') + ')';
+      d.title = c[0];
+      d.onclick = () => {
+        meta.hangar[key] = i;
+        saveMeta();
+        buildShipMesh(SHIPS[hgIdx].id);
+        renderHangar();
+        sfxUI();
+      };
+      holder.appendChild(d);
+    });
+  };
+  mkSw($('hgPrims'), PRIM_COLS, meta.hangar.prim, 'prim');
+  mkSw($('hgGlows'), GLOW_COLS, meta.hangar.glow, 'glow');
+  $('hgCores').textContent = '⬡ ' + meta.cores + ' CORES';
 }
 
 /* ---------------- scanner (minimap) ---------------- */
@@ -3063,22 +4319,27 @@ function loop(tms) {
     if (avg < 42 && renderScale > 0.55) { renderScale = Math.max(0.55, renderScale - 0.15); measure(); allocTargets(); }
     else if (avg > 57 && renderScale < 1) { renderScale = Math.min(1, renderScale + 0.1); measure(); allocTargets(); }
   }
-  computeSun(dayPhase, t);
+  computeSun(CUR_BIOME.dayLock != null ? CUR_BIOME.dayLock : dayPhase, t);
   if (state === ST.PLAY) {
     updateGame(dt);
     updateCamera(dt);
-  } else if (state === ST.MENU) {
+  } else if (state === ST.MENU || state === ST.BOOK || state === ST.ENDLESSSEL) {
     updateMenuScene(dt);
+  } else if (state === ST.HANGAR) {
+    updateHangarScene(dt);
+  } else if (state === ST.CUTSCENE) {
+    updateCutscene(dt);
   } else {
     shake = Math.max(0, shake - dt * 2.6);
   }
   drawFrame();
-  if (state !== ST.MENU) updateHUD();
+  if (state === ST.PLAY || state === ST.LEVELUP || state === ST.PAUSE || state === ST.DEAD) updateHUD();
   drawOverlay();
 }
 
+let MENU_SEED = 0;
 function boot() {
-  SEED = 1 + Math.floor(Math.random() * 999999);
+  MENU_SEED = SEED = 1 + Math.floor(Math.random() * 999999);
   measure();
   sizeOverlay();
   buildPrograms();
@@ -3086,9 +4347,10 @@ function boot() {
   allocTargets();
   makeScreenGeo();
   makeFXTexture();
-  buildModels();
-  buildBatches();
   loadMeta();
+  buildModels();
+  applySelectedShip();
+  buildBatches();
   updateChunks(0, 0, 40);
   bootUI();
   showMenu();
