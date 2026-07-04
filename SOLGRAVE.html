@@ -251,6 +251,37 @@ body.cine #cineText{opacity:1}
 #cineHint{position:fixed;bottom:4vh;width:100%;text-align:center;z-index:16;pointer-events:none;
   font-size:9px;letter-spacing:.4em;color:#5c6f86;opacity:0;transition:opacity .5s}
 body.cine #cineHint{opacity:1}
+/* ------- menu hub ------- */
+.screen.mleft{background:linear-gradient(90deg,rgba(4,6,11,.84) 0%,rgba(4,6,11,.4) 44%,rgba(4,6,11,0) 72%);
+  justify-content:flex-start}
+#menuPanel{margin-left:5vw;width:410px;text-align:left;animation:panelIn .5s cubic-bezier(.2,.9,.3,1.2)}
+#menu #title{font-size:50px;letter-spacing:.24em;padding-left:0;text-align:left}
+#menu #subtitle,#menu #seedlbl{padding-left:2px;text-align:left}
+#menuNav{margin-top:26px}
+.mbtn{display:flex;justify-content:space-between;align-items:center;padding:12px 18px 12px 16px;margin:7px 0;
+  cursor:pointer;border-left:2px solid rgba(255,180,84,.28);border-radius:0 9px 9px 0;
+  background:linear-gradient(90deg,rgba(255,180,84,.08),transparent 80%);
+  font-weight:800;letter-spacing:.32em;font-size:14px;color:#ffd9a3;transition:all .16s}
+.mbtn:hover{border-left-color:var(--amber);color:#fff;padding-left:26px;
+  background:linear-gradient(90deg,rgba(255,180,84,.24),transparent 85%)}
+.mbtn span{opacity:0;transition:opacity .16s;color:var(--amber);font-size:16px}
+.mbtn:hover span{opacity:1}
+#menuHoverDesc{min-height:36px;margin-top:14px;font-size:11px;line-height:1.65;color:#8fa4bc;
+  letter-spacing:.05em;font-style:italic}
+#menu #menuCores{text-align:left}
+#menu .ctrlhint{text-align:left}
+#metaChip{position:fixed;top:16px;right:22px;z-index:30;font-size:13px;letter-spacing:.2em;font-weight:800;
+  color:var(--amber);background:rgba(8,12,19,.72);border:1px solid rgba(255,180,84,.35);border-radius:9px;
+  padding:9px 16px;backdrop-filter:blur(6px);box-shadow:0 4px 20px rgba(0,0,0,.45)}
+body.playing #metaChip,body.cine #metaChip{display:none}
+/* ------- records / turret bay ------- */
+.recrow{display:flex;justify-content:space-between;align-items:center;width:400px;max-width:80vw;
+  padding:10px 16px;margin:6px 0;background:rgba(16,22,34,.8);border:1px solid rgba(255,255,255,.1);
+  border-radius:9px;font-size:12px;letter-spacing:.14em;color:#9fb2c8;text-align:left}
+.recrow b{color:#fff;font-size:14px;letter-spacing:.08em}
+.recrow .ric{margin-right:10px;color:var(--amber)}
+#turrethint{margin-top:3px;font-size:10px;letter-spacing:.2em;color:#5c6f86}
+#turrethint.afford{color:var(--teal);text-shadow:0 0 10px rgba(77,232,210,.6)}
 #err{position:fixed;inset:auto 0 0 0;z-index:99;background:#3d0a12;color:#ffb3bc;font:12px/1.6 monospace;
   padding:10px 16px;white-space:pre-wrap;display:none}
 #mutehint{position:fixed;top:14px;right:20px;z-index:11;font-size:10px;letter-spacing:.24em;color:#5c6f86;pointer-events:none}
@@ -282,25 +313,51 @@ body.cine #cineHint{opacity:1}
     <div class="bar" id="xpbar"><div class="fill" id="xpfill"></div></div>
     <div id="lvltag">LEVEL 1</div>
     <div id="boosttag" class="ready">BOOST READY</div>
+    <div id="turrethint">T · TURRET BAY</div>
   </div>
   <div id="weaponsbar"></div>
   <div id="minimapwrap"><canvas id="minimap" width="316" height="316"></canvas></div>
   <div id="banner"><div id="bannerText"></div><div id="bannerSub"></div></div>
 </div>
 
-<div id="menu" class="screen">
-  <div class="panel">
+<div id="menu" class="screen mleft">
+  <div id="menuPanel">
     <div id="title">SOLGRAVE</div>
     <div id="subtitle">Last glaive under a dying sun</div>
     <div id="seedlbl">SECTOR —</div>
-    <div class="btn" id="btnDeploy">Campaign</div>
-    <div class="btn" id="btnEndless">Endless</div>
-    <div class="btn teal" id="btnHangar">Hangar</div>
-    <div class="btn teal" id="btnArmory">Armory</div>
-    <div class="btn teal" id="btnHelp">Protocol</div>
+    <div id="menuNav">
+      <div class="mbtn" id="btnDeploy" data-desc="Six chapters, six worlds, six Wardens. The story of the fall, told in a burnt chronicle.">CAMPAIGN<span>▸</span></div>
+      <div class="mbtn" id="btnEndless" data-desc="Hold any unlocked sector for as long as you can. A new map every single drop.">ENDLESS<span>▸</span></div>
+      <div class="mbtn" id="btnHangar" data-desc="Buy new glaives with salvage, repaint them, and choose what you fly.">HANGAR<span>▸</span></div>
+      <div class="mbtn" id="btnArmory" data-desc="Permanent modifications. Every rank carries into every future run.">ARMORY<span>▸</span></div>
+      <div class="mbtn" id="btnRecords" data-desc="Your service history — records, chapter clears, and the state of the fleet.">RECORDS<span>▸</span></div>
+      <div class="mbtn" id="btnHelp" data-desc="Controls and field protocol.">PROTOCOL<span>▸</span></div>
+    </div>
+    <div id="menuHoverDesc">Welcome back, pilot.</div>
     <div id="menuCores">⬡ 0 CORES</div>
-    <div id="beststats"></div>
-    <div class="ctrlhint"><b>WASD</b> move <b>MOUSE</b> aim <b>LMB</b> fire <b>SPACE</b> boost <b>Q/E</b> camera</div>
+    <div id="beststats" class="hidden"></div>
+    <div class="ctrlhint"><b>WASD</b> move <b>MOUSE</b> aim <b>LMB</b> fire <b>SPACE</b> boost <b>T</b> turret bay <b>Q/E</b> camera</div>
+  </div>
+</div>
+
+<div id="metaChip">⬡ 0</div>
+
+<div id="records" class="screen hidden">
+  <div class="panel">
+    <div id="luTitle" style="color:var(--amber);text-shadow:0 0 22px rgba(255,180,84,.5)">RECORDS</div>
+    <div id="luSub">SERVICE HISTORY</div>
+    <div id="recBody" style="margin-top:14px"></div>
+    <div class="btn teal small" id="btnRecordsBack">Back</div>
+  </div>
+</div>
+
+<div id="turretbay" class="screen hidden">
+  <div class="panel">
+    <div id="luTitle" style="color:var(--amber);text-shadow:0 0 22px rgba(255,180,84,.5)">TURRET BAY</div>
+    <div id="luSub">FIELD REFITS — SPEND THIS RUN&#8217;S SALVAGE</div>
+    <div id="turretList" style="margin-top:16px;display:flex;flex-direction:column;gap:9px"></div>
+    <div id="turretCores" style="margin-top:14px;font-size:14px;letter-spacing:.24em;color:var(--amber)"></div>
+    <div class="btn small" id="btnTurretBack">Resume</div>
   </div>
 </div>
 
@@ -321,13 +378,16 @@ body.cine #cineHint{opacity:1}
       <div class="sec">CONTROLS</div>
       <div><b>W A S D</b> thrust &nbsp; <b>MOUSE</b> aim turret &nbsp; <b>LMB / hold</b> fire</div>
       <div><b>SPACE / SHIFT</b> boost-dash &nbsp; <b>Q / E</b> rotate view &nbsp; <b>WHEEL</b> zoom</div>
-      <div><b>P / ESC</b> pause &nbsp; <b>M</b> sound</div>
+      <div><b>T</b> turret bay (spend run salvage on your gun) &nbsp; <b>P / ESC</b> pause &nbsp; <b>M</b> sound</div>
       <div class="sec">DIRECTIVE</div>
       <div><b>CAMPAIGN</b> Six chapters, six worlds, six Wardens. Clear each to break the
       next seal in the Chronicle and unlock its sector for Endless patrol.</div>
       <div><b>ENDLESS</b> Hold any unlocked sector as long as you can. Waves escalate forever;
       a Warden surfaces every fifth wave. Night runs hotter — watch your scanner.</div>
       <div><b>HANGAR</b> Spend cores on new glaives and refits. Every hull flies differently.</div>
+      <div class="sec">FIELD SUPPLIES</div>
+      <div>Green medkits appear across the sector and drop from kills — fly over them to patch
+      your hull. The scanner marks them green.</div>
       <div class="sec">SALVAGE</div>
       <div>⬡ Cores drop from elites, wardens and survived waves. Spend them in the
       Armory between runs. Every sector is generated fresh from its seed.</div>
@@ -1958,7 +2018,7 @@ function drawFrame() {
 /* =====================================================================
    GAME — player glaive, armaments, creatures, waves, wardens, salvage.
    ===================================================================== */
-const ST = { MENU: 0, PLAY: 1, LEVELUP: 2, PAUSE: 3, DEAD: 4, HANGAR: 5, BOOK: 6, CUTSCENE: 7, VICTORY: 8, ENDLESSSEL: 9 };
+const ST = { MENU: 0, PLAY: 1, LEVELUP: 2, PAUSE: 3, DEAD: 4, HANGAR: 5, BOOK: 6, CUTSCENE: 7, VICTORY: 8, ENDLESSSEL: 9, TURRET: 10 };
 let state = ST.MENU;
 let gameTime = 0, wave = 1, kills = 0, coresRun = 0, dayPhase = 0.34;
 let pendingLevels = 0, runSeed = 0;
@@ -2022,6 +2082,13 @@ const CHAPTERS = [
     sub: 'Survive to Wave 8 · destroy the Null Regent' },
 ];
 const ROM = ['I', 'II', 'III', 'IV', 'V', 'VI'];
+const TURRET_MODS = [
+  { id: 'bore', name: 'Heavy Bore', icon: '⨀', max: 3, cost: t => 2 + t, desc: '+4 bolt damage per tier' },
+  { id: 'cycler', name: 'Rapid Cycler', icon: '⟳', max: 3, cost: t => 2 + t, desc: '+15% turret fire rate per tier' },
+  { id: 'twin', name: 'Twin Mount', icon: '∥', max: 1, cost: () => 5, desc: '+1 bolt in every volley' },
+  { id: 'barrel', name: 'Long Barrel', icon: '⌖', max: 3, cost: t => 2 + t, desc: '+20% bolt range & speed per tier' },
+  { id: 'stab', name: 'Gyro Stabilizer', icon: '◬', max: 3, cost: t => 2 + t, desc: 'Tighter spread · +3% crit per tier' },
+];
 let lastMode = { type: 'endless', biome: 'verdant' };
 let victoryTimer = 0;
 
@@ -2141,8 +2208,9 @@ function newPlayer() {
   return {
     shipRam: sd.ram || 0,
     x: 0, z: 0, y: groundY(0, 0) + 2.3, vx: 0, vz: 0, yaw: 0, roll: 0, bob: 0,
-    hp: maxhp, maxhp, regen: 0, iv: 0, flash: 0,
-    speed: 27 * (1 + 0.05 * (t.thrust || 0)) * sd.spd,
+    hp: maxhp, maxhp, regen: 0.25, iv: 0, flash: 0,
+    turret: { bore: 0, cycler: 0, twin: 0, barrel: 0, stab: 0 },
+    speed: 28 * (1 + 0.05 * (t.thrust || 0)) * sd.spd,
     dmgMul: (1 + 0.08 * (t.ord || 0)) * sd.dmg, rateMul: 1,
     xpMul: 1 + 0.10 * (t.salv || 0),
     armor: Math.min(0.6, 0.04 * (t.armor || 0) + (sd.armor || 0)), critC: 0.05 + (sd.crit || 0), magnet: 11 * (sd.magnet || 1),
@@ -2170,6 +2238,7 @@ const UPG = [
   { id: 'sigil', wpn: 1, max: 5, name: 'Null Sigil', icon: '✇', d: l => `Collapsing sigil drags foes in, then detonates · ${30 + 14 * l} dmg` },
   { id: 'sentry', wpn: 1, max: 5, name: 'Sentry Pod', icon: '⌬', d: l => `Deploys auto-turrets (${1 + Math.floor(l / 3)} max, 12s) · ${6 + 2 * l} dmg bolts` },
   { id: 'aura', wpn: 1, max: 5, name: 'Ion Field', icon: '◉', d: l => `Constant crackling aura · ${4 + 2 * l} dmg ticks in ${(7 + 0.6 * l).toFixed(1)}m` },
+  { id: 'javelin', wpn: 1, max: 5, name: 'Arc Javelin', icon: '☄', d: l => `Lobbed charges arc toward your aim · ${26 + 9 * l} dmg splash` },
   { id: 'engine', max: 5, name: 'Engine Tune', icon: '➤', d: () => '+8% thrust speed' },
   { id: 'plating', max: 5, name: 'Hull Weave', icon: '⛨', d: () => '+18 integrity · +0.4/s self-repair' },
   { id: 'overclock', max: 5, name: 'Overclock', icon: '⏩', d: () => '+9% fire rate, all weapons' },
@@ -2180,6 +2249,10 @@ const UPG = [
   { id: 'leech', max: 5, name: 'Reclaimer', icon: '❥', d: () => '+0.4 integrity restored per kill, per rank' },
   { id: 'adrenal', max: 5, name: 'Adrenal Core', icon: '↯', d: () => 'Up to +12% damage per rank as hull drops' },
   { id: 'ram', max: 5, name: 'Ram Plating', icon: '⪢', d: () => 'Boosting through enemies deals 18 dmg per rank' },
+  { id: 'thorns', max: 5, name: 'Reflex Spines', icon: '☓', d: () => 'Anything that strikes your hull takes 30 dmg per rank' },
+  { id: 'scavenger', max: 5, name: 'Field Medic', icon: '✚', d: () => 'Enemies drop medkits 2% more often per rank' },
+  { id: 'momentum', max: 5, name: 'Momentum Core', icon: '➢', d: () => '+3% damage per rank while moving fast' },
+  { id: 'vents', max: 5, name: 'Coolant Vents', icon: '❄', d: () => 'Boost cooldown -10% per rank' },
 ];
 function upgLevel(u) { return u.wpn ? (P.weapons[u.id] || 0) : (P.statLv[u.id] || 0); }
 function applyUpgrade(u) {
@@ -2195,6 +2268,7 @@ function applyUpgrade(u) {
       case 'crit': P.critC += 0.07; break;
       case 'shield': P.shieldRe = 11 - 1.6 * P.statLv.shield; if (!P.shield) { P.shield = 1; } break;
       case 'leech': P.leech = P.statLv.leech * 0.4; break;
+      case 'vents': P.boostCdMax *= 0.9; break;
     }
   }
   updateHUDWeapons();
@@ -2235,7 +2309,7 @@ function gainXP(v) {
 let enemies = [], bulletsP = [], bulletsE = [], gems = [], pickups = [],
   missiles = [], minesArr = [], novas = [], fxList = [], beams = [], debris = [], dmgTexts = [],
   firePatches = [], sentries = [], sigils = [], boomers = [];
-let bossRef = null, bossAnnounced = false, spawnBudget = 0;
+let bossRef = null, bossAnnounced = false, spawnBudget = 0, medkitT = 7;
 
 const ETYPE = {
   skitter: { hp: 15, sp: 15.5, dmg: 6, r: 1.0, xp: 1, sc: 1.0, cost: 1, min: 1, w: 3.0 },
@@ -2267,8 +2341,9 @@ function spawnEnemy(type, elite, x, z) {
     type, x, z, y: groundY(x, z) + 0.9, vx: 0, vz: 0, yaw: 0,
     hp: t.hp * hpMul, maxhp: t.hp * hpMul,
     dmg: t.dmg * (1 + (ew - 1) * 0.035) * (elite ? 1.5 : 1) * (0.75 + RUN.diff * 0.25),
-    sp: t.sp * (0.88 + Math.random() * 0.24), rad: t.r * (elite ? 1.4 : 1),
-    sc: t.sc * (elite ? 1.4 : 1), xp: t.xp * (elite ? 6 : 1),
+    /* readability + early mercy handled below */
+    sp: t.sp * (0.88 + Math.random() * 0.24) * (ew < 3 ? 0.86 : 1), rad: t.r * (elite ? 1.4 : 1) * 1.12,
+    sc: t.sc * (elite ? 1.4 : 1) * 1.18, xp: t.xp * (elite ? 6 : 1),
     elite, boss: false, flash: 0, hitCd: Math.random() * 0.5, shootCd: rand(1, 3),
     stun: 0, bladeCd: 0, seed: Math.random() * TAU, fly: t.fly, ranged: t.ranged,
     tele: t.tele, deton: t.deton, lance: t.lance, brood: t.brood, pylon: t.pylon, reav: t.reav,
@@ -2393,7 +2468,8 @@ function tickDamage(e, dmg) {
 }
 function hitEnemy(e, dmg, opts) {
   opts = opts || {};
-  let d = dmg * P.dmgMul * (1 + (P.statLv.adrenal || 0) * 0.12 * clamp(1 - P.hp / P.maxhp, 0, 1) * 1.6);
+  let d = dmg * P.dmgMul * (1 + (P.statLv.adrenal || 0) * 0.12 * clamp(1 - P.hp / P.maxhp, 0, 1) * 1.6)
+    * (1 + (P.statLv.momentum || 0) * 0.03 * (Math.hypot(P.vx, P.vz) > P.speed * 0.6 ? 1 : 0));
   const crit = Math.random() < P.critC;
   if (crit) d *= 2.2;
   e.hp -= d;
@@ -2442,7 +2518,7 @@ function killEnemy(e) {
       pickups.push({ kind: 'core', x: e.x + rand(-2, 2), z: e.z + rand(-2, 2), y: e.y, t: 0 });
     }
   }
-  if (!e.boss && Math.random() < 0.025) {
+  if (!e.boss && Math.random() < 0.035 + 0.02 * (P.statLv.scavenger || 0)) {
     pickups.push({ kind: 'heart', x: e.x, z: e.z, y: e.y, t: 0 });
   }
   if (e.boss) {
@@ -2506,12 +2582,15 @@ function updateWeapons(dt) {
     switch (id) {
       case 'pulse': {
         if (!mouse.down && !nearestEnemy(P.x, P.z, 55)) { wts[id] = 0.05; break; }
-        wts[id] = 1 / ((4.2 + 0.55 * lv) * rm);
-        const bolts = 1 + (lv >= 3 ? 1 : 0) + (lv >= 5 ? 1 : 0);
+        const tm = P.turret;
+        wts[id] = 1 / ((4.2 + 0.55 * lv) * (1 + 0.15 * tm.cycler) * rm);
+        const bolts = 1 + (lv >= 3 ? 1 : 0) + (lv >= 5 ? 1 : 0) + tm.twin;
+        const jit = 0.018 * (1 - 0.25 * tm.stab);
+        const bspd = 95 * (1 + 0.2 * tm.barrel), blife = 0.85 * (1 + 0.2 * tm.barrel);
         for (let i = 0; i < bolts; i++) {
-          const off = (i - (bolts - 1) / 2) * 0.07 + rand(-0.018, 0.018);
+          const off = (i - (bolts - 1) / 2) * 0.07 + rand(-jit, jit);
           const ca = Math.cos(off), sa = Math.sin(off);
-          firePlayerBullet(tipX, ty, tipZ, adx * ca - adz * sa, 0, adx * sa + adz * ca, 95, 8 + 3 * lv, 0.85);
+          firePlayerBullet(tipX, ty, tipZ, adx * ca - adz * sa, 0, adx * sa + adz * ca, bspd, 8 + 3 * lv + 4 * tm.bore, blife);
         }
         spawnFX(tipX, ty, tipZ, { s0: 1.4, s1: 0.4, life: 0.06, r: 1, g: 0.75, b: 0.3, a0: 1.3 });
         addShake(0.015);
@@ -2642,6 +2721,17 @@ function updateWeapons(dt) {
         sfxZap();
         break;
       }
+      case 'javelin': {
+        if (!mouse.down && !nearestEnemy(P.x, P.z, 45)) { wts[id] = 0.2; break; }
+        wts[id] = (2.1 - 0.1 * lv) / rm;
+        missiles.push({
+          x: P.x, y: P.y + 1.2, z: P.z,
+          vx: adx * 26, vy: 17, vz: adz * 26,
+          grav: 1, life: 2.6, dmg: 26 + 9 * lv, t: 0
+        });
+        sfxShot(0.9);
+        break;
+      }
       case 'sentry': {
         wts[id] = 6 / rm;
         if (sentries.length >= 1 + Math.floor(lv / 3)) break;
@@ -2702,6 +2792,16 @@ function updateGame(dt) {
     if (victoryTimer <= 0) { victory(); return; }
   }
   trySpawns(dt);
+  medkitT -= dt;
+  if (medkitT <= 0) {
+    medkitT = 15;
+    let hearts = 0;
+    for (const pk of pickups) if (pk.kind === 'heart') hearts++;
+    if (hearts < 4) {
+      const ma = Math.random() * TAU, md = rand(26, 52);
+      pickups.push({ kind: 'heart', x: P.x + Math.cos(ma) * md, z: P.z + Math.sin(ma) * md, y: 0, t: 0 });
+    }
+  }
   rebuildGrid();
 
   /* ---- player ---- */
@@ -2948,6 +3048,7 @@ function updateGame(dt) {
     if (pd < e.rad + 1.7 && e.hitCd <= 0) {
       e.hitCd = 0.9;
       hurtPlayer(e.dmg, (P.x - e.x) / pd * 12, (P.z - e.z) / pd * 12);
+      if (P.statLv.thorns) hitEnemy(e, 30 * P.statLv.thorns, {});
       e.vx -= (P.x - e.x) / pd * 8; e.vz -= (P.z - e.z) / pd * 8;
     }
     // despawn far strays (keeps pressure near the fight)
@@ -3003,6 +3104,9 @@ function updateGame(dt) {
   for (const ms of missiles) {
     ms.t += dt;
     if (ms.t > ms.life) { ms.explode = true; }
+    if (ms.grav) {
+      ms.vy -= 42 * dt;
+    } else {
     if (!ms.tgt || ms.tgt.dead) ms.tgt = nearestEnemy(ms.x, ms.z, 70);
     if (ms.tgt) {
       const dx = ms.tgt.x - ms.x, dy = ms.tgt.y + 1 - ms.y, dz = ms.tgt.z - ms.z;
@@ -3012,6 +3116,7 @@ function updateGame(dt) {
       ms.vy = lerp(ms.vy, dy / d * spd, turn);
       ms.vz = lerp(ms.vz, dz / d * spd, turn);
       if (d < 2.6) ms.explode = true;
+    }
     }
     ms.x += ms.vx * dt; ms.y += ms.vy * dt; ms.z += ms.vz * dt;
     if (ms.y < groundY(ms.x, ms.z) + 0.3) ms.explode = true;
@@ -3199,7 +3304,7 @@ function updateGame(dt) {
         sfxCore();
         dmgTexts.push({ x: pk.x, y: pk.y + 1, z: pk.z, txt: '+1 CORE', t: 0, life: 1.1, crit: true, col: '#ffb454' });
       } else {
-        P.hp = Math.min(P.maxhp, P.hp + 25);
+        P.hp = Math.min(P.maxhp, P.hp + 32);
         const hf = document.getElementById('healflash');
         hf.style.transition = 'none'; hf.style.opacity = '1';
         requestAnimationFrame(() => { hf.style.transition = 'opacity .6s ease-out'; hf.style.opacity = '0'; });
@@ -3301,14 +3406,16 @@ function startRun(mode) {
   enemies = []; bulletsP = []; bulletsE = []; gems = []; pickups = [];
   missiles = []; minesArr = []; novas = []; fxList = []; beams = []; debris = []; dmgTexts = [];
   firePatches = []; sentries = []; sigils = []; boomers = [];
-  bossRef = null; bossAnnounced = false; spawnBudget = 0;
+  bossRef = null; bossAnnounced = false; spawnBudget = 0; medkitT = 9;
+  pickups.push({ kind: 'heart', x: 18, z: 12, y: 0, t: 0 });
+  pickups.push({ kind: 'heart', x: -14, z: -20, y: 0, t: 0 });
   gameTime = 0; wave = 1; kills = 0; coresRun = 0; dayPhase = 0.34; pendingLevels = 0;
   camYaw = camYawTarget = 0.6;
   updateChunks(0, 0, 60);
   state = ST.PLAY;
   document.body.classList.add('playing');
   document.getElementById('hud').classList.remove('hidden');
-  for (const el of ['menu', 'death', 'pause', 'levelup', 'armory', 'helpPanel', 'book', 'endless', 'victory', 'hangar'])
+  for (const el of ['menu', 'death', 'pause', 'levelup', 'armory', 'helpPanel', 'book', 'endless', 'victory', 'hangar', 'records', 'turretbay'])
     document.getElementById(el).classList.add('hidden');
   updateHUDWeapons();
   if (RUN.type === 'campaign')
@@ -3374,7 +3481,7 @@ function quitToMenu() {
   state = ST.MENU;
   document.body.classList.remove('playing');
   document.getElementById('hud').classList.add('hidden');
-  for (const el of ['death', 'pause', 'levelup', 'armory', 'helpPanel', 'book', 'endless', 'victory', 'hangar'])
+  for (const el of ['death', 'pause', 'levelup', 'armory', 'helpPanel', 'book', 'endless', 'victory', 'hangar', 'records', 'turretbay'])
     document.getElementById(el).classList.add('hidden');
   if (BIOME_ID !== 'verdant' || SEED !== MENU_SEED) {
     setBiome('verdant');
@@ -3596,12 +3703,17 @@ window.addEventListener('keydown', e => {
   if (k === 'q' && state === ST.PLAY) camYawTarget += PI / 4;
   if (k === 'e' && state === ST.PLAY) camYawTarget -= PI / 4;
   if (k === 'm') toggleMute();
+  if (k === 't') {
+    if (state === ST.PLAY) { sfxUI(); openTurretBay(); }
+    else if (state === ST.TURRET) { sfxUI(); closeTurretBay(); }
+  }
   if (state === ST.CUTSCENE && (k === ' ' || k === 'enter')) { cineAdvance(); return; }
   if (k === 'escape' && state === ST.CUTSCENE) { endCutscene(); return; }
   if (k === 'p' || k === 'escape') {
     if (state === ST.PLAY) { state = ST.PAUSE; $('pause').classList.remove('hidden'); setMusicMode('menu'); }
     else if (state === ST.PAUSE) { state = ST.PLAY; $('pause').classList.add('hidden'); setMusicMode('combat'); }
     else if (state === ST.HANGAR) closeHangar();
+    else if (state === ST.TURRET) closeTurretBay();
     else if (state === ST.BOOK) { $('book').classList.add('hidden'); state = ST.MENU; showMenu(); }
     else if (state === ST.ENDLESSSEL) { $('endless').classList.add('hidden'); state = ST.MENU; showMenu(); }
   }
@@ -3654,6 +3766,19 @@ function updateHUD() {
   const bt = $('boosttag');
   if (P.boostCd <= 0) { bt.textContent = 'BOOST READY'; bt.classList.add('ready'); }
   else { bt.textContent = 'BOOST ' + P.boostCd.toFixed(1); bt.classList.remove('ready'); }
+  const th = $('turrethint');
+  let cheapest = Infinity;
+  for (const d of TURRET_MODS) {
+    const tier = P.turret[d.id];
+    if (tier < d.max) cheapest = Math.min(cheapest, d.cost(tier));
+  }
+  if (cheapest !== Infinity && coresRun >= cheapest) {
+    th.classList.add('afford');
+    th.textContent = 'T · TURRET BAY — REFIT READY';
+  } else {
+    th.classList.remove('afford');
+    th.textContent = 'T · TURRET BAY';
+  }
   const bb = $('bossbar');
   if (bossRef) {
     bb.classList.remove('hidden');
@@ -3718,14 +3843,72 @@ function buildCards() {
 }
 
 /* ---------------- menu / armory / death ---------------- */
+function updateChip() { $('metaChip').textContent = '⬡ ' + meta.cores; }
 function showMenu() {
   $('menu').classList.remove('hidden');
   $('menuCores').textContent = '⬡ ' + meta.cores + ' CORES';
   $('seedlbl').textContent = 'EVERY DEPLOYMENT GENERATES A NEW SECTOR';
+  updateChip();
+}
+function openRecords() {
+  $('menu').classList.add('hidden');
   const b = meta.best;
-  $('beststats').innerHTML = b.time > 0
-    ? 'BEST&nbsp; <b>' + fmtTime(b.time) + '</b> survived · wave <b>' + b.wave + '</b> · <b>' + b.kills + '</b> kills'
-    : 'NO SORTIES ON RECORD';
+  const cleared = CHAPTERS.reduce((n, c, i) => n + (meta.campaign.done[i] ? 1 : 0), 0);
+  const ships = Object.keys(meta.hangar.owned).length;
+  let ranks = 0;
+  for (const d of META_DEFS) ranks += meta.tiers[d.id] || 0;
+  const rows = [
+    ['⌛', 'LONGEST SURVIVAL', b.time > 0 ? fmtTime(b.time) : '—'],
+    ['〰', 'DEEPEST WAVE', b.wave || '—'],
+    ['✕', 'MOST KILLS, ONE RUN', b.kills || '—'],
+    ['▤', 'CHAPTERS CLEARED', cleared + ' / ' + CHAPTERS.length],
+    ['⋀', 'GLAIVES IN HANGAR', ships + ' / ' + SHIPS.length],
+    ['⛨', 'ARMORY RANKS', ranks + ' / ' + META_DEFS.length * 5],
+    ['⬡', 'CORES BANKED', meta.cores],
+  ];
+  $('recBody').innerHTML = rows.map(r =>
+    '<div class="recrow"><span><span class="ric">' + r[0] + '</span>' + r[1] + '</span><b>' + r[2] + '</b></div>').join('');
+  $('records').classList.remove('hidden');
+}
+function openTurretBay() {
+  if (state !== ST.PLAY) return;
+  state = ST.TURRET;
+  renderTurretBay();
+  $('turretbay').classList.remove('hidden');
+}
+function closeTurretBay() {
+  state = ST.PLAY;
+  $('turretbay').classList.add('hidden');
+}
+function renderTurretBay() {
+  const list = $('turretList');
+  list.innerHTML = '';
+  for (const d of TURRET_MODS) {
+    const tier = P.turret[d.id];
+    const maxed = tier >= d.max;
+    const cost = maxed ? 0 : d.cost(tier);
+    const row = document.createElement('div');
+    row.className = 'arow';
+    let pips = '';
+    for (let i = 0; i < d.max; i++) pips += '<div class="pip' + (i < tier ? ' on' : '') + '"></div>';
+    row.innerHTML =
+      '<div class="aic">' + d.icon + '</div>' +
+      '<div class="ainfo"><div class="aname">' + d.name + '</div>' +
+      '<div class="adesc">' + d.desc + '</div><div class="pips">' + pips + '</div></div>' +
+      '<div class="abuy' + (maxed || coresRun < cost ? ' off' : '') + '">' + (maxed ? 'MAX' : '⬡ ' + cost) + '</div>';
+    if (!maxed) {
+      row.querySelector('.abuy').onclick = () => {
+        if (coresRun < cost) return;
+        coresRun -= cost;
+        P.turret[d.id]++;
+        if (d.id === 'stab') P.critC += 0.03;
+        sfxCore();
+        renderTurretBay();
+      };
+    }
+    list.appendChild(row);
+  }
+  $('turretCores').textContent = '⬡ ' + coresRun + ' RUN SALVAGE';
 }
 function renderArmory() {
   const list = $('armoryList');
@@ -3811,6 +3994,12 @@ function bootUI() {
     renderHangar();
   };
   $('btnHelp').onclick = () => { initAudio(); sfxUI(); $('menu').classList.add('hidden'); $('helpPanel').classList.remove('hidden'); };
+  $('btnRecords').onclick = () => { initAudio(); sfxUI(); openRecords(); };
+  $('btnRecordsBack').onclick = () => { sfxUI(); $('records').classList.add('hidden'); showMenu(); };
+  $('btnTurretBack').onclick = () => { sfxUI(); closeTurretBay(); };
+  for (const el of document.querySelectorAll('.mbtn')) {
+    el.addEventListener('mouseenter', () => { $('menuHoverDesc').textContent = el.dataset.desc; });
+  }
   $('btnHelpBack').onclick = () => { sfxUI(); $('helpPanel').classList.add('hidden'); showMenu(); };
   $('btnResume').onclick = () => { sfxUI(); state = ST.PLAY; $('pause').classList.add('hidden'); setMusicMode('combat'); };
   $('btnQuit').onclick = () => { sfxUI(); quitToMenu(); };
@@ -4071,7 +4260,7 @@ function drawMinimap() {
 /* ---------------- 2D overlay ---------------- */
 function drawOverlay() {
   ovx.clearRect(0, 0, ov.width, ov.height);
-  if (state !== ST.PLAY && state !== ST.LEVELUP && state !== ST.PAUSE) return;
+  if (state !== ST.PLAY && state !== ST.LEVELUP && state !== ST.PAUSE && state !== ST.TURRET) return;
   if (!P) return;
   // damage numbers
   ovx.textAlign = 'center';
@@ -4333,7 +4522,7 @@ function loop(tms) {
     shake = Math.max(0, shake - dt * 2.6);
   }
   drawFrame();
-  if (state === ST.PLAY || state === ST.LEVELUP || state === ST.PAUSE || state === ST.DEAD) updateHUD();
+  if (state === ST.PLAY || state === ST.LEVELUP || state === ST.PAUSE || state === ST.DEAD || state === ST.TURRET) updateHUD();
   drawOverlay();
 }
 
