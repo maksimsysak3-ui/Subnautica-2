@@ -1227,6 +1227,18 @@ const BIOMES = {
 const BIOME_ORDER = ['verdant', 'desert', 'city', 'frost', 'canyon', 'ash', 'mire', 'tempest', 'void'];
 let BIOME_ID = 'verdant', CUR_BIOME = BIOMES.verdant;
 function setBiome(id) { BIOME_ID = id; CUR_BIOME = BIOMES[id] || BIOMES.verdant; }
+// Distinct native roster per biome so each world plays differently.
+const ROSTERS = {
+  verdant: [['skitter', 3.0, 1], ['husk', 2.4, 1], ['spitter', 1.4, 2], ['stinger', 1.2, 3], ['bulwark', 0.7, 5]],
+  desert:  [['skitter', 2.4, 1], ['lancer', 2.0, 2], ['wisp', 1.6, 2], ['husk', 1.1, 1], ['detonator', 0.9, 4]],
+  city:    [['reaver', 2.0, 2], ['pylon', 1.6, 3], ['shade', 1.5, 3], ['husk', 1.4, 1], ['skitter', 1.1, 1]],
+  frost:   [['bulwark', 1.8, 3], ['crawler', 1.6, 2], ['spitter', 1.4, 2], ['husk', 1.6, 1], ['skitter', 1.1, 1]],
+  canyon:  [['crawler', 2.0, 2], ['lancer', 1.6, 2], ['wisp', 1.4, 2], ['skitter', 1.6, 1], ['husk', 1.3, 1]],
+  ash:     [['detonator', 2.6, 1], ['husk', 1.8, 1], ['skitter', 1.5, 1], ['spitter', 1.2, 3], ['bulwark', 0.7, 5]],
+  mire:    [['weaver', 2.2, 2], ['howler', 1.5, 4], ['brood', 1.3, 5], ['husk', 1.5, 1], ['skitter', 1.3, 1]],
+  tempest: [['wisp', 2.4, 1], ['stinger', 1.8, 2], ['reaver', 1.5, 3], ['skitter', 1.3, 1], ['husk', 1.0, 1]],
+  void:    [['shade', 2.2, 2], ['stinger', 1.6, 2], ['brood', 1.4, 4], ['crawler', 0.9, 4], ['skitter', 1.5, 1], ['husk', 1.3, 1]],
+};
 
 const BSTYLE = {
   verdant: { rockP: [0.36, 0.34, 0.41], spire: [0.40, 0.34, 0.48], crys: [[0.25, 0.95, 0.85], [1.0, 0.62, 0.2]] },
@@ -2677,7 +2689,7 @@ function gainXP(v) {
 let enemies = [], bulletsP = [], bulletsE = [], gems = [], pickups = [],
   missiles = [], minesArr = [], novas = [], fxList = [], beams = [], debris = [], dmgTexts = [],
   firePatches = [], sentries = [], sigils = [], boomers = [];
-let bossRef = null, bossAnnounced = false, spawnBudget = 0, medkitT = 7;
+let bossRef = null, bossAnnounced = false, spawnBudget = 0, spawnTimer = 0, medkitT = 7;
 
 const ETYPE = {
   skitter: { hp: 15, sp: 15.5, dmg: 6, r: 1.0, xp: 1, sc: 1.0, cost: 1, min: 1, w: 3.0 },
@@ -2756,25 +2768,31 @@ function spawnBoss(bossIdx) {
 }
 
 function trySpawns(dt) {
-  const night = RS.dayF < 0.35;
   if (gameTime < 3.5) return;
-  spawnBudget += dt * (0.55 + (wave + RUN.waveBoost) * 0.34) * (night ? 1.3 : 1) * (0.6 + RUN.diff * 0.4);
-  const cap = Math.min(18 + wave * 6, 210);
-  let guard = 20;
-  while (spawnBudget >= 1 && enemies.length < cap && guard-- > 0) {
-    const ew2 = wave + RUN.waveBoost;
-    const avail = Object.keys(ETYPE).filter(k => ETYPE[k].min <= ew2 && ETYPE[k].cost <= spawnBudget);
-    if (!avail.length) break;
-    const bias = CUR_BIOME.bias || {};
-    let wsum = 0; for (const k of avail) wsum += ETYPE[k].w * (bias[k] || 1);
-    let r = Math.random() * wsum, pick = avail[0];
-    for (const k of avail) { r -= ETYPE[k].w * (bias[k] || 1); if (r <= 0) { pick = k; break; } }
-    const deep = (wave + RUN.waveBoost);
-    const apex = deep >= 9 && Math.random() < 0.03 + Math.min(0.05, deep * 0.002) && spawnBudget >= ETYPE[pick].cost * 6;
-    const elite = !apex && wave >= 3 && Math.random() < 0.045;
-    const a = Math.random() * TAU, d = rand(56, 78);
-    spawnEnemy(pick, elite, P.x + Math.cos(a) * d, P.z + Math.sin(a) * d, apex);
-    spawnBudget -= ETYPE[pick].cost * (apex ? 7 : elite ? 4 : 1);
+  const night = RS.dayF < 0.35;
+  const ew = wave + RUN.waveBoost;
+  const roster = ROSTERS[BIOME_ID] || ROSTERS.verdant;
+  // weighted pick, honouring each type's own weight — NOT cost — so the
+  // biome's signature (and pricier) creatures actually show up, not just skitters.
+  const avail = roster.filter(e => e[2] <= ew);
+  if (!avail.length) return;
+  const cap = Math.min(16 + wave * 5, 190) * (night ? 1.15 : 1) * (RUN.hardcore ? 1.1 : 1);
+  // spawn cadence quickens with depth; a small burst per tick keeps pressure up
+  const interval = Math.max(0.14, 0.85 - ew * 0.03) / (0.7 + RUN.diff * 0.5) / (night ? 1.25 : 1);
+  spawnTimer -= dt;
+  let guard = 24;
+  while (spawnTimer <= 0 && enemies.length < cap && guard-- > 0) {
+    spawnTimer += interval;
+    let wsum = 0; for (const e of avail) wsum += e[1];
+    let r = Math.random() * wsum, pick = avail[0][0];
+    for (const e of avail) { r -= e[1]; if (r <= 0) { pick = e[0]; break; } }
+    const burst = 1 + Math.floor(Math.random() * (1 + ew * 0.14));
+    for (let bi = 0; bi < burst && enemies.length < cap; bi++) {
+      const apex = ew >= 9 && Math.random() < 0.025 + Math.min(0.05, ew * 0.002);
+      const elite = !apex && wave >= 3 && Math.random() < 0.06;
+      const a = Math.random() * TAU, d = rand(54, 80);
+      spawnEnemy(pick, elite, P.x + Math.cos(a) * d, P.z + Math.sin(a) * d, apex);
+    }
   }
 }
 
@@ -3924,7 +3942,7 @@ function startRun(mode) {
   enemies = []; bulletsP = []; bulletsE = []; gems = []; pickups = [];
   missiles = []; minesArr = []; novas = []; fxList = []; beams = []; debris = []; dmgTexts = [];
   firePatches = []; sentries = []; sigils = []; boomers = [];
-  bossRef = null; bossAnnounced = false; spawnBudget = 0; medkitT = 9;
+  bossRef = null; bossAnnounced = false; spawnBudget = 0; spawnTimer = 0; medkitT = 9;
   pickups.push({ kind: 'heart', x: 18, z: 12, y: 0, t: 0 });
   pickups.push({ kind: 'heart', x: -14, z: -20, y: 0, t: 0 });
   gameTime = 0; wave = 1; kills = 0; coresRun = 0; dayPhase = 0.34; pendingLevels = 0;
