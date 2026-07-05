@@ -3,87 +3,43 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-<title>SALT &amp; TIDE — A Coastal Life</title>
+<title>SALT &amp; TIDE — A Coastal Life (3D)</title>
 <style>
-  /* ============================================================
-     SALT & TIDE  —  a hand-built, self-contained watercolor game
-     Everything (art, sound, world) is generated in code.
-     ============================================================ */
   :root{
-    --ink:#26333b;
-    --ink-soft:#4a5b64;
-    --parch:#f3e7cf;
-    --parch-2:#e8d7b6;
-    --parch-line:#c9b48a;
-    --gold:#c58a3c;
-    --gold-deep:#9c6420;
-    --sea:#2f6f86;
+    --ink:#26333b; --ink-soft:#4a5b64; --gold:#c58a3c; --gold-deep:#9c6420;
     --panel-shadow:0 18px 50px rgba(20,30,38,.45);
     --serif:"Iowan Old Style","Palatino Linotype",Palatino,"Book Antiqua",Georgia,serif;
     --sans:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
   }
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
-  html,body{
-    margin:0;padding:0;height:100%;width:100%;
-    background:#0c1418;color:var(--ink);
-    font-family:var(--sans);
-    overflow:hidden;
-    -webkit-user-select:none;user-select:none;
-    touch-action:none;
-  }
-  #stage{position:fixed;inset:0;overflow:hidden;background:#0c1418;}
-  canvas#game{position:absolute;inset:0;width:100%;height:100%;display:block;image-rendering:auto;}
+  html,body{margin:0;padding:0;height:100%;width:100%;background:#07121a;color:var(--ink);
+    font-family:var(--sans);overflow:hidden;-webkit-user-select:none;user-select:none;touch-action:none;}
+  #stage{position:fixed;inset:0;overflow:hidden;background:#07121a;}
+  canvas{position:absolute;inset:0;width:100%;height:100%;display:block;}
+  canvas#game{z-index:1;}
+  canvas#fx{z-index:2;pointer-events:none;}
 
-  /* ---- Loading veil ---- */
-  #boot{
-    position:absolute;inset:0;z-index:60;display:flex;flex-direction:column;
-    align-items:center;justify-content:center;gap:18px;
-    background:radial-gradient(120% 120% at 50% 30%,#14323f,#08151c 70%);
-    color:#e9dcc0;font-family:var(--serif);transition:opacity .8s ease;
-  }
-  #boot .mark{font-size:clamp(34px,7vw,68px);letter-spacing:.14em;font-weight:600;
-    text-shadow:0 4px 24px rgba(0,0,0,.5);}
-  #boot .sub{font-family:var(--sans);letter-spacing:.35em;text-transform:uppercase;
-    font-size:11px;color:#9fb7bd;opacity:.85;}
+  #boot{position:absolute;inset:0;z-index:60;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;
+    background:radial-gradient(120% 120% at 50% 30%,#14323f,#08151c 70%);color:#e9dcc0;font-family:var(--serif);transition:opacity .8s ease;}
+  #boot .mark{font-size:clamp(34px,7vw,68px);letter-spacing:.14em;font-weight:600;text-shadow:0 4px 24px rgba(0,0,0,.5);}
+  #boot .sub{font-family:var(--sans);letter-spacing:.35em;text-transform:uppercase;font-size:11px;color:#9fb7bd;opacity:.85;}
   #boot .bar{width:min(320px,60vw);height:4px;border-radius:4px;background:rgba(255,255,255,.14);overflow:hidden;}
-  #boot .bar > i{display:block;height:100%;width:0%;border-radius:4px;
-    background:linear-gradient(90deg,#7fd7c4,#e8c987);transition:width .25s ease;}
+  #boot .bar>i{display:block;height:100%;width:0%;border-radius:4px;background:linear-gradient(90deg,#7fd7c4,#e8c987);transition:width .3s ease;}
   #boot.hidden{opacity:0;pointer-events:none;}
 
-  /* ---- Generic overlay layer for menus/UI (HTML for crisp text) ---- */
   .layer{position:absolute;inset:0;z-index:30;display:none;align-items:center;justify-content:center;}
   .layer.show{display:flex;}
   .layer.fade{animation:fadein .45s ease both;}
   @keyframes fadein{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
 
-  /* ---- Parchment panel styling ---- */
-  .panel{
-    position:relative;background:
-      linear-gradient(180deg,rgba(255,251,240,.96),rgba(238,222,190,.96));
-    color:var(--ink);border-radius:16px;
-    box-shadow:var(--panel-shadow), inset 0 0 0 1px rgba(120,90,50,.25),
-      inset 0 2px 0 rgba(255,255,255,.6);
-    padding:26px 30px;max-width:min(940px,94vw);max-height:92vh;overflow:auto;
-    border:1px solid rgba(120,90,50,.3);
-  }
-  .panel:before{ /* subtle deckle edge */
-    content:"";position:absolute;inset:6px;border-radius:12px;pointer-events:none;
-    box-shadow:inset 0 0 0 1.5px rgba(140,105,60,.28);
-    -webkit-mask:linear-gradient(#000,#000);
-  }
-  h1,h2,h3{font-family:var(--serif);margin:0 0 .4em;font-weight:600;color:#2a3942;}
-  .kicker{font-family:var(--sans);letter-spacing:.32em;text-transform:uppercase;
-    font-size:11px;color:var(--gold-deep);font-weight:700;}
-
-  /* ---- Buttons ---- */
-  .btn{
-    font-family:var(--serif);font-size:17px;cursor:pointer;border:none;
-    padding:12px 22px;border-radius:11px;color:#fff8ea;
-    background:linear-gradient(180deg,#3f7d76,#2d5f61);
-    box-shadow:0 6px 0 #1f4547, 0 12px 22px rgba(0,0,0,.28), inset 0 1px 0 rgba(255,255,255,.25);
-    transition:transform .08s ease, box-shadow .08s ease, filter .15s ease;
-    letter-spacing:.02em;
-  }
+  .panel{position:relative;background:linear-gradient(180deg,rgba(255,251,240,.96),rgba(238,222,190,.96));color:var(--ink);
+    border-radius:16px;box-shadow:var(--panel-shadow),inset 0 0 0 1px rgba(120,90,50,.25),inset 0 2px 0 rgba(255,255,255,.6);
+    padding:26px 30px;max-width:min(960px,94vw);max-height:92vh;overflow:auto;border:1px solid rgba(120,90,50,.3);}
+  h1,h2,h3,h4{font-family:var(--serif);margin:0 0 .4em;font-weight:600;color:#2a3942;}
+  .kicker{font-family:var(--sans);letter-spacing:.32em;text-transform:uppercase;font-size:11px;color:var(--gold-deep);font-weight:700;}
+  .btn{font-family:var(--serif);font-size:17px;cursor:pointer;border:none;padding:12px 22px;border-radius:11px;color:#fff8ea;
+    background:linear-gradient(180deg,#3f7d76,#2d5f61);box-shadow:0 6px 0 #1f4547,0 12px 22px rgba(0,0,0,.28),inset 0 1px 0 rgba(255,255,255,.25);
+    transition:transform .08s ease,box-shadow .08s ease,filter .15s ease;letter-spacing:.02em;}
   .btn:hover{filter:brightness(1.06);}
   .btn:active{transform:translateY(4px);box-shadow:0 2px 0 #1f4547,0 6px 14px rgba(0,0,0,.28);}
   .btn.gold{background:linear-gradient(180deg,#d79a44,#b1701f);box-shadow:0 6px 0 #7f4d13,0 12px 22px rgba(0,0,0,.28),inset 0 1px 0 rgba(255,255,255,.3);}
@@ -94,26 +50,17 @@
   .btn.small{font-size:14px;padding:8px 14px;border-radius:9px;box-shadow:0 4px 0 #1f4547,0 8px 14px rgba(0,0,0,.25);}
   .btn.small:active{box-shadow:0 1px 0 #1f4547;}
 
-  /* ---- HUD ---- */
   #hud{position:absolute;inset:0;z-index:20;pointer-events:none;font-family:var(--sans);}
-  #hud .pill{
-    position:absolute;pointer-events:auto;background:rgba(20,34,42,.42);
-    color:#f2ead6;border-radius:12px;padding:8px 12px;backdrop-filter:blur(7px);
-    -webkit-backdrop-filter:blur(7px);border:1px solid rgba(255,255,255,.12);
-    box-shadow:0 8px 22px rgba(0,0,0,.28);font-size:13px;line-height:1.15;
-  }
-  .hud-tl{left:14px;top:14px;display:flex;gap:10px;align-items:center;}
-  .hud-tr{right:14px;top:14px;text-align:right;}
-  .hud-bl{left:14px;bottom:14px;}
-  .hud-hint{left:50%;bottom:18px;transform:translateX(-50%);text-align:center;
-    background:rgba(20,34,42,.5);font-size:13px;letter-spacing:.02em;}
-  .gauge{width:120px;height:9px;border-radius:6px;background:rgba(255,255,255,.16);overflow:hidden;margin-top:3px;}
-  .gauge > i{display:block;height:100%;border-radius:6px;transition:width .25s ease;}
-  .stat{display:flex;flex-direction:column;gap:2px;min-width:120px;}
-  .stat b{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#bcd0d4;font-weight:700;}
+  #hud .pill{position:absolute;pointer-events:auto;background:rgba(20,34,42,.42);color:#f2ead6;border-radius:12px;padding:8px 12px;
+    backdrop-filter:blur(7px);-webkit-backdrop-filter:blur(7px);border:1px solid rgba(255,255,255,.12);box-shadow:0 8px 22px rgba(0,0,0,.28);font-size:13px;line-height:1.15;}
+  .hud-tl{left:14px;top:14px;display:flex;gap:10px;align-items:flex-start;}
+  .hud-tr{right:14px;top:14px;text-align:right;display:flex;flex-direction:column;gap:8px;align-items:flex-end;}
+  .hud-bc{left:50%;bottom:16px;transform:translateX(-50%);text-align:center;background:rgba(20,34,42,.5);}
+  .gauge{width:130px;height:9px;border-radius:6px;background:rgba(255,255,255,.16);overflow:hidden;margin-top:4px;}
+  .gauge>i{display:block;height:100%;border-radius:6px;transition:width .25s ease;}
+  .stat{display:flex;flex-direction:column;gap:2px;min-width:130px;}
+  .stat b{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:#bcd0d4;font-weight:700;}
   .coin{color:#ffd98a;font-weight:700;}
-
-  /* ---- Market / shop tables ---- */
   table.ledger{width:100%;border-collapse:collapse;font-size:14px;}
   table.ledger th,table.ledger td{padding:7px 10px;text-align:left;}
   table.ledger th{font-family:var(--sans);text-transform:uppercase;letter-spacing:.1em;font-size:11px;color:var(--gold-deep);border-bottom:2px solid rgba(140,100,55,.3);}
@@ -122,18 +69,12 @@
   .swatch{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:8px;vertical-align:-1px;box-shadow:inset 0 0 0 1px rgba(0,0,0,.2);}
   .tag{display:inline-block;font-size:11px;padding:2px 7px;border-radius:20px;background:rgba(150,110,60,.16);color:#7a5a2c;margin-left:6px;}
   .tag.leg{background:linear-gradient(90deg,#f4d27a,#e0a63c);color:#5c3d0c;font-weight:700;}
-
   .tabs{display:flex;gap:8px;margin:6px 0 16px;flex-wrap:wrap;}
-  .tab{font-family:var(--serif);cursor:pointer;padding:8px 16px;border-radius:10px 10px 0 0;
-    background:rgba(150,110,60,.14);color:#6b5230;border:1px solid transparent;}
-  .tab.active{background:rgba(255,251,240,.9);color:#2a3942;border-color:rgba(140,100,55,.3);border-bottom-color:transparent;box-shadow:0 -3px 10px rgba(0,0,0,.06);}
-
+  .tab{font-family:var(--serif);cursor:pointer;padding:8px 16px;border-radius:10px 10px 0 0;background:rgba(150,110,60,.14);color:#6b5230;border:1px solid transparent;}
+  .tab.active{background:rgba(255,251,240,.9);color:#2a3942;border-color:rgba(140,100,55,.3);border-bottom-color:transparent;}
   .grid{display:grid;gap:12px;}
-  .shop-item{display:flex;gap:12px;align-items:center;padding:10px 12px;border-radius:12px;
-    background:rgba(255,255,255,.4);border:1px solid rgba(140,100,55,.2);}
-  .shop-item .ic{width:44px;height:44px;border-radius:10px;flex:0 0 auto;
-    background:radial-gradient(circle at 35% 30%,#fff,#e6d3ab);display:grid;place-items:center;font-size:22px;
-    box-shadow:inset 0 0 0 1px rgba(120,90,50,.25);}
+  .shop-item{display:flex;gap:12px;align-items:center;padding:10px 12px;border-radius:12px;background:rgba(255,255,255,.4);border:1px solid rgba(140,100,55,.2);}
+  .shop-item .ic{width:44px;height:44px;border-radius:10px;flex:0 0 auto;background:radial-gradient(circle at 35% 30%,#fff,#e6d3ab);display:grid;place-items:center;font-size:22px;box-shadow:inset 0 0 0 1px rgba(120,90,50,.25);}
   .shop-item .meta{flex:1 1 auto;min-width:0;}
   .shop-item .meta h4{margin:0;font-family:var(--serif);font-size:16px;}
   .shop-item .meta p{margin:2px 0 0;font-size:12.5px;color:var(--ink-soft);}
@@ -142,1200 +83,602 @@
   .muted{color:var(--ink-soft);}
   .center{text-align:center;}
   .toast-wrap{position:absolute;left:50%;top:70px;transform:translateX(-50%);z-index:40;display:flex;flex-direction:column;gap:8px;align-items:center;pointer-events:none;}
-  .toast{background:rgba(24,38,46,.82);color:#f4ead4;padding:9px 16px;border-radius:22px;font-size:13.5px;
-    box-shadow:0 10px 26px rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.14);animation:toastin .3s ease both;}
+  .toast{background:rgba(24,38,46,.82);color:#f4ead4;padding:9px 16px;border-radius:22px;font-size:13.5px;box-shadow:0 10px 26px rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.14);animation:toastin .3s ease both;}
   @keyframes toastin{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:none}}
-  .icon-btn{pointer-events:auto;cursor:pointer;width:38px;height:38px;border-radius:11px;display:grid;place-items:center;
-    background:rgba(20,34,42,.42);color:#f2ead6;border:1px solid rgba(255,255,255,.12);font-size:17px;backdrop-filter:blur(7px);}
-  .key{display:inline-block;min-width:20px;padding:1px 6px;border-radius:6px;background:rgba(255,255,255,.16);
-    border:1px solid rgba(255,255,255,.25);font-family:var(--sans);font-size:12px;font-weight:700;text-align:center;margin:0 1px;}
-  .scrim{position:absolute;inset:0;background:rgba(8,16,20,.55);backdrop-filter:blur(3px);}
-  .noscroll{overflow:hidden;}
+  .icon-btn{pointer-events:auto;cursor:pointer;width:38px;height:38px;border-radius:11px;display:grid;place-items:center;background:rgba(20,34,42,.42);color:#f2ead6;border:1px solid rgba(255,255,255,.12);font-size:17px;backdrop-filter:blur(7px);}
+  .key{display:inline-block;min-width:20px;padding:1px 6px;border-radius:6px;background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.25);font-family:var(--sans);font-size:12px;font-weight:700;text-align:center;margin:0 1px;}
   a.link{color:var(--gold-deep);cursor:pointer;text-decoration:underline;text-underline-offset:2px;}
+  .err{position:absolute;left:0;right:0;bottom:0;z-index:80;background:#3a0d0d;color:#ffd9d0;font:12px/1.4 monospace;padding:8px 12px;max-height:40%;overflow:auto;white-space:pre-wrap;display:none;}
 </style>
 </head>
 <body>
 <div id="stage">
   <canvas id="game"></canvas>
-
-  <!-- HUD (populated by JS) -->
+  <canvas id="fx"></canvas>
   <div id="hud"></div>
   <div class="toast-wrap" id="toasts"></div>
-
-  <!-- Menu / UI layers (populated by JS) -->
   <div class="layer" id="layer-title"></div>
   <div class="layer" id="layer-map"></div>
   <div class="layer" id="layer-town"></div>
   <div class="layer" id="layer-pause"></div>
   <div class="layer" id="layer-help"></div>
   <div class="layer" id="layer-event"></div>
-
-  <!-- Boot veil -->
-  <div id="boot">
-    <div class="mark">SALT &amp; TIDE</div>
-    <div class="sub">a coastal life</div>
-    <div class="bar"><i id="bootbar"></i></div>
-  </div>
+  <div id="boot"><div class="mark">SALT &amp; TIDE</div><div class="sub">a coastal life</div><div class="bar"><i id="bootbar"></i></div></div>
+  <pre id="errbox" class="err"></pre>
 </div>
 
 <script>
 "use strict";
 /* ============================================================================
-   SALT & TIDE
-   A single-file, dependency-free, hand-built coastal fishing/trading game.
-   All visuals are drawn with Canvas 2D in a watercolor style; all audio is
-   synthesized with the Web Audio API; the world, weather and economy are
-   simulated in code. Nothing is loaded from the network.
-
-   Sections:
-     1. Math / RNG / noise utilities
-     2. Color + watercolor painting helpers
-     3. World data: regions, fish rosters, upgrades, goods
-     (further sections appended below)
+   SALT & TIDE — a hand-built, dependency-free 3D coastal fishing/trading game.
+   Real-time WebGL2: Gerstner-wave ocean, procedural sky, 3D boat, underwater
+   fishing, weather & day/night. All math, shaders, art and audio are original.
    ========================================================================== */
+window.addEventListener('error', e=>{
+  const b=document.getElementById('errbox'); if(b){ b.style.display='block';
+    b.textContent += (e.message||e.error)+'\n'+(e.error&&e.error.stack?e.error.stack:'')+'\n'; }
+});
 
 /* ======================= 1. MATH / RNG / NOISE ============================ */
-const TAU = Math.PI * 2;
-const clamp = (v,a,b)=> v<a?a:(v>b?b:v);
-const lerp  = (a,b,t)=> a+(b-a)*t;
-const inv   = (a,b,v)=> (v-a)/(b-a);
-const map   = (v,a,b,c,d)=> c+(d-c)*((v-a)/(b-a));
-const smooth= t=> t*t*(3-2*t);
-const smoother=t=> t*t*t*(t*(t*6-15)+10);
-const ease  = { inOut:t=> t<.5?2*t*t:1-Math.pow(-2*t+2,2)/2,
-                out:t=>1-Math.pow(1-t,3), in:t=>t*t*t,
-                outBack:t=>{const c=1.70158,c3=c+1;return 1+c3*Math.pow(t-1,3)+c*Math.pow(t-1,2);} };
-const rad   = d=> d*Math.PI/180;
-const dist2 = (x1,y1,x2,y2)=>{const dx=x2-x1,dy=y2-y1;return dx*dx+dy*dy;};
-const wrap  = (v,m)=> ((v%m)+m)%m;
-const sign  = Math.sign;
-const round = Math.round;
+const TAU=Math.PI*2, PI=Math.PI;
+const clamp=(v,a,b)=>v<a?a:(v>b?b:v);
+const lerp=(a,b,t)=>a+(b-a)*t;
+const inv=(a,b,v)=>(v-a)/(b-a);
+const map=(v,a,b,c,d)=>c+(d-c)*((v-a)/(b-a));
+const smooth=t=>t*t*(3-2*t);
+const smoother=t=>t*t*t*(t*(t*6-15)+10);
+const clamp01=v=>v<0?0:(v>1?1:v);
+const wrap=(v,m)=>((v%m)+m)%m;
+function mulberry32(seed){let a=seed>>>0;return function(){a|=0;a=(a+0x6D2B79F5)|0;let t=Math.imul(a^(a>>>15),1|a);t=(t+Math.imul(t^(t>>>7),61|t))^t;return((t^(t>>>14))>>>0)/4294967296;};}
+let RNG=mulberry32(0x5eed);
+const rnd=()=>RNG();
+const rrange=(a,b)=>a+(b-a)*RNG();
+const rint=(a,b)=>Math.floor(a+(b-a+1)*RNG());
+const pick=arr=>arr[Math.floor(RNG()*arr.length)];
+const chance=p=>RNG()<p;
+function makeNoise1D(seed){const r=mulberry32(seed);const N=512,g=new Float32Array(N);for(let i=0;i<N;i++)g[i]=r()*2-1;
+  return function(x){const xi=Math.floor(x),f=x-xi;const a=g[wrap(xi,N)],b=g[wrap(xi+1,N)];return lerp(a,b,smoother(f));};}
+function fbm1(noise,x,oct=4,lac=2,gain=.5){let amp=1,freq=1,sum=0,norm=0;for(let i=0;i<oct;i++){sum+=amp*noise(x*freq);norm+=amp;amp*=gain;freq*=lac;}return sum/norm;}
+function hash2(x,y){let h=Math.sin(x*127.1+y*311.7)*43758.5453;return h-Math.floor(h);}
 
-// Deterministic seedable PRNG (mulberry32)
-function mulberry32(seed){
-  let a = seed>>>0;
-  return function(){
-    a |= 0; a = (a + 0x6D2B79F5) | 0;
-    let t = Math.imul(a ^ (a >>> 15), 1 | a);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
-let RNG = mulberry32(0x5eed);
-const rnd  = ()=> RNG();
-const rrange=(a,b)=> a + (b-a)*RNG();
-const rint = (a,b)=> Math.floor(a + (b-a+1)*RNG());
-const pick = arr=> arr[Math.floor(RNG()*arr.length)];
-const chance=p=> RNG()<p;
-
-// 1D value noise with smooth interpolation (for waves, terrain silhouettes)
-function makeNoise1D(seed){
-  const r = mulberry32(seed);
-  const N = 512, g = new Float32Array(N);
-  for(let i=0;i<N;i++) g[i] = r()*2-1;
-  return function(x){
-    const xi = Math.floor(x), f = x-xi;
-    const a = g[wrap(xi,N)], b = g[wrap(xi+1,N)];
-    const u = smoother(f);
-    return lerp(a,b,u);
-  };
-}
-// fractal brownian motion over a 1D noise
-function fbm1(noise,x,oct=4,lac=2,gain=.5){
-  let amp=1,freq=1,sum=0,norm=0;
-  for(let i=0;i<oct;i++){ sum+=amp*noise(x*freq); norm+=amp; amp*=gain; freq*=lac; }
-  return sum/norm;
-}
-// 2D hash value noise (for water shimmer / paper grain)
-function hash2(x,y){
-  let h = Math.sin(x*127.1 + y*311.7) * 43758.5453;
-  return h - Math.floor(h);
-}
-
-/* ======================= 2. COLOR + WATERCOLOR ============================ */
-// Parse "#rrggbb" -> [r,g,b]
-function hex2rgb(h){
-  h = h.replace('#','');
-  if(h.length===3) h = h.split('').map(c=>c+c).join('');
-  const n = parseInt(h,16);
-  return [(n>>16)&255,(n>>8)&255,n&255];
-}
-function rgb2css(c,a){ return a==null? `rgb(${c[0]|0},${c[1]|0},${c[2]|0})` : `rgba(${c[0]|0},${c[1]|0},${c[2]|0},${a})`; }
-function mix(c1,c2,t){ return [lerp(c1[0],c2[0],t),lerp(c1[1],c2[1],t),lerp(c1[2],c2[2],t)]; }
-function mixHex(h1,h2,t){ return rgb2css(mix(hex2rgb(h1),hex2rgb(h2),t)); }
-function shade(c,amt){ // amt<0 darken, >0 lighten toward white/black
-  if(amt>=0) return mix(c,[255,255,255],amt);
-  return mix(c,[8,14,20],-amt);
-}
-function withA(cssOrArr,a){
-  if(Array.isArray(cssOrArr)) return rgb2css(cssOrArr,a);
-  const c=hex2rgb(cssOrArr); return rgb2css(c,a);
-}
-// HSL helper for procedural palettes
-function hsl(h,s,l,a){ return `hsla(${h},${s}%,${l}%,${a==null?1:a})`; }
+/* ======================= 2. COLOR ======================================== */
+function hex2rgb(h){h=h.replace('#','');if(h.length===3)h=h.split('').map(c=>c+c).join('');const n=parseInt(h,16);return[(n>>16)&255,(n>>8)&255,n&255];}
+function rgb2css(c,a){return a==null?`rgb(${c[0]|0},${c[1]|0},${c[2]|0})`:`rgba(${c[0]|0},${c[1]|0},${c[2]|0},${a})`;}
+function mix(c1,c2,t){return[lerp(c1[0],c2[0],t),lerp(c1[1],c2[1],t),lerp(c1[2],c2[2],t)];}
+function shade(c,amt){return amt>=0?mix(c,[255,255,255],amt):mix(c,[8,14,20],-amt);}
+function withA(cssOrArr,a){if(Array.isArray(cssOrArr))return rgb2css(cssOrArr,a);const c=hex2rgb(cssOrArr);return rgb2css(c,a);}
+const v3=(c)=>[c[0]/255,c[1]/255,c[2]/255];   // 0..255 -> 0..1 for GL
 
 /* ======================= 3. WORLD DATA =================================== */
-/* Fish value scales roughly with size; "hits" = lure contacts needed to land.
-   depth = fraction of the water column [0..1] the fish prefers (0 = surface).
-   weight = spawn weighting (rarity). */
-
-const FISH = {
-  // --- Northern Reach ---
-  herring:   {name:'Herring',       col:'#9fb7c4', acc:'#e8f0f4', len:[18,28], depth:[.08,.35], hits:1, base:14,  weight:34, spd:1.35, schooling:true,  region:'north'},
-  mackerel:  {name:'Mackerel',      col:'#4c8f8a', acc:'#173b3a', len:[24,36], depth:[.12,.45], hits:1, base:22,  weight:28, spd:1.5,  schooling:true,  region:'north'},
-  cod:       {name:'Atlantic Cod',  col:'#8a8a6a', acc:'#4b4a30', len:[40,70], depth:[.35,.72], hits:2, base:48,  weight:22, spd:.85, region:'north'},
-  pollock:   {name:'Pollock',       col:'#6f7d78', acc:'#2f3a36', len:[34,58], depth:[.3,.62], hits:1, base:30,  weight:20, spd:1.0, region:'north'},
-  salmon:    {name:'King Salmon',   col:'#c9736a', acc:'#7d332e', len:[46,78], depth:[.2,.5], hits:2, base:70,  weight:13, spd:1.7, region:'north'},
-  halibut:   {name:'Halibut',       col:'#5b5a4c', acc:'#2b2a20', len:[60,110],depth:[.62,.95], hits:3, base:120, weight:9,  spd:.6, region:'north'},
-  lobster:   {name:'Lobster',       col:'#b1503a', acc:'#5f2216', len:[26,44], depth:[.8,.98], hits:2, base:95,  weight:8,  spd:.5, crawler:true, region:'north'},
-  kingcrab:  {name:'King Crab',     col:'#c0603f', acc:'#5a2413', len:[34,56], depth:[.82,.99], hits:3, base:160, weight:5,  spd:.45, crawler:true, region:'north'},
-  oldbarnacle:{name:'Old Barnacle', col:'#3f5850', acc:'#dfe8d6', len:[150,150],depth:[.7,.95], hits:8, base:1400,weight:0, spd:.7, legendary:true, region:'north',
-               lore:'A halibut the size of a door. Fishermen leave a lantern burning for the ones it took.'},
-
-  // --- Tropical Keys ---
-  sardine:   {name:'Sardine',       col:'#a9c0cf', acc:'#eef6fb', len:[14,22], depth:[.05,.3], hits:1, base:12, weight:32, spd:1.5, schooling:true, region:'trop'},
-  snapper:   {name:'Red Snapper',   col:'#d15a4e', acc:'#7a2a22', len:[30,52], depth:[.3,.6], hits:2, base:60, weight:24, spd:1.0, region:'trop'},
-  parrot:    {name:'Parrotfish',    col:'#39a58c', acc:'#f2c14e', len:[28,46], depth:[.18,.4], hits:1, base:40, weight:22, spd:1.1, region:'trop'},
-  grouper:   {name:'Grouper',       col:'#7c6a4b', acc:'#3a3020', len:[55,95], depth:[.5,.85], hits:3, base:130,weight:12, spd:.7, region:'trop'},
-  mahi:      {name:'Mahi-Mahi',     col:'#3fb2c9', acc:'#f4d03f', len:[50,86], depth:[.12,.42], hits:2, base:110,weight:14, spd:2.0, region:'trop'},
-  tuna:      {name:'Yellowfin Tuna',col:'#3a6b8c', acc:'#f2c744', len:[70,120],depth:[.25,.6], hits:4, base:260,weight:8,  spd:2.3, region:'trop'},
-  marlin:    {name:'Blue Marlin',   col:'#2f5f9e', acc:'#bcd8f0', len:[130,180],depth:[.2,.55], hits:6, base:520,weight:3, spd:2.6, region:'trop'},
-  reefking:  {name:'The Reef King',  col:'#b5892f', acc:'#3a2c10', len:[160,160],depth:[.45,.8],hits:9, base:1900,weight:0, spd:1.4, legendary:true, region:'trop',
-               lore:'An ancient goliath grouper wearing a crown of coral. The whole reef answers to it.'},
-
-  // --- Mediterranean ---
-  anchovy:   {name:'Anchovy',       col:'#b9c6cc', acc:'#eef4f6', len:[10,16], depth:[.05,.28], hits:1, base:11, weight:30, spd:1.5, schooling:true, region:'med'},
-  seabream:  {name:'Sea Bream',     col:'#c9c3a8', acc:'#6a6448', len:[26,42], depth:[.22,.5], hits:1, base:38, weight:26, spd:1.1, region:'med'},
-  seabass:   {name:'Sea Bass',      col:'#8f9aa0', acc:'#3a4247', len:[34,60], depth:[.3,.62], hits:2, base:72, weight:20, spd:1.15, region:'med'},
-  octopus:   {name:'Octopus',       col:'#9c5a6a', acc:'#43222a', len:[30,56], depth:[.7,.96], hits:2, base:90, weight:14, spd:.6, crawler:true, region:'med'},
-  dorade:    {name:'Gilt Dorade',   col:'#c9a94e', acc:'#6a5220', len:[30,50], depth:[.25,.5], hits:2, base:88, weight:12, spd:1.2, region:'med'},
-  swordfish: {name:'Swordfish',     col:'#4a5b66', acc:'#cdd6da', len:[120,175],depth:[.2,.55], hits:5, base:340,weight:6, spd:2.4, region:'med'},
-  bluefin:   {name:'Bluefin Tuna',  col:'#2c526e', acc:'#e0b23a', len:[110,165],depth:[.3,.65], hits:5, base:400,weight:5, spd:2.3, region:'med'},
-  leviathan: {name:'The Old Emperor',col:'#586b74', acc:'#e6d59a', len:[190,190],depth:[.3,.7],hits:10,base:2600,weight:0, spd:1.8, legendary:true, region:'med',
-               lore:'A bluefin that has outlived three lighthouses. Sailors say it remembers every hook.'},
+const FISH={
+  herring:{name:'Herring',col:'#9fb7c4',acc:'#e8f0f4',len:[18,28],depth:[.08,.35],hits:1,base:14,weight:34,spd:1.35,region:'north'},
+  mackerel:{name:'Mackerel',col:'#4c8f8a',acc:'#173b3a',len:[24,36],depth:[.12,.45],hits:1,base:22,weight:28,spd:1.5,region:'north'},
+  cod:{name:'Atlantic Cod',col:'#8a8a6a',acc:'#4b4a30',len:[40,70],depth:[.35,.72],hits:2,base:48,weight:22,spd:.85,region:'north'},
+  pollock:{name:'Pollock',col:'#6f7d78',acc:'#2f3a36',len:[34,58],depth:[.3,.62],hits:1,base:30,weight:20,spd:1.0,region:'north'},
+  salmon:{name:'King Salmon',col:'#c9736a',acc:'#7d332e',len:[46,78],depth:[.2,.5],hits:2,base:70,weight:13,spd:1.7,region:'north'},
+  halibut:{name:'Halibut',col:'#5b5a4c',acc:'#2b2a20',len:[60,110],depth:[.62,.95],hits:3,base:120,weight:9,spd:.6,region:'north'},
+  lobster:{name:'Lobster',col:'#b1503a',acc:'#5f2216',len:[26,44],depth:[.8,.98],hits:2,base:95,weight:8,spd:.5,crawler:true,region:'north'},
+  kingcrab:{name:'King Crab',col:'#c0603f',acc:'#5a2413',len:[34,56],depth:[.82,.99],hits:3,base:160,weight:5,spd:.45,crawler:true,region:'north'},
+  oldbarnacle:{name:'Old Barnacle',col:'#3f5850',acc:'#dfe8d6',len:[150,150],depth:[.7,.95],hits:8,base:1400,weight:0,spd:.7,legendary:true,region:'north',lore:'A halibut the size of a door.'},
+  sardine:{name:'Sardine',col:'#a9c0cf',acc:'#eef6fb',len:[14,22],depth:[.05,.3],hits:1,base:12,weight:32,spd:1.5,region:'trop'},
+  snapper:{name:'Red Snapper',col:'#d15a4e',acc:'#7a2a22',len:[30,52],depth:[.3,.6],hits:2,base:60,weight:24,spd:1.0,region:'trop'},
+  parrot:{name:'Parrotfish',col:'#39a58c',acc:'#f2c14e',len:[28,46],depth:[.18,.4],hits:1,base:40,weight:22,spd:1.1,region:'trop'},
+  grouper:{name:'Grouper',col:'#7c6a4b',acc:'#3a3020',len:[55,95],depth:[.5,.85],hits:3,base:130,weight:12,spd:.7,region:'trop'},
+  mahi:{name:'Mahi-Mahi',col:'#3fb2c9',acc:'#f4d03f',len:[50,86],depth:[.12,.42],hits:2,base:110,weight:14,spd:2.0,region:'trop'},
+  tuna:{name:'Yellowfin Tuna',col:'#3a6b8c',acc:'#f2c744',len:[70,120],depth:[.25,.6],hits:4,base:260,weight:8,spd:2.3,region:'trop'},
+  marlin:{name:'Blue Marlin',col:'#2f5f9e',acc:'#bcd8f0',len:[130,180],depth:[.2,.55],hits:6,base:520,weight:3,spd:2.6,region:'trop'},
+  reefking:{name:'The Reef King',col:'#b5892f',acc:'#3a2c10',len:[160,160],depth:[.45,.8],hits:9,base:1900,weight:0,spd:1.4,legendary:true,region:'trop',lore:'An ancient goliath grouper wearing a crown of coral.'},
+  anchovy:{name:'Anchovy',col:'#b9c6cc',acc:'#eef4f6',len:[10,16],depth:[.05,.28],hits:1,base:11,weight:30,spd:1.5,region:'med'},
+  seabream:{name:'Sea Bream',col:'#c9c3a8',acc:'#6a6448',len:[26,42],depth:[.22,.5],hits:1,base:38,weight:26,spd:1.1,region:'med'},
+  seabass:{name:'Sea Bass',col:'#8f9aa0',acc:'#3a4247',len:[34,60],depth:[.3,.62],hits:2,base:72,weight:20,spd:1.15,region:'med'},
+  octopus:{name:'Octopus',col:'#9c5a6a',acc:'#43222a',len:[30,56],depth:[.7,.96],hits:2,base:90,weight:14,spd:.6,crawler:true,region:'med'},
+  dorade:{name:'Gilt Dorade',col:'#c9a94e',acc:'#6a5220',len:[30,50],depth:[.25,.5],hits:2,base:88,weight:12,spd:1.2,region:'med'},
+  swordfish:{name:'Swordfish',col:'#4a5b66',acc:'#cdd6da',len:[120,175],depth:[.2,.55],hits:5,base:340,weight:6,spd:2.4,region:'med'},
+  bluefin:{name:'Bluefin Tuna',col:'#2c526e',acc:'#e0b23a',len:[110,165],depth:[.3,.65],hits:5,base:400,weight:5,spd:2.3,region:'med'},
+  leviathan:{name:'The Old Emperor',col:'#586b74',acc:'#e6d59a',len:[190,190],depth:[.3,.7],hits:10,base:2600,weight:0,spd:1.8,legendary:true,region:'med',lore:'A bluefin that has outlived three lighthouses.'},
 };
-
-// Region definitions: palette, weather tendencies, ports, goal, fish set.
-const REGIONS = [
-  {
-    id:'north', name:'The Northern Reach', order:0, icon:'❄️',
-    blurb:'Cold, moody waters under evergreen headlands. Fog rolls thick and the sea keeps secrets.',
-    length: 5200,                          // world length in metres (x)
-    sky:{ dawn:'#caa9a0', day:'#a9c6d4', dusk:'#d79b74', night:'#0e2130' },
-    sun:'#ffe9c2', water:{ top:'#3f7285', mid:'#245264', deep:'#0c2531' },
-    hills:['#26414a','#33525a','#48707a'], // far->near silhouettes
-    foam:'#dfeef2',
-    weather:{ clear:.22, cloud:.28, fog:.2, rain:.16, snow:.09, storm:.05 },
-    fish:['herring','mackerel','cod','pollock','salmon','halibut','lobster','kingcrab','oldbarnacle'],
-    legendary:'oldbarnacle',
-    goal:{ earn:2400, note:'Earn 2,400 coin and land Old Barnacle to master the Reach.' },
-    ports:[
-      {name:'Gull Harbor',   x:420,  kind:'home',  spec:['cod','herring'],    icon:'⚓'},
-      {name:'Fable Cove',    x:2100, kind:'trade', spec:['salmon','mackerel'],icon:'🏘️'},
-      {name:'Cape Iron',     x:3700, kind:'trade', spec:['halibut','lobster'],icon:'🗼'},
-      {name:'Stormwatch',    x:4950, kind:'trade', spec:['kingcrab'],         icon:'🌊'},
-    ],
-  },
-  {
-    id:'trop', name:'The Coral Keys', order:1, icon:'🌴',
-    blurb:'Sun-warmed shallows over living reef. The water is glass; the fish are gold.',
-    length: 5600,
-    sky:{ dawn:'#f4c9a0', day:'#8fd0e0', dusk:'#f0a15e', night:'#0b2436' },
-    sun:'#fff2cf', water:{ top:'#3fb2c9', mid:'#1f8aa8', deep:'#0a3a52' },
-    hills:['#2f6f6a','#3f8a76','#6bb08c'],
-    foam:'#f2fbfb',
-    weather:{ clear:.4, cloud:.22, fog:.06, rain:.16, snow:0, storm:.16 },
-    fish:['sardine','snapper','parrot','grouper','mahi','tuna','marlin','reefking'],
-    legendary:'reefking',
-    goal:{ earn:4200, note:'Earn 4,200 coin and best The Reef King to conquer the Keys.' },
-    ports:[
-      {name:'Palmetto Bay',  x:520,  kind:'home',  spec:['snapper','parrot'], icon:'🏝️'},
-      {name:'Marigot',       x:2300, kind:'trade', spec:['mahi','grouper'],   icon:'🏘️'},
-      {name:'Blue Lagoon',   x:3900, kind:'trade', spec:['tuna'],             icon:'🐠'},
-      {name:'Cutlass Reef',  x:5300, kind:'trade', spec:['marlin'],           icon:'⚔️'},
-    ],
-  },
-  {
-    id:'med', name:'The Amber Coast', order:2, icon:'🏛️',
-    blurb:'Golden light on ancient water. Olive terraces, white towns, and tuna as old as the harbours.',
-    length: 6000,
-    sky:{ dawn:'#f6d3a2', day:'#a9c7cf', dusk:'#f2b45e', night:'#101d33' },
-    sun:'#fff0c8', water:{ top:'#2f8fa0', mid:'#1e6f83', deep:'#0b2f47' },
-    hills:['#6b6a4a','#8a8156','#b6a875'],
-    foam:'#f4f1e2',
-    weather:{ clear:.46, cloud:.24, fog:.08, rain:.12, snow:0, storm:.1 },
-    fish:['anchovy','seabream','seabass','octopus','dorade','swordfish','bluefin','leviathan'],
-    legendary:'leviathan',
-    goal:{ earn:6800, note:'Earn 6,800 coin and raise The Old Emperor to complete your voyage.' },
-    ports:[
-      {name:'Porto Vecchio', x:560,  kind:'home',  spec:['seabream','dorade'],icon:'🏛️'},
-      {name:'Amalfi Reach',  x:2400, kind:'trade', spec:['seabass','octopus'],icon:'⛪'},
-      {name:'Saltera',       x:4200, kind:'trade', spec:['swordfish'],        icon:'🧂'},
-      {name:'Cape Meridian', x:5700, kind:'trade', spec:['bluefin'],          icon:'🌅'},
-    ],
-  },
+const REGIONS=[
+  {id:'north',name:'The Northern Reach',order:0,icon:'❄️',
+   blurb:'Cold, moody waters under evergreen headlands. Fog rolls thick and the sea keeps secrets.',
+   length:5200,
+   sky:{dawn:'#caa9a0',day:'#a9c6d4',dusk:'#d79b74',night:'#0e2130'},
+   sun:'#ffe9c2',water:{top:'#3f7285',mid:'#245264',deep:'#0c2531'},
+   hills:['#26414a','#33525a','#48707a'],foam:'#dfeef2',
+   weather:{clear:.22,cloud:.28,fog:.2,rain:.16,snow:.09,storm:.05},
+   fish:['herring','mackerel','cod','pollock','salmon','halibut','lobster','kingcrab','oldbarnacle'],
+   legendary:'oldbarnacle',goal:{earn:2400},
+   ports:[{name:'Gull Harbor',x:420,kind:'home',spec:['cod','herring'],icon:'⚓'},
+          {name:'Fable Cove',x:2100,kind:'trade',spec:['salmon','mackerel'],icon:'🏘️'},
+          {name:'Cape Iron',x:3700,kind:'trade',spec:['halibut','lobster'],icon:'🗼'},
+          {name:'Stormwatch',x:4950,kind:'trade',spec:['kingcrab'],icon:'🌊'}]},
+  {id:'trop',name:'The Coral Keys',order:1,icon:'🌴',
+   blurb:'Sun-warmed shallows over living reef. The water is glass; the fish are gold.',
+   length:5600,
+   sky:{dawn:'#f4c9a0',day:'#8fd0e0',dusk:'#f0a15e',night:'#0b2436'},
+   sun:'#fff2cf',water:{top:'#3fb2c9',mid:'#1f8aa8',deep:'#0a3a52'},
+   hills:['#2f6f6a','#3f8a76','#6bb08c'],foam:'#f2fbfb',
+   weather:{clear:.4,cloud:.22,fog:.06,rain:.16,snow:0,storm:.16},
+   fish:['sardine','snapper','parrot','grouper','mahi','tuna','marlin','reefking'],
+   legendary:'reefking',goal:{earn:4200},
+   ports:[{name:'Palmetto Bay',x:520,kind:'home',spec:['snapper','parrot'],icon:'🏝️'},
+          {name:'Marigot',x:2300,kind:'trade',spec:['mahi','grouper'],icon:'🏘️'},
+          {name:'Blue Lagoon',x:3900,kind:'trade',spec:['tuna'],icon:'🐠'},
+          {name:'Cutlass Reef',x:5300,kind:'trade',spec:['marlin'],icon:'⚔️'}]},
+  {id:'med',name:'The Amber Coast',order:2,icon:'🏛️',
+   blurb:'Golden light on ancient water. Olive terraces, white towns, tuna as old as the harbours.',
+   length:6000,
+   sky:{dawn:'#f6d3a2',day:'#a9c7cf',dusk:'#f2b45e',night:'#101d33'},
+   sun:'#fff0c8',water:{top:'#2f8fa0',mid:'#1e6f83',deep:'#0b2f47'},
+   hills:['#6b6a4a','#8a8156','#b6a875'],foam:'#f4f1e2',
+   weather:{clear:.46,cloud:.24,fog:.08,rain:.12,snow:0,storm:.1},
+   fish:['anchovy','seabream','seabass','octopus','dorade','swordfish','bluefin','leviathan'],
+   legendary:'leviathan',goal:{earn:6800},
+   ports:[{name:'Porto Vecchio',x:560,kind:'home',spec:['seabream','dorade'],icon:'🏛️'},
+          {name:'Amalfi Reach',x:2400,kind:'trade',spec:['seabass','octopus'],icon:'⛪'},
+          {name:'Saltera',x:4200,kind:'trade',spec:['swordfish'],icon:'🧂'},
+          {name:'Cape Meridian',x:5700,kind:'trade',spec:['bluefin'],icon:'🌅'}]},
 ];
-
-// Trade goods (merchant layer). Each port buys/sells at fluctuating prices.
-const GOODS = {
-  ice:    {name:'Crushed Ice', icon:'🧊', base:8,  vol:.35},
-  salt:   {name:'Sea Salt',    icon:'🧂', base:14, vol:.3},
-  timber: {name:'Timber',      icon:'🪵', base:26, vol:.4},
-  rope:   {name:'Rope & Net',  icon:'🪢', base:34, vol:.45},
-  spice:  {name:'Spice',       icon:'🌶️', base:60, vol:.7},
-  pottery:{name:'Pottery',     icon:'🏺', base:48, vol:.55},
+const GOODS={ice:{name:'Crushed Ice',icon:'🧊',base:8,vol:.35},salt:{name:'Sea Salt',icon:'🧂',base:14,vol:.3},
+  timber:{name:'Timber',icon:'🪵',base:26,vol:.4},rope:{name:'Rope & Net',icon:'🪢',base:34,vol:.45},
+  spice:{name:'Spice',icon:'🌶️',base:60,vol:.7},pottery:{name:'Pottery',icon:'🏺',base:48,vol:.55}};
+const UPGRADES={
+  engine:{name:'Engine',icon:'⚙️',desc:'Faster motoring, uses fuel.',levels:[{label:'Single-cylinder',spd:1.0,fuelUse:1.0},{label:'Twin diesel',spd:1.28,fuelUse:.92,cost:520},{label:'Turbo inboard',spd:1.55,fuelUse:.86,cost:1300},{label:'Marine V8',spd:1.85,fuelUse:.8,cost:2900}]},
+  sail:{name:'Sails',icon:'⛵',desc:'Free speed from the wind.',levels:[{label:'Patched lugsail',wind:1.0},{label:'Cotton main',wind:1.3,cost:360},{label:'Racing rig',wind:1.7,cost:980},{label:'Twin spinnaker',wind:2.1,cost:2100}]},
+  hull:{name:'Hull & Hold',icon:'🛶',desc:'More cargo, tougher against storms.',levels:[{label:'Old skiff',hold:16,armor:1.0},{label:'Reinforced',hold:28,armor:1.4,cost:600},{label:'Deep trawler',hold:46,armor:1.9,cost:1500},{label:'Ironbound',hold:72,armor:2.6,cost:3200}]},
+  line:{name:'Line & Reel',icon:'🎣',desc:'Dive deeper, reel faster.',levels:[{label:'Hand line',depth:.5,reel:1.0},{label:'Braided line',depth:.7,reel:1.25,cost:420},{label:'Downrigger',depth:.88,reel:1.5,cost:1100},{label:'Deep winch',depth:1.0,reel:1.85,cost:2400}]},
+  lure:{name:'Lure',icon:'✨',desc:'Bigger hit box, draws fish in.',levels:[{label:'Bare hook',power:1.0,attract:0},{label:'Spoon lure',power:1.0,attract:34,cost:300},{label:'Live bait rig',power:1.4,attract:58,cost:820},{label:'Glow jig',power:1.7,attract:88,cost:1700}]},
+  sonar:{name:'Sonar',icon:'📡',desc:'Reveals fish in murk & at depth.',levels:[{label:'None',range:0},{label:'Fish-finder',range:.5,cost:540},{label:'CHIRP sonar',range:.8,cost:1400}]},
 };
 
-// Upgrade tree. Each item: levels of {cost, ...effects}. Applied in world.js.
-const UPGRADES = {
-  engine: { name:'Engine', icon:'⚙️', desc:'Faster motoring, uses fuel.',
-    levels:[ {label:'Single-cylinder', spd:1.0, fuelUse:1.0},
-             {label:'Twin diesel',     spd:1.28,fuelUse:.92, cost:520},
-             {label:'Turbo inboard',   spd:1.55,fuelUse:.86, cost:1300},
-             {label:'Marine V8',       spd:1.85,fuelUse:.8,  cost:2900} ]},
-  sail: { name:'Sails', icon:'⛵', desc:'Free speed from the wind.',
-    levels:[ {label:'Patched lugsail', wind:1.0},
-             {label:'Cotton main',     wind:1.3, cost:360},
-             {label:'Racing rig',      wind:1.7, cost:980},
-             {label:'Twin spinnaker',  wind:2.1, cost:2100} ]},
-  hull: { name:'Hull & Hold', icon:'🛶', desc:'More cargo, tougher against storms.',
-    levels:[ {label:'Old skiff',    hold:16, armor:1.0},
-             {label:'Reinforced',   hold:28, armor:1.4, cost:600},
-             {label:'Deep trawler', hold:46, armor:1.9, cost:1500},
-             {label:'Ironbound',    hold:72, armor:2.6, cost:3200} ]},
-  line: { name:'Line & Reel', icon:'🎣', desc:'Dive deeper, reel faster.',
-    levels:[ {label:'Hand line',    depth:.5,  reel:1.0},
-             {label:'Braided line', depth:.7,  reel:1.25, cost:420},
-             {label:'Downrigger',   depth:.88, reel:1.5,  cost:1100},
-             {label:'Deep winch',   depth:1.0, reel:1.85, cost:2400} ]},
-  lure: { name:'Lure', icon:'✨', desc:'Bigger hit box, draws fish in.',
-    levels:[ {label:'Bare hook',    power:1.0, attract:0},
-             {label:'Spoon lure',   power:1.0, attract:34, cost:300},
-             {label:'Live bait rig',power:1.4, attract:58, cost:820},
-             {label:'Glow jig',     power:1.7, attract:88, cost:1700} ]},
-  sonar: { name:'Sonar', icon:'📡', desc:'Reveals fish in murk & at depth.',
-    levels:[ {label:'None',        range:0},
-             {label:'Fish-finder', range:0.5, cost:540},
-             {label:'CHIRP sonar', range:0.8, cost:1400} ]},
-};
+/* ======================= 4. MATRIX / VECTOR MATH ======================== */
+const rad=d=>d*PI/180;
+function m4(){ return new Float32Array(16); }
+function m4ident(o){ o[0]=1;o[1]=0;o[2]=0;o[3]=0;o[4]=0;o[5]=1;o[6]=0;o[7]=0;o[8]=0;o[9]=0;o[10]=1;o[11]=0;o[12]=0;o[13]=0;o[14]=0;o[15]=1;return o; }
+function m4persp(o,fovy,asp,n,f){ const t=1/Math.tan(fovy/2); o.fill(0); o[0]=t/asp;o[5]=t;o[10]=(f+n)/(n-f);o[11]=-1;o[14]=(2*f*n)/(n-f); return o; }
+function m4lookAt(o,eye,ctr,up){
+  let zx=eye[0]-ctr[0],zy=eye[1]-ctr[1],zz=eye[2]-ctr[2];
+  let zl=Math.hypot(zx,zy,zz)||1; zx/=zl;zy/=zl;zz/=zl;
+  let xx=up[1]*zz-up[2]*zy, xy=up[2]*zx-up[0]*zz, xz=up[0]*zy-up[1]*zx;
+  let xl=Math.hypot(xx,xy,xz)||1; xx/=xl;xy/=xl;xz/=xl;
+  let yx=zy*xz-zz*xy, yy=zz*xx-zx*xz, yz=zx*xy-zy*xx;
+  o[0]=xx;o[1]=yx;o[2]=zx;o[3]=0; o[4]=xy;o[5]=yy;o[6]=zy;o[7]=0; o[8]=xz;o[9]=yz;o[10]=zz;o[11]=0;
+  o[12]=-(xx*eye[0]+xy*eye[1]+xz*eye[2]); o[13]=-(yx*eye[0]+yy*eye[1]+yz*eye[2]); o[14]=-(zx*eye[0]+zy*eye[1]+zz*eye[2]); o[15]=1; return o;
+}
+function m4mul(o,a,b){ const t=o===a||o===b?m4():o;
+  for(let c=0;c<4;c++)for(let r=0;r<4;r++){ let s=0; for(let k=0;k<4;k++) s+=a[k*4+r]*b[c*4+k]; t[c*4+r]=s; }
+  if(t!==o) for(let i=0;i<16;i++)o[i]=t[i]; return o; }
+function m4invert(o,a){
+  const m=a; const inv=m4();
+  inv[0]=m[5]*m[10]*m[15]-m[5]*m[11]*m[14]-m[9]*m[6]*m[15]+m[9]*m[7]*m[14]+m[13]*m[6]*m[11]-m[13]*m[7]*m[10];
+  inv[4]=-m[4]*m[10]*m[15]+m[4]*m[11]*m[14]+m[8]*m[6]*m[15]-m[8]*m[7]*m[14]-m[12]*m[6]*m[11]+m[12]*m[7]*m[10];
+  inv[8]=m[4]*m[9]*m[15]-m[4]*m[11]*m[13]-m[8]*m[5]*m[15]+m[8]*m[7]*m[13]+m[12]*m[5]*m[11]-m[12]*m[7]*m[9];
+  inv[12]=-m[4]*m[9]*m[14]+m[4]*m[10]*m[13]+m[8]*m[5]*m[14]-m[8]*m[6]*m[13]-m[12]*m[5]*m[10]+m[12]*m[6]*m[9];
+  inv[1]=-m[1]*m[10]*m[15]+m[1]*m[11]*m[14]+m[9]*m[2]*m[15]-m[9]*m[3]*m[14]-m[13]*m[2]*m[11]+m[13]*m[3]*m[10];
+  inv[5]=m[0]*m[10]*m[15]-m[0]*m[11]*m[14]-m[8]*m[2]*m[15]+m[8]*m[3]*m[14]+m[12]*m[2]*m[11]-m[12]*m[3]*m[10];
+  inv[9]=-m[0]*m[9]*m[15]+m[0]*m[11]*m[13]+m[8]*m[1]*m[15]-m[8]*m[3]*m[13]-m[12]*m[1]*m[11]+m[12]*m[3]*m[9];
+  inv[13]=m[0]*m[9]*m[14]-m[0]*m[10]*m[13]-m[8]*m[1]*m[14]+m[8]*m[2]*m[13]+m[12]*m[1]*m[10]-m[12]*m[2]*m[9];
+  inv[2]=m[1]*m[6]*m[15]-m[1]*m[7]*m[14]-m[5]*m[2]*m[15]+m[5]*m[3]*m[14]+m[13]*m[2]*m[7]-m[13]*m[3]*m[6];
+  inv[6]=-m[0]*m[6]*m[15]+m[0]*m[7]*m[14]+m[4]*m[2]*m[15]-m[4]*m[3]*m[14]-m[12]*m[2]*m[7]+m[12]*m[3]*m[6];
+  inv[10]=m[0]*m[5]*m[15]-m[0]*m[7]*m[13]-m[4]*m[1]*m[15]+m[4]*m[3]*m[13]+m[12]*m[1]*m[7]-m[12]*m[3]*m[5];
+  inv[14]=-m[0]*m[5]*m[14]+m[0]*m[6]*m[13]+m[4]*m[1]*m[14]-m[4]*m[2]*m[13]-m[12]*m[1]*m[6]+m[12]*m[2]*m[5];
+  inv[3]=-m[1]*m[6]*m[11]+m[1]*m[7]*m[10]+m[5]*m[2]*m[11]-m[5]*m[3]*m[10]-m[9]*m[2]*m[7]+m[9]*m[3]*m[6];
+  inv[7]=m[0]*m[6]*m[11]-m[0]*m[7]*m[10]-m[4]*m[2]*m[11]+m[4]*m[3]*m[10]+m[8]*m[2]*m[7]-m[8]*m[3]*m[6];
+  inv[11]=-m[0]*m[5]*m[11]+m[0]*m[7]*m[9]+m[4]*m[1]*m[11]-m[4]*m[3]*m[9]-m[8]*m[1]*m[7]+m[8]*m[3]*m[5];
+  inv[15]=m[0]*m[5]*m[10]-m[0]*m[6]*m[9]-m[4]*m[1]*m[10]+m[4]*m[2]*m[9]+m[8]*m[1]*m[6]-m[8]*m[2]*m[5];
+  let det=m[0]*inv[0]+m[1]*inv[4]+m[2]*inv[8]+m[3]*inv[12]; if(!det){m4ident(o);return o;} det=1/det;
+  for(let i=0;i<16;i++)o[i]=inv[i]*det; return o;
+}
+function m4trans(o,x,y,z){ m4ident(o); o[12]=x;o[13]=y;o[14]=z; return o; }
+function m4mulInto(o,a){ m4mul(o,o,a); return o; }
+function m4compose(o,pos,rotY,rotZ,rotX,sc){
+  // build T * Ry * Rz * Rx * S
+  m4ident(o); o[12]=pos[0];o[13]=pos[1];o[14]=pos[2];
+  const cy=Math.cos(rotY),sy=Math.sin(rotY),cz=Math.cos(rotZ),sz=Math.sin(rotZ),cx=Math.cos(rotX),sx=Math.sin(rotX);
+  const R=m4();
+  // Ry
+  R[0]=cy;R[1]=0;R[2]=-sy;R[3]=0; R[4]=0;R[5]=1;R[6]=0;R[7]=0; R[8]=sy;R[9]=0;R[10]=cy;R[11]=0; R[12]=0;R[13]=0;R[14]=0;R[15]=1;
+  m4mul(o,o,R);
+  const Rz=m4ident(m4()); Rz[0]=cz;Rz[1]=sz;Rz[4]=-sz;Rz[5]=cz; m4mul(o,o,Rz);
+  const Rx=m4ident(m4()); Rx[5]=cx;Rx[6]=sx;Rx[9]=-sx;Rx[10]=cx; m4mul(o,o,Rx);
+  const S=m4ident(m4()); S[0]=sc[0];S[5]=sc[1];S[10]=sc[2]; m4mul(o,o,S);
+  return o;
+}
+const vSub=(a,b)=>[a[0]-b[0],a[1]-b[1],a[2]-b[2]];
+const vAdd=(a,b)=>[a[0]+b[0],a[1]+b[1],a[2]+b[2]];
+const vScale=(a,s)=>[a[0]*s,a[1]*s,a[2]*s];
+const vLen=a=>Math.hypot(a[0],a[1],a[2]);
+const vNorm=a=>{const l=vLen(a)||1;return[a[0]/l,a[1]/l,a[2]/l];};
+const vCross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];
+const vDot=(a,b)=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2];
+const vLerp=(a,b,t)=>[lerp(a[0],b[0],t),lerp(a[1],b[1],t),lerp(a[2],b[2],t)];
 
-/* ======================= 4. ENGINE CORE ================================= */
-const cv = document.getElementById('game');
-const ctx = cv.getContext('2d');
-let W=0, H=0, DPR=1;
-
+/* ======================= 5. WEBGL CORE ================================== */
+const glc=document.getElementById('game');
+let gl=glc.getContext('webgl2',{antialias:true,alpha:false,premultipliedAlpha:false,powerPreference:'high-performance'});
+if(!gl){ document.getElementById('errbox').style.display='block';
+  document.getElementById('errbox').textContent='WebGL2 not available in this browser.'; }
+const GLSL='#version 300 es\nprecision highp float;\n';
+function makeShader(type,src){ const s=gl.createShader(type); gl.shaderSource(s,src); gl.compileShader(s);
+  if(!gl.getShaderParameter(s,gl.COMPILE_STATUS)){ throw new Error('Shader compile: '+gl.getShaderInfoLog(s)); } return s; }
+function makeProgram(vsrc,fsrc){
+  const p=gl.createProgram();
+  gl.attachShader(p,makeShader(gl.VERTEX_SHADER,GLSL+vsrc));
+  gl.attachShader(p,makeShader(gl.FRAGMENT_SHADER,GLSL+fsrc));
+  gl.linkProgram(p);
+  if(!gl.getProgramParameter(p,gl.LINK_STATUS)){ throw new Error('Program link: '+gl.getProgramInfoLog(p)); }
+  p._u={}; p.u=function(n){ let u=this._u[n]; if(u===undefined){ u=gl.getUniformLocation(this,n); this._u[n]=u; } return u; };
+  return p;
+}
+// full-screen quad
+let quadVAO;
+function initQuad(){
+  quadVAO=gl.createVertexArray(); gl.bindVertexArray(quadVAO);
+  const b=gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER,b);
+  gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1, 1,-1, -1,1, 1,1]),gl.STATIC_DRAW);
+  gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0,2,gl.FLOAT,false,0,0);
+  gl.bindVertexArray(null);
+}
+let W=0,H=0,DPR=1;
+const fxc=document.getElementById('fx'); const fxx=fxc.getContext('2d');
+let paperEl=null;
 function resize(){
-  DPR = Math.min(2, window.devicePixelRatio||1);
-  W = window.innerWidth; H = window.innerHeight;
-  cv.width = Math.floor(W*DPR); cv.height = Math.floor(H*DPR);
-  cv.style.width=W+'px'; cv.style.height=H+'px';
-  ctx.setTransform(DPR,0,0,DPR,0,0);
-  if(GEN) GEN.dirty = true;    // regenerate procedural coast texture on resize
+  DPR=Math.min(2,window.devicePixelRatio||1);
+  W=window.innerWidth; H=window.innerHeight;
+  glc.width=Math.floor(W*DPR); glc.height=Math.floor(H*DPR);
+  glc.style.width=W+'px'; glc.style.height=H+'px';
+  fxc.width=Math.floor(W*DPR); fxc.height=Math.floor(H*DPR);
+  fxc.style.width=W+'px'; fxc.style.height=H+'px';
+  fxx.setTransform(DPR,0,0,DPR,0,0);
+  if(gl) gl.viewport(0,0,glc.width,glc.height);
 }
-window.addEventListener('resize', resize);
+window.addEventListener('resize',resize);
 
-// Master game object -------------------------------------------------------
-const Game = {
-  screen:'boot',
-  prev:'boot',
-  t:0,             // total elapsed seconds
-  frame:0,
-  paused:false,
-  slowmo:1,
-  set(s){
-    this.prev = this.screen;
-    this.screen = s;
-    updateLayers();
-  },
+/* ======================= 6. WORLD STATE • TIME • WEATHER ================= */
+const DAY_LENGTH=210;
+const Game={screen:'boot',prev:'boot',t:0,frame:0,paused:false};
+Game.set=function(s){ this.prev=this.screen; this.screen=s; if(typeof updateLayers==='function') updateLayers(); };
+const world={
+  region:0,time:0.34,day:1,timeScale:1,
+  weather:'clear',weatherPrev:'clear',wBlend:1,wTimer:26,
+  fog:0,rainI:0,snowI:0,cloudCover:.3,storm:0,overcast:0,
+  windDir:1,windTarget:1,windStr:.4,windTargetStr:.4,gust:0,seaState:.3,
+  noiseW:makeNoise1D(9911),noiseSea:makeNoise1D(4242),
+  lightning:0,lightningTimer:5,
 };
-
-// Camera / view ------------------------------------------------------------
-const view = {
-  camX:0,          // world x at screen centre (metres)
-  targetCamX:0,
-  pxPerM:0.9,      // horizontal zoom (px per metre)
-  waterY:0,        // screen y of the waterline (animated)
-  targetWaterY:0,
-  pxPerDepth:0,    // px per metre of underwater depth
-  shakeX:0, shakeY:0, shake:0,
-  flash:0, flashCol:'#ffffff',
-};
-const SEA_DEPTH = 140;   // metres of fishable column
-
-function worldToScreenX(wx){ return W*0.5 + (wx - view.camX)*view.pxPerM; }
-function screenToWorldX(sx){ return view.camX + (sx - W*0.5)/view.pxPerM; }
-
-// Input --------------------------------------------------------------------
-const keys = new Set();
-const pressed = new Set();     // edge-triggered this frame
-const Input = {
-  left(){ return keys.has('arrowleft')||keys.has('a'); },
-  right(){return keys.has('arrowright')||keys.has('d'); },
-  up(){   return keys.has('arrowup')||keys.has('w'); },
-  down(){ return keys.has('arrowdown')||keys.has('s'); },
-  tapped(k){ return pressed.has(k); },
-};
-window.addEventListener('keydown', e=>{
-  const k = e.key.toLowerCase();
-  if(['arrowleft','arrowright','arrowup','arrowdown',' '].includes(k)) e.preventDefault();
-  if(!keys.has(k)) pressed.add(k);
-  keys.add(k);
-  handleHotkeys(k, e);
-}, {passive:false});
-window.addEventListener('keyup', e=> keys.delete(e.key.toLowerCase()));
-window.addEventListener('blur', ()=> keys.clear());
-
-function handleHotkeys(k, e){
-  if(Game.screen==='sail'){
-    if(k==='escape') openPause();
-    else if(k==='m') openMap();
-    else if(k==='e') tryDock();
-    else if(k===' ') toggleFishing();
-    else if(k==='h') openHelp();
-    else if(k==='shift') { /* handled continuous */ }
-  } else if(Game.screen==='fish'){
-    if(k==='escape'||k===' ') { if(k===' '&&fishing.state==='down'){ startReel(); } else { toggleFishing(); } }
-  } else if(Game.screen==='title'){
-    if(k==='enter') startGame(loadSave()?null:0);
-  } else if(['pause','help','town','map','event'].includes(Game.screen)){
-    if(k==='escape') closeOverlays();
-  }
-}
-
-// Camera update
-function updateView(dt){
-  view.camX = lerp(view.camX, view.targetCamX, 1-Math.pow(0.0008,dt));
-  view.waterY = lerp(view.waterY, view.targetWaterY, 1-Math.pow(0.0006,dt));
-  view.pxPerDepth = (H - view.waterY) / SEA_DEPTH;
-  if(view.shake>0){
-    view.shake = Math.max(0, view.shake - dt*1.6);
-    const s = view.shake*view.shake*10;
-    view.shakeX = (rnd()*2-1)*s; view.shakeY=(rnd()*2-1)*s;
-  } else { view.shakeX=view.shakeY=0; }
-  if(view.flash>0) view.flash = Math.max(0, view.flash - dt*2.2);
-}
-function addShake(a){ view.shake = Math.min(1.4, view.shake + a); }
-function addFlash(a,col){ view.flash=Math.min(1,a); if(col) view.flashCol=col; }
-
-/* ======================= 5. TIME • WEATHER • WIND ======================== */
-const DAY_LENGTH = 210;   // real seconds for a full in-game day
-const WEATHER_TYPES = ['clear','cloud','fog','rain','snow','storm'];
-
-const world = {
-  region: 0,
-  time: 0.30,             // 0..1 (0 = midnight, .25 dawn, .5 noon, .75 dusk)
-  day: 1,
-  timeScale: 1,
-  // weather crossfade
-  weather:'clear', weatherPrev:'clear', wBlend:1, wTimer:26,
-  // resolved atmospheric factors (0..1)
-  fog:0, rainI:0, snowI:0, cloudCover:.3, storm:0, overcast:0,
-  // wind
-  windDir:1, windTarget:1, windStr:.4, windTargetStr:.4, gust:0,
-  // sea state (roughness 0..1) driven by wind+storm
-  seaState:.3,
-  noiseW: makeNoise1D(9911),
-  noiseSea: makeNoise1D(4242),
-  noiseCloud: makeNoise1D(7777),
-  lightning:0, lightningTimer:5,
-};
-
 function regionData(){ return REGIONS[world.region]; }
-
-function rollWeather(){
-  const w = regionData().weather;
-  let total=0; for(const k in w) total+=w[k];
-  let r = rnd()*total, chosen='clear';
-  for(const k in w){ r-=w[k]; if(r<=0){ chosen=k; break; } }
-  return chosen;
-}
-function setWeather(next){
-  world.weatherPrev = world.weather;
-  world.weather = next;
-  world.wBlend = 0;
-  world.wTimer = rrange(24, 52);   // seconds until next change
-}
-// target atmospheric values for a weather type
-const WX = {
-  clear:{fog:0,   rain:0,  snow:0,  cloud:.15, storm:0,  wind:.35, sea:.22},
-  cloud:{fog:.05, rain:0,  snow:0,  cloud:.62, storm:0,  wind:.45, sea:.34},
-  fog:  {fog:.82, rain:0,  snow:0,  cloud:.5,  storm:0,  wind:.22, sea:.2},
-  rain: {fog:.2,  rain:.7, snow:0,  cloud:.85, storm:.15,wind:.6,  sea:.55},
-  snow: {fog:.3,  rain:0,  snow:.75,cloud:.8,  storm:.05,wind:.4,  sea:.4},
-  storm:{fog:.12, rain:1,  snow:0,  cloud:1,   storm:1,  wind:1,   sea:1},
+const WX={
+  clear:{fog:0,rain:0,snow:0,cloud:.15,storm:0,wind:.35,sea:.22},
+  cloud:{fog:.05,rain:0,snow:0,cloud:.62,storm:0,wind:.45,sea:.34},
+  fog:{fog:.82,rain:0,snow:0,cloud:.5,storm:0,wind:.22,sea:.2},
+  rain:{fog:.2,rain:.7,snow:0,cloud:.85,storm:.15,wind:.6,sea:.55},
+  snow:{fog:.3,rain:0,snow:.75,cloud:.8,storm:.05,wind:.4,sea:.4},
+  storm:{fog:.12,rain:1,snow:0,cloud:1,storm:1,wind:1,sea:1},
 };
-
+function rollWeather(){ const w=regionData().weather; let total=0; for(const k in w)total+=w[k];
+  let r=rnd()*total; for(const k in w){ r-=w[k]; if(r<=0)return k; } return 'clear'; }
+function setWeather(next){ world.weatherPrev=world.weather; world.weather=next; world.wBlend=0; world.wTimer=rrange(26,54); }
 function updateWeather(dt){
-  world.wTimer -= dt;
-  if(world.wTimer<=0 && world.wBlend>=1){
-    setWeather(rollWeather());
-  }
-  world.wBlend = Math.min(1, world.wBlend + dt/6);   // 6s crossfade
-  const a = WX[world.weatherPrev], b = WX[world.weather], t=smooth(world.wBlend);
-  world.fog        = lerp(a.fog,b.fog,t);
-  world.rainI      = lerp(a.rain,b.rain,t);
-  world.snowI      = lerp(a.snow,b.snow,t);
-  world.cloudCover = lerp(a.cloud,b.cloud,t);
-  world.storm      = lerp(a.storm,b.storm,t);
-  world.windTargetStr = lerp(a.wind,b.wind,t);
-  const targetSea  = lerp(a.sea,b.sea,t);
-  world.seaState   = lerp(world.seaState, targetSea, 1-Math.pow(0.2,dt));
-  world.overcast   = clamp(world.cloudCover*0.8 + world.storm*0.5, 0, 1);
+  world.wTimer-=dt;
+  if(world.wTimer<=0&&world.wBlend>=1) setWeather(rollWeather());
+  world.wBlend=Math.min(1,world.wBlend+dt/6);
+  const a=WX[world.weatherPrev],b=WX[world.weather],t=smooth(world.wBlend);
+  world.fog=lerp(a.fog,b.fog,t); world.rainI=lerp(a.rain,b.rain,t); world.snowI=lerp(a.snow,b.snow,t);
+  world.cloudCover=lerp(a.cloud,b.cloud,t); world.storm=lerp(a.storm,b.storm,t);
+  world.windTargetStr=lerp(a.wind,b.wind,t);
+  const targetSea=lerp(a.sea,b.sea,t);
+  world.seaState=lerp(world.seaState,targetSea,1-Math.pow(0.2,dt));
+  world.overcast=clamp(world.cloudCover*0.8+world.storm*0.5,0,1);
+  world.windStr=lerp(world.windStr,world.windTargetStr,1-Math.pow(0.1,dt));
+  if(chance(dt*0.02)&&world.windStr<.5) world.windTarget=-world.windTarget;
+  world.windDir=lerp(world.windDir,world.windTarget,1-Math.pow(0.3,dt));
+  if(world.storm>0.5){ world.lightningTimer-=dt;
+    if(world.lightningTimer<=0){ world.lightning=1; world.lightningTimer=rrange(3.5,9)/Math.max(.5,world.storm);
+      Sound.thunder(rrange(.4,1.1)); } }
+  world.lightning=Math.max(0,world.lightning-dt*3.5);
+}
+function advanceTime(dt){ world.time+=dt/DAY_LENGTH*world.timeScale; if(world.time>=1){ world.time-=1; world.day++; onNewDay(); } }
+function onNewDay(){ if(typeof driftMarkets==='function') driftMarkets(); if(typeof toast==='function') toast(`Day ${world.day} — dawn breaks`,'🌅'); }
 
-  // wind drift
-  world.windStr = lerp(world.windStr, world.windTargetStr, 1-Math.pow(0.1,dt));
-  const wob = world.noiseW(Game.t*0.05);
-  world.gust = 0.5 + 0.5*Math.sin(Game.t*0.7 + wob*4);
-  // occasionally flip wind direction on calm
-  if(chance(dt*0.02) && world.windStr<.5) world.windTarget = -world.windTarget;
-  world.windDir = lerp(world.windDir, world.windTarget, 1-Math.pow(0.3,dt));
+function sunDirection(time){ const a=(time-0.25)*TAU; const x=Math.cos(a),y=Math.sin(a),z=-0.34;
+  const L=Math.hypot(x,y,z); return [x/L,y/L,z/L]; }
+function dawnDusk(time){ const dawn=clamp(inv(0.16,0.27,time)*(1-inv(0.27,0.37,time)),0,1);
+  const dusk=clamp(inv(0.63,0.74,time)*(1-inv(0.74,0.85,time)),0,1); return {dawn,dusk}; }
 
-  // lightning during storms
-  if(world.storm>0.5){
-    world.lightningTimer -= dt;
-    if(world.lightningTimer<=0){
-      world.lightning = 1;
-      world.lightningTimer = rrange(3.5, 9)/Math.max(.5,world.storm);
-      addFlash(0.5,'#dfeaff');
-      Sound.thunder(rrange(.4,1.1));
-    }
-  }
-  world.lightning = Math.max(0, world.lightning - dt*3.5);
-}
-
-function advanceTime(dt){
-  world.time += dt/DAY_LENGTH * world.timeScale;
-  if(world.time>=1){ world.time-=1; world.day++; onNewDay(); }
-}
-function onNewDay(){
-  // markets drift each day; supplies fatigue
-  driftMarkets();
-  toast(`Day ${world.day} — dawn breaks`, '🌅');
-}
-
-// Sun altitude: -1 (deep night) .. 1 (noon). Returns {alt, isDay, dawn, dusk}
-function sunInfo(){
-  const th = (world.time - 0.25) * TAU;      // sunrise at .25
-  const alt = Math.sin(th);                  // -1..1
-  const t = world.time;
-  const dawn = clamp(inv(0.18,0.30,t) * (1-inv(0.30,0.38,t)),0,1);
-  const dusk = clamp(inv(0.66,0.76,t) * (1-inv(0.76,0.86,t)),0,1);
-  return { alt, isDay: alt>-0.06, dawn, dusk,
-           az: (t*TAU) };                     // azimuth for sun x-position
-}
-
-/* ======================= 6. PAINT HELPERS • PAPER • SKY ================== */
-const GEN = { dirty:true, paper:null, coast:{} };
-
-// One-time tileable paper grain (soft-light overlay for a painted texture)
-function buildPaper(){
-  const s=256, oc=document.createElement('canvas'); oc.width=s;oc.height=s;
-  const g=oc.getContext('2d'); const img=g.createImageData(s,s); const d=img.data;
-  const nz = makeNoise1D(31), nz2 = makeNoise1D(88);
-  for(let y=0;y<s;y++)for(let x=0;x<s;x++){
-    const i=(y*s+x)*4;
-    // fibrous grain: mix of hash + low-freq blotches
-    let v = hash2(x*1.7,y*1.7)*0.6 + hash2(x*0.13+9,y*0.13+3)*0.4;
-    v = 0.5 + (v-0.5)*0.9;
-    const shade = 128 + (v-0.5)*70;
-    d[i]=d[i+1]=d[i+2]=shade; d[i+3]=255;
-  }
-  g.putImageData(img,0,0);
-  GEN.paper = oc;
-}
-function paintPaper(alpha){
-  if(!GEN.paper) buildPaper();
-  ctx.save();
-  ctx.globalAlpha = alpha;
-  ctx.globalCompositeOperation='soft-light';
-  const p=GEN.paper, sc=Math.ceil(W/p.width), sr=Math.ceil(H/p.height);
-  for(let i=0;i<=sc;i++)for(let j=0;j<=sr;j++) ctx.drawImage(p, i*p.width, j*p.height);
-  ctx.restore();
-}
-// soft radial blob (a single loaded 'brush' of colour)
-function blob(x,y,r,col,a0,a1){
-  const g=ctx.createRadialGradient(x,y,0,x,y,r);
-  g.addColorStop(0, withA(col,a0));
-  g.addColorStop(0.6, withA(col,(a0+ (a1||0))*0.5));
-  g.addColorStop(1, withA(col,a1||0));
-  ctx.fillStyle=g; ctx.beginPath(); ctx.arc(x,y,r,0,TAU); ctx.fill();
-}
-// wet-edge horizontal wash band
-function washBand(y0,y1,cTop,cBot,edge){
-  const g=ctx.createLinearGradient(0,y0,0,y1);
-  g.addColorStop(0,cTop); g.addColorStop(1,cBot);
-  ctx.fillStyle=g; ctx.fillRect(-4,y0,W+8,y1-y0);
-  if(edge){ ctx.fillStyle=withA(edge,0.10); ctx.fillRect(-4,y1-2,W+8,3); }
-}
-
-// -------- Sky colour model (shared by sky + water reflection) ------------
+// Atmosphere palette (rgb 0..255) + sun direction (unit vec). Shared by sky & ocean.
 function skyColors(){
-  const R = regionData(), s = sunInfo();
-  const dayness = clamp(s.alt*1.15 + 0.32, 0, 1);
-  const warm = clamp(s.dawn + s.dusk, 0, 1);
-
-  const nightTop = shade(hex2rgb(R.sky.night), -0.18);
-  const nightHor = shade(hex2rgb(R.sky.night),  0.06);
-  const dayTop   = shade(hex2rgb(R.sky.day),   -0.02);
-  const dayHor   = shade(hex2rgb(R.sky.day),    0.22);
-
-  let top = mix(nightTop, dayTop, smooth(dayness));
-  let hor = mix(nightHor, dayHor, smooth(dayness));
-  // warm dawn/dusk wash near horizon
-  const warmCol = mix(hex2rgb(R.sky.dawn), hex2rgb(R.sky.dusk), s.dusk/(s.dawn+s.dusk+0.0001));
-  hor = mix(hor, warmCol, warm*0.7);
-  top = mix(top, shade(warmCol,-0.15), warm*0.25);
-
-  // overcast greys everything down & flattens
+  const R=regionData(); const sd=sunDirection(world.time); const sunAlt=sd[1];
+  const dd=dawnDusk(world.time); const warm=clamp(dd.dawn+dd.dusk,0,1);
+  const dayness=clamp(sunAlt*1.15+0.32,0,1);
+  const nightTop=shade(hex2rgb(R.sky.night),-0.18), nightHor=shade(hex2rgb(R.sky.night),0.06);
+  const dayTop=shade(hex2rgb(R.sky.day),-0.02), dayHor=shade(hex2rgb(R.sky.day),0.22);
+  let top=mix(nightTop,dayTop,smooth(dayness));
+  let hor=mix(nightHor,dayHor,smooth(dayness));
+  const warmCol=mix(hex2rgb(R.sky.dawn),hex2rgb(R.sky.dusk),dd.dusk/(dd.dawn+dd.dusk+0.0001));
+  hor=mix(hor,warmCol,warm*0.7); top=mix(top,shade(warmCol,-0.15),warm*0.25);
   const grey=[150,152,150];
-  top = mix(top, shade(grey,-0.25), world.overcast*0.55);
-  hor = mix(hor, shade(grey,-0.05), world.overcast*0.5);
-  // storm darkens & cools
-  top = mix(top, [40,46,54], world.storm*0.55);
-  hor = mix(hor, [70,74,80], world.storm*0.45);
-
-  // ambient light tint used to colour boat/sea highlights
-  const ambient = mix(mix(nightTop,dayHor,dayness), warmCol, warm*0.5);
-  const lightStrength = clamp(dayness*(1-world.overcast*0.5)*(1-world.storm*0.5),0.05,1);
-  return { top, hor, warm, warmCol, dayness, sun:s, ambient, lightStrength,
-           sunCol:hex2rgb(R.sun) };
+  top=mix(top,shade(grey,-0.25),world.overcast*0.55); hor=mix(hor,shade(grey,-0.05),world.overcast*0.5);
+  top=mix(top,[40,46,54],world.storm*0.55); hor=mix(hor,[70,74,80],world.storm*0.45);
+  const ambient=mix(mix(nightTop,dayHor,dayness),warmCol,warm*0.5);
+  const lightStr=clamp(dayness*(1-world.overcast*0.5)*(1-world.storm*0.5),0.05,1);
+  const starA=clamp(1-dayness*3.0,0,1)*(1-world.overcast*0.85);
+  return {top,hor,warmCol,ambient,sunCol:hex2rgb(R.sun),dayness,warm,lightStr,starA,sunDir:sd,sunAlt};
 }
 
-function celestial(phase){
-  const alt = Math.sin((phase-0.25)*TAU);
-  const px = clamp(map(phase,0.24,0.76,0.08,0.92), -0.2,1.2);
-  const x = W*px;
-  const y = view.waterY - alt*(view.waterY*0.82) - 22;
-  return {x,y,alt};
-}
-
-// -------- Clouds ---------------------------------------------------------
-function drawClouds(sky){
-  const cover = world.cloudCover;
-  if(cover<0.02 && world.storm<0.02) return;
-  const n = Math.round(6 + cover*10);
-  const scroll = Game.t * (6 + world.windStr*40) * world.windDir;
-  const baseY = view.waterY;
-  const nz = world.noiseCloud;
-  ctx.save();
-  for(let i=0;i<n;i++){
-    // stable per-cloud pseudo position that scrolls with wind
-    const seed=i*97.13;
-    const speed = 0.4 + (i%3)*0.28;                 // parallax layers
-    let cx = wrap((i*197.7 + scroll*speed*0.35), W+520) - 260;
-    const layer = (i%3);
-    const cy = baseY*(0.12 + 0.16*((i*0.37)%1)) + layer*8;
-    const nzv = nz(i*3.1 + Game.t*0.03);
-    const scale = (0.6 + 0.9*((i*0.53)%1)) * (1+cover*0.4);
-    const wCloud = 140*scale, hCloud=42*scale;
-    // colour: brighter top, warm/greyer bottom; storm = dark & low
-    const stormy = world.storm;
-    let cTop = mix(sky.top, [255,255,255], 0.5*sky.lightStrength*(1-stormy*0.7));
-    let cBot = mix(sky.hor, [180,182,186], 0.35);
-    cTop = mix(cTop, [70,74,82], stormy*0.7);
-    cBot = mix(cBot, [46,50,58], stormy*0.75);
-    const alpha = clamp(0.12 + cover*0.7 + stormy*0.3, 0, 0.92);
-    // build a cloud from overlapping soft ellipses
-    const puffs = 5 + (i%3);
-    for(let p=0;p<puffs;p++){
-      const t=p/(puffs-1);
-      const ex = cx + (t-0.5)*wCloud*1.6 + Math.sin(seed+p)*10;
-      const puffH = hCloud*(0.5+0.9*Math.sin(t*Math.PI));
-      const ey = cy - puffH*0.3 + Math.cos(seed*1.3+p)*4;
-      const rr = puffH*1.3;
-      const col = mix(cBot,cTop, clamp(1-t*0.2 - (ey<cy?0.3:0),0,1));
-      const g=ctx.createRadialGradient(ex,ey-rr*0.2,rr*0.1, ex,ey,rr);
-      g.addColorStop(0, withA(col, alpha));
-      g.addColorStop(1, withA(col, 0));
-      ctx.fillStyle=g; ctx.beginPath(); ctx.ellipse(ex,ey,rr*1.5,rr,0,0,TAU); ctx.fill();
-    }
+/* ======================= 7. SKY SHADER ================================== */
+const SKY_GLSL=`
+uniform vec3 uSunDir,uSkyTop,uSkyHor,uSunCol,uWarmCol;
+uniform float uWarm,uLightStr,uOvercast,uStorm,uTime,uStarA;
+float hash13(vec3 p){ p=fract(p*0.1031); p+=dot(p,p.yzx+33.33); return fract((p.x+p.y)*p.z); }
+vec3 skyColor(vec3 dir){
+  dir=normalize(dir);
+  float up=clamp(dir.y,0.0,1.0);
+  vec3 col=mix(uSkyHor,uSkyTop,pow(up,0.55));
+  float hor=smoothstep(0.34,0.0,abs(dir.y));
+  col=mix(col,uWarmCol,hor*uWarm*0.6);
+  float sd=max(dot(dir,uSunDir),0.0);
+  float glow=pow(sd,6.0)*0.45*uLightStr + pow(sd,90.0)*0.7*uLightStr;
+  float disk=smoothstep(0.9975,0.9990,sd)*clamp(uSunDir.y*4.0+0.4,0.0,1.0);
+  col+=uSunCol*glow + uSunCol*disk*2.2;
+  if(uStarA>0.01 && dir.y>0.015){
+    vec3 sp=floor(dir*300.0); float st=hash13(sp);
+    float s=smoothstep(0.992,1.0,st);
+    float tw=0.55+0.45*sin(uTime*3.0+st*140.0);
+    col+=vec3(1.0,0.98,0.92)*s*uStarA*tw*0.9;
   }
-  ctx.restore();
+  return col;
+}`;
+let skyProg;
+function initSky(){
+  skyProg=makeProgram(
+    `layout(location=0) in vec2 aPos; out vec2 vNdc; void main(){ vNdc=aPos; gl_Position=vec4(aPos,1.0,1.0); }`,
+    `in vec2 vNdc; out vec4 frag; uniform mat4 uInvVP; uniform vec3 uCamPos;
+     ${SKY_GLSL}
+     void main(){ vec4 w=uInvVP*vec4(vNdc,1.0,1.0); w/=w.w; vec3 dir=normalize(w.xyz-uCamPos);
+       frag=vec4(skyColor(dir),1.0); }`);
 }
-
-// -------- Stars ----------------------------------------------------------
-let STARS=null;
-function buildStars(){
-  STARS=[]; const r=mulberry32(2024);
-  for(let i=0;i<170;i++) STARS.push({x:r(), y:r()*0.7, s:0.4+r()*1.7, ph:r()*TAU, tw:0.5+r()*2});
+function setSkyUniforms(p,sky){
+  gl.uniform3fv(p.u('uSunDir'),new Float32Array(sky.sunDir));
+  gl.uniform3fv(p.u('uSkyTop'),new Float32Array(v3(sky.top)));
+  gl.uniform3fv(p.u('uSkyHor'),new Float32Array(v3(sky.hor)));
+  gl.uniform3fv(p.u('uSunCol'),new Float32Array(v3(sky.sunCol)));
+  gl.uniform3fv(p.u('uWarmCol'),new Float32Array(v3(sky.warmCol)));
+  gl.uniform1f(p.u('uWarm'),sky.warm);
+  gl.uniform1f(p.u('uLightStr'),sky.lightStr);
+  gl.uniform1f(p.u('uOvercast'),world.overcast);
+  gl.uniform1f(p.u('uStorm'),world.storm);
+  gl.uniform1f(p.u('uTime'),Game.t);
+  gl.uniform1f(p.u('uStarA'),sky.starA);
 }
-function drawStars(sky){
-  const a = clamp(1-sky.dayness*3.0,0,1) * (1-world.overcast*0.85);
-  if(a<=0.02) return;
-  if(!STARS) buildStars();
-  ctx.save();
-  for(const st of STARS){
-    const tw = 0.6+0.4*Math.sin(Game.t*st.tw+st.ph);
-    ctx.fillStyle = withA([255,250,235], a*tw*0.9);
-    const x=st.x*W, y=st.y*view.waterY;
-    ctx.beginPath(); ctx.arc(x,y,st.s,0,TAU); ctx.fill();
-    if(st.s>1.3){ // bright star glow
-      ctx.fillStyle=withA([210,225,255],a*tw*0.25);
-      ctx.beginPath(); ctx.arc(x,y,st.s*2.6,0,TAU); ctx.fill();
-    }
-  }
-  ctx.restore();
-}
-
-// -------- Full sky render ------------------------------------------------
 function drawSky(sky){
-  // base wash
-  washBand(0, view.waterY+2, rgb2css(sky.top), rgb2css(sky.hor));
-  // horizon warm/dawn glow bloom
-  if(sky.warm>0.02){
-    const gy=view.waterY;
-    const g=ctx.createLinearGradient(0,gy-view.waterY*0.5,0,gy);
-    g.addColorStop(0,withA(sky.warmCol,0)); g.addColorStop(1,withA(sky.warmCol,0.35*sky.warm));
-    ctx.fillStyle=g; ctx.fillRect(0,0,W,gy);
-  }
-  drawStars(sky);
-  // moon (opposite phase to sun)
-  const moon = celestial(wrap(world.time+0.5,1));
-  if(moon.alt>-0.05){
-    const ma = clamp(moon.alt*1.4,0,1)*(1-world.overcast*0.7);
-    blob(moon.x,moon.y, 70, [220,228,240], 0.10*ma, 0);
-    ctx.fillStyle=withA([245,246,238], 0.95*ma);
-    ctx.beginPath(); ctx.arc(moon.x,moon.y,15,0,TAU); ctx.fill();
-    ctx.fillStyle=withA([210,214,206],0.5*ma);   // crater shading
-    ctx.beginPath(); ctx.arc(moon.x+5,moon.y-3,4,0,TAU); ctx.fill();
-    ctx.beginPath(); ctx.arc(moon.x-4,moon.y+4,3,0,TAU); ctx.fill();
-  }
-  // sun with glow
-  const sun = celestial(world.time);
-  if(sun.alt>-0.06){
-    const sa = clamp(sun.alt*1.6+0.25,0,1)*(1-world.storm*0.6);
-    const glow = mix(sky.sunCol, sky.warmCol, sky.warm*0.6);
-    blob(sun.x,sun.y, 220, glow, 0.28*sa*(1-world.overcast*0.5), 0);
-    blob(sun.x,sun.y, 90,  glow, 0.5*sa, 0);
-    ctx.fillStyle=withA(mix(sky.sunCol,[255,255,255],0.4), 0.95*sa);
-    ctx.beginPath(); ctx.arc(sun.x,sun.y,20,0,TAU); ctx.fill();
-    window.__sunScreen={x:sun.x,y:sun.y,a:sa};  // used for water glitter path
-  } else window.__sunScreen=null;
-  drawClouds(sky);
+  gl.useProgram(skyProg);
+  gl.uniformMatrix4fv(skyProg.u('uInvVP'),false,cam.invVP);
+  gl.uniform3fv(skyProg.u('uCamPos'),new Float32Array(cam.pos));
+  setSkyUniforms(skyProg,sky);
+  gl.bindVertexArray(quadVAO);
+  gl.disable(gl.DEPTH_TEST);
+  gl.drawArrays(gl.TRIANGLE_STRIP,0,4);
 }
 
-/* ======================= 7. SEA (sailing horizon plane) ================= */
-// wave displacement (px) at a given world x and foreground factor f01 (0 horizon..1 near)
-function waveAt(wx, f01){
-  const t=Game.t, nz=world.noiseSea;
-  const amp=(1.5 + f01*15) * (0.5 + world.seaState*1.3);
-  let h = Math.sin(wx*0.10 - t*1.25)*0.5
-        + Math.sin(wx*0.031 + t*0.8)*0.32
-        + Math.sin(wx*0.24 + t*2.3)*0.18
-        + (nz(wx*0.02 + t*0.15)-0)*0.5;
-  return h*amp;
-}
-function waterCols(sky){
-  const R=regionData();
-  const l = sky.lightStrength;
-  let top = mix(hex2rgb(R.water.top), sky.hor, 0.35);         // surface reflects sky
-  top = mix(top, sky.warmCol, sky.warm*0.4);
-  top = mix(top, [40,52,60], world.storm*0.4);
-  let mid = mix(hex2rgb(R.water.mid), [20,30,38], world.storm*0.3);
-  let deep= hex2rgb(R.water.deep);
-  top = mix(top, deep, (1-l)*0.25);   // darker water at night
-  mid = mix(mid, deep, (1-l)*0.3);
-  return {top,mid,deep};
-}
-function drawSea(sky){
-  const wy=view.waterY, wc=waterCols(sky);
-  // body gradient
-  const g=ctx.createLinearGradient(0,wy,0,H);
-  g.addColorStop(0, rgb2css(wc.top));
-  g.addColorStop(0.42, rgb2css(mix(wc.top,wc.mid,0.8)));
-  g.addColorStop(1, rgb2css(wc.deep));
-  ctx.fillStyle=g; ctx.fillRect(0,wy,W,H-wy);
-
-  // reflected horizon glow band just under the waterline
-  ctx.save(); ctx.globalCompositeOperation='screen';
-  const rg=ctx.createLinearGradient(0,wy,0,wy+(H-wy)*0.4);
-  rg.addColorStop(0, withA(mix(sky.hor,sky.warmCol,sky.warm*0.6), 0.5*sky.lightStrength));
-  rg.addColorStop(1, withA(sky.hor,0));
-  ctx.fillStyle=rg; ctx.fillRect(0,wy,W,(H-wy)*0.4);
-  ctx.restore();
-
-  // wave rows (perspective: denser near horizon, taller near foreground)
-  const rows=46;
-  for(let i=1;i<=rows;i++){
-    const f = i/rows;                        // 0..1 horizon->foreground
-    const yBase = wy + (H-wy)*Math.pow(f,1.5);
-    const rowH = (H-wy)*(Math.pow(f,1.5)-Math.pow((i-1)/rows,1.5));
-    // sample a wavy stroke
-    const crest = 0.5+0.5*Math.sin(Game.t*1.4 + f*8);
-    const lightRow = mix(wc.top, [255,255,255], 0.08*sky.lightStrength*f);
-    const darkRow  = mix(wc.mid, wc.deep, f*0.6);
-    ctx.beginPath();
-    const step=Math.max(6, 34-f*22);
-    for(let sx=-10;sx<=W+10;sx+=step){
-      const wx=screenToWorldX(sx);
-      const disp=waveAt(wx, f);
-      const y=yBase + disp*0.6;
-      if(sx<=-10) ctx.moveTo(sx,y); else ctx.lineTo(sx,y);
-    }
-    ctx.lineTo(W+10, yBase+rowH+30); ctx.lineTo(-10,yBase+rowH+30); ctx.closePath();
-    ctx.fillStyle= rgb2css(mix(darkRow, lightRow, 0.35+0.4*crest));
-    ctx.globalAlpha=0.5+0.5*f;
-    ctx.fill();
-    ctx.globalAlpha=1;
-    // crest highlight strokes on nearer rows
-    if(f>0.35 && world.seaState>0.15){
-      ctx.strokeStyle=withA(sky.foam||'#eef',0.10+0.22*world.seaState);
-      ctx.lineWidth=Math.max(1,f*2.2);
-      ctx.beginPath();
-      for(let sx=-10;sx<=W+10;sx+=step){
-        const wx=screenToWorldX(sx);
-        const y=yBase + waveAt(wx,f)*0.6 - 2;
-        if(sx<=-10) ctx.moveTo(sx,y); else ctx.lineTo(sx,y);
-      }
-      ctx.stroke();
-    }
-  }
-
-  // sun/moon glitter path
-  const cel = window.__sunScreen;
-  if(cel && cel.a>0.1){
-    ctx.save(); ctx.globalCompositeOperation='screen';
-    const cx=clamp(cel.x,0,W);
-    for(let i=0;i<60;i++){
-      const f=i/60, y=wy + (H-wy)*Math.pow(f,1.4);
-      const spread=6+f*90;
-      const flick=0.5+0.5*Math.sin(Game.t*5+i*1.7);
-      const gx=cx + Math.sin(Game.t*2+i)*spread;
-      const a=(1-f)*0.5*cel.a*flick*(1-world.overcast*0.6);
-      ctx.fillStyle=withA(mix(regionData().sun?hex2rgb(regionData().sun):[255,240,200],[255,255,255],0.3), a);
-      ctx.fillRect(gx-(3+f*10), y, 6+f*20, 1.5+f*2.5);
-    }
-    ctx.restore();
-  }
-
-  // foam flecks when rough
-  if(world.seaState>0.45){
-    ctx.save();
-    const n=Math.round((world.seaState-0.4)*90);
-    for(let i=0;i<n;i++){
-      const f=0.4+rnd()*0.6, y=wy+(H-wy)*Math.pow(f,1.4);
-      const x=rnd()*W;
-      ctx.fillStyle=withA('#f2fbff',0.12+rnd()*0.25*world.seaState);
-      ctx.beginPath(); ctx.arc(x,y,0.6+f*1.8,0,TAU); ctx.fill();
-    }
-    ctx.restore();
-  }
+/* ======================= 8. CAMERA ====================================== */
+const cam={pos:[0,7,12],target:[0,3,-30],up:[0,1,0],fov:columnFov(),
+  proj:m4(),view:m4(),vp:m4(),invVP:m4()};
+function columnFov(){ return 52; }
+function updateCameraMatrices(){
+  m4persp(cam.proj,rad(cam.fov),Math.max(0.2,W/H),0.1,5000);
+  m4lookAt(cam.view,cam.pos,cam.target,cam.up);
+  m4mul(cam.vp,cam.proj,cam.view);
+  m4invert(cam.invVP,cam.vp);
 }
 
-/* ======================= 8. PARALLAX COAST ============================== */
-function hillProfile(nzSeed, baseAmp){
-  // cached noise fn per seed
-  hillProfile._c = hillProfile._c || {};
-  if(!hillProfile._c[nzSeed]) hillProfile._c[nzSeed]=makeNoise1D(nzSeed);
-  return hillProfile._c[nzSeed];
+/* ======================= 9. FX OVERLAY (paper + vignette) =============== */
+function buildPaperURL(){
+  const s=256,oc=document.createElement('canvas');oc.width=s;oc.height=s;
+  const g=oc.getContext('2d');const img=g.createImageData(s,s);const d=img.data;
+  for(let y=0;y<s;y++)for(let x=0;x<s;x++){ const i=(y*s+x)*4;
+    let v=hash2(x*1.7,y*1.7)*0.6+hash2(x*0.13+9,y*0.13+3)*0.4; v=0.5+(v-0.5)*0.9;
+    const sh=128+(v-0.5)*70; d[i]=d[i+1]=d[i+2]=sh; d[i+3]=255; }
+  g.putImageData(img,0,0); return oc.toDataURL();
 }
-function drawCoast(sky){
-  const R=regionData(), wy=view.waterY;
-  const layers=R.hills.length;
-  for(let li=0;li<layers;li++){
-    const depth=li/(layers-1);                 // 0 far .. 1 near
-    const par=0.05 + depth*0.32;               // parallax factor
-    const nz=hillProfile(1000+li*37);
-    let col=hex2rgb(R.hills[li]);
-    // atmospheric perspective: far hills fade toward sky/horizon & desaturate
-    col = mix(col, sky.hor, (1-depth)*0.55 + world.fog*0.5);
-    col = mix(col, [70,74,80], world.storm*0.4);
-    col = shade(col, (sky.dayness-0.5)*0.12);
-    const amp=(28+depth*70)*(1);
-    const baseY = wy - 2 + (1-depth)*6;
-    const scroll = view.camX*par*0.4;
-    ctx.beginPath(); ctx.moveTo(-4, wy+4);
-    const step=14;
-    for(let sx=-4;sx<=W+4;sx+=step){
-      const u=(sx+scroll)*0.006;
-      const h = fbm1(nz, u, 4)* amp + fbm1(nz, u*2.3+50, 3)*amp*0.3;
-      const y = baseY - Math.max(0,h) - 6;
-      ctx.lineTo(sx, y);
-    }
-    ctx.lineTo(W+4, wy+4); ctx.closePath();
-    ctx.fillStyle=rgb2css(col); ctx.fill();
-    // near ridgeline gets a soft rim light at dawn/dusk
-    if(depth>0.6 && sky.warm>0.1){
-      ctx.strokeStyle=withA(sky.warmCol, 0.18*sky.warm);
-      ctx.lineWidth=2; ctx.stroke();
-    }
-  }
-  // atmospheric haze right at the waterline
-  const hz=ctx.createLinearGradient(0,wy-40,0,wy+8);
-  hz.addColorStop(0,withA(sky.hor,0));
-  hz.addColorStop(1,withA(mix(sky.hor,[255,255,255],0.2), 0.35+world.fog*0.4));
-  ctx.fillStyle=hz; ctx.fillRect(0,wy-40,W,48);
+function initPaper(){
+  paperEl=document.createElement('div'); paperEl.id='paper';
+  paperEl.style.cssText='position:absolute;inset:0;z-index:3;pointer-events:none;mix-blend-mode:soft-light;opacity:.5;background-repeat:repeat;background-size:256px 256px;';
+  paperEl.style.backgroundImage='url('+buildPaperURL()+')';
+  document.getElementById('stage').appendChild(paperEl);
 }
-
-/* ======================= 9. PARTICLES =================================== */
-let particles=[];
-function spawnP(o){ particles.push(Object.assign({x:0,y:0,vx:0,vy:0,life:1,max:1,r:2,col:'#fff',grav:0,drag:0.98,kind:'dot',a:0.8},o)); }
-function updateParticles(dt){
-  for(let i=particles.length-1;i>=0;i--){
-    const p=particles[i];
-    p.vy += p.grav*dt; p.vx*=p.drag; p.vy*=p.drag;
-    p.x+=p.vx*dt; p.y+=p.vy*dt; p.life-=dt/p.max;
-    if(p.life<=0) particles.splice(i,1);
-  }
-}
-function drawParticles(){
-  for(const p of particles){
-    const a=clamp(p.life,0,1)*p.a;
-    if(p.kind==='spray'||p.kind==='dot'||p.kind==='splash'){
-      ctx.fillStyle=withA(p.col,a); ctx.beginPath(); ctx.arc(p.x,p.y,p.r*clamp(p.life+0.3,0,1),0,TAU); ctx.fill();
-    } else if(p.kind==='bubble'){
-      ctx.strokeStyle=withA(p.col,a*0.8); ctx.lineWidth=1; ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,TAU); ctx.stroke();
-    } else if(p.kind==='ring'){
-      ctx.strokeStyle=withA(p.col,a); ctx.lineWidth=2; ctx.beginPath(); ctx.arc(p.x,p.y,p.r*(1.4-p.life),0,TAU); ctx.stroke();
-    }
-  }
-}
-
-/* ======================= 10. PLAYER + BOAT ============================== */
-const player = {
-  money: 120, fuel: 60, fuelMax: 60, bait: 12,
-  hull: 100, hullMax: 100,
-  hold: [],          // caught fish {id, len, value}
-  cargo: {},         // trade goods {id:qty}
-  upg: { engine:0, sail:0, hull:0, line:0, lure:0, sonar:0 },
-  x: 420, vx:0, facing:1, motor:true,
-  regionDone: [false,false,false],
-  earnedThisRegion: 0,
-  caughtLegendary: [false,false,false],
-  home: {name:'', flags:{}},
-  discovered: {},    // fish id -> true
-};
-function holdMax(){ return UPGRADES.hull.levels[player.upg.hull].hold; }
-function holdCount(){ return player.hold.length; }
-function upgVal(cat,prop){ const l=UPGRADES[cat].levels[player.upg[cat]]; return l[prop]; }
-
-function boatBandY(){ return view.waterY + (H-view.waterY)*0.46; }
-
-function updatePlayer(dt){
-  const eng=UPGRADES.engine.levels[player.upg.engine];
-  const sailU=UPGRADES.sail.levels[player.upg.sail];
-  let dir=0;
-  if(Input.left()) dir=-1; else if(Input.right()) dir=1;
-  const usingMotor = player.motor && player.fuel>0;
-  let thrust=0;
-  if(dir!==0){
-    if(usingMotor){
-      thrust = 300*eng.spd*dir;
-      player.fuel = Math.max(0, player.fuel - dt*1.7*eng.fuelUse*(0.6+Math.abs(player.vx)/160));
-      if(Game.frame%4===0 && Math.abs(player.vx)>30) emitWake();
-    } else {
-      const align = 0.35 + 0.65*clamp(dir*world.windDir*0.5+0.5,0,1);
-      thrust = 150*sailU.wind*(0.35+world.windStr*0.9)*align*dir;
-    }
-  }
-  player.vx += (thrust - player.vx*2.6)*dt;
-  player.x += player.vx*dt;
-  const len=regionData().length;
-  if(player.x<40){ player.x=40; player.vx*=-0.3; }
-  if(player.x>len){ player.x=len; player.vx*=-0.3; }
-  if(Math.abs(player.vx)>4) player.facing = player.vx>0?1:-1;
-
-  // camera follows with lookahead
-  view.targetCamX = player.x + player.facing*70/view.pxPerM * clamp(Math.abs(player.vx)/120,0,1);
-
-  // storm hull damage if out at sea (far from any port) during heavy weather
-  if(world.storm>0.55){
-    const near = nearestPort();
-    const far = !near || Math.abs(near.x-player.x)>320;
-    if(far){
-      const dmg = (world.storm-0.5)* dt * 3.2 / upgVal('hull','armor');
-      player.hull=Math.max(0,player.hull-dmg);
-      if(player.hull<=0) onSink();
-      if(Game.frame%30===0) addShake(0.2*world.storm);
-    }
-  }
-  // spray from bow when moving in chop
-  if(Math.abs(player.vx)>60 && world.seaState>0.25 && Game.frame%3===0){
-    const bx=W/2 + player.facing*30, by=boatBandY()+waveAt(player.x,0.46);
-    spawnP({x:bx,y:by,vx:player.facing*rrange(20,60)+player.vx*0.2,vy:-rrange(40,110),
-      grav:260,r:rrange(1.2,2.6),col:'#eaf6fb',max:0.8,kind:'spray',a:0.7});
-  }
-}
-function emitWake(){
-  const by=boatBandY()+waveAt(player.x,0.46)+8;
-  spawnP({x:W/2 - player.facing*34, y:by, vx:-player.facing*rrange(6,24), vy:rrange(-6,4),
-    grav:8,r:rrange(2.5,5),col:'#dff0f4',max:1.4,kind:'spray',a:0.5,drag:0.94});
-}
-function nearestPort(){
-  const ps=regionData().ports; let best=null,bd=1e9;
-  for(const p of ps){ const d=Math.abs(p.x-player.x); if(d<bd){bd=d;best=p;} }
-  return best;
-}
-function onSink(){
-  player.hull=1; player.vx=0;
-  // rescue: lose some catch & money, tow to nearest port
-  const lost=Math.round(player.money*0.15);
-  player.money=Math.max(0,player.money-lost);
-  player.hold.length=0;
-  const p=nearestPort(); player.x=p.x;
-  addFlash(0.7,'#ffffff'); addShake(1.0);
-  showEvent('Rescued at Sea','⛑️',
-    `A storm nearly took you. The coast guard towed you to <b>${p.name}</b>. You lost your catch and ${lost} coin in the ordeal.`,
-    [{label:'Count my blessings',cls:'gold',act:()=>{closeOverlays();Game.set('sail');}}]);
-  Game.set('event');
-}
-
-// --- Boat art ---
-function drawBoat(cx,cy,ang,scale,light,submergeReflection=true){
-  const R=regionData();
-  ctx.save();
-  ctx.translate(cx,cy);
-  // reflection first (below), faint & wavering
-  if(submergeReflection){
-    ctx.save();
-    ctx.globalAlpha=0.16;
-    ctx.scale(1,-1);
-    ctx.translate(0, -6 - waveAt(player.x,0.5)*0.5);
-    ctx.filter='blur(1px)';
-    drawBoatBody(ang*0.4, scale, light, true);
-    ctx.filter='none';
-    ctx.restore();
-  }
-  ctx.rotate(ang);
-  drawBoatBody(ang, scale, light, false);
-  ctx.restore();
-}
-function drawBoatBody(ang, s, light, isRef){
-  const f=player.facing;
-  ctx.save(); ctx.scale(f*s, s);
-  const hullCol = mix([166,74,58], light, 0.12);      // weathered red
-  const hullDk  = shade(hullCol,-0.3);
-  const wood    = mix([120,86,54], light,0.1);
-  const cream   = mix([238,226,196], light,0.15);
-  // hull
-  ctx.beginPath();
-  ctx.moveTo(-40,-2);
-  ctx.quadraticCurveTo(-46,10, -30,16);
-  ctx.lineTo(30,16);
-  ctx.quadraticCurveTo(48,12, 46,-4);       // pointed bow (right)
-  ctx.lineTo(38,-4);
-  ctx.lineTo(-38,-4);
-  ctx.closePath();
-  const hg=ctx.createLinearGradient(0,-6,0,18);
-  hg.addColorStop(0,rgb2css(hullCol)); hg.addColorStop(1,rgb2css(hullDk));
-  ctx.fillStyle=hg; ctx.fill();
-  // gunwale stripe
-  ctx.fillStyle=rgb2css(cream); ctx.fillRect(-40,-6,86,3.2);
-  ctx.fillStyle=withA(shade(cream,-0.35),0.8); ctx.fillRect(-40,-3.2,86,1.2);
-  // cabin
-  ctx.fillStyle=rgb2css(mix(cream,[210,120,90],0.15));
-  roundRect(-16,-22,26,18,3); ctx.fill();
-  ctx.fillStyle=rgb2css(shade(hullCol,-0.1)); roundRect(-16,-26,26,6,2); ctx.fill(); // roof
-  // window
-  ctx.fillStyle=withA(mix([120,180,200],light,0.3), light[0]>120?0.9:0.7);
-  roundRect(-11,-19,9,8,2); ctx.fill();
-  if(skyColors().dayness<0.35){ // warm lantern glow at night
-    ctx.save(); ctx.globalCompositeOperation='screen';
-    blob(-6,-15,26,[255,210,130],0.5,0); ctx.restore();
-    ctx.fillStyle=withA([255,224,150],0.95); roundRect(-11,-19,9,8,2); ctx.fill();
-  }
-  // mast + sail
-  ctx.strokeStyle=rgb2css(wood); ctx.lineWidth=2.4;
-  ctx.beginPath(); ctx.moveTo(20,-6); ctx.lineTo(20,-58); ctx.stroke();
-  // sail bulges with wind (relative to facing)
-  const wind = world.windStr*world.windDir*f;
-  const bulge = 8 + wind*10 + Math.sin(Game.t*3)*1.5*world.windStr;
-  ctx.beginPath();
-  ctx.moveTo(20,-56); ctx.lineTo(20,-10);
-  ctx.quadraticCurveTo(20-bulge, -33, 20-2, -56);   // sail toward -x (behind mast)
-  ctx.closePath();
-  const sailCol=mix([246,240,224],light,0.1);
-  const sg=ctx.createLinearGradient(20,-56,20-bulge,-33);
-  sg.addColorStop(0,rgb2css(sailCol)); sg.addColorStop(1,rgb2css(shade(sailCol,-0.18)));
-  ctx.fillStyle=sg; ctx.fill();
-  ctx.strokeStyle=withA(shade(sailCol,-0.3),0.5); ctx.lineWidth=1; ctx.stroke();
-  // little flag
-  ctx.fillStyle=rgb2css([190,80,66]);
-  const fl=Math.sin(Game.t*6)*2;
-  ctx.beginPath(); ctx.moveTo(20,-58); ctx.lineTo(30,-56+fl); ctx.lineTo(20,-52); ctx.closePath(); ctx.fill();
-  ctx.restore();
-}
-function roundRect(x,y,w,h,r){ ctx.beginPath();
-  ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r);
-  ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
-
-function drawPlayerBoat(sky){
-  const bx=W/2, by=boatBandY()+waveAt(player.x,0.46);
-  const slope=(waveAt(player.x+8,0.46)-waveAt(player.x-8,0.46));
-  const ang=Math.atan2(slope,42);
-  drawBoat(bx,by,ang,1.0, mix(sky.ambient,[255,255,255],sky.lightStrength*0.4));
-}
-
-/* ======================= 11. WEATHER FX OVERLAYS ======================== */
-function drawWeatherFX(sky){
-  // fog wash
-  if(world.fog>0.03){
-    const f=world.fog;
-    const g=ctx.createLinearGradient(0,view.waterY-60,0,H);
-    g.addColorStop(0,withA(mix(sky.hor,[230,232,230],0.4), f*0.5));
-    g.addColorStop(0.5,withA(mix(sky.hor,[220,224,224],0.3), f*0.3));
-    g.addColorStop(1,withA(mix(sky.hor,[210,215,215],0.2), f*0.42));
-    ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
-    // drifting fog banks
-    ctx.save(); ctx.globalCompositeOperation='screen';
-    for(let i=0;i<4;i++){
-      const y=view.waterY*0.4 + i*40 + Math.sin(Game.t*0.2+i)*10;
-      const x=wrap(Game.t*(8+i*4)*world.windDir + i*260, W+400)-200;
-      blob(x,y,180,[235,238,236], f*0.10, 0);
-    }
-    ctx.restore();
-  }
-  // rain
-  if(world.rainI>0.02){
-    const n=Math.round(world.rainI*260);
-    ctx.strokeStyle=withA([200,220,235], 0.28+world.storm*0.2);
-    ctx.lineWidth=1;
-    const wind=world.windDir*(6+world.windStr*10);
-    ctx.beginPath();
-    for(let i=0;i<n;i++){
-      const sp=520+((i*37)%60)*9;
-      const x=wrap(hash2(i,3)*W + Game.t*wind*14, W+40)-20;
-      const y=wrap(hash2(i,9)*H + Game.t*sp, H+40)-20;
-      const len=10+ (world.rainI)*10;
-      ctx.moveTo(x,y); ctx.lineTo(x-wind*0.9, y+len);
-    }
-    ctx.stroke();
-    // rain splashes on water
-    if(Game.frame%2===0) for(let k=0;k<world.rainI*4;k++){
-      const x=rnd()*W, y=view.waterY+(H-view.waterY)*(0.2+rnd()*0.8);
-      spawnP({x,y,vx:0,vy:0,r:rrange(1,3),col:'#dfeef5',max:0.4,kind:'ring',a:0.4});
-    }
-  }
-  // snow
-  if(world.snowI>0.02){
-    const n=Math.round(world.snowI*220);
-    for(let i=0;i<n;i++){
-      const sp=40+((i*13)%40)*2.2;
-      const drift=Math.sin(Game.t*0.8 + i)*18 + world.windDir*20;
-      const x=wrap(hash2(i,5)*W + Game.t*drift + Math.sin(Game.t+i)*8, W+30)-15;
-      const y=wrap(hash2(i,11)*H + Game.t*sp, H+30)-15;
-      const r=0.8+ (i%3)*0.7;
-      ctx.fillStyle=withA([245,248,252], 0.5+ (i%3)*0.15);
-      ctx.beginPath(); ctx.arc(x,y,r,0,TAU); ctx.fill();
-    }
-  }
-  // storm darkening vignette + lightning
-  if(world.storm>0.05){
-    ctx.fillStyle=withA([10,14,22], world.storm*0.22);
-    ctx.fillRect(0,0,W,H);
-  }
-}
-function drawFlash(){
-  if(view.flash>0.01){ ctx.fillStyle=withA(view.flashCol, view.flash*0.5); ctx.fillRect(0,0,W,H); }
-}
-function drawVignette(){
-  const g=ctx.createRadialGradient(W/2,H*0.5,H*0.3, W/2,H*0.55,H*0.85);
+function drawFX(sky){
+  fxx.clearRect(0,0,W,H);
+  if(typeof drawWeatherFX==='function') drawWeatherFX(sky);
+  // vignette
+  const g=fxx.createRadialGradient(W/2,H*0.5,H*0.28,W/2,H*0.56,H*0.9);
   g.addColorStop(0,'rgba(0,0,0,0)');
-  g.addColorStop(1,`rgba(8,14,18,${0.28+world.storm*0.2+world.overcast*0.06})`);
-  ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+  g.addColorStop(1,`rgba(8,14,18,${0.30+world.storm*0.2+world.overcast*0.06})`);
+  fxx.fillStyle=g; fxx.fillRect(0,0,W,H);
+  if(view.flash>0.01){ fxx.fillStyle=withA(view.flashCol,view.flash*0.5); fxx.fillRect(0,0,W,H); }
 }
+const view={flash:0,flashCol:'#dfeaff',shake:0,shakeX:0,shakeY:0};
 
-/* ======================= 12. AUDIO (stub; real engine below) ============ */
-const Sound = {
-  _ready:false, muted:false,
-  ensure(){}, ambient(){}, thunder(){}, catchFx(){}, coin(){}, ui(){}, reel(){}, splash(){}, chime(){}, setScene(){}
-};
-
-/* ======================= 13. FISHING (state container) ================== */
-const fishing = {
-  active:false, state:'idle',       // idle | casting | down | reel
-  lureX:0, lureDepth:0, lureVX:0, targetDepth:0,
-  fishHit:null, hitCd:0, reeling:0, caught:null,
-  school:[],                         // live fish in the column
-  bottomY:0, msg:'',
-};
-
-/* ======================= 14. MAIN LOOP + RENDER ========================= */
+/* ======================= 10. MAIN LOOP ================================== */
 function update(dt){
-  Game.t += dt;
-  if(Game.paused) return;
-  const sim = (Game.screen==='sail' || Game.screen==='fish');
-  if(sim){
-    advanceTime(dt);
-    updateWeather(dt);
-    if(fishing.active){ updateFishing(dt); }
-    else { updatePlayer(dt); maybePortPrompt(); }
+  Game.t+=dt;
+  if(!Game.paused){
+    const sim=(Game.screen==='sail'||Game.screen==='fish');
+    if(sim){ advanceTime(dt); updateWeather(dt);
+      if(typeof updateWorldSim==='function') updateWorldSim(dt); }
   }
-  updateView(dt);
-  updateParticles(dt);
-}
-
-function renderScene(){
-  const sky=skyColors();
-  if(fishing.active){ renderUnderwater(sky); return; }
-  drawSky(sky);
-  drawCoast(sky);
-  drawPorts(sky);
-  drawSea(sky);
-  drawPlayerBoat(sky);
-  drawWeatherFX(sky);
+  if(view.flash>0) view.flash=Math.max(0,view.flash-dt*2.2);
+  if(typeof updateCameraRig==='function') updateCameraRig(dt);
+  if(typeof updateParticles==='function') updateParticles(dt);
 }
 function render(){
   Game.frame++;
-  ctx.setTransform(DPR,0,0,DPR,0,0);
-  ctx.clearRect(0,0,W,H);
-  ctx.save();
-  ctx.translate(view.shakeX,view.shakeY);
-  renderScene();
-  ctx.restore();
-  drawFlash();
-  paintPaper(0.42);
-  drawVignette();
-  updateHUD();
+  if(!gl) return;
+  const sky=skyColors();
+  updateCameraMatrices();
+  gl.bindFramebuffer(gl.FRAMEBUFFER,null);
+  gl.viewport(0,0,glc.width,glc.height);
+  gl.clearColor(v3(sky.hor)[0],v3(sky.hor)[1],v3(sky.hor)[2],1);
+  gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
+  drawSky(sky);
+  if(typeof drawScene3D==='function') drawScene3D(sky);
+  drawFX(sky);
+  if(typeof updateHUD==='function') updateHUD();
 }
 let _last=0;
 function frame(now){
-  if(!_last) _last=now;
-  let dt=(now-_last)/1000; _last=now;
-  dt=Math.min(dt,0.05);
-  update(dt);
-  render();
-  pressed.clear();
+  if(!_last)_last=now; let dt=(now-_last)/1000; _last=now; dt=Math.min(dt,0.05);
+  try{ update(dt); render(); }catch(e){ const b=document.getElementById('errbox'); b.style.display='block'; b.textContent+=e.message+'\n'+(e.stack||'')+'\n'; throw e; }
+  if(typeof pressed!=='undefined') pressed.clear();
   requestAnimationFrame(frame);
 }
 
-// stubs replaced by real implementations in later sections
-function drawPorts(sky){}
-function renderUnderwater(sky){ drawSky(sky); drawSea(sky); }
-function updateFishing(dt){}
-function maybePortPrompt(){}
-function updateHUD(){}
-function updateLayers(){}
-function toggleFishing(){}
-function startReel(){}
-function tryDock(){}
-function openPause(){}
-function openMap(){}
-function openHelp(){}
-function closeOverlays(){}
-function startGame(){}
-function loadSave(){ return null; }
-function driftMarkets(){}
-function toast(msg,icon){}
-function showEvent(){}
+/* ======================= 11. STUBS (filled in later sections) =========== */
+const Sound={muted:false,ensure(){},ambient(){},thunder(){},catchFx(){},coin(){},ui(){},reel(){},splash(){},chime(){},setScene(){}};
+let pressed=new Set();
 
-/* ======================= 15. BOOT ======================================= */
+/* ======================= 12. BOOT ======================================= */
 function boot(){
   resize();
-  buildPaper(); buildStars();
-  world.region=0;
-  const R=regionData();
-  player.x=R.ports[0].x; view.camX=player.x; view.targetCamX=player.x;
-  view.waterY=H*0.46; view.targetWaterY=H*0.46;
-  setWeather('cloud'); world.wBlend=1;
-  updateWeather(0.001);
-  Game.set('sail');   // temporary: jump straight into sailing for now
-  const bar=document.getElementById('bootbar');
-  if(bar) bar.style.width='100%';
-  setTimeout(()=>{ const b=document.getElementById('boot'); if(b) b.classList.add('hidden'); }, 500);
+  if(!gl) return;
+  initQuad(); initSky(); buildOcean(); initPaper();
+  world.region=0; world.time=0.36;
+  setWeather('clear'); world.wBlend=1; updateWeather(0.001);
+  // debug hooks: #t=0.75&w=storm&r=1 to inspect a fixed moment
+  const hp=new URLSearchParams(location.hash.slice(1));
+  if(hp.has('r')) world.region=clamp(parseInt(hp.get('r')),0,2);
+  if(hp.has('t')){ world.time=parseFloat(hp.get('t')); world.timeScale=0; }
+  if(hp.has('t')||hp.has('nb')){ const b=document.getElementById('boot'); if(b) b.style.display='none'; }
+  if(hp.has('w')){ world.weather=world.weatherPrev=hp.get('w'); world.wBlend=1; updateWeather(0.001); world.wTimer=999; }
+  // temporary camera looking out to sea toward the sun
+  cam.pos=[0,6.5,20]; cam.target=[6,1.6,-70];
+  Game.set('sail');
+  const bar=document.getElementById('bootbar'); if(bar) bar.style.width='100%';
+  setTimeout(()=>{ const b=document.getElementById('boot'); if(b) b.classList.add('hidden'); },150);
   requestAnimationFrame(frame);
 }
-window.addEventListener('load', boot);
+window.addEventListener('load',boot);
+
+/* ======================= 13. OCEAN (Gerstner) =========================== */
+const WAVES=[
+  {dir:14,  amp:0.95, len:78, spd:0.85, steep:0.75},
+  {dir:46,  amp:0.55, len:41, spd:1.0,  steep:0.6},
+  {dir:-24, amp:0.34, len:22, spd:1.25, steep:0.5},
+  {dir:78,  amp:0.20, len:13, spd:1.55, steep:0.42},
+  {dir:-58, amp:0.11, len:7.5,spd:1.95, steep:0.35},
+];
+let WAVE_C=[];
+function computeWaveConsts(){
+  WAVE_C=WAVES.map(w=>{ const om=TAU/w.len; const A=w.amp; const d=[Math.cos(rad(w.dir)),Math.sin(rad(w.dir))];
+    const Q=w.steep/(om*A*WAVES.length); const spd=w.spd*Math.sqrt(9.8*om); return {om,A,Q,dir:d,spd}; });
+}
+function gerstnerGLSL(){
+  let s='void gerstner(vec2 P,float t,float ch,out vec2 disp,out float hgt,out vec3 nrm){\n disp=vec2(0.0);hgt=0.0;vec3 n=vec3(0.0,1.0,0.0);\n';
+  WAVE_C.forEach(w=>{ const dx=w.dir[0].toFixed(5),dz=w.dir[1].toFixed(5),om=w.om.toFixed(6),A=w.A.toFixed(5),Q=w.Q.toFixed(6),sp=w.spd.toFixed(6);
+    s+=`{float ph=${om}*(${dx}*P.x+${dz}*P.y)+t*${sp};float c=cos(ph),si=sin(ph);float a=${A}*ch;`;
+    s+=`disp+=vec2(${Q}*a*${dx}*c,${Q}*a*${dz}*c);hgt+=a*si;`;
+    s+=`n.x-=${dx}*${om}*a*c;n.z-=${dz}*${om}*a*c;n.y-=${Q}*${om}*a*si;}\n`; });
+  s+=' nrm=normalize(n);}\n'; return s;
+}
+function seaSample(x,z,t,ch){ let dx=0,dz=0,hgt=0,nx=0,ny=1,nz=0;
+  for(const w of WAVE_C){ const ph=w.om*(w.dir[0]*x+w.dir[1]*z)+t*w.spd; const c=Math.cos(ph),si=Math.sin(ph); const a=w.A*ch;
+    dx+=w.Q*a*w.dir[0]*c; dz+=w.Q*a*w.dir[1]*c; hgt+=a*si; nx-=w.dir[0]*w.om*a*c; nz-=w.dir[1]*w.om*a*c; ny-=w.Q*w.om*a*si; }
+  const L=Math.hypot(nx,ny,nz)||1; return {x:x+dx,y:hgt,z:z+dz,h:hgt,nx:nx/L,ny:ny/L,nz:nz/L}; }
+function choppy(){ return 0.4+world.seaState*1.5; }
+
+const OCEAN={N:150,reach:1500,prog:null,vao:null,idxCount:0};
+function buildOcean(){
+  computeWaveConsts();
+  const N=OCEAN.N, verts=new Float32Array((N+1)*(N+1)*2);
+  let p=0; for(let j=0;j<=N;j++)for(let i=0;i<=N;i++){ verts[p++]=(i/N)*2-1; verts[p++]=(j/N)*2-1; }
+  const idx=new Uint32Array(N*N*6); let q=0;
+  for(let j=0;j<N;j++)for(let i=0;i<N;i++){ const a=j*(N+1)+i,b=a+1,c=a+(N+1),d=c+1;
+    idx[q++]=a;idx[q++]=c;idx[q++]=b; idx[q++]=b;idx[q++]=c;idx[q++]=d; }
+  OCEAN.idxCount=idx.length;
+  OCEAN.vao=gl.createVertexArray(); gl.bindVertexArray(OCEAN.vao);
+  const vb=gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER,vb); gl.bufferData(gl.ARRAY_BUFFER,verts,gl.STATIC_DRAW);
+  gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0,2,gl.FLOAT,false,0,0);
+  const ib=gl.createBuffer(); gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,ib); gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,idx,gl.STATIC_DRAW);
+  gl.bindVertexArray(null);
+
+  OCEAN.prog=makeProgram(
+   `layout(location=0) in vec2 aGrid; uniform mat4 uVP; uniform vec2 uCenter; uniform float uTime,uChoppy,uReach;
+    out vec3 vWorld; out vec3 vNormal; out float vH;
+    ${gerstnerGLSL()}
+    void main(){ vec2 g=aGrid; vec2 w2=uCenter+sign(g)*pow(abs(g),vec2(1.7))*uReach;
+      vec2 disp; float h; vec3 nrm; gerstner(w2,uTime,uChoppy,disp,h,nrm);
+      vec3 wp=vec3(w2.x+disp.x,h,w2.y+disp.y); vWorld=wp; vNormal=nrm; vH=h;
+      gl_Position=uVP*vec4(wp,1.0); }`,
+   `in vec3 vWorld; in vec3 vNormal; in float vH; out vec4 frag;
+    uniform vec3 uCamPos,uWaterTop,uWaterMid,uWaterDeep,uFoamCol;
+    uniform float uReflStr,uFogDensity,uChoppy,uFogWeather,uMaxH;
+    ${SKY_GLSL}
+    float vnoise(vec2 p){ vec2 i=floor(p),f=fract(p); f=f*f*(3.0-2.0*f);
+      float a=hash13(vec3(i,0.0)),b=hash13(vec3(i+vec2(1,0),0.0)),c=hash13(vec3(i+vec2(0,1),0.0)),d=hash13(vec3(i+vec2(1,1),0.0));
+      return mix(mix(a,b,f.x),mix(c,d,f.x),f.y); }
+    void main(){
+      vec3 N=normalize(vNormal);
+      vec3 toC=uCamPos-vWorld; float dist=length(toC); vec3 V=toC/max(dist,0.001);
+      float ndv=max(dot(N,V),0.0);
+      float fres=0.02+0.98*pow(1.0-ndv,5.0);
+      vec3 Rr=reflect(-V,N); Rr.y=max(Rr.y,0.025);
+      vec3 refl=skyColor(Rr);
+      vec3 body=mix(uWaterDeep,uWaterTop,pow(ndv,0.7)); body=mix(body,uWaterMid,0.35);
+      float sss=clamp(vH*0.5+0.4,0.0,1.0)*pow(max(dot(V,-uSunDir),0.0),2.0);
+      body+=uWarmCol*sss*0.12*uLightStr;
+      vec3 col=mix(body,refl,clamp(fres*uReflStr,0.0,1.0));
+      vec3 Hh=normalize(uSunDir+V);
+      float spec=pow(max(dot(N,Hh),0.0),160.0);
+      col+=uSunCol*spec*2.4*uLightStr;
+      float crest=smoothstep(0.74,1.0,vH/max(uMaxH,0.2));
+      float ft=vnoise(vWorld.xz*0.5)*0.55+vnoise(vWorld.xz*1.9)*0.45;
+      float foam=crest*(0.3+0.7*ft);
+      col=mix(col,uFoamCol,clamp(foam*0.85,0.0,0.7));
+      vec3 hdir=normalize(vWorld-uCamPos);
+      float fogA=1.0-exp(-dist*uFogDensity);
+      fogA=clamp(fogA+uFogWeather*smoothstep(60.0,700.0,dist),0.0,1.0);
+      col=mix(col,skyColor(hdir),fogA);
+      frag=vec4(col,1.0);
+    }`);
+}
+function oceanWaterColors(sky){
+  const R=regionData(), l=sky.lightStr;
+  let top=mix(hex2rgb(R.water.top),sky.hor,0.30);
+  top=mix(top,sky.warmCol,sky.warm*0.35); top=mix(top,[40,52,60],world.storm*0.4);
+  top=mix(top,hex2rgb(R.water.deep),(1-l)*0.28);
+  let mid=mix(hex2rgb(R.water.mid),[20,30,38],world.storm*0.3); mid=mix(mid,hex2rgb(R.water.deep),(1-l)*0.3);
+  let deep=hex2rgb(R.water.deep);
+  return {top,mid,deep};
+}
+function drawOcean(sky){
+  const p=OCEAN.prog; gl.useProgram(p);
+  gl.enable(gl.DEPTH_TEST); gl.depthFunc(gl.LEQUAL);
+  gl.uniformMatrix4fv(p.u('uVP'),false,cam.vp);
+  gl.uniform3fv(p.u('uCamPos'),new Float32Array(cam.pos));
+  gl.uniform2f(p.u('uCenter'),cam.pos[0],cam.pos[2]);
+  gl.uniform1f(p.u('uTime'),Game.t);
+  gl.uniform1f(p.u('uChoppy'),choppy());
+  gl.uniform1f(p.u('uReach'),OCEAN.reach);
+  const wc=oceanWaterColors(sky);
+  gl.uniform3fv(p.u('uWaterTop'),new Float32Array(v3(wc.top)));
+  gl.uniform3fv(p.u('uWaterMid'),new Float32Array(v3(wc.mid)));
+  gl.uniform3fv(p.u('uWaterDeep'),new Float32Array(v3(wc.deep)));
+  gl.uniform3fv(p.u('uFoamCol'),new Float32Array(v3(hex2rgb(regionData().foam))));
+  gl.uniform1f(p.u('uReflStr'),0.9);
+  gl.uniform1f(p.u('uFogDensity'),0.0022);
+  gl.uniform1f(p.u('uFogWeather'),world.fog*0.9+world.storm*0.3);
+  let maxH=0; for(const w of WAVES) maxH+=w.amp; maxH*=choppy();
+  gl.uniform1f(p.u('uMaxH'),maxH);
+  setSkyUniforms(p,sky);
+  gl.bindVertexArray(OCEAN.vao);
+  gl.drawElements(gl.TRIANGLES,OCEAN.idxCount,gl.UNSIGNED_INT,0);
+  gl.bindVertexArray(null);
+}
+
+/* ======================= 14. SCENE ORCHESTRATION (temp) ================= */
+function drawScene3D(sky){
+  drawOcean(sky);
+  if(typeof drawBoat3D==='function') drawBoat3D(sky);
+  if(typeof drawCoast3D==='function') drawCoast3D(sky);
+}
 
 /*__MORE__*/
 </script>
