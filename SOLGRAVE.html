@@ -339,21 +339,27 @@ body.playing #metaChip,body.cine #metaChip{display:none}
 @keyframes tileIn{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:none}}
 .mtile:hover{transform:translateY(-6px) scale(1.02);border-color:rgba(255,255,255,.5);box-shadow:0 20px 50px rgba(0,0,0,.6)}
 .mtile.big{grid-row:span 1}
-.mtile .tart{position:absolute;inset:0;background-size:cover;opacity:.95}
-.mtile .tico{position:absolute;top:16px;left:18px;font-size:44px;filter:drop-shadow(0 3px 8px rgba(0,0,0,.55));z-index:2}
-.mtile .tfoot{position:absolute;left:0;bottom:0;width:100%;padding:12px 16px;z-index:2;
-  background:linear-gradient(0deg,rgba(0,0,0,.72),transparent)}
+.mtile .tart,.mtile .tsvg,.mtile .tglass,.mtile .tfoot{pointer-events:none}
+.mtile .tart{position:absolute;inset:0;background-size:cover;opacity:1}
+.mtile .tsvg{position:absolute;inset:0;width:100%;height:100%;opacity:.9;z-index:1;transition:opacity .18s}
+.mtile:hover .tsvg{opacity:1}
+.mtile .tglass{position:absolute;inset:0;z-index:1;
+  background:linear-gradient(0deg,rgba(0,0,0,.28),transparent 45%),radial-gradient(circle at 50% 120%,transparent 60%,rgba(0,0,0,.35))}
+.mtile .tfoot{position:absolute;left:0;bottom:0;width:100%;padding:12px 16px;z-index:3;
+  background:linear-gradient(0deg,rgba(0,0,0,.82),rgba(0,0,0,.35) 55%,transparent)}
+.mtile .tlabel{border-left:3px solid var(--edge,#fff);padding-left:9px}
 .mtile .tlabel{font-size:17px;font-weight:800;letter-spacing:.16em;color:#fff;text-shadow:0 2px 6px #000}
 .mtile .tsub{font-size:10px;letter-spacing:.12em;color:rgba(255,255,255,.72);margin-top:2px}
-.t-campaign .tart{background:linear-gradient(135deg,#7a3d12,#e0902f 55%,#ffd06b)}
-.t-endless .tart{background:linear-gradient(135deg,#0d3b52,#1f8fae 60%,#4de8d2)}
-.t-hardcore .tart{background:linear-gradient(135deg,#4a0d14,#a5182b 55%,#ff5c46)}
-.t-hangar .tart{background:linear-gradient(135deg,#2a1652,#6a3fd0 60%,#b07bff)}
-.t-armory .tart{background:linear-gradient(135deg,#123b2a,#1f8f5e 60%,#5de89a)}
-.t-records .tart{background:linear-gradient(135deg,#2b2f3a,#5a6270 55%,#c9a24e)}
-.mtile .tart::after{content:'';position:absolute;inset:0;
-  background:repeating-linear-gradient(60deg,rgba(255,255,255,.06) 0 2px,transparent 2px 22px),
-    radial-gradient(circle at 78% 20%,rgba(255,255,255,.28),transparent 60%);mix-blend-mode:overlay}
+.t-campaign .tart{background:radial-gradient(circle at 74% 22%,rgba(255,224,150,.55),transparent 52%),linear-gradient(145deg,#3a1c06,#a8601c 46%,#f0b64f)}
+.t-endless .tart{background:radial-gradient(circle at 74% 22%,rgba(150,255,240,.5),transparent 52%),linear-gradient(145deg,#04222f,#127a97 52%,#37d9c4)}
+.t-hardcore .tart{background:radial-gradient(circle at 74% 22%,rgba(255,180,120,.5),transparent 52%),linear-gradient(145deg,#33060c,#8f1322 50%,#e8412e)}
+.t-hangar .tart{background:radial-gradient(circle at 74% 22%,rgba(210,170,255,.5),transparent 52%),linear-gradient(145deg,#190b36,#5330a8 54%,#9a63f0)}
+.t-armory .tart{background:radial-gradient(circle at 74% 22%,rgba(150,255,200,.5),transparent 52%),linear-gradient(145deg,#082418,#177a4c 54%,#3fd587)}
+.t-records .tart{background:radial-gradient(circle at 74% 22%,rgba(255,225,150,.42),transparent 52%),linear-gradient(145deg,#1c2029,#464e5e 50%,#b8923f)}
+.mtile .tart::after{content:'';position:absolute;inset:0;z-index:0;
+  background:repeating-linear-gradient(60deg,rgba(255,255,255,.05) 0 2px,transparent 2px 26px);mix-blend-mode:overlay}
+.t-campaign{--edge:#ffd06b}.t-endless{--edge:#4de8d2}.t-hardcore{--edge:#ff5c46}.t-hangar{--edge:#b07bff}.t-armory{--edge:#5de89a}.t-records{--edge:#e8c66b}
+.mtile:hover{border-color:var(--edge,#fff);box-shadow:0 20px 50px rgba(0,0,0,.6),0 0 26px var(--edge,#fff)}
 #menuBar{position:absolute;left:0;bottom:3.4vh;width:100%;display:flex;align-items:center;gap:24px;padding:0 5vw}
 #menuBadge{display:flex;align-items:center;gap:12px}
 #menuBadgeIco{width:44px;height:44px;border-radius:9px;display:flex;align-items:center;justify-content:center;
@@ -414,30 +420,74 @@ body.playing #metaChip,body.cine #metaChip{display:none}
   <div id="menuGhost">PLAY</div>
   <div id="menuHead"><div id="menuBrand">SOLGRAVE</div><div id="menuTagline">LAST GLAIVE UNDER A DYING SUN</div></div>
   <div id="menuGrid">
-    <div class="mtile t-campaign big" id="btnDeploy" data-desc="Nine chapters, nine worlds, nine Wardens — the whole story of the fall, in a burnt chronicle.">
-      <div class="tart"></div><div class="tico">📖</div>
+    <div class="mtile t-campaign" id="btnDeploy" data-desc="Nine chapters, nine worlds, nine Wardens — the whole story of the fall, in a burnt chronicle.">
+      <div class="tart"></div><svg class="tsvg" viewBox="0 0 220 180" preserveAspectRatio="xMidYMid slice">
+<defs><linearGradient id="cgP" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff3d6"/><stop offset="1" stop-color="#e0b06a"/></linearGradient></defs>
+<path d="M0 104 L36 66 L64 98 L104 56 L146 100 L186 64 L220 104 L220 180 L0 180 Z" fill="#4a2408" opacity="0.4"/>
+<path d="M0 122 L34 92 L60 118 L96 82 L140 120 L182 88 L220 120 L220 180 L0 180 Z" fill="#6e3a11" opacity="0.4"/>
+<path d="M18 132 Q66 106 108 126 T208 116" fill="none" stroke="#fff2cf" stroke-width="2" stroke-dasharray="2 6" stroke-linecap="round" opacity="0.75"/>
+<circle cx="108" cy="126" r="5.5" fill="none" stroke="#fff2cf" stroke-width="2"/><circle cx="108" cy="126" r="1.6" fill="#fff2cf"/>
+<g>
+<path d="M58 62 L108 48 L108 106 L58 118 Z" fill="url(#cgP)" stroke="#7a3d12" stroke-width="1.6"/>
+<path d="M162 62 L112 48 L112 106 L162 118 Z" fill="url(#cgP)" stroke="#7a3d12" stroke-width="1.6"/>
+<path d="M108 48 L112 48 L112 106 L108 106 Z" fill="#7a3d12"/>
+<g stroke="#7a3d12" stroke-width="1.3" opacity="0.5">
+<line x1="66" y1="70" x2="102" y2="61"/><line x1="66" y1="79" x2="102" y2="70"/><line x1="66" y1="88" x2="100" y2="80"/><line x1="66" y1="97" x2="94" y2="91"/>
+<line x1="118" y1="61" x2="154" y2="70"/><line x1="118" y1="70" x2="154" y2="79"/><line x1="120" y1="80" x2="154" y2="88"/><line x1="126" y1="91" x2="154" y2="97"/></g>
+</g></svg><div class="tglass"></div>
       <div class="tfoot"><div class="tlabel">CAMPAIGN</div><div class="tsub">9 chapters · 27 operations</div></div></div>
     <div class="mtile t-endless" id="btnEndless" data-desc="Hold any unlocked sector as long as you can. A fresh map every single drop.">
-      <div class="tart"></div><div class="tico">♾️</div>
+      <div class="tart"></div><svg class="tsvg" viewBox="0 0 220 180" preserveAspectRatio="xMidYMid slice">
+<g fill="none" stroke="#c6f7ee" stroke-linecap="round" opacity="0.5"><path d="M8 58 Q110 16 212 58" stroke-width="2.4"/><path d="M8 76 Q110 38 212 76" stroke-width="2.2" opacity="0.8"/><path d="M8 94 Q110 58 212 94" stroke-width="2" opacity="0.6"/></g>
+<path d="M110 118 C92 96 72 96 72 118 C72 140 92 140 110 118 C128 96 148 96 148 118 C148 140 128 140 110 118 Z" fill="none" stroke="#effffb" stroke-width="8" opacity="0.92" stroke-linecap="round"/>
+<path d="M110 118 C92 96 72 96 72 118 C72 140 92 140 110 118 C128 96 148 96 148 118 C148 140 128 140 110 118 Z" fill="none" stroke="#1f8fae" stroke-width="2.6"/>
+<g fill="#effffb" opacity="0.85"><path d="M30 122 l7 -5 l0 10 z"/><path d="M190 114 l-7 -5 l0 10 z"/></g>
+<circle cx="110" cy="118" r="3" fill="#effffb"/></svg><div class="tglass"></div>
       <div class="tfoot"><div class="tlabel">ENDLESS</div><div class="tsub">survive forever</div></div></div>
     <div class="mtile t-hardcore" id="btnHardcore" data-desc="Endless, but you ration fuel and weapon energy. Every level-up: upgrade, refuel, or recharge — pick one.">
-      <div class="tart"></div><div class="tico">☠️</div>
+      <div class="tart"></div><svg class="tsvg" viewBox="0 0 220 180" preserveAspectRatio="xMidYMid slice">
+<g fill="#ffcf6b" opacity="0.5"><path d="M0 0 L28 0 L0 28 Z"/><path d="M44 0 L64 0 L0 64 L0 44 Z"/><path d="M220 180 L192 180 L220 152 Z"/><path d="M176 180 L156 180 L220 116 L220 136 Z"/></g>
+<g transform="translate(110 84)">
+<path d="M0 -42 L42 0 L0 42 L-42 0 Z" fill="#5a0d14" stroke="#ff6b5a" stroke-width="3.2"/>
+<path d="M0 -42 L42 0 L0 42 L-42 0 Z" fill="none" stroke="#ffcf6b" stroke-width="1" opacity="0.5" transform="scale(0.78)"/>
+<rect x="-4.5" y="-26" width="9" height="32" rx="4" fill="#ffd67a"/><circle cx="0" cy="20" r="5.2" fill="#ffd67a"/></g>
+<path d="M46 128 q-9 11 0 18 q9 -7 0 -18 z" fill="#ff9a5a" opacity="0.85"/>
+<path d="M176 112 l-9 18 l7 0 l-7 16 l18 -22 l-8 0 l8 -12 z" fill="#ffe07a" opacity="0.9"/></svg><div class="tglass"></div>
       <div class="tfoot"><div class="tlabel">HARDCORE</div><div class="tsub">fuel · energy · no mercy</div></div></div>
     <div class="mtile t-hangar" id="btnHangar" data-desc="Buy new glaives with salvage, repaint them, and choose what you fly into the dark.">
-      <div class="tart"></div><div class="tico">🚀</div>
+      <div class="tart"></div><svg class="tsvg" viewBox="0 0 220 180" preserveAspectRatio="xMidYMid slice">
+<g stroke="#c9a6ff" stroke-width="1" opacity="0.28"><path d="M0 138 L220 138"/><path d="M0 158 L220 158"/><path d="M110 128 L34 180"/><path d="M110 128 L186 180"/><path d="M0 178 L220 178"/></g>
+<g fill="#e6d4ff" opacity="0.13"><path d="M42 14 L62 14 L82 122 L22 122 Z"/><path d="M178 14 L158 14 L138 122 L198 122 Z"/></g>
+<g transform="translate(110 82)">
+<path d="M0 -46 L11 -12 L36 6 L13 6 L7 42 L-7 42 L-13 6 L-36 6 L-11 -12 Z" fill="#2c1a4e" stroke="#c9a6ff" stroke-width="1.8"/>
+<path d="M0 -46 L7 -12 L0 22 L-7 -12 Z" fill="#b07bff"/>
+<path d="M-36 6 L-13 6 L-15 14 L-30 12 Z" fill="#7a4fd0" opacity="0.8"/><path d="M36 6 L13 6 L15 14 L30 12 Z" fill="#7a4fd0" opacity="0.8"/>
+<circle cx="0" cy="-8" r="5.5" fill="#effffb"/><circle cx="0" cy="-8" r="2.4" fill="#8fdcff"/>
+<rect x="-10" y="36" width="6" height="11" rx="2.5" fill="#ff9a5a"/><rect x="4" y="36" width="6" height="11" rx="2.5" fill="#ff9a5a"/></g></svg><div class="tglass"></div>
       <div class="tfoot"><div class="tlabel">HANGAR</div><div class="tsub">8 glaives · customise</div></div></div>
     <div class="mtile t-armory" id="btnArmory" data-desc="Permanent modifications. Every rank you buy carries into every future run.">
-      <div class="tart"></div><div class="tico">🛡️</div>
+      <div class="tart"></div><svg class="tsvg" viewBox="0 0 220 180" preserveAspectRatio="xMidYMid slice">
+<g transform="translate(110 84)">
+<path d="M0 -48 L42 -33 L42 6 Q42 42 0 56 Q-42 42 -42 6 L-42 -33 Z" fill="#0e3322" stroke="#7de8b0" stroke-width="2.6"/>
+<path d="M0 -38 L33 -26 L33 5 Q33 33 0 44 Q-33 33 -33 5 L-33 -26 Z" fill="none" stroke="#7de8b0" stroke-width="1" opacity="0.45"/>
+<path d="M-25 -8 L0 -24 L25 -8" fill="none" stroke="#c6ffdf" stroke-width="4.2" stroke-linecap="round"/>
+<path d="M-25 10 L0 -6 L25 10" fill="none" stroke="#c6ffdf" stroke-width="4.2" stroke-linecap="round" opacity="0.7"/>
+<path d="M0 20 l8.5 9 l-8.5 11 l-8.5 -11 z" fill="#5de89a"/>
+<g fill="#7de8b0"><circle cx="-31" cy="-25" r="2.6"/><circle cx="31" cy="-25" r="2.6"/><circle cx="-33" cy="2" r="2.6"/><circle cx="33" cy="2" r="2.6"/></g></g></svg><div class="tglass"></div>
       <div class="tfoot"><div class="tlabel">ARMORY</div><div class="tsub">permanent upgrades</div></div></div>
     <div class="mtile t-records" id="btnRecords" data-desc="Your service history — records, chapter clears, and the state of the fleet.">
-      <div class="tart"></div><div class="tico">🏆</div>
+      <div class="tart"></div><svg class="tsvg" viewBox="0 0 220 180" preserveAspectRatio="xMidYMid slice">
+<polyline points="16,124 54,106 92,112 130,78 168,88 206,50" fill="none" stroke="#ffd06b" stroke-width="2.6" opacity="0.82" stroke-linecap="round" stroke-linejoin="round"/>
+<g fill="#ffd06b"><circle cx="54" cy="106" r="3"/><circle cx="92" cy="112" r="3"/><circle cx="130" cy="78" r="3"/><circle cx="168" cy="88" r="3"/><circle cx="206" cy="50" r="3.4"/></g>
+<g stroke="#cfd6e2" stroke-width="1.5"><rect x="64" y="120" width="34" height="52" fill="#454d5e"/><rect x="98" y="100" width="34" height="72" fill="#5a6474"/><rect x="132" y="130" width="34" height="42" fill="#3c4351"/></g>
+<path d="M115 72 l4.5 9.5 l10.5 1.2 l-7.6 7.4 l1.9 10.4 l-9.3 -5 l-9.3 5 l1.9 -10.4 l-7.6 -7.4 l10.5 -1.2 z" fill="#ffe08a" stroke="#c9a24e" stroke-width="1"/></svg><div class="tglass"></div>
       <div class="tfoot"><div class="tlabel">RECORDS</div><div class="tsub">service history</div></div></div>
   </div>
   <div id="menuBar">
     <div id="menuBadge"><div id="menuBadgeIco">◈</div>
       <div><div id="menuName">SOLGRAVE PILOT</div><div id="menuCores">⬡ 0 CORES</div></div></div>
     <div id="menuHoverDesc">Welcome back, pilot.</div>
-    <div class="mtile pill" id="btnHelp" data-desc="Controls and field protocol.">⚙ PROTOCOL</div>
+    <div class="mtile pill" id="btnHelp" data-desc="Controls and field protocol.">PROTOCOL</div>
   </div>
   <div id="seedlbl" class="hidden"></div>
   <div id="beststats" class="hidden"></div>
