@@ -50,6 +50,22 @@ body.playing, body.playing canvas#gl{cursor:none}
 #lvltag{margin-top:6px;font-size:12px;letter-spacing:.28em;color:var(--teal);text-shadow:0 0 12px rgba(77,232,210,.5)}
 #boosttag{margin-top:3px;font-size:10px;letter-spacing:.2em;color:#7d90a8}
 #boosttag.ready{color:var(--amber);text-shadow:0 0 10px rgba(255,180,84,.6)}
+#overbar{height:8px;margin-top:7px}
+#overfill{background:linear-gradient(90deg,#7a3fd8,#c77bff,#ffd86b);box-shadow:0 0 12px rgba(180,110,255,.7)}
+#overtag{margin-top:3px;font-size:10px;letter-spacing:.22em;color:#7d90a8}
+#hcbars{margin-top:7px}
+.hcrow{display:flex;align-items:center;gap:7px;margin-top:4px}
+.hcrow span{font-size:12px;width:16px;text-align:center}
+.hcbar{flex:1;height:9px}
+#fuelfill{background:linear-gradient(90deg,#e8863a,#ffcf6b);box-shadow:0 0 10px rgba(255,160,80,.6)}
+#energyfill{background:linear-gradient(90deg,#3aa0e8,#6bf0ff);box-shadow:0 0 10px rgba(90,200,255,.6)}
+.card.synth{border-color:rgba(255,200,120,.5)}
+.card.cenergy{border-color:rgba(90,200,255,.5)}
+.card.synth:hover{box-shadow:0 14px 40px rgba(0,0,0,.55),0 0 24px rgba(255,190,110,.35)}
+.card.cenergy:hover{box-shadow:0 14px 40px rgba(0,0,0,.55),0 0 24px rgba(90,200,255,.35)}
+#overtag.ready{color:#e2b7ff;text-shadow:0 0 12px rgba(200,140,255,.8);animation:overpulse 1s ease-in-out infinite}
+#overtag.active{color:#ffd86b;text-shadow:0 0 12px rgba(255,200,90,.8)}
+@keyframes overpulse{0%,100%{opacity:.75}50%{opacity:1}}
 
 #weaponsbar{position:absolute;left:22px;bottom:22px;display:flex;flex-direction:column;gap:5px}
 .wpn{display:flex;align-items:center;gap:8px;background:rgba(8,12,19,.7);border:1px solid rgba(255,255,255,.1);
@@ -127,7 +143,16 @@ body.playing, body.playing canvas#gl{cursor:none}
   box-shadow:0 14px 40px rgba(0,0,0,.55),0 0 24px rgba(255,180,84,.22)}
 .card.newwpn{border-color:rgba(77,232,210,.5)}
 .card.newwpn:hover{border-color:var(--teal);box-shadow:0 14px 40px rgba(0,0,0,.55),0 0 24px rgba(77,232,210,.3)}
-.card .cic{font-size:38px;line-height:1;filter:drop-shadow(0 0 12px rgba(255,180,84,.55))}
+.card .cic{position:relative;font-size:38px;line-height:1;filter:drop-shadow(0 0 12px rgba(255,180,84,.55))}
+.card{position:relative;overflow:hidden}
+.card::before{content:'';position:absolute;top:-40%;left:50%;width:150px;height:150px;transform:translateX(-50%);
+  background:radial-gradient(circle,rgba(255,180,84,.22),transparent 68%);pointer-events:none}
+.card.wpncard::before{background:radial-gradient(circle,rgba(77,232,210,.22),transparent 68%)}
+.card.newwpn::before{background:radial-gradient(circle,rgba(77,232,210,.34),transparent 66%)}
+.card.cfuel::before{background:radial-gradient(circle,rgba(255,170,90,.28),transparent 66%)}
+.card.cenergy::before{background:radial-gradient(circle,rgba(90,200,255,.28),transparent 66%)}
+.card::after{content:'';position:absolute;inset:0;pointer-events:none;
+  background:repeating-linear-gradient(58deg,rgba(255,255,255,.03) 0 1px,transparent 1px 16px)}
 .card .cname{margin-top:12px;font-size:13px;font-weight:800;letter-spacing:.14em;color:#fff;text-transform:uppercase}
 .card .clv{margin-top:4px;font-size:10px;letter-spacing:.3em;color:var(--amber)}
 .card .cdesc{margin-top:10px;font-size:11px;line-height:1.55;color:#94a8bf;letter-spacing:.03em}
@@ -222,6 +247,17 @@ body.playing, body.playing canvas#gl{cursor:none}
 #bookNav #bookPageNo:hover{background:none}
 .bflip{animation:pageFlip .4s ease-out}
 @keyframes pageFlip{from{opacity:0;transform:perspective(900px) rotateY(-14deg)}to{opacity:1;transform:none}}
+.blvls{display:flex;gap:8px;justify-content:center;margin:10px 0 4px}
+.blvl{width:60px;padding:8px 0;border-radius:8px;cursor:pointer;text-align:center;font-family:Georgia,serif;
+  border:1px solid rgba(214,160,86,.35);color:#c9bda2;transition:all .14s;background:rgba(214,160,86,.05)}
+.blvl .bln{font-size:15px;font-weight:700;color:#eecf9a}
+.blvl .bls{font-size:8px;letter-spacing:.12em;margin-top:2px;color:#8a7455}
+.blvl.sel{border-color:#eecf9a;box-shadow:0 0 16px rgba(214,160,86,.4);background:rgba(214,160,86,.18)}
+.blvl.locked{opacity:.4;cursor:default}
+.blvl.done .bls{color:#7fae7f}
+.blvl.boss{border-color:rgba(255,90,110,.5)}
+.blvl.boss .bln{color:#ff9aa6}
+#bookLevelInfo{font-family:Georgia,serif;font-style:italic;font-size:12px;color:#b7ab90;min-height:32px;margin:4px 0 6px;text-align:center;max-width:330px}
 #book .btn{width:250px;border-color:rgba(214,160,86,.55);color:#eecf9a;
   background:linear-gradient(180deg,rgba(214,160,86,.16),rgba(214,160,86,.04))}
 #book .btn:hover{box-shadow:0 0 26px rgba(214,160,86,.35)}
@@ -282,6 +318,54 @@ body.playing #metaChip,body.cine #metaChip{display:none}
 .recrow .ric{margin-right:10px;color:var(--amber)}
 #turrethint{margin-top:3px;font-size:10px;letter-spacing:.2em;color:#5c6f86}
 #turrethint.afford{color:var(--teal);text-shadow:0 0 10px rgba(77,232,210,.6)}
+/* ---- rocket-league-style tile hub ---- */
+.menuhub{display:block;background:radial-gradient(ellipse at 30% 30%,rgba(4,6,11,.35),rgba(4,6,11,.82))}
+#menuGhost{position:absolute;top:2vh;left:4vw;font-size:15vw;font-weight:900;letter-spacing:.02em;line-height:.8;
+  color:rgba(255,255,255,.05);pointer-events:none;user-select:none}
+#menuHead{position:absolute;top:6.5vh;left:5vw}
+#menuBrand{font-size:34px;font-weight:800;letter-spacing:.32em;padding-left:.32em;
+  background:linear-gradient(115deg,#fff 8%,var(--amber) 40%,#8a4b1d 60%,var(--amber) 80%);
+  background-size:230% 100%;-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;
+  filter:drop-shadow(0 0 22px rgba(255,180,84,.3));animation:titleSheen 7s ease-in-out infinite}
+#menuTagline{margin-top:4px;font-size:10px;letter-spacing:.5em;color:#8fa4bc}
+#menuGrid{position:absolute;left:50%;top:52%;transform:translate(-50%,-50%);
+  display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;width:min(860px,86vw)}
+.mtile{position:relative;height:172px;border-radius:12px;overflow:hidden;cursor:pointer;
+  border:1px solid rgba(255,255,255,.12);box-shadow:0 12px 34px rgba(0,0,0,.5);
+  transition:transform .16s cubic-bezier(.2,.9,.3,1.2),box-shadow .16s,border-color .16s;
+  animation:tileIn .5s backwards}
+.mtile:nth-child(2){animation-delay:.05s}.mtile:nth-child(3){animation-delay:.1s}
+.mtile:nth-child(4){animation-delay:.15s}.mtile:nth-child(5){animation-delay:.2s}.mtile:nth-child(6){animation-delay:.25s}
+@keyframes tileIn{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:none}}
+.mtile:hover{transform:translateY(-6px) scale(1.02);border-color:rgba(255,255,255,.5);box-shadow:0 20px 50px rgba(0,0,0,.6)}
+.mtile.big{grid-row:span 1}
+.mtile .tart{position:absolute;inset:0;background-size:cover;opacity:.95}
+.mtile .tico{position:absolute;top:16px;left:18px;font-size:44px;filter:drop-shadow(0 3px 8px rgba(0,0,0,.55));z-index:2}
+.mtile .tfoot{position:absolute;left:0;bottom:0;width:100%;padding:12px 16px;z-index:2;
+  background:linear-gradient(0deg,rgba(0,0,0,.72),transparent)}
+.mtile .tlabel{font-size:17px;font-weight:800;letter-spacing:.16em;color:#fff;text-shadow:0 2px 6px #000}
+.mtile .tsub{font-size:10px;letter-spacing:.12em;color:rgba(255,255,255,.72);margin-top:2px}
+.t-campaign .tart{background:linear-gradient(135deg,#7a3d12,#e0902f 55%,#ffd06b)}
+.t-endless .tart{background:linear-gradient(135deg,#0d3b52,#1f8fae 60%,#4de8d2)}
+.t-hardcore .tart{background:linear-gradient(135deg,#4a0d14,#a5182b 55%,#ff5c46)}
+.t-hangar .tart{background:linear-gradient(135deg,#2a1652,#6a3fd0 60%,#b07bff)}
+.t-armory .tart{background:linear-gradient(135deg,#123b2a,#1f8f5e 60%,#5de89a)}
+.t-records .tart{background:linear-gradient(135deg,#2b2f3a,#5a6270 55%,#c9a24e)}
+.mtile .tart::after{content:'';position:absolute;inset:0;
+  background:repeating-linear-gradient(60deg,rgba(255,255,255,.06) 0 2px,transparent 2px 22px),
+    radial-gradient(circle at 78% 20%,rgba(255,255,255,.28),transparent 60%);mix-blend-mode:overlay}
+#menuBar{position:absolute;left:0;bottom:3.4vh;width:100%;display:flex;align-items:center;gap:24px;padding:0 5vw}
+#menuBadge{display:flex;align-items:center;gap:12px}
+#menuBadgeIco{width:44px;height:44px;border-radius:9px;display:flex;align-items:center;justify-content:center;
+  font-size:22px;color:#0a0f16;background:linear-gradient(180deg,var(--amber),#a8601e);box-shadow:0 0 18px rgba(255,180,84,.4)}
+#menuName{font-size:13px;font-weight:800;letter-spacing:.2em;color:#e8f0f8}
+#menu #menuCores{font-size:12px;letter-spacing:.2em;color:var(--amber);margin-top:2px;text-align:left}
+#menuHoverDesc{flex:1;font-size:11px;line-height:1.5;color:#93a9c2;letter-spacing:.05em;font-style:italic;
+  text-align:center;max-width:520px;margin:0 auto}
+.mtile.pill{height:auto;padding:12px 22px;border-radius:9px;font-size:12px;font-weight:800;letter-spacing:.24em;
+  color:#cfe0ef;background:rgba(12,18,28,.7);display:flex;align-items:center;animation:none;box-shadow:none}
+.mtile.pill:hover{transform:translateY(-2px) scale(1);color:#fff}
+@media (max-width:720px){#menuGrid{grid-template-columns:repeat(2,minmax(0,1fr));width:92vw}.mtile{height:130px}#menuGhost{font-size:22vw}}
 #err{position:fixed;inset:auto 0 0 0;z-index:99;background:#3d0a12;color:#ffb3bc;font:12px/1.6 monospace;
   padding:10px 16px;white-space:pre-wrap;display:none}
 #mutehint{position:fixed;top:14px;right:20px;z-index:11;font-size:10px;letter-spacing:.24em;color:#5c6f86;pointer-events:none}
@@ -311,8 +395,14 @@ body.playing #metaChip,body.cine #metaChip{display:none}
   <div id="bottom">
     <div class="bar"><div class="fill" id="hpfill"></div><div id="hptext">100</div></div>
     <div class="bar" id="xpbar"><div class="fill" id="xpfill"></div></div>
+    <div id="hcbars" class="hidden">
+      <div class="hcrow"><span>⛽</span><div class="bar hcbar"><div class="fill" id="fuelfill"></div></div></div>
+      <div class="hcrow"><span>⚡</span><div class="bar hcbar"><div class="fill" id="energyfill"></div></div></div>
+    </div>
     <div id="lvltag">LEVEL 1</div>
     <div id="boosttag" class="ready">BOOST READY</div>
+    <div class="bar" id="overbar"><div class="fill" id="overfill"></div></div>
+    <div id="overtag">OVERDRIVE</div>
     <div id="turrethint">T · TURRET BAY</div>
   </div>
   <div id="weaponsbar"></div>
@@ -320,24 +410,37 @@ body.playing #metaChip,body.cine #metaChip{display:none}
   <div id="banner"><div id="bannerText"></div><div id="bannerSub"></div></div>
 </div>
 
-<div id="menu" class="screen mleft">
-  <div id="menuPanel">
-    <div id="title">SOLGRAVE</div>
-    <div id="subtitle">Last glaive under a dying sun</div>
-    <div id="seedlbl">SECTOR —</div>
-    <div id="menuNav">
-      <div class="mbtn" id="btnDeploy" data-desc="Six chapters, six worlds, six Wardens. The story of the fall, told in a burnt chronicle.">CAMPAIGN<span>▸</span></div>
-      <div class="mbtn" id="btnEndless" data-desc="Hold any unlocked sector for as long as you can. A new map every single drop.">ENDLESS<span>▸</span></div>
-      <div class="mbtn" id="btnHangar" data-desc="Buy new glaives with salvage, repaint them, and choose what you fly.">HANGAR<span>▸</span></div>
-      <div class="mbtn" id="btnArmory" data-desc="Permanent modifications. Every rank carries into every future run.">ARMORY<span>▸</span></div>
-      <div class="mbtn" id="btnRecords" data-desc="Your service history — records, chapter clears, and the state of the fleet.">RECORDS<span>▸</span></div>
-      <div class="mbtn" id="btnHelp" data-desc="Controls and field protocol.">PROTOCOL<span>▸</span></div>
-    </div>
-    <div id="menuHoverDesc">Welcome back, pilot.</div>
-    <div id="menuCores">⬡ 0 CORES</div>
-    <div id="beststats" class="hidden"></div>
-    <div class="ctrlhint"><b>WASD</b> move <b>MOUSE</b> aim <b>LMB</b> fire <b>SPACE</b> boost <b>T</b> turret bay <b>Q/E</b> camera</div>
+<div id="menu" class="screen menuhub">
+  <div id="menuGhost">PLAY</div>
+  <div id="menuHead"><div id="menuBrand">SOLGRAVE</div><div id="menuTagline">LAST GLAIVE UNDER A DYING SUN</div></div>
+  <div id="menuGrid">
+    <div class="mtile t-campaign big" id="btnDeploy" data-desc="Nine chapters, nine worlds, nine Wardens — the whole story of the fall, in a burnt chronicle.">
+      <div class="tart"></div><div class="tico">📖</div>
+      <div class="tfoot"><div class="tlabel">CAMPAIGN</div><div class="tsub">9 chapters · 27 operations</div></div></div>
+    <div class="mtile t-endless" id="btnEndless" data-desc="Hold any unlocked sector as long as you can. A fresh map every single drop.">
+      <div class="tart"></div><div class="tico">♾️</div>
+      <div class="tfoot"><div class="tlabel">ENDLESS</div><div class="tsub">survive forever</div></div></div>
+    <div class="mtile t-hardcore" id="btnHardcore" data-desc="Endless, but you ration fuel and weapon energy. Every level-up: upgrade, refuel, or recharge — pick one.">
+      <div class="tart"></div><div class="tico">☠️</div>
+      <div class="tfoot"><div class="tlabel">HARDCORE</div><div class="tsub">fuel · energy · no mercy</div></div></div>
+    <div class="mtile t-hangar" id="btnHangar" data-desc="Buy new glaives with salvage, repaint them, and choose what you fly into the dark.">
+      <div class="tart"></div><div class="tico">🚀</div>
+      <div class="tfoot"><div class="tlabel">HANGAR</div><div class="tsub">8 glaives · customise</div></div></div>
+    <div class="mtile t-armory" id="btnArmory" data-desc="Permanent modifications. Every rank you buy carries into every future run.">
+      <div class="tart"></div><div class="tico">🛡️</div>
+      <div class="tfoot"><div class="tlabel">ARMORY</div><div class="tsub">permanent upgrades</div></div></div>
+    <div class="mtile t-records" id="btnRecords" data-desc="Your service history — records, chapter clears, and the state of the fleet.">
+      <div class="tart"></div><div class="tico">🏆</div>
+      <div class="tfoot"><div class="tlabel">RECORDS</div><div class="tsub">service history</div></div></div>
   </div>
+  <div id="menuBar">
+    <div id="menuBadge"><div id="menuBadgeIco">◈</div>
+      <div><div id="menuName">SOLGRAVE PILOT</div><div id="menuCores">⬡ 0 CORES</div></div></div>
+    <div id="menuHoverDesc">Welcome back, pilot.</div>
+    <div class="mtile pill" id="btnHelp" data-desc="Controls and field protocol.">⚙ PROTOCOL</div>
+  </div>
+  <div id="seedlbl" class="hidden"></div>
+  <div id="beststats" class="hidden"></div>
 </div>
 
 <div id="metaChip">⬡ 0</div>
@@ -377,7 +480,7 @@ body.playing #metaChip,body.cine #metaChip{display:none}
     <div id="helpBody">
       <div class="sec">CONTROLS</div>
       <div><b>W A S D</b> thrust &nbsp; <b>MOUSE</b> aim turret &nbsp; <b>LMB / hold</b> fire</div>
-      <div><b>SPACE / SHIFT</b> boost-dash &nbsp; <b>Q / E</b> rotate view &nbsp; <b>WHEEL</b> zoom</div>
+      <div><b>SPACE / SHIFT</b> boost-dash &nbsp; <b>F / RMB</b> overdrive &nbsp; <b>Q / E</b> rotate view</div>
       <div><b>T</b> turret bay (spend run salvage on your gun) &nbsp; <b>P / ESC</b> pause &nbsp; <b>M</b> sound</div>
       <div class="sec">DIRECTIVE</div>
       <div><b>CAMPAIGN</b> Six chapters, six worlds, six Wardens. Clear each to break the
@@ -385,6 +488,9 @@ body.playing #metaChip,body.cine #metaChip{display:none}
       <div><b>ENDLESS</b> Hold any unlocked sector as long as you can. Waves escalate forever;
       a Warden surfaces every fifth wave. Night runs hotter — watch your scanner.</div>
       <div><b>HANGAR</b> Spend cores on new glaives and refits. Every hull flies differently.</div>
+      <div class="sec">OVERDRIVE</div>
+      <div>Every kill charges your glaive's <b>OVERDRIVE</b>. When the bar fills, hit <b>F</b> (or right-click)
+      to unleash your ship's signature ultimate — each hull's is different. Save it for a Warden.</div>
       <div class="sec">FIELD SUPPLIES</div>
       <div>Green medkits appear across the sector and drop from kills — fly over them to patch
       your hull. The scanner marks them green.</div>
@@ -434,6 +540,8 @@ body.playing #metaChip,body.cine #metaChip{display:none}
       <div id="bookSub"></div>
       <div id="bookLore"></div>
       <div id="bookStatus"></div>
+      <div id="bookLevels" class="blvls"></div>
+      <div id="bookLevelInfo"></div>
       <div class="btn" id="bookDeploy">Begin Chapter</div>
       <div id="bookNav"><span id="bookPrev">‹ PREV</span><span id="bookPageNo">1 / 6</span><span id="bookNext">NEXT ›</span></div>
       <div class="btn teal small" id="btnBookBack">Close Chronicle</div>
@@ -953,6 +1061,40 @@ function buildModels() {
   }
   MESH.detonator = buildMesh(m);
 
+  m = MB(); // weaver — spindly web-caster
+  addIco(m, { s: [1.4, 1.0, 1.4] }, [0.24, 0.32, 0.14], 0, 0.4);
+  for (let i = 0; i < 6; i++) {
+    const a = i / 6 * TAU;
+    addCyl(m, { p: [Math.cos(a) * 1.1, -0.1, Math.sin(a) * 1.1], s: [0.16, 1.6, 0.16], rz: Math.cos(a) * 1.0, rx: -Math.sin(a) * 1.0 }, [0.18, 0.24, 0.10], 0, 4, 0.5, 0, false);
+  }
+  addBox(m, { p: [0, 0.15, 0.75], s: [0.5, 0.16, 0.2] }, [0.6, 1, 0.35], 2.4);
+  MESH.weaver = buildMesh(m);
+
+  m = MB(); // howler — buffer, crowned with resonators
+  addIco(m, { s: [1.7, 2.0, 1.7] }, [0.34, 0.20, 0.30], 0, 0.35);
+  for (let i = 0; i < 5; i++) {
+    const a = i / 5 * TAU;
+    addBipyr(m, { p: [Math.cos(a) * 0.95, 1.0, Math.sin(a) * 0.95], s: [0.4, 1.4, 0.4], rz: Math.cos(a) * 0.4, rx: -Math.sin(a) * 0.4 }, [1, 0.5, 0.85], 1.8, 4);
+  }
+  addBox(m, { p: [0, 0.1, 0.9], s: [0.5, 0.3, 0.25] }, [1, 0.4, 0.75], 2.6);
+  MESH.howler = buildMesh(m);
+
+  m = MB(); // wisp — tiny fast flyer
+  addBipyr(m, { s: [0.9, 0.4, 1.3] }, [0.35, 0.7, 0.95], 0.6, 4);
+  addBox(m, { p: [-0.55, 0.02, 0], s: [0.7, 0.05, 0.3], ry: 0.4 }, [0.55, 0.9, 1], 1.4);
+  addBox(m, { p: [0.55, 0.02, 0], s: [0.7, 0.05, 0.3], ry: -0.4 }, [0.55, 0.9, 1], 1.4);
+  addBox(m, { p: [0, 0.05, 0.5], s: [0.2, 0.14, 0.28] }, [0.6, 1, 1], 2.8);
+  MESH.wisp = buildMesh(m);
+
+  m = MB(); // crawler — front-shielded armored ground unit
+  addBox(m, { s: [2.0, 1.0, 2.4] }, [0.26, 0.24, 0.28], 0);
+  addBox(m, { p: [0, 0.2, 1.35], s: [2.3, 1.5, 0.4], rx: -0.2 }, [0.42, 0.42, 0.5], 0);
+  addBox(m, { p: [0, 0.2, 1.56], s: [1.7, 1.0, 0.12] }, [0.55, 0.6, 0.7], 0.4);
+  addBox(m, { p: [-0.9, -0.3, -0.6], s: [0.5, 0.7, 1.9] }, [0.16, 0.15, 0.18], 0);
+  addBox(m, { p: [0.9, -0.3, -0.6], s: [0.5, 0.7, 1.9] }, [0.16, 0.15, 0.18], 0);
+  addBox(m, { p: [0, 0.6, -0.5], s: [0.5, 0.4, 0.5] }, [1, 0.4, 0.25], 1.8);
+  MESH.crawler = buildMesh(m);
+
   /* --- pickups & ordnance --- */
   m = MB(); addBipyr(m, { s: [0.5, 1.0, 0.5] }, [0.35, 1, 0.88], 1.9, 4); MESH.gem = buildMesh(m);
   m = MB(); addBipyr(m, { s: [0.75, 1.2, 0.75] }, [1, 0.72, 0.25], 2.2, 6); MESH.coreP = buildMesh(m);
@@ -1016,8 +1158,23 @@ const BIOMES = {
     zenT: [1, 1, 1], horT: [1, 1, 1], sunT: [1, 1, 1], fogMul: 1.1, cloud: 0.08, dayLock: 0.97, city: 0,
     props: { count: 15, rock: 0.22, crystal: 0.58, spire: 0.14, big: 2.3 },
     bias: { shade: 2.2, stinger: 1.4, brood: 1.4 }, tag: 'endless night · things that blink behind you' },
+  mire: { name: 'Rotgloam Mire', pal: 'mire', hMul: 0.7, ridge: 0.4, seaOff: 0.16, det: 1.2,
+    waterCol: [0.10, 0.22, 0.05], waterEmis: 0.28,
+    zenT: [0.7, 0.85, 0.6], horT: [0.75, 0.85, 0.55], sunT: [0.85, 0.95, 0.6], fogMul: 1.5, cloud: 0.72, dayLock: null, city: 0,
+    props: { count: 15, rock: 0.20, crystal: 0.16, spire: 0.30, mush: 0.34, big: 1.1 },
+    bias: { weaver: 2.0, howler: 1.6, brood: 1.3 }, tag: 'toxic marsh · slowing webs · drowned light' },
+  canyon: { name: 'Redrift Canyon', pal: 'canyon', hMul: 1.35, ridge: 1.9, seaOff: -0.02, det: 1.0,
+    waterCol: [0.05, 0.10, 0.12], waterEmis: 0,
+    zenT: [1.1, 0.82, 0.66], horT: [1.25, 0.78, 0.55], sunT: [1.2, 0.85, 0.62], fogMul: 0.8, cloud: 0.18, dayLock: null, city: 0,
+    props: { count: 12, rock: 0.62, crystal: 0.1, spire: 0.28, big: 1.5 },
+    bias: { crawler: 1.8, lancer: 1.5, wisp: 1.3 }, tag: 'towering mesas · narrow shelves · ambush country' },
+  tempest: { name: 'Tempest Shoal', pal: 'tempest', hMul: 0.95, ridge: 1.0, seaOff: 0.14, det: 1.1,
+    waterCol: [0.03, 0.08, 0.13], waterEmis: 0,
+    zenT: [0.5, 0.55, 0.7], horT: [0.55, 0.6, 0.72], sunT: [0.7, 0.75, 0.85], fogMul: 1.35, cloud: 0.92, dayLock: 0.55, city: 0, storm: 1,
+    props: { count: 13, rock: 0.44, crystal: 0.2, spire: 0.36, big: 1.2 },
+    bias: { wisp: 1.8, stinger: 1.6, reaver: 1.3 }, tag: 'drowned coast · lightning · flyers off the sea' },
 };
-const BIOME_ORDER = ['verdant', 'desert', 'city', 'frost', 'ash', 'void'];
+const BIOME_ORDER = ['verdant', 'desert', 'city', 'frost', 'canyon', 'ash', 'mire', 'tempest', 'void'];
 let BIOME_ID = 'verdant', CUR_BIOME = BIOMES.verdant;
 function setBiome(id) { BIOME_ID = id; CUR_BIOME = BIOMES[id] || BIOMES.verdant; }
 
@@ -1028,6 +1185,9 @@ const BSTYLE = {
   ash: { rockP: [0.10, 0.09, 0.10], spire: [0.16, 0.13, 0.13], crys: [[1, 0.42, 0.08], [1, 0.42, 0.08]] },
   city: { rockP: [0.30, 0.30, 0.33], spire: [0.30, 0.30, 0.33], crys: [[0.3, 0.9, 1], [0.3, 0.9, 1]] },
   void: { rockP: [0.13, 0.09, 0.22], spire: [0.22, 0.15, 0.36], crys: [[0.68, 0.35, 1], [0.42, 0.6, 1]] },
+  mire: { rockP: [0.20, 0.24, 0.14], spire: [0.24, 0.30, 0.16], crys: [[0.55, 1.0, 0.35], [0.7, 0.9, 0.3]] },
+  canyon: { rockP: [0.52, 0.26, 0.16], spire: [0.58, 0.30, 0.18], crys: [[1, 0.7, 0.3], [1, 0.55, 0.25]] },
+  tempest: { rockP: [0.28, 0.31, 0.37], spire: [0.30, 0.34, 0.40], crys: [[0.5, 0.75, 1], [0.6, 0.9, 1]] },
 };
 
 function heightAt(x, z) {
@@ -1131,6 +1291,27 @@ const PALS = {
     if (h < 10) return mix3([0.08, 0.05, 0.13], [0.15, 0.11, 0.24], sstep(1, 4, h));
     if (h < 20) return mix3([0.15, 0.11, 0.24], [0.21, 0.16, 0.34], sstep(10, 16, h));
     return mix3([0.21, 0.16, 0.34], [0.34, 0.28, 0.52], sstep(20, 27, h));
+  },
+  mire(h, moist) {
+    if (h < 1.2) return [0.14, 0.20, 0.08];
+    const mud = mix3([0.22, 0.26, 0.12], [0.16, 0.22, 0.10], sstep(0.4, 0.7, moist));
+    if (h < 8) return mix3([0.14, 0.20, 0.08], mud, sstep(1.2, 3, h));
+    if (h < 16) return mix3(mud, [0.26, 0.28, 0.16], sstep(8, 13, h));
+    return mix3([0.26, 0.28, 0.16], [0.34, 0.36, 0.24], sstep(16, 24, h));
+  },
+  canyon(h, moist) {
+    if (h < 1) return [0.40, 0.28, 0.18];
+    const band = Math.sin(h * 0.55) * 0.5 + 0.5;
+    let c = mix3([0.66, 0.34, 0.20], [0.52, 0.24, 0.15], band);
+    if (h > 24) c = mix3(c, [0.78, 0.52, 0.34], sstep(24, 32, h));
+    return c;
+  },
+  tempest(h, moist) {
+    if (h < 1) return [0.30, 0.34, 0.38];
+    const wet = mix3([0.34, 0.37, 0.40], [0.26, 0.30, 0.34], sstep(0.4, 0.7, moist));
+    if (h < 9) return mix3([0.30, 0.34, 0.38], wet, sstep(1, 3, h));
+    if (h < 18) return mix3(wet, [0.24, 0.27, 0.32], sstep(9, 14, h));
+    return mix3([0.24, 0.27, 0.32], [0.40, 0.44, 0.50], sstep(18, 26, h));
   },
 };
 
@@ -1245,6 +1426,16 @@ function buildChunk(cx, cz) {
           p: [px + (rng() - 0.5) * 3, h + sc * 0.3, pz + (rng() - 0.5) * 3],
           s: [sc, sc * 0.7, sc * 1.2], ry: rng() * TAU, rz: (rng() - 0.5) * 0.4
         }, [0.28 + rng() * 0.1, 0.28 + rng() * 0.1, 0.31 + rng() * 0.1], 0);
+      }
+    } else if (roll < (acc += pr.mush || 0)) {
+      const nM = 2 + Math.floor(rng() * 3);
+      for (let s2 = 0; s2 < nM; s2++) {
+        const hh = 1.5 + rng() * 3.5;
+        const mx = px + (rng() - 0.5) * 4, mz = pz + (rng() - 0.5) * 4;
+        const mh = heightAt(mx, mz);
+        addCyl(mb, { p: [mx, mh + hh * 0.5, mz], s: [0.3 + rng() * 0.2, hh, 0.3 + rng() * 0.2] }, [0.36, 0.34, 0.26], 0, 5, 0.5, 0.42, false);
+        const cap = 0.9 + rng() * 1.1;
+        addBipyr(mb, { p: [mx, mh + hh, mz], s: [cap, cap * 0.7, cap] }, [0.55 + rng() * 0.3, 1.0, 0.35], 1.5, 6);
       }
     }
   }
@@ -1767,6 +1958,10 @@ function buildBatches() {
   BAT.pylon = new Batch(MESH.pylon, 60);
   BAT.reaver = new Batch(MESH.reaver, 120);
   BAT.detonator = new Batch(MESH.detonator, 140);
+  BAT.weaver = new Batch(MESH.weaver, 100);
+  BAT.howler = new Batch(MESH.howler, 60);
+  BAT.wisp = new Batch(MESH.wisp, 180);
+  BAT.crawler = new Batch(MESH.crawler, 90);
   BAT.gem = new Batch(MESH.gem, 500);
   BAT.coreP = new Batch(MESH.coreP, 60);
   BAT.heart = new Batch(MESH.heart, 40);
@@ -1780,7 +1975,7 @@ function buildBatches() {
   BAT.debris = new Batch(MESH.debris, 600);
   fxBatch = new FXBatch(800);
 }
-const SHADOW_CASTERS = ['skitter', 'husk', 'bulwark', 'spitter', 'stinger', 'boss', 'missile', 'mine', 'shade', 'brood', 'lancer', 'pylon', 'reaver', 'detonator'];
+const SHADOW_CASTERS = ['skitter', 'husk', 'bulwark', 'spitter', 'stinger', 'boss', 'missile', 'mine', 'shade', 'brood', 'lancer', 'pylon', 'reaver', 'detonator', 'weaver', 'howler', 'crawler'];
 
 /* ---------------- per-frame render state (written by game) ---------------- */
 const RS = {
@@ -2042,7 +2237,7 @@ function loadMeta() {
     if (!meta.best) meta.best = { time: 0, wave: 0, kills: 0 };
   } catch (e) { /* fresh pilot */ }
   if (!meta.hangar) meta.hangar = { owned: { vanta: 1 }, sel: 'vanta', prim: 0, glow: 0 };
-  if (!meta.campaign) meta.campaign = { unlocked: 1, done: [] };
+  if (!meta.campaign || meta.campaign.unlockedFlat === undefined) meta.campaign = { unlockedFlat: 1, doneL: {} };
 }
 function saveMeta() {
   try { localStorage.setItem('solgrave.meta.v1', JSON.stringify(meta)); } catch (e) { }
@@ -2050,38 +2245,87 @@ function saveMeta() {
 
 /* ---------------- campaign ---------------- */
 const CHAPTERS = [
-  { biome: 'verdant', seed: 311007, title: 'The Landing', waves: 5, diff: 1.0, reward: 60,
+  { biome: 'verdant', seed: 311007, title: 'The Landing',
     lore: ['The Solgrave fell for nine days before the Reach finally caught her, and the hills closed over the wreck like water.',
       'Whatever slept beneath this valley woke hungry. It sends its husks at dusk, and they do not stop coming.',
       'Hold the crash line, pilot. Absorb their light. And when the ground opens — kill what climbs out.'],
-    sub: 'Survive to Wave 5 · destroy the Vault Warden' },
-  { biome: 'desert', seed: 660214, title: 'Glass and Thirst', waves: 6, diff: 1.35, reward: 90,
+    levels: [
+      { name: 'Crash Line', waves: 4, diff: 1.0, boss: null, intro: 'Husks and skitters test the wreck.' },
+      { name: 'The Dusk Tide', waves: 5, diff: 1.1, boss: 9, intro: 'A Hollow Guardian walks with the tide.' },
+      { name: 'What Climbed Out', waves: 6, diff: 1.25, boss: 0, intro: 'The Vault Warden finally surfaces.' } ] },
+  { biome: 'desert', seed: 660214, title: 'Glass and Thirst',
     lore: ['West of the wreck the ground forgot how to hold water. The dunes ring like struck glass when the packs run.',
       'They are faster here. Leaner. The Tyrant breeds lancers in the deep sand and starves them on purpose.',
       'There is no cover worth the name. Keep moving or be buried moving.'],
-    sub: 'Survive to Wave 6 · destroy the Dune Tyrant' },
-  { biome: 'city', seed: 918800, title: 'The Sprawl Remembers', waves: 6, diff: 1.7, reward: 120,
+    levels: [
+      { name: 'Ringing Dunes', waves: 5, diff: 1.35, boss: null, intro: 'New threat — Lancers stalk and skewer.' },
+      { name: 'The Starving Pack', waves: 6, diff: 1.5, boss: 10, intro: 'The Thorn Matriarch spills her brood.' },
+      { name: 'Dune Tyrant', waves: 6, diff: 1.7, boss: 1, intro: 'The Tyrant charges the open sand.' } ] },
+  { biome: 'canyon', seed: 771453, title: 'Redrift',
+    lore: ['The canyon cuts a mile down through a hundred dead ages of stone, and every ledge hides a mouth.',
+      'Crawlers wall the shelves with their shielded backs. You will learn to take them from behind.',
+      'At the bottom something vast turns over in its sleep, and the mesas answer with dust.'],
+    levels: [
+      { name: 'Narrow Shelves', waves: 5, diff: 1.5, boss: null, intro: 'New threat — Crawlers shield their front.' },
+      { name: 'Ambush Country', waves: 6, diff: 1.7, boss: 5, intro: 'A Null Regent blinks the canyon walls.' },
+      { name: 'Mesa Colossus', waves: 7, diff: 1.9, boss: 7, intro: 'The Colossus rises from the deep rift.' } ] },
+  { biome: 'city', seed: 918800, title: 'The Sprawl Remembers',
     lore: ['Kessa was a city of four million lights. The lights are still on. Nobody is home.',
       'Something wears the grid like a crown now. Pylons nest in the towers and paint the streets with fire.',
       'Fight lane by lane. The Overseer watches every intersection you cross.'],
-    sub: 'Survive to Wave 6 · destroy the Grid Overseer' },
-  { biome: 'frost', seed: 127455, title: 'Palewake', waves: 7, diff: 2.1, reward: 160,
+    levels: [
+      { name: 'Dead Avenues', waves: 5, diff: 1.7, boss: null, intro: 'New threat — Pylons snipe the lanes.' },
+      { name: 'Crown of Wire', waves: 6, diff: 1.9, boss: 6, intro: 'The Mire Hierophant infests the grid.' },
+      { name: 'Grid Overseer', waves: 7, diff: 2.1, boss: 2, intro: 'The Overseer lights every intersection.' } ] },
+  { biome: 'mire', seed: 505221, title: 'Rotgloam',
+    lore: ['The marsh drinks light. What it gives back is green and slow and patient.',
+      'Weavers string the reeds with slowing web; howlers wake the swarm into a fury.',
+      'The Hierophant kneels in the deepest water, and the mire prays with it.'],
+    levels: [
+      { name: 'Drowned Light', waves: 5, diff: 1.85, boss: null, intro: 'New threat — Weavers cast slowing webs.' },
+      { name: 'The Chorus', waves: 6, diff: 2.05, boss: 9, intro: 'Howlers enrage a Hollow Guardian.' },
+      { name: 'Mire Hierophant', waves: 7, diff: 2.25, boss: 6, intro: 'The Hierophant spirals the swamp.' } ] },
+  { biome: 'frost', seed: 127455, title: 'Palewake',
     lore: ['North past the ash line the fog freezes standing up. Sound dies a metre from its maker.',
       'Armored things walk the ridgelines in columns, patient as glaciers. They have never once retreated.',
       'The Sovereign holds court on the frozen lake. Bring everything.'],
-    sub: 'Survive to Wave 7 · destroy the Frost Sovereign' },
-  { biome: 'ash', seed: 874321, title: 'The Cinder Court', waves: 7, diff: 2.5, reward: 210,
+    levels: [
+      { name: 'Killing Fog', waves: 6, diff: 2.1, boss: null, intro: 'Evolved — Bulwarks march in armored columns.' },
+      { name: 'The Long Column', waves: 6, diff: 2.3, boss: 10, intro: 'The Thorn Matriarch stalls the advance.' },
+      { name: 'Frost Sovereign', waves: 7, diff: 2.5, boss: 3, intro: 'The Sovereign takes the frozen lake.' } ] },
+  { biome: 'tempest', seed: 340987, title: 'Tempest Shoal',
+    lore: ['The sea never stops here. It throws its dead against the shoal and the lightning names them.',
+      'Wisps come off the water in blinking clouds; nothing on the shoal holds still.',
+      'The Herald rides the storm front, and the whole coast rings like a struck bell.'],
+    levels: [
+      { name: 'Off the Water', waves: 6, diff: 2.3, boss: null, intro: 'New threat — Wisp clouds swarm the coast.' },
+      { name: 'Lightning Names Them', waves: 7, diff: 2.5, boss: 5, intro: 'A Null Regent walks the surf.' },
+      { name: 'Storm Herald', waves: 7, diff: 2.7, boss: 8, intro: 'The Herald opens with a ring of fire.' } ] },
+  { biome: 'ash', seed: 874321, title: 'The Cinder Court',
     lore: ['The Vulkan Reach is a wound that never closed. Rivers of fire stitch the black rock together.',
       'The swarms here carry their own funerals with them — they detonate rather than die.',
       'At the heart of the Court the Cinder King waits, and the lava bends around his walk.'],
-    sub: 'Survive to Wave 7 · destroy the Cinder King' },
-  { biome: 'void', seed: 432109, title: 'Null and Crown', waves: 8, diff: 3.0, reward: 300,
+    levels: [
+      { name: 'Molten Channels', waves: 6, diff: 2.5, boss: null, intro: 'Evolved — Detonators come in walking waves.' },
+      { name: 'The Long Burn', waves: 7, diff: 2.75, boss: 6, intro: 'The Hierophant crosses the lava.' },
+      { name: 'Cinder King', waves: 7, diff: 3.0, boss: 4, intro: 'The Cinder King bends the fire.' } ] },
+  { biome: 'void', seed: 432109, title: 'Null and Crown',
     lore: ['There is a hole in the Reach where the sun never reaches. The crystals there grew watching it.',
       'Everything in the Hollow blinks — out of the dark, behind you, gone again. Trust the scanner, not your eyes.',
-      'The Null Regent is the last crown. Break it, and the Solgrave\u2019s long fall finally means something.'],
-    sub: 'Survive to Wave 8 · destroy the Null Regent' },
+      'The Null Regent was never the last crown. Something older wears the dark. Break it, and the fall means something.'],
+    levels: [
+      { name: 'The Blinking Dark', waves: 6, diff: 3.0, boss: null, intro: 'Apex horrors haunt the Hollow.' },
+      { name: 'Regent of Null', waves: 7, diff: 3.3, boss: 5, intro: 'The Null Regent bars the deep.' },
+      { name: 'The Unmaker', waves: 8, diff: 3.6, boss: 11, intro: 'The Unmaker: spiral, ring, and blink at once.' } ] },
 ];
-const ROM = ['I', 'II', 'III', 'IV', 'V', 'VI'];
+const ROM = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX'];
+const CAMPAIGN_FLAT = [];
+CHAPTERS.forEach((ch, ci) => ch.levels.forEach((lv, li) => CAMPAIGN_FLAT.push({ ch: ci, lv: li })));
+function flatIndex(ch, lv) { let n = 0; for (let i = 0; i < ch; i++) n += CHAPTERS[i].levels.length; return n + lv; }
+function levelUnlocked(ch, lv) { return flatIndex(ch, lv) < meta.campaign.unlockedFlat; }
+function levelDone(ch, lv) { return !!meta.campaign.doneL[ch + '-' + lv]; }
+function chapterUnlocked(ch) { return levelUnlocked(ch, 0); }
+function chapterFullyDone(ch) { return CHAPTERS[ch].levels.every((_, li) => levelDone(ch, li)); }
 const TURRET_MODS = [
   { id: 'bore', name: 'Heavy Bore', icon: '⨀', max: 3, cost: t => 2 + t, desc: '+4 bolt damage per tier' },
   { id: 'cycler', name: 'Rapid Cycler', icon: '⟳', max: 3, cost: t => 2 + t, desc: '+15% turret fire rate per tier' },
@@ -2091,24 +2335,52 @@ const TURRET_MODS = [
 ];
 let lastMode = { type: 'endless', biome: 'verdant' };
 let victoryTimer = 0;
+let enemyTimeScale = 1;
+const OVERDRIVES = {
+  nova: { name: "WARDEN'S LIGHT", dur: 6.5, dmg: 1.7, rate: 1.8, tint: [1, 0.72, 0.3], nova: 1, invuln: 0,
+    desc: 'Repeating shockwaves and a storm of fire.' },
+  redline: { name: 'REDLINE', dur: 6.5, dmg: 1.5, rate: 2.8, spd: 1.4, tint: [1, 0.5, 0.4], crit: 0.4, invuln: 0,
+    desc: 'Fire rate and speed screaming past the limit.' },
+  aegis: { name: 'AEGIS BASTION', dur: 6.5, dmg: 1.35, rate: 1.4, tint: [0.5, 0.8, 1], invuln: 1, reflect: 60,
+    desc: 'Untouchable — everything that hits you burns.' },
+  annihilator: { name: 'ANNIHILATOR', dur: 6, dmg: 1.1, rate: 1, spd: 1.55, tint: [1, 0.55, 0.2], invuln: 1, ram: 140,
+    desc: 'Become the weapon. Ram straight through everything.' },
+  nulltime: { name: 'NULLTIME', dur: 7, dmg: 1.45, rate: 1.7, tint: [0.7, 0.5, 1], slow: 0.3, invuln: 0,
+    desc: 'The world crawls. You do not.' },
+  singular: { name: 'SINGULARITY', dur: 6.5, dmg: 1.5, rate: 1.5, tint: [0.6, 0.4, 1], sing: 1, invuln: 0,
+    desc: 'A collapsing star drags the horde into the dark.' },
+  tempest: { name: 'TEMPEST', dur: 6.5, dmg: 1.4, rate: 1.6, tint: [0.6, 0.9, 1], storm: 1, invuln: 0,
+    desc: 'Chain lightning scours the field without pause.' },
+  bulwark: { name: 'IRONHEART', dur: 7, dmg: 1.3, rate: 1.4, tint: [0.9, 0.8, 0.5], invuln: 1, heal: 1, nova: 1,
+    desc: 'Immune, self-repairing, radiating force.' },
+};
 
 /* ---------------- ships ---------------- */
 const SHIPS = [
-  { id: 'vanta', name: 'Vanta Glaive', cost: 0,
+  { id: 'vanta', name: 'Vanta Glaive', cost: 0, over: 'nova',
     blurb: 'Standard-issue survivor of the Solgrave expedition. Balanced in every regard.',
     st: { hp: 1, spd: 1, dmg: 1, armor: 0, boost: 1 } },
-  { id: 'harrier', name: 'Nyx Harrier', cost: 120,
+  { id: 'harrier', name: 'Nyx Harrier', cost: 120, over: 'redline',
     blurb: 'A smuggler\u2019s skiff rebuilt for war. Paper hull, knife speed, cruel guns.',
     st: { hp: 0.75, spd: 1.2, dmg: 1.15, armor: 0, boost: 0.85, crit: 0.08 } },
-  { id: 'bastion', name: 'Aurex Bastion', cost: 260,
+  { id: 'bastion', name: 'Aurex Bastion', cost: 260, over: 'aegis',
     blurb: 'A mobile bulwark. Slow, vast, and very hard to open.',
     st: { hp: 1.5, spd: 0.84, dmg: 0.95, armor: 0.12, boost: 1.15 } },
-  { id: 'ram', name: 'Ember Ram', cost: 420,
+  { id: 'ram', name: 'Ember Ram', cost: 420, over: 'annihilator',
     blurb: 'Its prow has ended more husks than its guns. Boost through everything.',
     st: { hp: 1.2, spd: 1.02, dmg: 1.0, armor: 0.05, boost: 0.72, ram: 26 } },
-  { id: 'spectre', name: 'Veil Spectre', cost: 650,
+  { id: 'spectre', name: 'Veil Spectre', cost: 650, over: 'nulltime',
     blurb: 'A twin-hulled ghost. The boost drive barely rests, and salvage bends toward it.',
     st: { hp: 0.85, spd: 1.12, dmg: 1.08, armor: 0, boost: 0.55, magnet: 1.3 } },
+  { id: 'titan', name: 'Titan Maul', cost: 900, over: 'bulwark',
+    blurb: 'A siege-hull the size of a house. Nothing moves it that it does not allow.',
+    st: { hp: 1.8, spd: 0.78, dmg: 1.0, armor: 0.18, boost: 1.2, ram: 22 } },
+  { id: 'wraith', name: 'Veil Wraith', cost: 1150, over: 'singular',
+    blurb: 'A blade of folded dark. It is somewhere else before the shot lands.',
+    st: { hp: 0.68, spd: 1.28, dmg: 1.28, armor: 0, boost: 0.5, crit: 0.14, magnet: 1.2 } },
+  { id: 'prism', name: 'Prism Ark', cost: 1450, over: 'tempest',
+    blurb: 'Grown, not built, from a single storm-crystal. It hums when the lightning comes.',
+    st: { hp: 1.05, spd: 1.06, dmg: 1.18, armor: 0.05, boost: 0.78 } },
 ];
 const PRIM_COLS = [
   ['Gunmetal', [0.15, 0.16, 0.20]], ['Oxblood', [0.34, 0.10, 0.11]], ['Moss', [0.10, 0.19, 0.13]],
@@ -2175,6 +2447,49 @@ function buildShipMesh(id) {
     addBox(m, { p: [0, 0.12, 0.2], s: [1.9, 0.22, 1.0] }, p2, 0);
     addBox(m, { p: [0, 0.38, 0.2], s: [0.6, 0.3, 0.8] }, G, 1.1);
     addBox(m, { p: [0, 0.05, -0.6], s: [1.6, 0.12, 0.4] }, G, 1.4);
+  } else if (id === 'titan') {
+    // siege hull — broad, layered, heavy
+    addBox(m, { p: [0, 0, 0], s: [3.0, 0.9, 3.8] }, p1, 0);
+    addBox(m, { p: [0, 0.55, -0.2], s: [2.2, 0.6, 2.6] }, p2, 0);
+    addBox(m, { p: [0, 0.35, 2.2], s: [2.4, 0.7, 1.2], rx: 0.2 }, p1, 0);
+    addBox(m, { p: [0, 0.4, 2.85], s: [1.6, 0.4, 0.3] }, G, 1.6);
+    // shoulder cannons
+    for (const sx of [-1.5, 1.5]) {
+      addBox(m, { p: [sx, 0.5, 0.2], s: [0.9, 0.9, 2.2] }, p2, 0);
+      addCyl(m, { p: [sx, 0.5, 1.7], rx: PI / 2, s: [0.4, 1.3, 0.4] }, [0.1, 0.1, 0.12], 0, 6, 0.5, 0.5, false);
+      addBox(m, { p: [sx, 0.5, 2.4], s: [0.3, 0.3, 0.2] }, G, 2.4);
+      addBox(m, { p: [sx * 1.15, -0.2, -1.0], s: [0.7, 0.9, 2.4] }, p1, 0);
+      addBox(m, { p: [sx * 1.15, -0.2, -2.3], s: [0.55, 0.6, 0.18] }, G, 2.6);
+    }
+    // spine
+    addBox(m, { p: [0, 1.0, -0.6], s: [0.4, 0.7, 2.4] }, p2, 0);
+    addBox(m, { p: [0, 1.5, -0.6], s: [0.16, 0.3, 1.6] }, G, 1.6);
+    addBox(m, { p: [0, 0.15, -2.2], s: [1.4, 0.6, 0.2] }, G, 2.2);
+  } else if (id === 'wraith') {
+    // folded-dark interceptor — swept forward blades
+    addBox(m, { p: [0, 0, 0.3], s: [0.7, 0.4, 4.6] }, p1, 0);
+    addBipyr(m, { p: [0, 0, 3.0], s: [0.7, 0.5, 2.0], rx: PI / 2 }, p1, 0, 4);
+    addBox(m, { p: [0, 0.28, 1.0], s: [0.42, 0.24, 1.4] }, G, 1.2);
+    for (const sx of [-1, 1]) {
+      addBox(m, { p: [sx * 1.5, 0, 0.6], s: [2.4, 0.09, 1.5], ry: sx * 0.6 }, p2, 0);
+      addBox(m, { p: [sx * 2.5, 0.02, 1.5], s: [1.4, 0.12, 0.5], ry: sx * 0.6 }, G, 1.4);
+      addBox(m, { p: [sx * 0.9, 0.1, -1.6], s: [0.3, 0.5, 1.8] }, p1, 0);
+      addBox(m, { p: [sx * 0.9, 0.1, -2.6], s: [0.22, 0.34, 0.16] }, G, 2.8);
+      addBox(m, { p: [sx * 1.6, 0.5, -0.8], s: [0.06, 0.9, 1.1], rz: -sx * 0.4 }, p2, 0);
+    }
+    addBox(m, { p: [0, 0.5, -1.2], s: [0.08, 0.8, 1.3] }, G, 1.5);
+  } else if (id === 'prism') {
+    // crystal ark — faceted core with radiating shards
+    addBipyr(m, { p: [0, 0.1, 0], s: [2.0, 1.4, 3.2] }, p1, 0, 6);
+    addBipyr(m, { p: [0, 0.2, 0.3], s: [1.0, 1.9, 1.6] }, G, 1.3, 6);
+    addBipyr(m, { p: [0, 0.1, 2.3], s: [0.5, 0.5, 1.6], rx: PI / 2 }, G, 2.0, 4);
+    for (const sx of [-1, 1]) {
+      addBipyr(m, { p: [sx * 1.5, 0.1, -0.3], s: [0.5, 2.4, 0.5], rz: sx * 0.5 }, p2, 0.4, 4);
+      addBipyr(m, { p: [sx * 1.9, 0.0, -1.3], s: [0.4, 1.6, 0.4], rz: sx * 0.8 }, G, 1.2, 4);
+      addBox(m, { p: [sx * 0.8, -0.1, -1.8], s: [0.4, 0.4, 0.16] }, G, 2.6);
+    }
+    addBipyr(m, { p: [0, 1.2, -0.4], s: [0.5, 1.4, 0.5] }, G, 1.4, 4);
+    addBipyr(m, { p: [0, 0.0, -1.9], s: [0.7, 0.7, 0.9], rx: PI / 2 }, G, 2.2, 4);
   } else { // vanta
     addBox(m, { p: [0, 0, 0.1], s: [1.5, 0.52, 3.2] }, p1, 0);
     addCyl(m, { p: [0, 0, 2.4], rx: PI / 2, s: [1.3, 1.7, 0.52] }, p1, 0, 4, 0.5, 0, false);
@@ -2205,8 +2520,11 @@ function newPlayer() {
   const t = meta.tiers;
   const sd = (SHIPS.find(sh => sh.id === meta.hangar.sel) || SHIPS[0]).st;
   const maxhp = Math.round((100 + 15 * (t.vital || 0)) * sd.hp);
+  const shipDef = SHIPS.find(sh => sh.id === meta.hangar.sel) || SHIPS[0];
   return {
     shipRam: sd.ram || 0,
+    over: 0, overActive: 0, overType: shipDef.over || 'nova', overNovaCd: 0, overDmgMul: 1, overRate: 1, overSpd: 1,
+    hardcore: RUN.hardcore || false, fuel: 100, fuelMax: 100, energy: 100, energyMax: 100,
     x: 0, z: 0, y: groundY(0, 0) + 2.3, vx: 0, vz: 0, yaw: 0, roll: 0, bob: 0,
     hp: maxhp, maxhp, regen: 0.25, iv: 0, flash: 0,
     turret: { bore: 0, cycler: 0, twin: 0, barrel: 0, stab: 0 },
@@ -2216,7 +2534,7 @@ function newPlayer() {
     armor: Math.min(0.6, 0.04 * (t.armor || 0) + (sd.armor || 0)), critC: 0.05 + (sd.crit || 0), magnet: 11 * (sd.magnet || 1),
     boostCd: 0, boostCdMax: 2.6 * (1 - 0.09 * (t.react || 0)) * sd.boost,
     lvl: 1, xp: 0, xpNeed: 11,
-    weapons: { pulse: 1 }, statLv: {}, wt: {}, shield: 0, shieldRe: 0, shieldT: 0, leech: 0,
+    weapons: { pulse: 1 }, statLv: {}, wt: {}, shield: 0, shieldRe: 0, shieldT: 0, leech: 0, webT: 0,
     aimX: 0, aimZ: 20, turretYaw: 0
   };
 }
@@ -2323,6 +2641,10 @@ const ETYPE = {
   brood: { hp: 230, sp: 4.5, dmg: 18, r: 2.6, xp: 12, sc: 2.6, cost: 9, min: 7, w: 0.6, brood: 1 },
   pylon: { hp: 95, sp: 0, dmg: 22, r: 1.8, xp: 8, sc: 2.1, cost: 6, min: 8, w: 0.7, pylon: 1 },
   reaver: { hp: 42, sp: 14, dmg: 12, r: 1.2, xp: 5, sc: 1.4, cost: 5, min: 9, w: 0.9, reav: 1 },
+  weaver: { hp: 40, sp: 7, dmg: 9, r: 1.3, xp: 4, sc: 1.4, cost: 4, min: 5, w: 1.0, weave: 1 },
+  wisp: { hp: 12, sp: 20, dmg: 8, r: 0.9, xp: 2, sc: 0.95, cost: 2, min: 4, w: 1.4, fly: 1, wisp: 1 },
+  howler: { hp: 120, sp: 6, dmg: 14, r: 2.0, xp: 9, sc: 2.1, cost: 7, min: 7, w: 0.5, howl: 1 },
+  crawler: { hp: 150, sp: 6.5, dmg: 22, r: 2.0, xp: 8, sc: 2.0, cost: 7, min: 6, w: 0.7, crawl: 1 },
 };
 const BOSS_DEFS = [
   { name: 'VAULT WARDEN', tint: [1, 1, 1], burst: 18, chargeV: 46, minion: 'skitter' },
@@ -2331,22 +2653,32 @@ const BOSS_DEFS = [
   { name: 'FROST SOVEREIGN', tint: [0.7, 0.95, 1.45], burst: 22, chargeV: 38, minion: 'bulwark' },
   { name: 'CINDER KING', tint: [1.35, 0.6, 0.4], burst: 20, chargeV: 52, minion: 'detonator' },
   { name: 'NULL REGENT', tint: [0.95, 0.5, 1.35], burst: 24, chargeV: 44, minion: 'shade', tele: 1 },
+  { name: 'MIRE HIEROPHANT', tint: [0.7, 1.1, 0.5], burst: 16, chargeV: 34, minion: 'weaver', spiral: 1 },
+  { name: 'MESA COLOSSUS', tint: [1.3, 0.75, 0.5], burst: 12, chargeV: 70, minion: 'crawler' },
+  { name: 'STORM HERALD', tint: [0.6, 0.8, 1.3], burst: 28, chargeV: 46, minion: 'wisp', ring: 1 },
+  { name: 'HOLLOW GUARDIAN', tint: [1.1, 0.9, 0.6], burst: 14, chargeV: 42, minion: 'husk' },
+  { name: 'THORN MATRIARCH', tint: [1.0, 0.6, 0.7], burst: 18, chargeV: 40, minion: 'brood', spiral: 1 },
+  { name: 'THE UNMAKER', tint: [1.2, 0.4, 1.2], burst: 30, chargeV: 54, minion: 'shade', tele: 1, spiral: 1, ring: 1 },
 ];
 
-function spawnEnemy(type, elite, x, z) {
+function spawnEnemy(type, elite, x, z, apex) {
   const t = ETYPE[type];
   const ew = wave + RUN.waveBoost;
-  const hpMul = (1 + (ew - 1) * 0.16) * (elite ? 3.2 : 1) * RUN.diff;
+  // deep-run evolution: everything toughens as the campaign wears on
+  const evo = 1 + Math.min(0.6, (RUN.waveBoost || 0) * 0.02);
+  const tierMul = apex ? 6.5 : elite ? 3.2 : 1;
+  const hpMul = (1 + (ew - 1) * 0.16) * tierMul * RUN.diff * evo;
   const e = {
     type, x, z, y: groundY(x, z) + 0.9, vx: 0, vz: 0, yaw: 0,
     hp: t.hp * hpMul, maxhp: t.hp * hpMul,
-    dmg: t.dmg * (1 + (ew - 1) * 0.035) * (elite ? 1.5 : 1) * (0.75 + RUN.diff * 0.25),
+    dmg: t.dmg * (1 + (ew - 1) * 0.035) * (apex ? 2 : elite ? 1.5 : 1) * (0.75 + RUN.diff * 0.25) * evo,
     /* readability + early mercy handled below */
-    sp: t.sp * (0.88 + Math.random() * 0.24) * (ew < 3 ? 0.86 : 1), rad: t.r * (elite ? 1.4 : 1) * 1.12,
-    sc: t.sc * (elite ? 1.4 : 1) * 1.18, xp: t.xp * (elite ? 6 : 1),
-    elite, boss: false, flash: 0, hitCd: Math.random() * 0.5, shootCd: rand(1, 3),
+    sp: t.sp * (0.88 + Math.random() * 0.24) * (ew < 3 ? 0.86 : 1) * (apex ? 1.12 : 1), rad: t.r * (apex ? 1.7 : elite ? 1.4 : 1) * 1.12,
+    sc: t.sc * (apex ? 1.7 : elite ? 1.4 : 1) * 1.18, xp: t.xp * (apex ? 14 : elite ? 6 : 1),
+    elite, apex, boss: false, flash: 0, hitCd: Math.random() * 0.5, shootCd: rand(1, 3),
     stun: 0, bladeCd: 0, seed: Math.random() * TAU, fly: t.fly, ranged: t.ranged,
     tele: t.tele, deton: t.deton, lance: t.lance, brood: t.brood, pylon: t.pylon, reav: t.reav,
+    weave: t.weave, wisp: t.wisp, howl: t.howl, crawl: t.crawl, buffT: 0,
     teleCd: rand(1.5, 3), lState: 0, lT: 0, pT: rand(1, 2.5), tx: 0, tz: 0, spawnCd: 6, orbDir: Math.random() < 0.5 ? 1 : -1
   };
   enemies.push(e);
@@ -2387,10 +2719,12 @@ function trySpawns(dt) {
     let wsum = 0; for (const k of avail) wsum += ETYPE[k].w * (bias[k] || 1);
     let r = Math.random() * wsum, pick = avail[0];
     for (const k of avail) { r -= ETYPE[k].w * (bias[k] || 1); if (r <= 0) { pick = k; break; } }
-    const elite = wave >= 3 && Math.random() < 0.045;
+    const deep = (wave + RUN.waveBoost);
+    const apex = deep >= 9 && Math.random() < 0.03 + Math.min(0.05, deep * 0.002) && spawnBudget >= ETYPE[pick].cost * 6;
+    const elite = !apex && wave >= 3 && Math.random() < 0.045;
     const a = Math.random() * TAU, d = rand(56, 78);
-    spawnEnemy(pick, elite, P.x + Math.cos(a) * d, P.z + Math.sin(a) * d);
-    spawnBudget -= ETYPE[pick].cost * (elite ? 4 : 1);
+    spawnEnemy(pick, elite, P.x + Math.cos(a) * d, P.z + Math.sin(a) * d, apex);
+    spawnBudget -= ETYPE[pick].cost * (apex ? 7 : elite ? 4 : 1);
   }
 }
 
@@ -2468,7 +2802,14 @@ function tickDamage(e, dmg) {
 }
 function hitEnemy(e, dmg, opts) {
   opts = opts || {};
-  let d = dmg * P.dmgMul * (1 + (P.statLv.adrenal || 0) * 0.12 * clamp(1 - P.hp / P.maxhp, 0, 1) * 1.6)
+  if (e.crawl) {
+    // damage from the front is reduced; flank it for full damage
+    const fx = Math.sin(e.yaw), fz = Math.cos(e.yaw);
+    const tx = P.x - e.x, tz = P.z - e.z;
+    const tl = Math.hypot(tx, tz) || 1;
+    if ((fx * tx + fz * tz) / tl > 0.4) dmg *= 0.35;
+  }
+  let d = dmg * P.dmgMul * (P.overDmgMul || 1) * (1 + (P.statLv.adrenal || 0) * 0.12 * clamp(1 - P.hp / P.maxhp, 0, 1) * 1.6)
     * (1 + (P.statLv.momentum || 0) * 0.03 * (Math.hypot(P.vx, P.vz) > P.speed * 0.6 ? 1 : 0));
   const crit = Math.random() < P.critC;
   if (crit) d *= 2.2;
@@ -2485,6 +2826,7 @@ function killEnemy(e) {
   e.dead = true;
   kills++;
   if (P.leech) P.hp = Math.min(P.maxhp, P.hp + P.leech);
+  if (P.overActive <= 0) P.over = Math.min(1, P.over + (e.boss ? 0.5 : e.apex ? 0.14 : e.elite ? 0.07 : 0.02));
   const col = e.boss ? [1, 0.3, 0.2] : e.elite ? [1, 0.75, 0.2] : e.deton ? [1, 0.42, 0.08] : [1, 0.5, 0.2];
   boom(e.x, e.y, e.z, e.boss ? 7 : e.deton ? 3.6 : e.sc * 1.15, col);
   if (e.deton) {
@@ -2532,6 +2874,18 @@ function killEnemy(e) {
     }
   }
 }
+function fireOverdrive() {
+  if (!P || state !== ST.PLAY || P.over < 1 || P.overActive > 0) return;
+  const O = OVERDRIVES[P.overType];
+  P.over = 0;
+  P.overActive = O.dur;
+  P.iv = Math.max(P.iv, 0.4);
+  addShake(0.7);
+  for (let i = 0; i < 3; i++)
+    spawnFX(P.x, P.y + 1, P.z, { s0: 3 + i * 2, s1: 22 + i * 6, life: 0.5 + i * 0.1, tex: 1, r: O.tint[0], g: O.tint[1], b: O.tint[2], a0: 1.5 });
+  showBanner(O.name, 'OVERDRIVE ENGAGED', false);
+  sfxOver();
+}
 function hurtPlayer(d, kx, kz) {
   if (P.iv > 0 || state !== ST.PLAY) return;
   if (P.shield > 0) {
@@ -2568,7 +2922,8 @@ function nearestEnemy(x, z, maxD, excl) {
   return best;
 }
 function updateWeapons(dt) {
-  const wts = P.wt, rm = P.rateMul;
+  const eGate = (P.hardcore && P.energy <= 0 && P.overActive <= 0) ? 0.38 : 1;
+  const wts = P.wt, rm = P.rateMul * (P.overRate || 1) * eGate;
   const aimDx = P.aimX - P.x, aimDz = P.aimZ - P.z;
   const aimL = Math.hypot(aimDx, aimDz) || 1;
   const adx = aimDx / aimL, adz = aimDz / aimL;
@@ -2782,7 +3137,11 @@ function updateGame(dt) {
     sfxWave();
   }
   if (RUN.type === 'campaign') {
-    if (wave >= RUN.finalWave && !bossAnnounced && !bossRef) { bossAnnounced = true; spawnBoss(RUN.bossIdx); }
+    if (RUN.hasBoss) {
+      if (wave >= RUN.finalWave && !bossAnnounced && !bossRef) { bossAnnounced = true; spawnBoss(RUN.bossIdx); }
+    } else if (wave >= RUN.finalWave && !bossAnnounced) {
+      bossAnnounced = true; victoryTimer = 2.2; showBanner('SECTOR HELD', 'EXTRACTION IMMINENT', false);
+    }
   } else if (wave % 5 === 0 && !bossAnnounced && gameTime % 40 > 2 && !bossRef) {
     bossAnnounced = true;
     spawnBoss();
@@ -2807,7 +3166,35 @@ function updateGame(dt) {
   /* ---- player ---- */
   P.iv -= dt; P.flash = Math.max(0, P.flash - dt * 3);
   P.boostCd -= dt;
+  if (P.webT > 0) P.webT -= dt;
   P.hp = Math.min(P.maxhp, P.hp + P.regen * dt);
+  // ---- overdrive ----
+  P.overDmgMul = 1; P.overRate = 1; P.overSpd = 1; enemyTimeScale = 1;
+  if (P.hardcore) {
+    const engaged = mouse.down || !!nearestEnemy(P.x, P.z, 46);
+    P.energy = clamp(P.energy + (engaged && P.overActive <= 0 ? -17 : 16) * dt, 0, P.energyMax);
+    P.fuel = clamp(P.fuel + 2.6 * dt, 0, P.fuelMax);
+  }
+  if (P.overActive > 0) {
+    const O = OVERDRIVES[P.overType];
+    P.overActive -= dt;
+    P.overDmgMul = O.dmg; P.overRate = O.rate; P.overSpd = O.spd || 1;
+    if (O.slow) enemyTimeScale = O.slow;
+    if (O.invuln) P.iv = Math.max(P.iv, 0.12);
+    if (O.heal) P.hp = Math.min(P.maxhp, P.hp + P.maxhp * 0.04 * dt);
+    if (O.nova) { P.overNovaCd -= dt; if (P.overNovaCd <= 0) { P.overNovaCd = 0.5; novas.push({ x: P.x, z: P.z, r: 2, maxR: 17, dmg: 34, t: 0 }); } }
+    if (O.storm) { P.overNovaCd -= dt; if (P.overNovaCd <= 0) { P.overNovaCd = 0.16; const tg = nearestEnemy(P.x + rand(-20, 20), P.z + rand(-20, 20), 40); if (tg) { addBeam(P.x, P.y + 1, P.z, tg.x, tg.y + 1, tg.z, 0.16, O.tint, 0.12); hitEnemy(tg, 22, { stun: 0.2 }); } } }
+    if (O.sing) {
+      queryGrid(P.x, P.z, 26, qtmp);
+      for (const qi of qtmp) { const e2 = enemies[qi]; if (e2 && !e2.dead && !e2.boss) { const dd = dist2d(P.x, P.z, e2.x, e2.z); if (dd > 1) { e2.vx += (P.x - e2.x) / dd * 34 * dt; e2.vz += (P.z - e2.z) / dd * 34 * dt; if (dd < 6) tickDamage(e2, 40 * dt); } } }
+    }
+    if (O.ram) {
+      queryGrid(P.x, P.z, 5, qtmp);
+      for (const qi of qtmp) { const e2 = enemies[qi]; if (e2 && !e2.dead && e2.bladeCd <= 0 && dist2d(P.x, P.z, e2.x, e2.z) < 3.2 + e2.rad) { e2.bladeCd = 0.2; hitEnemy(e2, O.ram, { kx: (e2.x - P.x) * 4, kz: (e2.z - P.z) * 4 }); } }
+    }
+    if (Math.random() < 0.7) spawnFX(P.x + rand(-1.5, 1.5), P.y + rand(0, 1.5), P.z + rand(-1.5, 1.5), { s0: 1.4, s1: 0.3, life: 0.3, r: O.tint[0], g: O.tint[1], b: O.tint[2], a0: 1 });
+    if (P.overActive <= 0) { P.overActive = 0; sfxUI(); }
+  }
   if (P.statLv.shield && P.shield < 1) {
     P.shieldT -= dt;
     if (P.shieldT <= 0) { P.shield = 1; spawnFX(P.x, P.y + 1, P.z, { s0: 1, s1: 4, life: 0.3, tex: 1, r: 0.4, g: 0.9, b: 1, a0: 0.8 }); }
@@ -2838,7 +3225,8 @@ function updateGame(dt) {
     P.vx += mvx * 92 * dt;
     P.vz += mvz * 92 * dt;
   }
-  if ((keys.shift || keys[' ']) && P.boostCd <= 0 && (mvx || mvz || P.vx || P.vz)) {
+  if ((keys.shift || keys[' ']) && P.boostCd <= 0 && (mvx || mvz || P.vx || P.vz) && !(P.hardcore && P.fuel < 28 && P.overActive <= 0)) {
+    if (P.hardcore) P.fuel = Math.max(0, P.fuel - 28);
     let bx = mvx, bz = mvz;
     if (!bx && !bz) { const vl = Math.hypot(P.vx, P.vz) || 1; bx = P.vx / vl; bz = P.vz / vl; }
     P.vx += bx * 46; P.vz += bz * 46;
@@ -2848,7 +3236,8 @@ function updateGame(dt) {
       spawnFX(P.x - bx * i * 1.5, P.y, P.z - bz * i * 1.5, { s0: 2.4 - i * 0.3, s1: 0.4, life: 0.3, r: 0.4, g: 0.9, b: 1, a0: 0.9 });
     sfxBoost();
   }
-  const sp = Math.hypot(P.vx, P.vz), cap = P.speed * (P.boostCd > P.boostCdMax - 0.45 ? 2.4 : 1);
+  const webSlow = P.webT > 0 ? 0.5 : 1;
+  const sp = Math.hypot(P.vx, P.vz), cap = P.speed * webSlow * (P.overSpd || 1) * (P.boostCd > P.boostCdMax - 0.45 ? 2.4 : 1);
   if (sp > cap) { P.vx *= cap / sp; P.vz *= cap / sp; }
   P.vx -= P.vx * Math.min(1, 3.4 * dt);
   P.vz -= P.vz * Math.min(1, 3.4 * dt);
@@ -2873,6 +3262,7 @@ function updateGame(dt) {
     if (e.dead) continue;
     e.flash = Math.max(0, e.flash - dt * 4);
     e.hitCd -= dt; e.bladeCd -= dt;
+    if (e.rage > 0) { e.rage -= dt; }
     if (e.stun > 0) { e.stun -= dt; e.vx *= 0.9; e.vz *= 0.9; }
     else {
       const dx = P.x - e.x, dz = P.z - e.z;
@@ -2900,6 +3290,30 @@ function updateGame(dt) {
               bulletsE.push({ x: e.x, y: e.y + 1.5, z: e.z, vx: Math.sin(a) * 21, vz: Math.cos(a) * 21, dmg: 14, life: 4, t: 0 });
             }
             sfxSpit();
+          }
+          if (e.bdef.spiral) {
+            e.spiralCd = (e.spiralCd || 0) - dt;
+            if (e.spiralCd <= 0) {
+              e.spiralCd = 0.09;
+              e.spiralA = (e.spiralA || 0) + 0.42;
+              for (let arm = 0; arm < 3; arm++) {
+                const a = e.spiralA + arm / 3 * TAU;
+                bulletsE.push({ x: e.x, y: e.y + 1.5, z: e.z, vx: Math.sin(a) * 17, vz: Math.cos(a) * 17, dmg: 12, life: 3.5, t: 0 });
+              }
+            }
+          }
+          if (e.bdef.ring) {
+            e.ringCd = (e.ringCd || 4) - dt;
+            if (e.ringCd <= 0) {
+              e.ringCd = 4.5;
+              const n2 = 30;
+              for (let i = 0; i < n2; i++) {
+                const a = i / n2 * TAU;
+                bulletsE.push({ x: e.x, y: e.y + 1.5, z: e.z, vx: Math.sin(a) * 14, vz: Math.cos(a) * 14, dmg: 16, life: 5, t: 0, ring: 1 });
+              }
+              spawnFX(e.x, e.y + 1.5, e.z, { s0: 3, s1: 14, life: 0.4, tex: 1, r: e.bdef.tint[0], g: e.bdef.tint[1] * 0.6, b: e.bdef.tint[2], a0: 1.2 });
+              sfxNova();
+            }
           }
           if (e.minionCd <= 0 && e.hp < e.maxhp * 0.55) {
             e.minionCd = 11;
@@ -3000,6 +3414,45 @@ function updateGame(dt) {
           for (let i = 0; i < 2; i++) spawnEnemy('skitter', false, e.x + rand(-3, 3), e.z + rand(-3, 3));
           spawnFX(e.x, e.y + 1, e.z, { s0: 3, s1: 1, life: 0.3, r: 1, g: 0.5, b: 0.3, a0: 1 });
         }
+      } else if (e.weave) {
+        // keeps distance, fires slowing web globs
+        if (d > 24) { e.vx = lerp(e.vx, dirx * e.sp, dt * 3); e.vz = lerp(e.vz, dirz * e.sp, dt * 3); }
+        else { e.vx = lerp(e.vx, -dirz * e.sp * 0.5, dt * 2); e.vz = lerp(e.vz, dirx * e.sp * 0.5, dt * 2); }
+        e.shootCd -= dt;
+        if (e.shootCd <= 0 && d < 42) {
+          e.shootCd = rand(2.6, 3.8);
+          bulletsE.push({ x: e.x, y: e.y + 1, z: e.z, vx: dirx * 20, vz: dirz * 20, dmg: e.dmg, life: 2.8, t: 0, web: 1 });
+          spawnFX(e.x + dirx * 1.5, e.y + 1, e.z + dirz * 1.5, { s0: 1.6, s1: 0.4, life: 0.12, r: 0.5, g: 1, b: 0.35, a0: 1.1 });
+          sfxSpit();
+        }
+      } else if (e.howl) {
+        // slow bruiser that periodically enrages nearby swarm
+        e.vx = lerp(e.vx, dirx * e.sp, dt * 2);
+        e.vz = lerp(e.vz, dirz * e.sp, dt * 2);
+        e.pT -= dt;
+        e.buffT = Math.max(0, e.buffT - dt);
+        if (e.pT <= 0) {
+          e.pT = 5;
+          e.buffT = 1.2;
+          spawnFX(e.x, e.y + 1.5, e.z, { s0: 4, s1: 26, life: 0.6, tex: 1, r: 1, g: 0.45, b: 0.8, a0: 1.2 });
+          sfxBossRoar();
+          queryGrid(e.x, e.z, 22, qtmp);
+          for (const qi of qtmp) {
+            const o = enemies[qi];
+            if (o && o !== e && !o.dead && !o.boss && dist2d(e.x, e.z, o.x, o.z) < 20) o.rage = 3;
+          }
+        }
+      } else if (e.wisp) {
+        // erratic swarming flyer
+        const wob = Math.sin(gameTime * 6 + e.seed) * 0.9 + Math.sin(gameTime * 3.3 + e.seed * 2) * 0.5;
+        const wx = dirx * Math.cos(wob) - dirz * Math.sin(wob);
+        const wz = dirx * Math.sin(wob) + dirz * Math.cos(wob);
+        e.vx = lerp(e.vx, wx * e.sp, dt * 4);
+        e.vz = lerp(e.vz, wz * e.sp, dt * 4);
+      } else if (e.crawl) {
+        // slow, front-shielded; must be flanked
+        e.vx = lerp(e.vx, dirx * e.sp, dt * 2);
+        e.vz = lerp(e.vz, dirz * e.sp, dt * 2);
       } else if (e.ranged) {
         if (d > 26) { e.vx = lerp(e.vx, dirx * e.sp, dt * 3); e.vz = lerp(e.vz, dirz * e.sp, dt * 3); }
         else {
@@ -3015,10 +3468,11 @@ function updateGame(dt) {
         }
       } else {
         const wob = e.type === 'skitter' ? Math.sin(gameTime * 5 + e.seed) * 0.5 : 0;
+        const rageM = e.rage > 0 ? 1.5 : 1;
         const wx = dirx * Math.cos(wob) - dirz * Math.sin(wob);
         const wz = dirx * Math.sin(wob) + dirz * Math.cos(wob);
-        e.vx = lerp(e.vx, wx * e.sp, dt * 3);
-        e.vz = lerp(e.vz, wz * e.sp, dt * 3);
+        e.vx = lerp(e.vx, wx * e.sp * rageM, dt * 3);
+        e.vz = lerp(e.vz, wz * e.sp * rageM, dt * 3);
       }
       // separation
       queryGrid(e.x, e.z, 3, qtmp);
@@ -3034,7 +3488,7 @@ function updateGame(dt) {
         }
       }
     }
-    e.x += e.vx * dt; e.z += e.vz * dt;
+    e.x += e.vx * dt * enemyTimeScale; e.z += e.vz * dt * enemyTimeScale;
     if (!e.fly) {
       const ecc = collideCity(e.x, e.z, e.rad);
       if (ecc) { e.x = ecc[0]; e.z = ecc[1]; }
@@ -3049,6 +3503,7 @@ function updateGame(dt) {
       e.hitCd = 0.9;
       hurtPlayer(e.dmg, (P.x - e.x) / pd * 12, (P.z - e.z) / pd * 12);
       if (P.statLv.thorns) hitEnemy(e, 30 * P.statLv.thorns, {});
+      if (P.overActive > 0 && OVERDRIVES[P.overType].reflect) hitEnemy(e, OVERDRIVES[P.overType].reflect, {});
       e.vx -= (P.x - e.x) / pd * 8; e.vz -= (P.z - e.z) / pd * 8;
     }
     // despawn far strays (keeps pressure near the fight)
@@ -3089,11 +3544,12 @@ function updateGame(dt) {
   for (const b of bulletsE) {
     b.t += dt;
     if (b.t > b.life) { b.dead = true; continue; }
-    b.x += b.vx * dt; b.z += b.vz * dt;
+    b.x += b.vx * dt * enemyTimeScale; b.z += b.vz * dt * enemyTimeScale;
     if (bulletHitsCity(b.x, b.y, b.z)) { b.dead = true; continue; }
     b.y = Math.max(groundY(b.x, b.z) + 1, b.y - dt * 0.5);
     if (dist2d(b.x, b.z, P.x, P.z) < 1.9) {
       hurtPlayer(b.dmg);
+      if (b.web) { P.webT = 1.6; }
       spawnFX(b.x, b.y, b.z, { s0: 2, s1: 0.5, life: 0.15, r: 0.55, g: 1, b: 0.35, a0: 1 });
       b.dead = true;
     }
@@ -3305,6 +3761,7 @@ function updateGame(dt) {
         dmgTexts.push({ x: pk.x, y: pk.y + 1, z: pk.z, txt: '+1 CORE', t: 0, life: 1.1, crit: true, col: '#ffb454' });
       } else {
         P.hp = Math.min(P.maxhp, P.hp + 32);
+        if (P.hardcore) { P.fuel = Math.min(P.fuelMax, P.fuel + 30); P.energy = Math.min(P.energyMax, P.energy + 30); }
         const hf = document.getElementById('healflash');
         hf.style.transition = 'none'; hf.style.opacity = '1';
         requestAnimationFrame(() => { hf.style.transition = 'opacity .6s ease-out'; hf.style.opacity = '0'; });
@@ -3344,25 +3801,31 @@ function updateGame(dt) {
 
 function victory() {
   state = ST.VICTORY;
-  const ch = CHAPTERS[RUN.ch];
-  const total = ch.reward + coresRun;
+  const ch = CHAPTERS[RUN.ch], lvl = ch.levels[RUN.lv];
+  const fi = flatIndex(RUN.ch, RUN.lv);
+  const reward = 40 + fi * 16;
+  const total = reward + coresRun;
   meta.cores += total;
-  const first = !meta.campaign.done[RUN.ch];
-  meta.campaign.done[RUN.ch] = true;
-  meta.campaign.unlocked = Math.max(meta.campaign.unlocked, RUN.ch + 2);
+  const key = RUN.ch + '-' + RUN.lv;
+  const first = !meta.campaign.doneL[key];
+  meta.campaign.doneL[key] = true;
+  meta.campaign.unlockedFlat = Math.max(meta.campaign.unlockedFlat, fi + 2);
   if (gameTime > meta.best.time) meta.best.time = gameTime;
   if (kills > meta.best.kills) meta.best.kills = kills;
   saveMeta();
   document.body.classList.remove('playing');
   $('hud').classList.add('hidden');
-  $('vicTitle').textContent = 'CHAPTER ' + ROM[RUN.ch] + ' CLEARED';
+  const finale = fi + 1 >= CAMPAIGN_FLAT.length;
+  $('vicTitle').textContent = 'CH ' + ROM[RUN.ch] + ' · ' + lvl.name.toUpperCase() + (finale ? ' · CAMPAIGN COMPLETE' : '');
   $('vicStats').innerHTML =
-    '<b>' + CHAPTERS[RUN.ch].title + '</b> · ' + fmtTime(gameTime) + ' · ' + kills + ' kills · level ' + P.lvl;
+    '<b>' + ch.title + '</b> · ' + fmtTime(gameTime) + ' · ' + kills + ' kills · level ' + P.lvl;
   $('vicCores').textContent = '⬡ +' + total + ' CORES' + (first ? ' · FIRST CLEAR' : '');
   const nxt = $('btnVicNext');
-  if (RUN.ch + 1 < CHAPTERS.length) {
+  if (fi + 1 < CAMPAIGN_FLAT.length) {
+    const nl = CAMPAIGN_FLAT[fi + 1];
     nxt.classList.remove('hidden');
-    nxt.textContent = 'CHAPTER ' + ROM[RUN.ch + 1] + ' →';
+    nxt.textContent = nl.ch !== RUN.ch ? 'CHAPTER ' + ROM[nl.ch] + ' →' : 'NEXT LEVEL →';
+    nxt._target = nl;
   } else nxt.classList.add('hidden');
   $('victory').classList.remove('hidden');
   setMusicMode('menu');
@@ -3391,11 +3854,16 @@ function startRun(mode) {
   lastMode = mode;
   if (mode.type === 'campaign') {
     const ch = CHAPTERS[mode.ch];
-    RUN = { type: 'campaign', ch: mode.ch, biome: ch.biome, diff: ch.diff, bossIdx: mode.ch, finalWave: ch.waves, waveBoost: mode.ch * 3 };
-    runSeed = ch.seed;
+    const lvl = ch.levels[mode.lv || 0];
+    const flat = flatIndex(mode.ch, mode.lv || 0);
+    RUN = { type: 'campaign', ch: mode.ch, lv: mode.lv || 0, biome: ch.biome, diff: lvl.diff,
+      bossIdx: lvl.boss == null ? 0 : lvl.boss, hasBoss: lvl.boss != null,
+      finalWave: lvl.waves, waveBoost: flat * 2 };
+    runSeed = ch.seed + (mode.lv || 0) * 777;
   } else {
     const bi = Math.max(0, BIOME_ORDER.indexOf(mode.biome || 'verdant'));
-    RUN = { type: 'endless', biome: mode.biome || 'verdant', diff: 1 + bi * 0.18, bossIdx: bi, finalWave: 0, waveBoost: 0 };
+    const hc = !!mode.hardcore;
+    RUN = { type: 'endless', biome: mode.biome || 'verdant', diff: (1 + bi * 0.18) * (hc ? 1.35 : 1), bossIdx: bi, finalWave: 0, waveBoost: hc ? 4 : 0, hardcore: hc };
     runSeed = 1 + Math.floor(Math.random() * 999999);
   }
   SEED = runSeed;
@@ -3419,20 +3887,22 @@ function startRun(mode) {
     document.getElementById(el).classList.add('hidden');
   updateHUDWeapons();
   if (RUN.type === 'campaign')
-    showBanner('CHAPTER ' + ROM[RUN.ch], CHAPTERS[RUN.ch].title.toUpperCase(), false);
+    showBanner(CHAPTERS[RUN.ch].levels[RUN.lv].name.toUpperCase(), 'CHAPTER ' + ROM[RUN.ch] + ' · ' + CHAPTERS[RUN.ch].title, false);
   else
     showBanner(CUR_BIOME.name.toUpperCase(), 'SECTOR ' + runSeed + ' · ENDLESS', false);
   setMusicMode('combat');
 }
 let cine = null;
-function startChapter(idx) {
-  const ch = CHAPTERS[idx];
-  SEED = ch.seed;
-  setBiome(ch.biome);
+function startChapter(ch, lv) {
+  lv = lv || 0;
+  const chp = CHAPTERS[ch];
+  if (lv !== 0) { startRun({ type: 'campaign', ch, lv }); return; }
+  SEED = chp.seed;
+  setBiome(chp.biome);
   resetWorld();
   updateChunks(0, 0, 55);
-  dayPhase = ch.biome === 'ash' ? 0.62 : 0.40;
-  cine = { idx, si: 0, t: 0 };
+  dayPhase = chp.biome === 'ash' ? 0.62 : chp.biome === 'void' ? 0.97 : 0.40;
+  cine = { ch, lv, si: 0, t: 0 };
   state = ST.CUTSCENE;
   document.body.classList.add('cine');
   $('cineSkip').classList.remove('hidden');
@@ -3451,16 +3921,16 @@ function cineAdvance() {
   if (cine.si >= 3) endCutscene();
 }
 function endCutscene() {
-  const idx = cine.idx;
+  const c = cine;
   cine = null;
   document.body.classList.remove('cine');
   $('cineSkip').classList.add('hidden');
   $('cineText').textContent = '';
-  startRun({ type: 'campaign', ch: idx });
+  startRun({ type: 'campaign', ch: c.ch, lv: c.lv });
 }
 function updateCutscene(dt) {
   if (!cine) return;
-  const ch = CHAPTERS[cine.idx];
+  const ch = CHAPTERS[cine.ch];
   cine.t += dt;
   const dur = 7.0;
   if (cine.t >= dur) { cineAdvance(); if (!cine) return; }
@@ -3577,6 +4047,7 @@ function updateMenuScene(dt) {
 
 /* ---------------- instance fill (called by renderer) ---------------- */
 const ENEMY_TINT = { skitter: [1, 1, 1], husk: [1, 1, 1], bulwark: [1, 1, 1], spitter: [1, 1, 1], stinger: [1, 1, 1] };
+const APEX_TINT = [1.5, 0.6, 1.5];
 function fillBatches() {
   for (const k in BAT) BAT[k].begin();
   fxBatch.begin();
@@ -3588,16 +4059,17 @@ function fillBatches() {
     } else {
       RS.shipModel = m4compose(P.x, P.y, P.z, P.yaw, 0, P.roll, 1);
       RS.turretModel = m4compose(P.x, P.y + 0.62, P.z, P.turretYaw, 0, 0, 1);
-      RS.shipFlash = P.flash * 0.6;
+      RS.shipFlash = P.flash * 0.6 + (P.overActive > 0 ? 0.45 + 0.3 * Math.sin(RS.time * 14) : 0);
     }
     for (const e of enemies) {
       if (e.dead) continue;
       const q = qYawPitch(e.yaw, 0);
       const bat = BAT[e.type];
-      const tint = e.boss && e.bdef ? e.bdef.tint : e.elite ? [1.25, 1.05, 0.55] : (ENEMY_TINT[e.type] || [1, 1, 1]);
-      let em = e.boss && e.chargeTel > 0 ? 2.4 : (e.elite ? 1.7 : 1);
+      const tint = e.boss && e.bdef ? e.bdef.tint : e.apex ? APEX_TINT : e.elite ? [1.25, 1.05, 0.55] : (ENEMY_TINT[e.type] || [1, 1, 1]);
+      let em = e.boss && e.chargeTel > 0 ? 2.4 : (e.apex ? 2.3 + Math.sin(RS.time * 5 + e.seed) * 0.5 : e.elite ? 1.7 : 1);
       if (e.deton) em = 1.5 + Math.sin(RS.time * 11) * 1.1;
       if (e.lance && e.lState === 1) em = 2.4;
+      if (e.howl && e.buffT > 0) em = 2.0;
       bat.push(e.x, e.y, e.z, e.sc, q, tint[0], tint[1], tint[2], e.flash * 0.85, 1, 1, 1, em);
     }
     for (const b of bulletsP) {
@@ -3703,6 +4175,7 @@ window.addEventListener('keydown', e => {
   if (k === 'q' && state === ST.PLAY) camYawTarget += PI / 4;
   if (k === 'e' && state === ST.PLAY) camYawTarget -= PI / 4;
   if (k === 'm') toggleMute();
+  if (k === 'f' && state === ST.PLAY) fireOverdrive();
   if (k === 't') {
     if (state === ST.PLAY) { sfxUI(); openTurretBay(); }
     else if (state === ST.TURRET) { sfxUI(); closeTurretBay(); }
@@ -3727,6 +4200,7 @@ window.addEventListener('mousemove', e => { mouse.x = e.clientX; mouse.y = e.cli
 window.addEventListener('mousedown', e => {
   initAudio();
   if (state === ST.CUTSCENE) { cineAdvance(); return; }
+  if (e.button === 2 && state === ST.PLAY) { fireOverdrive(); return; }
   if (e.button === 0) mouse.down = true;
 });
 window.addEventListener('mouseup', e => { if (e.button === 0) mouse.down = false; });
@@ -3779,6 +4253,22 @@ function updateHUD() {
     th.classList.remove('afford');
     th.textContent = 'T · TURRET BAY';
   }
+  const hb = $('hcbars');
+  if (P.hardcore) {
+    hb.classList.remove('hidden');
+    $('fuelfill').style.transform = 'scaleX(' + clamp(P.fuel / P.fuelMax, 0, 1) + ')';
+    $('energyfill').style.transform = 'scaleX(' + clamp(P.energy / P.energyMax, 0, 1) + ')';
+  } else hb.classList.add('hidden');
+  const ov = $('overtag'), of = $('overfill');
+  if (P.overActive > 0) {
+    of.style.transform = 'scaleX(' + clamp(P.overActive / OVERDRIVES[P.overType].dur, 0, 1) + ')';
+    ov.textContent = OVERDRIVES[P.overType].name + ' · ' + P.overActive.toFixed(1) + 's';
+    ov.className = 'active';
+  } else {
+    of.style.transform = 'scaleX(' + clamp(P.over, 0, 1) + ')';
+    if (P.over >= 1) { ov.textContent = 'OVERDRIVE READY · F'; ov.className = 'ready'; }
+    else { ov.textContent = 'OVERDRIVE ' + Math.floor(P.over * 100) + '%'; ov.className = ''; }
+  }
   const bb = $('bossbar');
   if (bossRef) {
     bb.classList.remove('hidden');
@@ -3813,30 +4303,49 @@ function openLevelUp() {
 }
 function buildCards() {
   const picks = rollUpgrades();
-  if (!picks.length) return false;
+  if (!picks.length && !P.hardcore) return false;
   const holder = $('cards');
   holder.innerHTML = '';
-  for (const u of picks) {
-    const lv = upgLevel(u);
-    const isNew = u.wpn && lv === 0;
+  const cardList = picks.slice();
+  if (P.hardcore) {
+    cardList.push({ synth: 'fuel', icon: '⛽', name: 'Refuel', d: () => 'Fill the boost tank to maximum. You will need to run.' });
+    cardList.push({ synth: 'energy', icon: '⚡', name: 'Recharge', d: () => 'Fill the weapon battery to maximum. Then make it count.' });
+  }
+  const choose = () => {
+    sfxUI();
+    if (pendingLevels > 0) {
+      pendingLevels--;
+      if (!buildCards()) { $('levelup').classList.add('hidden'); state = ST.PLAY; }
+    } else {
+      $('levelup').classList.add('hidden');
+      state = ST.PLAY;
+    }
+  };
+  for (const u of cardList) {
     const c = document.createElement('div');
-    c.className = 'card' + (isNew ? ' newwpn' : '');
-    c.innerHTML =
-      '<div class="cic">' + u.icon + '</div>' +
-      '<div class="cname">' + u.name + '</div>' +
-      '<div class="clv">' + (isNew ? 'NEW ARMAMENT' : 'LV ' + lv + ' → ' + (lv + 1)) + '</div>' +
-      '<div class="cdesc">' + u.d(lv + 1) + '</div>';
-    c.onclick = () => {
-      applyUpgrade(u);
-      sfxUI();
-      if (pendingLevels > 0) {
-        pendingLevels--;
-        if (!buildCards()) { $('levelup').classList.add('hidden'); state = ST.PLAY; }
-      } else {
-        $('levelup').classList.add('hidden');
-        state = ST.PLAY;
-      }
-    };
+    if (u.synth) {
+      c.className = 'card synth' + (u.synth === 'fuel' ? ' cfuel' : ' cenergy');
+      c.innerHTML =
+        '<div class="cic">' + u.icon + '</div>' +
+        '<div class="cname">' + u.name + '</div>' +
+        '<div class="clv">HARDCORE</div>' +
+        '<div class="cdesc">' + u.d() + '</div>';
+      c.onclick = () => {
+        if (u.synth === 'fuel') P.fuel = P.fuelMax; else P.energy = P.energyMax;
+        spawnFX(P.x, P.y + 1, P.z, { s0: 2, s1: 6, life: 0.4, tex: 1, r: u.synth === 'fuel' ? 1 : 0.5, g: u.synth === 'fuel' ? 0.7 : 0.9, b: 0.3, a0: 1.2 });
+        choose();
+      };
+    } else {
+      const lv = upgLevel(u);
+      const isNew = u.wpn && lv === 0;
+      c.className = 'card' + (isNew ? ' newwpn' : (u.wpn ? ' wpncard' : ''));
+      c.innerHTML =
+        '<div class="cic">' + u.icon + '</div>' +
+        '<div class="cname">' + u.name + '</div>' +
+        '<div class="clv">' + (isNew ? 'NEW ARMAMENT' : 'LV ' + lv + ' → ' + (lv + 1)) + '</div>' +
+        '<div class="cdesc">' + u.d(lv + 1) + '</div>';
+      c.onclick = () => { applyUpgrade(u); choose(); };
+    }
     holder.appendChild(c);
   }
   return true;
@@ -3847,13 +4356,15 @@ function updateChip() { $('metaChip').textContent = '⬡ ' + meta.cores; }
 function showMenu() {
   $('menu').classList.remove('hidden');
   $('menuCores').textContent = '⬡ ' + meta.cores + ' CORES';
-  $('seedlbl').textContent = 'EVERY DEPLOYMENT GENERATES A NEW SECTOR';
+  const cleared = CHAPTERS.reduce((n, c, i) => n + (chapterFullyDone(i) ? 1 : 0), 0);
+  $('menuName').textContent = cleared >= CHAPTERS.length ? 'WARDEN-SLAYER' : cleared >= 5 ? 'SECTOR VETERAN' : cleared >= 1 ? 'FIELD PILOT' : 'SOLGRAVE PILOT';
   updateChip();
 }
 function openRecords() {
   $('menu').classList.add('hidden');
   const b = meta.best;
-  const cleared = CHAPTERS.reduce((n, c, i) => n + (meta.campaign.done[i] ? 1 : 0), 0);
+  const cleared = CHAPTERS.reduce((n, c, i) => n + (chapterFullyDone(i) ? 1 : 0), 0);
+  const levDone = Object.keys(meta.campaign.doneL).length;
   const ships = Object.keys(meta.hangar.owned).length;
   let ranks = 0;
   for (const d of META_DEFS) ranks += meta.tiers[d.id] || 0;
@@ -3862,6 +4373,7 @@ function openRecords() {
     ['〰', 'DEEPEST WAVE', b.wave || '—'],
     ['✕', 'MOST KILLS, ONE RUN', b.kills || '—'],
     ['▤', 'CHAPTERS CLEARED', cleared + ' / ' + CHAPTERS.length],
+    ['◆', 'OPERATIONS CLEARED', levDone + ' / ' + CAMPAIGN_FLAT.length],
     ['⋀', 'GLAIVES IN HANGAR', ships + ' / ' + SHIPS.length],
     ['⛨', 'ARMORY RANKS', ranks + ' / ' + META_DEFS.length * 5],
     ['⬡', 'CORES BANKED', meta.cores],
@@ -3955,20 +4467,22 @@ function showDeath(nb) {
 }
 function bootUI() {
   $('btnDeploy').onclick = () => { initAudio(); sfxUI(); openBook(); };
-  $('btnEndless').onclick = () => { initAudio(); sfxUI(); openEndless(); };
+  $('btnEndless').onclick = () => { initAudio(); sfxUI(); openEndless(false); };
+  $('btnHardcore').onclick = () => { initAudio(); sfxUI(); openEndless(true); };
   $('btnEndlessBack').onclick = () => { sfxUI(); $('endless').classList.add('hidden'); state = ST.MENU; showMenu(); };
-  $('bookPrev').onclick = () => { sfxUI(); bookIdx = (bookIdx + CHAPTERS.length - 1) % CHAPTERS.length; renderBook(); };
-  $('bookNext').onclick = () => { sfxUI(); bookIdx = (bookIdx + 1) % CHAPTERS.length; renderBook(); };
+  $('bookPrev').onclick = () => { sfxUI(); bookIdx = (bookIdx + CHAPTERS.length - 1) % CHAPTERS.length; bookLv = defaultBookLv(bookIdx); renderBook(); };
+  $('bookNext').onclick = () => { sfxUI(); bookIdx = (bookIdx + 1) % CHAPTERS.length; bookLv = defaultBookLv(bookIdx); renderBook(); };
   $('btnBookBack').onclick = () => { sfxUI(); $('book').classList.add('hidden'); state = ST.MENU; showMenu(); };
   $('bookDeploy').onclick = () => {
-    if (bookIdx >= meta.campaign.unlocked) return;
+    if (!chapterUnlocked(bookIdx) || !levelUnlocked(bookIdx, bookLv)) return;
     sfxUI();
-    startChapter(bookIdx);
+    startChapter(bookIdx, bookLv);
   };
   $('btnVicNext').onclick = () => {
     sfxUI();
     $('victory').classList.add('hidden');
-    startChapter(Math.min(RUN.ch + 1, CHAPTERS.length - 1));
+    const t = $('btnVicNext')._target;
+    if (t) startChapter(t.ch, t.lv);
   };
   $('btnVicBook').onclick = () => { sfxUI(); $('victory').classList.add('hidden'); openBook(); };
   $('btnVicMenu').onclick = () => { sfxUI(); quitToMenu(); };
@@ -3997,7 +4511,7 @@ function bootUI() {
   $('btnRecords').onclick = () => { initAudio(); sfxUI(); openRecords(); };
   $('btnRecordsBack').onclick = () => { sfxUI(); $('records').classList.add('hidden'); showMenu(); };
   $('btnTurretBack').onclick = () => { sfxUI(); closeTurretBay(); };
-  for (const el of document.querySelectorAll('.mbtn')) {
+  for (const el of document.querySelectorAll('.mtile')) {
     el.addEventListener('mouseenter', () => { $('menuHoverDesc').textContent = el.dataset.desc; });
   }
   $('btnHelpBack').onclick = () => { sfxUI(); $('helpPanel').classList.add('hidden'); showMenu(); };
@@ -4006,7 +4520,7 @@ function bootUI() {
 }
 
 /* ---------------- chronicle book ---------------- */
-let bookIdx = 0;
+let bookIdx = 0, bookLv = 0;
 const thumbCache = {};
 function renderMapThumb(idx) {
   const disp = $('bookMap');
@@ -4069,51 +4583,78 @@ function openBook() {
   state = ST.BOOK;
   $('menu').classList.add('hidden');
   $('victory').classList.add('hidden');
-  let target = 0;
-  for (let i = 0; i < CHAPTERS.length; i++) if (i < meta.campaign.unlocked && !meta.campaign.done[i]) { target = i; break; }
-  if (meta.campaign.done[Math.min(meta.campaign.unlocked, CHAPTERS.length) - 1]) target = Math.min(meta.campaign.unlocked, CHAPTERS.length) - 1;
-  bookIdx = target;
+  const furthest = CAMPAIGN_FLAT[Math.min(meta.campaign.unlockedFlat, CAMPAIGN_FLAT.length) - 1];
+  bookIdx = furthest ? furthest.ch : 0;
+  bookLv = defaultBookLv(bookIdx);
   renderBook();
   $('book').classList.remove('hidden');
 }
+function defaultBookLv(ch) {
+  const chp = CHAPTERS[ch];
+  for (let i = 0; i < chp.levels.length; i++) if (levelUnlocked(ch, i) && !levelDone(ch, i)) return i;
+  for (let i = chp.levels.length - 1; i >= 0; i--) if (levelUnlocked(ch, i)) return i;
+  return 0;
+}
 function renderBook() {
   const ch = CHAPTERS[bookIdx];
-  const locked = bookIdx >= meta.campaign.unlocked;
-  const done = !!meta.campaign.done[bookIdx];
+  const chLocked = !chapterUnlocked(bookIdx);
+  const chDone = chapterFullyDone(bookIdx);
   for (const pid of ['bookPageL', 'bookPageR']) {
     const el = $(pid);
     el.classList.remove('bflip'); void el.offsetWidth; el.classList.add('bflip');
   }
   $('bookChNum').textContent = 'CHAPTER ' + ROM[bookIdx];
-  $('bookBiomeTag').textContent = locked ? 'UNCHARTED' : BIOMES[ch.biome].name + ' — ' + BIOMES[ch.biome].tag;
-  $('bookTitle').textContent = locked ? '· · ·' : ch.title;
-  $('bookSub').textContent = locked ? 'RECORD SEALED' : ch.sub;
-  $('bookLore').innerHTML = locked
-    ? '<p>The pages ahead are fused shut, edges burnt to glass.</p><p>Clear the previous chapter to break the seal.</p>'
+  $('bookBiomeTag').textContent = chLocked ? 'UNCHARTED' : BIOMES[ch.biome].name + ' — ' + BIOMES[ch.biome].tag;
+  $('bookTitle').textContent = chLocked ? '· · ·' : ch.title;
+  $('bookSub').textContent = chLocked ? 'RECORD SEALED' : (ch.levels.length + ' OPERATIONS · ' + BIOMES[ch.biome].name.toUpperCase());
+  $('bookLore').innerHTML = chLocked
+    ? '<p>The pages ahead are fused shut, edges burnt to glass.</p><p>Clear the chapter before it to break the seal.</p>'
     : ch.lore.map(l => '<p>' + l + '</p>').join('');
   const st2 = $('bookStatus');
-  if (locked) { st2.textContent = '✕ SEALED'; st2.classList.add('locked'); }
-  else if (done) { st2.textContent = '✓ CLEARED — REDEPLOY AT WILL'; st2.classList.remove('locked'); }
-  else { st2.textContent = '◈ AWAITING DEPLOYMENT'; st2.classList.remove('locked'); }
-  $('bookDeploy').classList.toggle('off', locked);
-  $('bookDeploy').textContent = done ? 'Redeploy — Chapter ' + ROM[bookIdx] : 'Begin Chapter ' + ROM[bookIdx];
+  if (chLocked) { st2.textContent = '✕ CHAPTER SEALED'; st2.classList.add('locked'); }
+  else if (chDone) { st2.textContent = '✓ CHAPTER CLEARED'; st2.classList.remove('locked'); }
+  else { st2.textContent = '◈ ' + ch.levels.filter((_, i) => levelDone(bookIdx, i)).length + ' / ' + ch.levels.length + ' OPERATIONS CLEARED'; st2.classList.remove('locked'); }
+  // level strip
+  const strip = $('bookLevels');
+  strip.innerHTML = '';
+  if (bookLv >= ch.levels.length) bookLv = 0;
+  ch.levels.forEach((lvl, i) => {
+    const un = levelUnlocked(bookIdx, i);
+    const dn = levelDone(bookIdx, i);
+    const el = document.createElement('div');
+    el.className = 'blvl' + (i === bookLv ? ' sel' : '') + (un ? '' : ' locked') + (dn ? ' done' : '') + (lvl.boss != null ? ' boss' : '');
+    el.innerHTML = '<div class="bln">' + (un ? (i + 1) : '🔒') + '</div><div class="bls">' + (dn ? 'CLEAR' : lvl.boss != null ? 'BOSS' : 'HOLD') + '</div>';
+    if (un) el.onclick = () => { sfxUI(); bookLv = i; renderBook(); };
+    strip.appendChild(el);
+  });
+  const sel = ch.levels[bookLv];
+  const selUn = levelUnlocked(bookIdx, bookLv);
+  $('bookLevelInfo').textContent = chLocked ? '' : (selUn ? ('“' + sel.name + '” — ' + sel.intro) : 'Clear the previous operation to unlock this one.');
+  const deployable = !chLocked && selUn;
+  $('bookDeploy').classList.toggle('off', !deployable);
+  $('bookDeploy').textContent = levelDone(bookIdx, bookLv) ? 'Redeploy · Op ' + (bookLv + 1)
+    : (bookLv === 0 ? 'Begin Chapter ' + ROM[bookIdx] : 'Deploy · Op ' + (bookLv + 1));
   $('bookPageNo').textContent = (bookIdx + 1) + ' / ' + CHAPTERS.length;
-  $('bookMapLock').classList.toggle('hidden', !locked);
-  if (!locked) renderMapThumb(bookIdx);
+  $('bookMapLock').classList.toggle('hidden', !chLocked);
+  if (!chLocked) renderMapThumb(bookIdx);
   else { const d = $('bookMap').getContext('2d'); d.fillStyle = '#0d0906'; d.fillRect(0, 0, 340, 340); }
 }
 /* ---------------- endless select ---------------- */
 function endlessUnlocked(id) {
   if (id === 'verdant') return true;
   const idx = CHAPTERS.findIndex(c => c.biome === id);
-  return idx >= 0 && !!meta.campaign.done[idx];
+  return idx >= 0 && chapterFullyDone(idx);
 }
-function openEndless() {
+let endlessHardcore = false;
+function openEndless(hardcore) {
+  endlessHardcore = !!hardcore;
   state = ST.ENDLESSSEL;
   $('menu').classList.add('hidden');
+  document.querySelector('#endless #luTitle').textContent = hardcore ? 'HARDCORE PATROL' : 'ENDLESS PATROL';
+  document.querySelector('#endless #luSub').textContent = hardcore ? 'RATION FUEL & ENERGY · ONE CHOICE PER LEVEL · NO MERCY' : 'PICK A SECTOR · SURVIVE FOREVER · NEW MAP EVERY DROP';
   const list = $('endlessList');
   list.innerHTML = '';
-  const swCols = { verdant: '#3f7a58', desert: '#c99a55', city: '#5d6570', frost: '#a9c3dd', ash: '#7a3a24', void: '#5b3e8f' };
+  const swCols = { verdant: '#3f7a58', desert: '#c99a55', city: '#5d6570', frost: '#a9c3dd', ash: '#7a3a24', void: '#5b3e8f', mire: '#4e6b2e', canyon: '#a5502c', tempest: '#4a6376' };
   for (const id of BIOME_ORDER) {
     const B = BIOMES[id];
     const un = endlessUnlocked(id);
@@ -4122,7 +4663,7 @@ function openEndless() {
     row.innerHTML = '<div class="esw" style="background:' + swCols[id] + '"></div>' +
       '<div><div class="ename">' + B.name + '</div><div class="etag">' + (un ? B.tag : 'clear its chapter to unlock') + '</div></div>' +
       '<div class="ediff">' + (un ? 'THREAT ×' + (1 + BIOME_ORDER.indexOf(id) * 0.18).toFixed(2) : '✕') + '</div>';
-    if (un) row.onclick = () => { sfxUI(); startRun({ type: 'endless', biome: id }); };
+    if (un) row.onclick = () => { sfxUI(); startRun({ type: 'endless', biome: id, hardcore: endlessHardcore }); };
     list.appendChild(row);
   }
   $('endless').classList.remove('hidden');
@@ -4146,7 +4687,8 @@ function closeHangar() {
 function renderHangar() {
   const sh = SHIPS[hgIdx], st = sh.st;
   $('hgName').textContent = sh.name.toUpperCase();
-  $('hgBlurb').textContent = sh.blurb;
+  $('hgBlurb').innerHTML = sh.blurb + '<br><span style="color:#c88bff;font-size:10px;letter-spacing:.16em">◆ OVERDRIVE — ' +
+    OVERDRIVES[sh.over].name + ': ' + OVERDRIVES[sh.over].desc + '</span>';
   const owned = !!meta.hangar.owned[sh.id];
   $('hgOwn').textContent = owned ? (meta.hangar.sel === sh.id ? '· EQUIPPED ·' : 'IN HANGAR') : 'PRICE ⬡ ' + sh.cost;
   const rows = [
@@ -4413,6 +4955,7 @@ function sfxBoost() { noiseHit(0.3, 0.14, 1600, 'highpass'); blip(180, 520, 0.25
 function sfxZap() { blip(1300, 240, 0.11, 'square', 0.07); noiseHit(0.08, 0.04, 4000, 'highpass'); }
 function sfxRail() { blip(110, 44, 0.32, 'sawtooth', 0.26); noiseHit(0.25, 0.12, 2400, 'highpass'); }
 function sfxNova() { blip(320, 52, 0.42, 'sine', 0.24); noiseHit(0.35, 0.1, 900); }
+function sfxOver() { blip(160, 900, 0.5, 'sawtooth', 0.28); blip(300, 1200, 0.6, 'triangle', 0.16, 0.05); noiseHit(0.5, 0.14, 3000, 'highpass'); }
 function sfxSpit() { blip(320, 170, 0.09, 'square', 0.05); }
 function sfxWave() { blip(220, 220, 0.3, 'triangle', 0.14); blip(330, 330, 0.34, 'triangle', 0.12, 0.14); }
 function sfxCore() { blip(880, 870, 0.5, 'sine', 0.1); blip(1318, 1310, 0.6, 'sine', 0.07, 0.04); }
