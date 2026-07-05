@@ -539,7 +539,8 @@ let pressed=new Set();
 function boot(){
   resize();
   if(!gl) return;
-  initQuad(); initSky(); buildOcean(); initPaper();
+  gl.disable(gl.CULL_FACE); gl.enable(gl.DEPTH_TEST);
+  initQuad(); initSky(); buildOcean(); initLit(); buildBoat(); initPaper();
   world.region=0; world.time=0.36;
   setWeather('clear'); world.wBlend=1; updateWeather(0.001);
   // debug hooks: #t=0.75&w=storm&r=1 to inspect a fixed moment
@@ -548,8 +549,9 @@ function boot(){
   if(hp.has('t')){ world.time=parseFloat(hp.get('t')); world.timeScale=0; }
   if(hp.has('t')||hp.has('nb')){ const b=document.getElementById('boot'); if(b) b.style.display='none'; }
   if(hp.has('w')){ world.weather=world.weatherPrev=hp.get('w'); world.wBlend=1; updateWeather(0.001); world.wTimer=999; }
-  // temporary camera looking out to sea toward the sun
-  cam.pos=[0,6.5,20]; cam.target=[6,1.6,-70];
+  // place the boat & camera
+  player.pos=[regionData().ports[0].x+120,0,0]; player.facing=1; player.yaw=0;
+  cam.pos=[player.pos[0]-15,8,14.5]; cam.target=[player.pos[0]+9,2,-3];
   Game.set('sail');
   const bar=document.getElementById('bootbar'); if(bar) bar.style.width='100%';
   setTimeout(()=>{ const b=document.getElementById('boot'); if(b) b.classList.add('hidden'); },150);
@@ -616,6 +618,13 @@ function buildOcean(){
       return mix(mix(a,b,f.x),mix(c,d,f.x),f.y); }
     void main(){
       vec3 N=normalize(vNormal);
+      // fine animated ripple detail perturbs the normal -> scatters glitter, adds texture
+      { vec2 gp=vWorld.xz; float e=0.7;
+        float n0=vnoise(gp*0.75+uTime*0.22)+0.5*vnoise(gp*2.1-uTime*0.18);
+        float nx=vnoise((gp+vec2(e,0.0))*0.75+uTime*0.22)+0.5*vnoise((gp+vec2(e,0.0))*2.1-uTime*0.18);
+        float nz=vnoise((gp+vec2(0.0,e))*0.75+uTime*0.22)+0.5*vnoise((gp+vec2(0.0,e))*2.1-uTime*0.18);
+        N=normalize(N+vec3((n0-nx),0.0,(n0-nz))*(0.28+uChoppy*0.5));
+      }
       vec3 toC=uCamPos-vWorld; float dist=length(toC); vec3 V=toC/max(dist,0.001);
       float ndv=max(dot(N,V),0.0);
       float fres=0.02+0.98*pow(1.0-ndv,5.0);
@@ -626,8 +635,8 @@ function buildOcean(){
       body+=uWarmCol*sss*0.12*uLightStr;
       vec3 col=mix(body,refl,clamp(fres*uReflStr,0.0,1.0));
       vec3 Hh=normalize(uSunDir+V);
-      float spec=pow(max(dot(N,Hh),0.0),160.0);
-      col+=uSunCol*spec*2.4*uLightStr;
+      float spec=pow(max(dot(N,Hh),0.0),200.0);
+      col+=uSunCol*spec*1.25*uLightStr;
       float crest=smoothstep(0.74,1.0,vH/max(uMaxH,0.2));
       float ft=vnoise(vWorld.xz*0.5)*0.55+vnoise(vWorld.xz*1.9)*0.45;
       float foam=crest*(0.3+0.7*ft);
@@ -678,6 +687,193 @@ function drawScene3D(sky){
   drawOcean(sky);
   if(typeof drawBoat3D==='function') drawBoat3D(sky);
   if(typeof drawCoast3D==='function') drawCoast3D(sky);
+}
+
+/* ======================= 15. MESH TOOLKIT + LIT PROGRAM ================= */
+function Mesh(){ return {pos:[],nrm:[],col:[]}; }
+function triNormal(a,b,c){ const ux=b[0]-a[0],uy=b[1]-a[1],uz=b[2]-a[2],vx=c[0]-a[0],vy=c[1]-a[1],vz=c[2]-a[2];
+  let nx=uy*vz-uz*vy,ny=uz*vx-ux*vz,nz=ux*vy-uy*vx; const l=Math.hypot(nx,ny,nz)||1; return [nx/l,ny/l,nz/l]; }
+function addTri(m,a,b,c,col){ const n=triNormal(a,b,c); for(const p of [a,b,c]){ m.pos.push(p[0],p[1],p[2]); m.nrm.push(n[0],n[1],n[2]); m.col.push(col[0],col[1],col[2]); } }
+function addQuad(m,a,b,c,d,col){ addTri(m,a,b,c,col); addTri(m,a,c,d,col); }
+function addBox(m,cx,cy,cz,hx,hy,hz,col,colTop){
+  const x0=cx-hx,x1=cx+hx,y0=cy-hy,y1=cy+hy,z0=cz-hz,z1=cz+hz; const t=colTop||col;
+  addQuad(m,[x0,y1,z1],[x1,y1,z1],[x1,y1,z0],[x0,y1,z0],t); // top
+  addQuad(m,[x0,y0,z0],[x1,y0,z0],[x1,y0,z1],[x0,y0,z1],col); // bottom
+  addQuad(m,[x0,y0,z1],[x1,y0,z1],[x1,y1,z1],[x0,y1,z1],col); // +z
+  addQuad(m,[x1,y0,z0],[x0,y0,z0],[x0,y1,z0],[x1,y1,z0],col); // -z
+  addQuad(m,[x1,y0,z1],[x1,y0,z0],[x1,y1,z0],[x1,y1,z1],col); // +x
+  addQuad(m,[x0,y0,z0],[x0,y0,z1],[x0,y1,z1],[x0,y1,z0],col); // -x
+}
+function meshToVAO(m){
+  const n=m.pos.length/3, data=new Float32Array(n*9);
+  for(let i=0;i<n;i++){ const o=i*9; data[o]=m.pos[i*3];data[o+1]=m.pos[i*3+1];data[o+2]=m.pos[i*3+2];
+    data[o+3]=m.nrm[i*3];data[o+4]=m.nrm[i*3+1];data[o+5]=m.nrm[i*3+2];
+    data[o+6]=m.col[i*3];data[o+7]=m.col[i*3+1];data[o+8]=m.col[i*3+2]; }
+  const vao=gl.createVertexArray(); gl.bindVertexArray(vao);
+  const vb=gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER,vb); gl.bufferData(gl.ARRAY_BUFFER,data,gl.STATIC_DRAW);
+  const S=9*4;
+  gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0,3,gl.FLOAT,false,S,0);
+  gl.enableVertexAttribArray(1); gl.vertexAttribPointer(1,3,gl.FLOAT,false,S,12);
+  gl.enableVertexAttribArray(2); gl.vertexAttribPointer(2,3,gl.FLOAT,false,S,24);
+  gl.bindVertexArray(null);
+  return {vao,count:n};
+}
+function mat3FromMat4(m){ return new Float32Array([m[0],m[1],m[2],m[4],m[5],m[6],m[8],m[9],m[10]]); }
+let litProg;
+function initLit(){
+  litProg=makeProgram(
+   `layout(location=0) in vec3 aPos; layout(location=1) in vec3 aNrm; layout(location=2) in vec3 aCol;
+    uniform mat4 uVP,uModel; uniform mat3 uNormalMat;
+    out vec3 vN; out vec3 vCol; out vec3 vWorld;
+    void main(){ vec4 wp=uModel*vec4(aPos,1.0); vWorld=wp.xyz; vN=normalize(uNormalMat*aNrm); vCol=aCol; gl_Position=uVP*wp; }`,
+   `in vec3 vN; in vec3 vCol; in vec3 vWorld; out vec4 frag;
+    uniform vec3 uCamPos,uAmbient; uniform float uFogDensity,uFogWeather;
+    ${SKY_GLSL}
+    void main(){
+      vec3 N=normalize(vN);
+      float diff=max(dot(N,uSunDir),0.0);
+      vec3 amb=uAmbient*(0.5+0.5*clamp(N.y*0.5+0.5,0.0,1.0));
+      vec3 col=vCol*(amb + uSunCol*diff*uLightStr*1.15);
+      vec3 V=normalize(uCamPos-vWorld);
+      float rim=pow(1.0-max(dot(N,V),0.0),3.0);
+      col+=uSunCol*rim*0.12*uLightStr;
+      float dist=length(uCamPos-vWorld);
+      float fogA=1.0-exp(-dist*uFogDensity); fogA=clamp(fogA+uFogWeather*smoothstep(60.0,700.0,dist),0.0,1.0);
+      col=mix(col,skyColor(normalize(vWorld-uCamPos)),fogA);
+      frag=vec4(col,1.0);
+    }`);
+}
+function drawLit(md,model,sky,fog){
+  const p=litProg; gl.useProgram(p); gl.enable(gl.DEPTH_TEST); gl.depthFunc(gl.LEQUAL);
+  gl.uniformMatrix4fv(p.u('uVP'),false,cam.vp);
+  gl.uniformMatrix4fv(p.u('uModel'),false,model);
+  gl.uniformMatrix3fv(p.u('uNormalMat'),false,mat3FromMat4(model));
+  gl.uniform3fv(p.u('uCamPos'),new Float32Array(cam.pos));
+  gl.uniform3fv(p.u('uAmbient'),new Float32Array(v3(sky.ambient)));
+  gl.uniform1f(p.u('uFogDensity'),0.0020);
+  gl.uniform1f(p.u('uFogWeather'),fog==null?(world.fog*0.9+world.storm*0.3):fog);
+  setSkyUniforms(p,sky);
+  gl.bindVertexArray(md.vao); gl.drawArrays(gl.TRIANGLES,0,md.count); gl.bindVertexArray(null);
+}
+
+/* ======================= 16. BOAT MESH ================================== */
+let BOAT={model:m4()};
+function buildBoat(){
+  const m=Mesh();
+  const red=v3([172,74,58]), redDk=v3([120,50,42]), cream=v3([236,224,196]),
+        wood=v3([122,88,56]), deck=v3([150,116,74]), sailC=v3([242,236,220]),
+        roof=v3([158,66,54]), win=v3([120,178,198]), trim=v3([80,58,40]);
+  const ribs=[-3,-2.2,-1.3,-0.3,0.7,1.6,2.35,3.0];
+  const topY=0.42, half=1.02;
+  const hw=x=>{ const t=(x+3)/6; return Math.max(0.09, half*Math.pow(Math.max(0.0001,Math.sin(clamp(t*0.94+0.06,0,1)*PI)),0.55)); };
+  const botY=x=>{ const t=(x+3)/6; return -1.0 + 0.42*(1-Math.sin(clamp(t,0,1)*PI)); };
+  function rib(x){ const w=hw(x), b=botY(x); return {
+     LG:[x,topY, w], LC:[x,topY-0.5, w*0.78], K:[x,b,0], RC:[x,topY-0.5,-w*0.78], RG:[x,topY,-w] }; }
+  let prev=rib(ribs[0]);
+  for(let i=1;i<ribs.length;i++){
+    const cur=rib(ribs[i]);
+    addQuad(m,prev.RG,cur.RG,cur.RC,prev.RC,red);   // right topside
+    addQuad(m,prev.RC,cur.RC,cur.K,prev.K,redDk);   // right bottom
+    addQuad(m,prev.K,cur.K,cur.LC,prev.LC,redDk);   // left bottom
+    addQuad(m,prev.LC,cur.LC,cur.LG,prev.LG,red);   // left topside
+    addQuad(m,prev.LG,cur.LG,cur.RG,prev.RG,deck);  // deck cap
+    prev=cur;
+  }
+  // stern transom
+  const s=rib(ribs[0]);
+  addQuad(m,s.LG,s.RG,s.RC,s.LC,redDk); addTri(m,s.LC,s.RC,s.K,redDk);
+  // gunwale trim strips
+  addBox(m,0,topY+0.02,half*0.62,3.0,0.06,0.05,cream); // rough rails
+  // cabin
+  addBox(m,-1.15,0.9,0,0.95,0.5,0.62,cream,roof);
+  addBox(m,-1.15,1.42,0,0.98,0.06,0.66,roof,roof);      // roof lip
+  addQuad(m,[-0.2,0.7,0.63],[-0.2,1.25,0.63],[-0.2,1.25,-0.63],[-0.2,0.7,-0.63],win); // front window
+  // mast + boom
+  addBox(m,0.5,2.0,0,0.06,1.62,0.06,wood);
+  addBox(m,-0.2,0.66,0,0.7,0.05,0.05,wood);
+  // sail (two-sided triangle with slight belly)
+  const A=[0.5,3.5,0], B=[0.5,0.75,0], C=[-1.15,1.2,0.0], Cb=[-1.15,1.2,0.28];
+  addTri(m,A,B,Cb,sailC); addTri(m,A,Cb,B,shade255(sailC,-0.12));
+  // small jib forward
+  const J1=[0.55,3.2,0], J2=[2.3,0.7,0], J3=[0.55,0.8,0];
+  addTri(m,J1,J2,J3,sailC); addTri(m,J1,J3,J2,shade255(sailC,-0.12));
+  // flag
+  addBox(m,0.75,3.45,0.02,0.22,0.12,0.01,v3([190,80,66]));
+  BOAT.mesh=meshToVAO(m);
+}
+function shade255(c01,amt){ const c=[c01[0]*255,c01[1]*255,c01[2]*255]; return v3(shade(c,amt)); }
+
+/* ======================= 17. INPUT ====================================== */
+const keys=new Set();
+window.addEventListener('keydown',e=>{ const k=e.key.toLowerCase();
+  if(['arrowleft','arrowright','arrowup','arrowdown',' '].includes(k)) e.preventDefault();
+  if(!keys.has(k)) pressed.add(k); keys.add(k); handleKey(k); },{passive:false});
+window.addEventListener('keyup',e=>keys.delete(e.key.toLowerCase()));
+window.addEventListener('blur',()=>keys.clear());
+const Input={ left:()=>keys.has('arrowleft')||keys.has('a'), right:()=>keys.has('arrowright')||keys.has('d'),
+  up:()=>keys.has('arrowup')||keys.has('w'), down:()=>keys.has('arrowdown')||keys.has('s'), tap:k=>pressed.has(k) };
+function handleKey(k){
+  if(Game.screen==='sail'){
+    if(k==='m'&&typeof toggleMotor==='function') toggleMotor();
+    else if(k==='e'&&typeof tryDock==='function') tryDock();
+    else if(k===' '&&typeof toggleFishing==='function') toggleFishing();
+    else if(k==='escape'&&typeof openPause==='function') openPause();
+    else if(k==='h'&&typeof openHelp==='function') openHelp();
+  } else if(Game.screen==='fish'){
+    if((k==='escape'||k==='e')&&typeof toggleFishing==='function') toggleFishing();
+  }
+}
+function lerpAngle(a,b,t){ let d=((b-a+PI)%TAU)-PI; if(d<-PI)d+=TAU; return a+d*t; }
+
+/* ======================= 18. PLAYER + SAILING =========================== */
+const player={
+  money:120, fuel:60, fuelMax:60, bait:12, hull:100, hullMax:100,
+  hold:[], cargo:{}, upg:{engine:0,sail:0,hull:0,line:0,lure:0,sonar:0},
+  pos:[420,0,0], speed:0, facing:1, yaw:0, targetYaw:0, motor:true,
+  regionDone:[false,false,false], earned:0, caughtLegendary:[false,false,false], discovered:{},
+};
+function holdMax(){ return UPGRADES.hull.levels[player.upg.hull].hold; }
+function toggleMotor(){ player.motor=!player.motor; if(typeof toast==='function') toast(player.motor?'Engine engaged':'Under sail','⛵'); }
+function updatePlayer(dt){
+  const eng=UPGRADES.engine.levels[player.upg.engine], sailU=UPGRADES.sail.levels[player.upg.sail];
+  let dir=0; if(Input.left())dir=-1; else if(Input.right())dir=1;
+  const motor=player.motor&&player.fuel>0; let thrust=0;
+  if(dir){ if(motor){ thrust=34*eng.spd*dir; player.fuel=Math.max(0,player.fuel-dt*1.5*eng.fuelUse*(0.5+Math.abs(player.speed)/26)); }
+    else { const align=0.35+0.65*clamp(dir*world.windDir*0.5+0.5,0,1); thrust=15*sailU.wind*(0.35+world.windStr*0.9)*align*dir; } }
+  player.speed+=(thrust-player.speed*2.3)*dt; player.pos[0]+=player.speed*dt;
+  const len=regionData().length;
+  if(player.pos[0]<18){player.pos[0]=18;player.speed*=-.3;} if(player.pos[0]>len){player.pos[0]=len;player.speed*=-.3;}
+  if(Math.abs(player.speed)>0.4) player.facing=player.speed>0?1:-1;
+  player.targetYaw=player.facing>0?0:PI;
+  player.yaw=lerpAngle(player.yaw,player.targetYaw,1-Math.pow(0.02,dt));
+  // storm hull damage far from port
+  if(world.storm>0.55){ const np=nearestPort(); const far=!np||Math.abs(np.x-player.pos[0])>240;
+    if(far){ player.hull=Math.max(0,player.hull-(world.storm-0.5)*dt*3.0/UPGRADES.hull.levels[player.upg.hull].armor);
+      if(Game.frame%40===0){ view.shake=Math.min(1.2,view.shake+0.25*world.storm); } if(player.hull<=0&&typeof onSink==='function') onSink(); } }
+}
+function nearestPort(){ const ps=regionData().ports; let best=null,bd=1e9; for(const p of ps){ const d=Math.abs(p.x-player.pos[0]); if(d<bd){bd=d;best=p;} } return best; }
+function updateWorldSim(dt){ if(Game.screen==='sail') updatePlayer(dt); else if(typeof updateFishing==='function') updateFishing(dt); }
+
+/* ======================= 19. CAMERA RIG ================================= */
+function updateCameraRig(dt){
+  const b=player.pos, f=player.facing;
+  const s=seaSample(b[0],b[2],Game.t,choppy());
+  const spd=clamp(Math.abs(player.speed)/14,0,1);
+  const dPos=[b[0]-f*(15+spd*3), s.y+8.2, b[2]+14.5];
+  const dTgt=[b[0]+f*(9+spd*4), s.y+2.2, b[2]-3];
+  const k=1-Math.pow(0.0016,dt);
+  cam.pos=vLerp(cam.pos,dPos,k); cam.target=vLerp(cam.target,dTgt,k);
+  // shake decay + apply small positional shake
+  if(view.shake>0){ view.shake=Math.max(0,view.shake-dt*1.4);
+    const a=view.shake*view.shake*0.6; cam.pos[1]+=(rnd()*2-1)*a; cam.pos[0]+=(rnd()*2-1)*a; }
+}
+function drawBoat3D(sky){
+  const t=Game.t, ch=choppy(), x=player.pos[0], z=player.pos[2];
+  const c=seaSample(x,z,t,ch), fwd=seaSample(x+player.facing*2.6,z,t,ch), sd=seaSample(x,z+2.6,t,ch);
+  const pitch=Math.atan2(fwd.y-c.y,2.6)*player.facing;
+  const roll=Math.atan2(sd.y-c.y,2.6);
+  m4compose(BOAT.model,[x,c.y+0.05,z],player.yaw,pitch,roll,[1,1,1]);
+  drawLit(BOAT.mesh,BOAT.model,sky);
 }
 
 /*__MORE__*/
