@@ -543,7 +543,7 @@ function boot(){
   if(!gl) return;
   gl.disable(gl.CULL_FACE); gl.enable(gl.DEPTH_TEST);
   initQuad(); initSky(); buildOcean(); initLit(); buildBoat(); initUnlit(); buildUnderwater(); initPaper();
-  initHUD(); initEconomy();
+  buildGullMesh(); initHUD(); initEconomy();
   world.time=0.36; setWeather('clear'); world.wBlend=1; updateWeather(0.001);
   // debug hooks: #t=0.75&w=storm&r=1&fish=1 to inspect a fixed moment
   const hp=new URLSearchParams(location.hash.slice(1));
@@ -1316,54 +1316,138 @@ function addLighthouse(m,x,y,z){
   addOcta(m,x,y+11.4,z,0.9,0.9,0.9,v3([255,232,150]));// the light (emissive-ish via bright col)
   addCone(m,x,y+12.0,z,1.1,1.0,8,v3([54,60,66]));
 }
-let COAST={mesh:null, lamps:[]};
+function addStall(m,x,y,z,rr){
+  addBox(m,x,y+0.5,z,1.3,0.45,0.9,v3([150,116,74]));
+  for(const sx of[-1,1])for(const sz of[-1,1]) addBox(m,x+sx*1.0,y+1.15,z+sz*0.65,0.06,0.7,0.06,v3([108,82,50]));
+  addBox(m,x,y+1.95,z,1.55,0.07,1.15,v3(pick([[196,84,72],[74,118,158],[92,150,112],[214,172,84]])));
+  addOcta(m,x-0.4,y+1.1,z,0.22,0.18,0.22,v3([200,84,60])); addBox(m,x+0.4,y+1.05,z,0.2,0.16,0.2,v3([210,180,120]));
+}
+function addShack(m,x,z,wall,roof){
+  for(const sx of[-1,1])for(const sz of[-1,1]) addBox(m,x+sx*1.0,-0.7,z+sz*1.0,0.12,1.7,0.12,v3([90,68,44]));
+  addBox(m,x,1.05,z,1.25,0.85,1.25,wall); addCone(m,x,1.9,z,1.7,1.25,4,roof);
+  addBox(m,x,0.18,z-1.7,0.7,0.1,1.7,v3([120,92,60]));
+}
+function addMooredBoat(m,x,z,rr){
+  const r=v3(pick([[172,76,58],[70,110,140],[92,142,112],[206,182,124]]));
+  addBox(m,x,-0.05,z,1.5,0.34,0.62,r); addBox(m,x,0.02,z,1.2,0.16,0.7,v3([60,44,40]));
+  addBox(m,x,0.22,z,0.85,0.2,0.5,v3([232,222,198])); addBox(m,x+0.25,1.0,z,0.05,0.85,0.05,v3([120,92,56]));
+}
+function addNetRack(m,x,y,z){
+  addBox(m,x-0.9,y+0.8,z,0.07,0.8,0.07,v3([100,78,50])); addBox(m,x+0.9,y+0.8,z,0.07,0.8,0.07,v3([100,78,50]));
+  addBox(m,x,y+1.5,z,1.0,0.06,0.06,v3([100,78,50]));
+  addQuad(m,[x-0.85,y+1.42,z],[x+0.85,y+1.42,z],[x+0.85,y+0.55,z+0.14],[x-0.85,y+0.55,z+0.14],v3([148,150,118]));
+}
+function addLandmark(m,x,y,z,R){
+  if(R.id==='med'){ // temple
+    addBox(m,x,y+0.4,z,3.4,0.4,2.4,v3([222,214,192]));
+    for(const sx of[-1,-.33,.33,1])for(const sz of[-1,1]) addPrism(m,x+sx*2.7,y+2.2,z+sz*1.8,0.32,3.4,8,v3([234,228,210]),v3([234,228,210]));
+    addBox(m,x,y+4.2,z,3.6,0.4,2.6,v3([214,206,184])); addCone(m,x,y+4.4,z,3.4,1.6,4,v3([196,96,70]));
+  } else if(R.id==='trop'){ // big tiki A-frame
+    addCone(m,x,y,z,3.2,5.5,4,v3([120,90,54])); addBox(m,x,y+0.6,z,3.4,0.6,3.4,v3([150,116,74]));
+  } else { // northern church + steeple
+    addBuilding(m,x,y,z,2.6,3.0,3.4,v3([214,206,188]),v3([110,60,50]));
+    addBox(m,x-2.2,y+3.2,z,1.1,3.2,1.1,v3([222,214,196])); addCone(m,x-2.2,y+6.4,z,1.2,2.6,4,v3([96,54,46]));
+    addBox(m,x-2.2,y+6.9,z,0.08,0.8,0.08,v3([80,70,60]));
+  }
+}
+let COAST={mesh:null,lamps:[],lights:[]};
+const GULLS=[];
 function buildCoast(){
   const R=regionData(), m=Mesh(); const rr=mulberry32(700+world.region*13);
-  const nz=makeNoise1D(300+world.region*5);
+  const nz=makeNoise1D(300+world.region*5), nz2=makeNoise1D(811+world.region);
   const shoreZ=-60, len=R.length;
   const hillCol=hex2rgb(R.hills[2]), hillBack=hex2rgb(R.hills[0]), sand=[212,196,158];
-  const rows=[{z:shoreZ,h:0,c:sand},{z:-74,h:5,c:mix(sand,hillCol,0.5)},{z:-98,h:16,c:hillCol},{z:-130,h:26,c:mix(hillCol,hillBack,0.5)},{z:-168,h:34,c:hillBack}];
+  const rows=[{z:shoreZ,h:0,c:sand},{z:-72,h:5,c:mix(sand,hillCol,0.5)},{z:-96,h:16,c:hillCol},{z:-128,h:27,c:mix(hillCol,hillBack,0.5)},{z:-172,h:38,c:hillBack}];
   const hAtX=x=> (fbm1(nz,x*0.004,4)*0.5+0.5);
-  const step=14;
+  const step=12;
   for(let x=-60;x<len+60;x+=step){
     const hx0=hAtX(x), hx1=hAtX(x+step);
     for(let r=0;r<rows.length-1;r++){
       const a=rows[r],b=rows[r+1];
       const y0a=a.h*hx0*(r?1:0), y0b=a.h*hx1*(r?1:0), y1a=b.h*hx0, y1b=b.h*hx1;
-      const cc=mix(a.c,b.c,0.5); const cv=shade(cc,(hx0-0.5)*0.2);
+      const cc=mix(a.c,b.c,0.5); const cv=shade(cc,(hx0-0.5)*0.24 + (fbm1(nz2,x*0.05,3))*0.08);
       addQuad(m,[x,y0a,a.z],[x+step,y0b,a.z],[x+step,y1b,b.z],[x,y1a,b.z],v3(cv));
     }
   }
-  // trees scattered on the hills
+  // dense forest + bushes + rocks along the hills
   const treeKind = R.id==='trop'?'palm':R.id==='med'?'cypress':'pine';
-  for(let i=0;i<Math.floor(len/40);i++){ const x=rr()*len; const zr=1+Math.floor(rr()*3); const z=rows[zr].z+rr()*10;
-    const y=rows[zr].h*hAtX(x)*0.9; if(rr()<0.85) addTree(m,x,y,z,treeKind,rr); }
-  // ports
-  COAST.lamps=[];
+  const nTrees=Math.floor(len/13);
+  for(let i=0;i<nTrees;i++){ const x=rr()*len; const zr=1+Math.floor(rr()*3.99); const z=rows[Math.min(zr,4)].z+rr()*16-8;
+    const y=rows[Math.min(zr,4)].h*hAtX(x)*0.92; const rl=rr();
+    if(rl<0.62) addTree(m,x,y,z,treeKind,rr);
+    else if(rl<0.82) addCone(m,x,y,z,0.5+rr()*0.5,0.8+rr()*0.8,5,v3(shade([70,96,64],(rr()-.5)*.3))); // bush
+    else addOcta(m,x,y+0.3,z,0.5+rr(),0.4+rr()*0.6,0.5+rr(),v3([104,100,92])); // rock
+  }
+  // coastal rocks at the waterline
+  for(let i=0;i<Math.floor(len/60);i++){ const x=rr()*len; const z=shoreZ+2+rr()*6;
+    for(let k=0;k<3;k++) addOcta(m,x+rr()*4-2,-0.2+rr()*0.6,z+rr()*3,0.5+rr()*0.9,0.4+rr()*0.7,0.5+rr()*0.9,v3([96,94,88])); }
+  // offshore islets + sea stacks
+  for(let i=0;i<7;i++){ const x=rr()*len; const iz=-16-rr()*30; const ir=3+rr()*4, ih=1.5+rr()*3;
+    for(let k=0;k<5;k++){ const a=k/5*TAU; addCone(m,x+Math.cos(a)*ir*0.4,0,iz+Math.sin(a)*ir*0.4,ir*0.7,ih,6,v3(mix(hillCol,sand,0.4))); }
+    addCone(m,x,ih*0.4,iz,ir*0.5,ih*1.4,6,v3(hillCol));
+    if(rr()<0.5) addTree(m,x,ih*0.9,iz,treeKind,rr); else addOcta(m,x,ih*0.9,iz,1,1.4,1,v3([100,96,90]));
+  }
+  for(let i=0;i<5;i++){ const x=rr()*len; const iz=-12-rr()*24; const h=4+rr()*6;
+    addPrism(m,x,h*0.4,iz,0.8+rr()*0.8,h,6,v3([92,90,86]),v3([96,94,90])); }
+  // villages at ports
+  COAST.lamps=[]; COAST.lights=[];
   for(const p of R.ports){
-    const px=p.x;
-    // dock platform + posts reaching toward water
-    for(let d=0;d<5;d++){ const dz=shoreZ+6+d*7; addBox(m,px,-0.3,dz,2.2,0.18,2.6,v3([120,92,60]),v3([140,110,74]));
-      addBox(m,px-2,-1.2,dz,0.16,1.0,0.16,v3([84,62,40])); addBox(m,px+2,-1.2,dz,0.16,1.0,0.16,v3([84,62,40])); }
-    // buildings behind
-    const wall = R.id==='trop'?[236,214,180]:R.id==='med'?[238,236,228]:[212,196,170];
-    const roof = R.id==='trop'?[110,150,120]:R.id==='med'?[192,96,70]:[120,64,54];
-    const by=rows[1].h*hAtX(px);
-    addBuilding(m,px-4,by,-70,2.2,2.2,2.0,v3(wall),v3(roof));
-    addBuilding(m,px+4,by+0.4,-76,2.6,2.6,2.2,v3(shade(wall,-0.06)),v3(roof));
-    addBuilding(m,px,by+0.2,-84,3.0,2.0,2.4,v3(wall),v3(shade(roof,-0.08)));
-    // lamp posts on the dock (emissive at night handled via bright color)
-    addBox(m,px+2.2,0.6,shoreZ+9,0.07,1.0,0.07,v3([60,54,48]));
-    addOcta(m,px+2.2,1.5,shoreZ+9,0.16,0.2,0.16,v3([255,224,150]));
-    COAST.lamps.push([px+2.2,1.5,shoreZ+9]);
-    if(p.kind==='home') addLighthouse(m,px-9,rows[2].h*hAtX(px-9),-96);
+    const px=p.x, prr=mulberry32(Math.floor(px)*31+7);
+    const wall = R.id==='trop'?[236,214,180]:R.id==='med'?[240,238,230]:[214,198,172];
+    const roof = R.id==='trop'?[108,150,120]:R.id==='med'?[194,98,72]:[120,64,54];
+    // long dock with rails, barrels, crates, lamps
+    for(let d=0;d<6;d++){ const dz=shoreZ+4+d*6.5; addBox(m,px,-0.28,dz,2.4,0.16,2.4,v3([124,96,62]),v3([144,114,76]));
+      addBox(m,px-2.1,-1.3,dz,0.15,1.1,0.15,v3([84,62,40])); addBox(m,px+2.1,-1.3,dz,0.15,1.1,0.15,v3([84,62,40]));
+      if(d>0){ addBox(m,px-2.3,0.35,dz,0.05,0.5,0.05,v3([96,72,46])); addBox(m,px+2.3,0.35,dz,0.05,0.5,0.05,v3([96,72,46])); } }
+    for(let k=0;k<4;k++){ addPrism(m,px+(prr()*2-1)*1.7,0.25,shoreZ+8+prr()*20,0.28,0.6,8,v3([120,90,54]),v3([140,110,70])); } // barrels
+    addBox(m,px-1.4,0.2,shoreZ+14,0.35,0.3,0.3,v3([150,116,74])); addBox(m,px+1.3,0.2,shoreZ+22,0.35,0.3,0.35,v3([150,116,74]));
+    // dock lamps
+    for(const lz of [shoreZ+9,shoreZ+28]){ addBox(m,px+2.4,0.6,lz,0.07,1.1,0.07,v3([60,54,48])); addOcta(m,px+2.4,1.6,lz,0.17,0.22,0.17,v3([255,226,150])); COAST.lamps.push([px+2.4,1.65,lz]); }
+    // moored boats + net racks near the dock
+    addMooredBoat(m,px-3.6,shoreZ+16,prr); addMooredBoat(m,px+3.7,shoreZ+24,prr);
+    addNetRack(m,px-4.5,0.2,shoreZ+6); if(p.kind!=='home') addShack(m,px+6+prr()*3,shoreZ+2,v3(wall),v3(roof));
+    // village cluster (varied buildings on a loose grid)
+    const rowsZ=[-68,-77,-87,-98];
+    for(let r=0;r<rowsZ.length;r++){ const count=3+Math.floor(prr()*2);
+      for(let c=0;c<count;c++){ const bx=px+(c-(count-1)/2)*6 + (prr()*2-1)*1.6;
+        const bz=rowsZ[r]+(prr()*2-1)*3; const by=rows[Math.min(r+1,4)].h*hAtX(bx)*0.9;
+        const w=1.6+prr()*1.3, h=1.8+prr()*1.8;
+        addBuilding(m,bx,by,bz,w,h,w*0.9,v3(shade(wall,(prr()-.5)*0.1)),v3(shade(roof,(prr()-.5)*0.12))); } }
+    // market stalls near the shore
+    for(let s=0;s<3;s++) addStall(m,px+(s-1)*4.5,rows[1].h*hAtX(px)*0.7,-64,prr);
+    // walls / terraces (med) or fences
+    if(R.id==='med'){ for(let w=0;w<4;w++) addBox(m,px+(w-1.5)*7,rows[2].h*hAtX(px)*0.6+0.6,-92,4,0.6,0.4,v3([224,216,196])); }
+    // landmark + lighthouse
+    addLandmark(m,px+(p.kind==='home'?12:-11),rows[2].h*hAtX(px+12)*0.7,-90,R);
+    if(p.kind==='home'){ const lx=px-11,ly=rows[3].h*hAtX(px-11)*0.85,lz=-104; addLighthouse(m,lx,ly,lz); COAST.lights.push([lx,ly+11.4,lz]); }
   }
   if(COAST.mesh&&COAST.mesh.vao) gl.deleteVertexArray(COAST.mesh.vao);
   COAST.mesh=meshToVAO(m);
+  // gulls circling over the nearest port areas
+  GULLS.length=0;
+  for(let i=0;i<10;i++){ const p=pick(R.ports); GULLS.push({cx:p.x+rrange(-30,30),cz:rrange(-30,10),r:6+rnd()*16,y:10+rnd()*14,ph:rnd()*TAU,spd:rrange(0.15,0.4)*(chance(0.5)?1:-1),flap:rrange(6,10)}); }
+}
+function buildGullMesh(){ const m=Mesh(); const c=[0.32,0.32,0.34];
+  addTri(m,[0,0,0],[-1.2,0.05,-0.35],[-0.5,0,0.25],c); addTri(m,[0,0,0],[0.5,0,0.25],[1.2,0.05,-0.35],c);
+  COAST.gull=meshToVAO(m);
 }
 function drawCoast3D(sky){
   if(!COAST.mesh) return;
   drawLit(COAST.mesh,COAST_MODEL,sky,{fogDensity:0.0016,fogWeather:world.fog*0.9+world.storm*0.3});
+  // gulls
+  if(COAST.gull){ for(const g of GULLS){ const a=Game.t*g.spd+g.ph; const x=g.cx+Math.cos(a)*g.r, z=g.cz+Math.sin(a)*g.r;
+    const y=g.y+Math.sin(Game.t*0.6+g.ph)*1.2; const flap=0.5+0.5*Math.abs(Math.sin(Game.t*g.flap+g.ph));
+    const mo=m4(); m4compose(mo,[x,y,z],a+PI/2,0,0,[1.1,0.5+flap*0.9,1.1]);
+    drawLit(COAST.gull,mo,sky,{fogDensity:0.0016}); } }
+  // warm lamp / lighthouse glows at dusk & night
+  const glow=clamp(1-sky.dayness*1.6,0,1);
+  if(glow>0.05 && unlitProg){ gl.useProgram(unlitProg); gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA,gl.ONE); gl.depthMask(false);
+    gl.uniform1f(unlitProg.u('uPoint'),0); gl.uniformMatrix4fv(unlitProg.u('uVP'),false,cam.vp); gl.bindVertexArray(UW.dot.vao);
+    for(const L of COAST.lamps){ const mo=m4trans(m4(),L[0],L[1],L[2]); gl.uniformMatrix4fv(unlitProg.u('uModel'),false,mo);
+      const d=Math.hypot(cam.pos[0]-L[0],cam.pos[2]-L[2]); gl.uniform4f(unlitProg.u('uColor'),1,0.86,0.5,0.5*glow); gl.uniform1f(unlitProg.u('uPoint'),clamp(700/d,4,26)*DPR); gl.drawArrays(gl.POINTS,0,1); }
+    for(const L of COAST.lights){ const mo=m4trans(m4(),L[0],L[1],L[2]); gl.uniformMatrix4fv(unlitProg.u('uModel'),false,mo);
+      const beam=0.5+0.5*Math.sin(Game.t*1.5); gl.uniform4f(unlitProg.u('uColor'),1,0.92,0.6,(0.4+0.5*beam)*glow); gl.uniform1f(unlitProg.u('uPoint'),40*DPR); gl.drawArrays(gl.POINTS,0,1); }
+    gl.bindVertexArray(null); gl.depthMask(true); gl.disable(gl.BLEND); }
 }
 const COAST_MODEL=m4ident(m4());
 
