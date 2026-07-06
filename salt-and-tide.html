@@ -510,6 +510,7 @@ function update(dt){
   else if(Game.screen==='title') updateTitleCamera(dt);
   else if(Game.screen==='sail') updateCameraRig(dt);
   if(typeof updateParticles==='function') updateParticles(dt);
+  if(Sound.tick) Sound.tick(dt);
 }
 function render(){
   Game.frame++;
@@ -554,7 +555,7 @@ function boot(){
   enterRegion(reg);
   cam.pos=[player.pos[0]-15,8,14.5]; cam.target=[player.pos[0]+9,2,-3];
   if(hp.has('fish')){ Game.set('sail'); if(hp.has('depth')) player.upg.line=3; toggleFishing(); if(hp.has('ld')) fishing.lure.y=-parseFloat(hp.get('ld')); }
-  else if(hp.has('town')){ Game.set('sail'); openTown(regionData().ports[0]); }
+  else if(hp.has('town')){ Game.set('sail'); if(hp.has('stock')){ const fs=regionData().fish; for(let i=0;i<9;i++){ const id=fs[i%(fs.length-1)]; const d=FISH[id]; const ln=rrange(d.len[0],d.len[1]); player.hold.push({id,len:Math.round(ln),value:fishValue(d,ln)}); } player.money=2000; } openTown(regionData().ports[0]); }
   else if(hp.has('t')||hp.has('w')||hp.has('play')){ Game.set('sail'); }
   else if(hp.has('title')){ openTitle(); }
   else startIntro();
@@ -904,6 +905,8 @@ window.addEventListener('blur',()=>keys.clear());
 const Input={ left:()=>keys.has('arrowleft')||keys.has('a'), right:()=>keys.has('arrowright')||keys.has('d'),
   up:()=>keys.has('arrowup')||keys.has('w'), down:()=>keys.has('arrowdown')||keys.has('s'), tap:k=>pressed.has(k) };
 function handleKey(k){
+  if(Sound.ensure) Sound.ensure();
+  if(k==='p'){ if(Sound.toggleMute) Sound.toggleMute(); return; }
   if(Game.screen==='sail'){
     if(k==='m'&&typeof toggleMotor==='function') toggleMotor();
     else if(k==='e'&&typeof tryDock==='function') tryDock();
@@ -1897,6 +1900,74 @@ const ICON={
 function ic(name,size,style){ const s=ICON[name]||''; const sz=size||18; return `<svg width="${sz}" height="${sz}" viewBox="0 0 24 24" style="vertical-align:-0.16em;${style||''}" xmlns="http://www.w3.org/2000/svg">${s}</svg>`; }
 const WKEY={clear:'sun',cloud:'cloud',fog:'fogg',rain:'rain',snow:'snoww',storm:'storm'};
 const RICON={north:'snowflake',trop:'palm',med:'column'};
+
+/* ======================= 35. AUDIO ENGINE ============================= */
+(function(){
+  let AC=null, master, uwFilt, busAmb, busMus, busSfx, noiseBuf, seaSrc, seaFilt, seaGain, windSrc, windFilt, windGain, rainGain;
+  let muted=false, musicNext=0, chordI=0;
+  function guard(){ return AC && AC.state==='running'; }
+  function applyMute(){ if(master&&AC) master.gain.setTargetAtTime(muted?0:0.85, AC.currentTime, 0.05); }
+  function mkNoise(){ noiseBuf=AC.createBuffer(1,AC.sampleRate*2,AC.sampleRate); const d=noiseBuf.getChannelData(0); let last=0;
+    for(let i=0;i<d.length;i++){ const w=Math.random()*2-1; last=(last+0.02*w)/1.02; d[i]=last*3.2; } }
+  function loopNoise(filtType,freq,q,gv){ const s=AC.createBufferSource(); s.buffer=noiseBuf; s.loop=true;
+    const f=AC.createBiquadFilter(); f.type=filtType; f.frequency.value=freq; if(q)f.Q.value=q;
+    const g=AC.createGain(); g.gain.value=gv; s.connect(f); f.connect(g); g.connect(busAmb); s.start(); return {s,f,g}; }
+  function env(node,when,att,dur,peak){ const g=node; g.gain.cancelScheduledValues(when); g.gain.setValueAtTime(0.0001,when);
+    g.gain.exponentialRampToValueAtTime(Math.max(0.0001,peak),when+att); g.gain.exponentialRampToValueAtTime(0.0001,when+dur); }
+  function voice(freq,when,dur,peak,type,bus){ if(!guard())return; const o=AC.createOscillator(); o.type=type||'sine'; o.frequency.value=freq;
+    const g=AC.createGain(); o.connect(g); g.connect(bus||busMus); env(g,when,Math.min(0.3,dur*0.3),dur,peak); o.start(when); o.stop(when+dur+0.05); }
+  function noiseHit(when,dur,f0,f1,peak,type){ if(!guard())return; const s=AC.createBufferSource(); s.buffer=noiseBuf;
+    const f=AC.createBiquadFilter(); f.type=type||'lowpass'; f.frequency.setValueAtTime(f0,when); f.frequency.exponentialRampToValueAtTime(Math.max(40,f1),when+dur);
+    const g=AC.createGain(); s.connect(f); f.connect(g); g.connect(busSfx); env(g,when,0.01,dur,peak); s.start(when); s.stop(when+dur+0.05); }
+  const impl={
+    _ready:false, muted:false,
+    ensure(){ if(AC){ if(AC.state==='suspended') AC.resume(); return; }
+      try{ AC=new (window.AudioContext||window.webkitAudioContext)(); }catch(e){ return; }
+      master=AC.createGain(); master.gain.value=0.85; master.connect(AC.destination);
+      uwFilt=AC.createBiquadFilter(); uwFilt.type='lowpass'; uwFilt.frequency.value=20000; uwFilt.connect(master);
+      busAmb=AC.createGain(); busAmb.gain.value=0.55; busAmb.connect(uwFilt);
+      busMus=AC.createGain(); busMus.gain.value=0.22; busMus.connect(uwFilt);
+      busSfx=AC.createGain(); busSfx.gain.value=0.6; busSfx.connect(master);
+      mkNoise();
+      const sea=loopNoise('lowpass',600,0,0.0); seaSrc=sea.s; seaFilt=sea.f; seaGain=sea.g;
+      const wind=loopNoise('bandpass',500,0.8,0.0); windSrc=wind.s; windFilt=wind.f; windGain=wind.g;
+      const rain=loopNoise('highpass',2600,0.5,0.0); rainGain=rain.g;
+      this._ready=true; muted=this.muted; applyMute();
+    },
+    tick(dt){ if(!guard()) return; const t=AC.currentTime;
+      const swell=0.62+0.38*Math.sin(Game.t*0.5)+0.12*Math.sin(Game.t*0.17);
+      seaGain.gain.setTargetAtTime((0.10+world.seaState*0.5)*swell,t,0.4);
+      seaFilt.frequency.setTargetAtTime(380+world.seaState*950,t,0.5);
+      windGain.gain.setTargetAtTime(0.02+world.windStr*0.16,t,0.5);
+      windFilt.frequency.setTargetAtTime(280+world.windStr*950,t,0.5);
+      rainGain.gain.setTargetAtTime(world.rainI*0.16,t,0.3);
+      uwFilt.frequency.setTargetAtTime(Game.screen==='fish'?680:20000,t,0.25);
+      busMus.gain.setTargetAtTime(Game.screen==='fish'?0.14:0.2,t,0.4);
+      if(t>=musicNext) this._music(t);
+      if(Game.screen==='sail' && Math.random()<dt*0.12) this.gull();
+    },
+    _music(t){ const bpm=Game.screen==='fish'?38:50; const beat=60/bpm*2; musicNext=t+beat;
+      const base={north:174.6,trop:220.0,med:196.0}[regionData().id]||196;
+      const prog=[[0,3,7],[-2,3,7],[3,7,10],[-4,0,7]]; const ch=prog[chordI%prog.length]; chordI++;
+      for(let i=0;i<ch.length;i++){ const f=base*Math.pow(2,ch[i]/12); voice(f,t+i*0.02,beat*1.7,0.10-i*0.015,i?'sine':'triangle',busMus); }
+      if(chordI%2===0) voice(base*Math.pow(2,(ch[0]+12)/12),t+beat*0.5,beat*0.9,0.05,'sine',busMus);
+    },
+    splash(){ if(!guard())return; const t=AC.currentTime; noiseHit(t,0.35,1400,180,0.5); },
+    reel(){ if(!guard())return; const t=AC.currentTime; for(let i=0;i<3;i++) voice(520-i*60,t+i*0.045,0.05,0.16,'square',busSfx); },
+    chime(){ if(!guard())return; const t=AC.currentTime; const n=[523,659,784,1046]; n.forEach((f,i)=>voice(f,t+i*0.08,0.5,0.16,'sine',busSfx)); },
+    coin(){ if(!guard())return; const t=AC.currentTime; voice(880,t,0.09,0.16,'triangle',busSfx); voice(1174,t+0.07,0.14,0.14,'triangle',busSfx); },
+    ui(){ if(!guard())return; const t=AC.currentTime; voice(430,t,0.07,0.10,'sine',busSfx); },
+    gull(){ if(!guard())return; const t=AC.currentTime; for(let c=0;c<2;c++){ const o=AC.createOscillator(); o.type='sawtooth';
+      const g=AC.createGain(); const bp=AC.createBiquadFilter(); bp.type='bandpass'; bp.frequency.value=1800; bp.Q.value=3;
+      o.connect(bp); bp.connect(g); g.connect(busSfx); const w=t+c*0.16; o.frequency.setValueAtTime(1400,w); o.frequency.exponentialRampToValueAtTime(2200,w+0.06); o.frequency.exponentialRampToValueAtTime(1200,w+0.16);
+      env(g,w,0.02,0.16,0.05); o.start(w); o.stop(w+0.2); } },
+    thunder(v){ if(!guard())return; const t=AC.currentTime; noiseHit(t,1.8*(v||1),260,45,0.5*(v||1)); const o=AC.createOscillator(); o.type='sine';
+      const g=AC.createGain(); o.connect(g); g.connect(busSfx); o.frequency.setValueAtTime(60,t); o.frequency.exponentialRampToValueAtTime(32,t+1.6); env(g,t,0.05,1.6,0.3*(v||1)); o.start(t); o.stop(t+1.8); },
+    toggleMute(){ muted=!muted; this.muted=muted; applyMute(); if(typeof toast==='function') toast(muted?'Sound off':'Sound on',ic(muted?'lock':'sun',16)); if(typeof saveGame==='function') saveGame(); },
+  };
+  Object.assign(Sound,impl);
+})();
+window.addEventListener('pointerdown',()=>{ if(Sound.ensure)Sound.ensure(); });
 
 /*__MORE__*/
 </script>
