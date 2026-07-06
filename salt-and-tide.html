@@ -128,6 +128,7 @@ const map=(v,a,b,c,d)=>c+(d-c)*((v-a)/(b-a));
 const smooth=t=>t*t*(3-2*t);
 const smoother=t=>t*t*t*(t*(t*6-15)+10);
 const clamp01=v=>v<0?0:(v>1?1:v);
+const ease={inOut:t=>t<.5?2*t*t:1-Math.pow(-2*t+2,2)/2,out:t=>1-Math.pow(1-t,3),in:t=>t*t*t};
 const wrap=(v,m)=>((v%m)+m)%m;
 function mulberry32(seed){let a=seed>>>0;return function(){a|=0;a=(a+0x6D2B79F5)|0;let t=Math.imul(a^(a>>>15),1|a);t=(t+Math.imul(t^(t>>>7),61|t))^t;return((t^(t>>>14))>>>0)/4294967296;};}
 let RNG=mulberry32(0x5eed);
@@ -176,6 +177,15 @@ const FISH={
   swordfish:{name:'Swordfish',col:'#4a5b66',acc:'#cdd6da',len:[120,175],depth:[.2,.55],hits:5,base:340,weight:6,spd:2.4,region:'med'},
   bluefin:{name:'Bluefin Tuna',col:'#2c526e',acc:'#e0b23a',len:[110,165],depth:[.3,.65],hits:5,base:400,weight:5,spd:2.3,region:'med'},
   leviathan:{name:'The Old Emperor',col:'#586b74',acc:'#e6d59a',len:[190,190],depth:[.3,.7],hits:10,base:2600,weight:0,spd:1.8,legendary:true,region:'med',lore:'A bluefin that has outlived three lighthouses.'},
+  // --- The Midnight Verge (deep polar sea) ---
+  lanternfish:{name:'Lanternfish',col:'#3a5a6a',acc:'#8ff0d0',len:[8,14],depth:[.15,.55],hits:1,base:24,weight:30,spd:1.6,glow:true,region:'verge'},
+  capelin:{name:'Capelin',col:'#9fb4bc',acc:'#e8f2f4',len:[16,24],depth:[.08,.4],hits:1,base:20,weight:26,spd:1.5,region:'verge'},
+  cusk:{name:'Cusk',col:'#6a6250',acc:'#332f24',len:[40,72],depth:[.4,.75],hits:2,base:70,weight:20,spd:.8,region:'verge'},
+  wolffish:{name:'Wolffish',col:'#5a6470',acc:'#2a3038',len:[50,90],depth:[.55,.9],hits:3,base:150,weight:13,spd:.7,region:'verge'},
+  anglerfish:{name:'Anglerfish',col:'#2a2f38',acc:'#c9f26a',len:[30,58],depth:[.7,.98],hits:3,base:220,weight:9,spd:.6,glow:true,region:'verge'},
+  greenlandshark:{name:'Greenland Shark',col:'#4a5258',acc:'#20262a',len:[120,200],depth:[.5,.85],hits:6,base:420,weight:5,spd:.85,region:'verge'},
+  oarfish:{name:'Oarfish',col:'#b9c0c8',acc:'#d05a6a',len:[200,320],depth:[.35,.7],hits:7,base:640,weight:3,spd:1.6,region:'verge'},
+  colossus:{name:'The Colossus',col:'#7a3f4a',acc:'#e6b0b8',len:[420,420],depth:[.55,.9],hits:12,base:4200,weight:0,spd:1.5,legendary:true,glow:true,region:'verge',lore:'A giant squid the size of a schooner. It has pulled lanterns—and lighthouses—into the dark.'},
 };
 const REGIONS=[
   {id:'north',name:'The Northern Reach',order:0,icon:'snowflake',
@@ -217,6 +227,19 @@ const REGIONS=[
           {name:'Amalfi Reach',x:2400,kind:'trade',spec:['seabass','octopus'],icon:'house'},
           {name:'Saltera',x:4200,kind:'trade',spec:['swordfish'],icon:'salt'},
           {name:'Cape Meridian',x:5700,kind:'trade',spec:['bluefin','anchovy'],icon:'sunrise'}]},
+  {id:'verge',name:'The Midnight Verge',order:3,icon:'moon',
+   blurb:'A deep polar sea under aurora and moon. Ice, fog, and things that glow in the black water below.',
+   length:6600,
+   sky:{dawn:'#3a4a6a',day:'#6a7e94',dusk:'#4a3a5a',night:'#050a16'},
+   sun:'#cfe0ff',water:{top:'#2a5a6e',mid:'#123448',deep:'#04121e'},
+   hills:['#3a4650','#4a5a64','#6a7a84'],foam:'#e8f2f6',
+   weather:{clear:.18,cloud:.24,fog:.24,rain:.12,snow:.16,storm:.06},
+   fish:['lanternfish','capelin','cusk','wolffish','anglerfish','greenlandshark','oarfish','colossus'],
+   legendary:'colossus',goal:{earn:14000},
+   ports:[{name:'Frost Harbor',x:560,kind:'home',spec:['cusk','capelin'],icon:'anchor'},
+          {name:'Lantern Bay',x:2500,kind:'trade',spec:['lanternfish','wolffish'],icon:'lighthouse'},
+          {name:'The Rime',x:4400,kind:'trade',spec:['greenlandshark'],icon:'house'},
+          {name:"World's End",x:6000,kind:'trade',spec:['oarfish'],icon:'waves'}]},
 ];
 const GOODS={ice:{name:'Crushed Ice',icon:'ice',base:8,vol:.35},salt:{name:'Sea Salt',icon:'salt',base:14,vol:.3},
   timber:{name:'Timber',icon:'timber',base:26,vol:.4},rope:{name:'Rope & Net',icon:'rope',base:34,vol:.45},
@@ -548,7 +571,7 @@ function boot(){
   world.time=0.36; setWeather('clear'); world.wBlend=1; updateWeather(0.001);
   // debug hooks: #t=0.75&w=storm&r=1&fish=1 to inspect a fixed moment
   const hp=new URLSearchParams(location.hash.slice(1));
-  const reg=hp.has('r')?clamp(parseInt(hp.get('r')),0,2):0;
+  const reg=hp.has('r')?clamp(parseInt(hp.get("r")),0,REGIONS.length-1):0;
   if(hp.has('t')){ world.time=parseFloat(hp.get('t')); world.timeScale=0; }
   if(hp.has('t')||hp.has('nb')){ const b=document.getElementById('boot'); if(b) b.style.display='none'; }
   if(hp.has('w')){ world.weather=world.weatherPrev=hp.get('w'); world.wBlend=1; updateWeather(0.001); world.wTimer=999; }
@@ -1089,7 +1112,7 @@ function buildSeabedLife(){
   const N=90;
   for(let i=0;i<N;i++){
     const x=(rr()*2-1)*190, z=(rr()*2-1)*95, y=hAt(x,z); const s=rr();
-    if(R.id==='north'){
+    if(R.id==='north'||R.id==='verge'){
       if(s<0.5){ for(let b=0;b<3;b++){ const h=16+rr()*22; addKelp(m,x+(rr()*2-1)*1.6,y,z+(rr()*2-1)*1.6,h,rr()*6,v3([40,86,60]),v3([120,150,90])); } }
       else if(s<0.8){ addOcta(m,x,y+rr()*1.2,z,1+rr()*2,0.8+rr(),1+rr()*2,v3([70,74,78])); } // rock
       else { addOcta(m,x,y+0.1,z,0.6,0.12,0.6,v3([200,120,80])); } // starfish
@@ -1122,7 +1145,7 @@ function buildSeabedLife(){
 
 /* ---- Jellyfish (drifting life) ----------------------------------------- */
 function initJellies(x){
-  UW.jellies=[]; const pal=regionData().id==='trop'?[255,150,180]:regionData().id==='med'?[180,160,255]:[150,200,255];
+  UW.jellies=[]; const pal=regionData().id==='trop'?[255,150,180]:regionData().id==='med'?[180,160,255]:regionData().id==='verge'?[120,255,200]:[150,200,255];
   const n=6; for(let i=0;i<n;i++) UW.jellies.push({x:x+rrange(-30,30),y:-rrange(8,WORLD_DEPTH-6),z:rrange(-14,14),ph:rrange(0,TAU),vy:rrange(-0.6,0.6),col:pal});
 }
 function updateJellies(dt){ for(const j of UW.jellies){ j.ph+=dt*1.2; j.y+=Math.sin(j.ph)*0.3*dt + j.vy*dt;
@@ -1259,7 +1282,8 @@ function renderUnderwater(sky){
     const tint=v3(hex2rgb(f.def.col));
     const m=m4(); const yaw=(f.face===-1)?PI:0; const wig=Math.sin(f.phase)*0.18;
     m4compose(m,f.pos,yaw+wig,0,0,[f.size,f.size,f.size]);
-    drawLit(UW.fish,m,sky,Object.assign({emissive:f.flash*0.5},litOpts,{tint:f.flash>0?[1,1,1]:tint}));
+    const emi=(f.def.glow?0.55+0.25*Math.sin(Game.t*3+f.phase):0)+f.flash*0.5;
+    drawLit(UW.fish,m,sky,Object.assign({},litOpts,{emissive:emi,tint:f.flash>0?[1,1,1]:(f.def.glow?v3(hex2rgb(f.def.acc)):tint)}));
   }
   // lure body (glowing)
   const lm=m4(); m4compose(lm,[L.x,L.y,L.z],Game.t*2,0,0,[1,1,1]);
@@ -1353,45 +1377,64 @@ function addLandmark(m,x,y,z,R){
     addBox(m,x-2.2,y+6.9,z,0.08,0.8,0.08,v3([80,70,60]));
   }
 }
+function addLoTree(m,x,y,z,s,kind,rr){
+  if(kind==='palm'){ const h=3.4*s; addBox(m,x,y+h*0.45,z,0.13*s,h*0.45,0.13*s,v3([120,92,56]));
+    for(let f=0;f<5;f++){ const a=f/5*TAU; addTri(m,[x,y+h,z],[x+Math.cos(a)*1.7*s,y+h-0.5*s,z+Math.sin(a)*1.7*s],[x+Math.cos(a+0.4)*1.4*s,y+h-0.2*s,z+Math.sin(a+0.4)*1.4*s],v3([46,132,80])); } }
+  else if(kind==='cypress'){ addBox(m,x,y+0.5*s,z,0.12*s,0.5*s,0.12*s,v3([100,80,54])); addCone(m,x,y+0.4*s,z,0.85*s,3.6*s,5,v3(shade([64,90,58],(rr()-.5)*.2))); }
+  else { const h=3*s; addBox(m,x,y+h*0.3,z,0.15*s,h*0.3,0.15*s,v3([96,66,42]));
+    addCone(m,x,y+h*0.4,z,1.4*s,1.6*s,5,v3([44,84,54])); addCone(m,x,y+h*0.74,z,1.05*s,1.4*s,5,v3([50,92,60])); addCone(m,x,y+h*1.02,z,0.68*s,1.15*s,5,v3([56,100,66])); }
+}
 let COAST={mesh:null,lamps:[],lights:[]};
 const GULLS=[];
 function buildCoast(){
   const R=regionData(), m=Mesh(); const rr=mulberry32(700+world.region*13);
   const nz=makeNoise1D(300+world.region*5), nz2=makeNoise1D(811+world.region);
   const shoreZ=-60, len=R.length;
-  const hillCol=hex2rgb(R.hills[2]), hillBack=hex2rgb(R.hills[0]), sand=[212,196,158];
-  const rows=[{z:shoreZ,h:0,c:sand},{z:-72,h:5,c:mix(sand,hillCol,0.5)},{z:-96,h:16,c:hillCol},{z:-128,h:27,c:mix(hillCol,hillBack,0.5)},{z:-172,h:38,c:hillBack}];
-  const hAtX=x=> (fbm1(nz,x*0.004,4)*0.5+0.5);
-  const step=12;
+  const hillCol=hex2rgb(R.hills[2]), hillBack=hex2rgb(R.hills[0]), sand=[214,198,160];
+  const cold=(R.id==='north'||R.id==='verge');
+  const rows=[{z:shoreZ,h:0},{z:-70,h:3},{z:-84,h:9},{z:-100,h:20},{z:-120,h:37},{z:-146,h:58},{z:-176,h:80},{z:-214,h:98}];
+  const NR=rows.length, maxH=rows[NR-1].h, snowline=maxH*0.55;
+  const hf=x=>0.42+0.58*(fbm1(nz,x*0.0042,5)*0.5+0.5);
+  const rug=(x,zi)=>fbm1(nz2,x*0.02+zi*4.1,4);
+  const H=(x,zi)=> Math.max(0, rows[zi].h*hf(x) + (zi?rug(x,zi)*rows[zi].h*0.32:0));
+  const groundY=(x,z)=>{ if(z>=rows[0].z) return 0; for(let r=0;r<NR-1;r++){ const a=rows[r],b=rows[r+1];
+    if(z<=a.z&&z>=b.z){ const t=(z-a.z)/(b.z-a.z); return lerp(H(x,r),H(x,r+1),t); } } return H(x,NR-1); };
+  const colAt=(x,zi,y)=>{ let base= zi<=1? mix(sand,hillCol,0.4) : mix(hillCol,hillBack,clamp((zi-1)/(NR-2),0,1));
+    base=shade(base, rug(x,zi)*0.12+(hf(x)-0.7)*0.1);
+    if(y>snowline){ const t=clamp((y-snowline)/(maxH*0.3),0,1); base= cold? mix(base,[236,240,246],t*0.92) : mix(base,[128,122,114],t*0.6); }
+    if(zi===0) base=sand; return v3(base); };
+  const step=11;
   for(let x=-60;x<len+60;x+=step){
-    const hx0=hAtX(x), hx1=hAtX(x+step);
-    for(let r=0;r<rows.length-1;r++){
-      const a=rows[r],b=rows[r+1];
-      const y0a=a.h*hx0*(r?1:0), y0b=a.h*hx1*(r?1:0), y1a=b.h*hx0, y1b=b.h*hx1;
-      const cc=mix(a.c,b.c,0.5); const cv=shade(cc,(hx0-0.5)*0.24 + (fbm1(nz2,x*0.05,3))*0.08);
-      addQuad(m,[x,y0a,a.z],[x+step,y0b,a.z],[x+step,y1b,b.z],[x,y1a,b.z],v3(cv));
+    for(let r=0;r<NR-1;r++){ const a=rows[r],b=rows[r+1];
+      const ya0=H(x,r),ya1=H(x+step,r),yb0=H(x,r+1),yb1=H(x+step,r+1);
+      addQuad(m,[x,ya0,a.z],[x+step,ya1,a.z],[x+step,yb1,b.z],[x,yb0,b.z], colAt(x,r+1,(yb0+yb1)/2));
     }
   }
-  // dense forest + bushes + rocks along the hills
+  // ---- dense forests (thousands of clustered trees) ----
   const treeKind = R.id==='trop'?'palm':R.id==='med'?'cypress':'pine';
-  const nTrees=Math.floor(len/13);
-  for(let i=0;i<nTrees;i++){ const x=rr()*len; const zr=1+Math.floor(rr()*3.99); const z=rows[Math.min(zr,4)].z+rr()*16-8;
-    const y=rows[Math.min(zr,4)].h*hAtX(x)*0.92; const rl=rr();
-    if(rl<0.62) addTree(m,x,y,z,treeKind,rr);
-    else if(rl<0.82) addCone(m,x,y,z,0.5+rr()*0.5,0.8+rr()*0.8,5,v3(shade([70,96,64],(rr()-.5)*.3))); // bush
-    else addOcta(m,x,y+0.3,z,0.5+rr(),0.4+rr()*0.6,0.5+rr(),v3([104,100,92])); // rock
-  }
+  const clusters=Math.floor(len/70);
+  for(let c=0;c<clusters;c++){ const cx=rr()*len, cz=lerp(-72,-152,rr()), n=28+Math.floor(rr()*48);
+    for(let t=0;t<n;t++){ const x=cx+(rr()*2-1)*24, z=cz+(rr()*2-1)*18; if(z>-66||z<-192) continue;
+      const y=groundY(x,z); if(y<1.5||y>snowline) continue; addLoTree(m,x,y,z,0.6+rr()*0.8,treeKind,rr); } }
+  for(let i=0;i<Math.floor(len/6);i++){ const x=rr()*len, z=lerp(-68,-176,rr()), y=groundY(x,z);
+    if(y<1.2) continue; const rl=rr();
+    if(y>snowline){ if(rl<0.5) addOcta(m,x,y+0.3,z,0.6+rr(),0.5+rr()*0.7,0.6+rr(),v3(cold?[220,226,232]:[120,116,108])); continue; }
+    if(rl<0.72) addLoTree(m,x,y,z,0.55+rr()*0.7,treeKind,rr);
+    else if(rl<0.9) addCone(m,x,y,z,0.4+rr()*0.5,0.7+rr()*0.7,5,v3(shade([70,96,64],(rr()-.5)*.3)));
+    else addOcta(m,x,y+0.3,z,0.5+rr(),0.4+rr()*0.6,0.5+rr(),v3([104,100,92])); }
   // coastal rocks at the waterline
-  for(let i=0;i<Math.floor(len/60);i++){ const x=rr()*len; const z=shoreZ+2+rr()*6;
+  for(let i=0;i<Math.floor(len/50);i++){ const x=rr()*len, z=shoreZ+2+rr()*6;
     for(let k=0;k<3;k++) addOcta(m,x+rr()*4-2,-0.2+rr()*0.6,z+rr()*3,0.5+rr()*0.9,0.4+rr()*0.7,0.5+rr()*0.9,v3([96,94,88])); }
-  // offshore islets + sea stacks
-  for(let i=0;i<7;i++){ const x=rr()*len; const iz=-16-rr()*30; const ir=3+rr()*4, ih=1.5+rr()*3;
-    for(let k=0;k<5;k++){ const a=k/5*TAU; addCone(m,x+Math.cos(a)*ir*0.4,0,iz+Math.sin(a)*ir*0.4,ir*0.7,ih,6,v3(mix(hillCol,sand,0.4))); }
-    addCone(m,x,ih*0.4,iz,ir*0.5,ih*1.4,6,v3(hillCol));
-    if(rr()<0.5) addTree(m,x,ih*0.9,iz,treeKind,rr); else addOcta(m,x,ih*0.9,iz,1,1.4,1,v3([100,96,90]));
-  }
-  for(let i=0;i<5;i++){ const x=rr()*len; const iz=-12-rr()*24; const h=4+rr()*6;
-    addPrism(m,x,h*0.4,iz,0.8+rr()*0.8,h,6,v3([92,90,86]),v3([96,94,90])); }
+  // ---- mountainous offshore islands + sea stacks ----
+  for(let i=0;i<9;i++){ const ix=rr()*len, iz=-16-rr()*42, base=4+rr()*7, peaks=2+Math.floor(rr()*2);
+    let py=0, pr=base;
+    for(let k=0;k<peaks;k++){ const ox=(rr()*2-1)*base*0.3, oz=(rr()*2-1)*base*0.3;
+      addCone(m,ix+ox,py,iz+oz,pr,pr*1.5,7,v3(mix(hillCol,sand,0.32))); py+=pr*0.9; pr*=0.6; }
+    if(cold&&py>7) addCone(m,ix,py-1.2,iz,pr*1.4,pr*1.7,6,v3([234,238,244]));
+    const nt=Math.floor(base*2.4); for(let t=0;t<nt;t++){ const a=rr()*TAU, rad=rr()*base*0.95;
+      const tx=ix+Math.cos(a)*rad, tz=iz+Math.sin(a)*rad; addLoTree(m,tx,base*0.32+rr()*base*0.35,tz,0.4+rr()*0.4,treeKind,rr); } }
+  for(let i=0;i<6;i++){ const x=rr()*len, iz=-12-rr()*30, h=5+rr()*9;
+    addPrism(m,x,h*0.4,iz,0.8+rr()*0.9,h,6,v3([92,90,86]),v3([96,94,90])); }
   // villages at ports
   COAST.lamps=[]; COAST.lights=[];
   for(const p of R.ports){
@@ -1409,20 +1452,17 @@ function buildCoast(){
     // moored boats + net racks near the dock
     addMooredBoat(m,px-3.6,shoreZ+16,prr); addMooredBoat(m,px+3.7,shoreZ+24,prr);
     addNetRack(m,px-4.5,0.2,shoreZ+6); if(p.kind!=='home') addShack(m,px+6+prr()*3,shoreZ+2,v3(wall),v3(roof));
-    // village cluster (varied buildings on a loose grid)
-    const rowsZ=[-68,-77,-87,-98];
+    // village cluster placed on the actual ground
+    const rowsZ=[-67,-75,-84,-95];
     for(let r=0;r<rowsZ.length;r++){ const count=3+Math.floor(prr()*2);
       for(let c=0;c<count;c++){ const bx=px+(c-(count-1)/2)*6 + (prr()*2-1)*1.6;
-        const bz=rowsZ[r]+(prr()*2-1)*3; const by=rows[Math.min(r+1,4)].h*hAtX(bx)*0.9;
+        const bz=rowsZ[r]+(prr()*2-1)*2.4; const by=groundY(bx,bz);
         const w=1.6+prr()*1.3, h=1.8+prr()*1.8;
         addBuilding(m,bx,by,bz,w,h,w*0.9,v3(shade(wall,(prr()-.5)*0.1)),v3(shade(roof,(prr()-.5)*0.12))); } }
-    // market stalls near the shore
-    for(let s=0;s<3;s++) addStall(m,px+(s-1)*4.5,rows[1].h*hAtX(px)*0.7,-64,prr);
-    // walls / terraces (med) or fences
-    if(R.id==='med'){ for(let w=0;w<4;w++) addBox(m,px+(w-1.5)*7,rows[2].h*hAtX(px)*0.6+0.6,-92,4,0.6,0.4,v3([224,216,196])); }
-    // landmark + lighthouse
-    addLandmark(m,px+(p.kind==='home'?12:-11),rows[2].h*hAtX(px+12)*0.7,-90,R);
-    if(p.kind==='home'){ const lx=px-11,ly=rows[3].h*hAtX(px-11)*0.85,lz=-104; addLighthouse(m,lx,ly,lz); COAST.lights.push([lx,ly+11.4,lz]); }
+    for(let s=0;s<3;s++){ const sx=px+(s-1)*4.5,sz=-64; addStall(m,sx,groundY(sx,sz),sz,prr); }
+    if(R.id==='med'){ for(let w=0;w<4;w++){ const wx=px+(w-1.5)*7,wz=-90; addBox(m,wx,groundY(wx,wz)+0.6,wz,4,0.6,0.4,v3([224,216,196])); } }
+    const lmx=px+(p.kind==='home'?12:-11),lmz=-88; addLandmark(m,lmx,groundY(lmx,lmz),lmz,R);
+    if(p.kind==='home'){ const lx=px-11,lz=-100,ly=groundY(lx,lz); addLighthouse(m,lx,ly,lz); COAST.lights.push([lx,ly+11.4,lz]); }
   }
   if(COAST.mesh&&COAST.mesh.vao) gl.deleteVertexArray(COAST.mesh.vao);
   COAST.mesh=meshToVAO(m);
@@ -1456,7 +1496,7 @@ const COAST_MODEL=m4ident(m4());
 
 /* ======================= 24. REGION CONTROL + DOCKING =================== */
 function enterRegion(i){
-  world.region=clamp(i,0,2);
+  world.region=clamp(i,0,REGIONS.length-1);
   const home=regionData().ports[0];
   player.pos=[home.x+140,0,0]; player.speed=0; player.facing=-1; player.yaw=PI;
   buildCoast(); buildSeabedLife();
@@ -1899,7 +1939,7 @@ const ICON={
 };
 function ic(name,size,style){ const s=ICON[name]||''; const sz=size||18; return `<svg width="${sz}" height="${sz}" viewBox="0 0 24 24" style="vertical-align:-0.16em;${style||''}" xmlns="http://www.w3.org/2000/svg">${s}</svg>`; }
 const WKEY={clear:'sun',cloud:'cloud',fog:'fogg',rain:'rain',snow:'snoww',storm:'storm'};
-const RICON={north:'snowflake',trop:'palm',med:'column'};
+const RICON={north:'snowflake',trop:'palm',med:'column',verge:'moon'};
 
 /* ======================= 35. AUDIO ENGINE ============================= */
 (function(){
