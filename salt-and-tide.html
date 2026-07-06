@@ -149,6 +149,7 @@ function mix(c1,c2,t){return[lerp(c1[0],c2[0],t),lerp(c1[1],c2[1],t),lerp(c1[2],
 function shade(c,amt){return amt>=0?mix(c,[255,255,255],amt):mix(c,[8,14,20],-amt);}
 function withA(cssOrArr,a){if(Array.isArray(cssOrArr))return rgb2css(cssOrArr,a);const c=hex2rgb(cssOrArr);return rgb2css(c,a);}
 const v3=(c)=>[c[0]/255,c[1]/255,c[2]/255];   // 0..255 -> 0..1 for GL
+function mixHex(h1,h2,t){ return rgb2css(mix(hex2rgb(h1),hex2rgb(h2),t)); }
 
 /* ======================= 3. WORLD DATA =================================== */
 const FISH={
@@ -430,7 +431,7 @@ function skyColors(){
 /* ======================= 7. SKY SHADER ================================== */
 const SKY_GLSL=`
 uniform vec3 uSunDir,uSkyTop,uSkyHor,uSunCol,uWarmCol;
-uniform float uWarm,uLightStr,uOvercast,uStorm,uTime,uStarA;
+uniform float uWarm,uLightStr,uOvercast,uStorm,uTime,uStarA,uAurora;
 float hash13(vec3 p){ p=fract(p*0.1031); p+=dot(p,p.yzx+33.33); return fract((p.x+p.y)*p.z); }
 vec3 skyColor(vec3 dir){
   dir=normalize(dir);
@@ -447,6 +448,14 @@ vec3 skyColor(vec3 dir){
     float s=smoothstep(0.992,1.0,st);
     float tw=0.55+0.45*sin(uTime*3.0+st*140.0);
     col+=vec3(1.0,0.98,0.92)*s*uStarA*tw*0.9;
+  }
+  if(uAurora>0.01){
+    float ah=smoothstep(0.02,0.30,dir.y)*(1.0-smoothstep(0.5,0.96,dir.y));
+    float w1=sin(dir.x*7.0+uTime*0.4+sin(dir.x*3.0)*2.0)*0.5+0.5;
+    float w2=sin(dir.x*15.0-uTime*0.25)*0.5+0.5;
+    float curt=pow(w1,2.0)*(0.55+0.45*w2);
+    vec3 aur=mix(vec3(0.15,0.95,0.55),vec3(0.35,0.55,1.0),w2)*ah*curt;
+    col+=aur*uAurora*1.9;
   }
   return col;
 }`;
@@ -471,6 +480,7 @@ function setSkyUniforms(p,sky){
   gl.uniform1f(p.u('uStorm'),world.storm);
   gl.uniform1f(p.u('uTime'),Game.t);
   gl.uniform1f(p.u('uStarA'),sky.starA);
+  gl.uniform1f(p.u('uAurora'),regionData().id==='verge'?clamp(1-sky.dayness*2.2,0,1)*(1-world.overcast*0.6):0);
 }
 function drawSky(sky){
   gl.useProgram(skyProg);
@@ -1186,10 +1196,16 @@ function spawnFish(nearX, atEdge){
   const y=-depthFrac*WORLD_DEPTH;
   const x=nearX + (atEdge? (chance(0.5)?-1:1)*rrange(34,46) : rrange(-40,40));
   const z=rrange(-9,9);
-  const len=rrange(def.len[0],def.len[1]);
   const skittish = def.legendary || def.hits>=3;
-  fishing.school.push({id,def,pos:[x,y,z],dir:rrange(0,TAU),vx:0,vy:0,vz:0,hp:def.hits,size:len/58,len,
-    wt:rrange(0.3,1.4),phase:rrange(0,TAU),cd:0,skittish,band:y,flash:0});
+  const schooling = def.hits===1 && def.len[1]<=30;
+  const shoal = schooling? 4+rint(0,5) : 1;
+  for(let s=0;s<shoal;s++){
+    const ox=schooling?rrange(-5,5):0, oy=schooling?rrange(-3,3):0, oz=schooling?rrange(-4,4):0;
+    const len=rrange(def.len[0],def.len[1]);
+    fishing.school.push({id,def,pos:[x+ox,clamp(y+oy,-WORLD_DEPTH+1,-1.5),z+oz],dir:rrange(0,TAU),vx:0,vy:0,vz:0,hp:def.hits,size:len/58,len,
+      wt:rrange(0.3,1.4),phase:rrange(0,TAU),cd:0,skittish,band:clamp(y+oy,-WORLD_DEPTH+1,-1.5),flash:0,sch:schooling});
+    if(fishing.school.length>26) break;
+  }
 }
 function spawnInitialFish(){ fishing.school=[]; const n=15; for(let i=0;i<n;i++) spawnFish(player.pos[0],false);
   UW.motes=[]; for(let i=0;i<UW.moteN;i++) UW.motes.push({x:player.pos[0]+rrange(-30,30),y:-rrange(2,WORLD_DEPTH),z:rrange(-16,16),vy:rrange(1,4),ph:rrange(0,TAU)});
@@ -1658,7 +1674,7 @@ function marketHTML(port){
   const ids=Object.keys(groups).sort((a,b)=>FISH[b].base-FISH[a].base);
   for(const id of ids){ const arr=groups[id]; let tot=0; for(const it of arr) tot+=fishSellPrice(port,it); grand+=tot;
     const def=FISH[id]; const mult=ECO.fish[port.name][id]||1; const trend=mult>1.15?'▲':mult<0.9?'▼':'·';
-    rows+=`<tr><td><span class="swatch" style="background:${def.col}"></span>${def.name}${def.legendary?'<span class="tag leg">legendary</span>':''}</td>
+    rows+=`<tr><td>${fishSVG(id,30)} ${def.name}${def.legendary?'<span class="tag leg">legendary</span>':''}</td>
       <td class="num">${arr.length}</td><td class="num">${coinStr(Math.round(tot/arr.length))} ${trend}</td>
       <td class="num"><b>${coinStr(tot)}</b></td><td class="num"><button class="btn small" onclick="sellFish('${id}')">Sell</button></td></tr>`; }
   if(!ids.length) rows=`<tr><td colspan="5" class="muted center" style="padding:18px">Your hold is empty — cast a line out at sea (Space).</td></tr>`;
@@ -2030,7 +2046,7 @@ function openAlmanac(){
   const L=ensureLayer('layer-almanac'); let total=0,found=0,secs='';
   for(const R of REGIONS){ let rows='';
     for(const id of R.fish){ total++; const d=FISH[id]; const got=player.discovered[id]; if(got)found++;
-      rows+= got? `<div class="shop-item" style="padding:8px 10px"><div class="ic"><span class="swatch" style="width:20px;height:20px;margin:0;background:${d.col}"></span></div>
+      rows+= got? `<div class="shop-item" style="padding:8px 10px"><div class="ic" style="background:radial-gradient(circle at 40% 35%,#fff,#e2d3ae)">${fishSVG(id,38)}</div>
         <div class="meta"><h4 style="font-size:14px">${d.name}${d.legendary?'<span class="tag leg">legendary</span>':''}</h4>
         <p style="font-size:11.5px">Record ${player.records[id]||'—'}cm · worth ~${d.base}c${d.lore?` · <i>${d.lore}</i>`:''}</p></div></div>`
        : `<div class="shop-item" style="padding:8px 10px;opacity:.5"><div class="ic">${ic('fish',20)}</div><div class="meta"><h4 style="font-size:14px">? ? ?</h4><p style="font-size:11.5px">Undiscovered</p></div></div>`; }
@@ -2099,6 +2115,31 @@ function rollCredits(){
     <button class="btn gold" id="cred-done" style="position:absolute;left:50%;bottom:24px;transform:translateX(-50%)">Return to Title</button></div>`;
   c.querySelector('#cred-done').onclick=()=>{ c.innerHTML=''; openTitle(); };
   Game.set('credits');
+}
+
+/* ======================= 37. PER-SPECIES FISH VECTOR MODELS =========== */
+const FISH_SHAPE={ herring:'torpedo',mackerel:'torpedo',cod:'roundfish',pollock:'roundfish',salmon:'torpedo',halibut:'flat',lobster:'lobster',kingcrab:'crab',oldbarnacle:'flat',
+  sardine:'torpedo',snapper:'roundfish',parrot:'roundfish',grouper:'roundfish',mahi:'torpedo',tuna:'torpedo',marlin:'billfish',reefking:'roundfish',
+  anchovy:'torpedo',seabream:'roundfish',seabass:'roundfish',octopus:'octopus',dorade:'roundfish',swordfish:'billfish',bluefin:'torpedo',leviathan:'torpedo',
+  lanternfish:'torpedo',capelin:'torpedo',cusk:'roundfish',wolffish:'roundfish',anglerfish:'angler',greenlandshark:'shark',oarfish:'ribbon',colossus:'squid' };
+function fishShape(id){ return FISH_SHAPE[id]||'roundfish'; }
+function fishSVG(id,w){
+  const d=FISH[id]; const c=d.col, a=d.acc||'#33424a', bl=mixHex(c,'#ffffff',0.5), dk=mixHex(c,'#0a1014',0.35);
+  const sh=fishShape(id); const eye=(x,y)=>`<circle cx="${x}" cy="${y}" r="1.7" fill="#16222b"/><circle cx="${x+0.5}" cy="${y-0.5}" r="0.6" fill="#fff"/>`;
+  let g='';
+  if(sh==='torpedo') g=`<path d="M7 12C11 5 29 5 35 12C29 19 11 19 7 12Z" fill="${c}"/><path d="M9 13.5C15 18 27 18 33 13.5C27 15.5 15 15.5 9 13.5Z" fill="${bl}" opacity="0.55"/><path d="M7 12L1 7L3.5 12L1 17Z" fill="${a}"/><path d="M17 6L23 2.5L25 7Z" fill="${a}"/><path d="M17 17.5L22 20.5L24 17Z" fill="${dk}"/>${eye(31,11)}`;
+  else if(sh==='roundfish') g=`<ellipse cx="21" cy="12" rx="14" ry="8.5" fill="${c}"/><path d="M9 14.5C15 18.5 27 18.5 33 14.5C27 16.5 15 16.5 9 14.5Z" fill="${bl}" opacity="0.5"/><path d="M7 12L1 7L3.5 12L1 17Z" fill="${a}"/><path d="M13 5Q21 1 29 5L27 7.5Q21 4.5 15 7.5Z" fill="${a}"/><path d="M18 19L23 22L25 19Z" fill="${dk}"/>${eye(30,11)}`;
+  else if(sh==='flat') g=`<path d="M6 12C10 6 30 5 37 11C33 15 34 18 30 19.5C18 21.5 8 18 6 12Z" fill="${c}"/><path d="M8 13C16 18 28 18 34 14C26 16 14 16 8 13Z" fill="${bl}" opacity="0.4"/><path d="M6 12L1 8L2.5 12L1 16Z" fill="${a}"/>${eye(29,10)}${eye(33,11)}`;
+  else if(sh==='billfish') g=`<line x1="30" y1="12" x2="41" y2="11.4" stroke="${a}" stroke-width="1.6"/><path d="M8 12C12 7 26 7 30 12C26 17 12 17 8 12Z" fill="${c}"/><path d="M8 12L2 8L4 12L2 16Z" fill="${a}"/><path d="M13 7Q19 -1 25 7Z" fill="${a}"/><path d="M15 17Q19 21 23 17Z" fill="${dk}"/>${eye(27,11)}`;
+  else if(sh==='shark') g=`<path d="M5 13C12 8 27 8.5 37 12C29 12.5 22 13 5 13Z" fill="${c}"/><path d="M8 13.2C16 15.5 26 15 34 12.6C26 15 16 15.5 8 14.5Z" fill="${bl}" opacity="0.4"/><path d="M5 13L1 9L2.5 13L1 18Z" fill="${dk}"/><path d="M18 8.5L21 2L24 9Z" fill="${dk}"/><path d="M28 12.5L31 14.5L29 15.5Z" fill="${dk}"/>${eye(32,11)}`;
+  else if(sh==='lobster') g=`<ellipse cx="21" cy="12" rx="8.5" ry="4.2" fill="${c}"/><path d="M28 12L36 12" stroke="${c}" stroke-width="2"/><path d="M12.5 11L5 7M12.5 13L5 17" stroke="${c}" stroke-width="2"/><path d="M5 7L1 5L6 8ZM5 17L1 19L6 16Z" fill="${a}"/><path d="M30 10L37 8 34 12 37 16 30 14Z" fill="${a}"/><path d="M17 15L16 19M21 16L21 20M25 15L26 19" stroke="${dk}" stroke-width="1"/>${eye(13,10)}`;
+  else if(sh==='crab') g=`<path d="M10 13C10 8 32 8 32 13C32 17 26 18 21 18C16 18 10 17 10 13Z" fill="${c}"/><path d="M10 11L3 6 7 11ZM32 11L39 6 35 11ZM11 15L4 19 8 15ZM31 15L38 19 34 15ZM13 16L9 20ZM29 16L33 20Z" stroke="${dk}" stroke-width="1.3" fill="none"/><path d="M11 10L5 5 8 10ZM31 10L37 5 34 10Z" fill="${a}"/>${eye(17,11)}${eye(25,11)}`;
+  else if(sh==='octopus') g=`<path d="M12 10C12 4 30 4 30 11C30 14 26 15 21 15C16 15 12 14 12 10Z" fill="${c}"/><path d="M14 14Q11 20 9 22M18 15Q16 21 15 23M22 15Q24 21 25 23M28 14Q31 20 33 22M21 15Q21 22 21 24" stroke="${c}" stroke-width="2" fill="none" stroke-linecap="round"/><path d="M14 14Q11 20 9 22M28 14Q31 20 33 22" stroke="${dk}" stroke-width="0.8" fill="none" opacity="0.5"/>${eye(17,10)}${eye(25,10)}`;
+  else if(sh==='squid') g=`<path d="M12 12C16 6 36 6 40 12C36 18 16 18 12 12Z" fill="${c}"/><path d="M35 7L41 5 37 12 41 19 35 17Z" fill="${a}"/><path d="M12 12Q7 10 3 11M12 12.8Q7 14 2 16M12 11.2Q7 10 3 8M12 12Q6 12.5 1 13M12 12.4Q7 13 2 14" stroke="${c}" stroke-width="1.5" fill="none" stroke-linecap="round"/>${eye(27,10.5)}`;
+  else if(sh==='angler') g=`<ellipse cx="22" cy="13" rx="11" ry="8" fill="${c}"/><path d="M12 13L21 10 21 17Z" fill="${dk}"/><path d="M13 13.5L16 14.5 13 15.5 16 16.5 13 17.5" stroke="${bl}" stroke-width="0.7" fill="none"/><path d="M20 6C22 1 27 1 27 5" stroke="${bl}" stroke-width="1" fill="none"/><circle cx="27" cy="5" r="2.2" fill="${a}"/><circle cx="27" cy="5" r="3.6" fill="${a}" opacity="0.35"/>${eye(25,11)}`;
+  else if(sh==='ribbon') g=`<path d="M2 12Q11 7 20 12T39 12Q30 15 20.5 12.5T2 12Z" fill="${c}"/><path d="M4 11Q6 5 8 11M19 12Q21 6 23 12M33 11Q35 6 37 11" stroke="${a}" stroke-width="1" fill="none"/>${eye(37,11)}`;
+  else g=`<ellipse cx="21" cy="12" rx="13" ry="8" fill="${c}"/>${eye(29,11)}`;
+  return `<svg width="${w}" height="${Math.round(w*0.6)}" viewBox="0 0 42 24" style="vertical-align:middle;overflow:visible" xmlns="http://www.w3.org/2000/svg">${g}</svg>`;
 }
 
 /*__MORE__*/
