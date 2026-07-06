@@ -767,48 +767,127 @@ function drawLit(md,model,sky,o){
 
 /* ======================= 16. BOAT MESH ================================== */
 let BOAT={model:m4()};
+function addOcta(m,cx,cy,cz,rx,ry,rz,col){
+  const p=[[cx+rx,cy,cz],[cx-rx,cy,cz],[cx,cy+ry,cz],[cx,cy-ry,cz],[cx,cy,cz+rz],[cx,cy,cz-rz]];
+  const f=[[0,2,4],[0,4,3],[0,3,5],[0,5,2],[1,4,2],[1,3,4],[1,5,3],[1,2,5]];
+  for(const t of f) addTri(m,p[t[0]],p[t[1]],p[t[2]],col);
+}
+function addPrism(m,cx,cy,cz,r,h,segs,col,colTop){ // vertical cylinder
+  const top=cy+h/2, bot=cy-h/2, t=colTop||col;
+  for(let i=0;i<segs;i++){ const a=i/segs*TAU,b=(i+1)/segs*TAU;
+    const ax=cx+Math.cos(a)*r,az=cz+Math.sin(a)*r,bx=cx+Math.cos(b)*r,bz=cz+Math.sin(b)*r;
+    addQuad(m,[ax,bot,az],[bx,bot,bz],[bx,top,bz],[ax,top,az],col);
+    addTri(m,[ax,top,az],[bx,top,bz],[cx,top,cz],t);
+    addTri(m,[bx,bot,bz],[ax,bot,az],[cx,bot,cz],col);
+  }
+}
 function buildBoat(){
   const m=Mesh();
-  const red=v3([172,74,58]), redDk=v3([120,50,42]), cream=v3([236,224,196]),
-        wood=v3([122,88,56]), deck=v3([150,116,74]), sailC=v3([242,236,220]),
-        roof=v3([158,66,54]), win=v3([120,178,198]), trim=v3([80,58,40]);
-  const ribs=[-3,-2.2,-1.3,-0.3,0.7,1.6,2.35,3.0];
-  const topY=0.42, half=1.02;
-  const hw=x=>{ const t=(x+3)/6; return Math.max(0.09, half*Math.pow(Math.max(0.0001,Math.sin(clamp(t*0.94+0.06,0,1)*PI)),0.55)); };
-  const botY=x=>{ const t=(x+3)/6; return -1.0 + 0.42*(1-Math.sin(clamp(t,0,1)*PI)); };
-  function rib(x){ const w=hw(x), b=botY(x); return {
-     LG:[x,topY, w], LC:[x,topY-0.5, w*0.78], K:[x,b,0], RC:[x,topY-0.5,-w*0.78], RG:[x,topY,-w] }; }
+  const red=v3([176,76,58]), redDk=v3([120,50,42]), cream=v3([238,226,198]),
+        wood=v3([126,90,58]), woodDk=v3([92,64,40]), deck=v3([158,122,78]),
+        sailC=v3([244,238,222]), roof=v3([164,68,54]), win=v3([120,178,198]),
+        trim=v3([70,52,36]), dark=v3([54,50,48]), brass=v3([196,158,74]),
+        buoyO=v3([224,132,54]), buoyW=v3([232,230,222]), netC=v3([150,150,120]),
+        funnel=v3([64,60,58]), lampC=v3([255,224,150]);
+  const ribs=[-3.7,-2.9,-1.9,-0.8,0.4,1.5,2.5,3.3,3.75];
+  const topY=0.52, half=1.16;
+  const hw=x=>{ const t=(x+3.75)/7.5; return Math.max(0.10, half*Math.pow(Math.max(0.0001,Math.sin(clamp(t*0.92+0.07,0,1)*PI)),0.52)); };
+  const botY=x=>{ const t=(x+3.75)/7.5; return -1.18 + 0.5*(1-Math.sin(clamp(t,0,1)*PI)); };
+  const sheer=x=>{ const t=(x+3.75)/7.5; return topY + 0.16*Math.pow(Math.abs(t-0.42)*2,1.6); }; // raised bow/stern
+  function rib(x){ const w=hw(x), b=botY(x), ty=sheer(x); return {
+     LG:[x,ty,w], LC:[x,ty-0.62,w*0.8], K:[x,b,0], RC:[x,ty-0.62,-w*0.8], RG:[x,ty,-w], ty }; }
   let prev=rib(ribs[0]);
   for(let i=1;i<ribs.length;i++){
     const cur=rib(ribs[i]);
-    addQuad(m,prev.RG,cur.RG,cur.RC,prev.RC,red);   // right topside
-    addQuad(m,prev.RC,cur.RC,cur.K,prev.K,redDk);   // right bottom
-    addQuad(m,prev.K,cur.K,cur.LC,prev.LC,redDk);   // left bottom
-    addQuad(m,prev.LC,cur.LC,cur.LG,prev.LG,red);   // left topside
-    addQuad(m,prev.LG,cur.LG,cur.RG,prev.RG,deck);  // deck cap
+    addQuad(m,prev.RG,cur.RG,cur.RC,prev.RC,red);
+    addQuad(m,prev.RC,cur.RC,cur.K,prev.K,redDk);
+    addQuad(m,prev.K,cur.K,cur.LC,prev.LC,redDk);
+    addQuad(m,prev.LC,cur.LC,cur.LG,prev.LG,red);
+    // deck (inset a touch, wood planks) + cream bulwark cap
+    addQuad(m,prev.LG,cur.LG,cur.RG,prev.RG,deck);
     prev=cur;
   }
-  // stern transom
+  // cream sheer stripe (waterline rubbing strake) along both sides
+  for(const zside of [1,-1]){
+    let p0=rib(ribs[0]);
+    for(let i=1;i<ribs.length;i++){ const p1=rib(ribs[i]);
+      const y0=p0.ty-0.16,y1=p1.ty-0.16,w0=hw(ribs[i-1])*zside,w1=hw(ribs[i])*zside;
+      addQuad(m,[ribs[i-1],y0,w0],[ribs[i],y1,w1],[ribs[i],y1-0.14,w1],[ribs[i-1],y0-0.14,w0],cream); p0=p1; }
+  }
+  // stern transom + name board
   const s=rib(ribs[0]);
   addQuad(m,s.LG,s.RG,s.RC,s.LC,redDk); addTri(m,s.LC,s.RC,s.K,redDk);
-  // gunwale trim strips
-  addBox(m,0,topY+0.02,half*0.62,3.0,0.06,0.05,cream); // rough rails
-  // cabin
-  addBox(m,-1.15,0.9,0,0.95,0.5,0.62,cream,roof);
-  addBox(m,-1.15,1.42,0,0.98,0.06,0.66,roof,roof);      // roof lip
-  addQuad(m,[-0.2,0.7,0.63],[-0.2,1.25,0.63],[-0.2,1.25,-0.63],[-0.2,0.7,-0.63],win); // front window
-  // mast + boom
-  addBox(m,0.5,2.0,0,0.06,1.62,0.06,wood);
-  addBox(m,-0.2,0.66,0,0.7,0.05,0.05,wood);
-  // sail (two-sided triangle with slight belly)
-  const A=[0.5,3.5,0], B=[0.5,0.75,0], C=[-1.15,1.2,0.0], Cb=[-1.15,1.2,0.28];
+  addBox(m,-3.78,0.05,0,0.03,0.2,0.66,cream); // name board
+  // bulwark top rail + stanchions
+  for(const zside of [1,-1]){
+    for(let i=0;i<ribs.length-1;i++){ const x=ribs[i]; const w=hw(x)*zside; const ty=sheer(x);
+      addBox(m,x,ty+0.14,w,0.05,0.16,0.05,wood); } // stanchion posts
+    // top rail
+    let p0=rib(ribs[0]);
+    for(let i=1;i<ribs.length;i++){ const p1=rib(ribs[i]);
+      const w0=hw(ribs[i-1])*zside,w1=hw(ribs[i])*zside;
+      addQuad(m,[ribs[i-1],p0.ty+0.24,w0],[ribs[i],p1.ty+0.24,w1],[ribs[i],p1.ty+0.20,w1],[ribs[i-1],p0.ty+0.20,w0],wood); p0=p1; }
+  }
+  // wheelhouse
+  addBox(m,-1.6,1.02,0,1.0,0.56,0.72,cream);
+  addBox(m,-1.6,1.62,0,1.06,0.06,0.78,roof);            // roof
+  addBox(m,-1.6,1.72,0,0.5,0.05,0.5,roof);              // roof crown
+  // windows band (front + sides)
+  addBox(m,-0.585,1.12,0,0.02,0.26,0.5,win);            // front windows
+  addBox(m,-1.6,1.12,0.735,0.7,0.24,0.02,win);          // +z side
+  addBox(m,-1.6,1.12,-0.735,0.7,0.24,0.02,win);         // -z side
+  addBox(m,-2.55,0.86,0.2,0.03,0.4,0.22,woodDk);        // door
+  // funnel with red band
+  addPrism(m,-2.15,1.9,0,0.14,0.55,8,funnel,funnel);
+  addPrism(m,-2.15,1.98,0,0.155,0.14,8,red,red);
+  // mast + crosstree + rigging + masthead lamp
+  addPrism(m,0.55,2.35,0,0.07,3.5,6,wood,wood);
+  addBox(m,0.55,3.4,0,0.06,0.05,0.6,wood);              // crosstree
+  addOcta(m,0.55,4.15,0,0.11,0.14,0.11,lampC);          // masthead lamp
+  // rigging (thin) fore & aft
+  addBox2(m,[0.55,4.05,0],[3.55,0.6,0],0.02,dark);
+  addBox2(m,[0.55,4.05,0],[-3.5,0.5,0],0.02,dark);
+  // boom
+  addBox(m,-0.4,0.9,0,0.95,0.05,0.05,wood);
+  // main sail (belly toward -z) + jib
+  const A=[0.55,4.0,0],B=[0.55,1.0,0],C=[-1.35,1.5,0.0],Cb=[-1.35,1.5,0.34];
   addTri(m,A,B,Cb,sailC); addTri(m,A,Cb,B,shade255(sailC,-0.12));
-  // small jib forward
-  const J1=[0.55,3.2,0], J2=[2.3,0.7,0], J3=[0.55,0.8,0];
-  addTri(m,J1,J2,J3,sailC); addTri(m,J1,J3,J2,shade255(sailC,-0.12));
-  // flag
-  addBox(m,0.75,3.45,0.02,0.22,0.12,0.01,v3([190,80,66]));
+  const J1=[0.6,3.7,0],J2=[3.4,0.75,0],J3=[0.6,1.0,0];
+  addTri(m,J1,J2,J3,shade255(sailC,-0.04)); addTri(m,J1,J3,J2,shade255(sailC,-0.16));
+  // bowsprit + anchor
+  addBox(m,3.9,0.55,0,0.45,0.05,0.05,wood);
+  addBox(m,-3.3,0.2,0.9,0.14,0.18,0.03,dark); // anchor stock on side
+  // stern rudder post + tiller + outboard
+  addBox(m,-3.5,-0.5,0,0.06,0.5,0.16,woodDk);
+  addBox(m,-3.2,0.5,0,0.5,0.05,0.05,wood);   // tiller
+  addBox(m,-3.55,-0.2,0,0.16,0.34,0.24,dark);// motor housing
+  // deck cargo: crates, barrel, baskets, coiled net
+  addBox(m,-0.1,0.68,0.45,0.28,0.22,0.24,wood,woodDk);
+  addBox(m,0.5,0.66,-0.45,0.24,0.2,0.22,wood,woodDk);
+  addPrism(m,-0.6,0.7,-0.4,0.2,0.42,8,woodDk,wood); // barrel
+  addOcta(m,1.2,0.62,0.4,0.26,0.12,0.26,netC);      // coiled net
+  addBox(m,1.7,0.6,-0.35,0.2,0.14,0.2,cream);       // fish basket
+  // fenders / buoys hanging on +z side
+  for(let i=0;i<3;i++){ const fx=-0.4+i*1.1;
+    addBox2(m,[fx,topY+0.1,hw(fx)],[fx,-0.15,hw(fx)+0.06],0.02,dark); // lanyard
+    addOcta(m,fx,-0.28,hw(fx)+0.08,0.16,0.26,0.16, i===1?buoyW:buoyO); }
+  // life ring on wheelhouse back
+  addOcta(m,-2.62,1.1,0,0.04,0.26,0.26,buoyO);
+  // flag at masthead
+  addBox(m,0.8,4.28,0.02,0.22,0.12,0.01,v3([190,80,66]));
   BOAT.mesh=meshToVAO(m);
+}
+// thin oriented box connecting two points (ropes/rigging/lanyards)
+function addBox2(m,a,b,r,col){
+  const dir=vNorm(vSub(b,a));
+  const up=Math.abs(dir[1])>0.9?[1,0,0]:[0,1,0];
+  const side=vNorm(vCross(dir,up)), up2=vNorm(vCross(side,dir));
+  const c=[];
+  for(const e of [a,b]) for(const su of [-1,1]) for(const uu of [-1,1])
+    c.push([e[0]+side[0]*su*r+up2[0]*uu*r, e[1]+side[1]*su*r+up2[1]*uu*r, e[2]+side[2]*su*r+up2[2]*uu*r]);
+  addQuad(m,c[0],c[2],c[6],c[4],col); addQuad(m,c[2],c[3],c[7],c[6],col);
+  addQuad(m,c[3],c[1],c[5],c[7],col); addQuad(m,c[1],c[0],c[4],c[5],col);
+  addQuad(m,c[0],c[1],c[3],c[2],col); addQuad(m,c[4],c[6],c[7],c[5],col);
 }
 function shade255(c01,amt){ const c=[c01[0]*255,c01[1]*255,c01[2]*255]; return v3(shade(c,amt)); }
 
@@ -894,6 +973,28 @@ function initUnlit(){
     void main(){ gl_Position=uVP*uModel*vec4(aPos,1.0); gl_PointSize=uPoint; }`,
    `out vec4 frag; uniform vec4 uColor; uniform float uPoint;
     void main(){ if(uPoint>0.0){ vec2 d=gl_PointCoord-0.5; if(dot(d,d)>0.25) discard; } frag=uColor; }`);
+  shaftProg=makeProgram(
+   `layout(location=0) in vec2 aUV; uniform mat4 uVP,uModel; out vec2 vUV;
+    void main(){ vUV=aUV; gl_Position=uVP*uModel*vec4(aUV.x,aUV.y,0.0,1.0); }`,
+   `in vec2 vUV; out vec4 frag; uniform vec4 uColor;
+    void main(){ float w=pow(clamp(1.0-abs(vUV.x),0.0,1.0),1.8);
+      float top=smoothstep(0.0,-0.14,vUV.y); float bot=1.0-smoothstep(-0.5,-1.0,vUV.y);
+      float a=uColor.a*w*top*bot; frag=vec4(uColor.rgb,a); }`);
+}
+let shaftProg;
+function drawShafts(sky){
+  gl.useProgram(shaftProg); gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA,gl.ONE); gl.depthMask(false);
+  const L=fishing.lure;
+  for(let i=0;i<7;i++){
+    const sx=L.x+(i-3)*8+Math.sin(Game.t*0.22+i*1.3)*3;
+    const sz=-10+i*3.2, wob=0.12*Math.sin(Game.t*0.3+i);
+    const mo=m4(); m4compose(mo,[sx,0.2,sz],wob,0,0,[3.6+Math.sin(i)*0.6,WORLD_DEPTH*1.02,1]);
+    gl.uniformMatrix4fv(shaftProg.u('uVP'),false,cam.vp);
+    gl.uniformMatrix4fv(shaftProg.u('uModel'),false,mo);
+    gl.uniform4f(shaftProg.u('uColor'),1.0,0.98,0.9,0.12*sky.lightStr);
+    gl.bindVertexArray(UW.shaftVao); gl.drawArrays(gl.TRIANGLES,0,6);
+  }
+  gl.bindVertexArray(null); gl.depthMask(true); gl.disable(gl.BLEND);
 }
 function posVAO(arr){ const vao=gl.createVertexArray(); gl.bindVertexArray(vao);
   const vb=gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER,vb); gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(arr),gl.STATIC_DRAW);
@@ -934,8 +1035,11 @@ function buildUnderwater(){
     addQuad(sb,a,b,c,d,[0.72,0.66,0.5]);
   }
   UW.seabed=meshToVAO(sb);
-  // light shaft (downward-widening quad, additive)
-  UW.shaft=posVAO([-0.5,0,0, 0.5,0,0, 2.2,-1,0,  -0.5,0,0, 2.2,-1,0, -2.2,-1,0]);
+  // light shaft quad in UV space (feathered in the shader)
+  UW.shaftVao=gl.createVertexArray(); gl.bindVertexArray(UW.shaftVao);
+  const svb=gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER,svb);
+  gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,0, 1,0, 1,-1, -1,0, 1,-1, -1,-1]),gl.STATIC_DRAW);
+  gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0,2,gl.FLOAT,false,0,0); gl.bindVertexArray(null);
   // surface ceiling plane (big quad facing down at y=0)
   const CS=260; UW.ceil=posVAO([-CS,0,-CS, CS,0,-CS, CS,0,CS,  -CS,0,-CS, CS,0,CS, -CS,0,CS]);
   // particulate motes buffer (dynamic)
@@ -944,11 +1048,95 @@ function buildUnderwater(){
   UW.moteBuf=gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER,UW.moteBuf);
   gl.bufferData(gl.ARRAY_BUFFER,UW.moteArr,gl.DYNAMIC_DRAW);
   gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0,3,gl.FLOAT,false,0,0); gl.bindVertexArray(null);
-  UW.motes=[];
+  UW.motes=[]; UW.jellies=[]; UW.dot=posVAO([0,0,0]);
+  buildJelly();
+  buildSeabedLife();
+}
+function buildJelly(){
+  const m=Mesh(); const rings=5,segs=12;
+  const p=(t,a)=>[Math.sin(t)*Math.cos(a),Math.cos(t),Math.sin(t)*Math.sin(a)];
+  for(let j=0;j<rings;j++){ const t0=j/rings*PI*0.55,t1=(j+1)/rings*PI*0.55;
+    for(let i=0;i<segs;i++){ const a0=i/segs*TAU,a1=(i+1)/segs*TAU;
+      addQuad(m,p(t0,a0),p(t0,a1),p(t1,a1),p(t1,a0),[1,1,1]); } }
+  UW.jelly=meshToVAO(m);
+}
+
+/* ---- Seabed life: kelp, coral, rocks, seagrass (region-flavoured) ------- */
+function addKelp(m,x,y,z,h,seed,col,tip){
+  const segs=7, w=0.16; let px=x,py=y,pz=z;
+  for(let i=0;i<segs;i++){ const t=(i+1)/segs;
+    const nx=x+Math.sin(t*3.0+seed)*1.7*t, ny=y+t*h, nz=z+Math.cos(t*2.2+seed)*0.7*t;
+    const c=mix(col,tip,t); const ww=w*(1-t*0.4);
+    addQuad(m,[px,py,pz+w],[nx,ny,nz+ww],[nx,ny,nz-ww],[px,py,pz-w],c);
+    addQuad(m,[px,py+0.02,pz],[nx,ny+0.02,nz],[nx+0.02,ny,nz+ww],[px+0.02,py,pz+w],mix(c,tip,0.2));
+    px=nx;py=ny;pz=nz; }
+}
+function buildSeabedLife(){
+  const R=regionData(), m=Mesh(); const rr=mulberry32(1000+world.region*7);
+  const nz=makeNoise1D(556);
+  const hAt=(x,z)=>(fbm1(nz,(x*0.5+555)*0.02,3)+fbm1(nz,(z*0.5-222)*0.02,3))*5.0;
+  const N=90;
+  for(let i=0;i<N;i++){
+    const x=(rr()*2-1)*190, z=(rr()*2-1)*95, y=hAt(x,z); const s=rr();
+    if(R.id==='north'){
+      if(s<0.5){ for(let b=0;b<3;b++){ const h=16+rr()*22; addKelp(m,x+(rr()*2-1)*1.6,y,z+(rr()*2-1)*1.6,h,rr()*6,v3([40,86,60]),v3([120,150,90])); } }
+      else if(s<0.8){ addOcta(m,x,y+rr()*1.2,z,1+rr()*2,0.8+rr(),1+rr()*2,v3([70,74,78])); } // rock
+      else { addOcta(m,x,y+0.1,z,0.6,0.12,0.6,v3([200,120,80])); } // starfish
+    } else if(R.id==='trop'){
+      if(s<0.4){ // branching coral
+        const cols=[[224,110,120],[240,160,70],[150,110,200],[90,180,180]]; const cc=v3(pick(cols));
+        addOcta(m,x,y+0.4,z,0.7,0.6,0.7,cc);
+        for(let b=0;b<4;b++){ const bx=x+(rr()*2-1)*1.2, bz=z+(rr()*2-1)*1.2;
+          addPrism(m,bx,y+1+rr(),bz,0.16,1.4+rr()*1.4,6,cc,mix(cc,[255,255,255],0.3)); } }
+      else if(s<0.62){ addOcta(m,x,y+0.5,z,1.1,0.7,1.1,v3([210,180,120])); } // brain coral
+      else if(s<0.82){ // gorgonian sea-fan bush
+        const fc=v3(pick([[214,92,120],[186,112,196],[232,142,82]]));
+        for(let b=0;b<5;b++){ const ang=(b/4-0.5)*1.3; addKelp(m,x,y,z,2.6+rr()*2.4,ang*3.5,fc,mix(fc,[255,255,255],0.35)); } }
+      else { addKelp(m,x,y,z,12+rr()*16,rr()*6,v3([60,150,120]),v3([160,220,140])); }
+    } else { // med: seagrass, rocks, amphora
+      if(s<0.55){ for(let b=0;b<4;b++) addKelp(m,x+(rr()*2-1),y,z+(rr()*2-1),4+rr()*6,rr()*6,v3([70,120,60]),v3([150,180,90])); }
+      else if(s<0.8){ addOcta(m,x,y+rr(),z,0.8+rr()*1.6,0.7+rr(),0.8+rr()*1.6,v3([120,112,92])); }
+      else { addPrism(m,x,y+0.9,z,0.5,1.8,10,v3([196,150,96]),v3([150,110,70])); } // amphora-ish
+    }
+  }
+  // tall pinnacles (reefs / rock towers) that rise into the mid-water
+  for(let i=0;i<8;i++){ const x=(rr()*2-1)*150,z=(rr()*2-1)*70,y=hAt(x,z); const hh=20+rr()*18;
+    const cc = R.id==='trop'? v3(pick([[224,110,120],[240,160,70],[120,180,180]])) : R.id==='med'? v3([130,120,96]) : v3([76,80,84]);
+    addPrism(m,x,y+hh/2,z,1.3+rr(),hh,7,cc,mix(cc,[255,255,255],0.2));
+    if(R.id!=='med') addKelp(m,x+1,y,z,hh*0.9,rr()*6, R.id==='trop'?v3([60,150,120]):v3([46,92,64]), v3([160,220,140]));
+  }
+  if(UW.decor&&UW.decor.vao) gl.deleteVertexArray(UW.decor.vao);
+  UW.decor=meshToVAO(m);
+}
+
+/* ---- Jellyfish (drifting life) ----------------------------------------- */
+function initJellies(x){
+  UW.jellies=[]; const pal=regionData().id==='trop'?[255,150,180]:regionData().id==='med'?[180,160,255]:[150,200,255];
+  const n=6; for(let i=0;i<n;i++) UW.jellies.push({x:x+rrange(-30,30),y:-rrange(8,WORLD_DEPTH-6),z:rrange(-14,14),ph:rrange(0,TAU),vy:rrange(-0.6,0.6),col:pal});
+}
+function updateJellies(dt){ for(const j of UW.jellies){ j.ph+=dt*1.2; j.y+=Math.sin(j.ph)*0.3*dt + j.vy*dt;
+  if(j.y>-4||j.y<-WORLD_DEPTH+3) j.vy*=-1; j.y=clamp(j.y,-WORLD_DEPTH+3,-4); } }
+function drawJellies(sky){
+  gl.useProgram(unlitProg); gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA,gl.ONE); gl.depthMask(false);
+  gl.uniformMatrix4fv(unlitProg.u('uVP'),false,cam.vp);
+  gl.bindVertexArray(UW.dot.vao);
+  for(const j of UW.jellies){
+    const pulse=0.82+0.18*Math.sin(j.ph*2);
+    const dist=Math.hypot(cam.pos[0]-j.x,cam.pos[1]-j.y,cam.pos[2]-j.z);
+    const sz=clamp(1300/dist,7,80)*DPR*pulse;
+    const cr=j.col[0]/255,cg=j.col[1]/255,cb=j.col[2]/255;
+    const mo=m4(); m4trans(mo,j.x,j.y,j.z); gl.uniformMatrix4fv(unlitProg.u('uModel'),false,mo);
+    gl.uniform4f(unlitProg.u('uColor'),cr,cg,cb,0.10); gl.uniform1f(unlitProg.u('uPoint'),sz*1.9); gl.drawArrays(gl.POINTS,0,1); // halo
+    gl.uniform4f(unlitProg.u('uColor'),cr*1.1,cg*1.1,cb*1.1,0.22); gl.uniform1f(unlitProg.u('uPoint'),sz); gl.drawArrays(gl.POINTS,0,1); // bell
+    // tentacle trail (a few small points below)
+    for(let t=1;t<=3;t++){ const mt=m4(); m4trans(mt,j.x+Math.sin(j.ph+t)*0.4,j.y-t*1.1,j.z); gl.uniformMatrix4fv(unlitProg.u('uModel'),false,mt);
+      gl.uniform4f(unlitProg.u('uColor'),cr,cg,cb,0.10); gl.uniform1f(unlitProg.u('uPoint'),sz*0.35); gl.drawArrays(gl.POINTS,0,1); }
+  }
+  gl.bindVertexArray(null); gl.depthMask(true); gl.disable(gl.BLEND);
 }
 
 /* ======================= 21. FISHING SIM ================================ */
-const WORLD_DEPTH=96;
+const WORLD_DEPTH=58;
 const fishing={ active:false, lure:{x:0,y:-2,z:0,vx:0,vy:0,vz:0}, maxDepthWorld:48, school:[], hitFlash:0, msg:'' };
 function fishValue(def,len){ const t=inv(def.len[0],def.len[1],len)||0; return Math.round(def.base*(0.7+0.6*clamp(t,0,1))); }
 function spawnFish(nearX, atEdge){
@@ -967,12 +1155,13 @@ function spawnFish(nearX, atEdge){
     wt:rrange(0.3,1.4),phase:rrange(0,TAU),cd:0,skittish,band:y,flash:0});
 }
 function spawnInitialFish(){ fishing.school=[]; const n=15; for(let i=0;i<n;i++) spawnFish(player.pos[0],false);
-  UW.motes=[]; for(let i=0;i<UW.moteN;i++) UW.motes.push({x:player.pos[0]+rrange(-30,30),y:-rrange(2,WORLD_DEPTH),z:rrange(-16,16),vy:rrange(1,4),ph:rrange(0,TAU)}); }
+  UW.motes=[]; for(let i=0;i<UW.moteN;i++) UW.motes.push({x:player.pos[0]+rrange(-30,30),y:-rrange(2,WORLD_DEPTH),z:rrange(-16,16),vy:rrange(1,4),ph:rrange(0,TAU)});
+  initJellies(player.pos[0]); }
 function toggleFishing(){
   if(Game.screen==='sail'){
     if(Math.abs(player.speed)>3){ toast('Slow down to drop your line','🎣'); return; }
     if(player.bait<=0){ toast('Out of bait — buy more at a port','🪱'); return; }
-    player.bait--; fishing.active=true;
+    player.bait--; fishing.active=true; buildSeabedLife();
     fishing.maxDepthWorld=UPGRADES.line.levels[player.upg.line].depth*WORLD_DEPTH;
     fishing.lure={x:player.pos[0],y:-2.5,z:0,vx:0,vy:0,vz:0};
     spawnInitialFish(); if(Sound.splash)Sound.splash();
@@ -1013,6 +1202,7 @@ function updateFishing(dt){
     if(Math.abs(f.pos[0]-L.x)>60) { fishing.school.splice(k,1); }
   }
   while(fishing.school.length<15) spawnFish(L.x,true);
+  updateJellies(dt);
   // motes drift up
   for(const mo of UW.motes){ mo.y+=mo.vy*dt*0.4; mo.x+=Math.sin(Game.t*0.3+mo.ph)*0.2*dt; if(mo.y>-1){ mo.y=-WORLD_DEPTH+rrange(0,4); mo.x=L.x+rrange(-30,30); mo.z=rrange(-16,16); } }
   updateFishCamera(dt);
@@ -1047,11 +1237,12 @@ function renderUnderwater(sky){
   const uc=underwaterColors();
   gl.clearColor(v3(uc.fogC)[0],v3(uc.fogC)[1],v3(uc.fogC)[2],1);
   gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
-  const litOpts={useSky:0,fogColor:v3(uc.fogC),ambient:v3(uc.amb),fogDensity:0.014};
+  const litOpts={useSky:0,fogColor:v3(uc.fogC),ambient:v3(uc.amb),fogDensity:0.011};
   const L=fishing.lure;
-  // seabed
+  // seabed + life
   const sbModel=m4(); m4trans(sbModel,L.x,-WORLD_DEPTH,0);
-  drawLit(UW.seabed,sbModel,sky,Object.assign({},litOpts,{fogDensity:0.02}));
+  drawLit(UW.seabed,sbModel,sky,Object.assign({},litOpts,{fogDensity:0.015}));
+  if(UW.decor) drawLit(UW.decor,sbModel,sky,Object.assign({},litOpts,{fogDensity:0.013}));
   // fish
   for(const f of fishing.school){
     const tint=v3(hex2rgb(f.def.col));
@@ -1068,10 +1259,10 @@ function renderUnderwater(sky){
   // surface ceiling
   const cm=m4(); m4trans(cm,L.x,-0.05,0);
   drawUnlit(UW.ceil,cm,[v3(sky.hor)[0],v3(sky.hor)[1],v3(sky.hor)[2],0.22*sky.lightStr],{additive:true,depthWrite:false});
-  // light shafts
-  for(let i=0;i<6;i++){ const sx=L.x + (i-2.5)*7 + Math.sin(Game.t*0.3+i)*2;
-    const sm=m4(); m4compose(sm,[sx,0,-6+i*2],0.1*Math.sin(Game.t*0.4+i),0,0,[3.2,WORLD_DEPTH*0.9,1]);
-    drawUnlit(UW.shaft,sm,[1,1,0.9,0.07*sky.lightStr],{additive:true,depthWrite:false}); }
+  // soft god-ray light shafts
+  drawShafts(sky);
+  // drifting jellyfish
+  drawJellies(sky);
   // lure glow billboard-ish (small additive octahedron scaled)
   const gm=m4(); m4compose(gm,[L.x,L.y,L.z],0,0,0,[3.2,3.2,3.2]);
   drawUnlit(UW.lure,gm,[1,0.9,0.5,0.16],{additive:true,depthWrite:false});
