@@ -541,16 +541,14 @@ function boot(){
   if(!gl) return;
   gl.disable(gl.CULL_FACE); gl.enable(gl.DEPTH_TEST);
   initQuad(); initSky(); buildOcean(); initLit(); buildBoat(); initUnlit(); buildUnderwater(); initPaper();
-  world.region=0; world.time=0.36;
-  setWeather('clear'); world.wBlend=1; updateWeather(0.001);
-  // debug hooks: #t=0.75&w=storm&r=1 to inspect a fixed moment
+  world.time=0.36; setWeather('clear'); world.wBlend=1; updateWeather(0.001);
+  // debug hooks: #t=0.75&w=storm&r=1&fish=1 to inspect a fixed moment
   const hp=new URLSearchParams(location.hash.slice(1));
-  if(hp.has('r')) world.region=clamp(parseInt(hp.get('r')),0,2);
+  const reg=hp.has('r')?clamp(parseInt(hp.get('r')),0,2):0;
   if(hp.has('t')){ world.time=parseFloat(hp.get('t')); world.timeScale=0; }
   if(hp.has('t')||hp.has('nb')){ const b=document.getElementById('boot'); if(b) b.style.display='none'; }
   if(hp.has('w')){ world.weather=world.weatherPrev=hp.get('w'); world.wBlend=1; updateWeather(0.001); world.wTimer=999; }
-  // place the boat & camera
-  player.pos=[regionData().ports[0].x+120,0,0]; player.facing=1; player.yaw=0;
+  enterRegion(reg);
   cam.pos=[player.pos[0]-15,8,14.5]; cam.target=[player.pos[0]+9,2,-3];
   Game.set('sail');
   if(hp.has('fish')){ if(hp.has('depth')){ player.upg.line=3; } toggleFishing();
@@ -938,6 +936,7 @@ function updatePlayer(dt){
   if(world.storm>0.55){ const np=nearestPort(); const far=!np||Math.abs(np.x-player.pos[0])>240;
     if(far){ player.hull=Math.max(0,player.hull-(world.storm-0.5)*dt*3.0/UPGRADES.hull.levels[player.upg.hull].armor);
       if(Game.frame%40===0){ view.shake=Math.min(1.2,view.shake+0.25*world.storm); } if(player.hull<=0&&typeof onSink==='function') onSink(); } }
+  updateDocking();
 }
 function nearestPort(){ const ps=regionData().ports; let best=null,bd=1e9; for(const p of ps){ const d=Math.abs(p.x-player.pos[0]); if(d<bd){bd=d;best=p;} } return best; }
 function updateWorldSim(dt){ if(Game.screen==='sail') updatePlayer(dt); else if(typeof updateFishing==='function') updateFishing(dt); }
@@ -1276,6 +1275,121 @@ function drawFishingLine(L){
   const bx=player.pos[0]; const verts=[L.x-0.03,L.y,0, L.x+0.03,L.y,0, bx+0.03,0.2,0, L.x-0.03,L.y,0, bx+0.03,0.2,0, bx-0.03,0.2,0];
   const md=posVAO(verts); drawUnlit(md,m4ident(m4()),[0.1,0.12,0.13,0.7],{alpha:true});
   gl.deleteVertexArray(md.vao); gl.deleteBuffer(md.vb);
+}
+
+/* ======================= 23. COAST + PORTS (3D) ========================= */
+function addCone(m,cx,cy,cz,r,h,segs,col){ const bot=cy,top=cy+h;
+  for(let i=0;i<segs;i++){ const a=i/segs*TAU,b=(i+1)/segs*TAU;
+    const ax=cx+Math.cos(a)*r,az=cz+Math.sin(a)*r,bx=cx+Math.cos(b)*r,bz=cz+Math.sin(b)*r;
+    addTri(m,[ax,bot,az],[bx,bot,bz],[cx,top,cz],col);
+    addTri(m,[bx,bot,bz],[ax,bot,az],[cx,bot,cz],col); }
+}
+function addTree(m,x,y,z,kind,rr){
+  if(kind==='pine'){ const h=3+rr()*3; addBox(m,x,y+h*0.4,z,0.18,h*0.4,0.18,v3([96,66,42]));
+    for(let i=0;i<3;i++){ const yy=y+h*0.5+i*h*0.32; addCone(m,x,yy,z,1.5-i*0.4,1.6,6,v3([40+i*6,80+i*8,52])); } }
+  else if(kind==='palm'){ const h=4+rr()*2.5; const lean=(rr()*2-1)*0.6;
+    for(let s=0;s<3;s++) addBox(m,x+lean*(s/3),y+h*(s+0.5)/3,z,0.14,h/6,0.14,v3([120,92,56]));
+    const tx=x+lean,ty=y+h; for(let f=0;f<6;f++){ const a=f/6*TAU; addTri(m,[tx,ty,z],[tx+Math.cos(a)*2.2,ty-0.6,z+Math.sin(a)*2.2],[tx+Math.cos(a+0.3)*1.8,ty-0.3,z+Math.sin(a+0.3)*1.8],v3([46,132,80])); } }
+  else { const h=4+rr()*3; addBox(m,x,y+h*0.35,z,0.16,h*0.35,0.16,v3([100,80,54])); addCone(m,x,y+h*0.4,z,1.0,h*0.9,6,v3([64,90,58])); } // cypress
+}
+function addBuilding(m,x,y,z,w,h,d,wall,roof){
+  addBox(m,x,y+h/2,z,w,h/2,d,wall);
+  // pitched roof (two slabs)
+  addCone(m,x,y+h,z,Math.max(w,d)*1.25,h*0.7,4,roof);
+  // door + window
+  addBox(m,x,y+h*0.4,z+d+0.01,0.28,h*0.35,0.02,v3([70,52,34]));
+}
+function addLighthouse(m,x,y,z){
+  addPrism(m,x,y+5,z,1.3,10,10,v3([238,238,232]),v3([238,238,232]));
+  addPrism(m,x,y+3,z,1.34,1.4,10,v3([196,70,58]));
+  addPrism(m,x,y+7,z,1.34,1.2,10,v3([196,70,58]));
+  addPrism(m,x,y+10.4,z,1.0,1.4,8,v3([60,66,72]));   // lantern room base
+  addOcta(m,x,y+11.4,z,0.9,0.9,0.9,v3([255,232,150]));// the light (emissive-ish via bright col)
+  addCone(m,x,y+12.0,z,1.1,1.0,8,v3([54,60,66]));
+}
+let COAST={mesh:null, lamps:[]};
+function buildCoast(){
+  const R=regionData(), m=Mesh(); const rr=mulberry32(700+world.region*13);
+  const nz=makeNoise1D(300+world.region*5);
+  const shoreZ=-60, len=R.length;
+  const hillCol=hex2rgb(R.hills[2]), hillBack=hex2rgb(R.hills[0]), sand=[212,196,158];
+  const rows=[{z:shoreZ,h:0,c:sand},{z:-74,h:5,c:mix(sand,hillCol,0.5)},{z:-98,h:16,c:hillCol},{z:-130,h:26,c:mix(hillCol,hillBack,0.5)},{z:-168,h:34,c:hillBack}];
+  const hAtX=x=> (fbm1(nz,x*0.004,4)*0.5+0.5);
+  const step=14;
+  for(let x=-60;x<len+60;x+=step){
+    const hx0=hAtX(x), hx1=hAtX(x+step);
+    for(let r=0;r<rows.length-1;r++){
+      const a=rows[r],b=rows[r+1];
+      const y0a=a.h*hx0*(r?1:0), y0b=a.h*hx1*(r?1:0), y1a=b.h*hx0, y1b=b.h*hx1;
+      const cc=mix(a.c,b.c,0.5); const cv=shade(cc,(hx0-0.5)*0.2);
+      addQuad(m,[x,y0a,a.z],[x+step,y0b,a.z],[x+step,y1b,b.z],[x,y1a,b.z],v3(cv));
+    }
+  }
+  // trees scattered on the hills
+  const treeKind = R.id==='trop'?'palm':R.id==='med'?'cypress':'pine';
+  for(let i=0;i<Math.floor(len/40);i++){ const x=rr()*len; const zr=1+Math.floor(rr()*3); const z=rows[zr].z+rr()*10;
+    const y=rows[zr].h*hAtX(x)*0.9; if(rr()<0.85) addTree(m,x,y,z,treeKind,rr); }
+  // ports
+  COAST.lamps=[];
+  for(const p of R.ports){
+    const px=p.x;
+    // dock platform + posts reaching toward water
+    for(let d=0;d<5;d++){ const dz=shoreZ+6+d*7; addBox(m,px,-0.3,dz,2.2,0.18,2.6,v3([120,92,60]),v3([140,110,74]));
+      addBox(m,px-2,-1.2,dz,0.16,1.0,0.16,v3([84,62,40])); addBox(m,px+2,-1.2,dz,0.16,1.0,0.16,v3([84,62,40])); }
+    // buildings behind
+    const wall = R.id==='trop'?[236,214,180]:R.id==='med'?[238,236,228]:[212,196,170];
+    const roof = R.id==='trop'?[110,150,120]:R.id==='med'?[192,96,70]:[120,64,54];
+    const by=rows[1].h*hAtX(px);
+    addBuilding(m,px-4,by,-70,2.2,2.2,2.0,v3(wall),v3(roof));
+    addBuilding(m,px+4,by+0.4,-76,2.6,2.6,2.2,v3(shade(wall,-0.06)),v3(roof));
+    addBuilding(m,px,by+0.2,-84,3.0,2.0,2.4,v3(wall),v3(shade(roof,-0.08)));
+    // lamp posts on the dock (emissive at night handled via bright color)
+    addBox(m,px+2.2,0.6,shoreZ+9,0.07,1.0,0.07,v3([60,54,48]));
+    addOcta(m,px+2.2,1.5,shoreZ+9,0.16,0.2,0.16,v3([255,224,150]));
+    COAST.lamps.push([px+2.2,1.5,shoreZ+9]);
+    if(p.kind==='home') addLighthouse(m,px-9,rows[2].h*hAtX(px-9),-96);
+  }
+  if(COAST.mesh&&COAST.mesh.vao) gl.deleteVertexArray(COAST.mesh.vao);
+  COAST.mesh=meshToVAO(m);
+}
+function drawCoast3D(sky){
+  if(!COAST.mesh) return;
+  drawLit(COAST.mesh,COAST_MODEL,sky,{fogDensity:0.0016,fogWeather:world.fog*0.9+world.storm*0.3});
+}
+const COAST_MODEL=m4ident(m4());
+
+/* ======================= 24. REGION CONTROL + DOCKING =================== */
+function enterRegion(i){
+  world.region=clamp(i,0,2);
+  const home=regionData().ports[0];
+  player.pos=[home.x+140,0,0]; player.speed=0; player.facing=-1; player.yaw=PI;
+  buildCoast(); buildSeabedLife();
+  if(typeof toast==='function') toast(`${regionData().icon}  ${regionData().name}`,'');
+}
+let nearPort=null;
+function updateDocking(){ nearPort=null; for(const p of regionData().ports){ if(Math.abs(p.x-player.pos[0])<28){ nearPort=p; break; } } }
+function tryDock(){
+  if(Game.screen!=='sail'){ return; }
+  if(!nearPort){ toast('No harbour within reach','⚓'); return; }
+  if(Math.abs(player.speed)>4.5){ toast('Ease off the throttle to dock','⚓'); return; }
+  if(typeof openTown==='function') openTown(nearPort);
+}
+
+/* ======================= 25. WEATHER FX (2D overlay) ==================== */
+function drawWeatherFX(sky){
+  if(Game.screen==='fish') return;
+  const c=fxx;
+  if(world.rainI>0.02){
+    const n=Math.round(world.rainI*220); c.strokeStyle=`rgba(206,222,235,${0.22+world.storm*0.22})`; c.lineWidth=1;
+    const wind=world.windDir*(5+world.windStr*10); c.beginPath();
+    for(let i=0;i<n;i++){ const sp=560+((i*37)%60)*9; const x=wrap(hash2(i,3)*W+Game.t*wind*14,W+40)-20; const y=wrap(hash2(i,9)*H+Game.t*sp,H+40)-20; const l=10+world.rainI*10; c.moveTo(x,y); c.lineTo(x-wind*0.9,y+l); }
+    c.stroke();
+  }
+  if(world.snowI>0.02){
+    const n=Math.round(world.snowI*200);
+    for(let i=0;i<n;i++){ const sp=40+((i*13)%40)*2.2; const drift=Math.sin(Game.t*0.8+i)*16+world.windDir*20; const x=wrap(hash2(i,5)*W+Game.t*drift,W+30)-15; const y=wrap(hash2(i,11)*H+Game.t*sp,H+30)-15; const r=0.8+(i%3)*0.7; c.fillStyle=`rgba(245,248,252,${0.5+(i%3)*0.15})`; c.beginPath(); c.arc(x,y,r,0,TAU); c.fill(); }
+  }
+  if(world.fog>0.4){ const g=c.createLinearGradient(0,H*0.35,0,H); g.addColorStop(0,`rgba(220,226,228,0)`); g.addColorStop(1,`rgba(216,224,226,${(world.fog-0.4)*0.5})`); c.fillStyle=g; c.fillRect(0,0,W,H); }
 }
 
 /*__MORE__*/
