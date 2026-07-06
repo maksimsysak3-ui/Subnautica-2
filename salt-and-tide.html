@@ -530,7 +530,7 @@ function update(dt){
   }
   if(view.flash>0) view.flash=Math.max(0,view.flash-dt*2.2);
   if(Game.screen==='cine') updateCine(dt);
-  else if(Game.screen==='title') updateTitleCamera(dt);
+  else if(Game.screen==='title'||Game.screen==='credits') updateTitleCamera(dt);
   else if(Game.screen==='sail') updateCameraRig(dt);
   if(typeof updateParticles==='function') updateParticles(dt);
   if(Sound.tick) Sound.tick(dt);
@@ -578,7 +578,8 @@ function boot(){
   enterRegion(reg);
   cam.pos=[player.pos[0]-15,8,14.5]; cam.target=[player.pos[0]+9,2,-3];
   if(hp.has('fish')){ Game.set('sail'); if(hp.has('depth')) player.upg.line=3; toggleFishing(); if(hp.has('ld')) fishing.lure.y=-parseFloat(hp.get('ld')); }
-  else if(hp.has('town')){ Game.set('sail'); if(hp.has('stock')){ const fs=regionData().fish; for(let i=0;i<9;i++){ const id=fs[i%(fs.length-1)]; const d=FISH[id]; const ln=rrange(d.len[0],d.len[1]); player.hold.push({id,len:Math.round(ln),value:fishValue(d,ln)}); } player.money=2000; } openTown(regionData().ports[0]); }
+  else if(hp.has('town')){ Game.set('sail'); if(hp.has('stock')){ const fs=regionData().fish; for(let i=0;i<9;i++){ const id=fs[i%(fs.length-1)]; const d=FISH[id]; const ln=rrange(d.len[0],d.len[1]); player.hold.push({id,len:Math.round(ln),value:fishValue(d,ln)}); } player.money=2000; } openTown(regionData().ports[0]); if(hp.has('tab')) setTownTab(hp.get('tab')); }
+  else if(hp.has('almanac')){ Game.set('sail'); if(hp.has('disc')){ for(const id in FISH){ player.discovered[id]=true; player.records[id]=Math.round(rrange(FISH[id].len[0],FISH[id].len[1])); } } openAlmanac(); }
   else if(hp.has('t')||hp.has('w')||hp.has('play')){ Game.set('sail'); }
   else if(hp.has('title')){ openTitle(); }
   else startIntro();
@@ -810,9 +811,10 @@ function addPrism(m,cx,cy,cz,r,h,segs,col,colTop){ // vertical cylinder
 }
 function buildBoat(){
   const m=Mesh();
-  const red=v3([176,76,58]), redDk=v3([120,50,42]), cream=v3([238,226,198]),
+  const st=player.style||{hull:[176,76,58],sail:[244,238,222],cabin:[164,68,54]};
+  const red=v3(st.hull), redDk=v3(shade(st.hull,-0.28)), cream=v3([238,226,198]),
         wood=v3([126,90,58]), woodDk=v3([92,64,40]), deck=v3([158,122,78]),
-        sailC=v3([244,238,222]), roof=v3([164,68,54]), win=v3([120,178,198]),
+        sailC=v3(st.sail), roof=v3(st.cabin), win=v3([120,178,198]),
         trim=v3([70,52,36]), dark=v3([54,50,48]), brass=v3([196,158,74]),
         buoyO=v3([224,132,54]), buoyW=v3([232,230,222]), netC=v3([150,150,120]),
         funnel=v3([64,60,58]), lampC=v3([255,224,150]);
@@ -940,7 +942,7 @@ function handleKey(k){
     if((k==='escape'||k==='e')&&typeof toggleFishing==='function') toggleFishing();
   } else if(Game.screen==='town'){ if(k==='escape') departTown();
   } else if(Game.screen==='pause'){ if(k==='escape') Game.set('sail');
-  } else if(Game.screen==='help'||Game.screen==='map'){ if(k==='escape') Game.set(Game.prev==='pause'?'pause':'sail');
+  } else if(Game.screen==='help'||Game.screen==='map'||Game.screen==='almanac'){ if(k==='escape') Game.set(Game.prev==='pause'?'pause':'sail');
   } else if(Game.screen==='cine'){ if(k==='escape'||k==='enter'||k===' ') skipIntro();
   }
 }
@@ -951,7 +953,8 @@ const player={
   money:120, fuel:60, fuelMax:60, bait:12, hull:100, hullMax:100,
   hold:[], cargo:{}, upg:{engine:0,sail:0,hull:0,line:0,lure:0,sonar:0},
   pos:[420,0,0], speed:0, facing:1, yaw:0, targetYaw:0, motor:true,
-  regionDone:[false,false,false], earned:0, caughtLegendary:[false,false,false], discovered:{},
+  regionDone:[false,false,false,false], earned:0, caughtLegendary:[false,false,false,false], discovered:{},
+  records:{}, contracts:[], contractsDone:0, style:{hull:[176,76,58],sail:[244,238,222],cabin:[164,68,54]},
 };
 function holdMax(){ return UPGRADES.hull.levels[player.upg.hull].hold; }
 function toggleMotor(){ player.motor=!player.motor; if(typeof toast==='function') toast(player.motor?'Engine engaged':'Under sail',ic(player.motor?'gear':'sail')); }
@@ -1247,6 +1250,7 @@ function landFish(f){
   if(player.hold.length>=holdMax()){ toast('Hold is full! Sell your catch at port',ic('basket')); return; }
   player.hold.push({id:f.id,len:Math.round(f.len),value:val});
   player.discovered[f.id]=true;
+  if(!player.records[f.id]||f.len>player.records[f.id]) player.records[f.id]=Math.round(f.len);
   view.flash=0.5; view.flashCol=f.def.legendary?'#ffe6a0':'#dff3ff';
   if(Sound.chime)Sound.chime();
   if(f.def.legendary){ const ri=world.region; player.caughtLegendary[ri]=true;
@@ -1598,7 +1602,7 @@ function goodsPrice(port,g){ return (ECO.goods[port.name]&&ECO.goods[port.name][
 
 /* ======================= 28. LAYER / PAUSE MANAGER ===================== */
 function updateLayers(){
-  const map={town:'layer-town',pause:'layer-pause',help:'layer-help',map:'layer-map',title:'layer-title',event:'layer-event'};
+  const map={town:'layer-town',pause:'layer-pause',help:'layer-help',map:'layer-map',title:'layer-title',event:'layer-event',almanac:'layer-almanac'};
   document.querySelectorAll('.layer').forEach(l=>l.classList.remove('show'));
   const id=map[Game.screen]; if(id){ const el=document.getElementById(id); if(el) el.classList.add('show','fade'); }
 }
@@ -1621,6 +1625,8 @@ function renderTown(){
   if(townTab==='market') body=marketHTML(port);
   else if(townTab==='chandler') body=chandlerHTML(port);
   else if(townTab==='shipwright') body=shipwrightHTML(port);
+  else if(townTab==='notice') body=noticeHTML(port);
+  else if(townTab==='boatyard') body=boatyardHTML(port);
   const goal=R.goal, done=player.earned>=goal.earn, leg=player.caughtLegendary[world.region];
   L.innerHTML=`<div class="panel" style="width:min(920px,94vw)">
     <div class="row">
@@ -1632,7 +1638,7 @@ function renderTown(){
     <div class="row muted" style="margin:6px 0 2px;gap:16px;font-size:13px">
       <span>${ic('basket',14)} Catch ${player.hold.length}/${holdMax()}</span><span>${ic('crate',14)} Cargo ${cargoCount()}/${cargoMax()}</span>
       <span>${ic('fuel',14)} Fuel ${Math.round(player.fuel)}/${player.fuelMax}</span><span>${ic('wrench',14)} Hull ${Math.round(player.hull)}/${player.hullMax}</span></div>
-    <div class="tabs">${tabBtn('market',ic('scales',15)+' Market')}${tabBtn('chandler',ic('hook',15)+' Chandler')}${tabBtn('shipwright',ic('gear',15)+' Shipwright')}</div>
+    <div class="tabs">${tabBtn('market',ic('scales',15)+' Market')}${tabBtn('notice',ic('book',15)+' Notices')}${tabBtn('chandler',ic('hook',15)+' Chandler')}${tabBtn('shipwright',ic('gear',15)+' Shipwright')}${tabBtn('boatyard',ic('boat',15)+' Boatyard')}</div>
     ${body}
     <div class="row" style="margin-top:16px;align-items:center">
       <div style="flex:1 1 240px">
@@ -1726,7 +1732,7 @@ function checkRegionGoal(){
       `You've earned your keep and bested the ${FISH[R.legendary].name}. ${hasNext?`Word spreads of richer waters to the south. <b>${REGIONS[nextI].name}</b> awaits.`:'You are a legend of every coast. The horizon is yours.'}`,
       hasNext?[{label:`Sail to ${REGIONS[nextI].name} ${ic('arrowr',15)}`,cls:'gold',act:()=>{ player.earned=0; enterRegion(nextI); Game.set('sail'); saveGame(); }},
                {label:'Stay a while',cls:'ghost',act:()=>Game.set('sail')}]
-             :[{label:`${ic('anchor',15)} A legend of the coast`,cls:'gold',act:()=>Game.set('sail')}]);
+             :[{label:`${ic('trophy',15)} Roll the credits`,cls:'gold',act:()=>rollCredits()},{label:'Sail on',cls:'ghost',act:()=>Game.set('sail')}]);
   }
 }
 function onSink(){
@@ -1743,20 +1749,24 @@ const SAVE_KEY='saltandtide_v1';
 function saveGame(){ try{ localStorage.setItem(SAVE_KEY, JSON.stringify({
   money:player.money,fuel:player.fuel,fuelMax:player.fuelMax,bait:player.bait,hull:player.hull,
   upg:player.upg,hold:player.hold,cargo:player.cargo,region:world.region,day:world.day,time:world.time,
-  earned:player.earned,caughtLegendary:player.caughtLegendary,regionDone:player.regionDone,discovered:player.discovered,eco:ECO,x:player.pos[0]
+  earned:player.earned,caughtLegendary:player.caughtLegendary,regionDone:player.regionDone,discovered:player.discovered,eco:ECO,x:player.pos[0],
+  records:player.records,contractsDone:player.contractsDone,style:player.style,muted:Sound.muted
 })); }catch(e){} }
 function loadSave(){ try{ const s=localStorage.getItem(SAVE_KEY); return s?JSON.parse(s):null; }catch(e){ return null; } }
 function newGame(){
   player.money=120; player.fuel=60; player.fuelMax=60; player.bait=12; player.hull=100; player.hullMax=100;
   player.hold=[]; player.cargo={}; player.upg={engine:0,sail:0,hull:0,line:0,lure:0,sonar:0};
-  player.regionDone=[false,false,false]; player.earned=0; player.caughtLegendary=[false,false,false]; player.discovered={};
-  world.day=1; world.time=0.30; initEconomy(); applyUpgrades(); enterRegion(0); Game.set('sail'); saveGame();
+  player.regionDone=[false,false,false,false]; player.earned=0; player.caughtLegendary=[false,false,false,false]; player.discovered={};
+  player.records={}; player.contracts=[]; player.contractsDone=0; player.style={hull:[176,76,58],sail:[244,238,222],cabin:[164,68,54]};
+  world.day=1; world.time=0.30; initEconomy(); applyUpgrades(); enterRegion(0); if(typeof buildBoat==='function')buildBoat(); Game.set('sail'); saveGame();
 }
 function loadGame(s){
   Object.assign(player,{money:s.money,fuel:s.fuel,fuelMax:s.fuelMax||60,bait:s.bait,hull:s.hull,upg:s.upg,hold:s.hold||[],cargo:s.cargo||{},
-    earned:s.earned||0,caughtLegendary:s.caughtLegendary||[false,false,false],regionDone:s.regionDone||[false,false,false],discovered:s.discovered||{}});
+    earned:s.earned||0,caughtLegendary:s.caughtLegendary||[false,false,false,false],regionDone:s.regionDone||[false,false,false,false],discovered:s.discovered||{},
+    records:s.records||{},contractsDone:s.contractsDone||0,style:s.style||{hull:[176,76,58],sail:[244,238,222],cabin:[164,68,54]}});
   world.day=s.day||1; world.time=s.time||0.3; if(s.eco){ ECO.fish=s.eco.fish; ECO.goods=s.eco.goods; }
-  applyUpgrades(); enterRegion(s.region||0); if(s.x) player.pos[0]=s.x; Game.set('sail');
+  if(s.muted&&Sound.ensure){ Sound.muted=true; }
+  applyUpgrades(); enterRegion(s.region||0); if(typeof buildBoat==='function')buildBoat(); if(s.x) player.pos[0]=s.x; Game.set('sail');
 }
 
 /* ======================= 32. TITLE / PAUSE / HELP / MAP ================ */
@@ -1785,11 +1795,13 @@ function openPause(){
     <div class="kicker">At Anchor</div><h1>Paused</h1>
     <div class="grid" style="max-width:260px;margin:14px auto 0">
       <button class="btn gold" id="p-resume">Resume</button>
+      <button class="btn" id="p-log">${ic('book',15)} Fish Almanac</button>
       <button class="btn" id="p-map">${ic('map',15)} Chart &amp; Goals</button>
       <button class="btn" id="p-help">${ic('book',15)} How to Play</button>
       <button class="btn ghost" id="p-quit">Save &amp; Quit to Title</button>
     </div></div>`;
   L.querySelector('#p-resume').onclick=()=>Game.set('sail');
+  L.querySelector('#p-log').onclick=()=>openAlmanac();
   L.querySelector('#p-map').onclick=()=>openMap();
   L.querySelector('#p-help').onclick=()=>openHelp();
   L.querySelector('#p-quit').onclick=()=>{ saveGame(); openTitle(); };
@@ -1835,7 +1847,8 @@ function injectCineCSS(){
   @keyframes lhpulse{0%,100%{opacity:.55}50%{opacity:1}}
   @keyframes studioname{0%{opacity:0;letter-spacing:.9em}100%{opacity:1;letter-spacing:.42em}}
   @keyframes studiosub{0%{opacity:0}60%{opacity:0}100%{opacity:.9}}
-  @keyframes cinefadein{from{opacity:0}to{opacity:1}}`;
+  @keyframes cinefadein{from{opacity:0}to{opacity:1}}
+  @keyframes credscroll{from{transform:translateY(0)}to{transform:translateY(-205vh)}}`;
   document.head.appendChild(s);
 }
 function ensureCineDom(){ let d=document.getElementById('cine'); if(!d){ d=document.createElement('div'); d.id='cine'; d.style.cssText='position:absolute;inset:0;z-index:35;pointer-events:none;'; document.getElementById('stage').appendChild(d);} return d; }
@@ -2008,6 +2021,85 @@ const RICON={north:'snowflake',trop:'palm',med:'column',verge:'moon'};
   Object.assign(Sound,impl);
 })();
 window.addEventListener('pointerdown',()=>{ if(Sound.ensure)Sound.ensure(); });
+
+/* ======================= 36. ALMANAC / CONTRACTS / BOATYARD / CREDITS === */
+function ensureLayer(id){ let el=document.getElementById(id); if(!el){ el=document.createElement('div'); el.className='layer'; el.id=id; document.getElementById('stage').appendChild(el); } return el; }
+
+// ---- Fish Almanac ----
+function openAlmanac(){
+  const L=ensureLayer('layer-almanac'); let total=0,found=0,secs='';
+  for(const R of REGIONS){ let rows='';
+    for(const id of R.fish){ total++; const d=FISH[id]; const got=player.discovered[id]; if(got)found++;
+      rows+= got? `<div class="shop-item" style="padding:8px 10px"><div class="ic"><span class="swatch" style="width:20px;height:20px;margin:0;background:${d.col}"></span></div>
+        <div class="meta"><h4 style="font-size:14px">${d.name}${d.legendary?'<span class="tag leg">legendary</span>':''}</h4>
+        <p style="font-size:11.5px">Record ${player.records[id]||'—'}cm · worth ~${d.base}c${d.lore?` · <i>${d.lore}</i>`:''}</p></div></div>`
+       : `<div class="shop-item" style="padding:8px 10px;opacity:.5"><div class="ic">${ic('fish',20)}</div><div class="meta"><h4 style="font-size:14px">? ? ?</h4><p style="font-size:11.5px">Undiscovered</p></div></div>`; }
+    secs+=`<h3 style="margin-top:10px">${ic(RICON[R.id],18)} ${R.name}</h3><div class="grid" style="grid-template-columns:1fr 1fr;gap:8px">${rows}</div>`; }
+  L.innerHTML=`<div class="scrim"></div><div class="panel" style="max-width:780px;position:relative">
+    <div class="kicker">Fisherman's Logbook</div><h1>${ic('book',30)} Almanac <span class="muted" style="font-size:15px;font-weight:400">— ${found}/${total} species${found>=total?' · COMPLETE':''}</span></h1>
+    ${secs}<div class="row" style="justify-content:center;margin-top:14px"><button class="btn gold" id="a-ok">Close</button></div></div>`;
+  const back=Game.screen; L.querySelector('#a-ok').onclick=()=>Game.set(back==='pause'?'pause':'sail');
+  Game.set('almanac');
+}
+
+// ---- Port contracts ----
+function ensureContracts(port){ const key=port.name;
+  if(!ECO.contracts) ECO.contracts={};
+  const c=ECO.contracts[key];
+  if(!c || c.day!==world.day){ const fs=regionData().fish.filter(id=>!FISH[id].legendary); const list=[];
+    for(let i=0;i<3;i++){ const sp=pick(fs), count=3+rint(0,5), d=FISH[sp]; list.push({sp,count,reward:Math.round(d.base*count*1.9+60)}); }
+    ECO.contracts[key]={day:world.day,list}; }
+  return ECO.contracts[key].list;
+}
+function noticeHTML(port){
+  const list=ensureContracts(port);
+  let rows=list.map((c,i)=>{ const have=player.hold.filter(it=>it.id===c.sp).length, can=have>=c.count;
+    return `<div class="shop-item"><div class="ic">${ic('scales',24)}</div><div class="meta"><h4>Deliver ${c.count}× ${FISH[c.sp].name}</h4>
+      <p>Reward ${ic('coin',13)} ${coinStr(c.reward)} &nbsp;·&nbsp; in hold ${have}/${c.count}</p></div>
+      <div><button class="btn small ${can?'gold':''}" ${can?'':'disabled'} onclick="fulfillContract(${i})">Fulfil</button></div></div>`; }).join('');
+  if(!list.length) rows=`<p class="muted center" style="padding:20px">All contracts fulfilled here today. New notices at dawn.</p>`;
+  return `<div><h3>${ic('book',18)} Notice Board <span class="muted" style="font-size:13px;font-weight:400">— ${player.contractsDone} completed</span></h3>
+    <p class="muted" style="font-size:12.5px;margin-top:-4px">Deliver a catch from your hold for bonus coin. Fresh contracts each day.</p>
+    <div class="grid" style="gap:10px">${rows}</div></div>`;
+}
+function fulfillContract(i){ const port=townPort, list=ECO.contracts[port.name].list, c=list[i]; if(!c) return;
+  const have=player.hold.filter(it=>it.id===c.sp).length; if(have<c.count){ toast('Not enough in the hold',ic('fish')); return; }
+  let cnt=0; player.hold=player.hold.filter(it=>{ if(it.id===c.sp&&cnt<c.count){cnt++;return false;} return true; });
+  player.money+=c.reward; player.earned+=c.reward; player.contractsDone++; list.splice(i,1);
+  if(Sound.coin)Sound.coin(); toast(`Contract complete · ${ic('coin',13)} ${coinStr(c.reward)}`,ic('scales')); renderTown(); saveGame(); checkRegionGoal();
+}
+
+// ---- Boatyard (customization) ----
+const HULLS=[[176,76,58],[70,110,140],[92,142,112],[206,182,124],[150,90,160],[60,64,70],[214,150,60],[40,90,90]];
+const SAILS=[[244,238,222],[228,208,178],[200,220,235],[240,200,200],[208,224,204],[230,222,190]];
+const CABINS=[[164,68,54],[60,90,120],[80,120,90],[180,150,70],[110,80,130],[54,60,66]];
+function swRow(arr,prop){ return arr.map(c=>{ const sel=JSON.stringify(player.style[prop])===JSON.stringify(c);
+  return `<span onclick="setStyle('${prop}',[${c}])" title="colour" style="cursor:pointer;display:inline-block;width:36px;height:36px;border-radius:9px;margin:4px;background:rgb(${c});box-shadow:inset 0 0 0 ${sel?'3px #c58a3c':'2px rgba(0,0,0,.25)'}"></span>`; }).join(''); }
+function boatyardHTML(port){
+  return `<div><h3>${ic('boat',18)} Boatyard</h3><p class="muted" style="font-size:12.5px;margin-top:-4px">Paint your boat. It's yours — make her handsome.</p>
+    <div style="margin-top:6px"><b>Hull</b><br>${swRow(HULLS,'hull')}</div>
+    <div style="margin-top:6px"><b>Sails</b><br>${swRow(SAILS,'sail')}</div>
+    <div style="margin-top:6px"><b>Cabin roof</b><br>${swRow(CABINS,'cabin')}</div></div>`;
+}
+function setStyle(prop,c){ player.style[prop]=c; buildBoat(); if(Sound.ui)Sound.ui(); renderTown(); saveGame(); }
+
+// ---- End credits ----
+function rollCredits(){
+  const c=ensureCineDom(); injectCineCSS();
+  c.innerHTML=`<div id="credroll" style="position:absolute;inset:0;background:linear-gradient(180deg,rgba(6,14,20,.86),rgba(4,9,14,.92));overflow:hidden">
+    <div style="position:absolute;left:0;right:0;top:100%;text-align:center;color:#efe6cf;font-family:var(--serif);animation:credscroll 34s linear forwards">
+      <div style="font-size:52px;letter-spacing:.1em;margin-bottom:6px">SALT &amp; TIDE</div>
+      <div style="font-family:var(--sans);letter-spacing:.4em;font-size:12px;color:#a9bcc2;text-transform:uppercase;margin-bottom:40px">A Coastal Life</div>
+      ${['Design & Direction','Programming','Watercolour World','Ocean & Weather','Creatures of the Deep','Sound & Music','The Four Coasts','Every Wave, Hand-Built'].map(s=>`<div style="margin:16px 0"><div style="font-family:var(--sans);font-size:11px;letter-spacing:.3em;color:#8fb3bb;text-transform:uppercase">${s}</div><div style="font-size:20px">LANTERNLIGHT STUDIOS</div></div>`).join('')}
+      <div style="margin:50px 0 10px;font-size:15px;color:#cdbfa2">Thank you for sailing.</div>
+      <svg width="120" height="150" viewBox="0 0 120 160" style="margin-top:20px"><g style="transform-origin:60px 46px;animation:lhbeam 3.6s ease-in-out infinite alternate"><polygon points="60,46 -34,8 -34,84" fill="#ffcf6a" opacity="0.4"/></g><circle cx=60 cy=46 r=30 fill="#ffcf6a" opacity=.5 style="animation:lhpulse 2.4s ease-in-out infinite"/><polygon points="47,158 73,158 66,58 54,58" fill="#ece6d8"/><rect x=50 y=70 width=20 height=8 fill="#b34a3d"/><rect x=49 y=94 width=22 height=8 fill="#b34a3d"/><rect x=52 y=38 width=16 height=22 rx=2 fill="#20323c"/><circle cx=60 cy=46 r=5.5 fill="#ffe9a0"/></svg>
+      <div style="font-family:var(--serif);font-size:26px;letter-spacing:.4em;margin-top:14px;color:#f0e6cf">LANTERNLIGHT</div>
+      <div style="font-family:var(--sans);letter-spacing:.5em;font-size:11px;color:#9fb3bb;margin-top:6px">STUDIOS</div>
+    </div>
+    <button class="btn gold" id="cred-done" style="position:absolute;left:50%;bottom:24px;transform:translateX(-50%)">Return to Title</button></div>`;
+  c.querySelector('#cred-done').onclick=()=>{ c.innerHTML=''; openTitle(); };
+  Game.set('credits');
+}
 
 /*__MORE__*/
 </script>
