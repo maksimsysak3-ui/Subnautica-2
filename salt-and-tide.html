@@ -518,8 +518,8 @@ function render(){
   gl.viewport(0,0,glc.width,glc.height);
   gl.clearColor(v3(sky.hor)[0],v3(sky.hor)[1],v3(sky.hor)[2],1);
   gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
-  drawSky(sky);
-  if(typeof drawScene3D==='function') drawScene3D(sky);
+  if(Game.screen==='fish'){ renderUnderwater(sky); }
+  else { drawSky(sky); if(typeof drawScene3D==='function') drawScene3D(sky); }
   drawFX(sky);
   if(typeof updateHUD==='function') updateHUD();
 }
@@ -540,7 +540,7 @@ function boot(){
   resize();
   if(!gl) return;
   gl.disable(gl.CULL_FACE); gl.enable(gl.DEPTH_TEST);
-  initQuad(); initSky(); buildOcean(); initLit(); buildBoat(); initPaper();
+  initQuad(); initSky(); buildOcean(); initLit(); buildBoat(); initUnlit(); buildUnderwater(); initPaper();
   world.region=0; world.time=0.36;
   setWeather('clear'); world.wBlend=1; updateWeather(0.001);
   // debug hooks: #t=0.75&w=storm&r=1 to inspect a fixed moment
@@ -553,6 +553,8 @@ function boot(){
   player.pos=[regionData().ports[0].x+120,0,0]; player.facing=1; player.yaw=0;
   cam.pos=[player.pos[0]-15,8,14.5]; cam.target=[player.pos[0]+9,2,-3];
   Game.set('sail');
+  if(hp.has('fish')){ if(hp.has('depth')){ player.upg.line=3; } toggleFishing();
+    if(hp.has('ld')) fishing.lure.y=-parseFloat(hp.get('ld')); }
   const bar=document.getElementById('bootbar'); if(bar) bar.style.width='100%';
   setTimeout(()=>{ const b=document.getElementById('boot'); if(b) b.classList.add('hidden'); },150);
   requestAnimationFrame(frame);
@@ -727,31 +729,38 @@ function initLit(){
     out vec3 vN; out vec3 vCol; out vec3 vWorld;
     void main(){ vec4 wp=uModel*vec4(aPos,1.0); vWorld=wp.xyz; vN=normalize(uNormalMat*aNrm); vCol=aCol; gl_Position=uVP*wp; }`,
    `in vec3 vN; in vec3 vCol; in vec3 vWorld; out vec4 frag;
-    uniform vec3 uCamPos,uAmbient; uniform float uFogDensity,uFogWeather;
+    uniform vec3 uCamPos,uAmbient,uTint,uFogColor; uniform float uFogDensity,uFogWeather,uUseSky,uEmissive;
     ${SKY_GLSL}
     void main(){
       vec3 N=normalize(vN);
       float diff=max(dot(N,uSunDir),0.0);
       vec3 amb=uAmbient*(0.5+0.5*clamp(N.y*0.5+0.5,0.0,1.0));
-      vec3 col=vCol*(amb + uSunCol*diff*uLightStr*1.15);
+      vec3 base=vCol*uTint;
+      vec3 col=base*(amb + uSunCol*diff*uLightStr*1.15) + base*uEmissive;
       vec3 V=normalize(uCamPos-vWorld);
       float rim=pow(1.0-max(dot(N,V),0.0),3.0);
       col+=uSunCol*rim*0.12*uLightStr;
       float dist=length(uCamPos-vWorld);
       float fogA=1.0-exp(-dist*uFogDensity); fogA=clamp(fogA+uFogWeather*smoothstep(60.0,700.0,dist),0.0,1.0);
-      col=mix(col,skyColor(normalize(vWorld-uCamPos)),fogA);
+      vec3 fc = uUseSky>0.5 ? skyColor(normalize(vWorld-uCamPos)) : uFogColor;
+      col=mix(col,fc,fogA);
       frag=vec4(col,1.0);
     }`);
 }
-function drawLit(md,model,sky,fog){
+function drawLit(md,model,sky,o){
+  o=o||{};
   const p=litProg; gl.useProgram(p); gl.enable(gl.DEPTH_TEST); gl.depthFunc(gl.LEQUAL);
   gl.uniformMatrix4fv(p.u('uVP'),false,cam.vp);
   gl.uniformMatrix4fv(p.u('uModel'),false,model);
   gl.uniformMatrix3fv(p.u('uNormalMat'),false,mat3FromMat4(model));
   gl.uniform3fv(p.u('uCamPos'),new Float32Array(cam.pos));
-  gl.uniform3fv(p.u('uAmbient'),new Float32Array(v3(sky.ambient)));
-  gl.uniform1f(p.u('uFogDensity'),0.0020);
-  gl.uniform1f(p.u('uFogWeather'),fog==null?(world.fog*0.9+world.storm*0.3):fog);
+  gl.uniform3fv(p.u('uAmbient'),new Float32Array(o.ambient||v3(sky.ambient)));
+  gl.uniform3fv(p.u('uTint'),new Float32Array(o.tint||[1,1,1]));
+  gl.uniform3fv(p.u('uFogColor'),new Float32Array(o.fogColor||[0,0,0]));
+  gl.uniform1f(p.u('uUseSky'),o.useSky===undefined?1:o.useSky);
+  gl.uniform1f(p.u('uEmissive'),o.emissive||0);
+  gl.uniform1f(p.u('uFogDensity'),o.fogDensity!=null?o.fogDensity:0.0020);
+  gl.uniform1f(p.u('uFogWeather'),o.fogWeather!=null?o.fogWeather:(world.fog*0.9+world.storm*0.3));
   setSkyUniforms(p,sky);
   gl.bindVertexArray(md.vao); gl.drawArrays(gl.TRIANGLES,0,md.count); gl.bindVertexArray(null);
 }
@@ -856,6 +865,7 @@ function updateWorldSim(dt){ if(Game.screen==='sail') updatePlayer(dt); else if(
 
 /* ======================= 19. CAMERA RIG ================================= */
 function updateCameraRig(dt){
+  if(Game.screen==='fish') return;
   const b=player.pos, f=player.facing;
   const s=seaSample(b[0],b[2],Game.t,choppy());
   const spd=clamp(Math.abs(player.speed)/14,0,1);
@@ -874,6 +884,207 @@ function drawBoat3D(sky){
   const roll=Math.atan2(sd.y-c.y,2.6);
   m4compose(BOAT.model,[x,c.y+0.05,z],player.yaw,pitch,roll,[1,1,1]);
   drawLit(BOAT.mesh,BOAT.model,sky);
+}
+
+/* ======================= 20. UNLIT PROGRAM + UW MESHES ================== */
+let unlitProg;
+function initUnlit(){
+  unlitProg=makeProgram(
+   `layout(location=0) in vec3 aPos; uniform mat4 uVP,uModel; uniform float uPoint;
+    void main(){ gl_Position=uVP*uModel*vec4(aPos,1.0); gl_PointSize=uPoint; }`,
+   `out vec4 frag; uniform vec4 uColor; uniform float uPoint;
+    void main(){ if(uPoint>0.0){ vec2 d=gl_PointCoord-0.5; if(dot(d,d)>0.25) discard; } frag=uColor; }`);
+}
+function posVAO(arr){ const vao=gl.createVertexArray(); gl.bindVertexArray(vao);
+  const vb=gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER,vb); gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(arr),gl.STATIC_DRAW);
+  gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0,3,gl.FLOAT,false,0,0); gl.bindVertexArray(null);
+  return {vao,count:arr.length/3,vb}; }
+function drawUnlit(md,model,rgba,o){ o=o||{}; const p=unlitProg; gl.useProgram(p);
+  gl.uniformMatrix4fv(p.u('uVP'),false,cam.vp); gl.uniformMatrix4fv(p.u('uModel'),false,model);
+  gl.uniform4fv(p.u('uColor'),new Float32Array(rgba)); gl.uniform1f(p.u('uPoint'),o.point||0);
+  if(o.additive){ gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA,gl.ONE); } else if(o.alpha){ gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA); } else gl.disable(gl.BLEND);
+  gl.depthMask(o.depthWrite!==false); gl.bindVertexArray(md.vao);
+  gl.drawArrays(o.point?gl.POINTS:gl.TRIANGLES,0,md.count); gl.bindVertexArray(null);
+  gl.depthMask(true); gl.disable(gl.BLEND);
+}
+const UW={};
+function buildUnderwater(){
+  // fish mesh (diamond body + tail + dorsal), neutral colors, tinted per fish
+  const m=Mesh();
+  const nose=[0.62,0,0], tb=[-0.30,0,0];
+  const ring=[[0.04,0.20,0],[0.0,0,0.15],[0.04,-0.17,0],[0.0,0,-0.15]];
+  const rc=[[0.5,0.5,0.5],[0.82,0.82,0.82],[1.0,1.0,1.0],[0.82,0.82,0.82]];
+  for(let i=0;i<4;i++){ const a=ring[i],b=ring[(i+1)%4]; addTri(m,nose,a,b,rc[i]); addTri(m,tb,b,a,[0.75,0.75,0.75]); }
+  addTri(m,tb,[-0.60,0.26,0],[-0.60,-0.24,0],[0.55,0.55,0.55]);
+  addTri(m,tb,[-0.60,-0.24,0],[-0.60,0.26,0],[0.55,0.55,0.55]);
+  addTri(m,[0.06,0.18,0],[-0.12,0.34,0],[-0.20,0.15,0],[0.5,0.5,0.5]);
+  UW.fish=meshToVAO(m);
+  // lure body (small octahedron)
+  const l=Mesh(); const s=0.16;
+  const p=[[s,0,0],[-s,0,0],[0,s,0],[0,-s,0],[0,0,s],[0,0,-s]]; const lc=[1,1,1];
+  const faces=[[0,2,4],[0,4,3],[0,3,5],[0,5,2],[1,4,2],[1,3,4],[1,5,3],[1,2,5]];
+  for(const f of faces) addTri(l,p[f[0]],p[f[1]],p[f[2]],lc);
+  UW.lure=meshToVAO(l);
+  // seabed grid with gentle dunes
+  const sb=Mesh(); const NB=26, SZ=240, nz=makeNoise1D(556);
+  const hAt=(x,z)=> (fbm1(nz,(x*0.5+555)*0.02,3)+fbm1(nz,(z*0.5-222)*0.02,3))*5.0;
+  for(let j=0;j<NB;j++)for(let i=0;i<NB;i++){
+    const x0=(i/NB*2-1)*SZ, x1=((i+1)/NB*2-1)*SZ, z0=(j/NB*2-1)*SZ, z1=((j+1)/NB*2-1)*SZ;
+    const a=[x0,hAt(x0,z0),z0],b=[x1,hAt(x1,z0),z0],c=[x1,hAt(x1,z1),z1],d=[x0,hAt(x0,z1),z1];
+    addQuad(sb,a,b,c,d,[0.72,0.66,0.5]);
+  }
+  UW.seabed=meshToVAO(sb);
+  // light shaft (downward-widening quad, additive)
+  UW.shaft=posVAO([-0.5,0,0, 0.5,0,0, 2.2,-1,0,  -0.5,0,0, 2.2,-1,0, -2.2,-1,0]);
+  // surface ceiling plane (big quad facing down at y=0)
+  const CS=260; UW.ceil=posVAO([-CS,0,-CS, CS,0,-CS, CS,0,CS,  -CS,0,-CS, CS,0,CS, -CS,0,CS]);
+  // particulate motes buffer (dynamic)
+  UW.moteN=140; UW.moteArr=new Float32Array(UW.moteN*3);
+  UW.moteVao=gl.createVertexArray(); gl.bindVertexArray(UW.moteVao);
+  UW.moteBuf=gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER,UW.moteBuf);
+  gl.bufferData(gl.ARRAY_BUFFER,UW.moteArr,gl.DYNAMIC_DRAW);
+  gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0,3,gl.FLOAT,false,0,0); gl.bindVertexArray(null);
+  UW.motes=[];
+}
+
+/* ======================= 21. FISHING SIM ================================ */
+const WORLD_DEPTH=96;
+const fishing={ active:false, lure:{x:0,y:-2,z:0,vx:0,vy:0,vz:0}, maxDepthWorld:48, school:[], hitFlash:0, msg:'' };
+function fishValue(def,len){ const t=inv(def.len[0],def.len[1],len)||0; return Math.round(def.base*(0.7+0.6*clamp(t,0,1))); }
+function spawnFish(nearX, atEdge){
+  const R=regionData(); const ids=R.fish.filter(id=>!FISH[id].legendary);
+  let id;
+  if(chance(0.02) && FISH[R.legendary]){ id=R.legendary; }
+  else { let tot=0; for(const k of ids) tot+=FISH[k].weight; let r=rnd()*tot; id=ids[0]; for(const k of ids){ r-=FISH[k].weight; if(r<=0){id=k;break;} } }
+  const def=FISH[id];
+  const depthFrac=rrange(def.depth[0],def.depth[1]);
+  const y=-depthFrac*WORLD_DEPTH;
+  const x=nearX + (atEdge? (chance(0.5)?-1:1)*rrange(34,46) : rrange(-40,40));
+  const z=rrange(-9,9);
+  const len=rrange(def.len[0],def.len[1]);
+  const skittish = def.legendary || def.hits>=3;
+  fishing.school.push({id,def,pos:[x,y,z],dir:rrange(0,TAU),vx:0,vy:0,vz:0,hp:def.hits,size:len/58,len,
+    wt:rrange(0.3,1.4),phase:rrange(0,TAU),cd:0,skittish,band:y,flash:0});
+}
+function spawnInitialFish(){ fishing.school=[]; const n=15; for(let i=0;i<n;i++) spawnFish(player.pos[0],false);
+  UW.motes=[]; for(let i=0;i<UW.moteN;i++) UW.motes.push({x:player.pos[0]+rrange(-30,30),y:-rrange(2,WORLD_DEPTH),z:rrange(-16,16),vy:rrange(1,4),ph:rrange(0,TAU)}); }
+function toggleFishing(){
+  if(Game.screen==='sail'){
+    if(Math.abs(player.speed)>3){ toast('Slow down to drop your line','🎣'); return; }
+    if(player.bait<=0){ toast('Out of bait — buy more at a port','🪱'); return; }
+    player.bait--; fishing.active=true;
+    fishing.maxDepthWorld=UPGRADES.line.levels[player.upg.line].depth*WORLD_DEPTH;
+    fishing.lure={x:player.pos[0],y:-2.5,z:0,vx:0,vy:0,vz:0};
+    spawnInitialFish(); if(Sound.splash)Sound.splash();
+    cam.pos=[player.pos[0],1,15]; cam.target=[player.pos[0],-3,0];
+    Game.set('fish');
+  } else if(Game.screen==='fish'){
+    fishing.active=false; if(Sound.reel)Sound.reel(); Game.set('sail');
+  }
+}
+function updateFishing(dt){
+  const L=fishing.lure, lp=UPGRADES.lure.levels[player.upg.lure];
+  // pilot the lure
+  let ax=0,ay=0; if(Input.left())ax-=1; if(Input.right())ax+=1; if(Input.up())ay+=1; if(Input.down())ay-=1;
+  const acc=46; L.vx+=(ax*acc-L.vx*3.2)*dt; L.vy+=(ay*acc-L.vy*3.2)*dt;
+  L.x+=L.vx*dt; L.y+=L.vy*dt;
+  L.y=clamp(L.y,-fishing.maxDepthWorld,-1.2);
+  L.x=clamp(L.x,player.pos[0]-15,player.pos[0]+15);
+  const attractR=3.2+lp.attract*0.055, fleeR=7.5, hitR=1.5+lp.power*0.5;
+  fishing.hitFlash=Math.max(0,fishing.hitFlash-dt*3);
+  // fish behaviour
+  for(let k=fishing.school.length-1;k>=0;k--){
+    const f=fishing.school[k]; f.cd=Math.max(0,f.cd-dt); f.flash=Math.max(0,f.flash-dt*3);
+    f.wt-=dt; if(f.wt<=0){ f.dir+=rrange(-0.8,0.8); f.wt=rrange(0.5,1.6); }
+    let dvx=Math.cos(f.dir)*f.def.spd*2.2, dvy=(f.band-f.pos[1])*0.6;
+    const dx=L.x-f.pos[0], dy=L.y-f.pos[1], dz=L.z-f.pos[2];
+    const dl=Math.hypot(dx,dy,dz);
+    if(f.skittish){ if(dl<fleeR){ const s=6.5*f.def.spd/(dl+0.5); dvx=-dx*s; dvy=-dy*s; f.dir=Math.atan2(0,-dx)||f.dir; } }
+    else { if(dl<attractR+lp.attract*0.02 && dl>hitR){ const s=1.9/(dl+0.3); dvx=dx*s*3.0; dvy=dy*s*3.0; } }
+    f.vx=lerp(f.vx,dvx,1-Math.pow(0.02,dt)); f.vy=lerp(f.vy,dvy,1-Math.pow(0.02,dt));
+    f.pos[0]+=f.vx*dt; f.pos[1]+=f.vy*dt; f.pos[2]+=Math.sin(Game.t*0.6+f.phase)*0.4*dt*2;
+    f.pos[1]=clamp(f.pos[1],-WORLD_DEPTH+1,-1.5); f.phase+=dt*(5+f.def.spd*4);
+    if(f.vx> 0.05) f.face=1; else if(f.vx<-0.05) f.face=-1;
+    // contact
+    if(dl<hitR+f.size*0.5 && f.cd<=0){ f.hp-=lp.power; f.cd=0.45; f.flash=1; fishing.hitFlash=1;
+      if(Sound.reel)Sound.reel(); spawnHitFX(f.pos);
+      if(f.hp<=0){ landFish(f); fishing.school.splice(k,1); continue; } }
+    // recycle if too far from lure
+    if(Math.abs(f.pos[0]-L.x)>60) { fishing.school.splice(k,1); }
+  }
+  while(fishing.school.length<15) spawnFish(L.x,true);
+  // motes drift up
+  for(const mo of UW.motes){ mo.y+=mo.vy*dt*0.4; mo.x+=Math.sin(Game.t*0.3+mo.ph)*0.2*dt; if(mo.y>-1){ mo.y=-WORLD_DEPTH+rrange(0,4); mo.x=L.x+rrange(-30,30); mo.z=rrange(-16,16); } }
+  updateFishCamera(dt);
+}
+function spawnHitFX(pos){ for(let i=0;i<8;i++){ /* placeholder: could add 3D bubbles */ } }
+function landFish(f){
+  const val=fishValue(f.def,f.len);
+  if(player.hold.length>=holdMax()){ toast('Hold is full! Sell your catch at port','🧺'); return; }
+  player.hold.push({id:f.id,len:Math.round(f.len),value:val});
+  player.discovered[f.id]=true;
+  view.flash=0.5; view.flashCol=f.def.legendary?'#ffe6a0':'#dff3ff';
+  if(Sound.chime)Sound.chime();
+  if(f.def.legendary){ const ri=world.region; player.caughtLegendary[ri]=true;
+    toast(`★ LEGENDARY — ${f.def.name}! (${val} coin)`,'🏆'); if(typeof checkRegionGoal==='function') checkRegionGoal(); }
+  else toast(`Caught ${f.def.name} · ${Math.round(f.len)}cm · ${val} coin`,'🐟');
+}
+function updateFishCamera(dt){
+  const L=fishing.lure;
+  const dPos=[L.x, L.y+3.2, L.z+14.5], dTgt=[L.x, L.y-1.6, L.z];
+  const k=1-Math.pow(0.004,dt); cam.pos=vLerp(cam.pos,dPos,k); cam.target=vLerp(cam.target,dTgt,k);
+}
+
+/* ======================= 22. UNDERWATER RENDER ========================== */
+function underwaterColors(){
+  const R=regionData(); const d01=clamp(-fishing.lure.y/WORLD_DEPTH,0,1);
+  const topC=mix(hex2rgb(R.water.top),[255,255,255],0.08);
+  const fogC=mix(topC,hex2rgb(R.water.deep),0.35+0.55*d01);
+  const amb=mix(fogC,[255,255,255],0.38);
+  return {fogC,amb,d01};
+}
+function renderUnderwater(sky){
+  const uc=underwaterColors();
+  gl.clearColor(v3(uc.fogC)[0],v3(uc.fogC)[1],v3(uc.fogC)[2],1);
+  gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
+  const litOpts={useSky:0,fogColor:v3(uc.fogC),ambient:v3(uc.amb),fogDensity:0.014};
+  const L=fishing.lure;
+  // seabed
+  const sbModel=m4(); m4trans(sbModel,L.x,-WORLD_DEPTH,0);
+  drawLit(UW.seabed,sbModel,sky,Object.assign({},litOpts,{fogDensity:0.02}));
+  // fish
+  for(const f of fishing.school){
+    const tint=v3(hex2rgb(f.def.col));
+    const m=m4(); const yaw=(f.face===-1)?PI:0; const wig=Math.sin(f.phase)*0.18;
+    m4compose(m,f.pos,yaw+wig,0,0,[f.size,f.size,f.size]);
+    drawLit(UW.fish,m,sky,Object.assign({emissive:f.flash*0.5},litOpts,{tint:f.flash>0?[1,1,1]:tint}));
+  }
+  // lure body (glowing)
+  const lm=m4(); m4compose(lm,[L.x,L.y,L.z],Game.t*2,0,0,[1,1,1]);
+  drawLit(UW.lure,lm,sky,Object.assign({},litOpts,{tint:v3([255,224,120]),emissive:0.8+0.2*Math.sin(Game.t*6)}));
+  // fishing line (thin dark quad from lure to boat at surface)
+  drawFishingLine(L);
+  // --- additive glimmer ---
+  // surface ceiling
+  const cm=m4(); m4trans(cm,L.x,-0.05,0);
+  drawUnlit(UW.ceil,cm,[v3(sky.hor)[0],v3(sky.hor)[1],v3(sky.hor)[2],0.22*sky.lightStr],{additive:true,depthWrite:false});
+  // light shafts
+  for(let i=0;i<6;i++){ const sx=L.x + (i-2.5)*7 + Math.sin(Game.t*0.3+i)*2;
+    const sm=m4(); m4compose(sm,[sx,0,-6+i*2],0.1*Math.sin(Game.t*0.4+i),0,0,[3.2,WORLD_DEPTH*0.9,1]);
+    drawUnlit(UW.shaft,sm,[1,1,0.9,0.07*sky.lightStr],{additive:true,depthWrite:false}); }
+  // lure glow billboard-ish (small additive octahedron scaled)
+  const gm=m4(); m4compose(gm,[L.x,L.y,L.z],0,0,0,[3.2,3.2,3.2]);
+  drawUnlit(UW.lure,gm,[1,0.9,0.5,0.16],{additive:true,depthWrite:false});
+  // motes
+  for(let i=0;i<UW.motes.length;i++){ const mo=UW.motes[i]; UW.moteArr[i*3]=mo.x;UW.moteArr[i*3+1]=mo.y;UW.moteArr[i*3+2]=mo.z; }
+  gl.bindVertexArray(UW.moteVao); gl.bindBuffer(gl.ARRAY_BUFFER,UW.moteBuf); gl.bufferSubData(gl.ARRAY_BUFFER,0,UW.moteArr);
+  const im=m4ident(m4());
+  drawUnlit({vao:UW.moteVao,count:UW.moteN},im,[0.85,0.92,0.95,0.4],{additive:true,point:3*DPR,depthWrite:false});
+}
+function drawFishingLine(L){
+  const bx=player.pos[0]; const verts=[L.x-0.03,L.y,0, L.x+0.03,L.y,0, bx+0.03,0.2,0, L.x-0.03,L.y,0, bx+0.03,0.2,0, bx-0.03,0.2,0];
+  const md=posVAO(verts); drawUnlit(md,m4ident(m4()),[0.1,0.12,0.13,0.7],{alpha:true});
+  gl.deleteVertexArray(md.vao); gl.deleteBuffer(md.vb);
 }
 
 /*__MORE__*/
