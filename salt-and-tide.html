@@ -384,7 +384,7 @@ const DAY_LENGTH=165;
 const Game={screen:'boot',prev:'boot',t:0,frame:0,paused:false};
 Game.set=function(s){ this.prev=this.screen; this.screen=s; this.paused=!(s==='sail'||s==='fish'); if(typeof updateLayers==='function') updateLayers(); };
 const world={
-  region:0,time:0.34,day:1,timeScale:1,
+  region:0,time:0.34,day:1,timeScale:1,season:0,
   weather:'clear',weatherPrev:'clear',wBlend:1,wTimer:26,
   fog:0,rainI:0,snowI:0,cloudCover:.3,storm:0,overcast:0,
   windDir:1,windTarget:1,windStr:.4,windTargetStr:.4,gust:0,seaState:.3,
@@ -400,9 +400,24 @@ const WX={
   snow:{fog:.3,rain:0,snow:.75,cloud:.8,storm:.05,wind:.4,sea:.4},
   storm:{fog:.12,rain:1,snow:0,cloud:1,storm:1,wind:1,sea:1},
 };
-function rollWeather(){ const w=regionData().weather; let total=0; for(const k in w)total+=w[k];
-  let r=rnd()*total; for(const k in w){ r-=w[k]; if(r<=0)return k; } return 'clear'; }
+function rollWeather(){ const w=regionData().weather, sw=SEASONS[world.season||0].wx; let total=0; const eff={};
+  for(const k in w){ eff[k]=w[k]*(sw[k]||1); total+=eff[k]; }
+  let r=rnd()*total; for(const k in eff){ r-=eff[k]; if(r<=0)return k; } return 'clear'; }
 function setWeather(next){ world.weatherPrev=world.weather; world.weather=next; world.wBlend=0; world.wTimer=rrange(26,54); }
+/* ---- Seasons & migrations: fish abundance shifts with the calendar ------ */
+const SEASON_LEN=4;   // days per season
+const SEASONS=[
+  {id:'spring',name:'Spring',icon:'sunrise',tint:[120,190,130],wash:0.05,wx:{clear:1.1,rain:1.35,fog:1.2,storm:1.0,snow:0.3,cloud:1.1},blurb:'Spawning shoals crowd the shallows.'},
+  {id:'summer',name:'Summer',icon:'sun',tint:[255,206,120],wash:0.05,wx:{clear:1.5,rain:0.8,fog:0.6,storm:1.1,snow:0,cloud:0.8},blurb:'Warm water — the big pelagics run fast and shallow.'},
+  {id:'autumn',name:'Autumn',icon:'flame',tint:[214,138,70],wash:0.06,wx:{clear:0.9,rain:1.3,fog:1.35,storm:1.25,snow:0.4,cloud:1.2},blurb:'The great autumn migration — bait balls and hungry hunters.'},
+  {id:'winter',name:'Winter',icon:'snowflake',tint:[158,192,224],wash:0.07,wx:{clear:0.7,rain:0.7,fog:1.1,storm:1.35,snow:1.9,cloud:1.2},blurb:'Cold and lean — fish hold deep and the storms bite hard.'},
+];
+function seasonNow(){ return SEASONS[world.season||0]; }
+function updateSeason(){ world.season=Math.floor((world.day-1)/SEASON_LEN)%4; }
+function hashStr(s){ let h=2166136261; for(let i=0;i<s.length;i++){ h^=s.charCodeAt(i); h=Math.imul(h,16777619); } return h>>>0; }
+function fishPeak(id){ return hashStr(id)%4; }             // each species peaks in one season
+function fishSeasonMult(id){ let d=Math.abs((world.season||0)-fishPeak(id)); d=Math.min(d,4-d);
+  return d===0?1.8:d===1?1.0:0.35; }                       // abundant at peak, scarce off-season
 function updateWeather(dt){
   world.wTimer-=dt;
   if(world.wTimer<=0&&world.wBlend>=1) setWeather(rollWeather());
@@ -425,7 +440,9 @@ function updateWeather(dt){
 function advanceTime(dt){ world.time+=dt/DAY_LENGTH*world.timeScale; if(world.time>=1){ world.time-=1; world.day++; onNewDay(); } }
 function onNewDay(){ if(typeof driftMarkets==='function') driftMarkets();
   if(typeof tradeAccrueDay==='function') tradeAccrueDay();
-  if(typeof toast==='function') toast(`Day ${world.day} — dawn breaks`,ic('sunrise')); }
+  const prevS=world.season; updateSeason();
+  if(world.season!==prevS && typeof toast==='function'){ const s=seasonNow(); toast(`${s.name} — ${s.blurb}`,ic(s.icon)); }
+  else if(typeof toast==='function') toast(`Day ${world.day} — dawn breaks`,ic('sunrise')); }
 
 function sunDirection(time){ const a=(time-0.25)*TAU; const x=Math.cos(a),y=Math.sin(a),z=-0.34;
   const L=Math.hypot(x,y,z); return [x/L,y/L,z/L]; }
@@ -551,6 +568,10 @@ function drawFX(sky){
   g.addColorStop(0,'rgba(0,0,0,0)');
   g.addColorStop(1,`rgba(8,14,18,${0.30+world.storm*0.2+world.overcast*0.06})`);
   fxx.fillStyle=g; fxx.fillRect(0,0,W,H);
+  // subtle seasonal colour wash
+  if(typeof seasonNow==='function'){ const s=seasonNow(); fxx.save(); fxx.globalCompositeOperation='soft-light';
+    fxx.fillStyle=`rgba(${s.tint[0]},${s.tint[1]},${s.tint[2]},${s.wash+0.14})`; fxx.fillRect(0,0,W,H); fxx.restore(); }
+  if(Game.screen==='fish'&&fishing.fight&&typeof drawFightHUD==='function') drawFightHUD();
   if(view.flash>0.01){ fxx.fillStyle=withA(view.flashCol,view.flash*0.5); fxx.fillRect(0,0,W,H); }
 }
 const view={flash:0,flashCol:'#dfeaff',shake:0,shakeX:0,shakeY:0,helm:false};
@@ -605,7 +626,7 @@ function boot(){
   gl.disable(gl.CULL_FACE); gl.enable(gl.DEPTH_TEST);
   initQuad(); initSky(); buildOcean(); initLit(); buildBoat(); initUnlit(); buildUnderwater(); initPaper();
   buildGullMesh(); initRain(); initHUD(); initEconomy();
-  world.time=0.36; setWeather('clear'); world.wBlend=1; updateWeather(0.001);
+  world.time=0.36; updateSeason(); setWeather('clear'); world.wBlend=1; updateWeather(0.001);
   // debug hooks: #t=0.75&w=storm&r=1&fish=1 to inspect a fixed moment
   const hp=new URLSearchParams(location.hash.slice(1));
   const reg=hp.has('r')?clamp(parseInt(hp.get("r")),0,REGIONS.length-1):0;
@@ -1351,12 +1372,12 @@ function drawAmbient(sky,litOpts){ if(!UW.ambient) return;
 
 /* ======================= 21. FISHING SIM ================================ */
 const WORLD_DEPTH=58;
-const fishing={ active:false, lure:{x:0,y:-2,z:0,vx:0,vy:0,vz:0}, maxDepthWorld:48, school:[], hitFlash:0, msg:'' };
+const fishing={ active:false, lure:{x:0,y:-2,z:0,vx:0,vy:0,vz:0}, maxDepthWorld:48, school:[], hitFlash:0, msg:'', fight:null };
 function fishValue(def,len){ const t=inv(def.len[0],def.len[1],len)||0; return Math.round(def.base*(0.7+0.6*clamp(t,0,1))); }
 function pickFishId(){
   const R=regionData(); const ids=R.fish.filter(id=>!FISH[id].legendary);
-  if(chance(0.015)&&FISH[R.legendary]) return R.legendary;
-  let tot=0; const w=[]; for(const k of ids){ const d=FISH[k]; const ew=d.weight*(0.4+d.len[1]/70); w.push(ew); tot+=ew; }
+  if(chance(0.015*fishSeasonMult(R.legendary))&&FISH[R.legendary]) return R.legendary;
+  let tot=0; const w=[]; for(const k of ids){ const d=FISH[k]; const ew=d.weight*(0.4+d.len[1]/70)*fishSeasonMult(k); w.push(ew); tot+=ew; }
   let r=rnd()*tot; for(let i=0;i<ids.length;i++){ r-=w[i]; if(r<=0) return ids[i]; } return ids[0];
 }
 function spawnFish(nearX, atEdge, forceId){
@@ -1384,7 +1405,7 @@ function toggleFishing(){
   if(Game.screen==='sail'){
     if(Math.abs(player.speed)>3){ toast('Slow down to drop your line',ic('rod')); return; }
     if(player.bait<=0){ toast('Out of bait — buy more at a port',ic('worm')); return; }
-    player.bait--; fishing.active=true; buildSeabedLife();
+    player.bait--; fishing.active=true; fishing.fight=null; buildSeabedLife();
     fishing.remaining=1; fishing.lineOut=2.5;
     fishing.lure={x:player.pos[0],y:-2.5,z:0,vx:0,vy:0,vz:0};
     spawnInitialFish(); if(Sound.splash)Sound.splash();
@@ -1395,6 +1416,7 @@ function toggleFishing(){
   }
 }
 function updateFishing(dt){
+  if(fishing.fight){ updateFight(dt); return; }
   const L=fishing.lure, lp=UPGRADES.lure.levels[player.upg.lure];
   // pilot the lure
   let ax=0,ay=0; if(Input.left())ax-=1; if(Input.right())ax+=1; if(Input.up())ay+=1; if(Input.down())ay-=1;
@@ -1425,7 +1447,7 @@ function updateFishing(dt){
     // contact — overlap on the plane grabs it
     if(dl<hitR+f.size*0.6 && f.cd<=0){ f.hp-=lp.power; f.cd=0.4; f.flash=1; fishing.hitFlash=1;
       if(Sound.reel)Sound.reel(); spawnHitFX(f.pos);
-      if(f.hp<=0){ landFish(f); fishing.school.splice(k,1); continue; } }
+      if(f.hp<=0){ if(f.def.hits>=2||f.def.legendary){ startFight(f); } else { landFish(f); } fishing.school.splice(k,1); continue; } }
     if(Math.abs(f.pos[0]-L.x)>62) { fishing.school.splice(k,1); }
   }
   while(fishing.school.length<22) spawnFish(L.x,true);
@@ -1435,6 +1457,43 @@ function updateFishing(dt){
   updateFishCamera(dt);
 }
 function spawnHitFX(pos){ for(let i=0;i<8;i++){ /* placeholder: could add 3D bubbles */ } }
+// ---- the fight: a hooked fish must be played in on the line without snapping ----
+function startFight(f){ const L=fishing.lure;
+  fishing.fight={ id:f.id, def:f.def, len:f.len, dist:1.0, tension:0.14, run:0, runTimer:rrange(0.4,1.0),
+    strength:clamp(f.def.hits/6,0.15,1)+(f.def.legendary?0.55:0), pos:[L.x,f.pos[1],f.pos[2]], hookY:f.pos[1], t:0 };
+  if(Sound.splash)Sound.splash(); toast(`Hooked a ${f.def.name}! Hold ▲ to reel — ease off on its runs`,ic('rod')); }
+function updateFight(dt){ const F=fishing.fight, L=fishing.lure; F.t+=dt; F.runTimer-=dt;
+  if(F.runTimer<=0){ if(F.run>0){ F.run=0; F.runTimer=rrange(0.8,1.9); } else { F.run=1; F.runTimer=rrange(0.6,1.3)*(0.7+F.strength); if(Sound.reel)Sound.reel(); } }
+  const reeling=Input.up()||Input.down();               // hold up/down (or W/S) to reel
+  const pull = F.run>0 ? (0.85+F.strength*1.4) : 0.05;
+  if(reeling){ F.tension += (0.26+pull*0.95)*dt; F.dist -= (0.19/(1+pull*3.2))*dt; }
+  else { F.tension -= 1.15*dt; F.dist += pull*0.11*dt; }
+  F.tension=clamp(F.tension,0,1.3); F.dist=clamp(F.dist,0,1.06);
+  // the hooked fish hangs just below the lure, pulled down and thrashing during a run
+  const ty=clamp(L.y - 2.4 - F.dist*5.5 - (F.run>0?1.6:0),-WORLD_DEPTH+2,L.y-1.6);
+  F.pos[1]=lerp(F.pos[1],ty,1-Math.pow(0.02,dt));
+  F.pos[0]=lerp(F.pos[0],L.x+(F.run>0?Math.sin(F.t*9)*1.3:0),1-Math.pow(0.05,dt));
+  fishing.remaining=clamp(1-F.dist*0.9,0,1);
+  if(F.tension>=1){ view.flash=0.5; view.flashCol='#e0785a'; if(Sound.reel)Sound.reel();
+    toast(`The line snapped — the ${F.def.name} broke free!`,ic('rod')); fishing.fight=null; fishing.remaining=1; updateFishCamera(dt); return; }
+  if(F.dist<=0){ landFish({id:F.id,def:F.def,len:F.len,pos:F.pos}); fishing.fight=null; fishing.remaining=1; updateFishCamera(dt); return; }
+  updateFishCamera(dt); }
+function drawFightHUD(){ const F=fishing.fight; if(!F) return; const c=fxx, cx=W/2;
+  const bw=Math.min(430,W*0.52), bx=cx-bw/2, by=H-150;
+  c.save(); c.textAlign='center';
+  c.font='600 16px Georgia,serif'; c.fillStyle=F.run>0?'#f0a06a':'#f4ead4';
+  c.fillText(`${F.def.name.replace(/^The /,'')} — ${F.run>0?'RUNNING! ease off ▲':'reel it in — hold ▲'}`, cx, by-30);
+  // distance bar
+  c.fillStyle='rgba(255,255,255,0.14)'; roundRectC(c,bx,by,bw,10,5); c.fill();
+  c.fillStyle='#7fd39a'; roundRectC(c,bx,by,bw*clamp(1-F.dist,0,1),10,5); c.fill();
+  c.font='11px ui-sans-serif'; c.fillStyle='#cbbf9f'; c.textAlign='left'; c.fillText('at the boat',bx,by+22); c.textAlign='right'; c.fillText('deep',bx+bw,by+22);
+  // tension bar with red danger zone
+  const tyy=by+34; c.fillStyle='rgba(255,255,255,0.14)'; roundRectC(c,bx,tyy,bw,12,6); c.fill();
+  c.fillStyle='rgba(220,90,70,0.30)'; roundRectC(c,bx+bw*0.8,tyy,bw*0.2,12,6); c.fill();
+  const tf=clamp(F.tension,0,1), tcol=F.tension>0.8?'#e0785a':F.tension>0.62?'#e6c04a':'#6fb0d0';
+  c.fillStyle=tcol; roundRectC(c,bx,tyy,bw*tf,12,6); c.fill();
+  c.textAlign='center'; c.fillStyle='#cbbf9f'; c.font='11px ui-sans-serif'; c.fillText('LINE TENSION — keep it out of the red', cx, tyy+26);
+  c.restore(); c.textAlign='left'; }
 function landFish(f){
   const val=fishValue(f.def,f.len);
   if(player.hold.length>=holdMax()){ toast('Hold is full! Sell your catch at port',ic('basket')); return; }
@@ -1482,6 +1541,11 @@ function renderUnderwater(sky){
     const emi=(f.def.glow?0.55+0.25*Math.sin(Game.t*3+f.phase):0)+f.flash*0.5;
     drawLit(fishMeshFor(f.id),m,sky,Object.assign({},litOpts,{emissive:emi,tint:f.flash>0?[1,1,1]:(f.def.glow?v3(hex2rgb(f.def.acc)):tint)}));
   }
+  // the hooked fish being fought — thrashes on the line
+  if(fishing.fight){ const F=fishing.fight; const sz=clamp(F.len/58,0.5,3.6);
+    const thrash=(F.run>0?0.5:0.15)*Math.sin(Game.t*(F.run>0?16:7)); const yaw=(F.run>0?PI/2+thrash*1.4:Math.sin(Game.t*3)*0.3);
+    const m=m4(); m4compose(m,F.pos,yaw,thrash,thrash*0.5,[sz,sz,sz]);
+    drawLit(fishMeshFor(F.id),m,sky,Object.assign({},litOpts,{emissive:F.def.glow?0.5:0,tint:v3(hex2rgb(F.def.col))})); }
   // grab ring — honest reach of the lure
   if(UW.ring){ const hr=fishing.hitR||2; const rm=m4(); m4compose(rm,[L.x,L.y,L.z],0,0,0,[hr,hr,1]);
     gl.useProgram(unlitProg); gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA,gl.ONE); gl.depthMask(false);
@@ -1826,7 +1890,7 @@ function updateHUD(){
   if(!show) return;
   HUD.coin.textContent=player.money.toLocaleString();
   const hrs=world.time*24, hh=Math.floor(hrs), mm=Math.floor((hrs-hh)*60);
-  HUD.clock.textContent=`Day ${world.day} · ${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}`;
+  HUD.clock.innerHTML=`Day ${world.day} · ${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')} · ${ic(seasonNow().icon,12)} ${seasonNow().name}`;
   HUD.region.innerHTML=`${ic(RICON[regionData().id],15)} ${regionData().name}`;
   const dayn=skyColors().dayness; const wi=dayn<0.3?ic('moon',15):ic(WKEY[world.weather],15);
   HUD.weather.innerHTML=`${wi} ${world.weather[0].toUpperCase()+world.weather.slice(1)}`;
@@ -2153,7 +2217,7 @@ function newGame(){
   player.regionDone=[false,false,false,false]; player.earned=0; player.caughtLegendary=[false,false,false,false]; player.discovered={};
   player.records={}; player.contracts=[]; player.contractsDone=0; player.stars=0; player.shipTier=0; player.style={hull:[176,76,58],sail:[244,238,222],cabin:[164,68,54]};
   player.home={built:{},stock:{},accrued:0,lastDay:1}; player.rep={north:0,trop:0,med:0,verge:0}; player.quests={};
-  world.day=1; world.time=0.30; world.timeScale=1; initEconomy(); applyUpgrades(); enterRegion(0); if(typeof buildBoat==='function')buildBoat(); Game.set('sail'); saveGame();
+  world.day=1; world.time=0.30; world.timeScale=1; updateSeason(); initEconomy(); applyUpgrades(); enterRegion(0); if(typeof buildBoat==='function')buildBoat(); Game.set('sail'); saveGame();
 }
 function loadGame(s){
   Object.assign(player,{money:s.money,fuel:s.fuel,fuelMax:s.fuelMax||60,bait:s.bait,hull:s.hull,upg:s.upg,hold:s.hold||[],cargo:s.cargo||{},
@@ -2161,7 +2225,7 @@ function loadGame(s){
     records:s.records||{},contractsDone:s.contractsDone||0,stars:s.stars||0,shipTier:s.shipTier||0,style:s.style||{hull:[176,76,58],sail:[244,238,222],cabin:[164,68,54]},
     home:s.home||{built:{},stock:{},accrued:0,lastDay:1},rep:s.rep||{north:0,trop:0,med:0,verge:0},quests:s.quests||{}});
   if(!player.home.built)player.home.built={}; if(!player.home.stock)player.home.stock={};
-  world.day=s.day||1; world.time=s.time||0.3; world.timeScale=1; if(s.eco){ ECO.fish=s.eco.fish; ECO.goods=s.eco.goods; }
+  world.day=s.day||1; world.time=s.time||0.3; world.timeScale=1; updateSeason(); if(s.eco){ ECO.fish=s.eco.fish; ECO.goods=s.eco.goods; }
   if(s.muted&&Sound.ensure){ Sound.muted=true; }
   applyUpgrades(); enterRegion(s.region||0); if(typeof buildBoat==='function')buildBoat(); if(s.x) player.pos[0]=s.x; Game.set('sail');
 }
@@ -2257,7 +2321,7 @@ function openHelp(fromTitle){
     <div class="kicker">The Ways of the Sea</div><h1>${ic('book',30)} How to Play</h1>
     <div class="grid" style="grid-template-columns:1fr 1fr;gap:16px;margin-top:6px;font-size:14px">
       <div><h3>${ic('sail',18)} Sailing</h3><p><span class="key">A</span><span class="key">D</span> steer along the coast. <span class="key">M</span> toggles engine (fast, burns fuel) and sail (free, wind-powered). <span class="key">C</span> drops you to a first-person view at the ship's wheel. Watch the sky — storms hammer your hull if you're caught far from port.</p></div>
-      <div><h3>${ic('rod',18)} Fishing</h3><p>Press <span class="key">Space</span> at sea to drop your line (uses bait). Pilot the glowing lure with the arrows; touch a fish to hook it. Big fish take several hits. Deeper water hides rarer, richer fish — upgrade your line to reach them.</p></div>
+      <div><h3>${ic('rod',18)} Fishing</h3><p>Press <span class="key">Space</span> at sea to drop your line. Pilot the lure with the arrows; touch a fish to hook it. Small fish come straight up — but anything bigger <b>fights</b>: hold <span class="key">▲</span> to reel, but ease off during its runs or the <b>line tension</b> snaps and it's gone. Deeper water hides rarer fish, and each species <b>runs in its own season</b> (see the Almanac) — fish the calendar.</p></div>
       <div><h3>${ic('anchor',18)} Ports &amp; Trade</h3><p>Sail up to a harbour and press <span class="key">E</span> to dock. Sell your catch — prices swing by port and day, so learn the good markets. Trade goods between ports for profit, and buy fuel, bait &amp; repairs.</p></div>
       <div><h3>${ic('gear',18)} Master the Coast</h3><p>Open the <span class="key">T</span> skill tree anywhere to upgrade parts (coin) and buy ship tiers with captain stars — earned from legendaries &amp; contracts — for a bigger, faster boat. Press <span class="key">U</span> on a catch to fillet it on the board for a bonus. Earn each region's goal and land its legendary to unlock the next coast.</p></div>
     </div>
@@ -2482,7 +2546,7 @@ function openAlmanac(){
     for(const id of R.fish){ total++; const d=FISH[id]; const got=player.discovered[id]; if(got)found++;
       rows+= got? `<div class="shop-item" style="padding:8px 10px"><div class="ic" style="background:radial-gradient(circle at 40% 35%,#fff,#e2d3ae)">${fishSVG(id,38)}</div>
         <div class="meta"><h4 style="font-size:14px">${d.name}${d.legendary?'<span class="tag leg">legendary</span>':''}</h4>
-        <p style="font-size:11.5px">Record ${player.records[id]||'—'}cm · worth ~${d.base}c${d.lore?` · <i>${d.lore}</i>`:''}</p></div></div>`
+        <p style="font-size:11.5px">Record ${player.records[id]||'—'}cm · worth ~${d.base}c · runs in ${ic(SEASONS[fishPeak(id)].icon,11)} ${SEASONS[fishPeak(id)].name}${d.lore?` · <i>${d.lore}</i>`:''}</p></div></div>`
        : `<div class="shop-item" style="padding:8px 10px;opacity:.5"><div class="ic">${ic('fish',20)}</div><div class="meta"><h4 style="font-size:14px">? ? ?</h4><p style="font-size:11.5px">Undiscovered</p></div></div>`; }
     secs+=`<h3 style="margin-top:10px">${ic(RICON[R.id],18)} ${R.name}</h3><div class="grid" style="grid-template-columns:1fr 1fr;gap:8px">${rows}</div>`; }
   L.innerHTML=`<div class="scrim"></div><div class="panel" style="max-width:780px;position:relative">
