@@ -572,6 +572,7 @@ function drawFX(sky){
   if(typeof seasonNow==='function'){ const s=seasonNow(); fxx.save(); fxx.globalCompositeOperation='soft-light';
     fxx.fillStyle=`rgba(${s.tint[0]},${s.tint[1]},${s.tint[2]},${s.wash+0.14})`; fxx.fillRect(0,0,W,H); fxx.restore(); }
   if(Game.screen==='fish'&&fishing.fight&&typeof drawFightHUD==='function') drawFightHUD();
+  if(Game.screen==='fish'&&typeof drawBeastHUD==='function') drawBeastHUD();
   if(view.flash>0.01){ fxx.fillStyle=withA(view.flashCol,view.flash*0.5); fxx.fillRect(0,0,W,H); }
 }
 const view={flash:0,flashCol:'#dfeaff',shake:0,shakeX:0,shakeY:0,helm:false};
@@ -1098,7 +1099,8 @@ function drawTraders(sky){
     const mo=m4(); m4compose(mo,[b.x,s.y+0.05,b.z], face>0?0:PI, Math.atan2(fwd.y-s.y,1.8)*face, Math.atan2(sd.y-s.y,1.8),[1.15,1.1,1.12]);
     drawLit(BOAT.mesh,mo,sky,{tint:b.tint,fogDensity:0.0016}); if(BOAT.sails) drawLit(BOAT.sails,mo,sky,{tint:b.tint,fogDensity:0.0016}); }
 }
-function updateWorldSim(dt){ if(Game.screen==='sail') updatePlayer(dt); else if(typeof updateFishing==='function') updateFishing(dt); }
+function updateWorldSim(dt){ if(Game.screen==='sail') updatePlayer(dt); else if(typeof updateFishing==='function') updateFishing(dt);
+  if(typeof updateBeast==='function') updateBeast(dt); }
 
 /* ======================= 19. CAMERA RIG ================================= */
 function boatTransform(out){
@@ -1494,6 +1496,100 @@ function drawFightHUD(){ const F=fishing.fight; if(!F) return; const c=fxx, cx=W
   c.fillStyle=tcol; roundRectC(c,bx,tyy,bw*tf,12,6); c.fill();
   c.textAlign='center'; c.fillStyle='#cbbf9f'; c.font='11px ui-sans-serif'; c.fillText('LINE TENSION — keep it out of the red', cx, tyy+26);
   c.restore(); c.textAlign='left'; }
+/* ======================= REGION MONSTERS (hunters) ==================== */
+const MON={};
+const MONSTERS={
+  north:{name:'Frostmaw',mesh:'serpent',col:[74,90,102],acc:[207,230,238],size:7.5,lore:'a white sea-serpent older than the ice'},
+  trop:{name:'The Devourer',mesh:'shark',col:[74,86,96],acc:[223,232,238],size:9,lore:'a shark the length of a schooner'},
+  med:{name:'Scylla',mesh:'serpent',col:[92,74,100],acc:[224,192,208],size:8,lore:'a many-toothed horror from the trenches'},
+  verge:{name:'The Abyssal',mesh:'angler',col:[22,32,44],acc:[143,240,208],size:11,glow:true,lore:'a lantern-lit leviathan of the black water'},
+};
+const Beast={threat:0,state:'gone',x:0,y:-40,z:-28,ph:0,atkT:0,def:null,warned:0};
+function beastReset(){ Beast.threat=0; Beast.state='gone'; Beast.atkT=0; Beast.warned=0; }
+function buildMonsterMeshes(){
+  if(MON.serpent) return; const W1=[1,1,1];
+  // ---- SERPENT ----
+  { const m=Mesh(); const segs=10;
+    for(let i=0;i<segs;i++){ const t=i/(segs-1), x=lerp(1.0,-1.6,t), r=Math.sin(clamp(0.12+t*0.82,0,1)*PI)*0.34+0.05; addOcta(m,x,0,0,0.18,r,r*0.92,W1); }
+    addOcta(m,1.12,0.02,0,0.34,0.26,0.24,W1);
+    addTri(m,[1.42,0.02,0],[1.05,0.16,0.16],[1.05,0.16,-0.16],W1); addTri(m,[1.42,0.02,0],[1.05,-0.14,-0.16],[1.05,-0.14,0.16],W1);
+    for(const zs of[1,-1]){ addOcta(m,1.18,0.12,zs*0.15,0.07,0.08,0.05,[1,0.25,0.22]); addOcta(m,1.21,0.12,zs*0.16,0.035,0.04,0.03,[0.1,0,0]); }
+    for(let i=0;i<7;i++){ const x=lerp(0.8,-1.2,i/6), h=0.34-Math.abs(i-3)*0.03; addTri(m,[x+0.15,0.22,0],[x,0.22+h,0],[x-0.18,0.22,0],W1); }
+    addTri(m,[-1.6,0,0],[-2.05,0.42,0],[-1.9,0,0],W1); addTri(m,[-1.6,0,0],[-1.9,0,0],[-2.05,-0.42,0],W1);
+    MON.serpent=meshToVAO(m); }
+  // ---- SHARK ----
+  { const m=Mesh(); const prof=[[1.5,0.04],[1.1,0.2],[0.6,0.34],[0.0,0.4],[-0.7,0.32],[-1.3,0.18],[-1.7,0.06]];
+    const rp=(x,r,a)=>[x,Math.sin(a)*r,Math.cos(a)*r*0.8];
+    for(let i=0;i<prof.length-1;i++){ for(let s=0;s<8;s++){ const a0=s/8*TAU,a1=(s+1)/8*TAU;
+      addQuad(m,rp(prof[i][0],prof[i][1],a0),rp(prof[i][0],prof[i][1],a1),rp(prof[i+1][0],prof[i+1][1],a1),rp(prof[i+1][0],prof[i+1][1],a0),W1); } }
+    addTri(m,[0.1,0.4,0],[-0.2,1.05,0],[-0.5,0.36,0],W1);
+    addTri(m,[-1.7,0,0],[-2.2,0.58,0],[-2.0,0,0],W1); addTri(m,[-1.7,0,0],[-2.0,0,0],[-2.2,-0.58,0],W1);
+    for(const zs of[1,-1]) addTri(m,[0.5,-0.2,zs*0.2],[0.1,-0.5,zs*0.5],[0.0,-0.15,zs*0.3],W1);
+    addTri(m,[1.5,0.04,0],[1.0,-0.2,0.3],[1.0,-0.2,-0.3],[0.09,0.05,0.07]);
+    for(let i=0;i<7;i++){ const zz=(i/6-0.5)*0.52; addTri(m,[1.36,-0.04,zz],[1.16,-0.17,zz+0.04],[1.16,-0.02,zz-0.02],[0.98,0.98,0.94]); }
+    for(const zs of[1,-1]) addOcta(m,1.2,0.14,zs*0.2,0.06,0.07,0.05,[0.08,0.08,0.1]);
+    MON.shark=meshToVAO(m); }
+  // ---- ANGLER ----
+  { const m=Mesh(); const prof=[[0.9,0.05],[0.6,0.4],[0.2,0.6],[-0.3,0.58],[-0.7,0.4],[-1.0,0.15]];
+    const rp=(x,r,a)=>[x,Math.sin(a)*r,Math.cos(a)*r];
+    for(let i=0;i<prof.length-1;i++){ for(let s=0;s<8;s++){ const a0=s/8*TAU,a1=(s+1)/8*TAU;
+      addQuad(m,rp(prof[i][0],prof[i][1],a0),rp(prof[i][0],prof[i][1],a1),rp(prof[i+1][0],prof[i+1][1],a1),rp(prof[i+1][0],prof[i+1][1],a0),W1); } }
+    addTri(m,[0.95,0.05,0],[0.5,-0.52,0.5],[0.5,-0.52,-0.5],[0.09,0.06,0.09]);
+    for(let i=0;i<9;i++){ const a=i/8*PI, zz=Math.cos(a)*0.46; addTri(m,[0.86,0.0,zz],[0.63,-0.32,zz*0.9],[0.6,0.03,zz*1.05],[0.96,0.98,0.9]); }
+    addBox2(m,[0.6,0.5,0],[0.92,1.3,0],0.03,W1); addOcta(m,0.98,1.42,0,0.14,0.16,0.14,[0.7,1.0,0.85]);
+    for(const zs of[1,-1]){ addOcta(m,0.55,0.26,zs*0.3,0.11,0.13,0.08,[0.92,0.96,0.72]); addOcta(m,0.6,0.26,zs*0.32,0.05,0.06,0.04,[0.05,0.05,0.05]); }
+    MON.angler=meshToVAO(m); }
+}
+function updateBeast(dt){ const def=MONSTERS[regionData().id]; Beast.def=def; if(!def) return; Beast.ph+=dt;
+  if(Game.screen==='fish' && Beast.state!=='attack'){
+    const L=fishing.lure, night=clamp(1-skyColors().dayness*1.7,0,1), deep=clamp(-L.y/WORLD_DEPTH,0,1);
+    Beast.threat=clamp(Beast.threat + dt*(0.016 + night*0.028 + deep*0.03 + world.storm*0.04), 0, 1.0001);
+    if(Beast.state==='gone' && Beast.threat>0.5){ Beast.state='lurk'; Beast.x=L.x+rrange(-28,28); Beast.z=-30; Beast.y=-WORLD_DEPTH+8;
+      toast('Something stirs in the deep water…',ic('waves')); if(Sound.thunder)Sound.thunder(); }
+    if(Beast.threat>0.8 && !Beast.warned){ Beast.warned=1; toast(`${def.name} is hunting you — reel up and run!`,ic('waves')); }
+    if(Beast.state==='lurk' || Beast.state==='hunt'){ Beast.state=Beast.threat>0.8?'hunt':'lurk';
+      const close=clamp((Beast.threat-0.5)/0.5,0,1), rad=lerp(30,6,close), ang=Beast.ph*(0.35+close*0.7);
+      const tx=L.x+Math.cos(ang)*rad, tz=Math.sin(ang)*rad*0.6, ty=lerp(-WORLD_DEPTH+8, L.y-3, close);
+      const k=1-Math.pow(Beast.state==='hunt'?0.14:0.4,dt);
+      Beast.x=lerp(Beast.x,tx,k); Beast.z=lerp(Beast.z,tz,k); Beast.y=lerp(Beast.y,ty,k);
+      if(Beast.threat>=1){ Beast.state='attack'; Beast.atkT=0; if(Sound.thunder)Sound.thunder(); }
+    }
+  } else if(Game.screen==='sail'){
+    Beast.threat=Math.max(0, Beast.threat - dt*(0.05 + clamp(Math.abs(player.speed)/12,0,1)*0.08));
+    if(Beast.threat<0.35){ Beast.state='gone'; Beast.warned=0; }
+  }
+  if(Beast.state==='attack') updateBeastAttack(dt);
+}
+function updateBeastAttack(dt){ const L=fishing.lure; Beast.atkT+=dt;
+  Beast.x=lerp(Beast.x,L.x,1-Math.pow(0.02,dt)); Beast.y=lerp(Beast.y,L.y+1,1-Math.pow(0.03,dt)); Beast.z=lerp(Beast.z,4,1-Math.pow(0.05,dt));
+  view.shake=Math.min(1.7, 0.4+Beast.atkT*0.85); view.flash=Math.max(view.flash, clamp(Beast.atkT-0.7,0,0.55));
+  if(Beast.atkT>1.6){ onBeastKill(); }
+}
+function onBeastKill(){ const def=Beast.def; beastReset(); fishing.fight=null; fishing.active=false;
+  const lost=Math.round(player.money*0.25); player.money=Math.max(0,player.money-lost); const lf=player.hold.length; player.hold=[];
+  player.hull=Math.max(10,player.hullMax*0.2); const p=regionData().ports[0]; player.pos[0]=p.x; player.pos[2]=0; player.speed=0;
+  view.flash=1; view.flashCol='#e0785a'; view.shake=1.7; Game.set('sail'); if(typeof buildBoat==='function')buildBoat();
+  showEvent(`${def.name} took your boat!`, ic('waves',60),
+    `The ${def.name} — ${def.lore} — rose from the black and smashed your hull to splinters. Fishermen hauled you ashore at <b>${p.name}</b>. You lost your catch${lf?` (${lf} fish)`:''} and ${ic('coin',14)} ${coinStr(lost)}. When the deep stirs, reel up and run.`,
+    [{label:'Rebuild and sail on',cls:'gold',act:()=>Game.set('sail')}]); saveGame();
+}
+function drawBeast(sky,litOpts){ if(Beast.state==='gone'||!Beast.def) return; buildMonsterMeshes();
+  const def=Beast.def, mesh=MON[def.mesh]; if(!mesh) return;
+  const atk=Beast.state==='attack', sc=def.size*(atk?1+Beast.atkT*0.5:1);
+  const face=(fishing.lure.x>=Beast.x)?1:-1, yaw=face>0?0:PI, wig=Math.sin(Beast.ph*(atk?10:2.2))*(atk?0.3:0.12);
+  const m=m4(); m4compose(m,[Beast.x,Beast.y,Beast.z], yaw+wig, wig*0.5, 0, [sc,sc,sc]);
+  const emi=def.glow?0.5+0.3*Math.sin(Game.t*3):0, fog=atk?0.004:0.02;
+  drawLit(mesh,m,sky,Object.assign({},litOpts||{},{tint:v3(def.col),emissive:emi,fogDensity:fog}));
+}
+function drawBeastHUD(){ if(Beast.state==='gone'||Beast.threat<0.4) return; const c=fxx, cx=W/2;
+  const bw=Math.min(300,W*0.4), bx=cx-bw/2, by=64;
+  c.save(); c.textAlign='center'; c.font='700 13px ui-sans-serif';
+  c.fillStyle=Beast.threat>0.8?'#e0785a':'#e6c04a';
+  c.fillText(Beast.state==='attack'?`${Beast.def.name.toUpperCase()} STRIKES!`:(Beast.threat>0.8?`${Beast.def.name} is hunting — REEL UP (Space)`:'Danger rising — the deep stirs'), cx, by-8);
+  c.fillStyle='rgba(255,255,255,0.14)'; roundRectC(c,bx,by,bw,8,4); c.fill();
+  c.fillStyle=Beast.threat>0.8?'#e0785a':'#e6c04a'; roundRectC(c,bx,by,bw*clamp(Beast.threat,0,1),8,4); c.fill();
+  c.restore(); c.textAlign='left';
+}
 function landFish(f){
   const val=fishValue(f.def,f.len);
   if(player.hold.length>=holdMax()){ toast('Hold is full! Sell your catch at port',ic('basket')); return; }
@@ -1533,6 +1629,7 @@ function renderUnderwater(sky){
   if(UW.decor) drawLit(UW.decor,sbModel,sky,Object.assign({},litOpts,{fogDensity:0.013}));
   // ambient background shoals (distant life)
   drawAmbient(sky,litOpts);
+  if(typeof drawBeast==='function') drawBeast(sky,litOpts);
   // fish
   for(const f of fishing.school){
     const tint=v3(hex2rgb(f.def.col));
@@ -1802,6 +1899,7 @@ function enterRegion(i){
   const home=regionData().ports[0];
   player.pos=[home.x+140,0,0]; player.speed=0; player.facing=-1; player.yaw=PI;
   if(typeof Traders!=='undefined') Traders.list=[];
+  if(typeof beastReset==='function') beastReset();
   buildCoast(); buildSeabedLife();
   if(typeof toast==='function') toast(regionData().name,ic(RICON[regionData().id]));
 }
@@ -1950,7 +2048,7 @@ let townPort=null, townTab='market';
 function cargoMax(){ return 8+player.upg.hull*8; }
 function cargoCount(){ let s=0; for(const k in player.cargo) s+=player.cargo[k]; return s; }
 function applyUpgrades(){ player.fuelMax=100+player.upg.hull*20; player.fuel=Math.min(player.fuel,player.fuelMax); }
-function openTown(port){ townPort=port; townTab='market';
+function openTown(port){ townPort=port; townTab='market'; if(typeof beastReset==='function') beastReset();
   if(port.kind==='home'&&homeHas('baitshack')&&player.bait<16){ player.bait=16; toast('Bait shack topped up your bait',ic('worm')); }
   Game.set('town'); renderTown(); if(Sound.ui)Sound.ui(); }
 function departTown(){ if(Sound.ui)Sound.ui(); Game.set('sail'); }
