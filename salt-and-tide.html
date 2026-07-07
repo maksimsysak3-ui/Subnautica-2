@@ -191,56 +191,64 @@ const FISH={
 const REGIONS=[
   {id:'north',name:'The Northern Reach',order:0,icon:'snowflake',
    blurb:'Cold, moody waters under evergreen headlands. Fog rolls thick and the sea keeps secrets.',
-   length:5200,
+   length:5600,
    sky:{dawn:'#caa9a0',day:'#a9c6d4',dusk:'#d79b74',night:'#0e2130'},
    sun:'#ffe9c2',water:{top:'#3f7285',mid:'#245264',deep:'#0c2531'},
    hills:['#26414a','#33525a','#48707a'],foam:'#dfeef2',
    weather:{clear:.22,cloud:.28,fog:.2,rain:.16,snow:.09,storm:.05},
    fish:['herring','mackerel','cod','pollock','salmon','halibut','lobster','kingcrab','oldbarnacle'],
-   legendary:'oldbarnacle',goal:{earn:3200},
+   legendary:'oldbarnacle',goal:{earn:4800},
    ports:[{name:'Gull Harbor',x:420,kind:'home',spec:['cod','herring'],icon:'anchor'},
-          {name:'Fable Cove',x:2100,kind:'trade',spec:['salmon','mackerel'],icon:'house'},
-          {name:'Cape Iron',x:3700,kind:'trade',spec:['halibut','lobster'],icon:'lighthouse'},
-          {name:'Stormwatch',x:4950,kind:'trade',spec:['kingcrab','pollock'],icon:'waves'}]},
+          {name:'Mistport',x:1450,kind:'trade',spec:['mackerel','herring'],icon:'house'},
+          {name:'Fable Cove',x:2450,kind:'trade',spec:['salmon','mackerel'],icon:'house'},
+          {name:'Cape Iron',x:3450,kind:'trade',spec:['halibut','lobster'],icon:'lighthouse'},
+          {name:'Netherby',x:4400,kind:'trade',spec:['pollock','cod'],icon:'house'},
+          {name:'Stormwatch',x:5350,kind:'trade',spec:['kingcrab'],icon:'waves'}]},
   {id:'trop',name:'The Coral Keys',order:1,icon:'palm',
    blurb:'Sun-warmed shallows over living reef. The water is glass; the fish are gold.',
-   length:5600,
+   length:6200,
    sky:{dawn:'#f4c9a0',day:'#8fd0e0',dusk:'#f0a15e',night:'#0b2436'},
    sun:'#fff2cf',water:{top:'#3fb2c9',mid:'#1f8aa8',deep:'#0a3a52'},
    hills:['#2f6f6a','#3f8a76','#6bb08c'],foam:'#f2fbfb',
    weather:{clear:.4,cloud:.22,fog:.06,rain:.16,snow:0,storm:.16},
    fish:['sardine','snapper','parrot','grouper','mahi','tuna','marlin','reefking'],
-   legendary:'reefking',goal:{earn:5600},
+   legendary:'reefking',goal:{earn:8000},
    ports:[{name:'Palmetto Bay',x:520,kind:'home',spec:['snapper','parrot'],icon:'palm'},
-          {name:'Marigot',x:2300,kind:'trade',spec:['mahi','grouper'],icon:'house'},
-          {name:'Blue Lagoon',x:3900,kind:'trade',spec:['tuna','sardine'],icon:'fish'},
-          {name:'Cutlass Reef',x:5300,kind:'trade',spec:['marlin'],icon:'anchor'}]},
+          {name:'Marigot',x:1650,kind:'trade',spec:['mahi','grouper'],icon:'house'},
+          {name:'Blue Lagoon',x:2900,kind:'trade',spec:['tuna','sardine'],icon:'fish'},
+          {name:'Coralton',x:4050,kind:'trade',spec:['parrot','snapper'],icon:'house'},
+          {name:'Cutlass Reef',x:5100,kind:'trade',spec:['marlin'],icon:'anchor'},
+          {name:'Sunfish Cay',x:6050,kind:'trade',spec:['grouper','mahi'],icon:'palm'}]},
   {id:'med',name:'The Amber Coast',order:2,icon:'column',
    blurb:'Golden light on ancient water. Olive terraces, white towns, tuna as old as the harbours.',
-   length:6000,
+   length:6800,
    sky:{dawn:'#f6d3a2',day:'#a9c7cf',dusk:'#f2b45e',night:'#101d33'},
    sun:'#fff0c8',water:{top:'#2f8fa0',mid:'#1e6f83',deep:'#0b2f47'},
    hills:['#6b6a4a','#8a8156','#b6a875'],foam:'#f4f1e2',
    weather:{clear:.46,cloud:.24,fog:.08,rain:.12,snow:0,storm:.1},
    fish:['anchovy','seabream','seabass','octopus','dorade','swordfish','bluefin','leviathan'],
-   legendary:'leviathan',goal:{earn:9000},
+   legendary:'leviathan',goal:{earn:13000},
    ports:[{name:'Porto Vecchio',x:560,kind:'home',spec:['seabream','dorade'],icon:'column'},
-          {name:'Amalfi Reach',x:2400,kind:'trade',spec:['seabass','octopus'],icon:'house'},
-          {name:'Saltera',x:4200,kind:'trade',spec:['swordfish'],icon:'salt'},
-          {name:'Cape Meridian',x:5700,kind:'trade',spec:['bluefin','anchovy'],icon:'sunrise'}]},
+          {name:'Amalfi Reach',x:1750,kind:'trade',spec:['seabass','octopus'],icon:'house'},
+          {name:'Saltera',x:2950,kind:'trade',spec:['swordfish'],icon:'salt'},
+          {name:'Olivetta',x:4150,kind:'trade',spec:['dorade','seabream'],icon:'column'},
+          {name:'Cape Meridian',x:5450,kind:'trade',spec:['bluefin','anchovy'],icon:'sunrise'},
+          {name:'Portale',x:6600,kind:'trade',spec:['octopus','seabass'],icon:'house'}]},
   {id:'verge',name:'The Midnight Verge',order:3,icon:'moon',
    blurb:'A deep polar sea under aurora and moon. Ice, fog, and things that glow in the black water below.',
-   length:6600,
+   length:6800,
    sky:{dawn:'#3a4a6a',day:'#6a7e94',dusk:'#4a3a5a',night:'#050a16'},
    sun:'#cfe0ff',water:{top:'#2a5a6e',mid:'#123448',deep:'#04121e'},
    hills:['#3a4650','#4a5a64','#6a7a84'],foam:'#e8f2f6',
    weather:{clear:.18,cloud:.24,fog:.24,rain:.12,snow:.16,storm:.06},
    fish:['lanternfish','capelin','cusk','wolffish','anglerfish','greenlandshark','oarfish','colossus'],
-   legendary:'colossus',goal:{earn:14000},
+   legendary:'colossus',goal:{earn:20000},
    ports:[{name:'Frost Harbor',x:560,kind:'home',spec:['cusk','capelin'],icon:'anchor'},
-          {name:'Lantern Bay',x:2500,kind:'trade',spec:['lanternfish','wolffish'],icon:'lighthouse'},
-          {name:'The Rime',x:4400,kind:'trade',spec:['greenlandshark'],icon:'house'},
-          {name:"World's End",x:6000,kind:'trade',spec:['oarfish'],icon:'waves'}]},
+          {name:'Lantern Bay',x:1750,kind:'trade',spec:['lanternfish','wolffish'],icon:'lighthouse'},
+          {name:'Glasshaven',x:2950,kind:'trade',spec:['capelin','cusk'],icon:'house'},
+          {name:'The Rime',x:4200,kind:'trade',spec:['greenlandshark'],icon:'house'},
+          {name:'Aurora Watch',x:5450,kind:'trade',spec:['anglerfish','lanternfish'],icon:'lighthouse'},
+          {name:"World's End",x:6650,kind:'trade',spec:['oarfish'],icon:'waves'}]},
 ];
 const GOODS={ice:{name:'Crushed Ice',icon:'ice',base:8,vol:.35},salt:{name:'Sea Salt',icon:'salt',base:14,vol:.3},
   timber:{name:'Timber',icon:'timber',base:26,vol:.4},rope:{name:'Rope & Net',icon:'rope',base:34,vol:.45},
@@ -1483,6 +1491,18 @@ function buildCoast(){
       const tx=ix+Math.cos(a)*rad, tz=iz+Math.sin(a)*rad; addLoTree(m,tx,base*0.32+rr()*base*0.35,tz,0.4+rr()*0.4,treeKind,rr); } }
   for(let i=0;i<6;i++){ const x=rr()*len, iz=-12-rr()*30, h=5+rr()*9;
     addPrism(m,x,h*0.4,iz,0.8+rr()*0.9,h,6,v3([92,90,86]),v3([96,94,90])); }
+  // ---- end headlands: natural cliff walls that close off both ends of the route ----
+  const headland=(cx,dir)=>{
+    for(let z=-58;z<=24;z+=5){ const t=clamp((z+58)/82,0,1);       // 0 at shore .. 1 at seaward tip
+      const h=(26+rr()*12)*(1-t*0.4);                              // tall by the shore, tapering out to sea
+      const w=8+rr()*3.5;
+      const bx=cx + dir*(3+t*11 + rr()*2);                         // curl the cliff back across the boat lane
+      addCone(m,bx,h*0.42,z,w,h,7,v3(mix(hillCol,hillBack,0.42+rr()*0.16)));
+      if(cold&&h>17) addCone(m,bx,h*0.86,z,w*0.5,h*0.5,6,v3([232,238,244]));
+      else if(!cold&&t<0.5) addLoTree(m,bx+(rr()*2-1)*w*0.4,h*0.5,z,0.5+rr()*0.5,treeKind,rr); }
+    for(let k=0;k<12;k++){ const z=-56+rr()*76; addOcta(m,cx+dir*(1+rr()*7),-0.2+rr()*1.3,z,1+rr()*1.7,0.8+rr()*1.5,1+rr()*1.7,v3([94,92,88])); }
+  };
+  headland(2,1); headland(len-2,-1);
   // villages at ports
   COAST.lamps=[]; COAST.lights=[];
   for(const p of R.ports){
