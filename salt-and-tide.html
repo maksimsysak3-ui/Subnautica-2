@@ -102,6 +102,7 @@
   <div class="layer" id="layer-town"></div>
   <div class="layer" id="layer-pause"></div>
   <div class="layer" id="layer-help"></div>
+  <div class="layer" id="layer-journal"></div>
   <div class="layer" id="layer-event"></div>
   <div id="boot"><div class="mark">SALT &amp; TIDE</div><div class="sub">a coastal life</div><div class="bar"><i id="bootbar"></i></div></div>
   <pre id="errbox" class="err"></pre>
@@ -988,6 +989,7 @@ function handleKey(k){
   if(Sound.ensure) Sound.ensure();
   if(k==='p'){ if(Sound.toggleMute) Sound.toggleMute(); return; }
   if(k==='t'&&(Game.screen==='sail'||Game.screen==='fish')){ if(typeof openSkills==='function') openSkills(); return; }
+  if(k==='j'&&(Game.screen==='sail'||Game.screen==='fish')){ if(typeof openJournal==='function') openJournal(); return; }
   if(Game.screen==='sail'){
     if(k==='m'&&typeof toggleMotor==='function') toggleMotor();
     else if(k==='e'&&typeof tryDock==='function') tryDock();
@@ -1003,6 +1005,7 @@ function handleKey(k){
     if(k==='escape') endCutting(false);
     else if((k===' '||k==='enter')&&cut.phase==='done') endCutting(true);
   } else if(Game.screen==='skills'){ if(k==='escape'||k==='t') Game.set(Game.prev==='fish'?'sail':'sail');
+  } else if(Game.screen==='journal'){ if(k==='escape'||k==='j') Game.set(Game.prev==='pause'?'pause':'sail');
   } else if(Game.screen==='town'){ if(k==='escape') departTown();
   } else if(Game.screen==='pause'){ if(k==='escape') Game.set('sail');
   } else if(Game.screen==='help'||Game.screen==='map'||Game.screen==='almanac'){ if(k==='escape') Game.set(Game.prev==='pause'?'pause':'sail');
@@ -1019,6 +1022,7 @@ const player={
   regionDone:[false,false,false,false], earned:0, caughtLegendary:[false,false,false,false], discovered:{},
   records:{}, contracts:[], contractsDone:0, stars:0, shipTier:0, style:{hull:[176,76,58],sail:[244,238,222],cabin:[164,68,54]},
   home:{built:{},stock:{},accrued:0,lastDay:1},
+  rep:{north:0,trop:0,med:0,verge:0}, quests:{},
 };
 function holdMax(){ return UPGRADES.hull.levels[player.upg.hull].hold + (player.shipTier||0)*10 + homeHoldBonus(); }
 function toggleMotor(){ player.motor=!player.motor; if(typeof toast==='function') toast(player.motor?'Engine engaged':'Under sail',ic(player.motor?'gear':'sail')); }
@@ -1436,6 +1440,7 @@ function landFish(f){
   if(player.hold.length>=holdMax()){ toast('Hold is full! Sell your catch at port',ic('basket')); return; }
   player.hold.push({id:f.id,len:Math.round(f.len),value:val});
   player.discovered[f.id]=true;
+  if(typeof questEvent==='function') questEvent('catch',{sp:f.id});
   if(!player.records[f.id]||f.len>player.records[f.id]) player.records[f.id]=Math.round(f.len);
   view.flash=0.5; view.flashCol=f.def.legendary?'#ffe6a0':'#dff3ff';
   if(Sound.chime)Sound.chime();
@@ -1866,7 +1871,7 @@ function goodsPrice(port,g){ return (ECO.goods[port.name]&&ECO.goods[port.name][
 
 /* ======================= 28. LAYER / PAUSE MANAGER ===================== */
 function updateLayers(){
-  const map={town:'layer-town',pause:'layer-pause',help:'layer-help',map:'layer-map',title:'layer-title',event:'layer-event',almanac:'layer-almanac',skills:'layer-skills'};
+  const map={town:'layer-town',pause:'layer-pause',help:'layer-help',map:'layer-map',title:'layer-title',event:'layer-event',almanac:'layer-almanac',skills:'layer-skills',journal:'layer-journal'};
   document.querySelectorAll('.layer').forEach(l=>l.classList.remove('show'));
   const id=map[Game.screen]; if(id){ const el=document.getElementById(id); if(el) el.classList.add('show','fade'); }
 }
@@ -1909,6 +1914,7 @@ function homeTradeMarkup(){ return 1.2+(homeBuilt('countinghouse')?0.25:0)+(home
 function tradeRate(){ if(!homeBuilt('warehouse'))return 0; return 2+(homeBuilt('market')?2:0)+(homeBuilt('crane')?1:0)+(homeBuilt('countinghouse')?1:0); }
 function buyStructure(id){ const s=STRUCT[id]; if(!s||homeBuilt(id))return; if(player.money<s.cost){toast('Not enough coin',ic('coin'));return;}
   player.money-=s.cost; player.home.built[id]=true; if(Sound.chime)Sound.chime();
+  if(typeof checkReadiness==='function') checkReadiness();
   toast(`${s.name} built at your home port`,ic('house')); if(typeof buildCoast==='function') buildCoast(); renderTown(); saveGame(); }
 function depositGood(id){ const have=player.cargo[id]||0; if(!have){ toast('None of that in your cargo',ic('crate')); return; }
   const room=tradeCapacity()-homeStockTotal(); if(room<=0){ toast('Warehouse is full',ic('crate')); return; }
@@ -2010,6 +2016,7 @@ function renderTown(){
   else if(townTab==='notice') body=noticeHTML(port);
   else if(townTab==='boatyard') body=boatyardHTML(port);
   else if(townTab==='harbor') body=homeHTML(port);
+  else if(townTab==='tavern') body=tavernHTML(port);
   const goal=R.goal, done=player.earned>=goal.earn, leg=player.caughtLegendary[world.region];
   L.innerHTML=`<div class="panel" style="width:min(920px,94vw)">
     <div class="row">
@@ -2021,7 +2028,7 @@ function renderTown(){
     <div class="row muted" style="margin:6px 0 2px;gap:16px;font-size:13px">
       <span>${ic('basket',14)} Catch ${player.hold.length}/${holdMax()}</span><span>${ic('crate',14)} Cargo ${cargoCount()}/${cargoMax()}</span>
       <span>${ic('fuel',14)} Fuel ${Math.round(player.fuel)}/${player.fuelMax}</span><span>${ic('wrench',14)} Hull ${Math.round(player.hull)}/${player.hullMax}</span></div>
-    <div class="tabs">${tabBtn('market',ic('scales',15)+' Market')}${tabBtn('notice',ic('book',15)+' Notices')}${tabBtn('chandler',ic('hook',15)+' Chandler')}${tabBtn('shipwright',ic('gear',15)+' Shipwright')}${tabBtn('boatyard',ic('boat',15)+' Boatyard')}${port.kind==='home'?tabBtn('harbor',ic('anchor',15)+' Home Port'):''}</div>
+    <div class="tabs">${tabBtn('market',ic('scales',15)+' Market')}${tabBtn('tavern',ic('person',15)+' Tavern')}${tabBtn('notice',ic('book',15)+' Notices')}${tabBtn('chandler',ic('hook',15)+' Chandler')}${tabBtn('shipwright',ic('gear',15)+' Shipwright')}${tabBtn('boatyard',ic('boat',15)+' Boatyard')}${port.kind==='home'?tabBtn('harbor',ic('anchor',15)+' Home Port'):''}</div>
     ${body}
     <div class="row" style="margin-top:16px;align-items:center">
       <div style="flex:1 1 240px">
@@ -2080,9 +2087,9 @@ function shipwrightHTML(port){
 }
 // --- transactions ---
 function sellFish(id){ let got=0,cnt=0; player.hold=player.hold.filter(it=>{ if(it.id===id){got+=fishSellPrice(townPort,it);cnt++;return false;} return true; });
-  if(cnt){ player.money+=got; player.earned+=got; if(Sound.coin)Sound.coin(); toast(`Sold ${cnt}× ${FISH[id].name} · ${ic('coin',13)} ${coinStr(got)}`,ic('coin')); } renderTown(); saveGame(); checkRegionGoal(); }
+  if(cnt){ player.money+=got; player.earned+=got; if(typeof questEvent==='function') questEvent('sell',{coin:got}); if(Sound.coin)Sound.coin(); toast(`Sold ${cnt}× ${FISH[id].name} · ${ic('coin',13)} ${coinStr(got)}`,ic('coin')); } renderTown(); saveGame(); checkRegionGoal(); }
 function sellAllFish(){ let got=0; const cnt=player.hold.length; for(const it of player.hold) got+=fishSellPrice(townPort,it); player.hold=[];
-  if(cnt){ player.money+=got; player.earned+=got; if(Sound.coin)Sound.coin(); toast(`Sold your catch (${cnt}) · ${ic('coin',13)} ${coinStr(got)}`,ic('coin')); } renderTown(); saveGame(); checkRegionGoal(); }
+  if(cnt){ player.money+=got; player.earned+=got; if(typeof questEvent==='function') questEvent('sell',{coin:got}); if(Sound.coin)Sound.coin(); toast(`Sold your catch (${cnt}) · ${ic('coin',13)} ${coinStr(got)}`,ic('coin')); } renderTown(); saveGame(); checkRegionGoal(); }
 function buyFuel(n){ const room=player.fuelMax-player.fuel; const buy=Math.min(n,Math.ceil(room)); if(buy<=0){toast('Tanks are full',ic('fuel'));return;} const cost=Math.round(buy*3);
   if(player.money<cost){toast('Not enough coin',ic('coin'));return;} player.money-=cost; player.fuel=Math.min(player.fuelMax,player.fuel+buy); if(Sound.coin)Sound.coin(); renderTown(); saveGame(); }
 function fillFuel(){ buyFuel(Math.ceil(player.fuelMax-player.fuel)); }
@@ -2133,7 +2140,7 @@ function saveGame(){ try{ localStorage.setItem(SAVE_KEY, JSON.stringify({
   money:player.money,fuel:player.fuel,fuelMax:player.fuelMax,bait:player.bait,hull:player.hull,
   upg:player.upg,hold:player.hold,cargo:player.cargo,region:world.region,day:world.day,time:world.time,
   earned:player.earned,caughtLegendary:player.caughtLegendary,regionDone:player.regionDone,discovered:player.discovered,eco:ECO,x:player.pos[0],
-  records:player.records,contractsDone:player.contractsDone,style:player.style,stars:player.stars,shipTier:player.shipTier,home:player.home,muted:Sound.muted
+  records:player.records,contractsDone:player.contractsDone,style:player.style,stars:player.stars,shipTier:player.shipTier,home:player.home,rep:player.rep,quests:player.quests,muted:Sound.muted
 })); }catch(e){} }
 function loadSave(){ try{ const s=localStorage.getItem(SAVE_KEY); return s?JSON.parse(s):null; }catch(e){ return null; } }
 function newGame(){
@@ -2141,14 +2148,14 @@ function newGame(){
   player.hold=[]; player.cargo={}; player.upg={engine:0,sail:0,hull:0,line:0,lure:0,sonar:0};
   player.regionDone=[false,false,false,false]; player.earned=0; player.caughtLegendary=[false,false,false,false]; player.discovered={};
   player.records={}; player.contracts=[]; player.contractsDone=0; player.stars=0; player.shipTier=0; player.style={hull:[176,76,58],sail:[244,238,222],cabin:[164,68,54]};
-  player.home={built:{},stock:{},accrued:0,lastDay:1};
+  player.home={built:{},stock:{},accrued:0,lastDay:1}; player.rep={north:0,trop:0,med:0,verge:0}; player.quests={};
   world.day=1; world.time=0.30; world.timeScale=1; initEconomy(); applyUpgrades(); enterRegion(0); if(typeof buildBoat==='function')buildBoat(); Game.set('sail'); saveGame();
 }
 function loadGame(s){
   Object.assign(player,{money:s.money,fuel:s.fuel,fuelMax:s.fuelMax||60,bait:s.bait,hull:s.hull,upg:s.upg,hold:s.hold||[],cargo:s.cargo||{},
     earned:s.earned||0,caughtLegendary:s.caughtLegendary||[false,false,false,false],regionDone:s.regionDone||[false,false,false,false],discovered:s.discovered||{},
     records:s.records||{},contractsDone:s.contractsDone||0,stars:s.stars||0,shipTier:s.shipTier||0,style:s.style||{hull:[176,76,58],sail:[244,238,222],cabin:[164,68,54]},
-    home:s.home||{built:{},stock:{},accrued:0,lastDay:1}});
+    home:s.home||{built:{},stock:{},accrued:0,lastDay:1},rep:s.rep||{north:0,trop:0,med:0,verge:0},quests:s.quests||{}});
   if(!player.home.built)player.home.built={}; if(!player.home.stock)player.home.stock={};
   world.day=s.day||1; world.time=s.time||0.3; world.timeScale=1; if(s.eco){ ECO.fish=s.eco.fish; ECO.goods=s.eco.goods; }
   if(s.muted&&Sound.ensure){ Sound.muted=true; }
@@ -2226,12 +2233,14 @@ function openPause(){
     <div class="kicker">At Anchor</div><h1>Paused</h1>
     <div class="grid" style="max-width:260px;margin:14px auto 0">
       <button class="btn gold" id="p-resume">Resume</button>
+      <button class="btn" id="p-journal">${ic('scroll',15)} Chapters &amp; Missions</button>
       <button class="btn" id="p-log">${ic('book',15)} Fish Almanac</button>
       <button class="btn" id="p-map">${ic('map',15)} Chart &amp; Goals</button>
       <button class="btn" id="p-help">${ic('book',15)} How to Play</button>
       <button class="btn ghost" id="p-quit">Save &amp; Quit to Title</button>
     </div></div>`;
   L.querySelector('#p-resume').onclick=()=>Game.set('sail');
+  L.querySelector('#p-journal').onclick=()=>openJournal();
   L.querySelector('#p-log').onclick=()=>openAlmanac();
   L.querySelector('#p-map').onclick=()=>openMap();
   L.querySelector('#p-help').onclick=()=>openHelp();
@@ -2371,6 +2380,9 @@ const ICON={
   wheel:`<circle cx=12 cy=12 r=6.4 fill="none" stroke="#a5723f" stroke-width=1.7/><circle cx=12 cy=12 r=2 fill="#8a5a34"/><g stroke="#a5723f" stroke-width=1.5 stroke-linecap="round"><path d="M12 1.6v6M12 16.4v6M1.6 12h6M16.4 12h6M4.6 4.6l4.2 4.2M15.2 15.2l4.2 4.2M19.4 4.6l-4.2 4.2M8.8 15.2l-4.2 4.2"/></g>`,
   flame:`<path d="M12 3c1 4 5 5 5 9a5 5 0 0 1-10 0c0-2 1-3.4 2-4.4.1 1.2.7 1.9 1.5 1.9C12 8.5 11 5.4 12 3z" fill="#e8863a"/><path d="M12 10.5c.6 1.3 2 1.9 2 3.6a2 2 0 0 1-4 0c0-1 .8-1.7 1-3z" fill="#f4c14e"/>`,
   tank:`<rect x=4 y=7 width=16 height=11 rx=1.4 fill="#bfe0e6" opacity=.55 stroke="#6a9aa4" stroke-width=1.2/><path d="M5 14c2-1.4 4.5-1.4 6.5 0s4.5 1.4 6.5 0" stroke="#5a94a4" stroke-width=1 fill="none"/><path d="M8 11.4c1.6-1.2 3-.4 3 .6-1.2.2-2 .2-3-.6z" fill="#e08a5a"/><circle cx=9.3 cy=11.2 r=.5 fill="#20303a"/>`,
+  person:`<circle cx=12 cy=8.5 r=4 fill="#d8b48c"/><path d="M4.5 20c0-4.2 3.6-6.4 7.5-6.4s7.5 2.2 7.5 6.4z" fill="#5a7a8a"/>`,
+  scroll:`<path d="M6 4h11a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V4z" fill="#e7d6b4" stroke="#b79a6a" stroke-width=1.1/><path d="M8 8h8M8 11h8M8 14h5" stroke="#9a7a48" stroke-width=1.1/><path d="M5 4a2 2 0 0 0-2 2 2 2 0 0 0 2 2" fill="none" stroke="#b79a6a" stroke-width=1.1/>`,
+  star:`<path d="M12 3l2.5 5.6 6.1.6-4.6 4.1 1.4 6-5.4-3.2-5.4 3.2 1.4-6L3.4 9.2l6.1-.6z" fill="#f2c94c" stroke="#c99633" stroke-width=.8/>`,
   boat:`<path d="M4 14h16l-2.5 4.5c-.4.7-1.1 1-1.9 1H8.4c-.8 0-1.5-.3-1.9-1z" fill="#b0563e"/><rect x=5 y=12.5 width=14 height=1.6 fill="#e7d6b4"/><rect x=11 y=4 width=1.3 height=8.5 fill="#8a6a3a"/><path d="M12.3 5c2.4 1.2 3.6 3 3.6 5.5h-3.6z" fill="#f0ead6"/>`,
   snowflake:`<path d="M12 3v18M4.2 7.5l15.6 9M19.8 7.5l-15.6 9" stroke="#9fd0e0" stroke-width=1.5 stroke-linecap="round"/><path d="M12 6l-2 2M12 6l2 2M12 18l-2-2M12 18l2-2" stroke="#9fd0e0" stroke-width=1.3 stroke-linecap="round"/>`,
   sun:`<circle cx=12 cy=12 r=5 fill="#f2c94c"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2" stroke="#e6b545" stroke-width=1.6 stroke-linecap="round"/>`,
@@ -2476,6 +2488,196 @@ function openAlmanac(){
   Game.set('almanac');
 }
 
+/* ======================= CAMPAIGN: chapters, characters, missions ===== */
+const CHARS={
+  marta:{name:'Harbourmaster Marta',where:'Gull Harbor'},
+  fenwick:{name:'Fenwick the Shipwright',where:'Gull Harbor'},
+  cartographer:{name:'The Cartographer',where:'a wanderer'},
+  reyes:{name:"Cap'n Reyes",where:'Palmetto Bay'},
+  marisol:{name:'Marisol the Diver',where:'the Keys'},
+  lucia:{name:'Signora Lucia',where:'Porto Vecchio'},
+  nico:{name:'Old Nico',where:'the Amber Coast'},
+  lamp:{name:'The Lampkeeper',where:'Frost Harbor'}};
+const CHAPTER_CHAR={north:'marta',trop:'reyes',med:'lucia',verge:'lamp'};
+const CAMPAIGN=[
+ {region:'north',sub:'Chapter I',title:'The Northern Reach',
+  intro:'Cold water, colder mornings. Marta runs Gull Harbor — and she does not hand out trust for free.',
+  missions:[
+   {id:'n1',giver:'marta',title:'Cast Off',req:[],goal:{type:'catchAny',n:1},reward:{coin:60,rep:1},
+     accept:'"So you’re the new hand. Drop a line and catch me anything — let’s see you’re not all talk."',turnin:'"There. Now you’ve fished the Reach. Welcome, more or less."'},
+   {id:'n2',giver:'marta',title:'Fresh Catch',req:['n1'],goal:{type:'sell',coin:200},reward:{coin:120,rep:2},
+     accept:'"The stalls are bare. Sell two hundred coin of fish along the coast and I’ll take notice."',turnin:'"Folk are eating tonight because of you. Not bad."'},
+   {id:'n3',giver:'fenwick',title:'A Bigger Boat',req:['n1'],side:true,goal:{type:'upgrade',n:1},reward:{coin:150,rep:2},
+     accept:'"Fenwick, at your service. That tub won’t last a gale — buy any upgrade at the Shipwright and I’ll cover the cost."',turnin:'"Now she’ll hold together. Come back when you want her faster."'},
+   {id:'n4',giver:'marta',title:'Cold Work',req:['n2'],goal:{type:'catch',sp:'cod',n:4},reward:{coin:220,rep:2},
+     accept:'"Cod is the bread of this coast. Bring me four honest ones."',turnin:'"Good, fat cod. You’ve got the knack."'},
+   {id:'n5',giver:'marta',title:'Storm Stores',req:['n4'],goal:{type:'earn',coin:800},reward:{coin:300,rep:3},
+     accept:'"Winter’s coming. Earn eight hundred coin so the town can stock up before the ice."',turnin:'"The stores are full. People are saying your name now, captain."'},
+   {id:'n6',giver:'marta',title:'The Old Barnacle',req:['n5'],goal:{type:'catch',sp:'oldbarnacle',n:1},reward:{coin:900,rep:5,star:1},
+     accept:'"There’s a halibut out there big as a door — the Old Barnacle. Land it and you’re a Reach captain, truly."',turnin:'"By the tides… you actually did it. The Reach is yours. Go on — warmer water waits south."'}]},
+ {region:'trop',sub:'Chapter II',title:'The Coral Keys',
+  intro:'Glass-clear shallows and gold fish. Cap’n Reyes trades out of Palmetto Bay and knows every reef by heart.',
+  missions:[
+   {id:'t1',giver:'reyes',title:'Warm Welcome',req:[],goal:{type:'catch',sp:'snapper',n:3},reward:{coin:180,rep:2},
+     accept:'"Fresh off the cold coast, eh? Bring me three red snapper and I’ll show you how we do things here."',turnin:'"Ha! Snapper like that fetch a fine price. You’ll fit right in."'},
+   {id:'t2',giver:'reyes',title:'Reef Market',req:['t1'],goal:{type:'sell',coin:500},reward:{coin:260,rep:2},
+     accept:'"Money moves fast in the Keys. Turn five hundred coin of fish and the market will remember you."',turnin:'"The whole bay’s talking trade. Keep it up."'},
+   {id:'t3',giver:'marisol',title:'Golden Fish',req:['t1'],side:true,goal:{type:'catch',sp:'mahi',n:2},reward:{coin:380,rep:3},
+     accept:'"I’m Marisol — I dive these reefs. Two mahi-mahi, if you can catch the fast ones. They shine like coins."',turnin:'"Gorgeous. You’ve a diver’s eye after all."'},
+   {id:'t4',giver:'cartographer',title:'Chart the Keys',req:['t1'],side:true,goal:{type:'discover',region:'trop',n:6},reward:{coin:320,rep:3},
+     accept:'"A cartographer needs specimens. Log six different Coral Keys species in your almanac and my map grows richer."',turnin:'"Six species, catalogued. The Keys give up their secrets to you."'},
+   {id:'t5',giver:'reyes',title:'Deep Blue',req:['t2'],goal:{type:'catch',sp:'marlin',n:1},reward:{coin:520,rep:3},
+     accept:'"Out past the reef runs the blue marlin. Land one and you’re no tourist."',turnin:'"A marlin! On your boat! The bay owes you a drink."'},
+   {id:'t6',giver:'reyes',title:'Crown of Coral',req:['t5'],goal:{type:'catch',sp:'reefking',n:1},reward:{coin:1300,rep:5,star:1},
+     accept:'"The Reef King wears a crown of living coral, old as the atoll. Bring it in and the Keys are yours."',turnin:'"You landed the King himself. Sail on, legend — the amber coast is waiting."'}]},
+ {region:'med',sub:'Chapter III',title:'The Amber Coast',
+  intro:'Olive terraces and white towns on gold water. Signora Lucia keeps the market of Porto Vecchio, and misses nothing.',
+  missions:[
+   {id:'m1',giver:'lucia',title:'Amber Welcome',req:[],goal:{type:'catch',sp:'seabream',n:3},reward:{coin:220,rep:2},
+     accept:'"Ah, a new face. Bring me three sea bream, fresh, and we will see if you understand this coast."',turnin:'"Perfetto. You know a good fish. That is a start."'},
+   {id:'m2',giver:'lucia',title:'Olive & Salt',req:['m1'],goal:{type:'sell',coin:800},reward:{coin:340,rep:3},
+     accept:'"This coast runs on trade. Sell eight hundred coin of fish and the merchants will smile at you."',turnin:'"The whole quay speaks well of you now."'},
+   {id:'m3',giver:'nico',title:'The Swordsman',req:['m1'],side:true,goal:{type:'catch',sp:'swordfish',n:1},reward:{coin:520,rep:3},
+     accept:'"Old Nico here. One swordfish, that is all I ask — I have not tasted one since my knees went."',turnin:'"A sword as long as my arm! Grazie, capitano."'},
+   {id:'m4',giver:'lucia',title:"Merchant's Favour",req:['m2'],goal:{type:'earn',coin:2000},reward:{coin:500,rep:3},
+     accept:'"Prove you can prosper here. Earn two thousand coin and the guild will open its doors."',turnin:'"The guild welcomes you. Doors open for the wealthy — and the clever."'},
+   {id:'m5',giver:'lucia',title:'Bluefin Run',req:['m4'],goal:{type:'catch',sp:'bluefin',n:1},reward:{coin:640,rep:4},
+     accept:'"The bluefin run past the cape. Land one — they are worth a captain’s ransom."',turnin:'"Magnifico. That fish will feed a feast and fill your purse."'},
+   {id:'m6',giver:'lucia',title:'The Old Emperor',req:['m5'],goal:{type:'catch',sp:'leviathan',n:1},reward:{coin:1800,rep:5,star:1},
+     accept:'"They say a bluefin has outlived three lighthouses — the Old Emperor. Bring him in, and the coast is yours."',turnin:'"You caught the Emperor. Santo cielo. Sail north into the dark now — if you dare."'}]},
+ {region:'verge',sub:'Chapter IV',title:'The Midnight Verge',
+  intro:'A deep polar sea under aurora and moon. Only the Lampkeeper still tends a light this far into the black.',
+  missions:[
+   {id:'v1',giver:'lamp',title:'Into the Dark',req:[],goal:{type:'catch',sp:'lanternfish',n:3},reward:{coin:300,rep:2},
+     accept:'"You sailed all the way out here. Brave, or foolish. Bring me three lanternfish — their glow keeps my lamp company."',turnin:'"Little lights for a long night. You’ll do out here."'},
+   {id:'v2',giver:'lamp',title:'A Light to Come Home To',req:['v1'],side:true,goal:{type:'build',id:'lighthouse'},reward:{coin:400,rep:3},
+     accept:'"Every captain needs a beacon. Raise a Harbour Light at your home port, and no storm will take you."',turnin:'"A new light on the coast. The dark is a little smaller now."'},
+   {id:'v3',giver:'lamp',title:'Cold Iron',req:['v1'],goal:{type:'catch',sp:'cusk',n:2},reward:{coin:380,rep:2},
+     accept:'"Cusk hide deep and cold. Two of them, and I’ll believe you can fish the black water."',turnin:'"Deep fish for a deep-water captain. Good."'},
+   {id:'v4',giver:'lamp',title:'The Grey Ghost',req:['v3'],goal:{type:'catch',sp:'greenlandshark',n:1},reward:{coin:720,rep:4},
+     accept:'"The Greenland shark drifts down there, older than any of us. Land the Grey Ghost."',turnin:'"Four hundred years in the dark, and you brought it up. Extraordinary."'},
+   {id:'v5',giver:'lamp',title:"Aurora's Bounty",req:['v4'],goal:{type:'earn',coin:3000},reward:{coin:800,rep:4},
+     accept:'"Even out here, coin matters. Earn three thousand from these black waters."',turnin:'"You’ve wrung a fortune from the edge of the world."'},
+   {id:'v6',giver:'lamp',title:'The Colossus',req:['v5'],goal:{type:'catch',sp:'colossus',n:1},reward:{coin:2400,rep:6,star:2},
+     accept:'"There is a squid down there the size of a schooner — the Colossus. It took the last keeper’s light, and his boat. End it, captain."',turnin:'"You faced the Colossus and won. The sea has no master but you now. Go home a legend."'}]}
+];
+const MISSIONS={}, MISSION_REGION={};
+for(const ch of CAMPAIGN) for(const m of ch.missions){ MISSIONS[m.id]=m; MISSION_REGION[m.id]=ch.region; }
+const REP_TIERS=[{n:0,name:'Stranger'},{n:5,name:'Known'},{n:12,name:'Trusted'},{n:22,name:'Honoured'},{n:38,name:'Legend'}];
+function regionIndexOf(rid){ for(let i=0;i<REGIONS.length;i++) if(REGIONS[i].id===rid) return i; return 0; }
+function repOf(rid){ return (player.rep&&player.rep[rid])||0; }
+function repTier(rid){ const r=repOf(rid); let t=REP_TIERS[0]; for(const x of REP_TIERS) if(r>=x.n) t=x; return t; }
+function repTierIdx(rid){ const r=repOf(rid); let i=0; for(let k=0;k<REP_TIERS.length;k++) if(r>=REP_TIERS[k].n) i=k; return i; }
+function upgTotal(){ let s=player.shipTier||0; for(const k in player.upg) s+=player.upg[k]; return s; }
+function regionDiscovered(rid){ let n=0; for(const id in FISH){ if(FISH[id].region===rid&&!FISH[id].legendary&&player.discovered[id]) n++; } return n; }
+function missionState(id){ const q=player.quests[id]; if(q&&q.state) return q.state; // 'active'|'done'
+  const m=MISSIONS[id]; if(!m) return 'locked';
+  const ci=regionIndexOf(MISSION_REGION[id]); if(ci>world.region && !player.regionDone[ci]) return 'locked';
+  for(const r of (m.req||[])) if(missionState(r)!=='done') return 'locked';
+  return 'available'; }
+function missionTarget(m){ const g=m.goal; return (g.type==='sell'||g.type==='earn')?g.coin:(g.n||1); }
+function missionProgress(id){ const m=MISSIONS[id], q=player.quests[id]||{}, g=m.goal;
+  if(g.type==='earn') return Math.max(0,player.earned-(q.base||0));
+  if(g.type==='upgrade') return Math.max(0,upgTotal()-(q.base||0));
+  if(g.type==='build') return homeBuilt(g.id)?1:0;
+  if(g.type==='discover') return regionDiscovered(g.region);
+  return q.prog||0; }
+function missionReady(id){ return missionState(id)==='active' && missionProgress(id)>=missionTarget(MISSIONS[id]); }
+function missionGoalText(m){ const g=m.goal;
+  if(g.type==='catchAny') return `Catch any ${g.n} fish`;
+  if(g.type==='catch') return `Catch ${g.n}× ${FISH[g.sp].name}`;
+  if(g.type==='sell') return `Sell ${coinStr(g.coin)} coin of fish`;
+  if(g.type==='earn') return `Earn ${coinStr(g.coin)} coin`;
+  if(g.type==='upgrade') return `Buy a boat upgrade`;
+  if(g.type==='build') return `Build the ${STRUCT[g.id]?STRUCT[g.id].name:g.id} at home`;
+  if(g.type==='discover') return `Log ${g.n} ${REGIONS[regionIndexOf(g.region)].name.replace(/^The /,'')} species`;
+  return 'Complete the task'; }
+function acceptMission(id){ const m=MISSIONS[id]; if(!m||missionState(id)!=='available')return;
+  const g=m.goal; player.quests[id]={state:'active',prog:0,base:(g.type==='earn'?player.earned:g.type==='upgrade'?upgTotal():0),ready:false};
+  if(Sound.ui)Sound.ui(); toast(`New mission: ${m.title}`,ic('scroll')); refreshCampaignUI(); saveGame(); }
+function turnInMission(id){ const m=MISSIONS[id]; if(!missionReady(id))return; const q=player.quests[id]; q.state='done';
+  const rw=m.reward; if(rw.coin){ player.money+=rw.coin; player.earned+=rw.coin; }
+  const rid=MISSION_REGION[id]; if(rw.rep){ player.rep[rid]=repOf(rid)+rw.rep; }
+  if(rw.star&&typeof awardStar==='function') awardStar(rw.star,`mission: ${m.title}`);
+  if(Sound.coin)Sound.coin(); if(Sound.chime)Sound.chime();
+  toast(`${m.title} complete — ${ic('coin',12)} ${coinStr(rw.coin||0)}${rw.rep?' · +'+rw.rep+' rep':''}`,ic('star'));
+  refreshCampaignUI(); saveGame(); if(typeof checkRegionGoal==='function') checkRegionGoal(); }
+function questEvent(type,data){ let changed=false;
+  for(const id in player.quests){ const q=player.quests[id]; if(!q||q.state!=='active')continue; const m=MISSIONS[id]; if(!m)continue; const g=m.goal;
+    if(type==='catch'){ if(g.type==='catchAny'){q.prog=(q.prog||0)+1;changed=true;} else if(g.type==='catch'&&g.sp===data.sp){q.prog=(q.prog||0)+1;changed=true;} }
+    else if(type==='sell'&&g.type==='sell'){ q.prog=(q.prog||0)+(data.coin||0); changed=true; } }
+  checkReadiness(); if(changed) refreshCampaignUI(); }
+function checkReadiness(){ for(const id in player.quests){ const q=player.quests[id]; if(q&&q.state==='active'&&!q.ready&&missionReady(id)){ q.ready=true; toast(`Mission ready to turn in: ${MISSIONS[id].title}`,ic('scroll')); } } }
+function refreshCampaignUI(){ if(Game.screen==='town'&&townTab==='tavern') renderTown(); if(Game.screen==='journal') renderJournal(); }
+function charPortrait(id,px){ const s=px||52;
+  const P={marta:{bg:'#37525e',skin:'#e2bd97',hair:'#c9cdd2',cap:'#2f4a5e'},fenwick:{bg:'#4a463e',skin:'#d8a878',hair:'#8a5a34',cap:'#7a5230',beard:1},
+    cartographer:{bg:'#3a3550',skin:'#d8b48c',hair:'#3a2a4a',cap:'#5a4a6a'},reyes:{bg:'#2f7a86',skin:'#c98d5c',hair:'#241a12',cap:'#e6d29a',beard:1},
+    marisol:{bg:'#2f8a8a',skin:'#d8a074',hair:'#181410',cap:'#1a6a6a',scarf:1},lucia:{bg:'#8a6a3a',skin:'#e0b088',hair:'#20140e',cap:'#a83a2c',scarf:1},
+    nico:{bg:'#6a6248',skin:'#d0a878',hair:'#b8b4a8',cap:'#4a4638',beard:1},lamp:{bg:'#101a26',skin:'#9aa6b0',hair:'#12181e',cap:'#0a1016',hood:1}}[id]
+    ||{bg:'#3a4650',skin:'#e0bd97',hair:'#556',cap:'#456'};
+  let g=`<rect width="48" height="48" rx="10" fill="${P.bg}"/>`;
+  g+=`<ellipse cx="24" cy="27" rx="10.5" ry="12" fill="${P.skin}"/>`;
+  if(P.hood){ g+=`<path d="M9 30c0-13 6-20 15-20s15 7 15 20c-4-2-6-9-15-9s-11 7-15 9z" fill="${P.cap}"/>`; }
+  else { g+=`<path d="M14 25c0-8 4-13 10-13s10 5 10 13c-3-3-5-4-10-4s-7 1-10 4z" fill="${P.hair}"/>`;
+         g+=`<path d="M12 19h24l-2.5-5H14.5z" fill="${P.cap}"/>`; }
+  g+=`<circle cx="20" cy="27" r="1.5" fill="#1a1f24"/><circle cx="28" cy="27" r="1.5" fill="#1a1f24"/>`;
+  if(P.beard){ g+=`<path d="M15 30c1 6 5 9 9 9s8-3 9-9c-3 3-6 4-9 4s-6-1-9-4z" fill="${P.hair}"/>`; }
+  else { g+=`<path d="M21 33q3 2.2 6 0" stroke="#9a5a44" stroke-width="1.4" fill="none"/>`; }
+  if(P.scarf){ g+=`<path d="M13 33c3 4 7 6 11 6s8-2 11-6l1 9H12z" fill="${P.cap}"/>`; }
+  if(P.hood){ g+=`<circle cx="34" cy="34" r="3.4" fill="#ffe9a8"/><circle cx="34" cy="34" r="5.5" fill="#ffe9a8" opacity="0.3"/>`; }
+  return `<svg width="${s}" height="${s}" viewBox="0 0 48 48" style="display:block;border-radius:10px" xmlns="http://www.w3.org/2000/svg">${g}</svg>`;
+}
+function missionCard(id){ const m=MISSIONS[id], st=missionState(id); if(st==='locked')return '';
+  const ready=missionReady(id), prog=missionProgress(id), tgt=missionTarget(m), giver=CHARS[m.giver]?CHARS[m.giver].name:'';
+  let right='', body='';
+  if(st==='available'){ body=`<p style="font-size:12.5px;font-style:italic;color:#cbbf9f">${m.accept}</p><p class="muted" style="font-size:11.5px">${missionGoalText(m)} · ${ic('coin',11)} ${coinStr(m.reward.coin)}${m.reward.rep?' · +'+m.reward.rep+' rep':''}${m.side?' · <span style="color:#8fb0c0">side</span>':''}</p>`;
+    right=`<button class="btn small gold" onclick="acceptMission('${id}')">Accept</button>`; }
+  else if(st==='active'){ const pc=clamp(prog/tgt*100,0,100);
+    body=`<p class="muted" style="font-size:12px">${missionGoalText(m)}</p><div class="gauge" style="width:180px;margin-top:4px"><i style="width:${pc}%;background:${ready?'#7fd39a':'#d79a44'}"></i></div>
+      <div style="font-size:11px;color:#9fb3bb;margin-top:2px">${m.goal.type==='sell'||m.goal.type==='earn'?coinStr(Math.min(prog,tgt))+'/'+coinStr(tgt):Math.min(prog,tgt)+'/'+tgt}</div>`;
+    right=ready?`<button class="btn small gold" onclick="turnInMission('${id}')">Turn in</button>`:`<span class="tag">Active</span>`; }
+  else { body=`<p style="font-size:12px;color:#7fbf8a">${ic('check',12)} ${missionGoalText(m)}</p>`; right=`<span class="tag" style="opacity:.7">Done</span>`; }
+  return `<div class="shop-item" style="${ready?'outline:2px solid #7fd39a;':''}${st==='done'?'opacity:.6;':''}">
+    <div class="ic" title="${giver}">${charPortrait(m.giver,40)}</div>
+    <div class="meta"><h4 style="font-size:14px">${m.title} ${st==='done'?ic('check',13):''}</h4>${body}</div>
+    <div>${right}</div></div>`; }
+function tavernHTML(port){ const R=regionData(), ch=CAMPAIGN[regionIndexOf(R.id)]; const cid=CHAPTER_CHAR[R.id], C=CHARS[cid];
+  const tier=repTier(R.id), ti=repTierIdx(R.id), nextT=REP_TIERS[ti+1];
+  const repPct=nextT?clamp((repOf(R.id)-tier.n)/(nextT.n-tier.n)*100,0,100):100;
+  let cards=''; let anyOpen=false;
+  for(const m of ch.missions){ const st=missionState(m.id); if(st==='locked')continue; if(st!=='done')anyOpen=true; cards+=missionCard(m.id); }
+  if(!cards) cards=`<p class="muted center" style="padding:16px">No word for you here yet.</p>`;
+  return `<div class="shop">
+    <div class="row" style="align-items:center;gap:12px;background:rgba(20,32,40,.34);border-radius:12px;padding:12px">
+      ${charPortrait(cid,60)}
+      <div style="flex:1"><div class="kicker">${ch.sub} · ${ch.title}</div><h3 style="margin:1px 0">${C.name}</h3>
+        <p class="muted" style="font-size:12px;margin:2px 0">${ch.intro}</p></div>
+      <div style="text-align:right;min-width:120px"><div class="kicker">Standing</div><div style="color:#e6c07a;font-weight:700;font-size:14px">${tier.name}</div>
+        <div class="gauge" style="width:120px;margin-top:4px"><i style="width:${repPct}%;background:linear-gradient(90deg,#8a6ad0,#c9a0f0)"></i></div>
+        <div style="font-size:10.5px;color:#9fb3bb">${nextT?`${repOf(R.id)}/${nextT.n} to ${nextT.name}`:'Highest standing'}</div></div>
+    </div>
+    <div class="grid" style="gap:10px;margin-top:10px">${cards}</div>
+  </div>`; }
+function openJournal(){ ensureLayer('layer-journal'); renderJournal(); Game.set('journal'); if(Sound.ui)Sound.ui(); }
+function renderJournal(){ const L=document.getElementById('layer-journal'); let chs='';
+  for(let ci=0;ci<CAMPAIGN.length;ci++){ const ch=CAMPAIGN[ci]; const unlocked=ci<=world.region||player.regionDone[ci];
+    const total=ch.missions.length, done=ch.missions.filter(m=>missionState(m.id)==='done').length;
+    let ms='';
+    if(unlocked){ for(const m of ch.missions){ const st=missionState(m.id); const ready=missionReady(m.id);
+      const badge=st==='done'?ic('check',13):st==='active'?(ready?'<span class="tag" style="background:rgba(120,200,140,.25)">ready</span>':'<span class="tag">active</span>'):st==='available'?'<span class="tag" style="background:rgba(200,150,70,.2)">open</span>':ic('lock',12);
+      const prog=(st==='active')?` <span style="color:#9fb3bb;font-size:11px">${m.goal.type==='sell'||m.goal.type==='earn'?coinStr(Math.min(missionProgress(m.id),missionTarget(m)))+'/'+coinStr(missionTarget(m)):Math.min(missionProgress(m.id),missionTarget(m))+'/'+missionTarget(m)}</span>`:'';
+      ms+=`<div class="shop-item" style="padding:7px 10px;${st==='done'?'opacity:.55;':''}"><div class="meta"><h4 style="font-size:13px">${m.title} ${m.side?'<span style="color:#8fb0c0;font-size:10px">side</span>':''}</h4>
+        <p class="muted" style="font-size:11.5px">${st==='locked'?'— locked —':missionGoalText(m)}${prog}</p></div><div>${badge}</div></div>`; } }
+    else ms=`<p class="muted" style="font-size:12px;padding:8px">Sail here to begin this chapter.</p>`;
+    chs+=`<div style="margin-bottom:12px"><div class="row" style="align-items:center;gap:8px">
+        <div style="width:26px">${ic(RICON[ch.region],20)}</div><b>${ch.sub} — ${ch.title}</b>
+        <div class="spacer"></div><span class="muted" style="font-size:12px">${unlocked?done+'/'+total:ic('lock',13)}</span></div>
+      <div class="grid" style="grid-template-columns:1fr 1fr;gap:6px;margin-top:4px">${ms}</div></div>`; }
+  L.innerHTML=`<div class="scrim"></div><div class="panel" style="max-width:760px;position:relative">
+    <div class="kicker">Captain's Journal</div><h1>${ic('scroll',28)} Chapters &amp; Missions</h1>
+    ${chs}
+    <div class="row" style="justify-content:center;margin-top:8px"><button class="btn gold" id="j-ok">Close</button></div></div>`;
+  L.querySelector('#j-ok').onclick=()=>Game.set(Game.prev==='pause'?'pause':'sail'); }
 // ---- Port contracts ----
 function ensureContracts(port){ const key=port.name;
   if(!ECO.contracts) ECO.contracts={};
@@ -2797,7 +2999,7 @@ function renderSkills(){
     <div class="row" style="justify-content:center;margin-top:12px"><button class="btn gold" onclick="Game.set('sail')">Close</button></div></div>`;
 }
 function buyPartNode(cat){ const nxt=UPGRADES[cat].levels[player.upg[cat]+1]; if(!nxt)return; if(player.money<(nxt.cost||0)){toast('Not enough coin',ic('coin'));return;}
-  player.money-=nxt.cost; player.upg[cat]++; applyUpgrades(); buildBoat(); if(Sound.chime)Sound.chime(); renderSkills(); saveGame(); }
+  player.money-=nxt.cost; player.upg[cat]++; applyUpgrades(); buildBoat(); if(typeof checkReadiness==='function') checkReadiness(); if(Sound.chime)Sound.chime(); renderSkills(); saveGame(); }
 function upgradeShip(){ const cost=player.shipTier+1; if(player.stars<cost){toast('Need more captain stars',ic('trophy'));return;}
   player.stars-=cost; player.shipTier++; player.upg={engine:0,sail:0,hull:0,line:0,lure:0,sonar:0}; applyUpgrades(); buildBoat();
   if(Sound.chime)Sound.chime(); toast(`Ship upgraded to Tier ${player.shipTier}!`,ic('boat')); renderSkills(); saveGame(); }
