@@ -161,6 +161,9 @@ const FISH={
   halibut:{name:'Halibut',col:'#5b5a4c',acc:'#2b2a20',len:[60,110],depth:[.62,.95],hits:3,base:120,weight:9,spd:.6,region:'north'},
   lobster:{name:'Lobster',col:'#b1503a',acc:'#5f2216',len:[26,44],depth:[.8,.98],hits:2,base:95,weight:8,spd:.5,crawler:true,region:'north'},
   kingcrab:{name:'King Crab',col:'#c0603f',acc:'#5a2413',len:[34,56],depth:[.82,.99],hits:3,base:160,weight:5,spd:.45,crawler:true,region:'north'},
+  haddock:{name:'Haddock',col:'#9a9482',acc:'#3c3a2c',len:[36,60],depth:[.3,.6],hits:2,base:44,weight:20,spd:.95,region:'north'},
+  plaice:{name:'Plaice',col:'#8f7a4e',acc:'#c96f4a',len:[30,55],depth:[.7,.96],hits:2,base:66,weight:12,spd:.55,region:'north'},
+  spidercrab:{name:'Spider Crab',col:'#a6704a',acc:'#43241a',len:[40,72],depth:[.78,.99],hits:3,base:130,weight:6,spd:.42,crawler:true,region:'north'},
   oldbarnacle:{name:'Old Barnacle',col:'#3f5850',acc:'#dfe8d6',len:[150,150],depth:[.7,.95],hits:8,base:1400,weight:0,spd:.7,legendary:true,region:'north',lore:'A halibut the size of a door.'},
   sardine:{name:'Sardine',col:'#a9c0cf',acc:'#eef6fb',len:[14,22],depth:[.05,.3],hits:1,base:12,weight:32,spd:1.5,region:'trop'},
   snapper:{name:'Red Snapper',col:'#d15a4e',acc:'#7a2a22',len:[30,52],depth:[.3,.6],hits:2,base:60,weight:24,spd:1.0,region:'trop'},
@@ -169,6 +172,9 @@ const FISH={
   mahi:{name:'Mahi-Mahi',col:'#3fb2c9',acc:'#f4d03f',len:[50,86],depth:[.12,.42],hits:2,base:110,weight:14,spd:2.0,region:'trop'},
   tuna:{name:'Yellowfin Tuna',col:'#3a6b8c',acc:'#f2c744',len:[70,120],depth:[.25,.6],hits:4,base:260,weight:8,spd:2.3,region:'trop'},
   marlin:{name:'Blue Marlin',col:'#2f5f9e',acc:'#bcd8f0',len:[130,180],depth:[.2,.55],hits:6,base:520,weight:3,spd:2.6,region:'trop'},
+  angelfish:{name:'Queen Angelfish',col:'#2f8fd0',acc:'#f2c744',len:[22,38],depth:[.14,.36],hits:1,base:46,weight:20,spd:1.2,region:'trop'},
+  barracuda:{name:'Barracuda',col:'#8a99a0',acc:'#2a3238',len:[70,120],depth:[.2,.5],hits:3,base:180,weight:9,spd:2.5,region:'trop'},
+  triggerfish:{name:'Triggerfish',col:'#4a7a6a',acc:'#e8d28a',len:[24,40],depth:[.24,.5],hits:1,base:44,weight:18,spd:1.05,region:'trop'},
   reefking:{name:'The Reef King',col:'#b5892f',acc:'#3a2c10',len:[160,160],depth:[.45,.8],hits:9,base:1900,weight:0,spd:1.4,legendary:true,region:'trop',lore:'An ancient goliath grouper wearing a crown of coral.'},
   anchovy:{name:'Anchovy',col:'#b9c6cc',acc:'#eef4f6',len:[10,16],depth:[.05,.28],hits:1,base:11,weight:30,spd:1.5,region:'med'},
   seabream:{name:'Sea Bream',col:'#c9c3a8',acc:'#6a6448',len:[26,42],depth:[.22,.5],hits:1,base:38,weight:26,spd:1.1,region:'med'},
@@ -177,6 +183,9 @@ const FISH={
   dorade:{name:'Gilt Dorade',col:'#c9a94e',acc:'#6a5220',len:[30,50],depth:[.25,.5],hits:2,base:88,weight:12,spd:1.2,region:'med'},
   swordfish:{name:'Swordfish',col:'#4a5b66',acc:'#cdd6da',len:[120,175],depth:[.2,.55],hits:5,base:340,weight:6,spd:2.4,region:'med'},
   bluefin:{name:'Bluefin Tuna',col:'#2c526e',acc:'#e0b23a',len:[110,165],depth:[.3,.65],hits:5,base:400,weight:5,spd:2.3,region:'med'},
+  mullet:{name:'Grey Mullet',col:'#a7b0b2',acc:'#4a5254',len:[28,46],depth:[.1,.34],hits:1,base:34,weight:24,spd:1.3,region:'med'},
+  johndory:{name:'John Dory',col:'#b98a44',acc:'#5a3e1c',len:[34,55],depth:[.3,.6],hits:2,base:96,weight:12,spd:.8,region:'med'},
+  moray:{name:'Moray Eel',col:'#6f7a48',acc:'#2e3418',len:[70,130],depth:[.55,.9],hits:3,base:150,weight:8,spd:.75,region:'med'},
   leviathan:{name:'The Old Emperor',col:'#586b74',acc:'#e6d59a',len:[190,190],depth:[.3,.7],hits:10,base:2600,weight:0,spd:1.8,legendary:true,region:'med',lore:'A bluefin that has outlived three lighthouses.'},
   // --- The Midnight Verge (deep polar sea) ---
   lanternfish:{name:'Lanternfish',col:'#3a5a6a',acc:'#8ff0d0',len:[8,14],depth:[.15,.55],hits:1,base:24,weight:30,spd:1.6,glow:true,region:'verge'},
@@ -186,6 +195,9 @@ const FISH={
   anglerfish:{name:'Anglerfish',col:'#2a2f38',acc:'#c9f26a',len:[30,58],depth:[.7,.98],hits:3,base:220,weight:9,spd:.6,glow:true,region:'verge'},
   greenlandshark:{name:'Greenland Shark',col:'#4a5258',acc:'#20262a',len:[120,200],depth:[.5,.85],hits:6,base:420,weight:5,spd:.85,region:'verge'},
   oarfish:{name:'Oarfish',col:'#b9c0c8',acc:'#d05a6a',len:[200,320],depth:[.35,.7],hits:7,base:640,weight:3,spd:1.6,region:'verge'},
+  rockfish:{name:'Rosy Rockfish',col:'#b0504a',acc:'#3a1a18',len:[34,58],depth:[.5,.82],hits:2,base:120,weight:14,spd:.7,region:'verge'},
+  skate:{name:'Arctic Skate',col:'#5a6068',acc:'#262c32',len:[60,110],depth:[.7,.97],hits:3,base:190,weight:9,spd:.6,region:'verge'},
+  frilledshark:{name:'Frilled Shark',col:'#3a4048',acc:'#1a1e24',len:[90,160],depth:[.72,.98],hits:5,base:360,weight:4,spd:1.0,region:'verge'},
   colossus:{name:'The Colossus',col:'#7a3f4a',acc:'#e6b0b8',len:[420,420],depth:[.55,.9],hits:12,base:4200,weight:0,spd:1.5,legendary:true,glow:true,region:'verge',lore:'A giant squid the size of a schooner. It has pulled lanterns—and lighthouses—into the dark.'},
 };
 const REGIONS=[
@@ -196,7 +208,7 @@ const REGIONS=[
    sun:'#ffe9c2',water:{top:'#3f7285',mid:'#245264',deep:'#0c2531'},
    hills:['#26414a','#33525a','#48707a'],foam:'#dfeef2',
    weather:{clear:.22,cloud:.28,fog:.2,rain:.16,snow:.09,storm:.05},
-   fish:['herring','mackerel','cod','pollock','salmon','halibut','lobster','kingcrab','oldbarnacle'],
+   fish:['herring','mackerel','cod','pollock','salmon','halibut','lobster','kingcrab','haddock','plaice','spidercrab','oldbarnacle'],
    legendary:'oldbarnacle',goal:{earn:4800},
    ports:[{name:'Gull Harbor',x:420,kind:'home',spec:['cod','herring'],icon:'anchor'},
           {name:'Mistport',x:1450,kind:'trade',spec:['mackerel','herring'],icon:'house'},
@@ -211,7 +223,7 @@ const REGIONS=[
    sun:'#fff2cf',water:{top:'#3fb2c9',mid:'#1f8aa8',deep:'#0a3a52'},
    hills:['#2f6f6a','#3f8a76','#6bb08c'],foam:'#f2fbfb',
    weather:{clear:.4,cloud:.22,fog:.06,rain:.16,snow:0,storm:.16},
-   fish:['sardine','snapper','parrot','grouper','mahi','tuna','marlin','reefking'],
+   fish:['sardine','snapper','parrot','grouper','mahi','tuna','marlin','angelfish','barracuda','triggerfish','reefking'],
    legendary:'reefking',goal:{earn:8000},
    ports:[{name:'Palmetto Bay',x:520,kind:'home',spec:['snapper','parrot'],icon:'palm'},
           {name:'Marigot',x:1650,kind:'trade',spec:['mahi','grouper'],icon:'house'},
@@ -226,7 +238,7 @@ const REGIONS=[
    sun:'#fff0c8',water:{top:'#2f8fa0',mid:'#1e6f83',deep:'#0b2f47'},
    hills:['#6b6a4a','#8a8156','#b6a875'],foam:'#f4f1e2',
    weather:{clear:.46,cloud:.24,fog:.08,rain:.12,snow:0,storm:.1},
-   fish:['anchovy','seabream','seabass','octopus','dorade','swordfish','bluefin','leviathan'],
+   fish:['anchovy','seabream','seabass','octopus','dorade','swordfish','bluefin','mullet','johndory','moray','leviathan'],
    legendary:'leviathan',goal:{earn:13000},
    ports:[{name:'Porto Vecchio',x:560,kind:'home',spec:['seabream','dorade'],icon:'column'},
           {name:'Amalfi Reach',x:1750,kind:'trade',spec:['seabass','octopus'],icon:'house'},
@@ -241,7 +253,7 @@ const REGIONS=[
    sun:'#cfe0ff',water:{top:'#2a5a6e',mid:'#123448',deep:'#04121e'},
    hills:['#3a4650','#4a5a64','#6a7a84'],foam:'#e8f2f6',
    weather:{clear:.18,cloud:.24,fog:.24,rain:.12,snow:.16,storm:.06},
-   fish:['lanternfish','capelin','cusk','wolffish','anglerfish','greenlandshark','oarfish','colossus'],
+   fish:['lanternfish','capelin','cusk','wolffish','anglerfish','greenlandshark','oarfish','rockfish','skate','frilledshark','colossus'],
    legendary:'colossus',goal:{earn:20000},
    ports:[{name:'Frost Harbor',x:560,kind:'home',spec:['cusk','capelin'],icon:'anchor'},
           {name:'Lantern Bay',x:1750,kind:'trade',spec:['lanternfish','wolffish'],icon:'lighthouse'},
@@ -2320,10 +2332,10 @@ function rollCredits(){
 }
 
 /* ======================= 37. PER-SPECIES FISH VECTOR MODELS =========== */
-const FISH_SHAPE={ herring:'torpedo',mackerel:'torpedo',cod:'roundfish',pollock:'roundfish',salmon:'torpedo',halibut:'flat',lobster:'lobster',kingcrab:'crab',oldbarnacle:'flat',
-  sardine:'torpedo',snapper:'roundfish',parrot:'roundfish',grouper:'roundfish',mahi:'torpedo',tuna:'torpedo',marlin:'billfish',reefking:'roundfish',
-  anchovy:'torpedo',seabream:'roundfish',seabass:'roundfish',octopus:'octopus',dorade:'roundfish',swordfish:'billfish',bluefin:'torpedo',leviathan:'torpedo',
-  lanternfish:'torpedo',capelin:'torpedo',cusk:'roundfish',wolffish:'roundfish',anglerfish:'angler',greenlandshark:'shark',oarfish:'ribbon',colossus:'squid' };
+const FISH_SHAPE={ herring:'torpedo',mackerel:'torpedo',cod:'roundfish',pollock:'roundfish',salmon:'torpedo',halibut:'flat',lobster:'lobster',kingcrab:'crab',haddock:'roundfish',plaice:'flat',spidercrab:'crab',oldbarnacle:'flat',
+  sardine:'torpedo',snapper:'roundfish',parrot:'roundfish',grouper:'roundfish',mahi:'torpedo',tuna:'torpedo',marlin:'billfish',angelfish:'roundfish',barracuda:'torpedo',triggerfish:'roundfish',reefking:'roundfish',
+  anchovy:'torpedo',seabream:'roundfish',seabass:'roundfish',octopus:'octopus',dorade:'roundfish',swordfish:'billfish',bluefin:'torpedo',mullet:'torpedo',johndory:'roundfish',moray:'ribbon',leviathan:'torpedo',
+  lanternfish:'torpedo',capelin:'torpedo',cusk:'roundfish',wolffish:'roundfish',anglerfish:'angler',greenlandshark:'shark',oarfish:'ribbon',rockfish:'roundfish',skate:'flat',frilledshark:'shark',colossus:'squid' };
 function fishShape(id){ return FISH_SHAPE[id]||'roundfish'; }
 function fishSVG(id,w){
   const d=FISH[id]; const c=d.col, a=d.acc||'#33424a', bl=mixHex(c,'#ffffff',0.5), dk=mixHex(c,'#0a1014',0.35);
