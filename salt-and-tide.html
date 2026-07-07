@@ -592,6 +592,7 @@ function boot(){
   else if(hp.has('town')){ Game.set('sail'); if(hp.has('stock')){ const fs=regionData().fish; for(let i=0;i<9;i++){ const id=fs[i%(fs.length-1)]; const d=FISH[id]; const ln=rrange(d.len[0],d.len[1]); player.hold.push({id,len:Math.round(ln),value:fishValue(d,ln)}); } player.money=2000; } openTown(regionData().ports[0]); if(hp.has('tab')) setTownTab(hp.get('tab')); }
   else if(hp.has('almanac')){ Game.set('sail'); if(hp.has('disc')){ for(const id in FISH){ player.discovered[id]=true; player.records[id]=Math.round(rrange(FISH[id].len[0],FISH[id].len[1])); } } openAlmanac(); }
   else if(hp.has('cut')){ Game.set('sail'); const id=regionData().fish[hp.has('leg')?regionData().fish.length-1:4]; const d=FISH[id]; player.hold.push({id,len:Math.round(rrange(d.len[0],d.len[1])),value:fishValue(d,55)}); startCutting(); }
+  else if(hp.has('skills')){ Game.set('sail'); player.money=8000; player.stars=5; player.shipTier=1; openSkills(); }
   else if(hp.has('t')||hp.has('w')||hp.has('play')){ Game.set('sail'); }
   else if(hp.has('title')){ openTitle(); }
   else startIntro();
@@ -973,9 +974,9 @@ const player={
   hold:[], cargo:{}, upg:{engine:0,sail:0,hull:0,line:0,lure:0,sonar:0},
   pos:[420,0,0], speed:0, facing:1, yaw:0, targetYaw:0, headX:1, motor:true,
   regionDone:[false,false,false,false], earned:0, caughtLegendary:[false,false,false,false], discovered:{},
-  records:{}, contracts:[], contractsDone:0, style:{hull:[176,76,58],sail:[244,238,222],cabin:[164,68,54]},
+  records:{}, contracts:[], contractsDone:0, stars:0, shipTier:0, style:{hull:[176,76,58],sail:[244,238,222],cabin:[164,68,54]},
 };
-function holdMax(){ return UPGRADES.hull.levels[player.upg.hull].hold; }
+function holdMax(){ return UPGRADES.hull.levels[player.upg.hull].hold + (player.shipTier||0)*10; }
 function toggleMotor(){ player.motor=!player.motor; if(typeof toast==='function') toast(player.motor?'Engine engaged':'Under sail',ic(player.motor?'gear':'sail')); }
 function updatePlayer(dt){
   const eng=UPGRADES.engine.levels[player.upg.engine], sailU=UPGRADES.sail.levels[player.upg.sail];
@@ -988,8 +989,8 @@ function updatePlayer(dt){
   player.headX+=clamp(player.facing-player.headX,-dt*0.75,dt*0.75);
   const align=clamp(Math.cos(dy),0,1);   // build speed only once roughly pointed the right way
   const motor=player.motor&&player.fuel>0; let thrust=0;
-  if(dir){ if(motor){ thrust=30*eng.spd*dir*align; player.fuel=Math.max(0,player.fuel-dt*1.4*eng.fuelUse*(0.5+Math.abs(player.speed)/26)); }
-    else { const wal=0.35+0.65*clamp(dir*world.windDir*0.5+0.5,0,1); thrust=14*sailU.wind*(0.35+world.windStr*0.9)*wal*dir*align; } }
+  if(dir){ if(motor){ thrust=30*eng.spd*shipSpeed()*dir*align; player.fuel=Math.max(0,player.fuel-dt*1.4*eng.fuelUse*shipFuelUse()*(0.5+Math.abs(player.speed)/26)); }
+    else { const wal=0.35+0.65*clamp(dir*world.windDir*0.5+0.5,0,1); thrust=14*sailU.wind*shipSpeed()*(0.35+world.windStr*0.9)*wal*dir*align; } }
   player.speed+=(thrust-player.speed*2.0)*dt; player.pos[0]+=player.speed*dt;
   const len=regionData().length;
   if(player.pos[0]<18){player.pos[0]=18;player.speed*=-.3;} if(player.pos[0]>len){player.pos[0]=len;player.speed*=-.3;}
@@ -1021,7 +1022,7 @@ function drawBoat3D(sky){
   const c=seaSample(x,z,t,ch), fwd=seaSample(x+player.facing*2.6,z,t,ch), sd=seaSample(x,z+2.6,t,ch);
   const pitch=Math.atan2(fwd.y-c.y,2.6)*player.facing;
   const roll=Math.atan2(sd.y-c.y,2.6);
-  m4compose(BOAT.model,[x,c.y+0.05,z],player.yaw,pitch,roll,[1,1,1]);
+  const sc=shipScale(); m4compose(BOAT.model,[x,c.y+0.05,z],player.yaw,pitch,roll,[sc,sc,sc]);
   drawLit(BOAT.mesh,BOAT.model,sky);
 }
 
@@ -1276,7 +1277,7 @@ function landFish(f){
   view.flash=0.5; view.flashCol=f.def.legendary?'#ffe6a0':'#dff3ff';
   if(Sound.chime)Sound.chime();
   if(f.def.legendary){ const ri=world.region; player.caughtLegendary[ri]=true;
-    toast(`Legendary — ${f.def.name}! (${coinStr(val)} coin)`,ic('trophy')); if(typeof checkRegionGoal==='function') checkRegionGoal(); }
+    toast(`Legendary — ${f.def.name}! (${coinStr(val)} coin)`,ic('trophy')); awardStar(2,'legendary catch'); if(typeof checkRegionGoal==='function') checkRegionGoal(); }
   else toast(`Caught ${f.def.name} · ${Math.round(f.len)}cm · ${val} coin`,ic('fish'));
 }
 function updateFishCamera(dt){
@@ -1644,7 +1645,7 @@ function goodsPrice(port,g){ return (ECO.goods[port.name]&&ECO.goods[port.name][
 
 /* ======================= 28. LAYER / PAUSE MANAGER ===================== */
 function updateLayers(){
-  const map={town:'layer-town',pause:'layer-pause',help:'layer-help',map:'layer-map',title:'layer-title',event:'layer-event',almanac:'layer-almanac'};
+  const map={town:'layer-town',pause:'layer-pause',help:'layer-help',map:'layer-map',title:'layer-title',event:'layer-event',almanac:'layer-almanac',skills:'layer-skills'};
   document.querySelectorAll('.layer').forEach(l=>l.classList.remove('show'));
   const id=map[Game.screen]; if(id){ const el=document.getElementById(id); if(el) el.classList.add('show','fade'); }
 }
@@ -1792,20 +1793,20 @@ function saveGame(){ try{ localStorage.setItem(SAVE_KEY, JSON.stringify({
   money:player.money,fuel:player.fuel,fuelMax:player.fuelMax,bait:player.bait,hull:player.hull,
   upg:player.upg,hold:player.hold,cargo:player.cargo,region:world.region,day:world.day,time:world.time,
   earned:player.earned,caughtLegendary:player.caughtLegendary,regionDone:player.regionDone,discovered:player.discovered,eco:ECO,x:player.pos[0],
-  records:player.records,contractsDone:player.contractsDone,style:player.style,muted:Sound.muted
+  records:player.records,contractsDone:player.contractsDone,style:player.style,stars:player.stars,shipTier:player.shipTier,muted:Sound.muted
 })); }catch(e){} }
 function loadSave(){ try{ const s=localStorage.getItem(SAVE_KEY); return s?JSON.parse(s):null; }catch(e){ return null; } }
 function newGame(){
   player.money=120; player.fuel=60; player.fuelMax=60; player.bait=12; player.hull=100; player.hullMax=100;
   player.hold=[]; player.cargo={}; player.upg={engine:0,sail:0,hull:0,line:0,lure:0,sonar:0};
   player.regionDone=[false,false,false,false]; player.earned=0; player.caughtLegendary=[false,false,false,false]; player.discovered={};
-  player.records={}; player.contracts=[]; player.contractsDone=0; player.style={hull:[176,76,58],sail:[244,238,222],cabin:[164,68,54]};
+  player.records={}; player.contracts=[]; player.contractsDone=0; player.stars=0; player.shipTier=0; player.style={hull:[176,76,58],sail:[244,238,222],cabin:[164,68,54]};
   world.day=1; world.time=0.30; world.timeScale=1; initEconomy(); applyUpgrades(); enterRegion(0); if(typeof buildBoat==='function')buildBoat(); Game.set('sail'); saveGame();
 }
 function loadGame(s){
   Object.assign(player,{money:s.money,fuel:s.fuel,fuelMax:s.fuelMax||60,bait:s.bait,hull:s.hull,upg:s.upg,hold:s.hold||[],cargo:s.cargo||{},
     earned:s.earned||0,caughtLegendary:s.caughtLegendary||[false,false,false,false],regionDone:s.regionDone||[false,false,false,false],discovered:s.discovered||{},
-    records:s.records||{},contractsDone:s.contractsDone||0,style:s.style||{hull:[176,76,58],sail:[244,238,222],cabin:[164,68,54]}});
+    records:s.records||{},contractsDone:s.contractsDone||0,stars:s.stars||0,shipTier:s.shipTier||0,style:s.style||{hull:[176,76,58],sail:[244,238,222],cabin:[164,68,54]}});
   world.day=s.day||1; world.time=s.time||0.3; world.timeScale=1; if(s.eco){ ECO.fish=s.eco.fish; ECO.goods=s.eco.goods; }
   if(s.muted&&Sound.ensure){ Sound.muted=true; }
   applyUpgrades(); enterRegion(s.region||0); if(typeof buildBoat==='function')buildBoat(); if(s.x) player.pos[0]=s.x; Game.set('sail');
@@ -1857,7 +1858,7 @@ function openHelp(fromTitle){
       <div><h3>${ic('sail',18)} Sailing</h3><p><span class="key">A</span><span class="key">D</span> steer along the coast. <span class="key">M</span> toggles engine (fast, burns fuel) and sail (free, wind-powered). Watch the sky — storms hammer your hull if you're caught far from port.</p></div>
       <div><h3>${ic('rod',18)} Fishing</h3><p>Press <span class="key">Space</span> at sea to drop your line (uses bait). Pilot the glowing lure with the arrows; touch a fish to hook it. Big fish take several hits. Deeper water hides rarer, richer fish — upgrade your line to reach them.</p></div>
       <div><h3>${ic('anchor',18)} Ports &amp; Trade</h3><p>Sail up to a harbour and press <span class="key">E</span> to dock. Sell your catch — prices swing by port and day, so learn the good markets. Trade goods between ports for profit, and buy fuel, bait &amp; repairs.</p></div>
-      <div><h3>${ic('gear',18)} Master the Coast</h3><p>Spend coin at the Shipwright on engines, sails, bigger holds, deeper lines, better lures and sonar. Earn the goal and land each region's legendary fish to unlock the next coast.</p></div>
+      <div><h3>${ic('gear',18)} Master the Coast</h3><p>Open the <span class="key">T</span> skill tree anywhere to upgrade parts (coin) and buy ship tiers with captain stars — earned from legendaries &amp; contracts — for a bigger, faster boat. Press <span class="key">U</span> on a catch to fillet it on the board for a bonus. Earn each region's goal and land its legendary to unlock the next coast.</p></div>
     </div>
     <div class="row" style="justify-content:center;margin-top:16px"><button class="btn gold" id="h-ok">${fromTitle?'Back':'Got it'}</button></div></div>`;
   L.querySelector('#h-ok').onclick=()=>{ if(fromTitle) openTitle(); else Game.set(Game.prev==='pause'?'pause':'sail'); if(Game.prev==='pause'&&!fromTitle) openPause(); };
@@ -2108,6 +2109,7 @@ function fulfillContract(i){ const port=townPort, list=ECO.contracts[port.name].
   const have=player.hold.filter(it=>it.id===c.sp).length; if(have<c.count){ toast('Not enough in the hold',ic('fish')); return; }
   let cnt=0; player.hold=player.hold.filter(it=>{ if(it.id===c.sp&&cnt<c.count){cnt++;return false;} return true; });
   player.money+=c.reward; player.earned+=c.reward; player.contractsDone++; list.splice(i,1);
+  if(player.contractsDone%3===0) awardStar(1,'3 contracts filled');
   if(Sound.coin)Sound.coin(); toast(`Contract complete · ${ic('coin',13)} ${coinStr(c.reward)}`,ic('scales')); renderTown(); saveGame(); checkRegionGoal();
 }
 
@@ -2303,6 +2305,40 @@ function drawBoardFish(c,cx,cy,def,bw,bh){
 }
 function roundRectC(c,x,y,w,h,r){ c.beginPath(); c.moveTo(x+r,y); c.arcTo(x+w,y,x+w,y+h,r); c.arcTo(x+w,y+h,x,y+h,r); c.arcTo(x,y+h,x,y,r); c.arcTo(x,y,x+w,y,r); c.closePath(); }
 window.addEventListener('pointerdown',cutDown); window.addEventListener('pointermove',cutMove); window.addEventListener('pointerup',cutUp);
+
+/* ======================= 40. SKILL TREE + SHIP PRESTIGE =============== */
+function shipSpeed(){ return 1+player.shipTier*0.16; }
+function shipFuelUse(){ return Math.max(0.5,1-player.shipTier*0.06); }
+function shipHoldBonus(){ return player.shipTier*10; }
+function shipScale(){ return 1+player.shipTier*0.1; }
+function openSkills(){ ensureLayer('layer-skills'); renderSkills(); Game.set('skills'); if(Sound.ui)Sound.ui(); }
+function renderSkills(){
+  const L=document.getElementById('layer-skills'); let branches='';
+  for(const cat in UPGRADES){ const U=UPGRADES[cat], cur=player.upg[cat]; let nodes='';
+    for(let i=0;i<U.levels.length;i++){ const lv=U.levels[i], owned=i<=cur, isNext=i===cur+1, cost=lv.cost||0;
+      nodes+=`<div style="display:flex;flex-direction:column;align-items:center;min-width:60px">
+        <div title="${lv.label}" style="width:32px;height:32px;border-radius:50%;display:grid;place-items:center;background:${owned?'linear-gradient(180deg,#d79a44,#b1701f)':isNext?'rgba(63,125,118,.92)':'rgba(120,100,70,.2)'};box-shadow:${owned?'0 3px 0 #7f4d13':'none'};color:#fff;font-size:12px;font-weight:700;${isNext?'cursor:pointer':''}" ${isNext?`onclick="buyPartNode('${cat}')"`:''}>${i}</div>
+        <div style="font-size:9px;color:${owned?'#7a5a2c':'#9a8f78'};margin-top:3px;max-width:66px;text-align:center;line-height:1.1">${lv.label}${isNext&&cost?`<br><b>${ic('coin',10)}${cost}</b>`:''}</div></div>`;
+      if(i<U.levels.length-1) nodes+=`<div style="flex:0 0 14px;height:3px;background:${i<cur?'#c58a3c':'rgba(120,100,70,.3)'};margin-top:15px"></div>`; }
+    branches+=`<div style="margin:5px 0"><div class="row" style="align-items:center;gap:8px"><div style="width:24px">${ic(U.icon,19)}</div><b style="font-size:14px">${U.name}</b><span class="muted" style="font-size:11.5px">— ${U.desc}</span></div>
+      <div class="row" style="gap:0;margin-top:2px;flex-wrap:nowrap;overflow-x:auto">${nodes}</div></div>`; }
+  const stCost=player.shipTier+1;
+  L.innerHTML=`<div class="scrim"></div><div class="panel" style="max-width:740px;position:relative">
+    <div class="row"><div><div class="kicker">Captain's Rigging</div><h1>${ic('gear',26)} Skill Tree</h1></div><div class="spacer"></div>
+      <div style="text-align:right"><div class="coin" style="font-size:20px">${ic('coin',18)} ${coinStr(player.money)}</div><div style="color:#e6b871;font-size:13px">${ic('trophy',14)} ${player.stars} captain star${player.stars===1?'':'s'}</div></div></div>
+    <p class="muted" style="font-size:12px;margin-top:-4px">Spend coin to upgrade parts. Buy a ship tier with captain stars (from legendaries &amp; contracts) to grow bigger, faster &amp; thriftier — it resets part levels.</p>
+    ${branches}
+    <div class="shop-item" style="margin-top:8px;background:rgba(200,150,70,.12)"><div class="ic">${ic('boat',26)}</div>
+      <div class="meta"><h4>Ship — Tier ${player.shipTier}</h4><p>Bigger hull, +${Math.round(player.shipTier*16)}% base speed, +${player.shipTier*10} hold, ${Math.round(player.shipTier*6)}% better fuel economy. Next tier <b>resets your parts</b>.</p></div>
+      <div><button class="btn small ${player.stars>=stCost?'gold':''}" ${player.stars>=stCost?'':'disabled'} onclick="upgradeShip()">${ic('trophy',14)} ${stCost} star${stCost>1?'s':''}</button></div></div>
+    <div class="row" style="justify-content:center;margin-top:12px"><button class="btn gold" onclick="Game.set('sail')">Close</button></div></div>`;
+}
+function buyPartNode(cat){ const nxt=UPGRADES[cat].levels[player.upg[cat]+1]; if(!nxt)return; if(player.money<(nxt.cost||0)){toast('Not enough coin',ic('coin'));return;}
+  player.money-=nxt.cost; player.upg[cat]++; applyUpgrades(); buildBoat(); if(Sound.chime)Sound.chime(); renderSkills(); saveGame(); }
+function upgradeShip(){ const cost=player.shipTier+1; if(player.stars<cost){toast('Need more captain stars',ic('trophy'));return;}
+  player.stars-=cost; player.shipTier++; player.upg={engine:0,sail:0,hull:0,line:0,lure:0,sonar:0}; applyUpgrades(); buildBoat();
+  if(Sound.chime)Sound.chime(); toast(`Ship upgraded to Tier ${player.shipTier}!`,ic('boat')); renderSkills(); saveGame(); }
+function awardStar(n,why){ player.stars+=n; if(typeof toast==='function') toast(`+${n} captain star${n>1?'s':''} — ${why}`,ic('trophy')); if(Sound.chime)Sound.chime(); }
 
 /*__MORE__*/
 </script>
