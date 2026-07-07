@@ -301,6 +301,7 @@ function m4invert(o,a){
   for(let i=0;i<16;i++)o[i]=inv[i]*det; return o;
 }
 function m4trans(o,x,y,z){ m4ident(o); o[12]=x;o[13]=y;o[14]=z; return o; }
+function m4pt(M,p){ return [ M[0]*p[0]+M[4]*p[1]+M[8]*p[2]+M[12], M[1]*p[0]+M[5]*p[1]+M[9]*p[2]+M[13], M[2]*p[0]+M[6]*p[1]+M[10]*p[2]+M[14] ]; }
 function m4mulInto(o,a){ m4mul(o,o,a); return o; }
 function m4compose(o,pos,rotY,rotZ,rotX,sc){
   // build T * Ry * Rz * Rx * S
@@ -537,7 +538,7 @@ function drawFX(sky){
   fxx.fillStyle=g; fxx.fillRect(0,0,W,H);
   if(view.flash>0.01){ fxx.fillStyle=withA(view.flashCol,view.flash*0.5); fxx.fillRect(0,0,W,H); }
 }
-const view={flash:0,flashCol:'#dfeaff',shake:0,shakeX:0,shakeY:0};
+const view={flash:0,flashCol:'#dfeaff',shake:0,shakeX:0,shakeY:0,helm:false};
 
 /* ======================= 10. MAIN LOOP ================================== */
 function update(dt){
@@ -900,11 +901,14 @@ function buildBoat(){
   addBox2(m,[0.55,4.05,0],[-3.5,0.5,0],0.02,dark);
   // boom
   addBox(m,-0.4,0.9,0,0.95,0.05,0.05,wood);
-  // main sail (belly toward -z) + jib
-  const A=[0.55,4.0,0],B=[0.55,1.0,0],C=[-1.35,1.5,0.0],Cb=[-1.35,1.5,0.34];
-  addTri(m,A,B,Cb,sailC); addTri(m,A,Cb,B,shade255(sailC,-0.12));
-  const J1=[0.6,3.7,0],J2=[3.4,0.75,0],J3=[0.6,1.0,0];
-  addTri(m,J1,J2,J3,shade255(sailC,-0.04)); addTri(m,J1,J3,J2,shade255(sailC,-0.16));
+  // main sail (belly toward -z) + jib — built as a SEPARATE mesh so it can be
+  // hidden at the helm (sails furled) without clipping the first-person camera
+  { const sm=Mesh();
+    const A=[0.55,4.0,0],B=[0.55,1.0,0],Cb=[-1.35,1.5,0.34];
+    addTri(sm,A,B,Cb,sailC); addTri(sm,A,Cb,B,shade255(sailC,-0.12));
+    const J1=[0.6,3.7,0],J2=[3.4,0.75,0],J3=[0.6,1.0,0];
+    addTri(sm,J1,J2,J3,shade255(sailC,-0.04)); addTri(sm,J1,J3,J2,shade255(sailC,-0.16));
+    BOAT.sails=meshToVAO(sm); }
   // bowsprit + anchor
   addBox(m,3.9,0.55,0,0.45,0.05,0.05,wood);
   addBox(m,-3.3,0.2,0.9,0.14,0.18,0.03,dark); // anchor stock on side
@@ -926,7 +930,19 @@ function buildBoat(){
   addOcta(m,-2.62,1.1,0,0.04,0.26,0.26,buoyO);
   // flag at masthead
   addBox(m,0.8,4.28,0.02,0.22,0.12,0.01,v3([190,80,66]));
+  // helm binnacle post on the open foredeck (the wheel itself is a separate, spinnable mesh)
+  addPrism(m,0.1,0.5,0,0.09,0.62,8,woodDk,wood);
+  addBox(m,0.1,0.84,0,0.16,0.06,0.24,brass);
   BOAT.mesh=meshToVAO(m);
+  // ---- steering wheel (own VAO, rotates about local X) ----
+  { const w=Mesh(); const R2=0.32, wc=v3([116,80,48]), wl=v3([150,110,66]), br=v3([200,164,80]);
+    const N=18; let prev=[0,R2,0];
+    for(let i=1;i<=N;i++){ const a=i/N*TAU, p=[0,Math.cos(a)*R2,Math.sin(a)*R2]; addBox2(w,prev,p,0.036,wc); prev=p; }
+    const spk=6; for(let i=0;i<spk;i++){ const a=i/spk*TAU;
+      const rim=[0,Math.cos(a)*R2,Math.sin(a)*R2], hnd=[0,Math.cos(a)*(R2+0.13),Math.sin(a)*(R2+0.13)];
+      addBox2(w,[0,0,0],rim,0.028,wl); addBox2(w,rim,hnd,0.032,wc); }
+    addOcta(w,0,0,0,0.06,0.11,0.11,br);
+    BOAT.wheel=meshToVAO(w); }
 }
 // thin oriented box connecting two points (ropes/rigging/lanyards)
 function addBox2(m,a,b,r,col){
@@ -960,6 +976,7 @@ function handleKey(k){
     else if(k==='e'&&typeof tryDock==='function') tryDock();
     else if(k===' '&&typeof toggleFishing==='function') toggleFishing();
     else if(k==='u'&&typeof startCutting==='function') startCutting();
+    else if(k==='c'){ view.helm=!view.helm; if(typeof toast==='function') toast(view.helm?'At the helm':'Chase view',ic(view.helm?'wheel':'compass')); }
     else if(k==='escape'&&typeof openPause==='function') openPause();
     else if(k==='h'&&typeof openHelp==='function') openHelp();
   } else if(Game.screen==='fish'){
@@ -981,7 +998,7 @@ function lerpAngle(a,b,t){ let d=((b-a+PI)%TAU)-PI; if(d<-PI)d+=TAU; return a+d*
 const player={
   money:120, fuel:60, fuelMax:60, bait:12, hull:100, hullMax:100,
   hold:[], cargo:{}, upg:{engine:0,sail:0,hull:0,line:0,lure:0,sonar:0},
-  pos:[420,0,0], speed:0, facing:1, yaw:0, targetYaw:0, headX:1, motor:true,
+  pos:[420,0,0], speed:0, facing:1, yaw:0, targetYaw:0, headX:1, motor:true, wheelA:0,
   regionDone:[false,false,false,false], earned:0, caughtLegendary:[false,false,false,false], discovered:{},
   records:{}, contracts:[], contractsDone:0, stars:0, shipTier:0, style:{hull:[176,76,58],sail:[244,238,222],cabin:[164,68,54]},
 };
@@ -996,6 +1013,9 @@ function updatePlayer(dt){
   let dy=((player.targetYaw-player.yaw+PI)%TAU)-PI; if(dy<-PI)dy+=TAU;
   const turnRate=1.5; player.yaw+=clamp(dy,-turnRate*dt,turnRate*dt);
   player.headX+=clamp(player.facing-player.headX,-dt*0.75,dt*0.75);
+  // steering wheel angle: turns with the input, spring-centres when hands off
+  const wt=(Input.right()?1:0)-(Input.left()?1:0);
+  player.wheelA+=((wt*2.4)-player.wheelA)*Math.min(1,dt*7);
   const align=clamp(Math.cos(dy),0,1);   // build speed only once roughly pointed the right way
   const motor=player.motor&&player.fuel>0; let thrust=0;
   if(dir){ if(motor){ thrust=30*eng.spd*shipSpeed()*dir*align; player.fuel=Math.max(0,player.fuel-dt*0.55*eng.fuelUse*shipFuelUse()*(0.5+Math.abs(player.speed)/26)); }
@@ -1013,26 +1033,41 @@ function nearestPort(){ const ps=regionData().ports; let best=null,bd=1e9; for(c
 function updateWorldSim(dt){ if(Game.screen==='sail') updatePlayer(dt); else if(typeof updateFishing==='function') updateFishing(dt); }
 
 /* ======================= 19. CAMERA RIG ================================= */
+function boatTransform(out){
+  const t=Game.t, ch=choppy(), x=player.pos[0], z=player.pos[2];
+  const c=seaSample(x,z,t,ch), fwd=seaSample(x+player.facing*2.6,z,t,ch), sd=seaSample(x,z+2.6,t,ch);
+  const pitch=Math.atan2(fwd.y-c.y,2.6)*player.facing, roll=Math.atan2(sd.y-c.y,2.6), sc=shipScale();
+  m4compose(out,[x,c.y+0.05,z],player.yaw,pitch,roll,[sc,sc,sc]); return out;
+}
 function updateCameraRig(dt){
   if(Game.screen!=='sail') return;
-  const b=player.pos, h=player.headX;
+  const b=player.pos;
   const s=seaSample(b[0],b[2],Game.t,choppy());
-  const spd=clamp(Math.abs(player.speed)/14,0,1);
-  const dPos=[b[0]-h*(15+spd*3), s.y+8.2, b[2]+14.5];
-  const dTgt=[b[0]+h*(9+spd*4), s.y+2.2, b[2]-3];
-  const k=1-Math.pow(0.0022,dt);
-  cam.pos=vLerp(cam.pos,dPos,k); cam.target=vLerp(cam.target,dTgt,k);
+  if(view.helm){
+    // first-person at the helm — glued to the boat, looking over the wheel toward the bow
+    const M=boatTransform(m4());
+    const eye=m4pt(M,[-0.55,1.35,0]), tgt=m4pt(M,[5.5,0.78,0]);
+    const kk=clamp(dt*12,0,1);
+    cam.pos=vLerp(cam.pos,eye,kk); cam.target=vLerp(cam.target,tgt,kk);
+  } else {
+    const h=player.headX;
+    const spd=clamp(Math.abs(player.speed)/14,0,1);
+    const dPos=[b[0]-h*(15+spd*3), s.y+8.2, b[2]+14.5];
+    const dTgt=[b[0]+h*(9+spd*4), s.y+2.2, b[2]-3];
+    const k=1-Math.pow(0.0022,dt);
+    cam.pos=vLerp(cam.pos,dPos,k); cam.target=vLerp(cam.target,dTgt,k);
+  }
   // shake decay + apply small positional shake
   if(view.shake>0){ view.shake=Math.max(0,view.shake-dt*1.4);
     const a=view.shake*view.shake*0.6; cam.pos[1]+=(rnd()*2-1)*a; cam.pos[0]+=(rnd()*2-1)*a; }
 }
 function drawBoat3D(sky){
-  const t=Game.t, ch=choppy(), x=player.pos[0], z=player.pos[2];
-  const c=seaSample(x,z,t,ch), fwd=seaSample(x+player.facing*2.6,z,t,ch), sd=seaSample(x,z+2.6,t,ch);
-  const pitch=Math.atan2(fwd.y-c.y,2.6)*player.facing;
-  const roll=Math.atan2(sd.y-c.y,2.6);
-  const sc=shipScale(); m4compose(BOAT.model,[x,c.y+0.05,z],player.yaw,pitch,roll,[sc,sc,sc]);
+  boatTransform(BOAT.model);
   drawLit(BOAT.mesh,BOAT.model,sky);
+  if(BOAT.sails && !view.helm) drawLit(BOAT.sails,BOAT.model,sky);   // sails furled at the helm
+  // steering wheel — spins with the helm; child of the boat transform
+  if(BOAT.wheel){ const L=m4(); m4compose(L,[0.1,1.06,0],0,0,player.wheelA||0,[1,1,1]);
+    const wm=m4(); m4mul(wm,BOAT.model,L); drawLit(BOAT.wheel,wm,sky); }
 }
 
 /* ======================= 20. UNLIT PROGRAM + UW MESHES ================== */
@@ -1630,7 +1665,7 @@ function drawCoast3D(sky){
   if(BOAT.mesh&&COAST.boats) for(const bt of COAST.boats){ const x=wrap(bt.x0+t*bt.spd,COAST.len+240)-120;
     const s=seaSample(x,bt.z,t,ch), fwd=seaSample(x+(bt.spd>0?2.6:-2.6),bt.z,t,ch), sd=seaSample(x,bt.z+2.6,t,ch);
     const mo=m4(); m4compose(mo,[x,s.y+0.05,bt.z],bt.spd>0?0:PI,Math.atan2(fwd.y-s.y,2.6)*(bt.spd>0?1:-1),Math.atan2(sd.y-s.y,2.6),[0.92,0.92,0.92]);
-    drawLit(BOAT.mesh,mo,sky,{tint:bt.tint,fogDensity:0.0016}); }
+    drawLit(BOAT.mesh,mo,sky,{tint:bt.tint,fogDensity:0.0016}); if(BOAT.sails) drawLit(BOAT.sails,mo,sky,{tint:bt.tint,fogDensity:0.0016}); }
   // gulls
   if(COAST.gull){ for(const g of GULLS){ const a=Game.t*g.spd+g.ph; const x=g.cx+Math.cos(a)*g.r, z=g.cz+Math.sin(a)*g.r;
     const y=g.y+Math.sin(Game.t*0.6+g.ph)*1.2; const flap=0.5+0.5*Math.abs(Math.sin(Game.t*g.flap+g.ph));
@@ -1751,7 +1786,7 @@ function updateHUD(){
   let hint='';
   if(Game.screen==='sail'){
     if(nearPort) hint=`${ic('anchor',15)} <b>${nearPort.name}</b> — press <span class="key">E</span> to dock`;
-    else hint=`<span class="key">A</span><span class="key">D</span> sail &nbsp; <span class="key">Space</span> drop line &nbsp; <span class="key">M</span> ${player.motor?'switch to sail':'engage engine'} &nbsp; <span class="key">Esc</span> menu`;
+    else hint=`<span class="key">A</span><span class="key">D</span> sail &nbsp; <span class="key">Space</span> drop line &nbsp; <span class="key">C</span> ${view.helm?'chase view':'helm view'} &nbsp; <span class="key">M</span> ${player.motor?'switch to sail':'engage engine'} &nbsp; <span class="key">Esc</span> menu`;
   } else hint=`<span class="key">◀</span><span class="key">▶</span><span class="key">▲</span><span class="key">▼</span> pilot lure &nbsp; touch fish to catch &nbsp; <span class="key">U</span> fillet &nbsp; <span class="key">Space</span> reel up`;
   HUD.hint.innerHTML=hint;
 }
@@ -1991,7 +2026,7 @@ function openHelp(fromTitle){
   L.innerHTML=`<div class="scrim"></div><div class="panel" style="max-width:640px;position:relative">
     <div class="kicker">The Ways of the Sea</div><h1>${ic('book',30)} How to Play</h1>
     <div class="grid" style="grid-template-columns:1fr 1fr;gap:16px;margin-top:6px;font-size:14px">
-      <div><h3>${ic('sail',18)} Sailing</h3><p><span class="key">A</span><span class="key">D</span> steer along the coast. <span class="key">M</span> toggles engine (fast, burns fuel) and sail (free, wind-powered). Watch the sky — storms hammer your hull if you're caught far from port.</p></div>
+      <div><h3>${ic('sail',18)} Sailing</h3><p><span class="key">A</span><span class="key">D</span> steer along the coast. <span class="key">M</span> toggles engine (fast, burns fuel) and sail (free, wind-powered). <span class="key">C</span> drops you to a first-person view at the ship's wheel. Watch the sky — storms hammer your hull if you're caught far from port.</p></div>
       <div><h3>${ic('rod',18)} Fishing</h3><p>Press <span class="key">Space</span> at sea to drop your line (uses bait). Pilot the glowing lure with the arrows; touch a fish to hook it. Big fish take several hits. Deeper water hides rarer, richer fish — upgrade your line to reach them.</p></div>
       <div><h3>${ic('anchor',18)} Ports &amp; Trade</h3><p>Sail up to a harbour and press <span class="key">E</span> to dock. Sell your catch — prices swing by port and day, so learn the good markets. Trade goods between ports for profit, and buy fuel, bait &amp; repairs.</p></div>
       <div><h3>${ic('gear',18)} Master the Coast</h3><p>Open the <span class="key">T</span> skill tree anywhere to upgrade parts (coin) and buy ship tiers with captain stars — earned from legendaries &amp; contracts — for a bigger, faster boat. Press <span class="key">U</span> on a catch to fillet it on the board for a bonus. Earn each region's goal and land its legendary to unlock the next coast.</p></div>
@@ -2116,6 +2151,7 @@ const ICON={
   buoy:`<circle cx=12 cy=12 r=8 fill="#e0533a"/><circle cx=12 cy=12 r=8 fill="none" stroke="#fff" stroke-width=0/><circle cx=12 cy=12 r=3.6 fill="#f0ead6"/><path d="M12 4v3.5M12 16.5V20M4 12h3.5M16.5 12H20" stroke="#f0ead6" stroke-width=2.6/>`,
   sunrise:`<path d="M4 18h16" stroke="#c99633" stroke-width=1.6/><path d="M7 18a5 5 0 0 1 10 0z" fill="#f2c94c"/><path d="M12 4v3M5 9l2 1.5M19 9l-2 1.5" stroke="#e6b545" stroke-width=1.4 stroke-linecap="round"/>`,
   compass:`<circle cx=12 cy=12 r=9 fill="#e7d6b4" stroke="#8a6a3a" stroke-width=1.4/><polygon points="12,6 14,12 12,18 10,12" fill="#c0392b"/><polygon points="12,6 10,12 12,12" fill="#7a2318"/><circle cx=12 cy=12 r=1 fill="#3a2a1a"/>`,
+  wheel:`<circle cx=12 cy=12 r=6.4 fill="none" stroke="#a5723f" stroke-width=1.7/><circle cx=12 cy=12 r=2 fill="#8a5a34"/><g stroke="#a5723f" stroke-width=1.5 stroke-linecap="round"><path d="M12 1.6v6M12 16.4v6M1.6 12h6M16.4 12h6M4.6 4.6l4.2 4.2M15.2 15.2l4.2 4.2M19.4 4.6l-4.2 4.2M8.8 15.2l-4.2 4.2"/></g>`,
   boat:`<path d="M4 14h16l-2.5 4.5c-.4.7-1.1 1-1.9 1H8.4c-.8 0-1.5-.3-1.9-1z" fill="#b0563e"/><rect x=5 y=12.5 width=14 height=1.6 fill="#e7d6b4"/><rect x=11 y=4 width=1.3 height=8.5 fill="#8a6a3a"/><path d="M12.3 5c2.4 1.2 3.6 3 3.6 5.5h-3.6z" fill="#f0ead6"/>`,
   snowflake:`<path d="M12 3v18M4.2 7.5l15.6 9M19.8 7.5l-15.6 9" stroke="#9fd0e0" stroke-width=1.5 stroke-linecap="round"/><path d="M12 6l-2 2M12 6l2 2M12 18l-2-2M12 18l2-2" stroke="#9fd0e0" stroke-width=1.3 stroke-linecap="round"/>`,
   sun:`<circle cx=12 cy=12 r=5 fill="#f2c94c"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2" stroke="#e6b545" stroke-width=1.6 stroke-linecap="round"/>`,
