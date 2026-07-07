@@ -1061,16 +1061,9 @@ function drawUnlit(md,model,rgba,o){ o=o||{}; const p=unlitProg; gl.useProgram(p
 }
 const UW={};
 function buildUnderwater(){
-  // fish mesh (diamond body + tail + dorsal), neutral colors, tinted per fish
-  const m=Mesh();
-  const nose=[0.62,0,0], tb=[-0.30,0,0];
-  const ring=[[0.04,0.20,0],[0.0,0,0.15],[0.04,-0.17,0],[0.0,0,-0.15]];
-  const rc=[[0.5,0.5,0.5],[0.82,0.82,0.82],[1.0,1.0,1.0],[0.82,0.82,0.82]];
-  for(let i=0;i<4;i++){ const a=ring[i],b=ring[(i+1)%4]; addTri(m,nose,a,b,rc[i]); addTri(m,tb,b,a,[0.75,0.75,0.75]); }
-  addTri(m,tb,[-0.60,0.26,0],[-0.60,-0.24,0],[0.55,0.55,0.55]);
-  addTri(m,tb,[-0.60,-0.24,0],[-0.60,0.26,0],[0.55,0.55,0.55]);
-  addTri(m,[0.06,0.18,0],[-0.12,0.34,0],[-0.20,0.15,0],[0.5,0.5,0.5]);
-  UW.fish=meshToVAO(m);
+  // detailed fish meshes (rounded body, fins, eyes) — tinted per species
+  UW.fish=buildRingFish('fish'); UW.fishSlim=buildRingFish('slim'); UW.fishRound=buildRingFish('round');
+  UW.crab=buildCrabMesh(); UW.squid=buildSquidMesh();
   // lure body (small octahedron)
   const l=Mesh(); const s=0.16;
   const p=[[s,0,0],[-s,0,0],[0,s,0],[0,-s,0],[0,0,s],[0,0,-s]]; const lc=[1,1,1];
@@ -1307,7 +1300,7 @@ function renderUnderwater(sky){
     const m=m4(); const yaw=(f.face===-1)?PI:0; const wig=Math.sin(f.phase)*0.18;
     m4compose(m,f.pos,yaw+wig,0,0,[f.size,f.size,f.size]);
     const emi=(f.def.glow?0.55+0.25*Math.sin(Game.t*3+f.phase):0)+f.flash*0.5;
-    drawLit(UW.fish,m,sky,Object.assign({},litOpts,{emissive:emi,tint:f.flash>0?[1,1,1]:(f.def.glow?v3(hex2rgb(f.def.acc)):tint)}));
+    drawLit(fishMeshFor(f.id),m,sky,Object.assign({},litOpts,{emissive:emi,tint:f.flash>0?[1,1,1]:(f.def.glow?v3(hex2rgb(f.def.acc)):tint)}));
   }
   // lure body (glowing)
   const lm=m4(); m4compose(lm,[L.x,L.y,L.z],Game.t*2,0,0,[1,1,1]);
@@ -1493,14 +1486,34 @@ function buildCoast(){
   // gulls circling over the nearest port areas
   GULLS.length=0;
   for(let i=0;i<10;i++){ const p=pick(R.ports); GULLS.push({cx:p.x+rrange(-30,30),cz:rrange(-30,10),r:6+rnd()*16,y:10+rnd()*14,ph:rnd()*TAU,spd:rrange(0.15,0.4)*(chance(0.5)?1:-1),flap:rrange(6,10)}); }
+  // navigation buoys + other boats out on the water
+  COAST.len=len; COAST.buoys=[]; COAST.boats=[];
+  for(let x=180;x<len;x+=rrange(150,320)){ COAST.buoys.push({x,z:rrange(-30,10),col:chance(0.5)?[200,72,60]:[70,120,170]}); }
+  for(let i=0;i<5;i++){ COAST.boats.push({x0:rrange(0,len),z:rrange(-46,-14),spd:rrange(2.5,5)*(chance(0.5)?1:-1),tint:[0.86+rnd()*0.14,0.86,0.9]}); }
 }
 function buildGullMesh(){ const m=Mesh(); const c=[0.32,0.32,0.34];
   addTri(m,[0,0,0],[-1.2,0.05,-0.35],[-0.5,0,0.25],c); addTri(m,[0,0,0],[0.5,0,0.25],[1.2,0.05,-0.35],c);
   COAST.gull=meshToVAO(m);
+  const b=Mesh();
+  addCone(b,0,0.2,0,0.55,1.2,8,[0.9,0.9,0.88]);
+  addPrism(b,0,-0.3,0,0.5,0.7,8,[0.86,0.86,0.82]);
+  addBox(b,0,1.35,0,0.06,0.95,0.06,[0.28,0.28,0.3]);
+  addOcta(b,0,2.4,0,0.14,0.18,0.14,[0.18,0.18,0.2]);
+  COAST.buoyMesh=meshToVAO(b);
 }
 function drawCoast3D(sky){
   if(!COAST.mesh) return;
   drawLit(COAST.mesh,COAST_MODEL,sky,{fogDensity:0.0016,fogWeather:world.fog*0.9+world.storm*0.3});
+  const t=Game.t, ch=choppy();
+  // navigation buoys bobbing on the swell
+  if(COAST.buoyMesh&&COAST.buoys) for(const b of COAST.buoys){ const s=seaSample(b.x,b.z,t,ch), fwd=seaSample(b.x+1.2,b.z,t,ch), sd=seaSample(b.x,b.z+1.2,t,ch);
+    const mo=m4(); m4compose(mo,[b.x,s.y-0.4,b.z],0,Math.atan2(fwd.y-s.y,1.2),Math.atan2(sd.y-s.y,1.2),[1,1,1]);
+    drawLit(COAST.buoyMesh,mo,sky,{tint:v3(b.col),fogDensity:0.0016}); }
+  // other fishing boats working the coast
+  if(BOAT.mesh&&COAST.boats) for(const bt of COAST.boats){ const x=wrap(bt.x0+t*bt.spd,COAST.len+240)-120;
+    const s=seaSample(x,bt.z,t,ch), fwd=seaSample(x+(bt.spd>0?2.6:-2.6),bt.z,t,ch), sd=seaSample(x,bt.z+2.6,t,ch);
+    const mo=m4(); m4compose(mo,[x,s.y+0.05,bt.z],bt.spd>0?0:PI,Math.atan2(fwd.y-s.y,2.6)*(bt.spd>0?1:-1),Math.atan2(sd.y-s.y,2.6),[0.92,0.92,0.92]);
+    drawLit(BOAT.mesh,mo,sky,{tint:bt.tint,fogDensity:0.0016}); }
   // gulls
   if(COAST.gull){ for(const g of GULLS){ const a=Game.t*g.spd+g.ph; const x=g.cx+Math.cos(a)*g.r, z=g.cz+Math.sin(a)*g.r;
     const y=g.y+Math.sin(Game.t*0.6+g.ph)*1.2; const flap=0.5+0.5*Math.abs(Math.sin(Game.t*g.flap+g.ph));
@@ -2144,6 +2157,59 @@ function fishSVG(id,w){
   else if(sh==='ribbon') g=`<path d="M2 12Q11 7 20 12T39 12Q30 15 20.5 12.5T2 12Z" fill="${c}"/><path d="M4 11Q6 5 8 11M19 12Q21 6 23 12M33 11Q35 6 37 11" stroke="${a}" stroke-width="1" fill="none"/>${eye(37,11)}`;
   else g=`<ellipse cx="21" cy="12" rx="13" ry="8" fill="${c}"/>${eye(29,11)}`;
   return `<svg width="${w}" height="${Math.round(w*0.6)}" viewBox="0 0 42 24" style="vertical-align:middle;overflow:visible" xmlns="http://www.w3.org/2000/svg">${g}</svg>`;
+}
+
+/* ======================= 38. DETAILED 3D CREATURE MESHES =============== */
+function buildRingFish(kind){
+  const m=Mesh(); const SEG=8;
+  let prof;
+  if(kind==='slim') prof=[[0.66,0.02],[0.52,0.08],[0.34,0.13],[0.12,0.15],[-0.10,0.14],[-0.30,0.10],[-0.46,0.06],[-0.56,0.03]];
+  else if(kind==='round') prof=[[0.54,0.03],[0.42,0.12],[0.26,0.21],[0.04,0.25],[-0.16,0.23],[-0.34,0.16],[-0.48,0.08],[-0.56,0.03]];
+  else prof=[[0.60,0.02],[0.48,0.09],[0.32,0.17],[0.12,0.20],[-0.06,0.19],[-0.26,0.14],[-0.42,0.08],[-0.54,0.03]];
+  const zw=kind==='round'?0.5:0.56;
+  const rp=(x,r,a)=>[x,Math.sin(a)*r,Math.cos(a)*r*zw];
+  const colY=y=>{ const t=clamp((y+0.24)/0.48,0,1); const s=lerp(0.52,1.04,t); return [s,s,s]; };
+  for(let i=0;i<prof.length-1;i++){ const x0=prof[i][0],r0=prof[i][1],x1=prof[i+1][0],r1=prof[i+1][1];
+    for(let s=0;s<SEG;s++){ const a0=s/SEG*TAU,a1=(s+1)/SEG*TAU;
+      const p00=rp(x0,r0,a0),p01=rp(x0,r0,a1),p10=rp(x1,r1,a0),p11=rp(x1,r1,a1);
+      addQuad(m,p00,p01,p11,p10,colY((p00[1]+p11[1])*0.5)); } }
+  const tb=[-0.54,0,0], tl=kind==='slim'?0.36:0.30, th=kind==='slim'?0.32:0.30;
+  addTri(m,tb,[-0.54-tl,th,0],[-0.66,0,0],[0.42,0.42,0.42]); addTri(m,tb,[-0.66,0,0],[-0.54-tl,-th,0],[0.42,0.42,0.42]);
+  addTri(m,tb,[-0.66,0,0],[-0.54-tl,th,0],[0.42,0.42,0.42]); addTri(m,tb,[-0.54-tl,-th,0],[-0.66,0,0],[0.42,0.42,0.42]);
+  addTri(m,[0.14,0.18,0],[-0.16,0.40,0],[-0.30,0.14,0],[0.4,0.4,0.4]); addTri(m,[0.14,0.18,0],[-0.30,0.14,0],[-0.16,0.40,0],[0.4,0.4,0.4]);
+  addTri(m,[-0.02,-0.18,0],[-0.24,-0.30,0],[-0.30,-0.12,0],[0.42,0.42,0.42]); addTri(m,[-0.02,-0.18,0],[-0.30,-0.12,0],[-0.24,-0.30,0],[0.42,0.42,0.42]);
+  for(const zs of[1,-1]){ addTri(m,[0.16,-0.03,zs*0.09],[-0.04,-0.15,zs*0.22],[-0.05,0.0,zs*0.12],[0.52,0.52,0.52]); }
+  for(const zs of[1,-1]){ addOcta(m,0.40,0.07,zs*0.11,0.055,0.06,0.03,[0.92,0.92,0.92]); addOcta(m,0.42,0.07,zs*0.125,0.032,0.034,0.02,[0.05,0.06,0.08]); }
+  addTri(m,[0.60,0,0],[0.52,-0.045,0.03],[0.52,-0.045,-0.03],[0.32,0.22,0.22]);
+  return meshToVAO(m);
+}
+function buildCrabMesh(){ const m=Mesh();
+  addOcta(m,0,0.02,0,0.40,0.15,0.32,[0.82,0.82,0.82]);
+  addOcta(m,0.34,0,0,0.12,0.08,0.16,[0.88,0.88,0.88]);
+  for(const zs of[1,-1]){ for(let i=0;i<3;i++){ const bx=-0.16+i*0.18;
+    addBox2(m,[bx,0,zs*0.28],[bx-0.05,-0.14,zs*0.5],0.03,[0.72,0.72,0.72]);
+    addBox2(m,[bx-0.05,-0.14,zs*0.5],[bx-0.14,-0.02,zs*0.64],0.026,[0.72,0.72,0.72]); } }
+  for(const zs of[1,-1]){ addBox2(m,[0.3,0,zs*0.16],[0.5,0,zs*0.34],0.05,[0.85,0.85,0.85]); addOcta(m,0.55,0,zs*0.37,0.1,0.07,0.07,[0.9,0.9,0.9]); }
+  for(const zs of[1,-1]){ addBox(m,0.3,0.13,zs*0.1,0.02,0.09,0.02,[0.6,0.6,0.6]); addOcta(m,0.3,0.22,zs*0.1,0.045,0.05,0.045,[0.05,0.05,0.06]); }
+  return meshToVAO(m);
+}
+function buildSquidMesh(){ const m=Mesh();
+  const prof=[[0.55,0.02],[0.4,0.1],[0.2,0.15],[0.0,0.16],[-0.2,0.13],[-0.35,0.08]];
+  const rp=(x,r,a)=>[x,Math.sin(a)*r,Math.cos(a)*r];
+  for(let i=0;i<prof.length-1;i++){ for(let s=0;s<8;s++){ const a0=s/8*TAU,a1=(s+1)/8*TAU;
+    addQuad(m,rp(prof[i][0],prof[i][1],a0),rp(prof[i][0],prof[i][1],a1),rp(prof[i+1][0],prof[i+1][1],a1),rp(prof[i+1][0],prof[i+1][1],a0),[0.8,0.8,0.8]); } }
+  addTri(m,[0.5,0,0],[0.64,0.2,0],[0.5,0.13,0],[0.6,0.6,0.6]); addTri(m,[0.5,0,0],[0.5,-0.13,0],[0.64,-0.2,0],[0.6,0.6,0.6]);
+  for(let t=0;t<8;t++){ const a=t/8*TAU; addBox2(m,[-0.34,0,0],[-0.72,Math.sin(a)*0.13,Math.cos(a)*0.13],0.026,[0.75,0.75,0.75]); }
+  addBox2(m,[-0.34,0.05,0.05],[-0.9,0.12,0.05],0.02,[0.72,0.72,0.72]); addBox2(m,[-0.34,-0.05,-0.05],[-0.9,-0.1,-0.05],0.02,[0.72,0.72,0.72]);
+  for(const zs of[1,-1]){ addOcta(m,0.06,0.07,zs*0.15,0.08,0.09,0.03,[0.92,0.92,0.92]); addOcta(m,0.07,0.07,zs*0.17,0.05,0.055,0.02,[0.05,0.05,0.07]); }
+  return meshToVAO(m);
+}
+function fishMeshFor(id){ const sh=fishShape(id);
+  if(sh==='crab'||sh==='lobster') return UW.crab;
+  if(sh==='octopus'||sh==='squid') return UW.squid;
+  if(sh==='roundfish'||sh==='flat') return UW.fishRound;
+  if(sh==='torpedo'||sh==='billfish'||sh==='shark'||sh==='ribbon') return UW.fishSlim;
+  return UW.fish;
 }
 
 /*__MORE__*/
