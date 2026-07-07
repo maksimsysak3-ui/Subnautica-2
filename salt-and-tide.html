@@ -519,6 +519,7 @@ function initPaper(){
   document.getElementById('stage').appendChild(paperEl);
 }
 function drawFX(sky){
+  if(Game.screen==='cutting'){ if(typeof drawCuttingBoard==='function') drawCuttingBoard(); return; }
   fxx.clearRect(0,0,W,H);
   if(typeof drawWeatherFX==='function') drawWeatherFX(sky);
   // vignette
@@ -590,6 +591,7 @@ function boot(){
   if(hp.has('fish')){ Game.set('sail'); if(hp.has('depth')) player.upg.line=3; toggleFishing(); if(hp.has('ld')) fishing.lure.y=-parseFloat(hp.get('ld')); }
   else if(hp.has('town')){ Game.set('sail'); if(hp.has('stock')){ const fs=regionData().fish; for(let i=0;i<9;i++){ const id=fs[i%(fs.length-1)]; const d=FISH[id]; const ln=rrange(d.len[0],d.len[1]); player.hold.push({id,len:Math.round(ln),value:fishValue(d,ln)}); } player.money=2000; } openTown(regionData().ports[0]); if(hp.has('tab')) setTownTab(hp.get('tab')); }
   else if(hp.has('almanac')){ Game.set('sail'); if(hp.has('disc')){ for(const id in FISH){ player.discovered[id]=true; player.records[id]=Math.round(rrange(FISH[id].len[0],FISH[id].len[1])); } } openAlmanac(); }
+  else if(hp.has('cut')){ Game.set('sail'); const id=regionData().fish[hp.has('leg')?regionData().fish.length-1:4]; const d=FISH[id]; player.hold.push({id,len:Math.round(rrange(d.len[0],d.len[1])),value:fishValue(d,55)}); startCutting(); }
   else if(hp.has('t')||hp.has('w')||hp.has('play')){ Game.set('sail'); }
   else if(hp.has('title')){ openTitle(); }
   else startIntro();
@@ -942,14 +944,21 @@ const Input={ left:()=>keys.has('arrowleft')||keys.has('a'), right:()=>keys.has(
 function handleKey(k){
   if(Sound.ensure) Sound.ensure();
   if(k==='p'){ if(Sound.toggleMute) Sound.toggleMute(); return; }
+  if(k==='t'&&(Game.screen==='sail'||Game.screen==='fish')){ if(typeof openSkills==='function') openSkills(); return; }
   if(Game.screen==='sail'){
     if(k==='m'&&typeof toggleMotor==='function') toggleMotor();
     else if(k==='e'&&typeof tryDock==='function') tryDock();
     else if(k===' '&&typeof toggleFishing==='function') toggleFishing();
+    else if(k==='u'&&typeof startCutting==='function') startCutting();
     else if(k==='escape'&&typeof openPause==='function') openPause();
     else if(k==='h'&&typeof openHelp==='function') openHelp();
   } else if(Game.screen==='fish'){
-    if((k==='escape'||k==='e')&&typeof toggleFishing==='function') toggleFishing();
+    if(k==='u'&&typeof startCutting==='function') startCutting();
+    else if((k==='escape'||k==='e')&&typeof toggleFishing==='function') toggleFishing();
+  } else if(Game.screen==='cutting'){
+    if(k==='escape') endCutting(false);
+    else if((k===' '||k==='enter')&&cut.phase==='done') endCutting(true);
+  } else if(Game.screen==='skills'){ if(k==='escape'||k==='t') Game.set(Game.prev==='fish'?'sail':'sail');
   } else if(Game.screen==='town'){ if(k==='escape') departTown();
   } else if(Game.screen==='pause'){ if(k==='escape') Game.set('sail');
   } else if(Game.screen==='help'||Game.screen==='map'||Game.screen==='almanac'){ if(k==='escape') Game.set(Game.prev==='pause'?'pause':'sail');
@@ -1606,7 +1615,7 @@ function updateHUD(){
   if(Game.screen==='sail'){
     if(nearPort) hint=`${ic('anchor',15)} <b>${nearPort.name}</b> — press <span class="key">E</span> to dock`;
     else hint=`<span class="key">A</span><span class="key">D</span> sail &nbsp; <span class="key">Space</span> drop line &nbsp; <span class="key">M</span> ${player.motor?'switch to sail':'engage engine'} &nbsp; <span class="key">Esc</span> menu`;
-  } else hint=`<span class="key">◀</span><span class="key">▶</span><span class="key">▲</span><span class="key">▼</span> pilot lure &nbsp; touch fish to catch &nbsp; <span class="key">Space</span> reel up`;
+  } else hint=`<span class="key">◀</span><span class="key">▶</span><span class="key">▲</span><span class="key">▼</span> pilot lure &nbsp; touch fish to catch &nbsp; <span class="key">U</span> fillet &nbsp; <span class="key">Space</span> reel up`;
   HUD.hint.innerHTML=hint;
 }
 let TOASTS=[];
@@ -1630,7 +1639,7 @@ function driftMarkets(){
   for(const pn in ECO.fish){ for(const id in ECO.fish[pn]) ECO.fish[pn][id]=clamp(ECO.fish[pn][id]+(rnd()-0.5)*0.12,0.6,1.75);
     for(const g in ECO.goods[pn]) ECO.goods[pn][g]=Math.round(clamp(ECO.goods[pn][g]*(1+(rnd()-0.5)*0.2),GOODS[g].base*0.5,GOODS[g].base*1.9)); }
 }
-function fishSellPrice(port,item){ return Math.max(1,Math.round(item.value*(ECO.fish[port.name]&&ECO.fish[port.name][item.id]||1))); }
+function fishSellPrice(port,item){ return Math.max(1,Math.round(item.value*(item.mult||1)*(ECO.fish[port.name]&&ECO.fish[port.name][item.id]||1))); }
 function goodsPrice(port,g){ return (ECO.goods[port.name]&&ECO.goods[port.name][g])||GOODS[g].base; }
 
 /* ======================= 28. LAYER / PAUSE MANAGER ===================== */
@@ -2211,6 +2220,89 @@ function fishMeshFor(id){ const sh=fishShape(id);
   if(sh==='torpedo'||sh==='billfish'||sh==='shark'||sh==='ribbon') return UW.fishSlim;
   return UW.fish;
 }
+
+/* ======================= 39. FISH-CUTTING MINIGAME ==================== */
+const cut={active:false,item:null,def:null,cuts:[],cur:0,stroke:[],drawing:false,mult:1,phase:'idle',board:{},t:0};
+function startCutting(){
+  let item=null; for(let i=player.hold.length-1;i>=0;i--){ if(!player.hold[i].cut){ item=player.hold[i]; break; } }
+  if(!item){ if(typeof toast==='function') toast('No fresh catch to fillet',ic('fish')); return; }
+  const def=FISH[item.id]; cut.item=item; cut.def=def; cut.active=true; cut.cur=0; cut.stroke=[]; cut.drawing=false; cut.phase='cutting'; cut.mult=1; cut.t=0;
+  const bw=Math.min(760,W*0.72), bh=Math.min(340,H*0.46); cut.board={x:W/2-bw/2,y:H/2-bh/2,w:bw,h:bh};
+  let n=2; if(def.hits>=2)n++; if(def.hits>=4)n++; if(def.legendary)n+=2; n=clamp(n,2,6);
+  const cx=W/2, cy=H/2+10, bodyW=bw*0.56, bodyH=bh*0.30;
+  cut.cuts=[]; for(let i=0;i<n;i++){ const gx=cx-bodyW*0.34+(i/(n-1))*bodyW*0.68;
+    cut.cuts.push({x:gx,y0:cy-bodyH,y1:cy+bodyH,acc:null}); }
+  cut.cx=cx; cut.cy=cy; cut.bodyW=bodyW; cut.bodyH=bodyH;
+  fxc.style.pointerEvents='auto'; Game.set('cutting'); if(Sound.ui)Sound.ui();
+}
+function endCutting(apply){
+  fxc.style.pointerEvents='none'; cut.active=false;
+  if(apply&&cut.item){ cut.item.cut=true; cut.item.mult=cut.mult;
+    if(typeof toast==='function') toast(`Filleted ${cut.def.name} · ×${cut.mult.toFixed(2)} value`,ic('fish')); if(Sound.coin)Sound.coin(); }
+  Game.set('sail');
+}
+function cutPt(e){ const r=fxc.getBoundingClientRect(); return [e.clientX-r.left, e.clientY-r.top]; }
+function cutDown(e){ if(Game.screen!=='cutting'||cut.phase!=='cutting')return; cut.stroke=[cutPt(e)]; cut.drawing=true; }
+function cutMove(e){ if(!cut.drawing)return; cut.stroke.push(cutPt(e)); }
+function cutUp(){ if(!cut.drawing)return; cut.drawing=false; evalCut(); }
+function evalCut(){
+  const g=cut.cuts[cut.cur]; if(!g||cut.stroke.length<3){ cut.stroke=[]; return; }
+  let sum=0, minY=1e9, maxY=-1e9;
+  for(const p of cut.stroke){ sum+=Math.abs(p[0]-g.x); minY=Math.min(minY,p[1]); maxY=Math.max(maxY,p[1]); }
+  const avg=sum/cut.stroke.length; const cover=clamp((maxY-minY)/((g.y1-g.y0)*0.9),0,1);
+  const acc=clamp(1-avg/40,0,1)*cover; g.acc=acc; cut.stroke=[]; cut.cur++;
+  if(Sound.reel)Sound.reel();
+  if(cut.cur>=cut.cuts.length){ let s=0; for(const c of cut.cuts) s+=(c.acc||0); const a=s/cut.cuts.length;
+    cut.mult=1+a*1.5; cut.phase='done'; if(Sound.chime)Sound.chime(); }
+}
+function drawCuttingBoard(){
+  const c=fxx; c.clearRect(0,0,W,H); cut.t+=1/60;
+  c.fillStyle='rgba(8,14,18,0.62)'; c.fillRect(0,0,W,H);
+  const b=cut.board;
+  // board
+  c.save(); c.fillStyle='#b98a52'; roundRectC(c,b.x,b.y,b.w,b.h,16); c.fill();
+  c.strokeStyle='rgba(90,64,34,0.6)'; c.lineWidth=2; for(let i=0;i<8;i++){ c.beginPath(); c.moveTo(b.x+8,b.y+18+i*(b.h-30)/7); c.lineTo(b.x+b.w-8,b.y+18+i*(b.h-30)/7); c.stroke(); }
+  c.fillStyle='rgba(60,40,20,0.18)'; roundRectC(c,b.x+6,b.y+6,b.w-12,b.h-12,12); c.fill();
+  c.restore();
+  // fish
+  drawBoardFish(c,cut.cx,cut.cy,cut.def,cut.bodyW,cut.bodyH);
+  // guide lines
+  for(let i=0;i<cut.cuts.length;i++){ const g=cut.cuts[i];
+    if(g.acc!=null){ c.strokeStyle=g.acc>0.75?'rgba(90,200,120,0.95)':g.acc>0.4?'rgba(230,190,70,0.95)':'rgba(220,90,70,0.95)'; c.lineWidth=3; c.setLineDash([]); }
+    else if(i===cut.cur&&cut.phase==='cutting'){ c.strokeStyle=`rgba(255,255,255,${0.6+0.4*Math.sin(cut.t*6)})`; c.lineWidth=3; c.setLineDash([8,7]); }
+    else { c.strokeStyle='rgba(255,255,255,0.28)'; c.lineWidth=2; c.setLineDash([6,8]); }
+    c.beginPath(); c.moveTo(g.x,g.y0); c.lineTo(g.x,g.y1); c.stroke();
+    if(i===cut.cur&&cut.phase==='cutting'){ c.fillStyle='#fff'; c.beginPath(); c.arc(g.x,g.y0,4,0,TAU); c.fill(); }
+  }
+  c.setLineDash([]);
+  // active stroke
+  if(cut.stroke.length>1){ c.strokeStyle='rgba(230,80,60,0.95)'; c.lineWidth=3; c.beginPath(); c.moveTo(cut.stroke[0][0],cut.stroke[0][1]); for(const p of cut.stroke) c.lineTo(p[0],p[1]); c.stroke(); }
+  // title + HUD
+  c.textAlign='center'; c.fillStyle='#f4ead4'; c.font='600 24px Georgia,serif';
+  c.fillText(cut.phase==='done'?'Fillet Complete':`Fillet the ${cut.def.name.replace(/^The /,'')}`, W/2, b.y-24);
+  c.font='13px ui-sans-serif,system-ui'; c.fillStyle='#cdbfa2';
+  c.fillText(cut.phase==='done'?`Bonus ×${cut.mult.toFixed(2)} to its value — press Space to bank`:'Drag down each glowing cut line — precise, full-length cuts pay best', W/2, b.y-6);
+  // multiplier meter
+  const mw=200, mx=W/2-mw/2, my=b.y+b.h+22;
+  c.fillStyle='rgba(255,255,255,0.14)'; roundRectC(c,mx,my,mw,10,5); c.fill();
+  const frac=clamp((cut.mult-1)/1.5,0,1); c.fillStyle=frac>0.7?'#7fd39a':frac>0.4?'#e6c04a':'#e08a6a'; roundRectC(c,mx,my,mw*frac,10,5); c.fill();
+  c.fillStyle='#f4ead4'; c.font='700 14px ui-sans-serif'; c.fillText(`×${cut.mult.toFixed(2)}`, W/2, my+26);
+  c.textAlign='left';
+  if(cut.phase==='cutting'){ c.textAlign='center'; c.fillStyle='#9fb3bb'; c.font='12px ui-sans-serif'; c.fillText(`cut ${Math.min(cut.cur+1,cut.cuts.length)} of ${cut.cuts.length} · Esc to skip`, W/2, my+46); c.textAlign='left'; }
+}
+function drawBoardFish(c,cx,cy,def,bw,bh){
+  c.save(); c.translate(cx,cy);
+  const col=def.col, bl=mixHex(col,'#ffffff',0.42), acc=def.acc||'#333';
+  c.fillStyle=col; c.beginPath(); c.ellipse(0,0,bw*0.5,bh*0.9,0,0,TAU); c.fill();
+  c.globalAlpha=0.5; c.fillStyle=bl; c.beginPath(); c.ellipse(0,bh*0.28,bw*0.42,bh*0.5,0,0,TAU); c.fill(); c.globalAlpha=1;
+  c.fillStyle=acc; c.beginPath(); c.moveTo(-bw*0.48,0); c.lineTo(-bw*0.66,-bh*0.8); c.lineTo(-bw*0.56,0); c.lineTo(-bw*0.66,bh*0.8); c.closePath(); c.fill();
+  c.beginPath(); c.moveTo(bw*0.1,-bh*0.85); c.lineTo(-bw*0.12,-bh*1.4); c.lineTo(-bw*0.22,-bh*0.8); c.closePath(); c.fill();
+  c.fillStyle='#fff'; c.beginPath(); c.arc(bw*0.34,-bh*0.24,bh*0.2,0,TAU); c.fill();
+  c.fillStyle='#16222b'; c.beginPath(); c.arc(bw*0.35,-bh*0.24,bh*0.1,0,TAU); c.fill();
+  c.restore();
+}
+function roundRectC(c,x,y,w,h,r){ c.beginPath(); c.moveTo(x+r,y); c.arcTo(x+w,y,x+w,y+h,r); c.arcTo(x+w,y+h,x,y+h,r); c.arcTo(x,y+h,x,y,r); c.arcTo(x,y,x+w,y,r); c.closePath(); }
+window.addEventListener('pointerdown',cutDown); window.addEventListener('pointermove',cutMove); window.addEventListener('pointerup',cutUp);
 
 /*__MORE__*/
 </script>
