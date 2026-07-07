@@ -578,7 +578,7 @@ function boot(){
   if(!gl) return;
   gl.disable(gl.CULL_FACE); gl.enable(gl.DEPTH_TEST);
   initQuad(); initSky(); buildOcean(); initLit(); buildBoat(); initUnlit(); buildUnderwater(); initPaper();
-  buildGullMesh(); initHUD(); initEconomy();
+  buildGullMesh(); initRain(); initHUD(); initEconomy();
   world.time=0.36; setWeather('clear'); world.wBlend=1; updateWeather(0.001);
   // debug hooks: #t=0.75&w=storm&r=1&fish=1 to inspect a fixed moment
   const hp=new URLSearchParams(location.hash.slice(1));
@@ -730,6 +730,7 @@ function drawScene3D(sky){
   drawOcean(sky);
   if(typeof drawBoat3D==='function') drawBoat3D(sky);
   if(typeof drawCoast3D==='function') drawCoast3D(sky);
+  if(typeof drawPrecip==='function') drawPrecip(sky);
 }
 
 /* ======================= 15. MESH TOOLKIT + LIT PROGRAM ================= */
@@ -989,7 +990,7 @@ function updatePlayer(dt){
   player.headX+=clamp(player.facing-player.headX,-dt*0.75,dt*0.75);
   const align=clamp(Math.cos(dy),0,1);   // build speed only once roughly pointed the right way
   const motor=player.motor&&player.fuel>0; let thrust=0;
-  if(dir){ if(motor){ thrust=30*eng.spd*shipSpeed()*dir*align; player.fuel=Math.max(0,player.fuel-dt*1.4*eng.fuelUse*shipFuelUse()*(0.5+Math.abs(player.speed)/26)); }
+  if(dir){ if(motor){ thrust=30*eng.spd*shipSpeed()*dir*align; player.fuel=Math.max(0,player.fuel-dt*0.55*eng.fuelUse*shipFuelUse()*(0.5+Math.abs(player.speed)/26)); }
     else { const wal=0.35+0.65*clamp(dir*world.windDir*0.5+0.5,0,1); thrust=14*sailU.wind*shipSpeed()*(0.35+world.windStr*0.9)*wal*dir*align; } }
   player.speed+=(thrust-player.speed*2.0)*dt; player.pos[0]+=player.speed*dt;
   const len=regionData().length;
@@ -1103,6 +1104,9 @@ function buildUnderwater(){
   gl.bufferData(gl.ARRAY_BUFFER,UW.moteArr,gl.DYNAMIC_DRAW);
   gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0,3,gl.FLOAT,false,0,0); gl.bindVertexArray(null);
   UW.motes=[]; UW.jellies=[]; UW.dot=posVAO([0,0,0]);
+  { const d=Mesh(); const N=32; for(let i=0;i<N;i++){ const a0=i/N*TAU,a1=(i+1)/N*TAU;
+      const i0=[Math.cos(a0)*0.86,Math.sin(a0)*0.86,0],i1=[Math.cos(a1)*0.86,Math.sin(a1)*0.86,0],o0=[Math.cos(a0),Math.sin(a0),0],o1=[Math.cos(a1),Math.sin(a1),0];
+      addQuad(d,i0,o0,o1,i1,[1,1,1]); } UW.ring=meshToVAO(d); }
   buildJelly();
   buildSeabedLife();
 }
@@ -1193,28 +1197,31 @@ function drawJellies(sky){
 const WORLD_DEPTH=58;
 const fishing={ active:false, lure:{x:0,y:-2,z:0,vx:0,vy:0,vz:0}, maxDepthWorld:48, school:[], hitFlash:0, msg:'' };
 function fishValue(def,len){ const t=inv(def.len[0],def.len[1],len)||0; return Math.round(def.base*(0.7+0.6*clamp(t,0,1))); }
-function spawnFish(nearX, atEdge){
+function pickFishId(){
   const R=regionData(); const ids=R.fish.filter(id=>!FISH[id].legendary);
-  let id;
-  if(chance(0.02) && FISH[R.legendary]){ id=R.legendary; }
-  else { let tot=0; for(const k of ids) tot+=FISH[k].weight; let r=rnd()*tot; id=ids[0]; for(const k of ids){ r-=FISH[k].weight; if(r<=0){id=k;break;} } }
-  const def=FISH[id];
-  const depthFrac=rrange(def.depth[0],def.depth[1]);
-  const y=-depthFrac*WORLD_DEPTH;
+  if(chance(0.015)&&FISH[R.legendary]) return R.legendary;
+  let tot=0; const w=[]; for(const k of ids){ const d=FISH[k]; const ew=d.weight*(0.4+d.len[1]/70); w.push(ew); tot+=ew; }
+  let r=rnd()*tot; for(let i=0;i<ids.length;i++){ r-=w[i]; if(r<=0) return ids[i]; } return ids[0];
+}
+function spawnFish(nearX, atEdge, forceId){
+  const id=forceId||pickFishId(); const def=FISH[id];
+  const y=-rrange(def.depth[0],def.depth[1])*WORLD_DEPTH;
   const x=nearX + (atEdge? (chance(0.5)?-1:1)*rrange(34,46) : rrange(-40,40));
   const z=rrange(-2.2,2.2);
   const skittish = def.legendary || def.hits>=3;
-  const schooling = def.hits===1 && def.len[1]<=30;
-  const shoal = schooling? 4+rint(0,5) : 1;
+  const schooling = def.hits===1 && def.len[1]<=24;
+  const shoal = schooling? 3+rint(0,3) : 1;
   for(let s=0;s<shoal;s++){
-    const ox=schooling?rrange(-5,5):0, oy=schooling?rrange(-3,3):0, oz=schooling?rrange(-4,4):0;
+    const ox=schooling?rrange(-5,5):0, oy=schooling?rrange(-3,3):0, oz=schooling?rrange(-3,3):0;
     const len=rrange(def.len[0],def.len[1]);
     fishing.school.push({id,def,pos:[x+ox,clamp(y+oy,-WORLD_DEPTH+1,-1.5),z+oz],dir:rrange(0,TAU),vx:0,vy:0,vz:0,hp:def.hits,size:len/58,len,
       wt:rrange(0.3,1.4),phase:rrange(0,TAU),cd:0,skittish,band:clamp(y+oy,-WORLD_DEPTH+1,-1.5),flash:0,sch:schooling});
-    if(fishing.school.length>26) break;
+    if(fishing.school.length>28) break;
   }
 }
-function spawnInitialFish(){ fishing.school=[]; const n=22; for(let i=0;i<n;i++) spawnFish(player.pos[0],false);
+function spawnInitialFish(){ fishing.school=[]; for(let i=0;i<18;i++) spawnFish(player.pos[0],false);
+  const R=regionData(); const big=R.fish.filter(id=>!FISH[id].legendary).sort((a,b)=>FISH[b].len[1]-FISH[a].len[1]).slice(0,3);
+  for(const id of big) spawnFish(player.pos[0],false,id);
   UW.motes=[]; for(let i=0;i<UW.moteN;i++) UW.motes.push({x:player.pos[0]+rrange(-30,30),y:-rrange(2,WORLD_DEPTH),z:rrange(-16,16),vy:rrange(1,4),ph:rrange(0,TAU)});
   initJellies(player.pos[0]); }
 function toggleFishing(){
@@ -1239,7 +1246,7 @@ function updateFishing(dt){
   L.x+=L.vx*dt; L.y+=L.vy*dt;
   L.y=clamp(L.y,-fishing.maxDepthWorld,-1.2);
   L.x=clamp(L.x,player.pos[0]-15,player.pos[0]+15);
-  const attractR=3.6+lp.attract*0.06, fleeR=7.5, hitR=2.7+lp.power*0.7;
+  const attractR=3.6+lp.attract*0.06, fleeR=7.5, hitR=1.7+lp.power*0.5; fishing.hitR=hitR;
   fishing.hitFlash=Math.max(0,fishing.hitFlash-dt*3);
   // fish behaviour
   for(let k=fishing.school.length-1;k>=0;k--){
@@ -1312,8 +1319,15 @@ function renderUnderwater(sky){
     const emi=(f.def.glow?0.55+0.25*Math.sin(Game.t*3+f.phase):0)+f.flash*0.5;
     drawLit(fishMeshFor(f.id),m,sky,Object.assign({},litOpts,{emissive:emi,tint:f.flash>0?[1,1,1]:(f.def.glow?v3(hex2rgb(f.def.acc)):tint)}));
   }
+  // grab ring — honest reach of the lure
+  if(UW.ring){ const hr=fishing.hitR||2; const rm=m4(); m4compose(rm,[L.x,L.y,L.z],0,0,0,[hr,hr,1]);
+    gl.useProgram(unlitProg); gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA,gl.ONE); gl.depthMask(false);
+    gl.uniform1f(unlitProg.u('uPoint'),0); gl.uniformMatrix4fv(unlitProg.u('uVP'),false,cam.vp); gl.uniformMatrix4fv(unlitProg.u('uModel'),false,rm);
+    gl.uniform4f(unlitProg.u('uColor'),0.6,0.95,1.0,0.28+0.12*Math.sin(Game.t*4));
+    gl.bindVertexArray(UW.ring.vao); gl.drawArrays(gl.TRIANGLES,0,UW.ring.count); gl.bindVertexArray(null);
+    gl.depthMask(true); gl.disable(gl.BLEND); }
   // lure body (glowing)
-  const lm=m4(); m4compose(lm,[L.x,L.y,L.z],Game.t*2,0,0,[1,1,1]);
+  const lm=m4(); m4compose(lm,[L.x,L.y,L.z],Game.t*2,0,0,[1.3,1.3,1.3]);
   drawLit(UW.lure,lm,sky,Object.assign({},litOpts,{tint:v3([255,224,120]),emissive:0.8+0.2*Math.sin(Game.t*6)}));
   // fishing line (thin dark quad from lure to boat at surface)
   drawFishingLine(L);
@@ -1562,17 +1576,42 @@ function tryDock(){
 function drawWeatherFX(sky){
   if(Game.screen==='fish') return;
   const c=fxx;
-  if(world.rainI>0.02){
-    const n=Math.round(world.rainI*220); c.strokeStyle=`rgba(206,222,235,${0.22+world.storm*0.22})`; c.lineWidth=1;
-    const wind=world.windDir*(5+world.windStr*10); c.beginPath();
-    for(let i=0;i<n;i++){ const sp=560+((i*37)%60)*9; const x=wrap(hash2(i,3)*W+Game.t*wind*14,W+40)-20; const y=wrap(hash2(i,9)*H+Game.t*sp,H+40)-20; const l=10+world.rainI*10; c.moveTo(x,y); c.lineTo(x-wind*0.9,y+l); }
-    c.stroke();
-  }
-  if(world.snowI>0.02){
-    const n=Math.round(world.snowI*200);
-    for(let i=0;i<n;i++){ const sp=40+((i*13)%40)*2.2; const drift=Math.sin(Game.t*0.8+i)*16+world.windDir*20; const x=wrap(hash2(i,5)*W+Game.t*drift,W+30)-15; const y=wrap(hash2(i,11)*H+Game.t*sp,H+30)-15; const r=0.8+(i%3)*0.7; c.fillStyle=`rgba(245,248,252,${0.5+(i%3)*0.15})`; c.beginPath(); c.arc(x,y,r,0,TAU); c.fill(); }
-  }
+  // precipitation is now real 3D geometry (drawPrecip); only a soft fog wash remains here
   if(world.fog>0.4){ const g=c.createLinearGradient(0,H*0.35,0,H); g.addColorStop(0,`rgba(220,226,228,0)`); g.addColorStop(1,`rgba(216,224,226,${(world.fog-0.4)*0.5})`); c.fillStyle=g; c.fillRect(0,0,W,H); }
+  // spray flecks on the lens during storms
+  if(world.storm>0.5){ c.fillStyle=`rgba(220,230,238,${(world.storm-0.5)*0.25})`; for(let i=0;i<14;i++){ const x=wrap(hash2(i,7)*W+Game.t*30,W); const y=wrap(hash2(i,13)*H+Game.t*12,H); c.beginPath(); c.arc(x,y,1.5+hash2(i,4)*2,0,TAU); c.fill(); } }
+}
+/* ======================= 25b. 3D PRECIPITATION ======================== */
+const RAIN={n:640};
+function initRain(){
+  RAIN.drops=[]; for(let i=0;i<RAIN.n;i++) RAIN.drops.push([rrange(-1,1),rnd(),rrange(-1,1),rnd()]);
+  RAIN.arr=new Float32Array(RAIN.n*2*3);
+  RAIN.vao=gl.createVertexArray(); gl.bindVertexArray(RAIN.vao); RAIN.buf=gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER,RAIN.buf);
+  gl.bufferData(gl.ARRAY_BUFFER,RAIN.arr,gl.DYNAMIC_DRAW); gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0,3,gl.FLOAT,false,0,0); gl.bindVertexArray(null);
+}
+function drawPrecip(sky){
+  if(Game.screen==='fish'||!RAIN.vao) return;
+  const rain=world.rainI, snow=world.snowI; if(rain<0.02&&snow<0.02) return;
+  const Rr=50, H=70, cx=cam.pos[0], cy=cam.pos[1], cz=cam.pos[2], wind=world.windDir*(2+world.windStr*7);
+  const I=m4ident(m4());
+  if(rain>0.02){ const n=Math.floor(RAIN.n*clamp(rain,0,1)); const speed=48, len=1.1+rain*1.4;
+    for(let i=0;i<n;i++){ const d=RAIN.drops[i]; const x=cx+d[0]*Rr, z=cz+d[2]*Rr, y=cy+H*0.55-wrap(d[1]*H+Game.t*speed,H);
+      const o=i*6; RAIN.arr[o]=x-wind*len*0.3;RAIN.arr[o+1]=y+len;RAIN.arr[o+2]=z; RAIN.arr[o+3]=x;RAIN.arr[o+4]=y;RAIN.arr[o+5]=z; }
+    gl.useProgram(unlitProg); gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA); gl.depthMask(false); gl.uniform1f(unlitProg.u('uPoint'),0);
+    gl.uniformMatrix4fv(unlitProg.u('uVP'),false,cam.vp); gl.uniformMatrix4fv(unlitProg.u('uModel'),false,I);
+    gl.uniform4f(unlitProg.u('uColor'),0.74,0.83,0.92,0.32+world.storm*0.28);
+    gl.bindVertexArray(RAIN.vao); gl.bindBuffer(gl.ARRAY_BUFFER,RAIN.buf); gl.bufferSubData(gl.ARRAY_BUFFER,0,RAIN.arr.subarray(0,n*6));
+    gl.drawArrays(gl.LINES,0,n*2); gl.bindVertexArray(null); gl.depthMask(true); gl.disable(gl.BLEND);
+  }
+  if(snow>0.02){ const n=Math.floor(RAIN.n*clamp(snow,0,1)); const speed=9;
+    for(let i=0;i<n;i++){ const d=RAIN.drops[i]; const sway=Math.sin(Game.t*0.6+d[3]*TAU)*2.6; const x=cx+d[0]*Rr+sway, z=cz+d[2]*Rr, y=cy+H*0.55-wrap(d[1]*H+Game.t*speed,H);
+      const o=i*6; RAIN.arr[o]=x;RAIN.arr[o+1]=y;RAIN.arr[o+2]=z; RAIN.arr[o+3]=x+0.01;RAIN.arr[o+4]=y;RAIN.arr[o+5]=z; }
+    gl.useProgram(unlitProg); gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA); gl.depthMask(false);
+    gl.uniformMatrix4fv(unlitProg.u('uVP'),false,cam.vp); gl.uniformMatrix4fv(unlitProg.u('uModel'),false,I);
+    gl.uniform4f(unlitProg.u('uColor'),0.96,0.98,1.0,0.75); gl.uniform1f(unlitProg.u('uPoint'),3.2*DPR);
+    gl.bindVertexArray(RAIN.vao); gl.bindBuffer(gl.ARRAY_BUFFER,RAIN.buf); gl.bufferSubData(gl.ARRAY_BUFFER,0,RAIN.arr.subarray(0,n*6));
+    gl.drawArrays(gl.POINTS,0,n*2); gl.bindVertexArray(null); gl.depthMask(true); gl.disable(gl.BLEND);
+  }
 }
 
 /* ======================= 26. HUD + TOAST =============================== */
@@ -1655,7 +1694,7 @@ function closeOverlays(){ if(Game.screen==='pause'||Game.screen==='help'||Game.s
 let townPort=null, townTab='market';
 function cargoMax(){ return 8+player.upg.hull*8; }
 function cargoCount(){ let s=0; for(const k in player.cargo) s+=player.cargo[k]; return s; }
-function applyUpgrades(){ player.fuelMax=60+player.upg.hull*14; player.fuel=Math.min(player.fuel,player.fuelMax); }
+function applyUpgrades(){ player.fuelMax=100+player.upg.hull*20; player.fuel=Math.min(player.fuel,player.fuelMax); }
 function openTown(port){ townPort=port; townTab='market'; Game.set('town'); renderTown(); if(Sound.ui)Sound.ui(); }
 function departTown(){ if(Sound.ui)Sound.ui(); Game.set('sail'); }
 function setTownTab(t){ townTab=t; renderTown(); }
@@ -1797,7 +1836,7 @@ function saveGame(){ try{ localStorage.setItem(SAVE_KEY, JSON.stringify({
 })); }catch(e){} }
 function loadSave(){ try{ const s=localStorage.getItem(SAVE_KEY); return s?JSON.parse(s):null; }catch(e){ return null; } }
 function newGame(){
-  player.money=120; player.fuel=60; player.fuelMax=60; player.bait=12; player.hull=100; player.hullMax=100;
+  player.money=120; player.fuel=100; player.fuelMax=100; player.bait=12; player.hull=100; player.hullMax=100;
   player.hold=[]; player.cargo={}; player.upg={engine:0,sail:0,hull:0,line:0,lure:0,sonar:0};
   player.regionDone=[false,false,false,false]; player.earned=0; player.caughtLegendary=[false,false,false,false]; player.discovered={};
   player.records={}; player.contracts=[]; player.contractsDone=0; player.stars=0; player.shipTier=0; player.style={hull:[176,76,58],sail:[244,238,222],cabin:[164,68,54]};
