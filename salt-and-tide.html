@@ -1769,6 +1769,7 @@ function initHUD(){
       <div class="stat" style="min-width:88px"><b>Coin</b><span class="coin" id="hud-coin">0</span></div>
       <div class="stat" style="min-width:150px"><b id="hud-region">—</b><span id="hud-clock">Day 1 · 06:00</span></div>
       <div class="stat" style="min-width:120px"><b>Skies</b><span id="hud-weather">—</span></div>
+      <div class="stat" style="min-width:158px"><b>Next Coast</b><span id="hud-goal">—</span><div class="gauge" style="width:150px;margin-top:4px"><i id="g-goal" style="background:linear-gradient(90deg,#d79a44,#f0c877)"></i></div></div>
     </div>
     <div class="pill hud-tr">
       <div class="stat"><b>Fuel</b><div class="gauge"><i id="g-fuel" style="background:linear-gradient(90deg,#e6b455,#f4d98a)"></i></div></div>
@@ -1781,6 +1782,7 @@ function initHUD(){
   HUD.fuel=document.getElementById('g-fuel'); HUD.hull=document.getElementById('g-hull');
   HUD.hold=document.getElementById('hud-hold'); HUD.bait=document.getElementById('hud-bait');
   HUD.hint=document.getElementById('hud-hint');
+  HUD.goal=document.getElementById('hud-goal'); HUD.goalBar=document.getElementById('g-goal');
 }
 function updateHUD(){
   const hud=document.getElementById('hud'); if(!HUD.coin){ return; }
@@ -1797,6 +1799,9 @@ function updateHUD(){
   HUD.hull.style.background=hp>0.5?'linear-gradient(90deg,#5fae7a,#8fd0a0)':hp>0.25?'linear-gradient(90deg,#d8a24a,#eec877)':'linear-gradient(90deg,#c9524a,#e88a80)';
   HUD.hold.textContent=`${player.hold.length}/${holdMax()}`;
   HUD.bait.textContent=player.bait;
+  if(HUD.goal){ const R=regionData(), leg=player.caughtLegendary[world.region];
+    HUD.goalBar.style.width=clamp(player.earned/R.goal.earn*100,0,100)+'%';
+    HUD.goal.innerHTML=`${coinStr(player.earned)}/${coinStr(R.goal.earn)} ${leg?ic('trophy',12):`<span style="opacity:.6">${ic(RICON[R.id],12)}</span>`}`; }
   let hint='';
   if(Game.screen==='sail'){
     if(nearPort) hint=`${ic('anchor',15)} <b>${nearPort.name}</b> — press <span class="key">E</span> to dock`;
