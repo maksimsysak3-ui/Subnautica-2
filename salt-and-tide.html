@@ -528,7 +528,7 @@ function initPaper(){
   document.getElementById('stage').appendChild(paperEl);
 }
 function drawFX(sky){
-  if(Game.screen==='cutting'){ if(typeof drawCuttingBoard==='function') drawCuttingBoard(); return; }
+  if(Game.screen==='cutting'){ if(typeof drawCuttingHUD==='function') drawCuttingHUD(); return; }
   fxx.clearRect(0,0,W,H);
   if(typeof drawWeatherFX==='function') drawWeatherFX(sky);
   // vignette
@@ -549,6 +549,7 @@ function update(dt){
       if(typeof updateWorldSim==='function') updateWorldSim(dt); }
   }
   if(view.flash>0) view.flash=Math.max(0,view.flash-dt*2.2);
+  if(Game.screen==='cutting'&&typeof updateCutting3D==='function') updateCutting3D(dt);
   if(Game.screen==='cine') updateCine(dt);
   else if(Game.screen==='title'||Game.screen==='credits') updateTitleCamera(dt);
   else if(Game.screen==='sail') updateCameraRig(dt);
@@ -565,6 +566,7 @@ function render(){
   gl.clearColor(v3(sky.hor)[0],v3(sky.hor)[1],v3(sky.hor)[2],1);
   gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
   if(Game.screen==='fish'){ renderUnderwater(sky); }
+  else if(Game.screen==='cutting'){ if(typeof renderCuttingScene==='function') renderCuttingScene(sky); }
   else { drawSky(sky); if(typeof drawScene3D==='function') drawScene3D(sky); }
   drawFX(sky);
   if(typeof updateHUD==='function') updateHUD();
@@ -2395,85 +2397,156 @@ function fishMeshFor(id){ const sh=fishShape(id);
   return UW.fish;
 }
 
-/* ======================= 39. FISH-CUTTING MINIGAME ==================== */
-const cut={active:false,item:null,def:null,cuts:[],cur:0,stroke:[],drawing:false,mult:1,phase:'idle',board:{},t:0};
+/* ======================= 39. FISH-CUTTING MINIGAME (3D board) ========= */
+const CB={};
+const cut={active:false,item:null,def:null,phase:'idle',knife:[0,2],pknife:[0,2],pressed:false,
+  segs:[],cutXs:[],fillScores:[],curCut:0,skinPct:0,skinScore:1,reversals:0,dirSign:0,
+  strokeMinZ:0,strokeMaxZ:0,stroking:false,mult:1,t:0,headX:-2,tailX:1.8,maxH:0.6};
+function buildCuttingMeshes(){
+  if(CB.board) return;
+  CB.ident=m4ident(m4());
+  { const m=Mesh(); addBox(m,0,-0.16,0,3.5,0.16,1.8,[1,1,1],[1,1,1]);
+    for(let i=-2;i<=2;i++) addBox(m,0,0.005,i*0.62,3.46,0.01,0.02,[0.66,0.48,0.28]);
+    CB.board=meshToVAO(m); }
+  { const m=Mesh(); addPrism(m,0,0,0,1,1,12,[1,1,1],[1,1,1]); CB.slab=meshToVAO(m); }   // ellipse slab (scaled)
+  { const m=Mesh(); addCone(m,0,0,0,1,1,8,[1,1,1]); CB.head=meshToVAO(m); }
+  { const m=Mesh(); const c=[1,1,1];                                                      // forked tail fin (flat, along +X)
+    addTri(m,[0,0,0.02],[1.0,0,0.72],[1.0,0,0.14],c); addTri(m,[0,0,-0.02],[1.0,0,-0.14],[1.0,0,-0.72],c);
+    addTri(m,[0,0,0.02],[1.0,0,0.14],[1.0,0,-0.14],c); addTri(m,[0,0,-0.02],[1.0,0,0.14],[0,0,0.02],c);
+    CB.tail=meshToVAO(m); }
+  { const m=Mesh(); const c=[1,1,1];                                                      // dorsal fin (sits along the back, -z)
+    addTri(m,[-0.7,0,0],[0.7,0,0],[0.1,0,-1.0],c); CB.fin=meshToVAO(m); }
+  { const m=Mesh();                                                                       // chef's knife
+    addBox(m,0.30,0,0,0.72,0.018,0.12,[0.86,0.88,0.9],[0.95,0.96,0.98]);                  // blade
+    addTri(m,[1.02,0.018,0.12],[1.02,0.018,-0.12],[1.3,0.018,0],[0.9,0.9,0.92]);          // pointed tip (top)
+    addTri(m,[1.02,-0.018,-0.12],[1.02,-0.018,0.12],[1.3,-0.018,0],[0.86,0.88,0.9]);      // pointed tip (bottom)
+    addBox(m,-0.02,0.02,0,0.06,0.09,0.15,[0.4,0.4,0.44]);                                 // bolster
+    addBox(m,-0.42,0.03,0,0.34,0.08,0.1,[0.38,0.24,0.14],[0.5,0.34,0.2]);                 // handle
+    CB.knife=meshToVAO(m); }
+}
+function bodyHeightAt(x){ const t=clamp((x-cut.bodyX0)/(cut.bodyX1-cut.bodyX0),0,1);
+  return cut.maxH*Math.pow(Math.sin(clamp(t*0.86+0.09,0,1)*PI),0.7); }
 function startCutting(){
   let item=null; for(let i=player.hold.length-1;i>=0;i--){ if(!player.hold[i].cut){ item=player.hold[i]; break; } }
   if(!item){ if(typeof toast==='function') toast('No fresh catch to fillet',ic('fish')); return; }
-  const def=FISH[item.id]; cut.item=item; cut.def=def; cut.active=true; cut.cur=0; cut.stroke=[]; cut.drawing=false; cut.phase='cutting'; cut.mult=1; cut.t=0;
-  const bw=Math.min(760,W*0.72), bh=Math.min(340,H*0.46); cut.board={x:W/2-bw/2,y:H/2-bh/2,w:bw,h:bh};
-  let n=2; if(def.hits>=2)n++; if(def.hits>=4)n++; if(def.legendary)n+=2; n=clamp(n,2,6);
-  const cx=W/2, cy=H/2+10, bodyW=bw*0.56, bodyH=bh*0.30;
-  cut.cuts=[]; for(let i=0;i<n;i++){ const gx=cx-bodyW*0.34+(i/(n-1))*bodyW*0.68;
-    cut.cuts.push({x:gx,y0:cy-bodyH,y1:cy+bodyH,acc:null}); }
-  cut.cx=cx; cut.cy=cy; cut.bodyW=bodyW; cut.bodyH=bodyH;
-  fxc.style.pointerEvents='auto'; Game.set('cutting'); if(Sound.ui)Sound.ui();
+  buildCuttingMeshes();
+  const def=FISH[item.id]; cut.item=item; cut.def=def; cut.active=true; cut.t=0;
+  cut.maxH=0.6+(def.legendary?0.2:0)+(def.hits>=4?0.08:0);
+  cut.bodyX0=-1.7; cut.bodyX1=1.5; cut.headX=-2.25; cut.tailX=1.7;
+  const n=clamp(5+(def.hits>=2?1:0)+(def.hits>=3?1:0)+(def.legendary?2:0),5,9);
+  const halfx=(cut.bodyX1-cut.bodyX0)/(2*n)*1.18;
+  cut.segs=[]; for(let i=0;i<n;i++){ const t=(i+0.5)/n, x=lerp(cut.bodyX0,cut.bodyX1,t);
+    cut.segs.push({x,z:0,h:Math.max(0.16,bodyHeightAt(x)),hx:halfx,skinned:false,sep:0,sepTarget:0}); }
+  const m=clamp(2+(def.hits>=2?1:0)+(def.hits>=4?1:0)+(def.legendary?1:0),2,5);
+  cut.cutXs=[]; for(let i=0;i<m;i++) cut.cutXs.push(lerp(cut.bodyX0+0.3,cut.bodyX1-0.3,i/(m-1)));
+  cut.fillScores=[]; cut.curCut=0; cut.reversals=0; cut.dirSign=0; cut.skinPct=0; cut.skinScore=1;
+  cut.mult=1; cut.phase='skin'; cut.pressed=false; cut.stroking=false; cut.knife=[0,2.2]; cut.pknife=[0,2.2];
+  cam.pos=[0,6.4,5.4]; cam.target=[0,-0.1,-0.15];
+  glc.style.pointerEvents='auto'; Game.set('cutting'); if(Sound.ui)Sound.ui();
 }
 function endCutting(apply){
-  fxc.style.pointerEvents='none'; cut.active=false;
+  glc.style.pointerEvents=''; cut.active=false;
   if(apply&&cut.item){ cut.item.cut=true; cut.item.mult=cut.mult;
-    if(typeof toast==='function') toast(`Filleted ${cut.def.name} · ×${cut.mult.toFixed(2)} value`,ic('fish')); if(Sound.coin)Sound.coin(); }
+    if(typeof toast==='function') toast(`Filleted ${cut.def.name.replace(/^The /,'')} · ×${cut.mult.toFixed(2)} value`,ic('fish')); if(Sound.coin)Sound.coin(); }
   Game.set('sail');
 }
-function cutPt(e){ const r=fxc.getBoundingClientRect(); return [e.clientX-r.left, e.clientY-r.top]; }
-function cutDown(e){ if(Game.screen!=='cutting'||cut.phase!=='cutting')return; cut.stroke=[cutPt(e)]; cut.drawing=true; }
-function cutMove(e){ if(!cut.drawing)return; cut.stroke.push(cutPt(e)); }
-function cutUp(){ if(!cut.drawing)return; cut.drawing=false; evalCut(); }
-function evalCut(){
-  const g=cut.cuts[cut.cur]; if(!g||cut.stroke.length<3){ cut.stroke=[]; return; }
-  let sum=0, minY=1e9, maxY=-1e9;
-  for(const p of cut.stroke){ sum+=Math.abs(p[0]-g.x); minY=Math.min(minY,p[1]); maxY=Math.max(maxY,p[1]); }
-  const avg=sum/cut.stroke.length; const cover=clamp((maxY-minY)/((g.y1-g.y0)*0.9),0,1);
-  const acc=clamp(1-avg/40,0,1)*cover; g.acc=acc; cut.stroke=[]; cut.cur++;
-  if(Sound.reel)Sound.reel();
-  if(cut.cur>=cut.cuts.length){ let s=0; for(const c of cut.cuts) s+=(c.acc||0); const a=s/cut.cuts.length;
-    cut.mult=1+a*1.5; cut.phase='done'; if(Sound.chime)Sound.chime(); }
-}
-function drawCuttingBoard(){
-  const c=fxx; c.clearRect(0,0,W,H); cut.t+=1/60;
-  c.fillStyle='rgba(8,14,18,0.62)'; c.fillRect(0,0,W,H);
-  const b=cut.board;
-  // board
-  c.save(); c.fillStyle='#b98a52'; roundRectC(c,b.x,b.y,b.w,b.h,16); c.fill();
-  c.strokeStyle='rgba(90,64,34,0.6)'; c.lineWidth=2; for(let i=0;i<8;i++){ c.beginPath(); c.moveTo(b.x+8,b.y+18+i*(b.h-30)/7); c.lineTo(b.x+b.w-8,b.y+18+i*(b.h-30)/7); c.stroke(); }
-  c.fillStyle='rgba(60,40,20,0.18)'; roundRectC(c,b.x+6,b.y+6,b.w-12,b.h-12,12); c.fill();
-  c.restore();
-  // fish
-  drawBoardFish(c,cut.cx,cut.cy,cut.def,cut.bodyW,cut.bodyH);
-  // guide lines
-  for(let i=0;i<cut.cuts.length;i++){ const g=cut.cuts[i];
-    if(g.acc!=null){ c.strokeStyle=g.acc>0.75?'rgba(90,200,120,0.95)':g.acc>0.4?'rgba(230,190,70,0.95)':'rgba(220,90,70,0.95)'; c.lineWidth=3; c.setLineDash([]); }
-    else if(i===cut.cur&&cut.phase==='cutting'){ c.strokeStyle=`rgba(255,255,255,${0.6+0.4*Math.sin(cut.t*6)})`; c.lineWidth=3; c.setLineDash([8,7]); }
-    else { c.strokeStyle='rgba(255,255,255,0.28)'; c.lineWidth=2; c.setLineDash([6,8]); }
-    c.beginPath(); c.moveTo(g.x,g.y0); c.lineTo(g.x,g.y1); c.stroke();
-    if(i===cut.cur&&cut.phase==='cutting'){ c.fillStyle='#fff'; c.beginPath(); c.arc(g.x,g.y0,4,0,TAU); c.fill(); }
+// pointer -> point on the board plane (y=0)
+function unproj(inv,nx,ny,nz){ const p=[nx,ny,nz,1],o=[]; for(let r=0;r<4;r++){ let s=0; for(let k=0;k<4;k++) s+=inv[k*4+r]*p[k]; o[r]=s; } return [o[0]/o[3],o[1]/o[3],o[2]/o[3]]; }
+function boardPick(px,py){ const nx=(px/W)*2-1, ny=1-(py/H)*2;
+  const a=unproj(cam.invVP,nx,ny,-1), b=unproj(cam.invVP,nx,ny,1);
+  const dx=b[0]-a[0],dy=b[1]-a[1],dz=b[2]-a[2]; const t=Math.abs(dy)<1e-6?0:(-a[1]/dy);
+  return [a[0]+dx*t, a[2]+dz*t]; }
+function setKnife(e){ const r=glc.getBoundingClientRect(); cut.knife=boardPick(e.clientX-r.left,e.clientY-r.top); }
+function cutDown(e){ if(Game.screen!=='cutting'||cut.phase==='done')return; setKnife(e); cut.pressed=true; }
+function cutMove(e){ if(Game.screen!=='cutting')return; setKnife(e); }
+function cutUp(){ if(Game.screen!=='cutting')return; cut.pressed=false; }
+function updateCutting3D(dt){
+  cut.t+=dt; const k=cut.knife;
+  if(cut.phase==='skin'){
+    if(cut.pressed){
+      const dx=k[0]-cut.pknife[0];
+      if(Math.abs(dx)>0.006){ const sgn=Math.sign(dx); if(cut.dirSign&&sgn!==cut.dirSign) cut.reversals++; cut.dirSign=sgn; }
+      for(const s of cut.segs){ if(!s.skinned && Math.abs(k[0]-s.x)<s.hx+0.14 && Math.abs(k[1]-s.z)<s.h+0.2){ s.skinned=true; if(Sound.reel)Sound.reel(); } }
+    } else cut.dirSign=0;
+    cut.skinPct=cut.segs.filter(s=>s.skinned).length/cut.segs.length;
+    if(cut.skinPct>=1){ cut.skinScore=clamp(1-cut.reversals*0.05,0.3,1); cut.phase='fillet'; cut.curCut=0; cut.stroking=false; if(Sound.chime)Sound.chime(); }
+  } else if(cut.phase==='fillet'){
+    const lineX=cut.cutXs[cut.curCut];
+    if(cut.pressed && Math.abs(k[0]-lineX)<0.5){
+      if(!cut.stroking){ cut.stroking=true; cut.strokeMinZ=k[1]; cut.strokeMaxZ=k[1]; }
+      cut.strokeMinZ=Math.min(cut.strokeMinZ,k[1]); cut.strokeMaxZ=Math.max(cut.strokeMaxZ,k[1]);
+    }
+    if(!cut.pressed && cut.stroking){ const span=cut.strokeMaxZ-cut.strokeMinZ, need=bodyHeightAt(lineX)*1.8;
+      cut.fillScores.push(clamp(span/Math.max(0.32,need),0,1)); cut.stroking=false; cut.curCut++;
+      if(Sound.reel)Sound.reel();
+      if(cut.curCut>=cut.cutXs.length) finishCut(); }
+  } else if(cut.phase==='done'){
+    for(const s of cut.segs) s.sep=lerp(s.sep,s.sepTarget,1-Math.pow(0.0015,dt));
   }
-  c.setLineDash([]);
-  // active stroke
-  if(cut.stroke.length>1){ c.strokeStyle='rgba(230,80,60,0.95)'; c.lineWidth=3; c.beginPath(); c.moveTo(cut.stroke[0][0],cut.stroke[0][1]); for(const p of cut.stroke) c.lineTo(p[0],p[1]); c.stroke(); }
-  // title + HUD
-  c.textAlign='center'; c.fillStyle='#f4ead4'; c.font='600 24px Georgia,serif';
-  c.fillText(cut.phase==='done'?'Fillet Complete':`Fillet the ${cut.def.name.replace(/^The /,'')}`, W/2, b.y-24);
-  c.font='13px ui-sans-serif,system-ui'; c.fillStyle='#cdbfa2';
-  c.fillText(cut.phase==='done'?`Bonus ×${cut.mult.toFixed(2)} to its value — press Space to bank`:'Drag down each glowing cut line — precise, full-length cuts pay best', W/2, b.y-6);
-  // multiplier meter
-  const mw=200, mx=W/2-mw/2, my=b.y+b.h+22;
-  c.fillStyle='rgba(255,255,255,0.14)'; roundRectC(c,mx,my,mw,10,5); c.fill();
-  const frac=clamp((cut.mult-1)/1.5,0,1); c.fillStyle=frac>0.7?'#7fd39a':frac>0.4?'#e6c04a':'#e08a6a'; roundRectC(c,mx,my,mw*frac,10,5); c.fill();
-  c.fillStyle='#f4ead4'; c.font='700 14px ui-sans-serif'; c.fillText(`×${cut.mult.toFixed(2)}`, W/2, my+26);
-  c.textAlign='left';
-  if(cut.phase==='cutting'){ c.textAlign='center'; c.fillStyle='#9fb3bb'; c.font='12px ui-sans-serif'; c.fillText(`cut ${Math.min(cut.cur+1,cut.cuts.length)} of ${cut.cuts.length} · Esc to skip`, W/2, my+46); c.textAlign='left'; }
+  cut.pknife=[k[0],k[1]];
 }
-function drawBoardFish(c,cx,cy,def,bw,bh){
-  c.save(); c.translate(cx,cy);
-  const col=def.col, bl=mixHex(col,'#ffffff',0.42), acc=def.acc||'#333';
-  c.fillStyle=col; c.beginPath(); c.ellipse(0,0,bw*0.5,bh*0.9,0,0,TAU); c.fill();
-  c.globalAlpha=0.5; c.fillStyle=bl; c.beginPath(); c.ellipse(0,bh*0.28,bw*0.42,bh*0.5,0,0,TAU); c.fill(); c.globalAlpha=1;
-  c.fillStyle=acc; c.beginPath(); c.moveTo(-bw*0.48,0); c.lineTo(-bw*0.66,-bh*0.8); c.lineTo(-bw*0.56,0); c.lineTo(-bw*0.66,bh*0.8); c.closePath(); c.fill();
-  c.beginPath(); c.moveTo(bw*0.1,-bh*0.85); c.lineTo(-bw*0.12,-bh*1.4); c.lineTo(-bw*0.22,-bh*0.8); c.closePath(); c.fill();
-  c.fillStyle='#fff'; c.beginPath(); c.arc(bw*0.34,-bh*0.24,bh*0.2,0,TAU); c.fill();
-  c.fillStyle='#16222b'; c.beginPath(); c.arc(bw*0.35,-bh*0.24,bh*0.1,0,TAU); c.fill();
-  c.restore();
+function finishCut(){ let s=0; for(const a of cut.fillScores) s+=a; const fa=cut.fillScores.length?s/cut.fillScores.length:0;
+  const combined=clamp(0.34*cut.skinScore+0.66*fa,0,1); cut.mult=1+combined*1.5; cut.phase='done';
+  for(let i=0;i<cut.segs.length;i++) cut.segs[i].sepTarget=(i%2?1:-1)*(0.45+0.15*(i/cut.segs.length));
+  if(Sound.chime)Sound.chime();
+}
+function renderCuttingScene(sky){
+  buildCuttingMeshes();
+  gl.clearColor(0.085,0.10,0.12,1); gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT); gl.enable(gl.DEPTH_TEST);
+  const lit={useSky:0,fogColor:[0.085,0.10,0.12],ambient:[0.62,0.6,0.57],fogDensity:0.006};
+  const def=cut.def, skinCol=hex2rgb(def.col), flesh=mix(skinCol,[255,222,210],0.72), acc=hex2rgb(def.acc||'#caa07a');
+  drawLit(CB.board,CB.ident,sky,Object.assign({},lit,{tint:v3([176,138,90])}));
+  // head cone (points -X)
+  { const m=m4(); m4compose(m,[cut.headX,0.06,0],0,PI/2,0,[cut.maxH*0.62,0.62,cut.maxH*0.72]);
+    drawLit(CB.head,m,sky,Object.assign({},lit,{tint:v3(cut.segs[0]&&cut.segs[0].skinned?flesh:skinCol)})); }
+  // body segments
+  for(const s of cut.segs){ const m=m4(); m4compose(m,[s.x,0.05,s.z+s.sep],0,0,0,[s.hx,0.17,s.h]);
+    drawLit(CB.slab,m,sky,Object.assign({},lit,{tint:v3(s.skinned?flesh:skinCol)})); }
+  // dorsal fin along the back (only while intact-ish)
+  if(cut.phase!=='done'){ const m=m4(); m4compose(m,[-0.1,0.12,-cut.maxH*0.5],0,0,0,[cut.maxH*1.0,1,cut.maxH*0.65]);
+    drawLit(CB.fin,m,sky,Object.assign({},lit,{tint:v3(acc)})); }
+  // tail fin
+  { const m=m4(); m4compose(m,[cut.tailX,0.06,0],0,0,0,[0.6,1,cut.maxH]); drawLit(CB.tail,m,sky,Object.assign({},lit,{tint:v3(acc)})); }
+  // eye
+  { const ex=cut.headX+0.5; const m=m4(); m4compose(m,[ex,0.19,cut.maxH*0.22],0,0,0,[0.11,0.05,0.11]);
+    drawLit(CB.slab,m,sky,Object.assign({},lit,{tint:v3([245,245,245])}));
+    const m2=m4(); m4compose(m2,[ex,0.205,cut.maxH*0.22],0,0,0,[0.05,0.05,0.05]);
+    drawLit(CB.slab,m2,sky,Object.assign({},lit,{tint:v3([20,26,30])})); }
+  // knife — follows the pointer, dips down when pressed
+  const kh=cut.pressed?0.24:0.62, kw=cut.phase==='fillet'?PI/2:0;   // rotate blade across the body for fillet cuts
+  { const m=m4(); m4compose(m,[cut.knife[0],kh,cut.knife[1]],kw,0,0.42+(cut.pressed?0.12:0),[1,1,1]);
+    drawLit(CB.knife,m,sky,Object.assign({},lit,{ambient:[0.8,0.8,0.82]})); }
+  // current fillet guide line (a thin glowing bar on the board)
+  if(cut.phase==='fillet'){ const lineX=cut.cutXs[cut.curCut], bh=bodyHeightAt(lineX);
+    const m=m4(); m4compose(m,[lineX,0.11,0],0,0,0,[0.035,0.02,bh*1.05]);
+    const pulse=0.5+0.5*Math.sin(cut.t*6);
+    drawLit(CB.slab,m,sky,Object.assign({},lit,{tint:[pulse,1,pulse*0.7+0.3],emissive:0.5})); }
+}
+function drawCuttingHUD(){
+  const c=fxx; c.clearRect(0,0,W,H);
+  // soft vignette
+  const g=c.createRadialGradient(W/2,H*0.5,H*0.3,W/2,H*0.6,H*0.95);
+  g.addColorStop(0,'rgba(0,0,0,0)'); g.addColorStop(1,'rgba(6,10,13,0.5)'); c.fillStyle=g; c.fillRect(0,0,W,H);
+  const name=cut.def.name.replace(/^The /,'');
+  let title = cut.phase==='skin'?`Skin the ${name}` : cut.phase==='fillet'?`Fillet the ${name}` : 'Fillet Complete';
+  let sub = cut.phase==='skin'?'Hold and sweep the knife along the fish to peel the skin — one smooth pass pays best'
+    : cut.phase==='fillet'?'Drag the knife across each glowing line, top to bottom — full, clean cuts pay best'
+    : `Bonus ×${cut.mult.toFixed(2)} to its value — press Space to bank, Esc to skip`;
+  c.textAlign='center'; c.fillStyle='#f4ead4'; c.font='600 26px Georgia,serif';
+  c.fillText(title, W/2, 64);
+  c.font='13px ui-sans-serif,system-ui'; c.fillStyle='#cdbfa2'; c.fillText(sub, W/2, 88);
+  // progress
+  const barW=280, bx=W/2-barW/2, by=H-92;
+  const prog = cut.phase==='skin'?cut.skinPct : cut.phase==='fillet'?cut.curCut/Math.max(1,cut.cutXs.length) : 1;
+  c.fillStyle='rgba(255,255,255,0.14)'; roundRectC(c,bx,by,barW,9,4.5); c.fill();
+  c.fillStyle= cut.phase==='done'?'#7fd39a':'#e6c04a'; roundRectC(c,bx,by,barW*clamp(prog,0,1),9,4.5); c.fill();
+  const label = cut.phase==='skin'?`Skinning · ${Math.round(cut.skinPct*100)}%`
+    : cut.phase==='fillet'?`Cut ${Math.min(cut.curCut+1,cut.cutXs.length)} of ${cut.cutXs.length}` : `Quality ×${cut.mult.toFixed(2)}`;
+  c.fillStyle='#9fb3bb'; c.font='12px ui-sans-serif'; c.fillText(label, W/2, by+26);
+  // multiplier chip
+  const frac=clamp((cut.mult-1)/1.5,0,1);
+  c.fillStyle='#f4ead4'; c.font='700 15px ui-sans-serif'; c.fillText(`Value ×${cut.mult.toFixed(2)}`, W/2, by-14);
+  c.textAlign='left';
 }
 function roundRectC(c,x,y,w,h,r){ c.beginPath(); c.moveTo(x+r,y); c.arcTo(x+w,y,x+w,y+h,r); c.arcTo(x+w,y+h,x,y+h,r); c.arcTo(x,y+h,x,y,r); c.arcTo(x,y,x+w,y,r); c.closePath(); }
 window.addEventListener('pointerdown',cutDown); window.addEventListener('pointermove',cutMove); window.addEventListener('pointerup',cutUp);
