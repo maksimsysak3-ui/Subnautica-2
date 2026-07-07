@@ -422,7 +422,9 @@ function updateWeather(dt){
   world.lightning=Math.max(0,world.lightning-dt*3.5);
 }
 function advanceTime(dt){ world.time+=dt/DAY_LENGTH*world.timeScale; if(world.time>=1){ world.time-=1; world.day++; onNewDay(); } }
-function onNewDay(){ if(typeof driftMarkets==='function') driftMarkets(); if(typeof toast==='function') toast(`Day ${world.day} — dawn breaks`,ic('sunrise')); }
+function onNewDay(){ if(typeof driftMarkets==='function') driftMarkets();
+  if(typeof tradeAccrueDay==='function') tradeAccrueDay();
+  if(typeof toast==='function') toast(`Day ${world.day} — dawn breaks`,ic('sunrise')); }
 
 function sunDirection(time){ const a=(time-0.25)*TAU; const x=Math.cos(a),y=Math.sin(a),z=-0.34;
   const L=Math.hypot(x,y,z); return [x/L,y/L,z/L]; }
@@ -1015,8 +1017,9 @@ const player={
   pos:[420,0,0], speed:0, facing:1, yaw:0, targetYaw:0, headX:1, motor:true, wheelA:0,
   regionDone:[false,false,false,false], earned:0, caughtLegendary:[false,false,false,false], discovered:{},
   records:{}, contracts:[], contractsDone:0, stars:0, shipTier:0, style:{hull:[176,76,58],sail:[244,238,222],cabin:[164,68,54]},
+  home:{built:{},stock:{},accrued:0,lastDay:1},
 };
-function holdMax(){ return UPGRADES.hull.levels[player.upg.hull].hold + (player.shipTier||0)*10; }
+function holdMax(){ return UPGRADES.hull.levels[player.upg.hull].hold + (player.shipTier||0)*10 + homeHoldBonus(); }
 function toggleMotor(){ player.motor=!player.motor; if(typeof toast==='function') toast(player.motor?'Engine engaged':'Under sail',ic(player.motor?'gear':'sail')); }
 function updatePlayer(dt){
   const eng=UPGRADES.engine.levels[player.upg.engine], sailU=UPGRADES.sail.levels[player.upg.sail];
@@ -1039,7 +1042,7 @@ function updatePlayer(dt){
   if(player.pos[0]<18){player.pos[0]=18;player.speed*=-.3;} if(player.pos[0]>len){player.pos[0]=len;player.speed*=-.3;}
   // storm hull damage far from port
   if(world.storm>0.55){ const np=nearestPort(); const far=!np||Math.abs(np.x-player.pos[0])>240;
-    if(far){ player.hull=Math.max(0,player.hull-(world.storm-0.5)*dt*3.0/UPGRADES.hull.levels[player.upg.hull].armor);
+    if(far){ player.hull=Math.max(0,player.hull-(world.storm-0.5)*dt*3.0*homeStormMult()/UPGRADES.hull.levels[player.upg.hull].armor);
       if(Game.frame%40===0){ view.shake=Math.min(1.2,view.shake+0.25*world.storm); } if(player.hull<=0&&typeof onSink==='function') onSink(); } }
   updateDocking();
 }
@@ -1373,7 +1376,7 @@ function updateFishing(dt){
   let dxl=L.x-bx, dyl=-L.y, len=Math.hypot(dxl,dyl);
   if(len>spoolMax){ const s=spoolMax/len; L.x=bx+dxl*s; L.y=-dyl*s; if(L.y>-1.2)L.y=-1.2; len=spoolMax; if(L.vy>0)L.vy*=0.4; }
   fishing.lineOut=len; fishing.remaining=clamp(1-len/spoolMax,0,1);
-  const attractR=3.6+lp.attract*0.06, fleeR=7.5, hitR=1.7+lp.power*0.5; fishing.hitR=hitR;
+  const attractR=(3.6+lp.attract*0.06)*homeAttract(), fleeR=7.5, hitR=1.7+lp.power*0.5; fishing.hitR=hitR;
   fishing.hitFlash=Math.max(0,fishing.hitFlash-dt*3);
   // fish behaviour
   for(let k=fishing.school.length-1;k>=0;k--){
@@ -1645,7 +1648,8 @@ function buildCoast(){
     for(let s=0;s<3;s++){ const sx=px+(s-1)*4.5,sz=-64; addStall(m,sx,groundY(sx,sz),sz,prr); }
     if(R.id==='med'){ for(let w=0;w<4;w++){ const wx=px+(w-1.5)*7,wz=-90; addBox(m,wx,groundY(wx,wz)+0.6,wz,4,0.6,0.4,v3([224,216,196])); } }
     const lmx=px+(p.kind==='home'?12:-11),lmz=-88; addLandmark(m,lmx,groundY(lmx,lmz),lmz,R);
-    if(p.kind==='home'){ const lx=px-11,lz=-100,ly=groundY(lx,lz); addLighthouse(m,lx,ly,lz); COAST.lights.push([lx,ly+11.4,lz]); }
+    if(p.kind==='home'){ const lx=px-11,lz=-100,ly=groundY(lx,lz); addLighthouse(m,lx,ly,lz); COAST.lights.push([lx,ly+11.4,lz]);
+      if(typeof addHomeStructures==='function') addHomeStructures(m,px,groundY,R); }
   }
   if(COAST.mesh&&COAST.mesh.vao) gl.deleteVertexArray(COAST.mesh.vao);
   COAST.mesh=meshToVAO(m);
@@ -1830,7 +1834,7 @@ function driftMarkets(){
   for(const pn in ECO.fish){ for(const id in ECO.fish[pn]) ECO.fish[pn][id]=clamp(ECO.fish[pn][id]+(rnd()-0.5)*0.12,0.6,1.75);
     for(const g in ECO.goods[pn]) ECO.goods[pn][g]=Math.round(clamp(ECO.goods[pn][g]*(1+(rnd()-0.5)*0.2),GOODS[g].base*0.5,GOODS[g].base*1.9)); }
 }
-function fishSellPrice(port,item){ return Math.max(1,Math.round(item.value*(item.mult||1)*(ECO.fish[port.name]&&ECO.fish[port.name][item.id]||1))); }
+function fishSellPrice(port,item){ return Math.max(1,Math.round(item.value*(item.mult||1)*(ECO.fish[port.name]&&ECO.fish[port.name][item.id]||1)*homeSellMult())); }
 function goodsPrice(port,g){ return (ECO.goods[port.name]&&ECO.goods[port.name][g])||GOODS[g].base; }
 
 /* ======================= 28. LAYER / PAUSE MANAGER ===================== */
@@ -1846,10 +1850,128 @@ let townPort=null, townTab='market';
 function cargoMax(){ return 8+player.upg.hull*8; }
 function cargoCount(){ let s=0; for(const k in player.cargo) s+=player.cargo[k]; return s; }
 function applyUpgrades(){ player.fuelMax=100+player.upg.hull*20; player.fuel=Math.min(player.fuel,player.fuelMax); }
-function openTown(port){ townPort=port; townTab='market'; Game.set('town'); renderTown(); if(Sound.ui)Sound.ui(); }
+function openTown(port){ townPort=port; townTab='market';
+  if(port.kind==='home'&&homeHas('baitshack')&&player.bait<16){ player.bait=16; toast('Bait shack topped up your bait',ic('worm')); }
+  Game.set('town'); renderTown(); if(Sound.ui)Sound.ui(); }
 function departTown(){ if(Sound.ui)Sound.ui(); Game.set('sail'); }
 function setTownTab(t){ townTab=t; renderTown(); }
 function coinStr(n){ return n.toLocaleString(); }
+
+/* ---------------- HOME PORT (buildable 3-D harbour + trade hub) --------- */
+const STRUCT={
+  warehouse:{name:'Warehouse',cost:600,desc:'Store goods for passing traders to buy — the heart of your trade.'},
+  market:{name:'Market Row',cost:900,desc:'Bright stalls that draw more trader boats — your goods sell faster.'},
+  countinghouse:{name:'Counting House',cost:1600,desc:'Traders pay a premium — +10% on fish sales and richer trade deals.'},
+  crane:{name:'Cargo Crane',cost:800,desc:'Load faster — more room in the warehouse.'},
+  boathouse:{name:'Boathouse',cost:500,desc:'A proper berth for your boat — +12 to your hold.'},
+  smokehouse:{name:'Smokehouse',cost:700,desc:'Cure your catch — +18% on every fish you sell.'},
+  lighthouse:{name:'Harbour Light',cost:1200,desc:'A guiding beam — storms batter your hull half as hard.'},
+  baitshack:{name:'Bait Shack',cost:450,desc:'Tops your bait up to 16, free, whenever you dock at home.'}};
+const STRUCT_ORDER=['warehouse','market','countinghouse','crane','boathouse','smokehouse','lighthouse','baitshack'];
+const HOME_PLOTS={warehouse:[-16,-72],market:[13,-69],countinghouse:[-3,-88],crane:[25,-66],boathouse:[-27,-79],smokehouse:[-11,-90],lighthouse:[27,-95],baitshack:[7,-64]};
+function homeBuilt(id){ return !!(player.home&&player.home.built&&player.home.built[id]); }
+function homeHas(id){ return homeBuilt(id); }
+function homeSellMult(){ return 1+(homeBuilt('smokehouse')?0.18:0)+(homeBuilt('countinghouse')?0.10:0); }
+function homeStormMult(){ return homeBuilt('lighthouse')?0.5:1; }
+function homeAttract(){ return 1; }
+function homeHoldBonus(){ return homeBuilt('boathouse')?12:0; }
+function homeMoorage(){ return 0; }
+function tradeCapacity(){ return (homeBuilt('warehouse')?45:0)+(homeBuilt('crane')?45:0)+(homeBuilt('market')?25:0); }
+function homeStockTotal(){ let s=0; const st=(player.home&&player.home.stock)||{}; for(const k in st) s+=st[k]; return s; }
+function homeTradeMarkup(){ return 1.2+(homeBuilt('countinghouse')?0.25:0)+(homeBuilt('market')?0.12:0); }
+function tradeRate(){ if(!homeBuilt('warehouse'))return 0; return 2+(homeBuilt('market')?2:0)+(homeBuilt('crane')?1:0)+(homeBuilt('countinghouse')?1:0); }
+function buyStructure(id){ const s=STRUCT[id]; if(!s||homeBuilt(id))return; if(player.money<s.cost){toast('Not enough coin',ic('coin'));return;}
+  player.money-=s.cost; player.home.built[id]=true; if(Sound.chime)Sound.chime();
+  toast(`${s.name} built at your home port`,ic('house')); if(typeof buildCoast==='function') buildCoast(); renderTown(); saveGame(); }
+function depositGood(id){ const have=player.cargo[id]||0; if(!have){ toast('None of that in your cargo',ic('crate')); return; }
+  const room=tradeCapacity()-homeStockTotal(); if(room<=0){ toast('Warehouse is full',ic('crate')); return; }
+  const n=Math.min(have,room); player.cargo[id]-=n; if(player.cargo[id]<=0)delete player.cargo[id];
+  player.home.stock[id]=(player.home.stock[id]||0)+n; if(Sound.ui)Sound.ui(); toast(`Stocked ${n}× ${GOODS[id].name} for trade`,ic('crate')); renderTown(); saveGame(); }
+function collectTrade(){ const a=Math.round(player.home.accrued||0); if(a<=0){ toast('No trade earnings waiting',ic('coin')); return; }
+  player.money+=a; player.home.accrued=0; if(Sound.coin)Sound.coin(); toast(`Collected ${coinStr(a)} in trade earnings`,ic('coin')); renderTown(); saveGame(); }
+// passive: traders buy a little of your warehouse stock each day
+function tradeAccrueDay(){ if(!homeBuilt('warehouse'))return; const st=player.home.stock||{}; let toSell=tradeRate(); const mk=homeTradeMarkup();
+  const ids=Object.keys(st).filter(k=>st[k]>0).sort((a,b)=>GOODS[b].base-GOODS[a].base); let gain=0;
+  for(const id of ids){ if(toSell<=0)break; const n=Math.min(st[id],toSell); const price=Math.round(GOODS[id].base*mk);
+    st[id]-=n; toSell-=n; gain+=n*price; if(st[id]<=0)delete st[id]; }
+  if(gain>0) player.home.accrued=(player.home.accrued||0)+gain; }
+// live: a trader boat has moored and bought a parcel (called by the harbour visuals)
+function tradeLiveBuy(){ if(!homeBuilt('warehouse'))return 0; const st=player.home.stock||{}; const mk=homeTradeMarkup();
+  const ids=Object.keys(st).filter(k=>st[k]>0); if(!ids.length)return 0; const id=pick(ids);
+  const n=Math.min(st[id],1+Math.floor(RNG()*3)); const price=Math.round(GOODS[id].base*mk);
+  st[id]-=n; if(st[id]<=0)delete st[id]; const gain=n*price; player.money+=gain;
+  if(Sound.coin)Sound.coin(); toast(`A trader bought ${n}× ${GOODS[id].name} · ${ic('coin',12)} ${coinStr(gain)}`,ic('boat')); return gain; }
+// ---- 3D home-port structures placed on the shore of the current home port ----
+function addHomeStructures(m,px,gy,R){
+  if(!player.home||!player.home.built) return;
+  const wall=R.id==='trop'?[236,214,180]:R.id==='med'?[240,238,230]:[214,198,172];
+  const roof=R.id==='trop'?[108,150,120]:R.id==='med'?[194,98,72]:[120,64,54];
+  const at=id=>{ const p=HOME_PLOTS[id]; const x=px+p[0], z=p[1]; return [x,gy(x,z),z]; };
+  if(homeBuilt('warehouse')){ const[x,y,z]=at('warehouse'); addBuilding(m,x,y,z,4.8,3.0,3.6,v3([198,178,142]),v3([116,84,56]));
+    addBox(m,x,y+1.0,z+3.6,1.5,1.0,0.12,v3([84,60,38])); addBox(m,x,y+2.5,z,4.9,0.14,3.7,v3([150,110,72])); }
+  if(homeBuilt('market')){ const[x,,z]=at('market'); for(let i=0;i<3;i++){ const sx=x+(i-1)*3.2; addStall(m,sx,gy(sx,z),z,mulberry32(31+i*7)); } }
+  if(homeBuilt('countinghouse')){ const[x,y,z]=at('countinghouse'); addBuilding(m,x,y,z,3.2,4.2,3.0,v3([232,222,198]),v3([150,72,52]));
+    addBuilding(m,x,y+3.0,z,2.0,1.6,2.0,v3([236,226,204]),v3([150,72,52])); addBox(m,x,y+1.6,z+3.0,0.02,0.7,0.5,v3([150,190,200])); }
+  if(homeBuilt('crane')){ const[x,y,z]=at('crane'); addBox(m,x,y+2.4,z,0.32,2.4,0.32,v3([84,88,94]));
+    addBox2(m,[x,y+4.6,z],[x+3.4,y+4.0,z],0.16,v3([94,98,104])); addBox2(m,[x+3.3,y+4.0,z],[x+3.3,y+1.4,z],0.05,v3([58,58,64]));
+    addOcta(m,x+3.3,y+1.2,z,0.32,0.3,0.32,v3([130,96,54])); addBox(m,x,y+0.4,z,0.9,0.4,0.9,v3([70,72,78])); }
+  if(homeBuilt('boathouse')){ const[x,y,z]=at('boathouse'); addBuilding(m,x,y,z,3.0,2.4,3.6,v3(wall),v3(roof));
+    addBox(m,x,y+0.7,z+3.5,1.1,0.9,0.12,v3([66,48,32])); }
+  if(homeBuilt('smokehouse')){ const[x,y,z]=at('smokehouse'); addBuilding(m,x,y,z,1.9,2.0,1.9,v3([122,94,62]),v3([70,50,32]));
+    addPrism(m,x+0.7,y+2.4,z,0.18,0.9,6,v3([92,72,48])); addPrism(m,x+0.7,y+3.3,z,0.26,0.5,6,v3([206,206,206])); addPrism(m,x+0.7,y+3.9,z,0.34,0.5,6,v3([220,220,220])); }
+  if(homeBuilt('lighthouse')){ const[x,y,z]=at('lighthouse'); addLighthouse(m,x,y,z); if(COAST.lights) COAST.lights.push([x,y+11.4,z]); }
+  if(homeBuilt('baitshack')){ const[x,,z]=at('baitshack'); addShack(m,x,z,v3([198,158,110]),v3([120,80,50]));
+    for(let i=0;i<3;i++){ const bx=x+i*0.7-0.7; addPrism(m,bx,gy(bx,z+1.6)+0.3,z+1.6,0.28,0.6,8,v3([120,90,54]),v3([140,110,70])); } }
+}
+function homeHTML(port){
+  const H=player.home;
+  // structures
+  let strc='';
+  for(const id of STRUCT_ORDER){ const s=STRUCT[id], owned=homeBuilt(id);
+    strc+=`<div class="shop-item" style="${owned?'background:rgba(120,180,120,.12)':''}">
+      <div class="ic">${ic(id==='warehouse'?'crate':id==='market'?'scales':id==='countinghouse'?'coin':id==='crane'?'anchor':id==='boathouse'?'boat':id==='smokehouse'?'flame':id==='lighthouse'?'lighthouse':'worm',24)}</div>
+      <div class="meta"><h4>${s.name} ${owned?ic('check',14):''}</h4><p style="font-size:12px">${s.desc}</p></div>
+      <div>${owned?`<span class="tag">Built</span>`:`<button class="btn small ${player.money>=s.cost?'gold':''}" ${player.money>=s.cost?'':'disabled'} onclick="buyStructure('${id}')">${ic('coin',13)} ${coinStr(s.cost)}</button>`}</div></div>`; }
+  // trade hub
+  let trade='';
+  if(homeBuilt('warehouse')){
+    const cap=tradeCapacity(), used=homeStockTotal();
+    let stock=''; for(const id in (H.stock||{})){ if(H.stock[id]>0) stock+=`<span class="tag">${ic(GOODS[id].icon,13)} ${GOODS[id].name} ×${H.stock[id]}</span>`; }
+    if(!stock) stock='<span class="muted" style="font-size:12px">Empty — stock goods you bought at other ports and traders will buy them here.</span>';
+    let dep=''; for(const id in GOODS){ const have=player.cargo[id]||0; if(have>0) dep+=`<button class="btn small ghost" onclick="depositGood('${id}')">${ic(GOODS[id].icon,13)} Stock ${GOODS[id].name} (${have})</button>`; }
+    if(!dep) dep='<span class="muted" style="font-size:12px">No trade goods in your cargo — buy some at a Market, cheap, then haul them home.</span>';
+    trade=`<div style="background:rgba(20,32,40,.32);border-radius:10px;padding:12px;margin-top:4px">
+      <div class="row"><b>${ic('scales',15)} Trade Post</b><div class="spacer"></div>
+        <span class="muted" style="font-size:12px">Warehouse ${used}/${cap} · ${tradeRate()} goods/day · +${Math.round((homeTradeMarkup()-1)*100)}% markup</span></div>
+      <div class="row" style="flex-wrap:wrap;gap:6px;margin:8px 0">${stock}</div>
+      <div class="row" style="flex-wrap:wrap;gap:6px">${dep}</div>
+      <div class="row" style="align-items:center;margin-top:10px">
+        <div><div class="kicker">Trade earnings waiting</div><div class="coin" style="font-size:20px">${ic('coin',18)} ${coinStr(Math.round(H.accrued||0))}</div></div>
+        <div class="spacer"></div>
+        <button class="btn ${(H.accrued||0)>=1?'gold':''}" ${(H.accrued||0)>=1?'':'disabled'} onclick="collectTrade()">${ic('coin',14)} Collect</button></div></div>`;
+  } else {
+    trade=`<div class="muted" style="font-size:13px;background:rgba(20,32,40,.3);border-radius:10px;padding:12px;margin-top:4px">Build a ${ic('crate',13)} <b>Warehouse</b> to open your trade post — stock goods bought cheaply abroad and passing traders will buy them from you, at home and while you're away.</div>`;
+  }
+  const perks=[];
+  if(homeSellMult()>1) perks.push(`+${Math.round((homeSellMult()-1)*100)}% fish sales`);
+  if(homeHoldBonus()) perks.push(`+${homeHoldBonus()} hold`);
+  if(homeStormMult()<1) perks.push('½ storm damage');
+  if(homeBuilt('baitshack')) perks.push('free bait at home');
+  // trophies + records
+  let trophies=''; for(let i=0;i<REGIONS.length;i++){ const lid=REGIONS[i].legendary, got=player.caughtLegendary[i];
+    trophies+=`<div style="text-align:center;opacity:${got?1:0.32};min-width:78px"><div style="filter:${got?'none':'grayscale(1) brightness(.6)'}">${fishSVG(lid,60)}</div>
+      <div style="font-size:10px;color:${got?'#e6c07a':'#8a94a0'}">${got?FISH[lid].name.replace(/^The /,''):'???'}</div></div>`; }
+  return `<div class="shop">
+    <p class="muted" style="font-size:12.5px;margin:2px 0 8px">Buy structures and they rise in 3-D on your home shore — sail in to see your harbour grow. Your home follows you: it appears at every coast's home port.</p>
+    ${perks.length?`<div class="row" style="gap:6px;flex-wrap:wrap;margin-bottom:8px">${perks.map(p=>`<span class="tag" style="background:rgba(200,150,70,.18)">${p}</span>`).join('')}</div>`:''}
+    <h3 style="margin:4px 0 4px">${ic('house',16)} Build your harbour</h3>
+    <div class="grid" style="grid-template-columns:1fr 1fr;gap:8px">${strc}</div>
+    <h3 style="margin:14px 0 4px">${ic('scales',16)} Trade Hub</h3>
+    ${trade}
+    <h3 style="margin:14px 0 4px">${ic('trophy',16)} Trophy Hall</h3>
+    <div class="row" style="gap:10px;flex-wrap:wrap;justify-content:center;background:rgba(20,30,38,.3);border-radius:10px;padding:10px">${trophies}</div>
+  </div>`;
+}
 
 function renderTown(){
   const L=document.getElementById('layer-town'), port=townPort, R=regionData();
@@ -1860,6 +1982,7 @@ function renderTown(){
   else if(townTab==='shipwright') body=shipwrightHTML(port);
   else if(townTab==='notice') body=noticeHTML(port);
   else if(townTab==='boatyard') body=boatyardHTML(port);
+  else if(townTab==='harbor') body=homeHTML(port);
   const goal=R.goal, done=player.earned>=goal.earn, leg=player.caughtLegendary[world.region];
   L.innerHTML=`<div class="panel" style="width:min(920px,94vw)">
     <div class="row">
@@ -1871,7 +1994,7 @@ function renderTown(){
     <div class="row muted" style="margin:6px 0 2px;gap:16px;font-size:13px">
       <span>${ic('basket',14)} Catch ${player.hold.length}/${holdMax()}</span><span>${ic('crate',14)} Cargo ${cargoCount()}/${cargoMax()}</span>
       <span>${ic('fuel',14)} Fuel ${Math.round(player.fuel)}/${player.fuelMax}</span><span>${ic('wrench',14)} Hull ${Math.round(player.hull)}/${player.hullMax}</span></div>
-    <div class="tabs">${tabBtn('market',ic('scales',15)+' Market')}${tabBtn('notice',ic('book',15)+' Notices')}${tabBtn('chandler',ic('hook',15)+' Chandler')}${tabBtn('shipwright',ic('gear',15)+' Shipwright')}${tabBtn('boatyard',ic('boat',15)+' Boatyard')}</div>
+    <div class="tabs">${tabBtn('market',ic('scales',15)+' Market')}${tabBtn('notice',ic('book',15)+' Notices')}${tabBtn('chandler',ic('hook',15)+' Chandler')}${tabBtn('shipwright',ic('gear',15)+' Shipwright')}${tabBtn('boatyard',ic('boat',15)+' Boatyard')}${port.kind==='home'?tabBtn('harbor',ic('anchor',15)+' Home Port'):''}</div>
     ${body}
     <div class="row" style="margin-top:16px;align-items:center">
       <div style="flex:1 1 240px">
@@ -1983,7 +2106,7 @@ function saveGame(){ try{ localStorage.setItem(SAVE_KEY, JSON.stringify({
   money:player.money,fuel:player.fuel,fuelMax:player.fuelMax,bait:player.bait,hull:player.hull,
   upg:player.upg,hold:player.hold,cargo:player.cargo,region:world.region,day:world.day,time:world.time,
   earned:player.earned,caughtLegendary:player.caughtLegendary,regionDone:player.regionDone,discovered:player.discovered,eco:ECO,x:player.pos[0],
-  records:player.records,contractsDone:player.contractsDone,style:player.style,stars:player.stars,shipTier:player.shipTier,muted:Sound.muted
+  records:player.records,contractsDone:player.contractsDone,style:player.style,stars:player.stars,shipTier:player.shipTier,home:player.home,muted:Sound.muted
 })); }catch(e){} }
 function loadSave(){ try{ const s=localStorage.getItem(SAVE_KEY); return s?JSON.parse(s):null; }catch(e){ return null; } }
 function newGame(){
@@ -1991,12 +2114,15 @@ function newGame(){
   player.hold=[]; player.cargo={}; player.upg={engine:0,sail:0,hull:0,line:0,lure:0,sonar:0};
   player.regionDone=[false,false,false,false]; player.earned=0; player.caughtLegendary=[false,false,false,false]; player.discovered={};
   player.records={}; player.contracts=[]; player.contractsDone=0; player.stars=0; player.shipTier=0; player.style={hull:[176,76,58],sail:[244,238,222],cabin:[164,68,54]};
+  player.home={built:{},stock:{},accrued:0,lastDay:1};
   world.day=1; world.time=0.30; world.timeScale=1; initEconomy(); applyUpgrades(); enterRegion(0); if(typeof buildBoat==='function')buildBoat(); Game.set('sail'); saveGame();
 }
 function loadGame(s){
   Object.assign(player,{money:s.money,fuel:s.fuel,fuelMax:s.fuelMax||60,bait:s.bait,hull:s.hull,upg:s.upg,hold:s.hold||[],cargo:s.cargo||{},
     earned:s.earned||0,caughtLegendary:s.caughtLegendary||[false,false,false,false],regionDone:s.regionDone||[false,false,false,false],discovered:s.discovered||{},
-    records:s.records||{},contractsDone:s.contractsDone||0,stars:s.stars||0,shipTier:s.shipTier||0,style:s.style||{hull:[176,76,58],sail:[244,238,222],cabin:[164,68,54]}});
+    records:s.records||{},contractsDone:s.contractsDone||0,stars:s.stars||0,shipTier:s.shipTier||0,style:s.style||{hull:[176,76,58],sail:[244,238,222],cabin:[164,68,54]},
+    home:s.home||{built:{},stock:{},accrued:0,lastDay:1}});
+  if(!player.home.built)player.home.built={}; if(!player.home.stock)player.home.stock={};
   world.day=s.day||1; world.time=s.time||0.3; world.timeScale=1; if(s.eco){ ECO.fish=s.eco.fish; ECO.goods=s.eco.goods; }
   if(s.muted&&Sound.ensure){ Sound.muted=true; }
   applyUpgrades(); enterRegion(s.region||0); if(typeof buildBoat==='function')buildBoat(); if(s.x) player.pos[0]=s.x; Game.set('sail');
@@ -2216,6 +2342,8 @@ const ICON={
   sunrise:`<path d="M4 18h16" stroke="#c99633" stroke-width=1.6/><path d="M7 18a5 5 0 0 1 10 0z" fill="#f2c94c"/><path d="M12 4v3M5 9l2 1.5M19 9l-2 1.5" stroke="#e6b545" stroke-width=1.4 stroke-linecap="round"/>`,
   compass:`<circle cx=12 cy=12 r=9 fill="#e7d6b4" stroke="#8a6a3a" stroke-width=1.4/><polygon points="12,6 14,12 12,18 10,12" fill="#c0392b"/><polygon points="12,6 10,12 12,12" fill="#7a2318"/><circle cx=12 cy=12 r=1 fill="#3a2a1a"/>`,
   wheel:`<circle cx=12 cy=12 r=6.4 fill="none" stroke="#a5723f" stroke-width=1.7/><circle cx=12 cy=12 r=2 fill="#8a5a34"/><g stroke="#a5723f" stroke-width=1.5 stroke-linecap="round"><path d="M12 1.6v6M12 16.4v6M1.6 12h6M16.4 12h6M4.6 4.6l4.2 4.2M15.2 15.2l4.2 4.2M19.4 4.6l-4.2 4.2M8.8 15.2l-4.2 4.2"/></g>`,
+  flame:`<path d="M12 3c1 4 5 5 5 9a5 5 0 0 1-10 0c0-2 1-3.4 2-4.4.1 1.2.7 1.9 1.5 1.9C12 8.5 11 5.4 12 3z" fill="#e8863a"/><path d="M12 10.5c.6 1.3 2 1.9 2 3.6a2 2 0 0 1-4 0c0-1 .8-1.7 1-3z" fill="#f4c14e"/>`,
+  tank:`<rect x=4 y=7 width=16 height=11 rx=1.4 fill="#bfe0e6" opacity=.55 stroke="#6a9aa4" stroke-width=1.2/><path d="M5 14c2-1.4 4.5-1.4 6.5 0s4.5 1.4 6.5 0" stroke="#5a94a4" stroke-width=1 fill="none"/><path d="M8 11.4c1.6-1.2 3-.4 3 .6-1.2.2-2 .2-3-.6z" fill="#e08a5a"/><circle cx=9.3 cy=11.2 r=.5 fill="#20303a"/>`,
   boat:`<path d="M4 14h16l-2.5 4.5c-.4.7-1.1 1-1.9 1H8.4c-.8 0-1.5-.3-1.9-1z" fill="#b0563e"/><rect x=5 y=12.5 width=14 height=1.6 fill="#e7d6b4"/><rect x=11 y=4 width=1.3 height=8.5 fill="#8a6a3a"/><path d="M12.3 5c2.4 1.2 3.6 3 3.6 5.5h-3.6z" fill="#f0ead6"/>`,
   snowflake:`<path d="M12 3v18M4.2 7.5l15.6 9M19.8 7.5l-15.6 9" stroke="#9fd0e0" stroke-width=1.5 stroke-linecap="round"/><path d="M12 6l-2 2M12 6l2 2M12 18l-2-2M12 18l2-2" stroke="#9fd0e0" stroke-width=1.3 stroke-linecap="round"/>`,
   sun:`<circle cx=12 cy=12 r=5 fill="#f2c94c"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2" stroke="#e6b545" stroke-width=1.6 stroke-linecap="round"/>`,
