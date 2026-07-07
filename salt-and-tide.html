@@ -1998,19 +1998,64 @@ function loadGame(s){
 }
 
 /* ======================= 32. TITLE / PAUSE / HELP / MAP ================ */
+function injectTitleCSS(){
+  if(document.getElementById('titlecss')) return;
+  const s=document.createElement('style'); s.id='titlecss';
+  s.textContent=`
+  @keyframes stRise{0%{opacity:0;transform:translateY(26px)}100%{opacity:1;transform:translateY(0)}}
+  @keyframes stShimmer{0%{background-position:120% 0}100%{background-position:-120% 0}}
+  @keyframes stBarTop{from{transform:scaleY(0)}to{transform:scaleY(1)}}
+  @keyframes stFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-5px)}}
+  @keyframes stPulse{0%,100%{opacity:.55}50%{opacity:1}}
+  .title-root{position:absolute;inset:0;overflow:hidden;font-family:var(--sans);}
+  .title-scrim{position:absolute;inset:0;pointer-events:none;background:
+     radial-gradient(120% 80% at 50% 42%,rgba(6,12,16,.10),rgba(6,12,16,.60) 78%),
+     linear-gradient(180deg,rgba(6,12,16,.35),transparent 26%,transparent 64%,rgba(6,12,16,.5));}
+  .cine-bar{position:absolute;left:0;right:0;height:7vh;max-height:66px;z-index:2;transform-origin:top;animation:stBarTop 1s ease both;}
+  .cine-bar.top{top:0;background:linear-gradient(180deg,#04070a,#04070ad9 60%,transparent);}
+  .cine-bar.bot{bottom:0;transform-origin:bottom;background:linear-gradient(0deg,#04070a,#04070ad9 60%,transparent);}
+  .title-wrap{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:0 22px;z-index:3;}
+  .title-wrap>*{animation:stRise .85s cubic-bezier(.2,.7,.2,1) both;}
+  .st-kicker{letter-spacing:.42em;text-transform:uppercase;font-size:11.5px;font-weight:800;color:#e6c07a;display:flex;align-items:center;gap:12px;text-shadow:0 2px 12px rgba(0,0,0,.6);}
+  .st-title{font-family:var(--serif);font-weight:800;font-size:clamp(54px,11vw,120px);line-height:1;letter-spacing:.04em;margin:.06em 0 .02em;
+     background:linear-gradient(100deg,#e9cf94 18%,#fff7e6 42%,#ffd98a 50%,#fff7e6 58%,#e9cf94 82%);background-size:240% 100%;
+     -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:transparent;
+     filter:drop-shadow(0 8px 34px rgba(0,0,0,.6));animation:stRise .9s cubic-bezier(.2,.7,.2,1) both,stShimmer 7s linear infinite .3s;}
+  .st-flourish{display:flex;align-items:center;gap:14px;color:#d9b978;opacity:.9;margin:2px 0 8px;}
+  .st-flourish span{display:block;width:min(22vw,150px);height:1px;background:linear-gradient(90deg,transparent,rgba(230,200,140,.7),transparent);}
+  .st-tag{color:#dcd1b6;font-size:15px;line-height:1.5;max-width:520px;margin:0 auto;text-shadow:0 2px 14px rgba(0,0,0,.6);}
+  .coast-row{display:flex;gap:9px;justify-content:center;flex-wrap:wrap;margin:18px 0 6px;}
+  .coast-chip{display:flex;align-items:center;gap:7px;padding:7px 13px;border-radius:999px;font-size:12.5px;color:#ecdfc2;
+     background:rgba(20,32,40,.42);border:1px solid rgba(255,255,255,.14);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);box-shadow:0 4px 14px rgba(0,0,0,.25);}
+  .coast-chip.locked{opacity:.5;}
+  .st-btns{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin:20px 0 8px;}
+  .st-controls{color:#b7c6cc;font-size:12px;margin-top:6px;text-shadow:0 1px 8px rgba(0,0,0,.7);}
+  .st-footer{position:absolute;bottom:calc(7vh + 12px);left:0;right:0;text-align:center;z-index:3;color:#9fb0b6;font-size:11px;letter-spacing:.16em;text-transform:uppercase;
+     display:flex;align-items:center;justify-content:center;gap:7px;animation:stRise 1s ease both .6s,stPulse 5s ease-in-out infinite 1.4s;}`;
+  document.head.appendChild(s);
+}
 function openTitle(){
+  injectTitleCSS();
   const has=loadSave();
   const L=document.getElementById('layer-title');
-  L.innerHTML=`<div class="panel" style="max-width:600px;text-align:center;background:linear-gradient(180deg,rgba(18,30,38,.60),rgba(10,18,24,.68));color:#f4ead4;backdrop-filter:blur(7px);-webkit-backdrop-filter:blur(7px);border:1px solid rgba(255,255,255,.14);box-shadow:0 34px 90px rgba(0,0,0,.55),inset 0 1px 0 rgba(255,255,255,.14)">
-    <div class="kicker" style="color:#e6b871">A hand-built coastal life</div>
-    <h1 style="font-size:clamp(42px,8vw,74px);letter-spacing:.08em;margin:.06em 0;color:#fff6e2;text-shadow:0 6px 30px rgba(0,0,0,.5)">SALT &amp; TIDE</h1>
-    <p style="color:#d6cbb2;font-size:15px;max-width:460px;margin:0 auto 6px">Sail a little boat down three living coasts. Hunt fish beneath the waves, sell your catch, brave the storms, and master the sea — from the cold Northern Reach to the amber Mediterranean.</p>
-    <div class="row" style="justify-content:center;margin:18px 0 6px;gap:12px">
-      <button class="btn gold" id="t-new">${ic('boat',16)} New Voyage</button>
-      ${has?`<button class="btn" id="t-cont">${ic('compass',15)} Continue</button>`:''}
-      <button class="btn ghost" id="t-help">${ic('book',15)} How to Play</button>
+  const coasts=REGIONS.map((r,i)=>`<div class="coast-chip${i>0?' locked':''}">${ic(RICON[r.id],15)} ${r.name.replace(/^The /,'')}</div>`).join('');
+  L.innerHTML=`<div class="title-root">
+    <div class="title-scrim"></div>
+    <div class="cine-bar top"></div><div class="cine-bar bot"></div>
+    <div class="title-wrap">
+      <div class="st-kicker" style="animation-delay:.05s">${ic('anchor',13)} A hand-built coastal life ${ic('anchor',13)}</div>
+      <h1 class="st-title">SALT &amp; TIDE</h1>
+      <div class="st-flourish" style="animation-delay:.16s"><span></span>${ic('compass',20)}<span></span></div>
+      <p class="st-tag" style="animation-delay:.24s">Sail a little boat down four living coasts — hunt the deep, work the markets, brave the storms, and become a master of the sea.</p>
+      <div class="coast-row" style="animation-delay:.32s">${coasts}</div>
+      <div class="st-btns" style="animation-delay:.42s">
+        <button class="btn gold" id="t-new">${ic('boat',16)} New Voyage</button>
+        ${has?`<button class="btn" id="t-cont">${ic('compass',15)} Continue</button>`:''}
+        <button class="btn ghost" id="t-help">${ic('book',15)} How to Play</button>
+      </div>
+      <div class="st-controls" style="animation-delay:.5s">Steer <span class="key">A</span><span class="key">D</span> · Fish <span class="key">Space</span> · Helm <span class="key">C</span> · Dock <span class="key">E</span> · Menu <span class="key">Esc</span></div>
     </div>
-    <div style="color:#a9bcc2;font-size:12px;margin-top:8px">Steer <span class="key">A</span><span class="key">D</span> · Fish <span class="key">Space</span> · Dock <span class="key">E</span> · Menu <span class="key">Esc</span></div>
+    <div class="st-footer">${ic('anchor',12)} A Lanternlight Studios voyage</div>
   </div>`;
   L.querySelector('#t-new').onclick=()=>{ if(!has||confirm('Start a new voyage? This overwrites your saved game.')) newGame(); };
   if(has) L.querySelector('#t-cont').onclick=()=>loadGame(loadSave());
