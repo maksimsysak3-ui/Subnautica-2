@@ -755,6 +755,7 @@ function drawScene3D(sky){
   drawOcean(sky);
   if(typeof drawBoat3D==='function') drawBoat3D(sky);
   if(typeof drawCoast3D==='function') drawCoast3D(sky);
+  if(typeof drawTraders==='function') drawTraders(sky);
   if(typeof drawPrecip==='function') drawPrecip(sky);
 }
 
@@ -1044,9 +1045,34 @@ function updatePlayer(dt){
   if(world.storm>0.55){ const np=nearestPort(); const far=!np||Math.abs(np.x-player.pos[0])>240;
     if(far){ player.hull=Math.max(0,player.hull-(world.storm-0.5)*dt*3.0*homeStormMult()/UPGRADES.hull.levels[player.upg.hull].armor);
       if(Game.frame%40===0){ view.shake=Math.min(1.2,view.shake+0.25*world.storm); } if(player.hull<=0&&typeof onSink==='function') onSink(); } }
+  if(typeof updateTraders==='function') updateTraders(dt);
   updateDocking();
 }
 function nearestPort(){ const ps=regionData().ports; let best=null,bd=1e9; for(const p of ps){ const d=Math.abs(p.x-player.pos[0]); if(d<bd){bd=d;best=p;} } return best; }
+// ---- live trader boats: sail into your home port and buy warehouse goods ----
+const Traders={list:[],timer:6};
+function updateTraders(dt){
+  const hp=nearestPort(); const home=hp&&hp.kind==='home'; const near=home&&Math.abs(hp.x-player.pos[0])<180;
+  const trading=near&&homeBuilt('warehouse')&&homeStockTotal()>0;
+  if(trading){ Traders.timer-=dt;
+    if(Traders.timer<=0&&Traders.list.length<3){ Traders.timer=rrange(7,14);
+      Traders.list.push({x:hp.x+(chance(0.5)?-1:1)*rrange(60,95), z:12+rnd()*14, tx:hp.x+rrange(-16,16), moorZ:-27-rnd()*8,
+        phase:'in', t:0, bought:false, tint:[0.82+rnd()*0.16,0.82,0.9], hx:hp.x}); } }
+  for(let i=Traders.list.length-1;i>=0;i--){ const b=Traders.list[i]; b.t+=dt;
+    if(b.phase==='in'){ b.x+=(b.tx-b.x)*Math.min(1,dt*0.6); b.z+=(b.moorZ-b.z)*Math.min(1,dt*0.6);
+      if(Math.hypot(b.tx-b.x,b.moorZ-b.z)<3.5){ b.phase='moor'; b.t=0; if(!b.bought&&homeStockTotal()>0){ b.bought=true; tradeLiveBuy(); } } }
+    else if(b.phase==='moor'){ if(b.t>rrange(2.6,4.6)) b.phase='out'; }
+    else { const dir=b.x>=b.hx?1:-1; b.x+=dir*dt*8; b.z+=(20-b.z)*Math.min(1,dt*0.5);   // leave back out to open sea
+      if(Math.abs(b.x-b.hx)>120||b.z>18){ Traders.list.splice(i,1); } }
+  }
+}
+function drawTraders(sky){
+  if(!Traders.list.length||!BOAT.mesh) return; const t=Game.t, ch=choppy();
+  for(const b of Traders.list){ const s=seaSample(b.x,b.z,t,ch), fwd=seaSample(b.x+1.8,b.z,t,ch), sd=seaSample(b.x,b.z+1.8,t,ch);
+    const face=(b.phase==='out')?(b.x>=b.hx?1:-1):((b.tx>=b.x)?1:-1);
+    const mo=m4(); m4compose(mo,[b.x,s.y+0.05,b.z], face>0?0:PI, Math.atan2(fwd.y-s.y,1.8)*face, Math.atan2(sd.y-s.y,1.8),[1.15,1.1,1.12]);
+    drawLit(BOAT.mesh,mo,sky,{tint:b.tint,fogDensity:0.0016}); if(BOAT.sails) drawLit(BOAT.sails,mo,sky,{tint:b.tint,fogDensity:0.0016}); }
+}
 function updateWorldSim(dt){ if(Game.screen==='sail') updatePlayer(dt); else if(typeof updateFishing==='function') updateFishing(dt); }
 
 /* ======================= 19. CAMERA RIG ================================= */
@@ -1706,6 +1732,7 @@ function enterRegion(i){
   world.region=clamp(i,0,REGIONS.length-1);
   const home=regionData().ports[0];
   player.pos=[home.x+140,0,0]; player.speed=0; player.facing=-1; player.yaw=PI;
+  if(typeof Traders!=='undefined') Traders.list=[];
   buildCoast(); buildSeabedLife();
   if(typeof toast==='function') toast(regionData().name,ic(RICON[regionData().id]));
 }
