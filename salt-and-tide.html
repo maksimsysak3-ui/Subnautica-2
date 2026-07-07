@@ -1107,6 +1107,8 @@ function buildUnderwater(){
   { const d=Mesh(); const N=32; for(let i=0;i<N;i++){ const a0=i/N*TAU,a1=(i+1)/N*TAU;
       const i0=[Math.cos(a0)*0.86,Math.sin(a0)*0.86,0],i1=[Math.cos(a1)*0.86,Math.sin(a1)*0.86,0],o0=[Math.cos(a0),Math.sin(a0),0],o1=[Math.cos(a1),Math.sin(a1),0];
       addQuad(d,i0,o0,o1,i1,[1,1,1]); } UW.ring=meshToVAO(d); }
+  { const s=Mesh(); addPrism(s,0,0.34,0,1.0,0.13,18,[0.5,0.36,0.22],[0.58,0.42,0.26]); addPrism(s,0,-0.34,0,1.0,0.13,18,[0.5,0.36,0.22],[0.58,0.42,0.26]); addPrism(s,0,0,0,0.3,0.62,10,[0.28,0.2,0.12]); UW.spool=meshToVAO(s);
+    const l=Mesh(); addPrism(l,0,0,0,1.0,0.5,18,[0.86,0.82,0.66]); UW.spoolLine=meshToVAO(l); }
   buildJelly();
   buildSeabedLife();
 }
@@ -1229,7 +1231,7 @@ function toggleFishing(){
     if(Math.abs(player.speed)>3){ toast('Slow down to drop your line',ic('rod')); return; }
     if(player.bait<=0){ toast('Out of bait — buy more at a port',ic('worm')); return; }
     player.bait--; fishing.active=true; buildSeabedLife();
-    fishing.maxDepthWorld=UPGRADES.line.levels[player.upg.line].depth*WORLD_DEPTH;
+    fishing.remaining=1; fishing.lineOut=2.5;
     fishing.lure={x:player.pos[0],y:-2.5,z:0,vx:0,vy:0,vz:0};
     spawnInitialFish(); if(Sound.splash)Sound.splash();
     cam.pos=[player.pos[0],1,15]; cam.target=[player.pos[0],-3,0];
@@ -1244,8 +1246,12 @@ function updateFishing(dt){
   let ax=0,ay=0; if(Input.left())ax-=1; if(Input.right())ax+=1; if(Input.up())ay+=1; if(Input.down())ay-=1;
   const acc=46; L.vx+=(ax*acc-L.vx*3.2)*dt; L.vy+=(ay*acc-L.vy*3.2)*dt;
   L.x+=L.vx*dt; L.y+=L.vy*dt;
-  L.y=clamp(L.y,-fishing.maxDepthWorld,-1.2);
-  L.x=clamp(L.x,player.pos[0]-15,player.pos[0]+15);
+  if(L.y>-1.2) L.y=-1.2;
+  // line spool: line pays out with depth+distance from the boat; cannot exceed the spool length
+  const bx=player.pos[0], spoolMax=lineSpool();
+  let dxl=L.x-bx, dyl=-L.y, len=Math.hypot(dxl,dyl);
+  if(len>spoolMax){ const s=spoolMax/len; L.x=bx+dxl*s; L.y=-dyl*s; if(L.y>-1.2)L.y=-1.2; len=spoolMax; if(L.vy>0)L.vy*=0.4; }
+  fishing.lineOut=len; fishing.remaining=clamp(1-len/spoolMax,0,1);
   const attractR=3.6+lp.attract*0.06, fleeR=7.5, hitR=1.7+lp.power*0.5; fishing.hitR=hitR;
   fishing.hitFlash=Math.max(0,fishing.hitFlash-dt*3);
   // fish behaviour
@@ -1347,6 +1353,7 @@ function renderUnderwater(sky){
   gl.bindVertexArray(UW.moteVao); gl.bindBuffer(gl.ARRAY_BUFFER,UW.moteBuf); gl.bufferSubData(gl.ARRAY_BUFFER,0,UW.moteArr);
   const im=m4ident(m4());
   drawUnlit({vao:UW.moteVao,count:UW.moteN},im,[0.85,0.92,0.95,0.4],{additive:true,point:3*DPR,depthWrite:false});
+  drawLineSpool(fishing.remaining==null?1:fishing.remaining);
 }
 function drawFishingLine(L){
   const bx=player.pos[0]; const verts=[L.x-0.03,L.y,0, L.x+0.03,L.y,0, bx+0.03,0.2,0, L.x-0.03,L.y,0, bx+0.03,0.2,0, bx-0.03,0.2,0];
@@ -1578,6 +1585,10 @@ function drawWeatherFX(sky){
   const c=fxx;
   // precipitation is now real 3D geometry (drawPrecip); only a soft fog wash remains here
   if(world.fog>0.4){ const g=c.createLinearGradient(0,H*0.35,0,H); g.addColorStop(0,`rgba(220,226,228,0)`); g.addColorStop(1,`rgba(216,224,226,${(world.fog-0.4)*0.5})`); c.fillStyle=g; c.fillRect(0,0,W,H); }
+  // line-spool label under the 3D reel (fishing)
+  if(Game.screen==='fish'){ const sw=Math.min(140,W*0.12); const cxp=W-18-sw/2; const pct=Math.round((fishing.remaining==null?1:fishing.remaining)*100);
+    c.textAlign='center'; c.fillStyle='#e8dcc0'; c.font='700 11px ui-sans-serif,system-ui'; c.fillText('LINE',cxp,128+sw+6);
+    c.fillStyle=pct<25?'#e88a70':'#bcd0d4'; c.font='700 15px ui-sans-serif,system-ui'; c.fillText(pct+'%',cxp,128+sw+22); c.textAlign='left'; }
   // spray flecks on the lens during storms
   if(world.storm>0.5){ c.fillStyle=`rgba(220,230,238,${(world.storm-0.5)*0.25})`; for(let i=0;i<14;i++){ const x=wrap(hash2(i,7)*W+Game.t*30,W); const y=wrap(hash2(i,13)*H+Game.t*12,H); c.beginPath(); c.arc(x,y,1.5+hash2(i,4)*2,0,TAU); c.fill(); } }
 }
@@ -2350,6 +2361,7 @@ function shipSpeed(){ return 1+player.shipTier*0.16; }
 function shipFuelUse(){ return Math.max(0.5,1-player.shipTier*0.06); }
 function shipHoldBonus(){ return player.shipTier*10; }
 function shipScale(){ return 1+player.shipTier*0.1; }
+function lineSpool(){ return UPGRADES.line.levels[player.upg.line].depth*95 + (player.shipTier||0)*10; }
 function openSkills(){ ensureLayer('layer-skills'); renderSkills(); Game.set('skills'); if(Sound.ui)Sound.ui(); }
 function renderSkills(){
   const L=document.getElementById('layer-skills'); let branches='';
@@ -2378,6 +2390,23 @@ function upgradeShip(){ const cost=player.shipTier+1; if(player.stars<cost){toas
   player.stars-=cost; player.shipTier++; player.upg={engine:0,sail:0,hull:0,line:0,lure:0,sonar:0}; applyUpgrades(); buildBoat();
   if(Sound.chime)Sound.chime(); toast(`Ship upgraded to Tier ${player.shipTier}!`,ic('boat')); renderSkills(); saveGame(); }
 function awardStar(n,why){ player.stars+=n; if(typeof toast==='function') toast(`+${n} captain star${n>1?'s':''} — ${why}`,ic('trophy')); if(Sound.chime)Sound.chime(); }
+
+/* ======================= 41. 3D LINE-SPOOL INDICATOR ================== */
+function drawLineSpool(rem){
+  if(!UW.spool||!gl) return;
+  const sz=Math.round(Math.min(140,W*0.12)*DPR), mx=Math.round(18*DPR), my=Math.round(128*DPR);
+  const vx=glc.width-sz-mx, vy=glc.height-sz-my;
+  gl.enable(gl.SCISSOR_TEST); gl.scissor(vx,vy,sz,sz); gl.viewport(vx,vy,sz,sz);
+  gl.clear(gl.DEPTH_BUFFER_BIT); gl.enable(gl.DEPTH_TEST);
+  const proj=m4persp(m4(),rad(38),1,0.1,20), eye=[1.7,1.15,2.6], view=m4lookAt(m4(),eye,[0,0,0],[0,1,0]);
+  const sVP=cam.vp,sPos=cam.pos; cam.vp=m4mul(m4(),proj,view); cam.pos=eye;
+  const sky=skyColors(), spin=Game.t*1.4, tilt=0.32, r=0.3+rem*0.66;
+  const lm=m4(); m4compose(lm,[0,0,0],spin,0,tilt,[r,1,r]);
+  drawLit(UW.spoolLine,lm,sky,{ambient:[0.62,0.6,0.55],tint:rem<0.25?[1,0.62,0.5]:[1,1,0.94],fogDensity:0,useSky:0,fogColor:[0,0,0]});
+  const mm=m4(); m4compose(mm,[0,0,0],spin,0,tilt,[1,1,1]);
+  drawLit(UW.spool,mm,sky,{ambient:[0.62,0.6,0.55],fogDensity:0,useSky:0,fogColor:[0,0,0]});
+  cam.vp=sVP; cam.pos=sPos; gl.disable(gl.SCISSOR_TEST); gl.viewport(0,0,glc.width,glc.height);
+}
 
 /*__MORE__*/
 </script>
