@@ -358,7 +358,7 @@ function resize(){
 window.addEventListener('resize',resize);
 
 /* ======================= 6. WORLD STATE • TIME • WEATHER ================= */
-const DAY_LENGTH=210;
+const DAY_LENGTH=165;
 const Game={screen:'boot',prev:'boot',t:0,frame:0,paused:false};
 Game.set=function(s){ this.prev=this.screen; this.screen=s; this.paused=!(s==='sail'||s==='fish'); if(typeof updateLayers==='function') updateLayers(); };
 const world={
@@ -962,7 +962,7 @@ function lerpAngle(a,b,t){ let d=((b-a+PI)%TAU)-PI; if(d<-PI)d+=TAU; return a+d*
 const player={
   money:120, fuel:60, fuelMax:60, bait:12, hull:100, hullMax:100,
   hold:[], cargo:{}, upg:{engine:0,sail:0,hull:0,line:0,lure:0,sonar:0},
-  pos:[420,0,0], speed:0, facing:1, yaw:0, targetYaw:0, motor:true,
+  pos:[420,0,0], speed:0, facing:1, yaw:0, targetYaw:0, headX:1, motor:true,
   regionDone:[false,false,false,false], earned:0, caughtLegendary:[false,false,false,false], discovered:{},
   records:{}, contracts:[], contractsDone:0, style:{hull:[176,76,58],sail:[244,238,222],cabin:[164,68,54]},
 };
@@ -971,15 +971,19 @@ function toggleMotor(){ player.motor=!player.motor; if(typeof toast==='function'
 function updatePlayer(dt){
   const eng=UPGRADES.engine.levels[player.upg.engine], sailU=UPGRADES.sail.levels[player.upg.sail];
   let dir=0; if(Input.left())dir=-1; else if(Input.right())dir=1;
+  if(dir) player.facing=dir;
+  // smooth, rate-limited turning — a boat comes about slowly, camera follows the heading
+  player.targetYaw=player.facing>0?0:PI;
+  let dy=((player.targetYaw-player.yaw+PI)%TAU)-PI; if(dy<-PI)dy+=TAU;
+  const turnRate=1.5; player.yaw+=clamp(dy,-turnRate*dt,turnRate*dt);
+  player.headX+=clamp(player.facing-player.headX,-dt*0.75,dt*0.75);
+  const align=clamp(Math.cos(dy),0,1);   // build speed only once roughly pointed the right way
   const motor=player.motor&&player.fuel>0; let thrust=0;
-  if(dir){ if(motor){ thrust=34*eng.spd*dir; player.fuel=Math.max(0,player.fuel-dt*1.5*eng.fuelUse*(0.5+Math.abs(player.speed)/26)); }
-    else { const align=0.35+0.65*clamp(dir*world.windDir*0.5+0.5,0,1); thrust=15*sailU.wind*(0.35+world.windStr*0.9)*align*dir; } }
-  player.speed+=(thrust-player.speed*2.3)*dt; player.pos[0]+=player.speed*dt;
+  if(dir){ if(motor){ thrust=30*eng.spd*dir*align; player.fuel=Math.max(0,player.fuel-dt*1.4*eng.fuelUse*(0.5+Math.abs(player.speed)/26)); }
+    else { const wal=0.35+0.65*clamp(dir*world.windDir*0.5+0.5,0,1); thrust=14*sailU.wind*(0.35+world.windStr*0.9)*wal*dir*align; } }
+  player.speed+=(thrust-player.speed*2.0)*dt; player.pos[0]+=player.speed*dt;
   const len=regionData().length;
   if(player.pos[0]<18){player.pos[0]=18;player.speed*=-.3;} if(player.pos[0]>len){player.pos[0]=len;player.speed*=-.3;}
-  if(Math.abs(player.speed)>0.4) player.facing=player.speed>0?1:-1;
-  player.targetYaw=player.facing>0?0:PI;
-  player.yaw=lerpAngle(player.yaw,player.targetYaw,1-Math.pow(0.02,dt));
   // storm hull damage far from port
   if(world.storm>0.55){ const np=nearestPort(); const far=!np||Math.abs(np.x-player.pos[0])>240;
     if(far){ player.hull=Math.max(0,player.hull-(world.storm-0.5)*dt*3.0/UPGRADES.hull.levels[player.upg.hull].armor);
@@ -992,12 +996,12 @@ function updateWorldSim(dt){ if(Game.screen==='sail') updatePlayer(dt); else if(
 /* ======================= 19. CAMERA RIG ================================= */
 function updateCameraRig(dt){
   if(Game.screen!=='sail') return;
-  const b=player.pos, f=player.facing;
+  const b=player.pos, h=player.headX;
   const s=seaSample(b[0],b[2],Game.t,choppy());
   const spd=clamp(Math.abs(player.speed)/14,0,1);
-  const dPos=[b[0]-f*(15+spd*3), s.y+8.2, b[2]+14.5];
-  const dTgt=[b[0]+f*(9+spd*4), s.y+2.2, b[2]-3];
-  const k=1-Math.pow(0.0016,dt);
+  const dPos=[b[0]-h*(15+spd*3), s.y+8.2, b[2]+14.5];
+  const dTgt=[b[0]+h*(9+spd*4), s.y+2.2, b[2]-3];
+  const k=1-Math.pow(0.0022,dt);
   cam.pos=vLerp(cam.pos,dPos,k); cam.target=vLerp(cam.target,dTgt,k);
   // shake decay + apply small positional shake
   if(view.shake>0){ view.shake=Math.max(0,view.shake-dt*1.4);
@@ -1195,7 +1199,7 @@ function spawnFish(nearX, atEdge){
   const depthFrac=rrange(def.depth[0],def.depth[1]);
   const y=-depthFrac*WORLD_DEPTH;
   const x=nearX + (atEdge? (chance(0.5)?-1:1)*rrange(34,46) : rrange(-40,40));
-  const z=rrange(-9,9);
+  const z=rrange(-2.2,2.2);
   const skittish = def.legendary || def.hits>=3;
   const schooling = def.hits===1 && def.len[1]<=30;
   const shoal = schooling? 4+rint(0,5) : 1;
@@ -1207,7 +1211,7 @@ function spawnFish(nearX, atEdge){
     if(fishing.school.length>26) break;
   }
 }
-function spawnInitialFish(){ fishing.school=[]; const n=15; for(let i=0;i<n;i++) spawnFish(player.pos[0],false);
+function spawnInitialFish(){ fishing.school=[]; const n=22; for(let i=0;i<n;i++) spawnFish(player.pos[0],false);
   UW.motes=[]; for(let i=0;i<UW.moteN;i++) UW.motes.push({x:player.pos[0]+rrange(-30,30),y:-rrange(2,WORLD_DEPTH),z:rrange(-16,16),vy:rrange(1,4),ph:rrange(0,TAU)});
   initJellies(player.pos[0]); }
 function toggleFishing(){
@@ -1232,29 +1236,29 @@ function updateFishing(dt){
   L.x+=L.vx*dt; L.y+=L.vy*dt;
   L.y=clamp(L.y,-fishing.maxDepthWorld,-1.2);
   L.x=clamp(L.x,player.pos[0]-15,player.pos[0]+15);
-  const attractR=3.2+lp.attract*0.055, fleeR=7.5, hitR=1.5+lp.power*0.5;
+  const attractR=3.6+lp.attract*0.06, fleeR=7.5, hitR=2.7+lp.power*0.7;
   fishing.hitFlash=Math.max(0,fishing.hitFlash-dt*3);
   // fish behaviour
   for(let k=fishing.school.length-1;k>=0;k--){
     const f=fishing.school[k]; f.cd=Math.max(0,f.cd-dt); f.flash=Math.max(0,f.flash-dt*3);
     f.wt-=dt; if(f.wt<=0){ f.dir+=rrange(-0.8,0.8); f.wt=rrange(0.5,1.6); }
     let dvx=Math.cos(f.dir)*f.def.spd*2.2, dvy=(f.band-f.pos[1])*0.6;
-    const dx=L.x-f.pos[0], dy=L.y-f.pos[1], dz=L.z-f.pos[2];
-    const dl=Math.hypot(dx,dy,dz);
+    const dx=L.x-f.pos[0], dy=L.y-f.pos[1];
+    const dl=Math.hypot(dx,dy);                    // 2D plane — reliable, readable catching
     if(f.skittish){ if(dl<fleeR){ const s=6.5*f.def.spd/(dl+0.5); dvx=-dx*s; dvy=-dy*s; f.dir=Math.atan2(0,-dx)||f.dir; } }
-    else { if(dl<attractR+lp.attract*0.02 && dl>hitR){ const s=1.9/(dl+0.3); dvx=dx*s*3.0; dvy=dy*s*3.0; } }
+    else { if(dl<attractR+lp.attract*0.02 && dl>hitR){ const s=2.1/(dl+0.3); dvx=dx*s*3.2; dvy=dy*s*3.2; } }
     f.vx=lerp(f.vx,dvx,1-Math.pow(0.02,dt)); f.vy=lerp(f.vy,dvy,1-Math.pow(0.02,dt));
-    f.pos[0]+=f.vx*dt; f.pos[1]+=f.vy*dt; f.pos[2]+=Math.sin(Game.t*0.6+f.phase)*0.4*dt*2;
+    f.pos[0]+=f.vx*dt; f.pos[1]+=f.vy*dt;
+    f.pos[2]+=(-f.pos[2])*dt*1.4 + Math.sin(Game.t*0.6+f.phase)*0.25*dt;  // hug the fishing plane
     f.pos[1]=clamp(f.pos[1],-WORLD_DEPTH+1,-1.5); f.phase+=dt*(5+f.def.spd*4);
     if(f.vx> 0.05) f.face=1; else if(f.vx<-0.05) f.face=-1;
-    // contact
-    if(dl<hitR+f.size*0.5 && f.cd<=0){ f.hp-=lp.power; f.cd=0.45; f.flash=1; fishing.hitFlash=1;
+    // contact — overlap on the plane grabs it
+    if(dl<hitR+f.size*0.6 && f.cd<=0){ f.hp-=lp.power; f.cd=0.4; f.flash=1; fishing.hitFlash=1;
       if(Sound.reel)Sound.reel(); spawnHitFX(f.pos);
       if(f.hp<=0){ landFish(f); fishing.school.splice(k,1); continue; } }
-    // recycle if too far from lure
-    if(Math.abs(f.pos[0]-L.x)>60) { fishing.school.splice(k,1); }
+    if(Math.abs(f.pos[0]-L.x)>62) { fishing.school.splice(k,1); }
   }
-  while(fishing.school.length<15) spawnFish(L.x,true);
+  while(fishing.school.length<22) spawnFish(L.x,true);
   updateJellies(dt);
   // motes drift up
   for(const mo of UW.motes){ mo.y+=mo.vy*dt*0.4; mo.x+=Math.sin(Game.t*0.3+mo.ph)*0.2*dt; if(mo.y>-1){ mo.y=-WORLD_DEPTH+rrange(0,4); mo.x=L.x+rrange(-30,30); mo.z=rrange(-16,16); } }
@@ -1774,13 +1778,13 @@ function newGame(){
   player.hold=[]; player.cargo={}; player.upg={engine:0,sail:0,hull:0,line:0,lure:0,sonar:0};
   player.regionDone=[false,false,false,false]; player.earned=0; player.caughtLegendary=[false,false,false,false]; player.discovered={};
   player.records={}; player.contracts=[]; player.contractsDone=0; player.style={hull:[176,76,58],sail:[244,238,222],cabin:[164,68,54]};
-  world.day=1; world.time=0.30; initEconomy(); applyUpgrades(); enterRegion(0); if(typeof buildBoat==='function')buildBoat(); Game.set('sail'); saveGame();
+  world.day=1; world.time=0.30; world.timeScale=1; initEconomy(); applyUpgrades(); enterRegion(0); if(typeof buildBoat==='function')buildBoat(); Game.set('sail'); saveGame();
 }
 function loadGame(s){
   Object.assign(player,{money:s.money,fuel:s.fuel,fuelMax:s.fuelMax||60,bait:s.bait,hull:s.hull,upg:s.upg,hold:s.hold||[],cargo:s.cargo||{},
     earned:s.earned||0,caughtLegendary:s.caughtLegendary||[false,false,false,false],regionDone:s.regionDone||[false,false,false,false],discovered:s.discovered||{},
     records:s.records||{},contractsDone:s.contractsDone||0,style:s.style||{hull:[176,76,58],sail:[244,238,222],cabin:[164,68,54]}});
-  world.day=s.day||1; world.time=s.time||0.3; if(s.eco){ ECO.fish=s.eco.fish; ECO.goods=s.eco.goods; }
+  world.day=s.day||1; world.time=s.time||0.3; world.timeScale=1; if(s.eco){ ECO.fish=s.eco.fish; ECO.goods=s.eco.goods; }
   if(s.muted&&Sound.ensure){ Sound.muted=true; }
   applyUpgrades(); enterRegion(s.region||0); if(typeof buildBoat==='function')buildBoat(); if(s.x) player.pos[0]=s.x; Game.set('sail');
 }
