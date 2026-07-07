@@ -1139,40 +1139,80 @@ function addKelp(m,x,y,z,h,seed,col,tip){
     addQuad(m,[px,py+0.02,pz],[nx,ny+0.02,nz],[nx+0.02,ny,nz+ww],[px+0.02,py,pz+w],mix(c,tip,0.2));
     px=nx;py=ny;pz=nz; }
 }
+// --- extra seabed-life builders (anemone, sponge, urchin, tube coral, blades) ---
+function addAnemone(m,x,y,z,r,col,tip){
+  addOcta(m,x,y+r*0.35,z,r*0.85,r*0.55,r*0.85,v3(shade(col,-0.1)));
+  const N=9; for(let i=0;i<N;i++){ const a=i/N*TAU;
+    addPrism(m,x+Math.cos(a)*r*0.55,y+r*0.95,z+Math.sin(a)*r*0.55,r*0.09,r*1.2,4,v3(tip),v3(mix(tip,[255,255,255],0.5))); }
+}
+function addSponge(m,x,y,z,r,h,col){
+  addPrism(m,x,y+h*0.5,z,r,h,9,v3(col),v3(mix(col,[255,255,255],0.16)));
+  addPrism(m,x,y+h*0.9,z,r*0.5,h*0.24,9,v3(shade(col,-0.42)));
+}
+function addUrchin(m,x,y,z,r,col){
+  addOcta(m,x,y+r*0.4,z,r*0.7,r*0.55,r*0.7,v3(col));
+  const N=12; for(let i=0;i<N;i++){ const a=i/N*TAU, e=0.6+((i*7)%5)/5*0.7;
+    addPrism(m,x+Math.cos(a)*r*0.45,y+r*0.5+e*r*0.35,z+Math.sin(a)*r*0.45,r*0.05,r*e,4,v3(mix(col,[15,15,25],0.35))); }
+}
+function addTubeCoral(m,x,y,z,col,rr){
+  const n=4+((rr()*4)|0); for(let i=0;i<n;i++){ const bx=x+(rr()*2-1)*1.1,bz=z+(rr()*2-1)*1.1,h=1.2+rr()*2.4;
+    addPrism(m,bx,y+h*0.5,bz,0.13+rr()*0.08,h,6,v3(col),v3(mix(col,[255,255,255],0.32))); }
+}
+function addBlade(m,x,y,z,h,lean,leanZ,col){ const w=0.08;
+  addQuad(m,[x-w,y,z],[x+w,y,z],[x+lean+w*0.5,y+h,z+leanZ],[x+lean-w*0.5,y+h,z+leanZ],col);
+}
+function addTuft(m,x,y,z,n,h,seed,col,tip){
+  for(let i=0;i<n;i++){ const a=(i/n+seed)*TAU, ox=Math.cos(a)*0.28, oz=Math.sin(a)*0.28;
+    const hh=h*(0.6+((i*13)%7)/7*0.7); addBlade(m,x+ox,y,z+oz,hh, Math.cos(a)*hh*0.28, Math.sin(a)*hh*0.18, mix(col,tip,(i%3)/3)); }
+}
 function buildSeabedLife(){
   const R=regionData(), m=Mesh(); const rr=mulberry32(1000+world.region*7);
   const nz=makeNoise1D(556);
   const hAt=(x,z)=>(fbm1(nz,(x*0.5+555)*0.02,3)+fbm1(nz,(z*0.5-222)*0.02,3))*5.0;
-  const N=90;
+  const cold=(R.id==='north'||R.id==='verge');
+  const N=190;
   for(let i=0;i<N;i++){
-    const x=(rr()*2-1)*190, z=(rr()*2-1)*95, y=hAt(x,z); const s=rr();
-    if(R.id==='north'||R.id==='verge'){
-      if(s<0.5){ for(let b=0;b<3;b++){ const h=16+rr()*22; addKelp(m,x+(rr()*2-1)*1.6,y,z+(rr()*2-1)*1.6,h,rr()*6,v3([40,86,60]),v3([120,150,90])); } }
-      else if(s<0.8){ addOcta(m,x,y+rr()*1.2,z,1+rr()*2,0.8+rr(),1+rr()*2,v3([70,74,78])); } // rock
-      else { addOcta(m,x,y+0.1,z,0.6,0.12,0.6,v3([200,120,80])); } // starfish
+    const x=(rr()*2-1)*195, z=(rr()*2-1)*100, y=hAt(x,z); const s=rr();
+    if(cold){
+      if(s<0.34){ for(let b=0;b<3;b++){ const h=16+rr()*24; addKelp(m,x+(rr()*2-1)*1.6,y,z+(rr()*2-1)*1.6,h,rr()*6,v3([40,86,60]),v3([120,150,90])); } }
+      else if(s<0.52){ addTuft(m,x,y,z,7,3+rr()*3,rr(),[54,96,70],[150,180,110]); }           // sea-grass tuft
+      else if(s<0.7){ addOcta(m,x,y+rr()*1.2,z,1+rr()*2,0.8+rr(),1+rr()*2,v3([70,74,78])); }    // boulder
+      else if(s<0.82){ addAnemone(m,x,y,z,0.7+rr()*0.5, R.id==='verge'?[70,140,180]:[190,110,120], R.id==='verge'?[130,255,220]:[240,200,180]); }
+      else if(s<0.92){ addUrchin(m,x,y,z,0.5+rr()*0.4,[40,44,60]); }
+      else { addOcta(m,x,y+0.1,z,0.55,0.11,0.55,v3(pick([[210,120,80],[230,180,90]]))); }       // starfish
     } else if(R.id==='trop'){
-      if(s<0.4){ // branching coral
-        const cols=[[224,110,120],[240,160,70],[150,110,200],[90,180,180]]; const cc=v3(pick(cols));
-        addOcta(m,x,y+0.4,z,0.7,0.6,0.7,cc);
+      if(s<0.28){ const cols=[[224,110,120],[240,160,70],[150,110,200],[90,180,180]]; const cc=pick(cols);
+        addOcta(m,x,y+0.4,z,0.7,0.6,0.7,v3(cc));
         for(let b=0;b<4;b++){ const bx=x+(rr()*2-1)*1.2, bz=z+(rr()*2-1)*1.2;
-          addPrism(m,bx,y+1+rr(),bz,0.16,1.4+rr()*1.4,6,cc,mix(cc,[255,255,255],0.3)); } }
-      else if(s<0.62){ addOcta(m,x,y+0.5,z,1.1,0.7,1.1,v3([210,180,120])); } // brain coral
-      else if(s<0.82){ // gorgonian sea-fan bush
-        const fc=v3(pick([[214,92,120],[186,112,196],[232,142,82]]));
-        for(let b=0;b<5;b++){ const ang=(b/4-0.5)*1.3; addKelp(m,x,y,z,2.6+rr()*2.4,ang*3.5,fc,mix(fc,[255,255,255],0.35)); } }
+          addPrism(m,bx,y+1+rr(),bz,0.16,1.4+rr()*1.4,6,v3(cc),v3(mix(cc,[255,255,255],0.3))); } }
+      else if(s<0.44){ addOcta(m,x,y+0.5,z,1.1,0.7,1.1,v3([210,180,120])); }                    // brain coral
+      else if(s<0.58){ const fc=pick([[214,92,120],[186,112,196],[232,142,82]]);
+        for(let b=0;b<5;b++){ const ang=(b/4-0.5)*1.3; addKelp(m,x,y,z,2.6+rr()*2.4,ang*3.5,v3(fc),v3(mix(fc,[255,255,255],0.35))); } }
+      else if(s<0.72){ addTubeCoral(m,x,y,z,pick([[230,120,110],[240,180,90],[170,120,210]]),rr); }
+      else if(s<0.84){ addAnemone(m,x,y,z,0.6+rr()*0.6,pick([[120,180,220],[240,150,90],[200,110,180]]),[255,240,180]); }
+      else if(s<0.93){ addUrchin(m,x,y,z,0.45+rr()*0.4,[30,30,50]); }
       else { addKelp(m,x,y,z,12+rr()*16,rr()*6,v3([60,150,120]),v3([160,220,140])); }
-    } else { // med: seagrass, rocks, amphora
-      if(s<0.55){ for(let b=0;b<4;b++) addKelp(m,x+(rr()*2-1),y,z+(rr()*2-1),4+rr()*6,rr()*6,v3([70,120,60]),v3([150,180,90])); }
-      else if(s<0.8){ addOcta(m,x,y+rr(),z,0.8+rr()*1.6,0.7+rr(),0.8+rr()*1.6,v3([120,112,92])); }
-      else { addPrism(m,x,y+0.9,z,0.5,1.8,10,v3([196,150,96]),v3([150,110,70])); } // amphora-ish
+    } else { // med
+      if(s<0.4){ addTuft(m,x,y,z,8,4+rr()*4,rr(),[70,120,60],[160,190,100]); }                  // posidonia meadow tuft
+      else if(s<0.58){ for(let b=0;b<4;b++) addKelp(m,x+(rr()*2-1),y,z+(rr()*2-1),4+rr()*6,rr()*6,v3([70,120,60]),v3([150,180,90])); }
+      else if(s<0.74){ addOcta(m,x,y+rr(),z,0.8+rr()*1.6,0.7+rr(),0.8+rr()*1.6,v3([120,112,92])); }
+      else if(s<0.85){ addSponge(m,x,y,z,0.5+rr()*0.4,1+rr()*1.4,[196,120,90]); }                // barrel sponge
+      else if(s<0.94){ addAnemone(m,x,y,z,0.55+rr()*0.4,[150,120,190],[220,200,240]); }
+      else { addPrism(m,x,y+0.9,z,0.5,1.8,10,v3([196,150,96]),v3([150,110,70])); }               // amphora
     }
   }
+  // dense low seagrass/shell scatter for ground texture
+  for(let i=0;i<300;i++){ const x=(rr()*2-1)*200, z=(rr()*2-1)*105, y=hAt(x,z); const q=rr();
+    if(q<0.55){ addTuft(m,x,y,z,4,1.4+rr()*1.6,rr(), cold?[52,92,66]:R.id==='trop'?[70,160,120]:[74,116,58], cold?[130,170,110]:[170,210,130]); }
+    else if(q<0.85){ addOcta(m,x,y+0.06,z,0.16+rr()*0.16,0.08,0.16+rr()*0.16,v3(shade([196,182,150],(rr()-0.5)*0.3))); } // pebbles/shells
+    else { addOcta(m,x,y+0.05,z,0.4,0.09,0.4,v3(pick([[214,120,90],[120,150,200],[230,200,120]]))); } }          // starfish/shell
   // tall pinnacles (reefs / rock towers) that rise into the mid-water
-  for(let i=0;i<8;i++){ const x=(rr()*2-1)*150,z=(rr()*2-1)*70,y=hAt(x,z); const hh=20+rr()*18;
-    const cc = R.id==='trop'? v3(pick([[224,110,120],[240,160,70],[120,180,180]])) : R.id==='med'? v3([130,120,96]) : v3([76,80,84]);
-    addPrism(m,x,y+hh/2,z,1.3+rr(),hh,7,cc,mix(cc,[255,255,255],0.2));
-    if(R.id!=='med') addKelp(m,x+1,y,z,hh*0.9,rr()*6, R.id==='trop'?v3([60,150,120]):v3([46,92,64]), v3([160,220,140]));
-  }
+  for(let i=0;i<10;i++){ const x=(rr()*2-1)*155,z=(rr()*2-1)*78,y=hAt(x,z); const hh=20+rr()*20;
+    const cc = R.id==='trop'? pick([[224,110,120],[240,160,70],[120,180,180]]) : R.id==='med'? [130,120,96] : [76,80,84];
+    addPrism(m,x,y+hh/2,z,1.3+rr(),hh,7,v3(cc),v3(mix(cc,[255,255,255],0.2)));
+    if(R.id==='trop') addTubeCoral(m,x+1,y+hh*0.5,z,[240,170,90],rr);
+    else if(R.id!=='med') addKelp(m,x+1,y,z,hh*0.9,rr()*6, v3([46,92,64]), v3([160,220,140]));
+    if(cold&&rr()<0.6) addAnemone(m,x-1,y+hh*0.4,z,0.6,[80,150,190],[150,255,220]); }
   if(UW.decor&&UW.decor.vao) gl.deleteVertexArray(UW.decor.vao);
   UW.decor=meshToVAO(m);
 }
@@ -1180,7 +1220,7 @@ function buildSeabedLife(){
 /* ---- Jellyfish (drifting life) ----------------------------------------- */
 function initJellies(x){
   UW.jellies=[]; const pal=regionData().id==='trop'?[255,150,180]:regionData().id==='med'?[180,160,255]:regionData().id==='verge'?[120,255,200]:[150,200,255];
-  const n=6; for(let i=0;i<n;i++) UW.jellies.push({x:x+rrange(-30,30),y:-rrange(8,WORLD_DEPTH-6),z:rrange(-14,14),ph:rrange(0,TAU),vy:rrange(-0.6,0.6),col:pal});
+  const n=11; for(let i=0;i<n;i++) UW.jellies.push({x:x+rrange(-34,34),y:-rrange(8,WORLD_DEPTH-6),z:rrange(-15,15),ph:rrange(0,TAU),vy:rrange(-0.6,0.6),col:pal});
 }
 function updateJellies(dt){ for(const j of UW.jellies){ j.ph+=dt*1.2; j.y+=Math.sin(j.ph)*0.3*dt + j.vy*dt;
   if(j.y>-4||j.y<-WORLD_DEPTH+3) j.vy*=-1; j.y=clamp(j.y,-WORLD_DEPTH+3,-4); } }
@@ -1201,6 +1241,30 @@ function drawJellies(sky){
       gl.uniform4f(unlitProg.u('uColor'),cr,cg,cb,0.10); gl.uniform1f(unlitProg.u('uPoint'),sz*0.35); gl.drawArrays(gl.POINTS,0,1); }
   }
   gl.bindVertexArray(null); gl.depthMask(true); gl.disable(gl.BLEND);
+}
+
+/* ---- Ambient background shoals (non-catchable, pure life) --------------- */
+function initAmbient(cx){
+  UW.ambient=[]; const R=regionData();
+  const cols = R.id==='trop'?[[255,200,90],[110,205,225],[240,140,90],[150,220,180]]
+    : R.id==='med'?[[186,205,214],[120,172,182],[214,200,158],[150,190,170]]
+    : R.id==='verge'?[[120,200,230],[150,255,210],[120,150,205],[90,230,255]]
+    : [[172,192,202],[150,178,192],[124,152,172],[190,205,210]];
+  const shoals=6;
+  for(let s=0;s<shoals;s++){ const sx=cx+rrange(-42,42), sy=-rrange(6,WORLD_DEPTH-8), sz=rrange(-15,15), col=pick(cols), n=9+((RNG()*9)|0), glow=(R.id==='verge'&&chance(0.4));
+    for(let i=0;i<n;i++) UW.ambient.push({x:sx+rrange(-5,5),y:sy+rrange(-3,3),z:sz+rrange(-5,5),dir:rrange(0,TAU),spd:rrange(2.2,4.2),ph:rrange(0,TAU),size:rrange(0.05,0.11),col,glow,slim:chance(0.5)}); }
+}
+function updateAmbient(dt){ if(!UW.ambient) return; const L=fishing.lure;
+  for(const a of UW.ambient){ a.ph+=dt*(6+a.spd); a.dir+=Math.sin(Game.t*0.4+a.ph)*dt*0.9;
+    a.x+=Math.cos(a.dir)*a.spd*dt; a.y+=Math.sin(a.ph)*0.35*dt; a.z+=Math.sin(a.dir)*a.spd*0.3*dt;
+    a.y=clamp(a.y,-WORLD_DEPTH+2,-3); if(a.z>18||a.z<-18){ a.dir=PI-a.dir; a.z=clamp(a.z,-18,18); }
+    if(a.x-L.x>48){a.x-=96;} else if(a.x-L.x<-48){a.x+=96;}
+    a.face=Math.cos(a.dir)>=0?1:-1; }
+}
+function drawAmbient(sky,litOpts){ if(!UW.ambient) return;
+  for(const a of UW.ambient){ const mesh=a.slim?UW.fishSlim:UW.fishRound; const yaw=a.face===-1?PI:0;
+    const sc=a.size*2.2; const m=m4(); m4compose(m,[a.x,a.y,a.z],yaw+Math.sin(a.ph)*0.22,0,0,[sc,sc,sc]);
+    drawLit(mesh,m,sky,Object.assign({},litOpts,{tint:v3(a.col),emissive:a.glow?0.4+0.2*Math.sin(Game.t*3+a.ph):0,fogDensity:0.02})); }
 }
 
 /* ======================= 21. FISHING SIM ================================ */
@@ -1233,7 +1297,7 @@ function spawnInitialFish(){ fishing.school=[]; for(let i=0;i<18;i++) spawnFish(
   const R=regionData(); const big=R.fish.filter(id=>!FISH[id].legendary).sort((a,b)=>FISH[b].len[1]-FISH[a].len[1]).slice(0,3);
   for(const id of big) spawnFish(player.pos[0],false,id);
   UW.motes=[]; for(let i=0;i<UW.moteN;i++) UW.motes.push({x:player.pos[0]+rrange(-30,30),y:-rrange(2,WORLD_DEPTH),z:rrange(-16,16),vy:rrange(1,4),ph:rrange(0,TAU)});
-  initJellies(player.pos[0]); }
+  initJellies(player.pos[0]); initAmbient(player.pos[0]); }
 function toggleFishing(){
   if(Game.screen==='sail'){
     if(Math.abs(player.speed)>3){ toast('Slow down to drop your line',ic('rod')); return; }
@@ -1283,7 +1347,7 @@ function updateFishing(dt){
     if(Math.abs(f.pos[0]-L.x)>62) { fishing.school.splice(k,1); }
   }
   while(fishing.school.length<22) spawnFish(L.x,true);
-  updateJellies(dt);
+  updateJellies(dt); updateAmbient(dt);
   // motes drift up
   for(const mo of UW.motes){ mo.y+=mo.vy*dt*0.4; mo.x+=Math.sin(Game.t*0.3+mo.ph)*0.2*dt; if(mo.y>-1){ mo.y=-WORLD_DEPTH+rrange(0,4); mo.x=L.x+rrange(-30,30); mo.z=rrange(-16,16); } }
   updateFishCamera(dt);
@@ -1325,6 +1389,8 @@ function renderUnderwater(sky){
   const sbModel=m4(); m4trans(sbModel,L.x,-WORLD_DEPTH,0);
   drawLit(UW.seabed,sbModel,sky,Object.assign({},litOpts,{fogDensity:0.015}));
   if(UW.decor) drawLit(UW.decor,sbModel,sky,Object.assign({},litOpts,{fogDensity:0.013}));
+  // ambient background shoals (distant life)
+  drawAmbient(sky,litOpts);
   // fish
   for(const f of fishing.school){
     const tint=v3(hex2rgb(f.def.col));
