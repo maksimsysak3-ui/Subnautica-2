@@ -1127,6 +1127,13 @@ function updatePlayer(dt){
   if(typeof updateBoatSystems==='function') updateBoatSystems(dt, !!(dir&&motor));
   player.speed+=(thrust-player.speed*2.0)*dt; player.pos[0]+=player.speed*dt;
   if(typeof currentPush==='function') player.pos[0]+=currentPush()*dt*(typeof techNav==='function'?techNav():1);  // the current carries you
+  // shoals: scraping a sandbar at low tide slows you, scuffs the hull and fouls it — time your passage to the tide
+  if(COAST.shoals){ for(const s of COAST.shoals){ if(Math.abs(player.pos[0]-s.x)<s.w){
+    if(world.tide<0.45){ const sev=(0.45-world.tide)/0.45; player.speed*=Math.pow(0.12,dt);
+      player.hull=Math.max(0,player.hull-dt*1.6*sev); player.fouling=clamp((player.fouling||0)+dt*0.03*sev,0,1);
+      view.shake=Math.min(0.7,view.shake+dt*1.2);
+      if(Game.frame%55===0) toast('Scraping a sandbar — wait for the tide, or push through',ic('waves')); }
+    break; } } }
   const len=regionData().length;
   if(player.pos[0]<18){player.pos[0]=18;player.speed*=-.3;} if(player.pos[0]>len){player.pos[0]=len;player.speed*=-.3;}
   // storm hull damage far from port
@@ -1983,6 +1990,9 @@ function buildCoast(){
   COAST.len=len; COAST.buoys=[]; COAST.boats=[];
   for(let x=180;x<len;x+=rrange(150,320)){ COAST.buoys.push({x,z:rrange(-30,10),col:chance(0.5)?[200,72,60]:[70,120,170]}); }
   for(let i=0;i<5;i++){ COAST.boats.push({x0:rrange(0,len),z:rrange(-46,-14),spd:rrange(2.5,5)*(chance(0.5)?1:-1),tint:[0.86+rnd()*0.14,0.86,0.9]}); }
+  // sandbars / shoals across the sailing lane — a hazard at low tide (avoid the ports)
+  COAST.shoals=[]; for(let x=rrange(360,700); x<len-220; x+=rrange(760,1500)){
+    if(R.ports.some(p=>Math.abs(p.x-x)<140)) continue; COAST.shoals.push({x,w:rrange(26,46),seed:rnd()}); }
 }
 function buildGullMesh(){ const m=Mesh(); const c=[0.32,0.32,0.34];
   addTri(m,[0,0,0],[-1.2,0.05,-0.35],[-0.5,0,0.25],c); addTri(m,[0,0,0],[0.5,0,0.25],[1.2,0.05,-0.35],c);
@@ -1993,11 +2003,19 @@ function buildGullMesh(){ const m=Mesh(); const c=[0.32,0.32,0.34];
   addBox(b,0,1.35,0,0.06,0.95,0.06,[0.28,0.28,0.3]);
   addOcta(b,0,2.4,0,0.14,0.18,0.14,[0.18,0.18,0.2]);
   COAST.buoyMesh=meshToVAO(b);
+  // sandbar — a low sandy dome (unit; scaled per shoal)
+  const sb=Mesh(); const sand=[0.86,0.78,0.6], sandW=[0.92,0.86,0.7];
+  addPrism(sb,0,-0.5,0,1,1.0,12,sand,sandW); addPrism(sb,0,0.18,0,0.7,0.4,12,sandW,[0.95,0.9,0.76]);
+  COAST.sandbar=meshToVAO(sb);
 }
 function drawCoast3D(sky){
   if(!COAST.mesh) return;
   drawLit(COAST.mesh,COAST_MODEL,sky,{fogDensity:0.0016,fogWeather:world.fog*0.9+world.storm*0.3});
   const t=Game.t, ch=choppy();
+  // sandbars — rise clear of the water at low tide, submerge at high tide
+  if(COAST.sandbar&&COAST.shoals){ const exposure=1-world.tide; for(const s of COAST.shoals){
+    const by=-2.0 + exposure*2.2, sw=s.w*0.5, mo=m4(); m4compose(mo,[s.x,by,-2+s.seed*6],s.seed*6,0,0,[sw,1,sw*0.7]);
+    drawLit(COAST.sandbar,mo,sky,{fogDensity:0.0016,fogWeather:world.fog*0.6}); } }
   // navigation buoys bobbing on the swell
   if(COAST.buoyMesh&&COAST.buoys) for(const b of COAST.buoys){ const s=seaSample(b.x,b.z,t,ch), fwd=seaSample(b.x+1.2,b.z,t,ch), sd=seaSample(b.x,b.z+1.2,t,ch);
     const mo=m4(); m4compose(mo,[b.x,s.y-0.4,b.z],0,Math.atan2(fwd.y-s.y,1.2),Math.atan2(sd.y-s.y,1.2),[1,1,1]);
