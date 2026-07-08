@@ -32,9 +32,13 @@
   .layer.fade{animation:fadein .45s ease both;}
   @keyframes fadein{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
 
+  @keyframes panelIn{from{opacity:0;transform:translateY(14px) scale(.985)}to{opacity:1;transform:none}}
+  @keyframes scrimIn{from{opacity:0}to{opacity:1}}
   .panel{position:relative;background:linear-gradient(180deg,rgba(255,251,240,.96),rgba(238,222,190,.96));color:var(--ink);
     border-radius:16px;box-shadow:var(--panel-shadow),inset 0 0 0 1px rgba(120,90,50,.25),inset 0 2px 0 rgba(255,255,255,.6);
-    padding:26px 30px;max-width:min(960px,94vw);max-height:92vh;overflow:auto;border:1px solid rgba(120,90,50,.3);}
+    padding:26px 30px;max-width:min(960px,94vw);max-height:92vh;overflow:auto;border:1px solid rgba(120,90,50,.3);
+    animation:panelIn .3s cubic-bezier(.2,.7,.2,1) both;}
+  .scrim{animation:scrimIn .3s ease both;}
   h1,h2,h3,h4{font-family:var(--serif);margin:0 0 .4em;font-weight:600;color:#2a3942;}
   .kicker{font-family:var(--sans);letter-spacing:.32em;text-transform:uppercase;font-size:11px;color:var(--gold-deep);font-weight:700;}
   .btn{font-family:var(--serif);font-size:17px;cursor:pointer;border:none;padding:12px 22px;border-radius:11px;color:#fff8ea;
@@ -2602,19 +2606,45 @@ function openHelp(fromTitle){
   L.querySelector('#h-ok').onclick=()=>{ if(fromTitle) openTitle(); else Game.set(Game.prev==='pause'?'pause':'sail'); if(Game.prev==='pause'&&!fromTitle) openPause(); };
   Game.set('help');
 }
+function coastChartSVG(){
+  const R=regionData(), len=R.length; const W=780, H=150, padL=24, padR=24, mw=W-padL-padR;
+  const X=x=>padL+clamp(x/len,0,1)*mw;
+  const hills=hex2rgb(R.hills[1]), water=hex2rgb(R.water.top), sand=[214,198,160];
+  let g=`<rect x=0 y=0 width=${W} height=${H} rx=10 fill="rgb(${water[0]},${water[1]},${water[2]})"/>`;
+  // coastline ribbon (land across the top)
+  let path=`M0 0 L${W} 0 L${W} 52`; for(let i=8;i>=0;i--){ const px=padL+mw*(i/8); path+=` L${px} ${44+Math.sin(i*1.7)*7}`; } path+=` L0 52 Z`;
+  g+=`<path d="${path}" fill="rgb(${hills[0]},${hills[1]},${hills[2]})"/>`;
+  g+=`<path d="M0 54 L${W} 54" stroke="rgb(${sand[0]},${sand[1]},${sand[2]})" stroke-width=6 opacity=.8/>`;
+  // end headlands
+  g+=`<path d="M0 8 l18 0 l-6 46 l-12 0 z" fill="rgb(${hills[2]},${hills[1]},${hills[0]})" opacity=.85/><path d="M${W} 8 l-18 0 l6 46 l12 0 z" fill="rgb(${hills[2]},${hills[1]},${hills[0]})" opacity=.85/>`;
+  // shoals (if any this region)
+  if(typeof COAST!=='undefined'&&COAST.shoals) for(const s of COAST.shoals){ const sx=X(s.x); g+=`<path d="M${sx-8} 66 q8 -6 16 0 q-8 5 -16 0" fill="none" stroke="#e7d6b4" stroke-width=1.6 opacity=.7/><path d="M${sx-5} 72 q5 -4 10 0" fill="none" stroke="#e7d6b4" stroke-width=1.4 opacity=.5/>`; }
+  // ports
+  for(const p of R.ports){ const seen=p.kind==='home'||(player.seenPorts&&player.seenPorts[p.name]); const px=X(p.x);
+    g+=`<line x1=${px} y1=54 x2=${px} y2=70 stroke="${seen?'#e6c07a':'#5c6a70'}" stroke-width=1.5/>`;
+    g+=`<circle cx=${px} cy=52 r=${p.kind==='home'?6:4.5} fill="${seen?(p.kind==='home'?'#f0c877':'#d8ccaa'):'#48565c'}" stroke="#2a3238" stroke-width=1/>`;
+    if(seen){ g+=`<text x=${px} y=${p.kind==='home'?30:40} text-anchor="middle" font-size=10 fill="#f4ead4" font-family="ui-sans-serif">${p.name}</text>`; }
+    else g+=`<text x=${px} y=40 text-anchor="middle" font-size=9 fill="#8a949a" font-family="ui-sans-serif">?</text>`; }
+  // your boat
+  const bx=X(player.pos[0]);
+  g+=`<g transform="translate(${bx},94)"><path d="M-8 0 q8 7 16 0 l-3 6 q-5 3 -10 0 z" fill="#b0563e"/><rect x=-1 y=-9 width=2 height=9 fill="#8a6a3a"/><path d="M1 -8 q6 3 7 8 h-7 z" fill="#f0ead6"/></g>`;
+  g+=`<text x=${bx} y=118 text-anchor="middle" font-size=9 fill="#ffd98a" font-family="ui-sans-serif">You</text>`;
+  // scale + goal
+  g+=`<text x=${padL} y=${H-6} font-size=9 fill="#9fb3bb" font-family="ui-sans-serif">◀ ${R.name.replace(/^The /,'')} ▶</text>`;
+  g+=`<text x=${W-padR} y=${H-6} text-anchor="end" font-size=9 fill="#9fb3bb" font-family="ui-sans-serif">${ic(seasonNow().icon,10)?'':''}${seasonNow().name} · ${tideName()} tide</text>`;
+  return `<svg viewBox="0 0 ${W} ${H}" width="100%" style="display:block;border-radius:10px" xmlns="http://www.w3.org/2000/svg">${g.replace(/\s*\/>/g,' />')}</svg>`;
+}
 function openMap(){
   const L=document.getElementById('layer-map'); const R=regionData();
   let regs=REGIONS.map((rg,i)=>{ const done=player.regionDone[i]; const locked=i>0&&!player.regionDone[i-1];
     const cur=i===world.region;
-    return `<div class="shop-item" style="${cur?'outline:2px solid var(--gold)':''}"><div class="ic">${ic(RICON[rg.id],26)}</div><div class="meta"><h4>${rg.name} ${done?ic('check',15):locked?ic('lock',15):''}</h4>
-      <p>${rg.blurb}</p><p class="muted">Goal: earn ${coinStr(rg.goal.earn)} &amp; land the ${FISH[rg.legendary].name.replace(/^The /,"")}.</p></div></div>`; }).join('');
-  let ports=R.ports.map(p=>{ const seen=p.kind==='home'||(player.seenPorts&&player.seenPorts[p.name]);
-    return seen?`<span class="tag">${ic(p.icon,13)} ${p.name}${p.kind==='home'?' '+ic('anchor',12):''}</span>`:`<span class="tag" style="opacity:.5">${ic('waves',12)} uncharted</span>`; }).join(' ');
-  L.innerHTML=`<div class="scrim"></div><div class="panel" style="max-width:640px;position:relative">
-    <div class="kicker">Ship's Chart</div><h1>${ic('map',30)} The Three Coasts</h1>
-    <div class="grid" style="margin-top:6px">${regs}</div>
-    <h3 style="margin-top:16px">Harbours of ${R.name}</h3><div class="row">${ports}</div>
-    <div class="row" style="justify-content:center;margin-top:16px"><button class="btn gold" id="m-ok">Close</button></div></div>`;
+    return `<div class="shop-item" style="padding:8px 10px;${cur?'outline:2px solid var(--gold)':''};${locked?'opacity:.5':''}"><div class="ic">${ic(RICON[rg.id],24)}</div><div class="meta"><h4 style="font-size:14px">${rg.sub||('Ch '+(i+1))} · ${rg.name} ${done?ic('check',14):locked?ic('lock',13):cur?'<span class="tag" style="background:rgba(200,150,70,.2)">here</span>':''}</h4>
+      <p class="muted" style="font-size:11.5px">Goal: ${coinStr(rg.goal.earn)} &amp; the ${FISH[rg.legendary].name.replace(/^The /,"")}${done?' — mastered':''}.</p></div></div>`; }).join('');
+  L.innerHTML=`<div class="scrim"></div><div class="panel" style="max-width:820px;position:relative">
+    <div class="kicker">Ship's Chart</div><h1 style="margin:.1em 0">${ic('map',28)} The Four Coasts</h1>
+    <div style="margin:8px 0 4px">${coastChartSVG()}</div>
+    <div class="grid" style="grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">${regs}</div>
+    <div class="row" style="justify-content:center;margin-top:14px"><button class="btn gold" id="m-ok">Close</button></div></div>`;
   L.querySelector('#m-ok').onclick=()=>Game.set(Game.prev==='pause'?'pause':'sail');
   Game.set('map');
 }
