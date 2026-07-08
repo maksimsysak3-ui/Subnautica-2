@@ -1437,11 +1437,33 @@ function drawAmbient(sky,litOpts){ if(!UW.ambient) return;
 /* ======================= 21. FISHING SIM ================================ */
 const WORLD_DEPTH=58;
 const fishing={ active:false, lure:{x:0,y:-2,z:0,vx:0,vy:0,vz:0}, maxDepthWorld:48, school:[], hitFlash:0, msg:'', fight:null };
+/* ---- Tackle & Rigs: a strategic loadout, a different axis from the permanent
+       Line/Lure upgrades (spool depth, hit-box) and research (flat multipliers).
+       Line class trades bite-rate against snap-resistance; bait picks your quarry. */
+const LINE_CLASSES={
+  light:{name:'Light line',attract:1.26,tension:1.42,desc:'More bites — but it snaps easily on a big fish’s runs.'},
+  standard:{name:'Standard line',attract:1.0,tension:1.0,desc:'A balanced all-rounder.'},
+  heavy:{name:'Heavy line',attract:0.80,tension:0.64,desc:'Warier, fewer bites — but rides out the fiercest runs.'}};
+const BAITS={
+  worm:{name:'Worms',bias:'small',attract:1.0,threat:1.0,desc:'Cheap and steady — favours small &amp; mid fish.'},
+  squid:{name:'Squid strips',bias:'predator',attract:1.06,threat:1.18,desc:'Tempts big predators; tiddlers ignore it.'},
+  spinner:{name:'Spinner',bias:'flashy',attract:1.12,threat:1.0,desc:'Flash draws bright, fast mid-water fish.'},
+  chum:{name:'Chum slick',bias:'all',attract:1.34,threat:1.7,desc:'Draws everything fast — including what hunts you.'}};
+const FLASHY=new Set(['mahi','parrot','angelfish','triggerfish','snapper','dorade','mackerel','sardine','herring','capelin']);
+function rigLine(){ return LINE_CLASSES[(player.rig&&player.rig.line)||'standard']||LINE_CLASSES.standard; }
+function rigBait(){ return BAITS[(player.rig&&player.rig.bait)||'worm']||BAITS.worm; }
+function rigAttract(){ return rigLine().attract*rigBait().attract; }
+function rigBaitThreat(){ return rigBait().threat; }
+function baitBias(id){ const d=FISH[id], b=rigBait().bias; const big=d.len[1]>=70||d.hits>=3, small=d.len[1]<=30;
+  if(b==='small') return small?1.5:big?0.6:1.0;
+  if(b==='predator') return big?1.75:small?0.4:1.0;
+  if(b==='flashy') return FLASHY.has(id)?1.7:0.85;
+  return 1.0; }
 function fishValue(def,len){ const t=inv(def.len[0],def.len[1],len)||0; return Math.round(def.base*(0.7+0.6*clamp(t,0,1))*(typeof techValue==='function'?techValue():1)); }
 function pickFishId(){
   const R=regionData(); const ids=R.fish.filter(id=>!FISH[id].legendary);
   if(chance(0.015*fishSeasonMult(R.legendary))&&FISH[R.legendary]) return R.legendary;
-  let tot=0; const w=[]; for(const k of ids){ const d=FISH[k]; const ew=d.weight*(0.4+d.len[1]/70)*fishSeasonMult(k); w.push(ew); tot+=ew; }
+  let tot=0; const w=[]; for(const k of ids){ const d=FISH[k]; const ew=d.weight*(0.4+d.len[1]/70)*fishSeasonMult(k)*(typeof baitBias==='function'?baitBias(k):1); w.push(ew); tot+=ew; }
   let r=rnd()*tot; for(let i=0;i<ids.length;i++){ r-=w[i]; if(r<=0) return ids[i]; } return ids[0];
 }
 function spawnFish(nearX, atEdge, forceId){
@@ -1496,7 +1518,7 @@ function updateFishing(dt){
   let dxl=L.x-bx, dyl=-L.y, len=Math.hypot(dxl,dyl);
   if(len>spoolMax){ const s=spoolMax/len; L.x=bx+dxl*s; L.y=-dyl*s; if(L.y>-1.2)L.y=-1.2; len=spoolMax; if(L.vy>0)L.vy*=0.4; }
   fishing.lineOut=len; fishing.remaining=clamp(1-len/spoolMax,0,1);
-  const attractR=(3.6+lp.attract*0.06)*homeAttract()*(typeof techAttractR==='function'?techAttractR():1)*(typeof tideBite==='function'?tideBite():1), fleeR=7.5, hitR=1.7+lp.power*0.5; fishing.hitR=hitR;
+  const attractR=(3.6+lp.attract*0.06)*homeAttract()*(typeof techAttractR==='function'?techAttractR():1)*(typeof tideBite==='function'?tideBite():1)*(typeof rigAttract==='function'?rigAttract():1), fleeR=7.5, hitR=1.7+lp.power*0.5; fishing.hitR=hitR;
   fishing.hitFlash=Math.max(0,fishing.hitFlash-dt*3);
   // fish behaviour
   for(let k=fishing.school.length-1;k>=0;k--){
@@ -2423,6 +2445,17 @@ function chandlerHTML(port){
       <div class="row" style="margin-top:6px"><button class="btn small" onclick="buyBait(5)">+5</button><button class="btn small" onclick="buyBait(20)">+20</button></div></div></div>
     <div class="shop-item"><div class="ic">${ic('wrench',26)}</div><div class="meta"><h4>Repairs</h4><p>Hull ${Math.round(player.hull)}/${player.hullMax} · ${ic('coin',12)} 4/pt</p>
       <div class="row" style="margin-top:6px"><button class="btn small gold" ${hullNeed?'':'disabled'} onclick="repairHull()">Repair ${ic('coin',12)}${hullNeed*4}</button></div></div></div>
+    ${tackleHTML()}
+  </div>`;
+}
+function setRig(field,val){ if(!player.rig)player.rig={line:'standard',bait:'worm'}; player.rig[field]=val; if(Sound.ui)Sound.ui(); renderTown(); saveGame(); }
+function tackleHTML(){ const rig=player.rig||{line:'standard',bait:'worm'};
+  const lineBtns=Object.keys(LINE_CLASSES).map(k=>`<button class="btn small ${rig.line===k?'gold':'ghost'}" onclick="setRig('line','${k}')">${LINE_CLASSES[k].name}</button>`).join(' ');
+  const baitBtns=Object.keys(BAITS).map(k=>`<button class="btn small ${rig.bait===k?'gold':'ghost'}" onclick="setRig('bait','${k}')">${BAITS[k].name}</button>`).join(' ');
+  return `<div class="shop-item" style="grid-column:1/-1;flex-direction:column;align-items:stretch;gap:8px">
+    <div class="row" style="align-items:center;gap:8px"><div class="ic">${ic('rod',24)}</div><b>Tackle &amp; Rig</b><span class="muted" style="font-size:12px">— switch freely; a strategic trade-off, separate from your permanent Line upgrade</span></div>
+    <div><div class="kicker">Line class</div><div class="row" style="gap:6px;margin:3px 0 2px;flex-wrap:wrap">${lineBtns}</div><p class="muted" style="font-size:12px;margin:0">${LINE_CLASSES[rig.line].desc}</p></div>
+    <div><div class="kicker">Bait</div><div class="row" style="gap:6px;margin:3px 0 2px;flex-wrap:wrap">${baitBtns}</div><p class="muted" style="font-size:12px;margin:0">${BAITS[rig.bait].desc}</p></div>
   </div>`;
 }
 function shipwrightHTML(port){
@@ -2502,7 +2535,7 @@ function saveGame(){ try{ localStorage.setItem(SAVE_KEY, JSON.stringify({
   money:player.money,fuel:player.fuel,fuelMax:player.fuelMax,bait:player.bait,hull:player.hull,
   upg:player.upg,hold:player.hold,cargo:player.cargo,region:world.region,day:world.day,time:world.time,
   earned:player.earned,caughtLegendary:player.caughtLegendary,regionDone:player.regionDone,discovered:player.discovered,eco:ECO,x:player.pos[0],
-  records:player.records,contractsDone:player.contractsDone,style:player.style,stars:player.stars,shipTier:player.shipTier,home:player.home,rep:player.rep,quests:player.quests,rp:player.rp,tech:player.tech,engineWear:player.engineWear,fouling:player.fouling,seenPorts:player.seenPorts,muted:Sound.muted
+  records:player.records,contractsDone:player.contractsDone,style:player.style,stars:player.stars,shipTier:player.shipTier,home:player.home,rep:player.rep,quests:player.quests,rp:player.rp,tech:player.tech,engineWear:player.engineWear,fouling:player.fouling,seenPorts:player.seenPorts,rig:player.rig,muted:Sound.muted
 })); }catch(e){} }
 function loadSave(){ try{ const s=localStorage.getItem(SAVE_KEY); return s?JSON.parse(s):null; }catch(e){ return null; } }
 function newGame(){
@@ -2511,7 +2544,7 @@ function newGame(){
   player.regionDone=[false,false,false,false]; player.earned=0; player.caughtLegendary=[false,false,false,false]; player.discovered={};
   player.records={}; player.contracts=[]; player.contractsDone=0; player.stars=0; player.shipTier=0; player.style={hull:[176,76,58],sail:[244,238,222],cabin:[164,68,54]};
   player.home={built:{},stock:{},accrued:0,lastDay:1}; player.rep={north:0,trop:0,med:0,verge:0}; player.quests={};
-  player.rp=0; player.tech={}; player.engineWear=0; player.fouling=0; player.seenPorts={};
+  player.rp=0; player.tech={}; player.engineWear=0; player.fouling=0; player.seenPorts={}; player.rig={line:'standard',bait:'worm'};
   world.day=1; world.time=0.30; world.timeScale=1; updateSeason(); initEconomy(); applyUpgrades(); enterRegion(0); if(typeof buildBoat==='function')buildBoat(); Game.set('sail'); saveGame();
 }
 function loadGame(s){
@@ -2519,7 +2552,7 @@ function loadGame(s){
     earned:s.earned||0,caughtLegendary:s.caughtLegendary||[false,false,false,false],regionDone:s.regionDone||[false,false,false,false],discovered:s.discovered||{},
     records:s.records||{},contractsDone:s.contractsDone||0,stars:s.stars||0,shipTier:s.shipTier||0,style:s.style||{hull:[176,76,58],sail:[244,238,222],cabin:[164,68,54]},
     home:s.home||{built:{},stock:{},accrued:0,lastDay:1},rep:s.rep||{north:0,trop:0,med:0,verge:0},quests:s.quests||{},
-    rp:s.rp||0,tech:s.tech||{},engineWear:s.engineWear||0,fouling:s.fouling||0,seenPorts:s.seenPorts||{}});
+    rp:s.rp||0,tech:s.tech||{},engineWear:s.engineWear||0,fouling:s.fouling||0,seenPorts:s.seenPorts||{},rig:s.rig||{line:'standard',bait:'worm'}});
   if(!player.home.built)player.home.built={}; if(!player.home.stock)player.home.stock={};
   world.day=s.day||1; world.time=s.time||0.3; world.timeScale=1; updateSeason(); if(s.eco){ ECO.fish=s.eco.fish; ECO.goods=s.eco.goods; }
   if(s.muted&&Sound.ensure){ Sound.muted=true; }
