@@ -210,7 +210,7 @@ const REGIONS=[
    hills:['#26414a','#33525a','#48707a'],foam:'#dfeef2',
    weather:{clear:.22,cloud:.28,fog:.2,rain:.16,snow:.09,storm:.05},
    fish:['herring','mackerel','cod','pollock','salmon','halibut','lobster','kingcrab','haddock','plaice','spidercrab','oldbarnacle'],
-   legendary:'oldbarnacle',goal:{earn:4800},
+   legendary:'oldbarnacle',goal:{earn:7500},
    ports:[{name:'Gull Harbor',x:420,kind:'home',spec:['cod','herring'],icon:'anchor'},
           {name:'Mistport',x:1450,kind:'trade',spec:['mackerel','herring'],icon:'house'},
           {name:'Fable Cove',x:2450,kind:'trade',spec:['salmon','mackerel'],icon:'house'},
@@ -225,7 +225,7 @@ const REGIONS=[
    hills:['#2f6f6a','#3f8a76','#6bb08c'],foam:'#f2fbfb',
    weather:{clear:.4,cloud:.22,fog:.06,rain:.16,snow:0,storm:.16},
    fish:['sardine','snapper','parrot','grouper','mahi','tuna','marlin','angelfish','barracuda','triggerfish','reefking'],
-   legendary:'reefking',goal:{earn:8000},
+   legendary:'reefking',goal:{earn:16000},
    ports:[{name:'Palmetto Bay',x:520,kind:'home',spec:['snapper','parrot'],icon:'palm'},
           {name:'Marigot',x:1650,kind:'trade',spec:['mahi','grouper'],icon:'house'},
           {name:'Blue Lagoon',x:2900,kind:'trade',spec:['tuna','sardine'],icon:'fish'},
@@ -240,7 +240,7 @@ const REGIONS=[
    hills:['#6b6a4a','#8a8156','#b6a875'],foam:'#f4f1e2',
    weather:{clear:.46,cloud:.24,fog:.08,rain:.12,snow:0,storm:.1},
    fish:['anchovy','seabream','seabass','octopus','dorade','swordfish','bluefin','mullet','johndory','moray','leviathan'],
-   legendary:'leviathan',goal:{earn:13000},
+   legendary:'leviathan',goal:{earn:30000},
    ports:[{name:'Porto Vecchio',x:560,kind:'home',spec:['seabream','dorade'],icon:'column'},
           {name:'Amalfi Reach',x:1750,kind:'trade',spec:['seabass','octopus'],icon:'house'},
           {name:'Saltera',x:2950,kind:'trade',spec:['swordfish'],icon:'salt'},
@@ -255,7 +255,7 @@ const REGIONS=[
    hills:['#3a4650','#4a5a64','#6a7a84'],foam:'#e8f2f6',
    weather:{clear:.18,cloud:.24,fog:.24,rain:.12,snow:.16,storm:.06},
    fish:['lanternfish','capelin','cusk','wolffish','anglerfish','greenlandshark','oarfish','rockfish','skate','frilledshark','colossus'],
-   legendary:'colossus',goal:{earn:20000},
+   legendary:'colossus',goal:{earn:52000},
    ports:[{name:'Frost Harbor',x:560,kind:'home',spec:['cusk','capelin'],icon:'anchor'},
           {name:'Lantern Bay',x:1750,kind:'trade',spec:['lanternfish','wolffish'],icon:'lighthouse'},
           {name:'Glasshaven',x:2950,kind:'trade',spec:['capelin','cusk'],icon:'house'},
@@ -440,6 +440,7 @@ function updateWeather(dt){
 function advanceTime(dt){ world.time+=dt/DAY_LENGTH*world.timeScale; if(world.time>=1){ world.time-=1; world.day++; onNewDay(); } }
 function onNewDay(){ if(typeof driftMarkets==='function') driftMarkets();
   if(typeof tradeAccrueDay==='function') tradeAccrueDay();
+  if(typeof labRPPerDay==='function'){ const rp=labRPPerDay(); if(rp>0){ player.rp=(player.rp||0)+rp; toast(`Marine Lab — +${rp} research points`,ic('scroll')); } }
   const prevS=world.season; updateSeason();
   if(world.season!==prevS && typeof toast==='function'){ const s=seasonNow(); toast(`${s.name} — ${s.blurb}`,ic(s.icon)); }
   else if(typeof toast==='function') toast(`Day ${world.day} — dawn breaks`,ic('sunrise')); }
@@ -1012,6 +1013,7 @@ function handleKey(k){
   if(k==='p'){ if(Sound.toggleMute) Sound.toggleMute(); return; }
   if(k==='t'&&(Game.screen==='sail'||Game.screen==='fish')){ if(typeof openSkills==='function') openSkills(); return; }
   if(k==='j'&&(Game.screen==='sail'||Game.screen==='fish')){ if(typeof openJournal==='function') openJournal(); return; }
+  if(k==='r'&&(Game.screen==='sail'||Game.screen==='fish')){ if(typeof openResearch==='function') openResearch(); return; }
   if(Game.screen==='sail'){
     if(k==='m'&&typeof toggleMotor==='function') toggleMotor();
     else if(k==='e'&&typeof tryDock==='function') tryDock();
@@ -1028,6 +1030,7 @@ function handleKey(k){
     else if((k===' '||k==='enter')&&cut.phase==='done') endCutting(true);
   } else if(Game.screen==='skills'){ if(k==='escape'||k==='t') Game.set(Game.prev==='fish'?'sail':'sail');
   } else if(Game.screen==='journal'){ if(k==='escape'||k==='j') Game.set(Game.prev==='pause'?'pause':'sail');
+  } else if(Game.screen==='research'){ if(k==='escape'||k==='r') Game.set(Game.prev==='pause'?'pause':'sail');
   } else if(Game.screen==='town'){ if(k==='escape') departTown();
   } else if(Game.screen==='pause'){ if(k==='escape') Game.set('sail');
   } else if(Game.screen==='help'||Game.screen==='map'||Game.screen==='almanac'){ if(k==='escape') Game.set(Game.prev==='pause'?'pause':'sail');
@@ -1045,8 +1048,9 @@ const player={
   records:{}, contracts:[], contractsDone:0, stars:0, shipTier:0, style:{hull:[176,76,58],sail:[244,238,222],cabin:[164,68,54]},
   home:{built:{},stock:{},accrued:0,lastDay:1},
   rep:{north:0,trop:0,med:0,verge:0}, quests:{},
+  rp:0, tech:{}, engineWear:0, fouling:0,
 };
-function holdMax(){ return UPGRADES.hull.levels[player.upg.hull].hold + (player.shipTier||0)*10 + homeHoldBonus(); }
+function holdMax(){ return UPGRADES.hull.levels[player.upg.hull].hold + (player.shipTier||0)*10 + homeHoldBonus() + (typeof techHold==='function'?techHold():0); }
 function toggleMotor(){ player.motor=!player.motor; if(typeof toast==='function') toast(player.motor?'Engine engaged':'Under sail',ic(player.motor?'gear':'sail')); }
 function updatePlayer(dt){
   const eng=UPGRADES.engine.levels[player.upg.engine], sailU=UPGRADES.sail.levels[player.upg.sail];
@@ -1061,15 +1065,17 @@ function updatePlayer(dt){
   const wt=(Input.right()?1:0)-(Input.left()?1:0);
   player.wheelA+=((wt*2.4)-player.wheelA)*Math.min(1,dt*7);
   const align=clamp(Math.cos(dy),0,1);   // build speed only once roughly pointed the right way
-  const motor=player.motor&&player.fuel>0; let thrust=0;
-  if(dir){ if(motor){ thrust=30*eng.spd*shipSpeed()*dir*align; player.fuel=Math.max(0,player.fuel-dt*0.55*eng.fuelUse*shipFuelUse()*(0.5+Math.abs(player.speed)/26)); }
-    else { const wal=0.35+0.65*clamp(dir*world.windDir*0.5+0.5,0,1); thrust=14*sailU.wind*shipSpeed()*(0.35+world.windStr*0.9)*wal*dir*align; } }
+  const motor=player.motor&&player.fuel>0; let thrust=0; const eff=(typeof boatEfficiency==='function'?boatEfficiency():1);
+  const techT=(typeof techThrust==='function'?techThrust()*techDrag():1);
+  if(dir){ if(motor){ thrust=30*eng.spd*shipSpeed()*techT*eff*dir*align; player.fuel=Math.max(0,player.fuel-dt*0.55*eng.fuelUse*shipFuelUse()*(typeof techFuel==='function'?techFuel():1)*(0.5+Math.abs(player.speed)/26)); }
+    else { const wal=0.35+0.65*clamp(dir*world.windDir*0.5+0.5,0,1); thrust=14*sailU.wind*shipSpeed()*techT*eff*(0.35+world.windStr*0.9)*wal*dir*align; } }
+  if(typeof updateBoatSystems==='function') updateBoatSystems(dt, !!(dir&&motor));
   player.speed+=(thrust-player.speed*2.0)*dt; player.pos[0]+=player.speed*dt;
   const len=regionData().length;
   if(player.pos[0]<18){player.pos[0]=18;player.speed*=-.3;} if(player.pos[0]>len){player.pos[0]=len;player.speed*=-.3;}
   // storm hull damage far from port
   if(world.storm>0.55){ const np=nearestPort(); const far=!np||Math.abs(np.x-player.pos[0])>240;
-    if(far){ player.hull=Math.max(0,player.hull-(world.storm-0.5)*dt*3.0*homeStormMult()/UPGRADES.hull.levels[player.upg.hull].armor);
+    if(far){ player.hull=Math.max(0,player.hull-(world.storm-0.5)*dt*3.0*homeStormMult()*(typeof techStormR==='function'?techStormR():1)/UPGRADES.hull.levels[player.upg.hull].armor);
       if(Game.frame%40===0){ view.shake=Math.min(1.2,view.shake+0.25*world.storm); } if(player.hull<=0&&typeof onSink==='function') onSink(); } }
   if(typeof updateTraders==='function') updateTraders(dt);
   updateDocking();
@@ -1375,7 +1381,7 @@ function drawAmbient(sky,litOpts){ if(!UW.ambient) return;
 /* ======================= 21. FISHING SIM ================================ */
 const WORLD_DEPTH=58;
 const fishing={ active:false, lure:{x:0,y:-2,z:0,vx:0,vy:0,vz:0}, maxDepthWorld:48, school:[], hitFlash:0, msg:'', fight:null };
-function fishValue(def,len){ const t=inv(def.len[0],def.len[1],len)||0; return Math.round(def.base*(0.7+0.6*clamp(t,0,1))); }
+function fishValue(def,len){ const t=inv(def.len[0],def.len[1],len)||0; return Math.round(def.base*(0.7+0.6*clamp(t,0,1))*(typeof techValue==='function'?techValue():1)); }
 function pickFishId(){
   const R=regionData(); const ids=R.fish.filter(id=>!FISH[id].legendary);
   if(chance(0.015*fishSeasonMult(R.legendary))&&FISH[R.legendary]) return R.legendary;
@@ -1430,7 +1436,7 @@ function updateFishing(dt){
   let dxl=L.x-bx, dyl=-L.y, len=Math.hypot(dxl,dyl);
   if(len>spoolMax){ const s=spoolMax/len; L.x=bx+dxl*s; L.y=-dyl*s; if(L.y>-1.2)L.y=-1.2; len=spoolMax; if(L.vy>0)L.vy*=0.4; }
   fishing.lineOut=len; fishing.remaining=clamp(1-len/spoolMax,0,1);
-  const attractR=(3.6+lp.attract*0.06)*homeAttract(), fleeR=7.5, hitR=1.7+lp.power*0.5; fishing.hitR=hitR;
+  const attractR=(3.6+lp.attract*0.06)*homeAttract()*(typeof techAttractR==='function'?techAttractR():1), fleeR=7.5, hitR=1.7+lp.power*0.5; fishing.hitR=hitR;
   fishing.hitFlash=Math.max(0,fishing.hitFlash-dt*3);
   // fish behaviour
   for(let k=fishing.school.length-1;k>=0;k--){
@@ -1468,7 +1474,8 @@ function updateFight(dt){ const F=fishing.fight, L=fishing.lure; F.t+=dt; F.runT
   if(F.runTimer<=0){ if(F.run>0){ F.run=0; F.runTimer=rrange(0.8,1.9); } else { F.run=1; F.runTimer=rrange(0.6,1.3)*(0.7+F.strength); if(Sound.reel)Sound.reel(); } }
   const reeling=Input.up()||Input.down();               // hold up/down (or W/S) to reel
   const pull = F.run>0 ? (0.85+F.strength*1.4) : 0.05;
-  if(reeling){ F.tension += (0.26+pull*0.95)*dt; F.dist -= (0.19/(1+pull*3.2))*dt; }
+  const lineStr=(typeof techLine==='function'?techLine():1);   // researched line resists tension
+  if(reeling){ F.tension += (0.26+pull*0.95)*dt/lineStr; F.dist -= (0.19/(1+pull*3.2))*dt; }
   else { F.tension -= 1.15*dt; F.dist += pull*0.11*dt; }
   F.tension=clamp(F.tension,0,1.3); F.dist=clamp(F.dist,0,1.06);
   // the hooked fish hangs just below the lure, pulled down and thrashing during a run
@@ -1543,7 +1550,7 @@ function buildMonsterMeshes(){
 function updateBeast(dt){ const def=MONSTERS[regionData().id]; Beast.def=def; if(!def) return; Beast.ph+=dt;
   if(Game.screen==='fish' && Beast.state!=='attack'){
     const L=fishing.lure, night=clamp(1-skyColors().dayness*1.7,0,1), deep=clamp(-L.y/WORLD_DEPTH,0,1);
-    Beast.threat=clamp(Beast.threat + dt*(0.016 + night*0.028 + deep*0.03 + world.storm*0.04), 0, 1.0001);
+    Beast.threat=clamp(Beast.threat + dt*(0.016 + night*0.028 + deep*0.03 + world.storm*0.04)*(typeof techWard==='function'?techWard():1), 0, 1.0001);
     if(Beast.state==='gone' && Beast.threat>0.5){ Beast.state='lurk'; Beast.x=L.x+rrange(-28,28); Beast.z=-30; Beast.y=-WORLD_DEPTH+8;
       toast('Something stirs in the deep water…',ic('waves')); if(Sound.thunder)Sound.thunder(); }
     if(Beast.threat>0.8 && !Beast.warned){ Beast.warned=1; toast(`${def.name} is hunting you — reel up and run!`,ic('waves')); }
@@ -1594,7 +1601,8 @@ function landFish(f){
   const val=fishValue(f.def,f.len);
   if(player.hold.length>=holdMax()){ toast('Hold is full! Sell your catch at port',ic('basket')); return; }
   player.hold.push({id:f.id,len:Math.round(f.len),value:val});
-  player.discovered[f.id]=true;
+  const firstEver=!player.discovered[f.id]; player.discovered[f.id]=true;
+  if(firstEver&&typeof awardRP==='function') awardRP(f.def.legendary?12:4, 'new species logged');
   if(typeof questEvent==='function') questEvent('catch',{sp:f.id});
   if(!player.records[f.id]||f.len>player.records[f.id]) player.records[f.id]=Math.round(f.len);
   view.flash=0.5; view.flashCol=f.def.legendary?'#ffe6a0':'#dff3ff';
@@ -2037,7 +2045,7 @@ function goodsPrice(port,g){ return (ECO.goods[port.name]&&ECO.goods[port.name][
 
 /* ======================= 28. LAYER / PAUSE MANAGER ===================== */
 function updateLayers(){
-  const map={town:'layer-town',pause:'layer-pause',help:'layer-help',map:'layer-map',title:'layer-title',event:'layer-event',almanac:'layer-almanac',skills:'layer-skills',journal:'layer-journal'};
+  const map={town:'layer-town',pause:'layer-pause',help:'layer-help',map:'layer-map',title:'layer-title',event:'layer-event',almanac:'layer-almanac',skills:'layer-skills',journal:'layer-journal',research:'layer-research'};
   document.querySelectorAll('.layer').forEach(l=>l.classList.remove('show'));
   const id=map[Game.screen]; if(id){ const el=document.getElementById(id); if(el) el.classList.add('show','fade'); }
 }
@@ -2064,9 +2072,10 @@ const STRUCT={
   boathouse:{name:'Boathouse',cost:500,desc:'A proper berth for your boat — +12 to your hold.'},
   smokehouse:{name:'Smokehouse',cost:700,desc:'Cure your catch — +18% on every fish you sell.'},
   lighthouse:{name:'Harbour Light',cost:1200,desc:'A guiding beam — storms batter your hull half as hard.'},
-  baitshack:{name:'Bait Shack',cost:450,desc:'Tops your bait up to 16, free, whenever you dock at home.'}};
-const STRUCT_ORDER=['warehouse','market','countinghouse','crane','boathouse','smokehouse','lighthouse','baitshack'];
-const HOME_PLOTS={warehouse:[-16,-72],market:[13,-69],countinghouse:[-3,-88],crane:[25,-66],boathouse:[-27,-79],smokehouse:[-11,-90],lighthouse:[27,-95],baitshack:[7,-64]};
+  baitshack:{name:'Bait Shack',cost:450,desc:'Tops your bait up to 16, free, whenever you dock at home.'},
+  lab:{name:'Marine Lab',cost:1800,desc:'A research station — generates research points every day for the R&D tree.'}};
+const STRUCT_ORDER=['warehouse','market','countinghouse','crane','boathouse','smokehouse','lighthouse','baitshack','lab'];
+const HOME_PLOTS={warehouse:[-16,-72],market:[13,-69],countinghouse:[-3,-88],crane:[25,-66],boathouse:[-27,-79],smokehouse:[-11,-90],lighthouse:[27,-95],baitshack:[7,-64],lab:[-22,-92]};
 function homeBuilt(id){ return !!(player.home&&player.home.built&&player.home.built[id]); }
 function homeHas(id){ return homeBuilt(id); }
 function homeSellMult(){ return 1+(homeBuilt('smokehouse')?0.18:0)+(homeBuilt('countinghouse')?0.10:0); }
@@ -2121,6 +2130,9 @@ function addHomeStructures(m,px,gy,R){
   if(homeBuilt('lighthouse')){ const[x,y,z]=at('lighthouse'); addLighthouse(m,x,y,z); if(COAST.lights) COAST.lights.push([x,y+11.4,z]); }
   if(homeBuilt('baitshack')){ const[x,,z]=at('baitshack'); addShack(m,x,z,v3([198,158,110]),v3([120,80,50]));
     for(let i=0;i<3;i++){ const bx=x+i*0.7-0.7; addPrism(m,bx,gy(bx,z+1.6)+0.3,z+1.6,0.28,0.6,8,v3([120,90,54]),v3([140,110,70])); } }
+  if(homeBuilt('lab')){ const[x,y,z]=at('lab'); addBuilding(m,x,y,z,2.8,3.2,2.8,v3([214,220,226]),v3([120,150,170]));
+    addPrism(m,x+1.2,y+3.4,z,0.6,1.4,10,v3([190,200,208]),v3([210,220,228]));                 // dome
+    addBox2(m,[x,y+3.2,z],[x,y+5.4,z],0.06,v3([150,160,170])); addOcta(m,x,y+5.5,z,0.16,0.2,0.16,v3([120,230,200])); } // antenna + glow
 }
 function homeHTML(port){
   const H=player.home;
@@ -2128,7 +2140,7 @@ function homeHTML(port){
   let strc='';
   for(const id of STRUCT_ORDER){ const s=STRUCT[id], owned=homeBuilt(id);
     strc+=`<div class="shop-item" style="${owned?'background:rgba(120,180,120,.12)':''}">
-      <div class="ic">${ic(id==='warehouse'?'crate':id==='market'?'scales':id==='countinghouse'?'coin':id==='crane'?'anchor':id==='boathouse'?'boat':id==='smokehouse'?'flame':id==='lighthouse'?'lighthouse':'worm',24)}</div>
+      <div class="ic">${ic(id==='warehouse'?'crate':id==='market'?'scales':id==='countinghouse'?'coin':id==='crane'?'anchor':id==='boathouse'?'boat':id==='smokehouse'?'flame':id==='lighthouse'?'lighthouse':id==='lab'?'scroll':'worm',24)}</div>
       <div class="meta"><h4>${s.name} ${owned?ic('check',14):''}</h4><p style="font-size:12px">${s.desc}</p></div>
       <div>${owned?`<span class="tag">Built</span>`:`<button class="btn small ${player.money>=s.cost?'gold':''}" ${player.money>=s.cost?'':'disabled'} onclick="buyStructure('${id}')">${ic('coin',13)} ${coinStr(s.cost)}</button>`}</div></div>`; }
   // trade hub
@@ -2249,7 +2261,14 @@ function shipwrightHTML(port){
     items+=`<div class="shop-item"><div class="ic">${ic(U.icon,26)}</div><div class="meta"><h4>${U.name} <span class="muted" style="font-weight:400">— ${lv.label}</span></h4>
       <p>${U.desc} ${nxt?`<br><b>Next:</b> ${nxt.label}`:'<br><b>Fully upgraded</b>'}</p></div>
       <div>${nxt?`<button class="btn small ${player.money>=nxt.cost?'gold':''}" ${player.money>=nxt.cost?'':'disabled'} onclick="buyUpgrade('${cat}')">${ic('coin',14)} ${coinStr(nxt.cost)}</button>`:'<span class="tag">MAX</span>'}</div></div>`; }
-  return `<div class="grid" style="grid-template-columns:1fr 1fr;gap:12px">${items}</div>`;
+  const ew=Math.round((player.engineWear||0)*100), fl=Math.round((player.fouling||0)*100), ec=Math.round(40+(player.engineWear||0)*160*repPriceMul()), fc=Math.round(30+(player.fouling||0)*140*repPriceMul());
+  const maint=`<div class="shop-item"><div class="ic">${ic('gear',26)}</div><div class="meta"><h4>Engine Service <span class="muted" style="font-weight:400">— ${ew}% worn</span></h4>
+      <p>A worn engine loses thrust. Service restores full power.</p><div class="gauge" style="width:200px;margin-top:3px"><i style="width:${ew}%;background:${ew>70?'#c9524a':'#d8a24a'}"></i></div></div>
+      <div><button class="btn small ${player.money>=ec&&ew>2?'gold':''}" ${player.money>=ec&&ew>2?'':'disabled'} onclick="serviceEngine()">${ic('coin',14)} ${coinStr(ec)}</button></div></div>
+    <div class="shop-item"><div class="ic">${ic('wrench',26)}</div><div class="meta"><h4>Careen Hull <span class="muted" style="font-weight:400">— ${fl}% fouled</span></h4>
+      <p>Barnacles drag you back. Scrape the hull clean to regain speed.</p><div class="gauge" style="width:200px;margin-top:3px"><i style="width:${fl}%;background:${fl>70?'#c9524a':'#5fae7a'}"></i></div></div>
+      <div><button class="btn small ${player.money>=fc&&fl>2?'gold':''}" ${player.money>=fc&&fl>2?'':'disabled'} onclick="careenHull()">${ic('coin',14)} ${coinStr(fc)}</button></div></div>`;
+  return `<div class="grid" style="grid-template-columns:1fr 1fr;gap:12px">${items}${maint}</div>`;
 }
 // --- transactions ---
 function sellFish(id){ let got=0,cnt=0; player.hold=player.hold.filter(it=>{ if(it.id===id){got+=fishSellPrice(townPort,it);cnt++;return false;} return true; });
@@ -2306,7 +2325,7 @@ function saveGame(){ try{ localStorage.setItem(SAVE_KEY, JSON.stringify({
   money:player.money,fuel:player.fuel,fuelMax:player.fuelMax,bait:player.bait,hull:player.hull,
   upg:player.upg,hold:player.hold,cargo:player.cargo,region:world.region,day:world.day,time:world.time,
   earned:player.earned,caughtLegendary:player.caughtLegendary,regionDone:player.regionDone,discovered:player.discovered,eco:ECO,x:player.pos[0],
-  records:player.records,contractsDone:player.contractsDone,style:player.style,stars:player.stars,shipTier:player.shipTier,home:player.home,rep:player.rep,quests:player.quests,muted:Sound.muted
+  records:player.records,contractsDone:player.contractsDone,style:player.style,stars:player.stars,shipTier:player.shipTier,home:player.home,rep:player.rep,quests:player.quests,rp:player.rp,tech:player.tech,engineWear:player.engineWear,fouling:player.fouling,muted:Sound.muted
 })); }catch(e){} }
 function loadSave(){ try{ const s=localStorage.getItem(SAVE_KEY); return s?JSON.parse(s):null; }catch(e){ return null; } }
 function newGame(){
@@ -2315,13 +2334,15 @@ function newGame(){
   player.regionDone=[false,false,false,false]; player.earned=0; player.caughtLegendary=[false,false,false,false]; player.discovered={};
   player.records={}; player.contracts=[]; player.contractsDone=0; player.stars=0; player.shipTier=0; player.style={hull:[176,76,58],sail:[244,238,222],cabin:[164,68,54]};
   player.home={built:{},stock:{},accrued:0,lastDay:1}; player.rep={north:0,trop:0,med:0,verge:0}; player.quests={};
+  player.rp=0; player.tech={}; player.engineWear=0; player.fouling=0;
   world.day=1; world.time=0.30; world.timeScale=1; updateSeason(); initEconomy(); applyUpgrades(); enterRegion(0); if(typeof buildBoat==='function')buildBoat(); Game.set('sail'); saveGame();
 }
 function loadGame(s){
   Object.assign(player,{money:s.money,fuel:s.fuel,fuelMax:s.fuelMax||60,bait:s.bait,hull:s.hull,upg:s.upg,hold:s.hold||[],cargo:s.cargo||{},
     earned:s.earned||0,caughtLegendary:s.caughtLegendary||[false,false,false,false],regionDone:s.regionDone||[false,false,false,false],discovered:s.discovered||{},
     records:s.records||{},contractsDone:s.contractsDone||0,stars:s.stars||0,shipTier:s.shipTier||0,style:s.style||{hull:[176,76,58],sail:[244,238,222],cabin:[164,68,54]},
-    home:s.home||{built:{},stock:{},accrued:0,lastDay:1},rep:s.rep||{north:0,trop:0,med:0,verge:0},quests:s.quests||{}});
+    home:s.home||{built:{},stock:{},accrued:0,lastDay:1},rep:s.rep||{north:0,trop:0,med:0,verge:0},quests:s.quests||{},
+    rp:s.rp||0,tech:s.tech||{},engineWear:s.engineWear||0,fouling:s.fouling||0});
   if(!player.home.built)player.home.built={}; if(!player.home.stock)player.home.stock={};
   world.day=s.day||1; world.time=s.time||0.3; world.timeScale=1; updateSeason(); if(s.eco){ ECO.fish=s.eco.fish; ECO.goods=s.eco.goods; }
   if(s.muted&&Sound.ensure){ Sound.muted=true; }
@@ -2400,6 +2421,7 @@ function openPause(){
     <div class="grid" style="max-width:260px;margin:14px auto 0">
       <button class="btn gold" id="p-resume">Resume</button>
       <button class="btn" id="p-journal">${ic('scroll',15)} Chapters &amp; Missions</button>
+      <button class="btn" id="p-research">${ic('gear',15)} R&amp;D Lab</button>
       <button class="btn" id="p-log">${ic('book',15)} Fish Almanac</button>
       <button class="btn" id="p-map">${ic('map',15)} Chart &amp; Goals</button>
       <button class="btn" id="p-help">${ic('book',15)} How to Play</button>
@@ -2407,6 +2429,7 @@ function openPause(){
     </div></div>`;
   L.querySelector('#p-resume').onclick=()=>Game.set('sail');
   L.querySelector('#p-journal').onclick=()=>openJournal();
+  L.querySelector('#p-research').onclick=()=>openResearch();
   L.querySelector('#p-log').onclick=()=>openAlmanac();
   L.querySelector('#p-map').onclick=()=>openMap();
   L.querySelector('#p-help').onclick=()=>openHelp();
@@ -2765,8 +2788,9 @@ function turnInMission(id){ const m=MISSIONS[id]; if(!missionReady(id))return; c
   const rw=m.reward; if(rw.coin){ player.money+=rw.coin; player.earned+=rw.coin; }
   const rid=MISSION_REGION[id]; if(rw.rep){ player.rep[rid]=repOf(rid)+rw.rep; }
   if(rw.star&&typeof awardStar==='function') awardStar(rw.star,`mission: ${m.title}`);
+  const rpGain=(m.side?2:4)+(rw.star?4:0); player.rp=(player.rp||0)+rpGain;
   if(Sound.coin)Sound.coin(); if(Sound.chime)Sound.chime();
-  toast(`${m.title} complete — ${ic('coin',12)} ${coinStr(rw.coin||0)}${rw.rep?' · +'+rw.rep+' rep':''}`,ic('star'));
+  toast(`${m.title} complete — ${ic('coin',12)} ${coinStr(rw.coin||0)}${rw.rep?' · +'+rw.rep+' rep':''} · +${rpGain} ${ic('scroll',11)}`,ic('star'));
   refreshCampaignUI(); saveGame(); if(typeof checkRegionGoal==='function') checkRegionGoal(); }
 function questEvent(type,data){ let changed=false;
   for(const id in player.quests){ const q=player.quests[id]; if(!q||q.state!=='active')continue; const m=MISSIONS[id]; if(!m)continue; const g=m.goal;
@@ -3174,6 +3198,88 @@ function upgradeShip(){ const cost=player.shipTier+1; if(player.stars<cost){toas
   player.stars-=cost; player.shipTier++; player.upg={engine:0,sail:0,hull:0,line:0,lure:0,sonar:0}; applyUpgrades(); buildBoat();
   if(Sound.chime)Sound.chime(); toast(`Ship upgraded to Tier ${player.shipTier}!`,ic('boat')); renderSkills(); saveGame(); }
 function awardStar(n,why){ player.stars+=n; if(typeof toast==='function') toast(`+${n} captain star${n>1?'s':''} — ${why}`,ic('trophy')); if(Sound.chime)Sound.chime(); }
+/* ======================= RESEARCH & DEVELOPMENT (tech tree) =========== */
+const RESEARCH={
+  hydro:{name:'Hydrodynamics',icon:'boat',blurb:'Slip through the water.',nodes:[
+    {id:'drag',name:'Streamlined Hull',max:6,base:6,step:5,per:5,unit:'% less drag'},
+    {id:'antifoul',name:'Anti-Foul Coating',max:4,base:12,step:8,per:35,unit:'% slower fouling'},
+    {id:'ballast',name:'Smart Ballast',max:5,base:10,step:7,per:4,unit:' hold'}]},
+  power:{name:'Propulsion',icon:'gear',blurb:'More go, less burn.',nodes:[
+    {id:'fuel',name:'Fuel Injection',max:6,base:8,step:6,per:6,unit:'% less fuel use'},
+    {id:'thrust',name:'Turbo Impeller',max:5,base:10,step:8,per:7,unit:'% more thrust'},
+    {id:'cooling',name:'Engine Cooling',max:4,base:12,step:9,per:40,unit:'% less engine wear'}]},
+  science:{name:'Marine Science',icon:'book',blurb:'Out-fish the sea.',nodes:[
+    {id:'line',name:'Composite Line',max:6,base:9,step:7,per:11,unit:'% line strength'},
+    {id:'attract',name:'Bioacoustic Lure',max:5,base:11,step:8,per:14,unit:'% lure draw'},
+    {id:'value',name:'Cold-Chain Curing',max:5,base:13,step:10,per:7,unit:'% catch value'},
+    {id:'sonar',name:'Sonar Array',max:3,base:16,step:12,per:0,unit:'sees depth bands'}]},
+  seafaring:{name:'Seafaring',icon:'compass',blurb:'Master the elements.',nodes:[
+    {id:'storm',name:'Storm Rigging',max:4,base:15,step:11,per:30,unit:'% less storm damage'},
+    {id:'ward',name:'Beast Ward',max:4,base:18,step:13,per:26,unit:'% slower monster threat'},
+    {id:'nav',name:'Dead Reckoning',max:3,base:14,step:10,per:35,unit:'% less current drift'}]},
+};
+function tech(id){ return (player.tech&&player.tech[id])||0; }
+function researchNode(id){ for(const b in RESEARCH) for(const n of RESEARCH[b].nodes) if(n.id===id) return n; return null; }
+function buyResearch(id){ const n=researchNode(id); if(!n)return; const lv=tech(id); if(lv>=n.max){toast('Fully researched',ic('book'));return;}
+  const cost=n.base+lv*n.step; if(player.rp<cost){toast('Not enough research points',ic('scroll'));return;}
+  player.rp-=cost; player.tech[id]=lv+1; applyUpgrades(); if(typeof buildBoat==='function')buildBoat();
+  if(Sound.chime)Sound.chime(); toast(`Researched ${n.name} · Mk ${lv+1}`,ic('gear')); renderResearch(); saveGame(); }
+function awardRP(n,why){ player.rp=(player.rp||0)+n; if(typeof toast==='function') toast(`+${n} research points${why?' — '+why:''}`,ic('scroll')); }
+// compounding effect helpers — small bonuses that stack into a "cheat-code" boat
+function techDrag(){ return Math.pow(0.95,tech('drag')); }
+function techFoulRate(){ return Math.pow(0.65,tech('antifoul')); }
+function techHold(){ return tech('ballast')*4; }
+function techFuel(){ return Math.pow(0.94,tech('fuel')); }
+function techThrust(){ return Math.pow(1.07,tech('thrust')); }
+function techWearRate(){ return Math.pow(0.60,tech('cooling')); }
+function techLine(){ return Math.pow(1.11,tech('line')); }
+function techAttractR(){ return Math.pow(1.14,tech('attract')); }
+function techValue(){ return Math.pow(1.07,tech('value')); }
+function techStormR(){ return Math.pow(0.70,tech('storm')); }
+function techWard(){ return Math.pow(0.74,tech('ward')); }
+function techNav(){ return Math.pow(0.65,tech('nav')); }
+function hasSonar(){ return tech('sonar')>0; }
+// ---- boat systems: engine wear + hull fouling accumulate and must be maintained ----
+function boatEfficiency(){ return (1-(player.fouling||0)*0.32)*(1-(player.engineWear||0)*0.20); }
+function updateBoatSystems(dt,thrusting){
+  if(thrusting) player.engineWear=clamp((player.engineWear||0)+dt*0.0055*techWearRate(),0,1);
+  const sp=clamp(Math.abs(player.speed)/12,0,1);
+  player.fouling=clamp((player.fouling||0)+dt*0.0038*techFoulRate()*(0.3+sp),0,1);
+  if((player.engineWear>0.85||player.fouling>0.9)&&Game.frame%180===0) toast(player.engineWear>0.85?'Engine is straining — service it at a port':'Hull is thick with barnacles — careen at a port',ic('wrench'));
+}
+function serviceEngine(){ const cost=Math.round(40+player.engineWear*160*repPriceMul()); if(player.engineWear<0.02){toast('Engine runs sweet',ic('gear'));return;}
+  if(player.money<cost){toast('Not enough coin',ic('coin'));return;} player.money-=cost; player.engineWear=0; if(Sound.chime)Sound.chime(); toast('Engine serviced',ic('gear')); renderTown(); saveGame(); }
+function careenHull(){ const cost=Math.round(30+player.fouling*140*repPriceMul()); if(player.fouling<0.02){toast('Hull is clean',ic('wrench'));return;}
+  if(player.money<cost){toast('Not enough coin',ic('coin'));return;} player.money-=cost; player.fouling=0; if(Sound.chime)Sound.chime(); toast('Hull careened — barnacles scraped',ic('wrench')); renderTown(); saveGame(); }
+function labRPPerDay(){ return homeBuilt('lab')?(2+(player.shipTier||0)):0; }
+function openResearch(){ ensureLayer('layer-research'); renderResearch(); Game.set('research'); if(Sound.ui)Sound.ui(); }
+function renderResearch(){ const L=document.getElementById('layer-research'); let branches='';
+  for(const b in RESEARCH){ const B=RESEARCH[b]; let nodes='';
+    for(const n of B.nodes){ const lv=tech(n.id), maxed=lv>=n.max, cost=n.base+lv*n.step, can=!maxed&&player.rp>=cost;
+      let pips=''; for(let i=0;i<n.max;i++) pips+=`<span style="width:9px;height:9px;border-radius:50%;display:inline-block;margin:0 1px;background:${i<lv?'#6fb0d0':'rgba(120,140,150,.28)'}"></span>`;
+      const val = n.per? (n.id==='ballast'?`+${lv*n.per}${n.unit} (Mk ${lv})`:`${n.per}${n.unit} each`) : n.unit;
+      nodes+=`<div class="shop-item" style="padding:8px 10px">
+        <div class="meta"><h4 style="font-size:13px">${n.name} <span class="muted" style="font-weight:400">Mk ${lv}/${n.max}</span></h4>
+          <div style="margin:2px 0">${pips}</div><p class="muted" style="font-size:11px">${val}</p></div>
+        <div>${maxed?'<span class="tag">Max</span>':`<button class="btn small ${can?'gold':''}" ${can?'':'disabled'} onclick="buyResearch('${n.id}')">${ic('scroll',12)} ${cost}</button>`}</div></div>`; }
+    branches+=`<div style="margin-bottom:8px"><div class="row" style="align-items:center;gap:8px"><div style="width:22px">${ic(B.icon,18)}</div><b style="font-size:14px">${B.name}</b><span class="muted" style="font-size:11.5px">— ${B.blurb}</span></div>
+      <div class="grid" style="grid-template-columns:1fr 1fr;gap:6px;margin-top:3px">${nodes}</div></div>`; }
+  // compounded bonuses summary — the "math"
+  const bon=[]; const pct=(f,inv)=>Math.round((inv?1-f:f-1)*100);
+  if(tech('drag'))bon.push(`−${pct(techDrag(),1)}% drag`); if(tech('thrust'))bon.push(`+${pct(techThrust())}% thrust`);
+  if(tech('fuel'))bon.push(`−${pct(techFuel(),1)}% fuel`); if(tech('line'))bon.push(`+${pct(techLine())}% line`);
+  if(tech('attract'))bon.push(`+${pct(techAttractR())}% draw`); if(tech('value'))bon.push(`+${pct(techValue())}% value`);
+  if(tech('ballast'))bon.push(`+${techHold()} hold`); if(tech('storm'))bon.push(`−${pct(techStormR(),1)}% storm dmg`);
+  if(tech('ward'))bon.push(`−${pct(techWard(),1)}% threat`); if(hasSonar())bon.push('sonar');
+  L.innerHTML=`<div class="scrim"></div><div class="panel" style="max-width:760px;position:relative">
+    <div class="row"><div><div class="kicker">R &amp; D Laboratory</div><h1>${ic('gear',26)} Research</h1></div><div class="spacer"></div>
+      <div style="text-align:right"><div class="kicker">Research Points</div><div class="coin" style="font-size:22px;color:#8fd0e0">${ic('scroll',18)} ${player.rp||0}</div>
+        <div class="muted" style="font-size:11px">+${labRPPerDay()}/day${homeBuilt('lab')?' (Marine Lab)':' · build a Marine Lab'}</div></div></div>
+    <p class="muted" style="font-size:12px;margin-top:-4px">Earn points from new species, missions &amp; your Marine Lab. Bonuses <b>compound</b> — stack enough and your boat becomes a cheat code.</p>
+    ${bon.length?`<div class="row" style="gap:5px;flex-wrap:wrap;margin:2px 0 8px">${bon.map(x=>`<span class="tag" style="background:rgba(110,176,208,.18)">${x}</span>`).join('')}</div>`:''}
+    ${branches}
+    <div class="row" style="justify-content:center;margin-top:8px"><button class="btn gold" onclick="Game.set('sail')">Close</button></div></div>`;
+}
 
 /* ======================= 41. 3D LINE-SPOOL INDICATOR ================== */
 function drawLineSpool(rem){
