@@ -216,10 +216,13 @@ const REGIONS=[
    fish:['herring','mackerel','cod','pollock','salmon','halibut','lobster','kingcrab','haddock','plaice','spidercrab','oldbarnacle'],
    legendary:'oldbarnacle',goal:{earn:7500},
    ports:[{name:'Gull Harbor',x:420,kind:'home',spec:['cod','herring'],icon:'anchor'},
+          {name:'Kelpholm',x:960,kind:'trade',spec:['haddock','plaice'],icon:'house'},
           {name:'Mistport',x:1450,kind:'trade',spec:['mackerel','herring'],icon:'house'},
           {name:'Fable Cove',x:2450,kind:'trade',spec:['salmon','mackerel'],icon:'house'},
+          {name:'Grey Anchorage',x:2960,kind:'trade',spec:['salmon','lobster'],icon:'anchor'},
           {name:'Cape Iron',x:3450,kind:'trade',spec:['halibut','lobster'],icon:'lighthouse'},
           {name:'Netherby',x:4400,kind:'trade',spec:['pollock','cod'],icon:'house'},
+          {name:'Dunmoor',x:4900,kind:'trade',spec:['spidercrab','pollock'],icon:'house'},
           {name:'Stormwatch',x:5350,kind:'trade',spec:['kingcrab'],icon:'waves'}]},
   {id:'trop',name:'The Coral Keys',order:1,icon:'palm',
    blurb:'Sun-warmed shallows over living reef. The water is glass; the fish are gold.',
@@ -231,10 +234,13 @@ const REGIONS=[
    fish:['sardine','snapper','parrot','grouper','mahi','tuna','marlin','angelfish','barracuda','triggerfish','reefking'],
    legendary:'reefking',goal:{earn:16000},
    ports:[{name:'Palmetto Bay',x:520,kind:'home',spec:['snapper','parrot'],icon:'palm'},
+          {name:"Reef's Edge",x:1080,kind:'trade',spec:['angelfish','triggerfish'],icon:'fish'},
           {name:'Marigot',x:1650,kind:'trade',spec:['mahi','grouper'],icon:'house'},
           {name:'Blue Lagoon',x:2900,kind:'trade',spec:['tuna','sardine'],icon:'fish'},
+          {name:'Turtle Cove',x:3480,kind:'trade',spec:['barracuda','grouper'],icon:'house'},
           {name:'Coralton',x:4050,kind:'trade',spec:['parrot','snapper'],icon:'house'},
           {name:'Cutlass Reef',x:5100,kind:'trade',spec:['marlin'],icon:'anchor'},
+          {name:'Mango Point',x:5580,kind:'trade',spec:['mahi','snapper'],icon:'palm'},
           {name:'Sunfish Cay',x:6050,kind:'trade',spec:['grouper','mahi'],icon:'palm'}]},
   {id:'med',name:'The Amber Coast',order:2,icon:'column',
    blurb:'Golden light on ancient water. Olive terraces, white towns, tuna as old as the harbours.',
@@ -246,10 +252,13 @@ const REGIONS=[
    fish:['anchovy','seabream','seabass','octopus','dorade','swordfish','bluefin','mullet','johndory','moray','leviathan'],
    legendary:'leviathan',goal:{earn:30000},
    ports:[{name:'Porto Vecchio',x:560,kind:'home',spec:['seabream','dorade'],icon:'column'},
+          {name:'Vinerock',x:1150,kind:'trade',spec:['mullet','anchovy'],icon:'house'},
           {name:'Amalfi Reach',x:1750,kind:'trade',spec:['seabass','octopus'],icon:'house'},
           {name:'Saltera',x:2950,kind:'trade',spec:['swordfish'],icon:'salt'},
+          {name:'Terradolce',x:3550,kind:'trade',spec:['johndory','moray'],icon:'column'},
           {name:'Olivetta',x:4150,kind:'trade',spec:['dorade','seabream'],icon:'column'},
           {name:'Cape Meridian',x:5450,kind:'trade',spec:['bluefin','anchovy'],icon:'sunrise'},
+          {name:'Capo Sole',x:6020,kind:'trade',spec:['seabass','dorade'],icon:'sunrise'},
           {name:'Portale',x:6600,kind:'trade',spec:['octopus','seabass'],icon:'house'}]},
   {id:'verge',name:'The Midnight Verge',order:3,icon:'moon',
    blurb:'A deep polar sea under aurora and moon. Ice, fog, and things that glow in the black water below.',
@@ -261,10 +270,13 @@ const REGIONS=[
    fish:['lanternfish','capelin','cusk','wolffish','anglerfish','greenlandshark','oarfish','rockfish','skate','frilledshark','colossus'],
    legendary:'colossus',goal:{earn:52000},
    ports:[{name:'Frost Harbor',x:560,kind:'home',spec:['cusk','capelin'],icon:'anchor'},
+          {name:'Hollowfrost',x:1150,kind:'trade',spec:['rockfish','skate'],icon:'house'},
           {name:'Lantern Bay',x:1750,kind:'trade',spec:['lanternfish','wolffish'],icon:'lighthouse'},
           {name:'Glasshaven',x:2950,kind:'trade',spec:['capelin','cusk'],icon:'house'},
+          {name:'Black Ice',x:3560,kind:'trade',spec:['wolffish','frilledshark'],icon:'waves'},
           {name:'The Rime',x:4200,kind:'trade',spec:['greenlandshark'],icon:'house'},
           {name:'Aurora Watch',x:5450,kind:'trade',spec:['anglerfish','lanternfish'],icon:'lighthouse'},
+          {name:'Nightmoor',x:6050,kind:'trade',spec:['skate','capelin'],icon:'house'},
           {name:"World's End",x:6650,kind:'trade',spec:['oarfish'],icon:'waves'}]},
 ];
 const GOODS={ice:{name:'Crushed Ice',icon:'ice',base:8,vol:.35},salt:{name:'Sea Salt',icon:'salt',base:14,vol:.3},
@@ -461,6 +473,39 @@ function drawNavHUD(){ const c=fxx, night=clamp(1-skyColors().dayness*1.6,0,1);
     c.fillStyle='#d8ccaa'; c.font='700 10px ui-sans-serif'; c.fillText(`${dir} ${p.name}`,cx,cy+r+43); c.fillStyle='#9fb3bb'; c.font='9px ui-sans-serif'; c.fillText(`${d}m`,cx,cy+r+54); } }
   c.restore(); c.textAlign='left';
 }
+// a gilt "HOME" waypoint that tracks your home port — projected onto it, or clamped to the screen edge with an arrow
+function drawHomeMarker(){
+  const home=regionData().ports[0]; if(!home||!cam.vp) return;
+  const d=Math.round(Math.abs(home.x-player.pos[0]));
+  if(d<24) return;                                   // you're already home
+  const A=[home.x,12,-50], vp=cam.vp;
+  const wx=vp[0]*A[0]+vp[4]*A[1]+vp[8]*A[2]+vp[12];
+  const wy=vp[1]*A[0]+vp[5]*A[1]+vp[9]*A[2]+vp[13];
+  const ww=vp[3]*A[0]+vp[7]*A[1]+vp[11]*A[2]+vp[15];
+  const m=46; let sx,sy,edge=false; const front=ww>0.01;
+  if(front){ sx=(wx/ww*0.5+0.5)*W; sy=(0.5-wy/ww*0.5)*H;
+    if(sx<m||sx>W-m||sy<m||sy>H-m) edge=true; }
+  else { edge=true; sy=H*0.4; sx=home.x>=player.pos[0]?W:0; }
+  sx=clamp(sx,m,W-m); sy=clamp(sy,m,H-m);
+  const c=fxx; c.save();
+  const gold='#e8c04a';
+  c.font='700 11px ui-sans-serif'; const dstr=d+'m';
+  const tw=Math.max(c.measureText('HOME').width,c.measureText(dstr).width);
+  const pw=tw+34, ph=30, bx=clamp(sx-pw/2,4,W-pw-4), by=clamp(sy-ph/2,4,H-ph-4);
+  c.fillStyle='rgba(14,20,26,0.72)'; roundRectC(c,bx,by,pw,ph,7); c.fill();
+  c.strokeStyle='rgba(232,192,74,0.85)'; c.lineWidth=1.4; roundRectC(c,bx,by,pw,ph,7); c.stroke();
+  const hx=bx+13, hy=by+ph/2;                        // little house glyph
+  c.fillStyle=gold; c.beginPath(); c.moveTo(hx,hy-7); c.lineTo(hx+7,hy-1); c.lineTo(hx-7,hy-1); c.closePath(); c.fill();
+  c.fillRect(hx-5,hy-1,10,7);
+  c.textAlign='left'; c.fillStyle=gold; c.font='700 11px ui-sans-serif'; c.fillText('HOME',bx+24,by+13);
+  c.fillStyle='#cfe0e6'; c.font='10px ui-sans-serif'; c.fillText(dstr,bx+24,by+25);
+  if(edge){ const right=home.x>=player.pos[0], ax=right?bx+pw+8:bx-8, ay=by+ph/2;   // arrow down the coast
+    c.fillStyle=gold; c.beginPath();
+    if(right){ c.moveTo(ax,ay); c.lineTo(ax-9,ay-6); c.lineTo(ax-9,ay+6); }
+    else { c.moveTo(ax,ay); c.lineTo(ax+9,ay-6); c.lineTo(ax+9,ay+6); }
+    c.closePath(); c.fill(); }
+  c.restore(); c.textAlign='left';
+}
 function updateWeather(dt){
   world.wTimer-=dt;
   if(world.wTimer<=0&&world.wBlend>=1) setWeather(rollWeather());
@@ -616,6 +661,7 @@ function drawFX(sky){
   if(typeof seasonNow==='function'){ const s=seasonNow(); fxx.save(); fxx.globalCompositeOperation='soft-light';
     fxx.fillStyle=`rgba(${s.tint[0]},${s.tint[1]},${s.tint[2]},${s.wash+0.14})`; fxx.fillRect(0,0,W,H); fxx.restore(); }
   if(Game.screen==='sail'&&typeof drawNavHUD==='function') drawNavHUD();
+  if(Game.screen==='sail'&&typeof drawHomeMarker==='function') drawHomeMarker();
   if(Game.screen==='fish'&&typeof drawSonar==='function') drawSonar();
   if(Game.screen==='fish'&&fishing.fight&&typeof drawFightHUD==='function') drawFightHUD();
   if(Game.screen==='fish'&&typeof drawBeastHUD==='function') drawBeastHUD();
@@ -1929,16 +1975,24 @@ function buildCoast(){
   // coastal rocks at the waterline
   for(let i=0;i<Math.floor(len/50);i++){ const x=rr()*len, z=shoreZ+2+rr()*6;
     for(let k=0;k<3;k++) addOcta(m,x+rr()*4-2,-0.2+rr()*0.6,z+rr()*3,0.5+rr()*0.9,0.4+rr()*0.7,0.5+rr()*0.9,v3([96,94,88])); }
-  // ---- mountainous offshore islands + sea stacks ----
-  for(let i=0;i<9;i++){ const ix=rr()*len, iz=-16-rr()*42, base=4+rr()*7, peaks=2+Math.floor(rr()*2);
-    let py=0, pr=base;
-    for(let k=0;k<peaks;k++){ const ox=(rr()*2-1)*base*0.3, oz=(rr()*2-1)*base*0.3;
-      addCone(m,ix+ox,py,iz+oz,pr,pr*1.5,7,v3(mix(hillCol,sand,0.32))); py+=pr*0.9; pr*=0.6; }
-    if(cold&&py>7) addCone(m,ix,py-1.2,iz,pr*1.4,pr*1.7,6,v3([234,238,244]));
-    const nt=Math.floor(base*2.4); for(let t=0;t<nt;t++){ const a=rr()*TAU, rad=rr()*base*0.95;
-      const tx=ix+Math.cos(a)*rad, tz=iz+Math.sin(a)*rad; addLoTree(m,tx,base*0.32+rr()*base*0.35,tz,0.4+rr()*0.4,treeKind,rr); } }
-  for(let i=0;i<6;i++){ const x=rr()*len, iz=-12-rr()*30, h=5+rr()*9;
-    addPrism(m,x,h*0.4,iz,0.8+rr()*0.9,h,6,v3([92,90,86]),v3([96,94,90])); }
+  // ---- offshore islands + sea stacks — grounded so they RISE from the seabed, never float ----
+  const isleCol=v3(mix(hillCol,sand,0.32)), snowCol=v3([234,238,244]);
+  for(let i=0;i<8;i++){ const ix=rr()*len, iz=-20-rr()*38, base=4+rr()*6.5, hgt=base*2.0, apex=-6+hgt;
+    // one tall cone whose flat base sits well below the waterline (hidden), emerging cleanly through the surface
+    addCone(m,ix,-6,iz,base,hgt,8,isleCol);
+    // optional overlapping second hummock, also based below water
+    if(rr()<0.5){ const ox=(rr()*2-1)*base*0.42, oz=(rr()*2-1)*base*0.28, sb=base*0.55; addCone(m,ix+ox,-5,iz+oz,sb,sb*2.0,7,isleCol); }
+    if(cold) addCone(m,ix,apex-hgt*0.34,iz,base*0.4,hgt*0.34,7,snowCol);   // snow cap on the peak
+    // trees planted ON the emergent slope — radius kept inside the silhouette, height read off the cone surface
+    const nt=Math.floor(base*1.5);
+    for(let t=0;t<nt;t++){ const a=rr()*TAU, rad=(0.12+rr()*0.62)*base, surfY=-6+hgt*(1-rad/base);
+      if(surfY<0.9) continue;                                  // below the waterline — would float; skip
+      if(cold&&surfY>apex-hgt*0.34) continue;                  // above the snow line — bare rock
+      addLoTree(m,ix+Math.cos(a)*rad,surfY-0.25,iz+Math.sin(a)*rad,0.45+rr()*0.5,treeKind,rr); } }
+  // sea stacks — thin rocks rising from a submerged base, with a rubble skirt at the waterline
+  for(let i=0;i<6;i++){ const x=rr()*len, iz=-18-rr()*32, h=6+rr()*8, r=0.8+rr()*0.9;
+    addPrism(m,x,(h-5)/2,iz,r,h+5,6,v3([92,90,86]),v3([96,94,90]));         // bottom at y=-5 (hidden), top at +h
+    for(let k=0;k<3;k++){ const a=rr()*TAU, rk=r+0.4+rr()*0.7; addOcta(m,x+Math.cos(a)*rk,-0.15+rr()*0.5,iz+Math.sin(a)*rk,0.5+rr()*0.6,0.4+rr()*0.5,0.5+rr()*0.6,v3([88,86,82])); } }
   // ---- end headlands: natural cliff walls that close off both ends of the route ----
   const headland=(cx,dir)=>{
     for(let z=-58;z<=24;z+=5){ const t=clamp((z+58)/82,0,1);       // 0 at shore .. 1 at seaward tip
@@ -1979,7 +2033,12 @@ function buildCoast(){
     if(R.id==='med'){ for(let w=0;w<4;w++){ const wx=px+(w-1.5)*7,wz=-90; addBox(m,wx,groundY(wx,wz)+0.6,wz,4,0.6,0.4,v3([224,216,196])); } }
     const lmx=px+(p.kind==='home'?12:-11),lmz=-88; addLandmark(m,lmx,groundY(lmx,lmz),lmz,R);
     if(p.kind==='home'){ const lx=px-11,lz=-100,ly=groundY(lx,lz); addLighthouse(m,lx,ly,lz); COAST.lights.push([lx,ly+11.4,lz]);
-      if(typeof addHomeStructures==='function') addHomeStructures(m,px,groundY,R); }
+      if(typeof addHomeStructures==='function') addHomeStructures(m,px,groundY,R);
+      // a tall gilt harbour pennant on the main dock — reads as "this is home" from far out on the water
+      const fz=shoreZ+7; addBox(m,px+2.9,3.0,fz,0.09,3.0,0.09,v3([64,54,40]));
+      addTri(m,[px+2.98,5.7,fz],[px+2.98,4.5,fz],[px+4.9,5.1,fz],v3([236,196,86]));
+      addTri(m,[px+2.98,5.05,fz],[px+2.98,3.95,fz],[px+4.7,4.5,fz],v3([222,176,72]));
+      COAST.lamps.push([px+2.98,5.9,fz]); }
   }
   if(COAST.mesh&&COAST.mesh.vao) gl.deleteVertexArray(COAST.mesh.vao);
   COAST.mesh=meshToVAO(m);
