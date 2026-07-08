@@ -404,7 +404,8 @@ const WX={
 function rollWeather(){ const w=regionData().weather, sw=SEASONS[world.season||0].wx; let total=0; const eff={};
   for(const k in w){ eff[k]=w[k]*(sw[k]||1); total+=eff[k]; }
   let r=rnd()*total; for(const k in eff){ r-=eff[k]; if(r<=0)return k; } return 'clear'; }
-function setWeather(next){ world.weatherPrev=world.weather; world.weather=next; world.wBlend=0; world.wTimer=rrange(26,54); }
+function setWeather(next){ world.weatherPrev=world.weather; world.weather=next; world.wBlend=0; world.wTimer=rrange(26,54);
+  if(next==='storm'&&typeof tip==='function') tip('firststorm','A storm! It hammers your hull if you\'re caught far from port — run for the nearest harbour or ride it out near shore.'); }
 /* ---- Seasons & migrations: fish abundance shifts with the calendar ------ */
 const SEASON_LEN=4;   // days per season
 const SEASONS=[
@@ -438,13 +439,22 @@ function drawNavHUD(){ const c=fxx, night=clamp(1-skyColors().dayness*1.6,0,1);
   c.fillStyle='#d8ccaa'; c.font='700 10px ui-sans-serif';
   c.fillText('N',cx,cy-r+12); c.fillText('S',cx,cy+r-3); c.fillText('E',cx+r-6,cy+4); c.fillText('W',cx-r+6,cy+4);
   const nx=Math.sign(player.headX)||player.facing;
+  // wind needle (thin, along the coast)
+  const wsgn=Math.sign(world.windDir)||1; c.strokeStyle='rgba(150,200,220,0.7)'; c.lineWidth=1.6;
+  c.beginPath(); c.moveTo(cx-wsgn*(r-14),cy-8); c.lineTo(cx+wsgn*(r-14),cy-8); c.stroke();
+  c.fillStyle='rgba(150,200,220,0.7)'; c.beginPath(); c.moveTo(cx+wsgn*(r-14),cy-8); c.lineTo(cx+wsgn*(r-14)-wsgn*4,cy-10.5); c.lineTo(cx+wsgn*(r-14)-wsgn*4,cy-5.5); c.closePath(); c.fill();
+  // heading needle
   c.strokeStyle='#e0785a'; c.lineWidth=3; c.beginPath(); c.moveTo(cx,cy); c.lineTo(cx+nx*(r-9),cy); c.stroke();
   c.fillStyle='#e0785a'; c.beginPath(); c.arc(cx+nx*(r-9),cy,3.2,0,TAU); c.fill();
-  // current arrow
+  // current arrow — green if it aids your heading, amber if against
   const cs=world.current||0, sgn=Math.sign(cs)||1, clen=clamp(Math.abs(cs),0.06,1)*(r-4);
-  c.strokeStyle='#6fb0d0'; c.lineWidth=2.4; c.beginPath(); c.moveTo(cx-sgn*clen*0.5,cy+r+15); c.lineTo(cx+sgn*clen*0.5,cy+r+15); c.stroke();
-  c.fillStyle='#6fb0d0'; c.beginPath(); c.moveTo(cx+sgn*clen*0.5,cy+r+15); c.lineTo(cx+sgn*clen*0.5-sgn*5,cy+r+12); c.lineTo(cx+sgn*clen*0.5-sgn*5,cy+r+18); c.closePath(); c.fill();
-  c.fillStyle='#9fb3bb'; c.font='9px ui-sans-serif'; c.fillText('current',cx,cy+r+29);
+  const aids=sgn===nx, ccol=aids?'#7fd39a':'#e6a04a';
+  c.strokeStyle=ccol; c.lineWidth=2.4; c.beginPath(); c.moveTo(cx-sgn*clen*0.5,cy+r+15); c.lineTo(cx+sgn*clen*0.5,cy+r+15); c.stroke();
+  c.fillStyle=ccol; c.beginPath(); c.moveTo(cx+sgn*clen*0.5,cy+r+15); c.lineTo(cx+sgn*clen*0.5-sgn*5,cy+r+12); c.lineTo(cx+sgn*clen*0.5-sgn*5,cy+r+18); c.closePath(); c.fill();
+  c.fillStyle=ccol; c.font='9px ui-sans-serif'; c.fillText(aids?'current — with you':'current — against',cx,cy+r+29);
+  // nearest port marker
+  if(typeof nearestPort==='function'){ const p=nearestPort(); if(p){ const d=Math.round(Math.abs(p.x-player.pos[0])), dir=p.x>=player.pos[0]?'▶':'◀';
+    c.fillStyle='#d8ccaa'; c.font='700 10px ui-sans-serif'; c.fillText(`${dir} ${p.name}`,cx,cy+r+43); c.fillStyle='#9fb3bb'; c.font='9px ui-sans-serif'; c.fillText(`${d}m`,cx,cy+r+54); } }
   c.restore(); c.textAlign='left';
 }
 function updateWeather(dt){
@@ -602,11 +612,16 @@ function drawFX(sky){
   if(typeof seasonNow==='function'){ const s=seasonNow(); fxx.save(); fxx.globalCompositeOperation='soft-light';
     fxx.fillStyle=`rgba(${s.tint[0]},${s.tint[1]},${s.tint[2]},${s.wash+0.14})`; fxx.fillRect(0,0,W,H); fxx.restore(); }
   if(Game.screen==='sail'&&typeof drawNavHUD==='function') drawNavHUD();
+  if(Game.screen==='fish'&&typeof drawSonar==='function') drawSonar();
   if(Game.screen==='fish'&&fishing.fight&&typeof drawFightHUD==='function') drawFightHUD();
   if(Game.screen==='fish'&&typeof drawBeastHUD==='function') drawBeastHUD();
   if(view.flash>0.01){ fxx.fillStyle=withA(view.flashCol,view.flash*0.5); fxx.fillRect(0,0,W,H); }
 }
 const view={flash:0,flashCol:'#dfeaff',shake:0,shakeX:0,shakeY:0,helm:false};
+const Settings={volume:0.85,shake:1,reduceMotion:false,cb:false};
+try{ Object.assign(Settings, JSON.parse(localStorage.getItem('st_settings')||'{}')); }catch(e){}
+function saveSettings(){ try{ localStorage.setItem('st_settings',JSON.stringify(Settings)); }catch(e){} if(Sound.setVolume) Sound.setVolume(Settings.volume); }
+function shakeAmt(){ return Settings.reduceMotion?0:Settings.shake; }
 
 /* ======================= 10. MAIN LOOP ================================== */
 function update(dt){
@@ -1056,7 +1071,9 @@ function handleKey(k){
     else if(k==='escape'&&typeof openPause==='function') openPause();
     else if(k==='h'&&typeof openHelp==='function') openHelp();
   } else if(Game.screen==='fish'){
-    if(k==='u'&&typeof startCutting==='function') startCutting();
+    if(fishing.fight){ if(k===' '||k==='escape'||k==='e') cutLine(); }
+    else if(k===' '&&typeof toggleFishing==='function') toggleFishing();
+    else if(k==='u'&&typeof startCutting==='function') startCutting();
     else if((k==='escape'||k==='e')&&typeof toggleFishing==='function') toggleFishing();
   } else if(Game.screen==='cutting'){
     if(k==='escape') endCutting(false);
@@ -1169,7 +1186,7 @@ function updateCameraRig(dt){
   }
   // shake decay + apply small positional shake
   if(view.shake>0){ view.shake=Math.max(0,view.shake-dt*1.4);
-    const a=view.shake*view.shake*0.6; cam.pos[1]+=(rnd()*2-1)*a; cam.pos[0]+=(rnd()*2-1)*a; }
+    const a=view.shake*view.shake*0.6*shakeAmt(); cam.pos[1]+=(rnd()*2-1)*a; cam.pos[0]+=(rnd()*2-1)*a; }
 }
 function drawBoat3D(sky){
   boatTransform(BOAT.model);
@@ -1448,6 +1465,7 @@ function toggleFishing(){
     if(Math.abs(player.speed)>3){ toast('Slow down to drop your line',ic('rod')); return; }
     if(player.bait<=0){ toast('Out of bait — buy more at a port',ic('worm')); return; }
     player.bait--; fishing.active=true; fishing.fight=null; buildSeabedLife();
+    tip('firstfish','Pilot the glowing lure with the arrows and touch a fish to hook it. Deeper water hides richer fish.');
     fishing.remaining=1; fishing.lineOut=2.5;
     fishing.lure={x:player.pos[0],y:-2.5,z:0,vx:0,vy:0,vz:0};
     spawnInitialFish(); if(Sound.splash)Sound.splash();
@@ -1503,7 +1521,12 @@ function spawnHitFX(pos){ for(let i=0;i<8;i++){ /* placeholder: could add 3D bub
 function startFight(f){ const L=fishing.lure;
   fishing.fight={ id:f.id, def:f.def, len:f.len, dist:1.0, tension:0.14, run:0, runTimer:rrange(0.4,1.0),
     strength:clamp(f.def.hits/6,0.15,1)+(f.def.legendary?0.55:0), pos:[L.x,f.pos[1],f.pos[2]], hookY:f.pos[1], t:0 };
-  if(Sound.splash)Sound.splash(); toast(`Hooked a ${f.def.name}! Hold ▲ to reel — ease off on its runs`,ic('rod')); }
+  view.flash=0.55; view.flashCol=f.def.legendary?'#ffe6a0':'#dff3ff'; view.shake=Math.min(1,view.shake+0.4);
+  if(Sound.splash)Sound.splash(); if(Sound.chime)Sound.chime();
+  toast(`Hooked a ${f.def.name}! Hold ▲ to reel — ease off on its runs · Space to cut`,ic('rod'));
+  tip('firstfight','It fights! Hold ▲ to reel, but EASE OFF when it runs — the tension gauge snaps the line in the red. Space cuts it loose.'); }
+function cutLine(){ if(!fishing.fight) return; const nm=fishing.fight.def.name.replace(/^The /,''); fishing.fight=null; fishing.remaining=1;
+  if(Sound.reel)Sound.reel(); toast(`You cut the line — the ${nm} got away`,ic('rod')); }
 function updateFight(dt){ const F=fishing.fight, L=fishing.lure; F.t+=dt; F.runTimer-=dt;
   if(F.runTimer<=0){ if(F.run>0){ F.run=0; F.runTimer=rrange(0.8,1.9); } else { F.run=1; F.runTimer=rrange(0.6,1.3)*(0.7+F.strength); if(Sound.reel)Sound.reel(); } }
   const reeling=Input.up()||Input.down();               // hold up/down (or W/S) to reel
@@ -1537,13 +1560,29 @@ function drawFightHUD(){ const F=fishing.fight; if(!F) return; const c=fxx, cx=W
   c.fillStyle=tcol; roundRectC(c,bx,tyy,bw*tf,12,6); c.fill();
   c.textAlign='center'; c.fillStyle='#cbbf9f'; c.font='11px ui-sans-serif'; c.fillText('LINE TENSION — keep it out of the red', cx, tyy+26);
   c.restore(); c.textAlign='left'; }
+function sonarActive(){ return (player.upg&&player.upg.sonar>0) || (typeof hasSonar==='function'&&hasSonar()); }
+function drawSonar(){ if(!sonarActive()) return; const c=fxx, R=regionData();
+  const x=22, top=124, bot=H-158, h=bot-top;
+  c.save();
+  c.fillStyle='rgba(14,22,28,0.5)'; roundRectC(c,x-7,top-8,22,h+16,8); c.fill();
+  c.fillStyle='rgba(255,255,255,0.10)'; roundRectC(c,x,top,8,h,4); c.fill();
+  // each species' preferred depth band, coloured by species
+  const ids=R.fish.filter(id=>!FISH[id].legendary);
+  for(const id of ids){ const d=FISH[id]; const y0=top+d.depth[0]*h, y1=top+d.depth[1]*h, col=hex2rgb(d.col);
+    c.fillStyle=`rgba(${col[0]},${col[1]},${col[2]},0.55)`; roundRectC(c,x,y0,8,Math.max(3,y1-y0),3); c.fill(); }
+  // live lure-depth marker
+  const ld=clamp(-fishing.lure.y/WORLD_DEPTH,0,1), ly=top+ld*h;
+  c.fillStyle='#ffe27a'; c.beginPath(); c.moveTo(x+9,ly); c.lineTo(x+18,ly-5); c.lineTo(x+18,ly+5); c.closePath(); c.fill();
+  c.fillStyle='#8fa6ae'; c.font='9px ui-sans-serif'; c.textAlign='left'; c.fillText('0m',x+16,top+3); c.fillText(Math.round(WORLD_DEPTH)+'m',x+16,bot+2);
+  c.save(); c.translate(x-9,top+h/2); c.rotate(-PI/2); c.textAlign='center'; c.fillStyle='#8fd0e0'; c.font='700 10px ui-sans-serif'; c.fillText('SONAR · DEPTH',0,0); c.restore();
+  c.restore(); c.textAlign='left'; }
 /* ======================= REGION MONSTERS (hunters) ==================== */
 const MON={};
 const MONSTERS={
   north:{name:'Frostmaw',mesh:'serpent',col:[74,90,102],acc:[207,230,238],size:7.5,lore:'a white sea-serpent older than the ice'},
   trop:{name:'The Devourer',mesh:'shark',col:[74,86,96],acc:[223,232,238],size:9,lore:'a shark the length of a schooner'},
   med:{name:'Scylla',mesh:'serpent',col:[92,74,100],acc:[224,192,208],size:8,lore:'a many-toothed horror from the trenches'},
-  verge:{name:'The Abyssal',mesh:'angler',col:[22,32,44],acc:[143,240,208],size:11,glow:true,lore:'a lantern-lit leviathan of the black water'},
+  verge:{name:'The Abyssal',mesh:'angler',col:[52,66,84],acc:[143,240,208],size:11,glow:true,lore:'a lantern-lit leviathan of the black water'},
 };
 const Beast={threat:0,state:'gone',x:0,y:-40,z:-28,ph:0,atkT:0,def:null,warned:0};
 function beastReset(){ Beast.threat=0; Beast.state='gone'; Beast.atkT=0; Beast.warned=0; }
@@ -1584,9 +1623,10 @@ function buildMonsterMeshes(){
 function updateBeast(dt){ const def=MONSTERS[regionData().id]; Beast.def=def; if(!def) return; Beast.ph+=dt;
   if(Game.screen==='fish' && Beast.state!=='attack'){
     const L=fishing.lure, night=clamp(1-skyColors().dayness*1.7,0,1), deep=clamp(-L.y/WORLD_DEPTH,0,1);
-    Beast.threat=clamp(Beast.threat + dt*(0.016 + night*0.028 + deep*0.03 + world.storm*0.04)*(typeof techWard==='function'?techWard():1), 0, 1.0001);
+    Beast.threat=clamp(Beast.threat + dt*(0.013 + night*0.026 + deep*0.03 + world.storm*0.04)*(typeof techWard==='function'?techWard():1), 0, 1.0001);
     if(Beast.state==='gone' && Beast.threat>0.5){ Beast.state='lurk'; Beast.x=L.x+rrange(-28,28); Beast.z=-30; Beast.y=-WORLD_DEPTH+8;
-      toast('Something stirs in the deep water…',ic('waves')); if(Sound.thunder)Sound.thunder(); }
+      toast('Something stirs in the deep water…',ic('waves')); if(Sound.thunder)Sound.thunder();
+      tip('firstbeast','A predator prowls these waters when you fish the deep too long. Watch the DANGER meter — reel up (Space) and sail off to shake it before it strikes.'); }
     if(Beast.threat>0.8 && !Beast.warned){ Beast.warned=1; toast(`${def.name} is hunting you — reel up and run!`,ic('waves')); }
     if(Beast.state==='lurk' || Beast.state==='hunt'){ Beast.state=Beast.threat>0.8?'hunt':'lurk';
       const close=clamp((Beast.threat-0.5)/0.5,0,1), rad=lerp(30,6,close), ang=Beast.ph*(0.35+close*0.7);
@@ -1619,7 +1659,7 @@ function drawBeast(sky,litOpts){ if(Beast.state==='gone'||!Beast.def) return; bu
   const atk=Beast.state==='attack', sc=def.size*(atk?1+Beast.atkT*0.5:1);
   const face=(fishing.lure.x>=Beast.x)?1:-1, yaw=face>0?0:PI, wig=Math.sin(Beast.ph*(atk?10:2.2))*(atk?0.3:0.12);
   const m=m4(); m4compose(m,[Beast.x,Beast.y,Beast.z], yaw+wig, wig*0.5, 0, [sc,sc,sc]);
-  const emi=def.glow?0.5+0.3*Math.sin(Game.t*3):0, fog=atk?0.004:0.02;
+  const emi=(def.glow?0.7+0.3*Math.sin(Game.t*3):0.14)+(atk?0.3:0), fog=atk?0.004:0.016;
   drawLit(mesh,m,sky,Object.assign({},litOpts||{},{tint:v3(def.col),emissive:emi,fogDensity:fog}));
 }
 function drawBeastHUD(){ if(Beast.state==='gone'||Beast.threat<0.4) return; const c=fxx, cx=W/2;
@@ -1636,7 +1676,7 @@ function landFish(f){
   if(player.hold.length>=holdMax()){ toast('Hold is full! Sell your catch at port',ic('basket')); return; }
   player.hold.push({id:f.id,len:Math.round(f.len),value:val});
   const firstEver=!player.discovered[f.id]; player.discovered[f.id]=true;
-  if(firstEver&&typeof awardRP==='function') awardRP(f.def.legendary?12:4, 'new species logged');
+  if(firstEver&&typeof awardRP==='function') awardRP(f.def.legendary?14:5, 'new species logged');
   if(typeof questEvent==='function') questEvent('catch',{sp:f.id});
   if(!player.records[f.id]||f.len>player.records[f.id]) player.records[f.id]=Math.round(f.len);
   view.flash=0.5; view.flashCol=f.def.legendary?'#ffe6a0':'#dff3ff';
@@ -1942,6 +1982,7 @@ function enterRegion(i){
   player.pos=[home.x+140,0,0]; player.speed=0; player.facing=-1; player.yaw=PI;
   if(typeof Traders!=='undefined') Traders.list=[];
   if(typeof beastReset==='function') beastReset();
+  fishing.fight=null;
   if(player.seenPorts) player.seenPorts[home.name]=true;
   buildCoast(); buildSeabedLife();
   if(typeof toast==='function') toast(regionData().name,ic(RICON[regionData().id]));
@@ -2091,6 +2132,27 @@ function keysPanelHTML(){
       <div style="text-align:center;margin-top:16px"><button class="btn gold" id="keysclose">Got it</button></div>
     </div>`;
 }
+function openSettings(){ let p=document.getElementById('setpanel');
+  if(!p){ p=document.createElement('div'); p.id='setpanel'; p.style.cssText='position:absolute;inset:0;z-index:62;display:none'; document.getElementById('stage').appendChild(p); }
+  p.innerHTML=settingsHTML(); p.style.display='block'; }
+function closeSettings(){ const p=document.getElementById('setpanel'); if(p) p.style.display='none'; }
+function resetSave(){ if(confirm('Erase your saved voyage and start fresh? This cannot be undone.')){ try{ localStorage.removeItem(SAVE_KEY); }catch(e){} location.reload(); } }
+function settingsHTML(){
+  const row=(label,ctrl)=>`<div style="display:flex;justify-content:space-between;align-items:center;gap:16px;padding:9px 0;border-bottom:1px solid rgba(255,255,255,.07)"><span style="color:#e6dcc2">${label}</span><span>${ctrl}</span></div>`;
+  const sld=(k,min,max,step)=>`<input type="range" min="${min}" max="${max}" step="${step}" value="${Settings[k]}" style="width:150px;vertical-align:middle" oninput="Settings.${k}=+this.value;saveSettings()">`;
+  const tog=k=>`<button class="btn small ${Settings[k]?'gold':'ghost'}" onclick="Settings.${k}=!Settings.${k};saveSettings();openSettings()">${Settings[k]?'On':'Off'}</button>`;
+  return `<div style="position:absolute;inset:0;background:rgba(6,10,14,.55)" onclick="closeSettings()"></div>
+    <div style="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:min(460px,92vw);background:linear-gradient(180deg,rgba(24,34,42,.97),rgba(15,23,29,.98));border:1px solid rgba(255,255,255,.14);border-radius:16px;padding:18px 22px;box-shadow:0 30px 80px rgba(0,0,0,.55);color:#f4ead4;font-family:var(--sans)">
+      <div class="kicker" style="color:#e6b871">Options</div><h1 style="margin:.1em 0 .3em;font-size:24px">Settings</h1>
+      ${row('Volume', sld('volume',0,1,0.05))}
+      ${row('Screen shake', sld('shake',0,1.5,0.1))}
+      ${row('Reduce motion', tog('reduceMotion'))}
+      ${row('High-contrast market', tog('cb'))}
+      <div style="margin-top:16px;display:flex;gap:10px;justify-content:space-between;align-items:center">
+        <button class="btn ghost small" style="color:#e0785a" onclick="resetSave()">Reset save…</button>
+        <button class="btn gold" onclick="closeSettings()">Done</button></div>
+    </div>`;
+}
 let TOASTS=[];
 function toast(msg,icon){
   const w=document.getElementById('toasts'); const d=document.createElement('div'); d.className='toast';
@@ -2099,6 +2161,10 @@ function toast(msg,icon){
   setTimeout(()=>{ d.style.transition='opacity .4s,transform .4s'; d.style.opacity='0'; d.style.transform='translateY(-8px)'; setTimeout(()=>d.remove(),400); },2600);
   while(w.children.length>4) w.removeChild(w.firstChild);
 }
+let TIPS_SEEN=null;
+function tip(id,msg){ if(TIPS_SEEN===null){ try{ TIPS_SEEN=JSON.parse(localStorage.getItem('st_tips')||'{}'); }catch(e){ TIPS_SEEN={}; } }
+  if(TIPS_SEEN[id]) return; TIPS_SEEN[id]=1; try{ localStorage.setItem('st_tips',JSON.stringify(TIPS_SEEN)); }catch(e){}
+  toast(`<b style="color:#e6c07a">Tip</b> — ${msg}`, ic('book',15)); }
 
 /* ======================= 27. ECONOMY =================================== */
 const ECO={fish:{},goods:{}};
@@ -2133,6 +2199,7 @@ function cargoMax(){ return 8+player.upg.hull*8; }
 function cargoCount(){ let s=0; for(const k in player.cargo) s+=player.cargo[k]; return s; }
 function applyUpgrades(){ player.fuelMax=100+player.upg.hull*20; player.fuel=Math.min(player.fuel,player.fuelMax); }
 function openTown(port){ townPort=port; townTab='market'; if(typeof beastReset==='function') beastReset();
+  tip('firstdock','At port: sell your catch at the Market, restock fuel &amp; bait at the Chandler, and take on missions at the Tavern.');
   if(port.kind==='home'&&homeHas('baitshack')&&player.bait<16){ player.bait=16; toast('Bait shack topped up your bait',ic('worm')); }
   Game.set('town'); renderTown(); if(Sound.ui)Sound.ui(); }
 function departTown(){ if(Sound.ui)Sound.ui(); Game.set('sail'); }
@@ -2301,7 +2368,7 @@ function marketHTML(port){
   let rows=''; let grand=0;
   const ids=Object.keys(groups).sort((a,b)=>FISH[b].base-FISH[a].base);
   for(const id of ids){ const arr=groups[id]; let tot=0; for(const it of arr) tot+=fishSellPrice(port,it); grand+=tot;
-    const def=FISH[id]; const mult=ECO.fish[port.name][id]||1; const trend=mult>1.15?'▲':mult<0.9?'▼':'·';
+    const def=FISH[id]; const mult=ECO.fish[port.name][id]||1; const trend=mult>1.15?(Settings.cb?'▲ high':'▲'):mult<0.9?(Settings.cb?'▼ low':'▼'):'·';
     rows+=`<tr><td>${fishSVG(id,30)} ${def.name}${def.legendary?'<span class="tag leg">legendary</span>':''}</td>
       <td class="num">${arr.length}</td><td class="num">${coinStr(Math.round(tot/arr.length))} ${trend}</td>
       <td class="num"><b>${coinStr(tot)}</b></td><td class="num"><button class="btn small" onclick="sellFish('${id}')">Sell</button></td></tr>`; }
@@ -2315,7 +2382,7 @@ function marketHTML(port){
       <button class="btn small" ${have?'':'disabled'} onclick="sellGoods('${g}')">Sell</button></td></tr>`; }
   return `<div class="grid" style="grid-template-columns:1fr 1fr;gap:22px">
     <div><h3>${ic('scales',18)} Fish Market</h3><table class="ledger"><tr><th>Species</th><th class="num">Qty</th><th class="num">Each</th><th class="num">Total</th><th></th></tr>${rows}</table>
-      ${ids.length?`<div class="row" style="margin-top:10px"><div class="spacer"></div><b>Catch worth ${ic('coin',15)} ${coinStr(grand)}</b><button class="btn gold small" onclick="sellAllFish()">Sell Everything</button></div>`:''}</div>
+      ${ids.length?`<div class="row" style="margin-top:10px;gap:8px;flex-wrap:wrap"><div class="spacer"></div><b>Catch worth ${ic('coin',15)} ${coinStr(grand)}</b><button class="btn small ghost" onclick="sellAllButBest()" title="Keeps your single biggest of each species as a trophy">Sell, keep trophies</button><button class="btn gold small" onclick="sellAllFish()">Sell Everything</button></div>`:''}</div>
     <div><h3>${ic('crate',18)} Trade Goods</h3><p class="muted" style="font-size:12.5px;margin-top:-4px">Prices swing by port &amp; day. Buy low here, sell high elsewhere.</p>
       <table class="ledger"><tr><th>Good</th><th class="num">Hold</th><th class="num">Price</th><th></th></tr>${grows}</table></div>
   </div>`;
@@ -2351,6 +2418,13 @@ function sellFish(id){ let got=0,cnt=0; player.hold=player.hold.filter(it=>{ if(
   if(cnt){ player.money+=got; player.earned+=got; if(typeof questEvent==='function') questEvent('sell',{coin:got}); if(Sound.coin)Sound.coin(); toast(`Sold ${cnt}× ${FISH[id].name} · ${ic('coin',13)} ${coinStr(got)}`,ic('coin')); } renderTown(); saveGame(); checkRegionGoal(); }
 function sellAllFish(){ let got=0; const cnt=player.hold.length; for(const it of player.hold) got+=fishSellPrice(townPort,it); player.hold=[];
   if(cnt){ player.money+=got; player.earned+=got; if(typeof questEvent==='function') questEvent('sell',{coin:got}); if(Sound.coin)Sound.coin(); toast(`Sold your catch (${cnt}) · ${ic('coin',13)} ${coinStr(got)}`,ic('coin')); } renderTown(); saveGame(); checkRegionGoal(); }
+function sellAllButBest(){ // keep the single largest specimen of each species as a trophy
+  const best={}; for(const it of player.hold){ if(!best[it.id]||it.len>best[it.id].len) best[it.id]=it; }
+  const keep=new Set(Object.values(best)); let got=0,cnt=0; const next=[];
+  for(const it of player.hold){ if(keep.has(it)) next.push(it); else { got+=fishSellPrice(townPort,it); cnt++; } }
+  player.hold=next;
+  if(cnt){ player.money+=got; player.earned+=got; if(typeof questEvent==='function') questEvent('sell',{coin:got}); if(Sound.coin)Sound.coin(); toast(`Sold ${cnt} · kept your biggest of each · ${ic('coin',13)} ${coinStr(got)}`,ic('coin')); }
+  else toast('Only trophies in the hold',ic('basket')); renderTown(); saveGame(); checkRegionGoal(); }
 function buyFuel(n){ const room=player.fuelMax-player.fuel; const buy=Math.min(n,Math.ceil(room)); if(buy<=0){toast('Tanks are full',ic('fuel'));return;} const cost=Math.max(1,Math.round(buy*3*repPriceMul()));
   if(player.money<cost){toast('Not enough coin',ic('coin'));return;} player.money-=cost; player.fuel=Math.min(player.fuelMax,player.fuel+buy); if(Sound.coin)Sound.coin(); renderTown(); saveGame(); }
 function fillFuel(){ buyFuel(Math.ceil(player.fuelMax-player.fuel)); }
@@ -2501,6 +2575,7 @@ function openPause(){
       <button class="btn" id="p-log">${ic('book',15)} Fish Almanac</button>
       <button class="btn" id="p-map">${ic('map',15)} Chart &amp; Goals</button>
       <button class="btn" id="p-help">${ic('book',15)} How to Play</button>
+      <button class="btn" id="p-settings">${ic('gear',15)} Settings</button>
       <button class="btn ghost" id="p-quit">Save &amp; Quit to Title</button>
     </div></div>`;
   L.querySelector('#p-resume').onclick=()=>Game.set('sail');
@@ -2509,6 +2584,7 @@ function openPause(){
   L.querySelector('#p-log').onclick=()=>openAlmanac();
   L.querySelector('#p-map').onclick=()=>openMap();
   L.querySelector('#p-help').onclick=()=>openHelp();
+  L.querySelector('#p-settings').onclick=()=>openSettings();
   L.querySelector('#p-quit').onclick=()=>{ saveGame(); openTitle(); };
   Game.set('pause');
 }
@@ -2672,7 +2748,7 @@ const RICON={north:'snowflake',trop:'palm',med:'column',verge:'moon'};
   let AC=null, master, uwFilt, busAmb, busMus, busSfx, noiseBuf, seaSrc, seaFilt, seaGain, windSrc, windFilt, windGain, rainGain;
   let muted=false, musicNext=0, chordI=0;
   function guard(){ return AC && AC.state==='running'; }
-  function applyMute(){ if(master&&AC) master.gain.setTargetAtTime(muted?0:0.85, AC.currentTime, 0.05); }
+  function applyMute(){ const v=(typeof Settings!=='undefined'?Settings.volume:0.85); if(master&&AC) master.gain.setTargetAtTime(muted?0:0.85*v, AC.currentTime, 0.05); }
   function mkNoise(){ noiseBuf=AC.createBuffer(1,AC.sampleRate*2,AC.sampleRate); const d=noiseBuf.getChannelData(0); let last=0;
     for(let i=0;i<d.length;i++){ const w=Math.random()*2-1; last=(last+0.02*w)/1.02; d[i]=last*3.2; } }
   function loopNoise(filtType,freq,q,gv){ const s=AC.createBufferSource(); s.buffer=noiseBuf; s.loop=true;
@@ -2689,7 +2765,7 @@ const RICON={north:'snowflake',trop:'palm',med:'column',verge:'moon'};
     _ready:false, muted:false,
     ensure(){ if(AC){ if(AC.state==='suspended') AC.resume(); return; }
       try{ AC=new (window.AudioContext||window.webkitAudioContext)(); }catch(e){ return; }
-      master=AC.createGain(); master.gain.value=0.85; master.connect(AC.destination);
+      master=AC.createGain(); master.gain.value=0.85*(typeof Settings!=='undefined'?Settings.volume:1); master.connect(AC.destination);
       uwFilt=AC.createBiquadFilter(); uwFilt.type='lowpass'; uwFilt.frequency.value=20000; uwFilt.connect(master);
       busAmb=AC.createGain(); busAmb.gain.value=0.55; busAmb.connect(uwFilt);
       busMus=AC.createGain(); busMus.gain.value=0.22; busMus.connect(uwFilt);
@@ -2730,6 +2806,7 @@ const RICON={north:'snowflake',trop:'palm',med:'column',verge:'moon'};
     thunder(v){ if(!guard())return; const t=AC.currentTime; noiseHit(t,1.8*(v||1),260,45,0.5*(v||1)); const o=AC.createOscillator(); o.type='sine';
       const g=AC.createGain(); o.connect(g); g.connect(busSfx); o.frequency.setValueAtTime(60,t); o.frequency.exponentialRampToValueAtTime(32,t+1.6); env(g,t,0.05,1.6,0.3*(v||1)); o.start(t); o.stop(t+1.8); },
     toggleMute(){ muted=!muted; this.muted=muted; applyMute(); if(typeof toast==='function') toast(muted?'Sound off':'Sound on',ic(muted?'lock':'sun',16)); if(typeof saveGame==='function') saveGame(); },
+    setVolume(v){ applyMute(); },
   };
   Object.assign(Sound,impl);
 })();
@@ -3329,7 +3406,7 @@ function serviceEngine(){ const cost=Math.round(40+player.engineWear*160*repPric
   if(player.money<cost){toast('Not enough coin',ic('coin'));return;} player.money-=cost; player.engineWear=0; if(Sound.chime)Sound.chime(); toast('Engine serviced',ic('gear')); renderTown(); saveGame(); }
 function careenHull(){ const cost=Math.round(30+player.fouling*140*repPriceMul()); if(player.fouling<0.02){toast('Hull is clean',ic('wrench'));return;}
   if(player.money<cost){toast('Not enough coin',ic('coin'));return;} player.money-=cost; player.fouling=0; if(Sound.chime)Sound.chime(); toast('Hull careened — barnacles scraped',ic('wrench')); renderTown(); saveGame(); }
-function labRPPerDay(){ return homeBuilt('lab')?(2+(player.shipTier||0)):0; }
+function labRPPerDay(){ return homeBuilt('lab')?(3+(player.shipTier||0)):0; }
 function openResearch(){ ensureLayer('layer-research'); renderResearch(); Game.set('research'); if(Sound.ui)Sound.ui(); }
 function renderResearch(){ const L=document.getElementById('layer-research'); let branches='';
   for(const b in RESEARCH){ const B=RESEARCH[b]; let nodes='';
