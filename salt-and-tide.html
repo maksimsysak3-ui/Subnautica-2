@@ -1040,6 +1040,9 @@ const Input={ left:()=>keys.has('arrowleft')||keys.has('a'), right:()=>keys.has(
   up:()=>keys.has('arrowup')||keys.has('w'), down:()=>keys.has('arrowdown')||keys.has('s'), tap:k=>pressed.has(k) };
 function handleKey(k){
   if(Sound.ensure) Sound.ensure();
+  const kp=document.getElementById('keyspanel');
+  if(kp&&kp.style.display==='block'){ if(k==='escape'||k==='k'){ kp.style.display='none'; } return; }
+  if(k==='k'){ toggleKeys(); return; }
   if(k==='p'){ if(Sound.toggleMute) Sound.toggleMute(); return; }
   if(k==='t'&&(Game.screen==='sail'||Game.screen==='fish')){ if(typeof openSkills==='function') openSkills(); return; }
   if(k==='j'&&(Game.screen==='sail'||Game.screen==='fish')){ if(typeof openJournal==='function') openJournal(); return; }
@@ -2016,7 +2019,8 @@ function initHUD(){
       <div class="stat"><b>Hull</b><div class="gauge"><i id="g-hull" style="background:linear-gradient(90deg,#5fae7a,#8fd0a0)"></i></div></div>
       <div class="row" style="gap:14px;margin-top:2px"><span>${ic('basket',15)} <b id="hud-hold" style="font-size:13px;color:#fff">0/0</b></span><span>${ic('worm',15)} <b id="hud-bait" style="font-size:13px;color:#fff">0</b></span></div>
     </div>
-    <div class="pill hud-bc" id="hud-hint"></div>`;
+    <div class="pill hud-bc" id="hud-hint"></div>
+    <div class="pill" id="keysbtn" style="position:absolute;right:16px;bottom:14px;cursor:pointer;padding:7px 12px;display:flex;align-items:center;gap:6px;font-size:12.5px" onclick="toggleKeys()">${ic('keyboard',16)} Controls</div>`;
   HUD.coin=document.getElementById('hud-coin'); HUD.region=document.getElementById('hud-region');
   HUD.clock=document.getElementById('hud-clock'); HUD.weather=document.getElementById('hud-weather');
   HUD.fuel=document.getElementById('g-fuel'); HUD.hull=document.getElementById('g-hull');
@@ -2048,6 +2052,44 @@ function updateHUD(){
     else hint=`<span class="key">A</span><span class="key">D</span> sail &nbsp; <span class="key">Space</span> drop line &nbsp; <span class="key">C</span> ${view.helm?'chase view':'helm view'} &nbsp; <span class="key">M</span> ${player.motor?'switch to sail':'engage engine'} &nbsp; <span class="key">Esc</span> menu`;
   } else hint=`<span class="key">◀</span><span class="key">▶</span><span class="key">▲</span><span class="key">▼</span> pilot lure &nbsp; touch fish to catch &nbsp; <span class="key">U</span> fillet &nbsp; <span class="key">Space</span> reel up`;
   HUD.hint.innerHTML=hint;
+}
+function toggleKeys(){ let p=document.getElementById('keyspanel');
+  if(!p){ p=document.createElement('div'); p.id='keyspanel'; p.style.cssText='position:absolute;inset:0;z-index:60;display:none'; document.getElementById('stage').appendChild(p); }
+  if(p.style.display==='block'){ p.style.display='none'; return; }
+  p.innerHTML=keysPanelHTML(); p.style.display='block';
+  const c=p.querySelector('#keysclose'); if(c) c.onclick=()=>{ p.style.display='none'; };
+  const s=p.querySelector('#keysscrim'); if(s) s.onclick=()=>{ p.style.display='none'; };
+}
+function keysPanelHTML(){
+  const K=s=>`<span class="key">${s}</span>`;
+  const row=(keys,desc)=>`<div style="display:flex;justify-content:space-between;align-items:center;gap:12px;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.06)"><span style="white-space:nowrap">${keys}</span><span style="color:#cbbf9f;text-align:right;font-size:12.5px">${desc}</span></div>`;
+  const grp=(t,rows)=>`<h3 style="margin:12px 0 3px;font-size:14px;color:#e6c07a">${t}</h3>${rows}`;
+  const body=
+    grp(`${ic('sail',15)} Sailing`,
+      row(K('A')+K('D')+' / '+K('◀')+K('▶'),'Steer along the coast')+
+      row(K('M'),'Toggle engine / sail')+
+      row(K('C'),'Helm view / chase view')+
+      row(K('E'),'Dock at a nearby port')+
+      row(K('Space'),'Drop your fishing line'))+
+    grp(`${ic('rod',15)} Fishing`,
+      row(K('◀')+K('▶')+K('▲')+K('▼'),'Pilot the lure')+
+      row(K('▲')+' hold','Reel in a hooked fish — ease off on its runs')+
+      row(K('Space'),'Reel up / leave the water')+
+      row(K('U'),'Fillet your catch on the board'))+
+    grp(`${ic('scroll',15)} Menus &amp; Info`,
+      row(K('T'),'Skill tree &amp; ship tiers')+
+      row(K('R'),'Research &amp; Development lab')+
+      row(K('J'),'Chapters &amp; missions (journal)')+
+      row(K('H'),'How to play')+
+      row(K('P'),'Mute / unmute sound')+
+      row(K('Esc'),'Pause / back'));
+  return `<div id="keysscrim" style="position:absolute;inset:0;background:rgba(6,10,14,.55)"></div>
+    <div style="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:min(560px,92vw);max-height:86vh;overflow:auto;background:linear-gradient(180deg,rgba(24,34,42,.97),rgba(15,23,29,.98));border:1px solid rgba(255,255,255,.14);border-radius:16px;padding:18px 22px;box-shadow:0 30px 80px rgba(0,0,0,.55);color:#f4ead4;font-family:var(--sans)">
+      <div class="row" style="align-items:center"><div class="kicker" style="color:#e6b871">Quick Reference</div><div class="spacer"></div><div style="opacity:.7">${ic('keyboard',20)}</div></div>
+      <h1 style="margin:.1em 0 .2em;font-size:26px">Controls</h1>
+      ${body}
+      <div style="text-align:center;margin-top:16px"><button class="btn gold" id="keysclose">Got it</button></div>
+    </div>`;
 }
 let TOASTS=[];
 function toast(msg,icon){
@@ -2478,7 +2520,7 @@ function openHelp(fromTitle){
       <div><h3>${ic('sail',18)} Sailing</h3><p><span class="key">A</span><span class="key">D</span> steer along the coast. <span class="key">M</span> toggles engine (fast, burns fuel) and sail (free, wind-powered). <span class="key">C</span> drops you to a first-person view at the ship's wheel. Watch the sky — storms hammer your hull if you're caught far from port.</p></div>
       <div><h3>${ic('rod',18)} Fishing</h3><p>Press <span class="key">Space</span> at sea to drop your line. Pilot the lure with the arrows; touch a fish to hook it. Small fish come straight up — but anything bigger <b>fights</b>: hold <span class="key">▲</span> to reel, but ease off during its runs or the <b>line tension</b> snaps and it's gone. Deeper water hides rarer fish, and each species <b>runs in its own season</b> (see the Almanac) — fish the calendar.</p></div>
       <div><h3>${ic('anchor',18)} Ports &amp; Trade</h3><p>Sail up to a harbour and press <span class="key">E</span> to dock. Sell your catch — prices swing by port and day, so learn the good markets. Trade goods between ports for profit, and buy fuel, bait &amp; repairs.</p></div>
-      <div><h3>${ic('gear',18)} Master the Coast</h3><p>Open the <span class="key">T</span> skill tree anywhere to upgrade parts (coin) and buy ship tiers with captain stars — earned from legendaries &amp; contracts — for a bigger, faster boat. Press <span class="key">U</span> on a catch to fillet it on the board for a bonus. Earn each region's goal and land its legendary to unlock the next coast.</p></div>
+      <div><h3>${ic('gear',18)} Master the Coast</h3><p><span class="key">T</span> skill tree (coin + captain stars), <span class="key">R</span> research lab (compounding tech from new species, missions &amp; a Marine Lab), <span class="key">J</span> chapters &amp; missions, <span class="key">C</span> helm view. Fish run by <b>season</b> and bite on the <b>tide</b>; currents carry your boat. Keep your engine serviced and hull careened. And beware — each coast hides a <b>giant predator</b> that stirs when you fish too long in the deep. When the water stirs, reel up and run.</p></div>
     </div>
     <div class="row" style="justify-content:center;margin-top:16px"><button class="btn gold" id="h-ok">${fromTitle?'Back':'Got it'}</button></div></div>`;
   L.querySelector('#h-ok').onclick=()=>{ if(fromTitle) openTitle(); else Game.set(Game.prev==='pause'?'pause':'sail'); if(Game.prev==='pause'&&!fromTitle) openPause(); };
@@ -2607,6 +2649,7 @@ const ICON={
   person:`<circle cx=12 cy=8.5 r=4 fill="#d8b48c"/><path d="M4.5 20c0-4.2 3.6-6.4 7.5-6.4s7.5 2.2 7.5 6.4z" fill="#5a7a8a"/>`,
   scroll:`<path d="M6 4h11a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V4z" fill="#e7d6b4" stroke="#b79a6a" stroke-width=1.1/><path d="M8 8h8M8 11h8M8 14h5" stroke="#9a7a48" stroke-width=1.1/><path d="M5 4a2 2 0 0 0-2 2 2 2 0 0 0 2 2" fill="none" stroke="#b79a6a" stroke-width=1.1/>`,
   star:`<path d="M12 3l2.5 5.6 6.1.6-4.6 4.1 1.4 6-5.4-3.2-5.4 3.2 1.4-6L3.4 9.2l6.1-.6z" fill="#f2c94c" stroke="#c99633" stroke-width=.8/>`,
+  keyboard:`<rect x=2 y=6 width=20 height=12 rx=2 fill="#3a4650" stroke="#6c767c" stroke-width=1/><g fill="#d5dde1"><rect x=4.5 y=8.5 width=1.8 height=1.8/><rect x=7.4 y=8.5 width=1.8 height=1.8/><rect x=10.3 y=8.5 width=1.8 height=1.8/><rect x=13.2 y=8.5 width=1.8 height=1.8/><rect x=16.1 y=8.5 width=1.8 height=1.8/><rect x=6 y=11.2 width=1.8 height=1.8/><rect x=8.9 y=11.2 width=1.8 height=1.8/><rect x=11.8 y=11.2 width=1.8 height=1.8/><rect x=14.7 y=11.2 width=1.8 height=1.8/><rect x=7.5 y=14 width=9 height=1.8 rx=.9/></g>`,
   boat:`<path d="M4 14h16l-2.5 4.5c-.4.7-1.1 1-1.9 1H8.4c-.8 0-1.5-.3-1.9-1z" fill="#b0563e"/><rect x=5 y=12.5 width=14 height=1.6 fill="#e7d6b4"/><rect x=11 y=4 width=1.3 height=8.5 fill="#8a6a3a"/><path d="M12.3 5c2.4 1.2 3.6 3 3.6 5.5h-3.6z" fill="#f0ead6"/>`,
   snowflake:`<path d="M12 3v18M4.2 7.5l15.6 9M19.8 7.5l-15.6 9" stroke="#9fd0e0" stroke-width=1.5 stroke-linecap="round"/><path d="M12 6l-2 2M12 6l2 2M12 18l-2-2M12 18l2-2" stroke="#9fd0e0" stroke-width=1.3 stroke-linecap="round"/>`,
   sun:`<circle cx=12 cy=12 r=5 fill="#f2c94c"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2" stroke="#e6b545" stroke-width=1.6 stroke-linecap="round"/>`,
