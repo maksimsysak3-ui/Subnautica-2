@@ -1103,6 +1103,7 @@ const player={
   home:{built:{},stock:{},accrued:0,lastDay:1},
   rep:{north:0,trop:0,med:0,verge:0}, quests:{},
   rp:0, tech:{}, engineWear:0, fouling:0, seenPorts:{},
+  rig:{line:'standard',bait:'worm'},
 };
 function holdMax(){ return UPGRADES.hull.levels[player.upg.hull].hold + (player.shipTier||0)*10 + homeHoldBonus() + (typeof techHold==='function'?techHold():0); }
 function toggleMotor(){ player.motor=!player.motor; if(typeof toast==='function') toast(player.motor?'Engine engaged':'Under sail',ic(player.motor?'gear':'sail')); }
@@ -1469,7 +1470,10 @@ function toggleFishing(){
     if(Math.abs(player.speed)>3){ toast('Slow down to drop your line',ic('rod')); return; }
     if(player.bait<=0){ toast('Out of bait — buy more at a port',ic('worm')); return; }
     player.bait--; fishing.active=true; fishing.fight=null; buildSeabedLife();
-    tip('firstfish','Pilot the glowing lure with the arrows and touch a fish to hook it. Deeper water hides richer fish.');
+    tip('firstfish','Pilot the glowing lure with the arrows and touch a fish to hook it. Deeper water hides richer fish — and, rarely, something dangerous.');
+    // roll whether a predator prowls this session — usually not, more likely at night / in a storm
+    if(typeof Beast!=='undefined'){ beastReset(); const nf=clamp(1-skyColors().dayness*1.7,0,1);
+      Beast.present=chance(0.14 + nf*0.14 + world.storm*0.22); }
     fishing.remaining=1; fishing.lineOut=2.5;
     fishing.lure={x:player.pos[0],y:-2.5,z:0,vx:0,vy:0,vz:0};
     spawnInitialFish(); if(Sound.splash)Sound.splash();
@@ -1532,37 +1536,53 @@ function startFight(f){ const L=fishing.lure;
 function cutLine(){ if(!fishing.fight) return; const nm=fishing.fight.def.name.replace(/^The /,''); fishing.fight=null; fishing.remaining=1;
   if(Sound.reel)Sound.reel(); toast(`You cut the line — the ${nm} got away`,ic('rod')); }
 function updateFight(dt){ const F=fishing.fight, L=fishing.lure; F.t+=dt; F.runTimer-=dt;
-  if(F.runTimer<=0){ if(F.run>0){ F.run=0; F.runTimer=rrange(0.8,1.9); } else { F.run=1; F.runTimer=rrange(0.6,1.3)*(0.7+F.strength); if(Sound.reel)Sound.reel(); } }
+  // telegraphed rhythm: long CALM (reel freely) -> WINDUP warning -> RUN (must ease) -> calm again
+  if(F.runTimer<=0){
+    if(F.run===0){ F.run=2; F.runTimer=0.85; }                                 // windup — "it's about to run"
+    else if(F.run===2){ F.run=1; F.runTimer=rrange(0.7,1.25); if(Sound.reel)Sound.reel(); } // the run
+    else { F.run=0; F.runTimer=rrange(1.7,2.9); }                              // long calm window
+  }
   const reeling=Input.up()||Input.down();               // hold up/down (or W/S) to reel
-  const pull = F.run>0 ? (0.85+F.strength*1.4) : 0.05;
-  const lineStr=(typeof techLine==='function'?techLine():1);   // researched line resists tension
-  if(reeling){ F.tension += (0.26+pull*0.95)*dt/lineStr; F.dist -= (0.19/(1+pull*3.2))*dt; }
-  else { F.tension -= 1.15*dt; F.dist += pull*0.11*dt; }
-  F.tension=clamp(F.tension,0,1.3); F.dist=clamp(F.dist,0,1.06);
+  const running=F.run===1, windup=F.run===2;
+  const pull = running ? (0.7+F.strength*1.0) : (windup?0.22:0.03);
+  const lineStr=(typeof techLine==='function'?techLine():1) / (typeof rigLine==='function'?rigLine().tension:1);
+  if(reeling){ F.tension += (0.2+pull*0.8)*dt/lineStr; F.dist -= (0.2/(1+pull*3))*dt; }
+  else { F.tension -= 1.3*dt; F.dist += pull*0.08*dt; }
+  F.tension=clamp(F.tension,0,1.2); F.dist=clamp(F.dist,0,1.06);
   // the hooked fish hangs just below the lure, pulled down and thrashing during a run
-  const ty=clamp(L.y - 2.4 - F.dist*5.5 - (F.run>0?1.6:0),-WORLD_DEPTH+2,L.y-1.6);
+  const ty=clamp(L.y - 2.4 - F.dist*5.5 - (running?1.6:0),-WORLD_DEPTH+2,L.y-1.6);
   F.pos[1]=lerp(F.pos[1],ty,1-Math.pow(0.02,dt));
-  F.pos[0]=lerp(F.pos[0],L.x+(F.run>0?Math.sin(F.t*9)*1.3:0),1-Math.pow(0.05,dt));
+  F.pos[0]=lerp(F.pos[0],L.x+(running?Math.sin(F.t*9)*1.3:0),1-Math.pow(0.05,dt));
   fishing.remaining=clamp(1-F.dist*0.9,0,1);
   if(F.tension>=1){ view.flash=0.5; view.flashCol='#e0785a'; if(Sound.reel)Sound.reel();
     toast(`The line snapped — the ${F.def.name} broke free!`,ic('rod')); fishing.fight=null; fishing.remaining=1; updateFishCamera(dt); return; }
   if(F.dist<=0){ landFish({id:F.id,def:F.def,len:F.len,pos:F.pos}); fishing.fight=null; fishing.remaining=1; updateFishCamera(dt); return; }
   updateFishCamera(dt); }
 function drawFightHUD(){ const F=fishing.fight; if(!F) return; const c=fxx, cx=W/2;
-  const bw=Math.min(430,W*0.52), bx=cx-bw/2, by=H-150;
+  const running=F.run===1, windup=F.run===2;
+  const state = running?{txt:'EASE OFF! — release ▲',col:'#e0785a'} : windup?{txt:'It tenses… ready to ease',col:'#e6c04a'} : {txt:'REEL NOW — hold ▲',col:'#7fd39a'};
+  // coloured screen-edge glow telling you at a glance: green = reel, red = ease
+  c.save(); const eg=c.createLinearGradient(0,0,0,H); const ec=state.col; const ea=running?0.34:windup?0.2:0.16;
+  c.globalAlpha=1; const grd=(x0,y0,x1,y1)=>{ const g=c.createLinearGradient(x0,y0,x1,y1); g.addColorStop(0,withA(ec,ea)); g.addColorStop(1,withA(ec,0)); return g; };
+  c.fillStyle=grd(0,0,0,120); c.fillRect(0,0,W,120); c.fillStyle=grd(0,H,0,H-120); c.fillRect(0,H-120,W,120);
+  c.fillStyle=grd(0,0,120,0); c.fillRect(0,0,120,H); c.fillStyle=grd(W,0,W-120,0); c.fillRect(W-120,0,120,H);
+  c.restore();
+  const bw=Math.min(440,W*0.52), bx=cx-bw/2, by=H-158;
   c.save(); c.textAlign='center';
-  c.font='600 16px Georgia,serif'; c.fillStyle=F.run>0?'#f0a06a':'#f4ead4';
-  c.fillText(`${F.def.name.replace(/^The /,'')} — ${F.run>0?'RUNNING! ease off ▲':'reel it in — hold ▲'}`, cx, by-30);
-  // distance bar
+  // big state prompt
+  c.font='700 26px Georgia,serif'; c.fillStyle=state.col; c.fillText(state.txt, cx, by-40);
+  c.font='600 13px ui-sans-serif'; c.fillStyle='#cbbf9f'; c.fillText(`${F.def.name.replace(/^The /,'')}`, cx, by-22);
+  // distance bar (how close to the boat)
   c.fillStyle='rgba(255,255,255,0.14)'; roundRectC(c,bx,by,bw,10,5); c.fill();
   c.fillStyle='#7fd39a'; roundRectC(c,bx,by,bw*clamp(1-F.dist,0,1),10,5); c.fill();
-  c.font='11px ui-sans-serif'; c.fillStyle='#cbbf9f'; c.textAlign='left'; c.fillText('at the boat',bx,by+22); c.textAlign='right'; c.fillText('deep',bx+bw,by+22);
-  // tension bar with red danger zone
+  c.font='11px ui-sans-serif'; c.fillStyle='#cbbf9f'; c.textAlign='left'; c.fillText('◀ landed',bx,by+22); c.textAlign='right'; c.fillText('deep ▶',bx+bw,by+22);
+  // tension bar with a red danger zone at the top end
   const tyy=by+34; c.fillStyle='rgba(255,255,255,0.14)'; roundRectC(c,bx,tyy,bw,12,6); c.fill();
-  c.fillStyle='rgba(220,90,70,0.30)'; roundRectC(c,bx+bw*0.8,tyy,bw*0.2,12,6); c.fill();
-  const tf=clamp(F.tension,0,1), tcol=F.tension>0.8?'#e0785a':F.tension>0.62?'#e6c04a':'#6fb0d0';
+  c.fillStyle='rgba(220,90,70,0.30)'; roundRectC(c,bx+bw*0.82,tyy,bw*0.18,12,6); c.fill();
+  const tf=clamp(F.tension,0,1), tcol=F.tension>0.82?'#e0785a':F.tension>0.6?'#e6c04a':'#6fb0d0';
   c.fillStyle=tcol; roundRectC(c,bx,tyy,bw*tf,12,6); c.fill();
-  c.textAlign='center'; c.fillStyle='#cbbf9f'; c.font='11px ui-sans-serif'; c.fillText('LINE TENSION — keep it out of the red', cx, tyy+26);
+  c.textAlign='center'; c.fillStyle='#cbbf9f'; c.font='11px ui-sans-serif'; c.fillText('LINE TENSION — snaps in the red', cx, tyy+26);
+  c.fillStyle='#9fb3bb'; c.font='11px ui-sans-serif'; c.fillText('hold ▲ reel   ·   release to ease   ·   Space cut line', cx, tyy+42);
   c.restore(); c.textAlign='left'; }
 function sonarActive(){ return (player.upg&&player.upg.sonar>0) || (typeof hasSonar==='function'&&hasSonar()); }
 function drawSonar(){ if(!sonarActive()) return; const c=fxx, R=regionData();
@@ -1588,7 +1608,7 @@ const MONSTERS={
   med:{name:'Scylla',mesh:'serpent',col:[92,74,100],acc:[224,192,208],size:8,lore:'a many-toothed horror from the trenches'},
   verge:{name:'The Abyssal',mesh:'angler',col:[52,66,84],acc:[143,240,208],size:11,glow:true,lore:'a lantern-lit leviathan of the black water'},
 };
-const Beast={threat:0,state:'gone',x:0,y:-40,z:-28,ph:0,atkT:0,def:null,warned:0};
+const Beast={threat:0,state:'gone',x:0,y:-40,z:-28,ph:0,atkT:0,def:null,warned:0,present:false};
 function beastReset(){ Beast.threat=0; Beast.state='gone'; Beast.atkT=0; Beast.warned=0; }
 function buildMonsterMeshes(){
   if(MON.serpent) return; const W1=[1,1,1];
@@ -1626,11 +1646,14 @@ function buildMonsterMeshes(){
 }
 function updateBeast(dt){ const def=MONSTERS[regionData().id]; Beast.def=def; if(!def) return; Beast.ph+=dt;
   if(Game.screen==='fish' && Beast.state!=='attack'){
+    if(!Beast.present){ Beast.threat=Math.max(0,Beast.threat-dt*0.2); if(Beast.threat<0.35) Beast.state='gone'; if(Beast.state==='attack') updateBeastAttack(dt); return; }
     const L=fishing.lure, night=clamp(1-skyColors().dayness*1.7,0,1), deep=clamp(-L.y/WORLD_DEPTH,0,1);
-    Beast.threat=clamp(Beast.threat + dt*(0.013 + night*0.026 + deep*0.03 + world.storm*0.04)*(typeof techWard==='function'?techWard():1), 0, 1.0001);
+    // only the deep is truly dangerous; shallow fishing barely stirs it — and it climbs slowly, with plenty of warning
+    const rate = deep<0.4 ? 0.0008 : (0.0045 + night*0.014 + (deep-0.4)*0.02 + world.storm*0.02);
+    Beast.threat=clamp(Beast.threat + dt*rate*(typeof techWard==='function'?techWard():1)*(typeof rigBaitThreat==='function'?rigBaitThreat():1), 0, 1.0001);
     if(Beast.state==='gone' && Beast.threat>0.5){ Beast.state='lurk'; Beast.x=L.x+rrange(-28,28); Beast.z=-30; Beast.y=-WORLD_DEPTH+8;
       toast('Something stirs in the deep water…',ic('waves')); if(Sound.thunder)Sound.thunder();
-      tip('firstbeast','A predator prowls these waters when you fish the deep too long. Watch the DANGER meter — reel up (Space) and sail off to shake it before it strikes.'); }
+      tip('firstbeast','Rarely, a predator prowls the deep. Watch the DANGER meter — reel up (Space) and sail off to shake it long before it strikes.'); }
     if(Beast.threat>0.8 && !Beast.warned){ Beast.warned=1; toast(`${def.name} is hunting you — reel up and run!`,ic('waves')); }
     if(Beast.state==='lurk' || Beast.state==='hunt'){ Beast.state=Beast.threat>0.8?'hunt':'lurk';
       const close=clamp((Beast.threat-0.5)/0.5,0,1), rad=lerp(30,6,close), ang=Beast.ph*(0.35+close*0.7);
