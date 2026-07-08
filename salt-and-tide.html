@@ -385,6 +385,7 @@ const Game={screen:'boot',prev:'boot',t:0,frame:0,paused:false};
 Game.set=function(s){ this.prev=this.screen; this.screen=s; this.paused=!(s==='sail'||s==='fish'); if(typeof updateLayers==='function') updateLayers(); };
 const world={
   region:0,time:0.34,day:1,timeScale:1,season:0,
+  current:0,curPhase:0,tide:0.5,
   weather:'clear',weatherPrev:'clear',wBlend:1,wTimer:26,
   fog:0,rainI:0,snowI:0,cloudCover:.3,storm:0,overcast:0,
   windDir:1,windTarget:1,windStr:.4,windTargetStr:.4,gust:0,seaState:.3,
@@ -418,6 +419,34 @@ function hashStr(s){ let h=2166136261; for(let i=0;i<s.length;i++){ h^=s.charCod
 function fishPeak(id){ return hashStr(id)%4; }             // each species peaks in one season
 function fishSeasonMult(id){ let d=Math.abs((world.season||0)-fishPeak(id)); d=Math.min(d,4-d);
   return d===0?1.8:d===1?1.0:0.35; }                       // abundant at peak, scarce off-season
+/* ---- Navigation: tides & currents ------------------------------------- */
+const nzCur=makeNoise1D(7321);
+function updateNav(dt){
+  world.curPhase=(world.curPhase||0)+dt*0.05;
+  world.current=clamp(fbm1(nzCur, world.curPhase, 3), -1, 1);              // signed drift along the coast
+  world.tide=0.5+0.5*Math.sin(world.time*TAU*2 + world.region*0.7);       // two tides a day
+}
+function currentPush(){ return world.current * (1.4 + world.region*0.35); } // units/s the current carries you
+function tideRising(){ return Math.cos(world.time*TAU*2 + world.region*0.7)>0; }
+function tideName(){ return world.tide>0.72?'High':world.tide<0.28?'Low':(tideRising()?'Rising':'Falling'); }
+function tideBite(){ return 0.78 + world.tide*0.5; }                        // fish are keener on a high tide
+function drawNavHUD(){ const c=fxx, night=clamp(1-skyColors().dayness*1.6,0,1);
+  const cx=74, cy=H-104, r=38, alpha=0.5+night*0.4;
+  c.save(); c.globalAlpha=alpha; c.textAlign='center';
+  c.fillStyle='rgba(16,24,30,0.5)'; c.beginPath(); c.arc(cx,cy,r+7,0,TAU); c.fill();
+  c.strokeStyle='rgba(230,220,190,0.55)'; c.lineWidth=2; c.beginPath(); c.arc(cx,cy,r,0,TAU); c.stroke();
+  c.fillStyle='#d8ccaa'; c.font='700 10px ui-sans-serif';
+  c.fillText('N',cx,cy-r+12); c.fillText('S',cx,cy+r-3); c.fillText('E',cx+r-6,cy+4); c.fillText('W',cx-r+6,cy+4);
+  const nx=Math.sign(player.headX)||player.facing;
+  c.strokeStyle='#e0785a'; c.lineWidth=3; c.beginPath(); c.moveTo(cx,cy); c.lineTo(cx+nx*(r-9),cy); c.stroke();
+  c.fillStyle='#e0785a'; c.beginPath(); c.arc(cx+nx*(r-9),cy,3.2,0,TAU); c.fill();
+  // current arrow
+  const cs=world.current||0, sgn=Math.sign(cs)||1, clen=clamp(Math.abs(cs),0.06,1)*(r-4);
+  c.strokeStyle='#6fb0d0'; c.lineWidth=2.4; c.beginPath(); c.moveTo(cx-sgn*clen*0.5,cy+r+15); c.lineTo(cx+sgn*clen*0.5,cy+r+15); c.stroke();
+  c.fillStyle='#6fb0d0'; c.beginPath(); c.moveTo(cx+sgn*clen*0.5,cy+r+15); c.lineTo(cx+sgn*clen*0.5-sgn*5,cy+r+12); c.lineTo(cx+sgn*clen*0.5-sgn*5,cy+r+18); c.closePath(); c.fill();
+  c.fillStyle='#9fb3bb'; c.font='9px ui-sans-serif'; c.fillText('current',cx,cy+r+29);
+  c.restore(); c.textAlign='left';
+}
 function updateWeather(dt){
   world.wTimer-=dt;
   if(world.wTimer<=0&&world.wBlend>=1) setWeather(rollWeather());
@@ -572,6 +601,7 @@ function drawFX(sky){
   // subtle seasonal colour wash
   if(typeof seasonNow==='function'){ const s=seasonNow(); fxx.save(); fxx.globalCompositeOperation='soft-light';
     fxx.fillStyle=`rgba(${s.tint[0]},${s.tint[1]},${s.tint[2]},${s.wash+0.14})`; fxx.fillRect(0,0,W,H); fxx.restore(); }
+  if(Game.screen==='sail'&&typeof drawNavHUD==='function') drawNavHUD();
   if(Game.screen==='fish'&&fishing.fight&&typeof drawFightHUD==='function') drawFightHUD();
   if(Game.screen==='fish'&&typeof drawBeastHUD==='function') drawBeastHUD();
   if(view.flash>0.01){ fxx.fillStyle=withA(view.flashCol,view.flash*0.5); fxx.fillRect(0,0,W,H); }
@@ -583,7 +613,7 @@ function update(dt){
   Game.t+=dt;
   if(!Game.paused){
     const sim=(Game.screen==='sail'||Game.screen==='fish');
-    if(sim){ advanceTime(dt); updateWeather(dt);
+    if(sim){ advanceTime(dt); updateWeather(dt); if(typeof updateNav==='function') updateNav(dt);
       if(typeof updateWorldSim==='function') updateWorldSim(dt); }
   }
   if(view.flash>0) view.flash=Math.max(0,view.flash-dt*2.2);
@@ -1048,7 +1078,7 @@ const player={
   records:{}, contracts:[], contractsDone:0, stars:0, shipTier:0, style:{hull:[176,76,58],sail:[244,238,222],cabin:[164,68,54]},
   home:{built:{},stock:{},accrued:0,lastDay:1},
   rep:{north:0,trop:0,med:0,verge:0}, quests:{},
-  rp:0, tech:{}, engineWear:0, fouling:0,
+  rp:0, tech:{}, engineWear:0, fouling:0, seenPorts:{},
 };
 function holdMax(){ return UPGRADES.hull.levels[player.upg.hull].hold + (player.shipTier||0)*10 + homeHoldBonus() + (typeof techHold==='function'?techHold():0); }
 function toggleMotor(){ player.motor=!player.motor; if(typeof toast==='function') toast(player.motor?'Engine engaged':'Under sail',ic(player.motor?'gear':'sail')); }
@@ -1071,6 +1101,7 @@ function updatePlayer(dt){
     else { const wal=0.35+0.65*clamp(dir*world.windDir*0.5+0.5,0,1); thrust=14*sailU.wind*shipSpeed()*techT*eff*(0.35+world.windStr*0.9)*wal*dir*align; } }
   if(typeof updateBoatSystems==='function') updateBoatSystems(dt, !!(dir&&motor));
   player.speed+=(thrust-player.speed*2.0)*dt; player.pos[0]+=player.speed*dt;
+  if(typeof currentPush==='function') player.pos[0]+=currentPush()*dt*(typeof techNav==='function'?techNav():1);  // the current carries you
   const len=regionData().length;
   if(player.pos[0]<18){player.pos[0]=18;player.speed*=-.3;} if(player.pos[0]>len){player.pos[0]=len;player.speed*=-.3;}
   // storm hull damage far from port
@@ -1436,7 +1467,7 @@ function updateFishing(dt){
   let dxl=L.x-bx, dyl=-L.y, len=Math.hypot(dxl,dyl);
   if(len>spoolMax){ const s=spoolMax/len; L.x=bx+dxl*s; L.y=-dyl*s; if(L.y>-1.2)L.y=-1.2; len=spoolMax; if(L.vy>0)L.vy*=0.4; }
   fishing.lineOut=len; fishing.remaining=clamp(1-len/spoolMax,0,1);
-  const attractR=(3.6+lp.attract*0.06)*homeAttract()*(typeof techAttractR==='function'?techAttractR():1), fleeR=7.5, hitR=1.7+lp.power*0.5; fishing.hitR=hitR;
+  const attractR=(3.6+lp.attract*0.06)*homeAttract()*(typeof techAttractR==='function'?techAttractR():1)*(typeof tideBite==='function'?tideBite():1), fleeR=7.5, hitR=1.7+lp.power*0.5; fishing.hitR=hitR;
   fishing.hitFlash=Math.max(0,fishing.hitFlash-dt*3);
   // fish behaviour
   for(let k=fishing.school.length-1;k>=0;k--){
@@ -1908,11 +1939,14 @@ function enterRegion(i){
   player.pos=[home.x+140,0,0]; player.speed=0; player.facing=-1; player.yaw=PI;
   if(typeof Traders!=='undefined') Traders.list=[];
   if(typeof beastReset==='function') beastReset();
+  if(player.seenPorts) player.seenPorts[home.name]=true;
   buildCoast(); buildSeabedLife();
   if(typeof toast==='function') toast(regionData().name,ic(RICON[regionData().id]));
 }
 let nearPort=null;
-function updateDocking(){ nearPort=null; for(const p of regionData().ports){ if(Math.abs(p.x-player.pos[0])<28){ nearPort=p; break; } } }
+function updateDocking(){ nearPort=null; for(const p of regionData().ports){ const d=Math.abs(p.x-player.pos[0]);
+    if(d<80&&player.seenPorts&&!player.seenPorts[p.name]){ player.seenPorts[p.name]=true; toast(`Charted ${p.name}`,ic(p.icon)); }
+    if(d<28){ nearPort=p; break; } } }
 function tryDock(){
   if(Game.screen!=='sail'){ return; }
   if(!nearPort){ toast('No harbour within reach',ic('anchor')); return; }
@@ -1999,7 +2033,7 @@ function updateHUD(){
   HUD.clock.innerHTML=`Day ${world.day} · ${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')} · ${ic(seasonNow().icon,12)} ${seasonNow().name}`;
   HUD.region.innerHTML=`${ic(RICON[regionData().id],15)} ${regionData().name}`;
   const dayn=skyColors().dayness; const wi=dayn<0.3?ic('moon',15):ic(WKEY[world.weather],15);
-  HUD.weather.innerHTML=`${wi} ${world.weather[0].toUpperCase()+world.weather.slice(1)}`;
+  HUD.weather.innerHTML=`${wi} ${world.weather[0].toUpperCase()+world.weather.slice(1)} · ${ic('waves',12)} ${tideName()} tide`;
   HUD.fuel.style.width=clamp(player.fuel/player.fuelMax*100,0,100)+'%';
   const hp=player.hull/player.hullMax; HUD.hull.style.width=clamp(hp*100,0,100)+'%';
   HUD.hull.style.background=hp>0.5?'linear-gradient(90deg,#5fae7a,#8fd0a0)':hp>0.25?'linear-gradient(90deg,#d8a24a,#eec877)':'linear-gradient(90deg,#c9524a,#e88a80)';
@@ -2325,7 +2359,7 @@ function saveGame(){ try{ localStorage.setItem(SAVE_KEY, JSON.stringify({
   money:player.money,fuel:player.fuel,fuelMax:player.fuelMax,bait:player.bait,hull:player.hull,
   upg:player.upg,hold:player.hold,cargo:player.cargo,region:world.region,day:world.day,time:world.time,
   earned:player.earned,caughtLegendary:player.caughtLegendary,regionDone:player.regionDone,discovered:player.discovered,eco:ECO,x:player.pos[0],
-  records:player.records,contractsDone:player.contractsDone,style:player.style,stars:player.stars,shipTier:player.shipTier,home:player.home,rep:player.rep,quests:player.quests,rp:player.rp,tech:player.tech,engineWear:player.engineWear,fouling:player.fouling,muted:Sound.muted
+  records:player.records,contractsDone:player.contractsDone,style:player.style,stars:player.stars,shipTier:player.shipTier,home:player.home,rep:player.rep,quests:player.quests,rp:player.rp,tech:player.tech,engineWear:player.engineWear,fouling:player.fouling,seenPorts:player.seenPorts,muted:Sound.muted
 })); }catch(e){} }
 function loadSave(){ try{ const s=localStorage.getItem(SAVE_KEY); return s?JSON.parse(s):null; }catch(e){ return null; } }
 function newGame(){
@@ -2334,7 +2368,7 @@ function newGame(){
   player.regionDone=[false,false,false,false]; player.earned=0; player.caughtLegendary=[false,false,false,false]; player.discovered={};
   player.records={}; player.contracts=[]; player.contractsDone=0; player.stars=0; player.shipTier=0; player.style={hull:[176,76,58],sail:[244,238,222],cabin:[164,68,54]};
   player.home={built:{},stock:{},accrued:0,lastDay:1}; player.rep={north:0,trop:0,med:0,verge:0}; player.quests={};
-  player.rp=0; player.tech={}; player.engineWear=0; player.fouling=0;
+  player.rp=0; player.tech={}; player.engineWear=0; player.fouling=0; player.seenPorts={};
   world.day=1; world.time=0.30; world.timeScale=1; updateSeason(); initEconomy(); applyUpgrades(); enterRegion(0); if(typeof buildBoat==='function')buildBoat(); Game.set('sail'); saveGame();
 }
 function loadGame(s){
@@ -2342,7 +2376,7 @@ function loadGame(s){
     earned:s.earned||0,caughtLegendary:s.caughtLegendary||[false,false,false,false],regionDone:s.regionDone||[false,false,false,false],discovered:s.discovered||{},
     records:s.records||{},contractsDone:s.contractsDone||0,stars:s.stars||0,shipTier:s.shipTier||0,style:s.style||{hull:[176,76,58],sail:[244,238,222],cabin:[164,68,54]},
     home:s.home||{built:{},stock:{},accrued:0,lastDay:1},rep:s.rep||{north:0,trop:0,med:0,verge:0},quests:s.quests||{},
-    rp:s.rp||0,tech:s.tech||{},engineWear:s.engineWear||0,fouling:s.fouling||0});
+    rp:s.rp||0,tech:s.tech||{},engineWear:s.engineWear||0,fouling:s.fouling||0,seenPorts:s.seenPorts||{}});
   if(!player.home.built)player.home.built={}; if(!player.home.stock)player.home.stock={};
   world.day=s.day||1; world.time=s.time||0.3; world.timeScale=1; updateSeason(); if(s.eco){ ECO.fish=s.eco.fish; ECO.goods=s.eco.goods; }
   if(s.muted&&Sound.ensure){ Sound.muted=true; }
@@ -2456,7 +2490,8 @@ function openMap(){
     const cur=i===world.region;
     return `<div class="shop-item" style="${cur?'outline:2px solid var(--gold)':''}"><div class="ic">${ic(RICON[rg.id],26)}</div><div class="meta"><h4>${rg.name} ${done?ic('check',15):locked?ic('lock',15):''}</h4>
       <p>${rg.blurb}</p><p class="muted">Goal: earn ${coinStr(rg.goal.earn)} &amp; land the ${FISH[rg.legendary].name.replace(/^The /,"")}.</p></div></div>`; }).join('');
-  let ports=R.ports.map(p=>`<span class="tag">${ic(p.icon,13)} ${p.name}${p.kind==='home'?' '+ic('anchor',12):''}</span>`).join(' ');
+  let ports=R.ports.map(p=>{ const seen=p.kind==='home'||(player.seenPorts&&player.seenPorts[p.name]);
+    return seen?`<span class="tag">${ic(p.icon,13)} ${p.name}${p.kind==='home'?' '+ic('anchor',12):''}</span>`:`<span class="tag" style="opacity:.5">${ic('waves',12)} uncharted</span>`; }).join(' ');
   L.innerHTML=`<div class="scrim"></div><div class="panel" style="max-width:640px;position:relative">
     <div class="kicker">Ship's Chart</div><h1>${ic('map',30)} The Three Coasts</h1>
     <div class="grid" style="margin-top:6px">${regs}</div>
