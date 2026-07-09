@@ -522,8 +522,54 @@ function updateWeather(dt){
   world.windDir=lerp(world.windDir,world.windTarget,1-Math.pow(0.3,dt));
   if(world.storm>0.5){ world.lightningTimer-=dt;
     if(world.lightningTimer<=0){ world.lightning=1; world.lightningTimer=rrange(3.5,9)/Math.max(.5,world.storm);
-      Sound.thunder(rrange(.4,1.1)); } }
+      Sound.thunder(rrange(.4,1.1)); fireLightning(); } }
   world.lightning=Math.max(0,world.lightning-dt*3.5);
+  if(Lightning.t>0) Lightning.t=Math.max(0,Lightning.t-dt);
+  updateRogue(dt);
+}
+// ---- lightning you can actually SEE — a screen flash, a drawn bolt, and a strike that can hit your mast ----
+const Lightning={t:0,x:0.5,strike:false,seed:0};
+function fireLightning(){
+  Lightning.t=0.42; Lightning.x=rrange(0.12,0.88); Lightning.strike=false; Lightning.seed=(rnd()*1e6)|0;
+  view.flash=Math.max(view.flash,0.26+world.storm*0.22); view.flashCol='#dfe6ff';
+  if(Game.screen!=='sail') return;
+  const np=nearestPort(), dHome=np?Math.abs(np.x-player.pos[0]):1e9;
+  const litSafe=np&&np.kind==='home'&&homeBuilt('lighthouse')&&dHome<220;   // a lighthouse grounds the strike
+  const sheltered=dHome<120;
+  const exposure=player.motor?0.5:1.0;                                       // under sail the mast is up and tall
+  if(!litSafe && !sheltered && chance((0.05+world.storm*0.11)*exposure)){
+    Lightning.strike=true; Lightning.t=0.6; Lightning.seed=(rnd()*1e6)|0;
+    view.flash=1; view.flashCol='#eef2ff'; view.shake=Math.min(1.7,view.shake+1.05); if(Sound.thunder)Sound.thunder(1.1);
+    const armor=UPGRADES.hull.levels[player.upg.hull].armor;
+    player.hull=Math.max(0,player.hull-(7+world.storm*7)*(typeof techStormR==='function'?techStormR():1)/armor);
+    player.engineWear=clamp((player.engineWear||0)+0.14,0,1);
+    toast('Lightning struck your mast! Shelter by a lighthouse',ic('waves'));
+    if(player.hull<=0&&typeof onSink==='function') onSink();
+  }
+}
+// ---- rogue waves — a telegraphed wall of water that sweeps in from seaward and slams the boat ----
+const Rogue={active:false,x:0,z:-46,vz:11,h:4,t:0,warned:false,cooldown:36,shoveDir:1,prevZ:-46};
+function updateRogue(dt){
+  if(Game.screen!=='sail'){ Rogue.active=false; return; }
+  if(!Rogue.active){ Rogue.cooldown-=dt;
+    if(Rogue.cooldown<=0 && world.seaState>0.52 && chance(dt*(0.02+world.storm*0.05))){
+      Rogue.active=true; Rogue.t=0; Rogue.warned=false;
+      Rogue.x=player.pos[0]; Rogue.z=-48; Rogue.prevZ=-48; Rogue.vz=rrange(9,13);
+      Rogue.h=3.2+world.seaState*3.4+world.storm*2.2; Rogue.shoveDir=chance(0.5)?1:-1; }
+    return; }
+  Rogue.t+=dt; Rogue.x=lerp(Rogue.x,player.pos[0],1-Math.pow(0.5,dt)); Rogue.z+=Rogue.vz*dt;   // rolls in toward the boat
+  if(!Rogue.warned && Rogue.z>-30){ Rogue.warned=true; toast('Rogue wave incoming — cut your speed and hold on!',ic('waves')); if(Sound.thunder)Sound.thunder(0.5); }
+  if(Rogue.prevZ<0 && Rogue.z>=0){                                          // the crest reaches the hull
+    const np=nearestPort(), sheltered=np&&Math.abs(np.x-player.pos[0])<150?0.45:1;
+    const speedHit=0.6+clamp(Math.abs(player.speed)/14,0,1)*0.9;            // barrelling into it hurts more — slow down
+    player.speed+=Rogue.shoveDir*Rogue.h*0.7;
+    const armor=UPGRADES.hull.levels[player.upg.hull].armor;
+    player.hull=Math.max(0,player.hull-Rogue.h*1.4*speedHit*sheltered*(typeof techStormR==='function'?techStormR():1)/armor);
+    view.shake=Math.min(1.6,view.shake+Rogue.h*0.22); view.flash=Math.max(view.flash,0.16);
+    if(player.hull<=0&&typeof onSink==='function') onSink();
+  }
+  Rogue.prevZ=Rogue.z;
+  if(Rogue.z>16 || Rogue.t>11){ Rogue.active=false; Rogue.cooldown=rrange(34,68); }
 }
 function advanceTime(dt){ world.time+=dt/DAY_LENGTH*world.timeScale; if(world.time>=1){ world.time-=1; world.day++; onNewDay(); } }
 function onNewDay(){ if(typeof driftMarkets==='function') driftMarkets();
@@ -1180,6 +1226,12 @@ function updatePlayer(dt){
       view.shake=Math.min(0.7,view.shake+dt*1.2);
       if(Game.frame%55===0) toast('Scraping a sandbar — wait for the tide, or push through',ic('waves')); }
     break; } } }
+  // drift ice: shoving through the winter pack slows you and lightly scuffs the hull
+  if(COAST.ice&&typeof seasonNow==='function'&&seasonNow().id==='winter'){ for(const f of COAST.ice){
+    if(Math.abs(f.z)<5.5 && Math.abs(player.pos[0]-f.x)<f.r+1.6){ const sp=Math.abs(player.speed);
+      if(sp>1.6){ player.speed*=Math.pow(0.45,dt); player.hull=Math.max(0,player.hull-dt*sp*0.05);
+        view.shake=Math.min(0.5,view.shake+dt*0.7); if(Game.frame%75===0) toast('Grinding through pack ice — ease off the throttle',ic('snowflake')); }
+      break; } } }
   const len=regionData().length;
   if(player.pos[0]<18){player.pos[0]=18;player.speed*=-.3;} if(player.pos[0]>len){player.pos[0]=len;player.speed*=-.3;}
   // storm hull damage far from port
@@ -2052,6 +2104,9 @@ function buildCoast(){
   // sandbars / shoals across the sailing lane — a hazard at low tide (avoid the ports)
   COAST.shoals=[]; for(let x=rrange(360,700); x<len-220; x+=rrange(760,1500)){
     if(R.ports.some(p=>Math.abs(p.x-x)<140)) continue; COAST.shoals.push({x,w:rrange(26,46),seed:rnd()}); }
+  // drift ice — only rendered/collided in winter on the cold coasts (a season set-piece)
+  COAST.ice=[]; if(cold){ const n=Math.floor(len/220); for(let i=0;i<n;i++){
+    COAST.ice.push({x:rrange(120,len-120),z:rrange(-42,18),r:rrange(1.6,4.6),rot:rnd()*TAU,spin:rrange(-0.05,0.05),seed:rnd()}); } }
 }
 function buildGullMesh(){ const m=Mesh(); const c=[0.32,0.32,0.34];
   addTri(m,[0,0,0],[-1.2,0.05,-0.35],[-0.5,0,0.25],c); addTri(m,[0,0,0],[0.5,0,0.25],[1.2,0.05,-0.35],c);
@@ -2066,6 +2121,18 @@ function buildGullMesh(){ const m=Mesh(); const c=[0.32,0.32,0.34];
   const sb=Mesh(); const sand=[0.86,0.78,0.6], sandW=[0.92,0.86,0.7];
   addPrism(sb,0,-0.5,0,1,1.0,12,sand,sandW); addPrism(sb,0,0.18,0,0.7,0.4,12,sandW,[0.95,0.9,0.76]);
   COAST.sandbar=meshToVAO(sb);
+  // rogue wave — a broad wall spanning the coast, cross-section in z-y, extruded along x; unit height, scaled per event
+  { const rm=Mesh(); const body=[0.22,0.46,0.5], foam=[0.94,0.98,1.0];
+    const prof=[[-3.2,0],[-1.4,0.55],[-0.3,0.98],[0.5,0.9],[1.5,0.5],[3.2,0]];   // z,y cross-section — a curling crest
+    const x0=-38,x1=38,xs=22;
+    for(let s=0;s<xs;s++){ const xa=lerp(x0,x1,s/xs), xb=lerp(x0,x1,(s+1)/xs), jit=Math.sin(s*1.3)*0.14+Math.sin(s*0.6)*0.1;
+      for(let k=0;k<prof.length-1;k++){ const p0=prof[k],p1=prof[k+1], col=(p0[1]>0.82||p1[1]>0.82)?foam:body;
+        addQuad(rm,[xa,p0[1]+jit,p0[0]],[xa,p1[1]+jit,p1[0]],[xb,p1[1]+jit,p1[0]],[xb,p0[1]+jit,p0[0]],col); } }
+    COAST.rogue=meshToVAO(rm); }
+  // drift-ice floe — a low faceted white raft (unit; scaled per floe)
+  { const im=Mesh(); const lo=[0.66,0.77,0.86], hi=[0.93,0.97,1.0];
+    addPrism(im,0,-0.1,0,1,0.5,6,lo,hi); addOcta(im,0.22,0.28,0.12,0.42,0.34,0.42,[0.86,0.92,0.98]);
+    addOcta(im,-0.3,0.2,-0.18,0.3,0.24,0.3,[0.9,0.95,1.0]); COAST.iceMesh=meshToVAO(im); }
 }
 function drawCoast3D(sky){
   if(!COAST.mesh) return;
@@ -2075,6 +2142,13 @@ function drawCoast3D(sky){
   if(COAST.sandbar&&COAST.shoals){ const exposure=1-world.tide; for(const s of COAST.shoals){
     const by=-2.0 + exposure*2.2, sw=s.w*0.5, mo=m4(); m4compose(mo,[s.x,by,-2+s.seed*6],s.seed*6,0,0,[sw,1,sw*0.7]);
     drawLit(COAST.sandbar,mo,sky,{fogDensity:0.0016,fogWeather:world.fog*0.6}); } }
+  // drift ice — bobbing rafts, winter only
+  if(COAST.iceMesh&&COAST.ice&&typeof seasonNow==='function'&&seasonNow().id==='winter'){ for(const f of COAST.ice){
+    const s=seaSample(f.x,f.z,t,ch), mo=m4(); m4compose(mo,[f.x,s.y-0.14,f.z],f.rot+t*f.spin,0,0,[f.r,1,f.r*0.85]);
+    drawLit(COAST.iceMesh,mo,sky,{tint:[0.95,0.98,1.0],fogDensity:0.0016,fogWeather:world.fog*0.5}); } }
+  // rogue wave — a wall of water sweeping in from seaward toward the boat
+  if(COAST.rogue&&Rogue.active){ const mo=m4(); m4compose(mo,[Rogue.x,-0.4,Rogue.z],0,0,0,[1,Rogue.h,1]);
+    drawLit(COAST.rogue,mo,sky,{tint:[1,1,1],emissive:0.08,fogDensity:0.001,fogWeather:world.fog*0.4}); }
   // navigation buoys bobbing on the swell
   if(COAST.buoyMesh&&COAST.buoys) for(const b of COAST.buoys){ const s=seaSample(b.x,b.z,t,ch), fwd=seaSample(b.x+1.2,b.z,t,ch), sd=seaSample(b.x,b.z+1.2,t,ch);
     const mo=m4(); m4compose(mo,[b.x,s.y-0.4,b.z],0,Math.atan2(fwd.y-s.y,1.2),Math.atan2(sd.y-s.y,1.2),[1,1,1]);
@@ -2136,6 +2210,23 @@ function drawWeatherFX(sky){
     c.fillStyle=pct<25?'#e88a70':'#bcd0d4'; c.font='700 15px ui-sans-serif,system-ui'; c.fillText(pct+'%',cxp,128+sw+22); c.textAlign='left'; }
   // spray flecks on the lens during storms
   if(world.storm>0.5){ c.fillStyle=`rgba(220,230,238,${(world.storm-0.5)*0.25})`; for(let i=0;i<14;i++){ const x=wrap(hash2(i,7)*W+Game.t*30,W); const y=wrap(hash2(i,13)*H+Game.t*12,H); c.beginPath(); c.arc(x,y,1.5+hash2(i,4)*2,0,TAU); c.fill(); } }
+  // a lightning bolt you can actually see — jagged, forks, brighter when it strikes your mast
+  if(Lightning.t>0){ const a=clamp(Lightning.t*2.4,0,1), strike=Lightning.strike;
+    const hx=strike?W*0.5:Lightning.x*W, ty=strike?H*0.6:H*0.4, rng=mulberry32((Lightning.seed>>>0)+1);
+    c.save(); c.strokeStyle=`rgba(232,238,255,${0.9*a})`; c.lineWidth=strike?3.4:1.8; c.shadowColor='rgba(190,214,255,0.9)'; c.shadowBlur=16;
+    c.beginPath(); let px=hx,py=0; c.moveTo(px,py); const segs=9;
+    for(let i=1;i<=segs;i++){ const tt=i/segs, nx=hx+(rng()*2-1)*36*(1-tt*0.35), ny=ty*tt; c.lineTo(nx,ny);
+      if(i===5&&rng()<0.6){ c.moveTo(nx,ny); c.lineTo(nx+(rng()*2-1)*46,ny+34); c.moveTo(nx,ny); } px=nx;py=ny; }
+    c.stroke(); c.restore(); }
+  // seasonal set-pieces: summer heat-shimmer haze near the horizon, autumn fog banks rolling low
+  if(typeof seasonNow==='function'){ const sid=seasonNow().id, dayn=skyColors().dayness;
+    if(sid==='summer'&&dayn>0.55){ const hy=H*0.42, wob=Math.sin(Game.t*2)*2.2;
+      const g=c.createLinearGradient(0,hy-26,0,hy+44); g.addColorStop(0,'rgba(255,238,202,0)');
+      g.addColorStop(0.5,`rgba(255,235,196,${0.05+0.025*Math.sin(Game.t*3)})`); g.addColorStop(1,'rgba(255,238,202,0)');
+      c.fillStyle=g; c.fillRect(0,hy-26+wob,W,72); }
+    else if(sid==='autumn'){ const hy=H*0.46;
+      const g=c.createLinearGradient(0,hy,0,hy+110); g.addColorStop(0,'rgba(208,198,184,0)');
+      g.addColorStop(1,`rgba(204,194,180,${0.10+0.05*Math.sin(Game.t*0.5)})`); c.fillStyle=g; c.fillRect(0,hy,W,130); } }
 }
 /* ======================= 25b. 3D PRECIPITATION ======================== */
 const RAIN={n:640};
