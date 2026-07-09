@@ -1930,12 +1930,91 @@ function addTree(m,x,y,z,kind,rr){
     const tx=x+lean,ty=y+h; for(let f=0;f<6;f++){ const a=f/6*TAU; addTri(m,[tx,ty,z],[tx+Math.cos(a)*2.2,ty-0.6,z+Math.sin(a)*2.2],[tx+Math.cos(a+0.3)*1.8,ty-0.3,z+Math.sin(a+0.3)*1.8],v3([46,132,80])); } }
   else { const h=4+rr()*3; addBox(m,x,y+h*0.35,z,0.16,h*0.35,0.16,v3([100,80,54])); addCone(m,x,y+h*0.4,z,1.0,h*0.9,6,v3([64,90,58])); } // cypress
 }
+// ---- a real gabled roof: two sloped faces + triangular gable ends (normals point outward) ----
+function gableRoof(m,x,ye,z,w,d,rh,col,alongX){
+  const o=0.16, W=w+o, D=d+o, ry=ye+rh, g=shade255(col,-0.07);
+  if(alongX){ // ridge runs along x, gables face ±z
+    addQuad(m,[x-W,ye,z+D],[x+W,ye,z+D],[x+W,ry,z],[x-W,ry,z],col);
+    addQuad(m,[x+W,ye,z-D],[x-W,ye,z-D],[x-W,ry,z],[x+W,ry,z],col);
+    addTri(m,[x-W,ye,z-D],[x-W,ye,z+D],[x-W,ry,z],g); addTri(m,[x+W,ye,z+D],[x+W,ye,z-D],[x+W,ry,z],g);
+  } else { // ridge runs along z, gables face ±x
+    addQuad(m,[x+W,ye,z-D],[x+W,ye,z+D],[x,ry,z+D],[x,ry,z-D],col);
+    addQuad(m,[x-W,ye,z+D],[x-W,ye,z-D],[x,ry,z-D],[x,ry,z+D],col);
+    addTri(m,[x-W,ye,z-D],[x+W,ye,z-D],[x,ry,z-D],g); addTri(m,[x+W,ye,z+D],[x-W,ye,z+D],[x,ry,z+D],g);
+  }
+}
+// ---- a low-pitch / flat terracotta roof for Mediterranean towns ----
+function flatRoof(m,x,ye,z,w,d,col){
+  addBox(m,x,ye+0.14,z,w+0.14,0.14,d+0.14,col,shade255(col,0.08));
+  addBox(m,x,ye+0.34,z,w+0.16,0.06,d+0.16,shade255(col,-0.06));   // parapet lip
+}
+// ---- window panes on a wall face (front = +z), with frames ----
+function addWindows(m,x,y,z,w,h,cols,rows,glass){
+  for(let r=0;r<rows;r++)for(let c=0;c<cols;c++){
+    const wx=x+(cols<=1?0:(c/(cols-1)-0.5)*w*1.05), wy=y+h*(rows<=1?0.5:0.34+r*0.4);
+    addBox(m,wx,wy,z+0.02,0.2,0.28,0.015,glass); addBox(m,wx,wy,z+0.01,0.26,0.34,0.012,[0.28,0.2,0.13]); }
+}
 function addBuilding(m,x,y,z,w,h,d,wall,roof){
-  addBox(m,x,y+h/2,z,w,h/2,d,wall);
-  // pitched roof (two slabs)
-  addCone(m,x,y+h,z,Math.max(w,d)*1.25,h*0.7,4,roof);
-  // door + window
-  addBox(m,x,y+h*0.4,z+d+0.01,0.28,h*0.35,0.02,v3([70,52,34]));
+  addBox(m,x,y+h/2,z,w,h/2,d,wall,shade255(wall,0.05));
+  gableRoof(m,x,y+h,z,w,d,Math.max(0.6,h*0.55),roof,w>=d);
+  addBox(m,x,y+h*0.32,z+d+0.01,0.26,h*0.3,0.02,v3([70,52,34]));
+  addWindows(m,x,y,z+d,w,h,w>1.4?2:1,h>2.6?2:1,[0.6,0.72,0.78]);
+}
+const TOWN_PAL={
+  north:{wall:[[214,198,172],[226,210,180],[198,182,158],[208,190,166],[190,176,156]],roof:[[120,64,54],[104,88,76],[110,58,48],[84,92,98],[92,70,58]],base:[126,118,106],plaza:[150,146,136],tree:'pine'},
+  trop:{wall:[[236,214,180],[240,228,198],[224,236,226],[248,222,202],[226,206,214],[214,230,236]],roof:[[110,152,122],[124,164,152],[152,120,92],[98,142,122],[168,150,110]],base:[150,128,98],plaza:[212,198,168],tree:'palm',stilt:true},
+  med:{wall:[[242,240,232],[248,244,234],[236,230,214],[250,246,236],[240,232,220]],roof:[[196,100,74],[208,112,82],[182,92,68],[200,120,86]],base:[212,202,184],plaza:[226,216,192],tree:'cypress',flat:true},
+  verge:{wall:[[206,200,196],[196,200,206],[214,208,200],[186,192,202],[200,196,198]],roof:[[92,98,106],[80,86,94],[102,92,88],[74,82,92]],base:[110,112,120],plaza:[150,152,158],tree:'pine',snow:true},
+};
+function pcol(pal,arr,rr,j){ return v3(shade(arr[Math.floor(rr()*arr.length)],(rr()-0.5)*j)); }
+// ---- a varied house: footprint, height, roof pitch & palette all jittered ----
+function addHouseV(m,x,y,z,rr,pal){
+  const w=1.2+rr()*1.5, d=1.0+rr()*1.2, h=1.6+rr()*2.6, alongX=w>=d;
+  const wall=pcol(pal,pal.wall,rr,0.08), roof=pcol(pal,pal.roof,rr,0.1);
+  addBox(m,x,y+0.16,z,w+0.06,0.16,d+0.06,v3(shade(pal.base,(rr()-0.5)*0.1)));   // footing band
+  addBox(m,x,y+0.16+h/2,z,w,h/2,d,wall,shade255(wall,0.05));
+  if(pal.flat) flatRoof(m,x,y+0.16+h,z,w,d,roof);
+  else { const rh=Math.max(0.7,h*(pal.snow?0.6:0.4)+rr()*h*0.25); gableRoof(m,x,y+0.16+h,z,w,d,rh,roof,alongX);
+    if(pal.snow) gableRoof(m,x,y+0.16+h+0.02,z,w*0.96,d*0.96,rh*0.9,[0.92,0.95,0.99],alongX); }   // snow cap
+  addBox(m,x,y+0.16+h*0.3,z+d+0.05,0.24,h*0.26,0.02,v3([72,52,34]));            // door
+  addWindows(m,x,y+0.16,z+d+0.04,w,h,w>1.5?2:1,h>2.6?2:1,[0.58,0.7,0.78]);
+  if(!pal.flat && rr()<0.55){ const cxo=(rr()-0.5)*w*1.1, rh2=Math.max(0.7,h*0.5);
+    addBox(m,x+cxo,y+0.16+h+rh2*0.7,z-d*0.4,0.15,0.5,0.15,v3(shade(pal.base,-0.12))); }             // chimney
+  return {w,d,h};
+}
+// ---- tropical stilt hut over the shallows ----
+function addStiltHut(m,x,y,z,rr,pal){
+  const w=1.2+rr()*1.0, d=1.1+rr()*0.9, base=Math.min(y,0.2), legH=1.0+rr()*0.7, fy=base+legH;
+  for(const sx of[-1,1])for(const sz of[-1,1]) addBox(m,x+sx*w*0.8,base+legH/2,z+sz*d*0.8,0.09,legH/2,0.09,v3([96,72,46]));
+  addBox(m,x,fy+0.08,z,w+0.1,0.08,d+0.1,v3([132,100,64]));                       // platform
+  const wall=pcol(pal,pal.wall,rr,0.08); addBox(m,x,fy+0.16+0.55,z,w,0.55,d,wall,shade255(wall,0.05));
+  gableRoof(m,x,fy+0.16+1.1,z,w,d,0.9+rr()*0.4,v3(pal.roof[Math.floor(rr()*pal.roof.length)]),w>=d);
+  addWindows(m,x,fy+0.16,z+d+0.04,w,1.1,1,1,[0.5,0.62,0.7]);
+  addBox(m,x,fy+0.14,z+d+0.4,0.3,0.06,0.4,v3([120,90,58]));                      // little jetty step
+}
+// ---- an organic waterfront town: plaza + varied buildings + lanes, no more identical rows ----
+function buildTown(m,px,gY,R,rr,isHome){
+  const pal=TOWN_PAL[R.id]||TOWN_PAL.north;
+  // paved plaza with a central feature
+  const plz=-82, py=gY(px,plz);
+  addBox(m,px,py+0.05,plz,7.5,0.05,5.5,v3(pal.plaza),v3(shade(pal.plaza,0.05)));
+  if(isHome){ addPrism(m,px,py+0.8,plz,0.55,1.6,6,v3(pal.base)); addBox(m,px,py+1.7,plz,0.75,0.16,0.75,v3(shade(pal.base,0.12))); addOcta(m,px,py+2.1,plz,0.22,0.3,0.22,v3(pal.roof[0])); }
+  else { addPrism(m,px,py+0.5,plz,0.7,1.0,8,v3(pal.base)); addBox(m,px-0.7,py+2.0,plz,0.07,0.9,0.07,v3([90,70,50])); addBox(m,px+0.7,py+2.0,plz,0.07,0.9,0.07,v3([90,70,50])); addBox(m,px,py+2.5,plz,0.95,0.07,0.42,v3([110,80,54])); }
+  // waterfront row facing the sea (the prominent buildings)
+  for(let i=0;i<6;i++){ const bx=px+(i-2.5)*4.4+(rr()-0.5)*1.5, bz=-68+(rr()-0.5)*2.4, by=gY(bx,bz);
+    if(pal.stilt&&rr()<0.55) addStiltHut(m,bx,Math.max(by,0),bz,rr,pal); else addHouseV(m,bx,by,bz,rr,pal); }
+  // buildings framing the plaza (left & right terraces)
+  for(const sgn of[-1,1]){ for(let i=0;i<3;i++){ const bx=px+sgn*(5.5+i*0.4)+(rr()-0.5), bz=plz-3+i*3+(rr()-0.5); const by=gY(bx,bz); addHouseV(m,bx,by,bz,rr,pal); } }
+  // back lanes climbing the slope, denser and smaller
+  for(let r=0;r<2;r++){ const rz=-90-r*9, n=4+Math.floor(rr()*3);
+    for(let c=0;c<n;c++){ const bx=px+(c-(n-1)/2)*5+(rr()-0.5)*1.8, bz=rz+(rr()-0.5)*2.6, by=gY(bx,bz); if(by>0.8) addHouseV(m,bx,by,bz,rr,pal); } }
+  // Mediterranean colonnade along the waterfront
+  if(pal.flat){ for(let w=0;w<5;w++){ const cx=px+(w-2)*2.4, cz=-63, cy=gY(cx,cz); addPrism(m,cx,cy+1.3,cz,0.22,2.6,8,v3([236,230,216]),v3([236,230,216])); }
+    addBox(m,px,gY(px,-63)+2.7,-63,6.4,0.3,0.5,v3([228,220,204])); }
+  // low garden / harbour walls between clusters
+  for(let i=0;i<3;i++){ const wx=px+(rr()-0.5)*16, wz=-74-rr()*10, wy=gY(wx,wz); if(wy>0.6) addBox(m,wx,wy+0.35,wz,1.6+rr()*1.4,0.35,0.18,v3(shade(pal.base,0.06))); }
+  // trees dotted through the streets
+  for(let i=0;i<7;i++){ const tx=px+(rr()-0.5)*24, tz=-76-rr()*22, ty=gY(tx,tz); if(ty>1.2) addLoTree(m,tx,ty,tz,0.6+rr()*0.55,pal.tree,rr); }
 }
 function addLighthouse(m,x,y,z){
   addPrism(m,x,y+5,z,1.3,10,10,v3([238,238,232]),v3([238,238,232]));
@@ -2074,15 +2153,9 @@ function buildCoast(){
     // moored boats + net racks near the dock
     addMooredBoat(m,px-3.6,shoreZ+16,prr); addMooredBoat(m,px+3.7,shoreZ+24,prr);
     addNetRack(m,px-4.5,0.2,shoreZ+6); if(p.kind!=='home') addShack(m,px+6+prr()*3,shoreZ+2,v3(wall),v3(roof));
-    // village cluster placed on the actual ground
-    const rowsZ=[-67,-75,-84,-95];
-    for(let r=0;r<rowsZ.length;r++){ const count=3+Math.floor(prr()*2);
-      for(let c=0;c<count;c++){ const bx=px+(c-(count-1)/2)*6 + (prr()*2-1)*1.6;
-        const bz=rowsZ[r]+(prr()*2-1)*2.4; const by=groundY(bx,bz);
-        const w=1.6+prr()*1.3, h=1.8+prr()*1.8;
-        addBuilding(m,bx,by,bz,w,h,w*0.9,v3(shade(wall,(prr()-.5)*0.1)),v3(shade(roof,(prr()-.5)*0.12))); } }
-    for(let s=0;s<3;s++){ const sx=px+(s-1)*4.5,sz=-64; addStall(m,sx,groundY(sx,sz),sz,prr); }
-    if(R.id==='med'){ for(let w=0;w<4;w++){ const wx=px+(w-1.5)*7,wz=-90; addBox(m,wx,groundY(wx,wz)+0.6,wz,4,0.6,0.4,v3([224,216,196])); } }
+    // organic waterfront town — plaza, varied houses, lanes, region architecture (replaces the old identical rows)
+    buildTown(m,px,groundY,R,prr,p.kind==='home');
+    for(let s=0;s<3;s++){ const sx=px+(s-1)*3.4,sz=-77; addStall(m,sx,groundY(sx,sz),sz,prr); }
     const lmx=px+(p.kind==='home'?12:-11),lmz=-88; addLandmark(m,lmx,groundY(lmx,lmz),lmz,R);
     if(p.kind==='home'){ const lx=px-11,lz=-100,ly=groundY(lx,lz); addLighthouse(m,lx,ly,lz); COAST.lights.push([lx,ly+11.4,lz]);
       if(typeof addHomeStructures==='function') addHomeStructures(m,px,groundY,R);
