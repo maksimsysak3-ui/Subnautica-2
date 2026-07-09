@@ -1,0 +1,3360 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EMBERWOOD — A Wilderness Expedition</title>
+<meta name="description" content="A handcrafted open-world wilderness expedition. Restore the fire lookout network of Emberwood National Forest.">
+<style>
+/* ============================================================
+   EMBERWOOD — design system
+   Every rule handwritten. Palette: ember, clay, pine, parchment.
+   ============================================================ */
+:root{
+  --ink:        #16100a;
+  --ink-2:      #241a10;
+  --parchment:  #f2e7d3;
+  --parch-dim:  #cdbfa4;
+  --parch-faint:#9a8d74;
+  --clay:       #d97757;
+  --ember:      #ff9b4a;
+  --ember-hot:  #ffc06e;
+  --pine:       #7d8f5a;
+  --gold:       #cfa050;
+  --rust:       #b5541e;
+  --panel:      rgba(22,15,9,.86);
+  --panel-soft: rgba(22,15,9,.62);
+  --line:       rgba(255,196,138,.16);
+  --line-hot:   rgba(255,171,94,.45);
+  --shadow-big: 0 30px 80px rgba(0,0,0,.55);
+  --serif: Georgia,'Iowan Old Style','Palatino Linotype',Palatino,'Times New Roman',serif;
+  --sans: system-ui,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+  --ease: cubic-bezier(.22,.9,.24,1);
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%;overflow:hidden;background:#0a0805}
+body{font-family:var(--sans);color:var(--parchment);-webkit-font-smoothing:antialiased;user-select:none}
+canvas#gl{position:fixed;inset:0;width:100%;height:100%;display:block;background:#0a0805}
+
+/* ---------- cinematic overlays ---------- */
+#vignette{position:fixed;inset:0;pointer-events:none;z-index:5;
+  background:radial-gradient(ellipse at 50% 46%, transparent 52%, rgba(10,6,2,.38) 100%);}
+#grain{position:fixed;inset:-64px;pointer-events:none;z-index:6;opacity:.05;mix-blend-mode:overlay}
+#fader{position:fixed;inset:0;background:#080502;z-index:60;pointer-events:none;opacity:1;
+  transition:opacity 1.1s ease}
+#fader.clear{opacity:0}
+#fader.slow{transition-duration:3.2s}
+.lbox{position:fixed;left:0;right:0;height:0;background:#050302;z-index:7;transition:height 1.4s var(--ease);pointer-events:none}
+#lboxTop{top:0}#lboxBot{bottom:0}
+body.cine .lbox{height:11vh}
+#subtitle{position:fixed;left:50%;bottom:15vh;transform:translateX(-50%);z-index:8;
+  font-family:var(--serif);font-size:clamp(16px,2vw,23px);font-style:italic;color:var(--parchment);
+  text-shadow:0 2px 14px rgba(0,0,0,.9), 0 0 2px rgba(0,0,0,.8);text-align:center;max-width:70ch;
+  opacity:0;transition:opacity .8s ease;pointer-events:none;letter-spacing:.02em}
+#subtitle.on{opacity:1}
+
+/* ---------- shared bits ---------- */
+.tag{font-family:var(--sans);font-size:11px;font-weight:600;letter-spacing:.34em;text-transform:uppercase;color:var(--ember)}
+.tag.dim{color:var(--parch-faint)}
+kbd{display:inline-block;min-width:1.9em;padding:.2em .5em;text-align:center;
+  font-family:var(--sans);font-size:.78em;font-weight:700;letter-spacing:.05em;color:var(--parchment);
+  background:linear-gradient(180deg,rgba(255,220,170,.14),rgba(255,220,170,.05));
+  border:1px solid var(--line-hot);border-bottom-width:2px;border-radius:5px;
+  box-shadow:0 2px 0 rgba(0,0,0,.4)}
+hr.rule{border:0;height:1px;background:linear-gradient(90deg,transparent,var(--line-hot),transparent);margin:14px 0}
+.scroll{overflow-y:auto;scrollbar-width:thin;scrollbar-color:rgba(255,170,90,.35) transparent}
+.scroll::-webkit-scrollbar{width:8px}
+.scroll::-webkit-scrollbar-thumb{background:rgba(255,170,90,.28);border-radius:4px}
+.scroll::-webkit-scrollbar-track{background:rgba(255,255,255,.03)}
+
+/* ---------- full screens (title / settings / etc) ---------- */
+.screen{position:fixed;inset:0;z-index:40;display:flex;align-items:center;justify-content:center;
+  opacity:0;visibility:hidden;transition:opacity .45s ease, visibility .45s}
+.screen.active{opacity:1;visibility:visible}
+.screen .backdrop{position:absolute;inset:0;background:
+  radial-gradient(ellipse at 50% 120%, rgba(64,28,8,.42), transparent 60%),
+  linear-gradient(180deg, rgba(8,5,2,.50), rgba(8,5,2,.28) 45%, rgba(8,5,2,.62))}
+.screen .inner{position:relative;z-index:2;width:min(94vw,1120px);max-height:92vh;display:flex;flex-direction:column;align-items:center}
+
+/* ---------- title ---------- */
+#screenTitle .inner{gap:0}
+#titleTag{opacity:0;animation:riseIn 1.2s .35s var(--ease) forwards}
+#titleWord{font-family:var(--serif);font-weight:400;color:var(--parchment);
+  font-size:clamp(54px,10.5vw,138px);line-height:.95;letter-spacing:.14em;text-indent:.14em;
+  text-shadow:0 4px 40px rgba(255,130,40,.25), 0 2px 6px rgba(0,0,0,.7);
+  opacity:0;animation:riseIn 1.4s .55s var(--ease) forwards}
+#titleWord .amp{color:var(--ember);text-shadow:0 0 34px rgba(255,150,60,.65),0 2px 6px rgba(0,0,0,.6)}
+#titleSub{margin-top:10px;font-family:var(--serif);font-style:italic;font-size:clamp(14px,1.7vw,21px);
+  color:var(--parch-dim);letter-spacing:.14em;opacity:0;animation:riseIn 1.4s .8s var(--ease) forwards}
+#titleRule{width:min(420px,60vw);height:1px;margin:26px 0 22px;
+  background:linear-gradient(90deg,transparent,var(--line-hot),transparent);
+  opacity:0;animation:riseIn 1s 1s var(--ease) forwards}
+@keyframes riseIn{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:none}}
+#titleMenu{display:flex;flex-direction:column;align-items:center;gap:4px;opacity:0;animation:riseIn 1.1s 1.15s var(--ease) forwards}
+.mbtn{position:relative;background:none;border:0;cursor:pointer;padding:9px 26px;
+  font-family:var(--serif);font-size:clamp(17px,2vw,23px);letter-spacing:.24em;text-indent:.24em;color:var(--parch-dim);
+  transition:color .25s ease, letter-spacing .35s var(--ease);text-shadow:0 2px 8px rgba(0,0,0,.8)}
+.mbtn::after{content:"";position:absolute;left:50%;bottom:4px;width:0;height:1px;background:var(--ember);
+  transform:translateX(-50%);transition:width .35s var(--ease);box-shadow:0 0 12px rgba(255,150,60,.8)}
+.mbtn:hover,.mbtn:focus-visible{color:var(--parchment);letter-spacing:.3em;outline:none}
+.mbtn:hover::after,.mbtn:focus-visible::after{width:70%}
+.mbtn[disabled]{opacity:.32;pointer-events:none}
+.mbtn.primary{color:var(--ember-hot)}
+.mbtn.primary:hover{color:#ffe0b0}
+#titleFoot{position:absolute;bottom:26px;left:0;right:0;display:flex;justify-content:space-between;
+  padding:0 34px;font-size:11px;letter-spacing:.22em;text-transform:uppercase;color:var(--parch-faint);z-index:3}
+#titleFoot b{color:var(--parch-dim);font-weight:600}
+
+/* ---------- generic panel screens ---------- */
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:14px;
+  box-shadow:var(--shadow-big), inset 0 1px 0 rgba(255,210,150,.06);
+  backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)}
+.sheet{width:min(92vw,780px);max-height:86vh;display:flex;flex-direction:column;padding:34px 42px 28px}
+.sheet h2{font-family:var(--serif);font-weight:400;font-size:clamp(26px,3.4vw,40px);letter-spacing:.12em;margin:4px 0 2px;color:var(--parchment)}
+.sheet .body{margin-top:14px;padding-right:8px}
+.sheet p{color:var(--parch-dim);line-height:1.65;font-size:15px;margin:0 0 12px}
+.sheet .body em{color:var(--parchment)}
+.backBtn{align-self:center;margin-top:20px}
+
+/* ---------- how to play ---------- */
+.keysGrid{display:grid;grid-template-columns:1fr 1fr;gap:8px 34px;margin:8px 0 6px}
+.keyRow{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:8px 2px;border-bottom:1px dashed rgba(255,200,140,.10)}
+.keyRow span{color:var(--parch-dim);font-size:14px}
+.keyRow .k{white-space:nowrap}
+.tipList{margin:6px 0 0;padding-left:0;list-style:none}
+.tipList li{position:relative;padding:5px 0 5px 22px;color:var(--parch-dim);font-size:14px;line-height:1.55}
+.tipList li::before{content:"◆";position:absolute;left:2px;top:6px;font-size:9px;color:var(--ember)}
+
+/* ---------- settings ---------- */
+.setRow{display:grid;grid-template-columns:190px 1fr 74px;align-items:center;gap:16px;padding:11px 2px;border-bottom:1px dashed rgba(255,200,140,.10)}
+.setRow label{font-size:13px;letter-spacing:.12em;text-transform:uppercase;color:var(--parch-dim);font-weight:600}
+.setRow output{font-variant-numeric:tabular-nums;text-align:right;color:var(--ember-hot);font-size:14px;font-weight:600}
+input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:26px;background:transparent;cursor:pointer}
+input[type=range]::-webkit-slider-runnable-track{height:3px;border-radius:2px;
+  background:linear-gradient(90deg,var(--rust),var(--ember) var(--fill,50%),rgba(255,220,170,.14) var(--fill,50%))}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:15px;height:15px;margin-top:-6px;border-radius:50%;
+  background:var(--ember-hot);border:2px solid #3a2410;box-shadow:0 0 10px rgba(255,150,60,.7)}
+input[type=range]::-moz-range-track{height:3px;border-radius:2px;background:rgba(255,220,170,.14)}
+input[type=range]::-moz-range-progress{height:3px;border-radius:2px;background:linear-gradient(90deg,var(--rust),var(--ember))}
+input[type=range]::-moz-range-thumb{width:13px;height:13px;border-radius:50%;background:var(--ember-hot);border:2px solid #3a2410}
+.segmented{display:flex;gap:0;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.segmented button{flex:1;background:transparent;border:0;color:var(--parch-faint);padding:7px 4px;cursor:pointer;
+  font-size:12px;letter-spacing:.08em;font-weight:600;transition:all .2s}
+.segmented button+button{border-left:1px solid var(--line)}
+.segmented button.on{background:linear-gradient(180deg,rgba(255,155,74,.25),rgba(255,155,74,.12));color:var(--ember-hot)}
+.toggle{width:52px;height:26px;border-radius:13px;border:1px solid var(--line-hot);background:rgba(255,220,170,.08);
+  position:relative;cursor:pointer;transition:background .25s}
+.toggle::after{content:"";position:absolute;top:3px;left:4px;width:18px;height:18px;border-radius:50%;
+  background:var(--parch-faint);transition:all .25s var(--ease)}
+.toggle.on{background:rgba(255,150,60,.30)}
+.toggle.on::after{left:28px;background:var(--ember-hot);box-shadow:0 0 10px rgba(255,150,60,.8)}
+
+/* ---------- ghost buttons ---------- */
+.gbtn{background:linear-gradient(180deg,rgba(255,200,140,.10),rgba(255,200,140,.03));
+  border:1px solid var(--line-hot);color:var(--parchment);border-radius:9px;cursor:pointer;
+  padding:10px 30px;font-family:var(--sans);font-size:13px;font-weight:600;letter-spacing:.22em;text-transform:uppercase;
+  transition:all .22s ease}
+.gbtn:hover{background:linear-gradient(180deg,rgba(255,170,90,.22),rgba(255,170,90,.08));border-color:rgba(255,190,120,.7);
+  box-shadow:0 0 24px rgba(255,140,50,.25)}
+.gbtn.danger:hover{border-color:rgba(255,110,90,.7);box-shadow:0 0 24px rgba(255,80,50,.3)}
+.gbtn.small{padding:7px 18px;font-size:11px}
+
+/* ---------- HUD ---------- */
+#hud{position:fixed;inset:0;z-index:10;pointer-events:none;opacity:0;transition:opacity .6s ease}
+#hud.on{opacity:1}
+#crosshair{position:absolute;left:50%;top:50%;width:4px;height:4px;margin:-2px 0 0 -2px;border-radius:50%;
+  background:rgba(255,240,220,.85);box-shadow:0 0 6px rgba(0,0,0,.8)}
+/* compass */
+#compass{position:absolute;top:22px;left:50%;transform:translateX(-50%);width:min(46vw,520px);height:44px;
+  -webkit-mask-image:linear-gradient(90deg,transparent,#000 18%,#000 82%,transparent);
+  mask-image:linear-gradient(90deg,transparent,#000 18%,#000 82%,transparent);overflow:hidden}
+#compassNeedle{position:absolute;top:0;left:50%;width:1px;height:12px;background:var(--ember-hot);
+  box-shadow:0 0 8px rgba(255,150,60,.9);z-index:2}
+#compassStrip{position:absolute;top:0;left:50%;height:100%;white-space:nowrap;will-change:transform}
+.ctick{position:absolute;top:2px;width:1px;height:7px;background:rgba(242,231,211,.4)}
+.ctick.major{height:11px;background:rgba(242,231,211,.75)}
+.clabel{position:absolute;top:16px;transform:translateX(-50%);font-size:12px;font-weight:700;letter-spacing:.1em;
+  color:var(--parchment);text-shadow:0 1px 4px rgba(0,0,0,.9)}
+.clabel.card{color:var(--ember-hot);font-size:13px}
+.cmark{position:absolute;top:28px;transform:translateX(-50%);font-size:11px;text-shadow:0 1px 4px #000}
+/* objective card */
+#objCard{position:absolute;top:24px;left:26px;max-width:330px;padding:14px 18px 12px;border-radius:10px;
+  background:var(--panel-soft);border:1px solid var(--line);backdrop-filter:blur(8px);
+  transform:translateX(0);transition:transform .5s var(--ease),opacity .5s}
+#objCard.hide{transform:translateX(-120%);opacity:0}
+#objCard .tag{font-size:9.5px}
+#objTitle{font-family:var(--serif);font-size:18px;letter-spacing:.03em;color:var(--parchment);margin:5px 0 3px}
+#objDesc{font-size:12.5px;line-height:1.5;color:var(--parch-dim)}
+#objProg{margin-top:8px;font-size:11px;letter-spacing:.14em;color:var(--ember-hot);font-weight:700}
+/* stamina */
+#staminaWrap{position:absolute;left:26px;bottom:26px;width:230px;opacity:0;transition:opacity .5s}
+#staminaWrap.show{opacity:1}
+#staminaLabel{font-size:9.5px;letter-spacing:.3em;text-transform:uppercase;color:var(--parch-dim);margin-bottom:5px;text-shadow:0 1px 3px #000}
+#staminaBar{height:4px;border-radius:2px;background:rgba(20,12,6,.6);border:1px solid rgba(255,200,140,.2);overflow:hidden}
+#staminaFill{height:100%;width:100%;border-radius:2px;background:linear-gradient(90deg,var(--rust),var(--ember-hot));
+  transition:width .15s linear;box-shadow:0 0 8px rgba(255,150,60,.5)}
+#staminaFill.low{background:linear-gradient(90deg,#8a2413,#e0512b);animation:pulseLow 1s infinite}
+@keyframes pulseLow{50%{opacity:.55}}
+/* clock */
+#clockBox{position:absolute;right:26px;bottom:22px;text-align:right}
+#timeDial{width:64px;height:64px;display:block;margin-left:auto}
+#clockLabel{font-variant-numeric:tabular-nums;font-family:var(--serif);font-size:19px;color:var(--parchment);text-shadow:0 1px 4px #000;margin-top:2px}
+#dayLabel{font-size:9.5px;letter-spacing:.3em;text-transform:uppercase;color:var(--parch-dim);text-shadow:0 1px 3px #000}
+/* interact prompt */
+#prompt{position:absolute;left:50%;top:57%;transform:translate(-50%,0) scale(.95);opacity:0;
+  transition:opacity .22s ease,transform .22s var(--ease);text-align:center;pointer-events:none}
+#prompt.on{opacity:1;transform:translate(-50%,0) scale(1)}
+#prompt .pk{display:inline-flex;align-items:center;gap:10px;padding:9px 18px;border-radius:9px;
+  background:var(--panel-soft);border:1px solid var(--line-hot);backdrop-filter:blur(6px);
+  font-size:14px;color:var(--parchment);letter-spacing:.04em}
+#promptSub{margin-top:6px;font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--ember-hot);text-shadow:0 1px 4px #000}
+/* toasts */
+#toasts{position:absolute;right:26px;top:88px;display:flex;flex-direction:column;gap:9px;align-items:flex-end}
+.toast{padding:11px 17px;border-radius:9px;background:var(--panel-soft);border:1px solid var(--line);
+  backdrop-filter:blur(8px);font-size:13px;color:var(--parchment);max-width:320px;
+  animation:toastIn .45s var(--ease), toastOut .6s ease 5.4s forwards}
+.toast b{color:var(--ember-hot)}
+.toast .tag{display:block;font-size:9px;margin-bottom:3px}
+@keyframes toastIn{from{opacity:0;transform:translateX(30px)}to{opacity:1;transform:none}}
+@keyframes toastOut{to{opacity:0;transform:translateY(-8px)}}
+/* achievement pop */
+#achievePop{position:fixed;left:50%;top:64px;transform:translate(-50%,-260%);opacity:0;visibility:hidden;z-index:45;
+  display:flex;align-items:center;gap:15px;padding:15px 26px 15px 18px;border-radius:12px;
+  background:linear-gradient(180deg,rgba(48,26,10,.94),rgba(26,15,7,.94));border:1px solid var(--line-hot);
+  box-shadow:0 18px 50px rgba(0,0,0,.6),0 0 40px rgba(255,140,50,.18);backdrop-filter:blur(10px);
+  transition:transform .7s var(--ease),opacity .5s,visibility .7s}
+#achievePop.on{transform:translate(-50%,0);opacity:1;visibility:visible}
+#achievePop .medal{width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:22px;
+  background:radial-gradient(circle at 35% 30%,#ffd894,#c96a2a 70%);box-shadow:0 0 18px rgba(255,150,60,.6),inset 0 2px 4px rgba(255,255,255,.4)}
+#achievePop .t1{font-size:9.5px;letter-spacing:.32em;text-transform:uppercase;color:var(--ember-hot);font-weight:700}
+#achievePop .t2{font-family:var(--serif);font-size:19px;color:var(--parchment);margin-top:2px}
+
+/* ---------- photo mode ---------- */
+#photoUI{position:fixed;inset:0;z-index:12;pointer-events:none;opacity:0;visibility:hidden;transition:opacity .35s}
+#photoUI.on{opacity:1;visibility:visible}
+.pframe{position:absolute;width:54px;height:54px;border:2px solid rgba(242,231,211,.85);filter:drop-shadow(0 0 4px rgba(0,0,0,.7))}
+.pframe.tl{top:11vh;left:13vw;border-right:0;border-bottom:0}
+.pframe.tr{top:11vh;right:13vw;border-left:0;border-bottom:0}
+.pframe.bl{bottom:11vh;left:13vw;border-right:0;border-top:0}
+.pframe.br{bottom:11vh;right:13vw;border-left:0;border-top:0}
+#photoTop{position:absolute;top:12.5vh;left:50%;transform:translateX(-50%);display:flex;gap:26px;
+  font-size:11px;letter-spacing:.26em;text-transform:uppercase;color:rgba(242,231,211,.9);text-shadow:0 1px 4px #000}
+#photoTop .rec{color:#ff6a4a;animation:pulseLow 1.4s infinite}
+#photoSubject{position:absolute;top:56%;left:50%;transform:translateX(-50%);font-size:12px;letter-spacing:.24em;
+  text-transform:uppercase;color:var(--ember-hot);text-shadow:0 1px 6px #000;opacity:0;transition:opacity .25s}
+#photoSubject.on{opacity:1}
+#photoHint{position:absolute;bottom:12.5vh;left:50%;transform:translateX(-50%);font-size:12px;color:rgba(242,231,211,.85);
+  letter-spacing:.06em;text-shadow:0 1px 4px #000;display:flex;gap:18px;align-items:center}
+#photoFlash{position:fixed;inset:0;background:#fff8ec;z-index:13;opacity:0;pointer-events:none}
+#photoFlash.snap{animation:flashAnim .5s ease}
+@keyframes flashAnim{0%{opacity:0}12%{opacity:.95}100%{opacity:0}}
+</style>
+<style>
+/* ---------- journal (Tab) ---------- */
+#journal{position:fixed;inset:0;z-index:30;display:flex;align-items:center;justify-content:center;
+  opacity:0;visibility:hidden;transition:opacity .35s ease,visibility .35s}
+#journal.active{opacity:1;visibility:visible}
+#journal .backdrop{position:absolute;inset:0;background:rgba(6,4,2,.55);backdrop-filter:blur(3px)}
+#journalPanel{position:relative;width:min(94vw,1060px);height:min(88vh,700px);display:flex;flex-direction:column;overflow:hidden}
+#jHead{display:flex;align-items:baseline;justify-content:space-between;padding:24px 34px 0}
+#jHead h2{font-family:var(--serif);font-weight:400;font-size:30px;letter-spacing:.12em}
+#jHead .hint{font-size:11px;color:var(--parch-faint);letter-spacing:.1em}
+#jTabs{display:flex;gap:2px;padding:14px 34px 0;border-bottom:1px solid var(--line)}
+.jtab{background:none;border:0;cursor:pointer;padding:10px 18px 12px;color:var(--parch-faint);
+  font-size:12px;font-weight:700;letter-spacing:.2em;text-transform:uppercase;position:relative;transition:color .2s}
+.jtab::after{content:"";position:absolute;left:14px;right:14px;bottom:-1px;height:2px;background:var(--ember);
+  transform:scaleX(0);transition:transform .3s var(--ease);box-shadow:0 0 10px rgba(255,150,60,.7)}
+.jtab.on{color:var(--ember-hot)}
+.jtab.on::after{transform:scaleX(1)}
+.jview{display:none;flex:1;min-height:0;padding:20px 34px 26px}
+.jview.on{display:flex}
+/* objectives view */
+#jvObjectives{flex-direction:column;gap:6px}
+.qitem{padding:14px 18px;border:1px solid var(--line);border-radius:10px;background:rgba(255,205,150,.03);margin-bottom:10px}
+.qitem.main{border-color:var(--line-hot);background:linear-gradient(180deg,rgba(255,150,60,.08),rgba(255,150,60,.02))}
+.qitem.done{opacity:.55}
+.qitem .qt{display:flex;justify-content:space-between;align-items:baseline;gap:12px}
+.qitem .qname{font-family:var(--serif);font-size:17px;color:var(--parchment)}
+.qitem.done .qname{text-decoration:line-through;text-decoration-color:rgba(255,150,60,.6)}
+.qitem .qprog{font-size:11px;letter-spacing:.14em;color:var(--ember-hot);font-weight:700;white-space:nowrap}
+.qitem .qd{font-size:12.5px;color:var(--parch-dim);line-height:1.5;margin-top:4px}
+/* map view */
+#jvMap{align-items:center;justify-content:center;gap:26px}
+#mapWrap{position:relative;height:100%;aspect-ratio:1;max-width:60%}
+#mapCanvas{width:100%;height:100%;border-radius:10px;border:1px solid var(--line-hot);box-shadow:0 10px 40px rgba(0,0,0,.5)}
+#mapSide{flex:1;min-width:0;display:flex;flex-direction:column;gap:6px;max-height:100%;overflow:auto}
+#mapSide h3{font-family:var(--serif);font-weight:400;font-size:19px;letter-spacing:.08em;margin-bottom:6px}
+.mlegend{display:flex;align-items:center;gap:10px;font-size:12.5px;color:var(--parch-dim);padding:4px 0}
+.mlegend .dot{width:10px;height:10px;border-radius:50%;flex:0 0 auto}
+/* journal pages view */
+#jvPages{gap:24px}
+#pageList{width:250px;flex:0 0 auto;display:flex;flex-direction:column;gap:5px;overflow-y:auto}
+.pitem{text-align:left;background:none;border:1px solid transparent;border-radius:8px;padding:9px 12px;cursor:pointer;color:var(--parch-dim);transition:all .2s}
+.pitem:hover{background:rgba(255,205,150,.06)}
+.pitem.on{border-color:var(--line-hot);background:rgba(255,150,60,.08);color:var(--parchment)}
+.pitem .pn{font-size:10px;letter-spacing:.22em;text-transform:uppercase;color:var(--ember);display:block;margin-bottom:2px}
+.pitem .pt{font-family:var(--serif);font-size:14.5px}
+.pitem.locked{opacity:.35;pointer-events:none}
+#pageReader{flex:1;min-width:0;border-left:1px solid var(--line);padding-left:26px;overflow-y:auto}
+#pageReader .ptitle{font-family:var(--serif);font-size:24px;letter-spacing:.04em;margin:2px 0 2px;color:var(--parchment)}
+#pageReader .pmeta{font-size:10.5px;letter-spacing:.24em;text-transform:uppercase;color:var(--ember);margin-bottom:14px}
+#pageReader .ptext{font-family:var(--serif);font-size:16px;line-height:1.85;color:var(--parch-dim);white-space:pre-line}
+#pageReader .ptext::first-letter{font-size:2.4em;line-height:1;color:var(--ember-hot);padding-right:4px;float:left;margin-top:2px}
+/* photos view */
+#jvPhotos{flex-direction:column}
+#photoGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:14px;overflow-y:auto;padding-right:6px}
+.photoCard{border:1px solid var(--line);border-radius:8px;overflow:hidden;background:#0d0906;
+  transition:transform .25s var(--ease),box-shadow .25s;position:relative}
+.photoCard:hover{transform:translateY(-3px) rotate(-.4deg);box-shadow:0 14px 34px rgba(0,0,0,.55)}
+.photoCard img{width:100%;aspect-ratio:16/9;object-fit:cover;display:block;filter:saturate(1.06) contrast(1.03)}
+.photoCard .cap{padding:8px 11px;font-size:11px;color:var(--parch-dim);display:flex;justify-content:space-between;gap:8px}
+.photoCard .cap b{color:var(--ember-hot);font-weight:600;letter-spacing:.06em}
+#photoChecklist{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px}
+.pcheck{font-size:11px;letter-spacing:.12em;padding:5px 12px;border-radius:20px;border:1px solid var(--line);color:var(--parch-faint)}
+.pcheck.got{border-color:var(--line-hot);color:var(--ember-hot);background:rgba(255,150,60,.08)}
+/* achievements view */
+#achGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:10px;overflow-y:auto;padding-right:6px;align-content:start}
+.ach{display:flex;gap:14px;align-items:center;padding:13px 16px;border:1px solid var(--line);border-radius:10px;background:rgba(255,205,150,.02)}
+.ach .medal{width:40px;height:40px;flex:0 0 auto;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:19px;
+  background:radial-gradient(circle at 35% 30%,#ffd894,#c96a2a 70%);box-shadow:inset 0 2px 4px rgba(255,255,255,.35)}
+.ach.locked{opacity:.4}
+.ach.locked .medal{background:radial-gradient(circle at 35% 30%,#5c554a,#2b2620 70%);filter:grayscale(1)}
+.ach .an{font-family:var(--serif);font-size:15.5px;color:var(--parchment)}
+.ach .ad{font-size:11.5px;color:var(--parch-faint);margin-top:2px;line-height:1.4}
+/* stats view */
+#statGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:12px;align-content:start;width:100%}
+.stat{padding:18px;border:1px solid var(--line);border-radius:10px;text-align:center;background:rgba(255,205,150,.02)}
+.stat .sv{font-family:var(--serif);font-size:30px;color:var(--ember-hot)}
+.stat .sl{font-size:10px;letter-spacing:.26em;text-transform:uppercase;color:var(--parch-faint);margin-top:5px}
+
+/* ---------- paper modal (notes & found pages) ---------- */
+#paper{position:fixed;inset:0;z-index:35;display:flex;align-items:center;justify-content:center;
+  opacity:0;visibility:hidden;transition:opacity .4s,visibility .4s}
+#paper.active{opacity:1;visibility:visible}
+#paper .backdrop{position:absolute;inset:0;background:rgba(5,3,1,.66);backdrop-filter:blur(3px)}
+#paperSheet{position:relative;width:min(90vw,560px);max-height:82vh;display:flex;flex-direction:column;
+  background:linear-gradient(172deg,#efe3c8,#e2d2ae 60%,#d8c69e);color:#33261a;border-radius:3px;
+  padding:44px 52px 38px;box-shadow:0 40px 90px rgba(0,0,0,.7), inset 0 0 80px rgba(120,84,40,.18);
+  transform:rotate(-.5deg);animation:paperIn .5s var(--ease)}
+@keyframes paperIn{from{opacity:0;transform:rotate(-.5deg) translateY(26px) scale(.96)}to{opacity:1;transform:rotate(-.5deg) none}}
+#paperSheet::before{content:"";position:absolute;inset:10px;border:1px solid rgba(90,60,25,.25);pointer-events:none}
+#paperKicker{font-size:10px;letter-spacing:.34em;text-transform:uppercase;color:#8a5a28;font-weight:700}
+#paperTitle{font-family:var(--serif);font-size:27px;margin:7px 0 13px;color:#2c2013;letter-spacing:.02em}
+#paperText{font-family:var(--serif);font-size:16px;line-height:1.8;overflow-y:auto;white-space:pre-line;color:#42321f;padding-right:8px;
+  scrollbar-width:thin;scrollbar-color:rgba(90,60,25,.4) transparent}
+#paperSig{font-family:var(--serif);font-style:italic;font-size:17px;color:#7a4a1c;margin-top:14px;text-align:right}
+#paperClose{margin:22px auto 0;background:none;border:1px solid rgba(90,60,25,.5);color:#5c3d1a;border-radius:7px;
+  padding:8px 26px;cursor:pointer;font-size:11px;font-weight:700;letter-spacing:.26em;text-transform:uppercase;transition:all .2s}
+#paperClose:hover{background:rgba(90,60,25,.12)}
+
+/* ---------- pause badge / spinner-free autosave ---------- */
+#saveBadge{position:fixed;right:26px;top:24px;z-index:11;font-size:10px;letter-spacing:.3em;text-transform:uppercase;
+  color:var(--parch-faint);opacity:0;transition:opacity .5s;text-shadow:0 1px 3px #000;pointer-events:none}
+#saveBadge.on{opacity:.9}
+
+/* ---------- webgl error ---------- */
+#glError{position:fixed;inset:0;z-index:90;display:none;align-items:center;justify-content:center;background:#0a0805;text-align:center;padding:30px}
+#glError .inner{max-width:520px}
+#glError h2{font-family:var(--serif);letter-spacing:.1em;font-weight:400;margin-bottom:12px}
+#glError p{color:var(--parch-dim);line-height:1.6;font-size:14px}
+
+@media (max-width:900px){
+  .keysGrid{grid-template-columns:1fr}
+  #jvMap{flex-direction:column}
+  #mapWrap{max-width:100%;height:auto;width:min(80vw,60vh)}
+  .setRow{grid-template-columns:130px 1fr 58px}
+  #objCard{max-width:250px}
+  #jvPages{flex-direction:column}
+  #pageList{width:100%;flex-direction:row;flex-wrap:wrap}
+  #pageReader{border-left:0;padding-left:0}
+}
+</style>
+</head>
+<body>
+<canvas id="gl"></canvas>
+<div id="vignette"></div>
+<div id="fader"></div>
+<div id="grain"></div>
+<div class="lbox" id="lboxTop"></div>
+<div class="lbox" id="lboxBot"></div>
+<div id="subtitle"></div>
+
+<!-- ======================= HUD ======================= -->
+<div id="hud">
+  <div id="crosshair"></div>
+  <div id="compass">
+    <div id="compassNeedle"></div>
+    <div id="compassStrip"></div>
+  </div>
+  <div id="objCard" class="hide">
+    <span class="tag" id="objKicker">Objective</span>
+    <div id="objTitle"></div>
+    <div id="objDesc"></div>
+    <div id="objProg"></div>
+  </div>
+  <div id="staminaWrap">
+    <div id="staminaLabel">Stamina</div>
+    <div id="staminaBar"><div id="staminaFill"></div></div>
+  </div>
+  <div id="clockBox">
+    <canvas id="timeDial" width="128" height="128"></canvas>
+    <div id="clockLabel">6:48 AM</div>
+    <div id="dayLabel">Day 1</div>
+  </div>
+  <div id="prompt"><span class="pk"><kbd id="promptKey">E</kbd><span id="promptText"></span></span><div id="promptSub"></div></div>
+  <div id="toasts"></div>
+</div>
+<div id="saveBadge">✦ Journal Updated</div>
+
+<!-- ======================= PHOTO MODE ======================= -->
+<div id="photoUI">
+  <div class="pframe tl"></div><div class="pframe tr"></div><div class="pframe bl"></div><div class="pframe br"></div>
+  <div id="photoTop"><span class="rec">● Field Camera</span><span id="photoCount">0 / 24 plates</span><span id="photoZoomLbl">50mm</span></div>
+  <div id="photoSubject"></div>
+  <div id="photoHint"><span><kbd>Space</kbd> capture</span><span><kbd>Scroll</kbd> zoom</span><span><kbd>F</kbd> put away</span></div>
+</div>
+<div id="photoFlash"></div>
+
+<!-- ======================= ACHIEVEMENT POP ======================= -->
+<div id="achievePop"><div class="medal" id="achMedal">✦</div><div><div class="t1">Milestone</div><div class="t2" id="achName"></div></div></div>
+
+<!-- ======================= TITLE ======================= -->
+<div class="screen active" id="screenTitle">
+  <div class="backdrop"></div>
+  <div class="inner">
+    <div class="tag" id="titleTag">A Wilderness Expedition</div>
+    <h1 id="titleWord">EMBERW<span class="amp">O</span>OD</h1>
+    <div id="titleSub">the lookout towers have been dark for two years</div>
+    <div id="titleRule"></div>
+    <nav id="titleMenu">
+      <button class="mbtn primary" id="btnNew">Begin Expedition</button>
+      <button class="mbtn" id="btnContinue" disabled>Continue</button>
+      <button class="mbtn" id="btnHow">Field Manual</button>
+      <button class="mbtn" id="btnSettings">Settings</button>
+      <button class="mbtn" id="btnCredits">Credits</button>
+    </nav>
+  </div>
+  <div id="titleFoot">
+    <span>Emberwood National Forest · Est. 1931</span>
+    <span>Handcrafted by <b>Claude</b> — one file, no engines</span>
+  </div>
+</div>
+
+<!-- ======================= FIELD MANUAL ======================= -->
+<div class="screen" id="screenHow">
+  <div class="backdrop"></div>
+  <div class="inner"><div class="panel sheet">
+    <span class="tag">Ranger Service</span>
+    <h2>Field Manual</h2>
+    <div class="body scroll">
+      <div class="keysGrid">
+        <div class="keyRow"><span>Move</span><span class="k"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></span></div>
+        <div class="keyRow"><span>Look</span><span class="k"><kbd>Mouse</kbd></span></div>
+        <div class="keyRow"><span>Sprint</span><span class="k"><kbd>Shift</kbd></span></div>
+        <div class="keyRow"><span>Interact</span><span class="k"><kbd>E</kbd></span></div>
+        <div class="keyRow"><span>Field journal &amp; map</span><span class="k"><kbd>Tab</kbd> / <kbd>M</kbd></span></div>
+        <div class="keyRow"><span>Field camera</span><span class="k"><kbd>F</kbd></span></div>
+        <div class="keyRow"><span>Capture photo</span><span class="k"><kbd>Space</kbd></span></div>
+        <div class="keyRow"><span>Pause</span><span class="k"><kbd>Esc</kbd></span></div>
+      </div>
+      <hr class="rule">
+      <ul class="tipList">
+        <li>Your task: bring the three fire lookout towers back into service. Each one is missing something — the forest will tell you where to look.</li>
+        <li><em>Campfires</em> can be lit at established camps. Rest beside one to sleep until dawn; your expedition is recorded there.</li>
+        <li>Follow the <em>compass markers</em>. Diamonds are your current objective; triangles are towers you've discovered.</li>
+        <li>Wildlife is shy. Crouch of patience — walk, don't sprint — and you'll get close enough for a photograph.</li>
+        <li>Ranger June Calloway kept a journal her final season. Her pages are still out there, weighted under stones.</li>
+        <li>Supply caches raise your maximum stamina. Look for small crates near landmarks.</li>
+        <li>The forest changes with the hour. Some things only happen after dark.</li>
+      </ul>
+    </div>
+    <button class="gbtn backBtn" data-back>Back</button>
+  </div></div>
+</div>
+
+<!-- ======================= SETTINGS ======================= -->
+<div class="screen" id="screenSettings">
+  <div class="backdrop"></div>
+  <div class="inner"><div class="panel sheet">
+    <span class="tag">Configuration</span>
+    <h2>Settings</h2>
+    <div class="body scroll" id="settingsBody"></div>
+    <button class="gbtn backBtn" data-back>Back</button>
+  </div></div>
+</div>
+
+<!-- ======================= CREDITS ======================= -->
+<div class="screen" id="screenCredits">
+  <div class="backdrop"></div>
+  <div class="inner"><div class="panel sheet">
+    <span class="tag">Emberwood</span>
+    <h2>Credits</h2>
+    <div class="body scroll">
+      <p><em>Emberwood</em> was written by <em>Claude</em> as a single HTML file — every system handcrafted from scratch, with no game engine, no libraries, and no external assets of any kind.</p>
+      <p>The 3D renderer is raw WebGL2: hand-rolled matrix math, custom GLSL shaders, cascading day/night lighting, dynamic shadow mapping, and GPU-instanced forests. The terrain, every tree, rock, tower, and creature is procedural geometry built vertex by vertex. The soundscape — wind, birdsong, crickets, fire, and the score itself — is synthesized live by a handwritten Web Audio engine. Nothing was downloaded; nothing is borrowed.</p>
+      <p>Written for one player, one forest, and however many sunrises you care to watch.</p>
+      <hr class="rule">
+      <p style="text-align:center;font-family:var(--serif);font-style:italic">“Look after the quiet places.” — J.C.</p>
+    </div>
+    <button class="gbtn backBtn" data-back>Back</button>
+  </div></div>
+</div>
+
+<!-- ======================= PAUSE ======================= -->
+<div class="screen" id="screenPause">
+  <div class="backdrop"></div>
+  <div class="inner">
+    <div class="tag">Expedition Paused</div>
+    <h1 id="pauseWord" style="font-family:var(--serif);font-weight:400;letter-spacing:.16em;font-size:clamp(34px,6vw,66px);margin:10px 0 6px">EMBERWOOD</h1>
+    <div id="titleRule" style="opacity:1;animation:none"></div>
+    <nav id="pauseMenu" style="display:flex;flex-direction:column;align-items:center;gap:4px">
+      <button class="mbtn primary" id="btnResume">Resume</button>
+      <button class="mbtn" id="btnPauseHow">Field Manual</button>
+      <button class="mbtn" id="btnPauseSettings">Settings</button>
+      <button class="mbtn" id="btnQuit">Save &amp; Return to Title</button>
+    </nav>
+  </div>
+</div>
+
+<!-- ======================= JOURNAL ======================= -->
+<div id="journal">
+  <div class="backdrop" data-closejournal></div>
+  <div class="panel" id="journalPanel">
+    <div id="jHead"><h2>Field Journal</h2><span class="hint"><kbd>Tab</kbd> close &nbsp;·&nbsp; <kbd>Q</kbd>/<kbd>R</kbd> switch tab</span></div>
+    <div id="jTabs">
+      <button class="jtab on" data-jtab="jvObjectives">Objectives</button>
+      <button class="jtab" data-jtab="jvMap">Map</button>
+      <button class="jtab" data-jtab="jvPages">June's Pages</button>
+      <button class="jtab" data-jtab="jvPhotos">Photographs</button>
+      <button class="jtab" data-jtab="jvAch">Milestones</button>
+      <button class="jtab" data-jtab="jvStats">Expedition</button>
+    </div>
+    <div class="jview on scroll" id="jvObjectives"></div>
+    <div class="jview" id="jvMap">
+      <div id="mapWrap"><canvas id="mapCanvas" width="1024" height="1024"></canvas></div>
+      <div id="mapSide"><h3>Emberwood National Forest</h3><div id="mapLegend"></div></div>
+    </div>
+    <div class="jview" id="jvPages">
+      <div id="pageList" class="scroll"></div>
+      <div id="pageReader" class="scroll"><div class="pmeta" id="prMeta"></div><div class="ptitle" id="prTitle"></div><div class="ptext" id="prText"></div></div>
+    </div>
+    <div class="jview" id="jvPhotos"><div style="display:flex;flex-direction:column;min-width:0;width:100%">
+      <div id="photoChecklist"></div><div id="photoGrid" class="scroll"></div></div>
+    </div>
+    <div class="jview" id="jvAch"><div id="achGrid" class="scroll" style="width:100%"></div></div>
+    <div class="jview" id="jvStats"><div id="statGrid"></div></div>
+  </div>
+</div>
+
+<!-- ======================= PAPER MODAL ======================= -->
+<div id="paper">
+  <div class="backdrop"></div>
+  <div id="paperSheet">
+    <div id="paperKicker"></div>
+    <div id="paperTitle"></div>
+    <div id="paperText" class="scroll"></div>
+    <div id="paperSig"></div>
+    <button id="paperClose">Tuck Away&ensp;·&ensp;E</button>
+  </div>
+</div>
+
+<!-- ======================= WEBGL ERROR ======================= -->
+<div id="glError"><div class="inner">
+  <h2>EMBERWOOD</h2>
+  <p>This expedition needs WebGL2 to render its forest, and your browser declined to provide it. Try a current version of Chrome, Edge, Firefox, or Safari — or enable hardware acceleration — and return to the trailhead.</p>
+</div></div>
+<script>
+'use strict';
+/* ================================================================
+   EMBERWOOD — engine core
+   Handwritten WebGL2 renderer: matrix math, noise, shaders, VAOs,
+   shadow mapping. No libraries. No assets. One file.
+   ================================================================ */
+
+// ---------------------------------------------------------------- tiny utils
+const $=id=>document.getElementById(id);
+const clamp=(v,a,b)=>v<a?a:v>b?b:v;
+const lerp=(a,b,t)=>a+(b-a)*t;
+const smoothstep=(a,b,x)=>{const t=clamp((x-a)/(b-a),0,1);return t*t*(3-2*t);};
+const TAU=Math.PI*2;
+function hexToRGB(h){return[parseInt(h.slice(1,3),16)/255,parseInt(h.slice(3,5),16)/255,parseInt(h.slice(5,7),16)/255];}
+function mixC(a,b,t){return[lerp(a[0],b[0],t),lerp(a[1],b[1],t),lerp(a[2],b[2],t)];}
+function scaleC(c,s){return[c[0]*s,c[1]*s,c[2]*s];}
+function fmtDist(m){return m>=1000?(m/1000).toFixed(1)+' km':Math.round(m)+' m';}
+function fmtTime(s){const h=Math.floor(s/3600),m=Math.floor(s%3600/60);return h>0?h+'h '+m+'m':m+'m '+Math.floor(s%60)+'s';}
+
+// ---------------------------------------------------------------- rng + noise
+function mulberry32(seed){let a=seed>>>0;return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+function makeNoise(seed){
+  const rand=mulberry32(seed), perm=new Uint8Array(512), g=new Float32Array(512);
+  const p=[...Array(256).keys()];
+  for(let i=255;i>0;i--){const j=(rand()*(i+1))|0;[p[i],p[j]]=[p[j],p[i]];}
+  for(let i=0;i<512;i++){perm[i]=p[i&255];g[i]=rand()*2-1;}
+  const fade=t=>t*t*t*(t*(t*6-15)+10);
+  function noise2(x,y){
+    const X=Math.floor(x),Y=Math.floor(y);
+    const xf=x-X,yf=y-Y,xi=X&255,yi=Y&255;
+    const aa=g[perm[perm[xi]+yi]],ba=g[perm[perm[xi+1]+yi]];
+    const ab=g[perm[perm[xi]+yi+1]],bb=g[perm[perm[xi+1]+yi+1]];
+    const u=fade(xf),v=fade(yf);
+    return lerp(lerp(aa,ba,u),lerp(ab,bb,u),v);
+  }
+  function fbm(x,y,oct,lac,gain){
+    let a=0,amp=.5,f=1,norm=0;
+    for(let i=0;i<oct;i++){a+=noise2(x*f,y*f)*amp;norm+=amp;amp*=gain;f*=lac;}
+    return a/norm;
+  }
+  function ridge(x,y,oct){
+    let a=0,amp=.5,f=1;
+    for(let i=0;i<oct;i++){a+=(1-Math.abs(noise2(x*f,y*f)))*amp;amp*=.5;f*=2.1;}
+    return a;
+  }
+  return {noise2,fbm,ridge,rand};
+}
+
+// ---------------------------------------------------------------- mat4 (column-major)
+function m4New(){const m=new Float32Array(16);m[0]=m[5]=m[10]=m[15]=1;return m;}
+function m4Mul(out,a,b){
+  const a00=a[0],a01=a[1],a02=a[2],a03=a[3],a10=a[4],a11=a[5],a12=a[6],a13=a[7],
+        a20=a[8],a21=a[9],a22=a[10],a23=a[11],a30=a[12],a31=a[13],a32=a[14],a33=a[15];
+  let b0=b[0],b1=b[1],b2=b[2],b3=b[3];
+  out[0]=b0*a00+b1*a10+b2*a20+b3*a30;out[1]=b0*a01+b1*a11+b2*a21+b3*a31;
+  out[2]=b0*a02+b1*a12+b2*a22+b3*a32;out[3]=b0*a03+b1*a13+b2*a23+b3*a33;
+  b0=b[4];b1=b[5];b2=b[6];b3=b[7];
+  out[4]=b0*a00+b1*a10+b2*a20+b3*a30;out[5]=b0*a01+b1*a11+b2*a21+b3*a31;
+  out[6]=b0*a02+b1*a12+b2*a22+b3*a32;out[7]=b0*a03+b1*a13+b2*a23+b3*a33;
+  b0=b[8];b1=b[9];b2=b[10];b3=b[11];
+  out[8]=b0*a00+b1*a10+b2*a20+b3*a30;out[9]=b0*a01+b1*a11+b2*a21+b3*a31;
+  out[10]=b0*a02+b1*a12+b2*a22+b3*a32;out[11]=b0*a03+b1*a13+b2*a23+b3*a33;
+  b0=b[12];b1=b[13];b2=b[14];b3=b[15];
+  out[12]=b0*a00+b1*a10+b2*a20+b3*a30;out[13]=b0*a01+b1*a11+b2*a21+b3*a31;
+  out[14]=b0*a02+b1*a12+b2*a22+b3*a32;out[15]=b0*a03+b1*a13+b2*a23+b3*a33;
+  return out;
+}
+function m4Perspective(out,fovy,aspect,near,far){
+  const f=1/Math.tan(fovy/2);
+  out.fill(0);
+  out[0]=f/aspect;out[5]=f;out[10]=(far+near)/(near-far);out[11]=-1;out[14]=2*far*near/(near-far);
+  return out;
+}
+function m4Ortho(out,l,r,b,t,n,f){
+  out.fill(0);
+  out[0]=2/(r-l);out[5]=2/(t-b);out[10]=-2/(f-n);out[15]=1;
+  out[12]=-(r+l)/(r-l);out[13]=-(t+b)/(t-b);out[14]=-(f+n)/(f-n);
+  return out;
+}
+function m4LookAt(out,eye,center,up){
+  let zx=eye[0]-center[0],zy=eye[1]-center[1],zz=eye[2]-center[2];
+  let len=Math.hypot(zx,zy,zz);zx/=len;zy/=len;zz/=len;
+  let xx=up[1]*zz-up[2]*zy,xy=up[2]*zx-up[0]*zz,xz=up[0]*zy-up[1]*zx;
+  len=Math.hypot(xx,xy,xz)||1;xx/=len;xy/=len;xz/=len;
+  const yx=zy*xz-zz*xy,yy=zz*xx-zx*xz,yz=zx*xy-zy*xx;
+  out[0]=xx;out[1]=yx;out[2]=zx;out[3]=0;
+  out[4]=xy;out[5]=yy;out[6]=zy;out[7]=0;
+  out[8]=xz;out[9]=yz;out[10]=zz;out[11]=0;
+  out[12]=-(xx*eye[0]+xy*eye[1]+xz*eye[2]);
+  out[13]=-(yx*eye[0]+yy*eye[1]+yz*eye[2]);
+  out[14]=-(zx*eye[0]+zy*eye[1]+zz*eye[2]);
+  out[15]=1;
+  return out;
+}
+function m4Invert(out,a){
+  const a00=a[0],a01=a[1],a02=a[2],a03=a[3],a10=a[4],a11=a[5],a12=a[6],a13=a[7],
+        a20=a[8],a21=a[9],a22=a[10],a23=a[11],a30=a[12],a31=a[13],a32=a[14],a33=a[15];
+  const b00=a00*a11-a01*a10,b01=a00*a12-a02*a10,b02=a00*a13-a03*a10,b03=a01*a12-a02*a11,
+        b04=a01*a13-a03*a11,b05=a02*a13-a03*a12,b06=a20*a31-a21*a30,b07=a20*a32-a22*a30,
+        b08=a20*a33-a23*a30,b09=a21*a32-a22*a31,b10=a21*a33-a23*a31,b11=a22*a33-a23*a32;
+  let det=b00*b11-b01*b10+b02*b09+b03*b08-b04*b07+b05*b06;
+  if(!det)return out;
+  det=1/det;
+  out[0]=(a11*b11-a12*b10+a13*b09)*det;out[1]=(a02*b10-a01*b11-a03*b09)*det;
+  out[2]=(a31*b05-a32*b04+a33*b03)*det;out[3]=(a22*b04-a21*b05-a23*b03)*det;
+  out[4]=(a12*b08-a10*b11-a13*b07)*det;out[5]=(a00*b11-a02*b08+a03*b07)*det;
+  out[6]=(a32*b02-a30*b05-a33*b01)*det;out[7]=(a20*b05-a22*b02+a23*b01)*det;
+  out[8]=(a10*b10-a11*b08+a13*b06)*det;out[9]=(a01*b08-a00*b10-a03*b06)*det;
+  out[10]=(a30*b04-a31*b02+a33*b00)*det;out[11]=(a21*b02-a20*b04-a23*b00)*det;
+  out[12]=(a11*b07-a10*b09-a12*b06)*det;out[13]=(a00*b09-a01*b07+a02*b06)*det;
+  out[14]=(a31*b01-a30*b03-a32*b00)*det;out[15]=(a20*b03-a21*b01+a22*b00)*det;
+  return out;
+}
+
+// ---------------------------------------------------------------- GL bootstrap
+const canvas=$('gl');
+const gl=canvas.getContext('webgl2',{antialias:true,alpha:false,powerPreference:'high-performance'});
+if(!gl){$('glError').style.display='flex';throw new Error('WebGL2 unavailable');}
+
+function compileShader(type,src){
+  const s=gl.createShader(type);
+  gl.shaderSource(s,src);gl.compileShader(s);
+  if(!gl.getShaderParameter(s,gl.COMPILE_STATUS))
+    throw new Error('Shader error: '+gl.getShaderInfoLog(s)+'\n---\n'+src.split('\n').map((l,i)=>(i+1)+': '+l).join('\n'));
+  return s;
+}
+function makeProgram(vs,fs,attribs){
+  const p=gl.createProgram();
+  gl.attachShader(p,compileShader(gl.VERTEX_SHADER,vs));
+  gl.attachShader(p,compileShader(gl.FRAGMENT_SHADER,fs));
+  for(const[name,loc]of Object.entries(attribs))gl.bindAttribLocation(p,loc,name);
+  gl.linkProgram(p);
+  if(!gl.getProgramParameter(p,gl.LINK_STATUS))throw new Error('Link error: '+gl.getProgramInfoLog(p));
+  const u={},n=gl.getProgramParameter(p,gl.ACTIVE_UNIFORMS);
+  for(let i=0;i<n;i++){const info=gl.getActiveUniform(p,i);u[info.name.replace('[0]','')]=gl.getUniformLocation(p,info.name);}
+  return {p,u};
+}
+
+// ---------------------------------------------------------------- GLSL common
+const GLSL_TONE=`
+vec3 tonemap(vec3 c){
+  c*=uExposure;
+  c=(c*(2.51*c+0.03))/(c*(2.43*c+0.59)+0.14);
+  return clamp(c,0.0,1.0);
+}`;
+const GLSL_LIGHT_UNI=`
+uniform vec3 uSunDir;uniform vec3 uSunCol;uniform float uSunI;
+uniform vec3 uAmbSky;uniform vec3 uAmbGnd;
+uniform vec3 uFogCol;uniform float uFogDen;
+uniform vec3 uCamPos;uniform float uExposure;
+uniform vec4 uFires[4];uniform float uNightGlow;
+uniform sampler2D uShadowMap;uniform float uShadowTexel;uniform float uShadowOn;`;
+const GLSL_SHADOW=`
+float shadowAt(vec4 sc,float ndl){
+  vec3 c=sc.xyz/sc.w*0.5+0.5;
+  if(c.x<0.01||c.x>0.99||c.y<0.01||c.y>0.99||c.z>0.995||uShadowOn<0.5)return 1.0;
+  float bias=max(0.0022*(1.0-ndl),0.0006);
+  float s=0.0;
+  for(int i=-1;i<=1;i++)for(int j=-1;j<=1;j++){
+    float d=texture(uShadowMap,c.xy+vec2(float(i),float(j))*uShadowTexel).r;
+    s+=(c.z-bias>d)?0.0:1.0;
+  }
+  s/=9.0;
+  float edge=smoothstep(0.0,0.08,min(min(c.x,1.0-c.x),min(c.y,1.0-c.y)));
+  return mix(1.0,s,edge);
+}`;
+const GLSL_SHADE=`
+vec3 shade(vec3 N,vec3 alb,vec3 world,float shadow,float emis){
+  float ndl=max(dot(N,uSunDir),0.0);
+  vec3 amb=mix(uAmbGnd,uAmbSky,N.y*0.5+0.5);
+  vec3 col=alb*(amb+uSunCol*uSunI*ndl*shadow);
+  for(int i=0;i<4;i++){
+    vec3 L=uFires[i].xyz-world;
+    float d2=dot(L,L);
+    float a=uFires[i].w/(1.0+d2*0.06);
+    col+=alb*vec3(1.0,0.52,0.22)*a*(max(dot(N,L*inversesqrt(d2+0.001)),0.0)*0.85+0.15);
+  }
+  col+=vec3(1.0,0.72,0.38)*emis*uNightGlow;
+  float dist=length(world-uCamPos);
+  float f=1.0-exp(-pow(dist*uFogDen,1.55));
+  float hf=exp(-max(world.y+16.0,0.0)*0.045)*0.22*(1.0-exp(-dist*uFogDen*1.8));
+  col=mix(col,uFogCol,clamp(f+hf,0.0,1.0));
+  return tonemap(col);
+}`;
+
+// ---------------------------------------------------------------- shader: sky
+const SKY_VS=`#version 300 es
+layout(location=0) in vec2 aPos;
+uniform mat4 uInvVP;uniform vec3 uCamPos;
+out vec3 vRay;
+void main(){
+  vec4 p=uInvVP*vec4(aPos,1.0,1.0);
+  vRay=p.xyz/p.w-uCamPos;
+  gl_Position=vec4(aPos,0.99999,1.0);
+}`;
+const SKY_FS=`#version 300 es
+precision highp float;
+in vec3 vRay;out vec4 frag;
+uniform vec3 uSkyTop;uniform vec3 uSkyHor;uniform vec3 uSunDir;uniform vec3 uSunCol;
+uniform float uSunI;uniform float uNight;uniform float uTime;uniform float uExposure;
+uniform vec3 uMoonDir;uniform float uCloudy;
+float hash21(vec2 p){p=fract(p*vec2(233.34,851.73));p+=dot(p,p+23.45);return fract(p.x*p.y);}
+float vnoise(vec2 p){
+  vec2 i=floor(p),f=fract(p);f=f*f*(3.0-2.0*f);
+  return mix(mix(hash21(i),hash21(i+vec2(1,0)),f.x),mix(hash21(i+vec2(0,1)),hash21(i+vec2(1,1)),f.x),f.y);
+}
+float fbm(vec2 p){float a=0.0,w=0.5;for(int i=0;i<5;i++){a+=vnoise(p)*w;p=p*2.13+vec2(31.4,17.7);w*=0.5;}return a;}
+${GLSL_TONE.replace('uExposure','uExposure')}
+void main(){
+  vec3 rd=normalize(vRay);
+  float h=rd.y;
+  vec3 col=mix(uSkyHor,uSkyTop,pow(clamp(h+0.06,0.0,1.0),0.55));
+  float sd=max(dot(rd,uSunDir),0.0);
+  col+=uSunCol*(pow(sd,1400.0)*6.0+pow(sd,64.0)*0.5+pow(sd,6.0)*0.14)*max(uSunI,0.04);
+  float md=max(dot(rd,uMoonDir),0.0);
+  float moon=smoothstep(0.99965,0.99985,md);
+  float crater=fbm(rd.xz*140.0+rd.y*80.0)*0.35;
+  col+=(vec3(0.92,0.94,1.0)*(1.0-crater)*moon+vec3(0.55,0.62,0.85)*pow(md,220.0)*0.35)*uNight;
+  if(uNight>0.02&&h>-0.05){
+    vec2 suv=vec2(atan(rd.x,rd.z)*38.0,rd.y*110.0);
+    vec2 cell=floor(suv);
+    float st=hash21(cell);
+    if(st>0.78){
+      vec2 sp=vec2(hash21(cell+7.3),hash21(cell+13.7))*0.7+0.15;
+      float d=length(fract(suv)-sp);
+      float tw=0.5+0.5*sin(uTime*(1.0+st*4.0)+st*90.0);
+      float bright=smoothstep(0.10,0.0,d)*smoothstep(0.78,0.99,st);
+      col+=vec3(0.88,0.92,1.0)*uNight*tw*bright*1.6*smoothstep(-0.02,0.12,h);
+    }
+  }
+  if(h>0.015){
+    vec2 cuv=rd.xz/(rd.y+0.18)*0.5;
+    float cl=fbm(cuv*1.5+vec2(uTime*0.006,uTime*0.0022));
+    float cov=smoothstep(0.58-uCloudy*0.22,0.82-uCloudy*0.1,cl);
+    float fadeH=smoothstep(0.015,0.12,h)*(1.0-smoothstep(0.6,1.0,h)*0.4);
+    vec3 lit=mix(uSkyHor*1.06,uSunCol*0.55+uSkyTop*0.6,clamp(uSunI,0.0,1.0));
+    vec3 shadowC=mix(uSkyTop,uSkyHor,0.5)*0.55;
+    float thick=smoothstep(0.55,1.0,cl);
+    col=mix(col,mix(lit,shadowC,thick*0.8),cov*fadeH*0.85);
+  }
+  col=mix(col,uSkyHor,smoothstep(0.06,-0.12,h)*0.9);
+  frag=vec4(tonemap(col),1.0);
+}`;
+
+// ---------------------------------------------------------------- shader: static lit (terrain, landmarks)
+const STATIC_VS=`#version 300 es
+layout(location=0) in vec3 aPos;
+layout(location=1) in vec3 aNor;
+layout(location=2) in vec3 aCol;
+layout(location=3) in float aExt;
+uniform mat4 uVP;uniform mat4 uShadowVP;
+out vec3 vN;out vec3 vC;out vec3 vW;out float vE;out vec4 vSC;
+void main(){
+  vN=aNor;vC=aCol;vW=aPos;vE=aExt;
+  vSC=uShadowVP*vec4(aPos,1.0);
+  gl_Position=uVP*vec4(aPos,1.0);
+}`;
+const STATIC_FS=`#version 300 es
+precision highp float;
+in vec3 vN;in vec3 vC;in vec3 vW;in float vE;in vec4 vSC;out vec4 frag;
+${GLSL_LIGHT_UNI}
+${GLSL_TONE}
+${GLSL_SHADOW}
+${GLSL_SHADE}
+void main(){
+  vec3 N=normalize(vN);
+  float sh=shadowAt(vSC,max(dot(N,uSunDir),0.0));
+  frag=vec4(shade(N,vC,vW,sh,vE),1.0);
+}`;
+
+// ---------------------------------------------------------------- shader: instanced vegetation
+const VEG_VS=`#version 300 es
+layout(location=0) in vec3 aPos;
+layout(location=1) in vec3 aNor;
+layout(location=2) in vec3 aCol;
+layout(location=3) in float aExt;
+layout(location=4) in vec4 aIPos;   // xyz world, w scale
+layout(location=5) in vec4 aIRot;   // rotY, yScale, swayAmp/animAmp, phase
+layout(location=6) in vec3 aITint;
+uniform mat4 uVP;uniform mat4 uShadowVP;uniform float uTime;uniform float uWind;
+out vec3 vN;out vec3 vC;out vec3 vW;out vec4 vSC;
+void main(){
+  float c=cos(aIRot.x),s=sin(aIRot.x);
+  vec3 p=aPos*vec3(aIPos.w,aIPos.w*aIRot.y,aIPos.w);
+  p=vec3(p.x*c-p.z*s,p.y,p.x*s+p.z*c);
+  float ph=aIRot.w;
+  vec2 sway=vec2(sin(uTime*1.35+ph),cos(uTime*1.02+ph*1.7))*aExt*uWind*aIRot.z;
+  p.xz+=sway*p.y*0.06;
+  vec3 w=p+aIPos.xyz;
+  vec3 n=vec3(aNor.x*c-aNor.z*s,aNor.y,aNor.x*s+aNor.z*c);
+  vN=n;vC=aCol*aITint;vW=w;
+  vSC=uShadowVP*vec4(w,1.0);
+  gl_Position=uVP*vec4(w,1.0);
+}`;
+const VEG_FS=`#version 300 es
+precision highp float;
+in vec3 vN;in vec3 vC;in vec3 vW;in vec4 vSC;out vec4 frag;
+${GLSL_LIGHT_UNI}
+${GLSL_TONE}
+${GLSL_SHADOW}
+${GLSL_SHADE}
+void main(){
+  vec3 N=normalize(vN);
+  float sh=shadowAt(vSC,max(dot(N,uSunDir),0.0));
+  frag=vec4(shade(N,vC,vW,sh,0.0),1.0);
+}`;
+
+// ---------------------------------------------------------------- shader: wildlife (animated instanced)
+const ANIM_VS=`#version 300 es
+layout(location=0) in vec3 aPos;
+layout(location=1) in vec3 aNor;
+layout(location=2) in vec3 aCol;
+layout(location=3) in float aExt;   // signed swing weight
+layout(location=4) in vec4 aIPos;
+layout(location=5) in vec4 aIRot;   // rotY, yScale(unused=1), animAmp, phase
+layout(location=6) in vec3 aITint;
+uniform mat4 uVP;uniform mat4 uShadowVP;uniform float uTime;
+uniform float uAnimFreq;uniform float uHipY;uniform float uWingMode;
+out vec3 vN;out vec3 vC;out vec3 vW;out vec4 vSC;
+void main(){
+  vec3 p=aPos;
+  float sw=sin(uTime*uAnimFreq+aIRot.w)*aIRot.z;
+  if(uWingMode>0.5){ p.y+=sw*abs(aExt)*abs(aPos.x)*1.1; p.x*=1.0-abs(sw)*0.25*abs(aExt); }
+  else{ p.z+=sw*aExt*max(uHipY-aPos.y,0.0)*1.5; }
+  float c=cos(aIRot.x),s=sin(aIRot.x);
+  p*=aIPos.w;
+  p=vec3(p.x*c-p.z*s,p.y,p.x*s+p.z*c);
+  vec3 w=p+aIPos.xyz;
+  vec3 n=vec3(aNor.x*c-aNor.z*s,aNor.y,aNor.x*s+aNor.z*c);
+  vN=n;vC=aCol*aITint;vW=w;
+  vSC=uShadowVP*vec4(w,1.0);
+  gl_Position=uVP*vec4(w,1.0);
+}`;
+
+// ---------------------------------------------------------------- shader: depth passes
+const DEPTH_STATIC_VS=`#version 300 es
+layout(location=0) in vec3 aPos;
+uniform mat4 uVP;
+void main(){gl_Position=uVP*vec4(aPos,1.0);}`;
+const DEPTH_INST_VS=`#version 300 es
+layout(location=0) in vec3 aPos;
+layout(location=4) in vec4 aIPos;
+layout(location=5) in vec4 aIRot;
+uniform mat4 uVP;
+void main(){
+  float c=cos(aIRot.x),s=sin(aIRot.x);
+  vec3 p=aPos*vec3(aIPos.w,aIPos.w*aIRot.y,aIPos.w);
+  p=vec3(p.x*c-p.z*s,p.y,p.x*s+p.z*c);
+  gl_Position=uVP*vec4(p+aIPos.xyz,1.0);
+}`;
+const DEPTH_FS=`#version 300 es
+precision highp float;
+void main(){}`;
+
+// ---------------------------------------------------------------- shader: particles
+const PART_VS=`#version 300 es
+layout(location=0) in vec2 aCorner;
+layout(location=4) in vec4 aSeed;
+uniform mat4 uVP;uniform vec3 uCamRight;uniform vec3 uCamUp;uniform vec3 uOrigin;
+uniform float uTime;uniform float uMode;uniform vec3 uArea;uniform float uWindT;
+out vec2 vUV;out float vFade;out float vSeed;
+void main(){
+  vUV=aCorner;vSeed=aSeed.w;
+  vec3 p;float size=1.0;vFade=1.0;
+  if(uMode<0.5){ // drifting leaves
+    vec3 drift=vec3(uWindT*6.0+sin(uTime*0.7+aSeed.w*20.0)*2.0,-uTime*(0.5+aSeed.w*0.7),uWindT*2.5);
+    p=uOrigin+mod(aSeed.xyz*uArea+drift,uArea)-uArea*0.5;
+    p.x+=sin(uTime*1.7+aSeed.w*40.0)*0.6;
+    size=0.055+aSeed.w*0.05;
+  }else if(uMode<1.5){ // fireflies
+    p=uOrigin+(aSeed.xyz-0.5)*uArea;
+    p.x+=sin(uTime*0.31+aSeed.w*50.0)*3.2;p.z+=cos(uTime*0.23+aSeed.w*70.0)*3.2;
+    p.y+=sin(uTime*0.6+aSeed.w*30.0)*0.9+0.9;
+    size=0.06;
+    vFade=max(sin(uTime*(1.2+aSeed.w)+aSeed.w*90.0),0.0);
+    vFade=vFade*vFade;
+  }else if(uMode<2.5){ // fire sparks
+    float lt=fract(aSeed.w+uTime*(0.35+aSeed.x*0.3));
+    p=uOrigin+vec3((aSeed.x-0.5)*0.5+sin(uTime*3.0+aSeed.w*40.0)*0.25*lt,lt*2.6,(aSeed.z-0.5)*0.5+cos(uTime*2.7+aSeed.w*30.0)*0.25*lt);
+    size=0.035*(1.0-lt*0.8);vFade=(1.0-lt)*(1.0-lt);
+  }else if(uMode<3.5){ // smoke
+    float lt=fract(aSeed.w+uTime*(0.05+aSeed.x*0.04));
+    p=uOrigin+vec3((aSeed.x-0.5)*0.8+sin(uTime*0.5+aSeed.w*20.0)*lt*2.0+uWindT*lt*3.0,0.8+lt*9.0,(aSeed.z-0.5)*0.8+cos(uTime*0.4+aSeed.w*25.0)*lt*1.6);
+    size=0.5+lt*1.6;vFade=(1.0-lt)*smoothstep(0.0,0.15,lt)*0.24;
+  }else if(uMode<4.5){ // flame
+    float lt=fract(aSeed.w+uTime*(0.8+aSeed.x*0.7));
+    p=uOrigin+vec3((aSeed.x-0.5)*0.5*(1.0-lt),lt*1.15,(aSeed.z-0.5)*0.5*(1.0-lt));
+    size=0.24*(1.0-lt*0.65);vFade=(1.0-lt)*smoothstep(0.0,0.1,lt);vSeed=lt;
+  }else{ // butterflies
+    p=uOrigin+(aSeed.xyz-0.5)*uArea;
+    p.x+=sin(uTime*0.4+aSeed.w*60.0)*5.0;p.z+=cos(uTime*0.33+aSeed.w*45.0)*5.0;
+    p.y+=1.0+sin(uTime*1.2+aSeed.w*80.0)*0.8;
+    size=0.07*(0.75+0.55*abs(sin(uTime*11.0+aSeed.w*90.0)));
+  }
+  vec3 w=p+(uCamRight*aCorner.x+uCamUp*aCorner.y)*size;
+  gl_Position=uVP*vec4(w,1.0);
+}`;
+const PART_FS=`#version 300 es
+precision highp float;
+in vec2 vUV;in float vFade;in float vSeed;out vec4 frag;
+uniform vec4 uPColA;uniform vec4 uPColB;uniform float uMode;
+void main(){
+  float r=length(vUV);
+  if(uMode<0.5){ // leaf: pointed oval, hard edge
+    vec2 q=vec2(vUV.x,vUV.y*1.6);
+    if(dot(q,q)>1.0)discard;
+    vec3 c=mix(uPColA.rgb,uPColB.rgb,vSeed);
+    frag=vec4(c*(0.75+0.25*vUV.x),1.0);
+  }else if(uMode<4.5&&uMode>3.5){ // flame teardrop
+    float a=smoothstep(1.0,0.15,r)*vFade;
+    vec3 c=mix(uPColB.rgb,uPColA.rgb,clamp(vSeed*1.4,0.0,1.0));
+    frag=vec4(c*a*2.4,a);
+  }else if(uMode>4.5){ // butterfly: two lobes
+    vec2 q=vec2(abs(vUV.x)-0.42,vUV.y);
+    if(dot(q,q)>0.34)discard;
+    frag=vec4(mix(uPColA.rgb,uPColB.rgb,vSeed),1.0);
+  }else{
+    float a=smoothstep(1.0,0.0,r)*vFade;
+    frag=vec4(mix(uPColA.rgb,uPColB.rgb,vSeed)*a*uPColA.a,a*uPColB.a);
+  }
+}`;
+</script>
+<script>
+/* ================================================================
+   EMBERWOOD — procedural world
+   Mesh builders + terrain + forest + landmarks, vertex by vertex.
+   ================================================================ */
+
+// ---------------------------------------------------------------- mesh builder
+function MB(){
+  const v=[];
+  function tri(a,b,c,col,ext){
+    ext=ext||0;
+    const ux=b[0]-a[0],uy=b[1]-a[1],uz=b[2]-a[2],wx=c[0]-a[0],wy=c[1]-a[1],wz=c[2]-a[2];
+    let nx=uy*wz-uz*wy,ny=uz*wx-ux*wz,nz=ux*wy-uy*wx;
+    const l=Math.hypot(nx,ny,nz)||1;nx=-nx/l;ny=-ny/l;nz=-nz/l;
+    v.push(a[0],a[1],a[2],nx,ny,nz,col[0],col[1],col[2],ext,
+           c[0],c[1],c[2],nx,ny,nz,col[0],col[1],col[2],ext,
+           b[0],b[1],b[2],nx,ny,nz,col[0],col[1],col[2],ext);
+  }
+  function quad(a,b,c,d,col,ext){tri(a,b,c,col,ext);tri(a,c,d,col,ext);}
+  function box(cx,cy,cz,sx,sy,sz,col,ry,ext){
+    ry=ry||0;const hc=Math.cos(ry),hs=Math.sin(ry);
+    const X=sx/2,Y=sy/2,Z=sz/2,P=[];
+    for(const[dx,dy,dz]of[[-X,-Y,-Z],[X,-Y,-Z],[X,-Y,Z],[-X,-Y,Z],[-X,Y,-Z],[X,Y,-Z],[X,Y,Z],[-X,Y,Z]])
+      P.push([cx+dx*hc-dz*hs,cy+dy,cz+dx*hs+dz*hc]);
+    quad(P[4],P[5],P[6],P[7],col,ext); // top
+    quad(P[3],P[2],P[1],P[0],col,ext); // bottom
+    quad(P[0],P[1],P[5],P[4],col,ext); // -z
+    quad(P[2],P[3],P[7],P[6],col,ext); // +z
+    quad(P[1],P[2],P[6],P[5],col,ext); // +x
+    quad(P[3],P[0],P[4],P[7],col,ext); // -x
+  }
+  function strut(a,b,w,col,ext){
+    let ax=b[0]-a[0],ay=b[1]-a[1],az=b[2]-a[2];
+    const len=Math.hypot(ax,ay,az)||1;ax/=len;ay/=len;az/=len;
+    let ux=0,uy=1,uz=0;
+    if(Math.abs(ay)>0.9){ux=1;uy=0;}
+    let s1x=az*uy-ay*uz,s1y=ax*uz-az*ux,s1z=ay*ux-ax*uy;
+    let l=Math.hypot(s1x,s1y,s1z)||1;s1x=s1x/l*w/2;s1y=s1y/l*w/2;s1z=s1z/l*w/2;
+    let s2x=ay*s1z-az*s1y,s2y=az*s1x-ax*s1z,s2z=ax*s1y-ay*s1x;
+    l=Math.hypot(s2x,s2y,s2z)||1;s2x=s2x/l*w/2;s2y=s2y/l*w/2;s2z=s2z/l*w/2;
+    const c=(p,i,j)=>[p[0]+i*s1x+j*s2x,p[1]+i*s1y+j*s2y,p[2]+i*s1z+j*s2z];
+    const a1=c(a,1,1),a2=c(a,-1,1),a3=c(a,-1,-1),a4=c(a,1,-1);
+    const b1=c(b,1,1),b2=c(b,-1,1),b3=c(b,-1,-1),b4=c(b,1,-1);
+    quad(a1,b1,b2,a2,col,ext);quad(a2,b2,b3,a3,col,ext);
+    quad(a3,b3,b4,a4,col,ext);quad(a4,b4,b1,a1,col,ext);
+    quad(b4,b3,b2,b1,col,ext);quad(a1,a2,a3,a4,col,ext);
+  }
+  function cyl(cx,cy,cz,r0,r1,h,seg,col,ext,capTop){
+    for(let i=0;i<seg;i++){
+      const a0=i/seg*TAU,a1=(i+1)/seg*TAU;
+      const x00=cx+Math.cos(a0)*r0,z00=cz+Math.sin(a0)*r0,x01=cx+Math.cos(a1)*r0,z01=cz+Math.sin(a1)*r0;
+      if(r1>0.001){
+        const x10=cx+Math.cos(a0)*r1,z10=cz+Math.sin(a0)*r1,x11=cx+Math.cos(a1)*r1,z11=cz+Math.sin(a1)*r1;
+        quad([x00,cy,z00],[x01,cy,z01],[x11,cy+h,z11],[x10,cy+h,z10],col,ext);
+        if(capTop)tri([x10,cy+h,z10],[x11,cy+h,z11],[cx,cy+h,cz],col,ext);
+      }else{
+        tri([x00,cy,z00],[x01,cy,z01],[cx,cy+h,cz],col,ext);
+      }
+    }
+  }
+  // lumpy icosahedron (rocks, canopies, bushes)
+  function blob(cx,cy,cz,r,col,rand,jit,squash,ext){
+    const t=(1+Math.sqrt(5))/2;
+    let V=[[-1,t,0],[1,t,0],[-1,-t,0],[1,-t,0],[0,-1,t],[0,1,t],[0,-1,-t],[0,1,-t],[t,0,-1],[t,0,1],[-t,0,-1],[-t,0,1]];
+    const F=[[0,11,5],[0,5,1],[0,1,7],[0,7,10],[0,10,11],[1,5,9],[5,11,4],[11,10,2],[10,7,6],[7,1,8],
+             [3,9,4],[3,4,2],[3,2,6],[3,6,8],[3,8,9],[4,9,5],[2,4,11],[6,2,10],[8,6,7],[9,8,1]];
+    V=V.map(p=>{
+      const l=Math.hypot(p[0],p[1],p[2]);
+      const j=1+(rand()*2-1)*jit;
+      return[cx+p[0]/l*r*j,cy+p[1]/l*r*j*squash,cz+p[2]/l*r*j];
+    });
+    for(const f of F){
+      const cshade=1+(rand()*2-1)*0.09;
+      tri(V[f[0]],V[f[2]],V[f[1]],[col[0]*cshade,col[1]*cshade,col[2]*cshade],ext);
+    }
+  }
+  return {v,tri,quad,box,strut,cyl,blob};
+}
+function meshFloat(mb){return new Float32Array(mb.v);}
+
+// ---------------------------------------------------------------- VAOs
+function makeVAO(data){
+  const vao=gl.createVertexArray();gl.bindVertexArray(vao);
+  const buf=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,buf);
+  gl.bufferData(gl.ARRAY_BUFFER,data,gl.STATIC_DRAW);
+  gl.enableVertexAttribArray(0);gl.vertexAttribPointer(0,3,gl.FLOAT,false,40,0);
+  gl.enableVertexAttribArray(1);gl.vertexAttribPointer(1,3,gl.FLOAT,false,40,12);
+  gl.enableVertexAttribArray(2);gl.vertexAttribPointer(2,3,gl.FLOAT,false,40,24);
+  gl.enableVertexAttribArray(3);gl.vertexAttribPointer(3,1,gl.FLOAT,false,40,36);
+  gl.bindVertexArray(null);
+  return {vao,n:data.length/10};
+}
+const INST_STRIDE=11;
+function makeInstVAO(data,instData,dynamic){
+  const base=makeVAO(data);
+  gl.bindVertexArray(base.vao);
+  const ibuf=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,ibuf);
+  gl.bufferData(gl.ARRAY_BUFFER,instData,dynamic?gl.DYNAMIC_DRAW:gl.STATIC_DRAW);
+  gl.enableVertexAttribArray(4);gl.vertexAttribPointer(4,4,gl.FLOAT,false,44,0);gl.vertexAttribDivisor(4,1);
+  gl.enableVertexAttribArray(5);gl.vertexAttribPointer(5,4,gl.FLOAT,false,44,16);gl.vertexAttribDivisor(5,1);
+  gl.enableVertexAttribArray(6);gl.vertexAttribPointer(6,3,gl.FLOAT,false,44,32);gl.vertexAttribDivisor(6,1);
+  gl.bindVertexArray(null);
+  return {vao:base.vao,n:base.n,ibuf,count:instData.length/INST_STRIDE};
+}
+function setInst(arr,i,x,y,z,scale,rotY,yScale,sway,phase,tr,tg,tb){
+  const o=i*INST_STRIDE;
+  arr[o]=x;arr[o+1]=y;arr[o+2]=z;arr[o+3]=scale;arr[o+4]=rotY;arr[o+5]=yScale;
+  arr[o+6]=sway;arr[o+7]=phase;arr[o+8]=tr;arr[o+9]=tg;arr[o+10]=tb;
+}
+
+// ---------------------------------------------------------------- terrain
+const NZ=makeNoise(20260709);
+const TERR_SIZE=1720, TERR_N=215, TERR_STEP=TERR_SIZE/TERR_N, WORLD_R=730;
+function rawHeight(x,z){
+  const d=Math.hypot(x,z);
+  let h=NZ.fbm(x*0.00155,z*0.00155,5,2.05,0.5)*52;
+  const ridgeMask=smoothstep(0.0,0.45,NZ.fbm(x*0.0008+7.7,z*0.0008-3.1,3,2,0.5)+0.15);
+  h+=NZ.ridge(x*0.0012+3.3,z*0.0012+9.1,4)*34*ridgeMask;
+  const vx=95*Math.sin(z*0.0035)+40*Math.sin(z*0.0011+2.0);
+  const dv=Math.abs(x-vx);
+  h-=16*Math.exp(-(dv*dv)/(120*120));
+  h+=smoothstep(620,860,d)*90+Math.max(0,d-860)*0.3;
+  h+=NZ.fbm(x*0.02,z*0.02,2,2,0.5)*1.6;
+  return h;
+}
+// grid + mesh-exact interpolation so feet meet the rendered triangles
+const HG=new Float32Array((TERR_N+1)*(TERR_N+1));
+for(let j=0;j<=TERR_N;j++)for(let i=0;i<=TERR_N;i++)
+  HG[j*(TERR_N+1)+i]=rawHeight(i*TERR_STEP-TERR_SIZE/2,j*TERR_STEP-TERR_SIZE/2);
+function groundH(x,z){
+  const fx=(x+TERR_SIZE/2)/TERR_STEP,fz=(z+TERR_SIZE/2)/TERR_STEP;
+  const i=clamp(Math.floor(fx),0,TERR_N-1),j=clamp(Math.floor(fz),0,TERR_N-1);
+  const u=clamp(fx-i,0,1),v=clamp(fz-j,0,1),W1=TERR_N+1;
+  const h00=HG[j*W1+i],h10=HG[j*W1+i+1],h01=HG[(j+1)*W1+i],h11=HG[(j+1)*W1+i+1];
+  return u>v? h00+(h10-h00)*u+(h11-h10)*v : h00+(h11-h01)*u+(h01-h00)*v;
+}
+function groundN(x,z){
+  const e=1.5,hx=groundH(x+e,z)-groundH(x-e,z),hz=groundH(x,z+e)-groundH(x,z-e);
+  const nx=-hx/(2*e),nz=-hz/(2*e);
+  const l=Math.hypot(nx,1,nz);
+  return[nx/l,1/l,nz/l];
+}
+function slopeAt(x,z){return 1-groundN(x,z)[1];}
+
+// terrain palette — shared by mesh + map
+const C_GRASS_A=hexToRGB('#96833f'),C_GRASS_B=hexToRGB('#6f7a35'),C_LEAF=hexToRGB('#8d5a28'),
+      C_DIRT=hexToRGB('#7a5a36'),C_ROCK=hexToRGB('#7d746a'),C_ROCK2=hexToRGB('#5e564d'),
+      C_MEADOW=hexToRGB('#a3a04a');
+function terrColor(x,z,h,slope){
+  const n1=NZ.fbm(x*0.011,z*0.011,3,2,0.5),n2=NZ.noise2(x*0.05+9,z*0.05);
+  let c=mixC(C_GRASS_A,C_GRASS_B,clamp(n1*1.6+0.5,0,1));
+  const md=Math.hypot(x-150,z-260);
+  c=mixC(c,C_MEADOW,smoothstep(150,60,md)*0.7);
+  c=mixC(c,C_LEAF,smoothstep(0.18,0.5,n2)*0.55);
+  c=mixC(c,C_DIRT,smoothstep(0.3,0.55,NZ.noise2(x*0.03-4,z*0.03+11))*0.4);
+  const rocky=smoothstep(0.30,0.52,slope);
+  c=mixC(c,mixC(C_ROCK,C_ROCK2,n2*0.5+0.5),rocky);
+  const high=smoothstep(55,90,h);
+  c=mixC(c,mixC(C_ROCK,[0.72,0.68,0.62],0.5),high*(0.4+rocky*0.6));
+  const dark=1-smoothstep(-14,10,h)*0.12;
+  return[c[0]*dark,c[1]*dark,c[2]*dark];
+}
+function buildTerrain(){
+  const mb=MB(),W1=TERR_N+1;
+  for(let j=0;j<TERR_N;j++)for(let i=0;i<TERR_N;i++){
+    const x0=i*TERR_STEP-TERR_SIZE/2,z0=j*TERR_STEP-TERR_SIZE/2,x1=x0+TERR_STEP,z1=z0+TERR_STEP;
+    const h00=HG[j*W1+i],h10=HG[j*W1+i+1],h01=HG[(j+1)*W1+i],h11=HG[(j+1)*W1+i+1];
+    const cx=(x0+x1)/2,cz=(z0+z1)/2,ch=(h00+h10+h01+h11)/4;
+    const sl=slopeAt(cx,cz);
+    const col=terrColor(cx,cz,ch,sl);
+    const j1=1+(NZ.noise2(i*12.9,j*7.3))*0.09,j2=1+(NZ.noise2(i*5.1+40,j*9.7))*0.09;
+    mb.tri([x0,h00,z0],[x1,h10,z0],[x1,h11,z1],[col[0]*j1,col[1]*j1,col[2]*j1],0);
+    mb.tri([x0,h00,z0],[x1,h11,z1],[x0,h01,z1],[col[0]*j2,col[1]*j2,col[2]*j2],0);
+  }
+  return meshFloat(mb);
+}
+
+// ---------------------------------------------------------------- collision hash (trunks & posts)
+const COLL={cells:new Map()};
+function collAdd(x,z,r){
+  const k=(Math.floor(x/8)+2048)+(Math.floor(z/8)+2048)*4096;
+  if(!COLL.cells.has(k))COLL.cells.set(k,[]);
+  COLL.cells.get(k).push([x,z,r]);
+}
+function collResolve(px,pz,pr){
+  const ci=Math.floor(px/8)+2048,cj=Math.floor(pz/8)+2048;
+  let ox=px,oz=pz;
+  for(let j=-1;j<=1;j++)for(let i=-1;i<=1;i++){
+    const cell=COLL.cells.get((ci+i)+(cj+j)*4096);
+    if(!cell)continue;
+    for(const[x,z,r]of cell){
+      const dx=ox-x,dz=oz-z,rr=r+pr,d2=dx*dx+dz*dz;
+      if(d2<rr*rr&&d2>1e-6){
+        const d=Math.sqrt(d2),push=(rr-d)/d;
+        ox+=dx*push;oz+=dz*push;
+      }
+    }
+  }
+  return[ox,oz];
+}
+
+// ---------------------------------------------------------------- tree/rock/grass meshes (local space)
+const C_BARK=hexToRGB('#4c3826'),C_BARKL=hexToRGB('#6b5138'),C_BIRCH=hexToRGB('#d8d2c0');
+function meshPine(rand){
+  const mb=MB();
+  mb.cyl(0,0,0,0.32,0.2,3.2,5,C_BARK,0,false);
+  const layers=4;
+  for(let i=0;i<layers;i++){
+    const t=i/(layers-1);
+    const r=lerp(2.6,0.9,t),y=lerp(1.9,7.6,t),hh=lerp(2.6,2.0,t);
+    const g=mixC(hexToRGB('#3d5230'),hexToRGB('#61683a'),t*0.7+rand()*0.2);
+    mb.cyl(0,y,0,r*(0.92+rand()*0.16),0,hh,6,g,0.25+t*0.75,false);
+  }
+  return meshFloat(mb);
+}
+function meshMaple(rand){
+  const mb=MB();
+  mb.cyl(0,0,0,0.34,0.16,3.4,5,C_BARKL,0,false);
+  mb.strut([0,2.6,0],[1.5,4.1,0.5],0.22,C_BARKL,0);
+  mb.strut([0,2.9,0],[-1.2,4.3,-0.7],0.2,C_BARKL,0);
+  const base=hexToRGB('#b05a1e');
+  mb.blob(0,4.9,0,2.3,base,rand,0.22,0.82,0.6);
+  mb.blob(1.5,4.4,0.5,1.4,mixC(base,hexToRGB('#cf8428'),0.5),rand,0.25,0.85,0.75);
+  mb.blob(-1.3,4.5,-0.7,1.3,mixC(base,hexToRGB('#8d3b16'),0.5),rand,0.25,0.85,0.75);
+  return meshFloat(mb);
+}
+function meshBirch(rand){
+  const mb=MB();
+  mb.cyl(0,0,0,0.16,0.09,4.6,5,C_BIRCH,0,false);
+  mb.box(0,2.2,0,0.34,0.1,0.34,hexToRGB('#3a352c'),0.4,0);
+  mb.box(0,3.3,0,0.3,0.08,0.3,hexToRGB('#3a352c'),1.2,0);
+  const g=hexToRGB('#d9a83c');
+  mb.blob(0,5.4,0,1.5,g,rand,0.3,1.5,0.8);
+  return meshFloat(mb);
+}
+function meshRock(rand){
+  const mb=MB();
+  mb.blob(0,0.12,0,1,hexToRGB('#77706a'),rand,0.34,0.72,0);
+  return meshFloat(mb);
+}
+function meshBush(rand){
+  const mb=MB();
+  mb.blob(0,0.5,0,0.9,hexToRGB('#9c4d1d'),rand,0.3,0.78,0.5);
+  mb.blob(0.5,0.35,0.3,0.55,hexToRGB('#b56a24'),rand,0.3,0.8,0.5);
+  return meshFloat(mb);
+}
+function meshGrass(){
+  const mb=MB();
+  const g0=hexToRGB('#6b642a'),g1=hexToRGB('#7d7433');
+  for(let i=0;i<3;i++){
+    const a=i/3*Math.PI,c=Math.cos(a),s=Math.sin(a);
+    mb.quad([-0.3*c,0,-0.3*s],[0.3*c,0,0.3*s],[0.19*c,0.5,0.19*s],[-0.19*c,0.5,-0.19*s],i%2?g0:g1,1);
+  }
+  return meshFloat(mb);
+}
+function meshFlower(){
+  const mb=MB();
+  mb.quad([-0.02,0,0],[0.02,0,0],[0.02,0.34,0],[-0.02,0.34,0],hexToRGB('#5d6a2c'),1);
+  mb.box(0,0.38,0,0.12,0.05,0.12,hexToRGB('#d8b23c'),0.3,1);
+  return meshFloat(mb);
+}
+function meshStump(rand){
+  const mb=MB();
+  mb.cyl(0,0,0,0.55,0.48,0.8,6,C_BARK,0,true);
+  return meshFloat(mb);
+}
+
+// ---------------------------------------------------------------- wildlife meshes
+const C_DEER=hexToRGB('#8a5f38'),C_DEER_D=hexToRGB('#6b4728'),C_CREAM=hexToRGB('#cfb694');
+function meshDeer(buck){
+  const mb=MB();
+  mb.box(0,0.78,0,0.42,0.42,0.95,C_DEER,0,0);                 // body
+  mb.box(0,0.62,-0.52,0.34,0.3,0.3,C_CREAM,0,0);              // rump
+  mb.box(0,1.02,0.52,0.2,0.42,0.24,C_DEER,0,0);               // neck
+  mb.box(0,1.3,0.66,0.24,0.22,0.34,C_DEER_D,0,0);             // head
+  mb.box(-0.1,1.46,0.6,0.05,0.16,0.1,C_DEER_D,0,0);           // ears
+  mb.box(0.1,1.46,0.6,0.05,0.16,0.1,C_DEER_D,0,0);
+  if(buck){
+    mb.strut([-0.08,1.42,0.62],[-0.3,1.78,0.5],0.045,C_CREAM,0);
+    mb.strut([-0.22,1.65,0.54],[-0.42,1.85,0.66],0.04,C_CREAM,0);
+    mb.strut([0.08,1.42,0.62],[0.3,1.78,0.5],0.045,C_CREAM,0);
+    mb.strut([0.22,1.65,0.54],[0.42,1.85,0.66],0.04,C_CREAM,0);
+  }
+  const leg=(x,z,ph)=>{ // swing weight ±1 via aExt
+    mb.box(x,0.31,z,0.11,0.62,0.11,C_DEER_D,0,ph);
+  };
+  leg(-0.14,0.36,1);leg(0.14,0.36,-1);leg(-0.14,-0.36,-1);leg(0.14,-0.36,1);
+  return meshFloat(mb);
+}
+function meshRabbit(){
+  const mb=MB();
+  const c=hexToRGB('#93826a');
+  mb.box(0,0.16,0,0.2,0.2,0.3,c,0,0);
+  mb.box(0,0.28,0.16,0.15,0.15,0.15,mixC(c,C_CREAM,0.3),0,0);
+  mb.box(-0.045,0.44,0.14,0.04,0.18,0.06,c,0,0);
+  mb.box(0.045,0.44,0.14,0.04,0.18,0.06,c,0,0);
+  mb.box(0,0.14,-0.17,0.08,0.08,0.08,C_CREAM,0,0);
+  return meshFloat(mb);
+}
+function meshBird(){
+  const mb=MB();
+  const c=hexToRGB('#3c3631');
+  mb.box(0,0,0,0.12,0.1,0.3,c,0,0);
+  mb.box(0,0.02,0.18,0.08,0.07,0.1,c,0,0);
+  mb.quad([-0.5,0,-0.05],[-0.06,0,-0.08],[-0.06,0,0.12],[-0.42,0,0.08],[0.28,0.24,0.2],1); // left wing
+  mb.quad([0.06,0,-0.08],[0.5,0,-0.05],[0.42,0,0.08],[0.06,0,0.12],[0.28,0.24,0.2],1);     // right wing
+  mb.quad([0,0,-0.14],[-0.07,0.02,-0.3],[0.07,0.02,-0.3],[0,0,-0.14],c,0);                 // tail
+  return meshFloat(mb);
+}
+</script>
+<script>
+/* ================================================================
+   EMBERWOOD — world layout, landmarks & GPU assembly
+   ================================================================ */
+const valleyX=z=>95*Math.sin(z*0.0035)+40*Math.sin(z*0.0011+2);
+
+// find local summits for the towers
+function findSummit(x0,z0,R){
+  let bx=x0,bz=z0,bh=-1e9;
+  for(let dz=-R;dz<=R;dz+=7)for(let dx=-R;dx<=R;dx+=7){
+    const h=rawHeight(x0+dx,z0+dz);
+    if(h>bh){bh=h;bx=x0+dx;bz=z0+dz;}
+  }
+  return[bx,bz];
+}
+const T1=findSummit(-430,180,110),T2=findSummit(120,-470,110),T3=findSummit(465,-60,130);
+
+// flatten build sites into the height grid (before terrain mesh is built)
+function flattenSite(x,z,r,drop){
+  const h0=rawHeight(x,z)+(drop||0),W1=TERR_N+1;
+  const i0=Math.max(0,Math.floor((x-r+TERR_SIZE/2)/TERR_STEP)-1),i1=Math.min(TERR_N,Math.ceil((x+r+TERR_SIZE/2)/TERR_STEP)+1);
+  const j0=Math.max(0,Math.floor((z-r+TERR_SIZE/2)/TERR_STEP)-1),j1=Math.min(TERR_N,Math.ceil((z+r+TERR_SIZE/2)/TERR_STEP)+1);
+  for(let j=j0;j<=j1;j++)for(let i=i0;i<=i1;i++){
+    const gx=i*TERR_STEP-TERR_SIZE/2,gz=j*TERR_STEP-TERR_SIZE/2;
+    const d=Math.hypot(gx-x,gz-z);
+    if(d<r*1.7)HG[j*W1+i]=lerp(h0,HG[j*W1+i],smoothstep(r*0.55,r*1.7,d));
+  }
+}
+const CABIN_P=[valleyX(540)+16,540],SPAWN=[valleyX(568),568];
+const CAMPS_XZ=[[valleyX(562)-6,558],[162,244],[-296,64],[52,-346],[-342,-322],[424,-44]];
+const CAMP_NAMES=['Trailhead Camp','Meadow Camp','West Fork Camp','North Pass Camp','Garnet Camp','Overlook Camp'];
+const HOMESTEAD_P=[-180,-120],MINE_P=[-372,-356],GIANT_P=[-80,-320],BURN_P=[318,-268];
+flattenSite(CABIN_P[0],CABIN_P[1],14,0);
+flattenSite(T1[0],T1[1],13,0);flattenSite(T2[0],T2[1],13,0);flattenSite(T3[0],T3[1],13,0);
+for(const c of CAMPS_XZ)flattenSite(c[0],c[1],9,0);
+flattenSite(HOMESTEAD_P[0],HOMESTEAD_P[1],16,0);
+flattenSite(MINE_P[0],MINE_P[1],11,0);
+flattenSite(GIANT_P[0],GIANT_P[1],9,0);
+flattenSite(BURN_P[0],BURN_P[1],20,0);
+const terrainData=buildTerrain();
+
+// ---------------------------------------------------------------- landmark builders (into one static MB)
+const SMB=MB();
+const C_WOOD=hexToRGB('#5d4426'),C_WOODL=hexToRGB('#7d5f38'),C_WOODD=hexToRGB('#42301b'),
+      C_STONE=hexToRGB('#6f6a62'),C_ROOF=hexToRGB('#7a3d22'),C_CANVAS=hexToRGB('#b09a6c'),
+      C_CHAR=hexToRGB('#241f1c'),C_GLOW=hexToRGB('#ffd9a0');
+
+function buildCabin(x,z){
+  const y=groundH(x,z),W=7,D=5.4,H=2.9,ry=0.16;
+  SMB.box(x,y+0.25,z,W+0.8,0.5,D+0.8,C_STONE,ry,0);
+  SMB.box(x,y+0.5+H/2,z,W,H,D,C_WOOD,ry,0);
+  // gable roof
+  const c=Math.cos(ry),s=Math.sin(ry),R=(px,pz)=>[x+px*c-pz*s,0,z+px*s+pz*c];
+  const e=0.7,ry0=y+0.5+H,rh=1.9;
+  const A=R(-W/2-e,-D/2-e),B=R(W/2+e,-D/2-e),C2=R(W/2+e,D/2+e),D2=R(-W/2-e,D/2+e),M1=R(-W/2-e,0),M2=R(W/2+e,0);
+  SMB.quad([A[0],ry0,A[2]],[B[0],ry0,B[2]],[M2[0],ry0+rh,M2[2]],[M1[0],ry0+rh,M1[2]],C_ROOF,0);
+  SMB.quad([M1[0],ry0+rh,M1[2]],[M2[0],ry0+rh,M2[2]],[C2[0],ry0,C2[2]],[D2[0],ry0,D2[2]],C_ROOF,0);
+  SMB.tri([B[0],ry0,B[2]],[C2[0],ry0,C2[2]],[M2[0],ry0+rh,M2[2]],C_WOODD,0);
+  SMB.tri([D2[0],ry0,D2[2]],[A[0],ry0,A[2]],[M1[0],ry0+rh,M1[2]],C_WOODD,0);
+  // door + windows (emissive at night)
+  const F=R(0,D/2+0.02);
+  SMB.box(F[0],y+1.45,F[2],1.1,1.9,0.12,C_WOODD,ry,0);
+  const w1=R(-2.2,D/2+0.05),w2=R(2.2,D/2+0.05);
+  SMB.box(w1[0],y+1.8,w1[2],1.0,0.85,0.1,C_GLOW,ry,0.8);
+  SMB.box(w2[0],y+1.8,w2[2],1.0,0.85,0.1,C_GLOW,ry,0.8);
+  // porch + chimney
+  const P=R(0,D/2+1.3);
+  SMB.box(P[0],y+0.3,P[2],W*0.8,0.24,2.4,C_WOODL,ry,0);
+  for(const px of[-W*0.36,W*0.36]){const pp=R(px,D/2+2.3);SMB.strut([pp[0],y+0.4,pp[2]],[pp[0],y+2.6,pp[2]],0.18,C_WOODD,0);}
+  const ch=R(-W/2-0.4,-0.6);
+  SMB.box(ch[0],y+2.6,ch[2],1.1,5.2,1.1,C_STONE,ry,0);
+  collAdd(x,z,4.6);
+  return y;
+}
+function buildTower(x,z){
+  const y=groundH(x,z),H=15.5;
+  const lx=x,lz=z; // legs
+  const leg=(sx,sz)=>SMB.strut([lx+sx*2.6,y-0.5,lz+sz*2.6],[lx+sx*1.5,y+H,lz+sz*1.5],0.3,C_WOOD,0);
+  leg(1,1);leg(1,-1);leg(-1,1);leg(-1,-1);
+  for(let l=0;l<4;l++){ // rails + cross braces
+    const t0=l/4,t1=(l+1)/4,y0=y+t0*H,y1=y+t1*H;
+    const r0=lerp(2.6,1.5,t0),r1=lerp(2.6,1.5,t1);
+    for(const[ax,az,bx,bz]of[[-1,-1,1,-1],[1,-1,1,1],[1,1,-1,1],[-1,1,-1,-1]]){
+      SMB.strut([lx+ax*r1,y1,lz+az*r1],[lx+bx*r1,y1,lz+bz*r1],0.16,C_WOODD,0);
+      SMB.strut([lx+ax*r0,y0,lz+az*r0],[lx+bx*r1,y1,lz+bz*r1],0.13,C_WOODL,0);
+    }
+  }
+  SMB.box(x,y+H+0.15,z,5.6,0.3,5.6,C_WOODL,0,0); // platform
+  SMB.box(x,y+H+1.75,z,4.0,2.9,4.0,C_WOOD,0,0);  // cab
+  for(const[wx,wz,ww,wd]of[[0,2.03,3.4,0.08],[0,-2.03,3.4,0.08],[2.03,0,0.08,3.4],[-2.03,0,0.08,3.4]])
+    SMB.box(x+wx,y+H+2.2,z+wz,ww,1.0,wd,C_GLOW,0,0.9);
+  // pyramid roof
+  const ro=y+H+3.3,rp=2.6,apex=[x,ro+1.5,z];
+  const RC=[[x-rp,ro,z-rp],[x+rp,ro,z-rp],[x+rp,ro,z+rp],[x-rp,ro,z+rp]];
+  for(let i=0;i<4;i++)SMB.tri(RC[i],RC[(i+1)%4],apex,C_ROOF,0);
+  // railing
+  for(let i=0;i<4;i++){
+    const a=RC[i],b=RC[(i+1)%4];
+    SMB.strut([lerp(a[0],b[0],0.02),y+H+1.3,lerp(a[2],b[2],0.02)],[lerp(a[0],b[0],0.98),y+H+1.3,lerp(a[2],b[2],0.98)],0.09,C_WOODD,0);
+  }
+  // ladder on +z face
+  const lx2=x,lz2=z+2.75;
+  SMB.strut([lx2-0.35,y,lz2],[lx2-0.35,y+H+0.4,lz2-1.05],0.09,C_WOODD,0);
+  SMB.strut([lx2+0.35,y,lz2],[lx2+0.35,y+H+0.4,lz2-1.05],0.09,C_WOODD,0);
+  for(let r=0;r<24;r++){
+    const t=r/23;
+    SMB.strut([lx2-0.35,y+0.5+t*(H-0.6),lz2-t*1.0],[lx2+0.35,y+0.5+t*(H-0.6),lz2-t*1.0],0.06,C_WOODL,0);
+  }
+  collAdd(x+2,z+2,0.7);collAdd(x-2,z+2,0.7);collAdd(x+2,z-2,0.7);collAdd(x-2,z-2,0.7);
+  return{base:y,topY:y+H+0.35,ladder:[lx2,lz2+0.8]};
+}
+function buildCamp(x,z){
+  const y=groundH(x,z),rand=mulberry32((x*131+z*17)|0);
+  for(let i=0;i<9;i++){const a=i/9*TAU;SMB.blob(x+Math.cos(a)*1.1,y+0.14,z+Math.sin(a)*1.1,0.24+rand()*0.1,C_STONE,rand,0.3,0.7,0);}
+  SMB.strut([x-0.5,y+0.28,z-0.4],[x+0.55,y+0.5,z+0.35],0.22,C_CHAR,0);
+  SMB.strut([x+0.5,y+0.28,z-0.45],[x-0.5,y+0.52,z+0.3],0.22,C_WOODD,0);
+  SMB.strut([x-2.6,y+0.32,z+2.2],[x-0.6,y+0.32,z+3.0],0.55,C_WOODL,0); // log seat
+  SMB.strut([x+1.2,y+0.32,z-2.9],[x+3.1,y+0.32,z-2.1],0.55,C_WOODL,0);
+  collAdd(x,z,1.35);
+  return y;
+}
+function buildTent(x,z,ry){
+  const y=groundH(x,z),c=Math.cos(ry),s=Math.sin(ry),R=(px,pz)=>[x+px*c-pz*s,0,z+px*s+pz*c];
+  const a=R(-1.4,-1.1),b=R(-1.4,1.1),f=R(1.6,-1.1),g=R(1.6,1.1),ra=R(-1.4,0),rf=R(1.6,0);
+  SMB.quad([a[0],y,a[2]],[f[0],y,f[2]],[rf[0],y+1.7,rf[2]],[ra[0],y+1.7,ra[2]],C_CANVAS,0);
+  SMB.quad([rf[0],y+1.7,rf[2]],[g[0],y,g[2]],[b[0],y,b[2]],[ra[0],y+1.7,ra[2]],C_CANVAS,0);
+  SMB.tri([a[0],y,a[2]],[ra[0],y+1.7,ra[2]],[b[0],y,b[2]],scaleC(C_CANVAS,0.8),0);
+  collAdd(x,z,1.8);
+}
+function buildHomestead(x,z){
+  const y=groundH(x,z),rand=mulberry32(4242);
+  const wall=(x0,z0,x1,z1,h)=>{SMB.strut([x+x0,y+h/2-0.4,z+z0],[x+x1,y+h/2-0.4,z+z1],Math.max(h,0.8),scaleC(C_STONE,0.92),0);};
+  wall(-5,-4,5,-4,1.6);wall(5,-4,5,1,2.2);wall(-5,-4,-5,4,1.0);wall(-5,4,-1,4,1.8);
+  SMB.box(x+3.4,y+2.6,z-3.2,1.2,6.0,1.2,C_STONE,0.1,0); // standing chimney
+  SMB.strut([x-4.6,y+0.4,z+3.4],[x+2.5,y+2.0,z-1.0],0.3,C_CHAR,0); // fallen beams
+  SMB.strut([x-2.2,y+0.3,z-3.6],[x+1.8,y+1.4,z+2.8],0.26,C_WOODD,0);
+  SMB.strut([x+4.6,y+0.3,z+2.0],[x+1.0,y+0.9,z+3.8],0.24,C_CHAR,0);
+  SMB.box(x-1,y+0.35,z,2.2,0.7,1.1,C_WOODD,0.5,0); // old bedframe
+  for(let i=0;i<5;i++)SMB.blob(x+(rand()-0.5)*9,y+0.15,z+(rand()-0.5)*7,0.3+rand()*0.25,C_STONE,rand,0.35,0.7,0);
+  collAdd(x,z-4,1.2);collAdd(x+5,z-1.5,1.2);collAdd(x+3.4,z-3.2,1.0);
+}
+function buildMine(x,z){
+  const y=groundH(x,z),ry=-0.5,c=Math.cos(ry),s=Math.sin(ry),R=(px,pz)=>[x+px*c-pz*s,z+px*s+pz*c];
+  const p1=R(-1.7,0),p2=R(1.7,0);
+  SMB.box(x,y+1.6,z,4.6,3.2,2.8,[0.05,0.04,0.035],ry,0); // dark maw
+  SMB.strut([p1[0],y-0.3,p1[1]],[p1[0],y+3.4,p1[1]],0.42,C_WOODD,0);
+  SMB.strut([p2[0],y-0.3,p2[1]],[p2[0],y+3.4,p2[1]],0.42,C_WOODD,0);
+  SMB.strut([p1[0]-0.3,y+3.3,p1[1]],[p2[0]+0.3,y+3.3,p2[1]],0.5,C_WOOD,0);
+  const b1=R(-1.2,0.3),b2=R(1.5,0.3);
+  SMB.strut([b1[0],y+0.6,b1[1]],[b2[0],y+2.4,b2[1]],0.28,C_WOODL,0); // boards
+  SMB.strut([b1[0],y+2.2,b1[1]],[b2[0],y+0.9,b2[1]],0.24,C_WOODL,0);
+  // ore cart + rails
+  const cart=R(0,4.2);
+  SMB.box(cart[0],y+0.75,cart[1],1.6,0.9,1.1,hexToRGB('#4e3b2a'),ry,0);
+  SMB.box(cart[0],y+0.28,cart[1],1.2,0.35,0.9,C_CHAR,ry,0);
+  const r1=R(-0.55,1.2),r2=R(-0.55,7.5),r3=R(0.55,1.2),r4=R(0.55,7.5);
+  SMB.strut([r1[0],y+0.06,r1[1]],[r2[0],y+0.06,r2[1]],0.12,hexToRGB('#5a4a3a'),0);
+  SMB.strut([r3[0],y+0.06,r3[1]],[r4[0],y+0.06,r4[1]],0.12,hexToRGB('#5a4a3a'),0);
+  collAdd(x,z,2.4);collAdd(cart[0],cart[1],1.2);
+  return y;
+}
+function buildGiant(x,z){
+  const y=groundH(x,z),rand=mulberry32(777),ry=0.55,c=Math.cos(ry),s=Math.sin(ry);
+  const seg=8,L=34;
+  const axis=t=>[x+(t-0.5)*L*c,y+1.7+Math.sin(t*2.2)*0.4,z+(t-0.5)*L*s];
+  const rad=t=>lerp(2.5,1.1,t);
+  for(let i=0;i<6;i++){
+    const t0=i/6,t1=(i+1)/6,a0=axis(t0),a1=axis(t1),r0=rad(t0),r1=rad(t1);
+    for(let k=0;k<seg;k++){
+      const b0=k/seg*TAU,b1=(k+1)/seg*TAU;
+      const off=(b,r)=>[Math.cos(b)*r*-s,Math.sin(b)*r,Math.cos(b)*r*c];
+      const o00=off(b0,r0),o01=off(b1,r0),o10=off(b0,r1),o11=off(b1,r1);
+      const mossy=Math.sin((b0+b1)/2)>0.35?mixC(C_BARK,hexToRGB('#5a6b30'),0.55):mixC(C_BARK,C_BARKL,rand()*0.4);
+      SMB.quad([a0[0]+o00[0],a0[1]+o00[1],a0[2]+o00[2]],[a0[0]+o01[0],a0[1]+o01[1],a0[2]+o01[2]],
+               [a1[0]+o11[0],a1[1]+o11[1],a1[2]+o11[2]],[a1[0]+o10[0],a1[1]+o10[1],a1[2]+o10[2]],mossy,0);
+    }
+  }
+  const rt=axis(0);
+  for(let i=0;i<7;i++){const a=i/7*TAU;SMB.strut([rt[0],rt[1],rt[2]],[rt[0]+Math.cos(a)*4.2*-s-c*1.2,rt[1]+Math.sin(a)*3.6,rt[2]+Math.cos(a)*4.2*c-s*1.2],0.35,C_BARKL,0);}
+  for(let t=0.1;t<1;t+=0.22)collAdd(axis(t)[0],axis(t)[2],2.6);
+}
+function buildBurn(x,z){
+  const rand=mulberry32(999);
+  for(let i=0;i<16;i++){
+    const a=rand()*TAU,r=4+rand()*17,tx=x+Math.cos(a)*r,tz=z+Math.sin(a)*r;
+    const ty=groundH(tx,tz),h=4+rand()*7;
+    SMB.cyl(tx,ty-0.3,tz,0.4+rand()*0.25,0.05+rand()*0.1,h,5,mixC(C_CHAR,[0.16,0.13,0.11],rand()),0,false);
+    if(rand()>0.5)SMB.strut([tx,ty+h*0.6,tz],[tx+(rand()-0.5)*3,ty+h*0.6-1.2,tz+(rand()-0.5)*3],0.14,C_CHAR,0);
+    collAdd(tx,tz,0.55);
+  }
+}
+function buildBench(x,z,ry){
+  const y=groundH(x,z),c=Math.cos(ry),s=Math.sin(ry),R=(px,pz)=>[x+px*c-pz*s,z+px*s+pz*c];
+  const l1=R(-0.8,0),l2=R(0.8,0);
+  SMB.strut([l1[0],y,l1[1]],[l1[0],y+0.48,l1[1]],0.22,C_WOODD,0);
+  SMB.strut([l2[0],y,l2[1]],[l2[0],y+0.48,l2[1]],0.22,C_WOODD,0);
+  const s1=R(-1.1,0),s2=R(1.1,0);
+  SMB.strut([s1[0],y+0.52,s1[1]],[s2[0],y+0.52,s2[1]],0.4,C_WOODL,0);
+  const b1=R(-1.1,-0.22),b2=R(1.1,-0.22);
+  SMB.strut([b1[0],y+1.05,b1[1]],[b2[0],y+1.05,b2[1]],0.3,C_WOODL,0);
+  collAdd(x,z,0.9);
+}
+function buildSign(x,z,ry){
+  const y=groundH(x,z);
+  SMB.strut([x,y,z],[x,y+2.5,z],0.16,C_WOODD,0);
+  SMB.box(x,y+2.1,z,1.5,0.42,0.08,C_WOODL,ry,0);
+  SMB.box(x,y+1.6,z,1.3,0.38,0.08,C_WOODL,ry+0.25,0);
+  collAdd(x,z,0.4);
+}
+
+// ---------------------------------------------------------------- build it all
+const cabinY=buildCabin(CABIN_P[0],CABIN_P[1]);
+const towerGeo=[buildTower(T1[0],T1[1]),buildTower(T2[0],T2[1]),buildTower(T3[0],T3[1])];
+const campY=CAMPS_XZ.map(c=>buildCamp(c[0],c[1]));
+buildTent(SPAWN[0]-4,SPAWN[1]+3,0.6);
+buildHomestead(HOMESTEAD_P[0],HOMESTEAD_P[1]);
+const mineY=buildMine(MINE_P[0],MINE_P[1]);
+buildGiant(GIANT_P[0],GIANT_P[1]);
+buildBurn(BURN_P[0],BURN_P[1]);
+buildBench(424,-52,2.2);
+buildSign(SPAWN[0]+5,SPAWN[1]-4,0.35);
+buildSign(valleyX(300),300,-0.4);
+const staticData=meshFloat(SMB);
+
+// ---------------------------------------------------------------- scatter vegetation
+const SCAT=makeNoise(1113);
+const KEEPOUT=[[CABIN_P[0],CABIN_P[1],10],[T1[0],T1[1],9],[T2[0],T2[1],9],[T3[0],T3[1],9],
+  [HOMESTEAD_P[0],HOMESTEAD_P[1],13],[MINE_P[0],MINE_P[1],11],[GIANT_P[0],GIANT_P[1],17],
+  ...CAMPS_XZ.map(c=>[c[0],c[1],7]),[SPAWN[0],SPAWN[1],6]];
+function nearKeepout(x,z){for(const k of KEEPOUT)if(Math.hypot(x-k[0],z-k[1])<k[2])return true;return false;}
+function scatter(count,minR,test){
+  const out=[];let guard=0;
+  while(out.length<count&&guard++<count*40){
+    const a=SCAT.rand()*TAU,r=Math.sqrt(SCAT.rand())*WORLD_R;
+    const x=Math.cos(a)*r,z=Math.sin(a)*r;
+    if(nearKeepout(x,z))continue;
+    const h=groundH(x,z),sl=slopeAt(x,z);
+    if(!test(x,z,h,sl))continue;
+    out.push([x,z,h]);
+  }
+  return out;
+}
+const meadowD=(x,z)=>Math.hypot(x-150,z-260);
+const burnD=(x,z)=>Math.hypot(x-BURN_P[0],z-BURN_P[1]);
+const forestNoise=(x,z)=>SCAT.fbm(x*0.004,z*0.004,3,2,0.5);
+const treeOK=(x,z,h,sl)=>sl<0.42&&h<64&&meadowD(x,z)>70&&burnD(x,z)>26&&forestNoise(x,z)>-0.32;
+const pines=scatter(3400,0,(x,z,h,sl)=>treeOK(x,z,h,sl)&&forestNoise(x,z)>-0.06)
+  .concat(scatter(420,0,(x,z,h,sl)=>sl<0.34&&h<58&&meadowD(x,z)>60&&burnD(x,z)>26)); // lone pines in the open
+const maples=scatter(1500,0,(x,z,h,sl)=>treeOK(x,z,h,sl)&&h<46);
+const birches=scatter(800,0,(x,z,h,sl)=>treeOK(x,z,h,sl)&&SCAT.rand()>0.4);
+const rocks=scatter(560,0,(x,z,h,sl)=>sl>0.12||h>50||SCAT.rand()<0.2);
+const bushes=scatter(900,0,(x,z,h,sl)=>sl<0.4&&h<58&&burnD(x,z)>10);
+const grasses=scatter(4200,0,(x,z,h,sl)=>sl<0.38&&h<52);
+const flowers=scatter(380,0,(x,z,h,sl)=>meadowD(x,z)<110&&sl<0.3);
+const stumps=scatter(120,0,(x,z,h,sl)=>sl<0.35&&h<50);
+
+function packInst(list,fn){
+  const arr=new Float32Array(list.length*INST_STRIDE);
+  list.forEach((p,i)=>fn(arr,i,p));
+  return arr;
+}
+const autumnTints=[[1,1,1],[1.15,0.9,0.7],[0.95,1.05,0.9],[1.2,0.8,0.55],[1.05,1.0,0.8]];
+const rnd=mulberry32(555);
+const pineInst=packInst(pines,(a,i,p)=>{const s=0.8+rnd()*0.9;setInst(a,i,p[0],p[2]-0.3,p[1],s,rnd()*TAU,0.85+rnd()*0.45,0.6,rnd()*TAU,1+(rnd()-0.5)*0.2,1+(rnd()-0.5)*0.15,1+(rnd()-0.5)*0.1);pines[i][3]=s;});
+const mapleInst=packInst(maples,(a,i,p)=>{const s=0.7+rnd()*0.8,t=autumnTints[(rnd()*autumnTints.length)|0];setInst(a,i,p[0],p[2]-0.3,p[1],s,rnd()*TAU,0.9+rnd()*0.3,0.7,rnd()*TAU,t[0],t[1],t[2]);maples[i][3]=s;});
+const birchInst=packInst(birches,(a,i,p)=>{const s=0.75+rnd()*0.6;setInst(a,i,p[0],p[2]-0.2,p[1],s,rnd()*TAU,0.9+rnd()*0.5,0.8,rnd()*TAU,1,1,1);birches[i][3]=s;});
+const rockInst=packInst(rocks,(a,i,p)=>{const s=0.5+rnd()*rnd()*3.4;setInst(a,i,p[0],p[2]-s*0.42,p[1],s,rnd()*TAU,0.7+rnd()*0.7,0,0,1+(rnd()-0.5)*0.2,1+(rnd()-0.5)*0.2,1+(rnd()-0.5)*0.2);rocks[i][3]=s;});
+const bushInst=packInst(bushes,(a,i,p)=>{const s=0.6+rnd()*0.9,t=autumnTints[(rnd()*autumnTints.length)|0];setInst(a,i,p[0],p[2]-0.1,p[1],s,rnd()*TAU,0.8+rnd()*0.4,0.9,rnd()*TAU,t[0],t[1],t[2]);});
+const grassInst=packInst(grasses,(a,i,p)=>{const s=0.7+rnd()*0.9;setInst(a,i,p[0],p[2]-0.05,p[1],s,rnd()*TAU,0.8+rnd()*0.6,1,rnd()*TAU,1+(rnd()-0.5)*0.3,1+(rnd()-0.5)*0.25,1+(rnd()-0.5)*0.2);});
+const flowerInst=packInst(flowers,(a,i,p)=>{const t=[[1,1,1],[1.15,0.55,0.6],[0.9,0.75,1.3],[1.2,1.1,0.55]][(rnd()*4)|0];setInst(a,i,p[0],p[2],p[1],0.6+rnd()*0.55,rnd()*TAU,1,1,rnd()*TAU,t[0],t[1],t[2]);});
+const stumpInst=packInst(stumps,(a,i,p)=>{setInst(a,i,p[0],p[2]-0.1,p[1],0.7+rnd()*0.9,rnd()*TAU,1,0,0,1,1,1);});
+// trunk collisions
+for(const t of pines)collAdd(t[0],t[1],0.4*(t[3]||1)+0.15);
+for(const t of maples)collAdd(t[0],t[1],0.4*(t[3]||1)+0.1);
+for(const t of birches)collAdd(t[0],t[1],0.25);
+for(const t of rocks)if((t[3]||0)>1.2)collAdd(t[0],t[1],t[3]*0.62);
+</script>
+<script>
+/* ================================================================
+   EMBERWOOD — content, state & living systems
+   ================================================================ */
+
+// ---------------------------------------------------------------- June's pages
+const PAGES=[
+{id:'pg1',title:'Arrival',where:'Trailhead Camp',text:`They drove me as far as the gravel turnout and left me with two duffel bags and a radio that smells like someone else's cigarettes. Eleven miles of trail between me and the cabin. The aspens have already turned — the whole valley looks like a struck match, gold at the edges, rust in the middle.
+
+I'm told the towers haven't been staffed since the budget cuts. Three of them, standing empty over all this tinder. Somebody in an office decided satellites could do the watching. Satellites don't smell smoke.
+
+First entry of the season. Boots on. — June`},
+{id:'pg2',title:'The Cabin',where:'Ranger Cabin',text:`The cabin took me all afternoon to open up. Mice in the flour tin, a swallow's nest over the door, and the same crooked porch board that was crooked when I was twenty-six. I stepped over it out of habit. Fourteen years and my feet still remember.
+
+I lit the stove and sat on the porch until dark. You can see all three towers from here if you know where to look: Cinder Ridge to the west, Hawk's Rest north, and Sentinel on its bare summit to the east, catching the last light like it always does.
+
+Tomorrow I start the rounds.`},
+{id:'pg3',title:'Deer at the Meadow',where:'The Long Meadow',text:`Spent the morning glassing the long meadow. Counted eleven deer — two bucks, still in velvet earlier this season, now polished and ridiculous, crashing at each other while the does pretend not to watch.
+
+There's a trick to getting close. You don't walk toward a deer; you walk past it, at an angle, like you've got somewhere better to be. Deer understand busyness. It's sprinting they can't forgive.
+
+The wildflowers are done except the yarrow. Everything here is done except the yarrow. I find that encouraging, in a stubborn kind of way.`},
+{id:'pg4',title:'Cinder Ridge',where:'Cinder Ridge Lookout',text:`Climbed Cinder Ridge today. Sixty-two steps of ladder — I counted them the way you count things you'd rather not think about. The Osborne fire-finder up top is a beautiful old instrument, brass and glass, older than my father. Some fool left the south window open a whole winter and the lens is gone from its cradle.
+
+Without the lens the finder is just furniture. I radioed it in. They said, and I quote, "noted."
+
+The view forgives everything. From up there the forest isn't trees. It's weather. It moves in one piece.`},
+{id:'pg5',title:'The Old Burn',where:'The Old Burn',text:`Walked the old burn this afternoon. Twenty years since the Garnet Fire came over the ridge and took nine hundred acres in an evening. The snags still stand there, black as piano keys, and between them — this is the part people never believe — the thickest huckleberry in the district.
+
+Fire isn't the villain they print on the posters. Fire is just the forest turning a page. The villain is fire nobody saw coming.
+
+That's the whole job, if anyone asks. Being the one who sees it coming.`},
+{id:'pg6',title:'The Homestead',where:'Aldous Homestead',text:`The Aldous family proved this ground in 1911 and lost it to the bank in '34. What's left: four walls' worth of stone gone to three, a chimney the frost hasn't beaten yet, and a bed frame nobody wanted enough to carry out.
+
+I ate lunch on their doorstep. It didn't feel like trespassing. After enough winters a ruin stops belonging to anyone and starts belonging to everyone, like a view, or a war.
+
+They say the youngest Aldous girl became a schoolteacher in town. I hope she got a house with good windows.`},
+{id:'pg7',title:'Garnet Mine',where:'Garnet Mine',text:`The mine is boarded and I'd thank everyone to keep it that way. The timbers past the portal are a hundred years old and hold the mountain up the way a promise holds a marriage — fine, until tested.
+
+Found a spare battery bank in the equipment locker at the camp below. Heavy as sin. The radio at Hawk's Rest has been dead all season, and I'd bet my hat this is the cure, but I couldn't carry it up alone. Left it for a stronger back or a better summer.
+
+The cart rails are still bright where the brush rubs them. Funny what refuses to rust.`},
+{id:'pg8',title:'The Fallen Giant',where:'The Fallen Giant',text:`The big ponderosa came down in the January windstorm — I heard it went like artillery, heard-it-in-town went the story. Three hundred years, give or take. I counted rings until my knees gave out and got to two hundred and forty before the rot.
+
+Now it's a highway. Chipmunks commute along the trunk. A pileated woodpecker has opened three shops in it already.
+
+I keep the tower logbook in a dry hollow under the root plate when I'm working this side of the valley. Old habit. A logbook in the tower is just paper; a logbook in your hand is a season.`},
+{id:'pg9',title:'Night Watch',where:'North Pass',text:`Couldn't sleep. Walked up to the pass with coffee and no flashlight — the moon was doing flashlight's work and better.
+
+The fireflies are late this year, or I am. They came up out of the low ground after eleven, first one, then the argument of them, all blinking their one word over and over.
+
+I stood there an hour. The cold got in my collar and I let it.
+
+People ask if it gets lonely out here. It does. That's not the complaint they think it is.`},
+{id:'pg10',title:'Smoke',where:'Sentinel Peak',text:`Smoke report today — my first real one in two seasons. Thin grey feather, eleven miles north-northeast, down where the county keeps its lightning. I called the bearing from Sentinel by dead reckoning, no lens, cross-checked against the map, and the crews had it caught by supper.
+
+Eleven miles closer and it would have been in my valley, and I would have been guessing with a dead radio and no glass.
+
+A watched forest hardly ever burns big. It's the unwatched kind that makes the news.`},
+{id:'pg11',title:'First Frost',where:'Overlook',text:`Frost on the meadow this morning, the whole field silvered like the back of a mirror. It didn't survive the sun an hour, but it means the season's folding up.
+
+They're not funding the towers next year either. Or me. The letter was very polite. There's a bench up at the overlook where I've made my peace with most things; it took this one all afternoon.
+
+The forest doesn't need me in particular. It needs someone. That's harder and better than being needed yourself.`},
+{id:'pg12',title:'Last Entry',where:'Ranger Cabin',text:`Packed out tomorrow. I've oiled the fire-finder, chocked the shutters, and left the cabin key where a ranger would look and a thief wouldn't.
+
+Whoever reads this — because someone will, someone always drifts in when a place goes quiet — the towers want ten minutes of your day. A lens for Cinder Ridge. A battery for Hawk's Rest. The logbook back in Sentinel where it belongs. That's all it takes for a mountain to open its eyes.
+
+Look after the quiet places. They're the ones doing the looking after.
+
+— June Calloway, last day of season fourteen`}];
+
+// ---------------------------------------------------------------- achievements
+const ACH=[
+['ach_cabin','Reporting for Duty','Reach the ranger cabin.','🏠'],
+['ach_steps','First Steps','Walk your first 250 meters of trail.','👣'],
+['ach_photo','Shutterbug','Capture your first photograph.','📷'],
+['ach_tower1','Eyes Open','Bring one lookout tower back into service.','🔭'],
+['ach_towers','The Network','Restore all three lookout towers.','⛰'],
+['ach_pages','Archivist','Recover all twelve of June’s pages.','📜'],
+['ach_caches','Provisioner','Find every supply cache.','📦'],
+['ach_fires','Keeper of the Flame','Light every campfire in the forest.','🔥'],
+['ach_wild','Field Naturalist','Photograph every kind of wildlife.','🦌'],
+['ach_land','Surveyor','Discover every landmark.','🧭'],
+['ach_5k','Trail Legs','Walk five kilometers.','🥾'],
+['ach_night','Night Watch','Be out under the stars at midnight.','🌙'],
+['ach_dawn','First Light','Watch a sunrise from the top of a tower.','🌅'],
+['ach_firefly','Lantern Season','Photograph the fireflies.','✨'],
+['ach_bench','Quiet Places','Sit awhile on June’s bench.','🪑'],
+['ach_home','Homeward','See the season through.','🏡']];
+
+const PHOTO_SUBJECTS=[['deer','Deer'],['buck','Buck'],['rabbit','Rabbit'],['bird','Birds'],['butterfly','Butterflies'],['firefly','Fireflies']];
+
+// ---------------------------------------------------------------- world items
+function offGround(x,z,dy){return[x,groundH(x,z)+(dy||0),z];}
+const TOWERS=[
+{id:'t1',name:'Cinder Ridge Lookout',x:T1[0],z:T1[1],geo:towerGeo[0],part:'lens',partName:'the Fresnel lens',hint:'June wrote that the lens went missing years ago. The Aldous Homestead was picked over by the same hands — start there.',hintTarget:HOMESTEAD_P},
+{id:'t2',name:'Hawk’s Rest Lookout',x:T2[0],z:T2[1],geo:towerGeo[1],part:'battery',partName:'the radio battery bank',hint:'The radio is dead. June left a battery bank at Garnet Camp, below the old mine — too heavy for one trip, she said.',hintTarget:MINE_P},
+{id:'t3',name:'Sentinel Peak Lookout',x:T3[0],z:T3[1],geo:towerGeo[2],part:'logbook',partName:'the station logbook',hint:'The station logbook is gone from its shelf. June kept it dry in a hollow under the Fallen Giant’s roots.',hintTarget:GIANT_P}];
+const PARTS=[
+{id:'lens',name:'Fresnel Lens',pos:offGround(HOMESTEAD_P[0]-1,HOMESTEAD_P[1]+0.4,0.5),tower:'t1'},
+{id:'battery',name:'Battery Bank',pos:offGround(MINE_P[0]+22,MINE_P[1]+22,0.4),tower:'t2'},
+{id:'logbook',name:'Station Logbook',pos:offGround(GIANT_P[0]-14,GIANT_P[1]-9,0.4),tower:'t3'}];
+PARTS[1].pos=offGround(CAMPS_XZ[4][0]+2.5,CAMPS_XZ[4][1]-2,0.35);
+const PAGE_POS=[
+offGround(SPAWN[0]+3,SPAWN[1]+2,0.15),      offGround(CABIN_P[0]+4.5,CABIN_P[1]+4.5,0.15),
+offGround(valleyX(380)+6,380,0.15),         offGround(158,252,0.15),
+offGround(T1[0]+4,T1[1]+5,0.15),            offGround(BURN_P[0]+6,BURN_P[1]+4,0.15),
+offGround(HOMESTEAD_P[0]+2,HOMESTEAD_P[1]+5,0.15), offGround(CAMPS_XZ[4][0]-3,CAMPS_XZ[4][1]+3,0.15),
+offGround(GIANT_P[0]+10,GIANT_P[1]+7,0.15), offGround(CAMPS_XZ[3][0]+3,CAMPS_XZ[3][1]-3,0.15),
+offGround(T3[0]-5,T3[1]+6,0.15),            offGround(CABIN_P[0]-5,CABIN_P[1]+3.5,0.15)];
+const CACHE_POS=[
+offGround(CABIN_P[0]+9,CABIN_P[1]-6,0.3),   offGround(196,286,0.3),
+offGround(-310,58,0.3),                      offGround(CAMPS_XZ[4][0]+5,CAMPS_XZ[4][1]+5,0.3),
+offGround(58,-354,0.3),                      offGround(BURN_P[0]-14,BURN_P[1]+10,0.3),
+offGround(430,-38,0.3),                      offGround(valleyX(120)-8,120,0.3)];
+const LANDMARKS=[
+{id:'lm_cabin',name:'Ranger Cabin',x:CABIN_P[0],z:CABIN_P[1],r:26,icon:'⌂'},
+{id:'lm_t1',name:'Cinder Ridge Lookout',x:T1[0],z:T1[1],r:30,icon:'▲'},
+{id:'lm_t2',name:'Hawk’s Rest Lookout',x:T2[0],z:T2[1],r:30,icon:'▲'},
+{id:'lm_t3',name:'Sentinel Peak Lookout',x:T3[0],z:T3[1],r:30,icon:'▲'},
+{id:'lm_meadow',name:'The Long Meadow',x:150,z:260,r:60,icon:'❀'},
+{id:'lm_home',name:'Aldous Homestead',x:HOMESTEAD_P[0],z:HOMESTEAD_P[1],r:26,icon:'⌂'},
+{id:'lm_mine',name:'Garnet Mine',x:MINE_P[0],z:MINE_P[1],r:26,icon:'⛏'},
+{id:'lm_giant',name:'The Fallen Giant',x:GIANT_P[0],z:GIANT_P[1],r:26,icon:'🌲'},
+{id:'lm_burn',name:'The Old Burn',x:BURN_P[0],z:BURN_P[1],r:36,icon:'♨'}];
+
+// item meshes
+function meshPage(){const mb=MB();mb.box(0,0.06,0,0.30,0.02,0.4,[0.98,0.94,0.82],0.3,0);mb.blob(0.06,0.09,0.05,0.07,C_STONE,mulberry32(3),0.3,0.8,0);return meshFloat(mb);}
+function meshCrate(){const mb=MB();const c=hexToRGB('#6d4f2c');mb.box(0,0.26,0,0.62,0.5,0.44,c,0.1,0);mb.box(0,0.54,0,0.66,0.08,0.48,scaleC(c,0.75),0.1,0);mb.box(0,0.3,0,0.68,0.1,0.3,hexToRGB('#3f2e1a'),0.1,0);return meshFloat(mb);}
+function meshLens(){const mb=MB();mb.cyl(0,0.05,0,0.3,0.3,0.12,10,[0.75,0.86,0.9],0.35,true);mb.cyl(0,0,0,0.36,0.36,0.06,10,hexToRGB('#8a6a30'),0,true);return meshFloat(mb);}
+function meshBattery(){const mb=MB();mb.box(0,0.22,0,0.5,0.42,0.34,hexToRGB('#7a2c1a'),0.15,0);mb.box(-0.1,0.47,0,0.08,0.1,0.08,[0.8,0.75,0.6],0,0);mb.box(0.1,0.47,0,0.08,0.1,0.08,[0.25,0.25,0.28],0,0);return meshFloat(mb);}
+function meshBook(){const mb=MB();mb.box(0,0.05,0,0.36,0.09,0.48,hexToRGB('#4a2e1c'),0.25,0);mb.box(0,0.1,0,0.32,0.02,0.44,[0.9,0.86,0.74],0.25,0);return meshFloat(mb);}
+
+// ---------------------------------------------------------------- game state
+const SAVE_KEY='emberwood_save_v1',SET_KEY='emberwood_settings_v1';
+const DEFAULTS={sens:1,fov:72,invertY:false,quality:2,renderScale:1,bob:true,volM:0.8,volMus:0.7,volAmb:0.9,volSfx:0.9};
+let SET={...DEFAULTS};
+try{const s=localStorage.getItem(SET_KEY);if(s)SET={...DEFAULTS,...JSON.parse(s)};}catch(e){}
+function saveSettings(){try{localStorage.setItem(SET_KEY,JSON.stringify(SET));}catch(e){}}
+
+const EXP_N=30;
+function freshState(){
+  return{
+    mode:'title',px:SPAWN[0],py:groundH(SPAWN[0],SPAWN[1])+1.7,pz:SPAWN[1],
+    yaw:Math.PI+0.4,pitch:-0.05,vy:0,
+    hour:6.85,day:1,stamina:100,maxStamina:100,
+    quest:0, // 0 reach cabin, 1 towers, 2 homeward, 3 done
+    towersFound:{},towersDone:{},partsHave:{},partsUsed:{},
+    pagesGot:{},cachesGot:{},firesLit:{},landmarksFound:{},ach:{},
+    photos:[],photoSubjects:{},
+    dist:0,playtime:0,photosTaken:0,rests:0,
+    explored:new Array(EXP_N*EXP_N).fill(0),
+    onTower:-1,sitting:false,ended:false
+  };
+}
+let ST=freshState();
+function hasSave(){try{return!!localStorage.getItem(SAVE_KEY);}catch(e){return false;}}
+function saveGame(){
+  if(ST.mode==='title')return;
+  try{
+    const{mode,onTower,sitting,...rest}=ST;
+    localStorage.setItem(SAVE_KEY,JSON.stringify(rest));
+    const b=$('saveBadge');b.classList.add('on');setTimeout(()=>b.classList.remove('on'),1600);
+  }catch(e){}
+}
+function loadGame(){
+  try{
+    const d=JSON.parse(localStorage.getItem(SAVE_KEY));
+    ST={...freshState(),...d,mode:'playing',onTower:d.onTower!==undefined?-1:-1,sitting:false};
+    if(!Array.isArray(ST.explored)||ST.explored.length!==EXP_N*EXP_N)ST.explored=new Array(EXP_N*EXP_N).fill(0);
+    return true;
+  }catch(e){return false;}
+}
+
+// ---------------------------------------------------------------- quests (dynamic descriptors)
+function questList(){
+  const q=[];
+  const nT=Object.keys(ST.towersDone).length;
+  if(ST.quest===0)q.push({main:true,name:'First Light',desc:'Hike up the valley and reach the ranger cabin. Read whatever was left for you.',prog:'',target:[CABIN_P[0],CABIN_P[1]]});
+  else if(ST.quest===1){
+    let target=null,desc='Bring the three fire lookout towers back into service before the dry season peaks.';
+    for(const t of TOWERS){
+      if(ST.towersDone[t.id])continue;
+      if(!ST.towersFound[t.id]){target=[t.x,t.z];desc=`Climb ${t.name} and see what it needs.`;break;}
+      if(!ST.partsHave[t.part]&&!ST.partsUsed[t.part]){const p=PARTS.find(p=>p.id===t.part);target=[t.hintTarget[0],t.hintTarget[1]];desc=`Recover ${t.partName}. ${t.hint}`;break;}
+      target=[t.x,t.z];desc=`Carry ${t.partName} back up ${t.name} and set it in place.`;break;
+    }
+    q.push({main:true,name:'The Ranger’s Round',desc,prog:nT+' / 3 towers',target});
+  }
+  else if(ST.quest===2)q.push({main:true,name:'Homeward',desc:'The towers are watching again. Go back to the cabin porch and see the season through.',prog:'',target:[CABIN_P[0],CABIN_P[1]]});
+  else q.push({main:true,name:'The Quiet Places',desc:'The forest is yours now. Walk it, photograph it, and find what June left behind.',prog:'',target:null,done:true});
+  q.push({name:'June’s Season',desc:'Recover the pages of June Calloway’s field journal, weighted under stones across the forest.',prog:Object.keys(ST.pagesGot).length+' / 12',done:Object.keys(ST.pagesGot).length>=12});
+  q.push({name:'Well Supplied',desc:'Find the ranger supply caches. Each one raises your maximum stamina.',prog:Object.keys(ST.cachesGot).length+' / 8',done:Object.keys(ST.cachesGot).length>=8});
+  q.push({name:'Keeper of Flames',desc:'Light the campfire at every established camp. Rest beside one to sleep until dawn.',prog:Object.keys(ST.firesLit).length+' / 6',done:Object.keys(ST.firesLit).length>=6});
+  q.push({name:'A Field Record',desc:'Photograph every kind of wildlife in Emberwood with the field camera.',prog:Object.keys(ST.photoSubjects).length+' / 6',done:Object.keys(ST.photoSubjects).length>=6});
+  q.push({name:'Surveyor',desc:'Discover every named landmark in the forest.',prog:Object.keys(ST.landmarksFound).length+' / 9',done:Object.keys(ST.landmarksFound).length>=9});
+  return q;
+}
+
+// ---------------------------------------------------------------- day/night palette
+const PAL=[ // hour, skyTop, skyHor, sunCol, sunI, ambSky, ambGnd, fog mul
+[0.0, '#0b1024','#141b30','#8899cc',0.06,'#1a2140','#0e1220',1.0],
+[4.5, '#0c1226','#1a1e34','#8899cc',0.06,'#1c2342','#0f1322',1.0],
+[5.8, '#1c2440','#54344a','#ffa060',0.18,'#2e2c48','#1a1626',1.15],
+[6.8, '#4a6a9c','#f2a35e','#ffb870',0.85,'#6a6a80','#3a3040',1.25],
+[8.5, '#7ba3cf','#d9c9a0','#fff2d0',1.12,'#8d99a8','#585040',1.0],
+[13.0,'#6f9fd8','#c8d2d8','#fff8e8',1.25,'#93a3b5','#5e5a48',0.8],
+[17.0,'#5d7fb4','#e8c084','#ffe0a0',1.05,'#87889a','#544c3c',0.85],
+[18.6,'#3f5490','#f0924e','#ff9850',0.72,'#5e5878','#3c2f34',1.0],
+[19.8,'#1c2a52','#7a4048','#ff7040',0.22,'#33324e','#1e1a2a',1.1],
+[21.0,'#0d1430','#1e2038','#99a0cc',0.07,'#20264a','#111426',1.0],
+[24.0,'#0b1024','#141b30','#8899cc',0.06,'#1a2140','#0e1220',1.0]];
+function palAt(h){
+  let i=0;
+  while(i<PAL.length-2&&PAL[i+1][0]<=h)i++;
+  const a=PAL[i],b=PAL[i+1],t=smoothstep(a[0],b[0],h);
+  return{
+    skyTop:mixC(hexToRGB(a[1]),hexToRGB(b[1]),t),
+    skyHor:mixC(hexToRGB(a[2]),hexToRGB(b[2]),t),
+    sunCol:mixC(hexToRGB(a[3]),hexToRGB(b[3]),t),
+    sunI:lerp(a[4],b[4],t),
+    ambSky:mixC(hexToRGB(a[5]),hexToRGB(b[5]),t),
+    ambGnd:mixC(hexToRGB(a[6]),hexToRGB(b[6]),t),
+    fogMul:lerp(a[7],b[7],t)
+  };
+}
+function sunDirAt(h){
+  const a=(h-6)/12*Math.PI; // rises 6h, sets 18h
+  const el=Math.sin(a),az=Math.cos(a);
+  const d=[az*0.82,el,-0.38-el*0.1];
+  const l=Math.hypot(d[0],d[1],d[2]);
+  return[d[0]/l,d[1]/l,d[2]/l];
+}
+function nightFactor(h){return clamp(1-smoothstep(4.8,6.8,h)+smoothstep(18.6,20.4,h),0,1);}
+
+// ---------------------------------------------------------------- wildlife
+const rndW=mulberry32(808);
+const DEER=[],RABBITS=[],BIRDS=[];
+const HERDS=[[180,300],[-240,140],[-120,-260],[300,-160],[60,420]];
+for(let h=0;h<5;h++){
+  for(let i=0;i<3;i++){
+    const x=HERDS[h][0]+(rndW()-0.5)*40,z=HERDS[h][1]+(rndW()-0.5)*40;
+    DEER.push({x,z,heading:rndW()*TAU,state:'graze',t:rndW()*4,speed:0,buck:i===0,home:HERDS[h],phase:rndW()*TAU,seen:0});
+  }
+}
+for(let i=0;i<10;i++){
+  const a=rndW()*TAU,r=100+rndW()*400;
+  RABBITS.push({x:Math.cos(a)*r,z:Math.sin(a)*r,heading:rndW()*TAU,state:'idle',t:rndW()*3,speed:0,hop:rndW()*TAU});
+}
+for(let f=0;f<3;f++){
+  const cx=(rndW()-0.5)*600,cz=(rndW()-0.5)*600;
+  for(let i=0;i<7;i++)BIRDS.push({flock:f,cx,cz,a:rndW()*TAU,r:20+rndW()*26,h:34+rndW()*16,off:rndW()*TAU,speed:0.14+rndW()*0.08});
+}
+function updateWildlife(dt,px,pz){
+  for(const d of DEER){
+    d.t-=dt;
+    const pd=Math.hypot(px-d.x,pz-d.z);
+    if(pd<16&&d.state!=='flee'){d.state='flee';d.t=3+rndW()*2;d.heading=Math.atan2(d.x-px,d.z-pz);}
+    if(d.state==='flee'){
+      d.speed=lerp(d.speed,5.6,dt*4);
+      d.heading+=(NZ.noise2(d.x*0.02,d.z*0.02))*dt*2;
+      if(pd>52&&d.t<0){d.state='graze';d.t=2+rndW()*4;}
+    }else if(d.state==='walk'){
+      d.speed=lerp(d.speed,1.1,dt*2);
+      if(d.t<0){d.state='graze';d.t=3+rndW()*5;}
+    }else{
+      d.speed=lerp(d.speed,0,dt*3);
+      if(d.t<0){
+        d.state='walk';d.t=2+rndW()*4;
+        const hx=d.home[0]-d.x,hz=d.home[1]-d.z,hd=Math.hypot(hx,hz);
+        d.heading=hd>90?Math.atan2(hx,hz):rndW()*TAU;
+      }
+    }
+    d.x+=Math.sin(d.heading)*d.speed*dt;d.z+=Math.cos(d.heading)*d.speed*dt;
+    const r=Math.hypot(d.x,d.z);if(r>WORLD_R-30){d.heading=Math.atan2(-d.x,-d.z);d.x+=Math.sin(d.heading)*d.speed*dt*2;d.z+=Math.cos(d.heading)*d.speed*dt*2;}
+  }
+  for(const r of RABBITS){
+    r.t-=dt;
+    const pd=Math.hypot(px-r.x,pz-r.z);
+    if(pd<9&&r.state!=='flee'){r.state='flee';r.t=2.5;r.heading=Math.atan2(r.x-px,r.z-pz);}
+    if(r.state==='flee'){r.speed=lerp(r.speed,5,dt*6);if(pd>30&&r.t<0)r.state='idle',r.t=2;}
+    else if(r.state==='hop'){r.speed=lerp(r.speed,1.4,dt*4);if(r.t<0){r.state='idle';r.t=1+rndW()*4;}}
+    else{r.speed=lerp(r.speed,0,dt*6);if(r.t<0){r.state='hop';r.t=0.8+rndW()*1.5;r.heading=rndW()*TAU;}}
+    r.hop+=dt*(2+r.speed*3);
+    r.x+=Math.sin(r.heading)*r.speed*dt;r.z+=Math.cos(r.heading)*r.speed*dt;
+    if(Math.hypot(r.x,r.z)>WORLD_R-30){r.heading=Math.atan2(-r.x,-r.z);}
+  }
+  for(const b of BIRDS){
+    b.a+=b.speed*dt;
+    if(rndW()<dt*0.01){b.cx+=(rndW()-0.5)*200;b.cz+=(rndW()-0.5)*200;
+      b.cx=clamp(b.cx,-500,500);b.cz=clamp(b.cz,-500,500);}
+  }
+}
+</script>
+<script>
+/* ================================================================
+   EMBERWOOD — renderer assembly, player, interaction, cinematics
+   ================================================================ */
+
+// ---------------------------------------------------------------- programs
+const AT_STATIC={aPos:0,aNor:1,aCol:2,aExt:3};
+const AT_INST={aPos:0,aNor:1,aCol:2,aExt:3,aIPos:4,aIRot:5,aITint:6};
+const P_SKY=makeProgram(SKY_VS,SKY_FS,{aPos:0});
+const P_STATIC=makeProgram(STATIC_VS,STATIC_FS,AT_STATIC);
+const P_VEG=makeProgram(VEG_VS,VEG_FS,AT_INST);
+const P_ANIM=makeProgram(ANIM_VS,VEG_FS,AT_INST);
+const P_DS=makeProgram(DEPTH_STATIC_VS,DEPTH_FS,{aPos:0});
+const P_DI=makeProgram(DEPTH_INST_VS,DEPTH_FS,{aPos:0,aIPos:4,aIRot:5});
+const P_PART=makeProgram(PART_VS,PART_FS,{aCorner:0,aSeed:4});
+
+// ---------------------------------------------------------------- VAOs
+const terrainVAO=makeVAO(terrainData);
+const staticVAO=makeVAO(staticData);
+const mr=mulberry32(2024);
+const pineVAO=makeInstVAO(meshPine(mr),pineInst);
+const mapleVAO=makeInstVAO(meshMaple(mr),mapleInst);
+const birchVAO=makeInstVAO(meshBirch(mr),birchInst);
+const rockVAO=makeInstVAO(meshRock(mr),rockInst);
+const bushVAO=makeInstVAO(meshBush(mr),bushInst);
+const grassVAO=makeInstVAO(meshGrass(),grassInst);
+const flowerVAO=makeInstVAO(meshFlower(),flowerInst);
+const stumpVAO=makeInstVAO(meshStump(mr),stumpInst);
+
+function packSimple(list,scale){
+  const a=new Float32Array(list.length*INST_STRIDE);
+  list.forEach((p,i)=>setInst(a,i,p[0],p[1],p[2],scale,mr()*TAU,1,0,0,1,1,1));
+  return a;
+}
+const pageArr=packSimple(PAGE_POS,1),crateArr=packSimple(CACHE_POS,1);
+const pageVAO=makeInstVAO(meshPage(),pageArr,true);
+const crateVAO=makeInstVAO(meshCrate(),crateArr,true);
+const partVAOs={
+  lens:makeInstVAO(meshLens(),packSimple([PARTS[0].pos],1),true),
+  battery:makeInstVAO(meshBattery(),packSimple([PARTS[1].pos],1),true),
+  logbook:makeInstVAO(meshBook(),packSimple([PARTS[2].pos],1),true)};
+function hideInstance(vaoObj,idx){
+  gl.bindBuffer(gl.ARRAY_BUFFER,vaoObj.ibuf);
+  gl.bufferSubData(gl.ARRAY_BUFFER,(idx*INST_STRIDE+3)*4,new Float32Array([0]));
+}
+// wildlife dynamic buffers
+const does=DEER.filter(d=>!d.buck),bucks=DEER.filter(d=>d.buck);
+const doeArr=new Float32Array(does.length*INST_STRIDE),buckArr=new Float32Array(bucks.length*INST_STRIDE);
+const rabArr=new Float32Array(RABBITS.length*INST_STRIDE),birdArr=new Float32Array(BIRDS.length*INST_STRIDE);
+const doeVAO=makeInstVAO(meshDeer(false),doeArr,true),buckVAO=makeInstVAO(meshDeer(true),buckArr,true);
+const rabVAO=makeInstVAO(meshRabbit(),rabArr,true),birdVAO=makeInstVAO(meshBird(),birdArr,true);
+function pushInst(vaoObj,arr){gl.bindBuffer(gl.ARRAY_BUFFER,vaoObj.ibuf);gl.bufferSubData(gl.ARRAY_BUFFER,0,arr);}
+
+// sky + particles
+const skyVAO=gl.createVertexArray();
+{gl.bindVertexArray(skyVAO);
+ const b=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,b);
+ gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,3,-1,-1,3]),gl.STATIC_DRAW);
+ gl.enableVertexAttribArray(0);gl.vertexAttribPointer(0,2,gl.FLOAT,false,0,0);
+ gl.bindVertexArray(null);}
+const MAX_PART=1024;
+const partVAO=gl.createVertexArray();
+{gl.bindVertexArray(partVAO);
+ const qb=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,qb);
+ gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,1,-1,1,1,-1,-1,1,1,-1,1]),gl.STATIC_DRAW);
+ gl.enableVertexAttribArray(0);gl.vertexAttribPointer(0,2,gl.FLOAT,false,0,0);
+ const sb=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,sb);
+ const seeds=new Float32Array(MAX_PART*4),sr=mulberry32(31337);
+ for(let i=0;i<seeds.length;i++)seeds[i]=sr();
+ gl.bufferData(gl.ARRAY_BUFFER,seeds,gl.STATIC_DRAW);
+ gl.enableVertexAttribArray(4);gl.vertexAttribPointer(4,4,gl.FLOAT,false,0,0);gl.vertexAttribDivisor(4,1);
+ gl.bindVertexArray(null);}
+
+// ---------------------------------------------------------------- shadow map
+let shadowRes=2048,shadowFB=null,shadowTex=null;
+function buildShadow(){
+  shadowRes=[1024,1536,2048,4096][SET.quality];
+  if(shadowFB){gl.deleteFramebuffer(shadowFB);gl.deleteTexture(shadowTex);}
+  shadowTex=gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D,shadowTex);
+  gl.texImage2D(gl.TEXTURE_2D,0,gl.DEPTH_COMPONENT24,shadowRes,shadowRes,0,gl.DEPTH_COMPONENT,gl.UNSIGNED_INT,null);
+  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.NEAREST);
+  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.NEAREST);
+  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
+  shadowFB=gl.createFramebuffer();
+  gl.bindFramebuffer(gl.FRAMEBUFFER,shadowFB);
+  gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.DEPTH_ATTACHMENT,gl.TEXTURE_2D,shadowTex,0);
+  gl.drawBuffers([gl.NONE]);gl.readBuffer(gl.NONE);
+  gl.bindFramebuffer(gl.FRAMEBUFFER,null);
+}
+buildShadow();
+
+// ---------------------------------------------------------------- frame math
+const mProj=m4New(),mView=m4New(),mVP=m4New(),mInvVP=m4New(),mShadow=m4New(),mTmp=m4New(),mTmp2=m4New();
+let CAM={pos:[0,0,0],fwd:[0,0,-1],right:[1,0,0],up:[0,1,0]};
+function computeCamera(px,py,pz,yaw,pitch,fov){
+  const cp=Math.cos(pitch),sp=Math.sin(pitch),sy=Math.sin(yaw),cy=Math.cos(yaw);
+  const f=[sy*cp,sp,-cy*cp];
+  CAM.pos=[px,py,pz];CAM.fwd=f;
+  CAM.right=[cy,0,sy];
+  CAM.up=[-sy*sp,cp,cy*sp];
+  m4Perspective(mProj,fov*Math.PI/180,canvas.width/canvas.height,0.1,2600);
+  m4LookAt(mView,CAM.pos,[px+f[0],py+f[1],pz+f[2]],[0,1,0]);
+  m4Mul(mVP,mProj,mView);
+  m4Invert(mInvVP,mVP);
+}
+const SHADOW_R=120;
+function computeShadow(lightDir,cx,cz,cy){
+  const eye=[cx+lightDir[0]*220,cy+lightDir[1]*220,cz+lightDir[2]*220];
+  m4LookAt(mTmp,eye,[cx,cy,cz],[0,1,0]);
+  const w=(2*SHADOW_R)/shadowRes;
+  mTmp[12]=Math.round(mTmp[12]/w)*w;mTmp[13]=Math.round(mTmp[13]/w)*w;
+  m4Ortho(mTmp2,-SHADOW_R,SHADOW_R,-SHADOW_R,SHADOW_R,20,460);
+  m4Mul(mShadow,mTmp2,mTmp);
+}
+
+// ---------------------------------------------------------------- interactables
+let INTER=[];
+function buildInteract(){
+  INTER=[];
+  const porch=[CABIN_P[0]+Math.sin(0.16)*-1+0,cabinY+1.2,CABIN_P[1]+3.6];
+  INTER.push({id:'note',type:'note',x:porch[0],y:porch[1],z:porch[2],r:3.4,
+    label:'Read the notice on the door',enabled:()=>true});
+  CAMPS_XZ.forEach((c,i)=>{
+    INTER.push({id:'fire'+i,type:'fire',idx:i,x:c[0],y:campY[i]+0.6,z:c[1],r:2.6,
+      label:'',enabled:()=>true});
+  });
+  TOWERS.forEach((t,i)=>{
+    INTER.push({id:'ladder'+i,type:'ladder',tw:i,x:t.geo.ladder[0],y:t.geo.base+1.2,z:t.geo.ladder[1],r:2.6,
+      label:'Climb '+t.name,enabled:()=>ST.onTower<0});
+    INTER.push({id:'panel'+i,type:'panel',tw:i,x:t.x,y:t.geo.topY+1.5,z:t.z,r:3.4,
+      label:'',enabled:()=>ST.onTower===i&&!ST.towersDone[t.id]});
+    INTER.push({id:'desc'+i,type:'descend',tw:i,x:t.x,y:t.geo.topY+1.5,z:t.z+2.4,r:2.2,
+      label:'Climb down',enabled:()=>ST.onTower===i});
+  });
+  PAGE_POS.forEach((p,i)=>INTER.push({id:'page'+i,type:'page',idx:i,x:p[0],y:p[1]+0.8,z:p[2],r:2.4,
+    label:'Take the weathered page',enabled:()=>!ST.pagesGot['page'+i]}));
+  CACHE_POS.forEach((p,i)=>INTER.push({id:'cache'+i,type:'cache',idx:i,x:p[0],y:p[1]+0.8,z:p[2],r:2.4,
+    label:'Open supply cache',enabled:()=>!ST.cachesGot['cache'+i]}));
+  PARTS.forEach((p,i)=>INTER.push({id:'part_'+p.id,type:'part',idx:i,x:p.pos[0],y:p.pos[1]+0.8,z:p.pos[2],r:2.4,
+    label:'Take '+p.name.toLowerCase(),enabled:()=>!ST.partsHave[p.id]&&!ST.partsUsed[p.id]&&ST.towersFound[p.tower]}));
+  INTER.push({id:'bench',type:'bench',x:424,y:groundH(424,-52)+1,z:-52,r:2.6,
+    label:'Sit awhile',enabled:()=>!ST.sitting});
+  INTER.push({id:'porch',type:'porch',x:porch[0],y:porch[1],z:porch[2]-1,r:4.2,
+    label:'Settle in on the porch',enabled:()=>ST.quest===2});
+}
+function refreshItemVisibility(){
+  PAGE_POS.forEach((p,i)=>{if(ST.pagesGot['page'+i])hideInstance(pageVAO,i);});
+  CACHE_POS.forEach((p,i)=>{if(ST.cachesGot['cache'+i])hideInstance(crateVAO,i);});
+  PARTS.forEach(p=>{if(ST.partsHave[p.id]||ST.partsUsed[p.id])hideInstance(partVAOs[p.id],0);});
+}
+function promptFor(it){
+  if(it.type==='fire')return ST.firesLit[it.idx]?['Rest until dawn','Campfire — '+CAMP_NAMES[it.idx]]:['Light the campfire',CAMP_NAMES[it.idx]];
+  if(it.type==='panel'){
+    const t=TOWERS[it.tw];
+    if(!ST.towersFound[t.id])return['Inspect the fire-finder',t.name];
+    if(ST.partsHave[t.part])return['Install '+t.partName,t.name];
+    return['Inspect the fire-finder',t.partName+' still missing'];
+  }
+  if(it.type==='page')return[it.label,'June’s journal'];
+  if(it.type==='part')return[it.label,'For '+TOWERS.find(t=>t.part===PARTS[it.idx].id).name];
+  if(it.type==='porch')return[it.label,'Watch the season through'];
+  return[it.label,''];
+}
+let activeInter=null;
+function nearestInteract(){
+  let best=null,bd=1e9;
+  for(const it of INTER){
+    if(!it.enabled())continue;
+    const dx=it.x-ST.px,dy=it.y-ST.py,dz=it.z-ST.pz;
+    if(Math.abs(dy)>4.5)continue;
+    const d=Math.hypot(dx,dz);
+    if(d<it.r&&d<bd){bd=d;best=it;}
+  }
+  return best;
+}
+
+// ---------------------------------------------------------------- fires & lights
+function litFires(){
+  const list=[];
+  CAMPS_XZ.forEach((c,i)=>{if(ST.firesLit[i])list.push({x:c[0],y:campY[i]+0.7,z:c[1],base:2.4,camp:i});});
+  TOWERS.forEach((t,i)=>{if(ST.towersDone[t.id])list.push({x:t.x,y:t.geo.topY+2.2,z:t.z,base:1.1,camp:-1});});
+  return list;
+}
+const fireUniform=new Float32Array(16);
+function fillFireUniform(now){
+  const fires=litFires().map(f=>{
+    const d=Math.hypot(f.x-ST.px,f.z-ST.pz);return{...f,d};
+  }).sort((a,b)=>a.d-b.d).slice(0,4);
+  fireUniform.fill(0);
+  fires.forEach((f,i)=>{
+    const fl=f.base*(0.82+0.36*Math.abs(NZ.noise2(now*7+i*9,i*3.3)));
+    fireUniform[i*4]=f.x;fireUniform[i*4+1]=f.y;fireUniform[i*4+2]=f.z;fireUniform[i*4+3]=fl;
+  });
+  return fires;
+}
+
+// ---------------------------------------------------------------- toasts / achievements / location
+function toast(html,kicker){
+  const d=document.createElement('div');d.className='toast';
+  d.innerHTML=(kicker?'<span class="tag">'+kicker+'</span>':'')+html;
+  $('toasts').appendChild(d);
+  setTimeout(()=>d.remove(),6200);
+  SFX.ui();
+}
+let achQueue=[],achShowing=false;
+function grant(id){
+  if(ST.ach[id])return;
+  ST.ach[id]=1;
+  const a=ACH.find(a=>a[0]===id);
+  if(a)achQueue.push(a);
+  pumpAch();
+}
+function pumpAch(){
+  if(achShowing||!achQueue.length)return;
+  achShowing=true;
+  const a=achQueue.shift();
+  $('achMedal').textContent=a[3];$('achName').textContent=a[1];
+  $('achievePop').classList.add('on');
+  SFX.achievement();
+  setTimeout(()=>{$('achievePop').classList.remove('on');setTimeout(()=>{achShowing=false;pumpAch();},700);},4200);
+}
+let locTimer=0;
+function showLocation(name){
+  const s=$('subtitle');
+  s.innerHTML='<span style="font-style:normal;letter-spacing:.3em;font-size:.62em;color:var(--ember-hot);text-transform:uppercase">Discovered</span><br>'+name;
+  s.classList.add('on');
+  clearTimeout(locTimer);
+  locTimer=setTimeout(()=>s.classList.remove('on'),3400);
+  SFX.discover();
+}
+
+// ---------------------------------------------------------------- paper modal
+let paperCb=null;
+function showPaper(kicker,title,text,sig,cb){
+  $('paperKicker').textContent=kicker;$('paperTitle').textContent=title;
+  $('paperText').textContent=text;$('paperSig').textContent=sig||'';
+  $('paper').classList.add('active');
+  ST.mode='paper';paperCb=cb||null;
+  document.exitPointerLock&&document.exitPointerLock();
+  SFX.paper();
+}
+function closePaper(){
+  $('paper').classList.remove('active');
+  ST.mode='playing';
+  const cb=paperCb;paperCb=null;
+  if(cb)cb();
+  lockPointer();
+}
+$('paperClose').addEventListener('click',closePaper);
+
+// ---------------------------------------------------------------- interaction handling
+function doInteract(){
+  const it=activeInter;
+  if(!it)return;
+  switch(it.type){
+    case 'note':
+      showPaper('Emberwood Ranger District','Notice of Assignment',
+`To the incoming lookout —
+
+The district can offer you a cabin with a sound roof, a forest of eleven thousand acres, and no other staff whatsoever. The three fire towers have stood dark for two seasons and the dry months are coming on fast.
+
+Your predecessor, J. Calloway, left the stations in good order but stripped of what scavengers and winters take. Get the towers watching again: CINDER RIDGE to the west, HAWK'S REST in the north, SENTINEL PEAK on the east summit. Climb them, see what each one lacks, and set it right.
+
+Rest at the campfires. Keep a record. Mind the mine.
+
+The forest is asked to look after you, as you are asked to look after it.`,
+        '— District Office, Emberwood',()=>{
+        if(ST.quest===0){ST.quest=1;grant('ach_cabin');toast('<b>The Ranger’s Round</b> — restore the three lookout towers.','New objective');saveGame();}
+      });
+      break;
+    case 'fire':
+      if(!ST.firesLit[it.idx]){
+        ST.firesLit[it.idx]=1;
+        toast('Campfire lit at <b>'+CAMP_NAMES[it.idx]+'</b>.','Camp');
+        SFX.light();
+        if(Object.keys(ST.firesLit).length>=6)grant('ach_fires');
+        saveGame();
+      }else{
+        restAtFire();
+      }
+      break;
+    case 'ladder':{
+      const t=TOWERS[it.tw];
+      fadeTeleport(()=>{ST.px=t.x;ST.pz=t.z;ST.py=t.geo.topY+1.7;ST.onTower=it.tw;ST.vy=0;});
+      break;}
+    case 'descend':{
+      const t=TOWERS[it.tw];
+      fadeTeleport(()=>{ST.px=t.geo.ladder[0];ST.pz=t.geo.ladder[1]+1.2;ST.py=groundH(ST.px,ST.pz)+1.7;ST.onTower=-1;ST.vy=0;});
+      break;}
+    case 'panel':{
+      const t=TOWERS[it.tw];
+      if(!ST.towersFound[t.id]){
+        ST.towersFound[t.id]=1;
+        showPaper('Station Condition — '+t.name,'Missing: '+t.partName,
+          t.hint+`\n\nThe rest of the station is sound. Bring back ${t.partName} and this tower can watch the forest again.`,'',()=>saveGame());
+      }else if(ST.partsHave[t.part]){
+        ST.partsUsed[t.part]=1;delete ST.partsHave[t.part];
+        ST.towersDone[t.id]=1;
+        SFX.activate();
+        const n=Object.keys(ST.towersDone).length;
+        toast('<b>'+t.name+'</b> is back in service.','Tower restored — '+n+' / 3');
+        grant('ach_tower1');
+        if(n>=3){ST.quest=2;grant('ach_towers');
+          setTimeout(()=>toast('The network is whole again. <b>Head home to the cabin porch.</b>','Homeward'),1800);}
+        saveGame();
+      }else{
+        toast('Still missing <b>'+t.partName+'</b>. '+'Check the journal map for a lead.','Fire-finder');
+      }
+      break;}
+    case 'page':{
+      const i=it.idx;ST.pagesGot['page'+i]=1;hideInstance(pageVAO,i);
+      const pg=PAGES[i];
+      showPaper('From June Calloway’s field journal · '+pg.where,pg.title,pg.text,'',()=>{
+        const n=Object.keys(ST.pagesGot).length;
+        toast('Page recovered — <b>'+pg.title+'</b> ('+n+' / 12)','June’s season');
+        if(n>=12)grant('ach_pages');
+        saveGame();
+      });
+      SFX.pickup();
+      break;}
+    case 'cache':{
+      ST.cachesGot['cache'+it.idx]=1;hideInstance(crateVAO,it.idx);
+      ST.maxStamina+=10;ST.stamina=ST.maxStamina;
+      const n=Object.keys(ST.cachesGot).length;
+      toast('Supplies found. <b>Maximum stamina +10</b> ('+n+' / 8)','Cache');
+      SFX.pickup();
+      if(n>=8)grant('ach_caches');
+      saveGame();
+      break;}
+    case 'part':{
+      const p=PARTS[it.idx];
+      ST.partsHave[p.id]=1;hideInstance(partVAOs[p.id],0);
+      const t=TOWERS.find(t=>t.part===p.id);
+      toast('Picked up <b>'+p.name+'</b>. Carry it up '+t.name+'.','Recovered');
+      SFX.pickup();
+      saveGame();
+      break;}
+    case 'bench':
+      ST.sitting=true;
+      ST.sitReturn=[ST.px,ST.py,ST.pz];
+      ST.px=424;ST.pz=-52.6;ST.py=groundH(424,-52)+1.15;
+      ST.yaw=-2.2;ST.pitch=-0.02;
+      grant('ach_bench');
+      toast('Press <b>E</b> to stand up.','June’s bench');
+      break;
+    case 'porch':
+      startEnding();
+      break;
+  }
+}
+function standUp(){
+  if(!ST.sitting)return;
+  ST.sitting=false;
+  if(ST.sitReturn){[ST.px,ST.py,ST.pz]=ST.sitReturn;ST.sitReturn=null;}
+}
+function restAtFire(){
+  fadeTeleport(()=>{
+    if(ST.hour>6.2)ST.day++;
+    ST.hour=6.05;
+    ST.stamina=ST.maxStamina;
+    ST.rests++;
+    toast('You sleep by the coals and wake with the light.','Rested');
+    saveGame();
+  },1400);
+}
+let fadeBusy=false;
+function fadeTeleport(fn,hold){
+  if(fadeBusy)return;fadeBusy=true;
+  const f=$('fader');f.classList.remove('slow');f.classList.remove('clear');
+  setTimeout(()=>{fn();setTimeout(()=>{f.classList.add('clear');fadeBusy=false;},hold||250);},650);
+}
+
+// ---------------------------------------------------------------- player
+const KEYS={};
+let bobT=0,stepAcc=0,walkedAcc=0;
+function updatePlayer(dt){
+  if(ST.mode!=='playing'&&ST.mode!=='photo')return;
+  if(cineActive)return;
+  if(ST.sitting)return;
+  const f=[Math.sin(ST.yaw),-Math.cos(ST.yaw)],r=[Math.cos(ST.yaw),Math.sin(ST.yaw)];
+  let mx=0,mz=0;
+  if(KEYS['KeyW']||KEYS['ArrowUp']){mx+=f[0];mz+=f[1];}
+  if(KEYS['KeyS']||KEYS['ArrowDown']){mx-=f[0];mz-=f[1];}
+  if(KEYS['KeyD']||KEYS['ArrowRight']){mx+=r[0];mz+=r[1];}
+  if(KEYS['KeyA']||KEYS['ArrowLeft']){mx-=r[0];mz-=r[1];}
+  const moving=(mx!==0||mz!==0);
+  let speed=3.6;
+  const wantSprint=(KEYS['ShiftLeft']||KEYS['ShiftRight'])&&moving&&ST.stamina>0.5&&ST.mode==='playing';
+  if(wantSprint){speed=6.4;ST.stamina=Math.max(0,ST.stamina-13*dt);}
+  else ST.stamina=Math.min(ST.maxStamina,ST.stamina+8.5*dt);
+  if(moving){
+    const l=Math.hypot(mx,mz);mx/=l;mz/=l;
+    if(ST.onTower<0){
+      const gAhead=groundH(ST.px+mx*1.4,ST.pz+mz*1.4),gHere=groundH(ST.px,ST.pz);
+      const grade=(gAhead-gHere)/1.4;
+      if(grade>0)speed*=clamp(1-grade*0.72,0.34,1);
+      else speed*=clamp(1-grade*0.12,1,1.22);
+    }
+    let nx=ST.px+mx*speed*dt,nz=ST.pz+mz*speed*dt;
+    if(ST.onTower>=0){
+      const t=TOWERS[ST.onTower];
+      nx=clamp(nx,t.x-2.4,t.x+2.4);nz=clamp(nz,t.z-2.4,t.z+2.4);
+    }else{
+      [nx,nz]=collResolve(nx,nz,0.42);
+      const rr=Math.hypot(nx,nz);
+      if(rr>WORLD_R+90){nx*= (WORLD_R+90)/rr;nz*=(WORLD_R+90)/rr;}
+    }
+    const walked=Math.hypot(nx-ST.px,nz-ST.pz);
+    ST.px=nx;ST.pz=nz;
+    ST.dist+=walked;walkedAcc+=walked;
+    if(walkedAcc>250&&!ST.ach['ach_steps'])grant('ach_steps');
+    if(ST.dist>5000)grant('ach_5k');
+    bobT+=dt*(wantSprint?11.5:7.5);
+    stepAcc+=walked;
+    const stride=wantSprint?2.6:2.0;
+    if(stepAcc>stride){stepAcc=0;SFX.step(wantSprint);}
+  }else bobT=lerp(bobT,Math.round(bobT/Math.PI)*Math.PI,dt*8);
+  const eyeH=1.68+(SET.bob&&moving?Math.sin(bobT)*(wantSprint?0.075:0.045):0);
+  const targetY=(ST.onTower>=0?TOWERS[ST.onTower].geo.topY:groundH(ST.px,ST.pz))+eyeH;
+  ST.py=lerp(ST.py,targetY,Math.min(1,dt*14));
+  $('staminaFill').style.width=(ST.stamina/ST.maxStamina*100)+'%';
+  $('staminaFill').classList.toggle('low',ST.stamina<25);
+  $('staminaWrap').classList.toggle('show',ST.stamina<ST.maxStamina-1);
+}
+
+// ---------------------------------------------------------------- photo mode
+let photoZoom=1,pendingCapture=false;
+const thumbCanvas=document.createElement('canvas');thumbCanvas.width=384;thumbCanvas.height=216;
+function detectSubject(){
+  const cands=[];
+  const consider=(x,y,z,tag,maxD)=>{
+    const dx=x-ST.px,dy=y-ST.py,dz=z-ST.pz;
+    const d=Math.hypot(dx,dy,dz);
+    if(d>maxD||d<0.5)return;
+    const dot=(dx*CAM.fwd[0]+dy*CAM.fwd[1]+dz*CAM.fwd[2])/d;
+    const ang=Math.acos(clamp(dot,-1,1));
+    if(ang<0.16+0.14/photoZoom)cands.push({tag,d});
+  };
+  for(const d of DEER)consider(d.x,groundH(d.x,d.z)+0.8,d.z,d.buck?'buck':'deer',60);
+  for(const r of RABBITS)consider(r.x,groundH(r.x,r.z)+0.2,r.z,'rabbit',40);
+  for(const b of BIRDS)consider(b.cx+Math.cos(b.a)*b.r,b.h+Math.sin(b.a*2+b.off)*2,b.cz+Math.sin(b.a)*b.r,'bird',110);
+  if(nightFactor(ST.hour)>0.6)cands.push({tag:'firefly',d:12});
+  if(meadowD(ST.px,ST.pz)<80&&nightFactor(ST.hour)<0.3)cands.push({tag:'butterfly',d:15});
+  cands.sort((a,b)=>a.d-b.d);
+  return cands[0]||null;
+}
+function capturePhoto(){
+  pendingCapture=true;
+  $('photoFlash').classList.remove('snap');void $('photoFlash').offsetWidth;
+  $('photoFlash').classList.add('snap');
+  SFX.shutter();
+}
+function finishCapture(){
+  pendingCapture=false;
+  const ctx=thumbCanvas.getContext('2d');
+  ctx.drawImage(canvas,0,0,thumbCanvas.width,thumbCanvas.height);
+  let img;
+  try{img=thumbCanvas.toDataURL('image/jpeg',0.72);}catch(e){img=null;}
+  const subj=detectSubject();
+  let caption='Emberwood';
+  let near=null,nd=1e9;
+  for(const lm of LANDMARKS){const d=Math.hypot(lm.x-ST.px,lm.z-ST.pz);if(d<lm.r*1.6&&d<nd){nd=d;near=lm;}}
+  if(near)caption=near.name;
+  if(subj){caption=PHOTO_SUBJECTS.find(s=>s[0]===subj.tag)[1]+' — '+caption;
+    if(!ST.photoSubjects[subj.tag]){ST.photoSubjects[subj.tag]=1;
+      toast('New study: <b>'+PHOTO_SUBJECTS.find(s=>s[0]===subj.tag)[1]+'</b>','Field record');
+      if(subj.tag==='firefly')grant('ach_firefly');
+      if(Object.keys(ST.photoSubjects).length>=6)grant('ach_wild');
+    }}
+  ST.photosTaken++;
+  grant('ach_photo');
+  if(img){ST.photos.push({img,caption,day:ST.day,h:ST.hour});
+    while(ST.photos.length>24)ST.photos.shift();}
+  $('photoCount').textContent=ST.photos.length+' / 24 plates';
+  saveGame();
+}
+
+// ---------------------------------------------------------------- cinematics
+let cineActive=false,cineQueue=[],cineTimer=0;
+function playCine(lines,onDone){
+  cineActive=true;
+  document.body.classList.add('cine');
+  cineQueue=lines.slice();cineTimer=0.5;
+  cineDone=onDone;
+}
+let cineDone=null,cineCur=null;
+function updateCine(dt){
+  if(!cineActive)return;
+  cineTimer-=dt;
+  if(cineTimer<=0){
+    const s=$('subtitle');
+    if(cineCur){s.classList.remove('on');cineCur=null;cineTimer=0.7;return;}
+    if(!cineQueue.length){
+      cineActive=false;
+      document.body.classList.remove('cine');
+      const d=cineDone;cineDone=null;
+      if(d)d();
+      return;
+    }
+    cineCur=cineQueue.shift();
+    s.textContent=cineCur.t;
+    s.classList.add('on');
+    cineTimer=cineCur.d;
+  }
+}
+let endingActive=false,endingPhase=0;
+function startEnding(){
+  if(endingActive)return;
+  endingActive=true;
+  if(ST.hour<18.8||ST.hour>20.5)ST.hour=19.0;
+  ST.sitting=true;ST.sitReturn=null;
+  ST.px=CABIN_P[0]+1;ST.pz=CABIN_P[1]+4.6;ST.py=cabinY+1.35;
+  ST.yaw=Math.PI+0.35;ST.pitch=0.02;
+  playCine([
+    {t:'You take the porch chair as the light goes long across the valley.',d:4.4},
+    {t:'West. North. East. Three windows burning steady over eleven thousand acres.',d:5.2},
+    {t:'“The forest doesn’t need me in particular. It needs someone.”',d:5.0},
+    {t:'— tonight, someone is you.',d:3.6},
+    {t:'The towers of Emberwood are watching again.',d:4.6},
+  ],()=>{
+    ST.quest=3;ST.ended=true;ST.sitting=false;
+    grant('ach_home');
+    toast('The forest is yours now. June’s pages, the caches, the wildlife — all of it keeps.','Season complete');
+    saveGame();
+  });
+}
+</script>
+<script>
+/* ================================================================
+   EMBERWOOD — handwritten Web Audio engine + UI systems
+   ================================================================ */
+
+// ---------------------------------------------------------------- audio engine
+let AC=null,BUS={},windNodes=null,cricketNodes=null,fireNodes=null,noiseBuf=null;
+function makeNoiseBuf(){
+  const len=AC.sampleRate*2,b=AC.createBuffer(1,len,AC.sampleRate),d=b.getChannelData(0);
+  for(let i=0;i<len;i++)d[i]=Math.random()*2-1;
+  return b;
+}
+function noiseSrc(){const s=AC.createBufferSource();s.buffer=noiseBuf;s.loop=true;return s;}
+function initAudio(){
+  if(AC)return;
+  try{AC=new(window.AudioContext||window.webkitAudioContext)();}catch(e){return;}
+  noiseBuf=makeNoiseBuf();
+  BUS.master=AC.createGain();BUS.master.connect(AC.destination);
+  for(const k of['mus','amb','sfx']){BUS[k]=AC.createGain();BUS[k].connect(BUS.master);}
+  applyVolumes();
+  // wind — two filtered noise layers
+  const w1=noiseSrc(),f1=AC.createBiquadFilter(),g1=AC.createGain();
+  f1.type='lowpass';f1.frequency.value=220;f1.Q.value=0.6;
+  g1.gain.value=0;w1.connect(f1);f1.connect(g1);g1.connect(BUS.amb);w1.start();
+  const w2=noiseSrc(),f2=AC.createBiquadFilter(),g2=AC.createGain();
+  f2.type='bandpass';f2.frequency.value=1500;f2.Q.value=0.5;
+  g2.gain.value=0;w2.connect(f2);f2.connect(g2);g2.connect(BUS.amb);w2.start();
+  windNodes={g1,g2,f1,f2};
+  // crickets — gated high sine
+  const co=AC.createOscillator(),cg=AC.createGain(),lfo=AC.createOscillator(),lg=AC.createGain(),cs=AC.createConstantSource();
+  co.type='sine';co.frequency.value=4230;
+  lfo.type='square';lfo.frequency.value=13;
+  cg.gain.value=0;
+  const gate=AC.createGain();gate.gain.value=0;
+  cs.offset.value=0.5;lg.gain.value=0.5;
+  lfo.connect(lg);lg.connect(gate.gain);cs.connect(gate.gain);
+  co.connect(gate);gate.connect(cg);cg.connect(BUS.amb);
+  co.start();lfo.start();cs.start();
+  cricketNodes={cg};
+  // campfire bed — filtered noise
+  const fs=noiseSrc(),ff=AC.createBiquadFilter(),fg=AC.createGain();
+  ff.type='bandpass';ff.frequency.value=820;ff.Q.value=0.8;
+  fg.gain.value=0;fs.connect(ff);ff.connect(fg);fg.connect(BUS.amb);fs.start();
+  fireNodes={fg};
+  // music delay for plucks
+  BUS.delay=AC.createDelay(1);BUS.delay.delayTime.value=0.42;
+  const fb=AC.createGain();fb.gain.value=0.34;
+  BUS.delay.connect(fb);fb.connect(BUS.delay);BUS.delay.connect(BUS.mus);
+}
+function applyVolumes(){
+  if(!AC)return;
+  BUS.master.gain.value=SET.volM;BUS.mus.gain.value=SET.volMus*0.5;
+  BUS.amb.gain.value=SET.volAmb;BUS.sfx.gain.value=SET.volSfx;
+}
+function env(g,t0,a,peak,d,end){
+  g.gain.cancelScheduledValues(t0);g.gain.setValueAtTime(0.0001,t0);
+  g.gain.linearRampToValueAtTime(peak,t0+a);
+  g.gain.exponentialRampToValueAtTime(Math.max(end||0.0001,0.0001),t0+a+d);
+}
+function tone(type,freq,t0,a,peak,d,dest,detune,freqEnd){
+  const o=AC.createOscillator(),g=AC.createGain();
+  o.type=type;o.frequency.setValueAtTime(freq,t0);
+  if(freqEnd)o.frequency.exponentialRampToValueAtTime(freqEnd,t0+a+d);
+  if(detune)o.detune.value=detune;
+  env(g,t0,a,peak,d);
+  o.connect(g);g.connect(dest||BUS.sfx);
+  o.start(t0);o.stop(t0+a+d+0.1);
+}
+function noiseHit(t0,a,peak,d,fType,fFreq,fEnd,dest){
+  const s=noiseSrc(),f=AC.createBiquadFilter(),g=AC.createGain();
+  f.type=fType;f.frequency.setValueAtTime(fFreq,t0);
+  if(fEnd)f.frequency.exponentialRampToValueAtTime(fEnd,t0+a+d);
+  env(g,t0,a,peak,d);
+  s.connect(f);f.connect(g);g.connect(dest||BUS.sfx);
+  s.start(t0);s.stop(t0+a+d+0.1);
+}
+const SFX={
+  ui(){if(!AC)return;const t=AC.currentTime;tone('sine',740,t,0.008,0.05,0.07,BUS.sfx);},
+  step(sprint){if(!AC)return;const t=AC.currentTime;
+    noiseHit(t,0.004,sprint?0.16:0.1,0.07,'lowpass',480+Math.random()*380,140);},
+  paper(){if(!AC)return;const t=AC.currentTime;noiseHit(t,0.02,0.12,0.28,'bandpass',1400,320);},
+  pickup(){if(!AC)return;const t=AC.currentTime;
+    tone('sine',880,t,0.008,0.12,0.5);tone('sine',1318.5,t+0.07,0.008,0.09,0.6);},
+  light(){if(!AC)return;const t=AC.currentTime;
+    noiseHit(t,0.25,0.22,0.9,'lowpass',300,2400);
+    for(let i=0;i<5;i++)noiseHit(t+0.15+i*0.09,0.004,0.08,0.05,'bandpass',1800+Math.random()*900,900);},
+  activate(){if(!AC)return;const t=AC.currentTime;
+    [293.66,440,554.37,880].forEach((f,i)=>tone('sine',f,t+i*0.16,0.02,0.14,1.4,BUS.sfx));
+    tone('triangle',146.8,t,0.05,0.1,2.2);},
+  achievement(){if(!AC)return;const t=AC.currentTime;
+    [440,587.3,739.99].forEach((f,i)=>{tone('triangle',f,t+i*0.13,0.015,0.12,0.9,BUS.delay);});},
+  discover(){if(!AC)return;const t=AC.currentTime;
+    tone('triangle',392,t,0.3,0.09,1.2);tone('sine',587.3,t+0.05,0.4,0.07,1.4);},
+  shutter(){if(!AC)return;const t=AC.currentTime;
+    noiseHit(t,0.002,0.18,0.03,'highpass',2000,4000);
+    tone('square',180,t+0.03,0.004,0.06,0.03);},
+  sleep(){if(!AC)return;const t=AC.currentTime;noiseHit(t,0.8,0.14,1.6,'lowpass',900,120);},
+};
+// generative score
+const CHORDS_DAY=[[146.83,220,293.66,369.99],[110,164.81,220,329.63],[123.47,185,246.94,293.66],[98,146.83,220,369.99]];
+const CHORDS_NIGHT=[[123.47,185,246.94],[110,164.81,220],[92.5,138.59,185],[123.47,146.83,220]];
+const PENT=[293.66,329.63,369.99,440,493.88,587.33,659.25];
+let nextChord=0,nextPluck=0,chordIdx=0;
+function updateMusic(){
+  if(!AC)return;
+  const t=AC.currentTime,night=nightFactor(ST.hour)>0.5;
+  if(t>nextChord){
+    const set=night?CHORDS_NIGHT:CHORDS_DAY;
+    const ch=set[chordIdx%set.length];chordIdx++;
+    ch.forEach((f,i)=>{
+      tone(i===0?'triangle':'sine',f,t+0.05,4.5,0.055-i*0.008,7.5,BUS.mus,(Math.random()-0.5)*8);
+      tone('sine',f*1.005,t+0.05,5.0,0.03,7.0,BUS.mus);
+    });
+    nextChord=t+11+Math.random()*5;
+  }
+  if(t>nextPluck&&ST.mode!=='title'){
+    if(Math.random()<(night?0.35:0.6)){
+      const f=PENT[(Math.random()*PENT.length)|0]*(night?0.5:1);
+      tone('triangle',f,t,0.01,0.05,1.8,BUS.delay);
+    }
+    nextPluck=t+5+Math.random()*9;
+  }
+}
+let nextBird=0;
+function updateAmbience(dt,wind,nearFire){
+  if(!AC)return;
+  const t=AC.currentTime,night=nightFactor(ST.hour);
+  const wg=0.05+wind*0.16;
+  windNodes.g1.gain.setTargetAtTime(wg,t,0.4);
+  windNodes.g2.gain.setTargetAtTime(wg*0.16*(0.6+wind),t,0.3);
+  windNodes.f1.frequency.setTargetAtTime(180+wind*260,t,0.5);
+  cricketNodes.cg.gain.setTargetAtTime(night*0.028,t,1.2);
+  fireNodes.fg.gain.setTargetAtTime(nearFire*0.30,t,0.3);
+  if(nearFire>0.05&&Math.random()<dt*6)
+    noiseHit(t,0.002,nearFire*(0.05+Math.random()*0.1),0.03+Math.random()*0.05,'bandpass',1400+Math.random()*1600,700,BUS.amb);
+  if(night<0.4&&t>nextBird){
+    const base=2300+Math.random()*1700,n=2+(Math.random()*4|0);
+    for(let i=0;i<n;i++)tone('sine',base*(1+Math.random()*0.12),t+i*(0.09+Math.random()*0.06),0.012,0.035,0.09,BUS.amb,0,base*0.82);
+    nextBird=t+2.5+Math.random()*7;
+  }
+  updateMusic();
+}
+
+// ---------------------------------------------------------------- screens & menus
+let screenStack=[];
+function showScreen(id){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  if(id)$(id).classList.add('active');
+}
+function openSub(id,from){screenStack.push(from);showScreen(id);SFX.ui();}
+document.querySelectorAll('[data-back]').forEach(b=>b.addEventListener('click',()=>{
+  const back=screenStack.pop()||'screenTitle';
+  showScreen(back);SFX.ui();
+  if(back===null)showScreen(ST.mode==='paused'?'screenPause':'screenTitle');
+}));
+$('btnHow').addEventListener('click',()=>openSub('screenHow','screenTitle'));
+$('btnCredits').addEventListener('click',()=>openSub('screenCredits','screenTitle'));
+$('btnSettings').addEventListener('click',()=>{buildSettings();openSub('screenSettings','screenTitle');});
+$('btnPauseHow').addEventListener('click',()=>openSub('screenHow','screenPause'));
+$('btnPauseSettings').addEventListener('click',()=>{buildSettings();openSub('screenSettings','screenPause');});
+
+let confirmNew=false;
+$('btnNew').addEventListener('click',()=>{
+  initAudio();
+  if(hasSave()&&!confirmNew){
+    confirmNew=true;
+    $('btnNew').textContent='Erase old trail & begin?';
+    setTimeout(()=>{confirmNew=false;$('btnNew').textContent='Begin Expedition';},4000);
+    return;
+  }
+  try{localStorage.removeItem(SAVE_KEY);}catch(e){}
+  newGame();
+});
+$('btnContinue').addEventListener('click',()=>{initAudio();continueGame();});
+$('btnResume').addEventListener('click',()=>{resumeGame();});
+$('btnQuit').addEventListener('click',()=>{saveGame();quitToTitle();});
+
+function resetItemBuffers(){
+  gl.bindBuffer(gl.ARRAY_BUFFER,pageVAO.ibuf);gl.bufferData(gl.ARRAY_BUFFER,pageArr,gl.DYNAMIC_DRAW);
+  gl.bindBuffer(gl.ARRAY_BUFFER,crateVAO.ibuf);gl.bufferData(gl.ARRAY_BUFFER,crateArr,gl.DYNAMIC_DRAW);
+  PARTS.forEach((p,i)=>{gl.bindBuffer(gl.ARRAY_BUFFER,partVAOs[p.id].ibuf);
+    gl.bufferData(gl.ARRAY_BUFFER,packSimple([p.pos],1),gl.DYNAMIC_DRAW);});
+}
+function newGame(){
+  ST=freshState();
+  resetItemBuffers();
+  buildInteract();
+  ST.mode='playing';
+  showScreen(null);
+  $('hud').classList.add('on');
+  const f=$('fader');f.classList.remove('clear');f.classList.add('slow');
+  setTimeout(()=>{f.classList.add('clear');},250);
+  setTimeout(()=>f.classList.remove('slow'),4500);
+  playCine([
+    {t:'Emberwood National Forest. The first dry week of autumn.',d:4.2},
+    {t:'The lookout towers have been dark for two years. The last ranger left a journal behind.',d:5.2},
+    {t:'Someone has to bring the forest back its eyes.',d:4.2},
+  ],()=>{updateObjectiveCard();toast('Follow the valley north to the <b>ranger cabin</b>.','Begin');});
+  lockPointer();
+  updateObjectiveCard();
+}
+function continueGame(){
+  if(!loadGame())return;
+  resetItemBuffers();
+  refreshItemVisibility();
+  buildInteract();
+  showScreen(null);
+  $('hud').classList.add('on');
+  const f=$('fader');f.classList.remove('clear');
+  setTimeout(()=>f.classList.add('clear'),150);
+  lockPointer();
+  updateObjectiveCard();
+  toast('Expedition resumed — day '+ST.day+'.','Welcome back');
+}
+function quitToTitle(){
+  ST.mode='title';
+  document.exitPointerLock&&document.exitPointerLock();
+  $('hud').classList.remove('on');
+  $('photoUI').classList.remove('on');
+  $('journal').classList.remove('active');
+  $('paper').classList.remove('active');
+  document.body.classList.remove('cine');
+  cineActive=false;endingActive=false;
+  $('btnContinue').disabled=!hasSave();
+  showScreen('screenTitle');
+}
+function openPause(){
+  if(ST.mode!=='playing'&&ST.mode!=='photo')return;
+  ST.mode='paused';
+  document.exitPointerLock&&document.exitPointerLock();
+  $('photoUI').classList.remove('on');
+  showScreen('screenPause');
+}
+function resumeGame(){
+  showScreen(null);
+  ST.mode='playing';
+  lockPointer();
+  SFX.ui();
+}
+
+// ---------------------------------------------------------------- settings UI
+function buildSettings(){
+  const b=$('settingsBody');
+  b.innerHTML='';
+  const row=(label)=>{const r=document.createElement('div');r.className='setRow';
+    const l=document.createElement('label');l.textContent=label;r.appendChild(l);b.appendChild(r);return r;};
+  function slider(label,min,max,step,get,set,fmt){
+    const r=row(label),i=document.createElement('input'),o=document.createElement('output');
+    i.type='range';i.min=min;i.max=max;i.step=step;i.value=get();
+    const upd=()=>{o.textContent=fmt(parseFloat(i.value));i.style.setProperty('--fill',((i.value-min)/(max-min)*100)+'%');};
+    i.addEventListener('input',()=>{set(parseFloat(i.value));upd();saveSettings();applyVolumes();});
+    upd();r.appendChild(i);r.appendChild(o);
+  }
+  function toggle(label,get,set){
+    const r=row(label),wrap=document.createElement('div'),t=document.createElement('div'),o=document.createElement('output');
+    t.className='toggle'+(get()?' on':'');t.addEventListener('click',()=>{set(!get());t.classList.toggle('on',get());o.textContent=get()?'On':'Off';saveSettings();SFX.ui();});
+    o.textContent=get()?'On':'Off';
+    wrap.appendChild(t);r.appendChild(wrap);r.appendChild(o);
+  }
+  function seg(label,opts,get,set){
+    const r=row(label),wrap=document.createElement('div');wrap.className='segmented';
+    opts.forEach((op,i)=>{const bt=document.createElement('button');bt.textContent=op;
+      bt.className=get()===i?'on':'';
+      bt.addEventListener('click',()=>{set(i);wrap.querySelectorAll('button').forEach((x,j)=>x.classList.toggle('on',j===i));saveSettings();SFX.ui();});
+      wrap.appendChild(bt);});
+    r.appendChild(wrap);r.appendChild(document.createElement('output'));
+  }
+  slider('Mouse sensitivity',0.3,2.5,0.05,()=>SET.sens,v=>SET.sens=v,v=>v.toFixed(2));
+  toggle('Invert look',()=>SET.invertY,v=>SET.invertY=v);
+  slider('Field of view',58,100,1,()=>SET.fov,v=>SET.fov=v,v=>v+'°');
+  toggle('Head bob',()=>SET.bob,v=>SET.bob=v);
+  seg('Quality',['Low','Medium','High','Ultra'],()=>SET.quality,v=>{SET.quality=v;buildShadow();});
+  slider('Render scale',0.5,1.5,0.05,()=>SET.renderScale,v=>{SET.renderScale=v;onResize();},v=>Math.round(v*100)+'%');
+  slider('Master volume',0,1,0.02,()=>SET.volM,v=>SET.volM=v,v=>Math.round(v*100)+'%');
+  slider('Music',0,1,0.02,()=>SET.volMus,v=>SET.volMus=v,v=>Math.round(v*100)+'%');
+  slider('Ambience',0,1,0.02,()=>SET.volAmb,v=>SET.volAmb=v,v=>Math.round(v*100)+'%');
+  slider('Effects',0,1,0.02,()=>SET.volSfx,v=>SET.volSfx=v,v=>Math.round(v*100)+'%');
+}
+
+// ---------------------------------------------------------------- HUD: objective card, compass, dial
+function updateObjectiveCard(){
+  const q=questList()[0];
+  const c=$('objCard');
+  if(!q){c.classList.add('hide');return;}
+  c.classList.remove('hide');
+  $('objKicker').textContent=q.done?'Free Roam':'Objective';
+  $('objTitle').textContent=q.name;
+  $('objDesc').textContent=q.desc;
+  $('objProg').textContent=q.prog||'';
+}
+const CARDINALS=[[0,'N',1],[45,'NE',0],[90,'E',1],[135,'SE',0],[180,'S',1],[225,'SW',0],[270,'W',1],[315,'NW',0]];
+const PPD=520/180; // px per degree — strip shows 180°
+(function buildCompass(){
+  const strip=$('compassStrip');
+  for(let d=-360;d<720;d+=15){
+    const t=document.createElement('div');
+    const major=(d%45+360)%45===0;
+    t.className='ctick'+(major?' major':'');
+    t.style.left=(d*PPD)+'px';
+    strip.appendChild(t);
+    if(major){
+      const c=CARDINALS.find(c=>c[0]===((d%360)+360)%360);
+      const l=document.createElement('div');
+      l.className='clabel'+(c&&c[2]?' card':'');
+      l.style.left=(d*PPD)+'px';
+      l.textContent=c?c[1]:'';
+      strip.appendChild(l);
+    }
+  }
+})();
+const cMarkers={};
+function compassMarker(id,glyph,color){
+  if(cMarkers[id])return cMarkers[id];
+  const m=document.createElement('div');
+  m.className='cmark';m.textContent=glyph;m.style.color=color;
+  $('compass').appendChild(m);
+  cMarkers[id]=m;return m;
+}
+function angDiff(a,b){let d=(a-b)%TAU;if(d>Math.PI)d-=TAU;if(d<-Math.PI)d+=TAU;return d;}
+function bearingTo(x,z){return Math.atan2(x-ST.px,-(z-ST.pz));}
+function updateCompass(){
+  const yawDeg=((ST.yaw*180/Math.PI)%360+360)%360;
+  $('compassStrip').style.transform='translateX('+(-yawDeg*PPD)+'px)';
+  const marks=[];
+  const q=questList()[0];
+  if(q&&q.target)marks.push(['obj','◆','var(--ember-hot)',q.target[0],q.target[1]]);
+  TOWERS.forEach((t,i)=>{if(ST.towersFound[t.id]||ST.towersDone[t.id])marks.push(['t'+i,'▲',ST.towersDone[t.id]?'#7fc06a':'#cfa050',t.x,t.z]);});
+  if(ST.quest>0)marks.push(['cab','⌂','#c9b28a',CABIN_P[0],CABIN_P[1]]);
+  const seen={};
+  for(const[id,g,col,x,z]of marks){
+    const m=compassMarker(id,g,col);seen[id]=1;
+    const diff=angDiff(bearingTo(x,z),ST.yaw)*180/Math.PI;
+    if(Math.abs(diff)>92){m.style.display='none';continue;}
+    m.style.display='block';
+    m.style.left='calc(50% + '+(diff*PPD)+'px)';
+  }
+  for(const id in cMarkers)if(!seen[id])cMarkers[id].style.display='none';
+}
+function updateClock(){
+  const h24=ST.hour,hh=Math.floor(h24),mm=Math.floor((h24-hh)*60);
+  const h12=((hh+11)%12)+1,ap=hh<12?'AM':'PM';
+  $('clockLabel').textContent=h12+':'+String(mm).padStart(2,'0')+' '+ap;
+  $('dayLabel').textContent='Day '+ST.day;
+  const ctx=$('timeDial').getContext('2d'),S=128,c=S/2;
+  ctx.clearRect(0,0,S,S);
+  ctx.strokeStyle='rgba(242,231,211,.28)';ctx.lineWidth=3;
+  ctx.beginPath();ctx.arc(c,c,52,0,TAU);ctx.stroke();
+  ctx.strokeStyle='rgba(20,14,8,.5)';ctx.lineWidth=8;
+  ctx.beginPath();ctx.arc(c,c,52,Math.PI,0);ctx.stroke();
+  const a=(h24-6)/24*TAU; // sun at top at noon
+  const sx=c+Math.cos(a-Math.PI/2)*52,sy2=c+Math.sin(a-Math.PI/2)*52;
+  const mx2=c+Math.cos(a+Math.PI/2-Math.PI)*-52,my=c-Math.sin(a-Math.PI/2)*52;
+  const grd=ctx.createRadialGradient(sx,sy2,0,sx,sy2,10);
+  grd.addColorStop(0,'#ffd98a');grd.addColorStop(1,'rgba(255,150,60,0)');
+  ctx.fillStyle=grd;ctx.beginPath();ctx.arc(sx,sy2,10,0,TAU);ctx.fill();
+  ctx.fillStyle='#ffcf7a';ctx.beginPath();ctx.arc(sx,sy2,5,0,TAU);ctx.fill();
+  ctx.fillStyle='#b9c4e2';ctx.beginPath();ctx.arc(c-(sx-c),c-(sy2-c),4,0,TAU);ctx.fill();
+}
+
+// ---------------------------------------------------------------- journal
+let jTab='jvObjectives';
+document.querySelectorAll('.jtab').forEach(t=>t.addEventListener('click',()=>setJTab(t.dataset.jtab)));
+function setJTab(id){
+  jTab=id;
+  document.querySelectorAll('.jtab').forEach(x=>x.classList.toggle('on',x.dataset.jtab===id));
+  document.querySelectorAll('.jview').forEach(x=>x.classList.toggle('on',x.id===id));
+  renderJournalTab();
+  SFX.ui();
+}
+function openJournal(tab){
+  if(ST.mode!=='playing')return;
+  ST.mode='journal';
+  document.exitPointerLock&&document.exitPointerLock();
+  $('journal').classList.add('active');
+  setJTab(tab||jTab);
+}
+function closeJournal(){
+  $('journal').classList.remove('active');
+  if(ST.mode==='journal'){ST.mode='playing';lockPointer();}
+}
+document.querySelector('[data-closejournal]').addEventListener('click',closeJournal);
+function renderJournalTab(){
+  if(jTab==='jvObjectives'){
+    const el=$('jvObjectives');el.innerHTML='';
+    for(const q of questList()){
+      const d=document.createElement('div');
+      d.className='qitem'+(q.main?' main':'')+(q.done?' done':'');
+      d.innerHTML='<div class="qt"><span class="qname">'+q.name+'</span><span class="qprog">'+(q.prog||(q.done?'Complete':''))+'</span></div><div class="qd">'+q.desc+'</div>';
+      el.appendChild(d);
+    }
+  }else if(jTab==='jvMap')drawMap();
+  else if(jTab==='jvPages')renderPages();
+  else if(jTab==='jvPhotos')renderPhotos();
+  else if(jTab==='jvAch')renderAch();
+  else if(jTab==='jvStats')renderStats();
+}
+let curPage=0;
+function renderPages(){
+  const list=$('pageList');list.innerHTML='';
+  PAGES.forEach((p,i)=>{
+    const got=ST.pagesGot['page'+i];
+    const b=document.createElement('button');
+    b.className='pitem'+(i===curPage?' on':'')+(got?'':' locked');
+    b.innerHTML='<span class="pn">Page '+(i+1)+(got?' · '+p.where:'')+'</span><span class="pt">'+(got?p.title:'Not yet found')+'</span>';
+    if(got)b.addEventListener('click',()=>{curPage=i;renderPages();});
+    list.appendChild(b);
+  });
+  const p=PAGES[curPage],got=ST.pagesGot['page'+curPage];
+  $('prMeta').textContent=got?('From June Calloway’s field journal · '+p.where):'';
+  $('prTitle').textContent=got?p.title:'—';
+  $('prText').textContent=got?p.text:'Somewhere out there, weighted under a stone, this page is still waiting.';
+}
+function renderPhotos(){
+  const cl=$('photoChecklist');cl.innerHTML='';
+  PHOTO_SUBJECTS.forEach(([id,name])=>{
+    const s=document.createElement('span');
+    s.className='pcheck'+(ST.photoSubjects[id]?' got':'');
+    s.textContent=(ST.photoSubjects[id]?'✓ ':'· ')+name;
+    cl.appendChild(s);
+  });
+  const g=$('photoGrid');g.innerHTML='';
+  if(!ST.photos.length){
+    g.innerHTML='<p style="color:var(--parch-faint);font-size:13px;grid-column:1/-1">No plates yet. Press <b>F</b> in the field to raise the camera, <b>Space</b> to capture.</p>';
+    return;
+  }
+  [...ST.photos].reverse().forEach(p=>{
+    const d=document.createElement('div');d.className='photoCard';
+    const hh=Math.floor(p.h),h12=((hh+11)%12)+1;
+    d.innerHTML='<img src="'+p.img+'" alt=""><div class="cap"><b>'+p.caption+'</b><span>Day '+p.day+' · '+h12+(hh<12?'am':'pm')+'</span></div>';
+    g.appendChild(d);
+  });
+}
+function renderAch(){
+  const g=$('achGrid');g.innerHTML='';
+  ACH.forEach(([id,name,desc,icon])=>{
+    const got=ST.ach[id];
+    const d=document.createElement('div');d.className='ach'+(got?'':' locked');
+    d.innerHTML='<div class="medal">'+icon+'</div><div><div class="an">'+name+'</div><div class="ad">'+desc+'</div></div>';
+    g.appendChild(d);
+  });
+}
+function renderStats(){
+  const g=$('statGrid');g.innerHTML='';
+  const items=[[fmtDist(ST.dist),'Distance walked'],[ST.day,'Days in the field'],
+    [Object.keys(ST.pagesGot).length+' / 12','Pages recovered'],[Object.keys(ST.towersDone).length+' / 3','Towers restored'],
+    [ST.photosTaken,'Photographs taken'],[Object.keys(ST.cachesGot).length+' / 8','Caches found'],
+    [Object.keys(ST.firesLit).length+' / 6','Campfires lit'],[ST.rests,'Nights by the fire'],
+    [Math.round(ST.maxStamina),'Max stamina'],[fmtTime(ST.playtime),'Time afield']];
+  for(const[v,l]of items){
+    const d=document.createElement('div');d.className='stat';
+    d.innerHTML='<div class="sv">'+v+'</div><div class="sl">'+l+'</div>';
+    g.appendChild(d);
+  }
+}
+
+// ---------------------------------------------------------------- map
+let mapBase=null;
+function buildMapBase(){
+  const N=256,off=document.createElement('canvas');off.width=N;off.height=N;
+  const ctx=off.getContext('2d'),img=ctx.createImageData(N,N);
+  const span=1620;
+  for(let j=0;j<N;j++)for(let i=0;i<N;i++){
+    const x=(i/N-0.5)*span,z=(j/N-0.5)*span;
+    const h=groundH(x,z),sl=slopeAt(x,z);
+    let c=terrColor(x,z,h,sl);
+    const nrm=groundN(x,z);
+    const shade=clamp(0.62+((nrm[0]*-0.6+nrm[2]*0.45)+nrm[1]*0.5)*0.55,0.35,1.25);
+    c=scaleC(c,shade);
+    c=mixC(c,[0.86,0.78,0.6],0.34); // parchment wash
+    if(((h/9)%1+1)%1<0.055)c=scaleC(c,0.82); // contour lines
+    const d=Math.hypot(x,z);
+    const edge=smoothstep(WORLD_R+60,WORLD_R-60,d);
+    c=mixC([0.72,0.62,0.44],c,edge*0.9+0.1);
+    const o=(j*N+i)*4;
+    img.data[o]=c[0]*255;img.data[o+1]=c[1]*255;img.data[o+2]=c[2]*255;img.data[o+3]=255;
+  }
+  ctx.putImageData(img,0,0);
+  mapBase=off;
+}
+function drawMap(){
+  if(!mapBase)buildMapBase();
+  const cv=$('mapCanvas'),ctx=cv.getContext('2d'),S=cv.width,span=1620;
+  const w2m=(x,z)=>[(x/span+0.5)*S,(z/span+0.5)*S];
+  ctx.imageSmoothingEnabled=true;
+  ctx.drawImage(mapBase,0,0,S,S);
+  // fog of war
+  const fog=document.createElement('canvas');fog.width=S;fog.height=S;
+  const fx=fog.getContext('2d');
+  fx.fillStyle='rgba(30,23,14,0.9)';fx.fillRect(0,0,S,S);
+  fx.globalCompositeOperation='destination-out';
+  for(let j=0;j<EXP_N;j++)for(let i=0;i<EXP_N;i++){
+    if(!ST.explored[j*EXP_N+i])continue;
+    const x=((i+0.5)/EXP_N-0.5)*1600,z=((j+0.5)/EXP_N-0.5)*1600;
+    const[mx,my]=w2m(x,z);
+    const r=S/EXP_N*1.5;
+    const g=fx.createRadialGradient(mx,my,0,mx,my,r);
+    g.addColorStop(0,'rgba(0,0,0,1)');g.addColorStop(1,'rgba(0,0,0,0)');
+    fx.fillStyle=g;fx.beginPath();fx.arc(mx,my,r,0,TAU);fx.fill();
+  }
+  ctx.drawImage(fog,0,0);
+  // border + rose
+  ctx.strokeStyle='rgba(60,40,20,.75)';ctx.lineWidth=10;ctx.strokeRect(5,5,S-10,S-10);
+  ctx.fillStyle='rgba(50,34,16,.9)';
+  ctx.font='700 30px Georgia';ctx.textAlign='center';
+  ctx.fillText('N',S-58,70);
+  ctx.beginPath();ctx.moveTo(S-58,84);ctx.lineTo(S-48,116);ctx.lineTo(S-58,106);ctx.lineTo(S-68,116);ctx.closePath();ctx.fill();
+  const legend=[];
+  // landmarks
+  ctx.font='600 24px Georgia';
+  for(const lm of LANDMARKS){
+    if(!ST.landmarksFound[lm.id])continue;
+    const[mx,my]=w2m(lm.x,lm.z);
+    ctx.fillStyle='rgba(40,24,10,.95)';
+    ctx.beginPath();ctx.arc(mx,my,6,0,TAU);ctx.fill();
+    ctx.fillText(lm.name,mx,my-14);
+  }
+  // lit camps
+  for(let i=0;i<CAMPS_XZ.length;i++){
+    if(!ST.firesLit[i])continue;
+    const[mx,my]=w2m(CAMPS_XZ[i][0],CAMPS_XZ[i][1]);
+    ctx.fillStyle='#d96b2a';
+    ctx.beginPath();ctx.arc(mx,my,7,0,TAU);ctx.fill();
+    ctx.strokeStyle='rgba(255,170,80,.6)';ctx.lineWidth=3;
+    ctx.beginPath();ctx.arc(mx,my,12,0,TAU);ctx.stroke();
+  }
+  // quest target
+  const q=questList()[0];
+  if(q&&q.target){
+    const[mx,my]=w2m(q.target[0],q.target[1]);
+    ctx.save();ctx.translate(mx,my);ctx.rotate(Math.PI/4);
+    ctx.fillStyle='#ff9b4a';ctx.strokeStyle='rgba(40,20,5,.8)';ctx.lineWidth=3;
+    ctx.fillRect(-9,-9,18,18);ctx.strokeRect(-9,-9,18,18);
+    ctx.restore();
+  }
+  // player arrow
+  {
+    const[mx,my]=w2m(ST.px,ST.pz);
+    ctx.save();ctx.translate(mx,my);ctx.rotate(ST.yaw);
+    ctx.fillStyle='#fff2dc';ctx.strokeStyle='rgba(30,15,5,.9)';ctx.lineWidth=3;
+    ctx.beginPath();ctx.moveTo(0,-14);ctx.lineTo(9,10);ctx.lineTo(0,4);ctx.lineTo(-9,10);ctx.closePath();
+    ctx.fill();ctx.stroke();
+    ctx.restore();
+  }
+  // legend
+  const lg=$('mapLegend');lg.innerHTML='';
+  const rows=[['#fff2dc','You'],['#ff9b4a','Current objective'],['#d96b2a','Lit campfire'],['rgba(40,24,10,.95)','Discovered landmark']];
+  for(const[col,txt]of rows){
+    const d=document.createElement('div');d.className='mlegend';
+    d.innerHTML='<span class="dot" style="background:'+col+'"></span>'+txt;
+    lg.appendChild(d);
+  }
+  const found=Object.keys(ST.landmarksFound).length;
+  const d2=document.createElement('div');d2.className='mlegend';
+  d2.innerHTML='<span class="dot" style="background:transparent"></span>'+found+' / 9 landmarks charted';
+  lg.appendChild(d2);
+}
+</script>
+<script>
+/* ================================================================
+   EMBERWOOD — input, render loop & boot
+   ================================================================ */
+
+// ---------------------------------------------------------------- grain overlay
+(function(){
+  const c=document.createElement('canvas');c.width=128;c.height=128;
+  const x=c.getContext('2d'),d=x.createImageData(128,128);
+  for(let i=0;i<d.data.length;i+=4){const v=Math.random()*255;d.data[i]=d.data[i+1]=d.data[i+2]=v;d.data[i+3]=255;}
+  x.putImageData(d,0,0);
+  $('grain').style.background='url('+c.toDataURL()+')';
+})();
+
+// ---------------------------------------------------------------- resize
+function onResize(){
+  const dpr=Math.min(window.devicePixelRatio||1,2)*SET.renderScale;
+  canvas.width=Math.max(2,Math.round(canvas.clientWidth*dpr));
+  canvas.height=Math.max(2,Math.round(canvas.clientHeight*dpr));
+}
+window.addEventListener('resize',onResize);
+onResize();
+
+// ---------------------------------------------------------------- pointer + keys
+function lockPointer(){
+  if(ST.mode==='playing'||ST.mode==='photo'){
+    if(canvas.requestPointerLock)try{canvas.requestPointerLock();}catch(e){}
+  }
+}
+document.addEventListener('pointerlockchange',()=>{
+  const locked=document.pointerLockElement===canvas;
+  if(!locked&&(ST.mode==='playing'||ST.mode==='photo')&&!fadeBusy)openPause();
+});
+canvas.addEventListener('click',()=>{
+  if((ST.mode==='playing'||ST.mode==='photo')&&document.pointerLockElement!==canvas)lockPointer();
+});
+document.addEventListener('mousemove',e=>{
+  if(document.pointerLockElement!==canvas)return;
+  if(ST.mode!=='playing'&&ST.mode!=='photo')return;
+  if(endingActive)return;
+  const s=0.00205*SET.sens*(ST.mode==='photo'?1/photoZoom:1);
+  ST.yaw+=e.movementX*s;
+  ST.pitch+=(SET.invertY?1:-1)*(-e.movementY)*s;
+  ST.pitch=clamp(ST.pitch,-1.45,1.45);
+});
+window.addEventListener('wheel',e=>{
+  if(ST.mode!=='photo')return;
+  photoZoom=clamp(photoZoom*(e.deltaY<0?1.12:1/1.12),1,4);
+  $('photoZoomLbl').textContent=Math.round(35*photoZoom)+'mm';
+},{passive:true});
+function togglePhoto(){
+  if(ST.mode==='playing'){
+    ST.mode='photo';photoZoom=1;
+    $('photoUI').classList.add('on');$('hud').classList.remove('on');
+    $('photoCount').textContent=ST.photos.length+' / 24 plates';
+    $('photoZoomLbl').textContent='35mm';
+    SFX.ui();
+  }else if(ST.mode==='photo'){
+    ST.mode='playing';
+    $('photoUI').classList.remove('on');$('hud').classList.add('on');
+    SFX.ui();
+  }
+}
+window.addEventListener('keydown',e=>{
+  KEYS[e.code]=true;
+  if(e.code==='Tab'){
+    e.preventDefault();
+    if(ST.mode==='playing')openJournal();
+    else if(ST.mode==='journal')closeJournal();
+    return;
+  }
+  if(e.code==='KeyM'){
+    if(ST.mode==='playing')openJournal('jvMap');
+    else if(ST.mode==='journal')closeJournal();
+  }
+  if(ST.mode==='journal'&&(e.code==='KeyQ'||e.code==='KeyR')){
+    const tabs=['jvObjectives','jvMap','jvPages','jvPhotos','jvAch','jvStats'];
+    let i=tabs.indexOf(jTab)+(e.code==='KeyR'?1:-1);
+    setJTab(tabs[(i+tabs.length)%tabs.length]);
+  }
+  if(e.code==='KeyF'&&!cineActive&&(ST.mode==='playing'||ST.mode==='photo'))togglePhoto();
+  if(e.code==='Space'){
+    if(ST.mode==='photo'){e.preventDefault();capturePhoto();}
+  }
+  if(e.code==='KeyE'){
+    if(ST.mode==='paper')closePaper();
+    else if(ST.mode==='playing'&&!cineActive){
+      if(ST.sitting&&!endingActive)standUp();
+      else if(activeInter)doInteract();
+    }
+  }
+  if(e.code==='Escape'){
+    if(ST.mode==='journal')closeJournal();
+    else if(ST.mode==='paper')closePaper();
+  }
+});
+window.addEventListener('keyup',e=>{KEYS[e.code]=false;});
+window.addEventListener('blur',()=>{for(const k in KEYS)KEYS[k]=false;});
+
+// ---------------------------------------------------------------- world queries per tick
+let exploreTimer=0,landmarkTimer=0,saveTimer=0,domTimer=0,objTimer=0;
+function markExplored(){
+  const i=clamp(Math.floor((ST.px+800)/1600*EXP_N),0,EXP_N-1);
+  const j=clamp(Math.floor((ST.pz+800)/1600*EXP_N),0,EXP_N-1);
+  ST.explored[j*EXP_N+i]=1;
+}
+function checkLandmarks(){
+  for(const lm of LANDMARKS){
+    if(ST.landmarksFound[lm.id])continue;
+    if(Math.hypot(lm.x-ST.px,lm.z-ST.pz)<lm.r){
+      ST.landmarksFound[lm.id]=1;
+      showLocation(lm.name);
+      if(Object.keys(ST.landmarksFound).length>=9)grant('ach_land');
+      saveGame();
+    }
+  }
+}
+function updatePrompt(){
+  activeInter=(ST.mode==='playing'&&!cineActive&&!fadeBusy)?nearestInteract():null;
+  const p=$('prompt');
+  if(ST.sitting&&!endingActive){
+    $('promptText').textContent='Stand up';$('promptSub').textContent='';
+    p.classList.add('on');return;
+  }
+  if(!activeInter){p.classList.remove('on');return;}
+  const[label,sub]=promptFor(activeInter);
+  $('promptText').textContent=label;
+  $('promptSub').textContent=sub;
+  p.classList.add('on');
+}
+
+// ---------------------------------------------------------------- uniform helpers
+let FRAME={pal:null,sun:null,light:null,night:0,fogCol:[0,0,0],fogDen:0.002,wind:0.3,windAcc:0,now:0,fires:[]};
+function setCommon(u){
+  gl.uniformMatrix4fv(u.uVP,false,mVP);
+  if(u.uShadowVP)gl.uniformMatrix4fv(u.uShadowVP,false,mShadow);
+  if(u.uSunDir)gl.uniform3fv(u.uSunDir,FRAME.light);
+  if(u.uSunCol)gl.uniform3fv(u.uSunCol,FRAME.pal.sunCol);
+  if(u.uSunI)gl.uniform1f(u.uSunI,FRAME.pal.sunI);
+  if(u.uAmbSky)gl.uniform3fv(u.uAmbSky,FRAME.pal.ambSky);
+  if(u.uAmbGnd)gl.uniform3fv(u.uAmbGnd,FRAME.pal.ambGnd);
+  if(u.uFogCol)gl.uniform3fv(u.uFogCol,FRAME.fogCol);
+  if(u.uFogDen)gl.uniform1f(u.uFogDen,FRAME.fogDen);
+  if(u.uCamPos)gl.uniform3fv(u.uCamPos,CAM.pos);
+  if(u.uExposure)gl.uniform1f(u.uExposure,1.22);
+  if(u.uFires)gl.uniform4fv(u.uFires,fireUniform);
+  if(u.uNightGlow)gl.uniform1f(u.uNightGlow,FRAME.night*0.85);
+  if(u.uShadowMap){gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_2D,shadowTex);gl.uniform1i(u.uShadowMap,0);}
+  if(u.uShadowTexel)gl.uniform1f(u.uShadowTexel,1/shadowRes);
+  if(u.uShadowOn)gl.uniform1f(u.uShadowOn,FRAME.shadowOn);
+  if(u.uTime)gl.uniform1f(u.uTime,FRAME.now);
+  if(u.uWind)gl.uniform1f(u.uWind,FRAME.wind);
+}
+function drawVAO(v){gl.bindVertexArray(v.vao);gl.drawArrays(gl.TRIANGLES,0,v.n);}
+function drawInst(v,count){gl.bindVertexArray(v.vao);gl.drawArraysInstanced(gl.TRIANGLES,0,v.n,count===undefined?v.count:count);}
+function drawParticles(mode,origin,area,count,colA,colB){
+  const u=P_PART.u;
+  gl.uniform1f(u.uMode,mode);
+  gl.uniform3fv(u.uOrigin,origin);
+  gl.uniform3fv(u.uArea,area);
+  gl.uniform4fv(u.uPColA,colA);
+  gl.uniform4fv(u.uPColB,colB);
+  gl.drawArraysInstanced(gl.TRIANGLES,0,6,Math.min(count,MAX_PART));
+}
+
+// ---------------------------------------------------------------- wildlife instancing
+function fillWildlife(){
+  does.forEach((d,i)=>{
+    const y=groundH(d.x,d.z);
+    setInst(doeArr,i,d.x,y,d.z,0.92,-d.heading,1,clamp(d.speed*0.42,0,1.15),d.phase,1+((i%3)-1)*0.06,1,1);
+  });
+  bucks.forEach((d,i)=>{
+    const y=groundH(d.x,d.z);
+    setInst(buckArr,i,d.x,y,d.z,1.06,-d.heading,1,clamp(d.speed*0.42,0,1.15),d.phase,1.02,0.96,0.9);
+  });
+  RABBITS.forEach((r,i)=>{
+    const y=groundH(r.x,r.z)+Math.abs(Math.sin(r.hop))*0.22*clamp(r.speed,0,1.4);
+    setInst(rabArr,i,r.x,y,r.z,0.9,-r.heading,1,0,0,1,1,1);
+  });
+  BIRDS.forEach((b,i)=>{
+    const x=b.cx+Math.cos(b.a)*b.r,z=b.cz+Math.sin(b.a)*b.r;
+    const y=Math.max(b.h+Math.sin(b.a*2+b.off)*2.5,groundH(x,z)+12);
+    const h=Math.atan2(-Math.sin(b.a),Math.cos(b.a));
+    setInst(birdArr,i,x,y,z,1,-h,1,1,b.off,1,1,1);
+  });
+  pushInst(doeVAO,doeArr);pushInst(buckVAO,buckArr);
+  pushInst(rabVAO,rabArr);pushInst(birdVAO,birdArr);
+}
+
+// ---------------------------------------------------------------- render
+const GRASS_MULT=[0.3,0.55,1,1];
+function render(hour){
+  const pal=palAt(hour),sd=sunDirAt(hour),night=nightFactor(hour);
+  const moon=[-sd[0],-sd[1],-sd[2]];
+  FRAME.pal=pal;FRAME.sun=sd;FRAME.night=night;
+  FRAME.light=sd[1]>0.03?sd:moon;
+  const dailyFog=0.78+0.5*(NZ.noise2(ST.day*7.31,2.17)*0.5+0.5);
+  let fogDen=0.00135*pal.fogMul*dailyFog;
+  if(hour>5.2&&hour<9.4)fogDen*=1+smoothstep(5.2,6.4,hour)*(1-smoothstep(7.2,9.4,hour))*0.55;
+  FRAME.fogDen=fogDen;
+  FRAME.fogCol=pal.skyHor;
+  FRAME.shadowOn=sd[1]>0.05?1:0;
+  const cloudy=0.35+0.4*(NZ.noise2(ST.day*3.7,8.8)*0.5+0.5);
+  fillFireUniform(FRAME.now);
+
+  // -------- shadow pass
+  if(FRAME.shadowOn){
+    const cx=CAM.pos[0]+CAM.fwd[0]*40,cz=CAM.pos[2]+CAM.fwd[2]*40;
+    computeShadow(sd,cx,cz,groundH(clamp(cx,-840,840),clamp(cz,-840,840)));
+    gl.bindFramebuffer(gl.FRAMEBUFFER,shadowFB);
+    gl.viewport(0,0,shadowRes,shadowRes);
+    gl.clear(gl.DEPTH_BUFFER_BIT);
+    gl.enable(gl.POLYGON_OFFSET_FILL);
+    gl.polygonOffset(2.2,4);
+    gl.useProgram(P_DS.p);
+    gl.uniformMatrix4fv(P_DS.u.uVP,false,mShadow);
+    drawVAO(terrainVAO);drawVAO(staticVAO);
+    gl.useProgram(P_DI.p);
+    gl.uniformMatrix4fv(P_DI.u.uVP,false,mShadow);
+    drawInst(pineVAO);drawInst(mapleVAO);drawInst(birchVAO);
+    drawInst(rockVAO);drawInst(stumpVAO);drawInst(bushVAO);
+    gl.disable(gl.POLYGON_OFFSET_FILL);
+    gl.bindFramebuffer(gl.FRAMEBUFFER,null);
+  }
+
+  // -------- main pass
+  gl.viewport(0,0,canvas.width,canvas.height);
+  gl.clearColor(FRAME.fogCol[0],FRAME.fogCol[1],FRAME.fogCol[2],1);
+  gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
+  gl.disable(gl.DEPTH_TEST);
+  gl.useProgram(P_SKY.p);
+  const su=P_SKY.u;
+  gl.uniformMatrix4fv(su.uInvVP,false,mInvVP);
+  gl.uniform3fv(su.uCamPos,CAM.pos);
+  gl.uniform3fv(su.uSkyTop,pal.skyTop);gl.uniform3fv(su.uSkyHor,pal.skyHor);
+  gl.uniform3fv(su.uSunDir,sd);gl.uniform3fv(su.uSunCol,pal.sunCol);
+  gl.uniform1f(su.uSunI,pal.sunI);gl.uniform1f(su.uNight,night);
+  gl.uniform1f(su.uTime,FRAME.now);gl.uniform1f(su.uExposure,1.22);
+  gl.uniform3fv(su.uMoonDir,moon);gl.uniform1f(su.uCloudy,cloudy);
+  gl.bindVertexArray(skyVAO);
+  gl.drawArrays(gl.TRIANGLES,0,3);
+  gl.enable(gl.DEPTH_TEST);
+  gl.enable(gl.CULL_FACE);
+
+  gl.useProgram(P_STATIC.p);setCommon(P_STATIC.u);
+  drawVAO(terrainVAO);drawVAO(staticVAO);
+
+  gl.useProgram(P_VEG.p);setCommon(P_VEG.u);
+  drawInst(pineVAO);drawInst(mapleVAO);drawInst(birchVAO);
+  drawInst(rockVAO);drawInst(bushVAO);drawInst(stumpVAO);
+  drawInst(crateVAO);
+  for(const p of PARTS)drawInst(partVAOs[p.id]);
+  gl.disable(gl.CULL_FACE);
+  drawInst(pageVAO);
+  drawInst(grassVAO,Math.floor(grassVAO.count*GRASS_MULT[SET.quality]));
+  drawInst(flowerVAO);
+  gl.enable(gl.CULL_FACE);
+
+  fillWildlife();
+  gl.useProgram(P_ANIM.p);setCommon(P_ANIM.u);
+  const au=P_ANIM.u;
+  gl.uniform1f(au.uWingMode,0);gl.uniform1f(au.uHipY,0.62);gl.uniform1f(au.uAnimFreq,9);
+  drawInst(doeVAO);drawInst(buckVAO);
+  drawInst(rabVAO);
+  gl.uniform1f(au.uWingMode,1);gl.uniform1f(au.uAnimFreq,10);
+  gl.disable(gl.CULL_FACE);
+  drawInst(birdVAO);
+  gl.enable(gl.CULL_FACE);
+
+  // -------- particles
+  gl.useProgram(P_PART.p);
+  const pu=P_PART.u;
+  gl.uniformMatrix4fv(pu.uVP,false,mVP);
+  gl.uniform3fv(pu.uCamRight,CAM.right);
+  gl.uniform3fv(pu.uCamUp,CAM.up);
+  gl.uniform1f(pu.uTime,FRAME.now);
+  gl.uniform1f(pu.uWindT,FRAME.windAcc);
+  gl.bindVertexArray(partVAO);
+  gl.disable(gl.CULL_FACE);
+  // leaves — opaque cutout, tinted by ambient light so they don't glow at night
+  const lum=clamp(pal.sunI*0.85+0.16,0.07,1.05);
+  const leafN=[140,220,320,420][SET.quality];
+  drawParticles(0,[CAM.pos[0],CAM.pos[1]-2.5,CAM.pos[2]],[46,15,46],leafN,
+    [0.62*lum,0.29*lum,0.1*lum,1],[0.78*lum,0.55*lum,0.18*lum,1]);
+  // butterflies
+  if(night<0.35){
+    const md=meadowD(CAM.pos[0],CAM.pos[2]);
+    if(md<140)drawParticles(5,[150,groundH(150,260)+1.4,260],[80,4,80],70,
+      [0.95*lum,0.5*lum,0.12*lum,1],[0.9*lum,0.78*lum,0.4*lum,1]);
+  }
+  gl.depthMask(false);
+  gl.enable(gl.BLEND);
+  // fireflies
+  if(night>0.25){
+    gl.blendFunc(gl.ONE,gl.ONE);
+    const gy=groundH(CAM.pos[0],CAM.pos[2]);
+    drawParticles(1,[CAM.pos[0],gy+1.6,CAM.pos[2]],[48,6,48],Math.floor(210*night),[1,0.9,0.35,1.6],[0.7,1,0.3,1]);
+  }
+  // fires
+  for(const f of litFires()){
+    const d=Math.hypot(f.x-CAM.pos[0],f.z-CAM.pos[2]);
+    if(d>240)continue;
+    const small=f.base<1.5;
+    gl.blendFunc(gl.ONE,gl.ONE);
+    drawParticles(4,[f.x,f.y-0.35,f.z],[1,1,1],small?20:44,[1,0.85,0.4,1],[1,0.32,0.05,1]);
+    drawParticles(2,[f.x,f.y-0.2,f.z],[1,1,1],small?12:40,[1,0.72,0.25,1.4],[1,0.3,0.08,1]);
+    if(!small&&d<130){
+      gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);
+      drawParticles(3,[f.x,f.y-0.2,f.z],[1,1,1],26,
+        [0.42*lum+0.03,0.4*lum+0.03,0.38*lum+0.03,1],[0.2*lum,0.19*lum,0.18*lum,1]);
+    }
+  }
+  gl.disable(gl.BLEND);
+  gl.depthMask(true);
+  gl.enable(gl.CULL_FACE);
+}
+
+// ---------------------------------------------------------------- main loop
+const DAY_LEN=900;
+let lastT=performance.now(),prevHour=6.6;
+function frame(now){
+  requestAnimationFrame(frame);
+  const dt=clamp((now-lastT)/1000,0,0.05);
+  lastT=now;
+  FRAME.now=now/1000;
+  FRAME.wind=clamp(0.3+NZ.fbm(FRAME.now*0.06,3.7,2,2,0.5)*0.9,0.05,1);
+  FRAME.windAcc+=FRAME.wind*dt;
+
+  let hour=ST.hour;
+  if(ST.mode==='playing'||ST.mode==='photo'){
+    prevHour=ST.hour;
+    ST.hour+=dt*24/DAY_LEN*(endingActive?30:1);
+    if(ST.hour>=24){ST.hour-=24;ST.day++;}
+    if(ST.hour<prevHour&&!endingActive)grant('ach_night');
+    ST.playtime+=dt;
+    hour=ST.hour;
+    updatePlayer(dt);
+    updateWildlife(dt,ST.px,ST.pz);
+    if(ST.onTower>=0&&hour>5.85&&hour<6.5)grant('ach_dawn');
+    exploreTimer-=dt;landmarkTimer-=dt;saveTimer-=dt;domTimer-=dt;objTimer-=dt;
+    if(exploreTimer<0){exploreTimer=0.6;markExplored();}
+    if(landmarkTimer<0){landmarkTimer=0.5;checkLandmarks();}
+    updatePrompt();
+    if(objTimer<0){objTimer=1;updateObjectiveCard();}
+    if(saveTimer<0){saveTimer=42;saveGame();}
+    if(domTimer<0){domTimer=0.24;updateClock();}
+    updateCompass();
+    let nearFire=0;
+    for(const f of litFires()){
+      const d=Math.hypot(f.x-ST.px,f.z-ST.pz);
+      nearFire=Math.max(nearFire,clamp(1-d/16,0,1));
+    }
+    try{updateAmbience(dt,FRAME.wind*(0.6+0.4*smoothstep(20,60,groundH(ST.px,ST.pz))),nearFire);}catch(e){}
+  }else if(ST.mode==='title'){
+    hour=16.9;
+    try{updateAmbience(dt,FRAME.wind*0.5,0);}catch(e){}
+  }else{
+    try{updateAmbience(dt,FRAME.wind*0.3,0);}catch(e){}
+  }
+  updateCine(dt);
+
+  // camera
+  if(ST.mode==='title'){
+    const a=FRAME.now*0.042;
+    const ex=CABIN_P[0]+Math.cos(a)*62,ez=CABIN_P[1]+Math.sin(a)*62;
+    let ey=Math.max(groundH(ex,ez)+8,cabinY+15+Math.sin(FRAME.now*0.1)*4);
+    for(let s=0.15;s<1;s+=0.17) // keep the orbit above the terrain along the sight line
+      ey=Math.max(ey,groundH(lerp(ex,CABIN_P[0],s),lerp(ez,CABIN_P[1],s))+7);
+    m4Perspective(mProj,60*Math.PI/180,canvas.width/canvas.height,0.1,2600);
+    m4LookAt(mView,[ex,ey,ez],[CABIN_P[0],cabinY+5,CABIN_P[1]],[0,1,0]);
+    m4Mul(mVP,mProj,mView);
+    m4Invert(mInvVP,mVP);
+    CAM.pos=[ex,ey,ez];
+    CAM.right=[mView[0],mView[4],mView[8]];
+    CAM.up=[mView[1],mView[5],mView[9]];
+    CAM.fwd=[-mView[2],-mView[6],-mView[10]];
+  }else{
+    const fov=ST.mode==='photo'?SET.fov/photoZoom:SET.fov;
+    computeCamera(ST.px,ST.py,ST.pz,ST.yaw,ST.pitch,fov);
+  }
+
+  if(ST.mode==='photo'){
+    const s=detectSubject();
+    const el=$('photoSubject');
+    if(s){el.textContent=PHOTO_SUBJECTS.find(x=>x[0]===s.tag)[1]+' — in frame';el.classList.add('on');}
+    else el.classList.remove('on');
+  }
+
+  render(hour);
+  if(pendingCapture)finishCapture();
+}
+
+// ---------------------------------------------------------------- boot
+$('btnContinue').disabled=!hasSave();
+gl.enable(gl.DEPTH_TEST);
+gl.depthFunc(gl.LEQUAL);
+gl.enable(gl.CULL_FACE);
+gl.cullFace(gl.BACK);
+requestAnimationFrame(frame);
+setTimeout(()=>$('fader').classList.add('clear'),350);
+window.addEventListener('beforeunload',()=>{if(ST.mode!=='title')saveGame();});
+</script>
+</body>
+</html>
