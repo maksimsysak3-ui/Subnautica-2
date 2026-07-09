@@ -471,6 +471,29 @@ function drawNavHUD(){ const c=fxx, night=clamp(1-skyColors().dayness*1.6,0,1);
   // nearest port marker
   if(typeof nearestPort==='function'){ const p=nearestPort(); if(p){ const d=Math.round(Math.abs(p.x-player.pos[0])), dir=p.x>=player.pos[0]?'▶':'◀';
     c.fillStyle='#d8ccaa'; c.font='700 10px ui-sans-serif'; c.fillText(`${dir} ${p.name}`,cx,cy+r+43); c.fillStyle='#9fb3bb'; c.font='9px ui-sans-serif'; c.fillText(`${d}m`,cx,cy+r+54); } }
+  // nearest fishing grounds — the navigation target for a good haul
+  if(typeof nearestGround==='function'){ const ng=nearestGround(); if(ng){ const d=Math.round(ng.d), dir=ng.g.x>=player.pos[0]?'▶':'◀';
+    const known=player.grounds&&player.grounds[ng.g.name]; c.textAlign='center';
+    c.fillStyle='#8fd0b0'; c.font='700 9.5px ui-sans-serif'; c.fillText(`${dir} ${known?ng.g.name:'fishing grounds'}`,cx,cy-r-15);
+    c.fillStyle='#79ad94'; c.font='9px ui-sans-serif'; c.fillText(`${d}m`,cx,cy-r-5); } }
+  c.restore(); c.textAlign='left';
+}
+// the "read the water" instrument — the live bite equation, broken into factors so the yield curve is learnable
+function drawGroundsHUD(){
+  const b=fishing.bite; if(!b) return; const c=fxx, x=16, y=138, w=196, hh=112;
+  c.save(); c.fillStyle='rgba(12,20,26,0.52)'; roundRectC(c,x,y,w,hh,9); c.fill();
+  c.strokeStyle='rgba(150,200,220,0.22)'; c.lineWidth=1; roundRectC(c,x,y,w,hh,9); c.stroke();
+  c.textAlign='left'; c.fillStyle='#cfe0e6'; c.font='700 10px ui-sans-serif'; c.fillText('READING THE WATER',x+12,y+17);
+  const q=clamp(b.q,0,2.2), pct=Math.round(clamp(b.q/1.5,0,1.4)*100), qc=q>1.1?'#7fd39a':q>0.72?'#e6c04a':'#e0785a';
+  c.fillStyle=qc; c.font='800 22px ui-sans-serif'; c.fillText('BITE '+pct+'%',x+12,y+41);
+  c.fillStyle='#9fb3bb'; c.font='10px ui-sans-serif';
+  const gn=b.g?((player.grounds&&player.grounds[b.g.name])?b.g.name:'unknown grounds'):'open water — find the grounds';
+  c.fillText(gn+(b.g?' · '+Math.round(b.dist)+'m':''),x+12,y+56);
+  const bars=[['SPOT',b.posQ],['TIDE',b.tideQ],['TIME',b.timeQ],['DEPTH',b.depthQ]]; let by=y+66;
+  for(const bar of bars){ const v=bar[1]==null?1:bar[1], vv=clamp((v-0.5)/0.92,0,1);
+    c.fillStyle='#8fa6ae'; c.font='9px ui-sans-serif'; c.fillText(bar[0],x+12,by+6);
+    c.fillStyle='rgba(255,255,255,0.12)'; roundRectC(c,x+54,by+1,124,5,2.5); c.fill();
+    c.fillStyle=v>1.06?'#7fd39a':v>0.86?'#bcd0d4':'#e6a04a'; roundRectC(c,x+54,by+1,124*vv,5,2.5); c.fill(); by+=11; }
   c.restore(); c.textAlign='left';
 }
 // a gilt "HOME" waypoint that tracks your home port — projected onto it, or clamped to the screen edge with an arrow
@@ -709,6 +732,7 @@ function drawFX(sky){
   if(Game.screen==='sail'&&typeof drawNavHUD==='function') drawNavHUD();
   if(Game.screen==='sail'&&typeof drawHomeMarker==='function') drawHomeMarker();
   if(Game.screen==='fish'&&typeof drawSonar==='function') drawSonar();
+  if(Game.screen==='fish'&&!fishing.fight&&typeof drawGroundsHUD==='function') drawGroundsHUD();
   if(Game.screen==='fish'&&fishing.fight&&typeof drawFightHUD==='function') drawFightHUD();
   if(Game.screen==='fish'&&typeof drawBeastHUD==='function') drawBeastHUD();
   if(view.flash>0.01){ fxx.fillStyle=withA(view.flashCol,view.flash*0.5); fxx.fillRect(0,0,W,H); }
@@ -1194,7 +1218,7 @@ const player={
   records:{}, contracts:[], contractsDone:0, stars:0, shipTier:0, style:{hull:[176,76,58],sail:[244,238,222],cabin:[164,68,54]},
   home:{built:{},stock:{},accrued:0,lastDay:1},
   rep:{north:0,trop:0,med:0,verge:0}, quests:{},
-  rp:0, tech:{}, engineWear:0, fouling:0, seenPorts:{},
+  rp:0, tech:{}, engineWear:0, fouling:0, seenPorts:{}, grounds:{},
   rig:{line:'standard',bait:'worm'},
 };
 function holdMax(){ return UPGRADES.hull.levels[player.upg.hull].hold + (player.shipTier||0)*10 + homeHoldBonus() + (typeof techHold==='function'?techHold():0); }
@@ -1565,10 +1589,45 @@ function baitBias(id){ const d=FISH[id], b=rigBait().bias; const big=d.len[1]>=7
   if(b==='flashy') return FLASHY.has(id)?1.7:0.85;
   return 1.0; }
 function fishValue(def,len){ const t=inv(def.len[0],def.len[1],len)||0; return Math.round(def.base*(0.7+0.6*clamp(t,0,1))*(typeof techValue==='function'?techValue():1)); }
+/* ==================== FISHING GROUNDS — the navigation/yield skill =====================
+   Hotspots at fixed coordinates. Reaching one (compass bearing + distance) and MATCHING its
+   depth band, tide window and feeding hour is the whole yield curve: on a good ground under
+   the right conditions the sea is alive; drop your line in random open water and it is dead.
+   Bite = position × tide × time × depth, multiplied into how many fish approach AND the value.
+   This layers on top of (does not replace) season/bait/tide/attract — those still apply.  */
+const GROUNDS=[
+  [ {name:'The Herring Banks',x:900,band:[0.10,0.30],tide:0.35,hour:0.26,rich:1.10,spec:['herring','mackerel','plaice']},
+    {name:'Cape Iron Shelf',x:3350,band:[0.38,0.68],tide:0.72,hour:0.82,rich:1.30,spec:['halibut','pollock','haddock','cod']},
+    {name:'Kingcrab Deep',x:5150,band:[0.66,0.96],tide:0.60,hour:0.95,rich:1.55,spec:['kingcrab','lobster','spidercrab']} ],
+  [ {name:'The Reef Shallows',x:1000,band:[0.08,0.28],tide:0.70,hour:0.30,rich:1.10,spec:['parrot','angelfish','triggerfish','snapper']},
+    {name:'Blue Lagoon Drop',x:3000,band:[0.34,0.62],tide:0.50,hour:0.85,rich:1.35,spec:['grouper','mahi','barracuda']},
+    {name:'The Marlin Run',x:5300,band:[0.50,0.85],tide:0.45,hour:0.52,rich:1.60,spec:['marlin','tuna']} ],
+  [ {name:'Amber Shoals',x:1200,band:[0.10,0.30],tide:0.55,hour:0.28,rich:1.10,spec:['anchovy','seabream','mullet']},
+    {name:'The Olive Reef',x:3400,band:[0.30,0.60],tide:0.60,hour:0.80,rich:1.38,spec:['dorade','seabass','octopus','johndory']},
+    {name:'Meridian Trench',x:5600,band:[0.55,0.90],tide:0.50,hour:0.55,rich:1.62,spec:['bluefin','swordfish','moray']} ],
+  [ {name:'Capelin Shallows',x:1100,band:[0.10,0.32],tide:0.40,hour:0.22,rich:1.15,spec:['capelin','rockfish','skate']},
+    {name:'Glasshaven Bank',x:3300,band:[0.35,0.65],tide:0.65,hour:0.85,rich:1.42,spec:['cusk','wolffish','greenlandshark']},
+    {name:'The Deep Verge',x:5700,band:[0.60,0.97],tide:0.55,hour:0.50,rich:1.72,spec:['anglerfish','frilledshark','oarfish','lanternfish']} ],
+];
+function regionGrounds(){ return GROUNDS[world.region]||[]; }
+function circDist(a,b){ let d=Math.abs(a-b)%1; return Math.min(d,1-d); }               // wrap-around distance on a 0..1 clock
+function nearestGround(){ let best=null,bd=1e9; for(const g of regionGrounds()){ const d=Math.abs(g.x-player.pos[0]); if(d<bd){bd=d;best=g;} } return best?{g:best,d:bd}:null; }
+// the yield equation, broken into named factors so it can be read on the instruments
+function biteFactors(lureY){
+  const ng=nearestGround(), g=ng&&ng.g, dist=ng?ng.d:9999;
+  const posQ = g? clamp(1.40 - dist/95, 0.26, 1.40) : 0.30;                             // on the grounds vs dead open water
+  const tideQ = g? clamp(1.28 - Math.abs(world.tide-g.tide)*1.05, 0.55, 1.28) : 1;      // tide window
+  const timeQ = g? clamp(1.42 - circDist(world.time,g.hour)*2.7, 0.55, 1.42) : 1;       // feeding hour (circular clock)
+  let depthQ=1; if(g&&lureY!=null){ const ld=clamp(-lureY/WORLD_DEPTH,0,1), c=(g.band[0]+g.band[1])/2, hw=(g.band[1]-g.band[0])/2+0.07; depthQ=clamp(1.32 - Math.abs(ld-c)/hw*0.82, 0.48, 1.32); }
+  const q = posQ*tideQ*timeQ*depthQ;
+  return {q,posQ,tideQ,timeQ,depthQ,g,dist,rich:g?g.rich:0.85};
+}
+function biteQ(lureY){ return biteFactors(lureY).q; }
+function groundSpecBias(id){ const ng=nearestGround(); if(!ng||ng.d>110) return 1; return ng.g.spec.indexOf(id)>=0 ? 2.4 : 0.7; }  // the ground decides what bites
 function pickFishId(){
   const R=regionData(); const ids=R.fish.filter(id=>!FISH[id].legendary);
   if(chance(0.015*fishSeasonMult(R.legendary))&&FISH[R.legendary]) return R.legendary;
-  let tot=0; const w=[]; for(const k of ids){ const d=FISH[k]; const ew=d.weight*(0.4+d.len[1]/70)*fishSeasonMult(k)*(typeof baitBias==='function'?baitBias(k):1); w.push(ew); tot+=ew; }
+  let tot=0; const w=[]; for(const k of ids){ const d=FISH[k]; const ew=d.weight*(0.4+d.len[1]/70)*fishSeasonMult(k)*(typeof baitBias==='function'?baitBias(k):1)*(typeof groundSpecBias==='function'?groundSpecBias(k):1); w.push(ew); tot+=ew; }
   let r=rnd()*tot; for(let i=0;i<ids.length;i++){ r-=w[i]; if(r<=0) return ids[i]; } return ids[0];
 }
 function spawnFish(nearX, atEdge, forceId){
@@ -1598,6 +1657,7 @@ function toggleFishing(){
     if(player.bait<=0){ toast('Out of bait — buy more at a port',ic('worm')); return; }
     player.bait--; fishing.active=true; fishing.fight=null; buildSeabedLife();
     tip('firstfish','Pilot the glowing lure with the arrows and touch a fish to hook it. Deeper water hides richer fish — and, rarely, something dangerous.');
+    tip('grounds','Yield is about WHERE and WHEN. Watch the BITE% panel: sail to a fishing ground (green mark on the compass and chart) and match its depth band, tide and feeding hour. Off the grounds, the sea is nearly dead.');
     // roll whether a predator prowls this session — usually not, more likely at night / in a storm
     if(typeof Beast!=='undefined'){ beastReset(); const nf=clamp(1-skyColors().dayness*1.7,0,1);
       Beast.present=chance(0.14 + nf*0.14 + world.storm*0.22); }
@@ -1623,7 +1683,11 @@ function updateFishing(dt){
   let dxl=L.x-bx, dyl=-L.y, len=Math.hypot(dxl,dyl);
   if(len>spoolMax){ const s=spoolMax/len; L.x=bx+dxl*s; L.y=-dyl*s; if(L.y>-1.2)L.y=-1.2; len=spoolMax; if(L.vy>0)L.vy*=0.4; }
   fishing.lineOut=len; fishing.remaining=clamp(1-len/spoolMax,0,1);
-  const attractR=(3.6+lp.attract*0.06)*homeAttract()*(typeof techAttractR==='function'?techAttractR():1)*(typeof tideBite==='function'?tideBite():1)*(typeof rigAttract==='function'?rigAttract():1), fleeR=7.5, hitR=1.7+lp.power*0.5; fishing.hitR=hitR;
+  fishing.bite=(typeof biteFactors==='function')?biteFactors(L.y):{q:1,rich:1};
+  // reading the water — the grounds/tide/time/depth quality scales how many fish work the lure at all
+  const attractR=(3.6+lp.attract*0.06)*homeAttract()*(typeof techAttractR==='function'?techAttractR():1)*(typeof tideBite==='function'?tideBite():1)*(typeof rigAttract==='function'?rigAttract():1)*clamp(fishing.bite.q,0.34,1.6), fleeR=7.5, hitR=1.7+lp.power*0.5; fishing.hitR=hitR;
+  // discover a fishing ground you've worked closely
+  if(fishing.bite.g && fishing.bite.dist<70 && player.grounds && !player.grounds[fishing.bite.g.name]){ player.grounds[fishing.bite.g.name]=true; toast(`Found fishing grounds — ${fishing.bite.g.name}`,ic('sonar')); if(Sound.chime)Sound.chime(); saveGame(); }
   fishing.hitFlash=Math.max(0,fishing.hitFlash-dt*3);
   // fish behaviour
   for(let k=fishing.school.length-1;k>=0;k--){
@@ -1826,7 +1890,8 @@ function drawBeastHUD(){ if(Beast.state==='gone'||Beast.threat<0.4) return; cons
   c.restore(); c.textAlign='left';
 }
 function landFish(f){
-  const val=fishValue(f.def,f.len);
+  const gm=(fishing.bite&&fishing.bite.rich)?clamp(fishing.bite.rich,0.8,1.7):1;   // richer grounds pay more
+  const val=Math.round(fishValue(f.def,f.len)*gm);
   if(player.hold.length>=holdMax()){ toast('Hold is full! Sell your catch at port',ic('basket')); return; }
   player.hold.push({id:f.id,len:Math.round(f.len),value:val});
   const firstEver=!player.discovered[f.id]; player.discovered[f.id]=true;
@@ -2776,7 +2841,7 @@ function saveGame(){ try{ localStorage.setItem(SAVE_KEY, JSON.stringify({
   money:player.money,fuel:player.fuel,fuelMax:player.fuelMax,bait:player.bait,hull:player.hull,
   upg:player.upg,hold:player.hold,cargo:player.cargo,region:world.region,day:world.day,time:world.time,
   earned:player.earned,caughtLegendary:player.caughtLegendary,regionDone:player.regionDone,discovered:player.discovered,eco:ECO,x:player.pos[0],
-  records:player.records,contractsDone:player.contractsDone,style:player.style,stars:player.stars,shipTier:player.shipTier,home:player.home,rep:player.rep,quests:player.quests,rp:player.rp,tech:player.tech,engineWear:player.engineWear,fouling:player.fouling,seenPorts:player.seenPorts,rig:player.rig,muted:Sound.muted
+  records:player.records,contractsDone:player.contractsDone,style:player.style,stars:player.stars,shipTier:player.shipTier,home:player.home,rep:player.rep,quests:player.quests,rp:player.rp,tech:player.tech,engineWear:player.engineWear,fouling:player.fouling,seenPorts:player.seenPorts,grounds:player.grounds,rig:player.rig,muted:Sound.muted
 })); }catch(e){} }
 function loadSave(){ try{ const s=localStorage.getItem(SAVE_KEY); return s?JSON.parse(s):null; }catch(e){ return null; } }
 function newGame(){
@@ -2785,7 +2850,7 @@ function newGame(){
   player.regionDone=[false,false,false,false]; player.earned=0; player.caughtLegendary=[false,false,false,false]; player.discovered={};
   player.records={}; player.contracts=[]; player.contractsDone=0; player.stars=0; player.shipTier=0; player.style={hull:[176,76,58],sail:[244,238,222],cabin:[164,68,54]};
   player.home={built:{},stock:{},accrued:0,lastDay:1}; player.rep={north:0,trop:0,med:0,verge:0}; player.quests={};
-  player.rp=0; player.tech={}; player.engineWear=0; player.fouling=0; player.seenPorts={}; player.rig={line:'standard',bait:'worm'};
+  player.rp=0; player.tech={}; player.engineWear=0; player.fouling=0; player.seenPorts={}; player.grounds={}; player.rig={line:'standard',bait:'worm'};
   world.day=1; world.time=0.30; world.timeScale=1; updateSeason(); initEconomy(); applyUpgrades(); enterRegion(0); if(typeof buildBoat==='function')buildBoat(); Game.set('sail'); saveGame();
 }
 function loadGame(s){
@@ -2793,7 +2858,7 @@ function loadGame(s){
     earned:s.earned||0,caughtLegendary:s.caughtLegendary||[false,false,false,false],regionDone:s.regionDone||[false,false,false,false],discovered:s.discovered||{},
     records:s.records||{},contractsDone:s.contractsDone||0,stars:s.stars||0,shipTier:s.shipTier||0,style:s.style||{hull:[176,76,58],sail:[244,238,222],cabin:[164,68,54]},
     home:s.home||{built:{},stock:{},accrued:0,lastDay:1},rep:s.rep||{north:0,trop:0,med:0,verge:0},quests:s.quests||{},
-    rp:s.rp||0,tech:s.tech||{},engineWear:s.engineWear||0,fouling:s.fouling||0,seenPorts:s.seenPorts||{},rig:s.rig||{line:'standard',bait:'worm'}});
+    rp:s.rp||0,tech:s.tech||{},engineWear:s.engineWear||0,fouling:s.fouling||0,seenPorts:s.seenPorts||{},grounds:s.grounds||{},rig:s.rig||{line:'standard',bait:'worm'}});
   if(!player.home.built)player.home.built={}; if(!player.home.stock)player.home.stock={};
   world.day=s.day||1; world.time=s.time||0.3; world.timeScale=1; updateSeason(); if(s.eco){ ECO.fish=s.eco.fish; ECO.goods=s.eco.goods; }
   if(s.muted&&Sound.ensure){ Sound.muted=true; }
@@ -2916,6 +2981,12 @@ function coastChartSVG(){
   g+=`<path d="M0 8 l18 0 l-6 46 l-12 0 z" fill="rgb(${hills[2]},${hills[1]},${hills[0]})" opacity=.85/><path d="M${W} 8 l-18 0 l6 46 l12 0 z" fill="rgb(${hills[2]},${hills[1]},${hills[0]})" opacity=.85/>`;
   // shoals (if any this region)
   if(typeof COAST!=='undefined'&&COAST.shoals) for(const s of COAST.shoals){ const sx=X(s.x); g+=`<path d="M${sx-8} 66 q8 -6 16 0 q-8 5 -16 0" fill="none" stroke="#e7d6b4" stroke-width=1.6 opacity=.7/><path d="M${sx-5} 72 q5 -4 10 0" fill="none" stroke="#e7d6b4" stroke-width=1.4 opacity=.5/>`; }
+  // fishing grounds — discovered ones are named; the rest hint as faint marks out on the water
+  if(typeof regionGrounds==='function') for(const gr of regionGrounds()){ const gx=X(gr.x), known=player.grounds&&player.grounds[gr.name];
+    const gy=84+ (gr.band[0]+gr.band[1])/2*22;   // deeper grounds sit lower on the chart water
+    g+=`<circle cx=${gx} cy=${gy} r=${known?4:2.6} fill="${known?'#7fd3a6':'#4a6a66'}" stroke="#1c2a2a" stroke-width=.8 opacity=${known?0.95:0.6}/>`;
+    if(known){ g+=`<path d="M${gx-5} ${gy+8} q5 -4 10 0 q-5 3 -10 0" fill="#7fd3a6" opacity=.7/>`;
+      g+=`<text x=${gx} y=${gy+22} text-anchor="middle" font-size=8.5 fill="#a8ddc4" font-family="ui-sans-serif">${gr.name}</text>`; } }
   // ports
   for(const p of R.ports){ const seen=p.kind==='home'||(player.seenPorts&&player.seenPorts[p.name]); const px=X(p.x);
     g+=`<line x1=${px} y1=54 x2=${px} y2=70 stroke="${seen?'#e6c07a':'#5c6a70'}" stroke-width=1.5/>`;
