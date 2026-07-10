@@ -382,7 +382,8 @@ body.cine #lbTop,body.cine #lbBot{height:11vh}
   <h2>FIELD MANUAL — CONTROLS</h2>
   <div class="ctrl-grid">
     <div class="k"><span>Move</span><b>W A S D</b></div><div class="k"><span>Sprint</span><b>SHIFT</b></div>
-    <div class="k"><span>Crouch / Sneak</span><b>C</b></div><div class="k"><span>Aim (shoulder)</span><b>RIGHT MOUSE</b></div>
+    <div class="k"><span>Jump</span><b>SPACE</b></div><div class="k"><span>Aim (shoulder)</span><b>RIGHT MOUSE</b></div>
+    <div class="k"><span>Crouch / Sneak</span><b>C</b></div><div class="k"><span>Detonate Mines</span><b>X</b></div>
     <div class="k"><span>Fire</span><b>LEFT MOUSE</b></div><div class="k"><span>Reload</span><b>R</b></div>
     <div class="k"><span>Interact / Takedown</span><b>E</b></div><div class="k"><span>Spy Watch</span><b>Q (HOLD)</b></div>
     <div class="k"><span>Weapons</span><b>1 – 4</b></div><div class="k"><span>Remote Mine</span><b>5 · X DETONATE</b></div>
@@ -1296,25 +1297,28 @@ function animHumanoid(P,anim){
   P.lShin.rot.x = Math.max(0,-Math.sin(ph))*s*0.9 + cr*1.1;
   P.rShin.rot.x = Math.max(0,Math.sin(ph))*s*0.9 + cr*0.8;
   const pit=anim.pitch||0;
+  /* The gun hangs off the right forearm, which points along its own -Y.
+     The weapon's barrel is +Z, so the mount must rotate ~+90° about X to
+     lay the barrel along the arm; the exact value per pose levels it. */
   if(aim>0.01){
     // weapon raised to the eye, off-hand supporting the fore-end
     P.rArm.rot.x = lerp(armed?-0.75:swing*0.5, -HPI*0.92-pit, aim); P.rArm.rot.y=lerp(-0.2,-0.1,aim); P.rArm.rot.z=0;
     P.rFore.rot.x = lerp(-0.7, -0.12, aim);
     P.lArm.rot.x  = lerp(armed?-0.5:-swing*0.5, -HPI*0.86-pit, aim); P.lArm.rot.y=lerp(0.45,0.5,aim); P.lArm.rot.z=0;
     P.lFore.rot.x = lerp(-0.85,-0.4,aim); P.lFore.rot.y=lerp(-0.5,-0.55,aim);
-    P.gunMount.rot.x = lerp(0.5,0.06,aim);
+    P.gunMount.rot.x = lerp(1.95, HPI, aim);   // barrel level with the eye-line
   }else if(armed){
     // two-handed low ready: stock at the shoulder, muzzle ~30° down
     P.rArm.rot.x=-0.72+swing*0.1; P.rArm.rot.y=-0.22; P.rArm.rot.z=-0.05;
     P.rFore.rot.x=-0.68;
     P.lArm.rot.x=-0.48-swing*0.1; P.lArm.rot.y=0.48; P.lArm.rot.z=0.05;
     P.lFore.rot.x=-0.88; P.lFore.rot.y=-0.5;
-    P.gunMount.rot.x=0.5;
+    P.gunMount.rot.x=1.95;                     // net ≈ 30° below horizontal
   }else{
     P.rArm.rot.x = swing*0.7; P.rArm.rot.y=0; P.rFore.rot.x=-0.2-s*0.3;
     P.lArm.rot.x = -swing*0.7; P.lArm.rot.y=0; P.lFore.rot.x=-0.2-s*0.3;
     P.lArm.rot.z=0.06; P.rArm.rot.z=-0.06;
-    P.gunMount.rot.x=0;
+    P.gunMount.rot.x=1.2;
   }
   P.head.rot.x=pit*0.35 - cr*0.25;
   if(anim.talk) P.head.rot.y=Math.sin(ph*0.7)*0.2;
@@ -1723,8 +1727,13 @@ function updatePlayer(dt){
   const foot=player.pos.y;
   player.pos.x+=player.vel.x*dt; player.pos.z+=player.vel.z*dt;
   collideXZ(player.pos,0.38,foot,foot+(player.crouch?1.2:1.75));
-  // gravity / stepping
+  // gravity / stepping / jumping
   const g=groundAt(player.pos.x,player.pos.z,foot);
+  const onGround = player.pos.y<=g+0.02;
+  if(Input.down('Space') && onGround && !player.crouch && player.jumpCd<=0){
+    player.vel.y=7.2; player.pos.y=g+0.04; player.jumpCd=0.35; Snd.step(true);
+  }
+  player.jumpCd=(player.jumpCd||0)-dt;
   if(player.pos.y>g+0.01){ player.vel.y-=22*dt; player.pos.y+=player.vel.y*dt; if(player.pos.y<g){player.pos.y=g; player.vel.y=0;} }
   else { player.pos.y=lerp(player.pos.y,g,Math.min(1,dt*14)); player.vel.y=0; }
   // footsteps & noise
@@ -1760,6 +1769,12 @@ function updatePlayer(dt){
   player.model.rot.y=player.yaw;
   animHumanoid(player.P,{phase:player.movePhase, speed:clamp(sp/6,0,1), aim:Math.max(player.aim,Input.mouse.l&&w?1:0),
     crouch:player.crouch?1:0, pitch:camera.pitch, dead:0, armed:!!w});
+  // visible recoil: the weapon kicks up and settles
+  player.recoil=lerp(player.recoil||0,0,Math.min(1,dt*9));
+  player.P.gunMount.rot.x -= player.recoil*1.6;
+  player.P.rArm.rot.x -= player.recoil*0.5;
+  // mid-air tuck
+  if(!onGround){ player.P.lThigh.rot.x=-0.5; player.P.rThigh.rot.x=-0.3; player.P.lShin.rot.x=0.9; player.P.rShin.rot.x=0.7; }
   // --- camera rig: close third person over right shoulder ---
   const aimF=player.aim;
   const dist=lerp(3.1,1.45,aimF)*(player.crouch?0.92:1);
@@ -1826,8 +1841,10 @@ function tryFire(w){
     }
   }
   updWeaponHud();
-  // spread the crosshair
+  // spread the crosshair + kick the gun and camera
   crossSpread=Math.min(26,crossSpread+7);
+  player.recoil=Math.min(0.5,(player.recoil||0)+(w.def.key==='sr9'?0.4:w.def.key==='pk7'?0.14:0.2));
+  camera.pitch=clamp(camera.pitch+(w.def.key==='sr9'?0.014:0.006),-1.25,1.25);
 }
 function switchWeapon(i){
   if(i>=player.weapons.length||i===player.wi) return;
