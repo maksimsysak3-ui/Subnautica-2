@@ -2754,7 +2754,7 @@ function completeObjective(id){
   toast('OBJECTIVE COMPLETE — '+o.text.toUpperCase());
   if(world.onObjective) world.onObjective(id);
 }
-function objectivesDone(){ return OBJ.filter(o=>!o.opt).every(o=>o.done); }
+function objectivesDone(except){ return OBJ.filter(o=>!o.opt&&o.id!==except).every(o=>o.done); }
 function objectiveDone(id){ const o=OBJ.find(o=>o.id===id); return o&&o.done; }
 
 /* ---- goal tracking: the marker always points at the next mandatory task ---- */
@@ -2848,7 +2848,7 @@ function missionFail(reason){
   setTimeout(()=>{ $('hud').classList.add('hidden'); $('dead').classList.remove('hidden'); },1200);
 }
 function missionComplete(){
-  if(G.state!=='playing') return;
+  if(G.state==='complete'||G.state==='dead') return;   // outros arrive here from the cutscene state
   G.state='complete';
   Snd.alarmOff(); Snd.engineOff();
   unlockPointer();
@@ -3327,7 +3327,8 @@ function buildM1(){
   world.solids.find(s=>s===fuel); fuel.meta.onBoom=true;
   world.fuelBoomCheck=()=>{ if(!objectiveDone('fuel') && fuel.dead) completeObjective('fuel'); };
   world.updaters.push(dt=>world.fuelBoomCheck());
-  addTrigger('exit',0,-100,7,{interact:true,label:'DIVE OFF THE DAM',enabled:()=>objectivesDone(),fn:()=>{
+  addTrigger('exit',0,-100,7,{interact:true,label:'DIVE OFF THE DAM',enabled:()=>objectivesDone('exit'),fn:()=>{
+    completeObjective('exit');
     playCutscene([
       {pos:[8,2.5,-96],look:[0,1.5,-104],dur:2.2,text:'One way down.',speaker:'NIGHTHAWK'},
       {pos:[0,4,-112],pos2:[0,-30,-118],look:[0,0,-104],look2:[0,-20,-104],dur:3.2,fov:70,
@@ -3439,7 +3440,8 @@ function buildM2(){
   world.spawnPts=[[0,-16],[24,26],[-22,6]];
   // ---- objectives ----
   world.onKeycard=()=>completeObjective('key');
-  addTrigger('exit',42.5,39,2.2,{interact:true,label:'BOARD SERVICE ELEVATOR',enabled:()=>objectivesDone(),fn:()=>{
+  addTrigger('exit',42.5,39,2.2,{interact:true,label:'BOARD SERVICE ELEVATOR',enabled:()=>objectivesDone('exit'),fn:()=>{
+    completeObjective('exit');
     playCutscene([
       {pos:[40,2,44],look:[42.5,1.5,37],dur:2.4,text:'Charges armed. Going up.',speaker:'NIGHTHAWK'},
       {pos:[30,3,50],look:[24,2,40],dur:2.8,sfx:()=>{ detonateMinesCine(); },
@@ -3889,7 +3891,8 @@ function buildM5(){
   addTrigger('map',-6,25.4,2.4,{interact:true,label:'PHOTOGRAPH THE OPERATIONS MAP',hold:2.2,fn:()=>{
     completeObjective('map');
   }});
-  addTrigger('exit',12.2,31.5,2.6,{interact:true,label:'SLIP OUT THE BACK',enabled:()=>objectivesDone(),fn:()=>{
+  addTrigger('exit',12.2,31.5,2.6,{interact:true,label:'SLIP OUT THE BACK',enabled:()=>objectivesDone('exit'),fn:()=>{
+    completeObjective('exit');
     playCutscene([
       {pos:[6,2,32],look:[-30,1.2,31.5],dur:2.4,text:'Borrowing a company van. The Directorate has terrible vehicle security.',speaker:'NIGHTHAWK'},
       {pos:[20,6,34],pos2:[34,10,30],look:[-30,1,31.5],dur:2.8,
@@ -4056,7 +4059,8 @@ function buildM7(){
     hmc.tint=[0.3,2,0.5];
     subtitle('VECTOR','Schedules copied. Volkov\'s praetorians rotate through a cliff prison called the Roost — noted.');
   }});
-  addTrigger('boat',3.4,-70,4,{interact:true,label:'CAST OFF',enabled:()=>objectivesDone(),fn:()=>{
+  addTrigger('boat',3.4,-70,4,{interact:true,label:'CAST OFF',enabled:()=>objectivesDone('boat'),fn:()=>{
+    completeObjective('boat');
     playCutscene([
       {pos:[-2,1.5,-64],look:[3.4,0,-72],dur:2.2,text:'Silos are wired. Give the word, Vector.',speaker:'NIGHTHAWK'},
       {pos:[-6,4,-58],pos2:[-10,8,-40],look:[-50,2,-10],dur:3,
@@ -4237,7 +4241,8 @@ function buildM9(){
   // Kestrel opens the way in; freight lift out
   K.deco(34.5,0,34,4,3.4,0.5,[0.4,0.42,0.5]);
   const lift=makeDoor(34.5,32,0,3,3.2,{locked:true});
-  addTrigger('lift',34.5,33.6,2.6,{interact:true,label:'TAKE THE FREIGHT LIFT',enabled:()=>objectivesDone(),fn:()=>{
+  addTrigger('lift',34.5,33.6,2.6,{interact:true,label:'TAKE THE FREIGHT LIFT',enabled:()=>objectivesDone('lift'),fn:()=>{
+    completeObjective('lift');
     playCutscene([
       {pos:[28,2.4,28],look:[34.5,1.6,32],dur:2.4,text:'Cores are slag. The array is flying blind now.',speaker:'NIGHTHAWK'},
       {pos:[10,3,10],pos2:[-4,2.4,-6],look:[0,2,30],dur:3,
