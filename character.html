@@ -115,7 +115,7 @@ controls.target.set(0, 1.45, 0);
 
 /* IBL from procedural room — gives soft, even, realistic base light (fixes darkness) */
 const pmrem = new THREE.PMREMGenerator(renderer);
-scene.environment = pmrem.fromScene(new RoomEnvironment(renderer), 0.05).texture;
+scene.environment = pmrem.fromScene(new RoomEnvironment(renderer)).texture;
 
 /* ============================================================ LIGHTS (brighter, still cinematic) */
 scene.add(new THREE.HemisphereLight(0xcfd8ff, 0x241d15, 0.55));
@@ -179,6 +179,13 @@ const shoeMat = new THREE.MeshPhysicalMaterial({ color: 0x0a0a0a, roughness: 0.2
 const character = new THREE.Group();
 scene.add(character);
 const FEET_Y = 0.0;
+
+/* keep only position + normal so mismatched geometries can be merged */
+function pn(geo) {
+  for (const k of Object.keys(geo.attributes)) if (k !== 'position' && k !== 'normal') geo.deleteAttribute(k);
+  if (!geo.attributes.normal) geo.computeVertexNormals();
+  return geo;
+}
 
 /* ---- variable-radius tube (single continuous limb surface) ---- */
 function radiusAt(radii, t) {
@@ -275,7 +282,7 @@ const legR = varTube(
   [0.175, 0.16, 0.125, 0.11, 0.10], 20, 44, 1.0
 );
 
-const suitGeo = mergeGeometries([torsoGeo, shoulderL, shoulderR, armL, armR, legL, legR], false);
+const suitGeo = mergeGeometries([torsoGeo, shoulderL, shoulderR, armL, armR, legL, legR].map(pn), false);
 const suit = new THREE.Mesh(suitGeo, suitMat);
 suit.castShadow = true; suit.receiveShadow = true;
 character.add(suit);
@@ -337,7 +344,7 @@ function buildHand(mirror) {
     [[mirror * 0.06, 0.0, 0.02], [mirror * 0.09, -0.01, 0.07], [mirror * 0.09, -0.02, 0.12]],
     [0.024, 0.021, 0.017], 8, 8);
   parts.push(thumb);
-  return mergeGeometries(parts, false);
+  return mergeGeometries(parts.map(pn), false);
 }
 const handL = new THREE.Mesh(buildHand(-1), skinMat);
 handL.position.set(-0.06, 1.0, 0.32); handL.rotation.set(-0.55, 0.25, 0.15); handL.castShadow = true;
