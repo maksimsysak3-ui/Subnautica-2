@@ -43,6 +43,13 @@
     font-size: 12px; letter-spacing: .22em; text-transform: uppercase; transition: opacity .6s ease; }
   .bar { width: 200px; height: 2px; background: rgba(255,255,255,.08); border-radius: 2px; overflow: hidden; }
   .bar > i { display: block; height: 100%; width: 0%; background: #d6c496; transition: width .3s; }
+
+  .drop { position: fixed; inset: 0; z-index: 40; display: none; align-items: center; justify-content: center;
+    background: rgba(8,8,10,.82); backdrop-filter: blur(3px); text-align: center; }
+  .drop.on { display: flex; }
+  .drop > div { border: 2px dashed rgba(214,196,150,.6); border-radius: 18px; padding: 46px 70px;
+    color: #f3e9d1; font-size: 16px; letter-spacing: .12em; text-transform: uppercase; }
+  .drop span { display: inline-block; margin-top: 10px; font-size: 11px; letter-spacing: .2em; color: #8a8479; }
 </style>
 
 <div id="app"></div>
@@ -73,12 +80,14 @@
   <div class="btns" id="animBtns"><span class="tip">—</span></div>
 
   <h2>Your character</h2>
-  <input id="charurl" type="text" placeholder="https://models.readyplayer.me/xxxx.glb" spellcheck="false">
-  <div class="btns"><button class="btn" id="loadchar">Load .glb</button></div>
-  <div class="tip">Make an accurate one from your photo at
-    <a href="https://readyplayer.me/avatar" target="_blank">readyplayer.me</a>,
-    copy the <b>.glb</b> link, paste it above → Load. It comes rigged &amp; ready to animate.</div>
+  <div class="btns"><button class="btn" id="uploadbtn">⬆ Upload file</button></div>
+  <input id="fileinput" type="file" accept=".glb,.gltf,.fbx,.vrm" style="display:none">
+  <div class="tip">Drop a <b>.glb / .gltf / .fbx / .vrm</b> anywhere on the page, or click Upload. It loads with its rig &amp; animations.</div>
+  <input id="charurl" type="text" placeholder="…or paste a .glb URL" spellcheck="false">
+  <div class="btns"><button class="btn" id="loadchar">Load URL</button></div>
 </div>
+
+<div class="drop" id="drop"><div>Drop character file to load<br><span>.glb · .gltf · .fbx · .vrm</span></div></div>
 
 <div class="loading" id="loading">
   <div id="loadmsg">Loading character…</div>
@@ -98,6 +107,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
@@ -172,6 +182,7 @@ floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; scene.add(floor);
 /* ============================================================ CHARACTER LOADER */
 const charGroup = new THREE.Group(); scene.add(charGroup);
 const loader = new GLTFLoader();
+const fbxLoader = new FBXLoader();
 let mixer = null, actions = {}, current = null, ready = false;
 
 /* Guaranteed, detailed, rigged + animated human (Idle/Walk/Run baked in).
@@ -234,29 +245,37 @@ function playAction(name, btn) {
   current = next;
 }
 
-function loadCharacter(url, isFallback = false) {
-  ready = false; setProg(0.05);
-  loadmsg.textContent = isFallback ? 'Loading character…' : 'Loading your character…';
-  document.getElementById('loading').style.opacity = 1;
-  document.getElementById('loading').style.display = 'flex';
+function showLoading(msg) {
+  ready = false; setProg(0.05); loadmsg.textContent = msg;
+  const l = document.getElementById('loading');
+  l.style.opacity = 1; l.style.display = 'flex';
+}
+function onProg(e) { if (e.total) setProg(0.1 + 0.85 * (e.loaded / e.total)); }
 
+/* normalise any loaded object hierarchy + its clips onto the stage */
+function applyModel(root, clips) {
+  clearChar();
+  root.traverse(o => {
+    if (o.isMesh || o.isSkinnedMesh) {
+      o.castShadow = true; o.receiveShadow = true; o.frustumCulled = false;
+      const mats = Array.isArray(o.material) ? o.material : [o.material];
+      mats.forEach(m => { if (m) { m.envMapIntensity = 1.0; m.needsUpdate = true; } });
+    }
+  });
+  fitToStage(root);
+  charGroup.add(root);
+  buildAnimUI(clips, root);
+  finish();
+}
+
+function finish() { ready = true; setProg(1); hideLoader(); }
+
+/* --- load from a remote URL (GLB/GLTF/VRM) --- */
+function loadCharacter(url, isFallback = false) {
+  showLoading(isFallback ? 'Loading character…' : 'Loading your character…');
   loader.load(url,
-    (gltf) => {
-      clearChar();
-      const root = gltf.scene;
-      root.traverse(o => {
-        if (o.isMesh || o.isSkinnedMesh) {
-          o.castShadow = true; o.receiveShadow = true;
-          o.frustumCulled = false;
-          if (o.material) { o.material.envMapIntensity = 1.0; o.material.needsUpdate = true; }
-        }
-      });
-      fitToStage(root);
-      charGroup.add(root);
-      buildAnimUI(gltf.animations, root);
-      finish();
-    },
-    (e) => { if (e.total) setProg(0.1 + 0.85 * (e.loaded / e.total)); },
+    (gltf) => applyModel(gltf.scene, gltf.animations),
+    onProg,
     (err) => {
       console.warn('Load failed for', url, err);
       if (!isFallback) { loadmsg.textContent = 'That URL failed — loading default…'; loadCharacter(FALLBACK_URL, true); }
@@ -265,7 +284,25 @@ function loadCharacter(url, isFallback = false) {
   );
 }
 
-function finish() { ready = true; setProg(1); hideLoader(); }
+/* --- load from a local file the user picked / dropped --- */
+function loadFromFile(file) {
+  if (!file) return;
+  const ext = (file.name.split('.').pop() || '').toLowerCase();
+  const url = URL.createObjectURL(file);
+  const cleanup = () => URL.revokeObjectURL(url);
+  const ok = (root, clips) => { cleanup(); applyModel(root, clips); };
+  const bad = (err) => { cleanup(); console.warn(err); loadmsg.textContent = 'Could not load ' + file.name; setTimeout(hideLoader, 1200); };
+  showLoading('Loading ' + file.name + '…');
+
+  if (ext === 'glb' || ext === 'gltf' || ext === 'vrm') {
+    loader.load(url, (g) => ok(g.scene, g.animations), onProg, bad);
+  } else if (ext === 'fbx') {
+    fbxLoader.load(url, (o) => ok(o, o.animations || []), onProg, bad);
+  } else {
+    loadmsg.textContent = 'Unsupported: use .glb, .gltf, .fbx or .vrm';
+    cleanup(); setTimeout(hideLoader, 1600);
+  }
+}
 
 loadCharacter(FALLBACK_URL, true);
 
@@ -289,6 +326,23 @@ document.getElementById('loadchar').onclick = () => {
 };
 document.getElementById('charurl').addEventListener('keydown', e => {
   if (e.key === 'Enter') document.getElementById('loadchar').click();
+});
+
+/* file upload */
+const fileInput = document.getElementById('fileinput');
+document.getElementById('uploadbtn').onclick = () => fileInput.click();
+fileInput.onchange = e => { if (e.target.files[0]) loadFromFile(e.target.files[0]); fileInput.value = ''; };
+
+/* drag & drop anywhere on the page */
+const drop = document.getElementById('drop');
+let dragDepth = 0;
+addEventListener('dragenter', e => { e.preventDefault(); dragDepth++; drop.classList.add('on'); });
+addEventListener('dragover', e => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; });
+addEventListener('dragleave', e => { e.preventDefault(); if (--dragDepth <= 0) { dragDepth = 0; drop.classList.remove('on'); } });
+addEventListener('drop', e => {
+  e.preventDefault(); dragDepth = 0; drop.classList.remove('on');
+  const f = e.dataTransfer.files && e.dataTransfer.files[0];
+  if (f) loadFromFile(f);
 });
 
 const views = {
