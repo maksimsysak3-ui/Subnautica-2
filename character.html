@@ -427,12 +427,14 @@ function groundFeet() {
     if (_gv.y < minY) minY = _gv.y;
   }
   if (isFinite(minY)) rig.position.y -= minY * 0.5;                 // smooth toward planted
-  rig.position.y = Math.max(-0.4, Math.min(0.6, rig.position.y));   // safety clamp
+  rig.position.y = Math.max(-3.0, Math.min(1.5, rig.position.y));   // safety clamp (wide)
 }
 
 function updateCamera(dt) {
   if (!followCam) { controls.update(); return; }
-  const tgt = new THREE.Vector3(rig.position.x, rig.position.y + 1.0, rig.position.z);
+  // feet are planted at world y=0, so aim at a FIXED world height (chest),
+  // never rig.position.y (that's the internal grounding offset)
+  const tgt = new THREE.Vector3(rig.position.x, 1.0, rig.position.z);
   const delta = tgt.clone().sub(controls.target);
   camera.position.add(delta);
   controls.target.copy(tgt);
