@@ -222,7 +222,7 @@ function fitToStage(root) {
 function buildAnimUI(clips, root) {
   const host = document.getElementById('animBtns');
   host.innerHTML = '';
-  if (!clips || !clips.length) { host.innerHTML = '<span class="tip">Static mesh — rig in Mixamo, then Upload the rigged file to get clips here.</span>'; return; }
+  if (!clips || !clips.length) { host.innerHTML = '<span class="tip">Rigged mesh loaded (no built-in clips).</span>'; return; }
   mixer = new THREE.AnimationMixer(root);
   clips.forEach((clip, i) => {
     const a = mixer.clipAction(clip);
@@ -277,7 +277,7 @@ function finish() { ready = true; setProg(1); hideLoader(); }
 function loadCharacter(url, isFallback = false) {
   showLoading(isFallback ? 'Loading character…' : 'Loading your character…');
   loader.load(url,
-    (gltf) => applyModel(gltf.scene, gltf.animations),
+    (gltf) => applySmart(gltf.scene, gltf.animations),
     onProg,
     (err) => {
       console.warn('Load failed for', url, err);
@@ -293,7 +293,7 @@ function loadFromFile(file) {
   const ext = (file.name.split('.').pop() || '').toLowerCase();
   const url = URL.createObjectURL(file);
   const cleanup = () => URL.revokeObjectURL(url);
-  const ok = (root, clips) => { cleanup(); applyModel(root, clips); };
+  const ok = (root, clips) => { cleanup(); applySmart(root, clips); };
   const bad = (err) => { cleanup(); console.warn(err); loadmsg.textContent = 'Could not load ' + file.name; setTimeout(hideLoader, 1200); };
   showLoading('Loading ' + file.name + '…');
 
@@ -468,36 +468,35 @@ function makeClips() {
   return clips;
 }
 
-/* --- load the default model and auto-rig it --- */
-function loadDefaultRigged() {
-  showLoading('Loading & auto-rigging character…');
-  loader.load(DEFAULT_URL,
-    (gltf) => {
-      try {
-        const rigged = autoRig(gltf.scene);
-        clearChar();
-        rigged.traverse(o => {
-          if (o.isMesh || o.isSkinnedMesh) {
-            o.castShadow = true; o.receiveShadow = true; o.frustumCulled = false;
-            const ms = Array.isArray(o.material) ? o.material : [o.material];
-            ms.forEach(m => { if (m) { m.envMapIntensity = 1.0; m.needsUpdate = true; } });
-          }
-        });
-        fitToStage(rigged);
-        charGroup.add(rigged);
-        buildAnimUI(rigged.userData.clips, rigged.userData.skinnedMesh);
-        finish();
-      } catch (err) {
-        console.warn('Auto-rig failed, showing static mesh:', err);
-        applyModel(gltf.scene, gltf.animations);
+/* --- apply a loaded model: use its own clips if any, else AUTO-RIG the
+   static mesh so it always ends up animatable (this is what fixes uploads
+   that have no animations, e.g. Meshy exports) --- */
+function applySmart(root, clips) {
+  let hasSkin = false;
+  root.traverse(o => { if (o.isSkinnedMesh && o.skeleton && o.skeleton.bones.length) hasSkin = true; });
+  if ((clips && clips.length) || hasSkin) { applyModel(root, clips); return; }
+  try {
+    loadmsg.textContent = 'Auto-rigging…';
+    const rigged = autoRig(root);
+    clearChar();
+    rigged.traverse(o => {
+      if (o.isMesh || o.isSkinnedMesh) {
+        o.castShadow = true; o.receiveShadow = true; o.frustumCulled = false;
+        const ms = Array.isArray(o.material) ? o.material : [o.material];
+        ms.forEach(m => { if (m) { m.envMapIntensity = 1.0; m.needsUpdate = true; } });
       }
-    },
-    onProg,
-    (err) => { console.warn('Default load failed:', err); loadCharacter(FALLBACK_URL, true); }
-  );
+    });
+    fitToStage(rigged);
+    charGroup.add(rigged);
+    buildAnimUI(rigged.userData.clips, rigged.userData.skinnedMesh);
+    finish();
+  } catch (err) {
+    console.warn('Auto-rig failed, showing static mesh:', err);
+    applyModel(root, clips);
+  }
 }
 
-loadDefaultRigged();
+loadCharacter(DEFAULT_URL, false);
 
 /* ============================================================ POST */
 const composer = new EffectComposer(renderer);
