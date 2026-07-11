@@ -164,7 +164,7 @@ function loadGLB(name) {
 
 /* ============ CHARACTER / ANIMATION STATE ============ */
 const rig = new THREE.Group(); scene.add(rig);   // character root we move around
-let mixer = null, actions = {}, skinned = null, rightHand = null, faceOffset = 0, footBones = [];
+let mixer = null, actions = {}, skinned = null, rightHand = null, faceOffset = 0, groundSamples = [];
 let locoTarget = 'Idle', actionMode = null, dead = false;
 const FRIENDLY = [
   [/casual_walk|(^|\|)walk/i, 'Walk'],
@@ -234,8 +234,10 @@ function setupCharacter(base, animGltfs, gunGltf) {
   fitToStage(root);
   rig.add(root);
   rightHand = root.getObjectByName('RightHand');
-  footBones = ['LeftToeBase', 'RightToeBase', 'LeftFoot', 'RightFoot']
-    .map(n => root.getObjectByName(n)).filter(Boolean);
+  if (skinned) {   // fixed set of vertex indices to sample for foot-planting
+    const n = skinned.geometry.attributes.position.count, step = Math.max(1, Math.floor(n / 240));
+    for (let i = 0; i < n; i += step) groundSamples.push(i);
+  }
 
   mixer = new THREE.AnimationMixer(root);
   const clips = [...base.animations];
@@ -408,14 +410,24 @@ function updateMovement(dt) {
     a.setEffectiveWeight(THREE.MathUtils.lerp(a.getEffectiveWeight(), tgt, Math.min(1, dt * 12))); });
 }
 
-/* keep the lowest foot on the floor (fixes the character sinking/floating,
-   since the baked clips carry their own root height) */
-const _fp = new THREE.Vector3();
+/* plant the character on the floor by sampling the ACTUAL posed mesh
+   vertices (the skeleton is in a different space than the mesh on this
+   rig, so bone positions can't be used). Lowest sampled vertex → y≈0. */
+const _gv = new THREE.Vector3();
 function groundFeet() {
-  if (dead || !footBones.length) return;
+  if (dead || !skinned || !groundSamples.length) return;
+  rig.updateMatrixWorld(true);   // refresh bones (they live under the rig, not the mesh)
+  const pos = skinned.geometry.attributes.position;
+  const xform = skinned.applyBoneTransform ? 'applyBoneTransform' : (skinned.boneTransform ? 'boneTransform' : null);
   let minY = Infinity;
-  for (const b of footBones) { b.getWorldPosition(_fp); if (_fp.y < minY) minY = _fp.y; }
-  if (isFinite(minY)) rig.position.y -= minY - 0.02;   // lowest foot → ~floor
+  for (const i of groundSamples) {
+    _gv.fromBufferAttribute(pos, i);
+    if (xform) skinned[xform](i, _gv);
+    _gv.applyMatrix4(skinned.matrixWorld);
+    if (_gv.y < minY) minY = _gv.y;
+  }
+  if (isFinite(minY)) rig.position.y -= minY * 0.5;                 // smooth toward planted
+  rig.position.y = Math.max(-0.4, Math.min(0.6, rig.position.y));   // safety clamp
 }
 
 function updateCamera(dt) {
