@@ -56,7 +56,7 @@
 
 <div class="hud title">
   <h1>Midnight Executive</h1>
-  <p>Full body · 252k tris · Cinematic stage</p>
+  <p>Auto-rigged · 252k tris · Cinematic stage</p>
 </div>
 <div class="hud hint"><b>Drag</b> orbit &nbsp;·&nbsp; <b>Scroll</b> zoom &nbsp;·&nbsp; <b>Right-drag</b> pan</div>
 
@@ -307,7 +307,197 @@ function loadFromFile(file) {
   }
 }
 
-loadCharacter(DEFAULT_URL, false);
+/* ============================================================ AUTO-RIG
+   Build a humanoid skeleton fitted to the mesh, compute per-vertex skin
+   weights by distance-to-bone, bind a real SkinnedMesh, and generate
+   Idle / Wave / Walk clips in code. Approximate (not surface-aware), but
+   it turns the static scan into an animatable skinned character. */
+function distToSeg(px, py, pz, a, b) {
+  const abx = b.x - a.x, aby = b.y - a.y, abz = b.z - a.z;
+  const apx = px - a.x, apy = py - a.y, apz = pz - a.z;
+  let t = (apx * abx + apy * aby + apz * abz) / (abx * abx + aby * aby + abz * abz + 1e-9);
+  t = t < 0 ? 0 : t > 1 ? 1 : t;
+  const dx = px - (a.x + abx * t), dy = py - (a.y + aby * t), dz = pz - (a.z + abz * t);
+  return Math.sqrt(dx * dx + dy * dy + dz * dz);
+}
+
+function autoRig(sceneRoot) {
+  sceneRoot.updateWorldMatrix(true, true);
+  let src = null;
+  sceneRoot.traverse(o => { if (!src && o.isMesh && o.geometry) src = o; });
+  if (!src) throw new Error('no mesh to rig');
+
+  const geo = src.geometry.clone();
+  geo.applyMatrix4(src.matrixWorld);           // bake into world space (~ -1..1, y-up)
+  const pos = geo.attributes.position;
+  const N = pos.count;
+  geo.computeBoundingBox();
+  const bb = geo.boundingBox;
+  const H = bb.max.y - bb.min.y, y0 = bb.min.y; // ground = y0
+  const Y = f => y0 + f * H;                     // fraction of height → world y
+
+  // bones: [name, x, yFrac, z, parent]  (proportions of a standing figure)
+  const halfSh = (bb.max.x - bb.min.x) * 0.24;
+  const B = [
+    ['hips',       0,       0.50, 0,     null],
+    ['spine',      0,       0.58, 0,     'hips'],
+    ['chest',      0,       0.68, 0,     'spine'],
+    ['neck',       0,       0.80, 0,     'chest'],
+    ['head',       0,       0.86, 0,     'neck'],
+    ['upperArmL', -halfSh,  0.76, 0,     'chest'],
+    ['lowerArmL', -halfSh * 1.5, 0.60, 0, 'upperArmL'],
+    ['handL',     -halfSh * 1.6, 0.45, 0, 'lowerArmL'],
+    ['upperArmR',  halfSh,  0.76, 0,     'chest'],
+    ['lowerArmR',  halfSh * 1.5, 0.60, 0, 'upperArmR'],
+    ['handR',      halfSh * 1.6, 0.45, 0, 'lowerArmR'],
+    ['upperLegL', -halfSh * 0.55, 0.48, 0, 'hips'],
+    ['lowerLegL', -halfSh * 0.6,  0.26, 0, 'upperLegL'],
+    ['footL',     -halfSh * 0.6,  0.03, 0.03, 'lowerLegL'],
+    ['upperLegR',  halfSh * 0.55, 0.48, 0, 'hips'],
+    ['lowerLegR',  halfSh * 0.6,  0.26, 0, 'upperLegR'],
+    ['footR',      halfSh * 0.6,  0.03, 0.03, 'lowerLegR'],
+  ];
+  const idx = {}; B.forEach((b, i) => idx[b[0]] = i);
+  const world = B.map(b => new THREE.Vector3(b[1], Y(b[2]), b[3]));
+  const bones = B.map((b, i) => { const bone = new THREE.Bone(); bone.name = b[0]; return bone; });
+  B.forEach((b, i) => {
+    const p = b[4];
+    if (p == null) bones[i].position.copy(world[i]);
+    else { bones[i].position.copy(world[i].clone().sub(world[idx[p]])); bones[idx[p]].add(bones[i]); }
+  });
+
+  // influence segments: [boneIndex, A, B] in world space
+  const V = (x, y, z) => new THREE.Vector3(x, y, z);
+  const seg = (name, ax, ay, az, bx, by, bz) => [idx[name], V(ax, ay, az), V(bx, by, bz)];
+  const S = [
+    seg('hips', -halfSh * 0.6, Y(0.46), 0, halfSh * 0.6, Y(0.54), 0),
+    seg('spine', 0, Y(0.54), 0, 0, Y(0.64), 0),
+    seg('chest', 0, Y(0.64), 0, 0, Y(0.78), 0),
+    seg('neck', 0, Y(0.78), 0, 0, Y(0.82), 0),
+    seg('head', 0, Y(0.83), 0, 0, Y(0.98), 0),
+    seg('upperArmL', -halfSh, Y(0.77), 0, -halfSh * 1.5, Y(0.60), 0),
+    seg('lowerArmL', -halfSh * 1.5, Y(0.60), 0, -halfSh * 1.6, Y(0.45), 0),
+    seg('handL', -halfSh * 1.6, Y(0.45), 0, -halfSh * 1.65, Y(0.38), 0),
+    seg('upperArmR', halfSh, Y(0.77), 0, halfSh * 1.5, Y(0.60), 0),
+    seg('lowerArmR', halfSh * 1.5, Y(0.60), 0, halfSh * 1.6, Y(0.45), 0),
+    seg('handR', halfSh * 1.6, Y(0.45), 0, halfSh * 1.65, Y(0.38), 0),
+    seg('upperLegL', -halfSh * 0.55, Y(0.48), 0, -halfSh * 0.6, Y(0.26), 0),
+    seg('lowerLegL', -halfSh * 0.6, Y(0.26), 0, -halfSh * 0.6, Y(0.04), 0),
+    seg('footL', -halfSh * 0.6, Y(0.02), -0.02, -halfSh * 0.6, Y(0.0), 0.14),
+    seg('upperLegR', halfSh * 0.55, Y(0.48), 0, halfSh * 0.6, Y(0.26), 0),
+    seg('lowerLegR', halfSh * 0.6, Y(0.26), 0, halfSh * 0.6, Y(0.04), 0),
+    seg('footR', halfSh * 0.6, Y(0.02), -0.02, halfSh * 0.6, Y(0.0), 0.14),
+  ];
+
+  // arm bones only claim the outer shell — keeps the torso core + the
+  // clasped forearms/hands bound to spine/chest/hips instead of tearing.
+  const armIdx = new Set([idx.upperArmL, idx.lowerArmL, idx.handL, idx.upperArmR, idx.lowerArmR, idx.handR]);
+  const armThresh = halfSh * 1.02;
+
+  const si = new Uint16Array(N * 4), sw = new Float32Array(N * 4);
+  const nS = S.length, w = new Float64Array(nS);
+  for (let i = 0; i < N; i++) {
+    const px = pos.getX(i), py = pos.getY(i), pz = pos.getZ(i);
+    const ax = px < 0 ? -px : px;
+    for (let s = 0; s < nS; s++) {
+      if (armIdx.has(S[s][0]) && ax < armThresh) { w[s] = 0; continue; }
+      const d = distToSeg(px, py, pz, S[s][1], S[s][2]);
+      w[s] = 1 / (d * d * d + 1e-5);           // inverse-cube → tight binding, low bleed
+    }
+    // pick top 4
+    let b0 = 0, b1 = 0, b2 = 0, b3 = 0, v0 = -1, v1 = -1, v2 = -1, v3 = -1;
+    for (let s = 0; s < nS; s++) {
+      const x = w[s];
+      if (x > v0) { v3 = v2; b3 = b2; v2 = v1; b2 = b1; v1 = v0; b1 = b0; v0 = x; b0 = s; }
+      else if (x > v1) { v3 = v2; b3 = b2; v2 = v1; b2 = b1; v1 = x; b1 = s; }
+      else if (x > v2) { v3 = v2; b3 = b2; v2 = x; b2 = s; }
+      else if (x > v3) { v3 = x; b3 = s; }
+    }
+    let sum = v0 + v1 + v2 + v3; if (sum <= 0) { v0 = sum = 1; }
+    si[i * 4] = S[b0][0]; si[i * 4 + 1] = S[b1][0]; si[i * 4 + 2] = S[b2][0]; si[i * 4 + 3] = S[b3][0];
+    sw[i * 4] = v0 / sum; sw[i * 4 + 1] = v1 / sum; sw[i * 4 + 2] = v2 / sum; sw[i * 4 + 3] = v3 / sum;
+  }
+  geo.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(si, 4));
+  geo.setAttribute('skinWeight', new THREE.Float32BufferAttribute(sw, 4));
+
+  const skinned = new THREE.SkinnedMesh(geo, src.material);
+  skinned.name = 'executiveBody';
+  skinned.add(bones[0]);
+  skinned.updateMatrixWorld(true);
+  skinned.bind(new THREE.Skeleton(bones));
+  skinned.normalizeSkinWeights();
+
+  const container = new THREE.Group();
+  container.add(skinned);
+  container.userData = { skinnedMesh: skinned, clips: makeClips(bones, idx) };
+  return container;
+}
+
+/* --- generate animation clips (bone rotations) --- */
+function rotTrack(boneName, times, eulers) {
+  const q = new THREE.Quaternion(), e = new THREE.Euler(), vals = [];
+  eulers.forEach(a => { e.set(a[0], a[1], a[2]); q.setFromEuler(e); vals.push(q.x, q.y, q.z, q.w); });
+  return new THREE.QuaternionKeyframeTrack(boneName + '.quaternion', times, vals);
+}
+function makeClips() {
+  const clips = [];
+  // Idle — breathing + faint sway. Small motions on well-bound bones only.
+  clips.push(new THREE.AnimationClip('Idle', 4, [
+    rotTrack('spine', [0, 2, 4], [[0, 0, 0], [0.03, 0, 0], [0, 0, 0]]),
+    rotTrack('chest', [0, 2, 4], [[0, 0, 0], [0.025, 0.015, 0], [0, 0, 0]]),
+    rotTrack('neck', [0, 2, 4], [[0, 0, 0], [-0.02, 0, 0], [0, 0, 0]]),
+    rotTrack('head', [0, 1.3, 2.7, 4], [[0, 0.03, 0], [0.015, -0.02, 0], [0, -0.04, 0], [0, 0.03, 0]]),
+    rotTrack('upperArmL', [0, 2, 4], [[0, 0, 0.02], [0.015, 0, 0.03], [0, 0, 0.02]]),
+    rotTrack('upperArmR', [0, 2, 4], [[0, 0, -0.02], [0.015, 0, -0.03], [0, 0, -0.02]]),
+  ]));
+  // Look Around — head/neck/chest turn (well-bound, reads clearly)
+  clips.push(new THREE.AnimationClip('Look Around', 6, [
+    rotTrack('head', [0, 1.5, 3, 4.5, 6], [[0, 0, 0], [0.05, 0.5, 0], [0, 0, 0], [-0.05, -0.5, 0], [0, 0, 0]]),
+    rotTrack('neck', [0, 1.5, 3, 4.5, 6], [[0, 0, 0], [0, 0.25, 0], [0, 0, 0], [0, -0.25, 0], [0, 0, 0]]),
+    rotTrack('chest', [0, 1.5, 3, 4.5, 6], [[0, 0, 0], [0, 0.12, 0], [0, 0, 0], [0, -0.12, 0], [0, 0, 0]]),
+  ]));
+  // Weight Shift — hips/spine sway + subtle knee bend (core + legs, well-bound)
+  clips.push(new THREE.AnimationClip('Weight Shift', 5, [
+    rotTrack('hips', [0, 2.5, 5], [[0, 0, 0.05], [0, 0, -0.05], [0, 0, 0.05]]),
+    rotTrack('spine', [0, 2.5, 5], [[0, 0, -0.04], [0, 0, 0.04], [0, 0, -0.04]]),
+    rotTrack('chest', [0, 2.5, 5], [[0, 0, -0.03], [0, 0, 0.03], [0, 0, -0.03]]),
+    rotTrack('head', [0, 2.5, 5], [[0, 0, 0.02], [0, 0, -0.02], [0, 0, 0.02]]),
+    rotTrack('lowerLegL', [0, 2.5, 5], [[0, 0, 0], [0.12, 0, 0], [0, 0, 0]]),
+    rotTrack('lowerLegR', [0, 2.5, 5], [[0.12, 0, 0], [0, 0, 0], [0.12, 0, 0]]),
+  ]));
+  return clips;
+}
+
+/* --- load the default model and auto-rig it --- */
+function loadDefaultRigged() {
+  showLoading('Loading & auto-rigging character…');
+  loader.load(DEFAULT_URL,
+    (gltf) => {
+      try {
+        const rigged = autoRig(gltf.scene);
+        clearChar();
+        rigged.traverse(o => {
+          if (o.isMesh || o.isSkinnedMesh) {
+            o.castShadow = true; o.receiveShadow = true; o.frustumCulled = false;
+            const ms = Array.isArray(o.material) ? o.material : [o.material];
+            ms.forEach(m => { if (m) { m.envMapIntensity = 1.0; m.needsUpdate = true; } });
+          }
+        });
+        fitToStage(rigged);
+        charGroup.add(rigged);
+        buildAnimUI(rigged.userData.clips, rigged.userData.skinnedMesh);
+        finish();
+      } catch (err) {
+        console.warn('Auto-rig failed, showing static mesh:', err);
+        applyModel(gltf.scene, gltf.animations);
+      }
+    },
+    onProg,
+    (err) => { console.warn('Default load failed:', err); loadCharacter(FALLBACK_URL, true); }
+  );
+}
+
+loadDefaultRigged();
 
 /* ============================================================ POST */
 const composer = new EffectComposer(renderer);
