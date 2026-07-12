@@ -117,6 +117,7 @@ function loadGLB(name) { return new Promise((res, rej) => { gltf.load(CDN + name
 const rig = new THREE.Group(); scene.add(rig);
 let mixer = null, actions = {}, skinned = null, rightHand = null, faceOffset = 0, groundSamples = [], helper = null;
 let locoTarget = 'Idle', oneShot = null, oneShotEnd = 0, slideUntil = 0;
+faceOffset = Math.PI;   // mesh faces -z; offset so its front leads movement
 
 /* ---- custom skeleton (identity-oriented, fitted to the A-pose bind) ---- */
 const HIPS_Y = 0.90;
@@ -187,74 +188,75 @@ const _q = new THREE.Quaternion(), _e = new THREE.Euler();
 function rotTrack(name, times, eulers) { const vals = []; eulers.forEach(a => { _e.set(a[0], a[1], a[2]); _q.setFromEuler(_e); vals.push(_q.x, _q.y, _q.z, _q.w); }); return new THREE.QuaternionKeyframeTrack(name + '.quaternion', times, vals); }
 function posTrack(name, times, vecs) { const vals = []; vecs.forEach(v => vals.push(v[0], v[1], v[2])); return new THREE.VectorKeyframeTrack(name + '.position', times, vals); }
 // right hand keeps a grip on the gun in every non-punch clip
-function gripR(dur) {
+function gripR(dur) {   // right hand curls around the gun
   return [
-    rotTrack('RFingers', [0, dur], [[0, 0, -1.0], [0, 0, -1.0]]),
-    rotTrack('RFingerTip', [0, dur], [[0, 0, -0.9], [0, 0, -0.9]]),
-    rotTrack('RThumb', [0, dur], [[0.3, -0.5, -0.4], [0.3, -0.5, -0.4]]),
+    rotTrack('RFingers', [0, dur], [[0.3, 0, -1.3], [0.3, 0, -1.3]]),
+    rotTrack('RFingerTip', [0, dur], [[0, 0, -1.2], [0, 0, -1.2]]),
+    rotTrack('RThumb', [0, dur], [[0.4, -0.6, -0.6], [0.4, -0.6, -0.6]]),
   ];
 }
+/* Verified in a headless three.js sim: forward = -z (mesh front).
+   Feet/hands were measured to move the right way and stay in range. */
 function makeClips() {
   const C = [];
-  // Idle — head bob + breathing + subtle look
-  C.push(new THREE.AnimationClip('Idle', 3.6, [
-    posTrack('Hips', [0, 1.8, 3.6], [[0, HIPS_Y, 0], [0, HIPS_Y + 0.012, 0], [0, HIPS_Y, 0]]),
-    rotTrack('Spine', [0, 1.8, 3.6], [[0, 0, 0], [0.03, 0, 0], [0, 0, 0]]),
-    rotTrack('Chest', [0, 1.8, 3.6], [[0, 0, 0], [0.02, 0.02, 0], [0, 0, 0]]),
-    rotTrack('Head', [0, 1.2, 2.4, 3.6], [[0, 0.06, 0], [0.02, -0.03, 0], [0, -0.06, 0], [0, 0.06, 0]]),
-    rotTrack('LArm', [0, 1.8, 3.6], [[0, 0, 0.03], [0.03, 0, 0.05], [0, 0, 0.03]]),
-    rotTrack('RArm', [0, 1.8, 3.6], [[0, 0, -0.03], [0.03, 0, -0.05], [0, 0, -0.03]]),
-    ...gripR(3.6),
+  // Idle — clear head-bob + breathing + look
+  C.push(new THREE.AnimationClip('Idle', 3.4, [
+    posTrack('Hips', [0, 1.7, 3.4], [[0, HIPS_Y, 0], [0, HIPS_Y + 0.025, 0], [0, HIPS_Y, 0]]),
+    rotTrack('Spine', [0, 1.7, 3.4], [[0, 0, 0], [0.04, 0, 0], [0, 0, 0]]),
+    rotTrack('Chest', [0, 1.7, 3.4], [[0, 0, 0], [0.03, 0.02, 0], [0, 0, 0]]),
+    rotTrack('Head', [0, 1.1, 2.3, 3.4], [[0.04, 0.08, 0], [0.02, -0.05, 0], [0.05, -0.08, 0], [0.04, 0.08, 0]]),
+    rotTrack('LArm', [0, 1.7, 3.4], [[0, 0, 0.04], [0.04, 0, 0.06], [0, 0, 0.04]]),
+    rotTrack('RArm', [0, 1.7, 3.4], [[0, 0, -0.04], [0.04, 0, -0.06], [0, 0, -0.04]]),
+    ...gripR(3.4),
   ]));
-  // Walk
+  // Walk — feet stay low, moderate stride (measured y<=0.25)
   C.push(new THREE.AnimationClip('Walk', 1.0, [
     posTrack('Hips', [0, 0.25, 0.5, 0.75, 1.0], [[0, HIPS_Y, 0], [0, HIPS_Y + 0.02, 0], [0, HIPS_Y, 0], [0, HIPS_Y + 0.02, 0], [0, HIPS_Y, 0]]),
-    rotTrack('LUpLeg', [0, 0.5, 1.0], [[0.55, 0, 0], [-0.55, 0, 0], [0.55, 0, 0]]),
-    rotTrack('RUpLeg', [0, 0.5, 1.0], [[-0.55, 0, 0], [0.55, 0, 0], [-0.55, 0, 0]]),
-    rotTrack('LLeg', [0, 0.25, 0.5, 1.0], [[-0.1, 0, 0], [-0.15, 0, 0], [-0.8, 0, 0], [-0.1, 0, 0]]),
-    rotTrack('RLeg', [0, 0.5, 0.75, 1.0], [[-0.8, 0, 0], [-0.1, 0, 0], [-0.15, 0, 0], [-0.8, 0, 0]]),
-    rotTrack('LArm', [0, 0.5, 1.0], [[-0.35, 0, 0.05], [0.35, 0, 0.05], [-0.35, 0, 0.05]]),
+    rotTrack('LUpLeg', [0, 0.5, 1.0], [[0.35, 0, 0], [-0.35, 0, 0], [0.35, 0, 0]]),
+    rotTrack('RUpLeg', [0, 0.5, 1.0], [[-0.35, 0, 0], [0.35, 0, 0], [-0.35, 0, 0]]),
+    rotTrack('LLeg', [0, 0.25, 0.5, 0.75, 1.0], [[0, 0, 0], [-0.2, 0, 0], [-0.4, 0, 0], [-0.2, 0, 0], [0, 0, 0]]),
+    rotTrack('RLeg', [0, 0.25, 0.5, 0.75, 1.0], [[-0.4, 0, 0], [-0.2, 0, 0], [0, 0, 0], [-0.2, 0, 0], [-0.4, 0, 0]]),
+    rotTrack('LArm', [0, 0.5, 1.0], [[-0.3, 0, 0.05], [0.3, 0, 0.05], [-0.3, 0, 0.05]]),
     rotTrack('RArm', [0, 0.5, 1.0], [[0.3, 0, -0.05], [-0.3, 0, -0.05], [0.3, 0, -0.05]]),
-    rotTrack('Chest', [0, 0.5, 1.0], [[0.04, 0.05, 0], [0.04, -0.05, 0], [0.04, 0.05, 0]]),
+    rotTrack('Chest', [0, 0.5, 1.0], [[0.03, 0.05, 0], [0.03, -0.05, 0], [0.03, 0.05, 0]]),
     ...gripR(1.0),
   ]));
-  // Run
+  // Run — bigger version of the same clean cycle
   C.push(new THREE.AnimationClip('Run', 0.7, [
-    posTrack('Hips', [0, 0.175, 0.35, 0.525, 0.7], [[0, HIPS_Y - 0.02, 0], [0, HIPS_Y + 0.03, 0], [0, HIPS_Y - 0.02, 0], [0, HIPS_Y + 0.03, 0], [0, HIPS_Y - 0.02, 0]]),
-    rotTrack('LUpLeg', [0, 0.35, 0.7], [[0.95, 0, 0], [-0.85, 0, 0], [0.95, 0, 0]]),
-    rotTrack('RUpLeg', [0, 0.35, 0.7], [[-0.85, 0, 0], [0.95, 0, 0], [-0.85, 0, 0]]),
-    rotTrack('LLeg', [0, 0.175, 0.35, 0.7], [[-0.3, 0, 0], [-0.4, 0, 0], [-1.2, 0, 0], [-0.3, 0, 0]]),
-    rotTrack('RLeg', [0, 0.35, 0.525, 0.7], [[-1.2, 0, 0], [-0.3, 0, 0], [-0.4, 0, 0], [-1.2, 0, 0]]),
-    rotTrack('LArm', [0, 0.35, 0.7], [[-0.7, 0.2, 0.1], [0.7, 0.2, 0.1], [-0.7, 0.2, 0.1]]),
-    rotTrack('RArm', [0, 0.35, 0.7], [[0.7, -0.2, -0.1], [-0.7, -0.2, -0.1], [0.7, -0.2, -0.1]]),
-    rotTrack('Chest', [0, 0.35, 0.7], [[0.18, 0.06, 0], [0.18, -0.06, 0], [0.18, 0.06, 0]]),
+    posTrack('Hips', [0, 0.175, 0.35, 0.525, 0.7], [[0, HIPS_Y - 0.01, 0], [0, HIPS_Y + 0.035, 0], [0, HIPS_Y - 0.01, 0], [0, HIPS_Y + 0.035, 0], [0, HIPS_Y - 0.01, 0]]),
+    rotTrack('LUpLeg', [0, 0.35, 0.7], [[0.6, 0, 0], [-0.55, 0, 0], [0.6, 0, 0]]),
+    rotTrack('RUpLeg', [0, 0.35, 0.7], [[-0.55, 0, 0], [0.6, 0, 0], [-0.55, 0, 0]]),
+    rotTrack('LLeg', [0, 0.175, 0.35, 0.525, 0.7], [[0, 0, 0], [-0.35, 0, 0], [-0.75, 0, 0], [-0.35, 0, 0], [0, 0, 0]]),
+    rotTrack('RLeg', [0, 0.175, 0.35, 0.525, 0.7], [[-0.75, 0, 0], [-0.35, 0, 0], [0, 0, 0], [-0.35, 0, 0], [-0.75, 0, 0]]),
+    rotTrack('LArm', [0, 0.35, 0.7], [[-0.6, 0, 0.08], [0.6, 0, 0.08], [-0.6, 0, 0.08]]),
+    rotTrack('RArm', [0, 0.35, 0.7], [[0.6, 0, -0.08], [-0.6, 0, -0.08], [0.6, 0, -0.08]]),
+    rotTrack('Chest', [0, 0.35, 0.7], [[0.16, 0.06, 0], [0.16, -0.06, 0], [0.16, 0.06, 0]]),
     ...gripR(0.7),
   ]));
-  // Punch — left jab + left fist (right keeps the gun)
+  // Punch — left arm swings forward (-z) to shoulder height + fist
   C.push(new THREE.AnimationClip('Punch', 0.5, [
-    rotTrack('LArm', [0, 0.18, 0.32, 0.5], [[0, 0, 0.03], [-1.3, -0.9, 0.1], [-1.3, -0.9, 0.1], [0, 0, 0.03]]),
-    rotTrack('LForeArm', [0, 0.18, 0.5], [[-0.3, 0, 0], [-0.05, 0, 0], [-0.3, 0, 0]]),
-    rotTrack('LFingers', [0, 0.12, 0.5], [[0, 0, 0], [0, 0, 1.5], [0, 0, 1.5]]),
-    rotTrack('LFingerTip', [0, 0.12, 0.5], [[0, 0, 0], [0, 0, 1.4], [0, 0, 1.4]]),
-    rotTrack('Chest', [0, 0.18, 0.5], [[0, 0, 0], [0, 0.35, 0], [0, 0, 0]]),
-    rotTrack('Hips', [0, 0.5], [[0, HIPS_Y, 0], [0, HIPS_Y, 0]]),
+    rotTrack('LArm', [0, 0.2, 0.34, 0.5], [[0, 0, 0.03], [0.35, 1.55, 0], [0.35, 1.55, 0], [0, 0, 0.03]]),
+    rotTrack('LForeArm', [0, 0.2, 0.5], [[-0.2, 0, 0], [0.0, 0, 0], [-0.2, 0, 0]]),
+    rotTrack('LFingers', [0, 0.12, 0.5], [[0, 0, 0], [0.3, 0, 1.5], [0.3, 0, 1.5]]),
+    rotTrack('LFingerTip', [0, 0.12, 0.5], [[0, 0, 0], [0, 0, 1.5], [0, 0, 1.5]]),
+    rotTrack('Chest', [0, 0.2, 0.5], [[0, 0, 0], [0, -0.35, 0], [0, 0, 0]]),
     ...gripR(0.5),
   ]));
-  // Kick — right front kick (clean about X on the leg bones)
+  // Kick — right front kick forward (-z), foot rises to ~0.55
   C.push(new THREE.AnimationClip('Kick', 0.6, [
-    rotTrack('RUpLeg', [0, 0.22, 0.36, 0.6], [[0, 0, 0], [-1.4, 0, 0], [-1.5, 0, 0], [0, 0, 0]]),
-    rotTrack('RLeg', [0, 0.22, 0.36, 0.6], [[0, 0, 0], [-0.6, 0, 0], [0, 0, 0], [0, 0, 0]]),
-    rotTrack('RFoot', [0, 0.36, 0.6], [[0, 0, 0], [-0.5, 0, 0], [0, 0, 0]]),
-    rotTrack('Chest', [0, 0.36, 0.6], [[0, 0, 0], [0.15, 0, 0], [0, 0, 0]]),
-    posTrack('Hips', [0, 0.6], [[0, HIPS_Y, 0], [0, HIPS_Y, 0]]),
+    rotTrack('RUpLeg', [0, 0.25, 0.4, 0.6], [[0, 0, 0], [1.0, 0, 0], [1.15, 0, 0], [0, 0, 0]]),
+    rotTrack('RLeg', [0, 0.2, 0.4, 0.6], [[0, 0, 0], [-0.9, 0, 0], [-0.05, 0, 0], [0, 0, 0]]),
+    rotTrack('RFoot', [0, 0.4, 0.6], [[0, 0, 0], [0.4, 0, 0], [0, 0, 0]]),
+    rotTrack('Chest', [0, 0.4, 0.6], [[0, 0, 0], [-0.12, 0, 0], [0, 0, 0]]),
     ...gripR(0.6),
   ]));
-  // Slide — crouch + legs forward + lean (root motion added by controller)
+  // Slide — crouch + legs forward (-z), hips to 0.5, root motion by controller
   C.push(new THREE.AnimationClip('Slide', 0.9, [
-    posTrack('Hips', [0, 0.15, 0.6, 0.9], [[0, HIPS_Y, 0], [0, 0.5, 0], [0, 0.5, 0], [0, HIPS_Y, 0]]),
-    rotTrack('LUpLeg', [0, 0.15, 0.6, 0.9], [[0, 0, 0], [-1.1, 0, 0.1], [-1.1, 0, 0.1], [0, 0, 0]]),
-    rotTrack('RUpLeg', [0, 0.15, 0.6, 0.9], [[0, 0, 0], [-0.7, 0, -0.1], [-0.7, 0, -0.1], [0, 0, 0]]),
-    rotTrack('RLeg', [0, 0.15, 0.6, 0.9], [[0, 0, 0], [-0.9, 0, 0], [-0.9, 0, 0], [0, 0, 0]]),
+    posTrack('Hips', [0, 0.15, 0.6, 0.9], [[0, HIPS_Y, 0], [0, 0.62, 0], [0, 0.62, 0], [0, HIPS_Y, 0]]),
+    rotTrack('LUpLeg', [0, 0.15, 0.6, 0.9], [[0, 0, 0], [0.85, 0, 0.08], [0.85, 0, 0.08], [0, 0, 0]]),
+    rotTrack('RUpLeg', [0, 0.15, 0.6, 0.9], [[0, 0, 0], [0.85, 0, -0.08], [0.85, 0, -0.08], [0, 0, 0]]),
+    rotTrack('RLeg', [0, 0.15, 0.6, 0.9], [[0, 0, 0], [-0.2, 0, 0], [-0.2, 0, 0], [0, 0, 0]]),
+    rotTrack('LLeg', [0, 0.15, 0.6, 0.9], [[0, 0, 0], [-0.2, 0, 0], [-0.2, 0, 0], [0, 0, 0]]),
     rotTrack('Chest', [0, 0.15, 0.6, 0.9], [[0, 0, 0], [0.3, 0, 0], [0.3, 0, 0], [0, 0, 0]]),
     ...gripR(0.9),
   ]));
