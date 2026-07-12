@@ -223,6 +223,7 @@ const rig = new THREE.Group(); scene.add(rig);   // character root we move aroun
 let mixer = null, actions = {}, skinned = null, rightHand = null, faceOffset = Math.PI, groundSamples = [];
 let neckBone = null, headBone = null, spineBone = null, crouching = false;
 let rArm = null, rForeArm = null, rFA = null, rFB = null, aiming = false, aimW = 0;
+let neckRest = null, headRest = null;
 let locoTarget = 'Idle', actionMode = null, dead = false;
 const FRIENDLY = [
   [/casual_walk|(^|\|)walk/i, 'Walk'],
@@ -366,6 +367,8 @@ function setupCharacter(base, animGltfs, gunGltf) {
   rig.add(root);
   rightHand = root.getObjectByName('RightHand');
   neckBone = root.getObjectByName('neck'); headBone = root.getObjectByName('Head'); spineBone = root.getObjectByName('Spine02');
+  if (neckBone) neckRest = neckBone.quaternion.clone();
+  if (headBone) headRest = headBone.quaternion.clone();
   rArm = root.getObjectByName('RightArm'); rForeArm = root.getObjectByName('RightForeArm');
   if (skinned) {   // fixed set of vertex indices to sample for foot-planting
     const n = skinned.geometry.attributes.position.count, step = Math.max(1, Math.floor(n / 240));
@@ -653,8 +656,10 @@ function updateMovement(dt) {
    split across neck + head so the neck actually rotates */
 const _flrQ = new THREE.Quaternion(), _flrE = new THREE.Euler();
 let lookYaw = 0, lookPitch = 0;
-function idleFlourish(dt, t) {
-  if (dead || !mixer || !headBone) return;
+function idleFlourish(dt) {
+  // Only during idle/move states; during Box/Kick/Dead the clip drives the head.
+  // Set ABSOLUTELY from the rest pose (never multiply-on-top) so it can't accumulate/spin.
+  if (dead || actionMode || !headBone || !neckRest) return;
   const camF = new THREE.Vector3(); camera.getWorldDirection(camF);
   const camYaw = Math.atan2(camF.x, camF.z);
   let dyaw = camYaw - curYaw;                       // camera vs character facing
@@ -663,8 +668,8 @@ function idleFlourish(dt, t) {
   const dpitch = THREE.MathUtils.clamp(-Math.asin(THREE.MathUtils.clamp(camF.y, -1, 1)), -0.35, 0.35);
   lookYaw += (dyaw - lookYaw) * Math.min(1, dt * 9);
   lookPitch += (dpitch - lookPitch) * Math.min(1, dt * 9);
-  if (neckBone) { _flrE.set(lookPitch * 0.5, lookYaw * 0.55, 0); neckBone.quaternion.multiply(_flrQ.setFromEuler(_flrE)); }
-  if (headBone) { _flrE.set(lookPitch * 0.5, lookYaw * 0.45, 0); headBone.quaternion.multiply(_flrQ.setFromEuler(_flrE)); }
+  _flrE.set(lookPitch * 0.5, lookYaw * 0.55, 0); neckBone.quaternion.copy(neckRest).multiply(_flrQ.setFromEuler(_flrE));
+  _flrE.set(lookPitch * 0.5, lookYaw * 0.45, 0); headBone.quaternion.copy(headRest).multiply(_flrQ.setFromEuler(_flrE));
 }
 
 /* gun grip (curl right fingers) + aim pose (raise right arm), applied on top
@@ -679,9 +684,9 @@ function applyGunPose(dt) {
     rArm.quaternion.slerp(AIM_ARM, aimW);
     rForeArm.quaternion.slerp(AIM_FORE, aimW);
   }
-  if (gunOut && actionMode !== 'Box' && rFA && rFB) {
-    _flrE.set(0, 0, -0.95); const gq = _flrQ.setFromEuler(_flrE);
-    rFA.quaternion.multiply(gq); rFB.quaternion.multiply(gq);
+  if (actionMode !== 'Box' && rFA && rFB) {   // absolute set (finger bones' rest = identity) → no accumulation
+    if (gunOut) { _flrE.set(0, 0, -0.95); const gq = _flrQ.setFromEuler(_flrE); rFA.quaternion.copy(gq); rFB.quaternion.copy(gq); }
+    else { rFA.quaternion.identity(); rFB.quaternion.identity(); }
   }
 }
 
@@ -770,7 +775,7 @@ function animate() {
   requestAnimationFrame(animate);
   const dt = Math.min(0.05, clock.getDelta());
   if (mixer) mixer.update(dt);
-  idleFlourish(dt, clock.elapsedTime);
+  idleFlourish(dt);
   applyGunPose(dt);
   updateMovement(dt);
   groundFeet();
