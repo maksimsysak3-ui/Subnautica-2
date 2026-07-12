@@ -357,11 +357,12 @@ function setupCharacter(base, animGltfs, gunGltf) {
   // (chamber → knee-extend → retract), verified foot-forward in sim.
   const qR = { UpLeg: [-0.549, -0.549, 0.439, 0.452], Leg: [0.081, -0.013, -0.003, 0.997], Foot: [-0.506, 0.036, -0.019, 0.862] };
   const qC = { UpLeg: [-0.469, -0.493, 0.476, 0.558], Leg: [0.568, -0.092, 0.115, 0.81], Foot: [-0.174, 0.064, -0.109, 0.977] };
-  const T = [0, 0.18, 0.30, 0.6];
+  const qE = { UpLeg: [-0.379, -0.4265, 0.5028, 0.6521] };   // extended (leg straight, held)
+  const T = [0, 0.16, 0.28, 0.42, 0.6];
   const kickClip = new THREE.AnimationClip('Kick', 0.6, [
-    new THREE.QuaternionKeyframeTrack('RightUpLeg.quaternion', T, [...qR.UpLeg, ...qC.UpLeg, ...qC.UpLeg, ...qR.UpLeg]),
-    new THREE.QuaternionKeyframeTrack('RightLeg.quaternion', T, [...qR.Leg, ...qC.Leg, ...qR.Leg, ...qR.Leg]),
-    new THREE.QuaternionKeyframeTrack('RightFoot.quaternion', T, [...qR.Foot, ...qC.Foot, ...qR.Foot, ...qR.Foot]),
+    new THREE.QuaternionKeyframeTrack('RightUpLeg.quaternion', T, [...qR.UpLeg, ...qC.UpLeg, ...qE.UpLeg, ...qE.UpLeg, ...qR.UpLeg]),
+    new THREE.QuaternionKeyframeTrack('RightLeg.quaternion', T, [...qR.Leg, ...qC.Leg, ...qR.Leg, ...qR.Leg, ...qR.Leg]),
+    new THREE.QuaternionKeyframeTrack('RightFoot.quaternion', T, [...qR.Foot, ...qC.Foot, ...qR.Foot, ...qR.Foot, ...qR.Foot]),
   ]);
   const ka = mixer.clipAction(kickClip); ka.play(); ka.setEffectiveWeight(0); ka.setLoop(THREE.LoopOnce, 1); ka.clampWhenFinished = true; actions.Kick = ka;
   actions.Combo = ka;   // placeholder so a Combo button appears; sequence handled in trigger
@@ -468,8 +469,8 @@ function updateShooting(dt) {
 /* ============ ACTIONS ============ */
 function triggerDead() { dead = true; actionMode = 'Dead'; if (actions.Dead) { actions.Dead.reset(); actions.Dead.paused = false; } }
 function revive() { dead = false; actionMode = null; comboSteps = null; }
-let actionUntil = 0, comboSteps = null;
-function triggerKick() { if (dead || !actions.Kick) return; comboSteps = null; actionMode = 'Kick'; actions.Kick.reset(); actionUntil = clock.elapsedTime + 0.6; }
+let actionUntil = 0, comboSteps = null, lungeUntil = 0;
+function triggerKick() { if (dead || !actions.Kick) return; comboSteps = null; actionMode = 'Kick'; actions.Kick.reset(); actionUntil = clock.elapsedTime + 0.6; lungeUntil = clock.elapsedTime + 0.32; }
 function triggerCombo() { if (dead) return; comboSteps = [['Box', 1.1], ['Kick', 0.6]]; startComboStep(); }
 function startComboStep() {
   if (!comboSteps || !comboSteps.length) { comboSteps = null; actionMode = null; return; }
@@ -513,6 +514,11 @@ function updateMovement(dt) {
   const move = new THREE.Vector3().addScaledVector(camF, mz).addScaledVector(camR, mx);
   const moving = move.lengthSq() > 1e-6 && !dead && !busy;
   const running = keys.ShiftLeft || keys.ShiftRight;
+  // kick lunge: commit the body forward so the kick reaches
+  if (clock.elapsedTime < lungeUntil) {
+    rig.position.x += Math.sin(curYaw) * 2.6 * dt;
+    rig.position.z += Math.cos(curYaw) * 2.6 * dt;
+  }
 
   if (moving) {
     move.normalize();
