@@ -55,7 +55,7 @@
 <div class="hud title"><h1>Agent 008</h1><p>Playable Stage · 233k tris</p></div>
 <div class="hud hint">
   <b>WASD</b> move · <kbd>Shift</kbd> run · mouse-drag look<br>
-  <kbd>G</kbd> draw gun · <kbd>F</kbd> shoot · <kbd>J</kbd> box · <kbd>X</kbd> down · <kbd>R</kbd> get up · <kbd>P</kbd> flip facing
+  <kbd>J</kbd> box · <kbd>K</kbd> kick · <kbd>C</kbd> combo · <kbd>G</kbd> draw gun · <kbd>F</kbd> shoot · <kbd>X</kbd> down · <kbd>R</kbd> up · <kbd>P</kbd> flip
 </div>
 
 <div class="panel">
@@ -247,7 +247,7 @@ function addClip(clip) {
 
 function buildAnimButtons() {
   const host = document.getElementById('animBtns'); host.innerHTML = '';
-  const order = ['Idle', 'Walk', 'Run', 'Sprint', 'Box', 'Dead'];
+  const order = ['Idle', 'Walk', 'Run', 'Sprint', 'Box', 'Kick', 'Combo', 'Dead'];
   const names = Object.keys(actions).sort((a, b) => (order.indexOf(a) + 99) % 999 - (order.indexOf(b) + 99) % 999);
   names.forEach(nm => {
     const b = document.createElement('button'); b.className = 'btn'; b.textContent = nm; b.dataset.anim = nm;
@@ -258,9 +258,59 @@ function buildAnimButtons() {
 let previewName = null;
 function previewClip(nm) {
   if (nm === 'Dead') { triggerDead(); return; }
+  if (nm === 'Kick') { triggerKick(); return; }
+  if (nm === 'Combo') { triggerCombo(); return; }
   if (nm === 'Box') { actionMode = actionMode === 'Box' ? null : 'Box'; if (actionMode) actions.Box.reset(); return; }
   // locomotion preview: hold that clip in place until you move
   previewName = (previewName === nm) ? null : nm; actionMode = null; dead = false;
+}
+
+/* Graft 2 finger bones per hand onto the Meshy rig (which has none), re-skin
+   the finger vertices to them, and let the Skeleton recompute inverses at bind
+   so the open hand is unchanged. Curl axis = local Z- (measured). */
+function addFingerBones(sm) {
+  const geo = sm.geometry, pos = geo.attributes.position, si = geo.attributes.skinIndex, sw = geo.attributes.skinWeight;
+  if (!si || !sw) return [];
+  sm.updateMatrixWorld(true);
+  const fingerBones = [], names = [], fdata = [];
+  for (const [hn, sgn] of [['RightHand', -1], ['LeftHand', 1]]) {
+    const hand = sm.skeleton.bones.find(b => b.name === hn); if (!hand) continue;
+    const wrist = new THREE.Vector3(); hand.getWorldPosition(wrist);
+    let tip = null, ext = sgn < 0 ? 1e9 : -1e9;
+    for (let i = 0; i < pos.count; i++) {
+      const x = pos.getX(i), y = pos.getY(i);
+      if (sgn * x > 0.58 && y > 0.9 && y < 1.2) { if (sgn < 0 ? x < ext : x > ext) { ext = x; tip = new THREE.Vector3(x, y, pos.getZ(i)); } }
+    }
+    if (!tip) continue;
+    const dir = tip.clone().sub(wrist);
+    const A = new THREE.Bone(); A.name = hn + '_FA';
+    A.position.copy(wrist.clone().addScaledVector(dir, 0.3).applyMatrix4(new THREE.Matrix4().copy(hand.matrixWorld).invert()));
+    hand.add(A); A.updateWorldMatrix(true, false);
+    const B = new THREE.Bone(); B.name = hn + '_FB';
+    B.position.copy(wrist.clone().addScaledVector(dir, 0.62).applyMatrix4(new THREE.Matrix4().copy(A.matrixWorld).invert()));
+    A.add(B);
+    fingerBones.push(A, B); names.push(A.name, B.name); fdata.push({ sgn, wrist, dir });
+  }
+  if (!fingerBones.length) return [];
+  sm.updateMatrixWorld(true);
+  const allBones = [...sm.skeleton.bones, ...fingerBones];
+  const idx = {}; allBones.forEach((b, i) => idx[b.name] = i);
+  sm.bind(new THREE.Skeleton(allBones), sm.matrixWorld);   // recomputes inverses at bind
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i), y = pos.getY(i); if (y < 0.9 || y > 1.2) continue;
+    for (const fd of fdata) {
+      if (fd.sgn * x > 0.60) {
+        const p = new THREE.Vector3(x, y, pos.getZ(i));
+        const along = p.sub(fd.wrist).dot(fd.dir) / Math.max(1e-4, fd.dir.lengthSq());
+        const iA = idx[(fd.sgn < 0 ? 'RightHand' : 'LeftHand') + '_FA'], iB = idx[(fd.sgn < 0 ? 'RightHand' : 'LeftHand') + '_FB'];
+        const wB = Math.max(0, Math.min(1, (along - 0.25) / 0.55)), wA = 1 - wB;
+        si.setXYZW(i, iA, iB, iA, iA); sw.setXYZW(i, wA, wB, 0, 0);
+        break;
+      }
+    }
+  }
+  si.needsUpdate = true; sw.needsUpdate = true;
+  return names;
 }
 
 function setupCharacter(base, animGltfs, gunGltf) {
@@ -277,6 +327,17 @@ function setupCharacter(base, animGltfs, gunGltf) {
   mixer = new THREE.AnimationMixer(root);
   const clips = [...base.animations];
   animGltfs.forEach(g => clips.push(...g.animations));
+
+  // graft finger bones onto the (finger-less) Meshy rig, then close them into
+  // fists for the Box clip. Placement + curl axis measured against the mesh.
+  const fingerNames = addFingerBones(skinned);
+  if (fingerNames.length) {
+    const box = clips.find(c => /box/i.test(c.name));
+    if (box) {
+      const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, 0, -1.2)); const qa = [q.x, q.y, q.z, q.w];
+      fingerNames.forEach(nm => box.tracks.push(new THREE.QuaternionKeyframeTrack(nm + '.quaternion', [0, box.duration], [...qa, ...qa])));
+    }
+  }
   clips.forEach(addClip);
 
   // Idle: freeze the walk clip on a near-neutral frame (no dedicated idle clip provided)
@@ -287,6 +348,19 @@ function setupCharacter(base, animGltfs, gunGltf) {
     const a = mixer.clipAction(idleClip); a.play(); a.paused = true; a.time = 0; a.setEffectiveWeight(1);
     actions.Idle = a;
   }
+  // Kick — built from a real leg pose sampled out of the run mocap
+  // (chamber → knee-extend → retract), verified foot-forward in sim.
+  const qR = { UpLeg: [-0.549, -0.549, 0.439, 0.452], Leg: [0.081, -0.013, -0.003, 0.997], Foot: [-0.506, 0.036, -0.019, 0.862] };
+  const qC = { UpLeg: [-0.469, -0.493, 0.476, 0.558], Leg: [0.568, -0.092, 0.115, 0.81], Foot: [-0.174, 0.064, -0.109, 0.977] };
+  const T = [0, 0.18, 0.30, 0.6];
+  const kickClip = new THREE.AnimationClip('Kick', 0.6, [
+    new THREE.QuaternionKeyframeTrack('RightUpLeg.quaternion', T, [...qR.UpLeg, ...qC.UpLeg, ...qC.UpLeg, ...qR.UpLeg]),
+    new THREE.QuaternionKeyframeTrack('RightLeg.quaternion', T, [...qR.Leg, ...qC.Leg, ...qR.Leg, ...qR.Leg]),
+    new THREE.QuaternionKeyframeTrack('RightFoot.quaternion', T, [...qR.Foot, ...qC.Foot, ...qR.Foot, ...qR.Foot]),
+  ]);
+  const ka = mixer.clipAction(kickClip); ka.play(); ka.setEffectiveWeight(0); ka.setLoop(THREE.LoopOnce, 1); ka.clampWhenFinished = true; actions.Kick = ka;
+  actions.Combo = ka;   // placeholder so a Combo button appears; sequence handled in trigger
+
   buildAnimButtons();
 
   setupGun(gunGltf);
@@ -388,7 +462,14 @@ function updateShooting(dt) {
 
 /* ============ ACTIONS ============ */
 function triggerDead() { dead = true; actionMode = 'Dead'; if (actions.Dead) { actions.Dead.reset(); actions.Dead.paused = false; } }
-function revive() { dead = false; actionMode = null; }
+function revive() { dead = false; actionMode = null; comboSteps = null; }
+let actionUntil = 0, comboSteps = null;
+function triggerKick() { if (dead || !actions.Kick) return; comboSteps = null; actionMode = 'Kick'; actions.Kick.reset(); actionUntil = clock.elapsedTime + 0.6; }
+function triggerCombo() { if (dead) return; comboSteps = [['Box', 1.1], ['Kick', 0.6]]; startComboStep(); }
+function startComboStep() {
+  if (!comboSteps || !comboSteps.length) { comboSteps = null; actionMode = null; return; }
+  const [nm, dur] = comboSteps[0]; actionMode = nm; if (actions[nm]) actions[nm].reset(); actionUntil = clock.elapsedTime + dur;
+}
 
 /* ============ INPUT ============ */
 const keys = {};
@@ -396,7 +477,9 @@ addEventListener('keydown', e => {
   keys[e.code] = true; initAudio();
   if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(e.code)) e.preventDefault();
   if (e.code === 'KeyF') shoot();
-  if (e.code === 'KeyJ') { actionMode = actionMode === 'Box' ? null : 'Box'; if (actionMode === 'Box' && actions.Box) actions.Box.reset(); }
+  if (e.code === 'KeyJ') { comboSteps = null; actionMode = actionMode === 'Box' ? null : 'Box'; if (actionMode === 'Box' && actions.Box) actions.Box.reset(); }
+  if (e.code === 'KeyK') triggerKick();
+  if (e.code === 'KeyC') triggerCombo();
   if (e.code === 'KeyX') triggerDead();
   if (e.code === 'KeyR') revive();
   if (e.code === 'KeyG') holstered = !holstered;
@@ -412,13 +495,18 @@ let followCam = true, wire = false;
 
 function updateMovement(dt) {
   if (!mixer) return;
+  // advance timed one-shots / combo steps
+  if ((actionMode === 'Kick' || comboSteps) && clock.elapsedTime > actionUntil) {
+    if (comboSteps) { comboSteps.shift(); startComboStep(); } else actionMode = null;
+  }
+  const busy = actionMode === 'Box' || actionMode === 'Dead' || actionMode === 'Kick';
   const camF = new THREE.Vector3(); camera.getWorldDirection(camF); camF.y = 0;
   if (camF.lengthSq() < 1e-5) camF.set(0, 0, 1); camF.normalize();
   const camR = new THREE.Vector3().crossVectors(camF, new THREE.Vector3(0, 1, 0)).normalize();
   const mx = (keys.KeyD || keys.ArrowRight ? 1 : 0) - (keys.KeyA || keys.ArrowLeft ? 1 : 0);
   const mz = (keys.KeyW || keys.ArrowUp ? 1 : 0) - (keys.KeyS || keys.ArrowDown ? 1 : 0);
   const move = new THREE.Vector3().addScaledVector(camF, mz).addScaledVector(camR, mx);
-  const moving = move.lengthSq() > 1e-6 && !dead && actionMode !== 'Box' && actionMode !== 'Dead';
+  const moving = move.lengthSq() > 1e-6 && !dead && !busy;
   const running = keys.ShiftLeft || keys.ShiftRight;
 
   if (moving) {
@@ -440,7 +528,7 @@ function updateMovement(dt) {
   loco.forEach(nm => { const a = actions[nm]; if (!a) return;
     const tgt = (!actionMode && !dead && nm === locoTarget) ? 1 : 0;
     a.setEffectiveWeight(THREE.MathUtils.lerp(a.getEffectiveWeight(), tgt, Math.min(1, dt * 10))); });
-  ['Box', 'Dead'].forEach(nm => { const a = actions[nm]; if (!a) return;
+  ['Box', 'Dead', 'Kick'].forEach(nm => { const a = actions[nm]; if (!a) return;
     const tgt = (actionMode === nm || (nm === 'Dead' && dead)) ? 1 : 0;
     a.setEffectiveWeight(THREE.MathUtils.lerp(a.getEffectiveWeight(), tgt, Math.min(1, dt * 12))); });
 }
