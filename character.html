@@ -21,6 +21,23 @@
   .cross::before, .cross::after { content: ""; position: absolute; background: #ffd98a; box-shadow: 0 0 6px rgba(255,180,80,.8); }
   .cross::before { left: 50%; top: 0; width: 2px; height: 100%; transform: translateX(-50%); }
   .cross::after { top: 50%; left: 0; height: 2px; width: 100%; transform: translateY(-50%); }
+  .hitmark { position: fixed; z-index: 9; left: 50%; top: 50%; width: 30px; height: 30px; transform: translate(-50%,-50%) rotate(45deg); pointer-events: none; opacity: 0; }
+  .hitmark::before, .hitmark::after { content: ""; position: absolute; background: #ff5a4a; box-shadow: 0 0 6px rgba(255,90,74,.9); }
+  .hitmark::before { left: 50%; top: 0; width: 3px; height: 100%; transform: translateX(-50%); }
+  .hitmark::after { top: 50%; left: 0; height: 3px; width: 100%; transform: translateY(-50%); }
+  .hitmark.on { animation: hm .28s ease-out; }
+  @keyframes hm { 0%{opacity:1; transform:translate(-50%,-50%) rotate(45deg) scale(.5)} 100%{opacity:0; transform:translate(-50%,-50%) rotate(45deg) scale(1.4)} }
+
+  .hudgame { position: fixed; z-index: 10; left: 24px; bottom: 22px; pointer-events: none; text-shadow: 0 1px 10px rgba(0,0,0,.9); }
+  .hudgame .glabel { font-size: 9px; letter-spacing: .28em; text-transform: uppercase; color: #8a8479; margin-bottom: 6px; }
+  .hpbar { width: 220px; height: 8px; background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.12); transform: skewX(-20deg); overflow: hidden; }
+  .hpbar > i { display: block; height: 100%; width: 100%; background: linear-gradient(90deg, #b5402f, #e8b24a); transition: width .3s; }
+  .gstats { display: flex; gap: 26px; margin-top: 14px; align-items: baseline; }
+  .ammo { font-size: 30px; font-weight: 800; letter-spacing: .04em; color: #ece7dc; font-variant-numeric: tabular-nums; }
+  .ammo span { font-size: 14px; color: #7c745f; margin-left: 4px; }
+  .ammo.empty b { color: #e05a4a; }
+  .score { font-size: 11px; letter-spacing: .2em; text-transform: uppercase; color: #948e82; }
+  .score b { color: #d6c496; font-size: 15px; margin-left: 4px; }
 
   .panel { position: fixed; z-index: 11; top: 16px; right: 16px; width: 220px; max-height: calc(100vh - 32px); overflow-y: auto;
     padding: 13px 15px 15px; border-radius: 14px; background: rgba(18,18,22,.74); backdrop-filter: blur(14px);
@@ -51,11 +68,20 @@
 
 <div id="app"></div>
 <div class="cross"></div>
+<div class="hitmark" id="hitmark"></div>
 
 <div class="hud title"><h1>Agent 008</h1><p>Playable Stage · 233k tris</p></div>
 <div class="hud hint">
-  <b>WASD</b> move · <kbd>Shift</kbd> run · mouse-drag look<br>
+  <b>WASD</b> move · <kbd>Shift</kbd> run · <kbd>Ctrl</kbd> crouch · mouse-drag look<br>
   <kbd>J</kbd> box · <kbd>K</kbd> kick · <kbd>C</kbd> combo · <kbd>G</kbd> draw gun · <kbd>F</kbd> shoot · <kbd>X</kbd> down · <kbd>R</kbd> up · <kbd>P</kbd> flip
+</div>
+
+<div class="hudgame" id="hudgame">
+  <div class="grow"><div class="glabel">Vitals</div><div class="hpbar"><i id="hpFill"></i></div></div>
+  <div class="gstats">
+    <div class="ammo"><b id="ammoN">17</b><span>/ 17</span></div>
+    <div class="score">Targets <b id="scoreN">0</b></div>
+  </div>
 </div>
 
 <div class="panel">
@@ -73,7 +99,7 @@
   <div class="row"><label>Follow cam</label><input id="follow" type="checkbox" checked></div>
   <div class="row"><label>Key light</label><input id="key" type="range" min="0" max="12" step="0.1" value="6"></div>
   <div class="row"><label>Rim light</label><input id="rim" type="range" min="0" max="14" step="0.1" value="7"></div>
-  <div class="row"><label>Exposure</label><input id="exp" type="range" min="0.5" max="2.4" step="0.02" value="1.15"></div>
+  <div class="row"><label>Exposure</label><input id="exp" type="range" min="0.5" max="2.4" step="0.02" value="1.0"></div>
   <div class="btns" style="margin-top:6px"><button class="btn" data-view="wire">Wireframe</button></div>
 
   <h2>Add clips</h2>
@@ -113,13 +139,14 @@ const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'hi
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 renderer.setSize(innerWidth, innerHeight);
 renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.15;
+renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.0;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
+const MAX_ANISO = renderer.capabilities.getMaxAnisotropy();
 app.appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x0d0d11);
-scene.fog = new THREE.FogExp2(0x0d0d11, 0.016);
+scene.background = new THREE.Color(0x0a0a0e);
+scene.fog = new THREE.FogExp2(0x0a0a0e, 0.012);
 
 const camera = new THREE.PerspectiveCamera(42, innerWidth / innerHeight, 0.1, 100);
 camera.position.set(0.4, 1.7, -3.4);
@@ -133,11 +160,11 @@ const pmrem = new THREE.PMREMGenerator(renderer);
 scene.environment = pmrem.fromScene(new RoomEnvironment(renderer)).texture;
 
 /* ============ LIGHTS ============ */
-scene.add(new THREE.HemisphereLight(0xcfd8ff, 0x241d15, 0.5));
-scene.add(new THREE.AmbientLight(0xffffff, 0.22));
-const key = new THREE.SpotLight(0xfff0d8, 6, 40, Math.PI * 0.32, 0.5, 1.2);
+scene.add(new THREE.HemisphereLight(0xcfd8ff, 0x241d15, 0.42));
+scene.add(new THREE.AmbientLight(0xffffff, 0.16));
+const key = new THREE.SpotLight(0xfff0d8, 7, 40, Math.PI * 0.3, 0.45, 1.3);
 key.position.set(-3.4, 5.6, 3.6); key.castShadow = true;
-key.shadow.mapSize.set(2048, 2048); key.shadow.bias = -0.0003; key.shadow.normalBias = 0.02;
+key.shadow.mapSize.set(4096, 4096); key.shadow.bias = -0.00018; key.shadow.normalBias = 0.018;
 key.shadow.camera.near = 1; key.shadow.camera.far = 20; scene.add(key, key.target);
 const rim = new THREE.SpotLight(0xaebfe0, 7, 40, Math.PI * 0.36, 0.7, 1.5);
 rim.position.set(4.4, 4.4, -3.4); scene.add(rim, rim.target);
@@ -194,6 +221,7 @@ function loadGLB(name) {
 /* ============ CHARACTER / ANIMATION STATE ============ */
 const rig = new THREE.Group(); scene.add(rig);   // character root we move around
 let mixer = null, actions = {}, skinned = null, rightHand = null, faceOffset = Math.PI, groundSamples = [];
+let neckBone = null, headBone = null, spineBone = null, crouching = false;
 let locoTarget = 'Idle', actionMode = null, dead = false;
 const FRIENDLY = [
   [/casual_walk|(^|\|)walk/i, 'Walk'],
@@ -247,7 +275,7 @@ function addClip(clip) {
 
 function buildAnimButtons() {
   const host = document.getElementById('animBtns'); host.innerHTML = '';
-  const order = ['Idle', 'Walk', 'Run', 'Sprint', 'Box', 'Kick', 'Combo', 'Dead'];
+  const order = ['Idle', 'Walk', 'Run', 'Sprint', 'Crouch', 'Box', 'Kick', 'Combo', 'Dead'];
   const names = Object.keys(actions).sort((a, b) => (order.indexOf(a) + 99) % 999 - (order.indexOf(b) + 99) % 999);
   names.forEach(nm => {
     const b = document.createElement('button'); b.className = 'btn'; b.textContent = nm; b.dataset.anim = nm;
@@ -260,6 +288,7 @@ function previewClip(nm) {
   if (nm === 'Dead') { triggerDead(); return; }
   if (nm === 'Kick') { triggerKick(); return; }
   if (nm === 'Combo') { triggerCombo(); return; }
+  if (nm === 'Crouch') { crouching = !crouching; return; }
   if (nm === 'Box') { actionMode = actionMode === 'Box' ? null : 'Box'; if (actionMode) actions.Box.reset(); return; }
   // locomotion preview: hold that clip in place until you move
   previewName = (previewName === nm) ? null : nm; actionMode = null; dead = false;
@@ -319,10 +348,23 @@ function addFingerBones(sm) {
 
 function setupCharacter(base, animGltfs, gunGltf) {
   const root = base.scene;
-  root.traverse(o => { if (o.isMesh || o.isSkinnedMesh) { o.castShadow = true; o.receiveShadow = true; o.frustumCulled = false; if (o.isSkinnedMesh) skinned = o; } });
+  root.traverse(o => {
+    if (o.isMesh || o.isSkinnedMesh) {
+      o.castShadow = true; o.receiveShadow = true; o.frustumCulled = false;
+      if (o.isSkinnedMesh) skinned = o;
+      const mats = Array.isArray(o.material) ? o.material : [o.material];
+      mats.forEach(m => { if (!m) return;
+        ['map', 'normalMap', 'roughnessMap', 'metalnessMap', 'aoMap', 'emissiveMap'].forEach(k => { if (m[k]) { m[k].anisotropy = MAX_ANISO; m[k].needsUpdate = true; } });
+        if ('envMapIntensity' in m) m.envMapIntensity = 1.15;
+        if (m.map) m.map.colorSpace = THREE.SRGBColorSpace;
+        m.needsUpdate = true;
+      });
+    }
+  });
   fitToStage(root);
   rig.add(root);
   rightHand = root.getObjectByName('RightHand');
+  neckBone = root.getObjectByName('neck'); headBone = root.getObjectByName('Head'); spineBone = root.getObjectByName('Spine02');
   if (skinned) {   // fixed set of vertex indices to sample for foot-planting
     const n = skinned.geometry.attributes.position.count, step = Math.max(1, Math.floor(n / 240));
     for (let i = 0; i < n; i += step) groundSamples.push(i);
@@ -366,6 +408,20 @@ function setupCharacter(base, animGltfs, gunGltf) {
   ]);
   const ka = mixer.clipAction(kickClip); ka.play(); ka.setEffectiveWeight(0); ka.setLoop(THREE.LoopOnce, 1); ka.clampWhenFinished = true; actions.Kick = ka;
   actions.Combo = ka;   // placeholder so a Combo button appears; sequence handled in trigger
+
+  // Crouch — full held pose: walk-neutral upper body + measured squat legs
+  const CR = {
+    Spine: [-0.0327, 0.0001, 0.0005, 0.9995], Spine01: [0.0385, 0.0111, -0.0041, 0.9992], Spine02: [0.4437, 0.4823, 0.5957, 0.4643],
+    neck: [-0.1695, -0.0134, -0.0017, 0.9854], Head: [0.464, -0.0122, 0.022, 0.8855],
+    LeftShoulder: [0.585, 0.4869, -0.5104, 0.4002], LeftArm: [0.5096, 0.3695, 0.1151, 0.7685], LeftForeArm: [-0.0993, -0.0689, 0.0242, 0.9924], LeftHand: [0.0343, -0.0164, 0.0654, 0.9971],
+    RightShoulder: [0.6309, -0.4441, 0.4622, 0.4372], RightArm: [0.446, -0.3111, -0.1944, 0.8164], RightForeArm: [-0.1731, 0.1034, -0.09, 0.9753], RightHand: [0.0305, -0.0519, -0.0757, 0.9953],
+    LeftUpLeg: [-0.6275, -0.477, 0.5624, 0.2499], RightUpLeg: [-0.7042, -0.3275, 0.5673, 0.2739],
+    LeftLeg: [-0.445, 0.0057, -0.0077, 0.8955], RightLeg: [-0.4517, -0.0097, -0.0096, 0.8921],
+    LeftFoot: [-0.3155, 0.0058, 0.0546, 0.9473], RightFoot: [-0.3009, 0.0311, -0.0268, 0.9528],
+  };
+  const crouchClip = new THREE.AnimationClip('Crouch', 0.5, Object.entries(CR).map(([nm, q]) =>
+    new THREE.QuaternionKeyframeTrack(nm + '.quaternion', [0, 0.5], [...q, ...q])));
+  const cra = mixer.clipAction(crouchClip); cra.play(); cra.setEffectiveWeight(0); actions.Crouch = cra;
 
   buildAnimButtons();
 
@@ -443,9 +499,11 @@ function gunshot() {
   o.connect(g2).connect(audio.destination); o.start(t); o.stop(t + 0.13);
 }
 function shoot() {
-  if (dead || holstered || !gun) return;
+  if (dead || holstered || !gun || reloading) return;
   const now = performance.now();
-  if (now - lastShot < 110) return; lastShot = now;   // fire rate
+  if (now - lastShot < 110) return;
+  if (ammo <= 0) { reload(); return; }
+  lastShot = now; ammo--; updateHud();
   const b = new THREE.Mesh(bulletGeo, bulletMat);
   b.position.copy(muzzle);
   b.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), gunFwd.clone().normalize());
@@ -460,11 +518,48 @@ function updateShooting(dt) {
     const b = bullets[i];
     b.position.addScaledVector(b.userData.vel, dt);
     b.userData.life -= dt;
-    if (b.userData.life <= 0 || b.position.y < 0) { scene.remove(b); bullets.splice(i, 1); }
+    let hit = false;
+    for (const t of targets) { if (t.alive && b.position.distanceTo(t.center) < 0.5) { hitTarget(t); hit = true; break; } }
+    if (hit || b.userData.life <= 0 || b.position.y < 0) { scene.remove(b); bullets.splice(i, 1); }
   }
   if (flashT > 0) { flashT = Math.max(0, flashT - dt * 14); flash.material.opacity = flashT; flash.scale.setScalar(0.6 + (1 - flashT) * 1.6); flashLight.intensity = flashT * 6; }
   if (recoil > 0) recoil = Math.max(0, recoil - dt * 6);
 }
+
+/* ============ TARGETS + HUD ============ */
+const targets = [];
+let score = 0, ammo = 17; const MAG = 17; let reloading = false;
+(function spawnTargets() {
+  const spots = [[3.5, -2.5], [-3.5, -3.5], [6, 1], [-6, 0.5], [1.5, -7.5], [-1.8, -8]];
+  const base = new THREE.MeshStandardMaterial({ color: 0x232732, roughness: .7, metalness: .2 });
+  spots.forEach(([x, z]) => {
+    const g = new THREE.Group();
+    const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.26, 0.95, 6, 12), base.clone());
+    body.position.y = 0.95; body.castShadow = true; body.receiveShadow = true; g.add(body);
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.17, 16, 12), body.material); head.position.y = 1.62; head.castShadow = true; g.add(head);
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.34, 0.02, 8, 28), new THREE.MeshBasicMaterial({ color: 0xd9b45b }));
+    ring.position.y = 0.015; ring.rotation.x = -Math.PI / 2; g.add(ring);
+    g.position.set(x, 0, z); scene.add(g);
+    targets.push({ g, body, center: new THREE.Vector3(x, 1.1, z), alive: true, flash: 0, downT: 0 });
+  });
+})();
+function hitTarget(t) { t.flash = 1; score++; t.alive = false; t.downT = performance.now(); showHit(); updateHud(); }
+function updateTargets() {
+  const now = performance.now();
+  for (const t of targets) {
+    if (t.flash > 0) { t.flash = Math.max(0, t.flash - 0.05); t.body.material.emissive.setRGB(t.flash, t.flash * 0.25, 0); }
+    if (!t.alive) { t.g.rotation.x = THREE.MathUtils.lerp(t.g.rotation.x, -1.35, 0.16); if (now - t.downT > 3500) t.alive = true; }
+    else t.g.rotation.x = THREE.MathUtils.lerp(t.g.rotation.x, 0, 0.2);
+  }
+}
+function showHit() { const h = document.getElementById('hitmark'); if (!h) return; h.classList.remove('on'); void h.offsetWidth; h.classList.add('on'); }
+function reload() { if (reloading || ammo === MAG) return; reloading = true; updateHud(); setTimeout(() => { ammo = MAG; reloading = false; updateHud(); }, 1300); }
+function updateHud() {
+  const an = document.getElementById('ammoN'); if (an) an.textContent = reloading ? '· ·' : ammo;
+  const am = document.querySelector('.ammo'); if (am) am.classList.toggle('empty', ammo <= 0 && !reloading);
+  const sn = document.getElementById('scoreN'); if (sn) sn.textContent = score;
+}
+updateHud();
 
 /* ============ ACTIONS ============ */
 function triggerDead() { dead = true; actionMode = 'Dead'; if (actions.Dead) { actions.Dead.reset(); actions.Dead.paused = false; } }
@@ -487,14 +582,15 @@ addEventListener('keydown', e => {
   if (e.code === 'KeyK') triggerKick();
   if (e.code === 'KeyC') triggerCombo();
   if (e.code === 'KeyX') triggerDead();
-  if (e.code === 'KeyR') revive();
+  if (e.code === 'KeyR') { if (dead) revive(); else reload(); }
   if (e.code === 'KeyG') holstered = !holstered;
   if (e.code === 'KeyP') faceOffset += Math.PI;
+  if (e.code === 'ControlLeft' || e.code === 'KeyZ') { crouching = true; e.preventDefault(); }
 });
-addEventListener('keyup', e => { keys[e.code] = false; });
+addEventListener('keyup', e => { keys[e.code] = false; if (e.code === 'ControlLeft' || e.code === 'KeyZ') crouching = false; });
 
 /* ============ MOVEMENT + CAMERA FOLLOW ============ */
-const WALK = 1.7, RUN = 4.2;
+const WALK = 1.7, RUN = 4.2, CROUCH = 1.0;
 let curYaw = 0;
 function shortAngle(a, b) { let d = (b - a) % (Math.PI * 2); if (d > Math.PI) d -= Math.PI * 2; if (d < -Math.PI) d += Math.PI * 2; return d; }
 let followCam = true, wire = false;
@@ -506,6 +602,7 @@ function updateMovement(dt) {
     if (comboSteps) { comboSteps.shift(); startComboStep(); } else actionMode = null;
   }
   const busy = actionMode === 'Box' || actionMode === 'Dead' || actionMode === 'Kick';
+  const crouchActive = crouching && !dead && !busy;
   const camF = new THREE.Vector3(); camera.getWorldDirection(camF); camF.y = 0;
   if (camF.lengthSq() < 1e-5) camF.set(0, 0, 1); camF.normalize();
   const camR = new THREE.Vector3().crossVectors(camF, new THREE.Vector3(0, 1, 0)).normalize();
@@ -525,7 +622,7 @@ function updateMovement(dt) {
     const yaw = Math.atan2(move.x, move.z);
     curYaw += shortAngle(curYaw, yaw) * Math.min(1, dt * 12);
     rig.rotation.y = curYaw + faceOffset;
-    rig.position.addScaledVector(move, (running ? RUN : WALK) * dt);
+    rig.position.addScaledVector(move, (crouchActive ? CROUCH : running ? RUN : WALK) * dt);
     locoTarget = running ? 'Run' : 'Walk'; previewName = null;
   } else if (!dead && !actionMode) {
     locoTarget = previewName || 'Idle';
@@ -533,15 +630,29 @@ function updateMovement(dt) {
     rig.rotation.y = curYaw + faceOffset;
   }
 
-  // recoil pushes character slightly + camera shake handled via fov nudge
   // blend animation weights
   const loco = ['Idle', 'Walk', 'Run', 'Sprint'];
   loco.forEach(nm => { const a = actions[nm]; if (!a) return;
-    const tgt = (!actionMode && !dead && nm === locoTarget) ? 1 : 0;
+    const tgt = (!actionMode && !dead && !crouchActive && nm === locoTarget) ? 1 : 0;
     a.setEffectiveWeight(THREE.MathUtils.lerp(a.getEffectiveWeight(), tgt, Math.min(1, dt * 10))); });
   ['Box', 'Dead', 'Kick'].forEach(nm => { const a = actions[nm]; if (!a) return;
     const tgt = (actionMode === nm || (nm === 'Dead' && dead)) ? 1 : 0;
     a.setEffectiveWeight(THREE.MathUtils.lerp(a.getEffectiveWeight(), tgt, Math.min(1, dt * 12))); });
+  if (actions.Crouch) actions.Crouch.setEffectiveWeight(THREE.MathUtils.lerp(actions.Crouch.getEffectiveWeight(), crouchActive ? 1 : 0, Math.min(1, dt * 12)));
+}
+
+/* subtle life: head look-around + breathing, layered on top of the clip */
+const _flrQ = new THREE.Quaternion(), _flrE = new THREE.Euler();
+let lookYaw = 0, lookPitch = 0, lookTimer = 0, lkTY = 0, lkTP = 0;
+function idleFlourish(dt, t) {
+  if (dead || !mixer) return;
+  lookTimer -= dt;
+  if (lookTimer <= 0) { lookTimer = 2 + Math.random() * 3.5; lkTY = (Math.random() - 0.5) * 0.7; lkTP = (Math.random() - 0.5) * 0.28; }
+  lookYaw += (lkTY - lookYaw) * Math.min(1, dt * 1.6);
+  lookPitch += (lkTP - lookPitch) * Math.min(1, dt * 1.6);
+  if (neckBone) { _flrE.set(lookPitch * 0.5, lookYaw * 0.5, 0); neckBone.quaternion.multiply(_flrQ.setFromEuler(_flrE)); }
+  if (headBone) { _flrE.set(lookPitch * 0.5, lookYaw * 0.5, 0); headBone.quaternion.multiply(_flrQ.setFromEuler(_flrE)); }
+  if (actionMode == null && !crouching && spineBone) { _flrE.set(Math.sin(t * 1.3) * 0.016, 0, 0); spineBone.quaternion.multiply(_flrQ.setFromEuler(_flrE)); }
 }
 
 /* plant the character on the floor by sampling the ACTUAL posed mesh
@@ -579,7 +690,7 @@ function updateCamera(dt) {
 /* ============ POST ============ */
 const composer = new EffectComposer(renderer);
 composer.addPass(new RenderPass(scene, camera));
-composer.addPass(new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.5, 0.8, 0.85));
+composer.addPass(new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.28, 0.6, 0.92));
 composer.addPass(new OutputPass());
 
 /* ============ UI WIRING ============ */
@@ -629,10 +740,12 @@ function animate() {
   requestAnimationFrame(animate);
   const dt = Math.min(0.05, clock.getDelta());
   if (mixer) mixer.update(dt);
+  idleFlourish(dt, clock.elapsedTime);
   updateMovement(dt);
   groundFeet();
   updateGun();
   updateShooting(dt);
+  updateTargets();
   updateCamera(dt);
   camera.fov = 42 - recoil * 1.2; camera.updateProjectionMatrix();
   composer.render();
