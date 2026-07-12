@@ -293,9 +293,13 @@ function addFingerBones(sm) {
   }
   if (!fingerBones.length) return [];
   sm.updateMatrixWorld(true);
+  // PRESERVE the original bones' inverses + bindMatrix (recomputing them all
+  // corrupts the body); only append inverses for the new finger bones.
+  const fingerInv = fingerBones.map(b => new THREE.Matrix4().copy(b.matrixWorld).invert());
   const allBones = [...sm.skeleton.bones, ...fingerBones];
+  const allInv = [...sm.skeleton.boneInverses, ...fingerInv];
   const idx = {}; allBones.forEach((b, i) => idx[b.name] = i);
-  sm.bind(new THREE.Skeleton(allBones), sm.matrixWorld);   // recomputes inverses at bind
+  sm.bind(new THREE.Skeleton(allBones, allInv), sm.bindMatrix);
   for (let i = 0; i < pos.count; i++) {
     const x = pos.getX(i), y = pos.getY(i); if (y < 0.9 || y > 1.2) continue;
     for (const fd of fdata) {
@@ -330,7 +334,8 @@ function setupCharacter(base, animGltfs, gunGltf) {
 
   // graft finger bones onto the (finger-less) Meshy rig, then close them into
   // fists for the Box clip. Placement + curl axis measured against the mesh.
-  const fingerNames = addFingerBones(skinned);
+  let fingerNames = [];
+  try { fingerNames = addFingerBones(skinned); } catch (e) { console.warn('finger graft skipped:', e); }
   if (fingerNames.length) {
     const box = clips.find(c => /box/i.test(c.name));
     if (box) {
