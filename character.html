@@ -16,7 +16,6 @@
   .hint kbd { background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.16); border-radius: 4px;
     padding: 1px 6px; font-family: inherit; font-size: 10px; color: #ece7dc; }
 
-  /* crosshair */
   .cross { position: fixed; z-index: 9; left: 50%; top: 50%; width: 22px; height: 22px; transform: translate(-50%,-50%); pointer-events: none; opacity: .8; }
   .cross::before, .cross::after { content: ""; position: absolute; background: #ffd98a; box-shadow: 0 0 6px rgba(255,180,80,.8); }
   .cross::before { left: 50%; top: 0; width: 2px; height: 100%; transform: translateX(-50%); }
@@ -53,24 +52,19 @@
   .btn:hover { background: rgba(255,255,255,.09); border-color: rgba(255,255,255,.22); }
   .btn.on { background: rgba(214,196,150,.18); border-color: rgba(214,196,150,.5); color: #f3e9d1; }
   input[type=range] { width: 96px; accent-color: #d6c496; }
-  input[type=file] { display: none; }
   .tip { margin-top: 7px; font-size: 10px; line-height: 1.5; color: #8a8479; }
 
   .loading { position: fixed; inset: 0; z-index: 30; display: flex; flex-direction: column; gap: 14px; align-items: center; justify-content: center;
     background: #0c0c10; color: #8a8479; font-size: 12px; letter-spacing: .2em; text-transform: uppercase; transition: opacity .6s ease; }
   .bar { width: 220px; height: 2px; background: rgba(255,255,255,.08); border-radius: 2px; overflow: hidden; }
   .bar > i { display: block; height: 100%; width: 0%; background: #d6c496; transition: width .3s; }
-  .drop { position: fixed; inset: 0; z-index: 40; display: none; align-items: center; justify-content: center; background: rgba(8,8,10,.82); backdrop-filter: blur(3px); text-align: center; }
-  .drop.on { display: flex; }
-  .drop > div { border: 2px dashed rgba(214,196,150,.6); border-radius: 18px; padding: 42px 64px; color: #f3e9d1; font-size: 15px; letter-spacing: .1em; text-transform: uppercase; }
-  .drop span { display: block; margin-top: 10px; font-size: 11px; letter-spacing: .16em; color: #8a8479; }
 </style>
 
 <div id="app"></div>
 <div class="cross"></div>
 <div class="hitmark" id="hitmark"></div>
 
-<div class="hud title"><h1>Agent 008</h1><p>Playable Stage · 233k tris</p></div>
+<div class="hud title"><h1>Agent 008</h1><p>Playable Stage · custom rig</p></div>
 <div class="hud hint">
   <b>WASD</b> move · <kbd>Shift</kbd> run · <kbd>Ctrl</kbd> crouch (toggle) · mouse-drag look<br>
   <kbd>G</kbd> draw gun · <kbd>F</kbd> shoot · <kbd>RMB</kbd> aim · <kbd>R</kbd> reload · <kbd>J</kbd> box · <kbd>K</kbd> kick · <kbd>C</kbd> combo · <kbd>X</kbd> down
@@ -89,9 +83,9 @@
   <div class="btns" id="animBtns"><span class="tip">Loading…</span></div>
 
   <h2>Gun fit</h2>
-  <div class="row"><label>Off X</label><input id="gx" type="range" min="-0.3" max="0.3" step="0.005" value="0.02"></div>
+  <div class="row"><label>Off X</label><input id="gx" type="range" min="-0.3" max="0.3" step="0.005" value="0"></div>
   <div class="row"><label>Off Y</label><input id="gy" type="range" min="-0.3" max="0.3" step="0.005" value="0"></div>
-  <div class="row"><label>Off Z</label><input id="gz" type="range" min="-0.3" max="0.3" step="0.005" value="0.02"></div>
+  <div class="row"><label>Off Z</label><input id="gz" type="range" min="-0.3" max="0.3" step="0.005" value="0"></div>
   <div class="row"><label>Scale</label><input id="gs" type="range" min="0.4" max="2.2" step="0.02" value="1"></div>
   <div class="row"><label>Barrel→aim</label><input id="gaim" type="checkbox" checked></div>
 
@@ -101,15 +95,9 @@
   <div class="row"><label>Rim light</label><input id="rim" type="range" min="0" max="14" step="0.1" value="7"></div>
   <div class="row"><label>Exposure</label><input id="exp" type="range" min="0.5" max="2.4" step="0.02" value="1.0"></div>
   <div class="btns" style="margin-top:6px"><button class="btn" data-view="wire">Wireframe</button></div>
-
-  <h2>Add clips</h2>
-  <div class="btns"><button class="btn" id="uploadbtn">⬆ Upload .glb/.fbx</button></div>
-  <input id="fileinput" type="file" accept=".glb,.gltf,.fbx,.vrm">
-  <div class="tip">Generate Idle / Kick / Slide / Aim in Meshy (same rig) and drop them here — they auto-retarget and appear as buttons.</div>
 </div>
 
 <div class="loading" id="loading"><div id="loadmsg">Loading…</div><div class="bar"><i id="barfill"></i></div></div>
-<div class="drop" id="drop"><div>Drop animation .glb / .fbx<span>auto-retargets onto Agent 008</span></div></div>
 
 <script type="importmap">
 { "imports": {
@@ -122,16 +110,486 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 
-/* ---- asset sources: jsdelivr (pinned to commit) with local fallback ---- */
-const CDN = 'https://cdn.jsdelivr.net/gh/maksimsysak3-ui/Subnautica-2@838662242f45b9e492afef1e33c3058593712433/models/';
-const LOCAL = './models/';
+
+/* ===== inlined character generator ===== */
+// Procedural rigged agent — full skeleton I author + skinned suit body.
+// Exports buildAgent(THREE) -> { meshes:[{geometry,tag}], skeleton, bones, boneByName, height }
+// Bind pose = T-pose (arms along ±X, legs along -Y) so every joint's local axes
+// are world-aligned → animation authoring is trivial and verifiable.
+
+function buildAgent(THREE) {
+  const V = (x, y, z) => new THREE.Vector3(x, y, z);
+
+  /* ---------- SKELETON (bind-pose world positions) ---------- */
+  // [name, x, y, z, parent]
+  const B = [
+    ['Hips', 0, 0.94, 0, null],
+    ['Spine', 0, 1.05, 0, 'Hips'],
+    ['Spine1', 0, 1.18, 0, 'Spine'],
+    ['Chest', 0, 1.32, 0, 'Spine1'],
+    ['Neck', 0, 1.48, 0, 'Chest'],
+    ['Head', 0, 1.58, 0, 'Neck'],
+    ['HeadTop', 0, 1.74, 0, 'Head'],
+  ];
+  // arms (T-pose, along ±X); side s=+1 left, -1 right
+  for (const [side, s] of [['L', 1], ['R', -1]]) {
+    B.push([side + 'Clav', s * 0.045, 1.44, 0, 'Chest']);
+    B.push([side + 'Arm', s * 0.17, 1.45, 0, side + 'Clav']);
+    B.push([side + 'ForeArm', s * 0.44, 1.45, 0, side + 'Arm']);
+    B.push([side + 'Hand', s * 0.68, 1.45, 0, side + 'ForeArm']);
+    // fingers: index, middle, ring, pinky (3 bones) + thumb (2 bones)
+    const wx = s * 0.68, palm = s * 0.80;
+    const fz = { index: 0.055, middle: 0.018, ring: -0.018, pinky: -0.052 };
+    const flen = { index: 0.075, middle: 0.082, ring: 0.075, pinky: 0.06 };
+    for (const f of ['index', 'middle', 'ring', 'pinky']) {
+      const L = flen[f], z0 = fz[f];
+      B.push([side + f + '1', palm, 1.45, z0, side + 'Hand']);
+      B.push([side + f + '2', palm + s * L, 1.45, z0, side + f + '1']);
+      B.push([side + f + '3', palm + s * L * 1.8, 1.45, z0, side + f + '2']);
+    }
+    // thumb — off the side of the palm, angled forward
+    B.push([side + 'thumb1', wx + s * 0.03, 1.43, 0.05, side + 'Hand']);
+    B.push([side + 'thumb2', wx + s * 0.075, 1.43, 0.10, side + 'thumb1']);
+  }
+  // legs (along -Y)
+  for (const [side, s] of [['L', 1], ['R', -1]]) {
+    B.push([side + 'UpLeg', s * 0.10, 0.90, 0, 'Hips']);
+    B.push([side + 'Leg', s * 0.105, 0.50, 0.01, side + 'UpLeg']);
+    B.push([side + 'Foot', s * 0.11, 0.09, -0.02, side + 'Leg']);
+    B.push([side + 'Toe', s * 0.11, 0.03, 0.11, side + 'Foot']);
+  }
+
+  const idx = {}; B.forEach((b, i) => idx[b[0]] = i);
+  const world = B.map(b => V(b[1], b[2], b[3]));
+  const bones = B.map((b, i) => { const bo = new THREE.Bone(); bo.name = b[0]; return bo; });
+  B.forEach((b, i) => {
+    if (b[4] == null) bones[i].position.copy(world[i]);
+    else { bones[i].position.copy(world[i].clone().sub(world[idx[b[4]]])); bones[idx[b[4]]].add(bones[i]); }
+  });
+  // children map for tails
+  const kids = {}; B.forEach(b => { if (b[4]) (kids[b[4]] = kids[b[4]] || []).push(b[0]); });
+  const tail = {};
+  B.forEach((b, i) => {
+    const ch = kids[b[0]];
+    if (ch && ch.length) { const t = V(0, 0, 0); ch.forEach(c => t.add(world[idx[c]])); tail[b[0]] = t.multiplyScalar(1 / ch.length); }
+    else { const p = b[4] ? world[idx[b[4]]] : world[i]; tail[b[0]] = world[i].clone().add(world[i].clone().sub(p).multiplyScalar(0.6).setLength(0.05 + world[i].distanceTo(p) * 0.4)); }
+  });
+  // segment list used for skinning: {name, i, a, b}
+  const segs = B.map((b, i) => ({ name: b[0], i, a: world[i], b: tail[b[0]] }));
+
+  /* ---------- geometry helpers ---------- */
+  function distToSeg(p, a, b) {
+    const ab = b.clone().sub(a), ap = p.clone().sub(a);
+    let t = ap.dot(ab) / Math.max(1e-8, ab.lengthSq());
+    t = Math.max(0, Math.min(1, t));
+    return p.distanceTo(a.clone().addScaledVector(ab, t));
+  }
+  const skinN = bones.length;
+
+  // parallel-transport tube: centers[Vector3], rA/rB per section, seg radial
+  function tube(centers, rA, rB, seg, capS, capE) {
+    const N = centers.length, tan = [];
+    for (let i = 0; i < N; i++) {
+      let t;
+      if (i === 0) t = centers[1].clone().sub(centers[0]);
+      else if (i === N - 1) t = centers[N - 1].clone().sub(centers[N - 2]);
+      else t = centers[i + 1].clone().sub(centers[i - 1]);
+      tan.push(t.normalize());
+    }
+    const U = [], W = [];
+    let ref = Math.abs(tan[0].y) > 0.9 ? V(1, 0, 0) : V(0, 1, 0);
+    let u = ref.clone().sub(tan[0].clone().multiplyScalar(ref.dot(tan[0]))).normalize();
+    let w = new THREE.Vector3().crossVectors(tan[0], u).normalize();
+    U.push(u); W.push(w);
+    for (let i = 1; i < N; i++) {
+      const t0 = tan[i - 1], t1 = tan[i];
+      const ax = new THREE.Vector3().crossVectors(t0, t1); const s = ax.length(), c = t0.dot(t1);
+      let un = U[i - 1].clone(), wn = W[i - 1].clone();
+      if (s > 1e-6) { ax.normalize(); const q = new THREE.Quaternion().setFromAxisAngle(ax, Math.atan2(s, c)); un.applyQuaternion(q); wn.applyQuaternion(q); }
+      U.push(un); W.push(wn);
+    }
+    const pos = [], rings = [];
+    for (let i = 0; i < N; i++) {
+      const ring = [];
+      for (let j = 0; j < seg; j++) {
+        const a = j / seg * Math.PI * 2;
+        const p = centers[i].clone().addScaledVector(U[i], Math.cos(a) * rA[i]).addScaledVector(W[i], Math.sin(a) * rB[i]);
+        ring.push(pos.length / 3); pos.push(p.x, p.y, p.z);
+      }
+      rings.push(ring);
+    }
+    const ind = [];
+    for (let i = 0; i < N - 1; i++) for (let j = 0; j < seg; j++) {
+      const a = rings[i][j], b = rings[i][(j + 1) % seg], c = rings[i + 1][j], d = rings[i + 1][(j + 1) % seg];
+      ind.push(a, c, b, b, c, d);
+    }
+    if (capS) { const ci = pos.length / 3; pos.push(centers[0].x, centers[0].y, centers[0].z); for (let j = 0; j < seg; j++) ind.push(ci, rings[0][(j + 1) % seg], rings[0][j]); }
+    if (capE) { const ci = pos.length / 3; const k = N - 1; pos.push(centers[k].x, centers[k].y, centers[k].z); for (let j = 0; j < seg; j++) ind.push(ci, rings[k][j], rings[k][(j + 1) % seg]); }
+    return { pos, ind };
+  }
+
+  // sculpted head from a UV sphere with feature displacement
+  function head(cx, cy, cz) {
+    const rx = 0.086, ry = 0.11, rz = 0.10, rows = 40, cols = 40;
+    const pos = [], ind = [];
+    for (let i = 0; i <= rows; i++) {
+      const v = i / rows, phi = v * Math.PI;         // 0 top .. PI bottom
+      for (let j = 0; j <= cols; j++) {
+        const u = j / cols, th = u * Math.PI * 2;
+        let x = Math.sin(phi) * Math.cos(th), y = Math.cos(phi), z = Math.sin(phi) * Math.sin(th);
+        let px = x * rx, py = y * ry, pz = z * rz;
+        const front = z;                              // +z = face front
+        // jaw taper (narrow lower face)
+        if (py < 0) { const j2 = -py / ry; px *= 1 - 0.28 * j2; pz *= 1 - 0.12 * j2; py *= 1.05; }
+        // chin
+        if (py < -ry * 0.55 && front > 0.2) pz += 0.012 * (1 - Math.abs(px) / rx);
+        // nose
+        const nose = Math.exp(-((py + ry * 0.02) ** 2) / 0.0016 - (px ** 2) / 0.0009) * (front > 0 ? front : 0);
+        pz += nose * 0.03;
+        // brow ridge
+        if (py > ry * 0.05 && py < ry * 0.42 && front > 0.3) pz += 0.006;
+        // eye sockets (slight indent)
+        const eye = Math.exp(-((py - ry * 0.18) ** 2) / 0.0009 - ((Math.abs(px) - 0.032) ** 2) / 0.0006) * (front > 0.2 ? 1 : 0);
+        pz -= eye * 0.01;
+        // cheeks
+        if (py < 0 && py > -ry * 0.5 && front > 0) pz += 0.006 * (1 - Math.abs(px) / rx);
+        // back of skull fuller
+        if (front < -0.2) pz -= 0.006;
+        pos.push(cx + px, cy + py, cz + pz);
+      }
+    }
+    const stride = cols + 1;
+    for (let i = 0; i < rows; i++) for (let j = 0; j < cols; j++) {
+      const a = i * stride + j, b = a + 1, c = a + stride, d = c + 1;
+      ind.push(a, c, b, b, c, d);
+    }
+    return { pos, ind };
+  }
+
+  // hair shell over scalp
+  function hair(cx, cy, cz) {
+    const rx = 0.098, ry = 0.12, rz = 0.11, rows = 26, cols = 30;
+    const pos = [], ind = [];
+    for (let i = 0; i <= rows; i++) {
+      const v = i / rows, phi = v * Math.PI * 0.62;   // only upper/back scalp
+      for (let j = 0; j <= cols; j++) {
+        const u = j / cols, th = u * Math.PI * 2;
+        let x = Math.sin(phi) * Math.cos(th), y = Math.cos(phi), z = Math.sin(phi) * Math.sin(th);
+        // hairline: pull hair back off the forehead (front lower rows recede)
+        let py = y * ry, pz = z * rz, px = x * rx;
+        const lump = 0.006 * (Math.sin(th * 7 + v * 9) + Math.sin(th * 4 - v * 6));
+        px += px !== 0 ? lump * Math.sign(px) : 0; pz += lump;
+        if (z > 0 && py < ry * 0.55) { const k = (ry * 0.55 - py) / ry; pz -= k * 0.05; }  // forehead recede
+        pos.push(cx + px, cy + py, cz + pz);
+      }
+    }
+    const stride = cols + 1;
+    for (let i = 0; i < rows; i++) for (let j = 0; j < cols; j++) {
+      const a = i * stride + j, b = a + 1, c = a + stride, d = c + 1;
+      ind.push(a, c, b, b, c, d);
+    }
+    return { pos, ind };
+  }
+
+  // rounded box (shoe)
+  function shoe(cx, cy, cz, s) {
+    const seg = 16, N = 8;
+    const centers = [], rA = [], rB = [];
+    for (let i = 0; i < N; i++) {
+      const t = i / (N - 1);
+      centers.push(V(cx, cy + 0.02 - 0.0 * t, cz - 0.09 + t * 0.30)); // heel(-z) to toe(+z)
+      rA.push(0.045 * (1 - 0.15 * t));                                 // width
+      rB.push(0.03 + 0.02 * Math.sin(t * Math.PI));                    // height profile
+    }
+    return tube(centers, rA, rB, seg, true, true);
+  }
+
+  /* ---------- build parts ---------- */
+  const parts = [];   // {pos, ind, tag, cand:[boneNames]}
+  const push = (g, tag, cand) => parts.push({ pos: g.pos, ind: g.ind, tag, cand });
+
+  // torso / jacket
+  {
+    const prof = [
+      [0.80, 0.15, 0.115], [0.88, 0.155, 0.12], [0.96, 0.14, 0.11], [1.04, 0.135, 0.105],
+      [1.12, 0.15, 0.115], [1.20, 0.175, 0.125], [1.28, 0.20, 0.13], [1.36, 0.215, 0.13],
+      [1.43, 0.205, 0.12], [1.47, 0.14, 0.10],
+    ];
+    const centers = prof.map(p => V(0, p[0], 0)), rA = prof.map(p => p[1]), rB = prof.map(p => p[2]);
+    push(tube(centers, rA, rB, 34, true, true), 'suit', ['Hips', 'Spine', 'Spine1', 'Chest', 'Neck']);
+  }
+  // neck
+  {
+    const centers = [V(0, 1.44, 0.005), V(0, 1.50, 0.004), V(0, 1.56, 0.002)];
+    push(tube(centers, [0.052, 0.05, 0.048], [0.05, 0.048, 0.046], 20, false, false), 'skin', ['Neck', 'Chest', 'Head']);
+  }
+  // head + hair
+  push(head(0, 1.645, 0.005), 'skin', ['Head', 'HeadTop', 'Neck']);
+  push(hair(0, 1.66, 0.004), 'hair', ['Head', 'HeadTop']);
+  // shirt V + tie (front chest panel)
+  {
+    const pos = [], ind = [];
+    // white shirt triangle
+    const sh = [[-0.05, 1.40, 0.128], [0.05, 1.40, 0.128], [0, 1.24, 0.132]];
+    sh.forEach(p => pos.push(p[0], p[1], p[2])); ind.push(0, 2, 1);
+    push({ pos, ind }, 'shirt', ['Chest', 'Spine1']);
+    // tie
+    const tp = [], ti = [];
+    const tie = [[-0.014, 1.40, 0.134], [0.014, 1.40, 0.134], [-0.02, 1.16, 0.138], [0.02, 1.16, 0.138], [0, 1.10, 0.14]];
+    tie.forEach(p => tp.push(p[0], p[1], p[2])); ti.push(0, 2, 1, 1, 2, 3, 2, 4, 3);
+    push({ pos: tp, ind: ti }, 'tie', ['Chest', 'Spine1']);
+  }
+  // arms (sleeves) + hands + fingers
+  for (const [side, s] of [['L', 1], ['R', -1]]) {
+    const sh = world[idx[side + 'Arm']], el = world[idx[side + 'ForeArm']], wr = world[idx[side + 'Hand']];
+    const centers = [
+      world[idx[side + 'Clav']].clone().lerp(sh, 0.5), sh, sh.clone().lerp(el, 0.5), el,
+      el.clone().lerp(wr, 0.5), wr,
+    ];
+    const rA = [0.058, 0.052, 0.047, 0.043, 0.04, 0.037], rB = rA.slice();
+    push(tube(centers, rA, rB, 22, true, false), 'suit', [side + 'Clav', side + 'Arm', side + 'ForeArm', side + 'Hand']);
+    // palm
+    const palm = tube([wr, wr.clone().add(V(s * 0.06, 0, 0)), wr.clone().add(V(s * 0.11, 0, 0))],
+      [0.036, 0.04, 0.038], [0.02, 0.022, 0.02], 16, true, false);
+    push(palm, 'skin', [side + 'Hand']);
+    // fingers
+    const fz = { index: 0.055, middle: 0.018, ring: -0.018, pinky: -0.052 };
+    const flen = { index: 0.075, middle: 0.082, ring: 0.075, pinky: 0.06 };
+    for (const f of ['index', 'middle', 'ring', 'pinky']) {
+      const z0 = fz[f], L = flen[f], base = world[idx[side + f + '1']];
+      const c = [base, world[idx[side + f + '2']], world[idx[side + f + '3']], world[idx[side + f + '3']].clone().add(V(s * L * 0.7, 0, 0))];
+      const r = [0.011, 0.010, 0.009, 0.006];
+      push(tube(c, r, r, 10, true, true), 'skin', [side + 'Hand', side + f + '1', side + f + '2', side + f + '3']);
+    }
+    // thumb
+    {
+      const t1 = world[idx[side + 'thumb1']], t2 = world[idx[side + 'thumb2']];
+      const c = [world[idx[side + 'Hand']].clone().lerp(t1, 0.4), t1, t2, t2.clone().add(V(s * 0.02, 0, 0.03))];
+      const r = [0.014, 0.012, 0.010, 0.007];
+      push(tube(c, r, r, 10, true, true), 'skin', [side + 'Hand', side + 'thumb1', side + 'thumb2']);
+    }
+  }
+  // legs (trousers) + shoes
+  for (const [side, s] of [['L', 1], ['R', -1]]) {
+    const hip = world[idx[side + 'UpLeg']], kn = world[idx[side + 'Leg']], an = world[idx[side + 'Foot']];
+    const centers = [hip.clone().add(V(0, 0.04, 0)), hip, hip.clone().lerp(kn, 0.5), kn, kn.clone().lerp(an, 0.5), an.clone().add(V(0, 0.03, 0))];
+    const rA = [0.10, 0.092, 0.075, 0.062, 0.056, 0.05], rB = rA.map(r => r * 1.02);
+    push(tube(centers, rA, rB, 22, true, true), 'suit', [side + 'UpLeg', side + 'Leg', side + 'Foot']);
+    push(shoe(s * 0.11, 0.0, 0.0, s), 'shoe', [side + 'Foot', side + 'Toe']);
+  }
+
+  /* ---------- auto-skin every part to its candidate bones ---------- */
+  const meshes = [];
+  for (const part of parts) {
+    const n = part.pos.length / 3;
+    const si = new Uint16Array(n * 4), sw = new Float32Array(n * 4);
+    const cand = part.cand.map(nm => segs[idx[nm]]);
+    for (let i = 0; i < n; i++) {
+      const p = V(part.pos[i * 3], part.pos[i * 3 + 1], part.pos[i * 3 + 2]);
+      // nearest 2 candidate segments by distance
+      let best = [], b2 = [];
+      let d1 = Infinity, d2 = Infinity, i1 = 0, i2 = 0;
+      for (const c of cand) {
+        const d = distToSeg(p, c.a, c.b);
+        if (d < d1) { d2 = d1; i2 = i1; d1 = d; i1 = c.i; }
+        else if (d < d2) { d2 = d; i2 = c.i; }
+      }
+      const w1 = 1 / (d1 * d1 + 1e-5), w2 = cand.length > 1 ? 1 / (d2 * d2 + 1e-5) : 0;
+      const wsum = w1 + w2;
+      si[i * 4] = i1; si[i * 4 + 1] = i2; si[i * 4 + 2] = 0; si[i * 4 + 3] = 0;
+      sw[i * 4] = w1 / wsum; sw[i * 4 + 1] = w2 / wsum; sw[i * 4 + 2] = 0; sw[i * 4 + 3] = 0;
+    }
+    meshes.push({ pos: new Float32Array(part.pos), ind: part.ind, si, sw, tag: part.tag });
+  }
+
+  return { meshes, bones, boneByName: idx, order: B.map(b => b[0]), world, height: 1.78 };
+}
+
+
+/* ===== inlined animations ===== */
+// Animations authored for the procedural agent skeleton (T-pose bind, forward +z).
+// All rotations are LOCAL-frame euler deltas (bind local = identity), which
+// compose correctly through the hierarchy regardless of parent pose.
+function authorAnimations(THREE) {
+  const _q = new THREE.Quaternion(), _e = new THREE.Euler();
+  const q = (x, y, z) => { _e.set(x, y, z); _q.setFromEuler(_e); return [_q.x, _q.y, _q.z, _q.w]; };
+  const rot = (name, times, eulers) => {
+    const v = []; eulers.forEach(a => v.push(...q(a[0], a[1], a[2])));
+    return new THREE.QuaternionKeyframeTrack(name + '.quaternion', times, v);
+  };
+  const pos = (name, times, vecs) => {
+    const v = []; vecs.forEach(a => v.push(a[0], a[1], a[2]));
+    return new THREE.VectorKeyframeTrack(name + '.position', times, v);
+  };
+
+  // ---- neutral arm-down pose (shoulders bring T-pose arms to the sides) ----
+  const ARM = { L: [-0.12, 0.08, -1.31], R: [-0.12, -0.08, 1.31] };
+  const FORE = { L: [0, -0.28, -0.15], R: [0, 0.28, 0.15] };
+  const HAND0 = { L: [0, 0, 0], R: [0, 0, 0] };
+  // relaxed finger curl (idle) and full fist
+  // fists curl toward the palm (-Y): LEFT needs -Z, RIGHT needs +Z (mirror)
+  const fingersL = (curl, tip) => ['index', 'middle', 'ring', 'pinky'].flatMap(f =>
+    [['L' + f + '1', [0, 0, -curl]], ['L' + f + '2', [0, 0, -curl]], ['L' + f + '3', [0, 0, -tip]]]);
+  const fingersR = (curl, tip) => ['index', 'middle', 'ring', 'pinky'].flatMap(f =>
+    [['R' + f + '1', [0, 0, curl]], ['R' + f + '2', [0, 0, curl]], ['R' + f + '3', [0, 0, tip]]]);
+  const thumbsL = c => [['Lthumb1', [0, -c, 0]], ['Lthumb2', [0, -c, 0]]];
+  const thumbsR = c => [['Rthumb1', [0, c, 0]], ['Rthumb2', [0, c, 0]]];
+  const holdFingers = (dur, curl, tip, tc) => {
+    const tr = [];
+    [...fingersL(curl, tip), ...fingersR(curl, tip), ...thumbsL(tc), ...thumbsR(tc)].forEach(([n, e]) =>
+      tr.push(rot(n, [0, dur], [e, e])));
+    return tr;
+  };
+
+  const clips = {};
+  const HIP = 0.94;
+
+  // ---------- IDLE ----------
+  clips.Idle = new THREE.AnimationClip('Idle', 4.0, [
+    pos('Hips', [0, 2, 4], [[0, HIP, 0], [0, HIP + 0.008, 0], [0, HIP, 0]]),
+    rot('Spine', [0, 2, 4], [[0.02, 0.03, 0], [0.04, -0.03, 0], [0.02, 0.03, 0]]),
+    rot('Chest', [0, 2, 4], [[0.02, 0, 0], [0.03, 0, 0], [0.02, 0, 0]]),
+    rot('Head', [0, 1.3, 2.6, 4], [[0, 0.05, 0], [0.02, -0.02, 0], [0, -0.05, 0], [0, 0.05, 0]]),
+    rot('LArm', [0, 2, 4], [ARM.L, [ARM.L[0], ARM.L[1], ARM.L[2] + 0.04], ARM.L]),
+    rot('RArm', [0, 2, 4], [ARM.R, [ARM.R[0], ARM.R[1], ARM.R[2] - 0.04], ARM.R]),
+    rot('LForeArm', [0, 4], [FORE.L, FORE.L]), rot('RForeArm', [0, 4], [FORE.R, FORE.R]),
+    ...holdFingers(4.0, 0.18, 0.22, 0.15),
+  ]);
+
+  // ---------- WALK (dur 1.0) ----------
+  const S = 0.55;  // stride
+  clips.Walk = new THREE.AnimationClip('Walk', 1.0, [
+    pos('Hips', [0, 0.25, 0.5, 0.75, 1.0], [[0, HIP, 0], [0, HIP + 0.015, 0], [0, HIP, 0], [0, HIP + 0.015, 0], [0, HIP, 0]]),
+    rot('Hips', [0, 0.5, 1.0], [[0, 0.05, 0], [0, -0.05, 0], [0, 0.05, 0]]),
+    rot('Spine', [0, 0.5, 1.0], [[0.04, -0.03, 0], [0.04, 0.03, 0], [0.04, -0.03, 0]]),
+    // legs: forward swing = negative X on UpLeg; stance leg stays near-straight
+    rot('LUpLeg', [0, 0.5, 1.0], [[-S * 0.5, 0, 0], [S * 0.5, 0, 0], [-S * 0.5, 0, 0]]),
+    rot('RUpLeg', [0, 0.5, 1.0], [[S * 0.5, 0, 0], [-S * 0.5, 0, 0], [S * 0.5, 0, 0]]),
+    rot('LLeg', [0, 0.25, 0.5, 0.75, 1.0], [[0.1, 0, 0], [0.15, 0, 0], [0.1, 0, 0], [0.6, 0, 0], [0.1, 0, 0]]),
+    rot('RLeg', [0, 0.25, 0.5, 0.75, 1.0], [[0.1, 0, 0], [0.6, 0, 0], [0.1, 0, 0], [0.15, 0, 0], [0.1, 0, 0]]),
+    rot('LFoot', [0, 0.5, 1.0], [[0.1, 0, 0], [-0.15, 0, 0], [0.1, 0, 0]]),
+    rot('RFoot', [0, 0.5, 1.0], [[-0.15, 0, 0], [0.1, 0, 0], [-0.15, 0, 0]]),
+    // arms counter-swing about X, layered on the down pose
+    rot('LArm', [0, 0.5, 1.0], [[0.35, ARM.L[1], ARM.L[2]], [-0.35, ARM.L[1], ARM.L[2]], [0.35, ARM.L[1], ARM.L[2]]]),
+    rot('RArm', [0, 0.5, 1.0], [[-0.35, ARM.R[1], ARM.R[2]], [0.35, ARM.R[1], ARM.R[2]], [-0.35, ARM.R[1], ARM.R[2]]]),
+    rot('LForeArm', [0, 1.0], [FORE.L, FORE.L]), rot('RForeArm', [0, 1.0], [FORE.R, FORE.R]),
+    ...holdFingers(1.0, 0.2, 0.24, 0.15),
+  ]);
+
+  // ---------- RUN (dur 0.72) ----------
+  const R = 1.15;
+  clips.Run = new THREE.AnimationClip('Run', 0.72, [
+    pos('Hips', [0, 0.18, 0.36, 0.54, 0.72], [[0, HIP + 0.02, 0], [0, HIP + 0.06, 0], [0, HIP + 0.02, 0], [0, HIP + 0.06, 0], [0, HIP + 0.02, 0]]),
+    rot('Spine', [0, 0.72], [[0.16, 0, 0], [0.16, 0, 0]]),   // forward lean
+    rot('Chest', [0, 0.72], [[0.08, 0, 0], [0.08, 0, 0]]),
+    rot('LUpLeg', [0, 0.36, 0.72], [[-R * 0.55, 0, 0], [R * 0.5, 0, 0], [-R * 0.55, 0, 0]]),
+    rot('RUpLeg', [0, 0.36, 0.72], [[R * 0.5, 0, 0], [-R * 0.55, 0, 0], [R * 0.5, 0, 0]]),
+    rot('LLeg', [0, 0.18, 0.36, 0.72], [[0.4, 0, 0], [0.3, 0, 0], [1.5, 0, 0], [0.4, 0, 0]]),
+    rot('RLeg', [0, 0.36, 0.54, 0.72], [[1.5, 0, 0], [0.4, 0, 0], [0.3, 0, 0], [1.5, 0, 0]]),
+    rot('LArm', [0, 0.36, 0.72], [[0.9, ARM.L[1], ARM.L[2]], [-0.7, ARM.L[1], ARM.L[2]], [0.9, ARM.L[1], ARM.L[2]]]),
+    rot('RArm', [0, 0.36, 0.72], [[-0.7, ARM.R[1], ARM.R[2]], [0.9, ARM.R[1], ARM.R[2]], [-0.7, ARM.R[1], ARM.R[2]]]),
+    rot('LForeArm', [0, 0.72], [[0, -0.9, -0.15], [0, -0.9, -0.15]]),
+    rot('RForeArm', [0, 0.72], [[0, 0.9, 0.15], [0, 0.9, 0.15]]),
+    ...holdFingers(0.72, 0.5, 0.5, 0.2),
+  ]);
+
+  // ---------- SPRINT (dur 0.56) ----------
+  const SP = 1.4;
+  clips.Sprint = new THREE.AnimationClip('Sprint', 0.56, [
+    pos('Hips', [0, 0.14, 0.28, 0.42, 0.56], [[0, HIP + 0.02, 0], [0, HIP + 0.08, 0], [0, HIP + 0.02, 0], [0, HIP + 0.08, 0], [0, HIP + 0.02, 0]]),
+    rot('Spine', [0, 0.56], [[0.28, 0, 0], [0.28, 0, 0]]),
+    rot('Chest', [0, 0.56], [[0.12, 0, 0], [0.12, 0, 0]]),
+    rot('LUpLeg', [0, 0.28, 0.56], [[-SP * 0.55, 0, 0], [SP * 0.5, 0, 0], [-SP * 0.55, 0, 0]]),
+    rot('RUpLeg', [0, 0.28, 0.56], [[SP * 0.5, 0, 0], [-SP * 0.55, 0, 0], [SP * 0.5, 0, 0]]),
+    rot('LLeg', [0, 0.14, 0.28, 0.56], [[0.5, 0, 0], [0.35, 0, 0], [1.8, 0, 0], [0.5, 0, 0]]),
+    rot('RLeg', [0, 0.28, 0.42, 0.56], [[1.8, 0, 0], [0.5, 0, 0], [0.35, 0, 0], [1.8, 0, 0]]),
+    rot('LArm', [0, 0.28, 0.56], [[1.2, ARM.L[1], ARM.L[2]], [-0.9, ARM.L[1], ARM.L[2]], [1.2, ARM.L[1], ARM.L[2]]]),
+    rot('RArm', [0, 0.28, 0.56], [[-0.9, ARM.R[1], ARM.R[2]], [1.2, ARM.R[1], ARM.R[2]], [-0.9, ARM.R[1], ARM.R[2]]]),
+    rot('LForeArm', [0, 0.56], [[0, -1.2, -0.15], [0, -1.2, -0.15]]),
+    rot('RForeArm', [0, 0.56], [[0, 1.2, 0.15], [0, 1.2, 0.15]]),
+    ...holdFingers(0.56, 0.7, 0.7, 0.3),
+  ]);
+
+  // ---------- CROUCH (held pose) ----------
+  clips.Crouch = new THREE.AnimationClip('Crouch', 0.5, [
+    pos('Hips', [0, 0.5], [[0, HIP - 0.28, 0], [0, HIP - 0.28, 0]]),
+    rot('Spine', [0, 0.5], [[0.22, 0, 0], [0.22, 0, 0]]),
+    rot('Chest', [0, 0.5], [[0.1, 0, 0], [0.1, 0, 0]]),
+    rot('LUpLeg', [0, 0.5], [[-1.15, 0.05, 0], [-1.15, 0.05, 0]]),
+    rot('RUpLeg', [0, 0.5], [[-1.15, -0.05, 0], [-1.15, -0.05, 0]]),
+    rot('LLeg', [0, 0.5], [[1.7, 0, 0], [1.7, 0, 0]]),
+    rot('RLeg', [0, 0.5], [[1.7, 0, 0], [1.7, 0, 0]]),
+    rot('LFoot', [0, 0.5], [[-0.5, 0, 0], [-0.5, 0, 0]]),
+    rot('RFoot', [0, 0.5], [[-0.5, 0, 0], [-0.5, 0, 0]]),
+    rot('LArm', [0, 0.5], [[0.3, ARM.L[1], ARM.L[2]], [0.3, ARM.L[1], ARM.L[2]]]),
+    rot('RArm', [0, 0.5], [[0.3, ARM.R[1], ARM.R[2]], [0.3, ARM.R[1], ARM.R[2]]]),
+    rot('LForeArm', [0, 0.5], [[0, -0.6, -0.15], [0, -0.6, -0.15]]),
+    rot('RForeArm', [0, 0.5], [[0, 0.6, 0.15], [0, 0.6, 0.15]]),
+    ...holdFingers(0.5, 0.25, 0.3, 0.2),
+  ]);
+
+  // ---------- BOX (jab-cross combo, real fists, punches reach forward +z) ----------
+  // arms reach forward via Y-rotation; guard = forward + bent elbow, extend = straighten
+  const bx = [];
+  bx.push(rot('Spine', [0, 0.2, 0.55, 1.1], [[0.05, 0.12, 0], [0.05, 0.28, 0], [0.05, -0.28, 0], [0.05, 0.12, 0]]));
+  bx.push(rot('Hips', [0, 0.2, 0.55, 1.1], [[0, 0.1, 0], [0, 0.18, 0], [0, -0.18, 0], [0, 0.1, 0]]));
+  // Left jab: guard -> extend forward -> guard
+  bx.push(rot('LArm', [0, 0.16, 0.34, 0.6, 1.1],
+    [[0, -1.15, -0.2], [0, -1.45, 0], [0, -1.15, -0.2], [0, -1.1, -0.25], [0, -1.15, -0.2]]));
+  bx.push(rot('LForeArm', [0, 0.16, 0.34, 1.1], [[0, -1.5, -0.15], [0, -0.25, -0.15], [0, -1.5, -0.15], [0, -1.5, -0.15]]));
+  // Right cross: guard -> extend forward -> guard
+  bx.push(rot('RArm', [0, 0.42, 0.58, 0.78, 1.1],
+    [[0, 1.15, 0.2], [0, 1.15, 0.2], [0, 1.5, 0], [0, 1.15, 0.2], [0, 1.15, 0.2]]));
+  bx.push(rot('RForeArm', [0, 0.42, 0.58, 0.78, 1.1], [[0, 1.5, 0.15], [0, 1.5, 0.15], [0, 0.3, 0.15], [0, 1.5, 0.15], [0, 1.5, 0.15]]));
+  // fists closed throughout
+  [...fingersL(1.6, 1.5), ...fingersR(1.6, 1.5), ...thumbsL(0.6), ...thumbsR(0.6)].forEach(([n, e]) => bx.push(rot(n, [0, 1.1], [e, e])));
+  clips.Box = new THREE.AnimationClip('Box', 1.1, bx);
+
+  // ---------- KICK (front snap, dur 0.6) ----------
+  clips.Kick = new THREE.AnimationClip('Kick', 0.6, [
+    pos('Hips', [0, 0.26, 0.6], [[0, HIP, 0], [0, HIP - 0.03, 0], [0, HIP, 0]]),
+    rot('Spine', [0, 0.26, 0.6], [[0.05, 0, 0], [-0.15, 0, 0], [0.05, 0, 0]]),   // slight back-lean at strike
+    // support leg (left) stays; kicking leg (right): chamber (knee up, bent) -> extend forward+up
+    rot('RUpLeg', [0, 0.14, 0.28, 0.42, 0.6], [[0, 0, 0], [-1.3, 0, 0], [-1.55, 0, 0], [-1.55, 0, 0], [0, 0, 0]]),
+    rot('RLeg', [0, 0.14, 0.28, 0.42, 0.6], [[0, 0, 0], [1.5, 0, 0], [0.15, 0, 0], [0.15, 0, 0], [0, 0, 0]]),
+    rot('RFoot', [0, 0.28, 0.6], [[0, 0, 0], [-0.3, 0, 0], [0, 0, 0]]),
+    rot('LArm', [0, 0.28, 0.6], [[0.3, ARM.L[1], ARM.L[2]], [0.6, ARM.L[1], ARM.L[2] + 0.2], [0.3, ARM.L[1], ARM.L[2]]]),
+    rot('RArm', [0, 0.28, 0.6], [[-0.3, ARM.R[1], ARM.R[2]], [-0.6, ARM.R[1], ARM.R[2] - 0.2], [-0.3, ARM.R[1], ARM.R[2]]]),
+    rot('LForeArm', [0, 0.6], [FORE.L, FORE.L]), rot('RForeArm', [0, 0.6], [FORE.R, FORE.R]),
+    ...holdFingers(0.6, 0.3, 0.3, 0.2),
+  ]);
+
+  // ---------- DEAD (collapse) ----------
+  clips.Dead = new THREE.AnimationClip('Dead', 0.9, [
+    pos('Hips', [0, 0.45, 0.9], [[0, HIP, 0], [0, 0.45, 0], [0, 0.12, 0]]),
+    rot('Hips', [0, 0.9], [[0, 0, 0], [-1.4, 0, 0.3]]),
+    rot('Spine', [0, 0.9], [[0, 0, 0], [0.4, 0, 0]]),
+    rot('LUpLeg', [0, 0.9], [[0, 0, 0], [-0.6, 0, 0.2]]),
+    rot('RUpLeg', [0, 0.9], [[0, 0, 0], [-0.3, 0, -0.2]]),
+    rot('LLeg', [0, 0.9], [[0, 0, 0], [0.8, 0, 0]]),
+    rot('LArm', [0, 0.9], [[ARM.L[0], ARM.L[1], ARM.L[2]], [0.6, 0.2, -0.9]]),
+    rot('RArm', [0, 0.9], [[ARM.R[0], ARM.R[1], ARM.R[2]], [0.6, -0.2, 0.9]]),
+    ...holdFingers(0.9, 0.15, 0.2, 0.1),
+  ]);
+
+  // aim/grip helpers (procedural, applied on top when gun drawn)
+  const AIM = {
+    RArm: q(-0.2, -0.5, 1.15),        // raise right arm forward, gun up
+    RForeArm: q(0, 0.7, 0.15),
+  };
+  const GRIP = {   // right-hand fist wrapping the grip
+    curl: 1.45, tip: 1.35, thumb: 0.5,
+  };
+
+  return { clips, ARM, FORE, AIM, GRIP };
+}
+
 
 /* ============ RENDERER / SCENE / CAMERA ============ */
 const app = document.getElementById('app');
@@ -174,16 +632,14 @@ const fill = new THREE.PointLight(0xffe0bf, 1.8, 24, 2); fill.position.set(2.8, 
 const floor = new THREE.Mesh(new THREE.CircleGeometry(40, 96),
   new THREE.MeshStandardMaterial({ color: 0x121216, roughness: 0.5, metalness: 0.35 }));
 floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; scene.add(floor);
-// square grid reads better for motion than the polar one
 const sgrid = new THREE.GridHelper(60, 60, 0x3a352a, 0x201d16);
 sgrid.position.y = 0.003; sgrid.material.opacity = 0.5; sgrid.material.transparent = true; scene.add(sgrid);
 
-/* ============ ENVIRONMENT — reference objects so movement is visible ============ */
+/* ============ ENVIRONMENT ============ */
 const env = new THREE.Group(); scene.add(env);
 const pillarMat = new THREE.MeshStandardMaterial({ color: 0x1a1a20, roughness: 0.6, metalness: 0.25 });
 const crateMat = new THREE.MeshStandardMaterial({ color: 0x2a2118, roughness: 0.8 });
 const stripMat = new THREE.MeshStandardMaterial({ color: 0x0a0a0c, roughness: 0.4, emissive: 0x120e06, emissiveIntensity: 1 });
-// ring of pillars
 for (let i = 0; i < 12; i++) {
   const a = (i / 12) * Math.PI * 2, r = 9;
   const h = 3 + (i % 3);
@@ -191,7 +647,6 @@ for (let i = 0; i < 12; i++) {
   p.position.set(Math.cos(a) * r, h / 2, Math.sin(a) * r); p.castShadow = true; p.receiveShadow = true; env.add(p);
   const cap = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.12, 0.7), stripMat); cap.position.set(Math.cos(a) * r, h, Math.sin(a) * r); env.add(cap);
 }
-// scattered crates
 const rnd = (s => () => (s = (s * 16807) % 2147483647) / 2147483647)(12345);
 for (let i = 0; i < 14; i++) {
   const s = 0.5 + rnd() * 0.6;
@@ -200,7 +655,6 @@ for (let i = 0; i < 14; i++) {
   c.position.set(Math.cos(a) * r, s / 2, Math.sin(a) * r); c.rotation.y = rnd() * Math.PI;
   c.castShadow = true; c.receiveShadow = true; env.add(c);
 }
-// glowing floor lane stripes for a strong sense of motion
 for (let i = -4; i <= 4; i++) {
   const st = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.02, 24), stripMat);
   st.position.set(i * 2.2, 0.02, 0); env.add(st);
@@ -208,7 +662,8 @@ for (let i = -4; i <= 4; i++) {
 
 /* ============ LOADERS ============ */
 const gltf = new GLTFLoader();
-const fbx = new FBXLoader();
+const CDN = 'https://cdn.jsdelivr.net/gh/maksimsysak3-ui/Subnautica-2@838662242f45b9e492afef1e33c3058593712433/models/';
+const LOCAL = './models/';
 const bar = document.getElementById('barfill'), loadmsg = document.getElementById('loadmsg');
 const setProg = p => { if (bar) bar.style.width = Math.round(Math.max(0, Math.min(1, p)) * 100) + '%'; };
 function loadGLB(name) {
@@ -219,70 +674,77 @@ function loadGLB(name) {
 }
 
 /* ============ CHARACTER / ANIMATION STATE ============ */
-const rig = new THREE.Group(); scene.add(rig);   // character root we move around
-let mixer = null, actions = {}, skinned = null, rightHand = null, faceOffset = Math.PI, groundSamples = [];
+const rig = new THREE.Group(); scene.add(rig);
+let mixer = null, actions = {}, skinned = null, rightHand = null, faceOffset = 0;
 let neckBone = null, headBone = null, spineBone = null, crouching = false;
-let rArm = null, rForeArm = null, rFA = null, rFB = null, aiming = false, aimW = 0;
-let neckRest = null, headRest = null;
+let rArm = null, rForeArm = null, gripBones = [], aiming = false, aimW = 0;
+let neckRest = null, headRest = null, groundMeshes = [];
 let locoTarget = 'Idle', actionMode = null, dead = false;
-const FRIENDLY = [
-  [/casual_walk|(^|\|)walk/i, 'Walk'],
-  [/run_03/i, 'Sprint'],
-  [/running|(^|\|)run/i, 'Run'],
-  [/box/i, 'Box'],
-  [/dead|death/i, 'Dead'],
-  [/idle|stand/i, 'Idle'],
-];
-const friendlyName = raw => { for (const [re, nm] of FRIENDLY) if (re.test(raw)) return nm; return raw.replace(/Armature\||\|baselayer/g, '') || 'Clip'; };
+let GRIPP = { curl: 1.45, tip: 1.35, thumb: 0.5 };
+const AIM_ARM = new THREE.Quaternion(), AIM_FORE = new THREE.Quaternion();
+const _e0 = new THREE.Euler();
 
-/* freeze horizontal root drift so in-place clips don't slide */
-function neutralizeRoot(clip) {
-  clip.tracks.forEach(tr => {
-    if (tr.name.endsWith('Hips.position')) {
-      const v = tr.values, x0 = v[0], z0 = v[2];
-      for (let i = 0; i < v.length; i += 3) { v[i] = x0; v[i + 2] = z0; }
-    }
-  });
-}
+function buildCharacter(gunGltf) {
+  const A = buildAgent(THREE);
+  rig.add(A.bones[0]);
+  rig.updateMatrixWorld(true);
+  const skeleton = new THREE.Skeleton(A.bones);
+  const MAT = {
+    suit: new THREE.MeshStandardMaterial({ color: 0x15151c, roughness: 0.48, metalness: 0.30 }),
+    skin: new THREE.MeshStandardMaterial({ color: 0xd8a785, roughness: 0.7, metalness: 0.0 }),
+    hair: new THREE.MeshStandardMaterial({ color: 0x181310, roughness: 0.86, metalness: 0.0 }),
+    shirt: new THREE.MeshStandardMaterial({ color: 0xece9e1, roughness: 0.55, metalness: 0.0 }),
+    tie: new THREE.MeshStandardMaterial({ color: 0x0b0b10, roughness: 0.5, metalness: 0.12 }),
+    shoe: new THREE.MeshStandardMaterial({ color: 0x0c0c10, roughness: 0.22, metalness: 0.45 }),
+  };
+  Object.values(MAT).forEach(m => { m.envMapIntensity = 1.1; });
+  for (const m of A.meshes) {
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.BufferAttribute(m.pos, 3));
+    g.setAttribute('skinIndex', new THREE.BufferAttribute(m.si, 4));
+    g.setAttribute('skinWeight', new THREE.BufferAttribute(m.sw, 4));
+    g.setIndex(m.ind);
+    g.computeVertexNormals();
+    const mesh = new THREE.SkinnedMesh(g, MAT[m.tag] || MAT.suit);
+    mesh.castShadow = true; mesh.receiveShadow = true; mesh.frustumCulled = false;
+    rig.add(mesh); mesh.bind(skeleton);
+    if (m.tag === 'shoe') groundMeshes.push(mesh);
+    if (!skinned) skinned = mesh;
+  }
+  const byName = {}; A.bones.forEach(b => byName[b.name] = b);
+  rightHand = byName['RHand'];
+  neckBone = byName['Neck']; headBone = byName['Head']; spineBone = byName['Chest'];
+  rArm = byName['RArm']; rForeArm = byName['RForeArm'];
+  gripBones = [];
+  ['index', 'middle', 'ring', 'pinky'].forEach(f => gripBones.push(byName['R' + f + '1'], byName['R' + f + '2'], byName['R' + f + '3']));
+  gripBones.push(byName['Rthumb1'], byName['Rthumb2']);
+  neckRest = neckBone.quaternion.clone(); headRest = headBone.quaternion.clone();
 
-function fitToStage(root) {
-  // Skinned meshes: Box3.setFromObject reads the mesh NODE transform (here a
-  // 0.01 armature scale) and reports a ~1.7cm size, which then gets scaled up
-  // ~100x into a giant. The real render size at bind pose equals the GEOMETRY
-  // bounds (inverse-bind matrices cancel the node transform), so scale from it.
-  let box;
-  if (skinned && skinned.geometry) { skinned.geometry.computeBoundingBox(); box = skinned.geometry.boundingBox.clone(); }
-  else { root.updateWorldMatrix(true, true); box = new THREE.Box3().setFromObject(root); }
-  const size = new THREE.Vector3(); box.getSize(size);
-  const s = 1.8 / (size.y || 1);
-  root.scale.setScalar(s);
-  root.position.set(
-    -((box.min.x + box.max.x) / 2) * s,
-    -box.min.y * s,
-    -((box.min.z + box.max.z) / 2) * s
-  );
-}
+  const authored = authorAnimations(THREE);
+  GRIPP = authored.GRIP;
+  AIM_ARM.fromArray(authored.AIM.RArm); AIM_FORE.fromArray(authored.AIM.RForeArm);
+  mixer = new THREE.AnimationMixer(rig);
+  for (const [nm, clip] of Object.entries(authored.clips)) {
+    const a = mixer.clipAction(clip); a.play(); a.enabled = true;
+    a.setEffectiveWeight(nm === 'Idle' ? 1 : 0);
+    if (nm === 'Dead' || nm === 'Kick') { a.setLoop(THREE.LoopOnce, 1); a.clampWhenFinished = true; }
+    actions[nm] = a;
+  }
+  actions.Combo = actions.Kick;   // button placeholder; sequence handled in trigger
+  buildAnimButtons();
 
-function addClip(clip) {
-  if (!mixer) return;
-  neutralizeRoot(clip);
-  const nm = friendlyName(clip.name || 'Clip');
-  const a = mixer.clipAction(clip);
-  a.play(); a.setEffectiveWeight(0); a.enabled = true;
-  if (nm === 'Dead') { a.setLoop(THREE.LoopOnce, 1); a.clampWhenFinished = true; }
-  else if (nm === 'Box') { a.setLoop(THREE.LoopRepeat, Infinity); }
-  actions[nm] = a;
-  return nm;
+  setupGun(gunGltf);
+  controls.target.set(0, 1.0, 0);
+  camera.position.set(0, 1.5, -2.8);
+  finish();
 }
 
 function buildAnimButtons() {
   const host = document.getElementById('animBtns'); host.innerHTML = '';
   const order = ['Idle', 'Walk', 'Run', 'Sprint', 'Crouch', 'Box', 'Kick', 'Combo', 'Dead'];
-  const names = Object.keys(actions).sort((a, b) => (order.indexOf(a) + 99) % 999 - (order.indexOf(b) + 99) % 999);
-  names.forEach(nm => {
+  order.filter(nm => actions[nm]).forEach(nm => {
     const b = document.createElement('button'); b.className = 'btn'; b.textContent = nm; b.dataset.anim = nm;
-    b.onclick = () => previewClip(nm, b);
-    host.appendChild(b);
+    b.onclick = () => previewClip(nm); host.appendChild(b);
   });
 }
 let previewName = null;
@@ -292,166 +754,19 @@ function previewClip(nm) {
   if (nm === 'Combo') { triggerCombo(); return; }
   if (nm === 'Crouch') { crouching = !crouching; return; }
   if (nm === 'Box') { actionMode = actionMode === 'Box' ? null : 'Box'; if (actionMode) actions.Box.reset(); return; }
-  // locomotion preview: hold that clip in place until you move
   previewName = (previewName === nm) ? null : nm; actionMode = null; dead = false;
-}
-
-/* Graft 2 finger bones per hand onto the Meshy rig (which has none), re-skin
-   the finger vertices to them, and let the Skeleton recompute inverses at bind
-   so the open hand is unchanged. Curl axis = local Z- (measured). */
-function addFingerBones(sm) {
-  const geo = sm.geometry, pos = geo.attributes.position, si = geo.attributes.skinIndex, sw = geo.attributes.skinWeight;
-  if (!si || !sw) return [];
-  sm.updateMatrixWorld(true);
-  const fingerBones = [], names = [], fdata = [];
-  for (const [hn, sgn] of [['RightHand', -1], ['LeftHand', 1]]) {
-    const hand = sm.skeleton.bones.find(b => b.name === hn); if (!hand) continue;
-    const wrist = new THREE.Vector3(); hand.getWorldPosition(wrist);
-    let tip = null, ext = sgn < 0 ? 1e9 : -1e9;
-    for (let i = 0; i < pos.count; i++) {
-      const x = pos.getX(i), y = pos.getY(i);
-      if (sgn * x > 0.58 && y > 0.9 && y < 1.2) { if (sgn < 0 ? x < ext : x > ext) { ext = x; tip = new THREE.Vector3(x, y, pos.getZ(i)); } }
-    }
-    if (!tip) continue;
-    const dir = tip.clone().sub(wrist);
-    const A = new THREE.Bone(); A.name = hn + '_FA';
-    A.position.copy(wrist.clone().addScaledVector(dir, 0.3).applyMatrix4(new THREE.Matrix4().copy(hand.matrixWorld).invert()));
-    hand.add(A); A.updateWorldMatrix(true, false);
-    const B = new THREE.Bone(); B.name = hn + '_FB';
-    B.position.copy(wrist.clone().addScaledVector(dir, 0.62).applyMatrix4(new THREE.Matrix4().copy(A.matrixWorld).invert()));
-    A.add(B);
-    fingerBones.push(A, B); names.push(A.name, B.name); fdata.push({ sgn, wrist, dir });
-  }
-  if (!fingerBones.length) return [];
-  sm.updateMatrixWorld(true);
-  // PRESERVE the original bones' inverses + bindMatrix (recomputing them all
-  // corrupts the body); only append inverses for the new finger bones.
-  const fingerInv = fingerBones.map(b => new THREE.Matrix4().copy(b.matrixWorld).invert());
-  const allBones = [...sm.skeleton.bones, ...fingerBones];
-  const allInv = [...sm.skeleton.boneInverses, ...fingerInv];
-  const idx = {}; allBones.forEach((b, i) => idx[b.name] = i);
-  sm.bind(new THREE.Skeleton(allBones, allInv), sm.bindMatrix);
-  for (let i = 0; i < pos.count; i++) {
-    const x = pos.getX(i), y = pos.getY(i); if (y < 0.9 || y > 1.2) continue;
-    for (const fd of fdata) {
-      if (fd.sgn * x > 0.60) {
-        const p = new THREE.Vector3(x, y, pos.getZ(i));
-        const along = p.sub(fd.wrist).dot(fd.dir) / Math.max(1e-4, fd.dir.lengthSq());
-        const iA = idx[(fd.sgn < 0 ? 'RightHand' : 'LeftHand') + '_FA'], iB = idx[(fd.sgn < 0 ? 'RightHand' : 'LeftHand') + '_FB'];
-        const wB = Math.max(0, Math.min(1, (along - 0.25) / 0.55)), wA = 1 - wB;
-        si.setXYZW(i, iA, iB, iA, iA); sw.setXYZW(i, wA, wB, 0, 0);
-        break;
-      }
-    }
-  }
-  si.needsUpdate = true; sw.needsUpdate = true;
-  return names;
-}
-
-function setupCharacter(base, animGltfs, gunGltf) {
-  const root = base.scene;
-  root.traverse(o => {
-    if (o.isMesh || o.isSkinnedMesh) {
-      o.castShadow = true; o.receiveShadow = true; o.frustumCulled = false;
-      if (o.isSkinnedMesh) skinned = o;
-      const mats = Array.isArray(o.material) ? o.material : [o.material];
-      mats.forEach(m => { if (!m) return;
-        ['map', 'normalMap', 'roughnessMap', 'metalnessMap', 'aoMap', 'emissiveMap'].forEach(k => { if (m[k]) { m[k].anisotropy = MAX_ANISO; m[k].needsUpdate = true; } });
-        if ('envMapIntensity' in m) m.envMapIntensity = 1.15;
-        if (m.map) m.map.colorSpace = THREE.SRGBColorSpace;
-        m.needsUpdate = true;
-      });
-    }
-  });
-  fitToStage(root);
-  rig.add(root);
-  rightHand = root.getObjectByName('RightHand');
-  neckBone = root.getObjectByName('neck'); headBone = root.getObjectByName('Head'); spineBone = root.getObjectByName('Spine02');
-  if (neckBone) neckRest = neckBone.quaternion.clone();
-  if (headBone) headRest = headBone.quaternion.clone();
-  rArm = root.getObjectByName('RightArm'); rForeArm = root.getObjectByName('RightForeArm');
-  if (skinned) {   // fixed set of vertex indices to sample for foot-planting
-    const n = skinned.geometry.attributes.position.count, step = Math.max(1, Math.floor(n / 240));
-    for (let i = 0; i < n; i += step) groundSamples.push(i);
-  }
-
-  mixer = new THREE.AnimationMixer(root);
-  const clips = [...base.animations];
-  animGltfs.forEach(g => clips.push(...g.animations));
-
-  // graft finger bones onto the (finger-less) Meshy rig, then close them into
-  // fists for the Box clip. Placement + curl axis measured against the mesh.
-  let fingerNames = [];
-  try { fingerNames = addFingerBones(skinned); } catch (e) { console.warn('finger graft skipped:', e); }
-  rFA = skinned.getObjectByName('RightHand_FA'); rFB = skinned.getObjectByName('RightHand_FB');
-  if (fingerNames.length) {
-    const box = clips.find(c => /box/i.test(c.name));
-    if (box) {
-      const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, 0, -1.2)); const qa = [q.x, q.y, q.z, q.w];
-      fingerNames.forEach(nm => box.tracks.push(new THREE.QuaternionKeyframeTrack(nm + '.quaternion', [0, box.duration], [...qa, ...qa])));
-    }
-  }
-  clips.forEach(addClip);
-
-  // Idle: freeze the walk clip on a near-neutral frame (no dedicated idle clip provided)
-  const walkClip = base.animations[0];
-  if (walkClip) {
-    const idleClip = walkClip.clone(); idleClip.name = 'Idle_frozen';
-    neutralizeRoot(idleClip);
-    const a = mixer.clipAction(idleClip); a.play(); a.paused = true; a.time = 0; a.setEffectiveWeight(1);
-    actions.Idle = a;
-  }
-  // Kick — front snap kick, quats measured on the real agent skeleton in sim.
-  // rest → chamber (knee up, bent) → extend (hip flexed forward, knee straight,
-  // foot snaps forward to worldY≈0.83, z-hip≈-0.75) → hold → retract to rest.
-  const qRest = { UpLeg: [-0.5492, -0.5491, 0.439, 0.4518], Leg: [0.0812, -0.0133, -0.0031, 0.9966], Foot: [-0.5058, 0.0363, -0.0192, 0.8616] };
-  const qCh   = { UpLeg: [-0.181, -0.1884, 0.6773, 0.6877], Leg: [-0.5799, -0.0082, -0.0109, 0.8145] };
-  const qEx   = { UpLeg: [-0.0939, -0.1025, 0.6955, 0.7049], Leg: [0.0063, -0.013, -0.0041, 0.9999] };
-  const T = [0, 0.14, 0.26, 0.42, 0.6];
-  const kickClip = new THREE.AnimationClip('Kick', 0.6, [
-    new THREE.QuaternionKeyframeTrack('RightUpLeg.quaternion', T, [...qRest.UpLeg, ...qCh.UpLeg, ...qEx.UpLeg, ...qEx.UpLeg, ...qRest.UpLeg]),
-    new THREE.QuaternionKeyframeTrack('RightLeg.quaternion', T, [...qRest.Leg, ...qCh.Leg, ...qEx.Leg, ...qEx.Leg, ...qRest.Leg]),
-    new THREE.QuaternionKeyframeTrack('RightFoot.quaternion', T, [...qRest.Foot, ...qRest.Foot, ...qRest.Foot, ...qRest.Foot, ...qRest.Foot]),
-  ]);
-  const ka = mixer.clipAction(kickClip); ka.play(); ka.setEffectiveWeight(0); ka.setLoop(THREE.LoopOnce, 1); ka.clampWhenFinished = true; actions.Kick = ka;
-  actions.Combo = ka;   // placeholder so a Combo button appears; sequence handled in trigger
-
-  // Crouch — full held pose: walk-neutral upper body + measured squat legs
-  const CR = {
-    Spine: [-0.0327, 0.0001, 0.0005, 0.9995], Spine01: [0.0385, 0.0111, -0.0041, 0.9992], Spine02: [0.4651, 0.467, 0.5894, 0.467],
-    neck: [-0.1695, -0.0134, -0.0017, 0.9854], Head: [0.464, -0.0122, 0.022, 0.8855],
-    LeftShoulder: [0.585, 0.4869, -0.5104, 0.4002], LeftArm: [0.5096, 0.3695, 0.1151, 0.7685], LeftForeArm: [-0.0993, -0.0689, 0.0242, 0.9924], LeftHand: [0.0343, -0.0164, 0.0654, 0.9971],
-    RightShoulder: [0.6309, -0.4441, 0.4622, 0.4372], RightArm: [0.446, -0.3111, -0.1944, 0.8164], RightForeArm: [-0.1731, 0.1034, -0.09, 0.9753], RightHand: [0.0305, -0.0519, -0.0757, 0.9953],
-    LeftUpLeg: [-0.2751, -0.4967, 0.6238, 0.5371], RightUpLeg: [-0.3852, -0.389, 0.5856, 0.5978],
-    LeftLeg: [-0.4673, 0.0059, -0.0075, 0.8841], RightLeg: [-0.4739, -0.0095, -0.0098, 0.8805],
-    LeftFoot: [-0.2918, 0.0072, 0.0544, 0.9549], RightFoot: [-0.2769, 0.0304, -0.0276, 0.96],
-  };
-  const crouchClip = new THREE.AnimationClip('Crouch', 0.5, Object.entries(CR).map(([nm, q]) =>
-    new THREE.QuaternionKeyframeTrack(nm + '.quaternion', [0, 0.5], [...q, ...q])));
-  const cra = mixer.clipAction(crouchClip); cra.play(); cra.setEffectiveWeight(0); actions.Crouch = cra;
-
-  buildAnimButtons();
-
-  setupGun(gunGltf);
-  // close third-person, behind + slightly above
-  controls.target.set(0, 1.0, 0);
-  camera.position.set(0, 1.55, -2.8);
-  finish();
 }
 
 /* ============ GUN ============ */
 let gun = null, gunBaseScale = 1, muzzle = new THREE.Vector3(), gunFwd = new THREE.Vector3();
-const gunOffset = new THREE.Vector3(0, 0, 0);   // grip is anchored in setupGun; this is fine-tune only
-let gunScale = 1, barrelToAim = true, holstered = true;   // gun hidden until drawn (G)
+const gunOffset = new THREE.Vector3(0, 0, 0);
+let gunScale = 1, barrelToAim = true, holstered = true;
 function setupGun(g) {
   gun = g.scene;
   gun.traverse(o => { if (o.isMesh) { o.castShadow = true; o.frustumCulled = false; } });
   const box = new THREE.Box3().setFromObject(gun); const size = new THREE.Vector3(); box.getSize(size);
-  gunBaseScale = 0.22 / (Math.max(size.x, size.y, size.z) || 1);  // barrel ~0.22 m
-  const c = new THREE.Vector3(); box.getCenter(c); gun.position.sub(c);   // center pivot
-  // Anchor the GRIP at the holder origin, not the gun's centre — barrel runs
-  // along +X (front), grip hangs at rear (-X) / bottom (-Y). Move the mesh so
-  // the fist wraps the grip and the barrel points forward out of the hand.
+  gunBaseScale = 0.22 / (Math.max(size.x, size.y, size.z) || 1);
+  const c = new THREE.Vector3(); box.getCenter(c); gun.position.sub(c);
   gun.position.x += size.x * 0.28;   // barrel forward of the hand
   gun.position.y += size.y * 0.26;   // grip drops into the palm
   const holder = new THREE.Group(); holder.add(gun); gun = holder;
@@ -465,7 +780,6 @@ function updateGun() {
   rightHand.getWorldPosition(hp); rightHand.getWorldQuaternion(hq);
   gun.scale.setScalar(gunBaseScale * gunScale);
   gun.position.copy(hp).add(gunOffset.clone().applyQuaternion(hq));
-  // aim direction = camera forward on the horizon
   const aim = new THREE.Vector3(); camera.getWorldDirection(aim); aim.y = 0;
   if (aim.lengthSq() < 1e-5) aim.set(0, 0, 1); aim.normalize();
   gunFwd.copy(aim);
@@ -473,16 +787,15 @@ function updateGun() {
     const up = new THREE.Vector3(0, 1, 0);
     const right = new THREE.Vector3().crossVectors(up, aim).normalize();
     const up2 = new THREE.Vector3().crossVectors(aim, right).normalize();
-    const m = new THREE.Matrix4().makeBasis(aim, up2, right);   // gun +X = barrel → aim
+    const m = new THREE.Matrix4().makeBasis(aim, up2, right);
     gun.quaternion.setFromRotationMatrix(m);
   } else {
-    gun.quaternion.copy(hq);
-    gunFwd.set(1, 0, 0).applyQuaternion(gun.quaternion);
+    gun.quaternion.copy(hq); gunFwd.set(1, 0, 0).applyQuaternion(gun.quaternion);
   }
   muzzle.copy(gun.position).add(gunFwd.clone().multiplyScalar(0.24 * gunScale));
 }
 
-/* ============ SHOOTING (tracers + muzzle flash + audio + recoil) ============ */
+/* ============ SHOOTING ============ */
 const bullets = [];
 const bulletGeo = new THREE.CylinderGeometry(0.012, 0.012, 0.34, 6);
 bulletGeo.rotateX(Math.PI / 2);
@@ -577,7 +890,7 @@ updateHud();
 function triggerDead() { dead = true; actionMode = 'Dead'; if (actions.Dead) { actions.Dead.reset(); actions.Dead.paused = false; } }
 function revive() { dead = false; actionMode = null; comboSteps = null; }
 let actionUntil = 0, comboSteps = null, lungeUntil = 0;
-function triggerKick() { if (dead || !actions.Kick) return; comboSteps = null; actionMode = 'Kick'; actions.Kick.reset(); actionUntil = clock.elapsedTime + 0.6; lungeUntil = clock.elapsedTime + 0.32; }
+function triggerKick() { if (dead || !actions.Kick) return; comboSteps = null; actionMode = 'Kick'; actions.Kick.reset(); actionUntil = clock.elapsedTime + 0.6; lungeUntil = clock.elapsedTime + 0.30; }
 function triggerCombo() { if (dead) return; comboSteps = [['Box', 1.1], ['Kick', 0.6]]; startComboStep(); }
 function startComboStep() {
   if (!comboSteps || !comboSteps.length) { comboSteps = null; actionMode = null; return; }
@@ -600,7 +913,6 @@ addEventListener('keydown', e => {
   if ((e.code === 'ControlLeft' || e.code === 'KeyZ') && !e.repeat) { crouching = !crouching; e.preventDefault(); }
 });
 addEventListener('keyup', e => { keys[e.code] = false; });
-/* right mouse = aim down (raise the pistol) */
 controls.enablePan = false;
 renderer.domElement.addEventListener('contextmenu', e => e.preventDefault());
 renderer.domElement.addEventListener('mousedown', e => { if (e.button === 2 && !holstered) aiming = true; });
@@ -614,7 +926,6 @@ let followCam = true, wire = false;
 
 function updateMovement(dt) {
   if (!mixer) return;
-  // advance timed one-shots / combo steps
   if ((actionMode === 'Kick' || comboSteps) && clock.elapsedTime > actionUntil) {
     if (comboSteps) { comboSteps.shift(); startComboStep(); } else actionMode = null;
   }
@@ -628,12 +939,10 @@ function updateMovement(dt) {
   const move = new THREE.Vector3().addScaledVector(camF, mz).addScaledVector(camR, mx);
   const moving = move.lengthSq() > 1e-6 && !dead && !busy;
   const running = keys.ShiftLeft || keys.ShiftRight;
-  // kick lunge: commit the body forward so the kick reaches
   if (clock.elapsedTime < lungeUntil) {
     rig.position.x += Math.sin(curYaw) * 2.6 * dt;
     rig.position.z += Math.cos(curYaw) * 2.6 * dt;
   }
-
   if (moving) {
     move.normalize();
     const yaw = Math.atan2(move.x, move.z);
@@ -646,8 +955,6 @@ function updateMovement(dt) {
   } else {
     rig.rotation.y = curYaw + faceOffset;
   }
-
-  // blend animation weights
   const loco = ['Idle', 'Walk', 'Run', 'Sprint'];
   loco.forEach(nm => { const a = actions[nm]; if (!a) return;
     const tgt = (!actionMode && !dead && !crouchActive && nm === locoTarget) ? 1 : 0;
@@ -658,19 +965,16 @@ function updateMovement(dt) {
   if (actions.Crouch) actions.Crouch.setEffectiveWeight(THREE.MathUtils.lerp(actions.Crouch.getEffectiveWeight(), crouchActive ? 1 : 0, Math.min(1, dt * 12)));
 }
 
-/* head follows the CAMERA (mouse), not a timer — turns toward where you look,
-   split across neck + head so the neck actually rotates */
+/* head follows the CAMERA (mouse) — absolute from rest so it can't accumulate */
 const _flrQ = new THREE.Quaternion(), _flrE = new THREE.Euler();
 let lookYaw = 0, lookPitch = 0;
 function idleFlourish(dt) {
-  // Only during idle/move states; during Box/Kick/Dead the clip drives the head.
-  // Set ABSOLUTELY from the rest pose (never multiply-on-top) so it can't accumulate/spin.
   if (dead || actionMode || !headBone || !neckRest) return;
   const camF = new THREE.Vector3(); camera.getWorldDirection(camF);
   const camYaw = Math.atan2(camF.x, camF.z);
-  let dyaw = camYaw - curYaw;                       // camera vs character facing
+  let dyaw = camYaw - curYaw;
   while (dyaw > Math.PI) dyaw -= 2 * Math.PI; while (dyaw < -Math.PI) dyaw += 2 * Math.PI;
-  dyaw = THREE.MathUtils.clamp(dyaw, -1.0, 1.0);
+  dyaw = THREE.MathUtils.clamp(dyaw, -1.1, 1.1);
   const dpitch = THREE.MathUtils.clamp(-Math.asin(THREE.MathUtils.clamp(camF.y, -1, 1)), -0.35, 0.35);
   lookYaw += (dyaw - lookYaw) * Math.min(1, dt * 9);
   lookPitch += (dpitch - lookPitch) * Math.min(1, dt * 9);
@@ -678,10 +982,7 @@ function idleFlourish(dt) {
   _flrE.set(lookPitch * 0.5, lookYaw * 0.45, 0); headBone.quaternion.copy(headRest).multiply(_flrQ.setFromEuler(_flrE));
 }
 
-/* gun grip (curl right fingers) + aim pose (raise right arm), applied on top
-   of the clip when the pistol is drawn. Aim quats measured in sim. */
-const AIM_ARM = new THREE.Quaternion().fromArray([0.0981, 0.891, -0.0097, -0.4432]);
-const AIM_FORE = new THREE.Quaternion().fromArray([0.0791, -0.6337, -0.0536, -0.7677]);
+/* gun grip (curl right fingers) + aim pose (raise right arm) on top of the clip */
 function applyGunPose(dt) {
   if (!mixer || dead) return;
   const gunOut = !holstered;
@@ -690,44 +991,50 @@ function applyGunPose(dt) {
     rArm.quaternion.slerp(AIM_ARM, aimW);
     rForeArm.quaternion.slerp(AIM_FORE, aimW);
   }
-  if (actionMode !== 'Box' && rFA && rFB) {   // absolute set (finger bones' rest = identity) → no accumulation
-    if (gunOut) {   // curl both segments hard so the hand wraps the grip (~160° at the tip)
-      _flrE.set(0, 0, -1.45); rFA.quaternion.setFromEuler(_flrE);
-      _flrE.set(0, 0, -1.35); rFB.quaternion.setFromEuler(_flrE);
-    } else { rFA.quaternion.identity(); rFB.quaternion.identity(); }
+  if (gunOut && actionMode !== 'Box' && gripBones.length) {   // wrap the grip (RIGHT fist = +Z)
+    for (let i = 0; i < 12; i++) {
+      const seg = i % 3, ang = seg < 2 ? GRIPP.curl : GRIPP.tip;
+      _e0.set(0, 0, ang); gripBones[i].quaternion.setFromEuler(_e0);
+    }
+    _e0.set(0, GRIPP.thumb, 0); gripBones[12].quaternion.setFromEuler(_e0); gripBones[13].quaternion.setFromEuler(_e0);
   }
 }
 
-/* plant the character on the floor by sampling the ACTUAL posed mesh
-   vertices (the skeleton is in a different space than the mesh on this
-   rig, so bone positions can't be used). Lowest sampled vertex → y≈0. */
+/* plant the character on the floor by sampling the posed shoe vertices */
 const _gv = new THREE.Vector3();
+let groundSamples = null;
 function groundFeet() {
-  if (dead || !skinned || !groundSamples.length) return;
-  rig.updateMatrixWorld(true);   // refresh bones (they live under the rig, not the mesh)
-  const pos = skinned.geometry.attributes.position;
-  const xform = skinned.applyBoneTransform ? 'applyBoneTransform' : (skinned.boneTransform ? 'boneTransform' : null);
-  let minY = Infinity;
-  for (const i of groundSamples) {
-    _gv.fromBufferAttribute(pos, i);
-    if (xform) skinned[xform](i, _gv);
-    _gv.applyMatrix4(skinned.matrixWorld);
-    if (_gv.y < minY) minY = _gv.y;
+  if (dead || !groundMeshes.length) return;
+  rig.updateMatrixWorld(true);
+  if (!groundSamples) {
+    groundSamples = groundMeshes.map(mesh => {
+      const n = mesh.geometry.attributes.position.count, step = Math.max(1, Math.floor(n / 60)), idxs = [];
+      for (let i = 0; i < n; i += step) idxs.push(i);
+      return { mesh, idxs };
+    });
   }
-  if (isFinite(minY)) rig.position.y -= minY * 0.5;                 // smooth toward planted
-  rig.position.y = Math.max(-3.0, Math.min(1.5, rig.position.y));   // safety clamp (wide)
+  let minY = Infinity;
+  for (const { mesh, idxs } of groundSamples) {
+    const pos = mesh.geometry.attributes.position;
+    for (const i of idxs) {
+      _gv.fromBufferAttribute(pos, i);
+      if (mesh.applyBoneTransform) mesh.applyBoneTransform(i, _gv);
+      _gv.applyMatrix4(mesh.matrixWorld);
+      if (_gv.y < minY) minY = _gv.y;
+    }
+  }
+  if (isFinite(minY)) rig.position.y -= minY * 0.5;
+  rig.position.y = Math.max(-2.0, Math.min(1.5, rig.position.y));
 }
 
 function updateCamera(dt) {
   if (!followCam) { controls.update(); return; }
-  // feet are planted at world y=0, so aim at a FIXED world height (chest),
-  // never rig.position.y (that's the internal grounding offset)
   const tgt = new THREE.Vector3(rig.position.x, 1.0, rig.position.z);
   const delta = tgt.clone().sub(controls.target);
   camera.position.add(delta);
   controls.target.copy(tgt);
   controls.update();
-  if (camera.position.y < 0.45) camera.position.y = 0.45;   // never under the floor
+  if (camera.position.y < 0.45) camera.position.y = 0.45;
 }
 
 /* ============ POST ============ */
@@ -750,28 +1057,6 @@ document.querySelector('.btn[data-view="wire"]').onclick = e => {
   wire = !wire; scene.traverse(o => { if (o.isMesh && o.material) { (Array.isArray(o.material) ? o.material : [o.material]).forEach(m => { if ('wireframe' in m) m.wireframe = wire; }); } });
   e.target.classList.toggle('on', wire);
 };
-
-/* upload / drop → add clips (retarget) or set character */
-const fileInput = document.getElementById('fileinput');
-document.getElementById('uploadbtn').onclick = () => fileInput.click();
-fileInput.onchange = e => { if (e.target.files[0]) addFromFile(e.target.files[0]); fileInput.value = ''; };
-const drop = document.getElementById('drop'); let dragN = 0;
-addEventListener('dragenter', e => { e.preventDefault(); dragN++; drop.classList.add('on'); });
-addEventListener('dragover', e => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; });
-addEventListener('dragleave', e => { e.preventDefault(); if (--dragN <= 0) { dragN = 0; drop.classList.remove('on'); } });
-addEventListener('drop', e => { e.preventDefault(); dragN = 0; drop.classList.remove('on'); const f = e.dataTransfer.files && e.dataTransfer.files[0]; if (f) addFromFile(f); });
-function addFromFile(file) {
-  const ext = (file.name.split('.').pop() || '').toLowerCase();
-  const url = URL.createObjectURL(file);
-  const done = (clips) => {
-    URL.revokeObjectURL(url);
-    if (!clips || !clips.length) { loadmsg.textContent = 'No animation in ' + file.name; return; }
-    let added = 0; clips.forEach(c => { if (addClip(c)) added++; });
-    buildAnimButtons(); loadmsg.textContent = 'Added ' + added + ' clip(s)';
-  };
-  if (ext === 'fbx') fbx.load(url, o => done(o.animations || []), undefined, () => { loadmsg.textContent = 'Load failed'; });
-  else gltf.load(url, g => done(g.animations || []), undefined, () => { loadmsg.textContent = 'Load failed'; });
-}
 
 /* ============ LOOP ============ */
 addEventListener('resize', () => {
@@ -801,17 +1086,16 @@ let loaderHidden = false;
 function finish() { setProg(1); if (!loaderHidden) { loaderHidden = true; const l = document.getElementById('loading'); l.style.opacity = 0; setTimeout(() => l.style.display = 'none', 700); } }
 (async function boot() {
   try {
-    loadmsg.textContent = 'Loading character…'; setProg(0.1);
-    const base = await loadGLB('agent.glb'); setProg(0.5);
-    loadmsg.textContent = 'Loading animations…';
-    const anims = await Promise.all([loadGLB('anim_run.glb'), loadGLB('anim_sprint.glb'), loadGLB('anim_box.glb'), loadGLB('anim_dead.glb')]);
-    setProg(0.8); loadmsg.textContent = 'Loading gun…';
+    loadmsg.textContent = 'Building agent…'; setProg(0.3);
+    loadmsg.textContent = 'Loading gun…'; setProg(0.7);
     const g = await loadGLB('glock.glb'); setProg(0.95);
-    setupCharacter(base, anims, g);
+    buildCharacter(g);
   } catch (err) {
     console.error(err);
-    loadmsg.textContent = 'Load failed — see console. (If jsdelivr is blocked, the repo may be private.)';
+    // still build the character even if the gun fails to load
+    try { buildCharacter({ scene: new THREE.Group() }); } catch (e2) { loadmsg.textContent = 'Build failed — see console.'; }
   }
 })();
 setTimeout(() => { if (!loaderHidden) finish(); }, 30000);
 </script>
+
