@@ -684,7 +684,7 @@ let GRIPP = { curl: 1.45, tip: 1.35, thumb: 0.5 };
 const AIM_ARM = new THREE.Quaternion(), AIM_FORE = new THREE.Quaternion();
 const _e0 = new THREE.Euler();
 
-function buildCharacter(gunGltf) {
+function buildCharacter() {
   // Reuse the authored skeleton (bone hierarchy + verified animations), but
   // render the body as rigid BOXES parented straight to the bones — no skinning
   // to go wrong, and the joints read cleanly.
@@ -727,10 +727,8 @@ function buildCharacter(gunGltf) {
   box('Head', 'eye', [-0.065, 0.09, 0.14], [0.045, 0.055, 0.02]);
   // arms (suit sleeves) + hands (skin). L=+X, R=-X (bone local = world at bind)
   for (const [side, s] of [['L', 1], ['R', -1]]) {
-    box(side + 'Arm', 'suit', [s * 0.135, 0, 0], [0.28, 0.14, 0.14]);
-    box(side + 'ForeArm', 'suit', [s * 0.12, 0, 0], [0.26, 0.12, 0.12]);
-    box(side + 'Hand', 'skin', [s * 0.06, 0, 0], [0.13, 0.11, 0.07]);
-    box(side + 'Arm', 'suit', [s * 0.02, 0.02, 0], [0.16, 0.16, 0.17]);   // shoulder pad
+    // ONE box for the whole arm (shoulder → wrist)
+    box(side + 'Arm', 'suit', [s * 0.255, 0, 0], [0.52, 0.145, 0.145]);
     // legs (suit) + shoes
     box(side + 'UpLeg', 'suit', [0, -0.2, 0], [0.17, 0.42, 0.19]);
     box(side + 'Leg', 'suit', [0, -0.205, -0.005], [0.15, 0.42, 0.17]);
@@ -759,7 +757,7 @@ function buildCharacter(gunGltf) {
   actions.Combo = actions.Kick;   // button placeholder; sequence handled in trigger
   buildAnimButtons();
 
-  setupGun(gunGltf);
+  setupGun();
   controls.target.set(0, 1.0, 0);
   camera.position.set(0, 1.5, -2.8);
   finish();
@@ -787,15 +785,54 @@ function previewClip(nm) {
 let gun = null, gunBaseScale = 1, muzzle = new THREE.Vector3(), gunFwd = new THREE.Vector3();
 const gunOffset = new THREE.Vector3(0, 0, 0);
 let gunScale = 1, barrelToAim = true, holstered = true;
-function setupGun(g) {
-  gun = g.scene;
-  gun.traverse(o => { if (o.isMesh) { o.castShadow = true; o.frustumCulled = false; } });
-  const box = new THREE.Box3().setFromObject(gun); const size = new THREE.Vector3(); box.getSize(size);
-  gunBaseScale = 0.22 / (Math.max(size.x, size.y, size.z) || 1);
-  const c = new THREE.Vector3(); box.getCenter(c); gun.position.sub(c);
-  gun.position.x += size.x * 0.28;   // barrel forward of the hand
-  gun.position.y += size.y * 0.26;   // grip drops into the palm
-  const holder = new THREE.Group(); holder.add(gun); gun = holder;
+/* Fully procedural, detailed suppressed spy pistol. Built in local frame:
+   origin = grip hold point (where the fist wraps), barrel along +X, up +Y,
+   grip hangs -Y. updateGun drops the origin onto the hand and aims +X. */
+function buildGun() {
+  const G = new THREE.Group();
+  const M = {
+    steel: new THREE.MeshStandardMaterial({ color: 0x30343c, metalness: 0.95, roughness: 0.3 }),
+    gunmetal: new THREE.MeshStandardMaterial({ color: 0x1b1d22, metalness: 0.9, roughness: 0.42 }),
+    poly: new THREE.MeshStandardMaterial({ color: 0x131316, metalness: 0.15, roughness: 0.78 }),
+    matte: new THREE.MeshStandardMaterial({ color: 0x0d0d10, metalness: 0.4, roughness: 0.6 }),
+  };
+  Object.values(M).forEach(m => m.envMapIntensity = 1.2);
+  const bx = (mat, pos, size, rot) => { const m = new THREE.Mesh(new THREE.BoxGeometry(size[0], size[1], size[2]), M[mat]); m.position.set(pos[0], pos[1], pos[2]); if (rot) m.rotation.set(rot[0], rot[1], rot[2]); m.castShadow = true; m.frustumCulled = false; G.add(m); return m; };
+  const cyl = (mat, pos, r, len, segs = 18) => { const g = new THREE.CylinderGeometry(r, r, len, segs); g.rotateZ(Math.PI / 2); const m = new THREE.Mesh(g, M[mat]); m.position.set(pos[0], pos[1], pos[2]); m.castShadow = true; m.frustumCulled = false; G.add(m); return m; };
+  // frame + slide
+  bx('gunmetal', [0.055, 0.006, 0], [0.17, 0.03, 0.036]);        // frame / dust cover
+  bx('steel', [0.052, 0.042, 0], [0.188, 0.042, 0.04]);          // slide
+  bx('steel', [0.052, 0.066, 0], [0.14, 0.008, 0.034]);          // slide top rib
+  bx('gunmetal', [-0.04, 0.05, 0], [0.02, 0.03, 0.03]);          // rear slide hump
+  for (let i = 0; i < 6; i++) bx('matte', [-0.03 + i * 0.008, 0.042, 0], [0.0025, 0.04, 0.043]);   // rear serrations
+  for (let i = 0; i < 4; i++) bx('matte', [0.108 + i * 0.008, 0.042, 0], [0.0025, 0.04, 0.043]);   // front serrations
+  bx('matte', [0.03, 0.046, 0.019], [0.05, 0.02, 0.004]);        // ejection port L
+  bx('matte', [0.03, 0.046, -0.019], [0.05, 0.02, 0.004]);       // ejection port R
+  // sights
+  bx('matte', [0.132, 0.071, 0], [0.007, 0.014, 0.01]);          // front sight
+  bx('matte', [-0.028, 0.071, 0], [0.016, 0.012, 0.032]);        // rear sight block
+  // muzzle / barrel
+  bx('gunmetal', [0.15, 0.042, 0], [0.012, 0.03, 0.03]);         // muzzle face
+  // trigger guard (ring) + trigger
+  const tg = new THREE.Mesh(new THREE.TorusGeometry(0.026, 0.0055, 10, 22), M.gunmetal);
+  tg.position.set(0.028, -0.03, 0); tg.castShadow = true; tg.frustumCulled = false; G.add(tg);
+  bx('matte', [0.03, -0.022, 0], [0.008, 0.024, 0.012]);         // trigger
+  // grip (tilted back) + magazine + controls
+  bx('poly', [-0.008, -0.062, 0], [0.042, 0.14, 0.037], [0, 0, 0.26]);   // grip
+  bx('matte', [-0.006, -0.133, 0], [0.046, 0.016, 0.039]);       // magazine floorplate
+  bx('gunmetal', [0.02, -0.006, 0.019], [0.022, 0.01, 0.006]);   // slide-lock lever
+  bx('gunmetal', [0.02, -0.006, -0.019], [0.014, 0.008, 0.006]); // takedown pin
+  bx('gunmetal', [-0.046, 0.04, 0], [0.012, 0.022, 0.016]);      // hammer
+  // threaded suppressor (spy touch)
+  cyl('gunmetal', [0.166, 0.042, 0], 0.0095, 0.02);              // thread
+  cyl('matte', [0.216, 0.042, 0], 0.018, 0.092, 22);            // suppressor body
+  for (let i = 0; i < 5; i++) cyl('gunmetal', [0.184 + i * 0.019, 0.042, 0], 0.0185, 0.0035, 22);  // grooves
+  return G;
+}
+function setupGun() {
+  gun = buildGun();
+  gunBaseScale = 1;   // built at real scale (~0.2 m), origin at the grip
+  gun.visible = false;
   scene.add(gun);
 }
 function updateGun() {
@@ -818,7 +855,7 @@ function updateGun() {
   } else {
     gun.quaternion.copy(hq); gunFwd.set(1, 0, 0).applyQuaternion(gun.quaternion);
   }
-  muzzle.copy(gun.position).add(gunFwd.clone().multiplyScalar(0.24 * gunScale));
+  muzzle.copy(gun.position).add(gunFwd.clone().multiplyScalar(0.3 * gunScale));
 }
 
 /* ============ SHOOTING ============ */
@@ -1094,16 +1131,13 @@ animate();
 /* ============ BOOT ============ */
 let loaderHidden = false;
 function finish() { setProg(1); if (!loaderHidden) { loaderHidden = true; const l = document.getElementById('loading'); l.style.opacity = 0; setTimeout(() => l.style.display = 'none', 700); } }
-(async function boot() {
+(function boot() {
   try {
-    loadmsg.textContent = 'Building agent…'; setProg(0.3);
-    loadmsg.textContent = 'Loading gun…'; setProg(0.7);
-    const g = await loadGLB('glock.glb'); setProg(0.95);
-    buildCharacter(g);
+    loadmsg.textContent = 'Building agent…'; setProg(0.5);
+    buildCharacter();   // character + procedural gun are all built in code now
   } catch (err) {
     console.error(err);
-    // still build the character even if the gun fails to load
-    try { buildCharacter({ scene: new THREE.Group() }); } catch (e2) { loadmsg.textContent = 'Build failed — see console.'; }
+    loadmsg.textContent = 'Build failed — see console.';
   }
 })();
 setTimeout(() => { if (!loaderHidden) finish(); }, 30000);
