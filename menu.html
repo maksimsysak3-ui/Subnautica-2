@@ -938,7 +938,19 @@ function authorAnimations(THREE) {
    OPENING TUTORIAL — MI6 reception. Elevator descent → walk → secretary.
    Exposes window.startTutorial(). Uses buildAgent + authorAnimations (above).
    ===================================================================== */
+// Voice lines load EXTERNALLY (never embedded, so hundreds scale fine): the
+// jsdelivr CDN copy of the repo first (works even for a standalone file), then
+// a local voice/ folder fallback. Add lines by dropping mp3s in voice/ + a path.
+const VOICE_CDN = 'https://cdn.jsdelivr.net/gh/maksimsysak3-ui/Subnautica-2@7208c56a8ada85bb4c40ff8dd559926ead95c9c1/';
 const VOICE = { receptionGreeting: 'voice/tutorial/reception_greeting.mp3' };
+const SUBS = { receptionGreeting: 'Good morning, Agent. The Director is waiting for you.' };
+function makeVoice(id) {
+  const p = VOICE[id], urls = [VOICE_CDN + p, p]; let i = 0;
+  const a = new Audio(); a.preload = 'auto';
+  a.addEventListener('error', () => { i++; if (i < urls.length) { a.src = urls[i]; a.load(); a.play().catch(() => {}); } });
+  a.src = urls[0];
+  return a;
+}
 
 let T = null;
 window.startTutorial = function () {
@@ -952,35 +964,40 @@ function initTutorial() {
   renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
   renderer.setSize(innerWidth, innerHeight);
   renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-  renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.05;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.25;
   renderer.outputColorSpace = THREE.SRGBColorSpace;
 
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x05070d);
-  scene.fog = new THREE.FogExp2(0x05070d, 0.02);
-  const camera = new THREE.PerspectiveCamera(48, innerWidth / innerHeight, 0.05, 200);
+  scene.background = new THREE.Color(0x0a0f1a);
+  scene.fog = new THREE.FogExp2(0x0a0f1a, 0.012);
+  const camera = new THREE.PerspectiveCamera(50, innerWidth / innerHeight, 0.05, 200);
 
-  /* ---------- lights ---------- */
-  scene.add(new THREE.HemisphereLight(0x9fb6e0, 0x14100a, 0.55));
-  scene.add(new THREE.AmbientLight(0xffffff, 0.18));
-  const key = new THREE.DirectionalLight(0xfff0d8, 1.4); key.position.set(-6, 12, 6);
+  /* ---------- lights (bright, readable interior) ---------- */
+  scene.add(new THREE.HemisphereLight(0xbcd0f5, 0x2a2418, 0.9));
+  scene.add(new THREE.AmbientLight(0xffffff, 0.4));
+  const key = new THREE.DirectionalLight(0xfff0d8, 2.1); key.position.set(-6, 14, 4);
   key.castShadow = true; key.shadow.mapSize.set(2048, 2048);
   key.shadow.camera.near = 1; key.shadow.camera.far = 60;
-  key.shadow.camera.left = -20; key.shadow.camera.right = 20; key.shadow.camera.top = 20; key.shadow.camera.bottom = -20;
-  scene.add(key);
+  key.shadow.camera.left = -22; key.shadow.camera.right = 22; key.shadow.camera.top = 24; key.shadow.camera.bottom = -6;
+  key.shadow.bias = -0.0002; scene.add(key);
+  const fillFront = new THREE.PointLight(0xfff2dc, 1.2, 40, 2); fillFront.position.set(0, 5, 2); scene.add(fillFront);
   const holoCol = 0x49b7ff;
+  // warm overhead ceiling lights down the hall
+  for (const lz of [4, 9, 14, 19]) { const cl = new THREE.PointLight(0xffe9c8, 1.5, 18, 2); cl.position.set(0, 6.2, lz); scene.add(cl); }
+  const deskLight = new THREE.SpotLight(0xfff1d8, 3.5, 20, Math.PI * 0.32, 0.5, 1.4); deskLight.position.set(0, 6.4, 15); deskLight.target.position.set(0, 1, 19); scene.add(deskLight, deskLight.target);
 
   /* ---------- materials ---------- */
   const M = {
-    floor: new THREE.MeshStandardMaterial({ color: 0x0d1018, roughness: 0.25, metalness: 0.6 }),
-    wall: new THREE.MeshStandardMaterial({ color: 0x11151f, roughness: 0.7, metalness: 0.2 }),
-    trim: new THREE.MeshStandardMaterial({ color: 0xc9a24a, roughness: 0.35, metalness: 0.8, emissive: 0x3a2c0e, emissiveIntensity: 0.5 }),
-    metal: new THREE.MeshStandardMaterial({ color: 0x2a2f3a, roughness: 0.4, metalness: 0.85 }),
-    holo: new THREE.MeshBasicMaterial({ color: holoCol, transparent: true, opacity: 0.32 }),
-    holoLine: new THREE.MeshBasicMaterial({ color: 0x9ad8ff, transparent: true, opacity: 0.6 }),
-    desk: new THREE.MeshStandardMaterial({ color: 0x161a24, roughness: 0.35, metalness: 0.5 }),
-    deskTop: new THREE.MeshStandardMaterial({ color: 0x0b0d13, roughness: 0.2, metalness: 0.7 }),
-    glow: new THREE.MeshBasicMaterial({ color: 0xffd98a }),
+    floor: new THREE.MeshStandardMaterial({ color: 0x2b3242, roughness: 0.22, metalness: 0.55 }),
+    wall: new THREE.MeshStandardMaterial({ color: 0x242c3a, roughness: 0.65, metalness: 0.2 }),
+    trim: new THREE.MeshStandardMaterial({ color: 0xd9b45b, roughness: 0.3, metalness: 0.9, emissive: 0x5a4416, emissiveIntensity: 0.7 }),
+    metal: new THREE.MeshStandardMaterial({ color: 0x3a414d, roughness: 0.4, metalness: 0.85 }),
+    holo: new THREE.MeshBasicMaterial({ color: holoCol, transparent: true, opacity: 0.34 }),
+    holoLine: new THREE.MeshBasicMaterial({ color: 0x9ad8ff, transparent: true, opacity: 0.7 }),
+    desk: new THREE.MeshStandardMaterial({ color: 0x2a3140, roughness: 0.35, metalness: 0.5 }),
+    deskTop: new THREE.MeshStandardMaterial({ color: 0x161b26, roughness: 0.18, metalness: 0.7 }),
+    glow: new THREE.MeshBasicMaterial({ color: 0xffe6b0 }),
+    seat: new THREE.MeshStandardMaterial({ color: 0x1c2230, roughness: 0.6, metalness: 0.3 }),
   };
   const box = (mat, x, y, z, w, h, d, parent) => {
     const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
@@ -1016,6 +1033,25 @@ function initTutorial() {
   }
   holoPanel(-11.6, 8); holoPanel(-11.6, 16); holoPanel(11.6, 8, true); holoPanel(11.6, 16, true);
 
+  // ceiling light fixtures (visible sources)
+  for (const lz of [4, 9, 14, 19]) { const f = box(M.glow, 0, 6.75, lz, 3.2, 0.06, 1.0, HALL); }
+  // floor emblem (MI6 seal) at hall centre
+  const emblem = new THREE.Group(); emblem.position.set(0, 0.02, 10); HALL.add(emblem);
+  for (const r of [2.2, 1.7]) { const ring = new THREE.Mesh(new THREE.TorusGeometry(r, 0.03, 8, 64), M.trim); ring.rotation.x = -Math.PI / 2; emblem.add(ring); }
+  for (let i = 0; i < 8; i++) { const a = i / 8 * Math.PI * 2; const s = box(M.trim, Math.cos(a) * 1.95, 0.005, 10 + Math.sin(a) * 1.95, 0.5, 0.02, 0.06, HALL); s.rotation.y = -a; }
+  // holographic globe centrepiece on a plinth
+  const plinth = box(M.metal, 0, 0.4, 10, 1.4, 0.8, 1.4, HALL); box(M.trim, 0, 0.82, 10, 1.5, 0.06, 1.5, HALL);
+  const holoGlobe = new THREE.Mesh(new THREE.SphereGeometry(0.9, 16, 12), new THREE.MeshBasicMaterial({ color: holoCol, wireframe: true, transparent: true, opacity: 0.55 }));
+  holoGlobe.position.set(0, 2.1, 10); HALL.add(holoGlobe);
+  const globeGlow = new THREE.PointLight(holoCol, 1.4, 10, 2); globeGlow.position.set(0, 2.1, 10); HALL.add(globeGlow);
+  // seating cluster near the entrance
+  for (const sx of [-6, 6]) { box(M.seat, sx, 0.25, 5, 2.0, 0.5, 0.9, HALL); box(M.seat, sx, 0.7, 4.65, 2.0, 0.5, 0.16, HALL); }
+  // backlit MI6 crest panel behind the desk
+  const crest = box(new THREE.MeshStandardMaterial({ color: 0x0e1420, roughness: 0.4, metalness: 0.6, emissive: 0x14304e, emissiveIntensity: 0.9 }), 0, 4.4, 24.1, 6, 3, 0.15, HALL);
+  const crestRing = new THREE.Mesh(new THREE.TorusGeometry(1.0, 0.06, 8, 48), M.trim); crestRing.position.set(0, 4.4, 23.9); HALL.add(crestRing);
+  box(M.trim, 0, 4.4, 23.9, 0.12, 1.6, 0.06, HALL); box(M.trim, 0, 5.0, 23.9, 0.9, 0.12, 0.06, HALL);
+  const crestL = new THREE.PointLight(0x59a8ff, 1.2, 12, 2); crestL.position.set(0, 4.4, 22.8); HALL.add(crestL);
+
   /* ---------- reception desk + secretary (far end) ---------- */
   const DESKZ = 18;
   box(M.desk, 0, 0.55, DESKZ, 5.0, 1.1, 1.2);
@@ -1049,6 +1085,9 @@ function initTutorial() {
   // sliding doors (front, +z side of car ~ z=-0.05)
   const doorL = box(carMat, -0.8, 1.4, -0.02, 1.5, 2.7, 0.1, CAR);
   const doorR = box(carMat, 0.8, 1.4, -0.02, 1.5, 2.7, 0.1, CAR);
+  // interior lamp so the descent is clearly lit
+  const carLamp = new THREE.PointLight(0xfff2dc, 3.0, 7, 2); carLamp.position.set(0, 2.6, -1.3); CAR.add(carLamp);
+  const carFront = new THREE.PointLight(0xffe9c8, 1.6, 6, 2); carFront.position.set(0, 1.4, -0.4); CAR.add(carFront);
 
   /* ---------- player (boxy agent) ---------- */
   const rig = new THREE.Group(); scene.add(rig);
@@ -1107,8 +1146,9 @@ function initTutorial() {
     if (d > 2.6) return;
     state = 'talk'; talked = true;
     subtitle.classList.add('on');
-    subtitle.innerHTML = '<b>RECEPTIONIST</b><span>MI6 · Level 10 Reception</span>';
-    try { voice = new Audio(VOICE.receptionGreeting); voice.play(); voice.onended = endTalk; } catch (e) { setTimeout(endTalk, 4000); }
+    subtitle.innerHTML = '<b>RECEPTIONIST</b><span>' + SUBS.receptionGreeting + '</span>';
+    try { voice = makeVoice('receptionGreeting'); voice.play().catch(() => {}); voice.onended = endTalk; } catch (e) { setTimeout(endTalk, 5000); }
+    setTimeout(() => { if (state === 'talk') endTalk(); }, 8000);   // safety if audio never fires
     prompt.classList.remove('on');
   }
   function endTalk() { subtitle.classList.remove('on'); if (state === 'talk') state = 'free'; }
@@ -1125,6 +1165,7 @@ function initTutorial() {
     requestAnimationFrame(frame);
     const dt = Math.min(0.05, clock.getDelta());
     mixer.update(dt);
+    holoGlobe.rotation.y += dt * 0.3;
 
     if (state === 'descend') {
       tState += dt;
@@ -1133,7 +1174,8 @@ function initTutorial() {
       if (floorHud) floorHud.textContent = 'B' + flr;
       rig.position.set(0, carY, -1.2);
       CAR.position.y = carY;
-      camera.position.set(0, carY + 1.75, -3.9); camera.lookAt(0, carY + 1.3, -1.2);
+      // camera INSIDE the car, behind the player, watching the doors — car is lit
+      camera.position.set(0.55, carY + 1.75, -2.25); camera.lookAt(0, carY + 1.2, -0.3);
       if (carY < 0.05 && tState > 3.2) { state = 'doors'; if (floorHud) floorHud.textContent = 'G'; }
     } else if (state === 'doors') {
       CAR.position.y = 0; rig.position.set(0, 0, -1.2);
