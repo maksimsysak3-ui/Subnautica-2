@@ -534,20 +534,18 @@ function authorAnimations(THREE) {
     ...holdFingers(0.5, 0.25, 0.3, 0.2),
   ]);
 
-  // ---------- BOX (jab-cross combo, real fists, punches reach forward +z) ----------
-  // arms reach forward via Y-rotation; guard = forward + bent elbow, extend = straighten
+  // ---------- BOX (one-two with a real elbow: chamber -> extend, alternating) ----------
+  const gLA = [0, -1.1, -0.2], jLA = [0, -1.45, 0.02];
+  const gLF = [0, -1.6, -0.15], jLF = [0, -0.2, -0.15];
+  const gRA = [0, 1.1, 0.2], jRA = [0, 1.45, -0.02];
+  const gRF = [0, 1.6, 0.15], jRF = [0, 0.2, 0.15];
   const bx = [];
-  bx.push(rot('Spine', [0, 0.2, 0.55, 1.1], [[0.05, 0.12, 0], [0.05, 0.28, 0], [0.05, -0.28, 0], [0.05, 0.12, 0]]));
-  bx.push(rot('Hips', [0, 0.2, 0.55, 1.1], [[0, 0.1, 0], [0, 0.18, 0], [0, -0.18, 0], [0, 0.1, 0]]));
-  // Left jab: guard -> extend forward -> guard
-  bx.push(rot('LArm', [0, 0.16, 0.34, 0.6, 1.1],
-    [[0, -1.15, -0.2], [0, -1.45, 0], [0, -1.15, -0.2], [0, -1.1, -0.25], [0, -1.15, -0.2]]));
-  bx.push(rot('LForeArm', [0, 0.16, 0.34, 1.1], [[0, -1.5, -0.15], [0, -0.25, -0.15], [0, -1.5, -0.15], [0, -1.5, -0.15]]));
-  // Right cross: guard -> extend forward -> guard
-  bx.push(rot('RArm', [0, 0.42, 0.58, 0.78, 1.1],
-    [[0, 1.15, 0.2], [0, 1.15, 0.2], [0, 1.5, 0], [0, 1.15, 0.2], [0, 1.15, 0.2]]));
-  bx.push(rot('RForeArm', [0, 0.42, 0.58, 0.78, 1.1], [[0, 1.5, 0.15], [0, 1.5, 0.15], [0, 0.3, 0.15], [0, 1.5, 0.15], [0, 1.5, 0.15]]));
-  // fists closed throughout
+  bx.push(rot('Spine', [0, 0.14, 0.4, 0.6, 1.1], [[0.06, 0.14, 0], [0.06, 0.26, 0], [0.06, 0.1, 0], [0.06, -0.26, 0], [0.06, 0.14, 0]]));
+  bx.push(rot('Hips', [0, 0.14, 0.6, 1.1], [[0, 0.1, 0], [0, 0.16, 0], [0, -0.16, 0], [0, 0.1, 0]]));
+  bx.push(rot('LArm', [0, 0.14, 0.3, 1.1], [gLA, jLA, gLA, gLA]));
+  bx.push(rot('LForeArm', [0, 0.14, 0.3, 1.1], [gLF, jLF, gLF, gLF]));
+  bx.push(rot('RArm', [0, 0.45, 0.6, 0.78, 1.1], [gRA, gRA, jRA, gRA, gRA]));
+  bx.push(rot('RForeArm', [0, 0.45, 0.6, 0.78, 1.1], [gRF, gRF, jRF, gRF, gRF]));
   [...fingersL(1.6, 1.5), ...fingersR(1.6, 1.5), ...thumbsL(0.6), ...thumbsR(0.6)].forEach(([n, e]) => bx.push(rot(n, [0, 1.1], [e, e])));
   clips.Box = new THREE.AnimationClip('Box', 1.1, bx);
 
@@ -580,8 +578,8 @@ function authorAnimations(THREE) {
 
   // aim/grip helpers (procedural, applied on top when gun drawn)
   const AIM = {
-    RArm: q(-0.2, -0.5, 1.15),        // raise right arm forward, gun up
-    RForeArm: q(0, 0.7, 0.15),
+    RArm: q(0, 1.15, 0.18),           // raise arm forward
+    RForeArm: q(0, 0.55, 0.1),        // slight elbow bend → gun to center-forward
   };
   const GRIP = {   // right-hand fist wrapping the grip
     curl: 1.45, tip: 1.35, thumb: 0.5,
@@ -727,8 +725,11 @@ function buildCharacter() {
   box('Head', 'eye', [-0.065, 0.09, 0.14], [0.045, 0.055, 0.02]);
   // arms (suit sleeves) + hands (skin). L=+X, R=-X (bone local = world at bind)
   for (const [side, s] of [['L', 1], ['R', -1]]) {
-    // ONE box for the whole arm (shoulder → wrist)
-    box(side + 'Arm', 'suit', [s * 0.255, 0, 0], [0.52, 0.145, 0.145]);
+    // clean arm: upper + forearm (butt together → reads as one arm, bends at
+    // the elbow) + a skin hand
+    box(side + 'Arm', 'suit', [s * 0.135, 0, 0], [0.28, 0.145, 0.145]);
+    box(side + 'ForeArm', 'suit', [s * 0.12, 0, 0], [0.245, 0.135, 0.135]);
+    box(side + 'Hand', 'skin', [s * 0.055, 0, 0], [0.12, 0.115, 0.075]);
     // legs (suit) + shoes
     box(side + 'UpLeg', 'suit', [0, -0.2, 0], [0.17, 0.42, 0.19]);
     box(side + 'Leg', 'suit', [0, -0.205, -0.005], [0.15, 0.42, 0.17]);
@@ -784,7 +785,7 @@ function previewClip(nm) {
 /* ============ GUN ============ */
 let gun = null, gunBaseScale = 1, muzzle = new THREE.Vector3(), gunFwd = new THREE.Vector3();
 const gunOffset = new THREE.Vector3(0, 0, 0);
-let gunScale = 1, barrelToAim = true, holstered = true;
+let gunScale = 1, barrelToAim = true, holstered = false;   // gun drawn automatically
 /* Fully procedural, detailed suppressed spy pistol. Built in local frame:
    origin = grip hold point (where the fist wraps), barrel along +X, up +Y,
    grip hangs -Y. updateGun drops the origin onto the hand and aims +X. */
@@ -837,8 +838,9 @@ function setupGun() {
 }
 function updateGun() {
   if (!gun || !rightHand) return;
-  gun.visible = !holstered;
-  if (holstered) return;
+  const show = !holstered && actionMode !== 'Box' && actionMode !== 'Kick' && !dead;
+  gun.visible = show;
+  if (!show) return;
   const hp = new THREE.Vector3(), hq = new THREE.Quaternion();
   rightHand.getWorldPosition(hp); rightHand.getWorldQuaternion(hq);
   gun.scale.setScalar(gunBaseScale * gunScale);
@@ -1006,16 +1008,26 @@ function updateMovement(dt) {
     rig.position.x += Math.sin(curYaw) * 2.6 * dt;
     rig.position.z += Math.cos(curYaw) * 2.6 * dt;
   }
+  // aim mode (gun drawn or RMB) = third-person shooter: always face where the
+  // camera looks so the camera stays behind and the gun points at the crosshair.
+  const aimMode = (!holstered || aiming) && !dead && !busy;
+  if (aimMode) {
+    const camYaw = Math.atan2(camF.x, camF.z);
+    curYaw += shortAngle(curYaw, camYaw) * Math.min(1, dt * 14);
+    rig.rotation.y = curYaw + faceOffset;
+  }
   if (moving) {
     move.normalize();
-    const yaw = Math.atan2(move.x, move.z);
-    curYaw += shortAngle(curYaw, yaw) * Math.min(1, dt * 12);
-    rig.rotation.y = curYaw + faceOffset;
+    if (!aimMode) {   // face movement direction when not aiming
+      const yaw = Math.atan2(move.x, move.z);
+      curYaw += shortAngle(curYaw, yaw) * Math.min(1, dt * 12);
+      rig.rotation.y = curYaw + faceOffset;
+    }
     rig.position.addScaledVector(move, (crouchActive ? CROUCH : running ? RUN : WALK) * dt);
     locoTarget = running ? 'Run' : 'Walk'; previewName = null;
   } else if (!dead && !actionMode) {
     locoTarget = previewName || 'Idle';
-  } else {
+  } else if (!aimMode) {
     rig.rotation.y = curYaw + faceOffset;
   }
   const loco = ['Idle', 'Walk', 'Run', 'Sprint'];
@@ -1046,15 +1058,18 @@ function idleFlourish(dt) {
 }
 
 /* gun grip (curl right fingers) + aim pose (raise right arm) on top of the clip */
+let readyW = 0;
 function applyGunPose(dt) {
   if (!mixer || dead) return;
-  const gunOut = !holstered;
+  const gunOut = !holstered && actionMode !== 'Box' && actionMode !== 'Kick';
+  // hold the gun up whenever it's drawn (ready), tighten a touch when RMB-aiming
+  readyW += ((gunOut ? 1 : 0) - readyW) * Math.min(1, dt * 12);
   aimW += ((aiming && gunOut ? 1 : 0) - aimW) * Math.min(1, dt * 10);
-  if (gunOut && aimW > 0.02 && rArm && rForeArm) {
-    rArm.quaternion.slerp(AIM_ARM, aimW);
-    rForeArm.quaternion.slerp(AIM_FORE, aimW);
+  if (readyW > 0.02 && rArm && rForeArm) {
+    rArm.quaternion.slerp(AIM_ARM, readyW);
+    rForeArm.quaternion.slerp(AIM_FORE, readyW);
   }
-  if (gunOut && actionMode !== 'Box' && gripBones.length) {   // wrap the grip (RIGHT fist = +Z)
+  if (gunOut && gripBones.length) {   // wrap the grip (RIGHT fist = +Z)
     for (let i = 0; i < 12; i++) {
       const seg = i % 3, ang = seg < 2 ? GRIPP.curl : GRIPP.tip;
       _e0.set(0, 0, ang); gripBones[i].quaternion.setFromEuler(_e0);
