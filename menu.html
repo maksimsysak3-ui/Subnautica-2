@@ -1189,7 +1189,7 @@ function initTutorial() {
       const speed = keys.ShiftLeft ? 4.4 : 2.2;
       const fwd = new THREE.Vector3(Math.sin(camYaw), 0, Math.cos(camYaw));
       const right = new THREE.Vector3(Math.cos(camYaw), 0, -Math.sin(camYaw));
-      const mx = (keys.KeyD ? 1 : 0) - (keys.KeyA ? 1 : 0);
+      const mx = (keys.KeyA ? 1 : 0) - (keys.KeyD ? 1 : 0);   // A = left, D = right
       const mz = (keys.KeyW ? 1 : 0) - (keys.KeyS ? 1 : 0);
       const mv = new THREE.Vector3().addScaledVector(fwd, mz).addScaledVector(right, mx);
       const moving = mv.lengthSq() > 1e-6 && state === 'free';
