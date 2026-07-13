@@ -609,7 +609,7 @@ camera.position.set(0.4, 1.7, -3.4);
 
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true; controls.dampingFactor = 0.08;
-controls.minDistance = 1.4; controls.maxDistance = 10; controls.maxPolarAngle = Math.PI * 0.49;
+controls.minDistance = 2.6; controls.maxDistance = 11; controls.maxPolarAngle = Math.PI * 0.49;
 controls.target.set(0, 1.0, 0);
 
 const pmrem = new THREE.PMREMGenerator(renderer);
@@ -759,8 +759,8 @@ function buildCharacter() {
   buildAnimButtons();
 
   setupGun();
-  controls.target.set(0, 1.0, 0);
-  camera.position.set(0, 1.5, -2.8);
+  controls.target.set(0, 1.1, 0);
+  camera.position.set(0, 1.95, -4.8);   // pulled back, over-the-shoulder
   finish();
 }
 
@@ -830,34 +830,28 @@ function buildGun() {
   for (let i = 0; i < 5; i++) cyl('gunmetal', [0.184 + i * 0.019, 0.042, 0], 0.0185, 0.0035, 22);  // grooves
   return G;
 }
+// gun's fixed orientation inside the hand bone (barrel forward, measured in sim)
+const GUN_LOCAL_Q = new THREE.Quaternion().fromArray([-0.1291, -0.9887, -0.0387, -0.0663]);
 function setupGun() {
   gun = buildGun();
-  gunBaseScale = 1;   // built at real scale (~0.2 m), origin at the grip
+  gunBaseScale = 1;
+  gun.quaternion.copy(GUN_LOCAL_Q);
   gun.visible = false;
-  scene.add(gun);
+  rightHand.add(gun);   // RIGIDLY held — the gun moves exactly with the hand
 }
+const _muzL = new THREE.Vector3();
 function updateGun() {
   if (!gun || !rightHand) return;
   const show = !holstered && actionMode !== 'Box' && actionMode !== 'Kick' && !dead;
   gun.visible = show;
   if (!show) return;
-  const hp = new THREE.Vector3(), hq = new THREE.Quaternion();
-  rightHand.getWorldPosition(hp); rightHand.getWorldQuaternion(hq);
-  gun.scale.setScalar(gunBaseScale * gunScale);
-  gun.position.copy(hp).add(gunOffset.clone().applyQuaternion(hq));
-  const aim = new THREE.Vector3(); camera.getWorldDirection(aim); aim.y = 0;
-  if (aim.lengthSq() < 1e-5) aim.set(0, 0, 1); aim.normalize();
-  gunFwd.copy(aim);
-  if (barrelToAim) {
-    const up = new THREE.Vector3(0, 1, 0);
-    const right = new THREE.Vector3().crossVectors(up, aim).normalize();
-    const up2 = new THREE.Vector3().crossVectors(aim, right).normalize();
-    const m = new THREE.Matrix4().makeBasis(aim, up2, right);
-    gun.quaternion.setFromRotationMatrix(m);
-  } else {
-    gun.quaternion.copy(hq); gunFwd.set(1, 0, 0).applyQuaternion(gun.quaternion);
-  }
-  muzzle.copy(gun.position).add(gunFwd.clone().multiplyScalar(0.3 * gunScale));
+  gun.scale.setScalar(gunScale);
+  gun.position.copy(gunOffset);          // fine-tune seat (hand-local)
+  gun.updateWorldMatrix(true, false);
+  // bullets fly toward the crosshair (camera forward, full 3D)
+  camera.getWorldDirection(gunFwd); gunFwd.normalize();
+  // muzzle = suppressor tip in world
+  _muzL.set(0.30, 0.042, 0); muzzle.copy(gun.localToWorld(_muzL));
 }
 
 /* ============ SHOOTING ============ */
@@ -1060,6 +1054,7 @@ function idleFlourish(dt) {
 
 /* gun grip (curl right fingers) + aim pose (raise right arm) on top of the clip */
 let readyW = 0;
+const _aimTmp = new THREE.Quaternion(), _pitchQ = new THREE.Quaternion(), _pe = new THREE.Euler(), _cf = new THREE.Vector3();
 function applyGunPose(dt) {
   if (!mixer || dead) return;
   const gunOut = !holstered && actionMode !== 'Box' && actionMode !== 'Kick';
@@ -1067,7 +1062,11 @@ function applyGunPose(dt) {
   readyW += ((gunOut ? 1 : 0) - readyW) * Math.min(1, dt * 12);
   aimW += ((aiming && gunOut ? 1 : 0) - aimW) * Math.min(1, dt * 10);
   if (readyW > 0.02 && rArm && rForeArm) {
-    rArm.quaternion.slerp(AIM_ARM, readyW);
+    // add camera pitch so the whole arm (and the gun in it) aims up/down
+    camera.getWorldDirection(_cf);
+    const camPitch = THREE.MathUtils.clamp(Math.asin(THREE.MathUtils.clamp(_cf.y, -1, 1)), -0.7, 0.7);
+    _aimTmp.copy(AIM_ARM).multiply(_pitchQ.setFromEuler(_pe.set(0, 0, -camPitch)));
+    rArm.quaternion.slerp(_aimTmp, readyW);
     rForeArm.quaternion.slerp(AIM_FORE, readyW);
   }
   if (gunOut && gripBones.length) {   // wrap the grip (RIGHT fist = +Z)
