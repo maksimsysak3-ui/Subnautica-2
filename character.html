@@ -685,33 +685,59 @@ const AIM_ARM = new THREE.Quaternion(), AIM_FORE = new THREE.Quaternion();
 const _e0 = new THREE.Euler();
 
 function buildCharacter(gunGltf) {
+  // Reuse the authored skeleton (bone hierarchy + verified animations), but
+  // render the body as rigid BOXES parented straight to the bones — no skinning
+  // to go wrong, and the joints read cleanly.
   const A = buildAgent(THREE);
   rig.add(A.bones[0]);
   rig.updateMatrixWorld(true);
-  const skeleton = new THREE.Skeleton(A.bones);
+  const byName = {}; A.bones.forEach(b => byName[b.name] = b);
+
   const MAT = {
-    suit: new THREE.MeshStandardMaterial({ color: 0x15151c, roughness: 0.48, metalness: 0.30 }),
-    skin: new THREE.MeshStandardMaterial({ color: 0xd8a785, roughness: 0.7, metalness: 0.0 }),
-    hair: new THREE.MeshStandardMaterial({ color: 0x181310, roughness: 0.86, metalness: 0.0 }),
-    shirt: new THREE.MeshStandardMaterial({ color: 0xece9e1, roughness: 0.55, metalness: 0.0 }),
-    tie: new THREE.MeshStandardMaterial({ color: 0x0b0b10, roughness: 0.5, metalness: 0.12 }),
-    shoe: new THREE.MeshStandardMaterial({ color: 0x0c0c10, roughness: 0.22, metalness: 0.45 }),
+    suit: new THREE.MeshStandardMaterial({ color: 0x16161d, roughness: 0.5, metalness: 0.25 }),
+    skin: new THREE.MeshStandardMaterial({ color: 0xdaa985, roughness: 0.75, metalness: 0.0 }),
+    hair: new THREE.MeshStandardMaterial({ color: 0x1a1512, roughness: 0.9, metalness: 0.0 }),
+    shirt: new THREE.MeshStandardMaterial({ color: 0xeceae2, roughness: 0.55, metalness: 0.0 }),
+    tie: new THREE.MeshStandardMaterial({ color: 0x8a1f2b, roughness: 0.5, metalness: 0.1 }),
+    shoe: new THREE.MeshStandardMaterial({ color: 0x0b0b0f, roughness: 0.28, metalness: 0.4 }),
+    eye: new THREE.MeshStandardMaterial({ color: 0x0e0e12, roughness: 0.4, metalness: 0.1 }),
   };
   Object.values(MAT).forEach(m => { m.envMapIntensity = 1.1; });
-  for (const m of A.meshes) {
-    const g = new THREE.BufferGeometry();
-    g.setAttribute('position', new THREE.BufferAttribute(m.pos, 3));
-    g.setAttribute('skinIndex', new THREE.BufferAttribute(m.si, 4));
-    g.setAttribute('skinWeight', new THREE.BufferAttribute(m.sw, 4));
-    g.setIndex(m.ind);
-    g.computeVertexNormals();
-    const mesh = new THREE.SkinnedMesh(g, MAT[m.tag] || MAT.suit);
-    mesh.castShadow = true; mesh.receiveShadow = true; mesh.frustumCulled = false;
-    rig.add(mesh); mesh.bind(skeleton);
-    if (m.tag === 'shoe') groundMeshes.push(mesh);
-    if (!skinned) skinned = mesh;
+  const boxGeoCache = {};
+  function box(boneName, tag, lp, size) {
+    const key = size.join(',');
+    const geo = boxGeoCache[key] || (boxGeoCache[key] = new THREE.BoxGeometry(size[0], size[1], size[2]));
+    const m = new THREE.Mesh(geo, MAT[tag] || MAT.suit);
+    m.position.set(lp[0], lp[1], lp[2]);
+    m.castShadow = true; m.receiveShadow = true; m.frustumCulled = false;
+    byName[boneName].add(m);
+    return m;
   }
-  const byName = {}; A.bones.forEach(b => byName[b.name] = b);
+  // torso + pelvis (suit)
+  box('Spine', 'suit', [0, 0.16, 0], [0.42, 0.5, 0.26]);
+  box('Hips', 'suit', [0, -0.02, 0], [0.36, 0.22, 0.24]);
+  box('Chest', 'shirt', [0, -0.02, 0.13], [0.17, 0.24, 0.03]);   // shirt V
+  box('Chest', 'tie', [0, -0.1, 0.15], [0.05, 0.28, 0.02]);      // tie
+  // neck + head
+  box('Neck', 'skin', [0, 0.04, 0], [0.12, 0.12, 0.12]);
+  box('Head', 'skin', [0, 0.08, 0.01], [0.26, 0.28, 0.27]);
+  box('Head', 'hair', [0, 0.19, -0.015], [0.3, 0.14, 0.3]);      // hair cap
+  box('Head', 'hair', [0, 0.1, -0.15], [0.3, 0.24, 0.03]);       // back hair
+  box('Head', 'eye', [0.065, 0.09, 0.14], [0.045, 0.055, 0.02]);
+  box('Head', 'eye', [-0.065, 0.09, 0.14], [0.045, 0.055, 0.02]);
+  // arms (suit sleeves) + hands (skin). L=+X, R=-X (bone local = world at bind)
+  for (const [side, s] of [['L', 1], ['R', -1]]) {
+    box(side + 'Arm', 'suit', [s * 0.135, 0, 0], [0.28, 0.14, 0.14]);
+    box(side + 'ForeArm', 'suit', [s * 0.12, 0, 0], [0.26, 0.12, 0.12]);
+    box(side + 'Hand', 'skin', [s * 0.06, 0, 0], [0.13, 0.11, 0.07]);
+    box(side + 'Arm', 'suit', [s * 0.02, 0.02, 0], [0.16, 0.16, 0.17]);   // shoulder pad
+    // legs (suit) + shoes
+    box(side + 'UpLeg', 'suit', [0, -0.2, 0], [0.17, 0.42, 0.19]);
+    box(side + 'Leg', 'suit', [0, -0.205, -0.005], [0.15, 0.42, 0.17]);
+    const shoe = box(side + 'Foot', 'shoe', [0, -0.045, 0.07], [0.15, 0.1, 0.3]);
+    groundMeshes.push(shoe);
+  }
+  skinned = byName['Spine'];   // any node, only used as a scene-graph ref
   rightHand = byName['RHand'];
   neckBone = byName['Neck']; headBone = byName['Head']; spineBone = byName['Chest'];
   rArm = byName['RArm']; rForeArm = byName['RForeArm'];
@@ -1000,29 +1026,13 @@ function applyGunPose(dt) {
   }
 }
 
-/* plant the character on the floor by sampling the posed shoe vertices */
-const _gv = new THREE.Vector3();
-let groundSamples = null;
+/* plant the character on the floor via the shoe boxes' world-space lowest point */
+const _fbox = new THREE.Box3();
 function groundFeet() {
   if (dead || !groundMeshes.length) return;
   rig.updateMatrixWorld(true);
-  if (!groundSamples) {
-    groundSamples = groundMeshes.map(mesh => {
-      const n = mesh.geometry.attributes.position.count, step = Math.max(1, Math.floor(n / 60)), idxs = [];
-      for (let i = 0; i < n; i += step) idxs.push(i);
-      return { mesh, idxs };
-    });
-  }
   let minY = Infinity;
-  for (const { mesh, idxs } of groundSamples) {
-    const pos = mesh.geometry.attributes.position;
-    for (const i of idxs) {
-      _gv.fromBufferAttribute(pos, i);
-      if (mesh.applyBoneTransform) mesh.applyBoneTransform(i, _gv);
-      _gv.applyMatrix4(mesh.matrixWorld);
-      if (_gv.y < minY) minY = _gv.y;
-    }
-  }
+  for (const mesh of groundMeshes) { _fbox.setFromObject(mesh); if (_fbox.min.y < minY) minY = _fbox.min.y; }
   if (isFinite(minY)) rig.position.y -= minY * 0.5;
   rig.position.y = Math.max(-2.0, Math.min(1.5, rig.position.y));
 }
