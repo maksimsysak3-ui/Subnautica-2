@@ -401,29 +401,30 @@ function setupCharacter(base, animGltfs, gunGltf) {
     const a = mixer.clipAction(idleClip); a.play(); a.paused = true; a.time = 0; a.setEffectiveWeight(1);
     actions.Idle = a;
   }
-  // Kick — built from a real leg pose sampled out of the run mocap
-  // (chamber → knee-extend → retract), verified foot-forward in sim.
-  const qR = { UpLeg: [-0.549, -0.549, 0.439, 0.452], Leg: [0.081, -0.013, -0.003, 0.997], Foot: [-0.506, 0.036, -0.019, 0.862] };
-  const qC = { UpLeg: [-0.469, -0.493, 0.476, 0.558], Leg: [0.568, -0.092, 0.115, 0.81], Foot: [-0.174, 0.064, -0.109, 0.977] };
-  const qE = { UpLeg: [-0.379, -0.4265, 0.5028, 0.6521] };   // extended (leg straight, held)
-  const T = [0, 0.16, 0.28, 0.42, 0.6];
+  // Kick — front snap kick, quats measured on the real agent skeleton in sim.
+  // rest → chamber (knee up, bent) → extend (hip flexed forward, knee straight,
+  // foot snaps forward to worldY≈0.83, z-hip≈-0.75) → hold → retract to rest.
+  const qRest = { UpLeg: [-0.5492, -0.5491, 0.439, 0.4518], Leg: [0.0812, -0.0133, -0.0031, 0.9966], Foot: [-0.5058, 0.0363, -0.0192, 0.8616] };
+  const qCh   = { UpLeg: [-0.181, -0.1884, 0.6773, 0.6877], Leg: [-0.5799, -0.0082, -0.0109, 0.8145] };
+  const qEx   = { UpLeg: [-0.0939, -0.1025, 0.6955, 0.7049], Leg: [0.0063, -0.013, -0.0041, 0.9999] };
+  const T = [0, 0.14, 0.26, 0.42, 0.6];
   const kickClip = new THREE.AnimationClip('Kick', 0.6, [
-    new THREE.QuaternionKeyframeTrack('RightUpLeg.quaternion', T, [...qR.UpLeg, ...qC.UpLeg, ...qE.UpLeg, ...qE.UpLeg, ...qR.UpLeg]),
-    new THREE.QuaternionKeyframeTrack('RightLeg.quaternion', T, [...qR.Leg, ...qC.Leg, ...qR.Leg, ...qR.Leg, ...qR.Leg]),
-    new THREE.QuaternionKeyframeTrack('RightFoot.quaternion', T, [...qR.Foot, ...qC.Foot, ...qR.Foot, ...qR.Foot, ...qR.Foot]),
+    new THREE.QuaternionKeyframeTrack('RightUpLeg.quaternion', T, [...qRest.UpLeg, ...qCh.UpLeg, ...qEx.UpLeg, ...qEx.UpLeg, ...qRest.UpLeg]),
+    new THREE.QuaternionKeyframeTrack('RightLeg.quaternion', T, [...qRest.Leg, ...qCh.Leg, ...qEx.Leg, ...qEx.Leg, ...qRest.Leg]),
+    new THREE.QuaternionKeyframeTrack('RightFoot.quaternion', T, [...qRest.Foot, ...qRest.Foot, ...qRest.Foot, ...qRest.Foot, ...qRest.Foot]),
   ]);
   const ka = mixer.clipAction(kickClip); ka.play(); ka.setEffectiveWeight(0); ka.setLoop(THREE.LoopOnce, 1); ka.clampWhenFinished = true; actions.Kick = ka;
   actions.Combo = ka;   // placeholder so a Combo button appears; sequence handled in trigger
 
   // Crouch — full held pose: walk-neutral upper body + measured squat legs
   const CR = {
-    Spine: [-0.0327, 0.0001, 0.0005, 0.9995], Spine01: [0.0385, 0.0111, -0.0041, 0.9992], Spine02: [0.4437, 0.4823, 0.5957, 0.4643],
+    Spine: [-0.0327, 0.0001, 0.0005, 0.9995], Spine01: [0.0385, 0.0111, -0.0041, 0.9992], Spine02: [0.4651, 0.467, 0.5894, 0.467],
     neck: [-0.1695, -0.0134, -0.0017, 0.9854], Head: [0.464, -0.0122, 0.022, 0.8855],
     LeftShoulder: [0.585, 0.4869, -0.5104, 0.4002], LeftArm: [0.5096, 0.3695, 0.1151, 0.7685], LeftForeArm: [-0.0993, -0.0689, 0.0242, 0.9924], LeftHand: [0.0343, -0.0164, 0.0654, 0.9971],
     RightShoulder: [0.6309, -0.4441, 0.4622, 0.4372], RightArm: [0.446, -0.3111, -0.1944, 0.8164], RightForeArm: [-0.1731, 0.1034, -0.09, 0.9753], RightHand: [0.0305, -0.0519, -0.0757, 0.9953],
-    LeftUpLeg: [-0.4975, -0.729, 0.3393, 0.3254], RightUpLeg: [-0.6157, -0.6184, 0.3169, 0.3717],
-    LeftLeg: [-0.445, 0.0057, -0.0077, 0.8955], RightLeg: [-0.4517, -0.0097, -0.0096, 0.8921],
-    LeftFoot: [-0.3155, 0.0058, 0.0546, 0.9473], RightFoot: [-0.3009, 0.0311, -0.0268, 0.9528],
+    LeftUpLeg: [-0.2751, -0.4967, 0.6238, 0.5371], RightUpLeg: [-0.3852, -0.389, 0.5856, 0.5978],
+    LeftLeg: [-0.4673, 0.0059, -0.0075, 0.8841], RightLeg: [-0.4739, -0.0095, -0.0098, 0.8805],
+    LeftFoot: [-0.2918, 0.0072, 0.0544, 0.9549], RightFoot: [-0.2769, 0.0304, -0.0276, 0.96],
   };
   const crouchClip = new THREE.AnimationClip('Crouch', 0.5, Object.entries(CR).map(([nm, q]) =>
     new THREE.QuaternionKeyframeTrack(nm + '.quaternion', [0, 0.5], [...q, ...q])));
@@ -440,7 +441,7 @@ function setupCharacter(base, animGltfs, gunGltf) {
 
 /* ============ GUN ============ */
 let gun = null, gunBaseScale = 1, muzzle = new THREE.Vector3(), gunFwd = new THREE.Vector3();
-const gunOffset = new THREE.Vector3(0.02, 0, 0.02);
+const gunOffset = new THREE.Vector3(0, 0, 0);   // grip is anchored in setupGun; this is fine-tune only
 let gunScale = 1, barrelToAim = true, holstered = true;   // gun hidden until drawn (G)
 function setupGun(g) {
   gun = g.scene;
@@ -448,6 +449,11 @@ function setupGun(g) {
   const box = new THREE.Box3().setFromObject(gun); const size = new THREE.Vector3(); box.getSize(size);
   gunBaseScale = 0.22 / (Math.max(size.x, size.y, size.z) || 1);  // barrel ~0.22 m
   const c = new THREE.Vector3(); box.getCenter(c); gun.position.sub(c);   // center pivot
+  // Anchor the GRIP at the holder origin, not the gun's centre — barrel runs
+  // along +X (front), grip hangs at rear (-X) / bottom (-Y). Move the mesh so
+  // the fist wraps the grip and the barrel points forward out of the hand.
+  gun.position.x += size.x * 0.28;   // barrel forward of the hand
+  gun.position.y += size.y * 0.26;   // grip drops into the palm
   const holder = new THREE.Group(); holder.add(gun); gun = holder;
   scene.add(gun);
 }
@@ -685,8 +691,10 @@ function applyGunPose(dt) {
     rForeArm.quaternion.slerp(AIM_FORE, aimW);
   }
   if (actionMode !== 'Box' && rFA && rFB) {   // absolute set (finger bones' rest = identity) → no accumulation
-    if (gunOut) { _flrE.set(0, 0, -0.95); const gq = _flrQ.setFromEuler(_flrE); rFA.quaternion.copy(gq); rFB.quaternion.copy(gq); }
-    else { rFA.quaternion.identity(); rFB.quaternion.identity(); }
+    if (gunOut) {   // curl both segments hard so the hand wraps the grip (~160° at the tip)
+      _flrE.set(0, 0, -1.45); rFA.quaternion.setFromEuler(_flrE);
+      _flrE.set(0, 0, -1.35); rFB.quaternion.setFromEuler(_flrE);
+    } else { rFA.quaternion.identity(); rFB.quaternion.identity(); }
   }
 }
 
