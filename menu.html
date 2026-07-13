@@ -133,6 +133,69 @@
   .hint { position: fixed; bottom: calc(7vh + 14px); left: 26px; z-index: 12; font-size: 10px; letter-spacing: .24em; color: #55503f; text-transform: uppercase; }
   .fade-up { animation: fadeUp .7s var(--ease) both; }
   @keyframes fadeUp { from{opacity:0; transform:translateY(18px)} to{opacity:1; transform:none} }
+
+  /* ---- security boot screen ---- */
+  #bootScreen { position: fixed; inset: 0; z-index: 80; background: #000; display: none;
+    flex-direction: column; align-items: center; justify-content: center; gap: 8vh; }
+  #bootScreen.on { display: flex; }
+  #bootScreen::after { content: ""; position: absolute; inset: 0; pointer-events: none;
+    background: repeating-linear-gradient(0deg, rgba(60,255,180,.035) 0 2px, transparent 2px 4px); }
+  .bootlines { position: absolute; top: 8vh; left: 8vw; font-family: "SFMono-Regular", Consolas, monospace;
+    font-size: 12px; letter-spacing: .12em; color: #35d9a0; text-shadow: 0 0 8px rgba(53,217,160,.5); line-height: 2; white-space: pre; }
+  .bootaccess { text-align: center; opacity: 0; transition: opacity 1s var(--ease); }
+  .bootaccess.on { opacity: 1; }
+  .bootaccess .lv { font-size: clamp(30px,6vw,68px); font-weight: 800; letter-spacing: .28em; text-transform: uppercase;
+    background: linear-gradient(180deg,#fff8e6,var(--gold) 60%,var(--gold-deep)); -webkit-background-clip: text; background-clip: text; color: transparent;
+    filter: drop-shadow(0 0 24px rgba(217,180,91,.4)); }
+  .bootaccess .hq { margin-top: 20px; font-size: clamp(15px,2.4vw,26px); letter-spacing: .5em; color: #e9e2cf; }
+  .bootaccess .loc { margin-top: 10px; font-size: 13px; letter-spacing: .6em; color: #8b846f; }
+  .bootaccess .clk { margin-top: 4px; font-size: 13px; letter-spacing: .6em; color: var(--gold); font-variant-numeric: tabular-nums; }
+  .bootaccess .seal { width: 66px; height: 66px; margin: 0 auto 30px; border: 1px solid var(--gold-line); transform: rotate(45deg);
+    display: grid; place-items: center; box-shadow: 0 0 34px rgba(217,180,91,.2) inset; }
+  .bootaccess .seal::before { content: ""; width: 28px; height: 28px; border: 1px solid var(--gold); }
+
+  /* ---- controls / keyboard splash (end of boot) ---- */
+  .bootControls { position: absolute; inset: 0; display: none; flex-direction: column; align-items: center; justify-content: center; gap: 40px; }
+  .bootControls.on { display: flex; }
+  .bootControls .ct { font-size: 14px; letter-spacing: .55em; color: var(--gold); text-transform: uppercase; }
+  .kbrows { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+  .kbrow { display: flex; gap: 12px; align-items: flex-end; }
+  .key { min-width: 48px; height: 48px; padding: 0 12px; border: 1px solid rgba(255,255,255,.16); border-radius: 8px;
+    display: grid; place-items: center; font-size: 13px; letter-spacing: .1em; color: #7c745f; background: rgba(255,255,255,.03); position: relative; }
+  .key.hot { border-color: var(--gold); color: var(--gold-hi); background: rgba(217,180,91,.08);
+    box-shadow: 0 0 18px rgba(217,180,91,.35), inset 0 0 12px rgba(217,180,91,.12); animation: keyPulse 1.7s var(--ease) infinite; }
+  @keyframes keyPulse { 0%,100%{ box-shadow: 0 0 12px rgba(217,180,91,.28), inset 0 0 10px rgba(217,180,91,.1);} 50%{ box-shadow: 0 0 26px rgba(217,180,91,.6), inset 0 0 14px rgba(217,180,91,.2);} }
+  .key .cap { position: absolute; top: -20px; left: 50%; transform: translateX(-50%); font-size: 9px; letter-spacing: .24em; color: var(--gold); text-transform: uppercase; white-space: nowrap; }
+  .key .cap.b { top: auto; bottom: -20px; color: #6f6851; }
+  .mouse { width: 42px; height: 62px; border: 1px solid var(--gold); border-radius: 21px; position: relative; box-shadow: 0 0 18px rgba(217,180,91,.35);
+    animation: keyPulse 1.7s var(--ease) infinite; }
+  .mouse::before { content: ""; position: absolute; left: 50%; top: 8px; width: 2px; height: 14px; background: var(--gold); transform: translateX(-50%); }
+  .mouse .cap { position: absolute; top: -20px; left: 50%; transform: translateX(-50%); font-size: 9px; letter-spacing: .24em; color: var(--gold); text-transform: uppercase; white-space: nowrap; }
+  .ctnote { font-size: 12px; letter-spacing: .16em; color: #b9b19c; } .ctnote b { color: var(--gold); }
+  .ctcont { font-size: 11px; letter-spacing: .34em; color: #776f5c; text-transform: uppercase; animation: blink 2s infinite; }
+
+  /* ---- tutorial (3D) ---- */
+  #tutWrap { position: fixed; inset: 0; z-index: 65; display: none; }
+  #tutWrap.on { display: block; }
+  #tutcanvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+  #tutWrap .tbars { position: fixed; left: 0; right: 0; height: 7vh; background: #000; z-index: 66; }
+  #tutWrap .tbars.top { top: 0; } #tutWrap .tbars.bot { bottom: 0; }
+  #tutFloor { position: fixed; top: calc(7vh + 20px); left: 50%; transform: translateX(-50%); z-index: 67;
+    font-family: Consolas, monospace; font-size: 30px; letter-spacing: .3em; color: var(--gold); text-shadow: 0 0 16px rgba(217,180,91,.6);
+    opacity: 0; transition: opacity .5s; }
+  #tutFloor.on { opacity: 1; }
+  #tutHint { position: fixed; bottom: calc(7vh + 16px); left: 26px; z-index: 67; font-size: 11px; letter-spacing: .18em;
+    color: #b9b19c; text-transform: uppercase; opacity: 0; transition: opacity .6s; }
+  #tutHint.on { opacity: 1; } #tutHint b { color: var(--gold); }
+  #tutPrompt { position: fixed; left: 50%; top: 56%; transform: translateX(-50%); z-index: 67; opacity: 0;
+    font-size: 13px; letter-spacing: .22em; color: #efe8d4; text-transform: uppercase; transition: opacity .25s;
+    background: rgba(10,9,7,.6); border: 1px solid rgba(217,180,91,.5); padding: 8px 16px; border-radius: 6px; }
+  #tutPrompt.on { opacity: 1; } #tutPrompt b { color: var(--gold); }
+  #tutSub { position: fixed; left: 50%; bottom: calc(7vh + 60px); transform: translateX(-50%); z-index: 67; text-align: center;
+    max-width: 70vw; opacity: 0; transition: opacity .35s; }
+  #tutSub.on { opacity: 1; }
+  #tutSub b { display: block; font-size: 12px; letter-spacing: .34em; color: var(--gold); text-transform: uppercase; margin-bottom: 6px; }
+  #tutSub span { font-size: 13px; letter-spacing: .14em; color: #cbc3ad; }
 </style>
 
 <div id="stage">
@@ -188,6 +251,42 @@
       </div>
     </div>
     <div class="hint">Frame only · gameplay wiring next</div>
+  </div>
+
+  <!-- security boot screen -->
+  <div id="bootScreen">
+    <div class="bootlines" id="bootlines"></div>
+    <div class="bootaccess" id="bootaccess">
+      <div class="seal"></div>
+      <div class="lv">Access Level 10</div>
+      <div class="hq">MI6 HEADQUARTERS</div>
+      <div class="loc">LONDON</div>
+      <div class="clk">06:30</div>
+    </div>
+    <div class="bootControls" id="bootControls">
+      <div class="ct">Field Controls</div>
+      <div class="kbrows">
+        <div class="kbrow"><div class="key hot"><span class="cap">Forward</span>W</div></div>
+        <div class="kbrow"><div class="key hot">A</div><div class="key hot">S</div><div class="key hot">D</div><div style="width:14px"></div><div class="key hot"><span class="cap">Interact</span>E</div></div>
+        <div class="kbrow" style="margin-top:22px">
+          <div class="key hot" style="min-width:90px"><span class="cap">Sprint</span>Shift</div>
+          <div class="key" style="min-width:200px">Space<span class="cap b">Jump</span></div>
+          <div class="mouse"><span class="cap">Look</span></div>
+        </div>
+      </div>
+      <div class="ctnote">Walk to the reception desk and press <b>E</b> to speak.</div>
+      <div class="ctcont" id="ctcont">Loading environment…</div>
+    </div>
+  </div>
+
+  <!-- tutorial (3D scene) -->
+  <div id="tutWrap">
+    <canvas id="tutcanvas"></canvas>
+    <div class="tbars top"></div><div class="tbars bot"></div>
+    <div id="tutFloor">B6</div>
+    <div id="tutHint"><b>WASD</b> move · <b>Mouse</b> look (click to lock) · <b>E</b> interact</div>
+    <div id="tutPrompt"><b>E</b> &nbsp;Speak to the receptionist</div>
+    <div id="tutSub"></div>
   </div>
 
   <div class="bars top"></div><div class="bars bot"></div>
@@ -315,8 +414,816 @@ function buildMissions() {
   }
 }
 async function launchMission(ch, mi) {
+  // Mission 1-1 is the tutorial: boot screen -> controls -> 3D opening scene
+  if (ch === 0 && mi === 0) { await runBoot(); if (window.startTutorial) window.startTutorial(); return; }
   await runLoading(`Mission ${ch + 1}-${String(mi + 1).padStart(2, '0')} — ${CH_NAMES[ch]}`, 2600);
-  location.href = 'character.html';   // into the playable stage
+  location.href = 'character.html';
 }
 S('cback').onclick = () => show('main');
+
+/* ================= security boot screen ================= */
+async function runBoot() {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('on'));
+  const boot = S('bootScreen'); boot.classList.add('on');
+  const lines = S('bootlines'); lines.textContent = '';
+  S('bootaccess').classList.remove('on'); S('bootControls').classList.remove('on');
+  const sys = [
+    '> SECURE TERMINAL — POWER ON', '> BIOMETRIC HANDSHAKE ... OK', '> CLEARANCE VERIFY ... OK',
+    '> DECRYPTING SITE MANIFEST ...', '> UPLINK: SIS/VAUXHALL ... LIVE', '> WELCOME, AGENT.',
+  ];
+  for (const l of sys) { lines.textContent += l + '\n'; await wait(320); }
+  await wait(500);
+  S('bootaccess').classList.add('on');
+  await wait(2600);
+  S('bootaccess').classList.remove('on'); await wait(700);
+  S('bootControls').classList.add('on');
+  // give the player a moment to read the controls, then continue on key/click
+  S('ctcont').textContent = 'Press any key to descend';
+  await new Promise(res => {
+    const go = () => { removeEventListener('keydown', go); removeEventListener('click', go); res(); };
+    addEventListener('keydown', go); addEventListener('click', go);
+    setTimeout(go, 9000);   // auto-continue safety
+  });
+  boot.classList.remove('on');
+}
+</script>
+
+<script type="importmap">
+{ "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js", "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/" } }
+</script>
+<script type="module">
+import * as THREE from "three";
+
+/* ===== character generator ===== */
+// Procedural rigged agent — full skeleton I author + skinned suit body.
+// Exports buildAgent(THREE) -> { meshes:[{geometry,tag}], skeleton, bones, boneByName, height }
+// Bind pose = T-pose (arms along ±X, legs along -Y) so every joint's local axes
+// are world-aligned → animation authoring is trivial and verifiable.
+
+function buildAgent(THREE) {
+  const V = (x, y, z) => new THREE.Vector3(x, y, z);
+
+  /* ---------- SKELETON (bind-pose world positions) ---------- */
+  // [name, x, y, z, parent]
+  const B = [
+    ['Hips', 0, 0.94, 0, null],
+    ['Spine', 0, 1.05, 0, 'Hips'],
+    ['Spine1', 0, 1.18, 0, 'Spine'],
+    ['Chest', 0, 1.32, 0, 'Spine1'],
+    ['Neck', 0, 1.48, 0, 'Chest'],
+    ['Head', 0, 1.58, 0, 'Neck'],
+    ['HeadTop', 0, 1.74, 0, 'Head'],
+  ];
+  // arms (T-pose, along ±X); side s=+1 left, -1 right
+  for (const [side, s] of [['L', 1], ['R', -1]]) {
+    B.push([side + 'Clav', s * 0.045, 1.44, 0, 'Chest']);
+    B.push([side + 'Arm', s * 0.17, 1.45, 0, side + 'Clav']);
+    B.push([side + 'ForeArm', s * 0.44, 1.45, 0, side + 'Arm']);
+    B.push([side + 'Hand', s * 0.68, 1.45, 0, side + 'ForeArm']);
+    // fingers: index, middle, ring, pinky (3 bones) + thumb (2 bones)
+    const wx = s * 0.68, palm = s * 0.80;
+    const fz = { index: 0.055, middle: 0.018, ring: -0.018, pinky: -0.052 };
+    const flen = { index: 0.075, middle: 0.082, ring: 0.075, pinky: 0.06 };
+    for (const f of ['index', 'middle', 'ring', 'pinky']) {
+      const L = flen[f], z0 = fz[f];
+      B.push([side + f + '1', palm, 1.45, z0, side + 'Hand']);
+      B.push([side + f + '2', palm + s * L, 1.45, z0, side + f + '1']);
+      B.push([side + f + '3', palm + s * L * 1.8, 1.45, z0, side + f + '2']);
+    }
+    // thumb — off the side of the palm, angled forward
+    B.push([side + 'thumb1', wx + s * 0.03, 1.43, 0.05, side + 'Hand']);
+    B.push([side + 'thumb2', wx + s * 0.075, 1.43, 0.10, side + 'thumb1']);
+  }
+  // legs (along -Y)
+  for (const [side, s] of [['L', 1], ['R', -1]]) {
+    B.push([side + 'UpLeg', s * 0.10, 0.90, 0, 'Hips']);
+    B.push([side + 'Leg', s * 0.105, 0.50, 0.01, side + 'UpLeg']);
+    B.push([side + 'Foot', s * 0.11, 0.09, -0.02, side + 'Leg']);
+    B.push([side + 'Toe', s * 0.11, 0.03, 0.11, side + 'Foot']);
+  }
+
+  const idx = {}; B.forEach((b, i) => idx[b[0]] = i);
+  const world = B.map(b => V(b[1], b[2], b[3]));
+  const bones = B.map((b, i) => { const bo = new THREE.Bone(); bo.name = b[0]; return bo; });
+  B.forEach((b, i) => {
+    if (b[4] == null) bones[i].position.copy(world[i]);
+    else { bones[i].position.copy(world[i].clone().sub(world[idx[b[4]]])); bones[idx[b[4]]].add(bones[i]); }
+  });
+  // children map for tails
+  const kids = {}; B.forEach(b => { if (b[4]) (kids[b[4]] = kids[b[4]] || []).push(b[0]); });
+  const tail = {};
+  B.forEach((b, i) => {
+    const ch = kids[b[0]];
+    if (ch && ch.length) { const t = V(0, 0, 0); ch.forEach(c => t.add(world[idx[c]])); tail[b[0]] = t.multiplyScalar(1 / ch.length); }
+    else { const p = b[4] ? world[idx[b[4]]] : world[i]; tail[b[0]] = world[i].clone().add(world[i].clone().sub(p).multiplyScalar(0.6).setLength(0.05 + world[i].distanceTo(p) * 0.4)); }
+  });
+  // segment list used for skinning: {name, i, a, b}
+  const segs = B.map((b, i) => ({ name: b[0], i, a: world[i], b: tail[b[0]] }));
+
+  /* ---------- geometry helpers ---------- */
+  function distToSeg(p, a, b) {
+    const ab = b.clone().sub(a), ap = p.clone().sub(a);
+    let t = ap.dot(ab) / Math.max(1e-8, ab.lengthSq());
+    t = Math.max(0, Math.min(1, t));
+    return p.distanceTo(a.clone().addScaledVector(ab, t));
+  }
+  const skinN = bones.length;
+
+  // parallel-transport tube: centers[Vector3], rA/rB per section, seg radial
+  function tube(centers, rA, rB, seg, capS, capE) {
+    const N = centers.length, tan = [];
+    for (let i = 0; i < N; i++) {
+      let t;
+      if (i === 0) t = centers[1].clone().sub(centers[0]);
+      else if (i === N - 1) t = centers[N - 1].clone().sub(centers[N - 2]);
+      else t = centers[i + 1].clone().sub(centers[i - 1]);
+      tan.push(t.normalize());
+    }
+    const U = [], W = [];
+    let ref = Math.abs(tan[0].y) > 0.9 ? V(1, 0, 0) : V(0, 1, 0);
+    let u = ref.clone().sub(tan[0].clone().multiplyScalar(ref.dot(tan[0]))).normalize();
+    let w = new THREE.Vector3().crossVectors(tan[0], u).normalize();
+    U.push(u); W.push(w);
+    for (let i = 1; i < N; i++) {
+      const t0 = tan[i - 1], t1 = tan[i];
+      const ax = new THREE.Vector3().crossVectors(t0, t1); const s = ax.length(), c = t0.dot(t1);
+      let un = U[i - 1].clone(), wn = W[i - 1].clone();
+      if (s > 1e-6) { ax.normalize(); const q = new THREE.Quaternion().setFromAxisAngle(ax, Math.atan2(s, c)); un.applyQuaternion(q); wn.applyQuaternion(q); }
+      U.push(un); W.push(wn);
+    }
+    const pos = [], rings = [];
+    for (let i = 0; i < N; i++) {
+      const ring = [];
+      for (let j = 0; j < seg; j++) {
+        const a = j / seg * Math.PI * 2;
+        const p = centers[i].clone().addScaledVector(U[i], Math.cos(a) * rA[i]).addScaledVector(W[i], Math.sin(a) * rB[i]);
+        ring.push(pos.length / 3); pos.push(p.x, p.y, p.z);
+      }
+      rings.push(ring);
+    }
+    const ind = [];
+    for (let i = 0; i < N - 1; i++) for (let j = 0; j < seg; j++) {
+      const a = rings[i][j], b = rings[i][(j + 1) % seg], c = rings[i + 1][j], d = rings[i + 1][(j + 1) % seg];
+      ind.push(a, c, b, b, c, d);
+    }
+    if (capS) { const ci = pos.length / 3; pos.push(centers[0].x, centers[0].y, centers[0].z); for (let j = 0; j < seg; j++) ind.push(ci, rings[0][(j + 1) % seg], rings[0][j]); }
+    if (capE) { const ci = pos.length / 3; const k = N - 1; pos.push(centers[k].x, centers[k].y, centers[k].z); for (let j = 0; j < seg; j++) ind.push(ci, rings[k][j], rings[k][(j + 1) % seg]); }
+    return { pos, ind };
+  }
+
+  // sculpted head from a UV sphere with feature displacement
+  function head(cx, cy, cz) {
+    const rx = 0.086, ry = 0.11, rz = 0.10, rows = 40, cols = 40;
+    const pos = [], ind = [];
+    for (let i = 0; i <= rows; i++) {
+      const v = i / rows, phi = v * Math.PI;         // 0 top .. PI bottom
+      for (let j = 0; j <= cols; j++) {
+        const u = j / cols, th = u * Math.PI * 2;
+        let x = Math.sin(phi) * Math.cos(th), y = Math.cos(phi), z = Math.sin(phi) * Math.sin(th);
+        let px = x * rx, py = y * ry, pz = z * rz;
+        const front = z;                              // +z = face front
+        // jaw taper (narrow lower face)
+        if (py < 0) { const j2 = -py / ry; px *= 1 - 0.28 * j2; pz *= 1 - 0.12 * j2; py *= 1.05; }
+        // chin
+        if (py < -ry * 0.55 && front > 0.2) pz += 0.012 * (1 - Math.abs(px) / rx);
+        // nose
+        const nose = Math.exp(-((py + ry * 0.02) ** 2) / 0.0016 - (px ** 2) / 0.0009) * (front > 0 ? front : 0);
+        pz += nose * 0.03;
+        // brow ridge
+        if (py > ry * 0.05 && py < ry * 0.42 && front > 0.3) pz += 0.006;
+        // eye sockets (slight indent)
+        const eye = Math.exp(-((py - ry * 0.18) ** 2) / 0.0009 - ((Math.abs(px) - 0.032) ** 2) / 0.0006) * (front > 0.2 ? 1 : 0);
+        pz -= eye * 0.01;
+        // cheeks
+        if (py < 0 && py > -ry * 0.5 && front > 0) pz += 0.006 * (1 - Math.abs(px) / rx);
+        // back of skull fuller
+        if (front < -0.2) pz -= 0.006;
+        pos.push(cx + px, cy + py, cz + pz);
+      }
+    }
+    const stride = cols + 1;
+    for (let i = 0; i < rows; i++) for (let j = 0; j < cols; j++) {
+      const a = i * stride + j, b = a + 1, c = a + stride, d = c + 1;
+      ind.push(a, c, b, b, c, d);
+    }
+    return { pos, ind };
+  }
+
+  // hair shell over scalp
+  function hair(cx, cy, cz) {
+    const rx = 0.098, ry = 0.12, rz = 0.11, rows = 26, cols = 30;
+    const pos = [], ind = [];
+    for (let i = 0; i <= rows; i++) {
+      const v = i / rows, phi = v * Math.PI * 0.62;   // only upper/back scalp
+      for (let j = 0; j <= cols; j++) {
+        const u = j / cols, th = u * Math.PI * 2;
+        let x = Math.sin(phi) * Math.cos(th), y = Math.cos(phi), z = Math.sin(phi) * Math.sin(th);
+        // hairline: pull hair back off the forehead (front lower rows recede)
+        let py = y * ry, pz = z * rz, px = x * rx;
+        const lump = 0.006 * (Math.sin(th * 7 + v * 9) + Math.sin(th * 4 - v * 6));
+        px += px !== 0 ? lump * Math.sign(px) : 0; pz += lump;
+        if (z > 0 && py < ry * 0.55) { const k = (ry * 0.55 - py) / ry; pz -= k * 0.05; }  // forehead recede
+        pos.push(cx + px, cy + py, cz + pz);
+      }
+    }
+    const stride = cols + 1;
+    for (let i = 0; i < rows; i++) for (let j = 0; j < cols; j++) {
+      const a = i * stride + j, b = a + 1, c = a + stride, d = c + 1;
+      ind.push(a, c, b, b, c, d);
+    }
+    return { pos, ind };
+  }
+
+  // rounded box (shoe)
+  function shoe(cx, cy, cz, s) {
+    const seg = 16, N = 8;
+    const centers = [], rA = [], rB = [];
+    for (let i = 0; i < N; i++) {
+      const t = i / (N - 1);
+      centers.push(V(cx, cy + 0.02 - 0.0 * t, cz - 0.09 + t * 0.30)); // heel(-z) to toe(+z)
+      rA.push(0.045 * (1 - 0.15 * t));                                 // width
+      rB.push(0.03 + 0.02 * Math.sin(t * Math.PI));                    // height profile
+    }
+    return tube(centers, rA, rB, seg, true, true);
+  }
+
+  /* ---------- build parts ---------- */
+  const parts = [];   // {pos, ind, tag, cand:[boneNames]}
+  const push = (g, tag, cand) => parts.push({ pos: g.pos, ind: g.ind, tag, cand });
+
+  // torso / jacket
+  {
+    const prof = [
+      [0.80, 0.15, 0.115], [0.88, 0.155, 0.12], [0.96, 0.14, 0.11], [1.04, 0.135, 0.105],
+      [1.12, 0.15, 0.115], [1.20, 0.175, 0.125], [1.28, 0.20, 0.13], [1.36, 0.215, 0.13],
+      [1.43, 0.205, 0.12], [1.47, 0.14, 0.10],
+    ];
+    const centers = prof.map(p => V(0, p[0], 0)), rA = prof.map(p => p[1]), rB = prof.map(p => p[2]);
+    push(tube(centers, rA, rB, 34, true, true), 'suit', ['Hips', 'Spine', 'Spine1', 'Chest', 'Neck']);
+  }
+  // neck
+  {
+    const centers = [V(0, 1.44, 0.005), V(0, 1.50, 0.004), V(0, 1.56, 0.002)];
+    push(tube(centers, [0.052, 0.05, 0.048], [0.05, 0.048, 0.046], 20, false, false), 'skin', ['Neck', 'Chest', 'Head']);
+  }
+  // head + hair
+  push(head(0, 1.645, 0.005), 'skin', ['Head', 'HeadTop', 'Neck']);
+  push(hair(0, 1.66, 0.004), 'hair', ['Head', 'HeadTop']);
+  // shirt V + tie (front chest panel)
+  {
+    const pos = [], ind = [];
+    // white shirt triangle
+    const sh = [[-0.05, 1.40, 0.128], [0.05, 1.40, 0.128], [0, 1.24, 0.132]];
+    sh.forEach(p => pos.push(p[0], p[1], p[2])); ind.push(0, 2, 1);
+    push({ pos, ind }, 'shirt', ['Chest', 'Spine1']);
+    // tie
+    const tp = [], ti = [];
+    const tie = [[-0.014, 1.40, 0.134], [0.014, 1.40, 0.134], [-0.02, 1.16, 0.138], [0.02, 1.16, 0.138], [0, 1.10, 0.14]];
+    tie.forEach(p => tp.push(p[0], p[1], p[2])); ti.push(0, 2, 1, 1, 2, 3, 2, 4, 3);
+    push({ pos: tp, ind: ti }, 'tie', ['Chest', 'Spine1']);
+  }
+  // arms (sleeves) + hands + fingers
+  for (const [side, s] of [['L', 1], ['R', -1]]) {
+    const sh = world[idx[side + 'Arm']], el = world[idx[side + 'ForeArm']], wr = world[idx[side + 'Hand']];
+    const centers = [
+      world[idx[side + 'Clav']].clone().lerp(sh, 0.5), sh, sh.clone().lerp(el, 0.5), el,
+      el.clone().lerp(wr, 0.5), wr,
+    ];
+    const rA = [0.058, 0.052, 0.047, 0.043, 0.04, 0.037], rB = rA.slice();
+    push(tube(centers, rA, rB, 22, true, false), 'suit', [side + 'Clav', side + 'Arm', side + 'ForeArm', side + 'Hand']);
+    // palm
+    const palm = tube([wr, wr.clone().add(V(s * 0.06, 0, 0)), wr.clone().add(V(s * 0.11, 0, 0))],
+      [0.036, 0.04, 0.038], [0.02, 0.022, 0.02], 16, true, false);
+    push(palm, 'skin', [side + 'Hand']);
+    // fingers
+    const fz = { index: 0.055, middle: 0.018, ring: -0.018, pinky: -0.052 };
+    const flen = { index: 0.075, middle: 0.082, ring: 0.075, pinky: 0.06 };
+    for (const f of ['index', 'middle', 'ring', 'pinky']) {
+      const z0 = fz[f], L = flen[f], base = world[idx[side + f + '1']];
+      const c = [base, world[idx[side + f + '2']], world[idx[side + f + '3']], world[idx[side + f + '3']].clone().add(V(s * L * 0.7, 0, 0))];
+      const r = [0.011, 0.010, 0.009, 0.006];
+      push(tube(c, r, r, 10, true, true), 'skin', [side + 'Hand', side + f + '1', side + f + '2', side + f + '3']);
+    }
+    // thumb
+    {
+      const t1 = world[idx[side + 'thumb1']], t2 = world[idx[side + 'thumb2']];
+      const c = [world[idx[side + 'Hand']].clone().lerp(t1, 0.4), t1, t2, t2.clone().add(V(s * 0.02, 0, 0.03))];
+      const r = [0.014, 0.012, 0.010, 0.007];
+      push(tube(c, r, r, 10, true, true), 'skin', [side + 'Hand', side + 'thumb1', side + 'thumb2']);
+    }
+  }
+  // legs (trousers) + shoes
+  for (const [side, s] of [['L', 1], ['R', -1]]) {
+    const hip = world[idx[side + 'UpLeg']], kn = world[idx[side + 'Leg']], an = world[idx[side + 'Foot']];
+    const centers = [hip.clone().add(V(0, 0.04, 0)), hip, hip.clone().lerp(kn, 0.5), kn, kn.clone().lerp(an, 0.5), an.clone().add(V(0, 0.03, 0))];
+    const rA = [0.10, 0.092, 0.075, 0.062, 0.056, 0.05], rB = rA.map(r => r * 1.02);
+    push(tube(centers, rA, rB, 22, true, true), 'suit', [side + 'UpLeg', side + 'Leg', side + 'Foot']);
+    push(shoe(s * 0.11, 0.0, 0.0, s), 'shoe', [side + 'Foot', side + 'Toe']);
+  }
+
+  /* ---------- auto-skin every part to its candidate bones ---------- */
+  const meshes = [];
+  for (const part of parts) {
+    const n = part.pos.length / 3;
+    const si = new Uint16Array(n * 4), sw = new Float32Array(n * 4);
+    const cand = part.cand.map(nm => segs[idx[nm]]);
+    for (let i = 0; i < n; i++) {
+      const p = V(part.pos[i * 3], part.pos[i * 3 + 1], part.pos[i * 3 + 2]);
+      // nearest 2 candidate segments by distance
+      let best = [], b2 = [];
+      let d1 = Infinity, d2 = Infinity, i1 = 0, i2 = 0;
+      for (const c of cand) {
+        const d = distToSeg(p, c.a, c.b);
+        if (d < d1) { d2 = d1; i2 = i1; d1 = d; i1 = c.i; }
+        else if (d < d2) { d2 = d; i2 = c.i; }
+      }
+      const w1 = 1 / (d1 * d1 + 1e-5), w2 = cand.length > 1 ? 1 / (d2 * d2 + 1e-5) : 0;
+      const wsum = w1 + w2;
+      si[i * 4] = i1; si[i * 4 + 1] = i2; si[i * 4 + 2] = 0; si[i * 4 + 3] = 0;
+      sw[i * 4] = w1 / wsum; sw[i * 4 + 1] = w2 / wsum; sw[i * 4 + 2] = 0; sw[i * 4 + 3] = 0;
+    }
+    meshes.push({ pos: new Float32Array(part.pos), ind: part.ind, si, sw, tag: part.tag });
+  }
+
+  return { meshes, bones, boneByName: idx, order: B.map(b => b[0]), world, height: 1.78 };
+}
+
+
+/* ===== animations ===== */
+// Animations authored for the procedural agent skeleton (T-pose bind, forward +z).
+// All rotations are LOCAL-frame euler deltas (bind local = identity), which
+// compose correctly through the hierarchy regardless of parent pose.
+function authorAnimations(THREE) {
+  const _q = new THREE.Quaternion(), _e = new THREE.Euler();
+  const q = (x, y, z) => { _e.set(x, y, z); _q.setFromEuler(_e); return [_q.x, _q.y, _q.z, _q.w]; };
+  const rot = (name, times, eulers) => {
+    const v = []; eulers.forEach(a => v.push(...q(a[0], a[1], a[2])));
+    return new THREE.QuaternionKeyframeTrack(name + '.quaternion', times, v);
+  };
+  const pos = (name, times, vecs) => {
+    const v = []; vecs.forEach(a => v.push(a[0], a[1], a[2]));
+    return new THREE.VectorKeyframeTrack(name + '.position', times, v);
+  };
+
+  // ---- neutral arm-down pose (shoulders bring T-pose arms to the sides) ----
+  const ARM = { L: [-0.12, 0.08, -1.31], R: [-0.12, -0.08, 1.31] };
+  const FORE = { L: [0, -0.28, -0.15], R: [0, 0.28, 0.15] };
+  const HAND0 = { L: [0, 0, 0], R: [0, 0, 0] };
+  // relaxed finger curl (idle) and full fist
+  // fists curl toward the palm (-Y): LEFT needs -Z, RIGHT needs +Z (mirror)
+  const fingersL = (curl, tip) => ['index', 'middle', 'ring', 'pinky'].flatMap(f =>
+    [['L' + f + '1', [0, 0, -curl]], ['L' + f + '2', [0, 0, -curl]], ['L' + f + '3', [0, 0, -tip]]]);
+  const fingersR = (curl, tip) => ['index', 'middle', 'ring', 'pinky'].flatMap(f =>
+    [['R' + f + '1', [0, 0, curl]], ['R' + f + '2', [0, 0, curl]], ['R' + f + '3', [0, 0, tip]]]);
+  const thumbsL = c => [['Lthumb1', [0, -c, 0]], ['Lthumb2', [0, -c, 0]]];
+  const thumbsR = c => [['Rthumb1', [0, c, 0]], ['Rthumb2', [0, c, 0]]];
+  const holdFingers = (dur, curl, tip, tc) => {
+    const tr = [];
+    [...fingersL(curl, tip), ...fingersR(curl, tip), ...thumbsL(tc), ...thumbsR(tc)].forEach(([n, e]) =>
+      tr.push(rot(n, [0, dur], [e, e])));
+    return tr;
+  };
+
+  const clips = {};
+  const HIP = 0.94;
+
+  // ---------- IDLE ----------
+  clips.Idle = new THREE.AnimationClip('Idle', 4.0, [
+    pos('Hips', [0, 2, 4], [[0, HIP, 0], [0, HIP + 0.008, 0], [0, HIP, 0]]),
+    rot('Spine', [0, 2, 4], [[0.02, 0.03, 0], [0.04, -0.03, 0], [0.02, 0.03, 0]]),
+    rot('Chest', [0, 2, 4], [[0.02, 0, 0], [0.03, 0, 0], [0.02, 0, 0]]),
+    rot('Head', [0, 1.3, 2.6, 4], [[0, 0.05, 0], [0.02, -0.02, 0], [0, -0.05, 0], [0, 0.05, 0]]),
+    rot('LArm', [0, 2, 4], [ARM.L, [ARM.L[0], ARM.L[1], ARM.L[2] + 0.04], ARM.L]),
+    rot('RArm', [0, 2, 4], [ARM.R, [ARM.R[0], ARM.R[1], ARM.R[2] - 0.04], ARM.R]),
+    rot('LForeArm', [0, 4], [FORE.L, FORE.L]), rot('RForeArm', [0, 4], [FORE.R, FORE.R]),
+    ...holdFingers(4.0, 0.18, 0.22, 0.15),
+  ]);
+
+  // ---------- WALK (dur 1.0) ----------
+  const S = 0.55;  // stride
+  clips.Walk = new THREE.AnimationClip('Walk', 1.0, [
+    pos('Hips', [0, 0.25, 0.5, 0.75, 1.0], [[0, HIP, 0], [0, HIP + 0.015, 0], [0, HIP, 0], [0, HIP + 0.015, 0], [0, HIP, 0]]),
+    rot('Hips', [0, 0.5, 1.0], [[0, 0.05, 0], [0, -0.05, 0], [0, 0.05, 0]]),
+    rot('Spine', [0, 0.5, 1.0], [[0.04, -0.03, 0], [0.04, 0.03, 0], [0.04, -0.03, 0]]),
+    // legs: forward swing = negative X on UpLeg; stance leg stays near-straight
+    rot('LUpLeg', [0, 0.5, 1.0], [[-S * 0.5, 0, 0], [S * 0.5, 0, 0], [-S * 0.5, 0, 0]]),
+    rot('RUpLeg', [0, 0.5, 1.0], [[S * 0.5, 0, 0], [-S * 0.5, 0, 0], [S * 0.5, 0, 0]]),
+    rot('LLeg', [0, 0.25, 0.5, 0.75, 1.0], [[0.1, 0, 0], [0.15, 0, 0], [0.1, 0, 0], [0.6, 0, 0], [0.1, 0, 0]]),
+    rot('RLeg', [0, 0.25, 0.5, 0.75, 1.0], [[0.1, 0, 0], [0.6, 0, 0], [0.1, 0, 0], [0.15, 0, 0], [0.1, 0, 0]]),
+    rot('LFoot', [0, 0.5, 1.0], [[0.1, 0, 0], [-0.15, 0, 0], [0.1, 0, 0]]),
+    rot('RFoot', [0, 0.5, 1.0], [[-0.15, 0, 0], [0.1, 0, 0], [-0.15, 0, 0]]),
+    // arms counter-swing about X, layered on the down pose
+    rot('LArm', [0, 0.5, 1.0], [[0.35, ARM.L[1], ARM.L[2]], [-0.35, ARM.L[1], ARM.L[2]], [0.35, ARM.L[1], ARM.L[2]]]),
+    rot('RArm', [0, 0.5, 1.0], [[-0.35, ARM.R[1], ARM.R[2]], [0.35, ARM.R[1], ARM.R[2]], [-0.35, ARM.R[1], ARM.R[2]]]),
+    rot('LForeArm', [0, 1.0], [FORE.L, FORE.L]), rot('RForeArm', [0, 1.0], [FORE.R, FORE.R]),
+    ...holdFingers(1.0, 0.2, 0.24, 0.15),
+  ]);
+
+  // ---------- RUN (dur 0.72) ----------
+  const R = 1.15;
+  clips.Run = new THREE.AnimationClip('Run', 0.72, [
+    pos('Hips', [0, 0.18, 0.36, 0.54, 0.72], [[0, HIP + 0.02, 0], [0, HIP + 0.06, 0], [0, HIP + 0.02, 0], [0, HIP + 0.06, 0], [0, HIP + 0.02, 0]]),
+    rot('Spine', [0, 0.72], [[0.16, 0, 0], [0.16, 0, 0]]),   // forward lean
+    rot('Chest', [0, 0.72], [[0.08, 0, 0], [0.08, 0, 0]]),
+    rot('LUpLeg', [0, 0.36, 0.72], [[-R * 0.55, 0, 0], [R * 0.5, 0, 0], [-R * 0.55, 0, 0]]),
+    rot('RUpLeg', [0, 0.36, 0.72], [[R * 0.5, 0, 0], [-R * 0.55, 0, 0], [R * 0.5, 0, 0]]),
+    rot('LLeg', [0, 0.18, 0.36, 0.72], [[0.4, 0, 0], [0.3, 0, 0], [1.5, 0, 0], [0.4, 0, 0]]),
+    rot('RLeg', [0, 0.36, 0.54, 0.72], [[1.5, 0, 0], [0.4, 0, 0], [0.3, 0, 0], [1.5, 0, 0]]),
+    rot('LArm', [0, 0.36, 0.72], [[0.9, ARM.L[1], ARM.L[2]], [-0.7, ARM.L[1], ARM.L[2]], [0.9, ARM.L[1], ARM.L[2]]]),
+    rot('RArm', [0, 0.36, 0.72], [[-0.7, ARM.R[1], ARM.R[2]], [0.9, ARM.R[1], ARM.R[2]], [-0.7, ARM.R[1], ARM.R[2]]]),
+    rot('LForeArm', [0, 0.72], [[0, -0.9, -0.15], [0, -0.9, -0.15]]),
+    rot('RForeArm', [0, 0.72], [[0, 0.9, 0.15], [0, 0.9, 0.15]]),
+    ...holdFingers(0.72, 0.5, 0.5, 0.2),
+  ]);
+
+  // ---------- SPRINT (dur 0.56) ----------
+  const SP = 1.4;
+  clips.Sprint = new THREE.AnimationClip('Sprint', 0.56, [
+    pos('Hips', [0, 0.14, 0.28, 0.42, 0.56], [[0, HIP + 0.02, 0], [0, HIP + 0.08, 0], [0, HIP + 0.02, 0], [0, HIP + 0.08, 0], [0, HIP + 0.02, 0]]),
+    rot('Spine', [0, 0.56], [[0.28, 0, 0], [0.28, 0, 0]]),
+    rot('Chest', [0, 0.56], [[0.12, 0, 0], [0.12, 0, 0]]),
+    rot('LUpLeg', [0, 0.28, 0.56], [[-SP * 0.55, 0, 0], [SP * 0.5, 0, 0], [-SP * 0.55, 0, 0]]),
+    rot('RUpLeg', [0, 0.28, 0.56], [[SP * 0.5, 0, 0], [-SP * 0.55, 0, 0], [SP * 0.5, 0, 0]]),
+    rot('LLeg', [0, 0.14, 0.28, 0.56], [[0.5, 0, 0], [0.35, 0, 0], [1.8, 0, 0], [0.5, 0, 0]]),
+    rot('RLeg', [0, 0.28, 0.42, 0.56], [[1.8, 0, 0], [0.5, 0, 0], [0.35, 0, 0], [1.8, 0, 0]]),
+    rot('LArm', [0, 0.28, 0.56], [[1.2, ARM.L[1], ARM.L[2]], [-0.9, ARM.L[1], ARM.L[2]], [1.2, ARM.L[1], ARM.L[2]]]),
+    rot('RArm', [0, 0.28, 0.56], [[-0.9, ARM.R[1], ARM.R[2]], [1.2, ARM.R[1], ARM.R[2]], [-0.9, ARM.R[1], ARM.R[2]]]),
+    rot('LForeArm', [0, 0.56], [[0, -1.2, -0.15], [0, -1.2, -0.15]]),
+    rot('RForeArm', [0, 0.56], [[0, 1.2, 0.15], [0, 1.2, 0.15]]),
+    ...holdFingers(0.56, 0.7, 0.7, 0.3),
+  ]);
+
+  // ---------- CROUCH (held pose) ----------
+  clips.Crouch = new THREE.AnimationClip('Crouch', 0.5, [
+    pos('Hips', [0, 0.5], [[0, HIP - 0.28, 0], [0, HIP - 0.28, 0]]),
+    rot('Spine', [0, 0.5], [[0.22, 0, 0], [0.22, 0, 0]]),
+    rot('Chest', [0, 0.5], [[0.1, 0, 0], [0.1, 0, 0]]),
+    rot('LUpLeg', [0, 0.5], [[-1.15, 0.05, 0], [-1.15, 0.05, 0]]),
+    rot('RUpLeg', [0, 0.5], [[-1.15, -0.05, 0], [-1.15, -0.05, 0]]),
+    rot('LLeg', [0, 0.5], [[1.7, 0, 0], [1.7, 0, 0]]),
+    rot('RLeg', [0, 0.5], [[1.7, 0, 0], [1.7, 0, 0]]),
+    rot('LFoot', [0, 0.5], [[-0.5, 0, 0], [-0.5, 0, 0]]),
+    rot('RFoot', [0, 0.5], [[-0.5, 0, 0], [-0.5, 0, 0]]),
+    rot('LArm', [0, 0.5], [[0.3, ARM.L[1], ARM.L[2]], [0.3, ARM.L[1], ARM.L[2]]]),
+    rot('RArm', [0, 0.5], [[0.3, ARM.R[1], ARM.R[2]], [0.3, ARM.R[1], ARM.R[2]]]),
+    rot('LForeArm', [0, 0.5], [[0, -0.6, -0.15], [0, -0.6, -0.15]]),
+    rot('RForeArm', [0, 0.5], [[0, 0.6, 0.15], [0, 0.6, 0.15]]),
+    ...holdFingers(0.5, 0.25, 0.3, 0.2),
+  ]);
+
+  // ---------- BOX (one-two with a real elbow: chamber -> extend, alternating) ----------
+  // guard = arm forward + elbow bent (fist retracted to chest); punch = straighten.
+  const gLA = [0, -1.1, -0.2], jLA = [0, -1.45, 0.02];   // left arm guard / jab
+  const gLF = [0, -1.6, -0.15], jLF = [0, -0.2, -0.15];  // left forearm bent / straight
+  const gRA = [0, 1.1, 0.2], jRA = [0, 1.45, -0.02];     // right arm guard / cross
+  const gRF = [0, 1.6, 0.15], jRF = [0, 0.2, 0.15];      // right forearm bent / straight
+  const bx = [];
+  bx.push(rot('Spine', [0, 0.14, 0.4, 0.6, 1.1], [[0.06, 0.14, 0], [0.06, 0.26, 0], [0.06, 0.1, 0], [0.06, -0.26, 0], [0.06, 0.14, 0]]));
+  bx.push(rot('Hips', [0, 0.14, 0.6, 1.1], [[0, 0.1, 0], [0, 0.16, 0], [0, -0.16, 0], [0, 0.1, 0]]));
+  // LEFT jab at t0.14
+  bx.push(rot('LArm', [0, 0.14, 0.3, 1.1], [gLA, jLA, gLA, gLA]));
+  bx.push(rot('LForeArm', [0, 0.14, 0.3, 1.1], [gLF, jLF, gLF, gLF]));
+  // RIGHT cross at t0.6
+  bx.push(rot('RArm', [0, 0.45, 0.6, 0.78, 1.1], [gRA, gRA, jRA, gRA, gRA]));
+  bx.push(rot('RForeArm', [0, 0.45, 0.6, 0.78, 1.1], [gRF, gRF, jRF, gRF, gRF]));
+  // fists closed
+  [...fingersL(1.6, 1.5), ...fingersR(1.6, 1.5), ...thumbsL(0.6), ...thumbsR(0.6)].forEach(([n, e]) => bx.push(rot(n, [0, 1.1], [e, e])));
+  clips.Box = new THREE.AnimationClip('Box', 1.1, bx);
+
+  // ---------- KICK (front snap, dur 0.6) ----------
+  clips.Kick = new THREE.AnimationClip('Kick', 0.6, [
+    pos('Hips', [0, 0.26, 0.6], [[0, HIP, 0], [0, HIP - 0.03, 0], [0, HIP, 0]]),
+    rot('Spine', [0, 0.26, 0.6], [[0.05, 0, 0], [-0.15, 0, 0], [0.05, 0, 0]]),   // slight back-lean at strike
+    // support leg (left) stays; kicking leg (right): chamber (knee up, bent) -> extend forward+up
+    rot('RUpLeg', [0, 0.14, 0.28, 0.42, 0.6], [[0, 0, 0], [-1.3, 0, 0], [-1.55, 0, 0], [-1.55, 0, 0], [0, 0, 0]]),
+    rot('RLeg', [0, 0.14, 0.28, 0.42, 0.6], [[0, 0, 0], [1.5, 0, 0], [0.15, 0, 0], [0.15, 0, 0], [0, 0, 0]]),
+    rot('RFoot', [0, 0.28, 0.6], [[0, 0, 0], [-0.3, 0, 0], [0, 0, 0]]),
+    rot('LArm', [0, 0.28, 0.6], [[0.3, ARM.L[1], ARM.L[2]], [0.6, ARM.L[1], ARM.L[2] + 0.2], [0.3, ARM.L[1], ARM.L[2]]]),
+    rot('RArm', [0, 0.28, 0.6], [[-0.3, ARM.R[1], ARM.R[2]], [-0.6, ARM.R[1], ARM.R[2] - 0.2], [-0.3, ARM.R[1], ARM.R[2]]]),
+    rot('LForeArm', [0, 0.6], [FORE.L, FORE.L]), rot('RForeArm', [0, 0.6], [FORE.R, FORE.R]),
+    ...holdFingers(0.6, 0.3, 0.3, 0.2),
+  ]);
+
+  // ---------- DEAD (collapse) ----------
+  clips.Dead = new THREE.AnimationClip('Dead', 0.9, [
+    pos('Hips', [0, 0.45, 0.9], [[0, HIP, 0], [0, 0.45, 0], [0, 0.12, 0]]),
+    rot('Hips', [0, 0.9], [[0, 0, 0], [-1.4, 0, 0.3]]),
+    rot('Spine', [0, 0.9], [[0, 0, 0], [0.4, 0, 0]]),
+    rot('LUpLeg', [0, 0.9], [[0, 0, 0], [-0.6, 0, 0.2]]),
+    rot('RUpLeg', [0, 0.9], [[0, 0, 0], [-0.3, 0, -0.2]]),
+    rot('LLeg', [0, 0.9], [[0, 0, 0], [0.8, 0, 0]]),
+    rot('LArm', [0, 0.9], [[ARM.L[0], ARM.L[1], ARM.L[2]], [0.6, 0.2, -0.9]]),
+    rot('RArm', [0, 0.9], [[ARM.R[0], ARM.R[1], ARM.R[2]], [0.6, -0.2, 0.9]]),
+    ...holdFingers(0.9, 0.15, 0.2, 0.1),
+  ]);
+
+  // aim/grip helpers (procedural, applied on top when gun drawn).
+  // Straight arm (elbow stays at bind) pointed forward so the gun sits at the
+  // end of the one-piece arm and points where the camera looks.
+  const AIM = {
+    RArm: q(0, 1.15, 0.18),           // raise arm forward
+    RForeArm: q(0, 0.55, 0.1),        // slight elbow bend brings the gun to center-forward
+  };
+  const GRIP = {   // right-hand fist wrapping the grip
+    curl: 1.45, tip: 1.35, thumb: 0.5,
+  };
+
+  return { clips, ARM, FORE, AIM, GRIP };
+}
+
+
+/* ===== tutorial scene ===== */
+
+/* =====================================================================
+   OPENING TUTORIAL — MI6 reception. Elevator descent → walk → secretary.
+   Exposes window.startTutorial(). Uses buildAgent + authorAnimations (above).
+   ===================================================================== */
+const VOICE = { receptionGreeting: 'voice/tutorial/reception_greeting.mp3' };
+
+let T = null;
+window.startTutorial = function () {
+  if (!T) T = initTutorial();
+  T.begin();
+};
+
+function initTutorial() {
+  const canvas = document.getElementById('tutcanvas');
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  renderer.setSize(innerWidth, innerHeight);
+  renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.05;
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
+
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x05070d);
+  scene.fog = new THREE.FogExp2(0x05070d, 0.02);
+  const camera = new THREE.PerspectiveCamera(48, innerWidth / innerHeight, 0.05, 200);
+
+  /* ---------- lights ---------- */
+  scene.add(new THREE.HemisphereLight(0x9fb6e0, 0x14100a, 0.55));
+  scene.add(new THREE.AmbientLight(0xffffff, 0.18));
+  const key = new THREE.DirectionalLight(0xfff0d8, 1.4); key.position.set(-6, 12, 6);
+  key.castShadow = true; key.shadow.mapSize.set(2048, 2048);
+  key.shadow.camera.near = 1; key.shadow.camera.far = 60;
+  key.shadow.camera.left = -20; key.shadow.camera.right = 20; key.shadow.camera.top = 20; key.shadow.camera.bottom = -20;
+  scene.add(key);
+  const holoCol = 0x49b7ff;
+
+  /* ---------- materials ---------- */
+  const M = {
+    floor: new THREE.MeshStandardMaterial({ color: 0x0d1018, roughness: 0.25, metalness: 0.6 }),
+    wall: new THREE.MeshStandardMaterial({ color: 0x11151f, roughness: 0.7, metalness: 0.2 }),
+    trim: new THREE.MeshStandardMaterial({ color: 0xc9a24a, roughness: 0.35, metalness: 0.8, emissive: 0x3a2c0e, emissiveIntensity: 0.5 }),
+    metal: new THREE.MeshStandardMaterial({ color: 0x2a2f3a, roughness: 0.4, metalness: 0.85 }),
+    holo: new THREE.MeshBasicMaterial({ color: holoCol, transparent: true, opacity: 0.32 }),
+    holoLine: new THREE.MeshBasicMaterial({ color: 0x9ad8ff, transparent: true, opacity: 0.6 }),
+    desk: new THREE.MeshStandardMaterial({ color: 0x161a24, roughness: 0.35, metalness: 0.5 }),
+    deskTop: new THREE.MeshStandardMaterial({ color: 0x0b0d13, roughness: 0.2, metalness: 0.7 }),
+    glow: new THREE.MeshBasicMaterial({ color: 0xffd98a }),
+  };
+  const box = (mat, x, y, z, w, h, d, parent) => {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+    m.position.set(x, y, z); m.castShadow = true; m.receiveShadow = true; (parent || scene).add(m); return m;
+  };
+
+  /* ---------- reception hall (z from 0..24) ---------- */
+  const HALL = new THREE.Group(); scene.add(HALL);
+  const floor = box(M.floor, 0, -0.05, 12, 26, 0.1, 26, HALL); floor.receiveShadow = true;
+  // gold seam lines in the floor
+  for (let i = -2; i <= 2; i++) box(M.trim, i * 4, 0.005, 12, 0.05, 0.02, 24, HALL);
+  // walls
+  box(M.wall, -12, 3, 12, 0.4, 8, 26, HALL);
+  box(M.wall, 12, 3, 12, 0.4, 8, 26, HALL);
+  box(M.wall, 0, 3, 24.4, 26, 8, 0.4, HALL);   // far wall behind desk
+  box(M.wall, 0, 6.8, 12, 26, 0.4, 26, HALL);  // ceiling
+  // gold wall trim
+  box(M.trim, -11.75, 5.4, 12, 0.08, 0.12, 24, HALL);
+  box(M.trim, 11.75, 5.4, 12, 0.08, 0.12, 24, HALL);
+  // ceiling light strips
+  for (let i = -1; i <= 1; i++) { const s = box(M.glow, i * 5, 6.6, 12, 0.5, 0.05, 20, HALL); s.material = M.glow; }
+  // pillars
+  for (const px of [-7, 7]) for (const pz of [5, 13, 21]) { box(M.metal, px, 3, pz, 0.7, 6, 0.7, HALL); box(M.trim, px, 6, pz, 0.85, 0.14, 0.85, HALL); }
+
+  // holographic world-map panels on side walls
+  function holoPanel(x, z, flip) {
+    const g = new THREE.Group(); g.position.set(x, 3.4, z); g.rotation.y = flip ? -Math.PI / 2 : Math.PI / 2; HALL.add(g);
+    box(M.holo, 0, 0, 0, 3.4, 2.0, 0.02, g);
+    for (let i = 0; i < 6; i++) box(M.holoLine, (Math.random() - 0.5) * 3, (Math.random() - 0.5) * 1.7, 0.02, 0.02, 0.02 + Math.random() * 1.4, 0.02, g);
+    box(M.holoLine, 0, 0.9, 0.02, 3.2, 0.02, 0.02, g);
+    const l = new THREE.PointLight(holoCol, 0.6, 8, 2); l.position.copy(g.position); l.position.x += flip ? -0.5 : 0.5; HALL.add(l);
+    return g;
+  }
+  holoPanel(-11.6, 8); holoPanel(-11.6, 16); holoPanel(11.6, 8, true); holoPanel(11.6, 16, true);
+
+  /* ---------- reception desk + secretary (far end) ---------- */
+  const DESKZ = 18;
+  box(M.desk, 0, 0.55, DESKZ, 5.0, 1.1, 1.2);
+  box(M.deskTop, 0, 1.12, DESKZ - 0.05, 5.2, 0.08, 1.4);
+  box(M.trim, 0, 0.62, DESKZ - 0.62, 5.0, 0.06, 0.05);   // gold front trim
+  // desk holo terminal
+  const term = box(M.holo, -1.4, 1.5, DESKZ - 0.1, 0.9, 0.6, 0.02); term.rotation.x = -0.3;
+  const termL = new THREE.PointLight(holoCol, 0.5, 4, 2); termL.position.set(-1.4, 1.5, DESKZ - 0.3); scene.add(termL);
+  const secretary = buildSecretary(0, 0, DESKZ + 0.9);
+  scene.add(secretary);
+
+  /* ---------- elevator (front, z ~ -1) ---------- */
+  const SHAFT = new THREE.Group(); scene.add(SHAFT);
+  // fixed shaft walls the car descends past
+  const shaftMat = new THREE.MeshStandardMaterial({ color: 0x090b12, roughness: 0.8, metalness: 0.3 });
+  box(shaftMat, -1.9, 4, -1.4, 0.3, 10, 2.8, SHAFT);
+  box(shaftMat, 1.9, 4, -1.4, 0.3, 10, 2.8, SHAFT);
+  box(shaftMat, 0, 4, -2.7, 4.1, 10, 0.3, SHAFT);
+  // the moving car
+  const CAR = new THREE.Group(); scene.add(CAR);
+  const carMat = new THREE.MeshStandardMaterial({ color: 0x1a1f29, roughness: 0.4, metalness: 0.8 });
+  const carTrim = M.trim;
+  box(carMat, 0, 1.4, -2.5, 3.4, 2.8, 0.16, CAR);   // back wall
+  box(carMat, -1.65, 1.4, -1.3, 0.16, 2.8, 2.6, CAR);
+  box(carMat, 1.65, 1.4, -1.3, 0.16, 2.8, 2.6, CAR);
+  box(carMat, 0, 2.85, -1.3, 3.4, 0.16, 2.8, CAR);  // car ceiling
+  box(carMat, 0, 0.02, -1.3, 3.4, 0.08, 2.8, CAR);  // car floor
+  box(M.glow, 0, 2.78, -1.3, 2.4, 0.05, 2.0, CAR);  // car light
+  box(carTrim, -1.6, 1.4, -0.05, 0.06, 2.7, 0.08, CAR);
+  box(carTrim, 1.6, 1.4, -0.05, 0.06, 2.7, 0.08, CAR);
+  // sliding doors (front, +z side of car ~ z=-0.05)
+  const doorL = box(carMat, -0.8, 1.4, -0.02, 1.5, 2.7, 0.1, CAR);
+  const doorR = box(carMat, 0.8, 1.4, -0.02, 1.5, 2.7, 0.1, CAR);
+
+  /* ---------- player (boxy agent) ---------- */
+  const rig = new THREE.Group(); scene.add(rig);
+  const A = buildAgent(THREE);
+  rig.add(A.bones[0]); rig.updateMatrixWorld(true);
+  const byName = {}; A.bones.forEach(b => byName[b.name] = b);
+  const PM = {
+    suit: new THREE.MeshStandardMaterial({ color: 0x16161d, roughness: 0.5, metalness: 0.25 }),
+    skin: new THREE.MeshStandardMaterial({ color: 0xdaa985, roughness: 0.75 }),
+    hair: new THREE.MeshStandardMaterial({ color: 0x1a1512, roughness: 0.9 }),
+    shirt: new THREE.MeshStandardMaterial({ color: 0xeceae2, roughness: 0.55 }),
+    tie: new THREE.MeshStandardMaterial({ color: 0x8a1f2b, roughness: 0.5 }),
+    shoe: new THREE.MeshStandardMaterial({ color: 0x0b0b0f, roughness: 0.28, metalness: 0.4 }),
+    eye: new THREE.MeshStandardMaterial({ color: 0x0e0e12 }),
+  };
+  const shoes = [];
+  const pbox = (bn, tag, lp, sz) => { const m = new THREE.Mesh(new THREE.BoxGeometry(sz[0], sz[1], sz[2]), PM[tag] || PM.suit); m.position.set(lp[0], lp[1], lp[2]); m.castShadow = true; byName[bn].add(m); if (tag === 'shoe') shoes.push(m); return m; };
+  pbox('Spine', 'suit', [0, 0.16, 0], [0.42, 0.5, 0.26]); pbox('Hips', 'suit', [0, -0.02, 0], [0.36, 0.22, 0.24]);
+  pbox('Chest', 'shirt', [0, -0.02, 0.13], [0.17, 0.24, 0.03]); pbox('Chest', 'tie', [0, -0.1, 0.15], [0.05, 0.28, 0.02]);
+  pbox('Neck', 'skin', [0, 0.04, 0], [0.12, 0.12, 0.12]); pbox('Head', 'skin', [0, 0.08, 0.01], [0.26, 0.28, 0.27]);
+  pbox('Head', 'hair', [0, 0.19, -0.015], [0.3, 0.14, 0.3]); pbox('Head', 'hair', [0, 0.1, -0.15], [0.3, 0.24, 0.03]);
+  pbox('Head', 'eye', [0.065, 0.09, 0.14], [0.045, 0.055, 0.02]); pbox('Head', 'eye', [-0.065, 0.09, 0.14], [0.045, 0.055, 0.02]);
+  for (const [side, s] of [['L', 1], ['R', -1]]) {
+    pbox(side + 'Arm', 'suit', [s * 0.135, 0, 0], [0.28, 0.145, 0.145]);
+    pbox(side + 'ForeArm', 'suit', [s * 0.12, 0, 0], [0.245, 0.135, 0.135]);
+    pbox(side + 'Hand', 'skin', [s * 0.055, 0, 0], [0.12, 0.115, 0.075]);
+    pbox(side + 'UpLeg', 'suit', [0, -0.2, 0], [0.17, 0.42, 0.19]);
+    pbox(side + 'Leg', 'suit', [0, -0.205, -0.005], [0.15, 0.42, 0.17]);
+    pbox(side + 'Foot', 'shoe', [0, -0.045, 0.07], [0.15, 0.1, 0.3]);
+  }
+  const mixer = new THREE.AnimationMixer(rig);
+  const authored = authorAnimations(THREE); const acts = {};
+  for (const nm of ['Idle', 'Walk', 'Run']) { const a = mixer.clipAction(authored.clips[nm]); a.play(); a.setEffectiveWeight(nm === 'Idle' ? 1 : 0); acts[nm] = a; }
+
+  /* ---------- controller state ---------- */
+  let state = 'idleWait';          // idleWait -> descend -> doors -> free -> talk
+  let carY = 5.2, doorOpen = 0, tState = 0;
+  let camYaw = 0, camPitch = 0.18, curYaw = 0;
+  const keys = {};
+  const prompt = document.getElementById('tutPrompt');
+  const subtitle = document.getElementById('tutSub');
+  const floorHud = document.getElementById('tutFloor');
+  let voice = null, talked = false;
+
+  function onKey(e, down) { keys[e.code] = down; if (down && e.code === 'KeyE') tryTalk(); }
+  function onMove(e) {
+    if (document.pointerLockElement !== canvas) return;
+    camYaw -= e.movementX * 0.0024; camPitch += e.movementY * 0.0024;
+    camPitch = Math.max(-0.5, Math.min(0.7, camPitch));
+  }
+  function lock() { if (state === 'free' || state === 'talk') canvas.requestPointerLock(); }
+
+  function tryTalk() {
+    if (state !== 'free') return;
+    const d = Math.hypot(rig.position.x - 0, rig.position.z - (DESKZ - 1.0));
+    if (d > 2.6) return;
+    state = 'talk'; talked = true;
+    subtitle.classList.add('on');
+    subtitle.innerHTML = '<b>RECEPTIONIST</b><span>MI6 · Level 10 Reception</span>';
+    try { voice = new Audio(VOICE.receptionGreeting); voice.play(); voice.onended = endTalk; } catch (e) { setTimeout(endTalk, 4000); }
+    prompt.classList.remove('on');
+  }
+  function endTalk() { subtitle.classList.remove('on'); if (state === 'talk') state = 'free'; }
+
+  const clock = new THREE.Clock();
+  const _fb = new THREE.Box3();
+  function groundPlayer() {
+    if (!shoes.length) return; rig.updateMatrixWorld(true);
+    let minY = Infinity; for (const s of shoes) { _fb.setFromObject(s); if (_fb.min.y < minY) minY = _fb.min.y; }
+    if (isFinite(minY)) rig.position.y -= minY * 0.5;
+  }
+
+  function frame() {
+    requestAnimationFrame(frame);
+    const dt = Math.min(0.05, clock.getDelta());
+    mixer.update(dt);
+
+    if (state === 'descend') {
+      tState += dt;
+      carY += (0 - carY) * Math.min(1, dt * 0.9);        // ease down to floor
+      const flr = Math.max(1, Math.ceil(carY / 5 * 6));
+      if (floorHud) floorHud.textContent = 'B' + flr;
+      rig.position.set(0, carY, -1.2);
+      CAR.position.y = carY;
+      camera.position.set(0, carY + 1.75, -3.9); camera.lookAt(0, carY + 1.3, -1.2);
+      if (carY < 0.05 && tState > 3.2) { state = 'doors'; if (floorHud) floorHud.textContent = 'G'; }
+    } else if (state === 'doors') {
+      CAR.position.y = 0; rig.position.set(0, 0, -1.2);
+      doorOpen += dt * 0.6; const o = Math.min(1, doorOpen);
+      doorL.position.x = -0.8 - o * 1.3; doorR.position.x = 0.8 + o * 1.3;
+      camera.position.set(0, 1.8, -4.2); camera.lookAt(0, 1.4, 0);
+      if (o >= 1) { state = 'free'; document.getElementById('tutHint').classList.add('on'); if (floorHud) floorHud.classList.remove('on'); }
+    } else {
+      // FREE / TALK — third-person pointer-lock walk
+      CAR.position.y = 0;
+      const speed = keys.ShiftLeft ? 4.4 : 2.2;
+      const fwd = new THREE.Vector3(Math.sin(camYaw), 0, Math.cos(camYaw));
+      const right = new THREE.Vector3(Math.cos(camYaw), 0, -Math.sin(camYaw));
+      const mx = (keys.KeyD ? 1 : 0) - (keys.KeyA ? 1 : 0);
+      const mz = (keys.KeyW ? 1 : 0) - (keys.KeyS ? 1 : 0);
+      const mv = new THREE.Vector3().addScaledVector(fwd, mz).addScaledVector(right, mx);
+      const moving = mv.lengthSq() > 1e-6 && state === 'free';
+      if (moving) {
+        mv.normalize();
+        const yaw = Math.atan2(mv.x, mv.z);
+        let d = yaw - curYaw; while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI;
+        curYaw += d * Math.min(1, dt * 12);
+        rig.position.addScaledVector(mv, speed * dt);
+      }
+      rig.rotation.y = curYaw;
+      // clamp to hall bounds
+      rig.position.x = Math.max(-11, Math.min(11, rig.position.x));
+      rig.position.z = Math.max(-2, Math.min(DESKZ - 1.4, rig.position.z));
+      // anim blend
+      const running = keys.ShiftLeft && moving;
+      acts.Idle.setEffectiveWeight(THREE.MathUtils.lerp(acts.Idle.getEffectiveWeight(), moving ? 0 : 1, Math.min(1, dt * 10)));
+      acts.Walk.setEffectiveWeight(THREE.MathUtils.lerp(acts.Walk.getEffectiveWeight(), (moving && !running) ? 1 : 0, Math.min(1, dt * 10)));
+      acts.Run.setEffectiveWeight(THREE.MathUtils.lerp(acts.Run.getEffectiveWeight(), running ? 1 : 0, Math.min(1, dt * 10)));
+      groundPlayer();
+      // camera behind player
+      const px = rig.position.x, pz = rig.position.z, py = 1.3;
+      const dist = 4.4, ch = py + Math.sin(camPitch) * 2.2 + 0.3;
+      camera.position.set(px - Math.sin(camYaw) * dist * Math.cos(camPitch), Math.max(0.6, ch), pz - Math.cos(camYaw) * dist * Math.cos(camPitch));
+      camera.lookAt(px, py, pz);
+      // desk proximity prompt
+      if (state === 'free') {
+        const d = Math.hypot(px - 0, pz - (DESKZ - 1.0));
+        prompt.classList.toggle('on', d < 2.6 && !talked);
+      }
+    }
+    renderer.render(scene, camera);
+  }
+
+  addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); });
+  addEventListener('keydown', e => onKey(e, true));
+  addEventListener('keyup', e => onKey(e, false));
+  addEventListener('mousemove', onMove);
+  canvas.addEventListener('click', lock);
+  frame();
+
+  return {
+    begin() {
+      document.getElementById('tutWrap').classList.add('on');
+      carY = 5.2; state = 'descend'; tState = 0;
+      if (floorHud) floorHud.classList.add('on');
+    }
+  };
+
+  /* ---------- boxy seated secretary ---------- */
+  function buildSecretary(x, y, z) {
+    const g = new THREE.Group(); g.position.set(x, y, z); g.rotation.y = Math.PI;   // face -z (toward player)
+    const mat = {
+      skin: new THREE.MeshStandardMaterial({ color: 0xe8b79a, roughness: 0.7 }),
+      hair: new THREE.MeshStandardMaterial({ color: 0x2a1c12, roughness: 0.85 }),
+      blouse: new THREE.MeshStandardMaterial({ color: 0xb9c2d0, roughness: 0.6 }),
+      jacket: new THREE.MeshStandardMaterial({ color: 0x232733, roughness: 0.6 }),
+      lip: new THREE.MeshStandardMaterial({ color: 0x9c3b45, roughness: 0.5 }),
+      eye: new THREE.MeshStandardMaterial({ color: 0x14100c }),
+    };
+    const b = (m, px, py, pz, w, h, d) => { const me = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); me.position.set(px, py, pz); me.castShadow = true; g.add(me); return me; };
+    b(mat.jacket, 0, 1.15, 0, 0.5, 0.62, 0.3);           // torso (seated, chest ~1.15)
+    b(mat.blouse, 0, 1.2, 0.14, 0.22, 0.4, 0.04);         // blouse V
+    b(mat.skin, 0, 1.5, 0.02, 0.14, 0.14, 0.14);          // neck
+    b(mat.skin, 0, 1.66, 0.02, 0.26, 0.3, 0.26);          // head
+    b(mat.eye, 0.06, 1.68, 0.14, 0.04, 0.05, 0.02); b(mat.eye, -0.06, 1.68, 0.14, 0.04, 0.05, 0.02);
+    b(mat.lip, 0, 1.58, 0.14, 0.06, 0.02, 0.02);
+    // hair: cap + long sides
+    b(mat.hair, 0, 1.78, -0.01, 0.3, 0.16, 0.3);
+    b(mat.hair, 0.16, 1.6, -0.02, 0.06, 0.34, 0.24); b(mat.hair, -0.16, 1.6, -0.02, 0.06, 0.34, 0.24);
+    b(mat.hair, 0, 1.62, -0.16, 0.3, 0.34, 0.06);
+    // arms resting forward toward desk (-z after rotation faces player, so local +z)
+    b(mat.jacket, 0.26, 1.05, 0.18, 0.12, 0.12, 0.5); b(mat.jacket, -0.26, 1.05, 0.18, 0.12, 0.12, 0.5);
+    b(mat.skin, 0.26, 1.02, 0.42, 0.1, 0.08, 0.14); b(mat.skin, -0.26, 1.02, 0.42, 0.1, 0.08, 0.14);
+    return g;
+  }
+}
+
 </script>
