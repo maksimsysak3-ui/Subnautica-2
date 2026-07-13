@@ -195,7 +195,19 @@
     max-width: 70vw; opacity: 0; transition: opacity .35s; }
   #tutSub.on { opacity: 1; }
   #tutSub b { display: block; font-size: 12px; letter-spacing: .34em; color: var(--gold); text-transform: uppercase; margin-bottom: 6px; }
-  #tutSub span { font-size: 13px; letter-spacing: .14em; color: #cbc3ad; }
+  #tutSub span { font-size: 15px; letter-spacing: .14em; color: #f0ead9; }
+  /* objective: top-left gold diamond + on-screen reveal banner */
+  #tutObj { position: fixed; top: calc(7vh + 18px); left: 26px; z-index: 68; display: flex; align-items: center; gap: 12px; opacity: 0; transition: opacity .5s; }
+  #tutObj.on { opacity: 1; }
+  #tutObj .dia { width: 16px; height: 16px; background: linear-gradient(135deg, var(--gold-hi), var(--gold-deep)); transform: rotate(45deg); box-shadow: 0 0 14px rgba(217,180,91,.7); animation: diaPulse 2s var(--ease) infinite; }
+  @keyframes diaPulse { 0%,100%{ box-shadow: 0 0 10px rgba(217,180,91,.5);} 50%{ box-shadow: 0 0 20px rgba(217,180,91,.9);} }
+  #tutObj .txt b { display: block; font-size: 9px; letter-spacing: .3em; color: #8b846f; text-transform: uppercase; }
+  #tutObj .txt span { font-size: 13px; letter-spacing: .14em; color: #efe8d4; }
+  #tutObjBanner { position: fixed; left: 50%; top: 32%; transform: translateX(-50%); z-index: 69; text-align: center; opacity: 0; visibility: hidden; transition: opacity .5s, visibility .5s; }
+  #tutObjBanner.on { opacity: 1; visibility: visible; }
+  #tutObjBanner .dia { width: 22px; height: 22px; margin: 0 auto 16px; background: linear-gradient(135deg, var(--gold-hi), var(--gold-deep)); transform: rotate(45deg); box-shadow: 0 0 24px rgba(217,180,91,.8); }
+  #tutObjBanner .k { font-size: 11px; letter-spacing: .5em; color: var(--gold); text-transform: uppercase; }
+  #tutObjBanner .m { margin-top: 8px; font-size: clamp(22px,3.4vw,38px); font-weight: 800; letter-spacing: .08em; color: #f0ead9; text-transform: uppercase; text-shadow: 0 2px 26px rgba(0,0,0,.6); }
 </style>
 
 <div id="stage">
@@ -287,6 +299,8 @@
     <div id="tutHint"><b>WASD</b> move · <b>Mouse</b> look (click to lock) · <b>E</b> interact</div>
     <div id="tutPrompt"><b>E</b> &nbsp;Speak to the receptionist</div>
     <div id="tutSub"></div>
+    <div id="tutObj"><div class="dia"></div><div class="txt"><b>Objective</b><span>Report to Q Division</span></div></div>
+    <div id="tutObjBanner"><div class="dia"></div><div class="k">New Objective</div><div class="m">Report to Q Division</div></div>
   </div>
 
   <div class="bars top"></div><div class="bars bot"></div>
@@ -935,28 +949,46 @@ function authorAnimations(THREE) {
 /* ===== tutorial scene ===== */
 
 /* =====================================================================
-   OPENING TUTORIAL — MI6 reception. Elevator descent → walk → secretary.
-   Exposes window.startTutorial(). Uses buildAgent + authorAnimations (above).
+   OPENING TUTORIAL — MI6 HQ. Elevator -> reception (secretary) -> sliding
+   doors -> busy lobby with 4 walk-past conversations -> objective: Talk to Q.
+   Voice lines load from the jsdelivr CDN copy of the repo (local fallback).
    ===================================================================== */
-// Voice lines load EXTERNALLY (never embedded, so hundreds scale fine): the
-// jsdelivr CDN copy of the repo first (works even for a standalone file), then
-// a local voice/ folder fallback. Add lines by dropping mp3s in voice/ + a path.
-const VOICE_CDN = 'https://cdn.jsdelivr.net/gh/maksimsysak3-ui/Subnautica-2@7208c56a8ada85bb4c40ff8dd559926ead95c9c1/';
-const VOICE = { receptionGreeting: 'voice/tutorial/reception_greeting.mp3' };
-const SUBS = { receptionGreeting: 'Good morning, Agent. The Director is waiting for you.' };
-function makeVoice(id) {
-  const p = VOICE[id], urls = [VOICE_CDN + p, p]; let i = 0;
-  const a = new Audio(); a.preload = 'auto';
+const VOICE_CDN = 'https://cdn.jsdelivr.net/gh/maksimsysak3-ui/Subnautica-2@d523d123518a20267d57918f59cd8b9f910614eb/';
+const V = n => 'voice/tutorial/' + n + '.mp3';
+function makeVoice(name, quiet) {
+  const p = V(name), urls = [VOICE_CDN + p, p]; let i = 0;
+  const a = new Audio(); a.preload = 'auto'; if (quiet) a.volume = 0.5;
   a.addEventListener('error', () => { i++; if (i < urls.length) { a.src = urls[i]; a.load(); a.play().catch(() => {}); } });
   a.src = urls[0];
   return a;
 }
+const CONVOS = {
+  analyst: [
+    { who: 'ANALYST', text: "You're just in time.", vo: 'analyst_1' },
+    { who: 'AGENT 008', text: 'Something happen?', vo: 'player_1' },
+    { who: 'ANALYST', text: "Hopefully not. We'd like to keep it that way.", vo: 'analyst_2' },
+  ],
+  engineer: [
+    { who: 'ENGINEER', text: 'Recognize this?', vo: 'engineer_1' },
+    { who: 'AGENT 008', text: 'Should I?', vo: 'player_2' },
+    { who: 'ENGINEER', text: 'It was brand new before your last assignment.', vo: 'engineer_2' },
+    { who: 'AGENT 008', text: 'Then build a stronger one.', vo: 'player_3' },
+    { who: 'ENGINEER', text: "We're trying.", vo: 'engineer_3' },
+  ],
+  armory: [
+    { who: 'ARMORY OFFICER', text: 'Morning.', vo: 'armory_1' },
+    { who: 'ARMORY OFFICER', text: "Training ammunition's already loaded.", vo: 'armory_2' },
+    { who: 'AGENT 008', text: "Let's hope I don't need the live stuff today.", vo: 'player_4' },
+    { who: 'ARMORY OFFICER', text: "With your luck? I'd keep the safety off.", vo: 'armory_3' },
+  ],
+  agents: [
+    { who: 'FIELD AGENT', text: 'He’s back already?', vo: 'agent_1', quiet: true },
+    { who: 'FIELD AGENT', text: "Means someone's about to have a bad day.", vo: 'agent_2', quiet: true },
+  ],
+};
 
 let T = null;
-window.startTutorial = function () {
-  if (!T) T = initTutorial();
-  T.begin();
-};
+window.startTutorial = function () { if (!T) T = initTutorial(); T.begin(); };
 
 function initTutorial() {
   const canvas = document.getElementById('tutcanvas');
@@ -969,130 +1001,152 @@ function initTutorial() {
 
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0x0a0f1a);
-  scene.fog = new THREE.FogExp2(0x0a0f1a, 0.012);
-  const camera = new THREE.PerspectiveCamera(50, innerWidth / innerHeight, 0.05, 200);
+  scene.fog = new THREE.FogExp2(0x0a0f1a, 0.009);
+  const camera = new THREE.PerspectiveCamera(50, innerWidth / innerHeight, 0.05, 300);
 
-  /* ---------- lights (bright, readable interior) ---------- */
+  /* ---------- lights ---------- */
   scene.add(new THREE.HemisphereLight(0xbcd0f5, 0x2a2418, 0.9));
   scene.add(new THREE.AmbientLight(0xffffff, 0.4));
-  const key = new THREE.DirectionalLight(0xfff0d8, 2.1); key.position.set(-6, 14, 4);
+  const key = new THREE.DirectionalLight(0xfff0d8, 1.9); key.position.set(-8, 16, 6);
   key.castShadow = true; key.shadow.mapSize.set(2048, 2048);
-  key.shadow.camera.near = 1; key.shadow.camera.far = 60;
-  key.shadow.camera.left = -22; key.shadow.camera.right = 22; key.shadow.camera.top = 24; key.shadow.camera.bottom = -6;
+  key.shadow.camera.near = 1; key.shadow.camera.far = 90;
+  key.shadow.camera.left = -26; key.shadow.camera.right = 26; key.shadow.camera.top = 40; key.shadow.camera.bottom = -6;
   key.shadow.bias = -0.0002; scene.add(key);
-  const fillFront = new THREE.PointLight(0xfff2dc, 1.2, 40, 2); fillFront.position.set(0, 5, 2); scene.add(fillFront);
   const holoCol = 0x49b7ff;
-  // warm overhead ceiling lights down the hall
-  for (const lz of [4, 9, 14, 19]) { const cl = new THREE.PointLight(0xffe9c8, 1.5, 18, 2); cl.position.set(0, 6.2, lz); scene.add(cl); }
-  const deskLight = new THREE.SpotLight(0xfff1d8, 3.5, 20, Math.PI * 0.32, 0.5, 1.4); deskLight.position.set(0, 6.4, 15); deskLight.target.position.set(0, 1, 19); scene.add(deskLight, deskLight.target);
 
-  /* ---------- materials ---------- */
   const M = {
     floor: new THREE.MeshStandardMaterial({ color: 0x2b3242, roughness: 0.22, metalness: 0.55 }),
-    wall: new THREE.MeshStandardMaterial({ color: 0x242c3a, roughness: 0.65, metalness: 0.2 }),
+    wall: new THREE.MeshStandardMaterial({ color: 0x252d3c, roughness: 0.65, metalness: 0.2 }),
+    wall2: new THREE.MeshStandardMaterial({ color: 0x1d2431, roughness: 0.7, metalness: 0.2 }),
     trim: new THREE.MeshStandardMaterial({ color: 0xd9b45b, roughness: 0.3, metalness: 0.9, emissive: 0x5a4416, emissiveIntensity: 0.7 }),
     metal: new THREE.MeshStandardMaterial({ color: 0x3a414d, roughness: 0.4, metalness: 0.85 }),
-    holo: new THREE.MeshBasicMaterial({ color: holoCol, transparent: true, opacity: 0.34 }),
+    holo: new THREE.MeshBasicMaterial({ color: holoCol, transparent: true, opacity: 0.32 }),
     holoLine: new THREE.MeshBasicMaterial({ color: 0x9ad8ff, transparent: true, opacity: 0.7 }),
     desk: new THREE.MeshStandardMaterial({ color: 0x2a3140, roughness: 0.35, metalness: 0.5 }),
     deskTop: new THREE.MeshStandardMaterial({ color: 0x161b26, roughness: 0.18, metalness: 0.7 }),
     glow: new THREE.MeshBasicMaterial({ color: 0xffe6b0 }),
     seat: new THREE.MeshStandardMaterial({ color: 0x1c2230, roughness: 0.6, metalness: 0.3 }),
+    red: new THREE.MeshStandardMaterial({ color: 0xb83a2e, roughness: 0.5 }),
   };
   const box = (mat, x, y, z, w, h, d, parent) => {
     const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
     m.position.set(x, y, z); m.castShadow = true; m.receiveShadow = true; (parent || scene).add(m); return m;
   };
+  const ptLight = (col, x, y, z, int, dist) => { const l = new THREE.PointLight(col, int, dist || 16, 2); l.position.set(x, y, z); scene.add(l); return l; };
 
-  /* ---------- reception hall (z from 0..24) ---------- */
-  const HALL = new THREE.Group(); scene.add(HALL);
-  const floor = box(M.floor, 0, -0.05, 12, 26, 0.1, 26, HALL); floor.receiveShadow = true;
-  // gold seam lines in the floor
-  for (let i = -2; i <= 2; i++) box(M.trim, i * 4, 0.005, 12, 0.05, 0.02, 24, HALL);
-  // walls
-  box(M.wall, -12, 3, 12, 0.4, 8, 26, HALL);
-  box(M.wall, 12, 3, 12, 0.4, 8, 26, HALL);
-  box(M.wall, 0, 3, 24.4, 26, 8, 0.4, HALL);   // far wall behind desk
-  box(M.wall, 0, 6.8, 12, 26, 0.4, 26, HALL);  // ceiling
-  // gold wall trim
-  box(M.trim, -11.75, 5.4, 12, 0.08, 0.12, 24, HALL);
-  box(M.trim, 11.75, 5.4, 12, 0.08, 0.12, 24, HALL);
-  // ceiling light strips
-  for (let i = -1; i <= 1; i++) { const s = box(M.glow, i * 5, 6.6, 12, 0.5, 0.05, 20, HALL); s.material = M.glow; }
-  // pillars
-  for (const px of [-7, 7]) for (const pz of [5, 13, 21]) { box(M.metal, px, 3, pz, 0.7, 6, 0.7, HALL); box(M.trim, px, 6, pz, 0.85, 0.14, 0.85, HALL); }
+  /* ================= WORLD ================= */
+  const CEIL = 7, XW = 14;
+  // continuous floor + ceiling from elevator to Q
+  box(M.floor, 0, -0.05, 36, XW * 2, 0.1, 78);
+  box(M.wall2, 0, CEIL - 0.1, 36, XW * 2, 0.3, 78);
+  // side walls (full length)
+  box(M.wall, -XW, CEIL / 2, 36, 0.4, CEIL, 78);
+  box(M.wall, XW, CEIL / 2, 36, 0.4, CEIL, 78);
+  // gold wall trim strips
+  box(M.trim, -XW + 0.25, CEIL - 1.4, 36, 0.08, 0.12, 78);
+  box(M.trim, XW - 0.25, CEIL - 1.4, 36, 0.08, 0.12, 78);
+  // ceiling light strips + lights the whole way
+  for (let z = 2; z < 74; z += 6) { box(M.glow, 0, CEIL - 0.16, z, 3.2, 0.05, 2.2); ptLight(0xffe9c8, 0, CEIL - 0.4, z, 1.2, 20); }
+  // floor accent seams
+  for (const sx of [-9, -4.5, 4.5, 9]) box(M.trim, sx, 0.005, 36, 0.05, 0.02, 74);
 
-  // holographic world-map panels on side walls
-  function holoPanel(x, z, flip) {
-    const g = new THREE.Group(); g.position.set(x, 3.4, z); g.rotation.y = flip ? -Math.PI / 2 : Math.PI / 2; HALL.add(g);
-    box(M.holo, 0, 0, 0, 3.4, 2.0, 0.02, g);
-    for (let i = 0; i < 6; i++) box(M.holoLine, (Math.random() - 0.5) * 3, (Math.random() - 0.5) * 1.7, 0.02, 0.02, 0.02 + Math.random() * 1.4, 0.02, g);
-    box(M.holoLine, 0, 0.9, 0.02, 3.2, 0.02, 0.02, g);
-    const l = new THREE.PointLight(holoCol, 0.6, 8, 2); l.position.copy(g.position); l.position.x += flip ? -0.5 : 0.5; HALL.add(l);
-    return g;
-  }
-  holoPanel(-11.6, 8); holoPanel(-11.6, 16); holoPanel(11.6, 8, true); holoPanel(11.6, 16, true);
-
-  // ceiling light fixtures (visible sources)
-  for (const lz of [4, 9, 14, 19]) { const f = box(M.glow, 0, 6.75, lz, 3.2, 0.06, 1.0, HALL); }
-  // floor emblem (MI6 seal) at hall centre
-  const emblem = new THREE.Group(); emblem.position.set(0, 0.02, 10); HALL.add(emblem);
-  for (const r of [2.2, 1.7]) { const ring = new THREE.Mesh(new THREE.TorusGeometry(r, 0.03, 8, 64), M.trim); ring.rotation.x = -Math.PI / 2; emblem.add(ring); }
-  for (let i = 0; i < 8; i++) { const a = i / 8 * Math.PI * 2; const s = box(M.trim, Math.cos(a) * 1.95, 0.005, 10 + Math.sin(a) * 1.95, 0.5, 0.02, 0.06, HALL); s.rotation.y = -a; }
-  // holographic globe centrepiece on a plinth
-  const plinth = box(M.metal, 0, 0.4, 10, 1.4, 0.8, 1.4, HALL); box(M.trim, 0, 0.82, 10, 1.5, 0.06, 1.5, HALL);
+  /* ---- reception (z 0..22) ---- */
+  // MI6 seal emblem
+  const emblem = new THREE.Group(); scene.add(emblem);
+  for (const r of [2.2, 1.7]) { const ring = new THREE.Mesh(new THREE.TorusGeometry(r, 0.03, 8, 64), M.trim); ring.rotation.x = -Math.PI / 2; ring.position.set(0, 0.02, 9); emblem.add(ring); }
+  for (let i = 0; i < 8; i++) { const a = i / 8 * Math.PI * 2; const s = box(M.trim, Math.cos(a) * 1.95, 0.02, 9 + Math.sin(a) * 1.95, 0.5, 0.02, 0.06); s.rotation.y = -a; }
+  // receptionist desk on the LEFT (center stays clear to the doors), faces the entrance (-z)
+  const RX = -7, RZ = 17;
+  box(M.desk, RX, 0.55, RZ, 4.4, 1.1, 1.2); box(M.deskTop, RX, 1.12, RZ - 0.05, 4.6, 0.08, 1.4);
+  box(M.trim, RX, 0.62, RZ - 0.62, 4.4, 0.06, 0.05);
+  const term = box(M.holo, RX + 1.4, 1.5, RZ - 0.1, 0.9, 0.6, 0.02); term.rotation.x = -0.3;
+  ptLight(holoCol, RX, 1.6, RZ - 0.4, 0.5, 4);
+  const secretary = buildSecretary(RX, 0, RZ - 0.9); scene.add(secretary);   // faces -z (toward player)
+  // holo globe on a plinth (right side so the walk is clear)
+  box(M.metal, 7, 0.4, 9, 1.4, 0.8, 1.4); box(M.trim, 7, 0.82, 9, 1.5, 0.06, 1.5);
   const holoGlobe = new THREE.Mesh(new THREE.SphereGeometry(0.9, 16, 12), new THREE.MeshBasicMaterial({ color: holoCol, wireframe: true, transparent: true, opacity: 0.55 }));
-  holoGlobe.position.set(0, 2.1, 10); HALL.add(holoGlobe);
-  const globeGlow = new THREE.PointLight(holoCol, 1.4, 10, 2); globeGlow.position.set(0, 2.1, 10); HALL.add(globeGlow);
-  // seating cluster near the entrance
-  for (const sx of [-6, 6]) { box(M.seat, sx, 0.25, 5, 2.0, 0.5, 0.9, HALL); box(M.seat, sx, 0.7, 4.65, 2.0, 0.5, 0.16, HALL); }
-  // backlit MI6 crest panel behind the desk
-  const crest = box(new THREE.MeshStandardMaterial({ color: 0x0e1420, roughness: 0.4, metalness: 0.6, emissive: 0x14304e, emissiveIntensity: 0.9 }), 0, 4.4, 24.1, 6, 3, 0.15, HALL);
-  const crestRing = new THREE.Mesh(new THREE.TorusGeometry(1.0, 0.06, 8, 48), M.trim); crestRing.position.set(0, 4.4, 23.9); HALL.add(crestRing);
-  box(M.trim, 0, 4.4, 23.9, 0.12, 1.6, 0.06, HALL); box(M.trim, 0, 5.0, 23.9, 0.9, 0.12, 0.06, HALL);
-  const crestL = new THREE.PointLight(0x59a8ff, 1.2, 12, 2); crestL.position.set(0, 4.4, 22.8); HALL.add(crestL);
+  holoGlobe.position.set(7, 2.1, 9); scene.add(holoGlobe); ptLight(holoCol, 7, 2.1, 9, 1.2, 9);
+  for (const sx of [-6, 6]) { box(M.seat, sx, 0.25, 4, 2.0, 0.5, 0.9); box(M.seat, sx, 0.7, 3.65, 2.0, 0.5, 0.16); }
 
-  /* ---------- reception desk + secretary (far end) ---------- */
-  const DESKZ = 18;
-  box(M.desk, 0, 0.55, DESKZ, 5.0, 1.1, 1.2);
-  box(M.deskTop, 0, 1.12, DESKZ - 0.05, 5.2, 0.08, 1.4);
-  box(M.trim, 0, 0.62, DESKZ - 0.62, 5.0, 0.06, 0.05);   // gold front trim
-  // desk holo terminal
-  const term = box(M.holo, -1.4, 1.5, DESKZ - 0.1, 0.9, 0.6, 0.02); term.rotation.x = -0.3;
-  const termL = new THREE.PointLight(holoCol, 0.5, 4, 2); termL.position.set(-1.4, 1.5, DESKZ - 0.3); scene.add(termL);
-  const secretary = buildSecretary(0, 0, DESKZ + 0.9);
-  scene.add(secretary);
+  /* ---- sliding doors between reception and lobby (z 22) ---- */
+  box(M.wall, -9.5, CEIL / 2, 22, 9, CEIL, 0.5);   // left wall segment
+  box(M.wall, 9.5, CEIL / 2, 22, 9, CEIL, 0.5);    // right wall segment
+  box(M.wall, 0, CEIL - 1.2, 22, 6, 2.4, 0.5);     // lintel above doorway
+  box(M.trim, -2.7, CEIL / 2 - 0.6, 22, 0.12, CEIL - 1.2, 0.2);
+  box(M.trim, 2.7, CEIL / 2 - 0.6, 22, 0.12, CEIL - 1.2, 0.2);
+  const doorL = box(M.metal, -1.25, 1.9, 22, 2.5, 3.8, 0.18);
+  const doorR = box(M.metal, 1.25, 1.9, 22, 2.5, 3.8, 0.18);
+  box(M.trim, -1.25, 3.75, 22, 2.5, 0.06, 0.2); box(M.trim, 1.25, 3.75, 22, 2.5, 0.06, 0.2);
 
-  /* ---------- elevator (front, z ~ -1) ---------- */
-  const SHAFT = new THREE.Group(); scene.add(SHAFT);
-  // fixed shaft walls the car descends past
-  const shaftMat = new THREE.MeshStandardMaterial({ color: 0x090b12, roughness: 0.8, metalness: 0.3 });
-  box(shaftMat, -1.9, 4, -1.4, 0.3, 10, 2.8, SHAFT);
-  box(shaftMat, 1.9, 4, -1.4, 0.3, 10, 2.8, SHAFT);
-  box(shaftMat, 0, 4, -2.7, 4.1, 10, 0.3, SHAFT);
-  // the moving car
+  /* ---- lobby rooms (open alcoves) ---- */
+  function alcove(cx, z0, z1, leftSide) {
+    const w = 7, sx = leftSide ? -XW - w / 2 + 0.2 : XW + w / 2 - 0.2;   // recess outward
+    // recess: back wall + floor + ceiling + short returns
+    box(M.wall2, sx, CEIL / 2, (z0 + z1) / 2, 0.4, CEIL, z1 - z0, undefined);
+    box(M.floor, sx, -0.05, (z0 + z1) / 2, w, 0.1, z1 - z0);
+    box(M.wall2, sx, CEIL - 0.1, (z0 + z1) / 2, w, 0.3, z1 - z0);
+    box(M.wall, (leftSide ? -XW : XW), CEIL / 2, z0, w, CEIL, 0.4);
+    box(M.wall, (leftSide ? -XW : XW), CEIL / 2, z1, w, CEIL, 0.4);
+    return sx;
+  }
+  // OPS ROOM (analyst) — left, z28..40
+  const opsX = alcove(0, 28, 40, true);
+  const opsDisplay = box(new THREE.MeshBasicMaterial({ color: 0x0c2b4a }), opsX + 3.3, 3.6, 34, 0.1, 3.2, 8);   // wall-sized screen
+  for (let i = 0; i < 10; i++) box(M.holoLine, opsX + 3.36, 2.2 + Math.random() * 2.6, 31 + Math.random() * 6, 0.02, 0.02 + Math.random() * 1.2, 0.02);
+  box(M.holoLine, opsX + 3.36, 3.6, 34, 0.02, 0.02, 7.6); box(M.holoLine, opsX + 3.36, 3.6, 34, 0.02, 3.0, 0.02);
+  ptLight(holoCol, opsX + 2, 3.4, 34, 1.6, 12);
+  box(M.desk, opsX + 1.6, 0.5, 32, 2.4, 1.0, 1.0); box(M.desk, opsX + 1.6, 0.5, 36, 2.4, 1.0, 1.0);
+  const analyst = makeNPC({ suit: 0x2c3446, shirt: 0xd8dbe2, hair: 0x3a2a1a, skin: 0xe8c0a0, glasses: true });
+  analyst.group.position.set(opsX + 3.0, 0, 33); analyst.group.rotation.y = Math.PI / 2; scene.add(analyst.group);
+
+  // ENGINEERING (engineer) — right, z44..56
+  const engX = alcove(0, 44, 56, false);
+  box(M.metal, engX - 2, 0.5, 50, 3.0, 1.0, 5.0);        // workbench
+  box(M.deskTop, engX - 2, 1.02, 50, 3.2, 0.06, 5.2);
+  for (const gz of [48, 50, 52]) box(M.red, engX - 2, 1.14, gz, 0.4, 0.2, 0.4);   // gadgets
+  ptLight(0xffcaa0, engX - 2, 3.2, 50, 1.4, 12);
+  const engineer = makeNPC({ suit: 0x6a5326, shirt: 0x3a3026, hair: 0x201a14, skin: 0xd0a080, coverall: true });
+  engineer.group.position.set(engX - 3.2, 0, 49); engineer.group.rotation.y = -Math.PI / 2; scene.add(engineer.group);
+  // damaged drone in his hands
+  const drone = new THREE.Group();
+  box(M.metal, 0, 0, 0, 0.34, 0.1, 0.34, drone);
+  for (const [ax, az] of [[0.22, 0.22], [-0.22, 0.22], [0.22, -0.22], [-0.22, -0.22]]) { const arm = box(M.metal, ax, 0.02, az, 0.16, 0.04, 0.16, drone); box(M.red, ax, 0.06, az, 0.18, 0.02, 0.18, drone); }
+  drone.position.set(engX - 2.7, 1.15, 49.5); drone.rotation.z = 0.4; scene.add(drone);
+
+  // ARMORY (officer) — left, z60..70
+  const armX = alcove(0, 60, 70, true);
+  box(M.metal, armX + 3.0, 1.6, 65, 0.2, 3.0, 8);        // rack backing
+  for (let i = 0; i < 6; i++) box(M.metal, armX + 2.7, 1.0 + (i % 3) * 0.9, 62 + Math.floor(i / 3) * 5, 0.1, 0.14, 1.4);   // racked weapons
+  box(M.desk, armX + 1.6, 0.5, 66, 2.0, 1.0, 1.2); box(M.deskTop, armX + 1.6, 1.02, 66, 2.2, 0.06, 1.4);
+  ptLight(0xffe0b0, armX + 2, 3.2, 65, 1.2, 12);
+  const officer = makeNPC({ suit: 0x2c3128, shirt: 0x20241c, hair: 0x14100c, skin: 0xc99878, tactical: true });
+  officer.group.position.set(armX + 3.0, 0, 66); officer.group.rotation.y = Math.PI / 2; scene.add(officer.group);
+
+  /* ---- Q Division doorway + objective waypoint (far end z74) ---- */
+  box(M.wall, 0, CEIL / 2, 74, XW * 2, CEIL, 0.5);
+  const qDoorMat = new THREE.MeshStandardMaterial({ color: 0x10151f, roughness: 0.4, metalness: 0.7, emissive: 0x102338, emissiveIntensity: 0.7 });
+  box(qDoorMat, 0, 2.1, 73.7, 4.4, 4.2, 0.2);
+  box(M.trim, -2.35, 2.1, 73.7, 0.14, 4.2, 0.2); box(M.trim, 2.35, 2.1, 73.7, 0.14, 4.2, 0.2); box(M.trim, 0, 4.25, 73.7, 4.9, 0.14, 0.2);
+  const qRing = new THREE.Mesh(new THREE.TorusGeometry(0.7, 0.05, 8, 40), M.trim); qRing.position.set(0, 2.4, 73.55); scene.add(qRing);
+  ptLight(0x59a8ff, 0, 2.4, 72.4, 1.2, 12);
+  // floating gold diamond waypoint (visible through walls)
+  const wp = new THREE.Mesh(new THREE.OctahedronGeometry(0.4), new THREE.MeshBasicMaterial({ color: 0xf7e7ad, transparent: true, opacity: 0.9, depthTest: false }));
+  wp.renderOrder = 999; wp.position.set(0, 3.2, 72.5); wp.visible = false; scene.add(wp);
+
+  /* ---- elevator (front, descends) ---- */
   const CAR = new THREE.Group(); scene.add(CAR);
   const carMat = new THREE.MeshStandardMaterial({ color: 0x1a1f29, roughness: 0.4, metalness: 0.8 });
-  const carTrim = M.trim;
-  box(carMat, 0, 1.4, -2.5, 3.4, 2.8, 0.16, CAR);   // back wall
-  box(carMat, -1.65, 1.4, -1.3, 0.16, 2.8, 2.6, CAR);
-  box(carMat, 1.65, 1.4, -1.3, 0.16, 2.8, 2.6, CAR);
-  box(carMat, 0, 2.85, -1.3, 3.4, 0.16, 2.8, CAR);  // car ceiling
-  box(carMat, 0, 0.02, -1.3, 3.4, 0.08, 2.8, CAR);  // car floor
-  box(M.glow, 0, 2.78, -1.3, 2.4, 0.05, 2.0, CAR);  // car light
-  box(carTrim, -1.6, 1.4, -0.05, 0.06, 2.7, 0.08, CAR);
-  box(carTrim, 1.6, 1.4, -0.05, 0.06, 2.7, 0.08, CAR);
-  // sliding doors (front, +z side of car ~ z=-0.05)
-  const doorL = box(carMat, -0.8, 1.4, -0.02, 1.5, 2.7, 0.1, CAR);
-  const doorR = box(carMat, 0.8, 1.4, -0.02, 1.5, 2.7, 0.1, CAR);
-  // interior lamp so the descent is clearly lit
+  box(carMat, 0, 1.4, -2.5, 3.4, 2.8, 0.16, CAR);
+  box(carMat, -1.65, 1.4, -1.3, 0.16, 2.8, 2.6, CAR); box(carMat, 1.65, 1.4, -1.3, 0.16, 2.8, 2.6, CAR);
+  box(carMat, 0, 2.85, -1.3, 3.4, 0.16, 2.8, CAR); box(carMat, 0, 0.02, -1.3, 3.4, 0.08, 2.8, CAR);
+  box(M.glow, 0, 2.78, -1.3, 2.4, 0.05, 2.0, CAR);
+  const eDoorL = box(carMat, -0.8, 1.4, -0.02, 1.5, 2.7, 0.1, CAR);
+  const eDoorR = box(carMat, 0.8, 1.4, -0.02, 1.5, 2.7, 0.1, CAR);
   const carLamp = new THREE.PointLight(0xfff2dc, 3.0, 7, 2); carLamp.position.set(0, 2.6, -1.3); CAR.add(carLamp);
-  const carFront = new THREE.PointLight(0xffe9c8, 1.6, 6, 2); carFront.position.set(0, 1.4, -0.4); CAR.add(carFront);
 
-  /* ---------- player (boxy agent) ---------- */
+  /* ---- player ---- */
   const rig = new THREE.Group(); scene.add(rig);
-  const A = buildAgent(THREE);
-  rig.add(A.bones[0]); rig.updateMatrixWorld(true);
+  const A = buildAgent(THREE); rig.add(A.bones[0]); rig.updateMatrixWorld(true);
   const byName = {}; A.bones.forEach(b => byName[b.name] = b);
   const PM = {
     suit: new THREE.MeshStandardMaterial({ color: 0x16161d, roughness: 0.5, metalness: 0.25 }),
@@ -1122,149 +1176,181 @@ function initTutorial() {
   const authored = authorAnimations(THREE); const acts = {};
   for (const nm of ['Idle', 'Walk', 'Run']) { const a = mixer.clipAction(authored.clips[nm]); a.play(); a.setEffectiveWeight(nm === 'Idle' ? 1 : 0); acts[nm] = a; }
 
-  /* ---------- controller state ---------- */
-  let state = 'idleWait';          // idleWait -> descend -> doors -> free -> talk
-  let carY = 5.2, doorOpen = 0, tState = 0;
+  /* ---- ambient NPCs walking the lobby ---- */
+  const walkers = [];
+  const wsuits = [0x1c1c26, 0x24242c, 0x20263a, 0x2a2a30];
+  for (let i = 0; i < 5; i++) {
+    const n = makeNPC({ suit: wsuits[i % 4], hair: [0x1a1512, 0x2a2018, 0x120e0a][i % 3], skin: [0xdaa985, 0xc99878, 0xe8c0a0][i % 3], tie: (i % 2) ? 0x3a3a4a : null });
+    const lane = -6 + (i % 3) * 6, z0 = 26 + i * 8, dir = i % 2 ? 1 : -1;
+    n.group.position.set(lane, 0, z0); n.walkPath = { lane, min: 24, max: 70, dir, speed: 1.0 + Math.random() * 0.6 };
+    scene.add(n.group); walkers.push(n);
+  }
+  // two named field agents (interaction 5) — start off near Q, walk toward player
+  const agent1 = makeNPC({ suit: 0x1b1b24, tie: 0x394152, hair: 0x2a2018, skin: 0xdcae88 });
+  const agent2 = makeNPC({ suit: 0x24242c, tie: 0x5a2a2a, hair: 0x140f0a, skin: 0xc99878 });
+  agent1.group.position.set(-2.2, 0, 70); agent2.group.position.set(2.2, 0, 71); scene.add(agent1.group, agent2.group);
+
+  /* ================= STATE / HUD ================= */
+  let state = 'idleWait', carY = 5.2, tState = 0, eDoor = 0, lDoor = 0;
   let camYaw = 0, camPitch = 0.18, curYaw = 0;
   const keys = {};
-  const prompt = document.getElementById('tutPrompt');
-  const subtitle = document.getElementById('tutSub');
-  const floorHud = document.getElementById('tutFloor');
-  let voice = null, talked = false;
+  const prompt = document.getElementById('tutPrompt'), subtitle = document.getElementById('tutSub'), floorHud = document.getElementById('tutFloor');
+  const objHud = document.getElementById('tutObj'), objBanner = document.getElementById('tutObjBanner');
+  let objectiveActive = false, convActive = false, talkedSecretary = false;
 
-  function onKey(e, down) { keys[e.code] = down; if (down && e.code === 'KeyE') tryTalk(); }
-  function onMove(e) {
-    if (document.pointerLockElement !== canvas) return;
-    camYaw -= e.movementX * 0.0024; camPitch += e.movementY * 0.0024;
-    camPitch = Math.max(-0.5, Math.min(0.7, camPitch));
+  const zones = [
+    { conv: 'analyst', npc: analyst, x: opsX + 5, z: 33, r: 5, done: false },
+    { conv: 'engineer', npc: engineer, x: engX - 5, z: 49, r: 5, done: false },
+    { conv: 'armory', npc: officer, x: armX + 5, z: 66, r: 5, done: false },
+  ];
+  let agentsDone = false;
+
+  function setObjective() {
+    if (objectiveActive) return; objectiveActive = true;
+    objHud.classList.add('on'); wp.visible = true;
+    objBanner.classList.add('on'); setTimeout(() => objBanner.classList.remove('on'), 3200);
   }
-  function lock() { if (state === 'free' || state === 'talk') canvas.requestPointerLock(); }
-
-  function tryTalk() {
-    if (state !== 'free') return;
-    const d = Math.hypot(rig.position.x - 0, rig.position.z - (DESKZ - 1.0));
-    if (d > 2.6) return;
-    state = 'talk'; talked = true;
-    subtitle.classList.add('on');
-    subtitle.innerHTML = '<b>RECEPTIONIST</b><span>' + SUBS.receptionGreeting + '</span>';
-    try { voice = makeVoice('receptionGreeting'); voice.play().catch(() => {}); voice.onended = endTalk; } catch (e) { setTimeout(endTalk, 5000); }
-    setTimeout(() => { if (state === 'talk') endTalk(); }, 8000);   // safety if audio never fires
-    prompt.classList.remove('on');
+  function playConvo(id, onDone) {
+    const lines = CONVOS[id]; if (!lines) return; convActive = true; let i = 0;
+    (function next() {
+      if (i >= lines.length) { subtitle.classList.remove('on'); convActive = false; onDone && onDone(); return; }
+      const ln = lines[i++];
+      subtitle.innerHTML = '<b>' + ln.who + '</b><span>' + ln.text + '</span>'; subtitle.classList.add('on');
+      let a = null, done = false; const go = () => { if (done) return; done = true; setTimeout(next, 260); };
+      try { a = makeVoice(ln.vo, ln.quiet); a.play().catch(() => {}); a.onended = go; } catch (e) {}
+      setTimeout(go, 6500);
+    })();
   }
-  function endTalk() { subtitle.classList.remove('on'); if (state === 'talk') state = 'free'; }
-
-  const clock = new THREE.Clock();
-  const _fb = new THREE.Box3();
-  function groundPlayer() {
-    if (!shoes.length) return; rig.updateMatrixWorld(true);
-    let minY = Infinity; for (const s of shoes) { _fb.setFromObject(s); if (_fb.min.y < minY) minY = _fb.min.y; }
-    if (isFinite(minY)) rig.position.y -= minY * 0.5;
-  }
-
-  function frame() {
-    requestAnimationFrame(frame);
-    const dt = Math.min(0.05, clock.getDelta());
-    mixer.update(dt);
-    holoGlobe.rotation.y += dt * 0.3;
-
-    if (state === 'descend') {
-      tState += dt;
-      carY += (0 - carY) * Math.min(1, dt * 0.9);        // ease down to floor
-      const flr = Math.max(1, Math.ceil(carY / 5 * 6));
-      if (floorHud) floorHud.textContent = 'B' + flr;
-      rig.position.set(0, carY, -1.2);
-      CAR.position.y = carY;
-      // camera INSIDE the car, behind the player, watching the doors — car is lit
-      camera.position.set(0.55, carY + 1.75, -2.25); camera.lookAt(0, carY + 1.2, -0.3);
-      if (carY < 0.05 && tState > 3.2) { state = 'doors'; if (floorHud) floorHud.textContent = 'G'; }
-    } else if (state === 'doors') {
-      CAR.position.y = 0; rig.position.set(0, 0, -1.2);
-      doorOpen += dt * 0.6; const o = Math.min(1, doorOpen);
-      doorL.position.x = -0.8 - o * 1.3; doorR.position.x = 0.8 + o * 1.3;
-      camera.position.set(0, 1.8, -4.2); camera.lookAt(0, 1.4, 0);
-      if (o >= 1) { state = 'free'; document.getElementById('tutHint').classList.add('on'); if (floorHud) floorHud.classList.remove('on'); }
-    } else {
-      // FREE / TALK — third-person pointer-lock walk
-      CAR.position.y = 0;
-      const speed = keys.ShiftLeft ? 4.4 : 2.2;
-      const fwd = new THREE.Vector3(Math.sin(camYaw), 0, Math.cos(camYaw));
-      const right = new THREE.Vector3(Math.cos(camYaw), 0, -Math.sin(camYaw));
-      const mx = (keys.KeyA ? 1 : 0) - (keys.KeyD ? 1 : 0);   // A = left, D = right
-      const mz = (keys.KeyW ? 1 : 0) - (keys.KeyS ? 1 : 0);
-      const mv = new THREE.Vector3().addScaledVector(fwd, mz).addScaledVector(right, mx);
-      const moving = mv.lengthSq() > 1e-6 && state === 'free';
-      if (moving) {
-        mv.normalize();
-        const yaw = Math.atan2(mv.x, mv.z);
-        let d = yaw - curYaw; while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI;
-        curYaw += d * Math.min(1, dt * 12);
-        rig.position.addScaledVector(mv, speed * dt);
-      }
-      rig.rotation.y = curYaw;
-      // clamp to hall bounds
-      rig.position.x = Math.max(-11, Math.min(11, rig.position.x));
-      rig.position.z = Math.max(-2, Math.min(DESKZ - 1.4, rig.position.z));
-      // anim blend
-      const running = keys.ShiftLeft && moving;
-      acts.Idle.setEffectiveWeight(THREE.MathUtils.lerp(acts.Idle.getEffectiveWeight(), moving ? 0 : 1, Math.min(1, dt * 10)));
-      acts.Walk.setEffectiveWeight(THREE.MathUtils.lerp(acts.Walk.getEffectiveWeight(), (moving && !running) ? 1 : 0, Math.min(1, dt * 10)));
-      acts.Run.setEffectiveWeight(THREE.MathUtils.lerp(acts.Run.getEffectiveWeight(), running ? 1 : 0, Math.min(1, dt * 10)));
-      groundPlayer();
-      // camera behind player
-      const px = rig.position.x, pz = rig.position.z, py = 1.3;
-      const dist = 4.4, ch = py + Math.sin(camPitch) * 2.2 + 0.3;
-      camera.position.set(px - Math.sin(camYaw) * dist * Math.cos(camPitch), Math.max(0.6, ch), pz - Math.cos(camYaw) * dist * Math.cos(camPitch));
-      camera.lookAt(px, py, pz);
-      // desk proximity prompt
-      if (state === 'free') {
-        const d = Math.hypot(px - 0, pz - (DESKZ - 1.0));
-        prompt.classList.toggle('on', d < 2.6 && !talked);
-      }
-    }
-    renderer.render(scene, camera);
+  function tryTalkSecretary() {
+    if (state !== 'free' || convActive || talkedSecretary) return;
+    if (Math.hypot(rig.position.x - RX, rig.position.z - (RZ - 1.6)) > 2.8) return;
+    talkedSecretary = true; prompt.classList.remove('on');
+    convActive = true; subtitle.innerHTML = '<b>RECEPTIONIST</b><span>Good morning, Agent. The Director is waiting for you.</span>'; subtitle.classList.add('on');
+    let done = false; const go = () => { if (done) return; done = true; subtitle.classList.remove('on'); convActive = false; setObjective(); };
+    try { const a = makeVoice('reception_greeting'); a.play().catch(() => {}); a.onended = go; } catch (e) {}
+    setTimeout(go, 6500);
   }
 
+  function onKey(e, down) { keys[e.code] = down; if (down && e.code === 'KeyE') tryTalkSecretary(); }
+  function onMove(e) { if (document.pointerLockElement !== canvas) return; camYaw -= e.movementX * 0.0024; camPitch += e.movementY * 0.0024; camPitch = Math.max(-0.5, Math.min(0.7, camPitch)); }
+  function lock() { if (state === 'free') canvas.requestPointerLock(); }
   addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); });
   addEventListener('keydown', e => onKey(e, true));
   addEventListener('keyup', e => onKey(e, false));
   addEventListener('mousemove', onMove);
   canvas.addEventListener('click', lock);
+
+  const clock = new THREE.Clock(); const _fb = new THREE.Box3();
+  function groundPlayer() { if (!shoes.length) return; rig.updateMatrixWorld(true); let minY = Infinity; for (const s of shoes) { _fb.setFromObject(s); if (_fb.min.y < minY) minY = _fb.min.y; } if (isFinite(minY)) rig.position.y -= minY * 0.5; }
+
+  function frame() {
+    requestAnimationFrame(frame);
+    const dt = Math.min(0.05, clock.getDelta());
+    mixer.update(dt);
+    holoGlobe.rotation.y += dt * 0.3; drone.rotation.y += dt * 0.6;
+    if (wp.visible) { wp.rotation.y += dt * 1.5; wp.position.y = 3.2 + Math.sin(clock.elapsedTime * 2) * 0.15; }
+    for (const w of walkers) { const p = w.walkPath; w.group.position.z += p.dir * p.speed * dt; if (w.group.position.z > p.max) p.dir = -1; if (w.group.position.z < p.min) p.dir = 1; w.group.rotation.y = p.dir > 0 ? 0 : Math.PI; w.update(dt, true); }
+
+    if (state === 'descend') {
+      tState += dt; carY += (0 - carY) * Math.min(1, dt * 0.9);
+      if (floorHud) floorHud.textContent = 'B' + Math.max(1, Math.ceil(carY / 5 * 6));
+      rig.position.set(0, carY, -1.2); CAR.position.y = carY;
+      camera.position.set(0.55, carY + 1.75, -2.25); camera.lookAt(0, carY + 1.2, -0.3);
+      if (carY < 0.05 && tState > 3.2) { state = 'edoors'; if (floorHud) floorHud.textContent = 'G'; }
+    } else if (state === 'edoors') {
+      CAR.position.y = 0; rig.position.set(0, 0, -1.2); eDoor += dt * 0.6; const o = Math.min(1, eDoor);
+      eDoorL.position.x = -0.8 - o * 1.3; eDoorR.position.x = 0.8 + o * 1.3;
+      camera.position.set(0, 1.8, -4.2); camera.lookAt(0, 1.4, 0);
+      if (o >= 1) { state = 'free'; document.getElementById('tutHint').classList.add('on'); if (floorHud) floorHud.classList.remove('on'); }
+    } else {
+      CAR.position.y = 0;
+      const speed = keys.ShiftLeft ? 4.4 : 2.4;
+      const fwd = new THREE.Vector3(Math.sin(camYaw), 0, Math.cos(camYaw));
+      const right = new THREE.Vector3(Math.cos(camYaw), 0, -Math.sin(camYaw));
+      const mx = (keys.KeyA ? 1 : 0) - (keys.KeyD ? 1 : 0);
+      const mz = (keys.KeyW ? 1 : 0) - (keys.KeyS ? 1 : 0);
+      const mv = new THREE.Vector3().addScaledVector(fwd, mz).addScaledVector(right, mx);
+      const moving = mv.lengthSq() > 1e-6;
+      if (moving) { mv.normalize(); const yaw = Math.atan2(mv.x, mv.z); let d = yaw - curYaw; while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI; curYaw += d * Math.min(1, dt * 12); rig.position.addScaledVector(mv, speed * dt); }
+      rig.rotation.y = curYaw;
+      rig.position.x = Math.max(-XW + 1, Math.min(XW - 1, rig.position.x));
+      rig.position.z = Math.max(-2, Math.min(72.5, rig.position.z));
+      const running = keys.ShiftLeft && moving;
+      acts.Idle.setEffectiveWeight(THREE.MathUtils.lerp(acts.Idle.getEffectiveWeight(), moving ? 0 : 1, Math.min(1, dt * 10)));
+      acts.Walk.setEffectiveWeight(THREE.MathUtils.lerp(acts.Walk.getEffectiveWeight(), (moving && !running) ? 1 : 0, Math.min(1, dt * 10)));
+      acts.Run.setEffectiveWeight(THREE.MathUtils.lerp(acts.Run.getEffectiveWeight(), running ? 1 : 0, Math.min(1, dt * 10)));
+      groundPlayer();
+      // sliding doors open as you approach
+      const nearDoor = rig.position.z > 17 ? 1 : 0; lDoor += (nearDoor - lDoor) * Math.min(1, dt * 2.2);
+      doorL.position.x = -1.25 - lDoor * 2.4; doorR.position.x = 1.25 + lDoor * 2.4;
+      // camera behind
+      const px = rig.position.x, pz = rig.position.z, py = 1.35, dist = 4.4;
+      camera.position.set(px - Math.sin(camYaw) * dist * Math.cos(camPitch), Math.max(0.7, py + Math.sin(camPitch) * 2.4 + 0.4), pz - Math.cos(camYaw) * dist * Math.cos(camPitch));
+      camera.lookAt(px, py, pz);
+      // secretary prompt
+      prompt.classList.toggle('on', !talkedSecretary && Math.hypot(px - RX, pz - (RZ - 1.6)) < 2.8);
+      // proximity conversations
+      if (!convActive) {
+        for (const zn of zones) { if (!zn.done && Math.hypot(px - zn.x, pz - zn.z) < zn.r) { zn.done = true; if (zn.npc) zn.npc.face(rig.position); playConvo(zn.conv); break; } }
+        if (!agentsDone && pz > 60) { agentsDone = true; playConvo('agents'); }
+      }
+      // agents walk toward and past the player
+      if (agentsDone) { for (const ag of [agent1, agent2]) { ag.group.position.z -= 1.6 * dt; ag.group.rotation.y = Math.PI; ag.update(dt, true); } }
+      else { agent1.update(dt, false); agent2.update(dt, false); }
+      // idle NPCs at stations subtly
+      analyst.update(dt, false); engineer.update(dt, false); officer.update(dt, false);
+    }
+    renderer.render(scene, camera);
+  }
   frame();
 
-  return {
-    begin() {
-      document.getElementById('tutWrap').classList.add('on');
-      carY = 5.2; state = 'descend'; tState = 0;
-      if (floorHud) floorHud.classList.add('on');
-    }
-  };
+  return { begin() { document.getElementById('tutWrap').classList.add('on'); carY = 5.2; state = 'descend'; tState = 0; if (floorHud) floorHud.classList.add('on'); } };
 
-  /* ---------- boxy seated secretary ---------- */
+  /* ================= builders ================= */
   function buildSecretary(x, y, z) {
-    const g = new THREE.Group(); g.position.set(x, y, z); g.rotation.y = Math.PI;   // face -z (toward player)
-    const mat = {
-      skin: new THREE.MeshStandardMaterial({ color: 0xe8b79a, roughness: 0.7 }),
-      hair: new THREE.MeshStandardMaterial({ color: 0x2a1c12, roughness: 0.85 }),
-      blouse: new THREE.MeshStandardMaterial({ color: 0xb9c2d0, roughness: 0.6 }),
-      jacket: new THREE.MeshStandardMaterial({ color: 0x232733, roughness: 0.6 }),
-      lip: new THREE.MeshStandardMaterial({ color: 0x9c3b45, roughness: 0.5 }),
-      eye: new THREE.MeshStandardMaterial({ color: 0x14100c }),
-    };
+    const g = new THREE.Group(); g.position.set(x, y, z); g.rotation.y = Math.PI;
+    const mat = { skin: new THREE.MeshStandardMaterial({ color: 0xe8b79a, roughness: 0.7 }), hair: new THREE.MeshStandardMaterial({ color: 0x2a1c12, roughness: 0.85 }), blouse: new THREE.MeshStandardMaterial({ color: 0xb9c2d0, roughness: 0.6 }), jacket: new THREE.MeshStandardMaterial({ color: 0x232733, roughness: 0.6 }), lip: new THREE.MeshStandardMaterial({ color: 0x9c3b45, roughness: 0.5 }), eye: new THREE.MeshStandardMaterial({ color: 0x14100c }) };
     const b = (m, px, py, pz, w, h, d) => { const me = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); me.position.set(px, py, pz); me.castShadow = true; g.add(me); return me; };
-    b(mat.jacket, 0, 1.15, 0, 0.5, 0.62, 0.3);           // torso (seated, chest ~1.15)
-    b(mat.blouse, 0, 1.2, 0.14, 0.22, 0.4, 0.04);         // blouse V
-    b(mat.skin, 0, 1.5, 0.02, 0.14, 0.14, 0.14);          // neck
-    b(mat.skin, 0, 1.66, 0.02, 0.26, 0.3, 0.26);          // head
-    b(mat.eye, 0.06, 1.68, 0.14, 0.04, 0.05, 0.02); b(mat.eye, -0.06, 1.68, 0.14, 0.04, 0.05, 0.02);
-    b(mat.lip, 0, 1.58, 0.14, 0.06, 0.02, 0.02);
-    // hair: cap + long sides
-    b(mat.hair, 0, 1.78, -0.01, 0.3, 0.16, 0.3);
-    b(mat.hair, 0.16, 1.6, -0.02, 0.06, 0.34, 0.24); b(mat.hair, -0.16, 1.6, -0.02, 0.06, 0.34, 0.24);
-    b(mat.hair, 0, 1.62, -0.16, 0.3, 0.34, 0.06);
-    // arms resting forward toward desk (-z after rotation faces player, so local +z)
+    b(mat.jacket, 0, 1.15, 0, 0.5, 0.62, 0.3); b(mat.blouse, 0, 1.2, 0.14, 0.22, 0.4, 0.04);
+    b(mat.skin, 0, 1.5, 0.02, 0.14, 0.14, 0.14); b(mat.skin, 0, 1.66, 0.02, 0.26, 0.3, 0.26);
+    b(mat.eye, 0.06, 1.68, 0.14, 0.04, 0.05, 0.02); b(mat.eye, -0.06, 1.68, 0.14, 0.04, 0.05, 0.02); b(mat.lip, 0, 1.58, 0.14, 0.06, 0.02, 0.02);
+    b(mat.hair, 0, 1.78, -0.01, 0.3, 0.16, 0.3); b(mat.hair, 0.16, 1.6, -0.02, 0.06, 0.34, 0.24); b(mat.hair, -0.16, 1.6, -0.02, 0.06, 0.34, 0.24); b(mat.hair, 0, 1.62, -0.16, 0.3, 0.34, 0.06);
     b(mat.jacket, 0.26, 1.05, 0.18, 0.12, 0.12, 0.5); b(mat.jacket, -0.26, 1.05, 0.18, 0.12, 0.12, 0.5);
     b(mat.skin, 0.26, 1.02, 0.42, 0.1, 0.08, 0.14); b(mat.skin, -0.26, 1.02, 0.42, 0.1, 0.08, 0.14);
     return g;
+  }
+
+  // light boxy NPC with swinging limbs (distinct via cfg)
+  function makeNPC(cfg) {
+    const g = new THREE.Group();
+    const mkMat = c => new THREE.MeshStandardMaterial({ color: c, roughness: 0.65, metalness: 0.15 });
+    const suitM = mkMat(cfg.suit || 0x232833), skinM = mkMat(cfg.skin || 0xdaa985), hairM = mkMat(cfg.hair || 0x1a1512), legM = mkMat(cfg.coverall ? cfg.suit : 0x14181f);
+    const b = (m, x, y, z, w, h, d, par) => { const me = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); me.position.set(x, y, z); me.castShadow = true; (par || g).add(me); return me; };
+    b(suitM, 0, 1.08, 0, 0.44, 0.62, 0.26);
+    if (cfg.shirt) b(mkMat(cfg.shirt), 0, 1.14, 0.13, 0.16, 0.3, 0.02);
+    if (cfg.tie) b(mkMat(cfg.tie), 0, 1.12, 0.14, 0.05, 0.32, 0.02);
+    if (cfg.tactical) b(mkMat(0x14181f), 0, 1.0, 0.14, 0.34, 0.34, 0.06);   // vest
+    b(skinM, 0, 1.48, 0.01, 0.13, 0.13, 0.13);
+    b(skinM, 0, 1.63, 0.01, 0.25, 0.27, 0.25);
+    b(hairM, 0, 1.76, -0.01, 0.28, 0.13, 0.28); b(hairM, 0, 1.68, -0.14, 0.28, 0.2, 0.05);
+    b(mkMat(0x0e0e12), 0.06, 1.65, 0.13, 0.04, 0.05, 0.02); b(mkMat(0x0e0e12), -0.06, 1.65, 0.13, 0.04, 0.05, 0.02);
+    if (cfg.glasses) { b(mkMat(0x0a0a0e), 0, 1.65, 0.135, 0.2, 0.05, 0.02); }
+    // swinging limbs: group pivot at joint
+    function limb(px, py, pz, w, h, d, m) { const grp = new THREE.Group(); grp.position.set(px, py, pz); const me = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); me.position.set(0, -h / 2, 0); me.castShadow = true; grp.add(me); g.add(grp); return grp; }
+    const la = limb(0.31, 1.34, 0, 0.13, 0.5, 0.13, suitM), ra = limb(-0.31, 1.34, 0, 0.13, 0.5, 0.13, suitM);
+    b(skinM, 0.31, 1.06, 0.02, 0.12, 0.1, 0.1); b(skinM, -0.31, 1.06, 0.02, 0.12, 0.1, 0.1);
+    const ll = limb(0.12, 0.9, 0, 0.17, 0.5, 0.19, legM), rl = limb(-0.12, 0.9, 0, 0.17, 0.5, 0.19, legM);
+    b(mkMat(0x14181f), 0.12, 0.42, -0.01, 0.16, 0.42, 0.17); b(mkMat(0x14181f), -0.12, 0.42, -0.01, 0.16, 0.42, 0.17);
+    b(mkMat(0x0b0b0f), 0.12, 0.05, 0.06, 0.16, 0.1, 0.3); b(mkMat(0x0b0b0f), -0.12, 0.05, 0.06, 0.16, 0.1, 0.3);
+    let ph = Math.random() * 6;
+    return {
+      group: g, walkPath: null,
+      face(target) { const dx = target.x - g.position.x, dz = target.z - g.position.z; g.rotation.y = Math.atan2(dx, dz); },
+      update(dt, moving) {
+        if (moving) { ph += dt * 7; const s = Math.sin(ph) * 0.5; la.rotation.x = s; ra.rotation.x = -s; ll.rotation.x = -s; rl.rotation.x = s; }
+        else { const s = Math.sin(clock.elapsedTime * 1.5 + ph) * 0.03; la.rotation.x = s; ra.rotation.x = -s; ll.rotation.x = 0; rl.rotation.x = 0; }
+      }
+    };
   }
 }
 
