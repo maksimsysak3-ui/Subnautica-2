@@ -67,7 +67,7 @@
 <div class="hud title"><h1>Agent 008</h1><p>Playable Stage · custom rig</p></div>
 <div class="hud hint">
   <b>WASD</b> move · <kbd>Shift</kbd> run · <kbd>Ctrl</kbd> crouch (toggle) · mouse-drag look<br>
-  <kbd>G</kbd> draw gun · <kbd>F</kbd> shoot · <kbd>RMB</kbd> aim · <kbd>R</kbd> reload · <kbd>J</kbd> box · <kbd>K</kbd> kick · <kbd>C</kbd> combo · <kbd>X</kbd> down
+  <kbd>G</kbd> draw gun · <kbd>F</kbd> shoot · <kbd>RMB</kbd> aim · <kbd>R</kbd> reload · <kbd>J</kbd> box · <kbd>K</kbd> kick · <kbd>C</kbd> combo · <kbd>X</kbd> down · <kbd>Esc</kbd> menu
 </div>
 
 <div class="hudgame" id="hudgame">
@@ -974,6 +974,7 @@ addEventListener('keydown', e => {
   if (e.code === 'KeyX') triggerDead();
   if (e.code === 'KeyR') { if (dead) revive(); else reload(); }
   if (e.code === 'KeyG') holstered = !holstered;
+  if (e.code === 'Escape') location.href = 'menu.html';   // back to the menu
   if (e.code === 'KeyP') faceOffset += Math.PI;
   if ((e.code === 'ControlLeft' || e.code === 'KeyZ') && !e.repeat) { crouching = !crouching; e.preventDefault(); }
 });

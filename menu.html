@@ -305,12 +305,18 @@ function buildMissions() {
   const host = S('mgrid'); host.innerHTML = '';
   for (let i = 0; i < 10; i++) {
     const m = document.createElement('div');
-    m.className = 'mission fade-up' + (i > 0 ? ' locked' : '');
+    const available = (selChapter === 0 && i === 0);   // Mission 1-1 is playable
+    m.className = 'mission fade-up' + (available ? '' : ' locked');
     m.style.animationDelay = (i * .03) + 's';
     m.innerHTML = `<div class="mn">Mission ${selChapter + 1}-${String(i + 1).padStart(2, '0')}</div>
-      <div class="mt">${i === 0 ? 'Available' : 'Locked'}</div>`;
+      <div class="mt">${available ? 'Deploy ›' : 'Locked'}</div>`;
+    if (available) m.onclick = () => launchMission(selChapter, i);
     host.appendChild(m);
   }
+}
+async function launchMission(ch, mi) {
+  await runLoading(`Mission ${ch + 1}-${String(mi + 1).padStart(2, '0')} — ${CH_NAMES[ch]}`, 2600);
+  location.href = 'character.html';   // into the playable stage
 }
 S('cback').onclick = () => show('main');
 </script>
