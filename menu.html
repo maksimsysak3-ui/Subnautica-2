@@ -246,6 +246,35 @@
   #tutObjBanner .dia { width: 22px; height: 22px; margin: 0 auto 16px; background: linear-gradient(135deg, var(--gold-hi), var(--gold-deep)); transform: rotate(45deg); box-shadow: 0 0 24px rgba(217,180,91,.8); }
   #tutObjBanner .k { font-size: 11px; letter-spacing: .5em; color: var(--gold); text-transform: uppercase; }
   #tutObjBanner .m { margin-top: 8px; font-size: clamp(22px,3.4vw,38px); font-weight: 800; letter-spacing: .08em; color: #f0ead9; text-transform: uppercase; text-shadow: 0 2px 26px rgba(0,0,0,.6); }
+  /* ---- Q Division gadget / cutscene overlays ---- */
+  #qScan { position: fixed; inset: 0; z-index: 70; pointer-events: none; opacity: 0; transition: opacity .35s;
+    background: radial-gradient(120% 90% at 50% 50%, rgba(40,150,220,0) 55%, rgba(20,90,150,.28) 100%); box-shadow: inset 0 0 180px rgba(50,170,240,.22); }
+  #qScan.on { opacity: 1; }
+  #qScan .line { position: absolute; left: 0; right: 0; height: 3px; background: linear-gradient(90deg, transparent, rgba(120,220,255,.95), transparent);
+    box-shadow: 0 0 22px 6px rgba(90,190,255,.55); animation: qscanline 2.4s linear infinite; }
+  #qScan .hud, #qThermal .hud { position: fixed; left: 26px; bottom: calc(7vh + 118px); z-index: 71; font-family: 'Courier New', monospace; }
+  #qScan .hud b, #qThermal .hud b { display: block; font-size: 12px; letter-spacing: .32em; color: #7fe3ff; }
+  #qScan .hud span, #qThermal .hud span { font-size: 10px; letter-spacing: .22em; color: #bfe9ff; opacity: .8; }
+  @keyframes qscanline { 0% { top: 6%; } 100% { top: 94%; } }
+  #qThermal { position: fixed; inset: 0; z-index: 70; pointer-events: none; opacity: 0; transition: opacity .4s;
+    background: linear-gradient(0deg, rgba(120,0,40,.34), rgba(180,60,0,.20) 40%, rgba(20,60,140,.30)); mix-blend-mode: screen; }
+  #qThermal.on { opacity: 1; }
+  #qThermal .hud b { color: #ff9a6a; } #qThermal .hud span { color: #ffd0b0; }
+  #qHack { position: fixed; inset: 0; z-index: 72; pointer-events: none; display: none; align-items: center; justify-content: center; }
+  #qHack.on { display: flex; }
+  #qHack .box { text-align: center; background: rgba(8,12,18,.72); border: 1px solid rgba(90,190,255,.4); padding: 20px 34px; border-radius: 4px; box-shadow: 0 0 40px rgba(0,0,0,.6); }
+  #qHack .k { font-size: 11px; letter-spacing: .34em; color: #7fe3ff; margin-bottom: 12px; }
+  #qHack .track { width: 260px; height: 8px; background: rgba(120,200,255,.14); border: 1px solid rgba(120,200,255,.35); overflow: hidden; }
+  #qHackBar { width: 0%; height: 100%; background: linear-gradient(90deg, #2f9fd8, #7fe3ff); box-shadow: 0 0 14px rgba(120,220,255,.7); transition: width .05s linear; }
+  #qHack .hint { margin-top: 12px; font-size: 11px; letter-spacing: .2em; color: #cfe8f5; } #qHack .hint b { color: var(--gold); }
+  #qAlarmFx { position: fixed; inset: 0; z-index: 73; pointer-events: none; opacity: 0;
+    background: radial-gradient(120% 100% at 50% 50%, rgba(255,20,20,0) 40%, rgba(200,0,0,.55) 100%); box-shadow: inset 0 0 200px rgba(255,0,0,.5); }
+  #qComingSoon { position: fixed; inset: 0; z-index: 90; background: #000; display: none; flex-direction: column; align-items: center; justify-content: center; opacity: 0; transition: opacity 1.4s; }
+  #qComingSoon.on { display: flex; opacity: 1; }
+  #qComingSoon .cs { text-align: center; }
+  #qComingSoon .k { font-size: 13px; letter-spacing: .6em; color: var(--gold); text-transform: uppercase; margin-bottom: 18px; opacity: .85; }
+  #qComingSoon .m { font-size: clamp(34px,6vw,72px); font-weight: 800; letter-spacing: .16em; color: #f2ecdc; text-transform: uppercase; text-shadow: 0 4px 40px rgba(0,0,0,.7); }
+  #qComingSoon .s { margin-top: 20px; font-size: 11px; letter-spacing: .4em; color: #8b846f; text-transform: uppercase; }
 </style>
 
 <div id="stage">
@@ -355,6 +384,12 @@
     <div id="tutSub"></div>
     <div id="tutObj"><div class="dia"></div><div class="txt"><b>Objective</b><span>Report to Q Division</span></div></div>
     <div id="tutObjBanner"><div class="dia"></div><div class="k">New Objective</div><div class="m">Report to Q Division</div></div>
+    <!-- Q Division gadget / cutscene overlays -->
+    <div id="qScan"><div class="line"></div><div class="hud"><b>TACTICAL SCANNER</b><span>ANALYSING ENVIRONMENT…</span></div></div>
+    <div id="qThermal"><div class="hud"><b>THERMAL OPTICS</b><span>HEAT SIGNATURE · NIGHT VISION</span></div></div>
+    <div id="qHack"><div class="box"><div class="k">MULTI-TOOL · BYPASSING LOCK</div><div class="track"><div id="qHackBar"></div></div><div class="hint">HOLD <b>F</b></div></div></div>
+    <div id="qAlarmFx"></div>
+    <div id="qComingSoon"><div class="cs"><div class="k">MIDNIGHT PROTOCOL</div><div class="m">COMING SOON</div><div class="s">Q DIVISION · END OF PROLOGUE</div></div></div>
   </div>
 
   <div class="bars top"></div><div class="bars bot"></div>
@@ -1095,6 +1130,52 @@ const CONVOS = {
 };
 
 const SFX = window.SFX || { resume() {}, elevator() {}, chatter() {}, ding() {}, door() {}, step() {}, chime() {}, blip() {}, boom() {}, tick() {} };
+
+/* ===== Q Division dialogue (voice pinned to the commit that has voice/qdiv) ===== */
+const QCDN = 'https://cdn.jsdelivr.net/gh/maksimsysak3-ui/Subnautica-2@1ba9965a99df50f8bcbf3665ef612a722d955ab4/';
+function qVoice(n) { const p = 'voice/qdiv/' + n + '.mp3', urls = [QCDN + p, p]; let i = 0; const a = new Audio(); a.addEventListener('error', () => { i++; if (i < urls.length) { a.src = urls[i]; a.load(); a.play().catch(() => {}); } }); a.src = urls[0]; return a; }
+const QA = "Q'S ASSISTANT", QQ = 'Q', PP = 'AGENT 008', SO = 'SECURITY OFFICER';
+const QLINES = {
+  L01: [QA, 'Careful!'], L02: [QA, 'Thanks.'], L03: [QA, "Q's inside. …Try not to argue with him."],
+  L04: [QQ, "You're two minutes early."], L05: [PP, "I thought you'd appreciate punctuality."],
+  L06: [QQ, "I appreciate competence. We'll see if you've still got that."],
+  L07: [QQ, 'Close the door.'], L08: [QQ, 'Last week someone left it open. A drone escaped.'],
+  L09: [PP, 'Let me guess… expensive?'], L10: [QQ, "It flew into the Deputy Director's office. …Very expensive."],
+  L11: [QQ, 'You look rested.'], L12: [PP, 'Should I be worried?'], L13: [QQ, 'You should always be worried.'],
+  L14: [QQ, "Every operation begins with preparation. Today's no different."],
+  L15: [QQ, 'Titanium casing. EMP transmitter. Encrypted communications. Remote access interface.'],
+  L16: [QQ, 'And before you ask… No.'], L17: [PP, 'No?'], L18: [QQ, "It doesn't tell the time."],
+  L19: [PP, "…You're joking."], L20: [QQ, 'Of course it tells the time.'],
+  L21: [QQ, 'Good.'], L22: [QQ, 'Activate the scanner.'],
+  L23: [QQ, "The scanner identifies electronics, surveillance systems and structural weaknesses. It also tells me when you've forgotten to charge it."],
+  L24: [QQ, 'Prototype combat optics.'], L25: [QQ, 'Thermal imaging. Night vision. Facial recognition. Trajectory prediction.'],
+  L26: [PP, 'Any chance they make coffee?'], L27: [QQ, 'No. …Version two might.'],
+  L28: [QQ, 'Locked.'], L29: [PP, 'I noticed.'], L30: [QQ, 'Open it.'], L31: [QQ, 'Go on.'], L32: [QQ, 'Acceptable.'],
+  L33: [SO, 'Sir. Director M is requesting both of you immediately.'],
+  L34: [QQ, 'That usually means one of two things.'], L35: [PP, 'Which?'],
+  L36: [QQ, "Either someone's stolen one of my prototypes… or the world's about to become significantly more complicated."],
+  L37: [QQ, "Come on. Let's find out which one it is."],
+};
+// the Q cutscene beats (after the assistant): id + camera + optional Q move / effect / interactive prompt
+const QSEQ = [
+  { vo: 'L04', cam: 'q' }, { vo: 'L05', cam: 'p' }, { vo: 'L06', cam: 'two' },
+  { vo: 'L07', cam: 'q', fx: 'closedoor' }, { vo: 'L08', cam: 'q' }, { vo: 'L09', cam: 'p' }, { vo: 'L10', cam: 'q' },
+  { vo: 'L11', cam: 'qturn' }, { vo: 'L12', cam: 'p' }, { vo: 'L13', cam: 'q' },
+  { vo: 'L14', cam: 'two', qmove: 'table', fx: 'compartment' },
+  { vo: 'L15', cam: 'gadget' }, { vo: 'L16', cam: 'q' }, { vo: 'L17', cam: 'p' }, { vo: 'L18', cam: 'q' }, { vo: 'L19', cam: 'p' },
+  { vo: 'L20', cam: 'q', prompt: { key: 'KeyE', label: 'Equip the Tactical Watch', fx: 'equipwatch' } },
+  { vo: 'L21', cam: 'q' },
+  { vo: 'L22', cam: 'q', prompt: { key: 'KeyF', label: 'Activate Scanner', fx: 'scanner' } },
+  { vo: 'L23', cam: 'wide' },
+  { vo: 'L24', cam: 'gadget', fx: 'glasses' }, { vo: 'L25', cam: 'q' }, { vo: 'L26', cam: 'p' },
+  { vo: 'L27', cam: 'q', prompt: { key: 'KeyT', label: 'Toggle Thermal Vision', fx: 'thermal' } },
+  { vo: 'L28', cam: 'q', qmove: 'secdoor' }, { vo: 'L29', cam: 'p' }, { vo: 'L30', cam: 'q', fx: 'multitool' },
+  { vo: 'L31', cam: 'q', prompt: { key: 'KeyF', label: 'Hold to hack the security door', fx: 'hack', hold: 2.6 } },
+  { vo: 'L32', cam: 'q', fx: 'unlock' },
+  { vo: 'L33', cam: 'officer', fx: 'alarm' }, { vo: 'L34', cam: 'q' }, { vo: 'L35', cam: 'p' },
+  { vo: 'L36', cam: 'q', fx: 'closecase' }, { vo: 'L37', cam: 'q', fx: 'toexit' },
+];
+
 let T = null;
 window.startTutorial = function () { if (!T) T = initTutorial(); T.begin(); };
 
@@ -1262,6 +1343,15 @@ function initTutorial() {
   scene.background = new THREE.Color(0x0a0f1a);
   scene.fog = new THREE.FogExp2(0x0a0f1a, 0.008);
   const camera = new THREE.PerspectiveCamera(50, innerWidth / innerHeight, 0.05, 300);
+  // Q-Division system vars (populated by buildQDivision / driven by the cutscene)
+  let qDoorL = null, qDoorR = null, qActor = null, qAssistant = null, qExitL = null, qExitR = null;
+  let qMode = false, qDoorOpen = 0, qLabPeople = [], qLabWalkers = [], qHighlights = [], qGadgets = {}, qCompartment = null, qSecDoor = null, qOfficer = null;
+  const QPOS = { qBench: 133, meet: 129, table: 3.6, tableZ: 127, secX: -6, secZ: 130, exitZ: 146, assistantZ: 92 };
+  // cutscene engine state
+  let qStep = -1, qStepT = 0, qWaitKey = null, qVoiceEl = null, qLineDone = true, qCamMode = 'q', qHoldT = 0;
+  let qDoorClose = false, qCompRise = false, qScanT = 0, qThermal = false, qAlarm = 0, qEnding = 0, qCS = false, qCSt = 0;
+  let qDoorOpening = false, qDoorTriggered = false, qAssistDrop = 0, qAssistT = 0;
+  const pActor = { tgt: null, faceY: 0 };
 
   scene.add(new THREE.HemisphereLight(0xc6d6f7, 0x2e281a, 1.05));
   scene.add(new THREE.AmbientLight(0xffffff, 0.58));
@@ -1409,12 +1499,27 @@ function initTutorial() {
   const tech = makeNPC({ female: true, suit: 0x2a2e34, skirt: 0x20242a, shirt: 0xcfd6de, hair: 0x201814, skin: 0xb07a4a, scale: 0.94 });
   tech.group.position.set(11.4, 0, 64); tech.group.rotation.y = -Math.PI / 2; scene.add(tech.group);
 
-  /* ---- Q Division doorway + far wall (placeholder until Q's scene) ---- */
-  box(M.wall, 0, CEIL / 2, 82, 34, CEIL, 0.5);
-  box(M.door, 0, 2.1, 81.7, 4.4, 4.2, 0.2);
-  box(M.trim, -2.35, 2.1, 81.7, 0.14, 4.2, 0.2); box(M.trim, 2.35, 2.1, 81.7, 0.14, 4.2, 0.2); box(M.trim, 0, 4.25, 81.7, 4.9, 0.14, 0.2);
-  const qRing = new THREE.Mesh(new THREE.TorusGeometry(0.7, 0.05, 8, 40), M.trim); qRing.position.set(0, 2.4, 81.55); scene.add(qRing);
-  ptLight(0x59a8ff, 0, 2.4, 80.4, 1.2, 12);
+  /* ---- Q Division: reinforced blast doorway that slides open into the giant lab ---- */
+  const QWH = 9, dw = 3.4;                                   // transition-wall height + door half-gap
+  box(M.floor, 0, -0.05, 80, 48, 0.1, 12);                  // connector floor (corridor -> lab, no void)
+  box(M.wall, -(24 + dw) / 2, QWH / 2, 82, 24 - dw, QWH, 0.6);   // left wall panel
+  box(M.wall, (24 + dw) / 2, QWH / 2, 82, 24 - dw, QWH, 0.6);    // right wall panel
+  box(M.wall, 0, 7.1, 82, dw * 2 + 0.4, 3.8, 0.6);              // header above the doorway
+  box(M.trim, -dw - 0.05, 2.6, 81.66, 0.16, 5.4, 0.34); box(M.trim, dw + 0.05, 2.6, 81.66, 0.16, 5.4, 0.34);
+  box(M.trim, 0, 5.35, 81.66, dw * 2 + 0.5, 0.16, 0.34);        // doorway frame
+  box(mat(0x0e1622, 0.4, 0.3), 0, 6.35, 81.62, 3.4, 0.75, 0.12);
+  box(mat(0x59a8ff, 0.4, 0.4, 0x59a8ff, 1.15), 0, 6.35, 81.55, 3.0, 0.5, 0.06);   // lit "Q DIVISION" sign
+  for (let i = 0; i < 5; i++) box(mat(i % 2 ? 0x14100c : 0xffb020, 0.5), -dw + 0.1 + i * (dw * 2 - 0.2) / 4, 0.24, 81.5, (dw * 2 - 0.2) / 5 - 0.06, 0.35, 0.05); // hazard threshold
+  // twin sliding blast panels (closed; slide apart during the reveal)
+  const qdMat = mat(0x262c34, 0.4, 0.75);
+  qDoorL = box(qdMat, -1.7, 2.5, 81.95, 3.4, 5.0, 0.24); qDoorR = box(qdMat, 1.7, 2.5, 81.95, 3.4, 5.0, 0.24);
+  for (const [dp, s] of [[qDoorL, 1], [qDoorR, -1]]) {
+    box(M.trim, s * 0.9, 1.4, 0.13, 2.4, 0.07, 0.02, dp); box(M.trim, s * 0.9, -0.1, 0.13, 2.4, 0.07, 0.02, dp);
+    box(mat(0x59a8ff, 0.4, 0.4, 0x59a8ff, 0.9), s * 1.35, 0.5, 0.14, 0.5, 0.5, 0.03, dp);   // panel light
+  }
+  box(M.glow, 0, 2.5, 82.02, 0.06, 4.6, 0.02);              // centre seam glow
+  ptLight(0x59a8ff, 0, 3.2, 80.4, 1.4, 14);
+  buildQDivision();
 
   /* ---- elevator ---- */
   const CAR = new THREE.Group(); scene.add(CAR);
@@ -1505,7 +1610,7 @@ function initTutorial() {
     })();
   }
   function interact() {
-    if (state !== 'free' || convActive) return;
+    if (state !== 'free' || convActive || qMode) return;
     const px = rig.position.x, pz = rig.position.z;
     let best = null, bd = 1e9;
     for (const it of inter) { if (it.done) continue; if (phase === 'reception' && it.id !== 'reception') continue; if (phase !== 'reception' && it.id === 'reception') continue; const d = Math.hypot(px - it.x, pz - it.z); if (d < it.r && d < bd) { bd = d; best = it; } }
@@ -1548,6 +1653,8 @@ function initTutorial() {
       eDoorL.position.x = -0.8 - o * 1.3; eDoorR.position.x = 0.8 + o * 1.3;
       camera.position.set(0, 1.8, -4.2); camera.lookAt(0, 1.4, 0);
       if (o >= 1) { state = 'free'; document.getElementById('tutHint').classList.add('on'); if (floorHud) floorHud.classList.remove('on'); setObjective('Report to the Receptionist', true); refreshWaypoints(); SFX.chatter(true); }
+    } else if (qMode) {
+      updateQScene(dt);
     } else {
       CAR.position.y = 0;
       const speed = keys.ShiftLeft ? 4.4 : 2.4;
@@ -1557,10 +1664,15 @@ function initTutorial() {
       const moving = mv.lengthSq() > 1e-6;
       if (moving) { mv.normalize(); const yaw = Math.atan2(mv.x, mv.z); let d = yaw - curYaw; while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI; curYaw += d * Math.min(1, dt * 12); rig.position.addScaledVector(mv, speed * dt); }
       rig.rotation.y = curYaw;
-      // keep the player in the reception box (wide) then the corridor (narrow)
+      // keep the player in the reception box (wide) -> corridor (narrow) -> Q lab (huge)
+      const inLab = (phase === 'qenter' || phase === 'qassist' || phase === 'qmeet' || phase === 'qscene');
       if (rig.position.z < 21) { rig.position.x = Math.max(-13.5, Math.min(13.5, rig.position.x)); }
+      else if (inLab && rig.position.z > 84) { rig.position.x = Math.max(-22, Math.min(22, rig.position.x)); }
       else { rig.position.x = Math.max(-6.2, Math.min(6.2, rig.position.x)); }
-      rig.position.z = Math.max(-2, Math.min(80.5, rig.position.z));
+      const zMax = inLab ? (qDoorOpen > 0.4 ? 148 : 82.3) : (phase === 'q' ? 79.6 : 80.5);
+      rig.position.z = Math.max(-2, Math.min(zMax, rig.position.z));
+      // Q Division: slow blast-door reveal + walking approach (proximity-driven)
+      if (qDoorOpening && qDoorOpen < 1) { qDoorOpen = Math.min(1, qDoorOpen + dt * 0.32); qDoorL.position.x = -1.7 - qDoorOpen * 3.4; qDoorR.position.x = 1.7 + qDoorOpen * 3.4; }
       const running = keys.ShiftLeft && moving;
       acts.Idle.setEffectiveWeight(THREE.MathUtils.lerp(acts.Idle.getEffectiveWeight(), moving ? 0 : 1, Math.min(1, dt * 10)));
       acts.Walk.setEffectiveWeight(THREE.MathUtils.lerp(acts.Walk.getEffectiveWeight(), (moving && !running) ? 1 : 0, Math.min(1, dt * 10)));
@@ -1583,10 +1695,25 @@ function initTutorial() {
         if (show) { prompt.innerHTML = '<b>E</b>&nbsp; ' + show.label; prompt.classList.add('on'); } else prompt.classList.remove('on');
         // field agents pass once, after the staff, as you head to Q
         if (phase === 'q' && !agentsDone && pz > 60) { agentsDone = true; playConvo('agents'); }
+        // Q Division reveal -> bump the assistant -> walk to Q's bench -> cutscene
+        if (phase === 'q' && pz > 77.4) {
+          phase = 'qenter'; qDoorOpening = true; qDoorTriggered = true; SFX.door();
+          prompt.classList.remove('on'); setObjective('Enter Q Division', true);
+          qWp.position.set(2.4, 3.2, QPOS.assistantZ - 1.5); qWp.visible = true;
+        } else if (phase === 'qenter' && qDoorOpen > 0.55 && Math.hypot(px - 2.4, pz - QPOS.assistantZ) < 3.6) {
+          phase = 'qassist'; qWp.visible = false; startAssistant();
+        } else if (phase === 'qmeet' && Math.hypot(px, pz - (QPOS.qBench - 3)) < 3.2) {
+          phase = 'qscene'; qWp.visible = false; startQScene();
+        }
       }
       if (agentsDone && !convActive) { for (const ag of [agent1, agent2]) { ag.group.position.z -= 1.5 * dt; ag.group.rotation.y = Math.PI; ag.update(dt, true); } }
       else { agent1.update(dt, false); agent2.update(dt, false); }
       analyst.update(dt, false); engineer.update(dt, false); officer.update(dt, false); tech.update(dt, false);
+      // Q lab ambience (only meaningful once you're near/inside — cheap otherwise)
+      if (qActor) qActor.mixer.update(dt);
+      if (qAssistant) qAssistant.update(dt, false);
+      for (const w of qLabWalkers) { const p = w.walkPath; w.group.position.z += p.dir * p.speed * dt; if (w.group.position.z > p.max) p.dir = -1; if (w.group.position.z < p.min) p.dir = 1; w.group.rotation.y = p.dir > 0 ? 0 : Math.PI; w.update(dt, true); }
+      if (qAssistant && qAssistant.tray && qAssistDrop) { qAssistT += dt; const wob = Math.sin(qAssistT * 6) * Math.max(0, 0.6 - qAssistT * 0.18); qAssistant.tray.rotation.z = wob; qAssistant.tray.position.y = 1.02 - Math.abs(wob) * 0.12; if (qAssistT > 3.2) { qAssistDrop = 0; qAssistant.tray.rotation.z = 0; qAssistant.tray.position.y = 1.02; } }
     }
     renderer.render(scene, camera);
   }
@@ -1594,6 +1721,244 @@ function initTutorial() {
   return { begin() { document.getElementById('tutWrap').classList.add('on'); carY = 5.2; state = 'descend'; tState = 0; if (floorHud) floorHud.classList.add('on'); SFX.resume(); SFX.elevator(true); } };
 
   /* ================= builders ================= */
+  /* ============ Q DIVISION (giant lab) ============ */
+  function spawnActor(mats) {
+    const g = new THREE.Group(); scene.add(g);
+    const A = buildAgent(THREE); g.add(A.bones[0]); g.updateMatrixWorld(true);
+    const bn = {}; A.bones.forEach(b => bn[b.name] = b);
+    const pb = (name, tag, lp, sz) => { const m = new THREE.Mesh(new THREE.BoxGeometry(sz[0], sz[1], sz[2]), mats[tag] || mats.suit); m.position.set(lp[0], lp[1], lp[2]); m.castShadow = true; bn[name].add(m); };
+    pb('Spine', 'suit', [0, 0.16, 0], [0.42, 0.5, 0.26]); pb('Hips', 'suit', [0, -0.02, 0], [0.36, 0.22, 0.24]);
+    pb('Chest', 'shirt', [0, -0.02, 0.13], [0.17, 0.24, 0.03]); if (mats.tie) pb('Chest', 'tie', [0, -0.1, 0.15], [0.05, 0.28, 0.02]);
+    pb('Neck', 'skin', [0, 0.04, 0], [0.12, 0.12, 0.12]); pb('Head', 'skin', [0, 0.08, 0.01], [0.26, 0.28, 0.27]);
+    if (mats.hair) { pb('Head', 'hair', [0, 0.19, -0.015], [0.3, 0.14, 0.3]); pb('Head', 'hair', [0, 0.1, -0.15], [0.3, 0.24, 0.03]); }
+    if (mats.glasses) pb('Head', 'glasses', [0, 0.09, 0.14], [0.22, 0.05, 0.02]);
+    for (const [side, s] of [['L', 1], ['R', -1]]) { pb(side + 'Arm', 'suit', [s * 0.135, 0, 0], [0.28, 0.145, 0.145]); pb(side + 'ForeArm', 'suit', [s * 0.12, 0, 0], [0.245, 0.135, 0.135]); pb(side + 'Hand', 'skin', [s * 0.055, 0, 0], [0.12, 0.115, 0.075]); pb(side + 'UpLeg', 'suit', [0, -0.2, 0], [0.17, 0.42, 0.19]); pb(side + 'Leg', 'suit', [0, -0.205, -0.005], [0.15, 0.42, 0.17]); pb(side + 'Foot', 'shoe', [0, -0.045, 0.07], [0.15, 0.1, 0.3]); }
+    const mx = new THREE.AnimationMixer(g); const cl = authorAnimations(THREE).clips; const ac = {};
+    ['Idle', 'Walk', 'Run'].forEach(n => { const a = mx.clipAction(cl[n]); a.play(); a.setEffectiveWeight(n === 'Idle' ? 1 : 0); ac[n] = a; });
+    return { rig: g, byName: bn, mixer: mx, acts: ac, faceY: 0, tgt: null };
+  }
+  function buildQDivision() {
+    const cy = (m, x, y, z, r, h, seg) => { const me = new THREE.Mesh(new THREE.CylinderGeometry(r, r, h, seg || 16), m); me.position.set(x, y, z); me.receiveShadow = true; scene.add(me); return me; };
+    const QH = 9, z0 = 84, z1 = 150, xw = 24, zc = (z0 + z1) / 2;
+    box(M.floor, 0, -0.05, zc, xw * 2, 0.1, z1 - z0);
+    box(M.wall2, 0, QH - 0.1, zc, xw * 2, 0.3, z1 - z0);
+    box(M.wall, -xw, QH / 2, zc, 0.5, QH, z1 - z0); box(M.wall, xw, QH / 2, zc, 0.5, QH, z1 - z0);
+    box(M.wall, 0, QH / 2, z1, xw * 2, QH, 0.5);
+    box(M.trim, -xw + 0.25, QH - 1.6, zc, 0.06, 0.14, z1 - z0); box(M.trim, xw - 0.25, QH - 1.6, zc, 0.06, 0.14, z1 - z0);
+    // industrial ceiling trusses + pipes + strip lights (emissive = free)
+    for (let z = z0 + 4; z < z1; z += 7) { box(M.metal, 0, QH - 0.5, z, xw * 2 - 2, 0.24, 0.24); box(M.glow, 0, QH - 0.72, z, 7, 0.06, 3); }
+    for (const px of [-17, -9, 9, 17]) box(M.metal, px, QH - 0.35, zc, 0.2, 0.2, z1 - z0 - 2);
+    for (const [lx, lz] of [[-11, 96], [11, 96], [-11, 122], [11, 122], [0, 108], [0, 142]]) ptLight(0xfff0d8, lx, QH - 0.9, lz, 1.8, 42);
+    // signature central ring light
+    const ringMesh = new THREE.Mesh(new THREE.TorusGeometry(5.2, 0.32, 10, 64), M.metal); ringMesh.rotation.x = Math.PI / 2; ringMesh.position.set(0, QH - 1.1, 108); scene.add(ringMesh);
+    const ringGlow = new THREE.Mesh(new THREE.TorusGeometry(5.2, 0.13, 8, 64), M.glow); ringGlow.rotation.x = Math.PI / 2; ringGlow.position.set(0, QH - 1.28, 108); scene.add(ringGlow);
+    for (let i = 0; i < 8; i++) { const a = i / 8 * Math.PI * 2; box(M.metal, Math.cos(a) * 5.2, QH - 0.6, 108 + Math.sin(a) * 5.2, 0.08, 1.0, 0.08); }
+    ptLight(0xfff2dc, 0, QH - 2.2, 108, 2.6, 34);
+    for (let z = z0 + 7; z < z1 - 6; z += 9) { box(M.metal, 0, QH - 1.6, z, 0.06, 1.2, 0.06); box(M.glow, 0, QH - 2.3, z, 0.7, 0.22, 0.7); }
+    // workstation rows flanking a central aisle (+ seated workers)
+    const wsuit = [0x22303f, 0x2b2f26, 0x30302e, 0x24242c, 0x33262f], whair = [0x1a1512, 0x2a2018, 0xd8d8d8, 0x120e0a, 0x3a2a1a], wskin = [0xdaa985, 0xc99878, 0xe8c0a0, 0x8a5a38, 0xb07a4a];
+    let wi = 0;
+    function deskAndWorker(sx, sz, side) {
+      const g = new THREE.Group(); g.position.set(sx, 0, sz); g.rotation.y = side > 0 ? -Math.PI / 2 : Math.PI / 2; scene.add(g);
+      box(M.desk, 0, 0.5, 0.3, 2.0, 1.0, 0.9, g); box(M.deskTop, 0, 1.02, 0.3, 2.2, 0.06, 1.0, g);
+      box(M.metal, -0.55, 1.5, 0.62, 0.66, 0.5, 0.05, g); box(scr(0x123a5a), -0.55, 1.5, 0.66, 0.56, 0.42, 0.02, g);
+      box(M.metal, 0.55, 1.5, 0.62, 0.66, 0.5, 0.05, g); box(scr(0x1a2a3a), 0.55, 1.5, 0.66, 0.56, 0.42, 0.02, g);
+      box(M.deskTop, 0, 1.08, 0.12, 0.5, 0.03, 0.28, g);
+      box(M.seat, 0, 0.45, -0.55, 0.5, 0.1, 0.5, g); box(M.seat, 0, 0.78, -0.8, 0.5, 0.62, 0.1, g);
+      const w = new THREE.Group(); w.position.set(0, 0, -0.55); g.add(w);
+      const c = wi % 5, fem = wi % 3 === 0;
+      const b = (col, x, y, z, wd, h, d) => { const m = new THREE.Mesh(new THREE.BoxGeometry(wd, h, d), mat(col, 0.66, 0.12)); m.position.set(x, y, z); w.add(m); };
+      b(wsuit[c], 0, 1.0, 0, 0.42, 0.58, 0.26); b(wskin[c], 0, 1.4, 0.01, 0.24, 0.26, 0.24);
+      if (fem) { b(whair[c], 0, 1.52, -0.01, 0.28, 0.14, 0.28); b(whair[c], 0.15, 1.38, -0.02, 0.06, 0.32, 0.24); b(whair[c], -0.15, 1.38, -0.02, 0.06, 0.32, 0.24); } else { b(whair[c], 0, 1.52, -0.01, 0.27, 0.13, 0.27); }
+      b(wsuit[c], 0.27, 1.05, 0.2, 0.12, 0.12, 0.34); b(wsuit[c], -0.27, 1.05, 0.2, 0.12, 0.12, 0.34);
+      qLabPeople.push(w); wi++;
+    }
+    for (const side of [-1, 1]) for (let r = 0; r < 4; r++) for (let c = 0; c < 3; c++) deskAndWorker(side * (7 + c * 5), 94 + r * 7, side);
+    // vehicle bay (glass-walled, far-left) with a tarped car
+    box(M.wall2, -xw, QH / 2, 122, 0.4, QH, 22); box(M.glass, -15, 3, 111, 0.1, 6, 0.1);
+    for (let z = 112; z <= 132; z += 4) box(M.glass, -15, 3.2, z, 0.08, 6, 3.6);   // glass front
+    box(M.trim, -15, 0.3, 122, 0.14, 0.5, 22);
+    (function car() {
+      const g = new THREE.Group(); g.position.set(-19.5, 0, 122); g.rotation.y = Math.PI / 2; scene.add(g);
+      const body = mat(0x0e0e12, 0.3, 0.7);
+      box(body, 0, 0.55, 0, 1.9, 0.5, 4.4, g); box(body, 0, 0.95, -0.3, 1.7, 0.5, 2.2, g);
+      box(mat(0x1a2530, 0.2, 0.6), 0, 0.98, -0.3, 1.56, 0.42, 2.0, g); box(body, 0, 0.72, 1.9, 1.82, 0.36, 0.8, g);
+      box(mat(0xfff0c0, 0.3, 0.2, 0xffe080, 1.2), 0.72, 0.62, 2.25, 0.28, 0.16, 0.06, g); box(mat(0xfff0c0, 0.3, 0.2, 0xffe080, 1.2), -0.72, 0.62, 2.25, 0.28, 0.16, 0.06, g);
+      for (const [wx, wz] of [[0.9, 1.4], [-0.9, 1.4], [0.9, -1.4], [-0.9, -1.4]]) { const w = new THREE.Mesh(new THREE.CylinderGeometry(0.44, 0.44, 0.3, 16), mat(0x0a0a0c, 0.7)); w.rotation.z = Math.PI / 2; w.position.set(wx, 0.44, wz); g.add(w); }
+    })();
+    box(M.metal, -21, 1.4, 116, 1.4, 2.4, 0.5); box(M.metal, -21, 1.4, 128, 1.4, 2.4, 0.5);   // tool cabinets
+    // glass offices far-right
+    box(M.wall2, xw, QH / 2, 130, 0.4, QH, 30); for (let z = 118; z <= 144; z += 4) box(M.glass, 15, 3.2, z, 0.08, 6, 3.6);
+    for (let z = 120; z <= 142; z += 8) { box(M.desk, 19, 0.5, z, 2.0, 1.0, 0.9); box(scr(0x1a3a4a), 19.6, 1.4, z, 0.05, 0.5, 0.7); }
+    // robotic arms + holo displays over benches (flavor)
+    for (const [ax, az] of [[-8, 118], [8, 132], [-8, 138]]) { const arm = new THREE.Group(); arm.position.set(ax, 1.0, az); scene.add(arm); box(M.metal, 0, 0, 0, 0.3, 0.3, 0.3, arm); const seg = box(M.metal, 0, 0.6, 0, 0.14, 1.0, 0.14, arm); seg.rotation.z = 0.5; box(M.holo, ax, 2.6, az, 1.4, 0.9, 0.02); }
+    // Q's WORKBENCH (the meeting spot) at the far-centre
+    box(M.desk, 0, 0.5, QPOS.qBench + 0.6, 4.2, 1.0, 1.4); box(M.deskTop, 0, 1.05, QPOS.qBench + 0.6, 4.4, 0.06, 1.5);
+    for (let i = 0; i < 4; i++) box(scr([0x123a5a, 0x1a3a2a, 0x3a1a1a, 0x2a2a3a][i]), -1.2 + i * 0.8, 1.55, QPOS.qBench + 1.15, 0.6, 0.44, 0.03).rotation.x = -0.15;
+    box(M.holo, 0, 3.0, QPOS.qBench + 1.3, 3.0, 1.6, 0.02); ptLight(0xbfe0ff, 0, 2.4, QPOS.qBench + 0.8, 1.2, 12);
+    // equipment table (compartment rises here)
+    box(M.desk, QPOS.table, 0.5, QPOS.tableZ, 2.4, 1.0, 1.4); box(M.deskTop, QPOS.table, 1.05, QPOS.tableZ, 2.6, 0.06, 1.5);
+    qCompartment = new THREE.Group(); qCompartment.position.set(QPOS.table, -1.2, QPOS.tableZ); scene.add(qCompartment);
+    box(M.metal, 0, 0.4, 0, 2.0, 0.8, 1.0, qCompartment); box(M.trim, 0, 0.82, 0, 2.1, 0.05, 1.1, qCompartment);
+    for (let i = 0; i < 3; i++) box(mat(0x14181f, 0.4, 0.6, 0x1a3a5a, 0.4), -0.6 + i * 0.6, 0.95, 0, 0.5, 0.2, 0.7, qCompartment);   // gadget cases
+    // reinforced security door (multitool target)
+    qSecDoor = box(mat(0x2a3140, 0.4, 0.8, 0x3a1010, 0.3), QPOS.secX, 2.1, QPOS.secZ, 0.3, 4.0, 3.0); box(M.trim, QPOS.secX + 0.15, 2.1, QPOS.secZ, 0.06, 4.2, 3.2);
+    // EXIT elevator (far end)
+    const em = mat(0x1a1f29, 0.4, 0.8);
+    box(em, 0, 2.4, QPOS.exitZ + 1.4, 4.0, 4.8, 0.2); box(em, -2.1, 2.4, QPOS.exitZ, 0.2, 4.8, 3.0); box(em, 2.1, 2.4, QPOS.exitZ, 0.2, 4.8, 3.0);
+    box(M.glow, 0, 4.7, QPOS.exitZ + 1.3, 3.0, 0.06, 2.4); box(M.trim, 0, 4.85, QPOS.exitZ + 1.3, 4.2, 0.1, 0.2);
+    qExitL = box(em, -1.05, 2.2, QPOS.exitZ - 0.05, 2.1, 4.2, 0.18); qExitR = box(em, 1.05, 2.2, QPOS.exitZ - 0.05, 2.1, 4.2, 0.18);
+    ptLight(0xfff2dc, 0, 3.5, QPOS.exitZ, 1.2, 10);
+    // scanner highlight markers (electronics/cameras) — hidden until scanner
+    const hl = (col, x, y, z, s) => { const m = new THREE.Mesh(new THREE.BoxGeometry(s, s, s), new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.85, depthTest: false })); m.position.set(x, y, z); m.renderOrder = 998; m.visible = false; scene.add(m); qHighlights.push(m); };
+    for (let i = 0; i < 14; i++) hl(0x49b7ff, (Math.random() - 0.5) * 30, 1.4 + Math.random() * 4, 94 + Math.random() * 50, 0.16);
+    for (const [cx, cz] of [[-14, 100], [14, 110], [-14, 130], [14, 140], [0, 96]]) hl(0xff4040, cx, 6.2, cz, 0.22);   // cameras
+    // ambient walking staff in the lab
+    for (let i = 0; i < 5; i++) { const n = makeNPC({ suit: wsuit[i % 5], hair: whair[(i + 1) % 5], skin: wskin[i % 5], female: i % 2 === 0, scale: 0.94 + (i % 3) * 0.06 }); n.group.position.set((i % 2 ? 3.5 : -3.5), 0, 96 + i * 9); n.walkPath = { min: 90, max: 144, dir: i % 2 ? 1 : -1, speed: 1.0 + (i % 3) * 0.3 }; scene.add(n.group); qLabWalkers.push(n); }
+    // Q + assistant actors
+    const qMats = { suit: mat(0x2c2e34, 0.5, 0.2), shirt: mat(0xd6d2c6, 0.6), tie: mat(0x3a2a2a, 0.5), skin: mat(0xd8b89a, 0.72), hair: mat(0xdadada, 0.85), shoe: mat(0x14141a, 0.3, 0.4), glasses: mat(0x101014, 0.3, 0.4) };
+    qActor = spawnActor(qMats); qActor.rig.position.set(0, 0, QPOS.qBench); qActor.rig.rotation.y = Math.PI; qActor.faceY = Math.PI;   // faces -z (toward the aisle/player)
+    qAssistant = makeNPC({ female: true, suit: 0x3a3140, skirt: 0x2a2434, shirt: 0xe6dfd0, hair: 0x2a1c12, skin: 0xe6b892, scale: 0.96 });
+    qAssistant.group.position.set(2.4, 0, QPOS.assistantZ); qAssistant.group.rotation.y = Math.PI; scene.add(qAssistant.group);
+    // a tray of prototypes she's carrying (she nearly drops it when you arrive)
+    const tray = new THREE.Group(); tray.position.set(0, 1.02, 0.42); qAssistant.group.add(tray);
+    box(mat(0x22262e, 0.4, 0.6), 0, 0, 0, 0.5, 0.05, 0.34, tray);
+    for (let i = 0; i < 3; i++) box(mat(0x59a8ff, 0.4, 0.4, 0x59a8ff, 0.8), -0.15 + i * 0.15, 0.06, 0, 0.09, 0.07, 0.2, tray);
+    qAssistant.tray = tray;
+    // gadget props (equipped on the player during the scene)
+    const watch = new THREE.Group(); box(mat(0x14141a, 0.3, 0.8), 0, 0, 0, 0.09, 0.03, 0.07, watch); box(mat(0x2f9fd8, 0.3, 0.4, 0x1a5a80, 1.2), 0, 0.016, 0, 0.06, 0.005, 0.045, watch); watch.visible = false; qGadgets.watch = watch;
+    const glasses = new THREE.Group(); box(mat(0x101014, 0.3, 0.5), 0, 0, 0, 0.24, 0.05, 0.03, glasses); glasses.visible = false; qGadgets.glasses = glasses;
+    const mtool = new THREE.Group(); box(mat(0x22262e, 0.4, 0.7), 0, 0, 0, 0.1, 0.16, 0.04, mtool); box(mat(0xff5a3a, 0.4, 0.3, 0xff3010, 1), 0, 0.09, 0.02, 0.02, 0.08, 0.02, mtool); mtool.visible = false; qGadgets.mtool = mtool;
+    scene.add(watch); scene.add(glasses); scene.add(mtool);
+    qOfficer = makeNPC({ suit: 0x1a2230, tie: 0x2a3a5a, hair: 0x14100c, skin: 0xc99070, scale: 1.05, build: 1.06 });
+    qOfficer.group.position.set(0, 0, 101); qOfficer.group.visible = false; scene.add(qOfficer.group);
+  }
+
+  /* ---- Q cutscene engine ---- */
+  function qEl(id) { return document.getElementById(id); }
+  function keyName(code) { return code.replace('Key', ''); }
+  function stepActor(rg, ac, o, dt, spd) {
+    if (!o.tgt) { if (ac) { ac.Walk.setEffectiveWeight(THREE.MathUtils.lerp(ac.Walk.getEffectiveWeight(), 0, Math.min(1, dt * 8))); ac.Idle.setEffectiveWeight(THREE.MathUtils.lerp(ac.Idle.getEffectiveWeight(), 1, Math.min(1, dt * 8))); } if (o.faceY != null) { let d = o.faceY - rg.rotation.y; while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI; rg.rotation.y += d * Math.min(1, dt * 6); } return; }
+    const dx = o.tgt.x - rg.position.x, dz = o.tgt.z - rg.position.z, d = Math.hypot(dx, dz);
+    if (d < 0.3) { if (o.tgt.face != null) o.faceY = o.tgt.face; o.tgt = null; return; }
+    rg.rotation.y = Math.atan2(dx, dz);
+    rg.position.x += dx / d * (spd || 2) * dt; rg.position.z += dz / d * (spd || 2) * dt;
+    if (ac) { ac.Walk.setEffectiveWeight(THREE.MathUtils.lerp(ac.Walk.getEffectiveWeight(), 1, Math.min(1, dt * 8))); ac.Idle.setEffectiveWeight(THREE.MathUtils.lerp(ac.Idle.getEffectiveWeight(), 0, Math.min(1, dt * 8))); }
+  }
+  // the assistant intercepts you at the door (L01-L03), then points you to Q
+  function startAssistant() {
+    convActive = true; qAssistDrop = 1; qAssistT = 0; SFX.blip();
+    if (qAssistant) qAssistant.face(rig.position);
+    const ids = ['L01', 'L02', 'L03']; let i = 0;
+    (function nx() {
+      if (i >= ids.length) { subtitle.classList.remove('on'); convActive = false; phase = 'qmeet'; setObjective("Walk to Q's workbench", true); qWp.position.set(0, 3.2, QPOS.qBench - 3); qWp.visible = true; return; }
+      const id = ids[i++], L = QLINES[id];
+      subtitle.innerHTML = '<b>' + L[0] + '</b><span>' + L[1] + '</span>'; subtitle.classList.add('on');
+      let done = false; const go = () => { if (done) return; done = true; setTimeout(nx, 320); };
+      try { const a = qVoice(id); a.play().catch(() => {}); a.onended = go; } catch (e) { go(); }
+      setTimeout(go, 7000);
+    })();
+  }
+  function startQScene() {
+    qMode = true; qStep = -1; qLineDone = true; qStepT = 0; qWaitKey = null;
+    document.exitPointerLock && document.exitPointerLock();
+    qEl('tutHint').classList.remove('on'); prompt.classList.remove('on');
+    setObjective('Listen and follow Q', true);
+    rig.position.set(0, rig.position.y, QPOS.meet); rig.rotation.y = 0; pActor.faceY = 0; pActor.tgt = null;
+    qActor.rig.position.set(0, 0, QPOS.qBench); qActor.rig.rotation.y = Math.PI; qActor.faceY = Math.PI; qActor.tgt = null;
+    qAdvance();
+  }
+  function qSay(id) {
+    const L = QLINES[id]; if (!L) { qLineDone = true; return; }
+    subtitle.innerHTML = '<b>' + L[0] + '</b><span>' + L[1] + '</span>'; subtitle.classList.add('on');
+    qLineDone = false;
+    let done = false; const fin = () => { if (done) return; done = true; qLineDone = true; };
+    try { qVoiceEl = qVoice(id); qVoiceEl.play().catch(() => {}); qVoiceEl.onended = fin; } catch (e) { fin(); }
+    setTimeout(fin, 9000);
+  }
+  function qFx(fx) {
+    if (fx === 'closedoor') { qDoorClose = true; SFX.door(); }
+    else if (fx === 'compartment') { qCompRise = true; SFX.door(); }
+    else if (fx === 'equipwatch') { qGadgets.watch.visible = true; byName['LForeArm'].add(qGadgets.watch); qGadgets.watch.position.set(0.12, 0, 0); SFX.blip(); }
+    else if (fx === 'scanner') { qScanT = 5.5; qEl('qScan').classList.add('on'); qHighlights.forEach(h => h.visible = true); SFX.blip(); }
+    else if (fx === 'glasses') { SFX.blip(); }
+    else if (fx === 'thermal') { qThermal = true; qGadgets.glasses.visible = true; byName['Head'].add(qGadgets.glasses); qGadgets.glasses.position.set(0, 0.09, 0.16); qEl('qThermal').classList.add('on'); SFX.blip(); }
+    else if (fx === 'multitool') { qGadgets.mtool.visible = true; byName['RHand'].add(qGadgets.mtool); qGadgets.mtool.position.set(-0.05, 0, 0.05); }
+    else if (fx === 'hack') { qSecDoor.userData.open = true; SFX.door(); }
+    else if (fx === 'unlock') { SFX.blip(); }
+    else if (fx === 'alarm') { qAlarm = 1; SFX.boom(); qLabWalkers.forEach(w => w.walkPath.speed = 0); if (qOfficer) qOfficer.group.visible = true; qEl('qThermal').classList.remove('on'); qThermal = false; }
+    else if (fx === 'closecase') { qCompRise = false; SFX.blip(); }
+    else if (fx === 'toexit') { qActor.tgt = { x: 0.7, z: QPOS.exitZ - 1.3, face: 0 }; pActor.tgt = { x: -0.7, z: QPOS.exitZ - 1.3, face: 0 }; qEnding = 1; }
+  }
+  function qAdvance() {
+    qStep++; const b = QSEQ[qStep]; if (!b) return;
+    qCamMode = b.cam || 'q';
+    if (b.qmove === 'table') qActor.tgt = { x: QPOS.table - 1.5, z: QPOS.tableZ + 1.2, face: 0 };
+    else if (b.qmove === 'secdoor') qActor.tgt = { x: QPOS.secX + 1.6, z: QPOS.secZ, face: -Math.PI / 2 };
+    if (b.fx) qFx(b.fx);
+    qSay(b.vo);
+    qWaitKey = b.prompt || null; qHoldT = 0;
+  }
+  function qFrameCamera(dt) {
+    const qp = qActor.rig.position, pp = rig.position;
+    const qH = new THREE.Vector3(qp.x, 1.62, qp.z), pH = new THREE.Vector3(pp.x, 1.4, pp.z);
+    let look, pos;
+    switch (qCamMode) {
+      case 'q': look = qH; pos = new THREE.Vector3(qp.x + 1.5, 1.72, qp.z - 2.6); break;
+      case 'p': look = pH; pos = new THREE.Vector3(pp.x - 1.5, 1.7, pp.z + 2.6); break;
+      case 'qturn': look = qH; pos = new THREE.Vector3(qp.x - 1.8, 1.8, qp.z - 2.2); break;
+      case 'two': { const m = qH.clone().lerp(pH, 0.5); look = m; pos = new THREE.Vector3(m.x + 3.4, 2.1, m.z - 0.4); break; }
+      case 'gadget': look = new THREE.Vector3(QPOS.table, 1.2, QPOS.tableZ); pos = new THREE.Vector3(QPOS.table - 2.6, 1.9, QPOS.tableZ + 1.8); break;
+      case 'wide': look = new THREE.Vector3(0, 2.2, 116); pos = new THREE.Vector3(7, 4.8, 100); break;
+      case 'officer': look = new THREE.Vector3(0, 1.6, 108); pos = new THREE.Vector3(3.5, 2.4, 99); break;
+      default: look = qH; pos = new THREE.Vector3(qp.x + 1.5, 1.72, qp.z - 2.6);
+    }
+    camera.position.lerp(pos, Math.min(1, dt * 2.6)); camera.lookAt(look);
+  }
+  function updateQScene(dt) {
+    qActor.mixer.update(dt);
+    stepActor(qActor.rig, qActor.acts, qActor, dt, 1.9);
+    stepActor(rig, acts, pActor, dt, 2.2);
+    for (const w of qLabWalkers) { const p = w.walkPath; w.group.position.z += p.dir * p.speed * dt; if (w.group.position.z > p.max) p.dir = -1; if (w.group.position.z < p.min) p.dir = 1; w.group.rotation.y = p.dir > 0 ? 0 : Math.PI; w.update(dt, p.speed > 0.01); }
+    if (qOfficer && qOfficer.group.visible) qOfficer.update(dt, false);
+    if (qScanT > 0) { qScanT -= dt; if (qScanT <= 0) { qEl('qScan').classList.remove('on'); qHighlights.forEach(h => h.visible = false); } }
+    if (qDoorClose && qDoorOpen > 0) { qDoorOpen = Math.max(0, qDoorOpen - dt * 0.5); qDoorL.position.x = -1.5 - qDoorOpen * 3.0; qDoorR.position.x = 1.5 + qDoorOpen * 3.0; }
+    if (qCompartment) { const ty = qCompRise ? 0 : -1.2; qCompartment.position.y += (ty - qCompartment.position.y) * Math.min(1, dt * 1.5); }
+    if (qSecDoor && qSecDoor.userData.open) qSecDoor.position.y = THREE.MathUtils.lerp(qSecDoor.position.y, 6.2, Math.min(1, dt * 1.1));
+    if (qAlarm) { const a = qEl('qAlarmFx'); a.classList.add('on'); a.style.opacity = 0.25 + Math.abs(Math.sin(clock.elapsedTime * 6)) * 0.4; }
+    qFrameCamera(dt);
+    if (qStep < 0) return;
+    const b = QSEQ[qStep];
+    if (!b) { updateEnding(dt); return; }
+    if (!qLineDone) return;
+    if (qWaitKey) {
+      prompt.innerHTML = '<b>' + keyName(qWaitKey.key) + '</b>&nbsp; ' + qWaitKey.label; prompt.classList.add('on');
+      if (qWaitKey.hold) {
+        const hk = qEl('qHack'); hk.classList.add('on');
+        if (keys[qWaitKey.key]) qHoldT += dt;
+        qEl('qHackBar').style.width = Math.min(100, qHoldT / qWaitKey.hold * 100) + '%';
+        if (qHoldT >= qWaitKey.hold) { hk.classList.remove('on'); prompt.classList.remove('on'); const fx = qWaitKey.fx; qWaitKey = null; qFx(fx); qStepT = 0; qAdvance(); }
+      } else if (keys[qWaitKey.key]) { prompt.classList.remove('on'); const fx = qWaitKey.fx; qWaitKey = null; qFx(fx); qStepT = 0; qAdvance(); }
+      return;
+    }
+    qStepT += dt;
+    if (qStepT > 0.85) { qStepT = 0; qAdvance(); }
+  }
+  function updateEnding(dt) {
+    if (!qEnding) return;
+    if (qEnding === 1 && !qActor.tgt && !pActor.tgt) { qEnding = 2; qActor.tgt = { x: 0.7, z: QPOS.exitZ + 0.5, face: Math.PI }; pActor.tgt = { x: -0.7, z: QPOS.exitZ + 0.5, face: Math.PI }; }
+    else if (qEnding === 2 && !qActor.tgt && !pActor.tgt) { qEnding = 3; SFX.door(); }
+    else if (qEnding === 3) {
+      qExitL.position.x = THREE.MathUtils.lerp(qExitL.position.x, -0.05, Math.min(1, dt * 1.4));
+      qExitR.position.x = THREE.MathUtils.lerp(qExitR.position.x, 0.05, Math.min(1, dt * 1.4));
+      qCSt += dt;
+      qEl('cineFade').style.opacity = Math.min(1, Math.max(0, qCSt - 1.2) / 1.6);
+      if (qCSt > 3 && !qCS) { qCS = true; qEl('qComingSoon').classList.add('on'); }
+    }
+    // ending camera: hold on the lift
+    camera.position.lerp(new THREE.Vector3(0, 2.0, QPOS.exitZ - 5), Math.min(1, dt * 2)); camera.lookAt(0, 1.5, QPOS.exitZ);
+  }
+
   function buildSecretary(x, y, z) {
     const g = new THREE.Group(); g.position.set(x, y, z); g.rotation.y = Math.PI;
     const m2 = { skin: mat(0xe8b79a, 0.7), hair: mat(0x2a1c12, 0.85), blouse: mat(0xb9c2d0, 0.6), jacket: mat(0x232733, 0.6), lip: mat(0x9c3b45, 0.5), eye: mat(0x14100c) };
