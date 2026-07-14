@@ -15,6 +15,16 @@
 
   /* animated ember/dust background */
   #fx { position: fixed; inset: 0; z-index: 0; }
+  #chessbg { position: fixed; inset: 0; z-index: 1; opacity: 0; transition: opacity 1.3s var(--ease); pointer-events: none; }
+  #chessbg.on { opacity: .92; }
+  #saveToast { position: fixed; top: calc(7vh + 20px); right: 26px; z-index: 95; display: flex; align-items: center; gap: 9px;
+    padding: 9px 16px; background: rgba(10,12,16,.82); border: 1px solid rgba(217,180,91,.4); border-radius: 3px;
+    font-size: 11px; letter-spacing: .24em; text-transform: uppercase; color: #e7dfca; opacity: 0; transform: translateY(-8px);
+    transition: opacity .4s var(--ease), transform .4s var(--ease); pointer-events: none; }
+  #saveToast.on { opacity: 1; transform: translateY(0); }
+  #saveToast .ic { color: var(--gold); font-size: 14px; animation: spin 1.1s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .mi.cont .mlabel { color: #fff6df; } .mi.cont .msub { display: block; font-size: 9px; letter-spacing: .18em; color: #8a8272; margin-top: 3px; text-transform: none; }
   /* film grain */
   .grain { position: fixed; inset: -50%; z-index: 60; pointer-events: none; opacity: .05; mix-blend-mode: overlay;
     background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='140' height='140'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
@@ -275,10 +285,61 @@
   #qComingSoon .k { font-size: 13px; letter-spacing: .6em; color: var(--gold); text-transform: uppercase; margin-bottom: 18px; opacity: .85; }
   #qComingSoon .m { font-size: clamp(34px,6vw,72px); font-weight: 800; letter-spacing: .16em; color: #f2ecdc; text-transform: uppercase; text-shadow: 0 4px 40px rgba(0,0,0,.7); }
   #qComingSoon .s { margin-top: 20px; font-size: 11px; letter-spacing: .4em; color: #8b846f; text-transform: uppercase; }
+  /* ---- Q-LAB tactical watch UI ---- */
+  #qWatch { position: fixed; inset: 0; z-index: 78; display: none; align-items: center; justify-content: center;
+    background: radial-gradient(120% 100% at 50% 50%, rgba(6,10,16,.55), rgba(2,4,7,.9)); backdrop-filter: blur(3px); opacity: 0; transition: opacity .3s; }
+  #qWatch.on { display: flex; opacity: 1; }
+  #qWatch .wface { position: relative; width: min(86vw, 560px); height: min(86vw, 560px); font-family: 'Courier New', monospace; color: #cfe0ee;
+    animation: wIn .45s cubic-bezier(.2,.9,.25,1); }
+  @keyframes wIn { from { transform: scale(.9); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+  #qWatch .wpills { position: absolute; top: -6%; right: 0; display: flex; gap: 14px; align-items: center; }
+  #qWatch .pill { display: flex; align-items: center; gap: 7px; font-size: 12px; letter-spacing: .12em; color: #d8e2ec; }
+  #qWatch .pill b { color: #ffd76a; } #qWatch .pill i { width: 15px; height: 15px; display: inline-block; }
+  #qWatch .pill .d { border: 2px solid #9fb4c6; border-radius: 50%; } #qWatch .pill .x { border: 2px solid #9fb4c6; transform: rotate(45deg); }
+  #qWatch .wdiamond { width: 26px; height: 26px; background: #2fd68a; transform: rotate(45deg); box-shadow: 0 0 22px rgba(47,214,138,.7); border: 2px solid #baf3d6; }
+  #qWatch .wgaugeWrap { position: absolute; left: -4%; top: 16%; width: 20%; height: 62%; }
+  #qWatch .wgauge { position: absolute; inset: 0; border-left: 3px solid rgba(255,190,60,.25); border-radius: 60px 0 0 60px; overflow: hidden; }
+  #qWatch .wfill { position: absolute; left: 0; bottom: 0; width: 12px; height: 62%; background: linear-gradient(0deg,#ffb020,#ffe27a); box-shadow: 0 0 18px rgba(255,190,60,.7); transition: height .35s var(--ease); }
+  #qWatch .wbolt { position: absolute; left: -2px; top: -12%; font-size: 26px; color: #ffcf55; filter: drop-shadow(0 0 8px rgba(255,190,60,.7)); }
+  #qWatch .wg6 { position: absolute; left: 8px; top: -10%; font-size: 20px; color: #e7dfca; } #qWatch .wg0 { position: absolute; left: 8px; bottom: -8%; font-size: 20px; color: #8a8272; }
+  #qWatch .wcompass { position: absolute; inset: 8%; border-radius: 50%; }
+  #qWatch .wring { position: absolute; inset: 0; border-radius: 50%; border: 1px solid rgba(140,170,200,.35); box-shadow: inset 0 0 40px rgba(0,0,0,.6); }
+  #qWatch .wticks { position: absolute; inset: 4%; border-radius: 50%;
+    background: repeating-conic-gradient(rgba(150,180,210,.55) 0deg 1deg, transparent 1deg 6deg); -webkit-mask: radial-gradient(circle, transparent 45%, #000 46%, #000 50%, transparent 51%); mask: radial-gradient(circle, transparent 45%, #000 46%, #000 50%, transparent 51%); }
+  #qWatch .cl { position: absolute; font-size: 15px; letter-spacing: .1em; color: #c6d4e2; transform: translate(-50%,-50%); }
+  #qWatch .cl.cd { font-size: 11px; color: #7f93a6; }
+  #qWatch .cN { left: 50%; top: 3%; } #qWatch .cS { left: 50%; top: 97%; } #qWatch .cE { left: 97%; top: 50%; } #qWatch .cW { left: 3%; top: 50%; }
+  #qWatch .cNE { left: 85%; top: 15%; } #qWatch .cSE { left: 85%; top: 85%; } #qWatch .cSW { left: 15%; top: 85%; } #qWatch .cNW { left: 15%; top: 15%; }
+  #qWatch .wcore { position: absolute; inset: 20%; border-radius: 50%; background: radial-gradient(circle at 50% 40%, #141a24, #070a10 80%); border: 1px solid rgba(90,130,170,.3);
+    display: flex; flex-direction: column; align-items: center; justify-content: center; box-shadow: inset 0 0 30px rgba(0,0,0,.7), 0 0 30px rgba(0,0,0,.5); }
+  #qWatch .wtitle { text-align: center; font-size: clamp(16px,3vw,26px); font-weight: 700; letter-spacing: .14em; color: #eef4fb; }
+  #qWatch .wtitle span { display: block; font-size: 9px; letter-spacing: .34em; color: #6f8398; margin-top: 3px; }
+  #qWatch .wbtn { position: absolute; width: 26%; height: 26%; border-radius: 50%; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 20px; transition: transform .15s var(--ease), box-shadow .2s; }
+  #qWatch .wbtn:hover { transform: scale(1.08); } #qWatch .wbtn:active { transform: scale(.94); }
+  #qWatch .wbtn.blue { left: 8%; background: radial-gradient(circle at 40% 35%, #4aa8ff, #1560c8); box-shadow: 0 0 26px rgba(60,150,255,.6), inset 0 2px 6px rgba(255,255,255,.3); }
+  #qWatch .wbtn.green { right: 8%; background: radial-gradient(circle at 40% 35%, #2a323c, #10161d); border: 1px solid rgba(70,220,150,.4); box-shadow: 0 0 20px rgba(40,200,130,.3); }
+  #qWatch .wbtn.blue .gi { width: 42%; height: 42%; border: 2.5px solid #eaf3ff; border-radius: 50%; border-right-color: transparent; }
+  #qWatch .wbtn.green .fl { color: #cfe8dc; font-size: 22px; } #qWatch .wbtn.green .garc { position: absolute; inset: 10%; border-radius: 50%; border: 3px solid transparent; border-top-color: #2fd68a; border-right-color: #2fd68a; transform: rotate(30deg); }
+  #qWatch .wbtn.sel { box-shadow: 0 0 0 3px #ffd76a, 0 0 26px rgba(255,215,106,.6); }
+  #qWatch .wwarn { position: absolute; bottom: 12%; text-align: center; }
+  #qWatch .wwarn .tri { color: #ff3b3b; font-size: 22px; filter: drop-shadow(0 0 8px rgba(255,40,40,.6)); display: block; }
+  #qWatch .wwarn b { font-size: 8px; letter-spacing: .28em; color: #ff8a8a; display: block; margin-top: 2px; } #qWatch .wwarn small { font-size: 7px; letter-spacing: .2em; color: #8a8272; }
+  #qWatch .wwheel { position: absolute; left: 50%; top: 50%; width: 0; height: 0; }
+  #qWatch .wchip { position: absolute; transform: translate(-50%,-50%); display: flex; flex-direction: column; align-items: center; gap: 4px; cursor: pointer; opacity: 0; transition: opacity .3s, transform .3s; pointer-events: none; }
+  #qWatch.wheelon .wchip { opacity: 1; pointer-events: auto; }
+  #qWatch .wchip .ic { width: 46px; height: 46px; border-radius: 50%; background: rgba(10,16,22,.9); border: 1.5px solid rgba(120,160,200,.5); display: flex; align-items: center; justify-content: center; font-size: 20px; box-shadow: 0 0 16px rgba(0,0,0,.5); transition: border-color .2s, box-shadow .2s, transform .2s; }
+  #qWatch .wchip:hover .ic, #qWatch .wchip.sel .ic { border-color: #ffd76a; box-shadow: 0 0 22px rgba(255,215,106,.6); transform: scale(1.12); }
+  #qWatch .wchip .nm { font-size: 8px; letter-spacing: .12em; color: #cfe0ee; text-transform: uppercase; white-space: nowrap; }
+  #qWatch .wsel { position: absolute; bottom: -8%; left: 50%; transform: translateX(-50%); font-size: 13px; letter-spacing: .22em; color: #ffd76a; text-transform: uppercase; text-align: center; }
+  #qWatch .whint { position: absolute; bottom: -14%; left: 50%; transform: translateX(-50%); font-size: 10px; letter-spacing: .14em; color: #7f8ea0; white-space: nowrap; } #qWatch .whint b { color: #ffd76a; }
+  #qDeployFx { position: fixed; inset: 0; z-index: 79; pointer-events: none; opacity: 0; }
+  #qDeployFx.on { animation: deployFlash .7s var(--ease); }
+  @keyframes deployFlash { 0% { opacity: 0; } 20% { opacity: 1; background: radial-gradient(circle at 50% 60%, rgba(120,220,255,.35), transparent 60%); } 100% { opacity: 0; } }
 </style>
 
 <div id="stage">
   <canvas id="fx"></canvas>
+  <canvas id="chessbg"></canvas>
 
   <!-- gate (first user gesture, needed for audio) -->
   <div class="screen" id="gate"><div class="gatewrap">
@@ -390,10 +451,31 @@
     <div id="qHack"><div class="box"><div class="k">MULTI-TOOL · BYPASSING LOCK</div><div class="track"><div id="qHackBar"></div></div><div class="hint">HOLD <b>F</b></div></div></div>
     <div id="qAlarmFx"></div>
     <div id="qComingSoon"><div class="cs"><div class="k">MIDNIGHT PROTOCOL</div><div class="m">COMING SOON</div><div class="s">Q DIVISION · END OF PROLOGUE</div></div></div>
+    <!-- Q-LAB tactical watch UI -->
+    <div id="qWatch"><div class="wface">
+      <div class="wpills"><span class="pill"><i class="d"></i> Bluff <b>2</b></span><span class="pill"><i class="x"></i> Lure <b>2</b></span><span class="wdiamond"></span></div>
+      <div class="wgaugeWrap"><div class="wgauge"><div class="wfill" id="wFill"></div></div><div class="wbolt">⚡</div><div class="wg6">6</div><div class="wg0">0</div></div>
+      <div class="wcompass">
+        <div class="wring"></div><div class="wticks"></div>
+        <span class="cl cN">S</span><span class="cl cE">E</span><span class="cl cS">N</span><span class="cl cW">W</span>
+        <span class="cl cd cNE">SE</span><span class="cl cd cSE">SW</span><span class="cl cd cSW">NW</span><span class="cl cd cNW">NE</span>
+        <div class="wcore">
+          <div class="wtitle">Q-LAB<span>QUARTERMASTER</span></div>
+          <button class="wbtn blue" id="wBtnBlue" type="button"><span class="gi"></span></button>
+          <button class="wbtn green" id="wBtnGreen" type="button"><span class="fl">⚗</span><div class="garc"></div></button>
+          <div class="wwarn"><span class="tri">▲</span><b>FIELD CERTIFIED</b><small>200m · 028ft</small></div>
+        </div>
+      </div>
+      <div class="wwheel" id="wWheel"></div>
+      <div class="wsel" id="wSel">SELECT A GADGET</div>
+      <div class="whint">Click the two dials to cycle gadgets · <b>Enter</b> deploy · <b>G</b> close</div>
+    </div></div>
+    <div id="qDeployFx"></div>
   </div>
 
   <div class="bars top"></div><div class="bars bot"></div>
   <div class="vignette"></div><div class="grain"></div>
+  <div id="saveToast"><span class="ic">⟳</span> Autosaved</div>
 </div>
 
 <script>
@@ -461,9 +543,34 @@ const SFX = (function () {
 })();
 window.SFX = SFX;
 
+/* ================= save system (mid-session autosave + continue) ================= */
+const SAVE_KEY = 'mp_save_v1';
+const CP_LABELS = { start: 'MI6 HQ · Reception', staff: 'MI6 HQ · Division Staff', qdiv: 'Q Division · Report to Q', assistant: 'Q Division · Meeting Q', cutscene: 'Q Division · Briefing', upper: 'Upper Floor · Report to Office', complete: 'Prologue Complete' };
+function readSave() { try { return JSON.parse(localStorage.getItem(SAVE_KEY) || 'null'); } catch (e) { return null; } }
+function relTime(t) { const s = Math.max(0, (Date.now() - t) / 1000); if (s < 60) return 'just now'; if (s < 3600) return Math.floor(s / 60) + 'm ago'; if (s < 86400) return Math.floor(s / 3600) + 'h ago'; return Math.floor(s / 86400) + 'd ago'; }
+let _toastT = 0;
+function showSaveToast() { const el = S('saveToast'); if (!el) return; el.classList.add('on'); clearTimeout(_toastT); _toastT = setTimeout(() => el.classList.remove('on'), 1700); }
+window.tutSave = function (cp, extra) { try { localStorage.setItem(SAVE_KEY, JSON.stringify(Object.assign({ ch: 0, mi: 0, checkpoint: cp, t: Date.now() }, extra || {}))); } catch (e) {} window.__lastCP = cp; showSaveToast(); };
+let _hb = 0;
+function startAutosaveHeartbeat() { clearInterval(_hb); _hb = setInterval(() => { if (window.__lastCP) window.tutSave(window.__lastCP, { auto: true }); }, 22000); }
+function stopAutosaveHeartbeat() { clearInterval(_hb); }
+window.stopAutosaveHeartbeat = stopAutosaveHeartbeat;
+function resumeFromSave() {
+  const s = readSave(); if (!s) return;
+  const cp = s.checkpoint;
+  const resume = (cp === 'upper' || cp === 'complete') ? 'upper' : (cp === 'qdiv' || cp === 'assistant' || cp === 'cutscene') ? 'qdiv' : 'start';
+  window.__lastCP = cp; startAutosaveHeartbeat();
+  (async () => { SFX.resume(); SFX.click(); SFX.pad(false); await runLoading('Resuming', 1600); document.querySelectorAll('.screen').forEach(x => x.classList.remove('on')); if (window.chessBG) window.chessBG.stop(); if (window.startTutorial) window.startTutorial(resume); })();
+}
+
 /* ================= screen flow ================= */
 const S = id => document.getElementById(id);
-function show(id) { document.querySelectorAll('.screen').forEach(s => s.classList.remove('on')); if (id) S(id).classList.add('on'); }
+function show(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('on'));
+  if (id) S(id).classList.add('on');
+  if (window.chessBG) { if (id === 'main' || id === 'campaign') window.chessBG.start(); else window.chessBG.stop(); }
+}
+addEventListener('resize', () => { if (window.chessBG) window.chessBG.resize(); });
 function wait(ms) { return new Promise(r => setTimeout(r, ms)); }
 
 const TIPS = [
@@ -529,11 +636,13 @@ const MENU = [
 ];
 function buildMain() {
   const host = S('mitems'); host.innerHTML = '';
-  MENU.forEach((m, i) => {
+  const save = readSave();
+  const items = save ? [{ label: 'Continue', cont: true, sub: (CP_LABELS[save.checkpoint] || 'Prologue') + ' · ' + relTime(save.t), action: resumeFromSave }, ...MENU] : MENU.slice();
+  items.forEach((m, i) => {
     const d = document.createElement('div');
-    d.className = 'mi fade-up' + (m.locked ? ' locked' : '') + (m.gap ? ' gap' : '') + (i === 0 ? ' sel' : '');
+    d.className = 'mi fade-up' + (m.locked ? ' locked' : '') + (m.gap ? ' gap' : '') + (m.cont ? ' cont' : '') + (i === 0 ? ' sel' : '');
     d.style.animationDelay = (i * .06) + 's';
-    d.innerHTML = `<span class="mdot"></span><span class="mlabel">${m.label}</span>`;
+    d.innerHTML = `<span class="mdot"></span><span class="mlabel">${m.label}${m.sub ? `<span class="msub">${m.sub}</span>` : ''}</span>`;
     if (!m.locked) { d.onmouseenter = () => { host.querySelectorAll('.mi').forEach(x => x.classList.remove('sel')); d.classList.add('sel'); SFX.hover(); }; }
     if (m.action) d.onclick = () => { SFX.click(); m.action(); };
     host.appendChild(d);
@@ -576,7 +685,7 @@ function buildMissions() {
 }
 async function launchMission(ch, mi) {
   // Mission 1-1 is the tutorial: boot screen -> controls -> 3D opening scene
-  if (ch === 0 && mi === 0) { await runBoot(); SFX.pad(false); if (window.startTutorial) window.startTutorial(); return; }
+  if (ch === 0 && mi === 0) { window.tutSave('start'); startAutosaveHeartbeat(); await runBoot(); SFX.pad(false); if (window.chessBG) window.chessBG.stop(); if (window.startTutorial) window.startTutorial(); return; }
   await runLoading(`Mission ${ch + 1}-${String(mi + 1).padStart(2, '0')} — ${CH_NAMES[ch]}`, 2600);
   location.href = 'character.html';
 }
@@ -1134,6 +1243,10 @@ const SFX = window.SFX || { resume() {}, elevator() {}, chatter() {}, ding() {},
 /* ===== Q Division dialogue (voice pinned to the commit that has voice/qdiv) ===== */
 const QCDN = 'https://cdn.jsdelivr.net/gh/maksimsysak3-ui/Subnautica-2@1ba9965a99df50f8bcbf3665ef612a722d955ab4/';
 function qVoice(n) { const p = 'voice/qdiv/' + n + '.mp3', urls = [QCDN + p, p]; let i = 0; const a = new Audio(); a.addEventListener('error', () => { i++; if (i < urls.length) { a.src = urls[i]; a.load(); a.play().catch(() => {}); } }); a.src = urls[0]; return a; }
+/* single voice channel so lines never talk over each other */
+let _voice = null;
+function stopVoice() { if (_voice) { try { _voice.pause(); _voice.onended = null; _voice.src = ''; } catch (e) {} _voice = null; } }
+function playLine(el) { stopVoice(); _voice = el; try { el.play().catch(() => {}); } catch (e) {} return el; }
 const QA = "Q'S ASSISTANT", QQ = 'Q', PP = 'AGENT 008', SO = 'SECURITY OFFICER';
 const QLINES = {
   L01: [QA, 'Careful!'], L02: [QA, 'Thanks.'], L03: [QA, "Q's inside. …Try not to argue with him."],
@@ -1161,23 +1274,105 @@ const QSEQ = [
   { vo: 'L04', cam: 'q' }, { vo: 'L05', cam: 'p' }, { vo: 'L06', cam: 'two' },
   { vo: 'L07', cam: 'q', fx: 'closedoor' }, { vo: 'L08', cam: 'q' }, { vo: 'L09', cam: 'p' }, { vo: 'L10', cam: 'q' },
   { vo: 'L11', cam: 'qturn' }, { vo: 'L12', cam: 'p' }, { vo: 'L13', cam: 'q' },
-  { vo: 'L14', cam: 'two', qmove: 'table', fx: 'compartment' },
+  { vo: 'L14', cam: 'follow', qmove: 'table', fx: 'compartment' },
   { vo: 'L15', cam: 'gadget' }, { vo: 'L16', cam: 'q' }, { vo: 'L17', cam: 'p' }, { vo: 'L18', cam: 'q' }, { vo: 'L19', cam: 'p' },
   { vo: 'L20', cam: 'q', prompt: { key: 'KeyE', label: 'Equip the Tactical Watch', fx: 'equipwatch' } },
+  { cam: 'gadget', prompt: { key: 'KeyG', label: 'Open the Tactical Watch — deploy a gadget', watch: true } },
   { vo: 'L21', cam: 'q' },
   { vo: 'L22', cam: 'q', prompt: { key: 'KeyF', label: 'Activate Scanner', fx: 'scanner' } },
   { vo: 'L23', cam: 'wide' },
   { vo: 'L24', cam: 'gadget', fx: 'glasses' }, { vo: 'L25', cam: 'q' }, { vo: 'L26', cam: 'p' },
   { vo: 'L27', cam: 'q', prompt: { key: 'KeyT', label: 'Toggle Thermal Vision', fx: 'thermal' } },
-  { vo: 'L28', cam: 'q', qmove: 'secdoor' }, { vo: 'L29', cam: 'p' }, { vo: 'L30', cam: 'q', fx: 'multitool' },
+  { vo: 'L28', cam: 'follow', qmove: 'secdoor' }, { vo: 'L29', cam: 'p' }, { vo: 'L30', cam: 'q', fx: 'multitool' },
   { vo: 'L31', cam: 'q', prompt: { key: 'KeyF', label: 'Hold to hack the security door', fx: 'hack', hold: 2.6 } },
   { vo: 'L32', cam: 'q', fx: 'unlock' },
   { vo: 'L33', cam: 'officer', fx: 'alarm' }, { vo: 'L34', cam: 'q' }, { vo: 'L35', cam: 'p' },
-  { vo: 'L36', cam: 'q', fx: 'closecase' }, { vo: 'L37', cam: 'q', fx: 'toexit' },
+  { vo: 'L36', cam: 'two', fx: 'closecase' }, { vo: 'L37', cam: 'follow', fx: 'toexit' },
 ];
 
 let T = null;
-window.startTutorial = function () { if (!T) T = initTutorial(); T.begin(); };
+window.startTutorial = function (resume) { if (!T) T = initTutorial(); T.begin(resume); };
+
+/* =====================================================================
+   MAIN-MENU 3D BACKDROP — a faded, cinematically-lit chessboard with
+   turned pieces, slow parallax drift + gold dust. window.chessBG.start()/stop().
+   ===================================================================== */
+window.chessBG = (function () {
+  let ren, scene, cam, root, raf = 0, on = false, built = false, canvas, motes, tstart = 0;
+  function P(pts) { return new THREE.LatheGeometry(pts.map(p => new THREE.Vector2(p[0], p[1])), 26); }
+  const PROF = {
+    pawn: [[0, 0], [0.30, 0], [0.30, 0.05], [0.20, 0.09], [0.14, 0.13], [0.20, 0.17], [0.19, 0.22], [0.11, 0.28], [0.11, 0.33], [0, 0.33]],
+    rook: [[0, 0], [0.34, 0], [0.34, 0.06], [0.20, 0.11], [0.17, 0.44], [0.20, 0.48], [0.27, 0.52], [0.27, 0.6], [0.17, 0.6], [0.17, 0.54], [0, 0.54]],
+    bishop: [[0, 0], [0.33, 0], [0.33, 0.06], [0.19, 0.11], [0.13, 0.40], [0.22, 0.48], [0.20, 0.54], [0.11, 0.66], [0.14, 0.72], [0.07, 0.82], [0, 0.85]],
+    knight: [[0, 0], [0.34, 0], [0.34, 0.06], [0.20, 0.11], [0.17, 0.32], [0.19, 0.38], [0.15, 0.42], [0, 0.42]],
+    queen: [[0, 0], [0.36, 0], [0.36, 0.07], [0.20, 0.12], [0.13, 0.5], [0.17, 0.62], [0.26, 0.7], [0.24, 0.78], [0.12, 0.85], [0, 0.88]],
+    king: [[0, 0], [0.37, 0], [0.37, 0.07], [0.21, 0.12], [0.13, 0.56], [0.17, 0.68], [0.27, 0.78], [0.25, 0.88], [0.12, 0.94], [0, 0.97]],
+  };
+  const GEO = {};
+  const geo = t => GEO[t] || (GEO[t] = P(PROF[t]));
+  function piece(type, body, accent) {
+    const g = new THREE.Group();
+    const m = new THREE.Mesh(geo(type), body); g.add(m);
+    if (type === 'king') { const v = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.24, 0.05), accent); v.position.y = 1.12; g.add(v); const h = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.05, 0.05), accent); h.position.y = 1.11; g.add(h); const b = new THREE.Mesh(new THREE.SphereGeometry(0.07, 12, 10), body); b.position.y = 0.97; g.add(b); }
+    else if (type === 'queen') { const b = new THREE.Mesh(new THREE.SphereGeometry(0.06, 12, 10), accent); b.position.y = 0.9; g.add(b); for (let i = 0; i < 7; i++) { const a = i / 7 * Math.PI * 2; const s = new THREE.Mesh(new THREE.SphereGeometry(0.043, 8, 8), accent); s.position.set(Math.cos(a) * 0.17, 0.84, Math.sin(a) * 0.17); g.add(s); } }
+    else if (type === 'rook') { for (let i = 0; i < 4; i++) { const a = i / 4 * Math.PI * 2 + 0.4; const b = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.11, 0.1), body); b.position.set(Math.cos(a) * 0.2, 0.65, Math.sin(a) * 0.2); g.add(b); } }
+    else if (type === 'bishop') { const b = new THREE.Mesh(new THREE.SphereGeometry(0.05, 10, 8), body); b.position.y = 0.9; g.add(b); }
+    else if (type === 'pawn') { const b = new THREE.Mesh(new THREE.SphereGeometry(0.135, 14, 12), body); b.position.y = 0.41; g.add(b); }
+    else if (type === 'knight') { const hd = new THREE.Group(); hd.position.y = 0.42; const neck = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.34, 0.2), body); neck.rotation.x = -0.3; neck.position.set(0, 0.12, 0.02); hd.add(neck); const sn = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.14, 0.3), body); sn.position.set(0, 0.24, 0.16); sn.rotation.x = 0.35; hd.add(sn); for (const ex of [0.05, -0.05]) { const e = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.11, 0.04), body); e.position.set(ex, 0.36, -0.05); hd.add(e); } g.add(hd); }
+    g.traverse(o => { if (o.isMesh) o.castShadow = true; });
+    return g;
+  }
+  function build() {
+    canvas = document.getElementById('chessbg');
+    ren = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, powerPreference: 'high-performance' });
+    ren.setPixelRatio(Math.min(devicePixelRatio, 1.5)); ren.setSize(innerWidth, innerHeight);
+    ren.shadowMap.enabled = true; ren.shadowMap.type = THREE.PCFSoftShadowMap;
+    ren.toneMapping = THREE.ACESFilmicToneMapping; ren.toneMappingExposure = 1.12; ren.outputColorSpace = THREE.SRGBColorSpace;
+    scene = new THREE.Scene(); scene.fog = new THREE.FogExp2(0x07070b, 0.10);
+    cam = new THREE.PerspectiveCamera(38, innerWidth / innerHeight, 0.1, 60);
+    scene.add(new THREE.HemisphereLight(0x33406a, 0x06060a, 0.55));
+    scene.add(new THREE.AmbientLight(0x223044, 0.4));
+    const key = new THREE.DirectionalLight(0xffcf8a, 2.6); key.position.set(6, 9, 4); key.castShadow = true;
+    key.shadow.mapSize.set(1024, 1024); key.shadow.camera.near = 1; key.shadow.camera.far = 30; key.shadow.camera.left = -8; key.shadow.camera.right = 8; key.shadow.camera.top = 8; key.shadow.camera.bottom = -8; key.shadow.bias = -0.0004;
+    scene.add(key, key.target); key.target.position.set(0, 0.2, 0);
+    const rim = new THREE.PointLight(0x4f7bd6, 22, 26, 2); rim.position.set(-6, 4, -5); scene.add(rim);
+    const warm = new THREE.PointLight(0xffb060, 14, 20, 2); warm.position.set(4.5, 2.2, 5); scene.add(warm);
+    root = new THREE.Group(); root.position.set(1.1, 0, 0); root.rotation.y = -0.5; scene.add(root);
+    const lightM = new THREE.MeshStandardMaterial({ color: 0x6e7280, roughness: 0.3, metalness: 0.65 });
+    const darkM = new THREE.MeshStandardMaterial({ color: 0x101218, roughness: 0.35, metalness: 0.6 });
+    for (let r = 0; r < 8; r++) for (let c = 0; c < 8; c++) { const t = new THREE.Mesh(new THREE.BoxGeometry(1, 0.16, 1), (r + c) % 2 ? lightM : darkM); t.position.set(c - 3.5, 0, r - 3.5); t.receiveShadow = true; root.add(t); }
+    const frameM = new THREE.MeshStandardMaterial({ color: 0x0a0b0f, roughness: 0.5, metalness: 0.45 });
+    const fr = new THREE.Mesh(new THREE.BoxGeometry(9, 0.22, 9), frameM); fr.position.y = -0.05; fr.receiveShadow = true; root.add(fr);
+    const goldEdge = new THREE.Mesh(new THREE.BoxGeometry(8.2, 0.02, 8.2), new THREE.MeshBasicMaterial({ color: 0x8a6a2a })); goldEdge.position.y = 0.09; root.add(goldEdge);
+    const white = new THREE.MeshStandardMaterial({ color: 0xd8d2c4, roughness: 0.35, metalness: 0.25 });
+    const black = new THREE.MeshStandardMaterial({ color: 0x0b0c10, roughness: 0.4, metalness: 0.55 });
+    const gold = new THREE.MeshStandardMaterial({ color: 0xd9b45b, roughness: 0.25, metalness: 0.9, emissive: 0x3a2c0e, emissiveIntensity: 0.5 });
+    const goldDim = new THREE.MeshStandardMaterial({ color: 0x6b5628, roughness: 0.35, metalness: 0.8 });
+    const back = ['rook', 'knight', 'bishop', 'queen', 'king', 'bishop', 'knight', 'rook'];
+    back.forEach((t, c) => { const p = piece(t, white, gold); p.position.set(c - 3.5, 0.08, 3.5); if (t === 'knight') p.rotation.y = Math.PI * (c < 4 ? 0.5 : -0.5); root.add(p); });
+    for (let c = 0; c < 8; c++) { const p = piece('pawn', white, gold); p.position.set(c - 3.5, 0.08, 2.5); root.add(p); }
+    [['king', 4, -3.5], ['queen', 3, -3.5], ['knight', 1, -3.5], ['knight', 6, -3.5], ['rook', 0, -3.5], ['rook', 7, -3.5], ['bishop', 2, -3.5], ['pawn', 3, -2.5], ['pawn', 5, -2.5], ['pawn', 2, -1.5]].forEach(([t, c, r]) => { const p = piece(t, black, goldDim); p.position.set(c - 3.5, 0.08, r); if (t === 'knight') p.rotation.y = Math.PI * (c < 4 ? 0.5 : -0.5); root.add(p); });
+    // gold dust
+    const N = 90, pos = new Float32Array(N * 3); for (let i = 0; i < N; i++) { pos[i * 3] = (Math.random() - 0.5) * 16; pos[i * 3 + 1] = Math.random() * 7; pos[i * 3 + 2] = (Math.random() - 0.5) * 16; }
+    const pg = new THREE.BufferGeometry(); pg.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    motes = new THREE.Points(pg, new THREE.PointsMaterial({ color: 0xe8c87a, size: 0.05, transparent: true, opacity: 0.55, depthWrite: false })); scene.add(motes);
+    built = true;
+  }
+  function loop() {
+    if (!on) return; raf = requestAnimationFrame(loop);
+    const e = (performance.now() - tstart) * 0.001;
+    root.rotation.y = -0.5 + Math.sin(e * 0.06) * 0.16;
+    cam.position.set(2.6 + Math.sin(e * 0.09) * 0.5, 2.5 + Math.sin(e * 0.13) * 0.18, 6.1 + Math.cos(e * 0.07) * 0.4);
+    cam.lookAt(0.4, 0.35, 0);
+    if (motes) { const a = motes.geometry.attributes.position; for (let i = 0; i < a.count; i++) { let y = a.getY(i) + 0.004; if (y > 7) y = 0; a.setY(i, y); } a.needsUpdate = true; motes.rotation.y = e * 0.02; }
+    ren.render(scene, cam);
+  }
+  return {
+    start() { if (!built) { try { build(); } catch (e) { return; } } if (on) return; on = true; tstart = performance.now(); document.getElementById('chessbg').classList.add('on'); loop(); },
+    stop() { on = false; if (raf) cancelAnimationFrame(raf); const c = document.getElementById('chessbg'); if (c) c.classList.remove('on'); },
+    resize() { if (built && cam) { cam.aspect = innerWidth / innerHeight; cam.updateProjectionMatrix(); ren.setSize(innerWidth, innerHeight); } },
+  };
+})();
 
 /* =====================================================================
    COLD-OPEN CINEMATIC — a scripted teaser of the finale: a ticking device,
@@ -1351,6 +1546,10 @@ function initTutorial() {
   let qStep = -1, qStepT = 0, qWaitKey = null, qVoiceEl = null, qLineDone = true, qCamMode = 'q', qHoldT = 0;
   let qDoorClose = false, qCompRise = false, qScanT = 0, qThermal = false, qAlarm = 0, qEnding = 0, qCS = false, qCSt = 0;
   let qDoorOpening = false, qDoorTriggered = false, qAssistDrop = 0, qAssistT = 0;
+  let qWatchEquipped = false, watchOpen = false, watchTried = false, watchSel = 0, wheelBuilt = false, wheelShown = false, watchInit = false;
+  let upperMode = false, upperBuilt = false, upperDone = false, upperLift = 0, liftUp = false, upWalkers = [], upWp = null, upDoorL = null, upDoorR = null;
+  const UPZ0 = 180, UPZ1 = 214;   // upper-floor hallway (a separate area we teleport to)
+  const WGADGETS = [{ nm: 'Poison Dart', ic: '☣' }, { nm: 'EMP Burst', ic: '⚡' }, { nm: 'Smoke Screen', ic: '☁' }, { nm: 'Micro-Tracer', ic: '◎' }, { nm: 'Grapnel Line', ic: '⚓' }, { nm: 'Comms Jammer', ic: '📡' }];
   const pActor = { tgt: null, faceY: 0 };
 
   scene.add(new THREE.HemisphereLight(0xc6d6f7, 0x2e281a, 1.05));
@@ -1604,9 +1803,9 @@ function initTutorial() {
     (function next() {
       if (i >= lines.length) { subtitle.classList.remove('on'); convActive = false; onDone && onDone(); return; }
       const ln = lines[i++]; subtitle.innerHTML = '<b>' + ln.who + '</b><span>' + ln.text + '</span>'; subtitle.classList.add('on');
-      let done = false; const go = () => { if (done) return; done = true; setTimeout(next, 260); };
-      try { const a = makeVoice(ln.vo, ln.quiet); a.play().catch(() => {}); a.onended = go; } catch (e) {}
-      setTimeout(go, 6800);
+      let done = false; const go = () => { if (done) return; done = true; setTimeout(next, 320); };
+      try { const a = playLine(makeVoice(ln.vo, ln.quiet)); a.onended = go; } catch (e) { go(); }
+      setTimeout(go, 9000);
     })();
   }
   function interact() {
@@ -1618,14 +1817,19 @@ function initTutorial() {
     best.done = true; prompt.classList.remove('on');
     if (best.npc && npcByName[best.npc]) npcByName[best.npc].face(rig.position);
     if (best.id === 'reception') {
-      playConvo('reception', () => { phase = 'staff'; setObjective('Speak with the division staff  (0/3)', true); refreshWaypoints(); });
+      playConvo('reception', () => { phase = 'staff'; setObjective('Speak with the division staff  (0/3)', true); refreshWaypoints(); if (window.tutSave) window.tutSave('staff'); });
     } else {
-      playConvo(best.id, () => { staffDone++; if (staffDone >= 3) { phase = 'q'; setObjective('Report to Q Division', true); } else setObjective('Speak with the division staff  (' + staffDone + '/3)', false); refreshWaypoints(); });
+      playConvo(best.id, () => { staffDone++; if (staffDone >= 3) { phase = 'q'; setObjective('Report to Q Division', true); if (window.tutSave) window.tutSave('qdiv'); } else setObjective('Speak with the division staff  (' + staffDone + '/3)', false); refreshWaypoints(); });
     }
     refreshWaypoints();
   }
 
-  function onKey(e, down) { keys[e.code] = down; if (down && e.code === 'KeyE') interact(); }
+  function onKey(e, down) {
+    keys[e.code] = down;
+    if (down && e.code === 'KeyE') interact();
+    if (down && e.code === 'KeyG' && qWatchEquipped) { e.preventDefault(); toggleWatch(); }
+    if (down && watchOpen && (e.code === 'Enter' || e.code === 'Space')) { e.preventDefault(); if (!wheelShown) showWheel(); else deployGadget(); }
+  }
   function onMove(e) { if (document.pointerLockElement !== canvas) return; camYaw -= e.movementX * 0.0024; camPitch += e.movementY * 0.0024; camPitch = Math.max(-0.5, Math.min(0.7, camPitch)); }
   function lock() { if (state === 'free') canvas.requestPointerLock(); }
   addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); });
@@ -1655,6 +1859,8 @@ function initTutorial() {
       if (o >= 1) { state = 'free'; document.getElementById('tutHint').classList.add('on'); if (floorHud) floorHud.classList.remove('on'); setObjective('Report to the Receptionist', true); refreshWaypoints(); SFX.chatter(true); }
     } else if (qMode) {
       updateQScene(dt);
+    } else if (upperMode) {
+      updateUpper(dt);
     } else {
       CAR.position.y = 0;
       const speed = keys.ShiftLeft ? 4.4 : 2.4;
@@ -1718,7 +1924,26 @@ function initTutorial() {
     renderer.render(scene, camera);
   }
   frame();
-  return { begin() { document.getElementById('tutWrap').classList.add('on'); carY = 5.2; state = 'descend'; tState = 0; if (floorHud) floorHud.classList.add('on'); SFX.resume(); SFX.elevator(true); } };
+  return {
+    begin(resume) {
+      document.getElementById('tutWrap').classList.add('on'); SFX.resume();
+      if (resume === 'qdiv') {
+        // resume: skip the elevator + corridor, drop in at the hall's end with staff done
+        state = 'free'; if (floorHud) floorHud.classList.remove('on');
+        for (const it of inter) it.done = true; phase = 'q'; staffDone = 3; agentsDone = true;
+        rig.position.set(0, 0, 74); rig.rotation.y = 0; curYaw = 0; camYaw = 0;
+        lDoor = 1; doorPlayed = true; doorL.position.x = -4.05; doorR.position.x = 4.05;
+        document.getElementById('tutHint').classList.add('on'); setObjective('Report to Q Division', true); refreshWaypoints(); SFX.chatter(true);
+      } else if (resume === 'upper') {
+        // resume: jump straight to the upper floor
+        if (floorHud) floorHud.classList.remove('on');
+        for (const it of inter) it.done = true; phase = 'qscene'; staffDone = 3; agentsDone = true;
+        startUpperFloor(); document.getElementById('tutHint').classList.add('on');
+      } else {
+        carY = 5.2; state = 'descend'; tState = 0; if (floorHud) floorHud.classList.add('on'); SFX.elevator(true);
+      }
+    }
+  };
 
   /* ================= builders ================= */
   /* ============ Q DIVISION (giant lab) ============ */
@@ -1800,7 +2025,12 @@ function initTutorial() {
     box(M.desk, QPOS.table, 0.5, QPOS.tableZ, 2.4, 1.0, 1.4); box(M.deskTop, QPOS.table, 1.05, QPOS.tableZ, 2.6, 0.06, 1.5);
     qCompartment = new THREE.Group(); qCompartment.position.set(QPOS.table, -1.2, QPOS.tableZ); scene.add(qCompartment);
     box(M.metal, 0, 0.4, 0, 2.0, 0.8, 1.0, qCompartment); box(M.trim, 0, 0.82, 0, 2.1, 0.05, 1.1, qCompartment);
-    for (let i = 0; i < 3; i++) box(mat(0x14181f, 0.4, 0.6, 0x1a3a5a, 0.4), -0.6 + i * 0.6, 0.95, 0, 0.5, 0.2, 0.7, qCompartment);   // gadget cases
+    // the actual gadgets displayed on the rising compartment — what Q hands you
+    const gp = (x, mk) => { const s = new THREE.Group(); s.position.set(x, 0.86, 0); qCompartment.add(s); box(M.metal, 0, 0, 0, 0.42, 0.14, 0.5, s); box(M.trim, 0, 0.08, 0, 0.44, 0.02, 0.52, s); mk(s); return s; };
+    gp(-0.62, s => { box(mat(0x14141a, 0.3, 0.7), 0, 0.17, 0, 0.14, 0.06, 0.11, s); box(mat(0x2f9fd8, 0.3, 0.3, 0x2f9fd8, 1.4), 0, 0.205, 0, 0.1, 0.008, 0.075, s); box(mat(0x101014, 0.3), 0.09, 0.13, 0, 0.03, 0.16, 0.03, s); box(mat(0x101014, 0.3), -0.09, 0.13, 0, 0.03, 0.16, 0.03, s); });   // watch on cradle
+    gp(0, s => { box(mat(0x101014, 0.3, 0.5), 0, 0.19, 0, 0.3, 0.06, 0.05, s); box(mat(0x2fd6ff, 0.3, 0.3, 0x2fd6ff, 1.2), 0, 0.19, 0.03, 0.26, 0.03, 0.012, s); box(mat(0x101014, 0.3), 0.14, 0.12, -0.06, 0.03, 0.14, 0.12, s); box(mat(0x101014, 0.3), -0.14, 0.12, -0.06, 0.03, 0.14, 0.12, s); });   // smart glasses
+    gp(0.62, s => { box(mat(0x22262e, 0.4, 0.7), 0, 0.18, 0, 0.12, 0.22, 0.05, s); box(mat(0xff5a3a, 0.4, 0.3, 0xff3010, 1.3), 0, 0.3, 0.03, 0.03, 0.1, 0.03, s); box(mat(0x8a8f98, 0.4, 0.8), 0.07, 0.19, 0, 0.05, 0.14, 0.02, s); });   // multi-tool
+    ptLight(0xbfe0ff, QPOS.table, 2.1, QPOS.tableZ, 1.0, 8);   // display focus light
     // reinforced security door (multitool target)
     qSecDoor = box(mat(0x2a3140, 0.4, 0.8, 0x3a1010, 0.3), QPOS.secX, 2.1, QPOS.secZ, 0.3, 4.0, 3.0); box(M.trim, QPOS.secX + 0.15, 2.1, QPOS.secZ, 0.06, 4.2, 3.2);
     // EXIT elevator (far end)
@@ -1815,6 +2045,21 @@ function initTutorial() {
     for (const [cx, cz] of [[-14, 100], [14, 110], [-14, 130], [14, 140], [0, 96]]) hl(0xff4040, cx, 6.2, cz, 0.22);   // cameras
     // ambient walking staff in the lab
     for (let i = 0; i < 5; i++) { const n = makeNPC({ suit: wsuit[i % 5], hair: whair[(i + 1) % 5], skin: wskin[i % 5], female: i % 2 === 0, scale: 0.94 + (i % 3) * 0.06 }); n.group.position.set((i % 2 ? 3.5 : -3.5), 0, 96 + i * 9); n.walkPath = { min: 90, max: 144, dir: i % 2 ? 1 : -1, speed: 1.0 + (i % 3) * 0.3 }; scene.add(n.group); qLabWalkers.push(n); }
+    // ---- extra lab detail: gadget wall, crates, cabling, monitors, signage, forklift ----
+    (function labDetail() {
+      for (const wz of [100, 106]) { box(mat(0x1a1e26, 0.6, 0.3), xw - 0.3, 3.2, wz, 0.12, 2.6, 3.4); for (let i = 0; i < 10; i++) box(M.metal, xw - 0.42, 2.4 + (i % 5) * 0.5, wz - 1.2 + Math.floor(i / 5) * 2.4, 0.05, 0.3, 0.08); }   // tool pegboards
+      for (const [cx, cz] of [[-20, 98], [20, 104], [-20, 136], [20, 100], [-19, 144]]) { box(mat(0x3a2c18, 0.85), cx, 0.5, cz, 1.4, 1.0, 1.4); box(mat(0x2a2012, 0.85), cx, 1.35, cz + 0.2, 1.1, 0.7, 1.1); box(M.trim, cx, 0.5, cz + 0.71, 1.4, 0.1, 0.02); }   // crates/pallets
+      for (let z = 100; z < 145; z += 11) for (const cx of [-6, 6]) { const c = new THREE.Mesh(new THREE.TorusGeometry(0.5, 0.02, 6, 14, Math.PI), M.metal); c.position.set(cx, QH - 1.0, z); c.rotation.x = Math.PI / 2; c.rotation.z = Math.PI; scene.add(c); }   // hanging cable loops
+      for (const [mx, mz] of [[-xw + 0.35, 92], [xw - 0.35, 92]]) { box(mat(0x0a0e14, 0.4), mx, 3.6, mz, 0.1, 2.2, 3.2); box(scr(0x143a5a), mx + (mx < 0 ? 0.06 : -0.06), 3.6, mz, 0.02, 1.9, 2.9); for (let k = 0; k < 8; k++) box(M.holoLine, mx + (mx < 0 ? 0.08 : -0.08), 2.9 + Math.random() * 1.4, mz - 1.2 + Math.random() * 2.4, 0.01, 0.02 + Math.random() * 0.6, 0.02); }   // wall monitors
+      for (let z = 90; z < 146; z += 2) box(mat(z % 4 < 2 ? 0x3a3a1a : 0x14140a, 0.6), 0, 0.006, z, 0.5, 0.01, 1.0);   // aisle hazard centre line
+      for (const [sx, sz] of [[-xw + 0.32, 112], [xw - 0.32, 126]]) box(mat(0xffb020, 0.5, 0, 0xffb020, 0.5), sx, 2.2, sz, 0.05, 0.7, 0.7);   // caution signs
+      for (const [fx2, fz2] of [[-xw + 0.3, 118], [xw - 0.3, 134]]) box(mat(0xb83a2e, 0.5), fx2, 1.3, fz2, 0.1, 0.7, 0.3);   // fire points
+      const fl = new THREE.Group(); fl.position.set(-19, 0, 138); fl.rotation.y = -Math.PI / 2; scene.add(fl);
+      box(mat(0xd0a020, 0.6, 0.3), 0, 0.6, 0, 1.2, 0.9, 1.8, fl); box(mat(0x14181f, 0.4), 0, 1.3, -0.4, 1.0, 0.9, 0.1, fl);
+      box(M.metal, 0, 0.4, 1.2, 0.1, 2.2, 0.1, fl); box(M.metal, 0.3, 0.4, 1.2, 0.1, 2.2, 0.1, fl); box(M.metal, 0.15, 0.15, 1.5, 0.6, 0.06, 0.5, fl);
+      for (const wxz of [[0.5, 0.7], [-0.5, 0.7], [0.5, -0.6], [-0.5, -0.6]]) { const w = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.34, 0.24, 12), mat(0x0a0a0c, 0.7)); w.rotation.z = Math.PI / 2; w.position.set(wxz[0], 0.34, wxz[1]); fl.add(w); }
+      for (const [px, pz] of [[-xw + 0.7, 95], [xw - 0.7, 118]]) { box(M.metal, px, 0.4, pz, 0.5, 0.8, 0.5); box(mat(0x2f5a34, 0.85), px, 1.1, pz, 0.7, 0.7, 0.7); }   // planters
+    })();
     // Q + assistant actors
     const qMats = { suit: mat(0x2c2e34, 0.5, 0.2), shirt: mat(0xd6d2c6, 0.6), tie: mat(0x3a2a2a, 0.5), skin: mat(0xd8b89a, 0.72), hair: mat(0xdadada, 0.85), shoe: mat(0x14141a, 0.3, 0.4), glasses: mat(0x101014, 0.3, 0.4) };
     qActor = spawnActor(qMats); qActor.rig.position.set(0, 0, QPOS.qBench); qActor.rig.rotation.y = Math.PI; qActor.faceY = Math.PI;   // faces -z (toward the aisle/player)
@@ -1837,6 +2082,32 @@ function initTutorial() {
   /* ---- Q cutscene engine ---- */
   function qEl(id) { return document.getElementById(id); }
   function keyName(code) { return code.replace('Key', ''); }
+  /* ---- tactical watch UI (the Q-LAB quartermaster HUD) ---- */
+  function buildWheel() {
+    const host = qEl('wWheel'); if (!host || wheelBuilt) return; host.innerHTML = '';
+    const R = Math.min(innerWidth, innerHeight) * 0.30;
+    WGADGETS.forEach((gd, i) => {
+      const a = -Math.PI / 2 + i / WGADGETS.length * Math.PI * 2;
+      const chip = document.createElement('div'); chip.className = 'wchip';
+      chip.style.left = (Math.cos(a) * R) + 'px'; chip.style.top = (Math.sin(a) * R) + 'px';
+      chip.innerHTML = '<div class="ic">' + gd.ic + '</div><div class="nm">' + gd.nm + '</div>';
+      chip.onclick = () => { watchSel = i; refreshWheel(); deployGadget(); };
+      host.appendChild(chip);
+    });
+    wheelBuilt = true;
+  }
+  function refreshWheel() { const host = qEl('wWheel'); if (!host) return; Array.from(host.children).forEach((c, i) => c.classList.toggle('sel', i === watchSel)); qEl('wSel').textContent = WGADGETS[watchSel].nm + ' · READY'; }
+  function showWheel() { buildWheel(); wheelShown = true; qEl('qWatch').classList.add('wheelon'); refreshWheel(); SFX.blip(); }
+  function deployGadget() { watchTried = true; qEl('wSel').textContent = WGADGETS[watchSel].nm + ' · ARMED'; const fx = qEl('qDeployFx'); if (fx) { fx.classList.remove('on'); void fx.offsetWidth; fx.classList.add('on'); } SFX.ding(); }
+  function initWatchButtons() {
+    if (watchInit) return; watchInit = true;
+    const bb = qEl('wBtnBlue'), gb = qEl('wBtnGreen');
+    if (bb) bb.onclick = () => { if (!wheelShown) showWheel(); else { watchSel = (watchSel - 1 + WGADGETS.length) % WGADGETS.length; refreshWheel(); SFX.tick(); } };
+    if (gb) gb.onclick = () => { if (!wheelShown) showWheel(); else { watchSel = (watchSel + 1) % WGADGETS.length; refreshWheel(); SFX.tick(); } };
+  }
+  function openWatch() { if (!qWatchEquipped) return; initWatchButtons(); watchOpen = true; document.exitPointerLock && document.exitPointerLock(); const el = qEl('qWatch'); if (el) el.classList.add('on'); const f = qEl('wFill'); if (f) f.style.height = '62%'; SFX.blip(); }
+  function closeWatch() { watchOpen = false; const el = qEl('qWatch'); if (el) { el.classList.remove('on'); el.classList.remove('wheelon'); } wheelShown = false; }
+  function toggleWatch() { if (watchOpen) closeWatch(); else openWatch(); }
   function stepActor(rg, ac, o, dt, spd) {
     if (!o.tgt) { if (ac) { ac.Walk.setEffectiveWeight(THREE.MathUtils.lerp(ac.Walk.getEffectiveWeight(), 0, Math.min(1, dt * 8))); ac.Idle.setEffectiveWeight(THREE.MathUtils.lerp(ac.Idle.getEffectiveWeight(), 1, Math.min(1, dt * 8))); } if (o.faceY != null) { let d = o.faceY - rg.rotation.y; while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI; rg.rotation.y += d * Math.min(1, dt * 6); } return; }
     const dx = o.tgt.x - rg.position.x, dz = o.tgt.z - rg.position.z, d = Math.hypot(dx, dz);
@@ -1847,20 +2118,20 @@ function initTutorial() {
   }
   // the assistant intercepts you at the door (L01-L03), then points you to Q
   function startAssistant() {
-    convActive = true; qAssistDrop = 1; qAssistT = 0; SFX.blip();
+    convActive = true; qAssistDrop = 1; qAssistT = 0; SFX.blip(); if (window.tutSave) window.tutSave('assistant');
     if (qAssistant) qAssistant.face(rig.position);
     const ids = ['L01', 'L02', 'L03']; let i = 0;
     (function nx() {
       if (i >= ids.length) { subtitle.classList.remove('on'); convActive = false; phase = 'qmeet'; setObjective("Walk to Q's workbench", true); qWp.position.set(0, 3.2, QPOS.qBench - 3); qWp.visible = true; return; }
       const id = ids[i++], L = QLINES[id];
       subtitle.innerHTML = '<b>' + L[0] + '</b><span>' + L[1] + '</span>'; subtitle.classList.add('on');
-      let done = false; const go = () => { if (done) return; done = true; setTimeout(nx, 320); };
-      try { const a = qVoice(id); a.play().catch(() => {}); a.onended = go; } catch (e) { go(); }
-      setTimeout(go, 7000);
+      let done = false; const go = () => { if (done) return; done = true; setTimeout(nx, 360); };
+      try { const a = playLine(qVoice(id)); a.onended = go; } catch (e) { go(); }
+      setTimeout(go, 9000);
     })();
   }
   function startQScene() {
-    qMode = true; qStep = -1; qLineDone = true; qStepT = 0; qWaitKey = null;
+    qMode = true; qStep = -1; qLineDone = true; qStepT = 0; qWaitKey = null; if (window.tutSave) window.tutSave('cutscene');
     document.exitPointerLock && document.exitPointerLock();
     qEl('tutHint').classList.remove('on'); prompt.classList.remove('on');
     setObjective('Listen and follow Q', true);
@@ -1873,13 +2144,13 @@ function initTutorial() {
     subtitle.innerHTML = '<b>' + L[0] + '</b><span>' + L[1] + '</span>'; subtitle.classList.add('on');
     qLineDone = false;
     let done = false; const fin = () => { if (done) return; done = true; qLineDone = true; };
-    try { qVoiceEl = qVoice(id); qVoiceEl.play().catch(() => {}); qVoiceEl.onended = fin; } catch (e) { fin(); }
-    setTimeout(fin, 9000);
+    try { qVoiceEl = playLine(qVoice(id)); qVoiceEl.onended = fin; } catch (e) { fin(); }
+    setTimeout(fin, 11000);
   }
   function qFx(fx) {
     if (fx === 'closedoor') { qDoorClose = true; SFX.door(); }
     else if (fx === 'compartment') { qCompRise = true; SFX.door(); }
-    else if (fx === 'equipwatch') { qGadgets.watch.visible = true; byName['LForeArm'].add(qGadgets.watch); qGadgets.watch.position.set(0.12, 0, 0); SFX.blip(); }
+    else if (fx === 'equipwatch') { qGadgets.watch.visible = true; byName['LForeArm'].add(qGadgets.watch); qGadgets.watch.position.set(0.12, 0, 0); qWatchEquipped = true; initWatchButtons(); SFX.blip(); }
     else if (fx === 'scanner') { qScanT = 5.5; qEl('qScan').classList.add('on'); qHighlights.forEach(h => h.visible = true); SFX.blip(); }
     else if (fx === 'glasses') { SFX.blip(); }
     else if (fx === 'thermal') { qThermal = true; qGadgets.glasses.visible = true; byName['Head'].add(qGadgets.glasses); qGadgets.glasses.position.set(0, 0.09, 0.16); qEl('qThermal').classList.add('on'); SFX.blip(); }
@@ -1893,30 +2164,41 @@ function initTutorial() {
   function qAdvance() {
     qStep++; const b = QSEQ[qStep]; if (!b) return;
     qCamMode = b.cam || 'q';
-    if (b.qmove === 'table') qActor.tgt = { x: QPOS.table - 1.5, z: QPOS.tableZ + 1.2, face: 0 };
-    else if (b.qmove === 'secdoor') qActor.tgt = { x: QPOS.secX + 1.6, z: QPOS.secZ, face: -Math.PI / 2 };
+    // Q moves between beats — and the player walks along with him
+    if (b.qmove === 'table') { qActor.tgt = { x: QPOS.table - 1.5, z: QPOS.tableZ + 1.0, face: 0 }; pActor.tgt = { x: QPOS.table + 1.4, z: QPOS.tableZ + 1.7, face: -0.6 }; }
+    else if (b.qmove === 'secdoor') { qActor.tgt = { x: QPOS.secX + 1.7, z: QPOS.secZ, face: -Math.PI / 2 }; pActor.tgt = { x: QPOS.secX + 2.9, z: QPOS.secZ + 1.3, face: -Math.PI * 0.7 }; }
+    else if (b.qmove === 'backbench') { qActor.tgt = { x: 0, z: QPOS.qBench, face: Math.PI }; pActor.tgt = { x: -1.6, z: QPOS.meet + 0.4, face: 0 }; }
     if (b.fx) qFx(b.fx);
     qSay(b.vo);
     qWaitKey = b.prompt || null; qHoldT = 0;
   }
   function qFrameCamera(dt) {
     const qp = qActor.rig.position, pp = rig.position;
-    const qH = new THREE.Vector3(qp.x, 1.62, qp.z), pH = new THREE.Vector3(pp.x, 1.4, pp.z);
-    let look, pos;
+    const qH = new THREE.Vector3(qp.x, 1.55, qp.z), pH = new THREE.Vector3(pp.x, 1.5, pp.z);
+    const mid = qH.clone().lerp(pH, 0.5);
+    const toQ = new THREE.Vector3(qH.x - pH.x, 0, qH.z - pH.z); const d = Math.max(0.5, toQ.length()); toQ.normalize();
+    const side = new THREE.Vector3(-toQ.z, 0, toQ.x);
+    const e = clock.elapsedTime, sway = new THREE.Vector3(Math.sin(e * 0.7) * 0.045, Math.sin(e * 1.13) * 0.03, Math.cos(e * 0.61) * 0.045);
+    let pos, look, fov = 46;
     switch (qCamMode) {
-      case 'q': look = qH; pos = new THREE.Vector3(qp.x + 1.5, 1.72, qp.z - 2.6); break;
-      case 'p': look = pH; pos = new THREE.Vector3(pp.x - 1.5, 1.7, pp.z + 2.6); break;
-      case 'qturn': look = qH; pos = new THREE.Vector3(qp.x - 1.8, 1.8, qp.z - 2.2); break;
-      case 'two': { const m = qH.clone().lerp(pH, 0.5); look = m; pos = new THREE.Vector3(m.x + 3.4, 2.1, m.z - 0.4); break; }
-      case 'gadget': look = new THREE.Vector3(QPOS.table, 1.2, QPOS.tableZ); pos = new THREE.Vector3(QPOS.table - 2.6, 1.9, QPOS.tableZ + 1.8); break;
-      case 'wide': look = new THREE.Vector3(0, 2.2, 116); pos = new THREE.Vector3(7, 4.8, 100); break;
-      case 'officer': look = new THREE.Vector3(0, 1.6, 108); pos = new THREE.Vector3(3.5, 2.4, 99); break;
-      default: look = qH; pos = new THREE.Vector3(qp.x + 1.5, 1.72, qp.z - 2.6);
+      case 'q': pos = pH.clone().addScaledVector(toQ, -0.85).addScaledVector(side, 0.85); pos.y = 1.74; look = qH; fov = 40; break;      // over the player's shoulder onto Q
+      case 'p': pos = qH.clone().addScaledVector(toQ, 0.85).addScaledVector(side, -0.85); pos.y = 1.72; look = pH; fov = 42; break;     // reverse onto the player
+      case 'qturn': pos = qH.clone().addScaledVector(toQ, 1.5).addScaledVector(side, -0.5); pos.y = 1.6; look = qH; fov = 37; break;    // push in on Q, front 3/4
+      case 'two': pos = mid.clone().addScaledVector(side, d * 0.5 + 2.4); pos.y = 1.82; look = mid; fov = 44; break;                    // profile two-shot
+      case 'follow': pos = mid.clone().addScaledVector(toQ, -3.2).addScaledVector(side, 1.5); pos.y = 2.05; look = mid.clone().addScaledVector(toQ, 0.6); fov = 47; break; // trailing dolly while walking
+      case 'gadget': look = new THREE.Vector3(QPOS.table, 1.18, QPOS.tableZ + 0.1); pos = new THREE.Vector3(QPOS.table - 1.9, 1.66, QPOS.tableZ + 1.75); fov = 33; break;
+      case 'wide': look = new THREE.Vector3(0, 2.0, 118); pos = new THREE.Vector3(8.5, 5.4, 100); fov = 54; break;
+      case 'officer': look = new THREE.Vector3(0, 1.6, 108); pos = new THREE.Vector3(4.2, 2.7, 99); fov = 46; break;
+      default: pos = pH.clone().addScaledVector(toQ, -0.85).addScaledVector(side, 0.85); pos.y = 1.74; look = qH;
     }
-    camera.position.lerp(pos, Math.min(1, dt * 2.6)); camera.lookAt(look);
+    pos.add(sway);
+    camera.position.lerp(pos, Math.min(1, dt * 3.0)); camera.lookAt(look);
+    if (Math.abs(camera.fov - fov) > 0.05) { camera.fov += (fov - camera.fov) * Math.min(1, dt * 3); camera.updateProjectionMatrix(); }
   }
   function updateQScene(dt) {
     qActor.mixer.update(dt);
+    // when the player isn't walking to a mark, keep him turned toward Q (attentive)
+    if (!pActor.tgt) { const dx = qActor.rig.position.x - rig.position.x, dz = qActor.rig.position.z - rig.position.z; if (dx * dx + dz * dz > 0.04) pActor.faceY = Math.atan2(dx, dz); }
     stepActor(qActor.rig, qActor.acts, qActor, dt, 1.9);
     stepActor(rig, acts, pActor, dt, 2.2);
     for (const w of qLabWalkers) { const p = w.walkPath; w.group.position.z += p.dir * p.speed * dt; if (w.group.position.z > p.max) p.dir = -1; if (w.group.position.z < p.min) p.dir = 1; w.group.rotation.y = p.dir > 0 ? 0 : Math.PI; w.update(dt, p.speed > 0.01); }
@@ -1933,6 +2215,10 @@ function initTutorial() {
     if (!qLineDone) return;
     if (qWaitKey) {
       prompt.innerHTML = '<b>' + keyName(qWaitKey.key) + '</b>&nbsp; ' + qWaitKey.label; prompt.classList.add('on');
+      if (qWaitKey.watch) {
+        if (watchTried && !watchOpen) { prompt.classList.remove('on'); qWaitKey = null; qStepT = 0; qAdvance(); }
+        return;
+      }
       if (qWaitKey.hold) {
         const hk = qEl('qHack'); hk.classList.add('on');
         if (keys[qWaitKey.key]) qHoldT += dt;
@@ -1949,14 +2235,92 @@ function initTutorial() {
     if (qEnding === 1 && !qActor.tgt && !pActor.tgt) { qEnding = 2; qActor.tgt = { x: 0.7, z: QPOS.exitZ + 0.5, face: Math.PI }; pActor.tgt = { x: -0.7, z: QPOS.exitZ + 0.5, face: Math.PI }; }
     else if (qEnding === 2 && !qActor.tgt && !pActor.tgt) { qEnding = 3; SFX.door(); }
     else if (qEnding === 3) {
+      // doors seal, the car rides up, then we reveal the upper floor
       qExitL.position.x = THREE.MathUtils.lerp(qExitL.position.x, -0.05, Math.min(1, dt * 1.4));
       qExitR.position.x = THREE.MathUtils.lerp(qExitR.position.x, 0.05, Math.min(1, dt * 1.4));
       qCSt += dt;
-      qEl('cineFade').style.opacity = Math.min(1, Math.max(0, qCSt - 1.2) / 1.6);
-      if (qCSt > 3 && !qCS) { qCS = true; qEl('qComingSoon').classList.add('on'); }
+      if (qCSt > 0.6 && !liftUp) { liftUp = true; SFX.elevator(true); }
+      qEl('cineFade').style.opacity = Math.min(1, Math.max(0, qCSt - 1.0) / 1.4);
+      if (qCSt > 3.4) { SFX.elevator(false); SFX.ding(); qEnding = 0; qMode = false; startUpperFloor(); return; }
     }
     // ending camera: hold on the lift
     camera.position.lerp(new THREE.Vector3(0, 2.0, QPOS.exitZ - 5), Math.min(1, dt * 2)); camera.lookAt(0, 1.5, QPOS.exitZ);
+  }
+
+  /* ---- UPPER FLOOR: red-carpet executive hallway -> the Director's office ---- */
+  function buildUpperFloor() {
+    if (upperBuilt) return; upperBuilt = true;
+    const UW = 3.6, UH = 4.6, zc = (UPZ0 + UPZ1) / 2, len = UPZ1 - UPZ0;
+    const carpet = mat(0x5a1414, 0.9), carpetTrim = mat(0x9a3030, 0.7);
+    box(mat(0x1a1a1e, 0.7), 0, -0.05, zc, UW * 2 + 3, 0.1, len);              // sub floor
+    box(carpet, 0, 0.015, zc, UW * 1.5, 0.02, len - 1);                       // red runner
+    box(carpetTrim, -UW * 0.76, 0.02, zc, 0.18, 0.02, len - 1); box(carpetTrim, UW * 0.76, 0.02, zc, 0.18, 0.02, len - 1);
+    box(mat(0x201a16, 0.6), 0, UH - 0.1, zc, UW * 2 + 3, 0.3, len);           // ceiling
+    // window wall (+x) onto a night skyline
+    box(mat(0x14100c, 0.5), UW + 1.5, UH / 2, zc, 0.3, UH, len);
+    for (let z = UPZ0 + 3; z < UPZ1 - 2; z += 4) { box(mat(0x0a1420, 0.2, 0.1, 0x1a2a4a, 0.5), UW + 1.35, 2.3, z, 0.06, 2.6, 3.2); box(M.trim, UW + 1.35, 2.3, z - 1.9, 0.08, 2.8, 0.1); for (let k = 0; k < 6; k++) { const cc = [0xffd070, 0x88b0ff, 0xffffff][k % 3]; box(mat(cc, 0.3, 0, cc, 0.9), UW + 1.28, 1.4 + Math.random() * 1.7, z - 1.4 + Math.random() * 2.8, 0.02, 0.06, 0.06); } }
+    // office-door wall (-x)
+    box(mat(0x2a2018, 0.6), -UW - 1.5, UH / 2, zc, 0.3, UH, len);
+    for (let z = UPZ0 + 4; z < UPZ1 - 4; z += 6) { box(M.trim, -UW - 1.35, 2.0, z, 0.1, 3.6, 1.7); box(mat(0x3a2a1a, 0.5), -UW - 1.3, 2.0, z, 0.06, 3.4, 1.5); box(mat(0xd9b45b, 0.4, 0.7), -UW - 1.27, 2.0, z + 0.72, 0.05, 0.3, 0.05); box(mat(0x14202e, 0.4, 0.5, 0x1a3a5a, 0.3), -UW - 1.28, 3.9, z, 0.04, 0.4, 0.5); }   // doors + number plates
+    for (let z = UPZ0 + 7; z < UPZ1 - 5; z += 12) { box(M.trim, -UW - 1.28, 2.9, z + 3, 0.05, 1.0, 0.8); box(mat(0x14202e, 0.4), -UW - 1.26, 2.9, z + 3, 0.03, 0.8, 0.6); }   // framed portraits
+    // wainscot, crown molding, sconces, chandeliers
+    for (const sx of [-UW - 1.32, UW + 1.32]) { box(M.trim, sx, 1.0, zc, 0.06, 0.1, len); box(M.trim, sx, UH - 0.6, zc, 0.06, 0.1, len); }
+    for (let z = UPZ0 + 3; z < UPZ1; z += 5) { box(M.glow, 0, UH - 0.2, z, 2.6, 0.05, 1.4); ptLight(0xffe0b4, 0, UH - 0.5, z, 1.7, 22); }
+    for (let z = UPZ0 + 4; z < UPZ1; z += 8) for (const sx of [-UW - 1.15, UW + 1.15]) box(mat(0xffcf8a, 0.4, 0, 0xffcf8a, 0.95), sx, 3.0, z, 0.08, 0.4, 0.2);
+    const runnerCarpet = mat(0x2a1a14, 0.85); for (let z = UPZ0 + 2; z < UPZ1; z += 1.4) box(runnerCarpet, 0, 0.03, z, UW * 1.5, 0.006, 0.08);   // carpet ribbing
+    // THE OFFICE at the far end
+    box(mat(0x1a1512, 0.5), 0, UH / 2, UPZ1, UW * 2 + 3, UH, 0.4);
+    box(mat(0x2a1c14, 0.5), 0, 2.1, UPZ1 - 0.25, 3.4, 4.1, 0.2);
+    upDoorL = box(mat(0x241812, 0.4, 0.3), -0.78, 2.1, UPZ1 - 0.34, 1.5, 3.8, 0.14); upDoorR = box(mat(0x241812, 0.4, 0.3), 0.78, 2.1, UPZ1 - 0.34, 1.5, 3.8, 0.14);
+    box(mat(0xd9b45b, 0.3, 0.85), -0.12, 2.0, UPZ1 - 0.42, 0.05, 0.4, 0.05); box(mat(0xd9b45b, 0.3, 0.85), 0.12, 2.0, UPZ1 - 0.42, 0.05, 0.4, 0.05);
+    box(mat(0x0e0e12, 0.4), 0, 4.35, UPZ1 - 0.3, 1.8, 0.5, 0.06); box(mat(0xd9b45b, 0.3, 0.6, 0xd9b45b, 0.7), 0, 4.35, UPZ1 - 0.27, 1.5, 0.28, 0.04);   // DIRECTOR plaque
+    ptLight(0xffd9a0, 0, 3.4, UPZ1 - 2.2, 1.7, 15);
+    // staff walking the hall
+    const rost = [{ female: true, suit: 0x2a2436, skirt: 0x1e1a2a, shirt: 0xe6dfd0, skin: 0xe6b892, hair: 0x2a1c12 }, { suit: 0x1a1e28, tie: 0x6a2a2a, skin: 0xcf9e78, hair: 0x1a1512 }, { suit: 0x24201a, tie: 0x3a4a2a, skin: 0x8a5a38, hair: 0x120e0a, bald: true }, { female: true, suit: 0x2e2a24, skirt: 0x201c16, shirt: 0xd7c9b4, skin: 0xb07a4a, hair: 0x0f0b08 }];
+    rost.forEach((cfg, i) => { const n = makeNPC(Object.assign({ scale: 0.95 + (i % 2) * 0.08 }, cfg)); n.group.position.set((i % 2 ? 1 : -1) * 1.7, 0, UPZ0 + 5 + i * 6); n.walkPath = { min: UPZ0 + 2, max: UPZ1 - 2.6, dir: i % 2 ? 1 : -1, speed: 0.8 + (i % 3) * 0.3 }; scene.add(n.group); upWalkers.push(n); });
+    upWp = waypoint(0, 3.0, UPZ1 - 1.6); upWp.visible = false;
+  }
+  function startUpperFloor() {
+    buildUpperFloor();
+    qMode = false; upperMode = true; upperDone = false; upperLift = 0; qCS = false;
+    rig.position.set(0, 0, UPZ0 + 2.5); rig.rotation.y = 0; curYaw = 0; camYaw = 0; camPitch = 0.18;
+    state = 'free';
+    subtitle.classList.remove('on'); prompt.classList.remove('on'); qEl('qComingSoon').classList.remove('on');
+    document.getElementById('tutHint').classList.add('on');
+    setObjective('Report to the office', true); if (upWp) upWp.visible = true;
+    SFX.chatter(true); if (window.tutSave) window.tutSave('upper');
+    const fade = qEl('cineFade'); if (fade) { fade.style.transition = 'opacity 1.1s'; fade.style.opacity = 0; }
+  }
+  function updateUpper(dt) {
+    const speed = keys.ShiftLeft ? 4.4 : 2.4;
+    const fwd = new THREE.Vector3(Math.sin(camYaw), 0, Math.cos(camYaw)), right = new THREE.Vector3(Math.cos(camYaw), 0, -Math.sin(camYaw));
+    const mx = (keys.KeyA ? 1 : 0) - (keys.KeyD ? 1 : 0), mz = (keys.KeyW ? 1 : 0) - (keys.KeyS ? 1 : 0);
+    const mv = new THREE.Vector3().addScaledVector(fwd, mz).addScaledVector(right, mx);
+    const moving = mv.lengthSq() > 1e-6 && !upperDone && !watchOpen;
+    if (moving) { mv.normalize(); const yaw = Math.atan2(mv.x, mv.z); let d = yaw - curYaw; while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI; curYaw += d * Math.min(1, dt * 12); rig.position.addScaledVector(mv, speed * dt); }
+    rig.rotation.y = curYaw;
+    rig.position.x = Math.max(-3.3, Math.min(3.3, rig.position.x));
+    rig.position.z = Math.max(UPZ0 + 1, Math.min(UPZ1 - 1.8, rig.position.z));
+    const running = keys.ShiftLeft && moving;
+    acts.Idle.setEffectiveWeight(THREE.MathUtils.lerp(acts.Idle.getEffectiveWeight(), moving ? 0 : 1, Math.min(1, dt * 10)));
+    acts.Walk.setEffectiveWeight(THREE.MathUtils.lerp(acts.Walk.getEffectiveWeight(), (moving && !running) ? 1 : 0, Math.min(1, dt * 10)));
+    acts.Run.setEffectiveWeight(THREE.MathUtils.lerp(acts.Run.getEffectiveWeight(), running ? 1 : 0, Math.min(1, dt * 10)));
+    groundPlayer();
+    if (moving) { stepT += dt * (running ? 8.2 : 5.6); if (stepT >= Math.PI) { stepT -= Math.PI; SFX.step(); } bob = Math.abs(Math.sin(stepT)) * (running ? 0.09 : 0.05); } else { stepT = 0; bob += (0 - bob) * Math.min(1, dt * 8); }
+    for (const w of upWalkers) { const p = w.walkPath; w.group.position.z += p.dir * p.speed * dt; if (w.group.position.z > p.max) p.dir = -1; if (w.group.position.z < p.min) p.dir = 1; w.group.rotation.y = p.dir > 0 ? 0 : Math.PI; w.update(dt, true); }
+    if (upWp && upWp.visible) { upWp.rotation.y += dt * 1.5; upWp.position.y += Math.sin(clock.elapsedTime * 2) * 0.004; }
+    if (!upperDone && rig.position.z > UPZ1 - 3.2) { prompt.innerHTML = '<b>›</b>&nbsp; Enter the Director\'s office'; prompt.classList.add('on'); } else if (!upperDone) prompt.classList.remove('on');
+    if (!upperDone && rig.position.z > UPZ1 - 2.4) { upperDone = true; if (upWp) upWp.visible = false; prompt.classList.remove('on'); SFX.door(); if (window.tutSave) window.tutSave('complete'); }
+    if (upperDone) {
+      upDoorL.position.x = THREE.MathUtils.lerp(upDoorL.position.x, -2.2, Math.min(1, dt * 1.1));
+      upDoorR.position.x = THREE.MathUtils.lerp(upDoorR.position.x, 2.2, Math.min(1, dt * 1.1));
+      upperLift += dt;
+      qEl('cineFade').style.transition = 'none'; qEl('cineFade').style.opacity = Math.min(1, Math.max(0, upperLift - 1.4) / 1.6);
+      if (upperLift > 3.4 && !qCS) { qCS = true; qEl('qComingSoon').classList.add('on'); }
+    }
+    const px = rig.position.x, pz = rig.position.z, py = 1.35, dist = 4.0;
+    camera.position.set(px - Math.sin(camYaw) * dist * Math.cos(camPitch), Math.max(0.7, py + Math.sin(camPitch) * 2.4 + 0.4 + bob), pz - Math.cos(camYaw) * dist * Math.cos(camPitch));
+    camera.lookAt(px, py + bob * 0.5, pz);
   }
 
   function buildSecretary(x, y, z) {
