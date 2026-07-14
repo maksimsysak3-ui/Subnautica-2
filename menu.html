@@ -45,11 +45,11 @@
   /* ---- title ---- */
   #title .wrap { text-align: center; position: relative; }
   .kicker { font-size: 12px; letter-spacing: .7em; color: var(--gold); text-transform: uppercase; margin-bottom: 22px; opacity: .85; }
-  .logo { font-size: clamp(42px, 11vw, 150px); line-height: .92; font-weight: 800; letter-spacing: .02em; text-transform: uppercase;
-    background: linear-gradient(178deg, #fff8e6 2%, var(--gold-hi) 30%, var(--gold) 55%, var(--gold-deep) 88%);
+  .logo { font-family: "Times New Roman", Georgia, serif; font-size: clamp(40px, 9.5vw, 130px); line-height: .96; font-weight: 400; letter-spacing: .16em; text-transform: uppercase;
+    background: linear-gradient(178deg, #fff8e6 2%, var(--gold-hi) 32%, var(--gold) 56%, var(--gold-deep) 90%);
     -webkit-background-clip: text; background-clip: text; color: transparent;
-    filter: drop-shadow(0 6px 40px rgba(217,180,91,.28)); }
-  .logo .two { display: block; font-size: .5em; letter-spacing: .5em; color: #cbb06a; -webkit-text-fill-color: initial; filter: none; margin-top: .1em; }
+    filter: drop-shadow(0 6px 44px rgba(217,180,91,.3)); }
+  .logo .two { display: block; font-size: .46em; letter-spacing: .62em; font-weight: 700; color: #d3b972; -webkit-text-fill-color: initial; filter: none; margin-top: .12em; }
   .rule { width: min(560px, 70vw); height: 1px; margin: 30px auto 0; background: linear-gradient(90deg, transparent, var(--gold-line), transparent); }
   .press { margin-top: 42px; font-size: 12px; letter-spacing: .42em; text-transform: uppercase; color: #b9b19c; animation: blink 2.2s var(--ease) infinite; }
   @keyframes blink { 0%,100%{opacity:.25} 50%{opacity:1} }
@@ -64,29 +64,30 @@
   .ltip { margin-top: 26px; font-size: 12px; letter-spacing: .12em; color: #8b846f; line-height: 1.7; max-width: 640px; }
   .ltip b { color: var(--gold); font-weight: 600; }
 
-  /* ---- main menu ---- */
+  /* ---- main menu (cinematic, 007 First Light style) ---- */
   #main { justify-content: flex-start; align-items: center; }
-  .menuwrap { margin-left: clamp(40px, 8vw, 150px); }
-  .brandline { font-size: 12px; letter-spacing: .5em; text-transform: uppercase; color: var(--gold); margin-bottom: 6px; }
-  .brandbig { font-size: clamp(28px, 4.4vw, 56px); font-weight: 800; letter-spacing: .04em; text-transform: uppercase; color: #efe8d4; margin-bottom: 34px;
-    text-shadow: 0 2px 30px rgba(0,0,0,.6); }
-  .mitems { display: flex; flex-direction: column; gap: 12px; }
-  .mitem { position: relative; width: min(380px, 60vw); height: 58px; display: flex; align-items: center; padding: 0 30px;
-    background: linear-gradient(100deg, rgba(20,18,12,.9), rgba(10,9,7,.55));
-    clip-path: polygon(5% 0, 100% 0, 95% 100%, 0% 100%);
-    border-left: 2px solid rgba(184,147,74,.35); cursor: pointer; overflow: hidden;
-    transition: transform .3s var(--ease), background .3s; }
-  .mitem::after { content: ""; position: absolute; left: -60%; top: 0; width: 40%; height: 100%; transform: skewX(-18deg);
-    background: linear-gradient(90deg, transparent, rgba(247,231,173,.14), transparent); transition: left .5s var(--ease); }
-  .mitem .lbl { font-size: 15px; letter-spacing: .28em; text-transform: uppercase; color: #d8cfb6; font-weight: 600; z-index: 1; }
-  .mitem .idx { margin-left: auto; font-size: 11px; letter-spacing: .2em; color: #6f6851; z-index: 1; }
-  .mitem.empty { opacity: .5; }
-  .mitem.empty .lbl { color: #4a4535; }
-  .mitem:hover { transform: translateX(14px); background: linear-gradient(100deg, rgba(40,33,17,.95), rgba(15,12,8,.6)); border-left-color: var(--gold); }
-  .mitem:hover::after { left: 120%; }
-  .mitem.primary { border-left-color: var(--gold); box-shadow: -14px 0 40px -20px rgba(217,180,91,.7); }
-  .mitem.primary .lbl { color: var(--gold-hi); }
-  .footcred { position: fixed; bottom: calc(7vh + 16px); right: 26px; z-index: 12; font-size: 10px; letter-spacing: .28em; color: #55503f; text-transform: uppercase; }
+  .topbrand { position: fixed; top: 6.5vh; left: 0; right: 0; text-align: center; z-index: 12; }
+  .topbrand .pre { display: block; font-size: 10px; letter-spacing: .52em; color: #8a7f5f; text-transform: uppercase; margin-bottom: 12px; }
+  .topbrand .game { font-family: "Times New Roman", Georgia, serif; font-size: clamp(24px, 4vw, 48px); font-weight: 400; letter-spacing: .4em; text-transform: uppercase;
+    background: linear-gradient(180deg, #fbf1cf, var(--gold) 58%, var(--gold-deep)); -webkit-background-clip: text; background-clip: text; color: transparent;
+    filter: drop-shadow(0 2px 22px rgba(217,180,91,.32)); }
+  .topbrand .game i { font-style: normal; font-weight: 700; }
+  .mainmenu { position: fixed; left: clamp(38px, 7vw, 120px); top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; gap: 4px; z-index: 12; }
+  .mi { position: relative; display: flex; align-items: center; gap: 16px; padding: 9px 4px; cursor: pointer; opacity: .6;
+    transition: opacity .25s var(--ease), transform .25s var(--ease); }
+  .mi .mdot { width: 8px; height: 8px; background: var(--gold); transform: rotate(45deg) scale(0); transition: transform .25s var(--ease); box-shadow: 0 0 12px rgba(217,180,91,.9); }
+  .mi .mlabel { font-size: clamp(15px, 1.6vw, 20px); letter-spacing: .16em; text-transform: uppercase; color: #e7dfca; font-weight: 500; text-shadow: 0 2px 18px rgba(0,0,0,.7); }
+  .mi.sel, .mi:hover { opacity: 1; transform: translateX(7px); }
+  .mi.sel .mdot, .mi:hover .mdot { transform: rotate(45deg) scale(1); }
+  .mi.sel .mlabel, .mi:hover .mlabel { color: #fff6df; }
+  .mi.gap { margin-top: 20px; }
+  .mi.locked { opacity: .3; cursor: default; }
+  .mi.locked:hover { transform: none; opacity: .36; }
+  .mi.locked:hover .mdot { transform: rotate(45deg) scale(0); }
+  .onlinetag { position: fixed; left: 26px; bottom: calc(7vh + 16px); z-index: 12; font-size: 10px; letter-spacing: .24em; color: #8a8272; text-transform: uppercase; display: flex; align-items: center; gap: 8px; }
+  .onlinetag .dot { width: 8px; height: 8px; border-radius: 50%; background: #4fd48a; box-shadow: 0 0 10px #4fd48a; }
+  .onlinetag b { color: #cfc7b2; font-weight: 600; }
+  .footcred { position: fixed; bottom: calc(7vh + 16px); right: 26px; z-index: 12; font-size: 10px; letter-spacing: .28em; color: #6a6450; text-transform: uppercase; }
 
   /* ---- campaign frame ---- */
   #campaign { z-index: 11; flex-direction: column; justify-content: flex-start; padding: calc(7vh + 40px) clamp(28px, 6vw, 90px) 9vh; align-items: stretch; }
@@ -243,11 +244,9 @@
 
   <!-- main menu -->
   <div class="screen" id="main">
-    <div class="menuwrap">
-      <div class="brandline">Midnight Protocol</div>
-      <div class="brandbig">Main Menu</div>
-      <div class="mitems" id="mitems"></div>
-    </div>
+    <div class="topbrand"><span class="pre">Phantom Atelier</span><span class="game">Midnight <i>Protocol</i></span></div>
+    <nav class="mainmenu" id="mitems"></nav>
+    <div class="onlinetag"><span class="dot"></span> Agent 008 · <b>Online</b></div>
     <div class="footcred">Build 0.1 · Vertical Slice</div>
   </div>
 
@@ -308,22 +307,39 @@
 </div>
 
 <script>
-/* ================= cinematic ember background ================= */
+/* ================= cinematic background (warm-lit perspective board + dust) ================= */
 const cv = document.getElementById('fx'), cx = cv.getContext('2d');
-let W, H, embers = [];
+let W, H;
 function resize() { W = cv.width = innerWidth; H = cv.height = innerHeight; }
 addEventListener('resize', resize); resize();
-for (let i = 0; i < 70; i++) embers.push({ x: Math.random() * W, y: Math.random() * H, r: Math.random() * 1.8 + .3, s: Math.random() * .3 + .05, a: Math.random() * .5 + .1, d: Math.random() * Math.PI });
+const motes = []; for (let i = 0; i < 46; i++) motes.push({ x: Math.random(), y: Math.random(), r: Math.random() * 1.6 + .3, s: Math.random() * .12 + .03, a: Math.random() * .35 + .06, d: Math.random() * 6.28 });
 function drawFx(t) {
   cx.clearRect(0, 0, W, H);
-  const g = cx.createRadialGradient(W * .5, H * .62, 0, W * .5, H * .62, Math.max(W, H) * .75);
-  g.addColorStop(0, '#0d0c10'); g.addColorStop(.6, '#08070a'); g.addColorStop(1, '#020203');
+  let g = cx.createRadialGradient(W * .64, H * .4, 0, W * .64, H * .4, Math.max(W, H) * .92);
+  g.addColorStop(0, '#15120d'); g.addColorStop(.45, '#0a0908'); g.addColorStop(1, '#010101');
   cx.fillStyle = g; cx.fillRect(0, 0, W, H);
-  for (const e of embers) {
-    e.y -= e.s; e.x += Math.sin(t * .0005 + e.d) * .25;
-    if (e.y < -10) { e.y = H + 10; e.x = Math.random() * W; }
-    cx.beginPath(); cx.arc(e.x, e.y, e.r, 0, 7);
-    cx.fillStyle = `rgba(217,180,91,${e.a})`; cx.shadowColor = 'rgba(217,180,91,.8)'; cx.shadowBlur = 8; cx.fill();
+  const lx = W * (0.72 + Math.sin(t * .0002) * 0.03), ly = H * 0.4;      // slow warm key light
+  let g2 = cx.createRadialGradient(lx, ly, 0, lx, ly, Math.max(W, H) * .5);
+  g2.addColorStop(0, 'rgba(220,168,86,0.17)'); g2.addColorStop(1, 'rgba(220,168,86,0)');
+  cx.fillStyle = g2; cx.fillRect(0, 0, W, H);
+  // faint perspective checkerboard receding to a horizon (chess homage)
+  const horizon = H * 0.54, vp = W * 0.5, cols = 16;
+  for (let row = 0; row < 13; row++) {
+    const t0 = row / 13, t1 = (row + 1) / 13;
+    const y0 = horizon + Math.pow(t0, 1.9) * (H - horizon), y1 = horizon + Math.pow(t1, 1.9) * (H - horizon);
+    const s0 = 1 + t0 * 7, s1 = 1 + t1 * 7;
+    for (let col = 0; col < cols; col++) {
+      if ((row + col) % 2) continue;
+      const x0a = vp + (col - cols / 2) / cols * W * s0, x0b = vp + (col + 1 - cols / 2) / cols * W * s0;
+      const x1a = vp + (col - cols / 2) / cols * W * s1, x1b = vp + (col + 1 - cols / 2) / cols * W * s1;
+      cx.fillStyle = `rgba(70,62,48,${0.06 * t0})`;
+      cx.beginPath(); cx.moveTo(x0a, y0); cx.lineTo(x0b, y0); cx.lineTo(x1b, y1); cx.lineTo(x1a, y1); cx.closePath(); cx.fill();
+    }
+  }
+  for (const m of motes) {
+    m.y -= m.s * 0.002; if (m.y < 0) m.y = 1;
+    cx.beginPath(); cx.arc(m.x * W + Math.sin(t * .0004 + m.d) * 8, m.y * H, m.r, 0, 7);
+    cx.fillStyle = `rgba(220,190,120,${m.a})`; cx.shadowColor = 'rgba(217,180,91,.6)'; cx.shadowBlur = 6; cx.fill();
   }
   cx.shadowBlur = 0;
   requestAnimationFrame(drawFx);
@@ -377,17 +393,21 @@ S('title').addEventListener('click', begin);
 
 /* ================= main menu ================= */
 const MENU = [
-  { label: 'Campaign', primary: true, action: openCampaign },
-  { label: '', empty: true }, { label: '', empty: true },
-  { label: '', empty: true }, { label: '', empty: true },
+  { label: 'Campaign', action: openCampaign },
+  { label: 'Tactical Simulations', locked: true },
+  { label: 'Customisation', locked: true, gap: true },
+  { label: 'Challenges', locked: true },
+  { label: 'Options', locked: true, gap: true },
+  { label: 'Quit Game', locked: true },
 ];
 function buildMain() {
   const host = S('mitems'); host.innerHTML = '';
   MENU.forEach((m, i) => {
     const d = document.createElement('div');
-    d.className = 'mitem fade-up' + (m.primary ? ' primary' : '') + (m.empty ? ' empty' : '');
-    d.style.animationDelay = (i * .07) + 's';
-    d.innerHTML = `<span class="lbl">${m.label || ''}</span><span class="idx">${m.empty ? '' : '0' + (i + 1)}</span>`;
+    d.className = 'mi fade-up' + (m.locked ? ' locked' : '') + (m.gap ? ' gap' : '') + (i === 0 ? ' sel' : '');
+    d.style.animationDelay = (i * .06) + 's';
+    d.innerHTML = `<span class="mdot"></span><span class="mlabel">${m.label}</span>`;
+    if (!m.locked) { d.onmouseenter = () => { host.querySelectorAll('.mi').forEach(x => x.classList.remove('sel')); d.classList.add('sel'); }; }
     if (m.action) d.onclick = m.action;
     host.appendChild(d);
   });
@@ -991,7 +1011,7 @@ function initTutorial() {
   renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
   renderer.setSize(innerWidth, innerHeight);
   renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-  renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.25;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.38;
   renderer.outputColorSpace = THREE.SRGBColorSpace;
 
   const scene = new THREE.Scene();
@@ -999,13 +1019,14 @@ function initTutorial() {
   scene.fog = new THREE.FogExp2(0x0a0f1a, 0.008);
   const camera = new THREE.PerspectiveCamera(50, innerWidth / innerHeight, 0.05, 300);
 
-  scene.add(new THREE.HemisphereLight(0xbcd0f5, 0x2a2418, 0.85));
-  scene.add(new THREE.AmbientLight(0xffffff, 0.42));
-  const key = new THREE.DirectionalLight(0xfff0d8, 1.7); key.position.set(-8, 18, 6);
+  scene.add(new THREE.HemisphereLight(0xc6d6f7, 0x2e281a, 1.05));
+  scene.add(new THREE.AmbientLight(0xffffff, 0.58));
+  const key = new THREE.DirectionalLight(0xfff0d8, 2.0); key.position.set(-8, 18, 6);
   key.castShadow = true; key.shadow.mapSize.set(2048, 2048);
   key.shadow.camera.near = 1; key.shadow.camera.far = 100;
   key.shadow.camera.left = -30; key.shadow.camera.right = 30; key.shadow.camera.top = 44; key.shadow.camera.bottom = -6;
   key.shadow.bias = -0.0002; scene.add(key);
+  const fill = new THREE.DirectionalLight(0x9fb6e0, 0.7); fill.position.set(10, 10, -8); scene.add(fill);   // cool back-fill
   const holoCol = 0x49b7ff;
 
   const mat = (c, r, m, e, ei) => new THREE.MeshStandardMaterial({ color: c, roughness: r == null ? 0.6 : r, metalness: m == null ? 0.2 : m, emissive: e || 0x000000, emissiveIntensity: ei || 0 });
@@ -1029,7 +1050,7 @@ function initTutorial() {
   // corridor side walls (with window/door openings cut by the offices)
   box(M.trim, -XW - 0.02, CEIL - 1.3, 36, 0.06, 0.12, 80);
   box(M.trim, XW + 0.02, CEIL - 1.3, 36, 0.06, 0.12, 80);
-  for (let z = 2; z < 76; z += 6) { box(M.glow, 0, CEIL - 0.16, z, 3.0, 0.05, 2.0); ptLight(0xffe9c8, 0, CEIL - 0.5, z, 1.1, 18); }
+  for (let z = 2; z < 82; z += 6) { box(M.glow, 0, CEIL - 0.16, z, 3.0, 0.05, 2.0); ptLight(0xffe9c8, 0, CEIL - 0.5, z, 1.7, 20); }
   for (const sx of [-4.5, 4.5]) box(M.trim, sx, 0.006, 40, 0.05, 0.02, 76);
 
   /* ---- reception (z 0..22, wider) ---- */
@@ -1107,7 +1128,7 @@ function initTutorial() {
     deskUnit(-10.6, zc - 2.2, Math.PI / 2, 0x123a5a); deskUnit(-10.6, zc + 2.2, Math.PI / 2, 0x1a3a2a);
     chair(-9.7, zc - 2.2, -Math.PI / 2); chair(-9.7, zc + 2.2, -Math.PI / 2);
   });
-  const analyst = makeNPC({ suit: 0x2b3a5c, shirt: 0xeef0f4, hair: 0x3a2a1a, skin: 0xe8c0a0, glasses: true });
+  const analyst = makeNPC({ female: true, suit: 0x2b3a5c, shirt: 0xeef0f4, skirt: 0x22304a, hair: 0x3a2416, skin: 0xe8c0a0, glasses: true, scale: 0.96 });
   analyst.group.position.set(-8.4, 0, 32); analyst.group.rotation.y = Math.PI / 2; scene.add(analyst.group);
 
   const engRoom = office(1, 44, 0xffa64d, ({ outer, side, zc }) => {   // Engineering
@@ -1117,7 +1138,7 @@ function initTutorial() {
     for (let i = 0; i < 6; i++) box(M.trim, outer - side * 0.34, 0.9 + (i % 3) * 0.7, zc - 4 + (i % 2) * 0.4, 0.02, 0.5, 0.06);
     ptLight(0xffcaa0, outer - side * 1.5, 3.2, zc, 1.5, 14);
   });
-  const engineer = makeNPC({ suit: 0xa6692a, hair: 0x241a12, skin: 0xcf9e78, coverall: true });
+  const engineer = makeNPC({ suit: 0xa6692a, hair: 0x241a12, skin: 0xcf9e78, coverall: true, scale: 1.06, build: 1.12 });
   engineer.group.position.set(8.4, 0, 46); engineer.group.rotation.y = -Math.PI / 2; scene.add(engineer.group);
   const drone = new THREE.Group(); box(M.metal, 0, 0, 0, 0.34, 0.1, 0.34, drone);
   for (const [ax, az] of [[0.22, 0.22], [-0.22, 0.22], [0.22, -0.22], [-0.22, -0.22]]) { box(M.metal, ax, 0.02, az, 0.16, 0.04, 0.16, drone); box(M.red, ax, 0.06, az, 0.18, 0.02, 0.18, drone); }
@@ -1131,7 +1152,7 @@ function initTutorial() {
     ptLight(0xffe0b0, outer - side * 1.6, 3.2, zc, 1.3, 14);
   });
   box(M.desk, -8.6, 0.5, 60, 2.0, 1.0, 1.2); box(M.deskTop, -8.6, 1.02, 60, 2.2, 0.06, 1.4);   // armory counter near the door
-  const officer = makeNPC({ suit: 0x3a4630, hair: 0x14100c, skin: 0xc99070, tactical: true });
+  const officer = makeNPC({ suit: 0x3a4630, hair: 0x14100c, skin: 0x8a5836, tactical: true, bald: true, scale: 1.05, build: 1.14 });
   officer.group.position.set(-8.4, 0, 60); officer.group.rotation.y = Math.PI / 2; scene.add(officer.group);
 
   // FILLER: server / comms room (no interaction) — right side, blinking racks + technician
@@ -1140,7 +1161,7 @@ function initTutorial() {
     box(M.metal, midx, 0.5, zc + 3.6, 2.0, 1.0, 1.0); box(scr(0x123a5a), midx, 1.35, zc + 3.6, 0.7, 0.4, 0.03);
     ptLight(0x35d9a0, outer - side * 1.5, 2.5, zc, 1.2, 14);
   });
-  const tech = makeNPC({ suit: 0x2a2e34, hair: 0x201814, skin: 0xd7a682 });
+  const tech = makeNPC({ female: true, suit: 0x2a2e34, skirt: 0x20242a, shirt: 0xcfd6de, hair: 0x201814, skin: 0xb07a4a, scale: 0.94 });
   tech.group.position.set(11.4, 0, 64); tech.group.rotation.y = -Math.PI / 2; scene.add(tech.group);
 
   /* ---- Q Division doorway + far wall (placeholder until Q's scene) ---- */
@@ -1180,17 +1201,25 @@ function initTutorial() {
   const authored = authorAnimations(THREE); const acts = {};
   for (const nm of ['Idle', 'Walk', 'Run']) { const a = mixer.clipAction(authored.clips[nm]); a.play(); a.setEffectiveWeight(nm === 'Idle' ? 1 : 0); acts[nm] = a; }
 
-  /* ---- ambient staff walking the corridor ---- */
+  /* ---- ambient staff walking the corridor — all visibly different ---- */
   const walkers = [];
-  const wsuits = [0x1c2230, 0x2a2f3c, 0x22303f, 0x30302e];
-  for (let i = 0; i < 4; i++) {
-    const n = makeNPC({ suit: wsuits[i % 4], hair: [0x1a1512, 0x2a2018, 0x120e0a][i % 3], skin: [0xdaa985, 0xc99878, 0xe8c0a0][i % 3], tie: (i % 2) ? 0x3a3a4a : 0x555 });
-    const lane = i % 2 ? 4.5 : -4.5, z0 = 26 + i * 10, dir = i % 2 ? 1 : -1;
-    n.group.position.set(lane, 0, z0); n.walkPath = { min: 24, max: 80, dir, speed: 1.1 + Math.random() * 0.5 };
+  const roster = [
+    { suit: 0x20242e, tie: 0x3a4256, skin: 0xdaa985, hair: 0x1a1512, scale: 1.06, build: 1.08 },
+    { female: true, suit: 0x3a2a3a, skirt: 0x2a1e2a, shirt: 0xe6dfd0, skin: 0xe6b892, hair: 0x241812, scale: 0.95 },
+    { suit: 0x2b3226, tie: 0x6a5a2a, skin: 0x7a4a2c, hair: 0x120e0a, bald: true, scale: 1.0, build: 0.96 },
+    { female: true, suit: 0x22303f, skirt: 0x1a2531, shirt: 0xf0eadd, skin: 0xc9895a, hair: 0x2a1c12, scale: 0.9 },
+    { suit: 0x30302e, tie: 0x8a2f2a, skin: 0xe8c0a0, hair: 0x3a2a1a, scale: 1.1, build: 1.12 },
+    { suit: 0x1c2634, shirt: 0xd8dbe2, skin: 0xa66a3a, hair: 0x14100c, glasses: true, scale: 0.98 },
+    { female: true, suit: 0x2c2620, skirt: 0x201a16, shirt: 0xd7c9b4, skin: 0x8a5a38, hair: 0x0f0b08, scale: 0.93 },
+  ];
+  roster.forEach((cfg, i) => {
+    const n = makeNPC(cfg);
+    const lane = (i % 2 ? 1 : -1) * (3.8 + (i % 3) * 0.9), z0 = 25 + i * 7.5, dir = i % 2 ? 1 : -1;
+    n.group.position.set(lane, 0, z0); n.walkPath = { min: 24, max: 80, dir, speed: 0.9 + (i % 4) * 0.35 };
     scene.add(n.group); walkers.push(n);
-  }
-  const agent1 = makeNPC({ suit: 0x14141c, tie: 0x40485c, hair: 0x2a2018, skin: 0xdcae88 });
-  const agent2 = makeNPC({ suit: 0x2a2028, tie: 0x6a2a2a, hair: 0x140f0a, skin: 0xc99070 });
+  });
+  const agent1 = makeNPC({ suit: 0x14141c, tie: 0x40485c, hair: 0x2a2018, skin: 0xdcae88, scale: 1.07, build: 1.06 });
+  const agent2 = makeNPC({ suit: 0x2a2028, tie: 0x6a2a2a, hair: 0x140f0a, skin: 0x9a6238, scale: 1.0, bald: true });
   agent1.group.position.set(-2.4, 0, 78); agent2.group.position.set(2.4, 0, 79); scene.add(agent1.group, agent2.group);
 
   /* ---- gold diamond waypoint helper ---- */
@@ -1327,24 +1356,38 @@ function initTutorial() {
     b(m2.skin, 0.26, 1.02, 0.42, 0.1, 0.08, 0.14); b(m2.skin, -0.26, 1.02, 0.42, 0.1, 0.08, 0.14);
     return g;
   }
+  // varied boxy person: cfg supports scale (height), build (width), female,
+  // bald, skin/hair/suit/tie/shirt/skirt colours, glasses, coverall, tactical.
   function makeNPC(cfg) {
+    cfg = cfg || {};
     const g = new THREE.Group();
-    const suitM = mat(cfg.suit || 0x232833, 0.65, 0.15), skinM = mat(cfg.skin || 0xdaa985, 0.7), hairM = mat(cfg.hair || 0x1a1512, 0.9), legM = mat(cfg.coverall ? cfg.suit : 0x14181f, 0.6);
+    const bw = cfg.build || 1;
+    const suitM = mat(cfg.suit || 0x232833, 0.65, 0.15), skinM = mat(cfg.skin || 0xdaa985, 0.7), hairM = mat(cfg.hair || 0x1a1512, 0.9);
+    const legM = mat(cfg.coverall ? cfg.suit : (cfg.legs || 0x14181f), 0.6);
     const b = (m, x, y, z, w, h, d, par) => { const me = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); me.position.set(x, y, z); me.castShadow = true; (par || g).add(me); return me; };
-    b(suitM, 0, 1.08, 0, 0.44, 0.62, 0.26);
+    b(suitM, 0, 1.08, 0, 0.44 * bw, 0.62, 0.26 * bw);                       // torso
     if (cfg.shirt) b(mat(cfg.shirt, 0.6), 0, 1.14, 0.13, 0.16, 0.3, 0.02);
     if (cfg.tie) b(mat(cfg.tie, 0.5), 0, 1.12, 0.14, 0.05, 0.32, 0.02);
-    if (cfg.tactical) b(mat(0x14181f, 0.7), 0, 1.02, 0.14, 0.36, 0.36, 0.06);
-    b(skinM, 0, 1.48, 0.01, 0.13, 0.13, 0.13); b(skinM, 0, 1.63, 0.01, 0.25, 0.27, 0.25);
-    b(hairM, 0, 1.76, -0.01, 0.28, 0.13, 0.28); b(hairM, 0, 1.68, -0.14, 0.28, 0.2, 0.05);
+    if (cfg.tactical) b(mat(0x14181f, 0.7), 0, 1.02, 0.14, 0.36 * bw, 0.36, 0.06);
+    b(skinM, 0, 1.48, 0.01, 0.13, 0.13, 0.13); b(skinM, 0, 1.63, 0.01, 0.25, 0.27, 0.25);   // neck + head
+    if (cfg.female) { b(hairM, 0, 1.77, -0.01, 0.29, 0.16, 0.29); b(hairM, 0.15, 1.54, -0.03, 0.07, 0.42, 0.27); b(hairM, -0.15, 1.54, -0.03, 0.07, 0.42, 0.27); b(hairM, 0, 1.56, -0.15, 0.3, 0.44, 0.06); }
+    else if (!cfg.bald) { b(hairM, 0, 1.76, -0.01, 0.28, 0.13, 0.28); b(hairM, 0, 1.68, -0.14, 0.28, 0.2, 0.05); }
     b(mat(0x0e0e12), 0.06, 1.65, 0.13, 0.04, 0.05, 0.02); b(mat(0x0e0e12), -0.06, 1.65, 0.13, 0.04, 0.05, 0.02);
     if (cfg.glasses) b(mat(0x0a0a0e, 0.3, 0.4), 0, 1.65, 0.135, 0.2, 0.05, 0.02);
     function limb(px, py, pz, w, h, d, m) { const grp = new THREE.Group(); grp.position.set(px, py, pz); const me = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); me.position.set(0, -h / 2, 0); me.castShadow = true; grp.add(me); g.add(grp); return grp; }
-    const la = limb(0.31, 1.34, 0, 0.13, 0.5, 0.13, suitM), ra = limb(-0.31, 1.34, 0, 0.13, 0.5, 0.13, suitM);
-    b(skinM, 0.31, 1.06, 0.02, 0.12, 0.1, 0.1); b(skinM, -0.31, 1.06, 0.02, 0.12, 0.1, 0.1);
-    const ll = limb(0.12, 0.9, 0, 0.17, 0.5, 0.19, legM), rl = limb(-0.12, 0.9, 0, 0.17, 0.5, 0.19, legM);
-    b(mat(0x14181f, 0.6), 0.12, 0.42, -0.01, 0.16, 0.42, 0.17); b(mat(0x14181f, 0.6), -0.12, 0.42, -0.01, 0.16, 0.42, 0.17);
-    b(mat(0x0b0b0f, 0.3, 0.4), 0.12, 0.05, 0.06, 0.16, 0.1, 0.3); b(mat(0x0b0b0f, 0.3, 0.4), -0.12, 0.05, 0.06, 0.16, 0.1, 0.3);
+    const la = limb(0.31 * bw, 1.34, 0, 0.13, 0.5, 0.13, suitM), ra = limb(-0.31 * bw, 1.34, 0, 0.13, 0.5, 0.13, suitM);
+    b(skinM, 0.31 * bw, 1.06, 0.02, 0.12, 0.1, 0.1); b(skinM, -0.31 * bw, 1.06, 0.02, 0.12, 0.1, 0.1);
+    let ll, rl;
+    if (cfg.female) {                                                       // skirt + slim legs
+      b(mat(cfg.skirt || cfg.suit, 0.6), 0, 0.82, 0, 0.44 * bw, 0.5, 0.3);
+      ll = limb(0.1, 0.62, 0, 0.12, 0.6, 0.13, skinM); rl = limb(-0.1, 0.62, 0, 0.12, 0.6, 0.13, skinM);
+      b(mat(0x0b0b0f, 0.3, 0.4), 0.1, 0.03, 0.04, 0.13, 0.08, 0.26); b(mat(0x0b0b0f, 0.3, 0.4), -0.1, 0.03, 0.04, 0.13, 0.08, 0.26);
+    } else {
+      ll = limb(0.12, 0.9, 0, 0.17, 0.5, 0.19, legM); rl = limb(-0.12, 0.9, 0, 0.17, 0.5, 0.19, legM);
+      b(mat(0x14181f, 0.6), 0.12, 0.42, -0.01, 0.16, 0.42, 0.17); b(mat(0x14181f, 0.6), -0.12, 0.42, -0.01, 0.16, 0.42, 0.17);
+      b(mat(0x0b0b0f, 0.3, 0.4), 0.12, 0.05, 0.06, 0.16, 0.1, 0.3); b(mat(0x0b0b0f, 0.3, 0.4), -0.12, 0.05, 0.06, 0.16, 0.1, 0.3);
+    }
+    g.scale.setScalar(cfg.scale || 1);
     let ph = Math.random() * 6;
     return {
       group: g, walkPath: null,
