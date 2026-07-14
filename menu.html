@@ -147,6 +147,31 @@
   .fade-up { animation: fadeUp .7s var(--ease) both; }
   @keyframes fadeUp { from{opacity:0; transform:translateY(18px)} to{opacity:1; transform:none} }
 
+  /* ---- gate ---- */
+  #gate { z-index: 40; background: #000; }
+  .gatewrap { text-align: center; }
+  .gateglyph { width: 60px; height: 60px; margin: 0 auto 26px; border: 1px solid var(--gold-line); transform: rotate(45deg); box-shadow: 0 0 34px rgba(217,180,91,.2) inset; }
+  .gatemark { font-family: "Times New Roman", Georgia, serif; font-size: clamp(22px,4vw,42px); letter-spacing: .4em; text-transform: uppercase; color: transparent;
+    background: linear-gradient(180deg,#fbf1cf,var(--gold) 60%,var(--gold-deep)); -webkit-background-clip: text; background-clip: text; }
+  .gateprompt { margin-top: 26px; font-size: 11px; letter-spacing: .44em; text-transform: uppercase; color: #b9b19c; animation: blink 2s var(--ease) infinite; }
+
+  /* ---- cold-open cinematic ---- */
+  #cineWrap { position: fixed; inset: 0; z-index: 78; display: none; background: #000; }
+  #cineWrap.on { display: block; }
+  #cinecanvas { position: fixed; inset: 0; width: 100%; height: 100%; }
+  .cbars { position: fixed; left: 0; right: 0; height: 11vh; background: #000; z-index: 79; }
+  .cbars.top { top: 0; } .cbars.bot { bottom: 0; }
+  #cineCount { position: fixed; top: 15vh; left: 50%; transform: translateX(-50%); z-index: 80; font-family: Consolas, monospace;
+    font-size: clamp(34px,6vw,64px); letter-spacing: .18em; color: #ff5a4a; text-shadow: 0 0 24px rgba(255,60,50,.7); opacity: 0; transition: opacity .3s; }
+  #cineFlash { position: fixed; inset: 0; z-index: 82; background: #fff; opacity: 0; pointer-events: none; }
+  #cineFade { position: fixed; inset: 0; z-index: 81; background: #000; opacity: 1; pointer-events: none; }
+  #cineTitle { position: fixed; inset: 0; z-index: 83; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; opacity: 0; transition: opacity 1.2s var(--ease); pointer-events: none; }
+  #cineTitle.on { opacity: 1; }
+  #cineTitle .ct1 { font-family: "Times New Roman", Georgia, serif; font-size: clamp(30px,6vw,72px); letter-spacing: .28em; text-transform: uppercase; color: transparent;
+    background: linear-gradient(180deg,#fff8e6,var(--gold) 58%,var(--gold-deep)); -webkit-background-clip: text; background-clip: text; filter: drop-shadow(0 4px 30px rgba(217,180,91,.3)); }
+  #cineTitle .ct2 { font-size: clamp(11px,1.5vw,15px); letter-spacing: .34em; text-transform: uppercase; color: #9a927e; }
+  #cineSkip { position: fixed; bottom: 13vh; right: 30px; z-index: 82; font-size: 10px; letter-spacing: .28em; text-transform: uppercase; color: #6a6450; }
+
   /* ---- security boot screen ---- */
   #bootScreen { position: fixed; inset: 0; z-index: 80; background: #000; display: none;
     flex-direction: column; align-items: center; justify-content: center; gap: 8vh; }
@@ -225,6 +250,24 @@
 
 <div id="stage">
   <canvas id="fx"></canvas>
+
+  <!-- gate (first user gesture, needed for audio) -->
+  <div class="screen" id="gate"><div class="gatewrap">
+    <div class="gateglyph"></div>
+    <div class="gatemark">Midnight Protocol</div>
+    <div class="gateprompt">Press any key to begin</div>
+  </div></div>
+
+  <!-- cold-open cinematic -->
+  <div id="cineWrap">
+    <canvas id="cinecanvas"></canvas>
+    <div class="cbars top"></div><div class="cbars bot"></div>
+    <div id="cineCount">00:08</div>
+    <div id="cineFlash"></div>
+    <div id="cineFade"></div>
+    <div id="cineTitle"><div class="ct1">Midnight Protocol</div><div class="ct2">Some missions end where they began.</div></div>
+    <div id="cineSkip">Press any key to skip</div>
+  </div>
 
   <!-- studio A -->
   <div class="screen splashscreen" id="studioA"><div class="splash">
@@ -374,6 +417,8 @@ const SFX = (function () {
     ding() { beep(1245, 0.55, 0.16, 'sine'); setTimeout(() => beep(1660, 0.45, 0.1, 'sine'), 45); },
     step() { const c = ctx(); if (!c) return; const s = c.createBufferSource(); s.buffer = noise(0.09); const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 300; const g = c.createGain(); g.gain.setValueAtTime(0.12, c.currentTime); g.gain.exponentialRampToValueAtTime(0.0001, c.currentTime + 0.1); s.connect(lp).connect(g).connect(master); s.start(); },
     door() { const c = ctx(); if (!c) return; const s = c.createBufferSource(); s.buffer = noise(1.0); const bp = c.createBiquadFilter(); bp.type = 'bandpass'; bp.Q.value = 1.5; bp.frequency.setValueAtTime(500, c.currentTime); bp.frequency.linearRampToValueAtTime(1400, c.currentTime + 0.7); const g = c.createGain(); g.gain.setValueAtTime(0.0001, c.currentTime); g.gain.linearRampToValueAtTime(0.12, c.currentTime + 0.2); g.gain.exponentialRampToValueAtTime(0.0001, c.currentTime + 1.0); s.connect(bp).connect(g).connect(master); s.start(); },
+    tick() { beep(1200, 0.08, 0.14, 'square'); },
+    boom() { const c = ctx(); if (!c) return; const s = c.createBufferSource(); s.buffer = noise(1.6); const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.setValueAtTime(2200, c.currentTime); lp.frequency.exponentialRampToValueAtTime(110, c.currentTime + 0.9); const g = c.createGain(); g.gain.setValueAtTime(0.95, c.currentTime); g.gain.exponentialRampToValueAtTime(0.0001, c.currentTime + 1.5); s.connect(lp).connect(g).connect(master); s.start(); const o = c.createOscillator(); o.type = 'sine'; o.frequency.setValueAtTime(95, c.currentTime); o.frequency.exponentialRampToValueAtTime(26, c.currentTime + 0.8); const g2 = c.createGain(); g2.gain.setValueAtTime(0.75, c.currentTime); g2.gain.exponentialRampToValueAtTime(0.0001, c.currentTime + 1.1); o.connect(g2).connect(master); o.start(); o.stop(c.currentTime + 1.2); },
     elevator(on) { const c = ctx(); if (!c) return; if (on) { if (hum) return; const o = c.createOscillator(); o.type = 'sawtooth'; o.frequency.value = 55; const o2 = c.createOscillator(); o2.type = 'sine'; o2.frequency.value = 110; const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 190; const g = c.createGain(); g.gain.value = 0; g.gain.linearRampToValueAtTime(0.14, c.currentTime + 0.7); o.connect(lp); o2.connect(lp); lp.connect(g).connect(master); o.start(); o2.start(); hum = { o, o2, g }; } else if (hum) { const h = hum; h.g.gain.linearRampToValueAtTime(0.0001, c.currentTime + 0.5); h.o.stop(c.currentTime + 0.6); h.o2.stop(c.currentTime + 0.6); hum = null; } },
     chatter(on) { const c = ctx(); if (!c) return; if (on) { if (chat) return; const s = c.createBufferSource(); s.buffer = noise(4); s.loop = true; const bp = c.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 850; bp.Q.value = 0.8; const g = c.createGain(); g.gain.value = 0; g.gain.linearRampToValueAtTime(0.045, c.currentTime + 1.5); const lfo = c.createOscillator(); lfo.frequency.value = 0.6; const lg = c.createGain(); lg.gain.value = 0.028; lfo.connect(lg).connect(g.gain); lfo.start(); s.connect(bp).connect(g).connect(master); s.start(); chat = { s, g }; } else if (chat) { chat.g.gain.linearRampToValueAtTime(0.0001, c.currentTime + 0.8); chat = null; } },
     pad(on) { const c = ctx(); if (!c) return; if (on) { if (pad) return; const o = c.createOscillator(); o.type = 'sine'; o.frequency.value = 73; const o2 = c.createOscillator(); o2.type = 'sine'; o2.frequency.value = 110; const g = c.createGain(); g.gain.value = 0; g.gain.linearRampToValueAtTime(0.05, c.currentTime + 2); o.connect(g); o2.connect(g); g.connect(master); o.start(); o2.start(); pad = { o, o2, g }; } else if (pad) { pad.g.gain.linearRampToValueAtTime(0.0001, c.currentTime + 1.2); pad.o.stop(c.currentTime + 1.4); pad.o2.stop(c.currentTime + 1.4); pad = null; } },
@@ -409,10 +454,22 @@ async function runLoading(title, dur = 2600) {
   await wait(350);
 }
 
+function gate() {
+  return new Promise(res => {
+    const g = S('gate'); g.classList.add('on');
+    const go = () => { removeEventListener('keydown', go); removeEventListener('click', go); SFX.resume(); g.classList.remove('on'); res(); };
+    addEventListener('keydown', go); addEventListener('click', go);
+  });
+}
 async function boot() {
-  await wait(600);
-  show('studioA'); await wait(2600);
-  show('studioB'); await wait(2400);
+  await wait(300);
+  await gate();                          // first gesture → audio unlocked
+  SFX.pad(true);
+  await wait(300);
+  show('studioA'); await wait(2400);
+  show('studioB'); await wait(2200);
+  show(null); await wait(300);
+  await new Promise(res => { if (window.runColdOpen) window.runColdOpen(res); else res(); });   // cold-open teaser
   show('title');
 }
 boot();
@@ -1037,9 +1094,89 @@ const CONVOS = {
   ],
 };
 
-const SFX = window.SFX || { resume() {}, elevator() {}, chatter() {}, ding() {}, door() {}, step() {}, chime() {}, blip() {} };
+const SFX = window.SFX || { resume() {}, elevator() {}, chatter() {}, ding() {}, door() {}, step() {}, chime() {}, blip() {}, boom() {}, tick() {} };
 let T = null;
 window.startTutorial = function () { if (!T) T = initTutorial(); T.begin(); };
+
+/* =====================================================================
+   COLD-OPEN CINEMATIC — a scripted teaser of the finale: a ticking device,
+   the agent, a detonation, and the hero walking out of the blast. Plays like
+   a short film, then hands off to the title. window.runColdOpen(onDone).
+   ===================================================================== */
+window.runColdOpen = function (onDone) {
+  const canvas = document.getElementById('cinecanvas'), wrap = document.getElementById('cineWrap');
+  const countEl = document.getElementById('cineCount'), flashEl = document.getElementById('cineFlash'), fadeEl = document.getElementById('cineFade'), titleEl = document.getElementById('cineTitle');
+  wrap.classList.add('on'); titleEl.classList.remove('on'); fadeEl.style.opacity = 1; flashEl.style.opacity = 0; countEl.style.opacity = 0;
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 2)); renderer.setSize(innerWidth, innerHeight);
+  renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.2; renderer.outputColorSpace = THREE.SRGBColorSpace;
+  renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  const scene = new THREE.Scene(); scene.background = new THREE.Color(0x05060a); scene.fog = new THREE.FogExp2(0x05060a, 0.026);
+  const camera = new THREE.PerspectiveCamera(42, innerWidth / innerHeight, 0.05, 200);
+  const mt = (c, r, m, e, ei) => new THREE.MeshStandardMaterial({ color: c, roughness: r == null ? 0.7 : r, metalness: m == null ? 0.2 : m, emissive: e || 0, emissiveIntensity: ei || 0 });
+  const bx = (m, x, y, z, w, h, d, p) => { const me = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); me.position.set(x, y, z); me.castShadow = true; me.receiveShadow = true; (p || scene).add(me); return me; };
+  scene.add(new THREE.AmbientLight(0x2a3550, 0.5));
+  const moon = new THREE.DirectionalLight(0x8aa0c8, 0.7); moon.position.set(-5, 10, 4); moon.castShadow = true; scene.add(moon);
+  const redA = new THREE.PointLight(0xff2a2a, 0, 34, 2); redA.position.set(0, 5, -6); scene.add(redA);
+  const fireL = new THREE.PointLight(0xff7a2a, 0, 50, 2); fireL.position.set(0, 2.5, -6); scene.add(fireL);
+  bx(mt(0x0e1018, 0.55, 0.4), 0, -0.05, -6, 44, 0.1, 44);
+  for (let i = 0; i < 8; i++) { const a = i / 8 * Math.PI * 2; bx(mt(0x141824, 0.7), Math.cos(a) * 11, 3.5, -6 + Math.sin(a) * 11, 0.8, 7, 0.8); }
+  for (let i = 0; i < 12; i++) bx(mt(0x1a1712, 0.85), (Math.random() - 0.5) * 18, 0.4, -1 - Math.random() * 12, 0.8, 0.8, 0.8);
+  bx(mt(0x22262e, 0.4, 0.7), 0, 0.5, -6, 1.8, 1.0, 1.8);
+  const dev = bx(mt(0x401010, 0.4, 0.3, 0xff2020, 1.2), 0, 1.35, -6, 1.0, 0.8, 1.0);
+  const rig = new THREE.Group(); scene.add(rig);
+  const A = buildAgent(THREE); rig.add(A.bones[0]); rig.updateMatrixWorld(true);
+  const byName = {}; A.bones.forEach(b => byName[b.name] = b);
+  const PM = { suit: mt(0x14141b, 0.5, 0.3), skin: mt(0xdaa985, 0.75), hair: mt(0x1a1512, 0.9), shirt: mt(0xeceae2, 0.55), tie: mt(0x8a1f2b, 0.5), shoe: mt(0x0b0b0f, 0.3, 0.4) };
+  const pb = (bn, tag, lp, sz) => { const m = new THREE.Mesh(new THREE.BoxGeometry(sz[0], sz[1], sz[2]), PM[tag] || PM.suit); m.position.set(lp[0], lp[1], lp[2]); m.castShadow = true; byName[bn].add(m); };
+  pb('Spine', 'suit', [0, 0.16, 0], [0.42, 0.5, 0.26]); pb('Hips', 'suit', [0, -0.02, 0], [0.36, 0.22, 0.24]);
+  pb('Chest', 'shirt', [0, -0.02, 0.13], [0.17, 0.24, 0.03]); pb('Chest', 'tie', [0, -0.1, 0.15], [0.05, 0.28, 0.02]);
+  pb('Neck', 'skin', [0, 0.04, 0], [0.12, 0.12, 0.12]); pb('Head', 'skin', [0, 0.08, 0.01], [0.26, 0.28, 0.27]);
+  pb('Head', 'hair', [0, 0.19, -0.015], [0.3, 0.14, 0.3]); pb('Head', 'hair', [0, 0.1, -0.15], [0.3, 0.24, 0.03]);
+  for (const [side, s] of [['L', 1], ['R', -1]]) { pb(side + 'Arm', 'suit', [s * 0.135, 0, 0], [0.28, 0.145, 0.145]); pb(side + 'ForeArm', 'suit', [s * 0.12, 0, 0], [0.245, 0.135, 0.135]); pb(side + 'Hand', 'skin', [s * 0.055, 0, 0], [0.12, 0.115, 0.075]); pb(side + 'UpLeg', 'suit', [0, -0.2, 0], [0.17, 0.42, 0.19]); pb(side + 'Leg', 'suit', [0, -0.205, -0.005], [0.15, 0.42, 0.17]); pb(side + 'Foot', 'shoe', [0, -0.045, 0.07], [0.15, 0.1, 0.3]); }
+  const mixer = new THREE.AnimationMixer(rig); const clips = authorAnimations(THREE).clips; const acts = {};
+  ['Idle', 'Walk', 'Run'].forEach(n => { const a = mixer.clipAction(clips[n]); a.play(); a.setEffectiveWeight(n === 'Idle' ? 1 : 0); acts[n] = a; });
+  rig.position.set(2.5, 0, 3); rig.rotation.y = Math.PI * 0.9;
+  const debris = []; let shock = null, exploded = false, lastTick = 9;
+  function explode() {
+    exploded = true; fireL.intensity = 9; SFX.boom();
+    const dm = mt(0x3a2a1a, 0.8, 0.3);
+    for (let i = 0; i < 34; i++) { const s = 0.1 + Math.random() * 0.3; const m = bx(dm, 0, 1.4, -6, s, s, s); const a = Math.random() * Math.PI * 2; m.userData.v = new THREE.Vector3(Math.cos(a) * (2 + Math.random() * 5), 3 + Math.random() * 6, Math.sin(a) * (2 + Math.random() * 5) - 1); m.userData.r = new THREE.Vector3(Math.random(), Math.random(), Math.random()); debris.push(m); }
+    shock = new THREE.Mesh(new THREE.TorusGeometry(0.5, 0.18, 8, 40), new THREE.MeshBasicMaterial({ color: 0xffb060, transparent: true, opacity: 0.9 })); shock.rotation.x = -Math.PI / 2; shock.position.set(0, 0.4, -6); scene.add(shock);
+    dev.visible = false;
+  }
+  let raf, ended = false; const clock = new THREE.Clock(); const t0 = performance.now();
+  function cleanup() { if (ended) return; ended = true; cancelAnimationFrame(raf); document.removeEventListener('keydown', onSkip); document.removeEventListener('click', onSkip); try { renderer.dispose(); } catch (e) {} wrap.classList.remove('on'); onDone && onDone(); }
+  function onSkip() { cleanup(); }
+  document.addEventListener('keydown', onSkip); document.addEventListener('click', onSkip);
+  function setRun(r) { acts.Idle.setEffectiveWeight(r ? 0 : 1); acts.Run.setEffectiveWeight(r ? 1 : 0); }
+  function loop() {
+    raf = requestAnimationFrame(loop);
+    const now = (performance.now() - t0) / 1000, dt = Math.min(0.05, clock.getDelta());
+    mixer.update(dt);
+    redA.intensity = 1.8 + Math.sin(now * 8) * 1.6;
+    if (!exploded) dev.material.emissiveIntensity = 1.0 + Math.sin(now * 8) * 0.8;
+    fadeEl.style.opacity = now < 1 ? (1 - now) : (now > 13 ? Math.min(1, (now - 13) / 1.6) : 0);
+    if (now < 8) { countEl.style.opacity = 0.92; const cd = Math.max(0, Math.ceil(8 - now)); countEl.textContent = '00:0' + cd; if (cd < lastTick) { lastTick = cd; if (cd <= 5 && cd > 0) SFX.tick(); } } else countEl.style.opacity = 0;
+    let shake = 0;
+    if (now < 3) { camera.position.set(7, 3.2, 5); camera.lookAt(0, 1.4, -5); }
+    else if (now < 5.6) { camera.position.set(1.6, 1.7, -2.8); camera.lookAt(0, 1.4, -6); }
+    else if (now < 8) { setRun(true); rig.position.z -= 3.4 * dt; rig.rotation.y = Math.PI; camera.position.set(rig.position.x + 3, 1.7, rig.position.z + 3.5); camera.lookAt(rig.position.x, 1.2, rig.position.z); }
+    else { setRun(true); rig.rotation.y = 0; rig.position.z += 1.7 * dt; camera.position.set(0, 1.75, rig.position.z + 6); camera.lookAt(rig.position.x, 1.25, rig.position.z); shake = Math.max(0, 1 - (now - 8) / 1.2) * 0.25; }
+    if (now >= 8 && !exploded) { explode(); flashEl.style.opacity = 1; }
+    if (exploded) {
+      flashEl.style.opacity = Math.max(0, 1 - (now - 8) / 0.5);
+      fireL.intensity = 9 * Math.max(0, 1 - (now - 8) / 3.5) + Math.sin(now * 20) * 0.6;
+      for (const m of debris) { m.userData.v.y -= 12 * dt; m.position.addScaledVector(m.userData.v, dt); m.rotation.x += m.userData.r.x * dt * 4; m.rotation.y += m.userData.r.y * dt * 4; if (m.position.y < 0.12) { m.position.y = 0.12; m.userData.v.set(0, 0, 0); } }
+      if (shock) { const s = 1 + (now - 8) * 11; shock.scale.set(s, s, s); shock.material.opacity = Math.max(0, 0.9 - (now - 8) / 1.4); }
+    }
+    if (shake) { camera.position.x += (Math.random() - 0.5) * shake; camera.position.y += (Math.random() - 0.5) * shake; }
+    if (now > 13.2) titleEl.classList.add('on');
+    if (now > 15.4) { cleanup(); return; }
+    renderer.render(scene, camera);
+  }
+  loop();
+};
 
 function initTutorial() {
   const canvas = document.getElementById('tutcanvas');
