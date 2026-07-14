@@ -1108,15 +1108,15 @@ window.runColdOpen = function (onDone) {
   const countEl = document.getElementById('cineCount'), flashEl = document.getElementById('cineFlash'), fadeEl = document.getElementById('cineFade'), titleEl = document.getElementById('cineTitle');
   wrap.classList.add('on'); titleEl.classList.remove('on'); fadeEl.style.opacity = 1; flashEl.style.opacity = 0; countEl.style.opacity = 0;
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-  renderer.setPixelRatio(Math.min(devicePixelRatio, 2)); renderer.setSize(innerWidth, innerHeight);
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5)); renderer.setSize(innerWidth, innerHeight);
   renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.35; renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   const scene = new THREE.Scene(); scene.background = new THREE.Color(0x0b111c); scene.fog = new THREE.FogExp2(0x0b111c, 0.018);
   const camera = new THREE.PerspectiveCamera(44, innerWidth / innerHeight, 0.05, 300);
   const mt = (c, r, m, e, ei) => new THREE.MeshStandardMaterial({ color: c, roughness: r == null ? 0.7 : r, metalness: m == null ? 0.2 : m, emissive: e || 0, emissiveIntensity: ei || 0 });
   const bas = c => new THREE.MeshBasicMaterial({ color: c });
-  const bx = (m, x, y, z, w, h, d, p) => { const me = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); me.position.set(x, y, z); me.castShadow = true; me.receiveShadow = true; (p || scene).add(me); return me; };
-  const cyl = (m, x, y, z, rt, rb, h, seg, p) => { const me = new THREE.Mesh(new THREE.CylinderGeometry(rt, rb, h, seg || 22), m); me.position.set(x, y, z); me.castShadow = true; me.receiveShadow = true; (p || scene).add(me); return me; };
+  const bx = (m, x, y, z, w, h, d, p) => { const me = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); me.position.set(x, y, z); me.castShadow = false; me.receiveShadow = true; (p || scene).add(me); return me; };
+  const cyl = (m, x, y, z, rt, rb, h, seg, p) => { const me = new THREE.Mesh(new THREE.CylinderGeometry(rt, rb, h, seg || 22), m); me.position.set(x, y, z); me.castShadow = false; me.receiveShadow = true; (p || scene).add(me); return me; };
   const pt = (c, x, y, z, i, d) => { const l = new THREE.PointLight(c, i, d || 24, 2); l.position.set(x, y, z); scene.add(l); return l; };
   const CZ = -7;   // vault centre z
 
@@ -1124,8 +1124,8 @@ window.runColdOpen = function (onDone) {
   scene.add(new THREE.HemisphereLight(0x9fb2d6, 0x22201a, 0.7));
   scene.add(new THREE.AmbientLight(0xffffff, 0.34));
   const moon = new THREE.DirectionalLight(0xaebfe0, 1.1); moon.position.set(-7, 16, 5); moon.castShadow = true;
-  moon.shadow.mapSize.set(2048, 2048); moon.shadow.camera.near = 1; moon.shadow.camera.far = 60; moon.shadow.camera.left = -24; moon.shadow.camera.right = 24; moon.shadow.camera.top = 24; moon.shadow.camera.bottom = -10; scene.add(moon);
-  for (const [lx, lz] of [[-8, CZ - 6], [8, CZ - 6], [-8, CZ + 6], [8, CZ + 6], [0, CZ]]) pt(0xdfe8ff, lx, 6.4, lz, 1.3, 26);
+  moon.shadow.mapSize.set(1024, 1024); moon.shadow.camera.near = 1; moon.shadow.camera.far = 60; moon.shadow.camera.left = -24; moon.shadow.camera.right = 24; moon.shadow.camera.top = 24; moon.shadow.camera.bottom = -10; scene.add(moon);
+  for (const [lx, lz] of [[-7, CZ - 5], [7, CZ + 5]]) pt(0xdfe8ff, lx, 6.4, lz, 1.9, 36);
   const redA = pt(0xff2a2a, 0, 5.4, CZ, 0, 34);           // warning strobe
   const fireL = pt(0xff7a2a, 0, 2.6, CZ, 0, 60);          // detonation light
   const coreL = pt(0xffb040, 0, 1.6, CZ, 1.4, 8);         // device glow
@@ -1144,7 +1144,7 @@ window.runColdOpen = function (onDone) {
   wallAt(0, CZ - 13, 40, 0.5); wallAt(0, CZ + 13, 40, 0.5); wallAt(-15, CZ, 0.5, 26); wallAt(15, CZ, 0.5, 26);
   for (let z = CZ - 11; z <= CZ + 11; z += 3) { bx(trimM, -14.7, 6.0, z, 0.06, 0.1, 2.4); bx(trimM, 14.7, 6.0, z, 0.06, 0.1, 2.4); }
   // pillar ring with lit strips
-  for (let i = 0; i < 8; i++) { const a = i / 8 * Math.PI * 2, r = 9; const px = Math.cos(a) * r, pz = CZ + Math.sin(a) * r; cyl(pillarM, px, 3.4, pz, 0.5, 0.6, 6.8, 12); bx(bas(0x39c0ff), px, 3.4, pz + 0.62, 0.1, 4.2, 0.05); bx(trimM, px, 6.6, pz, 1.0, 0.16, 1.0); pt(0x2f9fd8, px, 3.4, pz, 0.35, 6); }
+  for (let i = 0; i < 8; i++) { const a = i / 8 * Math.PI * 2, r = 9; const px = Math.cos(a) * r, pz = CZ + Math.sin(a) * r; cyl(pillarM, px, 3.4, pz, 0.5, 0.6, 6.8, 12); bx(bas(0x39c0ff), px, 3.4, pz + 0.62, 0.1, 4.2, 0.05); bx(trimM, px, 6.6, pz, 1.0, 0.16, 1.0); }
   // big circular blast door on the back wall
   const bd = new THREE.Mesh(new THREE.CylinderGeometry(3.0, 3.0, 0.5, 40), mt(0x303a48, 0.4, 0.85)); bd.rotation.x = Math.PI / 2; bd.position.set(0, 3.4, CZ - 12.7); scene.add(bd);
   for (let i = 0; i < 12; i++) { const a = i / 12 * Math.PI * 2; bx(trimM, Math.cos(a) * 2.5, 3.4 + Math.sin(a) * 2.5, CZ - 12.5, 0.24, 0.24, 0.2); }
@@ -1156,7 +1156,6 @@ window.runColdOpen = function (onDone) {
     bx(mt(0x222a36, 0.5, 0.4), 0, 0.55, 0, 2.0, 1.1, 0.8, g); bx(darkM, 0, 1.12, 0, 2.1, 0.06, 0.9, g);
     bx(mt(0x0c1a2a, 0.4), 0, 1.7, -0.28, 1.5, 0.9, 0.06, g); bx(bas(0x1f5c8a), 0, 1.7, -0.24, 1.35, 0.75, 0.02, g);
     for (let k = 0; k < 4; k++) bx(bas([0x39c0ff, 0xffb347, 0x35d9a0][k % 3]), -0.5 + k * 0.34, 1.7, -0.22, 0.18, 0.02 + Math.random() * 0.5, 0.02, g);
-    pt(0x2f7fb8, cx0, 1.9, cz0, 0.4, 6);
   }
   // scattered crates + barrels + railings near the dais
   for (let i = 0; i < 8; i++) { const a = i / 8 * Math.PI * 2; bx(mt(0x2a2016, 0.85), Math.cos(a) * 6.4, 0.5, CZ + Math.sin(a) * 6.4, 1.0, 1.0, 1.0); }
@@ -1253,7 +1252,7 @@ window.runColdOpen = function (onDone) {
 function initTutorial() {
   const canvas = document.getElementById('tutcanvas');
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
-  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
   renderer.setSize(innerWidth, innerHeight);
   renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.38;
@@ -1267,7 +1266,7 @@ function initTutorial() {
   scene.add(new THREE.HemisphereLight(0xc6d6f7, 0x2e281a, 1.05));
   scene.add(new THREE.AmbientLight(0xffffff, 0.58));
   const key = new THREE.DirectionalLight(0xfff0d8, 2.0); key.position.set(-8, 18, 6);
-  key.castShadow = true; key.shadow.mapSize.set(2048, 2048);
+  key.castShadow = true; key.shadow.mapSize.set(1024, 1024);
   key.shadow.camera.near = 1; key.shadow.camera.far = 100;
   key.shadow.camera.left = -30; key.shadow.camera.right = 30; key.shadow.camera.top = 44; key.shadow.camera.bottom = -6;
   key.shadow.bias = -0.0002; scene.add(key);
@@ -1285,7 +1284,7 @@ function initTutorial() {
     glass: new THREE.MeshStandardMaterial({ color: 0x9fc6e6, transparent: true, opacity: 0.14, roughness: 0.05, metalness: 0.1 }),
     door: mat(0x1a2130, 0.4, 0.6, 0x0e2136, 0.4), red: mat(0xb83a2e, 0.5),
   };
-  const box = (m, x, y, z, w, h, d, par) => { const me = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); me.position.set(x, y, z); me.castShadow = true; me.receiveShadow = true; (par || scene).add(me); return me; };
+  const box = (m, x, y, z, w, h, d, par) => { const me = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); me.position.set(x, y, z); me.castShadow = false; me.receiveShadow = true; (par || scene).add(me); return me; };
   const ptLight = (c, x, y, z, i, dist) => { const l = new THREE.PointLight(c, i, dist || 16, 2); l.position.set(x, y, z); scene.add(l); return l; };
 
   /* ================= SHELL ================= */
@@ -1295,7 +1294,8 @@ function initTutorial() {
   // corridor side walls (with window/door openings cut by the offices)
   box(M.trim, -XW - 0.02, CEIL - 1.3, 36, 0.06, 0.12, 80);
   box(M.trim, XW + 0.02, CEIL - 1.3, 36, 0.06, 0.12, 80);
-  for (let z = 2; z < 82; z += 6) { box(M.glow, 0, CEIL - 0.16, z, 3.0, 0.05, 2.0); ptLight(0xffe9c8, 0, CEIL - 0.5, z, 1.7, 20); }
+  for (let z = 2; z < 82; z += 6) box(M.glow, 0, CEIL - 0.16, z, 3.0, 0.05, 2.0);
+  for (let z = 9; z < 82; z += 18) ptLight(0xffe9c8, 0, CEIL - 0.5, z, 2.7, 42);
   for (const sx of [-4.5, 4.5]) box(M.trim, sx, 0.006, 40, 0.05, 0.02, 76);
 
   /* ---- reception (z 0..22, wider) ---- */
@@ -1327,7 +1327,7 @@ function initTutorial() {
     const x = side * XW; box(M.wall, x, CEIL / 2, (z0 + z1) / 2, 0.3, CEIL, z1 - z0);
     box(M.trim, x - side * 0.02, 0.28, (z0 + z1) / 2, 0.06, 0.45, z1 - z0);
     box(M.trim, x - side * 0.02, CEIL - 1.0, (z0 + z1) / 2, 0.06, 0.08, z1 - z0);
-    for (let z = z0 + 3; z < z1 - 1; z += 5) { box(M.metal, x - side * 0.05, 3.3, z, 0.05, 1.3, 1.7); box(M.glow, x - side * 0.04, 4.15, z, 0.03, 0.05, 1.5); ptLight(0xffe9c8, x - side * 0.4, 3.5, z, 0.4, 5); }
+    for (let z = z0 + 3; z < z1 - 1; z += 5) { box(M.metal, x - side * 0.05, 3.3, z, 0.05, 1.3, 1.7); box(M.glow, x - side * 0.04, 4.15, z, 0.03, 0.05, 1.5); }
   }
   // bigger enclosed office with heavy generic wall/floor detail + a fill() hook
   function office(side, zc, accent, fill) {
@@ -1336,7 +1336,7 @@ function initTutorial() {
     box(M.wall2, midx, CEIL / 2, z0, span, CEIL, 0.3); box(M.wall2, midx, CEIL / 2, z1, span, CEIL, 0.3);
     box(M.wall2, midx, CEIL - 0.15, zc, span, 0.3, 12);
     box(M.glow, midx, CEIL - 0.22, zc - 2.5, span * 0.7, 0.05, 1.4); box(M.glow, midx, CEIL - 0.22, zc + 2.5, span * 0.7, 0.05, 1.4);
-    ptLight(0xfff0d0, midx, CEIL - 0.7, zc - 2.5, 1.6, 18); ptLight(0xfff0d0, midx, CEIL - 0.7, zc + 2.5, 1.5, 18);
+    ptLight(0xfff0d0, midx, CEIL - 0.7, zc, 2.6, 32);
     box(M.trim, outer - side * 0.02, 0.28, zc, 0.06, 0.45, 12); box(M.trim, outer - side * 0.02, CEIL - 1.0, zc, 0.06, 0.08, 12);
     // front wall: window band + open doorway + return
     const dz0 = zc + 1.4, dz1 = zc + 3.8, wz0 = z0 + 0.5, wc = (wz0 + dz0) / 2, wl = dz0 - wz0;
@@ -1353,7 +1353,7 @@ function initTutorial() {
     for (let i = 0; i < 3; i++) { const mz = zc - 3 + i * 3; box(M.metal, outer - side * 0.16, 3.1, mz, 0.06, 1.4, 2.3); box(scr(0x0c2b4a), outer - side * 0.2, 3.1, mz, 0.03, 1.15, 2.0); for (let k = 0; k < 4; k++) box(M.holoLine, outer - side * 0.23, 2.6 + Math.random() * 1.0, mz - 0.8 + Math.random() * 1.6, 0.02, 0.02 + Math.random() * 0.7, 0.02); }
     box(M.metal, outer - side * 0.25, CEIL - 1.15, zc, 0.14, 0.14, 11);   // cable tray
     for (let i = 0; i < 2; i++) { box(M.metal, midx - 2 + i * 4, 3.4, z0 + side * 0.02, 1.5, 1.9, 0.06); box(scr(0x14202e), midx - 2 + i * 4, 3.4, z0 + side * 0.05, 1.3, 1.6, 0.04); }   // framed panels
-    box(M.metal, midx, 5.4, z1 - side * 0.02, 1.6, 0.5, 0.06); ptLight(0xffe0b0, midx, 4.0, z1 - side * 0.3, 0.5, 8);   // vent + sconce
+    box(M.metal, midx, 5.4, z1 - side * 0.02, 1.6, 0.5, 0.06);   // vent + sconce
     box(M.metal, outer - side * 0.8, 0.6, z0 + 1.4, 0.9, 1.2, 0.7); box(M.metal, outer - side * 0.8, 0.6, z1 - 1.4, 0.9, 1.2, 0.7);   // cabinets
     box(M.metal, outer - side * 0.8, 0.3, zc, 0.4, 0.6, 0.4); box(mat(0x2f5a34, 0.85), outer - side * 0.8, 0.9, zc, 0.62, 0.5, 0.62);   // plant
     box(mat(accent, 0.7, 0, accent, 0.14), midx, 0.02, zc, span * 0.7, 0.02, 7);   // floor rug
