@@ -1053,77 +1053,102 @@ function initTutorial() {
   const doorL = box(M.metal, -1.45, 2.0, 22, 2.9, 3.9, 0.22); const doorR = box(M.metal, 1.45, 2.0, 22, 2.9, 3.9, 0.22);
   box(M.trim, -1.45, 3.9, 22, 2.9, 0.07, 0.24); box(M.trim, 1.45, 3.9, 22, 2.9, 0.07, 0.24);
 
-  /* ---- corridor walls with office openings; offices are enclosed rooms ---- */
-  // wall runs on each side from z22..76 except where an office window/door sits.
-  function wallRun(side, z0, z1) { const x = side * XW; box(M.wall, x, CEIL / 2, (z0 + z1) / 2, 0.3, CEIL, z1 - z0); }
-  // an enclosed office: glass front + open door + interior + ceiling + light. Returns {doorX, doorZ}
-  function office(side, zc, accent) {
-    const inner = side * XW, outer = side * 14.2, midx = (inner + outer) / 2, span = Math.abs(outer - inner);
-    const z0 = zc - 5, z1 = zc + 5;
-    box(M.wall2, outer, CEIL / 2, zc, 0.3, CEIL, 10);                 // back wall
-    box(M.wall2, midx, CEIL / 2, z0, span, CEIL, 0.3);               // side wall
-    box(M.wall2, midx, CEIL / 2, z1, span, CEIL, 0.3);               // side wall
-    box(M.wall2, midx, CEIL - 0.15, zc, span, 0.3, 10);             // ceiling
-    ptLight(0xfff0d0, midx, CEIL - 0.6, zc, 1.6, 16);
-    // FRONT wall at x=inner: window band (z0+0.5 .. dz0) + open doorway (dz0..dz1) + short return
-    const dz0 = zc + 1.2, dz1 = zc + 3.2;
-    box(M.wall, inner, 0.55, (z0 + 0.5 + dz0) / 2, 0.28, 1.1, dz0 - (z0 + 0.5));      // sill
-    box(M.wall, inner, CEIL - 0.85, (z0 + 0.5 + dz0) / 2, 0.28, 1.7, dz0 - (z0 + 0.5)); // header
-    box(M.glass, inner, 2.6, (z0 + 0.5 + dz0) / 2, 0.06, 3.0, dz0 - (z0 + 0.5) - 0.3);  // window
-    box(M.trim, inner, 1.1, (z0 + 0.5 + dz0) / 2, 0.3, 0.06, dz0 - (z0 + 0.5));         // frame
-    box(M.trim, inner, 4.1, (z0 + 0.5 + dz0) / 2, 0.3, 0.06, dz0 - (z0 + 0.5));
-    box(M.wall, inner, CEIL / 2, (dz1 + z1) / 2, 0.28, CEIL, z1 - dz1);                 // return past door
-    box(M.wall, inner, CEIL - 0.8, (dz0 + dz1) / 2, 0.28, 1.6, dz1 - dz0);              // door header
-    box(M.trim, inner, 2.0, dz0, 0.3, 4.0, 0.12); box(M.trim, inner, 2.0, dz1, 0.3, 4.0, 0.12); // door posts
-    // OPEN door (swung into the room)
-    const door = box(M.door, inner + side * 0.95, 1.95, dz0 + 0.05, 1.8, 3.7, 0.1);
-    box(M.trim, inner + side * 0.95, 1.0, dz0 + 0.05, 1.82, 0.05, 0.11);
-    // name plaque above the door (accent-lit)
-    box(mat(accent, 0.4, 0.4, accent, 0.8), inner, 4.5, zc + 2.2, 0.12, 0.5, 1.6);
-    // wall runs on this side up to / after the office
-    return { doorX: inner, doorZ: zc + 2.2, z0, z1 };
+  /* ---- corridor + enclosed offices (bigger, detailed, wall-populated) ---- */
+  const scr = c => new THREE.MeshBasicMaterial({ color: c });
+  function chair(x, z, ry) { const g = new THREE.Group(); g.position.set(x, 0, z); g.rotation.y = ry || 0; box(M.seat, 0, 0.46, 0, 0.5, 0.1, 0.5, g); box(M.seat, 0, 0.78, -0.22, 0.5, 0.62, 0.1, g); box(M.metal, 0, 0.24, 0, 0.09, 0.46, 0.09, g); box(M.metal, 0, 0.05, 0, 0.5, 0.06, 0.5, g); scene.add(g); }
+  function deskUnit(x, z, ry, sc) { const g = new THREE.Group(); g.position.set(x, 0, z); g.rotation.y = ry || 0; box(M.desk, 0, 0.5, 0, 1.7, 1.0, 0.85, g); box(M.deskTop, 0, 1.02, 0, 1.8, 0.06, 0.95, g); box(M.metal, 0, 1.42, -0.32, 0.78, 0.5, 0.05, g); box(scr(sc || 0x123a5a), 0, 1.42, -0.29, 0.68, 0.42, 0.03, g); box(M.deskTop, 0.55, 1.08, 0.12, 0.28, 0.02, 0.4, g); box(M.trim, -0.55, 1.1, 0.1, 0.1, 0.12, 0.1, g); scene.add(g); }
+  function wallRun(side, z0, z1) {
+    const x = side * XW; box(M.wall, x, CEIL / 2, (z0 + z1) / 2, 0.3, CEIL, z1 - z0);
+    box(M.trim, x - side * 0.02, 0.28, (z0 + z1) / 2, 0.06, 0.45, z1 - z0);
+    box(M.trim, x - side * 0.02, CEIL - 1.0, (z0 + z1) / 2, 0.06, 0.08, z1 - z0);
+    for (let z = z0 + 3; z < z1 - 1; z += 5) { box(M.metal, x - side * 0.05, 3.3, z, 0.05, 1.3, 1.7); box(M.glow, x - side * 0.04, 4.15, z, 0.03, 0.05, 1.5); ptLight(0xffe9c8, x - side * 0.4, 3.5, z, 0.4, 5); }
   }
-  // corridor side walls between offices (fill the gaps so it's enclosed)
-  // left side offices at zc 30 (ops) and 58 (armory); right at 44 (eng)
-  wallRun(-1, 22, 25); wallRun(-1, 35, 53); wallRun(-1, 63, 76);
-  wallRun(1, 22, 39); wallRun(1, 49, 76);
+  // bigger enclosed office with heavy generic wall/floor detail + a fill() hook
+  function office(side, zc, accent, fill) {
+    const inner = side * XW, outer = side * 16, midx = (inner + outer) / 2, span = Math.abs(outer - inner), z0 = zc - 6, z1 = zc + 6;
+    box(M.wall2, outer, CEIL / 2, zc, 0.3, CEIL, 12);
+    box(M.wall2, midx, CEIL / 2, z0, span, CEIL, 0.3); box(M.wall2, midx, CEIL / 2, z1, span, CEIL, 0.3);
+    box(M.wall2, midx, CEIL - 0.15, zc, span, 0.3, 12);
+    box(M.glow, midx, CEIL - 0.22, zc - 2.5, span * 0.7, 0.05, 1.4); box(M.glow, midx, CEIL - 0.22, zc + 2.5, span * 0.7, 0.05, 1.4);
+    ptLight(0xfff0d0, midx, CEIL - 0.7, zc - 2.5, 1.6, 18); ptLight(0xfff0d0, midx, CEIL - 0.7, zc + 2.5, 1.5, 18);
+    box(M.trim, outer - side * 0.02, 0.28, zc, 0.06, 0.45, 12); box(M.trim, outer - side * 0.02, CEIL - 1.0, zc, 0.06, 0.08, 12);
+    // front wall: window band + open doorway + return
+    const dz0 = zc + 1.4, dz1 = zc + 3.8, wz0 = z0 + 0.5, wc = (wz0 + dz0) / 2, wl = dz0 - wz0;
+    box(M.wall, inner, 0.6, wc, 0.28, 1.2, wl); box(M.wall, inner, CEIL - 0.75, wc, 0.28, 1.7, wl);
+    box(M.glass, inner, 2.75, wc, 0.06, 3.1, wl - 0.3);
+    box(M.trim, inner, 1.2, wc, 0.3, 0.06, wl); box(M.trim, inner, 4.3, wc, 0.3, 0.06, wl);
+    for (let mz = wz0 + 1.6; mz < dz0 - 0.4; mz += 2.0) box(M.trim, inner, 2.75, mz, 0.31, 3.1, 0.05);
+    box(M.wall, inner, CEIL / 2, (dz1 + z1) / 2, 0.28, CEIL, z1 - dz1);
+    box(M.wall, inner, CEIL - 0.65, (dz0 + dz1) / 2, 0.28, 1.9, dz1 - dz0);
+    box(M.trim, inner, 2.1, dz0, 0.32, 4.2, 0.12); box(M.trim, inner, 2.1, dz1, 0.32, 4.2, 0.12);
+    box(M.door, inner + side * 1.05, 2.05, dz0 + 0.05, 2.1, 3.9, 0.1); box(M.trim, inner + side * 1.05, 1.0, dz0 + 0.05, 2.12, 0.05, 0.11);
+    box(mat(accent, 0.4, 0.4, accent, 0.9), inner, 4.6, zc + 2.6, 0.12, 0.5, 1.9);   // lit plaque
+    // generic wall population
+    for (let i = 0; i < 3; i++) { const mz = zc - 3 + i * 3; box(M.metal, outer - side * 0.16, 3.1, mz, 0.06, 1.4, 2.3); box(scr(0x0c2b4a), outer - side * 0.2, 3.1, mz, 0.03, 1.15, 2.0); for (let k = 0; k < 4; k++) box(M.holoLine, outer - side * 0.23, 2.6 + Math.random() * 1.0, mz - 0.8 + Math.random() * 1.6, 0.02, 0.02 + Math.random() * 0.7, 0.02); }
+    box(M.metal, outer - side * 0.25, CEIL - 1.15, zc, 0.14, 0.14, 11);   // cable tray
+    for (let i = 0; i < 2; i++) { box(M.metal, midx - 2 + i * 4, 3.4, z0 + side * 0.02, 1.5, 1.9, 0.06); box(scr(0x14202e), midx - 2 + i * 4, 3.4, z0 + side * 0.05, 1.3, 1.6, 0.04); }   // framed panels
+    box(M.metal, midx, 5.4, z1 - side * 0.02, 1.6, 0.5, 0.06); ptLight(0xffe0b0, midx, 4.0, z1 - side * 0.3, 0.5, 8);   // vent + sconce
+    box(M.metal, outer - side * 0.8, 0.6, z0 + 1.4, 0.9, 1.2, 0.7); box(M.metal, outer - side * 0.8, 0.6, z1 - 1.4, 0.9, 1.2, 0.7);   // cabinets
+    box(M.metal, outer - side * 0.8, 0.3, zc, 0.4, 0.6, 0.4); box(mat(0x2f5a34, 0.85), outer - side * 0.8, 0.9, zc, 0.62, 0.5, 0.62);   // plant
+    box(mat(accent, 0.7, 0, accent, 0.14), midx, 0.02, zc, span * 0.7, 0.02, 7);   // floor rug
+    if (fill) fill({ inner, outer, midx, zc, side });
+    return { doorX: inner, doorZ: zc + 2.6 };
+  }
+  wallRun(-1, 22, 24); wallRun(-1, 36, 52); wallRun(-1, 64, 82);
+  wallRun(1, 22, 38); wallRun(1, 50, 56); wallRun(1, 68, 82);
+  // corridor planters + a bench for life
+  [[-6, 27], [6, 40], [-6, 53], [6, 67]].forEach(([px, pz]) => { box(M.metal, px, 0.3, pz, 0.45, 0.6, 0.45); box(mat(0x2f5a34, 0.85), px, 0.9, pz, 0.66, 0.6, 0.66); });
+  box(M.seat, 6, 0.3, 30, 0.7, 0.4, 2.0); box(M.seat, 6, 0.62, 30, 0.7, 0.24, 2.0);
 
-  const opsRoom = office(-1, 30, 0x59a8ff);   // Operations (Analyst)
-  const engRoom = office(1, 44, 0xffa64d);    // Engineering (Engineer)
-  const armRoom = office(-1, 58, 0x8be08b);   // Armory (Officer)
-
-  // OPS interior: wall-sized display + desks
-  box(new THREE.MeshBasicMaterial({ color: 0x0c2b4a }), -12.0, 3.4, 30, 0.1, 3.2, 7);
-  for (let i = 0; i < 10; i++) box(M.holoLine, -11.94, 2.2 + Math.random() * 2.4, 27 + Math.random() * 6, 0.02, 0.02 + Math.random() * 1.1, 0.02);
-  box(M.holoLine, -11.94, 3.4, 30, 0.02, 0.02, 6.6); box(M.holoLine, -11.94, 3.4, 30, 0.02, 2.8, 0.02);
-  ptLight(holoCol, -10.5, 3.2, 30, 1.4, 12);
-  box(M.desk, -10.4, 0.5, 28.5, 2.2, 1.0, 1.0); box(M.desk, -10.4, 0.5, 31.5, 2.2, 1.0, 1.0);
+  const opsRoom = office(-1, 30, 0x59a8ff, ({ outer, side, zc }) => {   // Operations
+    box(scr(0x0c2b4a), outer - side * 0.28, 3.7, zc, 0.05, 3.6, 7.6);
+    for (let i = 0; i < 16; i++) box(M.holoLine, outer - side * 0.31, 2.2 + Math.random() * 3, zc - 3.4 + Math.random() * 6.8, 0.02, 0.02 + Math.random() * 1.2, 0.02);
+    box(M.holoLine, outer - side * 0.31, 3.7, zc, 0.02, 0.02, 7.2); ptLight(holoCol, outer - side * 1.4, 3.4, zc, 1.6, 14);
+    deskUnit(-10.6, zc - 2.2, Math.PI / 2, 0x123a5a); deskUnit(-10.6, zc + 2.2, Math.PI / 2, 0x1a3a2a);
+    chair(-9.7, zc - 2.2, -Math.PI / 2); chair(-9.7, zc + 2.2, -Math.PI / 2);
+  });
   const analyst = makeNPC({ suit: 0x2b3a5c, shirt: 0xeef0f4, hair: 0x3a2a1a, skin: 0xe8c0a0, glasses: true });
   analyst.group.position.set(-8.4, 0, 32); analyst.group.rotation.y = Math.PI / 2; scene.add(analyst.group);
 
-  // ENG interior: workbench + gadgets + drone
-  box(M.metal, 11.8, 0.5, 44, 3.0, 1.0, 5.0); box(M.deskTop, 11.8, 1.02, 44, 3.2, 0.06, 5.2);
-  for (const gz of [42.5, 44, 45.5]) box(M.red, 11.8, 1.14, gz, 0.4, 0.2, 0.4);
-  ptLight(0xffcaa0, 11, 3.2, 44, 1.4, 12);
+  const engRoom = office(1, 44, 0xffa64d, ({ outer, side, zc }) => {   // Engineering
+    box(M.metal, outer - side * 1.2, 0.5, zc, 3.0, 1.0, 6.0); box(M.deskTop, outer - side * 1.2, 1.02, zc, 3.2, 0.06, 6.2);
+    for (const gz of [zc - 2, zc, zc + 2]) { box(M.red, outer - side * 1.2, 1.14, gz, 0.4, 0.2, 0.4); box(M.metal, outer - side * 1.2, 1.16, gz + 0.7, 0.3, 0.24, 0.3); }
+    box(M.metal, outer - side * 0.6, 1.4, zc - 3.6, 1.4, 2.4, 0.5);
+    for (let i = 0; i < 6; i++) box(M.trim, outer - side * 0.34, 0.9 + (i % 3) * 0.7, zc - 4 + (i % 2) * 0.4, 0.02, 0.5, 0.06);
+    ptLight(0xffcaa0, outer - side * 1.5, 3.2, zc, 1.5, 14);
+  });
   const engineer = makeNPC({ suit: 0xa6692a, hair: 0x241a12, skin: 0xcf9e78, coverall: true });
   engineer.group.position.set(8.4, 0, 46); engineer.group.rotation.y = -Math.PI / 2; scene.add(engineer.group);
   const drone = new THREE.Group(); box(M.metal, 0, 0, 0, 0.34, 0.1, 0.34, drone);
   for (const [ax, az] of [[0.22, 0.22], [-0.22, 0.22], [0.22, -0.22], [-0.22, -0.22]]) { box(M.metal, ax, 0.02, az, 0.16, 0.04, 0.16, drone); box(M.red, ax, 0.06, az, 0.18, 0.02, 0.18, drone); }
   drone.position.set(8.9, 1.15, 46.4); drone.rotation.z = 0.4; scene.add(drone);
 
-  // ARMORY interior: weapon racks
-  box(M.metal, -11.8, 1.6, 58, 0.2, 3.0, 7); for (let i = 0; i < 6; i++) box(M.metal, -11.5, 1.0 + (i % 3) * 0.9, 56 + Math.floor(i / 3) * 4, 0.1, 0.14, 1.4);
-  box(M.desk, -10.4, 0.5, 60, 2.0, 1.0, 1.2); box(M.deskTop, -10.4, 1.02, 60, 2.2, 0.06, 1.4);
-  ptLight(0xffe0b0, -10.6, 3.2, 58, 1.2, 12);
+  const armRoom = office(-1, 58, 0x8be08b, ({ outer, side, zc }) => {   // Armory
+    box(M.metal, outer - side * 0.4, 1.7, zc, 0.2, 3.2, 8);
+    for (let i = 0; i < 8; i++) box(M.metal, outer - side * 0.7, 1.0 + (i % 4) * 0.7, zc - 3 + Math.floor(i / 4) * 6, 0.12, 0.16, 1.5);
+    for (let i = 0; i < 3; i++) box(M.desk, outer - side * 1.7, 0.4, zc - 2 + i * 2, 1.2, 0.8, 0.9);
+    box(scr(0x3a1010), outer - side * 0.35, 4.2, zc - 3, 0.03, 1.2, 1.2);
+    ptLight(0xffe0b0, outer - side * 1.6, 3.2, zc, 1.3, 14);
+  });
+  box(M.desk, -8.6, 0.5, 60, 2.0, 1.0, 1.2); box(M.deskTop, -8.6, 1.02, 60, 2.2, 0.06, 1.4);   // armory counter near the door
   const officer = makeNPC({ suit: 0x3a4630, hair: 0x14100c, skin: 0xc99070, tactical: true });
   officer.group.position.set(-8.4, 0, 60); officer.group.rotation.y = Math.PI / 2; scene.add(officer.group);
 
-  /* ---- Q Division doorway + far wall ---- */
-  box(M.wall, 0, CEIL / 2, 76, 30, CEIL, 0.5);
-  box(M.door, 0, 2.1, 75.7, 4.4, 4.2, 0.2);
-  box(M.trim, -2.35, 2.1, 75.7, 0.14, 4.2, 0.2); box(M.trim, 2.35, 2.1, 75.7, 0.14, 4.2, 0.2); box(M.trim, 0, 4.25, 75.7, 4.9, 0.14, 0.2);
-  const qRing = new THREE.Mesh(new THREE.TorusGeometry(0.7, 0.05, 8, 40), M.trim); qRing.position.set(0, 2.4, 75.55); scene.add(qRing);
-  ptLight(0x59a8ff, 0, 2.4, 74.4, 1.2, 12);
+  // FILLER: server / comms room (no interaction) — right side, blinking racks + technician
+  office(1, 64, 0xff5a6e, ({ outer, midx, side, zc }) => {
+    for (let r = 0; r < 4; r++) { const rz = zc - 3 + r * 2; box(M.metal, outer - side * 1.0, 1.5, rz, 1.0, 2.8, 1.2); for (let l = 0; l < 10; l++) box(scr([0x35d9a0, 0xff5a6e, 0x49b7ff][l % 3]), outer - side * 1.55, 0.6 + l * 0.24, rz, 0.02, 0.05, 0.05); }
+    box(M.metal, midx, 0.5, zc + 3.6, 2.0, 1.0, 1.0); box(scr(0x123a5a), midx, 1.35, zc + 3.6, 0.7, 0.4, 0.03);
+    ptLight(0x35d9a0, outer - side * 1.5, 2.5, zc, 1.2, 14);
+  });
+  const tech = makeNPC({ suit: 0x2a2e34, hair: 0x201814, skin: 0xd7a682 });
+  tech.group.position.set(11.4, 0, 64); tech.group.rotation.y = -Math.PI / 2; scene.add(tech.group);
+
+  /* ---- Q Division doorway + far wall (placeholder until Q's scene) ---- */
+  box(M.wall, 0, CEIL / 2, 82, 34, CEIL, 0.5);
+  box(M.door, 0, 2.1, 81.7, 4.4, 4.2, 0.2);
+  box(M.trim, -2.35, 2.1, 81.7, 0.14, 4.2, 0.2); box(M.trim, 2.35, 2.1, 81.7, 0.14, 4.2, 0.2); box(M.trim, 0, 4.25, 81.7, 4.9, 0.14, 0.2);
+  const qRing = new THREE.Mesh(new THREE.TorusGeometry(0.7, 0.05, 8, 40), M.trim); qRing.position.set(0, 2.4, 81.55); scene.add(qRing);
+  ptLight(0x59a8ff, 0, 2.4, 80.4, 1.2, 12);
 
   /* ---- elevator ---- */
   const CAR = new THREE.Group(); scene.add(CAR);
@@ -1161,12 +1186,12 @@ function initTutorial() {
   for (let i = 0; i < 4; i++) {
     const n = makeNPC({ suit: wsuits[i % 4], hair: [0x1a1512, 0x2a2018, 0x120e0a][i % 3], skin: [0xdaa985, 0xc99878, 0xe8c0a0][i % 3], tie: (i % 2) ? 0x3a3a4a : 0x555 });
     const lane = i % 2 ? 4.5 : -4.5, z0 = 26 + i * 10, dir = i % 2 ? 1 : -1;
-    n.group.position.set(lane, 0, z0); n.walkPath = { min: 24, max: 72, dir, speed: 1.1 + Math.random() * 0.5 };
+    n.group.position.set(lane, 0, z0); n.walkPath = { min: 24, max: 80, dir, speed: 1.1 + Math.random() * 0.5 };
     scene.add(n.group); walkers.push(n);
   }
   const agent1 = makeNPC({ suit: 0x14141c, tie: 0x40485c, hair: 0x2a2018, skin: 0xdcae88 });
   const agent2 = makeNPC({ suit: 0x2a2028, tie: 0x6a2a2a, hair: 0x140f0a, skin: 0xc99070 });
-  agent1.group.position.set(-2.4, 0, 70); agent2.group.position.set(2.4, 0, 71); scene.add(agent1.group, agent2.group);
+  agent1.group.position.set(-2.4, 0, 78); agent2.group.position.set(2.4, 0, 79); scene.add(agent1.group, agent2.group);
 
   /* ---- gold diamond waypoint helper ---- */
   function waypoint(x, y, z) { const w = new THREE.Mesh(new THREE.OctahedronGeometry(0.38), new THREE.MeshBasicMaterial({ color: 0xf7e7ad, transparent: true, opacity: 0.92, depthTest: false })); w.renderOrder = 999; w.position.set(x, y, z); w.visible = false; scene.add(w); return w; }
@@ -1186,7 +1211,7 @@ function initTutorial() {
     { id: 'armory', x: -5.6, z: 60, r: 2.8, label: 'Speak with the Armory Officer', done: false, staff: true, npc: 'armory', wp: waypoint(armRoom.doorX, 4.2, armRoom.doorZ) },
   ];
   const npcByName = { analyst, engineer, armory: officer };
-  const qWp = waypoint(0, 3.2, 74.6);
+  const qWp = waypoint(0, 3.2, 80.6);
 
   function banner(text) { objBanner.querySelector('.m').textContent = text; objBanner.classList.add('on'); setTimeout(() => objBanner.classList.remove('on'), 3000); }
   function setObjective(text, showBanner) { objText.textContent = text; objHud.classList.add('on'); if (showBanner) banner(text); }
@@ -1261,7 +1286,7 @@ function initTutorial() {
       // keep the player in the reception box (wide) then the corridor (narrow)
       if (rig.position.z < 21) { rig.position.x = Math.max(-13.5, Math.min(13.5, rig.position.x)); }
       else { rig.position.x = Math.max(-6.2, Math.min(6.2, rig.position.x)); }
-      rig.position.z = Math.max(-2, Math.min(74.5, rig.position.z));
+      rig.position.z = Math.max(-2, Math.min(80.5, rig.position.z));
       const running = keys.ShiftLeft && moving;
       acts.Idle.setEffectiveWeight(THREE.MathUtils.lerp(acts.Idle.getEffectiveWeight(), moving ? 0 : 1, Math.min(1, dt * 10)));
       acts.Walk.setEffectiveWeight(THREE.MathUtils.lerp(acts.Walk.getEffectiveWeight(), (moving && !running) ? 1 : 0, Math.min(1, dt * 10)));
@@ -1282,7 +1307,7 @@ function initTutorial() {
       }
       if (agentsDone && !convActive) { for (const ag of [agent1, agent2]) { ag.group.position.z -= 1.5 * dt; ag.group.rotation.y = Math.PI; ag.update(dt, true); } }
       else { agent1.update(dt, false); agent2.update(dt, false); }
-      analyst.update(dt, false); engineer.update(dt, false); officer.update(dt, false);
+      analyst.update(dt, false); engineer.update(dt, false); officer.update(dt, false); tech.update(dt, false);
     }
     renderer.render(scene, camera);
   }
