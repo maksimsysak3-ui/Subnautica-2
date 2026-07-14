@@ -53,6 +53,18 @@
   .rule { width: min(560px, 70vw); height: 1px; margin: 30px auto 0; background: linear-gradient(90deg, transparent, var(--gold-line), transparent); }
   .press { margin-top: 42px; font-size: 12px; letter-spacing: .42em; text-transform: uppercase; color: #b9b19c; animation: blink 2.2s var(--ease) infinite; }
   @keyframes blink { 0%,100%{opacity:.25} 50%{opacity:1} }
+  /* cinematic reveals for the opening */
+  .splashscreen.on .glyph { animation: glyphIn 1.5s var(--ease) both; }
+  .splashscreen.on .mark { animation: markIn 1.7s var(--ease) both; }
+  .splashscreen.on .sub { animation: fadeUp 1.6s var(--ease) .35s both; }
+  @keyframes glyphIn { 0%{opacity:0; transform:rotate(45deg) scale(.35)} 60%{opacity:1} 100%{opacity:1; transform:rotate(45deg) scale(1)} }
+  @keyframes markIn { 0%{opacity:0; letter-spacing:.95em; filter:blur(7px)} 100%{opacity:1; letter-spacing:.34em; filter:blur(0)} }
+  #title.on .kicker { animation: fadeUp 1.2s var(--ease) both; }
+  #title.on .logo { animation: logoIn 1.9s var(--ease) both; }
+  #title.on .rule { animation: ruleIn 1.5s var(--ease) .5s both; }
+  #title.on .press { animation: fadeUp 1s var(--ease) 1.1s both, blink 2.2s var(--ease) 1.5s infinite; }
+  @keyframes logoIn { 0%{opacity:0; transform:translateY(22px) scale(.965); filter:blur(9px)} 100%{opacity:1; transform:none; filter:blur(0)} }
+  @keyframes ruleIn { 0%{transform:scaleX(0); opacity:0} 100%{transform:scaleX(1); opacity:1} }
 
   /* ---- loading ---- */
   #loading .lwrap { width: min(720px, 82vw); }
@@ -346,6 +358,29 @@ function drawFx(t) {
 }
 requestAnimationFrame(drawFx);
 
+/* ================= procedural audio (self-contained WebAudio) ================= */
+const SFX = (function () {
+  let ac = null, master = null, hum = null, chat = null, pad = null;
+  function ctx() { if (!ac) { try { ac = new (window.AudioContext || window.webkitAudioContext)(); master = ac.createGain(); master.gain.value = 0.5; master.connect(ac.destination); } catch (e) {} } if (ac && ac.state === 'suspended') ac.resume(); return ac; }
+  function noise(dur) { const b = ac.createBuffer(1, Math.floor(ac.sampleRate * dur), ac.sampleRate); const d = b.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1; return b; }
+  function beep(freq, dur, vol, type, slideTo) { const c = ctx(); if (!c) return; const o = c.createOscillator(); o.type = type || 'sine'; o.frequency.setValueAtTime(freq, c.currentTime); if (slideTo) o.frequency.exponentialRampToValueAtTime(slideTo, c.currentTime + dur); const g = c.createGain(); g.gain.setValueAtTime(0, c.currentTime); g.gain.linearRampToValueAtTime(vol || 0.2, c.currentTime + 0.008); g.gain.exponentialRampToValueAtTime(0.0001, c.currentTime + dur); o.connect(g).connect(master); o.start(); o.stop(c.currentTime + dur + 0.03); }
+  return {
+    resume() { ctx(); },
+    hover() { beep(620, 0.05, 0.04, 'sine'); },
+    click() { beep(300, 0.09, 0.12, 'triangle'); beep(660, 0.06, 0.06, 'sine'); },
+    boot() { beep(760 + Math.random() * 300, 0.04, 0.06, 'square'); },
+    chime() { [660, 880, 1245].forEach((f, i) => setTimeout(() => beep(f, 0.4, 0.11, 'sine'), i * 95)); },
+    blip() { beep(500, 0.05, 0.05, 'sine'); },
+    ding() { beep(1245, 0.55, 0.16, 'sine'); setTimeout(() => beep(1660, 0.45, 0.1, 'sine'), 45); },
+    step() { const c = ctx(); if (!c) return; const s = c.createBufferSource(); s.buffer = noise(0.09); const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 300; const g = c.createGain(); g.gain.setValueAtTime(0.12, c.currentTime); g.gain.exponentialRampToValueAtTime(0.0001, c.currentTime + 0.1); s.connect(lp).connect(g).connect(master); s.start(); },
+    door() { const c = ctx(); if (!c) return; const s = c.createBufferSource(); s.buffer = noise(1.0); const bp = c.createBiquadFilter(); bp.type = 'bandpass'; bp.Q.value = 1.5; bp.frequency.setValueAtTime(500, c.currentTime); bp.frequency.linearRampToValueAtTime(1400, c.currentTime + 0.7); const g = c.createGain(); g.gain.setValueAtTime(0.0001, c.currentTime); g.gain.linearRampToValueAtTime(0.12, c.currentTime + 0.2); g.gain.exponentialRampToValueAtTime(0.0001, c.currentTime + 1.0); s.connect(bp).connect(g).connect(master); s.start(); },
+    elevator(on) { const c = ctx(); if (!c) return; if (on) { if (hum) return; const o = c.createOscillator(); o.type = 'sawtooth'; o.frequency.value = 55; const o2 = c.createOscillator(); o2.type = 'sine'; o2.frequency.value = 110; const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 190; const g = c.createGain(); g.gain.value = 0; g.gain.linearRampToValueAtTime(0.14, c.currentTime + 0.7); o.connect(lp); o2.connect(lp); lp.connect(g).connect(master); o.start(); o2.start(); hum = { o, o2, g }; } else if (hum) { const h = hum; h.g.gain.linearRampToValueAtTime(0.0001, c.currentTime + 0.5); h.o.stop(c.currentTime + 0.6); h.o2.stop(c.currentTime + 0.6); hum = null; } },
+    chatter(on) { const c = ctx(); if (!c) return; if (on) { if (chat) return; const s = c.createBufferSource(); s.buffer = noise(4); s.loop = true; const bp = c.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 850; bp.Q.value = 0.8; const g = c.createGain(); g.gain.value = 0; g.gain.linearRampToValueAtTime(0.045, c.currentTime + 1.5); const lfo = c.createOscillator(); lfo.frequency.value = 0.6; const lg = c.createGain(); lg.gain.value = 0.028; lfo.connect(lg).connect(g.gain); lfo.start(); s.connect(bp).connect(g).connect(master); s.start(); chat = { s, g }; } else if (chat) { chat.g.gain.linearRampToValueAtTime(0.0001, c.currentTime + 0.8); chat = null; } },
+    pad(on) { const c = ctx(); if (!c) return; if (on) { if (pad) return; const o = c.createOscillator(); o.type = 'sine'; o.frequency.value = 73; const o2 = c.createOscillator(); o2.type = 'sine'; o2.frequency.value = 110; const g = c.createGain(); g.gain.value = 0; g.gain.linearRampToValueAtTime(0.05, c.currentTime + 2); o.connect(g); o2.connect(g); g.connect(master); o.start(); o2.start(); pad = { o, o2, g }; } else if (pad) { pad.g.gain.linearRampToValueAtTime(0.0001, c.currentTime + 1.2); pad.o.stop(c.currentTime + 1.4); pad.o2.stop(c.currentTime + 1.4); pad = null; } },
+  };
+})();
+window.SFX = SFX;
+
 /* ================= screen flow ================= */
 const S = id => document.getElementById(id);
 function show(id) { document.querySelectorAll('.screen').forEach(s => s.classList.remove('on')); if (id) S(id).classList.add('on'); }
@@ -385,7 +420,7 @@ boot();
 let started = false;
 function begin() {
   if (started) return; if (!S('title').classList.contains('on')) return;
-  started = true;
+  started = true; SFX.resume(); SFX.click(); SFX.pad(true);
   (async () => { await runLoading('Initializing', 2800); buildMain(); show('main'); })();
 }
 addEventListener('keydown', e => { if (e.key === 'Enter') begin(); });
@@ -407,8 +442,8 @@ function buildMain() {
     d.className = 'mi fade-up' + (m.locked ? ' locked' : '') + (m.gap ? ' gap' : '') + (i === 0 ? ' sel' : '');
     d.style.animationDelay = (i * .06) + 's';
     d.innerHTML = `<span class="mdot"></span><span class="mlabel">${m.label}</span>`;
-    if (!m.locked) { d.onmouseenter = () => { host.querySelectorAll('.mi').forEach(x => x.classList.remove('sel')); d.classList.add('sel'); }; }
-    if (m.action) d.onclick = m.action;
+    if (!m.locked) { d.onmouseenter = () => { host.querySelectorAll('.mi').forEach(x => x.classList.remove('sel')); d.classList.add('sel'); SFX.hover(); }; }
+    if (m.action) d.onclick = () => { SFX.click(); m.action(); };
     host.appendChild(d);
   });
 }
@@ -449,7 +484,7 @@ function buildMissions() {
 }
 async function launchMission(ch, mi) {
   // Mission 1-1 is the tutorial: boot screen -> controls -> 3D opening scene
-  if (ch === 0 && mi === 0) { await runBoot(); if (window.startTutorial) window.startTutorial(); return; }
+  if (ch === 0 && mi === 0) { await runBoot(); SFX.pad(false); if (window.startTutorial) window.startTutorial(); return; }
   await runLoading(`Mission ${ch + 1}-${String(mi + 1).padStart(2, '0')} — ${CH_NAMES[ch]}`, 2600);
   location.href = 'character.html';
 }
@@ -465,9 +500,9 @@ async function runBoot() {
     '> SECURE TERMINAL — POWER ON', '> BIOMETRIC HANDSHAKE ... OK', '> CLEARANCE VERIFY ... OK',
     '> DECRYPTING SITE MANIFEST ...', '> UPLINK: SIS/VAUXHALL ... LIVE', '> WELCOME, AGENT.',
   ];
-  for (const l of sys) { lines.textContent += l + '\n'; await wait(320); }
+  for (const l of sys) { lines.textContent += l + '\n'; SFX.boot(); await wait(320); }
   await wait(500);
-  S('bootaccess').classList.add('on');
+  S('bootaccess').classList.add('on'); SFX.chime();
   await wait(2600);
   S('bootaccess').classList.remove('on'); await wait(700);
   S('bootControls').classList.add('on');
@@ -1002,6 +1037,7 @@ const CONVOS = {
   ],
 };
 
+const SFX = window.SFX || { resume() {}, elevator() {}, chatter() {}, ding() {}, door() {}, step() {}, chime() {}, blip() {} };
 let T = null;
 window.startTutorial = function () { if (!T) T = initTutorial(); T.begin(); };
 
@@ -1227,7 +1263,7 @@ function initTutorial() {
 
   /* ================= STATE / HUD / INTERACTION ================= */
   let state = 'idleWait', carY = 5.2, tState = 0, eDoor = 0, lDoor = 0;
-  let camYaw = 0, camPitch = 0.18, curYaw = 0;
+  let camYaw = 0, camPitch = 0.18, curYaw = 0, stepT = 0, bob = 0, doorPlayed = false;
   const keys = {};
   const prompt = document.getElementById('tutPrompt'), subtitle = document.getElementById('tutSub'), floorHud = document.getElementById('tutFloor');
   const objHud = document.getElementById('tutObj'), objBanner = document.getElementById('tutObjBanner'), objText = objHud.querySelector('.txt span');
@@ -1243,14 +1279,14 @@ function initTutorial() {
   const qWp = waypoint(0, 3.2, 80.6);
 
   function banner(text) { objBanner.querySelector('.m').textContent = text; objBanner.classList.add('on'); setTimeout(() => objBanner.classList.remove('on'), 3000); }
-  function setObjective(text, showBanner) { objText.textContent = text; objHud.classList.add('on'); if (showBanner) banner(text); }
+  function setObjective(text, showBanner) { objText.textContent = text; objHud.classList.add('on'); if (showBanner) { banner(text); SFX.chime(); } }
   function refreshWaypoints() {
     inter[0].wp.visible = (phase === 'reception');
     for (let i = 1; i < inter.length; i++) inter[i].wp.visible = (phase === 'staff' && !inter[i].done);
     qWp.visible = (phase === 'q');
   }
   function playConvo(id, onDone) {
-    const lines = CONVOS[id]; if (!lines) { onDone && onDone(); return; } convActive = true; let i = 0;
+    const lines = CONVOS[id]; if (!lines) { onDone && onDone(); return; } convActive = true; SFX.blip(); let i = 0;
     (function next() {
       if (i >= lines.length) { subtitle.classList.remove('on'); convActive = false; onDone && onDone(); return; }
       const ln = lines[i++]; subtitle.innerHTML = '<b>' + ln.who + '</b><span>' + ln.text + '</span>'; subtitle.classList.add('on');
@@ -1297,12 +1333,12 @@ function initTutorial() {
       if (floorHud) floorHud.textContent = 'B' + Math.max(1, Math.ceil(carY / 5 * 6));
       rig.position.set(0, carY, -1.2); CAR.position.y = carY;
       camera.position.set(0.55, carY + 1.75, -2.25); camera.lookAt(0, carY + 1.2, -0.3);
-      if (carY < 0.05 && tState > 3.2) { state = 'edoors'; if (floorHud) floorHud.textContent = 'G'; }
+      if (carY < 0.05 && tState > 3.2) { state = 'edoors'; if (floorHud) floorHud.textContent = 'G'; SFX.elevator(false); SFX.ding(); setTimeout(() => SFX.door(), 400); }
     } else if (state === 'edoors') {
       CAR.position.y = 0; rig.position.set(0, 0, -1.2); eDoor += dt * 0.6; const o = Math.min(1, eDoor);
       eDoorL.position.x = -0.8 - o * 1.3; eDoorR.position.x = 0.8 + o * 1.3;
       camera.position.set(0, 1.8, -4.2); camera.lookAt(0, 1.4, 0);
-      if (o >= 1) { state = 'free'; document.getElementById('tutHint').classList.add('on'); if (floorHud) floorHud.classList.remove('on'); setObjective('Report to the Receptionist', true); refreshWaypoints(); }
+      if (o >= 1) { state = 'free'; document.getElementById('tutHint').classList.add('on'); if (floorHud) floorHud.classList.remove('on'); setObjective('Report to the Receptionist', true); refreshWaypoints(); SFX.chatter(true); }
     } else {
       CAR.position.y = 0;
       const speed = keys.ShiftLeft ? 4.4 : 2.4;
@@ -1321,11 +1357,16 @@ function initTutorial() {
       acts.Walk.setEffectiveWeight(THREE.MathUtils.lerp(acts.Walk.getEffectiveWeight(), (moving && !running) ? 1 : 0, Math.min(1, dt * 10)));
       acts.Run.setEffectiveWeight(THREE.MathUtils.lerp(acts.Run.getEffectiveWeight(), running ? 1 : 0, Math.min(1, dt * 10)));
       groundPlayer();
+      // footsteps + subtle head/camera bob while walking
+      if (moving) { stepT += dt * (running ? 8.2 : 5.6); if (stepT >= Math.PI) { stepT -= Math.PI; SFX.step(); } bob = Math.abs(Math.sin(stepT)) * (running ? 0.09 : 0.05); }
+      else { stepT = 0; bob += (0 - bob) * Math.min(1, dt * 8); }
+      // sliding corridor doors open as you approach (whoosh once)
       const nearDoor = rig.position.z > 17 ? 1 : 0; lDoor += (nearDoor - lDoor) * Math.min(1, dt * 2.2);
+      if (!doorPlayed && lDoor > 0.08) { doorPlayed = true; SFX.door(); }
       doorL.position.x = -1.45 - lDoor * 2.6; doorR.position.x = 1.45 + lDoor * 2.6;
       const px = rig.position.x, pz = rig.position.z, py = 1.35, dist = 4.4;
-      camera.position.set(px - Math.sin(camYaw) * dist * Math.cos(camPitch), Math.max(0.7, py + Math.sin(camPitch) * 2.4 + 0.4), pz - Math.cos(camYaw) * dist * Math.cos(camPitch));
-      camera.lookAt(px, py, pz);
+      camera.position.set(px - Math.sin(camYaw) * dist * Math.cos(camPitch), Math.max(0.7, py + Math.sin(camPitch) * 2.4 + 0.4 + bob), pz - Math.cos(camYaw) * dist * Math.cos(camPitch));
+      camera.lookAt(px, py + bob * 0.5, pz);
       // E-to-talk prompt: only for the current phase's targets
       if (!convActive) {
         let show = null;
@@ -1341,7 +1382,7 @@ function initTutorial() {
     renderer.render(scene, camera);
   }
   frame();
-  return { begin() { document.getElementById('tutWrap').classList.add('on'); carY = 5.2; state = 'descend'; tState = 0; if (floorHud) floorHud.classList.add('on'); } };
+  return { begin() { document.getElementById('tutWrap').classList.add('on'); carY = 5.2; state = 'descend'; tState = 0; if (floorHud) floorHud.classList.add('on'); SFX.resume(); SFX.elevator(true); } };
 
   /* ================= builders ================= */
   function buildSecretary(x, y, z) {
