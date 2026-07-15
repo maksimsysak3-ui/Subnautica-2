@@ -1638,12 +1638,12 @@ function initTutorial() {
   let upperMode = false, upperBuilt = false, upperDone = false, upperLift = 0, liftUp = false, upWalkers = [], upWp = null, upDoorL = null, upDoorR = null;
   let upPhase = 'hall', officeT = 0, upSaidLine = false, anteDoorL = null, anteDoorR = null, upSecretary = null, upRecepWalkers = [];
   const UPZ0 = 180, UPZ1 = 214, ANTZ = 230, OFFZ = 252, UW = 5.5, UH = 5.0;   // hall -> antechamber -> office; wider than before
-  let upDirector = null, dirStarted = false, seqActive = false;
+  let upDirector = null, dirStarted = false, seqActive = false, curSeqLine = null, seqLineT = 0;
   // ===== Morocco training =====
   let trainMode = false, trainBuilt = false, trainPhase = 'intro', trainWater = null, trainCar = null, trainWalkers = [];
   let trainHubDone = [false, false, false, false], trainStations = [], trainReport = null, trainDoneCount = 0, hubReturn = false, hubNear = null, trainColliders = [];
   const TBEACHY = -12.4;
-  let sessIdx = 0, sessLevel = 0, sessState = 'card', sessT = 0, sessScore = 0, sessTargets = [], sessCheckpoints = [], sessGuards = [], sessFlag = null, sessResult = '', mpSaid = {}, _mpT = 0;
+  let sessIdx = 0, sessLevel = 0, sessState = 'card', sessT = 0, sessScore = 0, sessTargets = [], sessCheckpoints = [], sessGuards = [], sessFlag = null, sessResult = '', mpSaid = {}, _mpT = 0, meleeT = 0, meleeKind = 'Box';
   const _tray = new THREE.Raycaster();
   const TBASE = { x: 0, y: 0, z: 400 };   // training ground origin (a separate coastal plateau)
   const SESSIONS = [
@@ -1856,7 +1856,13 @@ function initTutorial() {
   }
   const mixer = new THREE.AnimationMixer(rig);
   const authored = authorAnimations(THREE); const acts = {};
-  for (const nm of ['Idle', 'Walk', 'Run']) { const a = mixer.clipAction(authored.clips[nm]); a.play(); a.setEffectiveWeight(nm === 'Idle' ? 1 : 0); acts[nm] = a; }
+  for (const nm of ['Idle', 'Walk', 'Run', 'Box', 'Kick']) { if (!authored.clips[nm]) continue; const a = mixer.clipAction(authored.clips[nm]); a.play(); a.setEffectiveWeight(nm === 'Idle' ? 1 : 0); acts[nm] = a; }
+  // training gun (held in the right hand during shooting / combat)
+  const trainGun = new THREE.Group();
+  { const gm = mat(0x14141a, 0.4, 0.6); const gb = (x, y, z, w, h, d, m) => { const me = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m || gm); me.position.set(x, y, z); trainGun.add(me); };
+    gb(0, 0, 0.02, 0.05, 0.11, 0.26); gb(0, -0.09, -0.03, 0.05, 0.15, 0.08); gb(0, 0.02, 0.18, 0.035, 0.05, 0.12, mat(0x0a0a0e, 0.3, 0.75)); gb(0, 0.05, 0.05, 0.045, 0.03, 0.08, mat(0x2a2e34, 0.4, 0.5)); }
+  trainGun.visible = false;
+  function equipGun(on) { if (on) { if (byName['RHand'] && trainGun.parent !== byName['RHand']) { byName['RHand'].add(trainGun); trainGun.position.set(-0.04, 0.02, 0.06); trainGun.rotation.set(0.2, 0, 0); } trainGun.visible = true; } else { trainGun.visible = false; } }
 
   /* ---- ambient staff walking the corridor — all visibly different ---- */
   const walkers = [];
@@ -2555,10 +2561,20 @@ function initTutorial() {
     }
     const px = rig.position.x, py = 1.35, dist = 4.0;
     if (seqActive && upDirector) {
-      // two-shot of Bond + the Director during the office scene
-      const dp = upDirector.group.position, mx2 = (px + dp.x) / 2, mz2 = (pz + dp.z) / 2;
+      // shot / reverse-shot: cut to whoever is speaking, over the other's shoulder
+      seqLineT += dt;
+      const dp = upDirector.group.position, bH = new THREE.Vector3(px, 1.55, pz), dH = new THREE.Vector3(dp.x, 1.62, dp.z);
       const fy = Math.atan2(dp.x - px, dp.z - pz); curYaw += (fy - curYaw) * Math.min(1, dt * 6); rig.rotation.y = curYaw;
-      camera.position.lerp(new THREE.Vector3(mx2 - 2.8, 1.9, mz2 - 2.0), Math.min(1, dt * 3)); camera.lookAt(mx2, 1.45, mz2);
+      const toD = new THREE.Vector3(dH.x - bH.x, 0, dH.z - bH.z); toD.normalize();
+      const sideV = new THREE.Vector3(-toD.z, 0, toD.x), e = clock.elapsedTime;
+      const sway = new THREE.Vector3(Math.sin(e * 0.6) * 0.04, Math.sin(e * 0.95) * 0.03, Math.cos(e * 0.5) * 0.04);
+      let pos, look, fov = 42;
+      if (!curSeqLine) { pos = bH.clone().lerp(dH, 0.5).addScaledVector(sideV, 4.4); pos.y = 2.5; look = bH.clone().lerp(dH, 0.5); fov = 48; }
+      else if (curSeqLine.who === 'BOND') { pos = dH.clone().addScaledVector(toD, 0.7).addScaledVector(sideV, 0.95); pos.y = 1.72; look = bH; fov = 40; }
+      else { pos = bH.clone().addScaledVector(toD, -0.7).addScaledVector(sideV, -0.95); pos.y = 1.74; look = dH; fov = 39; }
+      pos.add(sway);
+      camera.position.lerp(pos, Math.min(1, dt * (seqLineT < 0.4 ? 7 : 2.6))); camera.lookAt(look);
+      if (Math.abs(camera.fov - fov) > 0.05) { camera.fov += (fov - camera.fov) * Math.min(1, dt * 3); camera.updateProjectionMatrix(); }
     } else {
       camera.position.set(px - Math.sin(camYaw) * dist * Math.cos(camPitch), Math.max(0.7, py + Math.sin(camPitch) * 2.4 + 0.4 + bob), pz - Math.cos(camYaw) * dist * Math.cos(camPitch));
       camera.lookAt(px, py + bob * 0.5, pz);
@@ -2569,11 +2585,12 @@ function initTutorial() {
   function runSeq(lines, onDone) {
     seqActive = true; let i = 0;
     (function nx() {
-      if (i >= lines.length) { subtitle.classList.remove('on'); seqActive = false; if (onDone) onDone(); return; }
-      const ln = lines[i++]; subtitle.innerHTML = '<b>' + ln.who + '</b><span>' + ln.text + '</span>'; subtitle.classList.add('on');
-      let done = false; const go = () => { if (done) return; done = true; setTimeout(nx, 420); };
-      try { const a = playLine(avoice(ln.folder, ln.file)); a.onended = go; } catch (e) { go(); }
-      setTimeout(go, ln.dur || 13000);
+      if (i >= lines.length) { subtitle.classList.remove('on'); seqActive = false; curSeqLine = null; if (onDone) onDone(); return; }
+      const ln = lines[i++]; curSeqLine = ln; seqLineT = 0; subtitle.innerHTML = '<b>' + ln.who + '</b><span>' + ln.text + '</span>'; subtitle.classList.add('on');
+      let done = false; const go = () => { if (done) return; done = true; setTimeout(nx, 480); };
+      // drive off the audio's real end; the timeout is only a safety net for a failed load, so keep it long
+      try { const a = playLine(avoice(ln.folder, ln.file)); a.onended = go; a.addEventListener('ended', go); } catch (e) { setTimeout(go, 3000); }
+      setTimeout(go, ln.dur || 30000);
     })();
   }
   function mpSay(text, dur) { const el = qEl('mpRadio'); if (!el) return; el.innerHTML = '<b>◉ MONEYPENNY</b><span>' + text + '</span>'; el.classList.add('on'); clearTimeout(_mpT); _mpT = setTimeout(() => el.classList.remove('on'), dur || 5400); }
@@ -2587,6 +2604,7 @@ function initTutorial() {
       // cull the far building lights; daytime Morocco sky
       allLights.forEach(l => { if (l.position.z < TBASE.z - 120) l.visible = false; });
       scene.background = new THREE.Color(0x9fc4de); scene.fog = new THREE.FogExp2(0xcfe0ec, 0.0022);
+      camera.fov = 55; camera.updateProjectionMatrix();
       rig.position.set(TBASE.x, 0, TBASE.z - 42); rig.rotation.y = 0; curYaw = 0; camYaw = 0;
       setObjective('MI6 Training Ground · Morocco', true);
       if (fade) { fade.style.transition = 'opacity 1.6s'; fade.style.opacity = 0; }
@@ -2603,6 +2621,7 @@ function initTutorial() {
     const sunOrb = new THREE.Mesh(new THREE.SphereGeometry(12, 24, 16), new THREE.MeshBasicMaterial({ color: 0xfff2c0 })); sunOrb.position.set(O.x + 150, 78, O.z + 300); scene.add(sunOrb);
     const halo = new THREE.Mesh(new THREE.SphereGeometry(26, 20, 14), new THREE.MeshBasicMaterial({ color: 0xffe8a0, transparent: true, opacity: 0.16 })); halo.position.copy(sunOrb.position); scene.add(halo);
     const sand = mat(0xcdb98c, 0.95), sandW = mat(0xbfa778, 0.8), rock = mat(0xa9895d, 0.95), rockD = mat(0x7f6540, 1), conc = mat(0x9a958a, 0.9), steel = mat(0x3a3f47, 0.5, 0.7), wood = mat(0x5a4128, 0.7);
+    const concL = mat(0xbcb3a2, 0.9), concD = mat(0x928a7a, 0.92), tan1 = mat(0xcbb488, 0.9), tan2 = mat(0xb69f74, 0.92), rebar = mat(0x6a5c48, 0.7, 0.3), silh = mat(0x14161c, 0.8), rust = mat(0x8a5a3a, 0.85);
     /* ---------- OCEAN: layered gerstner shader with depth + foam + horizon ---------- */
     const wgeo = new THREE.PlaneGeometry(1000, 1000, 120, 120);
     const wmat = new THREE.ShaderMaterial({ transparent: true, uniforms: { uTime: { value: 0 } },
@@ -2621,8 +2640,14 @@ function initTutorial() {
     function palm(px, pz, py) { const g = new THREE.Group(); g.position.set(px, py, pz); scene.add(g); for (let s = 0; s < 4; s++) box(mat(0x6a4e2a, 0.8), Math.sin(s) * 0.2, 1 + s * 1.4, Math.cos(s) * 0.15, 0.35, 1.5, 0.35, g); const top = 6.2; for (let f = 0; f < 7; f++) { const a = f / 7 * Math.PI * 2; const fr = box(mat(0x2f7a3a, 0.8), Math.cos(a) * 1.8, top, Math.sin(a) * 1.8, 3.4, 0.1, 0.7, g); fr.rotation.y = -a; fr.rotation.z = 0.35; } box(mat(0x5a3a1a, 0.7), 0, top - 0.2, 0, 0.6, 0.5, 0.6, g); }
     for (const [px, pz] of [[O.x - 40, bcz - 6], [O.x - 24, bcz + 4], [O.x + 66, bcz - 2], [O.x + 80, bcz + 6]]) palm(px, pz, beachY);
     palm(O.x + 58, O.z + 78, 0); palm(O.x - 58, O.z + 74, 0);               // a couple up on the plateau edge
-    /* ---------- PLATEAU + cliffs (the base sits up on the headland) ---------- */
-    box(sand, O.x, -0.5, O.z, 152, 1, 200);
+    /* ---------- CONCRETE PLAZA + cliffs (the facility sits up on the headland) ---------- */
+    box(concL, O.x, -0.5, O.z, 152, 1, 200);                                 // main poured-concrete deck
+    // expansion-joint grid + painted lane markings on the deck
+    for (let gx = -70; gx <= 70; gx += 14) box(concD, O.x + gx, 0.02, O.z, 0.18, 0.02, 200);
+    for (let gz = -96; gz <= 96; gz += 14) box(concD, O.x, 0.02, O.z + gz, 152, 0.02, 0.18);
+    box(mat(0xe8e2d0, 0.6), O.x, 0.04, O.z - 6, 1.0, 0.02, 88); for (let z = O.z - 84; z < O.z + 6; z += 5) box(mat(0xd8b020, 0.5), O.x - 4, 0.05, z, 0.3, 0.02, 2.4);   // centre + hazard lines
+    // helipad marking on the plaza
+    { const hp = new THREE.Mesh(new THREE.RingGeometry(3, 3.6, 28), mat(0xe8e2d0, 0.6)); hp.rotation.x = -Math.PI / 2; hp.position.set(O.x - 30, 0.05, O.z - 14); scene.add(hp); box(mat(0xe8e2d0, 0.6), O.x - 30, 0.05, O.z - 14, 1.0, 0.02, 4); box(mat(0xe8e2d0, 0.6), O.x - 30, 0.05, O.z - 14, 4, 0.02, 1.0); }
     for (const [ex, ez, w, d] of [[-77, 0, 8, 202], [77, 0, 8, 202], [0, -101, 152, 8]]) { for (let s = 0; s < 6; s++) { const y = -1 - s * 2.4; box(s % 2 ? rock : rockD, O.x + ex + (Math.random() - 0.5) * 2, y, O.z + ez, w + s * 3, 2.6, d + s * 3).rotation.y = (Math.random() - 0.5) * 0.08; } }
     for (let s = 0; s < 6; s++) { box(s % 2 ? rock : rockD, O.x - 21, -1 - s * 2.2, O.z + 100, 110, 2.4, 6 + s * 4); box(s % 2 ? rock : rockD, O.x + 62, -1 - s * 2.2, O.z + 100, 28, 2.4, 6 + s * 4); }   // +z cliff, split for the stairwell
     // ---- staircase down to the cove (walkable; matches trainGroundY ramp) ----
@@ -2640,24 +2665,50 @@ function initTutorial() {
       }
     }
     function building(bx, bz, w, d, h, col, door, label, fill) {
-      box(mat(0x2a2620, 0.85), bx, 0.02, bz, w, 0.12, d);                    // floor
-      box(mat(0x6a5a44, 0.85), bx, h + 0.15, bz, w + 0.7, 0.4, d + 0.7);     // roof
+      box(mat(0x6a6258, 0.85), bx, 0.02, bz, w, 0.12, d);                    // concrete floor slab
+      // flat Moroccan roof + low parapet
+      box(tan2, bx, h + 0.1, bz, w + 0.4, 0.25, d + 0.4);
+      box(col ? mat(col, 0.9) : tan1, bx, h + 0.42, bz - d / 2 - 0.15, w + 0.4, 0.5, 0.16); box(col ? mat(col, 0.9) : tan1, bx, h + 0.42, bz + d / 2 + 0.15, w + 0.4, 0.5, 0.16);
+      box(col ? mat(col, 0.9) : tan1, bx - w / 2 - 0.15, h + 0.42, bz, 0.16, 0.5, d + 0.4); box(col ? mat(col, 0.9) : tan1, bx + w / 2 + 0.15, h + 0.42, bz, 0.16, 0.5, d + 0.4);
+      box(mat(0x2a2620, 0.7), bx + w / 2 - 1.2, h + 0.5, bz + d / 2 - 1.2, 1.0, 0.6, 1.0);   // rooftop AC unit
       wall4(bx, bz, w, d, h, col, door);
       ptLight(0xffe6c0, bx, h - 0.6, bz, 1.7, Math.max(w, d) + 6);
       box(M.glow, bx, h - 0.25, bz, w * 0.5, 0.05, d * 0.5);                 // ceiling strip
-      box(mat(0x0e0e12, 0.4), bx, h + 0.2, bz - d / 2 - 0.3, w * 0.5, 0.5, 0.1); box(mat(0xd9b45b, 0.4, 0.6, 0xd9b45b, 0.4), bx, h + 0.2, bz - d / 2 - 0.35, w * 0.45, 0.34, 0.04);   // signage
+      box(mat(0x1a1a1e, 0.4), bx, h * 0.68, bz - d / 2 - 0.16, w * 0.5, 0.5, 0.06); box(mat(0xd9b45b, 0.4, 0.6, 0xd9b45b, 0.4), bx, h * 0.68, bz - d / 2 - 0.2, w * 0.45, 0.34, 0.03);   // signage over the door
       if (fill) fill(bx, bz, w, d, h);
     }
     // BARRACKS — bunks + lockers
-    building(O.x - 40, O.z - 34, 18, 13, 4, 0x7a6a52, 's', 'BARRACKS', (bx, bz, w, d) => { for (let i = 0; i < 3; i++) { const rz = bz - d / 2 + 2.4 + i * 3.6; for (const sx of [bx - w / 2 + 1.6, bx + w / 2 - 1.6]) { box(mat(0x2a2e38, 0.7), sx, 0.55, rz, 2.4, 0.3, 1.5); box(mat(0xcfc7b2, 0.7), sx, 0.72, rz, 2.3, 0.12, 1.4); box(mat(0x2a2e38, 0.7), sx, 1.5, rz, 2.4, 0.3, 1.5); box(mat(0xb04030, 0.7), sx, 1.67, rz, 2.3, 0.12, 1.4); box(steel, sx + 1.1, 1.0, rz, 0.1, 2.0, 1.5); } } for (let i = 0; i < 4; i++) box(mat(0x3a4048, 0.6, 0.3), bx - w / 2 + 2 + i * 1.3, 1.3, bz + d / 2 - 0.6, 1.1, 2.4, 0.5); });   // lockers
+    building(O.x - 40, O.z - 34, 18, 13, 4, 0xc9b489, 's', 'BARRACKS', (bx, bz, w, d) => { for (let i = 0; i < 3; i++) { const rz = bz - d / 2 + 2.4 + i * 3.6; for (const sx of [bx - w / 2 + 1.6, bx + w / 2 - 1.6]) { box(mat(0x2a2e38, 0.7), sx, 0.55, rz, 2.4, 0.3, 1.5); box(mat(0xcfc7b2, 0.7), sx, 0.72, rz, 2.3, 0.12, 1.4); box(mat(0x2a2e38, 0.7), sx, 1.5, rz, 2.4, 0.3, 1.5); box(mat(0xb04030, 0.7), sx, 1.67, rz, 2.3, 0.12, 1.4); box(steel, sx + 1.1, 1.0, rz, 0.1, 2.0, 1.5); } } for (let i = 0; i < 4; i++) box(mat(0x3a4048, 0.6, 0.3), bx - w / 2 + 2 + i * 1.3, 1.3, bz + d / 2 - 0.6, 1.1, 2.4, 0.5); });   // lockers
     // ARMORY — weapon racks + a range wall
-    building(O.x + 40, O.z - 34, 16, 13, 4, 0x6a6660, 's', 'ARMORY', (bx, bz, w, d) => { for (const sx of [bx - w / 2 + 0.6, bx + w / 2 - 0.6]) { box(steel, sx, 1.8, bz, 0.2, 3.2, d - 2); for (let g2 = 0; g2 < 6; g2++) { box(mat(0x14181f, 0.5), sx + (sx < bx ? 0.3 : -0.3), 1.2 + (g2 % 3) * 0.9, bz - d / 2 + 2 + Math.floor(g2 / 3) * (d - 4), 0.08, 0.5, 1.4); } } box(wood, bx, 0.5, bz, 3.0, 1.0, 1.4); box(mat(0x14202e, 0.4), bx, 1.15, bz, 3.2, 0.1, 1.6); for (let i = 0; i < 4; i++) box(mat(0x2a3038, 0.6), bx - 1.2 + i * 0.8, 1.35, bz, 0.4, 0.25, 0.5); });
+    building(O.x + 40, O.z - 34, 16, 13, 4, 0xbfa878, 's', 'ARMORY', (bx, bz, w, d) => { for (const sx of [bx - w / 2 + 0.6, bx + w / 2 - 0.6]) { box(steel, sx, 1.8, bz, 0.2, 3.2, d - 2); for (let g2 = 0; g2 < 6; g2++) { box(mat(0x14181f, 0.5), sx + (sx < bx ? 0.3 : -0.3), 1.2 + (g2 % 3) * 0.9, bz - d / 2 + 2 + Math.floor(g2 / 3) * (d - 4), 0.08, 0.5, 1.4); } } box(wood, bx, 0.5, bz, 3.0, 1.0, 1.4); box(mat(0x14202e, 0.4), bx, 1.15, bz, 3.2, 0.1, 1.6); for (let i = 0; i < 4; i++) box(mat(0x2a3038, 0.6), bx - 1.2 + i * 0.8, 1.35, bz, 0.4, 0.25, 0.5); });
     // GARAGE — a vehicle + tools (big roller opening on +z)
-    building(O.x - 42, O.z - 66, 20, 15, 5, 0x62615c, 's', 'MOTOR POOL', (bx, bz, w, d) => { const car = new THREE.Group(); car.position.set(bx, 0, bz - 1); car.rotation.y = 0; scene.add(car); box(mat(0x243a2a, 0.5, 0.5), 0, 0.7, 0, 2.4, 0.8, 5.2, car); box(mat(0x243a2a, 0.5, 0.5), 0, 1.2, -0.4, 2.1, 0.6, 2.6, car); box(mat(0x0a1420, 0.2, 0.4), 0, 1.24, -0.4, 1.9, 0.5, 2.3, car); for (const [wx, wz] of [[1.15, 1.7], [-1.15, 1.7], [1.15, -1.7], [-1.15, -1.7]]) { const wl = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.55, 0.4, 14), mat(0x0a0a0c, 0.7)); wl.rotation.z = Math.PI / 2; wl.position.set(wx, 0.55, wz); car.add(wl); } box(wood, bx + w / 2 - 1.4, 0.9, bz + d / 2 - 2, 1.4, 1.8, 3.0); for (let i = 0; i < 4; i++) { const tw = new THREE.Mesh(new THREE.TorusGeometry(0.5, 0.22, 8, 16), mat(0x14141a, 0.8)); tw.position.set(bx - w / 2 + 1.4, 0.5 + i * 0.15, bz - d / 2 + 1.6 + i * 0.1); tw.rotation.x = Math.PI / 2; scene.add(tw); } });
+    building(O.x - 42, O.z - 66, 20, 15, 5, 0xb8a06e, 's', 'MOTOR POOL', (bx, bz, w, d) => { const car = new THREE.Group(); car.position.set(bx, 0, bz - 1); car.rotation.y = 0; scene.add(car); box(mat(0x243a2a, 0.5, 0.5), 0, 0.7, 0, 2.4, 0.8, 5.2, car); box(mat(0x243a2a, 0.5, 0.5), 0, 1.2, -0.4, 2.1, 0.6, 2.6, car); box(mat(0x0a1420, 0.2, 0.4), 0, 1.24, -0.4, 1.9, 0.5, 2.3, car); for (const [wx, wz] of [[1.15, 1.7], [-1.15, 1.7], [1.15, -1.7], [-1.15, -1.7]]) { const wl = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.55, 0.4, 14), mat(0x0a0a0c, 0.7)); wl.rotation.z = Math.PI / 2; wl.position.set(wx, 0.55, wz); car.add(wl); } box(wood, bx + w / 2 - 1.4, 0.9, bz + d / 2 - 2, 1.4, 1.8, 3.0); for (let i = 0; i < 4; i++) { const tw = new THREE.Mesh(new THREE.TorusGeometry(0.5, 0.22, 8, 16), mat(0x14141a, 0.8)); tw.position.set(bx - w / 2 + 1.4, 0.5 + i * 0.15, bz - d / 2 + 1.6 + i * 0.1); tw.rotation.x = Math.PI / 2; scene.add(tw); } });
     // MESS HALL — tables + counter
-    building(O.x + 42, O.z - 66, 18, 15, 4.5, 0x74695a, 's', 'MESS HALL', (bx, bz, w, d) => { for (let r = 0; r < 2; r++) for (let c = 0; c < 2; c++) { const tx = bx - 4 + c * 8, tz = bz - 3 + r * 6; box(wood, tx, 0.75, tz, 3.4, 0.14, 1.4); box(steel, tx, 0.38, tz, 0.2, 0.75, 0.2); box(wood, tx, 0.42, tz - 1.0, 3.4, 0.12, 0.5); box(wood, tx, 0.42, tz + 1.0, 3.4, 0.12, 0.5); } box(mat(0x2a3038, 0.4, 0.5), bx, 1.0, bz + d / 2 - 1.2, w - 3, 1.4, 1.4); box(mat(0xbfc4c8, 0.3, 0.6), bx, 1.75, bz + d / 2 - 1.2, w - 3.4, 0.1, 1.2); for (let i = 0; i < 5; i++) box(mat(0xd8d2c4, 0.5), bx - w / 2 + 2 + i * 0.6, 2.6, bz - d / 2 + 0.4, 0.5, 1.0, 0.3); });
+    building(O.x + 42, O.z - 66, 18, 15, 4.5, 0xc7b283, 's', 'MESS HALL', (bx, bz, w, d) => { for (let r = 0; r < 2; r++) for (let c = 0; c < 2; c++) { const tx = bx - 4 + c * 8, tz = bz - 3 + r * 6; box(wood, tx, 0.75, tz, 3.4, 0.14, 1.4); box(steel, tx, 0.38, tz, 0.2, 0.75, 0.2); box(wood, tx, 0.42, tz - 1.0, 3.4, 0.12, 0.5); box(wood, tx, 0.42, tz + 1.0, 3.4, 0.12, 0.5); } box(mat(0x2a3038, 0.4, 0.5), bx, 1.0, bz + d / 2 - 1.2, w - 3, 1.4, 1.4); box(mat(0xbfc4c8, 0.3, 0.6), bx, 1.75, bz + d / 2 - 1.2, w - 3.4, 0.1, 1.2); for (let i = 0; i < 5; i++) box(mat(0xd8d2c4, 0.5), bx - w / 2 + 2 + i * 0.6, 2.6, bz - d / 2 + 0.4, 0.5, 1.0, 0.3); });
     // BRIEFING ROOM — big map screen + chairs + podium (far end, faces the yard)
-    building(O.x, O.z - 84, 20, 14, 4.5, 0x5a5e66, 's', 'BRIEFING', (bx, bz, w, d) => { box(mat(0x0a0e14, 0.4), bx, 2.4, bz - d / 2 + 0.4, w - 4, 3.0, 0.15); box(mat(0x143047, 0.4, 0.2, 0x1a4a6a, 0.35), bx, 2.4, bz - d / 2 + 0.5, w - 4.6, 2.6, 0.05); for (let i = 0; i < 12; i++) box(M.holoLine, bx - 6 + Math.random() * 12, 1.6 + Math.random() * 2.2, bz - d / 2 + 0.56, 0.05, 0.05, 0.02); for (let r = 0; r < 2; r++) for (let c = 0; c < 4; c++) { const cx = bx - 4.5 + c * 3, cz = bz + 0.5 + r * 2.4; box(mat(0x2a2e38, 0.6), cx, 0.5, cz, 1.1, 0.6, 1.1); box(mat(0x2a2e38, 0.6), cx, 1.1, cz - 0.5, 1.1, 1.0, 0.2); } box(wood, bx + w / 2 - 2, 1.0, bz - d / 2 + 3, 1.2, 1.4, 1.0); });
+    building(O.x, O.z - 84, 20, 14, 4.5, 0xbca67a, 's', 'BRIEFING', (bx, bz, w, d) => { box(mat(0x0a0e14, 0.4), bx, 2.4, bz - d / 2 + 0.4, w - 4, 3.0, 0.15); box(mat(0x143047, 0.4, 0.2, 0x1a4a6a, 0.35), bx, 2.4, bz - d / 2 + 0.5, w - 4.6, 2.6, 0.05); for (let i = 0; i < 12; i++) box(M.holoLine, bx - 6 + Math.random() * 12, 1.6 + Math.random() * 2.2, bz - d / 2 + 0.56, 0.05, 0.05, 0.02); for (let r = 0; r < 2; r++) for (let c = 0; c < 4; c++) { const cx = bx - 4.5 + c * 3, cz = bz + 0.5 + r * 2.4; box(mat(0x2a2e38, 0.6), cx, 0.5, cz, 1.1, 0.6, 1.1); box(mat(0x2a2e38, 0.6), cx, 1.1, cz - 0.5, 1.1, 1.0, 0.2); } box(wood, bx + w / 2 - 2, 1.0, bz - d / 2 + 3, 1.2, 1.4, 1.0); });
+    /* ---------- SIGNATURE STRUCTURES: skeletal rebar towers, screen console, range ---------- */
+    function frameTower(fx, fz, w, h, d, floors) {
+      const g = new THREE.Group(); g.position.set(fx, 0, fz); scene.add(g);
+      for (const cx of [-w / 2, w / 2]) for (const cz of [-d / 2, d / 2]) box(concD, cx, h / 2, cz, 0.42, h, 0.42, g);   // concrete columns
+      const fh = h / floors;
+      for (let f = 1; f <= floors; f++) { const y = f * fh; box(concD, 0, y, -d / 2, w, 0.32, 0.42, g); box(concD, 0, y, d / 2, w, 0.32, 0.42, g); box(concD, -w / 2, y, 0, 0.42, 0.32, d, g); box(concD, w / 2, y, 0, 0.42, 0.32, d, g);
+        if (f < floors && (f + Math.round(fx)) % 2 === 0) box(concL, (f % 2 ? -1 : 1) * w * 0.22, y + 0.18, 0, w * 0.5, 0.22, d * 0.7, g);   // partial floor slab
+        for (let r = 0; r < 5; r++) box(rebar, -w / 2 + (r + 0.5) / 5 * w, y + 0.35, r % 2 ? d / 2 : -d / 2, 0.05, 0.5, 0.05, g); }
+      for (let r = 0; r < 9; r++) box(rebar, -w / 2 + ((r * 7) % 10) / 10 * w, h + 0.35, -d / 2 + ((r * 3) % 10) / 10 * d, 0.05, 0.7, 0.05, g);   // rebar forest on top
+      const br = box(steel, -w / 2, h * 0.45, 0, 0.12, h * 0.66, 0.12, g); br.rotation.x = 0.5;
+      box(mat(0x46535f, 0.85), w / 2 - 0.2, h * 0.6, 0, 0.1, fh * 1.3, d * 0.72, g);   // hanging tarp
+      addCol(fx, fz, w + 0.5, d + 0.5);
+    }
+    frameTower(O.x - 48, O.z - 6, 8, 15, 7, 4); frameTower(O.x - 38, O.z - 20, 7, 11, 6, 3); frameTower(O.x - 52, O.z + 2, 6, 17, 5, 5); frameTower(O.x - 25, O.z - 28, 6, 9, 6, 3); frameTower(O.x + 30, O.z - 14, 8, 13, 7, 4);
+    // control / screen console (the blue monitor bank)
+    (function consoleBank() { const g = new THREE.Group(); g.position.set(O.x + 44, 0, O.z + 14); g.rotation.y = -Math.PI / 2; scene.add(g); box(concD, 0, 0.6, 0, 6, 1.2, 1.6, g); box(mat(0x14181f, 0.4), 0, 1.35, 0, 6.2, 0.4, 1.4, g); for (let i = 0; i < 4; i++) { const m = box(mat(0x0a0e14, 0.4), -2.2 + i * 1.5, 2.0, -0.35, 1.3, 1.0, 0.1, g); m.rotation.x = -0.2; const sc2 = box(scr([0x123a5a, 0x1a4a6a, 0x0e3048, 0x1a3a5a][i]), -2.2 + i * 1.5, 2.0, -0.29, 1.12, 0.82, 0.02, g); sc2.rotation.x = -0.2; } box(mat(0x2a3a5a, 0.3, 0.2, 0x2a4a6a, 0.3), 0, 3.3, -0.7, 5.4, 1.6, 0.06, g); addCol(O.x + 44, O.z + 14, 2, 6); ptLight(0x59a8ff, O.x + 44, 2.4, O.z + 14, 1.2, 12); })();
+    // downrange silhouette targets (range backdrop scenery)
+    for (let i = 0; i < 8; i++) { const sx = O.x - 28 + i * 8; box(concD, sx, 0.4, O.z + 72, 1.6, 0.8, 0.4); const sg = new THREE.Group(); sg.position.set(sx, 0.8, O.z + 72.2); scene.add(sg); box(silh, 0, 0.9, 0, 0.7, 1.8, 0.16, sg); box(silh, 0, 2.0, 0, 0.46, 0.5, 0.16, sg); }
+    // concrete jersey barriers + a sandbag emplacement
+    for (let i = 0; i < 11; i++) box(concL, O.x - 50 + i * 10, 0.5, O.z + 2, 2.6, 1.0, 0.9);
+    for (let i = 0; i < 6; i++) box(concL, O.x + 62, 0.5, O.z + 16 + i * 3.2, 0.9, 1.0, 2.6);
+    for (let s = 0; s < 24; s++) box(mat(0x8a7a54, 0.9), O.x + 26 + (s % 6) * 1.05, 0.25 + Math.floor(s / 6) * 0.34, O.z - 8, 0.95, 0.34, 0.66);   // sandbag wall
     /* ---------- central yard: path, planters, flag, control tower ---------- */
     box(conc, O.x, 0.03, O.z - 40, 10, 0.06, 90);                            // main path
     for (let z = O.z - 80; z < O.z + 6; z += 8) { box(mat(0xffcf6a, 0.5, 0, 0xffcf6a, 0.3), O.x - 5.2, 0.05, z, 0.2, 0.02, 3); box(mat(0xffcf6a, 0.5, 0, 0xffcf6a, 0.3), O.x + 5.2, 0.05, z, 0.2, 0.02, 3); }
@@ -2747,7 +2798,7 @@ function initTutorial() {
     else setObjective('Training  ·  ' + trainDoneCount + ' / 4 complete — approach a station', true);
   }
   function returnToHub() {
-    qEl('sessCard').classList.remove('on'); const st = trainStations[sessIdx];
+    qEl('sessCard').classList.remove('on'); equipGun(false); meleeT = 0; if (acts.Box) acts.Box.setEffectiveWeight(0); if (acts.Kick) acts.Kick.setEffectiveWeight(0); const st = trainStations[sessIdx];
     trainHubDone[sessIdx] = true; if (st) { st.done = true; st.ring.material.color.set(0x59ff9a); st.beam.material.color.set(0x59ff9a); }
     clearSessionProps();
     const O = TBASE; rig.position.set(st ? st.x : O.x, 0, (st ? st.z : O.z + 8) - 7); rig.rotation.y = Math.PI; curYaw = Math.PI; camYaw = Math.PI;
@@ -2802,7 +2853,7 @@ function initTutorial() {
   }
   // ---- 2) SHOOTING ----
   function setupShooting(lv) {
-    const O = TBASE, c = SESSIONS[1].cfg[lv]; qEl('trainCross').classList.add('on');
+    const O = TBASE, c = SESSIONS[1].cfg[lv]; qEl('trainCross').classList.add('on'); equipGun(true);
     for (let i = 0; i < c.targets; i++) { const g = new THREE.Group(); const tx = O.x - 24 + (i % 6) * 9, tz = O.z + 20 + Math.floor(i / 6) * 11; box(mat(0x2a2016, 0.8), 0, 1.2, 0, 0.14, 2.4, 0.14, g); const face = new THREE.Mesh(new THREE.CircleGeometry(0.9, 20), new THREE.MeshBasicMaterial({ color: 0xe8dcc0 })); face.position.set(0, 2.4, 0.09); g.add(face); const bull = new THREE.Mesh(new THREE.CircleGeometry(0.3, 16), new THREE.MeshBasicMaterial({ color: 0xb83a2e })); bull.position.set(0, 2.4, 0.1); g.add(bull); g.position.set(tx, 0, tz); g.traverse(o => { o.userData.tid = i; }); scene.add(g); sessTargets.push({ mesh: g, hit: false, mv: c.move, baseX: tx, ph: Math.random() * 6 }); }
   }
   function updShooting(dt) {
@@ -2813,12 +2864,14 @@ function initTutorial() {
   }
   // ---- 3) COMBAT ----
   function setupCombat(lv) {
-    const O = TBASE, c = SESSIONS[2].cfg[lv]; qEl('trainCross').classList.add('on');
+    const O = TBASE, c = SESSIONS[2].cfg[lv]; qEl('trainCross').classList.add('on'); equipGun(true); mpSay('Shoot from range — or close in and put them down by hand. Left-click.', 6500);
     for (let i = 0; i < 3; i++) box(mat(0x6a5a2a, 0.85), O.x - 8 + i * 8, 0.7, O.z + 18, 2.2, 1.4, 1.0);   // cover
     for (let i = 0; i < c.enemies; i++) { const n = makeNPC({ suit: 0x3a2a2a, tactical: true, hair: 0x14100c, skin: 0x8a5a38, scale: 1.04, build: 1.08 }); const ang = -0.7 + i * (1.4 / Math.max(1, c.enemies - 1)); n.group.position.set(O.x + Math.sin(ang) * 16, 0, O.z + 30 + (i % 2) * 5); n.group.traverse(o => { o.userData.tid = 100 + i; }); scene.add(n.group); sessTargets.push({ mesh: n.group, hit: false, npc: n, spd: c.spd }); }
   }
   function updCombat(dt) {
     sessT += dt; trainMove(dt, !watchOpen); trainCam(dt, true); const c = SESSIONS[sessIdx].cfg[sessLevel];
+    if (meleeT > 0) { meleeT -= dt; acts.Idle.setEffectiveWeight(0); acts.Walk.setEffectiveWeight(0); acts.Run.setEffectiveWeight(0); if (acts.Box) acts.Box.setEffectiveWeight(meleeKind === 'Box' ? 1 : 0); if (acts.Kick) acts.Kick.setEffectiveWeight(meleeKind === 'Kick' ? 1 : 0); }
+    else { if (acts.Box) acts.Box.setEffectiveWeight(0); if (acts.Kick) acts.Kick.setEffectiveWeight(0); }
     let alive = 0;
     for (const t of sessTargets) { if (t.hit) continue; alive++; const g = t.npc.group; const dx = rig.position.x - g.position.x, dz = rig.position.z - g.position.z, d = Math.hypot(dx, dz); if (d > 2.2) { g.position.x += dx / d * t.spd * dt; g.position.z += dz / d * t.spd * dt; g.rotation.y = Math.atan2(dx, dz); t.npc.update(dt, true); } else t.npc.update(dt, false); }
     trainHud('<b>HOSTILES</b> ' + alive + ' / ' + c.enemies + ' &nbsp;&nbsp; <b>TIME</b> ' + sessT.toFixed(1) + 's &nbsp;&nbsp; <span class="par">PAR ' + c.par + 's</span>');
@@ -2844,8 +2897,14 @@ function initTutorial() {
     if (df < 2.4) { qEl('qAlarmFx').classList.remove('on'); endSession(true, 'Flag captured'); }
     else if (sessT > 120) { qEl('qAlarmFx').classList.remove('on'); endSession(false, 'Time expired'); }
   }
+  function doMelee(kind) { meleeKind = kind; meleeT = 0.62; if (acts[kind]) { acts[kind].reset(); acts[kind].play(); } SFX.tick(); }
   function trainFire() {
     if (sessState !== 'play') return; const s = SESSIONS[sessIdx]; if (s.id !== 'shooting' && s.id !== 'combat') return;
+    // COMBAT: punch/kick a hostile in melee range, otherwise fire
+    if (s.id === 'combat') {
+      let best = null, bd = 3.0; for (const t of sessTargets) if (!t.hit) { const g = t.npc.group, d = Math.hypot(rig.position.x - g.position.x, rig.position.z - g.position.z); if (d < bd) { bd = d; best = t; } }
+      if (best) { doMelee(Math.random() < 0.5 ? 'Box' : 'Kick'); best.hit = true; sessScore++; best.mesh.visible = false; spawnImpact(new THREE.Vector3(best.npc.group.position.x, 1.3, best.npc.group.position.z), 0xffd070); return; }
+    }
     SFX.tick(); _tray.setFromCamera({ x: 0, y: 0 }, camera);
     const hits = _tray.intersectObjects(sessTargets.filter(t => !t.hit).map(t => t.mesh), true);
     if (!hits.length) return;
