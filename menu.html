@@ -1641,12 +1641,13 @@ function initTutorial() {
   let upDirector = null, dirStarted = false, seqActive = false;
   // ===== Morocco training =====
   let trainMode = false, trainBuilt = false, trainPhase = 'intro', trainWater = null, trainCar = null, trainWalkers = [];
-  let trainHubDone = [false, false, false, false], trainStations = [], trainReport = null, trainDoneCount = 0, hubReturn = false, hubNear = null;
+  let trainHubDone = [false, false, false, false], trainStations = [], trainReport = null, trainDoneCount = 0, hubReturn = false, hubNear = null, trainColliders = [];
+  const TBEACHY = -12.4;
   let sessIdx = 0, sessLevel = 0, sessState = 'card', sessT = 0, sessScore = 0, sessTargets = [], sessCheckpoints = [], sessGuards = [], sessFlag = null, sessResult = '', mpSaid = {}, _mpT = 0;
   const _tray = new THREE.Raycaster();
   const TBASE = { x: 0, y: 0, z: 400 };   // training ground origin (a separate coastal plateau)
   const SESSIONS = [
-    { id: 'driving', name: 'Driving Course', levels: 1, cfg: [{ gates: 5, par: 45 }], mp: ['The driving course. Five gates, clock running. Try not to embarrass us.'] },
+    { id: 'driving', name: 'Driving Circuit', levels: 1, cfg: [{ gates: 10, par: 78 }], mp: ['The circuit — one lap of the grounds, ten gates. Real handling this time, so mind the brakes. Clock’s running.'] },
     { id: 'shooting', name: 'Live-Fire Range', levels: 3, cfg: [{ targets: 8, par: 6, move: 0 }, { targets: 12, par: 9, move: 0.6 }, { targets: 16, par: 13, move: 1.4 }], mp: ['The range. Level one — eight static targets. Aim, fire.', 'Level two. More targets, and they move. Lead them.', 'Level three. Sixteen movers, and I want them all.'] },
     { id: 'combat', name: 'Close Combat', levels: 3, cfg: [{ enemies: 4, par: 40, spd: 1.3 }, { enemies: 6, par: 45, spd: 1.7 }, { enemies: 8, par: 50, spd: 2.2 }], mp: ['Close quarters. Four hostiles. Neutralise them.', 'Level two — six, and they are quicker.', 'Level three. Eight, fast and mean. Impress me.'] },
     { id: 'stealth', name: 'Stealth · Capture the Flag', levels: 3, cfg: [{ guards: 2, spd: 1.1, fov: 0.5 }, { guards: 3, spd: 1.5, fov: 0.62 }, { guards: 4, spd: 1.9, fov: 0.72 }], mp: ['Your favourite. Two guards. Reach the flag unseen.', 'Level two. Three patrols, wider eyes.', 'Level three. Four of them. Use the shadows, 007.'] },
@@ -2623,14 +2624,19 @@ function initTutorial() {
     /* ---------- PLATEAU + cliffs (the base sits up on the headland) ---------- */
     box(sand, O.x, -0.5, O.z, 152, 1, 200);
     for (const [ex, ez, w, d] of [[-77, 0, 8, 202], [77, 0, 8, 202], [0, -101, 152, 8]]) { for (let s = 0; s < 6; s++) { const y = -1 - s * 2.4; box(s % 2 ? rock : rockD, O.x + ex + (Math.random() - 0.5) * 2, y, O.z + ez, w + s * 3, 2.6, d + s * 3).rotation.y = (Math.random() - 0.5) * 0.08; } }
-    for (let s = 0; s < 6; s++) box(s % 2 ? rock : rockD, O.x, -1 - s * 2.2, O.z + 100, 152, 2.4, 6 + s * 4);   // +z cliff face down to the cove
+    for (let s = 0; s < 6; s++) { box(s % 2 ? rock : rockD, O.x - 21, -1 - s * 2.2, O.z + 100, 110, 2.4, 6 + s * 4); box(s % 2 ? rock : rockD, O.x + 62, -1 - s * 2.2, O.z + 100, 28, 2.4, 6 + s * 4); }   // +z cliff, split for the stairwell
+    // ---- staircase down to the cove (walkable; matches trainGroundY ramp) ----
+    for (let s = 0; s < 15; s++) { const zz = O.z + 89 + s * 1.6, yy = -s * (12.4 / 15); box(conc, O.x + 41, yy - 0.25, zz, 13, 0.5, 1.9); }
+    for (const rx of [O.x + 34.6, O.x + 47.4]) { box(steel, rx, 0.4, O.z + 90, 0.14, 1.6, 0.14); box(steel, rx, -11.6, O.z + 112, 0.14, 1.6, 0.14); const rail = box(steel, rx, -5.8, O.z + 101, 0.1, 0.12, 27); rail.rotation.x = Math.atan2(12.4, 24); }
+    box(conc, O.x + 41, TBEACHY + 0.1, O.z + 116, 13, 0.3, 8);              // landing onto the beach
     for (const [rx, rz, sz] of [[-84, -60, 8], [86, -50, 9], [-88, 55, 7], [90, 60, 10], [0, -118, 14]]) { const r = new THREE.Mesh(new THREE.DodecahedronGeometry(sz, 0), rock); r.position.set(O.x + rx, -7 + Math.random() * 3, O.z + rz); r.rotation.set(Math.random(), Math.random(), Math.random()); r.scale.y = 0.7; scene.add(r); }
     /* ---------- EXPLORABLE BASE BUILDINGS (the compound, on the -z side) ---------- */
+    function addCol(cx, cz, cw, cd) { trainColliders.push({ x0: cx - cw / 2, x1: cx + cw / 2, z0: cz - cd / 2, z1: cz + cd / 2 }); }
     function wall4(bx, bz, w, d, h, col, door) {
-      const wm = mat(col, 0.88), t = 0.3, dw = 2.6;
+      const wm = mat(col, 0.88), t = 0.3, dw = 2.6, ct = t + 0.5;   // ct = collider thickness (a touch fatter so you don't clip)
       for (const side of ['n', 's', 'e', 'w']) { const hasDoor = door === side;
-        if (side === 'e' || side === 'w') { const wx = bx + (side === 'e' ? w / 2 : -w / 2); if (!hasDoor) box(wm, wx, h / 2, bz, t, h, d); else { const seg = (d - dw) / 2; box(wm, wx, h / 2, bz - (dw / 2 + seg / 2), t, h, seg); box(wm, wx, h / 2, bz + (dw / 2 + seg / 2), t, h, seg); box(wm, wx, h - 0.5, bz, t, 1.0, dw); } }
-        else { const wz = bz + (side === 's' ? d / 2 : -d / 2); if (!hasDoor) box(wm, bx, h / 2, wz, w, h, t); else { const seg = (w - dw) / 2; box(wm, bx - (dw / 2 + seg / 2), h / 2, wz, seg, h, t); box(wm, bx + (dw / 2 + seg / 2), h / 2, wz, seg, h, t); box(wm, bx, h - 0.5, wz, dw, 1.0, t); } }
+        if (side === 'e' || side === 'w') { const wx = bx + (side === 'e' ? w / 2 : -w / 2); if (!hasDoor) { box(wm, wx, h / 2, bz, t, h, d); addCol(wx, bz, ct, d); } else { const seg = (d - dw) / 2; box(wm, wx, h / 2, bz - (dw / 2 + seg / 2), t, h, seg); addCol(wx, bz - (dw / 2 + seg / 2), ct, seg); box(wm, wx, h / 2, bz + (dw / 2 + seg / 2), t, h, seg); addCol(wx, bz + (dw / 2 + seg / 2), ct, seg); box(wm, wx, h - 0.5, bz, t, 1.0, dw); } }
+        else { const wz = bz + (side === 's' ? d / 2 : -d / 2); if (!hasDoor) { box(wm, bx, h / 2, wz, w, h, t); addCol(bx, wz, w, ct); } else { const seg = (w - dw) / 2; box(wm, bx - (dw / 2 + seg / 2), h / 2, wz, seg, h, t); addCol(bx - (dw / 2 + seg / 2), wz, seg, ct); box(wm, bx + (dw / 2 + seg / 2), h / 2, wz, seg, h, t); addCol(bx + (dw / 2 + seg / 2), wz, seg, ct); box(wm, bx, h - 0.5, wz, dw, 1.0, t); } }
       }
     }
     function building(bx, bz, w, d, h, col, door, label, fill) {
@@ -2656,7 +2662,7 @@ function initTutorial() {
     box(conc, O.x, 0.03, O.z - 40, 10, 0.06, 90);                            // main path
     for (let z = O.z - 80; z < O.z + 6; z += 8) { box(mat(0xffcf6a, 0.5, 0, 0xffcf6a, 0.3), O.x - 5.2, 0.05, z, 0.2, 0.02, 3); box(mat(0xffcf6a, 0.5, 0, 0xffcf6a, 0.3), O.x + 5.2, 0.05, z, 0.2, 0.02, 3); }
     box(steel, O.x - 8, 5, O.z - 6, 0.18, 10, 0.18); box(mat(0x1a2a6a, 0.6), O.x - 7, 8, O.z - 6, 0.05, 1.8, 2.8); box(mat(0xd9b45b, 0.4, 0.6, 0xd9b45b, 0.4), O.x - 7, 8, O.z - 6.02, 0.06, 0.5, 0.5);   // MI6 flag
-    (function tower() { const g = new THREE.Group(); g.position.set(O.x + 58, 0, O.z - 4); scene.add(g); box(steel, -2, 3, -2, 0.3, 6, 0.3, g); box(steel, 2, 3, -2, 0.3, 6, 0.3, g); box(steel, -2, 3, 2, 0.3, 6, 0.3, g); box(steel, 2, 3, 2, 0.3, 6, 0.3, g); box(conc, 0, 6.2, 0, 5.5, 0.8, 5.5, g); box(mat(0x2a3038, 0.5), 0, 7.4, 0, 5, 2, 5, g); [-1.4, 0, 1.4].forEach((sx, si) => box(scr([0x123a5a, 0x1a3a2a, 0x3a1a1a][si]), sx, 7.4, 2.4, 1.0, 0.8, 0.05, g)); box(mat(0x6a5a44, 0.8), 0, 8.6, 0, 6, 0.4, 6, g); })();
+    (function tower() { const g = new THREE.Group(); g.position.set(O.x + 58, 0, O.z - 4); scene.add(g); box(steel, -2, 3, -2, 0.3, 6, 0.3, g); box(steel, 2, 3, -2, 0.3, 6, 0.3, g); box(steel, -2, 3, 2, 0.3, 6, 0.3, g); box(steel, 2, 3, 2, 0.3, 6, 0.3, g); box(conc, 0, 6.2, 0, 5.5, 0.8, 5.5, g); box(mat(0x2a3038, 0.5), 0, 7.4, 0, 5, 2, 5, g); [-1.4, 0, 1.4].forEach((sx, si) => box(scr([0x123a5a, 0x1a3a2a, 0x3a1a1a][si]), sx, 7.4, 2.4, 1.0, 0.8, 0.05, g)); box(mat(0x6a5a44, 0.8), 0, 8.6, 0, 6, 0.4, 6, g); addCol(O.x + 58, O.z - 4, 5, 5); })();
     for (let i = 0; i < 3; i++) { scaffoldFrame(O.x - 60 + i * 4, O.z + 40, 6, 8, 5); }
     // ---------- SESSION STATION PADS (arena entrance, +z) ----------
     SESSIONS.forEach((s, i) => { const sx = O.x - 30 + i * 20, sz = O.z + 8; const g = new THREE.Group(); g.position.set(sx, 0, sz); scene.add(g);
@@ -2671,7 +2677,19 @@ function initTutorial() {
     for (let i = 0; i < 5; i++) { const n = makeNPC({ suit: [0x2a2e34, 0x30302e, 0x24303a][i % 3], tactical: true, hair: 0x1a1512, skin: [0xdaa985, 0x8a5a38][i % 2], scale: 1.02, build: 1.05 }); n.group.position.set(O.x - 24 + i * 12, 0, O.z - 24 + (i % 2) * 8); n.walkPath = { min: O.z - 78, max: O.z + 4, dir: i % 2 ? 1 : -1, speed: 0.7 + (i % 3) * 0.3 }; scene.add(n.group); trainWalkers.push(n); }
     function scaffoldFrame(x, z, w, h, d) { const g = new THREE.Group(); g.position.set(x, 0, z); scene.add(g); for (const cx of [-w / 2, w / 2]) for (const cz of [-d / 2, d / 2]) box(steel, cx, h / 2, cz, 0.16, h, 0.16, g); for (let yy = 1.6; yy <= h; yy += 2.2) { box(steel, 0, yy, -d / 2, w, 0.1, 0.1, g); box(steel, 0, yy, d / 2, w, 0.1, 0.1, g); } }
   }
-  // ---- shared on-foot movement inside the training arena ----
+  // ---- collision (AABB colliders) + terrain height (stairs down to the cove) ----
+  function resolveCollision(px, pz, r) {
+    for (const c of trainColliders) { const cx = Math.max(c.x0, Math.min(px, c.x1)), cz = Math.max(c.z0, Math.min(pz, c.z1)); const dx = px - cx, dz = pz - cz, d2 = dx * dx + dz * dz;
+      if (d2 < r * r) { if (d2 > 1e-5) { const d = Math.sqrt(d2); px = cx + dx / d * r; pz = cz + dz / d * r; } else { const tl = px - c.x0, tr = c.x1 - px, tb = pz - c.z0, tt = c.z1 - pz, mn = Math.min(tl, tr, tb, tt); if (mn === tl) px = c.x0 - r; else if (mn === tr) px = c.x1 + r; else if (mn === tb) pz = c.z0 - r; else pz = c.z1 + r; } } }
+    return [px, pz];
+  }
+  function trainGroundY(x, z) {
+    const O = TBASE;
+    if (x > O.x + 32 && x < O.x + 50) { if (z <= O.z + 88) return 0; if (z >= O.z + 112) return TBEACHY; return TBEACHY * (z - (O.z + 88)) / 24; }   // stairwell ramp
+    if (z >= O.z + 110) return TBEACHY;   // beach
+    return 0;   // plateau
+  }
+  // ---- shared on-foot movement inside the training grounds ----
   function trainMove(dt, canMove) {
     const O = TBASE, speed = keys.ShiftLeft ? 5.0 : 2.8;
     const fwd = new THREE.Vector3(Math.sin(camYaw), 0, Math.cos(camYaw)), right = new THREE.Vector3(Math.cos(camYaw), 0, -Math.sin(camYaw));
@@ -2680,19 +2698,21 @@ function initTutorial() {
     const moving = mv.lengthSq() > 1e-6 && canMove;
     if (moving) { mv.normalize(); const yaw = Math.atan2(mv.x, mv.z); let d = yaw - curYaw; while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI; curYaw += d * Math.min(1, dt * 12); rig.position.addScaledVector(mv, speed * dt); }
     rig.rotation.y = curYaw;
-    rig.position.x = Math.max(O.x - 72, Math.min(O.x + 72, rig.position.x)); rig.position.z = Math.max(O.z - 92, Math.min(O.z + 82, rig.position.z));
+    const [nx, nz] = resolveCollision(rig.position.x, rig.position.z, 0.55); rig.position.x = nx; rig.position.z = nz;   // walls block you
+    const inStair = rig.position.x > O.x + 32 && rig.position.x < O.x + 50, zmax = (inStair || rig.position.z > O.z + 108) ? O.z + 126 : O.z + 82;
+    rig.position.x = Math.max(O.x - 72, Math.min(O.x + 72, rig.position.x)); rig.position.z = Math.max(O.z - 92, Math.min(zmax, rig.position.z));
+    rig.position.y += (trainGroundY(rig.position.x, rig.position.z) - rig.position.y) * Math.min(1, dt * 10);   // follow the stairs/terrain
     const running = keys.ShiftLeft && moving;
     acts.Idle.setEffectiveWeight(THREE.MathUtils.lerp(acts.Idle.getEffectiveWeight(), moving ? 0 : 1, Math.min(1, dt * 10)));
     acts.Walk.setEffectiveWeight(THREE.MathUtils.lerp(acts.Walk.getEffectiveWeight(), (moving && !running) ? 1 : 0, Math.min(1, dt * 10)));
     acts.Run.setEffectiveWeight(THREE.MathUtils.lerp(acts.Run.getEffectiveWeight(), running ? 1 : 0, Math.min(1, dt * 10)));
-    groundPlayer();
     if (moving) { stepT += dt * (running ? 8.2 : 5.6); if (stepT >= Math.PI) { stepT -= Math.PI; SFX.step(); } bob = Math.abs(Math.sin(stepT)) * 0.05; } else bob += (0 - bob) * Math.min(1, dt * 8);
     return moving;
   }
   function trainCam(dt, aim) {
-    const px = rig.position.x, pz = rig.position.z, py = 1.35;
-    if (aim) { const dist = 2.0; camera.position.set(px - Math.sin(camYaw) * dist, 1.75 + Math.sin(camPitch) * 1.5, pz - Math.cos(camYaw) * dist); camera.lookAt(px + Math.sin(camYaw) * 8, 1.6 + Math.sin(camPitch) * 6, pz + Math.cos(camYaw) * 8); }
-    else { const dist = 4.2; camera.position.set(px - Math.sin(camYaw) * dist * Math.cos(camPitch), Math.max(0.6, py + Math.sin(camPitch) * 2.4 + 0.5 + bob), pz - Math.cos(camYaw) * dist * Math.cos(camPitch)); camera.lookAt(px, py + bob * 0.5, pz); }
+    const px = rig.position.x, pz = rig.position.z, gy = rig.position.y, py = gy + 1.35;
+    if (aim) { const dist = 2.0; camera.position.set(px - Math.sin(camYaw) * dist, gy + 1.75 + Math.sin(camPitch) * 1.5, pz - Math.cos(camYaw) * dist); camera.lookAt(px + Math.sin(camYaw) * 8, gy + 1.6 + Math.sin(camPitch) * 6, pz + Math.cos(camYaw) * 8); }
+    else { const dist = 4.2; camera.position.set(px - Math.sin(camYaw) * dist * Math.cos(camPitch), gy + Math.max(0.6, 1.35 + Math.sin(camPitch) * 2.4 + 0.5 + bob), pz - Math.cos(camYaw) * dist * Math.cos(camPitch)); camera.lookAt(px, py + bob * 0.5, pz); }
   }
   // ---- session control ----
   function clearSessionProps() { for (const t of sessTargets) if (t.mesh) scene.remove(t.mesh); sessTargets = []; for (const c of sessCheckpoints) scene.remove(c); sessCheckpoints = []; for (const g of sessGuards) scene.remove(g.mesh); sessGuards = []; if (sessFlag) { scene.remove(sessFlag); sessFlag = null; } if (trainCar) { scene.remove(trainCar); trainCar = null; } }
@@ -2748,30 +2768,37 @@ function initTutorial() {
   }
   // ---- 1) DRIVING ----
   function setupDriving() {
-    const O = TBASE; const car = new THREE.Group(); car.position.set(O.x, 0, O.z + 14);
-    const body = mat(0x1a1f28, 0.4, 0.6); box(body, 0, 0.55, 0, 2.0, 0.55, 4.4, car); box(body, 0, 0.95, -0.3, 1.7, 0.5, 2.2, car); box(mat(0x0a1420, 0.2, 0.4), 0, 0.98, -0.3, 1.55, 0.42, 2.0, car);
-    box(mat(0xfff0c0, 0.3, 0.2, 0xffe080, 1.2), 0.7, 0.6, 2.25, 0.3, 0.16, 0.06, car); box(mat(0xfff0c0, 0.3, 0.2, 0xffe080, 1.2), -0.7, 0.6, 2.25, 0.3, 0.16, 0.06, car);
-    for (const [wx, wz] of [[0.95, 1.4], [-0.95, 1.4], [0.95, -1.4], [-0.95, -1.4]]) { const w = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.45, 0.3, 14), mat(0x0a0a0c, 0.7)); w.rotation.z = Math.PI / 2; w.position.set(wx, 0.45, wz); car.add(w); }
-    scene.add(car); trainCar = car; trainCar.userData = { spd: 0, heading: 0, cp: 0 };
-    const pts = [[O.x + 22, O.z + 24], [O.x + 30, O.z + 54], [O.x - 4, O.z + 72], [O.x - 34, O.z + 50], [O.x - 22, O.z + 22]];
-    pts.forEach((p, k) => { const ring = new THREE.Mesh(new THREE.TorusGeometry(3.2, 0.28, 8, 24), new THREE.MeshBasicMaterial({ color: k === 0 ? 0x59ff9a : 0x59a8ff, transparent: true, opacity: 0.9 })); ring.position.set(p[0], 2.4, p[1]); ring.rotation.x = Math.PI / 2; scene.add(ring); sessCheckpoints.push(ring); });
+    const O = TBASE; const car = new THREE.Group(); car.position.set(O.x, 0, O.z - 10);
+    const body = mat(0x243a2a, 0.4, 0.55); box(body, 0, 0.55, 0, 2.0, 0.55, 4.4, car); box(body, 0, 0.95, -0.3, 1.7, 0.5, 2.2, car); box(mat(0x0a1420, 0.2, 0.4), 0, 0.98, -0.3, 1.55, 0.42, 2.0, car);
+    box(mat(0x14181f, 0.5), 0, 0.5, -2.25, 1.9, 0.35, 0.2, car); box(mat(0xfff0c0, 0.3, 0.2, 0xffe080, 1.2), 0.7, 0.6, 2.25, 0.3, 0.16, 0.06, car); box(mat(0xfff0c0, 0.3, 0.2, 0xffe080, 1.2), -0.7, 0.6, 2.25, 0.3, 0.16, 0.06, car); box(mat(0xb03020, 0.4, 0, 0xff2000, 0.5), 0.7, 0.6, -2.25, 0.28, 0.14, 0.05, car); box(mat(0xb03020, 0.4, 0, 0xff2000, 0.5), -0.7, 0.6, -2.25, 0.28, 0.14, 0.05, car);
+    const wheels = []; for (const [wx, wz] of [[0.98, 1.45], [-0.98, 1.45], [0.98, -1.45], [-0.98, -1.45]]) { const piv = new THREE.Group(); piv.position.set(wx, 0.45, wz); const w = new THREE.Mesh(new THREE.CylinderGeometry(0.46, 0.46, 0.3, 14), mat(0x0a0a0c, 0.7)); w.rotation.z = Math.PI / 2; piv.add(w); car.add(piv); wheels.push({ piv, w, front: wz > 0 }); }
+    scene.add(car); trainCar = car; trainCar.userData = { speed: 0, heading: Math.atan2(52, 4), steer: 0, cp: 0, wheels };
+    const pts = [[O.x + 52, O.z - 6], [O.x + 62, O.z + 34], [O.x + 34, O.z + 70], [O.x - 12, O.z + 74], [O.x - 56, O.z + 52], [O.x - 64, O.z + 4], [O.x - 58, O.z - 48], [O.x - 30, O.z - 86], [O.x + 34, O.z - 86], [O.x + 6, O.z - 12]];
+    pts.forEach((p, k) => { const g = new THREE.Group(); g.position.set(p[0], 0, p[1]); scene.add(g); const ring = new THREE.Mesh(new THREE.TorusGeometry(3.4, 0.3, 8, 24), new THREE.MeshBasicMaterial({ color: k === 0 ? 0x59ff9a : 0x59a8ff, transparent: true, opacity: 0.9 })); ring.position.y = 2.6; ring.rotation.x = Math.PI / 2; g.add(ring); box(mat(k === 0 ? 0x1a6a3a : 0x1a4a7a, 0.4, 0, k === 0 ? 0x2fff8a : 0x59a8ff, 0.5), 0, 0.05, 0, 7.2, 0.05, 0.4, g); g.userData.ring = ring; sessCheckpoints.push(g); });
   }
   function updDriving(dt) {
-    sessT += dt; const c = trainCar, O = TBASE; if (!c) return;
-    const accel = (keys.KeyW ? 10 : 0) - (keys.KeyS ? 8 : 0); const u = c.userData;
-    u.spd += accel * dt; u.spd *= (1 - dt * 1.2); u.spd = Math.max(-6, Math.min(16, u.spd));
-    const steer = ((keys.KeyA ? 1 : 0) - (keys.KeyD ? 1 : 0)) * dt * 1.5 * Math.min(1, Math.abs(u.spd) / 4);
-    u.heading += steer * (u.spd >= 0 ? 1 : -1);
-    c.rotation.y = u.heading; c.position.x += Math.sin(u.heading) * u.spd * dt; c.position.z += Math.cos(u.heading) * u.spd * dt;
-    c.position.x = Math.max(O.x - 60, Math.min(O.x + 60, c.position.x)); c.position.z = Math.max(O.z - 4, Math.min(O.z + 80, c.position.z));
-    rig.position.set(c.position.x, -5, c.position.z);   // hide the walking rig under the car
-    // wheels spin visually is skipped; chase cam
-    camera.position.lerp(new THREE.Vector3(c.position.x - Math.sin(u.heading) * 9, 5.2, c.position.z - Math.cos(u.heading) * 9), Math.min(1, dt * 4)); camera.lookAt(c.position.x + Math.sin(u.heading) * 6, 1.2, c.position.z + Math.cos(u.heading) * 6);
-    const ring = sessCheckpoints[u.cp]; if (ring) { ring.rotation.z += dt * 2; if (Math.hypot(c.position.x - ring.position.x, c.position.z - ring.position.z) < 3.6) { ring.material.color.set(0x59ff9a); scene.remove(ring); u.cp++; SFX.ding(); const nxt = sessCheckpoints[u.cp]; if (nxt) nxt.material.color.set(0x59ff9a); } }
+    sessT += dt; const c = trainCar, O = TBASE; if (!c) return; const u = c.userData;
+    const throttle = (keys.KeyW ? 1 : 0) - (keys.KeyS ? 1 : 0);
+    // longitudinal: engine, braking (then reverse), rolling resistance + air drag
+    if (throttle > 0) u.speed += 20 * dt; else if (throttle < 0) { if (u.speed > 0.4) u.speed -= 34 * dt; else u.speed -= 13 * dt; }
+    u.speed -= u.speed * 0.5 * dt; u.speed -= Math.sign(u.speed) * 0.03 * u.speed * u.speed * dt;
+    u.speed = Math.max(-9, Math.min(26, u.speed)); if (throttle === 0 && Math.abs(u.speed) < 0.2) u.speed = 0;
+    // speed-sensitive steering, handbrake (Space) loosens the rear for a drift
+    const steerIn = (keys.KeyA ? 1 : 0) - (keys.KeyD ? 1 : 0), hb = keys.Space ? 1 : 0;
+    u.heading += steerIn * (hb ? 2.0 : 1.25) * dt * Math.min(1, Math.abs(u.speed) / 6) * (u.speed >= 0 ? 1 : -1);
+    if (hb) u.speed *= (1 - dt * 0.7);
+    u.steer += (steerIn * 0.45 - u.steer) * Math.min(1, dt * 8);
+    c.rotation.y = u.heading;
+    let nx = c.position.x + Math.sin(u.heading) * u.speed * dt, nz = c.position.z + Math.cos(u.heading) * u.speed * dt;
+    const before = nx + nz; [nx, nz] = resolveCollision(nx, nz, 2.4); if (Math.abs((nx + nz) - before) > 0.01) u.speed *= 0.4;   // scrub speed on a bump
+    c.position.x = Math.max(O.x - 70, Math.min(O.x + 70, nx)); c.position.z = Math.max(O.z - 90, Math.min(O.z + 78, nz));
+    for (const wl of u.wheels) { wl.w.rotation.x += u.speed * dt * 2.2; if (wl.front) wl.piv.rotation.y = u.steer; }
+    rig.position.set(c.position.x, -5, c.position.z);
+    const cy = 5.5, back = 10.5; camera.position.lerp(new THREE.Vector3(c.position.x - Math.sin(u.heading) * back, cy, c.position.z - Math.cos(u.heading) * back), Math.min(1, dt * 4)); camera.lookAt(c.position.x + Math.sin(u.heading) * 8, 1.4, c.position.z + Math.cos(u.heading) * 8);
+    const g = sessCheckpoints[u.cp]; if (g) { g.userData.ring.rotation.z += dt * 2; if (Math.hypot(c.position.x - g.position.x, c.position.z - g.position.z) < 4.2) { scene.remove(g); u.cp++; SFX.ding(); const nxt = sessCheckpoints[u.cp]; if (nxt) nxt.userData.ring.material.color.set(0x59ff9a); } }
     const gc = SESSIONS[sessIdx].cfg[sessLevel];
-    trainHud('<b>GATE</b> ' + Math.min(u.cp, gc.gates) + ' / ' + gc.gates + ' &nbsp;&nbsp; <b>TIME</b> ' + sessT.toFixed(1) + 's &nbsp;&nbsp; <span class="par">PAR ' + gc.par + 's</span>');
-    if (u.cp >= gc.gates) endSession(sessT <= gc.par, 'Time ' + sessT.toFixed(1) + 's');
-    else if (sessT > 90) endSession(false, 'Time expired');
+    trainHud('<b>SPEED</b> ' + Math.abs(u.speed * 7).toFixed(0) + ' km/h &nbsp;&nbsp; <b>GATE</b> ' + Math.min(u.cp, gc.gates) + ' / ' + gc.gates + ' &nbsp;&nbsp; <b>TIME</b> ' + sessT.toFixed(1) + 's &nbsp;&nbsp; <span class="par">PAR ' + gc.par + 's</span>');
+    if (u.cp >= gc.gates) endSession(sessT <= gc.par, 'Lap ' + sessT.toFixed(1) + 's'); else if (sessT > 160) endSession(false, 'Time expired');
   }
   // ---- 2) SHOOTING ----
   function setupShooting(lv) {
