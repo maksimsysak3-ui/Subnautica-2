@@ -374,6 +374,13 @@
   #trainCross.on { display: block; }
   #trainCross .th, #trainCross .tv { position: absolute; left: 50%; top: 50%; background: rgba(255,240,180,.9); box-shadow: 0 0 6px rgba(0,0,0,.6); }
   #trainCross .th { width: 22px; height: 2px; transform: translate(-50%,-50%); } #trainCross .tv { width: 2px; height: 22px; transform: translate(-50%,-50%); }
+  #trainKeys { position: fixed; inset: 0; z-index: 88; display: none; align-items: center; justify-content: center; background: radial-gradient(circle at 50% 42%, #10161f, #04060a 82%); }
+  #trainKeys.on { display: flex; animation: tkIn .5s var(--ease); }
+  @keyframes tkIn { from { opacity: 0; } to { opacity: 1; } }
+  #trainKeys .tkwrap { display: flex; flex-direction: column; align-items: center; gap: 34px; }
+  #trainKeys .tkhead { font-size: 14px; letter-spacing: .52em; color: var(--gold); text-transform: uppercase; }
+  #trainKeys .tkgo { font-size: 12px; letter-spacing: .34em; color: #cfc7b2; text-transform: uppercase; animation: tkPulse 1.6s ease-in-out infinite; } #trainKeys .tkgo b { color: var(--gold); }
+  @keyframes tkPulse { 0%,100% { opacity: .5; } 50% { opacity: 1; } }
 </style>
 
 <div id="stage">
@@ -521,6 +528,23 @@
     <div id="mpRadio"></div>
     <div id="trainHud"></div>
     <div id="trainCross"><span class="th"></span><span class="tv"></span></div>
+    <div id="trainKeys"><div class="tkwrap">
+      <div class="tkhead">Field Controls · Training</div>
+      <div class="kbrows">
+        <div class="kbrow"><div class="key hot"><span class="cap">Forward</span>W</div></div>
+        <div class="kbrow"><div class="key hot">A</div><div class="key hot">S</div><div class="key hot">D</div><div style="width:20px"></div><div class="key hot" style="min-width:96px"><span class="cap">Sprint</span>Shift</div></div>
+        <div class="kbrow" style="margin-top:24px">
+          <div class="key hot" style="min-width:96px"><span class="cap">Aim / Look</span>Mouse</div>
+          <div class="key hot" style="min-width:180px"><span class="cap">Fire · Punch · Kick</span>L-Click</div>
+        </div>
+        <div class="kbrow" style="margin-top:24px">
+          <div class="key hot"><span class="cap">Interact / Start</span>E</div>
+          <div class="key hot"><span class="cap">Tactical Watch</span>G</div>
+          <div class="key" style="min-width:150px">Space<span class="cap b">Handbrake (driving)</span></div>
+        </div>
+      </div>
+      <div class="tkgo">Press <b>SPACE</b> to deploy</div>
+    </div></div>
   </div>
 
   <div class="bars top"></div><div class="bars bot"></div>
@@ -2599,18 +2623,18 @@ function initTutorial() {
     const fade = qEl('cineFade'); if (fade) { fade.style.transition = 'opacity 1.0s'; fade.style.opacity = 1; }
     SFX.chatter(false); SFX.pad(true);
     setTimeout(() => {
-      upperMode = false; trainMode = true; trainPhase = 'establish'; sessT = 0;
+      upperMode = false; trainMode = true; trainPhase = 'keys'; sessT = 0;
       buildTrainingGround();
       // cull the far building lights; daytime Morocco sky
       allLights.forEach(l => { if (l.position.z < TBASE.z - 120) l.visible = false; });
       scene.background = new THREE.Color(0x9fc4de); scene.fog = new THREE.FogExp2(0xcfe0ec, 0.0022);
       camera.fov = 55; camera.updateProjectionMatrix();
       rig.position.set(TBASE.x, 0, TBASE.z - 42); rig.rotation.y = 0; curYaw = 0; camYaw = 0;
-      setObjective('MI6 Training Ground · Morocco', true);
-      if (fade) { fade.style.transition = 'opacity 1.6s'; fade.style.opacity = 0; }
-      qEl('moroccoCard').classList.add('on');
       document.getElementById('tutHint').classList.remove('on');
       if (window.tutSave) window.tutSave('morocco');
+      // controls card first (over black), then reveal Morocco
+      setObjective('Field Controls', false);
+      qEl('trainKeys').classList.add('on');
     }, 1100);
   }
   function buildTrainingGround() {
@@ -2922,6 +2946,16 @@ function initTutorial() {
     for (const w of trainWalkers) { const p = w.walkPath; w.group.position.z += p.dir * p.speed * dt; if (w.group.position.z > p.max) p.dir = -1; if (w.group.position.z < p.min) p.dir = 1; w.group.rotation.y = p.dir > 0 ? 0 : Math.PI; w.update(dt, true); }
     for (const st of trainStations) if (!st.done && st.ring) { st.ring.rotation.z += dt; st.beam.material.opacity = 0.1 + Math.abs(Math.sin(clock.elapsedTime * 2)) * 0.06; }
     if (trainReport && trainReport.group.visible) trainReport.ring.rotation.z += dt * 1.4;
+    if (trainPhase === 'keys') {
+      // hold on the Field Controls card until the player deploys (Space/Enter), then reveal Morocco
+      sessT += dt; acts.Idle.setEffectiveWeight(1);
+      if ((sessT > 0.6 && (keys.Space || keys.Enter)) || sessT > 16) {
+        qEl('trainKeys').classList.remove('on'); trainPhase = 'establish'; sessT = 0;
+        const fade = qEl('cineFade'); if (fade) { fade.style.transition = 'opacity 1.6s'; fade.style.opacity = 0; }
+        qEl('moroccoCard').classList.add('on'); setObjective('MI6 Training Ground · Morocco', true); SFX.chime();
+      }
+      return;
+    }
     if (trainPhase === 'establish') { sessT += dt; const t = Math.min(sessT, 6.5); camera.position.set(TBASE.x - 40 + t * 5, 52 - t * 4, TBASE.z - 80 + t * 6); camera.lookAt(TBASE.x, -1, TBASE.z + 4); if (sessT > 6.5) { qEl('moroccoCard').classList.remove('on'); trainPhase = 'intro'; runSeq(MP_INTRO, () => enterHub()); } return; }
     if (trainPhase === 'intro') { acts.Idle.setEffectiveWeight(1); acts.Walk.setEffectiveWeight(0); acts.Run.setEffectiveWeight(0); camera.position.lerp(new THREE.Vector3(TBASE.x - 6, 4.5, TBASE.z - 30), Math.min(1, dt * 2)); camera.lookAt(TBASE.x, 1.4, TBASE.z); return; }
     if (trainPhase === 'done') { updateTrainEnd(dt); return; }
