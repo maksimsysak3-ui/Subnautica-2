@@ -2262,6 +2262,7 @@ function tickPlayer(dt){
   if(keys.KeyS||keys.ArrowDown)  vy+=1;
   if(keys.KeyA||keys.ArrowLeft)  vx-=1;
   if(keys.KeyD||keys.ArrowRight) vx+=1;
+  S._moving = !!(vx||vy);
   if(vx||vy){
     const m = Math.hypot(vx,vy);
     const sp = playerSpeed()*dt/m;
@@ -3470,6 +3471,7 @@ function init3D(){
     three = {
       renderer, scene, camera,
       mats:new Map(),               // colour → shared Lambert material
+      geos:new Map(),               // shape signature → shared geometry
       buildGroups:new Map(),        // build id → THREE.Group
       beltMeshes:new Map(),         // tile key → {group, sig}
       floraGroup:null, floraSize:-1,
@@ -3585,23 +3587,34 @@ function syncFlora3D(){
   const dummy = new THREE.Object3D();
   if(trees.length){
     const trunkG = new THREE.CylinderGeometry(0.07,0.12,0.8,5);
-    const canG   = new THREE.ConeGeometry(0.5,1.1,6);
+    const canG   = new THREE.ConeGeometry(0.52,1.0,7);   // lower canopy tier
+    const canG2  = new THREE.ConeGeometry(0.36,0.8,7);   // mid tier
+    const canG3  = new THREE.ConeGeometry(0.2,0.55,7);   // crown
     const trunkI = new THREE.InstancedMesh(trunkG, mat3D(0x5a3f28), trees.length);
     const canI   = new THREE.InstancedMesh(canG, mat3D(0x3f6b34), trees.length);
+    const canI2  = new THREE.InstancedMesh(canG2, mat3D(0x4d7f3e), trees.length);
+    const canI3  = new THREE.InstancedMesh(canG3, mat3D(0x5f9a4a), trees.length);
     trees.forEach(([x,y],i)=>{
       const jx = (hash2(x,y,7)-0.5)*0.3, jy=(hash2(x,y,13)-0.5)*0.3;
-      dummy.position.set(x+0.5+jx, 0.4, y+0.5+jy);
+      const s = 0.8+0.5*hash2(x,y,21);
       dummy.rotation.y = hash2(x,y,3)*6.28;
+      dummy.scale.setScalar(s);
+      dummy.position.set(x+0.5+jx, 0.4*s, y+0.5+jy);
       dummy.updateMatrix();
       trunkI.setMatrixAt(i, dummy.matrix);
-      dummy.position.y = 1.2;
-      const s = 0.8+0.5*hash2(x,y,21);
-      dummy.scale.setScalar(s);
+      dummy.position.y = 1.0*s;
       dummy.updateMatrix();
       canI.setMatrixAt(i, dummy.matrix);
+      dummy.position.y = 1.55*s;
+      dummy.updateMatrix();
+      canI2.setMatrixAt(i, dummy.matrix);
+      dummy.position.y = 2.0*s;
+      dummy.updateMatrix();
+      canI3.setMatrixAt(i, dummy.matrix);
       dummy.scale.setScalar(1);
+      dummy.rotation.y = 0;
     });
-    grp.add(trunkI); grp.add(canI);
+    grp.add(trunkI); grp.add(canI); grp.add(canI2); grp.add(canI3);
   }
   if(bushes.length){
     const bushG = new THREE.SphereGeometry(0.26, 6, 5);
@@ -3650,94 +3663,497 @@ function syncFound3D(){
   three.scene.add(mesh);
 }
 
-/* ── buildings: procedural mesh composites, one Group per instance ───────── */
-function box3D(grp, w, h, d, hex, x, y, z){
-  const m = new THREE.Mesh(new THREE.BoxGeometry(w,h,d), mat3D(hex));
-  m.position.set(x,y,z);
-  grp.add(m);
+/* ── buildings: detailed procedural mesh composites ──────────────────────────
+   Every structure is assembled from a shared-geometry part kit in LOCAL space
+   (origin at footprint centre, ground y=0, +x = unrotated East), then the
+   whole model is rotated to the building's facing. Animated parts (drills,
+   pumpjack beams, fans, flames, status lamps, charge columns) register in
+   userData and are driven from syncBuildings3D each frame.
+   ──────────────────────────────────────────────────────────────────────────── */
+function geo3D(kind, a, b2, c, d){
+  const k = kind+'|'+a+'|'+b2+'|'+c+'|'+d;
+  if(three.geos.has(k)) return three.geos.get(k);
+  let g;
+  switch(kind){
+    case 'box':  g = new THREE.BoxGeometry(a, b2, c); break;
+    case 'cyl':  g = new THREE.CylinderGeometry(a, b2, c, d||10); break;
+    case 'cone': g = new THREE.ConeGeometry(a, b2, c||8); break;
+    case 'sph':  g = new THREE.SphereGeometry(a, 10, 8); break;
+    case 'dome': g = new THREE.SphereGeometry(a, 12, 7, 0, Math.PI*2, 0, Math.PI/2); break;
+    case 'tor':  g = new THREE.TorusGeometry(a, b2, 6, 14); break;
+  }
+  three.geos.set(k, g);
+  return g;
+}
+function glowMat3D(hex){
+  const k = 'g'+hex;
+  if(three.mats.has(k)) return three.mats.get(k);
+  const m = new THREE.MeshBasicMaterial({ color:new THREE.Color(hex) });
+  three.mats.set(k, m);
   return m;
 }
+/* generic part placer — o: {rx,ry,rz, seg, glow, sx,sy,sz} */
+function P3(grp, kind, pr, hex, x, y, z, o){
+  const g = geo3D(kind, pr[0], pr[1], pr[2], pr[3]);
+  const mesh = new THREE.Mesh(g, o && o.glow ? glowMat3D(hex) : mat3D(hex));
+  mesh.position.set(x, y, z);
+  if(o){
+    if(o.rx) mesh.rotation.x = o.rx;
+    if(o.ry) mesh.rotation.y = o.ry;
+    if(o.rz) mesh.rotation.z = o.rz;
+    if(o.sx || o.sy || o.sz) mesh.scale.set(o.sx||1, o.sy||1, o.sz||1);
+  }
+  grp.add(mesh);
+  return mesh;
+}
+const Bx = (g,hex,w,h,d,x,y,z,o)=>P3(g,'box',[w,h,d],hex,x,y,z,o);
+const Cy = (g,hex,rt,rb,h,x,y,z,o)=>P3(g,'cyl',[rt,rb,h,(o&&o.seg)||10],hex,x,y,z,o);
+const Cn = (g,hex,r,h,x,y,z,o)=>P3(g,'cone',[r,h,(o&&o.seg)||8],hex,x,y,z,o);
+const Sp = (g,hex,r,x,y,z,o)=>P3(g,'sph',[r],hex,x,y,z,o);
+const Dm = (g,hex,r,x,y,z,o)=>P3(g,'dome',[r],hex,x,y,z,o);
+const Tr = (g,hex,r,t,x,y,z,o)=>P3(g,'tor',[r,t],hex,x,y,z,o);
+
+/* FICSIT construction palette */
+const C3 = {
+  base:0x23282e, dark:0x333a43, steel:0x59636e, metal:0x7d8894, lite:0x9aa5b1,
+  orange:0xfa9549, rust:0xc46a2a, stripe:0xe07a2e, glass:0x8fd0e8,
+  glow:0xffb36b, fire:0xff8c3a, cool:0x4aa8e8, green:0x7ee08a, dk:0x1a1e23,
+  copper:0x8a6a3a, hazard:0xe8c84a,
+};
+/* shared flourishes */
+function padSlab(M, w, h){
+  Bx(M, C3.base, w-0.08, 0.14, h-0.08, 0, 0.07, 0);
+  /* corner bolts */
+  for(const sx of [-1,1]) for(const sz of [-1,1])
+    Cy(M, C3.dark, 0.06,0.06,0.1, sx*(w/2-0.2), 0.18, sz*(h/2-0.2), {seg:6});
+}
+function stripeBand(M, w, h, y){
+  Bx(M, C3.stripe, w, 0.1, 0.04, 0, y, h/2);
+  Bx(M, C3.stripe, w, 0.1, 0.04, 0, y, -h/2);
+}
+function vent(M, x, y, z){
+  Bx(M, C3.dark, 0.26,0.14,0.26, x, y, z);
+  Bx(M, C3.steel, 0.3,0.04,0.3, x, y+0.09, z);
+}
+function statusLamp(M, ud, x, y, z){
+  Bx(M, C3.dark, 0.1,0.16,0.1, x, y-0.02, z);
+  ud.lamp = P3(M, 'box', [0.12,0.1,0.12], C3.green, x, y+0.1, z, {glow:true});
+}
+
+/* ═══ production machines ═══ */
+function mSmelter(M, ud){
+  padSlab(M, 2, 2);
+  Bx(M, C3.rust, 1.5, 0.85, 1.35, 0.05, 0.56, 0);                 // furnace hall
+  Bx(M, C3.dark, 1.56, 0.2, 1.41, 0.05, 1.05, 0);                 // roof rim
+  Bx(M, C3.steel, 0.5, 0.62, 1.0, -0.65, 0.45, 0);                // charge house (input side)
+  Bx(M, C3.fire, 0.06, 0.3, 0.44, -0.92, 0.42, 0, {glow:true});   // furnace mouth glow
+  Cy(M, C3.dark, 0.13, 0.16, 1.15, 0.5, 1.6, -0.42);              // stack A
+  Cy(M, C3.dark, 0.13, 0.16, 0.95, 0.5, 1.5, 0.42);               // stack B
+  Cy(M, C3.steel, 0.17, 0.17, 0.1, 0.5, 2.16, -0.42);             // stack collar
+  Cy(M, C3.steel, 0.17, 0.17, 0.1, 0.5, 2.0, 0.42);
+  Bx(M, C3.metal, 0.36, 0.4, 0.5, 0.68, 0.35, 0.55);              // outlet caster
+  Cy(M, C3.copper, 0.06, 0.06, 1.0, 0.2, 1.1, 0.6, {rz:Math.PI/2}); // side pipe
+  stripeBand(M, 1.5, 1.36, 0.28);
+  vent(M, -0.3, 1.18, -0.4);
+  statusLamp(M, ud, 0.72, 1.1, 0.62);
+}
+function mFoundry(M, ud){
+  padSlab(M, 3, 2);
+  Bx(M, C3.dark, 2.5, 0.7, 1.5, 0, 0.49, 0);                      // twin-furnace hall
+  Dm(M, C3.rust, 0.5, -0.65, 0.84, 0);                            // furnace dome A
+  Dm(M, C3.rust, 0.5, 0.25, 0.84, 0);                             // furnace dome B
+  Cy(M, C3.copper, 0.07, 0.07, 0.9, -0.2, 1.05, 0, {rz:Math.PI/2}); // dome link pipe
+  Cy(M, C3.dark, 0.2, 0.26, 1.6, 1.0, 1.6, -0.35);                // main chimney
+  Cy(M, C3.steel, 0.27, 0.27, 0.12, 1.0, 2.35, -0.35);            // chimney crown
+  Bx(M, C3.fire, 0.5, 0.08, 0.3, 1.05, 0.76, 0.35, {glow:true});  // slag runner glow
+  Bx(M, C3.steel, 0.55, 0.34, 0.4, 1.05, 0.55, 0.35);             // tap housing
+  Cn(M, C3.steel, 0.4, 0.55, -0.2, 1.35, 0, {rx:Math.PI});        // ore hopper
+  stripeBand(M, 2.5, 1.52, 0.24);
+  vent(M, 0.85, 0.9, 0.45);
+  statusLamp(M, ud, -1.1, 0.95, 0.6);
+}
+function mConstructor(M, ud){
+  padSlab(M, 2, 2);
+  Bx(M, C3.orange, 1.45, 0.7, 1.3, 0, 0.49, 0);                   // main hall
+  Bx(M, C3.dark, 1.5, 0.14, 1.36, 0, 0.9, 0);                     // roofline
+  Bx(M, C3.dark, 0.6, 0.34, 0.6, 0, 1.12, 0);                     // press head
+  Cy(M, C3.steel, 0.1, 0.1, 0.34, 0, 0.95, 0);                    // press piston
+  Bx(M, C3.steel, 0.44, 0.5, 0.5, -0.62, 0.4, -0.45);             // control cab
+  Bx(M, C3.glass, 0.05, 0.24, 0.34, -0.86, 0.5, -0.45, {glow:true}); // cab window
+  Bx(M, C3.dark, 0.34, 0.3, 0.3, -0.78, 0.3, 0.4);                // infeed chute
+  Bx(M, C3.dark, 0.34, 0.3, 0.3, 0.78, 0.3, 0.4);                 // outfeed chute
+  vent(M, 0.45, 1.02, -0.4);
+  vent(M, -0.45, 1.02, 0.4);
+  stripeBand(M, 1.45, 1.32, 0.2);
+  statusLamp(M, ud, 0.6, 1.05, 0.55);
+}
+function mAssembler(M, ud){
+  padSlab(M, 3, 3);
+  Cy(M, C3.dark, 1.05, 1.15, 0.55, 0, 0.42, 0, {seg:14});         // machine drum
+  Dm(M, C3.orange, 0.95, 0, 0.7, 0, {seg:14});                    // assembly dome
+  Tr(M, C3.glow, 0.62, 0.05, 0, 1.06, 0, {rx:Math.PI/2, glow:true}); // process light ring
+  Sp(M, C3.dark, 0.22, 0, 1.62, 0);                               // dome cap
+  for(const sx of [-1,1]) for(const sz of [-1,1]){
+    Bx(M, C3.steel, 0.22, 1.3, 0.22, sx*1.15, 0.65, sz*1.15);     // corner pillars
+    Bx(M, C3.dark, 0.3, 0.1, 0.3, sx*1.15, 1.35, sz*1.15);
+  }
+  Bx(M, C3.steel, 2.62, 0.12, 0.2, 0, 1.42, 0);                   // gantry beam
+  Bx(M, C3.orange, 0.3, 0.24, 0.26, 0.35, 1.28, 0);               // gantry trolley
+  Cy(M, C3.steel, 0.05, 0.05, 0.5, 0.35, 1.0, 0);                 // trolley arm
+  Bx(M, C3.dark, 0.4, 0.3, 0.34, -1.2, 0.3, 0);                   // feed manifold W
+  Bx(M, C3.dark, 0.4, 0.3, 0.34, 1.2, 0.3, 0);                    // out manifold E
+  statusLamp(M, ud, 1.2, 1.5, 1.2);
+}
+function mManufacturer(M, ud){
+  padSlab(M, 4, 4);
+  Bx(M, C3.dark, 3.4, 1.25, 2.2, 0, 0.76, -0.6);                  // main hall
+  Bx(M, C3.steel, 3.5, 0.16, 2.3, 0, 1.46, -0.6);                 // hall roof
+  Bx(M, C3.orange, 2.6, 0.85, 1.2, 0, 0.56, 0.95);                // front works
+  Bx(M, C3.dark, 2.7, 0.12, 1.3, 0, 1.04, 0.95);
+  Cy(M, C3.steel, 0.34, 0.34, 0.9, -1.05, 1.98, -0.85);           // roof tank A
+  Cy(M, C3.steel, 0.28, 0.28, 0.7, -0.25, 1.88, -0.85);           // roof tank B
+  Dm(M, C3.lite, 0.34, -1.05, 2.43, -0.85);
+  Dm(M, C3.lite, 0.28, -0.25, 2.23, -0.85);
+  Cy(M, C3.copper, 0.07, 0.07, 1.6, 0.55, 1.62, -0.85, {rz:Math.PI/2}); // roof pipe run
+  Cy(M, C3.copper, 0.07, 0.07, 0.8, 1.35, 1.3, -0.85);
+  for(let i=0;i<4;i++) vent(M, -1.2+i*0.8, 1.56, -0.1);           // roof vents
+  for(let i=0;i<4;i++) Bx(M, C3.dk, 0.1, 0.4, 0.5, -1.95, 0.45, -1.35+i*0.9); // intake grills
+  Bx(M, C3.steel, 0.12, 1.9, 0.12, 1.6, 2.4, -1.4);               // antenna
+  Bx(M, C3.orange, 0.2, 0.12, 0.2, 1.6, 3.38, -1.4, {glow:true});
+  Bx(M, C3.metal, 3.4, 0.08, 0.34, 0, 0.98, 0.4);                 // catwalk
+  for(let i=0;i<3;i++) Bx(M, C3.dark, 0.08, 0.9, 0.08, -1.4+i*1.4, 0.5, 0.4);
+  stripeBand(M, 3.4, 4.02, 0.3);
+  statusLamp(M, ud, 1.75, 1.58, 1.5);
+}
+function mRefinery(M, ud){
+  padSlab(M, 3, 3);
+  Bx(M, C3.dark, 1.5, 0.95, 1.3, -0.55, 0.62, 0.5);               // process block
+  Bx(M, C3.steel, 1.56, 0.14, 1.36, -0.55, 1.16, 0.5);
+  Cy(M, C3.metal, 0.3, 0.32, 2.3, 0.75, 1.3, -0.7, {seg:12});     // distillation tower A
+  Dm(M, C3.metal, 0.3, 0.75, 2.45, -0.7);
+  Tr(M, C3.steel, 0.32, 0.035, 0.75, 1.0, -0.7, {rx:Math.PI/2});  // tower collars
+  Tr(M, C3.steel, 0.32, 0.035, 0.75, 1.7, -0.7, {rx:Math.PI/2});
+  Cy(M, C3.metal, 0.22, 0.24, 1.7, 0.05, 1.0, -0.85, {seg:12});   // tower B
+  Dm(M, C3.metal, 0.22, 0.05, 1.85, -0.85);
+  Sp(M, C3.steel, 0.48, -0.95, 0.62, -0.75);                      // spherical tank
+  Cy(M, C3.dk, 0.05, 0.05, 2.6, 1.25, 1.45, 0.9);                 // flare stack
+  Sp(M, C3.fire, 0.11, 1.25, 2.8, 0.9, {glow:true});              // flare flame
+  Cy(M, C3.copper, 0.07, 0.07, 1.3, 0.35, 1.5, -0.75, {rz:Math.PI/2}); // crossover pipes
+  Cy(M, C3.copper, 0.07, 0.07, 0.9, 0.75, 0.35, 0, {rx:Math.PI/2});
+  Cy(M, C3.cool, 0.08, 0.08, 0.8, -1.1, 0.25, 1.05, {rz:Math.PI/2}); // fluid intake pipe
+  stripeBand(M, 1.5, 3.02, 0.3);
+  statusLamp(M, ud, -1.25, 1.28, 1.05);
+}
+
+/* ═══ extraction ═══ */
+function mMiner(M, ud, mk2){
+  const acc = mk2 ? 0x7c8ca0 : 0xa06a32;
+  padSlab(M, 2, 2);
+  for(const sx of [-1,1]) for(const sz of [-1,1]){
+    Bx(M, C3.steel, 0.16, 1.5, 0.16, sx*0.8, 0.75, sz*0.8, {rz:sx*0.32, rx:-sz*0.32}); // derrick legs
+    Bx(M, C3.dark, 0.3, 0.1, 0.3, sx*0.86, 0.16, sz*0.86);        // leg pads
+  }
+  const th = mk2 ? 2.1 : 1.75;
+  Bx(M, acc, 0.7, 0.5, 0.7, 0, th-0.1, 0);                        // head housing
+  Bx(M, C3.dark, 0.84, 0.14, 0.84, 0, th+0.2, 0);                 // platform
+  Bx(M, C3.dark, 0.3, 0.34, 0.4, 0.3, th+0.42, 0);                // winch motor
+  Cn(M, C3.steel, 0.34, 0.5, 0, 0.85, 0, {rx:Math.PI});           // dust hopper
+  ud.drill = Cn(M, C3.dk, 0.3, 0.85, 0, th-0.85, 0, {rx:Math.PI, seg:5}); // the drill
+  Cy(M, C3.steel, 0.07, 0.07, th-0.5, 0, (th-0.5)/2+0.3, 0);      // drill shaft
+  Bx(M, C3.metal, 0.42, 0.3, 0.34, 0.8, 0.42, 0);                 // output chute to port
+  Bx(M, C3.dark, 0.34, 0.1, 0.3, 0.98, 0.6, 0, {rz:-0.5});        // chute flap
+  if(mk2){
+    Tr(M, C3.glow, 0.4, 0.04, 0, th-0.1, 0, {rx:Math.PI/2, glow:true}); // mk2 power ring
+    Bx(M, C3.steel, 0.1, 0.9, 0.1, -0.6, th+0.4, -0.6, {rz:0.4}); // aux boom
+  }
+  stripeBand(M, 1.7, 1.72, 0.24);
+  statusLamp(M, ud, -0.75, th+0.3, 0.75);
+}
+function mPortableMiner(M, ud){
+  for(let i=0;i<3;i++){
+    const a = i*Math.PI*2/3 + 0.5;
+    Bx(M, C3.steel, 0.07, 0.7, 0.07, Math.cos(a)*0.3, 0.33, Math.sin(a)*0.3,
+      {rz:-Math.cos(a)*0.5, rx:Math.sin(a)*0.5});                 // tripod legs
+  }
+  Bx(M, C3.orange, 0.4, 0.3, 0.34, 0, 0.62, 0);                   // motor body
+  Bx(M, C3.dark, 0.44, 0.1, 0.38, 0, 0.8, 0);
+  ud.drill = Cn(M, C3.dk, 0.14, 0.4, 0, 0.28, 0, {rx:Math.PI, seg:5});
+  Bx(M, C3.hazard, 0.42, 0.06, 0.36, 0, 0.5, 0);                  // hazard stripe
+}
+function mOilExtractor(M, ud){
+  padSlab(M, 2, 2);
+  Bx(M, C3.dark, 1.5, 0.2, 0.6, 0, 0.22, 0.35);                   // skid frame
+  /* A-frame + walking beam pumpjack */
+  Bx(M, C3.steel, 0.12, 1.3, 0.12, 0.2, 0.85, 0.15, {rz:0.35});
+  Bx(M, C3.steel, 0.12, 1.3, 0.12, 0.2, 0.85, 0.55, {rz:0.35});
+  Bx(M, C3.steel, 0.12, 1.3, 0.12, -0.2, 0.85, 0.15, {rz:-0.35});
+  Bx(M, C3.steel, 0.12, 1.3, 0.12, -0.2, 0.85, 0.55, {rz:-0.35});
+  const piv = new THREE.Group();
+  piv.position.set(0, 1.42, 0.35);
+  M.add(piv);
+  Bx(piv, C3.orange, 1.5, 0.13, 0.2, 0, 0, 0);                    // walking beam
+  Bx(piv, C3.rust, 0.28, 0.4, 0.26, -0.75, -0.08, 0);             // horsehead
+  Bx(piv, C3.dark, 0.34, 0.32, 0.3, 0.66, 0, 0);                  // counterweight
+  ud.rocker = piv;
+  Cy(M, C3.dk, 0.13, 0.15, 0.55, -0.75, 0.42, 0.35);              // wellhead
+  Cy(M, C3.metal, 0.4, 0.4, 0.6, 0.65, 0.45, -0.55, {seg:12});    // crude holding tank
+  Dm(M, C3.metal, 0.4, 0.65, 0.75, -0.55);
+  Cy(M, C3.dk, 0.06, 0.06, 0.9, 0, 0.3, -0.55, {rz:Math.PI/2});   // tank feed pipe
+  Bx(M, C3.dark, 0.4, 0.34, 0.3, -0.6, 0.32, -0.6);               // pump motor
+  statusLamp(M, ud, 0.85, 0.5, 0.8);
+}
+function mWaterExtractor(M, ud){
+  for(const sx of [-1,1]) for(const sz of [-1,1])
+    Bx(M, C3.orange, 0.6, 0.22, 0.34, sx*0.62, 0.1, sz*0.72);     // pontoons
+  Cy(M, C3.dark, 0.88, 0.92, 0.24, 0, 0.2, 0, {seg:14});          // deck
+  Tr(M, C3.steel, 0.86, 0.05, 0, 0.34, 0, {rx:Math.PI/2});        // deck rail ring
+  const fan = new THREE.Group();
+  fan.position.set(0, 0.4, 0);
+  M.add(fan);
+  Bx(fan, C3.lite, 1.2, 0.05, 0.16, 0, 0, 0);                     // turbine blades
+  Bx(fan, C3.lite, 0.16, 0.05, 1.2, 0, 0, 0);
+  ud.fan = fan;
+  Dm(M, C3.steel, 0.34, 0, 0.44, 0);                              // pump hub
+  Cy(M, C3.cool, 0.1, 0.1, 0.9, 0.5, 0.5, 0, {rz:Math.PI/2, glow:true}); // outlet riser
+  Bx(M, C3.dark, 0.3, 0.4, 0.3, -0.55, 0.45, -0.5);               // pump motor
+  statusLamp(M, ud, -0.6, 0.75, 0.55);
+}
+
+/* ═══ power ═══ */
+function mPole(M){
+  Cy(M, C3.dark, 0.22, 0.28, 0.16, 0, 0.08, 0, {seg:8});          // footing
+  Cy(M, 0x6a6a5a, 0.06, 0.08, 1.6, 0, 0.9, 0, {seg:7});           // mast
+  Bx(M, 0x6a6a5a, 0.8, 0.08, 0.08, 0, 1.62, 0);                   // crossarm
+  for(const sx of [-1,0,1])
+    Cy(M, C3.dk, 0.04, 0.05, 0.12, sx*0.32, 1.72, 0, {seg:6});    // insulators
+  Sp(M, C3.orange, 0.07, 0, 1.86, 0, {glow:true});                // cap light
+}
+function mBiomassBurner(M, ud){
+  padSlab(M, 2, 2);
+  Cy(M, 0x6a8a4a, 0.72, 0.78, 0.95, 0, 0.62, 0, {seg:12});        // furnace drum
+  Dm(M, C3.dark, 0.72, 0, 1.1, 0, {seg:12});
+  ud.flame = Bx(M, C3.fire, 0.4, 0.34, 0.06, 0, 0.5, 0.76, {glow:true}); // grate glow
+  Bx(M, C3.dark, 0.5, 0.44, 0.1, 0, 0.5, 0.8);                    // furnace door frame
+  Cy(M, C3.dark, 0.12, 0.15, 1.3, 0.45, 1.75, -0.35);             // chimney
+  Cy(M, C3.steel, 0.17, 0.17, 0.1, 0.45, 2.4, -0.35);
+  for(let i=0;i<3;i++)
+    Cy(M, 0x9a6b42, 0.09, 0.09, 0.7, -0.65, 0.12+i*0.14, 0.4, {rx:Math.PI/2, seg:6}); // firewood pile
+  Bx(M, C3.hazard, 0.2, 0.06, 1.4, -0.85, 0.2, 0);                // fuel walkway mark
+}
+function mCoalGen(M, ud){
+  padSlab(M, 2, 3);
+  Cy(M, C3.steel, 0.52, 0.52, 1.7, 0, 0.75, -0.2, {rx:Math.PI/2, seg:14}); // boiler
+  Dm(M, C3.steel, 0.52, 0, 0.75, 0.65, {rx:Math.PI/2});
+  Bx(M, C3.dark, 1.3, 0.5, 1.9, 0, 0.26, -0.2);                   // firebox skirt
+  Cy(M, C3.dark, 0.2, 0.28, 2.4, 0.45, 1.75, -1.0);               // smokestack
+  Cy(M, C3.steel, 0.3, 0.3, 0.14, 0.45, 2.95, -1.0);              // stack crown
+  ud.flame = Sp(M, C3.fire, 0.14, 0.45, 3.1, -1.0, {glow:true});  // stack fire
+  Cn(M, C3.dark, 0.4, 0.55, -0.45, 1.55, 0.35, {rx:Math.PI});     // coal hopper
+  Bx(M, C3.metal, 0.5, 0.4, 0.4, -0.45, 1.1, 0.35);               // hopper throat
+  Cy(M, C3.cool, 0.09, 0.09, 1.0, -0.6, 0.3, 1.0, {rz:Math.PI/2}); // water inlet pipe
+  Tr(M, C3.cool, 0.14, 0.03, -0.95, 0.3, 1.0, {ry:Math.PI/2});    // inlet flange
+  Bx(M, C3.orange, 0.6, 0.5, 0.55, 0.5, 0.5, 0.9);                // turbine house
+  vent(M, 0.5, 0.82, 0.9);
+  stripeBand(M, 1.7, 2.72, 0.24);
+  statusLamp(M, ud, -0.75, 0.7, -1.2);
+}
+function mFuelGen(M, ud){
+  padSlab(M, 2, 3);
+  Cy(M, 0x8a5a4a, 0.48, 0.48, 1.6, 0, 0.85, 0, {rx:Math.PI/2, seg:14}); // turbine nacelle
+  Cn(M, C3.dark, 0.5, 0.5, 0, 0.85, 1.05, {rx:-Math.PI/2, seg:14});     // intake cone
+  Cy(M, C3.dk, 0.34, 0.44, 0.4, 0, 0.85, -1.0, {rx:Math.PI/2, seg:12}); // exhaust
+  ud.flame = Cy(M, C3.fire, 0.22, 0.28, 0.14, 0, 0.85, -1.24, {rx:Math.PI/2, glow:true});
+  const fan = new THREE.Group();
+  fan.position.set(0, 0.85, 1.06);
+  M.add(fan);
+  Bx(fan, C3.lite, 0.62, 0.34, 0.04, 0, 0, 0);                    // intake fan blades
+  Bx(fan, C3.lite, 0.34, 0.62, 0.04, 0, 0, 0);
+  ud.fan = fan;
+  Bx(M, C3.steel, 0.3, 0.5, 1.2, -0.65, 0.4, 0);                  // radiator bank
+  for(let i=0;i<4;i++) Bx(M, C3.dark, 0.34, 0.4, 0.04, -0.65, 0.42, -0.45+i*0.3);
+  Cy(M, C3.copper, 0.08, 0.08, 0.8, 0.65, 0.3, 0.4, {rz:Math.PI/2}); // fuel feed
+  Bx(M, C3.dark, 0.5, 0.34, 0.44, 0.6, 0.3, -0.7);                // gearbox
+  stripeBand(M, 1.7, 2.72, 0.22);
+  statusLamp(M, ud, 0.75, 0.62, 1.2);
+}
+function mPowerStorage(M, ud){
+  padSlab(M, 2, 2);
+  for(const sx of [-1,1]) for(const sz of [-1,1])
+    Bx(M, C3.steel, 0.18, 1.7, 0.18, sx*0.62, 0.9, sz*0.62);      // cage pillars
+  Cy(M, C3.dark, 0.6, 0.66, 0.24, 0, 0.26, 0, {seg:12});          // base drum
+  ud.charge = P3(M, 'box', [0.8, 0.1, 0.8], C3.cool, 0, 0.2, 0, {glow:true}); // charge column
+  Cy(M, C3.dark, 0.62, 0.62, 0.2, 0, 1.78, 0, {seg:12});          // cap drum
+  Sp(M, C3.orange, 0.14, 0, 1.98, 0);                             // terminal knob
+  Cy(M, C3.dk, 0.05, 0.05, 0.5, 0, 2.1, 0);                       // terminal rod
+  Tr(M, C3.steel, 0.66, 0.04, 0, 1.0, 0, {rx:Math.PI/2});         // hoop
+  stripeBand(M, 1.6, 1.62, 0.2);
+}
+
+/* ═══ logistics & special ═══ */
+function mStorage(M){
+  padSlab(M, 2, 2);
+  Bx(M, 0x7a8a6a, 1.7, 1.1, 1.7, 0, 0.72, 0);                     // container body
+  for(const sx of [-1,1]) for(const sz of [-1,1])
+    Bx(M, C3.dark, 0.14, 1.2, 0.14, sx*0.85, 0.76, sz*0.85);      // corner posts
+  for(let i=0;i<4;i++)
+    Bx(M, 0x6a7a5a, 1.72, 1.0, 0.05, 0, 0.72, -0.6+i*0.4);        // wall ribs
+  Bx(M, C3.orange, 1.74, 0.18, 1.74, 0, 1.0, 0);                  // FICSIT band
+  Bx(M, C3.dark, 0.7, 0.7, 0.06, 0, 0.6, 0.86);                   // door
+  Bx(M, C3.steel, 0.1, 0.5, 0.08, 0.2, 0.6, 0.9);                 // door lever
+  Bx(M, C3.steel, 0.5, 0.06, 0.5, 0, 1.3, 0);                     // roof hatch
+}
+function mJunction(M, merger){
+  Bx(M, C3.base, 0.9, 0.12, 0.9, 0, 0.06, 0);
+  Bx(M, merger?0x8a8a5a:0x8a8a5a, 0.72, 0.4, 0.72, 0, 0.32, 0);   // housing
+  Cy(M, C3.dark, 0.26, 0.3, 0.2, 0, 0.6, 0, {seg:8});             // rotor drum
+  Cn(M, C3.orange, 0.14, 0.22, 0, 0.78, 0, {glow:true, seg:4});   // top beacon
+  for(const [dx,dz] of [[1,0],[-1,0],[0,1],[0,-1]])
+    Bx(M, C3.dark, dx?0.2:0.44, 0.26, dz?0.2:0.44, dx*0.42, 0.24, dz*0.42); // chute stubs
+}
+function mSink(M, ud){
+  padSlab(M, 3, 3);
+  Bx(M, 0xb5772a, 2.3, 0.85, 2.0, 0, 0.56, 0.2);                  // compactor hall
+  Bx(M, C3.dark, 2.4, 0.16, 2.1, 0, 1.05, 0.2);
+  Cn(M, C3.dark, 1.0, 1.05, 0, 1.75, 0.1, {rx:Math.PI, seg:14});  // intake funnel
+  ud.lamp = Cy(M, C3.orange, 0.5, 0.5, 0.07, 0, 1.3, 0.1, {glow:true, seg:14}); // core glow
+  for(const a of [0.6, 2.2, 4.0, 5.6])
+    Bx(M, C3.steel, 0.1, 1.0, 0.1, Math.cos(a)*0.95, 1.55, 0.1+Math.sin(a)*0.95, {rz:Math.cos(a)*0.35, rx:-Math.sin(a)*0.35}); // funnel struts
+  Cy(M, C3.dark, 0.12, 0.14, 1.1, -1.0, 1.55, -0.75);             // vapor stack A
+  Cy(M, C3.dark, 0.1, 0.12, 0.9, -0.7, 1.45, -0.85);              // vapor stack B
+  Bx(M, C3.lite, 0.5, 0.4, 0.34, 1.0, 0.4, 1.15);                 // coupon printer
+  Bx(M, C3.green, 0.3, 0.05, 0.06, 1.0, 0.62, 1.32, {glow:true}); // printer slot
+  stripeBand(M, 2.3, 3.02, 0.26);
+}
+function mMam(M){
+  padSlab(M, 2, 2);
+  Bx(M, 0x7a5aa0, 1.5, 0.5, 1.4, 0, 0.4, 0);                      // lab base
+  Dm(M, 0x5a4380, 0.72, 0, 0.65, 0, {seg:14});                    // analysis dome
+  Sp(M, 0x8a6ac0, 0.12, -0.3, 1.2, -0.2, {glow:true});            // dome porthole
+  for(const a of [0.7, 2.6, 4.4]){
+    const px = Math.cos(a)*0.75, pz = Math.sin(a)*0.7;
+    Cy(M, C3.dk, 0.04, 0.05, 0.9, px, 0.95, pz, {rz:Math.cos(a)*0.7, rx:-Math.sin(a)*0.7}); // sensor arms
+    Sp(M, C3.green, 0.08, px*1.5, 1.32, pz*1.4, {glow:true});     // sensor tips
+  }
+  Cy(M, C3.steel, 0.04, 0.04, 0.7, 0.6, 1.5, 0.55);               // dish mast
+  Cn(M, C3.lite, 0.26, 0.14, 0.6, 1.85, 0.55, {rx:-2.6, seg:10}); // dish
+  Cy(M, 0x4a8a5a, 0.12, 0.12, 0.4, -0.6, 0.7, 0.55, {glow:true}); // sample vat
+}
+function mBench(M, workshop){
+  Bx(M, C3.dark, 1.7, 0.1, 0.8, 0, 0.52, 0);                      // tabletop
+  for(const sx of [-1,1]) for(const sz of [-1,1])
+    Bx(M, C3.steel, 0.1, 0.5, 0.1, sx*0.75, 0.26, sz*0.3);        // legs
+  Bx(M, workshop?0x6a7a8a:0x8a6a4a, 1.7, 0.55, 0.1, 0, 0.9, -0.4); // tool board
+  for(let i=0;i<3;i++) Bx(M, C3.orange, 0.14, 0.2, 0.05, -0.5+i*0.5, 0.9, -0.33); // hung tools
+  Bx(M, C3.metal, 0.3, 0.2, 0.24, 0.45, 0.68, 0.05);              // bench vice
+  if(workshop){
+    Bx(M, C3.steel, 0.08, 0.8, 0.08, -0.75, 0.95, 0.25);          // crane post
+    Bx(M, C3.steel, 0.7, 0.07, 0.07, -0.45, 1.35, 0.25);          // crane arm
+    Cy(M, C3.dk, 0.02, 0.02, 0.3, -0.15, 1.2, 0.25);              // hook cable
+    Bx(M, C3.orange, 0.12, 0.1, 0.1, -0.15, 1.02, 0.25);          // hook block
+  } else Bx(M, C3.lite, 0.4, 0.14, 0.3, -0.35, 0.6, 0.1);         // parts tray
+}
+function mHub(M, ud){
+  padSlab(M, 6, 4);
+  /* landing legs */
+  for(const sx of [-1,1]) for(const sz of [-1,1])
+    Bx(M, C3.steel, 0.24, 0.34, 0.24, sx*2.6, 0.3, sz*1.7);
+  /* main habitat pod */
+  Bx(M, C3.rust, 2.6, 1.3, 2.6, -1.2, 0.8, 0);                    // hab body
+  Bx(M, C3.dark, 2.7, 0.24, 2.7, -1.2, 1.5, 0);                   // hab roofline
+  Bx(M, C3.rust, 1.9, 0.5, 1.9, -1.2, 1.82, 0);                   // roof deck
+  Dm(M, C3.lite, 0.4, -1.2, 2.07, 0);                             // skylight dome
+  Bx(M, C3.orange, 2.72, 0.3, 2.72, -1.2, 1.06, 0);               // FICSIT band
+  Bx(M, C3.glass, 0.06, 0.4, 1.5, -2.52, 0.85, 0, {glow:true});   // west viewport (ports side)
+  Bx(M, C3.dark, 0.7, 0.95, 0.08, -1.2, 0.5, 1.32);               // airlock door
+  Bx(M, C3.glow, 0.5, 0.08, 0.05, -1.2, 1.02, 1.34, {glow:true}); // door lintel light
+  /* HUB terminal wing */
+  Bx(M, C3.dark, 1.6, 0.9, 1.5, 0.9, 0.6, 0.55);                  // terminal room
+  Bx(M, C3.glass, 1.0, 0.44, 0.06, 0.9, 0.72, 1.32, {glow:true}); // terminal screen
+  Bx(M, C3.steel, 1.7, 0.1, 1.6, 0.9, 1.1, 0.55);
+  /* integrated biomass burner pod */
+  Cy(M, 0x6a8a4a, 0.55, 0.6, 0.8, 1.9, 0.55, -0.9, {seg:12});
+  Dm(M, C3.dark, 0.55, 1.9, 0.95, -0.9, {seg:12});
+  ud.flame = Bx(M, C3.fire, 0.3, 0.26, 0.06, 1.9, 0.45, -0.28, {glow:true}); // burner glow
+  Cy(M, C3.dark, 0.09, 0.11, 0.9, 2.2, 1.6, -1.1);                // burner flue
+  /* freight pad + crates */
+  Bx(M, C3.metal, 1.4, 0.1, 1.2, 1.9, 0.2, 0.7);
+  Bx(M, C3.orange, 0.44, 0.4, 0.44, 1.65, 0.45, 0.55);
+  Bx(M, C3.steel, 0.36, 0.3, 0.36, 2.2, 0.4, 0.9);
+  /* comms mast + beacon */
+  Cy(M, C3.steel, 0.05, 0.07, 2.6, 2.6, 1.5, -1.5, {seg:6});
+  Bx(M, C3.steel, 0.7, 0.06, 0.06, 2.6, 2.5, -1.5);
+  ud.lamp = Sp(M, C3.glow, 0.12, 2.6, 2.9, -1.5, {glow:true});    // beacon (blinks via lamp)
+  /* railing along the pad edge */
+  for(let i=0;i<5;i++) Bx(M, C3.dark, 0.05, 0.3, 0.05, -2.8+i*1.4, 0.35, -1.9);
+  Bx(M, C3.dark, 5.7, 0.05, 0.05, 0, 0.5, -1.9);
+}
+function mElevator(M, ud){
+  Cy(M, C3.base, 2.95, 3.05, 0.3, 0, 0.15, 0, {seg:18});          // launch pad
+  Cy(M, C3.dark, 2.3, 2.5, 0.7, 0, 0.65, 0, {seg:18});            // tier 1
+  Cy(M, C3.steel, 1.7, 1.95, 0.7, 0, 1.35, 0, {seg:16});          // tier 2
+  Cy(M, C3.dark, 1.1, 1.35, 0.7, 0, 2.05, 0, {seg:14});           // tier 3
+  Tr(M, C3.glow, 1.45, 0.06, 0, 1.75, 0, {rx:Math.PI/2, glow:true}); // light ring
+  Cy(M, 0x8a93a2, 0.45, 0.6, 5.5, 0, 5.1, 0, {seg:10});           // main mast
+  Dm(M, C3.lite, 0.5, 0, 7.85, 0);
+  for(const a of [0.4, 1.97, 3.54, 5.11]){
+    Bx(M, C3.steel, 0.16, 2.6, 0.16, Math.cos(a)*1.9, 1.5, Math.sin(a)*1.9,
+      {rz:Math.cos(a)*0.55, rx:-Math.sin(a)*0.55});               // guy struts
+  }
+  Cy(M, C3.dark, 0.35, 0.35, 0.5, 1.9, 0.65, 1.6, {rx:Math.PI/2, seg:10}); // cable drum A
+  Cy(M, C3.dark, 0.35, 0.35, 0.5, -1.9, 0.65, 1.6, {rx:Math.PI/2, seg:10});// cable drum B
+  for(const sx of [-1,1]) Bx(M, C3.orange, 0.5, 0.34, 0.4, sx*2.2, 0.5, -1.6); // supply lockers
+  P3(M, 'cyl', [0.35, 0.35, 60, 8], 0xa0c8ff, 0, 30, 0,
+     {glow:true});                                                 // ascension beam
+  const beam = M.children[M.children.length-1];
+  beam.material = new THREE.MeshBasicMaterial({ color:0xa0c8ff, transparent:true, opacity:0.15, depthWrite:false });
+}
+
 function makeBuildingGroup(b){
   const def = BDEFS[b.key];
   const dims = bDims(b);
-  const col = cssToHex(MACHINE_COLS[b.key]||'#777777');
-  const grp = new THREE.Group();
-  const cxw = b.x+dims.w/2, czw = b.y+dims.h/2;
-  const t = def.type;
-  if(t==='pole'){
-    box3D(grp, 0.14,1.5,0.14, 0x6a6a5a, cxw,0.75,czw);
-    const tip = box3D(grp, 0.24,0.16,0.24, 0xfa9549, cxw,1.55,czw);
-    grp.userData.lamp = tip;
-  } else if(t==='hub'){
-    box3D(grp, dims.w-0.15, 0.5, dims.h-0.15, col, cxw, 0.25, czw);
-    box3D(grp, dims.w*0.55, 1.4, dims.h*0.6, 0x2a2f36, b.x+dims.w*0.34, 0.95, czw);
-    box3D(grp, dims.w*0.4, 0.35, 0.1, 0xfa9549, b.x+dims.w*0.34, 1.35, b.y+dims.h*0.24);
-    box3D(grp, 0.08, 2.6, 0.08, 0x4a5058, b.x+dims.w*0.8, 1.5, czw);
-    const beacon = box3D(grp, 0.2,0.2,0.2, 0xffb36b, b.x+dims.w*0.8, 2.85, czw);
-    grp.userData.lamp = beacon;
-  } else if(t==='elevator'){
-    const baseM = new THREE.Mesh(new THREE.CylinderGeometry(dims.w*0.46, dims.w*0.5, 0.7, 12), mat3D(0x3a414a));
-    baseM.position.set(cxw, 0.35, czw); grp.add(baseM);
-    const tower = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.7, 7, 8), mat3D(0x8a93a2));
-    tower.position.set(cxw, 4.2, czw); grp.add(tower);
-    const beamM = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.35, 60, 8, 1, true),
-      new THREE.MeshBasicMaterial({ color:0xa0c8ff, transparent:true, opacity:0.16, depthWrite:false }));
-    beamM.position.set(cxw, 30, czw); grp.add(beamM);
-  } else if(t==='generator'){
-    box3D(grp, dims.w-0.2, 1.0, dims.h-0.2, col, cxw, 0.5, czw);
-    const chim = new THREE.Mesh(new THREE.CylinderGeometry(0.16,0.2,0.9,6), mat3D(0x30343a));
-    chim.position.set(b.x+dims.w*0.72, 1.35, b.y+dims.h*0.3);
-    grp.add(chim);
-    const flame = box3D(grp, 0.2,0.14,0.2, 0xff9a3c, b.x+dims.w*0.72, 1.85, b.y+dims.h*0.3);
-    grp.userData.flame = flame;
-  } else if(t==='extractor'){
-    box3D(grp, dims.w-0.2, 0.55, dims.h-0.2, col, cxw, 0.28, czw);
-    const drill = new THREE.Mesh(new THREE.ConeGeometry(0.4, 0.9, 5), mat3D(0x30343a));
-    drill.rotation.x = Math.PI;
-    drill.position.set(cxw, 0.95, czw);
-    grp.add(drill);
-    grp.userData.drill = drill;
-  } else if(t==='battery'){
-    box3D(grp, dims.w-0.4, 1.5, dims.h-0.4, col, cxw, 0.75, czw);
-    const lvl = box3D(grp, dims.w-0.55, 0.1, dims.h-0.55, 0x66ccff, cxw, 0.2, czw);
-    grp.userData.charge = lvl;
-  } else if(t==='splitter' || t==='merger'){
-    box3D(grp, 0.85, 0.5, 0.85, col, cxw, 0.25, czw);
-    box3D(grp, 0.4, 0.2, 0.4, 0x30343a, cxw, 0.6, czw);
-  } else if(t==='sink'){
-    box3D(grp, dims.w-0.2, 0.8, dims.h-0.2, col, cxw, 0.4, czw);
-    const fun = new THREE.Mesh(new THREE.ConeGeometry(0.8, 1.0, 8), mat3D(0x30343a));
-    fun.rotation.x = Math.PI;
-    fun.position.set(cxw, 1.3, czw);
-    grp.add(fun);
-    const glow = box3D(grp, 0.5,0.1,0.5, 0xfa9549, cxw, 0.85, czw);
-    grp.userData.lamp = glow;
-  } else if(t==='mam'){
-    const dome = new THREE.Mesh(new THREE.SphereGeometry(0.8, 10, 8, 0, Math.PI*2, 0, Math.PI/2), mat3D(0x5a4380));
-    dome.position.set(cxw, 0.5, czw);
-    grp.add(dome);
-    box3D(grp, dims.w-0.3, 0.5, dims.h-0.3, col, cxw, 0.25, czw);
-  } else if(t==='bench' || t==='workshop'){
-    box3D(grp, dims.w-0.2, 0.45, dims.h-0.25, col, cxw, 0.35, czw);
-    box3D(grp, 0.12, 0.35, 0.12, 0x30343a, b.x+0.25, 0.18, b.y+0.25);
-    box3D(grp, 0.12, 0.35, 0.12, 0x30343a, b.x+dims.w-0.25, 0.18, b.y+dims.h-0.25);
-  } else if(t==='storage'){
-    box3D(grp, dims.w-0.25, 1.2, dims.h-0.25, col, cxw, 0.6, czw);
-    box3D(grp, dims.w-0.2, 0.08, dims.h-0.2, cssToHex(shade(MACHINE_COLS[b.key]||'#777',-30).replace('rgb','').includes('(')?'#5a6a4a':'#5a6a4a'), cxw, 0.9, czw);
-  } else {
-    /* processors and everything else: main hall + machine detail */
-    const hgt = t==='processor' ? 0.9 : 0.7;
-    box3D(grp, dims.w-0.2, hgt, dims.h-0.2, col, cxw, hgt/2, czw);
-    box3D(grp, Math.max(0.4,dims.w*0.4), hgt*0.5, Math.max(0.4,dims.h*0.4), 0x30343a, cxw, hgt+hgt*0.22, czw);
-    const lamp = box3D(grp, 0.18,0.12,0.18, 0x7ee08a, b.x+0.35, hgt+0.1, b.y+0.35);
-    grp.userData.lamp = lamp;
+  const root = new THREE.Group();
+  const M = new THREE.Group();
+  const ud = {};
+  switch(b.key){
+    case 'smelter':            mSmelter(M, ud); break;
+    case 'foundry':            mFoundry(M, ud); break;
+    case 'constructor':        mConstructor(M, ud); break;
+    case 'assembler':          mAssembler(M, ud); break;
+    case 'manufacturer':       mManufacturer(M, ud); break;
+    case 'refinery':           mRefinery(M, ud); break;
+    case 'miner_mk1':          mMiner(M, ud, false); break;
+    case 'miner_mk2':          mMiner(M, ud, true); break;
+    case 'portable_miner':     mPortableMiner(M, ud); break;
+    case 'oil_extractor':      mOilExtractor(M, ud); break;
+    case 'water_extractor':    mWaterExtractor(M, ud); break;
+    case 'power_pole':         mPole(M); break;
+    case 'biomass_burner':     mBiomassBurner(M, ud); break;
+    case 'coal_generator':     mCoalGen(M, ud); break;
+    case 'fuel_generator':     mFuelGen(M, ud); break;
+    case 'power_storage':      mPowerStorage(M, ud); break;
+    case 'storage_container':  mStorage(M); break;
+    case 'splitter':           mJunction(M, false); break;
+    case 'merger':             mJunction(M, true); break;
+    case 'awesome_sink':       mSink(M, ud); break;
+    case 'mam':                mMam(M); break;
+    case 'craft_bench':        mBench(M, false); break;
+    case 'equipment_workshop': mBench(M, true); break;
+    case 'hub':                mHub(M, ud); break;
+    case 'space_elevator':     mElevator(M, ud); break;
+    default:
+      Bx(M, cssToHex(MACHINE_COLS[b.key]||'#777777'), def.w-0.2, 0.8, def.h-0.2, 0, 0.4, 0);
   }
-  /* port markers: orange cones out, pale cones in — matching the 2D arrows */
+  /* place the local model onto the rotated footprint */
+  M.position.set(b.x + dims.w/2, 0, b.y + dims.h/2);
+  M.rotation.y = -b.rot*Math.PI/2;
+  root.add(M);
+  root.userData = ud;
+  /* port markers in world space: orange cones out, pale cones in */
   if(def.ports.length){
-    const coneG = new THREE.ConeGeometry(0.14, 0.3, 4);
     for(const p of bPorts(b)){
-      const cone = new THREE.Mesh(coneG, mat3D(p.fl ? (p.io==='out'?0x4aa8e8:0x77b8d8)
-                                                    : (p.io==='out'?0xfa9549:0xcfd6dd)));
+      const cone = new THREE.Mesh(geo3D('cone', 0.14, 0.3, 4),
+        mat3D(p.fl ? (p.io==='out'?0x4aa8e8:0x77b8d8)
+                   : (p.io==='out'?0xfa9549:0xcfd6dd)));
       const [dx,dy] = DIRS[p.d];
       cone.position.set(p.x+0.5+dx*0.45, 0.3, p.y+0.5+dy*0.45);
       const flip = p.io==='in' ? -1 : 1;
@@ -3745,10 +4161,10 @@ function makeBuildingGroup(b){
       else if(dx===-1) cone.rotation.z = Math.PI/2*flip;
       else if(dy===1) cone.rotation.x = Math.PI/2*flip;
       else cone.rotation.x = -Math.PI/2*flip;
-      grp.add(cone);
+      root.add(cone);
     }
   }
-  return grp;
+  return root;
 }
 function syncBuildings3D(now){
   const seen = new Set();
@@ -3763,10 +4179,14 @@ function syncBuildings3D(now){
     }
     const def = BDEFS[b.key];
     const running = b.want && (def.power<=0 || b.powered);
-    if(grp.userData.drill && running) grp.userData.drill.rotation.y = now*0.004;
-    if(grp.userData.flame) grp.userData.flame.visible = (b.outMW||0)>0.01;
+    if(grp.userData.drill && running) grp.userData.drill.rotation.y = now*0.006;
+    if(grp.userData.rocker)
+      grp.userData.rocker.rotation.z = running ? Math.sin(now*0.0035)*0.26 : 0.12;
+    if(grp.userData.fan && running) grp.userData.fan.rotation.y = now*0.006;
+    if(grp.userData.flame)
+      grp.userData.flame.visible = def.gen ? (b.outMW||0)>0.01 : running;
     if(grp.userData.lamp && def.power>0)
-      grp.userData.lamp.material = mat3D(b.powered ? 0x7ee08a : 0xff6b5e);
+      grp.userData.lamp.material = glowMat3D(b.powered ? 0x7ee08a : 0xff6b5e);
     if(grp.userData.charge){
       const lvl = clamp((b.charge||0)/(def.capMWh||100), 0.02, 1);
       grp.userData.charge.scale.y = lvl*12;
@@ -3775,8 +4195,7 @@ function syncBuildings3D(now){
   }
   for(const [id,grp] of three.buildGroups){
     if(!seen.has(id)){
-      three.scene.remove(grp);
-      grp.traverse(o=>{ if(o.geometry) o.geometry.dispose(); });
+      three.scene.remove(grp);          // geometries are cache-shared: keep them
       three.buildGroups.delete(id);
     }
   }
@@ -3787,31 +4206,35 @@ function makeBeltGroup(belt){
   const cxw = belt.x+0.5, czw = belt.y+0.5;
   const horiz = belt.dir===0 || belt.dir===2;
   if(belt.fl){
-    const pipe = new THREE.Mesh(new THREE.CylinderGeometry(0.15,0.15,1.02,6), mat3D(cssToHex(PIPES[belt.mk].col)));
-    pipe.rotation.z = horiz ? Math.PI/2 : 0;
-    pipe.rotation.x = horiz ? 0 : Math.PI/2;
-    pipe.position.set(cxw, 0.2, czw);
-    grp.add(pipe);
-  } else {
-    const bed = new THREE.Mesh(new THREE.BoxGeometry(horiz?1.0:0.66, 0.12, horiz?0.66:1.0), mat3D(0x23262b));
-    bed.position.set(cxw, 0.08, czw);
-    grp.add(bed);
-    const railHex = cssToHex(BELTS[belt.mk].col);
-    const r1 = new THREE.Mesh(new THREE.BoxGeometry(horiz?1.0:0.08, 0.16, horiz?0.08:1.0), mat3D(railHex));
-    const r2 = r1.clone();
-    if(horiz){ r1.position.set(cxw,0.1,czw-0.31); r2.position.set(cxw,0.1,czw+0.31); }
-    else { r1.position.set(cxw-0.31,0.1,czw); r2.position.set(cxw+0.31,0.1,czw); }
-    grp.add(r1); grp.add(r2);
-    /* direction chevron */
-    const cone = new THREE.Mesh(new THREE.ConeGeometry(0.1,0.22,4), mat3D(0xfa9549));
-    const [dx,dy]=DIRS[belt.dir];
-    cone.position.set(cxw+dx*0.2, 0.18, czw+dy*0.2);
-    if(dx===1) cone.rotation.z=-Math.PI/2;
-    else if(dx===-1) cone.rotation.z=Math.PI/2;
-    else if(dy===1) cone.rotation.x=Math.PI/2;
-    else cone.rotation.x=-Math.PI/2;
-    grp.add(cone);
+    const hex = cssToHex(PIPES[belt.mk].col);
+    Cy(grp, hex, 0.15,0.15,1.02, cxw, 0.24, czw, horiz?{rz:Math.PI/2,seg:8}:{rx:Math.PI/2,seg:8});
+    /* flange rings + support saddle */
+    Tr(grp, 0x3a4148, 0.17, 0.03, cxw, 0.24, czw, horiz?{ry:Math.PI/2}:{});
+    Bx(grp, 0x3a4148, 0.16, 0.24, 0.16, cxw, 0.1, czw);
+    return grp;
   }
+  const railHex = cssToHex(BELTS[belt.mk].col);
+  Bx(grp, 0x23262b, horiz?1.0:0.62, 0.1, horiz?0.62:1.0, cxw, 0.13, czw);   // belt bed
+  /* side rails */
+  if(horiz){
+    Bx(grp, railHex, 1.0, 0.16, 0.09, cxw, 0.14, czw-0.31);
+    Bx(grp, railHex, 1.0, 0.16, 0.09, cxw, 0.14, czw+0.31);
+  } else {
+    Bx(grp, railHex, 0.09, 0.16, 1.0, cxw-0.31, 0.14, czw);
+    Bx(grp, railHex, 0.09, 0.16, 1.0, cxw+0.31, 0.14, czw);
+  }
+  /* support feet */
+  Bx(grp, 0x3a4148, 0.1, 0.14, 0.1, cxw-(horiz?0.35:0), 0.05, czw-(horiz?0:0.35));
+  Bx(grp, 0x3a4148, 0.1, 0.14, 0.1, cxw+(horiz?0.35:0), 0.05, czw+(horiz?0:0.35));
+  /* direction chevron */
+  const [dx,dy]=DIRS[belt.dir];
+  const cone = new THREE.Mesh(geo3D('cone',0.1,0.22,4), mat3D(0xfa9549));
+  cone.position.set(cxw+dx*0.2, 0.22, czw+dy*0.2);
+  if(dx===1) cone.rotation.z=-Math.PI/2;
+  else if(dx===-1) cone.rotation.z=Math.PI/2;
+  else if(dy===1) cone.rotation.x=Math.PI/2;
+  else cone.rotation.x=-Math.PI/2;
+  grp.add(cone);
   return grp;
 }
 function syncBelts3D(){
@@ -3822,7 +4245,7 @@ function syncBelts3D(){
     seen.add(k);
     const ex = three.beltMeshes.get(k);
     if(ex && ex.sig===sig) continue;
-    if(ex){ three.scene.remove(ex.group); ex.group.traverse(o=>{ if(o.geometry) o.geometry.dispose(); }); }
+    if(ex) three.scene.remove(ex.group);      // shared cached geometries: keep
     const group = makeBeltGroup(belt);
     three.beltMeshes.set(k, {group, sig});
     three.scene.add(group);
@@ -3830,7 +4253,6 @@ function syncBelts3D(){
   for(const [k,ex] of three.beltMeshes){
     if(!seen.has(k)){
       three.scene.remove(ex.group);
-      ex.group.traverse(o=>{ if(o.geometry) o.geometry.dispose(); });
       three.beltMeshes.delete(k);
     }
   }
@@ -3896,15 +4318,61 @@ function syncWires3D(){
 }
 /* ── the pioneer, in three glorious dimensions ───────────────────────────── */
 function buildPlayer3D(){
+  /* the pioneer: articulated orange jumpsuit, helmet, visor, backpack     */
   const grp = new THREE.Group();
-  const body = new THREE.Mesh(new THREE.CylinderGeometry(0.2,0.24,0.55,8), mat3D(0xd97b2e));
-  body.position.y = 0.35; grp.add(body);
-  const head = new THREE.Mesh(new THREE.SphereGeometry(0.17,8,7), mat3D(0xf2f4f6));
-  head.position.y = 0.78; grp.add(head);
-  const visor = new THREE.Mesh(new THREE.BoxGeometry(0.2,0.09,0.06), mat3D(0x2a3a4a));
-  visor.position.set(0,0.78,0.15); grp.add(visor);
-  const pack = new THREE.Mesh(new THREE.BoxGeometry(0.3,0.3,0.14), mat3D(0x8a8f96));
-  pack.position.set(0,0.45,-0.2); grp.add(pack);
+  const ud = {};
+  /* legs (pivoted at the hip so they can swing) */
+  for(const side of [-1,1]){
+    const hip = new THREE.Group();
+    hip.position.set(side*0.09, 0.34, 0);
+    const leg = new THREE.Mesh(geo3D('box',0.11,0.32,0.13), mat3D(0xb5601e));
+    leg.position.y = -0.16;
+    hip.add(leg);
+    const boot = new THREE.Mesh(geo3D('box',0.12,0.08,0.19), mat3D(0x2b3036));
+    boot.position.set(0,-0.32,0.03);
+    hip.add(boot);
+    grp.add(hip);
+    ud[side<0?'legL':'legR'] = hip;
+  }
+  /* torso + harness */
+  const torso = new THREE.Mesh(geo3D('cyl',0.17,0.2,0.42,8), mat3D(0xd97b2e));
+  torso.position.y = 0.56; grp.add(torso);
+  const belt = new THREE.Mesh(geo3D('box',0.36,0.07,0.26), mat3D(0x3a4148));
+  belt.position.y = 0.4; grp.add(belt);
+  const chest = new THREE.Mesh(geo3D('box',0.28,0.12,0.08), mat3D(0x8a8f96));
+  chest.position.set(0,0.64,0.14); grp.add(chest);
+  const chestLight = new THREE.Mesh(geo3D('box',0.08,0.05,0.03), glowMat3D(0x7ee08a));
+  chestLight.position.set(0,0.64,0.19); grp.add(chestLight);
+  /* arms (pivoted at the shoulder) */
+  for(const side of [-1,1]){
+    const sh = new THREE.Group();
+    sh.position.set(side*0.24, 0.7, 0);
+    const arm = new THREE.Mesh(geo3D('box',0.09,0.3,0.11), mat3D(0xd97b2e));
+    arm.position.y = -0.15;
+    sh.add(arm);
+    const glove = new THREE.Mesh(geo3D('box',0.1,0.09,0.12), mat3D(0x3a4148));
+    glove.position.y = -0.32;
+    sh.add(glove);
+    grp.add(sh);
+    ud[side<0?'armL':'armR'] = sh;
+  }
+  /* helmet + gold visor + brim lamp */
+  const helm = new THREE.Mesh(geo3D('sph',0.17), mat3D(0xf2f4f6));
+  helm.position.y = 0.95; grp.add(helm);
+  const visor = new THREE.Mesh(geo3D('box',0.2,0.11,0.07), mat3D(0x2a3a4a));
+  visor.position.set(0,0.95,0.13); grp.add(visor);
+  const lamp = new THREE.Mesh(geo3D('box',0.06,0.05,0.04), glowMat3D(0xffe9a8));
+  lamp.position.set(0,1.05,0.14); grp.add(lamp);
+  /* backpack with antenna + tank */
+  const pack = new THREE.Mesh(geo3D('box',0.3,0.34,0.15), mat3D(0x8a8f96));
+  pack.position.set(0,0.62,-0.2); grp.add(pack);
+  const tank = new THREE.Mesh(geo3D('cyl',0.06,0.06,0.28,7), mat3D(0xc9d4e2));
+  tank.position.set(0.1,0.62,-0.3); grp.add(tank);
+  const ant = new THREE.Mesh(geo3D('cyl',0.012,0.012,0.4,5), mat3D(0x3a4148));
+  ant.position.set(-0.12,0.9,-0.24); grp.add(ant);
+  const antTip = new THREE.Mesh(geo3D('sph',0.03), glowMat3D(0xff6b5e));
+  antTip.position.set(-0.12,1.12,-0.24); grp.add(antTip);
+  grp.userData = ud;
   three.playerG = grp;
   three.scene.add(grp);
 }
@@ -3940,6 +4408,11 @@ function render3D(now){
   const yawByDir = {0:Math.PI/2, 1:0, 2:-Math.PI/2, 3:Math.PI};
   three.playerG.rotation.y = yawByDir[S.pdir] + Math.PI;
   three.playerG.position.y = Math.abs(Math.sin(S.panim*2))*0.05;
+  /* limb swing while walking */
+  const pud = three.playerG.userData;
+  const swing = S._moving ? Math.sin(S.panim*3)*0.65 : 0;
+  if(pud.legL){ pud.legL.rotation.x = swing; pud.legR.rotation.x = -swing;
+                pud.armL.rotation.x = -swing*0.8; pud.armR.rotation.x = swing*0.8; }
   /* chase camera */
   const dist = clamp(34/cam.z, 10, 80);
   const cy = Math.sin(CAM_EL)*dist;
