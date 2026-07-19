@@ -136,6 +136,16 @@ hr.sep{border:none;border-top:1px solid var(--edge);margin:10px 0}
 #fpsTag{position:fixed;top:58px;right:206px;font-family:var(--mono);font-size:10px;
   color:var(--ink-faint);z-index:12;pointer-events:none}
 
+/* ── first-person crosshair (only visible in FP mode) ────────────────────── */
+#crosshair{position:fixed;left:50%;top:50%;width:22px;height:22px;
+  transform:translate(-50%,-50%);z-index:11;display:none;pointer-events:none}
+body.fpmode #crosshair{display:block}
+#crosshair::before,#crosshair::after{content:'';position:absolute;background:rgba(255,255,255,.7);
+  box-shadow:0 0 3px rgba(0,0,0,.8)}
+#crosshair::before{left:50%;top:0;width:2px;height:100%;transform:translateX(-50%)}
+#crosshair::after{top:50%;left:0;height:2px;width:100%;transform:translateY(-50%)}
+body.fpmode{cursor:none}
+
 /* ── field manual ───────────────────────────────────────────────────────── */
 .fm-section{margin-bottom:18px}
 .fm-h{font-family:var(--cond);font-weight:700;font-size:16px;letter-spacing:.1em;
@@ -445,6 +455,7 @@ table.stats td:first-child{font-family:var(--font);font-size:12px}
   <div id="buildHint" class="panel"></div>
   <div id="toasts"></div>
   <div id="tooltip" class="panel"></div>
+  <div id="crosshair"></div>
 </div>
 
 <div id="bigBanner">
@@ -575,6 +586,7 @@ table.stats td:first-child{font-family:var(--font);font-size:12px}
       <div><kbd>R</kbd> Rotate blueprint</div><div><kbd>F</kbd> Dismantle mode</div>
       <div><kbd>C</kbd> Codex</div><div><kbd>Esc</kbd> Menu / cancel</div>
       <div><kbd>1–0</kbd> Hotbar</div><div><kbd>Scroll</kbd> Zoom</div>
+      <div><kbd>V</kbd> First-person view</div><div><kbd>H</kbd> Field manual</div>
     </div>
     <div id="bootNote">Unofficial fan tribute to Satisfactory® by Coffee Stain Studios.<br>
       Recipes, rates, power values & progression mirror the source game. Runs &amp; saves locally.<br>
@@ -963,6 +975,28 @@ const RECIPES = {
     in:{yellow_slug:1}, out:{power_shard:2} },
   shard_purple:{ name:'Power Shard (5)', machine:'bench', time:24,
     in:{purple_slug:1}, out:{power_shard:5} },
+
+  /* ── ALTERNATE RECIPES (unlocked via M.A.M. research) ──────────────────── */
+  alt_cast_screw:{ name:'Cast Screw (Alt)', machine:'constructor', time:24, alt:true,
+    in:{iron_ingot:5}, out:{screw:20} },                     /* 12.5 → 50/min */
+  alt_iron_wire:{ name:'Iron Wire (Alt)', machine:'constructor', time:24, alt:true,
+    in:{iron_ingot:5}, out:{wire:9} },                       /* 12.5 → 22.5/min */
+  alt_steel_rod:{ name:'Steel Rod (Alt)', machine:'constructor', time:5, alt:true,
+    in:{steel_ingot:1}, out:{iron_rod:4} },                  /* 12 → 48/min */
+  alt_steel_screw:{ name:'Steel Screw (Alt)', machine:'constructor', time:12, alt:true,
+    in:{steel_beam:1}, out:{screw:52} },                     /* 5 → 260/min */
+  alt_coated_iron_plate:{ name:'Coated Iron Plate (Alt)', machine:'assembler', time:8, alt:true,
+    in:{iron_ingot:5, plastic:1}, out:{iron_plate:10} },     /* 37.5+7.5 → 75/min */
+  alt_stitched_iron_plate:{ name:'Stitched Iron Plate (Alt)', machine:'assembler', time:32, alt:true,
+    in:{iron_plate:10, wire:20}, out:{reinforced_iron_plate:3} },  /* → 5.625/min */
+  alt_solid_steel_ingot:{ name:'Solid Steel Ingot (Alt)', machine:'foundry', time:3, alt:true,
+    in:{iron_ingot:2, coal:2}, out:{steel_ingot:3} },        /* 40+40 → 60/min */
+  alt_pure_iron_ingot:{ name:'Pure Iron Ingot (Alt)', machine:'refinery', time:12, alt:true,
+    in:{iron_ore:7, water:4}, out:{iron_ingot:13} },         /* 35+20 → 65/min */
+  alt_wet_concrete:{ name:'Wet Concrete (Alt)', machine:'refinery', time:3, alt:true,
+    in:{limestone:6, water:5}, out:{concrete:4} },           /* 120+100 → 80/min */
+  alt_fine_concrete:{ name:'Fine Concrete (Alt)', machine:'assembler', time:12, alt:true,
+    in:{silica:3, limestone:12}, out:{concrete:10} },        /* 15+60 → 50/min */
 };
 /* per-minute rate helpers derived from recipe time */
 function rateOf(rid,item,io){
@@ -1238,6 +1272,17 @@ const RESEARCH = [
       rewards:{r:['shard_yellow']}, desc:'Yellow slugs yield 2 Power Shards each.' },
     { id:'ps3', name:'Purple Power Slugs', cost:{purple_slug:1, power_shard:2}, req:'ps2',
       rewards:{r:['shard_purple']}, desc:'Purple slugs yield 5 Power Shards each.' },
+  ]},
+  { tree:'Alternate Recipes', nodes:[
+    { id:'alt1', name:'Reverse-Engineering', cost:{screw:100, wire:100, iron_plate:50},
+      rewards:{r:['alt_cast_screw','alt_iron_wire']},
+      desc:'Unlocks the Cast Screw and Iron Wire alt recipes — more parts from raw ingots, fewer machines.' },
+    { id:'alt2', name:'Efficient Casting', cost:{concrete:200, silica:50}, req:'alt1',
+      rewards:{r:['alt_wet_concrete','alt_fine_concrete','alt_pure_iron_ingot']},
+      desc:'Unlocks Wet Concrete, Fine Concrete and Pure Iron Ingot — fluid-assisted, high-yield production.' },
+    { id:'alt3', name:'Reinforced Alloys', cost:{steel_beam:50, reinforced_iron_plate:25, plastic:50}, req:'alt2',
+      rewards:{r:['alt_steel_rod','alt_steel_screw','alt_solid_steel_ingot','alt_coated_iron_plate','alt_stitched_iron_plate']},
+      desc:'Unlocks five steel & plate alternates for dense, efficient part production.' },
   ]},
 ];
 
@@ -2231,8 +2276,9 @@ function resetFuses(){
    the Chainsaw), slug collection, and click-to-open machine windows.
    ═══════════════════════════════════════════════════════════════════════════ */
 const cam   = { x:0, y:0, z:1.0 };
-const mouse = { sx:0, sy:0, wx:0, wy:0, tx:0, ty:0, down:false, overUI:false };
+const mouse = { sx:0, sy:0, wx:0, wy:0, tx:0, ty:0, down:false, overUI:false, _ptx:0, _pty:0 };
 const keys  = {};
+const fpview = { on:false, yaw:Math.PI, pitch:-0.12 };   // first-person camera
 let buildMode = null;         // null | {kind:'building',key} | {kind:'belt',mk}
                               //      | {kind:'pipe',mk} | {kind:'found'} | {kind:'dis'}
 let buildRot  = 0;
@@ -2259,10 +2305,17 @@ function walkable(x,y){
 }
 function tickPlayer(dt){
   let vx=0, vy=0;
-  if(keys.KeyW||keys.ArrowUp)    vy-=1;
-  if(keys.KeyS||keys.ArrowDown)  vy+=1;
-  if(keys.KeyA||keys.ArrowLeft)  vx-=1;
-  if(keys.KeyD||keys.ArrowRight) vx+=1;
+  const fwd = keys.KeyW||keys.ArrowUp ? 1 : 0, back = keys.KeyS||keys.ArrowDown ? 1 : 0;
+  const lf = keys.KeyA||keys.ArrowLeft ? 1 : 0, rt = keys.KeyD||keys.ArrowRight ? 1 : 0;
+  if(fpview.on){
+    /* movement relative to where you're looking */
+    const f = fwd-back, r = rt-lf;
+    const fx = Math.sin(fpview.yaw), fz = Math.cos(fpview.yaw);
+    const rx = Math.cos(fpview.yaw), rz = -Math.sin(fpview.yaw);
+    vx = fx*f + rx*r; vy = fz*f + rz*r;
+  } else {
+    vx = rt-lf; vy = back-fwd;
+  }
   S._moving = !!(vx||vy);
   if(vx||vy){
     const m = Math.hypot(vx,vy);
@@ -2271,7 +2324,12 @@ function tickPlayer(dt){
     if(walkable(nx, S.py)) S.px = nx;                    // axis-separated slide
     if(walkable(S.px, ny)) S.py = ny;
     S.panim += dt*6;
-    S.pdir = Math.abs(vx)>Math.abs(vy) ? (vx>0?0:2) : (vy>0?1:3);
+    if(!fpview.on) S.pdir = Math.abs(vx)>Math.abs(vy) ? (vx>0?0:2) : (vy>0?1:3);
+  }
+  if(fpview.on){
+    /* face where the camera looks so harvesting & the 2D model stay aligned */
+    const fx = Math.sin(fpview.yaw), fz = Math.cos(fpview.yaw);
+    S.pdir = Math.abs(fx)>Math.abs(fz) ? (fx>0?0:2) : (fz>0?1:3);
   }
   cam.x = lerp(cam.x, S.px, Math.min(1, dt*7));
   cam.y = lerp(cam.y, S.py, Math.min(1, dt*7));
@@ -2418,11 +2476,11 @@ function refreshBuildHint(){
   } else if(buildMode.kind==='belt'){
     const bd=BELTS[buildMode.mk];
     txt='<b class="orange">'+bd.name+'</b> · '+bd.rate+'/min<br>'+costHtml(bd.cost)+' per metre'+
-        '<br><kbd>Drag</kbd> to lay belt · <kbd>RMB</kbd> cancel';
+        '<br><kbd>Drag</kbd> to lay belt · snaps to <span class="good">green out</span>/<span style="color:var(--pow)">blue in</span> ports · <kbd>RMB</kbd> cancel';
   } else if(buildMode.kind==='pipe'){
     const pd=PIPES[buildMode.mk];
     txt='<b class="orange">'+pd.name+'</b> · '+pd.rate+' m³/min<br>'+costHtml(pd.cost)+' per metre'+
-        '<br><kbd>Drag</kbd> to lay pipe · <kbd>RMB</kbd> cancel';
+        '<br><kbd>Drag</kbd> to lay pipe · snaps to fluid ports · <kbd>RMB</kbd> cancel';
   } else if(buildMode.kind==='found'){
     txt='<b class="orange">Foundation</b><br>'+costHtml({concrete:1})+' per tile'+
         '<br><kbd>Drag</kbd> to pave · <kbd>RMB</kbd> cancel';
@@ -2572,6 +2630,35 @@ function rebuildOcc(){
 }
 
 /* belt / pipe drag painting */
+/* find a matching machine port on the tile adjacent to (tx,ty) in each of the
+   four directions. Returns {outSnap, inSnap}: the belt.dir that would connect a
+   conveyor to that building's OUTPUT (carry away) / INPUT (carry toward it). */
+function portSnaps(tx, ty, fluid){
+  let outSnap = null, inSnap = null;
+  for(let i=0;i<4;i++){
+    const nx = tx+DIRS[i][0], ny = ty+DIRS[i][1];
+    const nb = buildAt(nx, ny);
+    if(!nb || BDEFS[nb.key].type==='pole') continue;
+    for(const p of bPorts(nb)){
+      if(!!p.fl !== !!fluid) continue;
+      if(p.x===nx && p.y===ny && p.d===(i+2)%4){        // port faces our tile
+        if(p.io==='out') outSnap = (i+2)%4;             // carry away from building
+        else             inSnap  = i;                    // carry into building
+      }
+    }
+  }
+  return {outSnap, inSnap};
+}
+/* choose a snapped belt direction so conveyors auto-connect when aimed at a
+   machine's input/output side. Feeding an input wins; then leaving an output.
+   Returns {dir, lock}: lock=true for input feeds (belt must keep facing in). */
+function snapBeltDir(tx, ty, dragDir, firstTile, fluid){
+  const {outSnap, inSnap} = portSnaps(tx, ty, fluid);
+  if(inSnap!==null  && (firstTile || dragDir===null || dragDir===inSnap))  return {dir:inSnap, lock:true};
+  if(outSnap!==null && (firstTile || dragDir===null || dragDir===outSnap)) return {dir:outSnap, lock:false};
+  if(inSnap!==null  && dragDir===null) return {dir:inSnap, lock:true};
+  return null;
+}
 function paintPath(tx,ty){
   const bm = buildMode;
   const fl = bm.kind==='pipe' ? 1 : 0;
@@ -2583,13 +2670,18 @@ function paintPath(tx,ty){
   if(world.terrain[k]===T_WATER && !S.found[k]) return;
   const f = world.flora.get(k);
   if(f && f.kind==='tree') return;
+  const firstTile = !dragPath;
   if(!dragPath){ dragPath={lx:tx,ly:ty}; }
   const ex = S.belts[k];
   if(ex && ex.fl===fl && ex.mk===mk){ dragPath={lx:tx,ly:ty}; return; }
   const dx = tx-dragPath.lx, dy = ty-dragPath.ly;
-  let dir = 0;
+  let dir = null;
   if(Math.abs(dx)+Math.abs(dy)===1) dir = dx===1?0 : dx===-1?2 : dy===1?1:3;
   else if(ex){ dragPath={lx:tx,ly:ty}; return; }
+  /* snap to an adjacent machine port when the conveyor is aimed at one */
+  const snap = snapBeltDir(tx, ty, dir, firstTile, fl);
+  if(snap!==null) dir = snap.dir;
+  if(dir===null) dir = 0;
   if(ex){                                                    // upgrade in place
     if(!payCost(cost)){ sfx('deny'); return; }
     refundCost(ex.fl?PIPES[ex.mk].cost:BELTS[ex.mk].cost);
@@ -2601,9 +2693,11 @@ function paintPath(tx,ty){
   if(f && f.kind!=='bush' && f) return;
   if(!payCost(cost)){ sfx('deny'); toast('CONSTRUCTION','Out of belt materials.','bad'); return; }
   S.belts[k] = { x:tx, y:ty, dir, mk, fl, items:[] };
-  /* orient the previous tile toward this one for smooth corners */
+  /* orient the previous tile toward this one for smooth corners, unless it was
+     snapped to feed a machine input (keep that connection intact) */
   const prev = S.belts[key(dragPath.lx,dragPath.ly)];
-  if(prev && (Math.abs(dx)+Math.abs(dy)===1)) prev.dir = dir;
+  if(prev && !prev._portLocked && (Math.abs(dx)+Math.abs(dy)===1)) prev.dir = dir;
+  if(snap && snap.lock) S.belts[k]._portLocked = true;      // input feed: hold the snap
   dragPath = {lx:tx, ly:ty};
   sfx('belt');
 }
@@ -3291,11 +3385,14 @@ function drawBuilding(b, ts, now){
       cx.save();
       cx.translate(ex,ey);
       cx.rotate(p.d*Math.PI/2 + (p.io==='in'?Math.PI:0));
-      cx.fillStyle = p.fl ? (p.io==='out'?'#4aa8e8':'#77b8d8')
-                          : (p.io==='out'?'#fa9549':'#cfd6dd');
+      cx.fillStyle = p.fl ? (p.io==='out'?'#4aa8e8':'#2f8fbf')
+                          : (p.io==='out'?'#7ee08a':'#3a7bd0');
       cx.beginPath();
-      cx.moveTo(ts*0.12,0); cx.lineTo(-ts*0.07, -ts*0.11); cx.lineTo(-ts*0.07, ts*0.11);
+      cx.moveTo(ts*0.14,0); cx.lineTo(-ts*0.08, -ts*0.12); cx.lineTo(-ts*0.08, ts*0.12);
       cx.closePath(); cx.fill();
+      /* small dock pad so the side reads clearly even in 2D */
+      cx.fillStyle='rgba(0,0,0,0.35)';
+      cx.fillRect(-ts*0.1, -ts*0.16, ts*0.06, ts*0.32);
       cx.restore();
     }
   }
@@ -3459,18 +3556,41 @@ function init3D(){
     const renderer = new THREE.WebGLRenderer({ canvas, antialias:true });
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio||1, 2));
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.outputEncoding = THREE.sRGBEncoding;
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x0d1216);
-    scene.fog = new THREE.Fog(0x0d1216, 60, 160);
-    const camera = new THREE.PerspectiveCamera(52, window.innerWidth/window.innerHeight, 0.1, 500);
-    /* lighting: soft sky dome + warm key light */
-    scene.add(new THREE.HemisphereLight(0xbfd8e8, 0x2a2418, 0.95));
-    const sun = new THREE.DirectionalLight(0xfff2dd, 0.75);
-    sun.position.set(40, 65, 25);
+    /* sky gradient dome so the horizon reads warm, not flat black */
+    const skyGeo = new THREE.SphereGeometry(300, 16, 12);
+    const skyMat = new THREE.ShaderMaterial({
+      side:THREE.BackSide, depthWrite:false,
+      uniforms:{ top:{value:new THREE.Color(0x2a3d52)}, bot:{value:new THREE.Color(0x9fb2b8)} },
+      vertexShader:'varying vec3 vp; void main(){ vp=position; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);} ',
+      fragmentShader:'varying vec3 vp; uniform vec3 top; uniform vec3 bot; void main(){ float h=clamp(normalize(vp).y*0.5+0.5,0.0,1.0); gl_FragColor=vec4(mix(bot,top,h),1.0);} ',
+    });
+    scene.add(new THREE.Mesh(skyGeo, skyMat));
+    scene.fog = new THREE.Fog(0x8296a0, 80, 200);
+    const camera = new THREE.PerspectiveCamera(52, window.innerWidth/window.innerHeight, 0.1, 600);
+    /* lighting: soft sky dome + warm key light with shadows + cool fill */
+    scene.add(new THREE.HemisphereLight(0xcfe3f0, 0x3a3524, 0.85));
+    const sun = new THREE.DirectionalLight(0xfff2dd, 0.9);
+    sun.position.set(42, 70, 26);
+    sun.castShadow = true;
+    sun.shadow.mapSize.set(2048, 2048);
+    sun.shadow.camera.near = 1;
+    sun.shadow.camera.far = 220;
+    const SH = 46;                       // shadow frustum half-size (world units)
+    sun.shadow.camera.left = -SH; sun.shadow.camera.right = SH;
+    sun.shadow.camera.top = SH; sun.shadow.camera.bottom = -SH;
+    sun.shadow.bias = -0.0004;
     scene.add(sun);
+    scene.add(sun.target);
+    const fill = new THREE.DirectionalLight(0x99bbdd, 0.2);
+    fill.position.set(-30, 25, -20);
+    scene.add(fill);
 
     three = {
-      renderer, scene, camera,
+      renderer, scene, camera, sun,
       mats:new Map(),               // colour → shared Lambert material
       geos:new Map(),               // shape signature → shared geometry
       buildGroups:new Map(),        // build id → THREE.Group
@@ -3485,6 +3605,7 @@ function init3D(){
     };
     buildTerrain3D();
     buildNodes3D();
+    buildDecor3D();
     buildPlayer3D();
     buildGhost3D();
     /* instanced belt cargo */
@@ -3547,7 +3668,61 @@ function buildTerrain3D(){
   g.computeVertexNormals();
   const m = new THREE.MeshLambertMaterial({ vertexColors:true });
   const mesh = new THREE.Mesh(g, m);
+  mesh.receiveShadow = true;               // ground catches every shadow
   three.scene.add(mesh);
+}
+/* enable shadow casting/receiving on solid meshes in a subtree.
+   Glow/beam parts use MeshBasicMaterial and are skipped for casting. */
+function shadowize(root, cast, recv){
+  root.traverse(o=>{
+    if(!o.isMesh) return;
+    const basic = o.material && o.material.isMeshBasicMaterial;
+    o.castShadow = cast && !basic;
+    o.receiveShadow = recv;
+  });
+}
+/* ── ambient decor: grass tufts & scattered pebbles for ground detail ────── */
+function buildDecor3D(){
+  const tufts=[], pebbles=[];
+  for(let y=0;y<MAPH;y++) for(let x=0;x<MAPW;x++){
+    const k = key(x,y);
+    if(world.flora.has(k) || world.nodeAt.has(k)) continue;
+    const t = world.terrain[k];
+    const h = hash2(x,y,S.seed+31);
+    if(t===T_GRASS && h>0.84) tufts.push([x,y,h]);
+    else if((t===T_ROCK||t===T_DIRT||t===T_SAND) && h>0.9) pebbles.push([x,y,h]);
+  }
+  const dummy = new THREE.Object3D(), col = new THREE.Color();
+  /* fresh (un-shared) materials — per-instance colour needs a dedicated
+     material or it conflicts with the same colour used elsewhere */
+  if(tufts.length){
+    const g = new THREE.ConeGeometry(0.09, 0.34, 4);
+    const mesh = new THREE.InstancedMesh(g, new THREE.MeshLambertMaterial({color:0xffffff}), tufts.length);
+    tufts.forEach(([x,y,h],i)=>{
+      dummy.position.set(x+0.3+h*0.4, 0.17, y+0.3+hash2(x,y,9)*0.4);
+      dummy.rotation.set((h-0.5)*0.4, h*6.28, (hash2(x,y,3)-0.5)*0.4);
+      dummy.scale.set(1, 0.7+h*0.6, 1);
+      dummy.updateMatrix();
+      mesh.setMatrixAt(i, dummy.matrix);
+      mesh.setColorAt(i, col.setHex(0x4d7f3e).lerp(new THREE.Color(0x7bbf5a), h));
+    });
+    mesh.castShadow = false; mesh.receiveShadow = false;
+    three.scene.add(mesh);
+  }
+  if(pebbles.length){
+    const g = new THREE.DodecahedronGeometry(0.16, 0);
+    const mesh = new THREE.InstancedMesh(g, new THREE.MeshLambertMaterial({color:0xffffff}), pebbles.length);
+    pebbles.forEach(([x,y,h],i)=>{
+      dummy.position.set(x+0.3+h*0.4, 0.08, y+0.4+hash2(x,y,11)*0.3);
+      dummy.rotation.set(h*3, h*5, h*2);
+      dummy.scale.setScalar(0.5+h);
+      dummy.updateMatrix();
+      mesh.setMatrixAt(i, dummy.matrix);
+      mesh.setColorAt(i, col.setHex(0x6a7078).lerp(new THREE.Color(0x9aa0a8), h));
+    });
+    mesh.castShadow = true; mesh.receiveShadow = true;
+    three.scene.add(mesh);
+  }
 }
 /* ── resource nodes: clustered low-poly boulders ─────────────────────────── */
 function buildNodes3D(){
@@ -3567,6 +3742,7 @@ function buildNodes3D(){
       grp.add(rock);
     }
   }
+  shadowize(grp, true, true);
   three.scene.add(grp);
 }
 /* ── flora: instanced trees, bushes and glowing slugs ────────────────────── */
@@ -3642,6 +3818,7 @@ function syncFlora3D(){
     grp.add(slugI);
   }
   three.floraGroup = grp;
+  shadowize(grp, true, false);             // trees & bushes cast shadows
   three.scene.add(grp);
 }
 /* ── foundations: instanced pavement slabs ───────────────────────────────── */
@@ -3661,6 +3838,7 @@ function syncFound3D(){
     mesh.setMatrixAt(i++, dummy.matrix);
   }
   three.foundMesh = mesh;
+  mesh.receiveShadow = true; mesh.castShadow = true;
   three.scene.add(mesh);
 }
 
@@ -4147,22 +4325,34 @@ function makeBuildingGroup(b){
   /* place the local model onto the rotated footprint */
   M.position.set(b.x + dims.w/2, 0, b.y + dims.h/2);
   M.rotation.y = -b.rot*Math.PI/2;
+  shadowize(M, true, true);
   root.add(M);
   root.userData = ud;
-  /* port markers in world space: orange cones out, pale cones in */
+  /* port markers: a colour-coded loading dock on each input/output side —
+     a ground pad, a directional chevron and a raised nozzle. Green = output,
+     blue = input; fluid ports use cyan/teal. Conveyors snap to these sides. */
   if(def.ports.length){
     for(const p of bPorts(b)){
-      const cone = new THREE.Mesh(geo3D('cone', 0.14, 0.3, 4),
-        mat3D(p.fl ? (p.io==='out'?0x4aa8e8:0x77b8d8)
-                   : (p.io==='out'?0xfa9549:0xcfd6dd)));
+      const outC = p.fl ? 0x4aa8e8 : 0x7ee08a;   // output colour
+      const inC  = p.fl ? 0x2f8fbf : 0x3a7bd0;   // input colour
+      const col  = p.io==='out' ? outC : inC;
       const [dx,dy] = DIRS[p.d];
-      cone.position.set(p.x+0.5+dx*0.45, 0.3, p.y+0.5+dy*0.45);
-      const flip = p.io==='in' ? -1 : 1;
-      if(dx===1) cone.rotation.z = -Math.PI/2*flip;
-      else if(dx===-1) cone.rotation.z = Math.PI/2*flip;
-      else if(dy===1) cone.rotation.x = Math.PI/2*flip;
-      else cone.rotation.x = -Math.PI/2*flip;
-      root.add(cone);
+      const cxp = p.x+0.5+dx*0.42, czp = p.y+0.5+dy*0.42;
+      const dock = new THREE.Group();
+      dock.position.set(cxp, 0, czp);
+      dock.rotation.y = -p.d*Math.PI/2;          // local +x points outward
+      /* dark loading pad + coloured rim */
+      Bx(dock, C3.dk, 0.42, 0.05, 0.5, 0, 0.03, 0);
+      Bx(dock, col, 0.1, 0.06, 0.5, 0.16, 0.035, 0, {glow:true});
+      /* raised nozzle housing */
+      Bx(dock, C3.steel, 0.22, 0.22, 0.34, -0.02, 0.15, 0);
+      Bx(dock, col, 0.08, 0.14, 0.24, 0.11, 0.15, 0, {glow:true});
+      /* flow chevron: points outward for outputs, inward for inputs */
+      const chevG = new THREE.Mesh(geo3D('cone', 0.11, 0.2, 4), glowMat3D(col));
+      chevG.rotation.z = p.io==='out' ? -Math.PI/2 : Math.PI/2;
+      chevG.position.set(p.io==='out' ? 0.28 : -0.06, 0.12, 0);
+      dock.add(chevG);
+      root.add(dock);
     }
   }
   return root;
@@ -4374,6 +4564,7 @@ function buildPlayer3D(){
   const antTip = new THREE.Mesh(geo3D('sph',0.03), glowMat3D(0xff6b5e));
   antTip.position.set(-0.12,1.12,-0.24); grp.add(antTip);
   grp.userData = ud;
+  shadowize(grp, true, false);
   three.playerG = grp;
   three.scene.add(grp);
 }
@@ -4414,15 +4605,47 @@ function render3D(now){
   const swing = S._moving ? Math.sin(S.panim*3)*0.65 : 0;
   if(pud.legL){ pud.legL.rotation.x = swing; pud.legR.rotation.x = -swing;
                 pud.armL.rotation.x = -swing*0.8; pud.armR.rotation.x = swing*0.8; }
-  /* chase camera */
-  const dist = clamp(34/cam.z, 10, 80);
-  const cy = Math.sin(CAM_EL)*dist;
-  const ch = Math.cos(CAM_EL)*dist;
-  three.camera.position.set(
-    cam.x + Math.sin(CAM_YAW)*ch,
-    cy,
-    cam.y + Math.cos(CAM_YAW)*ch);
-  three.camera.lookAt(cam.x, 0, cam.y);
+
+  if(fpview.on){
+    /* ── first-person camera ── */
+    three.playerG.visible = false;
+    const cp = Math.cos(fpview.pitch);
+    const dir = new THREE.Vector3(Math.sin(fpview.yaw)*cp, Math.sin(fpview.pitch), Math.cos(fpview.yaw)*cp);
+    const eyeY = 1.55 + Math.abs(Math.sin(S.panim*2))*0.04;
+    three.camera.position.set(S.px, eyeY, S.py);
+    three.camera.lookAt(S.px+dir.x, eyeY+dir.y, S.py+dir.z);
+    /* crosshair aims placement at the ground tile ahead */
+    three.raycaster.set(three.camera.position, dir);
+    const hit = new THREE.Vector3();
+    if(dir.y < -0.02 && three.raycaster.ray.intersectPlane(three.groundPlane, hit)){
+      if(dist2(hit.x, hit.z, S.px, S.py) < 900){
+        mouse.wx = hit.x; mouse.wy = hit.z;
+        mouse.tx = Math.floor(hit.x); mouse.ty = Math.floor(hit.z);
+      }
+    }
+    /* hold-to-paint belts/pipes/foundations while looking around */
+    if(mouse.down && buildMode && (buildMode.kind==='belt'||buildMode.kind==='pipe'||buildMode.kind==='found')){
+      if(mouse.tx!==mouse._ptx || mouse.ty!==mouse._pty) paintAt(mouse.tx, mouse.ty);
+    }
+    mouse._ptx = mouse.tx; mouse._pty = mouse.ty;
+  } else {
+    /* ── overhead chase camera ── */
+    three.playerG.visible = true;
+    const dist = clamp(34/cam.z, 10, 80);
+    const cy = Math.sin(CAM_EL)*dist;
+    const ch = Math.cos(CAM_EL)*dist;
+    three.camera.position.set(
+      cam.x + Math.sin(CAM_YAW)*ch,
+      cy,
+      cam.y + Math.cos(CAM_YAW)*ch);
+    three.camera.lookAt(cam.x, 0, cam.y);
+  }
+  /* keep the shadow frustum centred on what the camera looks at */
+  if(three.sun){
+    const fx = fpview.on ? S.px : cam.x, fz = fpview.on ? S.py : cam.y;
+    three.sun.target.position.set(fx, 0, fz);
+    three.sun.position.set(fx+42, 70, fz+26);
+  }
   /* ghost preview */
   const gm = three.ghost;
   gm.visible = false;
@@ -4481,6 +4704,8 @@ function render(now){
 const WINS = ['winBuild','winInv','winHub','winInspect','winMam','winSink','winElev','winCodex','winMenu','winStats','winManual'];
 function openWin(id){
   for(const w of WINS) el(w).classList.toggle('open', w===id);
+  if(fpview.on && document.pointerLockElement===cv && document.exitPointerLock)
+    document.exitPointerLock();          // free the cursor for the interface
   sfx('open');
   if(id==='winBuild') renderBuildMenu();
   if(id==='winInv')   renderInventory();
@@ -5541,6 +5766,7 @@ function renderManual(){
     ['Tab','Inventory & Craft Bench','Scroll','Zoom'],
     ['C','Codex','P','Statistics'],
     ['H','This manual','Esc','Close / menu'],
+    ['V','First-person view','Mouse','Look (first-person)'],
     ['Click machine','Open inspector','Right-click','Cancel build mode'],
   ]);
   p(s,'This manual, the factory, and your continued employment are provided as-is. Unofficial fan tribute — Satisfactory® is the property of Coffee Stain Studios, whom FICSIT thanks for the blueprint of joy.');
@@ -5695,6 +5921,7 @@ window.addEventListener('keydown', e=>{
       else openWin('winMenu');
       break;
     case 'KeyP': openWin('winStats'); break;
+    case 'KeyV': toggleFP(); break;
     case 'KeyH':
       if(el('winManual').classList.contains('open')) closeWin('winManual');
       else openWin('winManual');
@@ -5713,15 +5940,38 @@ window.addEventListener('keydown', e=>{
 window.addEventListener('keyup', e=>{ keys[e.code]=false; });
 window.addEventListener('blur', ()=>{ for(const k in keys) keys[k]=false; });
 
+/* ── first-person camera toggle & pointer-lock look ──────────────────────── */
+function toggleFP(){
+  if(!three){ toast('CAMERA','First-person view requires the 3D renderer.','bad'); return; }
+  fpview.on = !fpview.on;
+  document.body.classList.toggle('fpmode', fpview.on);
+  if(fpview.on){
+    const yawByDir = {0:Math.PI/2, 1:0, 2:-Math.PI/2, 3:Math.PI};
+    fpview.yaw = yawByDir[S.pdir]; fpview.pitch = -0.12;
+    if(cv.requestPointerLock) cv.requestPointerLock();
+    toast('CAMERA','First-person view. Move with WASD, look with the mouse, interact with E. Press V to return, Esc frees the cursor.');
+  } else {
+    if(document.exitPointerLock) document.exitPointerLock();
+    toast('CAMERA','Overhead view restored.');
+  }
+  sfx('click');
+}
+document.addEventListener('mousemove', e=>{
+  if(!fpview.on || document.pointerLockElement!==cv) return;
+  fpview.yaw   -= (e.movementX||0)*0.0025;
+  fpview.pitch  = clamp(fpview.pitch - (e.movementY||0)*0.0025, -1.25, 0.7);
+});
+
 /* ── input: mouse on the world canvas ────────────────────────────────────── */
 function updateMouseWorld(e){
   mouse.sx = e.clientX; mouse.sy = e.clientY;
+  if(fpview.on) return;                  // crosshair drives the world point instead
   if(three){ pick3D(e); return; }        // 3D view: raycast to the ground plane
   mouse.wx = s2wX(e.clientX); mouse.wy = s2wY(e.clientY);
   mouse.tx = Math.floor(mouse.wx); mouse.ty = Math.floor(mouse.wy);
 }
 cv.addEventListener('mousemove', e=>{
-  if(!running) return;
+  if(!running || fpview.on) return;      // FPS painting is handled in the frame loop
   const pTx = mouse.tx, pTy = mouse.ty;
   updateMouseWorld(e);
   if(mouse.down && buildMode && (pTx!==mouse.tx || pTy!==mouse.ty)){
@@ -5743,6 +5993,11 @@ function paintAt(x,y){
 cv.addEventListener('mousedown', e=>{
   if(!running) return;
   audioInit();
+  /* in first-person, a click with the cursor free re-captures the mouse */
+  if(fpview.on && document.pointerLockElement!==cv){
+    if(cv.requestPointerLock) cv.requestPointerLock();
+    return;
+  }
   updateMouseWorld(e);
   if(e.button===2){
     if(buildMode) cancelBuildMode();
@@ -5783,6 +6038,11 @@ cv.addEventListener('contextmenu', e=>e.preventDefault());
 cv.addEventListener('wheel', e=>{
   if(!running) return;
   e.preventDefault();
+  if(fpview.on && three){
+    three.camera.fov = clamp(three.camera.fov + (e.deltaY<0 ? -3 : 3), 35, 75);
+    three.camera.updateProjectionMatrix();
+    return;
+  }
   cam.z = clamp(cam.z * (e.deltaY<0 ? 1.12 : 0.89), 0.4, 2.4);
 }, {passive:false});
 
