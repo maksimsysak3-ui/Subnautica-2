@@ -566,6 +566,7 @@ table.stats td:first-child{font-family:var(--font);font-size:12px}
     </p>
     <div id="bootBtns">
       <button class="btn primary" id="btnNew">START NEW SESSION</button>
+      <button class="btn" id="btnSkip" title="Auto-completes the six HUB upgrades and grants a FICSIT starter freight package">START AT TIER 1 — SKIP ONBOARDING</button>
       <button class="btn" id="btnContinue" style="display:none">CONTINUE SESSION</button>
     </div>
     <div id="bootKeys">
@@ -5875,12 +5876,34 @@ function frame(now){
 requestAnimationFrame(frame);
 
 /* ── boot ────────────────────────────────────────────────────────────────── */
-function startGame(fresh){
+function startGame(fresh, skipOnboarding){
   if(fresh){
     newState((Date.now() ^ (Math.random()*1e9)) >>> 0);
     occ = new Int32Array(MAPW*MAPH);
     rebuildOcc();
     buildTerrainCache();
+    /* every pioneer ships with enough parts for the Craft Bench and
+       Portable Miner, plus leaves to light the HUB burner */
+    invAdd('iron_plate', 10);
+    invAdd('iron_rod', 10);
+    invAdd('leaves', 30);
+    if(skipOnboarding){
+      /* fast-track: complete all six HUB upgrades and their unlocks */
+      for(const m of MILESTONES.filter(m=>m.tier===0)){
+        S.msDone[m.id] = true;
+        applyRewards(m.rewards);
+      }
+      S.activeMs = null;
+      /* FICSIT starter freight package — the material yield of Tier 0 */
+      const kit = {
+        iron_ore:100, copper_ore:100, limestone:100,
+        iron_ingot:100, copper_ingot:100,
+        iron_plate:200, iron_rod:200, screw:500,
+        wire:300, cable:100, concrete:200,
+        biomass:100, leaves:200, reinforced_iron_plate:25,
+      };
+      for(const id in kit) invAdd(id, kit[id]);
+    }
   }
   cam.x = S.px; cam.y = S.py;
   if(!three) init3D();                    // prefer the 3D view when available
@@ -5892,6 +5915,11 @@ function startGame(fresh){
   if(fresh){
     ada('welcome');
     toast('FICSIT ONBOARDING','Press <b>B</b> and deploy <b>The HUB</b> to begin your contract.','');
+    if(skipOnboarding)
+      toast('ONBOARDING WAIVED',
+        'HUB Upgrades 1–6 pre-completed: Smelter, Constructor, Miner Mk.1, Conveyors, '+
+        'Biomass Burner and Space Elevator are unlocked, and a starter freight package '+
+        'is in your inventory (Tab). Tier 1–2 milestones await at the HUB terminal.');
     enterBuildMode({kind:'building', key:'hub'});
   } else {
     toast('SYSTEM','Session restored. The factory missed you.');
@@ -5903,7 +5931,12 @@ function startGame(fresh){
   el('btnNew').addEventListener('click', ()=>{
     audioInit();
     if(has && !confirm('A previous session exists and will be overwritten. Start fresh anyway?')) return;
-    startGame(true);
+    startGame(true, false);
+  });
+  el('btnSkip').addEventListener('click', ()=>{
+    audioInit();
+    if(has && !confirm('A previous session exists and will be overwritten. Start fresh anyway?')) return;
+    startGame(true, true);
   });
   el('btnContinue').addEventListener('click', ()=>{
     audioInit();
