@@ -477,6 +477,8 @@ function buildWorld(sc){
   const barOff=k=>Math.min(HW+4+16+runL[k], maxOff[k]);   // clamp so walls never cross onto other kerbs
   const barOffR=k=>Math.min(HW+4+16+runR[k], maxOff[k]);
   TRACK.barOffL=barOff;TRACK.barOffR=barOffR;
+  TRACK.wallL=[];TRACK.wallR=[];
+  for(let i=0;i<N;i++){TRACK.wallL[i]=barOff(i);TRACK.wallR[i]=barOffR(i);}
 
   buildBarriers(sc,P,Nm,cum,barOff,barOffR);
   buildForest(sc,P,Nm,barOff,barOffR);
@@ -485,31 +487,35 @@ function buildWorld(sc){
   return {};
 }
 
-/* ---- barriers: each track ZONE gets its own sponsor (mixed with F1 boards) ---- */
+/* ---- barriers: each track ZONE is a SINGLE sponsor (no alternating) ---- */
 const ZONE_SPONSORS=[
-  {bg:'#1f7a3d',txt:'HEINEKEN 0.0',fg:'#ffffff'},
-  {bg:'#00205b',txt:'PIRELLI',fg:'#ffd200'},
-  {bg:'#0a0c10',txt:'ROLEX',fg:'#12813f'},
-  {bg:'#ffcc00',txt:'DHL',fg:'#d40511'},
-  {bg:'#8a1524',txt:'SANTANDER',fg:'#ffffff'},
-  {bg:'#ff6a00',txt:'AWS',fg:'#111111'},
-  {bg:'#111111',txt:'MOËT & CHANDON',fg:'#c9a24b'},
-  {bg:'#004ea8',txt:'PETRONAS',fg:'#12c3b0'},
-  {bg:'#e10600',txt:'MSC CRUISES',fg:'#ffffff'},
-  {bg:'#0a0c10',txt:'CRYPTO.COM',fg:'#2fa8ff'},
+  {kind:'f1'},
+  {txt:'HEINEKEN 0.0',bg:'#1f7a3d',fg:'#ffffff'},
+  {kind:'aramco'},
+  {txt:'DHL',bg:'#ffcc00',fg:'#d40511'},
+  {txt:'LENOVO',bg:'#e2231a',fg:'#ffffff'},
+  {kind:'f1'},
+  {txt:'ROLEX',bg:'#0a3d20',fg:'#ffffff'},
+  {txt:'PIRELLI',bg:'#00205b',fg:'#ffd200'},
+  {txt:'MSC',bg:'#0a1e3f',fg:'#f0c33c'},
+  {txt:'PETRONAS',bg:'#00a19a',fg:'#053a37'},
 ];
 function drawF1(x,x0,pw){x.fillStyle='#0a0c10';x.fillRect(x0,0,pw,110);
   x.fillStyle='#fff';x.font='italic 900 62px Arial';x.textAlign='left';x.textBaseline='middle';x.fillText('F',x0+pw*0.30,54);
   x.fillStyle='#e10600';x.fillText('1',x0+pw*0.44,54);
   for(let s=0;s<7;s++)x.fillRect(x0+pw*0.52+s*8,32,5,44*(1-s/9));}
-function makeZoneBoard(sp){ // F1, sponsor, F1, sponsor across the strip
-  const boards=[null,sp,null,sp], n=boards.length, pw=240, c=cnv(pw*n,110), x=c.getContext('2d');
-  boards.forEach((b,i)=>{const x0=i*pw;
-    if(!b){drawF1(x,x0,pw);}
-    else{x.fillStyle=b.bg;x.fillRect(x0,0,pw,110);
-      x.fillStyle=b.fg;x.textAlign='center';x.textBaseline='middle';
-      x.font=(b.txt.length>10?'bold 34px Arial':'bold 48px Arial');x.fillText(b.txt,x0+pw/2,58);}
-    x.fillStyle='rgba(0,0,0,.4)';x.fillRect(x0,98,pw,12);});
+function makeZoneBoard(sp){ // one sponsor fills the zone (Aramco alternates blue/green)
+  const n=4, pw=240, c=cnv(pw*n,110), x=c.getContext('2d');
+  for(let i=0;i<n;i++){const x0=i*pw;
+    if(sp.kind==='f1'){drawF1(x,x0,pw);}
+    else if(sp.kind==='aramco'){
+      x.fillStyle=i%2?'#003a8c':'#0a7d3f';x.fillRect(x0,0,pw,110);  // alternating blue / green
+      x.fillStyle='#fff';x.font='bold 42px Arial';x.textAlign='center';x.textBaseline='middle';x.fillText('aramco',x0+pw/2,58);
+    }else{
+      x.fillStyle=sp.bg;x.fillRect(x0,0,pw,110);
+      x.fillStyle=sp.fg;x.textAlign='center';x.textBaseline='middle';
+      x.font=(sp.txt.length>9?'bold 36px Arial':'bold 50px Arial');x.fillText(sp.txt,x0+pw/2,58);}
+    x.fillStyle='rgba(0,0,0,.4)';x.fillRect(x0,98,pw,12);}
   const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;t.wrapS=THREE.RepeatWrapping;t.wrapT=THREE.ClampToEdgeWrapping;t.anisotropy=8;return t;
 }
 function buildBarriers(sc,P,Nm,cum,offL,offR){
@@ -564,7 +570,7 @@ function buildForest(sc,P,Nm,offL,offR){
   // distance² to the NEAREST point of ANY part of the track (handles near-crossings)
   const samp=[];for(let i=0;i<N;i+=4)samp.push(P[i]);
   const clear=(x,z)=>{let m=1e9;for(const q of samp){const dx=x-q.x,dz=z-q.z;const d=dx*dx+dz*dz;if(d<m)m=d;}return m;};
-  const MINCLR=42;                               // trees must be ≥42 m from every part of the track
+  const MINCLR=58;                               // trees must be ≥58 m from every part of the track
 
   // 1) treeline hugging each side, but never on top of an adjacent straight
   for(let i=0;i<N;i+=2){
@@ -573,7 +579,7 @@ function buildForest(sc,P,Nm,offL,offR){
       const rows=9+((Math.random()*5)|0);
       for(let r=0;r<rows;r++){
         if(Math.random()<0.14) continue;
-        const dist=off(i)+30 + r*6.5 + Math.random()*5;
+        const dist=off(i)+42 + r*7 + Math.random()*6;
         const jt=(Math.random()-0.5)*5;
         const x=p.x+n.x*side*dist+tgx*jt, z=p.z+n.z*side*dist+tgz*jt;
         if(clear(x,z)<MINCLR*MINCLR) continue;   // skip if it would land near any track section
@@ -780,8 +786,16 @@ async function loadCar(loader,onProg){
   const gltf=await loader.loadAsync('assets/models/f1_car.glb',e=>onProg&&onProg(e));
   const model=gltf.scene;
   model.updateWorldMatrix(true,true);
-  model.traverse(o=>{ if(o.isMesh){o.castShadow=true;o.receiveShadow=true;
-    o.material.envMapIntensity=1.1; o.frustumCulled=false;}});
+  // Red Bull-style livery via per-material colours (mesh has no UVs → colours, not decals)
+  model.traverse(o=>{ if(o.isMesh){o.castShadow=true;o.receiveShadow=true;o.frustumCulled=false;
+    const mn=o.material.name||'';
+    if(/Carbon_Fiber___Twill/.test(mn)){o.material.color.set(0x0a1a52);o.material.metalness=0.5;o.material.roughness=0.4;}      // navy body
+    else if(/Carbon_Fiber___Plain/.test(mn)){o.material.color.set(0x9c0710);o.material.metalness=0.45;o.material.roughness=0.44;} // red accents
+    else if(/Titanium___Polished/.test(mn)){o.material.color.set(0xccd0d6);o.material.metalness=1;o.material.roughness=0.2;}
+    else if(/Titanium___Satin/.test(mn)){o.material.color.set(0x2c313a);o.material.metalness=0.9;o.material.roughness=0.42;}
+    else if(/Fabric_Black/.test(mn)){o.material.color.set(0x0a0c12);}
+    else if(/Rubber/.test(mn)){o.material.color.set(0x0e0e12);}
+    o.material.envMapIntensity=1.15;}});
 
   // find wheel meshes by known names (+ rubber fallback)
   const byName={}; model.traverse(o=>{if(o.isMesh)byName[o.name]=o;});
@@ -860,6 +874,7 @@ function resetCar(){
   CAR.pos.set(p.x,0,p.z);
   CAR.heading=Math.atan2(tg.x,tg.z);
   CAR.v=0;CAR.steer=0;CAR.steerCmd=0;CAR.yawRate=0;
+  CAR.trackIdx=0; CAR.groundY=p.y;
   lap.reset();
 }
 function stepPhysics(dt,inp){
@@ -886,10 +901,11 @@ function stepPhysics(dt,inp){
   if(inp.throttle<0.02&&inp.brake<0.02&&Math.abs(CAR.v)<0.15) CAR.v=0;
   CAR.v=clamp(CAR.v,-16,95);
 
-  // off-track grip loss
-  const near=nearestTrack(CAR.pos);
-  const off=Math.abs(near.lat)>TRACK.halfW+0.3;
-  const gripMul=off?0.55:1.0;
+  // off-track grip loss — windowed search so it can't snap to another track section
+  const near=nearestTrack(CAR.pos, CAR.trackIdx, 55);
+  CAR.trackIdx=near.idx;
+  const off=Math.abs(near.lat)>TRACK.halfW+2.6;   // on kerb/astroturf still counts as track
+  const gripMul=off?0.6:1.0;
 
   // lateral: downforce-boosted grip, understeer clamp
   const downforce=P.downK*CAR.v*CAR.v;
@@ -905,17 +921,17 @@ function stepPhysics(dt,inp){
   const fwd=new THREE.Vector3(Math.sin(CAR.heading),0,Math.cos(CAR.heading));
   CAR.pos.addScaledVector(fwd,CAR.v*dt);
 
-  // barrier
-  const WD=TRACK.halfW+3.2;
-  if(Math.abs(near.lat)>WD){
+  // barrier at the real wall position (so there's room to run onto kerb/run-off)
+  const wall=(near.lat>0?TRACK.wallL:TRACK.wallR)[near.idx]-0.6;
+  if(Math.abs(near.lat)>wall){
     const n=near.normal, sign=Math.sign(near.lat);
-    CAR.pos.addScaledVector(n, (WD-Math.abs(near.lat))*sign*1.0);
-    CAR.v*=0.55;
+    CAR.pos.addScaledVector(n, (wall-Math.abs(near.lat))*sign);
+    CAR.v*=0.6;
   }
 
-  // apply to rig — follow track elevation (smoothed)
+  // apply to rig — follow track elevation (windowed idx keeps it smooth, no launching)
   const gy=TRACK.pts[near.idx]?TRACK.pts[near.idx].y:0;
-  CAR.groundY=damp(CAR.groundY||0,gy,10,dt);
+  CAR.groundY=damp(CAR.groundY===undefined?gy:CAR.groundY,gy,7,dt);
   CAR.rig.position.set(CAR.pos.x,CAR.groundY,CAR.pos.z);
   CAR.rig.rotation.y=CAR.heading;
 
@@ -936,11 +952,15 @@ function stepPhysics(dt,inp){
 }
 
 /* nearest centreline point (dist + signed lateral + outward normal) */
-function nearestTrack(pos){
-  let best=1e9,bi=0;
-  for(let i=0;i<TRACK.N;i++){const p=TRACK.pts[i];
-    const dx=pos.x-p.x,dz=pos.z-p.z;const d=dx*dx+dz*dz;
-    if(d<best){best=d;bi=i;}}
+function nearestTrack(pos,hint,window){
+  let best=1e9,bi=hint==null?0:hint;
+  if(hint==null){
+    for(let i=0;i<TRACK.N;i++){const p=TRACK.pts[i];
+      const dx=pos.x-p.x,dz=pos.z-p.z;const d=dx*dx+dz*dz;if(d<best){best=d;bi=i;}}
+  }else{ // search only near the car's current progress → never snaps to another section
+    for(let d=-window;d<=window;d++){const i=(hint+d+TRACK.N)%TRACK.N;const p=TRACK.pts[i];
+      const dx=pos.x-p.x,dz=pos.z-p.z;const dd=dx*dx+dz*dz;if(dd<best){best=dd;bi=i;}}
+  }
   const p=TRACK.pts[bi],n=TRACK.nrm[bi];
   const dx=pos.x-p.x,dz=pos.z-p.z;
   const lat=dx*n.x+dz*n.z;
