@@ -782,20 +782,71 @@ const PHYS={
   wheelbase:3.6, maxSteerLo:0.34, maxSteerHi:0.09, steerRate:3.4, steerReturn:5.0,
 };
 
+/* Red Bull livery texture (projected onto the body — mesh has no UVs) */
+function drawBull(x,cx,cy,s,flip){ // stylised charging bull
+  x.save();x.translate(cx,cy);x.scale(flip?-s:s,s);x.fillStyle='#c8102e';
+  x.beginPath();
+  x.moveTo(-20,6);x.lineTo(-14,-2);x.lineTo(-20,-9);x.lineTo(-11,-7);x.lineTo(-13,-15);// horns/head
+  x.lineTo(-6,-8);x.lineTo(0,-10);x.lineTo(6,-6);x.lineTo(16,-8);x.lineTo(10,-2);      // back
+  x.lineTo(20,-3);x.lineTo(13,2);x.lineTo(18,5);x.lineTo(10,5);x.lineTo(12,12);         // tail/rump
+  x.lineTo(6,6);x.lineTo(4,13);x.lineTo(1,6);x.lineTo(-3,12);x.lineTo(-4,5);            // legs
+  x.lineTo(-9,10);x.lineTo(-9,3);x.lineTo(-15,7);x.closePath();x.fill();x.restore();
+}
+function makeLivery(){
+  // The car sides only sample canvas rows ~380–512, so keep all content there;
+  // keep the top band (halo) plain navy so it doesn't smear.
+  const c=cnv(1024,1024),x=c.getContext('2d');
+  x.fillStyle='#0a1440';x.fillRect(0,0,1024,1024);
+  // thin red swoosh + yellow pinstripe
+  x.fillStyle='#d10014';x.beginPath();x.moveTo(0,470);x.quadraticCurveTo(512,438,1024,468);
+  x.lineTo(1024,492);x.quadraticCurveTo(512,462,0,494);x.closePath();x.fill();
+  x.fillStyle='#ffd400';x.fillRect(0,455,1024,4);
+  // Red Bull mark: yellow sun + two charging bulls (compact)
+  x.fillStyle='#ffcc00';x.beginPath();x.arc(512,420,26,0,7);x.fill();
+  drawBull(x,505,423,0.85,false);drawBull(x,519,423,0.85,true);
+  x.fillStyle='#fff';x.textAlign='center';x.textBaseline='middle';
+  x.font='italic 900 18px Arial';x.fillText('RED BULL',512,452);
+  // sponsors spread front→rear, small
+  x.font='bold 26px Arial';x.fillStyle='#eef1f6';x.fillText('ORACLE',345,414);x.fillText('ORACLE',680,414);
+  x.font='bold 19px Arial';x.fillStyle='#cfd4dc';
+  x.fillText('HONDA RBPT',190,398);x.fillText('TAG HEUER',835,398);
+  x.fillText('Mobil 1',300,483);x.fillText('bybit',730,483);
+  x.font='bold 16px Arial';x.fillStyle='#9fb0d8';
+  x.fillText('SIEMENS',455,486);x.fillText('CashApp',585,486);
+  x.fillText('Visa',110,470);x.fillText('Visa',915,470);         // front-wing ends
+  const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;t.wrapS=t.wrapT=THREE.RepeatWrapping;t.anisotropy=8;return t;
+}
+function applyLivery(mat,tex,scale){
+  mat.onBeforeCompile=(sh)=>{
+    sh.uniforms.uLiv={value:tex}; sh.uniforms.uLivS={value:scale};
+    sh.vertexShader='varying vec3 vLP;varying vec3 vLN;\n'+sh.vertexShader
+      .replace('#include <begin_vertex>','#include <begin_vertex>\nvLP=position;vLN=normal;');
+    sh.fragmentShader='uniform sampler2D uLiv;uniform float uLivS;varying vec3 vLP;varying vec3 vLN;\n'+sh.fragmentShader
+      .replace('#include <color_fragment>',`#include <color_fragment>
+      { vec3 n=normalize(vLN); vec3 bw=pow(abs(n),vec3(5.0)); bw/=(bw.x+bw.y+bw.z+1e-4);
+        vec2 ux=vec2(vLP.z*sign(n.x)*-1.0, vLP.y)*uLivS+0.5;
+        vec2 uy=vec2(vLP.x, vLP.z)*uLivS+0.5;
+        vec2 uz=vec2(vLP.x*sign(n.z), vLP.y)*uLivS+0.5;
+        vec3 col=texture2D(uLiv,ux).rgb*bw.x+texture2D(uLiv,uy).rgb*bw.y+texture2D(uLiv,uz).rgb*bw.z;
+        diffuseColor.rgb=col; }`);
+  };
+  mat.customProgramCacheKey=()=>'liv'+scale; mat.needsUpdate=true;
+}
 async function loadCar(loader,onProg){
   const gltf=await loader.loadAsync('assets/models/f1_car.glb',e=>onProg&&onProg(e));
   const model=gltf.scene;
   model.updateWorldMatrix(true,true);
-  // Red Bull-style livery via per-material colours (mesh has no UVs → colours, not decals)
+  const liveryTex=makeLivery(); let bodyMat=null;
   model.traverse(o=>{ if(o.isMesh){o.castShadow=true;o.receiveShadow=true;o.frustumCulled=false;
     const mn=o.material.name||'';
-    if(/Carbon_Fiber___Twill/.test(mn)){o.material.color.set(0x0a1a52);o.material.metalness=0.5;o.material.roughness=0.4;}      // navy body
-    else if(/Carbon_Fiber___Plain/.test(mn)){o.material.color.set(0x9c0710);o.material.metalness=0.45;o.material.roughness=0.44;} // red accents
+    if(/Carbon_Fiber___Twill/.test(mn)){o.material.color.set(0x0a1a52);o.material.metalness=0.5;o.material.roughness=0.4;bodyMat=o.material;} // navy body → gets livery
+    else if(/Carbon_Fiber___Plain/.test(mn)){o.material.color.set(0x0a1a52);o.material.metalness=0.5;o.material.roughness=0.42;}
     else if(/Titanium___Polished/.test(mn)){o.material.color.set(0xccd0d6);o.material.metalness=1;o.material.roughness=0.2;}
     else if(/Titanium___Satin/.test(mn)){o.material.color.set(0x2c313a);o.material.metalness=0.9;o.material.roughness=0.42;}
     else if(/Fabric_Black/.test(mn)){o.material.color.set(0x0a0c12);}
     else if(/Rubber/.test(mn)){o.material.color.set(0x0e0e12);}
     o.material.envMapIntensity=1.15;}});
+  if(bodyMat) applyLivery(bodyMat, liveryTex, 1/1600);
 
   // find wheel meshes by known names (+ rubber fallback)
   const byName={}; model.traverse(o=>{if(o.isMesh)byName[o.name]=o;});
