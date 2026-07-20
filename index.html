@@ -92,34 +92,55 @@
   /* ============ HUD (drive) ============ */
   #hud{position:fixed;inset:0;z-index:20;pointer-events:none;opacity:0;transition:opacity .6s}
   #hud.on{opacity:1}
-  #speedWrap{position:absolute;right:clamp(26px,4vw,54px);bottom:clamp(26px,5vh,52px);text-align:right}
-  #speed{font-family:var(--mono);font-weight:900;font-size:clamp(52px,8vw,104px);line-height:.82;letter-spacing:-.01em;
-    text-shadow:0 4px 30px rgba(0,0,0,.6)}
-  #speedU{font-size:13px;letter-spacing:.4em;color:var(--grey);font-weight:600;margin-top:6px;padding-right:.2em}
-  #gearWrap{position:absolute;right:clamp(26px,4vw,54px);bottom:clamp(150px,20vh,210px);text-align:right}
-  #gear{font-family:var(--mono);font-weight:900;font-size:clamp(40px,5vw,68px);color:var(--red);line-height:.8;text-shadow:0 0 26px var(--red-glow)}
-  #gearL{font-size:10px;letter-spacing:.4em;color:var(--grey);font-weight:600;text-transform:uppercase}
-  #rev{position:absolute;left:50%;top:clamp(18px,3vh,30px);transform:translateX(-50%);width:min(560px,64vw);height:8px;
-    background:rgba(255,255,255,.07);border-radius:5px;overflow:hidden}
-  #revBar{height:100%;width:0;background:linear-gradient(90deg,#39d98a 0%,#39d98a 62%,#ffcf5a 78%,var(--red) 100%);transition:width .06s linear}
-  #revBar.warn{animation:revflash .12s steps(1) infinite}
-  @keyframes revflash{50%{opacity:.35}}
-  #pedals{position:absolute;left:clamp(26px,4vw,54px);bottom:clamp(26px,5vh,52px);display:flex;gap:10px;align-items:flex-end;height:120px}
-  .pedal{width:9px;height:100%;background:rgba(255,255,255,.08);border-radius:5px;position:relative;overflow:hidden}
+  /* LED shift lights */
+  #shift{position:absolute;left:50%;top:clamp(14px,2.4vh,26px);transform:translateX(-50%);display:flex;gap:5px;
+    padding:9px 13px;background:rgba(8,11,16,.62);border:1px solid rgba(255,255,255,.08);border-radius:10px;backdrop-filter:blur(6px)}
+  #shift .led{width:13px;height:13px;border-radius:50%;background:#1a1e25;box-shadow:inset 0 0 3px #000;transition:.05s}
+  #shift .led.on.g{background:#25e06a;box-shadow:0 0 10px #25e06a}
+  #shift .led.on.r{background:#e10600;box-shadow:0 0 10px var(--red-glow)}
+  #shift .led.on.b{background:#3aa0ff;box-shadow:0 0 12px #3aa0ff}
+  /* timing tower */
+  #timing{position:absolute;left:clamp(22px,4vw,50px);top:clamp(18px,3vh,32px);min-width:236px;
+    background:linear-gradient(180deg,rgba(8,11,16,.82),rgba(8,11,16,.5));border-left:3px solid var(--red);
+    border-radius:4px;padding:12px 16px 13px;backdrop-filter:blur(7px)}
+  #timing .ttHead{display:flex;justify-content:space-between;align-items:center;margin-bottom:9px;padding-bottom:9px;border-bottom:1px solid rgba(255,255,255,.1)}
+  #timing .pos{font-size:11px;letter-spacing:.2em;color:var(--grey);font-weight:600}
+  #timing .pos b{font-family:var(--mono);font-size:19px;color:#fff;margin-left:3px}
+  #timing .lapc{font-size:11px;letter-spacing:.22em;color:var(--grey);font-weight:600}
+  #timing .lapc b{font-family:var(--mono);color:#fff;font-size:15px;margin:0 2px}
+  #timing .ttRow{display:flex;justify-content:space-between;align-items:baseline;gap:20px;padding:3px 0}
+  #timing .k{font-size:10px;letter-spacing:.26em;color:var(--grey);text-transform:uppercase;font-weight:600}
+  #timing .v{font-family:var(--mono);font-weight:700;font-size:16px;color:#eef2f6}
+  #timing .v.big{font-size:24px}
+  #timing .v.best{color:#c07bff}
+  /* minimap */
+  #mapWrap{position:absolute;right:clamp(22px,4vw,50px);top:clamp(18px,3vh,32px);width:230px;text-align:right}
+  #mapName{font-size:10px;letter-spacing:.26em;color:#fff;font-weight:700;text-transform:uppercase;margin-bottom:7px}
+  #mapName span{color:var(--grey);font-weight:600}
+  #minimap{width:230px;height:230px;filter:drop-shadow(0 4px 14px rgba(0,0,0,.5))}
+  #statusRow{display:flex;justify-content:flex-end;gap:10px;margin-top:8px}
+  #drs{font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.12em;padding:4px 10px;border-radius:4px;
+    color:#5b6470;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08)}
+  #drs.on{color:#001b0a;background:#25e06a;border-color:#25e06a;box-shadow:0 0 14px rgba(37,224,106,.5)}
+  #camTag{font-size:10px;letter-spacing:.2em;color:var(--grey);text-transform:uppercase;font-weight:600;padding:5px 10px;background:rgba(8,11,16,.5);border-radius:4px}
+  #camTag b{color:#fff;margin-left:3px}
+  /* bottom-right cluster */
+  #cluster{position:absolute;right:clamp(24px,4vw,52px);bottom:clamp(24px,5vh,50px);display:flex;align-items:flex-end;gap:16px}
+  #pedals{display:flex;gap:8px;align-items:flex-end;height:118px}
+  .pedal{width:10px;height:100%;background:rgba(255,255,255,.08);border-radius:5px;position:relative;overflow:hidden}
   .pedal i{position:absolute;bottom:0;left:0;width:100%;height:0;transition:height .05s linear}
-  #thr i{background:linear-gradient(0deg,#39d98a,#7dffb0)} #brk i{background:linear-gradient(0deg,#e10600,#ff6a60)}
-  .pedal span{position:absolute;bottom:-18px;left:50%;transform:translateX(-50%);font-size:9px;letter-spacing:.2em;color:var(--grey);font-weight:700}
-  #lapBox{position:absolute;left:clamp(26px,4vw,54px);top:clamp(20px,3vh,34px);min-width:200px}
-  #lapBox .row{display:flex;justify-content:space-between;gap:20px;align-items:baseline;padding:3px 0}
-  #lapBox .k{font-size:10px;letter-spacing:.28em;color:var(--grey);text-transform:uppercase;font-weight:600}
-  #lapBox .v{font-family:var(--mono);font-weight:700;font-size:16px}
-  #lapBox .v.big{font-size:22px}
-  #camTag{position:absolute;right:clamp(26px,4vw,54px);top:clamp(20px,3vh,34px);font-size:10px;letter-spacing:.28em;color:var(--grey);text-transform:uppercase;font-weight:600;text-align:right}
-  #camTag b{color:var(--white)}
-  #offTrack{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);font-size:13px;letter-spacing:.4em;color:var(--red);text-transform:uppercase;font-weight:700;opacity:0;transition:opacity .2s;text-shadow:0 0 20px var(--red-glow)}
+  #thr i{background:linear-gradient(0deg,#25e06a,#7dffb0)} #brk i{background:linear-gradient(0deg,#e10600,#ff6a60)}
+  #gearBox{text-align:center}
+  #gear{font-family:var(--mono);font-weight:900;font-size:clamp(44px,5.5vw,76px);color:var(--red);line-height:.8;text-shadow:0 0 26px var(--red-glow)}
+  #gearBox .gl{font-size:9px;letter-spacing:.4em;color:var(--grey);font-weight:600;margin-top:4px}
+  #speedBox{text-align:right;min-width:150px}
+  #speed{font-family:var(--mono);font-weight:900;font-size:clamp(56px,8.5vw,112px);line-height:.8;letter-spacing:-.02em;text-shadow:0 4px 30px rgba(0,0,0,.6)}
+  #speedU{font-size:12px;letter-spacing:.4em;color:var(--grey);font-weight:600;margin-top:4px}
+  #offTrack{position:absolute;left:50%;top:38%;transform:translate(-50%,-50%);font-size:14px;letter-spacing:.42em;color:var(--red);text-transform:uppercase;font-weight:700;opacity:0;transition:opacity .2s;text-shadow:0 0 20px var(--red-glow)}
   #offTrack.on{opacity:.9}
-  #driveHint{position:absolute;left:50%;bottom:clamp(20px,3vh,32px);transform:translateX(-50%);font-size:10.5px;letter-spacing:.22em;color:var(--grey);text-transform:uppercase;font-weight:600}
-  #driveHint b{display:inline-block;padding:2px 7px;margin:0 4px;border:1px solid var(--grey-lo);border-radius:3px;color:var(--white);font-family:var(--mono);font-size:9px}
+  #driveHint{position:absolute;left:50%;bottom:clamp(16px,2.4vh,26px);transform:translateX(-50%);font-size:10px;letter-spacing:.2em;color:var(--grey);text-transform:uppercase;font-weight:600;opacity:.8}
+  #driveHint b{display:inline-block;padding:2px 6px;margin:0 3px;border:1px solid var(--grey-lo);border-radius:3px;color:var(--white);font-family:var(--mono);font-size:9px}
+  @media(max-width:720px){#mapWrap{display:none}#driveHint{display:none}}
   #cd{position:fixed;inset:0;z-index:25;display:flex;align-items:center;justify-content:center;pointer-events:none}
   #cdNum{font-family:var(--mono);font-weight:900;font-size:clamp(80px,16vw,220px);opacity:0;color:var(--white);text-shadow:0 0 50px rgba(0,0,0,.7)}
   #sndBtn{position:fixed;right:clamp(26px,4vw,54px);bottom:clamp(150px,20vh,210px);z-index:22;pointer-events:auto;cursor:pointer;
@@ -166,19 +187,25 @@
 
 <!-- ===== HUD ===== -->
 <div id="hud">
-  <div id="rev"><div id="revBar"></div></div>
-  <div id="lapBox">
-    <div class="row"><span class="k">Lap</span><span class="v" id="lapNum">1</span></div>
-    <div class="row"><span class="k">Current</span><span class="v big" id="lapCur">0:00.0</span></div>
-    <div class="row"><span class="k">Last</span><span class="v" id="lapLast">—:—</span></div>
-    <div class="row"><span class="k">Best</span><span class="v" id="lapBest">—:—</span></div>
+  <div id="shift"></div>
+  <div id="timing">
+    <div class="ttHead"><span class="pos">P<b id="posNum">1</b></span><span class="lapc">LAP <b id="lapNum">1</b></span></div>
+    <div class="ttRow"><span class="k">CURRENT</span><span class="v big" id="lapCur">0:00.0</span></div>
+    <div class="ttRow"><span class="k">LAST</span><span class="v" id="lapLast">—:——.—</span></div>
+    <div class="ttRow"><span class="k">BEST</span><span class="v best" id="lapBest">—:——.—</span></div>
   </div>
-  <div id="camTag">CAM · <b id="camName">CHASE</b></div>
-  <div id="gearWrap"><div id="gear">N</div><div id="gearL">Gear</div></div>
-  <div id="speedWrap"><div id="speed">0</div><div id="speedU">KM/H</div></div>
-  <div id="pedals">
-    <div class="pedal" id="thr"><i></i><span>THR</span></div>
-    <div class="pedal" id="brk"><i></i><span>BRK</span></div>
+  <div id="mapWrap">
+    <div id="mapName">SPA-FRANCORCHAMPS <span>· BELGIUM</span></div>
+    <canvas id="minimap" width="230" height="230"></canvas>
+    <div id="statusRow"><span id="drs">DRS</span><span id="camTag">CAM <b id="camName">CHASE</b></span></div>
+  </div>
+  <div id="cluster">
+    <div id="pedals">
+      <div class="pedal" id="thr"><i></i></div>
+      <div class="pedal" id="brk"><i></i></div>
+    </div>
+    <div id="gearBox"><div id="gear">N</div><div class="gl">GEAR</div></div>
+    <div id="speedBox"><div id="speed">0</div><div id="speedU">KM/H</div></div>
   </div>
   <div id="offTrack">Off Track</div>
   <div id="driveHint"><b>W</b>Throttle <b>S</b>Brake <b>A/D</b>Steer <b>C</b>Camera <b>R</b>Reset <b>ESC</b>Menu</div>
@@ -297,6 +324,9 @@ function buildWorld(sc){
   const sp=curve.getSpacedPoints(N);
   const P=[],Tg=[],Nm=[];
   for(let i=0;i<N;i++) P.push(new THREE.Vector3(sp[i].x*S,0,sp[i].z*S));
+  // Spa-style elevation (Eau Rouge climb / Kemmel crest / descent to Stavelot)
+  for(let i=0;i<N;i++){const f=i/N;
+    P[i].y = 20*Math.sin(f*TAU+0.6)+12*Math.sin(2*f*TAU-0.5)+7*Math.sin(3*f*TAU+1.2)+4*Math.sin(5*f*TAU);}
   for(let i=0;i<N;i++){
     const a=P[(i-1+N)%N], b=P[(i+1)%N];
     const tg=new THREE.Vector3().subVectors(b,a).setY(0).normalize();
@@ -307,6 +337,10 @@ function buildWorld(sc){
   TRACK.N=N;TRACK.pts=P;TRACK.tan=Tg;TRACK.nrm=Nm;TRACK.cum=cum;TRACK.len=len;
   const wb=new THREE.Box3().setFromPoints(P);
   const worldR=wb.getSize(new THREE.Vector3()).length()/2; TRACK.radius=worldR;
+  // smooth terrain height field that hugs the elevated track
+  const samp=[];for(let i=0;i<N;i+=7)samp.push(P[i]);
+  TRACK.terrainH=(x,z)=>{let ws=0,hs=0;for(const s of samp){const dx=x-s.x,dz=z-s.z;
+    const d2=dx*dx+dz*dz+90;const w=1/(d2*d2);ws+=w;hs+=w*s.y;}return hs/ws;};
 
   sc.background=new THREE.Color(0x9fb6cc);
   sc.fog=new THREE.Fog(0xa9c0d6, worldR*0.5, worldR*2.6);
@@ -331,10 +365,14 @@ function buildWorld(sc){
   sc.add(sky);
   camera.far=worldR*8; camera.updateProjectionMatrix();
 
-  // ground
-  const grass=new THREE.Mesh(new THREE.CircleGeometry(worldR*3,96),
-    new THREE.MeshStandardMaterial({color:0x33502f,roughness:1.0}));
-  grass.rotation.x=-Math.PI/2; grass.position.y=-0.05; grass.receiveShadow=true; sc.add(grass);
+  // ground — a grid that follows the terrain height field
+  const gGeo=new THREE.PlaneGeometry(worldR*3,worldR*3,140,140);
+  gGeo.rotateX(-Math.PI/2);
+  const gp=gGeo.attributes.position;
+  for(let i=0;i<gp.count;i++) gp.setY(i, TRACK.terrainH(gp.getX(i),gp.getZ(i))-0.06);
+  gGeo.computeVertexNormals();
+  const grass=new THREE.Mesh(gGeo,new THREE.MeshStandardMaterial({color:0x35562f,roughness:1.0}));
+  grass.receiveShadow=true; sc.add(grass);
 
   const HW=TRACK.halfW;
   const asTex=makeAsphalt(), runoffTex=makeRunoff(), kerbTex=makeKerb();
@@ -357,7 +395,7 @@ function buildWorld(sc){
     for(let i=0;i<=N;i++){const k=i%N,p=P[k],n=Nm[k];
       const a=new THREE.Vector3().copy(p).addScaledVector(n,offA(k));
       const b=new THREE.Vector3().copy(p).addScaledVector(n,offB(k));
-      v.push(a.x,y,a.z,b.x,y,b.z);
+      v.push(a.x,a.y+y,a.z,b.x,b.y+y,b.z);
       const vv=cum[i]/(uvL||6); uv.push(0,vv,1,vv);}
     for(let i=0;i<N;i++){const a=i*2;id.push(a,a+2,a+1,a+1,a+2,a+3);}
     const g=new THREE.BufferGeometry();
@@ -375,6 +413,10 @@ function buildWorld(sc){
   const grnMat=new THREE.MeshStandardMaterial({color:0x2f7d33,roughness:0.9,side:THREE.DoubleSide});
   strip(k=>HW+1.05, k=>HW+2.3, 0.012, grnMat, 1);
   strip(k=>-(HW+1.05), k=>-(HW+2.3), 0.012, grnMat, 1);
+  // wide flat run-off "banking" kerbs on the outside of corners (Raidillon look)
+  const bankMat=new THREE.MeshStandardMaterial({map:makeBankKerb(),roughness:0.7,side:THREE.DoubleSide});
+  strip(k=>HW+2.3, k=>HW+2.3+Math.min(runL[k]*0.55,6.5), 0.02, bankMat, 1.5, 3.2);
+  strip(k=>-(HW+2.3), k=>-(HW+2.3+Math.min(runR[k]*0.55,6.5)), 0.02, bankMat, 1.5, 3.2);
 
   // road (asphalt)
   const road=strip(k=>HW, k=>-HW, 0.02,
@@ -386,7 +428,7 @@ function buildWorld(sc){
       for(let i=0;i<=N;i++){const k=i%N,p=P[k],n=Nm[k];
         const inn=new THREE.Vector3().copy(p).addScaledVector(n,sideSign*HW);
         const out=new THREE.Vector3().copy(p).addScaledVector(n,sideSign*(HW+1.05));
-        v.push(inn.x,0.03,inn.z,out.x,0.075,out.z);
+        v.push(inn.x,inn.y+0.03,inn.z,out.x,out.y+0.075,out.z);
         const vv=cum[i]/2.0;uv.push(0,vv,1,vv);}
       for(let i=0;i<N;i++){const a=i*2;id.push(a,a+2,a+1,a+1,a+2,a+3);}
       const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(v,3));
@@ -403,7 +445,7 @@ function buildWorld(sc){
     for(let j=0;j<=segs;j++){const w=(j/segs*2-1)*HW;
       const c=new THREE.Vector3().copy(p).addScaledVector(n,w);
       const c2=new THREE.Vector3().copy(c).addScaledVector(tg,3.0);
-      sv.push(c.x,0.045,c.z,c2.x,0.045,c2.z);suv.push(j,0,j,1);}
+      sv.push(c.x,c.y+0.05,c.z,c2.x,c2.y+0.05,c2.z);suv.push(j,0,j,1);}
     for(let j=0;j<segs;j++){const a=j*2;sid.push(a,a+2,a+1,a+1,a+2,a+3);}
     const sg=new THREE.BufferGeometry();sg.setAttribute('position',new THREE.Float32BufferAttribute(sv,3));
     sg.setAttribute('uv',new THREE.Float32BufferAttribute(suv,2));sg.setIndex(sid);flatUp(sg);
@@ -426,12 +468,13 @@ function buildWorld(sc){
 function buildBarriers(sc,P,Nm,cum,offL,offR){
   const N=P.length;
   const wallTex=makeHoarding();
+  const PANEL=32, CYCLE=PANEL*SPONSORS.length;   // long single-sponsor panels, spread out
   for(const [side,off] of [[1,offL],[-1,offR]]){
-    const v=[],uv=[],id=[];const WH=1.25;
+    const v=[],uv=[],id=[];const WH=1.35;
     for(let i=0;i<=N;i++){const k=i%N,p=P[k],n=Nm[k];
       const b=new THREE.Vector3().copy(p).addScaledVector(n,side*off(k));
-      v.push(b.x,0.0,b.z, b.x,WH,b.z);
-      const u=cum[i]/7.5; uv.push(u,0,u,1);}
+      v.push(b.x,b.y,b.z, b.x,b.y+WH,b.z);
+      const u=cum[i]/CYCLE; uv.push(u,0,u,1);}
     for(let i=0;i<N;i++){const a=i*2;id.push(a,a+1,a+2,a+1,a+3,a+2);}
     const g=new THREE.BufferGeometry();
     g.setAttribute('position',new THREE.Float32BufferAttribute(v,3));
@@ -453,59 +496,60 @@ function buildBarriers(sc,P,Nm,cum,offL,offR){
     const im=new THREE.InstancedMesh(tyre.geometry,tyre.material,spots.length);
     im.castShadow=true;im.receiveShadow=true;
     const m=new THREE.Matrix4();
-    spots.forEach((s,i)=>{m.makeTranslation(s.x,0.45,s.z);im.setMatrixAt(i,m);});
+    spots.forEach((s,i)=>{m.makeTranslation(s.x,s.y+0.45,s.z);im.setMatrixAt(i,m);});
     im.instanceMatrix.needsUpdate=true;sc.add(im);
   }
 }
 
-/* ---- dense Ardennes forest: a treeline hugging the circuit + hill fill ---- */
+/* ---- mixed Ardennes forest (conifers + deciduous) on the elevated terrain ---- */
 function buildForest(sc,P,Nm,offL,offR){
-  const N=P.length,R=TRACK.radius;
-  const mats=[0x18331a,0x1f4020,0x274e24,0x14351f,0x30592a];
-  const geos=mats.map(()=>new THREE.ConeGeometry(1,1,7));
-  const buckets=mats.map(c=>({mat:new THREE.MeshStandardMaterial({color:c,roughness:1}),list:[]}));
-  const push=(x,y,z,w,h)=>buckets[(Math.random()*buckets.length)|0].list.push({x,y,z,w,h});
-  const hill=d=>Math.min(55,Math.max(0,(d-R*0.62))*0.05); // gentle capped valley slope
+  const N=P.length,R=TRACK.radius, gh=TRACK.terrainH;
+  const coneG=new THREE.ConeGeometry(0.5,1,7), blobG=new THREE.IcosahedronGeometry(0.5,0);
+  // buckets: 3 conifer (cone) + 2 deciduous (blob)
+  const defs=[[coneG,0x18331a],[coneG,0x22461c],[coneG,0x143017],
+              [blobG,0x2f5a26],[blobG,0x3c6a2e]];
+  const buckets=defs.map(([g,c])=>({geo:g,mat:new THREE.MeshStandardMaterial({color:c,roughness:1,flatShading:true}),list:[]}));
+  const push=(x,z,w,h)=>{const bi=(Math.random()*buckets.length)|0;
+    buckets[bi].list.push({x,y:gh(x,z),z,w,h});};
 
-  // 1) dense treeline hugging both edges, several rows receding
+  // 1) dense treeline hugging both edges
   for(let i=0;i<N;i+=2){
-    const p=P[i],n=Nm[i], tgx=Nm[i].z, tgz=-Nm[i].x; // tangent = perp of normal
+    const p=P[i],n=Nm[i],tgx=Nm[i].z,tgz=-Nm[i].x;
     for(const [side,off] of [[1,offL],[-1,offR]]){
-      const rows=7+((Math.random()*4)|0);
+      const rows=8+((Math.random()*4)|0);
       for(let r=0;r<rows;r++){
-        if(Math.random()<0.18) continue;               // slight gaps
-        const dist=off(i)+14 + r*5.5 + Math.random()*4;
-        const jt=(Math.random()-0.5)*5;                // jitter along track
-        const x=p.x+n.x*side*dist + tgx*jt;
-        const z=p.z+n.z*side*dist + tgz*jt;
-        const h=7+r*1.4+Math.random()*10, w=h*(0.42+Math.random()*0.12);
-        push(x,hill(dist),z,w,h);
+        if(Math.random()<0.16) continue;
+        const dist=off(i)+13 + r*5.2 + Math.random()*4;
+        const jt=(Math.random()-0.5)*5;
+        const x=p.x+n.x*side*dist+tgx*jt, z=p.z+n.z*side*dist+tgz*jt;
+        const h=8+r*1.5+Math.random()*11, w=h*(0.4+Math.random()*0.25);
+        push(x,z,w,h);
       }
     }
   }
-  // 2) scattered fill on the surrounding hills (valley walls)
+  // 2) scattered fill across the surrounding valley
   const samp=[];for(let i=0;i<N;i+=8)samp.push(P[i]);
   const clear=(x,z)=>{let m=1e9;for(const q of samp){const dx=x-q.x,dz=z-q.z;const d=dx*dx+dz*dz;if(d<m)m=d;}return m;};
   let placed=0,tries=0;
-  while(placed<4200 && tries<26000){tries++;
-    const a=Math.random()*TAU, rr=R*0.7+Math.random()*R*1.4;
+  while(placed<4600 && tries<30000){tries++;
+    const a=Math.random()*TAU, rr=R*0.62+Math.random()*R*1.5;
     const x=Math.cos(a)*rr,z=Math.sin(a)*rr;
-    if(clear(x,z)<28*28) continue;
-    const h=14+Math.random()*30, w=h*(0.4+Math.random()*0.12);
-    push(x,hill(rr)+Math.random()*3,z,w,h); placed++;
+    if(clear(x,z)<26*26) continue;
+    const h=14+Math.random()*32, w=h*(0.4+Math.random()*0.25);
+    push(x,z,w,h); placed++;
   }
-  buckets.forEach((b,bi)=>{
+  buckets.forEach(b=>{
     if(!b.list.length)return;
-    const im=new THREE.InstancedMesh(geos[bi],b.mat,b.list.length);
-    im.frustumCulled=false; im.receiveShadow=true;
+    const im=new THREE.InstancedMesh(b.geo,b.mat,b.list.length);
+    im.frustumCulled=false; im.receiveShadow=true; im.castShadow=false;
     const m=new THREE.Matrix4(),s=new THREE.Vector3(),q=new THREE.Quaternion(),t=new THREE.Vector3();
-    b.list.forEach((o,i)=>{t.set(o.x,o.y+o.h/2,o.z);s.set(o.w,o.h,o.w);m.compose(t,q,s);im.setMatrixAt(i,m);});
+    b.list.forEach((o,i)=>{t.set(o.x,o.y+o.h*0.5,o.z);s.set(o.w,o.h,o.w);m.compose(t,q,s);im.setMatrixAt(i,m);});
     im.instanceMatrix.needsUpdate=true;sc.add(im);
   });
-  // distant forested hill mass so no sky shows through gaps
-  const geo=new THREE.CylinderGeometry(R*1.9,R*2.1,150,72,1,true);
+  // distant forested hill mass so no sky shows through the canopy
+  const geo=new THREE.CylinderGeometry(R*1.9,R*2.1,170,72,1,true);
   const mesh=new THREE.Mesh(geo,new THREE.MeshStandardMaterial({color:0x1b3a1d,roughness:1,side:THREE.BackSide}));
-  mesh.position.y=150/2-14;sc.add(mesh);
+  mesh.position.y=170/2-20;sc.add(mesh);
 }
 
 /* ---- big roofed grandstands with crowd + sponsor facades ---- */
@@ -533,8 +577,9 @@ function buildGrandstands(sc,P,Nm,Tg,offL,offR){
     const band=new THREE.Mesh(new THREE.PlaneGeometry(len,3),facadeMat);
     band.position.set(0,h+1.5,depth/2+0.3);
     g.add(seat,roof,band);
-    g.position.copy(base);g.position.y=0;
-    g.lookAt(p.x,0,p.z);
+    const gy=TRACK.terrainH(base.x,base.z);
+    g.position.copy(base);g.position.y=gy;
+    g.lookAt(p.x,gy,p.z);
     g.traverse(o=>{o.castShadow=true;o.receiveShadow=true;});
     sc.add(g);
   });
@@ -564,12 +609,14 @@ function buildPit(sc,P,Nm,Tg){
   // pit wall along track
   const pw=new THREE.Mesh(new THREE.BoxGeometry(len,1.1,0.5),
     new THREE.MeshStandardMaterial({map:makeHoarding(),roughness:0.8}));
-  pw.position.copy(base).addScaledVector(n,-side*(off-TRACK.halfW-2.5));pw.position.y=0.55;
+  pw.position.copy(base).addScaledVector(n,-side*(off-TRACK.halfW-2.5));
+  const pwy=TRACK.terrainH(pw.position.x,pw.position.z); pw.position.y=pwy+0.55;
   g.add(body,roof,stripe);
-  g.position.copy(base);g.position.y=0;g.lookAt(p.x,0,p.z);
+  const gy=TRACK.terrainH(base.x,base.z);
+  g.position.copy(base);g.position.y=gy;g.lookAt(p.x,gy,p.z);
   g.traverse(o=>{o.castShadow=true;o.receiveShadow=true;});
   sc.add(g);
-  pw.lookAt(p.x,0.55,p.z);pw.castShadow=true;sc.add(pw);
+  pw.lookAt(p.x,pwy+0.55,p.z);pw.castShadow=true;sc.add(pw);
 }
 
 /* --- procedural textures --- */
@@ -588,9 +635,14 @@ function makeAsphalt(){
   const t=new THREE.CanvasTexture(c);t.wrapS=t.wrapT=THREE.RepeatWrapping;t.anisotropy=8;return t;
 }
 function makeKerb(){
-  const c=cnv(16,64),x=c.getContext('2d');
-  for(let i=0;i<4;i++){x.fillStyle=i%2?'#d81f1f':'#e9edf0';x.fillRect(0,i*16,16,16);}
-  const t=new THREE.CanvasTexture(c);t.wrapS=t.wrapT=THREE.RepeatWrapping;return t;
+  const c=cnv(24,96),x=c.getContext('2d');
+  for(let i=0;i<6;i++){x.fillStyle=i%2?'#d21a1a':'#eef1f4';x.fillRect(0,i*16,24,16);}
+  const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;t.wrapS=t.wrapT=THREE.RepeatWrapping;return t;
+}
+function makeBankKerb(){ // wide flat run-off banking (Raidillon-style red/white)
+  const c=cnv(80,96),x=c.getContext('2d');
+  for(let i=0;i<6;i++){x.fillStyle=i%2?'#c61818':'#e6eaee';x.fillRect(0,i*16,80,16);}
+  const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;t.wrapS=t.wrapT=THREE.RepeatWrapping;return t;
 }
 function makeWall(){
   const c=cnv(64,32),x=c.getContext('2d');x.fillStyle='#cfd4da';x.fillRect(0,0,64,32);
@@ -616,13 +668,13 @@ const SPONSORS=[['#e10600','APEX','#fff'],['#0a0a0a','RICHARD MILE','#c9a24b'],[
   ['#1e9e54','HEINEKEN 0.0','#fff'],['#ff8000','CREDIT','#111'],['#003a70','DHLL','#ffcc00'],
   ['#e4002b','EMIRTES','#fff'],['#111','ROLEXX','#0b7a3b'],['#004c97','ARAMCC','#fff']];
 function makeHoarding(){
-  const c=cnv(1024,64),x=c.getContext('2d');
-  const n=SPONSORS.length,w=1024/n;
-  for(let i=0;i<n;i++){const[bg,txt,fg]=SPONSORS[(i)%n];
-    x.fillStyle=bg;x.fillRect(i*w,0,w,64);
-    x.fillStyle=fg;x.font='bold 26px Arial';x.textAlign='center';x.textBaseline='middle';
-    x.fillText(txt,i*w+w/2,34);}
-  const t=new THREE.CanvasTexture(c);t.wrapS=THREE.RepeatWrapping;t.wrapT=THREE.ClampToEdgeWrapping;t.anisotropy=8;return t;
+  const c=cnv(2048,96),x=c.getContext('2d');
+  const n=SPONSORS.length,w=2048/n;
+  for(let i=0;i<n;i++){const[bg,txt,fg]=SPONSORS[i%n];
+    x.fillStyle=bg;x.fillRect(i*w,0,w,96);
+    x.fillStyle=fg;x.font='bold 42px Arial';x.textAlign='center';x.textBaseline='middle';
+    x.fillText(txt,i*w+w/2,52);}
+  const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;t.wrapS=THREE.RepeatWrapping;t.wrapT=THREE.ClampToEdgeWrapping;t.anisotropy=8;return t;
 }
 function makeCrowdMat(){
   const c=cnv(128,64),x=c.getContext('2d');
@@ -788,8 +840,10 @@ function stepPhysics(dt,inp){
     CAR.v*=0.55;
   }
 
-  // apply to rig
-  CAR.rig.position.set(CAR.pos.x,0,CAR.pos.z);
+  // apply to rig — follow track elevation (smoothed)
+  const gy=TRACK.pts[near.idx]?TRACK.pts[near.idx].y:0;
+  CAR.groundY=damp(CAR.groundY||0,gy,10,dt);
+  CAR.rig.position.set(CAR.pos.x,CAR.groundY,CAR.pos.z);
   CAR.rig.rotation.y=CAR.heading;
 
   // sun shadow follows the car (7 km track can't fit one shadow map)
@@ -889,7 +943,7 @@ function updateCamera(dt){
     const height=CAM.mode==='hood'?1.05:3.3;
     const fwd=new THREE.Vector3(Math.sin(CAR.heading),0,Math.cos(CAR.heading));
     const want=CAR.rig.position.clone().addScaledVector(fwd,behind);
-    want.y=height;
+    want.y=CAR.rig.position.y+height;
     const l=CAM.mode==='hood'?12:6;
     CAM.pos.lerp(want,1-Math.exp(-l*dt));
     camera.position.copy(CAM.pos);
@@ -974,8 +1028,9 @@ function startDrive(){
 }
 function snapCamera(){
   const fwd=new THREE.Vector3(Math.sin(CAR.heading),0,Math.cos(CAR.heading));
-  CAM.pos.copy(CAR.pos).addScaledVector(fwd,-8.2); CAM.pos.y=3.3;
-  CAM.look.copy(CAR.pos).addScaledVector(fwd,10); CAM.look.y+=1.1;
+  const gy=(TRACK.pts[0]&&TRACK.pts[0].y)||0; CAR.groundY=gy;
+  CAM.pos.copy(CAR.pos).addScaledVector(fwd,-8.2); CAM.pos.y=gy+3.3;
+  CAM.look.copy(CAR.pos).addScaledVector(fwd,10); CAM.look.y+=gy+1.1;
   camera.position.copy(CAM.pos); camera.lookAt(CAM.look);
 }
 function exitToMenu(){enterMenu();}
@@ -1043,17 +1098,42 @@ function frame(){
   requestAnimationFrame(frame);
 }
 
+let shiftBuilt=false;
 function updateHUD(inp,r){
-  const kmh=Math.round(Math.abs(CAR.v)*3.6);
-  $('#speed').textContent=kmh;
-  const rpm=clamp(0.1+Math.abs(CAR.v)/92,0,1);
-  $('#revBar').style.width=(rpm*100)+'%';
-  $('#revBar').classList.toggle('warn',rpm>0.93);
-  const gear=CAR.v<0.3?(CAR.v<-0.3?'R':'N'):clamp(Math.ceil(Math.abs(CAR.v)/92*8),1,8);
+  const spd=Math.abs(CAR.v);
+  $('#speed').textContent=Math.round(spd*3.6);
+  // LED shift lights
+  const el=$('#shift');
+  if(!shiftBuilt){el.innerHTML='';for(let i=0;i<15;i++){const d=document.createElement('div');
+    d.className='led '+(i<6?'g':i<11?'r':'b');el.appendChild(d);}shiftBuilt=true;}
+  const rpm=clamp(0.06+spd/90,0,1), leds=el.children, lit=Math.floor(rpm*leds.length);
+  const flash=rpm>0.97&&(performance.now()%160<80);
+  for(let i=0;i<leds.length;i++)leds[i].classList.toggle('on',flash||i<lit);
+  const gear=spd<0.3?(CAR.v<-0.3?'R':'N'):clamp(Math.ceil(spd/90*8),1,8);
   $('#gear').textContent=gear;
   $('#thr i').style.height=(inp.throttle*100)+'%';
   $('#brk i').style.height=(inp.brake*100)+'%';
-  $('#offTrack').classList.toggle('on',r.off&&Math.abs(CAR.v)>4);
+  $('#offTrack').classList.toggle('on',r.off&&spd>4);
+  $('#drs').classList.toggle('on', !r.off && spd>58 && Math.abs(CAR.steer)<0.025);
+  drawMinimap();
+}
+let miniCtx=null,miniProj=null;
+function drawMinimap(){
+  const cv=$('#minimap'); if(!cv) return;
+  if(!miniCtx){miniCtx=cv.getContext('2d');
+    let a=1e9,b=-1e9,c=1e9,d=-1e9;
+    for(const p of TRACK.pts){a=Math.min(a,p.x);b=Math.max(b,p.x);c=Math.min(c,p.z);d=Math.max(d,p.z);}
+    const pad=20,s=Math.min((cv.width-2*pad)/(b-a),(cv.height-2*pad)/(d-c));
+    miniProj={a,c,s,ox:(cv.width-(b-a)*s)/2,oz:(cv.height-(d-c)*s)/2};}
+  const P=miniProj,ctx=miniCtx,X=p=>P.ox+(p.x-P.a)*P.s,Y=p=>P.oz+(p.z-P.c)*P.s;
+  ctx.clearRect(0,0,cv.width,cv.height);
+  ctx.lineJoin='round';ctx.lineCap='round';
+  ctx.beginPath();TRACK.pts.forEach((p,i)=>{const x=X(p),y=Y(p);i?ctx.lineTo(x,y):ctx.moveTo(x,y);});ctx.closePath();
+  ctx.lineWidth=6;ctx.strokeStyle='rgba(6,9,14,.55)';ctx.stroke();
+  ctx.lineWidth=3;ctx.strokeStyle='rgba(255,255,255,.5)';ctx.stroke();
+  const p0=TRACK.pts[0];ctx.fillStyle='#fff';ctx.fillRect(X(p0)-3,Y(p0)-3,6,6);
+  ctx.beginPath();ctx.arc(X(CAR.pos),Y(CAR.pos),5.5,0,7);ctx.fillStyle='#e10600';ctx.fill();
+  ctx.lineWidth=1.5;ctx.strokeStyle='#fff';ctx.stroke();
 }
 
 /* ==================================================================
