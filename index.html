@@ -311,22 +311,47 @@ const SPA=[
  [644,452],[621,451],[596,465],[561,484],[503,512],[470,520],[422,531],[403,534],[395,532],[395,523],
  [390,509],[373,526],[353,535]
 ];
+const YAS=[
+ [502,308],[543,389],[577,454],[588,466],[604,467],[666,433],[703,409],[719,384],[716,356],[716,328],
+ [724,301],[743,278],[761,268],[791,262],[829,263],[868,256],[919,234],[969,212],[993,196],[1042,177],
+ [1068,163],[1072,151],[1063,141],[985,139],[824,139],[641,138],[501,140],[390,142],[356,144],[353,151],
+ [360,168],[367,177],[357,189],[315,216],[285,244],[254,298],[227,366],[199,439],[183,496],[168,561],
+ [157,641],[154,660],[154,672],[165,679],[183,673],[199,676],[214,698],[240,690],[284,678],[291,664],
+ [274,631],[235,552],[218,523],[231,468],[238,433],[277,406],[305,392],[321,416],[335,449],[374,443],
+ [403,432],[399,401],[377,353],[345,291],[341,271],[363,239],[405,199],[435,180],[461,222],[479,267]
+];
+/* per-circuit configuration */
+const TRACKS={
+  spa:{ id:'spa', name:'SPA-FRANCORCHAMPS', country:'BELGIUM', flag:'🇧🇪', points:SPA, len:7004,
+    halfW:6.6, night:false, forest:true, runoff:'mixed',
+    kerb:['#d81c1c','#f2c400'], asphalt:0x2a2d33, ground:0x35562f, laprec:'1:44',
+    elev:f=>9*Math.sin(f*TAU+0.6)+5*Math.sin(2*f*TAU-0.5)+3*Math.sin(3*f*TAU+1.2) },
+  yas:{ id:'yas', name:'YAS MARINA', country:'ABU DHABI', flag:'🇦🇪', points:YAS, len:5281,
+    halfW:6.6, night:true, forest:false, runoff:'blue',
+    kerb:['#d81c1c','#eef1f4'], asphalt:0x1e2128, ground:0xbfa878, laprec:'1:26',
+    elev:f=>1.5*Math.sin(2*f*TAU) },
+};
+let CFG=TRACKS.spa;
+let miniCtx=null,miniProj=null;   // hoisted (buildWorld resets miniProj)
 const TRACK={N:0,halfW:6.6,pts:[],tan:[],nrm:[],cum:[],len:0,radius:1400,scale:1};
-function buildWorld(sc){
-  // --- build centreline from Spa points, scaled to real 7.004 km ---
-  const raw=SPA.map(p=>new THREE.Vector3(p[0],0,p[1]));
+function clearScene(sc){ for(let i=sc.children.length-1;i>=0;i--){const o=sc.children[i];
+  if(o.isCamera||(typeof CAR!=='undefined'&&o===CAR.rig))continue; sc.remove(o);
+  o.traverse&&o.traverse(m=>{if(m.geometry)m.geometry.dispose();}); } }
+function buildWorld(sc,cfg){
+  cfg=cfg||CFG; CFG=cfg;
+  clearScene(sc);
+  TRACK.halfW=cfg.halfW;
+  const raw=cfg.points.map(p=>new THREE.Vector3(p[0],0,p[1]));
   const bb=new THREE.Box3().setFromPoints(raw); const ctr=bb.getCenter(new THREE.Vector3());
   raw.forEach(v=>v.sub(ctr));
   const curve=new THREE.CatmullRomCurve3(raw,true,'centripetal',0.5);
-  const S=7004/curve.getLength();               // metres per raw unit
+  const S=cfg.len/curve.getLength();             // metres per raw unit
   TRACK.scale=S;
-  const N=Math.max(720,Math.round(7004/6));      // ~6 m road segments
+  const N=Math.max(600,Math.round(cfg.len/6));   // ~6 m road segments
   const sp=curve.getSpacedPoints(N);
   const P=[],Tg=[],Nm=[];
   for(let i=0;i<N;i++) P.push(new THREE.Vector3(sp[i].x*S,0,sp[i].z*S));
-  // gentle Spa-style elevation (kept modest so near self-crossings don't form walls)
-  for(let i=0;i<N;i++){const f=i/N;
-    P[i].y = 9*Math.sin(f*TAU+0.6)+5*Math.sin(2*f*TAU-0.5)+3*Math.sin(3*f*TAU+1.2);}
+  for(let i=0;i<N;i++){const f=i/N; P[i].y=cfg.elev(f);}
   for(let i=0;i<N;i++){
     const a=P[(i-1+N)%N], b=P[(i+1)%N];
     const tg=new THREE.Vector3().subVectors(b,a).setY(0).normalize();
@@ -342,24 +367,34 @@ function buildWorld(sc){
   TRACK.terrainH=(x,z)=>{let ws=0,hs=0;for(const s of samp){const dx=x-s.x,dz=z-s.z;
     const d2=dx*dx+dz*dz+90;const w=1/(d2*d2);ws+=w;hs+=w*s.y;}return hs/ws;};
 
-  sc.background=new THREE.Color(0x9fb6cc);
-  sc.fog=new THREE.Fog(0xa9c0d6, worldR*0.5, worldR*2.6);
+  const night=cfg.night;
+  renderer.toneMappingExposure = night?1.35:1.05;
+  const skyCol = night
+    ? {top:'vec3(0.015,0.02,0.06)',mid:'vec3(0.05,0.04,0.12)',bot:'vec3(0.42,0.20,0.10)'}
+    : {top:'vec3(0.24,0.42,0.66)', mid:'vec3(0.62,0.74,0.86)', bot:'vec3(0.78,0.82,0.85)'};
+  sc.background=new THREE.Color(night?0x070a12:0x9fb6cc);
+  sc.fog=new THREE.Fog(night?0x0a0e18:0xa9c0d6, worldR*0.5, worldR*(night?3.4:2.6));
 
-  const hemi=new THREE.HemisphereLight(0xbcd6ef,0x33372e,0.95); sc.add(hemi);
-  const sunL=new THREE.DirectionalLight(0xfff2e0,2.7);
-  sunL.position.set(-300,420,220); sunL.castShadow=true;
-  sunL.shadow.mapSize.set(2048,2048);
-  const cam=sunL.shadow.camera; const F=150;
-  cam.left=-F;cam.right=F;cam.top=F;cam.bottom=-F;cam.near=20;cam.far=900;
-  sunL.shadow.bias=-0.0004; sc.add(sunL,sunL.target);
-  sc.userData.sun=sunL;                 // followed each frame in drive
+  if(night){
+    sc.add(new THREE.HemisphereLight(0x4a5a80,0x151820,1.15));
+    const moon=new THREE.DirectionalLight(0xcdd8ff,1.5);
+    moon.position.set(-300,460,220);moon.castShadow=true;moon.shadow.mapSize.set(2048,2048);
+    const cm=moon.shadow.camera,F=150;cm.left=-F;cm.right=F;cm.top=F;cm.bottom=-F;cm.near=20;cm.far=900;
+    moon.shadow.bias=-0.0005;sc.add(moon,moon.target);sc.userData.sun=moon;
+  }else{
+    sc.add(new THREE.HemisphereLight(0xbcd6ef,0x33372e,0.95));
+    const sunL=new THREE.DirectionalLight(0xfff2e0,2.7);
+    sunL.position.set(-300,420,220);sunL.castShadow=true;sunL.shadow.mapSize.set(2048,2048);
+    const cm=sunL.shadow.camera,F=150;cm.left=-F;cm.right=F;cm.top=F;cm.bottom=-F;cm.near=20;cm.far=900;
+    sunL.shadow.bias=-0.0004;sc.add(sunL,sunL.target);sc.userData.sun=sunL;
+  }
 
   // sky dome
   const sky=new THREE.Mesh(new THREE.SphereGeometry(worldR*4+2000,32,16),
     new THREE.ShaderMaterial({side:THREE.BackSide,depthWrite:false,
       vertexShader:`varying vec3 v;void main(){v=position;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}`,
       fragmentShader:`varying vec3 v;void main(){float h=clamp(normalize(v).y*0.5+0.5,0.,1.);
-        vec3 top=vec3(0.24,0.42,0.66),mid=vec3(0.62,0.74,0.86),bot=vec3(0.78,0.82,0.85);
+        vec3 top=${skyCol.top},mid=${skyCol.mid},bot=${skyCol.bot};
         vec3 c=mix(bot,mid,smoothstep(0.,0.5,h));c=mix(c,top,smoothstep(0.45,1.,h));
         gl_FragColor=vec4(c,1.);}`}));
   sc.add(sky);
@@ -369,13 +404,13 @@ function buildWorld(sc){
   const gGeo=new THREE.PlaneGeometry(worldR*3,worldR*3,200,200);
   gGeo.rotateX(-Math.PI/2);
   const gp=gGeo.attributes.position;
-  for(let i=0;i<gp.count;i++) gp.setY(i, TRACK.terrainH(gp.getX(i),gp.getZ(i))-0.55); // sit below road, no seep
+  for(let i=0;i<gp.count;i++) gp.setY(i, TRACK.terrainH(gp.getX(i),gp.getZ(i))-0.55);
   gGeo.computeVertexNormals();
-  const grass=new THREE.Mesh(gGeo,new THREE.MeshStandardMaterial({color:0x35562f,roughness:1.0}));
+  const grass=new THREE.Mesh(gGeo,new THREE.MeshStandardMaterial({color:cfg.ground,roughness:1.0}));
   grass.receiveShadow=true; sc.add(grass);
 
   const HW=TRACK.halfW;
-  const asTex=makeAsphalt(), runoffTex=makeRunoff(), kerbTex=makeKerb();
+  const asTex=makeAsphalt(cfg.asphalt), runoffTex=makeRunoff(), kerbTex=makeKerb(cfg.kerb);
 
   // ---- signed, smoothed curvature → runoff on the OUTSIDE of corners ----
   const turn=new Array(N);
@@ -416,32 +451,40 @@ function buildWorld(sc){
     const m=new THREE.Mesh(g,mat);m.receiveShadow=true;m.renderOrder=ro;sc.add(m);return m;
   };
 
-  // run-off surface varies by zone around the lap: gravel / grass / tarmac
-  const RTYPE=['gravel','grass','gravel','tarmac','gravel','tarmac','grass','gravel'];
-  const zoneType=k=>RTYPE[Math.floor(cum[k]/(TRACK.len/RTYPE.length))%RTYPE.length];
-  const tarL=[],tarR=[],grvL=[],grvR=[];
-  for(let k=0;k<N;k++){const ty=zoneType(k);
-    tarL[k]=ty==='tarmac'?runL[k]:0; tarR[k]=ty==='tarmac'?runR[k]:0;
-    grvL[k]=ty==='gravel'?runL[k]:0; grvR[k]=ty==='gravel'?runR[k]:0;}
-  const apronMat=new THREE.MeshStandardMaterial({map:runoffTex,color:0x40454c,roughness:0.96,side:THREE.DoubleSide});
-  const gravelMat=new THREE.MeshStandardMaterial({map:makeGravel(),roughness:1,side:THREE.DoubleSide});
-  strip(k=>HW+0.9, k=>HW+0.9+tarL[k], 0.0, apronMat, 0, 10);
-  strip(k=>-(HW+0.9), k=>-(HW+0.9+tarR[k]), 0.0, apronMat, 0, 10);
-  strip(k=>HW+0.9, k=>HW+0.9+grvL[k], 0.005, gravelMat, 0, 6);
-  strip(k=>-(HW+0.9), k=>-(HW+0.9+grvR[k]), 0.005, gravelMat, 0, 6);
-  // green astroturf edge strips
-  const grnMat=new THREE.MeshStandardMaterial({color:0x2f7d33,roughness:0.9,side:THREE.DoubleSide});
-  strip(k=>HW+1.05, k=>HW+2.3, 0.012, grnMat, 1);
-  strip(k=>-(HW+1.05), k=>-(HW+2.3), 0.012, grnMat, 1);
-  // wide flat run-off "banking" kerbs on the outside of corners (Raidillon look)
-  const bt=makeBankKerb();
-  const bankMat=new THREE.MeshStandardMaterial({map:bt,emissiveMap:bt,emissive:0xffffff,emissiveIntensity:0.4,roughness:0.7,side:THREE.DoubleSide});
-  strip(k=>HW+2.3, k=>HW+2.3+Math.min(runL[k]*0.5,7), 0.02, bankMat, 1.5, 5.5);
-  strip(k=>-(HW+2.3), k=>-(HW+2.3+Math.min(runR[k]*0.5,7)), 0.02, bankMat, 1.5, 5.5);
+  if(cfg.runoff==='blue'){
+    // Yas Marina: blue/teal tarmac run-off with a white outline, minimal
+    const blueMat=new THREE.MeshStandardMaterial({color:0x1c6f7c,roughness:0.85,side:THREE.DoubleSide});
+    strip(k=>HW+0.9, k=>HW+0.9+runL[k], 0.0, blueMat, 0, 8);
+    strip(k=>-(HW+0.9), k=>-(HW+0.9+runR[k]), 0.0, blueMat, 0, 8);
+    const wl=new THREE.MeshBasicMaterial({color:0xf2f5f8,side:THREE.DoubleSide});
+    strip(k=>HW+0.9+Math.max(runL[k]-0.4,0), k=>HW+0.9+runL[k], 0.008, wl, 1);
+    strip(k=>-(HW+0.9+Math.max(runR[k]-0.4,0)), k=>-(HW+0.9+runR[k]), 0.008, wl, 1);
+  }else{
+    // Spa: gravel / grass / tarmac by zone + green astroturf + red/yellow banking
+    const RTYPE=['gravel','grass','gravel','tarmac','gravel','tarmac','grass','gravel'];
+    const zoneType=k=>RTYPE[Math.floor(cum[k]/(TRACK.len/RTYPE.length))%RTYPE.length];
+    const tarL=[],tarR=[],grvL=[],grvR=[];
+    for(let k=0;k<N;k++){const ty=zoneType(k);
+      tarL[k]=ty==='tarmac'?runL[k]:0; tarR[k]=ty==='tarmac'?runR[k]:0;
+      grvL[k]=ty==='gravel'?runL[k]:0; grvR[k]=ty==='gravel'?runR[k]:0;}
+    const apronMat=new THREE.MeshStandardMaterial({map:runoffTex,color:0x40454c,roughness:0.96,side:THREE.DoubleSide});
+    const gravelMat=new THREE.MeshStandardMaterial({map:makeGravel(),roughness:1,side:THREE.DoubleSide});
+    strip(k=>HW+0.9, k=>HW+0.9+tarL[k], 0.0, apronMat, 0, 10);
+    strip(k=>-(HW+0.9), k=>-(HW+0.9+tarR[k]), 0.0, apronMat, 0, 10);
+    strip(k=>HW+0.9, k=>HW+0.9+grvL[k], 0.005, gravelMat, 0, 6);
+    strip(k=>-(HW+0.9), k=>-(HW+0.9+grvR[k]), 0.005, gravelMat, 0, 6);
+    const grnMat=new THREE.MeshStandardMaterial({color:0x2f7d33,roughness:0.9,side:THREE.DoubleSide});
+    strip(k=>HW+1.05, k=>HW+2.3, 0.012, grnMat, 1);
+    strip(k=>-(HW+1.05), k=>-(HW+2.3), 0.012, grnMat, 1);
+    const bt=makeBankKerb(cfg.kerb);
+    const bankMat=new THREE.MeshStandardMaterial({map:bt,emissiveMap:bt,emissive:0xffffff,emissiveIntensity:0.4,roughness:0.7,side:THREE.DoubleSide});
+    strip(k=>HW+2.3, k=>HW+2.3+Math.min(runL[k]*0.5,7), 0.02, bankMat, 1.5, 5.5);
+    strip(k=>-(HW+2.3), k=>-(HW+2.3+Math.min(runR[k]*0.5,7)), 0.02, bankMat, 1.5, 5.5);
+  }
 
   // road (asphalt)
   const road=strip(k=>HW, k=>-HW, 0.02,
-    new THREE.MeshStandardMaterial({map:asTex,roughness:0.86,color:0x2a2d33,side:THREE.DoubleSide}), 2, 7);
+    new THREE.MeshStandardMaterial({map:asTex,roughness:0.86,color:cfg.asphalt,side:THREE.DoubleSide}), 2, 7);
   road.name='ROAD';
   // kerbs (red/white), raised profile — emissive so they stay bright, never black
   const kerbMat=new THREE.MeshStandardMaterial({map:kerbTex,emissiveMap:kerbTex,emissive:0xffffff,emissiveIntensity:0.55,roughness:0.55,side:THREE.DoubleSide});
@@ -481,10 +524,39 @@ function buildWorld(sc){
   for(let i=0;i<N;i++){TRACK.wallL[i]=barOff(i);TRACK.wallR[i]=barOffR(i);}
 
   buildBarriers(sc,P,Nm,cum,barOff,barOffR);
-  buildForest(sc,P,Nm,barOff,barOffR);
+  if(cfg.forest) buildForest(sc,P,Nm,barOff,barOffR);
+  else buildDesert(sc,P,Nm,barOff,barOffR);       // Yas: desert + Yas hotel
   buildGrandstands(sc,P,Nm,Tg,barOff,barOffR);
   buildPit(sc,P,Nm,Tg);
+  miniProj=null;                                   // minimap recomputes for new track
   return {};
+}
+/* ---- Yas Marina surroundings: sand mounds + the illuminated hotel ---- */
+function buildDesert(sc,P,Nm,offL,offR){
+  const N=P.length,R=TRACK.radius;
+  // low sand dunes ring (instanced flattened spheres)
+  const g=new THREE.SphereGeometry(1,10,6), m=new THREE.MeshStandardMaterial({color:0xb49a68,roughness:1});
+  const list=[];const samp=[];for(let i=0;i<N;i+=6)samp.push(P[i]);
+  const clr=(x,z)=>{let mn=1e9;for(const q of samp){const dx=x-q.x,dz=z-q.z;const d=dx*dx+dz*dz;if(d<mn)mn=d;}return mn;};
+  let n=0,t=0;while(n<900&&t<9000){t++;const a=Math.random()*TAU,rr=R*0.7+Math.random()*R*1.4;
+    const x=Math.cos(a)*rr,z=Math.sin(a)*rr;if(clr(x,z)<70*70)continue;
+    list.push({x,z,w:20+Math.random()*40,h:4+Math.random()*10});n++;}
+  const im=new THREE.InstancedMesh(g,m,list.length);im.receiveShadow=true;
+  const M=new THREE.Matrix4(),s=new THREE.Vector3(),q=new THREE.Quaternion(),tr=new THREE.Vector3();
+  list.forEach((o,i)=>{tr.set(o.x,-o.h*0.3,o.z);s.set(o.w,o.h,o.w);M.compose(tr,q,s);im.setMatrixAt(i,M);});
+  im.instanceMatrix.needsUpdate=true;im.frustumCulled=false;sc.add(im);
+  // Yas Viceroy-style hotel: two curved masses + a lattice canopy, LED-lit
+  const p=P[0],nm=Nm[0];const base=new THREE.Vector3().copy(p).addScaledVector(nm,-(TRACK.wallL?offR(0):offR(0))-40);
+  const hg=new THREE.Group();
+  const bodyMat=new THREE.MeshStandardMaterial({color:0x223047,roughness:0.35,metalness:0.5});
+  for(const sx of [-26,26]){const tower=new THREE.Mesh(new THREE.CylinderGeometry(24,26,34,24,1,false,0,Math.PI),bodyMat);
+    tower.position.set(sx,17,0);tower.rotation.y=sx<0?0:Math.PI;hg.add(tower);}
+  const canopy=new THREE.Mesh(new THREE.TorusGeometry(46,7,10,40,Math.PI*1.2),
+    new THREE.MeshStandardMaterial({color:0x0a0e18,emissive:0x2a3a6a,emissiveIntensity:1.2,metalness:0.6,roughness:0.4}));
+  canopy.rotation.x=Math.PI/2;canopy.position.set(0,36,0);hg.add(canopy);
+  const glow=new THREE.PointLight(0x3a70ff,3,260,2);glow.position.set(0,34,0);hg.add(glow);
+  const gy=TRACK.terrainH(base.x,base.z);hg.position.set(base.x,gy,base.z);hg.lookAt(p.x,gy,p.z);
+  hg.traverse(o=>{o.castShadow=true;});sc.add(hg);
 }
 
 /* ---- barriers: each track ZONE is a SINGLE sponsor (no alternating) ---- */
@@ -693,14 +765,16 @@ function makeAsphalt(){
     x.fillRect(Math.random()*256,Math.random()*256,1.4,1.4);}
   const t=new THREE.CanvasTexture(c);t.wrapS=t.wrapT=THREE.RepeatWrapping;t.anisotropy=8;return t;
 }
-function makeKerb(){ // Spa red/yellow kerbs
+function makeKerb(cols){ // stripe colours from the circuit config
+  const [a,b]=cols||['#d81c1c','#f2c400'];
   const c=cnv(24,96),x=c.getContext('2d');
-  for(let i=0;i<6;i++){x.fillStyle=i%2?'#d81c1c':'#f2c400';x.fillRect(0,i*16,24,16);}
+  for(let i=0;i<6;i++){x.fillStyle=i%2?a:b;x.fillRect(0,i*16,24,16);}
   const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;t.wrapS=t.wrapT=THREE.RepeatWrapping;return t;
 }
-function makeBankKerb(){ // wide flat run-off banking (red/yellow to match the kerbs)
+function makeBankKerb(cols){
+  const [a,b]=cols||['#d81c1c','#f2c400'];
   const c=cnv(80,96),x=c.getContext('2d');
-  for(let i=0;i<6;i++){x.fillStyle=i%2?'#d81c1c':'#f2c400';x.fillRect(0,i*16,80,16);}
+  for(let i=0;i<6;i++){x.fillStyle=i%2?a:b;x.fillRect(0,i*16,80,16);}
   const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;t.wrapS=t.wrapT=THREE.RepeatWrapping;return t;
 }
 function makeGravel(){ // beige gravel trap
@@ -1120,6 +1194,9 @@ const MODES=[
    meta:[['Assists','LOW'],['Input','KEYS'],['Units','KM/H']]},
 ];
 let sel=0;
+const TRACK_IDS=['spa','yas']; let selTrack=0, builtTrackId='spa';
+function curCfg(){return TRACKS[TRACK_IDS[selTrack]];}
+function cycleTrack(d){selTrack=(selTrack+d+TRACK_IDS.length)%TRACK_IDS.length;renderDetail();Sound.init();Sound.blip(430,.05);}
 function buildMenu(){
   const ul=$('#navList');ul.innerHTML='';
   MODES.forEach((m,i)=>{
@@ -1134,8 +1211,13 @@ function buildMenu(){
 function setSel(i){sel=(i+MODES.length)%MODES.length;
   document.querySelectorAll('#navList li').forEach((li,k)=>li.classList.toggle('sel',k===sel));renderDetail();}
 function renderDetail(){const m=MODES[sel];
-  $('#mdTag').textContent=m.tag;$('#mdDesc').textContent=m.desc;
-  $('#mdMeta').innerHTML=m.meta.map(([k,v])=>`<div><div class="k">${k}</div><div class="v">${v}</div></div>`).join('');
+  $('#mdTag').textContent=m.tag;
+  let meta=m.meta, desc=m.desc;
+  if(m.drive){const cf=curCfg();
+    desc=cf.name+' · '+cf.country+' '+cf.flag+'. '+(m.id==='tt'?'Just you and the clock — chase the perfect lap.':'Lights out and away we go.');
+    meta=[['Circuit',cf.name.split('-')[0]],['Length',(cf.len/1000).toFixed(3)+'km'],['◀ / ▶','CHANGE']];}
+  $('#mdDesc').textContent=desc;
+  $('#mdMeta').innerHTML=meta.map(([k,v])=>`<div><div class="k">${k}</div><div class="v">${v}</div></div>`).join('');
   const d=$('#mDetail');d.classList.remove('swap');void d.offsetWidth;d.classList.add('swap');}
 function chooseMode(){const m=MODES[sel];Sound.init();Sound.blip(660,.08);
   if(m.drive){startDrive();}
@@ -1160,7 +1242,10 @@ function enterMenu(){
   CAR.front.steer.rotation.y=0;
 }
 function startDrive(){
+  const cf=curCfg();
   $('#menu').classList.remove('on');
+  if(builtTrackId!==cf.id){ buildWorld(driveScene, cf); builtTrackId=cf.id; }
+  $('#mapName').innerHTML=cf.name+' <span>· '+cf.country+'</span>';
   countdown(()=>{
     STATE='drive';
     $('#hud').classList.add('on');$('#sndBtn').classList.add('show');
@@ -1200,6 +1285,8 @@ addEventListener('keydown',e=>{
   if(STATE==='menu'){
     if(k==='arrowup'||k==='w'){setSel(sel-1);Sound.init();Sound.blip(340,.04);e.preventDefault();}
     else if(k==='arrowdown'||k==='s'){setSel(sel+1);Sound.init();Sound.blip(340,.04);e.preventDefault();}
+    else if((k==='arrowleft'||k==='a')&&MODES[sel].drive){cycleTrack(-1);e.preventDefault();}
+    else if((k==='arrowright'||k==='d')&&MODES[sel].drive){cycleTrack(1);e.preventDefault();}
     else if(k==='enter'||k===' '){chooseMode();e.preventDefault();}
   }else if(STATE==='drive'){
     if(k==='c')cycleCam();
@@ -1261,7 +1348,6 @@ function updateHUD(inp,r){
   $('#drs').classList.toggle('on', !r.off && spd>58 && Math.abs(CAR.steer)<0.025);
   drawMinimap();
 }
-let miniCtx=null,miniProj=null;
 function drawMinimap(){
   const cv=$('#minimap'); if(!cv) return;
   if(!miniCtx){miniCtx=cv.getContext('2d');
