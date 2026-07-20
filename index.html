@@ -186,6 +186,22 @@
 <div id="cd"><div id="cdNum"></div></div>
 <div id="sndBtn"><svg id="sndIcon" viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9H4z"/><path d="M16 8a5 5 0 010 8"/></svg></div>
 
+<!-- classic script: runs even when the ES modules below are blocked (file://) -->
+<script>
+if(location.protocol==='file:'){
+  var elm=document.getElementById('loader');
+  if(elm) elm.innerHTML=
+    '<div id="ldMark">APEX<span class="r">·</span>GP</div>'+
+    '<div style="max-width:540px;text-align:center;margin-top:30px;line-height:1.75;color:#c7d0da;font-size:14px;padding:0 20px">'+
+    'This game has to run from a <b>local web server</b> — opening the file directly '+
+    '(a <code>file://</code> address) is blocked by the browser for security.<br><br>'+
+    '<b style="color:#fff">Easiest:</b> double-click <b style="color:#e10600">PLAY.command</b> (macOS) or '+
+    '<b style="color:#e10600">play.bat</b> (Windows) in this folder — it opens the game for you.<br><br>'+
+    '<b style="color:#fff">Or</b> open Terminal in this folder and run:<br>'+
+    '<code style="color:#39d98a;font-family:Orbitron,monospace">python3 -m http.server 8000</code><br>'+
+    'then visit <code style="color:#39d98a;font-family:Orbitron,monospace">http://localhost:8000</code></div>';
+}
+</script>
 <script type="importmap">
 { "imports": {
   "three": "./assets/vendor/three.module.js",
@@ -905,6 +921,19 @@ function ldState(i){$('#ldState').textContent=STEPS[i]||'';}
 function ldPct(p){p=Math.round(p);$('#ldBar').style.width=p+'%';$('#ldPct').textContent=p+'%';}
 
 async function boot(){
+  if(location.protocol==='file:'){
+    $('#loader').innerHTML=
+      '<div id="ldMark">APEX<span class="r">·</span>GP</div>'+
+      '<div style="max-width:540px;text-align:center;margin-top:30px;line-height:1.75;color:#c7d0da;font-size:14px;padding:0 20px">'+
+      'This game has to run from a <b>local web server</b> — opening the file directly '+
+      '(a <code>file://</code> address) is blocked by the browser for security.<br><br>'+
+      '<b style="color:#fff">Easiest:</b> double-click <b style="color:#e10600">PLAY.command</b> (macOS) or '+
+      '<b style="color:#e10600">play.bat</b> (Windows) in this folder — it opens the game for you.<br><br>'+
+      '<b style="color:#fff">Or</b> open Terminal in this folder and run:<br>'+
+      '<code style="color:#39d98a;font-family:Orbitron,monospace">python3 -m http.server 8000</code><br>'+
+      'then visit <code style="color:#39d98a;font-family:Orbitron,monospace">http://localhost:8000</code></div>';
+    return;
+  }
   const loader=new GLTFLoader();
   ldState(1);
   // car is the big download → drive the bar with its progress
