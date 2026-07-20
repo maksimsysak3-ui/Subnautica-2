@@ -324,9 +324,9 @@ function buildWorld(sc){
   const sp=curve.getSpacedPoints(N);
   const P=[],Tg=[],Nm=[];
   for(let i=0;i<N;i++) P.push(new THREE.Vector3(sp[i].x*S,0,sp[i].z*S));
-  // Spa-style elevation (Eau Rouge climb / Kemmel crest / descent to Stavelot)
+  // gentle Spa-style elevation (kept modest so near self-crossings don't form walls)
   for(let i=0;i<N;i++){const f=i/N;
-    P[i].y = 20*Math.sin(f*TAU+0.6)+12*Math.sin(2*f*TAU-0.5)+7*Math.sin(3*f*TAU+1.2)+4*Math.sin(5*f*TAU);}
+    P[i].y = 9*Math.sin(f*TAU+0.6)+5*Math.sin(2*f*TAU-0.5)+3*Math.sin(3*f*TAU+1.2);}
   for(let i=0;i<N;i++){
     const a=P[(i-1+N)%N], b=P[(i+1)%N];
     const tg=new THREE.Vector3().subVectors(b,a).setY(0).normalize();
@@ -366,10 +366,10 @@ function buildWorld(sc){
   camera.far=worldR*8; camera.updateProjectionMatrix();
 
   // ground — a grid that follows the terrain height field
-  const gGeo=new THREE.PlaneGeometry(worldR*3,worldR*3,140,140);
+  const gGeo=new THREE.PlaneGeometry(worldR*3,worldR*3,200,200);
   gGeo.rotateX(-Math.PI/2);
   const gp=gGeo.attributes.position;
-  for(let i=0;i<gp.count;i++) gp.setY(i, TRACK.terrainH(gp.getX(i),gp.getZ(i))-0.06);
+  for(let i=0;i<gp.count;i++) gp.setY(i, TRACK.terrainH(gp.getX(i),gp.getZ(i))-0.55); // sit below road, no seep
   gGeo.computeVertexNormals();
   const grass=new THREE.Mesh(gGeo,new THREE.MeshStandardMaterial({color:0x35562f,roughness:1.0}));
   grass.receiveShadow=true; sc.add(grass);
@@ -384,11 +384,22 @@ function buildWorld(sc){
   const sturn=new Array(N).fill(0);
   for(let i=0;i<N;i++){let s=0;for(let k=-7;k<=7;k++)s+=turn[(i+k+N)%N];sturn[i]=s;}
   const runL=new Array(N),runR=new Array(N);
-  for(let i=0;i<N;i++){const c=sturn[i],mag=Math.min(Math.abs(c)*70,30);
-    runL[i]=c<0?mag:1.5; runR[i]=c>0?mag:1.5;}     // outside of a corner gets tarmac
+  for(let i=0;i<N;i++){const c=sturn[i],mag=Math.min(Math.abs(c)*80,36);
+    runL[i]=c<0?mag:0; runR[i]=c>0?mag:0;}         // run-off ONLY on the outside of corners
   const smooth=a=>{const o=a.slice();for(let i=0;i<N;i++){let s=0;for(let k=-9;k<=9;k++)s+=o[(i+k+N)%N];a[i]=s/19;}};
   smooth(runL);smooth(runR);
-  TRACK.runL=runL;TRACK.runR=runR;
+  // where the circuit doubles back near itself, clamp run-off + barrier so nothing
+  // crosses onto an adjacent part of the track (walls must not sit on other kerbs)
+  const gap=new Array(N);
+  for(let i=0;i<N;i++){let m=1e9;const pi=P[i];
+    for(let j=0;j<N;j+=2){let d=Math.abs(i-j);if(d>N/2)d=N-d;if(d<28)continue;
+      const dx=pi.x-P[j].x,dz=pi.z-P[j].z,dd=dx*dx+dz*dz;if(dd<m)m=dd;}
+    gap[i]=Math.sqrt(m);}
+  const maxOff=new Array(N);
+  for(let i=0;i<N;i++) maxOff[i]=Math.max(HW+2.5, gap[i]*0.45);
+  for(let i=0;i<N;i++){const cap=Math.max(0,maxOff[i]-HW-3);
+    runL[i]=Math.min(runL[i],cap); runR[i]=Math.min(runR[i],cap);}
+  TRACK.runL=runL;TRACK.runR=runR;TRACK.maxOff=maxOff;
 
   const strip=(offA,offB,y,mat,ro,uvL)=>{ // build a ribbon between two per-index offsets
     const v=[],uv=[],id=[];
@@ -405,31 +416,41 @@ function buildWorld(sc){
     const m=new THREE.Mesh(g,mat);m.receiveShadow=true;m.renderOrder=ro;sc.add(m);return m;
   };
 
-  // tarmac runoff aprons (outside corners)
+  // run-off surface varies by zone around the lap: gravel / grass / tarmac
+  const RTYPE=['gravel','grass','gravel','tarmac','gravel','tarmac','grass','gravel'];
+  const zoneType=k=>RTYPE[Math.floor(cum[k]/(TRACK.len/RTYPE.length))%RTYPE.length];
+  const tarL=[],tarR=[],grvL=[],grvR=[];
+  for(let k=0;k<N;k++){const ty=zoneType(k);
+    tarL[k]=ty==='tarmac'?runL[k]:0; tarR[k]=ty==='tarmac'?runR[k]:0;
+    grvL[k]=ty==='gravel'?runL[k]:0; grvR[k]=ty==='gravel'?runR[k]:0;}
   const apronMat=new THREE.MeshStandardMaterial({map:runoffTex,color:0x40454c,roughness:0.96,side:THREE.DoubleSide});
-  strip(k=>HW+0.9, k=>HW+0.9+runL[k], 0.0, apronMat, 0, 10);
-  strip(k=>-(HW+0.9), k=>-(HW+0.9+runR[k]), 0.0, apronMat, 0, 10);
+  const gravelMat=new THREE.MeshStandardMaterial({map:makeGravel(),roughness:1,side:THREE.DoubleSide});
+  strip(k=>HW+0.9, k=>HW+0.9+tarL[k], 0.0, apronMat, 0, 10);
+  strip(k=>-(HW+0.9), k=>-(HW+0.9+tarR[k]), 0.0, apronMat, 0, 10);
+  strip(k=>HW+0.9, k=>HW+0.9+grvL[k], 0.005, gravelMat, 0, 6);
+  strip(k=>-(HW+0.9), k=>-(HW+0.9+grvR[k]), 0.005, gravelMat, 0, 6);
   // green astroturf edge strips
   const grnMat=new THREE.MeshStandardMaterial({color:0x2f7d33,roughness:0.9,side:THREE.DoubleSide});
   strip(k=>HW+1.05, k=>HW+2.3, 0.012, grnMat, 1);
   strip(k=>-(HW+1.05), k=>-(HW+2.3), 0.012, grnMat, 1);
   // wide flat run-off "banking" kerbs on the outside of corners (Raidillon look)
-  const bankMat=new THREE.MeshStandardMaterial({map:makeBankKerb(),roughness:0.7,side:THREE.DoubleSide});
-  strip(k=>HW+2.3, k=>HW+2.3+Math.min(runL[k]*0.55,6.5), 0.02, bankMat, 1.5, 3.2);
-  strip(k=>-(HW+2.3), k=>-(HW+2.3+Math.min(runR[k]*0.55,6.5)), 0.02, bankMat, 1.5, 3.2);
+  const bt=makeBankKerb();
+  const bankMat=new THREE.MeshStandardMaterial({map:bt,emissiveMap:bt,emissive:0xffffff,emissiveIntensity:0.4,roughness:0.7,side:THREE.DoubleSide});
+  strip(k=>HW+2.3, k=>HW+2.3+Math.min(runL[k]*0.5,7), 0.02, bankMat, 1.5, 5.5);
+  strip(k=>-(HW+2.3), k=>-(HW+2.3+Math.min(runR[k]*0.5,7)), 0.02, bankMat, 1.5, 5.5);
 
   // road (asphalt)
   const road=strip(k=>HW, k=>-HW, 0.02,
     new THREE.MeshStandardMaterial({map:asTex,roughness:0.86,color:0x2a2d33,side:THREE.DoubleSide}), 2, 7);
   road.name='ROAD';
-  // kerbs (red/white), raised profile
-  const kerbMat=new THREE.MeshStandardMaterial({map:kerbTex,roughness:0.55,side:THREE.DoubleSide});
+  // kerbs (red/white), raised profile — emissive so they stay bright, never black
+  const kerbMat=new THREE.MeshStandardMaterial({map:kerbTex,emissiveMap:kerbTex,emissive:0xffffff,emissiveIntensity:0.55,roughness:0.55,side:THREE.DoubleSide});
   { const mk=(sideSign)=>{const v=[],uv=[],id=[];
       for(let i=0;i<=N;i++){const k=i%N,p=P[k],n=Nm[k];
         const inn=new THREE.Vector3().copy(p).addScaledVector(n,sideSign*HW);
         const out=new THREE.Vector3().copy(p).addScaledVector(n,sideSign*(HW+1.05));
         v.push(inn.x,inn.y+0.03,inn.z,out.x,out.y+0.075,out.z);
-        const vv=cum[i]/2.0;uv.push(0,vv,1,vv);}
+        const vv=cum[i]/5.0;uv.push(0,vv,1,vv);}   // wider red/yellow stripes
       for(let i=0;i<N;i++){const a=i*2;id.push(a,a+2,a+1,a+1,a+2,a+3);}
       const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(v,3));
       g.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));g.setIndex(id);flatUp(g);
@@ -452,9 +473,9 @@ function buildWorld(sc){
     const sfl=new THREE.Mesh(sg,new THREE.MeshStandardMaterial({map:makeCheck(),roughness:0.8,side:THREE.DoubleSide}));
     sfl.renderOrder=5;sc.add(sfl);}
 
-  // barrier line offset per index (just beyond runoff), reused by walls + forest
-  const barOff=k=>HW+2.4+Math.max(runL[k],1.5)+2.0;   // left
-  const barOffR=k=>HW+2.4+Math.max(runR[k],1.5)+2.0;  // right
+  // barrier line offset: kerb+astroturf + grass verge + corner run-off (set well back)
+  const barOff=k=>Math.min(HW+4+16+runL[k], maxOff[k]);   // clamp so walls never cross onto other kerbs
+  const barOffR=k=>Math.min(HW+4+16+runR[k], maxOff[k]);
   TRACK.barOffL=barOff;TRACK.barOffR=barOffR;
 
   buildBarriers(sc,P,Nm,cum,barOff,barOffR);
@@ -464,24 +485,53 @@ function buildWorld(sc){
   return {};
 }
 
-/* ---- barriers: Armco + sponsor hoardings + tyre stacks at corners ---- */
+/* ---- barriers: each track ZONE gets its own sponsor (mixed with F1 boards) ---- */
+const ZONE_SPONSORS=[
+  {bg:'#1f7a3d',txt:'HEINEKEN 0.0',fg:'#ffffff'},
+  {bg:'#00205b',txt:'PIRELLI',fg:'#ffd200'},
+  {bg:'#0a0c10',txt:'ROLEX',fg:'#12813f'},
+  {bg:'#ffcc00',txt:'DHL',fg:'#d40511'},
+  {bg:'#8a1524',txt:'SANTANDER',fg:'#ffffff'},
+  {bg:'#ff6a00',txt:'AWS',fg:'#111111'},
+  {bg:'#111111',txt:'MOËT & CHANDON',fg:'#c9a24b'},
+  {bg:'#004ea8',txt:'PETRONAS',fg:'#12c3b0'},
+  {bg:'#e10600',txt:'MSC CRUISES',fg:'#ffffff'},
+  {bg:'#0a0c10',txt:'CRYPTO.COM',fg:'#2fa8ff'},
+];
+function drawF1(x,x0,pw){x.fillStyle='#0a0c10';x.fillRect(x0,0,pw,110);
+  x.fillStyle='#fff';x.font='italic 900 62px Arial';x.textAlign='left';x.textBaseline='middle';x.fillText('F',x0+pw*0.30,54);
+  x.fillStyle='#e10600';x.fillText('1',x0+pw*0.44,54);
+  for(let s=0;s<7;s++)x.fillRect(x0+pw*0.52+s*8,32,5,44*(1-s/9));}
+function makeZoneBoard(sp){ // F1, sponsor, F1, sponsor across the strip
+  const boards=[null,sp,null,sp], n=boards.length, pw=240, c=cnv(pw*n,110), x=c.getContext('2d');
+  boards.forEach((b,i)=>{const x0=i*pw;
+    if(!b){drawF1(x,x0,pw);}
+    else{x.fillStyle=b.bg;x.fillRect(x0,0,pw,110);
+      x.fillStyle=b.fg;x.textAlign='center';x.textBaseline='middle';
+      x.font=(b.txt.length>10?'bold 34px Arial':'bold 48px Arial');x.fillText(b.txt,x0+pw/2,58);}
+    x.fillStyle='rgba(0,0,0,.4)';x.fillRect(x0,98,pw,12);});
+  const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;t.wrapS=THREE.RepeatWrapping;t.wrapT=THREE.ClampToEdgeWrapping;t.anisotropy=8;return t;
+}
 function buildBarriers(sc,P,Nm,cum,offL,offR){
-  const N=P.length;
-  const wallTex=makeHoarding();
-  const PANEL=32, CYCLE=PANEL*SPONSORS.length;   // long single-sponsor panels, spread out
+  const N=P.length, ZN=ZONE_SPONSORS.length, WH=1.5, BOARD_M=26;
+  const zoneTex=ZONE_SPONSORS.map(makeZoneBoard);
   for(const [side,off] of [[1,offL],[-1,offR]]){
-    const v=[],uv=[],id=[];const WH=1.35;
-    for(let i=0;i<=N;i++){const k=i%N,p=P[k],n=Nm[k];
-      const b=new THREE.Vector3().copy(p).addScaledVector(n,side*off(k));
-      v.push(b.x,b.y,b.z, b.x,b.y+WH,b.z);
-      const u=cum[i]/CYCLE; uv.push(u,0,u,1);}
-    for(let i=0;i<N;i++){const a=i*2;id.push(a,a+1,a+2,a+1,a+3,a+2);}
-    const g=new THREE.BufferGeometry();
-    g.setAttribute('position',new THREE.Float32BufferAttribute(v,3));
-    g.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));
-    g.setIndex(id);g.computeVertexNormals();
-    const wall=new THREE.Mesh(g,new THREE.MeshStandardMaterial({map:wallTex,roughness:0.75,metalness:0.1,side:THREE.DoubleSide}));
-    wall.castShadow=true;wall.receiveShadow=true;sc.add(wall);
+    for(let z=0;z<ZN;z++){
+      const i0=Math.floor(z/ZN*N), i1=Math.floor((z+1)/ZN*N);
+      const v=[],uv=[],id=[];const u0=cum[i0];
+      for(let i=i0;i<=i1;i++){const k=i%N,p=P[k],n=Nm[k];
+        const b=new THREE.Vector3().copy(p).addScaledVector(n,side*off(k));
+        v.push(b.x,b.y-0.8,b.z, b.x,b.y+WH,b.z);   // extend base below grass, no float
+        const u=(cum[i]-u0)/(BOARD_M*4); uv.push(u,0,u,1);}   // 4 boards per texture
+      const seg=i1-i0;
+      for(let i=0;i<seg;i++){const a=i*2;id.push(a,a+1,a+2,a+1,a+3,a+2);}
+      const g=new THREE.BufferGeometry();
+      g.setAttribute('position',new THREE.Float32BufferAttribute(v,3));
+      g.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));
+      g.setIndex(id);g.computeVertexNormals();
+      const wall=new THREE.Mesh(g,new THREE.MeshStandardMaterial({map:zoneTex[z],roughness:0.8,side:THREE.DoubleSide}));
+      wall.castShadow=true;wall.receiveShadow=true;sc.add(wall);
+    }
   }
   // tyre barriers (instanced) where runoff is wide = fast corners
   const runL=TRACK.runL,runR=TRACK.runR;
@@ -510,32 +560,35 @@ function buildForest(sc,P,Nm,offL,offR){
               [blobG,0x2f5a26],[blobG,0x3c6a2e]];
   const buckets=defs.map(([g,c])=>({geo:g,mat:new THREE.MeshStandardMaterial({color:c,roughness:1,flatShading:true}),list:[]}));
   const push=(x,z,w,h)=>{const bi=(Math.random()*buckets.length)|0;
-    buckets[bi].list.push({x,y:gh(x,z),z,w,h});};
+    buckets[bi].list.push({x,y:gh(x,z)-0.55,z,w,h});};
+  // distance² to the NEAREST point of ANY part of the track (handles near-crossings)
+  const samp=[];for(let i=0;i<N;i+=4)samp.push(P[i]);
+  const clear=(x,z)=>{let m=1e9;for(const q of samp){const dx=x-q.x,dz=z-q.z;const d=dx*dx+dz*dz;if(d<m)m=d;}return m;};
+  const MINCLR=42;                               // trees must be ≥42 m from every part of the track
 
-  // 1) dense treeline hugging both edges
+  // 1) treeline hugging each side, but never on top of an adjacent straight
   for(let i=0;i<N;i+=2){
     const p=P[i],n=Nm[i],tgx=Nm[i].z,tgz=-Nm[i].x;
     for(const [side,off] of [[1,offL],[-1,offR]]){
-      const rows=8+((Math.random()*4)|0);
+      const rows=9+((Math.random()*5)|0);
       for(let r=0;r<rows;r++){
-        if(Math.random()<0.16) continue;
-        const dist=off(i)+13 + r*5.2 + Math.random()*4;
+        if(Math.random()<0.14) continue;
+        const dist=off(i)+30 + r*6.5 + Math.random()*5;
         const jt=(Math.random()-0.5)*5;
         const x=p.x+n.x*side*dist+tgx*jt, z=p.z+n.z*side*dist+tgz*jt;
-        const h=8+r*1.5+Math.random()*11, w=h*(0.4+Math.random()*0.25);
+        if(clear(x,z)<MINCLR*MINCLR) continue;   // skip if it would land near any track section
+        const h=9+r*1.6+Math.random()*12, w=h*(0.4+Math.random()*0.25);
         push(x,z,w,h);
       }
     }
   }
   // 2) scattered fill across the surrounding valley
-  const samp=[];for(let i=0;i<N;i+=8)samp.push(P[i]);
-  const clear=(x,z)=>{let m=1e9;for(const q of samp){const dx=x-q.x,dz=z-q.z;const d=dx*dx+dz*dz;if(d<m)m=d;}return m;};
   let placed=0,tries=0;
-  while(placed<4600 && tries<30000){tries++;
-    const a=Math.random()*TAU, rr=R*0.62+Math.random()*R*1.5;
+  while(placed<4600 && tries<34000){tries++;
+    const a=Math.random()*TAU, rr=R*0.75+Math.random()*R*1.5;
     const x=Math.cos(a)*rr,z=Math.sin(a)*rr;
-    if(clear(x,z)<26*26) continue;
-    const h=14+Math.random()*32, w=h*(0.4+Math.random()*0.25);
+    if(clear(x,z)<70*70) continue;
+    const h=14+Math.random()*26, w=h*(0.4+Math.random()*0.22);
     push(x,z,w,h); placed++;
   }
   buckets.forEach(b=>{
@@ -562,7 +615,7 @@ function buildGrandstands(sc,P,Nm,Tg,offL,offR){
   idxs.forEach((i,si)=>{
     const side=si%2?1:-1, off=(side>0?offL:offR)(i);
     const p=P[i],n=Nm[i],tg=Tg[i];
-    const base=new THREE.Vector3().copy(p).addScaledVector(n,side*(off+7));
+    const base=new THREE.Vector3().copy(p).addScaledVector(n,side*(off+16));
     const g=new THREE.Group();
     const len=70,depth=16,h=13;
     // tiered seating (crowd)
@@ -577,7 +630,7 @@ function buildGrandstands(sc,P,Nm,Tg,offL,offR){
     const band=new THREE.Mesh(new THREE.PlaneGeometry(len,3),facadeMat);
     band.position.set(0,h+1.5,depth/2+0.3);
     g.add(seat,roof,band);
-    const gy=TRACK.terrainH(base.x,base.z);
+    const gy=TRACK.terrainH(base.x,base.z)-0.55;
     g.position.copy(base);g.position.y=gy;
     g.lookAt(p.x,gy,p.z);
     g.traverse(o=>{o.castShadow=true;o.receiveShadow=true;});
@@ -589,7 +642,7 @@ function buildGrandstands(sc,P,Nm,Tg,offL,offR){
 function buildPit(sc,P,Nm,Tg){
   const i0=0,p=P[i0],n=Nm[i0],tg=Tg[i0];
   const side=-1;                             // pit on the right of the grid
-  const off=TRACK.halfW+9;
+  const off=TRACK.halfW+26;                  // building set back across the pit lane
   const base=new THREE.Vector3().copy(p).addScaledVector(n,side*off);
   const g=new THREE.Group();
   const len=150,depth=14,h=11;
@@ -612,7 +665,7 @@ function buildPit(sc,P,Nm,Tg){
   pw.position.copy(base).addScaledVector(n,-side*(off-TRACK.halfW-2.5));
   const pwy=TRACK.terrainH(pw.position.x,pw.position.z); pw.position.y=pwy+0.55;
   g.add(body,roof,stripe);
-  const gy=TRACK.terrainH(base.x,base.z);
+  const gy=TRACK.terrainH(base.x,base.z)-0.55;
   g.position.copy(base);g.position.y=gy;g.lookAt(p.x,gy,p.z);
   g.traverse(o=>{o.castShadow=true;o.receiveShadow=true;});
   sc.add(g);
@@ -634,15 +687,23 @@ function makeAsphalt(){
     x.fillRect(Math.random()*256,Math.random()*256,1.4,1.4);}
   const t=new THREE.CanvasTexture(c);t.wrapS=t.wrapT=THREE.RepeatWrapping;t.anisotropy=8;return t;
 }
-function makeKerb(){
+function makeKerb(){ // Spa red/yellow kerbs
   const c=cnv(24,96),x=c.getContext('2d');
-  for(let i=0;i<6;i++){x.fillStyle=i%2?'#d21a1a':'#eef1f4';x.fillRect(0,i*16,24,16);}
+  for(let i=0;i<6;i++){x.fillStyle=i%2?'#d81c1c':'#f2c400';x.fillRect(0,i*16,24,16);}
   const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;t.wrapS=t.wrapT=THREE.RepeatWrapping;return t;
 }
-function makeBankKerb(){ // wide flat run-off banking (Raidillon-style red/white)
+function makeBankKerb(){ // wide flat run-off banking (red/yellow to match the kerbs)
   const c=cnv(80,96),x=c.getContext('2d');
-  for(let i=0;i<6;i++){x.fillStyle=i%2?'#c61818':'#e6eaee';x.fillRect(0,i*16,80,16);}
+  for(let i=0;i<6;i++){x.fillStyle=i%2?'#d81c1c':'#f2c400';x.fillRect(0,i*16,80,16);}
   const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;t.wrapS=t.wrapT=THREE.RepeatWrapping;return t;
+}
+function makeGravel(){ // beige gravel trap
+  const c=cnv(128,128),x=c.getContext('2d');
+  x.fillStyle='#b9a06a';x.fillRect(0,0,128,128);
+  for(let i=0;i<6000;i++){const g=150+Math.random()*70|0;
+    x.fillStyle=`rgba(${g},${g-24|0},${(g-70)|0},${Math.random()*0.5})`;
+    x.fillRect(Math.random()*128,Math.random()*128,2,2);}
+  const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;t.wrapS=t.wrapT=THREE.RepeatWrapping;t.anisotropy=8;return t;
 }
 function makeWall(){
   const c=cnv(64,32),x=c.getContext('2d');x.fillStyle='#cfd4da';x.fillRect(0,0,64,32);
@@ -662,18 +723,27 @@ function makeRunoff(){
     x.fillRect(Math.random()*256,Math.random()*256,1.6,1.6);}
   const t=new THREE.CanvasTexture(c);t.wrapS=t.wrapT=THREE.RepeatWrapping;t.anisotropy=8;return t;
 }
-/* sponsor advertising hoarding strip (stylised, not real logos) */
-const SPONSORS=[['#e10600','APEX','#fff'],['#0a0a0a','RICHARD MILE','#c9a24b'],['#00b0b9','HERZ','#fff'],
-  ['#005ba9','PIRELLA','#ffe100'],['#111','MOËT','#c9a24b'],['#e30613','SANTONDER','#fff'],
-  ['#1e9e54','HEINEKEN 0.0','#fff'],['#ff8000','CREDIT','#111'],['#003a70','DHLL','#ffcc00'],
-  ['#e4002b','EMIRTES','#fff'],['#111','ROLEXX','#0b7a3b'],['#004c97','ARAMCC','#fff']];
+/* trackside boards: mostly the sport's own black F1 boards, occasional sponsor */
+const F1B={bg:'#0a0c10',f1:true};
+const BOARDS=[F1B,F1B,{bg:'#1f7a3d',txt:'HEINEKEN 0.0',fg:'#fff'},F1B,F1B,
+  {bg:'#0a0c10',txt:'ROLEX',fg:'#12813f'},F1B,{bg:'#ffcc00',txt:'DHL',fg:'#d40511'},F1B,F1B,
+  {bg:'#00205b',txt:'PIRELLI',fg:'#ffd200'},F1B,{bg:'#111',txt:'MOËT & CHANDON',fg:'#c9a24b'},F1B,
+  {bg:'#ff6a00',txt:'AWS',fg:'#111'},F1B,{bg:'#8a1524',txt:'SANTANDER',fg:'#fff'},F1B];
+const PANEL_M=42;                          // each board ~42 m of barrier
 function makeHoarding(){
-  const c=cnv(2048,96),x=c.getContext('2d');
-  const n=SPONSORS.length,w=2048/n;
-  for(let i=0;i<n;i++){const[bg,txt,fg]=SPONSORS[i%n];
-    x.fillStyle=bg;x.fillRect(i*w,0,w,96);
-    x.fillStyle=fg;x.font='bold 42px Arial';x.textAlign='center';x.textBaseline='middle';
-    x.fillText(txt,i*w+w/2,52);}
+  const n=BOARDS.length, pw=200, c=cnv(pw*n,110), x=c.getContext('2d');
+  for(let i=0;i<n;i++){const b=BOARDS[i],x0=i*pw;
+    x.fillStyle=b.bg;x.fillRect(x0,0,pw,110);
+    if(b.f1){ // stylised F1 wordmark
+      x.fillStyle='#fff';x.font='italic 900 60px Arial';x.textAlign='left';x.textBaseline='middle';x.fillText('F',x0+58,56);
+      x.fillStyle='#e10600';x.fillText('1',x0+104,56);
+      for(let s=0;s<7;s++){x.fillStyle='#e10600';x.fillRect(x0+120+s*7,34,4,40*(1-s/9));}
+    }else{
+      x.fillStyle=b.fg;x.font='bold 44px Arial';x.textAlign='center';x.textBaseline='middle';
+      const t=b.txt.length>10?'bold 34px Arial':'bold 46px Arial';x.font=t;
+      x.fillText(b.txt,x0+pw/2,58);}
+    x.fillStyle='rgba(0,0,0,.35)';x.fillRect(x0,96,pw,14);   // dark base rail
+  }
   const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;t.wrapS=THREE.RepeatWrapping;t.wrapT=THREE.ClampToEdgeWrapping;t.anisotropy=8;return t;
 }
 function makeCrowdMat(){
@@ -767,13 +837,16 @@ function mountCockpit(){
   // steering wheel
   const w=CAR.wheelMesh;
   const holder=new THREE.Group();
-  holder.position.set(0, 0.78, 0.12);        // in front of / below eye
-  holder.rotation.x=-0.42;                   // tilt back toward driver
+  holder.position.set(0, 0.85, 0.10);        // in front of / below eye
+  holder.rotation.x=-0.40;                   // tilt back toward driver
   const wb=new THREE.Box3().setFromObject(w); const wsz=wb.getSize(new THREE.Vector3());
-  const wscale=0.30/Math.max(wsz.x,wsz.y,wsz.z); // ~0.3m wheel
+  const wscale=0.34/Math.max(wsz.x,wsz.y,wsz.z); // ~0.34m wheel
   w.scale.setScalar(wscale);
   w.position.set(0,0,0);
-  w.rotation.z=Math.PI;                       // flip: was upside down
+  // model has the button face pointing +Y (lies flat) → stand it up so the
+  // buttons face the driver and the display is at the top
+  w.rotation.order='ZYX';
+  w.rotation.set(-Math.PI/2, 0, Math.PI);
   const spinHub=new THREE.Group(); spinHub.add(w); holder.add(spinHub);
   CAR.cockpit.add(holder);
   CAR.wheelHub=spinHub; CAR.wheelHolder=holder;
