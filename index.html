@@ -351,12 +351,27 @@ const YAS=[
  [274,631],[235,552],[218,523],[231,468],[238,433],[277,406],[305,392],[321,416],[335,449],[374,443],
  [403,432],[399,401],[377,353],[345,291],[341,271],[363,239],[405,199],[435,180],[461,222],[479,267]
 ];
+/* Spa elevation, keyed to lap fraction (S/F=0). The signature is Eau Rouge/
+   Raidillon: a hard compression at the bottom (f≈0.13) into a steep climb up the
+   Kemmel straight to Les Combes (the high point). Rolls back down through the
+   middle sector, dips into the Bus Stop chicane, then climbs back to the line. */
+const SPA_ELEV=[
+  [0.00,32],[0.05,40],[0.09,22],[0.13,5],[0.155,24],[0.175,20],  // S/F · La Source · EAU ROUGE dip · Raidillon crest
+  [0.27,48],[0.34,44],[0.41,34],[0.50,22],[0.63,28],[0.71,30],   // Les Combes (high) · Rivage · Pouhon (low) · Stavelot
+  [0.86,33],[0.93,26],[0.965,13],[0.985,24],[1.00,32],           // Blanchimont · Bus Stop chicane (low) · climb to line
+];
+function elevProfile(keys,f){
+  f=((f%1)+1)%1; let a=keys[0],b=keys[keys.length-1];
+  for(let i=0;i<keys.length-1;i++){ if(f>=keys[i][0]&&f<=keys[i+1][0]){a=keys[i];b=keys[i+1];break;} }
+  const t=(f-a[0])/Math.max(b[0]-a[0],1e-6), s=t*t*(3-2*t);      // smoothstep between control points
+  return a[1]+(b[1]-a[1])*s;
+}
 /* per-circuit configuration */
 const TRACKS={
   spa:{ id:'spa', name:'SPA-FRANCORCHAMPS', country:'BELGIUM', flag:'🇧🇪', points:SPA, len:7004,
     halfW:6.6, night:false, forest:true, runoff:'mixed',
     kerb:['#d81c1c','#f2c400'], asphalt:0x2a2d33, ground:0x35562f, laprec:'1:44',
-    elev:f=>22*Math.sin(f*TAU+0.6)+11*Math.sin(2*f*TAU-0.5)+6*Math.sin(3*f*TAU+1.2)+4*Math.sin(5*f*TAU) },
+    elev:f=>elevProfile(SPA_ELEV,f) },
   yas:{ id:'yas', name:'YAS MARINA', country:'ABU DHABI', flag:'🇦🇪', points:YAS, len:5281,
     halfW:6.6, night:true, forest:false, runoff:'blue',
     kerb:['#d81c1c','#eef1f4'], asphalt:0x1e2128, ground:0xbfa878, laprec:'1:26',
@@ -366,6 +381,7 @@ let CFG=TRACKS.spa;
 let selLivery='redbull';          // chosen team livery (editor)
 let miniCtx=null,miniProj=null;   // hoisted (buildWorld resets miniProj)
 const TRACK={N:0,halfW:6.6,pts:[],tan:[],nrm:[],cum:[],len:0,radius:1400,scale:1};
+if(typeof window!=='undefined') window.__TRACK=TRACK;
 function clearScene(sc){ for(let i=sc.children.length-1;i>=0;i--){const o=sc.children[i];
   if(o.isCamera||(typeof CAR!=='undefined'&&o===CAR.rig))continue; sc.remove(o);
   o.traverse&&o.traverse(m=>{if(m.geometry)m.geometry.dispose();}); } }
