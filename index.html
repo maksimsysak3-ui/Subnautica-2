@@ -147,6 +147,81 @@
   .gCard.sel .gn::after{content:' ✓';color:#4ce0a0}
   #garage .gHint{display:flex;gap:22px;font-size:9.5px;letter-spacing:.2em;color:var(--grey);text-transform:uppercase;margin-top:6px}
   #garage .gHint b{display:inline-block;min-width:16px;text-align:center;padding:2px 5px;margin-right:6px;border:1px solid var(--grey-lo);border-radius:3px;color:var(--white);font-family:var(--mono);font-size:9px}
+  /* ===== SEASON SETUP ===== */
+  #seasonSetup{position:fixed;inset:0;z-index:24;display:none}
+  #seasonSetup.on{display:block}
+  .ssScrim{position:absolute;inset:0;background:linear-gradient(90deg,rgba(4,6,10,.94),rgba(4,6,10,.35) 40%,rgba(4,6,10,.35) 60%,rgba(4,6,10,.94))}
+  .ssPanel{position:absolute;top:0;bottom:0;width:min(370px,34vw);padding:clamp(24px,4vh,44px) clamp(22px,2.4vw,40px);
+    display:flex;flex-direction:column;gap:16px;overflow-y:auto}
+  .ssLeft{left:0}.ssRight{right:0}
+  .ssTitle{font-family:var(--mono);font-size:13px;letter-spacing:.26em;color:#fff;font-weight:700}
+  .ssTitle span{color:var(--grey);font-size:10px}
+  .ssField{display:flex;flex-direction:column;gap:7px}
+  .ssField label{font-size:10px;letter-spacing:.24em;color:var(--grey);text-transform:uppercase}
+  .ssField input{background:rgba(12,16,26,.7);border:1px solid var(--grey-lo);border-radius:5px;color:#fff;
+    font-family:var(--mono);font-size:16px;padding:10px 12px;outline:none}
+  .ssField input:focus{border-color:var(--red)}
+  .ssRow2{display:grid;grid-template-columns:88px 1fr;gap:14px}
+  .ssChips{display:flex;flex-wrap:wrap;gap:6px}
+  .ssChip{padding:7px 11px;border:1px solid var(--grey-lo);border-radius:20px;font-size:11px;letter-spacing:.06em;
+    color:var(--grey);cursor:pointer;transition:.15s;white-space:nowrap}
+  .ssChip:hover{color:#fff}.ssChip.on{background:var(--red);border-color:var(--red);color:#fff}
+  #ssBegin{margin-top:8px;padding:14px;background:var(--red);border:none;border-radius:6px;color:#fff;
+    font-family:var(--mono);font-weight:700;letter-spacing:.14em;font-size:13px;cursor:pointer;transition:.15s}
+  #ssBegin:hover{background:#ff2028;box-shadow:0 0 26px var(--red-glow)}
+  .ssHint{font-size:10px;letter-spacing:.16em;color:var(--grey-lo);text-transform:uppercase}
+  #ssTeams{display:flex;flex-direction:column;gap:9px;margin-top:4px}
+  .ssTeam{display:flex;align-items:center;gap:12px;padding:11px 13px;border:1px solid var(--grey-lo);border-radius:7px;
+    background:rgba(12,16,26,.55);cursor:pointer;transition:.15s}
+  .ssTeam:hover{transform:translateX(4px)}
+  .ssTeam.on{border-color:#fff;background:rgba(30,40,60,.7)}
+  .ssTeam .sw{display:flex;gap:3px}.ssTeam .sw i{width:12px;height:28px;border-radius:2px;display:block}
+  .ssTeam .tn{font-size:14px;font-weight:700;color:#fff;letter-spacing:.05em}
+  .ssTeam.on .tn::after{content:' ✓';color:#4ce0a0}
+  /* ===== SEASON HUB ===== */
+  #seasonHub{position:fixed;inset:0;z-index:26;display:none;flex-direction:column;
+    padding:clamp(18px,3vh,34px) clamp(22px,4vw,60px);gap:16px;
+    background:radial-gradient(ellipse at 30% 0%,#10151f,#05070c 70%)}
+  #seasonHub.on{display:flex}
+  #shHead{display:flex;justify-content:space-between;align-items:center}
+  .shLogo{font-family:var(--mono);font-weight:900;font-size:clamp(20px,2.4vw,30px);color:#fff}
+  .shLogo .r{color:var(--red)}.shLogo small{display:block;font-size:9px;letter-spacing:.4em;color:var(--grey);font-weight:600;margin-top:2px}
+  .shDriver{display:flex;align-items:center;gap:14px}
+  .shDriver #shNum{font-family:var(--mono);font-weight:900;font-size:34px;color:var(--red)}
+  .shName{font-size:15px;font-weight:700;color:#fff;letter-spacing:.05em}
+  .shTeam{font-size:11px;letter-spacing:.2em;color:var(--grey);text-transform:uppercase}
+  #shGrid{flex:1;display:grid;grid-template-columns:1.7fr 1fr;grid-template-rows:1fr 1fr;gap:16px;min-height:0}
+  #shRace{grid-row:1 / span 2;position:relative;border:1px solid var(--grey-lo);border-radius:12px;overflow:hidden;display:flex;align-items:flex-end}
+  #shTrackBg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+  .shRaceInfo{position:relative;padding:clamp(20px,3vw,42px);z-index:2;
+    background:linear-gradient(0deg,rgba(4,6,10,.92),rgba(4,6,10,.2) 70%,transparent);width:100%}
+  .shRound{font-family:var(--mono);font-size:12px;letter-spacing:.3em;color:var(--red);font-weight:700}
+  .shTrackName{font-family:var(--mono);font-weight:900;font-size:clamp(26px,3.4vw,52px);color:#fff;margin-top:8px;line-height:1}
+  .shTrackMeta{font-size:12px;letter-spacing:.14em;color:var(--grey);margin-top:10px;text-transform:uppercase}
+  #shRaceBtn{margin-top:20px;padding:14px 26px;background:var(--red);border:none;border-radius:6px;color:#fff;
+    font-family:var(--mono);font-weight:700;letter-spacing:.14em;font-size:13px;cursor:pointer;transition:.15s}
+  #shRaceBtn:hover{background:#ff2028;box-shadow:0 0 30px var(--red-glow)}
+  #shStandings,#shRD{border:1px solid var(--grey-lo);border-radius:12px;padding:18px 20px;background:rgba(10,14,22,.5);overflow-y:auto}
+  .shPanelT{font-family:var(--mono);font-size:11px;letter-spacing:.24em;color:var(--grey);text-transform:uppercase;margin-bottom:12px}
+  .shRow{display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid rgba(255,255,255,.05);font-size:13px}
+  .shRow .p{width:20px;color:var(--grey);font-family:var(--mono)}
+  .shRow .nm{flex:1;color:#fff}.shRow .pts{color:var(--grey);font-family:var(--mono)}
+  .shRow.me{color:#fff}.shRow.me .nm{color:#4ce0a0;font-weight:700}
+  .rdRow{margin-bottom:14px}
+  .rdRow .rl{display:flex;justify-content:space-between;font-size:11px;letter-spacing:.1em;color:var(--grey);text-transform:uppercase;margin-bottom:5px}
+  .rdBar{height:7px;border-radius:4px;background:rgba(255,255,255,.08);overflow:hidden}
+  .rdBar i{display:block;height:100%;background:linear-gradient(90deg,var(--red-lo),var(--red));border-radius:4px}
+  #shCal{display:flex;gap:10px;overflow-x:auto;padding:4px 0}
+  .calR{flex:0 0 auto;min-width:120px;padding:12px 14px;border:1px solid var(--grey-lo);border-radius:8px;background:rgba(12,16,26,.5);cursor:pointer;transition:.15s}
+  .calR:hover{border-color:var(--grey)}
+  .calR.cur{border-color:var(--red);background:rgba(40,14,16,.5)}
+  .calR.done{opacity:.5}
+  .calR .rn{font-family:var(--mono);font-size:10px;letter-spacing:.2em;color:var(--grey)}
+  .calR .rt{font-size:13px;font-weight:700;color:#fff;margin-top:5px}
+  .calR .rc{font-size:10px;letter-spacing:.1em;color:var(--grey);margin-top:3px;text-transform:uppercase}
+  #shFoot{display:flex;justify-content:space-between;align-items:center;font-size:11px;letter-spacing:.2em;color:var(--grey);text-transform:uppercase}
+  #shFoot b{display:inline-block;padding:3px 7px;margin-right:8px;border:1px solid var(--grey-lo);border-radius:3px;color:#fff;font-family:var(--mono);font-size:10px}
+  #shPts{color:var(--red);font-family:var(--mono);font-weight:700}
   #mVer{color:var(--grey-lo);letter-spacing:.3em}
   #mCarTag{position:absolute;right:clamp(28px,5vw,66px);top:clamp(96px,15vh,150px);text-align:right;pointer-events:none}
   #mCarTag .big{font-family:var(--mono);font-weight:700;font-size:clamp(16px,1.8vw,22px);letter-spacing:.14em}
@@ -285,6 +360,55 @@
     <div id="gTeams"></div>
     <div class="gHint"><span><b>⏎</b> Apply &amp; race</span><span><b>Esc</b> Back</span></div>
   </aside>
+</div>
+
+<!-- ===== SEASON SETUP ===== -->
+<div id="seasonSetup">
+  <div class="ssScrim"></div>
+  <div class="ssPanel ssLeft">
+    <div class="ssTitle">NEW SEASON <span>· 2026 · BETA</span></div>
+    <div class="ssField"><label>DRIVER NAME</label><input id="ssName" maxlength="14" value="M. SYSAK"></div>
+    <div class="ssRow2">
+      <div class="ssField"><label>NUMBER</label><input id="ssNum" type="number" min="1" max="99" value="7"></div>
+      <div class="ssField"><label>DIFFICULTY</label><div id="ssDiff" class="ssChips"></div></div>
+    </div>
+    <div class="ssField"><label>PERSONAL SPONSOR</label><div id="ssSponsor" class="ssChips"></div></div>
+    <button id="ssBegin">BEGIN SEASON ▸</button>
+    <div class="ssHint">Hover a team to preview its car</div>
+  </div>
+  <aside class="ssPanel ssRight">
+    <div class="ssTitle">CHOOSE TEAM</div>
+    <div id="ssTeams"></div>
+  </aside>
+</div>
+
+<!-- ===== SEASON HUB ===== -->
+<div id="seasonHub">
+  <header id="shHead">
+    <div class="shLogo">APEX<span class="r"> GP</span><small>SEASON 2026</small></div>
+    <div class="shDriver"><span id="shNum">7</span><div><div class="shName" id="shName">M. SYSAK</div><div class="shTeam" id="shTeam">Red Bull</div></div></div>
+  </header>
+  <div id="shGrid">
+    <section id="shRace">
+      <canvas id="shTrackBg"></canvas>
+      <div class="shRaceInfo">
+        <div class="shRound" id="shRound">ROUND 1 / 5</div>
+        <div class="shTrackName" id="shTrackName">SPA-FRANCORCHAMPS</div>
+        <div class="shTrackMeta" id="shTrackMeta">BELGIUM 🇧🇪 · 7.004 km · Lap 1:44</div>
+        <button id="shRaceBtn">ENTER RACE WEEKEND ▸</button>
+      </div>
+    </section>
+    <section id="shStandings">
+      <div class="shPanelT">DRIVERS' STANDINGS</div>
+      <div id="shStandRows"></div>
+    </section>
+    <section id="shRD">
+      <div class="shPanelT">R&amp;D · CAR DEVELOPMENT</div>
+      <div id="shRDrows"></div>
+    </section>
+  </div>
+  <div id="shCal"></div>
+  <div id="shFoot"><span><b>Esc</b> Main Menu</span><span id="shPts">0 PTS</span></div>
 </div>
 
 <!-- ===== HUD ===== -->
@@ -2001,9 +2125,9 @@ const MODES=[
   {id:'quali',t:'Qualifying',tag:'3 LAPS',drive:true,
    desc:'Three flying laps to set your best time. Nail one clean lap and pole is yours.',
    meta:[['Laps','3'],['Sectors','3'],['Target','POLE']]},
-  {id:'career',t:'Career',tag:'CAMPAIGN',
-   desc:'Build a dynasty across a full championship. (Coming in a later build.)',
-   meta:[['Season','2026'],['Races','24'],['Prog','0%']]},
+  {id:'season',t:'Season',tag:'CAMPAIGN',
+   desc:'Create your driver, pick your team and sponsor, and race a five-round championship.',
+   meta:[['Rounds','5'],['Teams','5'],['Mode','BETA']]},
   {id:'garage',t:'Car Setup',tag:'GARAGE',
    desc:'Inspect the AGP-26 up close. Tune wings, suspension and diff to suit your style.',
    meta:[['Downf.','HIGH'],['Wing','7/11'],['Diff','52%']]},
@@ -2040,6 +2164,7 @@ function renderDetail(){const m=MODES[sel];
 function chooseMode(){const m=MODES[sel];Sound.init();Sound.blip(660,.08);
   if(m.drive){sessionMode=m.id;startDrive();}
   else if(m.id==='garage'){openGarage();}
+  else if(m.id==='season'){openSeasonSetup();}
   else{ /* placeholder modes */ flashMsg(); }
 }
 function flashMsg(){const d=$('#mdTag');d.textContent='COMING SOON';setTimeout(()=>renderDetail(),1400);}
@@ -2067,6 +2192,111 @@ function openGarage(){garageOn=true;buildGarage();$('#garage').classList.add('on
   CAR.rig.rotation.set(0,-0.6,0);}
 function closeGarage(){garageOn=false;$('#garage').classList.remove('on');
   $('#mBody').style.opacity='';$('#mDetail').style.opacity='';renderDetail();}
+
+/* ==================================================================
+   SEASON MODE (beta)
+   ================================================================== */
+const SEASON={active:false,on:false,team:'redbull',diff:'Pro',name:'M. SYSAK',num:7,sponsor:'Oracle',
+  round:0,cal:['spa','yas','silverstone','monaco','austria'],points:0,
+  field:['M. VÄRLA','R. OKONKWO','L. FENN','S. HÄKKINEN','D. ROSSI','K. TANAKA','A. PETROV','J. MORAIS','E. LARSSON','B. NAKAMURA']};
+const DIFFS=['Rookie','Pro','Legend'], SPONSORS=['Oracle','Petronas','AWS','DHL','Shell','bwt'];
+function openSeasonSetup(){
+  buildSeasonSetupChips(); buildSeasonTeams();
+  ['#mBody','#mHead','#mDetail','#mCarTag','#mFoot'].forEach(s=>$(s).style.opacity='0');  // clear the menu behind
+  $('#seasonSetup').classList.add('on'); SEASON.on='setup';
+  setLivery(SEASON.team);                              // preview current pick on the showroom car
+}
+function buildSeasonSetupChips(){
+  const dc=$('#ssDiff');dc.innerHTML='';
+  DIFFS.forEach(d=>{const c=document.createElement('div');c.className='ssChip'+(d===SEASON.diff?' on':'');
+    c.textContent=d;c.onclick=()=>{SEASON.diff=d;buildSeasonSetupChips();Sound.blip(500,.04);};dc.appendChild(c);});
+  const sc=$('#ssSponsor');sc.innerHTML='';
+  SPONSORS.forEach(s=>{const c=document.createElement('div');c.className='ssChip'+(s===SEASON.sponsor?' on':'');
+    c.textContent=s;c.onclick=()=>{SEASON.sponsor=s;buildSeasonSetupChips();Sound.blip(560,.04);};sc.appendChild(c);});
+}
+function buildSeasonTeams(){
+  const wrap=$('#ssTeams');wrap.innerHTML='';
+  LIVERY_IDS.forEach(key=>{const L=LIVERIES[key];
+    const card=document.createElement('div');card.className='ssTeam'+(key===SEASON.team?' on':'');
+    card.innerHTML=`<span class="sw">${L.swatch.map(c=>`<i style="background:${c}"></i>`).join('')}</span><span class="tn">${L.name}</span>`;
+    card.addEventListener('mouseenter',()=>{setLivery(key);Sound.init();Sound.blip(360,.03);});
+    card.addEventListener('click',()=>{SEASON.team=key;setLivery(key);buildSeasonTeams();Sound.blip(640,.05);});
+    wrap.appendChild(card);});
+}
+function closeSeasonSetup(){$('#seasonSetup').classList.remove('on');SEASON.on=false;
+  ['#mBody','#mHead','#mDetail','#mCarTag','#mFoot'].forEach(s=>$(s).style.opacity='');}
+function beginSeason(){
+  SEASON.name=($('#ssName').value||'DRIVER').toUpperCase().slice(0,14);
+  SEASON.num=Math.max(1,Math.min(99,parseInt($('#ssNum').value)||7));
+  SEASON.active=true;SEASON.round=0;SEASON.points=0;
+  // seed a random points table for the AI field (until real AIs arrive)
+  SEASON.table=SEASON.field.map(nm=>({nm,pts:0,me:false}));
+  SEASON.table.push({nm:SEASON.name,pts:0,me:true});
+  closeSeasonSetup(); openSeasonHub();
+}
+function openSeasonHub(){
+  $('#menu').classList.remove('on');
+  SEASON.on='hub';$('#seasonHub').classList.add('on');
+  $('#shNum').textContent=SEASON.num;$('#shName').textContent=SEASON.name;$('#shTeam').textContent=LIVERIES[SEASON.team].name;
+  renderSeasonHub();
+}
+function closeSeasonHub(){$('#seasonHub').classList.remove('on');SEASON.on=false;enterMenu();}
+function renderSeasonHub(){
+  const id=SEASON.cal[SEASON.round], cf=TRACKS[id];
+  selTrack=TRACK_IDS.indexOf(id);
+  $('#shRound').textContent=`ROUND ${SEASON.round+1} / ${SEASON.cal.length}`;
+  $('#shTrackName').textContent=cf.name;
+  $('#shTrackMeta').textContent=`${cf.country} ${cf.flag} · ${(cf.len/1000).toFixed(3)} km · Lap ${cf.laprec}`;
+  drawHubTrack(cf);
+  // calendar strip
+  const cal=$('#shCal');cal.innerHTML='';
+  SEASON.cal.forEach((tid,i)=>{const t=TRACKS[tid];const el=document.createElement('div');
+    el.className='calR'+(i===SEASON.round?' cur':'')+(i<SEASON.round?' done':'');
+    el.innerHTML=`<div class="rn">RND ${i+1}</div><div class="rt">${t.name.split('-')[0].split(' ')[0]}</div><div class="rc">${t.country} ${t.flag}</div>`;
+    el.onclick=()=>{SEASON.round=i;renderSeasonHub();Sound.blip(440,.05);};cal.appendChild(el);});
+  // standings
+  const rows=$('#shStandRows');rows.innerHTML='';
+  const table=(SEASON.table||[]).slice().sort((a,b)=>b.pts-a.pts);
+  table.forEach((r,i)=>{const el=document.createElement('div');el.className='shRow'+(r.me?' me':'');
+    el.innerHTML=`<span class="p">${i+1}</span><span class="nm">${r.nm}${r.me?' (You · '+LIVERIES[SEASON.team].name+')':''}</span><span class="pts">${r.pts}</span>`;rows.appendChild(el);});
+  // R&D bars
+  const rd=$('#shRDrows');rd.innerHTML='';
+  const devs=[['Aerodynamics',52+SEASON.round*6],['Power Unit',48+SEASON.round*5],['Chassis',44+SEASON.round*7],['Reliability',60+SEASON.round*4]];
+  devs.forEach(([n,v])=>{const el=document.createElement('div');el.className='rdRow';
+    el.innerHTML=`<div class="rl"><span>${n}</span><span>${Math.min(99,v)}</span></div><div class="rdBar"><i style="width:${Math.min(99,v)}%"></i></div>`;rd.appendChild(el);});
+  $('#shPts').textContent=SEASON.points+' PTS';
+}
+function drawHubTrack(cf){
+  const cv=$('#shTrackBg');const W=cv.width=cv.clientWidth||900,H=cv.height=cv.clientHeight||500;
+  const x=cv.getContext('2d');
+  const g=x.createLinearGradient(0,0,W,H);g.addColorStop(0,'#0d1420');g.addColorStop(1,'#05070c');x.fillStyle=g;x.fillRect(0,0,W,H);
+  const pts=cf.points;let a=1e9,b=-1e9,c=1e9,d=-1e9;for(const p of pts){a=Math.min(a,p[0]);b=Math.max(b,p[0]);c=Math.min(c,p[1]);d=Math.max(d,p[1]);}
+  const pad=Math.min(W,H)*0.22,s=Math.min((W-2*pad)/(b-a),(H-2*pad)/(d-c));
+  const X=p=>(W-(b-a)*s)/2+(p[0]-a)*s,Y=p=>(H*0.42-(d-c)*s/2)+(p[1]-c)*s;
+  const cols=['#ff3535','#3f8bff','#ffd23d'],N=pts.length;
+  x.lineJoin='round';x.lineCap='round';x.lineWidth=Math.max(5,s*3.2);
+  for(let seg=0;seg<3;seg++){const i0=(seg*N/3)|0,i1=((seg+1)*N/3)|0;x.strokeStyle=cols[seg];x.shadowColor=cols[seg];x.shadowBlur=16;
+    x.beginPath();for(let i=i0;i<=i1;i++){const p=pts[i%N];i===i0?x.moveTo(X(p),Y(p)):x.lineTo(X(p),Y(p));}x.stroke();}
+  x.shadowBlur=0;
+}
+function seasonRace(){
+  // race the current round as a Grand Prix; results feed the standings on return
+  sessionMode='season';SEASON.on=false;$('#seasonHub').classList.remove('on');
+  startDrive();
+}
+function endSeasonRace(){
+  // beta scoring: player takes the win, AI field shares the rest, then advance the round
+  const F1PTS=[25,18,15,12,10,8,6,4,2,1];
+  const me=SEASON.table.find(r=>r.me); if(me)me.pts+=25; SEASON.points=(me?me.pts:0);
+  const ai=SEASON.table.filter(r=>!r.me);
+  for(let i=0;i<ai.length;i++) ai[i].pts+=(F1PTS[i+1]||0)+((Math.random()*3)|0);
+  if(SEASON.round<SEASON.cal.length-1)SEASON.round++;
+  STATE='menu';$('#hud').classList.remove('on');$('#sndBtn').classList.remove('show');
+  if(CAR.rig.parent!==menuScene)menuScene.add(CAR.rig);
+  openSeasonHub();
+}
+$('#ssBegin').addEventListener('click',beginSeason);
+$('#shRaceBtn').addEventListener('click',seasonRace);
 
 /* ==================================================================
    STATE / FLOW
@@ -2267,7 +2497,11 @@ function snapCamera(){
   CAM.look.copy(CAR.pos).addScaledVector(fwd,10); CAM.look.y+=gy+1.1;
   camera.position.copy(CAM.pos); camera.lookAt(CAM.look);
 }
-function exitToMenu(){$('#qResult').classList.remove('on');enterMenu();}
+function exitToMenu(){
+  $('#qResult').classList.remove('on');
+  if(sessionMode==='season'&&SEASON.active){ endSeasonRace(); return; }  // back to the hub w/ points
+  enterMenu();
+}
 function endQuali(best){
   STATE='result';
   $('#hud').classList.remove('on');
@@ -2298,6 +2532,8 @@ addEventListener('keydown',e=>{
   if(STATE==='cine'){endCinematic();e.preventDefault();return;}
   if(STATE==='intro'){endTrackIntro();e.preventDefault();return;}
   if(STATE==='result'){ if(k==='enter'||k==='escape'||k===' '){exitToMenu();} e.preventDefault();return;}
+  if(SEASON.on==='setup'){ if(k==='escape'){closeSeasonSetup();} else if(k==='enter'&&document.activeElement.tagName!=='INPUT'){beginSeason();} return; }
+  if(SEASON.on==='hub'){ if(k==='escape'){closeSeasonHub();} else if(k==='enter'){seasonRace();} e.preventDefault();return; }
   if(STATE==='menu'&&garageOn){
     const i=LIVERY_IDS.indexOf(selLivery);
     if(k==='arrowup'||k==='w'||k==='arrowleft'||k==='a'){pickLivery(LIVERY_IDS[(i-1+LIVERY_IDS.length)%LIVERY_IDS.length]);e.preventDefault();}
