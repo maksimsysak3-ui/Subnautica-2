@@ -861,26 +861,40 @@ const ZONE_SPONSORS=[
   {txt:'MSC',bg:'#0a1e3f',fg:'#f0c33c'},
   {txt:'PETRONAS',bg:'#00a19a',fg:'#0a3d3a'},
 ];
-function drawF1(x,x0,pw,ph){x.fillStyle='#0a0c10';x.fillRect(x0,0,pw,ph);const cy=ph*0.44;
-  x.fillStyle='#fff';x.font=`italic 900 ${ph*0.62|0}px Arial`;x.textAlign='left';x.textBaseline='middle';x.fillText('F',x0+pw*0.34,cy);
-  x.fillStyle='#e10600';x.fillText('1',x0+pw*0.46,cy);
-  for(let s=0;s<7;s++)x.fillRect(x0+pw*0.54+s*(pw*0.014),ph*0.26,pw*0.009,ph*0.5*(1-s/9));}
+function shadeHex(hex,f){const n=parseInt(hex.slice(1),16);
+  let r=(n>>16)&255,g=(n>>8)&255,b=n&255;
+  r=Math.min(255,r*f)|0;g=Math.min(255,g*f)|0;b=Math.min(255,b*f)|0;
+  return `rgb(${r},${g},${b})`;}
+function drawF1(x,x0,pw,ph){x.fillStyle='#0a0c10';x.fillRect(x0,0,pw,ph);const cy=ph*0.46;
+  x.fillStyle='#fff';x.font=`italic 900 ${ph*0.66|0}px Arial`;x.textAlign='left';x.textBaseline='middle';x.fillText('F',x0+pw*0.33,cy);
+  x.fillStyle='#e10600';x.fillText('1',x0+pw*0.455,cy);
+  for(let s=0;s<9;s++)x.fillRect(x0+pw*0.53+s*(pw*0.013),ph*0.24,pw*0.0085,ph*0.52*(1-s/11));}
 function drawStar(x,cx,cy,r,col){x.fillStyle=col;x.beginPath();
   for(let i=0;i<5;i++){const a=-Math.PI/2+i*2*Math.PI/5;x.lineTo(cx+Math.cos(a)*r,cy+Math.sin(a)*r);
     const a2=a+Math.PI/5;x.lineTo(cx+Math.cos(a2)*r*0.42,cy+Math.sin(a2)*r*0.42);}x.closePath();x.fill();}
-function makeZoneBoard(sp){ // wide/short board (matches physical aspect → no stretch)
-  const n=4, pw=512, ph=76, c=cnv(pw*n,ph), x=c.getContext('2d');
-  for(let i=0;i<n;i++){const x0=i*pw, cy=ph*0.44;
+function makeZoneBoard(sp){ // high-res advertising hoarding (sharp, no stretch)
+  const n=4, pw=1024, ph=208, c=cnv(pw*n,ph), x=c.getContext('2d');
+  for(let i=0;i<n;i++){const x0=i*pw, cy=ph*0.47;
     if(sp.kind==='f1'){drawF1(x,x0,pw,ph);}
-    else if(sp.kind==='aramco'){ x.fillStyle=i%2?'#57c1ea':'#2ba0da';x.fillRect(x0,0,pw,ph);  // light blue
-      x.fillStyle='#ffffff';x.font='italic 700 42px Arial';x.textAlign='center';x.textBaseline='middle';x.fillText('aramco',x0+pw/2,cy);
-    }else{ x.fillStyle=sp.bg;x.fillRect(x0,0,pw,ph);
+    else if(sp.kind==='aramco'){
+      const g=x.createLinearGradient(0,0,0,ph);g.addColorStop(0,'#4fb8e6');g.addColorStop(1,'#1f96d0');
+      x.fillStyle=g;x.fillRect(x0,0,pw,ph);
+      x.fillStyle='#ffffff';x.font=`italic 800 ${ph*0.5|0}px Arial`;x.textAlign='center';x.textBaseline='middle';x.fillText('aramco',x0+pw/2,cy);
+    }else{
+      const g=x.createLinearGradient(0,0,0,ph);
+      g.addColorStop(0,shadeHex(sp.bg,1.14));g.addColorStop(0.5,sp.bg);g.addColorStop(1,shadeHex(sp.bg,0.88));
+      x.fillStyle=g;x.fillRect(x0,0,pw,ph);
       x.textAlign='center';x.textBaseline='middle';x.fillStyle=sp.fg;
-      x.font='bold '+(sp.txt.length>7?40:54)+'px Arial';
-      let tx=x0+pw/2; if(sp.star){drawStar(x,x0+pw*0.26,cy,ph*0.3,'#ec1c24');tx=x0+pw*0.58;}
-      x.fillText(sp.txt,tx,cy);}
-    x.fillStyle='rgba(0,0,0,.32)';x.fillRect(x0,ph-8,pw,8);}
-  const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;t.wrapS=THREE.RepeatWrapping;t.wrapT=THREE.ClampToEdgeWrapping;t.anisotropy=8;return t;
+      x.font=`900 ${ph*(sp.txt.length>7?0.42:0.56)|0}px Arial`;
+      let tx=x0+pw/2; if(sp.star){drawStar(x,x0+pw*0.24,cy,ph*0.32,'#ec1c24');tx=x0+pw*0.6;}
+      // faint drop shadow for legibility
+      x.fillStyle='rgba(0,0,0,.22)';x.fillText(sp.txt,tx+3,cy+3);
+      x.fillStyle=sp.fg;x.fillText(sp.txt,tx,cy);}
+    // physical panel: top highlight + lower shadow band + hairline frame
+    x.fillStyle='rgba(255,255,255,.12)';x.fillRect(x0,0,pw,ph*0.05);
+    x.fillStyle='rgba(0,0,0,.34)';x.fillRect(x0,ph*0.9,pw,ph*0.1);
+    x.strokeStyle='rgba(0,0,0,.25)';x.lineWidth=2;x.strokeRect(x0+1,1,pw-2,ph-2);}
+  const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;t.wrapS=THREE.RepeatWrapping;t.wrapT=THREE.ClampToEdgeWrapping;t.anisotropy=16;t.generateMipmaps=true;t.minFilter=THREE.LinearMipmapLinearFilter;return t;
 }
 function buildBarriers(sc,P,Nm,cum,offL,offR){
   const N=P.length, ZN=ZONE_SPONSORS.length, WH=2.2, BOARD_M=20;
