@@ -507,7 +507,7 @@ driveScene.environment=envRT.texture;
 globeScene.environment=envRT.texture;
 let GLOBE=null;                                   // {group, earth, pin, glow}
 /* real-world circuit locations (lat, lon) for the globe pin */
-const TRACK_LOC={ spa:[50.44,5.97], yas:[24.47,54.60], silverstone:[52.07,-1.02], monaco:[43.73,7.42], austria:[47.22,14.76] };
+const TRACK_LOC={ spa:[50.44,5.97], yas:[24.47,54.60], silverstone:[52.07,-1.02], monaco:[43.73,7.42], austria:[47.22,14.76], saopaulo:[-23.70,-46.70] };
 
 /* ---- showroom (menu) ---- */
 function buildShowroom(sc){
@@ -581,6 +581,16 @@ const AUSTRIA=[
  [581,364],[609,332],[677,297],[766,258],[837,227],[877,207],[898,212],[928,234],[957,270],[981,300],
  [958,337],[932,363],[881,402],[843,432],[819,455]
 ];
+const SAOPAULO=[
+ [336,166],[210,201],[125,222],[83,247],[77,268],[91,288],[114,311],[125,320],[125,343],[109,366],
+ [93,408],[94,441],[108,483],[136,516],[171,542],[242,561],[419,606],[576,648],[683,676],[714,679],
+ [737,670],[746,638],[758,571],[756,535],[739,507],[711,475],[641,428],[538,354],[477,305],[461,277],
+ [463,251],[473,213],[497,183],[554,168],[612,156],[638,167],[647,186],[636,206],[622,223],[615,246],
+ [624,274],[639,284],[666,282],[692,265],[725,229],[752,208],[801,194],[826,191],[838,198],[844,213],
+ [829,232],[795,266],[774,284],[754,314],[751,341],[754,372],[772,399],[797,419],[865,462],[906,488],
+ [936,494],[948,484],[970,431],[982,388],[962,329],[939,249],[916,209],[884,175],[827,157],[746,135],
+ [654,118],[589,109],[490,127],[405,145]
+];
 /* Spa elevation, keyed to lap fraction (S/F=0). The signature is Eau Rouge/
    Raidillon: a hard compression at the bottom (f≈0.13) into a steep climb up the
    Kemmel straight to Les Combes (the high point). Rolls back down through the
@@ -607,6 +617,12 @@ const AUSTRIA_ELEV=[
   [0.00,20],[0.08,35],[0.18,31],[0.30,18],[0.42,10],[0.55,15],
   [0.70,25],[0.82,32],[0.92,27],[1.00,20],
 ];
+// Interlagos: down from S/F through the Senna S to the low lake section, then the
+// long climb (Subida) back up the hill to the line.
+const SAO_ELEV=[
+  [0.00,26],[0.07,16],[0.20,9],[0.34,7],[0.50,11],[0.64,9],
+  [0.78,17],[0.90,23],[1.00,26],
+];
 /* per-circuit configuration */
 const TRACKS={
   spa:{ id:'spa', name:'SPA-FRANCORCHAMPS', country:'BELGIUM', flag:'🇧🇪', points:SPA, len:7004,
@@ -627,8 +643,12 @@ const TRACKS={
     elev:f=>elevProfile(MONACO_ELEV,f) },
   austria:{ id:'austria', name:'RED BULL RING', country:'AUSTRIA', flag:'🇦🇹', points:AUSTRIA, len:4318,
     halfW:8.6, night:false, env:'austria', runoff:'mixed',
-    kerb:['#d81c1c','#f2c400'], asphalt:0x33363c, ground:0x4c7d3c, laprec:'1:05',
+    kerb:['#d81c1c','#eef1f4'], asphalt:0x33363c, ground:0x4c7d3c, laprec:'1:05',
     elev:f=>elevProfile(AUSTRIA_ELEV,f) },
+  saopaulo:{ id:'saopaulo', name:'INTERLAGOS', country:'BRAZIL', flag:'🇧🇷', points:SAOPAULO, len:4309,
+    halfW:7.4, night:false, rain:true, env:'saopaulo', runoff:'mixed',
+    kerb:['#1a9e3e','#f2d000'], asphalt:0x2e3138, ground:0x3f6a34, laprec:'1:10',
+    elev:f=>elevProfile(SAO_ELEV,f) },   // São Paulo: green/yellow kerbs, often wet
 };
 let CFG=TRACKS.spa;
 let selLivery='redbull';          // chosen team livery (editor)
@@ -803,7 +823,7 @@ function buildWorld(sc,cfg){
   road.name='ROAD';
   // kerbs (red/white), raised profile — emissive so they stay bright, never black
   const kerbMat=new THREE.MeshStandardMaterial({map:kerbTex,emissiveMap:kerbTex,emissive:0xffffff,emissiveIntensity:0.55,roughness:0.55,side:THREE.DoubleSide});
-  const kerbW=cfg.street?0.6:2.0;                  // Monaco: tiny kerbs; permanent tracks: wide
+  const kerbW=cfg.street?1.1:2.0;                  // Monaco: small kerbs; permanent tracks: wide
   { const mk=(sideSign)=>{const v=[],uv=[],id=[];
       for(let i=0;i<=N;i++){const k=i%N,p=P[k],n=Nm[k];
         const inn=new THREE.Vector3().copy(p).addScaledVector(n,sideSign*(HW-0.1));
@@ -844,11 +864,13 @@ function buildWorld(sc,cfg){
   buildBarriers(sc,P,Nm,cum,barOff,barOffR);
   if(cfg.env==='monaco') buildMonaco(sc,P,Nm,Tg,barOff,barOffR);   // tight streets, tunnel, harbour
   else if(cfg.env==='austria') buildAustria(sc,P,Nm,barOff,barOffR); // open, distant mountains
+  else if(cfg.env==='saopaulo') buildSaoPaulo(sc,P,Nm,barOff,barOffR); // Interlagos: trees, favelas
   else if(cfg.env==='british') buildBritish(sc,P,Nm,barOff,barOffR); // Silverstone: open parkland
   else if(cfg.forest) buildForest(sc,P,Nm,barOff,barOffR);       // Spa: Ardennes forest
   else buildDesert(sc,P,Nm,Tg,barOff,barOffR);                   // Yas: desert + hotel
-  buildGrandstands(sc,P,Nm,Tg,barOff,barOffR);
+  if(!cfg.street) buildGrandstands(sc,P,Nm,Tg,barOff,barOffR);   // Monaco has no grandstands
   buildPit(sc,P,Nm,Tg);
+  buildBridges(sc,P,Nm,Tg,cum,barOff,barOffR);                   // overhead gantries + billboards (all tracks)
   if(wet) buildRain(sc); else sc.userData.rain=null;
   miniProj=null;                                   // minimap recomputes for new track
   return {};
@@ -1031,15 +1053,15 @@ function buildYasHotel(sc,P,Nm,Tg){
 /* ---- barriers: each track ZONE is a SINGLE sponsor (no alternating) ---- */
 const ZONE_SPONSORS=[
   {kind:'f1'},
-  {txt:'Heineken',bg:'#00842b',fg:'#ffffff',star:true},
+  {txt:'Heineken',bg:'#00842b',fg:'#ffffff',accent:'#e2000f',tag:'OPEN YOUR WORLD',mark:'star'},
   {kind:'aramco'},                                  // light blue
-  {txt:'DHL',bg:'#ffcc00',fg:'#d40511'},
-  {txt:'Lenovo',bg:'#e2231a',fg:'#ffffff'},
+  {txt:'DHL',bg:'#ffcc00',fg:'#d40511',accent:'#d40511',tag:'OFFICIAL LOGISTICS PARTNER',mark:'arrows'},
+  {txt:'Lenovo',bg:'#e2231a',fg:'#ffffff',accent:'#ffffff',tag:'SMARTER TECHNOLOGY FOR ALL',mark:'box'},
   {kind:'f1'},
-  {txt:'ROLEX',bg:'#12813f',fg:'#ffffff'},
-  {txt:'PIRELLI',bg:'#fff000',fg:'#e2000f'},
-  {txt:'MSC',bg:'#0a1e3f',fg:'#f0c33c'},
-  {txt:'PETRONAS',bg:'#00a19a',fg:'#0a3d3a'},
+  {txt:'ROLEX',bg:'#0a5c36',fg:'#ffffff',accent:'#d9b310',tag:'OFFICIAL TIMEPIECE',mark:'crown'},
+  {txt:'PIRELLI',bg:'#fff000',fg:'#111111',accent:'#e2000f',tag:'P ZERO',mark:'pzero'},
+  {txt:'MSC',bg:'#0a1e3f',fg:'#f0c33c',accent:'#f0c33c',tag:'CRUISES',mark:'wave'},
+  {txt:'PETRONAS',bg:'#00a19a',fg:'#e9f6f4',accent:'#0a3d3a',tag:'FLUID TECHNOLOGY SOLUTIONS',mark:'drop'},
 ];
 function shadeHex(hex,f){const n=parseInt(hex.slice(1),16);
   let r=(n>>16)&255,g=(n>>8)&255,b=n&255;
@@ -1052,24 +1074,48 @@ function drawF1(x,x0,pw,ph){x.fillStyle='#0a0c10';x.fillRect(x0,0,pw,ph);const c
 function drawStar(x,cx,cy,r,col){x.fillStyle=col;x.beginPath();
   for(let i=0;i<5;i++){const a=-Math.PI/2+i*2*Math.PI/5;x.lineTo(cx+Math.cos(a)*r,cy+Math.sin(a)*r);
     const a2=a+Math.PI/5;x.lineTo(cx+Math.cos(a2)*r*0.42,cy+Math.sin(a2)*r*0.42);}x.closePath();x.fill();}
-function makeZoneBoard(sp){ // high-res advertising hoarding (sharp, no stretch)
+function drawMark(x,kind,cx,cy,r,col){x.save();x.fillStyle=col;x.strokeStyle=col;
+  if(kind==='star'){drawStar(x,cx,cy,r,col);}
+  else if(kind==='crown'){x.beginPath();x.moveTo(cx-r,cy+r*0.5);x.lineTo(cx-r,cy-r*0.2);x.lineTo(cx-r*0.5,cy+r*0.15);
+    x.lineTo(cx,cy-r*0.5);x.lineTo(cx+r*0.5,cy+r*0.15);x.lineTo(cx+r,cy-r*0.2);x.lineTo(cx+r,cy+r*0.5);x.closePath();x.fill();}
+  else if(kind==='drop'){x.beginPath();x.moveTo(cx,cy-r);x.bezierCurveTo(cx+r,cy-r*0.1,cx+r*0.8,cy+r,cx,cy+r);
+    x.bezierCurveTo(cx-r*0.8,cy+r,cx-r,cy-r*0.1,cx,cy-r);x.fill();}
+  else if(kind==='arrows'){x.lineWidth=r*0.34;x.lineCap='round';for(let k=-1;k<=1;k++){x.beginPath();
+    x.moveTo(cx-r,cy+k*r*0.45);x.lineTo(cx+r*0.4,cy+k*r*0.45);x.stroke();}}
+  else if(kind==='wave'){x.lineWidth=r*0.24;for(let k=-1;k<=1;k++){x.beginPath();
+    for(let a=0;a<=1;a+=0.1)x.lineTo(cx-r+a*2*r,cy+k*r*0.4+Math.sin(a*7)*r*0.22);x.stroke();}}
+  else if(kind==='pzero'){x.lineWidth=r*0.22;x.beginPath();x.arc(cx,cy,r*0.8,0,7);x.stroke();
+    x.font=`900 ${r*0.9|0}px Arial`;x.textAlign='center';x.textBaseline='middle';x.fillText('P',cx,cy);}
+  else{x.fillRect(cx-r*0.7,cy-r*0.7,r*1.4,r*1.4);}                     // 'box'
+  x.restore();}
+function makeZoneBoard(sp){ // high-res advertising hoarding: mark + wordmark + tagline + accent
   const n=4, pw=1024, ph=208, c=cnv(pw*n,ph), x=c.getContext('2d');
-  for(let i=0;i<n;i++){const x0=i*pw, cy=ph*0.47;
+  for(let i=0;i<n;i++){const x0=i*pw, cy=ph*0.44;
     if(sp.kind==='f1'){drawF1(x,x0,pw,ph);}
     else if(sp.kind==='aramco'){
-      const g=x.createLinearGradient(0,0,0,ph);g.addColorStop(0,'#4fb8e6');g.addColorStop(1,'#1f96d0');
+      const g=x.createLinearGradient(0,0,0,ph);g.addColorStop(0,'#57c1ea');g.addColorStop(1,'#1f96d0');
       x.fillStyle=g;x.fillRect(x0,0,pw,ph);
-      x.fillStyle='#ffffff';x.font=`italic 800 ${ph*0.5|0}px Arial`;x.textAlign='center';x.textBaseline='middle';x.fillText('aramco',x0+pw/2,cy);
+      x.fillStyle='rgba(255,255,255,.16)';for(let s=0;s<6;s++){x.beginPath();x.moveTo(x0+s*pw/5-40,ph);x.lineTo(x0+s*pw/5+70,0);x.lineTo(x0+s*pw/5+90,0);x.lineTo(x0+s*pw/5-20,ph);x.fill();}
+      x.fillStyle='#ffffff';x.font=`italic 800 ${ph*0.44|0}px Arial`;x.textAlign='center';x.textBaseline='middle';x.fillText('aramco',x0+pw/2,ph*0.42);
+      x.font=`600 ${ph*0.11|0}px Arial`;x.fillStyle='rgba(255,255,255,.85)';x.fillText('POWERING CHAMPIONS',x0+pw/2,ph*0.72);
     }else{
       const g=x.createLinearGradient(0,0,0,ph);
-      g.addColorStop(0,shadeHex(sp.bg,1.14));g.addColorStop(0.5,sp.bg);g.addColorStop(1,shadeHex(sp.bg,0.88));
+      g.addColorStop(0,shadeHex(sp.bg,1.15));g.addColorStop(0.5,sp.bg);g.addColorStop(1,shadeHex(sp.bg,0.86));
       x.fillStyle=g;x.fillRect(x0,0,pw,ph);
-      x.textAlign='center';x.textBaseline='middle';x.fillStyle=sp.fg;
-      x.font=`900 ${ph*(sp.txt.length>7?0.42:0.56)|0}px Arial`;
-      let tx=x0+pw/2; if(sp.star){drawStar(x,x0+pw*0.24,cy,ph*0.32,'#ec1c24');tx=x0+pw*0.6;}
-      // faint drop shadow for legibility
-      x.fillStyle='rgba(0,0,0,.22)';x.fillText(sp.txt,tx+3,cy+3);
-      x.fillStyle=sp.fg;x.fillText(sp.txt,tx,cy);}
+      // diagonal accent band
+      x.fillStyle=sp.accent;x.beginPath();x.moveTo(x0,ph);x.lineTo(x0+pw*0.16,ph);x.lineTo(x0+pw*0.30,0);x.lineTo(x0+pw*0.14,0);x.closePath();x.fill();
+      x.beginPath();x.moveTo(x0+pw,0);x.lineTo(x0+pw*0.86,0);x.lineTo(x0+pw*0.74,ph);x.lineTo(x0+pw*0.88,ph);x.closePath();x.fill();
+      // brand mark (repeated small in corners + a big one at left)
+      if(sp.mark){drawMark(x,sp.mark,x0+pw*0.11,cy,ph*0.26,sp.accent);
+        drawMark(x,sp.mark,x0+pw*0.9,ph*0.3,ph*0.12,sp.fg);}
+      // wordmark + tagline
+      x.textAlign='center';x.textBaseline='middle';
+      x.font=`900 ${ph*(sp.txt.length>8?0.36:0.5)|0}px Arial`;
+      x.fillStyle='rgba(0,0,0,.22)';x.fillText(sp.txt,x0+pw*0.52+3,cy+3);
+      x.fillStyle=sp.fg;x.fillText(sp.txt,x0+pw*0.52,cy);
+      if(sp.tag){x.font=`700 ${ph*0.1|0}px Arial`;x.fillStyle=shadeHex(sp.bg,0.55);
+        x.fillText(sp.tag,x0+pw*0.52,ph*0.76);}
+    }
     // physical panel: top highlight + lower shadow band + hairline frame
     x.fillStyle='rgba(255,255,255,.12)';x.fillRect(x0,0,pw,ph*0.05);
     x.fillStyle='rgba(0,0,0,.34)';x.fillRect(x0,ph*0.9,pw,ph*0.1);
@@ -1185,27 +1231,56 @@ function makeYacht(hull,deck,glass){
 /* a single varied Monte-Carlo building (base at y=0, faces along local +Z) */
 function makeMonacoBuilding(w,d,h,type,col){
   const g=new THREE.Group();
-  const tints=['#ffe6b0','#ffdca0','#dfe8f2','#f2e0c0'];
-  const tint=tints[type%tints.length];
-  const bodyMat=new THREE.MeshStandardMaterial({map:makeWindows(Math.max(3,w/3.4|0),Math.max(6,h/5|0),tint),
-    color:col,emissive:0x100e0a,emissiveIntensity:0.28,roughness:0.88});
+  const tints=['#ffe6b0','#ffdca0','#dfe8f2','#f2e0c0','#ffcf9e'];
+  const winTint=tints[(Math.random()*tints.length)|0];
+  const trim=new THREE.MeshStandardMaterial({color:shadeHex(col,1.12),roughness:0.7});
+  const dark=new THREE.MeshStandardMaterial({color:shadeHex(col,0.66),roughness:0.75});
+  const rail=new THREE.MeshStandardMaterial({color:0x2a2c30,roughness:0.55,metalness:0.45});
+  const roofMat=new THREE.MeshStandardMaterial({color:['#5a5560','#6a4a3a','#7a2a2a','#3a4650'][(Math.random()*4)|0],roughness:0.85});
+  const green=new THREE.MeshStandardMaterial({color:0x2f6a34,roughness:1});
+  const awnCol=['#7a1f1f','#1f4a7a','#2a6a3a','#6a5a1f','#7a3a1f'][(Math.random()*5)|0];
+  const floors=Math.max(3,Math.round(h/3.6));
+  const glass=(type===2);
+  const bodyMat=glass
+    ? new THREE.MeshStandardMaterial({map:makeWindows(Math.max(3,w/2.6|0),Math.max(8,h/3.6|0),'#bfe0ff'),color:'#8794a8',metalness:0.45,roughness:0.42,emissive:0x14202e,emissiveIntensity:0.35})
+    : new THREE.MeshStandardMaterial({map:makeWindows(Math.max(3,w/3.0|0),floors,winTint),color:col,roughness:0.88,emissive:0x100e0a,emissiveIntensity:0.24});
   const body=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),bodyMat);body.position.y=h/2;g.add(body);
-  const trim=new THREE.MeshStandardMaterial({color:col,roughness:0.7});
-  if(type===0){ // apartment: rooftop plant box + parapet
-    const cap=new THREE.Mesh(new THREE.BoxGeometry(w*0.5,2,d*0.5),trim);cap.position.y=h+1;g.add(cap);
-    const par=new THREE.Mesh(new THREE.BoxGeometry(w+0.4,1,d+0.4),trim);par.position.y=h+0.5;g.add(par);
-  }else if(type===1){ // belle-époque hotel: cornice ledges + mansard top
-    for(const yy of [h*0.34,h*0.67]){const l=new THREE.Mesh(new THREE.BoxGeometry(w+0.6,0.7,d+0.6),trim);l.position.y=yy;g.add(l);}
-    const roof=new THREE.Mesh(new THREE.BoxGeometry(w*0.86,h*0.12,d*0.86),new THREE.MeshStandardMaterial({color:'#5a5560',roughness:0.8}));
-    roof.position.y=h+h*0.06;g.add(roof);
-  }else if(type===2){ // modern glass tower: bluish, slim antenna
-    body.material=new THREE.MeshStandardMaterial({map:makeWindows(Math.max(3,w/3|0),Math.max(8,h/4.5|0),'#bfe0ff'),
-      color:'#7d8aa0',metalness:0.4,roughness:0.5,emissive:0x14202e,emissiveIntensity:0.3});
-    const ant=new THREE.Mesh(new THREE.CylinderGeometry(0.12,0.12,7),trim);ant.position.y=h+3.5;g.add(ant);
-  }else{ // ornate casino/townhouse: corner pilasters + balustrade
-    for(const sx of [-1,1])for(const sz of [-1,1]){const pil=new THREE.Mesh(new THREE.BoxGeometry(1,h,1),trim);
-      pil.position.set(sx*(w/2-0.5),h/2,sz*(d/2-0.5));g.add(pil);}
-    const bal=new THREE.Mesh(new THREE.BoxGeometry(w+0.5,1.4,d+0.5),trim);bal.position.y=h+0.7;g.add(bal);
+  // L-shaped wing on some buildings (shape variety)
+  if(!glass && Math.random()<0.35){const ww=w*0.5,wd=d*0.6,wh=h*(0.6+Math.random()*0.3);
+    const wing=new THREE.Mesh(new THREE.BoxGeometry(ww,wh,wd),bodyMat);
+    wing.position.set((w/2+ww/2)*(Math.random()<0.5?-1:1),wh/2,(Math.random()-0.5)*d*0.3);g.add(wing);}
+  // ground floor: darker plinth + a coloured shop awning on the street faces
+  const plinth=new THREE.Mesh(new THREE.BoxGeometry(w+0.3,h/floors*0.9,d+0.3),dark);plinth.position.y=h/floors*0.45;g.add(plinth);
+  if(!glass)for(const fx of [-1,1]){const aw=new THREE.Mesh(new THREE.BoxGeometry(0.7,0.25,d*0.86),new THREE.MeshStandardMaterial({color:awnCol,roughness:0.8}));
+    aw.position.set(fx*(w/2+0.35),h/floors*0.75,0);aw.rotation.z=fx*0.3;g.add(aw);}
+  // cornice ledge + iron balcony with railing at every floor, on both street faces
+  for(let f=1;f<floors;f++){const ly=f*h/floors;
+    const ledge=new THREE.Mesh(new THREE.BoxGeometry(w+0.4,0.28,d+0.4),trim);ledge.position.y=ly;g.add(ledge);
+    if(!glass)for(const fx of [-1,1]){
+      const slab=new THREE.Mesh(new THREE.BoxGeometry(0.45,0.12,d*0.82),trim);slab.position.set(fx*(w/2+0.22),ly+0.35,0);g.add(slab);
+      const rl=new THREE.Mesh(new THREE.BoxGeometry(0.05,0.42,d*0.82),rail);rl.position.set(fx*(w/2+0.42),ly+0.55,0);g.add(rl);
+      if(Math.random()<0.4){const pl=new THREE.Mesh(new THREE.BoxGeometry(0.3,0.3,0.3),green);pl.position.set(fx*(w/2+0.3),ly+0.55,(Math.random()-0.5)*d*0.6);g.add(pl);}
+    }
+  }
+  // rooflines by archetype
+  if(type===0){ // Belle-Époque: mansard roof + chimneys + parapet
+    const par=new THREE.Mesh(new THREE.BoxGeometry(w+0.5,0.9,d+0.5),trim);par.position.y=h+0.45;g.add(par);
+    const roof=new THREE.Mesh(new THREE.BoxGeometry(w*0.9,h*0.1,d*0.9),roofMat);roof.position.y=h+0.9+h*0.05;g.add(roof);
+    for(let k=0;k<2+((Math.random()*2)|0);k++){const ch=new THREE.Mesh(new THREE.BoxGeometry(0.6,1.4,0.6),dark);
+      ch.position.set((Math.random()-0.5)*w*0.7,h+1.5,(Math.random()-0.5)*d*0.7);g.add(ch);}
+  }else if(type===2){ // modern tower: stepped setback + antenna + rooftop plant
+    const t1=new THREE.Mesh(new THREE.BoxGeometry(w*0.78,h*0.12,d*0.78),bodyMat);t1.position.y=h+h*0.06;g.add(t1);
+    const cap=new THREE.Mesh(new THREE.BoxGeometry(w*0.5,1.2,d*0.5),dark);cap.position.y=h+h*0.12+0.6;g.add(cap);
+    const ant=new THREE.Mesh(new THREE.CylinderGeometry(0.1,0.1,6),rail);ant.position.y=h+h*0.12+3.6;g.add(ant);
+  }else if(type===2||type===4){ // terraced hillside: setback tiers with roof gardens
+    let cw=w,cd=d,cy=h;for(let t=0;t<2;t++){cw*=0.7;cd*=0.7;const tier=new THREE.Mesh(new THREE.BoxGeometry(cw,h*0.24,cd),bodyMat);tier.position.set((Math.random()-0.5)*w*0.15,cy+h*0.12,0);g.add(tier);
+      const grd=new THREE.Mesh(new THREE.BoxGeometry(cw*0.9,0.3,cd*0.9),green);grd.position.y=cy+0.15;g.add(grd);cy+=h*0.24;}
+  }else{ // ornate hotel/casino: corner towers, balustrade, small dome, flags
+    for(const sx of [-1,1])for(const sz of [-1,1]){const pil=new THREE.Mesh(new THREE.BoxGeometry(1.1,h+2,1.1),trim);
+      pil.position.set(sx*(w/2-0.4),(h+2)/2,sz*(d/2-0.4));g.add(pil);}
+    const bal=new THREE.Mesh(new THREE.BoxGeometry(w+0.6,1.2,d+0.6),trim);bal.position.y=h+0.6;g.add(bal);
+    if(Math.random()<0.6){const dome=new THREE.Mesh(new THREE.SphereGeometry(Math.min(w,d)*0.28,16,10,0,7,0,Math.PI/2),roofMat);dome.position.y=h+1.2;g.add(dome);}
+    for(const fx of [-1,1]){const pole=new THREE.Mesh(new THREE.CylinderGeometry(0.06,0.06,3),rail);pole.position.set(fx*(w/2-0.6),h+3,d/2-0.4);g.add(pole);}
   }
   g.traverse(o=>{o.castShadow=true;o.receiveShadow=true;});
   return g;
@@ -1234,13 +1309,15 @@ function buildMonaco(sc,P,Nm,Tg,offL,offR){
     for(const [side,off] of [[1,offL],[-1,offR]]){
       if(Math.random()<0.12) continue;                     // occasional gaps (side streets)
       const type=(Math.random()*4)|0;
-      const w=(type===2?7+Math.random()*4:11+Math.random()*9);   // towers narrower
-      const d=10+Math.random()*12;
+      const w=(type===2?7+Math.random()*4:10+Math.random()*8);   // towers narrower
+      const d=9+Math.random()*9;
       const h=(type===2?42+Math.random()*34:type===3?14+Math.random()*10:20+Math.random()*30);
-      const dist=off(i)+w/2+1.3;                            // inner face ~1.3m off the barrier — no overlap
+      const dist=off(i)+w/2+2.0;                            // inner face ~2m off the barrier
       const x=p.x+n.x*side*dist, z=p.z+n.z*side*dist;
       if(inHarbour(x,z)) continue;
-      if(clearB(x,z)<(HW+2.5)*(HW+2.5)) continue;          // never straddle the road or an adjacent street
+      // whole footprint (incl. half-width) must clear EVERY part of the track/road
+      const need=HW+w/2+2.0;
+      if(clearB(x,z)<need*need) continue;
       const col=pastels[(Math.random()*pastels.length)|0];
       const b=makeMonacoBuilding(w,d,h,type,col);
       const gy=gh(x,z);b.position.set(x,gy,z);b.rotation.y=ang;
@@ -1299,6 +1376,88 @@ function buildAustria(sc,P,Nm,offL,offR){
   hills.position.y=32;sc.add(hills);
 }
 
+/* big ad texture for gantry signs + trackside billboards */
+function makeBillboardTex(){
+  const brands=[['#e10600','#fff','APEX GP'],['#00842b','#fff','Heineken'],['#ffcc00','#d40511','DHL'],
+    ['#0a5c36','#d9b310','ROLEX'],['#fff000','#111','PIRELLI'],['#0a1e3f','#f0c33c','MSC CRUISES'],
+    ['#e2231a','#fff','Lenovo'],['#00a19a','#e9f6f4','PETRONAS']];
+  const [bg,fg,txt]=brands[(Math.random()*brands.length)|0];
+  const c=cnv(512,256),x=c.getContext('2d');
+  const g=x.createLinearGradient(0,0,0,256);g.addColorStop(0,shadeHex(bg,1.12));g.addColorStop(1,shadeHex(bg,0.85));
+  x.fillStyle=g;x.fillRect(0,0,512,256);
+  x.fillStyle=fg;x.textAlign='center';x.textBaseline='middle';x.font='900 '+(txt.length>7?52:76)+'px Arial';
+  x.fillText(txt,256,128);
+  x.strokeStyle='rgba(0,0,0,.3)';x.lineWidth=6;x.strokeRect(3,3,506,250);
+  const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;t.anisotropy=8;return t;
+}
+/* overhead gantries + trackside billboards — used on every circuit */
+function buildBridges(sc,P,Nm,Tg,cum,offL,offR){
+  const N=P.length;
+  const legMat=new THREE.MeshStandardMaterial({color:0x2a2e36,roughness:0.7,metalness:0.45});
+  const beamMat=new THREE.MeshStandardMaterial({color:0x14171d,roughness:0.7,metalness:0.3});
+  const nB=4;
+  for(let bI=0;bI<nB;bI++){const i=Math.round((bI+0.55)/nB*N)%N;const p=P[i],n=Nm[i],tg=Tg[i];
+    const gyc=TRACK.terrainH(p.x,p.z);
+    const L=new THREE.Vector3().copy(p).addScaledVector(n,offL(i)+1.5), Rr=new THREE.Vector3().copy(p).addScaledVector(n,-offR(i)-1.5);
+    const span=L.distanceTo(Rr), H=9.5, ang=Math.atan2(n.x,n.z), fang=Math.atan2(tg.x,tg.z);
+    for(const pt of [L,Rr]){const gy=TRACK.terrainH(pt.x,pt.z);
+      const leg=new THREE.Mesh(new THREE.BoxGeometry(1.3,H,1.3),legMat);leg.position.set(pt.x,gy+H/2,pt.z);leg.castShadow=true;sc.add(leg);}
+    const mid=new THREE.Vector3().lerpVectors(L,Rr,0.5);
+    const beam=new THREE.Mesh(new THREE.BoxGeometry(3.4,2.6,span),beamMat);beam.position.set(mid.x,gyc+H+1.3,mid.z);beam.rotation.y=ang;sc.add(beam);
+    // sign faces oncoming cars (both sides)
+    for(const s of [1,-1]){const sign=new THREE.Mesh(new THREE.PlaneGeometry(span*0.82,2.1),
+        new THREE.MeshBasicMaterial({map:makeBillboardTex(),side:THREE.DoubleSide}));
+      sign.position.set(mid.x+Math.sin(fang)*s*1.7,gyc+H+1.3,mid.z+Math.cos(fang)*s*1.7);sign.rotation.y=ang;sc.add(sign);}
+  }
+  // trackside billboards on tall posts, set behind the barrier
+  const bbPost=new THREE.MeshStandardMaterial({color:0x23262c,roughness:0.7});
+  for(let i=0;i<N;i+=Math.round(N/9)){const p=P[i],n=Nm[i],tg=Tg[i];const side=(i%2)?1:-1;
+    const off=(side>0?offL:offR)(i)+6;const bx=p.x+n.x*side*off, bz=p.z+n.z*side*off;const gy=TRACK.terrainH(bx,bz);
+    const fang=Math.atan2(tg.x,tg.z);
+    for(const px of [-3.6,3.6]){const post=new THREE.Mesh(new THREE.BoxGeometry(0.5,7,0.5),bbPost);
+      post.position.set(bx+Math.cos(fang)*px,gy+3.5,bz-Math.sin(fang)*px);post.castShadow=true;sc.add(post);}
+    const board=new THREE.Mesh(new THREE.PlaneGeometry(9,4.6),new THREE.MeshBasicMaterial({map:makeBillboardTex(),side:THREE.DoubleSide}));
+    board.position.set(bx,gy+8,bz);board.rotation.y=fang+Math.PI/2;board.lookAt(p.x,gy+8,p.z);sc.add(board);
+  }
+}
+/* ---- São Paulo (Interlagos): tree areas, open grass, favela hillsides, city skyline ---- */
+function buildSaoPaulo(sc,P,Nm,offL,offR){
+  const N=P.length,R=TRACK.radius, gh=TRACK.terrainH;
+  const samp=[];for(let i=0;i<N;i+=4)samp.push(P[i]);
+  const clear=(x,z)=>{let m=1e9;for(const q of samp){const dx=x-q.x,dz=z-q.z;const d=dx*dx+dz*dz;if(d<m)m=d;}return m;};
+  const M=new THREE.Matrix4(),S=new THREE.Vector3(),Q=new THREE.Quaternion(),T=new THREE.Vector3();
+  // lush tropical trees (denser than Silverstone), in clumps around the track
+  const blobG=new THREE.IcosahedronGeometry(0.5,0);
+  const treeMats=[0x1f5a24,0x287029,0x18461b,0x357a30].map(c=>new THREE.MeshStandardMaterial({color:c,roughness:1,flatShading:true}));
+  const lists=treeMats.map(()=>[]);
+  let placed=0,tries=0;
+  while(placed<2600 && tries<24000){tries++;
+    const a=Math.random()*TAU, rr=R*0.75+Math.random()*R*1.3, x=Math.cos(a)*rr, z=Math.sin(a)*rr;
+    if(clear(x,z)<60*60) continue;
+    const h=9+Math.random()*16;lists[(Math.random()*4)|0].push({x,y:gh(x,z),z,w:h*(0.5+Math.random()*0.3),h});placed++;}
+  lists.forEach((list,bi)=>{ if(!list.length)return;const im=new THREE.InstancedMesh(blobG,treeMats[bi],list.length);im.frustumCulled=false;im.receiveShadow=true;
+    list.forEach((o,i)=>{T.set(o.x,o.y+o.h*0.5,o.z);S.set(o.w,o.h,o.w);M.compose(T,Q,S);im.setMatrixAt(i,M);});im.instanceMatrix.needsUpdate=true;sc.add(im);});
+  // favela hillsides: tight clusters of small colourful stacked houses
+  const favCols=[0xc96a4a,0xd99a5a,0xe0c060,0x5a8ac0,0xc05a7a,0x7aa85a,0xd6d0c0,0xe08a5a,0xb0546a];
+  const favGeo=new THREE.BoxGeometry(1,1,1);const favs=[];
+  for(let cl=0;cl<6;cl++){const a=Math.random()*TAU, rr=R*0.95+Math.random()*R*0.7, cx=Math.cos(a)*rr, cz=Math.sin(a)*rr;
+    if(clear(cx,cz)<90*90) continue;
+    for(let k=0;k<160;k++){const x=cx+(Math.random()-0.5)*80, z=cz+(Math.random()-0.5)*80;
+      const w=3+Math.random()*3, h=3+Math.random()*5, d=3+Math.random()*3;
+      favs.push({x,y:gh(x,z),z,w,h,d,c:favCols[(Math.random()*favCols.length)|0]});}}
+  if(favs.length){const im=new THREE.InstancedMesh(favGeo,new THREE.MeshStandardMaterial({roughness:0.9}),favs.length);
+    im.receiveShadow=true;const col=new THREE.Color();
+    favs.forEach((o,i)=>{T.set(o.x,o.y+o.h/2,o.z);S.set(o.w,o.h,o.d);M.compose(T,Q,S);im.setMatrixAt(i,M);col.setHex(o.c);im.setColorAt(i,col);});
+    im.instanceMatrix.needsUpdate=true;if(im.instanceColor)im.instanceColor.needsUpdate=true;sc.add(im);}
+  // distant São Paulo skyline (dense towers)
+  const tints=['#3a4653','#42505f','#4a4653','#39424d'];
+  for(let i=0;i<60;i++){const a=Math.random()*TAU, rr=R*1.5+Math.random()*R*0.7, h=40+Math.random()*130, w=14+Math.random()*18;
+    const bmat=new THREE.MeshStandardMaterial({map:makeWindows(Math.max(3,w/6|0),Math.max(6,h/8|0),tints[i%4]),emissive:0x1a2430,emissiveIntensity:0.7,roughness:0.75});
+    const b=new THREE.Mesh(new THREE.BoxGeometry(w,h,w),bmat);b.position.set(Math.cos(a)*rr,h/2-2,Math.sin(a)*rr);sc.add(b);}
+  // green foothill ring
+  const ring=new THREE.Mesh(new THREE.CylinderGeometry(R*1.85,R*2.0,120,56,1,true),
+    new THREE.MeshStandardMaterial({color:0x244d22,roughness:1,side:THREE.BackSide}));ring.position.y=36;sc.add(ring);
+}
 /* ---- open British parkland (Silverstone): fields, hedgerows, marquees, car parks, a lake ---- */
 function buildBritish(sc,P,Nm,offL,offR){
   const N=P.length,R=TRACK.radius, gh=TRACK.terrainH;
@@ -2140,7 +2299,7 @@ const MODES=[
    meta:[['Assists','LOW'],['Input','KEYS'],['Units','KM/H']]},
 ];
 let sel=0, sessionMode='gp';
-const TRACK_IDS=['spa','yas','silverstone','monaco','austria']; let selTrack=0, builtTrackId='spa';
+const TRACK_IDS=['spa','yas','silverstone','monaco','austria','saopaulo']; let selTrack=0, builtTrackId='spa';
 function curCfg(){return TRACKS[TRACK_IDS[selTrack]];}
 function cycleTrack(d){selTrack=(selTrack+d+TRACK_IDS.length)%TRACK_IDS.length;renderDetail();Sound.init();Sound.blip(430,.05);}
 function buildMenu(){
