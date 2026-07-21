@@ -383,6 +383,24 @@ const SILVERSTONE=[
  [166,385],[141,363],[132,343],[133,321],[144,302],[175,285],[226,252],[271,208],[290,190],[293,177],
  [278,165],[272,152],[282,139],[317,115],[340,106],[366,122],[387,140]
 ];
+const MONACO=[
+ [160,347],[229,264],[263,231],[299,216],[325,203],[340,186],[368,206],[392,228],[447,264],[471,281],
+ [519,315],[551,335],[585,349],[626,361],[664,392],[695,414],[719,428],[754,426],[787,408],[799,384],
+ [801,355],[803,326],[818,308],[845,298],[886,292],[938,287],[981,282],[1000,281],[1013,287],[1016,300],
+ [1011,313],[1000,322],[993,332],[992,353],[987,370],[981,381],[986,394],[1003,389],[1007,370],[1008,344],
+ [1014,332],[1028,329],[1056,342],[1077,357],[1086,368],[1061,392],[998,446],[951,477],[900,498],[849,509],
+ [802,501],[721,474],[652,447],[586,399],[562,379],[545,390],[526,381],[526,365],[471,325],[403,271],
+ [363,240],[320,251],[278,273],[253,302],[241,317],[248,337],[229,370],[193,425],[178,444],[155,435],
+ [126,487],[112,530],[120,569],[127,583],[119,602],[90,594],[66,574],[56,557],[71,543],[86,482],[129,397]
+];
+const AUSTRIA=[
+ [788,475],[728,524],[682,559],[648,585],[633,598],[621,594],[598,577],[515,529],[434,470],[367,413],
+ [312,364],[254,340],[197,316],[171,307],[163,301],[163,293],[203,269],[263,242],[325,224],[424,203],
+ [527,173],[588,151],[606,143],[619,147],[624,155],[621,176],[611,212],[595,238],[562,259],[536,270],
+ [470,287],[426,301],[409,325],[409,354],[426,376],[465,405],[504,435],[528,441],[553,427],[566,413],
+ [581,364],[609,332],[677,297],[766,258],[837,227],[877,207],[898,212],[928,234],[957,270],[981,300],
+ [958,337],[932,363],[881,402],[843,432],[819,455]
+];
 /* Spa elevation, keyed to lap fraction (S/F=0). The signature is Eau Rouge/
    Raidillon: a hard compression at the bottom (f≈0.13) into a steep climb up the
    Kemmel straight to Les Combes (the high point). Rolls back down through the
@@ -398,6 +416,17 @@ function elevProfile(keys,f){
   const t=(f-a[0])/Math.max(b[0]-a[0],1e-6), s=t*t*(3-2*t);      // smoothstep between control points
   return a[1]+(b[1]-a[1])*s;
 }
+// Monaco: sea-level S/F, steep climb to Casino (high point), plunge through the
+// tunnel to the harbour chicane (low), rolling back to the line.
+const MONACO_ELEV=[
+  [0.00,8],[0.05,15],[0.12,34],[0.18,43],[0.24,38],[0.30,29],   // Ste Devote · Beau Rivage climb · Casino · Mirabeau
+  [0.38,18],[0.46,11],[0.54,6],[0.66,8],[0.78,10],[0.88,12],[1.00,8], // Portier · tunnel · harbour chicane · pool · Rascasse
+];
+// Red Bull Ring: uphill to Turn 1, undulating over the hill and back down.
+const AUSTRIA_ELEV=[
+  [0.00,20],[0.08,35],[0.18,31],[0.30,18],[0.42,10],[0.55,15],
+  [0.70,25],[0.82,32],[0.92,27],[1.00,20],
+];
 /* per-circuit configuration */
 const TRACKS={
   spa:{ id:'spa', name:'SPA-FRANCORCHAMPS', country:'BELGIUM', flag:'🇧🇪', points:SPA, len:7004,
@@ -412,6 +441,14 @@ const TRACKS={
     halfW:7.8, night:false, rain:true, forest:false, env:'british', runoff:'mixed',
     kerb:['#d81c1c','#eef1f4'], asphalt:0x33363c, ground:0x3b5a30, laprec:'1:27',
     elev:f=>6*Math.sin(f*TAU*2+0.4)+3.2*Math.sin(f*TAU*5-0.7) },  // gentle British undulation, always wet
+  monaco:{ id:'monaco', name:'MONTE CARLO', country:'MONACO', flag:'🇲🇨', points:MONACO, len:3337,
+    halfW:5.0, night:false, env:'monaco', street:true, runoff:'none',
+    kerb:['#d81c1c','#eef1f4'], asphalt:0x2c2f36, ground:0x8b9098, laprec:'1:12',
+    elev:f=>elevProfile(MONACO_ELEV,f) },
+  austria:{ id:'austria', name:'RED BULL RING', country:'AUSTRIA', flag:'🇦🇹', points:AUSTRIA, len:4318,
+    halfW:8.6, night:false, env:'austria', runoff:'mixed',
+    kerb:['#d81c1c','#f2c400'], asphalt:0x33363c, ground:0x4c7d3c, laprec:'1:05',
+    elev:f=>elevProfile(AUSTRIA_ELEV,f) },
 };
 let CFG=TRACKS.spa;
 let selLivery='redbull';          // chosen team livery (editor)
@@ -512,7 +549,8 @@ function buildWorld(sc,cfg){
   const sturn=new Array(N).fill(0);
   for(let i=0;i<N;i++){let s=0;for(let k=-7;k<=7;k++)s+=turn[(i+k+N)%N];sturn[i]=s;}
   const runL=new Array(N),runR=new Array(N);
-  for(let i=0;i<N;i++){const c=sturn[i],mag=Math.min(Math.abs(c)*80,36);
+  const RUNMAX=cfg.street?0:(cfg.runoff==='mixed'?42:36);   // Austria wide run-off; Monaco none
+  for(let i=0;i<N;i++){const c=sturn[i],mag=Math.min(Math.abs(c)*90,RUNMAX);
     runL[i]=c<0?mag:0; runR[i]=c>0?mag:0;}         // run-off ONLY on the outside of corners
   const smooth=a=>{const o=a.slice();for(let i=0;i<N;i++){let s=0;for(let k=-9;k<=9;k++)s+=o[(i+k+N)%N];a[i]=s/19;}};
   smooth(runL);smooth(runR);
@@ -544,7 +582,9 @@ function buildWorld(sc,cfg){
     const m=new THREE.Mesh(g,mat);m.receiveShadow=true;m.renderOrder=ro;sc.add(m);return m;
   };
 
-  if(cfg.runoff==='blue'){
+  if(cfg.runoff==='none'){
+    // Monaco: no run-off — a thin painted strip then straight into the barrier
+  }else if(cfg.runoff==='blue'){
     // Yas Marina: blue/teal tarmac run-off with a white outline, minimal
     const blueMat=new THREE.MeshStandardMaterial({color:0x1c6f7c,roughness:0.85,side:THREE.DoubleSide});
     strip(k=>HW+0.9, k=>HW+0.9+runL[k], 0.0, blueMat, 0, 8);
@@ -583,10 +623,11 @@ function buildWorld(sc,cfg){
   road.name='ROAD';
   // kerbs (red/white), raised profile — emissive so they stay bright, never black
   const kerbMat=new THREE.MeshStandardMaterial({map:kerbTex,emissiveMap:kerbTex,emissive:0xffffff,emissiveIntensity:0.55,roughness:0.55,side:THREE.DoubleSide});
+  const kerbW=cfg.street?0.6:2.0;                  // Monaco: tiny kerbs; permanent tracks: wide
   { const mk=(sideSign)=>{const v=[],uv=[],id=[];
       for(let i=0;i<=N;i++){const k=i%N,p=P[k],n=Nm[k];
         const inn=new THREE.Vector3().copy(p).addScaledVector(n,sideSign*(HW-0.1));
-        const out=new THREE.Vector3().copy(p).addScaledVector(n,sideSign*(HW+2.0));
+        const out=new THREE.Vector3().copy(p).addScaledVector(n,sideSign*(HW+kerbW));
         v.push(inn.x,inn.y+0.03,inn.z,out.x,out.y+0.10,out.z);
         const vv=cum[i]/9.0;uv.push(0,vv,1,vv);}   // wider kerb, more spread red/yellow stripes
       for(let i=0;i<N;i++){const a=i*2;id.push(a,a+2,a+1,a+1,a+2,a+3);}
@@ -611,15 +652,19 @@ function buildWorld(sc,cfg){
     const sfl=new THREE.Mesh(sg,new THREE.MeshStandardMaterial({map:makeCheck(),roughness:0.8,side:THREE.DoubleSide}));
     sfl.renderOrder=5;sc.add(sfl);}
 
-  // barrier line offset: kerb+astroturf + grass verge + corner run-off (set well back)
-  const barOff=k=>Math.min(HW+4+16+runL[k], maxOff[k]);   // clamp so walls never cross onto other kerbs
-  const barOffR=k=>Math.min(HW+4+16+runR[k], maxOff[k]);
+  // barrier line offset. Street circuits (Monaco) hug the track edge; the walls
+  // close right in at the chicanes. Permanent tracks set the wall back past the run-off.
+  const barBase=cfg.street?1.5:(4+16);
+  const barOff=k=>Math.min(HW+barBase+runL[k], maxOff[k]);   // clamp so walls never cross onto other kerbs
+  const barOffR=k=>Math.min(HW+barBase+runR[k], maxOff[k]);
   TRACK.barOffL=barOff;TRACK.barOffR=barOffR;
   TRACK.wallL=[];TRACK.wallR=[];
   for(let i=0;i<N;i++){TRACK.wallL[i]=barOff(i);TRACK.wallR[i]=barOffR(i);}
 
   buildBarriers(sc,P,Nm,cum,barOff,barOffR);
-  if(cfg.env==='british') buildBritish(sc,P,Nm,barOff,barOffR);  // Silverstone: open parkland
+  if(cfg.env==='monaco') buildMonaco(sc,P,Nm,Tg,barOff,barOffR);   // tight streets, tunnel, harbour
+  else if(cfg.env==='austria') buildAustria(sc,P,Nm,barOff,barOffR); // open, distant mountains
+  else if(cfg.env==='british') buildBritish(sc,P,Nm,barOff,barOffR); // Silverstone: open parkland
   else if(cfg.forest) buildForest(sc,P,Nm,barOff,barOffR);       // Spa: Ardennes forest
   else buildDesert(sc,P,Nm,Tg,barOff,barOffR);                   // Yas: desert + hotel
   buildGrandstands(sc,P,Nm,Tg,barOff,barOffR);
@@ -931,6 +976,101 @@ function buildForest(sc,P,Nm,offL,offR){
   const geo=new THREE.CylinderGeometry(R*1.9,R*2.1,170,72,1,true);
   const mesh=new THREE.Mesh(geo,new THREE.MeshStandardMaterial({color:0x1b3a1d,roughness:1,side:THREE.BackSide}));
   mesh.position.y=170/2-20;sc.add(mesh);
+}
+
+/* a simple moored yacht */
+function makeYacht(hull,deck,glass){
+  const g=new THREE.Group();const L=8+Math.random()*16;
+  const b=new THREE.Mesh(new THREE.BoxGeometry(L,3.2,3.4),hull);b.position.y=1.3;
+  const pr=new THREE.Mesh(new THREE.ConeGeometry(1.7,4.2,4),hull);pr.rotation.z=-Math.PI/2;pr.position.set(L/2+1.5,1.3,0);
+  const d=new THREE.Mesh(new THREE.BoxGeometry(L*0.52,2.2,2.6),deck);d.position.set(-1,3.3,0);
+  const w=new THREE.Mesh(new THREE.BoxGeometry(L*0.36,1.5,2.4),glass);w.position.set(-1,4.8,0);
+  const mast=new THREE.Mesh(new THREE.CylinderGeometry(0.14,0.14,9),deck);mast.position.set(1,7,0);
+  g.add(b,pr,d,w,mast);g.scale.setScalar(0.85+Math.random()*0.9);return g;
+}
+/* ---- Monaco: tight streets lined with tall city blocks, the harbour + yachts, a tunnel ---- */
+function buildMonaco(sc,P,Nm,Tg,offL,offR){
+  const N=P.length,R=TRACK.radius, gh=TRACK.terrainH;
+  let cX=0,cZ=0;for(const p of P){cX+=p.x;cZ+=p.z;}cX/=N;cZ/=N;
+  const HWX=R*0.42, HWZ=R*0.30;                    // harbour rectangle (infield)
+  const inHarbour=(x,z)=>Math.abs(x-cX)<HWX && Math.abs(z-cZ)<HWZ;
+  // --- harbour water + moored yachts ---
+  { const water=new THREE.Mesh(new THREE.PlaneGeometry(HWX*2,HWZ*2),
+      new THREE.MeshStandardMaterial({color:0x1b5f7e,roughness:0.12,metalness:0.75,emissive:0x0a3345,emissiveIntensity:0.35}));
+    water.rotation.x=-Math.PI/2;water.position.set(cX,-1.6,cZ);sc.add(water);
+    const hull=new THREE.MeshStandardMaterial({color:0xf4f6f8,roughness:0.4});
+    const deck=new THREE.MeshStandardMaterial({color:0x243244,roughness:0.5});
+    const glass=new THREE.MeshStandardMaterial({color:0x9fd8ff,emissive:0x2a5a80,emissiveIntensity:0.6,transparent:true,opacity:0.6});
+    for(let i=0;i<22;i++){const y=makeYacht(hull,deck,glass);
+      y.position.set(cX+(Math.random()-0.5)*HWX*1.7,-0.4,cZ+(Math.random()-0.5)*HWZ*1.7);
+      y.rotation.y=Math.random()*TAU;sc.add(y);} }
+  // --- dense Monte-Carlo city blocks lining the OUTSIDE of the streets ---
+  const pastels=[0xd8cdb8,0xcbb79a,0xe0d6c4,0xc9a889,0xbfc4c9,0xd6c2a2,0xb9a88e];
+  for(let i=0;i<N;i+=3){const p=P[i],n=Nm[i],tg=Tg[i];
+    for(const [side,off] of [[1,offL],[-1,offR]]){
+      if(Math.random()<0.18) continue;                     // occasional gaps (side streets)
+      const dist=off(i)+5+Math.random()*5;
+      const x=p.x+n.x*side*dist, z=p.z+n.z*side*dist;
+      if(inHarbour(x,z)) continue;                          // no buildings on the water
+      const w=9+Math.random()*10, d=9+Math.random()*12, h=16+Math.random()*46;
+      const col=pastels[(Math.random()*pastels.length)|0];
+      const bMat=new THREE.MeshStandardMaterial({map:makeWindows(Math.max(3,w/4|0),Math.max(6,h/6|0),'#ffe6b0'),
+        color:col,emissive:0x141210,emissiveIntensity:0.35,roughness:0.85});
+      const b=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),bMat);
+      const gy=gh(x,z);b.position.set(x,gy+h/2,z);b.rotation.y=Math.atan2(tg.x,tg.z);
+      b.castShadow=true;b.receiveShadow=true;sc.add(b);}}
+  // --- the tunnel: a roofed section over ~f 0.42–0.50 (Portier → chicane) ---
+  { const i0=Math.round(N*0.42), i1=Math.round(N*0.50), HW=TRACK.halfW;
+    const wallMat=new THREE.MeshStandardMaterial({color:0xdad2c4,roughness:0.9,side:THREE.DoubleSide});
+    const roofMat=new THREE.MeshStandardMaterial({color:0x2b2b30,roughness:0.9,emissive:0x1a1408,emissiveIntensity:0.5,side:THREE.DoubleSide});
+    const vL=[],vR=[],vC=[],idL=[],idR=[],idC=[];const TH=7.5,TW=HW+3;
+    for(let i=i0;i<=i1;i++){const k=i%N,p=P[k],n=Nm[k],y=p.y;
+      const l=new THREE.Vector3().copy(p).addScaledVector(n,TW), r=new THREE.Vector3().copy(p).addScaledVector(n,-TW);
+      vL.push(l.x,y,l.z, l.x,y+TH,l.z); vR.push(r.x,y,r.z, r.x,y+TH,r.z);
+      vC.push(l.x,y+TH,l.z, r.x,y+TH,r.z);}
+    const seg=i1-i0;
+    for(let i=0;i<seg;i++){const a=i*2;idL.push(a,a+2,a+1,a+1,a+2,a+3);idR.push(a,a+1,a+2,a+1,a+3,a+2);idC.push(a,a+2,a+1,a+1,a+2,a+3);}
+    const mk=(v,id,mat)=>{const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(v,3));g.setIndex(id);g.computeVertexNormals();const m=new THREE.Mesh(g,mat);m.renderOrder=2;sc.add(m);};
+    mk(vL,idL,wallMat);mk(vR,idR,wallMat);mk(vC,idC,roofMat);
+    for(let i=i0;i<=i1;i+=3){const k=i%N,p=P[k];const lt=new THREE.PointLight(0xffdd88,2.2,26,2);lt.position.set(p.x,p.y+TH-0.6,p.z);sc.add(lt);} }
+  // --- headland behind the city so the horizon isn't empty ---
+  const hill=new THREE.Mesh(new THREE.CylinderGeometry(R*1.7,R*1.9,140,48,1,true),
+    new THREE.MeshStandardMaterial({color:0x6a6b5a,roughness:1,side:THREE.BackSide}));
+  hill.position.y=50;sc.add(hill);
+}
+/* ---- Austria (Red Bull Ring): open green hills, distant alpine mountains ---- */
+function buildAustria(sc,P,Nm,offL,offR){
+  const N=P.length,R=TRACK.radius, gh=TRACK.terrainH;
+  const samp=[];for(let i=0;i<N;i+=4)samp.push(P[i]);
+  const clear=(x,z)=>{let m=1e9;for(const q of samp){const dx=x-q.x,dz=z-q.z;const d=dx*dx+dz*dz;if(d<m)m=d;}return m;};
+  const M=new THREE.Matrix4(),S=new THREE.Vector3(),Q=new THREE.Quaternion(),T=new THREE.Vector3();
+  // sparse conifer forest, kept far back (open around the track)
+  const coneG=new THREE.ConeGeometry(0.5,1,7);
+  const treeMats=[0x1e4522,0x27552a,0x173a1c].map(c=>new THREE.MeshStandardMaterial({color:c,roughness:1,flatShading:true}));
+  const lists=treeMats.map(()=>[]);
+  let placed=0,tries=0;
+  while(placed<2200 && tries<20000){tries++;
+    const a=Math.random()*TAU, rr=R*1.0+Math.random()*R*1.4, x=Math.cos(a)*rr, z=Math.sin(a)*rr;
+    if(clear(x,z)<130*130) continue;                 // trees stay well away → open trackside
+    const h=12+Math.random()*20;lists[(Math.random()*3)|0].push({x,y:gh(x,z),z,w:h*(0.42+Math.random()*0.2),h});placed++;}
+  lists.forEach((list,bi)=>{ if(!list.length)return;
+    const im=new THREE.InstancedMesh(coneG,treeMats[bi],list.length);im.frustumCulled=false;im.receiveShadow=true;
+    list.forEach((o,i)=>{T.set(o.x,o.y+o.h*0.5,o.z);S.set(o.w,o.h,o.w);M.compose(T,Q,S);im.setMatrixAt(i,M);});
+    im.instanceMatrix.needsUpdate=true;sc.add(im);});
+  // distant alpine mountain range (big ridged cones, hazy blue, snow caps)
+  const rock=new THREE.MeshStandardMaterial({color:0x5b6a78,roughness:1,flatShading:true});
+  const snow=new THREE.MeshStandardMaterial({color:0xeaf0f6,roughness:1,flatShading:true});
+  for(let i=0;i<26;i++){const a=(i/26)*TAU+Math.random()*0.1, rr=R*2.3+Math.random()*R*0.8;
+    const H=180+Math.random()*260, rad=H*(0.8+Math.random()*0.5);
+    const x=Math.cos(a)*rr,z=Math.sin(a)*rr;
+    const mt=new THREE.Mesh(new THREE.ConeGeometry(rad,H,7),rock);mt.position.set(x,H/2-40,z);
+    mt.rotation.y=Math.random()*TAU;sc.add(mt);
+    const cap=new THREE.Mesh(new THREE.ConeGeometry(rad*0.34,H*0.28,7),snow);cap.position.set(x,H-40-H*0.14,z);
+    cap.rotation.y=mt.rotation.y;sc.add(cap);}
+  // green foothill ring behind the trees
+  const hills=new THREE.Mesh(new THREE.CylinderGeometry(R*1.85,R*2.05,110,56,1,true),
+    new THREE.MeshStandardMaterial({color:0x2f5a2c,roughness:1,side:THREE.BackSide}));
+  hills.position.y=32;sc.add(hills);
 }
 
 /* ---- open British parkland (Silverstone): fields, hedgerows, marquees, car parks, a lake ---- */
@@ -1685,7 +1825,7 @@ const MODES=[
    meta:[['Assists','LOW'],['Input','KEYS'],['Units','KM/H']]},
 ];
 let sel=0;
-const TRACK_IDS=['spa','yas','silverstone']; let selTrack=0, builtTrackId='spa';
+const TRACK_IDS=['spa','yas','silverstone','monaco','austria']; let selTrack=0, builtTrackId='spa';
 function curCfg(){return TRACKS[TRACK_IDS[selTrack]];}
 function cycleTrack(d){selTrack=(selTrack+d+TRACK_IDS.length)%TRACK_IDS.length;renderDetail();Sound.init();Sound.blip(430,.05);}
 function buildMenu(){
@@ -1935,7 +2075,8 @@ function updateHUD(inp,r){
 }
 function drawMinimap(){
   const cv=$('#minimap'); if(!cv) return;
-  if(!miniCtx){miniCtx=cv.getContext('2d');
+  if(!miniCtx)miniCtx=cv.getContext('2d');
+  if(!miniProj){                                   // recompute per track (buildWorld nulls it)
     let a=1e9,b=-1e9,c=1e9,d=-1e9;
     for(const p of TRACK.pts){a=Math.min(a,p.x);b=Math.max(b,p.x);c=Math.min(c,p.z);d=Math.max(d,p.z);}
     const pad=20,s=Math.min((cv.width-2*pad)/(b-a),(cv.height-2*pad)/(d-c));
