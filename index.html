@@ -84,6 +84,23 @@
     display:flex;justify-content:space-between;align-items:center;font-size:10.5px;letter-spacing:.24em;color:var(--grey);text-transform:uppercase;font-weight:600}
   #mFoot .keys{display:flex;gap:20px}
   #mFoot .keys b{display:inline-block;min-width:18px;text-align:center;padding:3px 6px;margin-right:8px;border:1px solid var(--grey-lo);border-radius:3px;color:var(--white);font-family:var(--mono);font-size:9px}
+  /* livery editor */
+  #garage{position:absolute;right:clamp(28px,5vw,66px);top:50%;transform:translateY(-50%);width:min(340px,42vw);
+    display:none;flex-direction:column;gap:12px;z-index:6}
+  #garage.on{display:flex}
+  #garage .gTitle{font-family:var(--mono);font-size:13px;letter-spacing:.34em;color:var(--white);font-weight:700}
+  #garage .gSub{font-size:11px;letter-spacing:.16em;color:var(--grey);text-transform:uppercase}
+  #gTeams{display:flex;flex-direction:column;gap:8px;margin-top:4px}
+  .gCard{display:flex;align-items:center;gap:12px;padding:10px 12px;border:1px solid var(--grey-lo);border-radius:6px;
+    background:rgba(12,16,26,.55);cursor:pointer;transition:border-color .15s,background .15s,transform .12s}
+  .gCard:hover{transform:translateX(-3px)}
+  .gCard.sel{border-color:var(--white);background:rgba(30,40,60,.7)}
+  .gCard .sw{display:flex;gap:3px}
+  .gCard .sw i{width:12px;height:26px;border-radius:2px;display:block}
+  .gCard .gn{font-size:13px;font-weight:700;letter-spacing:.08em;color:var(--white)}
+  .gCard.sel .gn::after{content:' ✓';color:#4ce0a0}
+  #garage .gHint{display:flex;gap:22px;font-size:9.5px;letter-spacing:.2em;color:var(--grey);text-transform:uppercase;margin-top:6px}
+  #garage .gHint b{display:inline-block;min-width:16px;text-align:center;padding:2px 5px;margin-right:6px;border:1px solid var(--grey-lo);border-radius:3px;color:var(--white);font-family:var(--mono);font-size:9px}
   #mVer{color:var(--grey-lo);letter-spacing:.3em}
   #mCarTag{position:absolute;right:clamp(28px,5vw,66px);top:clamp(96px,15vh,150px);text-align:right;pointer-events:none}
   #mCarTag .big{font-family:var(--mono);font-weight:700;font-size:clamp(16px,1.8vw,22px);letter-spacing:.14em}
@@ -188,6 +205,13 @@
     <div class="keys"><span><b>↑↓</b>Navigate</span><span><b>⏎</b>Select</span></div>
     <div id="mVer">BUILD 2026.2 · v0.2 “LIGHTS OUT”</div>
   </footer>
+  <!-- livery editor -->
+  <aside id="garage">
+    <div class="gTitle">LIVERY EDITOR</div>
+    <div class="gSub">Choose your team — the car reskins live</div>
+    <div id="gTeams"></div>
+    <div class="gHint"><span><b>⏎</b> Apply &amp; race</span><span><b>Esc</b> Back</span></div>
+  </aside>
 </div>
 
 <!-- ===== HUD ===== -->
@@ -339,6 +363,7 @@ const TRACKS={
     elev:f=>0 },                                   // Yas is flat (no sand poking over the blue run-off)
 };
 let CFG=TRACKS.spa;
+let selLivery='redbull';          // chosen team livery (editor)
 let miniCtx=null,miniProj=null;   // hoisted (buildWorld resets miniProj)
 const TRACK={N:0,halfW:6.6,pts:[],tan:[],nrm:[],cum:[],len:0,radius:1400,scale:1};
 function clearScene(sc){ for(let i=sc.children.length-1;i>=0;i--){const o=sc.children[i];
@@ -898,31 +923,94 @@ function drawBull(x,cx,cy,s,flip){ // stylised charging bull
   x.lineTo(6,6);x.lineTo(4,13);x.lineTo(1,6);x.lineTo(-3,12);x.lineTo(-4,5);            // legs
   x.lineTo(-9,10);x.lineTo(-9,3);x.lineTo(-15,7);x.closePath();x.fill();x.restore();
 }
-function makeLivery(){
-  // The car sides sample canvas rows ~380–512; keep the top band plain so the
-  // halo doesn't smear. Cleaner, bolder Red Bull look.
+/* team liveries — each supplies a gradient, a mark drawer (block-local 0..512),
+   and a sponsor set. Used by makeLivery() and the livery editor. */
+function drawStarM(x,cx,cy,r,col){x.fillStyle=col;x.beginPath();
+  for(let i=0;i<3;i++){const a=-Math.PI/2+i*2*Math.PI/3;x.lineTo(cx+Math.cos(a)*r,cy+Math.sin(a)*r);}x.closePath();x.fill();}
+const LIVERIES={
+  redbull:{ name:'Red Bull', swatch:['#0e1a4a','#d40010','#ffcc00'],
+    top:'#0a1233',mid:'#101c50',bot:'#060a20',
+    draw(x){
+      x.fillStyle='#d40010';x.beginPath();x.moveTo(0,508);x.lineTo(512,452);x.lineTo(512,486);x.lineTo(0,542);x.closePath();x.fill();
+      x.fillStyle='#ffcc00';x.beginPath();x.moveTo(0,504);x.lineTo(512,448);x.lineTo(512,457);x.lineTo(0,513);x.closePath();x.fill();
+      x.fillStyle='#ffcc00';x.beginPath();x.arc(256,432,34,0,7);x.fill();
+      drawBull(x,247,437,1.15,false);drawBull(x,265,437,1.15,true);
+      x.fillStyle='#fff';x.textAlign='center';x.textBaseline='middle';x.font='italic 900 21px Arial';x.fillText('RED BULL',256,476);},
+    logos:[{t:'ORACLE',x:256,y:392,col:'#f4001a',sz:30,style:'900'},
+      {t:'bybit',x:110,y:410,col:'#f7d33a',sz:22},{t:'TAG Heuer',x:400,y:410,col:'#eef2f8',sz:18},
+      {t:'HRC',x:110,y:520,col:'#e60012',sz:22,style:'900'},{t:'Mobil 1',x:400,y:520,col:'#e40521',sz:19},
+      {t:'VISA',x:256,y:520,col:'#e8ecf4',sz:17}] },
+  ferrari:{ name:'Ferrari', swatch:['#d40000','#fff200','#111'],
+    top:'#8f0006',mid:'#e2000a',bot:'#7a0005',
+    draw(x){
+      x.fillStyle='#111';x.fillRect(0,498,512,52);
+      x.fillStyle='#fff200';x.beginPath();x.arc(256,432,30,0,7);x.fill();
+      drawStarM(x,256,436,20,'#111');
+      x.fillStyle='#fff';x.textAlign='center';x.textBaseline='middle';x.font='italic 900 20px Arial';x.fillText('SF',256,476);},
+    logos:[{t:'HP',x:256,y:392,col:'#0096d6',sz:32,style:'900'},
+      {t:'Shell',x:110,y:410,col:'#fff200',sz:22,style:'900'},{t:'IBM',x:400,y:410,col:'#eef2f8',sz:20,style:'900'},
+      {t:'Santander',x:110,y:522,col:'#ffffff',sz:16},{t:'Puma',x:400,y:522,col:'#111111',sz:18,style:'900'},
+      {t:'Ray-Ban',x:256,y:522,col:'#111111',sz:16}] },
+  mercedes:{ name:'Mercedes', swatch:['#111417','#00d2be','#c0c6cc'],
+    top:'#20262b',mid:'#1a1f24',bot:'#0a0d10',
+    draw(x){
+      x.fillStyle='#00d2be';x.fillRect(0,500,512,50);
+      x.strokeStyle='#c8ced4';x.lineWidth=5;x.beginPath();x.arc(256,432,26,0,7);x.stroke();
+      x.beginPath();x.moveTo(256,406);x.lineTo(256,432);x.moveTo(256,432);x.lineTo(234,447);x.moveTo(256,432);x.lineTo(278,447);x.stroke();},
+    logos:[{t:'PETRONAS',x:256,y:392,col:'#00d2be',sz:24,style:'900'},
+      {t:'EPSON',x:110,y:410,col:'#1a54b8',sz:20,style:'900'},{t:'WhatsApp',x:400,y:410,col:'#25d366',sz:18},
+      {t:'TeamViewer',x:110,y:522,col:'#0b6fff',sz:15},{t:'UBS',x:400,y:522,col:'#e60000',sz:20,style:'900'},
+      {t:'INEOS',x:256,y:522,col:'#ffffff',sz:16,style:'900'}] },
+  mclaren:{ name:'McLaren', swatch:['#ff8000','#00b5cc','#111'],
+    top:'#ff7a00',mid:'#ff8c1a',bot:'#d95f00',
+    draw(x){
+      x.fillStyle='#00323f';x.beginPath();x.moveTo(0,500);x.lineTo(512,470);x.lineTo(512,550);x.lineTo(0,550);x.closePath();x.fill();
+      x.fillStyle='#111';x.font='italic 900 30px Arial';x.textAlign='center';x.textBaseline='middle';x.fillText('McLaren',256,438);},
+    logos:[{t:'OKX',x:256,y:392,col:'#111111',sz:30,style:'900'},
+      {t:'Dell',x:110,y:410,col:'#0076ce',sz:22,style:'900'},{t:'Google',x:400,y:410,col:'#ffffff',sz:20},
+      {t:'Vodafone',x:110,y:526,col:'#e60000',sz:18,style:'900'},{t:'Chronext',x:400,y:526,col:'#111111',sz:16},
+      {t:'Coca-Cola',x:256,y:526,col:'#ffffff',sz:16}] },
+  aston:{ name:'Aston Martin', swatch:['#00594f','#00665a','#cedc00'],
+    top:'#014b42',mid:'#00665a',bot:'#013a34',
+    draw(x){
+      x.fillStyle='#cedc00';x.fillRect(0,502,512,10);
+      x.strokeStyle='#cedc00';x.lineWidth=4;x.beginPath();
+      x.moveTo(220,438);x.lineTo(292,438);x.moveTo(230,428);x.lineTo(282,428);x.moveTo(240,448);x.lineTo(272,448);x.stroke();
+      x.fillStyle='#fff';x.font='900 18px Arial';x.textAlign='center';x.textBaseline='middle';x.fillText('ARAMCO',256,476);},
+    logos:[{t:'ARAMCO',x:256,y:392,col:'#00b0d8',sz:24,style:'900'},
+      {t:'Cognizant',x:110,y:410,col:'#1a54b8',sz:17,style:'900'},{t:'BOSS',x:400,y:410,col:'#ffffff',sz:22,style:'900'},
+      {t:'Valvoline',x:110,y:522,col:'#e40521',sz:16,style:'900'},{t:'Girard',x:400,y:522,col:'#cedc00',sz:16},
+      {t:'MGM',x:256,y:522,col:'#f0c33c',sz:18,style:'900'}] },
+};
+const LIVERY_IDS=Object.keys(LIVERIES);
+function makeLivery(teamKey){
+  const team=LIVERIES[teamKey]||LIVERIES.redbull;
+  // Content is tiled over TWO identical 512-px blocks (period = half canvas) so that,
+  // with RepeatWrapping, any projected slice of the body shows whole logos — nothing
+  // clips. The band is tall (rows ~320–560) for the same reason.
   const c=cnv(1024,1024),x=c.getContext('2d');
-  const g=x.createLinearGradient(0,360,0,512);g.addColorStop(0,'#0a1233');g.addColorStop(1,'#060a20');
+  const g=x.createLinearGradient(0,300,0,600);
+  g.addColorStop(0,team.top);g.addColorStop(0.5,team.mid);g.addColorStop(1,team.bot);
   x.fillStyle=g;x.fillRect(0,0,1024,1024);
-  // bold red diagonal energy panel + yellow edge (Red Bull accent)
-  x.fillStyle='#d40010';x.beginPath();x.moveTo(0,505);x.lineTo(1024,440);x.lineTo(1024,472);x.lineTo(0,512);x.closePath();x.fill();
-  x.fillStyle='#ffcc00';x.beginPath();x.moveTo(0,505);x.lineTo(1024,440);x.lineTo(1024,447);x.lineTo(0,509);x.closePath();x.fill();
-  // Red Bull mark: yellow sun + two charging bulls (prominent)
-  x.fillStyle='#ffcc00';x.beginPath();x.arc(512,418,30,0,7);x.fill();
-  drawBull(x,504,422,1.05,false);drawBull(x,520,422,1.05,true);
-  x.fillStyle='#fff';x.textAlign='center';x.textBaseline='middle';
-  x.font='italic 900 20px Arial';x.fillText('RED BULL',512,456);
-  // a few clean sponsors (front → rear)
-  x.font='bold 30px Arial';x.fillStyle='#f4f7fb';x.fillText('ORACLE',335,410);x.fillText('ORACLE',690,410);
-  x.font='bold 20px Arial';x.fillStyle='#dfe6ee';
-  x.fillText('TAG HEUER',210,392);x.fillText('bybit',815,392);
-  x.font='bold 17px Arial';x.fillStyle='#aebbd2';
-  x.fillText('Visa',120,470);x.fillText('Visa',905,470);         // front-wing ends
+  // draw one 512-wide block, then mirror-tile it to fill the canvas
+  const block=(ox)=>{
+    x.save();x.translate(ox,0);
+    team.draw(x);                                   // team-specific accents + marks
+    // sponsor row — bold, spaced, with margins so projection never bisects a word
+    x.textAlign='center';x.textBaseline='middle';
+    for(const s of team.logos){
+      x.font=`${s.style||'bold'} ${s.sz||22}px Arial`;x.fillStyle=s.col;
+      x.fillText(s.t,s.x,s.y);
+    }
+    x.restore();
+  };
+  block(0);block(512);
   const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;t.wrapS=t.wrapT=THREE.RepeatWrapping;t.anisotropy=8;return t;
 }
 function applyLivery(mat,tex,scale){
   mat.onBeforeCompile=(sh)=>{
     sh.uniforms.uLiv={value:tex}; sh.uniforms.uLivS={value:scale};
+    mat.userData.livU=sh.uniforms;                 // keep a handle so the editor can hot-swap
     sh.vertexShader='varying vec3 vLP;varying vec3 vLN;\n'+sh.vertexShader
       .replace('#include <begin_vertex>','#include <begin_vertex>\nvLP=position;vLN=normal;');
     sh.fragmentShader='uniform sampler2D uLiv;uniform float uLivS;varying vec3 vLP;varying vec3 vLN;\n'+sh.fragmentShader
@@ -936,11 +1024,17 @@ function applyLivery(mat,tex,scale){
   };
   mat.customProgramCacheKey=()=>'liv'+scale; mat.needsUpdate=true;
 }
+/* swap the projected livery to another team without reloading the car */
+function setLivery(teamKey){
+  selLivery=teamKey;
+  const u=CAR.bodyMat&&CAR.bodyMat.userData.livU;
+  if(u){ u.uLiv.value.dispose&&u.uLiv.value.dispose(); u.uLiv.value=makeLivery(teamKey); }
+}
 async function loadCar(loader,onProg){
   const gltf=await loader.loadAsync('assets/models/f1_car.glb',e=>onProg&&onProg(e));
   const model=gltf.scene;
   model.updateWorldMatrix(true,true);
-  const liveryTex=makeLivery(); let bodyMat=null;
+  const liveryTex=makeLivery(selLivery); let bodyMat=null;
   model.traverse(o=>{ if(o.isMesh){o.castShadow=true;o.receiveShadow=true;o.frustumCulled=false;
     const mn=o.material.name||'';
     if(/Carbon_Fiber___Twill/.test(mn)){o.material.color.set(0x0a1a52);o.material.metalness=0.5;o.material.roughness=0.4;bodyMat=o.material;} // navy body → gets livery
@@ -950,6 +1044,7 @@ async function loadCar(loader,onProg){
     else if(/Fabric_Black/.test(mn)){o.material.color.set(0x0a0c12);}
     else if(/Rubber/.test(mn)){o.material.color.set(0x0e0e12);}
     o.material.envMapIntensity=1.15;}});
+  CAR.bodyMat=bodyMat;
   if(bodyMat) applyLivery(bodyMat, liveryTex, 1/1600);
 
   // find wheel meshes by known names (+ rubber fallback)
@@ -957,6 +1052,12 @@ async function loadCar(loader,onProg){
   // rims must NOT wear the body livery → own dark metallic material
   const rimMat=new THREE.MeshStandardMaterial({color:0x15171d,metalness:0.9,roughness:0.34,envMapIntensity:1.2});
   ['Object_12','Object_20'].forEach(n=>{if(byName[n])byName[n].material=rimMat;});
+  // strip the projected livery off carbon parts sitting on the wheels (brake ducts / wheel bays):
+  // they share the body material instance, so give them a plain navy clone instead.
+  const czOf=m=>{m.geometry.computeBoundingBox();const b=m.geometry.boundingBox;return (b.min.z+b.max.z)/2;};
+  const wheelZ=[byName['Object_32'],byName['Object_31']].filter(Boolean).map(czOf);
+  const wheelCarbon=new THREE.MeshStandardMaterial({color:0x0b0d12,metalness:0.45,roughness:0.44,envMapIntensity:1.1}); // team-neutral dark carbon
+  if(bodyMat) model.traverse(o=>{ if(o.isMesh&&o.material===bodyMat&&wheelZ.some(wz=>Math.abs(czOf(o)-wz)<82)) o.material=wheelCarbon; });
   const rubber=[]; model.traverse(o=>{if(o.isMesh&&/Rubber/i.test(o.material.name||''))rubber.push(o);});
   const frontMeshes=[byName['Object_32'],byName['Object_12']].filter(Boolean);
   const rearMeshes =[byName['Object_31'],byName['Object_20']].filter(Boolean);
@@ -1303,9 +1404,34 @@ function renderDetail(){const m=MODES[sel];
   const d=$('#mDetail');d.classList.remove('swap');void d.offsetWidth;d.classList.add('swap');}
 function chooseMode(){const m=MODES[sel];Sound.init();Sound.blip(660,.08);
   if(m.drive){startDrive();}
+  else if(m.id==='garage'){openGarage();}
   else{ /* placeholder modes */ flashMsg(); }
 }
 function flashMsg(){const d=$('#mdTag');d.textContent='COMING SOON';setTimeout(()=>renderDetail(),1400);}
+
+/* ---- livery editor ---- */
+let garageOn=false;
+function buildGarage(){
+  const wrap=$('#gTeams');wrap.innerHTML='';
+  LIVERY_IDS.forEach(key=>{const L=LIVERIES[key];
+    const card=document.createElement('div');card.className='gCard'+(key===selLivery?' sel':'');
+    card.innerHTML=`<span class="sw">${L.swatch.map(c=>`<i style="background:${c}"></i>`).join('')}</span><span class="gn">${L.name}</span>`;
+    card.addEventListener('click',()=>pickLivery(key));
+    card.addEventListener('mouseenter',()=>{Sound.init();Sound.blip(360,.03);});
+    wrap.appendChild(card);
+  });
+}
+function pickLivery(key){
+  setLivery(key);Sound.init();Sound.blip(620,.06);
+  document.querySelectorAll('#gCard,.gCard').forEach(c=>c.classList.remove('sel'));
+  const idx=LIVERY_IDS.indexOf(key);
+  document.querySelectorAll('.gCard')[idx]?.classList.add('sel');
+}
+function openGarage(){garageOn=true;buildGarage();$('#garage').classList.add('on');
+  $('#mBody').style.opacity=.25;$('#mDetail').style.opacity=0;
+  CAR.rig.rotation.set(0,-0.6,0);}
+function closeGarage(){garageOn=false;$('#garage').classList.remove('on');
+  $('#mBody').style.opacity='';$('#mDetail').style.opacity='';renderDetail();}
 
 /* ==================================================================
    STATE / FLOW
@@ -1364,6 +1490,14 @@ function countdown(done){
 const keys={};
 addEventListener('keydown',e=>{
   const k=e.key.toLowerCase();keys[k]=true;
+  if(STATE==='menu'&&garageOn){
+    const i=LIVERY_IDS.indexOf(selLivery);
+    if(k==='arrowup'||k==='w'||k==='arrowleft'||k==='a'){pickLivery(LIVERY_IDS[(i-1+LIVERY_IDS.length)%LIVERY_IDS.length]);e.preventDefault();}
+    else if(k==='arrowdown'||k==='s'||k==='arrowright'||k==='d'){pickLivery(LIVERY_IDS[(i+1)%LIVERY_IDS.length]);e.preventDefault();}
+    else if(k==='enter'){closeGarage();startDrive();e.preventDefault();}
+    else if(k==='escape'){closeGarage();e.preventDefault();}
+    return;
+  }
   if(STATE==='menu'){
     if(k==='arrowup'||k==='w'){setSel(sel-1);Sound.init();Sound.blip(340,.04);e.preventDefault();}
     else if(k==='arrowdown'||k==='s'){setSel(sel+1);Sound.init();Sound.blip(340,.04);e.preventDefault();}
