@@ -471,10 +471,16 @@ function buildWorld(sc,cfg){
   camera.far=worldR*8; camera.updateProjectionMatrix();
 
   // ground — a grid that follows the terrain height field
-  const gGeo=new THREE.PlaneGeometry(worldR*3,worldR*3,200,200);
+  const gGeo=new THREE.PlaneGeometry(worldR*3,worldR*3,220,220);
   gGeo.rotateX(-Math.PI/2);
   const gp=gGeo.attributes.position;
-  for(let i=0;i<gp.count;i++) gp.setY(i, TRACK.terrainH(gp.getX(i),gp.getZ(i))-0.55);
+  const csamp=[];for(let i=0;i<N;i+=3)csamp.push(P[i]);   // dense samples for the near-track clamp
+  for(let i=0;i<gp.count;i++){const x=gp.getX(i),z=gp.getZ(i);
+    let h=TRACK.terrainH(x,z);
+    // never let grass rise above the nearby road surface (kills grass poking onto the track)
+    let mn=1e9,ny=0;for(const s of csamp){const dx=x-s.x,dz=z-s.z;const d=dx*dx+dz*dz;if(d<mn){mn=d;ny=s.y;}}
+    if(mn<55*55) h=Math.min(h, ny-0.7);
+    gp.setY(i,h);}
   gGeo.computeVertexNormals();
   const grass=new THREE.Mesh(gGeo,new THREE.MeshStandardMaterial({color:cfg.ground,roughness:1.0}));
   grass.receiveShadow=true; sc.add(grass);
@@ -504,7 +510,7 @@ function buildWorld(sc,cfg){
   for(let i=0;i<N;i++) maxOff[i]=Math.max(HW+2.5, gap[i]*0.45);
   for(let i=0;i<N;i++){const cap=Math.max(0,maxOff[i]-HW-3);
     runL[i]=Math.min(runL[i],cap); runR[i]=Math.min(runR[i],cap);}
-  TRACK.runL=runL;TRACK.runR=runR;TRACK.maxOff=maxOff;
+  TRACK.runL=runL;TRACK.runR=runR;TRACK.maxOff=maxOff;TRACK.gap=gap;
 
   const strip=(offA,offB,y,mat,ro,uvL)=>{ // build a ribbon between two per-index offsets
     const v=[],uv=[],id=[];
@@ -675,21 +681,28 @@ function buildDesert(sc,P,Nm,Tg,offL,offR){
 /* the Yas hotel: two curved lit buildings straddling the track, joined by the
    iconic double-curved steel gridshell "veil" whose LED lattice sweeps colour. */
 function buildYasHotel(sc,P,Nm,Tg){
-  // anchor on a straight-ish section on the start straight
-  const i0=6, p=P[i0].clone();
-  const fwd=new THREE.Vector3().subVectors(P[(i0+4)%P.length],P[(i0-4+P.length)%P.length]).setY(0).normalize();
+  // anchor on the most OPEN mid-lap section (largest clearance to any other part of
+  // the track) so neither building can cross the circuit, and it's clear of the pit
+  const Np=P.length; let i0=Math.round(Np*0.42), bestGap=-1;
+  for(let i=Math.round(Np*0.2);i<Math.round(Np*0.8);i+=2){
+    const gp=(TRACK.gap&&TRACK.gap[i])||200; if(gp>bestGap){bestGap=gp;i0=i;} }
+  const p=P[i0].clone();
+  const fwd=new THREE.Vector3().subVectors(P[(i0+4)%Np],P[(i0-4+Np)%Np]).setY(0).normalize();
   const nrm=new THREE.Vector3(Nm[i0].x,0,Nm[i0].z).normalize();   // across the track (horizontal)
-  const up=new THREE.Vector3(0,1,0);
   const gy=TRACK.terrainH(p.x,p.z);
   const at=(a,b,h)=>new THREE.Vector3(
     p.x+nrm.x*a+fwd.x*b, gy+h, p.z+nrm.z*a+fwd.z*b);
-  // ---- veil height field: arch across the track, humps over the two buildings ----
+  // building offsets: beyond the barriers, but never past the clearance to other track
+  const wL=(TRACK.wallL&&TRACK.wallL[i0])||34, wR=(TRACK.wallR&&TRACK.wallR[i0])||34;
+  const lim=Math.max(bestGap*0.46,40);
+  const bL=clamp(wL+20,wL+8,lim), bR=clamp(wR+20,wR+8,lim);
+  // ---- veil height field: high arch clearing the track, humps over each building ----
   const H=(a,b)=>{
-    const arch=18 + 32*Math.exp(-(((a-42)/22)**2)) + 32*Math.exp(-(((a+42)/22)**2)); // ~high over towers
-    const dome=Math.cos(Math.max(-1,Math.min(1,b/48))*1.28);                     // droops front/back
+    const arch=16 + 34*Math.exp(-(((a-bL)/25)**2)) + 34*Math.exp(-(((a+bR)/25)**2));
+    const dome=Math.cos(clamp(b/48,-1,1)*1.28);                                 // droops front/back
     return 15 + arch*dome*0.92;
   };
-  const na=44, nb=26, aMax=64, bMax=50;
+  const na=48, nb=26, aMax=Math.max(bL,bR)+28, bMax=50;
   const grid=[];                       // grid[i][j] world Vector3
   for(let i=0;i<=na;i++){const row=[];const a=(i/na*2-1)*aMax;
     for(let j=0;j<=nb;j++){const b=(j/nb*2-1)*bMax;row.push(at(a,b,H(a,b)));}grid.push(row);}
@@ -722,7 +735,7 @@ function buildYasHotel(sc,P,Nm,Tg){
   // ---- two curved hotel buildings under the humps (lit glass facades) ----
   const facade=(cols,rows)=>new THREE.MeshStandardMaterial({map:makeWindows(cols,rows,'#7fd0ff'),
     emissive:0x14304a,emissiveIntensity:1.0,roughness:0.4,metalness:0.3});
-  for(const sideA of [-42,42]){
+  for(const sideA of [bL,-bR]){
     const bg=new THREE.Group();
     for(let s=0;s<5;s++){const w=34-s*3.2, d=30-s*2.2, hh=8;
       const slab=new THREE.Mesh(new THREE.BoxGeometry(w,hh,d),facade(Math.max(4,w/5|0),3));
@@ -736,9 +749,9 @@ function buildYasHotel(sc,P,Nm,Tg){
     bg.traverse(o=>{o.castShadow=true;});sc.add(bg);
   }
   // link bridge deck spanning over the track between the buildings
-  { const deck=new THREE.Mesh(new THREE.BoxGeometry(64,2,14),
+  { const deck=new THREE.Mesh(new THREE.BoxGeometry(bL+bR+16,2,14),
       new THREE.MeshStandardMaterial({color:0x11161f,emissive:0x1a2840,emissiveIntensity:0.7,metalness:0.5,roughness:0.5}));
-    const c=at(0,0,30);deck.position.copy(c);deck.rotation.y=Math.atan2(fwd.x,fwd.z);sc.add(deck); }
+    const c=at((bL-bR)/2,0,30);deck.position.copy(c);deck.rotation.y=Math.atan2(fwd.x,fwd.z);sc.add(deck); }
 }
 
 /* ---- barriers: each track ZONE is a SINGLE sponsor (no alternating) ---- */
