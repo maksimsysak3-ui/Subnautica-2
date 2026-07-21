@@ -1609,20 +1609,45 @@ function mountCockpit(){
   w.rotation.order='ZYX';
   w.rotation.set(-Math.PI/2, 0, Math.PI);
   const spinHub=new THREE.Group(); spinHub.add(w); holder.add(spinHub);
-  // gloved hands gripping the wheel at ~9 and 3 o'clock (rotate with steering)
-  const gloveMat=new THREE.MeshStandardMaterial({color:0x0c0f16,roughness:0.7});
-  const accentMat=new THREE.MeshStandardMaterial({color:0x0a1a52,roughness:0.6});
+  // detailed gloved hands gripping the wheel at ~9 and 3 o'clock (rotate with steering)
+  const teamBase=(LIVERIES[selLivery]||LIVERIES.redbull).base;
+  const gloveMat=new THREE.MeshStandardMaterial({color:0x14171d,roughness:0.62});          // dark race glove
+  const accentMat=new THREE.MeshStandardMaterial({color:teamBase,roughness:0.55});          // team accent
+  const suitMat=new THREE.MeshStandardMaterial({color:0x1b1e24,roughness:0.72});            // race-suit forearm
+  const skinCuff=new THREE.MeshStandardMaterial({color:0x0a0c10,roughness:0.6});
   const R=0.135;
-  for(const sx of [-1,1]){
+  const makeHand=(sx)=>{
     const hand=new THREE.Group();
-    const palm=new THREE.Mesh(new THREE.SphereGeometry(0.05,12,10),gloveMat);
-    palm.scale.set(1,0.7,1.15);
-    const fore=new THREE.Mesh(new THREE.CylinderGeometry(0.035,0.045,0.22,10),accentMat);
-    fore.rotation.z=sx*0.5;fore.position.set(sx*0.09,-0.12,-0.02);
-    hand.add(palm,fore);
+    const palm=new THREE.Mesh(new THREE.BoxGeometry(0.062,0.05,0.09),gloveMat);   // rounded palm block
+    palm.position.set(0,0,0.015);hand.add(palm);
+    const back=new THREE.Mesh(new THREE.BoxGeometry(0.05,0.028,0.07),accentMat);   // team-accent glove back
+    back.position.set(0,0.03,-0.005);hand.add(back);
+    // four fingers curling over the front of the rim
+    for(let f=0;f<4;f++){const fg=new THREE.Group();
+      const p1=new THREE.Mesh(new THREE.CylinderGeometry(0.0085,0.009,0.03,8),gloveMat);p1.position.y=-0.015;
+      const p2=new THREE.Mesh(new THREE.CylinderGeometry(0.007,0.0085,0.024,8),gloveMat);
+      p2.position.set(0,-0.034,0.016);p2.rotation.x=1.05;                          // curl toward the driver
+      fg.add(p1,p2);fg.position.set((f-1.5)*0.016,0.028,0.04);hand.add(fg);}
+    // thumb across the inner rim
+    const thumb=new THREE.Mesh(new THREE.CylinderGeometry(0.0095,0.011,0.032,8),gloveMat);
+    thumb.rotation.z=sx*1.15;thumb.rotation.x=0.4;thumb.position.set(-sx*0.03,0.005,0.05);hand.add(thumb);
+    // knuckle ridges
+    for(let k=0;k<3;k++){const kn=new THREE.Mesh(new THREE.SphereGeometry(0.006,8,6),gloveMat);
+      kn.position.set((k-1)*0.016,0.045,0.01);hand.add(kn);}
+    // glove cuff + wrist
+    const cuff=new THREE.Mesh(new THREE.TorusGeometry(0.03,0.009,8,16),accentMat);
+    cuff.position.set(0,-0.03,-0.05);cuff.rotation.x=Math.PI/2;hand.add(cuff);
+    const wrist=new THREE.Mesh(new THREE.CylinderGeometry(0.03,0.03,0.02,12),skinCuff);
+    wrist.position.set(0,-0.03,-0.055);wrist.rotation.x=Math.PI/2;hand.add(wrist);
+    // forearm in the race suit, angled back toward the driver
+    const fore=new THREE.Mesh(new THREE.CylinderGeometry(0.033,0.046,0.26,12),suitMat);
+    fore.position.set(sx*0.085,-0.17,-0.12);fore.rotation.z=sx*0.5;fore.rotation.x=-0.32;hand.add(fore);
+    const stripe=new THREE.Mesh(new THREE.CylinderGeometry(0.0345,0.041,0.04,12),accentMat);
+    stripe.position.set(sx*0.05,-0.1,-0.075);stripe.rotation.z=sx*0.5;stripe.rotation.x=-0.32;hand.add(stripe);
     hand.position.set(sx*R,0,0.03);
-    spinHub.add(hand);
-  }
+    return hand;
+  };
+  spinHub.add(makeHand(-1),makeHand(1));
   CAR.cockpit.add(holder);
   CAR.wheelHub=spinHub; CAR.wheelHolder=holder;
 }
