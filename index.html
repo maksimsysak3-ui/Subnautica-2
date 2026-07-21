@@ -113,6 +113,11 @@
   #timing .v{font-family:var(--mono);font-weight:700;font-size:16px;color:#eef2f6}
   #timing .v.big{font-size:24px}
   #timing .v.best{color:#c07bff}
+  #delta.ahead{color:#25e06a} #delta.behind{color:#ff5a52}
+  #sectors{display:flex;gap:6px;margin-top:9px}
+  #sectors .sv{flex:1;text-align:center;font-family:var(--mono);font-weight:700;font-size:12px;padding:4px 0;
+    background:rgba(255,255,255,.06);border-radius:3px;color:#c7d0da}
+  #sectors .sv.best{background:rgba(192,123,255,.22);color:#d7b6ff}
   /* minimap */
   #mapWrap{position:absolute;right:clamp(22px,4vw,50px);top:clamp(18px,3vh,32px);width:230px;text-align:right}
   #mapName{font-size:10px;letter-spacing:.26em;color:#fff;font-weight:700;text-transform:uppercase;margin-bottom:7px}
@@ -193,6 +198,8 @@
     <div class="ttRow"><span class="k">CURRENT</span><span class="v big" id="lapCur">0:00.0</span></div>
     <div class="ttRow"><span class="k">LAST</span><span class="v" id="lapLast">—:——.—</span></div>
     <div class="ttRow"><span class="k">BEST</span><span class="v best" id="lapBest">—:——.—</span></div>
+    <div class="ttRow" id="deltaRow"><span class="k">DELTA</span><span class="v" id="delta"></span></div>
+    <div id="sectors"><span class="sv" id="sec0">—</span><span class="sv" id="sec1">—</span><span class="sv" id="sec2">—</span></div>
   </div>
   <div id="mapWrap">
     <div id="mapName">SPA-FRANCORCHAMPS <span>· BELGIUM</span></div>
@@ -208,7 +215,7 @@
     <div id="speedBox"><div id="speed">0</div><div id="speedU">KM/H</div></div>
   </div>
   <div id="offTrack">Off Track</div>
-  <div id="driveHint"><b>W</b>Throttle <b>S</b>Brake <b>A/D</b>Steer <b>C</b>Camera <b>R</b>Reset <b>ESC</b>Menu</div>
+  <div id="driveHint"><b>W</b>Throttle <b>SPACE</b>Brake <b>A/D</b>Steer <b>C</b>Camera <b>R</b>Reset <b>ESC</b>Menu</div>
 </div>
 <div id="cd"><div id="cdNum"></div></div>
 <div id="sndBtn"><svg id="sndIcon" viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9H4z"/><path d="M16 8a5 5 0 010 8"/></svg></div>
@@ -325,11 +332,11 @@ const TRACKS={
   spa:{ id:'spa', name:'SPA-FRANCORCHAMPS', country:'BELGIUM', flag:'🇧🇪', points:SPA, len:7004,
     halfW:6.6, night:false, forest:true, runoff:'mixed',
     kerb:['#d81c1c','#f2c400'], asphalt:0x2a2d33, ground:0x35562f, laprec:'1:44',
-    elev:f=>9*Math.sin(f*TAU+0.6)+5*Math.sin(2*f*TAU-0.5)+3*Math.sin(3*f*TAU+1.2) },
+    elev:f=>22*Math.sin(f*TAU+0.6)+11*Math.sin(2*f*TAU-0.5)+6*Math.sin(3*f*TAU+1.2)+4*Math.sin(5*f*TAU) },
   yas:{ id:'yas', name:'YAS MARINA', country:'ABU DHABI', flag:'🇦🇪', points:YAS, len:5281,
     halfW:6.6, night:true, forest:false, runoff:'blue',
     kerb:['#d81c1c','#eef1f4'], asphalt:0x1e2128, ground:0xbfa878, laprec:'1:26',
-    elev:f=>1.5*Math.sin(2*f*TAU) },
+    elev:f=>0 },                                   // Yas is flat (no sand poking over the blue run-off)
 };
 let CFG=TRACKS.spa;
 let miniCtx=null,miniProj=null;   // hoisted (buildWorld resets miniProj)
@@ -531,67 +538,88 @@ function buildWorld(sc,cfg){
   miniProj=null;                                   // minimap recomputes for new track
   return {};
 }
-/* ---- Yas Marina surroundings: sand mounds + the illuminated hotel ---- */
+/* ---- Yas Marina: dunes, hotel, marina water + yachts, illuminated skyline ---- */
 function buildDesert(sc,P,Nm,offL,offR){
   const N=P.length,R=TRACK.radius;
-  // low sand dunes ring (instanced flattened spheres)
-  const g=new THREE.SphereGeometry(1,10,6), m=new THREE.MeshStandardMaterial({color:0xb49a68,roughness:1});
-  const list=[];const samp=[];for(let i=0;i<N;i+=6)samp.push(P[i]);
+  const samp=[];for(let i=0;i<N;i+=5)samp.push(P[i]);
   const clr=(x,z)=>{let mn=1e9;for(const q of samp){const dx=x-q.x,dz=z-q.z;const d=dx*dx+dz*dz;if(d<mn)mn=d;}return mn;};
-  let n=0,t=0;while(n<900&&t<9000){t++;const a=Math.random()*TAU,rr=R*0.7+Math.random()*R*1.4;
-    const x=Math.cos(a)*rr,z=Math.sin(a)*rr;if(clr(x,z)<70*70)continue;
-    list.push({x,z,w:20+Math.random()*40,h:4+Math.random()*10});n++;}
-  const im=new THREE.InstancedMesh(g,m,list.length);im.receiveShadow=true;
   const M=new THREE.Matrix4(),s=new THREE.Vector3(),q=new THREE.Quaternion(),tr=new THREE.Vector3();
-  list.forEach((o,i)=>{tr.set(o.x,-o.h*0.3,o.z);s.set(o.w,o.h,o.w);M.compose(tr,q,s);im.setMatrixAt(i,M);});
-  im.instanceMatrix.needsUpdate=true;im.frustumCulled=false;sc.add(im);
-  // Yas Viceroy-style hotel: two curved masses + a lattice canopy, LED-lit
-  const p=P[0],nm=Nm[0];const base=new THREE.Vector3().copy(p).addScaledVector(nm,-(TRACK.wallL?offR(0):offR(0))-40);
-  const hg=new THREE.Group();
-  const bodyMat=new THREE.MeshStandardMaterial({color:0x223047,roughness:0.35,metalness:0.5});
-  for(const sx of [-26,26]){const tower=new THREE.Mesh(new THREE.CylinderGeometry(24,26,34,24,1,false,0,Math.PI),bodyMat);
-    tower.position.set(sx,17,0);tower.rotation.y=sx<0?0:Math.PI;hg.add(tower);}
-  const canopy=new THREE.Mesh(new THREE.TorusGeometry(46,7,10,40,Math.PI*1.2),
-    new THREE.MeshStandardMaterial({color:0x0a0e18,emissive:0x2a3a6a,emissiveIntensity:1.2,metalness:0.6,roughness:0.4}));
-  canopy.rotation.x=Math.PI/2;canopy.position.set(0,36,0);hg.add(canopy);
-  const glow=new THREE.PointLight(0x3a70ff,3,260,2);glow.position.set(0,34,0);hg.add(glow);
-  const gy=TRACK.terrainH(base.x,base.z);hg.position.set(base.x,gy,base.z);hg.lookAt(p.x,gy,p.z);
-  hg.traverse(o=>{o.castShadow=true;});sc.add(hg);
+  // sand dunes (kept well clear of the blue run-off)
+  { const g=new THREE.SphereGeometry(1,10,6), m=new THREE.MeshStandardMaterial({color:0xb49a68,roughness:1});
+    const list=[];let n=0,t=0;while(n<1100&&t<12000){t++;const a=Math.random()*TAU,rr=R*0.75+Math.random()*R*1.4;
+      const x=Math.cos(a)*rr,z=Math.sin(a)*rr;if(clr(x,z)<120*120)continue;
+      list.push({x,z,w:22+Math.random()*46,h:5+Math.random()*12});n++;}
+    const im=new THREE.InstancedMesh(g,m,list.length);im.receiveShadow=true;
+    list.forEach((o,i)=>{tr.set(o.x,-o.h*0.3,o.z);s.set(o.w,o.h,o.w);M.compose(tr,q,s);im.setMatrixAt(i,M);});
+    im.instanceMatrix.needsUpdate=true;im.frustumCulled=false;sc.add(im); }
+  // marina water on the inside of the loop + yachts
+  { const cx=0,cz=0;                                 // centre of the circuit (infield/marina)
+    const water=new THREE.Mesh(new THREE.CircleGeometry(R*0.42,48),
+      new THREE.MeshStandardMaterial({color:0x0a2a44,roughness:0.15,metalness:0.7,
+        emissive:0x06283a,emissiveIntensity:0.5}));
+    water.rotation.x=-Math.PI/2;water.position.set(cx,-0.35,cz);sc.add(water);
+    const hull=new THREE.MeshStandardMaterial({color:0xf2f5f8,roughness:0.4});
+    const deck=new THREE.MeshStandardMaterial({color:0x223040,roughness:0.5,emissive:0x101820,emissiveIntensity:0.6});
+    for(let i=0;i<26;i++){const a=Math.random()*TAU,rr=R*0.15+Math.random()*R*0.24;
+      const x=cx+Math.cos(a)*rr,z=cz+Math.sin(a)*rr;const g=new THREE.Group();
+      const b=new THREE.Mesh(new THREE.BoxGeometry(6+Math.random()*10,3,3),hull);b.position.y=1.2;
+      const d=new THREE.Mesh(new THREE.BoxGeometry(4,2,2.4),deck);d.position.set(-1,3,0);
+      g.add(b,d);g.position.set(x,0,z);g.rotation.y=Math.random()*TAU;sc.add(g);} }
+  // Yas hotel: twin masses + LED lattice canopy
+  { const p=P[0],nm=Nm[0];const base=new THREE.Vector3().copy(p).addScaledVector(nm,-offR(0)-46);
+    const hg=new THREE.Group();
+    const bodyMat=new THREE.MeshStandardMaterial({color:0x223047,roughness:0.35,metalness:0.5});
+    for(const sx of [-26,26]){const tower=new THREE.Mesh(new THREE.CylinderGeometry(24,26,36,24,1,false,0,Math.PI),bodyMat);
+      tower.position.set(sx,18,0);tower.rotation.y=sx<0?0:Math.PI;hg.add(tower);}
+    const canopy=new THREE.Mesh(new THREE.TorusGeometry(48,7,10,44,Math.PI*1.2),
+      new THREE.MeshStandardMaterial({color:0x0a0e18,emissive:0x2a5aa0,emissiveIntensity:1.6,metalness:0.6,roughness:0.4}));
+    canopy.rotation.x=Math.PI/2;canopy.position.set(0,38,0);hg.add(canopy);
+    hg.add(new THREE.PointLight(0x3a70ff,4,320,2).translateY(36));
+    const gy=TRACK.terrainH(base.x,base.z);hg.position.set(base.x,gy,base.z);hg.lookAt(p.x,gy,p.z);
+    hg.traverse(o=>{o.castShadow=true;});sc.add(hg); }
+  // distant lit skyline (Yas island buildings)
+  { const bmat=new THREE.MeshStandardMaterial({color:0x141b28,emissive:0x1a2a44,emissiveIntensity:0.8,roughness:0.7});
+    for(let i=0;i<40;i++){const a=Math.random()*TAU,rr=R*1.5+Math.random()*R*0.6;
+      const h=30+Math.random()*90;const b=new THREE.Mesh(new THREE.BoxGeometry(16+Math.random()*20,h,16+Math.random()*20),bmat);
+      b.position.set(Math.cos(a)*rr,h/2-2,Math.sin(a)*rr);sc.add(b);} }
 }
 
 /* ---- barriers: each track ZONE is a SINGLE sponsor (no alternating) ---- */
 const ZONE_SPONSORS=[
   {kind:'f1'},
-  {txt:'HEINEKEN 0.0',bg:'#1f7a3d',fg:'#ffffff'},
-  {kind:'aramco'},
+  {txt:'Heineken',bg:'#00842b',fg:'#ffffff',star:true},
+  {kind:'aramco'},                                  // light blue
   {txt:'DHL',bg:'#ffcc00',fg:'#d40511'},
-  {txt:'LENOVO',bg:'#e2231a',fg:'#ffffff'},
+  {txt:'Lenovo',bg:'#e2231a',fg:'#ffffff'},
   {kind:'f1'},
-  {txt:'ROLEX',bg:'#0a3d20',fg:'#ffffff'},
-  {txt:'PIRELLI',bg:'#00205b',fg:'#ffd200'},
+  {txt:'ROLEX',bg:'#12813f',fg:'#ffffff'},
+  {txt:'PIRELLI',bg:'#fff000',fg:'#e2000f'},
   {txt:'MSC',bg:'#0a1e3f',fg:'#f0c33c'},
-  {txt:'PETRONAS',bg:'#00a19a',fg:'#053a37'},
+  {txt:'PETRONAS',bg:'#00a19a',fg:'#0a3d3a'},
 ];
-function drawF1(x,x0,pw){x.fillStyle='#0a0c10';x.fillRect(x0,0,pw,110);
-  x.fillStyle='#fff';x.font='italic 900 62px Arial';x.textAlign='left';x.textBaseline='middle';x.fillText('F',x0+pw*0.30,54);
-  x.fillStyle='#e10600';x.fillText('1',x0+pw*0.44,54);
-  for(let s=0;s<7;s++)x.fillRect(x0+pw*0.52+s*8,32,5,44*(1-s/9));}
-function makeZoneBoard(sp){ // one sponsor fills the zone (Aramco alternates blue/green)
-  const n=4, pw=240, c=cnv(pw*n,110), x=c.getContext('2d');
-  for(let i=0;i<n;i++){const x0=i*pw;
-    if(sp.kind==='f1'){drawF1(x,x0,pw);}
-    else if(sp.kind==='aramco'){
-      x.fillStyle=i%2?'#003a8c':'#0a7d3f';x.fillRect(x0,0,pw,110);  // alternating blue / green
-      x.fillStyle='#fff';x.font='bold 42px Arial';x.textAlign='center';x.textBaseline='middle';x.fillText('aramco',x0+pw/2,58);
-    }else{
-      x.fillStyle=sp.bg;x.fillRect(x0,0,pw,110);
-      x.fillStyle=sp.fg;x.textAlign='center';x.textBaseline='middle';
-      x.font=(sp.txt.length>9?'bold 36px Arial':'bold 50px Arial');x.fillText(sp.txt,x0+pw/2,58);}
-    x.fillStyle='rgba(0,0,0,.4)';x.fillRect(x0,98,pw,12);}
+function drawF1(x,x0,pw,ph){x.fillStyle='#0a0c10';x.fillRect(x0,0,pw,ph);const cy=ph*0.44;
+  x.fillStyle='#fff';x.font=`italic 900 ${ph*0.62|0}px Arial`;x.textAlign='left';x.textBaseline='middle';x.fillText('F',x0+pw*0.34,cy);
+  x.fillStyle='#e10600';x.fillText('1',x0+pw*0.46,cy);
+  for(let s=0;s<7;s++)x.fillRect(x0+pw*0.54+s*(pw*0.014),ph*0.26,pw*0.009,ph*0.5*(1-s/9));}
+function drawStar(x,cx,cy,r,col){x.fillStyle=col;x.beginPath();
+  for(let i=0;i<5;i++){const a=-Math.PI/2+i*2*Math.PI/5;x.lineTo(cx+Math.cos(a)*r,cy+Math.sin(a)*r);
+    const a2=a+Math.PI/5;x.lineTo(cx+Math.cos(a2)*r*0.42,cy+Math.sin(a2)*r*0.42);}x.closePath();x.fill();}
+function makeZoneBoard(sp){ // wide/short board (matches physical aspect → no stretch)
+  const n=4, pw=512, ph=76, c=cnv(pw*n,ph), x=c.getContext('2d');
+  for(let i=0;i<n;i++){const x0=i*pw, cy=ph*0.44;
+    if(sp.kind==='f1'){drawF1(x,x0,pw,ph);}
+    else if(sp.kind==='aramco'){ x.fillStyle=i%2?'#57c1ea':'#2ba0da';x.fillRect(x0,0,pw,ph);  // light blue
+      x.fillStyle='#ffffff';x.font='italic 700 42px Arial';x.textAlign='center';x.textBaseline='middle';x.fillText('aramco',x0+pw/2,cy);
+    }else{ x.fillStyle=sp.bg;x.fillRect(x0,0,pw,ph);
+      x.textAlign='center';x.textBaseline='middle';x.fillStyle=sp.fg;
+      x.font='bold '+(sp.txt.length>7?40:54)+'px Arial';
+      let tx=x0+pw/2; if(sp.star){drawStar(x,x0+pw*0.26,cy,ph*0.3,'#ec1c24');tx=x0+pw*0.58;}
+      x.fillText(sp.txt,tx,cy);}
+    x.fillStyle='rgba(0,0,0,.32)';x.fillRect(x0,ph-8,pw,8);}
   const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;t.wrapS=THREE.RepeatWrapping;t.wrapT=THREE.ClampToEdgeWrapping;t.anisotropy=8;return t;
 }
 function buildBarriers(sc,P,Nm,cum,offL,offR){
-  const N=P.length, ZN=ZONE_SPONSORS.length, WH=1.5, BOARD_M=26;
+  const N=P.length, ZN=ZONE_SPONSORS.length, WH=2.2, BOARD_M=20;
   const zoneTex=ZONE_SPONSORS.map(makeZoneBoard);
   for(const [side,off] of [[1,offL],[-1,offR]]){
     for(let z=0;z<ZN;z++){
@@ -642,7 +670,7 @@ function buildForest(sc,P,Nm,offL,offR){
   // distance² to the NEAREST point of ANY part of the track (handles near-crossings)
   const samp=[];for(let i=0;i<N;i+=4)samp.push(P[i]);
   const clear=(x,z)=>{let m=1e9;for(const q of samp){const dx=x-q.x,dz=z-q.z;const d=dx*dx+dz*dz;if(d<m)m=d;}return m;};
-  const MINCLR=58;                               // trees must be ≥58 m from every part of the track
+  const MINCLR=95;                               // trees kept well back from every part of the track
 
   // 1) treeline hugging each side, but never on top of an adjacent straight
   for(let i=0;i<N;i+=2){
@@ -651,7 +679,7 @@ function buildForest(sc,P,Nm,offL,offR){
       const rows=9+((Math.random()*5)|0);
       for(let r=0;r<rows;r++){
         if(Math.random()<0.14) continue;
-        const dist=off(i)+42 + r*7 + Math.random()*6;
+        const dist=off(i)+95 + r*8 + Math.random()*8;   // treeline pushed far back
         const jt=(Math.random()-0.5)*5;
         const x=p.x+n.x*side*dist+tgx*jt, z=p.z+n.z*side*dist+tgz*jt;
         if(clear(x,z)<MINCLR*MINCLR) continue;   // skip if it would land near any track section
@@ -851,9 +879,9 @@ const CAR={
   pos:new THREE.Vector3(),heading:0,v:0,steer:0,steerCmd:0,yawRate:0,
 };
 const PHYS={
-  mass:798, power:565000, maxForce:17200, brakeForce:41000,
-  cdA:1.15, downK:3.0, mu:1.55, roll:230, engBrake:1000,
-  wheelbase:3.6, maxSteerLo:0.34, maxSteerHi:0.09, steerRate:3.4, steerReturn:5.0,
+  mass:798, power:520000, maxForce:11500, brakeForce:66000,   // softer launch, strong brakes
+  cdA:1.15, downK:3.6, mu:2.05, roll:260, engBrake:1200,      // far more grip (less slippery)
+  wheelbase:3.6, maxSteerLo:0.30, maxSteerHi:0.085, steerRate:3.0, steerReturn:5.5,
 };
 
 /* Red Bull livery texture (projected onto the body — mesh has no UVs) */
@@ -867,27 +895,25 @@ function drawBull(x,cx,cy,s,flip){ // stylised charging bull
   x.lineTo(-9,10);x.lineTo(-9,3);x.lineTo(-15,7);x.closePath();x.fill();x.restore();
 }
 function makeLivery(){
-  // The car sides only sample canvas rows ~380–512, so keep all content there;
-  // keep the top band (halo) plain navy so it doesn't smear.
+  // The car sides sample canvas rows ~380–512; keep the top band plain so the
+  // halo doesn't smear. Cleaner, bolder Red Bull look.
   const c=cnv(1024,1024),x=c.getContext('2d');
-  x.fillStyle='#0a1440';x.fillRect(0,0,1024,1024);
-  // thin red swoosh + yellow pinstripe
-  x.fillStyle='#d10014';x.beginPath();x.moveTo(0,470);x.quadraticCurveTo(512,438,1024,468);
-  x.lineTo(1024,492);x.quadraticCurveTo(512,462,0,494);x.closePath();x.fill();
-  x.fillStyle='#ffd400';x.fillRect(0,455,1024,4);
-  // Red Bull mark: yellow sun + two charging bulls (compact)
-  x.fillStyle='#ffcc00';x.beginPath();x.arc(512,420,26,0,7);x.fill();
-  drawBull(x,505,423,0.85,false);drawBull(x,519,423,0.85,true);
+  const g=x.createLinearGradient(0,360,0,512);g.addColorStop(0,'#0a1233');g.addColorStop(1,'#060a20');
+  x.fillStyle=g;x.fillRect(0,0,1024,1024);
+  // bold red diagonal energy panel + yellow edge (Red Bull accent)
+  x.fillStyle='#d40010';x.beginPath();x.moveTo(0,505);x.lineTo(1024,440);x.lineTo(1024,472);x.lineTo(0,512);x.closePath();x.fill();
+  x.fillStyle='#ffcc00';x.beginPath();x.moveTo(0,505);x.lineTo(1024,440);x.lineTo(1024,447);x.lineTo(0,509);x.closePath();x.fill();
+  // Red Bull mark: yellow sun + two charging bulls (prominent)
+  x.fillStyle='#ffcc00';x.beginPath();x.arc(512,418,30,0,7);x.fill();
+  drawBull(x,504,422,1.05,false);drawBull(x,520,422,1.05,true);
   x.fillStyle='#fff';x.textAlign='center';x.textBaseline='middle';
-  x.font='italic 900 18px Arial';x.fillText('RED BULL',512,452);
-  // sponsors spread front→rear, small
-  x.font='bold 26px Arial';x.fillStyle='#eef1f6';x.fillText('ORACLE',345,414);x.fillText('ORACLE',680,414);
-  x.font='bold 19px Arial';x.fillStyle='#cfd4dc';
-  x.fillText('HONDA RBPT',190,398);x.fillText('TAG HEUER',835,398);
-  x.fillText('Mobil 1',300,483);x.fillText('bybit',730,483);
-  x.font='bold 16px Arial';x.fillStyle='#9fb0d8';
-  x.fillText('SIEMENS',455,486);x.fillText('CashApp',585,486);
-  x.fillText('Visa',110,470);x.fillText('Visa',915,470);         // front-wing ends
+  x.font='italic 900 20px Arial';x.fillText('RED BULL',512,456);
+  // a few clean sponsors (front → rear)
+  x.font='bold 30px Arial';x.fillStyle='#f4f7fb';x.fillText('ORACLE',335,410);x.fillText('ORACLE',690,410);
+  x.font='bold 20px Arial';x.fillStyle='#dfe6ee';
+  x.fillText('TAG HEUER',210,392);x.fillText('bybit',815,392);
+  x.font='bold 17px Arial';x.fillStyle='#aebbd2';
+  x.fillText('Visa',120,470);x.fillText('Visa',905,470);         // front-wing ends
   const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;t.wrapS=t.wrapT=THREE.RepeatWrapping;t.anisotropy=8;return t;
 }
 function applyLivery(mat,tex,scale){
@@ -924,6 +950,9 @@ async function loadCar(loader,onProg){
 
   // find wheel meshes by known names (+ rubber fallback)
   const byName={}; model.traverse(o=>{if(o.isMesh)byName[o.name]=o;});
+  // rims must NOT wear the body livery → own dark metallic material
+  const rimMat=new THREE.MeshStandardMaterial({color:0x15171d,metalness:0.9,roughness:0.34,envMapIntensity:1.2});
+  ['Object_12','Object_20'].forEach(n=>{if(byName[n])byName[n].material=rimMat;});
   const rubber=[]; model.traverse(o=>{if(o.isMesh&&/Rubber/i.test(o.material.name||''))rubber.push(o);});
   const frontMeshes=[byName['Object_32'],byName['Object_12']].filter(Boolean);
   const rearMeshes =[byName['Object_31'],byName['Object_20']].filter(Boolean);
@@ -979,7 +1008,7 @@ function mountCockpit(){
   holder.position.set(0, 0.85, 0.10);        // in front of / below eye
   holder.rotation.x=-0.40;                   // tilt back toward driver
   const wb=new THREE.Box3().setFromObject(w); const wsz=wb.getSize(new THREE.Vector3());
-  const wscale=0.34/Math.max(wsz.x,wsz.y,wsz.z); // ~0.34m wheel
+  const wscale=0.27/Math.max(wsz.x,wsz.y,wsz.z); // ~0.27 m wheel (smaller)
   w.scale.setScalar(wscale);
   w.position.set(0,0,0);
   // model has the button face pointing +Y (lies flat) → stand it up so the
@@ -987,6 +1016,20 @@ function mountCockpit(){
   w.rotation.order='ZYX';
   w.rotation.set(-Math.PI/2, 0, Math.PI);
   const spinHub=new THREE.Group(); spinHub.add(w); holder.add(spinHub);
+  // gloved hands gripping the wheel at ~9 and 3 o'clock (rotate with steering)
+  const gloveMat=new THREE.MeshStandardMaterial({color:0x0c0f16,roughness:0.7});
+  const accentMat=new THREE.MeshStandardMaterial({color:0x0a1a52,roughness:0.6});
+  const R=0.135;
+  for(const sx of [-1,1]){
+    const hand=new THREE.Group();
+    const palm=new THREE.Mesh(new THREE.SphereGeometry(0.05,12,10),gloveMat);
+    palm.scale.set(1,0.7,1.15);
+    const fore=new THREE.Mesh(new THREE.CylinderGeometry(0.035,0.045,0.22,10),accentMat);
+    fore.rotation.z=sx*0.5;fore.position.set(sx*0.09,-0.12,-0.02);
+    hand.add(palm,fore);
+    hand.position.set(sx*R,0,0.03);
+    spinHub.add(hand);
+  }
   CAR.cockpit.add(holder);
   CAR.wheelHub=spinHub; CAR.wheelHolder=holder;
 }
@@ -1029,8 +1072,11 @@ function stepPhysics(dt,inp){
   // off-track grip loss — windowed search so it can't snap to another track section
   const near=nearestTrack(CAR.pos, CAR.trackIdx, 55);
   CAR.trackIdx=near.idx;
-  const off=Math.abs(near.lat)>TRACK.halfW+2.6;   // on kerb/astroturf still counts as track
-  const gripMul=off?0.6:1.0;
+  const absLat=Math.abs(near.lat);
+  const off=absLat>TRACK.halfW+2.6;               // fully off track
+  const onKerb=absLat>TRACK.halfW-0.15 && absLat<TRACK.halfW+1.4;
+  const gripMul=off?0.55:(onKerb?0.82:1.0);       // kerbs unsettle you mid-corner
+  CAR.kerb=onKerb;
 
   // lateral: downforce-boosted grip, understeer clamp
   const downforce=P.downK*CAR.v*CAR.v;
@@ -1057,7 +1103,8 @@ function stepPhysics(dt,inp){
   // apply to rig — follow track elevation (windowed idx keeps it smooth, no launching)
   const gy=TRACK.pts[near.idx]?TRACK.pts[near.idx].y:0;
   CAR.groundY=damp(CAR.groundY===undefined?gy:CAR.groundY,gy,7,dt);
-  CAR.rig.position.set(CAR.pos.x,CAR.groundY,CAR.pos.z);
+  const rumble=CAR.kerb?Math.sin(performance.now()*0.045)*0.05*clamp(spd/18,0,1):0;
+  CAR.rig.position.set(CAR.pos.x,CAR.groundY+rumble,CAR.pos.z);
   CAR.rig.rotation.y=CAR.heading;
 
   // sun shadow follows the car (7 km track can't fit one shadow map)
@@ -1096,24 +1143,36 @@ function nearestTrack(pos,hint,window){
 /* ==================================================================
    LAP TIMING
    ================================================================== */
-const lap={t:0,num:1,last:null,best:null,prevIdx:0,armed:false,
+const lap={t:0,num:1,last:null,best:null,prevIdx:0,armed:false,cur:null,bestArr:null,
+  secBest:[null,null,null],secStart:0,sec:0,
   reset(){this.t=0;this.num=1;this.last=null;this.best=null;this.prevIdx=nearestTrack(CAR.pos).idx;this.armed=false;
-    $('#lapNum').textContent='1';$('#lapCur').textContent='0:00.0';$('#lapLast').textContent='—:—';$('#lapBest').textContent='—:—';},
+    this.cur=new Float32Array(TRACK.N).fill(-1);this.bestArr=null;this.secBest=[null,null,null];this.secStart=0;this.sec=0;
+    $('#lapNum').textContent='1';$('#lapCur').textContent='0:00.0';$('#lapLast').textContent='—:——.—';$('#lapBest').textContent='—:——.—';
+    for(let i=0;i<3;i++){$('#sec'+i).textContent='—';$('#sec'+i).className='sv';}$('#delta').textContent='';$('#delta').className='';},
+  split(s){const sT=this.t-this.secStart;this.secStart=this.t;
+    const el=$('#sec'+s);el.textContent=sT.toFixed(1);
+    if(this.secBest[s]==null||sT<this.secBest[s]){this.secBest[s]=sT;el.className='sv best';}else el.className='sv';},
   update(dt,idx){
     this.t+=dt;
-    // cross start (idx wraps past 0) moving forward, after having driven a bit
+    if(this.cur&&idx>=0&&idx<this.cur.length)this.cur[idx]=this.t;
+    const s1=(TRACK.N/3)|0, s2=(2*TRACK.N/3)|0;
+    if(this.armed){
+      if(this.sec===0&&this.prevIdx<s1&&idx>=s1){this.split(0);this.sec=1;}
+      else if(this.sec===1&&this.prevIdx<s2&&idx>=s2){this.split(1);this.sec=2;}
+    }
     if(this.armed && this.prevIdx>TRACK.N-40 && idx<40){
-      this.last=this.t; if(this.best==null||this.t<this.best)this.best=this.t;
-      this.num++; this.t=0;
-      $('#lapNum').textContent=this.num;
-      $('#lapLast').textContent=fmt(this.last);
-      $('#lapBest').textContent=fmt(this.best);
+      this.split(2);
+      this.last=this.t; if(this.best==null||this.t<this.best){this.best=this.t;this.bestArr=this.cur.slice();}
+      this.num++; this.t=0; this.sec=0; this.secStart=0; this.cur=new Float32Array(TRACK.N).fill(-1);
+      $('#lapNum').textContent=this.num;$('#lapLast').textContent=fmt(this.last);$('#lapBest').textContent=fmt(this.best);
     }
     if(idx>60&&idx<TRACK.N-60) this.armed=true;
     this.prevIdx=idx;
     $('#lapCur').textContent=fmt(this.t);
+    if(this.bestArr&&this.bestArr[idx]>=0){const d=this.t-this.bestArr[idx];const el=$('#delta');
+      el.textContent=(d<=0?'−':'+')+Math.abs(d).toFixed(2);el.className=d<=0?'ahead':'behind';}
   }};
-function fmt(s){if(s==null)return'—:—';const m=Math.floor(s/60);const r=(s-m*60);return `${m}:${r.toFixed(1).padStart(4,'0')}`;}
+function fmt(s){if(s==null)return'—:——.—';const m=Math.floor(s/60);const r=(s-m*60);return `${m}:${r.toFixed(1).padStart(4,'0')}`;}
 
 /* ==================================================================
    SOUND (synth engine)
@@ -1289,6 +1348,7 @@ addEventListener('keydown',e=>{
     else if((k==='arrowright'||k==='d')&&MODES[sel].drive){cycleTrack(1);e.preventDefault();}
     else if(k==='enter'||k===' '){chooseMode();e.preventDefault();}
   }else if(STATE==='drive'){
+    if(k===' ')e.preventDefault();          // brake — don't scroll the page
     if(k==='c')cycleCam();
     else if(k==='r')resetCar();
     else if(k==='escape')exitToMenu();
@@ -1298,7 +1358,7 @@ addEventListener('keydown',e=>{
 addEventListener('keyup',e=>{keys[e.key.toLowerCase()]=false;});
 function readInput(){
   const thr=(keys['w']||keys['arrowup'])?1:0;
-  const brk=(keys['s']||keys['arrowdown'])?1:0;
+  const brk=(keys[' ']||keys['arrowdown']||keys['s'])?1:0;   // brake = SPACE (also S / ↓)
   let st=0; if(keys['a']||keys['arrowleft'])st+=1; if(keys['d']||keys['arrowright'])st-=1;
   return {throttle:thr,brake:brk,steer:st};
 }
