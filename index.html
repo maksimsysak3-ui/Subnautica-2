@@ -1049,12 +1049,12 @@ const CAR={
 };
 if(typeof window!=='undefined') window.__CAR=CAR;
 const PHYS={
-  mass:798, power:520000, maxForce:11500, brakeForce:66000,   // softer launch, strong brakes
-  cdA:1.15, downK:3.9, mu:1.78, roll:260, engBrake:1200,       // a little less grip (not slippery); downforce restores fast corners
-  wheelbase:3.6, aFront:1.6, aRear:2.0,                        // CG biased rearward
-  izK:2.5,                                                     // yaw-inertia factor (higher = more planted, harder to snap round)
-  Cf:90000, Cr:150000,                                        // softer front bite = must work the wheel; stiffer rear = stable
-  maxSteerLo:0.27, maxSteerHi:0.075, steerRate:2.5, steerReturn:5.5,
+  mass:798, power:360000, maxForce:7600, brakeForce:60000,     // calmer, more progressive acceleration
+  cdA:1.15, downK:3.9, mu:1.9, roll:260, engBrake:1400,        // a touch more grip so it's predictable, not weird/sliding
+  wheelbase:3.6, aFront:1.62, aRear:1.98,                      // CG slightly rearward
+  izK:2.3,                                                     // yaw inertia (planted but not sluggish)
+  Cf:112000, Cr:158000,                                       // firmer, more linear front bite = cleaner turn-in; rear stays stable
+  maxSteerLo:0.26, maxSteerHi:0.085, steerRate:3.0, steerReturn:6.0,
 };
 
 /* Red Bull livery texture (projected onto the body — mesh has no UVs) */
@@ -1359,17 +1359,22 @@ function stepPhysics(dt,inp){
   CAR.pos.x += (sinH*CAR.v + cosH*CAR.vLat)*dt;
   CAR.pos.z += (cosH*CAR.v - sinH*CAR.vLat)*dt;
 
-  // barrier at the real wall position (so there's room to run onto kerb/run-off)
+  // barrier at the real wall position (so there's room to run onto kerb/run-off).
+  // Push straight back onto the wall line and scrub speed — never launch or spin.
   const wall=(near.lat>0?TRACK.wallL:TRACK.wallR)[near.idx]-0.6;
   if(Math.abs(near.lat)>wall){
-    const n=near.normal, sign=Math.sign(near.lat);
-    CAR.pos.addScaledVector(n, (wall-Math.abs(near.lat))*sign);
-    CAR.v*=0.6;
+    const pen=Math.abs(near.lat)-wall;          // penetration depth (>0)
+    CAR.pos.addScaledVector(near.normal,-pen);  // near.normal points outward → move inward
+    CAR.v*=0.55;                                 // scrub forward speed
+    CAR.vLat*=-0.12;                             // kill the into-wall slide (tiny inward nudge)
+    CAR.yawRate*=0.25;                           // stop the wild spin that "broke" the car
   }
 
-  // apply to rig — follow track elevation (windowed idx keeps it smooth, no launching)
+  // apply to rig — follow track elevation tightly so the car never sinks through the road
   const gy=TRACK.pts[near.idx]?TRACK.pts[near.idx].y:0;
-  CAR.groundY=damp(CAR.groundY===undefined?gy:CAR.groundY,gy,7,dt);
+  if(CAR.groundY===undefined)CAR.groundY=gy;
+  CAR.groundY=damp(CAR.groundY,gy,16,dt);
+  if(Math.abs(CAR.groundY-gy)>1.0)CAR.groundY=gy;   // hard clamp on steep changes (Eau Rouge)
   const rumble=CAR.kerb?Math.sin(performance.now()*0.045)*0.05*clamp(spd/18,0,1):0;
   CAR.rig.position.set(CAR.pos.x,CAR.groundY+rumble,CAR.pos.z);
   CAR.rig.rotation.y=CAR.heading;
