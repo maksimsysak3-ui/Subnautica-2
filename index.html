@@ -871,8 +871,11 @@ function buildForest(sc,P,Nm,offL,offR){
 /* ---- big roofed grandstands with crowd + sponsor facades ---- */
 function buildGrandstands(sc,P,Nm,Tg,offL,offR){
   const N=P.length;
+  const tent=CFG&&CFG.id==='yas';               // Middle-Eastern tent canopies at Yas
   const frameMat=new THREE.MeshStandardMaterial({color:0x3a4049,roughness:0.85});
   const roofMat=new THREE.MeshStandardMaterial({color:0xced3d9,roughness:0.6,metalness:0.2,side:THREE.DoubleSide});
+  const tentMat=new THREE.MeshStandardMaterial({color:0xf4efe4,roughness:0.85,side:THREE.DoubleSide,
+    emissive:0x3a2f22,emissiveIntensity:0.5});   // warm-lit fabric
   const facadeMat=new THREE.MeshStandardMaterial({map:makeHoarding(),roughness:0.8});
   const idxs=[0,Math.round(N*0.16),Math.round(N*0.34),Math.round(N*0.52),Math.round(N*0.7),Math.round(N*0.86)];
   idxs.forEach((i,si)=>{
@@ -884,15 +887,24 @@ function buildGrandstands(sc,P,Nm,Tg,offL,offR){
     // tiered seating (crowd)
     const seat=new THREE.Mesh(new THREE.BoxGeometry(len,h,depth),makeCrowdMat());
     seat.position.set(0,h/2,0);
-    // roof
-    const roof=new THREE.Mesh(new THREE.BoxGeometry(len+6,0.6,depth+7),roofMat);
-    roof.position.set(0,h+3.4,-2);
+    g.add(seat);
+    if(tent){
+      // scalloped peaked fabric canopy — a row of tent bays
+      const bays=5, bw=(len+6)/bays;
+      for(let k=0;k<bays;k++){const peak=new THREE.Mesh(new THREE.ConeGeometry(bw*0.72,6,4),tentMat);
+        peak.rotation.y=Math.PI/4;peak.position.set(-len/2-3+bw*(k+0.5),h+5,-2);g.add(peak);}
+      const ridge=new THREE.Mesh(new THREE.BoxGeometry(len+6,0.5,depth+7),tentMat);
+      ridge.position.set(0,h+2.6,-2);g.add(ridge);
+    }else{
+      const roof=new THREE.Mesh(new THREE.BoxGeometry(len+6,0.6,depth+7),roofMat);
+      roof.position.set(0,h+3.4,-2);g.add(roof);
+    }
     // roof supports
     for(const sx of [-len/2+3,len/2-3]){const c=new THREE.Mesh(new THREE.BoxGeometry(1,h+3,1),frameMat);c.position.set(sx,(h+3)/2,depth/2+1);g.add(c);}
     // facade sponsor band
     const band=new THREE.Mesh(new THREE.PlaneGeometry(len,3),facadeMat);
     band.position.set(0,h+1.5,depth/2+0.3);
-    g.add(seat,roof,band);
+    g.add(band);
     const gy=TRACK.terrainH(base.x,base.z)-0.55;
     g.position.copy(base);g.position.y=gy;
     g.lookAt(p.x,gy,p.z);
