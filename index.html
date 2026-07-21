@@ -351,7 +351,7 @@
   <aside id="mDetail"><div id="mdTag">MODE</div><div id="mdDesc">—</div><div id="mdMeta"></div></aside>
   <footer id="mFoot">
     <div class="keys"><span><b>↑↓</b>Navigate</span><span><b>⏎</b>Select</span></div>
-    <div id="mVer">BUILD 2026.2 · v0.2 “LIGHTS OUT”</div>
+    <div id="mVer">BUILD 2026.4 · v0.4 “INTERLAGOS”</div>
   </footer>
   <!-- livery editor -->
   <aside id="garage">
@@ -1697,6 +1697,14 @@ function setLivery(teamKey){
     u.uBase.value.set(L.base); }
   if(CAR.bodyMat) CAR.bodyMat.color.set(L.base);
 }
+let PLAIN_TEX=null, carPlain=false;
+function makePlainTex(){const c=cnv(64,64),x=c.getContext('2d');x.fillStyle='#0c0e13';x.fillRect(0,0,64,64);
+  const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;return t;}
+function setCarPlain(plain){                            // unbranded matte-carbon car (used for the intro)
+  carPlain=plain;const u=CAR.bodyMat&&CAR.bodyMat.userData.livU;if(!u)return;
+  if(plain){ if(!PLAIN_TEX)PLAIN_TEX=makePlainTex(); u.uLiv.value=PLAIN_TEX; u.uBase.value.set(0x0c0e13); CAR.bodyMat.color.set(0x0c0e13); }
+  else setLivery(selLivery);
+}
 async function loadCar(loader,onProg){
   const gltf=await loader.loadAsync('assets/models/f1_car.glb',e=>onProg&&onProg(e));
   const model=gltf.scene;
@@ -1825,42 +1833,27 @@ function mountCockpit(){
   w.rotation.order='ZYX';
   w.rotation.set(-Math.PI/2, 0, Math.PI);
   const spinHub=new THREE.Group(); spinHub.add(w); holder.add(spinHub);
-  // detailed gloved hands gripping the wheel at ~9 and 3 o'clock (rotate with steering)
+  // simple, clean gloved hands gripping the wheel at ~9 and 3 o'clock (rotate with steering)
   const teamBase=(LIVERIES[selLivery]||LIVERIES.redbull).base;
-  const gloveMat=new THREE.MeshStandardMaterial({color:0x14171d,roughness:0.62});          // dark race glove
-  const accentMat=new THREE.MeshStandardMaterial({color:teamBase,roughness:0.55});          // team accent
-  const suitMat=new THREE.MeshStandardMaterial({color:0x1b1e24,roughness:0.72});            // race-suit forearm
-  const skinCuff=new THREE.MeshStandardMaterial({color:0x0a0c10,roughness:0.6});
+  const gloveMat=new THREE.MeshStandardMaterial({color:0x17191f,roughness:0.6});
+  const accentMat=new THREE.MeshStandardMaterial({color:teamBase,roughness:0.5});
+  const suitMat=new THREE.MeshStandardMaterial({color:0x1b1e24,roughness:0.74});
   const R=0.135;
   const makeHand=(sx)=>{
     const hand=new THREE.Group();
-    const palm=new THREE.Mesh(new THREE.BoxGeometry(0.062,0.05,0.09),gloveMat);   // rounded palm block
-    palm.position.set(0,0,0.015);hand.add(palm);
-    const back=new THREE.Mesh(new THREE.BoxGeometry(0.05,0.028,0.07),accentMat);   // team-accent glove back
-    back.position.set(0,0.03,-0.005);hand.add(back);
-    // four fingers curling over the front of the rim
-    for(let f=0;f<4;f++){const fg=new THREE.Group();
-      const p1=new THREE.Mesh(new THREE.CylinderGeometry(0.0085,0.009,0.03,8),gloveMat);p1.position.y=-0.015;
-      const p2=new THREE.Mesh(new THREE.CylinderGeometry(0.007,0.0085,0.024,8),gloveMat);
-      p2.position.set(0,-0.034,0.016);p2.rotation.x=1.05;                          // curl toward the driver
-      fg.add(p1,p2);fg.position.set((f-1.5)*0.016,0.028,0.04);hand.add(fg);}
-    // thumb across the inner rim
-    const thumb=new THREE.Mesh(new THREE.CylinderGeometry(0.0095,0.011,0.032,8),gloveMat);
-    thumb.rotation.z=sx*1.15;thumb.rotation.x=0.4;thumb.position.set(-sx*0.03,0.005,0.05);hand.add(thumb);
-    // knuckle ridges
-    for(let k=0;k<3;k++){const kn=new THREE.Mesh(new THREE.SphereGeometry(0.006,8,6),gloveMat);
-      kn.position.set((k-1)*0.016,0.045,0.01);hand.add(kn);}
-    // glove cuff + wrist
-    const cuff=new THREE.Mesh(new THREE.TorusGeometry(0.03,0.009,8,16),accentMat);
-    cuff.position.set(0,-0.03,-0.05);cuff.rotation.x=Math.PI/2;hand.add(cuff);
-    const wrist=new THREE.Mesh(new THREE.CylinderGeometry(0.03,0.03,0.02,12),skinCuff);
-    wrist.position.set(0,-0.03,-0.055);wrist.rotation.x=Math.PI/2;hand.add(wrist);
-    // forearm in the race suit, angled back toward the driver
-    const fore=new THREE.Mesh(new THREE.CylinderGeometry(0.033,0.046,0.26,12),suitMat);
-    fore.position.set(sx*0.085,-0.17,-0.12);fore.rotation.z=sx*0.5;fore.rotation.x=-0.32;hand.add(fore);
-    const stripe=new THREE.Mesh(new THREE.CylinderGeometry(0.0345,0.041,0.04,12),accentMat);
-    stripe.position.set(sx*0.05,-0.1,-0.075);stripe.rotation.z=sx*0.5;stripe.rotation.x=-0.32;hand.add(stripe);
-    hand.position.set(sx*R,0,0.03);
+    const fist=new THREE.Mesh(new THREE.SphereGeometry(0.037,18,14),gloveMat);      // rounded knuckle mass
+    fist.scale.set(0.82,1.18,1.0);fist.position.set(0,0.006,0.004);hand.add(fist);
+    const fingers=new THREE.Mesh(new THREE.SphereGeometry(0.031,16,12),gloveMat);    // fingers curled over the front of the rim
+    fingers.scale.set(0.92,0.55,1.15);fingers.position.set(0,-0.008,0.05);hand.add(fingers);
+    const thumb=new THREE.Mesh(new THREE.SphereGeometry(0.013,12,10),gloveMat);      // thumb on the inner rim
+    thumb.scale.set(1,2.0,1);thumb.position.set(-sx*0.03,0.004,0.038);thumb.rotation.z=sx*0.5;hand.add(thumb);
+    const band=new THREE.Mesh(new THREE.BoxGeometry(0.05,0.013,0.05),accentMat);     // team-accent band across the glove
+    band.position.set(0,0.03,0.006);hand.add(band);
+    const fore=new THREE.Mesh(new THREE.CylinderGeometry(0.028,0.044,0.24,16),suitMat);  // race-suit forearm
+    fore.position.set(sx*0.05,-0.15,-0.1);fore.rotation.z=sx*0.4;fore.rotation.x=-0.34;hand.add(fore);
+    const cuff=new THREE.Mesh(new THREE.CylinderGeometry(0.033,0.033,0.02,16),accentMat);
+    cuff.position.set(sx*0.012,-0.05,-0.028);cuff.rotation.z=sx*0.4;cuff.rotation.x=-0.34;hand.add(cuff);
+    hand.position.set(sx*R,0,0.02);
     return hand;
   };
   spinHub.add(makeHand(-1),makeHand(1));
@@ -1875,7 +1868,7 @@ function resetCar(){
   const p=TRACK.pts[0], tg=TRACK.tan[0];
   CAR.pos.set(p.x,0,p.z);
   CAR.heading=Math.atan2(tg.x,tg.z);
-  CAR.v=0;CAR.steer=0;CAR.steerCmd=0;CAR.yawRate=0;CAR.vLat=0;
+  CAR.v=0;CAR.steer=0;CAR.steerCmd=0;CAR.yawRate=0;CAR.vLat=0;CAR.pitch=0;
   CAR.trackIdx=0; CAR.groundY=p.y;
   lap.reset();
 }
@@ -1956,14 +1949,25 @@ function stepPhysics(dt,inp){
     CAR.yawRate*=0.25;                           // stop the wild spin that "broke" the car
   }
 
-  // apply to rig — follow track elevation tightly so the car never sinks through the road
-  const gy=TRACK.pts[near.idx]?TRACK.pts[near.idx].y:0;
-  if(CAR.groundY===undefined)CAR.groundY=gy;
-  CAR.groundY=damp(CAR.groundY,gy,16,dt);
-  if(Math.abs(CAR.groundY-gy)>1.0)CAR.groundY=gy;   // hard clamp on steep changes (Eau Rouge)
-  const rumble=CAR.kerb?Math.sin(performance.now()*0.045)*0.05*clamp(spd/18,0,1):0;
+  // smoothly INTERPOLATED road height (continuous along the centreline) so the car
+  // never steps/bounces between points or sinks through the road on slopes.
+  { const N=TRACK.N,i0=near.idx;
+    const A=TRACK.pts[i0],Bp=TRACK.pts[(i0+1)%N],Am=TRACK.pts[(i0-1+N)%N];
+    const proj=(P0,P1)=>{const dx=P1.x-P0.x,dz=P1.z-P0.z,L2=dx*dx+dz*dz||1;
+      return ((CAR.pos.x-P0.x)*dx+(CAR.pos.z-P0.z)*dz)/L2;};
+    let sa=A,sb=Bp,t=proj(A,Bp);
+    if(t<0){sa=Am;sb=A;t=proj(Am,A);}
+    t=clamp(t,0,1);
+    const gy=sa.y+(sb.y-sa.y)*t;
+    if(CAR.groundY===undefined)CAR.groundY=gy;
+    CAR.groundY=damp(CAR.groundY,gy,14,dt);
+    // pitch the car to the local gradient (subtle) so climbs/dips read right
+    const segLen=Math.hypot(sb.x-sa.x,sb.z-sa.z)||1, slope=(sb.y-sa.y)/segLen;
+    CAR.pitch=damp(CAR.pitch||0,clamp(-slope*Math.sign(CAR.v||1),-0.16,0.16),5,dt);
+  }
+  const rumble=CAR.kerb?Math.sin(performance.now()*0.05)*0.035*clamp(spd/22,0,1):0;
   CAR.rig.position.set(CAR.pos.x,CAR.groundY+rumble,CAR.pos.z);
-  CAR.rig.rotation.y=CAR.heading;
+  CAR.rig.rotation.set(CAR.pitch||0,CAR.heading,0,'YXZ');
 
   // sun shadow follows the car (7 km track can't fit one shadow map)
   const sun=driveScene.userData.sun;
@@ -2305,7 +2309,7 @@ let STATE='load'; // load | cine | menu | drive
 let menuSpin=0;
 
 /* ---- cinematic opening: scripted camera flythrough of the car on the grid ---- */
-let CINE=null;
+let CINE=null, CINE_KEY=null;
 function spawnSwoosh(topPct,rev,dur){
   dur=dur||520;const el=document.createElement('div');el.className='swoosh';
   el.style.top=topPct+'%';el.style.transform=rev?'skewX(22deg)':'skewX(-22deg)';
@@ -2321,17 +2325,20 @@ function startCinematic(){
   // build Spa up front so the intro (and the first race) have a world to show
   buildWorld(driveScene, TRACKS.spa); builtTrackId='spa';
   driveScene.add(CAR.rig); resetCar();
+  setCarPlain(true);                                   // clean, unbranded car for the reveal
   const p=CAR.pos.clone(), h=CAR.heading;
   const fwd=new THREE.Vector3(Math.sin(h),0,Math.cos(h));
   const rgt=new THREE.Vector3(Math.cos(h),0,-Math.sin(h));
   const gy=(TRACK.pts[0]&&TRACK.pts[0].y)||0;
   const Pc=(f,r,u)=>p.clone().addScaledVector(fwd,f).addScaledVector(rgt,r).setY(gy+u);
-  // dramatic red rim-light on the car for the reveal
-  const rim=new THREE.PointLight(0xff2020,0,60,2);rim.position.copy(Pc(2,5,2.5));driveScene.add(rim);
+  const LOOK=Pc(0,0,0.7);                              // keep the CAR centred in every shot
+  // bright key + red rim so the car is clearly lit for the reveal
+  const rim=new THREE.PointLight(0xff2626,0,70,2);rim.position.copy(Pc(1,4,3));driveScene.add(rim);
+  const key=new THREE.PointLight(0xffffff,3.2,60,2);key.position.copy(Pc(3,-3,4));driveScene.add(key);CINE_KEY=key;
   CINE={ start:performance.now(), rim, timers:[], ended:false, shots:[
-    {t0:0.0,t1:1.7, p0:Pc(7,-4.5,0.5), p1:Pc(4.6,5.0,0.9),  l0:Pc(1,0,0.6),  l1:Pc(1.6,0,0.7)},  // fast low nose pass
-    {t0:1.7,t1:3.0, p0:Pc(-6,3.4,0.6), p1:Pc(-9.5,3.0,3.6), l0:Pc(-1,0,0.7), l1:Pc(0.5,0,1.0)},   // rear 3/4 rising
-    {t0:3.0,t1:5.2, p0:Pc(1,8,0.9),    p1:Pc(3.5,22,7),      l0:Pc(0,0,0.7),  l1:Pc(2,0,1.3)},     // hero pull-out
+    {t0:0.0,t1:1.8, p0:Pc(6,-3.4,0.55), p1:Pc(4.4,3.6,1.0),  l0:LOOK, l1:LOOK},   // front-3/4 low sweep, car centred
+    {t0:1.8,t1:3.2, p0:Pc(-1,-6,0.9),   p1:Pc(-5,-6.5,2.6),  l0:LOOK, l1:LOOK},   // side profile rising
+    {t0:3.2,t1:5.2, p0:Pc(-2,5,1.1),    p1:Pc(3,18,6.5),     l0:LOOK, l1:Pc(2,0,1.3)}, // hero pull-out
   ]};
   const S=(ms,fn)=>CINE.timers.push(setTimeout(fn,ms));
   Sound.init();
@@ -2358,7 +2365,7 @@ function startCinematic(){
   $('#cine').classList.add('on');
 }
 function stepCinematic(dt){
-  const el=(performance.now()-CINE.start)/1000;      // real elapsed seconds
+  const el=(typeof window!=='undefined'&&window.__holdCine!=null)?window.__holdCine:(performance.now()-CINE.start)/1000;
   let shot=CINE.shots[0];
   for(const s of CINE.shots){ if(el>=s.t0){shot=s;} }
   const lt=clamp((el-shot.t0)/(shot.t1-shot.t0),0,1), e=lt*lt*(3-2*lt);
@@ -2371,6 +2378,8 @@ function endCinematic(){
   CINE.ended=true;
   CINE.timers.forEach(clearTimeout);
   if(CINE.rim) driveScene.remove(CINE.rim);
+  if(CINE_KEY){driveScene.remove(CINE_KEY);CINE_KEY=null;}
+  setCarPlain(false);                                  // restore the selected livery
   $('#cineFx').innerHTML='';
   $('#cineTitle').classList.remove('slam');$('#cineSub').classList.remove('show');
   CINE=null;
@@ -2383,15 +2392,17 @@ function endCinematic(){
 /* ---- track-select intro: globe zoom → sector outline → overhead ---- */
 let TINTRO=null;
 function trackIntro(cfg,done){
-  if(!GLOBE){done();return;}                       // globe failed to load → skip straight in
   const loc=TRACK_LOC[cfg.id]||[45,0];
   const dir=latLonToVec(loc[0],loc[1]).normalize();
-  GLOBE.pin.position.copy(dir);
-  GLOBE.pin.quaternion.setFromUnitVectors(new THREE.Vector3(0,0,1),dir);
-  GLOBE.pin.scale.setScalar(0.001);
+  const noGlobe=!GLOBE;
+  if(GLOBE){
+    GLOBE.pin.position.copy(dir);
+    GLOBE.pin.quaternion.setFromUnitVectors(new THREE.Vector3(0,0,1),dir);
+    GLOBE.pin.scale.setScalar(0.001);
+  }
   const qStart=new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0),-1.6);
   const qEnd=new THREE.Quaternion().setFromUnitVectors(dir,new THREE.Vector3(0,0,1));
-  TINTRO={start:performance.now(),done,cfg,qStart,qEnd,fired:false};
+  TINTRO={start:performance.now(),done,cfg,qStart,qEnd,fired:false,noGlobe};
   $('#tNameMain').textContent=cfg.name;$('#tNameSub').textContent=cfg.country+' '+cfg.flag;
   $('#tCanvas').style.opacity='0';
   $('#tIntro').classList.add('on');
@@ -2432,8 +2443,8 @@ function overheadCam(k){
   camera.fov=45;camera.updateProjectionMatrix();
 }
 function introStep(dt){
-  const el=(performance.now()-TINTRO.start)/1000, A=2.9,B=A+2.3,C=B+1.7;
-  if(el<A){                                          // globe zoom
+  const el=(typeof window!=='undefined'&&window.__holdIntro!=null)?window.__holdIntro:(performance.now()-TINTRO.start)/1000, A=2.9,B=A+2.3,C=B+1.7;
+  if(el<A && !TINTRO.noGlobe){                       // globe zoom (skipped if the globe didn't load)
     $('#tCanvas').style.opacity='0';
     const k=clamp(el/A,0,1),e=k*k*(3-2*k);
     GLOBE.group.quaternion.slerpQuaternions(TINTRO.qStart,TINTRO.qEnd,e);
