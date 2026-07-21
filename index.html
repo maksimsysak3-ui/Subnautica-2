@@ -595,56 +595,150 @@ function buildWorld(sc,cfg){
 
   buildBarriers(sc,P,Nm,cum,barOff,barOffR);
   if(cfg.forest) buildForest(sc,P,Nm,barOff,barOffR);
-  else buildDesert(sc,P,Nm,barOff,barOffR);       // Yas: desert + Yas hotel
+  else buildDesert(sc,P,Nm,Tg,barOff,barOffR);    // Yas: desert + Yas Marina hotel
   buildGrandstands(sc,P,Nm,Tg,barOff,barOffR);
   buildPit(sc,P,Nm,Tg);
   miniProj=null;                                   // minimap recomputes for new track
   return {};
 }
-/* ---- Yas Marina: dunes, hotel, marina water + yachts, illuminated skyline ---- */
-function buildDesert(sc,P,Nm,offL,offR){
+/* lit-window facade texture (night) */
+function makeWindows(cols,rows,tint){
+  const c=cnv(cols*10,rows*14),x=c.getContext('2d');
+  x.fillStyle='#0a0f18';x.fillRect(0,0,c.width,c.height);
+  for(let r=0;r<rows;r++)for(let k=0;k<cols;k++){
+    const lit=Math.random();const col=lit>0.5?tint:'#0d1420';
+    x.fillStyle=col;x.globalAlpha=lit>0.5?(0.5+Math.random()*0.5):1;
+    x.fillRect(k*10+1.5,r*14+2,7,10);}
+  x.globalAlpha=1;const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;
+  t.wrapS=t.wrapT=THREE.RepeatWrapping;t.anisotropy=4;return t;
+}
+/* ---- Yas Marina: dunes, marina + yachts, palms, floodlights, skyline, the hotel ---- */
+function buildDesert(sc,P,Nm,Tg,offL,offR){
   const N=P.length,R=TRACK.radius;
   const samp=[];for(let i=0;i<N;i+=5)samp.push(P[i]);
   const clr=(x,z)=>{let mn=1e9;for(const q of samp){const dx=x-q.x,dz=z-q.z;const d=dx*dx+dz*dz;if(d<mn)mn=d;}return mn;};
   const M=new THREE.Matrix4(),s=new THREE.Vector3(),q=new THREE.Quaternion(),tr=new THREE.Vector3();
   // sand dunes (kept well clear of the blue run-off)
   { const g=new THREE.SphereGeometry(1,10,6), m=new THREE.MeshStandardMaterial({color:0xb49a68,roughness:1});
-    const list=[];let n=0,t=0;while(n<1100&&t<12000){t++;const a=Math.random()*TAU,rr=R*0.75+Math.random()*R*1.4;
+    const list=[];let n=0,t=0;while(n<1300&&t<14000){t++;const a=Math.random()*TAU,rr=R*0.72+Math.random()*R*1.5;
       const x=Math.cos(a)*rr,z=Math.sin(a)*rr;if(clr(x,z)<120*120)continue;
       list.push({x,z,w:22+Math.random()*46,h:5+Math.random()*12});n++;}
     const im=new THREE.InstancedMesh(g,m,list.length);im.receiveShadow=true;
     list.forEach((o,i)=>{tr.set(o.x,-o.h*0.3,o.z);s.set(o.w,o.h,o.w);M.compose(tr,q,s);im.setMatrixAt(i,M);});
     im.instanceMatrix.needsUpdate=true;im.frustumCulled=false;sc.add(im); }
-  // marina water on the inside of the loop + yachts
-  { const cx=0,cz=0;                                 // centre of the circuit (infield/marina)
-    const water=new THREE.Mesh(new THREE.CircleGeometry(R*0.42,48),
-      new THREE.MeshStandardMaterial({color:0x0a2a44,roughness:0.15,metalness:0.7,
-        emissive:0x06283a,emissiveIntensity:0.5}));
-    water.rotation.x=-Math.PI/2;water.position.set(cx,-0.35,cz);sc.add(water);
+  // marina water on the inside of the loop + a fleet of yachts
+  { const water=new THREE.Mesh(new THREE.CircleGeometry(R*0.42,56),
+      new THREE.MeshStandardMaterial({color:0x0a2a44,roughness:0.12,metalness:0.75,emissive:0x06283a,emissiveIntensity:0.6}));
+    water.rotation.x=-Math.PI/2;water.position.set(0,-0.35,0);sc.add(water);
     const hull=new THREE.MeshStandardMaterial({color:0xf2f5f8,roughness:0.4});
-    const deck=new THREE.MeshStandardMaterial({color:0x223040,roughness:0.5,emissive:0x101820,emissiveIntensity:0.6});
-    for(let i=0;i<26;i++){const a=Math.random()*TAU,rr=R*0.15+Math.random()*R*0.24;
-      const x=cx+Math.cos(a)*rr,z=cz+Math.sin(a)*rr;const g=new THREE.Group();
-      const b=new THREE.Mesh(new THREE.BoxGeometry(6+Math.random()*10,3,3),hull);b.position.y=1.2;
-      const d=new THREE.Mesh(new THREE.BoxGeometry(4,2,2.4),deck);d.position.set(-1,3,0);
-      g.add(b,d);g.position.set(x,0,z);g.rotation.y=Math.random()*TAU;sc.add(g);} }
-  // Yas hotel: twin masses + LED lattice canopy
-  { const p=P[0],nm=Nm[0];const base=new THREE.Vector3().copy(p).addScaledVector(nm,-offR(0)-46);
-    const hg=new THREE.Group();
-    const bodyMat=new THREE.MeshStandardMaterial({color:0x223047,roughness:0.35,metalness:0.5});
-    for(const sx of [-26,26]){const tower=new THREE.Mesh(new THREE.CylinderGeometry(24,26,36,24,1,false,0,Math.PI),bodyMat);
-      tower.position.set(sx,18,0);tower.rotation.y=sx<0?0:Math.PI;hg.add(tower);}
-    const canopy=new THREE.Mesh(new THREE.TorusGeometry(48,7,10,44,Math.PI*1.2),
-      new THREE.MeshStandardMaterial({color:0x0a0e18,emissive:0x2a5aa0,emissiveIntensity:1.6,metalness:0.6,roughness:0.4}));
-    canopy.rotation.x=Math.PI/2;canopy.position.set(0,38,0);hg.add(canopy);
-    hg.add(new THREE.PointLight(0x3a70ff,4,320,2).translateY(36));
-    const gy=TRACK.terrainH(base.x,base.z);hg.position.set(base.x,gy,base.z);hg.lookAt(p.x,gy,p.z);
-    hg.traverse(o=>{o.castShadow=true;});sc.add(hg); }
-  // distant lit skyline (Yas island buildings)
-  { const bmat=new THREE.MeshStandardMaterial({color:0x141b28,emissive:0x1a2a44,emissiveIntensity:0.8,roughness:0.7});
-    for(let i=0;i<40;i++){const a=Math.random()*TAU,rr=R*1.5+Math.random()*R*0.6;
-      const h=30+Math.random()*90;const b=new THREE.Mesh(new THREE.BoxGeometry(16+Math.random()*20,h,16+Math.random()*20),bmat);
+    const deck=new THREE.MeshStandardMaterial({color:0x223040,roughness:0.5,emissive:0x0c1420,emissiveIntensity:0.7});
+    const glass=new THREE.MeshStandardMaterial({color:0x8fd0ff,emissive:0x2a5a80,emissiveIntensity:0.9,transparent:true,opacity:0.6});
+    for(let i=0;i<40;i++){const a=Math.random()*TAU,rr=R*0.14+Math.random()*R*0.25;
+      const x=Math.cos(a)*rr,z=Math.sin(a)*rr;const g=new THREE.Group();const L=7+Math.random()*13;
+      const b=new THREE.Mesh(new THREE.BoxGeometry(L,3,3.2),hull);b.position.y=1.2;
+      const pr=new THREE.Mesh(new THREE.ConeGeometry(1.6,4,4),hull);pr.rotation.z=-Math.PI/2;pr.position.set(L/2+1.4,1.2,0);
+      const d=new THREE.Mesh(new THREE.BoxGeometry(L*0.5,2,2.4),deck);d.position.set(-1,3,0);
+      const w=new THREE.Mesh(new THREE.BoxGeometry(L*0.34,1.4,2.2),glass);w.position.set(-1,4.4,0);
+      const mast=new THREE.Mesh(new THREE.CylinderGeometry(0.12,0.12,8),deck);mast.position.set(1,6,0);
+      g.add(b,pr,d,w,mast);g.position.set(x,0,z);g.rotation.y=Math.random()*TAU;g.scale.setScalar(0.8+Math.random()*0.8);sc.add(g);} }
+  // palm trees dotted around the marina promenade + trackside
+  { const trunk=new THREE.MeshStandardMaterial({color:0x5a4326,roughness:0.9});
+    const frond=new THREE.MeshStandardMaterial({color:0x1f5e2a,roughness:0.8,emissive:0x0a2410,emissiveIntensity:0.4,side:THREE.DoubleSide});
+    for(let i=0;i<90;i++){const a=Math.random()*TAU,rr=R*0.46+Math.random()*R*0.7;
+      const x=Math.cos(a)*rr,z=Math.sin(a)*rr;if(clr(x,z)<70*70)continue;
+      const g=new THREE.Group();const h=6+Math.random()*5;
+      const tk=new THREE.Mesh(new THREE.CylinderGeometry(0.35,0.55,h,6),trunk);tk.position.y=h/2;g.add(tk);
+      for(let f=0;f<7;f++){const fr=new THREE.Mesh(new THREE.ConeGeometry(0.7,4.2,4),frond);
+        fr.position.y=h;fr.rotation.z=Math.PI/2.6;fr.rotation.y=f/7*TAU;g.add(fr);}
+      const gy=TRACK.terrainH(x,z);g.position.set(x,gy,z);g.rotation.y=Math.random()*TAU;sc.add(g);} }
+  // trackside floodlight pylons (night race)
+  { const pole=new THREE.MeshStandardMaterial({color:0x2a2f38,roughness:0.6,metalness:0.4});
+    const lamp=new THREE.MeshStandardMaterial({color:0xffffff,emissive:0xfff2d0,emissiveIntensity:2.2});
+    for(let i=0;i<N;i+=Math.round(N/16)){const p=P[i],nm=Nm[i];
+      const b=new THREE.Vector3().copy(p).addScaledVector(nm,offL(i)+8);const gy=TRACK.terrainH(b.x,b.z);
+      const g=new THREE.Group();const h=22;
+      const col=new THREE.Mesh(new THREE.CylinderGeometry(0.4,0.6,h,6),pole);col.position.y=h/2;g.add(col);
+      const head=new THREE.Mesh(new THREE.BoxGeometry(7,1.6,2),pole);head.position.set(0,h,1.4);g.add(head);
+      for(let k=-2;k<=2;k++){const bl=new THREE.Mesh(new THREE.BoxGeometry(1.1,1.1,0.4),lamp);bl.position.set(k*1.35,h,2.5);g.add(bl);}
+      g.position.set(b.x,gy,b.z);g.lookAt(p.x,gy,p.z);sc.add(g);} }
+  // distant lit skyline (Yas island / Abu Dhabi towers)
+  { const tints=['#2a4a6a','#3a5a3a','#5a4a6a','#2a5a5a'];
+    for(let i=0;i<54;i++){const a=Math.random()*TAU,rr=R*1.45+Math.random()*R*0.7;
+      const h=34+Math.random()*110, w=16+Math.random()*22;
+      const bmat=new THREE.MeshStandardMaterial({map:makeWindows(Math.max(3,w/6|0),Math.max(6,h/8|0),tints[i%4]),
+        emissive:0x223044,emissiveIntensity:0.9,roughness:0.7});
+      const b=new THREE.Mesh(new THREE.BoxGeometry(w,h,w),bmat);
       b.position.set(Math.cos(a)*rr,h/2-2,Math.sin(a)*rr);sc.add(b);} }
+  // the landmark: Yas Marina hotel with its LED gridshell veil over the track
+  buildYasHotel(sc,P,Nm,Tg);
+}
+/* the Yas hotel: two curved lit buildings straddling the track, joined by the
+   iconic double-curved steel gridshell "veil" whose LED lattice sweeps colour. */
+function buildYasHotel(sc,P,Nm,Tg){
+  // anchor on a straight-ish section on the start straight
+  const i0=6, p=P[i0].clone();
+  const fwd=new THREE.Vector3().subVectors(P[(i0+4)%P.length],P[(i0-4+P.length)%P.length]).setY(0).normalize();
+  const nrm=new THREE.Vector3(Nm[i0].x,0,Nm[i0].z).normalize();   // across the track (horizontal)
+  const up=new THREE.Vector3(0,1,0);
+  const gy=TRACK.terrainH(p.x,p.z);
+  const at=(a,b,h)=>new THREE.Vector3(
+    p.x+nrm.x*a+fwd.x*b, gy+h, p.z+nrm.z*a+fwd.z*b);
+  // ---- veil height field: arch across the track, humps over the two buildings ----
+  const H=(a,b)=>{
+    const arch=18 + 32*Math.exp(-(((a-42)/22)**2)) + 32*Math.exp(-(((a+42)/22)**2)); // ~high over towers
+    const dome=Math.cos(Math.max(-1,Math.min(1,b/48))*1.28);                     // droops front/back
+    return 15 + arch*dome*0.92;
+  };
+  const na=44, nb=26, aMax=64, bMax=50;
+  const grid=[];                       // grid[i][j] world Vector3
+  for(let i=0;i<=na;i++){const row=[];const a=(i/na*2-1)*aMax;
+    for(let j=0;j<=nb;j++){const b=(j/nb*2-1)*bMax;row.push(at(a,b,H(a,b)));}grid.push(row);}
+  // translucent glass shell surface
+  { const v=[],id=[];
+    for(let i=0;i<=na;i++)for(let j=0;j<=nb;j++){const P0=grid[i][j];v.push(P0.x,P0.y,P0.z);}
+    const idx=(i,j)=>i*(nb+1)+j;
+    for(let i=0;i<na;i++)for(let j=0;j<nb;j++){const a=idx(i,j),b=idx(i+1,j),c=idx(i,j+1),d=idx(i+1,j+1);
+      id.push(a,c,b,b,c,d);}
+    const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(v,3));
+    g.setIndex(id);g.computeVertexNormals();
+    const glass=new THREE.Mesh(g,new THREE.MeshStandardMaterial({color:0x05070c,metalness:0.7,roughness:0.35,
+      transparent:true,opacity:0.72,side:THREE.DoubleSide,emissive:0x0a1424,emissiveIntensity:0.5}));
+    glass.renderOrder=1;sc.add(glass); }
+  // ---- LED diagrid lattice: line segments with a travelling colour wave ----
+  { const pos=[],uu=[];
+    const push=(A,B,ua)=>{pos.push(A.x,A.y,A.z,B.x,B.y,B.z);uu.push(ua,ua);};
+    for(let i=0;i<=na;i++)for(let j=0;j<nb;j++)push(grid[i][j],grid[i][j+1], i/na);   // along-fwd wires
+    for(let i=0;i<na;i++)for(let j=0;j<=nb;j++)push(grid[i][j],grid[i+1][j], i/na);   // across-track wires
+    const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));
+    const col=new Float32Array(uu.length*3);g.setAttribute('color',new THREE.BufferAttribute(col,3));
+    const mat=new THREE.LineBasicMaterial({vertexColors:true,transparent:true,opacity:0.95,blending:THREE.AdditiveBlending});
+    const led=new THREE.LineSegments(g,mat);led.frustumCulled=false;
+    const cAttr=g.getAttribute('color'),tmp=new THREE.Color();
+    led.onBeforeRender=()=>{const t=performance.now()*0.00016;
+      for(let k=0;k<uu.length;k++){const hue=(uu[k]*2.2 + t)%1;
+        tmp.setHSL(hue,0.85,0.55);cAttr.setXYZ(k,tmp.r,tmp.g,tmp.b);}cAttr.needsUpdate=true;};
+    sc.add(led);
+    const gl=new THREE.PointLight(0x3a70ff,5,340,2);gl.position.copy(at(0,0,H(0,0)+6));sc.add(gl); }
+  // ---- two curved hotel buildings under the humps (lit glass facades) ----
+  const facade=(cols,rows)=>new THREE.MeshStandardMaterial({map:makeWindows(cols,rows,'#7fd0ff'),
+    emissive:0x14304a,emissiveIntensity:1.0,roughness:0.4,metalness:0.3});
+  for(const sideA of [-42,42]){
+    const bg=new THREE.Group();
+    for(let s=0;s<5;s++){const w=34-s*3.2, d=30-s*2.2, hh=8;
+      const slab=new THREE.Mesh(new THREE.BoxGeometry(w,hh,d),facade(Math.max(4,w/5|0),3));
+      const yy=6+s*8.4; const twist=(s-2)*0.09;
+      const c=at(sideA,0,yy); slab.position.copy(c);
+      slab.rotation.y=Math.atan2(fwd.x,fwd.z)+twist; bg.add(slab);}
+    // rooftop cap
+    const cap=at(sideA,0,50);const capM=new THREE.Mesh(new THREE.BoxGeometry(20,3,18),
+      new THREE.MeshStandardMaterial({color:0x0a1018,emissive:0x1a3050,emissiveIntensity:0.8,metalness:0.6,roughness:0.4}));
+    capM.position.copy(cap);capM.rotation.y=Math.atan2(fwd.x,fwd.z);bg.add(capM);
+    bg.traverse(o=>{o.castShadow=true;});sc.add(bg);
+  }
+  // link bridge deck spanning over the track between the buildings
+  { const deck=new THREE.Mesh(new THREE.BoxGeometry(64,2,14),
+      new THREE.MeshStandardMaterial({color:0x11161f,emissive:0x1a2840,emissiveIntensity:0.7,metalness:0.5,roughness:0.5}));
+    const c=at(0,0,30);deck.position.copy(c);deck.rotation.y=Math.atan2(fwd.x,fwd.z);sc.add(deck); }
 }
 
 /* ---- barriers: each track ZONE is a SINGLE sponsor (no alternating) ---- */
