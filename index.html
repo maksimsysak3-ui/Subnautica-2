@@ -1002,6 +1002,34 @@ function makeYacht(hull,deck,glass){
   const mast=new THREE.Mesh(new THREE.CylinderGeometry(0.14,0.14,9),deck);mast.position.set(1,7,0);
   g.add(b,pr,d,w,mast);g.scale.setScalar(0.85+Math.random()*0.9);return g;
 }
+/* a single varied Monte-Carlo building (base at y=0, faces along local +Z) */
+function makeMonacoBuilding(w,d,h,type,col){
+  const g=new THREE.Group();
+  const tints=['#ffe6b0','#ffdca0','#dfe8f2','#f2e0c0'];
+  const tint=tints[type%tints.length];
+  const bodyMat=new THREE.MeshStandardMaterial({map:makeWindows(Math.max(3,w/3.4|0),Math.max(6,h/5|0),tint),
+    color:col,emissive:0x100e0a,emissiveIntensity:0.28,roughness:0.88});
+  const body=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),bodyMat);body.position.y=h/2;g.add(body);
+  const trim=new THREE.MeshStandardMaterial({color:col,roughness:0.7});
+  if(type===0){ // apartment: rooftop plant box + parapet
+    const cap=new THREE.Mesh(new THREE.BoxGeometry(w*0.5,2,d*0.5),trim);cap.position.y=h+1;g.add(cap);
+    const par=new THREE.Mesh(new THREE.BoxGeometry(w+0.4,1,d+0.4),trim);par.position.y=h+0.5;g.add(par);
+  }else if(type===1){ // belle-époque hotel: cornice ledges + mansard top
+    for(const yy of [h*0.34,h*0.67]){const l=new THREE.Mesh(new THREE.BoxGeometry(w+0.6,0.7,d+0.6),trim);l.position.y=yy;g.add(l);}
+    const roof=new THREE.Mesh(new THREE.BoxGeometry(w*0.86,h*0.12,d*0.86),new THREE.MeshStandardMaterial({color:'#5a5560',roughness:0.8}));
+    roof.position.y=h+h*0.06;g.add(roof);
+  }else if(type===2){ // modern glass tower: bluish, slim antenna
+    body.material=new THREE.MeshStandardMaterial({map:makeWindows(Math.max(3,w/3|0),Math.max(8,h/4.5|0),'#bfe0ff'),
+      color:'#7d8aa0',metalness:0.4,roughness:0.5,emissive:0x14202e,emissiveIntensity:0.3});
+    const ant=new THREE.Mesh(new THREE.CylinderGeometry(0.12,0.12,7),trim);ant.position.y=h+3.5;g.add(ant);
+  }else{ // ornate casino/townhouse: corner pilasters + balustrade
+    for(const sx of [-1,1])for(const sz of [-1,1]){const pil=new THREE.Mesh(new THREE.BoxGeometry(1,h,1),trim);
+      pil.position.set(sx*(w/2-0.5),h/2,sz*(d/2-0.5));g.add(pil);}
+    const bal=new THREE.Mesh(new THREE.BoxGeometry(w+0.5,1.4,d+0.5),trim);bal.position.y=h+0.7;g.add(bal);
+  }
+  g.traverse(o=>{o.castShadow=true;o.receiveShadow=true;});
+  return g;
+}
 /* ---- Monaco: tight streets lined with tall city blocks, the harbour + yachts, a tunnel ---- */
 function buildMonaco(sc,P,Nm,Tg,offL,offR){
   const N=P.length,R=TRACK.radius, gh=TRACK.terrainH;
@@ -1018,21 +1046,25 @@ function buildMonaco(sc,P,Nm,Tg,offL,offR){
     for(let i=0;i<22;i++){const y=makeYacht(hull,deck,glass);
       y.position.set(cX+(Math.random()-0.5)*HWX*1.7,-0.4,cZ+(Math.random()-0.5)*HWZ*1.7);
       y.rotation.y=Math.random()*TAU;sc.add(y);} }
-  // --- dense Monte-Carlo city blocks lining the OUTSIDE of the streets ---
-  const pastels=[0xd8cdb8,0xcbb79a,0xe0d6c4,0xc9a889,0xbfc4c9,0xd6c2a2,0xb9a88e];
-  for(let i=0;i<N;i+=3){const p=P[i],n=Nm[i],tg=Tg[i];
+  // --- differentiated Monte-Carlo blocks lining the streets, set just off the wall ---
+  const HW=TRACK.halfW, sampB=[];for(let i=0;i<N;i+=2)sampB.push(P[i]);
+  const clearB=(x,z)=>{let m=1e9;for(const q of sampB){const dx=x-q.x,dz=z-q.z;const d=dx*dx+dz*dz;if(d<m)m=d;}return m;};
+  const pastels=['#d8cdb8','#cbb79a','#e6ddcb','#c9a889','#b7bcc2','#d6c2a2','#b9a88e','#e2c8a8','#a9b0b6'];
+  for(let i=0;i<N;i+=4){const p=P[i],n=Nm[i],tg=Tg[i],ang=Math.atan2(tg.x,tg.z);
     for(const [side,off] of [[1,offL],[-1,offR]]){
-      if(Math.random()<0.18) continue;                     // occasional gaps (side streets)
-      const dist=off(i)+5+Math.random()*5;
+      if(Math.random()<0.12) continue;                     // occasional gaps (side streets)
+      const type=(Math.random()*4)|0;
+      const w=(type===2?7+Math.random()*4:11+Math.random()*9);   // towers narrower
+      const d=10+Math.random()*12;
+      const h=(type===2?42+Math.random()*34:type===3?14+Math.random()*10:20+Math.random()*30);
+      const dist=off(i)+w/2+1.3;                            // inner face ~1.3m off the barrier — no overlap
       const x=p.x+n.x*side*dist, z=p.z+n.z*side*dist;
-      if(inHarbour(x,z)) continue;                          // no buildings on the water
-      const w=9+Math.random()*10, d=9+Math.random()*12, h=16+Math.random()*46;
+      if(inHarbour(x,z)) continue;
+      if(clearB(x,z)<(HW+2.5)*(HW+2.5)) continue;          // never straddle the road or an adjacent street
       const col=pastels[(Math.random()*pastels.length)|0];
-      const bMat=new THREE.MeshStandardMaterial({map:makeWindows(Math.max(3,w/4|0),Math.max(6,h/6|0),'#ffe6b0'),
-        color:col,emissive:0x141210,emissiveIntensity:0.35,roughness:0.85});
-      const b=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),bMat);
-      const gy=gh(x,z);b.position.set(x,gy+h/2,z);b.rotation.y=Math.atan2(tg.x,tg.z);
-      b.castShadow=true;b.receiveShadow=true;sc.add(b);}}
+      const b=makeMonacoBuilding(w,d,h,type,col);
+      const gy=gh(x,z);b.position.set(x,gy,z);b.rotation.y=ang;
+      sc.add(b);}}
   // --- the tunnel: a roofed section over ~f 0.42–0.50 (Portier → chicane) ---
   { const i0=Math.round(N*0.42), i1=Math.round(N*0.50), HW=TRACK.halfW;
     const wallMat=new THREE.MeshStandardMaterial({color:0xdad2c4,roughness:0.9,side:THREE.DoubleSide});

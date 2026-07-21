@@ -4,3 +4,4 @@ package-lock.json
 # intermediate USD extraction (originals live in the source .usdz)
 assets/models/car_src/
 assets/models/wheel_src/
+assets/models/earth_src/
