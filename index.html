@@ -44,12 +44,21 @@
   #cine .cBar{position:absolute;left:0;right:0;height:11vh;background:#000;transition:height .5s ease}
   #cine .cBar.top{top:0}#cine .cBar.bot{bottom:0}
   #cine.out .cBar{height:52vh}
-  #cineText{position:absolute;left:clamp(30px,7vw,110px);bottom:20vh;text-align:left}
-  #cineTitle{font-family:var(--mono);font-weight:900;color:#fff;line-height:1;letter-spacing:.02em;
-    font-size:clamp(30px,6.5vw,74px);text-shadow:0 4px 40px rgba(0,0,0,.7);opacity:0;transform:translateY(14px)}
-  #cineSub{margin-top:14px;font-size:clamp(12px,1.5vw,17px);letter-spacing:.5em;color:#e10600;text-transform:uppercase;
+  #cineFx{position:absolute;inset:0;overflow:hidden;pointer-events:none}
+  .swoosh{position:absolute;height:clamp(30px,7vh,70px);width:150%;left:-160%;
+    background:linear-gradient(90deg,rgba(225,6,0,0) 0%,#ff1417 40%,#b00 70%,rgba(160,0,0,0));
+    transform:skewX(-22deg);filter:blur(1px);box-shadow:0 0 40px rgba(255,20,20,.6);opacity:.92;will-change:left,opacity}
+  #cineFlash{position:absolute;inset:0;background:#fff;opacity:0;pointer-events:none}
+  #cineFlash.on{opacity:.85;transition:opacity .05s ease}
+  #cineText{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center}
+  #cineTitle{font-family:var(--mono);font-weight:900;color:#fff;line-height:.95;letter-spacing:.02em;
+    font-size:clamp(44px,10vw,120px);text-shadow:0 6px 60px rgba(0,0,0,.8),0 0 30px rgba(255,20,20,.35);
+    opacity:0;transform:scale(2.4);filter:blur(14px)}
+  #cineTitle .r{color:#e10600;text-shadow:0 0 40px rgba(255,20,20,.8)}
+  #cineTitle.slam{opacity:1;transform:scale(1);filter:blur(0);transition:opacity .28s ease,transform .28s cubic-bezier(.2,1.3,.3,1),filter .28s ease}
+  #cineSub{margin-top:20px;font-size:clamp(12px,1.6vw,18px);letter-spacing:.55em;color:#fff;text-transform:uppercase;
     font-weight:700;opacity:0;transform:translateY(10px)}
-  #cineTitle.show,#cineSub.show{opacity:1;transform:none;transition:opacity .6s ease,transform .6s ease}
+  #cineSub.show{opacity:.9;transform:none;transition:opacity .6s ease .1s,transform .6s ease .1s}
   #cineSkip{position:absolute;right:clamp(24px,4vw,54px);bottom:clamp(20px,4vh,40px);font-family:var(--mono);
     font-size:11px;letter-spacing:.2em;color:rgba(255,255,255,.55);text-transform:uppercase}
 
@@ -206,6 +215,8 @@
 <!-- ===== CINEMATIC INTRO ===== -->
 <div id="cine">
   <div class="cBar top"></div><div class="cBar bot"></div>
+  <div id="cineFx"></div>
+  <div id="cineFlash"></div>
   <div id="cineText"><div id="cineTitle"></div><div id="cineSub"></div></div>
   <div id="cineSkip">Press any key to skip ▸</div>
 </div>
@@ -1837,6 +1848,25 @@ const Sound={ctx:null,master:null,osc:null,osc2:null,gain:null,filt:null,muted:f
     const o=this.ctx.createOscillator(),g=this.ctx.createGain();o.type='square';o.frequency.value=fr;
     g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(.12,t+.01);g.gain.exponentialRampToValueAtTime(.0001,t+d);
     o.connect(g).connect(this.master);o.start();o.stop(t+d+.02);},
+  whoosh(dur=0.5,vol=0.28){if(!this.ctx||this.muted)return;const t=this.ctx.currentTime;
+    const b=this.ctx.createBuffer(1,(this.ctx.sampleRate*dur)|0,this.ctx.sampleRate);
+    const dd=b.getChannelData(0);for(let i=0;i<dd.length;i++)dd[i]=Math.random()*2-1;
+    const src=this.ctx.createBufferSource();src.buffer=b;
+    const f=this.ctx.createBiquadFilter();f.type='bandpass';f.Q.value=0.7;
+    f.frequency.setValueAtTime(320,t);f.frequency.exponentialRampToValueAtTime(3800,t+dur*0.5);f.frequency.exponentialRampToValueAtTime(380,t+dur);
+    const g=this.ctx.createGain();g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(vol,t+0.05);g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+    src.connect(f).connect(g).connect(this.master);src.start();src.stop(t+dur+0.02);},
+  hit(){if(!this.ctx||this.muted)return;const t=this.ctx.currentTime;
+    const o=this.ctx.createOscillator(),g=this.ctx.createGain();o.type='sine';
+    o.frequency.setValueAtTime(170,t);o.frequency.exponentialRampToValueAtTime(42,t+0.35);
+    g.gain.setValueAtTime(0.6,t);g.gain.exponentialRampToValueAtTime(0.0001,t+0.6);
+    o.connect(g).connect(this.master);o.start();o.stop(t+0.62);this.whoosh(0.25,0.2);},
+  rev(){if(!this.ctx||this.muted)return;const t=this.ctx.currentTime;
+    const o=this.ctx.createOscillator(),g=this.ctx.createGain(),f=this.ctx.createBiquadFilter();
+    o.type='sawtooth';f.type='lowpass';f.frequency.value=2200;
+    o.frequency.setValueAtTime(80,t);o.frequency.linearRampToValueAtTime(560,t+0.5);o.frequency.linearRampToValueAtTime(120,t+0.9);
+    g.gain.setValueAtTime(0.0,t);g.gain.linearRampToValueAtTime(0.2,t+0.1);g.gain.exponentialRampToValueAtTime(0.0001,t+0.95);
+    o.connect(f).connect(g).connect(this.master);o.start();o.stop(t+1.0);},
   toggle(){this.muted=!this.muted;if(this.master)this.master.gain.value=this.muted?0:0.6;
     $('#sndIcon').innerHTML=this.muted?'<path d="M4 9v6h4l5 4V5L8 9H4z"/><path d="M23 9l-6 6M17 9l6 6"/>':'<path d="M4 9v6h4l5 4V5L8 9H4z"/><path d="M16 8a5 5 0 010 8"/>';return this.muted;}
 };
@@ -1960,6 +1990,17 @@ let menuSpin=0;
 
 /* ---- cinematic opening: scripted camera flythrough of the car on the grid ---- */
 let CINE=null;
+function spawnSwoosh(topPct,rev,dur){
+  dur=dur||520;const el=document.createElement('div');el.className='swoosh';
+  el.style.top=topPct+'%';el.style.transform=rev?'skewX(22deg)':'skewX(-22deg)';
+  if(rev)el.style.left='120%';
+  const fx=$('#cineFx');if(!fx)return;fx.appendChild(el);
+  el.getBoundingClientRect();                          // force reflow
+  el.style.transition=`left ${dur}ms cubic-bezier(.35,0,.15,1),opacity ${dur}ms ease`;
+  el.style.left=rev?'-170%':'120%';
+  setTimeout(()=>{el.style.opacity='0';},dur*0.62);
+  setTimeout(()=>el.remove(),dur+140);
+}
 function startCinematic(){
   // build Spa up front so the intro (and the first race) have a world to show
   buildWorld(driveScene, TRACKS.spa); builtTrackId='spa';
@@ -1968,46 +2009,57 @@ function startCinematic(){
   const fwd=new THREE.Vector3(Math.sin(h),0,Math.cos(h));
   const rgt=new THREE.Vector3(Math.cos(h),0,-Math.sin(h));
   const gy=(TRACK.pts[0]&&TRACK.pts[0].y)||0;
-  const P=(f,r,u)=>p.clone().addScaledVector(fwd,f).addScaledVector(rgt,r).setY(gy+u);
-  CINE={ t:0, cur:-1, shots:[
-    // low nose sweep across the front of the car
-    {d:3.6, p0:P(6.5,-4.2,0.55), p1:P(5,4.6,0.95), l0:P(1,0,0.65), l1:P(1.6,0,0.7),
-      title:'APEX', sub:'GRAND PRIX'},
-    // rear three-quarter, rising off the deck
-    {d:3.4, p0:P(-5.5,3.6,0.6), p1:P(-9,3.2,3.4), l0:P(-1,0,0.7), l1:P(0.5,0,1.0),
-      title:'2026', sub:'WORLD CHAMPIONSHIP'},
-    // side hero, pulling up and out to reveal the circuit
-    {d:4.2, p0:P(1,7.5,0.8), p1:P(3,20,6.5), l0:P(0,0,0.7), l1:P(2,0,1.2),
-      title:'SPA-FRANCORCHAMPS', sub:'BELGIUM 🇧🇪'},
+  const Pc=(f,r,u)=>p.clone().addScaledVector(fwd,f).addScaledVector(rgt,r).setY(gy+u);
+  // dramatic red rim-light on the car for the reveal
+  const rim=new THREE.PointLight(0xff2020,0,60,2);rim.position.copy(Pc(2,5,2.5));driveScene.add(rim);
+  CINE={ start:performance.now(), rim, timers:[], ended:false, shots:[
+    {t0:0.0,t1:1.7, p0:Pc(7,-4.5,0.5), p1:Pc(4.6,5.0,0.9),  l0:Pc(1,0,0.6),  l1:Pc(1.6,0,0.7)},  // fast low nose pass
+    {t0:1.7,t1:3.0, p0:Pc(-6,3.4,0.6), p1:Pc(-9.5,3.0,3.6), l0:Pc(-1,0,0.7), l1:Pc(0.5,0,1.0)},   // rear 3/4 rising
+    {t0:3.0,t1:5.2, p0:Pc(1,8,0.9),    p1:Pc(3.5,22,7),      l0:Pc(0,0,0.7),  l1:Pc(2,0,1.3)},     // hero pull-out
   ]};
+  const S=(ms,fn)=>CINE.timers.push(setTimeout(fn,ms));
+  Sound.init();
+  // red-swoosh + sound timeline (real time, framerate-independent)
+  S(120,()=>{spawnSwoosh(22,false);Sound.whoosh(0.45);});
+  S(360,()=>{spawnSwoosh(58,true); Sound.whoosh(0.4);});
+  S(640,()=>{spawnSwoosh(38,false);Sound.whoosh(0.42);});
+  S(920,()=>{spawnSwoosh(72,true); Sound.whoosh(0.4);});
+  S(1180,()=>{spawnSwoosh(14,false,600);Sound.whoosh(0.5);});
+  S(1500,()=>Sound.rev());
+  S(1650,()=>{spawnSwoosh(48,true,650);Sound.whoosh(0.55);});
+  S(2200,()=>{spawnSwoosh(30,false);Sound.whoosh(0.45);});
+  S(2600,()=>{spawnSwoosh(45,false,420);spawnSwoosh(52,true,420);Sound.whoosh(0.4);});
+  // TITLE slam
+  S(2980,()=>{const T=$('#cineTitle');T.innerHTML='APEX <span class="r">GP</span>';
+    void T.offsetWidth;T.classList.add('slam');
+    $('#cineFlash').classList.add('on');setTimeout(()=>$('#cineFlash').classList.remove('on'),120);
+    for(let k=0;k<4;k++)setTimeout(()=>spawnSwoosh(20+k*18,k%2===0,700),k*40);
+    Sound.hit();});
+  S(3320,()=>{const Su=$('#cineSub');Su.textContent='2026 WORLD CHAMPIONSHIP';Su.classList.add('show');});
+  S(5200,()=>endCinematic());
   STATE='cine';
   camera.fov=32; camera.updateProjectionMatrix();
   $('#cine').classList.add('on');
 }
-function updateCineText(i){
-  const s=CINE.shots[i]; if(!s)return;
-  const T=$('#cineTitle'),S=$('#cineSub');
-  T.textContent=s.title; S.textContent=s.sub;
-  T.classList.remove('show');S.classList.remove('show');void T.offsetWidth;
-  T.classList.add('show');setTimeout(()=>S.classList.add('show'),160);
-}
 function stepCinematic(dt){
-  CINE.t+=dt;
-  let acc=0, shot=CINE.shots[0], lt=0, idx=0;
-  for(let i=0;i<CINE.shots.length;i++){const s=CINE.shots[i];
-    if(CINE.t<acc+s.d){shot=s;lt=(CINE.t-acc)/s.d;idx=i;break;} acc+=s.d; idx=i; lt=1; shot=s;}
-  if(idx!==CINE.cur){CINE.cur=idx;updateCineText(idx);}
-  const e=lt*lt*(3-2*lt);
+  const el=(performance.now()-CINE.start)/1000;      // real elapsed seconds
+  let shot=CINE.shots[0];
+  for(const s of CINE.shots){ if(el>=s.t0){shot=s;} }
+  const lt=clamp((el-shot.t0)/(shot.t1-shot.t0),0,1), e=lt*lt*(3-2*lt);
   camera.position.lerpVectors(shot.p0,shot.p1,e);
   camera.lookAt(new THREE.Vector3().lerpVectors(shot.l0,shot.l1,e));
-  const total=CINE.shots.reduce((a,s)=>a+s.d,0);
-  if(CINE.t>=total) endCinematic();
+  if(CINE.rim) CINE.rim.intensity=clamp(el*3,0,7)*(el<3?1:Math.max(0,1-(el-3)));  // rim flares then fades
 }
 function endCinematic(){
-  if(STATE!=='cine')return;
+  if(STATE!=='cine'||!CINE||CINE.ended)return;
+  CINE.ended=true;
+  CINE.timers.forEach(clearTimeout);
+  if(CINE.rim) driveScene.remove(CINE.rim);
+  $('#cineFx').innerHTML='';
+  $('#cineTitle').classList.remove('slam');$('#cineSub').classList.remove('show');
   CINE=null;
   $('#cine').classList.add('out');
-  setTimeout(()=>{$('#cine').classList.remove('on','out');},600);
+  setTimeout(()=>{$('#cine').classList.remove('on','out');$('#cineTitle').innerHTML='';$('#cineSub').textContent='';},600);
   camera.fov=38;camera.updateProjectionMatrix();
   enterMenu();
 }
