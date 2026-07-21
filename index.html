@@ -61,6 +61,19 @@
   #cineSub.show{opacity:.9;transform:none;transition:opacity .6s ease .1s,transform .6s ease .1s}
   #cineSkip{position:absolute;right:clamp(24px,4vw,54px);bottom:clamp(20px,4vh,40px);font-family:var(--mono);
     font-size:11px;letter-spacing:.2em;color:rgba(255,255,255,.55);text-transform:uppercase}
+  /* qualifying result */
+  #qResult{position:fixed;inset:0;z-index:40;display:none;align-items:center;justify-content:center;
+    background:radial-gradient(ellipse at 50% 40%,rgba(10,14,22,.82),rgba(2,4,8,.94))}
+  #qResult.on{display:flex}
+  .qCard{text-align:center;padding:44px 70px;border:1px solid var(--grey-lo);border-radius:10px;
+    background:rgba(12,16,26,.7);box-shadow:0 30px 90px rgba(0,0,0,.6)}
+  .qTag{font-family:var(--mono);font-size:12px;letter-spacing:.34em;color:var(--grey);text-transform:uppercase}
+  .qLabel{margin-top:26px;font-size:12px;letter-spacing:.5em;color:var(--grey);text-transform:uppercase}
+  .qTime{font-family:var(--mono);font-weight:900;font-size:clamp(46px,9vw,96px);color:#fff;line-height:1;margin-top:6px;
+    text-shadow:0 0 40px rgba(255,20,20,.3)}
+  .qPos{margin-top:20px;font-size:13px;letter-spacing:.28em;color:#4ce0a0;font-weight:700}
+  .qHint{margin-top:34px;font-size:11px;letter-spacing:.2em;color:var(--grey);text-transform:uppercase}
+  .qHint b{display:inline-block;min-width:18px;padding:3px 7px;margin-right:8px;border:1px solid var(--grey-lo);border-radius:3px;color:#fff;font-family:var(--mono);font-size:10px}
 
   /* ============ MENU ============ */
   #menu{position:fixed;inset:0;z-index:20;pointer-events:none;opacity:0;transition:opacity .9s ease}
@@ -219,6 +232,17 @@
   <div id="cineFlash"></div>
   <div id="cineText"><div id="cineTitle"></div><div id="cineSub"></div></div>
   <div id="cineSkip">Press any key to skip ▸</div>
+</div>
+
+<!-- ===== QUALIFYING RESULT ===== -->
+<div id="qResult">
+  <div class="qCard">
+    <div class="qTag">QUALIFYING · <span id="qTrack">—</span></div>
+    <div class="qLabel">BEST LAP</div>
+    <div class="qTime" id="qBest">—:——.—</div>
+    <div class="qPos">PROVISIONAL POLE · P1</div>
+    <div class="qHint"><b>⏎</b> Continue</div>
+  </div>
 </div>
 
 <!-- ===== MENU ===== -->
@@ -1819,6 +1843,8 @@ const lap={t:0,num:1,last:null,best:null,prevIdx:0,armed:false,cur:null,bestArr:
       this.last=this.t; if(this.best==null||this.t<this.best){this.best=this.t;this.bestArr=this.cur.slice();}
       this.num++; this.t=0; this.sec=0; this.secStart=0; this.cur=new Float32Array(TRACK.N).fill(-1);
       $('#lapNum').textContent=this.num;$('#lapLast').textContent=fmt(this.last);$('#lapBest').textContent=fmt(this.best);
+      Sound.blip(760,.09);
+      if(sessionMode==='quali' && this.num>3){ endQuali(this.best); }   // 3 flying laps done
     }
     if(idx>60&&idx<TRACK.N-60) this.armed=true;
     this.prevIdx=idx;
@@ -1915,6 +1941,9 @@ const MODES=[
   {id:'tt',t:'Time Trial',tag:'SOLO',drive:true,
    desc:'You, the car and the clock. Every corner counts — build up to the lap of your life.',
    meta:[['Ghost','OFF'],['Sectors','3'],['Record','—']]},
+  {id:'quali',t:'Qualifying',tag:'3 LAPS',drive:true,
+   desc:'Three flying laps to set your best time. Nail one clean lap and pole is yours.',
+   meta:[['Laps','3'],['Sectors','3'],['Target','POLE']]},
   {id:'career',t:'Career',tag:'CAMPAIGN',
    desc:'Build a dynasty across a full championship. (Coming in a later build.)',
    meta:[['Season','2026'],['Races','24'],['Prog','0%']]},
@@ -1925,7 +1954,7 @@ const MODES=[
    desc:'Controls, assists, audio and display — set the cockpit up your way.',
    meta:[['Assists','LOW'],['Input','KEYS'],['Units','KM/H']]},
 ];
-let sel=0;
+let sel=0, sessionMode='gp';
 const TRACK_IDS=['spa','yas','silverstone','monaco','austria']; let selTrack=0, builtTrackId='spa';
 function curCfg(){return TRACKS[TRACK_IDS[selTrack]];}
 function cycleTrack(d){selTrack=(selTrack+d+TRACK_IDS.length)%TRACK_IDS.length;renderDetail();Sound.init();Sound.blip(430,.05);}
@@ -1952,7 +1981,7 @@ function renderDetail(){const m=MODES[sel];
   $('#mdMeta').innerHTML=meta.map(([k,v])=>`<div><div class="k">${k}</div><div class="v">${v}</div></div>`).join('');
   const d=$('#mDetail');d.classList.remove('swap');void d.offsetWidth;d.classList.add('swap');}
 function chooseMode(){const m=MODES[sel];Sound.init();Sound.blip(660,.08);
-  if(m.drive){startDrive();}
+  if(m.drive){sessionMode=m.id;startDrive();}
   else if(m.id==='garage'){openGarage();}
   else{ /* placeholder modes */ flashMsg(); }
 }
@@ -2095,7 +2124,15 @@ function snapCamera(){
   CAM.look.copy(CAR.pos).addScaledVector(fwd,10); CAM.look.y+=gy+1.1;
   camera.position.copy(CAM.pos); camera.lookAt(CAM.look);
 }
-function exitToMenu(){enterMenu();}
+function exitToMenu(){$('#qResult').classList.remove('on');enterMenu();}
+function endQuali(best){
+  STATE='result';
+  $('#hud').classList.remove('on');
+  $('#qTrack').textContent=curCfg().name;
+  $('#qBest').textContent=fmt(best);
+  $('#qResult').classList.add('on');
+  Sound.hit();
+}
 
 function countdown(done){
   const el=$('#cdNum');let n=3;
@@ -2116,11 +2153,12 @@ const keys={};
 addEventListener('keydown',e=>{
   const k=e.key.toLowerCase();keys[k]=true;
   if(STATE==='cine'){endCinematic();e.preventDefault();return;}
+  if(STATE==='result'){ if(k==='enter'||k==='escape'||k===' '){exitToMenu();} e.preventDefault();return;}
   if(STATE==='menu'&&garageOn){
     const i=LIVERY_IDS.indexOf(selLivery);
     if(k==='arrowup'||k==='w'||k==='arrowleft'||k==='a'){pickLivery(LIVERY_IDS[(i-1+LIVERY_IDS.length)%LIVERY_IDS.length]);e.preventDefault();}
     else if(k==='arrowdown'||k==='s'||k==='arrowright'||k==='d'){pickLivery(LIVERY_IDS[(i+1)%LIVERY_IDS.length]);e.preventDefault();}
-    else if(k==='enter'){closeGarage();startDrive();e.preventDefault();}
+    else if(k==='enter'){closeGarage();sessionMode='gp';startDrive();e.preventDefault();}
     else if(k==='escape'){closeGarage();e.preventDefault();}
     return;
   }
@@ -2169,6 +2207,12 @@ function frame(){
     updateCamera(dt);
     lap.update(dt,r.near.idx);
     updateHUD(inp,r);
+    const rain=driveScene.userData.rain; if(rain) rain.update(dt,camera.position);
+    renderer.render(driveScene,camera);
+  }else if(STATE==='result'){
+    // coast the car to a halt behind the results card
+    const r=stepPhysics(dt,{throttle:0,brake:0.4,steer:0});
+    updateCamera(dt);
     const rain=driveScene.userData.rain; if(rain) rain.update(dt,camera.position);
     renderer.render(driveScene,camera);
   }else{
