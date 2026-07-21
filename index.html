@@ -876,12 +876,16 @@ const CAR={
   wheelR:0.35,
   cockpitCam:null,wheelMesh:null,
   // physics state
-  pos:new THREE.Vector3(),heading:0,v:0,steer:0,steerCmd:0,yawRate:0,
+  pos:new THREE.Vector3(),heading:0,v:0,steer:0,steerCmd:0,yawRate:0,vLat:0,
 };
+if(typeof window!=='undefined') window.__CAR=CAR;
 const PHYS={
   mass:798, power:520000, maxForce:11500, brakeForce:66000,   // softer launch, strong brakes
-  cdA:1.15, downK:3.6, mu:2.05, roll:260, engBrake:1200,      // far more grip (less slippery)
-  wheelbase:3.6, maxSteerLo:0.30, maxSteerHi:0.085, steerRate:3.0, steerReturn:5.5,
+  cdA:1.15, downK:3.9, mu:1.78, roll:260, engBrake:1200,       // a little less grip (not slippery); downforce restores fast corners
+  wheelbase:3.6, aFront:1.6, aRear:2.0,                        // CG biased rearward
+  izK:2.5,                                                     // yaw-inertia factor (higher = more planted, harder to snap round)
+  Cf:90000, Cr:150000,                                        // softer front bite = must work the wheel; stiffer rear = stable
+  maxSteerLo:0.27, maxSteerHi:0.075, steerRate:2.5, steerReturn:5.5,
 };
 
 /* Red Bull livery texture (projected onto the body — mesh has no UVs) */
@@ -1041,7 +1045,7 @@ function resetCar(){
   const p=TRACK.pts[0], tg=TRACK.tan[0];
   CAR.pos.set(p.x,0,p.z);
   CAR.heading=Math.atan2(tg.x,tg.z);
-  CAR.v=0;CAR.steer=0;CAR.steerCmd=0;CAR.yawRate=0;
+  CAR.v=0;CAR.steer=0;CAR.steerCmd=0;CAR.yawRate=0;CAR.vLat=0;
   CAR.trackIdx=0; CAR.groundY=p.y;
   lap.reset();
 }
@@ -1078,19 +1082,37 @@ function stepPhysics(dt,inp){
   const gripMul=off?0.55:(onKerb?0.82:1.0);       // kerbs unsettle you mid-corner
   CAR.kerb=onKerb;
 
-  // lateral: downforce-boosted grip, understeer clamp
-  const downforce=P.downK*CAR.v*CAR.v;
-  const normal=P.mass*9.81+downforce;
-  const latMax=P.mu*gripMul*normal/P.mass;          // m/s^2
-  let yawDes = spd>0.4 ? CAR.v*Math.tan(CAR.steer)/P.wheelbase : 0;
-  const yawMax = latMax/Math.max(spd,3);
-  yawDes=clamp(yawDes,-yawMax,yawMax);
-  CAR.yawRate=damp(CAR.yawRate,yawDes,9,dt);
+  // lateral: dynamic bicycle model — real slip angles give understeer/oversteer.
+  // Front/rear tyre loads (static split + downforce, rear-biased) size each axle's
+  // friction circle; slip angles feed linear-then-saturating cornering forces.
+  const m=P.mass, a=P.aFront, b=P.aRear, L=a+b, Iz=m*P.izK;
+  const df=P.downK*CAR.v*CAR.v, g=9.81;
+  const loadF=m*g*b/L + df*0.46, loadR=m*g*a/L + df*0.54;
+  const FyfMax=P.mu*gripMul*loadF, FyrMax=P.mu*gripMul*loadR;
+  const vx=Math.max(Math.abs(CAR.v),0.6);
+  let af=0,ar=0;
+  if(spd>1.2){
+    af=CAR.steer - Math.atan2(CAR.vLat + CAR.yawRate*a, vx);
+    ar=          - Math.atan2(CAR.vLat - CAR.yawRate*b, vx);
+  }
+  let Fyf=clamp(P.Cf*af,-FyfMax,FyfMax);
+  let Fyr=clamp(P.Cr*ar,-FyrMax,FyrMax);
+  const vLatDot=(Fyf+Fyr)/m - CAR.v*CAR.yawRate;
+  const yawAcc=(a*Fyf - b*Fyr)/Iz;
+  CAR.vLat   += vLatDot*dt;
+  CAR.yawRate+= yawAcc*dt;
+  // below walking pace blend toward kinematic steering so it settles instead of jitters
+  if(spd<4){
+    const k=clamp(spd/4,0,1), kYaw=CAR.v*Math.tan(CAR.steer)/L;
+    CAR.yawRate=lerp(kYaw,CAR.yawRate,k); CAR.vLat*=k;
+  }
+  CAR.yawRate=clamp(CAR.yawRate,-2.2,2.2); CAR.vLat=clamp(CAR.vLat,-18,18);
   CAR.heading+=CAR.yawRate*dt;
 
-  // integrate position along heading
-  const fwd=new THREE.Vector3(Math.sin(CAR.heading),0,Math.cos(CAR.heading));
-  CAR.pos.addScaledVector(fwd,CAR.v*dt);
+  // integrate position: forward + lateral (slip) components
+  const sinH=Math.sin(CAR.heading),cosH=Math.cos(CAR.heading);
+  CAR.pos.x += (sinH*CAR.v + cosH*CAR.vLat)*dt;
+  CAR.pos.z += (cosH*CAR.v - sinH*CAR.vLat)*dt;
 
   // barrier at the real wall position (so there's room to run onto kerb/run-off)
   const wall=(near.lat>0?TRACK.wallL:TRACK.wallR)[near.idx]-0.6;
@@ -1122,6 +1144,7 @@ function stepPhysics(dt,inp){
   Sound.engine(spd, inp.throttle);
   return {off, near};
 }
+if(typeof window!=='undefined'){window.__step=stepPhysics;window.__reset=resetCar;}
 
 /* nearest centreline point (dist + signed lateral + outward normal) */
 function nearestTrack(pos,hint,window){
