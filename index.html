@@ -409,7 +409,7 @@ const TRACKS={
     kerb:['#d81c1c','#eef1f4'], asphalt:0x1e2128, ground:0xbfa878, laprec:'1:26',
     elev:f=>0 },                                   // Yas is flat (no sand poking over the blue run-off)
   silverstone:{ id:'silverstone', name:'SILVERSTONE', country:'UNITED KINGDOM', flag:'🇬🇧', points:SILVERSTONE, len:5891,
-    halfW:7.8, night:false, rain:true, forest:true, runoff:'mixed',
+    halfW:7.8, night:false, rain:true, forest:false, env:'british', runoff:'mixed',
     kerb:['#d81c1c','#eef1f4'], asphalt:0x33363c, ground:0x3b5a30, laprec:'1:27',
     elev:f=>6*Math.sin(f*TAU*2+0.4)+3.2*Math.sin(f*TAU*5-0.7) },  // gentle British undulation, always wet
 };
@@ -619,8 +619,9 @@ function buildWorld(sc,cfg){
   for(let i=0;i<N;i++){TRACK.wallL[i]=barOff(i);TRACK.wallR[i]=barOffR(i);}
 
   buildBarriers(sc,P,Nm,cum,barOff,barOffR);
-  if(cfg.forest) buildForest(sc,P,Nm,barOff,barOffR);
-  else buildDesert(sc,P,Nm,Tg,barOff,barOffR);    // Yas: desert + Yas Marina hotel
+  if(cfg.env==='british') buildBritish(sc,P,Nm,barOff,barOffR);  // Silverstone: open parkland
+  else if(cfg.forest) buildForest(sc,P,Nm,barOff,barOffR);       // Spa: Ardennes forest
+  else buildDesert(sc,P,Nm,Tg,barOff,barOffR);                   // Yas: desert + hotel
   buildGrandstands(sc,P,Nm,Tg,barOff,barOffR);
   buildPit(sc,P,Nm,Tg);
   if(wet) buildRain(sc); else sc.userData.rain=null;
@@ -930,6 +931,82 @@ function buildForest(sc,P,Nm,offL,offR){
   const geo=new THREE.CylinderGeometry(R*1.9,R*2.1,170,72,1,true);
   const mesh=new THREE.Mesh(geo,new THREE.MeshStandardMaterial({color:0x1b3a1d,roughness:1,side:THREE.BackSide}));
   mesh.position.y=170/2-20;sc.add(mesh);
+}
+
+/* ---- open British parkland (Silverstone): fields, hedgerows, marquees, car parks, a lake ---- */
+function buildBritish(sc,P,Nm,offL,offR){
+  const N=P.length,R=TRACK.radius, gh=TRACK.terrainH;
+  const samp=[];for(let i=0;i<N;i+=4)samp.push(P[i]);
+  const clear=(x,z)=>{let m=1e9;for(const q of samp){const dx=x-q.x,dz=z-q.z;const d=dx*dx+dz*dz;if(d<m)m=d;}return m;};
+  // circuit centroid (for the infield)
+  let cX=0,cZ=0;for(const p of P){cX+=p.x;cZ+=p.z;}cX/=N;cZ/=N;
+  const M=new THREE.Matrix4(),S=new THREE.Vector3(),Q=new THREE.Quaternion(),T=new THREE.Vector3();
+
+  // --- rounded deciduous trees in sparse hedgerows + far clumps (open, not forest) ---
+  const blobG=new THREE.IcosahedronGeometry(0.5,0);
+  const treeMats=[0x2f5a26,0x3c6a2e,0x274d20].map(c=>new THREE.MeshStandardMaterial({color:c,roughness:1,flatShading:true}));
+  const treeList=treeMats.map(()=>[]);
+  const addTree=(x,z,h)=>{const bi=(Math.random()*treeList.length)|0;treeList[bi].push({x,y:gh(x,z),z,w:h*(0.7+Math.random()*0.3),h});};
+  // hedgerows: thin, gappy field boundaries well back from the track
+  for(let i=0;i<N;i+=3){const p=P[i],n=Nm[i];
+    for(const [side,off] of [[1,offL],[-1,offR]]){
+      if(Math.random()<0.55) continue;                 // sparse → open sky and fields
+      const dist=off(i)+72+Math.random()*46;
+      const x=p.x+n.x*side*dist, z=p.z+n.z*side*dist;
+      if(clear(x,z)<60*60) continue;
+      addTree(x,z,7+Math.random()*7);}}
+  // clumps of trees in the far countryside
+  let placed=0,tries=0;
+  while(placed<820 && tries<9000){tries++;
+    const a=Math.random()*TAU, rr=R*1.05+Math.random()*R*1.3, cx=Math.cos(a)*rr, cz=Math.sin(a)*rr;
+    if(clear(cx,cz)<80*80) continue;
+    const clump=3+((Math.random()*6)|0);
+    for(let k=0;k<clump;k++){addTree(cx+(Math.random()-0.5)*30,cz+(Math.random()-0.5)*30,9+Math.random()*12);placed++;}}
+  treeList.forEach((list,bi)=>{ if(!list.length)return;
+    const im=new THREE.InstancedMesh(blobG,treeMats[bi],list.length);
+    im.frustumCulled=false;im.receiveShadow=true;
+    list.forEach((o,i)=>{T.set(o.x,o.y+o.h*0.5,o.z);S.set(o.w,o.h,o.w);M.compose(T,Q,S);im.setMatrixAt(i,M);});
+    im.instanceMatrix.needsUpdate=true;sc.add(im);});
+
+  // --- hospitality marquees: white boxes with peaked roofs, in clusters ---
+  const tentWall=new THREE.MeshStandardMaterial({color:0xeef1f4,roughness:0.85});
+  const tentRoof=new THREE.MeshStandardMaterial({color:0xd7dce1,roughness:0.8});
+  const marquee=(x,z,w,d)=>{const gy=gh(x,z),g=new THREE.Group();
+    const body=new THREE.Mesh(new THREE.BoxGeometry(w,4.5,d),tentWall);body.position.y=2.25;
+    const roof=new THREE.Mesh(new THREE.ConeGeometry(Math.max(w,d)*0.74,3,4),tentRoof);
+    roof.rotation.y=Math.PI/4;roof.position.y=6;g.add(body,roof);
+    g.position.set(x,gy,z);g.rotation.y=Math.random()*0.5;g.traverse(o=>{o.castShadow=true;o.receiveShadow=true;});sc.add(g);};
+  const village=(cx,cz,cols,rows)=>{for(let r=0;r<rows;r++)for(let c=0;c<cols;c++){
+    const x=cx+(c-cols/2)*16+(Math.random()-0.5)*4, z=cz+(r-rows/2)*16+(Math.random()-0.5)*4;
+    if(clear(x,z)<44*44) continue; marquee(x,z,9+Math.random()*4,9+Math.random()*4);}};
+  village(cX,cZ,5,4);                                  // main infield paddock village
+  village(cX+R*0.34,cZ-R*0.18,3,3);
+  village(cX-R*0.3,cZ+R*0.22,3,3);
+
+  // --- car parks: rows of parked cars (instanced, coloured) in far fields ---
+  const carGeo=new THREE.BoxGeometry(2.0,1.3,4.4);
+  const carSpots=[];
+  const lot=(cx,cz,cols,rows)=>{for(let r=0;r<rows;r++)for(let c=0;c<cols;c++){
+    const x=cx+(c-cols/2)*3.0, z=cz+(r-rows/2)*5.5;
+    if(clear(x,z)<70*70) continue; carSpots.push({x,y:gh(x,z),z});}};
+  lot(-R*0.95,R*0.55,26,10); lot(R*0.9,-R*0.75,24,10); lot(-R*0.8,-R*0.8,22,9); lot(R*1.05,R*0.5,20,9);
+  if(carSpots.length){
+    const im=new THREE.InstancedMesh(carGeo,new THREE.MeshStandardMaterial({roughness:0.5,metalness:0.3}),carSpots.length);
+    im.receiveShadow=true;const col=new THREE.Color();
+    carSpots.forEach((s,i)=>{T.set(s.x,s.y+0.65,s.z);S.set(1,1,1);M.compose(T,Q,S);im.setMatrixAt(i,M);
+      const h=Math.random();col.setHSL(h<0.5?0:h,h<0.5?0:0.4,0.28+Math.random()*0.5);im.setColorAt(i,col);});
+    im.instanceMatrix.needsUpdate=true;if(im.instanceColor)im.instanceColor.needsUpdate=true;sc.add(im);}
+
+  // --- infield lake (the pond near the Vale) ---
+  { const lake=new THREE.Mesh(new THREE.CircleGeometry(28,40),
+      new THREE.MeshStandardMaterial({color:0x3a5560,roughness:0.2,metalness:0.6}));
+    lake.rotation.x=-Math.PI/2;const lx=cX-R*0.18,lz=cZ+R*0.28;
+    lake.position.set(lx,gh(lx,lz)-0.35,lz);sc.add(lake); }
+
+  // --- low distant hedge ring so the horizon reads as english fields, not a void ---
+  const ring=new THREE.Mesh(new THREE.CylinderGeometry(R*1.9,R*2.0,40,64,1,true),
+    new THREE.MeshStandardMaterial({color:0x33502a,roughness:1,side:THREE.BackSide}));
+  ring.position.y=8;sc.add(ring);
 }
 
 /* ---- big roofed grandstands with crowd + sponsor facades ---- */
