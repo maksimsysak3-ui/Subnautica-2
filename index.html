@@ -38,6 +38,21 @@
   #ldPct{margin-top:14px;font-family:var(--mono);font-size:13px;letter-spacing:.2em;color:#c7d0da}
   #ldState{margin-top:8px;font-size:10px;letter-spacing:.34em;color:var(--grey-lo);text-transform:uppercase;font-weight:600;height:12px}
 
+  /* ============ CINEMATIC INTRO ============ */
+  #cine{position:fixed;inset:0;z-index:55;pointer-events:none;opacity:0;transition:opacity .6s ease}
+  #cine.on{opacity:1;pointer-events:auto}
+  #cine .cBar{position:absolute;left:0;right:0;height:11vh;background:#000;transition:height .5s ease}
+  #cine .cBar.top{top:0}#cine .cBar.bot{bottom:0}
+  #cine.out .cBar{height:52vh}
+  #cineText{position:absolute;left:clamp(30px,7vw,110px);bottom:20vh;text-align:left}
+  #cineTitle{font-family:var(--mono);font-weight:900;color:#fff;line-height:1;letter-spacing:.02em;
+    font-size:clamp(30px,6.5vw,74px);text-shadow:0 4px 40px rgba(0,0,0,.7);opacity:0;transform:translateY(14px)}
+  #cineSub{margin-top:14px;font-size:clamp(12px,1.5vw,17px);letter-spacing:.5em;color:#e10600;text-transform:uppercase;
+    font-weight:700;opacity:0;transform:translateY(10px)}
+  #cineTitle.show,#cineSub.show{opacity:1;transform:none;transition:opacity .6s ease,transform .6s ease}
+  #cineSkip{position:absolute;right:clamp(24px,4vw,54px);bottom:clamp(20px,4vh,40px);font-family:var(--mono);
+    font-size:11px;letter-spacing:.2em;color:rgba(255,255,255,.55);text-transform:uppercase}
+
   /* ============ MENU ============ */
   #menu{position:fixed;inset:0;z-index:20;pointer-events:none;opacity:0;transition:opacity .9s ease}
   #menu.on{opacity:1;pointer-events:auto}
@@ -186,6 +201,13 @@
   <div id="ldBarW"><div id="ldBar"></div></div>
   <div id="ldPct">0%</div>
   <div id="ldState">Booting engine…</div>
+</div>
+
+<!-- ===== CINEMATIC INTRO ===== -->
+<div id="cine">
+  <div class="cBar top"></div><div class="cBar bot"></div>
+  <div id="cineText"><div id="cineTitle"></div><div id="cineSub"></div></div>
+  <div id="cineSkip">Press any key to skip ▸</div>
 </div>
 
 <!-- ===== MENU ===== -->
@@ -1452,8 +1474,62 @@ function closeGarage(){garageOn=false;$('#garage').classList.remove('on');
 /* ==================================================================
    STATE / FLOW
    ================================================================== */
-let STATE='load'; // load | menu | drive
+let STATE='load'; // load | cine | menu | drive
 let menuSpin=0;
+
+/* ---- cinematic opening: scripted camera flythrough of the car on the grid ---- */
+let CINE=null;
+function startCinematic(){
+  // build Spa up front so the intro (and the first race) have a world to show
+  buildWorld(driveScene, TRACKS.spa); builtTrackId='spa';
+  driveScene.add(CAR.rig); resetCar();
+  const p=CAR.pos.clone(), h=CAR.heading;
+  const fwd=new THREE.Vector3(Math.sin(h),0,Math.cos(h));
+  const rgt=new THREE.Vector3(Math.cos(h),0,-Math.sin(h));
+  const gy=(TRACK.pts[0]&&TRACK.pts[0].y)||0;
+  const P=(f,r,u)=>p.clone().addScaledVector(fwd,f).addScaledVector(rgt,r).setY(gy+u);
+  CINE={ t:0, cur:-1, shots:[
+    // low nose sweep across the front of the car
+    {d:3.6, p0:P(6.5,-4.2,0.55), p1:P(5,4.6,0.95), l0:P(1,0,0.65), l1:P(1.6,0,0.7),
+      title:'APEX', sub:'GRAND PRIX'},
+    // rear three-quarter, rising off the deck
+    {d:3.4, p0:P(-5.5,3.6,0.6), p1:P(-9,3.2,3.4), l0:P(-1,0,0.7), l1:P(0.5,0,1.0),
+      title:'2026', sub:'WORLD CHAMPIONSHIP'},
+    // side hero, pulling up and out to reveal the circuit
+    {d:4.2, p0:P(1,7.5,0.8), p1:P(3,20,6.5), l0:P(0,0,0.7), l1:P(2,0,1.2),
+      title:'SPA-FRANCORCHAMPS', sub:'BELGIUM 🇧🇪'},
+  ]};
+  STATE='cine';
+  camera.fov=32; camera.updateProjectionMatrix();
+  $('#cine').classList.add('on');
+}
+function updateCineText(i){
+  const s=CINE.shots[i]; if(!s)return;
+  const T=$('#cineTitle'),S=$('#cineSub');
+  T.textContent=s.title; S.textContent=s.sub;
+  T.classList.remove('show');S.classList.remove('show');void T.offsetWidth;
+  T.classList.add('show');setTimeout(()=>S.classList.add('show'),160);
+}
+function stepCinematic(dt){
+  CINE.t+=dt;
+  let acc=0, shot=CINE.shots[0], lt=0, idx=0;
+  for(let i=0;i<CINE.shots.length;i++){const s=CINE.shots[i];
+    if(CINE.t<acc+s.d){shot=s;lt=(CINE.t-acc)/s.d;idx=i;break;} acc+=s.d; idx=i; lt=1; shot=s;}
+  if(idx!==CINE.cur){CINE.cur=idx;updateCineText(idx);}
+  const e=lt*lt*(3-2*lt);
+  camera.position.lerpVectors(shot.p0,shot.p1,e);
+  camera.lookAt(new THREE.Vector3().lerpVectors(shot.l0,shot.l1,e));
+  const total=CINE.shots.reduce((a,s)=>a+s.d,0);
+  if(CINE.t>=total) endCinematic();
+}
+function endCinematic(){
+  if(STATE!=='cine')return;
+  CINE=null;
+  $('#cine').classList.add('out');
+  setTimeout(()=>{$('#cine').classList.remove('on','out');},600);
+  camera.fov=38;camera.updateProjectionMatrix();
+  enterMenu();
+}
 
 function enterMenu(){
   STATE='menu';
@@ -1506,6 +1582,7 @@ function countdown(done){
 const keys={};
 addEventListener('keydown',e=>{
   const k=e.key.toLowerCase();keys[k]=true;
+  if(STATE==='cine'){endCinematic();e.preventDefault();return;}
   if(STATE==='menu'&&garageOn){
     const i=LIVERY_IDS.indexOf(selLivery);
     if(k==='arrowup'||k==='w'||k==='arrowleft'||k==='a'){pickLivery(LIVERY_IDS[(i-1+LIVERY_IDS.length)%LIVERY_IDS.length]);e.preventDefault();}
@@ -1529,6 +1606,7 @@ addEventListener('keydown',e=>{
   }
 });
 addEventListener('keyup',e=>{keys[e.key.toLowerCase()]=false;});
+addEventListener('pointerdown',()=>{if(STATE==='cine')endCinematic();});
 function readInput(){
   const thr=(keys['w']||keys['arrowup'])?1:0;
   const brk=(keys[' ']||keys['arrowdown']||keys['s'])?1:0;   // brake = SPACE (also S / ↓)
@@ -1549,6 +1627,9 @@ function frame(){
     camera.fov=38;camera.updateProjectionMatrix();
     camera.position.set(Math.cos(menuSpin*0.3)*9.5,3.1,Math.sin(menuSpin*0.3)*9.5+3.5);
     camera.lookAt(0.4,0.8,0);
+  }else if(STATE==='cine'){
+    stepCinematic(dt);
+    renderer.render(driveScene,camera);
   }else if(STATE==='drive'){
     const inp=readInput();
     const r=stepPhysics(dt,inp);
@@ -1636,7 +1717,7 @@ async function boot(){
   buildMenu();
   setTimeout(()=>{
     $('#loader').classList.add('gone');
-    enterMenu();
+    startCinematic();     // play the opening flythrough, then land on the menu
   },450);
 }
 
