@@ -61,6 +61,15 @@
   #cineSub.show{opacity:.9;transform:none;transition:opacity .6s ease .1s,transform .6s ease .1s}
   #cineSkip{position:absolute;right:clamp(24px,4vw,54px);bottom:clamp(20px,4vh,40px);font-family:var(--mono);
     font-size:11px;letter-spacing:.2em;color:rgba(255,255,255,.55);text-transform:uppercase}
+  /* track-select intro */
+  #tIntro{position:fixed;inset:0;z-index:52;display:none;background:#04060a}
+  #tIntro.on{display:block}
+  #tCanvas{position:absolute;inset:0;width:100%;height:100%}
+  #tName{position:absolute;left:clamp(30px,6vw,90px);bottom:14vh;opacity:0;transform:translateY(12px);transition:opacity .6s ease,transform .6s ease}
+  #tName.show{opacity:1;transform:none}
+  #tNameMain{display:block;font-family:var(--mono);font-weight:900;font-size:clamp(28px,5.5vw,64px);color:#fff;letter-spacing:.02em}
+  #tNameSub{display:block;margin-top:8px;font-size:clamp(11px,1.4vw,15px);letter-spacing:.42em;color:#e10600;text-transform:uppercase;font-weight:700}
+  #tSkip{position:absolute;right:clamp(24px,4vw,54px);bottom:clamp(20px,4vh,40px);font-family:var(--mono);font-size:11px;letter-spacing:.2em;color:rgba(255,255,255,.5);text-transform:uppercase}
   /* qualifying result */
   #qResult{position:fixed;inset:0;z-index:40;display:none;align-items:center;justify-content:center;
     background:radial-gradient(ellipse at 50% 40%,rgba(10,14,22,.82),rgba(2,4,8,.94))}
@@ -234,6 +243,13 @@
   <div id="cineSkip">Press any key to skip ▸</div>
 </div>
 
+<!-- ===== TRACK-SELECT INTRO (globe → outline → overhead) ===== -->
+<div id="tIntro">
+  <canvas id="tCanvas"></canvas>
+  <div id="tName"><span id="tNameMain">—</span><small id="tNameSub">—</small></div>
+  <div id="tSkip">Any key to skip ▸</div>
+</div>
+
 <!-- ===== QUALIFYING RESULT ===== -->
 <div id="qResult">
   <div class="qCard">
@@ -361,8 +377,13 @@ addEventListener('resize',()=>{
    ================================================================== */
 const menuScene=new THREE.Scene();
 const driveScene=new THREE.Scene();
+const globeScene=new THREE.Scene();               // track-select globe intro
 menuScene.environment=envRT.texture;
 driveScene.environment=envRT.texture;
+globeScene.environment=envRT.texture;
+let GLOBE=null;                                   // {group, earth, pin, glow}
+/* real-world circuit locations (lat, lon) for the globe pin */
+const TRACK_LOC={ spa:[50.44,5.97], yas:[24.47,54.60], silverstone:[52.07,-1.02], monaco:[43.73,7.42], austria:[47.22,14.76] };
 
 /* ---- showroom (menu) ---- */
 function buildShowroom(sc){
@@ -1620,6 +1641,42 @@ async function loadWheel(loader){
   CAR.wheelMesh=w;
   return w;
 }
+/* lat/lon (degrees) → unit vector on the globe (texture-aligned, seam offset tuned) */
+function latLonToVec(lat,lon){
+  const la=lat*Math.PI/180, lo=(lon+90)*Math.PI/180;       // +90° aligns the equirect seam
+  return new THREE.Vector3(Math.cos(la)*Math.cos(lo), Math.sin(la), -Math.cos(la)*Math.sin(lo));
+}
+async function loadEarth(loader){
+  const grp=new THREE.Group();
+  try{
+    const gltf=await loader.loadAsync('assets/models/earth.glb');
+    const earth=gltf.scene;
+    earth.traverse(o=>{if(o.isMesh){o.material.metalness=0;o.material.roughness=1;o.material.envMapIntensity=0.4;o.frustumCulled=false;}});
+    grp.add(earth);
+  }catch(e){ // fallback: plain blue sphere
+    grp.add(new THREE.Mesh(new THREE.SphereGeometry(1,48,32),new THREE.MeshStandardMaterial({color:0x2a5a8a,roughness:1})));
+  }
+  // red pin (repositioned per track; children oriented along local +Z = outward)
+  const pin=new THREE.Group();
+  const glow=new THREE.Mesh(new THREE.SphereGeometry(0.04,16,12),new THREE.MeshBasicMaterial({color:0xff2a2a}));glow.position.z=0.02;
+  const spike=new THREE.Mesh(new THREE.ConeGeometry(0.028,0.14,12),new THREE.MeshBasicMaterial({color:0xff3838}));
+  spike.rotation.x=Math.PI/2;spike.position.z=0.1;
+  const ring=new THREE.Mesh(new THREE.RingGeometry(0.06,0.088,28),new THREE.MeshBasicMaterial({color:0xff4040,transparent:true,opacity:0.7,side:THREE.DoubleSide}));
+  ring.position.z=0.004;
+  pin.add(glow,spike,ring);
+  grp.add(pin);
+  globeScene.background=new THREE.Color(0x04060a);
+  globeScene.add(grp);
+  // subtle star field + fill light so the globe reads on black
+  const stars=new THREE.BufferGeometry();const sp=new Float32Array(1200*3);
+  for(let i=0;i<1200;i++){const v=new THREE.Vector3().randomDirection().multiplyScalar(40+Math.random()*40);sp[i*3]=v.x;sp[i*3+1]=v.y;sp[i*3+2]=v.z;}
+  stars.setAttribute('position',new THREE.BufferAttribute(sp,3));
+  globeScene.add(new THREE.Points(stars,new THREE.PointsMaterial({color:0x9fb0c8,size:0.12})));
+  globeScene.add(new THREE.HemisphereLight(0xbcd6ef,0x223044,1.2));
+  const sun=new THREE.DirectionalLight(0xffffff,2.2);sun.position.set(3,2,4);globeScene.add(sun);
+  GLOBE={group:grp,pin,ring};
+  return grp;
+}
 
 /* place cockpit cam + wheel (tuned constants; oriented for +Z forward) */
 function mountCockpit(){
@@ -2093,6 +2150,88 @@ function endCinematic(){
   enterMenu();
 }
 
+/* ---- track-select intro: globe zoom → sector outline → overhead ---- */
+let TINTRO=null;
+function trackIntro(cfg,done){
+  if(!GLOBE){done();return;}                       // globe failed to load → skip straight in
+  const loc=TRACK_LOC[cfg.id]||[45,0];
+  const dir=latLonToVec(loc[0],loc[1]).normalize();
+  GLOBE.pin.position.copy(dir);
+  GLOBE.pin.quaternion.setFromUnitVectors(new THREE.Vector3(0,0,1),dir);
+  GLOBE.pin.scale.setScalar(0.001);
+  const qStart=new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0),-1.6);
+  const qEnd=new THREE.Quaternion().setFromUnitVectors(dir,new THREE.Vector3(0,0,1));
+  TINTRO={start:performance.now(),done,cfg,qStart,qEnd,fired:false};
+  $('#tNameMain').textContent=cfg.name;$('#tNameSub').textContent=cfg.country+' '+cfg.flag;
+  $('#tCanvas').style.opacity='0';
+  $('#tIntro').classList.add('on');
+  setTimeout(()=>{if(TINTRO)$('#tName').classList.add('show');},900);   // name flies in over the globe
+  Sound.init();Sound.whoosh(0.6);
+  STATE='intro';
+}
+function drawTrackOutline(prog){
+  const cv=$('#tCanvas'); if(cv.width!==cv.clientWidth){cv.width=cv.clientWidth;cv.height=cv.clientHeight;}
+  const x=cv.getContext('2d'),W=cv.width,H=cv.height;
+  x.fillStyle='#04060a';x.fillRect(0,0,W,H);
+  const pts=TRACK.pts,N=pts.length;let a=1e9,b=-1e9,c=1e9,d=-1e9;
+  for(const p of pts){a=Math.min(a,p.x);b=Math.max(b,p.x);c=Math.min(c,p.z);d=Math.max(d,p.z);}
+  const pad=Math.min(W,H)*0.16,s=Math.min((W-2*pad)/(b-a),(H-2*pad)/(d-c));
+  const X=p=>(W-(b-a)*s)/2+(p.x-a)*s, Y=p=>(H-(d-c)*s)/2+(p.z-c)*s;
+  const cols=['#ff3535','#3f8bff','#ffd23d'];       // sector 1/2/3
+  x.lineJoin='round';x.lineCap='round';x.lineWidth=Math.max(6,s*4);
+  const upto=Math.floor(prog*N);
+  for(let seg=0;seg<3;seg++){const i0=(seg*N/3)|0,i1=((seg+1)*N/3)|0;
+    x.strokeStyle=cols[seg];x.shadowColor=cols[seg];x.shadowBlur=18;x.beginPath();
+    let started=false;
+    for(let i=i0;i<=Math.min(i1,upto);i++){const p=pts[i%N],px=X(p),py=Y(p);started?x.lineTo(px,py):x.moveTo(px,py);started=true;}
+    x.stroke();}
+  x.shadowBlur=0;
+  // sector labels once fully drawn
+  if(prog>=1){x.font='700 '+Math.max(13,s*9|0)+'px Arial';x.textAlign='center';
+    for(let seg=0;seg<3;seg++){const p=pts[(((seg*2+1)*N/6)|0)%N];x.fillStyle=cols[seg];
+      x.fillText('S'+(seg+1),X(p),Y(p)-s*7);}}
+  // start/finish marker
+  x.fillStyle='#fff';x.fillRect(X(pts[0])-4,Y(pts[0])-4,8,8);
+}
+function overheadCam(k){
+  const pts=TRACK.pts;let cx=0,cz=0;for(const p of pts)  {cx+=p.x;cz+=p.z;}cx/=pts.length;cz/=pts.length;
+  const R=TRACK.radius, ang=k*0.5;
+  const dist=lerp(R*2.4,R*1.5,k*k*(3-2*k));
+  camera.position.set(cx+Math.sin(ang)*dist*0.15,dist,cz+Math.cos(ang)*dist*0.15);
+  camera.up.set(0,0,-1);camera.lookAt(cx,0,cz);
+  camera.fov=45;camera.updateProjectionMatrix();
+}
+function introStep(dt){
+  const el=(performance.now()-TINTRO.start)/1000, A=2.9,B=A+2.3,C=B+1.7;
+  if(el<A){                                          // globe zoom
+    $('#tCanvas').style.opacity='0';
+    const k=clamp(el/A,0,1),e=k*k*(3-2*k);
+    GLOBE.group.quaternion.slerpQuaternions(TINTRO.qStart,TINTRO.qEnd,e);
+    const pop=clamp((el-0.9)/0.5,0,1);GLOBE.pin.scale.setScalar(0.001+pop);
+    camera.up.set(0,1,0);camera.position.set(0,0,lerp(5.6,2.25,e));camera.lookAt(0,0,0);
+    camera.fov=40;camera.updateProjectionMatrix();
+    renderer.render(globeScene,camera);
+  }else if(el<B){                                    // sector outline on black
+    if(!TINTRO.b){TINTRO.b=true;Sound.whoosh(0.5);}
+    drawTrackOutline(clamp((el-A)/(B-A-0.4),0,1));
+    $('#tCanvas').style.opacity='1';
+    renderer.render(globeScene,camera);              // (hidden behind the opaque canvas)
+  }else if(el<C){                                    // overhead of the real track
+    if(!TINTRO.c){TINTRO.c=true;Sound.rev();}
+    $('#tCanvas').style.opacity='0';
+    overheadCam(clamp((el-B)/(C-B),0,1));
+    renderer.render(driveScene,camera);
+  }else endTrackIntro();
+}
+function endTrackIntro(){
+  if(STATE!=='intro'||!TINTRO||TINTRO.fired)return;
+  TINTRO.fired=true;
+  const done=TINTRO.done;TINTRO=null;
+  camera.up.set(0,1,0);camera.fov=38;camera.updateProjectionMatrix();
+  $('#tIntro').classList.remove('on');$('#tName').classList.remove('show');
+  done&&done();
+}
+
 function enterMenu(){
   STATE='menu';
   $('#menu').classList.add('on');$('#hud').classList.remove('on');
@@ -2108,14 +2247,18 @@ function startDrive(){
   $('#menu').classList.remove('on');
   if(builtTrackId!==cf.id){ buildWorld(driveScene, cf); builtTrackId=cf.id; }
   $('#mapName').innerHTML=cf.name+' <span>· '+cf.country+'</span>';
-  countdown(()=>{
-    STATE='drive';
-    $('#hud').classList.add('on');$('#sndBtn').classList.add('show');
-    Sound.init();Sound.start();
-  });
   driveScene.add(CAR.rig);
   resetCar();
-  snapCamera();
+  // globe → sector outline → overhead intro, then lights out
+  trackIntro(cf, ()=>{
+    snapCamera();
+    STATE='countdown';
+    countdown(()=>{
+      STATE='drive';
+      $('#hud').classList.add('on');$('#sndBtn').classList.add('show');
+      Sound.init();Sound.start();
+    });
+  });
 }
 function snapCamera(){
   const fwd=new THREE.Vector3(Math.sin(CAR.heading),0,Math.cos(CAR.heading));
@@ -2153,6 +2296,7 @@ const keys={};
 addEventListener('keydown',e=>{
   const k=e.key.toLowerCase();keys[k]=true;
   if(STATE==='cine'){endCinematic();e.preventDefault();return;}
+  if(STATE==='intro'){endTrackIntro();e.preventDefault();return;}
   if(STATE==='result'){ if(k==='enter'||k==='escape'||k===' '){exitToMenu();} e.preventDefault();return;}
   if(STATE==='menu'&&garageOn){
     const i=LIVERY_IDS.indexOf(selLivery);
@@ -2177,7 +2321,7 @@ addEventListener('keydown',e=>{
   }
 });
 addEventListener('keyup',e=>{keys[e.key.toLowerCase()]=false;});
-addEventListener('pointerdown',()=>{if(STATE==='cine')endCinematic();});
+addEventListener('pointerdown',()=>{if(STATE==='cine')endCinematic();else if(STATE==='intro')endTrackIntro();});
 function readInput(){
   const thr=(keys['w']||keys['arrowup'])?1:0;
   const brk=(keys[' ']||keys['arrowdown']||keys['s'])?1:0;   // brake = SPACE (also S / ↓)
@@ -2201,6 +2345,10 @@ function frame(){
   }else if(STATE==='cine'){
     stepCinematic(dt);
     renderer.render(driveScene,camera);
+  }else if(STATE==='intro'){
+    introStep(dt);
+  }else if(STATE==='countdown'){
+    renderer.render(driveScene,camera);              // frozen grid while the lights run
   }else if(STATE==='drive'){
     const inp=readInput();
     const r=stepPhysics(dt,inp);
@@ -2288,7 +2436,9 @@ async function boot(){
   });
   ldPct(76);ldState(2);
   await loadWheel(loader);
-  ldPct(90);ldState(3);
+  ldPct(86);ldState(3);
+  await loadEarth(loader);
+  ldPct(92);
   mountCockpit();
   ldPct(96);ldState(4);
   await new Promise(r=>setTimeout(r,200));
