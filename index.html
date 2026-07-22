@@ -509,10 +509,10 @@ globeScene.environment=envRT.texture;
 cineScene.environment=envRT.texture;
 let GLOBE=null;                                   // {group, earth, pin, glow}
 /* real-world circuit locations (lat, lon) for the globe pin */
-const TRACK_LOC={ spa:[50.44,5.97], yas:[24.47,54.60], silverstone:[52.07,-1.02], monaco:[43.73,7.42], austria:[47.22,14.76], saopaulo:[-23.70,-46.70], jeddah:[21.63,39.10], catalunya:[41.57,2.26] };
+const TRACK_LOC={ spa:[50.44,5.97], yas:[24.47,54.60], silverstone:[52.07,-1.02], monaco:[43.73,7.42], austria:[47.22,14.76], saopaulo:[-23.70,-46.70], jeddah:[21.63,39.10], catalunya:[41.57,2.26], miami:[25.96,-80.24], montreal:[45.50,-73.52] };
 /* per-track accent colour + pit-building palette (unique pit/grandstand look) */
-const TRACK_ACCENT={ spa:0xb11015, yas:0x6a3aa0, silverstone:0xc8102e, monaco:0x1f6feb, austria:0x0a2a6a, saopaulo:0x1a9e3e, jeddah:0x8a2be2, catalunya:0xd8a21a };
-const TRACK_PIT={ spa:0xe9edf1, yas:0x14304a, silverstone:0xeef1f4, monaco:0xd8cdb8, austria:0x1a1f2a, saopaulo:0xdfe4e8, jeddah:0x141826, catalunya:0xe4d9b8 };
+const TRACK_ACCENT={ spa:0xb11015, yas:0x6a3aa0, silverstone:0xc8102e, monaco:0x1f6feb, austria:0x0a2a6a, saopaulo:0x1a9e3e, jeddah:0x8a2be2, catalunya:0xd8a21a, miami:0x00c2c7, montreal:0xd11a2a };
+const TRACK_PIT={ spa:0xe9edf1, yas:0x14304a, silverstone:0xeef1f4, monaco:0xd8cdb8, austria:0x1a1f2a, saopaulo:0xdfe4e8, jeddah:0x141826, catalunya:0xe4d9b8, miami:0xeef2f4, montreal:0xe0e4e8 };
 
 /* ---- showroom (menu) ---- */
 function buildShowroom(sc){
@@ -585,6 +585,25 @@ const AUSTRIA=[
  [470,287],[426,301],[409,325],[409,354],[426,376],[465,405],[504,435],[528,441],[553,427],[566,413],
  [581,364],[609,332],[677,297],[766,258],[837,227],[877,207],[898,212],[928,234],[957,270],[981,300],
  [958,337],[932,363],[881,402],[843,432],[819,455]
+];
+const MIAMI=[
+ [433,286],[532,315],[624,342],[685,361],[708,369],[717,380],[709,398],[695,413],[679,432],[689,463],
+ [690,494],[681,513],[661,538],[637,551],[599,566],[561,572],[519,566],[475,552],[399,534],[350,515],
+ [326,516],[304,524],[283,542],[266,563],[245,576],[214,577],[187,561],[158,545],[133,550],[105,563],
+ [82,579],[67,601],[65,625],[73,648],[84,660],[103,661],[121,653],[154,644],[185,645],[239,644],
+ [308,630],[401,604],[457,589],[482,586],[510,590],[549,596],[591,602],[638,598],[724,575],[783,548],
+ [883,482],[955,433],[1024,376],[1051,352],[1059,339],[1048,328],[1015,318],[1000,308],[990,294],[990,278],
+ [1003,258],[1024,255],[1061,244],[1073,226],[1078,204],[1081,190],[1067,185],[1061,151],[1062,118],[1044,118],
+ [941,141],[705,187],[461,237],[286,271],[163,294],[129,304],[122,314],[129,327],[150,339],[186,351],
+ [207,352],[235,345],[267,322],[294,299],[326,284],[359,277],[400,274],[415,281]
+];
+const MONTREAL=[
+ [924,327],[969,341],[1009,362],[1042,380],[1053,387],[1069,375],[1082,366],[1098,371],[1104,385],[1095,406],
+ [1063,438],[1020,470],[969,491],[951,500],[937,490],[924,479],[879,488],[844,499],[825,513],[804,519],
+ [774,516],[733,496],[695,479],[680,478],[672,491],[669,507],[653,520],[625,523],[510,486],[407,426],
+ [355,381],[334,368],[341,343],[326,310],[275,271],[210,225],[146,193],[99,180],[59,172],[49,168],
+ [49,158],[60,150],[92,161],[121,169],[163,167],[246,172],[323,175],[390,194],[521,220],[620,243],
+ [683,254],[699,260],[700,273],[725,284],[794,297]
 ];
 const JEDDAH=[
  [867,232],[775,309],[734,345],[714,361],[707,365],[704,372],[714,380],[716,391],[701,399],[681,401],
@@ -687,6 +706,14 @@ const TRACKS={
     halfW:8.0, night:false, env:'catalunya', runoff:'mixed',
     kerb:['#d81c1c','#eef1f4'], asphalt:0x35383e, ground:0x8a8248, laprec:'1:12',
     elev:f=>elevProfile(CAT_ELEV,f) },   // dry high plateau: red/white kerbs, gravel
+  miami:{ id:'miami', name:'MIAMI', country:'USA', flag:'🇺🇸', points:MIAMI, len:5412,
+    halfW:7.4, night:false, env:'miami', runoff:'teal', fence:true,
+    kerb:['#d81c1c','#eef1f4'], asphalt:0x2f333c, ground:0x3d6e4a, laprec:'1:29',
+    elev:f=>2*Math.sin(f*TAU*2) },       // Miami: turquoise run-off, palms, marina
+  montreal:{ id:'montreal', name:'GILLES VILLENEUVE', country:'CANADA', flag:'🇨🇦', points:MONTREAL, len:4361,
+    halfW:7.0, night:false, env:'montreal', runoff:'mixed',
+    kerb:['#1a9e3e','#f2d000'], asphalt:0x33363c, ground:0x3a6238, laprec:'1:12',
+    elev:f=>2.5*Math.sin(f*TAU*2-0.5) }, // Montreal: green/yellow kerbs, river island, walls close
 };
 let CFG=TRACKS.spa;
 let selLivery='redbull';          // chosen team livery (editor)
@@ -700,6 +727,9 @@ function buildWorld(sc,cfg){
   cfg=cfg||CFG; CFG=cfg;
   clearScene(sc);
   TRACK.halfW=cfg.halfW;
+  // tall catch-fencing sits atop the sponsor walls on most circuits; open parkland tracks skip it
+  const NOFENCE={austria:1,british:1,saopaulo:1};
+  TRACK.fence = cfg.fence!==undefined ? cfg.fence : !(cfg.forest||NOFENCE[cfg.env]);
   const raw=cfg.points.map(p=>new THREE.Vector3(p[0],0,p[1]));
   const bb=new THREE.Box3().setFromPoints(raw); const ctr=bb.getCenter(new THREE.Vector3());
   raw.forEach(v=>v.sub(ctr));
@@ -822,6 +852,14 @@ function buildWorld(sc,cfg){
 
   if(cfg.runoff==='none'){
     // Monaco: no run-off — a thin painted strip then straight into the barrier
+  }else if(cfg.runoff==='teal'){
+    // Miami: signature turquoise painted tarmac run-off with a white outline
+    const tealMat=new THREE.MeshStandardMaterial({color:0x18b8bf,roughness:0.7,metalness:0.1,side:THREE.DoubleSide});
+    strip(k=>HW+0.9, k=>HW+0.9+runL[k], 0.0, tealMat, 0, 8);
+    strip(k=>-(HW+0.9), k=>-(HW+0.9+runR[k]), 0.0, tealMat, 0, 8);
+    const wl=new THREE.MeshBasicMaterial({color:0xffffff,side:THREE.DoubleSide});
+    strip(k=>HW+0.9+Math.max(runL[k]-0.5,0), k=>HW+0.9+runL[k], 0.01, wl, 1);
+    strip(k=>-(HW+0.9+Math.max(runR[k]-0.5,0)), k=>-(HW+0.9+runR[k]), 0.01, wl, 1);
   }else if(cfg.runoff==='neon'){
     // Jeddah: vibrant purple/blue tarmac run-off with a bright white outline (glows at night)
     const neonMat=new THREE.MeshStandardMaterial({color:0x2a1f6a,roughness:0.5,metalness:0.3,emissive:0x1a1050,emissiveIntensity:0.6,side:THREE.DoubleSide});
@@ -912,7 +950,8 @@ function buildWorld(sc,cfg){
   else if(cfg.env==='austria') buildAustria(sc,P,Nm,barOff,barOffR); // open, distant mountains
   else if(cfg.env==='saopaulo') buildSaoPaulo(sc,P,Nm,barOff,barOffR); // Interlagos: trees, favelas
   else if(cfg.env==='jeddah') buildJeddah(sc,P,Nm,Tg,barOff,barOffR); // night neon corniche
-  else if(cfg.env==='british'||cfg.env==='catalunya') buildBritish(sc,P,Nm,barOff,barOffR); // open parkland
+  else if(cfg.env==='miami') buildMiami(sc,P,Nm,Tg,barOff,barOffR); // marina, palms, stadium
+  else if(cfg.env==='british'||cfg.env==='catalunya'||cfg.env==='montreal') buildBritish(sc,P,Nm,barOff,barOffR); // open parkland/trees
   else if(cfg.forest) buildForest(sc,P,Nm,barOff,barOffR);       // Spa: Ardennes forest
   else buildDesert(sc,P,Nm,Tg,barOff,barOffR);                   // Yas: desert + hotel
   if(!cfg.street) buildGrandstands(sc,P,Nm,Tg,barOff,barOffR);   // Monaco has no grandstands
@@ -982,8 +1021,9 @@ function buildDesert(sc,P,Nm,Tg,offL,offR){
     const hull=new THREE.MeshStandardMaterial({color:0xf2f5f8,roughness:0.4});
     const deck=new THREE.MeshStandardMaterial({color:0x223040,roughness:0.5,emissive:0x0c1420,emissiveIntensity:0.7});
     const glass=new THREE.MeshStandardMaterial({color:0x8fd0ff,emissive:0x2a5a80,emissiveIntensity:0.9,transparent:true,opacity:0.6});
-    for(let i=0;i<40;i++){const a=Math.random()*TAU,rr=R*0.14+Math.random()*R*0.25;
-      const x=Math.cos(a)*rr,z=Math.sin(a)*rr;const g=new THREE.Group();const L=7+Math.random()*13;
+    const HWm=TRACK.halfW+16;let yn=0,yt=0;
+    while(yn<40 && yt<600){yt++;const a=Math.random()*TAU,rr=R*0.05+Math.random()*R*0.30;
+      const x=Math.cos(a)*rr,z=Math.sin(a)*rr;if(clr(x,z)<HWm*HWm)continue;yn++;const g=new THREE.Group();const L=7+Math.random()*13;
       const b=new THREE.Mesh(new THREE.BoxGeometry(L,3,3.2),hull);b.position.y=1.2;
       const pr=new THREE.Mesh(new THREE.ConeGeometry(1.6,4,4),hull);pr.rotation.z=-Math.PI/2;pr.position.set(L/2+1.4,1.2,0);
       const d=new THREE.Mesh(new THREE.BoxGeometry(L*0.5,2,2.4),deck);d.position.set(-1,3,0);
@@ -1135,6 +1175,16 @@ function drawMark(x,kind,cx,cy,r,col){x.save();x.fillStyle=col;x.strokeStyle=col
     x.font=`900 ${r*0.9|0}px Arial`;x.textAlign='center';x.textBaseline='middle';x.fillText('P',cx,cy);}
   else{x.fillRect(cx-r*0.7,cy-r*0.7,r*1.4,r*1.4);}                     // 'box'
   x.restore();}
+/* chain-link catch-fence texture: bright diamond mesh on transparent ground */
+function makeFenceTex(){
+  const s=64,c=cnv(s,s),x=c.getContext('2d');
+  x.clearRect(0,0,s,s);
+  x.strokeStyle='rgba(210,216,224,0.92)';x.lineWidth=2.2;
+  for(let k=-s;k<s*2;k+=10){x.beginPath();x.moveTo(k,0);x.lineTo(k+s,s);x.stroke();
+    x.beginPath();x.moveTo(k,s);x.lineTo(k+s,0);x.stroke();}
+  const t=new THREE.CanvasTexture(c);t.wrapS=t.wrapT=THREE.RepeatWrapping;t.anisotropy=4;
+  t.colorSpace=THREE.SRGBColorSpace;return t;
+}
 function makeZoneBoard(sp){ // high-res advertising hoarding: mark + wordmark + tagline + accent
   const n=4, pw=1024, ph=208, c=cnv(pw*n,ph), x=c.getContext('2d');
   for(let i=0;i<n;i++){const x0=i*pw, cy=ph*0.44;
@@ -1190,6 +1240,34 @@ function buildBarriers(sc,P,Nm,cum,offL,offR){
       g.setIndex(id);g.computeVertexNormals();
       const wall=new THREE.Mesh(g,new THREE.MeshStandardMaterial({map:zoneTex[z],roughness:0.8,side:THREE.DoubleSide}));
       wall.castShadow=true;wall.receiveShadow=true;sc.add(wall);
+    }
+  }
+  // tall debris catch-fencing on top of the sponsor walls (most circuits)
+  if(TRACK.fence){
+    const FH=3.2, WH2=WH;                             // fence height above the wall top
+    const fTex=makeFenceTex();
+    const fMat=new THREE.MeshStandardMaterial({map:fTex,alphaMap:fTex,transparent:true,
+      alphaTest:0.35,roughness:0.7,metalness:0.35,color:0xb8bec6,side:THREE.DoubleSide,depthWrite:false});
+    const postMat=new THREE.MeshStandardMaterial({color:0x6a7078,roughness:0.6,metalness:0.5});
+    const postGeo=new THREE.CylinderGeometry(0.11,0.11,FH+0.3,6);
+    for(const [side,off] of [[1,offL],[-1,offR]]){
+      const v=[],uv=[],id=[];const posts=[];
+      for(let i=0;i<=N;i++){const k=i%N,p=P[k],n=Nm[k];
+        const b=new THREE.Vector3().copy(p).addScaledVector(n,side*(off(k)+0.05));
+        const top=p.y+WH2;
+        v.push(b.x,top,b.z, b.x,top+FH,b.z);
+        const u=cum[i]/2.2; uv.push(u,0,u,1);         // dense repeats → fine mesh
+        if(i%4===0)posts.push({x:b.x,y:top,z:b.z});}
+      for(let i=0;i<N;i++){const a=i*2;id.push(a,a+1,a+2,a+1,a+3,a+2);}
+      const g=new THREE.BufferGeometry();
+      g.setAttribute('position',new THREE.Float32BufferAttribute(v,3));
+      g.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));
+      g.setIndex(id);g.computeVertexNormals();
+      const fence=new THREE.Mesh(g,fMat);fence.renderOrder=6;fence.frustumCulled=false;sc.add(fence);
+      const im=new THREE.InstancedMesh(postGeo,postMat,posts.length);im.frustumCulled=false;
+      const m=new THREE.Matrix4();
+      posts.forEach((s,i)=>{m.makeTranslation(s.x,s.y+FH/2,s.z);im.setMatrixAt(i,m);});
+      im.instanceMatrix.needsUpdate=true;sc.add(im);
     }
   }
   // tyre barriers (instanced) where runoff is wide = fast corners
@@ -1511,6 +1589,60 @@ function buildJeddah(sc,P,Nm,Tg,offL,offR){
     const bp=P[Math.round(N*0.55)%N],bn=Nm[Math.round(N*0.55)%N];const wx=bp.x+bn.x*(offR(Math.round(N*0.55)%N)+40),wz=bp.z+bn.z*(offR(Math.round(N*0.55)%N)+40);
     const gy=gh(wx,wz);wheel.position.set(wx,gy+rad+4,wz);
     const leg=new THREE.Mesh(new THREE.BoxGeometry(2,rad+6,2),ringM);leg.position.set(wx,gy+(rad+6)/2,wz);sc.add(leg,wheel);}
+}
+/* ---- Miami (Hard Rock): turquoise runoffs, marina + yachts, stadium, palms, art-deco skyline ---- */
+function buildMiami(sc,P,Nm,Tg,offL,offR){
+  const N=P.length,R=TRACK.radius, gh=TRACK.terrainH;
+  let cX=0,cZ=0;for(const p of P){cX+=p.x;cZ+=p.z;}cX/=N;cZ/=N;
+  const samp=[];for(let i=0;i<N;i+=3)samp.push(P[i]);
+  const clr=(x,z)=>{let m=1e9;for(const q of samp){const dx=x-q.x,dz=z-q.z;const d=dx*dx+dz*dz;if(d<m)m=d;}return m;};
+  const HW=TRACK.halfW;
+  const M=new THREE.Matrix4(),S=new THREE.Vector3(),Q=new THREE.Quaternion(),T=new THREE.Vector3();
+  // --- turquoise marina lagoon in the infield + a fake-beach fleet of yachts (kept clear of track) ---
+  { const water=new THREE.Mesh(new THREE.CircleGeometry(R*0.34,56),
+      new THREE.MeshStandardMaterial({color:0x1fb6c8,roughness:0.1,metalness:0.7,emissive:0x0a5b66,emissiveIntensity:0.3}));
+    water.rotation.x=-Math.PI/2;water.position.set(cX,-0.6,cZ);sc.add(water);
+    const hull=new THREE.MeshStandardMaterial({color:0xf6f9fb,roughness:0.38});
+    const deck=new THREE.MeshStandardMaterial({color:0x2b3a4c,roughness:0.5});
+    const glass=new THREE.MeshStandardMaterial({color:0x9fe6ff,emissive:0x2a6a80,emissiveIntensity:0.4,transparent:true,opacity:0.6});
+    let placed=0,tries=0;const need=HW+18;
+    while(placed<26 && tries<400){tries++;
+      const a=Math.random()*TAU,rr=R*0.06+Math.random()*R*0.28;const x=cX+Math.cos(a)*rr,z=cZ+Math.sin(a)*rr;
+      if(clr(x,z)<need*need) continue;
+      const y=makeYacht(hull,deck,glass);y.position.set(x,-0.15,z);y.rotation.y=Math.random()*TAU;sc.add(y);placed++;} }
+  // --- Hard Rock Stadium: big banked oval bowl with a white ring canopy, on the most open side ---
+  { let i0=Math.round(N*0.3),best=-1;
+    for(let i=0;i<N;i+=2){const p=P[i];const dx=p.x-cX,dz=p.z-cZ;const d=dx*dx+dz*dz;if(d>best){best=d;i0=i;}}
+    const p=P[i0],n=Nm[i0];const sx=p.x+n.x*(offL(i0)+120),sz=p.z+n.z*(offL(i0)+120);
+    if(clr(sx,sz)>90*90){const gy=gh(sx,sz);const bowl=new THREE.Group();
+      const outer=new THREE.Mesh(new THREE.CylinderGeometry(96,110,26,40,1,true),
+        new THREE.MeshStandardMaterial({color:0x8b9199,roughness:0.85,side:THREE.DoubleSide}));outer.position.y=13;bowl.add(outer);
+      const seats=new THREE.Mesh(new THREE.CylinderGeometry(58,96,24,40,1,true),
+        new THREE.MeshStandardMaterial({color:0x2a4a86,roughness:0.9,side:THREE.DoubleSide}));seats.position.y=13;bowl.add(seats);
+      const canopy=new THREE.Mesh(new THREE.TorusGeometry(103,10,4,44),
+        new THREE.MeshStandardMaterial({color:0xf0f3f6,roughness:0.6,metalness:0.2}));canopy.rotation.x=Math.PI/2;canopy.position.y=27;bowl.add(canopy);
+      const field=new THREE.Mesh(new THREE.CircleGeometry(56,32),new THREE.MeshStandardMaterial({color:0x2f7d3a,roughness:1}));
+      field.rotation.x=-Math.PI/2;field.position.y=0.4;bowl.add(field);
+      bowl.position.set(sx,gy,sz);bowl.traverse(o=>{o.castShadow=true;o.receiveShadow=true;});sc.add(bowl);} }
+  // --- palm trees along the promenade + trackside ---
+  { const trunk=new THREE.MeshStandardMaterial({color:0x6a5030,roughness:0.9});
+    const frond=new THREE.MeshStandardMaterial({color:0x2a7a3a,roughness:0.8,side:THREE.DoubleSide});
+    for(let i=0;i<140;i++){const a=Math.random()*TAU,rr=R*0.4+Math.random()*R*1.1,x=Math.cos(a)*rr,z=Math.sin(a)*rr;
+      if(clr(x,z)<58*58)continue;
+      const g=new THREE.Group(),h=6+Math.random()*5;const tk=new THREE.Mesh(new THREE.CylinderGeometry(0.32,0.5,h,6),trunk);tk.position.y=h/2;g.add(tk);
+      for(let f=0;f<7;f++){const fr=new THREE.Mesh(new THREE.ConeGeometry(0.7,4,4),frond);fr.position.y=h;fr.rotation.z=Math.PI/2.6;fr.rotation.y=f/7*TAU;g.add(fr);}
+      const gy=gh(x,z);g.position.set(x,gy,z);g.rotation.y=Math.random()*TAU;sc.add(g);} }
+  // --- distant Miami skyline: bright art-deco pastel towers ---
+  { const tints=['#5ad0e0','#ff8fb0','#ffd27a','#a08aff','#7affc0','#ff9a6a'];
+    for(let i=0;i<58;i++){const a=Math.random()*TAU,rr=R*1.5+Math.random()*R*0.8,h=44+Math.random()*130,w=15+Math.random()*20;
+      const t=tints[i%tints.length];
+      const bmat=new THREE.MeshStandardMaterial({map:makeWindows(Math.max(3,w/6|0),Math.max(6,h/8|0),t),
+        color:new THREE.Color(t).multiplyScalar(0.5).getStyle(),emissive:new THREE.Color(t).multiplyScalar(0.12),emissiveIntensity:0.8,roughness:0.7});
+      const b=new THREE.Mesh(new THREE.BoxGeometry(w,h,w),bmat);b.position.set(Math.cos(a)*rr,h/2-2,Math.sin(a)*rr);sc.add(b);} }
+  // --- teal water horizon ring (ocean) ---
+  const ring=new THREE.Mesh(new THREE.CylinderGeometry(R*2.0,R*2.1,60,56,1,true),
+    new THREE.MeshStandardMaterial({color:0x1aa5c0,roughness:0.3,metalness:0.5,side:THREE.BackSide}));
+  ring.position.y=6;sc.add(ring);
 }
 /* ---- São Paulo (Interlagos): tree areas, open grass, favela hillsides, city skyline ---- */
 function buildSaoPaulo(sc,P,Nm,offL,offR){
@@ -2286,7 +2418,9 @@ function stepPhysics(dt,inp){
   Sound.engine(spd, inp.throttle);
   return {off, near};
 }
-if(typeof window!=='undefined'){window.__step=stepPhysics;window.__reset=resetCar;}
+if(typeof window!=='undefined'){window.__step=stepPhysics;window.__reset=resetCar;
+  window.__buildTrack=(id)=>{buildWorld(driveScene,TRACKS[id]);builtTrackId=id;return true;};
+  window.__trackIds=()=>Object.keys(TRACKS);}
 
 /* nearest centreline point (dist + signed lateral + outward normal) */
 function nearestTrack(pos,hint,window){
@@ -2442,7 +2576,7 @@ const MODES=[
    meta:[['Assists','LOW'],['Input','KEYS'],['Units','KM/H']]},
 ];
 let sel=0, sessionMode='gp';
-const TRACK_IDS=['spa','yas','silverstone','monaco','austria','saopaulo','jeddah','catalunya']; let selTrack=0, builtTrackId='spa';
+const TRACK_IDS=['spa','yas','silverstone','monaco','austria','saopaulo','jeddah','catalunya','miami','montreal']; let selTrack=0, builtTrackId='spa';
 function curCfg(){return TRACKS[TRACK_IDS[selTrack]];}
 function cycleTrack(d){selTrack=(selTrack+d+TRACK_IDS.length)%TRACK_IDS.length;renderDetail();Sound.init();Sound.blip(430,.05);}
 function buildMenu(){
