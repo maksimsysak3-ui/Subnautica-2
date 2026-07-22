@@ -2093,86 +2093,109 @@ function buildBritish(sc,P,Nm,offL,offR){
   ring.position.y=8;sc.add(ring);
 }
 
-/* ---- big roofed grandstands with crowd + sponsor facades ---- */
+/* ---- raked grandstands: tiered crowd banks, cantilever roofs, sponsor bands ---- */
 function buildGrandstands(sc,P,Nm,Tg,offL,offR){
-  const N=P.length;
+  const N=P.length, gh=TRACK.terrainH;
+  const sampG=[];for(let i=0;i<N;i+=2)sampG.push(P[i]);
+  const clr=(x,z)=>{let m=1e9;for(const q of sampG){const dx=x-q.x,dz=z-q.z;const d=dx*dx+dz*dz;if(d<m)m=d;}return m;};
   const tent=CFG&&CFG.id==='yas';               // Middle-Eastern tent canopies at Yas
-  const frameMat=new THREE.MeshStandardMaterial({color:TRACK_ACCENT[CFG.id]||0x3a4049,roughness:0.8}); // team-accent roof supports
-  const roofMat=new THREE.MeshStandardMaterial({color:0xced3d9,roughness:0.6,metalness:0.2,side:THREE.DoubleSide});
-  const tentMat=new THREE.MeshStandardMaterial({color:0xf4efe4,roughness:0.85,side:THREE.DoubleSide,
-    emissive:0x3a2f22,emissiveIntensity:0.5});   // warm-lit fabric
-  const facadeMat=new THREE.MeshStandardMaterial({map:makeHoarding(),roughness:0.8});
-  const idxs=[0,Math.round(N*0.16),Math.round(N*0.34),Math.round(N*0.52),Math.round(N*0.7),Math.round(N*0.86)];
+  const accent=TRACK_ACCENT[CFG.id]||0x3a4049;
+  const frameMat=new THREE.MeshStandardMaterial({color:accent,roughness:0.7,metalness:0.3});
+  const roofMat=new THREE.MeshStandardMaterial({color:tent?0xf4efe4:0xdfe4ea,roughness:0.6,metalness:0.2,side:THREE.DoubleSide,
+    emissive:tent?0x3a2f22:0x000000,emissiveIntensity:tent?0.4:0});
+  const facadeMat=new THREE.MeshStandardMaterial({map:makeHoarding(),roughness:0.8,side:THREE.DoubleSide});
+  const crowdMat=makeCrowdMat();
+  const night=CFG.night;
+  const HW=TRACK.halfW;
+  const idxs=[0,0.12,0.26,0.4,0.53,0.67,0.8,0.9].map(f=>Math.round(N*f)%N);
   idxs.forEach((i,si)=>{
     const side=si%2?1:-1, off=(side>0?offL:offR)(i);
-    const p=P[i],n=Nm[i],tg=Tg[i];
-    const base=new THREE.Vector3().copy(p).addScaledVector(n,side*(off+16));
-    const g=new THREE.Group();
-    const len=70,depth=16,h=13;
-    // tiered seating (crowd)
-    const seat=new THREE.Mesh(new THREE.BoxGeometry(len,h,depth),makeCrowdMat());
-    seat.position.set(0,h/2,0);
-    g.add(seat);
-    if(tent){
-      // scalloped peaked fabric canopy — a row of tent bays
-      const bays=5, bw=(len+6)/bays;
-      for(let k=0;k<bays;k++){const peak=new THREE.Mesh(new THREE.ConeGeometry(bw*0.72,6,4),tentMat);
-        peak.rotation.y=Math.PI/4;peak.position.set(-len/2-3+bw*(k+0.5),h+5,-2);g.add(peak);}
-      const ridge=new THREE.Mesh(new THREE.BoxGeometry(len+6,0.5,depth+7),tentMat);
-      ridge.position.set(0,h+2.6,-2);g.add(ridge);
-    }else{
-      const roof=new THREE.Mesh(new THREE.BoxGeometry(len+6,0.6,depth+7),roofMat);
-      roof.position.set(0,h+3.4,-2);g.add(roof);
+    const p=P[i],n=Nm[i];
+    const len=68, depth=22, tiers=10, stepH=1.5, stepD=depth/tiers;
+    // seat the whole footprint clear of every part of the track
+    const dist=off+depth/2+7;
+    const bx=p.x+n.x*side*dist, bz=p.z+n.z*side*dist;
+    const need=HW+depth/2+8; if(clr(bx,bz)<need*need) return;
+    const g=new THREE.Group(); const topH=1.2+tiers*stepH;
+    // raked tiers rising away from the track (+Z faces the track after lookAt)
+    for(let t=0;t<tiers;t++){
+      const step=new THREE.Mesh(new THREE.BoxGeometry(len,1.5,stepD+0.35),crowdMat);
+      step.position.set(0,1.2+t*stepH,depth/2-(t+0.5)*stepD);g.add(step);
     }
-    // roof supports
-    for(const sx of [-len/2+3,len/2-3]){const c=new THREE.Mesh(new THREE.BoxGeometry(1,h+3,1),frameMat);c.position.set(sx,(h+3)/2,depth/2+1);g.add(c);}
-    // facade sponsor band
-    const band=new THREE.Mesh(new THREE.PlaneGeometry(len,3),facadeMat);
-    band.position.set(0,h+1.5,depth/2+0.3);
-    g.add(band);
-    const gy=TRACK.terrainH(base.x,base.z)-0.55;
-    g.position.copy(base);g.position.y=gy;
-    g.lookAt(p.x,gy,p.z);
+    // front sponsor hoarding at the base (trackside)
+    const front=new THREE.Mesh(new THREE.BoxGeometry(len,2.6,0.6),facadeMat);
+    front.position.set(0,1.3,depth/2+0.3);g.add(front);
+    if(tent){
+      const bays=5,bw=(len+6)/bays;
+      for(let k=0;k<bays;k++){const peak=new THREE.Mesh(new THREE.ConeGeometry(bw*0.7,6,4),roofMat);
+        peak.rotation.y=Math.PI/4;peak.position.set(-len/2-3+bw*(k+0.5),topH+4,-depth*0.1);g.add(peak);}
+    }else{
+      // cantilever roof over the top tiers + leading-edge sponsor band
+      const roof=new THREE.Mesh(new THREE.BoxGeometry(len+6,0.6,depth*0.62),roofMat);
+      roof.position.set(0,topH+3.2,-depth*0.06);g.add(roof);
+      const band=new THREE.Mesh(new THREE.BoxGeometry(len+6,1.7,0.4),facadeMat);
+      band.position.set(0,topH+2.4,-depth*0.06+depth*0.31);g.add(band);
+    }
+    // rear roof supports
+    for(const sx of [-len/2+3,0,len/2-3]){const c=new THREE.Mesh(new THREE.BoxGeometry(1,topH+3.2,1),frameMat);
+      c.position.set(sx,(topH+3.2)/2,-depth*0.42);g.add(c);}
+    // night floodlights on the roof
+    if(night){for(const sx of [-len/3,len/3]){const fl=new THREE.Mesh(new THREE.BoxGeometry(3.2,0.9,1),
+      new THREE.MeshStandardMaterial({color:0xffffff,emissive:0xfff2d0,emissiveIntensity:2.2}));
+      fl.position.set(sx,topH+3.6,depth*0.05);g.add(fl);}}
+    const gy=gh(bx,bz);
+    g.position.set(bx,gy,bz);g.lookAt(p.x,gy,p.z);
     g.traverse(o=>{o.castShadow=true;o.receiveShadow=true;});
     sc.add(g);
   });
 }
 
-/* ---- long pit building + wall along the start/finish straight ---- */
+/* ---- full pit complex: garages, pit lane, pit wall + start/finish gantry ---- */
 function buildPit(sc,P,Nm,Tg){
-  const i0=0,p=P[i0],n=Nm[i0],tg=Tg[i0];
-  const side=-1;                             // pit on the right of the grid
-  const off=TRACK.halfW+26;                  // building set back across the pit lane
+  const p=P[0],n=Nm[0],tg=Tg[0], gh=TRACK.terrainH, HW=TRACK.halfW;
+  const side=-1, off=HW+24;                   // building set back across the pit lane
   const base=new THREE.Vector3().copy(p).addScaledVector(n,side*off);
-  const g=new THREE.Group();
-  const len=150,depth=14,h=11;
+  const g=new THREE.Group(); const len=164;
   const pitCol=(TRACK_PIT[CFG.id]||0xe9edf1), accent=(TRACK_ACCENT[CFG.id]||0xb11015);
-  const dark=CFG.night||CFG.id==='austria'||CFG.id==='yas';
-  const body=new THREE.Mesh(new THREE.BoxGeometry(len,h,depth),
-    new THREE.MeshStandardMaterial({color:pitCol,roughness:0.7,metalness:dark?0.3:0,
-      emissive:dark?0x0a0e16:0x000000,emissiveIntensity:dark?0.4:0}));
-  body.position.set(0,h/2,0);
-  const roof=new THREE.Mesh(new THREE.BoxGeometry(len+3,0.8,depth+3),
-    new THREE.MeshStandardMaterial({color:accent,roughness:0.5,metalness:0.3}));
-  roof.position.set(0,h+0.4,0);
-  // team-accent stripe + garage doors
-  const stripe=new THREE.Mesh(new THREE.BoxGeometry(len+0.4,1.4,depth+0.4),
-    new THREE.MeshStandardMaterial({color:accent,roughness:0.6}));
-  stripe.position.set(0,h-1.5,0);
-  const doorMat=new THREE.MeshStandardMaterial({color:0x11151b,roughness:0.5});
-  for(let d=0;d<12;d++){const door=new THREE.Mesh(new THREE.PlaneGeometry(9,6),doorMat);
-    door.position.set(-len/2+7+d*12,3.2,depth/2+0.2);g.add(door);}
-  // pit wall along track
-  const pw=new THREE.Mesh(new THREE.BoxGeometry(len,1.1,0.5),
-    new THREE.MeshStandardMaterial({map:makeHoarding(),roughness:0.8}));
-  pw.position.copy(base).addScaledVector(n,-side*(off-TRACK.halfW-2.5));
-  const pwy=TRACK.terrainH(pw.position.x,pw.position.z); pw.position.y=pwy+0.55;
-  g.add(body,roof,stripe);
-  const gy=TRACK.terrainH(base.x,base.z)-0.55;
+  const night=CFG.night||CFG.id==='austria';
+  // pit-lane tarmac apron (local +Z faces the track after lookAt)
+  const lane=new THREE.Mesh(new THREE.BoxGeometry(len,0.12,13),new THREE.MeshStandardMaterial({color:0x26292f,roughness:0.9}));
+  lane.position.set(0,0.06,14);g.add(lane);
+  const fast=new THREE.Mesh(new THREE.BoxGeometry(len,0.02,0.35),new THREE.MeshBasicMaterial({color:0xf2f5f8}));fast.position.set(0,0.14,10.5);g.add(fast);
+  const apr=new THREE.Mesh(new THREE.BoxGeometry(len,0.02,0.35),new THREE.MeshStandardMaterial({color:accent,emissive:accent,emissiveIntensity:0.5}));apr.position.set(0,0.14,17.5);g.add(apr);
+  // garage units with team-accent roller doors facing the lane
+  const garMat=new THREE.MeshStandardMaterial({color:pitCol,roughness:0.7,metalness:night?0.3:0,emissive:night?0x0a0e16:0,emissiveIntensity:night?0.4:0});
+  const nGar=12, gw=len/nGar;
+  for(let d=0;d<nGar;d++){const gx=-len/2+gw*(d+0.5);
+    const unit=new THREE.Mesh(new THREE.BoxGeometry(gw-0.5,7,12),garMat);unit.position.set(gx,3.5,0);g.add(unit);
+    const door=new THREE.Mesh(new THREE.BoxGeometry(gw-2.2,5.2,0.3),
+      new THREE.MeshStandardMaterial({color:d%2?accent:0x14181f,roughness:0.5,metalness:0.35,emissive:night?0x0a0d12:0,emissiveIntensity:night?0.3:0}));
+    door.position.set(gx,3.0,6.1);g.add(door);}
+  // upper media/hospitality deck with a lit window band + accent roof
+  const upper=new THREE.Mesh(new THREE.BoxGeometry(len,6,11),
+    new THREE.MeshStandardMaterial({map:makeWindows(Math.max(6,len/6|0),3,night?'#cfe0f0':'#24343f'),color:pitCol,roughness:0.6,metalness:0.3,emissive:night?0x14202e:0,emissiveIntensity:night?0.5:0}));
+  upper.position.set(0,10.5,-0.5);g.add(upper);
+  const roof=new THREE.Mesh(new THREE.BoxGeometry(len+3,0.9,13),new THREE.MeshStandardMaterial({color:accent,roughness:0.5,metalness:0.3}));roof.position.set(0,14,-0.5);g.add(roof);
+  // pit wall with sponsor hoarding + team pit-stand pods along the fast lane
+  const wall=new THREE.Mesh(new THREE.BoxGeometry(len,1.2,0.5),new THREE.MeshStandardMaterial({map:makeHoarding(),roughness:0.8}));wall.position.set(0,0.6,21.5);g.add(wall);
+  for(let d=0;d<6;d++){const pod=new THREE.Mesh(new THREE.BoxGeometry(9,2.4,3),
+    new THREE.MeshStandardMaterial({color:0x14181f,roughness:0.6,metalness:0.3,emissive:night?0x1a2230:0,emissiveIntensity:0.4}));
+    pod.position.set(-len/2+18+d*26,2.4,20);g.add(pod);}
+  const gy=gh(base.x,base.z);
   g.position.copy(base);g.position.y=gy;g.lookAt(p.x,gy,p.z);
-  g.traverse(o=>{o.castShadow=true;o.receiveShadow=true;});
-  sc.add(g);
-  pw.lookAt(p.x,pwy+0.55,p.z);pw.castShadow=true;sc.add(pw);
+  g.traverse(o=>{o.castShadow=true;o.receiveShadow=true;});sc.add(g);
+  // --- start/finish gantry across the grid with the 5 red start lights ---
+  const beamMat=new THREE.MeshStandardMaterial({color:0x111319,roughness:0.7,metalness:0.4});
+  const L=new THREE.Vector3().copy(p).addScaledVector(n,HW+2), Rr=new THREE.Vector3().copy(p).addScaledVector(n,-(HW+2));
+  const gy0=gh(p.x,p.z);
+  for(const pt of [L,Rr]){const leg=new THREE.Mesh(new THREE.BoxGeometry(1.4,9.5,1.4),beamMat);leg.position.set(pt.x,gy0+4.75,pt.z);leg.castShadow=true;sc.add(leg);}
+  const mid=new THREE.Vector3().lerpVectors(L,Rr,0.5);
+  const beam=new THREE.Mesh(new THREE.BoxGeometry(1.8,1.9,L.distanceTo(Rr)),beamMat);beam.position.set(mid.x,gy0+9.8,mid.z);beam.rotation.y=Math.atan2(n.x,n.z);sc.add(beam);
+  const gsign=new THREE.Mesh(new THREE.PlaneGeometry(L.distanceTo(Rr)*0.7,2.0),new THREE.MeshBasicMaterial({map:makeBillboardTex(),side:THREE.DoubleSide}));
+  gsign.position.set(mid.x,gy0+11.4,mid.z);gsign.lookAt(mid.x+tg.x*10,gy0+11.4,mid.z+tg.z*10);sc.add(gsign);
+  for(let k=0;k<5;k++){const f=(k-2)*1.5;const lt=new THREE.Mesh(new THREE.SphereGeometry(0.42,10,8),
+    new THREE.MeshStandardMaterial({color:0x300000,emissive:0xff0000,emissiveIntensity:0.7}));
+    lt.position.set(mid.x+n.x*f,gy0+8.6,mid.z+n.z*f);sc.add(lt);}
 }
 
 /* --- procedural textures --- */
@@ -2971,7 +2994,7 @@ const CAM_MODES=['chase','cockpit','hood'];
 function cycleCam(){CAM.mode=CAM_MODES[(CAM_MODES.indexOf(CAM.mode)+1)%CAM_MODES.length];
   $('#camName').textContent=CAM.mode.toUpperCase();Sound.blip(520,.05);}
 if(typeof window!=='undefined'){window.__setCam=(m)=>{CAM.mode=m;$('#camName').textContent=m.toUpperCase();};
-  window.__setLivery=(t)=>setLivery(t);}
+  window.__setLivery=(t)=>setLivery(t); window.__snapCam=()=>snapCamera();}
 function updateCamera(dt){
   const spd=Math.abs(CAR.v);
   if(CAM.mode==='cockpit'){
