@@ -720,7 +720,7 @@ const TRACKS={
     kerb:['#1a9e3e','#f2d000'], asphalt:0x2e3138, ground:0x3f6a34, laprec:'1:10',
     elev:f=>elevProfile(SAO_ELEV,f) },   // São Paulo: green/yellow kerbs, often wet
   jeddah:{ id:'jeddah', name:'JEDDAH CORNICHE', country:'SAUDI ARABIA', flag:'🇸🇦', points:JEDDAH, len:6174,
-    halfW:7.2, night:true, env:'jeddah', runoff:'neon',
+    halfW:7.2, night:true, env:'jeddah', runoff:'neon', street:true,
     kerb:['#1a9e3e','#eef1f4'], asphalt:0x1a1d24, ground:0x0e1016, laprec:'1:33',
     elev:f=>3*Math.sin(f*TAU*3) },       // fast night street: green/white kerbs, neon
   catalunya:{ id:'catalunya', name:'BARCELONA-CATALUNYA', country:'SPAIN', flag:'🇪🇸', points:CATALUNYA, len:4657,
@@ -1569,14 +1569,30 @@ function buildBridges(sc,P,Nm,Tg,cum,offL,offR){
 function buildJeddah(sc,P,Nm,Tg,offL,offR){
   const N=P.length,R=TRACK.radius, gh=TRACK.terrainH;
   let cX=0,cZ=0;for(const p of P){cX+=p.x;cZ+=p.z;}cX/=N;cZ/=N;
-  // marina water in the infield
-  const water=new THREE.Mesh(new THREE.CircleGeometry(R*0.5,56),
+  const samp=[];for(let i=0;i<N;i+=3)samp.push(P[i]);
+  const clr=(x,z)=>{let m=1e9;for(const q of samp){const dx=x-q.x,dz=z-q.z;const d=dx*dx+dz*dz;if(d<m)m=d;}return m;};
+  // marina water: radius clamped so it can never poke over the track, dropped well below
+  const cGap=Math.sqrt(clr(cX,cZ));                 // nearest track distance from the centroid
+  const wR=Math.max(30,Math.min(R*0.42,cGap-12));   // stay clear of the nearest kerb
+  const water=new THREE.Mesh(new THREE.CircleGeometry(wR,56),
     new THREE.MeshStandardMaterial({color:0x050a1e,roughness:0.08,metalness:0.85,emissive:0x0a1240,emissiveIntensity:0.45}));
-  water.rotation.x=-Math.PI/2;water.position.set(cX,-1.2,cZ);sc.add(water);
+  water.rotation.x=-Math.PI/2;water.position.set(cX,-2.6,cZ);sc.add(water);
   const hull=new THREE.MeshStandardMaterial({color:0xeef2f6,roughness:0.4});
   const deck=new THREE.MeshStandardMaterial({color:0x243244,roughness:0.5,emissive:0x0a1830,emissiveIntensity:0.5});
   const glass=new THREE.MeshStandardMaterial({color:0x9fd8ff,emissive:0x2a5a80,emissiveIntensity:0.7,transparent:true,opacity:0.6});
-  for(let i=0;i<16;i++){const y=makeYacht(hull,deck,glass);y.position.set(cX+(Math.random()-0.5)*R*0.7,-0.3,cZ+(Math.random()-0.5)*R*0.7);y.rotation.y=Math.random()*TAU;sc.add(y);}
+  { const HWm=TRACK.halfW+14;let yn=0,yt=0;
+    while(yn<16 && yt<300){yt++;const x=cX+(Math.random()-0.5)*wR*1.5,z=cZ+(Math.random()-0.5)*wR*1.5;
+      if(clr(x,z)<HWm*HWm)continue;yn++;
+      const y=makeYacht(hull,deck,glass);y.position.set(x,-1.7,z);y.rotation.y=Math.random()*TAU;sc.add(y);} }
+  // closer built-up waterfront blocks so the corniche feels enclosed, not open (kept clear of track)
+  { const tints=['#37506e','#3e4a6a','#4a3f60','#2f5560'];
+    let bn=0,bt=0;while(bn<26 && bt<500){bt++;
+      const a=Math.random()*TAU,rr=R*0.7+Math.random()*R*0.5,x=Math.cos(a)*rr,z=Math.sin(a)*rr;
+      const w=16+Math.random()*16,h=26+Math.random()*70;
+      if(clr(x,z)<(TRACK.halfW+w*0.6+16)**2)continue;bn++;
+      const t=tints[bn%4];
+      const bmat=new THREE.MeshStandardMaterial({map:makeWindows(Math.max(3,w/6|0),Math.max(6,h/8|0),t),emissive:0x1a2740,emissiveIntensity:0.85,roughness:0.7});
+      const b=new THREE.Mesh(new THREE.BoxGeometry(w,h,w),bmat);b.position.set(x,gh(x,z)+h/2,z);sc.add(b);} }
   // neon light strips running along both barrier tops (the signature Jeddah glow)
   const neonCols=[0xff2aa0,0x2a6aff,0x2affc0,0xb02aff,0xffd23a];
   for(const [side,off] of [[1,offL],[-1,offR]]){const pos=[];
