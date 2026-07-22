@@ -1893,6 +1893,48 @@ const LIVERIES={
       {t:'Cognizant',x:116,y:406,col:'#2b6fd6',sz:18,style:'900'},{t:'BOSS',x:398,y:406,col:'#ffffff',sz:24,style:'900'},
       {t:'Valvoline',x:120,y:520,col:'#ff2436',sz:17,style:'900'},{t:'MGM',x:398,y:520,col:'#f0c33c',sz:20,style:'900'},
       {t:'BWT',x:256,y:520,col:'#ff5fa2',sz:20,style:'900'}] },
+  williams:{ name:'Williams', base:'#0a1a3a', swatch:['#0a1a3a','#37b6ff','#ffffff'],
+    top:'#12294f',mid:'#0c1c3e',bot:'#060f24',
+    draw(x){ x.fillStyle='#37b6ff';x.beginPath();x.moveTo(0,506);x.lineTo(512,470);x.lineTo(512,486);x.lineTo(0,522);x.closePath();x.fill();
+      x.fillStyle='#ffffff';x.font='italic 900 30px Arial';x.textAlign='center';x.textBaseline='middle';x.fillText('W',256,436);},
+    logos:[{t:'Atlassian',x:256,y:388,col:'#2b7fff',sz:24,style:'900'},
+      {t:'Gulf',x:116,y:406,col:'#ff8a3a',sz:22,style:'900'},{t:'Duracell',x:398,y:406,col:'#111111',sz:17,style:'900',chip:'#e8a400'},
+      {t:'Komatsu',x:120,y:520,col:'#ffd23a',sz:16,style:'900'},{t:'Kraken',x:398,y:520,col:'#7a5aff',sz:18,style:'900'},
+      {t:'MyProtein',x:256,y:520,col:'#ffffff',sz:16,style:'900'}] },
+  alpine:{ name:'Alpine', base:'#0a2a55', swatch:['#0a2a55','#ff5fa0','#00e0e0'],
+    top:'#12356a',mid:'#0a2a55',bot:'#061a3a',
+    draw(x){ x.fillStyle='#ff4f9a';x.fillRect(0,502,512,10);
+      x.fillStyle='#ffffff';x.font='italic 900 26px Arial';x.textAlign='center';x.textBaseline='middle';x.fillText('ALPINE',256,436);},
+    logos:[{t:'BWT',x:256,y:388,col:'#ff5fa2',sz:26,style:'900'},
+      {t:'Mapfre',x:116,y:406,col:'#e2001a',sz:18,style:'900'},{t:'Elf',x:398,y:406,col:'#00b0f0',sz:24,style:'900'},
+      {t:'Aramco',x:120,y:520,col:'#00b7e2',sz:16,style:'900'},{t:'H24',x:398,y:520,col:'#ffffff',sz:18,style:'900'},
+      {t:'Binance',x:256,y:520,col:'#f0b90b',sz:16,style:'900'}] },
+  haas:{ name:'Haas', base:'#d0d3d8', swatch:['#d0d3d8','#c8102e','#111'],
+    top:'#e2e5ea',mid:'#c8ccd2',bot:'#9aa0a8',
+    draw(x){ x.fillStyle='#111';x.beginPath();x.moveTo(0,500);x.lineTo(512,470);x.lineTo(512,552);x.lineTo(0,552);x.closePath();x.fill();
+      x.fillStyle='#c8102e';x.beginPath();x.moveTo(0,498);x.lineTo(512,468);x.lineTo(512,476);x.lineTo(0,506);x.closePath();x.fill();
+      x.fillStyle='#111';x.font='900 26px Arial';x.textAlign='center';x.textBaseline='middle';x.fillText('HAAS',256,432);},
+    logos:[{t:'MoneyGram',x:256,y:388,col:'#e2001a',sz:22,style:'900'},
+      {t:'Chipotle',x:116,y:406,col:'#7a1f1f',sz:17,style:'900'},{t:'HAAS F1',x:398,y:406,col:'#111111',sz:18,style:'900'},
+      {t:'Toyota',x:120,y:520,col:'#c8102e',sz:16,style:'900'},{t:'Airtel',x:398,y:520,col:'#e2001a',sz:18,style:'900'},
+      {t:'Vitol',x:256,y:520,col:'#111111',sz:16,style:'900'}] },
+  rb:{ name:'Racing Bulls', base:'#12224e', swatch:['#12224e','#ffffff','#e2001a'],
+    top:'#1a2f66',mid:'#12224e',bot:'#0a1330',
+    draw(x){ x.fillStyle='#ffffff';x.beginPath();x.moveTo(0,505);x.lineTo(512,452);x.lineTo(512,472);x.lineTo(0,525);x.closePath();x.fill();
+      x.fillStyle='#e2001a';x.beginPath();x.moveTo(0,500);x.lineTo(512,448);x.lineTo(512,456);x.lineTo(0,508);x.closePath();x.fill();
+      x.fillStyle='#ffffff';x.font='italic 900 24px Arial';x.textAlign='center';x.textBaseline='middle';x.fillText('VCARB',256,434);},
+    logos:[{t:'VISA',x:256,y:388,col:'#ffffff',sz:26,style:'900'},
+      {t:'Cash App',x:116,y:406,col:'#00d54b',sz:18,style:'900'},{t:'Tudor',x:398,y:406,col:'#ffffff',sz:20,style:'900'},
+      {t:'Hugo',x:120,y:520,col:'#e2001a',sz:18,style:'900'},{t:'AlphaTauri',x:398,y:520,col:'#ffffff',sz:14,style:'900'},
+      {t:'Neuralink',x:256,y:520,col:'#ffffff',sz:14,style:'700'}] },
+  sauber:{ name:'Kick Sauber', base:'#0a2a1a', swatch:['#0a2a1a','#00e701','#111'],
+    top:'#0e3a22',mid:'#0a2a1a',bot:'#061a10',
+    draw(x){ x.fillStyle='#00e701';x.fillRect(0,500,512,12);
+      x.fillStyle='#00e701';x.font='italic 900 26px Arial';x.textAlign='center';x.textBaseline='middle';x.fillText('KICK',256,434);},
+    logos:[{t:'Stake',x:256,y:388,col:'#00e701',sz:26,style:'900'},
+      {t:'Kick',x:116,y:406,col:'#00e701',sz:22,style:'900'},{t:'Nexus',x:398,y:406,col:'#ffffff',sz:18,style:'900'},
+      {t:'Ella',x:120,y:520,col:'#ffffff',sz:18,style:'900'},{t:'Kaspersky',x:398,y:520,col:'#00b04f',sz:15,style:'900'},
+      {t:'PMI',x:256,y:520,col:'#ffffff',sz:16,style:'900'}] },
 };
 const LIVERY_IDS=Object.keys(LIVERIES);
 function makeLivery(teamKey){
@@ -2096,19 +2138,24 @@ function mountCockpit(){
   const R=0.135;
   const makeHand=(sx)=>{
     const hand=new THREE.Group();
-    const fist=new THREE.Mesh(new THREE.SphereGeometry(0.037,18,14),gloveMat);      // rounded knuckle mass
-    fist.scale.set(0.82,1.18,1.0);fist.position.set(0,0.006,0.004);hand.add(fist);
-    const fingers=new THREE.Mesh(new THREE.SphereGeometry(0.031,16,12),gloveMat);    // fingers curled over the front of the rim
-    fingers.scale.set(0.92,0.55,1.15);fingers.position.set(0,-0.008,0.05);hand.add(fingers);
-    const thumb=new THREE.Mesh(new THREE.SphereGeometry(0.013,12,10),gloveMat);      // thumb on the inner rim
-    thumb.scale.set(1,2.0,1);thumb.position.set(-sx*0.03,0.004,0.038);thumb.rotation.z=sx*0.5;hand.add(thumb);
-    const band=new THREE.Mesh(new THREE.BoxGeometry(0.05,0.013,0.05),accentMat);     // team-accent band across the glove
-    band.position.set(0,0.03,0.006);hand.add(band);
-    const fore=new THREE.Mesh(new THREE.CylinderGeometry(0.028,0.044,0.24,16),suitMat);  // race-suit forearm
-    fore.position.set(sx*0.05,-0.15,-0.1);fore.rotation.z=sx*0.4;fore.rotation.x=-0.34;hand.add(fore);
-    const cuff=new THREE.Mesh(new THREE.CylinderGeometry(0.033,0.033,0.02,16),accentMat);
-    cuff.position.set(sx*0.012,-0.05,-0.028);cuff.rotation.z=sx*0.4;cuff.rotation.x=-0.34;hand.add(cuff);
-    hand.position.set(sx*R,0,0.02);
+    // back of the glove behind the rim
+    const back=new THREE.Mesh(new THREE.BoxGeometry(0.052,0.075,0.032),gloveMat);
+    back.position.set(0,0.004,-0.012);hand.add(back);
+    // four distinct fingers curling over the FRONT of the rim
+    for(let f=0;f<4;f++){const fin=new THREE.Mesh(new THREE.CylinderGeometry(0.0075,0.0068,0.032,10),gloveMat);
+      fin.position.set(0,0.03-f*0.016,0.03);fin.rotation.x=Math.PI/2*0.78;hand.add(fin);   // curl toward driver
+      const tip=new THREE.Mesh(new THREE.SphereGeometry(0.0072,8,6),gloveMat);tip.position.set(0,0.03-f*0.016-0.006,0.046);hand.add(tip);}
+    // thumb on the inner side
+    const thumb=new THREE.Mesh(new THREE.CylinderGeometry(0.009,0.008,0.026,10),gloveMat);
+    thumb.position.set(-sx*0.026,0.026,0.018);thumb.rotation.z=sx*0.7;thumb.rotation.x=0.5;hand.add(thumb);
+    // team-accent knuckle strip across the back
+    const band=new THREE.Mesh(new THREE.BoxGeometry(0.05,0.013,0.03),accentMat);band.position.set(0,0.03,-0.01);hand.add(band);
+    // race-suit forearm + cuff angled back toward the driver
+    const fore=new THREE.Mesh(new THREE.CylinderGeometry(0.026,0.042,0.22,14),suitMat);
+    fore.position.set(sx*0.045,-0.14,-0.09);fore.rotation.z=sx*0.4;fore.rotation.x=-0.35;hand.add(fore);
+    const cuff=new THREE.Mesh(new THREE.CylinderGeometry(0.031,0.031,0.02,14),accentMat);
+    cuff.position.set(sx*0.01,-0.045,-0.026);cuff.rotation.z=sx*0.4;cuff.rotation.x=-0.35;hand.add(cuff);
+    hand.position.set(sx*R,0,0.015);
     return hand;
   };
   spinHub.add(makeHand(-1),makeHand(1));
@@ -2456,7 +2503,7 @@ function closeGarage(){garageOn=false;$('#garage').classList.remove('on');
    SEASON MODE (beta)
    ================================================================== */
 const SEASON={active:false,on:false,team:'redbull',diff:'Pro',name:'M. SYSAK',num:7,sponsor:'Oracle',
-  round:0,cal:['spa','yas','silverstone','monaco','austria'],points:0,
+  round:0,cal:['jeddah','catalunya','monaco','spa','austria','silverstone','saopaulo','yas'],points:0,
   field:['M. VÄRLA','R. OKONKWO','L. FENN','S. HÄKKINEN','D. ROSSI','K. TANAKA','A. PETROV','J. MORAIS','E. LARSSON','B. NAKAMURA']};
 const DIFFS=['Rookie','Pro','Legend'], SPONSORS=['Oracle','Petronas','AWS','DHL','Shell','bwt'];
 function openSeasonSetup(){
@@ -2739,8 +2786,10 @@ function introStep(dt){
     renderer.render(driveScene,camera);
   }else endTrackIntro();
 }
-function endTrackIntro(){
+function endTrackIntro(skip){
   if(STATE!=='intro'||!TINTRO||TINTRO.fired)return;
+  // don't let an early key-press skip past the globe — always show it briefly
+  if(skip && (performance.now()-TINTRO.start)<2200) return;
   TINTRO.fired=true;
   const done=TINTRO.done;TINTRO=null;
   camera.up.set(0,1,0);camera.fov=38;camera.updateProjectionMatrix();
@@ -2816,7 +2865,7 @@ const keys={};
 addEventListener('keydown',e=>{
   const k=e.key.toLowerCase();keys[k]=true;
   if(STATE==='cine'){endCinematic();e.preventDefault();return;}
-  if(STATE==='intro'){endTrackIntro();e.preventDefault();return;}
+  if(STATE==='intro'){endTrackIntro(true);e.preventDefault();return;}
   if(STATE==='result'){ if(k==='enter'||k==='escape'||k===' '){exitToMenu();} e.preventDefault();return;}
   if(SEASON.on==='setup'){ if(k==='escape'){closeSeasonSetup();} else if(k==='enter'&&document.activeElement.tagName!=='INPUT'){beginSeason();} return; }
   if(SEASON.on==='hub'){ if(k==='escape'){closeSeasonHub();} else if(k==='enter'){seasonRace();} e.preventDefault();return; }
@@ -2843,7 +2892,7 @@ addEventListener('keydown',e=>{
   }
 });
 addEventListener('keyup',e=>{keys[e.key.toLowerCase()]=false;});
-addEventListener('pointerdown',()=>{if(STATE==='cine')endCinematic();else if(STATE==='intro')endTrackIntro();});
+addEventListener('pointerdown',()=>{if(STATE==='cine')endCinematic();else if(STATE==='intro')endTrackIntro(true);});
 function readInput(){
   const thr=(keys['w']||keys['arrowup'])?1:0;
   const brk=(keys[' ']||keys['arrowdown']||keys['s'])?1:0;   // brake = SPACE (also S / ↓)
