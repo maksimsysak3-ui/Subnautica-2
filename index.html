@@ -273,6 +273,21 @@
   .pedal{width:10px;height:100%;background:rgba(255,255,255,.08);border-radius:5px;position:relative;overflow:hidden}
   .pedal i{position:absolute;bottom:0;left:0;width:100%;height:0;transition:height .05s linear}
   #thr i{background:linear-gradient(0deg,#25e06a,#7dffb0)} #brk i{background:linear-gradient(0deg,#e10600,#ff6a60)}
+  /* ERS battery gauge */
+  #ersBox{display:flex;flex-direction:column;align-items:center;gap:5px;height:132px;justify-content:flex-end}
+  #ersLabel{font-family:var(--mono);font-size:9px;letter-spacing:.28em;color:#8b93a0;font-weight:700}
+  #ersBar{width:16px;height:84px;background:rgba(255,255,255,.07);border-radius:5px;position:relative;overflow:hidden;
+    border:1px solid rgba(255,255,255,.12);box-shadow:inset 0 0 10px rgba(0,0,0,.5)}
+  #ersFill{position:absolute;bottom:0;left:0;width:100%;height:75%;border-radius:0 0 4px 4px;
+    background:linear-gradient(0deg,#0a84ff,#38d0ff 60%,#8ff0ff);transition:height .08s linear,background .15s}
+  #ersBar i{position:absolute;left:0;width:100%;height:1px;background:rgba(0,0,0,.45)}
+  #ersBox.deploy #ersFill{background:linear-gradient(0deg,#ffb020,#ffe14a 55%,#fffbe0);box-shadow:0 0 16px rgba(255,210,60,.8)}
+  #ersBox.deploy #ersBar{border-color:#ffd23a;box-shadow:0 0 16px rgba(255,210,60,.55),inset 0 0 10px rgba(0,0,0,.4)}
+  #ersBox.low #ersFill{background:linear-gradient(0deg,#e10600,#ff6a60)}
+  #ersPct{font-family:var(--mono);font-size:12px;font-weight:800;color:#cfe6ff;line-height:1}
+  #ersPct span{font-size:8px;color:#7c8694}
+  #ersState{font-family:var(--mono);font-size:8px;letter-spacing:.18em;color:#5b6470;font-weight:700;opacity:.5;transition:.12s}
+  #ersBox.deploy #ersState{color:#ffe14a;opacity:1;text-shadow:0 0 10px rgba(255,210,60,.7)}
   #gearBox{text-align:center}
   #gear{font-family:var(--mono);font-weight:900;font-size:clamp(44px,5.5vw,76px);color:var(--red);line-height:.8;text-shadow:0 0 26px var(--red-glow)}
   #gearBox .gl{font-size:9px;letter-spacing:.4em;color:var(--grey);font-weight:600;margin-top:4px}
@@ -432,11 +447,17 @@
       <div class="pedal" id="thr"><i></i></div>
       <div class="pedal" id="brk"><i></i></div>
     </div>
+    <div id="ersBox">
+      <div id="ersLabel">ERS</div>
+      <div id="ersBar"><div id="ersFill"></div><i id="ersTick" style="bottom:33%"></i><i id="ersTick2" style="bottom:66%"></i></div>
+      <div id="ersPct">75<span>%</span></div>
+      <div id="ersState">DEPLOY</div>
+    </div>
     <div id="gearBox"><div id="gear">N</div><div class="gl">GEAR</div></div>
     <div id="speedBox"><div id="speed">0</div><div id="speedU">KM/H</div></div>
   </div>
   <div id="offTrack">Off Track</div>
-  <div id="driveHint"><b>W</b>Throttle <b>SPACE</b>Brake <b>A/D</b>Steer <b>C</b>Camera <b>R</b>Reset <b>ESC</b>Menu</div>
+  <div id="driveHint"><b>W</b>Throttle <b>SPACE</b>Brake <b>A/D</b>Steer <b>SHIFT</b>ERS <b>C</b>Camera <b>R</b>Reset <b>ESC</b>Menu</div>
 </div>
 <div id="cd"><div id="cdNum"></div></div>
 <div id="sndBtn"><svg id="sndIcon" viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9H4z"/><path d="M16 8a5 5 0 010 8"/></svg></div>
@@ -1939,6 +1960,7 @@ const CAR={
   cockpitCam:null,wheelMesh:null,
   // physics state
   pos:new THREE.Vector3(),heading:0,v:0,steer:0,steerCmd:0,yawRate:0,vLat:0,
+  ers:0.75, ersActive:0,        // battery charge 0..1 and smoothed deploy amount for the gauge
 };
 if(typeof window!=='undefined') window.__CAR=CAR;
 const PHYS={
@@ -1948,6 +1970,8 @@ const PHYS={
   izK:2.3,                                                     // yaw inertia (planted but not sluggish)
   Cf:112000, Cr:158000,                                       // firmer, more linear front bite = cleaner turn-in; rear stays stable
   maxSteerLo:0.26, maxSteerHi:0.085, steerRate:3.0, steerReturn:6.0,
+  // ERS energy store: extra boost power, drain/regen time-constants (seconds for a full swing)
+  ersPower:150000, ersForce:3200, ersDrain:6.5, ersRegen:9.0, ersHarvest:22.0,
 };
 
 /* Red Bull livery texture (projected onto the body — mesh has no UVs) */
@@ -2303,6 +2327,7 @@ function resetCar(){
   CAR.pos.set(p.x,0,p.z);
   CAR.heading=Math.atan2(tg.x,tg.z);
   CAR.v=0;CAR.steer=0;CAR.steerCmd=0;CAR.yawRate=0;CAR.vLat=0;CAR.pitch=0;
+  CAR.ers=0.75;CAR.ersActive=0;
   CAR.trackIdx=0; CAR.groundY=p.y;
   lap.reset();
 }
@@ -2317,6 +2342,17 @@ function stepPhysics(dt,inp){
 
   // longitudinal
   let Fdrive=inp.throttle*Math.min(P.power/Math.max(spd,7),P.maxForce);
+  // --- ERS: deploy button spends battery for an extra power boost; braking regens ---
+  const deploying = !!inp.ers && CAR.ers>0.001 && inp.throttle>0.1 && CAR.v>2;
+  if(deploying){
+    Fdrive += inp.throttle*Math.min(P.ersPower/Math.max(spd,7),P.ersForce);
+    CAR.ers=Math.max(0,CAR.ers - dt/P.ersDrain);        // ~6.5s of full deploy from full
+  }else if(inp.brake>0.05 && CAR.v>3){
+    CAR.ers=Math.min(1,CAR.ers + inp.brake*dt/P.ersRegen);  // MGU-K harvest under braking
+  }else if(inp.throttle>0.2 && CAR.v>3){
+    CAR.ers=Math.min(1,CAR.ers + dt/P.ersHarvest);          // passive MGU-H trickle on power
+  }
+  CAR.ersActive=damp(CAR.ersActive, deploying?1:0, 12, dt);
   let Fbrake=inp.brake*P.brakeForce;
   const Fdrag=0.5*1.2*P.cdA*CAR.v*spd;              // ~v^2 opposing
   let F=Fdrive - Fdrag - P.roll*Math.sign(CAR.v);
@@ -3031,7 +3067,8 @@ function readInput(){
   const thr=(keys['w']||keys['arrowup'])?1:0;
   const brk=(keys[' ']||keys['arrowdown']||keys['s'])?1:0;   // brake = SPACE (also S / ↓)
   let st=0; if(keys['a']||keys['arrowleft'])st+=1; if(keys['d']||keys['arrowright'])st-=1;
-  return {throttle:thr,brake:brk,steer:st};
+  const ers=!!(keys['shift']||keys['e']);        // ERS deploy (overtake boost)
+  return {throttle:thr,brake:brk,steer:st,ers};
 }
 
 /* ==================================================================
@@ -3091,6 +3128,13 @@ function updateHUD(inp,r){
   $('#brk i').style.height=(inp.brake*100)+'%';
   $('#offTrack').classList.toggle('on',r.off&&spd>4);
   $('#drs').classList.toggle('on', !r.off && spd>58 && Math.abs(CAR.steer)<0.025);
+  // ERS battery gauge
+  const pct=Math.round(CAR.ers*100);
+  $('#ersFill').style.height=(CAR.ers*100)+'%';
+  $('#ersPct').innerHTML=pct+'<span>%</span>';
+  const box=$('#ersBox');
+  box.classList.toggle('deploy',CAR.ersActive>0.4);
+  box.classList.toggle('low',CAR.ers<0.18 && CAR.ersActive<0.4);
   drawMinimap();
 }
 function drawMinimap(){
