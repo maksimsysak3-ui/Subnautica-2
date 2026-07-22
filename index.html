@@ -841,6 +841,10 @@ function buildWorld(sc,cfg){
   const RUNMAX=cfg.street?0:(cfg.runoff==='mixed'?42:36);   // Austria wide run-off; Monaco none
   for(let i=0;i<N;i++){const c=sturn[i],mag=Math.min(Math.abs(c)*90,RUNMAX);
     runL[i]=c<0?mag:0; runR[i]=c>0?mag:0;}         // run-off ONLY on the outside of corners
+  // street circuits: the tightest corners (chicanes) get a small tarmac run-off both
+  // sides so the walls are pushed out and they can be ridden a touch faster
+  if(cfg.street){ for(let i=0;i<N;i++){ const c=Math.abs(sturn[i]);
+    const w=c>0.95?Math.min((c-0.95)*26,8):0; runL[i]=Math.max(runL[i],w); runR[i]=Math.max(runR[i],w); } }
   const smooth=a=>{const o=a.slice();for(let i=0;i<N;i++){let s=0;for(let k=-9;k<=9;k++)s+=o[(i+k+N)%N];a[i]=s/19;}};
   smooth(runL);smooth(runR);
   // where the circuit doubles back near itself, clamp run-off + barrier so nothing
@@ -872,7 +876,12 @@ function buildWorld(sc,cfg){
   };
 
   if(cfg.runoff==='none'){
-    // Monaco: no run-off — a thin painted strip then straight into the barrier
+    // Monaco: tight everywhere, but the chicanes (runL/runR set above) get a small
+    // tarmac apron + a yellow/black sausage kerb so they're rideable a bit faster
+    const aprMat=new THREE.MeshStandardMaterial({color:0x3a3f47,roughness:0.92,side:THREE.DoubleSide});
+    strip(k=>HW+0.9, k=>HW+0.9+runL[k], 0.0, aprMat, 0, 8);
+    strip(k=>-(HW+0.9), k=>-(HW+0.9+runR[k]), 0.0, aprMat, 0, 8);
+    buildSausageKerbs(sc,P,Nm,cum,runL,runR,HW);
   }else if(cfg.runoff==='teal'){
     // Miami: signature turquoise painted tarmac run-off with a white outline
     const tealMat=new THREE.MeshStandardMaterial({color:0x18b8bf,roughness:0.7,metalness:0.1,side:THREE.DoubleSide});
@@ -1240,6 +1249,24 @@ function makeZoneBoard(sp){ // high-res advertising hoarding: mark + wordmark + 
     x.strokeStyle='rgba(0,0,0,.25)';x.lineWidth=2;x.strokeRect(x0+1,1,pw-2,ph-2);}
   const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;t.wrapS=THREE.RepeatWrapping;t.wrapT=THREE.ClampToEdgeWrapping;t.anisotropy=16;t.generateMipmaps=true;t.minFilter=THREE.LinearMipmapLinearFilter;return t;
 }
+/* yellow/black "sausage" kerbs along chicane edges (run width tells us where) */
+function buildSausageKerbs(sc,P,Nm,cum,runL,runR,HW){
+  const N=P.length, gh=TRACK.terrainH;
+  const yel=new THREE.MeshStandardMaterial({color:0xf2c200,roughness:0.6,emissive:0x2a2200,emissiveIntensity:0.3});
+  const blk=new THREE.MeshStandardMaterial({color:0x141414,roughness:0.8});
+  const geo=new THREE.CylinderGeometry(0.15,0.15,2.0,10);
+  const Yup=new THREE.Vector3(0,1,0),q=new THREE.Quaternion();
+  let ci=0;
+  for(const [side,run] of [[1,runL],[-1,runR]]){
+    for(let i=0;i<N;i+=2){ if(run[i]<3.5) continue;
+      const p=P[i],n=Nm[i];const tg=new THREE.Vector3(-n.z,0,n.x);
+      const off=HW+1.15;const x=p.x+n.x*side*off, z=p.z+n.z*side*off;const gy=gh(x,z);
+      const m=new THREE.Mesh(geo,(ci++&1)?blk:yel);
+      q.setFromUnitVectors(Yup,tg); m.quaternion.copy(q);
+      m.position.set(x,gy+0.05,z); m.castShadow=true; sc.add(m);
+    }
+  }
+}
 function buildBarriers(sc,P,Nm,cum,offL,offR){
   const N=P.length, ZN=ZONE_SPONSORS.length, WH=2.2, BOARD_M=20;
   const zoneTex=ZONE_SPONSORS.map(makeZoneBoard);
@@ -1432,21 +1459,24 @@ function makeMonacoBuilding(w,d,h,type,col){
 function buildMonaco(sc,P,Nm,Tg,offL,offR){
   const N=P.length,R=TRACK.radius, gh=TRACK.terrainH;
   let cX=0,cZ=0;for(const p of P){cX+=p.x;cZ+=p.z;}cX/=N;cZ/=N;
-  const HWX=R*0.42, HWZ=R*0.30;                    // harbour rectangle (infield)
+  const HW=TRACK.halfW, sampB=[];for(let i=0;i<N;i+=2)sampB.push(P[i]);
+  const clearB=(x,z)=>{let m=1e9;for(const q of sampB){const dx=x-q.x,dz=z-q.z;const d=dx*dx+dz*dz;if(d<m)m=d;}return m;};
+  // --- harbour water + moored yachts, clamped so the water never reaches the track ---
+  const cGap=Math.sqrt(clearB(cX,cZ));
+  const HWX=Math.min(R*0.42, cGap-8), HWZ=Math.min(R*0.30, cGap-8);
   const inHarbour=(x,z)=>Math.abs(x-cX)<HWX && Math.abs(z-cZ)<HWZ;
-  // --- harbour water + moored yachts ---
   { const water=new THREE.Mesh(new THREE.PlaneGeometry(HWX*2,HWZ*2),
-      new THREE.MeshStandardMaterial({color:0x1b5f7e,roughness:0.12,metalness:0.75,emissive:0x0a3345,emissiveIntensity:0.35}));
-    water.rotation.x=-Math.PI/2;water.position.set(cX,-1.6,cZ);sc.add(water);
+      new THREE.MeshStandardMaterial({color:0x1f7fa8,roughness:0.1,metalness:0.7,emissive:0x0a3f55,emissiveIntensity:0.3}));
+    water.rotation.x=-Math.PI/2;water.position.set(cX,-1.8,cZ);sc.add(water);
     const hull=new THREE.MeshStandardMaterial({color:0xf4f6f8,roughness:0.4});
     const deck=new THREE.MeshStandardMaterial({color:0x243244,roughness:0.5});
     const glass=new THREE.MeshStandardMaterial({color:0x9fd8ff,emissive:0x2a5a80,emissiveIntensity:0.6,transparent:true,opacity:0.6});
-    for(let i=0;i<22;i++){const y=makeYacht(hull,deck,glass);
-      y.position.set(cX+(Math.random()-0.5)*HWX*1.7,-0.4,cZ+(Math.random()-0.5)*HWZ*1.7);
-      y.rotation.y=Math.random()*TAU;sc.add(y);} }
-  // --- differentiated Monte-Carlo blocks lining the streets, set just off the wall ---
-  const HW=TRACK.halfW, sampB=[];for(let i=0;i<N;i+=2)sampB.push(P[i]);
-  const clearB=(x,z)=>{let m=1e9;for(const q of sampB){const dx=x-q.x,dz=z-q.z;const d=dx*dx+dz*dz;if(d<m)m=d;}return m;};
+    const HWm=HW+14;let yn=0,yt=0;
+    while(yn<30 && yt<600){yt++;
+      const x=cX+(Math.random()-0.5)*HWX*1.75, z=cZ+(Math.random()-0.5)*HWZ*1.75;
+      if(clearB(x,z)<HWm*HWm) continue; yn++;
+      const y=makeYacht(hull,deck,glass);y.position.set(x,-0.5,z);y.rotation.y=Math.random()*TAU;sc.add(y);} }
+  // --- differentiated Monte-Carlo blocks lining the streets, pushed well off the wall ---
   const pastels=['#d8cdb8','#cbb79a','#e6ddcb','#c9a889','#b7bcc2','#d6c2a2','#b9a88e','#e2c8a8','#a9b0b6'];
   for(let i=0;i<N;i+=6){const p=P[i],n=Nm[i],tg=Tg[i],ang=Math.atan2(tg.x,tg.z);   // fewer, larger blocks (perf)
     for(const [side,off] of [[1,offL],[-1,offR]]){
@@ -1455,11 +1485,12 @@ function buildMonaco(sc,P,Nm,Tg,offL,offR){
       const w=(type===2?8+Math.random()*4:12+Math.random()*9);
       const d=12+Math.random()*12;
       const h=(type===2?42+Math.random()*34:type===3?14+Math.random()*10:20+Math.random()*30);
-      const dist=off(i)+w/2+3.0;                            // inner face ~3m off the barrier
+      const diag=Math.hypot(w/2,d/2);                       // the building's worst-case reach
+      const dist=off(i)+diag+2.5;                           // sit the whole footprint off the barrier
       const x=p.x+n.x*side*dist, z=p.z+n.z*side*dist;
       if(inHarbour(x,z)) continue;
-      // whole footprint (incl. half-width + margin) must clear EVERY part of the track
-      const need=HW+w/2+3.5;
+      // the ENTIRE footprint (diagonal reach + margin) must clear every part of the track
+      const need=HW+diag+4.0;
       if(clearB(x,z)<need*need) continue;
       const col=pastels[(Math.random()*pastels.length)|0];
       const b=makeMonacoBuilding(w,d,h,type,col);
