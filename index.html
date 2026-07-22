@@ -2642,7 +2642,7 @@ function mountCockpit(){
   CAR.cockpit.position.set(0,0,0);
   // camera node
   const camNode=new THREE.Object3D();
-  camNode.position.set(0, 0.99, -0.32);      // eye height / just behind cockpit centre
+  camNode.position.set(0, 0.90, -0.18);      // eye low & forward so the halo hoop clears the view
   CAR.cockpit.add(camNode); CAR.cockpitCam=camNode;
   // steering wheel
   const w=CAR.wheelMesh;
@@ -2662,35 +2662,49 @@ function mountCockpit(){
   // (built in HOLDER space; forearms/upper-arms solved by 2-bone IK each frame so the
   //  shoulders never move and the arms never sweep across the camera when you steer)
   const teamBase=(LIVERIES[selLivery]||LIVERIES.redbull).base;
-  const gloveMat=new THREE.MeshStandardMaterial({color:0x15171d,roughness:0.55,metalness:0.05});
-  const glovePalm=new THREE.MeshStandardMaterial({color:0x1c1f26,roughness:0.7});
   const accentMat=new THREE.MeshStandardMaterial({color:teamBase,roughness:0.45,metalness:0.1});
   const suitMat=new THREE.MeshStandardMaterial({color:0x181b21,roughness:0.78});
+  // anatomical skin materials (real hands, not boxes)
+  const skin=new THREE.MeshStandardMaterial({color:0xd0a17c,roughness:0.6,metalness:0.0});
+  const skinK=new THREE.MeshStandardMaterial({color:0xc28d64,roughness:0.62});
+  const nailMat=new THREE.MeshStandardMaterial({color:0xe8cbb4,roughness:0.38});
   const R=0.152;
-  // a detailed glove: palm block, curling knuckles+fingers, thumb, wrist cuff, accent
+  // a REAL hand: curved palm pad, thenar muscle, three-phalange capsule fingers with
+  // knuckle joints + nails, an opposed thumb, and a wrist — all curled to grip the rim.
   const makeGlove=(sx)=>{
     const hand=new THREE.Group();
-    const palm=new THREE.Mesh(new THREE.BoxGeometry(0.058,0.028,0.078),glovePalm);
-    palm.position.set(0,0,0);hand.add(palm);
-    const knuck=new THREE.Mesh(new THREE.CylinderGeometry(0.014,0.014,0.056,12),gloveMat);
-    knuck.rotation.z=Math.PI/2;knuck.position.set(0,0.006,0.036);hand.add(knuck);
-    // four fingers, each two phalanges curling over the rim (+Z forward)
-    for(let f=0;f<4;f++){const fx=(f-1.5)*0.0145;
-      const p1=new THREE.Mesh(new THREE.CylinderGeometry(0.0072,0.0066,0.03,10),gloveMat);
-      p1.position.set(fx,0.004,0.052);p1.rotation.x=1.15;hand.add(p1);
-      const p2=new THREE.Mesh(new THREE.CylinderGeometry(0.0062,0.0055,0.026,10),gloveMat);
-      p2.position.set(fx,-0.014,0.064);p2.rotation.x=1.9;hand.add(p2);
-      const tip=new THREE.Mesh(new THREE.SphereGeometry(0.0058,8,6),gloveMat);
-      tip.position.set(fx,-0.026,0.062);hand.add(tip);}
-    // thumb wrapping the inner rim
-    const th1=new THREE.Mesh(new THREE.CylinderGeometry(0.0092,0.0082,0.03,10),gloveMat);
-    th1.position.set(-sx*0.03,-0.004,0.03);th1.rotation.z=sx*0.9;th1.rotation.x=0.7;hand.add(th1);
-    const th2=new THREE.Mesh(new THREE.CylinderGeometry(0.0078,0.007,0.024,10),gloveMat);
-    th2.position.set(-sx*0.04,-0.006,0.046);th2.rotation.z=sx*0.6;th2.rotation.x=1.2;hand.add(th2);
-    // team-accent knuckle strip + wrist cuff
-    const band=new THREE.Mesh(new THREE.BoxGeometry(0.056,0.01,0.03),accentMat);band.position.set(0,0.016,0.028);hand.add(band);
-    const cuff=new THREE.Mesh(new THREE.CylinderGeometry(0.03,0.032,0.03,14),accentMat);
-    cuff.position.set(0,-0.006,-0.052);cuff.rotation.x=Math.PI/2;hand.add(cuff);
+    // palm pad (smooth flattened ellipsoid), back to driver (-Z), palm to rim (+Z)
+    const palm=new THREE.Mesh(new THREE.SphereGeometry(1,20,16),skin);palm.scale.set(0.05,0.05,0.019);palm.position.set(0,0.004,0.004);hand.add(palm);
+    const heel=new THREE.Mesh(new THREE.SphereGeometry(1,16,12),skin);heel.scale.set(0.045,0.03,0.018);heel.position.set(0,-0.042,0.002);hand.add(heel);
+    const meta=new THREE.Mesh(new THREE.SphereGeometry(1,16,12),skin);meta.scale.set(0.05,0.026,0.02);meta.position.set(0,0.03,0.0);hand.add(meta);
+    const thenar=new THREE.Mesh(new THREE.SphereGeometry(1,12,10),skin);thenar.scale.set(0.024,0.03,0.018);thenar.position.set(-sx*0.04,-0.006,0.006);hand.add(thenar);
+    // finger = 3 tapered capsule phalanges + knuckle spheres, curling to grip
+    const finger=(bx,total,rad,base,curl)=>{
+      const root=new THREE.Group();root.position.set(bx,0.036,0.006);root.rotation.x=base;
+      const L=[total*0.40,total*0.34,total*0.26], Rr=[rad,rad*0.9,rad*0.78], cur=[curl*0.7,curl,curl*0.95];
+      let node=root;
+      for(let s=0;s<3;s++){const seg=new THREE.Group();seg.rotation.x=cur[s];node.add(seg);
+        const kn=new THREE.Mesh(new THREE.SphereGeometry(Rr[s]*1.12,10,8),skinK);seg.add(kn);
+        const cap=new THREE.Mesh(new THREE.CapsuleGeometry(Rr[s],L[s],4,12),skin);cap.rotation.x=Math.PI/2;cap.position.z=L[s]/2+Rr[s]*0.4;seg.add(cap);
+        if(s===2){const nail=new THREE.Mesh(new THREE.SphereGeometry(Rr[s]*0.7,8,6),nailMat);nail.scale.set(1,0.5,1.1);nail.position.set(0,Rr[s]*0.55,L[s]*0.7);seg.add(nail);
+          const tip=new THREE.Mesh(new THREE.SphereGeometry(Rr[s]*0.85,8,6),skin);tip.position.z=L[s]+Rr[s]*0.4;seg.add(tip);}
+        const next=new THREE.Group();next.position.z=L[s]+Rr[s]*0.8;seg.add(next);node=next;}
+      return root;
+    };
+    const cols=[-1.55,-0.52,0.52,1.55], tot=[0.066,0.074,0.069,0.055];   // index·middle·ring·pinky
+    cols.forEach((c,i)=>{ hand.add(finger(c*0.0135, tot[i], 0.0082, 0.15+(i===3?0.05:0), 0.62)); });
+    // opposed thumb: 2 phalanges from the thenar, wrapping the inner rim
+    const thumb=new THREE.Group();thumb.position.set(-sx*0.046,-0.006,0.012);thumb.rotation.z=sx*1.15;thumb.rotation.y=-sx*0.5;thumb.rotation.x=0.5;
+    { let node=thumb;const L=[0.028,0.024],Rr=[0.011,0.0095],cu=[0.25,0.6];
+      for(let s=0;s<2;s++){const seg=new THREE.Group();seg.rotation.x=cu[s];node.add(seg);
+        const kn=new THREE.Mesh(new THREE.SphereGeometry(Rr[s]*1.1,10,8),skinK);seg.add(kn);
+        const cap=new THREE.Mesh(new THREE.CapsuleGeometry(Rr[s],L[s],4,12),skin);cap.rotation.x=Math.PI/2;cap.position.z=L[s]/2+Rr[s]*0.4;seg.add(cap);
+        if(s===1){const tip=new THREE.Mesh(new THREE.SphereGeometry(Rr[s]*0.85,8,6),skin);tip.position.z=L[s]+Rr[s]*0.4;seg.add(tip);}
+        const next=new THREE.Group();next.position.z=L[s]+Rr[s]*0.8;seg.add(next);node=next;} }
+    hand.add(thumb);
+    // wrist + team wristband where the glove/suit meets the arm
+    const wrist=new THREE.Mesh(new THREE.CylinderGeometry(0.026,0.03,0.03,16),skin);wrist.rotation.x=Math.PI/2;wrist.position.set(0,-0.055,-0.004);hand.add(wrist);
+    const band=new THREE.Mesh(new THREE.CylinderGeometry(0.031,0.031,0.014,18),accentMat);band.rotation.x=Math.PI/2;band.position.set(0,-0.05,-0.004);hand.add(band);
     hand.traverse(o=>{o.castShadow=true;});
     return hand;
   };
