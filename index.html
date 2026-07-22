@@ -2093,26 +2093,57 @@ const LIVERIES={
       {t:'PMI',x:256,y:520,col:'#ffffff',sz:16,style:'900'}] },
 };
 const LIVERY_IDS=Object.keys(LIVERIES);
+// small pool of extra wordmarks used to fill a livery so it reads busy and real
+const FILLER_SPONSORS=['CarbonEdge','APEX','Velocitá','NORDVPN','Hilton','AWS','Sonax','Zenith',
+  'Klarna','ByBet','Fanatics','Interxion','Genii','Qualcomm','Tezos','Salesforce','Crypto'];
 function makeLivery(teamKey){
   const team=LIVERIES[teamKey]||LIVERIES.redbull;
-  // Content is tiled over TWO identical 512-px blocks (period = half canvas) so that,
-  // with RepeatWrapping, any projected slice of the body shows whole logos — nothing
-  // clips. The band is tall (rows ~320–560) for the same reason.
+  const sw=team.swatch||['#ffffff','#e10600','#ffcc00'];
+  // Content tiles over TWO identical 512-px blocks (period = half canvas) so RepeatWrapping
+  // never bisects a logo. Content spans the full projected band (rows ~260–760), full width,
+  // with a detailed central column for the top surfaces — so the whole car reads as livery.
   const c=cnv(1024,1024),x=c.getContext('2d');
-  const g=x.createLinearGradient(0,300,0,600);
+  const g=x.createLinearGradient(0,220,0,780);
   g.addColorStop(0,team.top);g.addColorStop(0.5,team.mid);g.addColorStop(1,team.bot);
   x.fillStyle=g;x.fillRect(0,0,1024,1024);
-  // draw one 512-wide block, then tile it to fill the canvas
   const block=(ox)=>{
     x.save();x.translate(ox,0);
-    team.draw(x);                                   // team-specific accents + marks
-    // sponsor row — bold, spaced, with margins so projection never bisects a word
+    // 1) bold diagonal colour flashes in the team's secondary/tertiary colours (multi-colour)
+    const flash=(col,y0,h,skew)=>{x.fillStyle=col;x.beginPath();
+      x.moveTo(-20,y0);x.lineTo(532,y0-skew);x.lineTo(532,y0-skew+h);x.lineTo(-20,y0+h);x.closePath();x.fill();};
+    x.globalAlpha=0.95; flash(sw[1],300,26,-30); flash(sw[2],690,22,34);
+    x.globalAlpha=0.5;  flash(sw[1],726,10,34);  x.globalAlpha=1;
+    // 2) carbon-weave hint at the extremes
+    x.fillStyle='rgba(255,255,255,0.03)';for(let yy=240;yy<300;yy+=6)x.fillRect(0,yy,512,3);
+    // 3) team hero mark + name (central, shows on the engine cover / airbox)
+    team.draw(x);
+    // 4) title sponsor, oversized, high on the airbox
+    const title=team.logos[0];
     x.textAlign='center';x.textBaseline='middle';
+    x.font=`900 ${(title.sz||30)+8}px Arial`;
+    x.fillStyle=title.col;x.fillText(title.t,256,332);
+    // 5) the team's real sponsor set
     for(const s of team.logos){
       x.font=`${s.style||'bold'} ${s.sz||22}px Arial`;
       if(s.chip){ const w=x.measureText(s.t).width+16, h=s.sz+8;
         x.fillStyle=s.chip; roundRect(x,s.x-w/2,s.y-h/2,w,h,5); }
       x.fillStyle=s.col; x.fillText(s.t,s.x,s.y);
+    }
+    // 6) dense filler sponsor rows across the whole band, alternating white / team colour
+    const rows=[[288,15],[300,13],[560,15],[600,14],[640,15],[672,13],[704,14],[726,12]];
+    let fi=(teamKey.length*3)%FILLER_SPONSORS.length;
+    for(const [ry,rs] of rows){
+      for(let cx=64;cx<512;cx+=150){
+        const nm=FILLER_SPONSORS[fi%FILLER_SPONSORS.length];fi++;
+        x.font=`800 ${rs}px Arial`;
+        x.fillStyle=(fi%3===0)?sw[1]:(fi%3===1?'#eef2f6':sw[2]);
+        x.globalAlpha=0.92;x.fillText(nm,cx+((ry/40|0)%2?40:0),ry);x.globalAlpha=1;
+      }
+    }
+    // 7) number roundels on the flanks
+    for(const nx of [96,416]){
+      x.fillStyle='rgba(255,255,255,0.9)';x.beginPath();x.arc(nx,470,26,0,7);x.fill();
+      x.fillStyle=team.bot;x.font='900 30px Arial';x.fillText('1',nx,472);
     }
     x.restore();
   };
@@ -2135,7 +2166,7 @@ function applyLivery(mat,tex,scale,baseCol){
         vec2 uy=vec2(vLP.x, vLP.z)*uLivS+0.5;
         vec2 uz=vec2(vLP.x*sign(n.z), vLP.y)*uLivS+0.5;
         vec3 col=texture2D(uLiv,ux).rgb*bw.x+texture2D(uLiv,uy).rgb*bw.y+texture2D(uLiv,uz).rgb*bw.z;
-        float mask=smoothstep(150.0,196.0,vLP.y);   // engine cover · airbox · upper sidepods (never wheel height)
+        float mask=smoothstep(-60.0,-8.0,vLP.y);     // whole body/sidepods/nose wear the livery; only the floor stays plain
         diffuseColor.rgb=mix(uBase, col, mask); }`);
   };
   mat.customProgramCacheKey=()=>'liv'+scale; mat.needsUpdate=true;
@@ -2174,7 +2205,7 @@ async function loadCar(loader,onProg){
     else if(/Rubber/.test(mn)){o.material.color.set(0x0e0e12);}
     o.material.envMapIntensity=1.15;}});
   CAR.bodyMat=bodyMat;
-  if(bodyMat) applyLivery(bodyMat, liveryTex, 1/1600, baseCol);
+  if(bodyMat) applyLivery(bodyMat, liveryTex, 1/1250, baseCol);
 
   // find wheel meshes by known names (+ rubber fallback)
   const byName={}; model.traverse(o=>{if(o.isMesh)byName[o.name]=o;});
@@ -2621,7 +2652,8 @@ const CAM={mode:'chase',pos:new THREE.Vector3(0,5,-10),look:new THREE.Vector3(),
 const CAM_MODES=['chase','cockpit','hood'];
 function cycleCam(){CAM.mode=CAM_MODES[(CAM_MODES.indexOf(CAM.mode)+1)%CAM_MODES.length];
   $('#camName').textContent=CAM.mode.toUpperCase();Sound.blip(520,.05);}
-if(typeof window!=='undefined')window.__setCam=(m)=>{CAM.mode=m;$('#camName').textContent=m.toUpperCase();};
+if(typeof window!=='undefined'){window.__setCam=(m)=>{CAM.mode=m;$('#camName').textContent=m.toUpperCase();};
+  window.__setLivery=(t)=>setLivery(t);}
 function updateCamera(dt){
   const spd=Math.abs(CAR.v);
   if(CAM.mode==='cockpit'){
