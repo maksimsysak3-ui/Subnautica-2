@@ -62,9 +62,11 @@
   #cineSkip{position:absolute;right:clamp(24px,4vw,54px);bottom:clamp(20px,4vh,40px);font-family:var(--mono);
     font-size:11px;letter-spacing:.2em;color:rgba(255,255,255,.55);text-transform:uppercase}
   /* track-select intro */
-  #tIntro{position:fixed;inset:0;z-index:52;display:none;background:#04060a}
+  #tIntro{position:fixed;inset:0;z-index:52;display:none;background:transparent}
   #tIntro.on{display:block}
-  #tCanvas{position:absolute;inset:0;width:100%;height:100%}
+  /* transparent so the WebGL globe (rendered underneath) shows during the zoom;
+     the 2D #tCanvas paints its own opaque black for the sector-outline phase */
+  #tCanvas{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
   #tName{position:absolute;left:clamp(30px,6vw,90px);bottom:14vh;opacity:0;transform:translateY(12px);transition:opacity .6s ease,transform .6s ease}
   #tName.show{opacity:1;transform:none}
   #tNameMain{display:block;font-family:var(--mono);font-weight:900;font-size:clamp(28px,5.5vw,64px);color:#fff;letter-spacing:.02em}
