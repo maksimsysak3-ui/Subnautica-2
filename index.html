@@ -2270,15 +2270,15 @@ function mountCockpit(){
   CAR.cockpit.position.set(0,0,0);
   // camera node
   const camNode=new THREE.Object3D();
-  camNode.position.set(0, 1.02, -0.30);      // eye height / just behind cockpit centre
+  camNode.position.set(0, 0.99, -0.32);      // eye height / just behind cockpit centre
   CAR.cockpit.add(camNode); CAR.cockpitCam=camNode;
   // steering wheel
   const w=CAR.wheelMesh;
   const holder=new THREE.Group();
-  holder.position.set(0, 0.85, 0.10);        // in front of / below eye
-  holder.rotation.x=-0.40;                   // tilt back toward driver
+  holder.position.set(0, 0.86, 0.17);        // in front of / below eye, closer so it reads
+  holder.rotation.x=-0.42;                   // tilt back toward driver
   const wb=new THREE.Box3().setFromObject(w); const wsz=wb.getSize(new THREE.Vector3());
-  const wscale=0.27/Math.max(wsz.x,wsz.y,wsz.z); // ~0.27 m wheel (smaller)
+  const wscale=0.31/Math.max(wsz.x,wsz.y,wsz.z); // ~0.31 m wheel
   w.scale.setScalar(wscale);
   w.position.set(0,0,0);
   // model has the button face pointing +Y (lies flat) → stand it up so the
@@ -2286,37 +2286,95 @@ function mountCockpit(){
   w.rotation.order='ZYX';
   w.rotation.set(-Math.PI/2, 0, Math.PI);
   const spinHub=new THREE.Group(); spinHub.add(w); holder.add(spinHub);
-  // simple, clean gloved hands gripping the wheel at ~9 and 3 o'clock (rotate with steering)
+  // ---- articulated driver arms: shoulders fixed, only the gloves track the rim ----
+  // (built in HOLDER space; forearms/upper-arms solved by 2-bone IK each frame so the
+  //  shoulders never move and the arms never sweep across the camera when you steer)
   const teamBase=(LIVERIES[selLivery]||LIVERIES.redbull).base;
-  const gloveMat=new THREE.MeshStandardMaterial({color:0x17191f,roughness:0.6});
-  const accentMat=new THREE.MeshStandardMaterial({color:teamBase,roughness:0.5});
-  const suitMat=new THREE.MeshStandardMaterial({color:0x1b1e24,roughness:0.74});
-  const R=0.135;
-  const makeHand=(sx)=>{
+  const gloveMat=new THREE.MeshStandardMaterial({color:0x15171d,roughness:0.55,metalness:0.05});
+  const glovePalm=new THREE.MeshStandardMaterial({color:0x1c1f26,roughness:0.7});
+  const accentMat=new THREE.MeshStandardMaterial({color:teamBase,roughness:0.45,metalness:0.1});
+  const suitMat=new THREE.MeshStandardMaterial({color:0x181b21,roughness:0.78});
+  const R=0.152;
+  // a detailed glove: palm block, curling knuckles+fingers, thumb, wrist cuff, accent
+  const makeGlove=(sx)=>{
     const hand=new THREE.Group();
-    // back of the glove behind the rim
-    const back=new THREE.Mesh(new THREE.BoxGeometry(0.052,0.075,0.032),gloveMat);
-    back.position.set(0,0.004,-0.012);hand.add(back);
-    // four distinct fingers curling over the FRONT of the rim
-    for(let f=0;f<4;f++){const fin=new THREE.Mesh(new THREE.CylinderGeometry(0.0075,0.0068,0.032,10),gloveMat);
-      fin.position.set(0,0.03-f*0.016,0.03);fin.rotation.x=Math.PI/2*0.78;hand.add(fin);   // curl toward driver
-      const tip=new THREE.Mesh(new THREE.SphereGeometry(0.0072,8,6),gloveMat);tip.position.set(0,0.03-f*0.016-0.006,0.046);hand.add(tip);}
-    // thumb on the inner side
-    const thumb=new THREE.Mesh(new THREE.CylinderGeometry(0.009,0.008,0.026,10),gloveMat);
-    thumb.position.set(-sx*0.026,0.026,0.018);thumb.rotation.z=sx*0.7;thumb.rotation.x=0.5;hand.add(thumb);
-    // team-accent knuckle strip across the back
-    const band=new THREE.Mesh(new THREE.BoxGeometry(0.05,0.013,0.03),accentMat);band.position.set(0,0.03,-0.01);hand.add(band);
-    // race-suit forearm + cuff angled back toward the driver
-    const fore=new THREE.Mesh(new THREE.CylinderGeometry(0.026,0.042,0.22,14),suitMat);
-    fore.position.set(sx*0.045,-0.14,-0.09);fore.rotation.z=sx*0.4;fore.rotation.x=-0.35;hand.add(fore);
-    const cuff=new THREE.Mesh(new THREE.CylinderGeometry(0.031,0.031,0.02,14),accentMat);
-    cuff.position.set(sx*0.01,-0.045,-0.026);cuff.rotation.z=sx*0.4;cuff.rotation.x=-0.35;hand.add(cuff);
-    hand.position.set(sx*R,0,0.015);
+    const palm=new THREE.Mesh(new THREE.BoxGeometry(0.058,0.028,0.078),glovePalm);
+    palm.position.set(0,0,0);hand.add(palm);
+    const knuck=new THREE.Mesh(new THREE.CylinderGeometry(0.014,0.014,0.056,12),gloveMat);
+    knuck.rotation.z=Math.PI/2;knuck.position.set(0,0.006,0.036);hand.add(knuck);
+    // four fingers, each two phalanges curling over the rim (+Z forward)
+    for(let f=0;f<4;f++){const fx=(f-1.5)*0.0145;
+      const p1=new THREE.Mesh(new THREE.CylinderGeometry(0.0072,0.0066,0.03,10),gloveMat);
+      p1.position.set(fx,0.004,0.052);p1.rotation.x=1.15;hand.add(p1);
+      const p2=new THREE.Mesh(new THREE.CylinderGeometry(0.0062,0.0055,0.026,10),gloveMat);
+      p2.position.set(fx,-0.014,0.064);p2.rotation.x=1.9;hand.add(p2);
+      const tip=new THREE.Mesh(new THREE.SphereGeometry(0.0058,8,6),gloveMat);
+      tip.position.set(fx,-0.026,0.062);hand.add(tip);}
+    // thumb wrapping the inner rim
+    const th1=new THREE.Mesh(new THREE.CylinderGeometry(0.0092,0.0082,0.03,10),gloveMat);
+    th1.position.set(-sx*0.03,-0.004,0.03);th1.rotation.z=sx*0.9;th1.rotation.x=0.7;hand.add(th1);
+    const th2=new THREE.Mesh(new THREE.CylinderGeometry(0.0078,0.007,0.024,10),gloveMat);
+    th2.position.set(-sx*0.04,-0.006,0.046);th2.rotation.z=sx*0.6;th2.rotation.x=1.2;hand.add(th2);
+    // team-accent knuckle strip + wrist cuff
+    const band=new THREE.Mesh(new THREE.BoxGeometry(0.056,0.01,0.03),accentMat);band.position.set(0,0.016,0.028);hand.add(band);
+    const cuff=new THREE.Mesh(new THREE.CylinderGeometry(0.03,0.032,0.03,14),accentMat);
+    cuff.position.set(0,-0.006,-0.052);cuff.rotation.x=Math.PI/2;hand.add(cuff);
+    hand.traverse(o=>{o.castShadow=true;});
     return hand;
   };
-  spinHub.add(makeHand(-1),makeHand(1));
+  // a detailed forearm (tapered suit sleeve + seam) and upper arm, oriented later
+  const segMesh=(len,r0,r1,mat)=>{const grp=new THREE.Group();
+    const c=new THREE.Mesh(new THREE.CylinderGeometry(r0,r1,len,16),mat);grp.add(c);
+    const seam=new THREE.Mesh(new THREE.BoxGeometry(0.006,len*0.92,0.006),accentMat);seam.position.set(r0*0.85,0,0);grp.add(seam);
+    grp.traverse(o=>{o.castShadow=true;});return grp;};
+  const arms=[];
+  for(const sx of [-1,1]){
+    const La=0.235, Lf=0.225;                       // upper-arm / forearm lengths
+    const shoulder=new THREE.Vector3(sx*0.185,-0.30,-0.34);   // fixed at the driver's chest, low & back
+    const shPad=new THREE.Mesh(new THREE.SphereGeometry(0.055,14,12),suitMat);
+    shPad.position.copy(shoulder);holder.add(shPad);
+    const upper=segMesh(La,0.05,0.038,suitMat); holder.add(upper);
+    const elbow=new THREE.Mesh(new THREE.SphereGeometry(0.036,12,10),suitMat); holder.add(elbow);
+    const fore =segMesh(Lf,0.038,0.028,suitMat); holder.add(fore);
+    const glove=makeGlove(sx); holder.add(glove);
+    arms.push({sx,La,Lf,shoulder,upper,elbow,fore,glove});
+  }
   CAR.cockpit.add(holder);
-  CAR.wheelHub=spinHub; CAR.wheelHolder=holder;
+  CAR.wheelHub=spinHub; CAR.wheelHolder=holder; CAR.arms=arms; CAR.wheelR=R;
+  solveArms(0);                                      // pose once so it's correct on frame 0
+}
+/* 2-bone IK: place both arms so the gloves grip the wheel rim at the current steer angle.
+   phi = how far the grip has rotated around the rim (follows the wheel, but bounded). */
+function solveArms(steerCmd){
+  if(!CAR.arms) return;
+  const R=CAR.wheelR, phi=clamp(-steerCmd*1.4,-1.05,1.05);
+  const Yup=new THREE.Vector3(0,1,0), m4=new THREE.Matrix4(), q=new THREE.Quaternion();
+  const ex=new THREE.Vector3(), ey=new THREE.Vector3(), ez=new THREE.Vector3(0,0,1);
+  const n=new THREE.Vector3(), pole=new THREE.Vector3(), pp=new THREE.Vector3(), E=new THREE.Vector3(), mid=new THREE.Vector3();
+  for(const a of CAR.arms){
+    const th=(a.sx>0?0:Math.PI)+phi;               // grip angle: right hand ~3 o'clock, left ~9
+    const c=Math.cos(th), s=Math.sin(th);
+    const T=new THREE.Vector3(R*c, R*s, 0.028);     // hand target on the rim (front face)
+    const S=a.shoulder;
+    // --- glove orientation: knuckles along the rim tangent, palm out, fingers forward ---
+    ex.set(a.sx>0? s:-s, a.sx>0?-c:c, 0);           // ±tangent (keeps right-handed basis)
+    ey.set(c,s,0);                                   // radial outward = glove "up"
+    m4.makeBasis(ex,ey,ez); a.glove.quaternion.setFromRotationMatrix(m4);
+    a.glove.position.copy(T);
+    // --- 2-bone IK for elbow between shoulder S and hand T ---
+    n.subVectors(T,S); let d=n.length(); const dmax=(a.La+a.Lf)*0.999; if(d>dmax)d=dmax; n.multiplyScalar(1/n.length());
+    pole.set(a.sx*0.5,-1,-0.15).normalize();         // elbow drops down and outward, out of view
+    pp.copy(pole).addScaledVector(n,-pole.dot(n)); if(pp.lengthSq()<1e-5)pp.set(a.sx,0,0); pp.normalize();
+    const aa=(a.La*a.La - a.Lf*a.Lf + d*d)/(2*d), hh=Math.sqrt(Math.max(a.La*a.La-aa*aa,0));
+    E.copy(S).addScaledVector(n,aa).addScaledVector(pp,hh);
+    // upper arm: S → E
+    mid.addVectors(S,E).multiplyScalar(0.5); a.upper.position.copy(mid);
+    q.setFromUnitVectors(Yup, E.clone().sub(S).normalize()); a.upper.quaternion.copy(q);
+    a.elbow.position.copy(E);
+    // forearm: E → T
+    mid.addVectors(E,T).multiplyScalar(0.5); a.fore.position.copy(mid);
+    q.setFromUnitVectors(Yup, T.clone().sub(E).normalize()); a.fore.quaternion.copy(q);
+  }
 }
 
 /* ==================================================================
@@ -2448,7 +2506,8 @@ function stepPhysics(dt,inp){
   const roll=CAR.v/CAR.wheelR*dt;
   CAR.front.spin.rotation.x+=roll; CAR.rear.spin.rotation.x+=roll;
   CAR.front.steer.rotation.y=-CAR.steer;
-  if(CAR.wheelHub) CAR.wheelHub.rotation.z=-CAR.steerCmd*2.4; // cockpit wheel visual
+  if(CAR.wheelHub) CAR.wheelHub.rotation.z=-CAR.steerCmd*1.4; // cockpit wheel visual (hands track this)
+  solveArms(CAR.steerCmd);                                    // pose the IK arms to grip the rim
 
   // engine sound
   Sound.engine(spd, inp.throttle);
@@ -2562,6 +2621,7 @@ const CAM={mode:'chase',pos:new THREE.Vector3(0,5,-10),look:new THREE.Vector3(),
 const CAM_MODES=['chase','cockpit','hood'];
 function cycleCam(){CAM.mode=CAM_MODES[(CAM_MODES.indexOf(CAM.mode)+1)%CAM_MODES.length];
   $('#camName').textContent=CAM.mode.toUpperCase();Sound.blip(520,.05);}
+if(typeof window!=='undefined')window.__setCam=(m)=>{CAM.mode=m;$('#camName').textContent=m.toUpperCase();};
 function updateCamera(dt){
   const spd=Math.abs(CAR.v);
   if(CAM.mode==='cockpit'){
