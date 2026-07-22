@@ -228,6 +228,70 @@
   #mCarTag{position:absolute;right:clamp(28px,5vw,66px);top:clamp(96px,15vh,150px);text-align:right;pointer-events:none}
   #mCarTag .big{font-family:var(--mono);font-weight:700;font-size:clamp(16px,1.8vw,22px);letter-spacing:.14em}
   #mCarTag .sm{font-size:10px;letter-spacing:.32em;color:var(--grey);text-transform:uppercase;font-weight:600;margin-top:6px}
+  #shOpenRD{float:right;margin-top:-4px;padding:4px 10px;background:var(--red);border:none;border-radius:4px;color:#fff;
+    font-family:var(--mono);font-size:9px;letter-spacing:.14em;font-weight:700;cursor:pointer}
+  #shOpenRD:hover{background:#ff2028}
+
+  /* ============ Research & Development ============ */
+  #rdScreen{position:fixed;inset:0;z-index:30;display:none;flex-direction:column;
+    padding:clamp(16px,2.6vh,30px) clamp(20px,4vw,56px);gap:16px;color:#fff;
+    background:radial-gradient(ellipse at 50% -12%,#101a28,#04060a 66%)}
+  #rdScreen.on{display:flex}
+  #rdHead{display:flex;justify-content:space-between;align-items:center}
+  #rdTitle{font-family:var(--mono);font-weight:900;font-size:clamp(18px,2.3vw,28px);letter-spacing:.04em}
+  #rdTitle small{display:block;font-size:9px;letter-spacing:.4em;color:var(--grey);font-weight:600;margin-top:3px}
+  .rdRes{display:flex;gap:12px;align-items:stretch}
+  .rdChip{padding:8px 16px;border:1px solid var(--grey-lo);border-radius:8px;background:rgba(10,14,22,.6);text-align:right}
+  .rdChip .k{font-size:9px;letter-spacing:.22em;color:var(--grey);text-transform:uppercase}
+  .rdChip .v{font-family:var(--mono);font-weight:800;font-size:18px;margin-top:2px}
+  .rdChip.pts .v{color:#3fa9ff}.rdChip.cash .v{color:#4be08a}
+  #rdBack,#rdAreaBack{padding:9px 16px;border:1px solid var(--grey-lo);border-radius:8px;background:transparent;color:#fff;
+    font-family:var(--mono);font-size:12px;letter-spacing:.12em;cursor:pointer;transition:.15s}
+  #rdBack:hover,#rdAreaBack:hover{border-color:#fff}
+  #rdHome{flex:1;display:grid;grid-template-columns:1.35fr 1fr;gap:16px;min-height:0}
+  #rdScreen.area #rdHome{display:none}
+  #rdTiles{display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;gap:14px;min-height:0}
+  .rdTile{border:1px solid var(--grey-lo);border-radius:14px;padding:20px;background:rgba(10,14,22,.55);cursor:pointer;
+    display:flex;flex-direction:column;justify-content:space-between;transition:.15s;position:relative;overflow:hidden}
+  .rdTile:hover{border-color:#fff;transform:translateY(-2px)}
+  .rdTile .ti{font-size:30px;line-height:1}
+  .rdTile .tn{font-family:var(--mono);font-weight:800;font-size:clamp(14px,1.5vw,20px);letter-spacing:.03em;margin-top:8px}
+  .rdTile .tp{font-family:var(--mono);font-size:12px;color:var(--grey);margin-top:4px}
+  .rdTile .trate{position:absolute;right:18px;top:15px;font-family:var(--mono);font-weight:900;font-size:26px}
+  .rdTile .tbar{height:6px;border-radius:4px;background:rgba(255,255,255,.08);margin-top:14px;overflow:hidden}
+  .rdTile .tbar i{display:block;height:100%;border-radius:4px}
+  #rdSide{display:flex;flex-direction:column;gap:16px;min-height:0}
+  .rdPanel{border:1px solid var(--grey-lo);border-radius:14px;padding:16px 20px;background:rgba(10,14,22,.55)}
+  .rdPanel h3{font-family:var(--mono);font-size:11px;letter-spacing:.2em;color:var(--grey);text-transform:uppercase;margin-bottom:12px}
+  #rdCompare{flex:1;overflow-y:auto;min-height:0}
+  .cmpRow{display:flex;align-items:center;gap:10px;margin-bottom:8px;font-size:12px}
+  .cmpRow .cn{width:96px;color:#cfd6de;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .cmpRow .cb{flex:1;height:12px;border-radius:3px;background:rgba(255,255,255,.06);overflow:hidden}
+  .cmpRow .cb i{display:block;height:100%;border-radius:3px}
+  .cmpRow .cv{width:26px;text-align:right;font-family:var(--mono);color:var(--grey)}
+  .cmpRow.me .cn{color:#4be08a;font-weight:700}
+  #rdRadarWrap{height:210px}
+  #rdRadar{width:100%;height:100%}
+  #rdArea{flex:1;display:none;flex-direction:column;min-height:0}
+  #rdScreen.area #rdArea{display:flex}
+  #rdAreaHead{display:flex;align-items:center;gap:14px;margin-bottom:14px}
+  #rdAreaHead .ai{font-size:26px}
+  #rdAreaHead .an{font-family:var(--mono);font-weight:800;font-size:22px}
+  #rdCards{flex:1;overflow-y:auto;display:grid;grid-template-columns:repeat(auto-fill,minmax(226px,1fr));gap:14px;align-content:start}
+  .rdCard{border:1px solid var(--grey-lo);border-radius:12px;padding:16px;background:rgba(12,16,26,.6);display:flex;flex-direction:column;gap:9px;min-height:168px}
+  .rdCard.fitted{border-color:#4be08a;background:rgba(14,30,22,.5)}
+  .rdCard .cardTier{font-family:var(--mono);font-size:9px;letter-spacing:.18em;color:var(--grey);text-transform:uppercase}
+  .rdCard .cardName{font-weight:700;font-size:15px;color:#fff;line-height:1.15}
+  .rdCard .cardGain{font-family:var(--mono);font-size:12px;font-weight:700}
+  .rdCard .cardCosts{display:flex;gap:14px;font-family:var(--mono);font-size:11px;color:var(--grey)}
+  .rdCard .cardCosts b{color:#fff}
+  .rdCard button{margin-top:auto;padding:9px;border:none;border-radius:6px;font-family:var(--mono);font-weight:700;font-size:11px;letter-spacing:.1em;cursor:pointer;transition:.15s}
+  .rdCard .bResearch{background:#173a5e;color:#8fd0ff}.rdCard .bResearch:hover{background:#1e4d7a}
+  .rdCard .bFit{background:#155e3a;color:#8ff0c0}.rdCard .bFit:hover{background:#1c7a4d}
+  .rdCard button:disabled{background:rgba(255,255,255,.06);color:var(--grey);cursor:not-allowed}
+  .rdCard .fittedTag{margin-top:auto;text-align:center;padding:9px;color:#4be08a;font-family:var(--mono);font-size:11px;letter-spacing:.14em}
+  #rdFoot{display:flex;justify-content:space-between;font-size:11px;letter-spacing:.2em;color:var(--grey);text-transform:uppercase}
+  #rdFoot b{display:inline-block;padding:3px 7px;margin-right:8px;border:1px solid var(--grey-lo);border-radius:3px;color:#fff;font-family:var(--mono);font-size:10px}
 
   /* ============ HUD (drive) ============ */
   #hud{position:fixed;inset:0;z-index:20;pointer-events:none;opacity:0;transition:opacity .6s}
@@ -368,7 +432,7 @@
   <aside id="mDetail"><div id="mdTag">MODE</div><div id="mdDesc">—</div><div id="mdMeta"></div></aside>
   <footer id="mFoot">
     <div class="keys"><span><b>↑↓</b>Navigate</span><span><b>⏎</b>Select</span></div>
-    <div id="mVer">BUILD 2026.4 · v0.4 “INTERLAGOS”</div>
+    <div id=”mVer”>BUILD 2026.5 · v0.5 “DEVELOPMENT”</div>
   </footer>
   <!-- livery editor -->
   <aside id="garage">
@@ -420,12 +484,37 @@
       <div id="shStandRows"></div>
     </section>
     <section id="shRD">
-      <div class="shPanelT">R&amp;D · CAR DEVELOPMENT</div>
+      <div class="shPanelT">R&amp;D · CAR DEVELOPMENT<button id="shOpenRD">MANAGE ▸</button></div>
       <div id="shRDrows"></div>
     </section>
   </div>
   <div id="shCal"></div>
   <div id="shFoot"><span><b>Esc</b> Main Menu</span><span id="shPts">0 PTS</span></div>
+</div>
+
+<!-- ===== Research & Development ===== -->
+<div id="rdScreen">
+  <header id="rdHead">
+    <div id="rdTitle">RESEARCH &amp; DEVELOPMENT<small id="rdTeamName">SCUDERIA APEX</small></div>
+    <div class="rdRes">
+      <div class="rdChip pts"><div class="k">R&amp;D Points</div><div class="v" id="rdPtsV">0</div></div>
+      <div class="rdChip cash"><div class="k">Budget</div><div class="v" id="rdCashV">$0</div></div>
+      <button id="rdBack">◂ HUB</button>
+    </div>
+  </header>
+  <div id="rdHome">
+    <div id="rdTiles"></div>
+    <div id="rdSide">
+      <div class="rdPanel" id="rdCompare"><h3>Vehicle Performance Comparison</h3><div id="rdCmpRows"></div></div>
+      <div class="rdPanel"><h3>Development Potential</h3><div id="rdRadarWrap"><canvas id="rdRadar"></canvas></div></div>
+    </div>
+  </div>
+  <div id="rdArea">
+    <div id="rdAreaHead"><span class="ai" id="rdAreaIcon">✈</span><span class="an" id="rdAreaName">Aerodynamics</span>
+      <button id="rdAreaBack" style="margin-left:auto">◂ OVERVIEW</button></div>
+    <div id="rdCards"></div>
+  </div>
+  <div id="rdFoot"><span><b>Esc</b> Back</span><span>Research parts with R&amp;D points · Fit them with budget</span></div>
 </div>
 
 <!-- ===== HUD ===== -->
@@ -2846,6 +2935,7 @@ function beginSeason(){
   SEASON.name=($('#ssName').value||'DRIVER').toUpperCase().slice(0,14);
   SEASON.num=Math.max(1,Math.min(99,parseInt($('#ssNum').value)||7));
   SEASON.active=true;SEASON.round=0;SEASON.points=0;
+  SEASON.rd=null; initRD();                            // fresh R&D tree + starting resources
   // seed a random points table for the AI field (until real AIs arrive)
   SEASON.table=SEASON.field.map(nm=>({nm,pts:0,me:false}));
   SEASON.table.push({nm:SEASON.name,pts:0,me:true});
@@ -2907,6 +2997,8 @@ function endSeasonRace(){
   const me=SEASON.table.find(r=>r.me); if(me)me.pts+=25; SEASON.points=(me?me.pts:0);
   const ai=SEASON.table.filter(r=>!r.me);
   for(let i=0;i<ai.length;i++) ai[i].pts+=(F1PTS[i+1]||0)+((Math.random()*3)|0);
+  // a race weekend earns R&D points + prize money to spend in the R&D tab
+  SEASON.rdPts=(SEASON.rdPts||0)+45; SEASON.money=(SEASON.money||0)+3400000;
   if(SEASON.round<SEASON.cal.length-1)SEASON.round++;
   STATE='menu';$('#hud').classList.remove('on');$('#sndBtn').classList.remove('show');
   if(CAR.rig.parent!==menuScene)menuScene.add(CAR.rig);
@@ -2914,6 +3006,109 @@ function endSeasonRace(){
 }
 $('#ssBegin').addEventListener('click',beginSeason);
 $('#shRaceBtn').addEventListener('click',seasonRace);
+
+/* ==================================================================
+   RESEARCH & DEVELOPMENT  (points research parts · money fits them)
+   ================================================================== */
+const RD_AREAS=[
+  {key:'aero',  name:'Aerodynamics', short:'AERO', icon:'✈', col:'#3fa9ff',
+    parts:['Front Wing Endplate','Nose Cone Vanes','Bargeboard Array','Floor Edge Wing','Diffuser Ramp','Beam Wing','Rear Wing Flap','DRS Actuator','Sidepod Inlet','Cooling Louvres','Floor Fences','Rear Corner Wing']},
+  {key:'chassis',name:'Chassis', short:'CHAS', icon:'▦', col:'#ffd23d',
+    parts:['Monocoque Layup','Pushrod Front','Anti-Roll Bar','Steering Rack','Brake Ducts','Weight Balance','Ride-Height Kit','Damper Valving','Wheel Uprights','Torsion Bars','Third Element','Heave Damper']},
+  {key:'power', name:'Powertrain', short:'PWR', icon:'⚡', col:'#ff5b5b',
+    parts:['Turbocharger','MGU-K Upgrade','MGU-H Upgrade','Energy Store','Combustion Map','Exhaust Layout','Fuel-Flow Trim','ERS Deployment','Intercooler','Control Electronics','Plenum Design','Cam Profile']},
+  {key:'dura',  name:'Durability', short:'DURA', icon:'🛡', col:'#4be08a',
+    parts:['Gearbox Casing','Cooling Package','Oil System','Bearing Pack','Seals & Gaskets','Wiring Loom','Hydraulics','Clutch Pack','Fuel Cell','Sensor Suite','Crash Structure','Cooling Pumps']},
+];
+function initRD(){
+  if(SEASON.rd) return;
+  SEASON.rdPts = SEASON.rdPts||120;
+  SEASON.money = SEASON.money||4500000;
+  SEASON.rd={};
+  RD_AREAS.forEach(a=>{
+    const parts=a.parts.map((nm,i)=>{const tier=1+Math.floor(i/4);
+      return {name:nm,tier,rp:14+i*5+tier*6,cost:180000+i*95000+tier*140000,
+        gain:1+tier+((i%3)===0?1:0),researched:false,fitted:false};});
+    SEASON.rd[a.key]={rating:38+((Math.random()*10)|0),parts};
+  });
+}
+const rdCash=v=>'$'+(v/1e6).toFixed(2)+'M';
+function openRD(){ initRD(); $('#seasonHub').classList.remove('on'); SEASON.on='rd';
+  $('#rdScreen').classList.remove('area'); $('#rdScreen').classList.add('on'); renderRDHome(); }
+function closeRD(){ $('#rdScreen').classList.remove('on','area'); SEASON.on='hub';
+  $('#seasonHub').classList.add('on'); renderSeasonHub(); }
+function rdResHeader(){ $('#rdPtsV').textContent=SEASON.rdPts; $('#rdCashV').textContent=rdCash(SEASON.money);
+  $('#rdTeamName').textContent=((LIVERIES[SEASON.team]||{}).name||'TEAM').toUpperCase(); }
+function renderRDHome(){
+  $('#rdScreen').classList.remove('area'); rdResHeader();
+  const tiles=$('#rdTiles'); tiles.innerHTML='';
+  RD_AREAS.forEach(a=>{const A=SEASON.rd[a.key];
+    const done=A.parts.filter(p=>p.fitted).length, tot=A.parts.length, rate=Math.min(99,A.rating|0);
+    const el=document.createElement('div'); el.className='rdTile';
+    el.innerHTML=`<div><div class="ti">${a.icon}</div><div class="tn">${a.name}</div>
+      <div class="tp">${done}/${tot} parts fitted</div></div>
+      <div class="trate" style="color:${a.col}">${rate}</div>
+      <div class="tbar"><i style="width:${rate}%;background:${a.col}"></i></div>`;
+    el.onclick=()=>{Sound.init();Sound.blip(520,.05);openRDArea(a.key);};
+    tiles.appendChild(el);});
+  renderRDCompare(); drawRDRadar();
+}
+function renderRDCompare(){
+  const myOverall=Math.round(RD_AREAS.reduce((s,a)=>s+SEASON.rd[a.key].rating,0)/4);
+  const base={redbull:93,ferrari:90,mercedes:88,mclaren:91,aston:81,williams:74,alpine:77,haas:72,rb:76,sauber:70};
+  const rows=LIVERY_IDS.map(k=>({name:LIVERIES[k].name,v:(k===SEASON.team?myOverall:(base[k]||75)),me:k===SEASON.team,col:LIVERIES[k].base}));
+  rows.sort((a,b)=>b.v-a.v);
+  const max=Math.max(...rows.map(r=>r.v),1), wrap=$('#rdCmpRows'); wrap.innerHTML='';
+  rows.forEach(r=>{const el=document.createElement('div'); el.className='cmpRow'+(r.me?' me':'');
+    el.innerHTML=`<span class="cn">${r.name}</span><span class="cb"><i style="width:${r.v/max*100}%;background:${r.me?'#4be08a':shadeHex(r.col,1.5)}"></i></span><span class="cv">${r.v}</span>`;
+    wrap.appendChild(el);});
+}
+function drawRDRadar(){
+  const cv=$('#rdRadar'); const W=cv.width=cv.clientWidth||320, H=cv.height=cv.clientHeight||210;
+  const x=cv.getContext('2d'); x.clearRect(0,0,W,H);
+  const cx=W/2, cy=H/2+6, R=Math.min(W,H)*0.34, n=4;
+  const vals=RD_AREAS.map(a=>Math.min(1,SEASON.rd[a.key].rating/100));
+  for(let ring=1;ring<=4;ring++){x.strokeStyle='rgba(255,255,255,.12)';x.beginPath();
+    for(let i=0;i<=n;i++){const ang=-Math.PI/2+i/n*TAU, rr=R*ring/4;const px=cx+Math.cos(ang)*rr,py=cy+Math.sin(ang)*rr;i?x.lineTo(px,py):x.moveTo(px,py);}x.stroke();}
+  x.fillStyle='#9aa3b0';x.font='700 10px Arial';x.textAlign='center';
+  for(let i=0;i<n;i++){const ang=-Math.PI/2+i/n*TAU;
+    x.strokeStyle='rgba(255,255,255,.1)';x.beginPath();x.moveTo(cx,cy);x.lineTo(cx+Math.cos(ang)*R,cy+Math.sin(ang)*R);x.stroke();
+    x.fillStyle=RD_AREAS[i].col;x.fillText(RD_AREAS[i].short,cx+Math.cos(ang)*(R+16),cy+Math.sin(ang)*(R+16)+3);}
+  x.beginPath();for(let i=0;i<=n;i++){const j=i%n, ang=-Math.PI/2+j/n*TAU, rr=R*vals[j];const px=cx+Math.cos(ang)*rr,py=cy+Math.sin(ang)*rr;i?x.lineTo(px,py):x.moveTo(px,py);}
+  x.closePath();x.fillStyle='rgba(63,169,255,.22)';x.fill();x.strokeStyle='#3fa9ff';x.lineWidth=2;x.stroke();
+  for(let i=0;i<n;i++){const ang=-Math.PI/2+i/n*TAU, rr=R*vals[i];x.fillStyle='#8fd0ff';x.beginPath();x.arc(cx+Math.cos(ang)*rr,cy+Math.sin(ang)*rr,2.6,0,7);x.fill();}
+}
+function openRDArea(key){
+  SEASON.rdArea=key; const a=RD_AREAS.find(x=>x.key===key);
+  $('#rdAreaIcon').textContent=a.icon; $('#rdAreaName').textContent=a.name;
+  $('#rdScreen').classList.add('area'); renderRDCards();
+}
+function renderRDCards(){
+  const key=SEASON.rdArea, a=RD_AREAS.find(x=>x.key===key), A=SEASON.rd[key];
+  rdResHeader(); const wrap=$('#rdCards'); wrap.innerHTML='';
+  A.parts.forEach(p=>{
+    const el=document.createElement('div'); el.className='rdCard'+(p.fitted?' fitted':'');
+    let action;
+    if(p.fitted) action=`<div class="fittedTag">✓ FITTED · +${p.gain}</div>`;
+    else if(!p.researched) action=`<button class="bResearch"${SEASON.rdPts<p.rp?' disabled':''}>RESEARCH · ${p.rp} RP</button>`;
+    else action=`<button class="bFit"${SEASON.money<p.cost?' disabled':''}>FIT · ${rdCash(p.cost)}</button>`;
+    el.innerHTML=`<div class="cardTier">${a.name} · Tier ${p.tier}</div>
+      <div class="cardName">${p.name}</div>
+      <div class="cardGain" style="color:${a.col}">▲ +${p.gain} ${a.short}</div>
+      <div class="cardCosts"><span>RP <b>${p.rp}</b></span><span>FIT <b>${rdCash(p.cost)}</b></span></div>
+      ${action}`;
+    const btn=el.querySelector('button');
+    if(btn) btn.onclick=()=>{
+      if(!p.researched){ if(SEASON.rdPts>=p.rp){SEASON.rdPts-=p.rp;p.researched=true;Sound.init();Sound.blip(620,.05);} }
+      else { if(SEASON.money>=p.cost){SEASON.money-=p.cost;p.fitted=true;A.rating=Math.min(99,A.rating+p.gain);Sound.init();Sound.blip(720,.06);} }
+      renderRDCards();
+    };
+    wrap.appendChild(el);
+  });
+}
+$('#shOpenRD').addEventListener('click',()=>{Sound.init();Sound.blip(500,.05);openRD();});
+$('#rdBack').addEventListener('click',closeRD);
+$('#rdAreaBack').addEventListener('click',renderRDHome);
 
 /* ==================================================================
    STATE / FLOW
@@ -3180,6 +3375,7 @@ addEventListener('keydown',e=>{
   if(STATE==='result'){ if(k==='enter'||k==='escape'||k===' '){exitToMenu();} e.preventDefault();return;}
   if(SEASON.on==='setup'){ if(k==='escape'){closeSeasonSetup();} else if(k==='enter'&&document.activeElement.tagName!=='INPUT'){beginSeason();} return; }
   if(SEASON.on==='hub'){ if(k==='escape'){closeSeasonHub();} else if(k==='enter'){seasonRace();} e.preventDefault();return; }
+  if(SEASON.on==='rd'){ if(k==='escape'){ if($('#rdScreen').classList.contains('area'))renderRDHome(); else closeRD(); } e.preventDefault();return; }
   if(STATE==='menu'&&garageOn){
     const i=LIVERY_IDS.indexOf(selLivery);
     if(k==='arrowup'||k==='w'||k==='arrowleft'||k==='a'){pickLivery(LIVERY_IDS[(i-1+LIVERY_IDS.length)%LIVERY_IDS.length]);e.preventDefault();}
