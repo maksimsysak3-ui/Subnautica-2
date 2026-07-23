@@ -413,22 +413,60 @@ button{font-family:inherit; cursor:pointer; color:inherit; border:none; backgrou
 .cal-cell .res{position:absolute; right:8px; top:8px; font-size:11px; font-weight:900}
 .cal-legend{display:flex; gap:16px; margin-top:14px; font-size:11px; color:var(--dim); flex-wrap:wrap}
 .cal-legend i{display:inline-block; width:10px; height:10px; border-radius:3px; margin-right:5px; vertical-align:middle}
+
+/* ===== CINEMATIC 3D INTRO ===== */
+#intro{background:radial-gradient(1200px 800px at 50% 30%, #0a1830 0%, #04060a 70%); perspective:1100px; overflow:hidden}
+.stage{position:absolute; inset:0; transform-style:preserve-3d; display:flex; align-items:center; justify-content:center}
+.pitch3d{position:absolute; left:50%; top:64%; width:1600px; height:1100px; margin-left:-800px;
+  transform:rotateX(74deg); transform-origin:50% 0;
+  background:
+    repeating-linear-gradient(0deg, rgba(120,255,140,.05) 0 60px, transparent 60px 120px),
+    repeating-linear-gradient(90deg, rgba(120,255,140,.06) 0 90px, transparent 90px 180px),
+    radial-gradient(circle at 50% 0%, #0e3a24 0%, #05170e 60%, transparent 75%);
+  animation:pitchGlow 6s ease-in-out infinite; opacity:.9}
+.pitch3d::after{content:''; position:absolute; left:50%; top:0; width:280px; height:280px; margin-left:-140px; border:3px solid rgba(120,255,140,.18); border-radius:50%}
+.beam{position:absolute; top:-20%; left:50%; width:16px; height:150%; background:linear-gradient(180deg,rgba(198,255,46,.35),transparent); filter:blur(6px); transform-origin:top center; animation:beamSweep 5s ease-in-out infinite}
+.beam.b2{animation-delay:-2s; background:linear-gradient(180deg,rgba(0,229,255,.32),transparent)}
+.beam.b3{animation-delay:-3.4s; background:linear-gradient(180deg,rgba(255,46,136,.28),transparent)}
+.logo3d{position:relative; text-align:center; transform-style:preserve-3d; animation:logoIn 1.6s cubic-bezier(.2,.8,.2,1) both}
+.logo3d .ea{display:inline-flex; gap:12px; align-items:center; padding:8px 20px; border:1px solid rgba(255,255,255,.18); border-radius:100px; margin-bottom:22px;
+  letter-spacing:.42em; font-weight:800; font-size:14px; background:rgba(255,255,255,.03); animation:fadeUp .8s .4s both}
+.big3d{font-size:clamp(80px,17vw,190px); font-weight:900; line-height:.86; letter-spacing:-.05em; display:flex; gap:0; justify-content:center;
+  transform-style:preserve-3d}
+.big3d span{display:inline-block; background:linear-gradient(180deg,#ffffff 0%,#cfe0ff 40%,#5f7bb0 100%); -webkit-background-clip:text; background-clip:text; color:transparent;
+  text-shadow:0 1px 0 rgba(255,255,255,.4); filter:drop-shadow(0 14px 22px rgba(0,0,0,.6)); animation:letterPop .7s cubic-bezier(.2,1.4,.3,1) both}
+.big3d .n{color:var(--acc); -webkit-text-fill-color:var(--acc); filter:drop-shadow(0 0 34px rgba(198,255,46,.65)) drop-shadow(0 14px 22px rgba(0,0,0,.5))}
+.big3d span:nth-child(1){animation-delay:.5s} .big3d span:nth-child(2){animation-delay:.62s}
+.big3d span:nth-child(3){animation-delay:.8s} .big3d span:nth-child(4){animation-delay:.92s}
+.intro-sub2{margin-top:16px; color:#9fb0d6; letter-spacing:.5em; font-size:12px; animation:fadeUp 1s 1.1s both}
+.spark3d{position:absolute; width:5px; height:5px; border-radius:50%; background:var(--acc); box-shadow:0 0 8px var(--acc); animation:rise3d linear infinite; opacity:0}
+.intro-foot{position:absolute; bottom:56px; left:0; right:0; text-align:center; animation:fadeUp 1s 1.3s both}
+@keyframes logoIn{from{transform:translateZ(-600px) rotateX(35deg) rotateY(-18deg); opacity:0} to{transform:none; opacity:1}}
+@keyframes letterPop{from{transform:translateY(40px) rotateX(-90deg); opacity:0} to{transform:none; opacity:1}}
+@keyframes beamSweep{0%,100%{transform:rotate(-24deg); opacity:.2} 50%{transform:rotate(24deg); opacity:.6}}
+@keyframes pitchGlow{0%,100%{filter:brightness(.85)} 50%{filter:brightness(1.15)}}
+@keyframes rise3d{0%{transform:translateY(0) scale(1); opacity:0} 12%{opacity:1} 100%{transform:translateY(-320px) scale(.4); opacity:0}}
 </style>
 </head>
 <body>
 <div id="app">
 
-  <!-- INTRO -->
+  <!-- CINEMATIC 3D INTRO -->
   <section id="intro" class="screen on">
-    <div class="intro-glow"></div>
-    <div class="intro-mark">
-      <div class="ea-badge"><b>EA SPORTS</b></div>
-      <div class="fc-logo">FC</div>
-      <div class="fc-26">26</div>
-      <div class="intro-sub up">CAREER · MANAGER · INTERNATIONAL</div>
+    <div class="stage">
+      <div class="pitch3d"></div>
+      <div class="beam"></div><div class="beam b2"></div><div class="beam b3"></div>
+      <div id="sparks"></div>
+      <div class="logo3d">
+        <div class="ea"><b>EA SPORTS</b></div>
+        <div class="big3d"><span>F</span><span>C</span><span class="n">2</span><span class="n">6</span></div>
+        <div class="intro-sub2">CAREER · MANAGER · INTERNATIONAL</div>
+      </div>
     </div>
-    <div class="intro-bar"><i id="introBar"></i></div>
-    <div class="intro-tip" id="introTip">Loading the world of football…</div>
+    <div class="intro-foot">
+      <div class="intro-bar" style="margin:0 auto"><i id="introBar"></i></div>
+      <div class="intro-tip" id="introTip" style="margin-top:10px">Loading the world of football…</div>
+    </div>
   </section>
 
   <!-- TOP BAR -->
@@ -525,8 +563,10 @@ const NATIONS = {
   SRB:{name:'Serbia',c1:'#c6363c',c2:'#0c4076'}
 };
 const NATION_KEYS = Object.keys(NATIONS);
-const FIRST_NAMES = ['Adrien','Mateo','Luka','Kian','Renzo','Milos','Tariq','Emile','Nuno','Dario','Yannick','Sten','Oskar','Vito','Andrei','Kaito','Silas','Samir','Ravi','Nolan','Elias','Bruno','Marco','Ivo','Teo','Aleks','Cato','Remy','Sol','Nael','Dino','Piet','Kofi','Amaro','Enzo','Lior','Vasco','Dane','Ugo','Casimir','Hadi','Osei','Leon','Rafa','Niko','Bastian','Corin','Emeka'];
-const SURNAMES = ['Calder','Voss','Ostrem','Marek','Bertone','Vance','Ferro','Cazal','Dunmore','Havel','Almvik','Fenwick','Holt','Iversen','Joris','Kessel','Loven','Marren','Orsini','Prieto','Quill','Rennick','Solberg','Tavora','Ulrich','Weiss','Zorin','Braithe','Colven','Draven','Falk','Grioux','Halden','Ibsen','Jansa','Korloff','Lindqvist','Merlo','Nystrom','Okonkwo','Palko','Renzetti','Salvi','Torvald','Wexford','Zabala','Ashcombe','Belmonte','Crane','Delacroix','Ekwueme','Frost','Garnier','Haldane','Moretti'];
+const FIRST_NAMES = ['Adrien','Mateo','Luka','Kian','Renzo','Milos','Tariq','Emile','Nuno','Dario','Yannick','Sten','Oskar','Vito','Andrei','Kaito','Silas','Samir','Ravi','Nolan','Elias','Bruno','Marco','Ivo','Teo','Aleks','Cato','Remy','Sol','Nael','Dino','Piet','Kofi','Amaro','Enzo','Lior','Vasco','Dane','Ugo','Casimir','Hadi','Osei','Leon','Rafa','Niko','Bastian','Corin','Emeka',
+'Matteo','Joaquin','Sander','Rico','Timo','Aleksi','Zeno','Ilias','Malik','Nikolai','Damir','Fabio','Gael','Hakim','Iker','Janko','Kylian','Lasse','Mika','Otto','Pavlos','Quinten','Rasmus','Salif','Toma','Uros','Vince','Wilder','Yusuf','Zayd','Aris','Bilal','Cedric','Dries','Erling','Florent','Goran','Henrik','Idris','Jonas','Kenan','Lucca','Mory','Noah','Pol','Reo','Souleyman','Thiago','Vadim','Wout'];
+const SURNAMES = ['Calder','Voss','Ostrem','Marek','Bertone','Vance','Ferro','Cazal','Dunmore','Havel','Almvik','Fenwick','Holt','Iversen','Joris','Kessel','Loven','Marren','Orsini','Prieto','Quill','Rennick','Solberg','Tavora','Ulrich','Weiss','Zorin','Braithe','Colven','Draven','Falk','Grioux','Halden','Ibsen','Jansa','Korloff','Lindqvist','Merlo','Nystrom','Okonkwo','Palko','Renzetti','Salvi','Torvald','Wexford','Zabala','Ashcombe','Belmonte','Crane','Delacroix','Ekwueme','Frost','Garnier','Haldane','Moretti',
+'Andersson','Baptiste','Cortez','Drenov','Eskildsen','Farkas','Gallardo','Huseby','Ivanenko','Janssen','Kovac','Larsen','Mihaylov','Nedelcu','Osei-Bonsu','Pereyra','Quaranta','Rossetti','Skov','Traore','Ubeda','Varga','Wollny','Ximenes','Yamada','Zielinski','Abara','Bruns','Calvino','Doumbia','Egilsson','Ferreira','Gundersen','Herrera','Ito','Jokic','Kallstrom','Lindholm','Mancini','Novak','Onyeka','Petrov','Ricci','Sandoval','Toussaint','Ugarte','Vidmar','Wagner','Zubeldia','Adeyemi','Brandt','Castellano','Duarte'];
 
 /* ---------- Play styles (FC 26 style) ---------- */
 const PLAYSTYLES = ['Finesse Shot','Power Shot','Chip Shot','Incisive Pass','Pinged Pass','Long Ball Pass','Tiki Taka','Technical','Rapid','Trickster','Flair','Press Proven','Jockey','Block','Bruiser','Aerial','Trivela','Whipped Pass','Dead Ball','First Touch','Quick Step','Relentless','Slide Tackle','Anticipate','Intercept','Long Throw','Far Reach','Footwork'];
@@ -639,17 +679,18 @@ const LEAGUES = [
 /* ============================================================
    PROCEDURAL FACE "SCAN" GENERATOR  (stylized SVG portrait)
    ============================================================ */
-const SKIN = ['#f4d0b0','#eec2a2','#e3ac86','#d69b70','#c88a5c','#a86b42','#8a5330','#6f4324','#5a361d'];
-const HAIR = ['#0b0b0e','#241812','#3a2412','#5a3a1a','#7a4a20','#a06a2a','#c99a4a','#e0c070','#2a2a2e','#4a4a52','#f2f2f5'];
+const SKIN = ['#f6d5b8','#f0c6a4','#e6b48c','#dba679','#cf9668','#c08a5c','#a86b42','#925838','#7a4a2c','#5f3a22','#4a2e1b'];
+const HAIR = ['#0b0b0e','#181012','#241812','#3a2412','#4a2f16','#5a3a1a','#7a4a20','#8a5a28','#a06a2a','#c99a4a','#e0c070','#efe0a0','#2a2a2e','#3a3a42','#6a6a72','#f2f2f5','#9a9aa2'];
 function faceSVG(seed, size){
   const r = seeded('face-'+seed);
   const skin = SKIN[Math.floor(r()*SKIN.length)];
   const hair = HAIR[Math.floor(r()*HAIR.length)];
-  const bald = r()<0.1;
-  const beard = r()<0.5;
-  const beardType = pick(r,['stubble','full','goatee']);
-  const eyeColor = pick(r,['#3a2a1a','#2a3a4a','#3a4a2a','#1a1a22']);
-  const hairStyle = ri(r,0,4);
+  const bald = r()<0.09;
+  const beard = r()<0.52;
+  const beardType = pick(r,['stubble','full','goatee','chin']);
+  const eyeColor = pick(r,['#3a2a1a','#4a2f18','#2a3a4a','#3a4a2a','#1a1a22','#5a4a2a']);
+  const hairStyle = ri(r,0,7);
+  const mouthType = ri(r,0,2);
   const jaw = 0.9+r()*0.25;
   const bg1 = pick(r,['#eef1f8','#f0ecf4','#e9f1ee','#f2ebec','#eaedf5']);
   const bg2 = pick(r,['#aeb8ce','#bcafca','#a4c1b7','#c6adb2','#a9b3cd']);
@@ -671,8 +712,16 @@ function faceSVG(seed, size){
     }
     else if(hairStyle===3) // buzz / close fade
       hairPath=`<path d="M30 45 Q29 26 50 25 Q71 26 70 45 Q70 42 64 42 Q57 38 50 39 Q43 38 36 42 Q30 42 30 45Z" fill="url(#hg${id})" opacity="0.92"/>`;
-    else // swept quiff
+    else if(hairStyle===4) // swept quiff
       hairPath=`<path d="M28 47 Q27 23 50 22 Q73 23 72 47 Q71 42 64 42 Q57 37 50 38 Q43 37 36 42 Q29 42 28 47Z" fill="url(#hg${id})"/><path d="M45 22 Q50 12 59 19 Q54 20 50 25 Q48 22 45 22Z" fill="${hair}"/>`;
+    else if(hairStyle===5) // side part
+      hairPath=`<path d="M27 46 Q25 22 50 21 Q75 22 73 46 Q73 40 64 41 L61 30 Q56 36 50 37 Q42 36 35 42 Q28 42 27 46Z" fill="url(#hg${id})"/>`;
+    else if(hairStyle===6){ // cornrows / lines
+      let lines=''; for(let i=0;i<5;i++){const x=36+i*7; lines+=`<path d="M${x} 41 Q${x} 26 50 22" stroke="${hairD}" stroke-width="2.4" fill="none" opacity="0.9"/>`;}
+      hairPath=`<path d="M29 45 Q28 24 50 22 Q72 24 71 45 Q71 41 64 41 Q57 37 50 38 Q43 37 36 41 Q29 41 29 45Z" fill="url(#hg${id})"/>${lines}`;
+    }
+    else // long / man-bun
+      hairPath=`<path d="M26 60 Q22 30 50 20 Q78 30 74 60 L70 54 Q72 40 64 41 Q57 36 50 37 Q43 36 36 41 Q28 40 30 54Z" fill="url(#hg${id})"/><circle cx="50" cy="17" r="6" fill="url(#hg${id})"/>`;
   } else {
     // clean shave — faint side hair around the ears only
     hairPath=`<path d="M30 54 Q28 43 34 42 Q35 50 32 56Z" fill="${hair}" opacity="0.8"/><path d="M70 54 Q72 43 66 42 Q65 50 68 56Z" fill="${hair}" opacity="0.8"/>`;
@@ -682,8 +731,12 @@ function faceSVG(seed, size){
     const bc=darken(hair,0.8);
     if(beardType==='stubble') beardPath=`<path d="M31 56 Q50 76 69 56 Q69 70 50 78 Q31 70 31 56Z" fill="${bc}" opacity="0.32"/>`;
     else if(beardType==='full') beardPath=`<path d="M29 53 Q50 82 71 53 Q71 74 50 82 Q29 74 29 53Z" fill="${bc}"/><path d="M40 45 Q50 51 60 45 L60 53 Q50 57 40 53Z" fill="${bc}" opacity="0.55"/>`;
+    else if(beardType==='chin') beardPath=`<path d="M30 52 Q31 66 38 70 L38 60 Q34 56 32 52Z M70 52 Q69 66 62 70 L62 60 Q66 56 68 52Z" fill="${bc}" opacity="0.85"/><path d="M43 71 Q50 78 57 71 Q57 75 50 78 Q43 75 43 71Z" fill="${bc}"/>`;
     else beardPath=`<path d="M42 66 Q50 78 58 66 Q58 74 50 79 Q42 74 42 66Z" fill="${bc}"/>`;
   }
+  const mouth = mouthType===0?`<path d="M43 70 Q50 74 57 70" stroke="${darken(skin,0.62)}" stroke-width="2" fill="none" stroke-linecap="round"/>`
+    : mouthType===1?`<path d="M43 71 Q50 75 57 71 Q50 73 43 71Z" fill="${darken(skin,0.55)}"/>`
+    : `<path d="M44 71 Q50 73 56 71" stroke="${darken(skin,0.6)}" stroke-width="1.8" fill="none" stroke-linecap="round"/>`;
   return `<svg viewBox="0 0 100 100" width="${size||100}" height="${size||100}" xmlns="http://www.w3.org/2000/svg">
     <defs>
       <linearGradient id="bg${id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="${bg1}"/><stop offset="100%" stop-color="${bg2}"/></linearGradient>
@@ -703,7 +756,7 @@ function faceSVG(seed, size){
     <circle cx="41.5" cy="53.4" r="2" fill="${eyeColor}"/><circle cx="59.5" cy="53.4" r="2" fill="${eyeColor}"/>
     <circle cx="42.2" cy="52.7" r="0.7" fill="#fff"/><circle cx="60.2" cy="52.7" r="0.7" fill="#fff"/>
     <path d="M48 56 Q50 63 46 64 Q50 66 52 64" stroke="${darken(skin,0.72)}" stroke-width="1.6" fill="none" stroke-linecap="round"/>
-    <path d="M43 70 Q50 74 57 70" stroke="${darken(skin,0.62)}" stroke-width="2" fill="none" stroke-linecap="round"/>
+    ${mouth}
     ${hairPath}
     <rect width="100" height="100" fill="url(#lt${id})"/>
   </svg>`;
@@ -713,22 +766,46 @@ function faceSVG(seed, size){
    CREST + KIT + FLAG GENERATORS
    ============================================================ */
 function crestSVG(club,size){
-  const s=size||54, r=seeded('crest-'+club.name);
-  const style=hashStr(club.name)%4;
-  const id='c'+(hashStr(club.name)%99999);
+  const s=size||54, h=hashStr(club.name);
+  const shape=h%5, emblem=(h>>3)%6, id='c'+(h%99999);
   const init=club.short.slice(0,3);
-  let inner='';
-  if(style===0) inner=`<path d="M50 6 L88 20 V52 Q88 84 50 96 Q12 84 12 52 V20 Z" fill="url(#g${id})" stroke="#ffffff" stroke-width="2.5"/>`;
-  else if(style===1) inner=`<circle cx="50" cy="52" r="42" fill="url(#g${id})" stroke="#fff" stroke-width="2.5"/><circle cx="50" cy="52" r="42" fill="none" stroke="${club.c2}" stroke-width="6" stroke-dasharray="4 5" opacity="0.7"/>`;
-  else if(style===2) inner=`<path d="M12 14 H88 V66 Q50 100 50 100 Q50 100 12 66 Z" fill="url(#g${id})" stroke="#fff" stroke-width="2.5"/>`;
-  else inner=`<rect x="12" y="12" width="76" height="80" rx="10" fill="url(#g${id})" stroke="#fff" stroke-width="2.5"/><path d="M12 40 H88" stroke="${club.c2}" stroke-width="5" opacity="0.8"/>`;
+  const c1=club.c1, c2=club.c2;
+  function lum(hex){const n=parseInt(hex.slice(1),16);return (0.299*((n>>16)&255)+0.587*((n>>8)&255)+0.114*(n&255))/255;}
+  const ink = lum(c1)>0.6?'#141824':'#ffffff';       // text/detail colour that contrasts the primary
+  const stroke = lum(c1)>0.7?'#141824':'#ffffff';
+  // outer shield shapes
+  let outline;
+  if(shape===0) outline='M50 4 L90 18 V50 Q90 84 50 98 Q10 84 10 50 V18 Z';                 // classic shield
+  else if(shape===1) outline='M50 4 L92 16 L86 60 Q80 86 50 98 Q20 86 14 60 L8 16 Z';        // pointed heraldic
+  else if(shape===2) outline='M14 10 H86 V62 Q86 82 50 98 Q14 82 14 62 Z';                    // rounded base
+  else if(shape===3) outline='M50 3 A47 47 0 1 1 49.9 3 Z';                                    // circle
+  else outline='M18 8 H82 A8 8 0 0 1 90 16 V84 A8 8 0 0 1 82 92 H18 A8 8 0 0 1 10 84 V16 A8 8 0 0 1 18 8 Z'; // rounded square
+  // decorative band/emblem overlays (clipped to shield)
+  let deco='';
+  if(emblem===0) deco=`<rect x="0" y="34" width="100" height="16" fill="${c2}" opacity="0.9"/>`;                 // horizontal bar
+  else if(emblem===1) deco=`<path d="M0 0 L100 100 M100 0 L0 100" stroke="${c2}" stroke-width="10" opacity="0.55"/>`; // saltire
+  else if(emblem===2) deco=`<path d="M50 8 L60 30 L84 33 L66 50 L72 74 L50 62 L28 74 L34 50 L16 33 L40 30 Z" fill="${c2}" opacity="0.9"/>`; // star
+  else if(emblem===3) deco=`<path d="M10 20 Q50 44 90 20 L90 34 Q50 58 10 34 Z" fill="${c2}" opacity="0.85"/>`;  // chevron band
+  else if(emblem===4) deco=`<circle cx="50" cy="46" r="20" fill="none" stroke="${c2}" stroke-width="6" opacity="0.85"/>`; // roundel
+  else deco=`<rect x="42" y="0" width="16" height="100" fill="${c2}" opacity="0.6"/><rect x="20" y="0" width="10" height="100" fill="${c2}" opacity="0.35"/><rect x="70" y="0" width="10" height="100" fill="${c2}" opacity="0.35"/>`; // vertical stripes
+  const stars = (h>>7)%3; let topStars='';
+  for(let i=0;i<stars;i++){ const cx=50+(i-(stars-1)/2)*12; topStars+=`<path d="M${cx} 6 l2 4 4.5 .5 -3.3 3.1 .9 4.4 -4.1 -2.2 -4.1 2.2 .9 -4.4 -3.3 -3.1 4.5 -.5 Z" fill="${ink}" opacity="0.9"/>`; }
   return `<svg viewBox="0 0 100 108" width="${s}" height="${s*1.16}" xmlns="http://www.w3.org/2000/svg">
-    <defs><linearGradient id="g${id}" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="${club.c1}"/><stop offset="100%" stop-color="${club.c2}"/></linearGradient></defs>
-    ${inner}
-    <text x="50" y="60" font-family="Arial Black,Arial" font-size="26" font-weight="900" fill="#fff" text-anchor="middle" stroke="#000" stroke-width="0.6" style="paint-order:stroke">${init}</text>
-    <circle cx="50" cy="22" r="3.4" fill="#fff" opacity="0.9"/>
+    <defs>
+      <linearGradient id="g${id}" x1="0" y1="0" x2="0.4" y2="1"><stop offset="0%" stop-color="${c1}"/><stop offset="100%" stop-color="${shade(c1,0.7)}"/></linearGradient>
+      <clipPath id="cl${id}"><path d="${outline}"/></clipPath>
+    </defs>
+    <path d="${outline}" fill="url(#g${id})"/>
+    <g clip-path="url(#cl${id})">${deco}<rect width="100" height="16" fill="#ffffff" opacity="0.08"/></g>
+    <path d="${outline}" fill="none" stroke="${stroke}" stroke-width="3"/>
+    <path d="${outline}" fill="none" stroke="${c2}" stroke-width="1" opacity="0.6"/>
+    <g clip-path="url(#cl${id})"><rect x="24" y="40" width="52" height="26" rx="5" fill="${shade(c1,0.55)}" opacity="0.55"/></g>
+    <text x="50" y="61" font-family="Arial Black,Arial,sans-serif" font-size="25" font-weight="900" fill="${ink}" text-anchor="middle" stroke="${c1}" stroke-width="0.5" style="paint-order:stroke" letter-spacing="-1">${init}</text>
+    ${topStars}
+    <text x="50" y="86" font-family="Arial,sans-serif" font-size="7" font-weight="800" fill="${ink}" text-anchor="middle" opacity="0.75" letter-spacing="1">${(h%40)+1880}</text>
   </svg>`;
 }
+function shade(hex,f){const n=parseInt(hex.slice(1),16);let R=((n>>16)&255)*f,G=((n>>8)&255)*f,B=(n&255)*f;return`rgb(${R|0},${G|0},${B|0})`;}
 function kitSVG(club,size){
   const s=size||100, id='k'+(hashStr(club.name)%99999);
   const pat=hashStr(club.name)%3;
@@ -959,6 +1036,13 @@ function toast(msg,icon){const t=$('#toast');t.innerHTML=(icon?icon+' ':'')+msg;
 const TIPS=['Loading face-scan data…','Syncing transfer market…','Compiling tactical systems…','Rendering 5 leagues…','Preparing International mode…','Polishing the trophy cabinet…'];
 window.addEventListener('load',()=>{
   Game.init();
+  // spawn floating spark particles for the cinematic intro
+  const sp=$('#sparks');
+  if(sp){ for(let i=0;i<26;i++){ const d=document.createElement('div'); d.className='spark3d';
+    d.style.left=(8+Math.random()*84)+'%'; d.style.top=(50+Math.random()*40)+'%';
+    d.style.animationDuration=(2.4+Math.random()*3)+'s'; d.style.animationDelay=(Math.random()*3)+'s';
+    const c=['var(--acc)','var(--acc2)','#ffffff']; const col=c[i%3]; d.style.background=col; d.style.boxShadow='0 0 8px '+col;
+    sp.appendChild(d); } }
   let p=0,ti=0;
   const bar=$('#introBar'), tip=$('#introTip');
   const iv=setInterval(()=>{
