@@ -676,6 +676,27 @@ const LEAGUES = [
     }
   });
 })();
+/* --- second divisions + promotion/relegation links --- */
+(function buildTiers(){
+  const CITY2=['Marlowe','Kirby','Ravenna','Stanhope','Beckworth','Derwent','Cranfield','Hollowmere','Aldervale','Prescott','Bramford','Oakhurst','Thornwick','Wyndham','Ellsmere','Caldwell','Ferndale','Rushmoor','Selkirk','Brackley','Cobham','Denholm','Fairhaven','Grimsby','Havelock','Ledbury','Morwell','Norbury','Ottersby','Pemberton'];
+  const SUF=['United','City','Town','Rovers','Athletic','Albion','County','FC','Wanderers'];
+  const PAL=[['#7a1030','#ffcc00'],['#0a5cae','#ffffff'],['#146b3a','#ffffff'],['#2a3550','#e6b400'],['#8a1e03','#ffffff'],['#4d1f8c','#e6e6ee'],['#0f6b52','#ffe066'],['#b8481f','#141824'],['#1d4ed8','#e6b400'],['#333a4a','#3fd0e6']];
+  const usedNames=new Set(),usedShorts=new Set();
+  LEAGUES.forEach(l=>{l.tier=1; l.clubs.forEach(c=>{usedNames.add(c.name);usedShorts.add(c.short);});});
+  let ci=0; const tier2=[];
+  LEAGUES.slice().forEach(l1=>{
+    const r=seeded('t2-'+l1.id); const id2=l1.id+'2';
+    const l2={id:id2,name:l1.name.replace(/League|Serie|Primera|Klasse|Élite|Prime/,'').trim()+' Championship',flag:l1.flag,color:'#3a2f14',nat:l1.nat,tier:2,promoteTo:l1.id,clubs:[]};
+    l1.relegateTo=id2;
+    while(l2.clubs.length<20){ const city=CITY2[ci%CITY2.length]; ci++;
+      let name=city+' '+SUF[Math.floor(r()*SUF.length)]; let g=0; while(usedNames.has(name)){name=city+' '+SUF[(Math.floor(r()*SUF.length)+ ++g)%SUF.length]; if(g>SUF.length)break;} usedNames.add(name);
+      let short=city.slice(0,3).toUpperCase(),t=0; while(usedShorts.has(short)){short=city.slice(0,2).toUpperCase()+String.fromCharCode(65+((hashStr(name)+t++)%26));} usedShorts.add(short);
+      const pal=PAL[Math.floor(r()*PAL.length)];
+      l2.clubs.push(C(name,short,pal[0],pal[1],clamp(70-Math.floor(l2.clubs.length/2)+ri(r,-1,1),56,70))); }
+    tier2.push(l2);
+  });
+  tier2.forEach(l=>LEAGUES.push(l));
+})();
 
 /* ============================================================
    PROCEDURAL FACE "SCAN" GENERATOR  (stylized SVG portrait)
@@ -1850,8 +1871,9 @@ function addDays(d,n){const x=new Date(d);x.setDate(x.getDate()+n);return x;}
 const COMP_COLOR={'League':'#c6ff2e','Champions Cup':'#00e5ff','Domestic Cup':'#ff2e88'};
 const COMP_SHORT={'League':'LEAGUE','Champions Cup':'UCL','Domestic Cup':'CUP'};
 Game.qualifiedForCC=function(){
-  if(this.state.seasonNum>1 && this.state.lastPos) return this.state.lastPos<=4;
   const lg=this.leagueOf(this.state.club);
+  if((lg.tier||1)!==1) return false; // only the top flight qualifies
+  if(this.state.seasonNum>1 && this.state.lastPos!=null && !this._justPromoted) return this.state.lastPos<=4;
   const rank=lg.clubs.slice().sort((a,b)=>b.ovr-a.ovr).findIndex(c=>c.name===this.state.club)+1;
   return rank<=4;
 };
@@ -1876,7 +1898,7 @@ Game.buildUserSeason=function(){
 };
 Game.setupChampionsCup=function(fx,start){
   const r=seeded('cc-'+this.state.seasonNum+this.state.club);
-  const all=[]; LEAGUES.forEach(l=>l.clubs.forEach(c=>all.push(c.name)));
+  const all=[]; LEAGUES.filter(l=>(l.tier||1)===1).forEach(l=>l.clubs.forEach(c=>all.push(c.name)));
   let pool=all.filter(n=>n!==this.state.club).sort((a,b)=>this.clubOf(b).ovr-this.clubOf(a).ovr).slice(0,31);
   let field=[this.state.club,...pool];
   for(let i=field.length-1;i>0;i--){const j=Math.floor(r()*(i+1));[field[i],field[j]]=[field[j],field[i]];}
@@ -2327,15 +2349,32 @@ Game.advanceWeek=function(){
     this.state.weekIndex[l.id]++;
   });
 };
+Game.promoRelegation=function(){
+  const N=3; // clubs swapped each way
+  const byId={}; LEAGUES.forEach(l=>byId[l.id]=l);
+  LEAGUES.filter(l=>l.tier===1 && l.relegateTo && byId[l.relegateTo]).forEach(t1=>{
+    const t2=byId[t1.relegateTo];
+    const t1rank=Object.values(this.state.tables[t1.id]).sort(this.sortTable).map(x=>x.name);
+    const t2rank=Object.values(this.state.tables[t2.id]).sort(this.sortTable).map(x=>x.name);
+    const down=t1rank.slice(-N), up=t2rank.slice(0,N);
+    // move objects between the clubs arrays
+    down.forEach(name=>{ const i=t1.clubs.findIndex(c=>c.name===name); if(i>=0){ const c=t1.clubs.splice(i,1)[0]; t2.clubs.push(c); this.allClubs[name].league=t2; } });
+    up.forEach(name=>{ const i=t2.clubs.findIndex(c=>c.name===name); if(i>=0){ const c=t2.clubs.splice(i,1)[0]; t1.clubs.push(c); this.allClubs[name].league=t1; } });
+    // user news
+    if(down.includes(this.state.club)){ this.addNews('season',`Relegation heartbreak for ${this.clubOf(this.state.club).short}`,`Dropping into the ${t2.name}. A rebuild — and a promotion push — awaits.`,''); this.pushMail('Club Board','Relegation','A difficult season ends in relegation. The board expects an immediate return to the top flight.'); }
+    if(up.includes(this.state.club)){ this.addNews('season',`Promotion! ${this.clubOf(this.state.club).short} go up`,`Sealing promotion to the ${t1.name}. The big time beckons.`,''); this.pushMail('Club Board','Promotion secured','Congratulations on promotion. Let\'s establish ourselves at this level.'); }
+  });
+};
 Game.newSeason=function(){
   const myLg=this.leagueOf(this.state.club);
   const finalTable=Object.values(this.state.tables[myLg.id]).sort(this.sortTable);
   const myPos=finalTable.findIndex(t=>t.name===this.state.club)+1;
-  // award league trophies
+  // award league trophies (top-flight only)
   LEAGUES.forEach(l=>{
     const champ=Object.values(this.state.tables[l.id]).sort(this.sortTable)[0];
     if(champ.name===this.state.club){ this.awardTrophy(l.name); }
   });
+  this.promoRelegation();
   // season awards (golden boot etc) from stats
   this.computeAwards();
   // player development + retirement (applies to the whole world so values/ratings track)
@@ -2444,10 +2483,17 @@ Game.clubRank=function(name){ const lg=this.leagueOf(name); const rows=Object.va
 Game.clubRankLabel=function(name){ const p=this.clubRank(name); const played=this.state.tables[this.leagueOf(name).id][name].P; return played>0?`${p}${ordinal(p)}`:'Preseason'; };
 Game.renderTable=function(v){
   this.setCrumbs('Competitions','Standings');
-  const active=this.selTableLeague||this.leagueOf(this.state.club).id;
-  v.innerHTML=`<div class="view-head"><div><div class="kicker">Competitions</div><h2>League Standings</h2><div class="sub">Live tables across every league you follow.</div></div></div>`;
+  const t1s=LEAGUES.filter(l=>(l.tier||1)===1);
+  const myLg=this.leagueOf(this.state.club);
+  const myRegion=(myLg.tier===2?myLg.promoteTo:myLg.id);
+  if(!this.selRegion) this.selRegion=myRegion;
+  if(this.selTier==null) this.selTier=myLg.tier||1;
+  const region=t1s.find(l=>l.id===this.selRegion)||t1s[0];
+  const active = this.selTier===2 ? region.relegateTo : region.id;
+  v.innerHTML=`<div class="view-head"><div><div class="kicker">Competitions</div><h2>League Standings</h2><div class="sub">Two divisions per nation · promotion & relegation between them.</div></div>
+    <div class="seg">${[[1,'First Division'],[2,'Second Division']].map(x=>`<button class="${this.selTier===x[0]?'on':''}" onclick="Game.selTier=${x[0]};Game.go('table')">${x[1]}</button>`).join('')}</div></div>`;
   const tabs=el('div','league-tabs');
-  LEAGUES.forEach(l=>{const t=el('button','ltab'+(l.id===active?' on':''),`<span style="width:20px;height:14px;display:inline-block">${flagSVG(l.flag,20)}</span>${l.name}`);t.onclick=()=>{this.selTableLeague=l.id;this.go('table')};tabs.appendChild(t)});
+  t1s.forEach(l=>{const t=el('button','ltab'+(l.id===region.id?' on':''),`<span style="width:20px;height:14px;display:inline-block">${flagSVG(l.flag,20)}</span>${l.name.replace(/ (League|Serie|Klasse|Primera|Élite|Prime)$/,'')}`);t.onclick=()=>{this.selRegion=l.id;this.go('table')};tabs.appendChild(t)});
   v.appendChild(tabs);
   const lg=LEAGUES.find(l=>l.id===active);
   const rows=Object.values(this.state.tables[active]).sort(this.sortTable);
