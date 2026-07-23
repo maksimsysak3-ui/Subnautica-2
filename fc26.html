@@ -486,7 +486,24 @@ const NATIONS = {
   MAR:{name:'Morocco',c1:'#c1272d',c2:'#006233'},
   JPN:{name:'Japan',c1:'#0033a0',c2:'#ffffff'},
   SEN:{name:'Senegal',c1:'#00853f',c2:'#fdef42'},
-  MEX:{name:'Mexico',c1:'#006847',c2:'#ce1126'}
+  MEX:{name:'Mexico',c1:'#006847',c2:'#ce1126'},
+  USA:{name:'USA',c1:'#3c3b6e',c2:'#b22234'},
+  COL:{name:'Colombia',c1:'#fcd116',c2:'#003893'},
+  DEN:{name:'Denmark',c1:'#c60c30',c2:'#ffffff'},
+  SUI:{name:'Switzerland',c1:'#d52b1e',c2:'#ffffff'},
+  NGA:{name:'Nigeria',c1:'#008751',c2:'#ffffff'},
+  KOR:{name:'South Korea',c1:'#ffffff',c2:'#cd2e3a'},
+  NOR:{name:'Norway',c1:'#ba0c2f',c2:'#00205b'},
+  SWE:{name:'Sweden',c1:'#006aa7',c2:'#fecc00'},
+  POL:{name:'Poland',c1:'#ffffff',c2:'#dc143c'},
+  AUS:{name:'Australia',c1:'#00843d',c2:'#ffcd00'},
+  GHA:{name:'Ghana',c1:'#006b3f',c2:'#fcd116'},
+  ECU:{name:'Ecuador',c1:'#ffdd00',c2:'#034ea2'},
+  AUT:{name:'Austria',c1:'#ed2939',c2:'#ffffff'},
+  TUR:{name:'Türkiye',c1:'#e30a17',c2:'#ffffff'},
+  SCO:{name:'Scotland',c1:'#005eb8',c2:'#ffffff'},
+  CIV:{name:'Ivory Coast',c1:'#f77f00',c2:'#009e60'},
+  SRB:{name:'Serbia',c1:'#c6363c',c2:'#0c4076'}
 };
 const NATION_KEYS = Object.keys(NATIONS);
 const FIRST_NAMES = ['Adrien','Mateo','Luka','Kian','Renzo','Milos','Tariq','Emile','Nuno','Dario','Yannick','Sten','Oskar','Vito','Andrei','Kaito','Silas','Samir','Ravi','Nolan','Elias','Bruno','Marco','Ivo','Teo','Aleks','Cato','Remy','Sol','Nael','Dino','Piet','Kofi','Amaro','Enzo','Lior','Vasco','Dane','Ugo','Casimir','Hadi','Osei','Leon','Rafa','Niko','Bastian','Corin','Emeka'];
@@ -1053,8 +1070,9 @@ Game.renderHub=function(v){
         <div class="glow"></div>
         <div class="kicker">Manager Career</div>
         <h1>BUILD A<br>DYNASTY</h1>
-        <p>Take control of any club across five of the world's greatest leagues. Sign superstars, craft tactics, survive the drama, and chase every trophy.</p>
-        <div><button class="btn primary">${started?'Continue as '+this.clubOf(this.state.club).short:'Start Career'} →</button></div>
+        <p>Take control of any club across six leagues of 20 teams. Sign superstars, craft tactics, develop wonderkids, survive the drama, and chase every trophy.</p>
+        <div style="display:flex;gap:10px"><button class="btn primary">${started?'Continue as '+this.clubOf(this.state.club).short:'Start Career'} →</button>
+        ${(!started&&this.hasSave())?`<button class="btn" onclick="event.stopPropagation();Game.loadGame()">Load Saved Career</button>`:''}</div>
       </div>
       <div class="hub-tiles">
         <div class="hub-tile" onclick="Game.go('transfers')"><div class="em" style="color:var(--acc)">${ic(ICONS.transfers,28)}</div><div><h3>Transfer Centre</h3><p>Scout, negotiate, and hijack deals</p></div><div class="arw">→</div></div>
@@ -1432,48 +1450,125 @@ Game.findPlayer=function(id){
   return null;
 };
 Game.negotiate=function(id){
-  const p=this.findPlayer(id); if(!p)return;
-  const fee=Math.round(p.value*(1.05+Math.random()*0.35)/1e5)*1e5;
+  const p=this.findPlayer(id); if(!p||p.club===this.state.club)return;
   const r=seeded('nego-'+id+this.state.playedMatches);
+  const prem = p.ovr>=88?0.35:p.ovr>=84?0.22:p.ovr>=80?0.12:0.05;
+  const sellerMin = Math.round(p.value*(1+prem)/1e5)*1e5;
+  this.nego={ id, min:sellerMin, ask:Math.round(sellerMin*(1.12+r()*0.15)/1e5)*1e5, cash:Math.round(sellerMin*0.7/1e5)*1e5,
+    swaps:[], anger:0, rounds:0, preferCash:r()<0.4, msg:'The selling club await your opening bid.', dealOff:false, accepted:false };
+  this.renderNego();
+};
+Game.negoOfferValue=function(){ const n=this.nego; const disc=n.preferCash?0.6:0.82;
+  return n.cash + n.swaps.reduce((s,pid)=>{const p=this.findPlayer(pid);return s+(p?p.value*disc:0)},0); };
+Game.renderNego=function(){
+  const n=this.nego, p=this.findPlayer(n.id); if(!p)return;
+  const mySquad=Game.squad(this.state.club).filter(x=>!n.swaps.includes(x.id));
+  const offerVal=this.negoOfferValue();
+  const overBudget=n.cash>this.state.budget;
+  const swapCards=n.swaps.map(pid=>{const sp=this.findPlayer(pid);return `<span class="badge" style="cursor:pointer" onclick='Game.negoSwap("${pid}")'>${sp.last} ${sp.ovr} ✕</span>`}).join(' ')||'<span style="color:var(--dim2);font-size:12px">none</span>';
+  const step=Math.max(5e5,Math.round(n.min*0.05/5e5)*5e5);
   this.openModalHTML(`
     <div class="pcard-top"><div class="pcard-glow"></div>
       <div class="big-face">${faceSVG(p.seed,150)}</div>
-      <div class="pcard-info"><div class="kicker">Transfer Negotiation</div><h2>${p.name}</h2>
-        <div class="row">${span(flagSVG(p.nat,20))} ${natName(p.nat)} · ${p.pos} · Age ${p.age} · from ${this.clubOf(p.club).name}</div>
+      <div class="pcard-info"><div class="kicker">Negotiation · ${this.clubOf(p.club).name}</div><h2>${p.name}</h2>
+        <div class="row">${span(flagSVG(p.nat,20))} ${natName(p.nat)} · ${p.pos} · Age ${p.age} · Value ${money(p.value)}</div>
+        <div class="row"><span class="badge ${n.preferCash?'bad':'good'}">${n.preferCash?'Prefers cash only':'Open to part-exchange'}</span><span class="badge gold">Asking ${money(n.ask)}</span></div>
         <div class="big-ovr"><div class="n">${p.ovr}</div><div class="l">OVR</div></div></div>
     </div>
-    <div style="padding:0 28px 24px">
+    <div style="padding:4px 28px 26px">
+      <div style="margin:6px 0 14px"><div style="display:flex;justify-content:space-between;font-size:12px;color:var(--dim);margin-bottom:6px"><span>Club patience</span><b style="color:${n.anger>66?'var(--bad)':n.anger>33?'var(--warn)':'var(--good)'}">${n.anger>80?'Furious':n.anger>55?'Irritated':n.anger>25?'Wary':'Receptive'}</b></div>
+        <div class="anger-track"><i style="width:${clamp(n.anger,3,100)}%"></i></div></div>
+      <div style="background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:13px 15px;font-size:13.5px;margin-bottom:16px">${n.msg}</div>
       <div class="stat-row" style="grid-template-columns:1fr 1fr">
-        <div class="stat-box"><div class="k">Asking Price</div><div class="v" style="color:var(--acc)">${money(fee)}</div></div>
-        <div class="stat-box"><div class="k">Weekly Wage</div><div class="v">${wage(Math.round(p.wage*1.15))}</div></div>
+        <div class="stat-box"><div class="k">Your Cash Offer</div><div class="v" style="color:${overBudget?'var(--bad)':'var(--acc)'}">${money(n.cash)}</div>
+          <div style="display:flex;gap:6px;margin-top:8px"><button class="btn sm ghost" onclick="Game.negoCash(${-step})">−</button><button class="btn sm ghost" onclick="Game.negoCash(${step})">+</button><button class="btn sm ghost" onclick="Game.negoCash(${n.min-n.cash})">Match</button></div></div>
+        <div class="stat-box"><div class="k">Total Package Value</div><div class="v">${money(Math.round(offerVal))}</div>
+          <div style="font-size:11px;color:var(--dim);margin-top:8px">vs their floor ${money(n.min)}</div></div>
       </div>
-      <div style="margin:16px 0;color:var(--dim);font-size:13px">Your budget: <b style="color:var(--txt)">${money(this.state.budget)}</b>. ${fee>this.state.budget?'<span style="color:var(--bad)">This deal exceeds your budget.</span>':'You can afford this transfer.'}</div>
-      <div style="display:flex;gap:10px">
-        <button class="btn primary" ${fee>this.state.budget?'style="opacity:.4;pointer-events:none"':''} onclick='Game.completeTransfer("${id}",${fee})'>Complete Signing</button>
-        <button class="btn" onclick='Game.lowball("${id}",${fee})'>Make Cheeky Bid</button>
+      <div style="margin:16px 0 8px;font-size:12px;color:var(--dim);text-transform:uppercase;letter-spacing:.1em">Players offered in exchange</div>
+      <div style="margin-bottom:10px">${swapCards}</div>
+      <select class="filter-sel" style="width:100%" onchange="if(this.value)Game.negoSwap(this.value);this.selectedIndex=0">
+        <option value="">+ Add a player to the deal…</option>
+        ${mySquad.sort((a,b)=>b.ovr-a.ovr).map(sp=>`<option value="${sp.id}">${sp.name} · ${sp.pos} · ${sp.ovr} · ${money(sp.value)}</option>`).join('')}
+      </select>
+      <div style="margin:18px 0 6px;color:var(--dim);font-size:12.5px">Budget: <b style="color:${overBudget?'var(--bad)':'var(--txt)'}">${money(this.state.budget)}</b></div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <button class="btn primary" ${overBudget||n.dealOff?'style="opacity:.4;pointer-events:none"':''} onclick="Game.negoSubmit()">Submit Offer</button>
         <button class="btn ghost" onclick="Game.closeModal()">Walk Away</button>
       </div>
     </div>`);
 };
-Game.lowball=function(id,fee){
-  const r=Math.random();
-  if(r<0.4){ toast('Bid accepted! Negotiating personal terms…'); this.completeTransfer(id,Math.round(fee*0.82)); }
-  else { toast('Bid rejected — they want full price.',''); }
+Game.negoCash=function(d){ this.nego.cash=clamp(Math.round((this.nego.cash+d)/1e5)*1e5,0,this.state.budget); this.renderNego(); };
+Game.negoSwap=function(pid){ const n=this.nego; const i=n.swaps.indexOf(pid); if(i>=0)n.swaps.splice(i,1); else n.swaps.push(pid); this.renderNego(); };
+Game.negoSubmit=function(){
+  const n=this.nego, p=this.findPlayer(n.id); n.rounds++;
+  const r=seeded('negosub-'+n.id+n.rounds+Math.random());
+  const offer=this.negoOfferValue();
+  const ratio=offer/n.min;
+  if(n.preferCash && n.swaps.length){ n.anger=clamp(n.anger+16,0,100); }
+  if(ratio>=1.0){
+    n.accepted=true; this.state.budget-=n.cash;
+    n.swaps.forEach(pid=>{ const sp=Game.squad(this.state.club); const idx=sp.findIndex(x=>x.id===pid); if(idx>=0){const pl=sp.splice(idx,1)[0]; pl.club=p.club; Game.squad(p.club).push(pl);} });
+    this.completeTransfer(n.id, n.cash, true);
+    return;
+  }
+  if(ratio>=0.9){ n.anger=clamp(n.anger+12,0,100); n.min=Math.round(n.min*0.98/1e5)*1e5; n.ask=n.min;
+    n.msg=`Close. They'll do the deal for <b>${money(n.min)}</b> — meet it and he's yours.`; }
+  else if(ratio>=0.72){ n.anger=clamp(n.anger+22,0,100); n.ask=Math.round(n.min*1.03/1e5)*1e5;
+    n.msg=`Not enough. They counter at <b>${money(n.ask)}</b> and want more cash in the package.`; }
+  else { n.anger=clamp(n.anger+34,0,100); n.msg=`Insulting. That bid is nowhere near their valuation of ${money(n.min)}.`; }
+  if(n.anger>=100){ n.dealOff=true; n.msg=`Negotiations collapse — the club have ended talks. Try again after the next match.`; toast('Talks broke down.'); }
+  this.renderNego();
 };
-Game.completeTransfer=function(id,fee){
+Game.sellPlayer=function(id){
+  const p=this.findPlayer(id); if(!p||p.club!==this.state.club)return;
+  const r=seeded('sell-'+id+this.state.playedMatches);
+  // find an interested AI club (needs the position, can roughly afford)
+  const clubs=[]; LEAGUES.forEach(l=>l.clubs.forEach(c=>{ if(c.name!==this.state.club) clubs.push(c); }));
+  const buyer=pick(r,clubs.filter(c=>c.budget>=p.value*0.4).sort((a,b)=>Math.abs(a.ovr-p.ovr)-Math.abs(b.ovr-p.ovr)).slice(0,10)||clubs);
+  const bid=Math.round(p.value*(0.78+r()*0.4)/1e5)*1e5;
+  this.openModalHTML(`<div style="padding:28px">
+    <div class="kicker">Outgoing Transfer</div><h2 style="margin:6px 0 4px">Sell ${p.name}?</h2>
+    <div style="color:var(--dim);font-size:13px;margin-bottom:18px">${p.pos} · Age ${p.age} · OVR ${p.ovr} · Valued at ${money(p.value)}</div>
+    <div style="display:flex;align-items:center;gap:16px;padding:16px;border:1px solid var(--line);border-radius:14px;background:var(--panel2)">
+      <div style="width:44px;height:50px">${crestSVG(buyer,44)}</div>
+      <div><div style="font-weight:800">${buyer.name} table an offer</div><div style="color:var(--dim);font-size:12px">A ${buyer.ovr}-rated side looking to strengthen.</div></div>
+      <div style="margin-left:auto;text-align:right"><div style="font-size:10px;color:var(--dim)">BID</div><b style="color:var(--acc);font-size:20px">${money(bid)}</b></div>
+    </div>
+    <div style="display:flex;gap:10px;margin-top:18px">
+      <button class="btn primary" onclick='Game.confirmSale("${id}","${buyer.name}",${bid})'>Accept ${money(bid)}</button>
+      <button class="btn ghost" onclick="Game.closeModal()">Reject</button>
+    </div></div>`);
+};
+Game.confirmSale=function(id,buyerName,bid){
   const p=this.findPlayer(id); if(!p)return;
-  if(fee>this.state.budget){toast('Not enough budget.');return}
+  const sq=Game.squad(this.state.club); const idx=sq.findIndex(x=>x.id===id);
+  if(idx<0)return;
+  // don't leave XI short — will be backfilled by ensureLineup
+  const pl=sq.splice(idx,1)[0]; pl.club=buyerName; Game.squad(buyerName).push(pl);
+  this.state.budget+=bid; this._pool=null;
+  const L=this.state.lineup; if(L){ L.starters=L.starters.filter(x=>x!==id); L.subs=L.subs.filter(x=>x!==id); }
+  this.ensureLineup();
+  this.addNews('transfer',`${p.name} departs ${this.clubOf(this.state.club).short} for ${this.clubOf(buyerName).short}`,`The ${p.ovr}-rated ${p.pos} leaves for ${money(bid)}, boosting the transfer kitty.`,'');
+  this.closeModal(); toast(`${p.name} sold for ${money(bid)}.`); this.autosave();
+  this.go(this.current==='squad'?'squad':'transfers');
+};
+Game.completeTransfer=function(id,fee,alreadyPaid){
+  const p=this.findPlayer(id); if(!p)return;
+  if(!alreadyPaid && fee>this.state.budget){toast('Not enough budget.');return}
   // remove from old club, add to yours
   const old=Game.squad(p.club); const idx=old.indexOf(p); if(idx>=0)old.splice(idx,1);
   p.club=this.state.club; Game.squad(this.state.club).unshift(p);
   Game.squad(this.state.club).sort((a,b)=>b.ovr-a.ovr);
-  this.state.budget-=fee;
+  if(!alreadyPaid) this.state.budget-=fee;
   this._pool=null;
+  // add newcomer to bench so lineup stays valid
+  if(this.state.lineup && !this.state.lineup.starters.includes(p.id) && !this.state.lineup.subs.includes(p.id)) this.state.lineup.subs.unshift(p.id);
   this.state.transfersDone.push({name:p.name,fee,ovr:p.ovr,seed:p.seed});
   this.state.morale=clamp(this.state.morale+3,0,100); this.state.fanHappiness=clamp(this.state.fanHappiness+4,0,100);
   this.addNews('transfer',`${this.clubOf(this.state.club).name} complete the signing of ${p.name}`,`The ${p.ovr}-rated ${p.pos} joins for ${money(fee)} in a statement of intent from the ownership.`,'');
   this.closeModal();
-  toast(`${p.name} signed for ${money(fee)}!`);
+  toast(`${p.name} signed for ${money(fee)}!`); this.autosave();
   this.go('transfers');
 };
 Game.showMyTransfers=function(){
@@ -1516,10 +1611,43 @@ Game.renderFixtures=function(v){
   v.appendChild(container);
 };
 
+/* ---------------- PRE / POST MATCH PRESS ---------------- */
+Game.matchPress=function(kind,ctx,cb){
+  const r=seeded('mp-'+kind+this.state.playedMatches+(ctx.opp||''));
+  let q, ans;
+  if(kind==='pre'){
+    const opp=ctx.opp;
+    q=pick(r,[`How do you approach today's clash with ${opp}?`,`${opp} away — is this a must-win?`,`The fans expect three points here. Feeling the pressure?`]);
+    ans=[{tone:'calm',t:"We respect them, but we focus on our own game.",m:{morale:2}},
+         {tone:'bold',t:"We're going for the win — front foot from minute one.",m:{morale:4,fans:3}},
+         {tone:'fiery',t:"If we play our football, they can't live with us.",m:{fans:5,morale:-2}}];
+  } else {
+    const won=ctx.res>0, drew=ctx.res===0;
+    q= won?pick(r,['A big win — what pleased you most?','Another three points. Delighted?'])
+        : drew?pick(r,['A share of the spoils — fair result?','A draw. Two points dropped or one gained?'])
+        : pick(r,['A tough defeat. Where did it go wrong?','Beaten today — how do you respond?']);
+    ans= won?[{tone:'calm',t:"Credit to the players — a professional job.",m:{morale:3,board:2}},{tone:'bold',t:"That's a statement of our ambitions this year.",m:{fans:5,morale:2}},{tone:'fiery',t:"Let the rest of the league take note.",m:{fans:6,board:-2}}]
+       : drew?[{tone:'calm',t:"We take the point and move on.",m:{board:1}},{tone:'bold',t:"We should have won it — we'll keep creating chances.",m:{morale:2}},{tone:'fiery',t:"Frankly the officials cost us today.",m:{fans:3,board:-3}}]
+       : [{tone:'calm',t:"We'll review it honestly and go again.",m:{board:2,morale:1}},{tone:'bold',t:"My responsibility. We'll bounce back next week.",m:{fans:3,board:1}},{tone:'fiery',t:"That performance was unacceptable and they know it.",m:{morale:-4,board:2}}];
+  }
+  const idx=Math.floor(r()*1000);
+  this.openModalHTML(`<div style="padding:26px">
+    <div class="kicker">${kind==='pre'?'Pre-Match Press':'Post-Match Press'}</div>
+    <div class="q-bubble" style="margin-top:12px"><div class="rep">${faceSVG('rep'+idx,44)}</div><div><div class="who">Press Room</div><div class="q">${q}</div></div></div>
+    <div class="answers" id="mpAns"></div></div>`);
+  const box=$('#mpAns');
+  ans.forEach(a=>{ const btn=el('button','answer',`<span class="tone tone-${a.tone}">${a.tone}</span><span>${a.t}</span>`);
+    btn.onclick=()=>{ if(a.m.morale)this.state.morale=clamp(this.state.morale+a.m.morale,0,100);
+      if(a.m.fans)this.state.fanHappiness=clamp(this.state.fanHappiness+a.m.fans,0,100);
+      if(a.m.board)this.state.boardConfidence=clamp(this.state.boardConfidence+(a.m.board||0),0,100);
+      this.closeModal(); if(cb)cb(); };
+    box.appendChild(btn); });
+};
 /* ---------------- MATCH PLAY ---------------- */
 Game.playMatch=function(){
   const fx=this.nextFixture(); if(!fx){toast('No match to play.');return}
-  this.runMatchSim(fx.home,fx.away,true);
+  const opp=fx.home===this.state.club?fx.away:fx.home;
+  this.matchPress('pre',{opp:this.clubOf(opp).short}, ()=>this.runMatchSim(fx.home,fx.away,true));
 };
 Game.simMatchQuick=function(){
   const fx=this.nextFixture(); if(!fx)return;
@@ -1595,9 +1723,62 @@ Game.finishMatch=function(){
     const scr=res.scorers.filter(s=>(s.team==='H')===(res.home===me));
     if(myG>opG) this.addNews('match',`${this.clubOf(me).short} win ${myG}-${opG}`,`${scr.map(s=>s.player).join(', ')||'A solid team display'} sealed the points. The dressing room is buzzing.`);
     else if(myG<opG) this.addNews('match',`${this.clubOf(me).short} slip to ${opG}-${myG} defeat`,`Questions will be asked after a disappointing result. The manager faces the media.`);
+    this.maybeGenerateDrama();
+    this.autosave();
+    // post-match press, then continue
+    this.matchPress('post',{res:myG-opG}, ()=>{ if(!this.nextFixture()) this.endOfLeagueSeason(); else this.go('career'); });
+    return;
   }
   this.maybeGenerateDrama();
   this.go('career');
+};
+/* when the league campaign ends, run continental knockouts before the new season */
+Game.endOfLeagueSeason=function(){
+  this.simContinental();
+};
+Game.qualifiers=function(){
+  const cont=[], chal=[];
+  LEAGUES.forEach(l=>{ const t=Object.values(this.state.tables[l.id]).sort(this.sortTable);
+    t.slice(0,4).forEach(x=>cont.push(x.name)); t.slice(4,6).forEach(x=>chal.push(x.name)); });
+  return {cont, chal};
+};
+Game.knockoutClubs=function(field, seed){
+  const r=seeded(seed); field=field.slice(0,16);
+  const strength=n=>teamStrength(n).overall;
+  const play=(a,b)=>{ const ea=strength(a)/(strength(a)+strength(b));
+    let sa=Math.max(0,Math.round(ea*2.7+(r()-0.5)*2.2)), sb=Math.max(0,Math.round((1-ea)*2.7+(r()-0.5)*2.2));
+    let w,pens=false; if(sa===sb){pens=true;w=r()<ea?a:b} else w=sa>sb?a:b; return {a,b,sa,sb,w,pens}; };
+  let round=field.slice(); const stages=['R16','QF','SF','Final']; const ko={}; let si=0;
+  while(round.length>1){ const nx=[],g=[]; for(let i=0;i<round.length;i+=2){const m=play(round[i],round[i+1]);g.push(m);nx.push(m.w)} ko[stages[si++]]=g; round=nx; }
+  return {champion:round[0], ko};
+};
+Game.simContinental=function(){
+  const q=this.qualifiers();
+  const contField=[...q.cont].sort((a,b)=>this.clubOf(b).ovr-this.clubOf(a).ovr).slice(0,16);
+  const rest=q.cont.filter(n=>!contField.includes(n));
+  const chalField=[...q.chal,...rest].slice(0,16);
+  const continental=this.knockoutClubs(contField,'cont-'+this.state.seasonNum);
+  const challenger=this.knockoutClubs(chalField,'chal-'+this.state.seasonNum);
+  this.state.cl={continental,challenger,contField,chalField,myInCont:contField.includes(this.state.club),myInChal:chalField.includes(this.state.club)};
+  if(continental.champion===this.state.club){ this.awardTrophy('Continental Cup'); this.state.budget+=120e6; }
+  else if(challenger.champion===this.state.club){ this.awardTrophy('Challenger Cup'); this.state.budget+=45e6; }
+  this.addNews('trophy',`${this.clubOf(continental.champion).name} are champions of the Continental Cup`,`Europe's grandest prize is settled under the lights after a dramatic knockout run.`,'');
+  this.showContinentalResult();
+};
+Game.showContinentalResult=function(){
+  const cl=this.state.cl; const cC=this.clubOf(cl.continental.champion), cH=this.clubOf(cl.challenger.champion);
+  const myRun=(comp,field)=>{ if(!field.includes(this.state.club))return ''; const ko=comp.ko; let out='Group stage';
+    ['R16','QF','SF','Final'].forEach(st=>{ if((ko[st]||[]).some(g=>g.a===this.state.club||g.b===this.state.club)){ const g=ko[st].find(g=>g.a===this.state.club||g.b===this.state.club); out= g.w===this.state.club?({R16:'Reached QF',QF:'Reached SF',SF:'Reached Final',Final:'CHAMPIONS'})[st]:({R16:'Out in R16',QF:'Out in QF',SF:'Out in SF',Final:'Runners-up'})[st]; } }); return out; };
+  this.openModalHTML(`<div style="padding:28px">
+    <div class="kicker">European Nights</div><h2 style="margin:6px 0 18px">Continental Results</h2>
+    <div style="display:flex;gap:14px;align-items:center;padding:16px;border:1px solid rgba(255,211,90,.4);border-radius:14px;background:linear-gradient(120deg,rgba(255,211,90,.08),transparent);margin-bottom:12px">
+      <div style="width:46px;height:52px">${crestSVG(cC,46)}</div><div><div style="font-size:11px;color:var(--gold);letter-spacing:.15em;text-transform:uppercase">Continental Cup Winners</div><div style="font-weight:900;font-size:18px">${cC.name}</div></div>
+      ${cl.myInCont?`<div style="margin-left:auto;text-align:right"><div style="font-size:10px;color:var(--dim)">YOUR RUN</div><b style="color:var(--acc)">${myRun(cl.continental,cl.contField)}</b></div>`:''}</div>
+    <div style="display:flex;gap:14px;align-items:center;padding:16px;border:1px solid var(--line2);border-radius:14px;background:var(--panel2)">
+      <div style="width:46px;height:52px">${crestSVG(cH,46)}</div><div><div style="font-size:11px;color:var(--acc);letter-spacing:.15em;text-transform:uppercase">Challenger Cup Winners</div><div style="font-weight:900;font-size:18px">${cH.name}</div></div>
+      ${cl.myInChal?`<div style="margin-left:auto;text-align:right"><div style="font-size:10px;color:var(--dim)">YOUR RUN</div><b style="color:var(--acc)">${myRun(cl.challenger,cl.chalField)}</b></div>`:''}</div>
+    <button class="btn primary" style="margin-top:20px" onclick="Game.closeModal();Game.go('career')">Continue to Summer →</button>
+  </div>`);
 };
 Game.applyResult=function(res){
   const lg=this.leagueOf(res.home);
@@ -1732,7 +1913,10 @@ Game.renderTable=function(v){
 /* ---------------- INTERNATIONAL ---------------- */
 Game.renderInternational=function(v){
   this.setCrumbs('International','World Cup');
-  v.innerHTML=`<div class="view-head"><div><div class="kicker">International Football</div><h2>FC World Cup 26</h2><div class="sub">32 nations. One trophy. Simulate the greatest tournament on earth.</div></div>
+  const yr=this.state.year||2026;
+  const nextWC = yr + ((4 - (yr%4))%4 || (this.state.wc&&this.state.wc.year===yr?4:0));
+  const isWCYear = yr%4===0;
+  v.innerHTML=`<div class="view-head"><div><div class="kicker">International Football · held every 4 years</div><h2>FC World Cup ${this.state.wc?this.state.wc.year:nextWC}</h2><div class="sub">${NATION_KEYS.length} nations enter qualifying · 32 reach the finals · group stage then knockout.${isWCYear?' <span style="color:var(--acc)">It\'s a World Cup summer!</span>':` Next finals: ${nextWC}.`}</div></div>
     <button class="btn primary" onclick="Game.simWorldCup()">${this.state.wc?'Re-Simulate':'Simulate Tournament'}</button></div>`;
   if(!this.state.wc){
     // preview national squads
@@ -1763,6 +1947,19 @@ Game.renderInternational=function(v){
     <div style="color:var(--dim);margin-top:4px">Defeated ${natName(wc.runnerUp)} ${wc.finalScore} in the final</div></div>
     <div style="margin-left:auto;width:80px;height:54px">${flagSVG(wc.champion,80)}</div></div>`;
   wrap.appendChild(champ);
+  // group stage
+  if(wc.groups){
+    const gc=el('div','card card-pad');
+    gc.innerHTML='<h4 style="margin-bottom:14px">Group Stage</h4><div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:14px">'+
+      wc.groups.map(g=>`<div style="border:1px solid var(--line);border-radius:12px;padding:12px 14px;background:var(--panel2)">
+        <div style="font-weight:900;color:var(--acc);margin-bottom:8px">Group ${g.letter}</div>
+        ${g.rank.map((row,i)=>`<div style="display:flex;align-items:center;gap:8px;padding:4px 0;${i<2?'':'opacity:.55'}">
+          <span style="width:16px;color:var(--dim);font-size:11px">${i+1}</span>${span(flagSVG(row.t,18))}
+          <span style="font-size:12.5px;font-weight:${i<2?'800':'600'}">${natName(row.t)}</span>
+          <span style="margin-left:auto;font-weight:900;font-size:12px">${row.Pts}</span></div>`).join('')}
+      </div>`).join('')+'</div>';
+    wrap.appendChild(gc);
+  }
   // knockout rounds
   const ko=el('div','card card-pad');
   ko.innerHTML='<h4 style="margin-bottom:14px">Knockout Stage</h4>';
@@ -1804,31 +2001,34 @@ Game.showNationSquad=function(k){
 };
 Game.simWorldCup=function(){
   const r=seeded('wc-'+Math.random());
-  const field=NATION_KEYS.slice(0,16); // clean 16-team bracket
-  const strength={}; field.forEach(k=>strength[k]= Math.round(this.nationSquad(k).reduce((s,p)=>s+p.ovr,0)/11));
-  function play(a,b){
-    const ea=strength[a]/(strength[a]+strength[b]);
-    let sa=0,sb=0; const goals=ri(r,0,5);
-    // scoreline based on strength
-    sa=Math.max(0,Math.round((ea*2.6)+ (r()-0.5)*2));
-    sb=Math.max(0,Math.round(((1-ea)*2.6)+ (r()-0.5)*2));
-    let pens=false,w;
-    if(sa===sb){ pens=true; w=r()<ea?a:b; if(w===a)sa+=0;else sb+=0; }
-    else w=sa>sb?a:b;
-    return {a,b,sa,sb,w,pens};
+  // qualifying: seed all nations by strength, take the 32 who "qualify"
+  const strength={}; NATION_KEYS.forEach(k=>strength[k]=Math.round(this.nationSquad(k).reduce((s,p)=>s+p.ovr,0)/11));
+  let pool=NATION_KEYS.slice().sort((a,b)=> (strength[b]+ri(r,-3,3)) - (strength[a]+ri(r,-3,3)) );
+  const field=pool.slice(0,Math.min(32,pool.length));
+  // shuffle then draw into groups of 4
+  for(let i=field.length-1;i>0;i--){const j=Math.floor(r()*(i+1));[field[i],field[j]]=[field[j],field[i]]}
+  const nGroups=Math.floor(field.length/4);
+  const play=(a,b)=>{ const ea=strength[a]/(strength[a]+strength[b]);
+    let sa=Math.max(0,Math.round(ea*2.6+(r()-0.5)*2)), sb=Math.max(0,Math.round((1-ea)*2.6+(r()-0.5)*2));
+    let w,pens=false; if(sa===sb){pens=true;w=r()<ea?a:b} else w=sa>sb?a:b; return {a,b,sa,sb,w,pens}; };
+  const groups=[]; const advancers=[];
+  for(let g=0;g<nGroups;g++){
+    const teams=field.slice(g*4,g*4+4);
+    const tab={}; teams.forEach(t=>tab[t]={t,Pts:0,GD:0,GF:0});
+    const fixtures=[];
+    for(let i=0;i<teams.length;i++)for(let j=i+1;j<teams.length;j++){ const m=play(teams[i],teams[j]); fixtures.push(m);
+      tab[m.a].GF+=m.sa;tab[m.b].GF+=m.sb;tab[m.a].GD+=m.sa-m.sb;tab[m.b].GD+=m.sb-m.sa;
+      if(m.sa>m.sb)tab[m.a].Pts+=3; else if(m.sb>m.sa)tab[m.b].Pts+=3; else {tab[m.a].Pts++;tab[m.b].Pts++;} }
+    const rank=Object.values(tab).sort((x,y)=>y.Pts-x.Pts||y.GD-x.GD||y.GF-x.GF);
+    groups.push({letter:String.fromCharCode(65+g), rank, fixtures});
+    advancers.push(rank[0].t, rank[1].t);
   }
-  // straight 16-team knockout
-  let round=field.slice(); const knockout={R16:[],QF:[],SF:[],Final:[]};
-  const stages=['R16','QF','SF','Final'];
-  let si=0;
-  while(round.length>1){
-    const next=[]; const games=[];
-    for(let i=0;i<round.length;i+=2){ const g=play(round[i],round[i+1]); games.push(g); next.push(g.w); }
-    knockout[stages[si]]=games; round=next; si++;
-  }
+  // 16-team knockout from group winners/runners-up
+  let round=advancers.slice(0,16); const knockout={R16:[],QF:[],SF:[],Final:[]}; const stages=['R16','QF','SF','Final']; let si=0;
+  while(round.length>1){ const nx=[],gm=[]; for(let i=0;i<round.length;i+=2){const m=play(round[i],round[i+1]);gm.push(m);nx.push(m.w)} knockout[stages[si++]]=gm; round=nx; }
   const finalG=knockout.Final[0];
-  this.state.wc={champion:round[0],runnerUp:finalG.w===finalG.a?finalG.b:finalG.a,finalScore:`${finalG.sa}-${finalG.sb}${finalG.pens?' (pens)':''}`,knockout};
-  this.addNews('international',`${natName(round[0])} are World Champions!`,`A tournament for the ages ends in glory. The nation celebrates long into the night.`,'');
+  this.state.wc={champion:round[0],runnerUp:finalG.w===finalG.a?finalG.b:finalG.a,finalScore:`${finalG.sa}-${finalG.sb}${finalG.pens?' (pens)':''}`,knockout,groups,year:this.state.year||2026};
+  this.addNews('international',`${natName(round[0])} are World Champions!`,`After a group stage and a gruelling knockout run, ${natName(round[0])} lift the trophy.`,'');
   toast('World Cup won by '+natName(round[0]));
   this.go('international');
 };
@@ -1837,7 +2037,7 @@ Game.simWorldCup=function(){
 Game.renderTrophies=function(v){
   this.setCrumbs('Manager',this.clubOf(this.state.club).name,'Trophies');
   v.innerHTML=`<div class="view-head"><div><div class="kicker">Legacy</div><h2>Trophy Cabinet</h2><div class="sub">Silverware won during your ${this.clubOf(this.state.club).name} tenure.</div></div></div>`;
-  const all=LEAGUES.map(l=>l.name).concat(['Continental Cup','Domestic Cup','Super Cup','Club World Series']);
+  const all=LEAGUES.map(l=>l.name).concat(['Continental Cup','Challenger Cup','Domestic Cup','Super Cup','Club World Series']);
   const grid=el('div','trophy-grid');
   all.forEach(name=>{
     const won=this.state.trophies[name]||0;
@@ -2028,7 +2228,8 @@ Game.saveGame=function(manual){
     if(manual)toast('Career saved.');
   }catch(e){ toast('Save failed (storage full).'); }
 };
-Game.autosave=function(){ if(this.state.autosave!==false) this.saveGame(false); };
+Game.autosave=function(){ if(this.state.club && this.state.autosave!==false) this.saveGame(false); };
+Game.hasSave=function(){ try{return !!localStorage.getItem('fc26save')}catch(e){return false} };
 Game.loadGame=function(){
   try{
     const raw=localStorage.getItem('fc26save'); if(!raw){toast('No save found.');return}
@@ -2080,7 +2281,8 @@ Game.openPlayer=function(id){
     </div>
     <div class="play-style">${p.ps.map(s=>`<span class="ps ${s.plus?'plus':''}">${s.plus?' ':''}${s.name}${s.plus?'+':''}</span>`).join('')}</div>
     <div style="display:flex;gap:10px;padding:0 28px 28px">
-      ${canBuy?`<button class="btn primary" onclick='Game.negotiate("${p.id}")'>Make an Offer — ${money(p.value)}</button>`:'<span class="badge good" style="padding:10px 16px"> Your Player</span>'}
+      ${canBuy?`<button class="btn primary" onclick='Game.negotiate("${p.id}")'>Make an Offer — ${money(p.value)}</button>`
+        :`<span class="badge good" style="padding:10px 16px">Your Player</span><button class="btn" style="color:var(--bad);border-color:rgba(255,93,108,.4)" onclick='Game.sellPlayer("${p.id}")'>Sell / Offload</button>`}
       <button class="btn ghost" onclick="Game.closeModal()">Close</button>
     </div>`);
 };
