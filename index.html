@@ -2613,22 +2613,30 @@ async function loadEarth(loader){
   }catch(e){ // fallback: plain blue sphere
     grp.add(new THREE.Mesh(new THREE.SphereGeometry(1,48,32),new THREE.MeshStandardMaterial({color:0x2a5a8a,roughness:1})));
   }
-  // red pin (repositioned per track; children oriented along local +Z = outward)
+  // glowing map-marker pin (repositioned per track; children oriented along local +Z = outward)
   const pin=new THREE.Group();
-  const glow=new THREE.Mesh(new THREE.SphereGeometry(0.04,16,12),new THREE.MeshBasicMaterial({color:0xff2a2a}));glow.position.z=0.02;
-  const spike=new THREE.Mesh(new THREE.ConeGeometry(0.028,0.14,12),new THREE.MeshBasicMaterial({color:0xff3838}));
-  spike.rotation.x=Math.PI/2;spike.position.z=0.1;
-  const ring=new THREE.Mesh(new THREE.RingGeometry(0.06,0.088,28),new THREE.MeshBasicMaterial({color:0xff4040,transparent:true,opacity:0.7,side:THREE.DoubleSide}));
-  ring.position.z=0.004;
-  pin.add(glow,spike,ring);
+  const bm=c=>new THREE.MeshBasicMaterial({color:c});
+  const tip=new THREE.Mesh(new THREE.ConeGeometry(0.03,0.08,18),bm(0xff2f45));   // teardrop point into the surface
+  tip.rotation.x=-Math.PI/2;tip.position.z=0.05;
+  const bulb=new THREE.Mesh(new THREE.SphereGeometry(0.034,20,16),bm(0xff5566));bulb.position.z=0.105;
+  const core=new THREE.Mesh(new THREE.SphereGeometry(0.014,12,10),bm(0xffffff));core.position.z=0.112;
+  const ring=new THREE.Mesh(new THREE.RingGeometry(0.05,0.072,36),
+    new THREE.MeshBasicMaterial({color:0xff4a5a,transparent:true,opacity:0.75,side:THREE.DoubleSide}));ring.position.z=0.006;
+  const beam=new THREE.Mesh(new THREE.CylinderGeometry(0.006,0.018,0.6,12,1,true),
+    new THREE.MeshBasicMaterial({color:0xff6070,transparent:true,opacity:0.3,side:THREE.DoubleSide,blending:THREE.AdditiveBlending,depthWrite:false}));
+  beam.rotation.x=Math.PI/2;beam.position.z=0.34;
+  pin.add(tip,bulb,core,ring,beam);
+  pin.onBeforeRender=()=>{const t=performance.now()*0.004,s=1+Math.sin(t)*0.28;
+    ring.scale.set(s,s,1);ring.material.opacity=0.75*(0.55+0.45*Math.cos(t));};
   grp.add(pin);
   globeScene.background=new THREE.Color(0x04060a);
   globeScene.add(grp);
-  // subtle star field + fill light so the globe reads on black
-  const stars=new THREE.BufferGeometry();const sp=new Float32Array(1200*3);
-  for(let i=0;i<1200;i++){const v=new THREE.Vector3().randomDirection().multiplyScalar(40+Math.random()*40);sp[i*3]=v.x;sp[i*3+1]=v.y;sp[i*3+2]=v.z;}
-  stars.setAttribute('position',new THREE.BufferAttribute(sp,3));
-  globeScene.add(new THREE.Points(stars,new THREE.PointsMaterial({color:0x9fb0c8,size:0.12})));
+  // layered star field: many tiny + a few brighter stars
+  const mkStars=(n,size,col,rMin)=>{const g=new THREE.BufferGeometry();const a=new Float32Array(n*3);
+    for(let i=0;i<n;i++){const v=new THREE.Vector3().randomDirection().multiplyScalar(rMin+Math.random()*40);a[i*3]=v.x;a[i*3+1]=v.y;a[i*3+2]=v.z;}
+    g.setAttribute('position',new THREE.BufferAttribute(a,3));
+    globeScene.add(new THREE.Points(g,new THREE.PointsMaterial({color:col,size,sizeAttenuation:true,transparent:true,opacity:0.9})));};
+  mkStars(1600,0.05,0x9fb0c8,45); mkStars(160,0.11,0xffffff,50);
   globeScene.add(new THREE.HemisphereLight(0xbcd6ef,0x223044,1.2));
   const sun=new THREE.DirectionalLight(0xffffff,2.2);sun.position.set(3,2,4);globeScene.add(sun);
   GLOBE={group:grp,pin,ring};
