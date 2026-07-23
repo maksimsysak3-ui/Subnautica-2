@@ -92,6 +92,7 @@ button{font-family:inherit; cursor:pointer; color:inherit; border:none; backgrou
 .nav-item.on{color:#05070c; background:linear-gradient(90deg,var(--acc),#a4e01f)}
 .nav-item.on .ico{filter:drop-shadow(0 0 6px rgba(0,0,0,.2))}
 .nav-sep{height:1px; background:var(--line); margin:8px 16px}
+.nav-badge{position:absolute; left:34px; top:8px; min-width:16px; height:16px; padding:0 4px; border-radius:10px; background:var(--acc3); color:#fff; font-size:10px; font-weight:900; display:flex; align-items:center; justify-content:center}
 
 /* ============ MAIN CANVAS ============ */
 #main{flex:1; min-width:0; position:relative; overflow:hidden}
@@ -962,13 +963,23 @@ function weightedScorer(r, xi){
   for(let i=0;i<cand.length;i++){t-=w[i]; if(t<=0)return cand[i];}
   return cand[cand.length-1];
 }
+// recent form nudges a team's expected goals (+/- ~1.2 over a hot/cold streak)
+function formFactor(name){ try{ const lg=Game.leagueOf(name); const t=Game.state.tables&&Game.state.tables[lg.id]&&Game.state.tables[lg.id][name]; if(!t)return 0;
+  let s=0; t.form.slice(-5).forEach(x=>s+= x==='W'?1:x==='L'?-1:0); return s*0.28; }catch(e){return 0;} }
+// user's chosen mentality shifts attack/defence balance
+function mentAdj(name){ if(name!==Game.state.club) return {atk:0,def:0};
+  const m=Game.state.mentality; // 0 ultra-def ... 4 all-out attack
+  const A=[-1.4,-0.7,0,0.9,1.8][m]||0, D=[1.6,0.8,0,-0.9,-1.9][m]||0; return {atk:A,def:D}; }
+Game.isInjured=function(p){return p&&(p.injWeeks||0)>0;};
 function simMatch(home,away, opts={}){
   const r=seeded(home+'@'+away+'|'+(opts.seed||Math.random()));
   const H=teamStrength(home), A=teamStrength(away);
   const homeAdv=3.0;
-  // expected goals — higher rating sensitivity so class usually tells
+  // expected goals — class + form + tactical mentality
   const gap=(H.overall-A.overall);
-  const diff=(H.atk-A.def)+homeAdv+gap*0.35, diff2=(A.atk-H.def)-gap*0.35;
+  const fH=formFactor(home), fA=formFactor(away);
+  const mH=mentAdj(home), mA=mentAdj(away);
+  const diff=(H.atk-A.def)+homeAdv+gap*0.35+fH-fA+mH.atk-mA.def, diff2=(A.atk-H.def)-gap*0.35+fA-fH+mA.atk-mH.def;
   const xgH=clamp(1.3+diff*0.072,0.16,4.6), xgA=clamp(1.02+diff2*0.072,0.12,4.1);
   function goals(xg){let g=0;const L=Math.exp(-xg);let p=1,k=0;const u=r();p*=Math.exp(-xg);let cum=Math.exp(-xg);let f=1;while(true){if(u<cum||k>8)break;k++;f*=xg/k;cum+=Math.exp(-xg)*f}return k}
   let gh=goals(xgH), ga=goals(xgA);
@@ -1079,6 +1090,8 @@ const ICONS={
  globe:'<circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18"/>',
  stats:'<path d="M4 20V4M4 20h16"/><rect x="7" y="12" width="3" height="5"/><rect x="12" y="8" width="3" height="9"/><rect x="17" y="5" width="3" height="12"/>',
  settings:'<circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 00-.13-1.3l2-1.6-2-3.4-2.4 1a7 7 0 00-2.2-1.3L14 2h-4l-.3 2.4a7 7 0 00-2.2 1.3l-2.4-1-2 3.4 2 1.6A7 7 0 005 12a7 7 0 00.13 1.3l-2 1.6 2 3.4 2.4-1a7 7 0 002.2 1.3L10 22h4l.3-2.4a7 7 0 002.2-1.3l2.4 1 2-3.4-2-1.6A7 7 0 0019 12z"/>',
+ mail:'<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/>',
+ injury:'<path d="M12 3v18M3 12h18" stroke-width="3"/>',
 };
 const NAV_ITEMS=[
   {id:'hub',ico:'home',tx:'Home'},
@@ -1093,6 +1106,7 @@ const NAV_ITEMS=[
   {id:'international',ico:'international',tx:'International'},
   {id:'trophies',ico:'trophies',tx:'Trophies'},
   {id:'stats',ico:'stats',tx:'Stats & Awards'},
+  {id:'inbox',ico:'mail',tx:'Inbox'},
   {id:'news',ico:'news',tx:'News'},
   {id:'settings',ico:'settings',tx:'Settings'},
 ];
@@ -1100,14 +1114,16 @@ function buildNav(){
   const nav=$('#nav'); nav.innerHTML='';
   NAV_ITEMS.forEach((n,i)=>{
     if(n.id==='career'||n.id==='international'){nav.appendChild(el('div','nav-sep'))}
-    const it=el('button','nav-item','<span class="ico">'+ic(ICONS[n.ico],20)+'</span><span class="tx">'+n.tx+'</span>');
+    const it=el('button','nav-item','<span class="ico">'+ic(ICONS[n.ico],20)+'</span><span class="tx">'+n.tx+'</span>'+(n.id==='inbox'?'<span class="nav-badge" id="inboxBadge" style="display:none"></span>':''));
     it.dataset.id=n.id; it.onclick=()=>Game.go(n.id);
     nav.appendChild(it);
   });
 }
+Game.updateNavBadge=function(){ const b=$('#inboxBadge'); if(!b)return; const n=this.state.club?this.unreadMail():0;
+  if(n>0){b.style.display='flex';b.textContent=n;}else{b.style.display='none';} };
 Game.go=function(id){
   // gate club-specific views
-  const needClub=['career','squad','tactics','transfers','fixtures','table','trophies','stats','calendar','cups'];
+  const needClub=['career','squad','tactics','transfers','fixtures','table','trophies','stats','calendar','cups','inbox'];
   if(needClub.includes(id) && !this.state.club){ id='clubselect_'+ (id==='career'?'':id); this.pendingView=id.replace('clubselect_',''); this.renderClubSelect(); this.setActive('career'); this.setCrumbs('Manager','Choose Your Club'); return; }
   document.querySelectorAll('.nav-item').forEach(n=>n.classList.toggle('on',n.dataset.id===id));
   this.current=id;
@@ -1154,9 +1170,11 @@ Game.render=function(id){
       wc:()=>this.renderWorldCupMode(view),
       calendar:()=>this.renderCalendar(view),
       cups:()=>this.renderCups(view),
+      inbox:()=>this.renderInbox(view),
     }[id]||(()=>this.renderHub(view)))();
     view.classList.add('on'); view.scrollTop=0;
     this.updateHUD();
+    this.updateNavBadge();
     this.applyTheme(id);
   },140);
 };
@@ -1240,7 +1258,7 @@ Game.startCareer=function(clubName){
     formation:'4-3-3', mentality:2,
     tables:{}, schedules:{}, weekIndex:{}, results:{},
     trophies:{}, newsFeed:[], transfersDone:[], playedMatches:0,
-    lineup:null, scorers:{}, seasonStats:{}, awards:[], simSpeed:'normal',
+    lineup:null, scorers:{}, seasonStats:{}, awards:[], simSpeed:'normal', mail:[], transferList:[],
   };
   // init all league tables & schedules
   LEAGUES.forEach(l=>{
@@ -1295,7 +1313,11 @@ Game.startingXI=function(name){
     }
     return this.nationXI(k);
   }
-  if(name===this.state.club && this.state.lineup){ return this.ensureLineup().starters.map(id=>this.findPlayer(id)).filter(Boolean); }
+  if(name===this.state.club && this.state.lineup){
+    const L=this.ensureLineup(); const used=new Set();
+    const fitSub=()=>{ for(const id of L.subs){ const p=this.findPlayer(id); if(p&&!this.isInjured(p)&&!used.has(id)){used.add(id);return p;} } return null; };
+    return L.starters.map(id=>{ const p=this.findPlayer(id); if(p&&!this.isInjured(p)){used.add(id);return p;} return fitSub()||p; }).filter(Boolean);
+  }
   return Game.squad(name).slice(0,11);
 };
 Game.swapLineup=function(idA,idB){
@@ -1425,9 +1447,9 @@ Game.renderSquad=function(v){
   const benchCard=el('div','card card-pad'); benchCard.className='card card-pad bench';
   const benchIds=L.subs.slice(0,9), resIds=L.subs.slice(9);
   const slots=this.slotList();
-  const bcard=(id)=>{const p=this.findPlayer(id); if(!p)return ''; const sel=this._selSquad===id?' sel':'';
+  const bcard=(id)=>{const p=this.findPlayer(id); if(!p)return ''; const sel=this._selSquad===id?' sel':''; const inj=this.isInjured(p);
     return `<div class="bcard${sel}" onclick="Game.pickSquad('${id}')"><div class="bpos"><i></i>${p.pos}</div>
-      <div class="bface">${faceSVG(p.seed,40)}</div><div style="min-width:0"><div class="bnm">${p.last}</div><div class="bage">Age ${p.age}</div></div><div class="bovr ${ovrClass(p.ovr)}" style="background:none;border:none;width:auto;height:auto">${p.ovr}</div></div>`};
+      <div class="bface" style="${inj?'filter:grayscale(.7) opacity(.7)':''}">${faceSVG(p.seed,40)}</div><div style="min-width:0"><div class="bnm">${p.last}${inj?` <span style="color:var(--bad);font-size:9px">✚${p.injWeeks}</span>`:''}</div><div class="bage">${inj?'Injured':'Age '+p.age}</div></div><div class="bovr ${ovrClass(p.ovr)}" style="background:none;border:none;width:auto;height:auto">${p.ovr}</div></div>`};
   benchCard.innerHTML=`<h4>Substitutes</h4><div class="bench-grid">${benchIds.map(bcard).join('')}</div>
     ${resIds.length?`<h4 style="margin:18px 0 12px">Reserves</h4><div class="bench-grid">${resIds.map(bcard).join('')}</div>`:''}`;
   grid.appendChild(benchCard);
@@ -1474,7 +1496,8 @@ Game.pitchEl=function(xi){
     const sel=this._selSquad===p.id?' sel':'';
     const chip=el('div','pp'+sel);
     chip.style.left=x+'%'; chip.style.top=y+'%';
-    chip.innerHTML=`<div class="pp-top"><div class="pp-face">${faceSVG(p.seed,52)}</div><div class="pp-ovr">${p.ovr}</div></div>
+    const inj=this.isInjured(p);
+    chip.innerHTML=`<div class="pp-top"><div class="pp-face" style="${inj?'filter:grayscale(.6) opacity(.8)':''}">${faceSVG(p.seed,52)}</div><div class="pp-ovr">${p.ovr}</div>${inj?`<div style="position:absolute;bottom:-2px;left:-6px;background:var(--bad);color:#fff;font-size:9px;font-weight:900;border-radius:5px;padding:0 3px">✚${p.injWeeks}</div>`:''}</div>
       <div class="pp-bar"></div><div class="pp-name">${p.last}</div><div class="pp-pos">${slots[i]}</div>`;
     chip.onclick=()=>this.pickSquad(p.id);
     pitch.appendChild(chip);
@@ -1844,6 +1867,12 @@ Game.buildUserSeason=function(){
   this.setupDomesticCup(fx,start);
   fx.sort((a,b)=>a.date-b.date);
   this.state.fixtures=fx;
+  // board sets a season objective
+  const tier=this.leagueOf(this.state.club).tier||1;
+  const rankByOvr=lg.clubs.slice().sort((a,b)=>b.ovr-a.ovr).findIndex(c=>c.name===this.state.club)+1;
+  const target = rankByOvr<=1?'win the league': rankByOvr<=4?'finish in the top four': rankByOvr<=10?'secure a top-half finish':'achieve a comfortable mid-table finish and avoid relegation';
+  this.state.objective=target;
+  this.pushMail('Club Board',`Season ${this.state.season} objectives`,`Welcome to the new campaign. The board expects you to ${target} in the ${lg.name}${this.qualifiedForCC()?', and to represent us with pride in the Champions Cup':''}. Good luck.`);
 };
 Game.setupChampionsCup=function(fx,start){
   const r=seeded('cc-'+this.state.seasonNum+this.state.club);
@@ -1950,7 +1979,13 @@ Game.finishUserFixture=function(f,res,quick){
   f.played=true; const me=this.state.club;
   const myG=res.home===me?res.gh:res.ga, opG=res.home===me?res.ga:res.gh;
   f.myG=myG; f.opG=opG; f.gh=res.gh; f.ga=res.ga;
-  this.state.apps=this.state.apps||{}; this.startingXI(me).forEach(p=>{this.state.apps[p.id]=(this.state.apps[p.id]||0)+1});
+  const xi=this.startingXI(me);
+  this.state.apps=this.state.apps||{}; xi.forEach(p=>{this.state.apps[p.id]=(this.state.apps[p.id]||0)+1});
+  // injuries: heal one week off everyone, then roll a new injury among those who played
+  Game.squad(me).forEach(p=>{ if(p.injWeeks>0)p.injWeeks--; });
+  xi.forEach(p=>{ if(Math.random()<0.022){ p.injWeeks=1+Math.floor(Math.random()*8);
+    this.addNews('drama',`Injury blow: ${p.name} out for ${p.injWeeks} match${p.injWeeks>1?'es':''}`,`The ${p.pos} picked up a knock and faces a spell on the sidelines.`,'');
+    this.pushMail('Medical Team',`${p.name} injured`,`${p.name} will be out for approximately ${p.injWeeks} match${p.injWeeks>1?'es':''}. We'll manage his recovery.`); } });
   const w= myG>opG?1: myG<opG?-1:0;
   this.state.morale=clamp(this.state.morale+(w>0?4:w<0?-5:1),0,100);
   if(f.comp==='League'){ this.applyResult(res); this.advanceWeek();
@@ -2206,6 +2241,10 @@ Game.offseasonInbox=function(){
     const better=clubs.filter(c=>c.ovr>=myOvr-1 && c.ovr<=myOvr+7); if(better.length){ const c=pick(r,better); jobs.push({type:'club',club:c.name,ovr:c.ovr}); } }
   if(r()<0.45){ const k=pick(r,NATION_KEYS); jobs.push({type:'nation',nat:k}); }
   this.state.offers={bids,jobs};
+  // mirror offers into the mail inbox
+  jobs.forEach(j=>{ if(j.type==='club') this.pushMail(this.clubOf(j.club).name,'Managerial approach',`${this.clubOf(j.club).name} would like to speak to you about their vacant manager's post. Open your pending offers to respond.`);
+    else this.pushMail(natName(j.nat)+' FA','International approach',`The ${natName(j.nat)} federation want you to lead them into the next World Cup.`); });
+  bids.forEach(b=>{ if(!b.id0) this.pushMail(this.clubOf(b.buyer).name,`Bid for ${b.name}`,`${this.clubOf(b.buyer).name} have offered ${money(b.bid)} for ${b.name}. Review it in your pending offers.`); });
   if(bids.length||jobs.length){ this.showInbox(); return true; }
   return false;
 };
@@ -2360,13 +2399,35 @@ Game.computeAwards=function(){
   if(poy) this.state.awards.unshift({season:this.state.season,type:'Player of the Season',name:poy.name,club:poy.club,val:poy.g+'G '+poy.a+'A'});
 };
 Game.aiTransferWindow=function(r){
-  // AI clubs make a signing or two (aging/dev already handled globally in newSeason)
-  LEAGUES.forEach(l=>l.clubs.forEach(c=>{
-    if(c.name===this.state.club || !Game.squads[c.name])return;
+  // Smarter AI: each club upgrades its weakest starting position toward/above its level,
+  // with richer clubs improving more; strong clubs also poach a star from a weaker side.
+  const allClubs=[]; LEAGUES.forEach(l=>l.clubs.forEach(c=>{ if(c.name!==this.state.club && Game.squads[c.name]) allClubs.push(c); }));
+  allClubs.forEach(c=>{
     const sq=Game.squads[c.name];
-    if(r()<0.55){ const weak=sq.reduce((a,b)=>a.ovr<b.ovr?a:b); const np=genPlayer(c.name,weak.pos,clamp(c.ovr+ri(r,-2,4),60,90),c.nat); const i=sq.indexOf(weak); sq[i]=np; }
+    const moves = c.ovr>=85?3 : c.ovr>=80?2 : 1;
+    for(let m=0;m<moves;m++){
+      if(r()>0.75) continue;
+      // find weakest position group among the first XI and reinforce it
+      const xi=sq.slice(0,11); const byGrp={};
+      xi.forEach(p=>{(byGrp[p.posGroup]=byGrp[p.posGroup]||[]).push(p);});
+      let worst=null,worstAvg=999;
+      Object.entries(byGrp).forEach(([g,arr])=>{const a=arr.reduce((s,p)=>s+p.ovr,0)/arr.length; if(a<worstAvg){worstAvg=a;worst=arr;}});
+      const target=worst?worst.reduce((a,b)=>a.ovr<b.ovr?a:b):sq[sq.length-1];
+      const np=genPlayer(c.name,target.pos,clamp(c.ovr+ri(r,-1,5),63,93),c.nat);
+      const i=sq.indexOf(target); if(i>=0)sq[i]=np;
+    }
     sq.sort((a,b)=>b.ovr-a.ovr);
-  }));
+  });
+  // a few marquee poaches: strong clubs buy a gem from a weaker club
+  const strong=allClubs.filter(c=>c.ovr>=83);
+  strong.forEach(c=>{ if(r()<0.4){
+    const weaker=allClubs.filter(x=>x.ovr<=c.ovr-5); if(!weaker.length)return;
+    const from=pick(r,weaker); const fsq=Game.squads[from.name];
+    const gem=fsq.slice(1,6)[Math.floor(r()*4)]; if(!gem)return;
+    const gi=fsq.indexOf(gem); if(gi<0)return;
+    fsq.splice(gi,1); fsq.push(genPlayer(from.name,gem.pos,clamp(from.ovr+ri(r,-4,1),58,84),from.nat)); fsq.sort((a,b)=>b.ovr-a.ovr);
+    gem.club=c.name; Game.squads[c.name].push(gem); Game.squads[c.name].sort((a,b)=>b.ovr-a.ovr); Game.squads[c.name].pop();
+  }});
   this._pool=null;
 };
 Game.awardTrophy=function(name){
@@ -2800,6 +2861,25 @@ Game.renderTrophies=function(v){
 };
 
 /* ---------------- NEWS ---------------- */
+Game.renderInbox=function(v){
+  this.setCrumbs('Manager','Inbox');
+  const mail=this.state.mail||[];
+  const pendingOffers=this.state.offers && ((this.state.offers.bids&&this.state.offers.bids.length)||(this.state.offers.jobs&&this.state.offers.jobs.length));
+  v.innerHTML=`<div class="view-head"><div><div class="kicker">Communications</div><h2>Inbox</h2><div class="sub">${this.unreadMail()} unread · board, medical, scouts and offers.</div></div>
+    ${pendingOffers?'<button class="btn primary" onclick="Game.showInbox()">View Pending Offers</button>':''}</div>`;
+  if(!mail.length){ v.appendChild(el('div','empty','No messages yet. Play matches and progress the season to receive updates.')); return; }
+  const list=el('div','card');
+  list.innerHTML=mail.map((m,i)=>`<div class="rrow" style="grid-template-columns:8px 44px 1fr auto;align-items:flex-start;padding:14px 16px;border-bottom:1px solid var(--line)" onclick="Game.readMail(${i})">
+    <div style="width:8px;height:8px;border-radius:50%;margin-top:6px;background:${m.unread?'var(--acc)':'transparent'}"></div>
+    <div style="width:40px;height:40px;border-radius:11px;display:flex;align-items:center;justify-content:center;background:var(--panel2);border:1px solid var(--line);color:var(--acc2)">${ic(ICONS.mail,20)}</div>
+    <div style="min-width:0"><div style="display:flex;gap:8px;align-items:center"><b style="font-size:13.5px;${m.unread?'':'color:var(--dim)'}">${m.subject}</b></div>
+      <div style="color:var(--dim);font-size:11.5px;margin-top:2px">${m.from}</div>
+      <div style="color:var(--dim2);font-size:12px;margin-top:6px;${this._openMail===i?'':'display:none'}">${m.body}</div></div>
+    <div style="color:var(--dim2);font-size:10.5px;white-space:nowrap">${new Date(m.ts).toLocaleDateString('en',{month:'short',day:'numeric'})}</div>
+  </div>`).join('');
+  v.appendChild(list);
+};
+Game.readMail=function(i){ const m=this.state.mail[i]; if(m){m.unread=false;} this._openMail=this._openMail===i?null:i; this.go('inbox'); };
 Game.renderNews=function(v){
   this.setCrumbs('Media','Newsroom');
   v.innerHTML=`<div class="view-head"><div><div class="kicker">FC Newsroom</div><h2>News & Drama</h2><div class="sub">Headlines from across the footballing world.</div></div>
@@ -2830,6 +2910,12 @@ Game.addNews=function(tag,headline,body,icon){
   this.state.newsFeed.unshift({tag:tags[tag]||'News',headline,body});
   if(this.state.newsFeed.length>40)this.state.newsFeed.pop();
 };
+Game.pushMail=function(from,subject,body,actions){
+  this.state.mail=this.state.mail||[];
+  this.state.mail.unshift({from,subject,body,ts:Date.now(),unread:true,actions:actions||null});
+  if(this.state.mail.length>60)this.state.mail.pop();
+};
+Game.unreadMail=function(){ return (this.state.mail||[]).filter(m=>m.unread).length; };
 Game.generateNewsBatch=function(n){
   const r=seeded('news-'+Math.random());
   const clubs=[]; LEAGUES.forEach(l=>l.clubs.forEach(c=>clubs.push(c)));
