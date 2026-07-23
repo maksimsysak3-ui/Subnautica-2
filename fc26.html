@@ -394,6 +394,25 @@ button{font-family:inherit; cursor:pointer; color:inherit; border:none; backgrou
 .seg{display:flex; gap:6px; flex-wrap:wrap}
 .seg button{padding:8px 12px; border-radius:9px; border:1px solid var(--line); background:var(--panel); font-weight:800; font-size:12px; color:var(--dim)}
 .seg button.on{color:#05070c; background:var(--acc); border-color:var(--acc)}
+
+/* ===== CALENDAR ===== */
+.cal-months{display:flex; gap:4px; flex-wrap:wrap; margin-bottom:16px}
+.cal-months button{padding:8px 14px; border-radius:9px; border:1px solid transparent; background:none; font-weight:800; font-size:14px; color:var(--dim2)}
+.cal-months button.on{color:var(--txt); border-color:var(--line2); background:var(--panel2)}
+.cal-months button:hover{color:var(--txt)}
+.cal-grid{display:grid; grid-template-columns:repeat(7,1fr); gap:8px}
+.cal-dow{color:var(--dim); font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:.1em; text-align:center; padding-bottom:4px}
+.cal-cell{aspect-ratio:1.15; border:1px solid var(--line); border-radius:12px; padding:8px 9px; background:linear-gradient(180deg,var(--panel),rgba(9,12,20,.6)); position:relative; overflow:hidden; min-height:70px}
+.cal-cell.empty{background:transparent; border-color:transparent}
+.cal-cell.today{border-color:var(--acc); box-shadow:0 0 0 2px rgba(198,255,46,.2)}
+.cal-cell .dnum{font-size:14px; font-weight:800; color:var(--dim)}
+.cal-cell.has .dnum{color:var(--txt)}
+.cal-ev{margin-top:6px; border-radius:8px; padding:4px 6px; font-size:10px; font-weight:800; line-height:1.2; color:#05070c; display:flex; align-items:center; gap:4px}
+.cal-ev .mc{width:16px; height:18px; flex:none}
+.cal-ev .vn{font-size:8.5px; letter-spacing:.08em; opacity:.85}
+.cal-cell .res{position:absolute; right:8px; top:8px; font-size:11px; font-weight:900}
+.cal-legend{display:flex; gap:16px; margin-top:14px; font-size:11px; color:var(--dim); flex-wrap:wrap}
+.cal-legend i{display:inline-block; width:10px; height:10px; border-radius:3px; margin-right:5px; vertical-align:middle}
 </style>
 </head>
 <body>
@@ -983,7 +1002,9 @@ const NAV_ITEMS=[
   {id:'squad',ico:'squad',tx:'Squad'},
   {id:'tactics',ico:'tactics',tx:'Tactics'},
   {id:'transfers',ico:'transfers',tx:'Transfers'},
+  {id:'calendar',ico:'fixtures',tx:'Calendar'},
   {id:'fixtures',ico:'fixtures',tx:'Fixtures'},
+  {id:'cups',ico:'trophies',tx:'Cups'},
   {id:'table',ico:'table',tx:'Standings'},
   {id:'international',ico:'international',tx:'International'},
   {id:'trophies',ico:'trophies',tx:'Trophies'},
@@ -1002,7 +1023,7 @@ function buildNav(){
 }
 Game.go=function(id){
   // gate club-specific views
-  const needClub=['career','squad','tactics','transfers','fixtures','table','trophies','stats'];
+  const needClub=['career','squad','tactics','transfers','fixtures','table','trophies','stats','calendar','cups'];
   if(needClub.includes(id) && !this.state.club){ id='clubselect_'+ (id==='career'?'':id); this.pendingView=id.replace('clubselect_',''); this.renderClubSelect(); this.setActive('career'); this.setCrumbs('Manager','Choose Your Club'); return; }
   document.querySelectorAll('.nav-item').forEach(n=>n.classList.toggle('on',n.dataset.id===id));
   this.current=id;
@@ -1047,6 +1068,8 @@ Game.render=function(id){
       news:()=>this.renderNews(view),
       settings:()=>this.renderSettings(view),
       wc:()=>this.renderWorldCupMode(view),
+      calendar:()=>this.renderCalendar(view),
+      cups:()=>this.renderCups(view),
     }[id]||(()=>this.renderHub(view)))();
     view.classList.add('on'); view.scrollTop=0;
     this.updateHUD();
@@ -1142,6 +1165,7 @@ Game.startCareer=function(clubName){
     this.state.weekIndex[l.id]=0;
   });
   this.state.lineup=this.buildLineup(clubName);
+  this.buildUserSeason();
   this.generateNewsBatch(6);
   toast('Welcome to '+c.name+', boss.');
   const target=this.pendingView||'career'; this.pendingView=null;
@@ -1222,23 +1246,26 @@ Game.renderCareer=function(v){
   const me=tbl[this.state.club];
   const sq=Game.squad(this.state.club);
   const topScorer=sq.slice().sort((a,b)=>b.ovr-a.ovr)[0];
-  v.innerHTML=`<div class="view-head"><div><div class="kicker">${lg.name} · Matchday ${fx?fx.week:'—'}</div><h2>${c.name}</h2><div class="sub">Season ${this.state.season} · League position: ${myPos||'—'}${myPos?ordinal(myPos):''}</div></div>
-    <div style="display:flex;gap:10px"><button class="btn ghost" onclick="Game.go('squad')">View Squad</button><button class="btn primary" onclick="Game.go('fixtures')">Play Next Match →</button></div></div>`;
+  const uf=this.nextUserFixture();
+  v.innerHTML=`<div class="view-head"><div><div class="kicker">${lg.name} · ${myPos||'—'}${myPos?ordinal(myPos):''} place</div><h2>${c.name}</h2><div class="sub">Season ${this.state.season} · ${this.state.fixtures?this.state.fixtures.filter(f=>!f.played).length+' matches remaining':''}</div></div>
+    <div style="display:flex;gap:10px"><button class="btn ghost" onclick="Game.go('calendar')">Calendar</button><button class="btn primary" onclick="Game.go('fixtures')">Fixtures →</button></div></div>`;
   const dash=el('div','dash');
   // next match card
   const nm=el('div','card next-match');
-  if(fx){
-    const H=this.clubOf(fx.home),A=this.clubOf(fx.away);
-    const meta=(name,cl)=>fx.home===this.state.club&&name===fx.home||fx.away===this.state.club&&name===fx.away?'(You)':`OVR ${cl.ovr} · ${this.clubRankLabel(name)}`;
-    nm.innerHTML=`<div class="kicker" style="text-align:center">Next Fixture</div>
+  if(uf){
+    const oppC=this.clubOf(uf.oppName);
+    const H=uf.home?c:oppC, A=uf.home?oppC:c;
+    const col=COMP_COLOR[uf.comp]||'var(--acc)';
+    const oppMeta = uf.comp==='League'? `OVR ${oppC.ovr} · ${this.clubRankLabel(uf.oppName)}` : `OVR ${oppC.ovr}`;
+    nm.innerHTML=`<div class="kicker" style="text-align:center;color:${col}">${uf.comp}${uf.roundName?' · '+uf.roundName:''}</div>
       <div class="nm-vs">
-        <div class="nm-team"><div class="crest">${crestSVG(H,64)}</div><b>${H.short}</b><span style="color:var(--dim);font-size:11px">${meta(fx.home,H)}</span></div>
-        <div class="nm-mid"><div class="comp">${lg.name}</div><div class="vs">VS</div><div style="color:var(--dim);font-size:11px">Matchday ${fx.week}/${fx.total}</div></div>
-        <div class="nm-team"><div class="crest">${crestSVG(A,64)}</div><b>${A.short}</b><span style="color:var(--dim);font-size:11px">${meta(fx.away,A)}</span></div>
+        <div class="nm-team"><div class="crest">${crestSVG(H,64)}</div><b>${H.short}</b><span style="color:var(--dim);font-size:11px">${H===c?'(You)':oppMeta}</span></div>
+        <div class="nm-mid"><div class="comp" style="color:${col}">${COMP_SHORT[uf.comp]}</div><div class="vs">VS</div><div style="color:var(--dim);font-size:11px">${this.fmtDate(uf.date)}</div></div>
+        <div class="nm-team"><div class="crest">${crestSVG(A,64)}</div><b>${A.short}</b><span style="color:var(--dim);font-size:11px">${A===c?'(You)':oppMeta}</span></div>
       </div>
       <div style="display:flex;gap:10px;margin-top:10px"><button class="btn primary" style="flex:1" onclick="Game.playMatch()">▶ Play Match</button><button class="btn" onclick="Game.simMatchQuick()">Simulate</button></div>`;
   } else {
-    nm.innerHTML=`<div class="kicker">Season Complete</div><h3 style="margin-top:8px">The league campaign is over.</h3><p style="color:var(--dim);margin-top:8px">Finished ${myPos}${ordinal(myPos)} in ${lg.name}.</p><button class="btn primary" style="margin-top:14px" onclick="Game.newSeason()">Start Next Season →</button>`;
+    nm.innerHTML=`<div class="kicker">Season Complete</div><h3 style="margin-top:8px">All competitions are done.</h3><p style="color:var(--dim);margin-top:8px">Finished ${myPos}${ordinal(myPos)} in ${lg.name}.</p><button class="btn primary" style="margin-top:14px" onclick="Game.newSeason()">Start Next Season →</button>`;
   }
   dash.appendChild(nm);
   // right column: stats + form
@@ -1709,18 +1736,232 @@ Game.seasonDecision=function(cont){
     btn.onclick=()=>{ o.fx(); this.closeModal(); toast('Decision made.'); this.autosave(); if(cont)cont(); };
     box.appendChild(btn); });
 };
+/* ============================================================
+   DATED SEASON: League + Champions Cup (group + KO) + Domestic Cup
+   ============================================================ */
+function addDays(d,n){const x=new Date(d);x.setDate(x.getDate()+n);return x;}
+const COMP_COLOR={'League':'#c6ff2e','Champions Cup':'#00e5ff','Domestic Cup':'#ff2e88'};
+const COMP_SHORT={'League':'LEAGUE','Champions Cup':'UCL','Domestic Cup':'CUP'};
+Game.qualifiedForCC=function(){
+  if(this.state.seasonNum>1 && this.state.lastPos) return this.state.lastPos<=4;
+  const lg=this.leagueOf(this.state.club);
+  const rank=lg.clubs.slice().sort((a,b)=>b.ovr-a.ovr).findIndex(c=>c.name===this.state.club)+1;
+  return rank<=4;
+};
+Game.buildUserSeason=function(){
+  const start=new Date(this.state.year,7,9); this.state.calStart=start.getTime();
+  const lg=this.leagueOf(this.state.club); const sched=this.state.schedules[lg.id];
+  const fx=[];
+  for(let w=0;w<sched.length;w++){ const g=sched[w].find(m=>m[0]===this.state.club||m[1]===this.state.club); if(!g)continue;
+    const home=g[0]===this.state.club, opp=home?g[1]:g[0];
+    fx.push({id:'L'+w,date:addDays(start,14+w*7).getTime(),comp:'League',week:w,oppName:opp,home,played:false}); }
+  this.state.cc=null;
+  if(this.qualifiedForCC()) this.setupChampionsCup(fx,start);
+  this.setupDomesticCup(fx,start);
+  fx.sort((a,b)=>a.date-b.date);
+  this.state.fixtures=fx;
+};
+Game.setupChampionsCup=function(fx,start){
+  const r=seeded('cc-'+this.state.seasonNum+this.state.club);
+  const all=[]; LEAGUES.forEach(l=>l.clubs.forEach(c=>all.push(c.name)));
+  let pool=all.filter(n=>n!==this.state.club).sort((a,b)=>this.clubOf(b).ovr-this.clubOf(a).ovr).slice(0,31);
+  let field=[this.state.club,...pool];
+  for(let i=field.length-1;i>0;i--){const j=Math.floor(r()*(i+1));[field[i],field[j]]=[field[j],field[i]];}
+  const rr=[[[0,1],[2,3]],[[0,2],[3,1]],[[0,3],[1,2]],[[1,0],[3,2]],[[2,0],[1,3]],[[3,0],[2,1]]];
+  const groups=[];
+  for(let g=0;g<8;g++){ const teams=field.slice(g*4,g*4+4);
+    const table={}; teams.forEach(t=>table[t]={t,P:0,W:0,D:0,L:0,GF:0,GA:0,Pts:0});
+    groups.push({letter:String.fromCharCode(65+g),teams,table,rr}); }
+  const ug=groups.findIndex(g=>g.teams.includes(this.state.club));
+  this.state.cc={groups,userGroupIdx:ug,round:'group',knockout:{},koStage:null,champion:null,eliminated:false};
+  const slots=[3,5,7,10,12,15]; const g=groups[ug];
+  g.rr.forEach((round,ri)=>{ const pair=round.map(p=>[g.teams[p[0]],g.teams[p[1]]]).find(m=>m.includes(this.state.club));
+    const home=pair[0]===this.state.club, opp=home?pair[1]:pair[0];
+    fx.push({id:'CCg'+ri,date:addDays(start,14+slots[ri]*7+3).getTime(),comp:'Champions Cup',ccStage:'group',ccRound:ri,oppName:opp,home,played:false}); });
+};
+Game.ccRow=function(table,a,b,hg,ag){ const H=table[a],A=table[b]; H.P++;A.P++;H.GF+=hg;H.GA+=ag;A.GF+=ag;A.GA+=hg;
+  if(hg>ag){H.W++;A.L++;H.Pts+=3;}else if(ag>hg){A.W++;H.L++;A.Pts+=3;}else{H.D++;A.D++;H.Pts++;A.Pts++;} };
+Game.ccRank=function(g){return Object.values(g.table).sort((x,y)=>y.Pts-x.Pts||(y.GF-y.GA)-(x.GF-x.GA)||y.GF-x.GF);};
+Game.ccFinish=function(f,res){
+  const cc=this.state.cc;
+  if(f.ccStage==='group'){
+    const ri=f.ccRound;
+    cc.groups.forEach((g,gi)=>{ g.rr[ri].forEach(pi=>{ const a=g.teams[pi[0]],b=g.teams[pi[1]];
+      let hg,ag;
+      if(gi===cc.userGroupIdx && (a===this.state.club||b===this.state.club)){ hg=(a===res.home)?res.gh:res.ga; ag=(a===res.home)?res.ga:res.gh; }
+      else { const s=simMatch(a,b); hg=s.gh; ag=s.ga; }
+      this.ccRow(g.table,a,b,hg,ag); }); });
+    if(ri>=5){ this.ccBuildKnockout(); this.ccInjectUserKo(); }
+  } else { this.ccKoFinish(f,res); }
+};
+Game.ccBuildKnockout=function(){
+  const cc=this.state.cc; const w=[],ru=[];
+  cc.groups.forEach(g=>{const rk=this.ccRank(g);w.push(rk[0].t);ru.push(rk[1].t);});
+  const r16=[]; for(let i=0;i<8;i+=2){ r16.push({hk:w[i],ak:ru[i+1]}); r16.push({hk:w[i+1],ak:ru[i]}); }
+  cc.knockout={R16:r16,QF:[],SF:[],Final:[]}; cc.koStage='R16'; cc.round='ko';
+  cc.eliminated=!(w.includes(this.state.club)||ru.includes(this.state.club));
+};
+Game.ccUserTie=function(){ const cc=this.state.cc; const ties=cc.knockout[cc.koStage]||[]; return ties.findIndex(t=>!t.done&&(t.hk===this.state.club||t.ak===this.state.club)); };
+Game.ccInjectUserKo=function(){
+  const cc=this.state.cc; if(cc.eliminated){ this.ccSimRemainder(); return; }
+  const ti=this.ccUserTie(); if(ti<0){ cc.eliminated=true; this.ccSimRemainder(); return; }
+  const t=cc.knockout[cc.koStage][ti]; const home=t.hk===this.state.club, opp=home?t.ak:t.hk;
+  const slotWk={R16:19,QF:24,SF:29,Final:34}[cc.koStage];
+  this.addFixture({id:'CCk'+cc.koStage,date:addDays(new Date(this.state.calStart),14+slotWk*7+3).getTime(),comp:'Champions Cup',ccStage:'ko',oppName:opp,home,played:false});
+};
+Game.ccKoFinish=function(f,res){
+  const cc=this.state.cc; const st=cc.koStage; const ties=cc.knockout[st]; const ti=this.ccUserTie();
+  if(ti>=0){ const t=ties[ti]; let hg=res.gh,ag=res.ga,w; if(hg===ag){w=(seeded('ccp-'+st+this.state.seasonNum)()<0.5)?t.hk:t.ak;} else w=hg>ag?t.hk:t.ak; Object.assign(t,{hg,ag,w,done:true,pens:hg===ag}); }
+  ties.forEach((t,i)=>{ if(!t.done){ const s=simMatch(t.hk,t.ak,{seed:'cck'+st+i}); let w; if(s.gh===s.ga)w=(seeded('x'+st+i)()<0.5)?t.hk:t.ak; else w=s.gh>s.ga?t.hk:t.ak; Object.assign(t,{hg:s.gh,ag:s.ga,w,done:true,pens:s.gh===s.ga}); } });
+  const order=['R16','QF','SF','Final']; const winners=ties.map(t=>t.w);
+  if(st==='Final'){ cc.champion=winners[0]; cc.round='done'; if(cc.champion===this.state.club) this.awardTrophy('Champions Cup'); this.addNews('trophy',`${this.clubOf(cc.champion).name} win the Champions Cup`,`European glory under the lights.`,''); return; }
+  const nx=order[order.indexOf(st)+1]; const nt=[]; for(let i=0;i<winners.length;i+=2)nt.push({hk:winners[i],ak:winners[i+1]});
+  cc.knockout[nx]=nt; cc.koStage=nx;
+  if(winners.includes(this.state.club)){ this.ccInjectUserKo(); } else { cc.eliminated=true; this.ccSimRemainder(); }
+};
+Game.ccSimRemainder=function(){
+  const cc=this.state.cc; if(!cc||cc.round==='done')return; const order=['R16','QF','SF','Final'];
+  let st=cc.koStage||'R16';
+  while(st){ const ties=cc.knockout[st]; ties.forEach((t,i)=>{ if(!t.done){ const s=simMatch(t.hk,t.ak,{seed:'ccr'+st+i}); let w; if(s.gh===s.ga)w=(seeded('y'+st+i)()<0.5)?t.hk:t.ak; else w=s.gh>s.ga?t.hk:t.ak; Object.assign(t,{hg:s.gh,ag:s.ag||s.ga,w,done:true,pens:s.gh===s.ga}); } });
+    const winners=ties.map(t=>t.w);
+    if(st==='Final'){ cc.champion=winners[0]; cc.round='done'; if(cc.champion===this.state.club)this.awardTrophy('Champions Cup'); break; }
+    const nx=order[order.indexOf(st)+1]; const nt=[]; for(let i=0;i<winners.length;i+=2)nt.push({hk:winners[i],ak:winners[i+1]}); cc.knockout[nx]=nt; cc.koStage=nx; st=nx; }
+};
+Game.setupDomesticCup=function(fx,start){
+  this.state.dc={round:0,alive:true,champion:false,history:[]};
+  const r=seeded('dc-'+this.state.seasonNum+this.state.club);
+  const opp=this.randomCupOpp(r,0);
+  this._dcNames=['Third Round','Fourth Round','Quarter-Final','Semi-Final','Final']; this._dcSlots=[6,11,17,23,31];
+  fx.push({id:'DC0',date:addDays(start,14+this._dcSlots[0]*7+3).getTime(),comp:'Domestic Cup',dcRound:0,roundName:this._dcNames[0],oppName:opp,home:r()<0.5,played:false});
+};
+Game.randomCupOpp=function(r,round){ const all=[]; LEAGUES.forEach(l=>l.clubs.forEach(c=>{if(c.name!==this.state.club)all.push(c.name);}));
+  all.sort((a,b)=>this.clubOf(b).ovr-this.clubOf(a).ovr);
+  const pool= round<2?all.slice(24): round<4?all.slice(6,26): all.slice(0,14); return pick(r,pool.length?pool:all); };
+Game.dcFinish=function(f,res){
+  const dc=this.state.dc; const me=this.state.club; const myG=res.home===me?res.gh:res.ga, opG=res.home===me?res.ga:res.gh;
+  let win=myG>opG; if(myG===opG){ win=(seeded('dcp-'+f.dcRound+this.state.seasonNum)()<0.5); }
+  dc.history.push({round:f.roundName,opp:f.oppName,myG,opG,win});
+  if(!win){ dc.alive=false; this.addNews('match',`${this.clubOf(me).short} knocked out of the Domestic Cup`,`Cup run ends in the ${f.roundName}.`,''); return; }
+  if(f.dcRound>=4){ dc.champion=true; dc.alive=false; this.awardTrophy('Domestic Cup'); return; }
+  const r=seeded('dc-'+this.state.seasonNum+f.dcRound+'n'); const opp=this.randomCupOpp(r,f.dcRound+1);
+  const nr=f.dcRound+1;
+  this.addFixture({id:'DC'+nr,date:addDays(new Date(this.state.calStart),14+this._dcSlots[nr]*7+3).getTime(),comp:'Domestic Cup',dcRound:nr,roundName:this._dcNames[nr],oppName:opp,home:r()<0.5,played:false});
+};
+Game.addFixture=function(f){ this.state.fixtures.push(f); this.state.fixtures.sort((a,b)=>a.date-b.date); };
+Game.nextUserFixture=function(){ return (this.state.fixtures||[]).find(f=>!f.played); };
 /* ---------------- MATCH PLAY ---------------- */
 Game.playMatch=function(){
-  const fx=this.nextFixture(); if(!fx){toast('No match to play.');return}
-  const opp=fx.home===this.state.club?fx.away:fx.home;
-  this.matchPress('pre',{opp:this.clubOf(opp).short}, ()=>this.runMatchSim(fx.home,fx.away,true));
+  const f=this.nextUserFixture(); if(!f){toast('No match to play.');return}
+  const opp=this.clubOf(f.oppName);
+  const hName=f.home?this.state.club:f.oppName, aName=f.home?f.oppName:this.state.club;
+  this.matchPress('pre',{opp:opp.short}, ()=>this.runMatchSim(hName,aName,true,{comp:f.comp+(f.roundName?' · '+f.roundName:''),onFinish:(res)=>this.finishUserFixture(f,res)}));
 };
 Game.simMatchQuick=function(){
-  const fx=this.nextFixture(); if(!fx)return;
-  const res=simMatch(fx.home,fx.away);
-  this.applyResult(res); this.advanceWeek();
-  this.go('career');
-  toast(`Result: ${this.clubOf(fx.home).short} ${res.gh}-${res.ga} ${this.clubOf(fx.away).short}`,'');
+  const f=this.nextUserFixture(); if(!f)return;
+  const hName=f.home?this.state.club:f.oppName, aName=f.home?f.oppName:this.state.club;
+  const res=simMatch(hName,aName);
+  this.finishUserFixture(f,res,true);
+};
+Game.finishUserFixture=function(f,res,quick){
+  f.played=true; const me=this.state.club;
+  const myG=res.home===me?res.gh:res.ga, opG=res.home===me?res.ga:res.gh;
+  f.myG=myG; f.opG=opG; f.gh=res.gh; f.ga=res.ga;
+  this.state.apps=this.state.apps||{}; this.startingXI(me).forEach(p=>{this.state.apps[p.id]=(this.state.apps[p.id]||0)+1});
+  const w= myG>opG?1: myG<opG?-1:0;
+  this.state.morale=clamp(this.state.morale+(w>0?4:w<0?-5:1),0,100);
+  if(f.comp==='League'){ this.applyResult(res); this.advanceWeek();
+    if(w>0){this.state.boardConfidence=clamp(this.state.boardConfidence+2,0,100);this.state.fanHappiness=clamp(this.state.fanHappiness+3,0,100);}
+    else if(w<0){this.state.boardConfidence=clamp(this.state.boardConfidence-3,0,100);this.state.fanHappiness=clamp(this.state.fanHappiness-4,0,100);}
+    if(w>0)this.addNews('match',`${this.clubOf(me).short} win ${myG}-${opG}`,`${res.scorers.filter(s=>(s.team==='H')===(res.home===me)).map(s=>s.player).join(', ')||'A solid display'} did the damage.`);
+  } else if(f.comp==='Champions Cup'){ this.ccFinish(f,res); }
+  else if(f.comp==='Domestic Cup'){ this.dcFinish(f,res); }
+  this.maybeGenerateDrama(); this.autosave();
+  if(quick){ this.go('career'); toast(`${COMP_SHORT[f.comp]}: ${this.clubOf(me).short} ${myG}-${opG} ${this.clubOf(f.oppName).short}`); return; }
+  this.matchPress('post',{res:w},()=>{ const cont=()=>this.afterUserFixture(); if(this.nextUserFixture()&&Math.random()<0.28)this.seasonDecision(cont); else cont(); });
+};
+Game.afterUserFixture=function(){ if(!this.nextUserFixture()) this.endOfSeasonFlow(); else this.go('career'); };
+Game.endOfSeasonFlow=function(){
+  if(this.state.cc && this.state.cc.round!=='done') this.ccSimRemainder();
+  this.state.lastPos=this.clubRank(this.state.club);
+  this.showSeasonSummary();
+};
+Game.showSeasonSummary=function(){
+  const pos=this.clubRank(this.state.club); const lg=this.leagueOf(this.state.club);
+  const cc=this.state.cc, dc=this.state.dc;
+  const ccLine= cc? (cc.champion===this.state.club?'Champions Cup: WON':cc.eliminated?'Champions Cup: eliminated':'Champions Cup: —') : 'Did not qualify for the Champions Cup';
+  const dcLine= dc.champion?'Domestic Cup: WON': dc.alive?'Domestic Cup: —':'Domestic Cup: knocked out';
+  this.openModalHTML(`<div style="padding:28px">
+    <div class="kicker">Season ${this.state.season} Review</div><h2 style="margin:6px 0 16px">${this.clubOf(this.state.club).name}</h2>
+    <div class="stat-row" style="grid-template-columns:1fr 1fr 1fr"><div class="stat-box"><div class="k">${lg.name}</div><div class="v">${pos}<small>${ordinal(pos)}</small></div></div>
+      <div class="stat-box"><div class="k">Champions Cup</div><div class="v" style="font-size:15px">${cc?(cc.champion===this.state.club?'Winners':cc.eliminated?'Out':'—'):'—'}</div></div>
+      <div class="stat-box"><div class="k">Domestic Cup</div><div class="v" style="font-size:15px">${dc.champion?'Winners':dc.alive?'—':'Out'}</div></div></div>
+    <div style="margin-top:16px;display:flex;gap:10px"><button class="btn primary" onclick="Game.afterSeasonSummary()">Continue to Summer →</button></div>
+  </div>`);
+};
+Game.afterSeasonSummary=function(){ this.closeModal();
+  if(this.state.seasonNum % 4 === 0){ this.offerWorldCupJob(()=>this.go('career')); } else this.go('career');
+};
+Game.fmtDate=function(ts){const d=new Date(ts);return d.toLocaleString('en',{month:'short',day:'numeric'});};
+/* ---------------- CALENDAR ---------------- */
+Game.renderCalendar=function(v){
+  this.setCrumbs('Manager',this.clubOf(this.state.club).name,'Calendar');
+  const fixtures=this.state.fixtures||[];
+  const start=new Date(this.state.calStart);
+  // months spanned
+  const months=[]; const seen=new Set();
+  fixtures.forEach(f=>{const d=new Date(f.date);const key=d.getFullYear()+'-'+d.getMonth();if(!seen.has(key)){seen.add(key);months.push({y:d.getFullYear(),m:d.getMonth()});}});
+  months.sort((a,b)=>a.y-b.y||a.m-b.m);
+  if(this.calMonth==null){ const nf=this.nextUserFixture(); const nd=nf?new Date(nf.date):start; this.calMonth=nd.getFullYear()+'-'+nd.getMonth(); }
+  let cur=months.find(mm=>mm.y+'-'+mm.m===this.calMonth)||months[0];
+  const nextF=this.nextUserFixture();
+  v.innerHTML=`<div class="view-head"><div><div class="kicker">${this.clubOf(this.state.club).name}</div><h2>Calendar</h2>
+    <div class="sub">${nextF?'Next: '+nextF.comp+' vs '+this.clubOf(nextF.oppName).short+' · '+this.fmtDate(nextF.date):'Season complete'}</div></div>
+    ${nextF?'<button class="btn primary" onclick="Game.playMatch()">▶ Play Next Match</button>':'<button class="btn primary" onclick="Game.newSeason()">Start Next Season →</button>'}</div>`;
+  const tabs=el('div','cal-months');
+  months.forEach(mm=>{const b=el('button',(mm.y+'-'+mm.m===(cur.y+'-'+cur.m))?'on':'',new Date(mm.y,mm.m,1).toLocaleString('en',{month:'long'}));b.onclick=()=>{this.calMonth=mm.y+'-'+mm.m;this.go('calendar')};tabs.appendChild(b);});
+  v.appendChild(tabs);
+  const card=el('div','card card-pad');
+  const first=new Date(cur.y,cur.m,1); const startDow=first.getDay(); const days=new Date(cur.y,cur.m+1,0).getDate();
+  const byDay={}; fixtures.forEach(f=>{const d=new Date(f.date);if(d.getFullYear()===cur.y&&d.getMonth()===cur.m)byDay[d.getDate()]=f;});
+  const nextId=nextF?nextF.id:null;
+  let html='<div class="cal-grid">'+['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(d=>`<div class="cal-dow">${d}</div>`).join('');
+  for(let i=0;i<startDow;i++)html+='<div class="cal-cell empty"></div>';
+  for(let day=1;day<=days;day++){ const f=byDay[day]; const isNext=f&&f.id===nextId;
+    if(!f){ html+=`<div class="cal-cell"><div class="dnum">${day}</div></div>`; continue; }
+    const oppC=this.clubOf(f.oppName); const col=COMP_COLOR[f.comp];
+    html+=`<div class="cal-cell has ${isNext?'today':''}"><div class="dnum">${day}</div>
+      ${f.played?`<div class="res" style="color:${f.myG>f.opG?'var(--good)':f.myG<f.opG?'var(--bad)':'var(--warn)'}">${f.myG}-${f.opG}</div>`:''}
+      <div class="cal-ev" style="background:${col}"><span class="mc">${crestSVG(oppC,16)}</span><span>${f.home?'H':'A'} ${oppC.short}<div class="vn">${COMP_SHORT[f.comp]}</div></span></div></div>`;
+  }
+  html+='</div><div class="cal-legend">'+Object.entries(COMP_COLOR).map(([k,c])=>`<span><i style="background:${c}"></i>${k}</span>`).join('')+'</div>';
+  card.innerHTML=html; v.appendChild(card);
+};
+/* ---------------- CUPS (Champions Cup + Domestic Cup) ---------------- */
+Game.renderCups=function(v){
+  this.setCrumbs('Competitions','Cups');
+  const cc=this.state.cc, dc=this.state.dc;
+  v.innerHTML=`<div class="view-head"><div><div class="kicker">European & Domestic</div><h2>Cup Competitions</h2><div class="sub">Your run in the Champions Cup and the Domestic Cup.</div></div></div>`;
+  const grid=el('div','grid'); grid.style.gridTemplateColumns='1.2fr 1fr'; grid.style.alignItems='start';
+  // champions cup
+  const ccCard=el('div','card card-pad');
+  if(!cc){ ccCard.innerHTML='<h4>Champions Cup</h4><div class="empty">You didn\'t qualify this season. Finish in the top four to reach the Champions Cup.</div>'; }
+  else if(cc.round==='group'||(cc.round!=='group'&&cc.groups)){
+    const g=cc.groups[cc.userGroupIdx];
+    ccCard.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><h4>Champions Cup — Group ${g.letter}</h4>${cc.champion?`<span class="badge gold">${this.clubOf(cc.champion).short} won it</span>`:''}</div>
+      <table class="tbl"><thead><tr><th>Club</th><th class="n">P</th><th class="n">GD</th><th class="n">Pts</th></tr></thead><tbody>
+      ${this.ccRank(g).map((row,i)=>{const c=this.clubOf(row.t);return `<tr class="${row.t===this.state.club?'me':''} ${i<2?'zone-ucl':''}"><td class="cl"><span class="mini-crest">${crestSVG(c,20)}</span>${c.short}</td><td class="n">${row.P}</td><td class="n">${row.GF-row.GA>=0?'+':''}${row.GF-row.GA}</td><td class="n"><b>${row.Pts}</b></td></tr>`}).join('')}
+      </tbody></table>`;
+    if(cc.knockout&&cc.knockout.R16&&cc.knockout.R16.length){
+      ccCard.innerHTML+='<div style="margin-top:14px"></div>'+['R16','QF','SF','Final'].map(st=>{const ties=cc.knockout[st];if(!ties||!ties.length)return '';
+        return `<div class="roster-group">${({R16:'Round of 16',QF:'Quarter-Finals',SF:'Semi-Finals',Final:'Final'})[st]}</div>`+ties.map(t=>`<div style="display:grid;grid-template-columns:1fr 60px 1fr;align-items:center;gap:6px;padding:4px 8px;font-size:12px;${(t.hk===this.state.club||t.ak===this.state.club)?'background:rgba(198,255,46,.06);border-radius:8px':''}"><div style="text-align:right;font-weight:${t.w===t.hk?'900':'600'}">${this.clubOf(t.hk).short}</div><div style="text-align:center;font-weight:900">${t.done?`${t.hg}-${t.ag}`:'vs'}</div><div style="font-weight:${t.w===t.ak?'900':'600'}">${this.clubOf(t.ak).short}</div></div>`).join('');}).join('');
+    }
+  }
+  grid.appendChild(ccCard);
+  // domestic cup
+  const dcCard=el('div','card card-pad');
+  dcCard.innerHTML=`<h4 style="margin-bottom:10px">Domestic Cup</h4>${dc&&dc.history.length?dc.history.map(h=>`<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--line)"><span style="width:70px;color:var(--dim);font-size:11px">${h.round}</span><span class="mini-crest">${crestSVG(this.clubOf(h.opp),18)}</span><b style="font-size:12.5px">${this.clubOf(h.opp).short}</b><span style="margin-left:auto;font-weight:900;color:${h.win?'var(--good)':'var(--bad)'}">${h.myG}-${h.opG}</span></div>`).join('')+(dc.champion?'<div class="badge gold" style="margin-top:12px">Cup Winners</div>':dc.alive?'<div class="badge good" style="margin-top:12px">Still in it</div>':'<div class="badge bad" style="margin-top:12px">Knocked out</div>'):'<div class="empty">Your cup run starts later in the season.</div>'}`;
+  grid.appendChild(dcCard);
+  v.appendChild(grid);
 };
 Game.runMatchSim=function(home,away,userMatch,opts){
   opts=opts||{};
@@ -2017,6 +2258,8 @@ Game.newSeason=function(){
     const names=l.clubs.map(c=>c.name); for(let i=names.length-1;i>0;i--){const j=Math.floor(shuf()*(i+1));[names[i],names[j]]=[names[j],names[i]];}
     this.state.schedules[l.id]=makeSchedule(names); this.state.weekIndex[l.id]=0; });
   this.state.results={}; this.state.scorers={}; this.state.apps={}; this.state.cl=null;
+  this.state.lastPos=myPos;
+  this.buildUserSeason();
   this.addNews('season',`A new season dawns for ${c.name}`,`Finished ${myPos}${ordinal(myPos)} last term. Prize money and TV revenue of ${money(prize)} boosts the war chest to ${money(this.state.budget)}.`,'');
   toast('New season: '+this.state.season+' · +'+money(prize));
   this.autosave();
