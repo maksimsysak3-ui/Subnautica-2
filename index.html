@@ -1322,6 +1322,46 @@ const ZONE_SPONSORS=[
   {txt:'MSC',bg:'#0a1e3f',fg:'#f0c33c',accent:'#f0c33c',tag:'CRUISES',mark:'wave'},
   {txt:'PETRONAS',bg:'#00a19a',fg:'#e9f6f4',accent:'#0a3d3a',tag:'FLUID TECHNOLOGY SOLUTIONS',mark:'drop'},
 ];
+/* per-circuit sponsors — these get mixed in with the regular series sponsors */
+const TRACK_SPONSORS={
+  monaco:[{txt:'TAG Heuer',bg:'#0a0c10',fg:'#ffffff',accent:'#00b0e0',tag:'SWISS AVANT-GARDE',mark:'box'},
+    {txt:'Fairmont',bg:'#0a2a4a',fg:'#e8c86a',accent:'#e8c86a',tag:'MONTE CARLO',mark:'crown'}],
+  lasvegas:[{txt:'MGM',bg:'#111111',fg:'#e8b923',accent:'#e8b923',tag:'GRAND',mark:'crown'},
+    {txt:'Caesars',bg:'#1a1030',fg:'#e8c86a',accent:'#c0392b',tag:'PALACE',mark:'star'},
+    {txt:'Bellagio',bg:'#0a1a3a',fg:'#ffffff',accent:'#37b6ff',tag:'LAS VEGAS',mark:'drop'},
+    {txt:'Wynn',bg:'#2a1a0a',fg:'#e8b923',accent:'#e8b923',tag:'RESORT',mark:'box'}],
+  miami:[{txt:'Hard Rock',bg:'#111111',fg:'#e2000f',accent:'#e2000f',tag:'STADIUM',mark:'star'},
+    {txt:'Crypto.com',bg:'#0a2a6a',fg:'#ffffff',accent:'#1199fa',tag:'FORTUNE FAVOURS THE BRAVE',mark:'box'},
+    {txt:'South Beach',bg:'#00b8bf',fg:'#ffffff',accent:'#ff5fa2',tag:'MIAMI',mark:'wave'}],
+  bahrain:[{txt:'Gulf Air',bg:'#0a3a4a',fg:'#e8b923',accent:'#e8b923',tag:'KINGDOM OF BAHRAIN',mark:'wave'},
+    {txt:'Bapco',bg:'#0a5c36',fg:'#ffffff',accent:'#ffcc00',tag:'ENERGY',mark:'drop'},
+    {txt:'Batelco',bg:'#c8102e',fg:'#ffffff',accent:'#ffffff',tag:'CONNECTED',mark:'arrows'}],
+  australia:[{txt:'Qantas',bg:'#e2000f',fg:'#ffffff',accent:'#ffffff',tag:'SPIRIT OF AUSTRALIA',mark:'arrows'},
+    {txt:'Bonds',bg:'#111111',fg:'#ffffff',accent:'#e2000f',tag:'AUSTRALIA',mark:'box'},
+    {txt:'Penfolds',bg:'#2a0a1a',fg:'#e8c86a',accent:'#e8c86a',tag:'EST. 1844',mark:'crown'}],
+  silverstone:[{txt:'Santander',bg:'#e2000f',fg:'#ffffff',accent:'#ffffff',tag:'OFFICIAL BANK',mark:'box'},
+    {txt:'Sky Sports',bg:'#0a1a4a',fg:'#ffffff',accent:'#e2000f',tag:'F1',mark:'star'}],
+  spa:[{txt:'Jupiler',bg:'#c8102e',fg:'#ffffff',accent:'#111111',tag:'BELGIUM',mark:'star'},
+    {txt:'Stella',bg:'#c00010',fg:'#e8c86a',accent:'#e8c86a',tag:'ARTOIS',mark:'crown'}],
+  montreal:[{txt:'Air Canada',bg:'#c8102e',fg:'#ffffff',accent:'#111111',tag:'OFFICIAL AIRLINE',mark:'arrows'},
+    {txt:'Tim Hortons',bg:'#7a0a1a',fg:'#e8c86a',accent:'#e8c86a',tag:'CANADA',mark:'drop'}],
+  jeddah:[{txt:'STC',bg:'#4a1a7a',fg:'#ffffff',accent:'#00e0c0',tag:'DIGITAL KINGDOM',mark:'wave'},
+    {txt:'Saudia',bg:'#0a5c36',fg:'#ffffff',accent:'#e8c86a',tag:'FLY SAUDIA',mark:'arrows'}],
+  catalunya:[{txt:'Estrella',bg:'#c8102e',fg:'#e8c86a',accent:'#e8c86a',tag:'DAMM',mark:'star'},
+    {txt:'CUPRA',bg:'#0a0c10',fg:'#c07a4a',accent:'#c07a4a',tag:'BARCELONA',mark:'box'}],
+  austria:[{txt:'Red Bull',bg:'#0a1740',fg:'#ffcc00',accent:'#e2000f',tag:'GIVES YOU WINGS',mark:'arrows'},
+    {txt:'ServusTV',bg:'#e2000f',fg:'#ffffff',accent:'#ffffff',tag:'AUSTRIA',mark:'box'}],
+  saopaulo:[{txt:'Itau',bg:'#f08a00',fg:'#0a2a6a',accent:'#0a2a6a',tag:'FEITO PARA VOCE',mark:'box'},
+    {txt:'Guarana',bg:'#0a7a3a',fg:'#ffcc00',accent:'#ffcc00',tag:'ANTARCTICA',mark:'drop'}],
+  yas:[{txt:'Etihad',bg:'#0a2a3a',fg:'#e8c86a',accent:'#e8c86a',tag:'ABU DHABI',mark:'wave'},
+    {txt:'ADNOC',bg:'#0a5c6a',fg:'#ffffff',accent:'#00c0d0',tag:'ENERGY FOR LIFE',mark:'drop'}],
+};
+function sponsorZones(id){
+  const R=ZONE_SPONSORS.slice(), S=(TRACK_SPONSORS[id]||[]).slice(), out=[];
+  const n=R.length+S.length;
+  for(let i=0;i<n;i++){ if(i%2===0 && S.length) out.push(S.shift()); else if(R.length) out.push(R.shift()); else out.push(S.shift()); }
+  return out;
+}
 function shadeHex(hex,f){const n=parseInt(hex.slice(1),16);
   let r=(n>>16)&255,g=(n>>8)&255,b=n&255;
   r=Math.min(255,r*f)|0;g=Math.min(255,g*f)|0;b=Math.min(255,b*f)|0;
@@ -1410,8 +1450,9 @@ function buildSausageKerbs(sc,P,Nm,cum,runL,runR,HW){
   }
 }
 function buildBarriers(sc,P,Nm,cum,offL,offR){
-  const N=P.length, ZN=ZONE_SPONSORS.length, WH=2.2, BOARD_M=20;
-  const zoneTex=ZONE_SPONSORS.map(makeZoneBoard);
+  const zones=sponsorZones(CFG.id);              // track-specific sponsors mixed with the regulars
+  const N=P.length, ZN=zones.length, WH=2.2, BOARD_M=20;
+  const zoneTex=zones.map(makeZoneBoard);
   for(const [side,off] of [[1,offL],[-1,offR]]){
     for(let z=0;z<ZN;z++){
       const i0=Math.floor(z/ZN*N), i1=Math.floor((z+1)/ZN*N);
@@ -2672,47 +2713,28 @@ function mountCockpit(){
   const teamBase=(LIVERIES[selLivery]||LIVERIES.redbull).base;
   const accentMat=new THREE.MeshStandardMaterial({color:teamBase,roughness:0.45,metalness:0.1});
   const suitMat=new THREE.MeshStandardMaterial({color:0x181b21,roughness:0.78});
-  // anatomical skin materials (real hands, not boxes)
-  const skin=new THREE.MeshStandardMaterial({color:0xd0a17c,roughness:0.6,metalness:0.0});
-  const skinK=new THREE.MeshStandardMaterial({color:0xc28d64,roughness:0.62});
-  const nailMat=new THREE.MeshStandardMaterial({color:0xe8cbb4,roughness:0.38});
+  // simple stylised blue rubber gloves (mitten style) — smooth, low-poly, grip the rim
+  const blue=new THREE.MeshStandardMaterial({color:0x3f9ad6,roughness:0.5,metalness:0.0});
+  const blueD=new THREE.MeshStandardMaterial({color:0x2f83bd,roughness:0.55});
   const R=0.152;
-  // a REAL hand: curved palm pad, thenar muscle, three-phalange capsule fingers with
-  // knuckle joints + nails, an opposed thumb, and a wrist — all curled to grip the rim.
   const makeGlove=(sx)=>{
     const hand=new THREE.Group();
-    // palm pad (smooth flattened ellipsoid), back to driver (-Z), palm to rim (+Z)
-    const palm=new THREE.Mesh(new THREE.SphereGeometry(1,20,16),skin);palm.scale.set(0.05,0.05,0.019);palm.position.set(0,0.004,0.004);hand.add(palm);
-    const heel=new THREE.Mesh(new THREE.SphereGeometry(1,16,12),skin);heel.scale.set(0.045,0.03,0.018);heel.position.set(0,-0.042,0.002);hand.add(heel);
-    const meta=new THREE.Mesh(new THREE.SphereGeometry(1,16,12),skin);meta.scale.set(0.05,0.026,0.02);meta.position.set(0,0.03,0.0);hand.add(meta);
-    const thenar=new THREE.Mesh(new THREE.SphereGeometry(1,12,10),skin);thenar.scale.set(0.024,0.03,0.018);thenar.position.set(-sx*0.04,-0.006,0.006);hand.add(thenar);
-    // finger = 3 tapered capsule phalanges + knuckle spheres, curling to grip
-    const finger=(bx,total,rad,base,curl)=>{
-      const root=new THREE.Group();root.position.set(bx,0.036,0.006);root.rotation.x=base;
-      const L=[total*0.40,total*0.34,total*0.26], Rr=[rad,rad*0.9,rad*0.78], cur=[curl*0.7,curl,curl*0.95];
-      let node=root;
-      for(let s=0;s<3;s++){const seg=new THREE.Group();seg.rotation.x=cur[s];node.add(seg);
-        const kn=new THREE.Mesh(new THREE.SphereGeometry(Rr[s]*1.12,10,8),skinK);seg.add(kn);
-        const cap=new THREE.Mesh(new THREE.CapsuleGeometry(Rr[s],L[s],4,12),skin);cap.rotation.x=Math.PI/2;cap.position.z=L[s]/2+Rr[s]*0.4;seg.add(cap);
-        if(s===2){const nail=new THREE.Mesh(new THREE.SphereGeometry(Rr[s]*0.7,8,6),nailMat);nail.scale.set(1,0.5,1.1);nail.position.set(0,Rr[s]*0.55,L[s]*0.7);seg.add(nail);
-          const tip=new THREE.Mesh(new THREE.SphereGeometry(Rr[s]*0.85,8,6),skin);tip.position.z=L[s]+Rr[s]*0.4;seg.add(tip);}
-        const next=new THREE.Group();next.position.z=L[s]+Rr[s]*0.8;seg.add(next);node=next;}
-      return root;
-    };
-    const cols=[-1.55,-0.52,0.52,1.55], tot=[0.066,0.074,0.069,0.055];   // index·middle·ring·pinky
-    cols.forEach((c,i)=>{ hand.add(finger(c*0.0135, tot[i], 0.0082, 0.15+(i===3?0.05:0), 0.62)); });
-    // opposed thumb: 2 phalanges from the thenar, wrapping the inner rim
-    const thumb=new THREE.Group();thumb.position.set(-sx*0.046,-0.006,0.012);thumb.rotation.z=sx*1.15;thumb.rotation.y=-sx*0.5;thumb.rotation.x=0.5;
-    { let node=thumb;const L=[0.028,0.024],Rr=[0.011,0.0095],cu=[0.25,0.6];
-      for(let s=0;s<2;s++){const seg=new THREE.Group();seg.rotation.x=cu[s];node.add(seg);
-        const kn=new THREE.Mesh(new THREE.SphereGeometry(Rr[s]*1.1,10,8),skinK);seg.add(kn);
-        const cap=new THREE.Mesh(new THREE.CapsuleGeometry(Rr[s],L[s],4,12),skin);cap.rotation.x=Math.PI/2;cap.position.z=L[s]/2+Rr[s]*0.4;seg.add(cap);
-        if(s===1){const tip=new THREE.Mesh(new THREE.SphereGeometry(Rr[s]*0.85,8,6),skin);tip.position.z=L[s]+Rr[s]*0.4;seg.add(tip);}
-        const next=new THREE.Group();next.position.z=L[s]+Rr[s]*0.8;seg.add(next);node=next;} }
-    hand.add(thumb);
-    // wrist + team wristband where the glove/suit meets the arm
-    const wrist=new THREE.Mesh(new THREE.CylinderGeometry(0.026,0.03,0.03,16),skin);wrist.rotation.x=Math.PI/2;wrist.position.set(0,-0.055,-0.004);hand.add(wrist);
-    const band=new THREE.Mesh(new THREE.CylinderGeometry(0.031,0.031,0.014,18),accentMat);band.rotation.x=Math.PI/2;band.position.set(0,-0.05,-0.004);hand.add(band);
+    // rounded palm/back-of-hand (smooth flattened blob)
+    const palm=new THREE.Mesh(new THREE.SphereGeometry(1,20,16),blue);
+    palm.scale.set(0.052,0.056,0.032);palm.position.set(0,0,0.004);hand.add(palm);
+    // merged mitten fingers: four short fat lobes curling over the rim front (never past it)
+    const fg=new THREE.Group();fg.position.set(0,0.03,0.012);fg.rotation.x=2.15;
+    const flen=[0.85,1.0,0.95,0.78];
+    for(let f=0;f<4;f++){const fx=(f-1.5)*0.019;
+      const lobe=new THREE.Mesh(new THREE.CapsuleGeometry(0.0135,0.02*flen[f],5,12),blue);
+      lobe.scale.set(1,1,0.82);lobe.position.set(fx,0.016*flen[f],0);fg.add(lobe);}
+    hand.add(fg);
+    // opposed thumb (single smooth lobe on the inner side)
+    const th=new THREE.Group();th.position.set(-sx*0.042,-0.004,0.014);th.rotation.z=sx*1.0;th.rotation.x=1.15;
+    const tp=new THREE.Mesh(new THREE.CapsuleGeometry(0.015,0.022,5,12),blue);tp.position.y=0.02;th.add(tp);hand.add(th);
+    // rubber cuff at the wrist
+    const cuff=new THREE.Mesh(new THREE.CylinderGeometry(0.034,0.038,0.034,18),blueD);
+    cuff.rotation.x=Math.PI/2;cuff.position.set(0,-0.05,-0.004);hand.add(cuff);
     hand.traverse(o=>{o.castShadow=true;});
     return hand;
   };
