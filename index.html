@@ -292,6 +292,32 @@
   .rdCard .fittedTag{margin-top:auto;text-align:center;padding:9px;color:#4be08a;font-family:var(--mono);font-size:11px;letter-spacing:.14em}
   #rdFoot{display:flex;justify-content:space-between;font-size:11px;letter-spacing:.2em;color:var(--grey);text-transform:uppercase}
   #rdFoot b{display:inline-block;padding:3px 7px;margin-right:8px;border:1px solid var(--grey-lo);border-radius:3px;color:#fff;font-family:var(--mono);font-size:10px}
+  /* R&D polish: tile ring, tier rarity, gain bars */
+  .rdTile .tileHead{display:flex;justify-content:space-between;align-items:flex-start}
+  .rdTile .tpot{font-family:var(--mono);font-size:11px;font-weight:700}
+  .rdRing{position:absolute;right:16px;top:44px;width:62px;height:62px;border-radius:50%;display:flex;align-items:center;justify-content:center}
+  .rdRing::after{content:'';position:absolute;inset:7px;border-radius:50%;background:#0b1018}
+  .rdRing span{position:relative;font-family:var(--mono);font-weight:900;font-size:20px}
+  .rdCard{position:relative;border-left:3px solid var(--grey-lo)}
+  .rdCard.tier1{border-left-color:#8b93a0}.rdCard.tier2{border-left-color:#3fa9ff}.rdCard.tier3{border-left-color:#c07aff}
+  .rdCard .cardTop{display:flex;justify-content:space-between;align-items:center}
+  .rdCard .tierBadge{font-family:var(--mono);font-size:8.5px;letter-spacing:.12em;padding:2px 6px;border-radius:3px;font-weight:700}
+  .rdCard.tier1 .tierBadge{background:rgba(139,147,160,.2);color:#aeb6c2}
+  .rdCard.tier2 .tierBadge{background:rgba(63,169,255,.18);color:#7fc8ff}
+  .rdCard.tier3 .tierBadge{background:rgba(192,122,255,.18);color:#d0a6ff}
+  .rdCard .cardIcon{font-size:18px;opacity:.85}
+  .rdCard .gainRow{display:flex;align-items:center;gap:8px}
+  .rdCard .gainLabel{font-family:var(--mono);font-size:12px;font-weight:700;white-space:nowrap}
+  .rdCard .gainBar{flex:1;height:5px;border-radius:3px;background:rgba(255,255,255,.08);overflow:hidden}
+  .rdCard .gainBar i{display:block;height:100%;border-radius:3px}
+  .rdCard .statePill{font-family:var(--mono);font-size:8.5px;letter-spacing:.1em;padding:2px 7px;border-radius:10px;font-weight:700}
+  .rdCard .pReady{background:rgba(255,178,32,.16);color:#ffcf6a}
+  .rdCard .pLocked{background:rgba(255,255,255,.06);color:#6b7480}
+  .rdCard .pOwned{background:rgba(75,224,138,.16);color:#7be8ac}
+  #rdOverall{display:flex;gap:12px;align-items:center;margin-right:6px}
+  #rdOverall .ov{text-align:right}
+  #rdOverall .ov .k{font-size:9px;letter-spacing:.2em;color:var(--grey);text-transform:uppercase}
+  #rdOverall .ov .v{font-family:var(--mono);font-weight:900;font-size:20px}
 
   /* ============ HUD (drive) ============ */
   #hud{position:fixed;inset:0;z-index:20;pointer-events:none;opacity:0;transition:opacity .6s}
@@ -497,6 +523,7 @@
   <header id="rdHead">
     <div id="rdTitle">RESEARCH &amp; DEVELOPMENT<small id="rdTeamName">SCUDERIA APEX</small></div>
     <div class="rdRes">
+      <div class="rdChip" id="rdOverallChip"><div class="k">Car Rating</div><div class="v" id="rdOverallV" style="color:#ffd23a">0</div></div>
       <div class="rdChip pts"><div class="k">R&amp;D Points</div><div class="v" id="rdPtsV">0</div></div>
       <div class="rdChip cash"><div class="k">Budget</div><div class="v" id="rdCashV">$0</div></div>
       <button id="rdBack">◂ HUB</button>
@@ -3337,17 +3364,22 @@ function openRD(){ initRD(); $('#seasonHub').classList.remove('on'); SEASON.on='
 function closeRD(){ $('#rdScreen').classList.remove('on','area'); SEASON.on='hub';
   $('#seasonHub').classList.add('on'); renderSeasonHub(); }
 function rdResHeader(){ $('#rdPtsV').textContent=SEASON.rdPts; $('#rdCashV').textContent=rdCash(SEASON.money);
-  $('#rdTeamName').textContent=((LIVERIES[SEASON.team]||{}).name||'TEAM').toUpperCase(); }
+  $('#rdTeamName').textContent=((LIVERIES[SEASON.team]||{}).name||'TEAM').toUpperCase();
+  const ov=Math.round(RD_AREAS.reduce((s,a)=>s+SEASON.rd[a.key].rating,0)/4);
+  const el=$('#rdOverallV'); if(el) el.textContent=ov; }
 function renderRDHome(){
   $('#rdScreen').classList.remove('area'); rdResHeader();
   const tiles=$('#rdTiles'); tiles.innerHTML='';
   RD_AREAS.forEach(a=>{const A=SEASON.rd[a.key];
     const done=A.parts.filter(p=>p.fitted).length, tot=A.parts.length, rate=Math.min(99,A.rating|0);
+    const ready=A.parts.filter(p=>p.researched&&!p.fitted).length;
+    const pot=A.parts.filter(p=>!p.fitted).reduce((s,p)=>s+p.gain,0);
     const el=document.createElement('div'); el.className='rdTile';
-    el.innerHTML=`<div><div class="ti">${a.icon}</div><div class="tn">${a.name}</div>
-      <div class="tp">${done}/${tot} parts fitted</div></div>
-      <div class="trate" style="color:${a.col}">${rate}</div>
-      <div class="tbar"><i style="width:${rate}%;background:${a.col}"></i></div>`;
+    el.innerHTML=`<div><div class="tileHead"><span class="ti">${a.icon}</span>
+        <span class="tpot" style="color:${a.col}">▲ +${pot} potential</span></div>
+      <div class="tn">${a.name}</div>
+      <div class="tp">${done}/${tot} fitted${ready?` · <b style="color:#ffcf6a">${ready} ready to fit</b>`:''}</div></div>
+      <div class="rdRing" style="background:conic-gradient(${a.col} ${rate}%, rgba(255,255,255,.08) 0)"><span style="color:${a.col}">${rate}</span></div>`;
     el.onclick=()=>{Sound.init();Sound.blip(520,.05);openRDArea(a.key);};
     tiles.appendChild(el);});
   renderRDCompare(); drawRDRadar();
@@ -3385,16 +3417,21 @@ function openRDArea(key){
 function renderRDCards(){
   const key=SEASON.rdArea, a=RD_AREAS.find(x=>x.key===key), A=SEASON.rd[key];
   rdResHeader(); const wrap=$('#rdCards'); wrap.innerHTML='';
+  const RARITY=['','COMMON','ADVANCED','ELITE'];
   A.parts.forEach(p=>{
-    const el=document.createElement('div'); el.className='rdCard'+(p.fitted?' fitted':'');
-    let action;
-    if(p.fitted) action=`<div class="fittedTag">✓ FITTED · +${p.gain}</div>`;
-    else if(!p.researched) action=`<button class="bResearch"${SEASON.rdPts<p.rp?' disabled':''}>RESEARCH · ${p.rp} RP</button>`;
-    else action=`<button class="bFit"${SEASON.money<p.cost?' disabled':''}>FIT · ${rdCash(p.cost)}</button>`;
-    el.innerHTML=`<div class="cardTier">${a.name} · Tier ${p.tier}</div>
+    const el=document.createElement('div'); el.className='rdCard tier'+p.tier+(p.fitted?' fitted':'');
+    let action, pill;
+    if(p.fitted){ action=`<div class="fittedTag">✓ FITTED · +${p.gain}</div>`; pill='<span class="statePill pOwned">FITTED</span>'; }
+    else if(!p.researched){ const aff=SEASON.rdPts>=p.rp;
+      action=`<button class="bResearch"${aff?'':' disabled'}>RESEARCH · ${p.rp} RP</button>`;
+      pill=`<span class="statePill ${aff?'':'pLocked'}">${aff?'AVAILABLE':'NEED RP'}</span>`; }
+    else { action=`<button class="bFit"${SEASON.money<p.cost?' disabled':''}>FIT · ${rdCash(p.cost)}</button>`;
+      pill='<span class="statePill pReady">READY TO FIT</span>'; }
+    el.innerHTML=`<div class="cardTop"><span class="tierBadge">T${p.tier} · ${RARITY[p.tier]}</span><span class="cardIcon">${a.icon}</span></div>
       <div class="cardName">${p.name}</div>
-      <div class="cardGain" style="color:${a.col}">▲ +${p.gain} ${a.short}</div>
-      <div class="cardCosts"><span>RP <b>${p.rp}</b></span><span>FIT <b>${rdCash(p.cost)}</b></span></div>
+      <div class="gainRow"><span class="gainLabel" style="color:${a.col}">▲ +${p.gain} ${a.short}</span>
+        <div class="gainBar"><i style="width:${Math.min(100,p.gain/7*100)}%;background:${a.col}"></i></div></div>
+      <div class="cardCosts"><span>RP <b>${p.rp}</b></span><span>FIT <b>${rdCash(p.cost)}</b></span>${pill}</div>
       ${action}`;
     const btn=el.querySelector('button');
     if(btn) btn.onclick=()=>{
