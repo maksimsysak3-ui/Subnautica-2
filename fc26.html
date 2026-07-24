@@ -21,10 +21,13 @@ body{
              radial-gradient(900px 600px at -10% 110%, #1a0f2e 0%, transparent 50%),
              var(--bg);
   color:var(--txt);
-  font-family:'Segoe UI',system-ui,-apple-system,Roboto,Helvetica,Arial,sans-serif;
+  font-family:-apple-system,'SF Pro Display','Segoe UI Variable','Segoe UI',system-ui,Roboto,'Helvetica Neue',Helvetica,Arial,sans-serif;
+  -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility;
   overflow:hidden; user-select:none;
 }
-h1,h2,h3,h4{margin:0; font-weight:800; letter-spacing:.02em}
+h1,h2,h3,h4{margin:0; font-weight:800; letter-spacing:-.01em}
+h1{letter-spacing:-.03em}
+.kicker{font-stretch:condensed}
 button{font-family:inherit; cursor:pointer; color:inherit; border:none; background:none}
 ::-webkit-scrollbar{width:10px; height:10px}
 ::-webkit-scrollbar-thumb{background:#1e2740; border-radius:20px; border:2px solid transparent; background-clip:content-box}
@@ -324,6 +327,33 @@ button{font-family:inherit; cursor:pointer; color:inherit; border:none; backgrou
 .ms-livestat{display:flex; gap:0; width:min(880px,94vw); margin:6px auto; align-items:center; font-size:12px; color:var(--dim)}
 .ms-livestat .bar{flex:1; height:6px; border-radius:6px; background:#222c46; overflow:hidden; margin:0 10px}
 .ms-livestat .bar>i{display:block; height:100%; background:var(--acc)}
+/* ============ SET-PIECE MINI-GAME ============ */
+#setpiece{position:fixed; inset:0; z-index:140; background:radial-gradient(1100px 700px at 50% 0%,#0d2038,#03050a 65%);
+  display:flex; align-items:center; justify-content:center; opacity:0; pointer-events:none; transition:var(--mid)}
+#setpiece.on{opacity:1; pointer-events:auto}
+.sp-wrap{width:min(560px,94vw); text-align:center; padding:18px}
+.sp-head h2{font-size:22px}
+.sp-goal{position:relative; width:100%; aspect-ratio:1.7; margin:18px auto 0; border-radius:14px; overflow:hidden;
+  background:linear-gradient(180deg,#e8eef7 0%,#c7d3e6 60%,#aab8d1 100%); box-shadow:0 20px 50px rgba(0,0,0,.5), inset 0 0 0 6px rgba(255,255,255,.5)}
+.sp-net{position:absolute; inset:6% 4% 0 4%; width:92%; height:78%}
+.sp-turf{position:absolute; left:0; right:0; bottom:0; height:22%; background:linear-gradient(180deg,#1a6b34,#0d3a1c); box-shadow:inset 0 6px 14px rgba(0,0,0,.25)}
+.sp-post{position:absolute; background:#fff; box-shadow:0 0 0 1px rgba(0,0,0,.15)}
+.sp-keeper{position:absolute; left:50%; top:44%; width:34px; height:56px; transform:translate(-50%,-50%); font-size:30px; line-height:1;
+  display:flex; align-items:center; justify-content:center; filter:drop-shadow(0 4px 6px rgba(0,0,0,.4)); transition:left .5s ease, top .3s ease; z-index:3}
+.sp-zone{position:absolute; width:15%; height:22%; transform:translate(-50%,-50%); border-radius:10px; border:2px dashed rgba(255,255,255,0);
+  background:rgba(255,255,255,0); cursor:pointer; transition:background .15s, border-color .15s; z-index:4}
+.sp-zone:hover{background:rgba(198,255,46,.14); border-color:rgba(198,255,46,.4)}
+.sp-zone.on{background:rgba(198,255,46,.28); border-color:var(--acc)}
+.sp-ball{position:absolute; left:50%; top:96%; width:16px; height:16px; border-radius:50%; transform:translate(-50%,-50%);
+  background:radial-gradient(circle at 35% 30%,#fff,#d7dde8 60%,#aab2c4); box-shadow:0 3px 8px rgba(0,0,0,.5); z-index:5;
+  transition:left .55s cubic-bezier(.2,.7,.3,1), top .55s cubic-bezier(.2,.7,.3,1), transform .55s ease}
+.sp-opts{display:flex; gap:22px; justify-content:center; margin-top:18px; flex-wrap:wrap}
+.sp-group{display:flex; flex-direction:column; gap:6px; align-items:center}
+.sp-lbl{font-size:11px; color:var(--dim); text-transform:uppercase; letter-spacing:.12em}
+.sp-result{margin-top:16px; font-size:26px; font-weight:900; min-height:34px; letter-spacing:.02em}
+.sp-result.goal{color:var(--acc)} .sp-result.miss{color:var(--bad)} .sp-result.save{color:var(--warn)}
+@keyframes spNetShake{0%{transform:translate(0,0)} 20%{transform:translate(-2px,1px)} 40%{transform:translate(2px,-1px)} 60%{transform:translate(-1px,1px)} 100%{transform:translate(0,0)}}
+.sp-goal.hit .sp-net{animation:spNetShake .3s ease}
 /* management panel */
 #msManage{position:absolute; top:0; right:0; bottom:0; width:min(420px,90vw); background:rgba(6,9,16,.97); backdrop-filter:blur(10px); z-index:5;
   padding:22px; overflow:auto; border-left:1px solid var(--line2); transform:translateX(100%); transition:transform .32s cubic-bezier(.2,.8,.2,1); box-shadow:-20px 0 50px rgba(0,0,0,.4)}
@@ -611,6 +641,9 @@ button{font-family:inherit; cursor:pointer; color:inherit; border:none; backgrou
 
 <!-- TRANSFER SIGNING CUTSCENE -->
 <div id="cutscene"><div id="cutStage"></div></div>
+
+<!-- SET-PIECE MINI-GAME (penalties / free kicks / shootouts) -->
+<div id="setpiece"><div id="spStage"></div></div>
 
 <script>
 /* ============================================================
@@ -1269,6 +1302,7 @@ const NAV_ITEMS=[
   {id:'hub',ico:'home',tx:'Home'},
   {sec:'Club'},
   {id:'career',ico:'career',tx:'Dashboard'},
+  {id:'mycareer',ico:'career',tx:'My Career'},
   {id:'squad',ico:'squad',tx:'Team & Tactics'},
   {id:'academy',ico:'squad',tx:'Academy'},
   {id:'transfers',ico:'transfers',tx:'Transfers'},
@@ -1285,12 +1319,17 @@ const NAV_ITEMS=[
   {id:'settings',ico:'settings',tx:'Settings'},
 ];
 const CLUB_ONLY_NAV=new Set(['career','squad','academy','transfers','calendar','table','cups']);
+const PLAYER_HIDE_NAV=new Set(['academy','transfers','international']);
 function buildNav(){
   const nav=$('#nav'); nav.innerHTML='';
   const intlOnly = Game.state && Game.state.internationalOnly;
+  const playerMode = Game.state && Game.state.playerMode;
   NAV_ITEMS.forEach((n,i)=>{
     if(n.sec){ const s=el('div','nav-section','<span class="nav-sec-tx">'+n.sec+'</span>'); nav.appendChild(s); return; }
     if(intlOnly && CLUB_ONLY_NAV.has(n.id)) return;
+    if(n.id==='mycareer' && !playerMode) return;
+    if(n.id==='career' && playerMode) return;
+    if(playerMode && PLAYER_HIDE_NAV.has(n.id)) return;
     const it=el('button','nav-item','<span class="ico">'+ic(ICONS[n.ico],20)+'</span><span class="tx">'+n.tx+'</span>'+(n.id==='inbox'?'<span class="nav-badge" id="inboxBadge" style="display:none"></span>':''));
     it.dataset.id=n.id; it.onclick=()=>Game.go(n.id);
     nav.appendChild(it);
@@ -1300,6 +1339,7 @@ Game.updateNavBadge=function(){ const b=$('#inboxBadge'); if(!b)return; const n=
   if(n>0){b.style.display='flex';b.textContent=n;}else{b.style.display='none';} };
 Game.go=function(id){
   buildNav();
+  if(id==='mycareer' && (!this.state.playerMode || !this.state.club)){ this.beginPlayerCareer(); this.setActive('hub'); this.setCrumbs('Create a Player','Build Your Pro'); return; }
   // gate club-specific views
   const needClub=['career','squad','tactics','transfers','fixtures','table','cups','calendar','academy'];
   if(needClub.includes(id) && !this.state.club){
@@ -1350,6 +1390,7 @@ Game.render=function(id){
     ({
       hub:()=>this.renderHub(view),
       career:()=>this.renderCareer(view),
+      mycareer:()=>this.renderMyCareer(view),
       squad:()=>this.renderSquad(view),
       tactics:()=>this.renderTactics(view),
       transfers:()=>this.renderTransfers(view),
@@ -1410,12 +1451,19 @@ Game.applyTheme=function(id){
 /* ---------------- HUB ---------------- */
 Game.renderHub=function(v){
   this.setCrumbs('Home');
-  const clubStarted=!!this.state.club;
+  const playerStarted=!!(this.state.club && this.state.playerMode);
+  const clubStarted=!!this.state.club && !this.state.playerMode;
   const intlStarted=!!(this.state.internationalOnly && this.state.natJob);
-  const anyActive=clubStarted||intlStarted;
+  const anyActive=clubStarted||intlStarted||playerStarted;
   const hasSaves=this.hasSave();
   let heroInner;
-  if(clubStarted){
+  if(playerStarted){
+    const mp=this.findPlayer(this.state.myPlayerId);
+    heroInner=`<div class="kicker">Player Career</div><h1>BECOME A<br>LEGEND</h1>
+      <p>You're ${mp?mp.name:'a rising talent'} at ${this.clubOf(this.state.club).short}. Take your key moments, earn your minutes, and climb to the top.</p>
+      <div style="display:flex;gap:10px;flex-wrap:wrap"><button class="btn primary" onclick="Game.go('mycareer')">Continue as ${mp?mp.name:'Your Player'} →</button>
+      <button class="btn ghost" onclick="event.stopPropagation();Game.openChooser()">Switch Career</button></div>`;
+  } else if(clubStarted){
     heroInner=`<div class="kicker">Manager Career</div><h1>BUILD A<br>DYNASTY</h1>
       <p>Take control of any club across six leagues of 20 teams. Sign superstars, craft tactics, develop wonderkids, survive the drama, and chase every trophy.</p>
       <div style="display:flex;gap:10px;flex-wrap:wrap"><button class="btn primary" onclick="Game.go('career')">Continue as ${this.clubOf(this.state.club).short} →</button>
@@ -1427,10 +1475,11 @@ Game.renderHub=function(v){
       <button class="btn ghost" onclick="event.stopPropagation();Game.openChooser()">Switch Career</button></div>`;
   } else {
     heroInner=`<div class="kicker">Welcome to FC26</div><h1>CHOOSE YOUR<br>PATH</h1>
-      <p>Take charge of a club across six leagues, or skip straight to the international stage and manage a nation full-time. Every squad is fully scouted and simulated.</p>
+      <p>Take charge of a club across six leagues, skip to the international stage as a national manager, or create a player and live his career one key moment at a time.</p>
       <div style="display:flex;gap:10px;flex-wrap:wrap">
         <button class="btn primary" onclick="event.stopPropagation();Game.go('career')">Start Club Career →</button>
         <button class="btn" onclick="event.stopPropagation();Game.beginInternationalCareer()">Manage a Nation →</button>
+        <button class="btn" onclick="event.stopPropagation();Game.beginPlayerCareer()">Create a Player →</button>
         ${hasSaves?`<button class="btn ghost" onclick="event.stopPropagation();Game.openSlotPicker()">Continue Saved Career</button>`:''}
       </div>`;
   }
@@ -1449,7 +1498,7 @@ Game.renderHub=function(v){
       </div>
     </div>
     <div class="hub-strip">
-      ${clubStarted?`<div class="hub-mini" onclick="Game.go('table')"><div class="em" style="color:var(--acc)">${ic(ICONS.table,20)}</div><h4>Standings</h4><p>Live tables, five leagues</p></div>`:''}
+      ${(clubStarted||playerStarted)?`<div class="hub-mini" onclick="Game.go('table')"><div class="em" style="color:var(--acc)">${ic(ICONS.table,20)}</div><h4>Standings</h4><p>Live tables, five leagues</p></div>`:''}
       <div class="hub-mini" onclick="Game.go('news')"><div class="em" style="color:var(--acc)">${ic(ICONS.news,20)}</div><h4>News & Drama</h4><p>Headlines from the football world</p></div>
       <div class="hub-mini" onclick="Game.go('trophies')"><div class="em" style="color:var(--gold)">${ic(ICONS.trophies,20)}</div><h4>Trophy Cabinet</h4><p>Silverware you've earned</p></div>
       ${clubStarted?`<div class="hub-mini" onclick="Game.go('presser')"><div class="em" style="color:var(--acc)">${ic(ICONS.press,20)}</div><h4>Press Room</h4><p>Face the media</p></div>`:''}
@@ -1464,16 +1513,174 @@ Game.openChooser=function(){
     <div style="display:flex;flex-direction:column;gap:10px">
       <button class="btn primary" onclick="Game.closeModal();Game.confirmSwitchCareer('club')">Start a New Club Career</button>
       <button class="btn" onclick="Game.closeModal();Game.confirmSwitchCareer('intl')">Manage a Nation</button>
+      <button class="btn" onclick="Game.closeModal();Game.confirmSwitchCareer('player')">Create a Player</button>
       ${hasSaves?`<button class="btn ghost" onclick="Game.closeModal();Game.openSlotPicker()">Load a Different Save</button>`:''}
       <button class="btn ghost" onclick="Game.closeModal()">Cancel</button>
     </div>
   </div>`);
 };
 Game.confirmSwitchCareer=function(kind){
-  const go=()=>{ this.state={}; if(kind==='club') this.go('career'); else this.beginInternationalCareer(); };
+  const go=()=>{ this.state={}; if(kind==='club') this.go('career'); else if(kind==='player') this.beginPlayerCareer(); else this.beginInternationalCareer(); };
   if(this.state.club || (this.state.internationalOnly && this.state.natJob)){
     this.confirmModal('Start New Career', "This will leave your current career (make sure it's saved first if you want to keep it). Continue?", go);
   } else go();
+};
+
+/* ---------------- CREATE-A-PLAYER CAREER ---------------- */
+const PC_POS=['GK','CB','LB','RB','CDM','CM','CAM','LM','RM','LW','RW','ST'];
+Game.beginPlayerCareer=function(){
+  this.renderPlayerCreator(); this.setActive('hub'); this.setCrumbs('Create a Player','Build Your Pro');
+};
+Game.renderPlayerCreator=function(){
+  const main=$('#main'); let view=$('#view'); if(!view){view=el('div','view');view.id='view';main.appendChild(view)}
+  const pc=this._pc=this._pc||{name:'',pos:'ST',nat:'ENG',seed:'pc'+Math.floor(Math.random()*1e9),
+    attrs:{pace:55,shooting:55,passing:55,dribbling:55,defending:40,physical:55},budgetCap:330};
+  view.classList.remove('on');
+  setTimeout(()=>{
+    view.innerHTML='';
+    const head=el('div','view-head',`<div><div class="kicker">Create a Player</div><h2>Build Your Pro</h2><div class="sub">Design a young talent, pick a position, and take control of his career one key moment at a time.</div></div>`);
+    view.appendChild(head);
+    const wrap=el('div','grid'); wrap.style.gridTemplateColumns='320px 1fr'; wrap.style.alignItems='start';
+    const preview=el('div','card card-pad'); preview.style.textAlign='center';
+    const used=Object.values(pc.attrs).reduce((a,b)=>a+b,0);
+    preview.innerHTML=`<div style="width:180px;height:180px;border-radius:22px;overflow:hidden;margin:0 auto 14px;border:1px solid var(--line2)">${faceSVG(pc.seed,180)}</div>
+      <button class="btn ghost sm" onclick="Game.pcReroll()">🎲 Reroll Look</button>
+      <div style="font-size:20px;font-weight:900;margin-top:12px">${pc.name||'Your Player'}</div>
+      <div style="color:var(--dim);font-size:12px;margin-top:4px">${pc.pos} · ${natName(pc.nat)}</div>
+      <div style="margin-top:14px;font-size:12px;color:var(--dim)">Attribute Points<br><b style="color:var(--acc);font-size:16px">${pc.budgetCap-used} left</b></div>`;
+    wrap.appendChild(preview);
+    const controls=el('div','card card-pad');
+    const attrRow=(label,key)=>`<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+      <div style="width:100px;font-size:11.5px;color:var(--dim);text-transform:uppercase;letter-spacing:.06em">${label}</div>
+      <button class="btn ghost sm" onclick="Game.pcAdj('${key}',-5)">−</button>
+      <div style="flex:1"><div class="ovrbar"><div class="bar"><i style="width:${pc.attrs[key]}%"></i></div><b style="font-size:13px">${pc.attrs[key]}</b></div></div>
+      <button class="btn ghost sm" onclick="Game.pcAdj('${key}',5)">+</button></div>`;
+    controls.innerHTML=`
+      <div style="margin-bottom:16px"><div style="font-size:12px;color:var(--dim);text-transform:uppercase;letter-spacing:.1em;margin-bottom:8px">Player Name</div>
+        <div class="search"><input id="pcName" maxlength="24" placeholder="Enter your player's name…" value="${pc.name}" style="font-size:15px"></div></div>
+      <div style="display:flex;gap:16px;margin-bottom:18px">
+        <div style="flex:1"><div style="font-size:12px;color:var(--dim);text-transform:uppercase;letter-spacing:.1em;margin-bottom:8px">Position</div>
+          <select class="filter-sel" id="pcPos" onchange="Game.pcSet('pos',this.value)">${PC_POS.map(p=>`<option value="${p}" ${pc.pos===p?'selected':''}>${p}</option>`).join('')}</select></div>
+        <div style="flex:1"><div style="font-size:12px;color:var(--dim);text-transform:uppercase;letter-spacing:.1em;margin-bottom:8px">Nationality</div>
+          <select class="filter-sel" id="pcNat" onchange="Game.pcSet('nat',this.value)">${NATION_KEYS.map(k=>`<option value="${k}" ${pc.nat===k?'selected':''}>${natName(k)}</option>`).join('')}</select></div>
+      </div>
+      <div style="margin:6px 0 10px;font-size:12px;color:var(--dim);text-transform:uppercase;letter-spacing:.1em">Attributes</div>
+      ${attrRow('Pace','pace')}${attrRow('Shooting','shooting')}${attrRow('Passing','passing')}${attrRow('Dribbling','dribbling')}${attrRow('Defending','defending')}${attrRow('Physical','physical')}
+      <button class="btn primary" style="margin-top:8px" onclick="Game.confirmPlayerCreator()">Continue to Club Selection →</button>`;
+    wrap.appendChild(controls);
+    view.appendChild(wrap);
+    const inp=$('#pcName'); if(inp) inp.oninput=()=>{ pc.name=inp.value; };
+    view.classList.add('on'); this.updateHUD();
+  },140);
+};
+Game.pcSet=function(k,v){ const nm=$('#pcName'); if(nm)this._pc.name=nm.value; this._pc[k]=v; this.renderPlayerCreator(); };
+Game.pcReroll=function(){ const nm=$('#pcName'); if(nm)this._pc.name=nm.value; this._pc.seed='pc'+Math.floor(Math.random()*1e9); this.renderPlayerCreator(); };
+Game.pcAdj=function(attr,delta){
+  const nm=$('#pcName'); if(nm)this._pc.name=nm.value;
+  const pc=this._pc; const cur=pc.attrs[attr]; const next=clamp(cur+delta,35,85);
+  const budgetNow=Object.values(pc.attrs).reduce((a,b)=>a+b,0); const newBudget=budgetNow-cur+next;
+  if(newBudget>pc.budgetCap){ toast('No attribute points left — lower another attribute first.'); return; }
+  pc.attrs[attr]=next; this.renderPlayerCreator();
+};
+Game.confirmPlayerCreator=function(){
+  const nm=$('#pcName'); if(nm)this._pc.name=nm.value;
+  if(!this._pc.name || !this._pc.name.trim()) this._pc.name='Alex Rookie';
+  this.renderPlayerClubSelect();
+};
+Game.renderPlayerClubSelect=function(){
+  const main=$('#main'); let view=$('#view'); if(!view){view=el('div','view');view.id='view';main.appendChild(view)}
+  view.classList.remove('on');
+  setTimeout(()=>{
+    view.innerHTML='';
+    const head=el('div','view-head',`<div><div class="kicker">Create a Player</div><h2>Choose Your Club</h2><div class="sub">Every great career starts in the lower leagues. Sign for a second-division side and fight your way up.</div></div>`);
+    view.appendChild(head);
+    const t2Leagues=LEAGUES.filter(l=>l.tier===2);
+    const activeLeague=this.selPlayerLeague && t2Leagues.some(l=>l.id===this.selPlayerLeague) ? this.selPlayerLeague : t2Leagues[0].id;
+    const tabs=el('div','league-tabs');
+    t2Leagues.forEach(l=>{
+      const t=el('button','ltab'+(l.id===activeLeague?' on':''),`<span style="width:20px;height:14px;display:inline-block">${flagSVG(l.flag,20)}</span>${l.name}`);
+      t.onclick=()=>{this.selPlayerLeague=l.id;this.renderPlayerClubSelect()};
+      tabs.appendChild(t);
+    });
+    view.appendChild(tabs);
+    const league=t2Leagues.find(l=>l.id===activeLeague)||t2Leagues[0];
+    const grid=el('div','club-grid');
+    league.clubs.forEach(c=>{
+      const card=el('div','club-card rise');
+      card.innerHTML=`<div class="crest">${crestSVG(c,54)}</div><h3>${c.name}</h3><div class="meta"><span>OVR ${c.ovr}</span></div>`;
+      card.onclick=()=>this.startPlayerCareer(c.name);
+      grid.appendChild(card);
+    });
+    view.appendChild(grid);
+    view.classList.add('on'); this.updateHUD();
+  },140);
+};
+Game.startPlayerCareer=function(clubName){
+  this.startCareer(clubName);
+  const pc=this._pc||{name:'Alex Rookie',pos:'ST',nat:'ENG',seed:'pc'+Date.now(),attrs:{pace:55,shooting:55,passing:55,dribbling:55,defending:40,physical:55}};
+  const grp=POS_GROUP[pc.pos]||'ATT';
+  const nameParts=(pc.name||'Alex Rookie').trim().split(/\s+/);
+  const id='PC'+hashStr(pc.seed+clubName);
+  const player={id, name:pc.name, first:nameParts[0], last:nameParts.slice(1).join(' ')||nameParts[0],
+    pos:pc.pos, posGroup:grp, ovr:Math.round(Object.values(pc.attrs).reduce((a,b)=>a+b,0)/6),
+    age:17, nat:pc.nat, attrs:{...pc.attrs}, ps:[], club:clubName, form:0, seed:pc.seed,
+    contractYrs:3, personality:'Ambitious', morale:78, energy:100, value:150000, wage:1800, isCreated:true};
+  player.potential=clamp(player.ovr+ri(seeded('pcpot'+pc.seed),10,26),player.ovr,99);
+  Game.squad(clubName).push(player); Game.squad(clubName).sort((a,b)=>b.ovr-a.ovr);
+  this.state.playerMode=true; this.state.playerId=id;
+  // guarantee the created player a place in the starting XI, in his own position group
+  const L=this.buildLineup(clubName);
+  let idx=L.starters.findIndex(sid=>{ const p=this.findPlayer(sid); return p && p.id!==id && p.posGroup===grp; });
+  if(idx<0) idx=0;
+  L.subs.push(L.starters[idx]);
+  L.starters[idx]=id;
+  this.state.lineup=L;
+  toast(`Your career at ${this.clubOf(clubName).short} begins.`);
+  this.autosave();
+  this.go('mycareer');
+};
+Game.renderMyCareer=function(v){
+  const p=this.findPlayer(this.state.playerId);
+  if(!p || !this.state.club){ v.innerHTML='<div class="empty">Player not found. Start a new career from the hub.</div>'; return; }
+  const club=this.clubOf(this.state.club);
+  this.setCrumbs('My Career', p.name);
+  const st=(this.state.scorers&&this.state.scorers[p.id])||{g:0,a:0};
+  const apps=(this.state.apps&&this.state.apps[p.id])||0;
+  const nextF=this.nextUserFixture();
+  const pos=this.clubRank(this.state.club);
+  const attrLbl={pace:'Pace',shooting:'Shooting',passing:'Passing',dribbling:'Dribbling',defending:'Defending',physical:'Physical'};
+  v.innerHTML=`<div class="view-head"><div><div class="kicker">My Career</div><h2>${p.name}</h2><div class="sub">${p.pos} · ${club.name} · Age ${p.age}</div></div></div>
+    <div class="grid" style="grid-template-columns:280px 1fr;align-items:start;gap:18px">
+      <div class="card card-pad" style="text-align:center">
+        <div style="width:160px;height:160px;border-radius:20px;overflow:hidden;margin:0 auto 14px;border:1px solid var(--line2)">${faceSVG(p.seed,160)}</div>
+        <div style="font-size:19px;font-weight:900">${p.name}</div>
+        <div style="color:var(--dim);font-size:12px;margin:4px 0 12px">${p.pos} · OVR ${p.ovr} · POT ${p.potential}</div>
+        <div class="ovrbar"><div class="bar"><i style="width:${clamp((p.ovr-40)/55*100,0,100)}%"></i></div><b style="font-size:13px">${p.ovr}</b></div>
+        <div style="margin-top:14px;display:flex;justify-content:center;align-items:center;gap:8px"><span style="width:26px;height:30px;display:inline-block">${crestSVG(club,26)}</span><b>${club.name}</b></div>
+      </div>
+      <div>
+        <div class="stat-row" style="grid-template-columns:1fr 1fr 1fr 1fr;margin-bottom:14px">
+          <div class="stat-box"><div class="k">League Pos</div><div class="v">${pos}<small>${ordinal(pos)}</small></div></div>
+          <div class="stat-box"><div class="k">Appearances</div><div class="v">${apps}</div></div>
+          <div class="stat-box"><div class="k">Goals</div><div class="v">${st.g||0}</div></div>
+          <div class="stat-box"><div class="k">Assists</div><div class="v">${st.a||0}</div></div>
+        </div>
+        <div class="card card-pad" style="margin-bottom:14px">
+          <h4 style="margin-bottom:10px">Attributes</h4>
+          ${Object.entries(p.attrs).map(([k,val])=>`<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px"><div style="width:90px;font-size:11px;color:var(--dim);text-transform:uppercase">${attrLbl[k]||k}</div><div style="flex:1"><div class="ovrbar"><div class="bar"><i style="width:${val}%"></i></div></div></div><b style="font-size:12px;width:24px;text-align:right">${val}</b></div>`).join('')}
+        </div>
+        <div class="card card-pad">
+          <h4 style="margin-bottom:10px">Next Up</h4>
+          ${nextF? `<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
+              <div>${nextF.comp}${nextF.roundName?' · '+nextF.roundName:''} vs ${this.clubOf(nextF.oppName)?this.clubOf(nextF.oppName).short:nextF.oppName}</div>
+              <button class="btn primary" onclick="Game.playMatch()">▶ Play Match</button></div>`
+            : `<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
+              <div class="empty" style="padding:0">Season complete — finished ${pos}${ordinal(pos)}.</div>
+              <button class="btn primary" onclick="Game.newSeason()">Start Next Season →</button></div>`}
+          ${p.lastRating?`<div style="margin-top:10px;color:var(--dim);font-size:12px">Last match rating: <span class="rating-pill ${this.ratingClass(p.lastRating)}">${p.lastRating.toFixed(1)}</span></div>`:''}
+        </div>
+      </div>
+    </div>`;
 };
 
 /* ---------------- CLUB SELECT ---------------- */
@@ -2812,13 +3019,16 @@ Game.ccInjectUserKo=function(){
 };
 Game.ccKoFinish=function(f,res){
   const cc=this.state.cc; const st=cc.koStage; const ties=cc.knockout[st]; const ti=this.ccUserTie();
-  if(ti>=0){ const t=ties[ti]; let hg=res.gh,ag=res.ga,w; if(hg===ag){w=(seeded('ccp-'+st+this.state.seasonNum)()<0.5)?t.hk:t.ak;} else w=hg>ag?t.hk:t.ak; Object.assign(t,{hg,ag,w,done:true,pens:hg===ag}); }
-  ties.forEach((t,i)=>{ if(!t.done){ const s=simMatch(t.hk,t.ak,{seed:'cck'+st+i}); let w; if(s.gh===s.ga)w=(seeded('x'+st+i)()<0.5)?t.hk:t.ak; else w=s.gh>s.ga?t.hk:t.ak; Object.assign(t,{hg:s.gh,ag:s.ga,w,done:true,pens:s.gh===s.ga}); } });
-  const order=['R16','QF','SF','Final']; const winners=ties.map(t=>t.w);
-  if(st==='Final'){ cc.champion=winners[0]; cc.round='done'; if(cc.champion===this.state.club) this.awardTrophy('Champions Cup'); this.addNews('trophy',`${this.clubOf(cc.champion).name} win the Champions Cup`,`European glory under the lights.`,''); return; }
-  const nx=order[order.indexOf(st)+1]; const nt=[]; for(let i=0;i<winners.length;i+=2)nt.push({hk:winners[i],ak:winners[i+1]});
-  cc.knockout[nx]=nt; cc.koStage=nx;
-  if(winners.includes(this.state.club)){ this.ccInjectUserKo(); } else { cc.eliminated=true; this.ccSimRemainder(); }
+  const finishRest=()=>{
+    ties.forEach((t,i)=>{ if(!t.done){ const s=simMatch(t.hk,t.ak,{seed:'cck'+st+i}); let w; if(s.gh===s.ga)w=(seeded('x'+st+i)()<0.5)?t.hk:t.ak; else w=s.gh>s.ga?t.hk:t.ak; Object.assign(t,{hg:s.gh,ag:s.ga,w,done:true,pens:s.gh===s.ga}); } });
+    const order=['R16','QF','SF','Final']; const winners=ties.map(t=>t.w);
+    if(st==='Final'){ cc.champion=winners[0]; cc.round='done'; if(cc.champion===this.state.club) this.awardTrophy('Champions Cup'); this.addNews('trophy',`${this.clubOf(cc.champion).name} win the Champions Cup`,`European glory under the lights.`,''); return; }
+    const nx=order[order.indexOf(st)+1]; const nt=[]; for(let i=0;i<winners.length;i+=2)nt.push({hk:winners[i],ak:winners[i+1]});
+    cc.knockout[nx]=nt; cc.koStage=nx;
+    if(winners.includes(this.state.club)){ this.ccInjectUserKo(); } else { cc.eliminated=true; this.ccSimRemainder(); }
+  };
+  if(ti>=0){ const t=ties[ti]; this.resolveKoTie(t,res.gh,res.ga,false,(w,pens)=>{ Object.assign(t,{hg:res.gh,ag:res.ga,w,done:true,pens}); finishRest(); }); }
+  else finishRest();
 };
 Game.ccSimRemainder=function(){
   const cc=this.state.cc; if(!cc||cc.round==='done')return; const order=['R16','QF','SF','Final'];
@@ -2862,23 +3072,27 @@ Game.dcInjectUserFixture=function(fx,startOverride){
 Game.dcFinish=function(f,res){
   const dc=this.state.dc; const stage=f.dcStage; const ties=dc.rounds[stage]; const me=this.state.club;
   const idx=ties.findIndex(t=>!t.done&&(t.hk===me||t.ak===me));
-  if(idx>=0){ const t=ties[idx]; let hg=res.gh,ag=res.ga,w,pens=false;
-    if(hg===ag){ pens=true; w=(seeded('dcp-'+stage+this.state.seasonNum)()<0.5)?t.hk:t.ak; } else w=hg>ag?t.hk:t.ak;
-    Object.assign(t,{hg,ag,w,pens,done:true});
-    const myG=res.home===me?res.gh:res.ga, opG=res.home===me?res.ga:res.gh;
-    dc.history.push({round:DC_NAMES[DC_STAGES.indexOf(stage)],opp:f.oppName,myG,opG,win:w===me,pens});
-    if(w!==me) this.addNews('match',`${this.clubOf(me).short} knocked out of the Domestic Cup`,`Cup run ends in the ${DC_NAMES[DC_STAGES.indexOf(stage)]}.`,'');
-  }
-  // background-resolve the rest of the round
-  ties.forEach((t,i)=>{ if(!t.done){ const s=simMatch(t.hk,t.ak,{seed:'dcbg'+stage+i}); let w,pens=false; if(s.gh===s.ga){pens=true;w=(seeded('dcx'+stage+i+this.state.seasonNum)()<0.5)?t.hk:t.ak;} else w=s.gh>s.ga?t.hk:t.ak; Object.assign(t,{hg:s.gh,ag:s.ga,w,pens,done:true}); } });
-  const winners=ties.map(t=>t.w);
-  const stIdx=DC_STAGES.indexOf(stage);
-  if(stage==='Final'){ dc.champion=winners[0]; dc.stage='done'; dc.alive=dc.champion===me;
-    if(dc.champion===me)this.awardTrophy('Domestic Cup');
-    this.addNews('trophy',`${this.clubOf(dc.champion).name} win the Domestic Cup`,`Silverware secured in a dramatic final.`,''); return; }
-  const next=DC_STAGES[stIdx+1]; const nt=[]; for(let i=0;i<winners.length;i+=2)nt.push({hk:winners[i],ak:winners[i+1]});
-  dc.rounds[next]=nt; dc.stage=next;
-  if(winners.includes(me)){ this.dcInjectUserFixture(null); } else { dc.alive=false; this.dcSimRemainder(); }
+  const finishRest=()=>{
+    ties.forEach((t,i)=>{ if(!t.done){ const s=simMatch(t.hk,t.ak,{seed:'dcbg'+stage+i}); let w,pens=false; if(s.gh===s.ga){pens=true;w=(seeded('dcx'+stage+i+this.state.seasonNum)()<0.5)?t.hk:t.ak;} else w=s.gh>s.ga?t.hk:t.ak; Object.assign(t,{hg:s.gh,ag:s.ga,w,pens,done:true}); } });
+    const winners=ties.map(t=>t.w);
+    const stIdx=DC_STAGES.indexOf(stage);
+    if(stage==='Final'){ dc.champion=winners[0]; dc.stage='done'; dc.alive=dc.champion===me;
+      if(dc.champion===me)this.awardTrophy('Domestic Cup');
+      this.addNews('trophy',`${this.clubOf(dc.champion).name} win the Domestic Cup`,`Silverware secured in a dramatic final.`,''); return; }
+    const next=DC_STAGES[stIdx+1]; const nt=[]; for(let i=0;i<winners.length;i+=2)nt.push({hk:winners[i],ak:winners[i+1]});
+    dc.rounds[next]=nt; dc.stage=next;
+    if(winners.includes(me)){ this.dcInjectUserFixture(null); } else { dc.alive=false; this.dcSimRemainder(); }
+  };
+  if(idx>=0){
+    const t=ties[idx];
+    this.resolveKoTie(t,res.gh,res.ga,false,(w,pens)=>{
+      Object.assign(t,{hg:res.gh,ag:res.ga,w,pens,done:true});
+      const myG=res.home===me?res.gh:res.ga, opG=res.home===me?res.ga:res.gh;
+      dc.history.push({round:DC_NAMES[DC_STAGES.indexOf(stage)],opp:f.oppName,myG,opG,win:w===me,pens});
+      if(w!==me) this.addNews('match',`${this.clubOf(me).short} knocked out of the Domestic Cup`,`Cup run ends in the ${DC_NAMES[DC_STAGES.indexOf(stage)]}.`,'');
+      finishRest();
+    });
+  } else finishRest();
 };
 Game.dcSimRemainder=function(){
   const dc=this.state.dc; if(!dc||dc.stage==='done')return;
@@ -2977,6 +3191,12 @@ Game.lmMinute=function(){
   const target=50+clamp((H.atk-A.atk)*1.4,-22,22); LM.possH+=(target-LM.possH)*0.06;
   if(r()<rH) this.lmChance('H',H,A);
   if(r()<rA) this.lmChance('A',A,H);
+  if(!LM.paused){
+    if(r()<0.0017) this.lmSetPiece('H',H,A,'penalty');
+    if(!LM.paused && r()<0.0017) this.lmSetPiece('A',A,H,'penalty');
+    if(!LM.paused && r()<0.0028) this.lmSetPiece('H',H,A,'freekick');
+    if(!LM.paused && r()<0.0028) this.lmSetPiece('A',A,H,'freekick');
+  }
   if(r()<0.013){ this.lmCard(r()<0.55?(LM.userSide==='H'?'A':'H'):(LM.userSide==='H'?'H':'A')); }
   // passive rating drift toward mean
   Object.values(LM.pdata).forEach(d=>{ d.rating += (6.5-d.rating)*0.01; });
@@ -3001,6 +3221,39 @@ Game.lmChance=function(side,S,O){
   } else {
     if(LM.pdata[shooter.id])LM.pdata[shooter.id].rating=clamp(LM.pdata[shooter.id].rating+0.06,3,10);
     if(r()<0.3) this.lmFeed('chance',side,`${onTarget?'Saved! ':''}${shooter.name} ${onTarget?'forces a stop':'drags it wide'} for ${this.clubOf(side==='H'?LM.home:LM.away).short}.`);
+  }
+};
+Game.lmSetPiece=function(side,S,O,kind){
+  const LM=this.LM, r=LM.r; if(LM.paused||LM.finished)return;
+  const xi=side==='H'?LM.xiH:LM.xiA, oxi=side==='H'?LM.xiA:LM.xiH;
+  if(side==='H')LM.shotsH++; else LM.shotsA++;
+  const shooter=weightedScorer(r,xi);
+  const keeper=oxi.find(p=>p.posGroup==='GK');
+  const xgAdd=kind==='penalty'?0.76:0.26; if(side==='H')LM.xgH+=xgAdd; else LM.xgA+=xgAdd;
+  const finalize=(scored)=>{
+    if(scored){
+      if(side==='H')LM.sh++; else LM.sa++;
+      LM.scorers.push({team:side,player:shooter.name,id:shooter.id,assist:null,min:LM.minute});
+      if(LM.pdata[shooter.id]){LM.pdata[shooter.id].goals++; LM.pdata[shooter.id].rating=clamp(LM.pdata[shooter.id].rating+1.2,3,10);}
+      this.lmFeed('goal',side,`<b>${kind==='penalty'?'PENALTY SCORED!':'FREE KICK GOAL!'}</b> ${shooter.name} makes no mistake — ${LM.sh}–${LM.sa}`);
+    } else {
+      if(LM.pdata[shooter.id])LM.pdata[shooter.id].rating=clamp(LM.pdata[shooter.id].rating+0.06,3,10);
+      this.lmFeed('chance',side,`${kind==='penalty'?'Penalty saved!':'Free kick comes to nothing.'} ${shooter.name} can't convert.`);
+    }
+  };
+  const isUser=side===LM.userSide;
+  if(isUser && this.state.simSpeed!=='instant'){
+    LM.paused=true;
+    const scoreLine=`${this.clubOf(LM.home).short} ${LM.sh} – ${LM.sa} ${this.clubOf(LM.away).short}`;
+    this.showSetPieceMoment({kind, takerName:shooter.name, keeperName:keeper?keeper.name:'The Keeper', keeperOvr:keeper?keeper.ovr:72, shootingAttr:shooter.attrs.shooting, scoreLine},(res)=>{
+      finalize(res.result==='goal');
+      LM.paused=false; this.lmUpdateUI();
+      if(!LM.finished && LM.minute<90) this.lmRun();
+    });
+  } else {
+    const base=kind==='penalty'?0.76:0.30;
+    const adj=((shooter.attrs.shooting-72)*0.004)-(keeper?((keeper.ovr-72)*0.003):0);
+    finalize(r()<clamp(base+adj,0.12,0.9));
   }
 };
 Game.lmCard=function(side){
@@ -3039,6 +3292,87 @@ Game.renderMsPitch=function(){
   const ballY=clamp(50-sway*1.6,8,92);
   host.innerHTML=`<svg class="lines" viewBox="0 0 100 100" preserveAspectRatio="none"><g class="pitch-line"><rect x="2" y="2" width="96" height="96"/><line x1="2" y1="50" x2="98" y2="50"/><circle cx="50" cy="50" r="9"/><rect x="26" y="2" width="48" height="12"/><rect x="26" y="86" width="48" height="12"/></g></svg>
     ${dots}<div class="ms-ball" style="left:50%;top:${ballY}%"></div>`;
+};
+/* ---------------- SET-PIECE MINI-GAME (penalties / free kicks / shootouts) ---------------- */
+const SP_ZONES=[
+  {id:0,x:22,y:26,label:'Top Left',corner:true}, {id:1,x:50,y:16,label:'Top Middle',corner:false}, {id:2,x:78,y:26,label:'Top Right',corner:true},
+  {id:3,x:14,y:52,label:'Left',corner:false}, {id:4,x:50,y:50,label:'Middle',corner:false}, {id:5,x:86,y:52,label:'Right',corner:false},
+  {id:6,x:22,y:78,label:'Bottom Left',corner:true}, {id:7,x:50,y:86,label:'Bottom Middle',corner:false}, {id:8,x:78,y:78,label:'Bottom Right',corner:true},
+];
+Game.showSetPieceMoment=function(opts,cb){
+  const sp=$('#setpiece'), stage=$('#spStage'); if(!sp||!stage){ cb({result:Math.random()<0.72?'goal':'miss'}); return; }
+  this._spCb=cb; this._spOpts=opts; this._spSel={zone:null,power:'firm',spin:'straight'};
+  const kindLabel=opts.kind==='penalty'?'PENALTY KICK':opts.kind==='freekick'?'FREE KICK':'PENALTY SHOOTOUT';
+  stage.innerHTML=`<div class="sp-wrap">
+    <div class="sp-head"><div class="kicker" style="color:var(--acc2)">${kindLabel}${opts.roundInfo?' · '+opts.roundInfo:''}</div>
+      <h2>${opts.takerName}</h2>
+      <div style="color:var(--dim);font-size:12.5px">vs ${opts.keeperName||'the keeper'}${opts.scoreLine?' · '+opts.scoreLine:''}</div></div>
+    <div class="sp-goal" id="spGoalBox">
+      <div class="sp-turf"></div>
+      <svg class="sp-net" viewBox="0 0 100 60"><g fill="none" stroke="rgba(20,30,50,.35)" stroke-width=".5">
+        ${Array.from({length:11},(_,i)=>`<line x1="${i*10}" y1="0" x2="${i*10}" y2="60"/>`).join('')}
+        ${Array.from({length:7},(_,i)=>`<line x1="0" y1="${i*10}" x2="100" y2="${i*10}"/>`).join('')}
+      </g><rect x="0" y="0" width="100" height="60" fill="none" stroke="#fff" stroke-width="2.5"/></svg>
+      <div class="sp-keeper" id="spKeeper">🧤</div>
+      ${SP_ZONES.map(z=>`<button class="sp-zone" data-z="${z.id}" style="left:${z.x}%;top:${z.y}%" onclick="Game.spPick(${z.id})" title="${z.label}"></button>`).join('')}
+      <div class="sp-ball" id="spBall"></div>
+    </div>
+    <div class="sp-opts">
+      <div class="sp-group"><div class="sp-lbl">Power</div><div class="seg" id="spPowerSeg">
+        ${['soft','firm','power'].map(p=>`<button class="${p==='firm'?'on':''}" data-p="${p}" onclick="Game.spSetPower('${p}')">${p[0].toUpperCase()+p.slice(1)}</button>`).join('')}
+      </div></div>
+      <div class="sp-group"><div class="sp-lbl">Spin</div><div class="seg" id="spSpinSeg">
+        ${['left','straight','right'].map(s=>`<button class="${s==='straight'?'on':''}" data-p="${s}" onclick="Game.spSetSpin('${s}')">${s[0].toUpperCase()+s.slice(1)}</button>`).join('')}
+      </div></div>
+    </div>
+    <button class="btn primary" id="spTakeBtn" style="margin-top:14px" disabled onclick="Game.spTakeShot()">Pick a spot to shoot →</button>
+    <div id="spResult" class="sp-result"></div>
+  </div>`;
+  sp.classList.add('on');
+};
+Game.spPick=function(z){
+  this._spSel.zone=z;
+  document.querySelectorAll('.sp-zone').forEach(b=>b.classList.toggle('on',+b.dataset.z===z));
+  const b=$('#spTakeBtn'); if(b){ b.disabled=false; b.textContent='Take the Shot →'; }
+};
+Game.spSetPower=function(p){ this._spSel.power=p; const seg=$('#spPowerSeg'); if(seg)[...seg.children].forEach(b=>b.classList.toggle('on',b.dataset.p===p)); };
+Game.spSetSpin=function(s){ this._spSel.spin=s; const seg=$('#spSpinSeg'); if(seg)[...seg.children].forEach(b=>b.classList.toggle('on',b.dataset.p===s)); };
+Game.spTakeShot=function(){
+  const sel=this._spSel; if(sel.zone==null)return;
+  const opts=this._spOpts||{}; const zone=SP_ZONES[sel.zone];
+  const btn=$('#spTakeBtn'); if(btn)btn.disabled=true;
+  document.querySelectorAll('.sp-zone').forEach(b=>b.style.pointerEvents='none');
+  const ball=$('#spBall'), keeper=$('#spKeeper'), box=$('#spGoalBox');
+  // keeper reads the placement correctly more often than not, otherwise dives the wrong way
+  const readChance=0.55; const keeperTargetX = Math.random()<readChance? zone.x : (20+Math.random()*60);
+  if(keeper){ keeper.style.left=keeperTargetX+'%'; keeper.style.top=(zone.y<40?'34%':'46%'); }
+  const base=opts.kind==='freekick'?0.34:opts.kind==='penalty'?0.78:0.76;
+  const shootBonus=((opts.shootingAttr||70)-70)*0.006;
+  const placementAdj = zone.corner? 0.10 : (zone.id===1||zone.id===4||zone.id===7)? -0.15 : -0.03;
+  const powerAdj={soft:{save:0.07,miss:0.015},firm:{save:0,miss:0.045},power:{save:-0.10,miss:0.11}}[sel.power];
+  const spinBonus= sel.spin==='straight'?0:0.045;
+  const spinMiss= sel.spin==='straight'?0:0.022;
+  const keeperOvr=opts.keeperOvr||72;
+  const keeperAdj=(72-keeperOvr)*0.005;
+  const missChance=clamp(0.03+ (zone.corner?0.05:0) +powerAdj.miss+spinMiss-((opts.shootingAttr||70)-70)*0.0018,0.015,0.32);
+  let outcome;
+  if(Math.random()<missChance){ outcome='miss'; }
+  else{
+    const successP=clamp(base+placementAdj+powerAdj.save+spinBonus+keeperAdj,0.1,0.94);
+    outcome = Math.random()<successP ? 'goal':'save';
+  }
+  if(ball){ ball.style.left=zone.x+'%'; ball.style.top=(outcome==='miss'?clamp(zone.y-16,2,98):zone.y)+'%'; ball.style.transform='translate(-50%,-50%) scale(.7)'; }
+  setTimeout(()=>{
+    const res=$('#spResult');
+    if(outcome==='goal'){ if(box)box.classList.add('hit'); if(res){res.className='sp-result goal'; res.textContent='⚽ GOAL!';} }
+    else if(outcome==='save'){ if(res){res.className='sp-result save'; res.textContent='🧤 SAVED!';} }
+    else { if(res){res.className='sp-result miss'; res.textContent='✗ OFF TARGET';} }
+  },520);
+  setTimeout(()=>{
+    const sp=$('#setpiece'); if(sp)sp.classList.remove('on');
+    const cb=this._spCb; this._spCb=null;
+    if(cb) cb({result:outcome});
+  },1500);
 };
 Game.lmManage=function(){ const LM=this.LM; if(!LM||LM.finished)return; LM.paused=true; this.renderManage(); $('#msManage').classList.add('on'); };
 Game.lmResume=function(){ const LM=this.LM; $('#msManage').classList.remove('on'); LM.paused=false; this.renderMsPitch(); if(!LM.finished && LM.minute<90) this.lmRun(); };
@@ -3138,7 +3472,8 @@ Game.lmApply=function(){
 Game.playMatch=function(){
   const f=this.nextUserFixture(); if(!f){toast('No match to play.');return}
   const opp=this.clubOf(f.oppName);
-  const startPress=()=>this.matchPress('pre',{opp:opp.short}, ()=>this.startLiveMatch(f));
+  const kickoff=()=>this.startLiveMatch(f);
+  const startPress=()=>this.state.playerMode? kickoff() : this.matchPress('pre',{opp:opp.short},kickoff);
   if(f.derby) this.derbyCutscene(f,startPress); else startPress();
 };
 Game.derbyCutscene=function(f,cont){
@@ -3210,19 +3545,21 @@ Game.finishUserFixture=function(f,res,quick,box){
     this.state.transferList=this.state.transferList||[]; this.state.transferList.push(p.id);
     this.pushMail('Player Concerns',`${p.name} unsettled`,`${p.name} has told staff he is unhappy and would consider a move. He's been added to the transfer list.`); } });
   this.maybeGenerateDrama(); this.autosave();
-  if(quick){ this.go('career'); toast(`${COMP_SHORT[f.comp]}: ${this.clubOf(me).short} ${myG}-${opG} ${this.clubOf(f.oppName).short}`);
-    if(this._deadlineDayPending){ this._deadlineDayPending=false; this.deadlineDayEvent(); }
-    this.checkSackRisk(); return; }
-  this.matchPress('post',{res:w},()=>{
+  if(quick){ this.go(this.state.playerMode?'mycareer':'career'); toast(`${COMP_SHORT[f.comp]}: ${this.clubOf(me).short} ${myG}-${opG} ${this.clubOf(f.oppName).short}`);
+    if(!this.state.playerMode){ if(this._deadlineDayPending){ this._deadlineDayPending=false; this.deadlineDayEvent(); } this.checkSackRisk(); }
+    return; }
+  const doPost=()=>{
     const cont=()=>this.afterUserFixture();
-    const afterSack=()=>{ if(this.nextUserFixture()&&Math.random()<0.28)this.seasonDecision(cont); else cont(); };
-    const afterDeadline=()=>{ if(this.checkSackRisk()) return; afterSack(); };
-    if(this._deadlineDayPending){ this._deadlineDayPending=false; this.deadlineDayEvent(afterDeadline); } else afterDeadline();
-  });
+    const afterSack=()=>{ if(!this.state.playerMode && this.nextUserFixture()&&Math.random()<0.28)this.seasonDecision(cont); else cont(); };
+    const afterDeadline=()=>{ if(!this.state.playerMode && this.checkSackRisk()) return; afterSack(); };
+    if(!this.state.playerMode && this._deadlineDayPending){ this._deadlineDayPending=false; this.deadlineDayEvent(afterDeadline); } else afterDeadline();
+  };
+  if(this.state.playerMode) doPost(); else this.matchPress('post',{res:w},doPost);
 };
-Game.afterUserFixture=function(){ if(!this.nextUserFixture()) this.endOfSeasonFlow(); else this.go('career'); };
+Game.afterUserFixture=function(){ if(!this.nextUserFixture()) this.endOfSeasonFlow(); else this.go(this.state.playerMode?'mycareer':'career'); };
 /* ---------------- BOARD EXPECTATIONS & SACK RACE ---------------- */
 Game.checkSackRisk=function(){
+  if(this.state.playerMode) return false;
   const bc=this.state.boardConfidence;
   if(bc<=10){ this.getSacked('a catastrophic loss of faith from the boardroom after a dismal run of results'); return true; }
   if(bc<=28 && !this.state.sackWarned){
@@ -3278,7 +3615,7 @@ Game.endOfSeasonFlow=function(){
   const pos=this.clubRank(this.state.club);
   this.state.lastPos=pos;
   // badly missing the board's objective risks an end-of-season sacking
-  if(this.state.objectiveRank && pos>this.state.objectiveRank+7){
+  if(!this.state.playerMode && this.state.objectiveRank && pos>this.state.objectiveRank+7){
     this.state.boardConfidence=clamp(this.state.boardConfidence-18,0,100);
     if(this.state.boardConfidence<22 && Math.random()<0.5){ this.getSacked(`badly missing the season's target of ${this.state.objective} (finished ${pos}${ordinal(pos)})`); return; }
   }
@@ -3298,6 +3635,7 @@ Game.showSeasonSummary=function(){
   </div>`);
 };
 Game.afterSeasonSummary=function(){ this.closeModal();
+  if(this.state.playerMode){ this.go('mycareer'); return; }
   if(this.state.seasonNum % 4 === 0){ this.offerWorldCupJob(()=>this.go('career')); }
   else { this.maybeOfferContinental(()=>this.go('career')); }
 };
@@ -3794,8 +4132,8 @@ Game.newSeason=function(){
   this.addNews('season',`A new season dawns for ${c.name}`,`Finished ${myPos}${ordinal(myPos)} last term. Prize money and TV revenue of ${money(prize)} boosts the war chest to ${money(this.state.budget)}.`,'');
   toast('New season: '+this.state.season+' · +'+money(prize));
   this.autosave();
-  this.go('career');
-  this.offseasonInbox();
+  this.go(this.state.playerMode?'mycareer':'career');
+  if(!this.state.playerMode) this.offseasonInbox();
 };
 Game.computeAwards=function(){
   const top=Object.entries(this.state.scorers).map(([id,s])=>({id,...s})).sort((a,b)=>b.g-a.g);
@@ -4295,26 +4633,87 @@ Game.wcUserKoMatch=function(){
 };
 Game.koPlay=function(hk,ak,seed){ const s=simMatch(this.natTeamName(hk),this.natTeamName(ak),{seed});
   let hg=s.gh,ag=s.ga,pens=false,w; if(hg===ag){pens=true;w=(seeded(seed+'p')()<0.5)?hk:ak;} else w=hg>ag?hk:ak; return {hk,ak,hg,ag,pens,w,done:true}; };
+/* ---------------- INTERACTIVE PENALTY SHOOTOUT (user's own knockout ties) ---------------- */
+Game.resolveKoTie=function(t,hg,ag,isNation,cb){
+  if(hg!==ag){ cb(hg>ag?t.hk:t.ak,false); return; }
+  this.startPenaltyShootout({hk:t.hk,ak:t.ak,isNation},(winner)=>cb(winner,true));
+};
+Game.startPenaltyShootout=function(ctx,cb){
+  const isNation=!!ctx.isNation, hk=ctx.hk, ak=ctx.ak;
+  const shortOf=k=>isNation?natName(k):this.clubOf(k).short;
+  const xiOf=k=>isNation?this.nationXI(k):this.startingXI(k);
+  const userKey=isNation?this.state.natJob:this.state.club;
+  const mkTakers=k=>{ const xi=(xiOf(k)||[]).filter(p=>p&&p.posGroup!=='GK'); return xi.slice().sort((a,b)=>(b.attrs.shooting)-(a.attrs.shooting)); };
+  const gkOf=k=>{ const xi=xiOf(k)||[]; return xi.find(p=>p.posGroup==='GK')||null; };
+  const takers={H:mkTakers(hk),A:mkTakers(ak)}, gk={H:gkOf(hk),A:gkOf(ak)};
+  const tIdx={H:0,A:0}, score={H:0,A:0};
+  const sp=$('#setpiece'), stage=$('#spStage');
+  let kicksLeft=[]; for(let i=0;i<5;i++){kicksLeft.push('H');kicksLeft.push('A');}
+  let taken=0;
+  const nextTaker=(side)=>{ const arr=takers[side]; if(!arr.length)return{name:shortOf(side==='H'?hk:ak)+' player',attrs:{shooting:65}}; const t=arr[tIdx[side]%arr.length]; tIdx[side]++; return t; };
+  const roundLabelFor=(n)=> n<=10? `Kick ${n} of 10` : `Sudden Death ${n-10}`;
+  const showAiKick=(taker,scored,roundInfo,scoreLine,cont)=>{
+    if(sp){ sp.classList.add('on'); if(stage) stage.innerHTML=`<div class="sp-wrap">
+      <div class="kicker" style="color:var(--acc2)">PENALTY SHOOTOUT · ${roundInfo}</div>
+      <h2 style="margin:10px 0 4px">${taker.name}</h2>
+      <div class="sp-result ${scored?'goal':'miss'}" style="margin-top:6px">${scored?'⚽ GOAL':'✗ MISSED'}</div>
+      <div style="color:var(--dim);margin-top:10px">${scoreLine}</div></div>`; }
+    setTimeout(cont,900);
+  };
+  const finish=()=>{
+    if(sp)sp.classList.remove('on');
+    const winner=score.H===score.A?(Math.random()<0.5?hk:ak):(score.H>score.A?hk:ak);
+    cb(winner,score.H,score.A);
+  };
+  const takeOne=(side,cont)=>{
+    taken++;
+    const taker=nextTaker(side);
+    const defSide=side==='H'?'A':'H'; const keeper=gk[defSide];
+    const takerKey=side==='H'?hk:ak;
+    const isUserKick=takerKey===userKey;
+    const roundInfo=roundLabelFor(taken);
+    if(isUserKick && this.state.simSpeed!=='instant'){
+      const scoreLine=`${shortOf(hk)} ${score.H} – ${score.A} ${shortOf(ak)}`;
+      this.showSetPieceMoment({kind:'shootout',takerName:taker.name,keeperName:keeper?keeper.name:'The Keeper',keeperOvr:keeper?keeper.ovr:72,shootingAttr:(taker.attrs&&taker.attrs.shooting)||65,scoreLine,roundInfo},res=>{ if(res.result==='goal')score[side]++; cont(); });
+    } else {
+      const base=0.76+(((taker.attrs&&taker.attrs.shooting)||65)-70)*0.006-((keeper?keeper.ovr:72)-72)*0.004;
+      const scored=Math.random()<clamp(base,0.45,0.92);
+      if(scored) score[side]++;
+      const scoreLine=`${shortOf(hk)} ${score.H} – ${score.A} ${shortOf(ak)}`;
+      showAiKick(taker,scored,roundInfo,scoreLine,cont);
+    }
+  };
+  const regStep=()=>{
+    if(!kicksLeft.length){ if(score.H!==score.A){finish();return;} suddenStep(); return; }
+    const side=kicksLeft.shift();
+    takeOne(side,regStep);
+  };
+  const suddenStep=()=>{ takeOne('H',()=>{ takeOne('A',()=>{ if(score.H!==score.A)finish(); else suddenStep(); }); }); };
+  regStep();
+};
 Game.wcApplyKo=function(res){
   const wc=this.state.wcT; const st=wc.koStage; const ties=wc.knockout[st];
+  const finishRest=()=>{
+    // sim remaining ties this stage
+    ties.forEach((t,i)=>{ if(!t.done){ Object.assign(t,this.koPlay(t.hk,t.ak,'ko-'+st+i+this.state.seasonNum)); } });
+    // advance stage
+    const winners=ties.map(t=>t.w);
+    const order=['R16','QF','SF','Final'];
+    const ni=order.indexOf(st)+1;
+    if(st==='Final'){ wc.champion=winners[0]; wc.round='done';
+      if(wc.champion===wc.userNat){ this.awardTrophy('World Cup'); }
+      this.autosave(); this.go('wc'); return;
+    }
+    const next=order[ni]; const nt=[]; for(let i=0;i<winners.length;i+=2)nt.push({hk:winners[i],ak:winners[i+1]});
+    wc.knockout[next]=nt; wc.koStage=next;
+    if(wc.eliminated){ /* stays eliminated */ } else { this.setWcUserTie(); if(wc.koTie<0)wc.eliminated=true; }
+    this.autosave(); this.go('wc');
+  };
   // user's tie result
-  if(!wc.eliminated && wc.koTie>=0){ const t=ties[wc.koTie]; let hg=res.gh,ag=res.ga,pens=false,w;
-    if(hg===ag){pens=true;w=(seeded('wcpen-'+st+wc.koTie)()<0.5)?t.hk:t.ak;} else w=hg>ag?t.hk:t.ak;
-    Object.assign(t,{hg,ag,pens,w,done:true}); }
-  // sim remaining ties this stage
-  ties.forEach((t,i)=>{ if(!t.done){ Object.assign(t,this.koPlay(t.hk,t.ak,'ko-'+st+i+this.state.seasonNum)); } });
-  // advance stage
-  const winners=ties.map(t=>t.w);
-  const order=['R16','QF','SF','Final'];
-  const ni=order.indexOf(st)+1;
-  if(st==='Final'){ wc.champion=winners[0]; wc.round='done';
-    if(wc.champion===wc.userNat){ this.awardTrophy('World Cup'); }
-    this.autosave(); this.go('wc'); return;
-  }
-  const next=order[ni]; const nt=[]; for(let i=0;i<winners.length;i+=2)nt.push({hk:winners[i],ak:winners[i+1]});
-  wc.knockout[next]=nt; wc.koStage=next;
-  if(wc.eliminated){ /* stays eliminated */ } else { this.setWcUserTie(); if(wc.koTie<0)wc.eliminated=true; }
-  this.autosave(); this.go('wc');
+  if(!wc.eliminated && wc.koTie>=0){
+    const t=ties[wc.koTie];
+    this.resolveKoTie(t,res.gh,res.ga,true,(w,pens)=>{ Object.assign(t,{hg:res.gh,ag:res.ga,pens,w,done:true}); finishRest(); });
+  } else finishRest();
 };
 Game.wcPlayUser=function(){
   const m=this.state.wcT.round==='group'?this.wcUserMatchToday():this.wcUserKoMatch(); if(!m)return;
@@ -4488,21 +4887,24 @@ Game.contUserKoMatch=function(){
 };
 Game.contApplyKo=function(res){
   const ct=this.state.contT; const st=ct.koStage; const ties=ct.knockout[st];
-  if(!ct.eliminated && ct.koTie>=0){ const t=ties[ct.koTie]; let hg=res.gh,ag=res.ga,pens=false,w;
-    if(hg===ag){pens=true;w=(seeded('contpen-'+st+ct.koTie)()<0.5)?t.hk:t.ak;} else w=hg>ag?t.hk:t.ak;
-    Object.assign(t,{hg,ag,pens,w,done:true}); }
-  ties.forEach((t,i)=>{ if(!t.done){ Object.assign(t,this.koPlay(t.hk,t.ak,'contko-'+st+i+this.state.seasonNum)); } });
-  const winners=ties.map(t=>t.w);
-  const order=['QF','SF','Final'];
-  const ni=order.indexOf(st)+1;
-  if(st==='Final'){ ct.champion=winners[0]; ct.round='done';
-    if(ct.champion===ct.userNat){ this.awardTrophy('Continental Championship'); }
-    this.autosave(); this.go('continental'); return;
-  }
-  const next=order[ni]; const nt=[]; for(let i=0;i<winners.length;i+=2)nt.push({hk:winners[i],ak:winners[i+1]});
-  ct.knockout[next]=nt; ct.koStage=next;
-  if(ct.eliminated){ /* stays eliminated */ } else { this.setContUserTie(); if(ct.koTie<0)ct.eliminated=true; }
-  this.autosave(); this.go('continental');
+  const finishRest=()=>{
+    ties.forEach((t,i)=>{ if(!t.done){ Object.assign(t,this.koPlay(t.hk,t.ak,'contko-'+st+i+this.state.seasonNum)); } });
+    const winners=ties.map(t=>t.w);
+    const order=['QF','SF','Final'];
+    const ni=order.indexOf(st)+1;
+    if(st==='Final'){ ct.champion=winners[0]; ct.round='done';
+      if(ct.champion===ct.userNat){ this.awardTrophy('Continental Championship'); }
+      this.autosave(); this.go('continental'); return;
+    }
+    const next=order[ni]; const nt=[]; for(let i=0;i<winners.length;i+=2)nt.push({hk:winners[i],ak:winners[i+1]});
+    ct.knockout[next]=nt; ct.koStage=next;
+    if(ct.eliminated){ /* stays eliminated */ } else { this.setContUserTie(); if(ct.koTie<0)ct.eliminated=true; }
+    this.autosave(); this.go('continental');
+  };
+  if(!ct.eliminated && ct.koTie>=0){
+    const t=ties[ct.koTie];
+    this.resolveKoTie(t,res.gh,res.ga,true,(w,pens)=>{ Object.assign(t,{hg:res.gh,ag:res.ga,pens,w,done:true}); finishRest(); });
+  } else finishRest();
 };
 Game.contPlayUser=function(){
   const m=this.state.contT.round==='group'?this.contUserMatchToday():this.contUserKoMatch(); if(!m)return;
