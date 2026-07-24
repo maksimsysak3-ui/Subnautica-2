@@ -1783,7 +1783,7 @@ Game.beginPlayerCareer=function(){
 Game.renderPlayerCreator=function(){
   const main=$('#main'); let view=$('#view'); if(!view){view=el('div','view');view.id='view';main.appendChild(view)}
   const pc=this._pc=this._pc||{name:'',pos:'ST',nat:'ENG',seed:'pc'+Math.floor(Math.random()*1e9),
-    attrs:{pace:55,shooting:55,passing:55,dribbling:55,defending:40,physical:55},budgetCap:330};
+    attrs:{pace:55,shooting:55,passing:55,dribbling:55,defending:40,physical:55},budgetCap:420};
   view.classList.remove('on');
   setTimeout(()=>{
     view.innerHTML='';
@@ -1826,7 +1826,7 @@ Game.pcSet=function(k,v){ const nm=$('#pcName'); if(nm)this._pc.name=nm.value; t
 Game.pcReroll=function(){ const nm=$('#pcName'); if(nm)this._pc.name=nm.value; this._pc.seed='pc'+Math.floor(Math.random()*1e9); this.renderPlayerCreator(); };
 Game.pcAdj=function(attr,delta){
   const nm=$('#pcName'); if(nm)this._pc.name=nm.value;
-  const pc=this._pc; const cur=pc.attrs[attr]; const next=clamp(cur+delta,35,85);
+  const pc=this._pc; const cur=pc.attrs[attr]; const next=clamp(cur+delta,30,90);
   const budgetNow=Object.values(pc.attrs).reduce((a,b)=>a+b,0); const newBudget=budgetNow-cur+next;
   if(newBudget>pc.budgetCap){ toast('No attribute points left — lower another attribute first.'); return; }
   pc.attrs[attr]=next; this.renderPlayerCreator();
@@ -1874,7 +1874,7 @@ Game.startPlayerCareer=function(clubName){
     pos:pc.pos, posGroup:grp, ovr:Math.round(Object.values(pc.attrs).reduce((a,b)=>a+b,0)/6),
     age:17, nat:pc.nat, attrs:{...pc.attrs}, ps:[], club:clubName, form:0, seed:pc.seed,
     contractYrs:3, personality:'Ambitious', morale:78, energy:100, value:150000, wage:1800, isCreated:true};
-  player.potential=clamp(player.ovr+ri(seeded('pcpot'+pc.seed),10,26),player.ovr,99);
+  player.potential=clamp(player.ovr+ri(seeded('pcpot'+pc.seed),20,40),player.ovr,99);
   Game.squad(clubName).push(player); Game.squad(clubName).sort((a,b)=>b.ovr-a.ovr);
   this.state.playerMode=true; this.state.playerId=id;
   // guarantee the created player a place in the starting XI, in his own position group
@@ -1897,6 +1897,8 @@ Game.renderMyCareer=function(v){
   const apps=(this.state.apps&&this.state.apps[p.id])||0;
   const nextF=this.nextUserFixture();
   const pos=this.clubRank(this.state.club);
+  const sp=this.state.skillPoints||0;
+  const win=this.transferWindowOpen();
   const attrLbl={pace:'Pace',shooting:'Shooting',passing:'Passing',dribbling:'Dribbling',defending:'Defending',physical:'Physical'};
   v.innerHTML=`<div class="view-head"><div><div class="kicker">My Career</div><h2>${p.name}</h2><div class="sub">${p.pos} · ${club.name} · Age ${p.age}</div></div></div>
     <div class="grid" style="grid-template-columns:280px 1fr;align-items:start;gap:18px">
@@ -1906,16 +1908,22 @@ Game.renderMyCareer=function(v){
         <div style="color:var(--dim);font-size:12px;margin:4px 0 12px">${p.pos} · OVR ${p.ovr} · POT ${p.potential}</div>
         <div class="ovrbar"><div class="bar"><i style="width:${clamp((p.ovr-40)/55*100,0,100)}%"></i></div><b style="font-size:13px">${p.ovr}</b></div>
         <div style="margin-top:14px;display:flex;justify-content:center;align-items:center;gap:8px"><span style="width:26px;height:30px;display:inline-block">${crestSVG(club,26)}</span><b>${club.name}</b></div>
+        <button class="btn ghost sm" style="margin-top:14px;width:100%" ${win?'':'disabled style="opacity:.4"'} onclick="Game.openPlayerTransferRequest()">Request Transfer</button>
+        ${!win?`<div style="color:var(--dim2);font-size:10.5px;margin-top:6px">${this.windowLabel().text}</div>`:''}
       </div>
       <div>
-        <div class="stat-row" style="grid-template-columns:1fr 1fr 1fr 1fr;margin-bottom:14px">
+        <div class="stat-row" style="grid-template-columns:1fr 1fr 1fr 1fr 1fr;margin-bottom:14px">
           <div class="stat-box"><div class="k">League Pos</div><div class="v">${pos}<small>${ordinal(pos)}</small></div></div>
           <div class="stat-box"><div class="k">Appearances</div><div class="v">${apps}</div></div>
           <div class="stat-box"><div class="k">Goals</div><div class="v">${st.g||0}</div></div>
           <div class="stat-box"><div class="k">Assists</div><div class="v">${st.a||0}</div></div>
+          <div class="stat-box"><div class="k">Skill Pts</div><div class="v" style="color:var(--acc)">${sp}</div></div>
         </div>
         <div class="card card-pad" style="margin-bottom:14px">
-          <h4 style="margin-bottom:10px">Attributes</h4>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+            <h4>Attributes</h4>
+            <button class="btn sm primary" ${sp>0?'':'disabled style="opacity:.4"'} onclick="Game.openSkillUpgrade()">⭐ Spend Skill Points${sp>0?' ('+sp+')':''}</button>
+          </div>
           ${Object.entries(p.attrs).map(([k,val])=>`<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px"><div style="width:90px;font-size:11px;color:var(--dim);text-transform:uppercase">${attrLbl[k]||k}</div><div style="flex:1"><div class="ovrbar"><div class="bar"><i style="width:${val}%"></i></div></div></div><b style="font-size:12px;width:24px;text-align:right">${val}</b></div>`).join('')}
         </div>
         <div class="card card-pad">
@@ -1930,6 +1938,120 @@ Game.renderMyCareer=function(v){
         </div>
       </div>
     </div>`;
+};
+Game.awardPlayerSkillPoints=function(box){
+  if(!box||!box.pdata)return;
+  const d=box.pdata[this.state.playerId]; if(!d||!d.mins)return;
+  let pts=1; // appearance
+  pts+=(d.goals||0)*3;
+  pts+=(d.assists||0)*2;
+  if(d.rating>=8.5)pts+=4; else if(d.rating>=7.5)pts+=2; else if(d.rating>=6.8)pts+=1;
+  this.state.skillPoints=(this.state.skillPoints||0)+pts;
+  toast(`+${pts} skill point${pts>1?'s':''} earned`,'⭐');
+};
+Game.openSkillUpgrade=function(){
+  const p=this.findPlayer(this.state.playerId); if(!p)return;
+  const pts=this.state.skillPoints||0;
+  const attrLbl={pace:'Pace',shooting:'Shooting',passing:'Passing',dribbling:'Dribbling',defending:'Defending',physical:'Physical'};
+  const cap=Math.min(99,p.potential);
+  this.openModalHTML(`<div style="padding:26px;max-width:460px">
+    <div class="kicker" style="color:var(--acc2)">Player Development</div>
+    <h2 style="margin:6px 0 4px">Spend Skill Points</h2>
+    <div style="color:var(--dim);font-size:13px;margin-bottom:18px">Earned from goals, assists and strong ratings. <b style="color:var(--acc)">${pts} point${pts===1?'':'s'} available</b>.</div>
+    <div id="skillRows">${Object.entries(p.attrs).map(([k,val])=>`
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+        <div style="width:88px;font-size:11.5px;color:var(--dim);text-transform:uppercase">${attrLbl[k]}</div>
+        <div style="flex:1"><div class="ovrbar"><div class="bar"><i style="width:${val}%"></i></div></div></div>
+        <b style="width:26px;text-align:right">${val}</b>
+        <button class="btn sm ${pts>0&&val<cap?'primary':'ghost'}" ${pts>0&&val<cap?'':'disabled style="opacity:.35"'} onclick="Game.spendSkillPoint('${k}')">+1</button>
+      </div>`).join('')}</div>
+    <div style="color:var(--dim2);font-size:11px;margin-bottom:14px">Capped at your potential (${cap}) until it rises with age and form.</div>
+    <button class="btn ghost" onclick="Game.closeModal()">Done</button>
+  </div>`);
+};
+Game.spendSkillPoint=function(attr){
+  const p=this.findPlayer(this.state.playerId); if(!p)return;
+  if((this.state.skillPoints||0)<=0)return;
+  const cap=Math.min(99,p.potential);
+  if(p.attrs[attr]>=cap)return;
+  p.attrs[attr]=clamp(p.attrs[attr]+1,0,cap);
+  p.ovr=Math.round(Object.values(p.attrs).reduce((a,b)=>a+b,0)/6);
+  this.state.skillPoints--;
+  this.autosave();
+  this.openSkillUpgrade();
+};
+Game.openPlayerTransferRequest=function(){
+  if(!this.transferWindowOpen()){ toast('Transfer requests can only be made during an open window.'); return; }
+  if(this.state.playerTransferRequestedThisWindow===this.currentWindowId()){ toast("You already have a request in with the board this window."); return; }
+  const p=this.findPlayer(this.state.playerId); if(!p)return;
+  const clubs=[]; LEAGUES.forEach(l=>l.clubs.forEach(c=>{ if(c.name!==this.state.club) clubs.push(c); }));
+  clubs.sort((a,b)=>Math.abs(a.ovr-p.ovr)-Math.abs(b.ovr-p.ovr));
+  const rows=clubs.slice(0,40).map(c=>{
+    const gap=c.ovr-p.ovr;
+    const label=gap<=6?'Strong interest':gap<=14?'Some interest':'Unlikely';
+    const color=gap<=6?'var(--good)':gap<=14?'var(--warn)':'var(--bad)';
+    return `<div class="market-row" style="grid-template-columns:1fr auto;cursor:pointer" onclick='Game.confirmPlayerTransferRequest("${c.name}")'>
+      <div style="display:flex;align-items:center;gap:10px"><span style="width:26px;height:30px;display:inline-block">${crestSVG(c,26)}</span><div><b>${c.name}</b><div style="color:var(--dim);font-size:11px">${this.leagueOf(c.name).name} · OVR ${c.ovr}</div></div></div>
+      <span style="color:${color};font-size:11.5px;font-weight:700">${label}</span>
+    </div>`;
+  }).join('');
+  this.openModalHTML(`<div style="padding:26px;max-width:560px">
+    <div class="kicker" style="color:var(--acc2)">Transfer Request</div>
+    <h2 style="margin:6px 0 4px">Ask to Leave ${this.clubOf(this.state.club).short}?</h2>
+    <div style="color:var(--dim);font-size:13px;margin-bottom:16px">Pick a club to formally request a move to. You get one request per window, and the board's answer is final for this window.</div>
+    <div style="max-height:360px;overflow:auto">${rows}</div>
+    <button class="btn ghost" style="margin-top:14px" onclick="Game.closeModal()">Cancel</button>
+  </div>`);
+};
+Game.confirmPlayerTransferRequest=function(clubName){
+  const target=this.clubOf(clubName); if(!target)return;
+  this.closeModal();
+  this.confirmModal('Confirm Transfer Request', `Formally request a move to ${target.name}? You'll only get one answer from the board this window.`, ()=>this.submitPlayerTransferRequest(clubName));
+};
+Game.submitPlayerTransferRequest=function(clubName){
+  const p=this.findPlayer(this.state.playerId); if(!p)return;
+  const target=this.clubOf(clubName); if(!target)return;
+  this.state.playerTransferRequestedThisWindow=this.currentWindowId();
+  const gap=target.ovr-p.ovr;
+  const chance=clamp(0.82-gap*0.03,0.06,0.85);
+  const accepted=Math.random()<chance;
+  const oldClub=this.clubOf(this.state.club);
+  if(accepted){
+    this.movePlayerToClub(clubName);
+    this.pushMail('Transfer Desk',`Move to ${target.name} confirmed`,`Your transfer request was accepted. Good luck at ${target.name}.`);
+    this.trophyCutscene({title:'TRANSFER COMPLETE',subtitle:`Welcome to ${target.name}`,crestHtml:crestSVG(target,70)});
+  } else {
+    toast(`${target.short} weren't interested this window.`);
+    this.pushMail('Transfer Desk',`${target.name} decline interest`,`${target.name} weren't willing to meet your valuation this window. You remain at ${oldClub.name}.`);
+  }
+  this.go('mycareer');
+};
+Game.movePlayerToClub=function(clubName){
+  const oldClub=this.state.club; const p=this.findPlayer(this.state.playerId); if(!p)return;
+  const oldSq=Game.squad(oldClub); const oi=oldSq.findIndex(x=>x.id===p.id); if(oi>=0)oldSq.splice(oi,1);
+  const weeksPlayed=(this.state.fixtures||[]).filter(f=>f.comp==='League'&&f.played).length;
+  p.club=clubName; p.contractYrs=3;
+  Game.squad(clubName).push(p); Game.squad(clubName).sort((a,b)=>b.ovr-a.ovr);
+  this.state.club=clubName;
+  const c=this.clubOf(clubName);
+  this.state.budget=c.budget; this.state.wageBudget=Math.round(c.budget*0.6);
+  // rebuild the remaining league calendar for the new club — cup runs already underway don't carry over
+  const lg=this.leagueOf(clubName); const sched=this.state.schedules[lg.id];
+  const start=new Date(this.state.calStart||Date.now());
+  const rival=this.rivalOf(clubName);
+  const fx=[];
+  for(let w=weeksPlayed;w<sched.length;w++){ const g=sched[w].find(m=>m[0]===clubName||m[1]===clubName); if(!g)continue;
+    const home=g[0]===clubName, opp=home?g[1]:g[0];
+    fx.push({id:'L'+w,date:addDays(start,14+w*7).getTime(),comp:'League',week:w,oppName:opp,home,played:false,derby:opp===rival}); }
+  fx.sort((a,b)=>a.date-b.date);
+  this.state.fixtures=fx;
+  const L=this.buildLineup(clubName);
+  let li=L.starters.findIndex(sid=>{ const pl=this.findPlayer(sid); return pl && pl.id!==p.id && pl.posGroup===p.posGroup; });
+  if(li<0) li=0;
+  L.subs.push(L.starters[li]); L.starters[li]=p.id;
+  this.state.lineup=L;
+  this._pool=null;
+  this.autosave();
 };
 
 /* ---------------- CLUB SELECT ---------------- */
@@ -2290,6 +2412,10 @@ Game.windowLabel=function(){
   if(wi<18) return {open:false,text:'Window closed · reopens MD19'};
   if(wi<22) return {open:true,text:'Winter Window open · closes after MD22'};
   return {open:false,text:'Window closed · reopens next summer'};
+};
+Game.currentWindowId=function(){
+  const lg=this.leagueOf(this.state.club); const wi=lg?(this.state.weekIndex[lg.id]||0):0;
+  return this.state.seasonNum+'-'+(wi<4?'summer':'winter');
 };
 Game.checkDeadlineDay=function(){
   const lg=this.leagueOf(this.state.club); const wi=this.state.weekIndex[lg.id]||0;
@@ -3882,6 +4008,7 @@ Game.finishUserFixture=function(f,res,quick,box){
         this.pushMail('Match Officials',`${p.name} suspended`,`${p.name} was sent off and will serve a ${p.suspended}-match ban.`); }
       else if(d.yellow){ p.yellows=(p.yellows||0)+d.yellow; if(p.yellows>=5){ p.yellows-=5; p.suspended=Math.max(p.suspended||0,1); this.pushMail('Match Officials',`${p.name} suspended`,`${p.name} reached five bookings and misses the next match.`);} }
     });
+    if(this.state.playerMode) this.awardPlayerSkillPoints(box);
   }
   // fatigue: light injury chance weighted by low energy among those who played
   const fitnessMult = this.state.training==='fitness'?0.55:1;
