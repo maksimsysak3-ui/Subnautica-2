@@ -1242,21 +1242,27 @@ const NAV_ITEMS=[
   {id:'news',ico:'news',tx:'News'},
   {id:'settings',ico:'settings',tx:'Settings'},
 ];
+const CLUB_ONLY_NAV=new Set(['career','squad','academy','transfers','calendar','table','cups']);
 function buildNav(){
   const nav=$('#nav'); nav.innerHTML='';
+  const intlOnly = Game.state && Game.state.internationalOnly;
   NAV_ITEMS.forEach((n,i)=>{
     if(n.sec){ const s=el('div','nav-section','<span class="nav-sec-tx">'+n.sec+'</span>'); nav.appendChild(s); return; }
+    if(intlOnly && CLUB_ONLY_NAV.has(n.id)) return;
     const it=el('button','nav-item','<span class="ico">'+ic(ICONS[n.ico],20)+'</span><span class="tx">'+n.tx+'</span>'+(n.id==='inbox'?'<span class="nav-badge" id="inboxBadge" style="display:none"></span>':''));
     it.dataset.id=n.id; it.onclick=()=>Game.go(n.id);
     nav.appendChild(it);
   });
 }
-Game.updateNavBadge=function(){ const b=$('#inboxBadge'); if(!b)return; const n=this.state.club?this.unreadMail():0;
+Game.updateNavBadge=function(){ const b=$('#inboxBadge'); if(!b)return; const n=this.manager?this.unreadMail():0;
   if(n>0){b.style.display='flex';b.textContent=n;}else{b.style.display='none';} };
 Game.go=function(id){
+  buildNav();
   // gate club-specific views
-  const needClub=['career','squad','tactics','transfers','fixtures','table','trophies','stats','calendar','cups','inbox','academy'];
-  if(needClub.includes(id) && !this.state.club){ this.pendingView=id==='career'?'career':id;
+  const needClub=['career','squad','tactics','transfers','fixtures','table','cups','calendar','academy'];
+  if(needClub.includes(id) && !this.state.club){
+    if(this.state.internationalOnly){ this.go('international'); return; }
+    this.pendingView=id==='career'?'career':id;
     if(!this.manager){ this.renderManagerCreator(); this.setActive('career'); this.setCrumbs('Manager','Create Your Manager'); return; }
     this.renderClubSelect(); this.setActive('career'); this.setCrumbs('Manager','Choose Your Club'); return; }
   document.querySelectorAll('.nav-item').forEach(n=>n.classList.toggle('on',n.dataset.id===id));
@@ -1269,8 +1275,18 @@ Game.setCrumbs=function(...parts){
 };
 Game.updateHUD=function(){
   const hud=$('#hud');
+  if(this.state.internationalOnly && this.state.natJob){
+    const m=this.state.manager; const k=this.state.natJob;
+    hud.innerHTML=`
+      <div class="chip"><span class="lbl">Season</span><span class="val">${this.state.season}</span></div>
+      <div class="chip club" title="${natName(k)}"><span style="font-size:18px">${flagEmoji(k)}</span><span class="val">${natName(k)}</span></div>
+      ${m?`<div class="chip" style="gap:8px;padding-left:6px" title="${m.name}"><span style="width:26px;height:26px;border-radius:8px;overflow:hidden;display:inline-block">${faceSVG('mgr',26,m)}</span><span class="val" style="max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${m.name.split(' ')[0]}</span></div>`:''}
+    `;
+    return;
+  }
   if(!this.state.club){ hud.innerHTML=`<button class="btn primary sm" onclick="Game.go('career')">Start Career</button>`; return; }
-  const c=this.clubOf(this.state.club); const m=this.state.manager;
+  const c=this.clubOf(this.state.club); if(!c){ hud.innerHTML=''; return; }
+  const m=this.state.manager;
   hud.innerHTML=`
     <div class="chip"><span class="lbl">Season</span><span class="val">${this.state.season}</span></div>
     <div class="chip"><span class="lbl">Budget</span><span class="val" style="color:var(--acc)">${money(this.state.budget)}</span></div>
@@ -1351,18 +1367,37 @@ Game.applyTheme=function(id){
 /* ---------------- HUB ---------------- */
 Game.renderHub=function(v){
   this.setCrumbs('Home');
-  const started=!!this.state.club;
+  const clubStarted=!!this.state.club;
+  const intlStarted=!!(this.state.internationalOnly && this.state.natJob);
+  const anyActive=clubStarted||intlStarted;
+  const hasSaves=this.hasSave();
+  let heroInner;
+  if(clubStarted){
+    heroInner=`<div class="kicker">Manager Career</div><h1>BUILD A<br>DYNASTY</h1>
+      <p>Take control of any club across six leagues of 20 teams. Sign superstars, craft tactics, develop wonderkids, survive the drama, and chase every trophy.</p>
+      <div style="display:flex;gap:10px;flex-wrap:wrap"><button class="btn primary" onclick="Game.go('career')">Continue as ${this.clubOf(this.state.club).short} →</button>
+      <button class="btn ghost" onclick="event.stopPropagation();Game.openChooser()">Switch Career</button></div>`;
+  } else if(intlStarted){
+    heroInner=`<div class="kicker">International Manager</div><h1>LEAD YOUR<br>NATION</h1>
+      <p>You're in charge of ${natName(this.state.natJob)}. Build your squad from every eligible player in the world, arrange friendlies, and chase World Cup glory.</p>
+      <div style="display:flex;gap:10px;flex-wrap:wrap"><button class="btn primary" onclick="Game.go('international')">Continue as ${natName(this.state.natJob)} Manager →</button>
+      <button class="btn ghost" onclick="event.stopPropagation();Game.openChooser()">Switch Career</button></div>`;
+  } else {
+    heroInner=`<div class="kicker">Welcome to FC26</div><h1>CHOOSE YOUR<br>PATH</h1>
+      <p>Take charge of a club across six leagues, or skip straight to the international stage and manage a nation full-time. Every squad is fully scouted and simulated.</p>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <button class="btn primary" onclick="event.stopPropagation();Game.go('career')">Start Club Career →</button>
+        <button class="btn" onclick="event.stopPropagation();Game.beginInternationalCareer()">Manage a Nation →</button>
+        ${hasSaves?`<button class="btn ghost" onclick="event.stopPropagation();Game.openSlotPicker()">Continue Saved Career</button>`:''}
+      </div>`;
+  }
   v.innerHTML=`
   <div class="hub-wrap">
     <div class="hub-hero">
-      <div class="hub-feature" onclick="Game.go('career')">
+      <div class="hub-feature">
         <div class="pitch-bg" style="position:absolute;inset:0;opacity:.12"></div>
         <div class="glow"></div>
-        <div class="kicker">Manager Career</div>
-        <h1>BUILD A<br>DYNASTY</h1>
-        <p>Take control of any club across six leagues of 20 teams. Sign superstars, craft tactics, develop wonderkids, survive the drama, and chase every trophy.</p>
-        <div style="display:flex;gap:10px"><button class="btn primary">${started?'Continue as '+this.clubOf(this.state.club).short:'Start Career'} →</button>
-        ${(!started&&this.hasSave())?`<button class="btn" onclick="event.stopPropagation();Game.openSlotPicker()">Load Saved Career</button>`:''}</div>
+        ${heroInner}
       </div>
       <div class="hub-tiles">
         <div class="hub-tile" onclick="Game.go('transfers')"><div class="em" style="color:var(--acc)">${ic(ICONS.transfers,28)}</div><div><h3>Transfer Centre</h3><p>Scout, negotiate, and hijack deals</p></div><div class="arw">→</div></div>
@@ -1371,12 +1406,31 @@ Game.renderHub=function(v){
       </div>
     </div>
     <div class="hub-strip">
-      <div class="hub-mini" onclick="Game.go('table')"><div class="em" style="color:var(--acc)">${ic(ICONS.table,20)}</div><h4>Standings</h4><p>Live tables, five leagues</p></div>
+      ${clubStarted?`<div class="hub-mini" onclick="Game.go('table')"><div class="em" style="color:var(--acc)">${ic(ICONS.table,20)}</div><h4>Standings</h4><p>Live tables, five leagues</p></div>`:''}
       <div class="hub-mini" onclick="Game.go('news')"><div class="em" style="color:var(--acc)">${ic(ICONS.news,20)}</div><h4>News & Drama</h4><p>Headlines from the football world</p></div>
       <div class="hub-mini" onclick="Game.go('trophies')"><div class="em" style="color:var(--gold)">${ic(ICONS.trophies,20)}</div><h4>Trophy Cabinet</h4><p>Silverware you've earned</p></div>
-      <div class="hub-mini" onclick="Game.go('presser')"><div class="em" style="color:var(--acc)">${ic(ICONS.press,20)}</div><h4>Press Room</h4><p>Face the media</p></div>
+      ${clubStarted?`<div class="hub-mini" onclick="Game.go('presser')"><div class="em" style="color:var(--acc)">${ic(ICONS.press,20)}</div><h4>Press Room</h4><p>Face the media</p></div>`:''}
     </div>
   </div>`;
+};
+Game.openChooser=function(){
+  const hasSaves=this.hasSave();
+  this.openModalHTML(`<div style="padding:28px;max-width:460px;text-align:center">
+    <div class="kicker" style="color:var(--acc2)">Switch Career</div>
+    <h2 style="margin:6px 0 16px">What would you like to do?</h2>
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <button class="btn primary" onclick="Game.closeModal();Game.confirmSwitchCareer('club')">Start a New Club Career</button>
+      <button class="btn" onclick="Game.closeModal();Game.confirmSwitchCareer('intl')">Manage a Nation</button>
+      ${hasSaves?`<button class="btn ghost" onclick="Game.closeModal();Game.openSlotPicker()">Load a Different Save</button>`:''}
+      <button class="btn ghost" onclick="Game.closeModal()">Cancel</button>
+    </div>
+  </div>`);
+};
+Game.confirmSwitchCareer=function(kind){
+  const go=()=>{ this.state={}; if(kind==='club') this.go('career'); else this.beginInternationalCareer(); };
+  if(this.state.club || (this.state.internationalOnly && this.state.natJob)){
+    this.confirmModal('Start New Career', "This will leave your current career (make sure it's saved first if you want to keep it). Continue?", go);
+  } else go();
 };
 
 /* ---------------- CLUB SELECT ---------------- */
@@ -1413,7 +1467,9 @@ Game.renderManagerCreator=function(){
 };
 Game.mgrSet=function(k,v){ this._mgr[k]=v; const nm=$('#mgrName'); if(nm)this._mgr.name=nm.value; this.renderManagerCreator(); };
 Game.confirmManager=function(){ const nm=$('#mgrName'); if(nm)this._mgr.name=nm.value; if(!this._mgr.name.trim())this._mgr.name='Alex Vandenberg';
-  this.manager={...this._mgr}; toast('Welcome, '+this.manager.name); this.renderClubSelect(); this.setCrumbs('Manager','Choose Your Club'); };
+  this.manager={...this._mgr}; toast('Welcome, '+this.manager.name);
+  if(this._pendingIntl){ this._pendingIntl=false; this.renderNationSelect(); this.setCrumbs('Manager','Choose a Nation'); return; }
+  this.renderClubSelect(); this.setCrumbs('Manager','Choose Your Club'); };
 Game.renderClubSelect=function(){
   const main=$('#main'); let view=$('#view'); if(!view){view=el('div','view');view.id='view';main.appendChild(view)}
   view.classList.remove('on');
@@ -1498,7 +1554,7 @@ Game.startCareer=function(clubName){
     trophies:{}, newsFeed:[], transfersDone:[], playedMatches:0, academy:[],
     lineup:null, scorers:{}, seasonStats:{}, awards:[], simSpeed:'normal', mail:[], transferList:[],
     freeAgents:[], loansOut:[], loansIn:[], window:{},
-    natJob:null, natSquadPicks:{}, natRecord:{},
+    natJob:null, natSquadPicks:{}, natRecord:{}, academyLevel:1, scoutTrialists:[],
   };
   // init all league tables & schedules
   LEAGUES.forEach(l=>{
@@ -1516,6 +1572,67 @@ Game.startCareer=function(clubName){
   toast('Welcome to '+c.name+', boss.');
   const target=this.pendingView||'career'; this.pendingView=null;
   this.go(target==='career'?'career':target);
+};
+/* ---------------- INTERNATIONAL-ONLY CAREER ---------------- */
+Game.beginInternationalCareer=function(){
+  if(!this.manager){ this._pendingIntl=true; this.renderManagerCreator(); this.setActive('hub'); this.setCrumbs('Manager','Create Your Manager'); return; }
+  this.renderNationSelect();
+};
+Game.renderNationSelect=function(){
+  const main=$('#main'); let view=$('#view'); if(!view){view=el('div','view');view.id='view';main.appendChild(view)}
+  view.classList.remove('on');
+  setTimeout(()=>{
+    view.innerHTML='';
+    const head=el('div','view-head',`<div><div class="kicker">International Manager</div><h2>Choose a Nation</h2><div class="sub">Lead a country full-time — no club to run, just call-ups, friendlies and a World Cup campaign every four years.</div></div>`);
+    view.appendChild(head);
+    const grid=el('div','club-grid');
+    const ranked=NATION_KEYS.slice().sort((a,b)=>Math.round(this.nationXI(b).reduce((s,p)=>s+p.ovr,0)/11)-Math.round(this.nationXI(a).reduce((s,p)=>s+p.ovr,0)/11));
+    ranked.forEach(k=>{
+      const avg=Math.round(this.nationXI(k).reduce((s,p)=>s+p.ovr,0)/11);
+      const card=el('div','club-card rise');
+      card.innerHTML=`<div style="width:54px;height:37px">${flagSVG(k,54)}</div><h3>${natName(k)}</h3><div class="meta"><span>OVR ${avg}</span></div>`;
+      card.onclick=()=>this.startInternationalCareer(k);
+      grid.appendChild(card);
+    });
+    view.appendChild(grid);
+    view.classList.add('on');
+    this.updateHUD();
+  },140);
+};
+Game.startInternationalCareer=function(k){
+  this.state={
+    club:null, internationalOnly:true, natJob:k, natSquadPicks:{}, natRecord:{},
+    season:'2026/27', seasonNum:1, year:2026,
+    trophies:{}, newsFeed:[], mail:[], scorers:{}, apps:{}, awards:[], simSpeed:'normal', autosave:true,
+  };
+  this.state.manager=this.manager||{name:'Alex Vandenberg',skin:2,hair:0,hairStyle:0,beard:true};
+  this.manager=this.state.manager;
+  this._natSquads={};
+  this.generateNewsBatch(4);
+  this.pushMail(natName(k)+' FA','Welcome aboard',`You've been appointed manager of the ${natName(k)} national team. Build your squad, arrange friendlies, and prepare for the next World Cup.`);
+  toast('You are now the manager of '+natName(k)+'.');
+  this.go('international');
+};
+Game.advanceInternationalSeason=function(){
+  this.state.seasonNum++; this.state.year++;
+  const yr=parseInt(this.state.season.slice(0,4))+1; this.state.season=yr+'/'+(yr+1-2000);
+  this._natSquads={};
+  const r=seeded('intl-adv-'+this.state.seasonNum+this.state.natJob);
+  // age & develop the world's players so national pools evolve season to season
+  LEAGUES.forEach(l=>l.clubs.forEach(c=>{
+    const sq=Game.squad(c.name);
+    for(let i=sq.length-1;i>=0;i--){ const p=sq[i]; p.age++;
+      if(p.age>=34 && r()<(p.age-33)*0.14){ sq.splice(i,1); sq.push(genPlayer(c.name,p.pos,clamp(c.ovr+ri(r,-8,-2),58,80),c.nat)); continue; }
+      let d=0; if(p.age<=21)d=ri(r,1,4); else if(p.age<=25)d=ri(r,0,3); else if(p.age<=28)d=ri(r,-1,1); else if(p.age<=31)d=ri(r,-2,0); else d=ri(r,-4,-1);
+      if(p.ovr<p.potential && d>0) d=Math.min(d,p.potential-p.ovr);
+      p.ovr=clamp(p.ovr+d,45,99);
+    }
+    sq.sort((a,b)=>b.ovr-a.ovr);
+  }));
+  this.generateNewsBatch(3);
+  this.autosave();
+  if(this.state.year%4===0){ this.offerWorldCupJob(()=>this.go('international')); }
+  else { toast('Season rolls on — '+this.state.season); this.go('international'); }
 };
 
 /* ---------------- LINEUP / XI ---------------- */
@@ -1695,13 +1812,27 @@ Game.deadlineDayEvent=function(cont){
   </div>`);
   this._dlCont=cont||null;
 };
+Game.academyCap=function(){ return 6+((this.state.academyLevel||1)-1)*2; };
+Game.upgradeAcademyCost=function(){ return (this.state.academyLevel||1)*8e6; };
+Game.upgradeAcademy=function(){
+  const lvl=this.state.academyLevel||1;
+  if(lvl>=5){toast('Academy is already at maximum level.');return;}
+  const cost=this.upgradeAcademyCost();
+  if(this.state.budget<cost){toast('Not enough budget to invest in the academy.');return;}
+  this.state.budget-=cost; this.state.academyLevel=lvl+1;
+  toast('Academy facilities upgraded to Level '+this.state.academyLevel+'!');
+  this.addNews('season',`${this.clubOf(this.state.club).short} invest in youth facilities`,`The academy has been upgraded to Level ${this.state.academyLevel}, widening the pipeline of young talent.`,'');
+  this.autosave(); this.go('academy');
+};
 Game.buildAcademy=function(n){
   const r=seeded('acad-'+this.state.club+this.state.seasonNum+Math.random());
   const c=this.clubOf(this.state.club); const out=[]; const posP=['GK','CB','RB','LB','CDM','CM','CAM','RW','LW','ST'];
+  const lvl=this.state.academyLevel||1;
   const count=n||6;
-  for(let i=0;i<count;i++){ const base=clamp(c.ovr-ri(r,12,22),48,70);
+  for(let i=0;i<count;i++){ const base=clamp(c.ovr-ri(r,12,22)+(lvl-1)*2,48,74);
     const p=genPlayer(this.state.club+' Academy',pick(r,posP),base,c.nat);
-    p.age=ri(r,15,18); p.potential=clamp(p.ovr+ri(r,9,24),p.ovr+4,95); p.academy=true; p.value=Math.round(p.value*0.4/1e5)*1e5||300e3;
+    p.age=ri(r,15,18); p.potential=clamp(p.ovr+ri(r,9,24)+(lvl-1)*2,p.ovr+4,97); p.academy=true; p.value=Math.round(p.value*0.4/1e5)*1e5||300e3;
+    p.scouted=false;
     out.push(p); }
   return out;
 };
@@ -1710,8 +1841,83 @@ Game.refreshAcademy=function(r){
   ac.forEach(p=>{ p.age++; p.ovr=clamp(p.ovr+ri(r,1,4),40,p.potential); p.value=Math.round(Math.pow(Math.max(1,p.ovr-58)/22,3.1)*45e6*0.5/1e5)*1e5||300e3; });
   // graduates (19+) leave the academy
   const stay=ac.filter(p=>p.age<=18);
-  const intake=this.buildAcademy(Math.max(0,6-stay.length));
+  const intake=this.buildAcademy(Math.max(0,this.academyCap()-stay.length));
   this.state.academy=stay.concat(intake);
+  this.state.scoutTrialists=[]; // unsigned trialists don't wait around forever
+};
+Game.potRange=function(p){
+  const r=seeded('potrange-'+p.id);
+  const lo=clamp(p.potential-ri(r,4,11),p.ovr,99);
+  const hi=clamp(p.potential+ri(r,3,9),lo,99);
+  return [lo,hi];
+};
+Game.scoutCost=function(p){ return Math.round((250000+p.ovr*15000)/1e4)*1e4; };
+Game.scoutProspect=function(id){
+  const p=(this.state.academy||[]).find(x=>x.id===id) || (this.state.scoutTrialists||[]).find(x=>x.id===id);
+  if(!p||p.scouted)return;
+  const cost=this.scoutCost(p);
+  if(this.state.budget<cost){toast('Not enough budget to scout him.');return;}
+  this.state.budget-=cost; p.scouted=true;
+  toast(`Scouting report complete: ${p.name}'s true potential is ${p.potential}.`);
+  this.autosave(); this.go('academy');
+};
+const SCOUT_REGIONS=[
+  {id:'domestic',name:'Domestic',cost:800000,ovrSpread:[-16,-6],potBonus:0,desc:'Cheap, close to home — decent, low-ceiling talent from your own nation.'},
+  {id:'continental',name:'Continental',cost:2200000,ovrSpread:[-13,-3],potBonus:3,desc:'A wider net across the wider footballing world — better average quality.'},
+  {id:'worldwide',name:'Worldwide',cost:5000000,ovrSpread:[-10,0],potBonus:7,desc:'Send scouts across the globe for the very best young talent — expensive, but the highest ceilings.'},
+];
+Game.openScoutRegions=function(){
+  const c=this.clubOf(this.state.club);
+  this.openModalHTML(`<div style="padding:26px;max-width:560px">
+    <div class="kicker" style="color:var(--acc2)">Scouting Network</div>
+    <h2 style="margin:6px 0 6px">Send Scouts</h2>
+    <div style="color:var(--dim);font-size:13px;margin-bottom:16px">Budget: <b style="color:var(--acc)">${money(this.state.budget)}</b></div>
+    <div style="display:flex;flex-direction:column;gap:10px">
+      ${SCOUT_REGIONS.map(reg=>`<div style="display:flex;align-items:center;gap:14px;padding:14px 16px;border:1px solid var(--line);border-radius:12px;background:var(--panel2)">
+        <div style="flex:1"><b>${reg.name}</b><div style="color:var(--dim);font-size:12px;margin-top:2px">${reg.desc}</div></div>
+        <button class="btn sm primary" ${this.state.budget<reg.cost?'style="opacity:.4;pointer-events:none"':''} onclick="Game.sendScouts('${reg.id}')">${money(reg.cost)}</button>
+      </div>`).join('')}
+    </div>
+    <button class="btn ghost" style="margin-top:16px" onclick="Game.closeModal()">Cancel</button>
+  </div>`);
+};
+Game.sendScouts=function(regionId){
+  const reg=SCOUT_REGIONS.find(x=>x.id===regionId); if(!reg)return;
+  if(this.state.budget<reg.cost){toast('Not enough budget.');return;}
+  this.state.budget-=reg.cost;
+  const c=this.clubOf(this.state.club);
+  const r=seeded('scouttrip-'+this.state.club+this.state.playedMatches+Math.random());
+  const posP=['GK','CB','RB','LB','CDM','CM','CAM','RW','LW','ST'];
+  this.state.scoutTrialists=this.state.scoutTrialists||[];
+  const found=[];
+  for(let i=0;i<4;i++){
+    const base=clamp(c.ovr+ri(r,reg.ovrSpread[0],reg.ovrSpread[1]),46,80);
+    const nat = regionId==='domestic' ? c.nat : pick(r,NATION_KEYS);
+    const p=genPlayer(this.state.club+' Trial',pick(r,posP),base,nat);
+    p.age=ri(r,15,18); p.potential=clamp(p.ovr+ri(r,9,24)+reg.potBonus,p.ovr+4,99); p.academy=true; p.trial=true; p.scouted=false;
+    p.value=Math.round(p.value*0.4/1e5)*1e5||300e3;
+    found.push(p);
+  }
+  this.state.scoutTrialists=found.concat(this.state.scoutTrialists).slice(0,8);
+  toast(`Scouting trip complete — ${found.length} trialists found.`);
+  this.autosave(); this.go('academy');
+};
+Game.signTrialist=function(id){
+  const list=this.state.scoutTrialists||[]; const i=list.findIndex(x=>x.id===id); if(i<0)return;
+  if((this.state.academy||[]).length>=this.academyCap()){toast(`Academy is full (${this.academyCap()}). Promote, release, or upgrade facilities first.`);return;}
+  const p=list.splice(i,1)[0]; delete p.trial; p.club=this.state.club+' Academy';
+  this.state.academy=this.state.academy||[]; this.state.academy.push(p);
+  toast(p.name+' signed to the academy.'); this.autosave(); this.go('academy');
+};
+Game.releaseTrialist=function(id){
+  this.state.scoutTrialists=(this.state.scoutTrialists||[]).filter(x=>x.id!==id);
+  this.go('academy');
+};
+Game.releaseYouth=function(id){
+  this.confirmModal('Release Prospect','Release this academy prospect? He\'ll leave the club for good.',()=>{
+    this.state.academy=(this.state.academy||[]).filter(x=>x.id!==id);
+    toast('Prospect released.'); this.autosave(); this.go('academy');
+  });
 };
 Game.promoteYouth=function(id){
   if(!this.squadHasRoom()){toast(`Squad is full (${this.MAX_SQUAD}). Sell or release a player first.`);return}
@@ -1719,32 +1925,59 @@ Game.promoteYouth=function(id){
   const p=this.state.academy.splice(i,1)[0]; p.academy=false; p.club=this.state.club;
   Game.squad(this.state.club).push(p); Game.squad(this.state.club).sort((a,b)=>b.ovr-a.ovr);
   if(this.state.lineup) this.state.lineup.subs.push(p.id);
-  this.pushMail('Academy Director',`${p.name} promoted to the first team`,`${p.name} (${p.pos}, age ${p.age}, potential ${p.potential}) has been promoted. One for the future.`);
+  this.pushMail('Academy Director',`${p.name} promoted to the first team`,`${p.name} (${p.pos}, age ${p.age}, potential ${p.scouted?p.potential:this.potRange(p).join('-')}) has been promoted. One for the future.`);
   toast(p.name+' promoted to the first team'); this.autosave(); this.go('academy');
+};
+Game.academyProspectCardHTML=function(p,opts){
+  opts=opts||{};
+  const full=!this.squadHasRoom();
+  const potDisplay = p.scouted ? `<b style="font-size:18px;color:var(--gold)">${p.potential}</b>` : `<b style="font-size:15px;color:var(--dim)">${this.potRange(p).join('–')}</b>`;
+  const scoutBtn = p.scouted ? '' : `<button class="btn sm ghost" onclick="Game.scoutProspect('${p.id}')">Scout · ${money(this.scoutCost(p))}</button>`;
+  const actionBtns = opts.trial
+    ? `<button class="btn sm primary" style="flex:1" onclick="Game.signTrialist('${p.id}')">Sign to Academy</button>
+       <button class="btn sm ghost" style="color:var(--bad)" onclick="Game.releaseTrialist('${p.id}')">Release</button>`
+    : `<button class="btn sm primary" style="flex:1" ${full?'style="flex:1;opacity:.4;pointer-events:none"':''} onclick="Game.promoteYouth('${p.id}')">Promote</button>
+       <button class="btn sm ghost" style="color:var(--bad)" onclick="Game.releaseYouth('${p.id}')">Release</button>`;
+  const card=el('div','club-card'); card.style.cursor='default';
+  card.innerHTML=`<div style="display:flex;gap:12px;align-items:center;cursor:pointer" onclick='Game.openPlayer("${p.id}")'>
+    <div style="width:56px;height:56px;border-radius:14px;overflow:hidden;border:1px solid var(--line2)">${faceSVG(p.seed,56)}</div>
+    <div><div style="font-weight:900;font-size:15px">${p.name}</div><div style="color:var(--dim);font-size:12px">${span(flagSVG(p.nat,16))} ${p.pos} · Age ${p.age} · <span style="color:var(--acc2)">${p.personality}</span></div></div></div>
+    <div style="display:flex;gap:14px;margin-top:12px;align-items:center">
+      <div style="text-align:center"><div style="font-size:10px;color:var(--dim)">CURRENT</div><b style="font-size:18px">${p.ovr}</b></div>
+      <div style="text-align:center"><div style="font-size:10px;color:var(--dim)">POTENTIAL</div>${potDisplay}</div>
+      <div style="flex:1"><div class="bar"><i style="width:${(p.ovr/(p.scouted?p.potential:this.potRange(p)[1]))*100}%"></i></div></div></div>
+    ${scoutBtn?`<div style="margin-top:10px">${scoutBtn}</div>`:''}
+    <div style="display:flex;gap:8px;margin-top:10px">${actionBtns}</div>`;
+  this._natCache=this._natCache||{}; this._natCache[p.id]=p;
+  return card;
 };
 Game.renderAcademy=function(v){
   const c=this.clubOf(this.state.club); this.setCrumbs('Manager',c.name,'Academy');
   const ac=this.state.academy||[];
+  const trialists=this.state.scoutTrialists||[];
   const full=!this.squadHasRoom();
-  v.innerHTML=`<div class="view-head"><div><div class="kicker">Youth Development</div><h2>Academy</h2><div class="sub">${ac.length} prospects in the pipeline. Promote them or let them develop.${full?` <span style="color:var(--bad)">First team squad is full (${this.MAX_SQUAD}) — sell or release a player before promoting.</span>`:''}</div></div></div>`;
+  const lvl=this.state.academyLevel||1;
+  const cap=this.academyCap();
+  v.innerHTML=`<div class="view-head"><div><div class="kicker">Youth Development</div><h2>Academy</h2><div class="sub">${ac.length}/${cap} prospects in the pipeline. Scout to reveal true potential, promote them, or let them develop.${full?` <span style="color:var(--bad)">First team squad is full (${this.MAX_SQUAD}) — sell or release a player before promoting.</span>`:''}</div></div>
+    <button class="btn primary" onclick="Game.openScoutRegions()">Send Scouts</button></div>`;
+  const facCard=el('div','card card-pad'); facCard.style.marginBottom='18px';
+  facCard.innerHTML=`<div style="display:flex;align-items:center;gap:18px;flex-wrap:wrap">
+    <div><div class="kicker">Academy Facilities</div><h3 style="margin:2px 0">Level ${lvl} <span style="color:var(--dim);font-weight:600;font-size:13px">/ 5</span></h3>
+      <div style="color:var(--dim);font-size:12.5px">Higher levels widen the intake and raise the quality ceiling of new prospects.</div></div>
+    <div style="margin-left:auto">${lvl>=5?`<span class="badge gold">Max Level</span>`:`<button class="btn sm" onclick="Game.upgradeAcademy()">Upgrade — ${money(this.upgradeAcademyCost())}</button>`}</div>
+  </div>`;
+  v.appendChild(facCard);
+  if(trialists.length){
+    v.appendChild(el('div','roster-group',`Scouted Trialists · ${trialists.length} <span style="color:var(--dim);font-weight:600">(unsigned — sign them before your next scouting trip or they'll move on)</span>`));
+    const tgrid=el('div','club-grid'); tgrid.style.marginBottom='22px';
+    trialists.forEach(p=>tgrid.appendChild(this.academyProspectCardHTML(p,{trial:true})));
+    v.appendChild(tgrid);
+  }
+  v.appendChild(el('div','roster-group','Academy Squad'));
   const grid=el('div','club-grid');
-  ac.sort((a,b)=>b.potential-a.potential).forEach(p=>{
-    const card=el('div','club-card'); card.style.cursor='default';
-    card.innerHTML=`<div style="display:flex;gap:12px;align-items:center">
-      <div style="width:56px;height:56px;border-radius:14px;overflow:hidden;border:1px solid var(--line2)">${faceSVG(p.seed,56)}</div>
-      <div><div style="font-weight:900;font-size:15px">${p.name}</div><div style="color:var(--dim);font-size:12px">${span(flagSVG(p.nat,16))} ${p.pos} · Age ${p.age}</div></div></div>
-      <div style="display:flex;gap:14px;margin-top:12px;align-items:center">
-        <div style="text-align:center"><div style="font-size:10px;color:var(--dim)">CURRENT</div><b style="font-size:18px">${p.ovr}</b></div>
-        <div style="text-align:center"><div style="font-size:10px;color:var(--dim)">POTENTIAL</div><b style="font-size:18px;color:var(--gold)">${p.potential}</b></div>
-        <div style="flex:1"><div class="bar"><i style="width:${(p.ovr/p.potential)*100}%"></i></div></div></div>
-      <div style="display:flex;gap:8px;margin-top:14px">
-        <button class="btn sm primary" style="flex:1" ${full?'disabled style="flex:1;opacity:.4;pointer-events:none"':''} onclick="Game.promoteYouth('${p.id}')">Promote</button>
-        <button class="btn sm ghost" onclick='Game.openPlayer("${p.id}")'>Scout</button></div>`;
-    grid.appendChild(card);
-    this._natCache=this._natCache||{}; this._natCache[p.id]=p; // so scout modal can find prospect
-  });
+  ac.sort((a,b)=>b.potential-a.potential).forEach(p=>grid.appendChild(this.academyProspectCardHTML(p)));
   v.appendChild(grid);
-  if(!ac.length) v.appendChild(el('div','empty','No prospects right now — a fresh intake arrives each season.'));
+  if(!ac.length) v.appendChild(el('div','empty','No prospects right now — send scouts or wait for next season\'s intake.'));
 };
 Game.buildLineup=function(clubName){
   const sq=Game.squad(clubName).slice();
@@ -2160,7 +2393,9 @@ Game.negotiate=function(id){
   if(!this.transferWindowOpen()){toast('Transfer window is closed.');return;}
   const p=this.findPlayer(id); if(!p||p.club===this.state.club)return;
   if(p.club==='Free Agent'){ this.signFreeAgent(id); return; }
+  if(p.academy){ this.promoteYouth(id); return; }
   if(p.isLoan && p.club!==this.state.club){ toast('This player is out on loan and not for permanent sale.'); return; }
+  if(!this.clubOf(p.club)){ toast('This player is not available.'); return; }
   const r=seeded('nego-'+id+this.state.playedMatches);
   const prem = p.ovr>=88?0.35:p.ovr>=84?0.22:p.ovr>=80?0.12:0.05;
   const sellerMin = Math.round(p.value*(1+prem)/1e5)*1e5;
@@ -2675,7 +2910,7 @@ Game.lmMinute=function(){
   const trainDef = this.state.training==='defense'?0.9: this.state.training==='attack'?-0.4:0;
   const mentH=LM.userSide==='H'?[-1.3,-0.6,0,0.9,1.7][LM.mentality]+trainAtk:0;
   const mentA=LM.userSide==='A'?[-1.3,-0.6,0,0.9,1.7][LM.mentality]+trainAtk:0;
-  const rate=(atk,defo,adv,ment,menS,menO)=>clamp(0.085+(atk-defo+adv+ment)*0.0055,0.018,0.30)*(menS/11)*((12-menO)/11);
+  const rate=(atk,defo,adv,ment,menS,menO)=>clamp(0.085+(atk-defo+adv+ment)*0.0055,0.018,0.30)*(menS/11)*Math.min(1.4,11/Math.max(menO,7));
   let rH=rate(H.atk,A.def,3,mentH,H.men,A.men), rA=rate(A.atk,H.def,0,mentA,A.men,H.men);
   if(LM.userSide==='H') rA=clamp(rA-trainDef*0.006,0.01,0.35);
   if(LM.userSide==='A') rH=clamp(rH-trainDef*0.006,0.01,0.35);
@@ -2945,6 +3180,7 @@ Game.takeNewJob=function(clubName){
   this.state.morale=68; this.state.boardConfidence=62; this.state.fanHappiness=60; this.state.sackWarned=false; this.state.lossStreak=0;
   this.state.results={}; LEAGUES.forEach(l=>{this.state.tables[l.id]=this.state.tables[l.id]||initLeagueTable(l);});
   this.state.lineup=this.buildLineup(clubName);
+  this.state.academyLevel=1; this.state.scoutTrialists=[];
   this.state.academy=this.buildAcademy();
   this._jobSearch=false; this._pool=null; this._loanPool=null;
   this.buildUserSeason();
@@ -3539,11 +3775,12 @@ Game.renderInternational=function(v){
     job.innerHTML=`<div style="display:flex;align-items:center;gap:18px;flex-wrap:wrap">
       <div style="font-size:48px;line-height:1">${flagEmoji(k)}</div>
       <div><div class="kicker" style="color:var(--good)">Your International Job</div><h3 style="margin:2px 0">${natName(k)} National Team</h3>
-        <div style="color:var(--dim);font-size:12.5px">Friendly record ${rec.w}W ${rec.d}D ${rec.l}L · Squad ${picks.length}/23 selected</div></div>
+        <div style="color:var(--dim);font-size:12.5px">${this.state.internationalOnly?`Season ${this.state.season} · `:''}Friendly record ${rec.w}W ${rec.d}D ${rec.l}L · Squad ${picks.length}/23 selected</div></div>
       <div style="margin-left:auto;display:flex;gap:8px;flex-wrap:wrap">
         ${inTournament?`<button class="btn sm primary" onclick="Game.go('wc')">Return to World Cup →</button>`
           :`<button class="btn sm" onclick="Game.openNatSquadPicker('${k}')">Manage Squad</button>
         <button class="btn sm acc2" onclick="Game.openFriendlyPicker()">Arrange Friendly</button>
+        ${this.state.internationalOnly?`<button class="btn sm primary" onclick="Game.advanceInternationalSeason()">Advance Season →</button>`:''}
         <button class="btn sm ghost" style="color:var(--bad)" onclick="Game.resignNatJob()">Resign</button>`}
       </div></div>`;
     v.appendChild(job);
@@ -3914,11 +4151,12 @@ Game.wcFinishTournament=function(){
   // clean up nation pseudo-clubs
   Object.keys(this.allClubs).forEach(nm=>{ if(this.allClubs[nm].club.isNation){ delete this.allClubs[nm]; delete Game.squads[nm]; } });
   this.state.wcT=null;
-  this.go('career');
-  toast('Back to club duty.');
+  this.autosave();
+  if(this.state.internationalOnly){ this.go('international'); toast('Back to international duty.'); }
+  else { this.go('career'); toast('Back to club duty.'); }
 };
 Game.renderWorldCupMode=function(v){
-  const wc=this.state.wcT; if(!wc){ this.go('career'); return; }
+  const wc=this.state.wcT; if(!wc){ this.go(this.state.internationalOnly?'international':'career'); return; }
   this.setCrumbs('International','World Cup');
   const uk=wc.userNat;
   v.innerHTML=`<div class="view-head"><div><div class="kicker">World Cup · managing</div><h2>${flagEmoji(uk)} ${natName(uk)}</h2>
@@ -3930,7 +4168,7 @@ Game.renderWorldCupMode=function(v){
   if(wc.round==='done'){
     left.innerHTML=`<div class="kicker" style="color:var(--gold)">Tournament Complete</div><h3 style="margin:8px 0;font-size:26px">${flagEmoji(wc.champion)} ${natName(wc.champion)}</h3>
       <p style="color:var(--dim)">${wc.champion===uk?'You are World Champions! Glorious.':'Your World Cup is over.'}</p>
-      <button class="btn primary" style="margin-top:14px" onclick="Game.wcFinishTournament()">Return to Club →</button>`;
+      <button class="btn primary" style="margin-top:14px" onclick="Game.wcFinishTournament()">${this.state.internationalOnly?'Continue →':'Return to Club →'}</button>`;
   } else {
     const m=wc.round==='group'?this.wcUserMatchToday():this.wcUserKoMatch();
     if(wc.eliminated && wc.round==='ko'){
@@ -4093,9 +4331,11 @@ Game.simWorldCup=function(){
 
 /* ---------------- TROPHIES ---------------- */
 Game.renderTrophies=function(v){
-  this.setCrumbs('Manager',this.clubOf(this.state.club).name,'Trophies');
-  v.innerHTML=`<div class="view-head"><div><div class="kicker">Legacy</div><h2>Trophy Cabinet</h2><div class="sub">Silverware won during your ${this.clubOf(this.state.club).name} tenure.</div></div></div>`;
-  const all=LEAGUES.map(l=>l.name).concat(['Continental Cup','Challenger Cup','Domestic Cup','Super Cup','Club World Series']);
+  const c=this.state.club && this.clubOf(this.state.club);
+  const label=c?c.name:this.state.internationalOnly?natName(this.state.natJob):'Manager';
+  this.setCrumbs('Manager',label,'Trophies');
+  v.innerHTML=`<div class="view-head"><div><div class="kicker">Legacy</div><h2>Trophy Cabinet</h2><div class="sub">Silverware won during your ${label} tenure.</div></div></div>`;
+  const all=(c?LEAGUES.map(l=>l.name):[]).concat(['Champions Cup','Domestic Cup','Continental Cup','Challenger Cup','World Cup']);
   const grid=el('div','trophy-grid');
   all.forEach(name=>{
     const won=this.state.trophies[name]||0;
@@ -4270,9 +4510,11 @@ Game.nextPresser=function(){this.presserIdx=(this.presserIdx||0)+1;this.go('pres
 /* ---------------- STATS & AWARDS ---------------- */
 Game.renderStats=function(v){
   this.setCrumbs('Competitions','Stats & Awards');
-  const tab=this.statsTab||'scorers';
+  let tab=this.statsTab||'scorers';
+  if(tab==='myteam' && !this.state.club){ tab='scorers'; this.statsTab='scorers'; }
+  const tabs=[['scorers','Top Scorers'],['assists','Assists']].concat(this.state.club?[['myteam','My Squad']]:[]).concat([['awards','Awards']]);
   v.innerHTML=`<div class="view-head"><div><div class="kicker">Season ${this.state.season}</div><h2>Stats & Awards</h2><div class="sub">Golden Boot race, playmakers, your own squad and end-of-season honours.</div></div>
-    <div class="seg">${[['scorers','Top Scorers'],['assists','Assists'],['myteam','My Squad'],['awards','Awards']].map(t=>`<button class="${tab===t[0]?'on':''}" onclick="Game.setStatsTab('${t[0]}')">${t[1]}</button>`).join('')}</div></div>`;
+    <div class="seg">${tabs.map(t=>`<button class="${tab===t[0]?'on':''}" onclick="Game.setStatsTab('${t[0]}')">${t[1]}</button>`).join('')}</div></div>`;
   const arr=Object.entries(this.state.scorers).map(([id,s])=>({id,...s}));
   const card=el('div','card card-pad');
   if(tab==='myteam'){
@@ -4349,11 +4591,12 @@ Game.renderSettings=function(v){
   grid.appendChild(save);
   v.appendChild(grid);
   const info=el('div','card card-pad'); info.style.marginTop='16px';
+  const clubLabel=s.club?(this.clubOf(s.club)?this.clubOf(s.club).short:s.club):s.internationalOnly?natName(s.natJob):'—';
   info.innerHTML=`<h4 style="margin-bottom:12px">Career Summary</h4><div class="stat-row">
-    <div class="stat-box"><div class="k">Club</div><div class="v" style="font-size:18px">${this.clubOf(s.club).short}</div></div>
+    <div class="stat-box"><div class="k">${s.internationalOnly?'Nation':'Club'}</div><div class="v" style="font-size:18px">${clubLabel}</div></div>
     <div class="stat-box"><div class="k">Season</div><div class="v" style="font-size:18px">${s.season}</div></div>
-    <div class="stat-box"><div class="k">Matches</div><div class="v">${s.playedMatches}</div></div>
-    <div class="stat-box"><div class="k">Trophies</div><div class="v">${Object.values(s.trophies).reduce((a,b)=>a+b,0)}</div></div>
+    <div class="stat-box"><div class="k">Matches</div><div class="v">${s.playedMatches||0}</div></div>
+    <div class="stat-box"><div class="k">Trophies</div><div class="v">${Object.values(s.trophies||{}).reduce((a,b)=>a+b,0)}</div></div>
   </div>`;
   v.appendChild(info);
 };
@@ -4419,7 +4662,7 @@ Game.saveGame=function(manual, slot){
   try{
     const data={state:this.state, squads:Game.squads, natSquads:this._natSquads||{}, v:3};
     const json=JSON.stringify(data);
-    const meta={club:(this.allClubs[this.state.club]&&this.allClubs[this.state.club].club.short)||this.state.club, season:this.state.season, manager:this.state.manager&&this.state.manager.name};
+    const meta={club:this.state.internationalOnly?('🌍 '+natName(this.state.natJob)):((this.allClubs[this.state.club]&&this.allClubs[this.state.club].club.short)||this.state.club), season:this.state.season, manager:this.state.manager&&this.state.manager.name};
     this._compress(json).then(packed=>{
       try{
         localStorage.setItem(this.slotKey(slot), packed);
@@ -4429,7 +4672,7 @@ Game.saveGame=function(manual, slot){
     }).catch(()=>{ toast('Save failed.'); });
   }catch(e){ toast('Save failed.'); }
 };
-Game.autosave=function(){ if(this.state.club && this.state.autosave!==false) this.saveGame(false); };
+Game.autosave=function(){ if((this.state.club||this.state.internationalOnly) && this.state.autosave!==false) this.saveGame(false); };
 Game.loadGame=function(slot){
   slot=slot||this._slot||1;
   const raw=localStorage.getItem(this.slotKey(slot)); if(!raw){toast('No save in that slot.');return}
@@ -4439,7 +4682,7 @@ Game.loadGame=function(slot){
       Game.squads=data.squads||{}; this._natSquads=data.natSquads||{}; this._natCache={};
       Object.values(this._natSquads).forEach(arr=>arr.forEach(p=>this._natCache[p.id]=p));
       this.state=data.state; this._pool=null; this.manager=this.state.manager||this.manager; this._slot=slot;
-      this.closeModal(); toast('Career loaded from Slot '+slot+'.'); this.go('career');
+      this.closeModal(); toast('Career loaded from Slot '+slot+'.'); this.go(this.state.internationalOnly?'international':'career');
     }catch(e){ toast('Load failed.'); }
   }).catch(()=>{ toast('Load failed.'); });
 };
@@ -4478,7 +4721,7 @@ Game.exportSave=function(){
 Game.importSave=function(file){ if(!file)return; const rd=new FileReader();
   rd.onload=()=>{ try{ const data=JSON.parse(rd.result); Game.squads=data.squads||{}; this._natSquads=data.natSquads||{}; this._natCache={};
     Object.values(this._natSquads).forEach(arr=>arr.forEach(p=>this._natCache[p.id]=p));
-    this.state=data.state; this._pool=null; this.manager=this.state.manager||this.manager; toast('Save imported.'); this.go('career'); }catch(e){ toast('Invalid file.'); } };
+    this.state=data.state; this._pool=null; this.manager=this.state.manager||this.manager; toast('Save imported.'); this.go(this.state.internationalOnly?'international':'career'); }catch(e){ toast('Invalid file.'); } };
   rd.readAsText(file);
 };
 
@@ -4493,9 +4736,10 @@ Game.openPlayer=function(id){
   const radar=radarSVG(attrList.map(x=>x[1]),['PAC','SHO','PAS','DRI','DEF','PHY']);
   const isFree = p.club==='Free Agent';
   const isMine = p.club===this.state.club;
+  const isAcademy = p.academy===true;
   const onLoanElsewhere = p.isLoan && !isMine;
   const onLoanToUs = p.isLoan && isMine;
-  const canBuy = !isMine && !isFree && !onLoanElsewhere;
+  const canBuy = !isMine && !isFree && !onLoanElsewhere && !isAcademy;
   const rr=this.state.ratings&&this.state.ratings[p.id];
   const avgRating = rr&&rr.n? (rr.sum/rr.n).toFixed(1) : null;
   const apps = (this.state.apps&&this.state.apps[p.id]) || 0;
@@ -4512,7 +4756,7 @@ Game.openPlayer=function(id){
         <div class="kicker">${isFree?'Free Agent':this.clubOf(p.club)?this.clubOf(p.club).name:p.club} · ${p.pos}</div>
         <h2>${p.name}</h2>
         <div class="row">${span(flagSVG(p.nat,22))} ${natName(p.nat)} <span>·</span> Age ${p.age} <span>·</span> ${isFree?'Free Transfer':money(p.value)} <span>·</span> ${wage(p.wage)}</div>
-        <div class="row"><span class="badge gold">POT ${p.potential}</span> ${p.age<23?'<span class="badge good">Wonderkid</span>':''} ${p.ovr>=88?'<span class="badge gold">World Class</span>':''} ${statusBadges.join(' ')}</div>
+        <div class="row"><span class="badge gold">POT ${p.academy&&!p.scouted?this.potRange(p).join('–'):p.potential}</span> ${p.age<23?'<span class="badge good">Wonderkid</span>':''} ${p.ovr>=88?'<span class="badge gold">World Class</span>':''} ${p.trial?'<span class="badge">Unsigned Trialist</span>':''} ${statusBadges.join(' ')}</div>
         <div class="big-ovr"><div class="n">${p.ovr}</div><div class="l">OVERALL</div></div>
       </div>
     </div>
@@ -4538,6 +4782,8 @@ Game.openPlayer=function(id){
     <div style="display:flex;gap:10px;padding:16px 28px 28px;flex-wrap:wrap">
       ${isFree?`<button class="btn primary" onclick='Game.signFreeAgent("${p.id}")'>Sign on a Free</button>`
        :onLoanElsewhere?`<span class="badge" style="padding:10px 16px">Out on loan — not for permanent sale</span>`
+       :isAcademy&&p.trial?`<span class="badge" style="padding:10px 16px">Unsigned Trialist</span><button class="btn primary" onclick='Game.closeModal();Game.signTrialist("${p.id}")'>Sign to Academy</button>${p.scouted?'':`<button class="btn" onclick='Game.scoutProspect("${p.id}");Game.openPlayer("${p.id}")'>Scout — ${money(this.scoutCost(p))}</button>`}`
+       :isAcademy?`<span class="badge good" style="padding:10px 16px">Academy Prospect</span><button class="btn primary" onclick='Game.closeModal();Game.promoteYouth("${p.id}")'>Promote to First Team</button>${p.scouted?'':`<button class="btn" onclick='Game.scoutProspect("${p.id}");Game.openPlayer("${p.id}")'>Scout — ${money(this.scoutCost(p))}</button>`}`
        :canBuy?`<button class="btn primary" onclick='Game.negotiate("${p.id}")'>Make an Offer — ${money(p.value)}</button>`
        :onLoanToUs?`<span class="badge good" style="padding:10px 16px">On Loan Squad Member</span>`
        :`<span class="badge good" style="padding:10px 16px">Your Player</span>
