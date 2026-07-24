@@ -1003,7 +1003,11 @@ function genPlayer(clubName, pos, ovr, natKey, forcedName){
   const nps=ri(r,1,4); const ps=[]; const pool=[...PLAYSTYLES];
   for(let i=0;i<nps;i++){const idx=Math.floor(r()*pool.length); ps.push({name:pool.splice(idx,1)[0], plus:ovr>=84&&r()<0.4})}
   const id='P'+hashStr(seed)+Math.floor(r()*9999);
-  return {id, name:first+' '+last, first, last, pos, posGroup:POS_GROUP[pos], ovr, potential, age, nat, attrs, value, wage:wageV, ps, club:clubName, form:0, seed};
+  const contractYrs=ri(r,1,5);
+  // personality trait bank — flavors morale swings and press/negotiation behaviour
+  const personality=pick(r,['Professional','Ambitious','Loyal','Volatile','Leader','Balanced','Model Citizen','Fiery']);
+  return {id, name:first+' '+last, first, last, pos, posGroup:POS_GROUP[pos], ovr, potential, age, nat, attrs, value, wage:wageV, ps, club:clubName, form:0, seed,
+    contractYrs, personality, morale:ri(r,55,85), energy:100};
 }
 
 function buildSquad(club){
@@ -1034,8 +1038,8 @@ const Game = {
     LEAGUES.forEach(l=>l.clubs.forEach(c=>{ c.nat=l.nat; this.allClubs[c.name]={club:c,league:l}; }));
   },
   squad(name){ if(!this.squads[name]) this.squads[name]=buildSquad(this.allClubs[name].club); return this.squads[name]; },
-  clubOf(name){ return this.allClubs[name].club; },
-  leagueOf(name){ return this.allClubs[name].league; },
+  clubOf(name){ const e=this.allClubs[name]; return e?e.club:null; },
+  leagueOf(name){ const e=this.allClubs[name]; return e?e.league:null; },
 };
 
 /* ============================================================
@@ -1424,6 +1428,7 @@ Game.startCareer=function(clubName){
     tables:{}, schedules:{}, weekIndex:{}, results:{},
     trophies:{}, newsFeed:[], transfersDone:[], playedMatches:0, academy:[],
     lineup:null, scorers:{}, seasonStats:{}, awards:[], simSpeed:'normal', mail:[], transferList:[],
+    freeAgents:[], loansOut:[], loansIn:[], window:{},
   };
   // init all league tables & schedules
   LEAGUES.forEach(l=>{
@@ -1435,6 +1440,7 @@ Game.startCareer=function(clubName){
   this.state.manager=this.manager||{name:'Alex Vandenberg',skin:2,hair:0,hairStyle:0,beard:true};
   this.manager=this.state.manager;
   this.state.academy=this.buildAcademy();
+  this.state.freeAgents=this.buildFreeAgents();
   this.buildUserSeason();
   this.generateNewsBatch(6);
   toast('Welcome to '+c.name+', boss.');
@@ -1445,6 +1451,172 @@ Game.startCareer=function(clubName){
 /* ---------------- LINEUP / XI ---------------- */
 Game.slotList=function(){return (FORMATIONS[this.state.formation]||FORMATIONS['4-3-3']).lines.flat()};
 /* ---------------- ACADEMY ---------------- */
+/* ---------------- CONTRACTS, FREE AGENTS & LOANS ---------------- */
+Game.buildFreeAgents=function(){
+  const r=seeded('fa-'+Math.random()); const out=[]; const posP=['GK','CB','RB','LB','CDM','CM','CAM','LM','RM','RW','LW','ST'];
+  for(let i=0;i<26;i++){ const ovr=clamp(ri(r,58,82)-(i>18?ri(r,4,14):0),52,84);
+    const p=genPlayer('Free Agent',pick(r,posP),ovr,pick(r,NATION_KEYS)); p.club='Free Agent'; p.contractYrs=0;
+    p.age=r()<0.5?ri(r,29,36):ri(r,19,28); p.value=Math.round(p.value*0.3/1e5)*1e5||200e3; out.push(p); }
+  return out;
+};
+Game.resignPlayer=function(id,extraYrs,wageMult){
+  const p=this.findPlayer(id); if(!p||p.club!==this.state.club)return;
+  p.contractYrs=clamp((p.contractYrs||0)+extraYrs,1,6);
+  p.wage=Math.round(p.wage*wageMult/1e3)*1e3;
+  this.pushMail('Contracts Dept',`${p.name} signs a new deal`,`${p.name} has put pen to paper on a new ${p.contractYrs}-year contract at ${wage(p.wage)}.`);
+  toast(p.name+' signs a new contract!'); this.autosave(); this.go(this.current);
+};
+Game.offerResign=function(id){
+  const p=this.findPlayer(id); if(!p||p.club!==this.state.club)return;
+  const r=seeded('resign-'+id+this.state.seasonNum);
+  const wantsMore = p.morale<55 || p.personality==='Ambitious';
+  const opts=[{yrs:2,mult:1.05,l:'2 years · modest raise'},{yrs:3,mult:1.15,l:'3 years · good raise'},{yrs:4,mult:(wantsMore?1.35:1.25),l:'4 years · statement contract'}];
+  this.openModalHTML(`<div style="padding:26px">
+    <div class="kicker">Contract Renewal</div><h2 style="margin:6px 0 4px">${p.name}</h2>
+    <div style="color:var(--dim);font-size:13px;margin-bottom:6px">${p.pos} · ${p.ovr} OVR · Age ${p.age} · Currently ${p.contractYrs} yr(s) left · ${p.personality}</div>
+    <div style="color:var(--dim);font-size:12.5px;margin-bottom:18px">Current wage: ${wage(p.wage)}${wantsMore?' — he is looking for a bigger deal.':''}</div>
+    <div class="answers">${opts.map(o=>`<button class="answer" onclick='Game.resignPlayer("${p.id}",${o.yrs},${o.mult});Game.closeModal()'><span class="tone tone-bold">Offer</span><span><b>${o.l}</b> <span style="color:var(--dim);font-size:12px">— new wage ≈ ${wage(Math.round(p.wage*o.mult))}</span></span></button>`).join('')}</div>
+    <button class="btn ghost" style="margin-top:14px" onclick="Game.closeModal()">Not Now</button>
+  </div>`);
+};
+Game.signFreeAgent=function(id){
+  const p=this.state.freeAgents.find(x=>x.id===id); if(!p)return;
+  const r=seeded('fasign-'+id);
+  const wageAsk=Math.round(p.wage*(1.1+r()*0.3)/1e3)*1e3;
+  this.openModalHTML(`<div class="pcard-top"><div class="pcard-glow"></div>
+    <div class="big-face">${faceSVG(p.seed,150)}</div>
+    <div class="pcard-info"><div class="kicker">Free Agent</div><h2>${p.name}</h2>
+      <div class="row">${span(flagSVG(p.nat,20))} ${natName(p.nat)} · ${p.pos} · Age ${p.age}</div>
+      <div class="big-ovr"><div class="n">${p.ovr}</div><div class="l">OVR</div></div></div></div>
+    <div style="padding:0 28px 24px">
+      <div class="stat-row" style="grid-template-columns:1fr 1fr"><div class="stat-box"><div class="k">Transfer Fee</div><div class="v" style="color:var(--good)">FREE</div></div>
+        <div class="stat-box"><div class="k">Wage Demand</div><div class="v" style="font-size:17px">${wage(wageAsk)}</div></div></div>
+      <div style="display:flex;gap:10px;margin-top:16px"><button class="btn primary" onclick='Game.completeFreeSign("${id}",${wageAsk})'>Sign on a Free</button><button class="btn ghost" onclick="Game.closeModal()">Walk Away</button></div>
+    </div>`);
+};
+Game.completeFreeSign=function(id,wageAsk){
+  const i=this.state.freeAgents.findIndex(x=>x.id===id); if(i<0)return;
+  const p=this.state.freeAgents.splice(i,1)[0]; p.club=this.state.club; p.contractYrs=ri(seeded('fayr'+id),2,4); p.wage=wageAsk;
+  Game.squad(this.state.club).push(p); Game.squad(this.state.club).sort((a,b)=>b.ovr-a.ovr);
+  if(this.state.lineup) this.state.lineup.subs.push(p.id);
+  this.state.transfersDone.push({name:p.name,fee:0,ovr:p.ovr,seed:p.seed});
+  this.addNews('transfer',`${this.clubOf(this.state.club).short} sign free agent ${p.name}`,`The ${p.ovr}-rated ${p.pos} joins on a free transfer, a shrewd bit of business.`,'');
+  this.closeModal(); toast(p.name+' signed as a free agent!'); this.autosave();
+  this.signingCutscene(p,0);
+};
+/* ---- loans ---- */
+Game.loanMarket=function(){
+  if(this._loanPool)return this._loanPool;
+  const r=seeded('loanpool-'+this.state.seasonNum); const out=[];
+  LEAGUES.forEach(l=>l.clubs.forEach(c=>{ if(c.name===this.state.club)return;
+    const sq=Game.squad(c.name); const cand=sq.filter(p=>!p.isLoan && (p.age<=23 || sq.indexOf(p)>13));
+    if(cand.length && r()<0.5){ out.push(pick(r,cand)); } }));
+  this._loanPool=out; return out;
+};
+Game.requestLoan=function(id){
+  if(!this.transferWindowOpen()){toast('Transfer window is closed.');return;}
+  const p=this.findPlayer(id); if(!p)return;
+  const r=seeded('loanreq-'+id+this.state.seasonNum);
+  const fee=Math.round(p.value*0.06/1e5)*1e5, wageShare=Math.round(p.wage*0.5/1e3)*1e3;
+  this.openModalHTML(`<div class="pcard-top"><div class="pcard-glow"></div>
+    <div class="big-face">${faceSVG(p.seed,150)}</div>
+    <div class="pcard-info"><div class="kicker">Loan Enquiry · ${this.clubOf(p.club).name}</div><h2>${p.name}</h2>
+      <div class="row">${p.pos} · ${p.ovr} OVR · Age ${p.age}</div><div class="big-ovr"><div class="n">${p.ovr}</div><div class="l">OVR</div></div></div></div>
+    <div style="padding:0 28px 24px">
+      <div class="stat-row" style="grid-template-columns:1fr 1fr"><div class="stat-box"><div class="k">Loan Fee</div><div class="v" style="color:var(--acc)">${money(fee)}</div></div>
+        <div class="stat-box"><div class="k">Wage Contribution</div><div class="v" style="font-size:16px">${wage(wageShare)}</div></div></div>
+      <div style="color:var(--dim);font-size:12px;margin:12px 0">Season-long loan. He returns to ${this.clubOf(p.club).short} next summer.</div>
+      <div style="display:flex;gap:10px"><button class="btn primary" onclick='Game.completeLoanIn("${id}",${fee},${wageShare})'>Agree Loan</button><button class="btn ghost" onclick="Game.closeModal()">Cancel</button></div>
+    </div>`);
+};
+Game.completeLoanIn=function(id,fee,wageShare){
+  const p=this.findPlayer(id); if(!p||fee>this.state.budget)return;
+  const from=Game.squad(p.club); const idx=from.indexOf(p); if(idx<0)return;
+  from.splice(idx,1);
+  p.isLoan=true; p.parentClub=p.club; p.club=this.state.club; p.loanWage=wageShare;
+  Game.squad(this.state.club).push(p); Game.squad(this.state.club).sort((a,b)=>b.ovr-a.ovr);
+  if(this.state.lineup) this.state.lineup.subs.push(p.id);
+  this.state.budget-=fee; this.state.loansIn.push(p.id); this._pool=null; this._loanPool=null;
+  this.addNews('transfer',`${this.clubOf(this.state.club).short} loan in ${p.name}`,`${p.name} joins on a season-long loan from ${this.clubOf(p.parentClub).short}.`,'');
+  this.closeModal(); toast(p.name+' joins on loan!'); this.autosave();
+  this.signingCutscene(p,fee);
+};
+Game.loanOut=function(id){
+  if(!this.transferWindowOpen()){toast('Transfer window is closed.');return;}
+  const p=this.findPlayer(id); if(!p||p.club!==this.state.club)return;
+  const r=seeded('loanout-'+id+this.state.seasonNum);
+  const clubs=[]; LEAGUES.forEach(l=>l.clubs.forEach(c=>{ if(c.name!==this.state.club && Math.abs(c.ovr-p.ovr)<10) clubs.push(c); }));
+  if(!clubs.length){toast('No suitable loan club found.');return;}
+  const dest=pick(r,clubs);
+  this.openModalHTML(`<div style="padding:28px">
+    <div class="kicker">Outgoing Loan</div><h2 style="margin:6px 0 4px">Loan out ${p.name}?</h2>
+    <div style="color:var(--dim);font-size:13px;margin-bottom:18px">${p.pos} · ${p.ovr} OVR · Age ${p.age}. He'll get first-team minutes and return next summer.</div>
+    <div style="display:flex;align-items:center;gap:14px;padding:16px;border:1px solid var(--line);border-radius:14px;background:var(--panel2)">
+      <div style="width:44px;height:50px">${crestSVG(dest,44)}</div><div><div style="font-weight:800">${dest.name}</div><div style="color:var(--dim);font-size:12px">OVR ${dest.ovr} side keen to take him on loan</div></div>
+    </div>
+    <div style="display:flex;gap:10px;margin-top:18px"><button class="btn primary" onclick='Game.confirmLoanOut("${id}","${dest.name}")'>Confirm Loan</button><button class="btn ghost" onclick="Game.closeModal()">Cancel</button></div>
+  </div>`);
+};
+Game.confirmLoanOut=function(id,destName){
+  const p=this.findPlayer(id); if(!p)return;
+  const sq=Game.squad(this.state.club); const idx=sq.findIndex(x=>x.id===id); if(idx<0)return;
+  sq.splice(idx,1); p.isLoan=true; p.parentClub=this.state.club; p.club=destName;
+  Game.squad(destName).push(p); Game.squad(destName).sort((a,b)=>b.ovr-a.ovr);
+  const L=this.state.lineup; if(L){L.starters=L.starters.filter(x=>x!==id);L.subs=L.subs.filter(x=>x!==id);} this.ensureLineup();
+  this.state.loansOut.push(id); this._pool=null; this._loanPool=null;
+  this.addNews('transfer',`${p.name} loaned out to ${this.clubOf(destName).short}`,`He departs for the season to get regular football, with a recall clause held by the club.`,'');
+  this.closeModal(); toast(p.name+' sent out on loan.'); this.autosave(); this.go('squad');
+};
+Game.returnLoans=function(r){
+  // loans in: player returns to parent club
+  (this.state.loansIn||[]).forEach(id=>{ const p=this.findPlayer(id); if(!p)return;
+    const sq=Game.squad(this.state.club); const idx=sq.indexOf(p); if(idx>=0)sq.splice(idx,1);
+    p.isLoan=false; p.club=p.parentClub; delete p.parentClub; delete p.loanWage;
+    Game.squad(p.club).push(p); Game.squad(p.club).sort((a,b)=>b.ovr-a.ovr);
+  });
+  this.state.loansIn=[];
+  // loans out: player returns to us
+  (this.state.loansOut||[]).forEach(id=>{ const p=this.findPlayer(id); if(!p)return;
+    const cur=Game.squad(p.club); const idx=cur.indexOf(p); if(idx>=0)cur.splice(idx,1);
+    p.isLoan=false; p.club=this.state.club; delete p.parentClub;
+    Game.squad(this.state.club).push(p); Game.squad(this.state.club).sort((a,b)=>b.ovr-a.ovr);
+    this.pushMail('Loan Report',`${p.name} returns from loan`,`${p.name} is back after his season away. Assess whether he's ready for the first team.`);
+  });
+  this.state.loansOut=[]; this._pool=null; this._loanPool=null;
+};
+/* ---- transfer windows & deadline day ---- */
+Game.transferWindowOpen=function(){
+  const lg=this.leagueOf(this.state.club); const wi=this.state.weekIndex[lg.id]||0;
+  return (wi<4) || (wi>=18 && wi<22);
+};
+Game.windowLabel=function(){
+  const lg=this.leagueOf(this.state.club); const wi=this.state.weekIndex[lg.id]||0;
+  if(wi<4) return {open:true,text:'Summer Window open · closes after MD4'};
+  if(wi<18) return {open:false,text:'Window closed · reopens MD19'};
+  if(wi<22) return {open:true,text:'Winter Window open · closes after MD22'};
+  return {open:false,text:'Window closed · reopens next summer'};
+};
+Game.checkDeadlineDay=function(){
+  const lg=this.leagueOf(this.state.club); const wi=this.state.weekIndex[lg.id]||0;
+  const key=this.state.seasonNum+':'+(wi<=4?'s':'w');
+  if((wi===4||wi===22) && this.state.window[key]!==true){ this.state.window[key]=true; this._deadlineDayPending=true; }
+};
+Game.deadlineDayEvent=function(cont){
+  const r=seeded('dl-'+this.state.seasonNum+this.state.playedMatches);
+  const clubs=[]; LEAGUES.forEach(l=>l.clubs.forEach(c=>{if(c.name!==this.state.club)clubs.push(c);}));
+  const deals=[];
+  for(let i=0;i<3;i++){ const from=pick(r,clubs); const sq=Game.squad(from.name); if(!sq.length)continue;
+    const p=pick(r,sq.slice(3,12).length?sq.slice(3,12):sq); const to=pick(r,clubs.filter(c=>c.name!==from.name));
+    deals.push({p:p.name,from:from.short,to:to.short,fee:money(Math.round(p.value*(0.8+r()*0.6)/1e5)*1e5)}); }
+  this.addNews('transfer','Deadline Day drama around the league',`A frantic finish to the window: ${deals.map(d=>`${d.p} (${d.from}→${d.to})`).join(', ')}.`,'');
+  this.openModalHTML(`<div style="padding:28px">
+    <div class="kicker" style="color:var(--acc3)">Deadline Day</div><h2 style="margin:6px 0 16px">The Window Has Closed</h2>
+    <div style="color:var(--dim);font-size:13px;margin-bottom:16px">Business done across the league before the deadline:</div>
+    ${deals.map(d=>`<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--line);font-size:13px"><span><b>${d.p}</b> ${d.from} → ${d.to}</span><span style="color:var(--acc)">${d.fee}</span></div>`).join('')}
+    <button class="btn primary" style="margin-top:18px" onclick="Game.closeModal();(Game._dlCont||function(){})()">Back to Business</button>
+  </div>`);
+  this._dlCont=cont||null;
+};
 Game.buildAcademy=function(n){
   const r=seeded('acad-'+this.state.club+this.state.seasonNum+Math.random());
   const c=this.clubOf(this.state.club); const out=[]; const posP=['GK','CB','RB','LB','CDM','CM','CAM','RW','LW','ST'];
@@ -1584,9 +1756,9 @@ Game.renderCareer=function(v){
     const oppMeta = uf.comp==='League'? `OVR ${oppC.ovr} · ${this.clubRankLabel(uf.oppName)}` : `OVR ${oppC.ovr}`;
     nm.innerHTML=`<div class="kicker" style="text-align:center;color:${col};display:flex;gap:8px;align-items:center;justify-content:center">${uf.comp==='Champions Cup'?ccBall(18):''}${uf.comp}${uf.roundName?' · '+uf.roundName:''}</div>
       <div class="nm-vs">
-        <div class="nm-team"><div style="display:flex;align-items:flex-end;gap:6px"><div style="width:44px">${kitSVG(H,44)}</div><div class="crest">${crestSVG(H,58)}</div></div><b>${H.short}</b><span style="color:var(--dim);font-size:11px">${H===c?'(You)':oppMeta}</span></div>
+        <div class="nm-team" ${H!==c?`style="cursor:pointer" onclick='Game.showClub("${uf.oppName}")'`:''}><div style="display:flex;align-items:flex-end;gap:6px"><div style="width:44px">${kitSVG(H,44)}</div><div class="crest">${crestSVG(H,58)}</div></div><b>${H.short}</b><span style="color:var(--dim);font-size:11px">${H===c?'(You)':oppMeta}</span></div>
         <div class="nm-mid"><div class="comp" style="color:${col}">${COMP_SHORT[uf.comp]}</div><div class="vs">VS</div><div style="color:var(--dim);font-size:11px">${this.fmtDate(uf.date)}</div></div>
-        <div class="nm-team"><div style="display:flex;align-items:flex-end;gap:6px"><div class="crest">${crestSVG(A,58)}</div><div style="width:44px">${kitSVG(A,44)}</div></div><b>${A.short}</b><span style="color:var(--dim);font-size:11px">${A===c?'(You)':oppMeta}</span></div>
+        <div class="nm-team" ${A!==c?`style="cursor:pointer" onclick='Game.showClub("${uf.oppName}")'`:''}><div style="display:flex;align-items:flex-end;gap:6px"><div class="crest">${crestSVG(A,58)}</div><div style="width:44px">${kitSVG(A,44)}</div></div><b>${A.short}</b><span style="color:var(--dim);font-size:11px">${A===c?'(You)':oppMeta}</span></div>
       </div>
       <div style="display:flex;gap:10px;margin-top:10px"><button class="btn primary" style="flex:1" onclick="Game.playMatch()">▶ Play Match</button><button class="btn" onclick="Game.simMatchQuick()">Simulate</button></div>`;
   } else {
@@ -1766,59 +1938,115 @@ Game.setMentality=function(i){this.state.mentality=i;this.go('tactics');toast('M
 Game.setInst=function(r,v){this.state.insts[r]=v;this.go('tactics')};
 
 /* ---------------- TRANSFERS ---------------- */
+Game.renderTransfers=function(v){
+  const c=this.clubOf(this.state.club);
+  this.setCrumbs('Manager',c.name,'Transfers');
+  const win=this.windowLabel();
+  const tab=this.tfTab||'search';
+  v.innerHTML=`<div class="view-head"><div><div class="kicker">Transfer Centre</div><h2>Transfer Market</h2><div class="sub">Budget ${money(this.state.budget)} · Wage room ${wage(this.state.wageBudget)} · <span style="color:${win.open?'var(--good)':'var(--bad)'}">${win.text}</span></div></div>
+    <button class="btn ghost" onclick="Game.showMyTransfers()">My Signings (${this.state.transfersDone.length})</button></div>`;
+  const tabs=el('div','seg'); tabs.style.marginBottom='16px';
+  [['search','Search'],['listed','Transfer Listed'],['free','Free Agents'],['loans','Loan Market']].forEach(t=>{
+    const b=el('button',tab===t[0]?'on':'',t[1]); b.onclick=()=>{this.tfTab=t[0];this.go('transfers')}; tabs.appendChild(b); });
+  v.appendChild(tabs);
+  if(tab==='free'){ v.appendChild(this.renderFreeAgentList()); return; }
+  if(tab==='loans'){ v.appendChild(this.renderLoanList()); return; }
+  if(tab==='listed'){ v.appendChild(this.renderListedList()); return; }
+  this.renderSearchMarket(v);
+};
 Game.transferPool=function(){
   if(this._pool)return this._pool;
   const pool=[];
   LEAGUES.forEach(l=>l.clubs.forEach(c=>{
     if(c.name===this.state.club)return;
-    Game.squad(c.name).forEach(p=>{ if(Math.random()<0.55||true) pool.push(p); });
+    Game.squad(c.name).forEach(p=>pool.push(p));
   }));
   this._pool=pool;
   return pool;
 };
-Game.renderTransfers=function(v){
-  const c=this.clubOf(this.state.club);
-  this.setCrumbs('Manager',c.name,'Transfers');
-  const q=this.transferQuery||{text:'',pos:'ALL',sort:'value'};
+Game.renderSearchMarket=function(v){
+  const q=this.transferQuery||{text:'',pos:'ALL',league:'ALL',nat:'ALL',sort:'value'};
   this.transferQuery=q;
-  v.innerHTML=`<div class="view-head"><div><div class="kicker">Transfer Centre</div><h2>Transfer Market</h2><div class="sub">Budget ${money(this.state.budget)} · Wage room ${wage(this.state.wageBudget)}</div></div>
-    <button class="btn ghost" onclick="Game.showMyTransfers()">My Signings (${this.state.transfersDone.length})</button></div>`;
   const head=el('div','market-head');
   head.innerHTML=`
-    <div class="search"><span style="color:var(--dim)">${ic('<circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/>',16)}</span><input id="tfSearch" placeholder="Search players…" value="${q.text}"></div>
+    <div class="search" style="flex:2"><span style="color:var(--dim)">${ic('<circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/>',16)}</span><input id="tfSearch" placeholder="Search by player, club, or league name…" value="${q.text}"></div>
+    <select class="filter-sel" id="tfLeague"><option value="ALL">All Leagues</option>${LEAGUES.map(l=>`<option value="${l.id}" ${q.league===l.id?'selected':''}>${l.name}${l.tier===2?' (2nd Div)':''}</option>`).join('')}</select>
     <select class="filter-sel" id="tfPos">${['ALL','GK','DEF','MID','ATT'].map(p=>`<option ${q.pos===p?'selected':''}>${p}</option>`).join('')}</select>
     <select class="filter-sel" id="tfSort">${[['value','Value ↓'],['ovr','Rating ↓'],['age','Age ↑'],['potential','Potential ↓']].map(s=>`<option value="${s[0]}" ${q.sort===s[0]?'selected':''}>${s[1]}</option>`).join('')}</select>`;
   v.appendChild(head);
   const listCard=el('div','card'); listCard.id='tfList';
   v.appendChild(listCard);
   const doFilter=()=>{
-    q.text=$('#tfSearch').value.toLowerCase(); q.pos=$('#tfPos').value; q.sort=$('#tfSort').value;
-    let list=this.transferPool().filter(p=>(!q.text||p.name.toLowerCase().includes(q.text)) && (q.pos==='ALL'||p.posGroup===q.pos));
+    q.text=$('#tfSearch').value.toLowerCase(); q.pos=$('#tfPos').value; q.league=$('#tfLeague').value; q.sort=$('#tfSort').value;
+    const hasQuery = q.text.length>=1 || q.league!=='ALL' || q.pos!=='ALL';
+    if(!hasQuery){ listCard.innerHTML=`<div class="empty">Search for a player, club or league by name — or pick a league/position filter — to browse the market.<br><span style="font-size:11.5px;color:var(--dim2)">Tip: try a league name, a club name like "${LEAGUES[0].clubs[0].name}", or a player surname.</span></div>`; return; }
+    let list=this.transferPool().filter(p=>{
+      const lg=this.leagueOf(p.club);
+      if(q.pos!=='ALL' && p.posGroup!==q.pos) return false;
+      if(q.league!=='ALL' && (!lg||lg.id!==q.league)) return false;
+      if(q.text){ const hay=(p.name+' '+p.club+' '+(lg?lg.name:'')+' '+natName(p.nat)).toLowerCase();
+        if(!hay.includes(q.text)) return false; }
+      return true;
+    });
     list.sort((a,b)=> q.sort==='age'?a.age-b.age : b[q.sort]-a[q.sort]);
-    list=list.slice(0,60);
-    listCard.innerHTML = list.length? list.map(p=>`
-      <div class="market-row">
-        <div class="ovr ${ovrClass(p.ovr)}">${p.ovr}</div>
-        <div class="face">${faceSVG(p.seed,40)}</div>
-        <div style="cursor:pointer" onclick='Game.openPlayer("${p.id}")'><b>${p.name}</b><div style="color:var(--dim);font-size:11.5px;margin-top:2px">${span(flagSVG(p.nat,16))} ${p.pos} · Age ${p.age} · ${this.clubOf(p.club).short}</div></div>
-        <div style="text-align:center"><div style="font-size:10px;color:var(--dim)">POT</div><b>${p.potential}</b></div>
-        <div style="text-align:center"><div style="font-size:10px;color:var(--dim)">WAGE</div><b style="font-size:12px">${wage(p.wage)}</b></div>
-        <div style="text-align:right"><div style="font-size:10px;color:var(--dim)">VALUE</div><b style="color:var(--acc)">${money(p.value)}</b></div>
-        <button class="btn sm primary" onclick='Game.negotiate("${p.id}")'>Bid</button>
-      </div>`).join('') : '<div class="empty">No players match your search.</div>';
+    const total=list.length; list=list.slice(0,60);
+    listCard.innerHTML = (list.length? list.map(p=>this.marketRowHTML(p)).join('') : '<div class="empty">No players match your search.</div>')
+      + (total>60?`<div style="text-align:center;padding:12px;color:var(--dim);font-size:12px">Showing 60 of ${total} results — refine your search to narrow it down.</div>`:'');
   };
   head.querySelector('#tfSearch').oninput=doFilter;
   head.querySelector('#tfPos').onchange=doFilter;
+  head.querySelector('#tfLeague').onchange=doFilter;
   head.querySelector('#tfSort').onchange=doFilter;
   doFilter();
 };
+Game.marketRowHTML=function(p,opts){
+  opts=opts||{};
+  return `<div class="market-row">
+    <div class="ovr ${ovrClass(p.ovr)}">${p.ovr}</div>
+    <div class="face">${faceSVG(p.seed,40)}</div>
+    <div style="cursor:pointer" onclick='Game.openPlayer("${p.id}")'><b>${p.name}</b><div style="color:var(--dim);font-size:11.5px;margin-top:2px">${span(flagSVG(p.nat,16))} ${p.pos} · Age ${p.age} · ${this.clubOf(p.club)?`<span style="cursor:pointer;text-decoration:underline dotted" onclick='event.stopPropagation();Game.showClub("${p.club}")'>${this.clubOf(p.club).short}</span> · ${this.leagueOf(p.club).name}`:p.club}</div></div>
+    <div style="text-align:center"><div style="font-size:10px;color:var(--dim)">POT</div><b>${p.potential}</b></div>
+    <div style="text-align:center"><div style="font-size:10px;color:var(--dim)">WAGE</div><b style="font-size:12px">${wage(p.wage)}</b></div>
+    <div style="text-align:right"><div style="font-size:10px;color:var(--dim)">VALUE</div><b style="color:var(--acc)">${money(p.value)}</b></div>
+    ${opts.free?`<button class="btn sm primary" onclick='Game.signFreeAgent("${p.id}")'>Sign Free</button>`
+     :opts.loan?`<button class="btn sm acc2" onclick='Game.requestLoan("${p.id}")'>Request Loan</button>`
+     :`<button class="btn sm primary" onclick='Game.negotiate("${p.id}")'>Bid</button>`}
+  </div>`;
+};
+Game.renderFreeAgentList=function(){
+  const card=el('div','card');
+  const list=(this.state.freeAgents||[]).slice().sort((a,b)=>b.ovr-a.ovr);
+  card.innerHTML = list.length? `<div style="padding:12px 16px;color:var(--dim);font-size:12px">${list.length} unattached players — no transfer fee, wages only. Signable any time.</div>`+list.map(p=>this.marketRowHTML(p,{free:true})).join('') : '<div class="empty">No free agents available right now.</div>';
+  return card;
+};
+Game.renderListedList=function(){
+  // AI clubs transfer-list a few fringe players each week for browsing flavor + cheaper fees
+  const r=seeded('listed-'+(this.state.playedMatches));
+  const out=[];
+  LEAGUES.forEach(l=>l.clubs.forEach(c=>{ if(c.name===this.state.club)return;
+    const sq=Game.squad(c.name); const fringe=sq.slice(12); if(fringe.length && r()<0.35) out.push(pick(r,fringe)); }));
+  const card=el('div','card');
+  card.innerHTML = out.length? `<div style="padding:12px 16px;color:var(--dim);font-size:12px">Players other clubs have placed on the transfer list — often available below market value.</div>`+out.slice(0,40).map(p=>this.marketRowHTML(p)).join('') : '<div class="empty">No clubs have listed players this week. Check back later.</div>';
+  return card;
+};
+Game.renderLoanList=function(){
+  const list=this.loanMarket();
+  const card=el('div','card');
+  card.innerHTML = list.length? `<div style="padding:12px 16px;color:var(--dim);font-size:12px">Players available on a season-long loan from their parent club.</div>`+list.map(p=>this.marketRowHTML(p,{loan:true})).join('') : '<div class="empty">No loan-listed players right now.</div>';
+  return card;
+};
 Game.findPlayer=function(id){
-  // search current club + pool + all squads
+  // search current club + pool + all squads + free agents + academy
   for(const name in this.allClubs){ const p=Game.squad(name).find(x=>x.id===id); if(p)return p; }
+  const fa=(this.state.freeAgents||[]).find(x=>x.id===id); if(fa)return fa;
+  const ac=(this.state.academy||[]).find(x=>x.id===id); if(ac)return ac;
   return null;
 };
 Game.negotiate=function(id){
+  if(!this.transferWindowOpen()){toast('Transfer window is closed.');return;}
   const p=this.findPlayer(id); if(!p||p.club===this.state.club)return;
+  if(p.club==='Free Agent'){ this.signFreeAgent(id); return; }
+  if(p.isLoan && p.club!==this.state.club){ toast('This player is out on loan and not for permanent sale.'); return; }
   const r=seeded('nego-'+id+this.state.playedMatches);
   const prem = p.ovr>=88?0.35:p.ovr>=84?0.22:p.ovr>=80?0.12:0.05;
   const sellerMin = Math.round(p.value*(1+prem)/1e5)*1e5;
@@ -1896,6 +2124,7 @@ Game.toggleTransferList=function(id){
   this.openPlayer(id); this.autosave();
 };
 Game.sellPlayer=function(id){
+  if(!this.transferWindowOpen()){toast('Transfer window is closed.');return;}
   const p=this.findPlayer(id); if(!p||p.club!==this.state.club)return;
   const r=seeded('sell-'+id+this.state.playedMatches);
   // find an interested AI club (needs the position, can roughly afford)
@@ -2450,15 +2679,20 @@ Game.finishUserFixture=function(f,res,quick,box){
     this.pushMail('Medical Team',`${p.name} injured`,`${p.name} will be out for approximately ${p.injWeeks} match${p.injWeeks>1?'es':''}. We'll manage his recovery.`); } });
   const w= myG>opG?1: myG<opG?-1:0;
   this.state.morale=clamp(this.state.morale+(w>0?4:w<0?-5:1),0,100);
-  if(f.comp==='League'){ this.applyResult(res); this.advanceWeek();
+  if(f.comp==='League'){ this.applyResult(res); this.advanceWeek(); this.checkDeadlineDay();
     if(w>0){this.state.boardConfidence=clamp(this.state.boardConfidence+2,0,100);this.state.fanHappiness=clamp(this.state.fanHappiness+3,0,100);}
     else if(w<0){this.state.boardConfidence=clamp(this.state.boardConfidence-3,0,100);this.state.fanHappiness=clamp(this.state.fanHappiness-4,0,100);}
     if(w>0)this.addNews('match',`${this.clubOf(me).short} win ${myG}-${opG}`,`${res.scorers.filter(s=>(s.team==='H')===(res.home===me)).map(s=>s.player).join(', ')||'A solid display'} did the damage.`);
   } else if(f.comp==='Champions Cup'){ this.ccFinish(f,res); }
   else if(f.comp==='Domestic Cup'){ this.dcFinish(f,res); }
   this.maybeGenerateDrama(); this.autosave();
-  if(quick){ this.go('career'); toast(`${COMP_SHORT[f.comp]}: ${this.clubOf(me).short} ${myG}-${opG} ${this.clubOf(f.oppName).short}`); return; }
-  this.matchPress('post',{res:w},()=>{ const cont=()=>this.afterUserFixture(); if(this.nextUserFixture()&&Math.random()<0.28)this.seasonDecision(cont); else cont(); });
+  if(quick){ this.go('career'); toast(`${COMP_SHORT[f.comp]}: ${this.clubOf(me).short} ${myG}-${opG} ${this.clubOf(f.oppName).short}`);
+    if(this._deadlineDayPending){ this._deadlineDayPending=false; this.deadlineDayEvent(); } return; }
+  this.matchPress('post',{res:w},()=>{
+    const cont=()=>this.afterUserFixture();
+    const afterDeadline=()=>{ if(this.nextUserFixture()&&Math.random()<0.28)this.seasonDecision(cont); else cont(); };
+    if(this._deadlineDayPending){ this._deadlineDayPending=false; this.deadlineDayEvent(afterDeadline); } else afterDeadline();
+  });
 };
 Game.afterUserFixture=function(){ if(!this.nextUserFixture()) this.endOfSeasonFlow(); else this.go('career'); };
 Game.endOfSeasonFlow=function(){
@@ -2512,7 +2746,7 @@ Game.renderCalendar=function(v){
     const oppC=this.clubOf(f.oppName); const col=COMP_COLOR[f.comp];
     html+=`<div class="cal-cell has ${isNext?'today':''}"><div class="dnum">${day}</div>
       ${f.played?`<div class="res" style="color:${f.myG>f.opG?'var(--good)':f.myG<f.opG?'var(--bad)':'var(--warn)'}">${f.myG}-${f.opG}</div>`:''}
-      <div class="cal-ev" style="background:${col}"><span class="mc">${crestSVG(oppC,16)}</span><span>${f.home?'H':'A'} ${oppC.short}<div class="vn">${COMP_SHORT[f.comp]}</div></span></div></div>`;
+      <div class="cal-ev" style="background:${col};cursor:pointer" onclick='Game.showClub("${f.oppName}")'><span class="mc">${crestSVG(oppC,16)}</span><span>${f.home?'H':'A'} ${oppC.short}<div class="vn">${COMP_SHORT[f.comp]}</div></span></div></div>`;
   }
   html+='</div><div class="cal-legend">'+Object.entries(COMP_COLOR).map(([k,c])=>`<span><i style="background:${c}"></i>${k}</span>`).join('')+'</div>';
   card.innerHTML=html; v.appendChild(card);
@@ -2530,17 +2764,17 @@ Game.renderCups=function(v){
     const g=cc.groups[cc.userGroupIdx];
     ccCard.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><h4>Champions Cup — Group ${g.letter}</h4>${cc.champion?`<span class="badge gold">${this.clubOf(cc.champion).short} won it</span>`:''}</div>
       <table class="tbl"><thead><tr><th>Club</th><th class="n">P</th><th class="n">GD</th><th class="n">Pts</th></tr></thead><tbody>
-      ${this.ccRank(g).map((row,i)=>{const c=this.clubOf(row.t);return `<tr class="${row.t===this.state.club?'me':''} ${i<2?'zone-ucl':''}"><td class="cl"><span class="mini-crest">${crestSVG(c,20)}</span>${c.short}</td><td class="n">${row.P}</td><td class="n">${row.GF-row.GA>=0?'+':''}${row.GF-row.GA}</td><td class="n"><b>${row.Pts}</b></td></tr>`}).join('')}
+      ${this.ccRank(g).map((row,i)=>{const c=this.clubOf(row.t);return `<tr class="${row.t===this.state.club?'me':''} ${i<2?'zone-ucl':''}"><td class="cl" style="cursor:pointer" onclick='Game.showClub("${row.t}")'><span class="mini-crest">${crestSVG(c,20)}</span>${c.short}</td><td class="n">${row.P}</td><td class="n">${row.GF-row.GA>=0?'+':''}${row.GF-row.GA}</td><td class="n"><b>${row.Pts}</b></td></tr>`}).join('')}
       </tbody></table>`;
     if(cc.knockout&&cc.knockout.R16&&cc.knockout.R16.length){
       ccCard.innerHTML+='<div style="margin-top:14px"></div>'+['R16','QF','SF','Final'].map(st=>{const ties=cc.knockout[st];if(!ties||!ties.length)return '';
-        return `<div class="roster-group">${({R16:'Round of 16',QF:'Quarter-Finals',SF:'Semi-Finals',Final:'Final'})[st]}</div>`+ties.map(t=>`<div style="display:grid;grid-template-columns:1fr 60px 1fr;align-items:center;gap:6px;padding:4px 8px;font-size:12px;${(t.hk===this.state.club||t.ak===this.state.club)?'background:rgba(198,255,46,.06);border-radius:8px':''}"><div style="text-align:right;font-weight:${t.w===t.hk?'900':'600'}">${this.clubOf(t.hk).short}</div><div style="text-align:center;font-weight:900">${t.done?`${t.hg}-${t.ag}`:'vs'}</div><div style="font-weight:${t.w===t.ak?'900':'600'}">${this.clubOf(t.ak).short}</div></div>`).join('');}).join('');
+        return `<div class="roster-group">${({R16:'Round of 16',QF:'Quarter-Finals',SF:'Semi-Finals',Final:'Final'})[st]}</div>`+ties.map(t=>`<div style="display:grid;grid-template-columns:1fr 60px 1fr;align-items:center;gap:6px;padding:4px 8px;font-size:12px;${(t.hk===this.state.club||t.ak===this.state.club)?'background:rgba(198,255,46,.06);border-radius:8px':''}"><div style="text-align:right;font-weight:${t.w===t.hk?'900':'600'};cursor:pointer" onclick='Game.showClub("${t.hk}")'>${this.clubOf(t.hk).short}</div><div style="text-align:center;font-weight:900">${t.done?`${t.hg}-${t.ag}`:'vs'}</div><div style="font-weight:${t.w===t.ak?'900':'600'};cursor:pointer" onclick='Game.showClub("${t.ak}")'>${this.clubOf(t.ak).short}</div></div>`).join('');}).join('');
     }
   }
   grid.appendChild(ccCard);
   // domestic cup
   const dcCard=el('div','card card-pad');
-  dcCard.innerHTML=`<h4 style="margin-bottom:10px">Domestic Cup</h4>${dc&&dc.history.length?dc.history.map(h=>`<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--line)"><span style="width:70px;color:var(--dim);font-size:11px">${h.round}</span><span class="mini-crest">${crestSVG(this.clubOf(h.opp),18)}</span><b style="font-size:12.5px">${this.clubOf(h.opp).short}</b><span style="margin-left:auto;font-weight:900;color:${h.win?'var(--good)':'var(--bad)'}">${h.myG}-${h.opG}</span></div>`).join('')+(dc.champion?'<div class="badge gold" style="margin-top:12px">Cup Winners</div>':dc.alive?'<div class="badge good" style="margin-top:12px">Still in it</div>':'<div class="badge bad" style="margin-top:12px">Knocked out</div>'):'<div class="empty">Your cup run starts later in the season.</div>'}`;
+  dcCard.innerHTML=`<h4 style="margin-bottom:10px">Domestic Cup</h4>${dc&&dc.history.length?dc.history.map(h=>`<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--line);cursor:pointer" onclick='Game.showClub("${h.opp}")'><span style="width:70px;color:var(--dim);font-size:11px">${h.round}</span><span class="mini-crest">${crestSVG(this.clubOf(h.opp),18)}</span><b style="font-size:12.5px">${this.clubOf(h.opp).short}</b><span style="margin-left:auto;font-weight:900;color:${h.win?'var(--good)':'var(--bad)'}">${h.myG}-${h.opG}</span></div>`).join('')+(dc.champion?'<div class="badge gold" style="margin-top:12px">Cup Winners</div>':dc.alive?'<div class="badge good" style="margin-top:12px">Still in it</div>':'<div class="badge bad" style="margin-top:12px">Knocked out</div>'):'<div class="empty">Your cup run starts later in the season.</div>'}`;
   grid.appendChild(dcCard);
   v.appendChild(grid);
 };
@@ -2819,7 +3053,8 @@ Game.newSeason=function(){
   this.computeAwards();
   // player development + retirement (applies to the whole world so values/ratings track)
   const r=seeded('dev-'+this.state.seasonNum);
-  const retiredNames=[];
+  const retiredNames=[]; const expiredFree=[];
+  this.returnLoans(r);
   LEAGUES.forEach(l=>l.clubs.forEach(c=>{
     const sq=Game.squad(c.name); const mine=c.name===this.state.club;
     for(let i=sq.length-1;i>=0;i--){ const p=sq[i]; p.age++;
@@ -2836,13 +3071,29 @@ Game.newSeason=function(){
       const ageF=p.age<=27?1:Math.max(0.3,1-(p.age-27)*0.11);
       const ovrF=Math.pow(Math.max(1,p.ovr-58)/22,3.1);
       p.value=clamp(Math.round(ovrF*45e6*ageF/1e5)*1e5,300e3,260e6);
+      // contracts: decrement; AI mostly self-renews, user's players expire onto the free market unresigned
+      if(p.contractYrs==null)p.contractYrs=ri(r,1,4);
+      p.contractYrs--;
+      if(p.contractYrs<=0){
+        if(mine){ sq.splice(i,1); expiredFree.push(p.name); p.club='Free Agent'; p.contractYrs=0; this.state.freeAgents.push(p);
+          sq.push(genPlayer(c.name,p.pos,clamp(c.ovr+ri(r,-6,0),55,85),c.nat)); }
+        else if(r()<0.72){ p.contractYrs=ri(r,2,4); p.wage=Math.round(p.wage*(1.03+r()*0.07)/1e3)*1e3; } // AI renews
+        else { sq.splice(i,1); p.club='Free Agent'; this.state.freeAgents.push(p); sq.push(genPlayer(c.name,p.pos,clamp(c.ovr+ri(r,-6,0),55,85),c.nat)); }
+      } else if(mine && p.contractYrs===1){
+        this.pushMail('Contracts Dept',`${p.name}'s contract expires this season`,`${p.name} (${p.pos}, ${p.ovr}) enters the final year of his deal. Negotiate a new contract or he'll leave for free at season's end.`);
+      }
     }
     sq.sort((a,b)=>b.ovr-a.ovr);
   }));
+  // trim the free agent pool so it doesn't grow forever, keep the most useful
+  this.state.freeAgents=this.state.freeAgents.filter(p=>p.age<=38).sort((a,b)=>b.ovr-a.ovr).slice(0,40);
   if(retiredNames.length) this.addNews('season',`${retiredNames.length} veteran${retiredNames.length>1?'s':''} retire at ${this.clubOf(this.state.club).short}`,`${retiredNames.join(', ')} hang up their boots. Time to rebuild.`,'');
+  if(expiredFree.length){ this.addNews('transfer',`Contracts expire at ${this.clubOf(this.state.club).short}`,`${expiredFree.join(', ')} leave on free transfers as their deals ran down.`,'');
+    this.pushMail('Contracts Dept','Players departed on free transfers',`${expiredFree.join(', ')} left the club for nothing as their contracts expired. Keep an eye on renewal dates in future.`); }
   this._natSquads={}; // rebuild national squads next time from updated players
   this.refreshAcademy(r);
   this.state.lineup=this.buildLineup(this.state.club);
+  this.state.window={};
   this._pool=null;
   // AI transfer activity for other clubs
   this.aiTransferWindow(r);
@@ -2880,7 +3131,8 @@ Game.computeAwards=function(){
 };
 Game.aiTransferWindow=function(r){
   // Smarter AI: each club upgrades its weakest starting position toward/above its level,
-  // with richer clubs improving more; strong clubs also poach a star from a weaker side.
+  // sometimes by signing a real free agent, sometimes by buying an actual player from
+  // another club (a genuine transfer, not a reskin), and otherwise via fresh recruitment.
   const allClubs=[]; LEAGUES.forEach(l=>l.clubs.forEach(c=>{ if(c.name!==this.state.club && Game.squads[c.name]) allClubs.push(c); }));
   allClubs.forEach(c=>{
     const sq=Game.squads[c.name];
@@ -2893,12 +3145,30 @@ Game.aiTransferWindow=function(r){
       let worst=null,worstAvg=999;
       Object.entries(byGrp).forEach(([g,arr])=>{const a=arr.reduce((s,p)=>s+p.ovr,0)/arr.length; if(a<worstAvg){worstAvg=a;worst=arr;}});
       const target=worst?worst.reduce((a,b)=>a.ovr<b.ovr?a:b):sq[sq.length-1];
-      const np=genPlayer(c.name,target.pos,clamp(c.ovr+ri(r,-1,5),63,93),c.nat);
-      const i=sq.indexOf(target); if(i>=0)sq[i]=np;
+      const roll=r();
+      let signed=null;
+      if(roll<0.16 && this.state.freeAgents.length){
+        // sign an actual free agent whose position roughly fits
+        const cand=this.state.freeAgents.filter(p=>POS_GROUP[p.pos]===POS_GROUP[target.pos] && p.ovr>=c.ovr-14);
+        if(cand.length){ const pick0=pick(r,cand); const fi=this.state.freeAgents.indexOf(pick0);
+          this.state.freeAgents.splice(fi,1); pick0.club=c.name; pick0.contractYrs=ri(r,2,4); signed=pick0; }
+      }
+      if(!signed && roll<0.34){
+        // a real transfer: buy an actual player from another AI club
+        const sellers=allClubs.filter(x=>x.name!==c.name && Game.squads[x.name] && Game.squads[x.name].length>16);
+        if(sellers.length){ const seller=pick(r,sellers); const ssq=Game.squads[seller.name];
+          const cand=ssq.slice(11).filter(p=>POS_GROUP[p.pos]===POS_GROUP[target.pos]);
+          if(cand.length){ const bought=pick(r,cand); const bi=ssq.indexOf(bought);
+            ssq.splice(bi,1); ssq.push(genPlayer(seller.name,bought.pos,clamp(seller.ovr+ri(r,-6,0),55,85),seller.nat)); ssq.sort((a,b)=>b.ovr-a.ovr);
+            bought.club=c.name; bought.contractYrs=ri(r,2,4); signed=bought; }
+        }
+      }
+      if(!signed) signed=genPlayer(c.name,target.pos,clamp(c.ovr+ri(r,-1,5),63,93),c.nat);
+      const i=sq.indexOf(target); if(i>=0)sq[i]=signed; else sq.push(signed);
     }
     sq.sort((a,b)=>b.ovr-a.ovr);
   });
-  // a few marquee poaches: strong clubs buy a gem from a weaker club
+  // a few marquee poaches: strong clubs buy a gem from a weaker club (real transfer)
   const strong=allClubs.filter(c=>c.ovr>=83);
   strong.forEach(c=>{ if(r()<0.4){
     const weaker=allClubs.filter(x=>x.ovr<=c.ovr-5); if(!weaker.length)return;
@@ -2906,7 +3176,7 @@ Game.aiTransferWindow=function(r){
     const gem=fsq.slice(1,6)[Math.floor(r()*4)]; if(!gem)return;
     const gi=fsq.indexOf(gem); if(gi<0)return;
     fsq.splice(gi,1); fsq.push(genPlayer(from.name,gem.pos,clamp(from.ovr+ri(r,-4,1),58,84),from.nat)); fsq.sort((a,b)=>b.ovr-a.ovr);
-    gem.club=c.name; Game.squads[c.name].push(gem); Game.squads[c.name].sort((a,b)=>b.ovr-a.ovr); Game.squads[c.name].pop();
+    gem.club=c.name; gem.contractYrs=ri(r,2,4); Game.squads[c.name].push(gem); Game.squads[c.name].sort((a,b)=>b.ovr-a.ovr); Game.squads[c.name].pop();
   }});
   this._pool=null;
 };
@@ -2943,7 +3213,7 @@ Game.renderTable=function(v){
   card.innerHTML=`<table class="tbl"><thead><tr><th class="pos">#</th><th>Club</th><th class="n">P</th><th class="n">W</th><th class="n">D</th><th class="n">L</th><th class="n">GF</th><th class="n">GA</th><th class="n">GD</th><th class="n">Pts</th><th>Form</th></tr></thead><tbody>
     ${rows.map((t,i)=>{const c=this.clubOf(t.name);const zone=i<4?'zone-ucl':i<6?'zone-uel':i>=n-3?'zone-rel':'';const me=t.name===this.state.club;
       return `<tr class="${me?'me':''} ${zone}"><td class="pos">${i+1}</td>
-      <td><div class="cl"><span class="mini-crest">${crestSVG(c,20)}</span>${c.short} <span style="color:var(--dim);font-weight:600;font-size:11px">${c.name}</span></div></td>
+      <td><div class="cl" style="cursor:pointer" onclick='Game.showClub("${t.name}")'><span class="mini-crest">${crestSVG(c,20)}</span>${c.short} <span style="color:var(--dim);font-weight:600;font-size:11px">${c.name}</span></div></td>
       <td class="n">${t.P}</td><td class="n">${t.W}</td><td class="n">${t.D}</td><td class="n">${t.L}</td><td class="n">${t.GF}</td><td class="n">${t.GA}</td><td class="n">${t.GF-t.GA>=0?'+':''}${t.GF-t.GA}</td><td class="n"><b>${t.Pts}</b></td>
       <td>${t.form.slice(-5).map(f=>`<span class="fdot ${f}" style="width:16px;height:16px;font-size:9px;display:inline-flex">${f}</span>`).join(' ')}</td></tr>`}).join('')}
     </tbody></table>
@@ -3284,6 +3554,54 @@ Game.wcPick=function(id){
   if(this._wcSel===id){ this._wcSel=null; this.wcManageSquad(); return; }
   this._wcSel=id; this.wcManageSquad();
 };
+/* ---------------- CLUB PROFILE (any team, click-through) ---------------- */
+Game.showClub=function(name){
+  const c=this.clubOf(name); if(!c)return;
+  const lg=this.leagueOf(name);
+  const tbl=this.state.tables[lg.id]; const row=tbl&&tbl[name];
+  const rank=tbl? Object.values(tbl).sort(this.sortTable).findIndex(t=>t.name===name)+1 : null;
+  const sq=Game.squad(name).slice().sort((a,b)=>b.ovr-a.ovr);
+  const isUser=name===this.state.club;
+  const formation=isUser?this.state.formation:'4-3-3';
+  const L=isUser?this.ensureLineup():this.buildLineup(name);
+  const xi=L.starters.map(id=>sq.find(p=>p.id===id)||this.findPlayer(id)).filter(Boolean);
+  const avgOvr=Math.round(xi.reduce((s,p)=>s+p.ovr,0)/Math.max(1,xi.length));
+  const f=FORMATIONS[formation]||FORMATIONS['4-3-3']; const slots=f.lines.flat();
+  let pitchInner=`<svg viewBox="0 0 100 81" preserveAspectRatio="none"><g class="pitch-line"><rect x="3" y="3" width="94" height="75"/><line x1="3" y1="40.5" x2="97" y2="40.5"/><circle cx="50" cy="40.5" r="9"/></g></svg>`;
+  xi.forEach((p,i)=>{ const pos=f.pos[i]; if(!pos)return; const [x,y]=pos;
+    pitchInner+=`<div class="pp" style="left:${x}%;top:${y}%" onclick='Game.openPlayer("${p.id}")'>
+      <div class="pp-top"><div class="pp-face">${faceSVG(p.seed,52)}</div><div class="pp-ovr">${p.ovr}</div></div>
+      <div class="pp-bar"></div><div class="pp-name">${p.last}</div><div class="pp-pos">${slots[i]||p.pos}</div></div>`; });
+  const groups={GK:'Goalkeepers',DEF:'Defenders',MID:'Midfielders',ATT:'Forwards'};
+  let roster='';
+  ['GK','DEF','MID','ATT'].forEach(g=>{ const list=sq.filter(p=>p.posGroup===g); if(!list.length)return;
+    roster+=`<div class="roster-group">${groups[g]} · ${list.length}</div>`+list.map(p=>`<div class="rrow" onclick='Game.openPlayer("${p.id}")'>
+      <div class="ovr ${ovrClass(p.ovr)}" style="width:34px;height:34px;font-size:14px">${p.ovr}</div>
+      <div class="face">${faceSVG(p.seed,40)}</div>
+      <div class="info"><b>${p.name}</b><div class="sub">Age ${p.age} · ${money(p.value)}</div></div>
+      <div class="pos-tag">${p.pos}</div></div>`).join(''); });
+  this.openModalHTML(`<div style="padding:26px 26px 0">
+    <div style="display:flex;align-items:center;gap:18px">
+      <div style="width:64px;height:74px">${crestSVG(c,64)}</div>
+      <div style="width:52px">${kitSVG(c,52)}</div>
+      <div style="flex:1;min-width:0"><div class="kicker">${lg.name}${lg.tier===2?' · 2nd Division':''}${isUser?' · Your Club':''}</div>
+        <h2 style="font-size:26px">${c.name}</h2>
+        <div class="row" style="margin-top:4px">Squad OVR ${Math.round(sq.slice(0,11).reduce((s,p)=>s+p.ovr,0)/Math.min(11,sq.length))} · Budget ${money(c.budget)}</div></div>
+      <div style="text-align:center"><div style="font-size:34px;font-weight:900;color:var(--gold)">${rank||'—'}</div><div style="font-size:9px;color:var(--dim);letter-spacing:.2em">${rank?ordinal(rank).toUpperCase():''} PLACE</div></div>
+    </div>
+    <div class="stat-row" style="margin-top:18px">
+      <div class="stat-box"><div class="k">Played</div><div class="v">${row?row.P:0}</div></div>
+      <div class="stat-box"><div class="k">W-D-L</div><div class="v" style="font-size:18px">${row?`${row.W}-${row.D}-${row.L}`:'0-0-0'}</div></div>
+      <div class="stat-box"><div class="k">GF-GA</div><div class="v" style="font-size:18px">${row?`${row.GF}-${row.GA}`:'0-0'}</div></div>
+      <div class="stat-box"><div class="k">Points</div><div class="v">${row?row.Pts:0}</div></div>
+    </div>
+    ${row&&row.form.length?`<div style="margin-top:10px"><div class="form-dots">${row.form.slice(-6).map(fm=>`<span class="fdot ${fm}">${fm}</span>`).join('')}</div></div>`:''}
+  </div>
+  <div style="padding:18px 26px"><h4 style="margin-bottom:10px">Starting XI · ${formation}</h4>
+    <div class="tm-pitch" style="aspect-ratio:1.5">${pitchInner}</div>
+  </div>
+  <div style="padding:0 26px 26px"><h4 style="margin-bottom:6px">Full Squad</h4><div class="roster" style="max-height:340px">${roster}</div></div>`);
+};
 Game.showNationSquad=function(k){
   const n=NATIONS[k];
   const players=this.nationSquad(k);
@@ -3599,15 +3917,28 @@ Game.openPlayer=function(id){
   const a=p.attrs;
   const attrList=[['Pace',a.pace],['Shooting',a.shooting],['Passing',a.passing],['Dribbling',a.dribbling],['Defending',a.defending],['Physical',a.physical]];
   const radar=radarSVG(attrList.map(x=>x[1]),['PAC','SHO','PAS','DRI','DEF','PHY']);
-  const canBuy = p.club!==this.state.club;
+  const isFree = p.club==='Free Agent';
+  const isMine = p.club===this.state.club;
+  const onLoanElsewhere = p.isLoan && !isMine;
+  const onLoanToUs = p.isLoan && isMine;
+  const canBuy = !isMine && !isFree && !onLoanElsewhere;
+  const rr=this.state.ratings&&this.state.ratings[p.id];
+  const avgRating = rr&&rr.n? (rr.sum/rr.n).toFixed(1) : null;
+  const apps = (this.state.apps&&this.state.apps[p.id]) || 0;
+  const scr = this.state.scorers&&this.state.scorers[p.id];
+  const statusBadges=[];
+  if(this.isInjured(p)) statusBadges.push(`<span class="badge bad">Injured · ${p.injWeeks} wk${p.injWeeks>1?'s':''}</span>`);
+  if(p.suspended>0) statusBadges.push(`<span class="badge bad">Suspended · ${p.suspended} match${p.suspended>1?'es':''}</span>`);
+  if(onLoanToUs) statusBadges.push(`<span class="badge">On loan from ${this.clubOf(p.parentClub)?this.clubOf(p.parentClub).short:p.parentClub}</span>`);
+  if(onLoanElsewhere) statusBadges.push(`<span class="badge">On loan at ${this.clubOf(p.club)?this.clubOf(p.club).short:p.club}</span>`);
   this.openModalHTML(`
     <div class="pcard-top"><div class="pcard-glow"></div>
       <div class="big-face">${faceSVG(p.seed,150)}</div>
       <div class="pcard-info">
-        <div class="kicker">${this.clubOf(p.club)?this.clubOf(p.club).name:p.club} · ${p.pos}</div>
+        <div class="kicker">${isFree?'Free Agent':this.clubOf(p.club)?this.clubOf(p.club).name:p.club} · ${p.pos}</div>
         <h2>${p.name}</h2>
-        <div class="row">${span(flagSVG(p.nat,22))} ${natName(p.nat)} <span>·</span> Age ${p.age} <span>·</span> ${money(p.value)} <span>·</span> ${wage(p.wage)}</div>
-        <div class="row"><span class="badge gold">POT ${p.potential}</span> ${p.age<23?'<span class="badge good">Wonderkid</span>':''} ${p.ovr>=88?'<span class="badge gold">World Class</span>':''}</div>
+        <div class="row">${span(flagSVG(p.nat,22))} ${natName(p.nat)} <span>·</span> Age ${p.age} <span>·</span> ${isFree?'Free Transfer':money(p.value)} <span>·</span> ${wage(p.wage)}</div>
+        <div class="row"><span class="badge gold">POT ${p.potential}</span> ${p.age<23?'<span class="badge good">Wonderkid</span>':''} ${p.ovr>=88?'<span class="badge gold">World Class</span>':''} ${statusBadges.join(' ')}</div>
         <div class="big-ovr"><div class="n">${p.ovr}</div><div class="l">OVERALL</div></div>
       </div>
     </div>
@@ -3617,9 +3948,29 @@ Game.openPlayer=function(id){
       </div></div>
     </div>
     <div class="play-style">${p.ps.map(s=>`<span class="ps ${s.plus?'plus':''}">${s.plus?' ':''}${s.name}${s.plus?'+':''}</span>`).join('')}</div>
-    <div style="display:flex;gap:10px;padding:0 28px 28px">
-      ${canBuy?`<button class="btn primary" onclick='Game.negotiate("${p.id}")'>Make an Offer — ${money(p.value)}</button>`
-        :`<span class="badge good" style="padding:10px 16px">Your Player</span>${(this.state.transferList||[]).includes(p.id)?`<button class="btn" style="color:var(--gold);border-color:rgba(255,211,90,.4)" onclick='Game.toggleTransferList("${p.id}")'>On Transfer List ✕</button>`:`<button class="btn" onclick='Game.toggleTransferList("${p.id}")'>List for Transfer</button>`}<button class="btn" style="color:var(--bad);border-color:rgba(255,93,108,.4)" onclick='Game.sellPlayer("${p.id}")'>Sell Now</button>`}
+    <div class="stat-row" style="grid-template-columns:repeat(5,1fr);padding:0 28px 6px">
+      <div class="stat-box"><div class="k">This Season</div><div class="v" style="font-size:16px">${apps} apps</div></div>
+      <div class="stat-box"><div class="k">Goals / Assists</div><div class="v" style="font-size:16px">${scr?scr.g:0} / ${scr?scr.a:0}</div></div>
+      <div class="stat-box"><div class="k">Avg Rating</div><div class="v" style="font-size:16px;color:${avgRating?attrColor(avgRating*10):'var(--dim)'}">${avgRating||'—'}</div></div>
+      <div class="stat-box"><div class="k">Contract</div><div class="v" style="font-size:16px">${p.contractYrs!=null?p.contractYrs+' yr'+(p.contractYrs===1?'':'s'):'—'}</div></div>
+      <div class="stat-box"><div class="k">Personality</div><div class="v" style="font-size:14px">${p.personality||'—'}</div></div>
+    </div>
+    <div style="padding:6px 28px 6px">
+      <div class="meters">
+        ${meter('Morale',p.morale!=null?p.morale:70,(p.morale||70)>=60?'var(--good)':(p.morale||70)>=35?'var(--warn)':'var(--bad)')}
+        ${meter('Energy',p.energy!=null?p.energy:100,(p.energy||100)>=55?'var(--good)':(p.energy||100)>=30?'var(--warn)':'var(--bad)')}
+      </div>
+    </div>
+    <div style="display:flex;gap:10px;padding:16px 28px 28px;flex-wrap:wrap">
+      ${isFree?`<button class="btn primary" onclick='Game.signFreeAgent("${p.id}")'>Sign on a Free</button>`
+       :onLoanElsewhere?`<span class="badge" style="padding:10px 16px">Out on loan — not for permanent sale</span>`
+       :canBuy?`<button class="btn primary" onclick='Game.negotiate("${p.id}")'>Make an Offer — ${money(p.value)}</button>`
+       :onLoanToUs?`<span class="badge good" style="padding:10px 16px">On Loan Squad Member</span>`
+       :`<span class="badge good" style="padding:10px 16px">Your Player</span>
+         <button class="btn" style="color:var(--acc)" onclick='Game.offerResign("${p.id}")'>Offer New Contract</button>
+         <button class="btn" style="color:var(--acc2)" onclick='Game.loanOut("${p.id}")'>Loan Out</button>
+         ${(this.state.transferList||[]).includes(p.id)?`<button class="btn" style="color:var(--gold);border-color:rgba(255,211,90,.4)" onclick='Game.toggleTransferList("${p.id}")'>On Transfer List ✕</button>`:`<button class="btn" onclick='Game.toggleTransferList("${p.id}")'>List for Transfer</button>`}
+         <button class="btn" style="color:var(--bad);border-color:rgba(255,93,108,.4)" onclick='Game.sellPlayer("${p.id}")'>Sell Now</button>`}
       <button class="btn ghost" onclick="Game.closeModal()">Close</button>
     </div>`);
 };
