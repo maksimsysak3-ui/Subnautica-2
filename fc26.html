@@ -1394,7 +1394,9 @@ Game.renderClubSelect=function(){
   setTimeout(()=>{
     view.innerHTML='';
     const activeLeague=this.selLeague||LEAGUES[0].id;
-    const head=el('div','view-head',`<div><div class="kicker">Manager Career</div><h2>Choose Your Club</h2><div class="sub">Every squad is scouted with full attributes, play styles & face scans. Pick your project.</div></div>`);
+    const head=el('div','view-head', this._jobSearch
+      ? `<div><div class="kicker" style="color:var(--bad)">Unemployed</div><h2>Find a New Club</h2><div class="sub">Your reputation and career history carry over. Pick your next project.</div></div>`
+      : `<div><div class="kicker">Manager Career</div><h2>Choose Your Club</h2><div class="sub">Every squad is scouted with full attributes, play styles & face scans. Pick your project.</div></div>`);
     view.appendChild(head);
     const tabs=el('div','league-tabs');
     LEAGUES.forEach(l=>{
@@ -1411,7 +1413,7 @@ Game.renderClubSelect=function(){
         <h3>${c.name}</h3>
         <div class="meta"><span>OVR ${c.ovr}</span><span>·</span><span>${money(c.budget)} budget</span></div>
         <div class="ovrbar"><div class="bar"><i style="width:${(c.ovr-70)/25*100}%"></i></div><b style="font-size:13px">${c.ovr}</b></div>`;
-      card.onclick=()=>this.startCareer(c.name);
+      card.onclick=()=>{ if(this._jobSearch) this.takeNewJob(c.name); else this.startCareer(c.name); };
       grid.appendChild(card);
     });
     view.appendChild(grid);
@@ -1754,7 +1756,7 @@ Game.renderCareer=function(v){
     const H=uf.home?c:oppC, A=uf.home?oppC:c;
     const col=COMP_COLOR[uf.comp]||'var(--acc)';
     const oppMeta = uf.comp==='League'? `OVR ${oppC.ovr} · ${this.clubRankLabel(uf.oppName)}` : `OVR ${oppC.ovr}`;
-    nm.innerHTML=`<div class="kicker" style="text-align:center;color:${col};display:flex;gap:8px;align-items:center;justify-content:center">${uf.comp==='Champions Cup'?ccBall(18):''}${uf.comp}${uf.roundName?' · '+uf.roundName:''}</div>
+    nm.innerHTML=`<div class="kicker" style="text-align:center;color:${col};display:flex;gap:8px;align-items:center;justify-content:center">${uf.comp==='Champions Cup'?ccBall(18):''}${uf.comp}${uf.roundName?' · '+uf.roundName:''}${uf.derby?' <span class="badge" style="color:var(--acc3);border-color:rgba(255,46,136,.4)">DERBY</span>':''}</div>
       <div class="nm-vs">
         <div class="nm-team" ${H!==c?`style="cursor:pointer" onclick='Game.showClub("${uf.oppName}")'`:''}><div style="display:flex;align-items:flex-end;gap:6px"><div style="width:44px">${kitSVG(H,44)}</div><div class="crest">${crestSVG(H,58)}</div></div><b>${H.short}</b><span style="color:var(--dim);font-size:11px">${H===c?'(You)':oppMeta}</span></div>
         <div class="nm-mid"><div class="comp" style="color:${col}">${COMP_SHORT[uf.comp]}</div><div class="vs">VS</div><div style="color:var(--dim);font-size:11px">${this.fmtDate(uf.date)}</div></div>
@@ -1825,12 +1827,14 @@ Game.renderSquad=function(v){
         <button class="tm-tab ${tab==='squad'?'on':''}" onclick="Game.setSquadTab('squad')">Squad</button>
         <button class="tm-tab" onclick="Game.go('tactics')">Tactics</button>
         <button class="tm-tab ${tab==='assign'?'on':''}" onclick="Game.setSquadTab('assign')">Assignments</button>
+        <button class="tm-tab ${tab==='training'?'on':''}" onclick="Game.setSquadTab('training')">Training</button>
         <button class="tm-tab" onclick="Game.go('academy')">Academy</button>
       </div>
     </div>
     <div style="text-align:right"><div style="font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:.1em">Starting XI · ${this.state.formation}</div><div style="font-size:22px;font-weight:900;color:var(--acc)">${avg} OVR</div></div>
   </div>`;
   if(tab==='assign'){ v.appendChild(this.assignmentsEl()); return; }
+  if(tab==='training'){ v.appendChild(this.trainingEl()); return; }
   v.appendChild(el('div','tm-hint',`Tap a player, then tap another to <b style="color:var(--txt)">&nbsp;swap positions or bring a sub on</b>. Tap once and use the card to sell or view.`));
   const grid=el('div','grid'); grid.style.gridTemplateColumns='1.35fr 1fr'; grid.style.alignItems='start';
   const pitchCard=el('div','card card-pad'); pitchCard.appendChild(this.pitchEl(xi));
@@ -1868,6 +1872,38 @@ Game.assignmentsEl=function(){
   return card;
 };
 Game.setAssign=function(role,id){this.state.assign=this.state.assign||{};this.state.assign[role]=id;toast(role+' assigned')};
+const TRAINING_FOCI=[
+  {id:'balanced',name:'Balanced',desc:'A measured week. No bonus, no drawback — steady as she goes.'},
+  {id:'attack',name:'Attacking Drills',desc:'Sharpens finishing and creativity in matches, but players tire a little faster.'},
+  {id:'defense',name:'Defensive Shape',desc:'Tightens the backline and reduces goals conceded, at some cost to attacking threat.'},
+  {id:'fitness',name:'Fitness & Conditioning',desc:'Faster energy recovery between matches and a lower injury rate.'},
+  {id:'setpieces',name:'Set Pieces',desc:'Your designated takers become more dangerous from corners and free kicks.'},
+];
+Game.trainingEl=function(){
+  const cur=this.state.training||'balanced';
+  const wrap=el('div','grid'); wrap.style.gridTemplateColumns='1fr 1fr'; wrap.style.alignItems='start';
+  const card=el('div','card card-pad');
+  card.innerHTML=`<h4 style="margin-bottom:6px">Weekly Training Focus</h4><div style="color:var(--dim);font-size:12.5px;margin-bottom:16px">Choose how the squad prepares. Effects apply to every match until you change it.</div>`;
+  TRAINING_FOCI.forEach(t=>{
+    const b=el('div','answer'+(cur===t.id?'':''),null); b.style.marginBottom='10px'; b.style.cursor='pointer';
+    b.style.outline=cur===t.id?'2px solid var(--acc)':'none'; b.style.borderColor=cur===t.id?'var(--acc)':'var(--line)';
+    b.innerHTML=`<span class="tone ${cur===t.id?'tone-bold':'tone-calm'}">${cur===t.id?'active':'select'}</span><span><b>${t.name}</b><div style="color:var(--dim);font-size:12px;margin-top:2px">${t.desc}</div></span>`;
+    b.onclick=()=>{this.state.training=t.id; toast('Training focus: '+t.name); this.go('squad'); this.squadTab='training';};
+    card.appendChild(b);
+  });
+  wrap.appendChild(card);
+  const right=el('div','card card-pad');
+  const avgEnergy=Math.round(Game.squad(this.state.club).reduce((s,p)=>s+(p.energy==null?100:p.energy),0)/Math.max(1,Game.squad(this.state.club).length));
+  right.innerHTML=`<h4 style="margin-bottom:14px">Squad Condition</h4>
+    <div class="meters">${meter('Average Energy',avgEnergy,avgEnergy>=60?'var(--good)':avgEnergy>=35?'var(--warn)':'var(--bad)')}</div>
+    <div class="divider"></div>
+    <h4 style="margin-bottom:12px">Tired Players</h4>
+    <div class="roster" style="max-height:320px">${Game.squad(this.state.club).slice().sort((a,b)=>(a.energy==null?100:a.energy)-(b.energy==null?100:b.energy)).slice(0,8).map(p=>{const e=p.energy==null?100:p.energy;
+      return `<div class="rrow" onclick='Game.openPlayer("${p.id}")'><div class="ovr ${ovrClass(p.ovr)}" style="width:34px;height:34px;font-size:14px">${p.ovr}</div>
+      <div class="face">${faceSVG(p.seed,40)}</div><div class="info"><b>${p.name}</b><div class="sub"><div class="energy" style="width:80px;margin-top:4px"><i style="width:${e}%;background:${e>=60?'var(--good)':e>=35?'var(--warn)':'var(--bad)'}"></i></div></div></div><div class="pos-tag">${p.pos}</div></div>`}).join('')}</div>`;
+  wrap.appendChild(right);
+  return wrap;
+};
 function span(h){return `<span style="display:inline-block;vertical-align:middle">${h}</span>`}
 function natName(k){return (NATIONS[k]||{name:k}).name}
 Game.pitchEl=function(xi){
@@ -2331,9 +2367,10 @@ Game.buildUserSeason=function(){
   const start=new Date(this.state.year,7,9); this.state.calStart=start.getTime();
   const lg=this.leagueOf(this.state.club); const sched=this.state.schedules[lg.id];
   const fx=[];
+  const rival=this.rivalOf(this.state.club);
   for(let w=0;w<sched.length;w++){ const g=sched[w].find(m=>m[0]===this.state.club||m[1]===this.state.club); if(!g)continue;
     const home=g[0]===this.state.club, opp=home?g[1]:g[0];
-    fx.push({id:'L'+w,date:addDays(start,14+w*7).getTime(),comp:'League',week:w,oppName:opp,home,played:false}); }
+    fx.push({id:'L'+w,date:addDays(start,14+w*7).getTime(),comp:'League',week:w,oppName:opp,home,played:false,derby:opp===rival}); }
   this.state.cc=null;
   if(this.qualifiedForCC()) this.setupChampionsCup(fx,start);
   this.setupDomesticCup(fx,start);
@@ -2343,7 +2380,8 @@ Game.buildUserSeason=function(){
   const tier=this.leagueOf(this.state.club).tier||1;
   const rankByOvr=lg.clubs.slice().sort((a,b)=>b.ovr-a.ovr).findIndex(c=>c.name===this.state.club)+1;
   const target = rankByOvr<=1?'win the league': rankByOvr<=4?'finish in the top four': rankByOvr<=10?'secure a top-half finish':'achieve a comfortable mid-table finish and avoid relegation';
-  this.state.objective=target;
+  this.state.objective=target; this.state.objectiveRank=rankByOvr;
+  this.state.sackWarned=false; this.state.lossStreak=0;
   this.pushMail('Club Board',`Season ${this.state.season} objectives`,`Welcome to the new campaign. The board expects you to ${target} in the ${lg.name}${this.qualifiedForCC()?', and to represent us with pride in the Champions Cup':''}. Good luck.`);
 };
 Game.setupChampionsCup=function(fx,start){
@@ -2448,7 +2486,8 @@ Game.startLiveMatch=function(f){
   const me=this.state.club;
   const home=f.home?me:f.oppName, away=f.home?f.oppName:me;
   // rest recovery before kickoff
-  Game.squad(me).forEach(p=>{ p.energy=clamp((p.energy==null?100:p.energy)+32,0,100); });
+  const recov = this.state.training==='fitness'?45:32;
+  Game.squad(me).forEach(p=>{ p.energy=clamp((p.energy==null?100:p.energy)+recov,0,100); });
   const xiH=this.matchXI(home), xiA=this.matchXI(away);
   const userSide=f.home?'H':'A';
   const LM=this.LM={ f, comp:f.comp, roundName:f.roundName, home, away, userSide,
@@ -2499,10 +2538,14 @@ Game.lmStrength=function(side){
 Game.lmMinute=function(){
   const LM=this.LM, r=LM.r;
   const H=this.lmStrength('H'), A=this.lmStrength('A');
-  const mentH=LM.userSide==='H'?[-1.3,-0.6,0,0.9,1.7][LM.mentality]:0;
-  const mentA=LM.userSide==='A'?[-1.3,-0.6,0,0.9,1.7][LM.mentality]:0;
+  const trainAtk = this.state.training==='attack'?0.9: this.state.training==='defense'?-0.4:0;
+  const trainDef = this.state.training==='defense'?0.9: this.state.training==='attack'?-0.4:0;
+  const mentH=LM.userSide==='H'?[-1.3,-0.6,0,0.9,1.7][LM.mentality]+trainAtk:0;
+  const mentA=LM.userSide==='A'?[-1.3,-0.6,0,0.9,1.7][LM.mentality]+trainAtk:0;
   const rate=(atk,defo,adv,ment,menS,menO)=>clamp(0.085+(atk-defo+adv+ment)*0.0055,0.018,0.30)*(menS/11)*((12-menO)/11);
-  const rH=rate(H.atk,A.def,3,mentH,H.men,A.men), rA=rate(A.atk,H.def,0,mentA,A.men,H.men);
+  let rH=rate(H.atk,A.def,3,mentH,H.men,A.men), rA=rate(A.atk,H.def,0,mentA,A.men,H.men);
+  if(LM.userSide==='H') rA=clamp(rA-trainDef*0.006,0.01,0.35);
+  if(LM.userSide==='A') rH=clamp(rH-trainDef*0.006,0.01,0.35);
   // possession drift toward stronger side
   const target=50+clamp((H.atk-A.atk)*1.4,-22,22); LM.possH+=(target-LM.possH)*0.06;
   if(r()<rH) this.lmChance('H',H,A);
@@ -2517,7 +2560,8 @@ Game.lmChance=function(side,S,O){
   const shooter=weightedScorer(r,xi);
   const xgAdd=clamp(0.06+(shooter.attrs.shooting-70)*0.004,0.02,0.35); if(side==='H')LM.xgH+=xgAdd; else LM.xgA+=xgAdd;
   const onTarget=r()<0.42; if(onTarget){ if(side==='H')LM.sotH++; else LM.sotA++; }
-  const goalP=clamp(0.30+(S.atk-O.def)*0.006+(shooter.attrs.shooting-72)*0.004,0.06,0.62)*(onTarget?1:0.15);
+  let goalP=clamp(0.30+(S.atk-O.def)*0.006+(shooter.attrs.shooting-72)*0.004,0.06,0.62)*(onTarget?1:0.15);
+  if(this.state.training==='setpieces' && side===LM.userSide && (shooter.posGroup==='DEF'||shooter.pos==='CDM')) goalP*=1.28;
   if(r()<goalP){ // GOAL
     if(side==='H')LM.sh++; else LM.sa++;
     const assister=(r()<0.68)?weightedScorer(r,xi.filter(p=>p.id!==shooter.id)):null;
@@ -2648,7 +2692,24 @@ Game.lmApply=function(){
 Game.playMatch=function(){
   const f=this.nextUserFixture(); if(!f){toast('No match to play.');return}
   const opp=this.clubOf(f.oppName);
-  this.matchPress('pre',{opp:opp.short}, ()=>this.startLiveMatch(f));
+  const startPress=()=>this.matchPress('pre',{opp:opp.short}, ()=>this.startLiveMatch(f));
+  if(f.derby) this.derbyCutscene(f,startPress); else startPress();
+};
+Game.derbyCutscene=function(f,cont){
+  const cs=$('#cutscene'), stage=$('#cutStage'); const me=this.clubOf(this.state.club), opp=this.clubOf(f.oppName);
+  cs.classList.add('on');
+  const skip=()=>{ cs.classList.remove('on'); if(cont)cont(); };
+  this._skipCut=skip;
+  stage.innerHTML=`<div class="cut-sign" style="text-align:center">
+    <div style="font-size:12px;letter-spacing:.4em;color:var(--acc3);font-weight:800;margin-bottom:14px">DERBY DAY</div>
+    <div style="display:flex;align-items:center;justify-content:center;gap:30px">
+      <div style="text-align:center"><div style="width:80px;height:92px">${crestSVG(me,80)}</div><b style="display:block;margin-top:8px">${me.short}</b></div>
+      <div style="font-size:38px;font-weight:900;color:var(--dim2)">VS</div>
+      <div style="text-align:center"><div style="width:80px;height:92px">${crestSVG(opp,80)}</div><b style="display:block;margin-top:8px">${opp.short}</b></div>
+    </div>
+    <p style="color:var(--dim);max-width:420px;margin:22px auto 0">Local pride is on the line. The whole city stops for this one — bragging rights await the winner.</p>
+    <button class="btn primary" style="margin-top:20px" onclick="Game.skipCutscene()">Kick Off →</button>
+  </div>`;
 };
 Game.simMatchQuick=function(){
   const f=this.nextUserFixture(); if(!f)return;
@@ -2674,30 +2735,98 @@ Game.finishUserFixture=function(f,res,quick,box){
     });
   }
   // fatigue: light injury chance weighted by low energy among those who played
-  xi.forEach(p=>{ const e=p.energy==null?100:p.energy; const injChance=0.014+(e<45?0.03:0); if(Math.random()<injChance){ p.injWeeks=1+Math.floor(Math.random()*8);
+  const fitnessMult = this.state.training==='fitness'?0.55:1;
+  xi.forEach(p=>{ const e=p.energy==null?100:p.energy; const injChance=(0.014+(e<45?0.03:0))*fitnessMult; if(Math.random()<injChance){ p.injWeeks=1+Math.floor(Math.random()*8);
     this.addNews('drama',`Injury blow: ${p.name} out for ${p.injWeeks} match${p.injWeeks>1?'es':''}`,`The ${p.pos} picked up a knock and faces a spell on the sidelines.`,'');
     this.pushMail('Medical Team',`${p.name} injured`,`${p.name} will be out for approximately ${p.injWeeks} match${p.injWeeks>1?'es':''}. We'll manage his recovery.`); } });
   const w= myG>opG?1: myG<opG?-1:0;
+  const perNudge = (p)=>{ const mult=p&&p.personality==='Volatile'?1.5:p&&p.personality==='Professional'?0.65:1; return mult; };
   this.state.morale=clamp(this.state.morale+(w>0?4:w<0?-5:1),0,100);
+  // individual player morale: those who played feel the result (scaled by personality); rotation-starved subs sulk a little
+  xi.forEach(p=>{ if(p.morale==null)p.morale=70; const base=w>0?3:w<0?-4:0; p.morale=clamp(p.morale+base*perNudge(p),0,100); });
+  Game.squad(me).forEach(p=>{ if(!xi.includes(p)){ if(p.morale==null)p.morale=70; if((this.state.apps[p.id]||0)<(this.state.playedMatches*0.2)) p.morale=clamp(p.morale-0.6*perNudge(p),0,100); } });
   if(f.comp==='League'){ this.applyResult(res); this.advanceWeek(); this.checkDeadlineDay();
-    if(w>0){this.state.boardConfidence=clamp(this.state.boardConfidence+2,0,100);this.state.fanHappiness=clamp(this.state.fanHappiness+3,0,100);}
-    else if(w<0){this.state.boardConfidence=clamp(this.state.boardConfidence-3,0,100);this.state.fanHappiness=clamp(this.state.fanHappiness-4,0,100);}
-    if(w>0)this.addNews('match',`${this.clubOf(me).short} win ${myG}-${opG}`,`${res.scorers.filter(s=>(s.team==='H')===(res.home===me)).map(s=>s.player).join(', ')||'A solid display'} did the damage.`);
+    this.state.lossStreak = w<0 ? (this.state.lossStreak||0)+1 : 0;
+    const streakPenalty = this.state.lossStreak>=3 ? (this.state.lossStreak-2)*2 : 0;
+    const derbyMult = f.derby?1.8:1;
+    if(w>0){this.state.boardConfidence=clamp(this.state.boardConfidence+2*derbyMult,0,100);this.state.fanHappiness=clamp(this.state.fanHappiness+3*derbyMult,0,100);}
+    else if(w<0){this.state.boardConfidence=clamp(this.state.boardConfidence-(3+streakPenalty)*derbyMult,0,100);this.state.fanHappiness=clamp(this.state.fanHappiness-(4+streakPenalty)*derbyMult,0,100);}
+    if(f.derby){ const oppShort=this.clubOf(f.oppName).short;
+      if(w>0) this.addNews('match',`Derby delight! ${this.clubOf(me).short} beat ${oppShort} ${myG}-${opG}`,`Bragging rights secured in style. The fans will be talking about this one for weeks.`,'');
+      else if(w<0) this.addNews('drama',`Derby disaster: ${this.clubOf(me).short} beaten ${opG}-${myG} by ${oppShort}`,`A painful day for the club. Rival fans will not let this be forgotten quickly.`,'');
+      else this.addNews('match',`Derby stalemate: ${this.clubOf(me).short} ${myG}-${opG} ${oppShort}`,`Honours even in a tense local derby.`,'');
+    } else if(w>0)this.addNews('match',`${this.clubOf(me).short} win ${myG}-${opG}`,`${res.scorers.filter(s=>(s.team==='H')===(res.home===me)).map(s=>s.player).join(', ')||'A solid display'} did the damage.`);
+    else if(this.state.lossStreak>=3) this.addNews('drama',`Crisis club? ${this.clubOf(me).short} slump to ${this.state.lossStreak} defeats in a row`,`Pressure is mounting on the manager after a miserable run of form.`,'');
   } else if(f.comp==='Champions Cup'){ this.ccFinish(f,res); }
   else if(f.comp==='Domestic Cup'){ this.dcFinish(f,res); }
+  // unhappy players may demand a transfer
+  Game.squad(me).forEach(p=>{ if(p.morale<20 && Math.random()<0.05 && !(this.state.transferList||[]).includes(p.id)){
+    this.state.transferList=this.state.transferList||[]; this.state.transferList.push(p.id);
+    this.pushMail('Player Concerns',`${p.name} unsettled`,`${p.name} has told staff he is unhappy and would consider a move. He's been added to the transfer list.`); } });
   this.maybeGenerateDrama(); this.autosave();
   if(quick){ this.go('career'); toast(`${COMP_SHORT[f.comp]}: ${this.clubOf(me).short} ${myG}-${opG} ${this.clubOf(f.oppName).short}`);
-    if(this._deadlineDayPending){ this._deadlineDayPending=false; this.deadlineDayEvent(); } return; }
+    if(this._deadlineDayPending){ this._deadlineDayPending=false; this.deadlineDayEvent(); }
+    this.checkSackRisk(); return; }
   this.matchPress('post',{res:w},()=>{
     const cont=()=>this.afterUserFixture();
-    const afterDeadline=()=>{ if(this.nextUserFixture()&&Math.random()<0.28)this.seasonDecision(cont); else cont(); };
+    const afterSack=()=>{ if(this.nextUserFixture()&&Math.random()<0.28)this.seasonDecision(cont); else cont(); };
+    const afterDeadline=()=>{ if(this.checkSackRisk()) return; afterSack(); };
     if(this._deadlineDayPending){ this._deadlineDayPending=false; this.deadlineDayEvent(afterDeadline); } else afterDeadline();
   });
 };
 Game.afterUserFixture=function(){ if(!this.nextUserFixture()) this.endOfSeasonFlow(); else this.go('career'); };
+/* ---------------- BOARD EXPECTATIONS & SACK RACE ---------------- */
+Game.checkSackRisk=function(){
+  const bc=this.state.boardConfidence;
+  if(bc<=10){ this.getSacked('a catastrophic loss of faith from the boardroom after a dismal run of results'); return true; }
+  if(bc<=28 && !this.state.sackWarned){
+    this.state.sackWarned=true;
+    this.pushMail('Club Board','Your position is under scrutiny',`Results have not met the board's expectations this season (target: ${this.state.objective}). Turn things around soon, or your position will be reviewed.`);
+    toast('Board confidence is low — your job may be at risk.');
+  }
+  if(bc>42) this.state.sackWarned=false;
+  return false;
+};
+Game.getSacked=function(reason){
+  const old=this.clubOf(this.state.club);
+  this.state.managerHistory=this.state.managerHistory||[];
+  this.state.managerHistory.push({club:this.state.club,season:this.state.season,reason:'Sacked'});
+  this.addNews('drama',`${this.state.manager.name} sacked by ${old.name}`,`The board have terminated the manager's contract after ${reason}.`,'');
+  clearInterval(this.LM&&this.LM.iv); $('#matchsim').classList.remove('on');
+  this.openModalHTML(`<div style="padding:30px;text-align:center">
+    <div class="kicker" style="color:var(--bad)">Board Decision</div>
+    <h2 style="margin:8px 0 6px;font-size:30px">You Have Been Sacked</h2>
+    <div style="width:64px;height:74px;margin:14px auto">${crestSVG(old,64)}</div>
+    <p style="color:var(--dim);max-width:420px;margin:0 auto 20px">${old.name} have relieved you of your duties after ${reason}. Time to find your next challenge.</p>
+    <button class="btn primary" onclick="Game.closeModal();Game.beginJobSearch()">Find a New Club →</button>
+  </div>`);
+};
+Game.beginJobSearch=function(){
+  this._jobSearch=true; this.pendingView='career';
+  this.renderClubSelect(); this.setActive('career'); this.setCrumbs('Manager','Find a New Club');
+};
+Game.takeNewJob=function(clubName){
+  const c=this.clubOf(clubName);
+  this.state.club=clubName; this.state.budget=c.budget; this.state.wageBudget=Math.round(c.budget*0.6);
+  this.state.formation='4-3-3'; this.state.mentality=2; this.state.training='balanced'; this.state.insts=null; this.state.assign=null;
+  this.state.morale=68; this.state.boardConfidence=62; this.state.fanHappiness=60; this.state.sackWarned=false; this.state.lossStreak=0;
+  this.state.results={}; LEAGUES.forEach(l=>{this.state.tables[l.id]=this.state.tables[l.id]||initLeagueTable(l);});
+  this.state.lineup=this.buildLineup(clubName);
+  this.state.academy=this.buildAcademy();
+  this._jobSearch=false; this._pool=null; this._loanPool=null;
+  this.buildUserSeason();
+  this.addNews('transfer',`${this.state.manager.name} takes charge of ${c.name}`,`A new era begins. Ambitions are high as pre-season gets underway.`,'');
+  toast('Welcome to '+c.name+'.'); this.autosave(); this.go('career');
+};
 Game.endOfSeasonFlow=function(){
   if(this.state.cc && this.state.cc.round!=='done') this.ccSimRemainder();
-  this.state.lastPos=this.clubRank(this.state.club);
+  const pos=this.clubRank(this.state.club);
+  this.state.lastPos=pos;
+  // badly missing the board's objective risks an end-of-season sacking
+  if(this.state.objectiveRank && pos>this.state.objectiveRank+7){
+    this.state.boardConfidence=clamp(this.state.boardConfidence-18,0,100);
+    if(this.state.boardConfidence<22 && Math.random()<0.5){ this.getSacked(`badly missing the season's target of ${this.state.objective} (finished ${pos}${ordinal(pos)})`); return; }
+  }
   this.showSeasonSummary();
 };
 Game.showSeasonSummary=function(){
@@ -2746,7 +2875,7 @@ Game.renderCalendar=function(v){
     const oppC=this.clubOf(f.oppName); const col=COMP_COLOR[f.comp];
     html+=`<div class="cal-cell has ${isNext?'today':''}"><div class="dnum">${day}</div>
       ${f.played?`<div class="res" style="color:${f.myG>f.opG?'var(--good)':f.myG<f.opG?'var(--bad)':'var(--warn)'}">${f.myG}-${f.opG}</div>`:''}
-      <div class="cal-ev" style="background:${col};cursor:pointer" onclick='Game.showClub("${f.oppName}")'><span class="mc">${crestSVG(oppC,16)}</span><span>${f.home?'H':'A'} ${oppC.short}<div class="vn">${COMP_SHORT[f.comp]}</div></span></div></div>`;
+      <div class="cal-ev" style="background:${f.derby?'var(--acc3)':col};cursor:pointer" onclick='Game.showClub("${f.oppName}")'><span class="mc">${crestSVG(oppC,16)}</span><span>${f.home?'H':'A'} ${oppC.short}<div class="vn">${f.derby?'DERBY':COMP_SHORT[f.comp]}</div></span></div></div>`;
   }
   html+='</div><div class="cal-legend">'+Object.entries(COMP_COLOR).map(([k,c])=>`<span><i style="background:${c}"></i>${k}</span>`).join('')+'</div>';
   card.innerHTML=html; v.appendChild(card);
@@ -3191,6 +3320,13 @@ Game.awardTrophy=function(name){
 /* ---------------- STANDINGS ---------------- */
 Game.sortTable=function(a,b){return b.Pts-a.Pts || (b.GF-b.GA)-(a.GF-a.GA) || b.GF-a.GF || a.name.localeCompare(b.name)};
 Game.clubRank=function(name){ const lg=this.leagueOf(name); const rows=Object.values(this.state.tables[lg.id]).sort(this.sortTable); return rows.findIndex(t=>t.name===name)+1; };
+/* ---------------- RIVALRIES & DERBIES ---------------- */
+Game.rivalOf=function(name){
+  const lg=this.leagueOf(name); if(!lg)return null;
+  const idx=lg.clubs.findIndex(c=>c.name===name); if(idx<0)return null;
+  const pairIdx = idx%2===0?idx+1:idx-1;
+  const partner=lg.clubs[pairIdx]; return partner?partner.name:null;
+};
 Game.clubRankLabel=function(name){ const p=this.clubRank(name); const played=this.state.tables[this.leagueOf(name).id][name].P; return played>0?`${p}${ordinal(p)}`:'Preseason'; };
 Game.renderTable=function(v){
   this.setCrumbs('Competitions','Standings');
