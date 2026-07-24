@@ -303,7 +303,14 @@ button{font-family:inherit; cursor:pointer; color:inherit; border:none; backgrou
 .ms-clock .st{font-size:11px; color:var(--dim); letter-spacing:.2em; text-transform:uppercase}
 .ms-progress{width:min(760px,90vw); height:6px; margin:10px auto; border-radius:6px; background:#141c30; overflow:hidden}
 .ms-progress>i{display:block; height:100%; background:linear-gradient(90deg,var(--acc),var(--acc2))}
-.ms-feed{flex:1; overflow:auto; width:min(760px,92vw); margin:12px auto 0; padding:0 6px}
+.ms-feed{flex:1; overflow:auto; min-width:0; padding:0 6px}
+.ms-pitch{position:relative; border-radius:16px; overflow:hidden; aspect-ratio:1.55; border:1px solid var(--line2); flex:1.3;
+  background:linear-gradient(180deg,#0d3a24,#092c1c 50%,#0d3a24); box-shadow:inset 0 0 60px rgba(0,0,0,.4)}
+.ms-pitch svg.lines{position:absolute; inset:0; width:100%; height:100%}
+.ms-dot{position:absolute; transform:translate(-50%,-50%); width:20px; height:20px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+  font-size:8.5px; font-weight:900; box-shadow:0 2px 8px rgba(0,0,0,.55); transition:left .6s ease,top .6s ease,box-shadow .3s; border:2px solid rgba(255,255,255,.55); color:#fff}
+.ms-dot.ball-side{box-shadow:0 0 0 4px rgba(255,255,255,.35),0 2px 8px rgba(0,0,0,.55)}
+.ms-ball{position:absolute; width:7px; height:7px; border-radius:50%; background:#fff; box-shadow:0 0 8px rgba(255,255,255,.9); transform:translate(-50%,-50%); transition:left .6s ease,top .6s ease}
 .ms-ev{display:flex; gap:14px; padding:11px 0; border-bottom:1px solid var(--line); animation:slideIn .35s ease}
 .ms-ev .mm{font-weight:900; color:var(--acc); width:44px; flex:none; font-variant-numeric:tabular-nums}
 .ms-ev .em{width:26px; text-align:center; flex:none}
@@ -311,15 +318,16 @@ button{font-family:inherit; cursor:pointer; color:inherit; border:none; backgrou
 .ms-ev.goal{background:linear-gradient(90deg,rgba(198,255,46,.1),transparent); border-radius:10px; padding:11px 12px; border-bottom:none}
 .ms-ev.goal .tx b{color:var(--acc)}
 .ms-foot{display:flex; gap:12px; justify-content:center; padding:18px; flex-wrap:wrap}
-.ms-body{flex:1; min-height:0; display:flex; width:min(880px,94vw); margin:8px auto 0}
+.ms-body{flex:1; min-height:0; display:flex; gap:14px; width:min(1080px,96vw); margin:8px auto 0}
 .ms-ev .card-y{color:var(--warn)} .ms-ev .card-r{color:var(--bad)}
 .ms-ev.sub{background:linear-gradient(90deg,rgba(0,229,255,.08),transparent); border-radius:10px; padding:9px 12px; border-bottom:none}
 .ms-livestat{display:flex; gap:0; width:min(880px,94vw); margin:6px auto; align-items:center; font-size:12px; color:var(--dim)}
 .ms-livestat .bar{flex:1; height:6px; border-radius:6px; background:#222c46; overflow:hidden; margin:0 10px}
 .ms-livestat .bar>i{display:block; height:100%; background:var(--acc)}
 /* management panel */
-#msManage{position:absolute; inset:0; background:rgba(4,7,14,.94); backdrop-filter:blur(6px); z-index:5; display:none; padding:22px; overflow:auto}
-#msManage.on{display:block}
+#msManage{position:absolute; top:0; right:0; bottom:0; width:min(420px,90vw); background:rgba(6,9,16,.97); backdrop-filter:blur(10px); z-index:5;
+  padding:22px; overflow:auto; border-left:1px solid var(--line2); transform:translateX(100%); transition:transform .32s cubic-bezier(.2,.8,.2,1); box-shadow:-20px 0 50px rgba(0,0,0,.4)}
+#msManage.on{transform:translateX(0)}
 .mng-wrap{width:min(1000px,96vw); margin:0 auto}
 .mng-head{display:flex; align-items:center; justify-content:space-between; margin-bottom:14px}
 .mng-cols{display:grid; grid-template-columns:1fr 1fr; gap:16px}
@@ -2904,7 +2912,8 @@ Game.startLiveMatch=function(f){
   $('#msNameH').textContent=H.short; $('#msNameA').textContent=A.short;
   $('#msComp').textContent=(f.comp==='Champions Cup'?'★ ':'')+f.comp+(f.roundName?' · '+f.roundName:'');
   $('#msScoreH').textContent='0'; $('#msScoreA').textContent='0'; $('#msBar').style.width='0'; $('#msClock').textContent="0'";
-  $('#msBody').innerHTML='<div class="ms-feed" id="msFeed"></div>'; $('#msManage').classList.remove('on');
+  $('#msBody').innerHTML='<div class="ms-pitch" id="msPitch"></div><div class="ms-feed" id="msFeed"></div>'; $('#msManage').classList.remove('on');
+  this.renderMsPitch();
   ms.classList.remove('cc-theme','dc-theme','derby-theme','wc-theme');
   if(f.derby) ms.classList.add('derby-theme');
   else if(f.comp==='Champions Cup') ms.classList.add('cc-theme');
@@ -2998,9 +3007,28 @@ Game.lmFeed=function(type,side,txt){ const LM=this.LM; LM.feed.push({min:LM.minu
   const row=el('div','ms-ev'+(type==='goal'?' goal':type==='sub'?' sub':'')); row.innerHTML=`<span class="mm">${LM.minute}'</span><span class="em">${icon}</span><span class="tx">${txt}</span>`;
   fe.appendChild(row); const body=$('#msBody'); if(body)body.scrollTop=body.scrollHeight;
 };
-Game.lmUpdateUI=function(){ const LM=this.LM; $('#msClock').textContent=LM.minute+"'"; $('#msBar').style.width=(LM.minute/90*100)+'%'; $('#msScoreH').textContent=LM.sh; $('#msScoreA').textContent=LM.sa; };
+Game.lmUpdateUI=function(){ const LM=this.LM; $('#msClock').textContent=LM.minute+"'"; $('#msBar').style.width=(LM.minute/90*100)+'%'; $('#msScoreH').textContent=LM.sh; $('#msScoreA').textContent=LM.sa; this.renderMsPitch(); };
+Game.renderMsPitch=function(){
+  const LM=this.LM; const host=$('#msPitch'); if(!LM||!host)return;
+  const H=this.clubOf(LM.home), A=this.clubOf(LM.away);
+  const form=FORMATIONS[this.state.formation]||FORMATIONS['4-3-3'];
+  const posArr=form.pos;
+  const orderXI=(xi)=>{ const gk=xi.find(p=>p.posGroup==='GK'); const out=xi.filter(p=>p.posGroup!=='GK'); return (gk?[gk]:[]).concat(out); };
+  const hXI=orderXI(LM.xiH), aXI=orderXI(LM.xiA);
+  const sway=clamp((LM.possH-50)*0.12,-5,5); // shape nudges toward the side with more of the ball
+  let dots='';
+  hXI.forEach((p,i)=>{ if(!p||!posArr[i])return; const [xo,yo]=posArr[i]; const t=(yo-14)/(90-14);
+    const y=clamp(50+t*46-sway,4,96);
+    dots+=`<div class="ms-dot" style="left:${xo}%;top:${y}%;background:${H.c1};border-color:${H.c2}" title="${p.name}">${hashStr(p.id)%99+1}</div>`; });
+  aXI.forEach((p,i)=>{ if(!p||!posArr[i])return; const [xo,yo]=posArr[i]; const t=(yo-14)/(90-14); const x=100-xo;
+    const y=clamp(50-t*46-sway,4,96);
+    dots+=`<div class="ms-dot" style="left:${x}%;top:${y}%;background:${A.c1};border-color:${A.c2}" title="${p.name}">${hashStr(p.id)%99+1}</div>`; });
+  const ballY=clamp(50-sway*1.6,8,92);
+  host.innerHTML=`<svg class="lines" viewBox="0 0 100 100" preserveAspectRatio="none"><g class="pitch-line"><rect x="2" y="2" width="96" height="96"/><line x1="2" y1="50" x2="98" y2="50"/><circle cx="50" cy="50" r="9"/><rect x="26" y="2" width="48" height="12"/><rect x="26" y="86" width="48" height="12"/></g></svg>
+    ${dots}<div class="ms-ball" style="left:50%;top:${ballY}%"></div>`;
+};
 Game.lmManage=function(){ const LM=this.LM; if(!LM||LM.finished)return; LM.paused=true; this.renderManage(); $('#msManage').classList.add('on'); };
-Game.lmResume=function(){ const LM=this.LM; $('#msManage').classList.remove('on'); LM.paused=false; if(!LM.finished && LM.minute<90) this.lmRun(); };
+Game.lmResume=function(){ const LM=this.LM; $('#msManage').classList.remove('on'); LM.paused=false; this.renderMsPitch(); if(!LM.finished && LM.minute<90) this.lmRun(); };
 Game.renderManage=function(){
   const LM=this.LM; const side=LM.userSide; const xi=side==='H'?LM.xiH:LM.xiA;
   const bench=this.matchBench();
