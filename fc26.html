@@ -1332,6 +1332,54 @@ Game.musicToggleMute=function(e){
 };
 
 /* ============================================================
+   UI SOUND EFFECTS — soft synthesized click/hover feedback
+   ============================================================ */
+Game.sfxCtx=function(){
+  if(!this._sfxCtx){ const AC=window.AudioContext||window.webkitAudioContext; this._sfxCtx=new AC(); }
+  if(this._sfxCtx.state==='suspended') this._sfxCtx.resume();
+  return this._sfxCtx;
+};
+Game.playClick=function(){
+  try{
+    const ctx=this.sfxCtx(), now=ctx.currentTime;
+    const det=1+(Math.random()*0.06-0.03);
+    const filt=ctx.createBiquadFilter(); filt.type='lowpass'; filt.frequency.value=2500; filt.connect(ctx.destination);
+    // soft low body
+    const o1=ctx.createOscillator(); o1.type='sine'; o1.frequency.value=210*det;
+    const g1=ctx.createGain(); g1.gain.setValueAtTime(0.0001,now); g1.gain.linearRampToValueAtTime(0.16,now+0.005); g1.gain.exponentialRampToValueAtTime(0.0001,now+0.1);
+    o1.connect(g1); g1.connect(filt);
+    // gentle high tick for definition
+    const o2=ctx.createOscillator(); o2.type='triangle'; o2.frequency.value=1150*det;
+    const g2=ctx.createGain(); g2.gain.setValueAtTime(0.0001,now); g2.gain.linearRampToValueAtTime(0.045,now+0.003); g2.gain.exponentialRampToValueAtTime(0.0001,now+0.035);
+    o2.connect(g2); g2.connect(filt);
+    o1.start(now); o1.stop(now+0.12); o2.start(now); o2.stop(now+0.05);
+  }catch(e){}
+};
+Game.playHover=function(){
+  try{
+    const ctx=this.sfxCtx(), now=ctx.currentTime;
+    const filt=ctx.createBiquadFilter(); filt.type='lowpass'; filt.frequency.value=3200; filt.connect(ctx.destination);
+    const o=ctx.createOscillator(); o.type='sine'; o.frequency.value=770+Math.random()*50;
+    const g=ctx.createGain(); g.gain.setValueAtTime(0.0001,now); g.gain.linearRampToValueAtTime(0.035,now+0.006); g.gain.exponentialRampToValueAtTime(0.0001,now+0.045);
+    o.connect(g); g.connect(filt);
+    o.start(now); o.stop(now+0.06);
+  }catch(e){}
+};
+Game.initSfx=function(){
+  if(this._sfxInit)return; this._sfxInit=true;
+  const SEL='button, select, .nav-item, [onclick]';
+  document.addEventListener('click',e=>{ if(e.target.closest(SEL)) this.playClick(); },true);
+  let lastHoverAt=0;
+  document.addEventListener('mouseover',e=>{
+    const t=e.target.closest(SEL); if(!t||t===this._lastHoverEl)return;
+    this._lastHoverEl=t;
+    const now=performance.now(); if(now-lastHoverAt<70)return;
+    lastHoverAt=now; this.playHover();
+  },true);
+  document.addEventListener('mouseout',e=>{ const t=e.target.closest(SEL); if(t&&t===this._lastHoverEl)this._lastHoverEl=null; },true);
+};
+
+/* ============================================================
    BOOT / INTRO
    ============================================================ */
 const TIPS=['Loading face-scan data…','Syncing transfer market…','Compiling tactical systems…','Rendering 5 leagues…','Preparing International mode…','Polishing the trophy cabinet…'];
@@ -1359,6 +1407,7 @@ function startApp(){
     $('#top').style.display='flex'; $('#shell').style.display='flex';
     buildNav(); Game.go('hub');
     Game.initMusic();
+    Game.initSfx();
   },380);
 }
 
