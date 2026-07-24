@@ -354,6 +354,20 @@ button{font-family:inherit; cursor:pointer; color:inherit; border:none; backgrou
 .sp-result.goal{color:var(--acc)} .sp-result.miss{color:var(--bad)} .sp-result.save{color:var(--warn)}
 @keyframes spNetShake{0%{transform:translate(0,0)} 20%{transform:translate(-2px,1px)} 40%{transform:translate(2px,-1px)} 60%{transform:translate(-1px,1px)} 100%{transform:translate(0,0)}}
 .sp-goal.hit .sp-net{animation:spNetShake .3s ease}
+/* ============ NOW PLAYING WIDGET ============ */
+#nowPlaying{position:fixed; right:16px; bottom:16px; z-index:200; display:flex; align-items:center; gap:10px;
+  background:rgba(8,11,18,.88); backdrop-filter:blur(10px); border:1px solid var(--line2); border-radius:14px;
+  padding:8px 12px 8px 8px; box-shadow:0 12px 34px rgba(0,0,0,.5); cursor:pointer; user-select:none;
+  opacity:0; transform:translateY(14px); pointer-events:none; transition:opacity .4s ease, transform .4s ease; max-width:min(300px,60vw)}
+#nowPlaying.on{opacity:1; transform:translateY(0); pointer-events:auto}
+#nowPlaying.muted .np-mute{opacity:.45}
+.np-cover{width:42px; height:42px; border-radius:9px; flex:none; overflow:hidden; background:linear-gradient(135deg,#1c2440,#0a0e18); box-shadow:0 0 0 1px var(--line2)}
+.np-cover img{width:100%; height:100%; object-fit:cover; display:block}
+.np-info{min-width:0}
+.np-title{font-size:12.5px; font-weight:800; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:180px}
+.np-artist{font-size:11px; color:var(--dim); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:180px; margin-top:1px}
+.np-mute{font-size:14px; flex:none; margin-left:2px; opacity:.9; transition:opacity .2s}
+@media (max-width:640px){ #nowPlaying{right:10px; bottom:10px} .np-title,.np-artist{max-width:110px} }
 /* management panel */
 #msManage{position:absolute; top:0; right:0; bottom:0; width:min(420px,90vw); background:rgba(6,9,16,.97); backdrop-filter:blur(10px); z-index:5;
   padding:22px; overflow:auto; border-left:1px solid var(--line2); transform:translateX(100%); transition:transform .32s cubic-bezier(.2,.8,.2,1); box-shadow:-20px 0 50px rgba(0,0,0,.4)}
@@ -644,6 +658,17 @@ button{font-family:inherit; cursor:pointer; color:inherit; border:none; backgrou
 
 <!-- SET-PIECE MINI-GAME (penalties / free kicks / shootouts) -->
 <div id="setpiece"><div id="spStage"></div></div>
+
+<!-- NOW PLAYING WIDGET -->
+<audio id="bgAudio" preload="auto"></audio>
+<div id="nowPlaying" onclick="Game.musicToggleMute()">
+  <div class="np-cover" id="npCover"></div>
+  <div class="np-info">
+    <div class="np-title" id="npTitle">—</div>
+    <div class="np-artist" id="npArtist">—</div>
+  </div>
+  <div class="np-mute" id="npMute">🔊</div>
+</div>
 
 <script>
 /* ============================================================
@@ -1247,6 +1272,66 @@ function attrColor(v){return v>=85?'var(--good)':v>=72?'var(--acc)':v>=60?'var(-
 function toast(msg,icon){const t=$('#toast');t.innerHTML=(icon?icon+' ':'')+msg;t.classList.remove('show');void t.offsetWidth;t.classList.add('show');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),2600)}
 
 /* ============================================================
+   BACKGROUND MUSIC — rotating soundtrack, bottom-right now-playing widget
+   ============================================================ */
+function musicPlaceholderCover(seed){
+  const palettes=[['#c6ff2e','#0d2038'],['#00e5ff','#0a1030'],['#ff2e88','#1a0a20'],['#ffd35a','#20160a']];
+  const [c1,c2]=palettes[hashStr(seed)%palettes.length];
+  const svg=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+    <defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${c1}"/><stop offset="1" stop-color="${c2}"/></linearGradient></defs>
+    <rect width="100" height="100" fill="url(#g)"/>
+    <g fill="none" stroke="rgba(255,255,255,.5)" stroke-width="4" stroke-linecap="round">
+      <path d="M40 66 V30 L68 24 V60"/><circle cx="34" cy="68" r="8" fill="rgba(255,255,255,.5)" stroke="none"/><circle cx="62" cy="62" r="8" fill="rgba(255,255,255,.5)" stroke="none"/>
+    </g></svg>`;
+  return 'data:image/svg+xml;base64,'+btoa(svg);
+}
+const MUSIC_PLAYLIST=[
+  {src:'audio/track1.mp3', title:'Timeless (with Playboi Carti)', artist:'The Weeknd & Playboi Carti', cover:'audio/covers/track1.jpg'},
+  {src:'audio/track2.mp3', title:'Pompeii', artist:'Bastille', cover:null},
+  {src:'audio/track3.mp3', title:'Here', artist:'Alessia Cara', cover:null},
+  {src:'audio/track4.mp3', title:'The Largest', artist:'BigXthaPlug', cover:null},
+  {src:'audio/track5.mp3', title:'Mood (feat. iann dior)', artist:'24kgoldn', cover:'audio/covers/track5.jpg'},
+  {src:'audio/track6.mp3', title:'Lose My Mind (feat. Doja Cat)', artist:'Don Toliver', cover:'audio/covers/track6.jpg'},
+  {src:'audio/track7.mp3', title:'Backstage Pass (ft. Monte Booker)', artist:'The Drums', cover:null},
+  {src:'audio/track8.mp3', title:"Feet Don't Fail Me Now", artist:'Joy Crookes', cover:null},
+];
+Game.initMusic=function(){
+  if(this._musicInit)return; this._musicInit=true;
+  const a=$('#bgAudio'); if(!a)return;
+  this._musicAudio=a; a.volume=0.35;
+  // shuffle the rotation order once per session
+  const order=MUSIC_PLAYLIST.map((_,i)=>i);
+  for(let i=order.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[order[i],order[j]]=[order[j],order[i]];}
+  this._musicOrder=order; this._musicPos=-1;
+  a.addEventListener('ended',()=>this.musicNext());
+  const tryPlay=()=>{ a.play().catch(()=>{
+    const resume=()=>{ a.play().catch(()=>{}); };
+    ['click','keydown','touchstart'].forEach(ev=>document.addEventListener(ev,resume,{once:true}));
+  }); };
+  this.musicNext(); tryPlay();
+};
+Game.musicNext=function(){
+  const a=this._musicAudio; if(!a)return;
+  this._musicPos=(this._musicPos+1)%this._musicOrder.length;
+  const track=MUSIC_PLAYLIST[this._musicOrder[this._musicPos]];
+  a.src=track.src;
+  a.play().catch(()=>{});
+  const widget=$('#nowPlaying'), cover=$('#npCover'), title=$('#npTitle'), artist=$('#npArtist');
+  if(cover) cover.innerHTML=`<img src="${track.cover||musicPlaceholderCover(track.title)}" alt="">`;
+  if(title) title.textContent=track.title;
+  if(artist) artist.textContent=track.artist;
+  if(widget){ widget.classList.remove('on'); void widget.offsetWidth; widget.classList.add('on'); }
+};
+Game.musicToggleMute=function(e){
+  if(e) e.stopPropagation();
+  const a=this._musicAudio; if(!a)return;
+  a.muted=!a.muted;
+  const widget=$('#nowPlaying'), mute=$('#npMute');
+  if(widget) widget.classList.toggle('muted',a.muted);
+  if(mute) mute.textContent=a.muted?'🔇':'🔊';
+};
+
+/* ============================================================
    BOOT / INTRO
    ============================================================ */
 const TIPS=['Loading face-scan data…','Syncing transfer market…','Compiling tactical systems…','Rendering 5 leagues…','Preparing International mode…','Polishing the trophy cabinet…'];
@@ -1273,6 +1358,7 @@ function startApp(){
   setTimeout(()=>{ $('#intro').style.display='none';
     $('#top').style.display='flex'; $('#shell').style.display='flex';
     buildNav(); Game.go('hub');
+    Game.initMusic();
   },380);
 }
 
