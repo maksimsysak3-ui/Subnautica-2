@@ -1110,7 +1110,7 @@ function simMatch(home,away, opts={}){
   const fH=formFactor(home), fA=formFactor(away);
   const mH=mentAdj(home), mA=mentAdj(away);
   const diff=(H.atk-A.def)+homeAdv+gap*0.35+fH-fA+mH.atk-mA.def, diff2=(A.atk-H.def)-gap*0.35+fA-fH+mA.atk-mH.def;
-  const xgH=clamp(1.3+diff*0.072,0.16,4.6), xgA=clamp(1.02+diff2*0.072,0.12,4.1);
+  const xgH=clamp(1.43+diff*0.075,0.18,4.8), xgA=clamp(1.12+diff2*0.075,0.14,4.3);
   function goals(xg){let g=0;const L=Math.exp(-xg);let p=1,k=0;const u=r();p*=Math.exp(-xg);let cum=Math.exp(-xg);let f=1;while(true){if(u<cum||k>8)break;k++;f*=xg/k;cum+=Math.exp(-xg)*f}return k}
   let gh=goals(xgH), ga=goals(xgA);
   // build events
@@ -2910,7 +2910,7 @@ Game.lmMinute=function(){
   const trainDef = this.state.training==='defense'?0.9: this.state.training==='attack'?-0.4:0;
   const mentH=LM.userSide==='H'?[-1.3,-0.6,0,0.9,1.7][LM.mentality]+trainAtk:0;
   const mentA=LM.userSide==='A'?[-1.3,-0.6,0,0.9,1.7][LM.mentality]+trainAtk:0;
-  const rate=(atk,defo,adv,ment,menS,menO)=>clamp(0.085+(atk-defo+adv+ment)*0.0055,0.018,0.30)*(menS/11)*Math.min(1.4,11/Math.max(menO,7));
+  const rate=(atk,defo,adv,ment,menS,menO)=>clamp(0.094+(atk-defo+adv+ment)*0.0058,0.02,0.32)*(menS/11)*Math.min(1.4,11/Math.max(menO,7));
   let rH=rate(H.atk,A.def,3,mentH,H.men,A.men), rA=rate(A.atk,H.def,0,mentA,A.men,H.men);
   if(LM.userSide==='H') rA=clamp(rA-trainDef*0.006,0.01,0.35);
   if(LM.userSide==='A') rH=clamp(rH-trainDef*0.006,0.01,0.35);
@@ -2928,7 +2928,7 @@ Game.lmChance=function(side,S,O){
   const shooter=weightedScorer(r,xi);
   const xgAdd=clamp(0.06+(shooter.attrs.shooting-70)*0.004,0.02,0.35); if(side==='H')LM.xgH+=xgAdd; else LM.xgA+=xgAdd;
   const onTarget=r()<0.42; if(onTarget){ if(side==='H')LM.sotH++; else LM.sotA++; }
-  let goalP=clamp(0.30+(S.atk-O.def)*0.006+(shooter.attrs.shooting-72)*0.004,0.06,0.62)*(onTarget?1:0.15);
+  let goalP=clamp(0.315+(S.atk-O.def)*0.006+(shooter.attrs.shooting-72)*0.004,0.07,0.64)*(onTarget?1:0.15);
   if(this.state.training==='setpieces' && side===LM.userSide && (shooter.posGroup==='DEF'||shooter.pos==='CDM')) goalP*=1.28;
   if(r()<goalP){ // GOAL
     if(side==='H')LM.sh++; else LM.sa++;
