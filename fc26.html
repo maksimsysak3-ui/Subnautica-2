@@ -1305,8 +1305,12 @@ Game.initMusic=function(){
   this._musicOrder=order; this._musicPos=-1;
   a.addEventListener('ended',()=>this.musicNext());
   const tryPlay=()=>{ a.play().catch(()=>{
-    const resume=()=>{ a.play().catch(()=>{}); };
-    ['click','keydown','touchstart'].forEach(ev=>document.addEventListener(ev,resume,{once:true}));
+    // use the capture phase so this fires even on elements whose own click handler
+    // calls stopPropagation() (e.g. the hub's main CTA buttons) — otherwise the
+    // very first click a new player makes never reaches this bubble-phase unlock
+    const cleanup=()=>['click','keydown','touchstart'].forEach(ev=>document.removeEventListener(ev,resume,true));
+    const resume=()=>{ a.play().then(cleanup).catch(()=>{}); };
+    ['click','keydown','touchstart'].forEach(ev=>document.addEventListener(ev,resume,true));
   }); };
   this.musicNext(); tryPlay();
 };
