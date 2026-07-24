@@ -493,11 +493,24 @@ button{font-family:inherit; cursor:pointer; color:inherit; border:none; backgrou
 .flash{position:absolute; width:60px; height:60px; border-radius:50%; background:radial-gradient(circle,#fff,transparent 70%); opacity:0; animation:flash 1.6s ease-out infinite}
 .cut-skip{position:absolute; bottom:34px; left:50%; transform:translateX(-50%)}
 .confetti{position:absolute; width:8px; height:12px; top:-20px; animation:conf linear forwards}
-.cut-trophy{position:relative; text-align:center; animation:fadeUp .4s both}
+.cut-trophy{position:relative; text-align:center; animation:fadeUp .4s both; transform-style:preserve-3d}
 .cut-trophy-glow{position:absolute; left:50%; top:-30px; width:280px; height:280px; margin-left:-140px; border-radius:50%; background:radial-gradient(circle,rgba(255,211,90,.4),transparent 70%); animation:pulseGlow 2.2s ease-in-out infinite}
-.cut-trophy-ic{position:relative; color:var(--gold); animation:trophyBounce 1s cubic-bezier(.3,1.6,.4,1) both; filter:drop-shadow(0 10px 26px rgba(255,211,90,.55))}
-@keyframes trophyBounce{0%{transform:scale(.3) translateY(50px) rotate(-8deg);opacity:0} 60%{transform:scale(1.18) translateY(-10px) rotate(3deg);opacity:1} 100%{transform:scale(1) translateY(0) rotate(0)}}
+.cut-trophy-ic{position:relative; color:var(--gold); animation:trophySpin3d 1.3s cubic-bezier(.25,.7,.3,1) both; filter:drop-shadow(0 10px 26px rgba(255,211,90,.55)); transform-style:preserve-3d}
+@keyframes trophySpin3d{0%{transform:perspective(600px) rotateY(-540deg) rotateX(30deg) scale(.2) translateZ(-200px);opacity:0}
+  55%{transform:perspective(600px) rotateY(30deg) rotateX(-8deg) scale(1.2) translateZ(40px);opacity:1}
+  75%{transform:perspective(600px) rotateY(-14deg) rotateX(4deg) scale(1.02) translateZ(0);opacity:1}
+  100%{transform:perspective(600px) rotateY(0) rotateX(0) scale(1) translateZ(0);opacity:1}}
 @keyframes pulseGlow{0%,100%{opacity:.5;transform:scale(1)} 50%{opacity:.9;transform:scale(1.18)}}
+.cut-sack{position:relative; text-align:center; animation:fadeUp .4s both; transform-style:preserve-3d}
+.cut-sack-crest{width:90px; height:104px; margin:0 auto 14px; animation:crestFall3d 1.2s cubic-bezier(.5,0,.7,1) both; transform-style:preserve-3d}
+.cut-sack-stamp{display:inline-block; margin-top:16px; padding:12px 32px; border:5px solid var(--bad); color:var(--bad); font-weight:900; font-size:30px; letter-spacing:.06em; text-transform:uppercase;
+  opacity:0; animation:stampHit3d .5s .95s cubic-bezier(.2,1,.3,1) forwards; transform-style:preserve-3d}
+@keyframes crestFall3d{0%{transform:perspective(500px) rotateX(0) rotateZ(0) translateZ(60px);opacity:1}
+  55%{transform:perspective(500px) rotateX(75deg) rotateZ(-6deg) translateZ(-30px);opacity:1}
+  100%{transform:perspective(500px) rotateX(88deg) rotateZ(-10deg) translateZ(-50px);opacity:.5}}
+@keyframes stampHit3d{0%{transform:perspective(500px) rotateZ(-8deg) rotateX(40deg) scale(2.4) translateZ(260px);opacity:0}
+  70%{transform:perspective(500px) rotateZ(-8deg) rotateX(0) scale(.9) translateZ(0);opacity:1}
+  100%{transform:perspective(500px) rotateZ(-8deg) rotateX(0) scale(1) translateZ(0);opacity:1}}
 @keyframes ring{0%{box-shadow:0 0 0 0 rgba(198,255,46,.5)} 100%{box-shadow:0 0 0 40px rgba(198,255,46,0)}}
 @keyframes stamp{to{opacity:1; transform:rotate(-9deg) scale(1)}}
 @keyframes walkIn{from{transform:translateY(40px) translateZ(-500px) scale(.5); opacity:0} to{transform:none; opacity:1}}
@@ -3226,13 +3239,20 @@ Game.getSacked=function(reason){
   this.state.managerHistory.push({club:this.state.club,season:this.state.season,reason:'Sacked'});
   this.addNews('drama',`${this.state.manager.name} sacked by ${old.name}`,`The board have terminated the manager's contract after ${reason}.`,'');
   clearInterval(this.LM&&this.LM.iv); $('#matchsim').classList.remove('on','cc-theme','dc-theme','derby-theme','wc-theme');
-  this.openModalHTML(`<div style="padding:30px;text-align:center">
-    <div class="kicker" style="color:var(--bad)">Board Decision</div>
-    <h2 style="margin:8px 0 6px;font-size:30px">You Have Been Sacked</h2>
-    <div style="width:64px;height:74px;margin:14px auto">${crestSVG(old,64)}</div>
-    <p style="color:var(--dim);max-width:420px;margin:0 auto 20px">${old.name} have relieved you of your duties after ${reason}. Time to find your next challenge.</p>
-    <button class="btn primary" onclick="Game.closeModal();Game.beginJobSearch()">Find a New Club →</button>
-  </div>`);
+  this.sackedCutscene(old,reason);
+};
+Game.sackedCutscene=function(old,reason){
+  const cs=$('#cutscene'), stage=$('#cutStage');
+  cs.classList.add('on');
+  const skip=()=>{ cs.classList.remove('on'); this.beginJobSearch(); };
+  this._skipCut=skip;
+  stage.innerHTML=`<div class="cut-sack">
+    <div class="cut-sack-crest">${crestSVG(old,90)}</div>
+    <div class="cut-title" style="color:var(--bad)">BOARD DECISION</div>
+    <div class="cut-sack-stamp">Sacked</div>
+    <p style="color:var(--dim);max-width:420px;margin:20px auto 0">${old.name} have relieved you of your duties after ${reason}. Time to find your next challenge.</p>
+    <button class="btn primary" style="margin-top:22px" onclick="Game.skipCutscene()">Find a New Club →</button>
+  </div>`;
 };
 Game.beginJobSearch=function(){
   this._jobSearch=true; this.pendingView='career';
