@@ -1358,7 +1358,7 @@ Game.renderHub=function(v){
         <h1>BUILD A<br>DYNASTY</h1>
         <p>Take control of any club across six leagues of 20 teams. Sign superstars, craft tactics, develop wonderkids, survive the drama, and chase every trophy.</p>
         <div style="display:flex;gap:10px"><button class="btn primary">${started?'Continue as '+this.clubOf(this.state.club).short:'Start Career'} →</button>
-        ${(!started&&this.hasSave())?`<button class="btn" onclick="event.stopPropagation();Game.loadGame()">Load Saved Career</button>`:''}</div>
+        ${(!started&&this.hasSave())?`<button class="btn" onclick="event.stopPropagation();Game.openSlotPicker()">Load Saved Career</button>`:''}</div>
       </div>
       <div class="hub-tiles">
         <div class="hub-tile" onclick="Game.go('transfers')"><div class="em" style="color:var(--acc)">${ic(ICONS.transfers,28)}</div><div><h3>Transfer Centre</h3><p>Scout, negotiate, and hijack deals</p></div><div class="arw">→</div></div>
@@ -1418,7 +1418,8 @@ Game.renderClubSelect=function(){
     const activeLeague=this.selLeague||LEAGUES[0].id;
     const head=el('div','view-head', this._jobSearch
       ? `<div><div class="kicker" style="color:var(--bad)">Unemployed</div><h2>Find a New Club</h2><div class="sub">Your reputation and career history carry over. Pick your next project.</div></div>`
-      : `<div><div class="kicker">Manager Career</div><h2>Choose Your Club</h2><div class="sub">Every squad is scouted with full attributes, play styles & face scans. Pick your project.</div></div>`);
+      : `<div><div class="kicker">Manager Career</div><h2>Choose Your Club</h2><div class="sub">Every squad is scouted with full attributes, play styles & face scans. Pick your project.</div></div>`
+        +(this._jobSearch?'':`<button class="btn ghost" onclick="Game.openCreateClub()">+ Found Your Own Club</button>`));
     view.appendChild(head);
     const tabs=el('div','league-tabs');
     LEAGUES.forEach(l=>{
@@ -1443,6 +1444,46 @@ Game.renderClubSelect=function(){
     this.updateHUD();
   },140);
 };
+Game.openCreateClub=function(){
+  const leagueOpts=LEAGUES.map(l=>`<option value="${l.id}">${l.name}${l.tier===2?' (2nd Division)':''}</option>`).join('');
+  this.openModalHTML(`<div style="padding:26px;max-width:480px">
+    <div class="kicker" style="color:var(--acc2)">Expansion Side</div>
+    <h2 style="margin:6px 0 6px">Found Your Own Club</h2>
+    <div style="color:var(--dim);font-size:13px;margin-bottom:18px">Name your club, pick your colours and a league to join. You'll take over the division's weakest side, rebrand it, and build a squad from scratch.</div>
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <div class="search"><input id="ccName" maxlength="24" placeholder="Club name, e.g. Meridian FC"></div>
+      <div class="search"><input id="ccShort" maxlength="3" style="text-transform:uppercase" placeholder="Short tag, e.g. MFC"></div>
+      <div style="display:flex;gap:12px">
+        <label style="flex:1;font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:.08em">Primary<input id="ccC1" type="color" value="#1a3a8a" style="width:100%;height:38px;margin-top:6px;border-radius:8px;border:1px solid var(--line2);background:none"></label>
+        <label style="flex:1;font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:.08em">Secondary<input id="ccC2" type="color" value="#ffffff" style="width:100%;height:38px;margin-top:6px;border-radius:8px;border:1px solid var(--line2);background:none"></label>
+      </div>
+      <select class="filter-sel" id="ccLeague">${leagueOpts}</select>
+    </div>
+    <div style="display:flex;gap:10px;margin-top:20px">
+      <button class="btn primary" onclick="Game.confirmCreateClub()">Found Club →</button>
+      <button class="btn ghost" onclick="Game.closeModal()">Cancel</button>
+    </div>
+  </div>`);
+};
+Game.confirmCreateClub=function(){
+  const nameEl=document.getElementById('ccName'), shortEl=document.getElementById('ccShort');
+  const name=(nameEl&&nameEl.value||'').trim().slice(0,24) || 'Meridian FC';
+  let short=(shortEl&&shortEl.value||'').trim().toUpperCase().slice(0,3);
+  if(!short) short=name.replace(/[^A-Za-z]/g,'').slice(0,3).toUpperCase()||'NEW';
+  const c1=document.getElementById('ccC1').value, c2=document.getElementById('ccC2').value;
+  const lgId=document.getElementById('ccLeague').value;
+  const lg=LEAGUES.find(l=>l.id===lgId); if(!lg)return;
+  if(lg.clubs.some(c=>c.name.toLowerCase()===name.toLowerCase())){ toast('That name is already taken in this league.'); return; }
+  const weakest=lg.clubs.slice().sort((a,b)=>a.ovr-b.ovr)[0];
+  const oldName=weakest.name;
+  delete this.allClubs[oldName]; delete Game.squads[oldName];
+  weakest.name=name; weakest.short=short; weakest.c1=c1; weakest.c2=c2;
+  weakest.ovr=clamp(weakest.ovr-6,50,68); weakest.budget=Math.round(weakest.budget*0.6); weakest.custom=true;
+  this.allClubs[name]={club:weakest,league:lg};
+  Game.squads[name]=buildSquad(weakest);
+  this.closeModal();
+  this.startCareer(name);
+};
 Game.startCareer=function(clubName){
   const c=this.clubOf(clubName), lg=this.leagueOf(clubName);
   this.state={
@@ -1453,6 +1494,7 @@ Game.startCareer=function(clubName){
     trophies:{}, newsFeed:[], transfersDone:[], playedMatches:0, academy:[],
     lineup:null, scorers:{}, seasonStats:{}, awards:[], simSpeed:'normal', mail:[], transferList:[],
     freeAgents:[], loansOut:[], loansIn:[], window:{},
+    natJob:null, natSquadPicks:{}, natRecord:{},
   };
   // init all league tables & schedules
   LEAGUES.forEach(l=>{
@@ -3464,6 +3506,24 @@ Game.renderInternational=function(v){
   const isWCYear = yr%4===0;
   v.innerHTML=`<div class="view-head"><div><div class="kicker">International Football · held every 4 years</div><h2>FC World Cup ${this.state.wc?this.state.wc.year:nextWC}</h2><div class="sub">${NATION_KEYS.length} nations enter qualifying · 32 reach the finals · group stage then knockout.${isWCYear?' <span style="color:var(--acc)">It\'s a World Cup summer!</span>':` Next finals: ${nextWC}.`}</div></div>
     <button class="btn primary" onclick="Game.simWorldCup()">${this.state.wc?'Re-Simulate':'Simulate Tournament'}</button></div>`;
+  const k=this.state.natJob;
+  if(k){
+    const rec=(this.state.natRecord&&this.state.natRecord[k])||{w:0,d:0,l:0};
+    const picks=this.natPicksFor(k);
+    const job=el('div','card card-pad'); job.style.marginBottom='16px';
+    job.style.background='linear-gradient(120deg,rgba(72,255,166,.08),rgba(9,12,20,.7))';
+    job.style.borderColor='rgba(72,255,166,.3)';
+    job.innerHTML=`<div style="display:flex;align-items:center;gap:18px;flex-wrap:wrap">
+      <div style="font-size:48px;line-height:1">${flagEmoji(k)}</div>
+      <div><div class="kicker" style="color:var(--good)">Your International Job</div><h3 style="margin:2px 0">${natName(k)} National Team</h3>
+        <div style="color:var(--dim);font-size:12.5px">Friendly record ${rec.w}W ${rec.d}D ${rec.l}L · Squad ${picks.length}/23 selected</div></div>
+      <div style="margin-left:auto;display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn sm" onclick="Game.openNatSquadPicker('${k}')">Manage Squad</button>
+        <button class="btn sm acc2" onclick="Game.openFriendlyPicker()">Arrange Friendly</button>
+        <button class="btn sm ghost" style="color:var(--bad)" onclick="Game.resignNatJob()">Resign</button>
+      </div></div>`;
+    v.appendChild(job);
+  }
   if(!this.state.wc){
     // preview national squads
     const grid=el('div','club-grid');
@@ -3523,12 +3583,21 @@ Game.renderInternational=function(v){
   v.appendChild(wrap);
 };
 // national squad = the real players from clubs who hold that nationality, best first
-Game.nationSquad=function(k,rebuild){
-  this._natSquads=this._natSquads||{};
-  if(this._natSquads[k]&&!rebuild)return this._natSquads[k];
+Game.natEligiblePool=function(k){
   const pool=[];
   LEAGUES.forEach(l=>l.clubs.forEach(c=>{ Game.squad(c.name).forEach(p=>{ if(p.nat===k) pool.push(p); }); }));
   pool.sort((a,b)=>b.ovr-a.ovr);
+  return pool;
+};
+Game.nationSquad=function(k,rebuild){
+  this._natSquads=this._natSquads||{};
+  const picks=this.state.natSquadPicks&&this.state.natSquadPicks[k];
+  if(picks&&picks.length>=16){
+    const squad=picks.map(id=>this.findPlayer(id)).filter(p=>p&&p.nat===k);
+    if(squad.length>=16){ this._natSquads[k]=squad; this._natCache=this._natCache||{}; squad.forEach(p=>this._natCache[p.id]=p); return squad; }
+  }
+  if(this._natSquads[k]&&!rebuild)return this._natSquads[k];
+  const pool=this.natEligiblePool(k);
   // guarantee positional cover: 3 GK, then best outfield
   const gks=pool.filter(p=>p.posGroup==='GK').slice(0,3);
   const out=pool.filter(p=>p.posGroup!=='GK');
@@ -3538,6 +3607,96 @@ Game.nationSquad=function(k,rebuild){
   this._natSquads[k]=squad;
   this._natCache=this._natCache||{}; squad.forEach(p=>this._natCache[p.id]=p);
   return squad;
+};
+Game.natPicksFor=function(k){
+  this.state.natSquadPicks=this.state.natSquadPicks||{};
+  if(!this.state.natSquadPicks[k]) this.state.natSquadPicks[k]=this.nationSquad(k,true).map(p=>p.id);
+  return this.state.natSquadPicks[k];
+};
+Game.natAddPick=function(k,id){
+  const picks=this.natPicksFor(k);
+  if(picks.includes(id))return;
+  if(picks.length>=23){toast('Squad is full (23).');return;}
+  picks.push(id); delete this._natSquads[k];
+  this.openNatSquadPicker(k);
+};
+Game.natRemovePick=function(k,id){
+  const picks=this.natPicksFor(k);
+  if(picks.length<=16){toast('Need at least 16 players in the squad.');return;}
+  const i=picks.indexOf(id); if(i<0)return;
+  picks.splice(i,1); delete this._natSquads[k];
+  this.openNatSquadPicker(k);
+};
+Game.natResetPicks=function(k){
+  delete this.state.natSquadPicks[k]; delete this._natSquads[k];
+  this.openNatSquadPicker(k);
+};
+Game.natPickRowHTML=function(p,k,inSquad){
+  return `<div class="market-row" style="grid-template-columns:1fr auto;padding:6px 8px">
+    <div><b style="font-size:12.5px">${p.name}</b> <span style="color:var(--dim);font-size:11px">${p.pos} · ${p.ovr}${!inSquad&&this.clubOf(p.club)?' · '+this.clubOf(p.club).short:''}</span></div>
+    <button class="btn sm ${inSquad?'ghost':''}" onclick="Game.${inSquad?'natRemovePick':'natAddPick'}('${k}','${p.id}')">${inSquad?'✕':'+'}</button></div>`;
+};
+Game.openNatSquadPicker=function(k){
+  this._natPickerSearch=this._natPickerSearch||'';
+  const picks=this.natPicksFor(k);
+  const squad=picks.map(id=>this.findPlayer(id)).filter(Boolean).sort((a,b)=>b.ovr-a.ovr);
+  const pool=this.natEligiblePool(k).filter(p=>!picks.includes(p.id));
+  this.openModalHTML(`<div style="padding:26px;max-width:680px">
+    <div class="kicker" style="color:var(--acc2)">${natName(k)} Squad</div>
+    <h2 style="margin:6px 0 4px">Call-Ups <span style="color:var(--dim);font-size:14px;font-weight:600">(${picks.length}/23)</span></h2>
+    <div style="color:var(--dim);font-size:12.5px;margin-bottom:14px">Pick your squad from every eligible ${natName(k)} player across the world's leagues.</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+      <div><div style="font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px">In Squad</div>
+        <div id="natSquadList" style="max-height:44vh;overflow:auto">${squad.map(p=>this.natPickRowHTML(p,k,true)).join('')}</div></div>
+      <div><div style="font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px">Available</div>
+        <div class="search" style="margin-bottom:8px"><input id="natPickSearch" placeholder="Search players…" value="${this._natPickerSearch}"></div>
+        <div id="natAvailList" style="max-height:37vh;overflow:auto"></div></div>
+    </div>
+    <div style="display:flex;gap:10px;margin-top:18px">
+      <button class="btn ghost" onclick="Game.natResetPicks('${k}')">Reset to Auto-Pick</button>
+      <button class="btn primary" onclick="Game.closeModal();Game.go('international')">Done</button>
+    </div>
+  </div>`);
+  const renderAvail=()=>{
+    const q=(this._natPickerSearch||'').toLowerCase();
+    const list=(q?pool.filter(p=>p.name.toLowerCase().includes(q)):pool).slice(0,40);
+    const box=document.getElementById('natAvailList'); if(!box)return;
+    box.innerHTML = list.length? list.map(p=>this.natPickRowHTML(p,k,false)).join('') : '<div class="empty" style="padding:14px">No players found.</div>';
+  };
+  renderAvail();
+  const inp=document.getElementById('natPickSearch');
+  if(inp) inp.oninput=()=>{ this._natPickerSearch=inp.value; renderAvail(); };
+};
+Game.openFriendlyPicker=function(){
+  const k=this.state.natJob; if(!k)return;
+  const opts=NATION_KEYS.filter(x=>x!==k);
+  this.openModalHTML(`<div style="padding:26px;max-width:560px">
+    <div class="kicker" style="color:var(--acc2)">Arrange a Friendly</div>
+    <h2 style="margin:6px 0 14px">Pick an opponent</h2>
+    <div class="club-grid" style="max-height:56vh;overflow:auto">${opts.map(x=>`<div class="club-card" onclick="Game.playFriendly('${x}')">
+      <div style="font-size:36px;line-height:1">${flagEmoji(x)}</div><h3 style="margin-top:8px;font-size:13px">${natName(x)}</h3>
+      <div class="meta"><span>OVR ${Math.round(this.nationXI(x).reduce((s,p)=>s+p.ovr,0)/11)}</span></div></div>`).join('')}</div>
+    <button class="btn ghost" style="margin-top:14px" onclick="Game.closeModal()">Cancel</button>
+  </div>`);
+};
+Game.playFriendly=function(oppKey){
+  const k=this.state.natJob; if(!k)return;
+  this.closeModal();
+  this.registerNation(k); this.registerNation(oppKey);
+  const home=this.natTeamName(k), away=this.natTeamName(oppKey);
+  const finish=(res)=>{
+    this.state.natRecord=this.state.natRecord||{};
+    const rec=this.state.natRecord[k]=this.state.natRecord[k]||{w:0,d:0,l:0};
+    const myG=res.home===home?res.gh:res.ga, opG=res.home===home?res.ga:res.gh;
+    if(myG>opG)rec.w++; else if(myG<opG)rec.l++; else rec.d++;
+    toast(`Friendly: ${natName(k)} ${res.gh}-${res.ga} ${natName(oppKey)}`);
+    this.autosave(); this.go('international');
+  };
+  this.runMatchSim(home,away,true,{comp:'International Friendly',onFinish:finish,wc:true});
+};
+Game.resignNatJob=function(){
+  if(!confirm('Resign as national team manager?'))return;
+  this.state.natJob=null; toast('You have resigned from international duty.'); this.go('international');
 };
 Game.nationXI=function(k){
   const sq=this.nationSquad(k);
@@ -3575,14 +3734,27 @@ Game.buildNationLineup=function(k){
 };
 Game.natTeamName=function(k){return 'NT '+natName(k)};
 Game.offerWorldCupJob=function(after){
+  this._wcAfter=after;
+  if(this.state.natJob){
+    const k=this.state.natJob;
+    this.openModalHTML(`<div style="padding:26px">
+      <div class="kicker" style="color:var(--acc2)">International Break · World Cup Year</div>
+      <h2 style="margin:6px 0 6px">${natName(k)} call you up for the World Cup</h2>
+      <div style="color:var(--dim);font-size:13.5px;margin-bottom:18px">Your appointment with ${natName(k)} continues into the finals. Lead them into the tournament?</div>
+      <div style="display:flex;gap:10px">
+        <button class="btn primary" onclick="Game.startWorldCup('${k}')">Take the Reins</button>
+        <button class="btn ghost" onclick="Game.closeModal();(Game._wcAfter||function(){})()">Skip the World Cup</button>
+      </div>
+    </div>`);
+    return;
+  }
   // suggest the nation with the most players from the user's club, plus a few strong sides
   const r=seeded('wcjob-'+this.state.seasonNum);
   const counts={}; Game.squad(this.state.club).forEach(p=>counts[p.nat]=(counts[p.nat]||0)+1);
   const home=Object.keys(counts).sort((a,b)=>counts[b]-counts[a])[0]||NATION_KEYS[0];
   const strengths=NATION_KEYS.map(k=>({k,s:this.nationXI(k).reduce((x,p)=>x+p.ovr,0)/11})).sort((a,b)=>b.s-a.s);
-  let opts=[this.state.natJob, home, strengths[0].k, strengths[1].k, strengths[ri(r,2,6)].k].filter(Boolean);
+  let opts=[home, strengths[0].k, strengths[1].k, strengths[ri(r,2,6)].k].filter(Boolean);
   opts=[...new Set(opts)].slice(0,4);
-  this._wcAfter=after;
   this.openModalHTML(`<div style="padding:26px">
     <div class="kicker" style="color:var(--acc2)">International Break · World Cup Year</div>
     <h2 style="margin:6px 0 6px">Take charge of a nation</h2>
@@ -3595,6 +3767,7 @@ Game.offerWorldCupJob=function(after){
 };
 Game.startWorldCup=function(userNat){
   this.closeModal();
+  this.state.natJob=userNat;
   const r=seeded('wcT-'+this.state.seasonNum+userNat);
   const strength={}; NATION_KEYS.forEach(k=>strength[k]=this.nationXI(k).reduce((x,p)=>x+p.ovr,0)/11);
   let field=NATION_KEYS.slice().sort((a,b)=>(strength[b]+ri(r,-3,3))-(strength[a]+ri(r,-3,3))).slice(0,32);
@@ -4072,7 +4245,6 @@ Game.setStatsTab=function(t){this.statsTab=t;this.go('stats')};
 Game.renderSettings=function(v){
   this.setCrumbs('Settings');
   const s=this.state;
-  const hasSave=!!localStorage.getItem('fc26save');
   const speeds=[['slow','Slow'],['normal','Normal'],['fast','Fast'],['instant','Instant']];
   v.innerHTML=`<div class="view-head"><div><div class="kicker">Configuration</div><h2>Settings</h2><div class="sub">Save your career, tune match simulation and manage your game.</div></div></div>`;
   const grid=el('div','grid'); grid.style.gridTemplateColumns='1fr 1fr';
@@ -4085,17 +4257,28 @@ Game.renderSettings=function(v){
     <label style="display:flex;align-items:center;gap:10px;font-size:13px;color:var(--dim)"><input type="checkbox" id="autosaveChk" ${s.autosave!==false?'checked':''} onchange="Game.state.autosave=this.checked;Game.toastMsg('Autosave '+(this.checked?'on':'off'))"> Save automatically after each match & season</label>`;
   grid.appendChild(sim);
   const save=el('div','card card-pad');
-  save.innerHTML=`<h4 style="margin-bottom:14px">Save & Load</h4>
-    <div style="color:var(--dim);font-size:12.5px;margin-bottom:14px">Your career is stored in this browser. ${hasSave?'<span style="color:var(--good)">A save exists.</span>':'No save yet.'}</div>
+  const activeSlot=this._slot||1;
+  const slotRows=this.SAVE_SLOTS.map(n=>{
+    const m=this.slotMeta(n); const active=n===activeSlot;
+    return `<div class="market-row" style="grid-template-columns:1fr auto">
+      <div><b>Slot ${n}</b>${active?' <span class="badge good" style="font-size:9px">active</span>':''}
+        <div style="color:var(--dim);font-size:11.5px">${m?`${m.manager?m.manager+' · ':''}${m.club} · ${m.season}`:'Empty'}</div></div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <button class="btn sm ${active?'primary':''}" onclick="Game.saveGame(true,${n})">Save Here</button>
+        ${m?`<button class="btn sm" onclick="Game.loadGame(${n})">Load</button><button class="btn sm ghost" style="color:var(--bad)" onclick="Game.deleteSlot(${n})">Delete</button>`:''}
+      </div></div>`;
+  }).join('');
+  save.innerHTML=`<h4 style="margin-bottom:14px">Save Slots</h4>
+    <div style="color:var(--dim);font-size:12.5px;margin-bottom:14px">Your career is stored in this browser across three independent slots.</div>
+    ${slotRows}
+    <div class="divider"></div>
     <div style="display:flex;gap:10px;flex-wrap:wrap">
-      <button class="btn primary" onclick="Game.saveGame(true)">Save Career</button>
-      <button class="btn" ${hasSave?'':'style="opacity:.4;pointer-events:none"'} onclick="Game.loadGame()">Load Career</button>
-      <button class="btn ghost" onclick="Game.exportSave()">Export to File</button>
+      <button class="btn ghost" onclick="Game.exportSave()">Export Active Slot to File</button>
       <button class="btn ghost" onclick="document.getElementById('importSave').click()">Import File</button>
       <input type="file" id="importSave" accept=".json" style="display:none" onchange="Game.importSave(this.files[0])">
     </div>
     <div class="divider"></div>
-    <button class="btn ghost" style="color:var(--bad);border-color:rgba(255,93,108,.4)" onclick="if(confirm('Abandon this career and return to the main menu?')){Game.state={};localStorage.removeItem('fc26save');Game.go('hub')}">Abandon Career</button>`;
+    <button class="btn ghost" style="color:var(--bad);border-color:rgba(255,93,108,.4)" onclick="if(confirm('Abandon this career and return to the main menu?')){localStorage.removeItem(Game.slotKey(Game._slot||1));Game.state={};Game.go('hub')}">Abandon Career</button>`;
   grid.appendChild(save);
   v.appendChild(grid);
   const info=el('div','card card-pad'); info.style.marginTop='16px';
@@ -4110,25 +4293,105 @@ Game.renderSettings=function(v){
 Game.setSimSpeed=function(sp){this.state.simSpeed=sp;this.go('settings');toast('Match speed: '+sp)};
 Game.toastMsg=function(m){toast(m)};
 
-/* ---------------- SAVE SYSTEM ---------------- */
-Game.saveGame=function(manual){
+/* ---------------- SAVE SYSTEM (multi-slot, gzip-compressed) ---------------- */
+Game.SAVE_SLOTS=[1,2,3];
+Game.slotKey=function(n){ return 'fc26save_'+n; };
+Game.slotMetaKey=function(n){ return 'fc26save_'+n+'_meta'; };
+// localStorage only holds a few MB per origin, and a fully-loaded game world (~120 clubs
+// x 23 players) serializes to several MB — compress so three slots comfortably coexist.
+Game._compress=async function(str){
+  if(typeof CompressionStream==='undefined') return 'raw:'+str;
+  const enc=new TextEncoder().encode(str);
+  const cs=new CompressionStream('gzip');
+  const writer=cs.writable.getWriter(); writer.write(enc); writer.close();
+  const buf=await new Response(cs.readable).arrayBuffer();
+  const bytes=new Uint8Array(buf); let bin=''; const CH=0x8000;
+  for(let i=0;i<bytes.length;i+=CH) bin+=String.fromCharCode.apply(null, bytes.subarray(i,i+CH));
+  return 'gz:'+btoa(bin);
+};
+Game._decompress=async function(str){
+  if(str.startsWith('raw:')) return str.slice(4);
+  if(!str.startsWith('gz:')) return str; // legacy uncompressed save, pre-dates this format
+  const bin=atob(str.slice(3)); const bytes=new Uint8Array(bin.length);
+  for(let i=0;i<bin.length;i++) bytes[i]=bin.charCodeAt(i);
+  const ds=new DecompressionStream('gzip');
+  const writer=ds.writable.getWriter(); writer.write(bytes); writer.close();
+  const buf=await new Response(ds.readable).arrayBuffer();
+  return new TextDecoder().decode(buf);
+};
+Game.migrateLegacySave=function(){
   try{
-    const data={state:this.state, squads:Game.squads, natSquads:this._natSquads||{}, v:2};
-    localStorage.setItem('fc26save', JSON.stringify(data));
-    if(manual)toast('Career saved.');
-  }catch(e){ toast('Save failed (storage full).'); }
+    if(localStorage.getItem('fc26save') && !localStorage.getItem(this.slotKey(1))){
+      const raw=localStorage.getItem('fc26save');
+      localStorage.setItem(this.slotKey(1), raw);
+      try{ const data=JSON.parse(raw); const st=data.state||{};
+        if(st.club){ const c=this.allClubs[st.club];
+          localStorage.setItem(this.slotMetaKey(1), JSON.stringify({club:c?c.club.short:st.club, season:st.season, manager:st.manager&&st.manager.name})); }
+      }catch(e){}
+    }
+  }catch(e){}
+};
+Game.slotMeta=function(n){
+  this.migrateLegacySave();
+  try{ const raw=localStorage.getItem(this.slotMetaKey(n)); return raw?JSON.parse(raw):null; }catch(e){ return null; }
+};
+Game.hasSave=function(slot){
+  this.migrateLegacySave();
+  if(slot) return !!localStorage.getItem(this.slotKey(slot));
+  return this.SAVE_SLOTS.some(n=>!!localStorage.getItem(this.slotKey(n)));
+};
+Game.saveGame=function(manual, slot){
+  slot=slot||this._slot||1; this._slot=slot;
+  try{
+    const data={state:this.state, squads:Game.squads, natSquads:this._natSquads||{}, v:3};
+    const json=JSON.stringify(data);
+    const meta={club:(this.allClubs[this.state.club]&&this.allClubs[this.state.club].club.short)||this.state.club, season:this.state.season, manager:this.state.manager&&this.state.manager.name};
+    this._compress(json).then(packed=>{
+      try{
+        localStorage.setItem(this.slotKey(slot), packed);
+        localStorage.setItem(this.slotMetaKey(slot), JSON.stringify(meta));
+        if(manual){ toast('Career saved to Slot '+slot+'.'); if(this.current==='settings')this.go('settings'); }
+      }catch(e){ toast('Save failed (storage full).'); }
+    }).catch(()=>{ toast('Save failed.'); });
+  }catch(e){ toast('Save failed.'); }
 };
 Game.autosave=function(){ if(this.state.club && this.state.autosave!==false) this.saveGame(false); };
-Game.hasSave=function(){ try{return !!localStorage.getItem('fc26save')}catch(e){return false} };
-Game.loadGame=function(){
-  try{
-    const raw=localStorage.getItem('fc26save'); if(!raw){toast('No save found.');return}
-    const data=JSON.parse(raw);
-    Game.squads=data.squads||{}; this._natSquads=data.natSquads||{}; this._natCache={};
-    Object.values(this._natSquads).forEach(arr=>arr.forEach(p=>this._natCache[p.id]=p));
-    this.state=data.state; this._pool=null; this.manager=this.state.manager||this.manager;
-    toast('Career loaded.'); this.go('career');
-  }catch(e){ toast('Load failed.'); }
+Game.loadGame=function(slot){
+  slot=slot||this._slot||1;
+  const raw=localStorage.getItem(this.slotKey(slot)); if(!raw){toast('No save in that slot.');return}
+  this._decompress(raw).then(json=>{
+    try{
+      const data=JSON.parse(json);
+      Game.squads=data.squads||{}; this._natSquads=data.natSquads||{}; this._natCache={};
+      Object.values(this._natSquads).forEach(arr=>arr.forEach(p=>this._natCache[p.id]=p));
+      this.state=data.state; this._pool=null; this.manager=this.state.manager||this.manager; this._slot=slot;
+      this.closeModal(); toast('Career loaded from Slot '+slot+'.'); this.go('career');
+    }catch(e){ toast('Load failed.'); }
+  }).catch(()=>{ toast('Load failed.'); });
+};
+Game.deleteSlot=function(n){
+  if(!confirm('Delete the career saved in Slot '+n+'? This cannot be undone.'))return;
+  localStorage.removeItem(this.slotKey(n));
+  localStorage.removeItem(this.slotMetaKey(n));
+  toast('Slot '+n+' cleared.');
+  if(this.current==='settings')this.go('settings'); else this.openSlotPicker();
+};
+Game.openSlotPicker=function(){
+  const rows=this.SAVE_SLOTS.map(n=>{
+    const m=this.slotMeta(n);
+    return `<div class="market-row" style="grid-template-columns:1fr auto">
+      <div><b>Slot ${n}</b>${n===(this._slot||1)?' <span class="badge good" style="font-size:9px">active</span>':''}
+        <div style="color:var(--dim);font-size:12px">${m?`${m.manager?m.manager+' · ':''}${m.club} · ${m.season}`:'Empty'}</div></div>
+      <div style="display:flex;gap:6px">
+        ${m?`<button class="btn sm primary" onclick="Game.loadGame(${n})">Load</button><button class="btn sm ghost" style="color:var(--bad)" onclick="Game.deleteSlot(${n})">Delete</button>`:'<span style="color:var(--dim);font-size:11px">No career</span>'}
+      </div></div>`;
+  }).join('');
+  this.openModalHTML(`<div style="padding:26px;max-width:480px">
+    <div class="kicker" style="color:var(--acc2)">Save Slots</div>
+    <h2 style="margin:6px 0 14px">Load a Career</h2>
+    ${rows}
+    <button class="btn ghost" style="margin-top:16px" onclick="Game.closeModal()">Cancel</button>
+  </div>`);
 };
 Game.exportSave=function(){
   const data={state:this.state, squads:Game.squads, natSquads:this._natSquads||{}, v:2};
