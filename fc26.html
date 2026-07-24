@@ -3511,13 +3511,40 @@ Game.showInbox=function(){
         <div><b>${natName(j.nat)} National Team</b><div style="color:var(--dim);font-size:12px">Lead them at the next World Cup</div></div>
         <button class="btn sm" onclick="Game.acceptNatJob('${j.nat}')">Accept</button></div>`).join('')}<div class="divider"></div>`:''}
     ${o.bids.length?`<div style="font-size:12px;color:var(--dim);text-transform:uppercase;letter-spacing:.1em;margin:6px 0 8px">Bids for Your Players</div>${o.bids.map((b,i)=>`
-      <div class="market-row" style="grid-template-columns:40px 1fr auto auto">
+      <div class="market-row" style="grid-template-columns:40px 1fr auto auto auto">
         <div class="face" style="width:38px;height:38px;border-radius:10px;overflow:hidden;border:1px solid var(--line2)">${faceSVG(b.seed,38)}</div>
         <div><b>${b.name}</b> <span style="color:var(--dim);font-size:12px">${b.pos} · ${b.ovr}</span><div style="color:var(--dim);font-size:11.5px">${this.clubOf(b.buyer).name} bid</div></div>
         <b style="color:var(--acc);margin-right:6px">${money(b.bid)}</b>
+        <button class="btn sm ghost" onclick="Game.negotiateBid(${i})">Negotiate</button>
         <button class="btn sm primary" onclick="Game.acceptBid(${i})">Sell</button></div>`).join('')}`:''}
     <button class="btn ghost" style="margin-top:18px" onclick="Game.closeModal()">Dismiss All</button>
   </div>`);
+};
+Game.negotiateBid=function(i){
+  const b=this.state.offers.bids[i]; if(!b)return;
+  const p=this.findPlayer(b.id0||b.id);
+  const counter=Math.round(b.bid*1.25/1e5)*1e5;
+  this.openModalHTML(`<div style="padding:26px;max-width:420px">
+    <div class="kicker" style="color:var(--acc2)">Counter-Offer</div>
+    <h2 style="margin:6px 0 6px">${p?p.name:b.name}</h2>
+    <div style="color:var(--dim);font-size:13px;margin-bottom:18px">${this.clubOf(b.buyer).name} have bid ${money(b.bid)}. Push back for more, or accept as-is.</div>
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <button class="btn primary" onclick="Game.submitCounter(${i},${counter})">Demand ${money(counter)}</button>
+      <button class="btn" onclick="Game.acceptBid(${i})">Accept ${money(b.bid)}</button>
+      <button class="btn ghost" onclick="Game.showInbox()">Back</button>
+    </div>
+  </div>`);
+};
+Game.submitCounter=function(i,ask){
+  const b=this.state.offers.bids[i]; if(!b)return;
+  const r=seeded('counter-'+(b.id0||b.id)+this.state.playedMatches+ask);
+  const acceptChance=clamp(1-(ask-b.bid)/b.bid,0.05,0.85);
+  if(r()<acceptChance){ b.bid=ask; toast(`${this.clubOf(b.buyer).short} accept your revised asking price!`); }
+  else { const improved=Math.round((b.bid+(ask-b.bid)*0.35)/1e5)*1e5;
+    if(improved>b.bid){ b.bid=improved; toast(`${this.clubOf(b.buyer).short} improve their offer slightly.`); }
+    else { toast(`${this.clubOf(b.buyer).short} won't budge — their offer stands.`); }
+  }
+  this.showInbox();
 };
 Game.acceptBid=function(i){
   const b=this.state.offers.bids[i]; if(!b)return;
@@ -3529,7 +3556,35 @@ Game.acceptBid=function(i){
   const L=this.state.lineup; if(L){L.starters=L.starters.filter(x=>x!==pid);L.subs=L.subs.filter(x=>x!==pid);} this.ensureLineup();
   // drop any other bids for the same player
   this.state.offers.bids=this.state.offers.bids.filter(x=>(x.id0||x.id)!==pid);
+  // real impact: losing a key player mid-season stings; a fringe sale barely registers
+  const avgOvr=sq.length?sq.reduce((s,p)=>s+p.ovr,0)/sq.length:pl.ovr;
+  const impact=clamp(Math.round((pl.ovr-avgOvr)/3),-2,6);
+  if(impact>0){ this.state.fanHappiness=clamp(this.state.fanHappiness-impact*3,0,100); this.state.morale=clamp(this.state.morale-impact*2,0,100); this.state.boardConfidence=clamp(this.state.boardConfidence-Math.floor(impact/2),0,100);
+    this.addNews('drama',`Shock sale: ${pl.name} leaves ${this.clubOf(this.state.club).short}`,`Fans are stunned to see a key player sold mid-season for ${money(b.bid)}.`,'');
+    this.pushMail('Fan Forums','Supporters react to the sale',`${pl.name}'s departure has not gone down well with the fanbase. The board expects reinvestment.`); }
+  else { this.state.fanHappiness=clamp(this.state.fanHappiness+1,0,100); }
   toast(`${b.name} sold for ${money(b.bid)}.`); this.autosave(); this.showInbox();
+};
+Game.maybeMidSeasonBid=function(){
+  if(!this.transferWindowOpen())return;
+  this.state.offers=this.state.offers||{bids:[],jobs:[]};
+  if(this.state.offers.bids.length>=3)return;
+  const r=seeded('midbid-'+this.state.playedMatches+Math.floor(Math.random()*1e6));
+  if(r()>0.15)return;
+  const sq=Game.squad(this.state.club).slice().sort((a,b)=>b.ovr-a.ovr); if(!sq.length)return;
+  const listed=this.state.transferList||[];
+  const pool = listed.length && r()<0.6 ? sq.filter(p=>listed.includes(p.id)) : sq.slice(0,10);
+  if(!pool.length)return;
+  const p=pick(r,pool);
+  if(this.state.offers.bids.find(b=>(b.id0||b.id)===p.id))return;
+  const clubs=[]; LEAGUES.forEach(l=>l.clubs.forEach(c=>{if(c.name!==this.state.club)clubs.push(c)}));
+  const cand=clubs.filter(c=>c.ovr>=p.ovr-6 && c.budget>=p.value*0.4); if(!cand.length)return;
+  const buyer=pick(r,cand);
+  const keen=listed.includes(p.id);
+  const bid=Math.round(p.value*((keen?0.98:0.85)+r()*0.4)/1e5)*1e5;
+  this.state.offers.bids.push({id:p.id,name:p.name,ovr:p.ovr,seed:p.seed,pos:p.pos,buyer:buyer.name,bid,listed:keen});
+  this.pushMail(buyer.name,`Bid for ${p.name}`,`${buyer.name} have offered ${money(bid)} for ${p.name}. Review it in your pending offers.`);
+  toast(`${buyer.short||buyer.name} have made an offer for ${p.name}.`);
 };
 Game.acceptJob=function(i){
   const j=this.state.offers.jobs[i]; if(!j||j.type!=='club')return;
@@ -3574,6 +3629,7 @@ Game.advanceWeek=function(){
     });
     this.state.weekIndex[l.id]++;
   });
+  this.maybeMidSeasonBid();
 };
 Game.promoRelegation=function(){
   const N=3; // clubs swapped each way
