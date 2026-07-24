@@ -287,6 +287,9 @@ button{font-family:inherit; cursor:pointer; color:inherit; border:none; backgrou
 
 /* ============ MATCH SIM ============ */
 #matchsim.cc-theme{background:radial-gradient(1000px 700px at 50% 0%,#12277a,#050a1e 62%)!important}
+#matchsim.dc-theme{background:radial-gradient(1000px 700px at 50% 0%,#5a1020,#0f0508 62%)!important}
+#matchsim.derby-theme{background:radial-gradient(1000px 700px at 50% 0%,#5a1030,#1a0508 62%)!important}
+#matchsim.wc-theme{background:radial-gradient(1000px 700px at 50% 0%,#2f5a1a,#0a1408 62%)!important}
 #matchsim{position:fixed; inset:0; z-index:90; background:radial-gradient(1000px 600px at 50% 0%,#0d2038,#04060a 60%);
   display:flex; flex-direction:column; opacity:0; pointer-events:none; transition:var(--mid)}
 #matchsim.on{opacity:1; pointer-events:auto}
@@ -1308,18 +1311,37 @@ Game.render=function(id){
   },140);
 };
 /* view/event-driven background artwork */
+Game.leagueBgPair=function(lg){
+  if(!lg||!lg.color) return null;
+  return [shade(lg.color,1.35), shade(lg.color,0.32)];
+};
+const EVENT_BG={
+  champions:`radial-gradient(1200px 800px at 50% -10%, #12277a 0%, transparent 55%),radial-gradient(900px 600px at -10% 110%, #0a1650 0%, transparent 50%),#050a1e`,
+  domestic:`radial-gradient(1200px 800px at 50% -10%, #5a1020 0%, transparent 55%),radial-gradient(900px 600px at -10% 110%, #30060f 0%, transparent 50%),#0f0508`,
+  derby:`radial-gradient(1200px 800px at 50% -10%, #7a1240 0%, transparent 55%),radial-gradient(900px 600px at -10% 110%, #2a0a1a 0%, transparent 50%),#1a0508`,
+  wc:`radial-gradient(1200px 800px at 50% -10%, #2f5a1a 0%, transparent 55%),radial-gradient(900px 600px at -10% 110%, #14300c 0%, transparent 50%),#0a1408`,
+};
 Game.applyTheme=function(id){
   const map={hub:['#14203a','#1a0f2e'],career:['#101c33','#0b1424'],squad:['#0c2f1f','#071f14'],tactics:['#0c2f1f','#071f14'],
     transfers:['#2a1420','#160a1f'],fixtures:['#101c33','#0b1424'],table:['#12203a','#0b1424'],international:['#0d2038','#1a1230'],
     trophies:['#2a2200','#160f00'],stats:['#0d2a2a','#0a1a1a'],news:['#1c1c2c','#0d1220'],settings:['#141824','#0b0e16'],
     calendar:['#101c33','#0b1424'],cups:['#0a1a4a','#050a24'],inbox:['#141824','#0b0e16'],wc:['#0d2038','#1a1230']};
-  // event theming: Champions Cup summons a deep-blue / silver stage
+  // event theming: derby > champions cup > domestic cup > world cup > per-league identity
   const nf=this.state.club && this.nextUserFixture && this.nextUserFixture();
-  const ccMode = id==='cups' || id==='wc' || (nf && nf.comp==='Champions Cup' && (id==='career'||id==='calendar'));
-  document.documentElement.dataset.event = ccMode?'champions':'';
-  const g=map[id]||map.hub; const b=document.body;
-  if(ccMode){ b.style.background=`radial-gradient(1200px 800px at 50% -10%, #12277a 0%, transparent 55%),radial-gradient(900px 600px at -10% 110%, #0a1650 0%, transparent 50%),#050a1e`; }
-  else b.style.background=`radial-gradient(1200px 700px at 80% -10%, ${g[0]} 0%, transparent 55%),radial-gradient(900px 600px at -10% 110%, ${g[1]} 0%, transparent 50%),var(--bg)`;
+  const leagueCtx = id==='career'||id==='calendar'||id==='hub'||id==='table'||id==='fixtures'||id==='squad'||id==='tactics';
+  let mode='';
+  if(nf && nf.derby && leagueCtx) mode='derby';
+  else if(id==='wc') mode='wc';
+  else if(id==='cups') mode = this.cupsTab==='dc' ? 'domestic' : 'champions';
+  else if(nf && leagueCtx && nf.comp==='Champions Cup') mode='champions';
+  else if(nf && leagueCtx && nf.comp==='Domestic Cup') mode='domestic';
+  document.documentElement.dataset.event = mode;
+  const b=document.body;
+  if(mode && EVENT_BG[mode]){ b.style.background=EVENT_BG[mode]; return; }
+  const lg = this.state.club && this.leagueOf && this.leagueOf(this.state.club);
+  const lp = leagueCtx && lg ? this.leagueBgPair(lg) : null;
+  const g = lp || map[id]||map.hub;
+  b.style.background=`radial-gradient(1200px 700px at 80% -10%, ${g[0]} 0%, transparent 55%),radial-gradient(900px 600px at -10% 110%, ${g[1]} 0%, transparent 50%),var(--bg)`;
 };
 
 /* ---------------- HUB ---------------- */
@@ -2450,25 +2472,69 @@ Game.ccSimRemainder=function(){
     if(st==='Final'){ cc.champion=winners[0]; cc.round='done'; if(cc.champion===this.state.club)this.awardTrophy('Champions Cup'); break; }
     const nx=order[order.indexOf(st)+1]; const nt=[]; for(let i=0;i<winners.length;i+=2)nt.push({hk:winners[i],ak:winners[i+1]}); cc.knockout[nx]=nt; cc.koStage=nx; st=nx; }
 };
+const DC_STAGES=['R32','R16','QF','SF','Final'];
+const DC_NAMES=['Round of 32','Round of 16','Quarter-Final','Semi-Final','Final'];
+const DC_SLOTS=[6,11,17,23,31];
 Game.setupDomesticCup=function(fx,start){
-  this.state.dc={round:0,alive:true,champion:false,history:[]};
+  const myLg=this.leagueOf(this.state.club);
+  const t1 = myLg.tier===1? myLg : LEAGUES.find(l=>l.relegateTo===myLg.id);
+  const t2 = t1? LEAGUES.find(l=>l.id===t1.relegateTo) : null;
+  let pool = t1? t1.clubs.map(c=>c.name) : [];
+  const t2sorted = t2? t2.clubs.slice().sort((a,b)=>b.ovr-a.ovr).map(c=>c.name) : [];
+  pool = pool.concat(t2sorted.slice(0,32-pool.length));
+  if(!pool.includes(this.state.club)){ pool.pop(); pool.push(this.state.club); }
   const r=seeded('dc-'+this.state.seasonNum+this.state.club);
-  const opp=this.randomCupOpp(r,0);
-  this._dcNames=['Third Round','Fourth Round','Quarter-Final','Semi-Final','Final']; this._dcSlots=[6,11,17,23,31];
-  fx.push({id:'DC0',date:addDays(start,14+this._dcSlots[0]*7+3).getTime(),comp:'Domestic Cup',dcRound:0,roundName:this._dcNames[0],oppName:opp,home:r()<0.5,played:false});
+  let field=pool.slice(0,32);
+  for(let i=field.length-1;i>0;i--){const j=Math.floor(r()*(i+1));[field[i],field[j]]=[field[j],field[i]];}
+  const pairs=[]; for(let i=0;i<field.length-1;i+=2)pairs.push({hk:field[i],ak:field[i+1]});
+  this.state.dc={rounds:{R32:pairs,R16:[],QF:[],SF:[],Final:[]}, stage:'R32', champion:null, alive:true, history:[]};
+  this.dcInjectUserFixture(fx,start);
 };
-Game.randomCupOpp=function(r,round){ const all=[]; LEAGUES.forEach(l=>l.clubs.forEach(c=>{if(c.name!==this.state.club)all.push(c.name);}));
-  all.sort((a,b)=>this.clubOf(b).ovr-this.clubOf(a).ovr);
-  const pool= round<2?all.slice(24): round<4?all.slice(6,26): all.slice(0,14); return pick(r,pool.length?pool:all); };
+Game.dcUserTie=function(){
+  const dc=this.state.dc; const ties=dc.rounds[dc.stage]||[];
+  return ties.findIndex(t=>!t.done && (t.hk===this.state.club||t.ak===this.state.club));
+};
+Game.dcInjectUserFixture=function(fx,startOverride){
+  const dc=this.state.dc; const idx=this.dcUserTie();
+  if(idx<0){ dc.alive=false; this.dcSimRemainder(); return; }
+  const t=dc.rounds[dc.stage][idx]; const home=t.hk===this.state.club, opp=home?t.ak:t.hk;
+  const stIdx=DC_STAGES.indexOf(dc.stage);
+  const start = startOverride || new Date(this.state.calStart);
+  const f={id:'DC'+dc.stage,date:addDays(start,14+DC_SLOTS[stIdx]*7+3).getTime(),comp:'Domestic Cup',dcStage:dc.stage,roundName:DC_NAMES[stIdx],oppName:opp,home,played:false};
+  if(fx) fx.push(f); else this.addFixture(f);
+};
 Game.dcFinish=function(f,res){
-  const dc=this.state.dc; const me=this.state.club; const myG=res.home===me?res.gh:res.ga, opG=res.home===me?res.ga:res.gh;
-  let win=myG>opG; if(myG===opG){ win=(seeded('dcp-'+f.dcRound+this.state.seasonNum)()<0.5); }
-  dc.history.push({round:f.roundName,opp:f.oppName,myG,opG,win});
-  if(!win){ dc.alive=false; this.addNews('match',`${this.clubOf(me).short} knocked out of the Domestic Cup`,`Cup run ends in the ${f.roundName}.`,''); return; }
-  if(f.dcRound>=4){ dc.champion=true; dc.alive=false; this.awardTrophy('Domestic Cup'); return; }
-  const r=seeded('dc-'+this.state.seasonNum+f.dcRound+'n'); const opp=this.randomCupOpp(r,f.dcRound+1);
-  const nr=f.dcRound+1;
-  this.addFixture({id:'DC'+nr,date:addDays(new Date(this.state.calStart),14+this._dcSlots[nr]*7+3).getTime(),comp:'Domestic Cup',dcRound:nr,roundName:this._dcNames[nr],oppName:opp,home:r()<0.5,played:false});
+  const dc=this.state.dc; const stage=f.dcStage; const ties=dc.rounds[stage]; const me=this.state.club;
+  const idx=ties.findIndex(t=>!t.done&&(t.hk===me||t.ak===me));
+  if(idx>=0){ const t=ties[idx]; let hg=res.gh,ag=res.ga,w,pens=false;
+    if(hg===ag){ pens=true; w=(seeded('dcp-'+stage+this.state.seasonNum)()<0.5)?t.hk:t.ak; } else w=hg>ag?t.hk:t.ak;
+    Object.assign(t,{hg,ag,w,pens,done:true});
+    const myG=res.home===me?res.gh:res.ga, opG=res.home===me?res.ga:res.gh;
+    dc.history.push({round:DC_NAMES[DC_STAGES.indexOf(stage)],opp:f.oppName,myG,opG,win:w===me,pens});
+    if(w!==me) this.addNews('match',`${this.clubOf(me).short} knocked out of the Domestic Cup`,`Cup run ends in the ${DC_NAMES[DC_STAGES.indexOf(stage)]}.`,'');
+  }
+  // background-resolve the rest of the round
+  ties.forEach((t,i)=>{ if(!t.done){ const s=simMatch(t.hk,t.ak,{seed:'dcbg'+stage+i}); let w,pens=false; if(s.gh===s.ga){pens=true;w=(seeded('dcx'+stage+i+this.state.seasonNum)()<0.5)?t.hk:t.ak;} else w=s.gh>s.ga?t.hk:t.ak; Object.assign(t,{hg:s.gh,ag:s.ga,w,pens,done:true}); } });
+  const winners=ties.map(t=>t.w);
+  const stIdx=DC_STAGES.indexOf(stage);
+  if(stage==='Final'){ dc.champion=winners[0]; dc.stage='done'; dc.alive=dc.champion===me;
+    if(dc.champion===me)this.awardTrophy('Domestic Cup');
+    this.addNews('trophy',`${this.clubOf(dc.champion).name} win the Domestic Cup`,`Silverware secured in a dramatic final.`,''); return; }
+  const next=DC_STAGES[stIdx+1]; const nt=[]; for(let i=0;i<winners.length;i+=2)nt.push({hk:winners[i],ak:winners[i+1]});
+  dc.rounds[next]=nt; dc.stage=next;
+  if(winners.includes(me)){ this.dcInjectUserFixture(null); } else { dc.alive=false; this.dcSimRemainder(); }
+};
+Game.dcSimRemainder=function(){
+  const dc=this.state.dc; if(!dc||dc.stage==='done')return;
+  let stage=dc.stage, guard=0;
+  while(stage && stage!=='done' && guard++<6){
+    const ties=dc.rounds[stage];
+    ties.forEach((t,i)=>{ if(!t.done){ const s=simMatch(t.hk,t.ak,{seed:'dcrem'+stage+i+this.state.seasonNum}); let w,pens=false; if(s.gh===s.ga){pens=true;w=(seeded('dcy'+stage+i+this.state.seasonNum)()<0.5)?t.hk:t.ak;} else w=s.gh>s.ga?t.hk:t.ak; Object.assign(t,{hg:s.gh,ag:s.ga,w,pens,done:true}); } });
+    const winners=ties.map(t=>t.w);
+    const stIdx=DC_STAGES.indexOf(stage);
+    if(stage==='Final'){ dc.champion=winners[0]; dc.stage='done'; if(dc.champion===this.state.club)this.awardTrophy('Domestic Cup'); break; }
+    const next=DC_STAGES[stIdx+1]; const nt=[]; for(let i=0;i<winners.length;i+=2)nt.push({hk:winners[i],ak:winners[i+1]}); dc.rounds[next]=nt; dc.stage=next; stage=next;
+  }
 };
 Game.addFixture=function(f){ this.state.fixtures.push(f); this.state.fixtures.sort((a,b)=>a.date-b.date); };
 Game.nextUserFixture=function(){ return (this.state.fixtures||[]).find(f=>!f.played); };
@@ -2503,7 +2569,10 @@ Game.startLiveMatch=function(f){
   $('#msComp').textContent=(f.comp==='Champions Cup'?'★ ':'')+f.comp+(f.roundName?' · '+f.roundName:'');
   $('#msScoreH').textContent='0'; $('#msScoreA').textContent='0'; $('#msBar').style.width='0'; $('#msClock').textContent="0'";
   $('#msBody').innerHTML='<div class="ms-feed" id="msFeed"></div>'; $('#msManage').classList.remove('on');
-  ms.classList.toggle('cc-theme', f.comp==='Champions Cup');
+  ms.classList.remove('cc-theme','dc-theme','derby-theme','wc-theme');
+  if(f.derby) ms.classList.add('derby-theme');
+  else if(f.comp==='Champions Cup') ms.classList.add('cc-theme');
+  else if(f.comp==='Domestic Cup') ms.classList.add('dc-theme');
   ms.classList.add('on');
   this.lmFoot();
   if(this.state.simSpeed==='instant'){ while(LM.minute<90){LM.minute++;this.lmMinute();} this.lmFullTime(); return; }
@@ -2683,7 +2752,7 @@ Game.showBoxScore=function(box,res){
   $('#msFoot').innerHTML=`<button class="btn primary" onclick="Game.lmApply()">Continue →</button>`;
 };
 Game.lmApply=function(){
-  const LM=this.LM; $('#matchsim').classList.remove('on'); $('#matchsim').classList.remove('cc-theme');
+  const LM=this.LM; $('#matchsim').classList.remove('on','cc-theme','dc-theme','derby-theme','wc-theme');
   const f=LM.f, res=LM.res; f.box=LM.box;
   this.finishUserFixture(f,res,false,LM.box);
   this.LM=null;
@@ -2820,6 +2889,7 @@ Game.takeNewJob=function(clubName){
 };
 Game.endOfSeasonFlow=function(){
   if(this.state.cc && this.state.cc.round!=='done') this.ccSimRemainder();
+  if(this.state.dc && this.state.dc.stage!=='done') this.dcSimRemainder();
   const pos=this.clubRank(this.state.club);
   this.state.lastPos=pos;
   // badly missing the board's objective risks an end-of-season sacking
@@ -2883,29 +2953,56 @@ Game.renderCalendar=function(v){
 /* ---------------- CUPS (Champions Cup + Domestic Cup) ---------------- */
 Game.renderCups=function(v){
   this.setCrumbs('Competitions','Cups');
-  const cc=this.state.cc, dc=this.state.dc;
-  v.innerHTML=`<div class="view-head"><div><div class="kicker">European & Domestic</div><h2>Cup Competitions</h2><div class="sub">Your run in the Champions Cup and the Domestic Cup.</div></div></div>`;
-  const grid=el('div','grid'); grid.style.gridTemplateColumns='1.2fr 1fr'; grid.style.alignItems='start';
-  // champions cup
-  const ccCard=el('div','card card-pad');
-  if(!cc){ ccCard.innerHTML='<h4>Champions Cup</h4><div class="empty">You didn\'t qualify this season. Finish in the top four to reach the Champions Cup.</div>'; }
-  else if(cc.round==='group'||(cc.round!=='group'&&cc.groups)){
-    const g=cc.groups[cc.userGroupIdx];
-    ccCard.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><h4>Champions Cup — Group ${g.letter}</h4>${cc.champion?`<span class="badge gold">${this.clubOf(cc.champion).short} won it</span>`:''}</div>
-      <table class="tbl"><thead><tr><th>Club</th><th class="n">P</th><th class="n">GD</th><th class="n">Pts</th></tr></thead><tbody>
-      ${this.ccRank(g).map((row,i)=>{const c=this.clubOf(row.t);return `<tr class="${row.t===this.state.club?'me':''} ${i<2?'zone-ucl':''}"><td class="cl" style="cursor:pointer" onclick='Game.showClub("${row.t}")'><span class="mini-crest">${crestSVG(c,20)}</span>${c.short}</td><td class="n">${row.P}</td><td class="n">${row.GF-row.GA>=0?'+':''}${row.GF-row.GA}</td><td class="n"><b>${row.Pts}</b></td></tr>`}).join('')}
-      </tbody></table>`;
-    if(cc.knockout&&cc.knockout.R16&&cc.knockout.R16.length){
-      ccCard.innerHTML+='<div style="margin-top:14px"></div>'+['R16','QF','SF','Final'].map(st=>{const ties=cc.knockout[st];if(!ties||!ties.length)return '';
-        return `<div class="roster-group">${({R16:'Round of 16',QF:'Quarter-Finals',SF:'Semi-Finals',Final:'Final'})[st]}</div>`+ties.map(t=>`<div style="display:grid;grid-template-columns:1fr 60px 1fr;align-items:center;gap:6px;padding:4px 8px;font-size:12px;${(t.hk===this.state.club||t.ak===this.state.club)?'background:rgba(198,255,46,.06);border-radius:8px':''}"><div style="text-align:right;font-weight:${t.w===t.hk?'900':'600'};cursor:pointer" onclick='Game.showClub("${t.hk}")'>${this.clubOf(t.hk).short}</div><div style="text-align:center;font-weight:900">${t.done?`${t.hg}-${t.ag}`:'vs'}</div><div style="font-weight:${t.w===t.ak?'900':'600'};cursor:pointer" onclick='Game.showClub("${t.ak}")'>${this.clubOf(t.ak).short}</div></div>`).join('');}).join('');
-    }
+  const tab=this.cupsTab||'cc';
+  v.innerHTML=`<div class="view-head"><div><div class="kicker">European & Domestic</div><h2>Cup Competitions</h2><div class="sub">Full brackets — every club's path, not just yours.</div></div>
+    <div class="seg">${[['cc','Champions Cup'],['dc','Domestic Cup']].map(t=>`<button class="${tab===t[0]?'on':''}" onclick="Game.setCupsTab('${t[0]}')">${t[1]}</button>`).join('')}</div></div>`;
+  v.appendChild(tab==='cc'? this.ccPanelEl() : this.dcPanelEl());
+};
+Game.setCupsTab=function(t){this.cupsTab=t;this.go('cups')};
+Game.bracketTieRow=function(t){
+  const mine=t.hk===this.state.club||t.ak===this.state.club;
+  return `<div style="display:grid;grid-template-columns:1fr 60px 1fr;align-items:center;gap:6px;padding:5px 8px;font-size:12.5px;${mine?'background:rgba(198,255,46,.08);border-radius:8px':''}">
+    <div style="text-align:right;font-weight:${t.w===t.hk?'900':'600'};cursor:pointer" onclick='Game.showClub("${t.hk}")'>${this.clubOf(t.hk).short}</div>
+    <div style="text-align:center;font-weight:900">${t.done?`${t.hg}-${t.ag}${t.pens?' <span style="font-size:9px;color:var(--dim)">(p)</span>':''}`:'vs'}</div>
+    <div style="font-weight:${t.w===t.ak?'900':'600'};cursor:pointer" onclick='Game.showClub("${t.ak}")'>${this.clubOf(t.ak).short}</div></div>`;
+};
+Game.ccPanelEl=function(){
+  const cc=this.state.cc;
+  const card=el('div','card card-pad');
+  if(!cc){ card.innerHTML='<h4>Champions Cup</h4><div class="empty">You didn\'t qualify this season. Finish in the top four of the top flight to reach the Champions Cup.</div>'; return card; }
+  const g=cc.groups[cc.userGroupIdx];
+  card.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><h4 style="display:flex;align-items:center;gap:8px">${ccBall(20)} Group ${g.letter}</h4>${cc.champion?`<span class="badge gold">${this.clubOf(cc.champion).short} won it</span>`:''}</div>
+    <table class="tbl"><thead><tr><th>Club</th><th class="n">P</th><th class="n">GD</th><th class="n">Pts</th></tr></thead><tbody>
+    ${this.ccRank(g).map((row,i)=>{const c=this.clubOf(row.t);return `<tr class="${row.t===this.state.club?'me':''} ${i<2?'zone-ucl':''}"><td class="cl" style="cursor:pointer" onclick='Game.showClub("${row.t}")'><span class="mini-crest">${crestSVG(c,20)}</span>${c.short}</td><td class="n">${row.P}</td><td class="n">${row.GF-row.GA>=0?'+':''}${row.GF-row.GA}</td><td class="n"><b>${row.Pts}</b></td></tr>`}).join('')}
+    </tbody></table>`;
+  if(cc.knockout&&cc.knockout.R16&&cc.knockout.R16.length){
+    const wrap=el('div','grid'); wrap.style.gridTemplateColumns='repeat(auto-fit,minmax(220px,1fr))'; wrap.style.marginTop='14px';
+    ['R16','QF','SF','Final'].forEach(st=>{const ties=cc.knockout[st];if(!ties||!ties.length)return;
+      const col=el('div',null,`<div class="roster-group" style="padding-left:0">${({R16:'Round of 16',QF:'Quarter-Finals',SF:'Semi-Finals',Final:'Final'})[st]}</div>`+ties.map(t=>this.bracketTieRow(t)).join(''));
+      wrap.appendChild(col);
+    });
+    card.appendChild(wrap);
   }
-  grid.appendChild(ccCard);
-  // domestic cup
-  const dcCard=el('div','card card-pad');
-  dcCard.innerHTML=`<h4 style="margin-bottom:10px">Domestic Cup</h4>${dc&&dc.history.length?dc.history.map(h=>`<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--line);cursor:pointer" onclick='Game.showClub("${h.opp}")'><span style="width:70px;color:var(--dim);font-size:11px">${h.round}</span><span class="mini-crest">${crestSVG(this.clubOf(h.opp),18)}</span><b style="font-size:12.5px">${this.clubOf(h.opp).short}</b><span style="margin-left:auto;font-weight:900;color:${h.win?'var(--good)':'var(--bad)'}">${h.myG}-${h.opG}</span></div>`).join('')+(dc.champion?'<div class="badge gold" style="margin-top:12px">Cup Winners</div>':dc.alive?'<div class="badge good" style="margin-top:12px">Still in it</div>':'<div class="badge bad" style="margin-top:12px">Knocked out</div>'):'<div class="empty">Your cup run starts later in the season.</div>'}`;
-  grid.appendChild(dcCard);
-  v.appendChild(grid);
+  return card;
+};
+Game.dcPanelEl=function(){
+  const dc=this.state.dc;
+  const wrap=el('div',null);
+  if(!dc){ wrap.innerHTML='<div class="card card-pad"><div class="empty">Your Domestic Cup run begins once the season is underway.</div></div>'; return wrap; }
+  const status=el('div','card card-pad'); status.style.marginBottom='16px';
+  status.innerHTML=`<div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap"><h4 style="margin:0">Domestic Cup · 32-club knockout</h4>
+    ${dc.champion?`<span class="badge gold">${this.clubOf(dc.champion).short} are champions</span>`:dc.alive?'<span class="badge good">You are still in it</span>':'<span class="badge bad">You were knocked out</span>'}</div>
+    ${dc.history.length?`<div style="margin-top:12px">${dc.history.map(h=>`<div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--line);cursor:pointer" onclick='Game.showClub("${h.opp}")'><span style="width:100px;color:var(--dim);font-size:11px">${h.round}</span><span class="mini-crest">${crestSVG(this.clubOf(h.opp),18)}</span><b style="font-size:12.5px">${this.clubOf(h.opp).short}</b><span style="margin-left:auto;font-weight:900;color:${h.win?'var(--good)':'var(--bad)'}">${h.myG}-${h.opG}${h.pens?' (p)':''}</span></div>`).join('')}</div>`:''}`;
+  wrap.appendChild(status);
+  const bracket=el('div','card card-pad');
+  const grid=el('div','grid'); grid.style.gridTemplateColumns='repeat(auto-fit,minmax(200px,1fr))'; grid.style.alignItems='start';
+  DC_STAGES.forEach((st,i)=>{ const ties=dc.rounds[st]; if(!ties||!ties.length)return;
+    const col=el('div',null,`<div class="roster-group" style="padding-left:0">${DC_NAMES[i]} · ${ties.length}</div>`+ties.map(t=>this.bracketTieRow(t)).join(''));
+    grid.appendChild(col);
+  });
+  bracket.innerHTML='<h4 style="margin-bottom:10px">Full Bracket</h4>'; bracket.appendChild(grid);
+  wrap.appendChild(bracket);
+  return wrap;
 };
 Game.runMatchSim=function(home,away,userMatch,opts){
   opts=opts||{};
@@ -2923,6 +3020,8 @@ Game.runMatchSim=function(home,away,userMatch,opts){
   $('#msScoreH').textContent='0'; $('#msScoreA').textContent='0';
   $('#msFeed').innerHTML=''; $('#msBar').style.width='0';
   $('#msFoot').innerHTML='';
+  ms.classList.remove('cc-theme','dc-theme','derby-theme','wc-theme');
+  if(opts.wc) ms.classList.add('wc-theme');
   ms.classList.add('on');
   // animate
   let sh=0,sa=0,fi=0; const feed=res.feed; const feedEl=$('#msFeed');
@@ -2963,7 +3062,7 @@ Game.skipMatch=function(){
   $('#msFoot').innerHTML=`<button class="btn primary" onclick="Game.finishMatch()">Continue →</button>`;
 };
 Game.finishMatch=function(){
-  $('#matchsim').classList.remove('on');
+  $('#matchsim').classList.remove('on','cc-theme','dc-theme','derby-theme','wc-theme');
   const res=this._pendingRes;
   if(this._onMatchFinish){ const cb=this._onMatchFinish; this._onMatchFinish=null; cb(res); return; }
   this.applyResult(res);
@@ -3590,7 +3689,7 @@ Game.wcPlayUser=function(){
   const m=this.state.wcT.round==='group'?this.wcUserMatchToday():this.wcUserKoMatch(); if(!m)return;
   const label='World Cup · '+(this.state.wcT.round==='group'?'Group '+this.state.wcT.groups[this.state.wcT.userGroupIdx].letter:({R16:'Round of 16',QF:'Quarter-Final',SF:'Semi-Final',Final:'Final'})[this.state.wcT.koStage]);
   const finish=(res)=>{ if(this.state.wcT.round==='group')this.wcApplyGroup(res); else this.wcApplyKo(res); };
-  this.runMatchSim(m.home,m.away,true,{comp:label,onFinish:finish});
+  this.runMatchSim(m.home,m.away,true,{comp:label,onFinish:finish,wc:true});
 };
 Game.wcSimUser=function(){
   const m=this.state.wcT.round==='group'?this.wcUserMatchToday():this.wcUserKoMatch(); if(!m)return;
