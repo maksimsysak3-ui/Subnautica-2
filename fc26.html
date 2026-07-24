@@ -1106,11 +1106,12 @@ function simMatch(home,away, opts={}){
   const H=teamStrength(home), A=teamStrength(away);
   const homeAdv=3.0;
   // expected goals — class + form + tactical mentality
-  const gap=(H.overall-A.overall);
+  const wobble=0.65+r()*0.7; // some days the form-guide just doesn't show up — keeps favourites from being invincible
+  const gap=clamp(H.overall-A.overall,-16,16);
   const fH=formFactor(home), fA=formFactor(away);
   const mH=mentAdj(home), mA=mentAdj(away);
-  const diff=(H.atk-A.def)+homeAdv+gap*0.35+fH-fA+mH.atk-mA.def, diff2=(A.atk-H.def)-gap*0.35+fA-fH+mA.atk-mH.def;
-  const xgH=clamp(1.43+diff*0.075,0.18,4.8), xgA=clamp(1.12+diff2*0.075,0.14,4.3);
+  const diff=(clamp(H.atk-A.def,-24,24)+gap*0.22)*wobble+homeAdv+fH-fA+mH.atk-mA.def, diff2=(clamp(A.atk-H.def,-24,24)-gap*0.22)*wobble+fA-fH+mA.atk-mH.def;
+  const xgH=clamp(1.62+diff*0.065,0.5,3.5), xgA=clamp(1.32+diff2*0.065,0.5,3.5);
   function goals(xg){let g=0;const L=Math.exp(-xg);let p=1,k=0;const u=r();p*=Math.exp(-xg);let cum=Math.exp(-xg);let f=1;while(true){if(u<cum||k>8)break;k++;f*=xg/k;cum+=Math.exp(-xg)*f}return k}
   let gh=goals(xgH), ga=goals(xgA);
   // build events
@@ -2021,7 +2022,20 @@ Game.startingXI=function(name){
     const fitSub=()=>{ for(const id of L.subs){ const p=this.findPlayer(id); if(p&&!this.isUnavailable(p)&&!used.has(id)){used.add(id);return p;} } return null; };
     return L.starters.map(id=>{ const p=this.findPlayer(id); if(p&&!this.isUnavailable(p)){used.add(id);return p;} return fitSub()||p; }).filter(Boolean);
   }
-  return Game.squad(name).filter(p=>!this.isUnavailable(p)).slice(0,11);
+  return this.defaultXI(name);
+};
+// formation-respecting XI for any club that isn't the user's (AI clubs never set a lineup) —
+// picking pure top-11-by-OVR let clubs field 3 keepers and no strikers if defense outrated attack
+Game.defaultXI=function(name){
+  const sq=Game.squad(name).filter(p=>!this.isUnavailable(p));
+  const slots=['GK','LB','CB','CB','RB','CDM','CM','CM','LW','ST','RW'];
+  const used=new Set(), xi=[];
+  slots.forEach(slot=>{ const grp=POS_GROUP[slot]; let best=null;
+    sq.forEach(p=>{ if(used.has(p.id))return; if(POS_GROUP[p.pos]===grp && (!best||p.ovr>best.ovr)) best=p; });
+    if(!best) sq.forEach(p=>{ if(used.has(p.id))return; if(!best||p.ovr>best.ovr)best=p; });
+    if(best){used.add(best.id); xi.push(best);} });
+  if(xi.length<11) sq.forEach(p=>{ if(xi.length<11 && !used.has(p.id)){used.add(p.id);xi.push(p);} });
+  return xi;
 };
 Game.isUnavailable=function(p){ return this.isInjured(p) || (p && p.suspended>0); };
 Game.swapLineup=function(idA,idB){
@@ -2860,6 +2874,7 @@ Game.startLiveMatch=function(f){
     xiH, xiA, subsUsed:0, maxSubs:5, redH:0, redA:0, feed:[], scorers:[], pdata:{},
     mentality:this.state.mentality, paused:false, finished:false, sel:null,
     r:seeded(home+'@'+away+'|'+this.state.playedMatches+'|'+Math.floor(Math.random()*1e6)) };
+  LM.wobble=0.65+LM.r()*0.7; // locked in for the match — some days the form-guide just doesn't show up
   [...xiH,...xiA].forEach(p=>{ if(p.energy==null)p.energy=100; LM.pdata[p.id]={id:p.id,name:p.name,pos:p.pos,seed:p.seed,rating:6.5,mins:0,goals:0,assists:0,yellow:0,red:false,side:xiH.includes(p)?'H':'A'}; });
   // overlay header
   const ms=$('#matchsim'); const H=this.clubOf(home),A=this.clubOf(away);
@@ -2910,7 +2925,7 @@ Game.lmMinute=function(){
   const trainDef = this.state.training==='defense'?0.9: this.state.training==='attack'?-0.4:0;
   const mentH=LM.userSide==='H'?[-1.3,-0.6,0,0.9,1.7][LM.mentality]+trainAtk:0;
   const mentA=LM.userSide==='A'?[-1.3,-0.6,0,0.9,1.7][LM.mentality]+trainAtk:0;
-  const rate=(atk,defo,adv,ment,menS,menO)=>clamp(0.094+(atk-defo+adv+ment)*0.0058,0.02,0.32)*(menS/11)*Math.min(1.4,11/Math.max(menO,7));
+  const rate=(atk,defo,adv,ment,menS,menO)=>clamp(0.094+(clamp(atk-defo,-24,24)*LM.wobble+adv+ment)*0.0051,0.038,0.28)*(menS/11)*Math.min(1.4,11/Math.max(menO,7));
   let rH=rate(H.atk,A.def,3,mentH,H.men,A.men), rA=rate(A.atk,H.def,0,mentA,A.men,H.men);
   if(LM.userSide==='H') rA=clamp(rA-trainDef*0.006,0.01,0.35);
   if(LM.userSide==='A') rH=clamp(rH-trainDef*0.006,0.01,0.35);
@@ -2928,7 +2943,7 @@ Game.lmChance=function(side,S,O){
   const shooter=weightedScorer(r,xi);
   const xgAdd=clamp(0.06+(shooter.attrs.shooting-70)*0.004,0.02,0.35); if(side==='H')LM.xgH+=xgAdd; else LM.xgA+=xgAdd;
   const onTarget=r()<0.42; if(onTarget){ if(side==='H')LM.sotH++; else LM.sotA++; }
-  let goalP=clamp(0.315+(S.atk-O.def)*0.006+(shooter.attrs.shooting-72)*0.004,0.07,0.64)*(onTarget?1:0.15);
+  let goalP=clamp(0.315+clamp(S.atk-O.def,-24,24)*0.006*LM.wobble+(shooter.attrs.shooting-72)*0.004,0.13,0.55)*(onTarget?1:0.15);
   if(this.state.training==='setpieces' && side===LM.userSide && (shooter.posGroup==='DEF'||shooter.pos==='CDM')) goalP*=1.28;
   if(r()<goalP){ // GOAL
     if(side==='H')LM.sh++; else LM.sa++;
@@ -3745,14 +3760,15 @@ Game.renderTable=function(v){
   const rows=Object.values(this.state.tables[active]).sort(this.sortTable);
   const card=el('div','card card-pad');
   const n=lg.clubs.length;
+  const isTier2=this.selTier===2;
   card.innerHTML=`<table class="tbl"><thead><tr><th class="pos">#</th><th>Club</th><th class="n">P</th><th class="n">W</th><th class="n">D</th><th class="n">L</th><th class="n">GF</th><th class="n">GA</th><th class="n">GD</th><th class="n">Pts</th><th>Form</th></tr></thead><tbody>
-    ${rows.map((t,i)=>{const c=this.clubOf(t.name);const zone=i<4?'zone-ucl':i<6?'zone-uel':i>=n-3?'zone-rel':'';const me=t.name===this.state.club;
+    ${rows.map((t,i)=>{const c=this.clubOf(t.name);const zone=isTier2?(i<3?'zone-ucl':''):(i<4?'zone-ucl':i<6?'zone-uel':i>=n-3?'zone-rel':'');const me=t.name===this.state.club;
       return `<tr class="${me?'me':''} ${zone}"><td class="pos">${i+1}</td>
       <td><div class="cl" style="cursor:pointer" onclick='Game.showClub("${t.name}")'><span class="mini-crest">${crestSVG(c,20)}</span>${c.short} <span style="color:var(--dim);font-weight:600;font-size:11px">${c.name}</span></div></td>
       <td class="n">${t.P}</td><td class="n">${t.W}</td><td class="n">${t.D}</td><td class="n">${t.L}</td><td class="n">${t.GF}</td><td class="n">${t.GA}</td><td class="n">${t.GF-t.GA>=0?'+':''}${t.GF-t.GA}</td><td class="n"><b>${t.Pts}</b></td>
       <td>${t.form.slice(-5).map(f=>`<span class="fdot ${f}" style="width:16px;height:16px;font-size:9px;display:inline-flex">${f}</span>`).join(' ')}</td></tr>`}).join('')}
     </tbody></table>
-    <div style="display:flex;gap:18px;margin-top:14px;font-size:11px;color:var(--dim)"><span><i style="display:inline-block;width:8px;height:8px;background:var(--acc2);border-radius:2px"></i> Champions League</span><span><i style="display:inline-block;width:8px;height:8px;background:var(--acc);border-radius:2px"></i> Europa</span><span><i style="display:inline-block;width:8px;height:8px;background:var(--bad);border-radius:2px"></i> Relegation</span></div>`;
+    <div style="display:flex;gap:18px;margin-top:14px;font-size:11px;color:var(--dim)">${isTier2?`<span><i style="display:inline-block;width:8px;height:8px;background:var(--acc2);border-radius:2px"></i> Promotion</span>`:`<span><i style="display:inline-block;width:8px;height:8px;background:var(--acc2);border-radius:2px"></i> Champions League</span><span><i style="display:inline-block;width:8px;height:8px;background:var(--acc);border-radius:2px"></i> Europa</span><span><i style="display:inline-block;width:8px;height:8px;background:var(--bad);border-radius:2px"></i> Relegation</span>`}</div>`;
   v.appendChild(card);
 };
 
