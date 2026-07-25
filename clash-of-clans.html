@@ -14,10 +14,12 @@ html,body{width:100%;height:100%;overflow:hidden;background:#0b141c;color:#eee;}
 #app{position:relative;width:100vw;height:100vh;}
 canvas{display:block;background:#3c6e2e;touch-action:none;}
 
+.icon-img{background-size:contain;background-repeat:no-repeat;background-position:center;}
+
 /* ---------- TOP BAR ---------- */
-#topbar{position:absolute;top:0;left:0;right:0;height:52px;display:flex;align-items:center;gap:10px;padding:0 10px;
-  background:linear-gradient(180deg,#0e1a24 0%,#152430 100%);border-bottom:2px solid var(--border);z-index:50;}
-.resource{display:flex;align-items:center;gap:6px;background:var(--panel);border:2px solid var(--border);border-radius:14px;padding:4px 10px 4px 4px;height:34px;}
+#topbar{position:absolute;top:0;left:0;right:0;height:52px;display:flex;align-items:center;gap:8px;padding:0 8px;
+  background:linear-gradient(180deg,#0e1a24 0%,#152430 100%);border-bottom:2px solid var(--border);z-index:50;overflow-x:auto;}
+.resource{display:flex;align-items:center;gap:6px;background:var(--panel);border:2px solid var(--border);border-radius:14px;padding:4px 10px 4px 4px;height:34px;flex-shrink:0;}
 .resource .icon{width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;color:#1a1a1a;box-shadow:inset 0 -3px 4px rgba(0,0,0,.25),0 0 4px rgba(255,255,255,.4);}
 .res-gold .icon{background:radial-gradient(circle at 35% 30%,#fff3b0,var(--gold));}
 .res-elixir .icon{background:radial-gradient(circle at 35% 30%,#f0c6ff,var(--elixir));color:#fff;}
@@ -25,15 +27,17 @@ canvas{display:block;background:#3c6e2e;touch-action:none;}
 .res-gem .icon{background:radial-gradient(circle at 35% 30%,#c9fffb,var(--gem));}
 .resource .val{font-weight:700;font-size:13px;letter-spacing:.3px;}
 .resource .cap{font-size:10px;opacity:.6;margin-left:2px;}
-#townhall-badge{margin-left:auto;display:flex;align-items:center;gap:6px;background:var(--panel);border:2px solid var(--border);border-radius:14px;padding:4px 12px;font-size:12px;font-weight:700;}
-#trophy-badge{display:flex;align-items:center;gap:6px;background:var(--panel);border:2px solid var(--border);border-radius:14px;padding:4px 12px;font-size:12px;font-weight:700;color:#ffdf6b;}
+#townhall-badge{margin-left:auto;display:flex;align-items:center;gap:6px;background:var(--panel);border:2px solid var(--border);border-radius:14px;padding:4px 12px;font-size:12px;font-weight:700;flex-shrink:0;}
+#trophy-badge{display:flex;align-items:center;gap:6px;background:var(--panel);border:2px solid var(--border);border-radius:14px;padding:4px 12px;font-size:12px;font-weight:700;color:#ffdf6b;flex-shrink:0;}
+#achieve-badge{cursor:pointer;display:flex;align-items:center;gap:6px;background:var(--panel);border:2px solid var(--border);border-radius:14px;padding:4px 10px;font-size:12px;font-weight:700;flex-shrink:0;}
+.badge-icon{width:16px;height:16px;}
 
 /* ---------- BOTTOM NAV ---------- */
 #bottomnav{position:absolute;bottom:0;left:0;right:0;height:64px;display:flex;z-index:50;
   background:linear-gradient(0deg,#0e1a24 0%,#152430 100%);border-top:2px solid var(--border);}
 .navbtn{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;color:#8fa5b5;font-size:10px;font-weight:700;letter-spacing:.5px;cursor:pointer;border-right:1px solid #0a1017;}
 .navbtn.active{color:#fff;background:rgba(255,255,255,.06);}
-.navbtn .ic{width:26px;height:26px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:15px;background:var(--panel2);border:1px solid var(--border);}
+.navbtn .ic{width:26px;height:26px;border-radius:6px;background:var(--panel2);border:1px solid var(--border);}
 
 /* ---------- BUILD MENU (bottom sheet) ---------- */
 #buildpanel{position:absolute;bottom:64px;left:0;right:0;max-height:46vh;overflow-y:auto;background:#101c26;border-top:2px solid var(--border);z-index:49;display:none;padding:8px;}
@@ -44,7 +48,7 @@ canvas{display:block;background:#3c6e2e;touch-action:none;}
 .itemgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(84px,1fr));gap:8px;}
 .builditem{background:var(--panel);border:2px solid var(--border);border-radius:10px;padding:6px;text-align:center;cursor:pointer;position:relative;}
 .builditem:active{transform:scale(.95);}
-.builditem .ic{font-size:26px;height:40px;display:flex;align-items:center;justify-content:center;}
+.builditem .ic{width:100%;height:40px;}
 .builditem .nm{font-size:10px;font-weight:700;margin-top:2px;}
 .builditem .cost{font-size:9px;color:var(--gold);margin-top:2px;}
 .builditem .lvl{position:absolute;top:2px;right:4px;font-size:9px;background:#000a;padding:1px 4px;border-radius:6px;}
@@ -60,16 +64,17 @@ canvas{display:block;background:#3c6e2e;touch-action:none;}
 .btn-upgrade{background:linear-gradient(180deg,#5fd15f,#2ea22e);color:#fff;}
 .btn-cancel{background:linear-gradient(180deg,#e35c5c,#a92727);color:#fff;}
 .btn-collect{background:linear-gradient(180deg,#ffd85e,#d19a1a);color:#3a2500;}
-.btn-close{position:absolute;top:4px;right:6px;background:none;color:#ccc;font-size:16px;width:auto;padding:0;}
+.btn-close{position:absolute;top:4px;right:6px;background:none;color:#ccc;font-size:16px;width:auto;padding:0 4px;}
 
 /* ---------- MODALS ---------- */
 .modal-overlay{position:absolute;inset:0;background:rgba(0,0,0,.65);display:none;align-items:center;justify-content:center;z-index:100;}
 .modal-overlay.open{display:flex;}
 .modal{background:#152430;border:2px solid var(--border);border-radius:14px;width:min(560px,92vw);max-height:82vh;overflow-y:auto;padding:16px;position:relative;}
 .modal h2{margin-bottom:10px;font-size:18px;display:flex;align-items:center;gap:8px;}
-.modal .close{position:absolute;top:10px;right:10px;font-size:20px;cursor:pointer;color:#aaa;}
+.modal h2 .hicon{width:22px;height:22px;}
+.modal .close{position:absolute;top:10px;right:10px;font-size:18px;cursor:pointer;color:#aaa;background:var(--panel2);width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;}
 .troop-row{display:flex;align-items:center;gap:10px;background:var(--panel2);border-radius:10px;padding:8px;margin-bottom:8px;border:1px solid var(--border);}
-.troop-row .ic{font-size:26px;width:40px;text-align:center;}
+.troop-row .ic{width:36px;height:36px;flex-shrink:0;}
 .troop-row .meta{flex:1;}
 .troop-row .meta .nm{font-weight:700;font-size:13px;}
 .troop-row .meta .sub{font-size:10px;opacity:.7;}
@@ -83,17 +88,18 @@ canvas{display:block;background:#3c6e2e;touch-action:none;}
 .bp-tier{min-width:70px;background:var(--panel2);border:2px solid var(--border);border-radius:10px;text-align:center;padding:6px 4px;font-size:10px;flex-shrink:0;}
 .bp-tier.claimed{border-color:var(--hp-green);}
 .bp-tier.locked{opacity:.4;}
-.bp-tier .rew{font-size:20px;}
+.bp-tier .rew{width:26px;height:26px;margin:2px auto;}
 
 /* league ladder */
 .league-row{display:flex;align-items:center;gap:10px;background:var(--panel2);border-radius:10px;padding:8px;margin-bottom:6px;}
-.league-row .ic{font-size:22px;}
+.league-row .ic{width:28px;height:28px;flex-shrink:0;}
 .league-row.current{outline:2px solid var(--gold);}
 
 /* attack HUD */
 #attackhud{position:absolute;left:0;right:0;bottom:64px;z-index:47;display:none;background:#101c26ee;border-top:2px solid var(--border);padding:8px;}
 #attackhud.open{display:flex;gap:6px;overflow-x:auto;align-items:center;}
 .deploy-troop{background:var(--panel);border:2px solid var(--border);border-radius:10px;padding:6px;text-align:center;min-width:56px;flex-shrink:0;cursor:pointer;position:relative;}
+.deploy-troop .ic{width:26px;height:26px;margin:0 auto;}
 .deploy-troop.selected{border-color:var(--gold);box-shadow:0 0 8px var(--gold);}
 .deploy-troop .cnt{position:absolute;top:-6px;right:-4px;background:#c0392b;border-radius:50%;font-size:9px;padding:1px 5px;font-weight:800;}
 #endbattle{position:absolute;top:60px;right:8px;z-index:47;display:none;flex-direction:column;gap:6px;}
@@ -101,16 +107,18 @@ canvas{display:block;background:#3c6e2e;touch-action:none;}
 #endbattle button{padding:8px 14px;border-radius:8px;border:none;font-weight:800;background:linear-gradient(180deg,#e35c5c,#a92727);color:#fff;cursor:pointer;}
 #battletimer{position:absolute;top:60px;left:50%;transform:translateX(-50%);z-index:47;background:#000a;padding:6px 14px;border-radius:10px;font-weight:800;display:none;font-size:16px;}
 #battletimer.open{display:block;}
-#starsdisplay{position:absolute;top:104px;left:50%;transform:translateX(-50%);z-index:47;font-size:22px;display:none;letter-spacing:4px;text-shadow:0 2px 3px #000;}
-#starsdisplay.open{display:block;}
-#destructdisplay{position:absolute;top:132px;left:50%;transform:translateX(-50%);z-index:47;font-size:12px;display:none;background:#000a;padding:3px 10px;border-radius:8px;}
+#starsdisplay{position:absolute;top:104px;left:50%;transform:translateX(-50%);z-index:47;display:none;gap:4px;}
+#starsdisplay.open{display:flex;}
+#starsdisplay svg{width:26px;height:26px;filter:drop-shadow(0 2px 2px #000);}
+#destructdisplay{position:absolute;top:136px;left:50%;transform:translateX(-50%);z-index:47;font-size:12px;display:none;background:#000a;padding:3px 10px;border-radius:8px;}
 #destructdisplay.open{display:block;}
 
 #toastwrap{position:absolute;top:58px;left:50%;transform:translateX(-50%);z-index:200;display:flex;flex-direction:column;gap:4px;align-items:center;}
 .toast{background:#000c;border:1px solid var(--border);padding:6px 14px;border-radius:8px;font-size:12px;animation:fadeout 2.6s forwards;}
 @keyframes fadeout{0%{opacity:1;}75%{opacity:1;}100%{opacity:0;transform:translateY(-8px);}}
 
-#resultmodal .starsbig{font-size:42px;text-align:center;letter-spacing:8px;margin:10px 0;}
+#resultmodal .starsbig{display:flex;justify-content:center;gap:10px;margin:14px 0;}
+#resultmodal .starsbig svg{width:52px;height:52px;}
 .loot-row{display:flex;justify-content:space-between;background:var(--panel2);padding:8px;border-radius:8px;margin:4px 0;}
 
 ::-webkit-scrollbar{width:6px;height:6px;}
@@ -125,14 +133,14 @@ canvas{display:block;background:#3c6e2e;touch-action:none;}
     <div class="resource res-gold"><div class="icon">G</div><div class="val" id="hud-gold">0</div><div class="cap" id="hud-goldcap">/0</div></div>
     <div class="resource res-elixir"><div class="icon">E</div><div class="val" id="hud-elixir">0</div><div class="cap" id="hud-elixircap">/0</div></div>
     <div class="resource res-dark"><div class="icon">D</div><div class="val" id="hud-dark">0</div><div class="cap" id="hud-darkcap">/0</div></div>
-    <div class="resource res-gem"><div class="icon">Ω</div><div class="val" id="hud-gems">0</div></div>
-    <div id="trophy-badge">🏆 <span id="hud-trophies">0</span></div>
+    <div class="resource res-gem"><div class="icon">P</div><div class="val" id="hud-gems">0</div></div>
+    <div id="trophy-badge"><div class="badge-icon icon-img" id="trophy-icon"></div><span id="hud-trophies">0</span></div>
     <div id="townhall-badge">TH <span id="hud-th">1</span></div>
-    <div id="achieve-badge" onclick="openModal('modal-achievements');rebuildAchievementsModal();" style="cursor:pointer;display:flex;align-items:center;gap:4px;background:var(--panel);border:2px solid var(--border);border-radius:14px;padding:4px 10px;font-size:12px;font-weight:700;">🏅 <span id="hud-ach-count">0</span></div>
+    <div id="achieve-badge" onclick="openModal('modal-achievements');rebuildAchievementsModal();"><div class="badge-icon icon-img" id="achieve-icon"></div><span id="hud-ach-count">0</span></div>
   </div>
 
   <div id="infopanel">
-    <div class="close btn-close" onclick="closeInfoPanel()">✕</div>
+    <div class="close btn-close" onclick="closeInfoPanel()">x</div>
     <h3 id="ip-name">Building</h3>
     <div style="font-size:11px;opacity:.75;" id="ip-level">Level 1</div>
     <div class="bar-bg"><div class="bar-fill" id="ip-hpbar" style="width:100%"></div></div>
@@ -145,7 +153,7 @@ canvas{display:block;background:#3c6e2e;touch-action:none;}
     <div id="deploy-troops-row" style="display:flex;gap:6px;"></div>
   </div>
   <div id="battletimer">03:00</div>
-  <div id="starsdisplay">☆☆☆</div>
+  <div id="starsdisplay"></div>
   <div id="destructdisplay">0% Destruction</div>
   <div id="endbattle">
     <button onclick="triggerHeroAbilities()" style="background:linear-gradient(180deg,#ffd85e,#d19a1a);color:#3a2500;">Hero Ability</button>
@@ -153,11 +161,11 @@ canvas{display:block;background:#3c6e2e;touch-action:none;}
   </div>
 
   <div id="bottomnav">
-    <div class="navbtn active" data-tab="build" onclick="switchTab('build')"><div class="ic">🏗</div>BUILD</div>
-    <div class="navbtn" data-tab="army" onclick="switchTab('army')"><div class="ic">⚔</div>ARMY</div>
-    <div class="navbtn" data-tab="attack" onclick="startAttackFlow()"><div class="ic">⚡</div>ATTACK</div>
-    <div class="navbtn" data-tab="league" onclick="switchTab('league')"><div class="ic">🏆</div>LEAGUE</div>
-    <div class="navbtn" data-tab="pass" onclick="switchTab('pass')"><div class="ic">🎖</div>PASS</div>
+    <div class="navbtn active" data-tab="build" onclick="switchTab('build')"><div class="ic icon-img" id="nav-build"></div>BUILD</div>
+    <div class="navbtn" data-tab="army" onclick="switchTab('army')"><div class="ic icon-img" id="nav-army"></div>ARMY</div>
+    <div class="navbtn" data-tab="attack" onclick="startAttackFlow()"><div class="ic icon-img" id="nav-attack"></div>ATTACK</div>
+    <div class="navbtn" data-tab="league" onclick="switchTab('league')"><div class="ic icon-img" id="nav-league"></div>LEAGUE</div>
+    <div class="navbtn" data-tab="pass" onclick="switchTab('pass')"><div class="ic icon-img" id="nav-pass"></div>PASS</div>
   </div>
 
   <div id="buildpanel">
@@ -168,8 +176,8 @@ canvas{display:block;background:#3c6e2e;touch-action:none;}
   <!-- ARMY MODAL -->
   <div class="modal-overlay" id="modal-army">
     <div class="modal">
-      <div class="close" onclick="closeModal('modal-army')">✕</div>
-      <h2>🏋 Barracks &amp; Army Camp</h2>
+      <div class="close" onclick="closeModal('modal-army')">x</div>
+      <h2><div class="hicon icon-img" id="army-modal-icon"></div>Barracks &amp; Army Camp</h2>
       <div style="font-size:12px;margin-bottom:8px;opacity:.8;">Camp Space: <span id="army-space">0/0</span></div>
       <div id="army-list"></div>
     </div>
@@ -178,9 +186,9 @@ canvas{display:block;background:#3c6e2e;touch-action:none;}
   <!-- LEAGUE MODAL -->
   <div class="modal-overlay" id="modal-league">
     <div class="modal">
-      <div class="close" onclick="closeModal('modal-league')">✕</div>
-      <h2>🏆 Battle League</h2>
-      <div style="font-size:12px;margin-bottom:10px;opacity:.85;">Season 4 · <span id="league-days">14</span> days remaining. Climb the ladder to earn league bonus loot every trophy road milestone.</div>
+      <div class="close" onclick="closeModal('modal-league')">x</div>
+      <h2><div class="hicon icon-img" id="league-modal-icon"></div>Battle League</h2>
+      <div style="font-size:12px;margin-bottom:10px;opacity:.85;">Season 4. Climb the ladder to earn league bonus loot every trophy road milestone.</div>
       <div id="league-ladder"></div>
     </div>
   </div>
@@ -188,9 +196,9 @@ canvas{display:block;background:#3c6e2e;touch-action:none;}
   <!-- BATTLE PASS MODAL -->
   <div class="modal-overlay" id="modal-pass">
     <div class="modal">
-      <div class="close" onclick="closeModal('modal-pass')">✕</div>
-      <h2>🎖 Season Battle Pass</h2>
-      <div style="font-size:12px;margin-bottom:8px;">Season XP: <span id="bp-xp">0</span> · Tier <span id="bp-tier">1</span>/50</div>
+      <div class="close" onclick="closeModal('modal-pass')">x</div>
+      <h2><div class="hicon icon-img" id="pass-modal-icon"></div>Season Battle Pass</h2>
+      <div style="font-size:12px;margin-bottom:8px;">Season XP: <span id="bp-xp">0</span> - Tier <span id="bp-tier">1</span>/50</div>
       <div class="progress-mini"><div id="bp-progress" style="width:0%"></div></div>
       <div class="bp-track" id="bp-track"></div>
     </div>
@@ -199,19 +207,19 @@ canvas{display:block;background:#3c6e2e;touch-action:none;}
   <!-- MATCHMAKING / SCOUT MODAL -->
   <div class="modal-overlay" id="modal-scout">
     <div class="modal">
-      <div class="close" onclick="closeModal('modal-scout')">✕</div>
-      <h2>⚡ Find a Match</h2>
+      <div class="close" onclick="closeModal('modal-scout')">x</div>
+      <h2><div class="hicon icon-img" id="scout-modal-icon"></div>Find a Match</h2>
       <div id="scout-info" style="font-size:12px;margin-bottom:10px;"></div>
-      <button class="btn-upgrade" style="width:100%;padding:10px;border-radius:8px;border:none;font-weight:800;" onclick="confirmAttack()">Attack!</button>
-      <button class="btn-cancel" style="width:100%;padding:10px;border-radius:8px;border:none;font-weight:800;margin-top:6px;" onclick="rerollScout()">New Base (-0 Gems)</button>
+      <button class="btn-upgrade" style="width:100%;padding:10px;border-radius:8px;border:none;font-weight:800;" onclick="confirmAttack()">Attack</button>
+      <button class="btn-cancel" style="width:100%;padding:10px;border-radius:8px;border:none;font-weight:800;margin-top:6px;" onclick="rerollScout()">New Base</button>
     </div>
   </div>
 
   <!-- ACHIEVEMENTS MODAL -->
   <div class="modal-overlay" id="modal-achievements">
     <div class="modal">
-      <div class="close" onclick="closeModal('modal-achievements')">✕</div>
-      <h2>🏅 Achievements</h2>
+      <div class="close" onclick="closeModal('modal-achievements')">x</div>
+      <h2><div class="hicon icon-img" id="ach-modal-icon"></div>Achievements</h2>
       <div id="achievements-list"></div>
     </div>
   </div>
@@ -220,7 +228,7 @@ canvas{display:block;background:#3c6e2e;touch-action:none;}
   <div class="modal-overlay" id="resultmodal">
     <div class="modal">
       <h2 style="justify-content:center;">Battle Result</h2>
-      <div class="starsbig" id="result-stars">☆☆☆</div>
+      <div class="starsbig" id="result-stars"></div>
       <div style="text-align:center;font-size:14px;" id="result-pct">0% Destruction</div>
       <div class="loot-row"><span>Gold Looted</span><span id="result-gold">0</span></div>
       <div class="loot-row"><span>Elixir Looted</span><span id="result-elixir">0</span></div>
@@ -235,10 +243,11 @@ canvas{display:block;background:#3c6e2e;touch-action:none;}
 
 <script>
 /* =========================================================================================
-   CLASH EMPIRES — full from-scratch base-builder / real-time-strategy battle simulator.
-   Single-file implementation: isometric canvas renderer, resource economy, build/upgrade
-   queues, troop training, AI-controlled defenses & AI-controlled attacking troops, trophies,
-   leagues, and a seasonal battle pass. Everything persists to localStorage.
+   CLASH EMPIRES - full from-scratch base-builder / real-time-strategy battle simulator.
+   Every icon used anywhere in this game (village, battle, menus, badges, stars, medals) is an
+   original vector graphic defined below as an SVG fragment and rendered either as a CSS
+   background-image (UI lists/menus) or drawn onto the canvas via a preloaded Image (village
+   and battle scenes). No emoji or pictographic characters are used anywhere in this file.
    ========================================================================================= */
 
 /* ---------------------------- UTILITIES ---------------------------- */
@@ -254,8 +263,163 @@ function fmt(n){
   return n.toString();
 }
 function clamp(v,a,b){return Math.max(a,Math.min(b,v));}
-function dist(a,b){return Math.hypot(a.x-b.x,a.y-b.y);}
 function uid(){return Math.random().toString(36).slice(2,10);}
+
+/* =========================================================================================
+   VECTOR ICON SYSTEM
+   Every icon is authored once as a small SVG body (100x100 viewBox) in ICON_DEFS, or produced
+   by one of the parametric generator functions below (humanoidIcon, towerIcon, containerIcon,
+   bottleIcon, tentIcon, medalIcon, starIcon). iconDataURI() wraps a body into a data: URI.
+   setIconBG() applies it to an HTML element's background-image. drawIcon() draws a preloaded
+   Image onto the game canvas. This is the single source of truth for all game art.
+   ========================================================================================= */
+function svgWrap(body){ return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">${body}</svg>`; }
+function iconDataURI(body){ return 'data:image/svg+xml;charset=UTF-8,'+encodeURIComponent(svgWrap(body)); }
+function setIconBG(el,key){ if(el) el.style.backgroundImage = `url("${iconDataURI(ICON_DEFS[key]||ICON_DEFS.unknown)}")`; }
+function setIconBGRaw(el,body){ if(el) el.style.backgroundImage = `url("${iconDataURI(body)}")`; }
+
+function humanoidIcon(bodyColor,headColor,extra){
+  return `<circle cx="50" cy="27" r="13" fill="${headColor}"/><path d="M32 90 L32 58 Q50 44 68 58 L68 90 Z" fill="${bodyColor}"/>${extra||''}`;
+}
+function towerIcon(baseColor,topColor,extra){
+  return `<rect x="28" y="42" width="44" height="48" fill="${baseColor}"/><rect x="20" y="20" width="60" height="24" fill="${topColor}"/>${extra||''}`;
+}
+function containerIcon(bodyColor,capColor,extra){
+  return `<path d="M30 30 Q19 60 30 88 Q50 98 70 88 Q81 60 70 30 Q50 20 30 30 Z" fill="${bodyColor}"/><ellipse cx="50" cy="30" rx="20" ry="8" fill="${capColor}"/>${extra||''}`;
+}
+function bottleIcon(liquidColor,symbol){
+  return `<path d="M40 14 h20 v14 l12 13 v39 a10 10 0 0 1 -10 10 h-24 a10 10 0 0 1 -10 -10 v-39 l12 -13 Z" fill="${liquidColor}" stroke="#000" stroke-opacity=".25" stroke-width="1.5"/>${symbol||''}`;
+}
+function tentIcon(colorA,colorB,extra){
+  return `<polygon points="50,18 88,88 12,88" fill="${colorA}"/><polygon points="50,18 66,88 34,88" fill="${colorB}"/>${extra||''}`;
+}
+function medalIcon(color,ringColor){
+  return `<polygon points="35,50 20,92 42,82 50,95 58,82 80,92 65,50" fill="${ringColor||'#7a1a1a'}"/>
+    <circle cx="50" cy="42" r="30" fill="${color}"/><circle cx="50" cy="42" r="22" fill="none" stroke="#0004" stroke-width="4"/>`;
+}
+function starIcon(fillColor){
+  const pts=starPoints(50,50,32,14,5).map(p=>p.join(',')).join(' ');
+  return `<polygon points="${pts}" fill="${fillColor}" stroke="#0006" stroke-width="2"/>`;
+}
+function starPoints(cx,cy,outerR,innerR,spikes){
+  const pts=[]; const step=Math.PI/spikes;
+  for(let i=0;i<spikes*2;i++){
+    const r=i%2===0?outerR:innerR;
+    const ang=i*step - Math.PI/2;
+    pts.push([+(cx+Math.cos(ang)*r).toFixed(1), +(cy+Math.sin(ang)*r).toFixed(1)]);
+  }
+  return pts;
+}
+
+const ICON_DEFS = {
+  unknown: `<rect x="20" y="20" width="60" height="60" rx="8" fill="#666"/>`,
+
+  /* --- currencies / HUD --- */
+  trophyIcon: `<path d="M30 20 h40 v18 a20 20 0 0 1 -40 0 Z" fill="#ffce3f"/><rect x="42" y="55" width="16" height="14" fill="#c9962a"/><rect x="32" y="69" width="36" height="10" rx="3" fill="#a87a1a"/><path d="M30 24 h-12 a10 10 0 0 0 10 16" fill="none" stroke="#c9962a" stroke-width="5"/><path d="M70 24 h12 a10 10 0 0 1 -10 16" fill="none" stroke="#c9962a" stroke-width="5"/>`,
+  achieveIcon: `<circle cx="50" cy="42" r="30" fill="#ffce3f"/><polygon points="50,26 56,40 71,40 59,49 63,64 50,55 37,64 41,49 29,40 44,40" fill="#a87a1a"/><polygon points="35,50 22,90 42,80 50,92 58,80 78,90 65,50" fill="#8a5a10"/>`,
+
+  /* --- nav / UI --- */
+  navBuild: `<rect x="44" y="10" width="12" height="46" rx="4" fill="#8a5a2a" transform="rotate(35 50 50)"/><path d="M60 20 L85 45 L70 60 L45 35 Z" fill="#8a8a8a" transform="rotate(0)"/>`,
+  navArmy: `<line x1="18" y1="25" x2="70" y2="77" stroke="#c9c9c9" stroke-width="8" stroke-linecap="round"/><line x1="82" y1="25" x2="30" y2="77" stroke="#c9c9c9" stroke-width="8" stroke-linecap="round"/><circle cx="50" cy="51" r="7" fill="#e0433f"/>`,
+  navAttack: `<polygon points="55,10 25,55 45,55 40,90 75,42 53,42" fill="#ffce3f" stroke="#a87a1a" stroke-width="2"/>`,
+  navLeague: `trophyIcon`,
+  navPass: `<circle cx="50" cy="35" r="22" fill="#3ee0e0"/><polygon points="35,52 35,90 50,78 65,90 65,52" fill="#2aa8a8"/><circle cx="50" cy="35" r="13" fill="#c9fffb"/>`,
+  hammer: `<rect x="44" y="18" width="12" height="42" rx="4" fill="#8a5a2a" transform="rotate(35 50 50)"/><path d="M55 15 L88 38 L74 58 L44 32 Z" fill="#9a9a9a"/>`,
+  upgradeArrow: `<polygon points="50,15 80,50 62,50 62,88 38,88 38,50 20,50" fill="#3fd44a"/>`,
+  cancelX: `<line x1="25" y1="25" x2="75" y2="75" stroke="#e0433f" stroke-width="10" stroke-linecap="round"/><line x1="75" y1="25" x2="25" y2="75" stroke="#e0433f" stroke-width="10" stroke-linecap="round"/>`,
+  coin: `<circle cx="50" cy="50" r="34" fill="#ffce3f" stroke="#c9962a" stroke-width="4"/><circle cx="50" cy="50" r="20" fill="none" stroke="#c9962a" stroke-width="3"/>`,
+  sleepIcon: `<circle cx="55" cy="50" r="28" fill="#9ac9ff"/><circle cx="68" cy="40" r="24" fill="#0e1a24"/>`,
+  gemIcon: `<polygon points="50,10 80,38 65,90 35,90 20,38" fill="#3ee0e0" stroke="#1a9a9a" stroke-width="3"/><polygon points="50,10 65,38 35,38" fill="#8cfcfc"/>`,
+
+  /* --- resource buildings --- */
+  townhall: `<rect x="10" y="55" width="80" height="35" rx="4" fill="#c9a227"/><rect x="25" y="30" width="50" height="30" rx="3" fill="#e0b23a"/><polygon points="50,5 80,30 20,30" fill="#8a6a1a"/><rect x="46" y="8" width="4" height="16" fill="#5a4212"/><polygon points="50,8 50,18 64,13" fill="#c0392b"/>`,
+  gold_mine: `<ellipse cx="50" cy="80" rx="42" ry="13" fill="#6b4a22"/><path d="M14 82 Q50 18 86 82 Z" fill="#8a5a2e"/><ellipse cx="50" cy="78" rx="15" ry="10" fill="#251708"/><circle cx="30" cy="88" r="7" fill="#ffce3f"/><circle cx="44" cy="90" r="8" fill="#ffce3f"/><circle cx="60" cy="88" r="7" fill="#ffce3f"/>`,
+  elixir_collector: `<rect x="20" y="60" width="60" height="28" rx="6" fill="#6a3a8a"/><ellipse cx="50" cy="60" rx="30" ry="12" fill="#a259d9"/><ellipse cx="50" cy="57" rx="21" ry="7" fill="#c98cf0"/><rect x="44" y="18" width="12" height="42" rx="4" fill="#8a5ab5"/><circle cx="50" cy="16" r="10" fill="#c98cf0"/>`,
+  dark_drill: `<ellipse cx="50" cy="82" rx="38" ry="11" fill="#2a1338"/><polygon points="50,10 63,55 37,55" fill="#5a2a86"/><polygon points="50,10 56,55 50,50 44,55" fill="#7a4ab0"/><rect x="33" y="55" width="34" height="15" rx="3" fill="#3a1a52"/>`,
+  gold_storage: `${containerIcon('#f0c94a','#6b4a12')}`,
+  elixir_storage: `${containerIcon('#b476e6','#5a2a86')}`,
+  dark_storage: `${containerIcon('#5d3387','#20102e')}<polygon points="30,32 25,20 35,26" fill="#8a5ab5"/><polygon points="70,32 65,20 75,26" fill="#8a5ab5"/>`,
+
+  /* --- defenses --- */
+  cannon: `<rect x="20" y="55" width="60" height="30" rx="6" fill="#565656"/><circle cx="50" cy="55" r="27" fill="#6b6b6b"/><rect x="45" y="8" width="16" height="48" rx="6" fill="#3a3a3a"/><circle cx="50" cy="55" r="10" fill="#242424"/>`,
+  archer_tower: `${towerIcon('#8a5a3a','#a06a44',`<rect x="24" y="8" width="9" height="14" fill="#a06a44"/><rect x="45" y="8" width="9" height="14" fill="#a06a44"/><rect x="66" y="8" width="9" height="14" fill="#a06a44"/><path d="M48 46 q22 6 10 30" stroke="#241a0a" stroke-width="4" fill="none"/>`)}`,
+  mortar: `<line x1="30" y1="88" x2="50" y2="52" stroke="#3a4a28" stroke-width="7"/><line x1="70" y1="88" x2="50" y2="52" stroke="#3a4a28" stroke-width="7"/><line x1="50" y1="88" x2="50" y2="52" stroke="#3a4a28" stroke-width="7"/><ellipse cx="50" cy="42" rx="21" ry="11" fill="#4a5a34"/><ellipse cx="50" cy="37" rx="13" ry="7" fill="#242f1a"/>`,
+  wizard_tower: `<rect x="34" y="45" width="32" height="44" fill="#6a3aa8"/><polygon points="50,8 75,48 25,48" fill="#8a5ac9"/><circle cx="50" cy="16" r="8" fill="#c98cf0"/>`,
+  air_defense: `<rect x="42" y="58" width="16" height="30" fill="#2a5a8a"/><ellipse cx="50" cy="53" rx="5" ry="11" fill="#3a7ac9"/><path d="M18 42 A32 32 0 0 1 82 42" stroke="#3a7ac9" stroke-width="9" fill="none"/>`,
+  tesla: `<rect x="43" y="48" width="14" height="40" fill="#c9c93a"/><polyline points="38,48 62,36 42,26 62,12" stroke="#e0e05a" stroke-width="5" fill="none"/>`,
+  x_bow: `<rect x="46" y="15" width="8" height="70" fill="#3a3a3a"/><path d="M12 35 Q50 58 88 35" stroke="#6b6b6b" stroke-width="7" fill="none"/><path d="M12 65 Q50 42 88 65" stroke="#6b6b6b" stroke-width="7" fill="none"/>`,
+  inferno_tower: `<line x1="33" y1="90" x2="50" y2="16" stroke="#7a2a1a" stroke-width="6"/><line x1="50" y1="90" x2="50" y2="10" stroke="#a83a1a" stroke-width="6"/><line x1="67" y1="90" x2="50" y2="16" stroke="#7a2a1a" stroke-width="6"/><circle cx="50" cy="16" r="9" fill="#ffb040"/>`,
+  scattershot: `<circle cx="50" cy="56" r="29" fill="#4a4a4a"/><rect x="16" y="50" width="22" height="11" fill="#242424"/><rect x="62" y="50" width="22" height="11" fill="#242424"/><rect x="44" y="12" width="12" height="38" fill="#242424"/>`,
+  wall: `<rect x="8" y="35" width="84" height="52" fill="#a89878"/><line x1="8" y1="51" x2="92" y2="51" stroke="#5a4a32" stroke-width="3"/><line x1="8" y1="67" x2="92" y2="67" stroke="#5a4a32" stroke-width="3"/><line x1="30" y1="35" x2="30" y2="51" stroke="#5a4a32" stroke-width="3"/><line x1="70" y1="51" x2="70" y2="67" stroke="#5a4a32" stroke-width="3"/><line x1="50" y1="67" x2="50" y2="87" stroke="#5a4a32" stroke-width="3"/>`,
+
+  /* --- army buildings --- */
+  army_camp: `${tentIcon('#c96b3a','#a8552a',`<line x1="80" y1="18" x2="80" y2="46" stroke="#5a3a1a" stroke-width="3"/><polygon points="80,18 97,26 80,34" fill="#e0433f"/>`)}`,
+  barracks: `<rect x="20" y="50" width="60" height="38" fill="#a83a3a"/><polygon points="50,24 86,50 14,50" fill="#7a2a2a"/><rect x="41" y="64" width="18" height="24" fill="#2a1414"/>`,
+  dark_barracks: `<rect x="20" y="50" width="60" height="38" fill="#3a2a3a"/><polygon points="50,24 86,50 14,50" fill="#241a26"/><polygon points="20,50 26,40 32,50" fill="#5a3a5a"/><polygon points="44,50 50,40 56,50" fill="#5a3a5a"/><polygon points="68,50 74,40 80,50" fill="#5a3a5a"/><rect x="41" y="64" width="18" height="24" fill="#150e18"/>`,
+  clan_castle: `<rect x="14" y="45" width="72" height="45" fill="#8a2a2a"/><rect x="14" y="28" width="17" height="19" fill="#6b1a1a"/><rect x="69" y="28" width="17" height="19" fill="#6b1a1a"/><rect x="41" y="18" width="18" height="29" fill="#6b1a1a"/><polygon points="22,28 22,13 34,21" fill="#ffce3f"/>`,
+  laboratory: `<path d="M42 12 h16 v20 l17 42 a9 9 0 0 1 -9 13 h-32 a9 9 0 0 1 -9 -13 l17 -42 Z" fill="#2a8a6a"/><ellipse cx="50" cy="80" rx="19" ry="8" fill="#3ad4a0"/>`,
+  spell_factory: `<ellipse cx="50" cy="70" rx="30" ry="18" fill="#7a4ac9"/><ellipse cx="50" cy="61" rx="24" ry="10" fill="#a678e6"/><path d="M38 44 q6 -16 0 -28 M50 44 q6 -19 0 -30 M62 44 q6 -16 0 -28" stroke="#c9a8f0" stroke-width="4" fill="none" stroke-linecap="round"/>`,
+  dark_spell_factory: `<ellipse cx="50" cy="70" rx="30" ry="18" fill="#2a1a3a"/><ellipse cx="50" cy="61" rx="24" ry="10" fill="#3a2a52"/><path d="M38 44 q6 -16 0 -28 M50 44 q6 -19 0 -30 M62 44 q6 -16 0 -28" stroke="#5a3a7a" stroke-width="4" fill="none" stroke-linecap="round"/>`,
+  barbarian_king: `<path d="M28 58 L28 88 L72 88 L72 58 L60 40 L54 58 L50 34 L46 58 L40 40 Z" fill="#8a5a2a"/><rect x="24" y="88" width="52" height="8" fill="#5a3a1a"/>`,
+  archer_queen: `<path d="M32 60 L32 88 L68 88 L68 60 L58 42 L53 60 L50 38 L47 60 L42 42 Z" fill="#c9962a"/><rect x="27" y="88" width="46" height="8" fill="#8a5a10"/><path d="M78 30 Q92 55 78 80" stroke="#5a3a1a" stroke-width="4" fill="none"/>`,
+
+  /* --- troops --- */
+  barbarian: humanoidIcon('#a8763a','#d9b06a',`<line x1="68" y1="55" x2="87" y2="32" stroke="#ccc" stroke-width="6" stroke-linecap="round"/>`),
+  archer: humanoidIcon('#6a8a4a','#cdb98a',`<path d="M76 28 Q92 55 76 82" stroke="#5a3a1a" stroke-width="4" fill="none"/><line x1="76" y1="28" x2="76" y2="82" stroke="#eee" stroke-width="1.5"/>`),
+  goblin: humanoidIcon('#4a7a3a','#7ab04a',`<line x1="66" y1="60" x2="82" y2="48" stroke="#ccc" stroke-width="5" stroke-linecap="round"/>`),
+  giant: `${humanoidIcon('#8a6a4a','#c9a878','')}<circle cx="22" cy="72" r="12" fill="#8a6a4a"/><circle cx="78" cy="72" r="12" fill="#8a6a4a"/>`,
+  wallbreaker: `${humanoidIcon('#5a5a5a','#8a8a8a','')}<circle cx="76" cy="55" r="13" fill="#242424"/><line x1="76" y1="42" x2="82" y2="30" stroke="#e0433f" stroke-width="4"/>`,
+  balloon: `<ellipse cx="50" cy="34" rx="30" ry="26" fill="#c96b3a"/><ellipse cx="50" cy="26" rx="20" ry="14" fill="#e08a52"/><line x1="30" y1="55" x2="38" y2="78" stroke="#5a3a1a" stroke-width="3"/><line x1="70" y1="55" x2="62" y2="78" stroke="#5a3a1a" stroke-width="3"/><rect x="36" y="78" width="28" height="14" rx="3" fill="#5a3a1a"/>`,
+  wizard: `<circle cx="50" cy="27" r="13" fill="#c9a878"/><polygon points="50,10 62,30 38,30" fill="#4a2a7a"/><path d="M30 90 L34 58 Q50 46 66 58 L70 90 Z" fill="#6a3aa8"/><line x1="76" y1="30" x2="88" y2="14" stroke="#5a3a1a" stroke-width="4"/><circle cx="88" cy="12" r="6" fill="#c98cf0"/>`,
+  healer: `${humanoidIcon('#e0a8d9','#f0d0e8','')}<polygon points="18,45 34,58 30,68" fill="#fff" opacity=".85"/><polygon points="82,45 66,58 70,68" fill="#fff" opacity=".85"/><rect x="45" y="46" width="10" height="24" fill="#fff"/><rect x="38" y="53" width="24" height="10" fill="#fff"/>`,
+  pekka: `<rect x="30" y="52" width="40" height="38" fill="#3a3a4a"/><rect x="32" y="20" width="36" height="30" rx="4" fill="#5a5a6e"/><rect x="38" y="34" width="24" height="6" fill="#c9463f"/><rect x="70" y="30" width="10" height="55" fill="#8a8a9a"/>`,
+  minion: `<ellipse cx="50" cy="55" rx="18" ry="24" fill="#5a2a86"/><polygon points="32,45 8,30 28,60" fill="#7a4ab0"/><polygon points="68,45 92,30 72,60" fill="#7a4ab0"/><circle cx="43" cy="48" r="3" fill="#ffe94a"/><circle cx="57" cy="48" r="3" fill="#ffe94a"/>`,
+  hogrider: `<ellipse cx="50" cy="65" rx="34" ry="20" fill="#c9962a"/><circle cx="30" cy="85" r="9" fill="#3a2a1a"/><circle cx="70" cy="85" r="9" fill="#3a2a1a"/><circle cx="55" cy="34" r="11" fill="#d9b06a"/><path d="M30 44 L44 30 L58 44 Z" fill="#a8763a"/><line x1="66" y1="40" x2="82" y2="22" stroke="#8a5a2a" stroke-width="6" stroke-linecap="round"/>`,
+  valkyrie: `${humanoidIcon('#c9463f','#e6c9a8','')}<ellipse cx="24" cy="60" rx="10" ry="16" fill="#8a8a9a"/><polygon points="72,30 90,45 74,50" fill="#c9c9c9"/><line x1="72" y1="30" x2="72" y2="60" stroke="#5a3a1a" stroke-width="4"/>`,
+  dragon: `<path d="M15 70 Q35 30 55 45 Q75 30 90 50 Q70 55 60 70 Q45 60 35 75 Z" fill="#c9463f"/><polygon points="35,40 20,15 45,35" fill="#a8302a"/><polygon points="65,42 82,18 70,44" fill="#a8302a"/><circle cx="82" cy="52" r="10" fill="#e07a52"/><polygon points="76,45 80,36 85,45" fill="#7a2a1a"/>`,
+
+  /* --- spells --- */
+  heal: bottleIcon('#6adf7a',`<rect x="46" y="52" width="8" height="26" fill="#fff"/><rect x="37" y="61" width="26" height="8" fill="#fff"/>`),
+  rage: bottleIcon('#e0433f',`<polygon points="50,50 62,72 38,72" fill="#fff"/>`),
+  lightning: bottleIcon('#ffe94a',`<polygon points="55,48 44,66 52,66 46,80 62,58 53,58" fill="#fff"/>`),
+  jump: bottleIcon('#ffce3f',`<path d="M36 74 Q50 44 64 74" stroke="#fff" stroke-width="5" fill="none"/><polygon points="64,66 72,74 62,78" fill="#fff"/>`),
+  freeze: bottleIcon('#8cf0f0',`<line x1="50" y1="48" x2="50" y2="80" stroke="#fff" stroke-width="4"/><line x1="38" y1="55" x2="62" y2="73" stroke="#fff" stroke-width="4"/><line x1="62" y1="55" x2="38" y2="73" stroke="#fff" stroke-width="4"/>`),
+
+  /* --- obstacles --- */
+  tree: `<rect x="45" y="70" width="10" height="20" fill="#6b4a22"/><polygon points="50,20 26,58 74,58" fill="#2f6b2a"/><polygon points="50,38 30,72 70,72" fill="#3a8a34"/>`,
+  rock: `<path d="M18 78 Q10 55 30 45 Q40 25 60 32 Q85 30 82 55 Q92 62 80 80 Q55 92 30 88 Q18 88 18 78 Z" fill="#8a8a8a"/><path d="M30 45 Q40 25 60 32" fill="none" stroke="#666" stroke-width="3"/>`,
+  bush: `<circle cx="35" cy="60" r="22" fill="#3a8a34"/><circle cx="60" cy="52" r="26" fill="#2f6b2a"/><circle cx="70" cy="68" r="18" fill="#3a8a34"/>`,
+};
+ICON_DEFS.navLeague = ICON_DEFS.trophyIcon;
+
+const ICON_IMAGES = {};
+function preloadIcons(){
+  Object.keys(ICON_DEFS).forEach(key=>{
+    const im=new Image();
+    im.src=iconDataURI(ICON_DEFS[key]);
+    ICON_IMAGES[key]=im;
+  });
+}
+function drawIcon(ctx,key,x,y,size){
+  const im=ICON_IMAGES[key];
+  if(im && im.complete && im.naturalWidth) ctx.drawImage(im,x-size/2,y-size/2,size,size);
+}
+/* draws a raw (non-cached) svg body directly, used for one-off colored medals/stars */
+const rawIconCache={};
+function drawRawIcon(ctx,body,x,y,size){
+  let im=rawIconCache[body];
+  if(!im){ im=new Image(); im.src=iconDataURI(body); rawIconCache[body]=im; }
+  if(im.complete && im.naturalWidth) ctx.drawImage(im,x-size/2,y-size/2,size,size);
+}
+function starsRowHTML(filled,total,size){
+  size=size||26;
+  let html='';
+  for(let i=0;i<total;i++){
+    const body=starIcon(i<filled? '#ffce3f':'#3a4552');
+    html+=`<img src="${iconDataURI(body)}" style="width:${size}px;height:${size}px;">`;
+  }
+  return html;
+}
 
 /* ---------------------------- ISOMETRIC GRID ---------------------------- */
 const GRID_W=40, GRID_H=40, TILE_W=44, TILE_H=22;
@@ -272,89 +436,89 @@ function screenToTile(sx,sy){
 }
 
 /* ---------------------------- BUILDING DEFINITIONS ---------------------------- */
-// Each type has per-level stats. Costs scale; simplified progression across 3-5 levels for depth.
+// Each type has per-level stats. Costs scale; simplified progression across levels for depth.
 const BUILD_DEFS = {
-  townhall: {name:'Town Hall',cat:'defense',icon:'🏛',size:4,maxLevel:6,
+  townhall: {name:'Town Hall',cat:'defense',icon:'townhall',size:4,maxLevel:6,
     levels:l=>({hp:1600+ l*350, cost:0, time:0, unlocks:l})},
-  gold_mine:{name:'Gold Mine',cat:'resource',icon:'⛏',size:3,maxLevel:8,
+  gold_mine:{name:'Gold Mine',cat:'resource',icon:'gold_mine',size:3,maxLevel:8,
     levels:l=>({hp:400+l*60, cost:150*l, time:20+l*15, rate:8+l*4, cap:99999})},
-  elixir_collector:{name:'Elixir Collector',cat:'resource',icon:'🧪',size:3,maxLevel:8,
+  elixir_collector:{name:'Elixir Collector',cat:'resource',icon:'elixir_collector',size:3,maxLevel:8,
     levels:l=>({hp:400+l*60, cost:150*l, time:20+l*15, rate:8+l*4})},
-  dark_drill:{name:'Dark Elixir Drill',cat:'resource',icon:'☠',size:3,maxLevel:6,
+  dark_drill:{name:'Dark Elixir Drill',cat:'resource',icon:'dark_drill',size:3,maxLevel:6,
     levels:l=>({hp:600+l*80, cost:'dark:'+(500+l*400), time:60+l*30, rate:0.5+l*0.3})},
-  gold_storage:{name:'Gold Storage',cat:'resource',icon:'💰',size:3,maxLevel:8,
+  gold_storage:{name:'Gold Storage',cat:'resource',icon:'gold_storage',size:3,maxLevel:8,
     levels:l=>({hp:600+l*90, cost:300*l, time:40+l*30, cap:3000*Math.pow(1.6,l-1)})},
-  elixir_storage:{name:'Elixir Storage',cat:'resource',icon:'🏺',size:3,maxLevel:8,
+  elixir_storage:{name:'Elixir Storage',cat:'resource',icon:'elixir_storage',size:3,maxLevel:8,
     levels:l=>({hp:600+l*90, cost:300*l, time:40+l*30, cap:3000*Math.pow(1.6,l-1)})},
-  dark_storage:{name:'Dark Elixir Storage',cat:'resource',icon:'⚱',size:3,maxLevel:5,
+  dark_storage:{name:'Dark Elixir Storage',cat:'resource',icon:'dark_storage',size:3,maxLevel:5,
     levels:l=>({hp:800+l*100, cost:'dark:'+(1000+l*800), time:120+l*60, cap:1500*Math.pow(1.5,l-1)})},
-  cannon:{name:'Cannon',cat:'defense',icon:'💣',size:3,maxLevel:10,
+  cannon:{name:'Cannon',cat:'defense',icon:'cannon',size:3,maxLevel:10,
     levels:l=>({hp:420+l*45, cost:250*l, time:30+l*20, dmg:8+l*3.5, range:9, rof:0.8, target:'ground'})},
-  archer_tower:{name:'Archer Tower',cat:'defense',icon:'🏹',size:3,maxLevel:10,
+  archer_tower:{name:'Archer Tower',cat:'defense',icon:'archer_tower',size:3,maxLevel:10,
     levels:l=>({hp:380+l*40, cost:280*l, time:35+l*20, dmg:6+l*2.8, range:10, rof:0.5, target:'all'})},
-  mortar:{name:'Mortar',cat:'defense',icon:'🎯',size:3,maxLevel:8,
+  mortar:{name:'Mortar',cat:'defense',icon:'mortar',size:3,maxLevel:8,
     levels:l=>({hp:400+l*35, cost:'elixir:'+(500*l), time:60+l*30, dmg:18+l*8, range:11, minRange:4, rof:3.2, target:'ground',splash:true})},
-  wizard_tower:{name:'Wizard Tower',cat:'defense',icon:'🧙',size:3,maxLevel:8,
+  wizard_tower:{name:'Wizard Tower',cat:'defense',icon:'wizard_tower',size:3,maxLevel:8,
     levels:l=>({hp:500+l*55, cost:'elixir:'+(750*l), time:90+l*30, dmg:14+l*5, range:8, rof:0.9, target:'all',splash:true})},
-  air_defense:{name:'Air Defense',cat:'defense',icon:'🚀',size:3,maxLevel:8,
+  air_defense:{name:'Air Defense',cat:'defense',icon:'air_defense',size:3,maxLevel:8,
     levels:l=>({hp:450+l*50, cost:'elixir:'+(800*l), time:120+l*40, dmg:20+l*9, range:10, rof:1.1, target:'air'})},
-  tesla:{name:'Hidden Tesla',cat:'defense',icon:'⚡',size:3,maxLevel:8,
+  tesla:{name:'Hidden Tesla',cat:'defense',icon:'tesla',size:3,maxLevel:8,
     levels:l=>({hp:500+l*60, cost:'dark:'+(300*l), time:150+l*40, dmg:16+l*6, range:8, rof:0.7, target:'all',hidden:true})},
-  wall:{name:'Wall',cat:'defense',icon:'🧱',size:1,maxLevel:10,
-    levels:l=>({hp:300*l, cost:l<=2?50*l:400*Math.pow(1.7,l-2), time:1})},
-  army_camp:{name:'Army Camp',cat:'army',icon:'⛺',size:3,maxLevel:8,
-    levels:l=>({hp:250+l*30, cost:250*l, time:30+l*15, capacity:20+l*10})},
-  barracks:{name:'Barracks',cat:'army',icon:'🏕',size:3,maxLevel:9,
-    levels:l=>({hp:250+l*20, cost:200*l, time:20+l*10, unlockTroop:l})},
-  dark_barracks:{name:'Dark Barracks',cat:'army',icon:'🏴',size:3,maxLevel:6,
-    levels:l=>({hp:300+l*20, cost:'dark:'+(100*l), time:60+l*30, unlockTroop:l})},
-  clan_castle:{name:'Clan Castle',cat:'army',icon:'🏰',size:3,maxLevel:8,
-    levels:l=>({hp:1000+l*150, cost:0, time:0, capacity:5+l*5, dmg:22+l*6,range:9})},
-  laboratory:{name:'Laboratory',cat:'army',icon:'⚗',size:3,maxLevel:8,
-    levels:l=>({hp:400+l*40, cost:'elixir:'+(600*l), time:60+l*30})},
-  spell_factory:{name:'Spell Factory',cat:'army',icon:'🧪',size:3,maxLevel:6,
-    levels:l=>({hp:400+l*40, cost:'elixir:'+(500*l), time:90+l*40, unlockSpell:l, spellSpace:2+l})},
-  dark_spell_factory:{name:'Dark Spell Factory',cat:'army',icon:'☣',size:3,maxLevel:5,
-    levels:l=>({hp:450+l*40, cost:'dark:'+(200*l), time:150+l*60, unlockSpell:l, spellSpace:2+l})},
-  x_bow:{name:'X-Bow',cat:'defense',icon:'✕',size:3,maxLevel:6,
+  x_bow:{name:'X-Bow',cat:'defense',icon:'x_bow',size:3,maxLevel:6,
     levels:l=>({hp:600+l*60, cost:'elixir:'+(1200*l), time:200+l*60, dmg:14+l*4, range:14, rof:0.6, target:'all'})},
-  inferno_tower:{name:'Inferno Tower',cat:'defense',icon:'🔥',size:3,maxLevel:5,
+  inferno_tower:{name:'Inferno Tower',cat:'defense',icon:'inferno_tower',size:3,maxLevel:5,
     levels:l=>({hp:700+l*70, cost:'dark:'+(600*l), time:300+l*80, dmg:18+l*10, range:9, rof:0.5, target:'all',ramping:true})},
-  scattershot:{name:'Scattershot',cat:'defense',icon:'✴',size:4,maxLevel:3,
+  scattershot:{name:'Scattershot',cat:'defense',icon:'scattershot',size:4,maxLevel:3,
     levels:l=>({hp:900+l*90, cost:'dark:'+(1500*l), time:400+l*100, dmg:26+l*10, range:11, rof:1.6, target:'all',splash:true})},
-  barbarian_king:{name:'Barbarian King',cat:'army',icon:'🤴',size:3,maxLevel:10,isHero:true,
+  wall:{name:'Wall',cat:'defense',icon:'wall',size:1,maxLevel:10,
+    levels:l=>({hp:300*l, cost:l<=2?50*l:400*Math.pow(1.7,l-2), time:1})},
+  army_camp:{name:'Army Camp',cat:'army',icon:'army_camp',size:3,maxLevel:8,
+    levels:l=>({hp:250+l*30, cost:250*l, time:30+l*15, capacity:20+l*10})},
+  barracks:{name:'Barracks',cat:'army',icon:'barracks',size:3,maxLevel:9,
+    levels:l=>({hp:250+l*20, cost:200*l, time:20+l*10, unlockTroop:l})},
+  dark_barracks:{name:'Dark Barracks',cat:'army',icon:'dark_barracks',size:3,maxLevel:6,
+    levels:l=>({hp:300+l*20, cost:'dark:'+(100*l), time:60+l*30, unlockTroop:l})},
+  clan_castle:{name:'Clan Castle',cat:'army',icon:'clan_castle',size:3,maxLevel:8,
+    levels:l=>({hp:1000+l*150, cost:0, time:0, capacity:5+l*5, dmg:22+l*6,range:9})},
+  laboratory:{name:'Laboratory',cat:'army',icon:'laboratory',size:3,maxLevel:8,
+    levels:l=>({hp:400+l*40, cost:'elixir:'+(600*l), time:60+l*30})},
+  spell_factory:{name:'Spell Factory',cat:'army',icon:'spell_factory',size:3,maxLevel:6,
+    levels:l=>({hp:400+l*40, cost:'elixir:'+(500*l), time:90+l*40, unlockSpell:l, spellSpace:2+l})},
+  dark_spell_factory:{name:'Dark Spell Factory',cat:'army',icon:'dark_spell_factory',size:3,maxLevel:5,
+    levels:l=>({hp:450+l*40, cost:'dark:'+(200*l), time:150+l*60, unlockSpell:l, spellSpace:2+l})},
+  barbarian_king:{name:'Barbarian King',cat:'army',icon:'barbarian_king',size:3,maxLevel:10,isHero:true,
     levels:l=>({hp:1300+l*140, cost:'dark:'+(3500+l*1200), time:(3+l)*1800, dmg:60+l*7, range:0.5, rof:0.9, speed:1.1,
       target:'ground', ability:'Iron Fist', abilityDmgMult:1.8, abilitySpeedMult:1.4, abilityDuration:14, regen:1200})},
-  archer_queen:{name:'Archer Queen',cat:'army',icon:'👸',size:3,maxLevel:10,isHero:true,
+  archer_queen:{name:'Archer Queen',cat:'army',icon:'archer_queen',size:3,maxLevel:10,isHero:true,
     levels:l=>({hp:950+l*100, cost:'dark:'+(3800+l*1300), time:(3+l)*1800, dmg:75+l*8, range:4.5, rof:0.7, speed:1.2,
       target:'all', ability:'Royal Cloak', abilityDmgMult:1.5, abilitySpeedMult:1.6, abilityDuration:12, regen:1200,
       invisDuring:true})},
 };
 
-/* Spells trained at Spell Factory / Dark Spell Factory, deployed mid-battle for area effects */
-const SPELL_DEFS = {
-  heal:{name:'Heal Spell',icon:'💚',cost:'elixir:500',housing:2,radius:3.5,duration:10,healPerSec:60,trainTime:180,unlockLevel:1,factory:'spell_factory'},
-  rage:{name:'Rage Spell',icon:'😡',cost:'elixir:650',housing:2,radius:3.5,duration:12,dmgMult:1.5,speedMult:1.3,trainTime:240,unlockLevel:2,factory:'spell_factory'},
-  lightning:{name:'Lightning Spell',icon:'⚡',cost:'elixir:600',housing:1,radius:2.2,duration:0,burstDmg:90,trainTime:200,unlockLevel:3,factory:'spell_factory'},
-  jump:{name:'Jump Spell',icon:'🦘',cost:'dark:2',housing:2,radius:4,duration:14,trainTime:260,unlockLevel:1,factory:'dark_spell_factory',allowWallJump:true},
-  freeze:{name:'Freeze Spell',icon:'❄',cost:'dark:3',housing:1,radius:2.6,duration:6,trainTime:220,unlockLevel:2,factory:'dark_spell_factory',freezesDefense:true},
-};
-
 /* Troop definitions */
 const TROOP_DEFS = {
-  barbarian:{name:'Barbarian',icon:'🗡',cost:'elixir:120',housing:1,hp:45,dmg:8,speed:1.0,range:0.4,rof:1,target:'ground',trainTime:20,unlockLevel:1},
-  archer:{name:'Archer',icon:'🏹',cost:'elixir:150',housing:1,hp:20,dmg:7,speed:1.0,range:3.5,rof:1,target:'all',trainTime:25,unlockLevel:1},
-  goblin:{name:'Goblin',icon:'🥷',cost:'elixir:130',housing:1,hp:25,dmg:11,speed:1.3,range:0.4,rof:0.9,target:'ground',trainTime:20,unlockLevel:2,lootBonus:2},
-  giant:{name:'Giant',icon:'🧟',cost:'elixir:300',housing:5,hp:280,dmg:11,speed:0.6,range:0.5,rof:1.2,target:'ground',trainTime:120,unlockLevel:3,prioritizeDefense:true},
-  wallbreaker:{name:'Wall Breaker',icon:'💥',cost:'elixir:250',housing:2,hp:20,dmg:12,speed:1.4,range:0.4,rof:1,trainTime:40,unlockLevel:4,target:'ground',wallBuster:true},
-  balloon:{name:'Balloon',icon:'🎈',cost:'elixir:350',housing:5,hp:130,dmg:65,speed:0.7,range:0.4,rof:2.3,target:'ground',trainTime:80,unlockLevel:5,flying:true,splash:true},
-  wizard:{name:'Wizard',icon:'🧙‍♂',cost:'elixir:400',housing:4,hp:65,dmg:32,speed:1.0,range:3.5,rof:1.3,target:'all',trainTime:100,unlockLevel:6,splash:true},
-  healer:{name:'Healer',icon:'💗',cost:'elixir:400',housing:14,hp:150,dmg:0,speed:0.7,range:3,rof:1.4,trainTime:180,unlockLevel:7,flying:true,heals:35},
-  pekka:{name:'P.E.K.K.A',icon:'🤖',cost:'elixir:800',housing:25,hp:640,dmg:80,speed:0.7,range:0.4,rof:1.5,target:'ground',trainTime:300,unlockLevel:8,prioritizeDefense:true},
-  minion:{name:'Minion',icon:'🦇',cost:'dark:6',housing:2,hp:60,dmg:24,speed:1.3,range:2,rof:1,target:'all',trainTime:60,unlockLevel:1,dark:true,flying:true},
-  hogrider:{name:'Hog Rider',icon:'🐗',cost:'dark:15',housing:5,hp:150,dmg:45,speed:1.7,range:0.4,rof:1.4,target:'ground',trainTime:150,unlockLevel:2,dark:true,prioritizeDefense:true,jumper:true},
-  valkyrie:{name:'Valkyrie',icon:'🪓',cost:'dark:24',housing:8,hp:340,dmg:42,speed:1.0,range:0.4,rof:1.5,target:'ground',trainTime:240,unlockLevel:3,dark:true,splash:true},
-  dragon:{name:'Dragon',icon:'🐉',cost:'dark:35',housing:20,hp:520,dmg:70,speed:0.8,range:3.2,rof:1.6,target:'all',trainTime:420,unlockLevel:5,dark:true,flying:true,splash:true},
+  barbarian:{name:'Barbarian',icon:'barbarian',cost:'elixir:120',housing:1,hp:45,dmg:8,speed:1.0,range:0.4,rof:1,target:'ground',trainTime:20,unlockLevel:1},
+  archer:{name:'Archer',icon:'archer',cost:'elixir:150',housing:1,hp:20,dmg:7,speed:1.0,range:3.5,rof:1,target:'all',trainTime:25,unlockLevel:1},
+  goblin:{name:'Goblin',icon:'goblin',cost:'elixir:130',housing:1,hp:25,dmg:11,speed:1.3,range:0.4,rof:0.9,target:'ground',trainTime:20,unlockLevel:2,lootBonus:2},
+  giant:{name:'Giant',icon:'giant',cost:'elixir:300',housing:5,hp:280,dmg:11,speed:0.6,range:0.5,rof:1.2,target:'ground',trainTime:120,unlockLevel:3,prioritizeDefense:true},
+  wallbreaker:{name:'Wall Breaker',icon:'wallbreaker',cost:'elixir:250',housing:2,hp:20,dmg:12,speed:1.4,range:0.4,rof:1,trainTime:40,unlockLevel:4,target:'ground',wallBuster:true},
+  balloon:{name:'Balloon',icon:'balloon',cost:'elixir:350',housing:5,hp:130,dmg:65,speed:0.7,range:0.4,rof:2.3,target:'ground',trainTime:80,unlockLevel:5,flying:true,splash:true},
+  wizard:{name:'Wizard',icon:'wizard',cost:'elixir:400',housing:4,hp:65,dmg:32,speed:1.0,range:3.5,rof:1.3,target:'all',trainTime:100,unlockLevel:6,splash:true},
+  healer:{name:'Healer',icon:'healer',cost:'elixir:400',housing:14,hp:150,dmg:0,speed:0.7,range:3,rof:1.4,trainTime:180,unlockLevel:7,flying:true,heals:35},
+  pekka:{name:'P.E.K.K.A',icon:'pekka',cost:'elixir:800',housing:25,hp:640,dmg:80,speed:0.7,range:0.4,rof:1.5,target:'ground',trainTime:300,unlockLevel:8,prioritizeDefense:true},
+  minion:{name:'Minion',icon:'minion',cost:'dark:6',housing:2,hp:60,dmg:24,speed:1.3,range:2,rof:1,target:'all',trainTime:60,unlockLevel:1,dark:true,flying:true},
+  hogrider:{name:'Hog Rider',icon:'hogrider',cost:'dark:15',housing:5,hp:150,dmg:45,speed:1.7,range:0.4,rof:1.4,target:'ground',trainTime:150,unlockLevel:2,dark:true,prioritizeDefense:true,jumper:true},
+  valkyrie:{name:'Valkyrie',icon:'valkyrie',cost:'dark:24',housing:8,hp:340,dmg:42,speed:1.0,range:0.4,rof:1.5,target:'ground',trainTime:240,unlockLevel:3,dark:true,splash:true},
+  dragon:{name:'Dragon',icon:'dragon',cost:'dark:35',housing:20,hp:520,dmg:70,speed:0.8,range:3.2,rof:1.6,target:'all',trainTime:420,unlockLevel:5,dark:true,flying:true,splash:true},
+};
+
+/* Spells trained at Spell Factory / Dark Spell Factory, deployed mid-battle for area effects */
+const SPELL_DEFS = {
+  heal:{name:'Heal Spell',icon:'heal',cost:'elixir:500',housing:2,radius:3.5,duration:10,healPerSec:60,trainTime:180,unlockLevel:1,factory:'spell_factory'},
+  rage:{name:'Rage Spell',icon:'rage',cost:'elixir:650',housing:2,radius:3.5,duration:12,dmgMult:1.5,speedMult:1.3,trainTime:240,unlockLevel:2,factory:'spell_factory'},
+  lightning:{name:'Lightning Spell',icon:'lightning',cost:'elixir:600',housing:1,radius:2.2,duration:0,burstDmg:90,trainTime:200,unlockLevel:3,factory:'spell_factory'},
+  jump:{name:'Jump Spell',icon:'jump',cost:'dark:2',housing:2,radius:4,duration:14,trainTime:260,unlockLevel:1,factory:'dark_spell_factory',allowWallJump:true},
+  freeze:{name:'Freeze Spell',icon:'freeze',cost:'dark:3',housing:1,radius:2.6,duration:6,trainTime:220,unlockLevel:2,factory:'dark_spell_factory',freezesDefense:true},
 };
 
 /* ---------------------------- GAME STATE ---------------------------- */
@@ -370,11 +534,10 @@ function defaultState(){
     trainQueue:[], // {troop,endsAt}
     spellQueue:[], // {spell,endsAt}
     heroes:{}, // heroId -> {availableAt} once built; absence = not built
-    obstacles:[], // {id,gx,gy,type,cleared}
+    obstacles:[], // {id,gx,gy,type,icon,reward}
     achievements:[], // list of unlocked achievement ids
     _attacksDone:0, _best3Star:false, _obstaclesCleared:0,
     lastTick:Date.now(),
-    tutorialDone:false,
   };
 }
 function save(){ localStorage.setItem('clashEmpiresSave', JSON.stringify(state)); }
@@ -382,7 +545,6 @@ function load(){
   const raw = localStorage.getItem('clashEmpiresSave');
   if(raw){ try{ state = JSON.parse(raw); }catch(e){ state=null; } }
   if(!state){ state=defaultState(); initialLayout(); }
-  // fill in fields added by later updates so old saves keep working
   const d=defaultState();
   for(const k in d){ if(state[k]===undefined) state[k]=d[k]; }
 }
@@ -403,7 +565,7 @@ function initialLayout(){
   generateObstacles();
 }
 function generateObstacles(){
-  const types=[{t:'tree',icon:'🌳',reward:{gold:60}},{t:'rock',icon:'🪨',reward:{elixir:60}},{t:'bush',icon:'🌿',reward:{gold:20,elixir:20}}];
+  const types=[{t:'tree',icon:'tree',reward:{gold:60}},{t:'rock',icon:'rock',reward:{elixir:60}},{t:'bush',icon:'bush',reward:{gold:20,elixir:20}}];
   let placed=0, tries=0;
   while(placed<16 && tries<400){
     tries++;
@@ -417,9 +579,6 @@ function generateObstacles(){
 }
 
 /* ---------------------------- ECONOMY / RESOURCE TICK ---------------------------- */
-function capFor(type){
-  return state.buildings.filter(b=>b.type===type).reduce((s,b)=>s+levelStat(b,'cap'),0) || 0;
-}
 function storageCaps(){
   let goldCap = 1000 + state.buildings.filter(b=>b.type==='gold_storage').reduce((s,b)=>s+levelStat(b,'cap'),0);
   let elixirCap = 1000 + state.buildings.filter(b=>b.type==='elixir_storage').reduce((s,b)=>s+levelStat(b,'cap'),0);
@@ -433,11 +592,10 @@ function parseCost(costSpec){
   if(typeof costSpec==='number') return {gold:costSpec};
   const [k,v]=costSpec.split(':'); return {[k]:parseFloat(v)};
 }
-
 function economyTick(dtSeconds){
   const caps=storageCaps();
   state.buildings.forEach(b=>{
-    if(b.queue) return; // paused production while... actually collectors still produce
+    if(b.queue) return;
     if(b.type==='gold_mine'){
       b.storedGold = clamp((b.storedGold||0) + levelStat(b,'rate')*dtSeconds, 0, 1200);
     } else if(b.type==='elixir_collector'){
@@ -454,17 +612,17 @@ function collectBuilding(b){
   if(b.storedGold>0){
     const caps=storageCaps(); const room=caps.goldCap-state.resources.gold;
     const take=Math.min(room,b.storedGold); state.resources.gold+=take; b.storedGold-=take;
-    toast('+'+fmt(take)+' Gold collected');
+    toast('Collected '+fmt(take)+' Gold');
   }
   if(b.storedElixir>0){
     const caps=storageCaps(); const room=caps.elixirCap-state.resources.elixir;
     const take=Math.min(room,b.storedElixir); state.resources.elixir+=take; b.storedElixir-=take;
-    toast('+'+fmt(take)+' Elixir collected');
+    toast('Collected '+fmt(take)+' Elixir');
   }
   if(b.storedDark>0){
     const caps=storageCaps(); const room=caps.darkCap-state.resources.dark;
     const take=Math.min(room,b.storedDark); state.resources.dark+=take; b.storedDark-=take;
-    toast('+'+fmt(take)+' Dark Elixir collected');
+    toast('Collected '+fmt(take)+' Dark Elixir');
   }
   refreshHUD(); save();
 }
@@ -520,24 +678,21 @@ function processQueues(){
       save();
     }
   });
-  // training queue
   while(state.trainQueue.length && now>=state.trainQueue[0].endsAt){
     const item=state.trainQueue.shift();
     state.army[item.troop]=(state.army[item.troop]||0)+1;
-    toast(TROOP_DEFS[item.troop].name+' trained!');
+    toast(TROOP_DEFS[item.troop].name+' trained');
   }
   while(state.spellQueue.length && now>=state.spellQueue[0].endsAt){
     const item=state.spellQueue.shift();
     state.spells[item.spell]=(state.spells[item.spell]||0)+1;
-    toast(SPELL_DEFS[item.spell].name+' brewed!');
+    toast(SPELL_DEFS[item.spell].name+' brewed');
   }
-  // hero regeneration
   Object.entries(state.heroes).forEach(([key,h])=>{
-    if(h.availableAt && now>=h.availableAt){ h.availableAt=null; toast(HERO_NAME(key)+' is rested and ready!'); }
+    if(h.availableAt && now>=h.availableAt){ h.availableAt=null; toast(BUILD_DEFS[key].name+' is rested and ready'); }
   });
   checkAchievements();
 }
-function HERO_NAME(key){ return BUILD_DEFS[key].name; }
 
 /* ---------------------------- RENDERING (VILLAGE VIEW) ---------------------------- */
 const canvas=$('game'); const ctx=canvas.getContext('2d');
@@ -556,17 +711,23 @@ function drawGroundTile(gx,gy,shade){
   ctx.fill();
   ctx.strokeStyle='rgba(0,0,0,0.06)'; ctx.lineWidth=1; ctx.stroke();
 }
-
 function buildingColor(type){
   const c = {
     townhall:'#c9a227', gold_mine:'#e0b23a', elixir_collector:'#a259d9', dark_drill:'#4a2360',
     gold_storage:'#f0c94a', elixir_storage:'#b476e6', dark_storage:'#5d3387',
     cannon:'#6b6b6b', archer_tower:'#8a5a3a', mortar:'#556b3c', wizard_tower:'#6a3aa8',
-    air_defense:'#3a7ac9', tesla:'#c9c93a', wall:'#8a8578',
+    air_defense:'#3a7ac9', tesla:'#c9c93a', x_bow:'#4a4a4a', inferno_tower:'#7a2a1a', scattershot:'#4a4a4a', wall:'#8a8578',
     army_camp:'#c96b3a', barracks:'#a83a3a', dark_barracks:'#3a2a3a',
-    clan_castle:'#8a2a2a', laboratory:'#2a8a6a'
+    clan_castle:'#8a2a2a', laboratory:'#2a8a6a', spell_factory:'#7a4ac9', dark_spell_factory:'#2a1a3a',
+    barbarian_king:'#8a5a2a', archer_queen:'#c9962a',
   };
   return c[type]||'#777';
+}
+function shadeColor(hex,amt){
+  const num=parseInt(hex.slice(1),16);
+  let r=(num>>16)+amt, g=((num>>8)&0xff)+amt, b=(num&0xff)+amt;
+  r=clamp(r,0,255); g=clamp(g,0,255); b=clamp(b,0,255);
+  return `rgb(${r},${g},${b})`;
 }
 
 function drawBuilding(b){
@@ -577,34 +738,26 @@ function drawBuilding(b){
   const w=TILE_W*size*0.92*zoom, h=TILE_H*size*0.92*zoom;
   const height=26*Math.min(size,3)*zoom* (0.6+b.level*0.06);
 
-  // shadow
   ctx.beginPath(); ctx.ellipse(p.x,p.y+4*zoom,w*0.42,h*0.42,0,0,Math.PI*2);
   ctx.fillStyle='rgba(0,0,0,0.25)'; ctx.fill();
 
   const base=buildingColor(b.type);
-  // walls of the "3d" block via isometric faces
   const top=[[p.x,p.y-h/2-height],[p.x+w/2,p.y-height],[p.x,p.y+h/2-height],[p.x-w/2,p.y-height]];
   ctx.beginPath(); ctx.moveTo(...top[0]); top.slice(1).forEach(pt=>ctx.lineTo(...pt)); ctx.closePath();
   ctx.fillStyle=shadeColor(base,25); ctx.fill(); ctx.strokeStyle='rgba(0,0,0,.35)'; ctx.stroke();
 
-  // left face
   ctx.beginPath();
   ctx.moveTo(p.x-w/2,p.y-height); ctx.lineTo(p.x,p.y+h/2-height); ctx.lineTo(p.x,p.y+h/2); ctx.lineTo(p.x-w/2,p.y); ctx.closePath();
   ctx.fillStyle=shadeColor(base,-25); ctx.fill(); ctx.stroke();
-  // right face
   ctx.beginPath();
   ctx.moveTo(p.x+w/2,p.y-height); ctx.lineTo(p.x,p.y+h/2-height); ctx.lineTo(p.x,p.y+h/2); ctx.lineTo(p.x+w/2,p.y); ctx.closePath();
   ctx.fillStyle=shadeColor(base,-10); ctx.fill(); ctx.stroke();
 
-  // icon
-  ctx.font=(18*zoom)+'px sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
-  ctx.fillStyle='#fff'; ctx.fillText(def.icon, p.x, p.y-height/2 - h*0.05);
+  drawIcon(ctx, def.icon, p.x, p.y-height/2-h*0.05, Math.min(w,h)*0.85);
 
-  // level badge
-  ctx.font='bold '+(10*zoom)+'px sans-serif';
+  ctx.font='bold '+(10*zoom)+'px sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
   ctx.fillStyle='#ffe37a'; ctx.fillText('Lv'+b.level, p.x, p.y-height-h*0.32);
 
-  // build/upgrade progress ring
   if(b.queue){
     const total=b.queue.isNew? BUILD_DEFS[b.type].levels(1).time : BUILD_DEFS[b.type].levels(b.level+1).time;
     const remain=(b.queue.endsAt-Date.now())/1000;
@@ -614,55 +767,39 @@ function drawBuilding(b){
     ctx.beginPath(); ctx.arc(0,0,9*zoom,-Math.PI/2,-Math.PI/2+pct*Math.PI*2);
     ctx.strokeStyle='#3fd44a'; ctx.lineWidth=3*zoom; ctx.stroke();
     ctx.fillStyle='#222'; ctx.beginPath(); ctx.arc(0,0,7*zoom,0,7); ctx.fill();
-    ctx.fillStyle='#fff'; ctx.font=(8*zoom)+'px sans-serif'; ctx.fillText(b.queue.isNew?'🔨':'⬆',0,1);
     ctx.restore();
+    drawIcon(ctx, b.queue.isNew?'hammer':'upgradeArrow', p.x, p.y-height-h*0.55, 11*zoom);
   }
 
-  // hero resting indicator
   if(BUILD_DEFS[b.type].isHero && !b.queue){
     const hero=state.heroes[b.type];
     if(hero && hero.availableAt){
-      ctx.save(); ctx.translate(p.x,p.y-height-h*0.55);
-      ctx.font=(12*zoom)+'px sans-serif'; ctx.fillStyle='#7ac9ff'; ctx.fillText('💤',0,0);
-      ctx.restore();
+      drawIcon(ctx,'sleepIcon', p.x, p.y-height-h*0.55, 13*zoom);
     }
   }
-  // resource ready badge
+
   const stored=(b.storedGold||0)+(b.storedElixir||0)+(b.storedDark||0);
   if(stored>50 && !b.queue){
-    ctx.save(); ctx.translate(p.x,p.y-height-h*0.55);
-    ctx.beginPath(); ctx.arc(0,0,7*zoom,0,7); ctx.fillStyle='#ffce3f'; ctx.fill();
-    ctx.fillStyle='#3a2500'; ctx.font='bold '+(9*zoom)+'px sans-serif'; ctx.fillText('$',0,1);
-    ctx.restore();
+    drawIcon(ctx,'coin', p.x, p.y-height-h*0.55, 13*zoom);
   }
 
   b._screen={x:p.x,y:p.y-height/2,w,h:h+height,cx:p.x,cy:p.y-height/2};
-}
-function shadeColor(hex,amt){
-  const num=parseInt(hex.slice(1),16);
-  let r=(num>>16)+amt, g=((num>>8)&0xff)+amt, b=(num&0xff)+amt;
-  r=clamp(r,0,255); g=clamp(g,0,255); b=clamp(b,0,255);
-  return `rgb(${r},${g},${b})`;
 }
 
 let selectedBuilding=null, placingType=null;
 function renderVillage(){
   ctx.clearRect(0,0,canvas.width,canvas.height);
-  // ground
   for(let gx=0;gx<GRID_W;gx++){
     for(let gy=0;gy<GRID_H;gy++){
       const shade = ((gx+gy)%2===0) ? '#4c8a3a':'#457f34';
       drawGroundTile(gx,gy,shade);
     }
   }
-  // obstacles (trees/rocks/bushes) — tap to clear for a small resource bonus
   state.obstacles.forEach(o=>{
     const p=tileToScreen(o.gx,o.gy);
-    ctx.font=(20*zoom)+'px sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
-    ctx.fillText(o.icon,p.x,p.y);
+    drawIcon(ctx,o.icon,p.x,p.y,22*zoom);
     o._screen={x:p.x,y:p.y,r:14*zoom};
   });
-  // sort buildings back-to-front
   const sorted=[...state.buildings].sort((a,b)=>(a.gx+a.gy)-(b.gx+b.gy));
   sorted.forEach(b=>{
     drawBuilding(b);
@@ -710,11 +847,9 @@ function handleTap(x,y){
     return;
   }
   if(mode==='attack'){ handleAttackTap(x,y); return; }
-  // obstacle clearing
   for(const o of state.obstacles){
     if(o._screen && Math.hypot(x-o._screen.x,y-o._screen.y)<o._screen.r){ clearObstacle(o); return; }
   }
-  // find topmost building under tap
   let hit=null;
   for(let i=state.buildings.length-1;i>=0;i--){
     const b=state.buildings[i]; const s=b._screen; if(!s) continue;
@@ -723,22 +858,32 @@ function handleTap(x,y){
   if(hit){ selectedBuilding=hit; openInfoPanel(hit); }
   else { selectedBuilding=null; closeInfoPanel(); }
 }
+function clearObstacle(o){
+  state.obstacles=state.obstacles.filter(x=>x!==o);
+  state._obstaclesCleared=(state._obstaclesCleared||0)+1;
+  const caps=storageCaps();
+  if(o.reward.gold) state.resources.gold=clamp(state.resources.gold+o.reward.gold,0,caps.goldCap);
+  if(o.reward.elixir) state.resources.elixir=clamp(state.resources.elixir+o.reward.elixir,0,caps.elixirCap);
+  toast('Cleared! +'+Object.entries(o.reward).map(([k,v])=>fmt(v)+' '+k).join(' '));
+  refreshHUD(); save();
+}
 
 /* ---------------------------- INFO PANEL ---------------------------- */
 function openInfoPanel(b){
   $('infopanel').classList.add('open');
   const def=BUILD_DEFS[b.type];
-  $('ip-name').textContent=def.icon+' '+def.name;
+  $('ip-name').textContent=def.name;
   $('ip-level').textContent='Level '+b.level+(b.level>=def.maxLevel?' (MAX)':'');
   const stats=def.levels(b.level);
   const hp=stats.hp;
   $('ip-hpbar').style.width='100%';
   $('ip-hp').textContent=hp+'/'+hp+' HP';
   let extra='';
-  if(stats.dmg) extra+='Damage: '+stats.dmg.toFixed(1)+'/hit · Range: '+stats.range+'<br>';
+  if(stats.dmg) extra+='Damage: '+stats.dmg.toFixed(1)+'/hit - Range: '+stats.range+'<br>';
   if(stats.rate) extra+='Production: '+stats.rate.toFixed(1)+'/s<br>';
   if(stats.cap) extra+='Capacity: '+fmt(stats.cap)+'<br>';
   if(stats.capacity) extra+='Housing Space: '+stats.capacity+'<br>';
+  if(def.isHero) extra+='Ability: '+stats.ability+'<br>';
   $('ip-extra').innerHTML=extra;
 
   let btns='';
@@ -758,15 +903,6 @@ function openInfoPanel(b){
     btns+=`<button class="btn-cancel" onclick="removeBuilding(currentInfoBuilding())">Demolish</button>`;
   }
   $('ip-buttons').innerHTML=btns;
-}
-function clearObstacle(o){
-  state.obstacles=state.obstacles.filter(x=>x!==o);
-  state._obstaclesCleared=(state._obstaclesCleared||0)+1;
-  const caps=storageCaps();
-  if(o.reward.gold) state.resources.gold=clamp(state.resources.gold+o.reward.gold,0,caps.goldCap);
-  if(o.reward.elixir) state.resources.elixir=clamp(state.resources.elixir+o.reward.elixir,0,caps.elixirCap);
-  toast('Cleared! +'+Object.entries(o.reward).map(([k,v])=>fmt(v)+' '+k).join(' '));
-  refreshHUD(); save();
 }
 function currentInfoBuilding(){ return selectedBuilding; }
 function closeInfoPanel(){ $('infopanel').classList.remove('open'); selectedBuilding=null; }
@@ -796,6 +932,7 @@ function refreshHUD(){
   $('hud-gems').textContent=fmt(state.resources.gems);
   $('hud-trophies').textContent=state.trophies;
   $('hud-th').textContent=state.townHallLevel;
+  $('hud-ach-count').textContent=state.achievements.length;
 }
 
 /* ---------------------------- BUILD MENU ---------------------------- */
@@ -818,10 +955,11 @@ function rebuildBuildMenu(){
     const stats=def.levels(1);
     const cost=parseCost(stats.cost);
     const costStr=Object.entries(cost).map(([k,v])=>fmt(v)+' '+k[0].toUpperCase()).join(' ');
-    el.innerHTML=`<div class="ic">${def.icon}</div><div class="nm">${def.name}</div><div class="cost">${costStr}</div><div class="lvl">${existingCount}</div>`;
+    el.innerHTML=`<div class="ic icon-img"></div><div class="nm">${def.name}</div><div class="cost">${costStr}</div><div class="lvl">${existingCount}</div>`;
+    setIconBG(el.querySelector('.ic'), def.icon);
     el.onclick=()=>{
       if(def.isHero && existingCount>0){ toast('You already have a '+def.name); return; }
-      placingType=key; toast('Tap village to place '+def.name);
+      placingType=key; toast('Tap the village to place '+def.name);
     };
     grid.appendChild(el);
   });
@@ -871,14 +1009,15 @@ function rebuildArmyModal(){
     const row=document.createElement('div'); row.className='troop-row';
     if(!built){
       row.style.opacity=.5;
-      row.innerHTML=`<div class="ic">${def.icon}</div><div class="meta"><div class="nm">${def.name}</div><div class="sub">Place from the Army build menu to recruit.</div></div>`;
+      row.innerHTML=`<div class="ic icon-img"></div><div class="meta"><div class="nm">${def.name}</div><div class="sub">Place from the Army build menu to recruit.</div></div>`;
     } else {
       const stats=def.levels(built.level);
       const h=state.heroes[key];
       const resting=h && h.availableAt;
-      row.innerHTML=`<div class="ic">${def.icon}</div><div class="meta"><div class="nm">${def.name} · Lv${built.level}</div>
-        <div class="sub">HP ${Math.round(stats.hp)} · DMG ${stats.dmg} · Ability: ${stats.ability}${built.queue?' · Upgrading...':(resting?' · Resting':' · Ready')}</div></div>`;
+      row.innerHTML=`<div class="ic icon-img"></div><div class="meta"><div class="nm">${def.name} - Lv${built.level}</div>
+        <div class="sub">HP ${Math.round(stats.hp)} - DMG ${stats.dmg} - Ability: ${stats.ability}${built.queue?' - Upgrading':(resting?' - Resting':' - Ready')}</div></div>`;
     }
+    setIconBG(row.querySelector('.ic'), def.icon);
     list.appendChild(row);
   });
 
@@ -895,8 +1034,9 @@ function rebuildArmyModal(){
     const costStr=Object.entries(cost).map(([k,v])=>fmt(v)+' '+k).join(', ');
     const have=state.spells[key]||0;
     const row=document.createElement('div'); row.className='troop-row';
-    row.innerHTML=`<div class="ic">${sDef.icon}</div><div class="meta"><div class="nm">${sDef.name} <span style="opacity:.6;">x${have}</span></div>
-      <div class="sub">Radius ${sDef.radius} · Housing ${sDef.housing} · ${costStr}</div></div>`;
+    row.innerHTML=`<div class="ic icon-img"></div><div class="meta"><div class="nm">${sDef.name} (${have})</div>
+      <div class="sub">Radius ${sDef.radius} - Housing ${sDef.housing} - ${costStr}</div></div>`;
+    setIconBG(row.querySelector('.ic'), sDef.icon);
     const btn=document.createElement('button'); btn.textContent='Brew';
     const ss=spellSpace();
     btn.disabled = !unlocked || !canAfford(cost) || (ss.used+sDef.housing>ss.total);
@@ -916,9 +1056,10 @@ function rebuildArmyModal(){
     const cost=parseCost(t.cost);
     const costStr=Object.entries(cost).map(([k,v])=>fmt(v)+' '+k).join(', ');
     const have=state.army[key]||0;
-    row.innerHTML=`<div class="ic">${t.icon}</div>
-      <div class="meta"><div class="nm">${t.name} <span style="opacity:.6;">x${have}</span></div>
-      <div class="sub">HP ${t.hp} · DMG ${t.dmg} · Housing ${t.housing} · ${costStr}</div></div>`;
+    row.innerHTML=`<div class="ic icon-img"></div>
+      <div class="meta"><div class="nm">${t.name} (${have})</div>
+      <div class="sub">HP ${t.hp} - DMG ${t.dmg} - Housing ${t.housing} - ${costStr}</div></div>`;
+    setIconBG(row.querySelector('.ic'), t.icon);
     const btn=document.createElement('button');
     btn.textContent='Train';
     btn.disabled = !unlocked || !canAfford(cost) || (sp.used+t.housing>sp.total);
@@ -947,29 +1088,29 @@ function trainSpell(key){
 
 /* ---------------------------- ACHIEVEMENTS ---------------------------- */
 const ACHIEVEMENTS=[
-  {id:'first_building',name:'Getting Started',desc:'Build your first defense.',icon:'🏗',
+  {id:'first_building',name:'Getting Started',desc:'Build your first defense.',icon:'cannon',
     check:()=>state.buildings.some(b=>BUILD_DEFS[b.type].cat==='defense' && b.type!=='townhall')},
-  {id:'th5',name:'Rising Empire',desc:'Reach Town Hall 5.',icon:'🏛',check:()=>state.townHallLevel>=5},
-  {id:'th8',name:'Master Builder',desc:'Reach Town Hall 8.',icon:'🏛',check:()=>state.townHallLevel>=8},
-  {id:'first_attack',name:'War Cry',desc:'Complete your first attack.',icon:'⚔',check:()=>state._attacksDone>=1},
-  {id:'ten_attacks',name:'Battle Hardened',desc:'Complete 10 attacks.',icon:'⚔',check:()=>state._attacksDone>=10},
-  {id:'first_3star',name:'Perfect Raid',desc:'Earn a 3-star victory.',icon:'⭐',check:()=>state._best3Star},
-  {id:'trophies1000',name:'Silver Tongue',desc:'Reach 1000 trophies.',icon:'🏆',check:()=>state.trophies>=1000},
-  {id:'trophies2000',name:'Crystal Clear',desc:'Reach 2000 trophies.',icon:'🏆',check:()=>state.trophies>=2000},
-  {id:'hero_built',name:'Royalty',desc:'Recruit your first hero.',icon:'🤴',check:()=>Object.keys(state.heroes).length>0},
-  {id:'spell_brewed',name:'Alchemist',desc:'Brew your first spell.',icon:'🧪',check:()=>Object.values(state.spells).some(c=>c>0)},
-  {id:'obstacles_cleared',name:'Landscaper',desc:'Clear 10 obstacles.',icon:'🌳',check:()=>state._obstaclesCleared>=10},
-  {id:'passtier10',name:'Season Veteran',desc:'Reach Battle Pass Tier 10.',icon:'🎖',check:()=>state.seasonTier>=10},
+  {id:'th5',name:'Rising Empire',desc:'Reach Town Hall 5.',icon:'townhall',check:()=>state.townHallLevel>=5},
+  {id:'th8',name:'Master Builder',desc:'Reach Town Hall 8.',icon:'townhall',check:()=>state.townHallLevel>=8},
+  {id:'first_attack',name:'War Cry',desc:'Complete your first attack.',icon:'navAttack',check:()=>state._attacksDone>=1},
+  {id:'ten_attacks',name:'Battle Hardened',desc:'Complete 10 attacks.',icon:'navAttack',check:()=>state._attacksDone>=10},
+  {id:'first_3star',name:'Perfect Raid',desc:'Earn a 3-star victory.',icon:'achieveIcon',check:()=>state._best3Star},
+  {id:'trophies1000',name:'Silver Tongue',desc:'Reach 1000 trophies.',icon:'trophyIcon',check:()=>state.trophies>=1000},
+  {id:'trophies2000',name:'Crystal Clear',desc:'Reach 2000 trophies.',icon:'trophyIcon',check:()=>state.trophies>=2000},
+  {id:'hero_built',name:'Royalty',desc:'Recruit your first hero.',icon:'barbarian_king',check:()=>Object.keys(state.heroes).length>0},
+  {id:'spell_brewed',name:'Alchemist',desc:'Brew your first spell.',icon:'heal',check:()=>Object.values(state.spells).some(c=>c>0)},
+  {id:'obstacles_cleared',name:'Landscaper',desc:'Clear 10 obstacles.',icon:'tree',check:()=>state._obstaclesCleared>=10},
+  {id:'passtier10',name:'Season Veteran',desc:'Reach Battle Pass Tier 10.',icon:'navPass',check:()=>state.seasonTier>=10},
 ];
 function checkAchievements(){
   let changed=false;
   ACHIEVEMENTS.forEach(a=>{
     if(!state.achievements.includes(a.id) && a.check()){
       state.achievements.push(a.id); changed=true;
-      toast('Achievement unlocked: '+a.name+'!');
+      toast('Achievement unlocked: '+a.name);
     }
   });
-  if(changed){ save(); const el=$('hud-ach-count'); if(el) el.textContent=state.achievements.length; }
+  if(changed){ save(); $('hud-ach-count').textContent=state.achievements.length; }
 }
 function rebuildAchievementsModal(){
   const list=$('achievements-list'); list.innerHTML='';
@@ -977,22 +1118,25 @@ function rebuildAchievementsModal(){
     const unlocked=state.achievements.includes(a.id);
     const row=document.createElement('div'); row.className='troop-row';
     row.style.opacity=unlocked?1:.5;
-    row.innerHTML=`<div class="ic">${a.icon}</div><div class="meta"><div class="nm">${a.name}${unlocked?' ✓':''}</div><div class="sub">${a.desc}</div></div>`;
+    row.innerHTML=`<div class="ic icon-img"></div><div class="meta"><div class="nm">${a.name}${unlocked?' (Done)':''}</div><div class="sub">${a.desc}</div></div>`;
+    setIconBG(row.querySelector('.ic'), a.icon);
     list.appendChild(row);
   });
   $('hud-ach-count').textContent=state.achievements.length;
 }
 
 /* ---------------------------- LEAGUE SYSTEM ---------------------------- */
+const LEAGUE_COLORS=['#c9762a','#c9762a','#c9762a','#b7c0c9','#b7c0c9','#b7c0c9','#ffce3f','#ffce3f','#ffce3f',
+  '#3ee0e0','#3ee0e0','#3ee0e0','#5a7ee0','#5a7ee0','#5a7ee0','#e05a9a','#e05a9a','#e05a9a','#ffe94a','#ffe94a'];
 const LEAGUES=[
-  {name:'Bronze III',min:0,icon:'🥉'},{name:'Bronze II',min:200,icon:'🥉'},{name:'Bronze I',min:400,icon:'🥉'},
-  {name:'Silver III',min:600,icon:'🥈'},{name:'Silver II',min:800,icon:'🥈'},{name:'Silver I',min:1000,icon:'🥈'},
-  {name:'Gold III',min:1200,icon:'🥇'},{name:'Gold II',min:1400,icon:'🥇'},{name:'Gold I',min:1600,icon:'🥇'},
-  {name:'Crystal III',min:1800,icon:'💎'},{name:'Crystal II',min:2000,icon:'💎'},{name:'Crystal I',min:2200,icon:'💎'},
-  {name:'Master III',min:2400,icon:'🔷'},{name:'Master II',min:2600,icon:'🔷'},{name:'Master I',min:2800,icon:'🔷'},
-  {name:'Champion III',min:3000,icon:'🔶'},{name:'Champion II',min:3200,icon:'🔶'},{name:'Champion I',min:3400,icon:'🔶'},
-  {name:'Titan I',min:3600,icon:'⭐'},{name:'Legend',min:4000,icon:'👑'},
-];
+  {name:'Bronze III',min:0},{name:'Bronze II',min:200},{name:'Bronze I',min:400},
+  {name:'Silver III',min:600},{name:'Silver II',min:800},{name:'Silver I',min:1000},
+  {name:'Gold III',min:1200},{name:'Gold II',min:1400},{name:'Gold I',min:1600},
+  {name:'Crystal III',min:1800},{name:'Crystal II',min:2000},{name:'Crystal I',min:2200},
+  {name:'Master III',min:2400},{name:'Master II',min:2600},{name:'Master I',min:2800},
+  {name:'Champion III',min:3000},{name:'Champion II',min:3200},{name:'Champion I',min:3400},
+  {name:'Titan I',min:3600},{name:'Legend',min:4000},
+].map((l,i)=>({...l,color:LEAGUE_COLORS[i]}));
 function currentLeague(){
   let l=LEAGUES[0]; for(const lg of LEAGUES){ if(state.trophies>=lg.min) l=lg; } return l;
 }
@@ -1002,7 +1146,11 @@ function rebuildLeagueModal(){
   LEAGUES.slice().reverse().forEach(l=>{
     const row=document.createElement('div');
     row.className='league-row'+(l===cur?' current':'');
-    row.innerHTML=`<div class="ic">${l.icon}</div><div style="flex:1;"><b>${l.name}</b><div style="font-size:10px;opacity:.7;">${l.min}+ trophies</div></div>${l===cur?'<b>YOU</b>':''}`;
+    row.innerHTML=`<div class="ic"></div><div style="flex:1;"><b>${l.name}</b><div style="font-size:10px;opacity:.7;">${l.min}+ trophies</div></div>${l===cur?'<b>YOU</b>':''}`;
+    const icEl=row.querySelector('.ic');
+    icEl.style.width='28px'; icEl.style.height='28px';
+    setIconBGRaw(icEl, medalIcon(l.color));
+    icEl.classList.add('icon-img');
     wrap.appendChild(row);
   });
 }
@@ -1014,21 +1162,21 @@ function addSeasonXP(amount){
   state.seasonXP+=amount;
   while(state.seasonXP>=xpForNextTier() && state.seasonTier<BP_TOTAL_TIERS){
     state.seasonXP-=xpForNextTier(); state.seasonTier++;
-    toast('Battle Pass Tier '+state.seasonTier+' reached!');
+    toast('Battle Pass Tier '+state.seasonTier+' reached');
   }
 }
 function tierReward(t){
-  if(t%5===0) return {icon:'💎',label:(t*2)+' Gems'};
-  if(t%3===0) return {icon:'💰',label:'Gold Bundle'};
-  return {icon:'🧪',label:'Elixir Bundle'};
+  if(t%5===0) return {icon:'gemIcon',label:(t*2)+' Gems'};
+  if(t%3===0) return {icon:'coin',label:'Gold Bundle'};
+  return {icon:'elixir_storage',label:'Elixir Bundle'};
 }
 function claimTier(t){
   if(t>state.seasonTier || state.claimedTiers.includes(t)) return;
   state.claimedTiers.push(t);
   const r=tierReward(t);
-  if(r.icon==='💎') state.resources.gems+=t*2;
-  if(r.icon==='💰') state.resources.gold+=500;
-  if(r.icon==='🧪') state.resources.elixir+=500;
+  if(r.icon==='gemIcon') state.resources.gems+=t*2;
+  if(r.icon==='coin') state.resources.gold+=500;
+  if(r.icon==='elixir_storage') state.resources.elixir+=500;
   toast('Claimed: '+r.label); refreshHUD(); save(); rebuildPassModal();
 }
 function rebuildPassModal(){
@@ -1042,16 +1190,17 @@ function rebuildPassModal(){
     const claimed=state.claimedTiers.includes(t);
     const locked=t>state.seasonTier;
     div.className='bp-tier'+(claimed?' claimed':'')+(locked?' locked':'');
-    div.innerHTML=`<div>T${t}</div><div class="rew">${r.icon}</div><div style="font-size:8px;">${r.label}</div>`;
+    div.innerHTML=`<div>T${t}</div><div class="rew icon-img"></div><div style="font-size:8px;">${r.label}</div>`;
+    setIconBG(div.querySelector('.rew'), r.icon);
     if(!locked && !claimed) div.onclick=()=>claimTier(t);
     track.appendChild(div);
   }
 }
 
 /* =========================================================================================
-   ATTACK MODE — enemy base generation, deployment, troop AI, defense AI, combat resolution.
+   ATTACK MODE - enemy base generation, deployment, troop AI, defense AI, combat resolution.
    ========================================================================================= */
-let battle=null; // active battle state
+let battle=null;
 function generateEnemyBase(){
   const thLevel=clamp(state.townHallLevel + Math.round(Math.random()*2-1),1,8);
   const b={buildings:[],trophyValue:Math.round(80+thLevel*35+Math.random()*60)};
@@ -1071,7 +1220,6 @@ function generateEnemyBase(){
     while(!tileFreeIn(b.buildings,gx,gy,3) && tries<40);
     if(tries<40) place(Math.random()<0.5?'gold_storage':'elixir_storage',gx,gy,thLevel);
   }
-  // ring of walls around townhall
   for(let dx=-3;dx<=3;dx++){ place('wall',18+dx,15); place('wall',18+dx,21); }
   for(let dy=-3;dy<=3;dy++){ place('wall',15,18+dy); place('wall',21,18+dy); }
   b.buildings.forEach(bd=>{ const def=BUILD_DEFS[bd.type]; const st=def.levels(bd.level); bd.maxHp=st.hp; bd.hp=st.hp; });
@@ -1089,11 +1237,11 @@ function tileFreeIn(buildings,gx,gy,size){
 let scoutedBase=null;
 function startAttackFlow(){
   const sp=campSpace();
-  if(sp.used===0){ toast('Train an army first!'); switchTab('army'); return; }
+  if(sp.used===0){ toast('Train an army first'); switchTab('army'); return; }
   scoutedBase=generateEnemyBase();
   $('scout-info').innerHTML=`Enemy Town Hall Level ${scoutedBase.buildings[0].level}<br>
-    Estimated Loot: 💰${fmt(scoutedBase.loot.gold)} 🧪${fmt(scoutedBase.loot.elixir)}<br>
-    Trophies at stake: ±${scoutedBase.trophyValue}`;
+    Estimated Loot: ${fmt(scoutedBase.loot.gold)} Gold, ${fmt(scoutedBase.loot.elixir)} Elixir<br>
+    Trophies at stake: up to ${scoutedBase.trophyValue}`;
   openModal('modal-scout');
 }
 function rerollScout(){ startAttackFlow(); }
@@ -1104,7 +1252,6 @@ function confirmAttack(){
 
 function enterBattle(enemyBase){
   mode='attack';
-  document.querySelectorAll('.navbtn,#buildpanel').forEach(el=>el.classList.remove('open'));
   $('buildpanel').classList.remove('open'); closeInfoPanel();
   const heroesReady={};
   Object.entries(state.heroes).forEach(([key,h])=>{
@@ -1112,7 +1259,7 @@ function enterBattle(enemyBase){
     if(built && !built.queue && !h.availableAt) heroesReady[key]=1;
   });
   battle={
-    base: JSON.parse(JSON.stringify(enemyBase)), // fresh copy
+    base: JSON.parse(JSON.stringify(enemyBase)),
     troopsAvailable: {...state.army},
     spellsAvailable: {...state.spells},
     heroesAvailable: heroesReady,
@@ -1127,16 +1274,18 @@ function enterBattle(enemyBase){
     stars:0,
     goldLooted:0, elixirLooted:0,
   };
-  camX=innerWidth/2 - (18)*0; camY=120; zoom=0.9;
+  camX=innerWidth/2; camY=120; zoom=0.9;
   $('attackhud').classList.add('open');
   $('battletimer').classList.add('open');
   $('starsdisplay').classList.add('open');
   $('destructdisplay').classList.add('open');
   $('endbattle').classList.add('open');
   rebuildDeployRow();
+  lastBattleT=performance.now();
   requestAnimationFrame(battleLoop);
 }
-let selectedDeployTroop=null, selectedDeployKind=null; // kind: 'troop' | 'spell' | 'hero'
+
+let selectedDeployTroop=null, selectedDeployKind=null;
 function rebuildDeployRow(){
   const row=$('deploy-troops-row'); row.innerHTML='';
   Object.entries(battle.heroesAvailable).forEach(([key,ready])=>{
@@ -1145,7 +1294,8 @@ function rebuildDeployRow(){
     const div=document.createElement('div');
     div.className='deploy-troop'+(selectedDeployTroop===key&&selectedDeployKind==='hero'?' selected':'');
     div.style.borderColor='#ffd85e';
-    div.innerHTML=`<div style="font-size:20px;">${def.icon}</div><div style="font-size:9px;">${def.name.split(' ')[0]}</div>`;
+    div.innerHTML=`<div class="ic icon-img"></div><div style="font-size:9px;">${def.name.split(' ')[0]}</div>`;
+    setIconBG(div.querySelector('.ic'), def.icon);
     div.onclick=()=>{ selectedDeployTroop=key; selectedDeployKind='hero'; rebuildDeployRow(); };
     row.appendChild(div);
   });
@@ -1153,7 +1303,8 @@ function rebuildDeployRow(){
     if(count<=0) return;
     const div=document.createElement('div');
     div.className='deploy-troop'+(selectedDeployTroop===key&&selectedDeployKind==='troop'?' selected':'');
-    div.innerHTML=`<div style="font-size:20px;">${TROOP_DEFS[key].icon}</div><div style="font-size:9px;">${TROOP_DEFS[key].name}</div><div class="cnt">${count}</div>`;
+    div.innerHTML=`<div class="ic icon-img"></div><div style="font-size:9px;">${TROOP_DEFS[key].name}</div><div class="cnt">${count}</div>`;
+    setIconBG(div.querySelector('.ic'), TROOP_DEFS[key].icon);
     div.onclick=()=>{ selectedDeployTroop=key; selectedDeployKind='troop'; rebuildDeployRow(); };
     row.appendChild(div);
   });
@@ -1162,7 +1313,8 @@ function rebuildDeployRow(){
     const div=document.createElement('div');
     div.className='deploy-troop'+(selectedDeployTroop===key&&selectedDeployKind==='spell'?' selected':'');
     div.style.borderColor='#3ee0e0';
-    div.innerHTML=`<div style="font-size:20px;">${SPELL_DEFS[key].icon}</div><div style="font-size:9px;">${SPELL_DEFS[key].name.split(' ')[0]}</div><div class="cnt">${count}</div>`;
+    div.innerHTML=`<div class="ic icon-img"></div><div style="font-size:9px;">${SPELL_DEFS[key].name.split(' ')[0]}</div><div class="cnt">${count}</div>`;
+    setIconBG(div.querySelector('.ic'), SPELL_DEFS[key].icon);
     div.onclick=()=>{ selectedDeployTroop=key; selectedDeployKind='spell'; rebuildDeployRow(); };
     row.appendChild(div);
   });
@@ -1209,16 +1361,16 @@ function handleAttackTap(x,y){
   });
   rebuildDeployRow();
 }
+function triggerHeroAbilities(){
+  if(!battle) return;
+  battle.deployedTroops.forEach(t=>{ if(t.isHero) activateHeroAbility(t); });
+}
 function activateHeroAbility(troop){
   if(!troop.isHero || troop.abilityActive || !troop.alive) return;
   troop.abilityActive=true;
   troop.abilityEndsAt=Date.now()+troop.def.abilityDuration*1000;
   spawnParticleBurst(troop.gx,troop.gy,'#ffd85e');
-  toast(troop.def.name+' used '+troop.def.ability+'!');
-}
-function triggerHeroAbilities(){
-  if(!battle) return;
-  battle.deployedTroops.forEach(t=>{ if(t.isHero) activateHeroAbility(t); });
+  toast(troop.def.name+' used '+troop.def.ability);
 }
 function spawnParticleBurst(gx,gy,color){
   const p=tileToScreen(gx,gy);
@@ -1230,7 +1382,6 @@ function spawnParticleBurst(gx,gy,color){
 function castSpell(key,gx,gy){
   const sDef=SPELL_DEFS[key];
   if(sDef.burstDmg){
-    // instant lightning strike
     battle.base.buildings.forEach(b=>{
       if(!b.alive) return;
       const c=buildingCenter(b);
@@ -1262,16 +1413,15 @@ function findNearestTarget(troop, base){
 function buildingCenter(b){ const def=BUILD_DEFS[b.type]; return {x:b.gx+def.size/2-0.5,y:b.gy+def.size/2-0.5}; }
 
 /* Ground troops without an active jump buff cannot walk through an intact wall segment
-   standing between them and their objective — they must break through it first. */
+   standing between them and their objective - they must break through it first. */
 function findBlockingWall(troop, target){
-  if(troop.def.flying || troop.jumpUntil>Date.now()) return null;
+  if(troop.def.flying || (troop.jumpUntil && troop.jumpUntil>Date.now())) return null;
   const c=buildingCenter(target);
   const dx=c.x-troop.gx, dy=c.y-troop.gy, len=Math.hypot(dx,dy)||1;
   const walls=battle.base.buildings.filter(b=>b.alive && b.type==='wall');
   let best=null,bestT=Infinity;
   walls.forEach(w=>{
     if(w===target) return;
-    // distance from wall tile-center to the troop->target line segment
     const wx=w.gx, wy=w.gy;
     const t=clamp(((wx-troop.gx)*dx+(wy-troop.gy)*dy)/(len*len),0,1);
     const px=troop.gx+dx*t, py=troop.gy+dy*t;
@@ -1285,7 +1435,6 @@ function battleStep(dt){
   const base=battle.base;
   const now=Date.now();
 
-  // resolve active spell auras (heal / rage) each tick, freeze applied at defense-check time, jump grants a timed flag
   battle.activeSpells=battle.activeSpells.filter(s=>now<s.endsAt);
   battle.activeSpells.forEach(s=>{
     if(s.def.healPerSec){
@@ -1296,14 +1445,12 @@ function battleStep(dt){
     }
   });
 
-  // troop AI
   battle.deployedTroops.forEach(troop=>{
     if(!troop.alive) return;
     if(troop.isHero && troop.abilityActive && now>troop.abilityEndsAt) troop.abilityActive=false;
-    const dmgMult = (troop.isHero && troop.abilityActive) ? troop.def.abilityDmgMult :
-      (activeRageAt(troop.gx,troop.gy)? activeRageAt(troop.gx,troop.gy).dmgMult : 1);
-    const speedMult = (troop.isHero && troop.abilityActive) ? troop.def.abilitySpeedMult :
-      (activeRageAt(troop.gx,troop.gy)? activeRageAt(troop.gx,troop.gy).speedMult : 1);
+    const rageHere=activeRageAt(troop.gx,troop.gy);
+    const dmgMult = (troop.isHero && troop.abilityActive) ? troop.def.abilityDmgMult : (rageHere? rageHere.def.dmgMult : 1);
+    const speedMult = (troop.isHero && troop.abilityActive) ? troop.def.abilitySpeedMult : (rageHere? rageHere.def.speedMult : 1);
 
     if(troop.def.heals){
       let target=null,bestHpPct=1;
@@ -1317,7 +1464,6 @@ function battleStep(dt){
     }
     if(!troop.target || !troop.target.alive){ troop.target=findNearestTarget(troop,base); }
     if(!troop.target) return;
-    // a wall in the path becomes the immediate objective
     let actualTarget=troop.target;
     const blockingWall=findBlockingWall(troop,troop.target);
     if(blockingWall) actualTarget=blockingWall;
@@ -1343,7 +1489,6 @@ function battleStep(dt){
     }
   });
 
-  // defense AI
   base.buildings.forEach(b=>{
     if(!b.alive) return;
     const def=BUILD_DEFS[b.type];
@@ -1359,7 +1504,7 @@ function battleStep(dt){
       if(!t.alive) return;
       if(stats.target==='ground' && t.def.flying) return;
       if(stats.target==='air' && !t.def.flying) return;
-      if(t.isHero && t.def.invisDuring && t.abilityActive) return; // Archer Queen cloaked
+      if(t.isHero && t.def.invisDuring && t.abilityActive) return;
       const d=Math.hypot(t.gx-c.x,t.gy-c.y);
       if(d<=stats.range && (!stats.minRange || d>=stats.minRange) && d<bestD){ bestD=d; target=t; }
     });
@@ -1377,7 +1522,6 @@ function battleStep(dt){
   });
   battle.deployedTroops=battle.deployedTroops.filter(t=>t.alive);
 
-  // particles + projectiles physics
   battle.particles.forEach(p=>{ p.x+=p.vx*dt; p.y+=p.vy*dt; p.life-=dt; });
   battle.particles=battle.particles.filter(p=>p.life>0);
   battle.projectiles.forEach(pr=>{ pr.t+=dt; });
@@ -1406,7 +1550,7 @@ function damageBuilding(b,dmg){
   if(b.hp<=0 && b.alive){
     b.hp=0; b.alive=false;
     spawnParticleBurst(b.gx,b.gy,'#8a8578');
-    toast(BUILD_DEFS[b.type].name+' destroyed!');
+    toast(BUILD_DEFS[b.type].name+' destroyed');
   }
 }
 let hitFX=[];
@@ -1423,7 +1567,7 @@ function updateBattleUI(){
   if(pct>=50) stars=Math.max(stars,2);
   if(pct>=99.5) stars=3;
   battle.stars=stars;
-  $('starsdisplay').textContent='★'.repeat(stars)+'☆'.repeat(3-stars);
+  $('starsdisplay').innerHTML=starsRowHTML(stars,3);
   const remain=Math.max(0,battle.duration-(Date.now()-battle.startTime)/1000);
   const mm=String(Math.floor(remain/60)).padStart(2,'0'), ss=String(Math.floor(remain%60)).padStart(2,'0');
   $('battletimer').textContent=mm+':'+ss;
@@ -1433,8 +1577,8 @@ function updateBattleUI(){
 function checkBattleEnd(){
   if(battle.ended) return;
   const remain=battle.duration-(Date.now()-battle.startTime)/1000;
-  const allTroopsDone = battle.deployedTroops.length===0 && Object.values(battle.troopsAvailable).every(c=>c<=0);
-  if(remain<=0 || (allTroopsDone && battle.deployedTroops.length===0)){
+  const noTroopsLeft = battle.deployedTroops.length===0 && Object.values(battle.troopsAvailable).every(c=>c<=0);
+  if(remain<=0 || noTroopsLeft){
     finishBattle();
   }
 }
@@ -1448,13 +1592,10 @@ function finishBattle(){
   state.resources.elixir+=battle.elixirLooted;
   const xpGain=Math.round(20+battle.stars*15+ (battle.goldLooted+battle.elixirLooted)/200);
   addSeasonXP(xpGain);
-  // consume trained troops/spells that were deployed permanently, refund unused stays? Standard CoC: consumed regardless
   Object.keys(battle.troopsAvailable).forEach(k=>{ state.army[k]=0; });
   Object.keys(battle.spellsAvailable).forEach(k=>{ state.spells[k]=0; });
-  // heroes used this battle go to sleep and regenerate over real time
   Object.keys(battle.heroesAvailable).forEach(key=>{
-    const wasUsed = battle.deployedTroops.some(t=>t.heroKey===key) || !battle.heroesAvailable[key];
-    if(!battle.heroesAvailable[key]){ // consumed (deployed) during battle
+    if(!battle.heroesAvailable[key]){
       const def=BUILD_DEFS[key];
       state.heroes[key]={availableAt:Date.now()+def.levels(state.buildings.find(b=>b.type===key).level).regen*1000};
     }
@@ -1463,7 +1604,7 @@ function finishBattle(){
   if(battle.stars>=3) state._best3Star=true;
   refreshHUD(); save(); checkAchievements();
 
-  $('result-stars').textContent='★'.repeat(battle.stars)+'☆'.repeat(3-battle.stars);
+  $('result-stars').innerHTML=starsRowHTML(battle.stars,3,52);
   $('result-pct').textContent=$('destructdisplay').textContent;
   $('result-gold').textContent='+'+fmt(battle.goldLooted);
   $('result-elixir').textContent='+'+fmt(battle.elixirLooted);
@@ -1481,7 +1622,7 @@ function closeResultModal(){
   closeModal('resultmodal');
   mode='build';
   camX=0;camY=0;zoom=1;
-  battle=null; selectedDeployTroop=null;
+  battle=null; selectedDeployTroop=null; selectedDeployKind=null;
   switchTab('build');
 }
 
@@ -1501,6 +1642,44 @@ function renderBattle(){
   battle.particles.forEach(pt=>drawParticle(pt));
   hitFX=hitFX.filter(f=>{ f.t+=1/60; drawHitFX(f); return f.t<0.3; });
 }
+function drawRubble(b){
+  const def=BUILD_DEFS[b.type]; const size=def.size;
+  const p=tileToScreen(b.gx+size/2-0.5,b.gy+size/2-0.5);
+  ctx.beginPath(); ctx.ellipse(p.x,p.y,TILE_W*size*0.4*zoom,TILE_H*size*0.4*zoom,0,0,7);
+  ctx.fillStyle='#2a2118'; ctx.fill();
+  ctx.strokeStyle='#3a3025'; ctx.lineWidth=2; ctx.stroke();
+}
+function drawEnemyBuilding(b){
+  const def=BUILD_DEFS[b.type]; const size=def.size;
+  const p=tileToScreen(b.gx+size/2-0.5,b.gy+size/2-0.5);
+  const w=TILE_W*size*0.92*zoom, h=TILE_H*size*0.92*zoom;
+  const height=26*Math.min(size,3)*zoom*(0.6+b.level*0.06);
+  const base=buildingColor(b.type);
+  ctx.beginPath(); ctx.ellipse(p.x,p.y+4*zoom,w*0.42,h*0.42,0,0,7); ctx.fillStyle='rgba(0,0,0,0.25)'; ctx.fill();
+  const top=[[p.x,p.y-h/2-height],[p.x+w/2,p.y-height],[p.x,p.y+h/2-height],[p.x-w/2,p.y-height]];
+  ctx.beginPath(); ctx.moveTo(...top[0]); top.slice(1).forEach(pt=>ctx.lineTo(...pt)); ctx.closePath();
+  ctx.fillStyle=shadeColor(base,25); ctx.fill(); ctx.strokeStyle='rgba(0,0,0,.35)'; ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(p.x-w/2,p.y-height); ctx.lineTo(p.x,p.y+h/2-height); ctx.lineTo(p.x,p.y+h/2); ctx.lineTo(p.x-w/2,p.y); ctx.closePath();
+  ctx.fillStyle=shadeColor(base,-25); ctx.fill(); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(p.x+w/2,p.y-height); ctx.lineTo(p.x,p.y+h/2-height); ctx.lineTo(p.x,p.y+h/2); ctx.lineTo(p.x+w/2,p.y); ctx.closePath();
+  ctx.fillStyle=shadeColor(base,-10); ctx.fill(); ctx.stroke();
+  drawIcon(ctx, def.icon, p.x, p.y-height/2-h*0.05, Math.min(w,h)*0.85);
+  const pct=b.hp/b.maxHp;
+  const bw=w*0.7;
+  ctx.fillStyle='#000'; ctx.fillRect(p.x-bw/2,p.y-height-h*0.75,bw,4*zoom);
+  ctx.fillStyle=pct>0.5?'#3fd44a':pct>0.2?'#e6c035':'#e0433f';
+  ctx.fillRect(p.x-bw/2,p.y-height-h*0.75,bw*pct,4*zoom);
+}
+function drawTroop(t){
+  const p=tileToScreen(t.gx,t.gy);
+  const yoff = t.def.flying? -20*zoom : 0;
+  ctx.beginPath(); ctx.arc(p.x,p.y+yoff,10*zoom,0,7);
+  ctx.fillStyle=t.isHero?'#ffd85e':(t.def.dark?'#5a2a86':'#3a5a2a'); ctx.globalAlpha=0.5; ctx.fill(); ctx.globalAlpha=1;
+  drawIcon(ctx, t.def.icon || TROOP_DEFS[t.type]?.icon || t.type, p.x, p.y+yoff, 20*zoom);
+  const pct=t.hp/t.maxHp;
+  ctx.fillStyle='#000'; ctx.fillRect(p.x-10*zoom,p.y+yoff-16*zoom,20*zoom,3*zoom);
+  ctx.fillStyle='#3fd44a'; ctx.fillRect(p.x-10*zoom,p.y+yoff-16*zoom,20*zoom*pct,3*zoom);
+}
 function drawSpellZone(s){
   const p=tileToScreen(s.gx,s.gy);
   const colors={heal:'#3fd44a',rage:'#e0433f',freeze:'#3ee0e0',jump:'#ffce3f'};
@@ -1519,45 +1698,6 @@ function drawParticle(pt){
   ctx.save(); ctx.globalAlpha=clamp(pt.life/0.6,0,1);
   ctx.fillStyle=pt.color; ctx.fillRect(pt.x-2,pt.y-2,4,4);
   ctx.restore();
-}
-function drawRubble(b){
-  const def=BUILD_DEFS[b.type]; const size=def.size;
-  const p=tileToScreen(b.gx+size/2-0.5,b.gy+size/2-0.5);
-  ctx.beginPath(); ctx.ellipse(p.x,p.y,TILE_W*size*0.4*zoom,TILE_H*size*0.4*zoom,0,0,7);
-  ctx.fillStyle='#2a2118'; ctx.fill();
-  ctx.font=(14*zoom)+'px sans-serif'; ctx.fillStyle='#555'; ctx.textAlign='center'; ctx.fillText('💥',p.x,p.y);
-}
-function drawEnemyBuilding(b){
-  const def=BUILD_DEFS[b.type]; const size=def.size;
-  const p=tileToScreen(b.gx+size/2-0.5,b.gy+size/2-0.5);
-  const w=TILE_W*size*0.92*zoom, h=TILE_H*size*0.92*zoom;
-  const height=26*Math.min(size,3)*zoom*(0.6+b.level*0.06);
-  const base=buildingColor(b.type);
-  ctx.beginPath(); ctx.ellipse(p.x,p.y+4*zoom,w*0.42,h*0.42,0,0,7); ctx.fillStyle='rgba(0,0,0,0.25)'; ctx.fill();
-  const top=[[p.x,p.y-h/2-height],[p.x+w/2,p.y-height],[p.x,p.y+h/2-height],[p.x-w/2,p.y-height]];
-  ctx.beginPath(); ctx.moveTo(...top[0]); top.slice(1).forEach(pt=>ctx.lineTo(...pt)); ctx.closePath();
-  ctx.fillStyle=shadeColor(base,25); ctx.fill(); ctx.strokeStyle='rgba(0,0,0,.35)'; ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(p.x-w/2,p.y-height); ctx.lineTo(p.x,p.y+h/2-height); ctx.lineTo(p.x,p.y+h/2); ctx.lineTo(p.x-w/2,p.y); ctx.closePath();
-  ctx.fillStyle=shadeColor(base,-25); ctx.fill(); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(p.x+w/2,p.y-height); ctx.lineTo(p.x,p.y+h/2-height); ctx.lineTo(p.x,p.y+h/2); ctx.lineTo(p.x+w/2,p.y); ctx.closePath();
-  ctx.fillStyle=shadeColor(base,-10); ctx.fill(); ctx.stroke();
-  ctx.font=(16*zoom)+'px sans-serif'; ctx.textAlign='center'; ctx.fillStyle='#fff'; ctx.fillText(def.icon,p.x,p.y-height/2-h*0.05);
-  // hp bar
-  const pct=b.hp/b.maxHp;
-  const bw=w*0.7;
-  ctx.fillStyle='#000'; ctx.fillRect(p.x-bw/2,p.y-height-h*0.75,bw,4*zoom);
-  ctx.fillStyle=pct>0.5?'#3fd44a':pct>0.2?'#e6c035':'#e0433f';
-  ctx.fillRect(p.x-bw/2,p.y-height-h*0.75,bw*pct,4*zoom);
-}
-function drawTroop(t){
-  const p=tileToScreen(t.gx,t.gy);
-  const yoff = t.def.flying? -20*zoom : 0;
-  ctx.beginPath(); ctx.arc(p.x,p.y+yoff,9*zoom,0,7);
-  ctx.fillStyle=t.def.dark?'#5a2a86':'#c0392b'; ctx.fill(); ctx.strokeStyle='#000'; ctx.lineWidth=1; ctx.stroke();
-  ctx.font=(12*zoom)+'px sans-serif'; ctx.textAlign='center'; ctx.fillStyle='#fff'; ctx.fillText(t.def.icon,p.x,p.y+yoff+1);
-  const pct=t.hp/t.maxHp;
-  ctx.fillStyle='#000'; ctx.fillRect(p.x-10*zoom,p.y+yoff-16*zoom,20*zoom,3*zoom);
-  ctx.fillStyle='#3fd44a'; ctx.fillRect(p.x-10*zoom,p.y+yoff-16*zoom,20*zoom*pct,3*zoom);
 }
 function drawHitFX(f){
   const p=tileToScreen(f.gx,f.gy);
@@ -1588,27 +1728,38 @@ function mainLoop(){
   }
   requestAnimationFrame(mainLoop);
 }
-
-/* periodic autosave + offline progress catch-up */
 function offlineCatchup(){
   const now=Date.now();
   const elapsed=clamp((now-(state.lastTick||now))/1000,0,3600*8);
   economyTick(elapsed);
-  // resolve completed queue items instantly
   processQueues();
   state.lastTick=now;
 }
 setInterval(()=>{ state.lastTick=Date.now(); save(); },5000);
 
 /* ---------------------------- BOOTSTRAP ---------------------------- */
+preloadIcons();
+setIconBG($('trophy-icon'),'trophyIcon');
+setIconBG($('achieve-icon'),'achieveIcon');
+setIconBG($('nav-build'),'navBuild');
+setIconBG($('nav-army'),'navArmy');
+setIconBG($('nav-attack'),'navAttack');
+setIconBG($('nav-league'),'navLeague');
+setIconBG($('nav-pass'),'navPass');
+setIconBG($('army-modal-icon'),'navArmy');
+setIconBG($('league-modal-icon'),'navLeague');
+setIconBG($('pass-modal-icon'),'navPass');
+setIconBG($('scout-modal-icon'),'navAttack');
+setIconBG($('ach-modal-icon'),'achieveIcon');
+
 load();
 offlineCatchup();
-camX=innerWidth/2 - 0; camY=140;
+camX=innerWidth/2; camY=140;
 rebuildBuildMenu();
 switchTab('build');
 refreshHUD();
 requestAnimationFrame(mainLoop);
-toast('Welcome back to your village!');
+toast('Welcome back to your village');
 </script>
 </body>
 </html>
