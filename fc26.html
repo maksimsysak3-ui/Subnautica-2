@@ -752,7 +752,9 @@ const NATION_KEYS = Object.keys(NATIONS);
 const FIRST_NAMES = ['Adrien','Mateo','Luka','Kian','Renzo','Milos','Tariq','Emile','Nuno','Dario','Yannick','Sten','Oskar','Vito','Andrei','Kaito','Silas','Samir','Ravi','Nolan','Elias','Bruno','Marco','Ivo','Teo','Aleks','Cato','Remy','Sol','Nael','Dino','Piet','Kofi','Amaro','Enzo','Lior','Vasco','Dane','Ugo','Casimir','Hadi','Osei','Leon','Rafa','Niko','Bastian','Corin','Emeka',
 'Matteo','Joaquin','Sander','Rico','Timo','Aleksi','Zeno','Ilias','Malik','Nikolai','Damir','Fabio','Gael','Hakim','Iker','Janko','Kylian','Lasse','Mika','Otto','Pavlos','Quinten','Rasmus','Salif','Toma','Uros','Vince','Wilder','Yusuf','Zayd','Aris','Bilal','Cedric','Dries','Erling','Florent','Goran','Henrik','Idris','Jonas','Kenan','Lucca','Mory','Noah','Pol','Reo','Souleyman','Thiago','Vadim','Wout',
 'Antoine','Bakari','Caio','Diego','Emrys','Farid','Gustaw','Hugo','Ismael','Jamal','Kasimir','Lukas','Moises','Nasser','Omar','Pablo','Qasim','Rodrigo','Santiago','Tobias','Umut','Valentin','Wesley','Xander','Yasin','Zoran','Adama','Boris','Cesar','Davor','Emanuel','Farouk','Giorgio','Haruto','Ignacio','Jerome','Kwame','Luccas','Mustafa','Nikita','Obinna','Petar','Quentin','Rayan','Stefan','Tomas','Uwe','Viktor','Wilhelm','Ximun','Yusuke','Zakaria','Alonso','Bram','Cristian','Diallo','Endre','Frederic','Gio','Herve',
-'Ivan','Jarno','Kai','Lamine','Miguel','Nazario','Ola','Pierre','Raul','Sami','Taha','Ulisses','Valdemar','Wojciech','Yannis','Zinedine','Adil','Boubacar','Chiedu','Denis','Estevan','Faysal','Gustavo','Hamid'];
+'Ivan','Jarno','Kai','Lamine','Miguel','Nazario','Ola','Pierre','Raul','Sami','Taha','Ulisses','Valdemar','Wojciech','Yannis','Zinedine','Adil','Boubacar','Chiedu','Denis','Estevan','Faysal','Gustavo','Hamid',
+'Alassane','Bendik','Cassio','Doran','Eren','Filip','Guillem','Halvor','Idowu','Jonatan','Kelechi','Leandro','Musa','Nino','Odell','Panos','Radu','Sekou','Thabo','Umaru','Vittorio','Wesam','Xabi','Yaw','Zeb','Abiodun','Basile','Costin','Dagur','Elvis','Fintan','Georgi','Habib','Idriss','Joric','Kacper','Leif','Matias','Nnamdi','Oren','Pieter','Radek','Serge','Taavi','Uche','Vlad','Wynand','Yordan','Zeke','Abou',
+'Bartek','Cyrus','Dilan','Eino','Frantz','Goncalo','Halil','Ismail','Jokubas','Kanu','Lassana','Mads','Ndabezinhle','Odilon','Priit','Quintus','Rui','Soren','Tinashe','Ulf','Vito-Luca','Wander','Xavi','Younes','Zvonimir','Abdullah','Berat','Corentin','Delano','Ezequiel','Feyi','Gjergj','Hemi','Ihor','Jesper','Kagiso','Levente','Mensah','Nnabuike','Olamide','Perparim','Quang','Rurik','Siebe','Tolu','Urs','Vidar','Wandile','Xhevahir','Yerlan','Zubair'];
 const SURNAMES = ['Calder','Voss','Ostrem','Marek','Bertone','Vance','Ferro','Cazal','Dunmore','Havel','Almvik','Fenwick','Holt','Iversen','Joris','Kessel','Loven','Marren','Orsini','Prieto','Quill','Rennick','Solberg','Tavora','Ulrich','Weiss','Zorin','Braithe','Colven','Draven','Falk','Grioux','Halden','Ibsen','Jansa','Korloff','Lindqvist','Merlo','Nystrom','Okonkwo','Palko','Renzetti','Salvi','Torvald','Wexford','Zabala','Ashcombe','Belmonte','Crane','Delacroix','Ekwueme','Frost','Garnier','Haldane','Moretti',
 'Andersson','Baptiste','Cortez','Drenov','Eskildsen','Farkas','Gallardo','Huseby','Ivanenko','Janssen','Kovac','Larsen','Mihaylov','Nedelcu','Osei-Bonsu','Pereyra','Quaranta','Rossetti','Skov','Traore','Ubeda','Varga','Wollny','Ximenes','Yamada','Zielinski','Abara','Bruns','Calvino','Doumbia','Egilsson','Ferreira','Gundersen','Herrera','Ito','Jokic','Kallstrom','Lindholm','Mancini','Novak','Onyeka','Petrov','Ricci','Sandoval','Toussaint','Ugarte','Vidmar','Wagner','Zubeldia','Adeyemi','Brandt','Castellano','Duarte',
 'Albrecht','Bakshi','Castro','Dubois','Eriksen','Fontaine','Gonzalez','Hansen','Ionescu','Jarvinen','Kowalski','Lefevre','Mendoza','Nakamura','Oduya','Pavlovic','Quiroga','Rasmussen','Santini','Turnbull','Umeh','Vukovic','Wieland','Xu','Yildirim','Zaki','Aliyev','Bergstrom','Carvalho','Diallo-Sow','Elbaz','Fabbri','Grzegorczyk','Haddad','Ilyin','Jansson','Kessler','Lombardi','Moraes','Nkemelu','Ochieng','Popescu','Quintero','Roig','Silveira','Tesfaye','Uzoma','Valdez','Wexley','Yordanov','Zamora',
@@ -897,80 +899,115 @@ function faceSVG(seed, size, o){
   const r = seeded('face-'+seed);
   const skin = o.skin!=null ? SKIN[o.skin%SKIN.length] : SKIN[Math.floor(r()*SKIN.length)];
   const hair = o.hair!=null ? HAIR[o.hair%HAIR.length] : HAIR[Math.floor(r()*HAIR.length)];
-  const bald = o.bald!=null ? o.bald : r()<0.09;
+  const bald = o.bald!=null ? o.bald : r()<0.08;
   const beard = o.beard!=null ? o.beard : r()<0.52;
-  const beardType = pick(r,['stubble','full','goatee','chin']);
-  const eyeColor = pick(r,['#3a2a1a','#4a2f18','#2a3a4a','#3a4a2a','#1a1a22','#5a4a2a']);
-  const hairStyle = o.hairStyle!=null ? o.hairStyle%10 : ri(r,0,9);
+  const beardType = o.beardType || pick(r,['stubble','full','goatee','chinstrap','mustache']);
+  const eyeColor = pick(r,['#3a2a1a','#4a2f18','#2a3a4a','#3a4a2a','#1a1a22','#5a4a2a','#3a5a4a']);
+  const hairStyle = o.hairStyle!=null ? o.hairStyle%12 : ri(r,0,11);
   const mouthType = ri(r,0,2);
-  const jaw = 0.9+r()*0.25;
+  const chinY = 78+ri(r,-3,5);            // subtle jaw-length variance, doesn't touch the hairline
   const bg1 = pick(r,['#eef1f8','#f0ecf4','#e9f1ee','#f2ebec','#eaedf5']);
   const bg2 = pick(r,['#aeb8ce','#bcafca','#a4c1b7','#c6adb2','#a9b3cd']);
   const shirt = pick(r,['#1b2333','#22262e','#2a2233','#213026','#2b283a','#2d2431']);
-  const brow = ri(r,0,2);
+  const browH = ri(r,-2,2);               // brow height/expression variance
+  const freckles = r()<0.1;
   const id = 'f'+Math.floor(r()*1e6);
   function darken(hex,f){const n=parseInt(hex.slice(1),16);let R=(n>>16)&255,G=(n>>8)&255,B=n&255;R*=f;G*=f;B*=f;return`rgb(${R|0},${G|0},${B|0})`}
-  const hairD = darken(hair,0.72);
-  // hairline hugs the forehead so hair never floats
+  const hairD = darken(hair,0.7);
+  const mouthY = chinY-11;
+
+  // every hairstyle shares this outer silhouette — it always starts and ends at the exact
+  // same temple anchors (26,50)/(74,50) that overlap the head shape, so hair can never
+  // visually detach from the skull no matter how the crown/hairline varies per style
+  function hairCap(peakY,lineY,notch){
+    // clamp the crown so it sits right at the head's own peak (y=17) — high enough that no
+    // bald ring shows, but not so high it stretches the silhouette above the actual skull
+    const cy = Math.min(Math.max(peakY,13),17);
+    const ctrl = cy-4;
+    return `M26 50 Q23 ${ctrl} 50 ${cy} Q77 ${ctrl} 74 50 Q72 43 65 ${lineY-2} Q58 ${lineY-4} 50 ${lineY+notch} Q42 ${lineY-4} 35 ${lineY-2} Q28 43 26 50 Z`;
+  }
   let hairPath='';
   if(!bald){
     if(hairStyle===0) // short crop
-      hairPath=`<path d="M28 46 Q26 22 50 21 Q74 22 72 46 Q72 42 65 42 Q58 36 50 37 Q42 36 35 42 Q28 42 28 46Z" fill="url(#hg${id})"/>`;
-    else if(hairStyle===1) // textured / curly
-      hairPath=`<path d="M27 47 Q26 24 34 20 Q39 25 44 20 Q50 15 56 20 Q61 25 66 20 Q74 24 73 47 Q72 42 64 42 Q57 37 50 38 Q43 37 36 42 Q28 42 27 47Z" fill="url(#hg${id})"/>`;
+      hairPath=`<path d="${hairCap(16,40,0)}" fill="url(#hg${id})"/>`;
+    else if(hairStyle===1) // textured messy top — jagged crown as one connected silhouette
+      hairPath=`<path d="M26 50 Q24 36 30 30 L34 35 L38 25 L43 32 L47 22 L50 31 L53 22 L57 32 L62 25 L66 35 L70 30 Q76 36 74 50 Q72 43 65 39 Q58 36 50 37 Q42 36 35 39 Q28 43 26 50Z" fill="url(#hg${id})"/>`;
     else if(hairStyle===2){ // afro volume
-      let puffs=''; for(let i=0;i<7;i++){const a=(i/6)*Math.PI; puffs+=`<circle cx="${50-26*Math.cos(a)}" cy="${20+ (1-Math.sin(a))*10}" r="6" fill="${hair}"/>`}
-      hairPath=`${puffs}<path d="M24 46 Q20 18 50 17 Q80 18 76 46 Q75 41 66 41 Q58 35 50 36 Q42 35 34 41 Q25 41 24 46Z" fill="url(#hg${id})"/>`;
+      let puffs=''; for(let i=0;i<9;i++){const a=(i/8)*Math.PI; puffs+=`<circle cx="${50-28*Math.cos(a)}" cy="${25+(1-Math.sin(a))*13}" r="7.5" fill="url(#hg${id})"/>`;}
+      hairPath=`${puffs}<path d="${hairCap(13,39,0)}" fill="url(#hg${id})"/>`;
     }
     else if(hairStyle===3) // buzz / close fade
-      hairPath=`<path d="M30 45 Q29 26 50 25 Q71 26 70 45 Q70 42 64 42 Q57 38 50 39 Q43 38 36 42 Q30 42 30 45Z" fill="url(#hg${id})" opacity="0.92"/>`;
+      hairPath=`<path d="${hairCap(17,41,0)}" fill="url(#hg${id})" opacity="0.82"/>`;
     else if(hairStyle===4) // swept quiff
-      hairPath=`<path d="M28 47 Q27 23 50 22 Q73 23 72 47 Q71 42 64 42 Q57 37 50 38 Q43 37 36 42 Q29 42 28 47Z" fill="url(#hg${id})"/><path d="M45 22 Q50 12 59 19 Q54 20 50 25 Q48 22 45 22Z" fill="${hair}"/>`;
+      hairPath=`<path d="${hairCap(15,40,0)}" fill="url(#hg${id})"/><path d="M39 39 Q48 17 63 25 Q55 26 51 35 Q46 31 39 39Z" fill="${hair}"/>`;
     else if(hairStyle===5) // side part
-      hairPath=`<path d="M27 46 Q25 22 50 21 Q75 22 73 46 Q73 40 64 41 L61 30 Q56 36 50 37 Q42 36 35 42 Q28 42 27 46Z" fill="url(#hg${id})"/>`;
-    else if(hairStyle===6){ // cornrows / lines
-      let lines=''; for(let i=0;i<5;i++){const x=36+i*7; lines+=`<path d="M${x} 41 Q${x} 26 50 22" stroke="${hairD}" stroke-width="2.4" fill="none" opacity="0.9"/>`;}
-      hairPath=`<path d="M29 45 Q28 24 50 22 Q72 24 71 45 Q71 41 64 41 Q57 37 50 38 Q43 37 36 41 Q29 41 29 45Z" fill="url(#hg${id})"/>${lines}`;
+      hairPath=`<path d="${hairCap(15,40,-1)}" fill="url(#hg${id})"/><path d="M50 18 Q56 29 60 42" stroke="${hairD}" stroke-width="1.6" fill="none" opacity="0.7"/>`;
+    else if(hairStyle===6){ // cornrows / braided lines
+      let lines=''; for(let i=0;i<6;i++){const x=32+i*7.2; lines+=`<path d="M${x} 42 Q${x+2} 28 50 18" stroke="${hairD}" stroke-width="2" fill="none" opacity="0.85"/>`;}
+      hairPath=`<path d="${hairCap(15,41,0)}" fill="url(#hg${id})"/>${lines}`;
     }
-    else if(hairStyle===7) // long / man-bun
-      hairPath=`<path d="M26 60 Q22 30 50 20 Q78 30 74 60 L70 54 Q72 40 64 41 Q57 36 50 37 Q43 36 36 41 Q28 40 30 54Z" fill="url(#hg${id})"/><circle cx="50" cy="17" r="6" fill="url(#hg${id})"/>`;
-    else if(hairStyle===8){ // mohawk
-      let spikes=''; for(let i=0;i<5;i++){const x=42+i*4; spikes+=`<path d="M${x} 40 L${x+1.5} 16 L${x+3} 40Z" fill="${hair}"/>`;}
-      hairPath=`<path d="M31 46 Q30 40 34 40 Q35 45 33 48Z" fill="${hairD}" opacity="0.7"/><path d="M69 46 Q70 40 66 40 Q65 45 67 48Z" fill="${hairD}" opacity="0.7"/>${spikes}`;
+    else if(hairStyle===7) // long flowing hair, past the ears
+      hairPath=`<path d="M26 50 Q18 68 24 88 Q29 90 32 84 Q28 68 32 52Z" fill="url(#hg${id})"/><path d="M74 50 Q82 68 76 88 Q71 90 68 84 Q72 68 68 52Z" fill="url(#hg${id})"/><path d="${hairCap(14,39,0)}" fill="url(#hg${id})"/>`;
+    else if(hairStyle===8){ // mohawk — thick connected ridge, shaved sides
+      hairPath=`<path d="M40 42 Q39 40 42 39 L44 21 L46 27 L48 19 L50 27 L52 19 L54 27 L56 21 L58 39 Q61 40 60 42 Q58 36 50 37 Q42 36 40 42Z" fill="url(#hg${id})"/><path d="M27 45 Q26 41 30 40 Q32 44 29 49Z" fill="${hairD}" opacity="0.4"/><path d="M73 45 Q74 41 70 40 Q68 44 71 49Z" fill="${hairD}" opacity="0.4"/>`;
     }
-    else // undercut / shaved sides
-      hairPath=`<path d="M34 45 Q33 22 50 21 Q67 22 66 45 Q66 41 61 41 Q56 34 50 35 Q44 34 39 41 Q34 41 34 45Z" fill="url(#hg${id})"/><path d="M30 46 Q29 40 33 39" stroke="${hairD}" stroke-width="1.4" fill="none" opacity="0.6"/><path d="M70 46 Q71 40 67 39" stroke="${hairD}" stroke-width="1.4" fill="none" opacity="0.6"/>`;
+    else if(hairStyle===9){ // undercut — short shaved sides, fuller brushed-up top
+      hairPath=`<path d="M36 40 Q34 17 50 15 Q66 17 64 40 Q64 36 58 35 Q54 28 50 29 Q46 28 42 35 Q36 36 36 40Z" fill="url(#hg${id})"/><path d="M28 44 Q27 40 32 39 Q35 43 31 48Z" fill="${hairD}" opacity="0.45"/><path d="M72 44 Q73 40 68 39 Q65 43 69 48Z" fill="${hairD}" opacity="0.45"/>`;
+    }
+    else if(hairStyle===10){ // curly fade — bumps spread evenly along the crown arc
+      let bumps=''; for(let i=0;i<8;i++){const t=i/7; bumps+=`<circle cx="${27+t*46}" cy="${36-Math.sin(t*Math.PI)*14}" r="5.5" fill="url(#hg${id})"/>`;}
+      hairPath=`<path d="${hairCap(16,40,0)}" fill="url(#hg${id})"/>${bumps}`;
+    }
+    else // slicked back
+      hairPath=`<path d="${hairCap(15,37,-2)}" fill="url(#hg${id})"/><path d="M34 27 Q42 22 50 21M50 21 Q58 22 66 27" stroke="${hairD}" stroke-width="1" fill="none" opacity="0.6"/>`;
   } else {
-    // clean shave — faint side hair around the ears only
-    hairPath=`<path d="M30 54 Q28 43 34 42 Q35 50 32 56Z" fill="${hair}" opacity="0.8"/><path d="M70 54 Q72 43 66 42 Q65 50 68 56Z" fill="${hair}" opacity="0.8"/>`;
+    // clean shave — faint stubble hugging the sides only, no separate floating shape
+    hairPath=`<path d="M27 46 Q26 40 30 40 Q32 44 29 49Z" fill="${hair}" opacity="0.35"/><path d="M73 46 Q74 40 70 40 Q68 44 71 49Z" fill="${hair}" opacity="0.35"/>`;
   }
+
+  // facial hair stays confined to the jaw/chin — never rises above cheekbone level (y~58)
   let beardPath='';
-  if(beard){
-    const bc=darken(hair,0.8);
-    if(beardType==='stubble') beardPath=`<path d="M31 56 Q50 76 69 56 Q69 70 50 78 Q31 70 31 56Z" fill="${bc}" opacity="0.32"/>`;
-    else if(beardType==='full') beardPath=`<path d="M29 53 Q50 82 71 53 Q71 74 50 82 Q29 74 29 53Z" fill="${bc}"/><path d="M40 45 Q50 51 60 45 L60 53 Q50 57 40 53Z" fill="${bc}" opacity="0.55"/>`;
-    else if(beardType==='chin') beardPath=`<path d="M30 52 Q31 66 38 70 L38 60 Q34 56 32 52Z M70 52 Q69 66 62 70 L62 60 Q66 56 68 52Z" fill="${bc}" opacity="0.85"/><path d="M43 71 Q50 78 57 71 Q57 75 50 78 Q43 75 43 71Z" fill="${bc}"/>`;
-    else beardPath=`<path d="M42 66 Q50 78 58 66 Q58 74 50 79 Q42 74 42 66Z" fill="${bc}"/>`;
+  // a single continuous perimeter loop (down one side, across the chin, up the other,
+  // back across the top) — never doubles back through the middle, so it can't self-intersect
+  // into the bowtie/blob artifact a two-boundary path would risk
+  function jawBeardPath(topY){
+    return `M28 58 Q25 62 27 68 Q31 ${chinY-6} 38 ${chinY-3} Q44 ${chinY+1} 50 ${chinY+2} Q56 ${chinY+1} 62 ${chinY-3} Q69 ${chinY-6} 73 68 Q75 62 72 58 Q65 ${topY} 58 ${topY-2} Q54 ${topY} 50 ${topY} Q46 ${topY} 42 ${topY-2} Q35 ${topY} 28 58 Z`;
   }
-  const mouth = mouthType===0?`<path d="M43 70 Q50 74 57 70" stroke="${darken(skin,0.62)}" stroke-width="2" fill="none" stroke-linecap="round"/>`
-    : mouthType===1?`<path d="M43 71 Q50 75 57 71 Q50 73 43 71Z" fill="${darken(skin,0.55)}"/>`
-    : `<path d="M44 71 Q50 73 56 71" stroke="${darken(skin,0.6)}" stroke-width="1.8" fill="none" stroke-linecap="round"/>`;
+  if(beard){
+    const bc=darken(hair,0.75);
+    if(beardType==='stubble')
+      beardPath=`<path d="${jawBeardPath(65)}" fill="${bc}" opacity="0.3"/>`;
+    else if(beardType==='full')
+      beardPath=`<path d="${jawBeardPath(61)}" fill="${bc}"/>`;
+    else if(beardType==='chinstrap')
+      beardPath=`<path d="M30 58 Q28 63 32 67 Q36 ${chinY-3} 50 ${chinY} Q64 ${chinY-3} 68 67 Q72 63 70 58" fill="none" stroke="${bc}" stroke-width="3" stroke-linecap="round" opacity="0.9"/>`;
+    else if(beardType==='goatee')
+      beardPath=`<path d="M42 ${chinY-8} Q50 ${chinY+2} 58 ${chinY-8} Q56 ${chinY-12} 50 ${chinY-11} Q44 ${chinY-12} 42 ${chinY-8}Z" fill="${bc}"/><path d="M44 ${mouthY-3} Q50 ${mouthY-1} 56 ${mouthY-3} Q50 ${mouthY} 44 ${mouthY-3}Z" fill="${bc}" opacity="0.9"/>`;
+    else // mustache only
+      beardPath=`<path d="M43 ${mouthY-3} Q50 ${mouthY-0.5} 57 ${mouthY-3} Q50 ${mouthY+1.2} 43 ${mouthY-3}Z" fill="${bc}"/>`;
+  }
+  const mouth = mouthType===0?`<path d="M43 ${mouthY} Q50 ${mouthY+4} 57 ${mouthY}" stroke="${darken(skin,0.6)}" stroke-width="2" fill="none" stroke-linecap="round"/>`
+    : mouthType===1?`<path d="M43 ${mouthY+1} Q50 ${mouthY+5} 57 ${mouthY+1} Q50 ${mouthY+3} 43 ${mouthY+1}Z" fill="${darken(skin,0.55)}"/>`
+    : `<path d="M44 ${mouthY} Q50 ${mouthY+2} 56 ${mouthY}" stroke="${darken(skin,0.58)}" stroke-width="1.8" fill="none" stroke-linecap="round"/>`;
+  const freckleDots = freckles ? [[36,60],[39,63],[43,61],[57,61],[61,63],[64,60]].map(([x,y])=>`<circle cx="${x}" cy="${y}" r="0.7" fill="${darken(skin,0.65)}" opacity="0.55"/>`).join('') : '';
   return `<svg viewBox="0 0 100 100" width="${size||100}" height="${size||100}" xmlns="http://www.w3.org/2000/svg">
     <defs>
       <linearGradient id="bg${id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="${bg1}"/><stop offset="100%" stop-color="${bg2}"/></linearGradient>
-      <radialGradient id="sk${id}" cx="42%" cy="38%"><stop offset="0%" stop-color="${skin}"/><stop offset="100%" stop-color="${darken(skin,0.8)}"/></radialGradient>
+      <radialGradient id="sk${id}" cx="42%" cy="35%"><stop offset="0%" stop-color="${skin}"/><stop offset="100%" stop-color="${darken(skin,0.8)}"/></radialGradient>
       <linearGradient id="hg${id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="${hair}"/><stop offset="100%" stop-color="${hairD}"/></linearGradient>
       <linearGradient id="lt${id}" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#ffffff" stop-opacity="0.22"/><stop offset="45%" stop-color="#ffffff" stop-opacity="0"/></linearGradient>
     </defs>
     <rect width="100" height="100" fill="url(#bg${id})"/>
-    <path d="M43 74 L43 88 Q50 92 57 88 L57 74Z" fill="${darken(skin,0.86)}"/>
+    <path d="M43 ${chinY-4} L43 88 Q50 92 57 88 L57 ${chinY-4}Z" fill="${darken(skin,0.86)}"/>
     <path d="M16 100 Q19 87 40 84 Q50 90 60 84 Q81 87 84 100Z" fill="${shirt}"/>
     <path d="M40 85 Q50 92 60 85 L58 100 L42 100Z" fill="${darken(shirt,1.15)}" opacity="0.6"/>
-    <path d="M30 45 Q30 ${74*jaw} 50 82 Q70 ${74*jaw} 70 45 Q70 30 50 28 Q30 30 30 45Z" fill="url(#sk${id})"/>
-    <path d="M31 51 Q26 51 26 57 Q26 63 31 63 Q30 58 31 51Z" fill="url(#sk${id})"/><path d="M29 54 Q27.5 55 28 58 Q29 59 30 58" fill="none" stroke="${darken(skin,0.7)}" stroke-width="1" stroke-linecap="round"/>
-    <path d="M69 51 Q74 51 74 57 Q74 63 69 63 Q70 58 69 51Z" fill="url(#sk${id})"/><path d="M71 54 Q72.5 55 72 58 Q71 59 70 58" fill="none" stroke="${darken(skin,0.7)}" stroke-width="1" stroke-linecap="round"/>
+    <path d="M28 47 Q21 46 21 55 Q21 64 27 63 Q25 55 28 47Z" fill="url(#sk${id})"/><path d="M24 51 Q22 55 24 58" fill="none" stroke="${darken(skin,0.7)}" stroke-width="1" stroke-linecap="round"/>
+    <path d="M72 47 Q79 46 79 55 Q79 64 73 63 Q75 55 72 47Z" fill="url(#sk${id})"/><path d="M76 51 Q78 55 76 58" fill="none" stroke="${darken(skin,0.7)}" stroke-width="1" stroke-linecap="round"/>
+    <path d="M28 42 Q25 58 31 70 Q36 ${chinY-3} 50 ${chinY} Q64 ${chinY-3} 69 70 Q75 58 72 42 Q72 21 50 17 Q28 21 28 42Z" fill="url(#sk${id})"/>
+    ${freckleDots}
     ${beardPath}
-    ${brow>0?`<path d="M36 47 Q41 ${44-brow} 46 47" stroke="${darken(hair,0.7)}" stroke-width="2.2" fill="none" stroke-linecap="round"/><path d="M54 47 Q59 ${44-brow} 64 47" stroke="${darken(hair,0.7)}" stroke-width="2.2" fill="none" stroke-linecap="round"/>`:''}
+    <path d="M37 ${45-browH} Q42 ${41-browH} 48 ${44-browH} Q42 ${44.5-browH} 37 ${47-browH}Z" fill="${darken(hair,0.55)}"/>
+    <path d="M63 ${45-browH} Q58 ${41-browH} 52 ${44-browH} Q58 ${44.5-browH} 63 ${47-browH}Z" fill="${darken(hair,0.55)}"/>
     <ellipse cx="41" cy="53" rx="4.2" ry="3" fill="#fff"/><ellipse cx="59" cy="53" rx="4.2" ry="3" fill="#fff"/>
     <circle cx="41.5" cy="53.4" r="2" fill="${eyeColor}"/><circle cx="59.5" cy="53.4" r="2" fill="${eyeColor}"/>
     <circle cx="42.2" cy="52.7" r="0.7" fill="#fff"/><circle cx="60.2" cy="52.7" r="0.7" fill="#fff"/>
@@ -1546,6 +1583,7 @@ const ICONS={
  settings:'<circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 00-.13-1.3l2-1.6-2-3.4-2.4 1a7 7 0 00-2.2-1.3L14 2h-4l-.3 2.4a7 7 0 00-2.2 1.3l-2.4-1-2 3.4 2 1.6A7 7 0 005 12a7 7 0 00.13 1.3l-2 1.6 2 3.4 2.4-1a7 7 0 002.2 1.3L10 22h4l.3-2.4a7 7 0 002.2-1.3l2.4 1 2-3.4-2-1.6A7 7 0 0019 12z"/>',
  mail:'<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/>',
  injury:'<path d="M12 3v18M3 12h18" stroke-width="3"/>',
+ boardroom:'<path d="M3 21h18M5 21V9l7-5 7 5v12"/><path d="M9 21v-6h6v6"/><path d="M9 12h.01M15 12h.01M12 12h.01"/>',
 };
 const NAV_ITEMS=[
   {id:'hub',ico:'home',tx:'Home'},
@@ -1555,6 +1593,7 @@ const NAV_ITEMS=[
   {id:'squad',ico:'squad',tx:'Team & Tactics'},
   {id:'academy',ico:'squad',tx:'Academy'},
   {id:'transfers',ico:'transfers',tx:'Transfers'},
+  {id:'boardroom',ico:'boardroom',tx:'Boardroom'},
   {id:'calendar',ico:'fixtures',tx:'Calendar'},
   {sec:'Competitions'},
   {id:'table',ico:'table',tx:'Standings'},
@@ -1567,8 +1606,8 @@ const NAV_ITEMS=[
   {id:'news',ico:'news',tx:'News'},
   {id:'settings',ico:'settings',tx:'Settings'},
 ];
-const CLUB_ONLY_NAV=new Set(['career','squad','academy','transfers','calendar','table','cups']);
-const PLAYER_HIDE_NAV=new Set(['academy','transfers','international']);
+const CLUB_ONLY_NAV=new Set(['career','squad','academy','transfers','boardroom','calendar','table','cups']);
+const PLAYER_HIDE_NAV=new Set(['academy','transfers','international','boardroom']);
 function buildNav(){
   const nav=$('#nav'); nav.innerHTML='';
   const intlOnly = Game.state && Game.state.internationalOnly;
@@ -1590,7 +1629,7 @@ Game.go=function(id){
   buildNav();
   if(id==='mycareer' && (!this.state.playerMode || !this.state.club)){ this.beginPlayerCareer(); this.setActive('hub'); this.setCrumbs('Create a Player','Build Your Pro'); return; }
   // gate club-specific views
-  const needClub=['career','squad','tactics','transfers','fixtures','table','cups','calendar','academy'];
+  const needClub=['career','squad','tactics','transfers','boardroom','fixtures','table','cups','calendar','academy'];
   if(needClub.includes(id) && !this.state.club){
     if(this.state.internationalOnly){ this.go('international'); return; }
     this.pendingView=id==='career'?'career':id;
@@ -1656,6 +1695,7 @@ Game.render=function(id){
       cups:()=>this.renderCups(view),
       inbox:()=>this.renderInbox(view),
       academy:()=>this.renderAcademy(view),
+      boardroom:()=>this.renderBoardroom(view),
     }[id]||(()=>this.renderHub(view)))();
     view.classList.add('on'); view.scrollTop=0;
     this.updateHUD();
@@ -1678,7 +1718,8 @@ Game.applyTheme=function(id){
   const map={hub:['#14203a','#1a0f2e'],career:['#101c33','#0b1424'],squad:['#0c2f1f','#071f14'],tactics:['#0c2f1f','#071f14'],
     transfers:['#2a1420','#160a1f'],fixtures:['#101c33','#0b1424'],table:['#12203a','#0b1424'],international:['#0d2038','#1a1230'],
     trophies:['#2a2200','#160f00'],stats:['#0d2a2a','#0a1a1a'],news:['#1c1c2c','#0d1220'],settings:['#141824','#0b0e16'],
-    calendar:['#101c33','#0b1424'],cups:['#0a1a4a','#050a24'],inbox:['#141824','#0b0e16'],wc:['#0d2038','#1a1230']};
+    calendar:['#101c33','#0b1424'],cups:['#0a1a4a','#050a24'],inbox:['#141824','#0b0e16'],wc:['#0d2038','#1a1230'],
+    boardroom:['#1c1608','#0f0c05']};
   // event theming: derby > champions cup > domestic cup > world cup > per-league identity
   const nf=this.state.club && this.nextUserFixture && this.nextUserFixture();
   const leagueCtx = id==='career'||id==='calendar'||id==='hub'||id==='table'||id==='fixtures'||id==='squad'||id==='tactics';
@@ -2176,6 +2217,7 @@ Game.startCareer=function(clubName){
     lineup:null, scorers:{}, seasonStats:{}, awards:[], simSpeed:'normal', mail:[], transferList:[],
     freeAgents:[], loansOut:[], loansIn:[], window:{},
     natJob:null, natSquadPicks:{}, natRecord:{}, academyLevel:1, scoutTrialists:[],
+    dynastyPoints:0, facilities:{training:1,medical:1,scouting:1,stadium:1}, lastPrize:0, lastUpkeep:0,
   };
   // init all league tables & schedules
   LEAGUES.forEach(l=>{
@@ -2473,11 +2515,13 @@ Game.refreshAcademy=function(r){
 };
 Game.potRange=function(p){
   const r=seeded('potrange-'+p.id);
-  const lo=clamp(p.potential-ri(r,4,11),p.ovr,99);
-  const hi=clamp(p.potential+ri(r,3,9),lo,99);
+  const scoutLvl=this.facilityLevel('scouting');
+  const tighten=(scoutLvl-1)*1.6;
+  const lo=clamp(p.potential-Math.max(2,ri(r,4,11)-tighten),p.ovr,99);
+  const hi=clamp(p.potential+Math.max(2,ri(r,3,9)-tighten),lo,99);
   return [lo,hi];
 };
-Game.scoutCost=function(p){ return Math.round((250000+p.ovr*15000)/1e4)*1e4; };
+Game.scoutCost=function(p){ const disc=1-(this.facilityLevel('scouting')-1)*0.08; return Math.round((250000+p.ovr*15000)*disc/1e4)*1e4; };
 Game.scoutProspect=function(id){
   const p=(this.state.academy||[]).find(x=>x.id===id) || (this.state.scoutTrialists||[]).find(x=>x.id===id);
   if(!p||p.scouted)return;
@@ -2605,6 +2649,84 @@ Game.renderAcademy=function(v){
   ac.sort((a,b)=>b.potential-a.potential).forEach(p=>grid.appendChild(this.academyProspectCardHTML(p)));
   v.appendChild(grid);
   if(!ac.length) v.appendChild(el('div','empty','No prospects right now — send scouts or wait for next season\'s intake.'));
+};
+/* ---------------- BOARDROOM: dynasty points, facilities, financials ---------------- */
+const FACILITIES=[
+  {key:'training',name:'Training Ground',ico:'M13 2 3 14h9l-1 8 10-12h-9l1-8z',desc:'Faster pre-match energy recovery and better youth development rolls each season.'},
+  {key:'medical',name:'Medical Centre',ico:'M12 2v20M2 12h20',desc:'Lowers the chance of picking up match injuries.'},
+  {key:'scouting',name:'Scouting Network',ico:'M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16zM21 21l-4.35-4.35',desc:'Cheaper scouting fees and tighter, more accurate potential reads on prospects.'},
+  {key:'stadium',name:'Stadium',ico:'M3 21h18M5 21V9l7-5 7 5v12M9 21v-6h6v6',desc:'Bigger matchday and prize-money income at the end of each season.'},
+];
+Game.facilityLevel=function(key){ return (this.state.facilities&&this.state.facilities[key])||1; };
+Game.facilityUpgradeCost=function(key){ const lvl=this.facilityLevel(key); return Math.round((6e6*Math.pow(1.8,lvl-1))/1e5)*1e5; };
+Game.addDynastyPoints=function(amount,reason){
+  if(!this.state||amount<=0) return;
+  this.state.dynastyPoints=(this.state.dynastyPoints||0)+amount;
+  this._lastDpGain={amount,reason};
+};
+Game.upgradeFacility=function(key){
+  const lvl=this.facilityLevel(key); if(lvl>=10){toast('Already at max level.');return;}
+  const cost=this.facilityUpgradeCost(key);
+  if(this.state.budget<cost){toast('Not enough budget to upgrade.');return;}
+  this.state.budget-=cost; this.state.facilities[key]=lvl+1;
+  toast(FACILITIES.find(f=>f.key===key).name+' upgraded to level '+(lvl+1)+'.');
+  this.autosave(); this.render('boardroom');
+};
+Game.renderBoardroom=function(v){
+  const c=this.clubOf(this.state.club); this.setCrumbs('Manager',c.name,'Boardroom');
+  const dp=this.state.dynastyPoints||0;
+  const facs=FACILITIES.map(f=>({...f,lvl:this.facilityLevel(f.key)}));
+  const totalLvl=facs.reduce((s,f)=>s+f.lvl,0);
+  const colors=['#e6b400','#3fd0e6','#7dd87d','#e67a7a'];
+  let angleAcc=0;
+  const segs=facs.map((f,i)=>{ const share=f.lvl/totalLvl; const start=angleAcc*360; angleAcc+=share; const end=angleAcc*360; return `${colors[i]} ${start.toFixed(1)}deg ${end.toFixed(1)}deg`; }).join(',');
+  v.innerHTML=`<div class="view-head"><div><div class="kicker">Club Ownership</div><h2>Boardroom</h2><div class="sub">Dynasty Points measure your legacy at ${c.name} — earned through wins, cup runs, trophies and full seasons. Facilities are funded from the transfer budget and compound year after year.</div></div></div>`;
+
+  const top=el('div','card card-pad'); top.style.cssText='display:flex;gap:28px;flex-wrap:wrap;align-items:center;margin-bottom:18px';
+  top.innerHTML=`
+    <div style="width:150px;height:150px;border-radius:50%;background:conic-gradient(${segs});display:flex;align-items:center;justify-content:center;flex:none;box-shadow:0 0 0 6px rgba(255,255,255,0.04)">
+      <div style="width:100px;height:100px;border-radius:50%;background:var(--card,#141824);display:flex;flex-direction:column;align-items:center;justify-content:center">
+        <div style="font-size:22px;font-weight:800;color:var(--gold,#e6b400)">${dp}</div>
+        <div style="font-size:10px;color:var(--dim);letter-spacing:.06em;text-transform:uppercase">Dynasty Pts</div>
+      </div>
+    </div>
+    <div style="flex:1;min-width:220px">
+      <div class="kicker">Facility Investment Split</div>
+      <div style="display:flex;flex-direction:column;gap:6px;margin-top:8px">
+        ${facs.map((f,i)=>`<div style="display:flex;align-items:center;gap:8px;font-size:12.5px"><span style="width:10px;height:10px;border-radius:50%;background:${colors[i]};flex:none"></span><span style="flex:1">${f.name}</span><b>Lv ${f.lvl}</b></div>`).join('')}
+      </div>
+    </div>`;
+  v.appendChild(top);
+
+  const fin=el('div','card card-pad'); fin.style.marginBottom='18px';
+  const wage=(m)=>'€'+(m/1e3).toFixed(0)+'K/wk';
+  fin.innerHTML=`<div class="kicker">Financial Overview</div>
+    <div class="stat-row" style="grid-template-columns:repeat(4,1fr);margin-top:8px">
+      <div class="stat-box"><div class="k">Budget</div><div class="v" style="color:var(--acc)">${money(this.state.budget)}</div></div>
+      <div class="stat-box"><div class="k">Wage Room</div><div class="v">${wage(this.state.wageBudget)}</div></div>
+      <div class="stat-box"><div class="k">Last Season Prize</div><div class="v" style="color:var(--good)">${this.state.lastPrize?'+'+money(this.state.lastPrize):'—'}</div></div>
+      <div class="stat-box"><div class="k">Facility Upkeep</div><div class="v" style="color:var(--bad)">${this.state.lastUpkeep?'-'+money(this.state.lastUpkeep):'—'}</div></div>
+    </div>`;
+  v.appendChild(fin);
+
+  v.appendChild(el('div','roster-group','Facilities'));
+  const grid=el('div','club-grid');
+  facs.forEach(f=>{
+    const cost=this.facilityUpgradeCost(f.key);
+    const maxed=f.lvl>=10;
+    const card=el('div','card card-pad');
+    card.innerHTML=`<div style="display:flex;align-items:center;gap:12px">
+        <div style="width:38px;height:38px;border-radius:10px;background:rgba(255,255,255,0.06);display:flex;align-items:center;justify-content:center;flex:none">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="${f.ico}"/></svg>
+        </div>
+        <div style="flex:1"><h3 style="margin:0">${f.name}</h3><div style="color:var(--dim);font-size:12px">Level ${f.lvl} / 10</div></div>
+      </div>
+      <div style="color:var(--dim);font-size:12.5px;margin:10px 0">${f.desc}</div>
+      <div class="bar" style="margin-bottom:12px"><i style="width:${f.lvl*10}%"></i></div>
+      ${maxed?`<span class="badge gold">Max Level</span>`:`<button class="btn sm primary" ${this.state.budget<cost?'style="opacity:.4;pointer-events:none"':''} onclick="Game.upgradeFacility('${f.key}')">Upgrade — ${money(cost)}</button>`}`;
+    grid.appendChild(card);
+  });
+  v.appendChild(grid);
 };
 Game.buildLineup=function(clubName){
   const sq=Game.squad(clubName).slice();
@@ -3404,7 +3526,7 @@ Game.ccKoFinish=function(f,res){
     cc.knockout[nx]=nt; cc.koStage=nx;
     if(winners.includes(this.state.club)){ this.ccInjectUserKo(); } else { cc.eliminated=true; this.ccSimRemainder(); }
   };
-  if(ti>=0){ const t=ties[ti]; this.resolveKoTie(t,res.gh,res.ga,false,(w,pens)=>{ Object.assign(t,{hg:res.gh,ag:res.ga,w,done:true,pens}); finishRest(); }); }
+  if(ti>=0){ const t=ties[ti]; this.resolveKoTie(t,res.gh,res.ga,false,(w,pens)=>{ Object.assign(t,{hg:res.gh,ag:res.ga,w,done:true,pens}); if(w===this.state.club)this.addDynastyPoints(25,'Champions Cup round win'); finishRest(); }); }
   else finishRest();
 };
 Game.ccSimRemainder=function(){
@@ -3466,6 +3588,7 @@ Game.dcFinish=function(f,res){
       Object.assign(t,{hg:res.gh,ag:res.ga,w,pens,done:true});
       const myG=res.home===me?res.gh:res.ga, opG=res.home===me?res.ga:res.gh;
       dc.history.push({round:DC_NAMES[DC_STAGES.indexOf(stage)],opp:f.oppName,myG,opG,win:w===me,pens});
+      if(w===me) this.addDynastyPoints(25,'Domestic Cup round win');
       if(w!==me) this.addNews('match',`${this.clubOf(me).short} knocked out of the Domestic Cup`,`Cup run ends in the ${DC_NAMES[DC_STAGES.indexOf(stage)]}.`,'');
       finishRest();
     });
@@ -3500,7 +3623,7 @@ Game.startLiveMatch=function(f){
   const home=f.home?me:f.oppName, away=f.home?f.oppName:me;
   // rest recovery before kickoff — tired players catch up faster than fresh ones so a heavily
   // rotated squad settles at a sustainable floor instead of crashing toward 0 after a few starts
-  const baseRecov = this.state.training==='fitness'?42:30;
+  const baseRecov = (this.state.training==='fitness'?42:30) + (this.facilityLevel('training')-1)*3;
   Game.squad(me).forEach(p=>{ const cur=p.energy==null?100:p.energy; p.energy=clamp(cur+baseRecov+(100-cur)*0.35,0,100); });
   const xiH=this.matchXI(home), xiA=this.matchXI(away);
   const userSide=f.home?'H':'A';
@@ -4013,7 +4136,8 @@ Game.finishUserFixture=function(f,res,quick,box){
   // fatigue: light injury chance weighted by low energy among those who played
   const fitnessMult = this.state.training==='fitness'?0.55:1;
   const injFreqMult = {low:0.45,normal:1,high:1.9}[this.settings.injuryFrequency]||1;
-  xi.forEach(p=>{ const e=p.energy==null?100:p.energy; const injChance=(0.014+(e<45?0.03:0))*fitnessMult*injFreqMult; if(Math.random()<injChance){ p.injWeeks=1+Math.floor(Math.random()*8);
+  const medicalMult = 1-(this.facilityLevel('medical')-1)*0.12;
+  xi.forEach(p=>{ const e=p.energy==null?100:p.energy; const injChance=(0.014+(e<45?0.03:0))*fitnessMult*injFreqMult*medicalMult; if(Math.random()<injChance){ p.injWeeks=1+Math.floor(Math.random()*8);
     this.addNews('drama',`Injury blow: ${p.name} out for ${p.injWeeks} match${p.injWeeks>1?'es':''}`,`The ${p.pos} picked up a knock and faces a spell on the sidelines.`,'');
     this.pushMail('Medical Team',`${p.name} injured`,`${p.name} will be out for approximately ${p.injWeeks} match${p.injWeeks>1?'es':''}. We'll manage his recovery.`); } });
   const w= myG>opG?1: myG<opG?-1:0;
@@ -4027,8 +4151,9 @@ Game.finishUserFixture=function(f,res,quick,box){
     const streakPenalty = this.state.lossStreak>=3 ? (this.state.lossStreak-2)*2 : 0;
     const derbyMult = f.derby?1.8:1;
     const patienceMult={lenient:0.55,normal:1,strict:1.5}[this.settings.boardPatience]||1;
-    if(w>0){this.state.boardConfidence=clamp(this.state.boardConfidence+2*derbyMult,0,100);this.state.fanHappiness=clamp(this.state.fanHappiness+3*derbyMult,0,100);}
+    if(w>0){this.state.boardConfidence=clamp(this.state.boardConfidence+2*derbyMult,0,100);this.state.fanHappiness=clamp(this.state.fanHappiness+3*derbyMult,0,100);this.addDynastyPoints(8,'League win');}
     else if(w<0){this.state.boardConfidence=clamp(this.state.boardConfidence-(3+streakPenalty)*derbyMult*patienceMult,0,100);this.state.fanHappiness=clamp(this.state.fanHappiness-(4+streakPenalty)*derbyMult,0,100);}
+    else this.addDynastyPoints(3,'League draw');
     if(f.derby){ const oppShort=this.clubOf(f.oppName).short;
       if(w>0) this.addNews('match',`Derby delight! ${this.clubOf(me).short} beat ${oppShort} ${myG}-${opG}`,`Bragging rights secured in style. The fans will be talking about this one for weeks.`,'');
       else if(w<0) this.addNews('drama',`Derby disaster: ${this.clubOf(me).short} beaten ${opG}-${myG} by ${oppShort}`,`A painful day for the club. Rival fans will not let this be forgotten quickly.`,'');
@@ -4102,6 +4227,7 @@ Game.takeNewJob=function(clubName){
   this.state.lineup=this.buildLineup(clubName);
   this.state.academyLevel=1; this.state.scoutTrialists=[];
   this.state.academy=this.buildAcademy();
+  this.state.dynastyPoints=0; this.state.facilities={training:1,medical:1,scouting:1,stadium:1}; this.state.lastPrize=0; this.state.lastUpkeep=0;
   this._jobSearch=false; this._pool=null; this._loanPool=null;
   this.buildUserSeason();
   this.addNews('transfer',`${this.state.manager.name} takes charge of ${c.name}`,`A new era begins. Ambitions are high as pre-season gets underway.`,'');
@@ -4614,9 +4740,15 @@ Game.newSeason=function(){
   // budget yield by result
   const c=this.clubOf(this.state.club);
   const posFactor = myPos<=1?1.0 : myPos<=4?0.75 : myPos<=8?0.5 : myPos<=14?0.32 : 0.2;
-  const prize = Math.round(c.budget*posFactor + (myPos<=4?60e6:0));
-  this.state.budget+=prize;
+  const stadiumLvl=this.facilityLevel('stadium');
+  const prize = Math.round((c.budget*posFactor + (myPos<=4?60e6:0)) * (1+(stadiumLvl-1)*0.06));
+  this.state.lastPrize=prize;
+  const upkeep=Object.values(this.state.facilities||{}).reduce((s,lvl)=>s+(lvl-1)*15000,0);
+  this.state.lastUpkeep=upkeep;
+  this.state.budget+=prize-upkeep;
   this.state.wageBudget=Math.round(c.budget*0.6);
+  const rankBonus = myPos<=1?60 : myPos<=4?35 : myPos<=8?15 : 0;
+  this.addDynastyPoints(40+rankBonus,'Season completed');
   // roll season
   this.state.seasonNum++; this.state.year++;
   const yr=parseInt(this.state.season.slice(0,4))+1;
@@ -4709,6 +4841,7 @@ Game.awardTrophy=function(name){
   this.addNews('trophy',`CHAMPIONS! ${c.name} win the ${name}`,`Glory! The trophy returns to the cabinet after a memorable campaign. Scenes of jubilation among the fans.`,'');
   this.state.boardConfidence=clamp(this.state.boardConfidence+15,0,100);
   this.state.fanHappiness=clamp(this.state.fanHappiness+18,0,100);
+  this.addDynastyPoints(200,name+' won');
   toast('You won the '+name+'!');
   this.trophyCutscene({title:'CHAMPIONS',subtitle:`${c.name} win the ${name}`,crestHtml:`<div style="width:70px;height:80px;margin:0 auto">${crestSVG(c,70)}</div>`});
 };
