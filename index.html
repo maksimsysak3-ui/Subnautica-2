@@ -2254,7 +2254,10 @@ function buildGrandstands(sc,P,Nm,Tg,offL,offR){
   const concrete=new THREE.MeshStandardMaterial({color:0x9aa0a8,roughness:0.92});
   const concreteD=new THREE.MeshStandardMaterial({color:0x7a808a,roughness:0.94});
   const railMat=new THREE.MeshStandardMaterial({color:0x2a2e36,roughness:0.5,metalness:0.5});
-  const flagCols=[0xff6a00,0xffffff,0xe10600,0x0a3fa0,0xffd23a];
+  const cableMat=new THREE.MeshStandardMaterial({color:0x14171d,roughness:0.6});
+  const flagCols=[0xe10600,0xffffff,0xe10600,0xf2f5f8];   // red/white bunting like the reference
+  const barTex=makeGrandstandBarrier('ROLEX');            // green trackside barrier (shared)
+  const barBaseMat=new THREE.MeshStandardMaterial({map:barTex,roughness:0.85});
   // build one raked stand at index i; +Z faces the track after lookAt. big=main grandstand
   const stand=(i,side,len,tiers,big)=>{
     const off=(side>0?offL:offR)(i), p=P[i],n=Nm[i];
@@ -2279,9 +2282,10 @@ function buildGrandstands(sc,P,Nm,Tg,offL,offR){
     // side concrete walls following the rake (triangular)
     for(const sx of [-len/2-0.3,len/2+0.3]){const sw=new THREE.Mesh(new THREE.BoxGeometry(0.4,topH,depth),concrete);
       sw.position.set(sx,topH/2,0);g.add(sw);}
-    // --- front sponsor hoarding (trackside) + guard rail ---
-    const hoard=new THREE.Mesh(new THREE.BoxGeometry(len,big?3.2:2.4,0.5),facadeMat);hoard.position.set(0,1.4,depth/2+0.35);g.add(hoard);
-    const rail=new THREE.Mesh(new THREE.BoxGeometry(len,0.1,0.1),railMat);rail.position.set(0,baseY+0.9,depth/2-0.1);g.add(rail);
+    // --- green ROLEX-style trackside barrier (matches the real thing) + guard rail ---
+    const barMat=barBaseMat.clone();barMat.map=barTex.clone();barMat.map.repeat.set(Math.max(2,len/22),1);barMat.map.needsUpdate=true;
+    const hoard=new THREE.Mesh(new THREE.BoxGeometry(len,2.6,0.5),barMat);hoard.position.set(0,1.3,depth/2+0.4);g.add(hoard);
+    const rail=new THREE.Mesh(new THREE.CylinderGeometry(0.06,0.06,len,6),railMat);rail.rotation.z=Math.PI/2;rail.position.set(0,baseY+1.1,depth/2-0.15);g.add(rail);
     // --- cantilever roof: slightly sloped plane + front fascia sponsor, on back trusses ---
     const roofD=depth*0.72, roofZc=-depth*0.5+roofD*0.5, roofY=topH+3.4;
     const roof=new THREE.Mesh(new THREE.BoxGeometry(len+5,0.4,roofD),roofMat);roof.position.set(0,roofY,roofZc);roof.rotation.x=-0.1;g.add(roof);
@@ -2292,12 +2296,13 @@ function buildGrandstands(sc,P,Nm,Tg,offL,offR){
       beam3(sx,roofY-0.3,-depth*0.46, sx,roofY-0.2,-depth*0.5+roofD, 0.35);       // roof beam
       beam3(sx,topH*0.55,-depth*0.46, sx,roofY-0.3,-depth*0.5+roofD*0.55, 0.32);  // cantilever brace
     }
-    // --- colourful flags along the front roof edge ---
-    const nF=Math.max(6,len/9|0);
-    for(let f=0;f<nF;f++){const fx=-len/2+(f+0.5)*(len/nF), fz=-depth*0.5+roofD;
-      const pole=new THREE.Mesh(new THREE.CylinderGeometry(0.05,0.05,2.6,5),railMat);pole.position.set(fx,roofY+1.5,fz);g.add(pole);
-      const flag=new THREE.Mesh(new THREE.PlaneGeometry(1.3,0.85),new THREE.MeshStandardMaterial({color:flagCols[f%flagCols.length],side:THREE.DoubleSide,roughness:0.8}));
-      flag.position.set(fx+0.75,roofY+2.2,fz);g.add(flag);}
+    // --- pennant-flag bunting on a cable along the top front edge (like the reference) ---
+    const fz=-depth*0.5+roofD+0.2, cabY=roofY+2.2;
+    const cable=new THREE.Mesh(new THREE.CylinderGeometry(0.04,0.04,len,5),cableMat);cable.rotation.z=Math.PI/2;cable.position.set(0,cabY,fz);g.add(cable);
+    const nF=Math.max(10,len/4|0);
+    for(let f=0;f<nF;f++){const fx=-len/2+(f+0.5)*(len/nF);
+      const flag=new THREE.Mesh(new THREE.PlaneGeometry(0.9,1.3),new THREE.MeshStandardMaterial({color:flagCols[f%flagCols.length],side:THREE.DoubleSide,roughness:0.85}));
+      flag.position.set(fx,cabY-0.65,fz);flag.rotation.y=0.2;g.add(flag);}
     // night floodlights on the roof
     if(night){for(let s=0;s<(big?4:2);s++){const sx=(-0.5+s/((big?4:2)-1||1))*len*0.7;
       const fl=new THREE.Mesh(new THREE.BoxGeometry(3.4,0.9,1),new THREE.MeshStandardMaterial({color:0xffffff,emissive:0xfff2d0,emissiveIntensity:2.2}));
@@ -2330,24 +2335,39 @@ function buildPit(sc,P,Nm,Tg){
   lane.position.set(0,0.06,14);g.add(lane);
   const fast=new THREE.Mesh(new THREE.BoxGeometry(len,0.02,0.35),new THREE.MeshBasicMaterial({color:0xf2f5f8}));fast.position.set(0,0.14,10.5);g.add(fast);
   const apr=new THREE.Mesh(new THREE.BoxGeometry(len,0.02,0.35),new THREE.MeshStandardMaterial({color:accent,emissive:accent,emissiveIntensity:0.5}));apr.position.set(0,0.14,17.5);g.add(apr);
-  // garage units with team-accent roller doors facing the lane
-  const garMat=new THREE.MeshStandardMaterial({color:pitCol,roughness:0.7,metalness:night?0.3:0,emissive:night?0x0a0e16:0,emissiveIntensity:night?0.4:0});
-  const nGar=12, gw=len/nGar;
+  // --- garage block: solid building with RECESSED open garages (dark interior) + accent lintels ---
+  const bodyMat=new THREE.MeshStandardMaterial({color:pitCol,roughness:0.72,metalness:night?0.25:0,emissive:night?0x0a0e16:0,emissiveIntensity:night?0.35:0});
+  const bodyH=8;
+  const body=new THREE.Mesh(new THREE.BoxGeometry(len,bodyH,13),bodyMat);body.position.set(0,bodyH/2,-1.5);g.add(body);
+  const darkInt=new THREE.MeshStandardMaterial({color:0x0a0c10,roughness:0.95,emissive:0x090c12,emissiveIntensity:night?0.7:0.4});
+  const accentMat=new THREE.MeshStandardMaterial({color:accent,roughness:0.5,metalness:0.3});
+  const nGar=13, gw=len/nGar;
   for(let d=0;d<nGar;d++){const gx=-len/2+gw*(d+0.5);
-    const unit=new THREE.Mesh(new THREE.BoxGeometry(gw-0.5,7,12),garMat);unit.position.set(gx,3.5,0);g.add(unit);
-    const door=new THREE.Mesh(new THREE.BoxGeometry(gw-2.2,5.2,0.3),
-      new THREE.MeshStandardMaterial({color:d%2?accent:0x14181f,roughness:0.5,metalness:0.35,emissive:night?0x0a0d12:0,emissiveIntensity:night?0.3:0}));
-    door.position.set(gx,3.0,6.1);g.add(door);}
-  // upper media/hospitality deck with a lit window band + accent roof
-  const upper=new THREE.Mesh(new THREE.BoxGeometry(len,6,11),
-    new THREE.MeshStandardMaterial({map:makeWindows(Math.max(6,len/6|0),3,night?'#cfe0f0':'#24343f'),color:pitCol,roughness:0.6,metalness:0.3,emissive:night?0x14202e:0,emissiveIntensity:night?0.5:0}));
-  upper.position.set(0,10.5,-0.5);g.add(upper);
-  const roof=new THREE.Mesh(new THREE.BoxGeometry(len+3,0.9,13),new THREE.MeshStandardMaterial({color:accent,roughness:0.5,metalness:0.3}));roof.position.set(0,14,-0.5);g.add(roof);
-  // pit wall with sponsor hoarding + team pit-stand pods along the fast lane
+    const open=new THREE.Mesh(new THREE.BoxGeometry(gw-2.0,5.2,1.6),darkInt);open.position.set(gx,2.9,5.2);g.add(open);   // recessed garage mouth
+    const lintel=new THREE.Mesh(new THREE.BoxGeometry(gw-1.0,0.9,0.7),accentMat);lintel.position.set(gx,5.9,5.9);g.add(lintel);
+    const pillar=new THREE.Mesh(new THREE.BoxGeometry(0.7,6,0.7),bodyMat);pillar.position.set(gx+gw/2,3,5.7);g.add(pillar);}
+  // upper media/hospitality deck with a lit glass window band + accent roof line
+  const upper=new THREE.Mesh(new THREE.BoxGeometry(len,6,12),
+    new THREE.MeshStandardMaterial({map:makeWindows(Math.max(8,len/6|0),3,night?'#bfe0ff':'#2a3c4a'),color:pitCol,roughness:0.5,metalness:0.4,emissive:night?0x16283a:0x0a1218,emissiveIntensity:night?0.6:0.2}));
+  upper.position.set(0,11,-1.5);g.add(upper);
+  const roof=new THREE.Mesh(new THREE.BoxGeometry(len+3,1.0,15),accentMat);roof.position.set(0,14.5,-1.5);g.add(roof);
+  const roof2=new THREE.Mesh(new THREE.BoxGeometry(len+3,0.5,15),new THREE.MeshStandardMaterial({color:0xdfe4ea,roughness:0.6}));roof2.position.set(0,15.2,-1.5);g.add(roof2);
+  // pit wall + team timing gantries (team-colour, NOT black) with a screen
   const wall=new THREE.Mesh(new THREE.BoxGeometry(len,1.2,0.5),new THREE.MeshStandardMaterial({map:makeHoarding(),roughness:0.8}));wall.position.set(0,0.6,21.5);g.add(wall);
-  for(let d=0;d<6;d++){const pod=new THREE.Mesh(new THREE.BoxGeometry(9,2.4,3),
-    new THREE.MeshStandardMaterial({color:0x14181f,roughness:0.6,metalness:0.3,emissive:night?0x1a2230:0,emissiveIntensity:0.4}));
-    pod.position.set(-len/2+18+d*26,2.4,20);g.add(pod);}
+  for(let d=0;d<4;d++){const sx=-len/2+24+d*40;const gpit=new THREE.Group();
+    for(const dx of [-3.6,3.6]){const leg=new THREE.Mesh(new THREE.BoxGeometry(0.4,3.2,0.4),accentMat);leg.position.set(sx+dx,1.6,20);gpit.add(leg);}
+    const desk=new THREE.Mesh(new THREE.BoxGeometry(9,1.4,2.4),new THREE.MeshStandardMaterial({color:pitCol,roughness:0.6}));desk.position.set(sx,3.5,20);gpit.add(desk);
+    const scr=new THREE.Mesh(new THREE.PlaneGeometry(8,1.6),new THREE.MeshStandardMaterial({color:0x0a1622,emissive:0x1e88d8,emissiveIntensity:0.8}));scr.position.set(sx,3.6,21.25);gpit.add(scr);
+    const canopy=new THREE.Mesh(new THREE.BoxGeometry(9.5,0.3,3),accentMat);canopy.position.set(sx,4.5,20);gpit.add(canopy);g.add(gpit);}
+  // --- PADDOCK behind the pits: team motorhomes / hospitality + tarmac apron ---
+  const padGround=new THREE.Mesh(new THREE.BoxGeometry(len+50,0.1,40),new THREE.MeshStandardMaterial({color:0x3d424a,roughness:0.96}));
+  padGround.position.set(0,0.04,-26);g.add(padGround);
+  const mhCols=[0x2a4a86,0xc8102e,0x00a19a,0x1a1f2a,0xe8b923,0x0a7a3a,0x8a2be2];
+  for(let m=0;m<9;m++){const px=-len/2+18+m*(len-36)/8, w=14+((m*5)%6), h=5.5+(m%3), dd=13;
+    const mMat=new THREE.MeshStandardMaterial({color:mhCols[m%mhCols.length],roughness:0.6,metalness:0.2,emissive:night?0x0a0e16:0,emissiveIntensity:night?0.3:0});
+    const mh=new THREE.Mesh(new THREE.BoxGeometry(w,h,dd),mMat);mh.position.set(px,h/2,-26);g.add(mh);
+    const cap=new THREE.Mesh(new THREE.BoxGeometry(w+0.6,0.5,dd+0.6),new THREE.MeshStandardMaterial({color:0xdfe4ea,roughness:0.6}));cap.position.set(px,h+0.25,-26);g.add(cap);
+    if(m%2){const glass=new THREE.Mesh(new THREE.BoxGeometry(w*0.8,h*0.5,0.2),new THREE.MeshStandardMaterial({color:0x9fd8ff,transparent:true,opacity:0.5,emissive:night?0x2a5a80:0,emissiveIntensity:0.5}));glass.position.set(px,h*0.55,-26+dd/2+0.15);g.add(glass);}}
   const gy=gh(base.x,base.z);
   g.position.copy(base);g.position.y=gy;g.lookAt(p.x,gy,p.z);
   g.traverse(o=>{o.castShadow=true;o.receiveShadow=true;});sc.add(g);
@@ -2485,19 +2505,25 @@ function makeHoarding(){
   const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;t.wrapS=THREE.RepeatWrapping;t.wrapT=THREE.ClampToEdgeWrapping;t.anisotropy=8;return t;
 }
 function makeCrowdMat(){
-  const c=cnv(256,128),x=c.getContext('2d');
-  x.fillStyle='#181b21';x.fillRect(0,0,256,128);
-  // seat rows: alternating dark seat bands
-  for(let r=0;r<16;r++){x.fillStyle=r%2?'#23272f':'#1c2027';x.fillRect(0,r*8,256,8);}
-  const cols=['#e0503a','#eee7d6','#3a72dd','#e6b83e','#48a866','#cf5aa4','#ffffff','#7a8492','#d84a4a','#2fb0a0'];
-  // dense seated crowd — a person per seat, most seats filled
-  for(let r=0;r<16;r++)for(let cx=0;cx<64;cx++){ if(Math.random()<0.16) continue;
-    const px=cx*4+1+(Math.random()-0.5), py=r*8+2+Math.random()*2;
-    x.fillStyle=cols[(Math.random()*cols.length)|0];
-    x.beginPath();x.arc(px,py,1.5,0,7);x.fill();          // head
-    x.globalAlpha=0.5;x.fillRect(px-1.4,py+1.5,2.8,3);x.globalAlpha=1; } // body
-  const t=new THREE.CanvasTexture(c);t.wrapS=t.wrapT=THREE.RepeatWrapping;t.repeat.set(8,1);t.anisotropy=8;
+  const c=cnv(256,256),x=c.getContext('2d');
+  x.fillStyle='#22262d';x.fillRect(0,0,256,256);
+  // subtle horizontal seat-row shading so the bank reads as tiered rows
+  for(let r=0;r<48;r++){x.fillStyle=r%2?'rgba(0,0,0,.14)':'rgba(255,255,255,.02)';x.fillRect(0,r*5.4,256,2.6);}
+  // a dense sea of tiny spectators (fine speckle — reads as a packed stand from distance)
+  const cols=['#e2543c','#f2ede2','#3a72dd','#e8b83e','#ff7a1a','#d64545','#cbd0d6','#33383f','#f0a838','#2f7d55','#b0455f'];
+  for(let i=0;i<16000;i++){x.fillStyle=cols[(Math.random()*cols.length)|0];
+    x.fillRect(Math.random()*256,Math.random()*256,1.5,1.7);}
+  const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;t.wrapS=t.wrapT=THREE.RepeatWrapping;t.repeat.set(5,3);t.anisotropy=8;
   return new THREE.MeshStandardMaterial({map:t,roughness:1});
+}
+/* green ROLEX-style trackside grandstand barrier (repeating white wordmark) */
+function makeGrandstandBarrier(word){
+  const c=cnv(1024,128),x=c.getContext('2d');
+  x.fillStyle='#0a5c36';x.fillRect(0,0,1024,128);           // Rolex green
+  x.fillStyle='#eef2ef';x.textAlign='center';x.textBaseline='middle';x.font='900 62px Arial';
+  for(let k=0;k<4;k++)x.fillText(word||'ROLEX',128+k*256,68);
+  x.fillStyle='rgba(0,0,0,.22)';x.fillRect(0,116,1024,12);
+  const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;t.wrapS=THREE.RepeatWrapping;t.wrapT=THREE.ClampToEdgeWrapping;t.anisotropy=8;return t;
 }
 
 buildShowroom(menuScene);
