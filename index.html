@@ -1360,18 +1360,19 @@ function buildYasHotel(sc,P,Nm,Tg){
     const c=at((bL-bR)/2,0,30);deck.position.copy(c);deck.rotation.y=Math.atan2(fwd.x,fwd.z);sc.add(deck); }
 }
 
-/* ---- barriers: each track ZONE is a SINGLE sponsor (no alternating) ---- */
+/* ---- barriers: clean, accurate F1 trackside boards (one sponsor per zone) ---- */
 const ZONE_SPONSORS=[
+  {txt:'ROLEX',bg:'#06603a',fg:'#ffffff'},
+  {txt:'Emirates',bg:'#d71921',fg:'#ffffff',tag:'FLY BETTER',italic:true},
   {kind:'f1'},
-  {txt:'Heineken',bg:'#00842b',fg:'#ffffff',accent:'#e2000f',tag:'OPEN YOUR WORLD',mark:'star'},
-  {kind:'aramco'},                                  // light blue
-  {txt:'DHL',bg:'#ffcc00',fg:'#d40511',accent:'#d40511',tag:'OFFICIAL LOGISTICS PARTNER',mark:'arrows'},
-  {txt:'Lenovo',bg:'#e2231a',fg:'#ffffff',accent:'#ffffff',tag:'SMARTER TECHNOLOGY FOR ALL',mark:'box'},
-  {kind:'f1'},
-  {txt:'ROLEX',bg:'#0a5c36',fg:'#ffffff',accent:'#d9b310',tag:'OFFICIAL TIMEPIECE',mark:'crown'},
-  {txt:'PIRELLI',bg:'#fff000',fg:'#111111',accent:'#e2000f',tag:'P ZERO',mark:'pzero'},
-  {txt:'MSC',bg:'#0a1e3f',fg:'#f0c33c',accent:'#f0c33c',tag:'CRUISES',mark:'wave'},
-  {txt:'PETRONAS',bg:'#00a19a',fg:'#e9f6f4',accent:'#0a3d3a',tag:'FLUID TECHNOLOGY SOLUTIONS',mark:'drop'},
+  {txt:'DHL',bg:'#ffcc00',fg:'#d40511'},
+  {txt:'PIRELLI',bg:'#f4e000',fg:'#111111',tag:'P ZERO'},
+  {txt:'Heineken',bg:'#007a33',fg:'#ffffff'},
+  {kind:'aramco'},
+  {txt:'MSC CRUISES',bg:'#0a1e3f',fg:'#f0c33c'},
+  {txt:'PETRONAS',bg:'#00a19a',fg:'#ffffff'},
+  {txt:'aws',bg:'#232f3e',fg:'#ff9900'},
+  {txt:'QATAR AIRWAYS',bg:'#5c0632',fg:'#ffffff'},
 ];
 /* per-circuit sponsors — these get mixed in with the regular series sponsors */
 const TRACK_SPONSORS={
@@ -1448,38 +1449,30 @@ function makeFenceTex(){
   const t=new THREE.CanvasTexture(c);t.wrapS=t.wrapT=THREE.RepeatWrapping;t.anisotropy=4;
   t.colorSpace=THREE.SRGBColorSpace;return t;
 }
-function makeZoneBoard(sp){ // high-res advertising hoarding: mark + wordmark + tagline + accent
+function makeZoneBoard(sp){ // CLEAN F1 trackside board: flat brand colour + one crisp wordmark
   const n=4, pw=1024, ph=208, c=cnv(pw*n,ph), x=c.getContext('2d');
-  for(let i=0;i<n;i++){const x0=i*pw, cy=ph*0.44;
+  for(let i=0;i<n;i++){const x0=i*pw;
     if(sp.kind==='f1'){drawF1(x,x0,pw,ph);}
     else if(sp.kind==='aramco'){
-      const g=x.createLinearGradient(0,0,0,ph);g.addColorStop(0,'#57c1ea');g.addColorStop(1,'#1f96d0');
+      const g=x.createLinearGradient(0,0,0,ph);g.addColorStop(0,'#4fbce8');g.addColorStop(1,'#1b8fce');
       x.fillStyle=g;x.fillRect(x0,0,pw,ph);
-      x.fillStyle='rgba(255,255,255,.16)';for(let s=0;s<6;s++){x.beginPath();x.moveTo(x0+s*pw/5-40,ph);x.lineTo(x0+s*pw/5+70,0);x.lineTo(x0+s*pw/5+90,0);x.lineTo(x0+s*pw/5-20,ph);x.fill();}
-      x.fillStyle='#ffffff';x.font=`italic 800 ${ph*0.44|0}px Arial`;x.textAlign='center';x.textBaseline='middle';x.fillText('aramco',x0+pw/2,ph*0.42);
-      x.font=`600 ${ph*0.11|0}px Arial`;x.fillStyle='rgba(255,255,255,.85)';x.fillText('POWERING CHAMPIONS',x0+pw/2,ph*0.72);
+      x.fillStyle='#ffffff';x.font=`italic 800 ${ph*0.5|0}px Arial`;x.textAlign='center';x.textBaseline='middle';x.fillText('aramco',x0+pw/2,ph*0.52);
     }else{
-      const g=x.createLinearGradient(0,0,0,ph);
-      g.addColorStop(0,shadeHex(sp.bg,1.15));g.addColorStop(0.5,sp.bg);g.addColorStop(1,shadeHex(sp.bg,0.86));
+      // flat brand background with only a subtle vertical sheen (real boards are flat)
+      const g=x.createLinearGradient(0,0,0,ph);g.addColorStop(0,shadeHex(sp.bg,1.06));g.addColorStop(1,shadeHex(sp.bg,0.94));
       x.fillStyle=g;x.fillRect(x0,0,pw,ph);
-      // diagonal accent band
-      x.fillStyle=sp.accent;x.beginPath();x.moveTo(x0,ph);x.lineTo(x0+pw*0.16,ph);x.lineTo(x0+pw*0.30,0);x.lineTo(x0+pw*0.14,0);x.closePath();x.fill();
-      x.beginPath();x.moveTo(x0+pw,0);x.lineTo(x0+pw*0.86,0);x.lineTo(x0+pw*0.74,ph);x.lineTo(x0+pw*0.88,ph);x.closePath();x.fill();
-      // brand mark (repeated small in corners + a big one at left)
-      if(sp.mark){drawMark(x,sp.mark,x0+pw*0.11,cy,ph*0.26,sp.accent);
-        drawMark(x,sp.mark,x0+pw*0.9,ph*0.3,ph*0.12,sp.fg);}
-      // wordmark + tagline
       x.textAlign='center';x.textBaseline='middle';
-      x.font=`900 ${ph*(sp.txt.length>8?0.36:0.5)|0}px Arial`;
-      x.fillStyle='rgba(0,0,0,.22)';x.fillText(sp.txt,x0+pw*0.52+3,cy+3);
-      x.fillStyle=sp.fg;x.fillText(sp.txt,x0+pw*0.52,cy);
-      if(sp.tag){x.font=`700 ${ph*0.1|0}px Arial`;x.fillStyle=shadeHex(sp.bg,0.55);
-        x.fillText(sp.tag,x0+pw*0.52,ph*0.76);}
+      const hasTag=!!sp.tag, sty=(sp.italic?'italic ':'')+'900 ';
+      // one clean centred wordmark, auto-fit to the panel with generous margins
+      let fs=ph*(hasTag?0.44:0.52);x.font=sty+(fs|0)+'px Arial';
+      while(x.measureText(sp.txt).width>pw*0.74 && fs>26){fs*=0.94;x.font=sty+(fs|0)+'px Arial';}
+      x.fillStyle=sp.fg;x.fillText(sp.txt,x0+pw/2, hasTag?ph*0.4:ph*0.5);
+      if(hasTag){x.font='700 '+(ph*0.14|0)+'px Arial';x.globalAlpha=0.92;x.fillText(sp.tag,x0+pw/2,ph*0.72);x.globalAlpha=1;}
     }
-    // physical panel: top highlight + lower shadow band + hairline frame
-    x.fillStyle='rgba(255,255,255,.12)';x.fillRect(x0,0,pw,ph*0.05);
-    x.fillStyle='rgba(0,0,0,.34)';x.fillRect(x0,ph*0.9,pw,ph*0.1);
-    x.strokeStyle='rgba(0,0,0,.25)';x.lineWidth=2;x.strokeRect(x0+1,1,pw-2,ph-2);}
+    // minimal physical framing (thin sheen + shadow + hairline)
+    x.fillStyle='rgba(255,255,255,.05)';x.fillRect(x0,0,pw,ph*0.035);
+    x.fillStyle='rgba(0,0,0,.22)';x.fillRect(x0,ph*0.93,pw,ph*0.07);
+    x.strokeStyle='rgba(0,0,0,.18)';x.lineWidth=2;x.strokeRect(x0+1,1,pw-2,ph-2);}
   const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;t.wrapS=THREE.RepeatWrapping;t.wrapT=THREE.ClampToEdgeWrapping;t.anisotropy=16;t.generateMipmaps=true;t.minFilter=THREE.LinearMipmapLinearFilter;return t;
 }
 /* yellow/black "sausage" kerbs along chicane edges (run width tells us where) */
