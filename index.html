@@ -1093,7 +1093,9 @@ function buildWorld(sc,cfg){
     // modern circuits: a wide SPONSORED TARMAC run-off (widens into corners) with a green
     // astroturf lip at the edge, painted sponsor/track logos, and a gravel trap at slow corners
     const baseW=k=>Math.max(3.5, Math.min((TRACK.maxOff[k]-HW-0.8), 4+Math.max(runL[k],runR[k])));
-    const tarMat=new THREE.MeshStandardMaterial({map:makeTarmacTex(),color:0x494e56,roughness:0.96,side:THREE.DoubleSide});
+    // emissive floor so the run-off can never render pitch-black (lighting/normal safety net)
+    const tarMat=new THREE.MeshStandardMaterial({map:makeTarmacTex(),color:0x6a707a,roughness:0.95,metalness:0,
+      emissive:0x2a2e34,emissiveIntensity:0.55,side:THREE.DoubleSide});
     strip(k=>HW+0.75, k=>HW+0.75+baseW(k), 0.0, tarMat, 0, 16);
     strip(k=>-(HW+0.75), k=>-(HW+0.75+baseW(k)), 0.0, tarMat, 0, 16);
     // green astroturf lip just outside the kerb line
@@ -2387,14 +2389,14 @@ function makeWall(){
 /* light asphalt for run-off aprons */
 function makeTarmacTex(){
   const c=cnv(256,256),x=c.getContext('2d');
-  x.fillStyle='#464b53';x.fillRect(0,0,256,256);
-  for(let i=0;i<9000;i++){const g=60+Math.random()*38|0;x.fillStyle=`rgba(${g},${g},${g+3},${Math.random()*0.4})`;x.fillRect(Math.random()*256,Math.random()*256,1.7,1.7);}
-  const t=new THREE.CanvasTexture(c);t.wrapS=t.wrapT=THREE.RepeatWrapping;t.anisotropy=8;return t;
+  x.fillStyle='#6a707a';x.fillRect(0,0,256,256);
+  for(let i=0;i<9000;i++){const g=96+Math.random()*44|0;x.fillStyle=`rgba(${g},${g},${g+4},${Math.random()*0.4})`;x.fillRect(Math.random()*256,Math.random()*256,1.7,1.7);}
+  const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;t.wrapS=t.wrapT=THREE.RepeatWrapping;t.anisotropy=8;return t;
 }
 /* faint painted wordmark for run-off tarmac */
 function makeRunoffWord(w){
   const c=cnv(512,190),x=c.getContext('2d');x.clearRect(0,0,512,190);
-  x.fillStyle='rgba(236,239,243,0.34)';x.textAlign='center';x.textBaseline='middle';x.font='900 92px Arial';
+  x.fillStyle='rgba(236,239,243,0.42)';x.textAlign='center';x.textBaseline='middle';x.font='900 92px Arial';
   x.fillText(w,256,98);
   const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;t.anisotropy=8;return t;
 }
@@ -2410,7 +2412,7 @@ function buildRunoffPaint(sc,P,Nm,cum,sturn,HW,widthFn){
     const w=widthFn(i), off=HW+2.2+w*0.45;
     const p=P[i],n=Nm[i],tg=new THREE.Vector3(-n.z,0,n.x);
     const x=p.x+n.x*side*off, z=p.z+n.z*side*off, gy=gh(x,z);
-    const pl=new THREE.Mesh(new THREE.PlaneGeometry(19,7),new THREE.MeshBasicMaterial({map:makeRunoffWord(words[wi++%words.length]),transparent:true,depthWrite:false}));
+    const pl=new THREE.Mesh(new THREE.PlaneGeometry(19,7),new THREE.MeshBasicMaterial({map:makeRunoffWord(words[wi++%words.length]),transparent:true,alphaTest:0.2,depthWrite:false}));
     pl.rotation.x=-Math.PI/2;pl.rotation.z=Math.atan2(tg.x,tg.z);
     pl.position.set(x,gy+0.03,z);pl.renderOrder=1;sc.add(pl);
   }
