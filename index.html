@@ -2399,12 +2399,18 @@ function makeHoarding(){
   const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;t.wrapS=THREE.RepeatWrapping;t.wrapT=THREE.ClampToEdgeWrapping;t.anisotropy=8;return t;
 }
 function makeCrowdMat(){
-  const c=cnv(128,64),x=c.getContext('2d');
-  x.fillStyle='#20242b';x.fillRect(0,0,128,64);
-  const cols=['#d94b3a','#e8e2d2','#3a6fd9','#e0b23a','#4aa564','#c85aa0','#dddddd','#8a94a2'];
-  for(let i=0;i<2400;i++){x.fillStyle=cols[(Math.random()*cols.length)|0];
-    x.fillRect(Math.random()*128,Math.random()*54,2,2);}
-  const t=new THREE.CanvasTexture(c);t.wrapS=t.wrapT=THREE.RepeatWrapping;t.repeat.set(10,2);
+  const c=cnv(256,128),x=c.getContext('2d');
+  x.fillStyle='#181b21';x.fillRect(0,0,256,128);
+  // seat rows: alternating dark seat bands
+  for(let r=0;r<16;r++){x.fillStyle=r%2?'#23272f':'#1c2027';x.fillRect(0,r*8,256,8);}
+  const cols=['#e0503a','#eee7d6','#3a72dd','#e6b83e','#48a866','#cf5aa4','#ffffff','#7a8492','#d84a4a','#2fb0a0'];
+  // dense seated crowd — a person per seat, most seats filled
+  for(let r=0;r<16;r++)for(let cx=0;cx<64;cx++){ if(Math.random()<0.16) continue;
+    const px=cx*4+1+(Math.random()-0.5), py=r*8+2+Math.random()*2;
+    x.fillStyle=cols[(Math.random()*cols.length)|0];
+    x.beginPath();x.arc(px,py,1.5,0,7);x.fill();          // head
+    x.globalAlpha=0.5;x.fillRect(px-1.4,py+1.5,2.8,3);x.globalAlpha=1; } // body
+  const t=new THREE.CanvasTexture(c);t.wrapS=t.wrapT=THREE.RepeatWrapping;t.repeat.set(8,1);t.anisotropy=8;
   return new THREE.MeshStandardMaterial({map:t,roughness:1});
 }
 
@@ -2705,6 +2711,12 @@ async function loadCar(loader,onProg){
 
   const rig=new THREE.Group(); rig.add(model);
   CAR.model=model; CAR.rig=rig;
+  // measure where the TYRE contact patch sits relative to the rig origin (not the whole
+  // body — the floor/wing can be as low as the tyres), so the car seats exactly on the road
+  model.updateWorldMatrix(true,true);
+  const wbb=new THREE.Box3();
+  [CAR.front.spin,CAR.rear.spin].forEach(s=>wbb.expandByObject(s));
+  CAR.tireDrop=isFinite(wbb.min.y)?wbb.min.y:0;   // rig.y = roadY - tireDrop puts the tyres on the road
 
   // cockpit camera + steering wheel mounted to rig (metre space)
   const cockpit=new THREE.Group(); rig.add(cockpit); CAR.cockpit=cockpit;
@@ -2835,14 +2847,14 @@ function mountCockpit(){
     arms.push({sx,La,Lf,shoulder,upper,elbow,fore,glove});
   }
   CAR.cockpit.add(holder);
-  CAR.wheelHub=spinHub; CAR.wheelHolder=holder; CAR.arms=arms; CAR.wheelR=R;
+  CAR.wheelHub=spinHub; CAR.wheelHolder=holder; CAR.arms=arms; CAR.rimR=R;
   solveArms(0);                                      // pose once so it's correct on frame 0
 }
 /* 2-bone IK: place both arms so the gloves grip the wheel rim at the current steer angle.
    phi = how far the grip has rotated around the rim (follows the wheel, but bounded). */
 function solveArms(steerCmd){
   if(!CAR.arms) return;
-  const R=CAR.wheelR, phi=clamp(-steerCmd*1.4,-1.05,1.05);
+  const R=CAR.rimR||0.152, phi=clamp(-steerCmd*1.4,-1.05,1.05);
   const Yup=new THREE.Vector3(0,1,0), m4=new THREE.Matrix4(), q=new THREE.Quaternion();
   const ex=new THREE.Vector3(), ey=new THREE.Vector3(), ez=new THREE.Vector3(0,0,1);
   const n=new THREE.Vector3(), pole=new THREE.Vector3(), pp=new THREE.Vector3(), E=new THREE.Vector3(), mid=new THREE.Vector3();
@@ -2882,6 +2894,8 @@ function resetCar(){
   CAR.v=0;CAR.steer=0;CAR.steerCmd=0;CAR.yawRate=0;CAR.vLat=0;CAR.pitch=0;
   CAR.ers=0.75;CAR.ersActive=0;
   CAR.trackIdx=0; CAR.groundY=p.y;
+  CAR.rig.position.set(p.x,p.y+0.02-(CAR.tireDrop||0),p.z);   // seat on the grid during the countdown
+  CAR.rig.rotation.set(0,CAR.heading,0,'YXZ');
   lap.reset();
 }
 function stepPhysics(dt,inp){
@@ -2983,13 +2997,15 @@ function stepPhysics(dt,inp){
     t=clamp(t,0,1);
     const gy=sa.y+(sb.y-sa.y)*t;
     if(CAR.groundY===undefined)CAR.groundY=gy;
-    CAR.groundY=damp(CAR.groundY,gy,14,dt);
+    // snappy follow (won't lag/phase on elevation) but still smooths the 6 m point steps
+    CAR.groundY=damp(CAR.groundY,gy,26,dt);
     // pitch the car to the local gradient (subtle) so climbs/dips read right
     const segLen=Math.hypot(sb.x-sa.x,sb.z-sa.z)||1, slope=(sb.y-sa.y)/segLen;
-    CAR.pitch=damp(CAR.pitch||0,clamp(-slope*Math.sign(CAR.v||1),-0.16,0.16),5,dt);
+    CAR.pitch=damp(CAR.pitch||0,clamp(-slope*Math.sign(CAR.v||1),-0.16,0.16),6,dt);
   }
   const rumble=CAR.kerb?Math.sin(performance.now()*0.05)*0.035*clamp(spd/22,0,1):0;
-  CAR.rig.position.set(CAR.pos.x,CAR.groundY+rumble,CAR.pos.z);
+  // seat the tyres exactly on the road surface (road strip sits +0.02; tireDrop removes the float)
+  CAR.rig.position.set(CAR.pos.x, CAR.groundY+0.02-(CAR.tireDrop||0)+rumble, CAR.pos.z);
   CAR.rig.rotation.set(CAR.pitch||0,CAR.heading,0,'YXZ');
 
   // sun shadow follows the car (7 km track can't fit one shadow map)
