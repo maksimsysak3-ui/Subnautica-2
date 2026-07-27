@@ -458,7 +458,7 @@
   <aside id="mDetail"><div id="mdTag">MODE</div><div id="mdDesc">—</div><div id="mdMeta"></div></aside>
   <footer id="mFoot">
     <div class="keys"><span><b>↑↓</b>Navigate</span><span><b>⏎</b>Select</span></div>
-    <div id=”mVer”>BUILD 2026.5 · v0.5 “DEVELOPMENT”</div>
+    <div id=”mVer”>BUILD 2026.6 · v0.6 “ACCURACY”</div>
   </footer>
   <!-- livery editor -->
   <aside id="garage">
@@ -2397,17 +2397,25 @@ function makeRunoffWord(w){
 function buildRunoffPaint(sc,P,Nm,cum,sturn,HW,widthFn){
   const N=P.length, gh=TRACK.terrainH;
   const words=['PIRELLI','ROLEX','DHL','HEINEKEN','EMIRATES','PETRONAS','ARAMCO'];
-  let wi=0,last=-1e9;
+  const accent=new THREE.Color(TRACK_ACCENT[CFG.id]||0x3a86ff);
+  const patchMat=new THREE.MeshStandardMaterial({color:accent,roughness:0.9,transparent:true,opacity:0.55,side:THREE.DoubleSide,
+    emissive:accent.clone().multiplyScalar(0.35),emissiveIntensity:0.5});
+  let wi=0,last=-1e9,ci=0;
   for(let i=5;i<N-5;i++){ const s=Math.abs(sturn[i]); if(s<0.12) continue;
     if(s<Math.abs(sturn[i-3])||s<Math.abs(sturn[i+3])) continue;   // local corner apex
-    if(cum[i]-last<130) continue; last=cum[i];
+    if(cum[i]-last<120) continue; last=cum[i]; ci++;
     const side=sturn[i]<0?1:-1;                                    // paint on the run-off (outside) side
-    const w=widthFn(i), off=HW+2.2+w*0.45;
-    const p=P[i],n=Nm[i],tg=new THREE.Vector3(-n.z,0,n.x);
+    const w=widthFn(i), off=HW+2.0+w*0.45;
+    const p=P[i],n=Nm[i],tg=new THREE.Vector3(-n.z,0,n.x),fang=Math.atan2(tg.x,tg.z);
     const x=p.x+n.x*side*off, z=p.z+n.z*side*off, gy=gh(x,z);
+    // colour the run-off in the track's flag/accent colour on every other apex
+    if(ci%2===0){
+      const patch=new THREE.Mesh(new THREE.PlaneGeometry(Math.min(w*0.95,10),24),patchMat);
+      patch.rotation.x=-Math.PI/2;patch.rotation.z=fang;patch.position.set(x,gy+0.02,z);patch.renderOrder=0;sc.add(patch);
+    }
+    // painted sponsor wordmark on top
     const pl=new THREE.Mesh(new THREE.PlaneGeometry(19,7),new THREE.MeshBasicMaterial({map:makeRunoffWord(words[wi++%words.length]),transparent:true,alphaTest:0.2,depthWrite:false}));
-    pl.rotation.x=-Math.PI/2;pl.rotation.z=Math.atan2(tg.x,tg.z);
-    pl.position.set(x,gy+0.03,z);pl.renderOrder=1;sc.add(pl);
+    pl.rotation.x=-Math.PI/2;pl.rotation.z=fang;pl.position.set(x,gy+0.035,z);pl.renderOrder=1;sc.add(pl);
   }
 }
 function makeCheck(){
@@ -2625,43 +2633,27 @@ function makeLivery(teamKey){
   x.fillStyle=g;x.fillRect(0,0,1024,1024);
   const block=(ox)=>{
     x.save();x.translate(ox,0);
-    // 1) bold diagonal colour flashes in the team's secondary/tertiary colours (multi-colour)
-    const flash=(col,y0,h,skew)=>{x.fillStyle=col;x.beginPath();
-      x.moveTo(-20,y0);x.lineTo(532,y0-skew);x.lineTo(532,y0-skew+h);x.lineTo(-20,y0+h);x.closePath();x.fill();};
-    x.globalAlpha=0.95; flash(sw[1],300,26,-30); flash(sw[2],690,22,34);
-    x.globalAlpha=0.5;  flash(sw[1],726,10,34);  x.globalAlpha=1;
-    // 2) carbon-weave hint at the extremes
-    x.fillStyle='rgba(255,255,255,0.03)';for(let yy=240;yy<300;yy+=6)x.fillRect(0,yy,512,3);
-    // 3) team hero mark + name (central, shows on the engine cover / airbox)
+    // one clean diagonal accent flash in the team's secondary colour (like a real livery)
+    const flash=(col,y0,h,skew,a)=>{x.globalAlpha=a;x.fillStyle=col;x.beginPath();
+      x.moveTo(-20,y0);x.lineTo(532,y0-skew);x.lineTo(532,y0-skew+h);x.lineTo(-20,y0+h);x.closePath();x.fill();x.globalAlpha=1;};
+    flash(sw[1],302,30,-26,0.95);
+    flash(sw[2],702,14,28,0.8);
+    // team hero mark + name (engine cover / airbox)
     team.draw(x);
-    // 4) title sponsor, oversized, high on the airbox
+    // title sponsor, clean, high on the airbox
     const title=team.logos[0];
     x.textAlign='center';x.textBaseline='middle';
-    x.font=`900 ${(title.sz||30)+8}px Arial`;
-    x.fillStyle=title.col;x.fillText(title.t,256,332);
-    // 5) the team's real sponsor set
-    for(const s of team.logos){
-      x.font=`${s.style||'bold'} ${s.sz||22}px Arial`;
-      if(s.chip){ const w=x.measureText(s.t).width+16, h=s.sz+8;
-        x.fillStyle=s.chip; roundRect(x,s.x-w/2,s.y-h/2,w,h,5); }
-      x.fillStyle=s.col; x.fillText(s.t,s.x,s.y);
-    }
-    // 6) dense filler sponsor rows across the whole band, alternating white / team colour
-    const rows=[[288,15],[300,13],[560,15],[600,14],[640,15],[672,13],[704,14],[726,12]];
-    let fi=(teamKey.length*3)%FILLER_SPONSORS.length;
-    for(const [ry,rs] of rows){
-      for(let cx=64;cx<512;cx+=150){
-        const nm=FILLER_SPONSORS[fi%FILLER_SPONSORS.length];fi++;
-        x.font=`800 ${rs}px Arial`;
-        x.fillStyle=(fi%3===0)?sw[1]:(fi%3===1?'#eef2f6':sw[2]);
-        x.globalAlpha=0.92;x.fillText(nm,cx+((ry/40|0)%2?40:0),ry);x.globalAlpha=1;
-      }
-    }
-    // 7) number roundels on the flanks
-    for(const nx of [96,416]){
-      x.fillStyle='rgba(255,255,255,0.9)';x.beginPath();x.arc(nx,470,26,0,7);x.fill();
-      x.fillStyle=team.bot;x.font='900 30px Arial';x.fillText('1',nx,472);
-    }
+    x.font=`900 ${(title.sz||30)+4}px Arial`;x.fillStyle=title.col;x.fillText(title.t,256,338);
+    // a FEW real sponsors, cleanly placed on the sidepods/nose (no clutter)
+    const spots=[[126,472],[386,472],[126,556],[386,556]];
+    team.logos.slice(1,5).forEach((s,i)=>{const [px,py]=spots[i%spots.length];
+      x.font=`${s.style||'800'} ${Math.min(s.sz||20,22)}px Arial`;
+      if(s.chip){const w=x.measureText(s.t).width+14,h=(s.sz||20)+6;x.fillStyle=s.chip;roundRect(x,px-w/2,py-h/2,w,h,4);}
+      x.fillStyle=s.col;x.fillText(s.t,px,py);});
+    // driver number roundel, centred low on the engine cover
+    const num=String((typeof SEASON!=='undefined'&&SEASON.num)||1);
+    x.fillStyle='rgba(255,255,255,0.94)';x.beginPath();x.arc(256,606,30,0,7);x.fill();
+    x.fillStyle=team.bot;x.font='900 40px Arial';x.fillText(num,256,608);
     x.restore();
   };
   block(0);block(512);
@@ -2683,7 +2675,7 @@ function applyLivery(mat,tex,scale,baseCol){
         vec2 uy=vec2(vLP.x, vLP.z)*uLivS+0.5;
         vec2 uz=vec2(vLP.x*sign(n.z), vLP.y)*uLivS+0.5;
         vec3 col=texture2D(uLiv,ux).rgb*bw.x+texture2D(uLiv,uy).rgb*bw.y+texture2D(uLiv,uz).rgb*bw.z;
-        float mask=smoothstep(-60.0,-8.0,vLP.y);     // whole body/sidepods/nose wear the livery; only the floor stays plain
+        float mask=smoothstep(-32.0,6.0,vLP.y);      // upper/mid bodywork wears the livery; floor + wheel-height stay plain (off the rims)
         diffuseColor.rgb=mix(uBase, col, mask); }`);
   };
   mat.customProgramCacheKey=()=>'liv'+scale; mat.needsUpdate=true;
@@ -2757,6 +2749,9 @@ async function loadCar(loader,onProg){
     return {steer,spin,center:c};
   };
   CAR.front=axle(frontMeshes); CAR.rear=axle(rearMeshes);
+  // guarantee NO livery lands on the wheels: any wheel-group mesh still on the body
+  // material gets the neutral dark carbon instead (keeps logos off the rims)
+  [CAR.front.spin,CAR.rear.spin].forEach(s=>s.traverse(o=>{if(o.isMesh&&o.material===bodyMat)o.material=wheelCarbon;}));
 
   // scale from wheelbase
   const wbModel=CAR.front.center.z-CAR.rear.center.z;
