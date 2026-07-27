@@ -1072,8 +1072,8 @@ function buildWorld(sc,cfg){
     const wl=new THREE.MeshBasicMaterial({color:0xf2f5f8,side:THREE.DoubleSide});
     strip(k=>HW+0.9+Math.max(runL[k]-0.4,0), k=>HW+0.9+runL[k], 0.008, wl, 1);
     strip(k=>-(HW+0.9+Math.max(runR[k]-0.4,0)), k=>-(HW+0.9+runR[k]), 0.008, wl, 1);
-  }else{
-    // Spa: gravel / grass / tarmac by zone + green astroturf + red/yellow banking
+  }else if(cfg.forest){
+    // Spa: classic gravel / grass / tarmac by zone + green astroturf (kept — user likes it)
     const RTYPE=['gravel','grass','gravel','tarmac','gravel','tarmac','grass','gravel'];
     const zoneType=k=>RTYPE[Math.floor(cum[k]/(TRACK.len/RTYPE.length))%RTYPE.length];
     const tarL=[],tarR=[],grvL=[],grvR=[];
@@ -1089,10 +1089,23 @@ function buildWorld(sc,cfg){
     const grnMat=new THREE.MeshStandardMaterial({color:0x2f7d33,roughness:0.9,side:THREE.DoubleSide});
     strip(k=>HW+1.05, k=>HW+2.3, 0.012, grnMat, 1);
     strip(k=>-(HW+1.05), k=>-(HW+2.3), 0.012, grnMat, 1);
-    const bt=makeBankKerb(cfg.kerb);
-    const bankMat=new THREE.MeshStandardMaterial({map:bt,emissiveMap:bt,emissive:0xffffff,emissiveIntensity:0.4,roughness:0.7,side:THREE.DoubleSide});
-    strip(k=>HW+2.3, k=>HW+2.3+Math.min(runL[k]*0.5,7), 0.02, bankMat, 1.5, 5.5);
-    strip(k=>-(HW+2.3), k=>-(HW+2.3+Math.min(runR[k]*0.5,7)), 0.02, bankMat, 1.5, 5.5);
+  }else{
+    // modern circuits: a wide SPONSORED TARMAC run-off (widens into corners) with a green
+    // astroturf lip at the edge, painted sponsor/track logos, and a gravel trap at slow corners
+    const baseW=k=>Math.max(3.5, Math.min((TRACK.maxOff[k]-HW-0.8), 4+Math.max(runL[k],runR[k])));
+    const tarMat=new THREE.MeshStandardMaterial({map:makeTarmacTex(),color:0x494e56,roughness:0.96,side:THREE.DoubleSide});
+    strip(k=>HW+0.75, k=>HW+0.75+baseW(k), 0.0, tarMat, 0, 16);
+    strip(k=>-(HW+0.75), k=>-(HW+0.75+baseW(k)), 0.0, tarMat, 0, 16);
+    // green astroturf lip just outside the kerb line
+    const grnMat=new THREE.MeshStandardMaterial({color:0x2f7d33,roughness:0.9,side:THREE.DoubleSide});
+    strip(k=>HW+0.72, k=>HW+1.4, 0.006, grnMat, 1);
+    strip(k=>-(HW+0.72), k=>-(HW+1.4), 0.006, grnMat, 1);
+    // gravel trap only at the very widest (slow) corners
+    const gravelMat=new THREE.MeshStandardMaterial({map:makeGravel(),roughness:1,side:THREE.DoubleSide});
+    const gvL=k=>runL[k]>18?runL[k]-8:0, gvR=k=>runR[k]>18?runR[k]-8:0;
+    strip(k=>HW+0.75+8, k=>HW+0.75+8+gvL(k), 0.004, gravelMat, 0, 6);
+    strip(k=>-(HW+0.75+8), k=>-(HW+0.75+8+gvR(k)), 0.004, gravelMat, 0, 6);
+    buildRunoffPaint(sc,P,Nm,cum,sturn,HW,baseW);
   }
 
   // road (asphalt) — wet circuits get a darker, glossy, reflective surface
@@ -1101,16 +1114,25 @@ function buildWorld(sc,cfg){
       color:wet?0x15171b:cfg.asphalt, roughness:wet?0.28:0.86, metalness:wet?0.5:0.0,
       envMapIntensity:wet?1.4:1.0}), 2, 7);
   road.name='ROAD';
-  // kerbs (red/white), raised profile — emissive so they stay bright, never black
-  const kerbMat=new THREE.MeshStandardMaterial({map:kerbTex,emissiveMap:kerbTex,emissive:0xffffff,emissiveIntensity:0.55,roughness:0.55,side:THREE.DoubleSide});
-  const kerbW=cfg.street?1.6:2.8;                  // wider, bolder kerbs (street a touch smaller)
-  { const mk=(sideSign)=>{const v=[],uv=[],id=[];
-      for(let i=0;i<=N;i++){const k=i%N,p=P[k],n=Nm[k];
-        const inn=new THREE.Vector3().copy(p).addScaledVector(n,sideSign*(HW-0.1));
-        const out=new THREE.Vector3().copy(p).addScaledVector(n,sideSign*(HW+kerbW));
-        v.push(inn.x,inn.y+0.03,inn.z,out.x,out.y+0.10,out.z);
-        const vv=cum[i]/12.0;uv.push(0,vv,1,vv);}   // wider kerb, more spread stripes
-      for(let i=0;i<N;i++){const a=i*2;id.push(a,a+2,a+1,a+1,a+2,a+3);}
+  // kerbs (red/white) ONLY through corners, smaller — like a real circuit
+  const kerbMat=new THREE.MeshStandardMaterial({map:kerbTex,emissiveMap:kerbTex,emissive:0xffffff,emissiveIntensity:0.5,roughness:0.55,side:THREE.DoubleSide});
+  const kerbW=cfg.street?0.9:1.4;                  // smaller kerbs
+  // corner zones from curvature (dilated so kerbs start a little before/after the apex)
+  const corner=new Array(N).fill(false), cSrc=new Array(N);
+  for(let i=0;i<N;i++) cSrc[i]=Math.abs(sturn[i])>0.055;
+  for(let i=0;i<N;i++) if(cSrc[i]) for(let k=-4;k<=4;k++) corner[(i+k+N)%N]=true;
+  { const mk=(sideSign)=>{const v=[],uv=[],id=[];let vc=0;
+      for(let i=0;i<N;i++){ if(!corner[i]) continue;
+        const k=i,k2=(i+1)%N,p=P[k],n=Nm[k],p2=P[k2],n2=Nm[k2];
+        const in1=new THREE.Vector3().copy(p).addScaledVector(n,sideSign*(HW-0.05));
+        const o1=new THREE.Vector3().copy(p).addScaledVector(n,sideSign*(HW+kerbW));
+        const in2=new THREE.Vector3().copy(p2).addScaledVector(n2,sideSign*(HW-0.05));
+        const o2=new THREE.Vector3().copy(p2).addScaledVector(n2,sideSign*(HW+kerbW));
+        const u1=cum[k]/2.4,u2=cum[k2]/2.4;
+        v.push(in1.x,in1.y+0.03,in1.z, o1.x,o1.y+0.09,o1.z, in2.x,in2.y+0.03,in2.z, o2.x,o2.y+0.09,o2.z);
+        uv.push(0,u1,1,u1,0,u2,1,u2);
+        id.push(vc,vc+1,vc+2, vc+1,vc+3,vc+2); vc+=4; }
+      if(!v.length) return;
       const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(v,3));
       g.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));g.setIndex(id);flatUp(g);
       const m=new THREE.Mesh(g,kerbMat);m.receiveShadow=true;m.renderOrder=3;sc.add(m);};
@@ -2361,6 +2383,37 @@ function makeWall(){
   const c=cnv(64,32),x=c.getContext('2d');x.fillStyle='#cfd4da';x.fillRect(0,0,64,32);
   x.fillStyle='#e10600';x.fillRect(0,6,64,7);x.fillStyle='#0d1016';x.fillRect(0,22,64,4);
   const t=new THREE.CanvasTexture(c);t.wrapS=t.wrapT=THREE.RepeatWrapping;return t;
+}
+/* light asphalt for run-off aprons */
+function makeTarmacTex(){
+  const c=cnv(256,256),x=c.getContext('2d');
+  x.fillStyle='#464b53';x.fillRect(0,0,256,256);
+  for(let i=0;i<9000;i++){const g=60+Math.random()*38|0;x.fillStyle=`rgba(${g},${g},${g+3},${Math.random()*0.4})`;x.fillRect(Math.random()*256,Math.random()*256,1.7,1.7);}
+  const t=new THREE.CanvasTexture(c);t.wrapS=t.wrapT=THREE.RepeatWrapping;t.anisotropy=8;return t;
+}
+/* faint painted wordmark for run-off tarmac */
+function makeRunoffWord(w){
+  const c=cnv(512,190),x=c.getContext('2d');x.clearRect(0,0,512,190);
+  x.fillStyle='rgba(236,239,243,0.34)';x.textAlign='center';x.textBaseline='middle';x.font='900 92px Arial';
+  x.fillText(w,256,98);
+  const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;t.anisotropy=8;return t;
+}
+/* big painted sponsor/track logos on the tarmac run-off at corner apexes */
+function buildRunoffPaint(sc,P,Nm,cum,sturn,HW,widthFn){
+  const N=P.length, gh=TRACK.terrainH;
+  const words=['PIRELLI','ROLEX','DHL','HEINEKEN','EMIRATES','PETRONAS','ARAMCO'];
+  let wi=0,last=-1e9;
+  for(let i=5;i<N-5;i++){ const s=Math.abs(sturn[i]); if(s<0.12) continue;
+    if(s<Math.abs(sturn[i-3])||s<Math.abs(sturn[i+3])) continue;   // local corner apex
+    if(cum[i]-last<130) continue; last=cum[i];
+    const side=sturn[i]<0?1:-1;                                    // paint on the run-off (outside) side
+    const w=widthFn(i), off=HW+2.2+w*0.45;
+    const p=P[i],n=Nm[i],tg=new THREE.Vector3(-n.z,0,n.x);
+    const x=p.x+n.x*side*off, z=p.z+n.z*side*off, gy=gh(x,z);
+    const pl=new THREE.Mesh(new THREE.PlaneGeometry(19,7),new THREE.MeshBasicMaterial({map:makeRunoffWord(words[wi++%words.length]),transparent:true,depthWrite:false}));
+    pl.rotation.x=-Math.PI/2;pl.rotation.z=Math.atan2(tg.x,tg.z);
+    pl.position.set(x,gy+0.03,z);pl.renderOrder=1;sc.add(pl);
+  }
 }
 function makeCheck(){
   const c=cnv(64,64),x=c.getContext('2d');const s=8;
