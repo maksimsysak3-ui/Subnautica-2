@@ -2251,40 +2251,70 @@ function buildGrandstands(sc,P,Nm,Tg,offL,offR){
   const crowdMat=makeCrowdMat();
   const night=CFG.night;
   const HW=TRACK.halfW;
-  // build one raked stand at (bx,bz) facing track point (fx,fz); big=main grandstand
+  const concrete=new THREE.MeshStandardMaterial({color:0x9aa0a8,roughness:0.92});
+  const concreteD=new THREE.MeshStandardMaterial({color:0x7a808a,roughness:0.94});
+  const railMat=new THREE.MeshStandardMaterial({color:0x2a2e36,roughness:0.5,metalness:0.5});
+  const flagCols=[0xff6a00,0xffffff,0xe10600,0x0a3fa0,0xffd23a];
+  // build one raked stand at index i; +Z faces the track after lookAt. big=main grandstand
   const stand=(i,side,len,tiers,big)=>{
     const off=(side>0?offL:offR)(i), p=P[i],n=Nm[i];
-    const depth=big?34:22, stepH=1.5, stepD=depth/tiers;
+    const depth=big?36:24, stepH=1.42, stepD=depth/tiers, baseY=1.5;
     const dist=off+depth/2+(big?9:7);
     const bx=p.x+n.x*side*dist, bz=p.z+n.z*side*dist;
     const need=HW+depth/2+(big?9:8); if(clr(bx,bz)<need*need) return false;
-    const g=new THREE.Group(); const topH=1.2+tiers*stepH;
-    for(let t=0;t<tiers;t++){const step=new THREE.Mesh(new THREE.BoxGeometry(len,1.5,stepD+0.35),crowdMat);
-      step.position.set(0,1.2+t*stepH,depth/2-(t+0.5)*stepD);g.add(step);}
-    const front=new THREE.Mesh(new THREE.BoxGeometry(len,big?3.4:2.6,0.6),facadeMat);front.position.set(0,1.5,depth/2+0.3);g.add(front);
-    if(tent){const bays=Math.max(5,len/16|0),bw=(len+6)/bays;
-      for(let k=0;k<bays;k++){const peak=new THREE.Mesh(new THREE.ConeGeometry(bw*0.7,6,4),roofMat);
-        peak.rotation.y=Math.PI/4;peak.position.set(-len/2-3+bw*(k+0.5),topH+4,-depth*0.1);g.add(peak);}
-    }else{
-      const roof=new THREE.Mesh(new THREE.BoxGeometry(len+6,0.7,depth*0.64),roofMat);roof.position.set(0,topH+3.4,-depth*0.05);g.add(roof);
-      const band=new THREE.Mesh(new THREE.BoxGeometry(len+6,big?2.4:1.7,0.4),facadeMat);band.position.set(0,topH+2.5,-depth*0.05+depth*0.32);g.add(band);
+    const g=new THREE.Group(); const topH=baseY+tiers*stepH;
+    const beam3=(x1,y1,z1,x2,y2,z2,th,mat)=>{const dx=x2-x1,dy=y2-y1,dz=z2-z1,L=Math.hypot(dx,dy,dz)||0.1;
+      const m=new THREE.Mesh(new THREE.BoxGeometry(th,L,th),mat||frameMat);m.position.set((x1+x2)/2,(y1+y2)/2,(z1+z2)/2);
+      m.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),new THREE.Vector3(dx,dy,dz).normalize());g.add(m);return m;};
+    // --- stepped seating: concrete risers + crowd benches, split into blocks by aisles ---
+    const nBlocks=big?4:3, aisle=1.8, blockW=(len-(nBlocks-1)*aisle)/nBlocks;
+    for(let t=0;t<tiers;t++){
+      const z=depth/2 - t*stepD - stepD*0.5, y=baseY + t*stepH;
+      const riser=new THREE.Mesh(new THREE.BoxGeometry(len,stepH,0.22),concreteD);
+      riser.position.set(0,y-stepH*0.5,z+stepD*0.5);g.add(riser);
+      for(let bI=0;bI<nBlocks;bI++){const cx=-len/2+blockW*0.5+bI*(blockW+aisle);
+        const bench=new THREE.Mesh(new THREE.BoxGeometry(blockW,0.55,stepD*0.82),crowdMat);
+        bench.position.set(cx,y+0.28,z);g.add(bench);}
     }
-    const nSup=big?6:3;for(let s=0;s<nSup;s++){const sx=-len/2+3+ s*(len-6)/(nSup-1);
-      const c=new THREE.Mesh(new THREE.BoxGeometry(1,topH+3.4,1),frameMat);c.position.set(sx,(topH+3.4)/2,-depth*0.42);g.add(c);}
+    // side concrete walls following the rake (triangular)
+    for(const sx of [-len/2-0.3,len/2+0.3]){const sw=new THREE.Mesh(new THREE.BoxGeometry(0.4,topH,depth),concrete);
+      sw.position.set(sx,topH/2,0);g.add(sw);}
+    // --- front sponsor hoarding (trackside) + guard rail ---
+    const hoard=new THREE.Mesh(new THREE.BoxGeometry(len,big?3.2:2.4,0.5),facadeMat);hoard.position.set(0,1.4,depth/2+0.35);g.add(hoard);
+    const rail=new THREE.Mesh(new THREE.BoxGeometry(len,0.1,0.1),railMat);rail.position.set(0,baseY+0.9,depth/2-0.1);g.add(rail);
+    // --- cantilever roof: slightly sloped plane + front fascia sponsor, on back trusses ---
+    const roofD=depth*0.72, roofZc=-depth*0.5+roofD*0.5, roofY=topH+3.4;
+    const roof=new THREE.Mesh(new THREE.BoxGeometry(len+5,0.4,roofD),roofMat);roof.position.set(0,roofY,roofZc);roof.rotation.x=-0.1;g.add(roof);
+    const fascia=new THREE.Mesh(new THREE.BoxGeometry(len+5,1.6,0.3),facadeMat);fascia.position.set(0,roofY-0.6,-depth*0.5+roofD);g.add(fascia);
+    const nSup=big?6:4;
+    for(let s=0;s<nSup;s++){const sx=-len/2+5+s*(len-10)/(nSup-1);
+      beam3(sx,0,-depth*0.46, sx,roofY,-depth*0.46, 0.7);                         // back column
+      beam3(sx,roofY-0.3,-depth*0.46, sx,roofY-0.2,-depth*0.5+roofD, 0.35);       // roof beam
+      beam3(sx,topH*0.55,-depth*0.46, sx,roofY-0.3,-depth*0.5+roofD*0.55, 0.32);  // cantilever brace
+    }
+    // --- colourful flags along the front roof edge ---
+    const nF=Math.max(6,len/9|0);
+    for(let f=0;f<nF;f++){const fx=-len/2+(f+0.5)*(len/nF), fz=-depth*0.5+roofD;
+      const pole=new THREE.Mesh(new THREE.CylinderGeometry(0.05,0.05,2.6,5),railMat);pole.position.set(fx,roofY+1.5,fz);g.add(pole);
+      const flag=new THREE.Mesh(new THREE.PlaneGeometry(1.3,0.85),new THREE.MeshStandardMaterial({color:flagCols[f%flagCols.length],side:THREE.DoubleSide,roughness:0.8}));
+      flag.position.set(fx+0.75,roofY+2.2,fz);g.add(flag);}
+    // night floodlights on the roof
     if(night){for(let s=0;s<(big?4:2);s++){const sx=(-0.5+s/((big?4:2)-1||1))*len*0.7;
       const fl=new THREE.Mesh(new THREE.BoxGeometry(3.4,0.9,1),new THREE.MeshStandardMaterial({color:0xffffff,emissive:0xfff2d0,emissiveIntensity:2.2}));
-      fl.position.set(sx,topH+3.8,depth*0.05);g.add(fl);}}
+      fl.position.set(sx,roofY+1,roofZc);g.add(fl);}}
     const gy=gh(bx,bz);g.position.set(bx,gy,bz);g.lookAt(p.x,gy,p.z);
     g.traverse(o=>{o.castShadow=true;o.receiveShadow=true;});sc.add(g);return true;
   };
-  // GIANT main grandstand(s) at the start straight — opposite the pit, tall & long,
-  // plus a second tier stacked behind it for a real main-straight amphitheatre
-  const mainI=Math.round(N*0.02)%N;
-  stand(mainI,1,132,16,true);
-  stand(Math.round(N*0.06)%N,1,120,14,true);
-  // many regular stands distributed all the way round, alternating sides
-  const fr=[0.12,0.18,0.25,0.32,0.4,0.47,0.54,0.61,0.68,0.75,0.82,0.9,0.95];
-  fr.forEach((f,si)=>stand(Math.round(N*f)%N, si%2?1:-1, 62+((si*13)%24), 9+((si)%3), false));
+  if(CFG.street){
+    // street circuits: only a few modest temporary stands, no giant main grandstand
+    [0.02,0.3,0.6].forEach((f,si)=>stand(Math.round(N*f)%N, si%2?1:-1, 54, 8, false));
+  }else{
+    // GIANT main grandstands along the start straight (opposite the pits) + a full ring
+    stand(Math.round(N*0.02)%N,1,132,16,true);
+    stand(Math.round(N*0.06)%N,1,120,14,true);
+    const fr=[0.12,0.18,0.25,0.32,0.4,0.47,0.54,0.61,0.68,0.75,0.82,0.9,0.95];
+    fr.forEach((f,si)=>stand(Math.round(N*f)%N, si%2?1:-1, 62+((si*13)%24), 9+((si)%3), false));
+  }
 }
 
 /* ---- full pit complex: garages, pit lane, pit wall + start/finish gantry ---- */
