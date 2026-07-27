@@ -2606,8 +2606,10 @@ const LIVERIES={
       {t:'Kick',x:116,y:406,col:'#00e701',sz:22,style:'900'},{t:'Nexus',x:398,y:406,col:'#ffffff',sz:18,style:'900'},
       {t:'Ella',x:120,y:520,col:'#ffffff',sz:18,style:'900'},{t:'Kaspersky',x:398,y:520,col:'#00b04f',sz:15,style:'900'},
       {t:'PMI',x:256,y:520,col:'#ffffff',sz:16,style:'900'}] },
+  plain:{ name:'CARBON · NO LIVERY', base:'#0c0e13', swatch:['#0c0e13','#15181f','#23272f'], plain:true },
 };
 const LIVERY_IDS=Object.keys(LIVERIES);
+const TEAM_IDS=LIVERY_IDS.filter(k=>!LIVERIES[k].plain);   // real teams only (season/standings)
 // small pool of extra wordmarks used to fill a livery so it reads busy and real
 const FILLER_SPONSORS=['CarbonEdge','APEX','Velocitá','NORDVPN','Hilton','AWS','Sonax','Zenith',
   'Klarna','ByBet','Fanatics','Interxion','Genii','Qualcomm','Tezos','Salesforce','Crypto'];
@@ -2691,6 +2693,10 @@ function setLivery(teamKey){
   selLivery=teamKey;
   const L=LIVERIES[teamKey]||LIVERIES.redbull;
   const u=CAR.bodyMat&&CAR.bodyMat.userData.livU;
+  if(L.plain){                                         // no-livery matte-carbon car
+    if(u){ if(!PLAIN_TEX)PLAIN_TEX=makePlainTex(); u.uLiv.value=PLAIN_TEX; u.uBase.value.set(L.base); }
+    if(CAR.bodyMat) CAR.bodyMat.color.set(L.base); return;
+  }
   if(u){ u.uLiv.value.dispose&&u.uLiv.value.dispose(); u.uLiv.value=makeLivery(teamKey);
     u.uBase.value.set(L.base); }
   if(CAR.bodyMat) CAR.bodyMat.color.set(L.base);
@@ -2700,8 +2706,9 @@ function makePlainTex(){const c=cnv(64,64),x=c.getContext('2d');x.fillStyle='#0c
   const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;return t;}
 function setCarPlain(plain){                            // unbranded matte-carbon car (used for the intro)
   const u=CAR.bodyMat&&CAR.bodyMat.userData.livU;
-  if(plain){ if(!u)return false;                        // shader not compiled yet — caller retries
-    if(!PLAIN_TEX)PLAIN_TEX=makePlainTex(); u.uLiv.value=PLAIN_TEX; u.uBase.value.set(0x0c0e13); CAR.bodyMat.color.set(0x0c0e13); carPlain=true; return true; }
+  if(plain){ if(CAR.bodyMat)CAR.bodyMat.color.set(0x0c0e13);   // dark carbon immediately, even before shader
+    if(!u)return false;                                 // shader not compiled yet — caller retries
+    if(!PLAIN_TEX)PLAIN_TEX=makePlainTex(); u.uLiv.value=PLAIN_TEX; u.uBase.value.set(0x0c0e13); carPlain=true; return true; }
   carPlain=false; setLivery(selLivery); return true;
 }
 async function loadCar(loader,onProg){
@@ -3312,7 +3319,7 @@ function buildSeasonSetupChips(){
 }
 function buildSeasonTeams(){
   const wrap=$('#ssTeams');wrap.innerHTML='';
-  LIVERY_IDS.forEach(key=>{const L=LIVERIES[key];
+  TEAM_IDS.forEach(key=>{const L=LIVERIES[key];
     const card=document.createElement('div');card.className='ssTeam'+(key===SEASON.team?' on':'');
     card.innerHTML=`<span class="sw">${L.swatch.map(c=>`<i style="background:${c}"></i>`).join('')}</span><span class="tn">${L.name}</span>`;
     card.addEventListener('mouseenter',()=>{setLivery(key);Sound.init();Sound.blip(360,.03);});
@@ -3451,7 +3458,7 @@ function renderRDHome(){
 function renderRDCompare(){
   const myOverall=Math.round(RD_AREAS.reduce((s,a)=>s+SEASON.rd[a.key].rating,0)/4);
   const base={redbull:93,ferrari:90,mercedes:88,mclaren:91,aston:81,williams:74,alpine:77,haas:72,rb:76,sauber:70};
-  const rows=LIVERY_IDS.map(k=>({name:LIVERIES[k].name,v:(k===SEASON.team?myOverall:(base[k]||75)),me:k===SEASON.team,col:LIVERIES[k].base}));
+  const rows=TEAM_IDS.map(k=>({name:LIVERIES[k].name,v:(k===SEASON.team?myOverall:(base[k]||75)),me:k===SEASON.team,col:LIVERIES[k].base}));
   rows.sort((a,b)=>b.v-a.v);
   const max=Math.max(...rows.map(r=>r.v),1), wrap=$('#rdCmpRows'); wrap.innerHTML='';
   rows.forEach(r=>{const el=document.createElement('div'); el.className='cmpRow'+(r.me?' me':'');
