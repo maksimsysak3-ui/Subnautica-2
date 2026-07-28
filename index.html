@@ -379,6 +379,28 @@
   #ersPct{font-family:var(--mono);font-size:12px;font-weight:800;color:#cfe6ff;line-height:1}
   #ersPct span{font-size:8px;color:#7c8694}
   #ersState{font-family:var(--mono);font-size:8px;letter-spacing:.18em;color:#5b6470;font-weight:700;opacity:.5;transition:.12s}
+  /* tyre + damage gauges */
+  #tyreBox{display:flex;flex-direction:column;align-items:center;gap:4px;height:132px;justify-content:flex-end}
+  #tyreLabel,#dmgLabel{font-family:var(--mono);font-size:9px;letter-spacing:.24em;color:#8b93a0;font-weight:700}
+  #tyreRing{width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;position:relative;
+    background:conic-gradient(#39d98a 100%, rgba(255,255,255,.08) 0)}
+  #tyreRing::after{content:'';position:absolute;inset:5px;border-radius:50%;background:#0b1018}
+  #tyrePct{position:relative;font-family:var(--mono);font-weight:800;font-size:13px;color:#eef2f6}
+  #dmgBar{width:16px;height:26px;background:rgba(255,255,255,.07);border-radius:4px;overflow:hidden;border:1px solid rgba(255,255,255,.12)}
+  #dmgFill{position:absolute;width:16px;background:linear-gradient(0deg,#e10600,#ff6a60);height:0}
+  #dmgBar{position:relative;display:flex;align-items:flex-end}
+  /* mid-race car-status panel (press I) */
+  #carInfo{position:absolute;left:clamp(20px,3vw,44px);bottom:clamp(80px,14vh,150px);width:300px;padding:16px 18px;
+    background:rgba(8,11,16,.82);border:1px solid rgba(255,255,255,.1);border-radius:12px;backdrop-filter:blur(8px);
+    opacity:0;transform:translateY(8px);transition:.2s;pointer-events:none}
+  #carInfo.on{opacity:1;transform:none}
+  .ciHead{font-family:var(--mono);font-size:11px;letter-spacing:.2em;color:#fff;font-weight:700;display:flex;justify-content:space-between;margin-bottom:12px}
+  .ciHead span{color:var(--grey);font-size:9px}.ciHead b{color:#fff;border:1px solid var(--grey-lo);border-radius:3px;padding:1px 5px}
+  .ciRow{display:flex;align-items:center;gap:9px;margin-bottom:9px;font-size:12px}
+  .ciRow .k{width:78px;color:var(--grey)}
+  .ciRow .ciBar{flex:1;height:8px;border-radius:4px;background:rgba(255,255,255,.08);overflow:hidden}
+  .ciRow .ciBar i{display:block;height:100%;border-radius:4px}
+  .ciRow .v{width:56px;text-align:right;font-family:var(--mono);color:#fff}
   #ersBox.deploy #ersState{color:#ffe14a;opacity:1;text-shadow:0 0 10px rgba(255,210,60,.7)}
   #gearBox{text-align:center}
   #gear{font-family:var(--mono);font-weight:900;font-size:clamp(44px,5.5vw,76px);color:var(--red);line-height:.8;text-shadow:0 0 26px var(--red-glow)}
@@ -571,11 +593,24 @@
       <div id="ersPct">75<span>%</span></div>
       <div id="ersState">DEPLOY</div>
     </div>
+    <div id="tyreBox">
+      <div id="tyreLabel">TYRE</div>
+      <div id="tyreRing"><span id="tyrePct">100</span></div>
+      <div id="dmgLabel">DMG</div>
+      <div id="dmgBar"><i id="dmgFill"></i></div>
+    </div>
     <div id="gearBox"><div id="gear">N</div><div class="gl">GEAR</div></div>
     <div id="speedBox"><div id="speed">0</div><div id="speedU">KM/H</div></div>
   </div>
   <div id="offTrack">Off Track</div>
-  <div id="driveHint"><b>W</b>Throttle <b>SPACE</b>Brake <b>A/D</b>Steer <b>SHIFT</b>ERS <b>C</b>Camera <b>R</b>Reset <b>ESC</b>Menu</div>
+  <div id="carInfo">
+    <div class="ciHead">CAR STATUS<span>press <b>I</b></span></div>
+    <div class="ciRow"><span class="k">Tyre life</span><div class="ciBar"><i id="ciTyre"></i></div><span class="v" id="ciTyreV">100%</span></div>
+    <div class="ciRow"><span class="k">Damage</span><div class="ciBar"><i id="ciDmg"></i></div><span class="v" id="ciDmgV">0%</span></div>
+    <div class="ciRow"><span class="k">ERS battery</span><div class="ciBar"><i id="ciErs"></i></div><span class="v" id="ciErsV">75%</span></div>
+    <div class="ciRow"><span class="k">Last lap</span><span class="v" id="ciLap">—:——.—</span></div>
+  </div>
+  <div id="driveHint"><b>W</b>Throttle <b>SPACE</b>Brake <b>A/D</b>Steer <b>SHIFT</b>ERS <b>I</b>Info <b>C</b>Cam <b>R</b>Reset <b>ESC</b>Menu</div>
 </div>
 <div id="cd"><div id="cdNum"></div></div>
 <div id="sndBtn"><svg id="sndIcon" viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9H4z"/><path d="M16 8a5 5 0 010 8"/></svg></div>
@@ -2671,6 +2706,7 @@ const CAR={
   // physics state
   pos:new THREE.Vector3(),heading:0,v:0,steer:0,steerCmd:0,yawRate:0,vLat:0,
   ers:0.75, ersActive:0,        // battery charge 0..1 and smoothed deploy amount for the gauge
+  tire:1, damage:0,             // tyre life 1..0 and car damage 0..1
 };
 if(typeof window!=='undefined') window.__CAR=CAR;
 const PHYS={
@@ -3129,7 +3165,7 @@ function resetCar(){
   CAR.pos.set(p.x,0,p.z);
   CAR.heading=Math.atan2(tg.x,tg.z);
   CAR.v=0;CAR.steer=0;CAR.steerCmd=0;CAR.yawRate=0;CAR.vLat=0;CAR.pitch=0;
-  CAR.ers=0.75;CAR.ersActive=0;
+  CAR.ers=0.75;CAR.ersActive=0;CAR.tire=1;CAR.damage=0;
   CAR.trackIdx=0; CAR.groundY=p.y;
   CAR.rig.position.set(p.x,p.y+0.02-(CAR.tireDrop||0),p.z);   // seat on the grid during the countdown
   CAR.rig.rotation.set(0,CAR.heading,0,'YXZ');
@@ -3145,7 +3181,8 @@ function stepPhysics(dt,inp){
   CAR.steer=CAR.steerCmd*maxSteer;
 
   // longitudinal
-  let Fdrive=inp.throttle*Math.min(P.power/Math.max(spd,7),P.maxForce);
+  const dmgMul=1-CAR.damage*0.35;                  // damage saps power/aero
+  let Fdrive=inp.throttle*Math.min(P.power*dmgMul/Math.max(spd,7),P.maxForce);
   // --- ERS: deploy button spends battery for an extra power boost; braking regens ---
   const deploying = !!inp.ers && CAR.ers>0.001 && inp.throttle>0.1 && CAR.v>2;
   if(deploying){
@@ -3177,7 +3214,12 @@ function stepPhysics(dt,inp){
   const off=absLat>TRACK.halfW+4.0;               // fully off track (past the wider kerb)
   const onKerb=absLat>TRACK.halfW-0.15 && absLat<TRACK.halfW+2.9;
   const wetMul=CFG.rain?0.74:1.0;                  // wet track = less grip (rain)
-  const gripMul=(off?0.55:(onKerb?0.82:1.0))*wetMul;  // kerbs unsettle you mid-corner
+  // tyre wear: worn tyres lose grip; wear faster with slip, speed, kerbs and abrasive tracks
+  const slipMag=Math.min(Math.abs(CAR.vLat)/6,1.5);
+  const wearRate=(TYREWEAR[CFG.id]||1.0)*0.0016*(0.35+slipMag+(onKerb?0.6:0)+(off?0.9:0))*(0.5+spd/60);
+  if(spd>2) CAR.tire=Math.max(0,CAR.tire-wearRate*dt*60);
+  const tireGrip=lerp(0.80,1.0,CAR.tire);          // ~20% grip lost on fully worn tyres
+  const gripMul=(off?0.55:(onKerb?0.82:1.0))*wetMul*tireGrip;
   CAR.kerb=onKerb;
 
   // lateral: dynamic bicycle model — real slip angles give understeer/oversteer.
@@ -3221,6 +3263,7 @@ function stepPhysics(dt,inp){
     CAR.v*=0.55;                                 // scrub forward speed
     CAR.vLat*=-0.12;                             // kill the into-wall slide (tiny inward nudge)
     CAR.yawRate*=0.25;                           // stop the wild spin that "broke" the car
+    CAR.damage=Math.min(1,CAR.damage+Math.min(spd/95,1)*0.14);   // wall contact damages the car
   }
 
   // smoothly INTERPOLATED road height (continuous along the centreline) so the car
@@ -3421,6 +3464,7 @@ const MODES=[
    meta:[['Assists','LOW'],['Input','KEYS'],['Units','KM/H']]},
 ];
 let sel=0, sessionMode='gp';
+const TYREWEAR={catalunya:1.75,silverstone:1.45,bahrain:1.5,spa:1.2,austria:1.1,saopaulo:1.2,monaco:0.7,jeddah:1.0,miami:1.15,montreal:1.1,australia:1.15,lasvegas:0.95,yas:1.0,zandvoort:1.35,baku:0.95,hungary:1.25};
 const SECTORS={spa:[0.33,0.62],yas:[0.34,0.66],silverstone:[0.31,0.63],monaco:[0.34,0.64],austria:[0.30,0.62],saopaulo:[0.34,0.66],jeddah:[0.35,0.68],catalunya:[0.36,0.66],miami:[0.32,0.64],montreal:[0.36,0.68],australia:[0.33,0.63],bahrain:[0.30,0.66],lasvegas:[0.40,0.72],zandvoort:[0.30,0.66],baku:[0.42,0.72],hungary:[0.28,0.63]};
 const TRACK_IDS=['spa','yas','silverstone','monaco','austria','saopaulo','jeddah','catalunya','miami','montreal','australia','bahrain','lasvegas','zandvoort','baku','hungary']; let selTrack=0, builtTrackId='spa';
 function curCfg(){return TRACKS[TRACK_IDS[selTrack]];}
@@ -3986,6 +4030,7 @@ addEventListener('keydown',e=>{
     if(k===' ')e.preventDefault();          // brake — don't scroll the page
     if(k==='c')cycleCam();
     else if(k==='r')resetCar();
+    else if(k==='i'){$('#carInfo').classList.toggle('on');Sound.init();Sound.blip(480,.04);}
     else if(k==='escape')exitToMenu();
     else if(k==='m'){Sound.init();Sound.toggle();}
   }
@@ -4064,6 +4109,17 @@ function updateHUD(inp,r){
   const box=$('#ersBox');
   box.classList.toggle('deploy',CAR.ersActive>0.4);
   box.classList.toggle('low',CAR.ers<0.18 && CAR.ersActive<0.4);
+  // tyre wear ring (green→amber→red) + damage bar
+  const tp=Math.round(CAR.tire*100), tCol=CAR.tire>0.5?'#39d98a':CAR.tire>0.25?'#ffcf6a':'#ff5b5b';
+  const tr=$('#tyreRing'); if(tr){tr.style.background=`conic-gradient(${tCol} ${tp}%, rgba(255,255,255,.08) 0)`; $('#tyrePct').textContent=tp;}
+  const df=$('#dmgFill'); if(df) df.style.height=(CAR.damage*100)+'%';
+  // detailed car-status panel (when toggled on)
+  if($('#carInfo').classList.contains('on')){
+    $('#ciTyre').style.width=tp+'%';$('#ciTyre').style.background=tCol;$('#ciTyreV').textContent=tp+'%';
+    const dp=Math.round(CAR.damage*100);$('#ciDmg').style.width=dp+'%';$('#ciDmg').style.background=dp>40?'#ff5b5b':'#ffcf6a';$('#ciDmgV').textContent=dp+'%';
+    $('#ciErs').style.width=pct+'%';$('#ciErs').style.background='#3fa9ff';$('#ciErsV').textContent=pct+'%';
+    $('#ciLap').textContent=$('#lapLast').textContent;
+  }
   drawMinimap();
 }
 function drawMinimap(){
