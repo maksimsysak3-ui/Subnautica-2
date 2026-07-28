@@ -389,6 +389,11 @@
   #dmgBar{width:16px;height:26px;background:rgba(255,255,255,.07);border-radius:4px;overflow:hidden;border:1px solid rgba(255,255,255,.12)}
   #dmgFill{position:absolute;width:16px;background:linear-gradient(0deg,#e10600,#ff6a60);height:0}
   #dmgBar{position:relative;display:flex;align-items:flex-end}
+  #tyreToast{position:absolute;left:50%;top:20%;transform:translateX(-50%);
+    font-family:var(--mono);font-weight:800;font-size:15px;letter-spacing:.12em;padding:8px 18px;
+    background:rgba(6,9,14,.82);border:1px solid rgba(255,255,255,.14);border-radius:8px;
+    opacity:0;transition:opacity .3s;pointer-events:none;z-index:14}
+  #tyreToast.on{opacity:1}
   /* mid-race car-status panel (press I) */
   #carInfo{position:absolute;left:clamp(16px,2.4vw,36px);bottom:clamp(72px,13vh,140px);width:236px;padding:11px 13px;
     background:rgba(8,11,16,.84);border:1px solid rgba(255,255,255,.1);border-radius:10px;backdrop-filter:blur(8px);
@@ -487,7 +492,11 @@
     <div class="gTitle">LIVERY EDITOR</div>
     <div class="gSub">Choose your team — the car reskins live</div>
     <div id="gTeams"></div>
-    <div class="gHint"><span><b>⏎</b> Apply &amp; race</span><span><b>Esc</b> Back</span></div>
+    <div class="gTitle" style="margin-top:14px">TYRE COMPOUND</div>
+    <div class="gSub">Softer = more grip, fewer laps</div>
+    <div id="gTyres" class="ssChips" style="margin-top:6px"></div>
+    <div id="gTyreLife" class="gSub" style="margin-top:6px;color:#9fb0c4"></div>
+    <div class="gHint"><span><b>⏎</b> Apply &amp; race</span><span><b>1/2/3</b> Tyres</span><span><b>Esc</b> Back</span></div>
   </aside>
 </div>
 
@@ -594,7 +603,7 @@
       <div id="ersState">DEPLOY</div>
     </div>
     <div id="tyreBox">
-      <div id="tyreLabel">TYRE</div>
+      <div id="tyreLabel">TYRE <b id="tyreComp" style="color:#f5c518">M</b></div>
       <div id="tyreRing"><span id="tyrePct">100</span></div>
       <div id="dmgLabel">DMG</div>
       <div id="dmgBar"><i id="dmgFill"></i></div>
@@ -603,6 +612,7 @@
     <div id="speedBox"><div id="speed">0</div><div id="speedU">KM/H</div></div>
   </div>
   <div id="offTrack">Off Track</div>
+  <div id="tyreToast"></div>
   <div id="carInfo">
     <div class="ciHead">CAR STATUS<span>press <b>I</b></span></div>
     <div class="ciRow"><span class="k">Tyre life</span><div class="ciBar"><i id="ciTyre"></i></div><span class="v" id="ciTyreV">100%</span></div>
@@ -1008,7 +1018,7 @@ function buildWorld(sc,cfg){
 
   const night=cfg.night, storm=!!cfg.storm, wet=!!cfg.rain||storm;
   sc.userData.wet=wet; sc.userData.storm=storm;
-  renderer.toneMappingExposure = night?1.35:(storm?0.82:(wet?0.98:1.05));
+  renderer.toneMappingExposure = night?1.6:(storm?0.82:(wet?0.98:1.05));
   const skyCol = night
     ? {top:'vec3(0.015,0.02,0.06)',mid:'vec3(0.05,0.04,0.12)',bot:'vec3(0.42,0.20,0.10)'}
     : storm
@@ -1020,8 +1030,8 @@ function buildWorld(sc,cfg){
   sc.fog=new THREE.Fog(night?0x0a0e18:(storm?0x3a3e46:(wet?0x94989d:0xa9c0d6)), worldR*(storm?0.22:(wet?0.32:0.5)), worldR*(night?3.4:(storm?1.2:(wet?1.7:2.6))));
 
   if(night){
-    sc.add(new THREE.HemisphereLight(0x4a5a80,0x151820,1.15));
-    const moon=new THREE.DirectionalLight(0xcdd8ff,1.5);
+    sc.add(new THREE.HemisphereLight(0x6a7aa8,0x22262f,1.75));      // brighter floodlit-night ambience
+    const moon=new THREE.DirectionalLight(0xdfe6ff,2.4);
     moon.position.set(-300,460,220);moon.castShadow=true;moon.shadow.mapSize.set(2048,2048);
     const cm=moon.shadow.camera,F=150;cm.left=-F;cm.right=F;cm.top=F;cm.bottom=-F;cm.near=20;cm.far=900;
     moon.shadow.bias=-0.0005;sc.add(moon,moon.target);sc.userData.sun=moon;
@@ -1369,6 +1379,33 @@ function buildDesert(sc,P,Nm,Tg,offL,offR){
       for(let yI=0;yI<nY;yI++){const t=(yI+0.5)/nY, bx=cX+dx*(marR-4-t*pierL), bz=cZ+dz*(marR-4-t*pierL);
         for(const sgn of [1,-1]){const L=9+Math.random()*11;const y=yacht(L);
           y.position.set(bx-dz*sgn*4.5,0,bz+dx*sgn*4.5);y.rotation.y=-a+(sgn>0?0:Math.PI);y.scale.setScalar(0.85);sc.add(y);}}}
+    // --- lively marina promenade around the quay: waterfront buildings, palms and lamps ---
+    const wallM=new THREE.MeshStandardMaterial({color:0x2a3446,roughness:0.55,metalness:0.3,emissive:0x0e1626,emissiveIntensity:0.7});
+    const trunk=new THREE.MeshStandardMaterial({color:0x5a4326,roughness:0.9});
+    const frond=new THREE.MeshStandardMaterial({color:0x1f5e2a,roughness:0.8,emissive:0x0a2410,emissiveIntensity:0.5,side:THREE.DoubleSide});
+    const lampM=new THREE.MeshStandardMaterial({color:0xffe6b0,emissive:0xffdca0,emissiveIntensity:2.4});
+    const nProm=22;
+    for(let k=0;k<nProm;k++){const a=k/nProm*TAU, rr=marR+9+Math.random()*10;
+      const x=cX+Math.cos(a)*rr, z=cZ+Math.sin(a)*rr; if(clr(x,z)<(TRACK.halfW+18)**2) continue;
+      const gy=TRACK.terrainH(x,z);
+      if(k%3===0){ // a lit waterfront tower with a window skin
+        const w=12+Math.random()*10,h=22+Math.random()*46;
+        const bmat=new THREE.MeshStandardMaterial({map:makeWindows(Math.max(3,w/6|0),Math.max(6,h/8|0),'#2a4a6a'),emissive:0x1a2740,emissiveIntensity:0.9,roughness:0.7});
+        const b=new THREE.Mesh(new THREE.BoxGeometry(w,h,w),bmat);b.position.set(x,gy+h/2,z);sc.add(b);
+      }else{ // low promenade pavilion
+        const w=8+Math.random()*7,h=5+Math.random()*4;
+        const b=new THREE.Mesh(new THREE.BoxGeometry(w,h,8),wallM);b.position.set(x,gy+h/2,z);sc.add(b);
+        const cap=new THREE.Mesh(new THREE.BoxGeometry(w+0.6,0.4,8.6),new THREE.MeshStandardMaterial({color:0xdfe4ea,roughness:0.6}));cap.position.set(x,gy+h+0.2,z);sc.add(cap);
+      }}
+    // palms + lamp posts lining the quay edge
+    for(let k=0;k<26;k++){const a=(k/26)*TAU, rr=marR+4.5;
+      const x=cX+Math.cos(a)*rr, z=cZ+Math.sin(a)*rr, gy=TRACK.terrainH(x,z);
+      if(k%2){const g=new THREE.Group(),h=6+Math.random()*4;
+        const tk=new THREE.Mesh(new THREE.CylinderGeometry(0.3,0.45,h,6),trunk);tk.position.y=h/2;g.add(tk);
+        for(let f=0;f<7;f++){const fr=new THREE.Mesh(new THREE.ConeGeometry(0.65,3.6,4),frond);fr.position.y=h;fr.rotation.z=Math.PI/2.6;fr.rotation.y=f/7*TAU;g.add(fr);}
+        g.position.set(x,gy,z);g.rotation.y=Math.random()*TAU;sc.add(g);
+      }else{const post=new THREE.Mesh(new THREE.CylinderGeometry(0.14,0.14,5,6),new THREE.MeshStandardMaterial({color:0x2a2f38,roughness:0.6}));post.position.set(x,gy+2.5,z);sc.add(post);
+        const bulb=new THREE.Mesh(new THREE.SphereGeometry(0.4,8,6),lampM);bulb.position.set(x,gy+5,z);sc.add(bulb);}}
   }
   // palm trees dotted around the marina promenade + trackside
   { const trunk=new THREE.MeshStandardMaterial({color:0x5a4326,roughness:0.9});
@@ -2539,7 +2576,10 @@ function buildGrandstands(sc,P,Nm,Tg,offL,offR){
     // open ground — this biases stands to the OUTSIDE of the track and off the run-off
     const p=P[i],n=Nm[i];
     const cand=(s)=>{const off=(s>0?offL:offR)(i),dist=off+depth/2+(big?14:11);
-      const bx=p.x+n.x*s*dist, bz=p.z+n.z*s*dist;return {s,bx,bz,room:clr(bx,bz)};};
+      const bx=p.x+n.x*s*dist, bz=p.z+n.z*s*dist;
+      const tx=-n.z, tz=n.x, half=len/2;                 // stand runs along the tangent → check its ENDS too
+      const room=Math.min(clr(bx,bz), clr(bx+tx*half,bz+tz*half), clr(bx-tx*half,bz-tz*half));
+      return {s,bx,bz,room};};
     const opts=[cand(side),cand(-side)].filter(o=>o.room>=need*need).sort((a,b)=>b.room-a.room);
     if(!opts.length) return false;
     const {s:sideC,bx,bz}=opts[0]; side=sideC;
@@ -2726,8 +2766,9 @@ function makeRunoffBand(word,hex){
   const c=cnv(512,256),x=c.getContext('2d');
   x.fillStyle=hex;x.fillRect(0,0,512,256);
   for(let i=0;i<2600;i++){x.fillStyle=`rgba(0,0,0,${Math.random()*0.10})`;x.fillRect(Math.random()*512,Math.random()*256,2.2,2.2);}
+  // ONE wordmark occupying only the centre of the tile → lots of bare colour between words
   x.fillStyle='rgba(255,255,255,0.92)';x.textAlign='center';x.textBaseline='middle';
-  x.font='900 148px Arial';x.fillText(word,256,140);
+  x.font='900 92px Arial';x.fillText(word,256,132);
   const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;t.wrapS=t.wrapT=THREE.RepeatWrapping;t.anisotropy=8;return t;
 }
 /* rotating palette of sponsor wordmarks + colours for the painted run-off bands
@@ -2740,7 +2781,7 @@ function buildRunoffPaint(sc,P,Nm,cum,sturn,HW,widthFn){
   const N=P.length, gh=TRACK.terrainH, TH=0.05, cache={};
   const matFor=(idx)=>{const [word,col]=RUNOFF_PALETTE[idx%RUNOFF_PALETTE.length];
     if(cache[word])return cache[word];
-    const tex=makeRunoffBand(word,'#'+new THREE.Color(col).getHexString());tex.repeat.set(1/12,1);
+    const tex=makeRunoffBand(word,'#'+new THREE.Color(col).getHexString());tex.repeat.set(1/34,1);   // one word ~every 34m → spread out, sparse
     return cache[word]=new THREE.MeshStandardMaterial({map:tex,roughness:0.82,side:THREE.DoubleSide,
       polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2});};
   const buildBand=(a,b,side,mat)=>{
@@ -2760,17 +2801,19 @@ function buildRunoffPaint(sc,P,Nm,cum,sturn,HW,widthFn){
     g.setIndex(idx); flatUp(g);
     const m=new THREE.Mesh(g,mat); m.receiveShadow=true; m.renderOrder=1; sc.add(m);
   };
-  // sweep the whole lap in zones (with gaps); each zone gets the next sponsor colour
+  // paint only a FEW zones per lap (corners + a straight or two), with big bare gaps between
   let bi=(CFG.id||'').length;                    // per-track offset → circuits differ
-  const seg=26+(bi%3)*7;
-  let i=6;
+  const seg=24+(bi%3)*6;
+  let i=6, z=0;
   while(i<N-8){
     const a=i, b=Math.min(N-6,i+seg);
     let net=0; for(let k=a;k<=b;k++) net+=sturn[k];
-    const side = Math.abs(net)>0.5 ? (net<0?1:-1)   // outside of a corner
-               : ((bi%2)?1:-1);                     // straights: alternate the painted side
-    buildBand(a,b,side,matFor(bi)); bi++;
-    i=b+10;                                          // gap of bare run-off between painted zones
+    const corner=Math.abs(net)>0.5;
+    if(corner || z%2===0){                          // corners always; only every other straight zone
+      const side = corner ? (net<0?1:-1) : ((bi%2)?1:-1);
+      buildBand(a,b,side,matFor(bi)); bi++;
+    }
+    z++; i=b+28;                                     // large gap of bare run-off between painted zones
   }
 }
 function makeCheck(){
@@ -3305,6 +3348,7 @@ function resetCar(){
   CAR.heading=Math.atan2(tg.x,tg.z);
   CAR.v=0;CAR.steer=0;CAR.steerCmd=0;CAR.yawRate=0;CAR.vLat=0;CAR.pitch=0;
   CAR.ers=0.75;CAR.ersActive=0;CAR.tire=1;CAR.damage=0;
+  CAR.compound=selCompound; CAR.tireLapsLife=compoundLaps(selCompound,CFG.id);
   CAR.trackIdx=0; CAR.groundY=p.y;
   CAR.rig.position.set(p.x,p.y+0.02-(CAR.tireDrop||0),p.z);   // seat on the grid during the countdown
   CAR.rig.rotation.set(0,CAR.heading,0,'YXZ');
@@ -3353,11 +3397,16 @@ function stepPhysics(dt,inp){
   const off=absLat>TRACK.halfW+4.0;               // fully off track (past the wider kerb)
   const onKerb=absLat>TRACK.halfW-0.15 && absLat<TRACK.halfW+2.9;
   const wetMul=CFG.storm?0.66:(CFG.rain?0.74:1.0);                  // wet track = less grip (rain)
-  // tyre wear: worn tyres lose grip; wear faster with slip, speed, kerbs and abrasive tracks
+  // tyre wear: deplete over the chosen compound's lap-life for THIS surface (laps, not seconds).
+  // pushing — full throttle, sliding, braking hard, running kerbs/off — eats the life faster.
   const slipMag=Math.min(Math.abs(CAR.vLat)/6,1.5);
-  const wearRate=(TYREWEAR[CFG.id]||1.0)*0.0016*(0.35+slipMag+(onKerb?0.6:0)+(off?0.9:0))*(0.5+spd/60);
-  if(spd>2) CAR.tire=Math.max(0,CAR.tire-wearRate*dt*60);
-  const tireGrip=lerp(0.80,1.0,CAR.tire);          // ~20% grip lost on fully worn tyres
+  const push=0.55 + 0.45*Math.abs(inp.throttle||0) + 0.6*Math.min(slipMag,1) + 0.4*(inp.brake||0)
+             + (onKerb?0.4:0) + (off?0.9:0);
+  const lifeLaps=CAR.tireLapsLife||compoundLaps(CAR.compound||'medium',CFG.id);
+  const wearPerM=1/Math.max(1,lifeLaps*TRACK.len);
+  if(spd>2) CAR.tire=Math.max(0, CAR.tire - spd*dt*wearPerM*Math.min(push,2.6));
+  const comp=COMPOUNDS[CAR.compound||'medium']||COMPOUNDS.medium;
+  const tireGrip=lerp(0.82,1.0,CAR.tire)*comp.grip;   // worn tyres lose grip; compound sets the baseline
   const gripMul=(off?0.55:(onKerb?0.82:1.0))*wetMul*tireGrip;
   CAR.kerb=onKerb;
 
@@ -3552,7 +3601,8 @@ const CAM_MODES=['chase','cockpit','hood'];
 function cycleCam(){CAM.mode=CAM_MODES[(CAM_MODES.indexOf(CAM.mode)+1)%CAM_MODES.length];
   $('#camName').textContent=CAM.mode.toUpperCase();Sound.blip(520,.05);}
 if(typeof window!=='undefined'){window.__setCam=(m)=>{CAM.mode=m;$('#camName').textContent=m.toUpperCase();};
-  window.__setLivery=(t)=>setLivery(t); window.__snapCam=()=>snapCamera();}
+  window.__setLivery=(t)=>setLivery(t); window.__snapCam=()=>snapCamera();
+  window.__compoundLaps=compoundLaps; window.__fitTyres=(c)=>fitTyres(c);}
 function updateCamera(dt){
   const spd=Math.abs(CAR.v);
   if(CAM.mode==='cockpit'){
@@ -3604,6 +3654,19 @@ const MODES=[
 ];
 let sel=0, sessionMode='gp';
 const TYREWEAR={catalunya:1.75,silverstone:1.45,bahrain:1.5,spa:1.2,austria:1.1,saopaulo:1.2,monaco:0.7,jeddah:1.0,miami:1.15,montreal:1.1,australia:1.15,lasvegas:0.95,yas:1.0,zandvoort:1.35,baku:0.95,hungary:1.25};
+/* tyre compounds: lap life at [very abrasive → non-abrasive] surfaces, plus grip.
+   Softs give the most grip but wear fastest; hards the least grip but last longest.
+   Pushing hard (throttle + slides + kerbs) eats into the life on top of this. */
+const COMPOUNDS={
+  soft:  {name:'SOFT',  short:'S', col:'#e02020', laps:[12,20], grip:1.03},
+  medium:{name:'MEDIUM',short:'M', col:'#f5c518', laps:[23,29], grip:1.00},
+  hard:  {name:'HARD',  short:'H', col:'#eef1f4', laps:[32,40], grip:0.975},
+};
+let selCompound='medium';
+// 0 (non-abrasive, e.g. Monaco) .. 1 (very abrasive, e.g. Barcelona)
+function trackAbrasion(id){const w=TYREWEAR[id]||1.0; return Math.max(0,Math.min(1,(w-0.7)/(1.75-0.7)));}
+function compoundLaps(comp,id){const c=COMPOUNDS[comp]||COMPOUNDS.medium, a=trackAbrasion(id);
+  return Math.round(c.laps[1]+(c.laps[0]-c.laps[1])*a);}   // lerp non-abrasive → abrasive by surface
 const SECTORS={spa:[0.33,0.62],yas:[0.34,0.66],silverstone:[0.31,0.63],monaco:[0.34,0.64],austria:[0.30,0.62],saopaulo:[0.34,0.66],jeddah:[0.35,0.68],catalunya:[0.36,0.66],miami:[0.32,0.64],montreal:[0.36,0.68],australia:[0.33,0.63],bahrain:[0.30,0.66],lasvegas:[0.40,0.72],zandvoort:[0.30,0.66],baku:[0.42,0.72],hungary:[0.28,0.63]};
 const TRACK_IDS=['spa','yas','silverstone','monaco','austria','saopaulo','jeddah','catalunya','miami','montreal','australia','bahrain','lasvegas','zandvoort','baku','hungary']; let selTrack=0, builtTrackId='spa';
 function curCfg(){return TRACKS[TRACK_IDS[selTrack]];}
@@ -3649,6 +3712,27 @@ function buildGarage(){
     card.addEventListener('mouseenter',()=>{Sound.init();Sound.blip(360,.03);});
     wrap.appendChild(card);
   });
+  buildTyreChips();
+}
+function buildTyreChips(){
+  const tc=$('#gTyres'); if(!tc)return; tc.innerHTML='';
+  const id=TRACK_IDS[selTrack]||builtTrackId;
+  ['soft','medium','hard'].forEach(k=>{const C=COMPOUNDS[k];
+    const c=document.createElement('div');c.className='ssChip'+(k===selCompound?' on':'');
+    c.innerHTML=`<span style="color:${C.col};font-weight:900">${C.short}</span> ${C.name}`;
+    c.onclick=()=>{selCompound=k;buildTyreChips();Sound.init();Sound.blip(560,.05);};
+    tc.appendChild(c);});
+  const life=$('#gTyreLife'); if(life){const n=compoundLaps(selCompound,id);
+    life.textContent=`≈ ${n} laps on this surface — ${trackAbrasion(id)>0.6?'abrasive':trackAbrasion(id)<0.35?'gentle':'medium'} track. Push harder = fewer laps.`;}
+}
+/* fit a fresh set of the chosen compound (garage pick, or a mid-race "pit" change) */
+function fitTyres(comp){
+  if(!COMPOUNDS[comp]||comp===CAR.compound&&CAR.tire>0.99)return;
+  selCompound=comp; CAR.compound=comp;
+  CAR.tireLapsLife=compoundLaps(comp,CFG?CFG.id:builtTrackId); CAR.tire=1;
+  Sound.init&&Sound.init(); Sound.blip&&Sound.blip(620,.06);
+  const t=$('#tyreToast'); if(t){t.textContent=`${COMPOUNDS[comp].name} TYRES FITTED · ≈${CAR.tireLapsLife} LAPS`;
+    t.style.color=COMPOUNDS[comp].col; t.classList.add('on'); clearTimeout(t._h); t._h=setTimeout(()=>t.classList.remove('on'),1800);}
 }
 function pickLivery(key){
   setLivery(key);Sound.init();Sound.blip(620,.06);
@@ -4173,6 +4257,7 @@ addEventListener('keydown',e=>{
     if(k==='c')cycleCam();
     else if(k==='r')resetCar();
     else if(k==='i'){$('#carInfo').classList.toggle('on');Sound.init();Sound.blip(480,.04);}
+    else if(k==='1'||k==='2'||k==='3'){fitTyres(['soft','medium','hard'][+k-1]);}
     else if(k==='escape')exitToMenu();
     else if(k==='m'){Sound.init();Sound.toggle();}
   }
@@ -4336,6 +4421,8 @@ function updateHUD(inp,r){
   // tyre wear ring (green→amber→red) + damage bar
   const tp=Math.round(CAR.tire*100), tCol=CAR.tire>0.5?'#39d98a':CAR.tire>0.25?'#ffcf6a':'#ff5b5b';
   const tr=$('#tyreRing'); if(tr){tr.style.background=`conic-gradient(${tCol} ${tp}%, rgba(255,255,255,.08) 0)`; $('#tyrePct').textContent=tp;}
+  const cmp=COMPOUNDS[CAR.compound||'medium']||COMPOUNDS.medium, tcEl=$('#tyreComp');
+  if(tcEl){tcEl.textContent=cmp.short;tcEl.style.color=cmp.col;}
   const df=$('#dmgFill'); if(df) df.style.height=(CAR.damage*100)+'%';
   // detailed car-status panel (when toggled on)
   if($('#carInfo').classList.contains('on')){
