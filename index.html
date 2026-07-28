@@ -2334,27 +2334,34 @@ function buildBritish(sc,P,Nm,offL,offR){
   // circuit centroid (for the infield)
   let cX=0,cZ=0;for(const p of P){cX+=p.x;cZ+=p.z;}cX/=N;cZ/=N;
   const M=new THREE.Matrix4(),S=new THREE.Vector3(),Q=new THREE.Quaternion(),T=new THREE.Vector3();
+  // --- per-circuit palette so the four "parkland" venues stop looking identical ---
+  const PAL={
+    silverstone:{trees:[0x2f5a26,0x3c6a2e,0x274d20],ring:0x33502a,dense:820,arid:false,water:false,city:null,hills:false},
+    catalunya:  {trees:[0x5a6a2c,0x6d7a3a,0x47571f],ring:0x6f6b3c,dense:430,arid:true, water:false,city:'barca',hills:true},
+    montreal:   {trees:[0x2f5a26,0x356630,0x244a1f],ring:0x2c4a2e,dense:560,arid:false,water:true, city:'montreal',hills:false},
+    hungaroring:{trees:[0x62702e,0x74803c,0x505d22],ring:0x76713a,dense:380,arid:true, water:false,city:'budapest',hills:true},
+  }[CFG.id]||{trees:[0x2f5a26,0x3c6a2e,0x274d20],ring:0x33502a,dense:820,arid:false,water:false,city:null,hills:false};
 
-  // --- rounded deciduous trees in sparse hedgerows + far clumps (open, not forest) ---
+  // --- rounded trees in sparse hedgerows + far clumps (open, not forest) ---
   const blobG=new THREE.IcosahedronGeometry(0.5,0);
-  const treeMats=[0x2f5a26,0x3c6a2e,0x274d20].map(c=>new THREE.MeshStandardMaterial({color:c,roughness:1,flatShading:true}));
+  const treeMats=PAL.trees.map(c=>new THREE.MeshStandardMaterial({color:c,roughness:1,flatShading:true}));
   const treeList=treeMats.map(()=>[]);
   const addTree=(x,z,h)=>{const bi=(Math.random()*treeList.length)|0;treeList[bi].push({x,y:gh(x,z),z,w:h*(0.7+Math.random()*0.3),h});};
   // hedgerows: thin, gappy field boundaries well back from the track
   for(let i=0;i<N;i+=3){const p=P[i],n=Nm[i];
     for(const [side,off] of [[1,offL],[-1,offR]]){
-      if(Math.random()<0.55) continue;                 // sparse → open sky and fields
+      if(Math.random()<(PAL.arid?0.72:0.55)) continue;   // sparse → open sky and fields
       const dist=off(i)+72+Math.random()*46;
       const x=p.x+n.x*side*dist, z=p.z+n.z*side*dist;
       if(clear(x,z)<60*60) continue;
-      addTree(x,z,7+Math.random()*7);}}
+      addTree(x,z,(PAL.arid?4:7)+Math.random()*(PAL.arid?5:7));}}
   // clumps of trees in the far countryside
   let placed=0,tries=0;
-  while(placed<820 && tries<9000){tries++;
+  while(placed<PAL.dense && tries<9000){tries++;
     const a=Math.random()*TAU, rr=R*1.05+Math.random()*R*1.3, cx=Math.cos(a)*rr, cz=Math.sin(a)*rr;
     if(clear(cx,cz)<80*80) continue;
     const clump=3+((Math.random()*6)|0);
-    for(let k=0;k<clump;k++){addTree(cx+(Math.random()-0.5)*30,cz+(Math.random()-0.5)*30,9+Math.random()*12);placed++;}}
+    for(let k=0;k<clump;k++){addTree(cx+(Math.random()-0.5)*30,cz+(Math.random()-0.5)*30,(PAL.arid?6:9)+Math.random()*(PAL.arid?7:12));placed++;}}
   treeList.forEach((list,bi)=>{ if(!list.length)return;
     const im=new THREE.InstancedMesh(blobG,treeMats[bi],list.length);
     im.frustumCulled=false;im.receiveShadow=true;
@@ -2390,15 +2397,46 @@ function buildBritish(sc,P,Nm,offL,offR){
       const h=Math.random();col.setHSL(h<0.5?0:h,h<0.5?0:0.4,0.28+Math.random()*0.5);im.setColorAt(i,col);});
     im.instanceMatrix.needsUpdate=true;if(im.instanceColor)im.instanceColor.needsUpdate=true;sc.add(im);}
 
-  // --- infield lake (the pond near the Vale) ---
+  // === distant landmarks so each of the four venues reads as its real location ===
+  // a low distant skyline cluster of boxes (a real city on the horizon)
+  const skyline=(dir,spread,count,maxH,tint,glass)=>{
+    const bx=Math.cos(dir)*R*2.15, bz=Math.sin(dir)*R*2.15, px=-Math.sin(dir), pz=Math.cos(dir);
+    const wallM=new THREE.MeshStandardMaterial({color:tint,roughness:0.72,metalness:glass?0.5:0.15});
+    for(let k=0;k<count;k++){const t=(k/(count-1)-0.5)*spread;
+      const x=bx+px*t+(Math.random()-0.5)*40, z=bz+pz*t+(Math.random()-0.5)*40;
+      const w=18+Math.random()*22, h=maxH*(0.35+Math.random()*0.65), d=18+Math.random()*22;
+      const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),wallM);m.position.set(x,gh(x,z)+h/2,z);sc.add(m);}};
+  if(PAL.city==='montreal'){
+    // Parc Jean-Drapeau: encircling water, Montreal downtown, and the Biosphère dome
+    const water=new THREE.Mesh(new THREE.RingGeometry(R*1.35,R*2.6,72,1),
+      new THREE.MeshStandardMaterial({color:0x274a5a,roughness:0.18,metalness:0.7,side:THREE.DoubleSide}));
+    water.rotation.x=-Math.PI/2;water.position.y=-1.2;sc.add(water);
+    skyline(-0.6,R*1.4,26,150,0x8892a0,true);          // downtown towers across the river
+    { const dome=new THREE.Mesh(new THREE.IcosahedronGeometry(30,2),
+        new THREE.MeshStandardMaterial({color:0xcfd6dc,roughness:0.35,metalness:0.4,wireframe:true}));
+      const dx=cX+R*0.5,dz=cZ-R*0.35;dome.position.set(dx,gh(dx,dz)+18,dz);sc.add(dome); }
+  }else if(PAL.city==='barca'){
+    skyline(1.4,R*1.1,16,90,0xc9b48c,false);           // low terracotta Barcelona sprawl
+  }else if(PAL.city==='budapest'){
+    skyline(2.3,R*0.9,12,70,0xc2b79a,false);            // distant Budapest low-rise
+  }
+
+  // --- infield lake ---
   { const lake=new THREE.Mesh(new THREE.CircleGeometry(28,40),
       new THREE.MeshStandardMaterial({color:0x3a5560,roughness:0.2,metalness:0.6}));
     lake.rotation.x=-Math.PI/2;const lx=cX-R*0.18,lz=cZ+R*0.28;
     lake.position.set(lx,gh(lx,lz)-0.35,lz);sc.add(lake); }
 
-  // --- low distant hedge ring so the horizon reads as english fields, not a void ---
+  // --- rolling amphitheatre hills for the dry venues (Barcelona / Hungaroring bowl) ---
+  if(PAL.hills){const hillM=new THREE.MeshStandardMaterial({color:PAL.ring,roughness:1,flatShading:true});
+    for(let k=0;k<14;k++){const a=Math.random()*TAU,rr=R*1.5+Math.random()*R*0.8,x=Math.cos(a)*rr,z=Math.sin(a)*rr;
+      const rad=60+Math.random()*90,h=rad*(0.35+Math.random()*0.3);
+      const hill=new THREE.Mesh(new THREE.SphereGeometry(rad,10,6,0,TAU,0,Math.PI/2),hillM);
+      hill.scale.y=h/rad;hill.position.set(x,gh(x,z)-6,z);sc.add(hill);}}
+
+  // --- low distant ground ring so the horizon isn't a void ---
   const ring=new THREE.Mesh(new THREE.CylinderGeometry(R*1.9,R*2.0,40,64,1,true),
-    new THREE.MeshStandardMaterial({color:0x33502a,roughness:1,side:THREE.BackSide}));
+    new THREE.MeshStandardMaterial({color:PAL.ring,roughness:1,side:THREE.BackSide}));
   ring.position.y=8;sc.add(ring);
 }
 
@@ -2412,7 +2450,7 @@ function buildGrandstands(sc,P,Nm,Tg,offL,offR){
   const frameMat=new THREE.MeshStandardMaterial({color:accent,roughness:0.7,metalness:0.3});
   const roofMat=new THREE.MeshStandardMaterial({color:tent?0xf4efe4:0xdfe4ea,roughness:0.6,metalness:0.2,side:THREE.DoubleSide,
     emissive:tent?0x3a2f22:0x000000,emissiveIntensity:tent?0.4:0});
-  const facadeMat=new THREE.MeshStandardMaterial({map:makeHoarding(),roughness:0.8,side:THREE.DoubleSide});
+  const fasciaMat=new THREE.MeshStandardMaterial({color:tent?0xe9e2d2:0xcfd4da,roughness:0.8,side:THREE.DoubleSide});
   const crowdMat=makeCrowdMat();
   const night=CFG.night;
   const HW=TRACK.halfW;
@@ -2421,8 +2459,7 @@ function buildGrandstands(sc,P,Nm,Tg,offL,offR){
   const railMat=new THREE.MeshStandardMaterial({color:0x2a2e36,roughness:0.5,metalness:0.5});
   const cableMat=new THREE.MeshStandardMaterial({color:0x14171d,roughness:0.6});
   const flagCols=[0xe10600,0xffffff,0xe10600,0xf2f5f8];   // red/white bunting like the reference
-  const barTex=makeGrandstandBarrier('ROLEX');            // green trackside barrier (shared)
-  const barBaseMat=new THREE.MeshStandardMaterial({map:barTex,roughness:0.85});
+  const barPlainMat=new THREE.MeshStandardMaterial({color:0x0a5c36,roughness:0.85});  // plain green barrier, no wordmark
   // build one raked stand at index i; +Z faces the track after lookAt. big=main grandstand
   const stand=(i,side,len,tiers,big)=>{
     const depth=big?36:24, stepH=1.42, stepD=depth/tiers, baseY=1.5;
@@ -2430,7 +2467,7 @@ function buildGrandstands(sc,P,Nm,Tg,offL,offR){
     // try the requested side first, then the opposite, keeping whichever sits in more
     // open ground — this biases stands to the OUTSIDE of the track and off the run-off
     const p=P[i],n=Nm[i];
-    const cand=(s)=>{const off=(s>0?offL:offR)(i),dist=off+depth/2+(big?9:7);
+    const cand=(s)=>{const off=(s>0?offL:offR)(i),dist=off+depth/2+(big?14:11);
       const bx=p.x+n.x*s*dist, bz=p.z+n.z*s*dist;return {s,bx,bz,room:clr(bx,bz)};};
     const opts=[cand(side),cand(-side)].filter(o=>o.room>=need*need).sort((a,b)=>b.room-a.room);
     if(!opts.length) return false;
@@ -2452,14 +2489,13 @@ function buildGrandstands(sc,P,Nm,Tg,offL,offR){
     // side concrete walls following the rake (triangular)
     for(const sx of [-len/2-0.3,len/2+0.3]){const sw=new THREE.Mesh(new THREE.BoxGeometry(0.4,topH,depth),concrete);
       sw.position.set(sx,topH/2,0);g.add(sw);}
-    // --- green ROLEX-style trackside barrier (matches the real thing) + guard rail ---
-    const barMat=barBaseMat.clone();barMat.map=barTex.clone();barMat.map.repeat.set(Math.max(2,len/22),1);barMat.map.needsUpdate=true;
-    const hoard=new THREE.Mesh(new THREE.BoxGeometry(len,2.6,0.5),barMat);hoard.position.set(0,1.3,depth/2+0.4);g.add(hoard);
+    // --- plain green trackside barrier (no sponsor wordmarks) + guard rail ---
+    const hoard=new THREE.Mesh(new THREE.BoxGeometry(len,2.6,0.5),barPlainMat);hoard.position.set(0,1.3,depth/2+0.4);g.add(hoard);
     const rail=new THREE.Mesh(new THREE.CylinderGeometry(0.06,0.06,len,6),railMat);rail.rotation.z=Math.PI/2;rail.position.set(0,baseY+1.1,depth/2-0.15);g.add(rail);
-    // --- cantilever roof: slightly sloped plane + front fascia sponsor, on back trusses ---
+    // --- cantilever roof: slightly sloped plane + plain front fascia, on back trusses ---
     const roofD=depth*0.72, roofZc=-depth*0.5+roofD*0.5, roofY=topH+3.4;
     const roof=new THREE.Mesh(new THREE.BoxGeometry(len+5,0.4,roofD),roofMat);roof.position.set(0,roofY,roofZc);roof.rotation.x=-0.1;g.add(roof);
-    const fascia=new THREE.Mesh(new THREE.BoxGeometry(len+5,1.6,0.3),facadeMat);fascia.position.set(0,roofY-0.6,-depth*0.5+roofD);g.add(fascia);
+    const fascia=new THREE.Mesh(new THREE.BoxGeometry(len+5,1.6,0.3),fasciaMat);fascia.position.set(0,roofY-0.6,-depth*0.5+roofD);g.add(fascia);
     const nSup=big?6:4;
     for(let s=0;s<nSup;s++){const sx=-len/2+5+s*(len-10)/(nSup-1);
       beam3(sx,0,-depth*0.46, sx,roofY,-depth*0.46, 0.7);                         // back column
@@ -2522,13 +2558,20 @@ function buildPit(sc,P,Nm,Tg){
   upper.position.set(0,11,-1.5);g.add(upper);
   const roof=new THREE.Mesh(new THREE.BoxGeometry(len+3,1.0,15),accentMat);roof.position.set(0,14.5,-1.5);g.add(roof);
   const roof2=new THREE.Mesh(new THREE.BoxGeometry(len+3,0.5,15),new THREE.MeshStandardMaterial({color:0xdfe4ea,roughness:0.6}));roof2.position.set(0,15.2,-1.5);g.add(roof2);
-  // pit wall + team timing gantries (team-colour, NOT black) with a screen
-  const wall=new THREE.Mesh(new THREE.BoxGeometry(len,1.2,0.5),new THREE.MeshStandardMaterial({map:makeHoarding(),roughness:0.8}));wall.position.set(0,0.6,21.5);g.add(wall);
-  for(let d=0;d<4;d++){const sx=-len/2+24+d*40;const gpit=new THREE.Group();
-    for(const dx of [-3.6,3.6]){const leg=new THREE.Mesh(new THREE.BoxGeometry(0.4,3.2,0.4),accentMat);leg.position.set(sx+dx,1.6,20);gpit.add(leg);}
-    const desk=new THREE.Mesh(new THREE.BoxGeometry(9,1.4,2.4),new THREE.MeshStandardMaterial({color:pitCol,roughness:0.6}));desk.position.set(sx,3.5,20);gpit.add(desk);
-    const scr=new THREE.Mesh(new THREE.PlaneGeometry(8,1.6),new THREE.MeshStandardMaterial({color:0x0a1622,emissive:0x1e88d8,emissiveIntensity:0.8}));scr.position.set(sx,3.6,21.25);gpit.add(scr);
-    const canopy=new THREE.Mesh(new THREE.BoxGeometry(9.5,0.3,3),accentMat);canopy.position.set(sx,4.5,20);gpit.add(canopy);g.add(gpit);}
+  // --- pit wall: one clean continuous low wall (white body + accent cap rail), no busy hoarding ---
+  const wallZ=21.0;
+  const wallBody=new THREE.Mesh(new THREE.BoxGeometry(len,1.35,0.6),new THREE.MeshStandardMaterial({color:pitCol,roughness:0.7}));
+  wallBody.position.set(0,0.68,wallZ);g.add(wallBody);
+  const wallCap=new THREE.Mesh(new THREE.BoxGeometry(len,0.22,0.75),accentMat);wallCap.position.set(0,1.42,wallZ);g.add(wallCap);
+  // continuous pit-wall stand (gantry) on the pit-lane side, with recessed monitors — seated on the wall, no floating legs
+  const standZ=wallZ-1.35, standTop=3.9;
+  const gStand=new THREE.Mesh(new THREE.BoxGeometry(len,0.5,2.3),new THREE.MeshStandardMaterial({color:0x23262c,roughness:0.6,metalness:0.3}));
+  gStand.position.set(0,standTop,standZ);g.add(gStand);
+  const gCanopy=new THREE.Mesh(new THREE.BoxGeometry(len,0.22,2.6),accentMat);gCanopy.position.set(0,standTop+1.9,standZ);g.add(gCanopy);
+  for(let d=0;d<Math.max(4,len/26|0);d++){const sx=-len/2+len/(Math.max(4,len/26|0))*(d+0.5);
+    const post=new THREE.Mesh(new THREE.BoxGeometry(0.35,1.9,0.35),accentMat);post.position.set(sx,standTop+0.95,standZ-0.9);g.add(post);
+    const scr=new THREE.Mesh(new THREE.PlaneGeometry(6.0,1.4),new THREE.MeshStandardMaterial({color:0x0a1622,emissive:0x1e88d8,emissiveIntensity:0.8}));
+    scr.position.set(sx,standTop+1.0,standZ+1.16);g.add(scr);}
   // --- PADDOCK behind the pits: team motorhomes / hospitality + tarmac apron ---
   const padGround=new THREE.Mesh(new THREE.BoxGeometry(len+50,0.1,40),new THREE.MeshStandardMaterial({color:0x3d424a,roughness:0.96}));
   padGround.position.set(0,0.04,-26);g.add(padGround);
