@@ -1909,24 +1909,39 @@ function makeBillboardTex(){
   const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;t.anisotropy=8;return t;
 }
 /* overhead gantries + trackside billboards — used on every circuit */
+/* clean bold sponsor board for an overhead bridge (like the TAG Heuer gantry) */
+const BRIDGE_SPONSORS=[['TAG HEUER','#f2f4f6','#12181f'],['DHL','#ffcc00','#d40511'],['EMIRATES','#d71920','#ffffff'],
+  ['ROLEX','#0a3b2e','#d9c07a'],['PIRELLI','#00205b','#ffd200'],['ARAMCO','#0a7a3a','#ffffff'],
+  ['HEINEKEN','#1f7a3d','#ffffff'],['MSC','#ffffff','#0a2a6a'],['QATAR AIRWAYS','#5a1a3a','#ffffff']];
+function makeBridgeBoard(sp){const [w,bg,fg]=sp;const c=cnv(1024,132),x=c.getContext('2d');
+  x.fillStyle=bg;x.fillRect(0,0,1024,132);
+  x.fillStyle=fg;x.textAlign='center';x.textBaseline='middle';
+  x.font=`900 ${w.length>9?58:82}px Arial`;x.fillText(w,512,72);
+  const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;t.anisotropy=8;return t;}
 function buildBridges(sc,P,Nm,Tg,cum,offL,offR){
-  const N=P.length;
+  const N=P.length, night=CFG.night;
   const legMat=new THREE.MeshStandardMaterial({color:0x2a2e36,roughness:0.7,metalness:0.45});
-  const beamMat=new THREE.MeshStandardMaterial({color:0x14171d,roughness:0.7,metalness:0.3});
-  const nB=4;
-  for(let bI=0;bI<nB;bI++){const i=Math.round((bI+0.55)/nB*N)%N;const p=P[i],n=Nm[i],tg=Tg[i];
+  const beamMat=new THREE.MeshStandardMaterial({color:0x14171d,roughness:0.65,metalness:0.4});
+  const nB=5;
+  for(let bI=0;bI<nB;bI++){const i=Math.round((bI+0.5)/nB*N)%N;const p=P[i],n=Nm[i],tg=Tg[i];
     const gyc=TRACK.terrainH(p.x,p.z);
     const L=new THREE.Vector3().copy(p).addScaledVector(n,offL(i)+1.5), Rr=new THREE.Vector3().copy(p).addScaledVector(n,-offR(i)-1.5);
     const span=L.distanceTo(Rr), H=9.5, ang=Math.atan2(n.x,n.z), fang=Math.atan2(tg.x,tg.z);
+    // portal legs with a small footing plinth
     for(const pt of [L,Rr]){const gy=TRACK.terrainH(pt.x,pt.z);
-      const leg=new THREE.Mesh(new THREE.BoxGeometry(1.3,H,1.3),legMat);leg.position.set(pt.x,gy+H/2,pt.z);leg.castShadow=true;sc.add(leg);}
+      const leg=new THREE.Mesh(new THREE.BoxGeometry(1.3,H,1.3),legMat);leg.position.set(pt.x,gy+H/2,pt.z);leg.castShadow=true;sc.add(leg);
+      const foot=new THREE.Mesh(new THREE.BoxGeometry(2.2,1.0,2.2),legMat);foot.position.set(pt.x,gy+0.5,pt.z);sc.add(foot);}
     const mid=new THREE.Vector3().lerpVectors(L,Rr,0.5);
-    const beam=new THREE.Mesh(new THREE.BoxGeometry(3.4,2.6,span),beamMat);beam.position.set(mid.x,gyc+H+1.3,mid.z);beam.rotation.y=ang;sc.add(beam);
-    // ONE double-sided sign spanning the beam, facing ALONG the track (both approaches)
-    const sign=new THREE.Mesh(new THREE.PlaneGeometry(span*0.84,2.2),
-      new THREE.MeshBasicMaterial({map:makeBillboardTex(),side:THREE.DoubleSide}));
-    sign.position.set(mid.x,gyc+H+1.3,mid.z);
-    sign.lookAt(mid.x+Math.sin(fang)*10,gyc+H+1.3,mid.z+Math.cos(fang)*10);
+    // top structural chord + a lower chord (reads as a sturdy truss gantry)
+    const beam=new THREE.Mesh(new THREE.BoxGeometry(2.6,1.1,span),beamMat);beam.position.set(mid.x,gyc+H+2.6,mid.z);beam.rotation.y=ang;sc.add(beam);
+    const lchord=new THREE.Mesh(new THREE.BoxGeometry(2.2,0.7,span),beamMat);lchord.position.set(mid.x,gyc+H-0.4,mid.z);lchord.rotation.y=ang;sc.add(lchord);
+    // the big double-sided SPONSOR board slung under the chord, facing both approaches
+    const sp=BRIDGE_SPONSORS[(bI+(CFG.id||'').length)%BRIDGE_SPONSORS.length];
+    const boardMat=new THREE.MeshStandardMaterial({map:makeBridgeBoard(sp),side:THREE.DoubleSide,roughness:0.55,
+      emissive:night?0xffffff:0x000000,emissiveMap:night?makeBridgeBoard(sp):null,emissiveIntensity:night?0.5:0});
+    const sign=new THREE.Mesh(new THREE.PlaneGeometry(span*0.92,2.6),boardMat);
+    sign.position.set(mid.x,gyc+H+1.1,mid.z);
+    sign.lookAt(mid.x+Math.sin(fang)*10,gyc+H+1.1,mid.z+Math.cos(fang)*10);
     sc.add(sign);
   }
   // trackside billboards on tall posts, set behind the barrier
@@ -2706,35 +2721,56 @@ function makeTarmacTex(){
   const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;t.wrapS=t.wrapT=THREE.RepeatWrapping;t.anisotropy=8;return t;
 }
 /* faint painted wordmark for run-off tarmac */
-function makeRunoffWord(w){
-  const c=cnv(512,190),x=c.getContext('2d');x.clearRect(0,0,512,190);
-  x.fillStyle='rgba(236,239,243,0.42)';x.textAlign='center';x.textBaseline='middle';x.font='900 92px Arial';
-  x.fillText(w,256,98);
-  const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;t.anisotropy=8;return t;
+/* a colour + bold repeating wordmark for a painted run-off band (e.g. the orange DHL run-off) */
+function makeRunoffBand(word,hex){
+  const c=cnv(512,256),x=c.getContext('2d');
+  x.fillStyle=hex;x.fillRect(0,0,512,256);
+  for(let i=0;i<2600;i++){x.fillStyle=`rgba(0,0,0,${Math.random()*0.10})`;x.fillRect(Math.random()*512,Math.random()*256,2.2,2.2);}
+  x.fillStyle='rgba(255,255,255,0.92)';x.textAlign='center';x.textBaseline='middle';
+  x.font='900 148px Arial';x.fillText(word,256,140);
+  const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;t.wrapS=t.wrapT=THREE.RepeatWrapping;t.anisotropy=8;return t;
 }
-/* big painted sponsor/track logos on the tarmac run-off at corner apexes */
+/* rotating palette of sponsor wordmarks + colours for the painted run-off bands
+   (so each circuit gets a varied mix, not one colour) */
+const RUNOFF_PALETTE=[['DHL',0xff6a00],['PIRELLI',0x00205b],['ARAMCO',0x0a7a3a],['EMIRATES',0xd71920],
+  ['ROLEX',0x0a3b2e],['HEINEKEN',0x1f7a3d],['MSC',0xf5b301],['PETRONAS',0x00a19a],['AWS',0xff9a00]];
+/* bold painted sponsor run-off bands around the whole lap — corners AND straights,
+   a different sponsor/colour each zone (like the orange DHL band, but varied) */
 function buildRunoffPaint(sc,P,Nm,cum,sturn,HW,widthFn){
-  const N=P.length, gh=TRACK.terrainH;
-  const words=['PIRELLI','ROLEX','DHL','HEINEKEN','EMIRATES','PETRONAS','ARAMCO'];
-  const accent=new THREE.Color(TRACK_ACCENT[CFG.id]||0x3a86ff);
-  const patchMat=new THREE.MeshStandardMaterial({color:accent,roughness:0.9,transparent:true,opacity:0.55,side:THREE.DoubleSide,
-    emissive:accent.clone().multiplyScalar(0.35),emissiveIntensity:0.5});
-  let wi=0,last=-1e9,ci=0;
-  for(let i=5;i<N-5;i++){ const s=Math.abs(sturn[i]); if(s<0.12) continue;
-    if(s<Math.abs(sturn[i-3])||s<Math.abs(sturn[i+3])) continue;   // local corner apex
-    if(cum[i]-last<120) continue; last=cum[i]; ci++;
-    const side=sturn[i]<0?1:-1;                                    // paint on the run-off (outside) side
-    const w=widthFn(i), off=HW+2.0+w*0.45;
-    const p=P[i],n=Nm[i],tg=new THREE.Vector3(-n.z,0,n.x),fang=Math.atan2(tg.x,tg.z);
-    const x=p.x+n.x*side*off, z=p.z+n.z*side*off, gy=gh(x,z);
-    // colour the run-off in the track's flag/accent colour on every other apex
-    if(ci%2===0){
-      const patch=new THREE.Mesh(new THREE.PlaneGeometry(Math.min(w*0.8,6.5),15),patchMat);
-      patch.rotation.x=-Math.PI/2;patch.rotation.z=fang;patch.position.set(x,gy+0.02,z);patch.renderOrder=0;sc.add(patch);
+  const N=P.length, gh=TRACK.terrainH, TH=0.05, cache={};
+  const matFor=(idx)=>{const [word,col]=RUNOFF_PALETTE[idx%RUNOFF_PALETTE.length];
+    if(cache[word])return cache[word];
+    const tex=makeRunoffBand(word,'#'+new THREE.Color(col).getHexString());tex.repeat.set(1/12,1);
+    return cache[word]=new THREE.MeshStandardMaterial({map:tex,roughness:0.82,side:THREE.DoubleSide,
+      polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2});};
+  const buildBand=(a,b,side,mat)=>{
+    const bandW=Math.min(Math.max(widthFn(a),3.5),6.5), inner=HW+1.4, outer=inner+bandW;
+    const pos=[],uv=[],idx=[]; let u=0, px=null,pz=null;
+    for(let k=a;k<=b;k++){const p=P[k],n=Nm[k];
+      const ix=p.x+n.x*side*inner, iz=p.z+n.z*side*inner;
+      const ox=p.x+n.x*side*outer, oz=p.z+n.z*side*outer;
+      if(px!==null) u+=Math.hypot(ix-px,iz-pz); px=ix;pz=iz;
+      pos.push(ix,gh(ix,iz)+TH,iz, ox,gh(ox,oz)+TH,oz);
+      uv.push(u,0, u,1);
     }
-    // painted sponsor wordmark on top
-    const pl=new THREE.Mesh(new THREE.PlaneGeometry(13,5),new THREE.MeshBasicMaterial({map:makeRunoffWord(words[wi++%words.length]),transparent:true,alphaTest:0.2,depthWrite:false}));
-    pl.rotation.x=-Math.PI/2;pl.rotation.z=fang;pl.position.set(x,gy+0.035,z);pl.renderOrder=1;sc.add(pl);
+    for(let s=0;s<b-a;s++){const v=s*2; idx.push(v,v+2,v+1, v+1,v+2,v+3);}
+    const g=new THREE.BufferGeometry();
+    g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));
+    g.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));
+    g.setIndex(idx); flatUp(g);
+    const m=new THREE.Mesh(g,mat); m.receiveShadow=true; m.renderOrder=1; sc.add(m);
+  };
+  // sweep the whole lap in zones (with gaps); each zone gets the next sponsor colour
+  let bi=(CFG.id||'').length;                    // per-track offset → circuits differ
+  const seg=26+(bi%3)*7;
+  let i=6;
+  while(i<N-8){
+    const a=i, b=Math.min(N-6,i+seg);
+    let net=0; for(let k=a;k<=b;k++) net+=sturn[k];
+    const side = Math.abs(net)>0.5 ? (net<0?1:-1)   // outside of a corner
+               : ((bi%2)?1:-1);                     // straights: alternate the painted side
+    buildBand(a,b,side,matFor(bi)); bi++;
+    i=b+10;                                          // gap of bare run-off between painted zones
   }
 }
 function makeCheck(){
