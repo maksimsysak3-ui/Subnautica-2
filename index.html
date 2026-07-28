@@ -648,10 +648,10 @@ globeScene.environment=envRT.texture;
 cineScene.environment=envRT.texture;
 let GLOBE=null;                                   // {group, earth, pin, glow}
 /* real-world circuit locations (lat, lon) for the globe pin */
-const TRACK_LOC={ spa:[50.44,5.97], yas:[24.47,54.60], silverstone:[52.07,-1.02], monaco:[43.73,7.42], austria:[47.22,14.76], saopaulo:[-23.70,-46.70], jeddah:[21.63,39.10], catalunya:[41.57,2.26], miami:[25.96,-80.24], montreal:[45.50,-73.52], australia:[-37.84,144.97], bahrain:[26.03,50.51], lasvegas:[36.11,-115.17] };
+const TRACK_LOC={ spa:[50.44,5.97], yas:[24.47,54.60], silverstone:[52.07,-1.02], monaco:[43.73,7.42], austria:[47.22,14.76], saopaulo:[-23.70,-46.70], jeddah:[21.63,39.10], catalunya:[41.57,2.26], miami:[25.96,-80.24], montreal:[45.50,-73.52], australia:[-37.84,144.97], bahrain:[26.03,50.51], lasvegas:[36.11,-115.17], zandvoort:[52.39,4.54], baku:[40.37,49.85], hungary:[47.58,19.25] };
 /* per-track accent colour + pit-building palette (unique pit/grandstand look) */
-const TRACK_ACCENT={ spa:0xb11015, yas:0x6a3aa0, silverstone:0xc8102e, monaco:0x1f6feb, austria:0x0a2a6a, saopaulo:0x1a9e3e, jeddah:0x8a2be2, catalunya:0xd8a21a, miami:0x00c2c7, montreal:0xd11a2a, australia:0x1a9e3e, bahrain:0xc8102e, lasvegas:0xff2a6a };
-const TRACK_PIT={ spa:0xe9edf1, yas:0x14304a, silverstone:0xeef1f4, monaco:0xd8cdb8, austria:0x1a1f2a, saopaulo:0xdfe4e8, jeddah:0x141826, catalunya:0xe4d9b8, miami:0xeef2f4, montreal:0xe0e4e8, australia:0xe8ecf0, bahrain:0x1a1420, lasvegas:0x18121f };
+const TRACK_ACCENT={ spa:0xb11015, yas:0x6a3aa0, silverstone:0xc8102e, monaco:0x1f6feb, austria:0x0a2a6a, saopaulo:0x1a9e3e, jeddah:0x8a2be2, catalunya:0xd8a21a, miami:0x00c2c7, montreal:0xd11a2a, australia:0x1a9e3e, bahrain:0xc8102e, lasvegas:0xff2a6a, zandvoort:0xff6a00, baku:0xd81c1c, hungary:0xc8102e };
+const TRACK_PIT={ spa:0xe9edf1, yas:0x14304a, silverstone:0xeef1f4, monaco:0xd8cdb8, austria:0x1a1f2a, saopaulo:0xdfe4e8, jeddah:0x141826, catalunya:0xe4d9b8, miami:0xeef2f4, montreal:0xe0e4e8, australia:0xe8ecf0, bahrain:0x1a1420, lasvegas:0x18121f, zandvoort:0xe8814a, baku:0xd8cfb8, hungary:0xdfe4e8 };
 
 /* ---- showroom (menu) ---- */
 function buildShowroom(sc){
@@ -770,6 +770,31 @@ const LASVEGAS=[
  [61,454],[50,499],[49,511],[69,518],[115,541],[174,580],[280,637],[363,672],[400,681],[459,681],
  [570,684],[704,681],[856,682],[955,683],[1021,680],[1039,680],[1036,655],[1076,618],[1077,467],[1078,355],
  [1079,272],[1078,255],[1071,238]
+];
+const ZANDVOORT=[
+ [789,457],[752,547],[717,631],[701,672],[691,681],[676,684],[659,676],[647,662],[647,644],[670,598],
+ [691,536],[692,496],[692,476],[706,458],[758,437],[770,421],[765,403],[755,391],[737,392],[681,409],
+ [636,420],[605,420],[561,412],[511,402],[471,412],[437,429],[417,443],[389,457],[356,462],[265,455],
+ [240,452],[212,428],[200,393],[203,363],[254,295],[289,214],[314,203],[355,206],[386,221],[418,240],
+ [437,261],[431,281],[416,291],[402,297],[357,304],[301,329],[294,351],[302,374],[323,386],[375,387],
+ [481,384],[601,347],[651,325],[670,311],[685,320],[694,334],[714,343],[728,336],[736,324],[730,285],
+ [706,148],[703,129],[719,106],[747,97],[780,97],[820,100],[848,112],[868,132],[888,168],[890,189],
+ [883,221],[853,291],[829,357],[806,415]
+];
+const BAKU=[
+ [834,588],[914,635],[959,658],[975,668],[999,643],[1039,574],[1057,539],[1001,505],[857,418],[767,367],
+ [721,341],[664,427],[528,367],[516,391],[449,373],[358,345],[347,346],[343,336],[394,262],[387,258],
+ [384,240],[373,230],[386,202],[366,184],[260,128],[231,117],[192,129],[141,148],[108,178],[76,205],
+ [58,214],[64,232],[73,296],[83,351],[86,372],[128,365],[173,356],[229,369],[286,375],[341,355],
+ [417,374],[486,394],[571,436],[665,487],[786,561]
+];
+const HUNGARY=[
+ [364,475],[367,241],[366,142],[365,122],[372,110],[392,112],[413,137],[439,187],[441,222],[438,270],
+ [440,338],[441,353],[456,367],[474,374],[493,363],[504,332],[523,290],[605,270],[727,244],[761,240],
+ [800,243],[866,157],[883,146],[904,149],[922,163],[929,201],[922,253],[918,303],[914,321],[888,322],
+ [860,358],[831,396],[826,414],[850,449],[858,467],[853,489],[829,504],[763,545],[747,579],[733,621],
+ [714,643],[682,650],[609,642],[493,634],[480,633],[472,622],[483,554],[484,503],[471,490],[452,487],
+ [437,501],[437,535],[436,582],[436,604],[417,620],[387,623],[371,606],[361,591],[362,535]
 ];
 const JEDDAH=[
  [867,232],[775,309],[734,345],[714,361],[707,365],[704,372],[714,380],[716,391],[701,399],[681,401],
@@ -892,6 +917,18 @@ const TRACKS={
     halfW:7.6, night:true, env:'vegas', street:true, runoff:'none', suits:true,
     kerb:['#d81c1c','#eef1f4'], asphalt:0x1c1f27, ground:0x14121c, laprec:'1:40',
     elev:f=>0 },                          // night Strip street race, casino neon, playing-card kerbs
+  zandvoort:{ id:'zandvoort', name:'ZANDVOORT', country:'NETHERLANDS', flag:'🇳🇱', points:ZANDVOORT, len:4259,
+    halfW:6.6, night:false, env:'zandvoort', runoff:'aramco', sectors:[0.30,0.66],
+    kerb:['#ff6a00','#eef1f4'], asphalt:0x33363c, ground:0x9a8a5a, laprec:'1:14',
+    elev:f=>4.5*Math.sin(f*TAU*2+0.6)+2.2*Math.sin(f*TAU*4) },   // coastal dunes, banking, orange kerbs
+  baku:{ id:'baku', name:'BAKU CITY', country:'AZERBAIJAN', flag:'🇦🇿', points:BAKU, len:6003,
+    halfW:6.4, night:false, env:'baku', street:true, runoff:'none', sectors:[0.42,0.72],
+    kerb:['#d81c1c','#eef1f4'], asphalt:0x30333b, ground:0x6a6250, laprec:'1:45',
+    elev:f=>1.4*Math.sin(f*TAU*2) },      // castle street section, tight walls, Emirates barriers
+  hungary:{ id:'hungary', name:'HUNGARORING', country:'HUNGARY', flag:'🇭🇺', points:HUNGARY, len:4381,
+    halfW:6.8, night:false, env:'hungaroring', runoff:'mixed', sectors:[0.28,0.63],
+    kerb:['#d81c1c','#eef1f4'], asphalt:0x34373d, ground:0x4a7a34, laprec:'1:18',
+    elev:f=>3.6*Math.sin(f*TAU*2-0.4)+1.8*Math.sin(f*TAU*3) },   // hilly natural amphitheatre, twisty
 };
 let CFG=TRACKS.spa;
 let selLivery='redbull';          // chosen team livery (editor)
@@ -1055,6 +1092,15 @@ function buildWorld(sc,cfg){
     const wl=new THREE.MeshBasicMaterial({color:0xffffff,side:THREE.DoubleSide});
     strip(k=>HW+0.9+Math.max(runL[k]-0.5,0), k=>HW+0.9+runL[k], 0.01, wl, 1);
     strip(k=>-(HW+0.9+Math.max(runR[k]-0.5,0)), k=>-(HW+0.9+runR[k]), 0.01, wl, 1);
+  }else if(cfg.runoff==='aramco'){
+    // Zandvoort: signature aramco light-blue painted tarmac run-off (widens into the banking)
+    const aMat=new THREE.MeshStandardMaterial({color:0x2a7fd0,roughness:0.72,metalness:0.1,emissive:0x0a2c50,emissiveIntensity:0.3,side:THREE.DoubleSide});
+    strip(k=>HW+0.75, k=>HW+0.75+runL[k], 0.0, aMat, 0, 9);
+    strip(k=>-(HW+0.75), k=>-(HW+0.75+runR[k]), 0.0, aMat, 0, 9);
+    const wl=new THREE.MeshBasicMaterial({color:0xffffff,side:THREE.DoubleSide});
+    strip(k=>HW+0.75+Math.max(runL[k]-0.5,0), k=>HW+0.75+runL[k], 0.01, wl, 1);
+    strip(k=>-(HW+0.75+Math.max(runR[k]-0.5,0)), k=>-(HW+0.75+runR[k]), 0.01, wl, 1);
+    buildRunoffPaint(sc,P,Nm,cum,sturn,HW,k=>Math.max(3,runL[k],runR[k]));
   }else if(cfg.runoff==='sand'){
     // Bahrain: sand-coloured asphalt run-off with the signature red/blue painted edges
     const sandMat=new THREE.MeshStandardMaterial({color:0x8a6a44,roughness:0.98,side:THREE.DoubleSide});
@@ -1174,7 +1220,9 @@ function buildWorld(sc,cfg){
   else if(cfg.env==='melbourne') buildMelbourne(sc,P,Nm,Tg,barOff,barOffR); // Albert Park: lake + city
   else if(cfg.env==='bahrain') buildBahrain(sc,P,Nm,Tg,barOff,barOffR); // floodlit desert
   else if(cfg.env==='vegas') buildVegas(sc,P,Nm,Tg,barOff,barOffR); // neon Strip casinos
-  else if(cfg.env==='british'||cfg.env==='catalunya'||cfg.env==='montreal') buildBritish(sc,P,Nm,barOff,barOffR); // open parkland/trees
+  else if(cfg.env==='zandvoort') buildZandvoort(sc,P,Nm,Tg,barOff,barOffR); // coastal dunes + sea
+  else if(cfg.env==='baku') buildBaku(sc,P,Nm,Tg,barOff,barOffR);        // old-city castle street
+  else if(cfg.env==='british'||cfg.env==='catalunya'||cfg.env==='montreal'||cfg.env==='hungaroring') buildBritish(sc,P,Nm,barOff,barOffR); // open parkland/trees
   else if(cfg.forest) buildForest(sc,P,Nm,barOff,barOffR);       // Spa: Ardennes forest
   else buildDesert(sc,P,Nm,Tg,barOff,barOffR);                   // Yas: desert + hotel
   buildGrandstands(sc,P,Nm,Tg,barOff,barOffR);                  // grandstands on every circuit (clearance-checked)
@@ -2122,6 +2170,89 @@ function buildVegas(sc,P,Nm,Tg,offL,offR){
     const t=hues[i%hues.length];
     const b=new THREE.Mesh(new THREE.BoxGeometry(13,h,13),new THREE.MeshStandardMaterial({map:makeWindows(3,Math.max(6,h/8|0),t),emissive:new THREE.Color(t).multiplyScalar(0.14),emissiveIntensity:0.85,roughness:0.7}));
     b.position.set(Math.cos(a)*rr,h/2-2,Math.sin(a)*rr);sc.add(b);}
+}
+/* ---- Zandvoort: North-Sea coast — dunes, the sea, a beach town, orange crowds ---- */
+function buildZandvoort(sc,P,Nm,Tg,offL,offR){
+  const N=P.length,R=TRACK.radius,gh=TRACK.terrainH;
+  let cX=0,cZ=0;for(const p of P){cX+=p.x;cZ+=p.z;}cX/=N;cZ/=N;
+  const samp=[];for(let i=0;i<N;i+=3)samp.push(P[i]);
+  const clr=(x,z)=>{let m=1e9;for(const q of samp){const dx=x-q.x,dz=z-q.z;const d=dx*dx+dz*dz;if(d<m)m=d;}return m;};
+  const M=new THREE.Matrix4(),S=new THREE.Vector3(),Q=new THREE.Quaternion(),T=new THREE.Vector3();
+  // --- the North Sea on one side (a big shimmering plane out past the dunes) ---
+  const seaDir=new THREE.Vector3(1,0,0.3).normalize();
+  const sea=new THREE.Mesh(new THREE.PlaneGeometry(R*4,R*4),
+    new THREE.MeshStandardMaterial({color:0x2b6f92,roughness:0.15,metalness:0.6,emissive:0x0a2c3e,emissiveIntensity:0.2}));
+  sea.rotation.x=-Math.PI/2;sea.position.set(cX+seaDir.x*R*2.1,-1.2,cZ+seaDir.z*R*2.1);sc.add(sea);
+  // --- sand dunes ringing the circuit (marram-grass tufts on top) ---
+  { const g=new THREE.SphereGeometry(1,10,6),m=new THREE.MeshStandardMaterial({color:0xc9b483,roughness:1});
+    const list=[];let n=0,t=0;while(n<1400&&t<15000){t++;const a=Math.random()*TAU,rr=R*0.55+Math.random()*R*1.3,x=Math.cos(a)*rr,z=Math.sin(a)*rr;
+      if(clr(x,z)<52*52)continue;list.push({x,z,w:16+Math.random()*40,h:5+Math.random()*13});n++;}
+    const im=new THREE.InstancedMesh(g,m,list.length);im.receiveShadow=true;
+    list.forEach((o,i)=>{T.set(o.x,gh(o.x,o.z)-o.h*0.3,o.z);S.set(o.w,o.h,o.w);M.compose(T,Q,S);im.setMatrixAt(i,M);});
+    im.instanceMatrix.needsUpdate=true;im.frustumCulled=false;sc.add(im);
+    // marram grass patches (green-gold cones) scattered on the sand
+    const grass=new THREE.MeshStandardMaterial({color:0x8a9a4a,roughness:1,flatShading:true});
+    const gl=[];let gn=0,gt=0;while(gn<900&&gt<9000){gt++;const a=Math.random()*TAU,rr=R*0.55+Math.random()*R*1.2,x=Math.cos(a)*rr,z=Math.sin(a)*rr;
+      if(clr(x,z)<50*50)continue;gl.push({x,z});gn++;}
+    const cg=new THREE.ConeGeometry(0.5,1,4),cim=new THREE.InstancedMesh(cg,grass,gl.length);
+    gl.forEach((o,i)=>{const h=1.2+Math.random()*1.6;T.set(o.x,gh(o.x,o.z)+h*0.5,o.z);S.set(1.1,h,1.1);M.compose(T,Q,S);cim.setMatrixAt(i,M);});
+    cim.instanceMatrix.needsUpdate=true;cim.frustumCulled=false;sc.add(cim);}
+  // --- the beach town: low pale apartment blocks on the sea side ---
+  { const tints=['#e6e0d4','#dcd4c4','#e8e4da','#cfc8ba'];
+    for(let i=0;i<40;i++){const a=Math.atan2(seaDir.z,seaDir.x)+(Math.random()-0.5)*1.4, rr=R*1.4+Math.random()*R*0.7;
+      const x=cX+Math.cos(a)*rr,z=cZ+Math.sin(a)*rr,h=18+Math.random()*46,w=14+Math.random()*16;
+      const b=new THREE.Mesh(new THREE.BoxGeometry(w,h,w),new THREE.MeshStandardMaterial({map:makeWindows(Math.max(3,w/5|0),Math.max(6,h/7|0),tints[i%4]),color:'#cfc8b8',roughness:0.7,emissive:0x0a0d10,emissiveIntensity:0.2}));
+      b.position.set(x,h/2-1,z);sc.add(b);}
+    // a seaside ferris wheel landmark
+    const wx=cX+seaDir.x*R*1.3, wz=cZ+seaDir.z*R*1.3;
+    if(clr(wx,wz)>80*80){const wheel=new THREE.Group();const rad=20;
+      const rm=new THREE.MeshStandardMaterial({color:0xdfe4ea,metalness:0.4,roughness:0.5});
+      wheel.add(new THREE.Mesh(new THREE.TorusGeometry(rad,0.6,8,36),rm));
+      for(let s=0;s<16;s++){const an=s/16*TAU;const spoke=new THREE.Mesh(new THREE.BoxGeometry(0.15,rad*2,0.15),rm);spoke.rotation.z=an;wheel.add(spoke);
+        const cab=new THREE.Mesh(new THREE.BoxGeometry(1.6,1.6,1.6),new THREE.MeshStandardMaterial({color:[0xff6a00,0xffffff,0xe10600][s%3]}));cab.position.set(Math.cos(an)*rad,Math.sin(an)*rad,0);wheel.add(cab);}
+      const gy=gh(wx,wz);wheel.position.set(wx,gy+rad+3,wz);const leg=new THREE.Mesh(new THREE.BoxGeometry(1.4,rad+4,1.4),rm);leg.position.set(wx,gy+(rad+4)/2,wz);sc.add(leg,wheel);}}
+  // low green dune ring so the far horizon isn't empty
+  const ring=new THREE.Mesh(new THREE.CylinderGeometry(R*1.95,R*2.1,70,56,1,true),
+    new THREE.MeshStandardMaterial({color:0x7a7a4a,roughness:1,side:THREE.BackSide}));ring.position.y=18;sc.add(ring);
+}
+/* ---- Baku: old-city sandstone walls + a castle tower, modern flame towers beyond ---- */
+function buildBaku(sc,P,Nm,Tg,offL,offR){
+  const N=P.length,R=TRACK.radius,gh=TRACK.terrainH,HW=TRACK.halfW;
+  let cX=0,cZ=0;for(const p of P){cX+=p.x;cZ+=p.z;}cX/=N;cZ/=N;
+  const sampB=[];for(let i=0;i<N;i+=2)sampB.push(P[i]);
+  const clr=(x,z)=>{let m=1e9;for(const q of sampB){const dx=x-q.x,dz=z-q.z;const d=dx*dx+dz*dz;if(d<m)m=d;}return m;};
+  // --- sandstone old-city blocks lining the streets, tight to the walls (the castle section) ---
+  const stones=['#d8cba8','#cbb98f','#e0d4b4','#c7b485','#d2c29a','#bfa87e'];
+  for(let i=0;i<N;i+=5){const p=P[i],n=Nm[i],tg=Tg[i],ang=Math.atan2(tg.x,tg.z);
+    for(const [side,off] of [[1,offL],[-1,offR]]){
+      if(Math.random()<0.12) continue;
+      const w=12+Math.random()*14, d=12+Math.random()*14, h=16+Math.random()*34;
+      const diag=Math.hypot(w/2,d/2), dist=off(i)+diag+2.2;   // tight to the barrier (trapped feel)
+      const x=p.x+n.x*side*dist, z=p.z+n.z*side*dist;
+      const need=HW+diag+3.0; if(clr(x,z)<need*need) continue;
+      const col=stones[(Math.random()*stones.length)|0];
+      const b=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),new THREE.MeshStandardMaterial({map:makeWindows(Math.max(3,w/4|0),Math.max(6,h/4|0),'#3a3020'),color:col,roughness:0.9,emissive:0x100c06,emissiveIntensity:0.15}));
+      const gy=gh(x,z);b.position.set(x,gy+h/2,z);b.rotation.y=ang;
+      // flat parapet roof
+      const cap=new THREE.Mesh(new THREE.BoxGeometry(w+0.4,0.8,d+0.4),new THREE.MeshStandardMaterial({color:shadeHex(col,0.8),roughness:0.9}));cap.position.set(x,gy+h+0.4,z);cap.rotation.y=ang;
+      b.castShadow=true;sc.add(b,cap);}}
+  // --- the round crenellated Maiden-Tower-style castle by the tightest corner ---
+  { let i0=0,best=1e9;for(let i=0;i<N;i++){const g=(TRACK.gap&&TRACK.gap[i])||999;if(g<best){best=g;i0=i;}}
+    const p=P[i0],n=Nm[i0];const tx=p.x+n.x*(offL(i0)+18),tz=p.z+n.z*(offL(i0)+18);
+    if(clr(tx,tz)>26*26){const gy=gh(tx,tz);const H=42;
+      const tower=new THREE.Mesh(new THREE.CylinderGeometry(9,10,H,16),new THREE.MeshStandardMaterial({map:makeWindows(8,12,'#3a3020'),color:0xc7b485,roughness:0.92}));tower.position.set(tx,gy+H/2,tz);sc.add(tower);
+      for(let k=0;k<12;k++){const a=k/12*TAU;const cr=new THREE.Mesh(new THREE.BoxGeometry(2,3,2),new THREE.MeshStandardMaterial({color:0xbfa87e,roughness:0.9}));cr.position.set(tx+Math.cos(a)*9,gy+H+1.5,tz+Math.sin(a)*9);sc.add(cr);}}}
+  // --- the Flame Towers: three curved glass towers on the skyline ---
+  { for(let k=0;k<3;k++){const a=Math.atan2(cZ,cX)+2.4+k*0.28, rr=R*1.5, x=cX+Math.cos(a)*rr,z=cZ+Math.sin(a)*rr,H=150-k*14;
+      const fl=new THREE.Mesh(new THREE.CylinderGeometry(6,16,H,20,1,false),
+        new THREE.MeshStandardMaterial({map:makeWindows(10,20,'#ff6a2a'),color:'#2a3a5a',metalness:0.5,roughness:0.4,emissive:0x2a1408,emissiveIntensity:0.5}));
+      fl.position.set(x,H/2-2,z);fl.scale.set(1,1,0.6);sc.add(fl);}}
+  // distant modern city + a warm haze ring
+  const tints=['#6a7280','#5a6472','#727a86'];
+  for(let i=0;i<40;i++){const a=Math.random()*TAU,rr=R*1.35+Math.random()*R*0.8,h=30+Math.random()*90,w=14+Math.random()*16;
+    const b=new THREE.Mesh(new THREE.BoxGeometry(w,h,w),new THREE.MeshStandardMaterial({map:makeWindows(Math.max(3,w/5|0),Math.max(6,h/8|0),tints[i%3]),color:'#7a828e',roughness:0.7}));
+    b.position.set(Math.cos(a)*rr,h/2-2,Math.sin(a)*rr);sc.add(b);}
+  const ring=new THREE.Mesh(new THREE.CylinderGeometry(R*1.95,R*2.1,90,56,1,true),new THREE.MeshStandardMaterial({color:0x4a4432,roughness:1,side:THREE.BackSide}));ring.position.y=22;sc.add(ring);
 }
 /* ---- São Paulo (Interlagos): tree areas, open grass, favela hillsides, city skyline ---- */
 function buildSaoPaulo(sc,P,Nm,offL,offR){
@@ -3166,7 +3297,7 @@ const lap={t:0,num:1,last:null,best:null,prevIdx:0,armed:false,cur:null,bestArr:
   update(dt,idx){
     this.t+=dt;
     if(this.cur&&idx>=0&&idx<this.cur.length)this.cur[idx]=this.t;
-    const s1=(TRACK.N/3)|0, s2=(2*TRACK.N/3)|0;
+    const sb=(CFG.sectors||SECTORS[CFG.id]||[0.3333,0.6667]), s1=(TRACK.N*sb[0])|0, s2=(TRACK.N*sb[1])|0;
     if(this.armed){
       if(this.sec===0&&this.prevIdx<s1&&idx>=s1){this.split(0);this.sec=1;}
       else if(this.sec===1&&this.prevIdx<s2&&idx>=s2){this.split(1);this.sec=2;}
@@ -3290,7 +3421,8 @@ const MODES=[
    meta:[['Assists','LOW'],['Input','KEYS'],['Units','KM/H']]},
 ];
 let sel=0, sessionMode='gp';
-const TRACK_IDS=['spa','yas','silverstone','monaco','austria','saopaulo','jeddah','catalunya','miami','montreal','australia','bahrain','lasvegas']; let selTrack=0, builtTrackId='spa';
+const SECTORS={spa:[0.33,0.62],yas:[0.34,0.66],silverstone:[0.31,0.63],monaco:[0.34,0.64],austria:[0.30,0.62],saopaulo:[0.34,0.66],jeddah:[0.35,0.68],catalunya:[0.36,0.66],miami:[0.32,0.64],montreal:[0.36,0.68],australia:[0.33,0.63],bahrain:[0.30,0.66],lasvegas:[0.40,0.72],zandvoort:[0.30,0.66],baku:[0.42,0.72],hungary:[0.28,0.63]};
+const TRACK_IDS=['spa','yas','silverstone','monaco','austria','saopaulo','jeddah','catalunya','miami','montreal','australia','bahrain','lasvegas','zandvoort','baku','hungary']; let selTrack=0, builtTrackId='spa';
 function curCfg(){return TRACKS[TRACK_IDS[selTrack]];}
 function cycleTrack(d){selTrack=(selTrack+d+TRACK_IDS.length)%TRACK_IDS.length;renderDetail();Sound.init();Sound.blip(430,.05);}
 function buildMenu(){
@@ -3351,7 +3483,7 @@ function closeGarage(){garageOn=false;$('#garage').classList.remove('on');
    SEASON MODE (beta)
    ================================================================== */
 const SEASON={active:false,on:false,team:'redbull',diff:'Pro',name:'M. SYSAK',num:7,sponsor:'Oracle',
-  round:0,cal:['australia','bahrain','jeddah','miami','monaco','catalunya','montreal','austria','silverstone','spa','saopaulo','lasvegas','yas'],points:0,
+  round:0,cal:['australia','bahrain','baku','jeddah','miami','monaco','catalunya','montreal','austria','hungary','zandvoort','silverstone','spa','saopaulo','lasvegas','yas'],points:0,
   field:['M. VÄRLA','R. OKONKWO','L. FENN','S. HÄKKINEN','D. ROSSI','K. TANAKA','A. PETROV','J. MORAIS','E. LARSSON','B. NAKAMURA']};
 const DIFFS=['Rookie','Pro','Legend'], SPONSORS=['Oracle','Petronas','AWS','DHL','Shell','bwt'];
 function openSeasonSetup(){
@@ -3430,7 +3562,8 @@ function drawHubTrack(cf){
   const X=p=>(W-(b-a)*s)/2+(p[0]-a)*s,Y=p=>(H*0.42-(d-c)*s/2)+(p[1]-c)*s;
   const cols=['#ff3535','#3f8bff','#ffd23d'],N=pts.length;
   x.lineJoin='round';x.lineCap='round';x.lineWidth=Math.max(5,s*3.2);
-  for(let seg=0;seg<3;seg++){const i0=(seg*N/3)|0,i1=((seg+1)*N/3)|0;x.strokeStyle=cols[seg];x.shadowColor=cols[seg];x.shadowBlur=16;
+  const sbH=(CFG.sectors||SECTORS[CFG.id]||[0.3333,0.6667]),bnd=[0,(N*sbH[0])|0,(N*sbH[1])|0,N];
+  for(let seg=0;seg<3;seg++){const i0=bnd[seg],i1=bnd[seg+1];x.strokeStyle=cols[seg];x.shadowColor=cols[seg];x.shadowBlur=16;
     x.beginPath();for(let i=i0;i<=i1;i++){const p=pts[i%N];i===i0?x.moveTo(X(p),Y(p)):x.lineTo(X(p),Y(p));}x.stroke();}
   x.shadowBlur=0;
 }
@@ -3707,7 +3840,8 @@ function drawTrackOutline(prog){
   const cols=['#ff3535','#3f8bff','#ffd23d'];       // sector 1/2/3
   x.lineJoin='round';x.lineCap='round';x.lineWidth=Math.max(6,s*4);
   const upto=Math.floor(prog*N);
-  for(let seg=0;seg<3;seg++){const i0=(seg*N/3)|0,i1=((seg+1)*N/3)|0;
+  const sbO=(CFG.sectors||SECTORS[CFG.id]||[0.3333,0.6667]),bnd=[0,(N*sbO[0])|0,(N*sbO[1])|0,N];
+  for(let seg=0;seg<3;seg++){const i0=bnd[seg],i1=bnd[seg+1];
     x.strokeStyle=cols[seg];x.shadowColor=cols[seg];x.shadowBlur=18;x.beginPath();
     let started=false;
     for(let i=i0;i<=Math.min(i1,upto);i++){const p=pts[i%N],px=X(p),py=Y(p);started?x.lineTo(px,py):x.moveTo(px,py);started=true;}
