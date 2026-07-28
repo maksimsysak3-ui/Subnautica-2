@@ -1007,7 +1007,7 @@ const TRACKS={
     elev:f=>1.6*Math.sin(f*TAU*2+0.3) },  // parkland circuit round a lake, Melbourne skyline
   bahrain:{ id:'bahrain', name:'BAHRAIN', country:'BAHRAIN', flag:'🇧🇭', points:BAHRAIN, len:5412,
     halfW:8.0, night:true, env:'bahrain', runoff:'desertmix',
-    kerb:['#d81c1c','#eef1f4'], asphalt:0x24272e, ground:0x8a6a44, laprec:'1:35',
+    kerb:['#d81c1c','#eef1f4'], asphalt:0x24272e, ground:0xc4ac7c, laprec:'1:35',
     elev:f=>2.4*Math.sin(f*TAU*2-0.4) },  // floodlit desert night race, mixed sand/red/grey/blue run-off
   lasvegas:{ id:'lasvegas', name:'LAS VEGAS STRIP', country:'USA', flag:'🇺🇸', points:LASVEGAS, len:6201,
     halfW:7.6, night:true, env:'vegas', street:true, runoff:'none', suits:true,
@@ -1027,7 +1027,7 @@ const TRACKS={
     elev:f=>3.6*Math.sin(f*TAU*2-0.4)+1.8*Math.sin(f*TAU*3) },   // hilly natural amphitheatre, twisty
   qatar:{ id:'qatar', name:'LOSAIL', country:'QATAR', flag:'🇶🇦', points:QATAR, len:5380,
     halfW:8.0, night:true, env:'qatar', runoff:'sand', sectors:[0.36,0.68],
-    kerb:['#7a1f2e','#eef1f4'], asphalt:0x232630, ground:0x9a8358, laprec:'1:24',
+    kerb:['#7a1f2e','#eef1f4'], asphalt:0x232630, ground:0xceb583, laprec:'1:24',
     elev:f=>1.0*Math.sin(f*TAU*2) },      // floodlit desert night race, maroon/white kerbs
   texas:{ id:'texas', name:'CIRCUIT OF THE AMERICAS', country:'USA', flag:'🇺🇸', points:TEXAS, len:5513,
     halfW:7.6, night:false, env:'texas', runoff:'usa', sectors:[0.31,0.63], dynamicSky:true,
@@ -1264,7 +1264,7 @@ function buildWorld(sc,cfg){
     buildRunoffPaint(sc,P,Nm,cum,sturn,HW,k=>Math.max(3,runL[k],runR[k]));
   }else if(cfg.runoff==='sand'){
     // Bahrain: sand-coloured asphalt run-off with the signature red/blue painted edges
-    const sandMat=new THREE.MeshStandardMaterial({color:0x8a6a44,roughness:0.98,side:THREE.DoubleSide});
+    const sandMat=new THREE.MeshStandardMaterial({color:0xcdb98c,roughness:0.95,side:THREE.DoubleSide});
     strip(k=>HW+0.9, k=>HW+0.9+runL[k], 0.0, sandMat, 0, 8);
     strip(k=>-(HW+0.9), k=>-(HW+0.9+runR[k]), 0.0, sandMat, 0, 8);
     const redP=new THREE.MeshStandardMaterial({color:0xb01818,roughness:0.8,side:THREE.DoubleSide});
@@ -1274,7 +1274,7 @@ function buildWorld(sc,cfg){
   }else if(cfg.runoff==='desertmix'){
     // Bahrain: entirely sandy tarmac run-off, MIXED with red/grey/blue painted zones
     // (the colour rotates in bands along the whole run-off, not fixed left/right stripes)
-    const sandMat=new THREE.MeshStandardMaterial({color:0x8a6a44,roughness:0.98,side:THREE.DoubleSide});
+    const sandMat=new THREE.MeshStandardMaterial({color:0xcdb98c,roughness:0.95,side:THREE.DoubleSide});
     strip(k=>HW+0.9, k=>HW+0.9+runL[k], 0.0, sandMat, 0, 8);
     strip(k=>-(HW+0.9), k=>-(HW+0.9+runR[k]), 0.0, sandMat, 0, 8);
     const mixCols=[0xb01818,0x6a6d74,0x123a86];   // red / grey / blue accent bands
@@ -2390,7 +2390,7 @@ function buildBahrain(sc,P,Nm,Tg,offL,offR){
   const clr=(x,z)=>{let m=1e9;for(const q of samp){const dx=x-q.x,dz=z-q.z;const d=dx*dx+dz*dz;if(d<m)m=d;}return m;};
   const M=new THREE.Matrix4(),s=new THREE.Vector3(),q=new THREE.Quaternion(),tr=new THREE.Vector3();
   // rolling sand dunes far out
-  { const g=new THREE.SphereGeometry(1,10,6),m=new THREE.MeshStandardMaterial({color:0x8a6a44,roughness:1});
+  { const g=new THREE.SphereGeometry(1,10,6),m=new THREE.MeshStandardMaterial({color:0xc8ac78,roughness:1});
     const list=[];let n=0,t=0;while(n<1500&&t<16000){t++;const a=Math.random()*TAU,rr=R*0.7+Math.random()*R*1.5,x=Math.cos(a)*rr,z=Math.sin(a)*rr;
       if(clr(x,z)<95*95)continue;list.push({x,z,w:24+Math.random()*50,h:5+Math.random()*14});n++;}
     const im=new THREE.InstancedMesh(g,m,list.length);im.receiveShadow=true;
