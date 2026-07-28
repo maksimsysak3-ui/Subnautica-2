@@ -1173,24 +1173,16 @@ function buildWorld(sc,cfg){
     strip(k=>HW+1.05, k=>HW+2.3, 0.012, grnMat, 1);
     strip(k=>-(HW+1.05), k=>-(HW+2.3), 0.012, grnMat, 1);
   }else{
-    // modern circuits: a wide SPONSORED TARMAC run-off (widens into corners) with a green
-    // astroturf lip at the edge, painted sponsor/track logos, and a gravel trap at slow corners
-    const baseW=k=>Math.max(3.5, Math.min((TRACK.maxOff[k]-HW-0.8), 4+Math.max(runL[k],runR[k])));
-    // emissive floor so the run-off can never render pitch-black (lighting/normal safety net)
-    const tarMat=new THREE.MeshStandardMaterial({map:makeTarmacTex(),color:0x6a707a,roughness:0.95,metalness:0,
-      emissive:0x2a2e34,emissiveIntensity:0.55,side:THREE.DoubleSide});
-    strip(k=>HW+0.75, k=>HW+0.75+baseW(k), 0.0, tarMat, 0, 16);
-    strip(k=>-(HW+0.75), k=>-(HW+0.75+baseW(k)), 0.0, tarMat, 0, 16);
-    // green astroturf lip just outside the kerb line
+    // modern circuits: GRASS run-off (no big grey tarmac) — just a green astroturf lip,
+    // small colour/sponsor patches at the corners, and a gravel trap at the slowest corners
     const grnMat=new THREE.MeshStandardMaterial({color:0x2f7d33,roughness:0.9,side:THREE.DoubleSide});
-    strip(k=>HW+0.72, k=>HW+1.4, 0.006, grnMat, 1);
-    strip(k=>-(HW+0.72), k=>-(HW+1.4), 0.006, grnMat, 1);
-    // gravel trap only at the very widest (slow) corners
+    strip(k=>HW+0.7, k=>HW+1.5, 0.006, grnMat, 1);
+    strip(k=>-(HW+0.7), k=>-(HW+1.5), 0.006, grnMat, 1);
     const gravelMat=new THREE.MeshStandardMaterial({map:makeGravel(),roughness:1,side:THREE.DoubleSide});
-    const gvL=k=>runL[k]>18?runL[k]-8:0, gvR=k=>runR[k]>18?runR[k]-8:0;
-    strip(k=>HW+0.75+8, k=>HW+0.75+8+gvL(k), 0.004, gravelMat, 0, 6);
-    strip(k=>-(HW+0.75+8), k=>-(HW+0.75+8+gvR(k)), 0.004, gravelMat, 0, 6);
-    buildRunoffPaint(sc,P,Nm,cum,sturn,HW,baseW);
+    const gvL=k=>runL[k]>16?Math.min(runL[k]-4,14):0, gvR=k=>runR[k]>16?Math.min(runR[k]-4,14):0;
+    strip(k=>HW+1.6, k=>HW+1.6+gvL(k), 0.004, gravelMat, 0, 6);
+    strip(k=>-(HW+1.6), k=>-(HW+1.6+gvR(k)), 0.004, gravelMat, 0, 6);
+    buildRunoffPaint(sc,P,Nm,cum,sturn,HW,k=>Math.max(3,runL[k],runR[k]));
   }
 
   // road (asphalt) — wet circuits get a darker, glossy, reflective surface
@@ -2633,11 +2625,11 @@ function buildRunoffPaint(sc,P,Nm,cum,sturn,HW,widthFn){
     const x=p.x+n.x*side*off, z=p.z+n.z*side*off, gy=gh(x,z);
     // colour the run-off in the track's flag/accent colour on every other apex
     if(ci%2===0){
-      const patch=new THREE.Mesh(new THREE.PlaneGeometry(Math.min(w*0.95,10),24),patchMat);
+      const patch=new THREE.Mesh(new THREE.PlaneGeometry(Math.min(w*0.8,6.5),15),patchMat);
       patch.rotation.x=-Math.PI/2;patch.rotation.z=fang;patch.position.set(x,gy+0.02,z);patch.renderOrder=0;sc.add(patch);
     }
     // painted sponsor wordmark on top
-    const pl=new THREE.Mesh(new THREE.PlaneGeometry(19,7),new THREE.MeshBasicMaterial({map:makeRunoffWord(words[wi++%words.length]),transparent:true,alphaTest:0.2,depthWrite:false}));
+    const pl=new THREE.Mesh(new THREE.PlaneGeometry(13,5),new THREE.MeshBasicMaterial({map:makeRunoffWord(words[wi++%words.length]),transparent:true,alphaTest:0.2,depthWrite:false}));
     pl.rotation.x=-Math.PI/2;pl.rotation.z=fang;pl.position.set(x,gy+0.035,z);pl.renderOrder=1;sc.add(pl);
   }
 }
