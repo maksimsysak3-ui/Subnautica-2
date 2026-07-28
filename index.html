@@ -716,10 +716,10 @@ globeScene.environment=envRT.texture;
 cineScene.environment=envRT.texture;
 let GLOBE=null;                                   // {group, earth, pin, glow}
 /* real-world circuit locations (lat, lon) for the globe pin */
-const TRACK_LOC={ spa:[50.44,5.97], yas:[24.47,54.60], silverstone:[52.07,-1.02], monaco:[43.73,7.42], austria:[47.22,14.76], saopaulo:[-23.70,-46.70], jeddah:[21.63,39.10], catalunya:[41.57,2.26], miami:[25.96,-80.24], montreal:[45.50,-73.52], australia:[-37.84,144.97], bahrain:[26.03,50.51], lasvegas:[36.11,-115.17], zandvoort:[52.39,4.54], baku:[40.37,49.85], hungary:[47.58,19.25] };
+const TRACK_LOC={ spa:[50.44,5.97], yas:[24.47,54.60], silverstone:[52.07,-1.02], monaco:[43.73,7.42], austria:[47.22,14.76], saopaulo:[-23.70,-46.70], jeddah:[21.63,39.10], catalunya:[41.57,2.26], miami:[25.96,-80.24], montreal:[45.50,-73.52], australia:[-37.84,144.97], bahrain:[26.03,50.51], lasvegas:[36.11,-115.17], zandvoort:[52.39,4.54], baku:[40.37,49.85], hungary:[47.58,19.25], qatar:[25.49,51.45], texas:[30.13,-97.64] };
 /* per-track accent colour + pit-building palette (unique pit/grandstand look) */
-const TRACK_ACCENT={ spa:0xb11015, yas:0x6a3aa0, silverstone:0xc8102e, monaco:0x1f6feb, austria:0x0a2a6a, saopaulo:0x1a9e3e, jeddah:0x8a2be2, catalunya:0xd8a21a, miami:0x00c2c7, montreal:0xd11a2a, australia:0x1a9e3e, bahrain:0xc8102e, lasvegas:0xff2a6a, zandvoort:0xff6a00, baku:0xd81c1c, hungary:0xc8102e };
-const TRACK_PIT={ spa:0xe9edf1, yas:0x14304a, silverstone:0xeef1f4, monaco:0xd8cdb8, austria:0x1a1f2a, saopaulo:0xdfe4e8, jeddah:0x141826, catalunya:0xe4d9b8, miami:0xeef2f4, montreal:0xe0e4e8, australia:0xe8ecf0, bahrain:0x1a1420, lasvegas:0x18121f, zandvoort:0xe8814a, baku:0xd8cfb8, hungary:0xdfe4e8 };
+const TRACK_ACCENT={ spa:0xb11015, yas:0x6a3aa0, silverstone:0xc8102e, monaco:0x1f6feb, austria:0x0a2a6a, saopaulo:0x1a9e3e, jeddah:0x8a2be2, catalunya:0xd8a21a, miami:0x00c2c7, montreal:0xd11a2a, australia:0x1a9e3e, bahrain:0xc8102e, lasvegas:0xff2a6a, zandvoort:0xff6a00, baku:0xd81c1c, hungary:0xc8102e, qatar:0x7a1f2e, texas:0x0a3d91 };
+const TRACK_PIT={ spa:0xe9edf1, yas:0x14304a, silverstone:0xeef1f4, monaco:0xd8cdb8, austria:0x1a1f2a, saopaulo:0xdfe4e8, jeddah:0x141826, catalunya:0xe4d9b8, miami:0xeef2f4, montreal:0xe0e4e8, australia:0xe8ecf0, bahrain:0x1a1420, lasvegas:0x18121f, zandvoort:0xe8814a, baku:0xd8cfb8, hungary:0xdfe4e8, qatar:0x241a24, texas:0xe4e8ec };
 
 /* ---- showroom (menu) ---- */
 function buildShowroom(sc){
@@ -864,6 +864,27 @@ const HUNGARY=[
  [714,643],[682,650],[609,642],[493,634],[480,633],[472,622],[483,554],[484,503],[471,490],[452,487],
  [437,501],[437,535],[436,582],[436,604],[417,620],[387,623],[371,606],[361,591],[362,535]
 ];
+const QATAR=[
+ [622,686],[373,685],[284,686],[266,686],[250,684],[232,671],[221,652],[227,627],[240,612],[304,578],
+ [345,557],[353,540],[354,516],[336,494],[298,474],[268,457],[240,445],[226,413],[195,328],[168,251],
+ [158,217],[165,193],[185,180],[234,166],[252,160],[275,176],[285,203],[308,266],[319,299],[328,321],
+ [342,331],[357,326],[366,314],[369,269],[382,167],[387,120],[402,103],[420,97],[444,102],[458,114],
+ [466,157],[482,191],[510,224],[535,247],[545,262],[546,276],[534,330],[522,366],[521,385],[532,401],
+ [563,406],[600,393],[655,364],[687,328],[717,259],[748,178],[762,147],[796,125],[834,127],[882,127],
+ [901,136],[915,155],[939,204],[956,235],[960,248],[937,282],[879,350],[850,387],[839,401],[838,419],
+ [853,439],[888,497],[935,569],[977,630],[980,642],[979,660],[969,676],[947,685],[905,686],[740,686],
+ [673,687]
+];
+const TEXAS=[
+ [98,412],[241,546],[313,618],[355,656],[376,670],[388,674],[394,665],[376,599],[368,566],[381,528],
+ [412,509],[493,469],[507,454],[521,423],[534,413],[573,398],[582,371],[588,346],[616,326],[643,314],
+ [670,328],[719,354],[755,338],[778,313],[790,305],[811,309],[825,324],[836,336],[910,330],[942,327],
+ [1014,255],[1067,198],[1090,176],[1094,165],[1084,159],[1056,165],[950,187],[812,210],[740,216],[618,222],
+ [528,227],[466,227],[444,229],[440,235],[456,262],[486,315],[495,332],[491,342],[479,344],[445,339],
+ [437,331],[432,312],[413,280],[390,271],[377,271],[371,283],[393,318],[411,360],[418,384],[406,413],
+ [400,426],[377,440],[346,448],[318,442],[291,429],[264,391],[237,344],[218,318],[152,335],[83,358],
+ [63,366],[58,377],[77,394]
+];
 const JEDDAH=[
  [867,232],[775,309],[734,345],[714,361],[707,365],[704,372],[714,380],[716,391],[701,399],[681,401],
  [664,402],[634,416],[601,436],[567,455],[558,461],[551,464],[546,473],[546,492],[535,507],[521,518],
@@ -931,6 +952,13 @@ const SAO_ELEV=[
 const CAT_ELEV=[
   [0.00,14],[0.12,22],[0.28,26],[0.42,18],[0.55,12],[0.7,16],[0.85,22],[1.00,14],
 ];
+// Circuit of the Americas: the signature steep climb to Turn 1 (the biggest elevation
+// change on the calendar), rolling esses down the back, flat back straight, undulating home.
+const TEXAS_ELEV=[
+  [0.00,10],[0.035,34],[0.06,29],[0.10,20],[0.15,26],[0.20,14],[0.25,9],   // uphill T1 · the esses
+  [0.34,6],[0.44,5],[0.54,7],[0.62,5],                                    // back section, low
+  [0.70,4],[0.80,10],[0.88,18],[0.94,12],[1.00,10],                       // stadium section rise, home
+];
 /* per-circuit configuration */
 const TRACKS={
   spa:{ id:'spa', name:'SPA-FRANCORCHAMPS', country:'BELGIUM', flag:'🇧🇪', points:SPA, len:7004,
@@ -978,9 +1006,9 @@ const TRACKS={
     kerb:['#1a9e3e','#f2d000'], asphalt:0x33363c, ground:0x3e6d38, laprec:'1:18',
     elev:f=>1.6*Math.sin(f*TAU*2+0.3) },  // parkland circuit round a lake, Melbourne skyline
   bahrain:{ id:'bahrain', name:'BAHRAIN', country:'BAHRAIN', flag:'🇧🇭', points:BAHRAIN, len:5412,
-    halfW:8.0, night:true, env:'bahrain', runoff:'sand',
+    halfW:8.0, night:true, env:'bahrain', runoff:'desertmix',
     kerb:['#d81c1c','#eef1f4'], asphalt:0x24272e, ground:0x8a6a44, laprec:'1:35',
-    elev:f=>2.4*Math.sin(f*TAU*2-0.4) },  // floodlit desert night race
+    elev:f=>2.4*Math.sin(f*TAU*2-0.4) },  // floodlit desert night race, mixed sand/red/grey/blue run-off
   lasvegas:{ id:'lasvegas', name:'LAS VEGAS STRIP', country:'USA', flag:'🇺🇸', points:LASVEGAS, len:6201,
     halfW:7.6, night:true, env:'vegas', street:true, runoff:'none', suits:true,
     kerb:['#d81c1c','#eef1f4'], asphalt:0x1c1f27, ground:0x14121c, laprec:'1:40',
@@ -997,6 +1025,14 @@ const TRACKS={
     halfW:6.8, night:false, env:'hungaroring', runoff:'mixed', sectors:[0.28,0.63],
     kerb:['#d81c1c','#eef1f4'], asphalt:0x34373d, ground:0x4a7a34, laprec:'1:18',
     elev:f=>3.6*Math.sin(f*TAU*2-0.4)+1.8*Math.sin(f*TAU*3) },   // hilly natural amphitheatre, twisty
+  qatar:{ id:'qatar', name:'LOSAIL', country:'QATAR', flag:'🇶🇦', points:QATAR, len:5380,
+    halfW:8.0, night:true, env:'qatar', runoff:'sand', sectors:[0.36,0.68],
+    kerb:['#7a1f2e','#eef1f4'], asphalt:0x232630, ground:0x9a8358, laprec:'1:24',
+    elev:f=>1.0*Math.sin(f*TAU*2) },      // floodlit desert night race, maroon/white kerbs
+  texas:{ id:'texas', name:'CIRCUIT OF THE AMERICAS', country:'USA', flag:'🇺🇸', points:TEXAS, len:5513,
+    halfW:7.6, night:false, env:'texas', runoff:'usa', sectors:[0.31,0.63], dynamicSky:true,
+    kerb:['#d81c1c','#eef1f4'], asphalt:0x2e3138, ground:0x5a7a3c, laprec:'1:37',
+    elev:f=>elevProfile(TEXAS_ELEV,f) },  // Hill Country circuit, huge Turn 1 climb, day → dusk
 };
 let CFG=TRACKS.spa;
 let selLivery='redbull';          // chosen team livery (editor)
@@ -1009,6 +1045,7 @@ function clearScene(sc){ for(let i=sc.children.length-1;i>=0;i--){const o=sc.chi
 function buildWorld(sc,cfg){
   cfg=cfg||CFG; CFG=cfg;
   clearScene(sc);
+  sc.userData.duskT=0; sc.userData.duskDay=null; sc.userData.duskDusk=null;
   TRACK.halfW=cfg.halfW;
   // tall catch-fencing sits atop the sponsor walls on most circuits; open parkland tracks skip it
   const NOFENCE={austria:1,british:1,saopaulo:1};
@@ -1043,12 +1080,12 @@ function buildWorld(sc,cfg){
   sc.userData.wet=wet; sc.userData.storm=storm;
   renderer.toneMappingExposure = night?1.6:(storm?0.82:(wet?0.98:1.05));
   const skyCol = night
-    ? {top:'vec3(0.015,0.02,0.06)',mid:'vec3(0.05,0.04,0.12)',bot:'vec3(0.42,0.20,0.10)'}
+    ? {top:[0.015,0.02,0.06],mid:[0.05,0.04,0.12],bot:[0.42,0.20,0.10]}
     : storm
-    ? {top:'vec3(0.10,0.11,0.14)', mid:'vec3(0.18,0.19,0.22)', bot:'vec3(0.28,0.29,0.32)'}   // very dark storm
+    ? {top:[0.10,0.11,0.14], mid:[0.18,0.19,0.22], bot:[0.28,0.29,0.32]}   // very dark storm
     : wet
-    ? {top:'vec3(0.40,0.43,0.47)', mid:'vec3(0.54,0.56,0.59)', bot:'vec3(0.64,0.65,0.67)'}   // heavy overcast
-    : {top:'vec3(0.24,0.42,0.66)', mid:'vec3(0.62,0.74,0.86)', bot:'vec3(0.78,0.82,0.85)'};
+    ? {top:[0.40,0.43,0.47], mid:[0.54,0.56,0.59], bot:[0.64,0.65,0.67]}   // heavy overcast
+    : {top:[0.24,0.42,0.66], mid:[0.62,0.74,0.86], bot:[0.78,0.82,0.85]};
   sc.background=new THREE.Color(night?0x070a12:(storm?0x3a3e46:(wet?0x94989d:0x9fb6cc)));
   sc.fog=new THREE.Fog(night?0x0a0e18:(storm?0x3a3e46:(wet?0x94989d:0xa9c0d6)), worldR*(storm?0.22:(wet?0.32:0.5)), worldR*(night?3.4:(storm?1.2:(wet?1.7:2.6))));
 
@@ -1066,24 +1103,35 @@ function buildWorld(sc,cfg){
     sunL.shadow.bias=-0.0004;sunL.shadow.radius=wet?4:1;sc.add(sunL,sunL.target);sc.userData.sun=sunL;
   }
 
-  // sky dome — atmospheric gradient + a sun/moon disc with halo glow
+  // sky dome — atmospheric gradient + a sun/moon disc with halo glow.
+  // Built from UNIFORMS (not baked constants) so dynamicSky tracks can animate
+  // the whole sky (day → dusk) live without rebuilding the shader.
   const sun = night
-    ? {dir:'vec3(-0.5,0.55,0.42)', col:'vec3(0.74,0.82,1.0)', disc:'0.55', sharp:'520.0', glow:'0.05'}   // cool moon
+    ? {dir:[-0.5,0.55,0.42], col:[0.74,0.82,1.0], disc:0.55, sharp:520.0, glow:0.05}   // cool moon
     : storm
-    ? {dir:'vec3(0.0,1.0,0.0)',    col:'vec3(0.0)',           disc:'0.0',  sharp:'1.0',   glow:'0.0'}     // blotted out
+    ? {dir:[0.0,1.0,0.0],    col:[0.0,0.0,0.0],   disc:0.0,  sharp:1.0,   glow:0.0}     // blotted out
     : wet
-    ? {dir:'vec3(-0.4,0.5,0.32)',  col:'vec3(0.92,0.94,0.97)',disc:'0.25', sharp:'40.0',  glow:'0.12'}    // sun behind cloud
-    : {dir:'vec3(-0.45,0.30,0.42)',col:'vec3(1.0,0.94,0.80)', disc:'1.15', sharp:'480.0', glow:'0.20'};   // warm day sun
-  const skyMat=new THREE.ShaderMaterial({side:THREE.BackSide,depthWrite:false,
+    ? {dir:[-0.4,0.5,0.32],  col:[0.92,0.94,0.97],disc:0.25, sharp:40.0,  glow:0.12}    // sun behind cloud
+    : {dir:[-0.45,0.30,0.42],col:[1.0,0.94,0.80], disc:1.15, sharp:480.0, glow:0.20};   // warm day sun
+  const cv=a=>new THREE.Color(a[0],a[1],a[2]);
+  const skyU={
+    uTop:{value:cv(skyCol.top)}, uMid:{value:cv(skyCol.mid)}, uBot:{value:cv(skyCol.bot)},
+    uSunDir:{value:new THREE.Vector3(...sun.dir)}, uSunCol:{value:cv(sun.col)},
+    uDisc:{value:sun.disc}, uSharp:{value:sun.sharp}, uGlow:{value:sun.glow},
+  };
+  const skyMat=new THREE.ShaderMaterial({side:THREE.BackSide,depthWrite:false,uniforms:skyU,
     vertexShader:`varying vec3 v;void main(){v=position;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}`,
-    fragmentShader:`varying vec3 v;void main(){vec3 dir=normalize(v);float h=clamp(dir.y*0.5+0.5,0.,1.);
-      vec3 top=${skyCol.top},mid=${skyCol.mid},bot=${skyCol.bot};
-      vec3 c=mix(bot,mid,smoothstep(0.,0.5,h));c=mix(c,top,smoothstep(0.42,1.,h));
-      vec3 sD=normalize(${sun.dir});float sd=max(dot(dir,sD),0.);
-      c+=${sun.col}*pow(sd,${sun.sharp})*${sun.disc};          // sun/moon disc
-      c+=${sun.col}*pow(sd,6.0)*${sun.glow};                   // broad halo
-      c+=${sun.col}*pow(max(1.-abs(dir.y),0.),8.0)*${sun.glow}*0.4;  // horizon warmth
+    fragmentShader:`varying vec3 v;
+      uniform vec3 uTop,uMid,uBot,uSunDir,uSunCol; uniform float uDisc,uSharp,uGlow;
+      void main(){vec3 dir=normalize(v);float h=clamp(dir.y*0.5+0.5,0.,1.);
+      vec3 c=mix(uBot,uMid,smoothstep(0.,0.5,h));c=mix(c,uTop,smoothstep(0.42,1.,h));
+      vec3 sD=normalize(uSunDir);float sd=max(dot(dir,sD),0.);
+      c+=uSunCol*pow(sd,uSharp)*uDisc;                        // sun/moon disc
+      c+=uSunCol*pow(sd,6.0)*uGlow;                            // broad halo
+      c+=uSunCol*pow(max(1.-abs(dir.y),0.),8.0)*uGlow*0.4;     // horizon warmth
       gl_FragColor=vec4(c,1.);}`});
+  sc.userData.skyU=skyU; sc.userData.sunL=sc.userData.sun;
+  sc.userData.hemi=sc.children.find(o=>o.isHemisphereLight);
   const sky=new THREE.Mesh(new THREE.SphereGeometry(worldR*4+2000,48,24),skyMat);
   sc.add(sky);
   camera.far=worldR*8; camera.updateProjectionMatrix();
@@ -1095,6 +1143,29 @@ function buildWorld(sc,cfg){
     const rt=pmrem.fromScene(skyScene,0.02);
     sc.environment=rt.texture; sc.userData.envRT=rt;
     envSky.geometry.dispose(); }
+
+  // --- dynamic day → dusk sky (Circuit of the Americas): capture the day preset now,
+  // craft a dusk target, and let updateDynamicSky() lerp between them each frame ---
+  if(cfg.dynamicSky){
+    sc.userData.duskDay={
+      top:skyCol.top.slice(),mid:skyCol.mid.slice(),bot:skyCol.bot.slice(),
+      sunDir:sun.dir.slice(),sunCol:sun.col.slice(),disc:sun.disc,sharp:sun.sharp,glow:sun.glow,
+      bg:sc.background.clone(), fog:sc.fog.color.clone(),
+      sunLcol:sc.userData.sun.color.clone(), sunLint:sc.userData.sun.intensity,
+      hemiSky:sc.userData.hemi?sc.userData.hemi.color.clone():new THREE.Color(0xffffff),
+      hemiGnd:sc.userData.hemi?sc.userData.hemi.groundColor.clone():new THREE.Color(0x000000),
+      hemiInt:sc.userData.hemi?sc.userData.hemi.intensity:1, exposure:renderer.toneMappingExposure,
+    };
+    sc.userData.duskDusk={
+      top:[0.10,0.10,0.22],mid:[0.55,0.28,0.22],bot:[0.95,0.55,0.30],           // warm dusk gradient
+      sunDir:[-0.30,0.10,0.5],sunCol:[1.0,0.55,0.28],disc:1.3,sharp:220.0,glow:0.4,
+      bg:new THREE.Color(0x3a2418), fog:new THREE.Color(0x4a2e1e),
+      sunLcol:new THREE.Color(0xff8a4a), sunLint:1.5,
+      hemiSky:new THREE.Color(0x6a4a5a), hemiGnd:new THREE.Color(0x2a1c18), hemiInt:0.9,
+      exposure:1.25,
+    };
+    sc.userData.duskSeconds=cfg.duskSeconds||220;
+  }
 
   // ground — a grid that follows the terrain height field
   const gGeo=new THREE.PlaneGeometry(worldR*3,worldR*3,220,220);
@@ -1166,19 +1237,14 @@ function buildWorld(sc,cfg){
     strip(k=>-(HW+0.9), k=>-(HW+0.9+runR[k]), 0.0, aprMat, 0, 8);
     buildSausageKerbs(sc,P,Nm,cum,runL,runR,HW);
   }else if(cfg.runoff==='teal'){
-    // Miami: GRASS run-off with a thin signature turquoise lip at the kerb edge + sponsor bands
-    const grnMat=new THREE.MeshStandardMaterial({color:0x2f7d33,roughness:0.9,side:THREE.DoubleSide});
-    strip(k=>HW+1.6, k=>HW+2.6, 0.006, grnMat, 1);
-    strip(k=>-(HW+1.6), k=>-(HW+2.6), 0.006, grnMat, 1);
-    const tealMat=new THREE.MeshStandardMaterial({color:0x18b8bf,roughness:0.6,metalness:0.1,side:THREE.DoubleSide,
-      emissive:0x0a5b66,emissiveIntensity:0.25});
-    strip(k=>HW+0.9, k=>HW+1.5, 0.02, tealMat, 1);            // narrow turquoise accent lip only
-    strip(k=>-(HW+0.9), k=>-(HW+1.5), 0.02, tealMat, 1);
-    const gravelMat=new THREE.MeshStandardMaterial({map:makeGravel(),roughness:1,side:THREE.DoubleSide});
-    const gvL=k=>runL[k]>16?Math.min(runL[k]-4,14):0, gvR=k=>runR[k]>16?Math.min(runR[k]-4,14):0;
-    strip(k=>HW+2.7, k=>HW+2.7+gvL(k), 0.004, gravelMat, 0, 6);
-    strip(k=>-(HW+2.7), k=>-(HW+2.7+gvR(k)), 0.004, gravelMat, 0, 6);
-    buildRunoffPaint(sc,P,Nm,cum,sturn,HW,k=>Math.max(3,runL[k],runR[k]));
+    // Miami: signature turquoise painted tarmac run-off (entirely light-blue), white outline
+    const tealMat=new THREE.MeshStandardMaterial({color:0x1fc4cc,roughness:0.62,metalness:0.12,side:THREE.DoubleSide,
+      emissive:0x0a5b66,emissiveIntensity:0.28});
+    strip(k=>HW+0.9, k=>HW+0.9+runL[k], 0.0, tealMat, 0, 8);
+    strip(k=>-(HW+0.9), k=>-(HW+0.9+runR[k]), 0.0, tealMat, 0, 8);
+    const wl=new THREE.MeshBasicMaterial({color:0xffffff,side:THREE.DoubleSide});
+    strip(k=>HW+0.9+Math.max(runL[k]-0.5,0), k=>HW+0.9+runL[k], 0.01, wl, 1);
+    strip(k=>-(HW+0.9+Math.max(runR[k]-0.5,0)), k=>-(HW+0.9+runR[k]), 0.01, wl, 1);
   }else if(cfg.runoff==='neon'){
     // Jeddah: vibrant purple/blue tarmac run-off with a bright white outline (glows at night)
     const neonMat=new THREE.MeshStandardMaterial({color:0x2a1f6a,roughness:0.5,metalness:0.3,emissive:0x1a1050,emissiveIntensity:0.6,side:THREE.DoubleSide});
@@ -1205,6 +1271,43 @@ function buildWorld(sc,cfg){
     const bluP=new THREE.MeshStandardMaterial({color:0x123a86,roughness:0.8,side:THREE.DoubleSide});
     strip(k=>HW+0.9, k=>HW+0.9+Math.min(runL[k],2.0), 0.006, redP, 1);
     strip(k=>-(HW+0.9), k=>-(HW+0.9+Math.min(runR[k],2.0)), 0.006, bluP, 1);
+  }else if(cfg.runoff==='desertmix'){
+    // Bahrain: entirely sandy tarmac run-off, MIXED with red/grey/blue painted zones
+    // (the colour rotates in bands along the whole run-off, not fixed left/right stripes)
+    const sandMat=new THREE.MeshStandardMaterial({color:0x8a6a44,roughness:0.98,side:THREE.DoubleSide});
+    strip(k=>HW+0.9, k=>HW+0.9+runL[k], 0.0, sandMat, 0, 8);
+    strip(k=>-(HW+0.9), k=>-(HW+0.9+runR[k]), 0.0, sandMat, 0, 8);
+    const mixCols=[0xb01818,0x6a6d74,0x123a86];   // red / grey / blue accent bands
+    const mixMats=mixCols.map(c=>new THREE.MeshStandardMaterial({color:c,roughness:0.8,side:THREE.DoubleSide}));
+    const nZones=24, zoneN=Math.floor(N/nZones);
+    const band=(a,b,side,mat,w)=>{                    // partial ribbon between index a..b
+      const pos=[],idx=[]; for(let k=a;k<=b;k++){const p=P[k],n=Nm[k];
+        const ix=p.x+n.x*side*(HW+0.9), iz=p.z+n.z*side*(HW+0.9);
+        const ox=p.x+n.x*side*(HW+0.9+w), oz=p.z+n.z*side*(HW+0.9+w);
+        pos.push(ix,TRACK.terrainH(ix,iz)+0.006,iz, ox,TRACK.terrainH(ox,oz)+0.006,oz);}
+      for(let s=0;s<b-a;s++){const v=s*2;idx.push(v,v+2,v+1,v+1,v+2,v+3);}
+      const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));
+      g.setIndex(idx);flatUp(g);sc.add(new THREE.Mesh(g,mat));};
+    for(let zi=0;zi<nZones;zi++){ if(zi%3===2) continue;                          // leave a plain-sand gap
+      const a=zi*zoneN, b=Math.min(N-1,a+zoneN);
+      band(a,b, 1, mixMats[zi%3], Math.min(runL[a],2.2));
+      band(a,b,-1, mixMats[(zi+1)%3], Math.min(runR[a],2.2)); }
+    buildRunoffPaint(sc,P,Nm,cum,sturn,HW,k=>Math.max(3,runL[k],runR[k]));
+  }else if(cfg.runoff==='usa'){
+    // Circuit of the Americas: grass run-off with the signature red/blue kerb-edge lining,
+    // minimal sponsor tarmac patches, and gravel at the heavy-braking zones
+    const grnMat=new THREE.MeshStandardMaterial({color:0x3a7d3a,roughness:0.92,side:THREE.DoubleSide});
+    strip(k=>HW+1.5, k=>HW+2.6, 0.006, grnMat, 1);
+    strip(k=>-(HW+1.5), k=>-(HW+2.6), 0.006, grnMat, 1);
+    const redP=new THREE.MeshStandardMaterial({color:0xc41c1c,roughness:0.75,side:THREE.DoubleSide});
+    const bluP=new THREE.MeshStandardMaterial({color:0x14356e,roughness:0.75,side:THREE.DoubleSide});
+    strip(k=>HW+0.85, k=>HW+1.5, 0.01, redP, 1);
+    strip(k=>-(HW+0.85), k=>-(HW+1.5), 0.01, bluP, 1);
+    const gravelMat=new THREE.MeshStandardMaterial({map:makeGravel(),roughness:1,side:THREE.DoubleSide});
+    const gvL=k=>runL[k]>16?Math.min(runL[k]-4,12):0, gvR=k=>runR[k]>16?Math.min(runR[k]-4,12):0;
+    strip(k=>HW+2.7, k=>HW+2.7+gvL(k), 0.004, gravelMat, 0, 6);
+    strip(k=>-(HW+2.7), k=>-(HW+2.7+gvR(k)), 0.004, gravelMat, 0, 6);
+    buildRunoffPaint(sc,P,Nm,cum,sturn,HW,k=>Math.max(3,runL[k],runR[k]));
   }else if(cfg.runoff==='blue'){
     // Yas Marina: blue/teal tarmac run-off with a white outline, minimal
     const blueMat=new THREE.MeshStandardMaterial({color:0x1c6f7c,roughness:0.85,side:THREE.DoubleSide});
@@ -1309,6 +1412,8 @@ function buildWorld(sc,cfg){
   else if(cfg.env==='vegas') buildVegas(sc,P,Nm,Tg,barOff,barOffR); // neon Strip casinos
   else if(cfg.env==='zandvoort') buildZandvoort(sc,P,Nm,Tg,barOff,barOffR); // coastal dunes + sea
   else if(cfg.env==='baku') buildBaku(sc,P,Nm,Tg,barOff,barOffR);        // old-city castle street
+  else if(cfg.env==='qatar') buildQatar(sc,P,Nm,Tg,barOff,barOffR);      // floodlit desert, Doha skyline
+  else if(cfg.env==='texas') buildTexas(sc,P,Nm,Tg,barOff,barOffR);      // Hill Country, Austin skyline, day→dusk
   else if(cfg.env==='british'||cfg.env==='catalunya'||cfg.env==='montreal'||cfg.env==='hungaroring') buildBritish(sc,P,Nm,barOff,barOffR); // open parkland/trees
   else if(cfg.forest) buildForest(sc,P,Nm,barOff,barOffR);       // Spa: Ardennes forest
   else buildDesert(sc,P,Nm,Tg,barOff,barOffR);                   // Yas: desert + hotel
@@ -1324,6 +1429,36 @@ function buildWorld(sc,cfg){
   else sc.userData.lightning=null;
   miniProj=null;                                   // minimap recomputes for new track
   return {};
+}
+/* day → dusk: lerp the whole sky/lighting rig toward the dusk preset as the session runs
+   (Circuit of the Americas). Regenerates the env-map periodically, not every frame (cost). */
+let _duskEnvT=0;
+function updateDynamicSky(sc,dt){
+  const day=sc.userData.duskDay, dusk=sc.userData.duskDusk; if(!day||!dusk) return;
+  sc.userData.duskT=Math.min(sc.userData.duskT+dt, sc.userData.duskSeconds);
+  const b=clamp(sc.userData.duskT/sc.userData.duskSeconds,0,1), e=b*b*(3-2*b);
+  const lerp3=(a,c,t)=>[a[0]+(c[0]-a[0])*t, a[1]+(c[1]-a[1])*t, a[2]+(c[2]-a[2])*t];
+  const U=sc.userData.skyU;
+  if(U){ const top=lerp3(day.top,dusk.top,e),mid=lerp3(day.mid,dusk.mid,e),bot=lerp3(day.bot,dusk.bot,e);
+    U.uTop.value.setRGB(...top); U.uMid.value.setRGB(...mid); U.uBot.value.setRGB(...bot);
+    const sd=lerp3(day.sunDir,dusk.sunDir,e), sc_=lerp3(day.sunCol,dusk.sunCol,e);
+    U.uSunDir.value.set(sd[0],sd[1],sd[2]); U.uSunCol.value.setRGB(...sc_);
+    U.uDisc.value=day.disc+(dusk.disc-day.disc)*e; U.uSharp.value=day.sharp+(dusk.sharp-day.sharp)*e; U.uGlow.value=day.glow+(dusk.glow-day.glow)*e; }
+  sc.background.copy(day.bg).lerp(dusk.bg,e);
+  if(sc.fog) sc.fog.color.copy(day.fog).lerp(dusk.fog,e);
+  if(sc.userData.sun){ sc.userData.sun.color.copy(day.sunLcol).lerp(dusk.sunLcol,e);
+    sc.userData.sun.intensity=day.sunLint+(dusk.sunLint-day.sunLint)*e; }
+  if(sc.userData.hemi){ sc.userData.hemi.color.copy(day.hemiSky).lerp(dusk.hemiSky,e);
+    sc.userData.hemi.groundColor.copy(day.hemiGnd).lerp(dusk.hemiGnd,e);
+    sc.userData.hemi.intensity=day.hemiInt+(dusk.hemiInt-day.hemiInt)*e; }
+  renderer.toneMappingExposure=day.exposure+(dusk.exposure-day.exposure)*e;
+  // periodic env-map refresh (every ~3s) so reflections track the changing sky without per-frame cost
+  _duskEnvT+=dt; if(_duskEnvT>3 && sc.children.length){ _duskEnvT=0;
+    const skyMesh=sc.children.find(o=>o.geometry&&o.geometry.type==='SphereGeometry'&&o.material&&o.material.uniforms===U);
+    if(skyMesh){ if(sc.userData.envRT) sc.userData.envRT.dispose();
+      const skyScene=new THREE.Scene(); const envSky=new THREE.Mesh(new THREE.SphereGeometry(100,32,16),skyMesh.material);
+      skyScene.add(envSky); const rt=pmrem.fromScene(skyScene,0.02);
+      sc.environment=rt.texture; sc.userData.envRT=rt; envSky.geometry.dispose(); } }
 }
 /* falling-rain streaks that follow the camera (wet circuits) */
 function buildRain(sc){
@@ -2443,11 +2578,14 @@ function buildZandvoort(sc,P,Nm,Tg,offL,offR){
     const cg=new THREE.ConeGeometry(0.5,1,4),cim=new THREE.InstancedMesh(cg,grass,gl.length);
     gl.forEach((o,i)=>{const h=1.2+Math.random()*1.6;T.set(o.x,gh(o.x,o.z)+h*0.5,o.z);S.set(1.1,h,1.1);M.compose(T,Q,S);cim.setMatrixAt(i,M);});
     cim.instanceMatrix.needsUpdate=true;cim.frustumCulled=false;sc.add(cim);}
-  // --- Zandvoort's signature BANKING: raised angled embankments on the two sharpest corners ---
+  // --- Zandvoort's signature BANKING: raised angled embankments on the WIDEST sweeping
+  // corners (Tarzan-style long-radius bends), not the tightest hairpins ---
   { const HW=TRACK.halfW;
-    const score=i=>{let s=0;for(let k=-3;k<=3;k++)s+=curvAtIdx((i+k+N)%N);return s;};
-    const cand=[];for(let i=0;i<N;i+=2)cand.push([i,score(i)]);
-    cand.sort((a,b)=>b[1]-a[1]);
+    // sustained turning over a wide window, but only where curvature stays in a
+    // moderate "sweeping" band (too low = straight, too high = tight hairpin)
+    const avgCurv=i=>{let s=0;for(let k=-10;k<=10;k++)s+=curvAtIdx((i+k+N)%N);return s/21;};
+    const cand=[];for(let i=0;i<N;i+=2){const a=avgCurv(i); if(a>0.018&&a<0.055)cand.push([i,a]);}
+    cand.sort((a,b)=>b[1]-a[1]);                          // widest-but-still-a-turn first
     const picks=[]; for(const [i] of cand){ if(picks.every(pj=>Math.min((i-pj+N)%N,(pj-i+N)%N)>N*0.14)){picks.push(i); if(picks.length>=2)break;} }
     const bankMat=new THREE.MeshStandardMaterial({color:0x40434a,roughness:0.86,side:THREE.DoubleSide});
     const rimMat=new THREE.MeshStandardMaterial({color:0xd94f00,roughness:0.7});
@@ -2587,6 +2725,96 @@ function buildBaku(sc,P,Nm,Tg,offL,offR){
     const b=new THREE.Mesh(new THREE.BoxGeometry(w,h,w),new THREE.MeshStandardMaterial({map:makeWindows(Math.max(3,w/5|0),Math.max(6,h/8|0),tints[i%3]),color:'#7a828e',roughness:0.7}));
     b.position.set(Math.cos(a)*rr,h/2-2,Math.sin(a)*rr);sc.add(b);}
   const ring=new THREE.Mesh(new THREE.CylinderGeometry(R*1.95,R*2.1,90,56,1,true),new THREE.MeshStandardMaterial({color:0x4a4432,roughness:1,side:THREE.BackSide}));ring.position.y=22;sc.add(ring);
+}
+/* ---- Losail (Qatar): floodlit open desert, dunes, a distant Doha skyline ---- */
+function buildQatar(sc,P,Nm,Tg,offL,offR){
+  const N=P.length,R=TRACK.radius,gh=TRACK.terrainH;
+  const samp=[];for(let i=0;i<N;i+=5)samp.push(P[i]);
+  const clr=(x,z)=>{let m=1e9;for(const q of samp){const dx=x-q.x,dz=z-q.z;const d=dx*dx+dz*dz;if(d<m)m=d;}return m;};
+  const M=new THREE.Matrix4(),S=new THREE.Vector3(),Q=new THREE.Quaternion(),T=new THREE.Vector3();
+  // low flat sand dunes, kept well clear of the run-off
+  { const g=new THREE.SphereGeometry(1,10,6), m=new THREE.MeshStandardMaterial({color:0xb89c68,roughness:1});
+    const list=[];let n=0,t=0;while(n<1000&&t<12000){t++;const a=Math.random()*TAU,rr=R*0.75+Math.random()*R*1.4;
+      const x=Math.cos(a)*rr,z=Math.sin(a)*rr;if(clr(x,z)<110*110)continue;
+      list.push({x,z,w:20+Math.random()*40,h:3+Math.random()*7});n++;}
+    const im=new THREE.InstancedMesh(g,m,list.length);im.receiveShadow=true;
+    list.forEach((o,i)=>{T.set(o.x,-o.h*0.3,o.z);S.set(o.w,o.h,o.w);M.compose(T,Q,S);im.setMatrixAt(i,M);});
+    im.instanceMatrix.needsUpdate=true;im.frustumCulled=false;sc.add(im); }
+  // tall floodlight pylons ringing the whole circuit (Losail is famously fully floodlit)
+  { const pole=new THREE.MeshStandardMaterial({color:0x24282f,roughness:0.6,metalness:0.4});
+    const lamp=new THREE.MeshStandardMaterial({color:0xffffff,emissive:0xfff2d0,emissiveIntensity:2.4});
+    for(let i=0;i<N;i+=Math.round(N/26)){const p=P[i],nm=Nm[i];
+      const b=new THREE.Vector3().copy(p).addScaledVector(nm,offL(i)+9);const gy=gh(b.x,b.z);
+      const g=new THREE.Group();const h=24;
+      const col=new THREE.Mesh(new THREE.CylinderGeometry(0.4,0.6,h,6),pole);col.position.y=h/2;g.add(col);
+      const head=new THREE.Mesh(new THREE.BoxGeometry(7,1.6,2),pole);head.position.set(0,h,1.4);g.add(head);
+      for(let k=-2;k<=2;k++){const bl=new THREE.Mesh(new THREE.BoxGeometry(1.1,1.1,0.4),lamp);bl.position.set(k*1.35,h,2.5);g.add(bl);}
+      g.position.set(b.x,gy,b.z);g.lookAt(p.x,gy,p.z);sc.add(g);} }
+  // corniche-style paddock village (hospitality tents) at the infield
+  { let cX=0,cZ=0;for(const p of P){cX+=p.x;cZ+=p.z;}cX/=N;cZ/=N;
+    const tentWall=new THREE.MeshStandardMaterial({color:0xe8e0cc,roughness:0.8});
+    const tentRoof=new THREE.MeshStandardMaterial({color:0x7a1f2e,roughness:0.75});
+    for(let r=0;r<3;r++)for(let c=0;c<4;c++){const x=cX+(c-1.5)*18,z=cZ+(r-1)*18;
+      if(clr(x,z)<50*50) continue;
+      const gy=gh(x,z),g=new THREE.Group();
+      const body=new THREE.Mesh(new THREE.BoxGeometry(11,4.2,11),tentWall);body.position.y=2.1;
+      const roof=new THREE.Mesh(new THREE.ConeGeometry(8.6,2.8,4),tentRoof);roof.rotation.y=Math.PI/4;roof.position.y=5.6;
+      g.add(body,roof);g.position.set(x,gy,z);sc.add(g);}}
+  // distant lit Doha skyline: modern curved/tapered towers with a warm haze
+  { const tints=['#3a4a6a','#4a3a5a','#2f4a4a','#4a4030'];
+    for(let i=0;i<50;i++){const a=Math.random()*TAU,rr=R*1.5+Math.random()*R*0.8,h=50+Math.random()*150,w=14+Math.random()*20;
+      const t=tints[i%4], taper=Math.random()<0.4;
+      const bmat=new THREE.MeshStandardMaterial({map:makeWindows(Math.max(3,w/6|0),Math.max(6,h/8|0),t),
+        emissive:0x1a2038,emissiveIntensity:0.85,roughness:0.65,metalness:0.3});
+      const b=taper?new THREE.Mesh(new THREE.CylinderGeometry(w*0.2,w*0.5,h,8),bmat):new THREE.Mesh(new THREE.BoxGeometry(w,h,w),bmat);
+      b.position.set(Math.cos(a)*rr,h/2-2,Math.sin(a)*rr);sc.add(b);} }
+  const ring=new THREE.Mesh(new THREE.CylinderGeometry(R*2.0,R*2.15,60,56,1,true),
+    new THREE.MeshStandardMaterial({color:0x2a2018,roughness:1,emissive:0x140e08,emissiveIntensity:0.35,side:THREE.BackSide}));
+  ring.position.y=16;sc.add(ring);
+}
+/* ---- Circuit of the Americas (Texas): Hill Country greenery, the COTA observation
+   tower, distant Austin skyline, big Turn-1 amphitheatre climb ---- */
+function buildTexas(sc,P,Nm,Tg,offL,offR){
+  const N=P.length,R=TRACK.radius,gh=TRACK.terrainH;
+  const samp=[];for(let i=0;i<N;i+=4)samp.push(P[i]);
+  const clr=(x,z)=>{let m=1e9;for(const q of samp){const dx=x-q.x,dz=z-q.z;const d=dx*dx+dz*dz;if(d<m)m=d;}return m;};
+  const M=new THREE.Matrix4(),S=new THREE.Vector3(),Q=new THREE.Quaternion(),T=new THREE.Vector3();
+  // Hill Country scrub oak clumps, sparse so the hills read as open ranchland
+  const blobG=new THREE.IcosahedronGeometry(0.5,0);
+  const treeMats=[0x4a6a2e,0x557a34,0x3d5a26].map(c=>new THREE.MeshStandardMaterial({color:c,roughness:1,flatShading:true}));
+  const treeList=treeMats.map(()=>[]);
+  let placed=0,tries=0;
+  while(placed<1400 && tries<16000){tries++;
+    const a=Math.random()*TAU, rr=R*0.85+Math.random()*R*1.3, x=Math.cos(a)*rr, z=Math.sin(a)*rr;
+    if(clr(x,z)<75*75) continue;
+    const h=5+Math.random()*7;treeList[(Math.random()*3)|0].push({x,y:gh(x,z),z,w:h*(0.7+Math.random()*0.3),h});placed++;}
+  treeList.forEach((list,bi)=>{ if(!list.length)return;
+    const im=new THREE.InstancedMesh(blobG,treeMats[bi],list.length);im.frustumCulled=false;im.receiveShadow=true;
+    list.forEach((o,i)=>{T.set(o.x,o.y+o.h*0.5,o.z);S.set(o.w,o.h,o.w);M.compose(T,Q,S);im.setMatrixAt(i,M);});
+    im.instanceMatrix.needsUpdate=true;sc.add(im);});
+  // the COTA Tower: a slender red/white lattice tower with a big observation deck near Turn 1
+  { let i0=0,best=-1,cX=0,cZ=0;for(const p of P){cX+=p.x;cZ+=p.z;}cX/=N;cZ/=N;
+    for(let i=0;i<N;i+=2){const p=P[i];const d=(p.x-cX)**2+(p.z-cZ)**2;if(d>best){best=d;i0=i;}}
+    const p=P[i0],n=Nm[i0];const tx=p.x+n.x*(offL(i0)+70),tz=p.z+n.z*(offL(i0)+70);
+    if(clr(tx,tz)>60*60){const gy=gh(tx,tz),H=95;
+      const legMat=new THREE.MeshStandardMaterial({color:0xd8dce0,roughness:0.5,metalness:0.4});
+      const redMat=new THREE.MeshStandardMaterial({color:0xc41c1c,roughness:0.5,metalness:0.3});
+      for(let k=0;k<4;k++){const a=k/4*TAU+Math.PI/4;const leg=new THREE.Mesh(new THREE.CylinderGeometry(0.5,1.1,H,6),legMat);
+        leg.position.set(tx+Math.cos(a)*7,gy+H/2,tz+Math.sin(a)*7);leg.rotation.x=Math.sin(a)*0.09;leg.rotation.z=-Math.cos(a)*0.09;sc.add(leg);}
+      const deck=new THREE.Mesh(new THREE.CylinderGeometry(9,10,4,16),redMat);deck.position.set(tx,gy+H*0.86,tz);sc.add(deck);
+      const deck2=new THREE.Mesh(new THREE.CylinderGeometry(6,7,10,16),legMat);deck2.position.set(tx,gy+H*0.78,tz);sc.add(deck2);
+      const spike=new THREE.Mesh(new THREE.ConeGeometry(1,14,8),redMat);spike.position.set(tx,gy+H+7,tz);sc.add(spike);
+      const bea=new THREE.Mesh(new THREE.SphereGeometry(1.4,10,8),new THREE.MeshStandardMaterial({color:0xff0000,emissive:0xff0000,emissiveIntensity:2}));
+      bea.position.set(tx,gy+H+14,tz);sc.add(bea);} }
+  // distant Austin skyline (modern glass towers) on one side
+  { const tints=['#4a6a8a','#5a7a9a','#3a5a7a'];
+    for(let i=0;i<44;i++){const a=Math.random()*TAU,rr=R*1.5+Math.random()*R*0.8,h=40+Math.random()*110,w=14+Math.random()*18;
+      const bmat=new THREE.MeshStandardMaterial({map:makeWindows(Math.max(3,w/6|0),Math.max(6,h/8|0),tints[i%3]),
+        color:'#5a6a7a',roughness:0.7});
+      const b=new THREE.Mesh(new THREE.BoxGeometry(w,h,w),bmat);b.position.set(Math.cos(a)*rr,h/2-2,Math.sin(a)*rr);sc.add(b);} }
+  // rolling green hill ring so the Hill Country horizon isn't empty
+  const ring=new THREE.Mesh(new THREE.CylinderGeometry(R*1.9,R*2.05,80,56,1,true),
+    new THREE.MeshStandardMaterial({color:0x4a6a34,roughness:1,side:THREE.BackSide}));ring.position.y=20;sc.add(ring);
 }
 /* ---- São Paulo (Interlagos): tree areas, open grass, favela hillsides, city skyline ---- */
 function buildSaoPaulo(sc,P,Nm,offL,offR){
@@ -3703,7 +3931,8 @@ function stepPhysics(dt,inp){
 }
 if(typeof window!=='undefined'){window.__step=stepPhysics;window.__reset=resetCar;
   window.__buildTrack=(id)=>{buildWorld(driveScene,TRACKS[id]);builtTrackId=id;return true;};
-  window.__trackIds=()=>Object.keys(TRACKS);}
+  window.__trackIds=()=>Object.keys(TRACKS);
+  window.__driveScene=driveScene; window.__updateDynamicSky=updateDynamicSky;}
 
 /* nearest centreline point (dist + signed lateral + outward normal) */
 function nearestTrack(pos,hint,window){
@@ -3958,7 +4187,7 @@ const MODES=[
    meta:[['Assists','LOW'],['Input','KEYS'],['Units','KM/H']]},
 ];
 let sel=0, sessionMode='gp';
-const TYREWEAR={catalunya:1.75,silverstone:1.45,bahrain:1.5,spa:1.2,austria:1.1,saopaulo:1.2,monaco:0.7,jeddah:1.0,miami:1.15,montreal:1.1,australia:1.15,lasvegas:0.95,yas:1.0,zandvoort:1.35,baku:0.95,hungary:1.25};
+const TYREWEAR={catalunya:1.75,silverstone:1.45,bahrain:1.5,spa:1.2,austria:1.1,saopaulo:1.2,monaco:0.7,jeddah:1.0,miami:1.15,montreal:1.1,australia:1.15,lasvegas:0.95,yas:1.0,zandvoort:1.35,baku:0.95,hungary:1.25,qatar:1.4,texas:1.3};
 /* tyre compounds: lap life at [very abrasive → non-abrasive] surfaces, plus grip.
    Softs give the most grip but wear fastest; hards the least grip but last longest.
    Pushing hard (throttle + slides + kerbs) eats into the life on top of this. */
@@ -3975,7 +4204,7 @@ function compoundLaps(comp,id){const c=COMPOUNDS[comp]||COMPOUNDS.medium, a=trac
 /* real sector split points as a fraction of the lap (deliberately UNEVEN, like the
    actual circuits — sector times come out clearly different, not near-thirds) */
 const SECTORS={spa:[0.29,0.53],yas:[0.38,0.58],silverstone:[0.27,0.58],monaco:[0.41,0.70],austria:[0.24,0.55],saopaulo:[0.30,0.72],jeddah:[0.44,0.71],catalunya:[0.39,0.71],miami:[0.28,0.61],montreal:[0.41,0.74],australia:[0.30,0.57],bahrain:[0.26,0.61],lasvegas:[0.46,0.70],zandvoort:[0.25,0.61],baku:[0.48,0.68],hungary:[0.22,0.58]};
-const TRACK_IDS=['spa','yas','silverstone','monaco','austria','saopaulo','jeddah','catalunya','miami','montreal','australia','bahrain','lasvegas','zandvoort','baku','hungary']; let selTrack=0, builtTrackId='spa';
+const TRACK_IDS=['spa','yas','silverstone','monaco','austria','saopaulo','jeddah','catalunya','miami','montreal','australia','bahrain','lasvegas','zandvoort','baku','hungary','qatar','texas']; let selTrack=0, builtTrackId='spa';
 function curCfg(){return TRACKS[TRACK_IDS[selTrack]];}
 function cycleTrack(d){selTrack=(selTrack+d+TRACK_IDS.length)%TRACK_IDS.length;renderDetail();Sound.init();Sound.blip(430,.05);}
 function buildMenu(){
@@ -4059,7 +4288,7 @@ function closeGarage(){garageOn=false;$('#garage').classList.remove('on');
    SEASON MODE (beta)
    ================================================================== */
 const SEASON={active:false,on:false,team:'redbull',diff:'Pro',name:'M. SYSAK',num:7,sponsor:'Oracle',
-  round:0,cal:['australia','bahrain','baku','jeddah','miami','monaco','catalunya','montreal','austria','hungary','zandvoort','silverstone','spa','saopaulo','lasvegas','yas'],points:0,
+  round:0,cal:['australia','bahrain','saopaulo','jeddah','miami','monaco','catalunya','montreal','austria','texas','hungary','zandvoort','silverstone','spa','qatar','baku','lasvegas','yas'],points:0,
   field:['M. VÄRLA','R. OKONKWO','L. FENN','S. HÄKKINEN','D. ROSSI','K. TANAKA','A. PETROV','J. MORAIS','E. LARSSON','B. NAKAMURA']};
 const DIFFS=['Rookie','Pro','Legend'], SPONSORS=['Oracle','Petronas','AWS','DHL','Shell','bwt'];
 function openSeasonSetup(){
@@ -4706,6 +4935,7 @@ function frame(){
     updateHUD(inp,r);
     const rain=driveScene.userData.rain; if(rain) rain.update(dt,camera.position);
     const lg=driveScene.userData.lightning; if(lg) lg.update(dt);
+    if(CFG.dynamicSky) updateDynamicSky(driveScene,dt);
     renderer.render(driveScene,camera);
   }else if(STATE==='result'){
     // coast the car to a halt behind the results card
