@@ -955,9 +955,9 @@ const CAT_ELEV=[
 // Circuit of the Americas: the signature steep climb to Turn 1 (the biggest elevation
 // change on the calendar), rolling esses down the back, flat back straight, undulating home.
 const TEXAS_ELEV=[
-  [0.00,10],[0.035,34],[0.06,29],[0.10,20],[0.15,26],[0.20,14],[0.25,9],   // uphill T1 · the esses
-  [0.34,6],[0.44,5],[0.54,7],[0.62,5],                                    // back section, low
-  [0.70,4],[0.80,10],[0.88,18],[0.94,12],[1.00,10],                       // stadium section rise, home
+  [0.00,8],[0.055,33],[0.14,22],[0.24,13],                 // the big uphill run to Turn 1, easing back down
+  [0.36,6],[0.50,5],[0.64,6],                               // long flat-ish back section
+  [0.78,5],[0.88,15],[0.95,19],[1.00,8],                    // rise through the stadium section, back to the line
 ];
 /* per-circuit configuration */
 const TRACKS={
@@ -1296,17 +1296,17 @@ function buildWorld(sc,cfg){
   }else if(cfg.runoff==='usa'){
     // Circuit of the Americas: grass run-off with the signature red/blue kerb-edge lining,
     // minimal sponsor tarmac patches, and gravel at the heavy-braking zones
-    const grnMat=new THREE.MeshStandardMaterial({color:0x3a7d3a,roughness:0.92,side:THREE.DoubleSide});
-    strip(k=>HW+1.5, k=>HW+2.6, 0.006, grnMat, 1);
-    strip(k=>-(HW+1.5), k=>-(HW+2.6), 0.006, grnMat, 1);
     const redP=new THREE.MeshStandardMaterial({color:0xc41c1c,roughness:0.75,side:THREE.DoubleSide});
     const bluP=new THREE.MeshStandardMaterial({color:0x14356e,roughness:0.75,side:THREE.DoubleSide});
-    strip(k=>HW+0.85, k=>HW+1.5, 0.01, redP, 1);
-    strip(k=>-(HW+0.85), k=>-(HW+1.5), 0.01, bluP, 1);
+    strip(k=>HW+0.85, k=>HW+5.5, 0.01, redP, 1);              // wide red/blue tarmac lining (the dominant look)
+    strip(k=>-(HW+0.85), k=>-(HW+5.5), 0.01, bluP, 1);
+    const grnMat=new THREE.MeshStandardMaterial({color:0x3a7d3a,roughness:0.92,side:THREE.DoubleSide});
+    strip(k=>HW+5.5, k=>HW+7.2, 0.006, grnMat, 1);
+    strip(k=>-(HW+5.5), k=>-(HW+7.2), 0.006, grnMat, 1);
     const gravelMat=new THREE.MeshStandardMaterial({map:makeGravel(),roughness:1,side:THREE.DoubleSide});
-    const gvL=k=>runL[k]>16?Math.min(runL[k]-4,12):0, gvR=k=>runR[k]>16?Math.min(runR[k]-4,12):0;
-    strip(k=>HW+2.7, k=>HW+2.7+gvL(k), 0.004, gravelMat, 0, 6);
-    strip(k=>-(HW+2.7), k=>-(HW+2.7+gvR(k)), 0.004, gravelMat, 0, 6);
+    const gvL=k=>runL[k]>18?Math.min(runL[k]-8,12):0, gvR=k=>runR[k]>18?Math.min(runR[k]-8,12):0;
+    strip(k=>HW+7.3, k=>HW+7.3+gvL(k), 0.004, gravelMat, 0, 6);
+    strip(k=>-(HW+7.3), k=>-(HW+7.3+gvR(k)), 0.004, gravelMat, 0, 6);
     buildRunoffPaint(sc,P,Nm,cum,sturn,HW,k=>Math.max(3,runL[k],runR[k]));
   }else if(cfg.runoff==='blue'){
     // Yas Marina: blue/teal tarmac run-off with a white outline, minimal
