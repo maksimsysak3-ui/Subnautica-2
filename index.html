@@ -2988,8 +2988,15 @@ function buildGrandstands(sc,P,Nm,Tg,offL,offR){
   const cableMat=new THREE.MeshStandardMaterial({color:0x14171d,roughness:0.6});
   const flagCols=[0xe10600,0xffffff,0xe10600,0xf2f5f8];   // red/white bunting like the reference
   const barPlainMat=new THREE.MeshStandardMaterial({color:0x0a5c36,roughness:0.85});  // plain green barrier, no wordmark
+  // per-track bias toward the simpler open "box" bleacher style (diversity across circuits —
+  // more common at oval-adjacent / American-style venues, occasional elsewhere)
+  const BOX_BIAS={texas:0.6,bahrain:0.4,qatar:0.35,lasvegas:0.3,australia:0.25,saopaulo:0.2}[CFG.id]||0.12;
+  const alumMat=new THREE.MeshStandardMaterial({color:0xb8bcc2,roughness:0.5,metalness:0.6});
+  const trussMat=new THREE.MeshStandardMaterial({color:0x3a3e46,roughness:0.6,metalness:0.5});
   // build one raked stand at index i; +Z faces the track after lookAt. big=main grandstand
   const stand=(i,side,len,tiers,big)=>{
+    const boxStyle=!big && Math.random()<BOX_BIAS;    // simple open bleacher, no roof/walls/flags
+    if(boxStyle) return standBox(i,side,len,tiers);
     const depth=big?36:24, stepH=1.42, stepD=depth/tiers, baseY=1.5;
     const need=HW+depth/2+(big?9:8);
     // try the requested side first, then the opposite, keeping whichever sits in more
@@ -3047,6 +3054,40 @@ function buildGrandstands(sc,P,Nm,Tg,offL,offR){
     if(night){for(let s=0;s<(big?4:2);s++){const sx=(-0.5+s/((big?4:2)-1||1))*len*0.7;
       const fl=new THREE.Mesh(new THREE.BoxGeometry(3.4,0.9,1),new THREE.MeshStandardMaterial({color:0xffffff,emissive:0xfff2d0,emissiveIntensity:2.2}));
       fl.position.set(sx,roofY+1,roofZc);g.add(fl);}}
+    const gy=gh(bx,bz);g.position.set(bx,gy,bz);g.lookAt(p.x,gy,p.z);
+    g.traverse(o=>{o.castShadow=true;o.receiveShadow=true;});sc.add(g);return true;
+  };
+  // simple OPEN bleacher: raked aluminium bench rows on a bare steel truss frame —
+  // no roof, no side walls, no bunting (like general-admission stands / American ovals)
+  const standBox=(i,side,len,tiers)=>{
+    const depth=18, stepH=1.15, stepD=depth/tiers, baseY=1.0;
+    const p=P[i],n=Nm[i];
+    const cand=(s)=>{const off=(s>0?offL:offR)(i),dist=off+depth/2+8;
+      const bx=p.x+n.x*s*dist, bz=p.z+n.z*s*dist;
+      const tx=-n.z, tz=n.x, half=len/2;
+      const room=Math.min(clr(bx,bz), clr(bx+tx*half,bz+tz*half), clr(bx-tx*half,bz-tz*half));
+      return {s,bx,bz,room};};
+    const need=HW+depth/2+8;
+    const opts=[cand(side),cand(-side)].filter(o=>o.room>=need*need).sort((a,b)=>b.room-a.room);
+    if(!opts.length) return false;
+    const {s:sideC,bx,bz}=opts[0]; side=sideC;
+    const g=new THREE.Group(); const topH=baseY+tiers*stepH;
+    // raked truss legs along the back, visible frame (no cladding)
+    const nLeg=Math.max(4,len/9|0);
+    for(let l=0;l<nLeg;l++){const sx=-len/2+l*(len/(nLeg-1||1));
+      const leg=new THREE.Mesh(new THREE.BoxGeometry(0.4,topH,0.4),trussMat);
+      leg.position.set(sx,topH/2,-depth/2+0.3);g.add(leg);
+      const brace=new THREE.Mesh(new THREE.BoxGeometry(0.3,Math.hypot(topH,depth*0.5),0.3),trussMat);
+      brace.position.set(sx,topH*0.5,-depth*0.1);brace.rotation.x=-Math.atan2(topH,depth*0.5);g.add(brace);}
+    for(let t=0;t<tiers;t++){
+      const z=depth/2 - t*stepD - stepD*0.5, y=baseY + t*stepH;
+      const bench=new THREE.Mesh(new THREE.BoxGeometry(len,0.12,stepD*0.86),alumMat);
+      bench.position.set(0,y,z);g.add(bench);
+      const riserFront=new THREE.Mesh(new THREE.BoxGeometry(len,stepH*0.5,0.1),alumMat);
+      riserFront.position.set(0,y-stepH*0.25,z+stepD*0.43);g.add(riserFront);
+    }
+    const rail=new THREE.Mesh(new THREE.CylinderGeometry(0.05,0.05,len,6),trussMat);
+    rail.rotation.z=Math.PI/2;rail.position.set(0,baseY+1.0,depth/2-0.1);g.add(rail);
     const gy=gh(bx,bz);g.position.set(bx,gy,bz);g.lookAt(p.x,gy,p.z);
     g.traverse(o=>{o.castShadow=true;o.receiveShadow=true;});sc.add(g);return true;
   };
