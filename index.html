@@ -2425,11 +2425,16 @@ function buildGrandstands(sc,P,Nm,Tg,offL,offR){
   const barBaseMat=new THREE.MeshStandardMaterial({map:barTex,roughness:0.85});
   // build one raked stand at index i; +Z faces the track after lookAt. big=main grandstand
   const stand=(i,side,len,tiers,big)=>{
-    const off=(side>0?offL:offR)(i), p=P[i],n=Nm[i];
     const depth=big?36:24, stepH=1.42, stepD=depth/tiers, baseY=1.5;
-    const dist=off+depth/2+(big?9:7);
-    const bx=p.x+n.x*side*dist, bz=p.z+n.z*side*dist;
-    const need=HW+depth/2+(big?9:8); if(clr(bx,bz)<need*need) return false;
+    const need=HW+depth/2+(big?9:8);
+    // try the requested side first, then the opposite, keeping whichever sits in more
+    // open ground — this biases stands to the OUTSIDE of the track and off the run-off
+    const p=P[i],n=Nm[i];
+    const cand=(s)=>{const off=(s>0?offL:offR)(i),dist=off+depth/2+(big?9:7);
+      const bx=p.x+n.x*s*dist, bz=p.z+n.z*s*dist;return {s,bx,bz,room:clr(bx,bz)};};
+    const opts=[cand(side),cand(-side)].filter(o=>o.room>=need*need).sort((a,b)=>b.room-a.room);
+    if(!opts.length) return false;
+    const {s:sideC,bx,bz}=opts[0]; side=sideC;
     const g=new THREE.Group(); const topH=baseY+tiers*stepH;
     const beam3=(x1,y1,z1,x2,y2,z2,th,mat)=>{const dx=x2-x1,dy=y2-y1,dz=z2-z1,L=Math.hypot(dx,dy,dz)||0.1;
       const m=new THREE.Mesh(new THREE.BoxGeometry(th,L,th),mat||frameMat);m.position.set((x1+x2)/2,(y1+y2)/2,(z1+z2)/2);
