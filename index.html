@@ -390,17 +390,17 @@
   #dmgFill{position:absolute;width:16px;background:linear-gradient(0deg,#e10600,#ff6a60);height:0}
   #dmgBar{position:relative;display:flex;align-items:flex-end}
   /* mid-race car-status panel (press I) */
-  #carInfo{position:absolute;left:clamp(20px,3vw,44px);bottom:clamp(80px,14vh,150px);width:300px;padding:16px 18px;
-    background:rgba(8,11,16,.82);border:1px solid rgba(255,255,255,.1);border-radius:12px;backdrop-filter:blur(8px);
-    opacity:0;transform:translateY(8px);transition:.2s;pointer-events:none}
-  #carInfo.on{opacity:1;transform:none}
-  .ciHead{font-family:var(--mono);font-size:11px;letter-spacing:.2em;color:#fff;font-weight:700;display:flex;justify-content:space-between;margin-bottom:12px}
-  .ciHead span{color:var(--grey);font-size:9px}.ciHead b{color:#fff;border:1px solid var(--grey-lo);border-radius:3px;padding:1px 5px}
-  .ciRow{display:flex;align-items:center;gap:9px;margin-bottom:9px;font-size:12px}
-  .ciRow .k{width:78px;color:var(--grey)}
-  .ciRow .ciBar{flex:1;height:8px;border-radius:4px;background:rgba(255,255,255,.08);overflow:hidden}
+  #carInfo{position:absolute;left:clamp(16px,2.4vw,36px);bottom:clamp(72px,13vh,140px);width:236px;padding:11px 13px;
+    background:rgba(8,11,16,.84);border:1px solid rgba(255,255,255,.1);border-radius:10px;backdrop-filter:blur(8px);
+    max-height:0;overflow:hidden;opacity:0;transform:translateY(6px);transition:.2s;pointer-events:none}
+  #carInfo.on{opacity:1;transform:none;max-height:200px}
+  .ciHead{font-family:var(--mono);font-size:10px;letter-spacing:.16em;color:#fff;font-weight:700;display:flex;justify-content:space-between;margin-bottom:9px}
+  .ciHead span{color:var(--grey);font-size:8px}.ciHead b{color:#fff;border:1px solid var(--grey-lo);border-radius:3px;padding:1px 4px}
+  .ciRow{display:flex;align-items:center;gap:8px;margin-bottom:7px;font-size:11px}
+  .ciRow .k{width:66px;color:var(--grey)}
+  .ciRow .ciBar{flex:1;height:7px;border-radius:4px;background:rgba(255,255,255,.08);overflow:hidden}
   .ciRow .ciBar i{display:block;height:100%;border-radius:4px}
-  .ciRow .v{width:56px;text-align:right;font-family:var(--mono);color:#fff}
+  .ciRow .v{width:48px;text-align:right;font-family:var(--mono);color:#fff}
   #ersBox.deploy #ersState{color:#ffe14a;opacity:1;text-shadow:0 0 10px rgba(255,210,60,.7)}
   #gearBox{text-align:center}
   #gear{font-family:var(--mono);font-weight:900;font-size:clamp(44px,5.5vw,76px);color:var(--red);line-height:.8;text-shadow:0 0 26px var(--red-glow)}
@@ -921,7 +921,7 @@ const TRACKS={
     kerb:['#d81c1c','#eef1f4'], asphalt:0x33363c, ground:0x4c7d3c, laprec:'1:05',
     elev:f=>elevProfile(AUSTRIA_ELEV,f) },
   saopaulo:{ id:'saopaulo', name:'INTERLAGOS', country:'BRAZIL', flag:'🇧🇷', points:SAOPAULO, len:4309,
-    halfW:7.4, night:false, rain:true, env:'saopaulo', runoff:'mixed',
+    halfW:7.4, night:false, rain:true, storm:true, env:'saopaulo', runoff:'mixed',
     kerb:['#1a9e3e','#f2d000'], asphalt:0x2e3138, ground:0x3f6a34, laprec:'1:10',
     elev:f=>elevProfile(SAO_ELEV,f) },   // São Paulo: green/yellow kerbs, often wet
   jeddah:{ id:'jeddah', name:'JEDDAH CORNICHE', country:'SAUDI ARABIA', flag:'🇸🇦', points:JEDDAH, len:6174,
@@ -1006,16 +1006,18 @@ function buildWorld(sc,cfg){
   TRACK.terrainH=(x,z)=>{let ws=0,hs=0;for(const s of samp){const dx=x-s.x,dz=z-s.z;
     const d2=dx*dx+dz*dz+90;const w=1/(d2*d2);ws+=w;hs+=w*s.y;}return hs/ws;};
 
-  const night=cfg.night, wet=!!cfg.rain;
-  sc.userData.wet=wet;
-  renderer.toneMappingExposure = night?1.35:(wet?0.98:1.05);
+  const night=cfg.night, storm=!!cfg.storm, wet=!!cfg.rain||storm;
+  sc.userData.wet=wet; sc.userData.storm=storm;
+  renderer.toneMappingExposure = night?1.35:(storm?0.82:(wet?0.98:1.05));
   const skyCol = night
     ? {top:'vec3(0.015,0.02,0.06)',mid:'vec3(0.05,0.04,0.12)',bot:'vec3(0.42,0.20,0.10)'}
+    : storm
+    ? {top:'vec3(0.10,0.11,0.14)', mid:'vec3(0.18,0.19,0.22)', bot:'vec3(0.28,0.29,0.32)'}   // very dark storm
     : wet
     ? {top:'vec3(0.40,0.43,0.47)', mid:'vec3(0.54,0.56,0.59)', bot:'vec3(0.64,0.65,0.67)'}   // heavy overcast
     : {top:'vec3(0.24,0.42,0.66)', mid:'vec3(0.62,0.74,0.86)', bot:'vec3(0.78,0.82,0.85)'};
-  sc.background=new THREE.Color(night?0x070a12:(wet?0x94989d:0x9fb6cc));
-  sc.fog=new THREE.Fog(night?0x0a0e18:(wet?0x94989d:0xa9c0d6), worldR*(wet?0.32:0.5), worldR*(night?3.4:(wet?1.7:2.6)));
+  sc.background=new THREE.Color(night?0x070a12:(storm?0x3a3e46:(wet?0x94989d:0x9fb6cc)));
+  sc.fog=new THREE.Fog(night?0x0a0e18:(storm?0x3a3e46:(wet?0x94989d:0xa9c0d6)), worldR*(storm?0.22:(wet?0.32:0.5)), worldR*(night?3.4:(storm?1.2:(wet?1.7:2.6))));
 
   if(night){
     sc.add(new THREE.HemisphereLight(0x4a5a80,0x151820,1.15));
@@ -1264,12 +1266,17 @@ function buildWorld(sc,cfg){
   buildPit(sc,P,Nm,Tg);
   buildBridges(sc,P,Nm,Tg,cum,barOff,barOffR);                   // overhead gantries + billboards (all tracks)
   if(wet) buildRain(sc); else sc.userData.rain=null;
+  if(storm){ let lt=1.5+Math.random()*4, flash=0;   // lightning: random bright flashes
+    sc.userData.lightning={update(dt){ lt-=dt; if(lt<=0){flash=1;lt=3+Math.random()*8;}
+      if(flash>0)flash=Math.max(0,flash-dt*3.5);
+      renderer.toneMappingExposure=0.82+flash*flash*2.2; }}; }
+  else sc.userData.lightning=null;
   miniProj=null;                                   // minimap recomputes for new track
   return {};
 }
 /* falling-rain streaks that follow the camera (wet circuits) */
 function buildRain(sc){
-  const COUNT=2600, BOX=140, TOP=90;
+  const COUNT=sc.userData.storm?5200:2600, BOX=140, TOP=90;
   const pos=new Float32Array(COUNT*2*3);           // pairs → LineSegments streaks
   const speed=new Float32Array(COUNT), len=new Float32Array(COUNT);
   for(let i=0;i<COUNT;i++){
@@ -3213,7 +3220,7 @@ function stepPhysics(dt,inp){
   const absLat=Math.abs(near.lat);
   const off=absLat>TRACK.halfW+4.0;               // fully off track (past the wider kerb)
   const onKerb=absLat>TRACK.halfW-0.15 && absLat<TRACK.halfW+2.9;
-  const wetMul=CFG.rain?0.74:1.0;                  // wet track = less grip (rain)
+  const wetMul=CFG.storm?0.66:(CFG.rain?0.74:1.0);                  // wet track = less grip (rain)
   // tyre wear: worn tyres lose grip; wear faster with slip, speed, kerbs and abrasive tracks
   const slipMag=Math.min(Math.abs(CAR.vLat)/6,1.5);
   const wearRate=(TYREWEAR[CFG.id]||1.0)*0.0016*(0.35+slipMag+(onKerb?0.6:0)+(off?0.9:0))*(0.5+spd/60);
@@ -4072,6 +4079,7 @@ function frame(){
     lap.update(dt,r.near.idx);
     updateHUD(inp,r);
     const rain=driveScene.userData.rain; if(rain) rain.update(dt,camera.position);
+    const lg=driveScene.userData.lightning; if(lg) lg.update(dt);
     renderer.render(driveScene,camera);
   }else if(STATE==='result'){
     // coast the car to a halt behind the results card
