@@ -2327,12 +2327,17 @@ function buildVegas(sc,P,Nm,Tg,offL,offR){
       const podH=12+Math.random()*8, podW=w+8, podD=d+8;
       const pod=new THREE.Mesh(new THREE.BoxGeometry(podW,podH,podD),facadeMat);pod.position.y=podH/2;g.add(pod);
       const podTrim=new THREE.Mesh(new THREE.BoxGeometry(podW+0.6,0.8,podD+0.6),new THREE.MeshStandardMaterial({color:hue,emissive:hue,emissiveIntensity:1.3}));podTrim.position.y=podH;g.add(podTrim);
-      // main tower on the podium
+      // main tower on the podium — varied silhouettes so no two resorts read the same
       const shape=Math.random();
-      const body = shape<0.35
-        ? new THREE.Mesh(new THREE.CylinderGeometry(w*0.5,w*0.55,h,20),winMat)          // curved resort tower
-        : new THREE.Mesh(new THREE.BoxGeometry(w,h,d),winMat);
-      body.position.y=podH+h/2;g.add(body);
+      let body;
+      if(shape<0.24){ body=new THREE.Mesh(new THREE.CylinderGeometry(w*0.5,w*0.55,h,20),winMat); }        // curved tower
+      else if(shape<0.44){ body=new THREE.Mesh(new THREE.CylinderGeometry(w*0.22,w*0.5,h,4),winMat);body.rotation.y=Math.PI/4; } // tapered pyramid-ish
+      else if(shape<0.64){ // stepped multi-setback tower
+        body=new THREE.Group(); let cw=w,cd=d,cy=0;
+        for(let st=0;st<3;st++){const sh=h*(0.5-st*0.13);const seg=new THREE.Mesh(new THREE.BoxGeometry(cw,sh,cd),winMat);seg.position.y=cy+sh/2;body.add(seg);cy+=sh;cw*=0.72;cd*=0.72;}
+      }
+      else { body=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),winMat); }                                   // slab
+      body.position.y=podH+ (shape>=0.44&&shape<0.64 ? 0 : h/2);g.add(body);
       const t2=new THREE.Mesh(new THREE.BoxGeometry(w*0.66,h*0.22,d*0.66),winMat);t2.position.y=podH+h+h*0.1;g.add(t2);   // setback
       const crown=new THREE.Mesh(new THREE.BoxGeometry(w*0.7,1.4,d*0.7),new THREE.MeshStandardMaterial({color:hue,emissive:hue,emissiveIntensity:1.6}));crown.position.y=podH+h+1;g.add(crown);
       // illuminated cornice bands wrapping the tower (real light architecture, not flat signage)
@@ -2495,18 +2500,38 @@ function buildBaku(sc,P,Nm,Tg,offL,offR){
   const stones=['#cfc6ad','#c2b89c','#d6cdb4','#b9ae90','#c9bfa4','#afa488'];
   const gapAt=i=>(TRACK.gap&&TRACK.gap[i])||999;
   let gsum=0;for(let i=0;i<N;i++)gsum+=gapAt(i); const gMed=gsum/N;   // avg corridor width
+  const domeMat=new THREE.MeshStandardMaterial({color:0x5a8a86,roughness:0.5,metalness:0.4,emissive:0x0a1a18,emissiveIntensity:0.2});
   for(let i=0;i<N;i+=4){const p=P[i],n=Nm[i],tg=Tg[i],ang=Math.atan2(tg.x,tg.z);
     for(const [side,off] of [[1,offL],[-1,offR]]){
       if(Math.random()<0.06) continue;                     // denser wall of buildings
-      const w=10+Math.random()*14, d=12+Math.random()*16, h=18+Math.random()*40;
+      const kind=Math.random();                            // vary the building type
+      const modern=kind>0.82;                              // occasional modern glass block
+      const w=(modern?14+Math.random()*12:9+Math.random()*13), d=12+Math.random()*16, h=(modern?40+Math.random()*44:16+Math.random()*38);
       const diag=Math.hypot(w/2,d/2), dist=off(i)+diag+1.2; // hard up against the barrier
       const x=p.x+n.x*side*dist, z=p.z+n.z*side*dist;
       const need=HW+diag+2.0; if(clr(x,z)<need*need) continue;
-      const col=stones[(Math.random()*stones.length)|0];
-      const b=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),new THREE.MeshStandardMaterial({map:makeWindows(Math.max(3,w/4|0),Math.max(6,h/4|0),'#39332a'),color:col,roughness:0.92,emissive:0x0e0c08,emissiveIntensity:0.12}));
-      const gy=gh(x,z);b.position.set(x,gy+h/2,z);b.rotation.y=ang;
-      const cap=new THREE.Mesh(new THREE.BoxGeometry(w+0.4,0.8,d+0.4),new THREE.MeshStandardMaterial({color:shadeHex(col,0.8),roughness:0.9}));cap.position.set(x,gy+h+0.4,z);cap.rotation.y=ang;
-      b.castShadow=true;sc.add(b,cap);}}
+      const gy=gh(x,z);
+      if(modern){
+        const gcol=['#33506e','#3a4a66','#2f5560'][(Math.random()*3)|0];
+        const b=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),new THREE.MeshStandardMaterial({map:makeWindows(Math.max(4,w/5|0),Math.max(8,h/7|0),gcol),color:'#2a3446',metalness:0.5,roughness:0.4,emissive:0x0e1626,emissiveIntensity:0.3}));
+        b.position.set(x,gy+h/2,z);b.rotation.y=ang;b.castShadow=true;sc.add(b);
+      }else{
+        const col=stones[(Math.random()*stones.length)|0];
+        const b=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),new THREE.MeshStandardMaterial({map:makeWindows(Math.max(3,w/4|0),Math.max(6,h/4|0),'#39332a'),color:col,roughness:0.92,emissive:0x0e0c08,emissiveIntensity:0.12}));
+        b.position.set(x,gy+h/2,z);b.rotation.y=ang;b.castShadow=true;sc.add(b);
+        const cap=new THREE.Mesh(new THREE.BoxGeometry(w+0.4,0.8,d+0.4),new THREE.MeshStandardMaterial({color:shadeHex(col,0.8),roughness:0.9}));cap.position.set(x,gy+h+0.4,z);cap.rotation.y=ang;sc.add(cap);
+        if(kind<0.2){ // teal-domed old building (Baku's Azerbaijani domes)
+          const dome=new THREE.Mesh(new THREE.SphereGeometry(Math.min(w,d)*0.34,14,10,0,TAU,0,Math.PI*0.55),domeMat);
+          dome.position.set(x,gy+h+0.8,z);sc.add(dome);
+          const spire=new THREE.Mesh(new THREE.ConeGeometry(0.4,3,8),domeMat);spire.position.set(x,gy+h+Math.min(w,d)*0.34+2,z);sc.add(spire);
+        }else if(kind<0.42){ // stepped setback tower
+          const t2=new THREE.Mesh(new THREE.BoxGeometry(w*0.66,h*0.4,d*0.66),new THREE.MeshStandardMaterial({map:makeWindows(3,Math.max(4,h/8|0),'#39332a'),color:col,roughness:0.92}));
+          t2.position.set(x,gy+h+h*0.2,z);t2.rotation.y=ang;sc.add(t2);
+        }else if(kind<0.58){ // rooftop parapet merlons (old-city look)
+          for(let m=-1;m<=1;m++){const mer=new THREE.Mesh(new THREE.BoxGeometry(1.4,1.6,1.4),new THREE.MeshStandardMaterial({color:shadeHex(col,0.85),roughness:0.9}));
+            mer.position.set(x+Math.cos(ang)*m*w*0.32,gy+h+1.2,z-Math.sin(ang)*m*w*0.32);sc.add(mer);}
+        }
+      }}}
   // --- THE CASTLE SECTION: a crenellated İçərişəhər fortress wall + towers along the tightest stretch ---
   { // find the narrowest contiguous run (the walled old-city part)
     let bi=0,bv=1e9; const win=Math.max(10,(N*0.12)|0);
