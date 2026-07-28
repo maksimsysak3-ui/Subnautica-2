@@ -3963,6 +3963,8 @@ function startDrive(){
   $('#mapName').innerHTML=cf.name+' <span>· '+cf.country+'</span>';
   driveScene.add(CAR.rig);
   resetCar();
+  // AI field for Grand Prix / Season races (Time Trial & Qualifying stay solo)
+  if(sessionMode==='gp'||sessionMode==='season'){ spawnAIs(7); } else { clearAIs(); }
   // globe → sector outline → overhead intro, then lights out
   trackIntro(cf, ()=>{
     snapCamera();
@@ -3983,6 +3985,7 @@ function snapCamera(){
 }
 function exitToMenu(){
   $('#qResult').classList.remove('on');
+  clearAIs();
   if(sessionMode==='season'&&SEASON.active){ endSeasonRace(); return; }  // back to the hub w/ points
   enterMenu();
 }
@@ -4053,6 +4056,86 @@ function readInput(){
 }
 
 /* ==================================================================
+   AI OPPONENTS — simple but effective: racing line, corner-aware pace,
+   overtakes, defends, mistakes, ERS, and contact avoidance.
+   ================================================================== */
+const AI={cars:[], on:false, playerPos:1};
+if(typeof window!=='undefined'){window.__AI=AI;setTimeout(()=>{window.__stepAI=stepAI;},0);}
+function makeAICar(col){
+  const g=new THREE.Group();
+  if(CAR.model){
+    // clone the real car model (geometry is shared) and team-colour its bodywork
+    const m=CAR.model.clone(true);
+    const teamMat=new THREE.MeshStandardMaterial({color:col,roughness:0.42,metalness:0.5,envMapIntensity:1.1});
+    m.traverse(o=>{ if(o.isMesh){ const nm=(o.material&&o.material.name)||'';
+      if(/Carbon_Fiber/.test(nm)) o.material=teamMat;         // body/engine cover -> team colour
+      o.castShadow=true; o.frustumCulled=false; } });
+    g.add(m);
+  }else{
+    const bMat=new THREE.MeshStandardMaterial({color:col,roughness:0.5,metalness:0.35});
+    const body=new THREE.Mesh(new THREE.BoxGeometry(0.9,0.42,4.4),bMat);body.position.y=0.5;g.add(body);
+    for(const [x,z] of [[-0.82,1.6],[0.82,1.6],[-0.88,-1.6],[0.88,-1.6]]){
+      const w=new THREE.Mesh(new THREE.CylinderGeometry(0.44,0.44,0.5,12),new THREE.MeshStandardMaterial({color:0x0e0e12}));w.rotation.z=Math.PI/2;w.position.set(x,0.44,z);g.add(w);}
+    g.traverse(o=>o.castShadow=true);
+  }
+  return g;
+}
+function curvAtIdx(i){const N=TRACK.N,a=TRACK.tan[(i-4+N)%N],b=TRACK.tan[(i+4)%N];return Math.acos(clamp(a.x*b.x+a.z*b.z,-1,1));}
+function signedTurnIdx(i){const N=TRACK.N,a=TRACK.tan[(i-3+N)%N],b=TRACK.tan[(i+3)%N];return a.x*b.z-a.z*b.x;}
+function clearAIs(){ AI.cars.forEach(c=>driveScene.remove(c.mesh)); AI.cars=[]; AI.on=false; }
+function spawnAIs(n){
+  clearAIs(); if(!TRACK.N) return;
+  const opp=TEAM_IDS.filter(k=>k!==selLivery); const N=TRACK.N;
+  for(let i=0;i<n;i++){const team=opp[i%opp.length];
+    const mesh=makeAICar(new THREE.Color(LIVERIES[team].base));driveScene.add(mesh);
+    AI.cars.push({mesh, idx:((i+1)*4)%N, lat:(i%2?1:-1)*2.4, v:0, lap:0, team,
+      pace:0.965-i*0.006, ers:0.7, mistakeT:-99, dodge:0});
+  }
+  AI.on=true;
+}
+function stepAI(dt){
+  if(!AI.on||!AI.cars.length) return;
+  const N=TRACK.N, segLen=TRACK.len/N, HW=TRACK.halfW;
+  // all racers (AIs + player) for gap/position maths
+  const pIdx=CAR.trackIdx||0;
+  const all=AI.cars.map(c=>({idx:c.idx,lat:c.lat,lap:c.lap,ai:c}))
+    .concat([{idx:pIdx,lat:0,lap:(lap.num||0),ai:null}]);
+  for(const c of AI.cars){
+    const i=Math.round(c.idx)%N, pi=(i+N)%N;
+    // brake for the sharpest curvature in the (short) braking zone ahead
+    let curv=0;for(let k=1;k<7;k++)curv=Math.max(curv,curvAtIdx((pi+k)%N));
+    let targetV=clamp(90-curv*60,16,86)*c.pace;
+    // ERS: on straights deploy for a bounded top-speed boost (never compounds)
+    if(curv<0.06 && c.ers>0.1){ targetV+=7; c.ers-=dt/7; } else c.ers=Math.min(1,c.ers+dt/16);
+    // contact avoidance: slow for the nearest car just ahead on a similar line
+    let slow=1, blockedSide=0;
+    for(const o of all){ if(o.ai===c) continue;
+      let di=(o.idx-c.idx+N)%N; if(di>0&&di<7&&Math.abs(o.lat-c.lat)<2.6){
+        const gap=di*segLen; slow=Math.min(slow,clamp(gap/9,0.35,1)); blockedSide=o.lat>c.lat?-1:1; } }
+    // occasional mistake (brief lift)
+    c.mistakeT-=dt; if(c.mistakeT<-4 && Math.random()<0.0016) c.mistakeT=0.5+Math.random()*0.5;
+    const mist=c.mistakeT>0?0.72:1;
+    const desired=targetV*slow*mist;
+    c.v=damp(c.v, desired, desired>c.v?2.4:5.5, dt);
+    c.idx+=(c.v*dt)/segLen; if(c.idx>=N){c.idx-=N;c.lap++;}
+    // racing line: aim for the apex (inside) + dodge to overtake when blocked
+    const turn=signedTurnIdx(pi);
+    let lineLat=clamp(-turn*260,-(HW-1.1),HW-1.1);
+    if(slow<0.85){c.dodge=damp(c.dodge, blockedSide*(HW-1.5), 2, dt);} else c.dodge=damp(c.dodge,0,1.2,dt);
+    c.lat=damp(c.lat, clamp(lineLat+c.dodge,-(HW-1.0),HW-1.0), 1.6, dt);
+    const p=TRACK.pts[pi], n=TRACK.nrm[pi], tg=TRACK.tan[pi];
+    c.mesh.position.set(p.x+n.x*c.lat, (p.y||0)+0.02-(CAR.tireDrop||0), p.z+n.z*c.lat);
+    c.mesh.rotation.y=Math.atan2(tg.x,tg.z);
+  }
+  // standings: total distance = lap*len + along-lap distance
+  const dOf=(idx,lp)=>lp*TRACK.len + TRACK.cum[Math.round(idx)%N];
+  const field=AI.cars.map(c=>({d:dOf(c.idx,c.lap),me:false})).concat([{d:dOf(pIdx,lap.num||0),me:true}]);
+  field.sort((a,b)=>b.d-a.d);
+  AI.playerPos=field.findIndex(f=>f.me)+1;
+  const pn=$('#posNum'); if(pn) pn.textContent=AI.playerPos;
+}
+
+/* ==================================================================
    MAIN LOOP
    ================================================================== */
 let last=performance.now();
@@ -4077,6 +4160,7 @@ function frame(){
     const r=stepPhysics(dt,inp);
     updateCamera(dt);
     lap.update(dt,r.near.idx);
+    stepAI(dt);
     updateHUD(inp,r);
     const rain=driveScene.userData.rain; if(rain) rain.update(dt,camera.position);
     const lg=driveScene.userData.lightning; if(lg) lg.update(dt);
