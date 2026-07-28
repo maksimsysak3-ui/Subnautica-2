@@ -394,6 +394,27 @@
     background:rgba(6,9,14,.82);border:1px solid rgba(255,255,255,.14);border-radius:8px;
     opacity:0;transition:opacity .3s;pointer-events:none;z-index:14}
   #tyreToast.on{opacity:1}
+  /* team radio (engineer) + broadcast commentary captions */
+  #radioBox{position:absolute;left:clamp(16px,2.4vw,36px);bottom:clamp(150px,24vh,240px);max-width:min(430px,60vw);
+    display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:10px;z-index:14;
+    background:linear-gradient(90deg,rgba(6,10,16,.92),rgba(6,10,16,.72));border:1px solid rgba(90,150,220,.4);
+    box-shadow:0 8px 30px rgba(0,0,0,.5);opacity:0;transform:translateY(8px);transition:opacity .25s,transform .25s;pointer-events:none}
+  #radioBox.on{opacity:1;transform:none}
+  .rdWho{font-family:var(--mono);font-size:9px;font-weight:800;letter-spacing:.18em;color:#7fb2e6;white-space:nowrap;align-self:flex-start;margin-top:2px}
+  #radioText{font-size:13px;line-height:1.35;color:#eaf1f8;font-weight:500}
+  .rdWave{display:flex;align-items:center;gap:2px;height:16px;margin-left:auto}
+  .rdWave i{width:2px;height:5px;background:#5a96dc;border-radius:2px;animation:rdw 0.6s ease-in-out infinite}
+  .rdWave i:nth-child(2){animation-delay:.12s}.rdWave i:nth-child(3){animation-delay:.24s}
+  .rdWave i:nth-child(4){animation-delay:.36s}.rdWave i:nth-child(5){animation-delay:.48s}
+  #radioBox.on .rdWave i{animation-play-state:running}#radioBox .rdWave i{animation-play-state:paused}
+  @keyframes rdw{0%,100%{height:4px}50%{height:15px}}
+  #comBox{position:absolute;left:50%;top:clamp(58px,10vh,96px);transform:translateX(-50%) translateY(-6px);
+    max-width:min(640px,80vw);display:flex;align-items:center;gap:10px;padding:8px 18px;border-radius:8px;z-index:14;
+    background:linear-gradient(90deg,rgba(20,4,6,.9),rgba(8,6,10,.86));border:1px solid rgba(225,6,0,.45);
+    opacity:0;transition:opacity .25s,transform .25s;pointer-events:none;text-align:center}
+  #comBox.on{opacity:1;transform:translateX(-50%)}
+  .cmLabel{font-family:var(--mono);font-size:9px;font-weight:800;letter-spacing:.14em;color:#ff5b52;white-space:nowrap}
+  #comText{font-size:14px;line-height:1.3;color:#fff;font-weight:600;font-style:italic}
   /* mid-race car-status panel (press I) */
   #carInfo{position:absolute;left:clamp(16px,2.4vw,36px);bottom:clamp(72px,13vh,140px);width:236px;padding:11px 13px;
     background:rgba(8,11,16,.84);border:1px solid rgba(255,255,255,.1);border-radius:10px;backdrop-filter:blur(8px);
@@ -613,6 +634,8 @@
   </div>
   <div id="offTrack">Off Track</div>
   <div id="tyreToast"></div>
+  <div id="comBox"><span class="cmLabel">● LIVE</span><span id="comText"></span></div>
+  <div id="radioBox"><span class="rdWho">RACE ENGINEER</span><span id="radioText"></span><span class="rdWave"><i></i><i></i><i></i><i></i><i></i></span></div>
   <div id="carInfo">
     <div class="ciHead">CAR STATUS<span>press <b>I</b></span></div>
     <div class="ciRow"><span class="k">Tyre life</span><div class="ciBar"><i id="ciTyre"></i></div><span class="v" id="ciTyreV">100%</span></div>
@@ -3117,11 +3140,12 @@ async function loadCar(loader,onProg){
   model.traverse(o=>{ if(o.isMesh){o.castShadow=true;o.receiveShadow=true;o.frustumCulled=false;
     const mn=o.material.name||'';
     if(/Carbon_Fiber___Twill/.test(mn)){o.material.color.set(baseCol);o.material.metalness=0.5;o.material.roughness=0.4;bodyMat=o.material;} // body → gets livery
-    else if(/Carbon_Fiber___Plain/.test(mn)){o.material.color.set(baseCol);o.material.metalness=0.5;o.material.roughness=0.42;}
+    else if(/Carbon_Fiber___Plain/.test(mn)){o.material.color.set(0x14161c);o.material.metalness=0.7;o.material.roughness=0.4;} // plain carbon (wheel covers/spokes) → dark, NOT team colour
     else if(/Titanium___Polished/.test(mn)){o.material.color.set(0xccd0d6);o.material.metalness=1;o.material.roughness=0.2;}
     else if(/Titanium___Satin/.test(mn)){o.material.color.set(0x2c313a);o.material.metalness=0.9;o.material.roughness=0.42;}
     else if(/Fabric_Black/.test(mn)){o.material.color.set(0x0a0c12);}
     else if(/Rubber/.test(mn)){o.material.color.set(0x0e0e12);}
+    else if(!mn){o.material.color.set(0x14161c);o.material.metalness=0.85;o.material.roughness=0.38;} // unnamed GLB parts (wheel rims/covers/brakes) → dark metal, never team colour
     o.material.envMapIntensity=1.15;}});
   CAR.bodyMat=bodyMat;
   if(bodyMat) applyLivery(bodyMat, liveryTex, 1/1250, baseCol);
@@ -3157,6 +3181,16 @@ async function loadCar(loader,onProg){
   // guarantee NO livery lands on the wheels: any wheel-group mesh still on the body
   // material gets the neutral dark carbon instead (keeps logos off the rims)
   [CAR.front.spin,CAR.rear.spin].forEach(s=>s.traverse(o=>{if(o.isMesh&&o.material===bodyMat)o.material=wheelCarbon;}));
+  // DEFINITIVE rim fix: the GLB ships the rims / wheel covers / spokes on unnamed
+  // team-blue materials. Replace every non-body, non-recognised material outright
+  // with dark metal so no team colour ever appears on the wheels.
+  const darkRim=new THREE.MeshStandardMaterial({color:0x14161c,metalness:0.86,roughness:0.36,envMapIntensity:1.15});
+  model.traverse(o=>{ if(!o.isMesh||!o.material) return;
+    const mats=Array.isArray(o.material)?o.material:[o.material];
+    if(mats.includes(bodyMat)) return;                        // never touch the livery bodywork
+    const recognised=mats.some(m=>/Carbon_Fiber|Titanium|Fabric|Rubber|Steering/i.test(m.name||''));
+    if(!recognised) o.material=Array.isArray(o.material)?o.material.map(()=>darkRim):darkRim;
+  });
 
   // scale from wheelbase
   const wbModel=CAR.front.center.z-CAR.rear.center.z;
@@ -3349,6 +3383,7 @@ function resetCar(){
   CAR.v=0;CAR.steer=0;CAR.steerCmd=0;CAR.yawRate=0;CAR.vLat=0;CAR.pitch=0;
   CAR.ers=0.75;CAR.ersActive=0;CAR.tire=1;CAR.damage=0;
   CAR.compound=selCompound; CAR.tireLapsLife=compoundLaps(selCompound,CFG.id);
+  CAR.rTyreWarn=false; CAR.rTyreCrit=false; CAR.rDmg=false; CAR.rPrevPos=8; CAR.rPrevBest=null;
   CAR.trackIdx=0; CAR.groundY=p.y;
   CAR.rig.position.set(p.x,p.y+0.02-(CAR.tireDrop||0),p.z);   // seat on the grid during the countdown
   CAR.rig.rotation.set(0,CAR.heading,0,'YXZ');
@@ -3535,10 +3570,16 @@ const lap={t:0,num:1,last:null,best:null,prevIdx:0,armed:false,cur:null,bestArr:
     }
     if(this.armed && this.prevIdx>TRACK.N-40 && idx<40){
       this.split(2);
-      this.last=this.t; if(this.best==null||this.t<this.best){this.best=this.t;this.bestArr=this.cur.slice();}
+      this.last=this.t; const improved=(this.best==null||this.t<this.best);
+      if(improved){this.best=this.t;this.bestArr=this.cur.slice();}
       this.num++; this.t=0; this.sec=0; this.secStart=0; this.cur=new Float32Array(TRACK.N).fill(-1);
       $('#lapNum').textContent=this.num;$('#lapLast').textContent=fmt(this.last);$('#lapBest').textContent=fmt(this.best);
       Sound.blip(760,.09);
+      // radio: fastest lap of the race (a new personal best after the opening lap)
+      if(improved && this.num>2 && (sessionMode==='gp'||sessionMode==='season')){
+        Radio.say('engineer','fastest_lap',{cool:30});
+        setTimeout(()=>Radio.say('commentator','fastest_lap',{cool:30}),700);
+      }
       if(sessionMode==='quali' && this.num>3){ endQuali(this.best); }   // 3 flying laps done
     }
     if(idx>60&&idx<TRACK.N-60) this.armed=true;
@@ -3592,6 +3633,96 @@ const Sound={ctx:null,master:null,osc:null,osc2:null,gain:null,filt:null,muted:f
     $('#sndIcon').innerHTML=this.muted?'<path d="M4 9v6h4l5 4V5L8 9H4z"/><path d="M23 9l-6 6M17 9l6 6"/>':'<path d="M4 9v6h4l5 4V5L8 9H4z"/><path d="M16 8a5 5 0 010 8"/>';return this.muted;}
 };
 $('#sndBtn').addEventListener('click',()=>{Sound.init();Sound.toggle();Sound.blip(420);});
+
+/* ==================================================================
+   TEAM RADIO + COMMENTARY  (ElevenLabs voices, browser-speech fallback)
+   Lines are original, written in the functional register of F1 team
+   radio and race commentary — no real broadcast scripts are reproduced.
+   ================================================================== */
+const RADIO_VOICES={engineer:'fi0Q2HtvrXaquT6bHrd2', commentator:'pKVRwiNVR6RKDgIGc32Z'};
+const RADIO_LINES={
+  engineer:{
+    start:["Lights out, we are racing. Head down now.","Okay we're green, green, green — bring it home.","That's us underway. Good launch, keep it clean."],
+    tyre_warn:["Tyres are past their best now, start managing them.","Rears are going away — ease it through the corners.","Watch the tyre temps, we're into the second phase."],
+    tyre_crit:["Box, box, box. Confirm box this lap.","Tyres are done, we need you in the pit lane.","That's all from this set — box this lap for fresh rubber."],
+    box_confirm:["Copy, box confirmed. Pit entry is open.","Understood, come to the pits, we're ready for you."],
+    new_tyres:["Fresh set on. Bring them up to temperature.","New tyres — take a lap to switch them on, then push.","Good set fitted. They're cold, be careful out of the box."],
+    overtake_made:["Great move, that's a place gained. Well done.","Yes! Position is ours — keep the pressure on.","Lovely overtake. Now focus on the next one."],
+    overtake_lost:["He's through, don't panic, we'll get it back.","Lost a place there — stay calm, long way to go.","Okay he's ahead now, stick with him and mind the tyres."],
+    fastest_lap:["That is the fastest lap of the race. Superb.","Fastest lap — brilliant, the pace is really strong.","Purple lap, quickest out there. Keep it up."],
+    damage:["We're seeing some damage — take it steady.","There's damage on the car, nurse it for a lap.","Report the balance, we've picked up some damage."],
+    rain:["Rain expected shortly, the track will lose grip.","Spots of rain out there — be ready for less grip.","Weather's coming in, stay alert on the damp patches."],
+    final_lap:["Last lap now — this is it, everything you have.","Final lap, bring it home, we're nearly there."],
+    win:["P1! Get in there! Absolutely brilliant drive.","That's the win! Fantastic job, superb from you.","Yes yes yes! Victory — what a performance."],
+    finish:["Chequered flag — great job today, really strong.","That's the flag, well driven. Good points on the board."]
+  },
+  commentator:{
+    start:["It's lights out and away we go!","And they're racing down to turn one!","We are underway — a clean getaway at the front!"],
+    overtake:["And there's the move — brilliantly done!","Down the inside, and he makes it stick!","What a pass — wheel to wheel and he's through!"],
+    fastest_lap:["And that's the fastest lap of the race — sensational pace!","The screens light up purple — quickest of all!"],
+    lead:["He takes the lead of the Grand Prix!","And there's a new leader on the road!"],
+    final_lap:["The final lap now — can he hold on?","One lap to go, and the tension is unbearable!"],
+    win:["He takes the chequered flag — a famous win!","Across the line for victory! What a drive!"],
+    off:["Oh, he's run wide — losing precious time there!","Into the run-off — a mistake under pressure!"]
+  }
+};
+const Radio={
+  q:[], busy:false, last:{}, speechVoice:null, clipOk:{},
+  pick(kind,ev){const a=(RADIO_LINES[kind]||{})[ev]; if(!a||!a.length)return null;
+    const idx=(Math.random()*a.length)|0; return {text:a[idx],idx};},
+  say(kind,ev,{cool=9,vars={}}={}){
+    if(Sound.muted) return;
+    const now=performance.now(), key=kind+'/'+ev;
+    if(this.last[key] && now-this.last[key]<cool*1000) return;         // per-line cooldown
+    if(this.last['_any'+kind] && now-this.last['_any'+kind]<2500) { this.q.push({kind,ev,vars}); return; }
+    this.last[key]=now; this.last['_any'+kind]=now;
+    const p=this.pick(kind,ev); if(!p) return;
+    let text=p.text; for(const k in vars) text=text.replace('{'+k+'}',vars[k]);
+    this.show(kind,text);
+    this.play(kind,ev,p.idx,text);
+  },
+  show(kind,text){
+    if(kind==='engineer'){const b=$('#radioBox');$('#radioText').textContent=text;b.classList.add('on');
+      Sound.blip(1200,.05); setTimeout(()=>Sound.blip(900,.04),90);
+      clearTimeout(this._rh);this._rh=setTimeout(()=>b.classList.remove('on'),Math.max(3200,text.length*70));}
+    else{const b=$('#comBox');$('#comText').textContent='“'+text+'”';b.classList.add('on');
+      clearTimeout(this._ch);this._ch=setTimeout(()=>b.classList.remove('on'),Math.max(3200,text.length*68));}
+  },
+  play(kind,ev,idx,text){
+    // prefer a pre-baked ElevenLabs clip if it exists; else use browser speech
+    const vk=kind==='engineer'?'engineer':'commentator';
+    const url='assets/radio/'+vk+'/'+ev+'_'+idx+'.mp3';
+    if(this.clipOk[url]!==false){
+      const a=new Audio(url); a.volume=0.9;
+      a.onplaying=()=>{this.clipOk[url]=true;};
+      a.onerror=()=>{ if(this.clipOk[url]!==true){this.clipOk[url]=false; this.speak(kind,text);} };
+      a.play().catch(()=>{ if(this.clipOk[url]!==true){this.clipOk[url]=false; this.speak(kind,text);} });
+    } else this.speak(kind,text);
+  },
+  speak(kind,text){
+    if(!('speechSynthesis' in window)) return;
+    try{ const u=new SpeechSynthesisUtterance(text);
+      const vs=speechSynthesis.getVoices();
+      // engineer = calmer/lower, commentator = brighter/faster
+      const en=vs.find(v=>/en[-_]GB/i.test(v.lang))||vs.find(v=>/^en/i.test(v.lang))||vs[0];
+      if(en)u.voice=en;
+      u.rate=kind==='engineer'?0.98:1.12; u.pitch=kind==='engineer'?0.9:1.05; u.volume=0.95;
+      speechSynthesis.cancel(); speechSynthesis.speak(u);
+    }catch(e){}
+  },
+  reset(){this.q=[];this.last={};}
+};
+// drain any queued lines shortly after the last one
+setInterval(()=>{ if(!Radio.q.length)return; const now=performance.now();
+  if(!Radio.last['_anyengineer']||now-Radio.last['_anyengineer']>2600){ const n=Radio.q.shift(); if(n)Radio.say(n.kind,n.ev,{vars:n.vars,cool:0}); }
+},1200);
+if(typeof window!=='undefined') window.__Radio=Radio;
+// keep lines in sync with the generator: load assets/radio/lines.json if present
+fetch('assets/radio/lines.json').then(r=>r.ok?r.json():null).then(j=>{ if(!j)return;
+  if(j.engineer)Object.assign(RADIO_LINES.engineer,j.engineer);
+  if(j.commentator)Object.assign(RADIO_LINES.commentator,j.commentator);
+  if(j.voices)Object.assign(RADIO_VOICES,j.voices);
+}).catch(()=>{});
 
 /* ==================================================================
    CAMERAS
@@ -3730,7 +3861,9 @@ function fitTyres(comp){
   if(!COMPOUNDS[comp]||comp===CAR.compound&&CAR.tire>0.99)return;
   selCompound=comp; CAR.compound=comp;
   CAR.tireLapsLife=compoundLaps(comp,CFG?CFG.id:builtTrackId); CAR.tire=1;
+  CAR.rTyreWarn=false; CAR.rTyreCrit=false;                         // fresh stint → warnings re-arm
   Sound.init&&Sound.init(); Sound.blip&&Sound.blip(620,.06);
+  if(STATE==='drive'){ Radio.say('engineer','box_confirm',{cool:0}); setTimeout(()=>Radio.say('engineer','new_tyres',{cool:0}),3200); }
   const t=$('#tyreToast'); if(t){t.textContent=`${COMPOUNDS[comp].name} TYRES FITTED · ≈${CAR.tireLapsLife} LAPS`;
     t.style.color=COMPOUNDS[comp].col; t.classList.add('on'); clearTimeout(t._h); t._h=setTimeout(()=>t.classList.remove('on'),1800);}
 }
@@ -4189,6 +4322,11 @@ function startDrive(){
       STATE='drive';
       $('#hud').classList.add('on');$('#sndBtn').classList.add('show');
       Sound.init();Sound.start();
+      // race-start radio + commentary; weather note if it's wet
+      Radio.reset();
+      setTimeout(()=>Radio.say('commentator','start',{cool:0,vars:{track:cf.name}}),300);
+      setTimeout(()=>Radio.say('engineer','start',{cool:0}),1600);
+      if(cf.rain||cf.storm) setTimeout(()=>Radio.say('engineer','rain',{cool:0}),9000);
     });
   });
 }
@@ -4350,6 +4488,14 @@ function stepAI(dt){
   field.sort((a,b)=>b.d-a.d);
   AI.playerPos=field.findIndex(f=>f.me)+1;
   const pn=$('#posNum'); if(pn) pn.textContent=AI.playerPos;
+  // radio: position changes (gained / lost a place)
+  if(CAR.rPrevPos){
+    if(AI.playerPos<CAR.rPrevPos){ Radio.say('engineer','overtake_made',{cool:8});
+      setTimeout(()=>Radio.say('commentator','overtake',{cool:8}),400);
+      if(AI.playerPos===1) setTimeout(()=>Radio.say('commentator','lead',{cool:20}),900); }
+    else if(AI.playerPos>CAR.rPrevPos){ Radio.say('engineer','overtake_lost',{cool:8}); }
+  }
+  CAR.rPrevPos=AI.playerPos;
 }
 
 /* ==================================================================
@@ -4423,6 +4569,12 @@ function updateHUD(inp,r){
   const tr=$('#tyreRing'); if(tr){tr.style.background=`conic-gradient(${tCol} ${tp}%, rgba(255,255,255,.08) 0)`; $('#tyrePct').textContent=tp;}
   const cmp=COMPOUNDS[CAR.compound||'medium']||COMPOUNDS.medium, tcEl=$('#tyreComp');
   if(tcEl){tcEl.textContent=cmp.short;tcEl.style.color=cmp.col;}
+  // radio: tyre-wear warnings + damage (once per stint)
+  if(STATE==='drive'){
+    if(!CAR.rTyreWarn && CAR.tire<0.35){CAR.rTyreWarn=true;Radio.say('engineer','tyre_warn',{cool:0});}
+    if(!CAR.rTyreCrit && CAR.tire<0.15){CAR.rTyreCrit=true;Radio.say('engineer','tyre_crit',{cool:0});}
+    if(!CAR.rDmg && CAR.damage>0.3){CAR.rDmg=true;Radio.say('engineer','damage',{cool:0});}
+  }
   const df=$('#dmgFill'); if(df) df.style.height=(CAR.damage*100)+'%';
   // detailed car-status panel (when toggled on)
   if($('#carInfo').classList.contains('on')){
