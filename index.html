@@ -1049,7 +1049,7 @@ const TEXAS_ELEV=[
 const TRACKS={
   spa:{ id:'spa', name:'SPA-FRANCORCHAMPS', country:'BELGIUM', flag:'🇧🇪', points:SPA, len:7004,
     halfW:7.6, night:false, forest:true, runoff:'mixed',
-    kerb:['#d81c1c','#f2c400'], asphalt:0x2a2d33, ground:0x35562f, laprec:'1:44',
+    kerb:['#d81c1c','#eef1f4'], asphalt:0x2a2d33, ground:0x35562f, laprec:'1:44',
     elev:f=>elevProfile(SPA_ELEV,f) },
   yas:{ id:'yas', name:'YAS MARINA', country:'ABU DHABI', flag:'🇦🇪', points:YAS, len:5281,
     halfW:7.6, night:true, forest:false, runoff:'blue',
@@ -1085,11 +1085,11 @@ const TRACKS={
     elev:f=>2*Math.sin(f*TAU*2) },       // Miami: turquoise run-off, palms, marina
   montreal:{ id:'montreal', name:'GILLES VILLENEUVE', country:'CANADA', flag:'🇨🇦', points:MONTREAL, len:4361,
     halfW:7.0, night:false, env:'montreal', runoff:'mixed',
-    kerb:['#1a9e3e','#f2d000'], asphalt:0x33363c, ground:0x3a6238, laprec:'1:12',
+    kerb:['#d81c1c','#eef1f4'], asphalt:0x33363c, ground:0x3a6238, laprec:'1:12',
     elev:f=>2.5*Math.sin(f*TAU*2-0.5) }, // Montreal: green/yellow kerbs, river island, walls close
   australia:{ id:'australia', name:'ALBERT PARK', country:'AUSTRALIA', flag:'🇦🇺', points:AUSTRALIA, len:5278,
     halfW:7.8, night:false, env:'melbourne', runoff:'mixed',
-    kerb:['#1a9e3e','#f2d000'], asphalt:0x33363c, ground:0x3e6d38, laprec:'1:18',
+    kerb:['#d81c1c','#eef1f4'], asphalt:0x33363c, ground:0x3e6d38, laprec:'1:18',
     elev:f=>1.6*Math.sin(f*TAU*2+0.3) },  // parkland circuit round a lake, Melbourne skyline
   bahrain:{ id:'bahrain', name:'BAHRAIN', country:'BAHRAIN', flag:'🇧🇭', points:BAHRAIN, len:5412,
     halfW:8.0, night:true, env:'bahrain', runoff:'desertmix',
@@ -3563,8 +3563,8 @@ const LIVERIES={
       {t:'EPSON',x:116,y:408,col:'#2b6fd6',sz:21,style:'900'},{t:'IWC',x:398,y:408,col:'#ffffff',sz:22,style:'900'},
       {t:'UBS',x:120,y:520,col:'#ff2a2a',sz:22,style:'900'},{t:'WhatsApp',x:398,y:520,col:'#25d366',sz:18,style:'700'},
       {t:'INEOS',x:256,y:520,col:'#ffffff',sz:19,style:'900'}] },
-  mclaren:{ name:'McLaren', base:'#ff6a00', swatch:['#ff8000','#00b5cc','#111'],
-    top:'#ff7d10',mid:'#ff6a00',bot:'#d95700',
+  mclaren:{ name:'McLaren', base:'#ff8000', swatch:['#ff8000','#00b5cc','#111'],
+    top:'#ff9426',mid:'#ff8000',bot:'#e06400',
     draw(x){
       x.fillStyle='#0e2b33';x.beginPath();x.moveTo(0,504);x.lineTo(512,476);x.lineTo(512,552);x.lineTo(0,552);x.closePath();x.fill();
       x.fillStyle='#00c6de';x.beginPath();x.moveTo(0,502);x.lineTo(512,474);x.lineTo(512,480);x.lineTo(0,508);x.closePath();x.fill();
@@ -3586,16 +3586,16 @@ const LIVERIES={
       {t:'Cognizant',x:116,y:406,col:'#2b6fd6',sz:18,style:'900'},{t:'BOSS',x:398,y:406,col:'#ffffff',sz:24,style:'900'},
       {t:'Valvoline',x:120,y:520,col:'#ff2436',sz:17,style:'900'},{t:'MGM',x:398,y:520,col:'#f0c33c',sz:20,style:'900'},
       {t:'BWT',x:256,y:520,col:'#ff5fa2',sz:20,style:'900'}] },
-  williams:{ name:'Williams', base:'#0a1a3a', swatch:['#0a1a3a','#37b6ff','#ffffff'],
-    top:'#12294f',mid:'#0c1c3e',bot:'#060f24',
+  williams:{ name:'Williams', base:'#0a2f78', swatch:['#1b4fd8','#37b6ff','#ffffff'],
+    top:'#1c48a8',mid:'#0e3382',bot:'#071f52',
     draw(x){ x.fillStyle='#37b6ff';x.beginPath();x.moveTo(0,506);x.lineTo(512,470);x.lineTo(512,486);x.lineTo(0,522);x.closePath();x.fill();
       x.fillStyle='#ffffff';x.font='italic 900 30px Arial';x.textAlign='center';x.textBaseline='middle';x.fillText('W',256,436);},
     logos:[{t:'Atlassian',x:256,y:388,col:'#2b7fff',sz:24,style:'900'},
       {t:'Gulf',x:116,y:406,col:'#ff8a3a',sz:22,style:'900'},{t:'Duracell',x:398,y:406,col:'#111111',sz:17,style:'900',chip:'#e8a400'},
       {t:'Komatsu',x:120,y:520,col:'#ffd23a',sz:16,style:'900'},{t:'Kraken',x:398,y:520,col:'#7a5aff',sz:18,style:'900'},
       {t:'MyProtein',x:256,y:520,col:'#ffffff',sz:16,style:'900'}] },
-  alpine:{ name:'Alpine', base:'#0a2a55', swatch:['#0a2a55','#ff5fa0','#00e0e0'],
-    top:'#12356a',mid:'#0a2a55',bot:'#061a3a',
+  alpine:{ name:'Alpine', base:'#0a4f9c', swatch:['#0068c9','#ff5fa0','#ffffff'],
+    top:'#1a72cf',mid:'#0a58ab',bot:'#04347a',
     draw(x){ x.fillStyle='#ff4f9a';x.fillRect(0,502,512,10);
       x.fillStyle='#ffffff';x.font='italic 900 26px Arial';x.textAlign='center';x.textBaseline='middle';x.fillText('ALPINE',256,436);},
     logos:[{t:'BWT',x:256,y:388,col:'#ff5fa2',sz:26,style:'900'},
@@ -3620,12 +3620,12 @@ const LIVERIES={
       {t:'Cash App',x:116,y:406,col:'#00d54b',sz:18,style:'900'},{t:'Tudor',x:398,y:406,col:'#ffffff',sz:20,style:'900'},
       {t:'Hugo',x:120,y:520,col:'#e2001a',sz:18,style:'900'},{t:'AlphaTauri',x:398,y:520,col:'#ffffff',sz:14,style:'900'},
       {t:'Neuralink',x:256,y:520,col:'#ffffff',sz:14,style:'700'}] },
-  sauber:{ name:'Kick Sauber', base:'#0a2a1a', swatch:['#0a2a1a','#00e701','#111'],
-    top:'#0e3a22',mid:'#0a2a1a',bot:'#061a10',
-    draw(x){ x.fillStyle='#00e701';x.fillRect(0,500,512,12);
-      x.fillStyle='#00e701';x.font='italic 900 26px Arial';x.textAlign='center';x.textBaseline='middle';x.fillText('KICK',256,434);},
-    logos:[{t:'Stake',x:256,y:388,col:'#00e701',sz:26,style:'900'},
-      {t:'Kick',x:116,y:406,col:'#00e701',sz:22,style:'900'},{t:'Nexus',x:398,y:406,col:'#ffffff',sz:18,style:'900'},
+  sauber:{ name:'Kick Sauber', base:'#00c400', swatch:['#00e701','#0b0b0b','#ffffff'],
+    top:'#25f43a',mid:'#00d900',bot:'#039b18',
+    draw(x){ x.fillStyle='#0b0b0b';x.fillRect(0,498,512,16);
+      x.fillStyle='#0b0b0b';x.font='italic 900 26px Arial';x.textAlign='center';x.textBaseline='middle';x.fillText('KICK',256,434);},
+    logos:[{t:'Stake',x:256,y:388,col:'#0b0b0b',sz:26,style:'900'},
+      {t:'Kick',x:116,y:406,col:'#0b0b0b',sz:22,style:'900'},{t:'Nexus',x:398,y:406,col:'#0b0b0b',sz:18,style:'900'},
       {t:'Ella',x:120,y:520,col:'#ffffff',sz:18,style:'900'},{t:'Kaspersky',x:398,y:520,col:'#00b04f',sz:15,style:'900'},
       {t:'PMI',x:256,y:520,col:'#ffffff',sz:16,style:'900'}] },
   plain:{ name:'CARBON · NO LIVERY', base:'#0c0e13', swatch:['#0c0e13','#15181f','#23272f'], plain:true },
