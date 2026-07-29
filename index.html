@@ -562,6 +562,15 @@
   #speedMarks span:nth-child(2){transform:translateY(-3px)}
   #offTrack{position:absolute;left:50%;top:38%;transform:translate(-50%,-50%);font-size:14px;letter-spacing:.42em;color:var(--red);text-transform:uppercase;font-weight:700;opacity:0;transition:opacity .2s;text-shadow:0 0 20px var(--red-glow)}
   #offTrack.on{opacity:.9}
+  /* track-limit warnings and any time penalty carried */
+  #limitWarn{position:absolute;left:50%;top:46%;transform:translateX(-50%);display:flex;gap:8px;
+    align-items:center;opacity:0;transition:opacity .2s;font-family:var(--mono);font-size:10px;
+    letter-spacing:.18em;font-weight:700;pointer-events:none}
+  #limitWarn.on{opacity:1}
+  #limitWarn b{color:#fff;background:var(--red);border-radius:3px;padding:2px 7px;
+    box-shadow:0 0 18px var(--red-glow)}
+  #limitWarn i{font-style:normal;color:#ffcf6a;border:1px solid rgba(255,207,106,.5);
+    border-radius:3px;padding:2px 7px;background:rgba(10,12,18,.6)}
   /* keys, tucked under the car-status bar bottom-left and out of the way */
   #keyHelp{position:absolute;left:clamp(16px,2.4vw,36px);bottom:clamp(28px,5.4vh,58px);
     max-width:250px;font-family:var(--mono);font-size:8px;letter-spacing:.1em;line-height:2.0;
@@ -787,6 +796,7 @@
     </div>
   </div>
   <div id="offTrack">Off Track</div>
+  <div id="limitWarn"></div>
   <div id="tyreToast"></div>
   <div id="comBox"><span class="cmLabel">● LIVE</span><span id="comText"></span></div>
   <div id="radioBox"><span class="rdWho">RACE ENGINEER</span><span id="radioText"></span><span class="rdWave"><i></i><i></i><i></i><i></i><i></i></span></div>
@@ -2281,6 +2291,20 @@ function onWeatherTurn(next){
   const P=WEATHER_PRESETS[next];
   if(P.wetness>WEATHER.wetness+0.1) Radio.say('engineer','rain',{cool:0});
   else if(P.wetness<WEATHER.wetness-0.1) Radio.say('engineer','dry',{cool:0});
+  /* Recommend the right rubber for what is coming. This is the call that decides
+     a wet race, so it belongs on the radio rather than left for you to guess. */
+  if(typeof CAR==='undefined'||typeof COMPOUNDS==='undefined') return;
+  const want = P.wetness>0.55 ? 'wet' : P.wetness>0.18 ? 'inter'
+             : (CAR.compound==='wet'||CAR.compound==='inter') ? 'medium' : null;
+  if(want && want!==CAR.compound){
+    const nm=COMPOUNDS[want].name;
+    setTimeout(()=>{
+      const t=$('#tyreToast');
+      if(t){t.textContent='ENGINEER: BOX FOR '+nm+' TYRES';
+        t.style.color=COMPOUNDS[want].col;t.classList.add('on');
+        clearTimeout(t._h);t._h=setTimeout(()=>t.classList.remove('on'),3000);}
+    },2600);
+  }
 }
 /* legacy day → dusk hook, kept so a track can still force a scripted sunset */
 let _duskEnvT=0;
@@ -7890,10 +7914,36 @@ function makeLivery(teamKey){
       if(s.chip){const w=x.measureText(s.t).width+14,h=(s.sz||20)+6;x.fillStyle=s.chip;roundRect(x,px-w/2,py-h/2,w,h,4);}
       else {x.lineWidth=3;x.strokeStyle='rgba(0,0,0,.42)';x.strokeText(s.t,px,py);}
       x.fillStyle=s.col;x.fillText(s.t,px,py);});
-    // driver number roundel, centred low on the engine cover
+    /* The nose and the airbox spine were bare — nothing was painted forward of the
+       sidepods or along the top of the engine cover, so from every camera angle
+       that matters the car read as one flat colour. */
+    // the nose flash: a narrow taper in the secondary colour, well clear of the
+    // title so it reads as paint on the nose rather than a badge behind the text
+    { x.save();
+      x.fillStyle=sw[1];x.globalAlpha=0.85;
+      x.beginPath();x.moveTo(232,252);x.lineTo(280,252);x.lineTo(268,286);x.lineTo(244,286);
+      x.closePath();x.fill();
+      x.globalAlpha=1;x.restore(); }
+    // engine-cover spine: a soft shading band, not a painted stripe
+    { const sg=x.createLinearGradient(238,0,274,0);
+      sg.addColorStop(0,'rgba(0,0,0,0)');sg.addColorStop(0.5,'rgba(0,0,0,.16)');
+      sg.addColorStop(1,'rgba(0,0,0,0)');
+      x.fillStyle=sg;x.fillRect(238,300,36,470); }
+    // halo band across the cockpit opening, in the accent colour
+    { x.fillStyle=sw[2];x.globalAlpha=0.9;
+      x.beginPath();x.ellipse(256,470,44,13,0,0,TAU);x.fill();
+      x.globalAlpha=1;
+      x.fillStyle='rgba(8,9,12,.92)';
+      x.beginPath();x.ellipse(256,472,36,9,0,0,TAU);x.fill(); }
+    // driver number roundel, on the engine cover behind the halo
     const num=String((typeof SEASON!=='undefined'&&SEASON.num)||1);
     x.fillStyle='rgba(255,255,255,0.94)';x.beginPath();x.arc(256,606,30,0,7);x.fill();
-    x.fillStyle=gBot;x.font='900 40px Arial';x.fillText(num,256,608);
+    x.strokeStyle='rgba(0,0,0,.35)';x.lineWidth=2.5;x.beginPath();x.arc(256,606,30,0,7);x.stroke();
+    x.fillStyle=gBot;x.font='900 40px Arial';x.textAlign='center';x.textBaseline='middle';
+    x.fillText(num,256,608);
+    // and the tyre-supplier mark low on the flank, as every car carries
+    { x.font='900 12px Arial';x.fillStyle='rgba(255,255,255,.40)';
+      x.fillText('PIRELLI',126,700); x.fillText('PIRELLI',386,700); }
     x.restore();
   };
   block(0);block(512);
@@ -8201,6 +8251,7 @@ function resetCar(){
   CAR.v=0;CAR.steer=0;CAR.steerCmd=0;CAR.yawRate=0;CAR.vLat=0;CAR.pitch=0;
   CAR.lock=0;CAR.spin=0;CAR.comp=0;CAR.slope=undefined;
   CAR.gear=0;CAR.shiftT=0;CAR.tTemp=0.30;CAR.drsOpen=false;CAR.drsZone=false;
+  CAR.limits=0;CAR.limitArmed=false;CAR.penalty=0;
   FX.reset();
   CAR.ers=0.75;CAR.ersActive=0;CAR.tire=1;CAR.damage=0;
   CAR.compound=selCompound; CAR.tireLapsLife=compoundLaps(selCompound,CFG.id);
@@ -8303,10 +8354,16 @@ function stepPhysics(dt,inp){
   const tempGrip = tw<0.45 ? lerp(0.80,1.0,tw/0.45)
                  : tw<0.85 ? 1.0
                  : lerp(1.0,0.86,clamp((tw-0.85)/0.40,0,1));
-  const tireGrip=lerp(0.82,1.0,CAR.tire)*comp.grip*tempGrip;
+  const wetFit=compoundWetFit(CAR.compound||'medium',WEATHER.wetness);
+  const tireGrip=lerp(0.82,1.0,CAR.tire)*comp.grip*tempGrip*wetFit;
   const gripMul=(off?0.55:(onKerb?0.82:1.0))*wetMul*tireGrip*rdGrip();
   // a tyre outside its window also wears faster
   if(spd>2 && (tw<0.35||tw>0.95)) CAR.tire=Math.max(0,CAR.tire-dt*0.004);
+  // running the wrong tyre for the conditions destroys it
+  if(spd>2 && wetFit<0.9) CAR.tire=Math.max(0,CAR.tire-dt*(1-wetFit)*0.030);
+  // and a wet tyre on a drying track runs hot, because there is no water to cool it
+  if((CAR.compound==='wet'||CAR.compound==='inter') && WEATHER.wetness<0.15)
+    CAR.tTemp=Math.min(1.25,CAR.tTemp+dt*0.07);
   CAR.kerb=onKerb;
 
   // lateral: dynamic bicycle model — real slip angles give understeer/oversteer.
@@ -8965,11 +9022,28 @@ const TYREWEAR={catalunya:1.75,silverstone:1.45,bahrain:1.5,spa:1.2,austria:1.1,
 /* tyre compounds: lap life at [very abrasive → non-abrasive] surfaces, plus grip.
    Softs give the most grip but wear fastest; hards the least grip but last longest.
    Pushing hard (throttle + slides + kerbs) eats into the life on top of this. */
+/* Tyres, including the wets — with weather that changes mid-race, having only
+   dry compounds meant a shower left you with nothing to fit. Each has a WET
+   WINDOW: how much standing water it actually wants. A slick on a wet track is
+   hopeless and a full wet on a dry one overheats and goes off, which is what
+   makes a crossover call matter. */
 const COMPOUNDS={
-  soft:  {name:'SOFT',  short:'S', col:'#e02020', laps:[12,20], grip:1.03},
-  medium:{name:'MEDIUM',short:'M', col:'#f5c518', laps:[23,29], grip:1.00},
-  hard:  {name:'HARD',  short:'H', col:'#eef1f4', laps:[32,40], grip:0.975},
+  soft:  {name:'SOFT',  short:'S', col:'#e02020', laps:[12,20], grip:1.03,  wet:[0.00,0.10]},
+  medium:{name:'MEDIUM',short:'M', col:'#f5c518', laps:[23,29], grip:1.00,  wet:[0.00,0.14]},
+  hard:  {name:'HARD',  short:'H', col:'#eef1f4', laps:[32,40], grip:0.975, wet:[0.00,0.18]},
+  inter: {name:'INTER', short:'I', col:'#3fc23f', laps:[16,24], grip:0.955, wet:[0.18,0.70]},
+  wet:   {name:'WET',   short:'W', col:'#2f7fe0', laps:[20,30], grip:0.925, wet:[0.55,1.00]},
 };
+/* How well the fitted compound suits the current amount of water. 1.0 inside its
+   window, falling away outside it — badly on a slick in the rain, mildly on a
+   wet tyre in the dry (where the extra tread just overheats). */
+function compoundWetFit(comp,wetness){
+  const c=COMPOUNDS[comp]||COMPOUNDS.medium, w=clamp(wetness,0,1);
+  const [lo,hi]=c.wet;
+  if(w>=lo&&w<=hi) return 1.0;
+  if(w<lo) return Math.max(0.72,1-(lo-w)*1.25);        // too dry for this tyre
+  return Math.max(0.42,1-(w-hi)*1.55);                  // too wet for this tyre
+}
 let selCompound='medium';
 // 0 (non-abrasive, e.g. Monaco) .. 1 (very abrasive, e.g. Barcelona)
 function trackAbrasion(id){const w=TYREWEAR[id]||1.0; return Math.max(0,Math.min(1,(w-0.7)/(1.75-0.7)));}
@@ -9078,7 +9152,7 @@ function buildGarage(){
 function buildTyreChips(){
   const tc=$('#gTyres'); if(!tc)return; tc.innerHTML='';
   const id=TRACK_IDS[selTrack]||builtTrackId;
-  ['soft','medium','hard'].forEach(k=>{const C=COMPOUNDS[k];
+  ['soft','medium','hard','inter','wet'].forEach(k=>{const C=COMPOUNDS[k];
     const c=document.createElement('div');c.className='ssChip'+(k===selCompound?' on':'');
     c.innerHTML=`<span style="color:${C.col};font-weight:900">${C.short}</span> ${C.name}`;
     c.onclick=()=>{selCompound=k;buildTyreChips();Sound.init();Sound.blip(560,.05);};
@@ -9091,6 +9165,7 @@ function fitTyres(comp){
   if(!COMPOUNDS[comp]||comp===CAR.compound&&CAR.tire>0.99)return;
   selCompound=comp; CAR.compound=comp;
   CAR.tireLapsLife=compoundLaps(comp,CFG?CFG.id:builtTrackId); CAR.tire=1;
+  CAR.tTemp=0.22;                                                   // a new set goes on cold
   CAR.rTyreWarn=false; CAR.rTyreCrit=false;                         // fresh stint → warnings re-arm
   Sound.init&&Sound.init(); Sound.blip&&Sound.blip(620,.06);
   if(STATE==='drive'){ Radio.say('engineer','box_confirm',{cool:0}); setTimeout(()=>Radio.say('engineer','new_tyres',{cool:0}),3200); }
@@ -9241,7 +9316,12 @@ function endSeasonRace(){
   const N=TRACK.N||1, order=[];
   const dOf=(idx,lp)=>lp*TRACK.len + (TRACK.cum?TRACK.cum[Math.round(idx)%N]||0:0);
   AI.cars.forEach(c=>order.push({nm:c.name,team:c.team,d:dOf(c.idx,c.lap),me:false}));
-  order.push({nm:SEASON.name,team:SEASON.team,d:dOf(CAR.trackIdx||0,lap.num||0),me:true});
+  /* Any time penalty is served here, converted to distance at racing speed —
+     a five-second penalty has to actually cost you places, or it is not a
+     penalty. */
+  const penMetres=(CAR.penalty||0)*55;
+  order.push({nm:SEASON.name,team:SEASON.team,
+    d:dOf(CAR.trackIdx||0,lap.num||0)-penMetres, me:true, pen:CAR.penalty||0});
   order.sort((a,b)=>b.d-a.d);
   // award championship points down the top ten
   const res=order.map((o,i)=>({pos:i+1,nm:o.nm,team:o.team,me:o.me,pts:F1PTS[i]||0}));
@@ -10060,6 +10140,28 @@ function updateHUD(inp,r){
     $('#speedBox').classList.toggle('hot', f>0.8); }
   $('#thr i').style.height=(inp.throttle*100)+'%';
   $('#brk i').style.height=(inp.brake*100)+'%';
+  /* TRACK LIMITS. Running all four wheels off the road is worth a warning, and
+     the fourth one is a five-second penalty — which is how it is actually
+     policed. Without this, cutting a corner was simply free. */
+  { const off=r.off&&spd>8;
+    if(off && !CAR.limitArmed){ CAR.limitArmed=true;
+      CAR.limits=(CAR.limits||0)+1;
+      const n=CAR.limits;
+      const tl=$('#tyreToast');
+      if(n<4){
+        if(tl){tl.textContent=`TRACK LIMITS · WARNING ${n}/3`;tl.style.color='#ffcf6a';
+          tl.classList.add('on');clearTimeout(tl._h);tl._h=setTimeout(()=>tl.classList.remove('on'),1700);}
+      }else{
+        CAR.penalty=(CAR.penalty||0)+5; CAR.limits=0;
+        if(tl){tl.textContent='+5s PENALTY · TRACK LIMITS';tl.style.color='#ff5b5b';
+          tl.classList.add('on');clearTimeout(tl._h);tl._h=setTimeout(()=>tl.classList.remove('on'),2400);}
+      }
+    }
+    if(!r.off) CAR.limitArmed=false;
+    const lw=$('#limitWarn');
+    if(lw){ const n=CAR.limits||0, pen=CAR.penalty||0;
+      lw.classList.toggle('on', n>0||pen>0);
+      lw.innerHTML = (pen? `<b>+${pen}s</b>` : '') + (n? `<i>LIMITS ${n}/3</i>` : ''); } }
   $('#offTrack').classList.toggle('on',r.off&&spd>4);
   $('#drs').classList.toggle('on', !!CAR.drsOpen);
   $('#drs').classList.toggle('avail', !!CAR.drsZone && !CAR.drsOpen);
