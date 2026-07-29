@@ -5730,17 +5730,31 @@ function roundRect(x,px,py,w,h,r){x.beginPath();x.moveTo(px+r,py);x.arcTo(px+w,p
 const LIVERIES={
   redbull:{ name:'Red Bull', base:'#0a1740', swatch:['#0e1a4a','#d40010','#ffcc00'],
     top:'#0a1233',mid:'#132262',bot:'#070c26',
+    // matte navy body, the red diagonal sweeping up over the sidepod, a thin
+    // yellow lead-in above it, and the dark engine-cover spine
+    graphic(x,sw,{flash}){
+      flash('#0a1233',260,120,-10,0.55);
+      flash('#d40010',322,44,-40,1);
+      flash('#ffc400',312,9,-40,1);
+      flash('#0a1233',700,42,34,0.75);
+      x.fillStyle='rgba(255,255,255,.05)';x.fillRect(228,260,56,520); },
     draw(x){
       x.fillStyle='#d40010';x.beginPath();x.moveTo(0,512);x.lineTo(512,446);x.lineTo(512,488);x.lineTo(0,548);x.closePath();x.fill();
       x.fillStyle='#ffc400';x.beginPath();x.moveTo(0,506);x.lineTo(512,440);x.lineTo(512,451);x.lineTo(0,515);x.closePath();x.fill();
       x.fillStyle='#ffc400';x.beginPath();x.arc(256,430,36,0,7);x.fill();
       drawBull(x,247,436,1.25,false);drawBull(x,265,436,1.25,true);},
-    logos:[{t:'ORACLE',x:256,y:388,col:'#ff1423',sz:33,style:'900'},
+    logos:[{t:'ORACLE',x:256,y:388,col:'#ffffff',sz:33,style:'900'},
       {t:'TAG Heuer',x:118,y:408,col:'#f2f6fb',sz:19,style:'700'},{t:'bybit',x:398,y:408,col:'#ffd23b',sz:24,style:'900'},
       {t:'HONDA',x:118,y:520,col:'#ffffff',sz:21,style:'900'},{t:'Mobil 1',x:398,y:520,col:'#ff2436',sz:20,style:'900'},
       {t:'VISA',x:256,y:520,col:'#ffffff',sz:19,style:'900'}] },
   ferrari:{ name:'Ferrari', base:'#d00000', swatch:['#d40000','#fff200','#111'],
     top:'#e2000a',mid:'#c8000a',bot:'#8f0006',
+    // solid Rosso Corsa with the black floor edge and a single white pinstripe
+    graphic(x,sw,{flash,band}){
+      band('#c1000a',260,90,0.55);
+      band('#0b0b0b',712,68,1);
+      band('#ffffff',706,4,0.9);
+      x.fillStyle='rgba(0,0,0,.16)';x.fillRect(228,260,56,520); },
     draw(x){
       x.fillStyle='#0b0b0b';x.beginPath();x.moveTo(0,500);x.lineTo(512,500);x.lineTo(512,552);x.lineTo(0,552);x.closePath();x.fill();
       // yellow shield + prancing-horse silhouette
@@ -5749,10 +5763,18 @@ const LIVERIES={
       x.fillStyle='#0b0b0b';x.font='900 11px Arial';x.fillText('FERRARI',256,478);},
     logos:[{t:'HP',x:256,y:386,col:'#ffffff',sz:34,style:'900',chip:'#0096d6'},
       {t:'Shell',x:116,y:406,col:'#ffe200',sz:23,style:'900'},{t:'IBM',x:398,y:406,col:'#ffffff',sz:22,style:'900'},
-      {t:'Santander',x:120,y:520,col:'#ffffff',sz:17,style:'900'},{t:'Puma',x:398,y:520,col:'#0b0b0b',sz:20,style:'900'},
+      {t:'Santander',x:120,y:520,col:'#ffd6d6',sz:17,style:'900'},{t:'Puma',x:398,y:520,col:'#0b0b0b',sz:20,style:'900'},
       {t:'Ray-Ban',x:256,y:520,col:'#0b0b0b',sz:16,style:'700'}] },
   mercedes:{ name:'Mercedes', base:'#15191e', swatch:['#111417','#00d2be','#c0c6cc'],
     top:'#2b333b',mid:'#161b21',bot:'#0a0d10',
+    // black car, the teal running along the flank and up over the rear, with a
+    // silver hairline where the paint meets the exposed carbon
+    graphic(x,sw,{flash,band}){
+      band('#0a0d10',260,110,0.8);
+      flash('#00d2be',680,52,20,1);
+      flash('#c0c6cc',674,4,20,0.9);
+      flash('#00d2be',300,10,-18,0.85);
+      x.fillStyle='rgba(255,255,255,.04)';x.fillRect(232,260,48,520); },
     draw(x){
       x.fillStyle='#00d2be';x.fillRect(0,502,512,48);
       x.fillStyle='#000';x.fillRect(0,498,512,5);
@@ -5765,6 +5787,12 @@ const LIVERIES={
       {t:'INEOS',x:256,y:520,col:'#ffffff',sz:19,style:'900'}] },
   mclaren:{ name:'McLaren', base:'#ff8000', swatch:['#ff8000','#00b5cc','#111'],
     top:'#ff9426',mid:'#ff8000',bot:'#e06400',
+    // papaya over an anthracite lower half, split by the cyan chevron
+    graphic(x,sw,{flash}){
+      flash('#ff8000',260,190,-14,1);
+      flash('#0e2b33',668,120,26,1);
+      flash('#00c6de',662,9,26,1);
+      flash('#ffffff',300,5,-14,0.6); },
     draw(x){
       x.fillStyle='#0e2b33';x.beginPath();x.moveTo(0,504);x.lineTo(512,476);x.lineTo(512,552);x.lineTo(0,552);x.closePath();x.fill();
       x.fillStyle='#00c6de';x.beginPath();x.moveTo(0,502);x.lineTo(512,474);x.lineTo(512,480);x.lineTo(0,508);x.closePath();x.fill();
@@ -5775,6 +5803,13 @@ const LIVERIES={
       {t:'OKX',x:256,y:520,col:'#0b0b0b',sz:16,style:'900'}] },
   aston:{ name:'Aston Martin', base:'#00594f', swatch:['#00594f','#00665a','#cedc00'],
     top:'#00776a',mid:'#005c51',bot:'#013f38',
+    // British racing green with the lime accent low down and a dark spine
+    graphic(x,sw,{flash,band}){
+      band('#005c51',260,120,0.7);
+      band('#013f38',700,80,1);
+      band('#cedc00',694,7,1);
+      flash('#cedc00',330,6,-22,0.85);
+      x.fillStyle='rgba(0,0,0,.14)';x.fillRect(230,260,52,520); },
     draw(x){
       x.fillStyle='#cedc00';x.fillRect(0,500,512,7);
       // wings
@@ -5783,45 +5818,78 @@ const LIVERIES={
       for(let w=5;w>=1;w--){x.lineTo(256-w*11+4,432);x.lineTo(256-w*11,424-w*1.5);}x.closePath();x.fill();
       x.fillStyle='#0b0b0b';x.font='900 12px Arial';x.textAlign='center';x.textBaseline='middle';x.fillText('ASTON MARTIN',256,448);},
     logos:[{t:'ARAMCO',x:256,y:386,col:'#00b7e2',sz:26,style:'900'},
-      {t:'Cognizant',x:116,y:406,col:'#2b6fd6',sz:18,style:'900'},{t:'BOSS',x:398,y:406,col:'#ffffff',sz:24,style:'900'},
-      {t:'Valvoline',x:120,y:520,col:'#ff2436',sz:17,style:'900'},{t:'MGM',x:398,y:520,col:'#f0c33c',sz:20,style:'900'},
+      {t:'Cognizant',x:116,y:406,col:'#7fc4ff',sz:18,style:'900'},{t:'BOSS',x:398,y:406,col:'#ffffff',sz:24,style:'900'},
+      {t:'Valvoline',x:120,y:520,col:'#ff7a7a',sz:17,style:'900'},{t:'MGM',x:398,y:520,col:'#f0c33c',sz:20,style:'900'},
       {t:'BWT',x:256,y:520,col:'#ff5fa2',sz:20,style:'900'}] },
   williams:{ name:'Williams', base:'#0a2f78', swatch:['#1b4fd8','#37b6ff','#ffffff'],
     top:'#1c48a8',mid:'#0e3382',bot:'#071f52',
+    // navy with the sweeping light-blue flash and a white leading edge
+    graphic(x,sw,{flash,band}){
+      band('#0e3382',260,120,0.7);
+      flash('#37b6ff',668,58,32,1);
+      flash('#ffffff',662,6,32,1);
+      flash('#37b6ff',312,12,-24,0.8); },
     draw(x){ x.fillStyle='#37b6ff';x.beginPath();x.moveTo(0,506);x.lineTo(512,470);x.lineTo(512,486);x.lineTo(0,522);x.closePath();x.fill();
       x.fillStyle='#ffffff';x.font='italic 900 30px Arial';x.textAlign='center';x.textBaseline='middle';x.fillText('W',256,436);},
     logos:[{t:'Atlassian',x:256,y:388,col:'#2b7fff',sz:24,style:'900'},
       {t:'Gulf',x:116,y:406,col:'#ff8a3a',sz:22,style:'900'},{t:'Duracell',x:398,y:406,col:'#111111',sz:17,style:'900',chip:'#e8a400'},
-      {t:'Komatsu',x:120,y:520,col:'#ffd23a',sz:16,style:'900'},{t:'Kraken',x:398,y:520,col:'#7a5aff',sz:18,style:'900'},
+      {t:'Komatsu',x:120,y:520,col:'#ffe37a',sz:16,style:'900'},{t:'Kraken',x:398,y:520,col:'#b7a8ff',sz:18,style:'900'},
       {t:'MyProtein',x:256,y:520,col:'#ffffff',sz:16,style:'900'}] },
   alpine:{ name:'Alpine', base:'#0a4f9c', swatch:['#0068c9','#ff5fa0','#ffffff'],
     top:'#1a72cf',mid:'#0a58ab',bot:'#04347a',
+    // Alpine blue with the pink flash through the sidepod and a white keel line
+    graphic(x,sw,{flash,band}){
+      band('#0a58ab',260,120,0.7);
+      flash('#ff4f9a',690,40,22,1);
+      flash('#ffffff',684,5,22,0.9);
+      flash('#ff4f9a',318,10,-20,0.8);
+      x.fillStyle='rgba(255,255,255,.05)';x.fillRect(232,260,48,520); },
     draw(x){ x.fillStyle='#ff4f9a';x.fillRect(0,502,512,10);
       x.fillStyle='#ffffff';x.font='italic 900 26px Arial';x.textAlign='center';x.textBaseline='middle';x.fillText('ALPINE',256,436);},
     logos:[{t:'BWT',x:256,y:388,col:'#ff5fa2',sz:26,style:'900'},
-      {t:'Mapfre',x:116,y:406,col:'#e2001a',sz:18,style:'900'},{t:'Elf',x:398,y:406,col:'#00b0f0',sz:24,style:'900'},
-      {t:'Aramco',x:120,y:520,col:'#00b7e2',sz:16,style:'900'},{t:'H24',x:398,y:520,col:'#ffffff',sz:18,style:'900'},
+      {t:'Mapfre',x:116,y:406,col:'#ff6a78',sz:18,style:'900'},{t:'Elf',x:398,y:406,col:'#00b0f0',sz:24,style:'900'},
+      {t:'Aramco',x:120,y:520,col:'#7fe4ff',sz:16,style:'900'},{t:'H24',x:398,y:520,col:'#ffffff',sz:18,style:'900'},
       {t:'Binance',x:256,y:520,col:'#f0b90b',sz:16,style:'900'}] },
   haas:{ name:'Haas', base:'#d0d3d8', swatch:['#d0d3d8','#c8102e','#111'],
     top:'#e2e5ea',mid:'#c8ccd2',bot:'#9aa0a8',
+    // white body with the black lower half and the red divider, plus the red
+    // slash over the airbox
+    graphic(x,sw,{flash,band}){
+      band('#e2e5ea',260,120,0.85);
+      flash('#111111',676,110,30,1);
+      flash('#c8102e',668,10,30,1);
+      flash('#c8102e',306,14,-26,0.95); },
     draw(x){ x.fillStyle='#111';x.beginPath();x.moveTo(0,500);x.lineTo(512,470);x.lineTo(512,552);x.lineTo(0,552);x.closePath();x.fill();
       x.fillStyle='#c8102e';x.beginPath();x.moveTo(0,498);x.lineTo(512,468);x.lineTo(512,476);x.lineTo(0,506);x.closePath();x.fill();
       x.fillStyle='#111';x.font='900 26px Arial';x.textAlign='center';x.textBaseline='middle';x.fillText('HAAS',256,432);},
     logos:[{t:'MoneyGram',x:256,y:388,col:'#e2001a',sz:22,style:'900'},
-      {t:'Chipotle',x:116,y:406,col:'#7a1f1f',sz:17,style:'900'},{t:'HAAS F1',x:398,y:406,col:'#111111',sz:18,style:'900'},
-      {t:'Toyota',x:120,y:520,col:'#c8102e',sz:16,style:'900'},{t:'Airtel',x:398,y:520,col:'#e2001a',sz:18,style:'900'},
-      {t:'Vitol',x:256,y:520,col:'#111111',sz:16,style:'900'}] },
+      {t:'Chipotle',x:116,y:406,col:'#8f2b2b',sz:17,style:'900'},{t:'HAAS F1',x:398,y:406,col:'#111111',sz:18,style:'900'},
+      {t:'Toyota',x:120,y:520,col:'#ff6a78',sz:16,style:'900'},{t:'Airtel',x:398,y:520,col:'#ff6a78',sz:18,style:'900'},
+      {t:'Vitol',x:256,y:520,col:'#e8ebef',sz:16,style:'900'}] },
   rb:{ name:'Racing Bulls', base:'#12224e', swatch:['#12224e','#ffffff','#e2001a'],
     top:'#1a2f66',mid:'#12224e',bot:'#0a1330',
+    // navy with the white wedge and the red leading edge running the flank
+    graphic(x,sw,{flash,band}){
+      band('#12224e',260,120,0.7);
+      flash('#ffffff',664,66,40,1);
+      flash('#e2001a',656,10,40,1);
+      flash('#ffffff',300,9,-30,0.75); },
     draw(x){ x.fillStyle='#ffffff';x.beginPath();x.moveTo(0,505);x.lineTo(512,452);x.lineTo(512,472);x.lineTo(0,525);x.closePath();x.fill();
       x.fillStyle='#e2001a';x.beginPath();x.moveTo(0,500);x.lineTo(512,448);x.lineTo(512,456);x.lineTo(0,508);x.closePath();x.fill();
       x.fillStyle='#ffffff';x.font='italic 900 24px Arial';x.textAlign='center';x.textBaseline='middle';x.fillText('VCARB',256,434);},
     logos:[{t:'VISA',x:256,y:388,col:'#ffffff',sz:26,style:'900'},
       {t:'Cash App',x:116,y:406,col:'#00d54b',sz:18,style:'900'},{t:'Tudor',x:398,y:406,col:'#ffffff',sz:20,style:'900'},
-      {t:'Hugo',x:120,y:520,col:'#e2001a',sz:18,style:'900'},{t:'AlphaTauri',x:398,y:520,col:'#ffffff',sz:14,style:'900'},
+      {t:'Hugo',x:120,y:520,col:'#ff6a78',sz:18,style:'900'},{t:'AlphaTauri',x:398,y:520,col:'#ffffff',sz:14,style:'900'},
       {t:'Neuralink',x:256,y:520,col:'#ffffff',sz:14,style:'700'}] },
   sauber:{ name:'Kick Sauber', base:'#00c400', swatch:['#00e701','#0b0b0b','#ffffff'],
     top:'#25f43a',mid:'#00d900',bot:'#039b18',
+    // fluorescent green over a black lower body — the one car on the grid that
+    // is genuinely this loud
+    graphic(x,sw,{flash,band}){
+      band('#00d900',260,150,1);
+      flash('#0b0b0b',676,110,18,1);
+      flash('#00e701',668,10,18,1);
+      x.fillStyle='rgba(0,0,0,.20)';x.fillRect(228,260,56,420); },
     draw(x){ x.fillStyle='#0b0b0b';x.fillRect(0,498,512,16);
       x.fillStyle='#0b0b0b';x.font='italic 900 26px Arial';x.textAlign='center';x.textBaseline='middle';x.fillText('KICK',256,434);},
     logos:[{t:'Stake',x:256,y:388,col:'#0b0b0b',sz:26,style:'900'},
@@ -5843,31 +5911,51 @@ function makeLivery(teamKey){
   // with a detailed central column for the top surfaces — so the whole car reads as livery.
   const c=cnv(1024,1024),x=c.getContext('2d');
   const g=x.createLinearGradient(0,220,0,780);
-  g.addColorStop(0,team.top);g.addColorStop(0.5,team.mid);g.addColorStop(1,team.bot);
+  // the bare-carbon entry carries no paint, so fall back to its base colour
+  const gTop=team.top||team.base, gMid=team.mid||team.base, gBot=team.bot||team.base;
+  g.addColorStop(0,gTop);g.addColorStop(0.5,gMid);g.addColorStop(1,gBot);
   x.fillStyle=g;x.fillRect(0,0,1024,1024);
+  // Exposed carbon under everything. Real cars are carbon first and paint second,
+  // and the weave is what stops the dark areas reading as flat plastic.
+  { const w=cnv(16,16), wx=w.getContext('2d');
+    wx.fillStyle='#14161b';wx.fillRect(0,0,16,16);
+    wx.fillStyle='#1d2027';wx.fillRect(0,0,8,8);wx.fillRect(8,8,8,8);
+    wx.fillStyle='rgba(255,255,255,.05)';wx.fillRect(0,0,8,2);wx.fillRect(8,8,8,2);
+    const pat=x.createPattern(w,'repeat');
+    x.save();x.globalAlpha=team.plain?1:0.22;x.fillStyle=pat;x.fillRect(0,0,1024,1024);x.restore(); }
   const block=(ox)=>{
     x.save();x.translate(ox,0);
-    // one clean diagonal accent flash in the team's secondary colour (like a real livery)
-    const flash=(col,y0,h,skew,a)=>{x.globalAlpha=a;x.fillStyle=col;x.beginPath();
+    // a diagonal band across the body, used by the teams whose livery is built
+    // that way; each team supplies its own graphics rather than sharing two
+    // generic stripes, which is what made every car look like the same car
+    const flash=(col,y0,h,skew,a)=>{x.globalAlpha=a===undefined?1:a;x.fillStyle=col;x.beginPath();
       x.moveTo(-20,y0);x.lineTo(532,y0-skew);x.lineTo(532,y0-skew+h);x.lineTo(-20,y0+h);x.closePath();x.fill();x.globalAlpha=1;};
-    flash(sw[1],302,30,-26,0.95);
-    flash(sw[2],702,14,28,0.8);
+    // a horizontal band with soft ends, for the teams with a straight flank stripe
+    const band=(col,y0,h,a)=>{x.globalAlpha=a===undefined?1:a;x.fillStyle=col;x.fillRect(-20,y0,552,h);x.globalAlpha=1;};
+    if(team.graphic) team.graphic(x,sw,{flash,band});
+    else { flash(sw[1],302,30,-26,0.95); flash(sw[2],702,14,28,0.8); }
     // team hero mark + name (engine cover / airbox)
-    team.draw(x);
+    if(team.draw) team.draw(x);
+    if(!team.logos){x.restore();return;}
     // title sponsor, clean, high on the airbox
     const title=team.logos[0];
     x.textAlign='center';x.textBaseline='middle';
-    x.font=`900 ${(title.sz||30)+4}px Arial`;x.fillStyle=title.col;x.fillText(title.t,256,338);
+    x.font=`900 ${(title.sz||30)+4}px Arial`;
+    // a hairline outline so the title survives whatever graphic runs underneath it —
+    // a red wordmark on a red stripe was invisible on half the grid
+    x.lineWidth=4;x.strokeStyle='rgba(0,0,0,.55)';x.strokeText(title.t,256,338);
+    x.fillStyle=title.col;x.fillText(title.t,256,338);
     // a FEW real sponsors, cleanly placed on the sidepods/nose (no clutter)
     const spots=[[126,472],[386,472],[126,556],[386,556]];
     team.logos.slice(1,5).forEach((s,i)=>{const [px,py]=spots[i%spots.length];
       x.font=`${s.style||'800'} ${Math.min(s.sz||20,22)}px Arial`;
       if(s.chip){const w=x.measureText(s.t).width+14,h=(s.sz||20)+6;x.fillStyle=s.chip;roundRect(x,px-w/2,py-h/2,w,h,4);}
+      else {x.lineWidth=3;x.strokeStyle='rgba(0,0,0,.42)';x.strokeText(s.t,px,py);}
       x.fillStyle=s.col;x.fillText(s.t,px,py);});
     // driver number roundel, centred low on the engine cover
     const num=String((typeof SEASON!=='undefined'&&SEASON.num)||1);
     x.fillStyle='rgba(255,255,255,0.94)';x.beginPath();x.arc(256,606,30,0,7);x.fill();
-    x.fillStyle=team.bot;x.font='900 40px Arial';x.fillText(num,256,608);
+    x.fillStyle=gBot;x.font='900 40px Arial';x.fillText(num,256,608);
     x.restore();
   };
   block(0);block(512);
@@ -6337,7 +6425,8 @@ if(typeof window!=='undefined'){window.__step=stepPhysics;window.__reset=resetCa
   window.__cfgId=()=>CFG.id; window.__WEATHER=WEATHER; window.__rollWeather=rollWeather;
   window.__TRACKS=TRACKS; window.__expo=()=>renderer.toneMappingExposure;
   window.__stepWx=(dt)=>updateWeather(driveScene,dt);
-  window.__camera=camera; window.__THREE=THREE;}
+  window.__camera=camera; window.__THREE=THREE;
+  window.__makeLivery=makeLivery; window.__liveryIds=()=>LIVERY_IDS;}
 
 /* nearest centreline point (dist + signed lateral + outward normal) */
 function nearestTrack(pos,hint,window){
