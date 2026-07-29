@@ -50,6 +50,7 @@
   #rpHandle{position:absolute;top:50%;left:0%;width:11px;height:11px;border-radius:50%;background:#ffcf6a;
     transform:translate(-50%,-50%);box-shadow:0 0 8px rgba(255,207,106,.7)}
   .rpSpeed{font-family:var(--mono);font-size:11px;font-weight:700;color:#eef2f6;width:28px;text-align:right}
+  .rpLap{font-family:var(--mono);font-size:10px;font-weight:700;letter-spacing:.08em;color:#ffcf6a;white-space:nowrap}
   .rpHint{font-family:var(--mono);font-size:9px;letter-spacing:.06em;color:#8b93a0;text-align:center}
   .rpHint b{color:#cfd6de;margin-right:3px}
   #grain{opacity:.045;mix-blend-mode:overlay;z-index:13;
@@ -712,10 +713,11 @@
 <div id="replayBar">
   <div class="rpTop">
     <span class="rpTag">● REPLAY</span>
+    <span class="rpLap" id="rpLap">LAP —</span>
     <div class="rpTrack"><i id="rpFill"></i><i id="rpHandle"></i></div>
     <span class="rpSpeed" id="rpSpeed">1×</span>
   </div>
-  <div class="rpHint"><b>SPACE</b>Play/Pause <b>◄ ►</b>Scrub <b>▲▼</b>Speed <b>C</b>Cam <b>ESC/Y</b>Back to Live</div>
+  <div class="rpHint"><b>SPACE</b>Play/Pause <b>◄ ►</b>Scrub <b>[ ]</b>Lap <b>▲▼</b>Speed <b>C</b>Cam <b>ESC/Y</b>Live</div>
 </div>
 <div id="cd"><div id="cdNum"></div></div>
 <div id="sndBtn"><svg id="sndIcon" viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9H4z"/><path d="M16 8a5 5 0 010 8"/></svg></div>
@@ -4160,6 +4162,7 @@ const lap={t:0,num:1,last:null,best:null,prevIdx:0,armed:false,cur:null,bestArr:
     }
     if(this.armed && this.prevIdx>TRACK.N-40 && idx<40){
       this.split(2);
+      replayCommitLap(this.num,this.t);          // bank the lap we just finished for replay
       this.last=this.t; const improved=(this.best==null||this.t<this.best);
       if(improved){this.best=this.t;this.bestArr=this.cur.slice();}
       this.num++; this.t=0; this.sec=0; this.secStart=0; this.cur=new Float32Array(TRACK.N).fill(-1);
@@ -4320,25 +4323,43 @@ fetch('assets/radio/lines.json').then(r=>r.ok?r.json():null).then(j=>{ if(!j)ret
 const CAM={mode:'chase',pos:new THREE.Vector3(0,5,-10),look:new THREE.Vector3(),shake:0};
 
 /* ==================================================================
-   INSTANT REPLAY — rolling buffer of the player's last ~22s, watchable
-   on demand (pauses the world, plays back, then resumes exactly where
-   live driving left off).
+   REPLAY — records COMPLETE LAPS (player + every AI car) so you can go
+   back and watch any lap of the race from any camera, then drop straight
+   back into the live session where you left it.
    ================================================================== */
-const REPLAY={buf:[],maxSec:22,rate:20,acc:0,active:false,playing:false,pos:0,speed:1,saved:null};
-function replayReset(){REPLAY.buf.length=0;REPLAY.acc=0;}
+const REPLAY={
+  laps:[],            // finished laps: {num,time,frames:[...]}
+  cur:[],             // frames for the lap in progress
+  rate:20, acc:0, maxLaps:12,
+  active:false, playing:false, pos:0, speed:1, lapSel:0, saved:null,
+};
+function replayReset(){REPLAY.laps.length=0;REPLAY.cur.length=0;REPLAY.acc=0;REPLAY.lapSel=0;}
 function replayRecord(dt){
   REPLAY.acc+=dt; const step=1/REPLAY.rate; if(REPLAY.acc<step) return;
   REPLAY.acc-=step;
-  REPLAY.buf.push({x:CAR.pos.x,y:CAR.pos.y,z:CAR.pos.z,h:CAR.heading,p:CAR.pitch||0,
-    gy:CAR.groundY,v:CAR.v,steer:CAR.steer,steerCmd:CAR.steerCmd});
-  const max=REPLAY.maxSec*REPLAY.rate; if(REPLAY.buf.length>max) REPLAY.buf.shift();
+  REPLAY.cur.push({x:CAR.pos.x,y:CAR.pos.y,z:CAR.pos.z,h:CAR.heading,p:CAR.pitch||0,
+    gy:CAR.groundY,v:CAR.v,steer:CAR.steer,steerCmd:CAR.steerCmd,
+    // every AI car's world position + heading this frame, so replays show the real battle
+    ai:AI.cars.map(c=>{const m=c.mesh.position;return {x:m.x,y:m.y,z:m.z,r:c.mesh.rotation.y};})});
 }
+/* called from lap.update() the moment a lap completes */
+function replayCommitLap(num,time){
+  if(REPLAY.cur.length<REPLAY.rate) {REPLAY.cur=[];return;}   // ignore out-laps/stubs
+  REPLAY.laps.push({num,time,frames:REPLAY.cur});
+  REPLAY.cur=[];
+  if(REPLAY.laps.length>REPLAY.maxLaps) REPLAY.laps.shift();
+  const rb=$('#replayBadge'); if(rb){rb.textContent='REPLAY READY · '+REPLAY.laps.length+' LAP'+(REPLAY.laps.length>1?'S':'');}
+}
+function replayFrames(){const L=REPLAY.laps[REPLAY.lapSel];return L?L.frames:[];}
 function enterReplay(){
-  if(STATE!=='drive'||REPLAY.buf.length<REPLAY.rate*2) return;   // need at least ~2s recorded
+  if(STATE!=='drive'||!REPLAY.laps.length) return;             // need at least one completed lap
   REPLAY.saved={pos:CAR.pos.clone(),h:CAR.heading,p:CAR.pitch,gy:CAR.groundY,v:CAR.v,
-    steer:CAR.steer,steerCmd:CAR.steerCmd,camMode:CAM.mode};
+    steer:CAR.steer,steerCmd:CAR.steerCmd,camMode:CAM.mode,
+    ai:AI.cars.map(c=>({p:c.mesh.position.clone(),r:c.mesh.rotation.y}))};
   REPLAY.active=true; REPLAY.playing=true; REPLAY.pos=0; REPLAY.speed=1;
+  REPLAY.lapSel=REPLAY.laps.length-1;                          // default to the lap you just did
   STATE='replay'; $('#replayBar').classList.add('on'); $('#replayBadge').classList.remove('on');
+  renderReplayInfo();
   Sound.init();Sound.blip(700,.06);
 }
 function exitReplay(){
@@ -4346,14 +4367,24 @@ function exitReplay(){
   const s=REPLAY.saved;
   CAR.pos.copy(s.pos); CAR.heading=s.h; CAR.pitch=s.p; CAR.groundY=s.gy; CAR.v=s.v;
   CAR.steer=s.steer; CAR.steerCmd=s.steerCmd; CAM.mode=s.camMode;
+  s.ai.forEach((a,i)=>{const c=AI.cars[i]; if(c){c.mesh.position.copy(a.p);c.mesh.rotation.y=a.r;}});
   $('#camName').textContent=CAM.mode.toUpperCase(); syncVisor();
   REPLAY.active=false; REPLAY.saved=null;
   STATE='drive'; $('#replayBar').classList.remove('on');
   Sound.blip(500,.05);
 }
-function replayScrub(deltaSamples){ REPLAY.pos=clamp(REPLAY.pos+deltaSamples,0,REPLAY.buf.length-1); }
+function replayScrub(d){ REPLAY.pos=clamp(REPLAY.pos+d,0,Math.max(0,replayFrames().length-1)); }
+function replayPickLap(d){
+  if(!REPLAY.laps.length) return;
+  REPLAY.lapSel=clamp(REPLAY.lapSel+d,0,REPLAY.laps.length-1);
+  REPLAY.pos=0; REPLAY.playing=true; renderReplayInfo(); Sound.blip(600,.05);
+}
+function renderReplayInfo(){
+  const L=REPLAY.laps[REPLAY.lapSel]; const el=$('#rpLap'); if(!el||!L)return;
+  el.textContent='LAP '+L.num+'  '+fmt(L.time)+'   ('+(REPLAY.lapSel+1)+'/'+REPLAY.laps.length+')';
+}
 function updateReplay(dt){
-  const buf=REPLAY.buf; if(!buf.length) return;
+  const buf=replayFrames(); if(!buf.length) return;
   if(REPLAY.playing){ REPLAY.pos+=dt*REPLAY.rate*REPLAY.speed;
     if(REPLAY.pos>=buf.length-1){ REPLAY.pos=buf.length-1; REPLAY.playing=false; } }
   const i0=Math.floor(REPLAY.pos), i1=Math.min(buf.length-1,i0+1), t=REPLAY.pos-i0;
@@ -4365,6 +4396,12 @@ function updateReplay(dt){
   CAR.v=lerpA(a.v,b.v); CAR.steer=lerpA(a.steer,b.steer); CAR.steerCmd=lerpA(a.steerCmd,b.steerCmd);
   CAR.rig.position.set(CAR.pos.x, CAR.groundY+0.02-(CAR.tireDrop||0), CAR.pos.z);
   CAR.rig.rotation.set(CAR.pitch||0,CAR.heading,0,'YXZ');
+  // replay the AI field alongside you
+  if(a.ai) a.ai.forEach((fa,i)=>{const c=AI.cars[i]; if(!c)return;
+    const fb=(b.ai&&b.ai[i])||fa;
+    c.mesh.position.set(lerpA(fa.x,fb.x),lerpA(fa.y,fb.y),lerpA(fa.z,fb.z));
+    let dr=fb.r-fa.r; while(dr>Math.PI)dr-=TAU; while(dr<-Math.PI)dr+=TAU;
+    c.mesh.rotation.y=fa.r+dr*t;});
   const roll=CAR.v/CAR.wheelR*dt;
   CAR.front.spin.rotation.x+=roll; CAR.rear.spin.rotation.x+=roll;
   CAR.front.steer.rotation.y=-CAR.steer;
@@ -4384,6 +4421,7 @@ if(typeof window!=='undefined'){window.__setCam=(m)=>{CAM.mode=m;$('#camName').t
   window.__setLivery=(t)=>setLivery(t); window.__snapCam=()=>snapCamera();
   window.__compoundLaps=compoundLaps; window.__fitTyres=(c)=>fitTyres(c);
   window.__getState=()=>STATE; window.__REPLAY=REPLAY; window.__enterReplay=enterReplay; window.__exitReplay=exitReplay;
+  window.__commitLap=replayCommitLap; window.__updateReplay=updateReplay; window.__pickLap=replayPickLap;
   window.__replayRecord=replayRecord;}
 function updateCamera(dt){
   const spd=Math.abs(CAR.v);
@@ -5108,6 +5146,8 @@ addEventListener('keydown',e=>{
   }else if(STATE==='replay'){
     e.preventDefault();
     if(k===' ')REPLAY.playing=!REPLAY.playing;
+    else if(k==='[')replayPickLap(-1);
+    else if(k===']')replayPickLap(1);
     else if(k==='arrowleft')replayScrub(-REPLAY.rate*2);
     else if(k==='arrowright')replayScrub(REPLAY.rate*2);
     else if(k==='arrowup')REPLAY.speed=Math.min(2,REPLAY.speed===0.5?1:2);
@@ -5344,7 +5384,7 @@ function frame(){
     stepAI(dt);
     updateHUD(inp,r);
     replayRecord(dt);
-    const rb=$('#replayBadge'); if(rb)rb.classList.toggle('on',REPLAY.buf.length>=REPLAY.rate*2);
+    const rb=$('#replayBadge'); if(rb)rb.classList.toggle('on',REPLAY.laps.length>0);
     const rain=driveScene.userData.rain; if(rain) rain.update(dt,camera.position);
     const lg=driveScene.userData.lightning; if(lg) lg.update(dt);
     if(CFG.dynamicSky) updateDynamicSky(driveScene,dt);
