@@ -4,27 +4,104 @@
     "commentator": "pKVRwiNVR6RKDgIGc32Z"
   },
   "engineer": {
-    "start": ["Lights out, we are racing. Head down now.", "Okay we're green, green, green — bring it home.", "That's us underway. Good launch, keep it clean."],
-    "tyre_warn": ["Tyres are past their best now, start managing them.", "Rears are going away — ease it through the corners.", "Watch the tyre temps, we're into the second phase."],
-    "tyre_crit": ["Box, box, box. Confirm box this lap.", "Tyres are done, we need you in the pit lane.", "That's all from this set — box this lap for fresh rubber."],
-    "box_confirm": ["Copy, box confirmed. Pit entry is open.", "Understood, come to the pits, we're ready for you."],
-    "new_tyres": ["Fresh set on. Bring them up to temperature.", "New tyres — take a lap to switch them on, then push.", "Good set fitted. They're cold, be careful out of the box."],
-    "overtake_made": ["Great move, that's a place gained. Well done.", "Yes! Position is ours — keep the pressure on.", "Lovely overtake. Now focus on the next one."],
-    "overtake_lost": ["He's through, don't panic, we'll get it back.", "Lost a place there — stay calm, long way to go.", "Okay he's ahead now, stick with him and mind the tyres."],
-    "fastest_lap": ["That is the fastest lap of the race. Superb.", "Fastest lap — brilliant, the pace is really strong.", "Purple lap, quickest out there. Keep it up."],
-    "damage": ["We're seeing some damage — take it steady.", "There's damage on the car, nurse it for a lap.", "Report the balance, we've picked up some damage."],
-    "rain": ["Rain expected shortly, the track will lose grip.", "Spots of rain out there — be ready for less grip.", "Weather's coming in, stay alert on the damp patches."],
-    "final_lap": ["Last lap now — this is it, everything you have.", "Final lap, bring it home, we're nearly there."],
-    "win": ["P1! Get in there! Absolutely brilliant drive.", "That's the win! Fantastic job, superb from you.", "Yes yes yes! Victory — what a performance."],
-    "finish": ["Chequered flag — great job today, really strong.", "That's the flag, well driven. Good points on the board."]
+    "start": [
+      "Lights out, we are racing. Head down now.",
+      "Okay we're green, green, green — bring it home.",
+      "That's us underway. Good launch, keep it clean."
+    ],
+    "tyre_warn": [
+      "Tyres are past their best now, start managing them.",
+      "Rears are going away — ease it through the corners.",
+      "Watch the tyre temps, we're into the second phase."
+    ],
+    "tyre_crit": [
+      "Box, box, box. Confirm box this lap.",
+      "Tyres are done, we need you in the pit lane.",
+      "That's all from this set — box this lap for fresh rubber."
+    ],
+    "box_confirm": [
+      "Copy, box confirmed. Pit entry is open.",
+      "Understood, come to the pits, we're ready for you."
+    ],
+    "new_tyres": [
+      "Fresh set on. Bring them up to temperature.",
+      "New tyres — take a lap to switch them on, then push.",
+      "Good set fitted. They're cold, be careful out of the box."
+    ],
+    "overtake_made": [
+      "Great move, that's a place gained. Well done.",
+      "Yes! Position is ours — keep the pressure on.",
+      "Lovely overtake. Now focus on the next one."
+    ],
+    "overtake_lost": [
+      "He's through, don't panic, we'll get it back.",
+      "Lost a place there — stay calm, long way to go.",
+      "Okay he's ahead now, stick with him and mind the tyres."
+    ],
+    "fastest_lap": [
+      "That is the fastest lap of the race. Superb.",
+      "Fastest lap — brilliant, the pace is really strong.",
+      "Purple lap, quickest out there. Keep it up."
+    ],
+    "damage": [
+      "We're seeing some damage — take it steady.",
+      "There's damage on the car, nurse it for a lap.",
+      "Report the balance, we've picked up some damage."
+    ],
+    "rain": [
+      "Rain expected shortly, the track will lose grip.",
+      "Spots of rain out there — be ready for less grip.",
+      "Weather's coming in, stay alert on the damp patches."
+    ],
+    "final_lap": [
+      "Last lap now — this is it, everything you have.",
+      "Final lap, bring it home, we're nearly there."
+    ],
+    "win": [
+      "P1! Get in there! Absolutely brilliant drive.",
+      "That's the win! Fantastic job, superb from you.",
+      "Yes yes yes! Victory — what a performance."
+    ],
+    "finish": [
+      "Chequered flag — great job today, really strong.",
+      "That's the flag, well driven. Good points on the board."
+    ],
+    "dry": [
+      "Track's drying out now, grip is coming back to you.",
+      "Conditions improving — a dry line is starting to appear.",
+      "Rain's easing off, you can start leaning on it again."
+    ]
   },
   "commentator": {
-    "start": ["It's lights out and away we go!", "And they're racing down to turn one!", "We are underway — a clean getaway at the front!"],
-    "overtake": ["And there's the move — brilliantly done!", "Down the inside, and he makes it stick!", "What a pass — wheel to wheel and he's through!"],
-    "fastest_lap": ["And that's the fastest lap of the race — sensational pace!", "The screens light up purple — quickest of all!"],
-    "lead": ["He takes the lead of the Grand Prix!", "And there's a new leader on the road!"],
-    "final_lap": ["The final lap now — can he hold on?", "One lap to go, and the tension is unbearable!"],
-    "win": ["He takes the chequered flag — a famous win!", "Across the line for victory! What a drive!"],
-    "off": ["Oh, he's run wide — losing precious time there!", "Into the run-off — a mistake under pressure!"]
+    "start": [
+      "It's lights out and away we go!",
+      "And they're racing down to turn one!",
+      "We are underway — a clean getaway at the front!"
+    ],
+    "overtake": [
+      "And there's the move — brilliantly done!",
+      "Down the inside, and he makes it stick!",
+      "What a pass — wheel to wheel and he's through!"
+    ],
+    "fastest_lap": [
+      "And that's the fastest lap of the race — sensational pace!",
+      "The screens light up purple — quickest of all!"
+    ],
+    "lead": [
+      "He takes the lead of the Grand Prix!",
+      "And there's a new leader on the road!"
+    ],
+    "final_lap": [
+      "The final lap now — can he hold on?",
+      "One lap to go, and the tension is unbearable!"
+    ],
+    "win": [
+      "He takes the chequered flag — a famous win!",
+      "Across the line for victory! What a drive!"
+    ],
+    "off": [
+      "Oh, he's run wide — losing precious time there!",
+      "Into the run-off — a mistake under pressure!"
+    ]
   }
 }
