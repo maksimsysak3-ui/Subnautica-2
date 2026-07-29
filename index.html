@@ -1846,18 +1846,84 @@ function buildYasHotel(sc,P,Nm,Tg){
 
 /* ---- barriers: clean, accurate F1 trackside boards (one sponsor per zone) ---- */
 const ZONE_SPONSORS=[
-  {txt:'ROLEX',bg:'#06603a',fg:'#ffffff'},
-  {txt:'Emirates',bg:'#d71921',fg:'#ffffff',tag:'FLY BETTER',italic:true},
+  {txt:'ROLEX',bg:'#06603a',fg:'#ffffff',logo:'crown'},
+  {txt:'Emirates',bg:'#d71921',fg:'#ffffff',tag:'FLY BETTER',italic:true,logo:'emirates'},
   {kind:'f1'},
-  {txt:'DHL',bg:'#ffcc00',fg:'#d40511'},
-  {txt:'PIRELLI',bg:'#f4e000',fg:'#111111',tag:'P ZERO'},
-  {txt:'Heineken',bg:'#007a33',fg:'#ffffff'},
+  {txt:'DHL',bg:'#ffcc00',fg:'#d40511',italic:true,logo:'dhl'},
+  {txt:'PIRELLI',bg:'#f4e000',fg:'#111111',tag:'P ZERO',logo:'pirelli'},
+  {txt:'Heineken',bg:'#007a33',fg:'#ffffff',logo:'star',logoCol:'#e2001a'},
   {kind:'aramco'},
-  {txt:'MSC CRUISES',bg:'#0a1e3f',fg:'#f0c33c'},
-  {txt:'PETRONAS',bg:'#00a19a',fg:'#ffffff'},
-  {txt:'aws',bg:'#232f3e',fg:'#ff9900'},
-  {txt:'QATAR AIRWAYS',bg:'#5c0632',fg:'#ffffff'},
+  {txt:'MSC',bg:'#0a1e3f',fg:'#f0c33c',tag:'CRUISES',logo:'msc'},
+  {txt:'PETRONAS',bg:'#00a19a',fg:'#ffffff',logo:'petronas'},
+  {txt:'aws',bg:'#232f3e',fg:'#ff9900',logo:'aws'},
+  {txt:'Shell',bg:'#ffd400',fg:'#ed1c24',logo:'pecten'},
+  {txt:'QATAR AIRWAYS',bg:'#5c0632',fg:'#ffffff',logo:'oryx'},
 ];
+/* ---- real trackside sponsor logo marks, drawn as vectors so the boards read
+   like actual branding instead of a line of raw text ---- */
+const LOGOS={
+  crown(x,cx,cy,r,col){                       // Rolex coronet: five points on a bar
+    x.fillStyle=col;
+    const pts=[-1,-0.5,0,0.5,1];
+    pts.forEach((p,i)=>{const px=cx+p*r*0.92, h=(i===2?r*1.0:i===0||i===4?r*0.66:r*0.8);
+      x.beginPath();x.arc(px,cy-h*0.55,r*0.2,0,7);x.fill();
+      x.fillRect(px-r*0.075,cy-h*0.55,r*0.15,h*0.62);});
+    x.fillRect(cx-r,cy+r*0.06,r*2,r*0.26);
+  },
+  star(x,cx,cy,r,col){                        // Heineken's red star
+    x.fillStyle=col;x.beginPath();
+    for(let i=0;i<10;i++){const a=-Math.PI/2+i*Math.PI/5, rr=i%2?r*0.42:r;
+      i?x.lineTo(cx+Math.cos(a)*rr,cy+Math.sin(a)*rr):x.moveTo(cx+Math.cos(a)*rr,cy+Math.sin(a)*rr);}
+    x.closePath();x.fill();
+  },
+  dhl(x,cx,cy,r,col){                         // DHL speed lines
+    x.strokeStyle=col;x.lineCap='round';
+    for(let i=0;i<3;i++){x.lineWidth=r*0.17;x.beginPath();
+      x.moveTo(cx-r*1.1+i*r*0.16, cy-r*0.42+i*r*0.42);
+      x.lineTo(cx+r*1.1-i*r*0.1,  cy-r*0.42+i*r*0.42);x.stroke();}
+  },
+  pirelli(x,cx,cy,r,col){                     // Pirelli's long extended stripe
+    x.fillStyle=col;x.beginPath();
+    x.moveTo(cx-r*1.25,cy-r*0.30);x.lineTo(cx+r*1.25,cy-r*0.30);
+    x.lineTo(cx+r*1.05,cy-r*0.06);x.lineTo(cx-r*1.25,cy-r*0.06);x.closePath();x.fill();
+  },
+  emirates(x,cx,cy,r,col){                    // stylised flowing calligraphic sweep
+    x.strokeStyle=col;x.lineWidth=r*0.15;x.lineCap='round';
+    x.beginPath();x.moveTo(cx-r,cy+r*0.2);
+    x.quadraticCurveTo(cx-r*0.2,cy-r*0.7,cx+r*0.5,cy+r*0.05);
+    x.quadraticCurveTo(cx+r*0.8,cy+r*0.35,cx+r,cy-r*0.1);x.stroke();
+  },
+  aws(x,cx,cy,r,col){                         // the AWS smile arrow
+    x.strokeStyle=col;x.lineWidth=r*0.2;x.lineCap='round';
+    x.beginPath();x.arc(cx,cy-r*0.35,r*0.95,0.42,Math.PI-0.42);x.stroke();
+    x.beginPath();x.moveTo(cx+r*0.72,cy+r*0.34);x.lineTo(cx+r*0.95,cy+r*0.46);
+    x.lineTo(cx+r*0.7,cy+r*0.62);x.closePath();x.fillStyle=col;x.fill();
+  },
+  petronas(x,cx,cy,r,col){                    // twin-tower silhouette
+    x.fillStyle=col;
+    [-1,1].forEach(s=>{x.beginPath();
+      x.moveTo(cx+s*r*0.34,cy+r*0.7);x.lineTo(cx+s*r*0.34,cy-r*0.35);
+      x.lineTo(cx+s*r*0.12,cy-r*0.62);x.lineTo(cx+s*r*0.12,cy+r*0.7);x.closePath();x.fill();});
+  },
+  msc(x,cx,cy,r,col){                         // wave band
+    x.strokeStyle=col;x.lineWidth=r*0.2;x.lineCap='round';
+    for(let i=0;i<2;i++){x.beginPath();x.moveTo(cx-r,cy-r*0.1+i*r*0.42);
+      x.quadraticCurveTo(cx-r*0.3,cy-r*0.6+i*r*0.42,cx+r*0.2,cy-r*0.1+i*r*0.42);
+      x.quadraticCurveTo(cx+r*0.6,cy+r*0.3+i*r*0.42,cx+r,cy-r*0.2+i*r*0.42);x.stroke();}
+  },
+  pecten(x,cx,cy,r,col){                      // Shell scallop
+    x.fillStyle=col;x.beginPath();x.arc(cx,cy+r*0.15,r*0.95,Math.PI,0);
+    x.lineTo(cx+r*0.95,cy+r*0.35);x.lineTo(cx-r*0.95,cy+r*0.35);x.closePath();x.fill();
+    x.strokeStyle='#ffd400';x.lineWidth=r*0.08;
+    for(let i=-2;i<=2;i++){x.beginPath();x.moveTo(cx+i*r*0.3,cy-r*0.62);x.lineTo(cx+i*r*0.42,cy+r*0.3);x.stroke();}
+  },
+  oryx(x,cx,cy,r,col){                        // stylised long-horn head
+    x.strokeStyle=col;x.lineWidth=r*0.14;x.lineCap='round';
+    x.beginPath();x.moveTo(cx-r*0.2,cy+r*0.6);x.lineTo(cx-r*0.55,cy-r*0.75);x.stroke();
+    x.beginPath();x.moveTo(cx+r*0.1,cy+r*0.6);x.lineTo(cx-r*0.1,cy-r*0.8);x.stroke();
+    x.fillStyle=col;x.beginPath();x.ellipse(cx,cy+r*0.55,r*0.42,r*0.3,0,0,7);x.fill();
+  },
+};
 /* per-circuit sponsors — these get mixed in with the regular series sponsors */
 const TRACK_SPONSORS={
   monaco:[{txt:'TAG Heuer',bg:'#0a0c10',fg:'#ffffff',accent:'#00b0e0',tag:'SWISS AVANT-GARDE',mark:'box'},
@@ -1951,13 +2017,31 @@ function makeZoneBoard(sp){ // CLEAN F1 trackside board: flat brand colour + one
       // flat brand background with only a subtle vertical sheen (real boards are flat)
       const g=x.createLinearGradient(0,0,0,ph);g.addColorStop(0,shadeHex(sp.bg,1.06));g.addColorStop(1,shadeHex(sp.bg,0.94));
       x.fillStyle=g;x.fillRect(x0,0,pw,ph);
-      x.textAlign='center';x.textBaseline='middle';
+      x.textBaseline='middle';
       const hasTag=!!sp.tag, sty=(sp.italic?'italic ':'')+'900 ';
-      // one clean centred wordmark, auto-fit to the panel with generous margins
+      const mark=sp.logo&&LOGOS[sp.logo];
+      // lay the logo mark and the wordmark out together, centred as one lockup
+      const lr=ph*0.30;                                  // logo radius
       let fs=ph*(hasTag?0.44:0.52);x.font=sty+(fs|0)+'px Arial';
-      while(x.measureText(sp.txt).width>pw*0.74 && fs>26){fs*=0.94;x.font=sty+(fs|0)+'px Arial';}
-      x.fillStyle=sp.fg;x.fillText(sp.txt,x0+pw/2, hasTag?ph*0.4:ph*0.5);
-      if(hasTag){x.font='700 '+(ph*0.14|0)+'px Arial';x.globalAlpha=0.92;x.fillText(sp.tag,x0+pw/2,ph*0.72);x.globalAlpha=1;}
+      const maxW=pw*(mark?0.56:0.74);
+      while(x.measureText(sp.txt).width>maxW && fs>24){fs*=0.94;x.font=sty+(fs|0)+'px Arial';}
+      const tw=x.measureText(sp.txt).width, gapx=mark?lr*0.85:0;
+      const total=tw+(mark?lr*2+gapx:0), left=x0+(pw-total)/2;
+      if(mark){ // Pirelli's stripe sits above its wordmark, everything else beside it
+        const lc=sp.logoCol||sp.fg;
+        if(sp.logo==='pirelli'){ mark(x,x0+pw/2,ph*0.30,ph*0.34,lc);
+          x.textAlign='center';x.fillStyle=sp.fg;x.fillText(sp.txt,x0+pw/2,ph*0.56);
+        }else{
+          mark(x,left+lr,ph*(hasTag?0.46:0.5),lr,lc);
+          x.textAlign='left';x.fillStyle=sp.fg;x.fillText(sp.txt,left+lr*2+gapx, hasTag?ph*0.42:ph*0.5);
+        }
+      }else{
+        x.textAlign='center';x.fillStyle=sp.fg;x.fillText(sp.txt,x0+pw/2, hasTag?ph*0.4:ph*0.5);
+      }
+      if(hasTag&&sp.logo!=='pirelli'){x.textAlign='center';x.font='700 '+(ph*0.13|0)+'px Arial';
+        x.globalAlpha=0.92;x.fillText(sp.tag,x0+pw/2,ph*0.74);x.globalAlpha=1;}
+      else if(hasTag){x.textAlign='center';x.font='700 '+(ph*0.12|0)+'px Arial';
+        x.globalAlpha=0.9;x.fillText(sp.tag,x0+pw/2,ph*0.80);x.globalAlpha=1;}
     }
     // minimal physical framing (thin sheen + shadow + hairline)
     x.fillStyle='rgba(255,255,255,.05)';x.fillRect(x0,0,pw,ph*0.035);
@@ -2334,14 +2418,26 @@ function makeBillboardTex(){
 }
 /* overhead gantries + trackside billboards — used on every circuit */
 /* clean bold sponsor board for an overhead bridge (like the TAG Heuer gantry) */
-const BRIDGE_SPONSORS=[['TAG HEUER','#f2f4f6','#12181f'],['DHL','#ffcc00','#d40511'],['EMIRATES','#d71920','#ffffff'],
-  ['ROLEX','#0a3b2e','#d9c07a'],['PIRELLI','#00205b','#ffd200'],['ARAMCO','#0a7a3a','#ffffff'],
-  ['HEINEKEN','#1f7a3d','#ffffff'],['MSC','#ffffff','#0a2a6a'],['QATAR AIRWAYS','#5a1a3a','#ffffff'],
-  ['LIQUI MOLY','#ffffff','#d2001f']];
-function makeBridgeBoard(sp){const [w,bg,fg]=sp;const c=cnv(1024,132),x=c.getContext('2d');
-  x.fillStyle=bg;x.fillRect(0,0,1024,132);
-  x.fillStyle=fg;x.textAlign='center';x.textBaseline='middle';
-  x.font=`900 ${w.length>9?58:82}px Arial`;x.fillText(w,512,72);
+/* overhead gantry boards — brand colour, real logo mark, then the wordmark */
+const BRIDGE_SPONSORS=[['TAG HEUER','#f2f4f6','#12181f',null],['DHL','#ffcc00','#d40511','dhl'],
+  ['Emirates','#d71920','#ffffff','emirates'],['ROLEX','#06603a','#ffffff','crown'],
+  ['PIRELLI','#f4e000','#111111','pirelli'],['ARAMCO','#0a7a3a','#ffffff',null],
+  ['Heineken','#007a33','#ffffff','star','#e2001a'],['MSC','#0a1e3f','#f0c33c','msc'],
+  ['QATAR AIRWAYS','#5c0632','#ffffff','oryx'],['Shell','#ffd400','#ed1c24','pecten'],
+  ['PETRONAS','#00a19a','#ffffff','petronas'],['LIQUI MOLY','#ffffff','#d2001f',null]];
+function makeBridgeBoard(sp){const [w,bg,fg,logo,lcol]=sp;const H=132,W=1024;
+  const c=cnv(W,H),x=c.getContext('2d');
+  x.fillStyle=bg;x.fillRect(0,0,W,H);
+  x.textBaseline='middle';
+  const mark=logo&&LOGOS[logo], lr=H*0.30;
+  let fs=w.length>9?58:82;x.font=`900 ${fs}px Arial`;
+  const maxW=W*(mark?0.56:0.8);
+  while(x.measureText(w).width>maxW&&fs>26){fs*=0.94;x.font=`900 ${fs|0}px Arial`;}
+  const tw=x.measureText(w).width, gapx=mark?lr*0.8:0;
+  const total=tw+(mark?lr*2+gapx:0), left=(W-total)/2;
+  if(mark){ mark(x,left+lr,H*0.5,lr,lcol||fg);
+    x.textAlign='left';x.fillStyle=fg;x.fillText(w,left+lr*2+gapx,H*0.52); }
+  else { x.textAlign='center';x.fillStyle=fg;x.fillText(w,W/2,H*0.52); }
   const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;t.anisotropy=8;return t;}
 /* construction tower cranes + a distant hazy skyline — added to EVERY circuit so
    nowhere feels like the middle of nowhere, and the horizon always has depth. */
@@ -4527,7 +4623,7 @@ if(typeof window!=='undefined'){window.__setCam=(m)=>{CAM.mode=m;$('#camName').t
   window.__setLivery=(t)=>setLivery(t); window.__snapCam=()=>snapCamera();
   window.__compoundLaps=compoundLaps; window.__fitTyres=(c)=>fitTyres(c);
   window.__getState=()=>STATE; window.__REPLAY=REPLAY; window.__enterReplay=enterReplay; window.__exitReplay=exitReplay;
-  window.__simQuali=simulateQualifying; window.__initRD=initRD; window.__rdGrip=rdGrip; window.__rdPower=rdPower; window.__commitLap=replayCommitLap; window.__updateReplay=updateReplay; window.__pickLap=replayPickLap;
+  window.__zoneBoards=()=>ZONE_SPONSORS.map(makeZoneBoard); window.__simQuali=simulateQualifying; window.__initRD=initRD; window.__rdGrip=rdGrip; window.__rdPower=rdPower; window.__commitLap=replayCommitLap; window.__updateReplay=updateReplay; window.__pickLap=replayPickLap;
   setTimeout(()=>{window.__SEASON=SEASON;window.__endSeasonRace=endSeasonRace;window.__seasonBuildTable=seasonBuildTable;
     window.__seasonConstructors=seasonConstructors;},0);
   window.__replayRecord=replayRecord;}
