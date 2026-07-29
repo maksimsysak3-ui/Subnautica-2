@@ -51,6 +51,18 @@
     transform:translate(-50%,-50%);box-shadow:0 0 8px rgba(255,207,106,.7)}
   .rpSpeed{font-family:var(--mono);font-size:11px;font-weight:700;color:#eef2f6;width:28px;text-align:right}
   .rpLap{font-family:var(--mono);font-size:10px;font-weight:700;letter-spacing:.08em;color:#ffcf6a;white-space:nowrap}
+  /* season standings extras: team swatch, constructor block, last-race banner */
+  .shRow .tsw{width:3px;height:14px;border-radius:2px;flex:0 0 auto;display:block}
+  .shRow .nm small{display:block;font-size:8.5px;letter-spacing:.16em;color:var(--grey);
+    text-transform:uppercase;font-weight:600;margin-top:2px}
+  .shSub{margin:16px 0 6px;font-family:var(--mono);font-size:9.5px;letter-spacing:.28em;
+    color:var(--red);font-weight:800;border-top:1px solid rgba(255,255,255,.12);padding-top:12px}
+  .shResult{display:flex;align-items:center;gap:10px;padding:9px 11px;margin-bottom:12px;border-radius:7px;
+    background:linear-gradient(90deg,rgba(225,6,0,.22),rgba(225,6,0,.05));border:1px solid rgba(225,6,0,.4)}
+  .shResult .rl{flex:1;font-size:9px;letter-spacing:.2em;color:#f2c6c4;text-transform:uppercase;font-weight:700}
+  .shResult .rp{font-family:var(--mono);font-size:19px;font-weight:900;color:#fff;line-height:1}
+  .shResult .rp small{font-size:9px;vertical-align:super;margin-left:1px}
+  .shResult .rpts{font-family:var(--mono);font-size:11px;font-weight:700;color:#4ce0a0}
   .rpHint{font-family:var(--mono);font-size:9px;letter-spacing:.06em;color:#8b93a0;text-align:center}
   .rpHint b{color:#cfd6de;margin-right:3px}
   #grain{opacity:.045;mix-blend-mode:overlay;z-index:13;
@@ -4174,6 +4186,9 @@ const lap={t:0,num:1,last:null,best:null,prevIdx:0,armed:false,cur:null,bestArr:
         setTimeout(()=>Radio.say('commentator','fastest_lap',{cool:30}),700);
       }
       if(sessionMode==='quali' && this.num>3){ endQuali(this.best); }   // 3 flying laps done
+      // a championship race is a real race distance — cross the line on the last lap and it's over
+      if(sessionMode==='season' && SEASON.active && this.num>SEASON.raceLaps){
+        Radio.say('commentator','win',{cool:0}); endSeasonRace(); }
     }
     if(idx>60&&idx<TRACK.N-60) this.armed=true;
     this.prevIdx=idx;
@@ -4422,6 +4437,8 @@ if(typeof window!=='undefined'){window.__setCam=(m)=>{CAM.mode=m;$('#camName').t
   window.__compoundLaps=compoundLaps; window.__fitTyres=(c)=>fitTyres(c);
   window.__getState=()=>STATE; window.__REPLAY=REPLAY; window.__enterReplay=enterReplay; window.__exitReplay=exitReplay;
   window.__commitLap=replayCommitLap; window.__updateReplay=updateReplay; window.__pickLap=replayPickLap;
+  setTimeout(()=>{window.__SEASON=SEASON;window.__endSeasonRace=endSeasonRace;window.__seasonBuildTable=seasonBuildTable;
+    window.__seasonConstructors=seasonConstructors;},0);
   window.__replayRecord=replayRecord;}
 function updateCamera(dt){
   const spd=Math.abs(CAR.v);
@@ -4623,7 +4640,23 @@ function closeGarage(){garageOn=false;$('#garage').classList.remove('on');
    ================================================================== */
 const SEASON={active:false,on:false,team:'redbull',diff:'Pro',name:'M. SYSAK',num:7,sponsor:'Oracle',
   round:0,cal:['australia','bahrain','saopaulo','jeddah','miami','monaco','catalunya','montreal','austria','texas','hungary','zandvoort','silverstone','spa','qatar','baku','lasvegas','yas'],points:0,
+  raceLaps:8, lastResult:null,
   field:['M. VÄRLA','R. OKONKWO','L. FENN','S. HÄKKINEN','D. ROSSI','K. TANAKA','A. PETROV','J. MORAIS','E. LARSSON','B. NAKAMURA']};
+const F1PTS=[25,18,15,12,10,8,6,4,2,1];
+/* the championship table is rebuilt from the real driver roster so standings,
+   team names and constructor points all line up with who you actually race */
+function seasonBuildTable(){
+  const rows=DRIVER_POOL.filter(d=>d.t!==SEASON.team)
+    .map(d=>({nm:d.n,team:d.t,pts:0,me:false}));
+  rows.push({nm:SEASON.name,team:SEASON.team,pts:0,me:true});
+  SEASON.table=rows;
+}
+function seasonConstructors(){
+  const by={};
+  (SEASON.table||[]).forEach(r=>{const t=r.team||'indep'; by[t]=(by[t]||0)+r.pts;});
+  return Object.entries(by).map(([team,pts])=>({team,pts,
+    name:(LIVERIES[team]&&LIVERIES[team].name)||team})).sort((a,b)=>b.pts-a.pts);
+}
 const DIFFS=['Rookie','Pro','Legend'], SPONSORS=['Oracle','Petronas','AWS','DHL','Shell','bwt'];
 function openSeasonSetup(){
   buildSeasonSetupChips(); buildSeasonTeams();
@@ -4655,9 +4688,8 @@ function beginSeason(){
   SEASON.num=Math.max(1,Math.min(99,parseInt($('#ssNum').value)||7));
   SEASON.active=true;SEASON.round=0;SEASON.points=0;
   SEASON.rd=null; initRD();                            // fresh R&D tree + starting resources
-  // seed a random points table for the AI field (until real AIs arrive)
-  SEASON.table=SEASON.field.map(nm=>({nm,pts:0,me:false}));
-  SEASON.table.push({nm:SEASON.name,pts:0,me:true});
+  SEASON.lastResult=null;
+  seasonBuildTable();
   closeSeasonSetup(); openSeasonHub();
 }
 function openSeasonHub(){
@@ -4680,11 +4712,27 @@ function renderSeasonHub(){
     el.className='calR'+(i===SEASON.round?' cur':'')+(i<SEASON.round?' done':'');
     el.innerHTML=`<div class="rn">RND ${i+1}</div><div class="rt">${t.name.split('-')[0].split(' ')[0]}</div><div class="rc">${t.country} ${t.flag}</div>`;
     el.onclick=()=>{SEASON.round=i;renderSeasonHub();Sound.blip(440,.05);};cal.appendChild(el);});
-  // standings
+  // standings — drivers, then constructors, plus the last race result
   const rows=$('#shStandRows');rows.innerHTML='';
+  const LR=SEASON.lastResult;
+  if(LR){const b=document.createElement('div');b.className='shResult';
+    const ord=['','st','nd','rd'][LR.pos<4?LR.pos:0]||'th';
+    b.innerHTML=`<span class="rl">LAST RACE · ${LR.name}</span>`+
+      `<span class="rp">P${LR.pos}<small>${ord}</small></span><span class="rpts">+${LR.pts} pts</span>`;
+    rows.appendChild(b);}
   const table=(SEASON.table||[]).slice().sort((a,b)=>b.pts-a.pts);
   table.forEach((r,i)=>{const el=document.createElement('div');el.className='shRow'+(r.me?' me':'');
-    el.innerHTML=`<span class="p">${i+1}</span><span class="nm">${r.nm}${r.me?' (You · '+LIVERIES[SEASON.team].name+')':''}</span><span class="pts">${r.pts}</span>`;rows.appendChild(el);});
+    const tn=(LIVERIES[r.team]&&LIVERIES[r.team].name)||'';
+    const sw=(LIVERIES[r.team]&&LIVERIES[r.team].base)||'#555';
+    el.innerHTML=`<span class="p">${i+1}</span><i class="tsw" style="background:${sw}"></i>`+
+      `<span class="nm">${r.nm}${r.me?' (You)':''}<small>${tn}</small></span><span class="pts">${r.pts}</span>`;
+    rows.appendChild(el);});
+  const ch=document.createElement('div');ch.className='shSub';ch.textContent='CONSTRUCTORS';rows.appendChild(ch);
+  seasonConstructors().forEach((c,i)=>{const el=document.createElement('div');
+    el.className='shRow'+(c.team===SEASON.team?' me':'');
+    const sw=(LIVERIES[c.team]&&LIVERIES[c.team].base)||'#555';
+    el.innerHTML=`<span class="p">${i+1}</span><i class="tsw" style="background:${sw}"></i>`+
+      `<span class="nm">${c.name}</span><span class="pts">${c.pts}</span>`;rows.appendChild(el);});
   // R&D bars
   const rd=$('#shRDrows');rd.innerHTML='';
   const devs=[['Aerodynamics',52+SEASON.round*6],['Power Unit',48+SEASON.round*5],['Chassis',44+SEASON.round*7],['Reliability',60+SEASON.round*4]];
@@ -4712,14 +4760,25 @@ function seasonRace(){
   startDrive();
 }
 function endSeasonRace(){
-  // beta scoring: player takes the win, AI field shares the rest, then advance the round
-  const F1PTS=[25,18,15,12,10,8,6,4,2,1];
-  const me=SEASON.table.find(r=>r.me); if(me)me.pts+=25; SEASON.points=(me?me.pts:0);
-  const ai=SEASON.table.filter(r=>!r.me);
-  for(let i=0;i<ai.length;i++) ai[i].pts+=(F1PTS[i+1]||0)+((Math.random()*3)|0);
-  // a race weekend earns R&D points + prize money to spend in the R&D tab
-  SEASON.rdPts=(SEASON.rdPts||0)+45; SEASON.money=(SEASON.money||0)+3400000;
+  // classify on ACTUAL race distance covered — the player is scored on where they really finished
+  const N=TRACK.N||1, order=[];
+  const dOf=(idx,lp)=>lp*TRACK.len + (TRACK.cum?TRACK.cum[Math.round(idx)%N]||0:0);
+  AI.cars.forEach(c=>order.push({nm:c.name,team:c.team,d:dOf(c.idx,c.lap),me:false}));
+  order.push({nm:SEASON.name,team:SEASON.team,d:dOf(CAR.trackIdx||0,lap.num||0),me:true});
+  order.sort((a,b)=>b.d-a.d);
+  // award championship points down the top ten
+  const res=order.map((o,i)=>({pos:i+1,nm:o.nm,team:o.team,me:o.me,pts:F1PTS[i]||0}));
+  res.forEach(r=>{const row=(SEASON.table||[]).find(t=>t.nm===r.nm); if(row)row.pts+=r.pts;});
+  const me=(SEASON.table||[]).find(r=>r.me); SEASON.points=me?me.pts:0;
+  const myRes=res.find(r=>r.me);
+  SEASON.lastResult={track:CFG.id,name:CFG.name,pos:myRes?myRes.pos:res.length,
+    pts:myRes?myRes.pts:0,order:res.slice(0,10)};
+  // weekend rewards scale with how well you actually did
+  const posBonus=Math.max(0,11-(myRes?myRes.pos:11));
+  SEASON.rdPts=(SEASON.rdPts||0)+25+posBonus*4;
+  SEASON.money=(SEASON.money||0)+1800000+posBonus*260000;
   if(SEASON.round<SEASON.cal.length-1)SEASON.round++;
+  clearAIs();
   STATE='menu';$('#hud').classList.remove('on');$('#sndBtn').classList.remove('show');
   if(CAR.rig.parent!==menuScene)menuScene.add(CAR.rig);
   openSeasonHub();
