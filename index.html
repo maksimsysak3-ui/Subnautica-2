@@ -1902,6 +1902,7 @@ function buildWorld(sc,cfg){
   buildBridges(sc,P,Nm,Tg,cum,barOff,barOffR);                   // overhead gantries + billboards (all tracks)
   buildDistantScenery(sc,P,Nm,cfg);                              // construction cranes + far skyline on EVERY track
   buildRain(sc);            // always present, drawn at whatever intensity the weather calls for
+  FX.init(sc);              // tyre smoke, rubber, sparks and surface debris
   // Lightning and the funnel cloud belong to the storm CONDITION, so they can
   // arrive mid-race when a storm rolls in and fade out again when it passes.
   { let lt=1.5+Math.random()*4, flash=0;
@@ -2084,6 +2085,191 @@ function buildRain(sc){
     }};
   sc.userData.rain.setIntensity(WEATHER.wetness, WEATHER.stormAmt||0);
 }
+/* ============================ CAR ↔ WORLD FX ============================
+   The car had no relationship with the ground it was driving on: no tyre smoke,
+   no lock-ups, no marks left behind, no sparks off the floor, and running onto
+   grass or gravel looked exactly like running on tarmac. This is one pooled
+   particle system plus a rubber-mark ribbon, both fixed-size so they cost the
+   same whatever is happening.                                                */
+const FX={
+  ready:false, pts:null, marks:null, sparks:null,
+  N:1500, MARKS:2600,
+  init(sc){
+    // ---- soft round sprite for smoke / dust / debris ----
+    const c=cnv(64,64), x=c.getContext('2d');
+    const g=x.createRadialGradient(32,32,0,32,32,32);
+    g.addColorStop(0,'rgba(255,255,255,1)');g.addColorStop(0.45,'rgba(255,255,255,.55)');
+    g.addColorStop(1,'rgba(255,255,255,0)');
+    x.fillStyle=g;x.fillRect(0,0,64,64);
+    const tex=new THREE.CanvasTexture(c);tex.colorSpace=THREE.SRGBColorSpace;
+
+    const N=this.N;
+    const pos=new Float32Array(N*3), col=new Float32Array(N*3);
+    const size=new Float32Array(N), alpha=new Float32Array(N);
+    this.vel=new Float32Array(N*3); this.life=new Float32Array(N); this.max=new Float32Array(N);
+    this.grow=new Float32Array(N); this.drag=new Float32Array(N); this.head=0;
+    for(let i=0;i<N;i++){pos[i*3+1]=-9999;}
+    const geo=new THREE.BufferGeometry();
+    geo.setAttribute('position',new THREE.BufferAttribute(pos,3));
+    geo.setAttribute('aCol',new THREE.BufferAttribute(col,3));
+    geo.setAttribute('aSize',new THREE.BufferAttribute(size,1));
+    geo.setAttribute('aAlpha',new THREE.BufferAttribute(alpha,1));
+    const mat=new THREE.ShaderMaterial({
+      transparent:true, depthWrite:false, blending:THREE.NormalBlending,
+      uniforms:{uMap:{value:tex}},
+      vertexShader:`attribute vec3 aCol; attribute float aSize; attribute float aAlpha;
+        varying vec3 vC; varying float vA;
+        void main(){ vC=aCol; vA=aAlpha;
+          vec4 mv=modelViewMatrix*vec4(position,1.0);
+          gl_PointSize=aSize*(300.0/max(-mv.z,1.0));
+          gl_Position=projectionMatrix*mv; }`,
+      fragmentShader:`uniform sampler2D uMap; varying vec3 vC; varying float vA;
+        void main(){ vec4 t=texture2D(uMap,gl_PointCoord);
+          gl_FragColor=vec4(vC, t.a*vA); if(gl_FragColor.a<0.01) discard; }`});
+    this.pts=new THREE.Points(geo,mat);
+    this.pts.frustumCulled=false; this.pts.renderOrder=18; sc.add(this.pts);
+
+    // ---- sparks: short bright streaks, drawn additively so they glow ----
+    const SN=420;
+    const sp=new Float32Array(SN*6);
+    for(let i=0;i<SN*6;i+=3) sp[i+1]=-9999;
+    this.sVel=new Float32Array(SN*3); this.sLife=new Float32Array(SN); this.sMax=new Float32Array(SN);
+    this.sHead=0; this.SN=SN;
+    const sg=new THREE.BufferGeometry();
+    sg.setAttribute('position',new THREE.BufferAttribute(sp,3));
+    this.sparks=new THREE.LineSegments(sg,new THREE.LineBasicMaterial({
+      color:0xffb03a, transparent:true, opacity:0.95, blending:THREE.AdditiveBlending, depthWrite:false}));
+    this.sparks.frustumCulled=false; this.sparks.renderOrder=19; sc.add(this.sparks);
+
+    // ---- rubber laid on the road: a ring buffer of quads, so old marks fade
+    //      out of the buffer instead of growing without limit ----
+    const M=this.MARKS;
+    const mp=new Float32Array(M*4*3), ma=new Float32Array(M*4);
+    const mi=[]; for(let q=0;q<M;q++){const v=q*4; mi.push(v,v+2,v+1, v+1,v+2,v+3);}
+    for(let i=0;i<M*4;i++){mp[i*3+1]=-9999;}
+    const mg=new THREE.BufferGeometry();
+    mg.setAttribute('position',new THREE.BufferAttribute(mp,3));
+    mg.setAttribute('aAlpha',new THREE.BufferAttribute(ma,1));
+    mg.setIndex(mi);
+    this.marks=new THREE.Mesh(mg,new THREE.ShaderMaterial({
+      transparent:true, depthWrite:false, side:THREE.DoubleSide,
+      polygonOffset:true, polygonOffsetFactor:-4, polygonOffsetUnits:-4,
+      vertexShader:`attribute float aAlpha; varying float vA;
+        void main(){ vA=aAlpha; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }`,
+      fragmentShader:`varying float vA;
+        void main(){ gl_FragColor=vec4(0.02,0.02,0.025,vA); if(vA<0.004) discard; }`}));
+    this.marks.frustumCulled=false; this.marks.renderOrder=4; sc.add(this.marks);
+    this.mHead=0; this.mPrev=null;
+    this.ready=true;
+  },
+  /* one puff / clod / stone */
+  spawn(x,y,z, vx,vy,vz, r,g,b, size, life, grow, drag){
+    if(!this.ready) return;
+    const i=this.head; this.head=(this.head+1)%this.N;
+    const P=this.pts.geometry.attributes;
+    P.position.array[i*3]=x; P.position.array[i*3+1]=y; P.position.array[i*3+2]=z;
+    P.aCol.array[i*3]=r; P.aCol.array[i*3+1]=g; P.aCol.array[i*3+2]=b;
+    P.aSize.array[i]=size; P.aAlpha.array[i]=1;
+    this.vel[i*3]=vx; this.vel[i*3+1]=vy; this.vel[i*3+2]=vz;
+    this.life[i]=life; this.max[i]=life; this.grow[i]=grow||0; this.drag[i]=drag===undefined?2.2:drag;
+  },
+  spark(x,y,z, vx,vy,vz, life){
+    if(!this.ready) return;
+    const i=this.sHead; this.sHead=(this.sHead+1)%this.SN;
+    const a=this.sparks.geometry.attributes.position.array;
+    a[i*6]=x;a[i*6+1]=y;a[i*6+2]=z;
+    a[i*6+3]=x;a[i*6+4]=y;a[i*6+5]=z;
+    this.sVel[i*3]=vx;this.sVel[i*3+1]=vy;this.sVel[i*3+2]=vz;
+    this.sLife[i]=life;this.sMax[i]=life;
+  },
+  /* lay a segment of rubber between the previous position and this one */
+  mark(x,z,y, nx,nz, halfW, alpha){
+    if(!this.ready) return;
+    const key=nx*1e-6;                                   // unused, keeps signature stable
+    const prev=this.mPrev;
+    this.mPrev={x,z,y,nx,nz,halfW};
+    if(!prev) return;
+    const d=Math.hypot(x-prev.x,z-prev.z);
+    if(d<0.9) { this.mPrev=prev; return; }               // one quad per ~1 m of travel
+    const q=this.mHead; this.mHead=(this.mHead+1)%this.MARKS;
+    const A=this.marks.geometry.attributes;
+    const put=(o,px,py,pz)=>{const j=(q*4+o)*3;
+      A.position.array[j]=px;A.position.array[j+1]=py;A.position.array[j+2]=pz;};
+    put(0, prev.x-prev.nx*prev.halfW, prev.y+0.012, prev.z-prev.nz*prev.halfW);
+    put(1, prev.x+prev.nx*prev.halfW, prev.y+0.012, prev.z+prev.nz*prev.halfW);
+    put(2, x-nx*halfW, y+0.012, z-nz*halfW);
+    put(3, x+nx*halfW, y+0.012, z+nz*halfW);
+    for(let o=0;o<4;o++) A.aAlpha.array[q*4+o]=alpha;
+    A.position.needsUpdate=true; A.aAlpha.needsUpdate=true;
+  },
+  breakMark(){ this.mPrev=null; },                       // stop connecting across a gap
+  update(dt){
+    if(!this.ready) return;
+    const P=this.pts.geometry.attributes;
+    const pa=P.position.array, al=P.aAlpha.array, sz=P.aSize.array;
+    for(let i=0;i<this.N;i++){
+      if(this.life[i]<=0){ if(al[i]!==0){al[i]=0;} continue; }
+      this.life[i]-=dt;
+      const t=Math.max(0,this.life[i]/this.max[i]);
+      const dmp=Math.exp(-this.drag[i]*dt);
+      this.vel[i*3]*=dmp; this.vel[i*3+2]*=dmp;
+      this.vel[i*3+1]=this.vel[i*3+1]*dmp - 3.2*dt;      // a little gravity
+      pa[i*3]  +=this.vel[i*3]*dt;
+      pa[i*3+1]+=this.vel[i*3+1]*dt;
+      pa[i*3+2]+=this.vel[i*3+2]*dt;
+      sz[i]+=this.grow[i]*dt;
+      al[i]=t*t;
+      if(this.life[i]<=0){ pa[i*3+1]=-9999; al[i]=0; }
+    }
+    P.position.needsUpdate=true;P.aAlpha.needsUpdate=true;P.aSize.needsUpdate=true;
+    const sa=this.sparks.geometry.attributes.position.array;
+    for(let i=0;i<this.SN;i++){
+      if(this.sLife[i]<=0) continue;
+      this.sLife[i]-=dt;
+      this.sVel[i*3]*=0.94; this.sVel[i*3+2]*=0.94;
+      this.sVel[i*3+1]-=13*dt;
+      const hx=sa[i*6]+this.sVel[i*3]*dt, hy=sa[i*6+1]+this.sVel[i*3+1]*dt, hz=sa[i*6+2]+this.sVel[i*3+2]*dt;
+      sa[i*6]=hx;sa[i*6+1]=hy;sa[i*6+2]=hz;
+      sa[i*6+3]=hx-this.sVel[i*3]*dt*2.4;
+      sa[i*6+4]=hy-this.sVel[i*3+1]*dt*2.4;
+      sa[i*6+5]=hz-this.sVel[i*3+2]*dt*2.4;
+      if(this.sLife[i]<=0){sa[i*6+1]=-9999;sa[i*6+4]=-9999;}
+    }
+    this.sparks.geometry.attributes.position.needsUpdate=true;
+  },
+  reset(){
+    if(!this.ready) return;
+    const A=this.marks.geometry.attributes;
+    for(let i=0;i<this.MARKS*4;i++){A.aAlpha.array[i]=0;A.position.array[i*3+1]=-9999;}
+    A.position.needsUpdate=true;A.aAlpha.needsUpdate=true;this.mPrev=null;
+    const P=this.pts.geometry.attributes;
+    for(let i=0;i<this.N;i++){this.life[i]=0;P.aAlpha.array[i]=0;P.position.array[i*3+1]=-9999;}
+    P.position.needsUpdate=true;P.aAlpha.needsUpdate=true;
+    for(let i=0;i<this.SN;i++){this.sLife[i]=0;
+      this.sparks.geometry.attributes.position.array[i*6+1]=-9999;
+      this.sparks.geometry.attributes.position.array[i*6+4]=-9999;}
+    this.sparks.geometry.attributes.position.needsUpdate=true;
+  }
+};
+/* what the car is standing on right now, so the effects can differ by surface */
+function surfaceAt(idx,absLat){
+  const HW=TRACK.halfW;
+  if(absLat<HW+0.2) return 'road';
+  if(absLat<HW+2.9) return 'kerb';
+  const s=(TRACK.surf&&TRACK.surf[idx])||'grass';
+  if(CFG.street) return 'road';                   // a street circuit has kerbs then wall
+  if(s==='asphalt') return 'runoff';
+  if(s==='gravel')  return 'gravel';
+  if(s==='mixed')   return absLat<HW+12?'runoff':'gravel';
+  return 'grass';
+}
+const SURF_FX={
+  grass :{col:[0.32,0.46,0.18], size:0.85, rate:26, up:2.6, life:0.85, drag:3.2},
+  gravel:{col:[0.66,0.58,0.42], size:0.75, rate:34, up:3.4, life:1.05, drag:2.6},
+  runoff:{col:[0.42,0.42,0.44], size:0.70, rate:14, up:1.5, life:0.7,  drag:3.0},
+  kerb  :{col:[0.55,0.55,0.56], size:0.55, rate:8,  up:1.2, life:0.5,  drag:3.4},
+  road  :{col:[0.52,0.52,0.54], size:0.60, rate:0,  up:1.0, life:0.6,  drag:3.4},
+};
 /* lit-window facade texture (night) */
 function makeWindows(cols,rows,tint){
   const c=cnv(cols*10,rows*14),x=c.getContext('2d');
@@ -6572,6 +6758,7 @@ function resetCar(){
   CAR.pos.set(p.x,0,p.z);
   CAR.heading=Math.atan2(tg.x,tg.z);
   CAR.v=0;CAR.steer=0;CAR.steerCmd=0;CAR.yawRate=0;CAR.vLat=0;CAR.pitch=0;
+  CAR.lock=0;CAR.spin=0;CAR.comp=0;CAR.slope=undefined;FX.reset();
   CAR.ers=0.75;CAR.ersActive=0;CAR.tire=1;CAR.damage=0;
   CAR.compound=selCompound; CAR.tireLapsLife=compoundLaps(selCompound,CFG.id);
   CAR.rTyreWarn=false; CAR.rTyreCrit=false; CAR.rDmg=false; CAR.rPrevPos=8; CAR.rPrevBest=null;
@@ -6695,7 +6882,110 @@ function stepPhysics(dt,inp){
     CAR.groundY=damp(CAR.groundY,gy,26,dt);
     // pitch the car to the local gradient (subtle) so climbs/dips read right
     const segLen=Math.hypot(sb.x-sa.x,sb.z-sa.z)||1, slope=(sb.y-sa.y)/segLen;
+    const prevSlope=CAR.slope===undefined?slope:CAR.slope;
+    CAR.slope=slope;
+    // how hard the floor is being pressed into the road: braking load plus any
+    // change of gradient (a compression). This is what makes an F1 car spark.
+    const dSlope=(slope-prevSlope)/Math.max(dt,1e-3);
+    CAR.comp=damp(CAR.comp||0,
+      clamp(Math.abs(dSlope)*0.05 + (inp.brake||0)*clamp(spd/70,0,1)*0.55, 0, 1.4), 8, dt);
     CAR.pitch=damp(CAR.pitch||0,clamp(-slope*Math.sign(CAR.v||1),-0.16,0.16),6,dt);
+  }
+  /* ---- what the car does TO the world ------------------------------------
+     Lock-ups, wheelspin, the rubber it lays down, sparks off the floor and the
+     grass or gravel it throws up. All of it is driven from state the physics
+     already computes, so it stays honest: the smoke appears because a tyre is
+     actually sliding, not because a timer said so.                          */
+  if(FX.ready && STATE!=='replay'){
+    const surf=surfaceAt(near.idx,absLat);
+    CAR.surface=surf;
+    const fwdX=sinH, fwdZ=cosH, rgtX=cosH, rgtZ=-sinH;
+    const ry=CAR.groundY!==undefined?CAR.groundY:0;
+    const rearX=CAR.pos.x-fwdX*P.aRear, rearZ=CAR.pos.z-fwdZ*P.aRear;
+    const frntX=CAR.pos.x+fwdX*P.aFront, frntZ=CAR.pos.z+fwdZ*P.aFront;
+    const wet=clamp(WEATHER.wetness,0,1);
+
+    // FRONT LOCK-UP: hard on the brakes at speed, past what the front axle can
+    // take. Real lock-ups smoke white and flat-spot the tyre.
+    const brakeDemand=(inp.brake||0)*P.brakeForce;
+    const frontCap=P.mu*gripMul*loadF*1.9;
+    CAR.lock=damp(CAR.lock||0, (spd>16 && brakeDemand>frontCap)?1:0, 14, dt);
+    if(CAR.lock>0.25 && spd>10){
+      const n=1+((CAR.lock*3)|0);
+      for(let q=0;q<n;q++) for(const sx of [-1,1]){
+        const px=frntX+rgtX*sx*0.82, pz=frntZ+rgtZ*sx*0.82;
+        FX.spawn(px,ry+0.18,pz,
+          -fwdX*spd*0.10+(Math.random()-0.5)*1.6, 1.4+Math.random()*1.6, -fwdZ*spd*0.10+(Math.random()-0.5)*1.6,
+          0.86,0.86,0.88, 0.7, 0.55+Math.random()*0.35, 2.4, 2.0);}
+      CAR.tire=Math.max(0,CAR.tire-dt*0.010*CAR.lock);     // flat-spotting costs tyre life
+    }
+
+    // WHEELSPIN: too much torque for the rear tyres, mostly out of slow corners
+    const rearCap=P.mu*gripMul*loadR;
+    const tractionDemand=Math.abs(Fdrive);
+    CAR.spin=damp(CAR.spin||0, (spd<34 && (inp.throttle||0)>0.55 && tractionDemand>rearCap*0.85)?1:0, 12, dt);
+    if(CAR.spin>0.25){
+      for(const sx of [-1,1]){
+        const px=rearX+rgtX*sx*0.85, pz=rearZ+rgtZ*sx*0.85;
+        FX.spawn(px,ry+0.16,pz,
+          -fwdX*3.2+(Math.random()-0.5)*1.4, 1.1+Math.random()*1.3, -fwdZ*3.2+(Math.random()-0.5)*1.4,
+          0.80,0.80,0.82, 0.62, 0.5+Math.random()*0.3, 2.0, 2.2);}
+    }
+
+    // SLIDING: sustained lateral slip smokes the rears and lays rubber
+    const slide=clamp((Math.abs(CAR.vLat)-3.6)/7,0,1);
+    if(slide>0.05 && spd>12 && surf==='road'){
+      if(Math.random()<slide*0.9) for(const sx of [-1,1]){
+        const px=rearX+rgtX*sx*0.85, pz=rearZ+rgtZ*sx*0.85;
+        FX.spawn(px,ry+0.15,pz,
+          (Math.random()-0.5)*2.2, 0.9+Math.random()*1.2, (Math.random()-0.5)*2.2,
+          0.74,0.74,0.76, 0.55, 0.45+Math.random()*0.4, 2.2, 2.4);}
+    }
+
+    // RUBBER ON THE ROAD: only on tarmac, only when a tyre is really working,
+    // and lighter in the wet because there is water between rubber and road
+    const markStrength=Math.max(slide*0.55, (CAR.lock||0)*1.15, (CAR.spin||0)*0.8);
+    if((surf==='road'||surf==='kerb'||surf==='runoff') && markStrength>0.16 && spd>6){
+      FX.mark(rearX,rearZ,ry, rgtX,rgtZ, 0.95, Math.min(0.5,markStrength*0.44)*(1-wet*0.65));
+    } else FX.breakMark();
+
+    // SPARKS off the floor: the plank grounds out over kerbs and in compressions
+    const grounding=(surf==='kerb'?1:0)*clamp(spd/40,0,1) + clamp((CAR.comp||0)*1.4,0,1);
+    if(grounding>0.22 && spd>22 && Math.random()<grounding*0.85){
+      const n=2+((grounding*5)|0);
+      for(let q=0;q<n;q++){
+        const sx=(Math.random()-0.5)*1.5;
+        FX.spark(CAR.pos.x+rgtX*sx-fwdX*1.6, ry+0.07, CAR.pos.z+rgtZ*sx-fwdZ*1.6,
+          -fwdX*(6+Math.random()*10)+(Math.random()-0.5)*4, 1.5+Math.random()*4.0,
+          -fwdZ*(6+Math.random()*10)+(Math.random()-0.5)*4, 0.22+Math.random()*0.22);}
+    }
+
+    // OFF THE ROAD: throw up whatever you are driving through
+    if(surf!=='road' && spd>5){
+      const S=SURF_FX[surf]||SURF_FX.grass;
+      const n=Math.round(S.rate*dt*clamp(spd/45,0.2,1.6));
+      for(let q=0;q<n;q++){
+        const sx=(Math.random()<0.5?-1:1)*0.85;
+        const px=rearX+rgtX*sx, pz=rearZ+rgtZ*sx;
+        const jitter=()=>(Math.random()-0.5)*3.0;
+        FX.spawn(px,ry+0.12,pz,
+          -fwdX*spd*0.22+jitter(), S.up*(0.6+Math.random()), -fwdZ*spd*0.22+jitter(),
+          S.col[0],S.col[1],S.col[2], S.size*(0.7+Math.random()*0.7),
+          S.life*(0.7+Math.random()*0.6), 0.8, S.drag);}
+      // a dust haze behind on the dry loose surfaces
+      if((surf==='gravel') && wet<0.3 && Math.random()<0.5){
+        FX.spawn(rearX,ry+0.4,rearZ, -fwdX*2+((Math.random()-0.5)*2), 1.2, -fwdZ*2+((Math.random()-0.5)*2),
+          0.72,0.66,0.52, 1.8, 1.3, 3.2, 1.4);}
+    }
+
+    // SPRAY off the road in the wet is handled by the existing plumes, but add
+    // a rooster tail so a wet track throws water as well as mist
+    if(wet>0.25 && spd>18 && Math.random()<wet*0.8){
+      for(const sx of [-1,1]){
+        FX.spawn(rearX+rgtX*sx*0.85, ry+0.2, rearZ+rgtZ*sx*0.85,
+          -fwdX*spd*0.16+(Math.random()-0.5)*2, 2.0+Math.random()*2.2, -fwdZ*spd*0.16+(Math.random()-0.5)*2,
+          0.88,0.90,0.93, 0.62, 0.55, 2.6, 1.9);}
+    }
   }
   const rumble=CAR.kerb?Math.sin(performance.now()*0.05)*0.035*clamp(spd/22,0,1):0;
   // seat the tyres exactly on the road surface (road strip sits +0.02; tireDrop removes the float)
@@ -6737,7 +7027,8 @@ if(typeof window!=='undefined'){window.__step=stepPhysics;window.__reset=resetCa
   window.__TRACKS=TRACKS; window.__expo=()=>renderer.toneMappingExposure;
   window.__stepWx=(dt)=>updateWeather(driveScene,dt);
   window.__camera=camera; window.__THREE=THREE;
-  window.__makeLivery=makeLivery; window.__liveryIds=()=>LIVERY_IDS;}
+  window.__makeLivery=makeLivery; window.__liveryIds=()=>LIVERY_IDS;
+  window.__FX=FX; window.__CAR=()=>CAR;}
 
 /* nearest centreline point (dist + signed lateral + outward normal) */
 function nearestTrack(pos,hint,window){
@@ -8102,6 +8393,7 @@ function frame(){
     replayRecord(dt);
     const rb=$('#replayBadge'); if(rb)rb.classList.toggle('on',REPLAY.laps.length>0);
     updateWeather(driveScene,dt);                       // sun moves, fronts roll through
+    FX.update(dt);
     const rain=driveScene.userData.rain; if(rain) rain.update(dt,camera.position);
     const lg=driveScene.userData.lightning; if(lg) lg.update(dt);
     if(CFG.dynamicSky) updateDynamicSky(driveScene,dt);
@@ -8109,6 +8401,7 @@ function frame(){
   }else if(STATE==='replay'){
     updateReplay(dt);
     updateWeather(driveScene,dt);                       // sun moves, fronts roll through
+    FX.update(dt);
     const rain=driveScene.userData.rain; if(rain) rain.update(dt,camera.position);
     const lg=driveScene.userData.lightning; if(lg) lg.update(dt);
     if(CFG.dynamicSky) updateDynamicSky(driveScene,dt);
