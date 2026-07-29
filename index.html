@@ -793,7 +793,10 @@ const TAU=Math.PI*2;
    ================================================================== */
 const renderer=new THREE.WebGLRenderer({canvas:$('#three'),antialias:true,powerPreference:'high-performance'});
 renderer.setSize(innerWidth,innerHeight);
-renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+// Rendering at 2× on a dense display quadruples the pixel cost for very little
+// visible gain on a scene this busy; 1.5 is the sweet spot and keeps the frame
+// rate up, which is most of what "runs smoother" actually means.
+renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));
 renderer.outputColorSpace=THREE.SRGBColorSpace;
 renderer.toneMapping=THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure=1.05;
@@ -1069,6 +1072,13 @@ const TEXAS_ELEV=[
   [0.36,6],[0.50,5],[0.64,6],                               // long flat-ish back section
   [0.78,5],[0.88,15],[0.95,19],[1.00,8],                    // rise through the stadium section, back to the line
 ];
+/* Circuits are built this much larger than their real length, which spreads the
+   corners and the whole venue out to match the car's performance. */
+const WORLD_SCALE=1.20;
+/* The car's top speed, in m/s (~353 km/h). Declared up here because the track
+   design pass runs at module init — before PHYS exists — and sizes its run-off
+   from it. */
+const V_TOP=98;
 /* ============================== WEATHER ==============================
    Weather is rolled per session from the venue's own climate and is then free
    to CHANGE mid-race. Every look (sky gradient, fog, exposure, sun and hemi
@@ -1334,7 +1344,7 @@ const TRACKS={
     kerb:['#d81c1c','#eef1f4'], asphalt:0x33363c, ground:0x3b5a30, laprec:'1:27',
     elev:f=>6*Math.sin(f*TAU*2+0.4)+3.2*Math.sin(f*TAU*5-0.7) },  // gentle British undulation, always wet
   monaco:{ id:'monaco', name:'MONTE CARLO', country:'MONACO', flag:'🇲🇨', points:MONACO, len:3337,
-    halfW:5.0, night:false, env:'monaco', street:true, runoff:'none',
+    halfW:5.0, night:false, env:'monaco', street:true, runoff:'none', narrow:0.07,
     kerb:['#d81c1c','#eef1f4'], asphalt:0x2c2f36, ground:0x8b9098, laprec:'1:12',
     elev:f=>elevProfile(MONACO_ELEV,f) },
   austria:{ id:'austria', name:'RED BULL RING', country:'AUSTRIA', flag:'🇦🇹', points:AUSTRIA, len:4318,
@@ -1378,7 +1388,7 @@ const TRACKS={
     kerb:['#ff6a00','#eef1f4'], asphalt:0x33363c, ground:0x9a8a5a, laprec:'1:14',
     elev:f=>4.5*Math.sin(f*TAU*2+0.6)+2.2*Math.sin(f*TAU*4) },   // coastal dunes, banking, orange kerbs
   baku:{ id:'baku', name:'BAKU CITY', country:'AZERBAIJAN', flag:'🇦🇿', points:BAKU, len:6003,
-    halfW:6.4, night:false, env:'baku', street:true, runoff:'none', sectors:[0.42,0.72],
+    halfW:6.4, night:false, env:'baku', street:true, runoff:'none', sectors:[0.42,0.72], narrow:0.11,
     kerb:['#d81c1c','#eef1f4'], asphalt:0x30333b, ground:0x6a6250, laprec:'1:45',
     elev:f=>1.4*Math.sin(f*TAU*2) },      // castle street section, tight walls, Emirates barriers
   hungary:{ id:'hungary', name:'HUNGARORING', country:'HUNGARY', flag:'🇭🇺', points:HUNGARY, len:4381,
@@ -1438,9 +1448,13 @@ function buildWorld(sc,cfg){
   const bb=new THREE.Box3().setFromPoints(raw); const ctr=bb.getCenter(new THREE.Vector3());
   raw.forEach(v=>v.sub(ctr));
   const curve=new THREE.CatmullRomCurve3(raw,true,'centripetal',0.5);
-  const S=cfg.len/curve.getLength();             // metres per raw unit
+  /* Every circuit is built a little larger than life. The corners, the run-off,
+     the barrier offsets, the environment radius and the props all derive from
+     the track's own dimensions, so scaling the length spreads the whole venue
+     out with it — and the car has the power now to use the extra room. */
+  const S=(cfg.len*WORLD_SCALE)/curve.getLength();   // metres per raw unit
   TRACK.scale=S;
-  const N=Math.max(600,Math.round(cfg.len/6));   // ~6 m road segments
+  const N=Math.max(600,Math.round(cfg.len*WORLD_SCALE/6));   // ~6 m road segments at the built scale
   const sp=curve.getSpacedPoints(N);
   const P=[],Tg=[],Nm=[];
   for(let i=0;i<N;i++) P.push(new THREE.Vector3(sp[i].x*S,0,sp[i].z*S));
@@ -1687,7 +1701,7 @@ function buildWorld(sc,cfg){
   TRACK.Rc=Rc; TRACK.R_KERB=R_KERB; TRACK.R_STRAIGHT=R_STRAIGHT;
   const vApex=new Array(N), runL=new Array(N), runR=new Array(N);
   const surf=new Array(N), barr=new Array(N);
-  const muTrack=1.75, G=9.81, VMAX=94;
+  const muTrack=1.75, G=9.81, VMAX=V_TOP;
   for(let i=0;i<N;i++) vApex[i]=Math.min(VMAX, Math.sqrt(muTrack*G*Rc[i]));
   // the speed that matters at a point is the slowest corner just downstream — that is
   // where a car actually departs, and the run-off must be there to catch it
@@ -2053,8 +2067,27 @@ function buildWorld(sc,cfg){
   // barrier line offset. Street circuits (Monaco) hug the track edge; the walls
   // close right in at the chicanes. Permanent tracks set the wall back past the run-off.
   const barBase=cfg.street?1.5:(4+16);
-  const barOff=k=>Math.min(HW+barBase+runL[k], maxOff[k]);   // clamp so walls never cross onto other kerbs
-  const barOffR=k=>Math.min(HW+barBase+runR[k], maxOff[k]);
+  /* Some circuits have a section that is genuinely, famously narrower than the
+     rest — Baku's run between the İçərişəhər fortress walls is the tightest
+     stretch in the sport. cfg.narrow marks a band of the lap where the run-off
+     is removed and the walls are brought hard in, so it drives like a canyon
+     rather than merely having some scenery beside it. */
+  const tight=new Array(N).fill(0);
+  if(cfg.narrow){
+    // put it on the narrowest natural part of the layout
+    let bi=0,bv=1e9; const win=Math.max(12,Math.round(N*cfg.narrow));
+    for(let st=0;st<N;st+=3){let sum=0;for(let k=0;k<win;k++)sum+=gap[(st+k)%N];
+      if(sum<bv){bv=sum;bi=st;}}
+    for(let k=0;k<win;k++){
+      const j=(bi+k)%N;
+      const ease=Math.min(1, Math.min(k,win-k)/8);          // taper in and out
+      tight[j]=ease;
+      runL[j]*=1-ease; runR[j]*=1-ease;}
+    TRACK.narrowStart=bi; TRACK.narrowLen=win;
+  }
+  TRACK.tight=tight;
+  const barOff=k=>Math.min(HW+barBase*(1-tight[k]*0.72)+runL[k]+tight[k]*0.6, maxOff[k]);
+  const barOffR=k=>Math.min(HW+barBase*(1-tight[k]*0.72)+runR[k]+tight[k]*0.6, maxOff[k]);
   TRACK.barOffL=barOff;TRACK.barOffR=barOffR;
   TRACK.wallL=[];TRACK.wallR=[];
   for(let i=0;i<N;i++){TRACK.wallL[i]=barOff(i);TRACK.wallR[i]=barOffR(i);}
@@ -3095,6 +3128,26 @@ function buildSafetyBarriers(sc,P,Nm,offL,offR){
     b.list.forEach((o,i)=>{T.set(o.x,o.y,o.z);S.set(1,1,1);M.compose(T,RY(o.ang),S);im.setMatrixAt(i,M);});
     im.instanceMatrix.needsUpdate=true;sc.add(im);}
 }
+/* weathered sandstone ashlar, for old-city walls */
+let _sandTex=null;
+function makeSandstone(){
+  if(_sandTex) return _sandTex;
+  const c=cnv(128,128),x=c.getContext('2d');
+  x.fillStyle='#c8bb99';x.fillRect(0,0,128,128);
+  for(let r=0;r<8;r++){
+    const off=(r%2)*16;
+    for(let q=-1;q<5;q++){
+      const bx=off+q*32, by=r*16;
+      const g=180+Math.random()*36|0;
+      x.fillStyle=`rgb(${g},${g-12},${g-38})`;
+      x.fillRect(bx+1,by+1,30,14);}}
+  for(let i=0;i<2200;i++){const g=Math.random()*40|0;
+    x.fillStyle=`rgba(${120+g},${108+g},${86+g},${Math.random()*0.28})`;
+    x.fillRect(Math.random()*128,Math.random()*128,2,2);}
+  const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;
+  t.wrapS=t.wrapT=THREE.RepeatWrapping;t.anisotropy=8;t.repeat.set(1.4,1.4);
+  return _sandTex=t;
+}
 /* the barrier below the printed board: scuffed white concrete with bolt plates */
 let _skirtTex=null;
 function makeBarrierSkirt(){
@@ -3355,6 +3408,105 @@ function buildMonaco(sc,P,Nm,Tg,offL,offR){
       const b=makeMonacoBuilding(w,d,h,type,col);
       const gy=gh(x,z);b.position.set(x,gy,z);b.rotation.y=ang;
       sc.add(b);}}
+  /* --- Monaco is built up a CLIFF -----------------------------------------
+     The single thing that makes the place look like itself is that the city
+     rises in terraces behind the track, so from the road you see rank upon rank
+     of apartment towers stacked above one another rather than one row of blocks
+     against the sky. These are the ranks behind the street frontage. */
+  { const pastels=['#e8e0cc','#dcd0b6','#efe7d6','#d6c2a2','#c9b79c','#e2d4bc'];
+    const balc=new THREE.MeshStandardMaterial({color:0xf4f1ea,roughness:0.75});
+    const pantile=new THREE.MeshStandardMaterial({color:0xa8563a,roughness:0.9});
+    for(let rank=1;rank<=4;rank++){
+      const back=34+rank*40, lift=rank*17;          // each rank sits higher up the hill
+      for(let i=0;i<N;i+=9){
+        const p=P[i],n=Nm[i],tg=Tg[i],ang=Math.atan2(tg.x,tg.z);
+        for(const [side,off] of [[1,offL],[-1,offR]]){
+          if(Math.random()<0.25) continue;
+          const w=16+Math.random()*14, d=15+Math.random()*12;
+          const h=26+Math.random()*44+rank*6;
+          const diag=Math.hypot(w/2,d/2);
+          const dist=off(i)+back+diag;
+          const x=p.x+n.x*side*dist, z=p.z+n.z*side*dist;
+          if(inHarbour(x,z)) continue;
+          if(clearB(x,z)<(HW+diag+back*0.55)**2) continue;
+          const gy=gh(x,z)+lift;
+          const g=new THREE.Group();
+          const body=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),
+            new THREE.MeshStandardMaterial({map:makeWindows(Math.max(3,w/5|0),Math.max(6,h/5|0),
+              pastels[(Math.random()*pastels.length)|0]),color:'#e6dcc6',roughness:0.85}));
+          body.position.y=h/2;g.add(body);
+          // Monaco's signature: continuous white balcony slabs on every floor
+          const floors=Math.max(4,Math.round(h/3.4));
+          for(let f=1;f<floors;f++){
+            const sl=new THREE.Mesh(new THREE.BoxGeometry(w+1.7,0.30,d+1.7),balc);
+            sl.position.y=f*(h/floors);g.add(sl);}
+          // and either a flat roof with plant or a shallow pantile hip
+          if(Math.random()<0.45){
+            const rf=new THREE.Mesh(new THREE.CylinderGeometry(Math.max(w,d)*0.60,Math.max(w,d)*0.60,w,4,1),pantile);
+            rf.rotation.z=Math.PI/2;rf.rotation.y=Math.PI/4;rf.position.y=h+1.4;rf.scale.set(1,1,0.34);g.add(rf);
+          }else{
+            const cap=new THREE.Mesh(new THREE.BoxGeometry(w+1.2,0.7,d+1.2),balc);cap.position.y=h+0.35;g.add(cap);
+            for(let q=0;q<3;q++){
+              const pl=new THREE.Mesh(new THREE.SphereGeometry(1.3,7,5),
+                new THREE.MeshStandardMaterial({color:0x2f6a34,roughness:1}));
+              pl.position.set((q-1)*w*0.28,h+1.9,d*0.24);g.add(pl);}}
+          g.position.set(x,gy,z);g.rotation.y=ang+(Math.random()-0.5)*0.5;
+          g.traverse(o=>{o.castShadow=true;o.receiveShadow=true;});sc.add(g);}}}
+    // the terrace retaining walls the ranks stand on
+    const retain=new THREE.MeshStandardMaterial({color:0xbdb3a0,roughness:0.95});
+    for(let rank=1;rank<=4;rank++){
+      const back=34+rank*40-16, lift=rank*17;
+      for(let i=0;i<N;i+=5){
+        const p=P[i],n=Nm[i],ang=Math.atan2(Tg[i].x,Tg[i].z);
+        for(const [side,off] of [[1,offL],[-1,offR]]){
+          const dist=off(i)+back;
+          const x=p.x+n.x*side*dist, z=p.z+n.z*side*dist;
+          if(inHarbour(x,z)) continue;
+          if(clearB(x,z)<(HW+back*0.5)**2) continue;
+          const w=new THREE.Mesh(new THREE.BoxGeometry(2.0,lift+3,26),retain);
+          w.position.set(x,gh(x,z)+(lift+3)/2,z);w.rotation.y=ang;sc.add(w);}}}
+  }
+  /* --- the Casino de Monte-Carlo: a Belle Époque palace with green copper
+     domes and its terrace, and the Hôtel de Paris beside it --- */
+  { const sp=findOpenSpot(clearB,R,110,0.55,1.3);
+    if(sp && !inHarbour(sp.x,sp.z)){
+      const gy=gh(sp.x,sp.z), g=new THREE.Group();
+      const stone=new THREE.MeshStandardMaterial({color:0xeae0c6,roughness:0.8});
+      const copper=new THREE.MeshStandardMaterial({color:0x4a8a72,roughness:0.55,metalness:0.4});
+      const goldM=new THREE.MeshStandardMaterial({color:0xd8a93a,roughness:0.3,metalness:0.8});
+      const body=new THREE.Mesh(new THREE.BoxGeometry(64,20,30),stone);body.position.y=10;g.add(body);
+      // the ornamented cornice and balustrade
+      const corn=new THREE.Mesh(new THREE.BoxGeometry(67,1.6,33),stone);corn.position.y=20.8;g.add(corn);
+      for(let q=0;q<18;q++){
+        const bl=new THREE.Mesh(new THREE.CylinderGeometry(0.45,0.55,2.0,7),stone);
+        bl.position.set(-30+q*3.5,22.6,15.2);g.add(bl);}
+      // the twin domed pavilions
+      for(const sx of [-24,24]){
+        const pav=new THREE.Mesh(new THREE.BoxGeometry(20,24,24),stone);pav.position.set(sx,12,0);g.add(pav);
+        const dome=new THREE.Mesh(new THREE.SphereGeometry(11,20,12,0,TAU,0,Math.PI*0.52),copper);
+        dome.scale.set(1,1.15,1);dome.position.set(sx,24,0);g.add(dome);
+        const fin=new THREE.Mesh(new THREE.ConeGeometry(1.2,7,8),goldM);fin.position.set(sx,38,0);g.add(fin);}
+      // arched windows along the front
+      for(let q=0;q<9;q++){
+        const arc=new THREE.Mesh(new THREE.CylinderGeometry(1.9,1.9,0.5,12,1,false,0,Math.PI),
+          new THREE.MeshStandardMaterial({color:0x2a3038,roughness:0.3,metalness:0.5}));
+        arc.rotation.x=Math.PI/2;arc.position.set(-28+q*7,13,15.3);g.add(arc);
+        const sill=new THREE.Mesh(new THREE.BoxGeometry(4.4,6.4,0.4),
+          new THREE.MeshStandardMaterial({color:0x2a3038,roughness:0.3,metalness:0.5}));
+        sill.position.set(-28+q*7,9.5,15.3);g.add(sill);}
+      // the terrace and its plane trees out front
+      const terr=new THREE.Mesh(new THREE.BoxGeometry(78,0.8,26),
+        new THREE.MeshStandardMaterial({color:0xcfc6b2,roughness:0.95}));
+      terr.position.set(0,0.4,29);g.add(terr);
+      for(let q=0;q<7;q++){
+        const tk=new THREE.Mesh(new THREE.CylinderGeometry(0.35,0.5,5,7),
+          new THREE.MeshStandardMaterial({color:0x6a5a44,roughness:1}));
+        tk.position.set(-27+q*9,3.3,34);g.add(tk);
+        const cr=new THREE.Mesh(new THREE.IcosahedronGeometry(3.6,1),
+          new THREE.MeshStandardMaterial({color:0x35602c,roughness:1,flatShading:true}));
+        cr.position.set(-27+q*9,8.0,34);cr.scale.set(1,0.75,1);g.add(cr);}
+      g.position.set(sp.x,gy,sp.z);g.rotation.y=Math.atan2(-sp.z,-sp.x);
+      g.traverse(o=>{o.castShadow=true;o.receiveShadow=true;});sc.add(g);} }
   // --- the tunnel: a roofed section over ~f 0.42–0.50 (Portier → chicane) ---
   { const i0=Math.round(N*0.42), i1=Math.round(N*0.50), HW=TRACK.halfW;
     const wallMat=new THREE.MeshStandardMaterial({color:0xdad2c4,roughness:0.9,side:THREE.DoubleSide});
@@ -4178,11 +4330,144 @@ function makeNeonSign(name,hue){
   x.font='700 24px Arial';x.fillStyle=hue;x.shadowBlur=16;x.fillText('★  CASINO · RESORT  ★',256,190);
   const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;t.anisotropy=8;return t;
 }
+/* the Strip's real landmarks — the things that make a shot unmistakably Vegas */
+function buildVegasLandmarks(sc,clr,R,gh){
+  const glassD=new THREE.MeshStandardMaterial({color:0x14161f,roughness:0.28,metalness:0.7});
+  const steel=new THREE.MeshStandardMaterial({color:0xb8bec6,roughness:0.45,metalness:0.6});
+  const gold=new THREE.MeshStandardMaterial({color:0xd8a93a,roughness:0.25,metalness:0.85,
+    emissive:0x3a2a06,emissiveIntensity:0.7});
+  const stone=new THREE.MeshStandardMaterial({color:0xe4dcc8,roughness:0.8,
+    emissive:0x2a2418,emissiveIntensity:0.5});
+  const lit=(t)=>new THREE.MeshStandardMaterial({map:makeWindows(6,26,t),color:'#2a2f3a',
+    emissive:0x1a1f2c,emissiveIntensity:0.9,roughness:0.4,metalness:0.45});
+  const place=(need,rIn,rOut)=>findOpenSpot(clr,R,need,rIn,rOut);
+
+  // --- the Sphere: a vast spherical screen, lit from within ---
+  { const sp=place(150,0.8,1.6); if(sp){
+      const rad=Math.max(46,Math.min(74,sp.room*0.34));
+      const shell=new THREE.Mesh(new THREE.SphereGeometry(rad,32,20),
+        new THREE.MeshStandardMaterial({color:0x0a0d14,emissive:0x2a4f9f,emissiveIntensity:1.35,
+          roughness:0.3,metalness:0.35}));
+      shell.position.set(sp.x,gh(sp.x,sp.z)+rad*0.94,sp.z);sc.add(shell);
+      const podium=new THREE.Mesh(new THREE.CylinderGeometry(rad*0.75,rad*0.9,rad*0.42,26),glassD);
+      podium.position.set(sp.x,gh(sp.x,sp.z)+rad*0.21,sp.z);sc.add(podium);} }
+
+  // --- Luxor: the black glass pyramid, its sphinx and the light beam ---
+  { const sp=place(150,0.9,1.7); if(sp){
+      const gy=gh(sp.x,sp.z), side=Math.max(62,Math.min(96,sp.room*0.42));
+      const pyr=new THREE.Mesh(new THREE.ConeGeometry(side*0.72,side*0.95,4),glassD);
+      pyr.rotation.y=Math.PI/4;pyr.position.set(sp.x,gy+side*0.475,sp.z);sc.add(pyr);
+      const beam=new THREE.Mesh(new THREE.CylinderGeometry(2.0,5.0,340,10,1,true),
+        new THREE.MeshStandardMaterial({color:0xffffff,transparent:true,opacity:0.16,
+          emissive:0xffffff,emissiveIntensity:1.8,side:THREE.DoubleSide,depthWrite:false}));
+      beam.position.set(sp.x,gy+side*0.95+170,sp.z);sc.add(beam);
+      // the sphinx out front
+      const sx=sp.x+side*0.85, sz=sp.z;
+      const body=new THREE.Mesh(new THREE.BoxGeometry(26,12,11),stone);
+      body.position.set(sx,gy+6,sz);sc.add(body);
+      const head=new THREE.Mesh(new THREE.BoxGeometry(9,11,9),gold);
+      head.position.set(sx+13,gy+16,sz);sc.add(head);
+      const obel=new THREE.Mesh(new THREE.ConeGeometry(3.0,34,4),stone);
+      obel.position.set(sx+26,gy+17,sz);sc.add(obel);} }
+
+  // --- Paris: the half-scale Eiffel Tower, a lattice of four legs ---
+  { const sp=place(130,0.85,1.7); if(sp){
+      const gy=gh(sp.x,sp.z), H=150, g=new THREE.Group();
+      for(const sx of [-1,1]) for(const sz of [-1,1]){
+        for(let seg=0;seg<3;seg++){
+          const y0=[0,H*0.32,H*0.62][seg], y1=[H*0.32,H*0.62,H*0.86][seg];
+          const r0=[26,15,7][seg], r1=[15,7,3][seg];
+          const leg=new THREE.Mesh(new THREE.CylinderGeometry(1.5,2.4,y1-y0,7),steel);
+          leg.position.set(sx*(r0+r1)/2,gy+(y0+y1)/2,sz*(r0+r1)/2);
+          leg.rotation.z=-sx*Math.atan2(r0-r1,y1-y0);
+          leg.rotation.x= sz*Math.atan2(r0-r1,y1-y0);g.add(leg);}}
+      for(const [y,r] of [[H*0.32,15],[H*0.62,7],[H*0.86,3.4]]){
+        const deck=new THREE.Mesh(new THREE.BoxGeometry(r*2.5,1.4,r*2.5),steel);
+        deck.position.y=gy+y;g.add(deck);}
+      const arch=new THREE.Mesh(new THREE.TorusGeometry(24,2.0,8,20,Math.PI),steel);
+      arch.position.y=gy+30;g.add(arch);
+      const mast=new THREE.Mesh(new THREE.CylinderGeometry(0.9,1.5,H*0.2,8),steel);
+      mast.position.y=gy+H*0.95;g.add(mast);
+      const bea=new THREE.Mesh(new THREE.SphereGeometry(2.0,10,8),
+        new THREE.MeshStandardMaterial({color:0xfff0c0,emissive:0xffe090,emissiveIntensity:3.0}));
+      bea.position.y=gy+H*1.06;g.add(bea);
+      g.position.set(sp.x,0,sp.z);g.traverse(o=>{o.castShadow=true;});sc.add(g);} }
+
+  // --- the High Roller: a very tall observation wheel ---
+  { const sp=place(140,0.9,1.8); if(sp){
+      const gy=gh(sp.x,sp.z), rad=Math.max(48,Math.min(78,sp.room*0.36)), g=new THREE.Group();
+      g.add(new THREE.Mesh(new THREE.TorusGeometry(rad,1.2,8,52),steel));
+      for(let k=0;k<36;k++){const a=k/36*TAU;
+        const sp2=new THREE.Mesh(new THREE.BoxGeometry(0.24,rad*2,0.24),steel);sp2.rotation.z=a;g.add(sp2);
+        const cab=new THREE.Mesh(new THREE.SphereGeometry(3.0,9,7),
+          new THREE.MeshStandardMaterial({color:0x0d1420,emissive:0x7fc4ff,emissiveIntensity:1.5,
+            roughness:0.25,metalness:0.5}));
+        cab.position.set(Math.cos(a)*rad,Math.sin(a)*rad,0);g.add(cab);}
+      for(const sx of [-1,1]) for(const sz of [-1,1]){
+        const leg=new THREE.Mesh(new THREE.CylinderGeometry(1.4,2.4,rad+22,8),steel);
+        leg.position.set(sx*rad*0.36,-(rad+22)/2+3,sz*8);
+        leg.rotation.z=-sx*0.26;leg.rotation.x=-sz*0.10;g.add(leg);}
+      g.position.set(sp.x,gy+rad+24,sp.z);g.rotation.y=Math.random()*TAU;
+      g.traverse(o=>{o.castShadow=true;});sc.add(g);} }
+
+  // --- the Strat: a slender concrete tower with a pod near the top ---
+  { const sp=place(110,1.0,1.9); if(sp){
+      const gy=gh(sp.x,sp.z), H=270;
+      const shaft=new THREE.Mesh(new THREE.CylinderGeometry(5,13,H,14),
+        new THREE.MeshStandardMaterial({color:0xdfe2e6,roughness:0.7,emissive:0x1a1d22,emissiveIntensity:0.5}));
+      shaft.position.set(sp.x,gy+H/2,sp.z);sc.add(shaft);
+      const pod=new THREE.Mesh(new THREE.CylinderGeometry(17,13,22,18),lit('#ffe0a8'));
+      pod.position.set(sp.x,gy+H*0.86,sp.z);sc.add(pod);
+      const ring=new THREE.Mesh(new THREE.TorusGeometry(20,1.6,8,20),gold);
+      ring.rotation.x=Math.PI/2;ring.position.set(sp.x,gy+H*0.80,sp.z);sc.add(ring);
+      const spire=new THREE.Mesh(new THREE.ConeGeometry(3.0,54,10),steel);
+      spire.position.set(sp.x,gy+H+27,sp.z);sc.add(spire);
+      const bea=new THREE.Mesh(new THREE.SphereGeometry(1.8,10,8),
+        new THREE.MeshStandardMaterial({color:0xff2010,emissive:0xff2010,emissiveIntensity:3}));
+      bea.position.set(sp.x,gy+H+58,sp.z);sc.add(bea);} }
+
+  // --- Bellagio: the lake and its fountain jets in front of a curved facade ---
+  { const sp=place(160,0.8,1.6); if(sp){
+      const gy=gh(sp.x,sp.z);
+      const waterM=new THREE.MeshStandardMaterial({color:0x0a2a3c,roughness:0.08,metalness:0.9,
+        emissive:0x0a2436,emissiveIntensity:0.6,side:THREE.DoubleSide});
+      waterShape(sc,{cx:sp.x,cz:sp.z,w:150,d:78,rot:Math.random()*TAU,y:gy+0.3,
+        cell:12,margin:26,clr,mat:waterM});
+      const jetM=new THREE.MeshStandardMaterial({color:0xf2f8ff,transparent:true,opacity:0.42,
+        emissive:0xcfe6ff,emissiveIntensity:1.5,side:THREE.DoubleSide,depthWrite:false});
+      for(let k=0;k<22;k++){
+        const jx=sp.x+(Math.random()-0.5)*130, jz=sp.z+(Math.random()-0.5)*62;
+        const h=14+Math.random()*46;
+        const j2=new THREE.Mesh(new THREE.CylinderGeometry(0.7,1.6,h,8,1,true),jetM);
+        j2.position.set(jx,gy+h/2,jz);sc.add(j2);}
+      // the curved hotel behind it
+      for(let k=0;k<9;k++){const a=-0.7+k*0.175;
+        const bx=sp.x+Math.cos(a)*120, bz=sp.z+Math.sin(a)*120;
+        const h=90+Math.random()*40;
+        const b=new THREE.Mesh(new THREE.BoxGeometry(22,h,18),lit('#ffe4b0'));
+        b.position.set(bx,gh(bx,bz)+h/2,bz);b.rotation.y=-a;sc.add(b);} } }
+
+  // --- the Venetian campanile, plus a canal bridge ---
+  { const sp=place(110,0.9,1.8); if(sp){
+      const gy=gh(sp.x,sp.z), H=120;
+      const brick=new THREE.MeshStandardMaterial({color:0xb0603a,roughness:0.85,
+        emissive:0x2a1408,emissiveIntensity:0.5});
+      const shaft=new THREE.Mesh(new THREE.BoxGeometry(15,H,15),brick);
+      shaft.position.set(sp.x,gy+H/2,sp.z);sc.add(shaft);
+      const belf=new THREE.Mesh(new THREE.BoxGeometry(19,20,19),stone);
+      belf.position.set(sp.x,gy+H+10,sp.z);sc.add(belf);
+      const roof=new THREE.Mesh(new THREE.ConeGeometry(13,26,4),
+        new THREE.MeshStandardMaterial({color:0x2f6a4a,roughness:0.6,metalness:0.3}));
+      roof.rotation.y=Math.PI/4;roof.position.set(sp.x,gy+H+33,sp.z);sc.add(roof);
+      const tip=new THREE.Mesh(new THREE.ConeGeometry(2.0,10,8),gold);
+      tip.position.set(sp.x,gy+H+51,sp.z);sc.add(tip);} }
+}
 /* ---- Las Vegas Strip: casino resorts with neon signs + real landmarks ---- */
 function buildVegas(sc,P,Nm,Tg,offL,offR){
   const N=P.length,R=TRACK.radius,gh=TRACK.terrainH;
   const sampB=[];for(let i=0;i<N;i+=2)sampB.push(P[i]);
   const clr=(x,z)=>{let m=1e9;for(const q of sampB){const dx=x-q.x,dz=z-q.z;const d=dx*dx+dz*dz;if(d<m)m=d;}return m;};
+  buildVegasLandmarks(sc,clr,R,gh);   // the Sphere, Luxor, Paris, the wheel, the Strat, Bellagio
   const HW=TRACK.halfW;
   const hues=['#ff2aa0','#2a6aff','#ffd23a','#b02aff','#2affc0','#ff7a2a','#ff3b3b','#39d98a'];
   const names=['MIRAGE','BELLAGIO','CAESARS','VENETIAN','WYNN','MGM','ARIA','PARIS','FLAMINGO','SAHARA','TROPICANA','COSMO','LINQ','PLANET'];
@@ -4460,27 +4745,105 @@ function buildBaku(sc,P,Nm,Tg,offL,offR){
             mer.position.set(x+Math.cos(ang)*m*w*0.32,gy+h+1.2,z-Math.sin(ang)*m*w*0.32);sc.add(mer);}
         }
       }}}
-  // --- THE CASTLE SECTION: a crenellated İçərişəhər fortress wall + towers along the tightest stretch ---
-  { // find the narrowest contiguous run (the walled old-city part)
-    let bi=0,bv=1e9; const win=Math.max(10,(N*0.12)|0);
-    for(let s=0;s<N;s+=3){let sum=0;for(let k=0;k<win;k++)sum+=gapAt((s+k)%N); if(sum<bv){bv=sum;bi=s;}}
-    const side=signedTurnIdx((bi+win/2|0))<0?-1:1;         // inside-ish wall side
-    const wallMat=new THREE.MeshStandardMaterial({color:0xc4b795,roughness:0.94});
+  /* --- THE CASTLE SECTION -------------------------------------------------
+     The İçərişəhər walls run down BOTH sides of the tightest stretch in Formula
+     One. It has to be a canyon: buttressed sandstone rising straight off the
+     barrier on either hand, crenellated along the top, with towers bracketing
+     it and an arched gateway over the exit. The narrow band computed in
+     buildWorld has already pulled the barriers in here, so the walls sit where
+     the track has actually been squeezed. */
+  { const bi=TRACK.narrowStart||0, win=TRACK.narrowLen||Math.max(12,(N*0.11)|0);
+    const wallMat=new THREE.MeshStandardMaterial({map:makeSandstone(),color:0xc4b795,roughness:0.94});
     const merlonMat=new THREE.MeshStandardMaterial({color:0xb7a980,roughness:0.94});
-    const wallH=9, pos=[],idx=[]; let built=0;
-    for(let s=0;s<=win;s++){const k=(bi+s)%N,p=P[k],n=Nm[k];
-      const off=(side>0?offL:offR)(k)+2.2, x=p.x+n.x*side*off, z=p.z+n.z*side*off, gy=gh(x,z);
-      if(s<win){ // crenellations every few metres
-        if(s%2===0){const mer=new THREE.Mesh(new THREE.BoxGeometry(1.4,2.0,1.4),merlonMat);mer.position.set(x,gy+wallH+1.0,z);sc.add(mer);}
+    const wallH=11;
+    for(const side of [1,-1]){
+      for(let sIdx=0;sIdx<=win;sIdx++){
+        const k=(bi+sIdx)%N,p=P[k],n=Nm[k];
+        const ease=Math.min(1,Math.min(sIdx,win-sIdx)/8);
+        if(ease<0.08) continue;
+        const off=(side>0?offL:offR)(k)+1.4;
+        const x=p.x+n.x*side*off, z=p.z+n.z*side*off;
+        const gy=Math.min(gh(x,z),p.y);
+        const ang=Math.atan2(TRACK.tan[k].x,TRACK.tan[k].z);
+        const H=wallH*(0.45+0.55*ease);
+        // the wall itself, in courses so it does not read as one extruded slab
+        const seg=new THREE.Mesh(new THREE.BoxGeometry(2.6,H,3.2),wallMat);
+        seg.position.set(x,gy+H/2,z);seg.rotation.y=ang;
+        seg.castShadow=true;seg.receiveShadow=true;sc.add(seg);
+        // a battered base, wider at the foot as a real fortress wall is
+        const bat=new THREE.Mesh(new THREE.BoxGeometry(3.4,2.2,3.3),wallMat);
+        bat.position.set(x+n.x*side*0.4,gy+1.1,z+n.z*side*0.4);bat.rotation.y=ang;sc.add(bat);
+        // crenellations, alternating merlon and gap
+        if(sIdx%2===0){
+          const mer=new THREE.Mesh(new THREE.BoxGeometry(1.5,2.1,1.5),merlonMat);
+          mer.position.set(x,gy+H+1.05,z);mer.rotation.y=ang;mer.castShadow=true;sc.add(mer);}
+        // arrow slits
+        if(sIdx%5===2){
+          const sl=new THREE.Mesh(new THREE.BoxGeometry(0.3,1.5,0.45),
+            new THREE.MeshStandardMaterial({color:0x2a241c,roughness:1}));
+          sl.position.set(x-n.x*side*1.3,gy+H*0.62,z-n.z*side*1.3);sl.rotation.y=ang;sc.add(sl);}
+        // half-round buttress towers every so often
+        if(sIdx%9===4 && ease>0.7){
+          const TH=H+4;
+          const bt=new THREE.Mesh(new THREE.CylinderGeometry(2.6,3.0,TH,14,1,false,0,Math.PI),wallMat);
+          bt.position.set(x-n.x*side*0.6,gy+TH/2,z-n.z*side*0.6);
+          bt.rotation.y=ang+(side>0?Math.PI/2:-Math.PI/2);bt.castShadow=true;sc.add(bt);
+          for(let c=0;c<7;c++){const ca=Math.PI*(c/6);
+            const cr=new THREE.Mesh(new THREE.BoxGeometry(1.1,1.7,1.1),merlonMat);
+            const rr=2.7, dirx=Math.cos(ang), dirz=-Math.sin(ang);
+            cr.position.set(x-n.x*side*0.6+Math.cos(ca)*rr*dirx - n.x*side*Math.sin(ca)*rr,
+                            gy+TH+0.85,
+                            z-n.z*side*0.6+Math.cos(ca)*rr*dirz - n.z*side*Math.sin(ca)*rr);
+            sc.add(cr);}}
       }
-      const dx=-n.z, dz=n.x; // wall thickness along tangent handled by box below
-      const seg=new THREE.Mesh(new THREE.BoxGeometry(2.2,wallH,3.0),wallMat);seg.position.set(x,gy+wallH/2,z);seg.rotation.y=Math.atan2(TRACK.tan[k].x,TRACK.tan[k].z);sc.add(seg);built++;
+      // the big corner towers that bracket the walled run
+      for(const sIdx of [0,win]){
+        const k=(bi+sIdx)%N,p=P[k],n=Nm[k];const off=(side>0?offL:offR)(k)+4.0;
+        const x=p.x+n.x*side*off,z=p.z+n.z*side*off,gy=Math.min(gh(x,z),p.y),H=19;
+        const tw=new THREE.Mesh(new THREE.CylinderGeometry(5.0,5.6,H,16),wallMat);
+        tw.position.set(x,gy+H/2,z);tw.castShadow=true;sc.add(tw);
+        const cap=new THREE.Mesh(new THREE.CylinderGeometry(5.8,5.8,0.7,16),merlonMat);
+        cap.position.set(x,gy+H+0.35,z);sc.add(cap);
+        for(let c=0;c<12;c++){const a=c/12*TAU;
+          const cr=new THREE.Mesh(new THREE.BoxGeometry(1.5,2.2,1.5),merlonMat);
+          cr.position.set(x+Math.cos(a)*5.0,gy+H+1.7,z+Math.sin(a)*5.0);cr.rotation.y=a;sc.add(cr);}}
     }
-    // two round battlement towers bracketing the wall
-    for(const s of [0,win]){const k=(bi+s)%N,p=P[k],n=Nm[k];const off=(side>0?offL:offR)(k)+3.0;
-      const x=p.x+n.x*side*off,z=p.z+n.z*side*off,gy=gh(x,z),H=16;
-      const tw=new THREE.Mesh(new THREE.CylinderGeometry(4.2,4.6,H,14),wallMat);tw.position.set(x,gy+H/2,z);sc.add(tw);
-      for(let c=0;c<10;c++){const a=c/10*TAU;const cr=new THREE.Mesh(new THREE.BoxGeometry(1.3,2,1.3),merlonMat);cr.position.set(x+Math.cos(a)*4.2,gy+H+1,z+Math.sin(a)*4.2);sc.add(cr);}}
+    // --- the arched gateway over the exit of the walled section ---
+    { const k=(bi+win-4+N)%N, p=P[k], n=Nm[k];
+      const ang=Math.atan2(TRACK.tan[k].x,TRACK.tan[k].z);
+      const span=offL(k)+offR(k)+6;
+      const g=new THREE.Group();
+      const arch=new THREE.Mesh(new THREE.TorusGeometry(span*0.34,2.0,10,20,Math.PI),wallMat);
+      arch.position.y=9;g.add(arch);
+      const lintel=new THREE.Mesh(new THREE.BoxGeometry(span,4.0,4.6),wallMat);lintel.position.y=13.5;g.add(lintel);
+      for(let c=0;c<Math.round(span/3);c++){
+        const cr=new THREE.Mesh(new THREE.BoxGeometry(1.5,2.2,1.5),merlonMat);
+        cr.position.set(-span/2+1.5+c*3,16.6,0);g.add(cr);}
+      g.position.set(p.x,Math.min(gh(p.x,p.z),p.y),p.z);g.rotation.y=ang+Math.PI/2;
+      g.traverse(o=>{o.castShadow=true;o.receiveShadow=true;});sc.add(g); }
+    // --- old-city houses crowding in behind the walls: flat roofs, wooden
+    //     balconies, washing lines. They are what you see over the parapet. ---
+    { const plaster=new THREE.MeshStandardMaterial({color:0xd8c9a8,roughness:0.95});
+      const timber=new THREE.MeshStandardMaterial({color:0x6a5232,roughness:0.95});
+      const roofM=new THREE.MeshStandardMaterial({color:0xa8907a,roughness:0.9});
+      for(const side of [1,-1]) for(let sIdx=2;sIdx<win;sIdx+=3){
+        const k=(bi+sIdx)%N,p=P[k],n=Nm[k];
+        const off=(side>0?offL:offR)(k)+10+Math.random()*14;
+        const x=p.x+n.x*side*off, z=p.z+n.z*side*off;
+        if(clr(x,z)<(TRACK.halfW+11)**2) continue;
+        const gy=gh(x,z), g=new THREE.Group();
+        const w=8+Math.random()*7, h=9+Math.random()*9, d=8+Math.random()*6;
+        const b=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),plaster);b.position.y=h/2;g.add(b);
+        const rf=new THREE.Mesh(new THREE.BoxGeometry(w+1.0,0.6,d+1.0),roofM);rf.position.y=h+0.3;g.add(rf);
+        // the enclosed wooden balcony that every old Baku house has
+        const bal=new THREE.Mesh(new THREE.BoxGeometry(w*0.7,2.6,1.4),timber);
+        bal.position.set(0,h*0.62,d/2+0.7);g.add(bal);
+        for(let q=0;q<4;q++){
+          const wn=new THREE.Mesh(new THREE.BoxGeometry(1.0,1.3,0.15),
+            new THREE.MeshStandardMaterial({color:0x2e2a20,roughness:0.9}));
+          wn.position.set(-w*0.28+q*(w*0.19),h*0.62,d/2+1.42);g.add(wn);}
+        g.position.set(x,gy,z);g.rotation.y=Math.atan2(TRACK.tan[k].x,TRACK.tan[k].z);
+        g.traverse(o=>{o.castShadow=true;o.receiveShadow=true;});sc.add(g);} }
   }
   // --- the round crenellated Maiden Tower by the tightest corner ---
   { let i0=0,best=1e9;for(let i=0;i<N;i++){const g=gapAt(i);if(g<best){best=g;i0=i;}}
@@ -6278,6 +6641,17 @@ function buildGrandstands(sc,P,Nm,Tg,offL,offR){
                   silverstone:0.2, catalunya:0.2, hungary:0.25, spa:0.15}[CFG.id] ?? 0.3;
   const alumMat=new THREE.MeshStandardMaterial({color:0xb8bcc2,roughness:0.5,metalness:0.6});
   const trussMat=new THREE.MeshStandardMaterial({color:0x3a3e46,roughness:0.6,metalness:0.5});
+  /* Placed stands, so a cluster cannot build two on top of each other. Asking
+     for stands in tight runs is the whole point, but without an occupancy test
+     two neighbours on a corner end up phased through one another. */
+  const placedStands=[];
+  const standFits=(bx,bz,len,depth)=>{
+    const rad=Math.hypot(len/2,depth/2);
+    for(const q of placedStands){
+      const need=rad+q.rad+6;                       // 6 m of daylight between them
+      const dx=bx-q.x, dz=bz-q.z;
+      if(dx*dx+dz*dz < need*need) return false;}
+    return true;};
   // build one raked stand at index i; +Z faces the track after lookAt. big=main grandstand
   const stand=(i,side,len,tiers,big)=>{
     const boxStyle=!big && Math.random()<BOX_BIAS;    // simple open bleacher, no roof/walls/flags
@@ -6292,9 +6666,12 @@ function buildGrandstands(sc,P,Nm,Tg,offL,offR){
       const tx=-n.z, tz=n.x, half=len/2;                 // stand runs along the tangent → check its ENDS too
       const room=Math.min(clr(bx,bz), clr(bx+tx*half,bz+tz*half), clr(bx-tx*half,bz-tz*half));
       return {s,bx,bz,room};};
-    const opts=[cand(side),cand(-side)].filter(o=>o.room>=need*need).sort((a,b)=>b.room-a.room);
+    const opts=[cand(side),cand(-side)]
+      .filter(o=>o.room>=need*need && standFits(o.bx,o.bz,len,depth))
+      .sort((a,b)=>b.room-a.room);
     if(!opts.length) return false;
     const {s:sideC,bx,bz}=opts[0]; side=sideC;
+    placedStands.push({x:bx,z:bz,rad:Math.hypot(len/2,depth/2)});
     const g=new THREE.Group(); const topH=baseY+tiers*stepH;
     const beam3=(x1,y1,z1,x2,y2,z2,th,mat)=>{const dx=x2-x1,dy=y2-y1,dz=z2-z1,L=Math.hypot(dx,dy,dz)||0.1;
       const m=new THREE.Mesh(new THREE.BoxGeometry(th,L,th),mat||frameMat);m.position.set((x1+x2)/2,(y1+y2)/2,(z1+z2)/2);
@@ -6366,9 +6743,12 @@ function buildGrandstands(sc,P,Nm,Tg,offL,offR){
       const room=Math.min(clr(bx,bz), clr(bx+tx*half,bz+tz*half), clr(bx-tx*half,bz-tz*half));
       return {s,bx,bz,room};};
     const need=HW+depth/2+8;
-    const opts=[cand(side),cand(-side)].filter(o=>o.room>=need*need).sort((a,b)=>b.room-a.room);
+    const opts=[cand(side),cand(-side)]
+      .filter(o=>o.room>=need*need && standFits(o.bx,o.bz,len,depth))
+      .sort((a,b)=>b.room-a.room);
     if(!opts.length) return false;
     const {s:sideC,bx,bz}=opts[0]; side=sideC;
+    placedStands.push({x:bx,z:bz,rad:Math.hypot(len/2,depth/2)});
     const g=new THREE.Group(); const topH=baseY+tiers*stepH;
     // --- scaffold: a rectangular grid of standards, ledgers and diagonal braces ---
     const tube=new THREE.CylinderGeometry(0.075,0.075,1,6);
@@ -6441,7 +6821,7 @@ function buildGrandstands(sc,P,Nm,Tg,offL,offR){
     zones.forEach((z0,zi)=>{
       const side=zi%2?1:-1, n=3+(zi%2);
       for(let k=0;k<n;k++){
-        const f=(z0+k*0.030)%1;
+        const f=(z0+k*0.042)%1;
         stand(Math.round(N*f)%N, side, 44+((k*9)%16), 8+(k%3), false);}});
   }else{
     // GIANT main grandstands along the start straight (opposite the pits)…
@@ -6458,7 +6838,7 @@ function buildGrandstands(sc,P,Nm,Tg,offL,offR){
       const side=(zi%2)?1:-1;
       const n=3+(zi%3);                                  // 3–5 stands per cluster
       for(let k=0;k<n;k++){
-        const f=(z0+k*0.026)%1;
+        const f=(z0+k*0.038)%1;
         stand(Math.round(N*f)%N, side, 58+((zi*13+k*9)%34), 9+((zi+k)%5), false);}
       // one stand on the opposite side of the same corner, as most venues have
       stand(Math.round(N*(z0+0.012))%N, -side, 52+((zi*7)%20), 8+(zi%3), false);});
@@ -7171,14 +7551,18 @@ const CAR={
 };
 if(typeof window!=='undefined') window.__CAR=CAR;
 const PHYS={
-  mass:798, power:360000, maxForce:7600, brakeForce:60000,     // calmer, more progressive acceleration
-  cdA:1.15, downK:3.9, mu:1.9, roll:260, engBrake:1400,        // a touch more grip so it's predictable, not weird/sliding
+  // A real car makes ~735 kW and tops out near 350 km/h. It was geared for 340
+  // and reached it lazily; power, peak tractive force and braking are all up, and
+  // the aero comes with them so the extra speed is usable rather than terrifying.
+  mass:798, power:520000, maxForce:9600, brakeForce:74000,
+  cdA:1.02, downK:4.6, mu:2.02, roll:250, engBrake:1500,
   wheelbase:3.6, aFront:1.62, aRear:1.98,                      // CG slightly rearward
   izK:2.3,                                                     // yaw inertia (planted but not sluggish)
-  Cf:112000, Cr:158000,                                       // firmer, more linear front bite = cleaner turn-in; rear stays stable
-  maxSteerLo:0.26, maxSteerHi:0.085, steerRate:3.0, steerReturn:6.0,
+  Cf:126000, Cr:176000,                                       // scaled with the extra grip so the balance is unchanged
+  maxSteerLo:0.26, maxSteerHi:0.078, steerRate:3.2, steerReturn:6.4,
+  vMax:V_TOP,                                                  // ~353 km/h
   // ERS energy store: extra boost power, drain/regen time-constants (seconds for a full swing)
-  ersPower:150000, ersForce:3200, ersDrain:6.5, ersRegen:9.0, ersHarvest:22.0,
+  ersPower:190000, ersForce:3900, ersDrain:6.5, ersRegen:9.0, ersHarvest:22.0,
 };
 
 /* Red Bull livery texture (projected onto the body — mesh has no UVs) */
@@ -7746,7 +8130,7 @@ function stepPhysics(dt,inp){
   const target=inp.steer;
   CAR.steerCmd=damp(CAR.steerCmd,target,(target?P.steerRate:P.steerReturn),dt);
   const spd=Math.abs(CAR.v);
-  const maxSteer=lerp(P.maxSteerLo,P.maxSteerHi,clamp(spd/85,0,1));
+  const maxSteer=lerp(P.maxSteerLo,P.maxSteerHi,clamp(spd/PHYS.vMax,0,1));
   CAR.steer=CAR.steerCmd*maxSteer;
 
   // longitudinal
@@ -7774,7 +8158,7 @@ function stepPhysics(dt,inp){
   }
   CAR.v+=F/P.mass*dt;
   if(inp.throttle<0.02&&inp.brake<0.02&&Math.abs(CAR.v)<0.15) CAR.v=0;
-  CAR.v=clamp(CAR.v,-16,95);
+  CAR.v=clamp(CAR.v,-16,PHYS.vMax);
 
   // off-track grip loss — windowed search so it can't snap to another track section
   const near=nearestTrack(CAR.pos, CAR.trackIdx, 55);
@@ -7837,7 +8221,7 @@ function stepPhysics(dt,inp){
     CAR.v*=0.55;                                 // scrub forward speed
     CAR.vLat*=-0.12;                             // kill the into-wall slide (tiny inward nudge)
     CAR.yawRate*=0.25;                           // stop the wild spin that "broke" the car
-    CAR.damage=Math.min(1,CAR.damage+Math.min(spd/95,1)*0.14*rdDura());   // wall contact damages the car (durability R&D softens it)
+    CAR.damage=Math.min(1,CAR.damage+Math.min(spd/PHYS.vMax,1)*0.14*rdDura());   // wall contact damages the car (durability R&D softens it)
   }
 
   // smoothly INTERPOLATED road height (continuous along the centreline) so the car
@@ -8078,7 +8462,7 @@ const Sound={ctx:null,master:null,osc:null,osc2:null,gain:null,filt:null,muted:f
     this.osc.type='sawtooth';this.osc2.type='square';this.filt.type='lowpass';this.filt.frequency.value=900;
     this.gain.gain.value=0.0;this.osc.connect(this.filt);this.osc2.connect(this.filt);
     this.filt.connect(this.gain).connect(this.master);this.osc.start();this.osc2.start();},
-  engine(spd,thr){if(!this.osc)return;const rpm=0.15+Math.min(spd/92,1)*0.85;
+  engine(spd,thr){if(!this.osc)return;const rpm=0.15+Math.min(spd/PHYS.vMax,1)*0.85;
     const f=60+rpm*520;this.osc.frequency.value=f;this.osc2.frequency.value=f*1.5;
     this.filt.frequency.value=500+rpm*3600+thr*1200;
     this.gain.gain.value=this.muted?0:(0.05+rpm*0.16+thr*0.05);},
@@ -8325,7 +8709,7 @@ function updateCamera(dt){
     const fwd=new THREE.Vector3(Math.sin(CAR.heading),0,Math.cos(CAR.heading));
     const look=CAM.pos.clone().addScaledVector(fwd,10); look.y-=0.7;   // look slightly down over the halo
     camera.lookAt(look);
-    camera.fov=lerp(62,74,clamp(spd/92,0,1));
+    camera.fov=lerp(62,74,clamp(spd/PHYS.vMax,0,1));
   }else{
     const behind=CAM.mode==='hood'?-1.4:-8.2;
     const height=CAM.mode==='hood'?1.05:3.3;
@@ -8338,7 +8722,7 @@ function updateCamera(dt){
     const look=CAR.rig.position.clone().addScaledVector(fwd,10);look.y+=CAM.mode==='hood'?0.6:1.1;
     CAM.look.lerp(look,1-Math.exp(-8*dt));
     camera.lookAt(CAM.look);
-    camera.fov=lerp(52,66,clamp(spd/92,0,1));
+    camera.fov=lerp(52,66,clamp(spd/PHYS.vMax,0,1));
   }
   camera.updateProjectionMatrix();
 }
@@ -9343,6 +9727,7 @@ function stepAI(dt){
    MAIN LOOP
    ================================================================== */
 let last=performance.now();
+let physAcc=0;                                   // fixed-timestep physics accumulator
 function frame(){
   const t=performance.now();let dt=(t-last)/1000;last=t;dt=Math.min(dt,0.05);
   if(STATE==='menu'){
@@ -9361,7 +9746,19 @@ function frame(){
     renderer.render(driveScene,camera);              // frozen grid while the lights run
   }else if(STATE==='drive'){
     const inp=readInput();
-    const r=stepPhysics(dt,inp);
+    /* FIXED-TIMESTEP PHYSICS. Stepping the car by the frame time meant the
+       handling literally changed with the framerate — a slip-angle model
+       integrated at 30 fps behaves differently from one at 144, and a long
+       frame used to produce a lurch. The car is now always integrated in 1/120 s
+       slices with the remainder carried over, so it feels the same on any
+       machine and stays smooth through a hitch. */
+    let r=null;
+    physAcc+=dt;
+    const H=1/120;
+    let steps=0;
+    while(physAcc>=H && steps<12){ r=stepPhysics(H,inp); physAcc-=H; steps++; }
+    if(steps>=12) physAcc=0;                     // came back from a long stall: do not catch up
+    if(!r) r=stepPhysics(Math.max(physAcc,1e-4),inp), physAcc=0;
     updateCamera(dt);
     lap.update(dt,r.near.idx);
     stepAI(dt);
