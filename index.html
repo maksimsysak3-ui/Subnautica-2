@@ -2439,8 +2439,12 @@ function makeFenceTex(){
   const t=new THREE.CanvasTexture(c);t.wrapS=t.wrapT=THREE.RepeatWrapping;t.anisotropy=4;
   t.colorSpace=THREE.SRGBColorSpace;return t;
 }
-function makeZoneBoard(sp){ // CLEAN F1 trackside board: flat brand colour + one crisp wordmark
-  const n=4, pw=1024, ph=208, c=cnv(pw*n,ph), x=c.getContext('2d');
+function makeZoneBoard(sp){
+  // CLEAN F1 trackside board: flat brand colour + one crisp wordmark.
+  // The canvas aspect MATCHES the physical board (10 m wide × 1.35 m of printed
+  // face = 7.4:1). It used to be 4.9:1 on a 9:1 board, which stretched every
+  // wordmark ~1.9× horizontally — the reason the walls read as soft and smeary.
+  const n=4, pw=1184, ph=160, c=cnv(pw*n,ph), x=c.getContext('2d');
   for(let i=0;i<n;i++){const x0=i*pw;
     if(sp.kind==='f1'){drawF1(x,x0,pw,ph);}
     else if(sp.kind==='aramco'){
@@ -2554,33 +2558,63 @@ function buildSafetyBarriers(sc,P,Nm,offL,offR){
     }
   }
 }
+/* the barrier below the printed board: scuffed white concrete with bolt plates */
+let _skirtTex=null;
+function makeBarrierSkirt(){
+  if(_skirtTex) return _skirtTex;
+  const c=cnv(256,64),x=c.getContext('2d');
+  x.fillStyle='#c9ccd0';x.fillRect(0,0,256,64);
+  for(let i=0;i<900;i++){const g=180+Math.random()*50|0;
+    x.fillStyle=`rgba(${g},${g},${g+3},${Math.random()*0.35})`;x.fillRect(Math.random()*256,Math.random()*64,2,2);}
+  x.fillStyle='rgba(40,44,50,.30)';x.fillRect(0,52,256,12);          // grime along the bottom
+  for(let k=0;k<4;k++){x.fillStyle='rgba(60,66,74,.55)';x.fillRect(k*64+30,10,4,44);}  // joint lines
+  for(let i=0;i<9;i++){x.fillStyle=`rgba(30,32,36,${0.10+Math.random()*0.14})`;        // rubber scuffs
+    x.fillRect(Math.random()*256,26+Math.random()*24,20+Math.random()*46,3);}
+  const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;
+  t.wrapS=THREE.RepeatWrapping;t.wrapT=THREE.ClampToEdgeWrapping;t.anisotropy=8;
+  return _skirtTex=t;
+}
 function buildBarriers(sc,P,Nm,cum,offL,offR){
   const zones=sponsorZones(CFG.id);              // track-specific sponsors mixed with the regulars
-  const N=P.length, ZN=zones.length, WH=2.2, BOARD_M=20;
+  /* A trackside hoarding is not one printed sheet from the ground up. It is a
+     concrete/steel barrier with a printed board bolted to its upper face and a
+     capping rail on top. Building it as those three bands means the artwork is
+     mapped 1:1 onto a face of the right proportions instead of being smeared
+     over three metres including the part buried in the ground. */
+  const ZN=zones.length, N=P.length;
+  const BOARD_M=10;                       // one wordmark every 10 m of barrier
+  const SKIRT_TOP=0.55, BOARD_TOP=1.90, CAP_TOP=2.02;
   const zoneTex=zones.map(makeZoneBoard);
+  const skirtMat=new THREE.MeshStandardMaterial({map:makeBarrierSkirt(),roughness:0.92,side:THREE.DoubleSide});
+  const capMat=new THREE.MeshStandardMaterial({color:0x1a1e25,roughness:0.55,metalness:0.35,side:THREE.DoubleSide});
+  // one band of the wall, between two heights above the track surface
+  const band=(side,off,i0,i1,y0,y1,mat,uScale,uOff,toGround)=>{
+    const v=[],uv=[],id=[];const u0=cum[i0];
+    for(let i=i0;i<=i1;i++){const k=i%N,p=P[k],n=Nm[k];
+      const b=new THREE.Vector3().copy(p).addScaledVector(n,side*off(k));
+      const gy=TRACK.terrainH(b.x,b.z);
+      const lo=toGround?Math.min(p.y+y0,gy)-0.8:p.y+y0;   // the skirt chases the ground
+      v.push(b.x,lo,b.z, b.x,p.y+y1,b.z);
+      const u=(cum[i]-u0)/uScale+(uOff||0); uv.push(u,0,u,1);}
+    for(let i=0;i<i1-i0;i++){const a=i*2;id.push(a,a+1,a+2,a+1,a+3,a+2);}
+    const g=new THREE.BufferGeometry();
+    g.setAttribute('position',new THREE.Float32BufferAttribute(v,3));
+    g.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));
+    g.setIndex(id);g.computeVertexNormals();
+    const m=new THREE.Mesh(g,mat);m.castShadow=true;m.receiveShadow=true;sc.add(m);return m;};
   for(const [side,off] of [[1,offL],[-1,offR]]){
     for(let z=0;z<ZN;z++){
       const i0=Math.floor(z/ZN*N), i1=Math.floor((z+1)/ZN*N);
-      const v=[],uv=[],id=[];const u0=cum[i0];
-      for(let i=i0;i<=i1;i++){const k=i%N,p=P[k],n=Nm[k];
-        const b=new THREE.Vector3().copy(p).addScaledVector(n,side*off(k));
-        const gh=TRACK.terrainH(b.x,b.z);           // ground where the wall actually stands
-        const base=Math.min(p.y,gh)-1.0, top=p.y+WH; // reach the ground, top a fixed height above the track
-        v.push(b.x,base,b.z, b.x,top,b.z);
-        const u=(cum[i]-u0)/(BOARD_M*4); uv.push(u,0,u,1);}   // 4 boards per texture
-      const seg=i1-i0;
-      for(let i=0;i<seg;i++){const a=i*2;id.push(a,a+1,a+2,a+1,a+3,a+2);}
-      const g=new THREE.BufferGeometry();
-      g.setAttribute('position',new THREE.Float32BufferAttribute(v,3));
-      g.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));
-      g.setIndex(id);g.computeVertexNormals();
-      const wall=new THREE.Mesh(g,new THREE.MeshStandardMaterial({map:zoneTex[z],roughness:0.8,side:THREE.DoubleSide}));
-      wall.castShadow=true;wall.receiveShadow=true;sc.add(wall);
+      band(side,off,i0,i1,0,SKIRT_TOP,skirtMat,6,0,true);                        // barrier below
+      band(side,off,i0,i1,SKIRT_TOP,BOARD_TOP,
+        new THREE.MeshStandardMaterial({map:zoneTex[z],roughness:0.62,metalness:0.05,side:THREE.DoubleSide}),
+        BOARD_M*4,0,false);                                                      // printed face
+      band(side,off,i0,i1,BOARD_TOP,CAP_TOP,capMat,6,0,false);                   // capping rail
     }
   }
   // tall debris catch-fencing on top of the sponsor walls (most circuits)
   if(TRACK.fence){
-    const FH=3.2, WH2=WH;                             // fence height above the wall top
+    const FH=3.2, WH2=CAP_TOP;                       // fence sits on the capping rail
     const fTex=makeFenceTex();
     const fMat=new THREE.MeshStandardMaterial({map:fTex,alphaMap:fTex,transparent:true,
       alphaTest:0.35,roughness:0.7,metalness:0.35,color:0xb8bec6,side:THREE.DoubleSide,depthWrite:false});
@@ -4485,7 +4519,13 @@ function buildGrandstands(sc,P,Nm,Tg,offL,offR){
   const barPlainMat=new THREE.MeshStandardMaterial({color:0x0a5c36,roughness:0.85});  // plain green barrier, no wordmark
   // per-track bias toward the simpler open "box" bleacher style (diversity across circuits —
   // more common at oval-adjacent / American-style venues, occasional elsewhere)
-  const BOX_BIAS={texas:0.6,bahrain:0.4,qatar:0.35,lasvegas:0.3,australia:0.25,saopaulo:0.2}[CFG.id]||0.12;
+  // Which style of stand a venue leans on. Permanent European circuits are mostly
+  // roofed concrete; street races and the newer desert venues are mostly temporary
+  // scaffold bleachers, because that is what actually gets trucked in and bolted up.
+  const BOX_BIAS={lasvegas:0.85, jeddah:0.75, baku:0.75, miami:0.7, texas:0.6,
+                  qatar:0.55, bahrain:0.5, yas:0.4, australia:0.45, monaco:0.6,
+                  saopaulo:0.3, zandvoort:0.3, montreal:0.35, austria:0.2,
+                  silverstone:0.2, catalunya:0.2, hungary:0.25, spa:0.15}[CFG.id] ?? 0.3;
   const alumMat=new THREE.MeshStandardMaterial({color:0xb8bcc2,roughness:0.5,metalness:0.6});
   const trussMat=new THREE.MeshStandardMaterial({color:0x3a3e46,roughness:0.6,metalness:0.5});
   // build one raked stand at index i; +Z faces the track after lookAt. big=main grandstand
@@ -4564,7 +4604,11 @@ function buildGrandstands(sc,P,Nm,Tg,offL,offR){
   // simple OPEN bleacher: raked aluminium bench rows on a bare steel truss frame —
   // no roof, no side walls, no bunting (like general-admission stands / American ovals)
   const standBox=(i,side,len,tiers)=>{
-    const depth=18, stepH=1.15, stepD=depth/tiers, baseY=1.0;
+    /* The temporary open bleacher: scaffold towers, an open deck of aluminium
+       benches PACKED WITH PEOPLE, safety mesh across the back and ends, and a
+       stair tower at each end. It used to be bare metal with nobody on it,
+       which is why these read as empty scenery rather than as a grandstand. */
+    const depth=19, stepH=1.12, stepD=depth/tiers, baseY=1.6;
     const p=P[i],n=Nm[i];
     const cand=(s)=>{const off=(s>0?offL:offR)(i),dist=off+depth/2+8;
       const bx=p.x+n.x*s*dist, bz=p.z+n.z*s*dist;
@@ -4576,28 +4620,74 @@ function buildGrandstands(sc,P,Nm,Tg,offL,offR){
     if(!opts.length) return false;
     const {s:sideC,bx,bz}=opts[0]; side=sideC;
     const g=new THREE.Group(); const topH=baseY+tiers*stepH;
-    // raked truss legs along the back, visible frame (no cladding)
-    const nLeg=Math.max(4,len/9|0);
-    for(let l=0;l<nLeg;l++){const sx=-len/2+l*(len/(nLeg-1||1));
-      const leg=new THREE.Mesh(new THREE.BoxGeometry(0.4,topH,0.4),trussMat);
-      leg.position.set(sx,topH/2,-depth/2+0.3);g.add(leg);
-      const brace=new THREE.Mesh(new THREE.BoxGeometry(0.3,Math.hypot(topH,depth*0.5),0.3),trussMat);
-      brace.position.set(sx,topH*0.5,-depth*0.1);brace.rotation.x=-Math.atan2(topH,depth*0.5);g.add(brace);}
+    // --- scaffold: a rectangular grid of standards, ledgers and diagonal braces ---
+    const tube=new THREE.CylinderGeometry(0.075,0.075,1,6);
+    const bays=Math.max(3,Math.round(len/8)), bayW=len/bays;
+    const rows=3, rowZ=[-depth/2+0.5, 0, depth/2-1.2];
+    const put=(x1,y1,z1,x2,y2,z2)=>{
+      const dx=x2-x1,dy=y2-y1,dz=z2-z1,L=Math.hypot(dx,dy,dz)||0.1;
+      const m=new THREE.Mesh(tube,trussMat);m.scale.y=L;
+      m.position.set((x1+x2)/2,(y1+y2)/2,(z1+z2)/2);
+      m.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),new THREE.Vector3(dx,dy,dz).normalize());
+      g.add(m);};
+    for(let b=0;b<=bays;b++){const sx=-len/2+b*bayW;
+      for(let r=0;r<rows;r++){
+        const zz=rowZ[r];
+        const h=baseY + (r===2?0:(rows-1-r)*0)+ (r===0?topH-baseY:0);   // back row carries the rake
+        const yTop=r===0?topH:baseY+(r===1?(topH-baseY)*0.5:0.9);
+        put(sx,0,zz, sx,yTop,zz);                                       // standard
+        if(b<bays){ put(sx,yTop,zz, sx+bayW,yTop,zz);                   // ledger along the length
+          if(b%2===0) put(sx,0,zz, sx+bayW,yTop,zz); else put(sx+bayW,0,zz, sx,yTop,zz); }  // brace
+      }
+      // transoms across the depth
+      put(sx,baseY*0.6,rowZ[2], sx,topH*0.55,rowZ[1]);
+      put(sx,topH*0.55,rowZ[1], sx,topH,rowZ[0]);
+    }
+    // --- deck: benches carrying the crowd texture, plus a bare aluminium nose ---
+    const nBlocks=Math.max(2,Math.round(len/26)), aisle=1.4;
+    const blockW=(len-(nBlocks-1)*aisle)/nBlocks;
     for(let t=0;t<tiers;t++){
       const z=depth/2 - t*stepD - stepD*0.5, y=baseY + t*stepH;
-      const bench=new THREE.Mesh(new THREE.BoxGeometry(len,0.12,stepD*0.86),alumMat);
-      bench.position.set(0,y,z);g.add(bench);
-      const riserFront=new THREE.Mesh(new THREE.BoxGeometry(len,stepH*0.5,0.1),alumMat);
-      riserFront.position.set(0,y-stepH*0.25,z+stepD*0.43);g.add(riserFront);
+      const deck=new THREE.Mesh(new THREE.BoxGeometry(len,0.14,stepD*0.94),alumMat);
+      deck.position.set(0,y,z);g.add(deck);
+      const riser=new THREE.Mesh(new THREE.BoxGeometry(len,stepH*0.55,0.09),alumMat);
+      riser.position.set(0,y-stepH*0.27,z+stepD*0.46);g.add(riser);
+      for(let bI=0;bI<nBlocks;bI++){const cx=-len/2+blockW*0.5+bI*(blockW+aisle);
+        const crowd=new THREE.Mesh(new THREE.BoxGeometry(blockW,0.62,stepD*0.62),crowdMat);
+        crowd.position.set(cx,y+0.38,z-stepD*0.1);g.add(crowd);}
     }
+    // --- safety mesh across the back and the two ends (open stands are netted) ---
+    { const mesh=new THREE.MeshStandardMaterial({map:makeFenceTex(),alphaMap:makeFenceTex(),transparent:true,
+        alphaTest:0.35,color:0x9aa2ab,roughness:0.8,metalness:0.3,side:THREE.DoubleSide,depthWrite:false});
+      const back=new THREE.Mesh(new THREE.PlaneGeometry(len,topH+1.0),mesh);
+      back.position.set(0,(topH+1.0)/2,-depth/2+0.4);back.renderOrder=6;g.add(back);
+      for(const sx of [-len/2,len/2]){
+        const end=new THREE.Mesh(new THREE.PlaneGeometry(depth,topH+1.0),mesh);
+        end.rotation.y=Math.PI/2;end.position.set(sx,(topH+1.0)/2,0);end.renderOrder=6;g.add(end);} }
+    // --- stair towers at each end, with a zig-zag of flights ---
+    for(const sx of [-len/2-2.6, len/2+2.6]){
+      for(let f=0;f<tiers;f+=2){
+        const y0=f*stepH, y1=Math.min(topH,(f+2)*stepH);
+        const fl=new THREE.Mesh(new THREE.BoxGeometry(2.2,0.16,Math.hypot(y1-y0,4.5)),alumMat);
+        fl.position.set(sx,(y0+y1)/2,(f%4===0?1:-1)*2.2);
+        fl.rotation.x=(f%4===0?1:-1)*Math.atan2(y1-y0,4.5);g.add(fl);}
+      put(sx-1.1,0,-2.6, sx-1.1,topH,-2.6); put(sx+1.1,0,-2.6, sx+1.1,topH,-2.6);
+      put(sx-1.1,0, 2.6, sx-1.1,topH, 2.6); put(sx+1.1,0, 2.6, sx+1.1,topH, 2.6);
+    }
+    // --- front guard rail + a plain sponsor band along the bottom of the deck ---
     const rail=new THREE.Mesh(new THREE.CylinderGeometry(0.05,0.05,len,6),trussMat);
-    rail.rotation.z=Math.PI/2;rail.position.set(0,baseY+1.0,depth/2-0.1);g.add(rail);
+    rail.rotation.z=Math.PI/2;rail.position.set(0,baseY+1.05,depth/2-0.1);g.add(rail);
+    const skirtB=new THREE.Mesh(new THREE.BoxGeometry(len,baseY,0.4),barPlainMat);
+    skirtB.position.set(0,baseY/2,depth/2+0.2);g.add(skirtB);
     const gy=gh(bx,bz);g.position.set(bx,gy,bz);g.lookAt(p.x,gy,p.z);
     g.traverse(o=>{o.castShadow=true;o.receiveShadow=true;});sc.add(g);return true;
   };
   if(CFG.street){
     // street circuits: only a few modest temporary stands, no giant main grandstand
-    [0.02,0.3,0.6].forEach((f,si)=>stand(Math.round(N*f)%N, si%2?1:-1, 54, 8, false));
+    // street circuits: temporary scaffold stands wherever a stretch of pavement
+    // is wide enough — more of them, because that is how a street race is seated
+    [0.02,0.14,0.27,0.41,0.55,0.68,0.80,0.91].forEach((f,si)=>
+      stand(Math.round(N*f)%N, si%2?1:-1, 46+((si*11)%22), 8+(si%3), false));
   }else{
     // GIANT main grandstands along the start straight (opposite the pits) + a full ring
     stand(Math.round(N*0.02)%N,1,132,16,true);
