@@ -418,7 +418,23 @@
   #mapName{font-size:10px;letter-spacing:.26em;color:#fff;font-weight:700;text-transform:uppercase;margin-bottom:7px}
   #mapName span{color:var(--grey);font-weight:600}
   #minimap{width:230px;height:230px;filter:drop-shadow(0 4px 14px rgba(0,0,0,.5))}
+  /* the broadcast timing brand under the sector splits */
+  #ttBrand{display:flex;align-items:center;gap:6px;margin-top:9px;padding-top:8px;
+    border-top:1px solid rgba(255,255,255,.10)}
+  #ttBrand .f1m{display:flex;align-items:center;gap:1px}
+  #ttBrand .f1m b{font-family:var(--mono);font-style:italic;font-weight:900;font-size:15px;
+    color:#fff;letter-spacing:-.06em;line-height:1}
+  #ttBrand .f1m i{display:block;width:3px;background:var(--red);border-radius:1px;
+    box-shadow:0 0 7px var(--red-glow)}
+  #ttBrand .f1m i:nth-child(2){height:12px}
+  #ttBrand .f1m i:nth-child(3){height:9px}
+  #ttBrand .f1m i:nth-child(4){height:6px}
+  #ttBrand .tv{font-family:var(--mono);font-weight:900;font-size:12px;letter-spacing:.04em;
+    color:#fff;background:var(--red);border-radius:3px;padding:1px 4px;line-height:1.15}
+  #ttBrand .ttLive{margin-left:auto;font-family:var(--mono);font-size:8px;font-weight:700;
+    letter-spacing:.22em;color:var(--grey)}
   #statusRow{display:flex;justify-content:flex-end;gap:10px;margin-top:8px}
+  #drs.avail{color:#8fd8a0;border-color:rgba(143,216,160,.55);opacity:1}
   /* live weather readout — the condition, and how wet the track currently is */
   #wxRow{display:flex;justify-content:flex-end;align-items:center;gap:7px;margin-top:7px;
     font-family:var(--mono);font-size:9px;letter-spacing:.12em;font-weight:700;color:var(--grey)}
@@ -503,24 +519,56 @@
   #ciChev{font-size:9px;color:var(--grey);transition:transform .22s ease;line-height:1}
   #carInfo.on #ciChev{transform:rotate(180deg);color:#fff}
   #ciBody{max-height:0;opacity:0;overflow:hidden;padding:0 12px;transition:.22s ease}
-  #carInfo.on #ciBody{max-height:190px;opacity:1;padding:2px 12px 10px}
+  #carInfo.on #ciBody{max-height:230px;opacity:1;padding:2px 12px 10px}
   .ciRow{display:flex;align-items:center;gap:8px;margin-bottom:7px;font-size:11px}
   .ciRow .k{width:66px;color:var(--grey)}
   .ciRow .ciBar{flex:1;height:7px;border-radius:4px;background:rgba(255,255,255,.08);overflow:hidden}
   .ciRow .ciBar i{display:block;height:100%;border-radius:4px}
   .ciRow .v{width:48px;text-align:right;font-family:var(--mono);color:#fff}
   #ersBox.deploy #ersState{color:#ffe14a;opacity:1;text-shadow:0 0 10px rgba(255,210,60,.7)}
-  #gearBox{text-align:center}
-  #gear{font-family:var(--mono);font-weight:900;font-size:clamp(44px,5.5vw,76px);color:var(--red);line-height:.8;text-shadow:0 0 26px var(--red-glow)}
+  /* ---- gear: the selected ratio, with the full gearbox shown as a ladder so you
+     can see where you are in it, the way a steering-wheel display does ---- */
+  #gearBox{text-align:center;display:flex;flex-direction:column;align-items:center}
+  #gearRail{display:flex;flex-direction:row;gap:3px;margin-bottom:6px}
+  #gearRail i{display:block;width:6px;height:4px;border-radius:1px;background:rgba(255,255,255,.13);
+    transition:background .1s,box-shadow .1s}
+  #gearRail i.lit{background:var(--white);box-shadow:0 0 8px rgba(255,255,255,.55)}
+  #gearRail i.cur{background:var(--red);box-shadow:0 0 12px var(--red-glow);height:7px;margin-top:-1.5px}
+  #gear{font-family:var(--mono);font-weight:900;font-size:clamp(44px,5.5vw,76px);color:var(--red);
+    line-height:.8;text-shadow:0 0 26px var(--red-glow);transition:color .08s}
+  #gear.shift{color:#fff;text-shadow:0 0 34px rgba(255,255,255,.85)}
   #gearBox .gl{font-size:9px;letter-spacing:.4em;color:var(--grey);font-weight:600;margin-top:4px}
-  #speedBox{text-align:right;min-width:150px}
-  #speed{font-family:var(--mono);font-weight:900;font-size:clamp(56px,8.5vw,112px);line-height:.8;letter-spacing:-.02em;text-shadow:0 4px 30px rgba(0,0,0,.6)}
-  #speedU{font-size:12px;letter-spacing:.4em;color:var(--grey);font-weight:600;margin-top:4px}
+  /* ---- speed: a proper sweep gauge behind the readout, with a red zone ---- */
+  /* the gauge sits BEHIND the readout inside the box, so nothing hangs off the
+     bottom of the cluster and it never collides with the control hints */
+  #speedBox{position:relative;width:clamp(158px,17vw,208px);height:104px;
+    display:flex;flex-direction:column;align-items:center;justify-content:flex-end;
+    padding-bottom:16px}
+  #speedArc{position:absolute;left:50%;bottom:8px;transform:translateX(-50%);
+    width:clamp(158px,17vw,208px);height:auto;overflow:visible;pointer-events:none}
+  #speedArc path{fill:none;stroke-linecap:round}
+  #saTrack{stroke:rgba(255,255,255,.10);stroke-width:7}
+  #saRed{stroke:rgba(225,6,0,.30);stroke-width:7;stroke-dasharray:270;stroke-dashoffset:216}
+  #saFill{stroke:var(--white);stroke-width:7;stroke-dasharray:270;stroke-dashoffset:270;
+    filter:drop-shadow(0 0 8px rgba(255,255,255,.5));transition:stroke .12s}
+  #speedBox.hot #saFill{stroke:var(--red);filter:drop-shadow(0 0 10px var(--red-glow))}
+  #speedStack{position:relative;z-index:1;text-align:center}
+  #speed{font-family:var(--mono);font-weight:900;font-size:clamp(44px,6.2vw,78px);line-height:.82;
+    letter-spacing:-.03em;text-shadow:0 4px 30px rgba(0,0,0,.85)}
+  #speedU{font-size:11px;letter-spacing:.4em;color:var(--grey);font-weight:600;margin-top:2px}
+  #speedMarks{position:absolute;left:0;right:0;bottom:0;z-index:1;
+    display:flex;justify-content:space-between;padding:0 2px;
+    font-family:var(--mono);font-size:8px;letter-spacing:.1em;color:rgba(255,255,255,.28)}
+  #speedMarks span:nth-child(2){transform:translateY(-3px)}
   #offTrack{position:absolute;left:50%;top:38%;transform:translate(-50%,-50%);font-size:14px;letter-spacing:.42em;color:var(--red);text-transform:uppercase;font-weight:700;opacity:0;transition:opacity .2s;text-shadow:0 0 20px var(--red-glow)}
   #offTrack.on{opacity:.9}
-  #driveHint{position:absolute;left:50%;bottom:clamp(16px,2.4vh,26px);transform:translateX(-50%);font-size:10px;letter-spacing:.2em;color:var(--grey);text-transform:uppercase;font-weight:600;opacity:.8}
-  #driveHint b{display:inline-block;padding:2px 6px;margin:0 3px;border:1px solid var(--grey-lo);border-radius:3px;color:var(--white);font-family:var(--mono);font-size:9px}
-  @media(max-width:720px){#mapWrap{display:none}#driveHint{display:none}}
+  /* keys, tucked under the car-status bar bottom-left and out of the way */
+  #keyHelp{position:absolute;left:clamp(16px,2.4vw,36px);bottom:clamp(28px,5.4vh,58px);
+    max-width:250px;font-family:var(--mono);font-size:8px;letter-spacing:.1em;line-height:2.0;
+    color:rgba(255,255,255,.34);text-transform:uppercase;font-weight:600}
+  #keyHelp b{display:inline-block;padding:1px 4px;margin:0 2px;border:1px solid rgba(255,255,255,.14);
+    border-radius:2px;color:rgba(255,255,255,.62);font-size:8px}
+  @media(max-width:720px){#mapWrap{display:none}#keyHelp{display:none}}
   #cd{position:fixed;inset:0;z-index:25;display:flex;align-items:center;justify-content:center;pointer-events:none}
   #cdNum{font-family:var(--mono);font-weight:900;font-size:clamp(80px,16vw,220px);opacity:0;color:var(--white);text-shadow:0 0 50px rgba(0,0,0,.7)}
   #sndBtn{position:fixed;right:clamp(26px,4vw,54px);bottom:clamp(150px,20vh,210px);z-index:22;pointer-events:auto;cursor:pointer;
@@ -699,6 +747,7 @@
     <div class="ttRow"><span class="k">BEST</span><span class="v best" id="lapBest">—:——.—</span></div>
     <div class="ttRow" id="deltaRow"><span class="k">DELTA</span><span class="v" id="delta"></span></div>
     <div id="sectors"><span class="sv" id="sec0">—</span><span class="sv" id="sec1">—</span><span class="sv" id="sec2">—</span></div>
+    <div id="ttBrand"><span class="f1m"><b>F1</b><i></i><i></i><i></i></span><span class="tv">TV</span><span class="ttLive">TIMING</span></div>
   </div>
   <div id="mapWrap">
     <div id="mapName">SPA-FRANCORCHAMPS <span>· BELGIUM</span></div>
@@ -723,8 +772,19 @@
       <div id="dmgLabel">DMG</div>
       <div id="dmgBar"><i id="dmgFill"></i></div>
     </div>
-    <div id="gearBox"><div id="gear">N</div><div class="gl">GEAR</div></div>
-    <div id="speedBox"><div id="speed">0</div><div id="speedU">KM/H</div></div>
+    <div id="gearBox">
+      <div id="gearRail"><i data-g="1"></i><i data-g="2"></i><i data-g="3"></i><i data-g="4"></i><i data-g="5"></i><i data-g="6"></i><i data-g="7"></i><i data-g="8"></i></div>
+      <div id="gear">N</div><div class="gl">GEAR</div>
+    </div>
+    <div id="speedBox">
+      <svg id="speedArc" viewBox="0 0 200 116" aria-hidden="true">
+        <path id="saTrack" d="M14 108 A 86 86 0 0 1 186 108" />
+        <path id="saFill"  d="M14 108 A 86 86 0 0 1 186 108" />
+        <path id="saRed"   d="M14 108 A 86 86 0 0 1 186 108" />
+      </svg>
+      <div id="speedStack"><div id="speed">0</div><div id="speedU">KM/H</div></div>
+      <div id="speedMarks"><span>0</span><span>175</span><span>350</span></div>
+    </div>
   </div>
   <div id="offTrack">Off Track</div>
   <div id="tyreToast"></div>
@@ -734,12 +794,15 @@
     <div class="ciHead">CAR STATUS<span id="ciMini">TYR 100% · DMG 0%</span><span id="ciChev">▲</span></div>
     <div id="ciBody">
       <div class="ciRow"><span class="k">Tyre life</span><div class="ciBar"><i id="ciTyre"></i></div><span class="v" id="ciTyreV">100%</span></div>
+      <div class="ciRow"><span class="k">Tyre temp</span><div class="ciBar"><i id="ciTemp"></i></div><span class="v" id="ciTempV">COLD</span></div>
       <div class="ciRow"><span class="k">Damage</span><div class="ciBar"><i id="ciDmg"></i></div><span class="v" id="ciDmgV">0%</span></div>
       <div class="ciRow"><span class="k">ERS battery</span><div class="ciBar"><i id="ciErs"></i></div><span class="v" id="ciErsV">75%</span></div>
       <div class="ciRow"><span class="k">Last lap</span><span class="v" id="ciLap">—:——.—</span></div>
     </div>
   </div>
-  <div id="driveHint"><b>W</b>Throttle <b>SPACE</b>Brake <b>A/D</b>Steer <b>SHIFT</b>ERS <b>I</b>Info <b>C</b>Cam <b>Y</b>Replay <b>R</b>Reset <b>ESC</b>Menu</div>
+  <!-- the control strip used to run across the bottom of the screen, straight
+       through the cluster; the keys live in the collapsible panel bottom-left -->
+  <div id="keyHelp"><b>W</b>THR <b>SPACE</b>BRK <b>A/D</b>STEER <b>SHIFT</b>ERS <b>C</b>CAM <b>Y</b>REPLAY <b>R</b>RESET <b>ESC</b>MENU</div>
   <div id="replayBadge">REPLAY READY</div>
 </div>
 <div id="replayBar">
@@ -1731,6 +1794,27 @@ function buildWorld(sc,cfg){
   // sides so the walls are pushed out and they can be ridden a touch faster
   if(cfg.street){ for(let i=0;i<N;i++){ const c=Math.abs(sturn[i]);
     const w=c>0.95?Math.min((c-0.95)*26,8):0; runL[i]=Math.max(runL[i],w); runR[i]=Math.max(runR[i],w); } }
+  /* ---- DRS ZONES ---------------------------------------------------------
+     A real DRS zone is a marked stretch of a straight with a detection point
+     before it. Find the long straight runs from the radius data and mark the
+     back two thirds of each as an activation zone. The wing used to just open
+     whenever the car happened to be fast and pointing straight, which is not
+     how any of it works. */
+  { const drs=new Array(N).fill(false);
+    let i=0;
+    const runs=[];
+    while(i<N){
+      if(Rc[i]<R_STRAIGHT){i++;continue;}
+      let len=0; while(len<N && Rc[(i+len)%N]>=R_STRAIGHT) len++;
+      runs.push({a:i,len}); i+=len||1;}
+    runs.sort((a,b)=>b.len-a.len);
+    const want=Math.min(3,runs.length);
+    for(let k=0;k<want;k++){
+      const r=runs[k];
+      if(r.len<Math.round(N*0.05)) continue;            // too short to be a DRS straight
+      const from=r.a+Math.round(r.len*0.30), to=r.a+r.len-2;
+      for(let j=from;j<=to;j++) drs[j%N]=true;}
+    TRACK.drs=drs; }
   const smooth=a=>{const o=a.slice();for(let i=0;i<N;i++){let s=0;for(let k=-9;k<=9;k++)s+=o[(i+k+N)%N];a[i]=s/19;}};
   smooth(runL);smooth(runR);
   // where the circuit doubles back near itself, clamp run-off + barrier so nothing
@@ -7554,7 +7638,7 @@ const PHYS={
   // A real car makes ~735 kW and tops out near 350 km/h. It was geared for 340
   // and reached it lazily; power, peak tractive force and braking are all up, and
   // the aero comes with them so the extra speed is usable rather than terrifying.
-  mass:798, power:520000, maxForce:9600, brakeForce:74000,
+  mass:798, power:560000, maxForce:10200, brakeForce:74000,
   cdA:1.02, downK:4.6, mu:2.02, roll:250, engBrake:1500,
   wheelbase:3.6, aFront:1.62, aRear:1.98,                      // CG slightly rearward
   izK:2.3,                                                     // yaw inertia (planted but not sluggish)
@@ -8115,7 +8199,9 @@ function resetCar(){
   CAR.pos.set(p.x,0,p.z);
   CAR.heading=Math.atan2(tg.x,tg.z);
   CAR.v=0;CAR.steer=0;CAR.steerCmd=0;CAR.yawRate=0;CAR.vLat=0;CAR.pitch=0;
-  CAR.lock=0;CAR.spin=0;CAR.comp=0;CAR.slope=undefined;FX.reset();
+  CAR.lock=0;CAR.spin=0;CAR.comp=0;CAR.slope=undefined;
+  CAR.gear=0;CAR.shiftT=0;CAR.tTemp=0.30;CAR.drsOpen=false;CAR.drsZone=false;
+  FX.reset();
   CAR.ers=0.75;CAR.ersActive=0;CAR.tire=1;CAR.damage=0;
   CAR.compound=selCompound; CAR.tireLapsLife=compoundLaps(selCompound,CFG.id);
   CAR.rTyreWarn=false; CAR.rTyreCrit=false; CAR.rDmg=false; CAR.rPrevPos=8; CAR.rPrevBest=null;
@@ -8135,7 +8221,26 @@ function stepPhysics(dt,inp){
 
   // longitudinal
   const dmgMul=1-CAR.damage*0.35;                  // damage saps power/aero
-  let Fdrive=inp.throttle*Math.min(P.power*dmgMul*rdPower()/Math.max(spd,7),P.maxForce*rdPower());
+  /* ---- GEARBOX -----------------------------------------------------------
+     An 8-speed with a real torque curve per ratio, and a brief cut on every
+     upshift. Before this the car simply made a flat power figure and the gear
+     readout was cosmetic — you could not feel the engine at all, which is a lot
+     of why it did not drive like the real thing. */
+  const gearOf=(v)=>v<0.3?0:clamp(Math.ceil(v/P.vMax*8),1,8);
+  const gNow=gearOf(spd);
+  if(CAR.gear===undefined) CAR.gear=gNow;
+  if(gNow>CAR.gear){ CAR.shiftT=0.055; }           // ignition cut on the upshift
+  CAR.gear=gNow;
+  CAR.shiftT=Math.max(0,(CAR.shiftT||0)-dt);
+  // where we are in the current ratio, 0 just after the shift to 1 at the limiter
+  const gTop=P.vMax*Math.max(gNow,1)/8, gBot=P.vMax*(Math.max(gNow,1)-1)/8;
+  const inGear=clamp((spd-gBot)/Math.max(gTop-gBot,1),0,1);
+  // Torque builds through the ratio, peaks past the middle and holds near the
+  // limiter rather than collapsing — a modern turbo hybrid does not fall off a
+  // cliff at the top of a gear, and making it do so cost 50 km/h of top speed.
+  const torqueCurve=0.86+0.30*Math.sin(Math.PI*clamp(inGear*0.74+0.17,0,1));
+  const cut=CAR.shiftT>0?0.12:1;                   // almost nothing during the cut
+  let Fdrive=inp.throttle*cut*torqueCurve*Math.min(P.power*dmgMul*rdPower()/Math.max(spd,7),P.maxForce*rdPower());
   // --- ERS: deploy button spends battery for an extra power boost; braking regens ---
   const deploying = !!inp.ers && CAR.ers>0.001 && inp.throttle>0.1 && CAR.v>2;
   if(deploying){
@@ -8148,7 +8253,14 @@ function stepPhysics(dt,inp){
   }
   CAR.ersActive=damp(CAR.ersActive, deploying?1:0, 12, dt);
   let Fbrake=inp.brake*P.brakeForce;
-  const Fdrag=0.5*1.2*P.cdA*CAR.v*spd;              // ~v^2 opposing
+  /* DRS: open only inside a marked zone, above the activation speed, and it
+     shuts the instant you touch the brakes — exactly as the real system does. */
+  const inZone=!!(TRACK.drs && TRACK.drs[CAR.trackIdx||0]);
+  CAR.drsZone=inZone;
+  if(inZone && spd>62 && (inp.brake||0)<0.05 && Math.abs(CAR.vLat)<3.5) CAR.drsOpen=true;
+  if(!inZone || (inp.brake||0)>0.05 || spd<45) CAR.drsOpen=false;
+  const drsCd=CAR.drsOpen?0.76:1.0;                 // wing open ≈ 24% less drag
+  const Fdrag=0.5*1.2*P.cdA*drsCd*CAR.v*spd;        // ~v^2 opposing
   let F=Fdrive - Fdrag - P.roll*Math.sign(CAR.v);
   if(inp.throttle<0.02) F-=P.engBrake*CAR.v*0.02;   // engine braking
   // braking / reverse handling
@@ -8176,15 +8288,32 @@ function stepPhysics(dt,inp){
   const wearPerM=1/Math.max(1,lifeLaps*TRACK.len);
   if(spd>2) CAR.tire=Math.max(0, CAR.tire - spd*dt*wearPerM*Math.min(push,2.6));
   const comp=COMPOUNDS[CAR.compound||'medium']||COMPOUNDS.medium;
-  const tireGrip=lerp(0.82,1.0,CAR.tire)*comp.grip;   // worn tyres lose grip; compound sets the baseline
+  /* ---- TYRE TEMPERATURE -------------------------------------------------
+     A cold tyre does not grip and neither does an overheated one. Working the
+     tyre heats it; coasting and rain cool it. This is why a fresh set is slow
+     for a lap and why abusing them mid-stint costs you time — behaviour the car
+     simply did not have before. */
+  const workT=clamp(Math.abs(CAR.vLat)/7,0,1)*0.6 + (inp.brake||0)*0.5
+            + Math.abs(inp.throttle||0)*clamp(spd/60,0,1)*0.45;
+  if(CAR.tTemp===undefined) CAR.tTemp=0.30;
+  const coolRate=0.16+0.24*clamp(WEATHER.wetness,0,1)+clamp(spd/PHYS.vMax,0,1)*0.10;
+  CAR.tTemp=clamp(CAR.tTemp + (workT*0.55 - coolRate*CAR.tTemp)*dt*0.85, 0, 1.25);
+  // grip peaks in the working window (~0.45–0.85) and falls away either side
+  const tw=CAR.tTemp;
+  const tempGrip = tw<0.45 ? lerp(0.80,1.0,tw/0.45)
+                 : tw<0.85 ? 1.0
+                 : lerp(1.0,0.86,clamp((tw-0.85)/0.40,0,1));
+  const tireGrip=lerp(0.82,1.0,CAR.tire)*comp.grip*tempGrip;
   const gripMul=(off?0.55:(onKerb?0.82:1.0))*wetMul*tireGrip*rdGrip();
+  // a tyre outside its window also wears faster
+  if(spd>2 && (tw<0.35||tw>0.95)) CAR.tire=Math.max(0,CAR.tire-dt*0.004);
   CAR.kerb=onKerb;
 
   // lateral: dynamic bicycle model — real slip angles give understeer/oversteer.
   // Front/rear tyre loads (static split + downforce, rear-biased) size each axle's
   // friction circle; slip angles feed linear-then-saturating cornering forces.
   const m=P.mass, a=P.aFront, b=P.aRear, L=a+b, Iz=m*P.izK;
-  const df=P.downK*CAR.v*CAR.v, g=9.81;
+  const df=P.downK*CAR.v*CAR.v*(CAR.drsOpen?0.88:1.0), g=9.81;   // open wing = less rear load
   const loadF=m*g*b/L + df*0.46, loadR=m*g*a/L + df*0.54;
   const FyfMax=P.mu*gripMul*loadF, FyrMax=P.mu*gripMul*loadR;
   const vx=Math.max(Math.abs(CAR.v),0.6);
@@ -8684,11 +8813,18 @@ function updateReplay(dt){
   const rf=$('#rpFill'), rh=$('#rpHandle'); if(rf){rf.style.width=(frac*100)+'%';rh.style.left=(frac*100)+'%';}
   const rs=$('#rpSpeed'); if(rs)rs.textContent=(REPLAY.playing?REPLAY.speed:0)+'×';
 }
-const CAM_MODES=['chase','cockpit','hood'];
+/* Camera angles. The three originals were all bolted to the car; these add the
+   broadcast angles a Grand Prix is actually shot from — a trackside cut that
+   pans as you go past, a helicopter, the T-cam on the airbox, and a low
+   chase-cam right down on the deck. */
+const CAM_MODES=['chase','cockpit','hood','tcam','trackside','helicam','ground'];
+const CAM_LABEL={chase:'CHASE',cockpit:'COCKPIT',hood:'HOOD',tcam:'T-CAM',
+  trackside:'TRACKSIDE',helicam:'HELICAM',ground:'LOW'};
 function syncVisor(){const v=$('#visorMask'); if(v)v.style.opacity=CAM.mode==='cockpit'?1:0;}
 function cycleCam(){CAM.mode=CAM_MODES[(CAM_MODES.indexOf(CAM.mode)+1)%CAM_MODES.length];
-  $('#camName').textContent=CAM.mode.toUpperCase();Sound.blip(520,.05);syncVisor();}
-if(typeof window!=='undefined'){window.__setCam=(m)=>{CAM.mode=m;$('#camName').textContent=m.toUpperCase();syncVisor();};
+  CAM.tsPost=null;
+  $('#camName').textContent=CAM_LABEL[CAM.mode]||CAM.mode.toUpperCase();Sound.blip(520,.05);syncVisor();}
+if(typeof window!=='undefined'){window.__setCam=(m)=>{CAM.mode=m;CAM.tsPost=null;$('#camName').textContent=CAM_LABEL[m]||m.toUpperCase();syncVisor();};
   window.__setLivery=(t)=>setLivery(t); window.__snapCam=()=>snapCamera();
   // dev/QA: park the camera on a high orbit to inspect the whole venue
   window.__aerial=(h,ang,dist)=>{CAM.mode='free';
@@ -8703,6 +8839,80 @@ if(typeof window!=='undefined'){window.__setCam=(m)=>{CAM.mode=m;$('#camName').t
 function updateCamera(dt){
   const spd=Math.abs(CAR.v);
   if(CAM.mode==='free') return;                 // dev/QA aerial: leave the camera where it was parked
+  const fwd0=new THREE.Vector3(Math.sin(CAR.heading),0,Math.cos(CAR.heading));
+
+  /* --- TRACKSIDE: a fixed camera on the barrier that swings to follow the car,
+     handing over to the next one as you pass it. This is the shot most of a race
+     broadcast is made of. --- */
+  if(CAM.mode==='trackside'){
+    const N=TRACK.N;
+    const idx=CAR.trackIdx||0;
+    // pick the post ahead of the car and hold it until it is behind us
+    const STEP=Math.max(24,Math.round(N/26));
+    let post=Math.round(idx/STEP)*STEP;
+    if(CAM.tsPost===undefined||CAM.tsPost===null) CAM.tsPost=post;
+    let rel=((idx-CAM.tsPost)%N+N)%N;
+    if(rel>STEP*0.7 && rel<N*0.5) CAM.tsPost=(CAM.tsPost+STEP)%N;
+    const k=((CAM.tsPost%N)+N)%N;
+    const p=TRACK.pts[k], n=TRACK.nrm[k];
+    const side=(k%(STEP*2)===0)?1:-1;
+    const off=((side>0?TRACK.wallL:TRACK.wallR)[k]||24)+7;
+    const px=p.x+n.x*side*off, pz=p.z+n.z*side*off;
+    const want=new THREE.Vector3(px,p.y+5.2,pz);
+    camera.position.lerp(want,1-Math.exp(-9*dt));
+    const tgt=CAR.rig.position.clone(); tgt.y+=0.7;
+    CAM.look.lerp(tgt,1-Math.exp(-7*dt));
+    camera.lookAt(CAM.look);
+    // longer lens the further away the car is, like a real trackside operator
+    const d=camera.position.distanceTo(CAR.rig.position);
+    camera.fov=clamp(58-d*0.42,20,58);
+    camera.updateProjectionMatrix(); return;
+  }
+  /* --- HELICAM: the tracking helicopter, high and behind, drifting slightly --- */
+  if(CAM.mode==='helicam'){
+    const t=performance.now()*0.00021;
+    const back=42+Math.sin(t*1.7)*5, up=30+Math.sin(t*1.3)*3, side=Math.sin(t)*16;
+    const rgt=new THREE.Vector3(Math.cos(CAR.heading),0,-Math.sin(CAR.heading));
+    const want=CAR.rig.position.clone()
+      .addScaledVector(fwd0,-back).addScaledVector(rgt,side);
+    want.y=CAR.rig.position.y+up;
+    CAM.pos.lerp(want,1-Math.exp(-2.2*dt));
+    camera.position.copy(CAM.pos);
+    const look=CAR.rig.position.clone().addScaledVector(fwd0,14);
+    CAM.look.lerp(look,1-Math.exp(-3.0*dt));
+    camera.lookAt(CAM.look);
+    camera.fov=lerp(38,30,clamp(spd/PHYS.vMax,0,1));
+    camera.updateProjectionMatrix(); return;
+  }
+  /* --- T-CAM: the roll-hoop camera. Fixed to the car, sees the front wing and
+     the wheels working, and rolls with it. --- */
+  if(CAM.mode==='tcam'){
+    const rgt=new THREE.Vector3(Math.cos(CAR.heading),0,-Math.sin(CAR.heading));
+    const want=CAR.rig.position.clone().addScaledVector(fwd0,-0.55);
+    want.y=CAR.rig.position.y+1.42;
+    camera.position.copy(want);
+    const look=CAR.rig.position.clone().addScaledVector(fwd0,26);
+    look.y+=0.2;
+    // a touch of roll from the lateral load, which is what sells a T-cam shot
+    camera.up.set(0,1,0).addScaledVector(rgt,clamp(CAR.vLat*0.012,-0.16,0.16)).normalize();
+    camera.lookAt(look);
+    camera.fov=lerp(56,68,clamp(spd/PHYS.vMax,0,1));
+    camera.updateProjectionMatrix(); return;
+  }
+  /* --- LOW: chase from right down on the deck, so kerbs and sparks fill frame --- */
+  if(CAM.mode==='ground'){
+    const want=CAR.rig.position.clone().addScaledVector(fwd0,-5.4);
+    want.y=CAR.rig.position.y+0.62;
+    CAM.pos.lerp(want,1-Math.exp(-9*dt));
+    camera.position.copy(CAM.pos);
+    const look=CAR.rig.position.clone().addScaledVector(fwd0,12);look.y+=0.75;
+    CAM.look.lerp(look,1-Math.exp(-9*dt));
+    camera.up.set(0,1,0);
+    camera.lookAt(CAM.look);
+    camera.fov=lerp(60,74,clamp(spd/PHYS.vMax,0,1));
+    camera.updateProjectionMatrix(); return;
+  }
+  camera.up.set(0,1,0);
   if(CAM.mode==='cockpit'){
     CAR.cockpitCam.getWorldPosition(CAM.pos);
     camera.position.copy(CAM.pos);
@@ -9824,15 +10034,35 @@ function updateHUD(inp,r){
   const el=$('#shift');
   if(!shiftBuilt){el.innerHTML='';for(let i=0;i<15;i++){const d=document.createElement('div');
     d.className='led '+(i<6?'g':i<11?'r':'b');el.appendChild(d);}shiftBuilt=true;}
-  const rpm=clamp(0.06+spd/90,0,1), leds=el.children, lit=Math.floor(rpm*leds.length);
-  const flash=rpm>0.97&&(performance.now()%160<80);
+  // rev counter follows the gear, so the lights sweep and reset on every shift
+  // instead of creeping up once across the whole speed range
+  const gearN=spd<0.3?0:clamp(Math.ceil(spd/PHYS.vMax*8),1,8);
+  const gTop=PHYS.vMax*gearN/8, gBot=PHYS.vMax*(gearN-1)/8;
+  const inGear=gearN?clamp((spd-gBot)/Math.max(gTop-gBot,1),0,1):clamp(spd/8,0,1);
+  const rpm=clamp(0.30+inGear*0.70,0,1), leds=el.children, lit=Math.floor(rpm*leds.length);
+  const flash=rpm>0.95&&(performance.now()%140<70);
   for(let i=0;i<leds.length;i++)leds[i].classList.toggle('on',flash||i<lit);
-  const gear=spd<0.3?(CAR.v<-0.3?'R':'N'):clamp(Math.ceil(spd/90*8),1,8);
-  $('#gear').textContent=gear;
+  const gear=spd<0.3?(CAR.v<-0.3?'R':'N'):gearN;
+  const gEl=$('#gear');
+  if(gEl.textContent!==String(gear)){ gEl.classList.add('shift');
+    clearTimeout(gEl._t); gEl._t=setTimeout(()=>gEl.classList.remove('shift'),110); }
+  gEl.textContent=gear;
+  // the gearbox ladder: everything below the current ratio lit, the current one red
+  { const rail=$('#gearRail');
+    if(rail) for(const i of rail.children){
+      const g=+i.dataset.g;
+      i.classList.toggle('lit', gearN>0 && g<gearN);
+      i.classList.toggle('cur', g===gearN); } }
+  // the speed sweep: 270 units of dash over 0 → top speed, red past ~80%
+  { const f=clamp(spd/PHYS.vMax,0,1);
+    const fill=$('#saFill');
+    if(fill) fill.style.strokeDashoffset=(270*(1-f)).toFixed(1);
+    $('#speedBox').classList.toggle('hot', f>0.8); }
   $('#thr i').style.height=(inp.throttle*100)+'%';
   $('#brk i').style.height=(inp.brake*100)+'%';
   $('#offTrack').classList.toggle('on',r.off&&spd>4);
-  $('#drs').classList.toggle('on', !r.off && spd>58 && Math.abs(CAR.steer)<0.025);
+  $('#drs').classList.toggle('on', !!CAR.drsOpen);
+  $('#drs').classList.toggle('avail', !!CAR.drsZone && !CAR.drsOpen);
   // ERS battery gauge
   const pct=Math.round(CAR.ers*100);
   $('#ersFill').style.height=(CAR.ers*100)+'%';
@@ -9857,6 +10087,11 @@ function updateHUD(inp,r){
   { const ci=$('#carInfo'), dp=Math.round(CAR.damage*100);
     if(ci.classList.contains('on')){
       $('#ciTyre').style.width=tp+'%';$('#ciTyre').style.background=tCol;$('#ciTyreV').textContent=tp+'%';
+      { const tw=clamp(CAR.tTemp||0,0,1.25), f=Math.round(clamp(tw/1.25,0,1)*100);
+        const inWin=tw>=0.45&&tw<=0.85;
+        $('#ciTemp').style.width=f+'%';
+        $('#ciTemp').style.background=inWin?'#8fd8a0':(tw<0.45?'#5ab4ff':'#ff5b5b');
+        $('#ciTempV').textContent=tw<0.45?'COLD':(inWin?'OPTIMAL':'HOT'); }
       $('#ciDmg').style.width=dp+'%';$('#ciDmg').style.background=dp>40?'#ff5b5b':'#ffcf6a';$('#ciDmgV').textContent=dp+'%';
       $('#ciErs').style.width=pct+'%';$('#ciErs').style.background='#3fa9ff';$('#ciErsV').textContent=pct+'%';
       $('#ciLap').textContent=$('#lapLast').textContent;
