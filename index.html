@@ -148,12 +148,35 @@
   #navList li.locked{opacity:.24}
   #navList li.locked .t::after{content:' 🔒';font-size:.44em;vertical-align:middle}
 
-  #mDetail{position:absolute;right:clamp(28px,5vw,66px);bottom:clamp(70px,12vh,120px);width:min(330px,40vw);text-align:right;pointer-events:none}
+  #mDetail{position:absolute;right:clamp(28px,5vw,66px);bottom:clamp(96px,16vh,150px);width:min(360px,42vw);text-align:right;pointer-events:none}
   #mdTag{font-size:10px;letter-spacing:.4em;color:var(--red);text-transform:uppercase;font-weight:700}
+  /* circuit preview card — real track outline drawn from the circuit's own points */
+  #mdCircuit{margin-top:12px;border:1px solid rgba(255,255,255,.13);border-radius:10px;overflow:hidden;
+    background:linear-gradient(160deg,rgba(16,22,34,.82),rgba(8,11,18,.7));display:none}
+  #mdCircuit.on{display:block}
+  #mdMap{display:block;width:100%;height:auto}
+  #mdCircInfo{display:flex;align-items:center;gap:9px;justify-content:flex-end;
+    padding:9px 13px;border-top:1px solid rgba(255,255,255,.09);background:rgba(4,6,10,.5)}
+  #mdFlag{font-size:15px;line-height:1}
+  #mdCircName{font-family:var(--mono);font-weight:800;font-size:12px;letter-spacing:.06em;color:#fff;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #mdCircCountry{font-size:8.5px;letter-spacing:.24em;color:var(--grey);text-transform:uppercase;font-weight:700;white-space:nowrap}
   #mdDesc{margin-top:14px;font-size:13.5px;line-height:1.6;color:#aeb7c4}
-  #mdMeta{margin-top:18px;display:flex;gap:24px;justify-content:flex-end;border-top:1px solid rgba(255,255,255,.12);padding-top:15px}
+  #mdMeta{margin-top:16px;display:flex;gap:22px;justify-content:flex-end;border-top:1px solid rgba(255,255,255,.12);padding-top:14px}
   #mdMeta .k{font-size:9px;letter-spacing:.26em;color:var(--grey);text-transform:uppercase;font-weight:600}
   #mdMeta .v{font-family:var(--mono);font-weight:700;font-size:16px;margin-top:5px}
+  /* circuit selector strip along the bottom */
+  #mTrackStrip{position:absolute;left:clamp(28px,5vw,66px);right:clamp(28px,5vw,66px);bottom:clamp(52px,8.4vh,80px);
+    display:none;gap:6px;overflow-x:auto;scrollbar-width:none;pointer-events:auto;
+    -webkit-mask-image:linear-gradient(90deg,transparent,#000 5%,#000 95%,transparent);
+    mask-image:linear-gradient(90deg,transparent,#000 5%,#000 95%,transparent)}
+  #mTrackStrip::-webkit-scrollbar{display:none}
+  #mTrackStrip.on{display:flex}
+  .tsChip{flex:0 0 auto;padding:5px 9px;border:1px solid rgba(255,255,255,.13);border-radius:5px;
+    background:rgba(10,14,22,.6);cursor:pointer;font-family:var(--mono);font-size:9px;font-weight:700;
+    letter-spacing:.1em;color:#8b93a0;transition:.15s;white-space:nowrap}
+  .tsChip:hover{color:#fff;border-color:rgba(255,255,255,.34)}
+  .tsChip.on{background:var(--red);border-color:var(--red);color:#fff;box-shadow:0 0 16px var(--red-glow)}
   #mDetail.swap{animation:swap .4s var(--ease)}
   @keyframes swap{0%{opacity:0;transform:translateX(12px)}100%{opacity:1;transform:translateX(0)}}
 
@@ -534,10 +557,19 @@
     <ul id="navList"></ul>
   </div>
   <div id="mCarTag"><div class="big">APEX AGP-26</div><div class="sm">Hybrid V6 · 1000 bhp</div></div>
-  <aside id="mDetail"><div id="mdTag">MODE</div><div id="mdDesc">—</div><div id="mdMeta"></div></aside>
+  <aside id="mDetail">
+    <div id="mdTag">MODE</div>
+    <div id="mdCircuit">
+      <canvas id="mdMap" width="360" height="200"></canvas>
+      <div id="mdCircInfo"><span id="mdFlag"></span><span id="mdCircName">—</span><span id="mdCircCountry">—</span></div>
+    </div>
+    <div id="mdDesc">—</div>
+    <div id="mdMeta"></div>
+  </aside>
+  <div id="mTrackStrip"></div>
   <footer id="mFoot">
-    <div class="keys"><span><b>↑↓</b>Navigate</span><span><b>⏎</b>Select</span></div>
-    <div id=”mVer”>BUILD 2026.6 · v0.6 “ACCURACY”</div>
+    <div class="keys"><span><b>↑↓</b>Navigate</span><span><b>◀▶</b>Circuit</span><span><b>⏎</b>Select</span></div>
+    <div id="mVer">BUILD 2026.7 · v0.7 &ldquo;OVERHAUL&rdquo;</div>
   </footer>
   <!-- livery editor -->
   <aside id="garage">
@@ -4436,12 +4468,60 @@ function buildMenu(){
 }
 function setSel(i){sel=(i+MODES.length)%MODES.length;
   document.querySelectorAll('#navList li').forEach((li,k)=>li.classList.toggle('sel',k===sel));renderDetail();}
+/* draw a circuit's real outline into the menu preview card, split by its sector points */
+function drawMenuCircuit(cf){
+  const cv=$('#mdMap'); if(!cv) return; const x=cv.getContext('2d');
+  const W=cv.width,H=cv.height; x.clearRect(0,0,W,H);
+  const pts=cf.points; if(!pts||!pts.length) return;
+  let a=1e9,b=-1e9,c=1e9,d=-1e9;
+  for(const p of pts){a=Math.min(a,p[0]);b=Math.max(b,p[0]);c=Math.min(c,p[1]);d=Math.max(d,p[1]);}
+  const pad=26, s=Math.min((W-pad*2)/Math.max(b-a,1),(H-pad*2)/Math.max(d-c,1));
+  const ox=(W-(b-a)*s)/2-a*s, oy=(H-(d-c)*s)/2-c*s;
+  const X=p=>ox+p[0]*s, Y=p=>oy+p[1]*s;
+  const sec=(cf.sectors||SECTORS[cf.id]||[0.33,0.66]);
+  const n=pts.length, s1=Math.round(n*sec[0]), s2=Math.round(n*sec[1]);
+  const cols=['#e10600','#f5c518','#2ea8ff'];              // S1 red · S2 yellow · S3 blue
+  x.lineJoin='round';x.lineCap='round';
+  // soft outer glow so the line reads on the dark card
+  x.strokeStyle='rgba(0,0,0,.55)';x.lineWidth=8;
+  x.beginPath();pts.forEach((p,i)=>{i?x.lineTo(X(p),Y(p)):x.moveTo(X(p),Y(p));});x.closePath();x.stroke();
+  const seg=(from,to,col)=>{x.strokeStyle=col;x.lineWidth=3.4;x.beginPath();
+    for(let i=from;i<=to;i++){const p=pts[i%n];i===from?x.moveTo(X(p),Y(p)):x.lineTo(X(p),Y(p));}x.stroke();};
+  seg(0,s1,cols[0]); seg(s1,s2,cols[1]); seg(s2,n,cols[2]);
+  // start/finish marker
+  const p0=pts[0];x.fillStyle='#fff';x.beginPath();x.arc(X(p0),Y(p0),4.2,0,7);x.fill();
+  x.fillStyle='#0a0c10';x.beginPath();x.arc(X(p0),Y(p0),1.9,0,7);x.fill();
+}
+/* short broadcast-style circuit labels for the selector strip */
+const TRACK_SHORT={spa:'SPA',yas:'ABU DHABI',silverstone:'SILVERSTONE',monaco:'MONACO',austria:'RED BULL RING',
+  saopaulo:'INTERLAGOS',jeddah:'JEDDAH',catalunya:'BARCELONA',miami:'MIAMI',montreal:'MONTREAL',
+  australia:'MELBOURNE',bahrain:'BAHRAIN',lasvegas:'VEGAS',zandvoort:'ZANDVOORT',baku:'BAKU',
+  hungary:'HUNGARORING',qatar:'LOSAIL',texas:'AUSTIN'};
+function buildTrackStrip(){
+  const st=$('#mTrackStrip'); if(!st) return; st.innerHTML='';
+  TRACK_IDS.forEach((id,i)=>{const cf=TRACKS[id];
+    const c=document.createElement('div');c.className='tsChip'+(i===selTrack?' on':'');
+    c.textContent=cf.flag+' '+(TRACK_SHORT[id]||cf.name.split(/[- ]/)[0]);
+    c.onclick=()=>{selTrack=i;renderDetail();Sound.init();Sound.blip(470,.05);};
+    st.appendChild(c);});
+  // keep the selected circuit in view as you cycle through them
+  const on=st.children[selTrack];
+  if(on&&on.scrollIntoView) on.scrollIntoView({block:'nearest',inline:'center'});
+}
 function renderDetail(){const m=MODES[sel];
   $('#mdTag').textContent=m.tag;
   let meta=m.meta, desc=m.desc;
+  const circ=$('#mdCircuit'), strip=$('#mTrackStrip');
   if(m.drive){const cf=curCfg();
-    desc=cf.name+' · '+cf.country+' '+cf.flag+'. '+(m.id==='tt'?'Just you and the clock — chase the perfect lap.':'Lights out and away we go.');
-    meta=[['Circuit',cf.name.split('-')[0]],['Length',(cf.len/1000).toFixed(3)+'km'],['◀ / ▶','CHANGE']];}
+    desc=(m.id==='tt'?'Just you and the clock — chase the perfect lap.'
+         :m.id==='quali'?'Three flying laps. Nail one clean lap and pole is yours.'
+         :'Lights out and away we go.');
+    meta=[['Length',(cf.len/1000).toFixed(3)+'km'],['Lap rec.',cf.laprec||'—'],
+          ['Tyre wear',trackAbrasion(cf.id)>0.6?'HIGH':trackAbrasion(cf.id)<0.35?'LOW':'MED']];
+    circ&&circ.classList.add('on'); strip&&strip.classList.add('on');
+    $('#mdFlag').textContent=cf.flag; $('#mdCircName').textContent=cf.name; $('#mdCircCountry').textContent=cf.country;
+    drawMenuCircuit(cf); buildTrackStrip();
+  }else{ circ&&circ.classList.remove('on'); strip&&strip.classList.remove('on'); }
   $('#mdDesc').textContent=desc;
   $('#mdMeta').innerHTML=meta.map(([k,v])=>`<div><div class="k">${k}</div><div class="v">${v}</div></div>`).join('');
   const d=$('#mDetail');d.classList.remove('swap');void d.offsetWidth;d.classList.add('swap');}
