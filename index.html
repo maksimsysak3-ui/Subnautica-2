@@ -5131,7 +5131,7 @@ function readInput(){
    overtakes, defends, mistakes, ERS, and contact avoidance.
    ================================================================== */
 const AI={cars:[], on:false, playerPos:1};
-if(typeof window!=='undefined'){window.__AI=AI;setTimeout(()=>{window.__stepAI=stepAI;},0);}
+if(typeof window!=='undefined'){window.__AI=AI;setTimeout(()=>{window.__stepAI=stepAI;window.__spawnAIs=spawnAIs;},0);}
 function makeAICar(col){
   const g=new THREE.Group();
   if(CAR.model){
@@ -5157,14 +5157,45 @@ function makeAICar(col){
 function curvAtIdx(i){const N=TRACK.N,a=TRACK.tan[(i-4+N)%N],b=TRACK.tan[(i+4)%N];return Math.acos(clamp(a.x*b.x+a.z*b.z,-1,1));}
 function signedTurnIdx(i){const N=TRACK.N,a=TRACK.tan[(i-3+N)%N],b=TRACK.tan[(i+3)%N];return a.x*b.z-a.z*b.x;}
 function clearAIs(){ AI.cars.forEach(c=>driveScene.remove(c.mesh)); AI.cars=[]; AI.on=false; }
+/* the AI field: two drivers per team, each with their own skill, aggression and
+   consistency so the grid behaves like a real field instead of a uniform train */
+const DRIVER_POOL=[
+  {n:'M. VÄRLA',   t:'redbull',  skill:1.000, aggro:0.86, consist:0.93},
+  {n:'R. OKONKWO', t:'redbull',  skill:0.981, aggro:0.72, consist:0.88},
+  {n:'L. FENN',    t:'ferrari',  skill:0.995, aggro:0.80, consist:0.90},
+  {n:'S. HÄKKINEN',t:'ferrari',  skill:0.984, aggro:0.68, consist:0.86},
+  {n:'D. ROSSI',   t:'mercedes', skill:0.992, aggro:0.75, consist:0.92},
+  {n:'K. TANAKA',  t:'mercedes', skill:0.978, aggro:0.64, consist:0.89},
+  {n:'A. PETROV',  t:'mclaren',  skill:0.997, aggro:0.88, consist:0.87},
+  {n:'J. MORAIS',  t:'mclaren',  skill:0.986, aggro:0.79, consist:0.85},
+  {n:'E. LARSSON', t:'aston',    skill:0.974, aggro:0.70, consist:0.88},
+  {n:'B. NAKAMURA',t:'aston',    skill:0.968, aggro:0.62, consist:0.84},
+  {n:'C. DUBOIS',  t:'alpine',   skill:0.971, aggro:0.74, consist:0.82},
+  {n:'V. STROMBERG',t:'alpine',  skill:0.963, aggro:0.66, consist:0.86},
+  {n:'N. HADID',   t:'williams', skill:0.966, aggro:0.71, consist:0.83},
+  {n:'T. ANDERSEN',t:'williams', skill:0.959, aggro:0.58, consist:0.87},
+];
+function aiRoster(exclude,n){
+  // prefer drivers whose team actually exists in the livery table, skip the player's team
+  const pool=DRIVER_POOL.filter(d=>LIVERIES[d.t]&&d.t!==exclude);
+  const fallback=DRIVER_POOL.filter(d=>d.t!==exclude);
+  const src=pool.length>=n?pool:fallback;
+  return src.slice(0,n);
+}
 function spawnAIs(n){
   clearAIs(); if(!TRACK.N) return;
-  const opp=TEAM_IDS.filter(k=>k!==selLivery); const N=TRACK.N;
-  for(let i=0;i<n;i++){const team=opp[i%opp.length];
+  const N=TRACK.N, roster=aiRoster(selLivery,n);
+  const teams=TEAM_IDS.filter(k=>k!==selLivery);
+  roster.forEach((d,i)=>{
+    const team=LIVERIES[d.t]?d.t:teams[i%teams.length];
     const mesh=makeAICar(new THREE.Color(LIVERIES[team].base));driveScene.add(mesh);
+    const comp=i<3?'medium':(i%2?'hard':'soft');           // varied starting strategies
     AI.cars.push({mesh, idx:((i+1)*4)%N, lat:(i%2?1:-1)*2.4, v:0, lap:0, team,
-      pace:0.975-i*0.007, ers:0.7, mistakeT:-99, dodge:0, seed:Math.random()*TAU});
-  }
+      name:d.n, skill:d.skill, aggro:d.aggro, consist:d.consist,
+      ers:0.7, mistakeT:-99, dodge:0, defend:0, seed:Math.random()*TAU,
+      compound:comp, tyre:1, tyreLife:compoundLaps(comp,CFG.id), stops:0,
+      pitFlag:false, pitPhase:0, pitTimer:0, lastIdx:0});
+  });
   AI.on=true;
 }
 function stepAI(dt){
@@ -5180,30 +5211,86 @@ function stepAI(dt){
     AI.playerCloseAhead=gap; }
   for(const c of AI.cars){
     const i=Math.round(c.idx)%N, pi=(i+N)%N;
-    // look well ahead down the braking zone: the closest sharp corner binds the
-    // speed, weighted so distant corners bind less → smooth braking, no last-second stabs
-    let bind=curvAtIdx(pi)*0.85;
-    for(let k=2;k<=24;k++){const cu=curvAtIdx((pi+k)%N), w=Math.max(0,1-(k-2)/27); if(cu*w>bind)bind=cu*w;}
-    let targetV=clamp(96 - bind*100, 13, 94)*c.pace;
-    targetV*= 0.985 + 0.03*Math.sin(c.idx*0.05 + c.seed);         // subtle lap-to-lap rhythm
-    // ERS/DRS-style deploy on the straights only (bounded, never compounds)
-    if(bind<0.05 && c.ers>0.12){ targetV+=9; c.ers-=dt/8; } else c.ers=Math.min(1,c.ers+dt/18);
-    // traffic: slow for the nearest car just ahead on a similar line, pick a passing side
-    let slow=1, blockedSide=0, closeAhead=99;
+    // --- lap rollover: tyre wear is charged per lap completed ---
+    if(c.lastIdx>N*0.8 && i<N*0.2){
+      c.tyre=Math.max(0,c.tyre-1/Math.max(1,c.tyreLife));
+      if(c.tyre<0.14) c.pitFlag=true;                   // box next time past the pits
+    }
+    c.lastIdx=i;
+    // --- pit stop sequence: run down the pit side at the limit, stop, rejoin on fresh rubber ---
+    if(c.pitPhase>0){
+      c.pitTimer-=dt;
+      const pitLat=(HW+7)*(-1);                          // pit lane sits on the -normal side
+      c.lat=damp(c.lat,pitLat,3,dt);
+      if(c.pitPhase===1){                                // rolling in, speed-limited
+        c.v=damp(c.v,21,4,dt); if(c.pitTimer<=0){c.pitPhase=2;c.pitTimer=2.3+Math.random()*0.9;}
+      }else if(c.pitPhase===2){                          // stationary for the tyre change
+        c.v=damp(c.v,0,8,dt);
+        if(c.pitTimer<=0){ const comp=c.tyre<0.5&&c.lap>6?'soft':'medium';
+          c.compound=comp; c.tyre=1; c.tyreLife=compoundLaps(comp,CFG.id); c.stops++;
+          c.pitPhase=3; c.pitTimer=2.6; }
+      }else{                                             // accelerating back out
+        c.v=damp(c.v,24,3,dt); if(c.pitTimer<=0){c.pitPhase=0;c.pitFlag=false;}
+      }
+      c.idx+=(c.v*dt)/segLen; if(c.idx>=N){c.idx-=N;c.lap++;}
+      const pp=TRACK.pts[pi], pn=TRACK.nrm[pi], ptg=TRACK.tan[pi];
+      c.mesh.position.set(pp.x+pn.x*c.lat,(pp.y||0)+0.02-(CAR.tireDrop||0),pp.z+pn.z*c.lat);
+      c.mesh.rotation.y=Math.atan2(ptg.x,ptg.z);
+      continue;
+    }
+    if(c.pitFlag && i<12 && c.v>10){ c.pitPhase=1; c.pitTimer=1.6; }   // dive in at the pit entry
+    // --- proper speed planning: for every point in the braking zone ahead, work out the
+    // corner speed it allows (v=sqrt(µgR)) and how fast we may be going NOW to still brake
+    // down to it (v² = vc² + 2·a·d). The tightest constraint wins. ---
+    const ARC=8*segLen;                       // curvAtIdx measures the turn over 8 segments
+    let vLimit=94;
+    for(let k=0;k<=26;k++){
+      const th=curvAtIdx((pi+k)%N);
+      if(th<0.02) continue;                   // effectively straight
+      const R=ARC/th;                         // corner radius from the turned angle
+      const vC=Math.sqrt(1.75*9.81*R);        // grip-limited apex speed
+      const vAllow=Math.sqrt(vC*vC + 2*42*(k*segLen));   // brake back from it (~4g)
+      if(vAllow<vLimit) vLimit=vAllow;
+    }
+    // pace = driver skill, degraded by tyre life, cut by a wet track
+    const tyreGrip=lerp(0.86,1.0,c.tyre);
+    const wetCut=CFG.storm?0.80:(CFG.rain?0.88:1.0);
+    let targetV=Math.min(94,vLimit)*c.skill*tyreGrip*wetCut;
+    targetV*= 0.99 + 0.02*Math.sin(c.idx*0.05 + c.seed);          // subtle lap-to-lap rhythm
+    // traffic scan: who's just ahead, who's right behind, and how close
+    let slow=1, blockedSide=0, closeAhead=99, behindGap=99, aheadV=99;
     for(const o of all){ if(o.ai===c) continue;
-      let di=(o.idx-c.idx+N)%N; if(di>0&&di<10){const gap=di*segLen;
-        if(Math.abs(o.lat-c.lat)<3.0){ slow=Math.min(slow,clamp(gap/12,0.28,1)); blockedSide=o.lat>c.lat?-1:1; closeAhead=Math.min(closeAhead,gap);} } }
-    // occasional small mistake (brief lift)
-    c.mistakeT-=dt; if(c.mistakeT<-5 && Math.random()<0.0012) c.mistakeT=0.4+Math.random()*0.5;
+      const di=(o.idx-c.idx+N)%N, db=(c.idx-o.idx+N)%N;
+      if(di>0&&di<14){const gap=di*segLen;
+        if(gap<closeAhead){closeAhead=gap;aheadV=o.ai?o.ai.v:Math.abs(CAR.v);}
+        if(Math.abs(o.lat-c.lat)<3.0){ slow=Math.min(slow,clamp(gap/14,0.62,1)); blockedSide=o.lat>c.lat?-1:1; } }
+      if(db>0&&db<10) behindGap=Math.min(behindGap,db*segLen);
+    }
+    // follow rather than crawl: never demand more than a shade over the car we're stuck behind
+    if(closeAhead<12) targetV=Math.min(targetV, aheadV*1.06+2);
+    // SLIPSTREAM + ERS: tow from the car ahead on a straight, then deploy to attack
+    const straight=vLimit>80;
+    const tow=(straight&&closeAhead<26)?clamp(1-closeAhead/26,0,1)*7.5:0;
+    targetV+=tow;
+    if(straight && c.ers>0.12 && (closeAhead<40||c.lap<1)){ targetV+=9; c.ers-=dt/8; }
+    else c.ers=Math.min(1,c.ers+dt/18);
+    // mistakes: rarer for consistent drivers, more likely under pressure from behind
+    const pressure=behindGap<18?1.8:1;
+    c.mistakeT-=dt;
+    if(c.mistakeT<-5 && Math.random()<0.0016*(2-c.consist)*pressure) c.mistakeT=0.4+Math.random()*0.5;
     const mist=c.mistakeT>0?0.8:1;
     const desired=targetV*slow*mist;
     c.v=damp(c.v, desired, desired>c.v?2.2:6.8, dt);              // brakes bite harder than throttle
     c.idx+=(c.v*dt)/segLen; if(c.idx>=N){c.idx-=N;c.lap++;}
-    // racing line: apex-seeking, with a lunge to the free side when caught behind traffic
+    // racing line: apex-seeking, with an aggression-scaled lunge past traffic
     const turn=signedTurnIdx(pi);
     let lineLat=clamp(-turn*300,-(HW-1.0),HW-1.0);
-    if(slow<0.9 && closeAhead<24){c.dodge=damp(c.dodge, blockedSide*(HW-1.3), 2.6, dt);} else c.dodge=damp(c.dodge,0,1.5,dt);
-    c.lat=damp(c.lat, clamp(lineLat+c.dodge,-(HW-0.9),HW-0.9), 1.9, dt);
+    if(slow<0.9 && closeAhead<24){ c.dodge=damp(c.dodge, blockedSide*(HW-1.3)*(0.5+c.aggro*0.5), 2.6, dt); }
+    else c.dodge=damp(c.dodge,0,1.5,dt);
+    // DEFENDING: if someone is close behind, edge across to cover the inside line
+    if(behindGap<16 && straight){ c.defend=damp(c.defend, -Math.sign(turn||1)*1.5*c.aggro, 1.6, dt); }
+    else c.defend=damp(c.defend,0,2,dt);
+    c.lat=damp(c.lat, clamp(lineLat+c.dodge+c.defend,-(HW-0.9),HW-0.9), 1.9, dt);
     const p=TRACK.pts[pi], n=TRACK.nrm[pi], tg=TRACK.tan[pi];
     c.mesh.position.set(p.x+n.x*c.lat, (p.y||0)+0.02-(CAR.tireDrop||0), p.z+n.z*c.lat);
     c.mesh.rotation.y=Math.atan2(tg.x,tg.z);
