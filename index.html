@@ -1851,12 +1851,12 @@ const ZONE_SPONSORS=[
   {kind:'f1'},
   {txt:'DHL',bg:'#ffcc00',fg:'#d40511',italic:true,logo:'dhl'},
   {txt:'PIRELLI',bg:'#f4e000',fg:'#111111',tag:'P ZERO',logo:'pirelli'},
-  {txt:'Heineken',bg:'#007a33',fg:'#ffffff',logo:'star',logoCol:'#e2001a'},
+  {txt:'Heineken',bg:'#007a33',fg:'#ffffff',logo:'star',logoCol:'#e2001a',redBand:true},
   {kind:'aramco'},
   {txt:'MSC',bg:'#0a1e3f',fg:'#f0c33c',tag:'CRUISES',logo:'msc'},
-  {txt:'PETRONAS',bg:'#00a19a',fg:'#ffffff',logo:'petronas'},
+  {txt:'TAG Heuer',bg:'#f2f4f6',fg:'#12181f',logo:'tag'},
   {txt:'aws',bg:'#232f3e',fg:'#ff9900',logo:'aws'},
-  {txt:'Shell',bg:'#ffd400',fg:'#ed1c24',logo:'pecten'},
+  {txt:'Lenovo',bg:'#e2231a',fg:'#ffffff'},
   {txt:'QATAR AIRWAYS',bg:'#5c0632',fg:'#ffffff',logo:'oryx'},
 ];
 /* ---- real trackside sponsor logo marks, drawn as vectors so the boards read
@@ -1916,6 +1916,14 @@ const LOGOS={
     x.lineTo(cx+r*0.95,cy+r*0.35);x.lineTo(cx-r*0.95,cy+r*0.35);x.closePath();x.fill();
     x.strokeStyle='#ffd400';x.lineWidth=r*0.08;
     for(let i=-2;i<=2;i++){x.beginPath();x.moveTo(cx+i*r*0.3,cy-r*0.62);x.lineTo(cx+i*r*0.42,cy+r*0.3);x.stroke();}
+  },
+  tag(x,cx,cy,r,col){                         // TAG Heuer shield
+    x.fillStyle='#00a651';x.beginPath();
+    x.moveTo(cx-r*0.7,cy-r*0.75);x.lineTo(cx,cy-r*0.75);x.lineTo(cx,cy+r*0.85);
+    x.quadraticCurveTo(cx-r*0.4,cy+r*0.6,cx-r*0.7,cy+r*0.1);x.closePath();x.fill();
+    x.fillStyle='#e2001a';x.beginPath();
+    x.moveTo(cx,cy-r*0.75);x.lineTo(cx+r*0.7,cy-r*0.75);x.lineTo(cx+r*0.7,cy+r*0.1);
+    x.quadraticCurveTo(cx+r*0.4,cy+r*0.6,cx,cy+r*0.85);x.closePath();x.fill();
   },
   oryx(x,cx,cy,r,col){                        // stylised long-horn head
     x.strokeStyle=col;x.lineWidth=r*0.14;x.lineCap='round';
@@ -2010,13 +2018,15 @@ function makeZoneBoard(sp){ // CLEAN F1 trackside board: flat brand colour + one
   for(let i=0;i<n;i++){const x0=i*pw;
     if(sp.kind==='f1'){drawF1(x,x0,pw,ph);}
     else if(sp.kind==='aramco'){
-      const g=x.createLinearGradient(0,0,0,ph);g.addColorStop(0,'#4fbce8');g.addColorStop(1,'#1b8fce');
-      x.fillStyle=g;x.fillRect(x0,0,pw,ph);
+      // aramco boards are a 50/50 split: green on one half, blue on the other
+      x.fillStyle='#00843d';x.fillRect(x0,0,pw/2,ph);
+      x.fillStyle='#0072ce';x.fillRect(x0+pw/2,0,pw/2,ph);
       x.fillStyle='#ffffff';x.font=`italic 800 ${ph*0.5|0}px Arial`;x.textAlign='center';x.textBaseline='middle';x.fillText('aramco',x0+pw/2,ph*0.52);
     }else{
       // flat brand background with only a subtle vertical sheen (real boards are flat)
       const g=x.createLinearGradient(0,0,0,ph);g.addColorStop(0,shadeHex(sp.bg,1.06));g.addColorStop(1,shadeHex(sp.bg,0.94));
       x.fillStyle=g;x.fillRect(x0,0,pw,ph);
+      if(sp.redBand){x.fillStyle='#e2001a';x.fillRect(x0,ph*0.86,pw,ph*0.075);}
       x.textBaseline='middle';
       const hasTag=!!sp.tag, sty=(sp.italic?'italic ':'')+'900 ';
       const mark=sp.logo&&LOGOS[sp.logo];
@@ -2419,12 +2429,12 @@ function makeBillboardTex(){
 /* overhead gantries + trackside billboards — used on every circuit */
 /* clean bold sponsor board for an overhead bridge (like the TAG Heuer gantry) */
 /* overhead gantry boards — brand colour, real logo mark, then the wordmark */
-const BRIDGE_SPONSORS=[['TAG HEUER','#f2f4f6','#12181f',null],['DHL','#ffcc00','#d40511','dhl'],
+const BRIDGE_SPONSORS=[['TAG Heuer','#f2f4f6','#12181f','tag'],['DHL','#ffcc00','#d40511','dhl'],
   ['Emirates','#d71920','#ffffff','emirates'],['ROLEX','#06603a','#ffffff','crown'],
-  ['PIRELLI','#f4e000','#111111','pirelli'],['ARAMCO','#0a7a3a','#ffffff',null],
+  ['PIRELLI','#f4e000','#111111','pirelli'],['aramco','#00843d','#ffffff',null],
   ['Heineken','#007a33','#ffffff','star','#e2001a'],['MSC','#0a1e3f','#f0c33c','msc'],
   ['QATAR AIRWAYS','#5c0632','#ffffff','oryx'],['Shell','#ffd400','#ed1c24','pecten'],
-  ['PETRONAS','#00a19a','#ffffff','petronas'],['LIQUI MOLY','#ffffff','#d2001f',null]];
+  ['Lenovo','#e2231a','#ffffff',null],['LIQUI MOLY','#ffffff','#d2001f',null]];
 function makeBridgeBoard(sp){const [w,bg,fg,logo,lcol]=sp;const H=132,W=1024;
   const c=cnv(W,H),x=c.getContext('2d');
   x.fillStyle=bg;x.fillRect(0,0,W,H);
@@ -3569,8 +3579,8 @@ function makeRunoffBand(word,hex){
 }
 /* rotating palette of sponsor wordmarks + colours for the painted run-off bands
    (so each circuit gets a varied mix, not one colour) */
-const RUNOFF_PALETTE=[['DHL',0xff6a00],['PIRELLI',0x00205b],['ARAMCO',0x0a7a3a],['EMIRATES',0xd71920],
-  ['ROLEX',0x0a3b2e],['HEINEKEN',0x1f7a3d],['MSC',0xf5b301],['PETRONAS',0x00a19a],['AWS',0xff9a00]];
+const RUNOFF_PALETTE=[['DHL',0xffcc00],['PIRELLI',0xf4e000],['ARAMCO',0x00843d],['EMIRATES',0xd71920],
+  ['ROLEX',0x06603a],['HEINEKEN',0x007a33],['MSC',0x0a1e3f],['LENOVO',0xe2231a],['AWS',0xff9a00]];
 /* bold painted sponsor run-off bands around the whole lap — corners AND straights,
    a different sponsor/colour each zone (like the orange DHL band, but varied) */
 function buildRunoffPaint(sc,P,Nm,cum,sturn,HW,widthFn){
