@@ -4083,7 +4083,7 @@ function stepPhysics(dt,inp){
 
   // longitudinal
   const dmgMul=1-CAR.damage*0.35;                  // damage saps power/aero
-  let Fdrive=inp.throttle*Math.min(P.power*dmgMul/Math.max(spd,7),P.maxForce);
+  let Fdrive=inp.throttle*Math.min(P.power*dmgMul*rdPower()/Math.max(spd,7),P.maxForce*rdPower());
   // --- ERS: deploy button spends battery for an extra power boost; braking regens ---
   const deploying = !!inp.ers && CAR.ers>0.001 && inp.throttle>0.1 && CAR.v>2;
   if(deploying){
@@ -4125,7 +4125,7 @@ function stepPhysics(dt,inp){
   if(spd>2) CAR.tire=Math.max(0, CAR.tire - spd*dt*wearPerM*Math.min(push,2.6));
   const comp=COMPOUNDS[CAR.compound||'medium']||COMPOUNDS.medium;
   const tireGrip=lerp(0.82,1.0,CAR.tire)*comp.grip;   // worn tyres lose grip; compound sets the baseline
-  const gripMul=(off?0.55:(onKerb?0.82:1.0))*wetMul*tireGrip;
+  const gripMul=(off?0.55:(onKerb?0.82:1.0))*wetMul*tireGrip*rdGrip();
   CAR.kerb=onKerb;
 
   // lateral: dynamic bicycle model — real slip angles give understeer/oversteer.
@@ -4169,7 +4169,7 @@ function stepPhysics(dt,inp){
     CAR.v*=0.55;                                 // scrub forward speed
     CAR.vLat*=-0.12;                             // kill the into-wall slide (tiny inward nudge)
     CAR.yawRate*=0.25;                           // stop the wild spin that "broke" the car
-    CAR.damage=Math.min(1,CAR.damage+Math.min(spd/95,1)*0.14);   // wall contact damages the car
+    CAR.damage=Math.min(1,CAR.damage+Math.min(spd/95,1)*0.14*rdDura());   // wall contact damages the car (durability R&D softens it)
   }
 
   // smoothly INTERPOLATED road height (continuous along the centreline) so the car
@@ -4527,7 +4527,7 @@ if(typeof window!=='undefined'){window.__setCam=(m)=>{CAM.mode=m;$('#camName').t
   window.__setLivery=(t)=>setLivery(t); window.__snapCam=()=>snapCamera();
   window.__compoundLaps=compoundLaps; window.__fitTyres=(c)=>fitTyres(c);
   window.__getState=()=>STATE; window.__REPLAY=REPLAY; window.__enterReplay=enterReplay; window.__exitReplay=exitReplay;
-  window.__commitLap=replayCommitLap; window.__updateReplay=updateReplay; window.__pickLap=replayPickLap;
+  window.__simQuali=simulateQualifying; window.__initRD=initRD; window.__rdGrip=rdGrip; window.__rdPower=rdPower; window.__commitLap=replayCommitLap; window.__updateReplay=updateReplay; window.__pickLap=replayPickLap;
   setTimeout(()=>{window.__SEASON=SEASON;window.__endSeasonRace=endSeasonRace;window.__seasonBuildTable=seasonBuildTable;
     window.__seasonConstructors=seasonConstructors;},0);
   window.__replayRecord=replayRecord;}
@@ -4826,7 +4826,10 @@ function renderSeasonHub(){
       `<span class="nm">${c.name}</span><span class="pts">${c.pts}</span>`;rows.appendChild(el);});
   // R&D bars
   const rd=$('#shRDrows');rd.innerHTML='';
-  const devs=[['Aerodynamics',52+SEASON.round*6],['Power Unit',48+SEASON.round*5],['Chassis',44+SEASON.round*7],['Reliability',60+SEASON.round*4]];
+  // read the REAL R&D ratings — these were previously faked from the round number,
+  // so the bars moved even when you'd developed nothing
+  initRD();
+  const devs=RD_AREAS.map(a=>[a.name, Math.round((SEASON.rd[a.key]||{rating:0}).rating)]);
   devs.forEach(([n,v])=>{const el=document.createElement('div');el.className='rdRow';
     el.innerHTML=`<div class="rl"><span>${n}</span><span>${Math.min(99,v)}</span></div><div class="rdBar"><i style="width:${Math.min(99,v)}%"></i></div>`;rd.appendChild(el);});
   $('#shPts').textContent=SEASON.points+' PTS';
@@ -4903,6 +4906,16 @@ function initRD(){
   });
 }
 const rdCash=v=>'$'+(v/1e6).toFixed(2)+'M';
+/* R&D actually pays off on track: a rating of 50 is baseline, and every point
+   above/below nudges the car. Aero+chassis buy grip, powertrain buys drive,
+   durability reduces the damage you take. Only applies in season mode. */
+function rdRating(k){const r=SEASON.rd&&SEASON.rd[k]; return r?r.rating:50;}
+function rdGrip(){ if(!SEASON.active||!SEASON.rd) return 1;
+  return 1+((rdRating('aero')+rdRating('chassis'))/2-50)*0.0022; }   // ±~11% across the range
+function rdPower(){ if(!SEASON.active||!SEASON.rd) return 1;
+  return 1+(rdRating('power')-50)*0.0020; }
+function rdDura(){ if(!SEASON.active||!SEASON.rd) return 1;
+  return 1-(rdRating('dura')-50)*0.0040; }                            // <1 = takes less damage
 function openRD(){ initRD(); $('#seasonHub').classList.remove('on'); SEASON.on='rd';
   $('#rdScreen').classList.remove('area'); $('#rdScreen').classList.add('on'); renderRDHome(); }
 function closeRD(){ $('#rdScreen').classList.remove('on','area'); SEASON.on='hub';
@@ -5237,11 +5250,33 @@ function exitToMenu(){
   if(sessionMode==='season'&&SEASON.active){ endSeasonRace(); return; }  // back to the hub w/ points
   enterMenu();
 }
+/* qualifying: simulate the rest of the field's best laps and produce a real grid */
+function parseLapRec(s){const m=/(\d+):(\d+)/.exec(s||''); return m?(+m[1]*60+ +m[2]):90;}
+function simulateQualifying(playerBest){
+  const cf=curCfg(), base=parseLapRec(cf.laprec)+1.1;   // pole sits a shade off the outright record
+  const rows=DRIVER_POOL.filter(d=>d.t!==(SEASON.active?SEASON.team:selLivery)).map(d=>{
+    // a slower driver loses time proportionally; inconsistent ones scatter more
+    const pen=(1-d.skill)*base*2.1 + (1-d.consist)*Math.random()*1.4;
+    return {nm:d.n,team:d.t,t:base+pen,me:false};
+  });
+  rows.push({nm:SEASON.active?SEASON.name:'YOU',team:SEASON.active?SEASON.team:selLivery,t:playerBest,me:true});
+  rows.sort((a,b)=>a.t-b.t);
+  rows.forEach((r,i)=>r.pos=i+1);
+  return rows;
+}
 function endQuali(best){
   STATE='result';
   $('#hud').classList.remove('on');
+  const grid=simulateQualifying(best);
+  const me=grid.find(r=>r.me);
+  SEASON.grid=grid; SEASON.gridPos=me?me.pos:grid.length;
   $('#qTrack').textContent=curCfg().name;
   $('#qBest').textContent=fmt(best);
+  const pos=$('#qPos');
+  if(pos){const p=me?me.pos:grid.length, pole=grid[0];
+    const gap=me&&pole&&!me.me===false?(me.t-pole.t):0;
+    pos.innerHTML=p===1?'POLE POSITION'
+      :`P${p} ON THE GRID <small style="opacity:.7">· +${gap.toFixed(3)}s to ${pole.nm}</small>`;}
   $('#qResult').classList.add('on');
   Sound.hit();
 }
@@ -5376,11 +5411,20 @@ function spawnAIs(n){
   clearAIs(); if(!TRACK.N) return;
   const N=TRACK.N, roster=aiRoster(selLivery,n);
   const teams=TEAM_IDS.filter(k=>k!==selLivery);
+  // if qualifying set a grid, line the field up around the player's real slot:
+  // cars that out-qualified them start ahead, the rest start behind.
+  const grid=SEASON.grid, myPos=SEASON.gridPos||1;
+  const slotOf=(name,i)=>{
+    if(!grid) return (i+1)*4;                              // no quali run → default field ahead
+    const row=grid.find(r=>r.nm===name);
+    const rel=row?(row.pos-myPos):(i+1);                   // +ve = ahead of the player
+    return ((rel*4)%N+N)%N;
+  };
   roster.forEach((d,i)=>{
     const team=LIVERIES[d.t]?d.t:teams[i%teams.length];
     const mesh=makeAICar(new THREE.Color(LIVERIES[team].base));driveScene.add(mesh);
     const comp=i<3?'medium':(i%2?'hard':'soft');           // varied starting strategies
-    AI.cars.push({mesh, idx:((i+1)*4)%N, lat:(i%2?1:-1)*2.4, v:0, lap:0, team,
+    AI.cars.push({mesh, idx:slotOf(d.n,i), lat:(i%2?1:-1)*2.4, v:0, lap:0, team,
       name:d.n, skill:d.skill, aggro:d.aggro, consist:d.consist,
       ers:0.7, mistakeT:-99, dodge:0, defend:0, seed:Math.random()*TAU,
       compound:comp, tyre:1, tyreLife:compoundLaps(comp,CFG.id), stops:0,
