@@ -23,6 +23,17 @@
   .hidden{display:none!important}
   .layer{position:fixed;inset:0;pointer-events:none;z-index:30}
   #vignette{background:radial-gradient(ellipse 120% 100% at center,transparent 45%,rgba(0,0,0,.6) 100%);z-index:12}
+  #stormWhite{background:radial-gradient(ellipse 150% 130% at center,rgba(200,206,214,0) 22%,rgba(206,212,220,.92) 100%);
+    z-index:11;opacity:0;mix-blend-mode:screen}
+  /* cockpit-view helmet visor: dark frame + curved aperture + a faint reflection sweep */
+  #visorMask{z-index:16;opacity:0;transition:opacity .2s}
+  #visorMask .vFrame{position:absolute;inset:0;
+    background:radial-gradient(ellipse 92% 78% at 50% 46%,transparent 62%,rgba(6,7,10,.97) 88%);}
+  #visorMask .vTop{position:absolute;left:0;right:0;top:0;height:9%;
+    background:linear-gradient(180deg,rgba(6,7,10,.97),transparent)}
+  #visorMask .vBrow{position:absolute;left:8%;right:8%;top:6%;height:2px;background:rgba(255,255,255,.06);border-radius:50%}
+  #visorMask .vShine{position:absolute;left:10%;top:14%;width:38%;height:16%;
+    background:linear-gradient(120deg,rgba(255,255,255,.07),transparent 70%);border-radius:50%;filter:blur(3px)}
   #grain{opacity:.045;mix-blend-mode:overlay;z-index:13;
     background:repeating-linear-gradient(0deg,rgba(255,255,255,.6) 0 1px,transparent 1px 3px)}
 
@@ -453,6 +464,8 @@
 
 <canvas id="three"></canvas>
 <div id="vignette" class="layer"></div>
+<div id="stormWhite" class="layer"></div>
+<div id="visorMask" class="layer"><div class="vFrame"></div><div class="vTop"></div><div class="vBrow"></div><div class="vShine"></div></div>
 <div id="grain" class="layer"></div>
 
 <!-- ===== LOADING ===== -->
@@ -1423,9 +1436,11 @@ function buildWorld(sc,cfg){
   buildDistantScenery(sc,P,Nm,cfg);                              // construction cranes + far skyline on EVERY track
   if(wet) buildRain(sc); else sc.userData.rain=null;
   if(storm){ let lt=1.5+Math.random()*4, flash=0;   // lightning: random bright flashes
+    const tornado=buildTornado(sc,worldR);
     sc.userData.lightning={update(dt){ lt-=dt; if(lt<=0){flash=1;lt=3+Math.random()*8;}
       if(flash>0)flash=Math.max(0,flash-dt*3.5);
-      renderer.toneMappingExposure=0.82+flash*flash*2.2; }}; }
+      renderer.toneMappingExposure=0.82+flash*flash*2.2;
+      if(tornado)tornado.update(dt); }}; }
   else sc.userData.lightning=null;
   miniProj=null;                                   // minimap recomputes for new track
   return {};
@@ -1460,29 +1475,66 @@ function updateDynamicSky(sc,dt){
       skyScene.add(envSky); const rt=pmrem.fromScene(skyScene,0.02);
       sc.environment=rt.texture; sc.userData.envRT=rt; envSky.geometry.dispose(); } }
 }
-/* falling-rain streaks that follow the camera (wet circuits) */
+/* a dramatic funnel-cloud tornado on the horizon for the big storm races — a stack of
+   jittered, tapering rings from a dark cloud base down to a dust-swirl at ground level */
+function buildTornado(sc,worldR){
+  const g=new THREE.Group();
+  const dist=worldR*1.7, ang=2.35, cx=Math.cos(ang)*dist, cz=Math.sin(ang)*dist;
+  const cloudTopY=260, groundY=6;
+  const funnelMat=new THREE.MeshStandardMaterial({color:0x555a62,roughness:1,transparent:true,opacity:0.55,side:THREE.DoubleSide});
+  const segs=[]; const N=22;
+  for(let i=0;i<N;i++){
+    const t=i/(N-1);                                   // 0 at the cloud, 1 at the ground
+    const y=cloudTopY-(cloudTopY-groundY)*t;
+    const r=2.5+Math.pow(t,1.6)*22 + Math.sin(t*9)*1.4; // tapers narrow near cloud, wide-ish dust base
+    const ring=new THREE.Mesh(new THREE.CylinderGeometry(r,r*1.12,cloudTopY/N*1.4,10,1,true),funnelMat);
+    ring.position.set((Math.random()-0.5)*4*t, y, (Math.random()-0.5)*4*t);
+    ring.userData.baseX=ring.position.x; ring.userData.baseZ=ring.position.z; ring.userData.t=t;
+    g.add(ring); segs.push(ring);
+  }
+  // dark low cloud base the funnel hangs from
+  const cloud=new THREE.Mesh(new THREE.SphereGeometry(60,14,10),new THREE.MeshStandardMaterial({color:0x2a2d33,roughness:1}));
+  cloud.scale.set(1.6,0.5,1.6); cloud.position.set(0,cloudTopY+10,0); g.add(cloud);
+  // ground-level dust swirl
+  const dust=new THREE.Mesh(new THREE.CylinderGeometry(26,26,3,16,1,true),
+    new THREE.MeshStandardMaterial({color:0x8a7a5a,roughness:1,transparent:true,opacity:0.4,side:THREE.DoubleSide}));
+  dust.position.y=groundY-2; g.add(dust);
+  g.position.set(cx,0,cz); sc.add(g);
+  let T=0;
+  return {group:g, update(dt){ T+=dt;
+    segs.forEach(r=>{ const t=r.userData.t, wob=Math.sin(T*2.2+t*14)*2.2*t;
+      r.position.x=r.userData.baseX+wob; r.position.z=r.userData.baseZ+Math.cos(T*2.0+t*11)*2.0*t; });
+    dust.rotation.y+=dt*3; cloud.position.x=Math.sin(T*0.3)*6;
+  }};
+}
+/* falling-rain streaks that follow the camera (wet circuits) — storms get a dense,
+   wind-slanted downpour instead of a light gentle drizzle */
 function buildRain(sc){
-  const COUNT=sc.userData.storm?5200:2600, BOX=140, TOP=90;
+  const storm=!!sc.userData.storm;
+  const COUNT=storm?9000:2600, BOX=140, TOP=90;
+  const WIND=storm?{x:0.85,z:0.32}:{x:0.18,z:0.06};    // near-horizontal driving rain in a storm
   const pos=new Float32Array(COUNT*2*3);           // pairs → LineSegments streaks
   const speed=new Float32Array(COUNT), len=new Float32Array(COUNT);
   for(let i=0;i<COUNT;i++){
     const x=(Math.random()-0.5)*BOX, y=Math.random()*TOP, z=(Math.random()-0.5)*BOX;
-    const l=1.4+Math.random()*1.6; len[i]=l; speed[i]=55+Math.random()*35;
-    pos[i*6]=x;pos[i*6+1]=y;pos[i*6+2]=z; pos[i*6+3]=x+0.15;pos[i*6+4]=y-l;pos[i*6+5]=z;
+    const l=(storm?2.6+Math.random()*3.2:1.4+Math.random()*1.6); len[i]=l; speed[i]=(storm?70+Math.random()*55:55+Math.random()*35);
+    pos[i*6]=x;pos[i*6+1]=y;pos[i*6+2]=z; pos[i*6+3]=x+WIND.x*l;pos[i*6+4]=y-l;pos[i*6+5]=z+WIND.z*l;
   }
   const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.BufferAttribute(pos,3));
-  const rain=new THREE.LineSegments(g,new THREE.LineBasicMaterial({color:0xbcc6d0,transparent:true,opacity:0.34}));
+  const rain=new THREE.LineSegments(g,new THREE.LineBasicMaterial({color:0xc4ccd6,transparent:true,opacity:storm?0.5:0.34}));
   rain.frustumCulled=false;rain.renderOrder=20;sc.add(rain);
   const pa=g.getAttribute('position');
   sc.userData.rain={obj:rain, update(dt,cam){
     for(let i=0;i<COUNT;i++){
       let y0=pa.array[i*6+1]-speed[i]*dt;
-      const dx=pa.array[i*6]-cam.x, dz=pa.array[i*6+2]-cam.z;
+      const wx=WIND.x*speed[i]*dt*0.35, wz=WIND.z*speed[i]*dt*0.35;
+      let x0=pa.array[i*6]+wx, z0=pa.array[i*6+2]+wz;
+      const dx=x0-cam.x, dz=z0-cam.z;
       if(y0<cam.y-6 || dx*dx+dz*dz>(BOX*0.6)*(BOX*0.6)){ // recycle above/around the camera
-        const x=cam.x+(Math.random()-0.5)*BOX, z=cam.z+(Math.random()-0.5)*BOX;
+        x0=cam.x+(Math.random()-0.5)*BOX; z0=cam.z+(Math.random()-0.5)*BOX;
         y0=cam.y+30+Math.random()*TOP*0.5;
-        pa.array[i*6]=x;pa.array[i*6+2]=z; pa.array[i*6+3]=x+0.15;pa.array[i*6+5]=z;
       }
+      pa.array[i*6]=x0; pa.array[i*6+2]=z0; pa.array[i*6+3]=x0+WIND.x*len[i]; pa.array[i*6+5]=z0+WIND.z*len[i];
       pa.array[i*6+1]=y0; pa.array[i*6+4]=y0-len[i];
     }
     pa.needsUpdate=true;
@@ -3220,6 +3272,18 @@ function makeGravel(){ // beige gravel trap
     x.fillRect(Math.random()*128,Math.random()*128,2,2);}
   const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;t.wrapS=t.wrapT=THREE.RepeatWrapping;t.anisotropy=8;return t;
 }
+/* soft radial mist blob for wet-weather tyre spray sprites */
+let SPRAY_TEX=null;
+function makeSprayTex(){
+  if(SPRAY_TEX) return SPRAY_TEX;
+  const c=cnv(64,64),x=c.getContext('2d');
+  const grd=x.createRadialGradient(32,32,0,32,32,32);
+  grd.addColorStop(0,'rgba(235,238,242,0.95)');grd.addColorStop(0.4,'rgba(220,224,230,0.55)');
+  grd.addColorStop(1,'rgba(220,224,230,0)');
+  x.fillStyle=grd;x.fillRect(0,0,64,64);
+  const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;
+  return SPRAY_TEX=t;
+}
 function makeWall(){
   const c=cnv(64,32),x=c.getContext('2d');x.fillStyle='#cfd4da';x.fillRect(0,0,64,32);
   x.fillStyle='#e10600';x.fillRect(0,6,64,7);x.fillStyle='#0d1016';x.fillRect(0,22,64,4);
@@ -3656,6 +3720,12 @@ async function loadCar(loader,onProg){
   [CAR.front.spin,CAR.rear.spin].forEach(s=>wbb.expandByObject(s));
   CAR.tireDrop=isFinite(wbb.min.y)?wbb.min.y:0;   // rig.y = roadY - tireDrop puts the tyres on the road
 
+  // wet-weather tyre spray: two soft mist sprites trailing the rear wheels, hidden by default
+  const spriteMat=(s)=>new THREE.SpriteMaterial({map:makeSprayTex(),transparent:true,opacity:0,
+    depthWrite:false,blending:THREE.NormalBlending});
+  CAR.sprayL=new THREE.Sprite(spriteMat()); CAR.sprayR=new THREE.Sprite(spriteMat());
+  [CAR.sprayL,CAR.sprayR].forEach(s=>{s.scale.set(0.1,0.1,1);s.renderOrder=15;rig.add(s);});
+
   // cockpit camera + steering wheel mounted to rig (metre space)
   const cockpit=new THREE.Group(); rig.add(cockpit); CAR.cockpit=cockpit;
   return {frontMeshes,rearMeshes};
@@ -3972,6 +4042,17 @@ function stepPhysics(dt,inp){
   if(CAR.wheelHub) CAR.wheelHub.rotation.z=-CAR.steerCmd*1.4; // cockpit wheel visual (hands track this)
   solveArms(CAR.steerCmd);                                    // pose the IK arms to grip the rim
 
+  // wet-weather tyre spray: mist plumes off the rear wheels, growing with speed
+  if(CAR.sprayL&&CAR.sprayR){
+    const wet=!!(CFG.rain||CFG.storm);
+    const spF=clamp(spd/34,0,1);
+    const op=wet?spF*(CFG.storm?0.85:0.6):0;
+    const sc_=0.9+spF*(CFG.storm?4.4:3.0);
+    const rz=-(PHYS.aRear+0.5)-spF*1.6;
+    [[CAR.sprayL,-0.85],[CAR.sprayR,0.85]].forEach(([s,lx])=>{
+      s.position.set(lx,0.25,rz); s.scale.set(sc_,sc_*0.75,1); s.material.opacity=op; });
+  }
+
   // engine sound
   Sound.engine(spd, inp.throttle);
   return {off, near};
@@ -4179,9 +4260,10 @@ fetch('assets/radio/lines.json').then(r=>r.ok?r.json():null).then(j=>{ if(!j)ret
    ================================================================== */
 const CAM={mode:'chase',pos:new THREE.Vector3(0,5,-10),look:new THREE.Vector3(),shake:0};
 const CAM_MODES=['chase','cockpit','hood'];
+function syncVisor(){const v=$('#visorMask'); if(v)v.style.opacity=CAM.mode==='cockpit'?1:0;}
 function cycleCam(){CAM.mode=CAM_MODES[(CAM_MODES.indexOf(CAM.mode)+1)%CAM_MODES.length];
-  $('#camName').textContent=CAM.mode.toUpperCase();Sound.blip(520,.05);}
-if(typeof window!=='undefined'){window.__setCam=(m)=>{CAM.mode=m;$('#camName').textContent=m.toUpperCase();};
+  $('#camName').textContent=CAM.mode.toUpperCase();Sound.blip(520,.05);syncVisor();}
+if(typeof window!=='undefined'){window.__setCam=(m)=>{CAM.mode=m;$('#camName').textContent=m.toUpperCase();syncVisor();};
   window.__setLivery=(t)=>setLivery(t); window.__snapCam=()=>snapCamera();
   window.__compoundLaps=compoundLaps; window.__fitTyres=(c)=>fitTyres(c);}
 function updateCamera(dt){
@@ -4751,6 +4833,8 @@ function enterMenu(){
   STATE='menu';
   $('#menu').classList.add('on');$('#hud').classList.remove('on');
   $('#sndBtn').classList.remove('show');
+  const vm=$('#visorMask'); if(vm)vm.style.opacity=0;
+  const sw=$('#stormWhite'); if(sw)sw.style.opacity=0;
   // place car in showroom
   if(CAR.rig.parent!==menuScene){menuScene.add(CAR.rig);}
   CAR.rig.position.set(0,0,0);CAR.rig.rotation.set(0,-0.6,0);
@@ -4773,6 +4857,7 @@ function startDrive(){
     countdown(()=>{
       STATE='drive';
       $('#hud').classList.add('on');$('#sndBtn').classList.add('show');
+      syncVisor();
       Sound.init();Sound.start();
       // race-start radio + commentary; weather note if it's wet
       Radio.reset();
@@ -4885,6 +4970,9 @@ function makeAICar(col){
       const w=new THREE.Mesh(new THREE.CylinderGeometry(0.44,0.44,0.5,12),new THREE.MeshStandardMaterial({color:0x0e0e12}));w.rotation.z=Math.PI/2;w.position.set(x,0.44,z);g.add(w);}
     g.traverse(o=>o.castShadow=true);
   }
+  const spray=new THREE.Sprite(new THREE.SpriteMaterial({map:makeSprayTex(),transparent:true,opacity:0,depthWrite:false}));
+  spray.position.set(0,0.3,-(PHYS.aRear+0.6)); spray.scale.set(0.1,0.1,1); spray.renderOrder=15;
+  g.add(spray); g.userData.spray=spray;
   return g;
 }
 function curvAtIdx(i){const N=TRACK.N,a=TRACK.tan[(i-4+N)%N],b=TRACK.tan[(i+4)%N];return Math.acos(clamp(a.x*b.x+a.z*b.z,-1,1));}
@@ -4907,6 +4995,10 @@ function stepAI(dt){
   const pIdx=CAR.trackIdx||0;
   const all=AI.cars.map(c=>({idx:c.idx,lat:c.lat,lap:c.lap,ai:c}))
     .concat([{idx:pIdx,lat:0,lap:(lap.num||0),ai:null}]);
+  // how close is the player tucked in behind a car ahead (drives the spray whiteout in the rain)
+  { let gap=99; for(const o of all){ if(o.ai===null) continue;
+      const di=(o.idx-pIdx+N)%N; if(di>0&&di<10) gap=Math.min(gap,di*segLen); }
+    AI.playerCloseAhead=gap; }
   for(const c of AI.cars){
     const i=Math.round(c.idx)%N, pi=(i+N)%N;
     // look well ahead down the braking zone: the closest sharp corner binds the
@@ -4936,6 +5028,11 @@ function stepAI(dt){
     const p=TRACK.pts[pi], n=TRACK.nrm[pi], tg=TRACK.tan[pi];
     c.mesh.position.set(p.x+n.x*c.lat, (p.y||0)+0.02-(CAR.tireDrop||0), p.z+n.z*c.lat);
     c.mesh.rotation.y=Math.atan2(tg.x,tg.z);
+    const spray=c.mesh.userData.spray;
+    if(spray){ const wet=!!(CFG.rain||CFG.storm), spF=clamp(c.v/34,0,1);
+      spray.material.opacity=wet?spF*(CFG.storm?0.85:0.6):0;
+      const sc_=0.9+spF*(CFG.storm?4.4:3.0); spray.scale.set(sc_,sc_*0.75,1);
+      spray.position.z=-(PHYS.aRear+0.6)-spF*1.6; }
   }
   // standings: total distance = lap*len + along-lap distance
   const dOf=(idx,lp)=>lp*TRACK.len + TRACK.cum[Math.round(idx)%N];
@@ -5000,6 +5097,18 @@ let shiftBuilt=false;
 function updateHUD(inp,r){
   const spd=Math.abs(CAR.v);
   $('#speed').textContent=Math.round(spd*3.6);
+  // heavy-rain whiteout: blinding spray thrown up by your own car + any car you're tucked behind
+  { const sw=$('#stormWhite'); const wet=CFG.rain||CFG.storm;
+    if(wet && sw){
+      const base=CFG.storm?0.85:0.4;
+      const spdF=Math.pow(clamp(spd/62,0,1),1.25);
+      const gap=(AI.playerCloseAhead!=null)?AI.playerCloseAhead:99;
+      const draft=gap<20?clamp(1-gap/20,0,1)*0.5:0;             // extra blinding spray tucked in behind a car
+      const gust=0.88+0.12*Math.sin(performance.now()*0.00065+7.3);
+      const target=clamp((base*spdF+draft)*gust,0,0.94);
+      sw.style.opacity=target.toFixed(3);
+    } else if(sw) sw.style.opacity=0;
+  }
   // LED shift lights
   const el=$('#shift');
   if(!shiftBuilt){el.innerHTML='';for(let i=0;i<15;i++){const d=document.createElement('div');
