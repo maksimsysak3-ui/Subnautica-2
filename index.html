@@ -1049,7 +1049,7 @@ const TEXAS_ELEV=[
 const TRACKS={
   spa:{ id:'spa', name:'SPA-FRANCORCHAMPS', country:'BELGIUM', flag:'🇧🇪', points:SPA, len:7004,
     halfW:7.6, night:false, forest:true, runoff:'mixed',
-    kerb:['#d81c1c','#eef1f4'], asphalt:0x2a2d33, ground:0x35562f, laprec:'1:44',
+    kerb:['#d81c1c','#f2c400'], asphalt:0x2a2d33, ground:0x35562f, laprec:'1:44',
     elev:f=>elevProfile(SPA_ELEV,f) },
   yas:{ id:'yas', name:'YAS MARINA', country:'ABU DHABI', flag:'🇦🇪', points:YAS, len:5281,
     halfW:7.6, night:true, forest:false, runoff:'blue',
@@ -1085,11 +1085,11 @@ const TRACKS={
     elev:f=>2*Math.sin(f*TAU*2) },       // Miami: turquoise run-off, palms, marina
   montreal:{ id:'montreal', name:'GILLES VILLENEUVE', country:'CANADA', flag:'🇨🇦', points:MONTREAL, len:4361,
     halfW:7.0, night:false, env:'montreal', runoff:'mixed',
-    kerb:['#d81c1c','#eef1f4'], asphalt:0x33363c, ground:0x3a6238, laprec:'1:12',
+    kerb:['#1a9e3e','#f2d000'], asphalt:0x33363c, ground:0x3a6238, laprec:'1:12',
     elev:f=>2.5*Math.sin(f*TAU*2-0.5) }, // Montreal: green/yellow kerbs, river island, walls close
   australia:{ id:'australia', name:'ALBERT PARK', country:'AUSTRALIA', flag:'🇦🇺', points:AUSTRALIA, len:5278,
     halfW:7.8, night:false, env:'melbourne', runoff:'mixed',
-    kerb:['#d81c1c','#eef1f4'], asphalt:0x33363c, ground:0x3e6d38, laprec:'1:18',
+    kerb:['#1a9e3e','#f2d000'], asphalt:0x33363c, ground:0x3e6d38, laprec:'1:18',
     elev:f=>1.6*Math.sin(f*TAU*2+0.3) },  // parkland circuit round a lake, Melbourne skyline
   bahrain:{ id:'bahrain', name:'BAHRAIN', country:'BAHRAIN', flag:'🇧🇭', points:BAHRAIN, len:5412,
     halfW:8.0, night:true, env:'bahrain', runoff:'desertmix',
@@ -1277,10 +1277,48 @@ function buildWorld(sc,cfg){
     turn[i]=Math.atan2(a.x*b.z-a.z*b.x, a.x*b.x+a.z*b.z);}
   const sturn=new Array(N).fill(0);
   for(let i=0;i<N;i++){let s=0;for(let k=-7;k<=7;k++)s+=turn[(i+k+N)%N];sturn[i]=s;}
-  const runL=new Array(N),runR=new Array(N);
+  /* ---- FIA-style run-off design pass ----------------------------------------
+     A car that loses the road leaves it roughly tangentially, at whatever speed
+     it was carrying. The run-off then has to be long enough to arrest it:
+        L = v² / (2·µ·g)
+     So run-off is driven by SPEED, not by how tight the corner is — a fast
+     sweeper needs far more room than a slow hairpin, even though the hairpin is
+     the tighter corner. (The old rule sized run-off straight off curvature,
+     which gets this exactly backwards.)
+     We also record, per point, WHICH SURFACE the run-off should be and WHAT
+     BARRIER belongs behind it, the way a circuit's safety design would.       */
+  const arcLen=15*(TRACK.len/N);                   // sturn sums the turn over ±7 samples
+  const vApex=new Array(N), runL=new Array(N), runR=new Array(N);
+  const surf=new Array(N), barr=new Array(N);
+  const muTrack=1.75, G=9.81, VMAX=94;
+  for(let i=0;i<N;i++){
+    const th=Math.abs(sturn[i]);
+    vApex[i]= th<0.02 ? VMAX : Math.min(VMAX, Math.sqrt(muTrack*G*(arcLen/th)));
+  }
+  // the speed that matters at a point is the slowest corner just downstream — that is
+  // where a car actually departs, and the run-off must be there to catch it
+  const vDepart=new Array(N);
+  for(let i=0;i<N;i++){let v=vApex[i];
+    for(let k=1;k<=10;k++) v=Math.min(v,vApex[(i+k)%N]);
+    vDepart[i]=v;}
   const RUNMAX=cfg.street?0:(cfg.runoff==='mixed'?42:36);   // Austria wide run-off; Monaco none
-  for(let i=0;i<N;i++){const c=sturn[i],mag=Math.min(Math.abs(c)*90,RUNMAX);
-    runL[i]=c<0?mag:0; runR[i]=c>0?mag:0;}         // run-off ONLY on the outside of corners
+  const K=RUNMAX/(VMAX*VMAX);                      // scale the v² law into world metres
+  for(let i=0;i<N;i++){
+    const c=sturn[i], th=Math.abs(c);
+    // only the OUTSIDE of a genuine corner gets run-off; straights get a verge
+    const speedRoom=Math.min(RUNMAX, K*vDepart[i]*vDepart[i]*3.2);
+    const mag=th<0.05?0:speedRoom;
+    runL[i]=c<0?mag:0; runR[i]=c>0?mag:0;
+    // ---- surface: asphalt apron first (lets a car scrub off speed and rejoin),
+    // gravel beyond it at the heavy-braking corners where you want cars STOPPED,
+    // grass where consequences are low. Fast corners stay all-asphalt. ----
+    const slow = vApex[i]<32, fast = vDepart[i]>62;
+    surf[i]= th<0.05 ? 'grass' : (fast ? 'asphalt' : (slow ? 'gravel' : 'mixed'));
+    // ---- barrier: head-on risk at the end of a braking zone gets tyre stacks,
+    // shallow-angle high-speed impacts get TecPro, everything else armco. ----
+    const braking = vApex[i] < vApex[(i-8+N)%N]*0.72;
+    barr[i]= cfg.street ? 'concrete' : (braking&&slow ? 'tyre' : (fast ? 'tecpro' : 'armco'));
+  }
   // street circuits: the tightest corners (chicanes) get a small tarmac run-off both
   // sides so the walls are pushed out and they can be ridden a touch faster
   if(cfg.street){ for(let i=0;i<N;i++){ const c=Math.abs(sturn[i]);
@@ -1299,6 +1337,7 @@ function buildWorld(sc,cfg){
   for(let i=0;i<N;i++){const cap=Math.max(0,maxOff[i]-HW-3);
     runL[i]=Math.min(runL[i],cap); runR[i]=Math.min(runR[i],cap);}
   TRACK.runL=runL;TRACK.runR=runR;TRACK.maxOff=maxOff;TRACK.gap=gap;
+  TRACK.surf=surf;TRACK.barr=barr;TRACK.vApex=vApex;   // design data for the surface + barrier builders
 
   const strip=(offA,offB,y,mat,ro,uvL)=>{ // build a ribbon between two per-index offsets
     const v=[],uv=[],id=[];
@@ -1488,6 +1527,7 @@ function buildWorld(sc,cfg){
   for(let i=0;i<N;i++){TRACK.wallL[i]=barOff(i);TRACK.wallR[i]=barOffR(i);}
 
   buildBarriers(sc,P,Nm,cum,barOff,barOffR);
+  buildSafetyBarriers(sc,P,Nm,barOff,barOffR);                   // TecPro / tyre stacks / armco by design pass
   if(cfg.env==='monaco') buildMonaco(sc,P,Nm,Tg,barOff,barOffR);   // tight streets, tunnel, harbour
   else if(cfg.env==='austria') buildAustria(sc,P,Nm,barOff,barOffR); // open, distant mountains
   else if(cfg.env==='saopaulo') buildSaoPaulo(sc,P,Nm,barOff,barOffR); // Interlagos: trees, favelas
@@ -1940,6 +1980,57 @@ function buildSausageKerbs(sc,P,Nm,cum,runL,runR,HW){
       const m=new THREE.Mesh(geo,(ci++&1)?blk:yel);
       q.setFromUnitVectors(Yup,tg); m.quaternion.copy(q);
       m.position.set(x,gy+0.05,z); m.castShadow=true; sc.add(m);
+    }
+  }
+}
+/* ---- FIA safety barriers: the hardware that actually sits in front of the
+   sponsor wall. Which type goes where comes from the design pass:
+     tyre stacks  → head-on risk at the end of a heavy braking zone
+     TecPro       → shallow-angle, high-speed impact zones
+     armco        → everything else (steel rail on posts)
+   Only the outside of corners is protected, exactly like a real circuit.   */
+function buildSafetyBarriers(sc,P,Nm,offL,offR){
+  const N=P.length, gh=TRACK.terrainH, barr=TRACK.barr, runL=TRACK.runL, runR=TRACK.runR;
+  if(!barr) return;
+  const tecA=new THREE.MeshStandardMaterial({color:0x1f4fd8,roughness:0.55});  // TecPro blue
+  const tecB=new THREE.MeshStandardMaterial({color:0xe01a1a,roughness:0.55});  // TecPro red
+  const tyreM=new THREE.MeshStandardMaterial({color:0x121216,roughness:0.95});
+  const beltM=new THREE.MeshStandardMaterial({color:0xf2f4f6,roughness:0.8});
+  const railM=new THREE.MeshStandardMaterial({color:0xc2c8d0,roughness:0.45,metalness:0.75});
+  const postM=new THREE.MeshStandardMaterial({color:0x5a6068,roughness:0.7,metalness:0.4});
+  const tecGeo=new THREE.BoxGeometry(1.0,0.85,2.2);
+  const tyreGeo=new THREE.CylinderGeometry(0.34,0.34,0.28,10);
+  const railGeo=new THREE.BoxGeometry(0.16,0.42,4.2);
+  const postGeo=new THREE.BoxGeometry(0.16,1.1,0.16);
+  let placed=0;
+  for(const [side,off,run] of [[1,offL,runL],[-1,offR,runR]]){
+    let i=6;
+    while(i<N-6 && placed<900){
+      if(run[i]<2.5){i++;continue;}                       // no run-off here → no barrier needed
+      const type=barr[i], p=P[i], n=Nm[i];
+      const d=off(i)-0.9;                                 // just inside the sponsor wall
+      const x=p.x+n.x*side*d, z=p.z+n.z*side*d, gy=gh(x,z);
+      const tg=TRACK.tan[i], ang=Math.atan2(tg.x,tg.z);
+      if(type==='tecpro'){
+        const m=new THREE.Mesh(tecGeo,(i>>2)%2?tecA:tecB);
+        m.position.set(x,gy+0.43,z);m.rotation.y=ang;sc.add(m);
+        const cap=new THREE.Mesh(new THREE.BoxGeometry(1.05,0.1,2.25),beltM);
+        cap.position.set(x,gy+0.9,z);cap.rotation.y=ang;sc.add(cap);
+        i+=2;
+      }else if(type==='tyre'){
+        for(let r=0;r<3;r++)for(let c=0;c<2;c++){
+          const t=new THREE.Mesh(tyreGeo,tyreM);
+          t.position.set(x-Math.sin(ang)*(c*0.72-0.36), gy+0.16+r*0.3, z-Math.cos(ang)*(c*0.72-0.36));
+          sc.add(t);}
+        const belt=new THREE.Mesh(new THREE.BoxGeometry(0.9,0.5,1.6),beltM);
+        belt.position.set(x,gy+0.55,z);belt.rotation.y=ang;belt.material=beltM;sc.add(belt);
+        i+=3;
+      }else{                                              // armco steel rail on posts
+        const r1=new THREE.Mesh(railGeo,railM);r1.position.set(x,gy+0.72,z);r1.rotation.y=ang;sc.add(r1);
+        const po=new THREE.Mesh(postGeo,postM);po.position.set(x,gy+0.55,z);po.rotation.y=ang;sc.add(po);
+        i+=4;
+      }
+      placed++;
     }
   }
 }
