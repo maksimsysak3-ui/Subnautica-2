@@ -1392,18 +1392,37 @@ function buildWorld(sc,cfg){
     vertexShader:`varying vec3 v;void main(){v=position;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}`,
     fragmentShader:`varying vec3 v;
       uniform vec3 uTop,uMid,uBot,uSunDir,uSunCol; uniform float uDisc,uSharp,uGlow;
-      void main(){vec3 dir=normalize(v);float h=clamp(dir.y*0.5+0.5,0.,1.);
-      vec3 c=mix(uBot,uMid,smoothstep(0.,0.5,h));c=mix(c,uTop,smoothstep(0.42,1.,h));
+      void main(){vec3 dir=normalize(v);
+      // Elevation, 0 at the horizon and 1 at the zenith. The gradient runs
+      // bottom -> mid -> top over DISJOINT ranges: the old shader ran two
+      // overlapping smoothsteps, and where they crossed it left a hard band at
+      // a fixed elevation. Across a wide field of view a band at fixed elevation
+      // projects as an arc that peaks at screen centre — which is why the sky
+      // used to have a grey dome sitting on the horizon from every bearing.
+      float e=clamp(dir.y,0.,1.);
+      float t1=smoothstep(0.0,0.22,e);       // horizon haze into the mid band
+      float t2=smoothstep(0.22,0.85,e);      // mid band into the zenith
+      vec3 c=mix(uBot,uMid,t1);
+      c=mix(c,uTop,t2*t2);                   // squared: most of the change high up
+      // below the horizon just keep fading toward the ground haze
+      c=mix(c,uBot*0.92,smoothstep(0.0,-0.25,dir.y));
       vec3 sD=normalize(uSunDir);float sd=max(dot(dir,sD),0.);
       c+=uSunCol*pow(sd,uSharp)*uDisc;                        // sun/moon disc
-      c+=uSunCol*pow(sd,6.0)*uGlow;                            // broad halo
-      c+=uSunCol*pow(max(1.-abs(dir.y),0.),8.0)*uGlow*0.4;     // horizon warmth
+      c+=uSunCol*pow(sd,26.0)*uGlow*1.6;                      // tight halo around it
+      c+=uSunCol*pow(sd,4.0)*uGlow*0.22;                      // faint wide scatter
+      c+=uSunCol*pow(max(1.-abs(dir.y)*3.2,0.),3.0)*uGlow*0.5;// warmth low on the horizon
       gl_FragColor=vec4(c,1.);}`});
   sc.userData.skyU=skyU; sc.userData.sunL=sc.userData.sun;
   sc.userData.hemi=sc.children.find(o=>o.isHemisphereLight);
-  const sky=new THREE.Mesh(new THREE.SphereGeometry(worldR*4+2000,48,24),skyMat);
+  // The far plane has to clear the FAR SIDE of the sky sphere as seen from
+  // anywhere the camera can get to, not just from the centre of the world.
+  // It did not: the sky's far hemisphere was clipped away, leaving a circular
+  // hole of flat background sitting in the middle of the view from every
+  // bearing — which looked like a giant grey dome parked on the horizon.
+  const SKY_R=worldR*3+1500;
+  const sky=new THREE.Mesh(new THREE.SphereGeometry(SKY_R,64,32),skyMat);
   sc.add(sky);
-  camera.far=worldR*8; camera.updateProjectionMatrix();
+  camera.far=SKY_R*2+worldR*2; camera.updateProjectionMatrix();
   // generate the scene's environment map FROM this sky so every metal/glass/paint
   // reflects the real sky (much sharper, context-correct materials)
   { if(sc.userData.envRT) sc.userData.envRT.dispose();
@@ -1437,9 +1456,12 @@ function buildWorld(sc,cfg){
   }
 
   // ground — a grid that follows the terrain height field
-  // reaches ±3R, i.e. past the distant skyline/hill rings — otherwise everything
-  // beyond ±1.5R is standing on nothing and reads as floating over the horizon
-  const gGeo=new THREE.PlaneGeometry(worldR*6,worldR*6,220,220);
+  // A DISC, not a square. A square ground plane has corners that reach 1.41×
+  // further than its edges, and through fog that bulge reads as a giant grey dome
+  // squatting on the horizon. A disc has one distance to its rim from every
+  // bearing, so the world simply fades out. Radius 4R clears the fog at its
+  // furthest (3.4R) and the distant skyline and hill rings at 2.25–3.1R.
+  const gGeo=new THREE.RingGeometry(0.5, worldR*4, 128, 46);
   gGeo.rotateX(-Math.PI/2);
   const gp=gGeo.attributes.position;
   const csamp=[];for(let i=0;i<N;i+=3)csamp.push(P[i]);   // dense samples for the near-track clamp
@@ -2838,38 +2860,121 @@ function buildMonaco(sc,P,Nm,Tg,offL,offR){
   hill.position.y=50;sc.add(hill);
 }
 /* ---- Austria (Red Bull Ring): open green hills, distant alpine mountains ---- */
+/* ===================== RED BULL RING — Spielberg, Styria =====================
+   A short circuit cut into an alpine hillside: steep spruce forest right up to
+   the fences, hay meadows with barns below, the Styrian Alps ringing the whole
+   valley, and the giant Bull looking down over the track. */
 function buildAustria(sc,P,Nm,offL,offR){
-  const N=P.length,R=TRACK.radius, gh=TRACK.terrainH;
-  const samp=[];for(let i=0;i<N;i+=4)samp.push(P[i]);
-  const clear=(x,z)=>{let m=1e9;for(const q of samp){const dx=x-q.x,dz=z-q.z;const d=dx*dx+dz*dz;if(d<m)m=d;}return m;};
-  const M=new THREE.Matrix4(),S=new THREE.Vector3(),Q=new THREE.Quaternion(),T=new THREE.Vector3();
-  // sparse conifer forest, kept far back (open around the track)
-  const coneG=new THREE.ConeGeometry(0.5,1,7);
-  const treeMats=[0x1e4522,0x27552a,0x173a1c].map(c=>new THREE.MeshStandardMaterial({color:c,roughness:1,flatShading:true}));
-  const lists=treeMats.map(()=>[]);
-  let placed=0,tries=0;
-  while(placed<2200 && tries<20000){tries++;
-    const a=Math.random()*TAU, rr=R*1.0+Math.random()*R*1.4, x=Math.cos(a)*rr, z=Math.sin(a)*rr;
-    if(clear(x,z)<130*130) continue;                 // trees stay well away → open trackside
-    const h=12+Math.random()*20;lists[(Math.random()*3)|0].push({x,y:gh(x,z),z,w:h*(0.42+Math.random()*0.2),h});placed++;}
-  lists.forEach((list,bi)=>{ if(!list.length)return;
-    const im=new THREE.InstancedMesh(coneG,treeMats[bi],list.length);im.frustumCulled=false;im.receiveShadow=true;
-    list.forEach((o,i)=>{T.set(o.x,o.y+o.h*0.5,o.z);S.set(o.w,o.h,o.w);M.compose(T,Q,S);im.setMatrixAt(i,M);});
-    im.instanceMatrix.needsUpdate=true;sc.add(im);});
-  // distant alpine mountain range (big ridged cones, hazy blue, snow caps)
-  const rock=new THREE.MeshStandardMaterial({color:0x5b6a78,roughness:1,flatShading:true});
-  const snow=new THREE.MeshStandardMaterial({color:0xeaf0f6,roughness:1,flatShading:true});
-  for(let i=0;i<26;i++){const a=(i/26)*TAU+Math.random()*0.1, rr=R*2.3+Math.random()*R*0.8;
-    const H=180+Math.random()*260, rad=H*(0.8+Math.random()*0.5);
-    const x=Math.cos(a)*rr,z=Math.sin(a)*rr;
-    const mt=new THREE.Mesh(new THREE.ConeGeometry(rad,H,7),rock);mt.position.set(x,H/2-40,z);
-    mt.rotation.y=Math.random()*TAU;sc.add(mt);
-    const cap=new THREE.Mesh(new THREE.ConeGeometry(rad*0.34,H*0.28,7),snow);cap.position.set(x,H-40-H*0.14,z);
-    cap.rotation.y=mt.rotation.y;sc.add(cap);}
-  // green foothill ring behind the trees
-  const hills=new THREE.Mesh(new THREE.CylinderGeometry(R*1.85,R*2.05,110,56,1,true),
-    new THREE.MeshStandardMaterial({color:0x2f5a2c,roughness:1,side:THREE.BackSide}));
-  hills.position.y=32;sc.add(hills);
+  const K=venueKit(sc,P,Nm), {R,gh,clear,cX,cZ}=K;
+
+  // --- alpine hay meadows: bright mown green and pale cut-hay strips ---
+  K.fields([0x59893c,0x4b7a33,0x7e8f42,0x6d9440,0x93974a], 1.0, 2.0, 70, 130);
+
+  // --- Norway spruce: dense, dark, and steep. It comes much closer to the
+  //     circuit here than at a flat parkland track, because the hillside does. ---
+  K.conifers([0x1c4020,0x24501f,0x16331a,0x2a5a26],
+    ()=>{const a=Math.random()*TAU, rr=R*0.82+Math.random()*R*1.35;
+      return {x:Math.cos(a)*rr,z:Math.sin(a)*rr,min:64};}, 2400, 14, 30, 0.30);
+  // a scatter of larch and beech lower down, lighter in tone
+  K.broadleaf([0x4a7a34,0x5c8a3c,0x3d6a2a],
+    ()=>{const a=Math.random()*TAU, rr=R*0.90+Math.random()*R*0.8;
+      return {x:Math.cos(a)*rr,z:Math.sin(a)*rr,min:70};}, 420, 9, 16);
+
+  // --- the Bull: the landmark sculpture on the rise above the circuit ---
+  { const sp=findOpenSpot(clear,R,150,0.9,1.5);
+    if(sp){ const gy=gh(sp.x,sp.z)+26, g=new THREE.Group();
+      const hide=new THREE.MeshStandardMaterial({color:0xb8791f,roughness:0.5,metalness:0.35,flatShading:true});
+      const horn=new THREE.MeshStandardMaterial({color:0xe8e2d2,roughness:0.4,metalness:0.2});
+      const body=new THREE.Mesh(new THREE.SphereGeometry(9,14,10),hide);
+      body.scale.set(1.9,1.0,0.85);body.position.y=15;g.add(body);
+      const neck=new THREE.Mesh(new THREE.SphereGeometry(6,12,9),hide);
+      neck.scale.set(1.1,1.0,0.9);neck.position.set(15,17,0);g.add(neck);
+      const head=new THREE.Mesh(new THREE.BoxGeometry(9,6,6),hide);head.position.set(22,17,0);g.add(head);
+      const snout=new THREE.Mesh(new THREE.BoxGeometry(5,4,4.4),hide);snout.position.set(27,15.5,0);g.add(snout);
+      for(const s2 of [1,-1]){
+        const hn=new THREE.Mesh(new THREE.ConeGeometry(1.2,7,7),horn);
+        hn.position.set(23,21,s2*2.6);hn.rotation.z=-0.5;hn.rotation.x=s2*0.55;g.add(hn);}
+      for(const [lx,lz] of [[10,3],[10,-3],[-11,3],[-11,-3]]){
+        const leg=new THREE.Mesh(new THREE.CylinderGeometry(1.8,1.5,15,8),hide);
+        leg.position.set(lx,7.5,lz);g.add(leg);}
+      const tail=new THREE.Mesh(new THREE.CylinderGeometry(0.5,0.9,11,6),hide);
+      tail.position.set(-19,14,0);tail.rotation.z=0.7;g.add(tail);
+      // the plinth it stands on
+      const plinth=new THREE.Mesh(new THREE.CylinderGeometry(20,26,26,18),
+        new THREE.MeshStandardMaterial({color:0x8b8f95,roughness:0.9}));
+      plinth.position.y=-13;g.add(plinth);
+      g.position.set(sp.x,gy,sp.z);g.rotation.y=Math.atan2(-sp.z,-sp.x);
+      g.traverse(o=>{o.castShadow=true;o.receiveShadow=true;});sc.add(g); } }
+
+  // --- Styrian farmsteads: timber barns with deep overhanging shingle roofs,
+  //     and the hay racks that stand in every meadow up here ---
+  const farm=(x,z,rot)=>{
+    if(clear(x,z)<170*170) return;
+    const g=new THREE.Group(), gy=gh(x,z);
+    const stucco=new THREE.MeshStandardMaterial({color:0xefe9dc,roughness:0.95});
+    const timber=new THREE.MeshStandardMaterial({color:0x5c4630,roughness:1});
+    const shingle=new THREE.MeshStandardMaterial({color:0x4a4a4e,roughness:0.9});
+    const house=new THREE.Mesh(new THREE.BoxGeometry(12,7,10),stucco);house.position.y=3.5;
+    const upper=new THREE.Mesh(new THREE.BoxGeometry(12.2,3.4,10.2),timber);upper.position.y=8.7;
+    const roof=new THREE.Mesh(new THREE.CylinderGeometry(9.4,9.4,13.6,3,1),shingle);
+    roof.rotation.z=Math.PI/2;roof.rotation.y=Math.PI/6;roof.position.y=12.4;roof.scale.set(1,1,0.60);
+    g.add(house,upper,roof);
+    const barn=new THREE.Mesh(new THREE.BoxGeometry(16,6.5,9),timber);barn.position.set(17,3.25,-5);
+    const broof=new THREE.Mesh(new THREE.CylinderGeometry(8.4,8.4,9,3,1),shingle);
+    broof.rotation.x=Math.PI/2;broof.rotation.y=Math.PI/6;broof.position.set(17,8.6,-5);broof.scale.set(1.06,1,0.5);
+    g.add(barn,broof);
+    for(let k=0;k<3;k++){                                   // Harpfen: slatted hay racks
+      const hr=new THREE.Mesh(new THREE.BoxGeometry(9,4.5,1.2),timber);
+      hr.position.set(-16-k*7,3.2,4+k*3);hr.rotation.y=0.3;g.add(hr);}
+    g.position.set(x,gy,z);g.rotation.y=rot;
+    g.traverse(o=>{o.castShadow=true;o.receiveShadow=true;});sc.add(g);};
+  for(let k=0;k<7;k++){const a=Math.random()*TAU, rr=R*1.15+Math.random()*R*0.6;
+    farm(Math.cos(a)*rr,Math.sin(a)*rr,Math.random()*TAU);}
+
+  // --- a chairlift running up the hillside behind the circuit ---
+  { const dir=Math.random()*TAU, dx=Math.cos(dir), dz=Math.sin(dir);
+    const steel=new THREE.MeshStandardMaterial({color:0x9aa2a8,roughness:0.6,metalness:0.5});
+    const cable=new THREE.MeshStandardMaterial({color:0x2a2e34,roughness:0.7});
+    const bx=Math.cos(dir)*R*1.25, bz=Math.sin(dir)*R*1.25;
+    let prev=null;
+    for(let k=0;k<7;k++){
+      const x=bx+dx*k*95, z=bz+dz*k*95;
+      if(clear(x,z)<170*170){prev=null;continue;}
+      const gy=gh(x,z)+k*9, H=17;
+      const pl=new THREE.Mesh(new THREE.CylinderGeometry(0.7,1.0,H,8),steel);
+      pl.position.set(x,gy+H/2,z);sc.add(pl);
+      const arm=new THREE.Mesh(new THREE.BoxGeometry(7,0.6,0.6),steel);
+      arm.position.set(x,gy+H,z);arm.rotation.y=-dir;sc.add(arm);
+      if(prev){ const mx=(prev.x+x)/2, my=(prev.y+gy+H)/2, mz=(prev.z+z)/2;
+        const L=Math.hypot(x-prev.x,gy+H-prev.y,z-prev.z);
+        const c=new THREE.Mesh(new THREE.CylinderGeometry(0.09,0.09,L,5),cable);
+        c.position.set(mx,my,mz);
+        c.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),
+          new THREE.Vector3(x-prev.x,gy+H-prev.y,z-prev.z).normalize());sc.add(c); }
+      prev={x,y:gy+H,z}; } }
+
+  // --- the Styrian Alps: a proper ridge line, near peaks sharp, far ones hazy,
+  //     with snow only on the high tops ---
+  { const near=new THREE.MeshStandardMaterial({color:0x4a5f4a,roughness:1,flatShading:true});
+    const mid =new THREE.MeshStandardMaterial({color:0x5b6a78,roughness:1,flatShading:true});
+    const far =new THREE.MeshStandardMaterial({color:0x8593a6,roughness:1,flatShading:true});
+    const snow=new THREE.MeshStandardMaterial({color:0xeaf0f6,roughness:1,flatShading:true});
+    const range=(mat,count,dist,hMin,hMax,snowAt)=>{
+      for(let i=0;i<count;i++){const a=(i/count)*TAU+Math.random()*0.14;
+        const rr=R*dist*(0.92+Math.random()*0.18);
+        const H=hMin+Math.random()*(hMax-hMin), rad=H*(0.75+Math.random()*0.55);
+        const x=Math.cos(a)*rr, z=Math.sin(a)*rr;
+        const mt=new THREE.Mesh(new THREE.ConeGeometry(rad,H,7),mat);
+        mt.position.set(x,H/2-50,z);mt.rotation.y=Math.random()*TAU;sc.add(mt);
+        if(H>snowAt){ const cap=new THREE.Mesh(new THREE.ConeGeometry(rad*0.30,H*0.24,7),snow);
+          cap.position.set(x,H-50-H*0.12,z);cap.rotation.y=mt.rotation.y;sc.add(cap);} }};
+    range(near,16, 1.85, 120, 240, 9999);      // wooded foothills, no snow
+    range(mid, 20, 2.45, 220, 400, 300);
+    range(far, 22, 3.10, 320, 560, 380); }
+
+  K.carPark([{x:-R*0.92,z:R*0.62,cols:24,rows:11,rot:0.3},{x:R*0.90,z:-R*0.68,cols:22,rows:10,rot:-0.6}]);
+  K.marquees(cX,cZ,4,3,0.3);
+  K.horizon(0x2f5a2c, 110, 1.80, 2.00);
 }
 
 /* big ad texture for gantry signs + trackside billboards */
@@ -2909,8 +3014,6 @@ function makeBridgeBoard(sp){const [w,bg,fg,logo,lcol]=sp;const H=132,W=1024;
     x.textAlign='left';x.fillStyle=fg;x.fillText(w,left+lr*2+gapx,H*0.52); }
   else { x.textAlign='center';x.fillStyle=fg;x.fillText(w,W/2,H*0.52); }
   const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;t.anisotropy=8;return t;}
-/* construction tower cranes + a distant hazy skyline — added to EVERY circuit so
-   nowhere feels like the middle of nowhere, and the horizon always has depth. */
 function buildDistantScenery(sc,P,Nm,cfg){
   const N=P.length,R=TRACK.radius,gh=TRACK.terrainH,night=cfg.night;
   const samp=[];for(let i=0;i<N;i+=6)samp.push(P[i]);
@@ -3485,23 +3588,65 @@ function buildZandvoort(sc,P,Nm,Tg,offL,offR){
   const M=new THREE.Matrix4(),S=new THREE.Vector3(),Q=new THREE.Quaternion(),T=new THREE.Vector3();
   // --- the North Sea, kept FAR out past the dunes and dropped low (never over the track) ---
   const seaDir=new THREE.Vector3(1,0,0.3).normalize();
-  const sea=new THREE.Mesh(new THREE.PlaneGeometry(R*5,R*5),
+  // sized and placed so it only ever occupies the seaward horizon — a plane big
+  // enough to wrap the whole world just shows up as a slab from every angle
+  const sea=new THREE.Mesh(new THREE.PlaneGeometry(R*4.5,R*2.6),
     new THREE.MeshStandardMaterial({color:0x2b6f92,roughness:0.15,metalness:0.6,emissive:0x0a2c3e,emissiveIntensity:0.2}));
-  sea.rotation.x=-Math.PI/2;sea.position.set(cX+seaDir.x*R*3.6,-4.0,cZ+seaDir.z*R*3.6);sc.add(sea);
-  // --- sand dunes ringing the circuit (kept well clear of the track + run-off) ---
-  { const g=new THREE.SphereGeometry(1,10,6),m=new THREE.MeshStandardMaterial({color:0xc9b483,roughness:1});
-    const list=[];let n=0,t=0;while(n<1400&&t<15000){t++;const a=Math.random()*TAU,rr=R*0.75+Math.random()*R*1.2,x=Math.cos(a)*rr,z=Math.sin(a)*rr;
-      const w=16+Math.random()*40; if(clr(x,z)<(58+w*0.6)**2)continue;list.push({x,z,w,h:5+Math.random()*13});n++;}
-    const im=new THREE.InstancedMesh(g,m,list.length);im.receiveShadow=true;
-    list.forEach((o,i)=>{T.set(o.x,gh(o.x,o.z)-o.h*0.3,o.z);S.set(o.w,o.h,o.w);M.compose(T,Q,S);im.setMatrixAt(i,M);});
-    im.instanceMatrix.needsUpdate=true;im.frustumCulled=false;sc.add(im);
-    // marram grass patches (green-gold cones) scattered on the sand
-    const grass=new THREE.MeshStandardMaterial({color:0x8a9a4a,roughness:1,flatShading:true});
-    const gl=[];let gn=0,gt=0;while(gn<900&&gt<9000){gt++;const a=Math.random()*TAU,rr=R*0.75+Math.random()*R*1.1,x=Math.cos(a)*rr,z=Math.sin(a)*rr;
-      if(clr(x,z)<72*72)continue;gl.push({x,z});gn++;}
-    const cg=new THREE.ConeGeometry(0.5,1,4),cim=new THREE.InstancedMesh(cg,grass,gl.length);
-    gl.forEach((o,i)=>{const h=1.2+Math.random()*1.6;T.set(o.x,gh(o.x,o.z)+h*0.5,o.z);S.set(1.1,h,1.1);M.compose(T,Q,S);cim.setMatrixAt(i,M);});
-    cim.instanceMatrix.needsUpdate=true;cim.frustumCulled=false;sc.add(cim);}
+  sea.rotation.x=-Math.PI/2; sea.rotation.z=-Math.atan2(seaDir.z,seaDir.x);
+  sea.position.set(cX+seaDir.x*R*2.9,-1.6,cZ+seaDir.z*R*2.9);sc.add(sea);
+  // --- the dune belt. Coastal dunes run in ridges PARALLEL TO THE SHORE, combed
+  //     by the onshore wind, so they are aligned to the sea direction rather than
+  //     scattered at random. The circuit is cut down between them. ---
+  const seaAng=Math.atan2(seaDir.z,seaDir.x);
+  desertDunes(sc,clr,R,{wind:seaAng+Math.PI/2, count:900, rIn:0.72, rOut:1.95, clear:62,
+    col:0xd2bd8c, colDark:0xbca675, len:110, h:13});
+  // --- marram grass: dense on the dune flanks, thinning toward the beach ---
+  { const grass=[0x8a9a4a,0x77883c,0x9aa859].map(c=>new THREE.MeshStandardMaterial({color:c,roughness:1,flatShading:true}));
+    const cg=new THREE.ConeGeometry(0.5,1,4);
+    const lists=grass.map(()=>[]);
+    let gn=0,gt=0;
+    while(gn<2400&&gt<24000){gt++;const a=Math.random()*TAU,rr=R*0.72+Math.random()*R*1.15;
+      const x=Math.cos(a)*rr,z=Math.sin(a)*rr;
+      if(clr(x,z)<66*66)continue;
+      lists[(Math.random()*3)|0].push({x,z});gn++;}
+    lists.forEach((gl,li)=>{ if(!gl.length)return;
+      const cim=new THREE.InstancedMesh(cg,grass[li],gl.length);
+      gl.forEach((o,i)=>{const h=1.1+Math.random()*1.9;
+        T.set(o.x,gh(o.x,o.z)+h*0.5,o.z);S.set(0.9+Math.random()*0.6,h,0.9+Math.random()*0.6);
+        M.compose(T,Q,S);cim.setMatrixAt(i,M);});
+      cim.instanceMatrix.needsUpdate=true;cim.frustumCulled=false;sc.add(cim);}); }
+  // --- the beach itself: a pale strip of flat sand between the dunes and the
+  //     water, with a wet-sand band and a line of surf where they meet ---
+  { const bx=cX+seaDir.x*R*1.9, bz=cZ+seaDir.z*R*1.9;
+    const beach=new THREE.Mesh(new THREE.PlaneGeometry(R*0.9,R*3.0),
+      new THREE.MeshStandardMaterial({color:0xdfd0a8,roughness:1,side:THREE.DoubleSide}));
+    beach.rotation.x=-Math.PI/2;beach.rotation.z=-seaAng;
+    beach.position.set(bx,-1.4,bz);sc.add(beach);
+    const wetS=new THREE.Mesh(new THREE.PlaneGeometry(R*0.22,R*3.0),
+      new THREE.MeshStandardMaterial({color:0xa8956e,roughness:0.45,metalness:0.2,side:THREE.DoubleSide}));
+    wetS.rotation.x=-Math.PI/2;wetS.rotation.z=-seaAng;
+    wetS.position.set(bx+seaDir.x*R*0.5,-1.35,bz+seaDir.z*R*0.5);sc.add(wetS);
+    const surf=new THREE.Mesh(new THREE.PlaneGeometry(R*0.05,R*3.0),
+      new THREE.MeshStandardMaterial({color:0xf2f6f8,roughness:0.6,side:THREE.DoubleSide,
+        transparent:true,opacity:0.85}));
+    surf.rotation.x=-Math.PI/2;surf.rotation.z=-seaAng;
+    surf.position.set(bx+seaDir.x*R*0.62,-1.30,bz+seaDir.z*R*0.62);sc.add(surf);
+    // beach pavilions on stilts, facing the water
+    for(let k=0;k<7;k++){
+      const t=(k/6-0.5)*R*1.6;
+      const px=bx-Math.sin(seaAng)*t*0+Math.cos(seaAng+Math.PI/2)*t;
+      const pz=bz+Math.sin(seaAng+Math.PI/2)*t;
+      const g=new THREE.Group();
+      const timber=new THREE.MeshStandardMaterial({color:0xc9b083,roughness:0.95});
+      const roof=new THREE.MeshStandardMaterial({color:0xdfe4ea,roughness:0.8});
+      const body=new THREE.Mesh(new THREE.BoxGeometry(22,4.5,11),timber);body.position.y=4.6;
+      const rf=new THREE.Mesh(new THREE.BoxGeometry(25,0.5,13),roof);rf.position.y=7.1;
+      const dk=new THREE.Mesh(new THREE.BoxGeometry(25,0.4,7),timber);dk.position.set(0,2.4,8.5);
+      g.add(body,rf,dk);
+      for(const lx of [-10,0,10]) for(const lz of [-4.5,4.5,9]){
+        const st=new THREE.Mesh(new THREE.BoxGeometry(0.5,4.4,0.5),timber);st.position.set(lx,2.2,lz);g.add(st);}
+      g.position.set(px,-1.0,pz);g.rotation.y=-seaAng;
+      g.traverse(o=>{o.castShadow=true;o.receiveShadow=true;});sc.add(g);} }
   // --- Zandvoort's signature BANKING: raised angled embankments on the WIDEST sweeping
   // corners (Tarzan-style long-radius bends), not the tightest hairpins ---
   { const HW=TRACK.halfW;
@@ -3548,9 +3693,13 @@ function buildZandvoort(sc,P,Nm,Tg,offL,offR){
       for(let s=0;s<16;s++){const an=s/16*TAU;const spoke=new THREE.Mesh(new THREE.BoxGeometry(0.15,rad*2,0.15),rm);spoke.rotation.z=an;wheel.add(spoke);
         const cab=new THREE.Mesh(new THREE.BoxGeometry(1.6,1.6,1.6),new THREE.MeshStandardMaterial({color:[0xff6a00,0xffffff,0xe10600][s%3]}));cab.position.set(Math.cos(an)*rad,Math.sin(an)*rad,0);wheel.add(cab);}
       const gy=gh(wx,wz);wheel.position.set(wx,gy+rad+3,wz);const leg=new THREE.Mesh(new THREE.BoxGeometry(1.4,rad+4,1.4),rm);leg.position.set(wx,gy+(rad+4)/2,wz);sc.add(leg,wheel);}}
-  // low green dune ring so the far horizon isn't empty
-  const ring=new THREE.Mesh(new THREE.CylinderGeometry(R*1.95,R*2.1,70,56,1,true),
-    new THREE.MeshStandardMaterial({color:0x7a7a4a,roughness:1,side:THREE.BackSide}));ring.position.y=18;sc.add(ring);
+  // a low dune ridge closing the horizon — but OPEN toward the sea, so the water
+  // is what you see out that way rather than a wall of sand
+  { const seaA=Math.atan2(seaDir.z,seaDir.x);
+    const start=seaA+0.75, sweep=TAU-1.5;
+    const ring=new THREE.Mesh(new THREE.CylinderGeometry(R*1.95,R*2.1,64,48,1,true,start,sweep),
+      new THREE.MeshStandardMaterial({color:0x9a8f5e,roughness:1,side:THREE.BackSide}));
+    ring.position.y=14;sc.add(ring); }
 }
 /* ---- Baku: old-city sandstone walls + a castle tower, modern flame towers beyond ---- */
 function buildBaku(sc,P,Nm,Tg,offL,offR){
@@ -3714,47 +3863,150 @@ function buildQatar(sc,P,Nm,Tg,offL,offR){
 }
 /* ---- Circuit of the Americas (Texas): Hill Country greenery, the COTA observation
    tower, distant Austin skyline, big Turn-1 amphitheatre climb ---- */
+/* ===================== CIRCUIT OF THE AMERICAS — Austin, Texas =====================
+   Purpose-built on Hill Country ranchland: live oaks and mesquite over pale
+   caliche soil, barbed-wire ranch fence lines, the amphitheatre bowl behind the
+   back straight, the observation tower over Turn 1, and Austin on the horizon. */
 function buildTexas(sc,P,Nm,Tg,offL,offR){
-  const N=P.length,R=TRACK.radius,gh=TRACK.terrainH;
-  const samp=[];for(let i=0;i<N;i+=4)samp.push(P[i]);
-  const clr=(x,z)=>{let m=1e9;for(const q of samp){const dx=x-q.x,dz=z-q.z;const d=dx*dx+dz*dz;if(d<m)m=d;}return m;};
-  const M=new THREE.Matrix4(),S=new THREE.Vector3(),Q=new THREE.Quaternion(),T=new THREE.Vector3();
-  // Hill Country scrub oak clumps, sparse so the hills read as open ranchland
-  const blobG=new THREE.IcosahedronGeometry(0.5,0);
-  const treeMats=[0x4a6a2e,0x557a34,0x3d5a26].map(c=>new THREE.MeshStandardMaterial({color:c,roughness:1,flatShading:true}));
-  const treeList=treeMats.map(()=>[]);
-  let placed=0,tries=0;
-  while(placed<1400 && tries<16000){tries++;
-    const a=Math.random()*TAU, rr=R*0.85+Math.random()*R*1.3, x=Math.cos(a)*rr, z=Math.sin(a)*rr;
-    if(clr(x,z)<75*75) continue;
-    const h=5+Math.random()*7;treeList[(Math.random()*3)|0].push({x,y:gh(x,z),z,w:h*(0.7+Math.random()*0.3),h});placed++;}
-  treeList.forEach((list,bi)=>{ if(!list.length)return;
-    const im=new THREE.InstancedMesh(blobG,treeMats[bi],list.length);im.frustumCulled=false;im.receiveShadow=true;
-    list.forEach((o,i)=>{T.set(o.x,o.y+o.h*0.5,o.z);S.set(o.w,o.h,o.w);M.compose(T,Q,S);im.setMatrixAt(i,M);});
-    im.instanceMatrix.needsUpdate=true;sc.add(im);});
-  // the COTA Tower: a slender red/white lattice tower with a big observation deck near Turn 1
-  { let i0=0,best=-1,cX=0,cZ=0;for(const p of P){cX+=p.x;cZ+=p.z;}cX/=N;cZ/=N;
+  const K=venueKit(sc,P,Nm), {R,gh,clear,cX,cZ}=K;
+  const N=P.length;
+
+  // --- Hill Country ground: burnt summer grass, cleared pasture, bare caliche ---
+  K.fields([0x6f8a3e,0x5d7a33,0x8b8f4a,0xa8a06a,0x7d8c40], 1.0, 2.1, 80, 145);
+
+  // --- live oaks: broad, low, dark, standing alone the way they do on a ranch,
+  //     with mesquite scrub in between ---
+  K.broadleaf([0x36552a,0x3f6030,0x2c4722],
+    ()=>{const a=Math.random()*TAU, rr=R*0.85+Math.random()*R*1.25;
+      return {x:Math.cos(a)*rr,z:Math.sin(a)*rr,min:72};}, 760, 7, 13);
+  { const bush=new THREE.SphereGeometry(0.5,7,5);
+    const b=K.batch(bush,new THREE.MeshStandardMaterial({color:0x6a7a3a,roughness:1,flatShading:true}));
+    let n=0,t=0;
+    while(n<1100&&t<11000){t++;const a=Math.random()*TAU, rr=R*0.80+Math.random()*R*1.3;
+      const x=Math.cos(a)*rr, z=Math.sin(a)*rr;
+      if(clear(x,z)<70*70) continue;
+      const h=1.6+Math.random()*2.4;
+      b.add({x,z,w:h*1.5,h,d:h*1.5,yOff:h*0.4});n++;}
+    b.flush(); }
+
+  // --- barbed-wire ranch fencing: cedar posts in long straight runs across the
+  //     pasture, the thing that actually makes Texas ranchland read as Texas ---
+  { const post=K.batch(new THREE.BoxGeometry(0.16,1.5,0.16),
+      new THREE.MeshStandardMaterial({color:0x6b5a42,roughness:1}));
+    const wire=new THREE.MeshStandardMaterial({color:0x8a8a80,roughness:0.7,metalness:0.4});
+    for(let l=0;l<14;l++){
+      const a=Math.random()*TAU, rr=R*1.05+Math.random()*R*0.9;
+      let x=Math.cos(a)*rr, z=Math.sin(a)*rr;
+      const dir=Math.random()*TAU, dx=Math.cos(dir)*9, dz=Math.sin(dir)*9;
+      let run=[];
+      for(let k=0;k<24;k++){x+=dx;z+=dz;
+        if(clear(x,z)<120*120){run=[];continue;}
+        post.add({x,z,w:1,h:1.5,d:1,yOff:0.75});
+        run.push({x,z,y:gh(x,z)});
+        if(run.length>1){ const a2=run[run.length-2], b2=run[run.length-1];
+          for(const wy of [0.55,0.95,1.35]){
+            const L=Math.hypot(b2.x-a2.x,b2.z-a2.z);
+            const w=new THREE.Mesh(new THREE.BoxGeometry(L,0.035,0.035),wire);
+            w.position.set((a2.x+b2.x)/2,(a2.y+b2.y)/2+wy,(a2.z+b2.z)/2);
+            w.rotation.y=-Math.atan2(b2.z-a2.z,b2.x-a2.x);sc.add(w);} } }}
+    post.flush(); }
+
+  // --- the COTA observation tower over Turn 1: a red lattice mast with the
+  //     open observation ring and the veterans' memorial plaza below ---
+  { let i0=0,best=-1;
     for(let i=0;i<N;i+=2){const p=P[i];const d=(p.x-cX)**2+(p.z-cZ)**2;if(d>best){best=d;i0=i;}}
-    const p=P[i0],n=Nm[i0];const tx=p.x+n.x*(offL(i0)+70),tz=p.z+n.z*(offL(i0)+70);
-    if(clr(tx,tz)>60*60){const gy=gh(tx,tz),H=95;
-      const legMat=new THREE.MeshStandardMaterial({color:0xd8dce0,roughness:0.5,metalness:0.4});
-      const redMat=new THREE.MeshStandardMaterial({color:0xc41c1c,roughness:0.5,metalness:0.3});
-      for(let k=0;k<4;k++){const a=k/4*TAU+Math.PI/4;const leg=new THREE.Mesh(new THREE.CylinderGeometry(0.5,1.1,H,6),legMat);
-        leg.position.set(tx+Math.cos(a)*7,gy+H/2,tz+Math.sin(a)*7);leg.rotation.x=Math.sin(a)*0.09;leg.rotation.z=-Math.cos(a)*0.09;sc.add(leg);}
-      const deck=new THREE.Mesh(new THREE.CylinderGeometry(9,10,4,16),redMat);deck.position.set(tx,gy+H*0.86,tz);sc.add(deck);
-      const deck2=new THREE.Mesh(new THREE.CylinderGeometry(6,7,10,16),legMat);deck2.position.set(tx,gy+H*0.78,tz);sc.add(deck2);
-      const spike=new THREE.Mesh(new THREE.ConeGeometry(1,14,8),redMat);spike.position.set(tx,gy+H+7,tz);sc.add(spike);
-      const bea=new THREE.Mesh(new THREE.SphereGeometry(1.4,10,8),new THREE.MeshStandardMaterial({color:0xff0000,emissive:0xff0000,emissiveIntensity:2}));
-      bea.position.set(tx,gy+H+14,tz);sc.add(bea);} }
-  // distant Austin skyline (modern glass towers) on one side
-  { const tints=['#4a6a8a','#5a7a9a','#3a5a7a'];
-    for(let i=0;i<44;i++){const a=Math.random()*TAU,rr=R*1.5+Math.random()*R*0.8,h=40+Math.random()*110,w=14+Math.random()*18;
-      const bmat=new THREE.MeshStandardMaterial({map:makeWindows(Math.max(3,w/6|0),Math.max(6,h/8|0),tints[i%3]),
-        color:'#5a6a7a',roughness:0.7});
-      const b=new THREE.Mesh(new THREE.BoxGeometry(w,h,w),bmat);b.position.set(Math.cos(a)*rr,h/2-2,Math.sin(a)*rr);sc.add(b);} }
-  // rolling green hill ring so the Hill Country horizon isn't empty
-  const ring=new THREE.Mesh(new THREE.CylinderGeometry(R*1.9,R*2.05,80,56,1,true),
-    new THREE.MeshStandardMaterial({color:0x4a6a34,roughness:1,side:THREE.BackSide}));ring.position.y=20;sc.add(ring);
+    const p=P[i0],n=Nm[i0];const tx=p.x+n.x*(offL(i0)+72),tz=p.z+n.z*(offL(i0)+72);
+    if(clear(tx,tz)>60*60){
+      const gy=gh(tx,tz),H=110;
+      const red=new THREE.MeshStandardMaterial({color:0xc41c1c,roughness:0.45,metalness:0.35});
+      const steel=new THREE.MeshStandardMaterial({color:0xd8dce0,roughness:0.45,metalness:0.5});
+      // three canted legs braced together, not four straight posts
+      const legs=[];
+      for(let k=0;k<3;k++){const a=k/3*TAU;
+        const x0=tx+Math.cos(a)*13, z0=tz+Math.sin(a)*13;
+        const leg=new THREE.Mesh(new THREE.CylinderGeometry(0.55,1.4,H,8),red);
+        leg.position.set((x0+tx)/2*0+ (x0*0.5+tx*0.5), gy+H/2, (z0*0.5+tz*0.5));
+        leg.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),
+          new THREE.Vector3(tx-x0,H,tz-z0).normalize());
+        sc.add(leg);legs.push({x:x0,z:z0});}
+      // ring braces between the legs at three heights
+      for(const f of [0.28,0.52,0.74]){
+        const rr=13*(1-f*0.75), y=gy+H*f;
+        for(let k=0;k<3;k++){const a=k/3*TAU, a2=(k+1)/3*TAU;
+          const ax=tx+Math.cos(a)*rr, az=tz+Math.sin(a)*rr;
+          const bx2=tx+Math.cos(a2)*rr, bz2=tz+Math.sin(a2)*rr;
+          const L=Math.hypot(bx2-ax,bz2-az);
+          const br=new THREE.Mesh(new THREE.BoxGeometry(L,0.4,0.4),steel);
+          br.position.set((ax+bx2)/2,y,(az+bz2)/2);
+          br.rotation.y=-Math.atan2(bz2-az,bx2-ax);sc.add(br);}}
+      // the observation ring
+      const deck=new THREE.Mesh(new THREE.CylinderGeometry(11,11.5,3.2,20,1,true),steel);
+      deck.position.set(tx,gy+H*0.84,tz);sc.add(deck);
+      const floor=new THREE.Mesh(new THREE.CylinderGeometry(11.5,11.5,0.6,20),red);
+      floor.position.set(tx,gy+H*0.84-1.8,tz);sc.add(floor);
+      const canopy=new THREE.Mesh(new THREE.CylinderGeometry(12.5,11,1.0,20),red);
+      canopy.position.set(tx,gy+H*0.84+1.9,tz);sc.add(canopy);
+      const mast=new THREE.Mesh(new THREE.CylinderGeometry(0.5,0.9,H*0.30,8),red);
+      mast.position.set(tx,gy+H*0.99,tz);sc.add(mast);
+      const bea=new THREE.Mesh(new THREE.SphereGeometry(1.4,10,8),
+        new THREE.MeshStandardMaterial({color:0xff2010,emissive:0xff2010,emissiveIntensity:2.4}));
+      bea.position.set(tx,gy+H*1.15,tz);sc.add(bea);
+      // plaza and the ring of flagpoles around the base
+      const plaza=new THREE.Mesh(new THREE.CircleGeometry(44,32),
+        new THREE.MeshStandardMaterial({color:0x9a9992,roughness:0.95,side:THREE.DoubleSide}));
+      plaza.rotation.x=-Math.PI/2;plaza.position.set(tx,gy+0.1,tz);sc.add(plaza);
+      const flagCols=[0xc41c1c,0xffffff,0x14356e];
+      for(let k=0;k<18;k++){const a=k/18*TAU;
+        const fx=tx+Math.cos(a)*38, fz=tz+Math.sin(a)*38;
+        const pole=new THREE.Mesh(new THREE.CylinderGeometry(0.10,0.10,13,6),steel);
+        pole.position.set(fx,gh(fx,fz)+6.5,fz);sc.add(pole);
+        const fl=new THREE.Mesh(new THREE.PlaneGeometry(3.4,2.1),
+          new THREE.MeshStandardMaterial({color:flagCols[k%3],side:THREE.DoubleSide,roughness:0.9}));
+        fl.position.set(fx+1.8,gh(fx,fz)+11.4,fz);fl.rotation.y=a;sc.add(fl);} } }
+
+  // --- the amphitheatre: a grassed bowl with a stage shell, out beyond the
+  //     back straight, where COTA actually stages its concerts ---
+  { const sp=findOpenSpot(clear,R,190,0.9,1.5);
+    if(sp){ const gy=gh(sp.x,sp.z);
+      const bowl=new THREE.Mesh(new THREE.CylinderGeometry(120,150,26,36,1,true),
+        new THREE.MeshStandardMaterial({color:0x4f7134,roughness:1,side:THREE.DoubleSide,flatShading:true}));
+      bowl.position.set(sp.x,gy+13,sp.z);sc.add(bowl);
+      const floor=new THREE.Mesh(new THREE.CircleGeometry(120,36),
+        new THREE.MeshStandardMaterial({color:0x5a7f3c,roughness:1,side:THREE.DoubleSide}));
+      floor.rotation.x=-Math.PI/2;floor.position.set(sp.x,gy+0.3,sp.z);sc.add(floor);
+      const shell=new THREE.Mesh(new THREE.SphereGeometry(46,20,12,0,Math.PI,0,Math.PI*0.5),
+        new THREE.MeshStandardMaterial({color:0xd6dae0,roughness:0.5,metalness:0.3,side:THREE.DoubleSide,flatShading:true}));
+      shell.scale.set(1,0.72,0.55);
+      shell.position.set(sp.x-90,gy+4,sp.z);shell.rotation.y=Math.PI/2;sc.add(shell); } }
+
+  // --- Austin's skyline on one horizon, the Frost Bank Tower's crown included ---
+  { const tints=['#4a6a8a','#5a7a9a','#3a5a7a','#556d84'];
+    const dir=1.05, bx=Math.cos(dir)*R*2.0, bz=Math.sin(dir)*R*2.0;
+    const px=-Math.sin(dir), pz=Math.cos(dir);
+    for(let i=0;i<46;i++){const u=i/45, t=(u-0.5)*R*1.3;
+      const x=bx+px*t+(Math.random()-0.5)*120, z=bz+pz*t+(Math.random()-0.5)*120;
+      const near=Math.cos((u-0.5)*Math.PI);
+      const h=35+near*(45+Math.random()*150), w=15+Math.random()*20;
+      const bmat=new THREE.MeshStandardMaterial({map:makeWindows(Math.max(3,w/6|0),Math.max(6,h/8|0),tints[i%4]),
+        color:'#5a6a7a',roughness:0.6,metalness:0.3});
+      const b=new THREE.Mesh(new THREE.BoxGeometry(w,h,w*0.88),bmat);
+      b.position.set(x,h/2-2,z);b.rotation.y=Math.random()*0.7;sc.add(b);}
+    // Frost Bank Tower: a glass shaft with the stepped, faceted crown
+    { const fx=bx+px*30, fz=bz+pz*30, H=210;
+      const glass=new THREE.MeshStandardMaterial({map:makeWindows(6,24,'#7fb6d8'),color:'#8ec2e0',
+        metalness:0.6,roughness:0.25});
+      const shaft=new THREE.Mesh(new THREE.BoxGeometry(28,H,28),glass);
+      shaft.position.set(fx,H/2-2,fz);shaft.rotation.y=0.4;sc.add(shaft);
+      for(let k=0;k<4;k++){const w=26-k*5.5;
+        const cr=new THREE.Mesh(new THREE.BoxGeometry(w,14,w),glass);
+        cr.position.set(fx,H+7+k*13,fz);cr.rotation.y=0.4+k*0.4;sc.add(cr);}
+      const sp2=new THREE.Mesh(new THREE.ConeGeometry(2,26,6),
+        new THREE.MeshStandardMaterial({color:0x9aa6b2,metalness:0.7,roughness:0.3}));
+      sp2.position.set(fx,H+72,fz);sc.add(sp2); } }
+
+  K.carPark([{x:-R*0.95,z:R*0.70,cols:28,rows:12,rot:0.4},{x:R*0.96,z:-R*0.72,cols:26,rows:11,rot:-0.7}]);
+  K.marquees(cX,cZ,5,3,0.2);
+  K.horizon(0x5c7a3a, 80, 1.90, 2.05);
 }
 /* ---- São Paulo (Interlagos): tree areas, open grass, favela hillsides, city skyline ---- */
 function buildSaoPaulo(sc,P,Nm,offL,offR){
@@ -3773,6 +4025,39 @@ function buildSaoPaulo(sc,P,Nm,offL,offR){
     const h=9+Math.random()*16;lists[(Math.random()*4)|0].push({x,y:gh(x,z),z,w:h*(0.5+Math.random()*0.3),h});placed++;}
   lists.forEach((list,bi)=>{ if(!list.length)return;const im=new THREE.InstancedMesh(blobG,treeMats[bi],list.length);im.frustumCulled=false;im.receiveShadow=true;
     list.forEach((o,i)=>{T.set(o.x,o.y+o.h*0.5,o.z);S.set(o.w,o.h,o.w);M.compose(T,Q,S);im.setMatrixAt(i,M);});im.instanceMatrix.needsUpdate=true;sc.add(im);});
+  // --- palms: Interlagos is full of them — tall skinny imperial palms in rows
+  //     along the access roads, and squatter fan palms scattered on the banks ---
+  { const trunk=new THREE.MeshStandardMaterial({color:0x7a6a50,roughness:0.95});
+    const frond=new THREE.MeshStandardMaterial({color:0x2a6a2c,roughness:0.85,side:THREE.DoubleSide});
+    const frondD=new THREE.MeshStandardMaterial({color:0x1e5222,roughness:0.9,side:THREE.DoubleSide});
+    const palm=(x,z,h,slim)=>{
+      const g=new THREE.Group();
+      const tk=new THREE.Mesh(new THREE.CylinderGeometry(h*(slim?0.020:0.035),h*(slim?0.032:0.055),h,8),trunk);
+      tk.position.y=h/2;g.add(tk);
+      // a ring of ribs at the crown, and a second, drooping ring below it
+      const nF=slim?11:8;
+      for(let f=0;f<nF;f++){
+        const fr=new THREE.Mesh(new THREE.ConeGeometry(h*0.075,h*(slim?0.34:0.46),4),f%2?frond:frondD);
+        fr.position.y=h;fr.rotation.z=Math.PI/2.45;fr.rotation.y=f/nF*TAU;g.add(fr);}
+      for(let f=0;f<nF;f++){
+        const fr=new THREE.Mesh(new THREE.ConeGeometry(h*0.06,h*(slim?0.28:0.38),4),frondD);
+        fr.position.y=h-h*0.05;fr.rotation.z=Math.PI/1.75;fr.rotation.y=(f+0.5)/nF*TAU;g.add(fr);}
+      g.position.set(x,gh(x,z),z);g.rotation.y=Math.random()*TAU;
+      g.traverse(o=>{o.castShadow=true;});sc.add(g);};
+    // avenues of imperial palms: straight rows, evenly spaced, as they are planted
+    for(let l=0;l<7;l++){
+      const a=Math.random()*TAU, rr=R*0.80+Math.random()*R*0.55;
+      let x=Math.cos(a)*rr, z=Math.sin(a)*rr;
+      const dir=Math.random()*TAU, dx=Math.cos(dir)*17, dz=Math.sin(dir)*17;
+      for(let k=0;k<12;k++){x+=dx;z+=dz;
+        if(clear(x,z)<70*70) continue;
+        palm(x,z,20+Math.random()*8,true);}}
+    // scattered shorter palms nearer the circuit, in among the banks
+    for(let k=0;k<120;k++){
+      const a=Math.random()*TAU, rr=R*0.62+Math.random()*R*0.75;
+      const x=Math.cos(a)*rr, z=Math.sin(a)*rr;
+      if(clear(x,z)<58*58) continue;
+      palm(x,z,8+Math.random()*7,false);} }
   // favela hillsides: tight clusters of small colourful stacked houses
   const favCols=[0xc96a4a,0xd99a5a,0xe0c060,0x5a8ac0,0xc05a7a,0x7aa85a,0xd6d0c0,0xe08a5a,0xb0546a];
   const favGeo=new THREE.BoxGeometry(1,1,1);const favs=[];
@@ -5625,7 +5910,8 @@ if(typeof window!=='undefined'){window.__step=stepPhysics;window.__reset=resetCa
   window.__driveScene=driveScene; window.__updateDynamicSky=updateDynamicSky;
   window.__cfgId=()=>CFG.id; window.__WEATHER=WEATHER; window.__rollWeather=rollWeather;
   window.__TRACKS=TRACKS; window.__expo=()=>renderer.toneMappingExposure;
-  window.__stepWx=(dt)=>updateWeather(driveScene,dt);}
+  window.__stepWx=(dt)=>updateWeather(driveScene,dt);
+  window.__camera=camera; window.__THREE=THREE;}
 
 /* nearest centreline point (dist + signed lateral + outward normal) */
 function nearestTrack(pos,hint,window){
