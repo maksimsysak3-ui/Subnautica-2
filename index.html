@@ -480,13 +480,20 @@
   #comBox.on{opacity:1;transform:translateX(-50%)}
   .cmLabel{font-family:var(--mono);font-size:9px;font-weight:800;letter-spacing:.14em;color:#ff5b52;white-space:nowrap}
   #comText{font-size:14px;line-height:1.3;color:#fff;font-weight:600;font-style:italic}
-  /* mid-race car-status panel (press I) */
-  #carInfo{position:absolute;left:clamp(16px,2.4vw,36px);bottom:clamp(72px,13vh,140px);width:236px;padding:11px 13px;
+  /* mid-race car-status panel — a collapsible drop-down bar (press I, or click it) */
+  #carInfo{position:absolute;left:clamp(16px,2.4vw,36px);bottom:clamp(72px,13vh,140px);width:236px;
     background:rgba(8,11,16,.84);border:1px solid rgba(255,255,255,.1);border-radius:10px;backdrop-filter:blur(8px);
-    max-height:0;overflow:hidden;opacity:0;transform:translateY(6px);transition:.2s;pointer-events:none}
-  #carInfo.on{opacity:1;transform:none;max-height:200px}
-  .ciHead{font-family:var(--mono);font-size:10px;letter-spacing:.16em;color:#fff;font-weight:700;display:flex;justify-content:space-between;margin-bottom:9px}
+    overflow:hidden;transition:.22s ease;pointer-events:auto;cursor:pointer;user-select:none}
+  #carInfo:hover{border-color:rgba(255,255,255,.22)}
+  .ciHead{font-family:var(--mono);font-size:10px;letter-spacing:.16em;color:#fff;font-weight:700;
+    display:flex;justify-content:space-between;align-items:center;gap:8px;padding:9px 12px}
   .ciHead span{color:var(--grey);font-size:8px}.ciHead b{color:#fff;border:1px solid var(--grey-lo);border-radius:3px;padding:1px 4px}
+  #ciMini{font-family:var(--mono);font-size:9px;letter-spacing:.06em;color:var(--grey);white-space:nowrap}
+  #carInfo.on #ciMini{display:none}
+  #ciChev{font-size:9px;color:var(--grey);transition:transform .22s ease;line-height:1}
+  #carInfo.on #ciChev{transform:rotate(180deg);color:#fff}
+  #ciBody{max-height:0;opacity:0;overflow:hidden;padding:0 12px;transition:.22s ease}
+  #carInfo.on #ciBody{max-height:190px;opacity:1;padding:2px 12px 10px}
   .ciRow{display:flex;align-items:center;gap:8px;margin-bottom:7px;font-size:11px}
   .ciRow .k{width:66px;color:var(--grey)}
   .ciRow .ciBar{flex:1;height:7px;border-radius:4px;background:rgba(255,255,255,.08);overflow:hidden}
@@ -712,12 +719,14 @@
   <div id="tyreToast"></div>
   <div id="comBox"><span class="cmLabel">● LIVE</span><span id="comText"></span></div>
   <div id="radioBox"><span class="rdWho">RACE ENGINEER</span><span id="radioText"></span><span class="rdWave"><i></i><i></i><i></i><i></i><i></i></span></div>
-  <div id="carInfo">
-    <div class="ciHead">CAR STATUS<span>press <b>I</b></span></div>
-    <div class="ciRow"><span class="k">Tyre life</span><div class="ciBar"><i id="ciTyre"></i></div><span class="v" id="ciTyreV">100%</span></div>
-    <div class="ciRow"><span class="k">Damage</span><div class="ciBar"><i id="ciDmg"></i></div><span class="v" id="ciDmgV">0%</span></div>
-    <div class="ciRow"><span class="k">ERS battery</span><div class="ciBar"><i id="ciErs"></i></div><span class="v" id="ciErsV">75%</span></div>
-    <div class="ciRow"><span class="k">Last lap</span><span class="v" id="ciLap">—:——.—</span></div>
+  <div id="carInfo" title="Car status — click or press I to open/close">
+    <div class="ciHead">CAR STATUS<span id="ciMini">TYR 100% · DMG 0%</span><span id="ciChev">▲</span></div>
+    <div id="ciBody">
+      <div class="ciRow"><span class="k">Tyre life</span><div class="ciBar"><i id="ciTyre"></i></div><span class="v" id="ciTyreV">100%</span></div>
+      <div class="ciRow"><span class="k">Damage</span><div class="ciBar"><i id="ciDmg"></i></div><span class="v" id="ciDmgV">0%</span></div>
+      <div class="ciRow"><span class="k">ERS battery</span><div class="ciBar"><i id="ciErs"></i></div><span class="v" id="ciErsV">75%</span></div>
+      <div class="ciRow"><span class="k">Last lap</span><span class="v" id="ciLap">—:——.—</span></div>
+    </div>
   </div>
   <div id="driveHint"><b>W</b>Throttle <b>SPACE</b>Brake <b>A/D</b>Steer <b>SHIFT</b>ERS <b>I</b>Info <b>C</b>Cam <b>Y</b>Replay <b>R</b>Reset <b>ESC</b>Menu</div>
   <div id="replayBadge">REPLAY READY</div>
@@ -5372,6 +5381,9 @@ const Sound={ctx:null,master:null,osc:null,osc2:null,gain:null,filt:null,muted:f
     $('#sndIcon').innerHTML=this.muted?'<path d="M4 9v6h4l5 4V5L8 9H4z"/><path d="M23 9l-6 6M17 9l6 6"/>':'<path d="M4 9v6h4l5 4V5L8 9H4z"/><path d="M16 8a5 5 0 010 8"/>';return this.muted;}
 };
 $('#sndBtn').addEventListener('click',()=>{Sound.init();Sound.toggle();Sound.blip(420);});
+// the car-status bar opens and closes on click as well as on I
+$('#carInfo').addEventListener('click',e=>{e.stopPropagation();
+  $('#carInfo').classList.toggle('on');Sound.init();Sound.blip(480,.04);});
 
 /* ==================================================================
    TEAM RADIO + COMMENTARY  (ElevenLabs voices, browser-speech fallback)
@@ -6694,13 +6706,18 @@ function updateHUD(inp,r){
     if(!CAR.rDmg && CAR.damage>0.3){CAR.rDmg=true;Radio.say('engineer','damage',{cool:0});}
   }
   const df=$('#dmgFill'); if(df) df.style.height=(CAR.damage*100)+'%';
-  // detailed car-status panel (when toggled on)
-  if($('#carInfo').classList.contains('on')){
-    $('#ciTyre').style.width=tp+'%';$('#ciTyre').style.background=tCol;$('#ciTyreV').textContent=tp+'%';
-    const dp=Math.round(CAR.damage*100);$('#ciDmg').style.width=dp+'%';$('#ciDmg').style.background=dp>40?'#ff5b5b':'#ffcf6a';$('#ciDmgV').textContent=dp+'%';
-    $('#ciErs').style.width=pct+'%';$('#ciErs').style.background='#3fa9ff';$('#ciErsV').textContent=pct+'%';
-    $('#ciLap').textContent=$('#lapLast').textContent;
-  }
+  // car-status drop-down: the collapsed bar still shows a one-line summary, so
+  // closing it costs you nothing but the screen space
+  { const ci=$('#carInfo'), dp=Math.round(CAR.damage*100);
+    if(ci.classList.contains('on')){
+      $('#ciTyre').style.width=tp+'%';$('#ciTyre').style.background=tCol;$('#ciTyreV').textContent=tp+'%';
+      $('#ciDmg').style.width=dp+'%';$('#ciDmg').style.background=dp>40?'#ff5b5b':'#ffcf6a';$('#ciDmgV').textContent=dp+'%';
+      $('#ciErs').style.width=pct+'%';$('#ciErs').style.background='#3fa9ff';$('#ciErsV').textContent=pct+'%';
+      $('#ciLap').textContent=$('#lapLast').textContent;
+    }else{
+      $('#ciMini').textContent='TYR '+tp+'% · DMG '+dp+'%';
+      $('#ciMini').style.color = (tp<20||dp>40) ? '#ff5b5b' : (tp<40||dp>20) ? '#ffcf6a' : '';
+    } }
   drawMinimap();
 }
 function drawMinimap(){
