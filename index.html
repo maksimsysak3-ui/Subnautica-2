@@ -13122,7 +13122,8 @@ function stepAI(dt){
       const aBrk=Math.min(PHYS.brakeForce/PHYS.mass,
         PHYS.mu*(PHYS.mass*9.81+PHYS.downK*vMid*vMid)/PHYS.mass)
         + 0.5*1.2*PHYS.cdA*vMid*vMid/PHYS.mass;
-      const vAllow=Math.sqrt(vC*vC + 2*aBrk*(k*segLen));
+      // brakeLate>1 means "I will use a little more of the road before I brake"
+      const vAllow=Math.sqrt(vC*vC + 2*aBrk*(k*segLen)*(c.brakeLate||1));
       if(vAllow<vLimit) vLimit=vAllow;
     }
     // pace = driver skill, degraded by tyre life, cut by a wet track
@@ -13350,9 +13351,18 @@ function stepAI(dt){
       breakTow=Math.sin(c.wv*0.9+(c.seed||0))*amp;
     }
     c.defend=damp(c.defend, c.defTgt+breakTow, 1.5, dt);
-    // a defending driver brakes later; a confident one more so. Applied on the
-    // next frame's target, because this frame's has already been consumed.
-    c.defLate=(attacker&&c.defTgt)?1.0+0.045*c.aggro:1.0;
+    /* A DEFENDING DRIVER DOES NOT ACCELERATE.
+       This used to raise the car's TARGET SPEED by a few per cent whenever
+       somebody was close behind — so a defender surged forward on the approach to
+       every corner and then braked. At ninety metres a second that is four metres
+       a second of free speed appearing exactly where the attacker had committed to
+       a move, and it made overtaking essentially impossible: the car in front
+       always pulled away at the one moment it mattered.
+       Braking later is not going faster. It is delaying the brakes, which is what
+       the look-ahead below now does — and it is capped, because a defender who
+       brakes too late simply runs wide and loses the place anyway. */
+    c.defLate=1.0;
+    c.brakeLate=(attacker&&c.defTgt)?1.0+0.05*(PSN.bravery!==undefined?PSN.bravery:c.aggro):1.0;
     /* and move onto it fast enough for a tight corner: at 1.9 per second the car
        was still drifting toward its apex line well past the apex, which reads as
        the car snapping across the road late. Scales with speed the way a real
@@ -13371,9 +13381,17 @@ function stepAI(dt){
            made `want` jump from the held line straight to the racing line — which
            is the snap that was still there. There is a floor on the rate instead,
            so it always completes, and it completes smoothly. */
+        /* A field does not drift sideways onto the racing line in formation — it
+           runs down the straight in its two columns and FANS OUT at the first
+           corner, because that is when a driver first needs the line. Tying the
+           release to a clock made the whole grid slide across together, which is
+           what looked wrong. It is tied to the corner instead: while the road
+           ahead is still fast they hold their column, and they take their line as
+           they arrive at the braking zone. */
+        const approaching=1-clamp(vLimit/(VCAP*0.92),0,1);   // 0 on a straight, →1 at a corner
         const clearLine=!AI.cars.some(o=>o!==c &&
           ((o.idx-c.idx+N)%N)<7 && Math.abs(o.lat-lineLat)<2.0);
-        const rate=clearLine?0.85:0.28;
+        const rate=0.06 + approaching*2.4 + (clearLine?0.35:0);
         c.gridBlend=clamp((c.gridBlend||0)+dt*rate,0,1);
         // ease-in-out, so it leaves the grid line and arrives on the racing line
         // without a corner in the motion at either end
