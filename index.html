@@ -13203,7 +13203,7 @@ function stepAI(dt){
       const need=1.2-0.6*(PSN.patience!==undefined?1-PSN.patience:0.5);
       const quicker=(c.v+tow)>aheadV+need;
       const settled=(c.lap>=0)||((c.launched||0)>=1&&c.raceT>5.5);
-      if(settled && closeAhead<11 && tow>1.2 && quicker && c.atkCool<=0 && c.stalk>0.8){
+      if(settled && closeAhead<16 && tow>1.2 && quicker && c.atkCool<=0 && c.stalk>0.8){
         const inSide=(turnAhead>0)?-1:1;
         const covered=Math.abs(aheadLat-inSide*(HW*0.5))<2.4;
         c.atkSide=covered?-inSide:inSide;
@@ -13240,12 +13240,23 @@ function stepAI(dt){
        to be able to brake — and only closes it when actually making a move.
        Proportional control on the gap, with the target set by how patient the
        driver is: a lunger sits closer than a measured one. */
+    /* GAP KEEPING EXISTS TO STOP CONTACT, NOT TO STOP CLOSING.
+       The previous version held a six-to-eleven metre gap by capping speed at the
+       pace of the car ahead — so a following car could never actually close up,
+       never built a run, and therefore never got into a position to pass. That is
+       why nothing was overtaking. Racing is the opposite: you close right up,
+       sit in the tow, and use it.
+       So the cap only bites inside a couple of car lengths, and even then only
+       enough to avoid driving into the back of them. Above that, close. */
     if(aheadCar && c.phase==='stalk'){
-      const pat=(PSN.patience!==undefined?PSN.patience:0.6);
-      const want=6.5+4.5*pat;                    // 6.5 m for a lunger, 11 m for a plodder
-      const err=closeAhead-want;                 // +ve = too far back, close up
-      const cap=aheadV + clamp(err*0.85, -7, 4); // never more than 4 m/s of overspeed
-      targetV=Math.min(targetV, cap);
+      const MIN=3.4;                              // under a car length: back out
+      if(closeAhead<MIN){
+        const cap=aheadV + (closeAhead-MIN)*2.2;  // proportional, gentle
+        targetV=Math.min(targetV, cap);
+      }else if(closeAhead<7 && !straight){
+        // in the twisty bits hold a small margin so a corner does not end in a hit
+        targetV=Math.min(targetV, aheadV+2.5);
+      }
     }
     // mistakes: rarer for consistent drivers, more likely under pressure from behind
     const pressure=behindGap<18?1.8:1;
@@ -13355,12 +13366,20 @@ function stepAI(dt){
            strict "nobody within fifty metres" test in a fourteen-car pack meant
            the field ran the whole opening lap off line, which cost twenty
            seconds. Once you are away, you are away. */
-        c.gridT=(c.gridT||0)+dt;
+        /* The blend must ALWAYS finish by growing, never by being switched off.
+           Clearing the hold on a timer while the blend was still part-way through
+           made `want` jump from the held line straight to the racing line — which
+           is the snap that was still there. There is a floor on the rate instead,
+           so it always completes, and it completes smoothly. */
         const clearLine=!AI.cars.some(o=>o!==c &&
           ((o.idx-c.idx+N)%N)<7 && Math.abs(o.lat-lineLat)<2.0);
-        c.gridBlend=clamp((c.gridBlend||0)+dt*(clearLine?1.1:0.30),0,1);
-        want=lerp(c.gridLat,want,c.gridBlend);
-        if(c.gridBlend>=1 || c.gridT>5 || c.lap>=0) c.gridLat=undefined;
+        const rate=clearLine?0.85:0.28;
+        c.gridBlend=clamp((c.gridBlend||0)+dt*rate,0,1);
+        // ease-in-out, so it leaves the grid line and arrives on the racing line
+        // without a corner in the motion at either end
+        const b=c.gridBlend, sm=b*b*(3-2*b);
+        want=lerp(c.gridLat,want,sm);
+        if(c.gridBlend>=1) c.gridLat=undefined;
       }
       const rate=lerp(3.0,1.8,clamp(c.v/VCAP,0,1));
       c.lat=damp(c.lat, want, rate, dt); }
@@ -13390,9 +13409,53 @@ function stepAI(dt){
       let d2=want-c.yaw; while(d2>Math.PI)d2-=TAU; while(d2<-Math.PI)d2+=TAU;
       c.yaw+=d2*(1-Math.exp(-6.5*dt));
       c.mesh.rotation.y=c.yaw;
-      // and lean the car into the corner a little, as a real one does
-      const bank=clamp(d2*2.2,-0.06,0.06);
-      c.mesh.rotation.z=(c.mesh.rotation.z||0)+((bank-(c.mesh.rotation.z||0))*(1-Math.exp(-6*dt))); }
+
+      /* ============ IT HAS TO LOOK DRIVEN ==================================
+         Up to here an AI car is a point sliding along the centreline with its
+         nose pointed down the tangent — which is exactly what it looked like:
+         a model being placed and moved, not a car being driven. A real car
+         tells you what it is doing with its body. Three things do almost all
+         of that work, and all three come from motion we already compute:
+
+           PITCH  dives on the brakes, squats under power (longitudinal g)
+           ROLL   leans out of the corner on the loaded side (lateral g)
+           SLIP   points slightly into the corner, and steps out under power
+
+         Nothing here changes where the car goes — it is all attitude on top of
+         the same path — so the racing is untouched and it reads as driven.   */
+      const aLong=(c.v-(c.vPrev===undefined?c.v:c.vPrev))/Math.max(dt,1e-4);
+      c.vPrev=c.v;
+      // lateral acceleration from the corner it is actually in
+      const Rnow=Math.max((TRACK.Rc?TRACK.Rc[pi]:8000),25);
+      const aLat=(c.v*c.v/Rnow)*Math.sign(-d2||1);
+      // PITCH: nose down under braking, tail down under power. ~1.8 deg at 5 g.
+      const pitchWant=clamp(-aLong*0.0062,-0.055,0.040);
+      c.pitch=(c.pitch===undefined)?0:c.pitch+((pitchWant-c.pitch)*(1-Math.exp(-7*dt)));
+      // ROLL: leans away from the turn, and a little further when it is working
+      const rollWant=clamp(aLat*0.0016,-0.075,0.075)+clamp(d2*1.6,-0.05,0.05);
+      c.roll=(c.roll===undefined)?0:c.roll+((rollWant-c.roll)*(1-Math.exp(-5.5*dt)));
+      // SLIP: the nose sits inside the direction of travel through a corner, and
+      // the car rotates a touch more when it is on the power out of one
+      const power=clamp(aLong*0.05,0,1);
+      const slipWant=clamp(-d2*0.55,-0.10,0.10)*(1+power*0.6);
+      c.slip=(c.slip===undefined)?0:c.slip+((slipWant-c.slip)*(1-Math.exp(-8*dt)));
+      c.mesh.rotation.set(c.pitch, c.yaw+c.slip, c.roll, 'YXZ');
+      // and it moves on its springs: a few centimetres of dive and squat
+      c.rideY=(c.rideY===undefined)?0:c.rideY+((clamp(-Math.abs(aLong)*0.0016,-0.05,0)-c.rideY)*(1-Math.exp(-6*dt)));
+      c.mesh.position.y+=c.rideY;
+      /* the front wheels actually steer. The model is a clone, so the wheel
+         objects are found once and cached on the car. */
+      if(c.wheels===undefined){
+        c.wheels=[];
+        c.mesh.traverse(o=>{ if(o.isMesh&&(o.name==='Object_12'||o.name==='Object_20')) c.wheels.push(o); });
+        c.wheels=c.wheels.slice(0,2);
+        for(const w of c.wheels) w.userData.rest=w.rotation.y;
+      }
+      if(c.wheels.length){
+        const steerWant=clamp(-d2*2.4,-0.32,0.32);
+        c.steerVis=(c.steerVis===undefined)?0:c.steerVis+((steerWant-c.steerVis)*(1-Math.exp(-11*dt)));
+        for(const w of c.wheels) w.rotation.y=w.userData.rest+c.steerVis;
+      } }
     const spray=c.mesh.userData.spray;
     if(spray){ const w=clamp(WEATHER.wetness,0,1), spF=clamp(c.v/34,0,1);
       spray.material.opacity=spF*w*(0.55+0.42*(WEATHER.stormAmt||0));
@@ -13464,7 +13527,7 @@ function stepAI(dt){
       const p0=TRACK.pts[i0],p1=TRACK.pts[i1],n0=TRACK.nrm[i0],n1=TRACK.nrm[i1];
       const nx=lerp(n0.x,n1.x,f), nz=lerp(n0.z,n1.z,f), nl=Math.hypot(nx,nz)||1;
       c.mesh.position.set(lerp(p0.x,p1.x,f)+(nx/nl)*c.lat,
-        lerp(p0.y||0,p1.y||0,f)+0.02-(CAR.tireDrop||0),
+        lerp(p0.y||0,p1.y||0,f)+0.02-(CAR.tireDrop||0)+(c.rideY||0),
         lerp(p0.z,p1.z,f)+(nz/nl)*c.lat);
     } }
   // standings: total distance = lap*len + along-lap distance
