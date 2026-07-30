@@ -13160,17 +13160,32 @@ function stepAI(dt){
     c.atkCool=Math.max(0,(c.atkCool||0)-dt);
     c.phase=c.phase||'clear';
 
-    /* THE TOW ONLY WORKS DIRECTLY BEHIND. A slipstream is a hole in the air about
-       one car wide; step out of it and it is gone. Two metres of offset already
-       halves it, and past a car's width there is nothing. */
+    /* THE TOW AND DRS BOTH WORK INSIDE ONE SECOND.
+       That is the real rule and it is the right unit: a fixed distance means the
+       tow reaches a third of a second at Monaco and a second and a half down the
+       Kemmel straight. The gap is measured in TIME to the car ahead.
+       A slipstream is also a hole in the air about one car wide, so it only works
+       DIRECTLY behind — two metres of offset halves it, past a car's width there
+       is nothing. And it has to be worth having: a car six tenths back on a long
+       straight should visibly reel the one in front in, which the old 62 m / 9.5
+       m/s version did not do. */
+    const gapT=closeAhead/Math.max(c.v,12);              // seconds to the car ahead
+    c.gapT=gapT;
     const lineOff=Math.abs(aheadLat-c.lat);
     let tow=0;
-    if(closeAhead<62 && c.v>VCAP*0.45 && lineOff<2.6){
-      const inLine=1-clamp((lineOff-0.8)/1.8,0,1);        // full only when in line
-      tow=Math.pow(1-closeAhead/62,1.5)*(straight?9.5:5.0)*inLine;
+    if(gapT<1.0 && c.v>VCAP*0.40 && lineOff<2.6){
+      const inLine=1-clamp((lineOff-0.8)/1.8,0,1);       // full only when in line
+      // strongest on the gearbox, still worth several km/h at a second back
+      tow=Math.pow(1-gapT,1.15)*(straight?15.0:7.0)*inLine;
     }
     c.tow=tow;
     targetV+=tow;
+    /* DRS. Same one-second rule, and only inside a marked zone — exactly the
+       system the player has. The AI had none at all, which is a large part of why
+       a car sitting six tenths behind down a straight never actually arrived. */
+    const inDrsZone=!!(TRACK.drs && TRACK.drs[pi]);
+    c.drs = inDrsZone && gapT<1.0 && c.v>VCAP*0.55 && aheadCar && c.lap>=0;
+    if(c.drs) targetV+=7.5;
 
     /* THE ATTEMPT.
        clear    → nothing ahead worth chasing
@@ -13263,6 +13278,12 @@ function stepAI(dt){
       c.v=clamp(c.v,0,VCAP); }
     c.idx+=(c.v*dt)/segLen; if(c.idx>=N){c.idx-=N;c.lap++;}
     // racing line: apex-seeking, with an aggression-scaled lunge past traffic
+    /* HOLD YOUR GRID SLOT. Every car used to sweep straight across to the racing
+       line the instant the lights went out, so the whole field skated sideways as
+       one. You hold the line you started in until the road ahead of you on the
+       racing line is actually clear — which is what a driver does, because the car
+       that was beside you on the grid is still there. */
+    if(c.lap<0 && c.gridLat===undefined) c.gridLat=c.lat;
     /* THE LINE. signedTurnIdx at a single index flips around quickly through a
        tight corner, and because it was read at the ROUNDED index the target line
        moved in steps — which is the jag you see on the way into a hairpin. Take a
@@ -13279,9 +13300,12 @@ function stepAI(dt){
       // out of the tow and committed to the side, held steady
       c.dodge=damp(c.dodge, c.atkSide*(HW-1.3), c.phase==='commit'?2.4:3.2, dt);
     }else if(c.phase==='stalk'){
-      // DIRECTLY behind — that is where the tow is. Track the car ahead's line
-      // rather than the racing line, so the hole in the air actually helps.
-      c.dodge=damp(c.dodge, clamp(aheadLat-lineLat,-(HW-1.2),HW-1.2), 1.6, dt);
+      /* DIRECTLY behind — that is where the tow is. But track a SLOW average of
+         the car ahead's line, not its live position: the car in front is weaving
+         to break the tow, and following that frame by frame made the pursuer
+         copy the weave, which is most of the jitter you could see. */
+      c.aimLat=(c.aimLat===undefined)?aheadLat:damp(c.aimLat,aheadLat,0.9,dt);
+      c.dodge=damp(c.dodge, clamp(c.aimLat-lineLat,-(HW-1.2),HW-1.2), 1.2, dt);
     }else if(slow<0.9 && closeAhead<24){ c.dodge=damp(c.dodge, blockedSide*(HW-1.3)*(0.5+c.aggro*0.5), 2.2, dt); }
     else c.dodge=damp(c.dodge, 0, 1.6, dt);
     /* DEFENDING, LEGALLY. The rule is one move: you may take the inside line
@@ -13307,8 +13331,12 @@ function stepAI(dt){
        second move. How much a driver uses it is part of their character. */
     let breakTow=0;
     if(attacker && straight){
+      /* A weave, not a twitch. Tying this to c.idx meant the phase advanced with
+         SPEED — sixteen indices a second flat out — so the "slow move around" came
+         out as a shimmy. On a clock it is the same move at any speed. */
+      c.wv=(c.wv||0)+dt;
       const amp=0.55*(PSN.towBreak!==undefined?PSN.towBreak:0.4);
-      breakTow=Math.sin((c.idx*0.045)+(c.seed||0))*amp;
+      breakTow=Math.sin(c.wv*0.9+(c.seed||0))*amp;
     }
     c.defend=damp(c.defend, c.defTgt+breakTow, 1.5, dt);
     // a defending driver brakes later; a confident one more so. Applied on the
@@ -13318,8 +13346,24 @@ function stepAI(dt){
        was still drifting toward its apex line well past the apex, which reads as
        the car snapping across the road late. Scales with speed the way a real
        change of direction does. */
-    { const rate=lerp(3.6,2.0,clamp(c.v/VCAP,0,1));
-      c.lat=damp(c.lat, clamp(lineLat+c.dodge+c.defend,-(HW-0.9),HW-0.9), rate, dt); }
+    { let want=clamp(lineLat+c.dodge+c.defend,-(HW-0.9),HW-0.9);
+      // off the line: stay in your grid column until nobody is occupying the
+      // racing line beside you, then ease across over a couple of seconds
+      if(c.gridLat!==undefined){
+        /* Hold the grid column until the racing line beside you is clear — but
+           only until it is, and never for more than a few seconds. Waiting on a
+           strict "nobody within fifty metres" test in a fourteen-car pack meant
+           the field ran the whole opening lap off line, which cost twenty
+           seconds. Once you are away, you are away. */
+        c.gridT=(c.gridT||0)+dt;
+        const clearLine=!AI.cars.some(o=>o!==c &&
+          ((o.idx-c.idx+N)%N)<7 && Math.abs(o.lat-lineLat)<2.0);
+        c.gridBlend=clamp((c.gridBlend||0)+dt*(clearLine?1.1:0.30),0,1);
+        want=lerp(c.gridLat,want,c.gridBlend);
+        if(c.gridBlend>=1 || c.gridT>5 || c.lap>=0) c.gridLat=undefined;
+      }
+      const rate=lerp(3.0,1.8,clamp(c.v/VCAP,0,1));
+      c.lat=damp(c.lat, want, rate, dt); }
     /* SMOOTH MOTION. The car used to be snapped onto the ROUNDED centreline index
        every frame and given that index's tangent as its heading. At ~15 m between
        indices that is a visible jump forwards and a visible flick of the nose on
@@ -13344,7 +13388,7 @@ function stepAI(dt){
       if(c.yaw===undefined) c.yaw=want;
       // shortest-arc easing, so it never spins the long way round at the wrap
       let d2=want-c.yaw; while(d2>Math.PI)d2-=TAU; while(d2<-Math.PI)d2+=TAU;
-      c.yaw+=d2*(1-Math.exp(-9*dt));
+      c.yaw+=d2*(1-Math.exp(-6.5*dt));
       c.mesh.rotation.y=c.yaw;
       // and lean the car into the corner a little, as a real one does
       const bank=clamp(d2*2.2,-0.06,0.06);
@@ -13379,10 +13423,14 @@ function stepAI(dt){
       if(ovLong<=0||ovLat<=0) continue;
       const sevr=clamp(Math.min(ovLong/CAR_L,ovLat/CAR_W),0,1);
       if(ovLat<ovLong*(CAR_W/CAR_L)){
-        // side by side: shove them apart across the road and scrub a little speed
-        const push=ovLat*0.5+0.02, sgn=dLat>=0?1:-1;
-        if(A.ai){A.ai.lat=clamp(A.ai.lat-sgn*push,-(HW-0.7),HW-0.7); A.ai.v*=1-0.05*sevr;}
-        if(B.ai){B.ai.lat=clamp(B.ai.lat+sgn*push,-(HW-0.7),HW-0.7); B.ai.v*=1-0.05*sevr;}
+        /* Side by side: ease them apart rather than teleporting them. Snapping the
+           full overlap out in one frame makes both cars twitch sideways, and while
+           they stay in contact it repeats every frame — which reads as the pair
+           vibrating against each other. A fraction per frame separates them just
+           as fast and looks like two cars leaning on one another. */
+        const push=(ovLat*0.5+0.02)*Math.min(1,dt*14), sgn=dLat>=0?1:-1;
+        if(A.ai){A.ai.lat=clamp(A.ai.lat-sgn*push,-(HW-0.7),HW-0.7); A.ai.v*=1-0.05*sevr*Math.min(1,dt*12);}
+        if(B.ai){B.ai.lat=clamp(B.ai.lat+sgn*push,-(HW-0.7),HW-0.7); B.ai.v*=1-0.05*sevr*Math.min(1,dt*12);}
         if(!A.ai||!B.ai){ CAR.vLat=(CAR.vLat||0)-sgn*(A.ai?1:-1)*6*sevr;
           CAR.damage=Math.min(1,(CAR.damage||0)+0.010*sevr); }
       }else{
@@ -13393,7 +13441,7 @@ function stepAI(dt){
            cars at the back shunt the cars in front of them along, over and over,
            and contact literally manufactured track position. It is why the
            slowest driver on the grid could arrive from P14 to P3 in one lap. */
-        const push=ovLong/segL;
+        const push=(ovLong/segL)*Math.min(1,dt*14);
         if(behind.ai){ behind.ai.idx-=push; behind.ai.v=Math.min(behind.ai.v,
           (ahead.ai?ahead.ai.v:Math.abs(CAR.v))*0.94); }
         if(ahead.ai){ ahead.ai.v*=1-0.03*sevr; }
