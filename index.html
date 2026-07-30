@@ -2045,6 +2045,32 @@ function buildWorld(sc,cfg){
   const R_STRAIGHT=900;                            // beyond this it is a straight, not a corner
   const R_KERB=340;                                // a driver only clips a kerb inside this
   TRACK.Rc=Rc; TRACK.R_KERB=R_KERB; TRACK.R_STRAIGHT=R_STRAIGHT;
+  /* SIGNED CURVATURE OF THE CENTRELINE, per metre — a different quantity to Rc
+     above and used for a different job. Rc is a 90 m rolling average, right for
+     deciding how much run-off a corner earns and hopeless for deciding how much
+     lock a driver is holding: it reads a Monaco hairpin as a 60 m sweeper. This
+     is the real thing, measured over a ~20 m window (about a car's turn-in) so
+     it resolves a hairpin, then smoothed twice so the wheel does not step every
+     time a car crosses a centreline point. Positive = the course is turning the
+     same way `atan2(tan.x, tan.z)` increases, which is the same convention the
+     cars' own heading uses, so the sign needs no correction anywhere. */
+  {
+    const ds=TRACK.len/N, w=Math.max(1,Math.round(10/Math.max(ds,0.5)));
+    const hd=new Array(N);
+    for(let i=0;i<N;i++) hd[i]=Math.atan2(TRACK.tan[i].x,TRACK.tan[i].z);
+    let Kc=new Array(N);
+    for(let i=0;i<N;i++){
+      let d=hd[(i+w)%N]-hd[(i-w+N)%N];
+      while(d>Math.PI)d-=TAU; while(d<-Math.PI)d+=TAU;
+      Kc[i]=d/(2*w*ds);
+    }
+    for(let pass=0;pass<2;pass++){
+      const s=new Array(N);
+      for(let i=0;i<N;i++) s[i]=0.25*Kc[(i-1+N)%N]+0.5*Kc[i]+0.25*Kc[(i+1)%N];
+      Kc=s;
+    }
+    TRACK.Kc=Kc;
+  }
   const vApex=new Array(N), runL=new Array(N), runR=new Array(N);
   const surf=new Array(N), barr=new Array(N);
   const muTrack=1.75, G=9.81, VMAX=V_TOP;
@@ -13483,57 +13509,93 @@ function stepAI(dt){
       const nx=lerp(n0.x,n1.x,f), nz=lerp(n0.z,n1.z,f);
       const nl=Math.hypot(nx,nz)||1;
       c.mesh.position.set(px+(nx/nl)*c.lat, py+0.02-(CAR.tireDrop||0), pz+(nz/nl)*c.lat);
-      /* HEADING FROM THE DIRECTION OF TRAVEL. The nose used to come from the
-         track tangent with a slip angle bolted on, so a car crossing the road
-         still pointed straight down it — which is the other half of why the
-         corners looked wrong. Its heading is now the actual world velocity:
-         along the track at c.v, across it at c.latV. Move left, point left. */
+      /* =================================================================
+         THE CAR IS DRIVEN, NOT CARRIED.
+
+         The last attempt at this let a driver control the car's POSITION, so
+         every steering error became an off-track excursion — it put them in the
+         run-off 80% of the lap. The path is not the problem and never was; the
+         problem is that nothing about the car's ATTITUDE came from vehicle
+         dynamics, so it read as a model on rails.
+
+         So: the path stays exactly as it is (proven, always on track), and the
+         attitude is solved from the bicycle model FOR THAT PATH. These are the
+         standard steady-state results, not approximations of them —
+
+            steer angle   d = L/R + Kus·v²/R          (Ackermann + understeer)
+            understeer    Kus = m/L · (b/Cf − a/Cr)
+            body slip     B = (b − m·a·v²/(Cr·L)) / R
+
+         — which means the front wheels carry the real lock the corner demands,
+         the lock GROWS with speed the way an understeering car's does, and the
+         body sits at the real slip angle: nose into the corner at low speed,
+         tail drifting out as speed rises. Every one of those is a thing you can
+         see, all of it is physically exact for the corner being taken, and none
+         of it can put the car anywhere it was not already going.               */
       const tx=lerp(t0.x,t1.x,f), tz=lerp(t0.z,t1.z,f);
       const tl=Math.hypot(tx,tz)||1;
+      // direction the car is actually travelling: down the road, plus across it
       const wvx=(tx/tl)*Math.max(c.v,1) + (nx/nl)*(c.latV||0);
       const wvz=(tz/tl)*Math.max(c.v,1) + (nz/nl)*(c.latV||0);
-      const want=Math.atan2(wvx,wvz);
-      if(c.yaw===undefined) c.yaw=want;
-      // shortest-arc easing, so it never spins the long way round at the wrap
-      let d2=want-c.yaw; while(d2>Math.PI)d2-=TAU; while(d2<-Math.PI)d2+=TAU;
-      c.yaw+=d2*(1-Math.exp(-6.5*dt));
-      c.mesh.rotation.y=c.yaw;
+      const course=Math.atan2(wvx,wvz);
+      if(c.yaw===undefined) c.yaw=course;
+      let d2=course-c.yaw; while(d2>Math.PI)d2-=TAU; while(d2<-Math.PI)d2+=TAU;
+      c.yaw+=d2*(1-Math.exp(-9*dt));
 
-      /* ============ IT HAS TO LOOK DRIVEN ==================================
-         Up to here an AI car is a point sliding along the centreline with its
-         nose pointed down the tangent — which is exactly what it looked like:
-         a model being placed and moved, not a car being driven. A real car
-         tells you what it is doing with its body. Three things do almost all
-         of that work, and all three come from motion we already compute:
+      const Pv=PHYS, m=Pv.mass, af=Pv.aFront, br=Pv.aRear, L=af+br;
+      /* CURVATURE OF THE PATH THE CAR IS ON.
 
-           PITCH  dives on the brakes, squats under power (longitudinal g)
-           ROLL   leans out of the corner on the loaded side (lateral g)
-           SLIP   points slightly into the corner, and steps out under power
-
-         Nothing here changes where the car goes — it is all attitude on top of
-         the same path — so the racing is untouched and it reads as driven.   */
+         Not the track's corner-radius table — that is a 90 m rolling average
+         built for sizing run-off, it reads a Monaco hairpin as a 60 m sweeper
+         and it steps every time the car crosses a centreline point. Take it
+         instead from the thing that cannot be wrong: how fast the car's own
+         course is turning, per metre it travels. That is the definition of
+         curvature, it is exact for the line actually being driven, and it
+         already contains the corner, the racing line across it and any move
+         the driver is making mid-corner. */
+      let kappa=TRACK.Kc?lerp(TRACK.Kc[i0],TRACK.Kc[i1],f):0;
+      /* plus whatever the driver is doing ACROSS the road on top of the corner —
+         a move to the inside is a real, if small, extra steering input, and you
+         can see it go in before an overtake. */
+      const latAcc=((c.latV||0)-(c.latVPrev===undefined?(c.latV||0):c.latVPrev))/Math.max(dt,1e-3);
+      c.latVPrev=c.latV||0;
+      kappa+=clamp(latAcc,-14,14)/Math.max(c.v*c.v,64);
+      kappa=clamp(kappa,-0.085,0.085);          // 12 m: tighter than any F1 corner
+      c.kap=(c.kap===undefined)?kappa:c.kap+((kappa-c.kap)*(1-Math.exp(-14*dt)));
+      kappa=c.kap;
+      const v2=c.v*c.v;
+      // understeer gradient — a real number for this car, from its own numbers
+      const Kus=(m/L)*(br/Pv.Cf - af/Pv.Cr);
+      const steerReq=clamp(L*kappa + Kus*v2*kappa, -0.42, 0.42);
+      // hands are not instant; a more consistent driver is smoother on the wheel
+      const hands=9.0+5.0*(c.consist||0.9);
+      c.steerVis=(c.steerVis===undefined)?0:c.steerVis+((steerReq-c.steerVis)*(1-Math.exp(-hands*dt)));
+      // BODY SLIP: nose into the corner slowly, tail out as the speed rises
+      let beta=(br - m*af*v2/(Pv.Cr*L))*kappa;
+      // and further out when the driver is on the power, which is oversteer
       const aLong=(c.v-(c.vPrev===undefined?c.v:c.vPrev))/Math.max(dt,1e-4);
       c.vPrev=c.v;
-      // lateral acceleration from the corner it is actually in
-      const Rnow=Math.max((TRACK.Rc?TRACK.Rc[pi]:8000),25);
-      const aLat=(c.v*c.v/Rnow)*Math.sign(-d2||1);
-      // PITCH: nose down under braking, tail down under power. ~1.8 deg at 5 g.
+      beta*= 1 + clamp(aLong*0.04,0,0.8);
+      beta=clamp(beta,-0.16,0.16);
+      c.beta=(c.beta===undefined)?0:c.beta+((beta-c.beta)*(1-Math.exp(-7*dt)));
+      // lateral acceleration the car is actually pulling, for the body roll
+      const aLat=v2*kappa;
+      c.latAcc=aLat;
+
+      // PITCH: dives on the brakes, squats under power
       const pitchWant=clamp(-aLong*0.0062,-0.055,0.040);
       c.pitch=(c.pitch===undefined)?0:c.pitch+((pitchWant-c.pitch)*(1-Math.exp(-7*dt)));
-      // ROLL: leans away from the turn, and a little further when it is working
-      const rollWant=clamp(aLat*0.0016,-0.075,0.075)+clamp(d2*1.6,-0.05,0.05);
+      // ROLL: leans out of the corner, in proportion to the g it is pulling
+      const rollWant=clamp(aLat*0.0017,-0.085,0.085);
       c.roll=(c.roll===undefined)?0:c.roll+((rollWant-c.roll)*(1-Math.exp(-5.5*dt)));
-      // SLIP: the nose sits inside the direction of travel through a corner, and
-      // the car rotates a touch more when it is on the power out of one
-      const power=clamp(aLong*0.05,0,1);
-      const slipWant=clamp(-d2*0.55,-0.10,0.10)*(1+power*0.6);
-      c.slip=(c.slip===undefined)?0:c.slip+((slipWant-c.slip)*(1-Math.exp(-8*dt)));
-      c.mesh.rotation.set(c.pitch, c.yaw+c.slip, c.roll, 'YXZ');
-      // and it moves on its springs: a few centimetres of dive and squat
+      // the nose points at the course PLUS the body slip — that is what makes a
+      // car look like it is being steered rather than pointed
+      c.mesh.rotation.set(c.pitch, c.yaw+c.beta, c.roll, 'YXZ');
       c.rideY=(c.rideY===undefined)?0:c.rideY+((clamp(-Math.abs(aLong)*0.0016,-0.05,0)-c.rideY)*(1-Math.exp(-6*dt)));
       c.mesh.position.y+=c.rideY;
-      /* the front wheels actually steer. The model is a clone, so the wheel
-         objects are found once and cached on the car. */
+      /* the front wheels wear the lock the corner actually demands. No fudge on
+         top: d already folds in the understeer, so it winds ON into a slow
+         corner and comes OFF as the car picks up speed, by itself. */
       if(c.wheels===undefined){
         c.wheels=[];
         c.mesh.traverse(o=>{ if(o.isMesh&&(o.name==='Object_12'||o.name==='Object_20')) c.wheels.push(o); });
@@ -13541,9 +13603,8 @@ function stepAI(dt){
         for(const w of c.wheels) w.userData.rest=w.rotation.y;
       }
       if(c.wheels.length){
-        const steerWant=clamp(-d2*2.4,-0.32,0.32);
-        c.steerVis=(c.steerVis===undefined)?0:c.steerVis+((steerWant-c.steerVis)*(1-Math.exp(-11*dt)));
-        for(const w of c.wheels) w.rotation.y=w.userData.rest+c.steerVis;
+        const lock=clamp(c.steerVis, -0.40, 0.40);
+        for(const w of c.wheels) w.rotation.y=w.userData.rest+lock;
       } }
     const spray=c.mesh.userData.spray;
     if(spray){ const w=clamp(WEATHER.wetness,0,1), spF=clamp(c.v/34,0,1);
