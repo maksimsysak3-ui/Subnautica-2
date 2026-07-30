@@ -128,6 +128,55 @@
   .qHint{margin-top:34px;font-size:11px;letter-spacing:.2em;color:var(--grey);text-transform:uppercase}
   .qHint b{display:inline-block;min-width:18px;padding:3px 7px;margin-right:8px;border:1px solid var(--grey-lo);border-radius:3px;color:#fff;font-family:var(--mono);font-size:10px}
 
+  /* ============ AI SIMULATION HUD ============ */
+  #simHud{position:fixed;inset:0;z-index:26;display:none;pointer-events:none;
+    font-family:var(--ui,inherit)}
+  #simHud.on{display:block}
+  #simTop{position:absolute;top:18px;left:50%;transform:translateX(-50%);display:flex;gap:18px;align-items:center;
+    padding:8px 20px;border:1px solid var(--grey-lo);border-radius:5px;background:rgba(8,11,18,.72);
+    backdrop-filter:blur(7px)}
+  #simTag{font-family:var(--mono);font-size:11px;letter-spacing:.30em;color:#fff;font-weight:800}
+  #simTag span{color:var(--grey);font-weight:400}
+  #simLap{font-family:var(--mono);font-size:11px;letter-spacing:.22em;color:#ffd34a;font-weight:800}
+  #simTowerWrap{position:absolute;top:70px;left:22px;width:268px;border:1px solid var(--grey-lo);border-radius:6px;
+    overflow:hidden;background:rgba(8,11,18,.74);backdrop-filter:blur(8px)}
+  #simTowerHead{padding:7px 12px;font-family:var(--mono);font-size:10px;letter-spacing:.30em;color:var(--grey);
+    border-bottom:1px solid var(--grey-lo);background:rgba(255,255,255,.03)}
+  .simRow{display:flex;align-items:center;gap:8px;padding:4px 10px;font-size:11.5px;
+    border-bottom:1px solid rgba(255,255,255,.05)}
+  .simRow.cur{background:rgba(255,60,60,.16)}
+  .simRow .p{width:16px;text-align:right;font-family:var(--mono);font-weight:800;color:#fff;font-size:11px}
+  .simRow .bar{width:4px;height:14px;border-radius:2px;flex:0 0 auto}
+  .simRow .nm{flex:1;color:#e8ecef;letter-spacing:.05em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .simRow .tc{width:12px;text-align:center;font-family:var(--mono);font-weight:900;font-size:10px}
+  .simRow .gp{font-family:var(--mono);font-size:10.5px;color:var(--grey);min-width:52px;text-align:right}
+  #simBottom{position:absolute;bottom:20px;left:22px;display:flex;flex-direction:column;gap:8px}
+  #simFollow{padding:7px 14px;border:1px solid var(--grey-lo);border-radius:5px;background:rgba(8,11,18,.74);
+    font-family:var(--mono);font-size:11px;letter-spacing:.14em;color:#cfd6de;backdrop-filter:blur(7px)}
+  #simFollow b{color:#fff}
+  #simKeys{display:flex;gap:12px;font-family:var(--mono);font-size:9.5px;letter-spacing:.14em;color:var(--grey)}
+  #simKeys b{color:#fff;border:1px solid var(--grey-lo);border-radius:3px;padding:1px 5px;margin-right:4px}
+  #simCamBadge{position:absolute;bottom:20px;right:22px;padding:7px 14px;border:1px solid var(--grey-lo);
+    border-radius:5px;background:rgba(8,11,18,.74);font-family:var(--mono);font-size:10px;letter-spacing:.24em;
+    color:var(--grey);backdrop-filter:blur(7px)}
+  #simCamBadge span{color:#fff;font-weight:800}
+  #simMsg{position:absolute;top:44%;left:0;right:0;text-align:center;font-family:var(--mono);font-weight:900;
+    font-size:clamp(26px,5vw,58px);letter-spacing:.18em;color:#fff;text-shadow:0 0 46px rgba(255,30,30,.55);
+    pointer-events:none}
+  #simResult{position:fixed;inset:0;z-index:41;display:none;align-items:center;justify-content:center;
+    background:radial-gradient(ellipse at 50% 40%,rgba(10,14,22,.86),rgba(2,4,8,.96))}
+  #simResult.on{display:flex}
+  .simCard{padding:34px 44px;border:1px solid var(--grey-lo);border-radius:10px;background:rgba(12,16,26,.78);
+    box-shadow:0 30px 90px rgba(0,0,0,.6);text-align:center;max-height:86vh;overflow:auto}
+  #simTable{margin-top:22px;border-collapse:collapse;font-size:12.5px}
+  #simTable th{font-family:var(--mono);font-size:9.5px;letter-spacing:.24em;color:var(--grey);
+    padding:6px 14px;border-bottom:1px solid var(--grey-lo);text-align:left;font-weight:600}
+  #simTable td{padding:5px 14px;color:#dfe4ea;border-bottom:1px solid rgba(255,255,255,.05);text-align:left;
+    white-space:nowrap}
+  #simTable td:first-child{font-family:var(--mono);font-weight:900;color:#fff}
+  #simTable td:nth-child(5){font-family:var(--mono)}
+  #simTable td:last-child{font-family:var(--mono);color:var(--grey)}
+
   /* ============ MENU ============ */
   #menu{position:fixed;inset:0;z-index:20;pointer-events:none;opacity:0;transition:opacity .9s ease}
   #menu.on{opacity:1;pointer-events:auto}
@@ -629,6 +678,34 @@
     <div class="qTime" id="qBest">—:——.—</div>
     <div class="qPos">PROVISIONAL POLE · P1</div>
     <div class="qHint"><b>⏎</b> Continue</div>
+  </div>
+</div>
+
+<!-- ===== AI SIMULATION HUD ===== -->
+<div id="simHud">
+  <div id="simTop">
+    <div id="simTag">AI SIMULATION <span>· WATCH ONLY</span></div>
+    <div id="simLap">LAP 1 / 1</div>
+  </div>
+  <div id="simTowerWrap"><div id="simTowerHead">RUNNING ORDER</div><div id="simTower"></div></div>
+  <div id="simBottom">
+    <div id="simFollow">—</div>
+    <div id="simKeys">
+      <span><b>◂ ▸</b> car</span><span><b>C</b> camera</span>
+      <span><b>V</b> auto-director</span><span><b>L</b> laps</span><span><b>ESC</b> exit</span>
+    </div>
+  </div>
+  <div id="simCamBadge">CAM <span id="simCam">CHASE</span></div>
+  <div id="simMsg"></div>
+</div>
+<div id="simResult">
+  <div class="simCard">
+    <div class="qTag">AI SIMULATION · RESULT</div>
+    <table id="simTable">
+      <thead><tr><th>POS</th><th>DRIVER</th><th>TEAM</th><th>GRID</th><th>BEST LAP</th><th>GAP</th></tr></thead>
+      <tbody id="simResultBody"></tbody>
+    </table>
+    <div class="qHint"><b>R</b> Run it again &nbsp;·&nbsp; <b>⏎</b> Back to menu</div>
   </div>
 </div>
 
@@ -2778,14 +2855,23 @@ function makeStoneFacade(cols,rows,stone,opt){
     const bx=k*CW, by=r*CH;
     const ww=CW*0.44, wh=CH*0.52, wx=bx+(CW-ww)/2, wy=by+CH*0.26;
     // a deep reveal: dark surround, then the glass, then a stone sill and lintel
-    x.fillStyle='rgba(0,0,0,0.30)';x.fillRect(wx-1.5,wy-1.5,ww+3,wh+3);
+    x.fillStyle='rgba(0,0,0,0.22)';x.fillRect(wx-1.5,wy-1.5,ww+3,wh+3);
     const lit=Math.random()<o.lit;
     if(Math.random()<o.shutter){ x.fillStyle='#6a5334';x.fillRect(wx,wy,ww,wh);
       x.fillStyle='rgba(0,0,0,0.35)';
       for(let s=0;s<6;s++)x.fillRect(wx,wy+s*wh/6,ww,wh/12); }
-    else { x.fillStyle=lit?o.litCol:'#2a2c30';x.globalAlpha=lit?0.85:1;
-      x.fillRect(wx,wy,ww,wh);x.globalAlpha=1;
-      x.fillStyle='rgba(255,255,255,0.12)';x.fillRect(wx,wy,ww,wh*0.3); }
+    else { // an unlit pane is NOT a black hole in daylight: it reflects the sky.
+      // Painting it near-black is what made a street of stone read as a grid of
+      // dark punched squares. Sky-toned with a bright top and a dark sill.
+      const g2=x.createLinearGradient(wx,wy,wx,wy+wh);
+      if(lit){ g2.addColorStop(0,o.litCol);g2.addColorStop(1,'#c8a068'); }
+      else   { g2.addColorStop(0,'#9fb4c8');g2.addColorStop(0.55,'#6d8296');g2.addColorStop(1,'#46525f'); }
+      x.fillStyle=g2;x.fillRect(wx,wy,ww,wh);
+      // glazing bars and a bright specular streak across the pane
+      x.fillStyle='rgba(255,255,255,0.30)';x.fillRect(wx,wy+wh*0.06,ww,1.6);
+      x.strokeStyle='rgba(40,44,50,0.45)';x.lineWidth=1;
+      x.beginPath();x.moveTo(wx+ww/2,wy);x.lineTo(wx+ww/2,wy+wh);x.stroke();
+      x.beginPath();x.moveTo(wx,wy+wh*0.45);x.lineTo(wx+ww,wy+wh*0.45);x.stroke(); }
     // stone lintel above and sill below, in a lighter cut of the same stone
     x.fillStyle='rgba(255,255,255,0.22)';
     x.fillRect(wx-2.5,wy-3.5,ww+5,2.5);
@@ -2800,7 +2886,9 @@ function makeStoneFacade(cols,rows,stone,opt){
   if(o.shop){ const by=(rows-1)*CH;
     for(let k=0;k<cols;k++){const bx=k*CW;
       x.fillStyle='rgba(255,255,255,0.16)';x.fillRect(bx,by+CH*0.20,CW,3);
-      x.fillStyle='#23252a';x.fillRect(bx+CW*0.14,by+CH*0.34,CW*0.72,CH*0.56);
+      const sg2=x.createLinearGradient(bx,by+CH*0.34,bx,by+CH*0.90);
+      sg2.addColorStop(0,'#8fa4b6');sg2.addColorStop(1,'#3e4650');
+      x.fillStyle=sg2;x.fillRect(bx+CW*0.14,by+CH*0.34,CW*0.72,CH*0.56);
       if(Math.random()<0.6){x.fillStyle='rgba(255,214,150,0.55)';x.fillRect(bx+CW*0.16,by+CH*0.36,CW*0.68,CH*0.5);}
       x.fillStyle=stone;x.fillRect(bx,by+CH*0.30,CW*0.13,CH*0.70);
       x.fillRect(bx+CW*0.87,by+CH*0.30,CW*0.13,CH*0.70);} }
@@ -4909,66 +4997,543 @@ function buildVegas(sc,P,Nm,Tg,offL,offR){
   const clr=(x,z)=>{let m=1e9;for(const q of sampB){const dx=x-q.x,dz=z-q.z;const d=dx*dx+dz*dz;if(d<m)m=d;}return m;};
   buildVegasLandmarks(sc,clr,R,gh);   // the Sphere, Luxor, Paris, the wheel, the Strat, Bellagio
   const HW=TRACK.halfW;
-  const hues=['#ff2aa0','#2a6aff','#ffd23a','#b02aff','#2affc0','#ff7a2a','#ff3b3b','#39d98a'];
-  const names=['MIRAGE','BELLAGIO','CAESARS','VENETIAN','WYNN','MGM','ARIA','PARIS','FLAMINGO','SAHARA','TROPICANA','COSMO','LINQ','PLANET'];
-  let ni=0;
-  // --- casino resorts lining the Strip: dark glass towers with LIT WINDOWS on a podium
-  //     (real hotels — the neon is only on the SIGN, the building itself does not glow) ---
-  const facadeMat=new THREE.MeshStandardMaterial({color:0x12141c,roughness:0.35,metalness:0.55});   // dark reflective glass
-  for(let i=0;i<N;i+=6){const p=P[i],n=Nm[i];
-    for(const [side,off] of [[1,offL],[-1,offR]]){
-      if(Math.random()<0.26) continue;
-      const w=18+Math.random()*26, d=18+Math.random()*24, h=52+Math.random()*160;
-      const diag=Math.hypot(w/2,d/2), dist=off(i)+diag+3.5;
-      const x=p.x+n.x*side*dist, z=p.z+n.z*side*dist;
-      const need=HW+diag+5; if(clr(x,z)<need*need) continue;
-      if(!OCCUPY.take(x,z,diag*1.05)) continue;
-      const hue=hues[(Math.random()*hues.length)|0], name=names[ni++%names.length];
-      const g=new THREE.Group();
-      // warm lit-window skin (subtle glow), NOT a coloured emissive block
-      const winMat=new THREE.MeshStandardMaterial({map:makeWindows(Math.max(4,w/5|0),Math.max(10,h/7|0),'#ffdca0'),
-        color:0x20222c,emissive:0x201a10,emissiveIntensity:0.5,roughness:0.45,metalness:0.4});
-      // podium base (casino floor) — dark glass, a couple of storeys, wider than the tower
-      const podH=12+Math.random()*8, podW=w+8, podD=d+8;
-      const pod=new THREE.Mesh(new THREE.BoxGeometry(podW,podH,podD),facadeMat);pod.position.y=podH/2;g.add(pod);
-      const podTrim=new THREE.Mesh(new THREE.BoxGeometry(podW+0.6,0.8,podD+0.6),new THREE.MeshStandardMaterial({color:hue,emissive:hue,emissiveIntensity:1.3}));podTrim.position.y=podH;g.add(podTrim);
-      // main tower on the podium — varied silhouettes so no two resorts read the same
-      const shape=Math.random();
-      let body;
-      if(shape<0.24){ body=new THREE.Mesh(new THREE.CylinderGeometry(w*0.5,w*0.55,h,20),winMat); }        // curved tower
-      else if(shape<0.44){ body=new THREE.Mesh(new THREE.CylinderGeometry(w*0.22,w*0.5,h,4),winMat);body.rotation.y=Math.PI/4; } // tapered pyramid-ish
-      else if(shape<0.64){ // stepped multi-setback tower
-        body=new THREE.Group(); let cw=w,cd=d,cy=0;
-        for(let st=0;st<3;st++){const sh=h*(0.5-st*0.13);const seg=new THREE.Mesh(new THREE.BoxGeometry(cw,sh,cd),winMat);seg.position.y=cy+sh/2;body.add(seg);cy+=sh;cw*=0.72;cd*=0.72;}
+  /* ===================== THE STRIP =====================================
+     Vegas resorts are not procedural boxes with a sign bolted on. Every one is a
+     THEMED, individually designed property: a curved crescent over a fountain
+     lake, twin bronze arcs, a Roman temple front with a quadriga, a striped
+     big-top, a castle with conical turrets, a Y-plan glass monolith, a leaning
+     glass sail. Each is built by hand below, in order along the Strip, with the
+     shared Vegas grammar on all of them — a porte-cochère you drive under, a
+     bulb-lit roadside marquee, palm rows, a valet drive and roof floods.
+     Deliberately nothing like Marina Bay: this is ornate and warm, not sleek. */
+  const VEG={
+    darkGlass:new THREE.MeshStandardMaterial({color:0x12141c,roughness:0.30,metalness:0.62}),
+    bronze:new THREE.MeshStandardMaterial({color:0x6a4a1e,roughness:0.16,metalness:0.90,
+      emissive:0x2a1a06,emissiveIntensity:0.6}),
+    gold:new THREE.MeshStandardMaterial({color:0xb8892a,roughness:0.10,metalness:0.95,
+      emissive:0x3a2a08,emissiveIntensity:0.8}),
+    cream:new THREE.MeshStandardMaterial({color:0xe4d8bc,roughness:0.62,metalness:0.10,
+      emissive:0x201a10,emissiveIntensity:0.55}),
+    stone:new THREE.MeshStandardMaterial({color:0xd8cfba,roughness:0.78,
+      emissive:0x1c1810,emissiveIntensity:0.5}),
+    bluGlass:new THREE.MeshStandardMaterial({color:0x1a3348,roughness:0.14,metalness:0.86,
+      emissive:0x0e2438,emissiveIntensity:0.7}),
+    steel:new THREE.MeshStandardMaterial({color:0xc0c8d0,roughness:0.30,metalness:0.80}),
+    black:new THREE.MeshStandardMaterial({color:0x0d0f14,roughness:0.5,metalness:0.4}),
+    water:new THREE.MeshStandardMaterial({color:0x0a2a3a,roughness:0.05,metalness:0.95,
+      emissive:0x0a2038,emissiveIntensity:0.6}),
+  };
+  const winSkin=(w,h,tint)=>new THREE.MeshStandardMaterial({
+    map:makeWindows(Math.max(4,w/5|0),Math.max(10,h/7|0),tint||'#ffdca0'),
+    color:0x20222c,emissive:0x241c10,emissiveIntensity:0.62,roughness:0.42,metalness:0.42});
+  const emis=(hex,i)=>new THREE.MeshStandardMaterial({color:hex,emissive:hex,
+    emissiveIntensity:i===undefined?1.6:i,roughness:0.42});
+  /* the roadside marquee: a bulb-outlined pylon carrying the resort's name, the
+     single most Vegas object there is. Stands on the ground on its own mast. */
+  const marquee=(g,name,hue,H,W,zOff)=>{
+    const py=new THREE.Group();
+    const sign=new THREE.MeshBasicMaterial({map:makeNeonSign(name,hue),side:THREE.DoubleSide});
+    const fr=new THREE.Mesh(new THREE.BoxGeometry(W+1.4,H+1.4,1.6),
+      new THREE.MeshStandardMaterial({color:0x101018,emissive:hue,emissiveIntensity:0.3,
+        metalness:0.62,roughness:0.4}));
+    py.add(fr);
+    for(const fz of [0.86,-0.86]){const f2=new THREE.Mesh(new THREE.PlaneGeometry(W,H),sign);
+      f2.position.z=fz;f2.rotation.y=fz>0?0:Math.PI;py.add(f2);}
+    const bulb=emis(0xffe8b0,2.4);
+    const nb=Math.max(7,(H/3.4)|0);
+    for(let k=0;k<nb;k++){const by=-H/2+(k+0.5)*(H/nb);
+      for(const bx of [-W/2-0.6,W/2+0.6]){
+        const bb=new THREE.Mesh(new THREE.SphereGeometry(0.36,7,5),bulb);
+        bb.position.set(bx,by,0);py.add(bb);}}
+    const top=new THREE.Mesh(new THREE.BoxGeometry(W+2.4,2.4,2.2),emis(hue,1.9));
+    top.position.y=H/2+1.8;py.add(top);
+    // a smaller LED message board under the name, as every marquee has
+    const msg=new THREE.Mesh(new THREE.BoxGeometry(W*0.92,H*0.20,1.8),
+      new THREE.MeshBasicMaterial({map:makeBillboardTex()}));
+    msg.position.set(0,-H/2-H*0.14,0.9);py.add(msg);
+    const mast=new THREE.Mesh(new THREE.BoxGeometry(1.8,H*0.55,1.8),VEG.black);
+    mast.position.y=-(H/2)-H*0.20-(H*0.55)/2;py.add(mast);
+    const pl=new THREE.Mesh(new THREE.BoxGeometry(5,1.4,5),
+      new THREE.MeshStandardMaterial({color:0x1a1c22,roughness:0.85}));
+    pl.position.y=-(H/2)-H*0.20-H*0.55;py.add(pl);
+    py.position.set(0,(H/2)+H*0.20+H*0.55, zOff);
+    g.add(py); return py;};
+  /* the porte-cochère: the covered drive-through entrance, with columns, a
+     chandelier soffit and a valet apron. Every resort on the Strip has one. */
+  const porteCochere=(g,W,zOff,hue)=>{
+    const roof=new THREE.Mesh(new THREE.BoxGeometry(W,2.2,20),VEG.cream);
+    roof.position.set(0,10.5,zOff);g.add(roof);
+    const cor=new THREE.Mesh(new THREE.BoxGeometry(W+2.4,1.2,22),VEG.gold);
+    cor.position.set(0,11.8,zOff);g.add(cor);
+    const soffit=new THREE.Mesh(new THREE.BoxGeometry(W-2,0.3,18),emis(0xffe6bc,1.5));
+    soffit.position.set(0,9.3,zOff);g.add(soffit);
+    for(const cx of [-W/2+3,-W/6,W/6,W/2-3]) for(const cz of [zOff-8,zOff+8]){
+      const co=new THREE.Mesh(new THREE.CylinderGeometry(1.1,1.4,10.5,14),VEG.cream);
+      co.position.set(cx,5.25,cz);g.add(co);
+      const cap=new THREE.Mesh(new THREE.CylinderGeometry(1.7,1.3,1.2,14),VEG.gold);
+      cap.position.set(cx,10.2,cz);g.add(cap);}
+    const apron=new THREE.Mesh(new THREE.PlaneGeometry(W+16,30),
+      new THREE.MeshStandardMaterial({color:0x2e3138,roughness:0.9,side:THREE.DoubleSide}));
+    apron.rotation.x=-Math.PI/2;apron.position.set(0,0.08,zOff+4);g.add(apron);
+    const band=new THREE.Mesh(new THREE.BoxGeometry(W,0.6,0.6),emis(hue,1.8));
+    band.position.set(0,9.0,zOff-10);g.add(band);};
+  /* palm rows and valet cars along the frontage */
+  const frontage=(g,W,zOff)=>{
+    const trunk=new THREE.MeshStandardMaterial({color:0x4a3826,roughness:0.9});
+    const frond=new THREE.MeshStandardMaterial({color:0x1f5030,roughness:0.85,
+      side:THREE.DoubleSide,emissive:0x0a2010,emissiveIntensity:0.5});
+    for(let k=0;k<8;k++){
+      const px=-W/2+ (k/7)*W, h=11+Math.random()*7;
+      if(Math.abs(px)<W*0.18) continue;                 // keep the entrance clear
+      const tk=new THREE.Mesh(new THREE.CylinderGeometry(0.30,0.5,h,7),trunk);
+      tk.position.set(px,h/2,zOff);g.add(tk);
+      for(let f=0;f<8;f++){
+        const fr=new THREE.Mesh(new THREE.ConeGeometry(0.8,4.8,4),frond);
+        fr.position.set(px,h,zOff);fr.rotation.z=Math.PI/2.4;fr.rotation.y=f/8*TAU;g.add(fr);}
+      const up=new THREE.Mesh(new THREE.CylinderGeometry(0.4,0.4,0.3,8),emis(0xfff0c0,2.0));
+      up.position.set(px,0.3,zOff);g.add(up);}
+    const cc=[0x0d0f14,0xd8dce2,0x8d939c,0x7a1020];
+    for(let k=0;k<6;k++){
+      const car=new THREE.Mesh(new THREE.BoxGeometry(2.0,1.4,4.6),
+        new THREE.MeshStandardMaterial({color:cc[k%4],roughness:0.4,metalness:0.4}));
+      car.position.set(-W*0.32+k*(W*0.13),0.7,zOff-3);g.add(car);}};
+  /* roof floodlights raking up the facade */
+  const roofFloods=(g,W,H,hue)=>{
+    for(let k=0;k<5;k++){
+      const px=-W/2+(k/4)*W;
+      const fx=new THREE.Mesh(new THREE.BoxGeometry(1.4,0.8,1.0),VEG.black);
+      fx.position.set(px,H+1.4,0);g.add(fx);
+      const bm=new THREE.Mesh(new THREE.CylinderGeometry(1.2,5.5,26,10,1,true),
+        new THREE.MeshBasicMaterial({color:hue,transparent:true,opacity:0.13,
+          side:THREE.DoubleSide,blending:THREE.AdditiveBlending,depthWrite:false}));
+      bm.position.set(px,H+14,0);g.add(bm);}};
+
+  /* ---- the properties, each designed individually ---- */
+  const RESORTS=[
+    { n:'BELLAGIO', hue:'#2a6aff', foot:70, build(g){       // curved crescent over a fountain lake
+        const R2=86, H=76, arc=1.25;
+        const seg=13;
+        for(let k=0;k<seg;k++){
+          const a=-arc/2+arc*k/(seg-1);
+          const bw=15, bh=H*(0.72+0.28*Math.cos(a*1.5));
+          const w2=new THREE.Mesh(new THREE.BoxGeometry(bw,bh,20),winSkin(bw,bh,'#ffe4b0'));
+          w2.position.set(Math.sin(a)*R2, bh/2, -Math.cos(a)*R2+R2);
+          w2.rotation.y=a;g.add(w2);
+          const cp=new THREE.Mesh(new THREE.BoxGeometry(bw+1.4,1.6,21.4),VEG.cream);
+          cp.position.set(Math.sin(a)*R2,bh+0.8,-Math.cos(a)*R2+R2);cp.rotation.y=a;g.add(cp);}
+        // the podium and the lake with its fountain jets
+        const pod=new THREE.Mesh(new THREE.BoxGeometry(150,14,44),VEG.cream);
+        pod.position.set(0,7,R2*0.42);g.add(pod);
+        const lake=new THREE.Mesh(new THREE.CircleGeometry(56,40,0,Math.PI),VEG.water);
+        lake.rotation.x=-Math.PI/2;lake.rotation.z=Math.PI;lake.position.set(0,0.2,-34);g.add(lake);
+        const rim=new THREE.Mesh(new THREE.TorusGeometry(56,1.4,6,40,Math.PI),VEG.cream);
+        rim.rotation.x=Math.PI/2;rim.rotation.z=Math.PI;rim.position.set(0,0.9,-34);g.add(rim);
+        for(let k=0;k<17;k++){
+          const a=Math.PI*(k/16), rr=18+Math.random()*34;
+          const jh=10+Math.random()*34;
+          const jt=new THREE.Mesh(new THREE.CylinderGeometry(0.35,1.1,jh,8,1,true),
+            new THREE.MeshBasicMaterial({color:0xdff2ff,transparent:true,opacity:0.42,
+              side:THREE.DoubleSide,blending:THREE.AdditiveBlending,depthWrite:false}));
+          jt.position.set(-Math.cos(a)*rr,jh/2,-34-Math.sin(a)*rr*0.6);g.add(jt);
+          const sp=new THREE.PointLight(0x9fd8ff,0.5,60,2);
+          sp.position.set(-Math.cos(a)*rr,2,-34-Math.sin(a)*rr*0.6);if(k%4===0)g.add(sp);}
+        porteCochere(g,66,R2*0.42+30,'#2a6aff');
+        marquee(g,'BELLAGIO','#2a6aff',30,13,R2*0.42+52);
+        frontage(g,120,R2*0.42+44);
+        roofFloods(g,140,H,'#2a6aff'); } },
+    { n:'WYNN', hue:'#b8892a', foot:62, build(g){            // twin bronze arcs, curved in plan
+        for(const [zo,H,rot] of [[0,112,0.0],[34,96,0.22]]){
+          const seg=11, R2=120, arc=0.75;
+          for(let k=0;k<seg;k++){
+            const a=-arc/2+arc*k/(seg-1);
+            const bw=13;
+            const b2=new THREE.Mesh(new THREE.BoxGeometry(bw,H,18),VEG.bronze);
+            b2.position.set(Math.sin(a+rot)*R2, H/2, -Math.cos(a+rot)*R2+R2+zo);
+            b2.rotation.y=a+rot;g.add(b2);
+            // the horizontal glazing bands that make it read as bronze glass
+            for(let s2=1;s2<8;s2++){
+              const bd=new THREE.Mesh(new THREE.BoxGeometry(bw+0.4,1.0,18.4),VEG.gold);
+              bd.position.set(Math.sin(a+rot)*R2,H*s2/8,-Math.cos(a+rot)*R2+R2+zo);
+              bd.rotation.y=a+rot;g.add(bd);}}
+          const cr=new THREE.Mesh(new THREE.BoxGeometry(96,3.0,20),VEG.gold);
+          cr.position.set(0,H+1.5,zo+2);cr.rotation.y=rot;g.add(cr);}
+        // the cursive name lying across the top of the front tower
+        const nm=new THREE.Mesh(new THREE.PlaneGeometry(46,9),
+          new THREE.MeshBasicMaterial({map:makeNeonSign('Wynn','#ffd23a'),side:THREE.DoubleSide}));
+        nm.position.set(0,118,10);g.add(nm);
+        const pod=new THREE.Mesh(new THREE.BoxGeometry(130,16,50),VEG.bronze);
+        pod.position.set(0,8,58);g.add(pod);
+        porteCochere(g,60,86,'#ffd23a');
+        marquee(g,'WYNN','#ffd23a',26,12,104);
+        frontage(g,110,96);
+        roofFloods(g,120,112,'#ffd23a'); } },
+    { n:'CAESARS', hue:'#ffd23a', foot:64, build(g){        // Roman temple front + curved wings
+        // the temple: a full colonnade under a pediment, with a quadriga on top
+        const cols=12, W=84;
+        const stylo=new THREE.Mesh(new THREE.BoxGeometry(W+8,4,34),VEG.stone);
+        stylo.position.y=2;g.add(stylo);
+        for(let k=0;k<cols;k++){
+          const px=(k/(cols-1)-0.5)*W;
+          const co=new THREE.Mesh(new THREE.CylinderGeometry(1.9,2.2,26,16),VEG.stone);
+          co.position.set(px,17,15);g.add(co);
+          // fluting, and the capital
+          const cap=new THREE.Mesh(new THREE.BoxGeometry(5.2,1.6,5.2),VEG.stone);
+          cap.position.set(px,30.6,15);g.add(cap);
+          const base=new THREE.Mesh(new THREE.CylinderGeometry(2.6,2.8,1.4,16),VEG.stone);
+          base.position.set(px,4.7,15);g.add(base);}
+        const arch=new THREE.Mesh(new THREE.BoxGeometry(W+10,5.0,36),VEG.stone);
+        arch.position.set(0,34,14);g.add(arch);
+        const ped=new THREE.Mesh(new THREE.CylinderGeometry(0.2,W*0.53,14,3),VEG.stone);
+        ped.rotation.set(Math.PI/2,0,0);ped.position.set(0,42,14);g.add(ped);
+        // the quadriga: four horses and a chariot on the apex
+        for(let k=0;k<4;k++){
+          const hb=new THREE.Mesh(new THREE.BoxGeometry(2.0,3.4,5.6),VEG.gold);
+          hb.position.set(-6+k*4,50,10);g.add(hb);
+          const hd=new THREE.Mesh(new THREE.BoxGeometry(1.4,2.4,2.4),VEG.gold);
+          hd.position.set(-6+k*4,53.0,7.4);g.add(hd);}
+        const chr=new THREE.Mesh(new THREE.BoxGeometry(9,3.4,4.0),VEG.gold);
+        chr.position.set(0,50,16);g.add(chr);
+        // the curved hotel wings sweeping back behind it
+        for(const s2 of [-1,1]){
+          const seg=8, R2=90, arc=0.62;
+          for(let k=0;k<seg;k++){
+            const a=s2*(0.35+arc*k/(seg-1));
+            const H=88;
+            const b2=new THREE.Mesh(new THREE.BoxGeometry(13,H,18),winSkin(13,H,'#ffdca0'));
+            b2.position.set(Math.sin(a)*R2,H/2,-Math.cos(a)*R2+R2+40);b2.rotation.y=a;g.add(b2);
+            const cp=new THREE.Mesh(new THREE.BoxGeometry(14.6,2.0,19.6),VEG.stone);
+            cp.position.set(Math.sin(a)*R2,H+1,-Math.cos(a)*R2+R2+40);cp.rotation.y=a;g.add(cp);}}
+        // statues on plinths along the frontage
+        for(let k=0;k<6;k++){
+          const px=-52+k*21;
+          const pl=new THREE.Mesh(new THREE.BoxGeometry(3.4,4.0,3.4),VEG.stone);
+          pl.position.set(px,2,-16);g.add(pl);
+          const st=new THREE.Mesh(new THREE.CapsuleGeometry(1.0,3.2,4,8),VEG.stone);
+          st.position.set(px,6.4,-16);g.add(st);
+          const L2=new THREE.PointLight(0xffe8bc,0.7,40,2);L2.position.set(px,5,-14);
+          if(k%2===0)g.add(L2);}
+        porteCochere(g,58,-32,'#ffd23a');
+        marquee(g,'CAESARS','#ffd23a',30,14,-52);
+        frontage(g,100,-44);
+        roofFloods(g,90,44,'#ffd23a'); } },
+    { n:'LUXOR', hue:'#b02aff', foot:60, build(g){          // black glass pyramid + obelisks
+        const H=88, base=64;
+        const pyr=new THREE.Mesh(new THREE.ConeGeometry(base,H,4),
+          new THREE.MeshStandardMaterial({color:0x0a0a12,metalness:0.82,roughness:0.14,
+            emissive:0x1a1030,emissiveIntensity:0.55}));
+        pyr.rotation.y=Math.PI/4;pyr.position.y=H/2;g.add(pyr);
+        // the window grid climbing the faces
+        for(let s2=1;s2<12;s2++){
+          const t=s2/12, r2=base*(1-t)*0.99;
+          const bd=new THREE.Mesh(new THREE.ConeGeometry(r2,0.9,4,1,true),emis(0xffdca0,0.9));
+          bd.rotation.y=Math.PI/4;bd.position.y=H*t;g.add(bd);}
+        const beam=new THREE.Mesh(new THREE.CylinderGeometry(2.4,7,460,14,1,true),
+          new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:0.20,
+            side:THREE.DoubleSide,blending:THREE.AdditiveBlending,depthWrite:false}));
+        beam.position.y=H+230;g.add(beam);
+        const apex=new THREE.PointLight(0xffffff,7,520,2);apex.position.y=H+3;g.add(apex);
+        // the obelisk and a sphinx-shaped entry pavilion
+        const ob=new THREE.Mesh(new THREE.CylinderGeometry(1.0,3.4,52,4),VEG.stone);
+        ob.rotation.y=Math.PI/4;ob.position.set(-52,26,-56);g.add(ob);
+        const tip=new THREE.Mesh(new THREE.ConeGeometry(3.4,7,4),VEG.gold);
+        tip.rotation.y=Math.PI/4;tip.position.set(-52,55,-56);g.add(tip);
+        const sph=new THREE.Mesh(new THREE.BoxGeometry(30,16,44),VEG.stone);
+        sph.position.set(30,8,-64);g.add(sph);
+        const head=new THREE.Mesh(new THREE.BoxGeometry(14,18,14),VEG.stone);
+        head.position.set(30,24,-80);g.add(head);
+        porteCochere(g,52,-96,'#b02aff');
+        marquee(g,'LUXOR','#b02aff',28,12,-116);
+        frontage(g,96,-108);
+        roofFloods(g,70,30,'#b02aff'); } },
+    { n:'EXCALIBUR', hue:'#ff3b3b', foot:58, build(g){      // white castle with conical turrets
+        const body=new THREE.Mesh(new THREE.BoxGeometry(96,40,44),
+          new THREE.MeshStandardMaterial({color:0xeceff2,roughness:0.7,
+            emissive:0x1c1e22,emissiveIntensity:0.5}));
+        body.position.y=20;g.add(body);
+        const cw=new THREE.Mesh(new THREE.BoxGeometry(100,3.0,48),VEG.stone);
+        cw.position.y=41;g.add(cw);
+        // crenellations along the top
+        for(let k=0;k<20;k++){
+          const mr=new THREE.Mesh(new THREE.BoxGeometry(2.6,3.0,2.6),VEG.stone);
+          mr.position.set(-48+k*5.05,44,-23);g.add(mr);}
+        // the turrets: red, blue and gold cones, which is what makes it Excalibur
+        const roofCols=['#c81e1e','#1e46c8','#d8a81e'];
+        const spots=[[-46,-20,52],[46,-20,52],[-30,18,40],[30,18,40],[0,-24,66]];
+        spots.forEach(([tx,tz,th],k)=>{
+          const tw=new THREE.Mesh(new THREE.CylinderGeometry(8,9,th,16),
+            new THREE.MeshStandardMaterial({color:0xeceff2,roughness:0.7,
+              emissive:0x1c1e22,emissiveIntensity:0.5}));
+          tw.position.set(tx,th/2,tz);g.add(tw);
+          for(let s2=1;s2<Math.max(3,(th/9)|0);s2++){
+            const wn=new THREE.Mesh(new THREE.BoxGeometry(2.0,3.0,17),emis(0xffdca0,1.1));
+            wn.position.set(tx,s2*9,tz);g.add(wn);}
+          const rc=roofCols[k%3];
+          const cone=new THREE.Mesh(new THREE.ConeGeometry(10.5,20,16),
+            new THREE.MeshStandardMaterial({color:rc,roughness:0.5,
+              emissive:rc,emissiveIntensity:0.7}));
+          cone.position.set(tx,th+10,tz);g.add(cone);
+          const fl=new THREE.Mesh(new THREE.PlaneGeometry(5,3),
+            new THREE.MeshStandardMaterial({color:0xd8a81e,side:THREE.DoubleSide,
+              emissive:0xd8a81e,emissiveIntensity:0.8}));
+          fl.position.set(tx+2.6,th+21,tz);g.add(fl);
+          const ms=new THREE.Mesh(new THREE.CylinderGeometry(0.16,0.16,7,6),VEG.gold);
+          ms.position.set(tx,th+23,tz);g.add(ms);});
+        // the drawbridge entry
+        const gate=new THREE.Mesh(new THREE.BoxGeometry(16,22,4),VEG.black);
+        gate.position.set(0,11,-24);g.add(gate);
+        const arch2=new THREE.Mesh(new THREE.TorusGeometry(8,2.0,8,18,Math.PI),VEG.stone);
+        arch2.position.set(0,22,-24.5);g.add(arch2);
+        porteCochere(g,50,-46,'#ff3b3b');
+        marquee(g,'EXCALIBUR','#ff3b3b',26,14,-68);
+        frontage(g,92,-58);
+        roofFloods(g,96,44,'#ff3b3b'); } },
+    { n:'ARIA', hue:'#2affc0', foot:62, build(g){           // Y-plan dark-glass monolith
+        for(let k=0;k<3;k++){
+          const a=k/3*TAU;
+          const H=124, W2=17, D2=52;
+          const wing=new THREE.Mesh(new THREE.BoxGeometry(W2,H,D2),VEG.bluGlass);
+          wing.position.set(Math.cos(a)*D2*0.42,H/2,Math.sin(a)*D2*0.42);
+          wing.rotation.y=-a;g.add(wing);
+          // the leaning glazed end that gives Aria its silhouette
+          const tipw=new THREE.Mesh(new THREE.BoxGeometry(W2+1,H*0.22,D2*0.5),VEG.steel);
+          tipw.position.set(Math.cos(a)*D2*0.62,H*1.02,Math.sin(a)*D2*0.62);
+          tipw.rotation.set(0,-a,0);tipw.rotateX(0.20);g.add(tipw);
+          for(let s2=1;s2<11;s2++){
+            const bd=new THREE.Mesh(new THREE.BoxGeometry(W2+0.5,0.7,D2+0.5),VEG.steel);
+            bd.position.set(Math.cos(a)*D2*0.42,H*s2/11,Math.sin(a)*D2*0.42);
+            bd.rotation.y=-a;g.add(bd);}}
+        const core=new THREE.Mesh(new THREE.CylinderGeometry(15,15,128,20),VEG.bluGlass);
+        core.position.y=64;g.add(core);
+        const pod=new THREE.Mesh(new THREE.BoxGeometry(120,18,66),VEG.darkGlass);
+        pod.position.set(0,9,-40);g.add(pod);
+        const led=new THREE.Mesh(new THREE.PlaneGeometry(96,12),
+          new THREE.MeshBasicMaterial({map:makeBillboardTex()}));
+        led.position.set(0,13,-73.5);g.add(led);
+        porteCochere(g,58,-84,'#2affc0');
+        marquee(g,'ARIA','#2affc0',24,11,-104);
+        frontage(g,108,-96);
+        roofFloods(g,110,128,'#2affc0'); } },
+    { n:'NEW YORK', hue:'#ff2aa0', foot:60, build(g){       // a miniature Manhattan skyline
+        const spots=[[-38,-8,74,16],[-14,4,58,14],[6,-10,88,18],[28,6,52,13],[46,-6,66,15],[-56,6,44,12]];
+        spots.forEach(([tx,tz,th,tw],k)=>{
+          const b2=new THREE.Mesh(new THREE.BoxGeometry(tw,th,tw*1.1),winSkin(tw,th,'#ffdca0'));
+          b2.position.set(tx,th/2,tz);b2.rotation.y=Math.random()*0.4;g.add(b2);
+          // stepped Art Deco setbacks and a spire on the tallest
+          const s2=new THREE.Mesh(new THREE.BoxGeometry(tw*0.68,th*0.22,tw*0.75),winSkin(tw,th,'#ffdca0'));
+          s2.position.set(tx,th+th*0.11,tz);s2.rotation.y=b2.rotation.y;g.add(s2);
+          if(th>70){
+            const sp=new THREE.Mesh(new THREE.ConeGeometry(tw*0.3,th*0.30,12),VEG.steel);
+            sp.position.set(tx,th*1.32,tz);g.add(sp);
+            const ms=new THREE.Mesh(new THREE.CylinderGeometry(0.2,0.2,th*0.14,6),VEG.steel);
+            ms.position.set(tx,th*1.54,tz);g.add(ms);}
+          const cr=new THREE.Mesh(new THREE.BoxGeometry(tw+0.6,0.7,tw*1.16),emis('#ff2aa0',1.4));
+          cr.position.set(tx,th,tz);cr.rotation.y=b2.rotation.y;g.add(cr);});
+        // the Statue of Liberty replica and the coaster track that loops the lot
+        { const pl=new THREE.Mesh(new THREE.BoxGeometry(11,12,11),VEG.stone);
+          pl.position.set(-70,6,-34);g.add(pl);
+          const bod=new THREE.Mesh(new THREE.CylinderGeometry(3.2,4.6,22,12),
+            new THREE.MeshStandardMaterial({color:0x5aa898,roughness:0.7,
+              emissive:0x14302a,emissiveIntensity:0.6}));
+          bod.position.set(-70,23,-34);g.add(bod);
+          const arm=new THREE.Mesh(new THREE.CylinderGeometry(0.8,1.0,12,8),
+            new THREE.MeshStandardMaterial({color:0x5aa898,roughness:0.7}));
+          arm.position.set(-73.5,38,-34);arm.rotation.z=0.35;g.add(arm);
+          const tor=new THREE.Mesh(new THREE.ConeGeometry(2.0,4.0,10),emis(0xffe08a,2.4));
+          tor.position.set(-75.5,44,-34);g.add(tor);}
+        { const rail=new THREE.MeshStandardMaterial({color:0xd8443a,roughness:0.5,metalness:0.4,
+            emissive:0x3a0e0a,emissiveIntensity:0.5});
+          for(let k=0;k<64;k++){
+            const t=k/64*TAU, r2=74+Math.sin(t*3)*12, y=20+Math.sin(t*2.4)*15+15;
+            const sg=new THREE.Mesh(new THREE.BoxGeometry(5.2,0.6,0.6),rail);
+            sg.position.set(Math.cos(t)*r2,y,Math.sin(t)*r2*0.6-6);
+            sg.rotation.y=-t;g.add(sg);
+            if(k%4===0){const sup=new THREE.Mesh(new THREE.BoxGeometry(0.7,y,0.7),VEG.steel);
+              sup.position.set(Math.cos(t)*r2,y/2,Math.sin(t)*r2*0.6-6);g.add(sup);}}}
+        porteCochere(g,54,-56,'#ff2aa0');
+        marquee(g,'NEW YORK','#ff2aa0',28,15,-78);
+        frontage(g,100,-68);
+        roofFloods(g,100,88,'#ff2aa0'); } },
+    { n:'THE MIRAGE', hue:'#ff7a2a', foot:58, build(g){     // three-wing gold-glass tower + volcano
+        for(let k=0;k<3;k++){
+          const a=(k-1)*0.62, H=96;
+          const wing=new THREE.Mesh(new THREE.BoxGeometry(15,H,46),VEG.gold);
+          wing.position.set(Math.sin(a)*40,H/2,-Math.cos(a)*40+40);wing.rotation.y=a;g.add(wing);
+          for(let s2=1;s2<10;s2++){
+            const bd=new THREE.Mesh(new THREE.BoxGeometry(15.6,0.8,46.6),VEG.bronze);
+            bd.position.set(Math.sin(a)*40,H*s2/10,-Math.cos(a)*40+40);bd.rotation.y=a;g.add(bd);}
+          const cp=new THREE.Mesh(new THREE.BoxGeometry(16.4,2.4,47.4),VEG.bronze);
+          cp.position.set(Math.sin(a)*40,H+1.2,-Math.cos(a)*40+40);cp.rotation.y=a;g.add(cp);}
+        // the volcano lagoon out front, erupting orange
+        const lag=new THREE.Mesh(new THREE.CircleGeometry(42,32),VEG.water);
+        lag.rotation.x=-Math.PI/2;lag.position.set(0,0.2,-46);g.add(lag);
+        const vol=new THREE.Mesh(new THREE.ConeGeometry(20,20,16),
+          new THREE.MeshStandardMaterial({color:0x2a2620,roughness:0.95}));
+        vol.position.set(0,9,-46);g.add(vol);
+        const glow=new THREE.Mesh(new THREE.ConeGeometry(7,10,14),emis(0xff5a10,2.6));
+        glow.position.set(0,20,-46);g.add(glow);
+        const plume=new THREE.Mesh(new THREE.CylinderGeometry(4,12,32,12,1,true),
+          new THREE.MeshBasicMaterial({color:0xff7a20,transparent:true,opacity:0.22,
+            side:THREE.DoubleSide,blending:THREE.AdditiveBlending,depthWrite:false}));
+        plume.position.set(0,38,-46);g.add(plume);
+        const vl=new THREE.PointLight(0xff6a20,5,180,2);vl.position.set(0,24,-46);g.add(vl);
+        // palm-fringed rockwork round the lagoon
+        for(let k=0;k<10;k++){const a2=Math.random()*TAU, rr=44+Math.random()*10;
+          const rk=new THREE.Mesh(new THREE.DodecahedronGeometry(3.4+Math.random()*3,0),
+            new THREE.MeshStandardMaterial({color:0x33302a,roughness:1,flatShading:true}));
+          rk.position.set(Math.cos(a2)*rr,1.6,-46+Math.sin(a2)*rr*0.7);g.add(rk);}
+        porteCochere(g,52,-84,'#ff7a2a');
+        marquee(g,'THE MIRAGE','#ff7a2a',26,15,-104);
+        frontage(g,94,-94);
+        roofFloods(g,90,96,'#ff7a2a'); } },
+    { n:'THE VENETIAN', hue:'#39d98a', foot:64, build(g){   // campanile, arcades and a canal
+        const H=98;
+        const body=new THREE.Mesh(new THREE.BoxGeometry(102,H,42),
+          new THREE.MeshStandardMaterial({map:makeStoneFacade(24,Math.round(H/4.2),'#e0d4b8',
+            {lit:0.5,litCol:'#ffd9a0',shutter:0.1,balcony:0.5,shop:false}),roughness:0.8,
+            emissive:0x1c1810,emissiveIntensity:0.5}));
+        body.position.y=H/2;g.add(body);
+        const cor=new THREE.Mesh(new THREE.BoxGeometry(106,3.0,46),VEG.stone);
+        cor.position.y=H+1.5;g.add(cor);
+        // the campanile: a tall brick shaft with a belfry and a green spire
+        { const sh=new THREE.Mesh(new THREE.BoxGeometry(15,88,15),
+            new THREE.MeshStandardMaterial({color:0xa8613c,roughness:0.85,
+              emissive:0x1e1008,emissiveIntensity:0.5}));
+          sh.position.set(-62,44,-16);g.add(sh);
+          const bel=new THREE.Mesh(new THREE.BoxGeometry(18,16,18),VEG.stone);
+          bel.position.set(-62,96,-16);g.add(bel);
+          for(const s2 of [-1,1]){
+            const op=new THREE.Mesh(new THREE.BoxGeometry(4,11,19),emis(0xffdca0,1.2));
+            op.position.set(-62+s2*4.6,96,-16);g.add(op);}
+          const att=new THREE.Mesh(new THREE.BoxGeometry(15,8,15),VEG.stone);
+          att.position.set(-62,108,-16);g.add(att);
+          const spi=new THREE.Mesh(new THREE.ConeGeometry(9,22,4),
+            new THREE.MeshStandardMaterial({color:0x4a8a72,roughness:0.5,metalness:0.4,
+              emissive:0x0e2a20,emissiveIntensity:0.6}));
+          spi.rotation.y=Math.PI/4;spi.position.set(-62,123,-16);g.add(spi);
+          const fin=new THREE.Mesh(new THREE.ConeGeometry(1.4,7,8),VEG.gold);
+          fin.position.set(-62,137,-16);g.add(fin);}
+        // the ground-floor arcade of round arches, and the canal in front of it
+        for(let k=0;k<15;k++){
+          const px=-49+k*7;
+          const ar=new THREE.Mesh(new THREE.TorusGeometry(2.6,0.7,7,14,Math.PI),VEG.stone);
+          ar.position.set(px,8.5,-21.5);g.add(ar);
+          const pi2=new THREE.Mesh(new THREE.BoxGeometry(1.6,8.5,3.0),VEG.stone);
+          pi2.position.set(px-3.3,4.25,-21.5);g.add(pi2);}
+        { const canal=new THREE.Mesh(new THREE.PlaneGeometry(96,15),VEG.water);
+          canal.rotation.x=-Math.PI/2;canal.position.set(0,0.2,-36);g.add(canal);
+          const wall=new THREE.Mesh(new THREE.BoxGeometry(98,2.2,1.6),VEG.stone);
+          wall.position.set(0,1.1,-44);g.add(wall);
+          // a footbridge over it and two gondolas underneath
+          const br=new THREE.Mesh(new THREE.BoxGeometry(6,1.2,18),VEG.stone);
+          br.position.set(18,5.4,-36);g.add(br);
+          const bra=new THREE.Mesh(new THREE.TorusGeometry(7,1.1,7,16,Math.PI),VEG.stone);
+          bra.rotation.y=Math.PI/2;bra.position.set(18,1.6,-36);g.add(bra);
+          for(const gx of [-24,4]){
+            const gd=new THREE.Mesh(new THREE.BoxGeometry(9,1.2,1.7),VEG.black);
+            gd.position.set(gx,1.0,-36);gd.rotation.y=0.2;g.add(gd);
+            const pr=new THREE.Mesh(new THREE.ConeGeometry(0.7,3.0,6),VEG.gold);
+            pr.rotation.z=-Math.PI/2;pr.position.set(gx+5.4,1.8,-36);g.add(pr);}}
+        porteCochere(g,58,-58,'#39d98a');
+        marquee(g,'THE VENETIAN','#39d98a',28,16,-80);
+        frontage(g,98,-70);
+        roofFloods(g,100,H,'#39d98a'); } },
+    { n:'COSMO', hue:'#2a6aff', foot:58, build(g){          // leaning glass sail + media wall
+        const H=118;
+        const sail=new THREE.Mesh(new THREE.BoxGeometry(72,H,26),VEG.bluGlass);
+        sail.position.set(0,H/2,0);sail.rotation.z=0.055;g.add(sail);
+        for(let s2=1;s2<13;s2++){
+          const bd=new THREE.Mesh(new THREE.BoxGeometry(73,0.9,27),VEG.steel);
+          bd.position.set(0,H*s2/13,0);bd.rotation.z=0.055;g.add(bd);}
+        // the terraced balconies that make this one recognisable
+        for(let s2=2;s2<12;s2+=2){
+          const tr=new THREE.Mesh(new THREE.BoxGeometry(76,0.6,3.2),VEG.steel);
+          tr.position.set(0,H*s2/13,-14.5);tr.rotation.z=0.055;g.add(tr);
+          const rl=new THREE.Mesh(new THREE.BoxGeometry(76,1.5,0.2),
+            new THREE.MeshStandardMaterial({color:0x9fd8f0,roughness:0.1,metalness:0.8,
+              transparent:true,opacity:0.6,emissive:0x2a6a90,emissiveIntensity:1.0}));
+          rl.position.set(0,H*s2/13+0.9,-16);rl.rotation.z=0.055;g.add(rl);}
+        // the vertical media wall on the corner
+        const led=new THREE.Mesh(new THREE.PlaneGeometry(18,H*0.72),
+          new THREE.MeshStandardMaterial({color:0x2a6aff,emissive:0x2a6aff,
+            emissiveIntensity:2.0,side:THREE.DoubleSide}));
+        led.position.set(-38,H*0.44,-13.4);led.rotation.y=Math.PI;g.add(led);
+        const pod=new THREE.Mesh(new THREE.BoxGeometry(94,20,44),VEG.darkGlass);
+        pod.position.set(0,10,-32);g.add(pod);
+        const ledw=new THREE.Mesh(new THREE.PlaneGeometry(84,15),
+          new THREE.MeshBasicMaterial({map:makeBillboardTex()}));
+        ledw.position.set(0,14,-54.5);g.add(ledw);
+        porteCochere(g,52,-64,'#2a6aff');
+        marquee(g,'COSMO','#2a6aff',24,12,-84);
+        frontage(g,90,-74);
+        roofFloods(g,80,H,'#2a6aff'); } },
+  ];
+  /* place the properties in order along the Strip, alternating sides. Each one
+     needs real room, so they are dropped where there IS room rather than every
+     N indices, and the OCCUPY register keeps them off each other. */
+  { let placed=0, ri=0, guard=0;
+    const want=RESORTS.length;
+    for(let pass=0; pass<3 && placed<want; pass++){
+      for(let i=0;i<N && placed<want;i+=Math.max(4,Math.round(N/26))){
+        if(guard++>600) break;
+        const R2=RESORTS[ri%RESORTS.length];
+        const p=P[i],n=Nm[i];
+        const side=(placed%2)?1:-1;
+        const off=(side>0?offL:offR)(i)+R2.foot+10+pass*22;
+        const x=p.x+n.x*side*off, z=p.z+n.z*side*off;
+        if(clr(x,z)<(HW+R2.foot+12)**2) continue;
+        if(!OCCUPY.take(x,z,R2.foot*0.92)) continue;
+        const g=new THREE.Group();
+        R2.build(g);
+        const gy=gh(x,z);
+        g.position.set(x,gy,z);
+        // face the circuit — the marquee and the porte-cochère are on -Z
+        g.rotation.y=Math.atan2(p.x-x,p.z-z)+Math.PI;
+        g.traverse(o=>{o.castShadow=true;o.receiveShadow=true;});
+        sc.add(g);
+        // one warm light per property, so the Strip actually lights its own street
+        const L2=new THREE.PointLight(new THREE.Color(R2.hue),2.6,260,2.0);
+        L2.position.set(x,gy+40,z);sc.add(L2);
+        placed++; ri++;
       }
-      else { body=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),winMat); }                                   // slab
-      body.position.y=podH+ (shape>=0.44&&shape<0.64 ? 0 : h/2);g.add(body);
-      const t2=new THREE.Mesh(new THREE.BoxGeometry(w*0.66,h*0.22,d*0.66),winMat);t2.position.y=podH+h+h*0.1;g.add(t2);   // setback
-      const crown=new THREE.Mesh(new THREE.BoxGeometry(w*0.7,1.4,d*0.7),new THREE.MeshStandardMaterial({color:hue,emissive:hue,emissiveIntensity:1.6}));crown.position.y=podH+h+1;g.add(crown);
-      // illuminated cornice bands wrapping the tower (real light architecture, not flat signage)
-      const bandMat=new THREE.MeshStandardMaterial({color:hue,emissive:hue,emissiveIntensity:1.4});
-      for(let bI=1;bI<=3;bI++){const by=podH+h*bI/4;
-        const band=new THREE.Mesh(new THREE.BoxGeometry(w+0.5,0.5,d+0.5),bandMat);band.position.y=by;g.add(band);}
-      // --- 3D vertical marquee pylon standing off the podium (the classic Strip roadside sign) ---
-      const signMat=new THREE.MeshBasicMaterial({map:makeNeonSign(name,hue),side:THREE.DoubleSide});
-      const pyH=Math.min(h*0.7,54), pyW=Math.min(w*0.55,9), pyZ=podD/2+5;
-      const pylon=new THREE.Group();
-      const frame=new THREE.Mesh(new THREE.BoxGeometry(pyW+1.2,pyH+1.2,1.4),new THREE.MeshStandardMaterial({color:0x101018,emissive:hue,emissiveIntensity:0.25,metalness:0.6,roughness:0.4}));
-      pylon.add(frame);
-      for(const fz of [0.75,-0.75]){const face=new THREE.Mesh(new THREE.PlaneGeometry(pyW,pyH),signMat);face.position.z=fz;face.rotation.y=fz>0?0:Math.PI;pylon.add(face);}
-      // bulb-lit outline down both edges of the pylon
-      const bulbMat=new THREE.MeshStandardMaterial({color:0xfff0c0,emissive:0xffe08a,emissiveIntensity:2.2});
-      for(let bI=0;bI<Math.max(6,pyH/4|0);bI++){const by=-pyH/2+ (bI+0.5)*(pyH/Math.max(6,pyH/4|0));
-        for(const bx of [-pyW/2-0.5,pyW/2+0.5]){const bb=new THREE.Mesh(new THREE.SphereGeometry(0.34,7,5),bulbMat);bb.position.set(bx,by,0);pylon.add(bb);}}
-      const topper=new THREE.Mesh(new THREE.BoxGeometry(pyW+2,2.2,2),new THREE.MeshStandardMaterial({color:hue,emissive:hue,emissiveIntensity:1.8}));topper.position.y=pyH/2+1.6;pylon.add(topper);
-      // stand it on the GROUND on a support mast + plinth (was floating at podium height)
-      const mast=new THREE.Mesh(new THREE.BoxGeometry(1.4,pyH*0.5+2,1.4),new THREE.MeshStandardMaterial({color:0x14161c,metalness:0.6,roughness:0.5}));
-      mast.position.y=-(pyH/2)- (pyH*0.5+2)/2 +0.2; pylon.add(mast);
-      const plinth=new THREE.Mesh(new THREE.BoxGeometry(4,1.2,4),new THREE.MeshStandardMaterial({color:0x1a1c22,roughness:0.8}));
-      plinth.position.y=-(pyH/2)-(pyH*0.5+2)+0.4; pylon.add(plinth);
-      pylon.position.set(0, (pyH*0.5+2)+pyH/2, pyZ); g.add(pylon);   // base sits on the ground
-      const gy=gh(x,z);g.position.set(x,gy,z);g.lookAt(p.x,gy,p.z);
-      g.traverse(o=>{o.castShadow=true;});sc.add(g);}}
+    }
+  }
+  /* and the background city: mid-rise Vegas behind the resorts — parking
+     garages, low motels with bulb signs, and the office blocks off the Strip.
+     Without these the resorts stand alone in a black field. */
+  { const motelM=new THREE.MeshStandardMaterial({color:0xd8cdb8,roughness:0.85,
+      emissive:0x1a1610,emissiveIntensity:0.45});
+    const garM=new THREE.MeshStandardMaterial({color:0x8a8e94,roughness:0.92});
+    const neon=['#ff2aa0','#2a6aff','#ffd23a','#39d98a','#ff7a2a'];
+    for(let k=0;k<120;k++){
+      const a=Math.random()*TAU, rr=R*(0.85+Math.random()*1.15);
+      const x=Math.cos(a)*rr, z=Math.sin(a)*rr;
+      const w=20+Math.random()*30, d=16+Math.random()*26, h=8+Math.random()*30;
+      if(clr(x,z)<(HW+Math.hypot(w,d)*0.6+22)**2) continue;
+      if(!OCCUPY.take(x,z,Math.hypot(w,d)*0.58)) continue;
+      const gy=gh(x,z), rot=Math.random()*TAU;
+      if(Math.random()<0.34){ // an open-deck parking garage
+        const lv=Math.max(2,Math.round(h/3.4));
+        for(let l=0;l<lv;l++){
+          const sl=new THREE.Mesh(new THREE.BoxGeometry(w,0.7,d),garM);
+          sl.position.set(x,gy+l*3.4,z);sl.rotation.y=rot;sc.add(sl);
+          for(const s2 of [-1,1]){
+            const sp=new THREE.Mesh(new THREE.BoxGeometry(w,1.0,0.5),garM);
+            sp.position.set(x-Math.sin(rot)*0+Math.sin(rot+Math.PI/2)*s2*d/2,gy+l*3.4+2.2,
+                            z+Math.cos(rot+Math.PI/2)*s2*d/2);
+            sp.rotation.y=rot;sc.add(sp);}}
+      }else{ // a low motel or office block, with a bulb sign if it's a motel
+        const b2=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),
+          h>18?winSkin(w,h,'#ffdca0'):motelM);
+        b2.position.set(x,gy+h/2,z);b2.rotation.y=rot;b2.castShadow=true;sc.add(b2);
+        const cp=new THREE.Mesh(new THREE.BoxGeometry(w+1.2,0.7,d+1.2),
+          new THREE.MeshStandardMaterial({color:0x8d8578,roughness:0.9}));
+        cp.position.set(x,gy+h+0.35,z);cp.rotation.y=rot;sc.add(cp);
+        if(h<18&&Math.random()<0.6){
+          const nc=neon[(Math.random()*neon.length)|0];
+          const sg=new THREE.Mesh(new THREE.BoxGeometry(w*0.5,5.0,0.5),
+            new THREE.MeshStandardMaterial({color:nc,emissive:nc,emissiveIntensity:1.9}));
+          sg.position.set(x,gy+h+3.5,z);sg.rotation.y=rot;sc.add(sg);}
+      } } }
   // --- landmark placement helper (far outside, clearance-checked) ---
   const place=(f,dist,fn)=>{const i=Math.round(N*f)%N,p=P[i],n=Nm[i];
     const x=p.x+n.x*dist,z=p.z+n.z*dist; if(clr(x,z)<80*80)return; fn(x,gh(x,z),z);};
@@ -5017,8 +5582,9 @@ function buildVegas(sc,P,Nm,Tg,offL,offR){
   // --- neon ground-glow horizon + distant lit city ---
   const ring=new THREE.Mesh(new THREE.CylinderGeometry(R*1.9,R*2.05,120,56,1,true),
     new THREE.MeshStandardMaterial({color:0x150f26,roughness:0.8,emissive:0x241640,emissiveIntensity:0.5,side:THREE.BackSide}));ring.position.y=30;sc.add(ring);
-  for(let i=0;i<48;i++){const a=Math.random()*TAU,rr=R*1.55+Math.random()*R*0.8,h=40+Math.random()*110;
-    const t=hues[i%hues.length];
+  const skyHues=['#ff2aa0','#2a6aff','#ffd23a','#b02aff','#2affc0','#ff7a2a','#ff3b3b','#39d98a'];
+  for(let i=0;i<64;i++){const a=Math.random()*TAU,rr=R*1.55+Math.random()*R*0.8,h=40+Math.random()*110;
+    const t=skyHues[i%skyHues.length];
     const b=new THREE.Mesh(new THREE.BoxGeometry(13,h,13),new THREE.MeshStandardMaterial({map:makeWindows(3,Math.max(6,h/8|0),t),emissive:new THREE.Color(t).multiplyScalar(0.14),emissiveIntensity:0.85,roughness:0.7}));
     b.position.set(Math.cos(a)*rr,h/2-2,Math.sin(a)*rr);sc.add(b);}
 }
@@ -6094,27 +6660,129 @@ function buildSingapore(sc,P,Nm,Tg,offL,offR){
         sp.position.set(ex+off+Math.cos(a)*rr, gy+2+34*0.72*Math.cos(pol), ez+(off>0?18:-18)+Math.sin(a)*rr);
         sp.lookAt(ex+off,gy+2,ez+(off>0?18:-18));sp.rotateX(Math.PI/2);sc.add(sp);} } }
 
-  // --- the CBD: dense lit towers pressing right in around the circuit ---
-  { const tints=['#8fb8dc','#a8c8e4','#7fa8cc','#c4d8e8','#9fbcd4'];
-    for(let k=0;k<170;k++){
-      const a=Math.random()*TAU, rr=R*0.62+Math.random()*R*1.35;
-      const w=20+Math.random()*24, h=70+Math.random()*230, d=w*0.9;
+  /* --- the CBD ------------------------------------------------------------
+     Singapore's skyline is not a field of glass boxes: it is FUTURISTIC. Towers
+     taper and twist, they are cut by sky gardens and crossed by sky bridges,
+     the crowns are sculpted rather than flat, whole facades are LED media
+     screens, and every one of them is lit. Seven distinct tower forms, each
+     built from a real profile, so no two blocks of the city look the same. --- */
+  { const tints=['#8fb8dc','#a8c8e4','#7fa8cc','#c4d8e8','#9fbcd4','#b8e0f0'];
+    const skinOf=(w,h,t)=>new THREE.MeshStandardMaterial({
+      map:makeWindows(Math.max(4,w/6|0),Math.max(8,h/8|0),t),
+      color:'#8ba4b8',roughness:0.16,metalness:0.72,
+      emissive:0x1a2e48,emissiveIntensity:1.15});
+    const frame=new THREE.MeshStandardMaterial({color:0xc8d6e2,roughness:0.28,metalness:0.72,
+      emissive:0x2a4364,emissiveIntensity:0.9});
+    const ledCols=[0x2fd0ff,0x8a2ac0,0x20ff90,0xff3a7a,0xffc020];
+    const towers=[];
+    for(let k=0;k<190;k++){
+      const a=Math.random()*TAU, rr=R*0.60+Math.random()*R*1.40;
+      const w=20+Math.random()*26, h=80+Math.random()*260, d=w*(0.82+Math.random()*0.3);
       const x=Math.cos(a)*rr, z=Math.sin(a)*rr;
       if(clr(x,z)<(HW+w*0.6+13)**2) continue;
       if(!OCCUPY.take(x,z,Math.hypot(w,d)*0.58)) continue;
-      const t=tints[k%5];
-      const b=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),
-        new THREE.MeshStandardMaterial({map:makeWindows(Math.max(4,w/6|0),Math.max(8,h/8|0),t),
-          color:'#7d97ad',roughness:0.28,metalness:0.55,emissive:0x18293c,emissiveIntensity:1.0}));
-      b.position.set(x,gh(x,z)+h/2,z);b.rotation.y=Math.random()*TAU;b.castShadow=true;sc.add(b);
-      if(Math.random()<0.35){
-        const cr=new THREE.Mesh(new THREE.CylinderGeometry(w*0.16,w*0.30,16,10),
-          new THREE.MeshStandardMaterial({color:0xb8c8d8,metalness:0.6,roughness:0.3,
-            emissive:0x2a3f5a,emissiveIntensity:0.8}));
-        cr.position.set(x,gh(x,z)+h+8,z);sc.add(cr);
-        const bea=new THREE.Mesh(new THREE.SphereGeometry(1.2,8,6),
-          new THREE.MeshStandardMaterial({color:0xff2010,emissive:0xff2010,emissiveIntensity:2.6}));
-        bea.position.set(x,gh(x,z)+h+18,z);sc.add(bea);} }
+      const t=tints[k%tints.length], gy=gh(x,z), rot=Math.random()*TAU;
+      const skin=skinOf(w,h,t);
+      const form=(k*7+((Math.random()*7)|0))%7;
+      const g=new THREE.Group();
+      if(form===0){ // TAPERED: a stack of storeys shrinking with height
+        const seg=7;
+        for(let q=0;q<seg;q++){
+          const f0=1-q/seg*0.45, f1=1-(q+1)/seg*0.45;
+          const cy=new THREE.Mesh(new THREE.CylinderGeometry(w*0.5*f1,w*0.5*f0,h/seg,4,1),skin);
+          cy.rotation.y=Math.PI/4;cy.position.y=h*(q+0.5)/seg;g.add(cy);}
+      }else if(form===1){ // TWISTED: each storey rotated a few degrees on the last
+        const seg=16;
+        for(let q=0;q<seg;q++){
+          const bx=new THREE.Mesh(new THREE.BoxGeometry(w*(1-q/seg*0.22),h/seg,d*(1-q/seg*0.22)),skin);
+          bx.position.y=h*(q+0.5)/seg;bx.rotation.y=q*0.085;g.add(bx);}
+      }else if(form===2){ // SKY GARDENS: a shaft cut by planted open storeys
+        const bd=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),skin);bd.position.y=h/2;g.add(bd);
+        const gardens=2+((Math.random()*3)|0);
+        for(let q=0;q<gardens;q++){
+          const gy2=h*(0.28+q*0.20);
+          const slab=new THREE.Mesh(new THREE.BoxGeometry(w*1.22,1.4,d*1.22),frame);
+          slab.position.y=gy2;g.add(slab);
+          const veg=new THREE.Mesh(new THREE.BoxGeometry(w*1.14,2.6,d*1.14),
+            new THREE.MeshStandardMaterial({color:0x2a6a32,roughness:0.9,
+              emissive:0x0e2a14,emissiveIntensity:0.7}));
+          veg.position.y=gy2+2.0;g.add(veg);
+          const roof2=new THREE.Mesh(new THREE.BoxGeometry(w*1.24,1.0,d*1.24),frame);
+          roof2.position.y=gy2+5.2;g.add(roof2);}
+      }else if(form===3){ // SPLIT SHAFTS joined by a sky bridge near the top
+        for(const s2 of [-1,1]){
+          const sh=new THREE.Mesh(new THREE.BoxGeometry(w*0.42,h*(s2>0?1:0.86),d),skin);
+          sh.position.set(s2*w*0.30,h*(s2>0?1:0.86)/2,0);g.add(sh);}
+        const br=new THREE.Mesh(new THREE.BoxGeometry(w*0.62,4.5,d*0.7),frame);
+        br.position.y=h*0.74;g.add(br);
+        const br2=new THREE.Mesh(new THREE.BoxGeometry(w*0.62,3.0,d*0.5),
+          new THREE.MeshStandardMaterial({color:0x9fd8f0,roughness:0.1,metalness:0.85,
+            transparent:true,opacity:0.7,emissive:0x2a6a90,emissiveIntensity:1.2}));
+        br2.position.y=h*0.74;g.add(br2);
+      }else if(form===4){ // LEANING SLAB with a raked crown
+        const bd=new THREE.Mesh(new THREE.BoxGeometry(w*1.5,h,d*0.55),skin);
+        bd.position.y=h/2;bd.rotation.z=(Math.random()-0.5)*0.08;g.add(bd);
+        const cw=new THREE.Mesh(new THREE.BoxGeometry(w*1.55,h*0.10,d*0.60),frame);
+        cw.position.y=h+h*0.05;cw.rotation.z=0.16;g.add(cw);
+        // vertical fins up the whole face, which is what these actually have
+        for(let q=0;q<9;q++){
+          const fn=new THREE.Mesh(new THREE.BoxGeometry(0.5,h,0.8),frame);
+          fn.position.set((q/8-0.5)*w*1.45,h/2,d*0.30);g.add(fn);}
+      }else if(form===5){ // CYLINDRICAL with a glazed sky lounge ring
+        const cy=new THREE.Mesh(new THREE.CylinderGeometry(w*0.42,w*0.50,h,20),skin);
+        cy.position.y=h/2;g.add(cy);
+        const ring2=new THREE.Mesh(new THREE.CylinderGeometry(w*0.58,w*0.58,7,20),
+          new THREE.MeshStandardMaterial({color:0x9fd8f0,roughness:0.1,metalness:0.85,
+            emissive:0x2a6a90,emissiveIntensity:1.3}));
+        ring2.position.y=h*0.80;g.add(ring2);
+        const cap2=new THREE.Mesh(new THREE.SphereGeometry(w*0.42,18,10,0,TAU,0,Math.PI*0.5),frame);
+        cap2.position.y=h;g.add(cap2);
+      }else{ // MEDIA FACADE: a plain shaft whose whole front is an LED screen
+        const bd=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),skin);bd.position.y=h/2;g.add(bd);
+        const lc=ledCols[(Math.random()*ledCols.length)|0];
+        const led=new THREE.Mesh(new THREE.PlaneGeometry(w*0.86,h*0.66),
+          new THREE.MeshStandardMaterial({color:lc,emissive:lc,emissiveIntensity:1.9,
+            roughness:0.4,side:THREE.DoubleSide}));
+        led.position.set(0,h*0.52,d/2+0.3);g.add(led);
+        // horizontal light bands up the flanks
+        for(let q=0;q<Math.max(4,(h/26)|0);q++){
+          const bnd=new THREE.Mesh(new THREE.BoxGeometry(w+0.4,0.7,d+0.4),
+            new THREE.MeshStandardMaterial({color:lc,emissive:lc,emissiveIntensity:1.5,roughness:0.5}));
+          bnd.position.y=h*(q+0.5)/Math.max(4,(h/26)|0);g.add(bnd);}
+      }
+      // every tall tower gets a crown: a mast, a spire or a lit ring, plus the
+      // aircraft-warning beacon that makes a night skyline read as a skyline
+      if(h>150){
+        const cr=new THREE.Mesh(new THREE.CylinderGeometry(0.7,2.2,h*0.14,8),frame);
+        cr.position.y=h+h*0.07;g.add(cr);
+        const ring3=new THREE.Mesh(new THREE.TorusGeometry(w*0.36,0.5,6,20),
+          new THREE.MeshStandardMaterial({color:0x2fd0ff,emissive:0x2fd0ff,emissiveIntensity:1.8}));
+        ring3.rotation.x=Math.PI/2;ring3.position.y=h+2;g.add(ring3);
+      }
+      const bea=new THREE.Mesh(new THREE.SphereGeometry(1.3,8,6),
+        new THREE.MeshStandardMaterial({color:0xff2010,emissive:0xff2010,emissiveIntensity:2.8}));
+      bea.position.y=h+(h>150?h*0.15:6);g.add(bea);
+      g.position.set(x,gy,z);g.rotation.y=rot;
+      g.traverse(o=>{o.castShadow=true;});sc.add(g);
+      towers.push({x,z,gy,h,w,rot});}
+    // SKY BRIDGES between neighbouring towers — the thing that makes a skyline
+    // look like the future rather than like an office park
+    for(let k=0;k<towers.length;k++){
+      const A=towers[k];
+      for(let q=k+1;q<towers.length;q++){
+        const B=towers[q];
+        const dx=B.x-A.x, dz=B.z-A.z, L=Math.hypot(dx,dz);
+        if(L<40||L>150) continue;
+        if(Math.random()>0.10) continue;
+        const y=Math.min(A.h,B.h)*(0.52+Math.random()*0.26);
+        const mx=(A.x+B.x)/2, mz=(A.z+B.z)/2, ang2=Math.atan2(dx,dz);
+        const tube=new THREE.Mesh(new THREE.BoxGeometry(4.2,4.2,L),
+          new THREE.MeshStandardMaterial({color:0x9fd8f0,roughness:0.1,metalness:0.85,
+            transparent:true,opacity:0.72,emissive:0x2a6a90,emissiveIntensity:1.4}));
+        tube.position.set(mx,A.gy+y,mz);tube.rotation.y=ang2;sc.add(tube);
+        const rib=new THREE.Mesh(new THREE.BoxGeometry(4.6,0.4,L),frame);
+        rib.position.set(mx,A.gy+y-2.2,mz);rib.rotation.y=ang2;sc.add(rib);
+        break;}}
     // MID-RISE: the layer between the shophouses and the towers. Without it the
     // city has a hole in it — 4-storey frontage, then nothing, then 200 m glass.
     { const midT=['#c8d4dc','#d8dce2','#b8c8d4','#e0d8c8'];
@@ -6156,129 +6824,245 @@ function buildSingapore(sc,P,Nm,Tg,offL,offR){
   /* ===== THE STREETS THEMSELVES ==========================================
      Marina Bay's landmarks were here but the CITY was not: a street circuit is
      defined by the buildings you brush past, not by towers half a kilometre
-     away. This is the frontage — colonial shophouses and civic stone right up
-     against the barrier, five-foot ways, shutters, tiled roofs and lit signs —
-     and then the layers behind it. */
-  { const shopCols=['#e8ded0','#dcc9a8','#e4d8c0','#cdd8d4','#e8cfc4','#d6dce4','#e0d2b8'];
-    const roofM=new THREE.MeshStandardMaterial({color:0x8a4a34,roughness:0.9,
-      emissive:0x140804,emissiveIntensity:0.3});
-    const colM=new THREE.MeshStandardMaterial({color:0xe8e2d4,roughness:0.9,
-      emissive:0x141210,emissiveIntensity:0.35});
-    const signCols=[0xd82a2a,0xf2b312,0x2a6fd0,0x2f9a4a,0xe8ecef];
+     away. And Marina Bay is a FUTURE city — the frontage is glass, steel,
+     anodised panel and LED, not white-stucco colonial terraces. This is the
+     street wall: podium blocks with cantilevered canopies, glazed lift cores,
+     louvre screens, vertical planting, media ribbons and neon underlighting,
+     built right up against the barrier. */
+  { const glassTints=['#5fd0ff','#7fe0e0','#8fa8ff','#a06fff','#5fffc0','#ff7fa8'];
+    const panelCols=[0x1b2430,0x223040,0x18202c,0x2a3242,0x141a24];
+    const neonCols=[0x2fd0ff,0x8a2ac0,0x20ff90,0xff3a7a,0xffc020,0xffffff];
+    const panelM=panelCols.map(c=>new THREE.MeshStandardMaterial({color:c,roughness:0.34,metalness:0.62,
+      emissive:0x0e1620,emissiveIntensity:0.5}));
+    const steelM=new THREE.MeshStandardMaterial({color:0xb8c4d0,roughness:0.28,metalness:0.78,
+      emissive:0x243448,emissiveIntensity:0.6});
+    const vegM=new THREE.MeshStandardMaterial({color:0x2a6a34,roughness:0.9,
+      emissive:0x0e2a14,emissiveIntensity:0.6});
     const step=Math.max(2,Math.round(N/150));
+    let bi2=0;
     for(let i=0;i<N;i+=step){
       const p=P[i],n=Nm[i],tg=Tg[i],ang=Math.atan2(tg.x,tg.z);
       for(const [side,off] of [[1,offL],[-1,offR]]){
-        if(Math.random()<0.16) continue;                     // the odd gap: a side lane
-        const storeys=2+((Math.random()*3)|0);
-        const h=storeys*4.2+1.4, w=7+Math.random()*7, d=13+Math.random()*13;
+        if(Math.random()<0.14) continue;                     // the odd gap: a side lane
+        const storeys=3+((Math.random()*5)|0);
+        const h=storeys*4.6+2.0, w=9+Math.random()*9, d=15+Math.random()*17;
         const diag=Math.hypot(w/2,d/2), dist=off(i)+diag+2.4;
         const x=p.x+n.x*side*dist, z=p.z+n.z*side*dist;
         if(clr(x,z)<(HW+diag+3.5)**2) continue;
         if(!OCCUPY.take(x,z,diag*0.94)) continue;
         const gy=gh(x,z);
-        const col=shopCols[(Math.random()*shopCols.length)|0];
-        const cols2=Math.max(2,Math.round(w/3.4));
-        const b=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),
-          new THREE.MeshStandardMaterial({map:makeStoneFacade(cols2,storeys,col,
-            {lit:0.55,litCol:'#ffd9a0',shutter:0.45,balcony:0.30,shop:true}),
-            roughness:0.9,emissive:0x100e0c,emissiveIntensity:0.4}));
-        b.position.set(x,gy+h/2,z);b.rotation.y=ang;b.castShadow=true;sc.add(b);
-        // pitched tile roof
-        const rf=new THREE.Mesh(new THREE.BoxGeometry(w+1.0,0.9,d+1.0),roofM);
-        rf.position.set(x,gy+h+0.45,z);rf.rotation.y=ang;sc.add(rf);
-        if(Math.random()<0.55){
-          const rg=new THREE.Mesh(new THREE.CylinderGeometry(w*0.06,w*0.06,d,6),roofM);
-          rg.position.set(x,gy+h+1.5,z);rg.rotation.set(Math.PI/2,ang,0);sc.add(rg);}
-        // the five-foot way: a colonnaded walkway along the ground floor
-        { const wk=new THREE.Mesh(new THREE.BoxGeometry(w,0.2,2.4),colM);
-          wk.position.set(x-n.x*side*(d/2+1.2),gy+0.15,z-n.z*side*(d/2+1.2));
-          wk.rotation.y=ang;sc.add(wk);
-          const cn=Math.max(2,Math.round(w/3.2));
-          for(let c=0;c<cn;c++){
-            const u=(c/(cn-1||1)-0.5)*(w-1.2);
-            const pl=new THREE.Mesh(new THREE.CylinderGeometry(0.24,0.28,4.0,7),colM);
-            pl.position.set(x+Math.cos(ang)*u-n.x*side*(d/2+2.1),gy+2.0,
-                            z-Math.sin(ang)*u-n.z*side*(d/2+2.1));sc.add(pl);}
-          const lin=new THREE.Mesh(new THREE.BoxGeometry(w,0.6,1.4),colM);
-          lin.position.set(x-n.x*side*(d/2+2.1),gy+4.2,z-n.z*side*(d/2+2.1));
-          lin.rotation.y=ang;sc.add(lin);}
-        // a lit shop sign hung off the frontage — this is what reads at speed
-        if(Math.random()<0.62){
-          const sc2=signCols[(Math.random()*signCols.length)|0];
-          const sg=new THREE.Mesh(new THREE.BoxGeometry(w*0.7,1.5,0.3),
-            new THREE.MeshStandardMaterial({color:sc2,emissive:sc2,emissiveIntensity:1.5,roughness:0.5}));
-          sg.position.set(x-n.x*side*(d/2+2.5),gy+5.6,z-n.z*side*(d/2+2.5));
-          sg.rotation.y=ang;sc.add(sg);}
-        // a vertical neon banner up the corner of some blocks
-        if(Math.random()<0.28){
-          const sc2=signCols[(Math.random()*signCols.length)|0];
-          const bn=new THREE.Mesh(new THREE.BoxGeometry(1.4,h*0.6,0.24),
-            new THREE.MeshStandardMaterial({color:sc2,emissive:sc2,emissiveIntensity:1.7,roughness:0.5}));
-          bn.position.set(x-n.x*side*(d/2+0.6)+Math.cos(ang)*w*0.42,gy+h*0.58,
-                          z-n.z*side*(d/2+0.6)-Math.sin(ang)*w*0.42);
+        // rotation.y=ang puts local +Z on the TANGENT: `d` is the frontage
+        // length along the street, `w` the depth in, street face at w/2
+        const faceOut=w/2;
+        const kind=(bi2++)%5;
+        const tint=glassTints[(Math.random()*glassTints.length)|0];
+        const skin=new THREE.MeshStandardMaterial({
+          map:makeWindows(Math.max(3,Math.round(d/4.2)),Math.max(4,storeys*2),tint),
+          color:'#8ba8c0',roughness:0.14,metalness:0.76,
+          emissive:0x1c3550,emissiveIntensity:1.1});
+        const pm=panelM[(Math.random()*panelM.length)|0];
+        const neon=neonCols[(Math.random()*neonCols.length)|0];
+        const neonM=new THREE.MeshStandardMaterial({color:neon,emissive:neon,
+          emissiveIntensity:1.9,roughness:0.4});
+        // the body: a glazed podium block, sometimes stepped or chamfered
+        const b=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),skin);
+        b.position.set(x,gy+h/2,z);b.rotation.y=ang;b.castShadow=true;b.receiveShadow=true;sc.add(b);
+        // a dark spandrel band at every floor line — glass alone reads as a slab
+        for(let s2=1;s2<=storeys;s2++){
+          const sp=new THREE.Mesh(new THREE.BoxGeometry(w+0.3,0.7,d+0.3),pm);
+          sp.position.set(x,gy+s2*4.6,z);sp.rotation.y=ang;sc.add(sp);}
+        if(kind===0){ // STEPPED: a setback upper volume with a roof terrace
+          const uh=h*0.55;
+          const up=new THREE.Mesh(new THREE.BoxGeometry(w*0.72,uh,d*0.72),skin);
+          up.position.set(x,gy+h+uh/2,z);up.rotation.y=ang;up.castShadow=true;sc.add(up);
+          const par=new THREE.Mesh(new THREE.BoxGeometry(w+0.6,1.0,d+0.6),steelM);
+          par.position.set(x,gy+h+0.5,z);par.rotation.y=ang;sc.add(par);
+          // planting on the terrace, which is a Singapore signature
+          for(let q=0;q<4;q++){const u=(q/3-0.5)*d*0.8;
+            const vg=new THREE.Mesh(new THREE.BoxGeometry(1.8,2.2,2.4),vegM);
+            vg.position.set(x+Math.sin(ang)*u-n.x*side*(faceOut*0.75),gy+h+2.1,
+                            z+Math.cos(ang)*u-n.z*side*(faceOut*0.75));sc.add(vg);}
+        }else if(kind===1){ // LOUVRE-SCREENED: horizontal brise-soleil up the face
+          for(let s2=0;s2<storeys*2;s2++){
+            const lv=new THREE.Mesh(new THREE.BoxGeometry(0.9,0.18,d*0.98),steelM);
+            lv.position.set(x-n.x*side*(faceOut+0.5),gy+2.0+s2*2.3,z-n.z*side*(faceOut+0.5));
+            lv.rotation.set(0,ang,0);lv.rotateZ(0.22);sc.add(lv);}
+        }else if(kind===2){ // GLAZED LIFT CORE on the outside of the facade
+          const cw=Math.min(4.0,d*0.28);
+          const core=new THREE.Mesh(new THREE.BoxGeometry(2.6,h*1.06,cw),
+            new THREE.MeshStandardMaterial({color:0x9fd8f0,roughness:0.08,metalness:0.85,
+              transparent:true,opacity:0.72,emissive:0x2a6a90,emissiveIntensity:1.3}));
+          core.position.set(x-n.x*side*(faceOut+1.1)+Math.sin(ang)*d*0.34,gy+h*0.53,
+                            z-n.z*side*(faceOut+1.1)+Math.cos(ang)*d*0.34);
+          core.rotation.y=ang;sc.add(core);
+          for(let s2=1;s2<storeys;s2++){
+            const cab=new THREE.Mesh(new THREE.BoxGeometry(2.0,1.4,cw*0.7),neonM);
+            cab.position.set(x-n.x*side*(faceOut+1.1)+Math.sin(ang)*d*0.34,gy+s2*4.6,
+                             z-n.z*side*(faceOut+1.1)+Math.cos(ang)*d*0.34);
+            cab.rotation.y=ang;sc.add(cab);}
+        }else if(kind===3){ // VERTICAL GARDEN: planted terraces stepping up the face
+          for(let s2=1;s2<storeys;s2++){
+            const tr=new THREE.Mesh(new THREE.BoxGeometry(1.6,0.3,d*0.9),steelM);
+            tr.position.set(x-n.x*side*(faceOut+0.8),gy+s2*4.6+0.2,z-n.z*side*(faceOut+0.8));
+            tr.rotation.y=ang;sc.add(tr);
+            const vg=new THREE.Mesh(new THREE.BoxGeometry(1.3,1.5,d*0.86),vegM);
+            vg.position.set(x-n.x*side*(faceOut+0.8),gy+s2*4.6+1.0,z-n.z*side*(faceOut+0.8));
+            vg.rotation.y=ang;sc.add(vg);}
+        }else{ // MEDIA WALL: the whole street face is a moving LED ribbon
+          const led=new THREE.Mesh(new THREE.PlaneGeometry(d*0.94,h*0.62),
+            new THREE.MeshStandardMaterial({color:neon,emissive:neon,emissiveIntensity:1.9,
+              roughness:0.4,side:THREE.DoubleSide}));
+          led.position.set(x-n.x*side*(faceOut+0.35),gy+h*0.56,z-n.z*side*(faceOut+0.35));
+          led.rotation.y=ang+Math.PI/2;sc.add(led);
+          const fr=new THREE.Mesh(new THREE.BoxGeometry(0.5,h*0.68,d*1.0),steelM);
+          fr.position.set(x-n.x*side*(faceOut+0.15),gy+h*0.56,z-n.z*side*(faceOut+0.15));
+          fr.rotation.y=ang;sc.add(fr);
+        }
+        // a CANTILEVERED CANOPY over the pavement, uplit from below — the thing
+        // that makes the street read as covered, glowing and modern
+        { const cn=new THREE.Mesh(new THREE.BoxGeometry(4.2,0.34,d*0.96),steelM);
+          cn.position.set(x-n.x*side*(faceOut+2.1),gy+5.4,z-n.z*side*(faceOut+2.1));
+          cn.rotation.y=ang;cn.castShadow=true;sc.add(cn);
+          const ul=new THREE.Mesh(new THREE.BoxGeometry(3.6,0.14,d*0.90),
+            new THREE.MeshStandardMaterial({color:0xdff4ff,emissive:0xbfe8ff,
+              emissiveIntensity:1.6,roughness:0.4}));
+          ul.position.set(x-n.x*side*(faceOut+2.1),gy+5.18,z-n.z*side*(faceOut+2.1));
+          ul.rotation.y=ang;sc.add(ul);
+          // tension rods back to the facade, so it is not floating
+          for(let q=0;q<3;q++){const u=(q-1)*d*0.34;
+            const rd=new THREE.Mesh(new THREE.CylinderGeometry(0.07,0.07,5.2,6),steelM);
+            rd.position.set(x-n.x*side*(faceOut+1.2)+Math.sin(ang)*u,gy+7.4,
+                            z-n.z*side*(faceOut+1.2)+Math.cos(ang)*u);
+            rd.rotation.set(0,ang,0);rd.rotateX(0.42);sc.add(rd);}}
+        // NEON UNDERLIGHT along the base and a lit sign band above the canopy
+        { const bl=new THREE.Mesh(new THREE.BoxGeometry(0.4,0.5,d*0.94),neonM);
+          bl.position.set(x-n.x*side*(faceOut+0.3),gy+0.6,z-n.z*side*(faceOut+0.3));
+          bl.rotation.y=ang;sc.add(bl);
+          if(Math.random()<0.7){
+            const sg=new THREE.Mesh(new THREE.BoxGeometry(0.3,1.6,d*0.7),
+              new THREE.MeshStandardMaterial({color:neon,emissive:neon,
+                emissiveIntensity:2.0,roughness:0.45}));
+            sg.position.set(x-n.x*side*(faceOut+2.5),gy+7.0,z-n.z*side*(faceOut+2.5));
+            sg.rotation.y=ang;sc.add(sg);} }
+        // a vertical neon fin up the corner of some blocks
+        if(Math.random()<0.34){
+          const bn=new THREE.Mesh(new THREE.BoxGeometry(0.26,h*0.78,1.5),neonM);
+          bn.position.set(x-n.x*side*(faceOut+0.5)+Math.sin(ang)*d*0.44,gy+h*0.52,
+                          z-n.z*side*(faceOut+0.5)+Math.cos(ang)*d*0.44);
           bn.rotation.y=ang;sc.add(bn);}
+        // a crisp parapet cap and rooftop plant
+        { const cap=new THREE.Mesh(new THREE.BoxGeometry(w+0.8,0.7,d+0.8),steelM);
+          cap.position.set(x,gy+h+0.35,z);cap.rotation.y=ang;sc.add(cap);
+          const plt=new THREE.Mesh(new THREE.BoxGeometry(w*0.42,1.8,d*0.34),pm);
+          plt.position.set(x,gy+h+1.6,z);plt.rotation.y=ang;sc.add(plt);}
       } }
   }
-  /* the civic set-pieces along the bay side: City Hall and the old Supreme Court
-     colonnades, the Fullerton, the cricket pavilion on the Padang. All white
-     stone under floodlight, which is exactly how they read at night. */
-  { const stone=new THREE.MeshStandardMaterial({color:0xe8e4d8,roughness:0.82,
-      emissive:0x181614,emissiveIntensity:0.55});
-    const dome=new THREE.MeshStandardMaterial({color:0x4a5a52,roughness:0.5,metalness:0.4,
-      emissive:0x101614,emissiveIntensity:0.4});
-    const civic=(ax,W,D,H,cols,domed)=>{
-      const x=cX+Math.cos(ax)*R*(0.95+Math.random()*0.35), z=cZ+Math.sin(ax)*R*(0.95+Math.random()*0.35);
-      if(clr(x,z)<(HW+Math.hypot(W,D)*0.6+22)**2) return null;
-      const gy=gh(x,z), g=new THREE.Group();
-      const body=new THREE.Mesh(new THREE.BoxGeometry(W,H,D),stone);body.position.y=H/2;g.add(body);
-      // a full colonnade across the front, with entablature and pediment
-      for(let c=0;c<cols;c++){
-        const u=(c/(cols-1)-0.5)*(W-4);
-        const pl=new THREE.Mesh(new THREE.CylinderGeometry(1.0,1.15,H*0.78,12),stone);
-        pl.position.set(u,H*0.39,D/2+1.6);g.add(pl);
-        const cp=new THREE.Mesh(new THREE.BoxGeometry(2.8,0.7,2.8),stone);
-        cp.position.set(u,H*0.78,D/2+1.6);g.add(cp);}
-      const ent=new THREE.Mesh(new THREE.BoxGeometry(W,2.2,4.4),stone);
-      ent.position.set(0,H*0.82,D/2+1.6);g.add(ent);
-      const ped=new THREE.Mesh(new THREE.CylinderGeometry(0.1,W*0.30,5.0,3),stone);
-      ped.rotation.set(Math.PI/2,0,0);ped.position.set(0,H*0.92,D/2+1.6);g.add(ped);
-      const steps=new THREE.Mesh(new THREE.BoxGeometry(W*0.7,1.4,6),stone);
-      steps.position.set(0,0.7,D/2+5);g.add(steps);
-      if(domed){ const dm=new THREE.Mesh(new THREE.SphereGeometry(W*0.20,18,12,0,TAU,0,Math.PI*0.55),dome);
-        dm.position.y=H+1;g.add(dm);
-        const dr=new THREE.Mesh(new THREE.CylinderGeometry(W*0.21,W*0.21,3,18),stone);
-        dr.position.y=H+0.5;g.add(dr);
-        const fn=new THREE.Mesh(new THREE.ConeGeometry(1.0,5,8),dome);
-        fn.position.y=H+1+W*0.20+2;g.add(fn);}
-      g.position.set(x,gy,z);g.rotation.y=Math.atan2(cX-x,cZ-z);
-      g.traverse(o=>{o.castShadow=true;o.receiveShadow=true;});sc.add(g);
-      // floodlights washing the facade, as they really are lit
-      const L=new THREE.PointLight(0xffeccc,2.2,180,2.0);L.position.set(x,gy+H*0.5,z);sc.add(L);
-      return {x,z};};
-    civic(bayA+1.35, 96, 34, 26, 12, true);            // old Supreme Court
-    civic(bayA+1.75, 110, 30, 22, 14, false);          // City Hall
-    civic(bayA-1.45, 62, 30, 30, 8,  true);            // the Fullerton
-    // the Padang: a floodlit sports field with the cricket pavilion on it
-    { const px=cX+Math.cos(bayA+1.55)*R*1.28, pz=cZ+Math.sin(bayA+1.55)*R*1.28;
-      if(clr(px,pz)>(HW+70)**2){ const gy=gh(px,pz);
-        const fld=new THREE.Mesh(new THREE.PlaneGeometry(150,96),
-          new THREE.MeshStandardMaterial({color:0x25562a,roughness:1,side:THREE.DoubleSide,
-            emissive:0x0a1a0c,emissiveIntensity:0.5}));
-        fld.rotation.x=-Math.PI/2;fld.position.set(px,gy+0.12,pz);sc.add(fld);
-        const pav=new THREE.Mesh(new THREE.BoxGeometry(38,12,16),stone);
-        pav.position.set(px,gy+6,pz-56);pav.castShadow=true;sc.add(pav);
-        const pr=new THREE.Mesh(new THREE.BoxGeometry(41,1.2,19),
-          new THREE.MeshStandardMaterial({color:0x7a3a2a,roughness:0.9}));
-        pr.position.set(px,gy+12.6,pz-56);sc.add(pr);
-        for(let k=0;k<4;k++){const a=k/4*TAU+0.4;
-          const m2=new THREE.Mesh(new THREE.BoxGeometry(1.2,30,1.2),
-            new THREE.MeshStandardMaterial({color:0x2a2e34,roughness:0.7,metalness:0.4}));
-          m2.position.set(px+Math.cos(a)*76,gy+15,pz+Math.sin(a)*54);sc.add(m2);
-          const rg=new THREE.Mesh(new THREE.BoxGeometry(8,3.4,1.0),
-            new THREE.MeshStandardMaterial({color:0xf2f4f6,emissive:0xfff4dc,emissiveIntensity:1.4}));
-          rg.position.set(px+Math.cos(a)*76,gy+31,pz+Math.sin(a)*54);
-          rg.lookAt(px,gy+20,pz);sc.add(rg);} } }
+  /* the bay-front set-pieces. These were white colonnaded civic blocks, which
+     read as Italian palazzi and look nothing like Marina Bay — the frontage
+     here is a FUTURE waterfront. Four landmarks instead: a convention centre
+     under a rippling wave roof, a fanned exhibition shell, an elevated transit
+     interchange, and a sky-park pavilion on splayed columns. All in glass,
+     brushed panel and light. */
+  { const glassM=new THREE.MeshStandardMaterial({color:0x9fd8f0,roughness:0.08,metalness:0.86,
+      transparent:true,opacity:0.76,emissive:0x2a6a90,emissiveIntensity:1.2});
+    const shellM=new THREE.MeshStandardMaterial({color:0xd8e4ee,roughness:0.22,metalness:0.68,
+      emissive:0x2a3a4c,emissiveIntensity:0.85,side:THREE.DoubleSide});
+    const steelM=new THREE.MeshStandardMaterial({color:0xb8c4d0,roughness:0.26,metalness:0.8,
+      emissive:0x243448,emissiveIntensity:0.6});
+    const deckM=new THREE.MeshStandardMaterial({color:0x2a3240,roughness:0.5,metalness:0.5,
+      emissive:0x121a24,emissiveIntensity:0.5});
+    const spotAt=(ax,need)=>{
+      const rr=R*(0.95+Math.random()*0.4);
+      const x=cX+Math.cos(ax)*rr, z=cZ+Math.sin(ax)*rr;
+      if(clr(x,z)<(HW+need)**2) return null;
+      if(!OCCUPY.take(x,z,need*0.8)) return null;
+      return {x,z,gy:gh(x,z)};};
+    // 1) CONVENTION CENTRE: a long glazed hall under a rippling wave roof
+    { const sp=spotAt(bayA+1.35,70);
+      if(sp){ const g=new THREE.Group(), W=140, D=48, H=22;
+        const body=new THREE.Mesh(new THREE.BoxGeometry(W,H,D),glassM);body.position.y=H/2;g.add(body);
+        const base=new THREE.Mesh(new THREE.BoxGeometry(W+6,3,D+6),deckM);base.position.y=1.5;g.add(base);
+        // the wave: a run of arched ribs of varying rise
+        const ribs=22;
+        for(let k=0;k<ribs;k++){
+          const t=k/(ribs-1), rise=9+Math.sin(t*Math.PI*2.4)*5.5;
+          const rb=new THREE.Mesh(new THREE.TorusGeometry(D*0.52,0.62,6,18,Math.PI),steelM);
+          rb.position.set((t-0.5)*W,H+1,0);rb.rotation.y=Math.PI/2;
+          rb.scale.set(1,rise/(D*0.52),1);g.add(rb);
+          const pn=new THREE.Mesh(new THREE.BoxGeometry(W/ribs*1.05,0.5,D*1.06),shellM);
+          pn.position.set((t-0.5)*W,H+1+rise*0.62,0);
+          pn.rotation.z=Math.cos(t*Math.PI*2.4)*0.16;g.add(pn);}
+        // mullions down the glazing, and a lit sign band
+        for(let k=0;k<26;k++){
+          const ml=new THREE.Mesh(new THREE.BoxGeometry(0.4,H,0.4),steelM);
+          ml.position.set((k/25-0.5)*W,H/2,D/2+0.3);g.add(ml);}
+        const sgn=new THREE.Mesh(new THREE.BoxGeometry(W*0.5,2.0,0.4),
+          new THREE.MeshStandardMaterial({color:0x2fd0ff,emissive:0x2fd0ff,emissiveIntensity:2.0}));
+        sgn.position.set(0,H*0.82,D/2+0.6);g.add(sgn);
+        g.position.set(sp.x,sp.gy,sp.z);g.rotation.y=Math.atan2(cX-sp.x,cZ-sp.z);
+        g.traverse(o=>{o.castShadow=true;o.receiveShadow=true;});sc.add(g);
+        const L=new THREE.PointLight(0x9fd8f0,2.4,220,2.0);L.position.set(sp.x,sp.gy+H,sp.z);sc.add(L);} }
+    // 2) EXHIBITION SHELL: a fanned set of leaning glass petals
+    { const sp=spotAt(bayA+1.85,60);
+      if(sp){ const g=new THREE.Group();
+        for(let k=0;k<7;k++){
+          const t=k/6, hh=26+Math.sin(t*Math.PI)*22;
+          const pt=new THREE.Mesh(new THREE.BoxGeometry(16,hh,3.2),shellM);
+          pt.position.set((t-0.5)*90,hh/2,Math.sin(t*Math.PI)*-9);
+          pt.rotation.x=-0.24-Math.sin(t*Math.PI)*0.14;g.add(pt);
+          const gl=new THREE.Mesh(new THREE.BoxGeometry(14,hh*0.9,1.0),glassM);
+          gl.position.copy(pt.position);gl.rotation.copy(pt.rotation);gl.translateZ(2.0);g.add(gl);}
+        const pod=new THREE.Mesh(new THREE.BoxGeometry(104,7,34),deckM);pod.position.y=3.5;g.add(pod);
+        g.position.set(sp.x,sp.gy,sp.z);g.rotation.y=Math.atan2(cX-sp.x,cZ-sp.z);
+        g.traverse(o=>{o.castShadow=true;});sc.add(g);
+        const L=new THREE.PointLight(0xbfe8ff,2.0,190,2.0);L.position.set(sp.x,sp.gy+34,sp.z);sc.add(L);} }
+    // 3) TRANSIT INTERCHANGE: an elevated guideway with a glazed station on it
+    { const sp=spotAt(bayA-1.45,60);
+      if(sp){ const g=new THREE.Group();
+        const gw=new THREE.Mesh(new THREE.BoxGeometry(240,2.4,9),deckM);gw.position.y=15;g.add(gw);
+        for(let k=0;k<9;k++){
+          const pr=new THREE.Mesh(new THREE.CylinderGeometry(1.7,2.4,15,12),steelM);
+          pr.position.set((k/8-0.5)*220,7.5,0);g.add(pr);
+          const cp=new THREE.Mesh(new THREE.BoxGeometry(7,1.4,12),steelM);
+          cp.position.set((k/8-0.5)*220,14.6,0);g.add(cp);}
+        const stn=new THREE.Mesh(new THREE.BoxGeometry(62,9,17),glassM);stn.position.y=21;g.add(stn);
+        const roof=new THREE.Mesh(new THREE.CylinderGeometry(10,10,64,16,1,true,0,Math.PI),shellM);
+        roof.rotation.z=Math.PI/2;roof.position.y=26.5;g.add(roof);
+        // a train standing at the platform, lit inside
+        const car=new THREE.Mesh(new THREE.BoxGeometry(48,4.0,3.4),
+          new THREE.MeshStandardMaterial({color:0xe4eaf0,roughness:0.3,metalness:0.6,
+            emissive:0x2a3a4c,emissiveIntensity:0.7}));
+        car.position.set(6,18.5,0);g.add(car);
+        for(let k=0;k<12;k++){
+          const wn=new THREE.Mesh(new THREE.BoxGeometry(2.4,1.6,3.6),
+            new THREE.MeshStandardMaterial({color:0xfff0d0,emissive:0xfff0d0,emissiveIntensity:1.6}));
+          wn.position.set(-16+k*3.9,18.9,0);g.add(wn);}
+        g.position.set(sp.x,sp.gy,sp.z);g.rotation.y=Math.atan2(cX-sp.x,cZ-sp.z)+Math.PI/2;
+        g.traverse(o=>{o.castShadow=true;});sc.add(g);} }
+    // 4) SKY-PARK PAVILION: a lifted planted deck on splayed columns, lit from under
+    { const sp=spotAt(bayA+0.75,64);
+      if(sp){ const g=new THREE.Group(), H=30;
+        for(let k=0;k<8;k++){const a=k/8*TAU;
+          const co=new THREE.Mesh(new THREE.CylinderGeometry(1.1,2.0,H,10),steelM);
+          co.position.set(Math.cos(a)*24,H/2,Math.sin(a)*24);
+          co.rotation.set(Math.cos(a)*0.13,0,-Math.sin(a)*0.13);g.add(co);}
+        const deck=new THREE.Mesh(new THREE.CylinderGeometry(38,34,3.0,26),deckM);
+        deck.position.y=H+1.5;g.add(deck);
+        const under=new THREE.Mesh(new THREE.CylinderGeometry(37,33,0.5,26),
+          new THREE.MeshStandardMaterial({color:0x8a2ac0,emissive:0x8a2ac0,emissiveIntensity:1.7}));
+        under.position.y=H-0.2;g.add(under);
+        const veg=new THREE.Mesh(new THREE.CylinderGeometry(35,35,2.4,26),
+          new THREE.MeshStandardMaterial({color:0x2a6a34,roughness:0.9,
+            emissive:0x0e2a14,emissiveIntensity:0.7}));
+        veg.position.y=H+4.0;g.add(veg);
+        // a glazed pod on top and the lift shaft up to it
+        const pod=new THREE.Mesh(new THREE.SphereGeometry(13,20,12,0,TAU,0,Math.PI*0.55),glassM);
+        pod.scale.set(1,0.62,1);pod.position.y=H+5;g.add(pod);
+        const shaft=new THREE.Mesh(new THREE.BoxGeometry(4.0,H+6,4.0),glassM);
+        shaft.position.set(0,(H+6)/2,0);g.add(shaft);
+        g.position.set(sp.x,sp.gy,sp.z);g.rotation.y=Math.random()*TAU;
+        g.traverse(o=>{o.castShadow=true;});sc.add(g);
+        const L=new THREE.PointLight(0xa040ff,2.2,200,2.0);L.position.set(sp.x,sp.gy+H,sp.z);sc.add(L);} }
   }
   /* Gardens by the Bay: the Supertrees. Lit purple and gold at night, visible
      from most of the circuit, and completely unlike anything else on the
@@ -6637,27 +7421,41 @@ function buildMadrid(sc,P,Nm,Tg,offL,offR){
         cor.position.set(x,gy+h+0.45,z);cor.rotation.y=ang;sc.add(cor);
         const mans=new THREE.Mesh(new THREE.BoxGeometry(w*0.86,3.0,d*0.86),roofM);
         mans.position.set(x,gy+h+2.4,z);mans.rotation.y=ang;sc.add(mans);
-        // wrought-iron balcony rails running across the street face
+        /* NOTE ON ORIENTATION. rotation.y=ang maps the box's local +Z onto the
+           track TANGENT, so `d` runs ALONG the street and `w` is the depth into
+           the block — the street-facing face is at w/2 along the normal, not
+           d/2. Offsetting by d/2 (as this did) hangs the balconies out in mid
+           air beside the building, which is what the black shelves were. */
+        const faceOut=w/2;                                   // to the street face
+        // wrought-iron balconies on the street face, one per upper storey
         for(let s2=1;s2<storeys;s2++){
-          const bal=new THREE.Mesh(new THREE.BoxGeometry(w*0.9,0.1,0.9),ironM);
-          bal.position.set(x-n.x*side*(d/2+0.5),gy+s2*3.5+1.3,z-n.z*side*(d/2+0.5));
+          const bal=new THREE.Mesh(new THREE.BoxGeometry(0.85,0.12,d*0.86),
+            new THREE.MeshStandardMaterial({color:0xa8a29a,roughness:0.9}));
+          bal.position.set(x-n.x*side*(faceOut+0.42),gy+s2*3.5+1.25,z-n.z*side*(faceOut+0.42));
           bal.rotation.y=ang;sc.add(bal);
-          const rail=new THREE.Mesh(new THREE.BoxGeometry(w*0.9,0.9,0.08),ironM);
-          rail.position.set(x-n.x*side*(d/2+0.9),gy+s2*3.5+1.75,z-n.z*side*(d/2+0.9));
-          rail.rotation.y=ang;sc.add(rail);}
+          const rail=new THREE.Mesh(new THREE.BoxGeometry(0.08,0.85,d*0.86),ironM);
+          rail.position.set(x-n.x*side*(faceOut+0.82),gy+s2*3.5+1.70,z-n.z*side*(faceOut+0.82));
+          rail.rotation.y=ang;sc.add(rail);
+          // the balusters, so the rail is not one solid dark bar
+          const nb=Math.max(4,Math.round(d*0.86/0.75));
+          for(let bq=0;bq<nb;bq++){
+            const u=(bq/(nb-1)-0.5)*d*0.84;
+            const bs=new THREE.Mesh(new THREE.BoxGeometry(0.07,0.82,0.07),ironM);
+            bs.position.set(x-n.x*side*(faceOut+0.80)+Math.sin(ang)*u,gy+s2*3.5+1.68,
+                            z-n.z*side*(faceOut+0.80)+Math.cos(ang)*u);sc.add(bs);}}
         // a shop awning at street level, which is what you actually brush past
         if(Math.random()<0.6){
           const ac=awnCols[(Math.random()*awnCols.length)|0];
-          const aw=new THREE.Mesh(new THREE.BoxGeometry(w*0.62,0.14,2.4),
+          const aw=new THREE.Mesh(new THREE.BoxGeometry(2.2,0.14,d*0.6),
             new THREE.MeshStandardMaterial({color:ac,roughness:0.85}));
-          aw.position.set(x-n.x*side*(d/2+1.3),gy+3.4,z-n.z*side*(d/2+1.3));
-          aw.rotation.set(0,ang,0);aw.rotateX(0.20);sc.add(aw);}
-        // an air-conditioning unit or two on the flank, and a satellite dish
+          aw.position.set(x-n.x*side*(faceOut+1.1),gy+3.4,z-n.z*side*(faceOut+1.1));
+          aw.rotation.set(0,ang,0);aw.rotateZ(0.20);sc.add(aw);}
+        // an air-conditioning unit on the flank
         if(Math.random()<0.5){
-          const ac2=new THREE.Mesh(new THREE.BoxGeometry(1.0,0.7,0.5),
+          const ac2=new THREE.Mesh(new THREE.BoxGeometry(0.5,0.7,1.0),
             new THREE.MeshStandardMaterial({color:0xd8dce2,roughness:0.7}));
-          ac2.position.set(x-n.x*side*(d/2+0.4)+Math.cos(ang)*w*0.3,
-                           gy+h*0.55,z-n.z*side*(d/2+0.4)-Math.sin(ang)*w*0.3);
+          ac2.position.set(x-n.x*side*(faceOut+0.3)+Math.sin(ang)*d*0.3,
+                           gy+h*0.55,z-n.z*side*(faceOut+0.3)+Math.cos(ang)*d*0.3);
           ac2.rotation.y=ang;sc.add(ac2);}
       } }
   }
@@ -8690,9 +9488,32 @@ function buildPit(sc,P,Nm,Tg){
   const beam=new THREE.Mesh(new THREE.BoxGeometry(1.8,1.9,L.distanceTo(Rr)),beamMat);beam.position.set(mid.x,gy0+9.8,mid.z);beam.rotation.y=Math.atan2(n.x,n.z);sc.add(beam);
   const gsign=new THREE.Mesh(new THREE.PlaneGeometry(L.distanceTo(Rr)*0.7,2.0),new THREE.MeshBasicMaterial({map:makeBillboardTex(),side:THREE.DoubleSide}));
   gsign.position.set(mid.x,gy0+11.4,mid.z);gsign.lookAt(mid.x+tg.x*10,gy0+11.4,mid.z+tg.z*10);sc.add(gsign);
-  for(let k=0;k<5;k++){const f=(k-2)*1.5;const lt=new THREE.Mesh(new THREE.SphereGeometry(0.42,10,8),
-    new THREE.MeshStandardMaterial({color:0x300000,emissive:0xff0000,emissiveIntensity:0.7}));
-    lt.position.set(mid.x+n.x*f,gy0+8.6,mid.z+n.z*f);sc.add(lt);}
+  /* the five red start lights. Kept on TRACK.startLights so the start sequence
+     can actually run them — a grid start is the lights going out, so they have
+     to be addressable rather than decoration. */
+  { const lamps=[], glows=[];
+    for(let k=0;k<5;k++){const f=(k-2)*1.5;
+      const lt=new THREE.Mesh(new THREE.SphereGeometry(0.52,12,10),
+        new THREE.MeshStandardMaterial({color:0x2a0000,emissive:0xff0000,emissiveIntensity:0.0}));
+      lt.position.set(mid.x+n.x*f,gy0+8.6,mid.z+n.z*f);sc.add(lt);
+      // a housing round each lamp, and a soft additive glow that only shows lit
+      const hs=new THREE.Mesh(new THREE.CylinderGeometry(0.66,0.66,0.5,12),beamMat);
+      hs.position.set(mid.x+n.x*f,gy0+8.6,mid.z+n.z*f);hs.rotation.x=Math.PI/2;
+      hs.rotation.z=Math.atan2(n.x,n.z);sc.add(hs);
+      const gl=new THREE.Mesh(new THREE.PlaneGeometry(2.4,2.4),
+        new THREE.MeshBasicMaterial({color:0xff2010,transparent:true,opacity:0,
+          blending:THREE.AdditiveBlending,depthWrite:false}));
+      gl.position.set(mid.x+n.x*f+tg.x*0.5,gy0+8.6,mid.z+n.z*f+tg.z*0.5);
+      gl.lookAt(mid.x+n.x*f+tg.x*10,gy0+8.6,mid.z+n.z*f+tg.z*10);sc.add(gl);
+      lamps.push(lt);glows.push(gl);}
+    TRACK.startLights={
+      lamps, glows,
+      set(n2){ for(let k=0;k<5;k++){ const on=k<n2;
+        lamps[k].material.emissiveIntensity=on?3.2:0.0;
+        lamps[k].material.color.setHex(on?0xff2010:0x2a0000);
+        glows[k].material.opacity=on?0.55:0;} },
+    };
+    TRACK.startLights.set(0); }
 }
 
 /* --- procedural textures --- */
@@ -10394,6 +11215,9 @@ const MODES=[
   {id:'quali',t:'Qualifying',tag:'3 LAPS',drive:true,
    desc:'Three flying laps to set your best time. Nail one clean lap and pole is yours.',
    meta:[['Laps','3'],['Sectors','3'],['Target','POLE']]},
+  {id:'aisim',t:'AI Simulation',tag:'WATCH',
+   desc:'Sit in the director\u2019s chair. The full field forms up on the grid, the lights go out, and the AI races while you cut between the broadcast cameras.',
+   meta:[['Grid','14 CARS'],['Laps','1'],['You','SPECTATE']]},
   {id:'season',t:'Season',tag:'CAMPAIGN',
    desc:'Create your driver, pick your team and sponsor, and race a five-round championship.',
    meta:[['Rounds','5'],['Teams','5'],['Mode','BETA']]},
@@ -10517,6 +11341,7 @@ function renderDetail(){const m=MODES[sel];
   const d=$('#mDetail');d.classList.remove('swap');void d.offsetWidth;d.classList.add('swap');}
 function chooseMode(){const m=MODES[sel];Sound.init();Sound.blip(660,.08);
   if(m.drive){sessionMode=m.id;startDrive();}
+  else if(m.id==='aisim'){sessionMode='aisim';startAISim();}
   else if(m.id==='garage'){openGarage();}
   else if(m.id==='season'){openSeasonSetup();}
   else{ /* placeholder modes */ flashMsg(); }
@@ -11152,6 +11977,21 @@ addEventListener('keydown',e=>{
   if(STATE==='cine'){endCinematic();e.preventDefault();return;}
   if(STATE==='intro'){endTrackIntro(true);e.preventDefault();return;}
   if(STATE==='result'){ if(k==='enter'||k==='escape'||k===' '){exitToMenu();} e.preventDefault();return;}
+  if(STATE==='aisim'){
+    const res=$('#simResult'), over=res&&res.classList.contains('on');
+    if(over){
+      if(k==='r'){ res.classList.remove('on'); startAISim(); }
+      else if(k==='enter'||k==='escape'||k===' '){ res.classList.remove('on'); endAISim(); }
+      e.preventDefault();return;}
+    if(k==='escape'){ endAISim(); }
+    else if(k==='c'){ SIM.cam=(SIM.cam+1)%SIM_CAMS.length; SIM.tsPost=null; SIM.camT=0; SIM.auto=false; }
+    else if(k==='v'){ SIM.auto=!SIM.auto; const m=$('#simMsg');
+      if(m){m.textContent=SIM.auto?'AUTO DIRECTOR ON':'MANUAL CAMERA';setTimeout(()=>{m.textContent='';},1200);} }
+    else if(k==='arrowleft'||k==='a'){ SIM.follow=Math.max(0,SIM.follow-1); SIM.tsPost=null; }
+    else if(k==='arrowright'||k==='d'){ SIM.follow=Math.min(AI.cars.length-1,SIM.follow+1); SIM.tsPost=null; }
+    else if(k==='l'){ SIM.laps=SIM.laps>=3?1:SIM.laps+1; const m=$('#simMsg');
+      if(m){m.textContent=SIM.laps+(SIM.laps>1?' LAPS':' LAP');setTimeout(()=>{m.textContent='';},1200);} }
+    e.preventDefault();return;}
   if(SEASON.on==='setup'){ if(k==='escape'){closeSeasonSetup();} else if(k==='enter'&&document.activeElement.tagName!=='INPUT'){beginSeason();} return; }
   if(SEASON.on==='hub'){ if(k==='escape'){closeSeasonHub();} else if(k==='enter'){seasonRace();} e.preventDefault();return; }
   if(SEASON.on==='rd'){ if(k==='escape'){ if($('#rdScreen').classList.contains('area'))renderRDHome(); else closeRD(); } e.preventDefault();return; }
@@ -11205,7 +12045,7 @@ function readInput(){
    AI OPPONENTS — simple but effective: racing line, corner-aware pace,
    overtakes, defends, mistakes, ERS, and contact avoidance.
    ================================================================== */
-const AI={cars:[], on:false, playerPos:1};
+const AI={cars:[], on:false, playerPos:1, hold:false};
 if(typeof window!=='undefined'){window.__AI=AI;setTimeout(()=>{window.__stepAI=stepAI;window.__spawnAIs=spawnAIs;},0);}
 function makeAICar(col){
   const g=new THREE.Group();
@@ -11282,13 +12122,257 @@ function spawnAIs(n){
   });
   AI.on=true;
 }
+/* ==================================================================
+   AI SIMULATION MODE
+   A watch-only session: the full field forms up on a proper staggered grid, the
+   five red lights come on one at a time, they go out, and the AIs race a lap
+   while you follow them on the broadcast cameras. There is no player car on
+   track — the point is to be able to WATCH the AI and judge it.
+   ================================================================== */
+const SIM={on:false, phase:'', t:0, lights:0, follow:0, cam:0, camT:0,
+  laps:1, order:[], finished:[], startT:0, auto:true};
+const SIM_CAMS=['chase','tcam','trackside','helicam','onboard'];
+if(typeof window!=='undefined'){ window.__SIM=SIM;
+  setTimeout(()=>{window.__startAISim=startAISim;window.__stepAISim=stepAISim;},0); }
+/* line the whole field up on the grid: two abreast, staggered, 8 m apart, with
+   the front row right on the start line. This is the grid, not a rolling train. */
+function spawnGrid(n){
+  clearAIs(); if(!TRACK.N) return;
+  const N=TRACK.N, segLen=TRACK.len/N, HW=TRACK.halfW;
+  const roster=DRIVER_POOL.slice(0,n);
+  const teams=TEAM_IDS.slice();
+  const rowGap=8.5/segLen;                       // 8.5 m between rows, in indices
+  roster.forEach((d,i)=>{
+    const team=LIVERIES[d.t]?d.t:teams[i%teams.length];
+    const mesh=makeAICar(new THREE.Color(LIVERIES[team].base));driveScene.add(mesh);
+    const row=(i/2)|0, sideL=(i%2)===0;
+    // front row ON the line, each row a car's length or so further back
+    const idx=((-2 - row*rowGap)%N+N)%N;
+    const lat=(sideL?-1:1)*Math.min(HW*0.46,2.9);
+    const comp=i<4?'soft':(i%2?'medium':'hard');
+    AI.cars.push({mesh, idx, lat, v:0, team,
+      name:d.n, skill:d.skill, aggro:d.aggro, consist:d.consist,
+      ers:1.0, mistakeT:-99, dodge:0, defend:0, seed:Math.random()*TAU,
+      compound:comp, tyre:1, tyreLife:compoundLaps(comp,CFG.id), stops:0,
+      pitFlag:false, pitPhase:0, pitTimer:0, lastIdx:0,
+      gridPos:i+1, startJitter:0.10+Math.random()*0.55*(1.15-d.skill)*4,
+      /* the grid sits a few metres BEHIND the start line, so the first crossing
+         is the START of lap 1, not the end of it. Starting at -1 means lap 0 is
+         "running lap 1" and lap N is "N laps completed" — without this every car
+         was credited a full lap after twenty metres and the race ended at once. */
+      lap:-1, lapT:0, bestLap:0, lastLapT:0, prevLap:-1, done:false});
+  });
+  AI.on=true; AI.hold=true;
+}
+function startAISim(){
+  const cf=curCfg();
+  $('#menu').classList.remove('on');
+  if(builtTrackId!==cf.id){ buildWorld(driveScene, cf); builtTrackId=cf.id; }
+  $('#mapName').innerHTML=cf.name+' <span>· '+cf.country+'</span>';
+  // the player's car is not in this session at all
+  if(CAR.rig.parent===driveScene) driveScene.remove(CAR.rig);
+  spawnGrid(Math.min(14,DRIVER_POOL.length));
+  SIM.on=true; SIM.phase='form'; SIM.t=0; SIM.lights=0; SIM.follow=0;
+  SIM.cam=0; SIM.camT=0; SIM.finished=[]; SIM.startT=0;
+  SIM.laps=Math.max(1,SIM.laps|0);
+  if(TRACK.startLights) TRACK.startLights.set(0);
+  $('#hud').classList.remove('on');
+  $('#simHud').classList.add('on');
+  $('#simMsg').textContent='FORMATION';
+  STATE='aisim';
+  Sound.init();Sound.start();
+  Radio.reset();
+  setTimeout(()=>Radio.say('commentator','start',{cool:0,vars:{track:cf.name}}),600);
+  simCameraSnap();
+}
+function endAISim(){
+  SIM.on=false; AI.hold=false; clearAIs();
+  $('#simHud').classList.remove('on');
+  if(CAR.rig.parent!==menuScene) menuScene.add(CAR.rig);
+  enterMenu();
+}
+/* the car SIM is currently following, and the running order */
+function simLeader(){ return SIM.order.length?SIM.order[0]:AI.cars[0]; }
+function simFollowed(){
+  if(!AI.cars.length) return null;
+  const list=SIM.order.length?SIM.order:AI.cars;
+  return list[Math.min(SIM.follow,list.length-1)]||list[0];
+}
+function simCameraSnap(){
+  const c=simFollowed(); if(!c) return;
+  const N=TRACK.N, pi=(Math.round(c.idx)%N+N)%N, tg=TRACK.tan[pi];
+  camera.position.set(c.mesh.position.x-tg.x*11, c.mesh.position.y+3.6, c.mesh.position.z-tg.z*11);
+  camera.lookAt(c.mesh.position.x,c.mesh.position.y+0.8,c.mesh.position.z);
+}
+/* broadcast camera work for the simulation: a handful of real angles that cut
+   between themselves, all aimed at whichever car you are following */
+function simCamera(dt){
+  const c=simFollowed(); if(!c) return;
+  const N=TRACK.N, pi=(Math.round(c.idx)%N+N)%N;
+  const tg=TRACK.tan[pi], nm=TRACK.nrm[pi], p=c.mesh.position;
+  const mode=SIM_CAMS[SIM.cam%SIM_CAMS.length];
+  let want=new THREE.Vector3(), look=new THREE.Vector3(p.x,p.y+0.9,p.z), fov=52, lag=4.5;
+  if(mode==='chase'){
+    want.set(p.x-tg.x*10.5,p.y+3.5,p.z-tg.z*10.5); fov=58; lag=5.5;
+  }else if(mode==='onboard'){
+    want.set(p.x+tg.x*0.4,p.y+1.25,p.z+tg.z*0.4);
+    look.set(p.x+tg.x*40,p.y+1.5,p.z+tg.z*40); fov=72; lag=16;
+  }else if(mode==='tcam'){
+    want.set(p.x-tg.x*5.2,p.y+6.4,p.z-tg.z*5.2);
+    look.set(p.x+tg.x*14,p.y+0.6,p.z+tg.z*14); fov=46; lag=6.5;
+  }else if(mode==='helicam'){
+    const a=SIM.camT*0.28;
+    want.set(p.x+Math.cos(a)*44,p.y+34,p.z+Math.sin(a)*44); fov=40; lag=2.2;
+  }else{ // trackside: a fixed post ahead of the car, panning as it comes past
+    if(!SIM.tsPost || SIM.tsPost.i===undefined ||
+       ((SIM.tsPost.i-pi+N)%N)>N*0.10 || ((pi-SIM.tsPost.i+N)%N)<N*0.02){
+      const j=(pi+Math.round(N*0.045))%N, q=TRACK.pts[j], qn=TRACK.nrm[j];
+      const side=Math.random()<0.5?1:-1, off=TRACK.halfW+16+Math.random()*16;
+      SIM.tsPost={i:j,x:q.x+qn.x*side*off,y:(q.y||0)+3.4+Math.random()*7,z:q.z+qn.z*side*off};}
+    want.set(SIM.tsPost.x,SIM.tsPost.y,SIM.tsPost.z);
+    const d=Math.hypot(p.x-want.x,p.z-want.z);
+    fov=clamp(56-d*0.36,20,56); lag=99;                 // a fixed post does not move
+  }
+  if(lag>50) camera.position.copy(want);
+  else { camera.position.x=damp(camera.position.x,want.x,lag,dt);
+         camera.position.y=damp(camera.position.y,want.y,lag,dt);
+         camera.position.z=damp(camera.position.z,want.z,lag,dt); }
+  camera.lookAt(look);
+  camera.fov=damp(camera.fov,fov,6,dt); camera.updateProjectionMatrix();
+}
+/* the running order, by laps completed then distance round the lap */
+function simOrder(){
+  const N=TRACK.N;
+  SIM.order=AI.cars.slice().sort((a,b)=>{
+    if(a.done!==b.done) return a.done?-1:1;
+    if(a.done&&b.done) return a.finishT-b.finishT;
+    if(b.lap!==a.lap) return b.lap-a.lap;
+    return b.idx-a.idx;});
+  return SIM.order;
+}
+function simHUD(){
+  const N=TRACK.N, segLen=TRACK.len/N;
+  const ord=SIM.order, lead=ord[0];
+  const rows=ord.map((c,i)=>{
+    const gap = i===0 ? 'LEADER'
+      : (c.done&&lead.done) ? '+'+(c.finishT-lead.finishT).toFixed(3)
+      : (c.lap<lead.lap) ? ('+'+(lead.lap-c.lap)+'L')
+      : '+'+(((lead.idx-c.idx+N)%N)*segLen/Math.max(12,c.v)).toFixed(2);
+    const col=(LIVERIES[c.team]&&LIVERIES[c.team].base)||'#888';
+    const me=(c===simFollowed())?' cur':'';
+    return `<div class="simRow${me}"><span class="p">${i+1}</span>`+
+           `<span class="bar" style="background:${col}"></span>`+
+           `<span class="nm">${c.name}</span>`+
+           `<span class="tc" style="color:${COMPOUNDS[c.compound]?COMPOUNDS[c.compound].col:'#aaa'}">`+
+           `${COMPOUNDS[c.compound]?COMPOUNDS[c.compound].short:'-'}</span>`+
+           `<span class="gp">${gap}</span></div>`;
+  }).join('');
+  const t=$('#simTower'); if(t) t.innerHTML=rows;
+  const f=simFollowed();
+  const fn=$('#simFollow');
+  if(fn&&f) fn.innerHTML=`<b>${f.name}</b> · P${SIM.order.indexOf(f)+1} · `+
+    `${(f.v*3.6)|0} km/h · LAP ${Math.max(1,Math.min(SIM.laps,f.lap+1))}/${SIM.laps}`+
+    (f.lastLapT?` · LAST ${fmt(f.lastLapT)}`:'');
+  const cm=$('#simCam'); if(cm) cm.textContent=SIM_CAMS[SIM.cam%SIM_CAMS.length].toUpperCase();
+  const lt=$('#simLap');
+  if(lt&&lead) lt.textContent='LAP '+Math.max(1,Math.min(SIM.laps,lead.lap+1))+' / '+SIM.laps;
+}
+function stepAISim(dt){
+  SIM.t+=dt; SIM.camT+=dt;
+  const N=TRACK.N;
+  if(SIM.phase==='form'){
+    // hold the grid for a beat so you can see the formation, then run the lights
+    AI.hold=true;
+    if(SIM.t>2.4){ SIM.phase='lights'; SIM.t=0; SIM.lights=0;
+      $('#simMsg').textContent=''; }
+  }else if(SIM.phase==='lights'){
+    AI.hold=true;
+    // one light per second, five lights, then a random 0.2-1.4 s hold, then out
+    const want=Math.min(5,Math.floor(SIM.t/0.95));
+    if(want!==SIM.lights){ SIM.lights=want;
+      if(TRACK.startLights) TRACK.startLights.set(want);
+      if(want>0){Sound.init();Sound.blip(300,0.09);} }
+    if(SIM.lights>=5 && SIM.t>5*0.95+(SIM.holdFor||(SIM.holdFor=0.2+Math.random()*1.2))){
+      if(TRACK.startLights) TRACK.startLights.set(0);
+      SIM.phase='race'; SIM.t=0; AI.hold=false; SIM.startT=performance.now()/1000;
+      $('#simMsg').textContent='LIGHTS OUT';
+      setTimeout(()=>{const m=$('#simMsg');if(m)m.textContent='';},1400);
+      Sound.init();Sound.blip(720,0.18);
+      Radio.say('commentator','start',{cool:0,vars:{track:CFG.name}});
+      // every driver reacts at their own speed — a real grid does not launch as one
+      for(const c of AI.cars){ c.launchDelay=c.startJitter; c.launched=0; }
+    }
+  }else if(SIM.phase==='race'){
+    // stagger the launches: a car still on its reaction time simply does not go
+    for(const c of AI.cars){
+      if(c.launched===undefined) c.launched=1;
+      if(c.launched<1){ c.launched+=dt;
+        if(c.launched<c.launchDelay){ c.v*=Math.pow(0.02,dt); }
+        else c.launched=1; }
+      if(!c.done) c.lapT+=dt;
+    }
+    stepAI(dt);
+    // lap accounting: time each completed lap, then take the chequered flag
+    for(const c of AI.cars){
+      if(c.done) continue;
+      if(c.lap>c.prevLap){
+        if(c.lap>=1){ c.lastLapT=c.lapT;
+          if(!c.bestLap||c.lapT<c.bestLap) c.bestLap=c.lapT; }
+        c.lapT=0; c.prevLap=c.lap;}
+      if(c.lap>=SIM.laps){ c.done=true; c.finishT=SIM.t; SIM.finished.push(c);}
+    }
+    if(AI.cars.every(c=>c.done) || SIM.t>60*12){
+      SIM.phase='over'; simOrder();
+      $('#simMsg').textContent='CHEQUERED FLAG';
+      showSimResult();
+    }
+  }
+  simOrder();
+  if(SIM.auto && SIM.phase==='race'){
+    // cut between angles like a broadcast director, and follow the fight at the
+    // front unless the viewer has picked a car themselves
+    if(SIM.camT>7.5){ SIM.camT=0; SIM.cam=(SIM.cam+1)%SIM_CAMS.length; SIM.tsPost=null; }
+  }
+  simCamera(dt);
+  simHUD();
+  updateWeather(driveScene,dt);
+  FX.update(dt);
+  const rain=driveScene.userData.rain; if(rain) rain.update(dt,camera.position);
+  const lg=driveScene.userData.lightning; if(lg) lg.update(dt);
+  if(CFG.dynamicSky) updateDynamicSky(driveScene,dt);
+}
+function showSimResult(){
+  const ord=SIM.order;
+  const rows=ord.map((c,i)=>{
+    const gap=i===0?'—':'+'+((c.finishT||0)-(ord[0].finishT||0)).toFixed(3);
+    return `<tr><td>${i+1}</td><td>${c.name}</td>`+
+      `<td style="color:${(LIVERIES[c.team]&&LIVERIES[c.team].base)||'#888'}">${(LIVERIES[c.team]&&LIVERIES[c.team].name)||c.team.toUpperCase()}</td>`+
+      `<td>P${c.gridPos}</td><td>${c.bestLap?fmt(c.bestLap):'—'}</td><td>${gap}</td></tr>`;
+  }).join('');
+  const el=$('#simResultBody'); if(el) el.innerHTML=rows;
+  const r=$('#simResult'); if(r) r.classList.add('on');
+}
 function stepAI(dt){
   if(!AI.on||!AI.cars.length) return;
   const N=TRACK.N, segLen=TRACK.len/N, HW=TRACK.halfW;
+  /* AI.hold: the field is sat on the grid with the lights still on. Park every
+     car on its slot at a standstill, engines lit, and do not advance anything. */
+  if(AI.hold){
+    for(const c of AI.cars){
+      c.v=0;
+      const pi=(Math.round(c.idx)%N+N)%N;
+      const pp=TRACK.pts[pi], pn=TRACK.nrm[pi], ptg=TRACK.tan[pi];
+      c.mesh.position.set(pp.x+pn.x*c.lat,(pp.y||0)+0.02-(CAR.tireDrop||0),pp.z+pn.z*c.lat);
+      c.mesh.rotation.y=Math.atan2(ptg.x,ptg.z);
+      if(c.mesh.userData.spray) c.mesh.userData.spray.material.opacity=0;}
+    return;
+  }
   // all racers (AIs + player) for gap/position maths
   const pIdx=CAR.trackIdx||0;
-  const all=AI.cars.map(c=>({idx:c.idx,lat:c.lat,lap:c.lap,ai:c}))
-    .concat([{idx:pIdx,lat:0,lap:(lap.num||0),ai:null}]);
+  const all=AI.cars.map(c=>({idx:c.idx,lat:c.lat,lap:c.lap,ai:c}));
+  // in the watch-only simulation there IS no player car, so do not make the
+  // field race against a phantom sitting on the racing line
+  if(!(typeof SIM!=='undefined'&&SIM.on)) all.push({idx:pIdx,lat:0,lap:(lap.num||0),ai:null});
   // how close is the player tucked in behind a car ahead (drives the spray whiteout in the rain)
   { let gap=99; for(const o of all){ if(o.ai===null) continue;
       const di=(o.idx-pIdx+N)%N; if(di>0&&di<10) gap=Math.min(gap,di*segLen); }
@@ -11419,6 +12503,9 @@ function frame(){
     renderer.render(cineScene,camera);
   }else if(STATE==='intro'){
     introStep(dt);
+  }else if(STATE==='aisim'){
+    stepAISim(dt);
+    renderer.render(driveScene,camera);
   }else if(STATE==='countdown'){
     renderer.render(driveScene,camera);              // frozen grid while the lights run
   }else if(STATE==='drive'){
