@@ -9312,6 +9312,36 @@ function buildGrandstands(sc,P,Nm,Tg,offL,offR){
      for stands in tight runs is the whole point, but without an occupancy test
      two neighbours on a corner end up phased through one another. */
   const placedStands=[];
+  /* REAL PEOPLE IN THE STANDS. A grandstand used to be a crowd TEXTURE on a
+     bench box, which is fine at distance and obviously flat from the car. The
+     front rows — the ones you are level with going past — now carry actual
+     seated figures. Only the front few tiers get them, because that is all you
+     can see from the track and the rest would be tens of thousands of instances
+     for nothing. */
+  const standCrowd=[];
+  const seatRows=(g, bx,bz, faceX,faceZ, len, tiers, stepD, stepH, baseY, depthHalf, seatY, rowsWanted)=>{
+    const rot=Math.atan2(faceX-bx, faceZ-bz);
+    const cosA=Math.cos(rot), sinA=Math.sin(rot);
+    const gy=gh(bx,bz);
+    const nRows=Math.min(tiers,rowsWanted);
+    const perRow=Math.max(4,Math.round(len/1.35));
+    for(let t=0;t<nRows;t++){
+      const lz=depthHalf - t*stepD - stepD*0.5, ly=baseY + t*stepH + seatY;
+      for(let q=0;q<perRow;q++){
+        if(Math.random()<0.14) continue;                 // gaps: no stand is ever full
+        const lx=-len/2+ (q+0.5)*(len/perRow) + (Math.random()-0.5)*0.5;
+        const zz=lz+(Math.random()-0.5)*0.30;
+        // stand-local (lx,zz) → world, through the group's yaw
+        standCrowd.push({
+          x: bx + lx*cosA + zz*sinA,
+          z: bz - lx*sinA + zz*cosA,
+          y: gy+ly, r: rot+(Math.random()-0.5)*0.4,
+          c: STAND_SHIRTS[(Math.random()*STAND_SHIRTS.length)|0]});
+      }
+    }
+  };
+  const STAND_SHIRTS=[0x2b3a4c,0xd8dce2,0x9b2226,0x1b4a7a,0x2f4f34,0xc7ad3a,0xe0e4e8,
+                      0x5a4a6a,0xd94f3d,0xef6c1a,0x1d6f5c,0xf2f5f8];
   const standFits=(bx,bz,len,depth)=>{
     const rad=Math.hypot(len/2,depth/2);
     for(const q of placedStands){
@@ -9400,6 +9430,7 @@ function buildGrandstands(sc,P,Nm,Tg,offL,offR){
       const fl=new THREE.Mesh(new THREE.BoxGeometry(3.4,0.9,1),new THREE.MeshStandardMaterial({color:0xffffff,emissive:0xfff2d0,emissiveIntensity:2.2}));
       fl.position.set(sx,roofY+1,roofZc);g.add(fl);}}
     const gy=gh(bx,bz);g.position.set(bx,gy,bz);g.lookAt(p.x,gy,p.z);
+    seatRows(g,bx,bz,p.x,p.z,len,tiers,stepD,stepH,baseY,depth/2,0.30,big?5:4);
     g.traverse(o=>{o.castShadow=true;o.receiveShadow=true;});sc.add(g);return true;
   };
   // simple OPEN bleacher: raked aluminium bench rows on a bare steel truss frame —
@@ -9485,6 +9516,7 @@ function buildGrandstands(sc,P,Nm,Tg,offL,offR){
     const skirtB=new THREE.Mesh(new THREE.BoxGeometry(len,baseY,0.4),barPlainMat);
     skirtB.position.set(0,baseY/2,depth/2+0.2);g.add(skirtB);
     const gy=gh(bx,bz);g.position.set(bx,gy,bz);g.lookAt(p.x,gy,p.z);
+    seatRows(g,bx,bz,p.x,p.z,len,tiers,stepD,stepH,baseY,depth/2,0.34,4);
     g.traverse(o=>{o.castShadow=true;o.receiveShadow=true;});sc.add(g);return true;
   };
   if(CFG.street){
@@ -9524,6 +9556,9 @@ function buildGrandstands(sc,P,Nm,Tg,offL,offR){
   }
   // every floodlit venue gets its masts; Singapore builds its own denser rig
   if(CFG.night && CFG.env!=='singapore') buildFloodlights(sc,P,Nm,offL,offR,clr,{count:32,height:24,banks:3});
+  // one instanced crowd for every stand on the circuit — the front rows are
+  // people, the rows behind them stay a texture
+  if(standCrowd.length) buildCrowd(sc,standCrowd,{cheer:0.30,seatedFrac:0.88,scale:0.98});
   buildSpectatorBanks(sc,P,Nm,offL,offR,clr);
   buildTracksideLife(sc,P,Nm,Tg,offL,offR,clr);
   buildVenueGrounds(sc,P,Nm,Tg,offL,offR,clr);
@@ -10346,7 +10381,12 @@ function buildCrowd(sc, spots, opt){
     E.set(tilt||0,rot,roll||0);Q.setFromEuler(E);
     M.compose(T,Q,S);im.setMatrixAt(i,M);};
   spots.forEach((p,i)=>{
-    const sc2=(0.90+Math.random()*0.22)*o.scale;      // adults, teenagers, children
+    /* These stood about 1.3 m tall, which is why a packed bank read as a
+       scattering of dolls. HUMAN scales the figure so an average adult comes out
+       at roughly 1.78 m against a 2.6 m trackside barrier — which is the height
+       relationship you actually see on television. */
+    const HUMAN=1.37;
+    const sc2=(0.90+Math.random()*0.22)*o.scale*HUMAN; // adults, teenagers, children
     const rot=p.r!==undefined?p.r:Math.random()*TAU;
     const seated=Math.random()<o.seatedFrac;
     const cheering=!seated && Math.random()<o.cheer;
@@ -10355,7 +10395,8 @@ function buildCrowd(sc, spots, opt){
     const hairC=hairCols[(Math.random()*hairCols.length)|0];
     const legC=legCols[(Math.random()*legCols.length)|0];
     const gy=p.y!==undefined?p.y:(p.gy||0);
-    const legL=(seated?0.34:0.46)*sc2, torsoY=gy+(seated?0.30:0.50)*sc2+0.28*sc2;
+    // adult proportions: the leg is about half the standing height, not a third
+    const legL=(seated?0.36:0.52)*sc2, torsoY=gy+(seated?0.32:0.56)*sc2+0.28*sc2;
     // legs
     for(let s2=0;s2<2;s2++){
       const dx=Math.sin(rot+Math.PI/2)*(s2?0.085:-0.085)*sc2;
@@ -10446,6 +10487,16 @@ const PHYS={
   // ERS energy store: extra boost power, drain/regen time-constants (seconds for a full swing)
   ersPower:190000, ersForce:3900, ersDrain:6.5, ersRegen:9.0, ersHarvest:22.0,
 };
+/* TYRE LOAD SENSITIVITY — mu falls as the vertical load on the tyre rises.
+   Without it, grip grows with downforce at exactly the rate the cornering
+   demand does, so the limit is scale-free and any corner you can take at
+   200 km/h you can also take at 340: most of the lap goes flat. Referenced to
+   the car's STATIC load, so a slow corner is untouched and only the heavily
+   aero-loaded high-speed end gives grip back. Peak lateral goes from about
+   9.4 g at 290 km/h (which no car has ever done) to about 5 g, and is
+   unchanged at 70 km/h. */
+const TYRE_LS=0.24;
+function tyreMuFactor(load,ref){ return 1/(1+TYRE_LS*(load/Math.max(ref,1)-1)); }
 
 /* Red Bull livery texture (projected onto the body — mesh has no UVs) */
 function drawBull(x,cx,cy,s,flip){ // stylised charging bull
@@ -11113,7 +11164,7 @@ function stepPhysics(dt,inp){
      short of grip, and a real reward for being on the right compound. */
   const wetAmt=clamp(WEATHER.wetness,0,1);
   const lowSpd=1-clamp(spd/45,0,1);                                 // 1 in slow corners, 0 at speed
-  const wetCut=0.27*wetAmt*(1-0.35*lowSpd);                         // ~18% off in a hairpin, 27% flat out
+  const wetCut=0.22*wetAmt*(1-0.35*lowSpd);                         // ~14% off in a hairpin, 22% flat out
   const wetMul=1.0-wetCut;
   // tyre wear: deplete over the chosen compound's lap-life for THIS surface (laps, not seconds).
   // pushing — full throttle, sliding, braking hard, running kerbs/off — eats the life faster.
@@ -11132,7 +11183,11 @@ function stepPhysics(dt,inp){
   const workT=clamp(Math.abs(CAR.vLat)/7,0,1)*0.6 + (inp.brake||0)*0.5
             + Math.abs(inp.throttle||0)*clamp(spd/60,0,1)*0.45;
   if(CAR.tTemp===undefined) CAR.tTemp=0.30;
-  const coolRate=0.16+0.24*clamp(WEATHER.wetness,0,1)+clamp(spd/PHYS.vMax,0,1)*0.10;
+  // rain cools a tyre, but a WET tyre is built to work at that temperature —
+  // taking the cold-tyre grip penalty on top of the wet surface penalty was
+  // charging for the same thing twice
+  const wetTyre=(CAR.compound==='wet'||CAR.compound==='inter');
+  const coolRate=0.16+(wetTyre?0.09:0.20)*clamp(WEATHER.wetness,0,1)+clamp(spd/PHYS.vMax,0,1)*0.10;
   CAR.tTemp=clamp(CAR.tTemp + (workT*0.55 - coolRate*CAR.tTemp)*dt*0.85, 0, 1.25);
   // grip peaks in the working window (~0.45–0.85) and falls away either side
   const tw=CAR.tTemp;
@@ -11141,7 +11196,21 @@ function stepPhysics(dt,inp){
                  : lerp(1.0,0.86,clamp((tw-0.85)/0.40,0,1));
   const wetFit=compoundWetFit(CAR.compound||'medium',WEATHER.wetness);
   const tireGrip=lerp(0.82,1.0,CAR.tire)*comp.grip*tempGrip*wetFit;
-  const gripMul=(off?0.55:(onKerb?0.82:1.0))*wetMul*tireGrip*rdGrip();
+  let gripMul=(off?0.55:(onKerb?0.82:1.0))*wetMul*tireGrip*rdGrip();
+  /* FLOOR ON THE WET. Four separate multipliers were all pulling the same way
+     in the rain — the surface cut, the compound's own grip, the tyre running
+     cold because rain cools it, and the wet-fit penalty — and they multiply.
+     On the CORRECT tyre in a downpour that stacked to about 62% of dry grip,
+     which on a tight circuit is not a challenge, it is a wall. Each of those
+     is a real effect and they all stay; they just are not allowed to compound
+     into something no driver could hold. On the wrong tyre you still lose a
+     lot, because that is the point of the wrong tyre — but you can get it
+     back to the pits. */
+  if(!off && wetAmt>0.05){
+    const right=compoundWetFit(CAR.compound||'medium',WEATHER.wetness)>0.98;
+    const floor=(right?0.74:0.52)*rdGrip()*lerp(0.82,1.0,CAR.tire);
+    gripMul=Math.max(gripMul, floor*(onKerb?0.82:1.0));
+  }
   CAR.gripMul=gripMul;                 // next frame's brake cap uses this
   // a tyre outside its window also wears faster
   if(spd>2 && (tw<0.35||tw>0.95)) CAR.tire=Math.max(0,CAR.tire-dt*0.004);
@@ -11158,7 +11227,9 @@ function stepPhysics(dt,inp){
   const m=P.mass, a=P.aFront, b=P.aRear, L=a+b, Iz=m*P.izK;
   const df=P.downK*CAR.v*CAR.v*(CAR.drsOpen?0.88:1.0), g=9.81;   // open wing = less rear load
   const loadF=m*g*b/L + df*0.46, loadR=m*g*a/L + df*0.54;
-  const FyfMax=P.mu*gripMul*loadF, FyrMax=P.mu*gripMul*loadR;
+  // tyres give grip back as the aero load piles on — see TYRE_LS
+  const muF=P.mu*tyreMuFactor(loadF,m*g*b/L), muR=P.mu*tyreMuFactor(loadR,m*g*a/L);
+  const FyfMax=muF*gripMul*loadF, FyrMax=muR*gripMul*loadR;
   const vx=Math.max(Math.abs(CAR.v),0.6);
   let af=0,ar=0;
   if(spd>1.2){
@@ -11831,7 +11902,7 @@ function compoundWetFit(comp,wetness){
   const [lo,hi]=c.wet;
   if(w>=lo&&w<=hi) return 1.0;
   if(w<lo) return Math.max(0.72,1-(lo-w)*1.25);        // too dry for this tyre
-  return Math.max(0.42,1-(w-hi)*1.55);                  // too wet for this tyre
+  return Math.max(0.55,1-(w-hi)*1.15);                  // too wet for this tyre
 }
 let selCompound='medium';
 // 0 (non-abrasive, e.g. Monaco) .. 1 (very abrasive, e.g. Barcelona)
@@ -13116,7 +13187,7 @@ function stepAI(dt){
          larger radius than the centreline does. Across a full-width circuit that
          is worth roughly a tenth on the radius, and it is the difference between
          the AI driving the white line and the AI driving a lap. */
-      const R=(Rc?Rc[j]:8000)*1.06;
+      const R=(Rc?Rc[j]:8000)*1.12;
       /* Plan with the grip the car ACTUALLY HAS, not with dry-track mu. This is
          why they were all off the road in the wet: the driver worked out its
          corner speeds from PHYS.mu as though the track were dry, while the car
@@ -13125,14 +13196,17 @@ function stepAI(dt){
          and did it again at the next one. Tyre life and skill belong here for the
          same reason, and a driver keeps a small margin in hand. */
       const gripPlan=PHYS.mu
-        *(1-0.27*clamp(WEATHER.wetness,0,1))
+        *(1-0.22*clamp(WEATHER.wetness,0,1))
         *lerp(0.86,1.0,c.tyre)
         *(c.skill*0.35+0.65)
         *0.95;
       let vC=Math.sqrt(gripPlan*9.81*R);
       for(let it=0;it<2;it++){
         const vv=Math.min(vC,VCAP);
-        vC=Math.sqrt(gripPlan*(PHYS.mass*9.81+PHYS.downK*vv*vv)/PHYS.mass*R);
+        // the tyre gives grip back under aero load, same as the player's — a
+        // driver who planned without it would carry too much into fast corners
+        const W=PHYS.mass*9.81, load=W+PHYS.downK*vv*vv;
+        vC=Math.sqrt(gripPlan*tyreMuFactor(load,W)*load/PHYS.mass*R);
       }
       vC=Math.min(vC,VCAP);
       if(vC>=vLimit) continue;                 // cannot bind
