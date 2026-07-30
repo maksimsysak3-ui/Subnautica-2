@@ -12619,15 +12619,51 @@ function readInput(){
    ================================================================== */
 const AI={cars:[], on:false, playerPos:1, hold:false};
 if(typeof window!=='undefined'){window.__AI=AI;setTimeout(()=>{window.__stepAI=stepAI;window.__spawnAIs=spawnAIs;},0);}
-function makeAICar(col){
+/* Build an AI car in a team's REAL livery.
+   It used to flat-fill the bodywork with the team's base colour, so every rival
+   was a plain block of paint while your car wore the full design — no stripes,
+   no sponsors, no flashes. This runs the same triplanar livery projection the
+   player's car uses, with the same per-material treatment for rims, titanium,
+   rubber and plain carbon, so the field on track matches the grid in the garage.
+   Liveries are cached per team: the texture is the expensive part and fourteen
+   cars share at most fourteen of them. */
+function makeAICar(col,teamKey){
   const g=new THREE.Group();
   if(CAR.model){
-    // clone the real car model (geometry is shared) and team-colour its bodywork
     const m=CAR.model.clone(true);
-    const teamMat=new THREE.MeshStandardMaterial({color:col,roughness:0.42,metalness:0.5,envMapIntensity:1.1});
-    m.traverse(o=>{ if(o.isMesh){ const nm=(o.material&&o.material.name)||'';
-      if(/Carbon_Fiber/.test(nm)) o.material=teamMat;         // body/engine cover -> team colour
-      o.castShadow=true; o.frustumCulled=false; } });
+    const key=teamKey&&LIVERIES[teamKey]?teamKey:null;
+    const base=key?LIVERIES[key].base:col;
+    const cache=makeAICar._liv||(makeAICar._liv={});
+    let tex=null;
+    if(key){ if(!cache[key]) cache[key]=makeLivery(key); tex=cache[key]; }
+    // the body material must be per-car (its shader carries this car's livery),
+    // everything else can be shared across the whole field
+    const shared=makeAICar._shared||(makeAICar._shared={
+      plain:new THREE.MeshStandardMaterial({color:0x14161c,metalness:0.7,roughness:0.4,envMapIntensity:1.1}),
+      tiPol:new THREE.MeshStandardMaterial({color:0xccd0d6,metalness:1,roughness:0.2,envMapIntensity:1.1}),
+      tiSat:new THREE.MeshStandardMaterial({color:0x2c313a,metalness:0.9,roughness:0.42,envMapIntensity:1.1}),
+      fabric:new THREE.MeshStandardMaterial({color:0x0a0c12,roughness:0.9}),
+      rubber:new THREE.MeshStandardMaterial({color:0x0e0e12,roughness:0.95}),
+      rim:new THREE.MeshStandardMaterial({color:0x15171d,metalness:0.9,roughness:0.34,envMapIntensity:1.2}),
+    });
+    let bodyMat=null;
+    m.traverse(o=>{ if(!o.isMesh) return;
+      const nm=(o.material&&o.material.name)||'';
+      if(/Carbon_Fiber___Twill/.test(nm)){
+        if(!bodyMat){ bodyMat=new THREE.MeshStandardMaterial({color:base,
+          metalness:0.5,roughness:0.4,envMapIntensity:1.15});
+          if(tex) applyLivery(bodyMat,tex,1/1250,base); }
+        o.material=bodyMat;
+      }
+      else if(/Carbon_Fiber___Plain/.test(nm)) o.material=shared.plain;
+      else if(/Titanium___Polished/.test(nm)) o.material=shared.tiPol;
+      else if(/Titanium___Satin/.test(nm))   o.material=shared.tiSat;
+      else if(/Fabric_Black/.test(nm))       o.material=shared.fabric;
+      else if(/Rubber/.test(nm))             o.material=shared.rubber;
+      else if(!nm)                            o.material=shared.plain;
+      o.castShadow=true; o.frustumCulled=false; });
+    // rims never wear the body livery
+    m.traverse(o=>{ if(o.isMesh&&(o.name==='Object_12'||o.name==='Object_20')) o.material=shared.rim; });
     g.add(m);
   }else{
     const bMat=new THREE.MeshStandardMaterial({color:col,roughness:0.5,metalness:0.35});
@@ -12646,21 +12682,26 @@ function signedTurnIdx(i){const N=TRACK.N,a=TRACK.tan[(i-3+N)%N],b=TRACK.tan[(i+
 function clearAIs(){ AI.cars.forEach(c=>driveScene.remove(c.mesh)); AI.cars=[]; AI.on=false; }
 /* the AI field: two drivers per team, each with their own skill, aggression and
    consistency so the grid behaves like a real field instead of a uniform train */
+/* Skill scales the pace the driver is willing to carry, so the whole field was
+   running 4% off the car's limit at the back. A real grid covers about a second
+   and a half over a ninety-second lap — under two per cent — and the leaders are
+   effectively ON the limit. Raised and compressed accordingly, and consistency
+   raised too so they make fewer unforced errors. */
 const DRIVER_POOL=[
-  {n:'M. VÄRLA',   t:'redbull',  skill:1.000, aggro:0.86, consist:0.93},
-  {n:'R. OKONKWO', t:'redbull',  skill:0.981, aggro:0.72, consist:0.88},
-  {n:'L. FENN',    t:'ferrari',  skill:0.995, aggro:0.80, consist:0.90},
-  {n:'S. HÄKKINEN',t:'ferrari',  skill:0.984, aggro:0.68, consist:0.86},
-  {n:'D. ROSSI',   t:'mercedes', skill:0.992, aggro:0.75, consist:0.92},
-  {n:'K. TANAKA',  t:'mercedes', skill:0.978, aggro:0.64, consist:0.89},
-  {n:'A. PETROV',  t:'mclaren',  skill:0.997, aggro:0.88, consist:0.87},
-  {n:'J. MORAIS',  t:'mclaren',  skill:0.986, aggro:0.79, consist:0.85},
-  {n:'E. LARSSON', t:'aston',    skill:0.974, aggro:0.70, consist:0.88},
-  {n:'B. NAKAMURA',t:'aston',    skill:0.968, aggro:0.62, consist:0.84},
-  {n:'C. DUBOIS',  t:'alpine',   skill:0.971, aggro:0.74, consist:0.82},
-  {n:'V. STROMBERG',t:'alpine',  skill:0.963, aggro:0.66, consist:0.86},
-  {n:'N. HADID',   t:'williams', skill:0.966, aggro:0.71, consist:0.83},
-  {n:'T. ANDERSEN',t:'williams', skill:0.959, aggro:0.58, consist:0.87},
+  {n:'M. VÄRLA',   t:'redbull',  skill:1.000, aggro:0.86, consist:0.96},
+  {n:'R. OKONKWO', t:'redbull',  skill:0.991, aggro:0.72, consist:0.93},
+  {n:'L. FENN',    t:'ferrari',  skill:0.998, aggro:0.80, consist:0.95},
+  {n:'S. HÄKKINEN',t:'ferrari',  skill:0.992, aggro:0.68, consist:0.92},
+  {n:'D. ROSSI',   t:'mercedes', skill:0.996, aggro:0.75, consist:0.96},
+  {n:'K. TANAKA',  t:'mercedes', skill:0.989, aggro:0.64, consist:0.94},
+  {n:'A. PETROV',  t:'mclaren',  skill:0.999, aggro:0.88, consist:0.93},
+  {n:'J. MORAIS',  t:'mclaren',  skill:0.993, aggro:0.79, consist:0.91},
+  {n:'E. LARSSON', t:'aston',    skill:0.987, aggro:0.70, consist:0.93},
+  {n:'B. NAKAMURA',t:'aston',    skill:0.984, aggro:0.62, consist:0.90},
+  {n:'C. DUBOIS',  t:'alpine',   skill:0.986, aggro:0.74, consist:0.89},
+  {n:'V. STROMBERG',t:'alpine',  skill:0.982, aggro:0.66, consist:0.92},
+  {n:'N. HADID',   t:'williams', skill:0.983, aggro:0.71, consist:0.90},
+  {n:'T. ANDERSEN',t:'williams', skill:0.980, aggro:0.58, consist:0.93},
 ];
 function aiRoster(exclude,n){
   // prefer drivers whose team actually exists in the livery table, skip the player's team
@@ -12684,7 +12725,7 @@ function spawnAIs(n){
   };
   roster.forEach((d,i)=>{
     const team=LIVERIES[d.t]?d.t:teams[i%teams.length];
-    const mesh=makeAICar(new THREE.Color(LIVERIES[team].base));driveScene.add(mesh);
+    const mesh=makeAICar(new THREE.Color(LIVERIES[team].base),team);driveScene.add(mesh);
     const comp=i<3?'medium':(i%2?'hard':'soft');           // varied starting strategies
     AI.cars.push({mesh, idx:slotOf(d.n,i), lat:(i%2?1:-1)*2.4, v:0, lap:0, team,
       name:d.n, skill:d.skill, aggro:d.aggro, consist:d.consist,
@@ -12716,7 +12757,7 @@ function spawnGrid(n){
   const rowGap=8.5/segLen;                       // 8.5 m between rows, in indices
   roster.forEach((d,i)=>{
     const team=LIVERIES[d.t]?d.t:teams[i%teams.length];
-    const mesh=makeAICar(new THREE.Color(LIVERIES[team].base));driveScene.add(mesh);
+    const mesh=makeAICar(new THREE.Color(LIVERIES[team].base),team);driveScene.add(mesh);
     const row=(i/2)|0, sideL=(i%2)===0;
     // front row ON the line, each row a car's length or so further back
     const idx=((-2 - row*rowGap)%N+N)%N;
@@ -13054,7 +13095,7 @@ function stepAI(dt){
     // pace = driver skill, degraded by tyre life, cut by a wet track
     const tyreGrip=lerp(0.86,1.0,c.tyre);
     const wetCut=1.0-0.22*clamp(WEATHER.wetness,0,1);   // a wet track is kinder to the tyres
-    let targetV=Math.min(VCAP,vLimit)*c.skill*tyreGrip*wetCut;
+    let targetV=Math.min(VCAP,vLimit)*c.skill*tyreGrip*wetCut*(c.defLate||1);
     targetV*= 0.99 + 0.02*Math.sin(c.idx*0.05 + c.seed);          // subtle lap-to-lap rhythm
     /* TRAFFIC. Look further ahead than before — a slipstream reaches a long way
        at these speeds, and a car that only notices the one in front at 14 indices
@@ -13068,35 +13109,57 @@ function stepAI(dt){
         if(gap<16&&Math.abs(o.lat-c.lat)<2.6){ slow=Math.min(slow,clamp(gap/16,0.70,1)); blockedSide=o.lat>c.lat?-1:1; } }
       if(db>0&&db<12) behindGap=Math.min(behindGap,db*segLen);
     }
-    /* SLIPSTREAM. A real tow is worth 10-15 km/h and it works over about seventy
-       metres, not twenty-six, and it works everywhere the car is going fast — not
-       only on the piece of track the AI happens to classify as "a straight".
-       This is the thing that lets one car actually catch and pass another. */
+    /* SLIPSTREAM. A real tow is worth 10-15 km/h over about seventy metres, and it
+       works anywhere the car is going fast — not only where the AI classifies the
+       track as "a straight". */
     const straight=vLimit>VCAP*0.70;
     const towGap=70;
     let tow=0;
     if(closeAhead<towGap && c.v>VCAP*0.45 && Math.abs(aheadLat-c.lat)<6.5){
-      // strongest right behind the gearbox, fading out to nothing at 70 m
       tow=Math.pow(1-closeAhead/towGap,1.4)*(straight?11.5:6.0);
     }
     c.tow=tow;
     targetV+=tow;
-    /* OVERTAKING. The car used to just sit in the tow. Now, when it is closing on
-       someone and has the pace to pass, it COMMITS: picks the side with room,
-       pulls out, and holds the move until it is alongside or the corner arrives.
-       Aggression decides how early it commits and how long it stays out there. */
-    c.atk=c.atk||0; c.atkSide=c.atkSide||0;
-    const faster=(c.v>aheadV+0.6)||(tow>2.5);
-    if(closeAhead<26 && faster && aheadCar){
-      if(c.atk<=0){                                   // choose a side and go
-        const room=(l)=>Math.min(HW-1.1-Math.abs(l), HW-1.1);
-        const inSide=(signedTurnIdx(pi)>0)?-1:1;      // the inside of the coming corner
-        const want=(Math.abs(aheadLat-inSide*(HW*0.55))>2.4)?inSide:-inSide;
-        c.atkSide=want; c.atk=1.6+c.aggro*1.8;
+    /* FOLLOWING OFFSET. A driver in someone's tow does not sit on their gearbox
+       waiting to hit them — they run half a car offset to one side so they can
+       see past and are already committed when the gap comes. Without this the AI
+       drove straight into the back of the car it was towing. The offset is picked
+       once, toward whichever side has more road, and held. */
+    c.follow=c.follow||0;
+    if(closeAhead<30 && aheadCar){
+      if(!c.followSide){
+        const inSide=(signedTurnIdx(pi)>0)?-1:1;
+        c.followSide=(Math.abs(aheadLat+inSide*2.2)<HW-1.6)?inSide:-inSide;
       }
-      c.atk-=dt*0.35;
-    }else c.atk=Math.max(0,c.atk-dt*1.4);
-    // being alongside means the move is done — hold the line and pull clear
+      // closer = further offset, so the nose is clear of the gearbox
+      const want=c.followSide*clamp((30-closeAhead)/22,0,1)*1.9;
+      c.follow=damp(c.follow,want,2.4,dt);
+    }else{ c.follow=damp(c.follow,0,1.6,dt); c.followSide=0; }
+    /* OVERTAKING. Commit to a side, pull out and hold the move until alongside.
+       The old version re-picked the side every frame it was in range, which is
+       why the cars shimmied left and right while trying to pass. The side is now
+       LATCHED for the duration of the attempt, and the attempt has a real timer
+       and a cooldown so a failed move is abandoned cleanly instead of retried on
+       the next frame. */
+    c.atk=c.atk||0; c.atkSide=c.atkSide||0; c.atkCool=Math.max(0,(c.atkCool||0)-dt);
+    const faster=(c.v>aheadV+0.4)||(tow>2.0);
+    const alongside=aheadCar && closeAhead<6.5;
+    if(c.atk>0){
+      c.atk-=dt;
+      // the move is over when we are past, or the car ahead has pulled away
+      if(!aheadCar || closeAhead>34 || alongside===false && closeAhead<2.5) { }
+      if(closeAhead>34){ c.atk=0; c.atkCool=1.2; }
+    }else if(closeAhead<26 && faster && aheadCar && c.atkCool<=0){
+      // pick the side ONCE: prefer the inside of the coming corner if the car
+      // ahead is not already covering it, otherwise go round the outside
+      const inSide=(signedTurnIdx(pi)>0)?-1:1;
+      const covered=Math.abs(aheadLat-inSide*(HW*0.5))<2.2;
+      const want=covered?-inSide:inSide;
+      // and only if there is actually room on that side
+      if(Math.abs(want*(HW-1.2))<HW-0.9){
+        c.atkSide=want; c.atk=2.2+c.aggro*2.4;
+      }else c.atkCool=0.8;
+    }
     if(c.atk>0){ targetV+=1.6+c.aggro*2.2; }
     if(straight && c.ers>0.12 && (closeAhead<52||c.atk>0||c.lap<1)){ targetV+=9; c.ers-=dt/8; }
     else c.ers=Math.min(1,c.ers+dt/18);
@@ -13147,12 +13210,30 @@ function stepAI(dt){
     turn/=Math.max(tw,1e-6);
     let lineLat=clamp(-turn*300,-(HW-1.0),HW-1.0);
     if(c.atk>0){                                   // committed: get fully off line
-      c.dodge=damp(c.dodge, c.atkSide*(HW-1.2), 3.4, dt);
-    }else if(slow<0.9 && closeAhead<24){ c.dodge=damp(c.dodge, blockedSide*(HW-1.3)*(0.5+c.aggro*0.5), 2.6, dt); }
-    else c.dodge=damp(c.dodge,0,1.5,dt);
-    // DEFENDING: if someone is close behind, edge across to cover the inside line
-    if(behindGap<16 && straight){ c.defend=damp(c.defend, -Math.sign(turn||1)*1.5*c.aggro, 1.6, dt); }
-    else c.defend=damp(c.defend,0,2,dt);
+      c.dodge=damp(c.dodge, c.atkSide*(HW-1.2), 2.8, dt);
+    }else if(slow<0.9 && closeAhead<24){ c.dodge=damp(c.dodge, blockedSide*(HW-1.3)*(0.5+c.aggro*0.5), 2.2, dt); }
+    else c.dodge=damp(c.dodge, c.follow, 1.8, dt);   // otherwise sit in the tow, offset
+    /* DEFENDING, LEGALLY. The rule is one move: you may take the inside line
+       BEFORE the braking zone and then you must leave a car's width. So the car
+       moves across once, holds it, and does not weave — the old version simply
+       leaned on a damp toward the inside every frame it was under pressure, which
+       is both illegal and looks like twitching.
+       It also brakes a shade later into the corner to make the move stick. */
+    c.defTgt=c.defTgt||0; c.defHold=Math.max(0,(c.defHold||0)-dt);
+    const attacker=behindGap<20;
+    if(attacker){
+      if(c.defHold<=0 && !c.defTgt){
+        // ONE move: cover the inside of the corner we are approaching, and never
+        // leave less than a car's width on the other side of the road
+        const inSide=(turn>0)?-1:1;
+        c.defTgt=inSide*Math.min(HW*0.42, HW-2.3);
+        c.defHold=2.6;                          // hold it, do not move again
+      }
+    }else{ c.defTgt=0; c.defHold=0; }
+    c.defend=damp(c.defend, c.defTgt, 1.5, dt);
+    // a defending driver brakes later; a confident one more so. Applied on the
+    // next frame's target, because this frame's has already been consumed.
+    c.defLate=(attacker&&c.defTgt)?1.0+0.045*c.aggro:1.0;
     /* and move onto it fast enough for a tight corner: at 1.9 per second the car
        was still drifting toward its apex line well past the apex, which reads as
        the car snapping across the road late. Scales with speed the way a real
