@@ -13008,10 +13008,8 @@ function stepAI(dt){
       c.v=0;
       const pi=(Math.round(c.idx)%N+N)%N;
       const pp=TRACK.pts[pi], pn=TRACK.nrm[pi], ptg=TRACK.tan[pi];
-      c.px=pp.x+pn.x*c.lat; c.pz=pp.z+pn.z*c.lat;
-      c.hdg=Math.atan2(ptg.x,ptg.z); c.vLat=0; c.yawRate=0; c.steer=0;
-      c.mesh.position.set(c.px,(pp.y||0)+0.02-(CAR.tireDrop||0),c.pz);
-      c.mesh.rotation.set(0,c.hdg,0,'YXZ');
+      c.mesh.position.set(pp.x+pn.x*c.lat,(pp.y||0)+0.02-(CAR.tireDrop||0),pp.z+pn.z*c.lat);
+      c.mesh.rotation.y=Math.atan2(ptg.x,ptg.z);
       if(c.mesh.userData.spray) c.mesh.userData.spray.material.opacity=0;}
     return;
   }
@@ -13093,10 +13091,22 @@ function stepAI(dt){
          is worth roughly a tenth on the radius, and it is the difference between
          the AI driving the white line and the AI driving a lap. */
       const R=(Rc?Rc[j]:8000)*1.06;
-      let vC=Math.sqrt(PHYS.mu*9.81*R);
+      /* Plan with the grip the car ACTUALLY HAS, not with dry-track mu. This is
+         why they were all off the road in the wet: the driver worked out its
+         corner speeds from PHYS.mu as though the track were dry, while the car
+         underneath it was on a wet-reduced coefficient. It arrived at every
+         corner carrying more than the tyres could hold, understeered straight on,
+         and did it again at the next one. Tyre life and skill belong here for the
+         same reason, and a driver keeps a small margin in hand. */
+      const gripPlan=PHYS.mu
+        *(1-0.27*clamp(WEATHER.wetness,0,1))
+        *lerp(0.86,1.0,c.tyre)
+        *(c.skill*0.35+0.65)
+        *0.95;
+      let vC=Math.sqrt(gripPlan*9.81*R);
       for(let it=0;it<2;it++){
         const vv=Math.min(vC,VCAP);
-        vC=Math.sqrt(PHYS.mu*(PHYS.mass*9.81+PHYS.downK*vv*vv)/PHYS.mass*R);
+        vC=Math.sqrt(gripPlan*(PHYS.mass*9.81+PHYS.downK*vv*vv)/PHYS.mass*R);
       }
       vC=Math.min(vC,VCAP);
       if(vC>=vLimit) continue;                 // cannot bind
@@ -13108,7 +13118,7 @@ function stepAI(dt){
          figure, and drag helps too. */
       const vMid=(Math.min(c.v||vC,VCAP)+vC)*0.5;
       const aBrk=Math.min(PHYS.brakeForce/PHYS.mass,
-        PHYS.mu*(PHYS.mass*9.81+PHYS.downK*vMid*vMid)/PHYS.mass)
+        gripPlan*(PHYS.mass*9.81+PHYS.downK*vMid*vMid)/PHYS.mass)
         + 0.5*1.2*PHYS.cdA*vMid*vMid/PHYS.mass;
       // brakeLate>1 means "I will use a little more of the road before I brake"
       const vAllow=Math.sqrt(vC*vC + 2*aBrk*(k*segLen)*(c.brakeLate||1));
@@ -13433,146 +13443,108 @@ function stepAI(dt){
         want=lerp(c.gridLat,want,sm);
         if(c.gridBlend>=1) c.gridLat=undefined;
       }
-      /* ===== A DRIVER, THEN A CAR ==========================================
-         Everything above this line decides what the driver WANTS: a speed, and a
-         line to be on. Everything below turns that into what a driver actually
-         does — turn the wheel, use the throttle, use the brakes — and then lets
-         the CAR respond to it with the same bicycle model the player's car uses.
-
-         Until now there was no car. The AI wrote its position straight onto the
-         track: a distance along the centreline and an offset across it. Whatever
-         attitude it appeared to have was painted on afterwards. That is why it
-         read as a model being moved by a hand — because it was. It could not
-         understeer, could not run wide, could not be unsettled, and its nose was
-         never a consequence of anything.
-
-         Now the driver aims at a point down the road and steers at it, and the
-         car answers with slip angles, yaw inertia and finite grip. If a driver
-         asks for more than the front tyres have, it washes out. */
-      c.aimLat=want;
+      /* ===== THE CAR CANNOT MOVE SIDEWAYS FASTER THAN A CAR CAN =====
+         This is the fight you can see. `want` is the sum of four things that
+         disagree — the racing line, the overtaking line, the defensive line and
+         avoidance — and damping straight to it let the car translate across the
+         road as fast as those terms could change, with nothing physical in the
+         way. Meanwhile its nose was taken from the TRACK TANGENT, so it pointed
+         down the road no matter which way it was actually travelling. The result
+         is a car that slides and snaps sideways while aimed straight ahead, and
+         the harder the terms disagree — mid-corner, alongside someone — the worse
+         it gets.
+         So the lateral movement is now a real velocity with a real acceleration
+         limit. It cannot jump, it cannot reverse instantly, and it is bounded by
+         what the front tyres could actually do at this speed. The competing
+         targets can shout as loudly as they like; the car answers at a car's
+         rate. */
+      const maxLatV=Math.min(7.0, c.v*0.20);     // sideways speed a car can carry
+      const maxLatA=11.0;                        // and how fast it can build it
+      let wantRate=clamp((want-c.lat)/Math.max(dt,1e-3), -maxLatV, maxLatV);
+      // ease off as we arrive, so it settles onto the line instead of overshooting
+      wantRate*=clamp(Math.abs(want-c.lat)/0.8,0,1);
+      if(c.latV===undefined) c.latV=0;
+      c.latV+=clamp(wantRate-c.latV, -maxLatA*dt, maxLatA*dt);
+      c.lat=clamp(c.lat+c.latV*dt, -(HW-0.9), HW-0.9);
+      if(Math.abs(c.lat)>=HW-0.9-1e-6) c.latV*=0.3;      // do not grind the edge
     }
+    /* SMOOTH MOTION. The car used to be snapped onto the ROUNDED centreline index
+       every frame and given that index's tangent as its heading. At ~15 m between
+       indices that is a visible jump forwards and a visible flick of the nose on
+       every index change — which is exactly the jagging on corner entry. Now the
+       position is interpolated across the fractional part of c.idx, and the yaw is
+       eased toward the interpolated tangent (plus a slip angle from how fast the
+       car is crossing the track), so it flows through a corner. */
+    { const fi=((c.idx%N)+N)%N, i0=Math.floor(fi)%N, i1=(i0+1)%N, f=fi-Math.floor(fi);
+      const p0=TRACK.pts[i0], p1=TRACK.pts[i1];
+      const n0=TRACK.nrm[i0], n1=TRACK.nrm[i1];
+      const t0=TRACK.tan[i0], t1=TRACK.tan[i1];
+      const px=lerp(p0.x,p1.x,f), py=lerp(p0.y||0,p1.y||0,f), pz=lerp(p0.z,p1.z,f);
+      const nx=lerp(n0.x,n1.x,f), nz=lerp(n0.z,n1.z,f);
+      const nl=Math.hypot(nx,nz)||1;
+      c.mesh.position.set(px+(nx/nl)*c.lat, py+0.02-(CAR.tireDrop||0), pz+(nz/nl)*c.lat);
+      /* HEADING FROM THE DIRECTION OF TRAVEL. The nose used to come from the
+         track tangent with a slip angle bolted on, so a car crossing the road
+         still pointed straight down it — which is the other half of why the
+         corners looked wrong. Its heading is now the actual world velocity:
+         along the track at c.v, across it at c.latV. Move left, point left. */
+      const tx=lerp(t0.x,t1.x,f), tz=lerp(t0.z,t1.z,f);
+      const tl=Math.hypot(tx,tz)||1;
+      const wvx=(tx/tl)*Math.max(c.v,1) + (nx/nl)*(c.latV||0);
+      const wvz=(tz/tl)*Math.max(c.v,1) + (nz/nl)*(c.latV||0);
+      const want=Math.atan2(wvx,wvz);
+      if(c.yaw===undefined) c.yaw=want;
+      // shortest-arc easing, so it never spins the long way round at the wrap
+      let d2=want-c.yaw; while(d2>Math.PI)d2-=TAU; while(d2<-Math.PI)d2+=TAU;
+      c.yaw+=d2*(1-Math.exp(-6.5*dt));
+      c.mesh.rotation.y=c.yaw;
 
-    /* ---- the driver: look ahead, steer at the point, work the pedals ---- */
-    {
-      const P2=PHYS;
-      // world state, seeded from the grid slot the first time we run
-      if(c.px===undefined){
-        const p0=TRACK.pts[pi], n0=TRACK.nrm[pi], t0=TRACK.tan[pi];
-        c.px=p0.x+n0.x*c.lat; c.pz=p0.z+n0.z*c.lat;
-        c.hdg=Math.atan2(t0.x,t0.z); c.vLat=0; c.yawRate=0; c.steer=0;
-      }
-      /* LOOK-AHEAD. A driver does not aim at the kerb by their front wheel, they
-         aim well down the road — further the faster they are going. This single
-         choice is what makes steering look like steering: the car turns in early,
-         holds an arc, and unwinds, instead of chasing its own position. */
-      /* Look-ahead has to shorten for a tight corner. A fixed distance-by-speed
-         rule aims a long way down the road in a hairpin, which makes the driver
-         turn in lazily, run wide and lose the time the physics just gave us. */
-      const Rhere=Math.max((TRACK.Rc?TRACK.Rc[pi]:8000),30);
-      const tight=clamp(1-Rhere/500,0,1);                  // 0 fast, 1 hairpin
-      const Ld=clamp((9+c.v*0.55)*(1-0.45*tight), 9, 70);
-      const kAhead=Math.max(1,Math.round(Ld/segLen));
-      const j=(pi+kAhead)%N;
-      const pj=TRACK.pts[j], nj=TRACK.nrm[j];
-      const aimX=pj.x+nj.x*(c.aimLat||0), aimZ=pj.z+nj.z*(c.aimLat||0);
-      // angle to that point in the car's own frame
-      const dx=aimX-c.px, dz=aimZ-c.pz;
-      const ch=Math.cos(c.hdg), sh=Math.sin(c.hdg);
-      const fx= dz*ch + dx*sh;                 // ahead of the car
-      const rx= dx*ch - dz*sh;                 // to its right
-      const dist=Math.max(Math.hypot(fx,rx),1);
-      // pure pursuit: the steer angle that puts the car on an arc through the
-      // aim point. This is a real geometric steering law, not a correction.
-      const alpha=Math.atan2(rx,Math.max(fx,0.5));
-      let steerWant=Math.atan2(2*P2.wheelbase*Math.sin(alpha), dist);
-      const maxSteer=lerp(P2.maxSteerLo,P2.maxSteerHi,clamp(c.v/P2.vMax,0,1));
-      steerWant=clamp(steerWant,-maxSteer,maxSteer);
-      // hands are not instant, and a smoother driver is smoother on the wheel
-      const hands=8.0+6.0*(c.consist||0.9);
-      c.steer+=(steerWant-c.steer)*(1-Math.exp(-hands*dt));
+      /* ============ IT HAS TO LOOK DRIVEN ==================================
+         Up to here an AI car is a point sliding along the centreline with its
+         nose pointed down the tangent — which is exactly what it looked like:
+         a model being placed and moved, not a car being driven. A real car
+         tells you what it is doing with its body. Three things do almost all
+         of that work, and all three come from motion we already compute:
 
-      /* ---- the car answers ---- */
-      const m=P2.mass, af=P2.aFront, br=P2.aRear, L=af+br, Iz=m*P2.izK;
-      const wet=1-0.27*clamp(WEATHER.wetness,0,1)*(1-0.35*(1-clamp(c.v/45,0,1)));
-      const grip=P2.mu*wet*lerp(0.86,1.0,c.tyre)*(c.skill*0.35+0.65);
-      const df=P2.downK*c.v*c.v;
-      const loadF=m*9.81*br/L + df*0.46, loadR=m*9.81*af/L + df*0.54;
-      const FyfMax=grip*loadF, FyrMax=grip*loadR;
-      const vx=Math.max(c.v,0.6);
-      let sf=0, sr=0;
-      if(c.v>1.2){
-        sf=c.steer - Math.atan2(c.vLat + c.yawRate*af, vx);
-        sr=        - Math.atan2(c.vLat - c.yawRate*br, vx);
-      }
-      const Fyf=clamp(P2.Cf*sf,-FyfMax,FyfMax);
-      const Fyr=clamp(P2.Cr*sr,-FyrMax,FyrMax);
-      c.vLat   += ((Fyf+Fyr)/m - c.v*c.yawRate)*dt;
-      c.yawRate+= ((af*Fyf - br*Fyr)/Iz)*dt;
-      c.vLat   *= Math.exp(-2.2*dt);            // damping, as the real car has
-      c.yawRate*= Math.exp(-2.2*dt);
-      c.hdg    += c.yawRate*dt;
+           PITCH  dives on the brakes, squats under power (longitudinal g)
+           ROLL   leans out of the corner on the loaded side (lateral g)
+           SLIP   points slightly into the corner, and steps out under power
 
-      // longitudinal: the pedals, integrated exactly as before
-      { const vv=Math.max(c.v,0.5);
-        if(desired>c.v+0.15){
-          const Fd=Math.min(P2.power/vv,P2.maxForce)*(0.94+0.06*c.skill);
-          const tract=grip*loadR;
-          const Fdg=0.5*1.2*P2.cdA*c.v*c.v;
-          c.v=Math.min(desired, c.v+Math.max((Math.min(Fd,tract)-Fdg-P2.roll)/m,0)*dt);
-        }else if(desired<c.v-0.15){
-          const aB=Math.min(P2.brakeForce/m, grip*(m*9.81+df)/m);
-          c.v=Math.max(desired, c.v-(aB+0.5*1.2*P2.cdA*c.v*c.v/m)*dt);
-        }else c.v=desired;
-        c.v=clamp(c.v,0,VCAP); }
-
-      // move the car in the world along its own heading, plus its slip
-      const fwdX=Math.sin(c.hdg), fwdZ=Math.cos(c.hdg);
-      c.px+=(fwdX*c.v + fwdZ*c.vLat)*dt;
-      c.pz+=(fwdZ*c.v - fwdX*c.vLat)*dt;
-
-      /* ---- and then ASK the track where that put us -----------------------
-         idx and lat are no longer things we set. They are measured from where
-         the car ended up, which is what makes gaps, standings, the racing line
-         and the run-off all agree with what you can see. */
-      const near=nearestTrack({x:c.px,y:0,z:c.pz}, Math.round(c.idx)%N, 60);
-      const prevIdx=c.idx;
-      c.idx=near.idx; c.lat=near.lat;
-      // lap rollover on the measured index
-      if(prevIdx>N*0.8 && c.idx<N*0.2) c.lap++;
-      // a car that ends up beyond the run-off is dragged back onto the road, the
-      // way a driver who runs wide has to rejoin
-      const edge=HW+ (c.lat>0?(TRACK.runL[c.idx]||0):(TRACK.runR[c.idx]||0)) *0.5 + 1.5;
-      if(Math.abs(c.lat)>edge){
-        const over=Math.abs(c.lat)-edge;
-        c.px-=Math.sign(c.lat)*TRACK.nrm[c.idx].x*over;
-        c.pz-=Math.sign(c.lat)*TRACK.nrm[c.idx].z*over;
-        c.lat=Math.sign(c.lat)*edge;
-        // only a real excursion costs time — a wheel over the line does not
-        if(over>1.2) c.v*=1-Math.min(0.35,(over-1.2)*0.04);
-      }
-
-      /* ---- attitude, from what the car is actually doing ---- */
+         Nothing here changes where the car goes — it is all attitude on top of
+         the same path — so the racing is untouched and it reads as driven.   */
       const aLong=(c.v-(c.vPrev===undefined?c.v:c.vPrev))/Math.max(dt,1e-4);
       c.vPrev=c.v;
+      // lateral acceleration from the corner it is actually in
+      const Rnow=Math.max((TRACK.Rc?TRACK.Rc[pi]:8000),25);
+      const aLat=(c.v*c.v/Rnow)*Math.sign(-d2||1);
+      // PITCH: nose down under braking, tail down under power. ~1.8 deg at 5 g.
       const pitchWant=clamp(-aLong*0.0062,-0.055,0.040);
       c.pitch=(c.pitch===undefined)?0:c.pitch+((pitchWant-c.pitch)*(1-Math.exp(-7*dt)));
-      const rollWant=clamp(-c.yawRate*c.v*0.0016,-0.075,0.075);
+      // ROLL: leans away from the turn, and a little further when it is working
+      const rollWant=clamp(aLat*0.0016,-0.075,0.075)+clamp(d2*1.6,-0.05,0.05);
       c.roll=(c.roll===undefined)?0:c.roll+((rollWant-c.roll)*(1-Math.exp(-5.5*dt)));
+      // SLIP: the nose sits inside the direction of travel through a corner, and
+      // the car rotates a touch more when it is on the power out of one
+      const power=clamp(aLong*0.05,0,1);
+      const slipWant=clamp(-d2*0.55,-0.10,0.10)*(1+power*0.6);
+      c.slip=(c.slip===undefined)?0:c.slip+((slipWant-c.slip)*(1-Math.exp(-8*dt)));
+      c.mesh.rotation.set(c.pitch, c.yaw+c.slip, c.roll, 'YXZ');
+      // and it moves on its springs: a few centimetres of dive and squat
       c.rideY=(c.rideY===undefined)?0:c.rideY+((clamp(-Math.abs(aLong)*0.0016,-0.05,0)-c.rideY)*(1-Math.exp(-6*dt)));
-
-      // sit it on the road surface, and point it where it is actually pointing
-      const gp0=TRACK.pts[c.idx];
-      c.mesh.position.set(c.px, (gp0.y||0)+0.02-(CAR.tireDrop||0)+c.rideY, c.pz);
-      c.mesh.rotation.set(c.pitch, c.hdg, c.roll, 'YXZ');
-      // the front wheels show the steering the driver is actually applying
+      c.mesh.position.y+=c.rideY;
+      /* the front wheels actually steer. The model is a clone, so the wheel
+         objects are found once and cached on the car. */
       if(c.wheels===undefined){
         c.wheels=[];
         c.mesh.traverse(o=>{ if(o.isMesh&&(o.name==='Object_12'||o.name==='Object_20')) c.wheels.push(o); });
         c.wheels=c.wheels.slice(0,2);
         for(const w of c.wheels) w.userData.rest=w.rotation.y;
       }
-      for(const w of c.wheels) w.rotation.y=w.userData.rest+c.steer*2.2;
-    }
+      if(c.wheels.length){
+        const steerWant=clamp(-d2*2.4,-0.32,0.32);
+        c.steerVis=(c.steerVis===undefined)?0:c.steerVis+((steerWant-c.steerVis)*(1-Math.exp(-11*dt)));
+        for(const w of c.wheels) w.rotation.y=w.userData.rest+c.steerVis;
+      } }
     const spray=c.mesh.userData.spray;
     if(spray){ const w=clamp(WEATHER.wetness,0,1), spF=clamp(c.v/34,0,1);
       spray.material.opacity=spF*w*(0.55+0.42*(WEATHER.stormAmt||0));
@@ -13615,22 +13587,17 @@ function stepAI(dt){
            this is only the backstop. Separate them gently and take NO speed off
            either car — scrubbing speed here is what destroyed a pass that was
            otherwise working, and with avoidance in place it is not needed. */
-        /* Push them apart in the WORLD, not by rewriting their track offset —
-           the cars have real positions now, and editing lat behind the physics'
-           back is exactly the kind of fight that caused the old jitter. */
         const push=(ovLat*0.5+0.02)*Math.min(1,dt*10), sgn=dLat>=0?1:-1;
-        const nA=TRACK.nrm[Math.round(A.idx)%N];
-        if(A.ai){A.ai.px-=sgn*nA.x*push; A.ai.pz-=sgn*nA.z*push;}
-        if(B.ai){B.ai.px+=sgn*nA.x*push; B.ai.pz+=sgn*nA.z*push;}
+        if(A.ai) A.ai.lat=clamp(A.ai.lat-sgn*push,-(HW-0.7),HW-0.7);
+        if(B.ai) B.ai.lat=clamp(B.ai.lat+sgn*push,-(HW-0.7),HW-0.7);
         if(!A.ai||!B.ai){ CAR.vLat=(CAR.vLat||0)-sgn*(A.ai?1:-1)*6*sevr;
           CAR.damage=Math.min(1,(CAR.damage||0)+0.010*sevr); }
       }else{
         // genuinely square behind: the following car is checked, nobody gains
         const behind=dLong>0?A:B, ahead=dLong>0?B:A;
-        const push=ovLong*Math.min(1,dt*14);
-        if(behind.ai){ const tb=TRACK.tan[Math.round(behind.idx)%N];
-          behind.ai.px-=tb.x*push; behind.ai.pz-=tb.z*push;
-          behind.ai.v=Math.min(behind.ai.v,(ahead.ai?ahead.ai.v:Math.abs(CAR.v))*0.96); }
+        const push=(ovLong/segL)*Math.min(1,dt*14);
+        if(behind.ai){ behind.ai.idx-=push; behind.ai.v=Math.min(behind.ai.v,
+          (ahead.ai?ahead.ai.v:Math.abs(CAR.v))*0.96); }
         if(!behind.ai||!ahead.ai){
           CAR.v*= (behind.ai?1.02:0.92);
           CAR.damage=Math.min(1,(CAR.damage||0)+0.016*sevr); }
@@ -13644,9 +13611,15 @@ function stepAI(dt){
             0.55,0.55,0.58,0.55,0.5,1.8,2.2);}
       }
     }
-    // the cars carry their own world positions now, so a shove is already where
-    // it needs to be — nothing to re-seat, and nothing to fight the physics
-  }
+    // re-seat anything the shove moved, so the visual matches the new position
+    for(const c of AI.cars){
+      const fi=((c.idx%N)+N)%N, i0=Math.floor(fi)%N, i1=(i0+1)%N, f=fi-Math.floor(fi);
+      const p0=TRACK.pts[i0],p1=TRACK.pts[i1],n0=TRACK.nrm[i0],n1=TRACK.nrm[i1];
+      const nx=lerp(n0.x,n1.x,f), nz=lerp(n0.z,n1.z,f), nl=Math.hypot(nx,nz)||1;
+      c.mesh.position.set(lerp(p0.x,p1.x,f)+(nx/nl)*c.lat,
+        lerp(p0.y||0,p1.y||0,f)+0.02-(CAR.tireDrop||0)+(c.rideY||0),
+        lerp(p0.z,p1.z,f)+(nz/nl)*c.lat);
+    } }
   // standings: total distance = lap*len + along-lap distance
   const dOf=(idx,lp)=>lp*TRACK.len + TRACK.cum[Math.round(idx)%N];
   const field=AI.cars.map(c=>({d:dOf(c.idx,c.lap),me:false})).concat([{d:dOf(pIdx,lap.num||0),me:true}]);
