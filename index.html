@@ -12687,21 +12687,44 @@ function clearAIs(){ AI.cars.forEach(c=>driveScene.remove(c.mesh)); AI.cars=[]; 
    and a half over a ninety-second lap — under two per cent — and the leaders are
    effectively ON the limit. Raised and compressed accordingly, and consistency
    raised too so they make fewer unforced errors. */
+/* PERSONALITY. Skill and aggression alone make fourteen copies of the same
+   driver at fourteen slightly different speeds. These are the traits that decide
+   HOW someone races rather than how fast: whether they wait for a proper run or
+   lunge, whether they keep their foot in when they are alongside, how hard they
+   defend, and how much they move about in front of you to spoil your tow.
+     patience  0 = lunges at the first sniff        1 = waits for a real run
+     bravery   0 = lifts when it gets close         1 = keeps it pinned alongside
+     defensive 0 = leaves the door open             1 = covers the inside hard
+     towBreak  0 = drives a straight line           1 = works the mirrors  */
 const DRIVER_POOL=[
-  {n:'M. VÄRLA',   t:'redbull',  skill:1.000, aggro:0.86, consist:0.96},
-  {n:'R. OKONKWO', t:'redbull',  skill:0.991, aggro:0.72, consist:0.93},
-  {n:'L. FENN',    t:'ferrari',  skill:0.998, aggro:0.80, consist:0.95},
-  {n:'S. HÄKKINEN',t:'ferrari',  skill:0.992, aggro:0.68, consist:0.92},
-  {n:'D. ROSSI',   t:'mercedes', skill:0.996, aggro:0.75, consist:0.96},
-  {n:'K. TANAKA',  t:'mercedes', skill:0.989, aggro:0.64, consist:0.94},
-  {n:'A. PETROV',  t:'mclaren',  skill:0.999, aggro:0.88, consist:0.93},
-  {n:'J. MORAIS',  t:'mclaren',  skill:0.993, aggro:0.79, consist:0.91},
-  {n:'E. LARSSON', t:'aston',    skill:0.987, aggro:0.70, consist:0.93},
-  {n:'B. NAKAMURA',t:'aston',    skill:0.984, aggro:0.62, consist:0.90},
-  {n:'C. DUBOIS',  t:'alpine',   skill:0.986, aggro:0.74, consist:0.89},
-  {n:'V. STROMBERG',t:'alpine',  skill:0.982, aggro:0.66, consist:0.92},
-  {n:'N. HADID',   t:'williams', skill:0.983, aggro:0.71, consist:0.90},
-  {n:'T. ANDERSEN',t:'williams', skill:0.980, aggro:0.58, consist:0.93},
+  {n:'M. VÄRLA',   t:'redbull',  skill:1.000, aggro:0.86, consist:0.96,
+   psn:{patience:0.35,bravery:0.95,defensive:0.90,towBreak:0.75}},   // ruthless, never yields
+  {n:'R. OKONKWO', t:'redbull',  skill:0.991, aggro:0.72, consist:0.93,
+   psn:{patience:0.80,bravery:0.60,defensive:0.55,towBreak:0.30}},   // measured, plays the long game
+  {n:'L. FENN',    t:'ferrari',  skill:0.998, aggro:0.80, consist:0.95,
+   psn:{patience:0.55,bravery:0.85,defensive:0.75,towBreak:0.55}},   // classical racer
+  {n:'S. HÄKKINEN',t:'ferrari',  skill:0.992, aggro:0.68, consist:0.92,
+   psn:{patience:0.85,bravery:0.50,defensive:0.45,towBreak:0.20}},   // clean, avoids contact
+  {n:'D. ROSSI',   t:'mercedes', skill:0.996, aggro:0.75, consist:0.96,
+   psn:{patience:0.70,bravery:0.70,defensive:0.80,towBreak:0.60}},   // hard but fair
+  {n:'K. TANAKA',  t:'mercedes', skill:0.989, aggro:0.64, consist:0.94,
+   psn:{patience:0.90,bravery:0.45,defensive:0.40,towBreak:0.15}},   // patient, tyre-minded
+  {n:'A. PETROV',  t:'mclaren',  skill:0.999, aggro:0.88, consist:0.93,
+   psn:{patience:0.20,bravery:1.00,defensive:0.85,towBreak:0.85}},   // the lunger
+  {n:'J. MORAIS',  t:'mclaren',  skill:0.993, aggro:0.79, consist:0.91,
+   psn:{patience:0.45,bravery:0.80,defensive:0.60,towBreak:0.50}},   // opportunist
+  {n:'E. LARSSON', t:'aston',    skill:0.987, aggro:0.70, consist:0.93,
+   psn:{patience:0.75,bravery:0.55,defensive:0.70,towBreak:0.35}},   // stubborn defender
+  {n:'B. NAKAMURA',t:'aston',    skill:0.984, aggro:0.62, consist:0.90,
+   psn:{patience:0.85,bravery:0.40,defensive:0.35,towBreak:0.20}},   // gives room
+  {n:'C. DUBOIS',  t:'alpine',   skill:0.986, aggro:0.74, consist:0.89,
+   psn:{patience:0.40,bravery:0.75,defensive:0.65,towBreak:0.65}},   // scrappy
+  {n:'V. STROMBERG',t:'alpine',  skill:0.982, aggro:0.66, consist:0.92,
+   psn:{patience:0.65,bravery:0.55,defensive:0.50,towBreak:0.40}},   // steady
+  {n:'N. HADID',   t:'williams', skill:0.983, aggro:0.71, consist:0.90,
+   psn:{patience:0.50,bravery:0.70,defensive:0.55,towBreak:0.45}},   // quietly quick
+  {n:'T. ANDERSEN',t:'williams', skill:0.980, aggro:0.58, consist:0.93,
+   psn:{patience:0.95,bravery:0.35,defensive:0.30,towBreak:0.10}},   // rolls over
 ];
 function aiRoster(exclude,n){
   // prefer drivers whose team actually exists in the livery table, skip the player's team
@@ -12728,7 +12751,7 @@ function spawnAIs(n){
     const mesh=makeAICar(new THREE.Color(LIVERIES[team].base),team);driveScene.add(mesh);
     const comp=i<3?'medium':(i%2?'hard':'soft');           // varied starting strategies
     AI.cars.push({mesh, idx:slotOf(d.n,i), lat:(i%2?1:-1)*2.4, v:0, lap:0, team,
-      name:d.n, skill:d.skill, aggro:d.aggro, consist:d.consist,
+      name:d.n, skill:d.skill, aggro:d.aggro, consist:d.consist, psn:d.psn||{},
       ers:0.7, mistakeT:-99, dodge:0, defend:0, seed:Math.random()*TAU,
       compound:comp, tyre:1, tyreLife:compoundLaps(comp,CFG.id), stops:0,
       pitFlag:false, pitPhase:0, pitTimer:0, lastIdx:0});
@@ -12752,7 +12775,16 @@ if(typeof window!=='undefined'){ window.__SIM=SIM;
 function spawnGrid(n){
   clearAIs(); if(!TRACK.N) return;
   const N=TRACK.N, segLen=TRACK.len/N, HW=TRACK.halfW;
-  const roster=DRIVER_POOL.slice(0,n);
+  /* GRID BY PACE. The field was lined up in roster order, so a genuinely quick
+     driver could start thirteenth and a slow one third — and then the race looked
+     absurd because someone carved from P13 to P2 in a lap. A real grid IS a pace
+     order (it is a qualifying result), so the fast cars start at the front, big
+     climbs are structurally impossible, and the places that do change are the
+     ones a driver actually earned. A little scatter, because qualifying is not a
+     perfect measure of race pace. */
+  const roster=DRIVER_POOL.slice(0,n)
+    .map(d=>({d,q:d.skill+(Math.random()-0.5)*0.004*(2-d.consist)}))
+    .sort((a,b)=>b.q-a.q).map(o=>o.d);
   const teams=TEAM_IDS.slice();
   const rowGap=8.5/segLen;                       // 8.5 m between rows, in indices
   roster.forEach((d,i)=>{
@@ -12764,7 +12796,7 @@ function spawnGrid(n){
     const lat=(sideL?-1:1)*Math.min(HW*0.46,2.9);
     const comp=i<4?'soft':(i%2?'medium':'hard');
     AI.cars.push({mesh, idx, lat, v:0, team,
-      name:d.n, skill:d.skill, aggro:d.aggro, consist:d.consist,
+      name:d.n, skill:d.skill, aggro:d.aggro, consist:d.consist, psn:d.psn||{},
       ers:1.0, mistakeT:-99, dodge:0, defend:0, seed:Math.random()*TAU,
       compound:comp, tyre:1, tyreLife:compoundLaps(comp,CFG.id), stops:0,
       pitFlag:false, pitPhase:0, pitTimer:0, lastIdx:0,
@@ -12937,6 +12969,7 @@ function stepAISim(dt){
         if(c.launched<c.launchDelay){ c.v*=Math.pow(0.02,dt); }
         else c.launched=1; }
       if(!c.done) c.lapT+=dt;
+      c.raceT=(c.raceT||0)+dt;
     }
     stepAI(dt);
     // lap accounting: time each completed lap, then take the chequered flag
@@ -13109,63 +13142,96 @@ function stepAI(dt){
         if(gap<16&&Math.abs(o.lat-c.lat)<2.6){ slow=Math.min(slow,clamp(gap/16,0.70,1)); blockedSide=o.lat>c.lat?-1:1; } }
       if(db>0&&db<12) behindGap=Math.min(behindGap,db*segLen);
     }
-    /* SLIPSTREAM. A real tow is worth 10-15 km/h over about seventy metres, and it
-       works anywhere the car is going fast — not only where the AI classifies the
-       track as "a straight". */
+    /* ================= RACING ANOTHER CAR =================================
+       A pass is a sequence, not a switch. You sit DIRECTLY behind to build the
+       tow, and only in the tow do you carry enough extra speed to try. When you
+       are close enough you commit to a side and move out — which costs you the
+       tow, so from that moment you are on your own. Then you draw level slowly,
+       and only get by if you actually had the pace. Most attempts fail.
+       That sequence is what makes an overtake take laps instead of corners, and
+       it is why the old code could send a car from P13 to P2 on one lap: it gave
+       a free tow at up to six metres of offset AND a flat speed bonus for
+       attacking, so a car could pull out and simply drive past.  */
     const straight=vLimit>VCAP*0.70;
-    const towGap=70;
+    // which way the corner we are approaching goes — used to pick the inside
+    let turnAhead=0;
+    for(let k=2;k<=14;k++) turnAhead+=signedTurnIdx((pi+k)%N);
+    const PSN=c.psn||{};
+    c.atkCool=Math.max(0,(c.atkCool||0)-dt);
+    c.phase=c.phase||'clear';
+
+    /* THE TOW ONLY WORKS DIRECTLY BEHIND. A slipstream is a hole in the air about
+       one car wide; step out of it and it is gone. Two metres of offset already
+       halves it, and past a car's width there is nothing. */
+    const lineOff=Math.abs(aheadLat-c.lat);
     let tow=0;
-    if(closeAhead<towGap && c.v>VCAP*0.45 && Math.abs(aheadLat-c.lat)<6.5){
-      tow=Math.pow(1-closeAhead/towGap,1.4)*(straight?11.5:6.0);
+    if(closeAhead<62 && c.v>VCAP*0.45 && lineOff<2.6){
+      const inLine=1-clamp((lineOff-0.8)/1.8,0,1);        // full only when in line
+      tow=Math.pow(1-closeAhead/62,1.5)*(straight?9.5:5.0)*inLine;
     }
     c.tow=tow;
     targetV+=tow;
-    /* FOLLOWING OFFSET. A driver in someone's tow does not sit on their gearbox
-       waiting to hit them — they run half a car offset to one side so they can
-       see past and are already committed when the gap comes. Without this the AI
-       drove straight into the back of the car it was towing. The offset is picked
-       once, toward whichever side has more road, and held. */
-    c.follow=c.follow||0;
-    if(closeAhead<30 && aheadCar){
-      if(!c.followSide){
-        const inSide=(signedTurnIdx(pi)>0)?-1:1;
-        c.followSide=(Math.abs(aheadLat+inSide*2.2)<HW-1.6)?inSide:-inSide;
+
+    /* THE ATTEMPT.
+       clear    → nothing ahead worth chasing
+       stalk    → sit in the tow, directly behind, and wind the gap down
+       commit   → pull out to the chosen side (tow lost)
+       alongside→ draw level, slowly, on your own air
+       done     → past; hold the line and pull clear                        */
+    const canTry = aheadCar && closeAhead<40;
+    if(!canTry){ c.phase='clear'; c.atk=0; c.atkSide=0; }
+    else if(c.phase==='clear'){ c.phase='stalk'; c.stalk=0; }
+    if(c.phase==='stalk'){
+      c.stalk=(c.stalk||0)+dt;
+      // to commit you need to be close, in the tow, and genuinely quicker. A
+      // patient driver waits longer for a proper run; an aggressive one lunges.
+      const need=1.2-0.6*(PSN.patience!==undefined?1-PSN.patience:0.5);
+      const quicker=(c.v+tow)>aheadV+need;
+      const settled=(c.lap>=0)||((c.launched||0)>=1&&c.raceT>5.5);
+      if(settled && closeAhead<11 && tow>1.2 && quicker && c.atkCool<=0 && c.stalk>0.8){
+        const inSide=(turnAhead>0)?-1:1;
+        const covered=Math.abs(aheadLat-inSide*(HW*0.5))<2.4;
+        c.atkSide=covered?-inSide:inSide;
+        if(Math.abs(c.atkSide*(HW-1.3))<HW-0.9){ c.phase='commit'; c.atk=0; }
+        else c.atkCool=1.0;
       }
-      // closer = further offset, so the nose is clear of the gearbox
-      const want=c.followSide*clamp((30-closeAhead)/22,0,1)*1.9;
-      c.follow=damp(c.follow,want,2.4,dt);
-    }else{ c.follow=damp(c.follow,0,1.6,dt); c.followSide=0; }
-    /* OVERTAKING. Commit to a side, pull out and hold the move until alongside.
-       The old version re-picked the side every frame it was in range, which is
-       why the cars shimmied left and right while trying to pass. The side is now
-       LATCHED for the duration of the attempt, and the attempt has a real timer
-       and a cooldown so a failed move is abandoned cleanly instead of retried on
-       the next frame. */
-    c.atk=c.atk||0; c.atkSide=c.atkSide||0; c.atkCool=Math.max(0,(c.atkCool||0)-dt);
-    const faster=(c.v>aheadV+0.4)||(tow>2.0);
-    const alongside=aheadCar && closeAhead<6.5;
-    if(c.atk>0){
-      c.atk-=dt;
-      // the move is over when we are past, or the car ahead has pulled away
-      if(!aheadCar || closeAhead>34 || alongside===false && closeAhead<2.5) { }
-      if(closeAhead>34){ c.atk=0; c.atkCool=1.2; }
-    }else if(closeAhead<26 && faster && aheadCar && c.atkCool<=0){
-      // pick the side ONCE: prefer the inside of the coming corner if the car
-      // ahead is not already covering it, otherwise go round the outside
-      const inSide=(signedTurnIdx(pi)>0)?-1:1;
-      const covered=Math.abs(aheadLat-inSide*(HW*0.5))<2.2;
-      const want=covered?-inSide:inSide;
-      // and only if there is actually room on that side
-      if(Math.abs(want*(HW-1.2))<HW-0.9){
-        c.atkSide=want; c.atk=2.2+c.aggro*2.4;
-      }else c.atkCool=0.8;
+    }else if(c.phase==='commit'){
+      c.atk+=dt;
+      // out of the tow now, so the only thing carrying you is the run you built
+      if(Math.abs(c.lat-c.atkSide*(HW-1.3))<1.2) c.phase='alongside', c.atk=0;
+      if(c.atk>1.8||closeAhead>26){ c.phase='stalk'; c.stalk=0; c.atkCool=1.6+Math.random(); }
+    }else if(c.phase==='alongside'){
+      c.atk+=dt;
+      // a real side-by-side takes seconds and is decided on grip and nerve, not
+      // on a speed bonus. Give a small edge only, and let it fail.
+      /* The run you built in the tow does not evaporate the moment you pull out —
+         you carry it. Without that the move could never finish: the car lost the
+         slipstream and then had only a token edge, so it sat alongside for a few
+         seconds and dropped back every time. */
+      const edge=1.1+2.1*(PSN.bravery!==undefined?PSN.bravery:c.aggro);
+      targetV+=edge*clamp(1-c.atk/5.5,0.25,1);      // the run bleeds away as it is used
+      if(closeAhead>18||c.atk>6.0){ c.phase='stalk'; c.stalk=0; c.atkCool=2.2+Math.random()*1.5; }
+      // past: the car we were chasing is now behind us
+      if(!aheadCar||closeAhead>30){ c.phase='clear'; c.atkCool=1.0; }
     }
-    if(c.atk>0){ targetV+=1.6+c.aggro*2.2; }
     if(straight && c.ers>0.12 && (closeAhead<52||c.atk>0||c.lap<1)){ targetV+=9; c.ers-=dt/8; }
     else c.ers=Math.min(1,c.ers+dt/18);
-    // follow rather than crawl: never demand more than a shade over the car we're
-    // stuck behind — unless we are committed to a move, in which case go
-    if(closeAhead<11 && c.atk<=0) targetV=Math.min(targetV, aheadV*1.06+2);
+    /* GAP KEEPING. Nothing was holding a following distance: a car simply drove
+       at a shade over the pace of the car in front until it touched it, so a
+       fourteen-car pack ran permanently in contact and the collision code scrubbed
+       everyone's speed at random. That is what was shuffling the whole order on
+       lap one and pushing the lap time up.
+       A driver stalking someone holds a gap — close enough for the tow, far enough
+       to be able to brake — and only closes it when actually making a move.
+       Proportional control on the gap, with the target set by how patient the
+       driver is: a lunger sits closer than a measured one. */
+    if(aheadCar && c.phase==='stalk'){
+      const pat=(PSN.patience!==undefined?PSN.patience:0.6);
+      const want=6.5+4.5*pat;                    // 6.5 m for a lunger, 11 m for a plodder
+      const err=closeAhead-want;                 // +ve = too far back, close up
+      const cap=aheadV + clamp(err*0.85, -7, 4); // never more than 4 m/s of overspeed
+      targetV=Math.min(targetV, cap);
+    }
     // mistakes: rarer for consistent drivers, more likely under pressure from behind
     const pressure=behindGap<18?1.8:1;
     c.mistakeT-=dt;
@@ -13209,10 +13275,15 @@ function stepAI(dt){
     }
     turn/=Math.max(tw,1e-6);
     let lineLat=clamp(-turn*300,-(HW-1.0),HW-1.0);
-    if(c.atk>0){                                   // committed: get fully off line
-      c.dodge=damp(c.dodge, c.atkSide*(HW-1.2), 2.8, dt);
+    if(c.phase==='commit'||c.phase==='alongside'){
+      // out of the tow and committed to the side, held steady
+      c.dodge=damp(c.dodge, c.atkSide*(HW-1.3), c.phase==='commit'?2.4:3.2, dt);
+    }else if(c.phase==='stalk'){
+      // DIRECTLY behind — that is where the tow is. Track the car ahead's line
+      // rather than the racing line, so the hole in the air actually helps.
+      c.dodge=damp(c.dodge, clamp(aheadLat-lineLat,-(HW-1.2),HW-1.2), 1.6, dt);
     }else if(slow<0.9 && closeAhead<24){ c.dodge=damp(c.dodge, blockedSide*(HW-1.3)*(0.5+c.aggro*0.5), 2.2, dt); }
-    else c.dodge=damp(c.dodge, c.follow, 1.8, dt);   // otherwise sit in the tow, offset
+    else c.dodge=damp(c.dodge, 0, 1.6, dt);
     /* DEFENDING, LEGALLY. The rule is one move: you may take the inside line
        BEFORE the braking zone and then you must leave a car's width. So the car
        moves across once, holds it, and does not weave — the old version simply
@@ -13223,14 +13294,23 @@ function stepAI(dt){
     const attacker=behindGap<20;
     if(attacker){
       if(c.defHold<=0 && !c.defTgt){
-        // ONE move: cover the inside of the corner we are approaching, and never
-        // leave less than a car's width on the other side of the road
         const inSide=(turn>0)?-1:1;
-        c.defTgt=inSide*Math.min(HW*0.42, HW-2.3);
+        c.defTgt=inSide*Math.min(HW*0.42, HW-2.3)*(0.6+0.4*(PSN.defensive!==undefined?PSN.defensive:0.5));
         c.defHold=2.6;                          // hold it, do not move again
       }
     }else{ c.defTgt=0; c.defHold=0; }
-    c.defend=damp(c.defend, c.defTgt, 1.5, dt);
+    /* BREAKING THE TOW. The one thing a leading driver is allowed to do besides
+       the single defensive move is move around in the braking zone to spoil the
+       air behind them — a slight, slow weave, well inside a car's width, that
+       keeps the car behind from sitting square in the hole. It is small on
+       purpose: enough to cost the follower part of the tow, not enough to be a
+       second move. How much a driver uses it is part of their character. */
+    let breakTow=0;
+    if(attacker && straight){
+      const amp=0.55*(PSN.towBreak!==undefined?PSN.towBreak:0.4);
+      breakTow=Math.sin((c.idx*0.045)+(c.seed||0))*amp;
+    }
+    c.defend=damp(c.defend, c.defTgt+breakTow, 1.5, dt);
     // a defending driver brakes later; a confident one more so. Applied on the
     // next frame's target, because this frame's has already been consumed.
     c.defLate=(attacker&&c.defTgt)?1.0+0.045*c.aggro:1.0;
@@ -13308,10 +13388,15 @@ function stepAI(dt){
       }else{
         // nose to tail: the car behind is checked, the car ahead is nudged on
         const behind=dLong>0?A:B, ahead=dLong>0?B:A;
-        const push=ovLong*0.5/segL;
+        /* The car behind is pushed BACK out of the overlap; the car ahead is not
+           pushed forward. Advancing it was a ratchet — in a fourteen-car pack the
+           cars at the back shunt the cars in front of them along, over and over,
+           and contact literally manufactured track position. It is why the
+           slowest driver on the grid could arrive from P14 to P3 in one lap. */
+        const push=ovLong/segL;
         if(behind.ai){ behind.ai.idx-=push; behind.ai.v=Math.min(behind.ai.v,
           (ahead.ai?ahead.ai.v:Math.abs(CAR.v))*0.94); }
-        if(ahead.ai){ ahead.ai.idx+=push*0.55; ahead.ai.v*=1-0.03*sevr; }
+        if(ahead.ai){ ahead.ai.v*=1-0.03*sevr; }
         if(!behind.ai||!ahead.ai){
           CAR.v*= (behind.ai?1.02:0.90);      // rear-ended pushes you, hitting scrubs
           CAR.damage=Math.min(1,(CAR.damage||0)+0.016*sevr); }
