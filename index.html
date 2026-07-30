@@ -9563,18 +9563,9 @@ function buildSpectatorBanks(sc,P,Nm,offL,offR,clr){
     const m=new THREE.Mesh(g,grassM);m.receiveShadow=true;sc.add(m);
   }
   if(people.length){
-    const bi=new THREE.InstancedMesh(new THREE.CapsuleGeometry(0.24,0.86,4,6),
-      new THREE.MeshStandardMaterial({roughness:0.9}),people.length);
-    const hi=new THREE.InstancedMesh(new THREE.SphereGeometry(0.19,6,5),
-      new THREE.MeshStandardMaterial({color:0xe0b48c,roughness:1}),people.length);
-    bi.frustumCulled=false;hi.frustumCulled=false;bi.castShadow=true;
-    const col=new THREE.Color();
-    people.forEach((o,i)=>{T.set(o.x,o.y+0.86,o.z);S.set(1,1,1);M.compose(T,RY(o.r),S);bi.setMatrixAt(i,M);
-      col.setHex(o.c);bi.setColorAt(i,col);
-      T.set(o.x,o.y+1.55,o.z);M.compose(T,Q,S);hi.setMatrixAt(i,M);});
-    bi.instanceMatrix.needsUpdate=true;hi.instanceMatrix.needsUpdate=true;
-    if(bi.instanceColor)bi.instanceColor.needsUpdate=true;
-    sc.add(bi,hi);
+    // the people on the banks are actual figures, and a good number of them are
+    // sitting on the grass — which is what a grass bank looks like
+    buildCrowd(sc,people,{cheer:0.20,seatedFrac:0.42});
   }
   if(cars.length){
     const ci=new THREE.InstancedMesh(new THREE.BoxGeometry(2.0,1.35,4.5),
@@ -9840,8 +9831,6 @@ function buildTracksideLife(sc,P,Nm,Tg,offL,offR,clr){
   // --- standing spectators: banks of people on any open ground with a view of
   //     the circuit, which is what fills the gaps between the grandstands ---
   { const cols=[0x2b3a4c,0xd8dce2,0x9b2226,0x1b4a7a,0x2f4f34,0xc7ad3a,0xe0e4e8,0x5a4a6a,0xd94f3d];
-    const body=new THREE.CapsuleGeometry(0.24,0.85,4,6);
-    const head=new THREE.SphereGeometry(0.19,6,5);
     const spots=[];
     // street venues: crowd shoulder to shoulder immediately behind the fence.
     // permanent venues: banks of people spread over the open ground.
@@ -9855,17 +9844,9 @@ function buildTracksideLife(sc,P,Nm,Tg,offL,offR,clr){
         const x=base.x+(Math.random()-0.5)*spread, z=base.z+(Math.random()-0.5)*deep;
         if(clr(x,z)<(HW+(street?3.2:19))*(HW+(street?3.2:19))) continue;
         spots.push({x,z,gy:gh(x,z),c:cols[(Math.random()*cols.length)|0],r:Math.random()*TAU});}}
-    if(spots.length){
-      const bi=new THREE.InstancedMesh(body,new THREE.MeshStandardMaterial({roughness:0.9}),spots.length);
-      const hi=new THREE.InstancedMesh(head,new THREE.MeshStandardMaterial({color:0xe0b48c,roughness:1}),spots.length);
-      bi.castShadow=true;bi.frustumCulled=false;hi.frustumCulled=false;
-      const col=new THREE.Color();
-      spots.forEach((o,i)=>{T.set(o.x,o.gy+0.86,o.z);S.set(1,1,1);M.compose(T,RY(o.r),S);bi.setMatrixAt(i,M);
-        col.setHex(o.c);bi.setColorAt(i,col);
-        T.set(o.x,o.gy+1.55,o.z);M.compose(T,Q,S);hi.setMatrixAt(i,M);});
-      bi.instanceMatrix.needsUpdate=true;hi.instanceMatrix.needsUpdate=true;
-      if(bi.instanceColor)bi.instanceColor.needsUpdate=true;
-      sc.add(bi,hi);} }
+    // real figures: a crowd pressed against the fence is standing and cheering,
+    // a crowd out on open ground is a mix of standing and sitting
+    if(spots.length) buildCrowd(sc,spots,{cheer:street?0.34:0.22, seatedFrac:street?0:0.24}); }
 
   // --- flags on poles behind the barriers, and food/merch units on the banks ---
   { const poleM=new THREE.MeshStandardMaterial({color:0xd8dce0,roughness:0.6,metalness:0.3});
@@ -10304,6 +10285,85 @@ function makeHoarding(){
   }
   const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;t.wrapS=THREE.RepeatWrapping;t.wrapT=THREE.ClampToEdgeWrapping;t.anisotropy=8;return t;
 }
+/* ================== SPECTATORS =================================================
+   A capsule with a ball on top is a bollard, not a person. This builds an actual
+   figure — head, hair, torso, two arms, two legs — and instances every part, so a
+   crowd of two thousand costs seven draw calls. Poses vary: most stand, some
+   cheer with their arms up, some are sitting on the bank with their knees drawn
+   up, and shirt, trouser, hair and skin colours are all drawn separately.       */
+function buildCrowd(sc, spots, opt){
+  if(!spots||!spots.length) return null;
+  const o=Object.assign({cheer:0.22, seatedFrac:0, scale:1},opt||{});
+  const M=new THREE.Matrix4(),T=new THREE.Vector3(),S=new THREE.Vector3();
+  const E=new THREE.Euler(), Q=new THREE.Quaternion();
+  const RY=a=>new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0),a);
+  const skinCols=[0xf0c9a0,0xe0b48c,0xc99062,0xa06b42,0x7a4a2a,0xf7dcc0];
+  const hairCols=[0x2a1c12,0x120e0a,0x6a4426,0xb08a4a,0x8a8a8a,0xd8c8a0,0x5a3020];
+  const legCols =[0x22272e,0x33383f,0x1b2a3c,0x4a4438,0x6a6a72,0x2a3a2a];
+  // parts: a tapered torso, a head, hair, upper+lower limbs as simple boxes
+  const torsoG=new THREE.CylinderGeometry(0.20,0.16,0.56,7);
+  const headG =new THREE.SphereGeometry(0.115,7,6);
+  const hairG =new THREE.SphereGeometry(0.122,7,5,0,TAU,0,Math.PI*0.58);
+  const limbG =new THREE.CylinderGeometry(0.052,0.046,1,5);
+  const mk=(g,mat,n)=>{const im=new THREE.InstancedMesh(g,mat,n);
+    im.frustumCulled=false;im.castShadow=false;im.receiveShadow=true;return im;};
+  const n=spots.length;
+  const torso=mk(torsoG,new THREE.MeshStandardMaterial({roughness:0.88}),n);
+  const head =mk(headG ,new THREE.MeshStandardMaterial({roughness:0.95}),n);
+  const hair =mk(hairG ,new THREE.MeshStandardMaterial({roughness:1.0}),n);
+  const arms =mk(limbG ,new THREE.MeshStandardMaterial({roughness:0.9}),n*2);
+  const legs =mk(limbG ,new THREE.MeshStandardMaterial({roughness:0.9}),n*2);
+  torso.castShadow=true;
+  const col=new THREE.Color();
+  const put=(im,i,x,y,z,rot,sx,sy,sz,tilt,roll)=>{
+    T.set(x,y,z);S.set(sx,sy,sz);
+    E.set(tilt||0,rot,roll||0);Q.setFromEuler(E);
+    M.compose(T,Q,S);im.setMatrixAt(i,M);};
+  spots.forEach((p,i)=>{
+    const sc2=(0.90+Math.random()*0.22)*o.scale;      // adults, teenagers, children
+    const rot=p.r!==undefined?p.r:Math.random()*TAU;
+    const seated=Math.random()<o.seatedFrac;
+    const cheering=!seated && Math.random()<o.cheer;
+    const shirt=p.c!==undefined?p.c:0xd8dce2;
+    const skin=skinCols[(Math.random()*skinCols.length)|0];
+    const hairC=hairCols[(Math.random()*hairCols.length)|0];
+    const legC=legCols[(Math.random()*legCols.length)|0];
+    const gy=p.y!==undefined?p.y:(p.gy||0);
+    const legL=(seated?0.34:0.46)*sc2, torsoY=gy+(seated?0.30:0.50)*sc2+0.28*sc2;
+    // legs
+    for(let s2=0;s2<2;s2++){
+      const dx=Math.sin(rot+Math.PI/2)*(s2?0.085:-0.085)*sc2;
+      const dz=Math.cos(rot+Math.PI/2)*(s2?0.085:-0.085)*sc2;
+      put(legs,i*2+s2, p.x+dx, gy+legL*0.5, p.z+dz, rot, sc2, legL, sc2,
+          seated?-0.95:0, 0);
+      col.setHex(legC);legs.setColorAt(i*2+s2,col);
+    }
+    // torso, leaning forward a touch when seated
+    put(torso,i, p.x, torsoY, p.z, rot, sc2, sc2*(seated?0.92:1), sc2, seated?0.16:0, 0);
+    col.setHex(shirt);torso.setColorAt(i,col);
+    // arms: down by the sides, or straight up if cheering
+    for(let s2=0;s2<2;s2++){
+      const off=(s2?0.215:-0.215)*sc2;
+      const dx=Math.sin(rot+Math.PI/2)*off, dz=Math.cos(rot+Math.PI/2)*off;
+      const armL=0.50*sc2;
+      const ay=cheering ? torsoY+0.30*sc2+armL*0.5 : torsoY+0.10*sc2-armL*0.5;
+      put(arms,i*2+s2, p.x+dx, ay, p.z+dz, rot, sc2, armL, sc2,
+          seated?-0.35:0, cheering?0:(s2?-0.12:0.12));
+      col.setHex(shirt);arms.setColorAt(i*2+s2,col);
+    }
+    // head and hair
+    const hy=torsoY+0.28*sc2+0.13*sc2;
+    put(head,i, p.x, hy, p.z, rot, sc2,sc2,sc2, seated?0.1:0, 0);
+    col.setHex(skin);head.setColorAt(i,col);
+    put(hair,i, p.x, hy+0.02*sc2, p.z, rot, sc2,sc2,sc2, seated?0.1:0, 0);
+    col.setHex(hairC);hair.setColorAt(i,col);
+  });
+  for(const im of [torso,head,hair,arms,legs]){
+    im.instanceMatrix.needsUpdate=true;
+    if(im.instanceColor) im.instanceColor.needsUpdate=true;
+    sc.add(im);}
+  return {torso,head,hair,arms,legs};
+}
 function makeCrowdMat(){
   const c=cnv(256,256),x=c.getContext('2d');
   x.fillStyle='#22262d';x.fillRect(0,0,256,256);
@@ -10354,14 +10414,19 @@ const PHYS={
      loaded, and because the brake force is now capped by GRIP rather than being a
      flat number (below), it fades as the downforce comes off. Braking has to be
      something you manage, not a switch. */
-  brakeForce:34000,
+  brakeForce:41000,
   cdA:1.02, downK:4.6, mu:2.02, roll:250, engBrake:1500,
   wheelbase:3.6, aFront:1.62, aRear:1.98,                      // CG slightly rearward
   izK:2.3,                                                     // yaw inertia (planted but not sluggish)
   /* Rear stiffness down relative to the front: the car had so much rear grip that
      it simply would not step out, which is what made it too easy. Now it rotates
      on the throttle and will bite if you are greedy with it. */
-  Cf:132000, Cr:150000,
+  /* Cornering stiffness. Cr was dropped to 150k to stop the car being immovable,
+     but that overshot the other way and left it loose — the rear let go too
+     readily and the car felt like it was on ice. Back up, with the front raised
+     to match so the balance stays neutral: it rotates when you ask, and holds on
+     when you do not. */
+  Cf:150000, Cr:178000,
   /* STEERING. 0.26 rad is only 15° of road wheel — not enough lock for a hairpin,
      so slow corners felt like the car refused to turn. 0.40 rad is ~23°, which is
      about right, and the rate is up so it actually gets there. */
@@ -12936,19 +13001,54 @@ function stepAI(dt){
        downforce on top, and a 94 m/s ceiling against a 98 m/s top speed. On a
        1.2×-scale circuit that made it several seconds a lap slow. It now plans
        against the same numbers the physics gives the player. */
-    const ARC=8*segLen;                       // curvAtIdx measures the turn over 8 segments
+    /* CORNER SPEEDS COME FROM THE TRACK ITSELF.
+       The AI used to re-derive a corner radius from the turn measured over eight
+       centreline segments. At six metres a segment that is a forty-eight metre
+       baseline, which is short enough that ordinary wiggle in the centreline
+       reads as curvature — so the car braked for corners that are not there and
+       lapped about fifteen per cent below what the circuit is worth.
+       buildWorld's design pass already computed a proper corner radius per point
+       (over a ninety-metre arc, smoothed) and from it the grip-limited apex speed
+       in TRACK.vApex — the same numbers that size the run-off. Using them makes
+       the AI agree with the circuit, and it is both faster and much smoother. */
     const VCAP=PHYS.vMax;
+    /* Use the design pass's RADIUS, not its vApex. TRACK.vApex is a run-off
+       sizing figure computed from sqrt(µgR) with no downforce in it, so treating
+       it as a speed limit makes the car corner like a road car — it cost forty
+       seconds a lap. TRACK.Rc is the properly smoothed corner radius, and the
+       apex speed is then solved with the same aero-loaded grip the player gets:
+       µ × (weight + downforce), which has to be solved for v because the grip
+       depends on the speed. Two fixed-point passes converge. */
+    const Rc=TRACK.Rc;
     let vLimit=VCAP;
-    for(let k=0;k<=26;k++){
-      const th=curvAtIdx((pi+k)%N);
-      if(th<0.02) continue;                   // effectively straight
-      const R=ARC/th;                         // corner radius from the turned angle
-      // lateral grip rises with speed because the wings load the tyres, exactly
-      // as PHYS.downK does for the player — so fast corners are taken fast
-      const vGuess=Math.min(c.v||40,VCAP);
-      const aeroMu=PHYS.mu*(1+PHYS.downK*vGuess*vGuess/(PHYS.mass*9.81*260));
-      const vC=Math.sqrt(Math.min(aeroMu,3.4)*9.81*R);
-      const vAllow=Math.sqrt(vC*vC + 2*52*(k*segLen));   // brake back from it (~5.3g)
+    // look far enough ahead to brake from top speed: v²/2a is about 190 m here
+    const LOOK=Math.max(24, Math.min(N-1, Math.round(260/segLen)));
+    for(let k=0;k<=LOOK;k++){
+      const j=(pi+k)%N;
+      /* A racing line STRAIGHTENS a corner: turning in from the outside edge,
+         clipping the apex and running out to the outside again describes a much
+         larger radius than the centreline does. Across a full-width circuit that
+         is worth roughly a tenth on the radius, and it is the difference between
+         the AI driving the white line and the AI driving a lap. */
+      const R=(Rc?Rc[j]:8000)*1.06;
+      let vC=Math.sqrt(PHYS.mu*9.81*R);
+      for(let it=0;it<2;it++){
+        const vv=Math.min(vC,VCAP);
+        vC=Math.sqrt(PHYS.mu*(PHYS.mass*9.81+PHYS.downK*vv*vv)/PHYS.mass*R);
+      }
+      vC=Math.min(vC,VCAP);
+      if(vC>=vLimit) continue;                 // cannot bind
+      /* Brake back from it at the deceleration available ACROSS the braking zone,
+         not the deceleration at the apex. Sizing it off the corner speed alone
+         means almost no downforce, so the car thinks it needs a vast distance and
+         lifts hundreds of metres early — which is most of what was left of the
+         AI's lap deficit. The mean of the entry and apex speeds is the right
+         figure, and drag helps too. */
+      const vMid=(Math.min(c.v||vC,VCAP)+vC)*0.5;
+      const aBrk=Math.min(PHYS.brakeForce/PHYS.mass,
+        PHYS.mu*(PHYS.mass*9.81+PHYS.downK*vMid*vMid)/PHYS.mass)
+        + 0.5*1.2*PHYS.cdA*vMid*vMid/PHYS.mass;
+      const vAllow=Math.sqrt(vC*vC + 2*aBrk*(k*segLen));
       if(vAllow<vLimit) vLimit=vAllow;
     }
     // pace = driver skill, degraded by tyre life, cut by a wet track
@@ -12956,46 +13056,109 @@ function stepAI(dt){
     const wetCut=1.0-0.22*clamp(WEATHER.wetness,0,1);   // a wet track is kinder to the tyres
     let targetV=Math.min(VCAP,vLimit)*c.skill*tyreGrip*wetCut;
     targetV*= 0.99 + 0.02*Math.sin(c.idx*0.05 + c.seed);          // subtle lap-to-lap rhythm
-    // traffic scan: who's just ahead, who's right behind, and how close
-    let slow=1, blockedSide=0, closeAhead=99, behindGap=99, aheadV=99;
+    /* TRAFFIC. Look further ahead than before — a slipstream reaches a long way
+       at these speeds, and a car that only notices the one in front at 14 indices
+       can never set an overtake up. */
+    let slow=1, blockedSide=0, closeAhead=99, behindGap=99, aheadV=99, aheadCar=null, aheadLat=0;
     for(const o of all){ if(o.ai===c) continue;
       const di=(o.idx-c.idx+N)%N, db=(c.idx-o.idx+N)%N;
-      if(di>0&&di<14){const gap=di*segLen;
-        if(gap<closeAhead){closeAhead=gap;aheadV=o.ai?o.ai.v:Math.abs(CAR.v);}
-        if(Math.abs(o.lat-c.lat)<3.0){ slow=Math.min(slow,clamp(gap/14,0.62,1)); blockedSide=o.lat>c.lat?-1:1; } }
-      if(db>0&&db<10) behindGap=Math.min(behindGap,db*segLen);
+      if(di>0&&di<34){const gap=di*segLen;
+        if(gap<closeAhead){closeAhead=gap;aheadV=o.ai?o.ai.v:Math.abs(CAR.v);
+          aheadCar=o; aheadLat=o.lat;}
+        if(gap<16&&Math.abs(o.lat-c.lat)<2.6){ slow=Math.min(slow,clamp(gap/16,0.70,1)); blockedSide=o.lat>c.lat?-1:1; } }
+      if(db>0&&db<12) behindGap=Math.min(behindGap,db*segLen);
     }
-    // follow rather than crawl: never demand more than a shade over the car we're stuck behind
-    if(closeAhead<12) targetV=Math.min(targetV, aheadV*1.06+2);
-    // SLIPSTREAM + ERS: tow from the car ahead on a straight, then deploy to attack
-    const straight=vLimit>VCAP*0.85;
-    const tow=(straight&&closeAhead<26)?clamp(1-closeAhead/26,0,1)*7.5:0;
+    /* SLIPSTREAM. A real tow is worth 10-15 km/h and it works over about seventy
+       metres, not twenty-six, and it works everywhere the car is going fast — not
+       only on the piece of track the AI happens to classify as "a straight".
+       This is the thing that lets one car actually catch and pass another. */
+    const straight=vLimit>VCAP*0.70;
+    const towGap=70;
+    let tow=0;
+    if(closeAhead<towGap && c.v>VCAP*0.45 && Math.abs(aheadLat-c.lat)<6.5){
+      // strongest right behind the gearbox, fading out to nothing at 70 m
+      tow=Math.pow(1-closeAhead/towGap,1.4)*(straight?11.5:6.0);
+    }
+    c.tow=tow;
     targetV+=tow;
-    if(straight && c.ers>0.12 && (closeAhead<40||c.lap<1)){ targetV+=9; c.ers-=dt/8; }
+    /* OVERTAKING. The car used to just sit in the tow. Now, when it is closing on
+       someone and has the pace to pass, it COMMITS: picks the side with room,
+       pulls out, and holds the move until it is alongside or the corner arrives.
+       Aggression decides how early it commits and how long it stays out there. */
+    c.atk=c.atk||0; c.atkSide=c.atkSide||0;
+    const faster=(c.v>aheadV+0.6)||(tow>2.5);
+    if(closeAhead<26 && faster && aheadCar){
+      if(c.atk<=0){                                   // choose a side and go
+        const room=(l)=>Math.min(HW-1.1-Math.abs(l), HW-1.1);
+        const inSide=(signedTurnIdx(pi)>0)?-1:1;      // the inside of the coming corner
+        const want=(Math.abs(aheadLat-inSide*(HW*0.55))>2.4)?inSide:-inSide;
+        c.atkSide=want; c.atk=1.6+c.aggro*1.8;
+      }
+      c.atk-=dt*0.35;
+    }else c.atk=Math.max(0,c.atk-dt*1.4);
+    // being alongside means the move is done — hold the line and pull clear
+    if(c.atk>0){ targetV+=1.6+c.aggro*2.2; }
+    if(straight && c.ers>0.12 && (closeAhead<52||c.atk>0||c.lap<1)){ targetV+=9; c.ers-=dt/8; }
     else c.ers=Math.min(1,c.ers+dt/18);
+    // follow rather than crawl: never demand more than a shade over the car we're
+    // stuck behind — unless we are committed to a move, in which case go
+    if(closeAhead<11 && c.atk<=0) targetV=Math.min(targetV, aheadV*1.06+2);
     // mistakes: rarer for consistent drivers, more likely under pressure from behind
     const pressure=behindGap<18?1.8:1;
     c.mistakeT-=dt;
     if(c.mistakeT<-5 && Math.random()<0.0016*(2-c.consist)*pressure) c.mistakeT=0.4+Math.random()*0.5;
     const mist=c.mistakeT>0?0.8:1;
     const desired=targetV*slow*mist;
-    /* And it has to be able to USE that speed. Damping toward the target at 2.2
-       per second means about 0.45 s to close 63% of the gap — an F1 car pulls
-       away from a hairpin far harder than that, which is a large part of why the
-       field looked slow. Acceleration now falls off with speed the way real
-       traction-then-drag-limited acceleration does, and braking is sharp. */
-    { const accRate=lerp(5.2,1.5,clamp(c.v/VCAP,0,1));
-      c.v=damp(c.v, desired, desired>c.v?accRate:9.5, dt); }
+    /* FORCE-BASED LONGITUDINAL MOTION. Damping toward a target speed meant the
+       car simply appeared at that speed — which is why the field snapped to full
+       pace the instant the lights went out instead of launching. It now
+       integrates the same forces the player's car does: engine force limited by
+       traction, minus drag and rolling resistance, and braking limited by grip.
+       So it accelerates off the line, out of a hairpin, and down a straight at
+       the rate the car is actually capable of, and no faster. */
+    { const P2=PHYS;
+      const vv=Math.max(c.v,0.5);
+      if(desired>c.v+0.15){
+        // engine force, capped by what the rear tyres can put down
+        const Fdrive=Math.min(P2.power/vv, P2.maxForce)*(0.94+0.06*c.skill);
+        const grip=P2.mu*(P2.mass*9.81+P2.downK*c.v*c.v)*0.55;   // rear axle share
+        const Fdrag=0.5*1.2*P2.cdA*c.v*c.v;
+        const a=(Math.min(Fdrive,grip)-Fdrag-P2.roll)/P2.mass;
+        c.v=Math.min(desired, c.v+Math.max(a,0)*dt);
+      }else if(desired<c.v-0.15){
+        const aBrk=Math.min(P2.brakeForce/P2.mass,
+          P2.mu*(P2.mass*9.81+P2.downK*c.v*c.v)/P2.mass);
+        const Fdrag=0.5*1.2*P2.cdA*c.v*c.v;
+        c.v=Math.max(desired, c.v-(aBrk+Fdrag/P2.mass)*dt);
+      }else c.v=desired;
+      c.v=clamp(c.v,0,VCAP); }
     c.idx+=(c.v*dt)/segLen; if(c.idx>=N){c.idx-=N;c.lap++;}
     // racing line: apex-seeking, with an aggression-scaled lunge past traffic
-    const turn=signedTurnIdx(pi);
+    /* THE LINE. signedTurnIdx at a single index flips around quickly through a
+       tight corner, and because it was read at the ROUNDED index the target line
+       moved in steps — which is the jag you see on the way into a hairpin. Take a
+       weighted average over a look-ahead window instead, so the target sweeps
+       smoothly from turn-in to apex to exit. */
+    let turn=0, tw=0;
+    for(let k=-2;k<=10;k++){
+      const w=(k<0?0.5:1)*(1-Math.abs(k-4)/9);
+      turn+=signedTurnIdx((pi+k+N)%N)*w; tw+=w;
+    }
+    turn/=Math.max(tw,1e-6);
     let lineLat=clamp(-turn*300,-(HW-1.0),HW-1.0);
-    if(slow<0.9 && closeAhead<24){ c.dodge=damp(c.dodge, blockedSide*(HW-1.3)*(0.5+c.aggro*0.5), 2.6, dt); }
+    if(c.atk>0){                                   // committed: get fully off line
+      c.dodge=damp(c.dodge, c.atkSide*(HW-1.2), 3.4, dt);
+    }else if(slow<0.9 && closeAhead<24){ c.dodge=damp(c.dodge, blockedSide*(HW-1.3)*(0.5+c.aggro*0.5), 2.6, dt); }
     else c.dodge=damp(c.dodge,0,1.5,dt);
     // DEFENDING: if someone is close behind, edge across to cover the inside line
     if(behindGap<16 && straight){ c.defend=damp(c.defend, -Math.sign(turn||1)*1.5*c.aggro, 1.6, dt); }
     else c.defend=damp(c.defend,0,2,dt);
-    c.lat=damp(c.lat, clamp(lineLat+c.dodge+c.defend,-(HW-0.9),HW-0.9), 1.9, dt);
+    /* and move onto it fast enough for a tight corner: at 1.9 per second the car
+       was still drifting toward its apex line well past the apex, which reads as
+       the car snapping across the road late. Scales with speed the way a real
+       change of direction does. */
+    { const rate=lerp(3.6,2.0,clamp(c.v/VCAP,0,1));
+      c.lat=damp(c.lat, clamp(lineLat+c.dodge+c.defend,-(HW-0.9),HW-0.9), rate, dt); }
     /* SMOOTH MOTION. The car used to be snapped onto the ROUNDED centreline index
        every frame and given that index's tangent as its heading. At ~15 m between
        indices that is a visible jump forwards and a visible flick of the nose on
@@ -13031,6 +13194,65 @@ function stepAI(dt){
       const sc_=0.9+spF*(2.4+2.6*w); spray.scale.set(sc_,sc_*0.75,1);
       spray.position.z=-(PHYS.aRear+0.6)-spF*1.6; }
   }
+  /* ===== CONTACT =========================================================
+     Cars used to drive straight through each other. Now they touch: once every
+     car has moved, any pair that overlaps is pushed apart along the track and
+     across it, and both lose speed for it. A car with its nose alongside cannot
+     simply be driven into, and a car that runs into the back of another gets
+     bounced and scrubbed — which is what makes a side-by-side move actually
+     resolve instead of the two of them occupying the same metre of road.
+     Damage is charged to the player as well, so contact is not free.        */
+  { const CAR_L=5.2, CAR_W=2.1, segL=TRACK.len/N;
+    const list=AI.cars.map(c=>({ai:c,idx:c.idx,lat:c.lat}));
+    // the player is a solid object too
+    const pLat=(typeof CAR!=='undefined'&&CAR.trackIdx!==undefined)?
+      (nearestTrack(CAR.pos,CAR.trackIdx,55).lat):null;
+    if(pLat!==null) list.push({ai:null,idx:pIdx,lat:pLat});
+    for(let a=0;a<list.length;a++) for(let b=a+1;b<list.length;b++){
+      const A=list[a], B=list[b];
+      // longitudinal separation along the lap, signed and wrapped
+      let ds=(B.idx-A.idx); ds=((ds%N)+N)%N; if(ds>N/2) ds-=N;
+      const dLong=ds*segL, dLat=B.lat-A.lat;
+      if(Math.abs(dLong)>CAR_L || Math.abs(dLat)>CAR_W) continue;
+      const ovLong=CAR_L-Math.abs(dLong), ovLat=CAR_W-Math.abs(dLat);
+      if(ovLong<=0||ovLat<=0) continue;
+      const sevr=clamp(Math.min(ovLong/CAR_L,ovLat/CAR_W),0,1);
+      if(ovLat<ovLong*(CAR_W/CAR_L)){
+        // side by side: shove them apart across the road and scrub a little speed
+        const push=ovLat*0.5+0.02, sgn=dLat>=0?1:-1;
+        if(A.ai){A.ai.lat=clamp(A.ai.lat-sgn*push,-(HW-0.7),HW-0.7); A.ai.v*=1-0.05*sevr;}
+        if(B.ai){B.ai.lat=clamp(B.ai.lat+sgn*push,-(HW-0.7),HW-0.7); B.ai.v*=1-0.05*sevr;}
+        if(!A.ai||!B.ai){ CAR.vLat=(CAR.vLat||0)-sgn*(A.ai?1:-1)*6*sevr;
+          CAR.damage=Math.min(1,(CAR.damage||0)+0.010*sevr); }
+      }else{
+        // nose to tail: the car behind is checked, the car ahead is nudged on
+        const behind=dLong>0?A:B, ahead=dLong>0?B:A;
+        const push=ovLong*0.5/segL;
+        if(behind.ai){ behind.ai.idx-=push; behind.ai.v=Math.min(behind.ai.v,
+          (ahead.ai?ahead.ai.v:Math.abs(CAR.v))*0.94); }
+        if(ahead.ai){ ahead.ai.idx+=push*0.55; ahead.ai.v*=1-0.03*sevr; }
+        if(!behind.ai||!ahead.ai){
+          CAR.v*= (behind.ai?1.02:0.90);      // rear-ended pushes you, hitting scrubs
+          CAR.damage=Math.min(1,(CAR.damage||0)+0.016*sevr); }
+      }
+      // rubber and smoke off the contact point, so you SEE it happen
+      if(sevr>0.25 && typeof FX!=='undefined' && FX.spawn){
+        const cc=A.ai||B.ai;
+        if(cc&&cc.mesh){const p2=cc.mesh.position;
+          for(let q=0;q<3;q++) FX.spawn(p2.x,p2.y+0.5,p2.z,
+            (Math.random()-0.5)*5,1.4+Math.random()*1.6,(Math.random()-0.5)*5,
+            0.55,0.55,0.58,0.55,0.5,1.8,2.2);}
+      }
+    }
+    // re-seat anything the shove moved, so the visual matches the new position
+    for(const c of AI.cars){
+      const fi=((c.idx%N)+N)%N, i0=Math.floor(fi)%N, i1=(i0+1)%N, f=fi-Math.floor(fi);
+      const p0=TRACK.pts[i0],p1=TRACK.pts[i1],n0=TRACK.nrm[i0],n1=TRACK.nrm[i1];
+      const nx=lerp(n0.x,n1.x,f), nz=lerp(n0.z,n1.z,f), nl=Math.hypot(nx,nz)||1;
+      c.mesh.position.set(lerp(p0.x,p1.x,f)+(nx/nl)*c.lat,
+        lerp(p0.y||0,p1.y||0,f)+0.02-(CAR.tireDrop||0),
+        lerp(p0.z,p1.z,f)+(nz/nl)*c.lat);
+    } }
   // standings: total distance = lap*len + along-lap distance
   const dOf=(idx,lp)=>lp*TRACK.len + TRACK.cum[Math.round(idx)%N];
   const field=AI.cars.map(c=>({d:dOf(c.idx,c.lap),me:false})).concat([{d:dOf(pIdx,lap.num||0),me:true}]);
