@@ -931,6 +931,7 @@ if(location.protocol==='file:'){
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 const $=s=>document.querySelector(s);
 const clamp=(v,a,b)=>v<a?a:v>b?b:v;
@@ -974,6 +975,105 @@ const OCCUPY={
     return true; },
   /* the one call most placers want: take the ground if it is free */
   take(x,z,r,slack){ if(!this.free(x,z,r,slack)) return false; this.claim(x,z,r); return true; },
+};
+
+/* ============ GEOMETRY BAKING ==================================================
+   A detailed building is fifty little boxes — a body, a plinth, a cornice, string
+   courses, balconies, chimneys, a parapet — and every one of them is a separate
+   draw call, every frame, forever. Monte-Carlo has a hundred and fifty buildings,
+   so that is seven thousand draw calls for scenery that never moves.
+   bakeGroup() walks a finished group, buckets its meshes by MATERIAL, merges each
+   bucket into one geometry in the group's local space, and hands back a group with
+   one mesh per material — typically fifty meshes down to five, with pixel-identical
+   output. Anything that cannot be merged (instanced meshes, sprites, meshes with
+   no position attribute) is passed through untouched.                          */
+function bakeGroup(g){
+  const buckets=new Map();          // material -> [geometry in g-local space]
+  const keep=[];
+  g.updateMatrixWorld(true);
+  const inv=new THREE.Matrix4().copy(g.matrixWorld).invert();
+  const walk=(o)=>{
+    for(const c of o.children.slice()) walk(c);
+    if(o===g) return;
+    if(!o.isMesh || o.isInstancedMesh || !o.geometry || !o.geometry.attributes.position
+       || Array.isArray(o.material)){ if(o!==g) keep.push(o); return; }
+    const gm=o.geometry.clone();
+    // into the group's local frame, then drop everything the merge cannot use
+    const m=new THREE.Matrix4().multiplyMatrices(inv,o.matrixWorld);
+    gm.applyMatrix4(m);
+    if(!gm.attributes.normal) gm.computeVertexNormals();
+    if(!gm.attributes.uv){
+      const n=gm.attributes.position.count;
+      gm.setAttribute('uv',new THREE.BufferAttribute(new Float32Array(n*2),2));}
+    for(const k in gm.attributes) if(k!=='position'&&k!=='normal'&&k!=='uv') gm.deleteAttribute(k);
+    if(!gm.index) gm.setIndex([...Array(gm.attributes.position.count).keys()]);
+    let list=buckets.get(o.material);
+    if(!list){list=[];buckets.set(o.material,list);}
+    list.push(gm);
+  };
+  walk(g);
+  // nothing to gain from baking a group that is already one or two meshes
+  let total=0; for(const l of buckets.values()) total+=l.length;
+  if(total<4){ for(const l of buckets.values()) for(const gm of l) gm.dispose(); return g; }
+  const out=new THREE.Group();
+  out.position.copy(g.position); out.quaternion.copy(g.quaternion); out.scale.copy(g.scale);
+  for(const [mat,list] of buckets){
+    let merged=null;
+    try{ merged=list.length===1?list[0]:mergeGeometries(list,false); }catch(e){ merged=null; }
+    if(!merged){ // fall back to leaving this bucket as separate meshes
+      for(const gm of list){const mm=new THREE.Mesh(gm,mat);mm.castShadow=true;mm.receiveShadow=true;out.add(mm);}
+      continue; }
+    if(merged!==list[0]) for(const gm of list) gm.dispose();
+    const mesh=new THREE.Mesh(merged,mat);
+    mesh.castShadow=true; mesh.receiveShadow=true; out.add(mesh);
+  }
+  for(const o of keep){ out.add(o); }
+  return out;
+}
+/* The same bake, but keeping the group's IDENTITY — its children are replaced in
+   place rather than being handed back in a new group. That matters for anything
+   the rest of the file holds a reference to. */
+function bakeGroupInPlace(g){
+  const baked=bakeGroup(g);
+  if(baked===g) return g;
+  for(const c of g.children.slice()) g.remove(c);
+  for(const c of baked.children.slice()) g.add(c);
+  return g;
+}
+/* Walk a scene and bake every static group in it. Run once, after the world is
+   finished: it does not care which builder made what, so every venue benefits
+   without touching a single builder. */
+function bakeScene(sc,skip){
+  let before=0, after=0;
+  for(const c of sc.children.slice()){
+    if(!c.isGroup) continue;
+    if(skip && skip.has(c)) continue;
+    if(c.userData && c.userData.noBake) continue;
+    let n=0; c.traverse(o=>{if(o.isMesh)n++;});
+    if(n<6) continue;                       // not worth the merge
+    before+=n; bakeGroupInPlace(c);
+    let m=0; c.traverse(o=>{if(o.isMesh)m++;}); after+=m;
+  }
+  return {before,after};
+}
+/* ============ LIGHT BUDGET ====================================================
+   A dynamic light in three.js is not free the way a bright material is: EVERY lit
+   material's shader loops over EVERY light in the scene, so each one added slows
+   down the whole frame, everywhere. Las Vegas had forty-five of them — one per
+   resort, one per tower, one per landmark — and that alone was the lag.
+   So: venues ask for lights through here and get the first few. Past the budget
+   the request is dropped, and the emissive materials carry the look on their own
+   (which is what was doing most of the work in the first place).             */
+const LIGHTS={
+  budget:8, used:0,
+  reset(){ this.used=0; },
+  /* add a point light if there is room in the budget. Returns the light or null. */
+  point(sc,color,intensity,dist,decay,x,y,z){
+    if(this.used>=this.budget) return null;
+    const L=new THREE.PointLight(color,intensity,dist,decay===undefined?2:decay);
+    L.position.set(x,y,z); L.castShadow=false;       // shadow-casting point lights
+    sc.add(L); this.used++; return L;                // cost six render passes each
+  },
 };
 
 /* ==================================================================
@@ -1666,6 +1766,7 @@ function buildWorld(sc,cfg){
   cfg=cfg||CFG; CFG=cfg;
   clearScene(sc);
   OCCUPY.reset();                        // a fresh world claims fresh ground
+  LIGHTS.reset();                        // and a fresh light budget
   sc.userData.duskT=0; sc.userData.duskDay=null; sc.userData.duskDusk=null;
   TRACK.halfW=cfg.halfW;
   // tall catch-fencing sits atop the sponsor walls on most circuits; open parkland tracks skip it
@@ -2441,7 +2542,10 @@ function buildWorld(sc,cfg){
   else if(cfg.forest) buildForest(sc,P,Nm,barOff,barOffR);       // Spa: Ardennes forest
   else buildDesert(sc,P,Nm,Tg,barOff,barOffR);                   // Yas: desert + hotel
   buildBridges(sc,P,Nm,Tg,cum,barOff,barOffR);                   // overhead gantries + billboards (all tracks)
-  buildGroundDetail(sc,P,Nm,cfg);                                // tussocks, scrub, stones — the venue's real ground cover
+  /* buildGroundDetail() used to scatter tussocks, scrub bushes and stones over the
+     verges. The ground TEXTURE already carries all of that, and the geometry only
+     added clutter and draw calls, so it is off. The function is kept in case a
+     venue ever wants it deliberately. */
   buildDistantScenery(sc,P,Nm,cfg);                              // construction cranes + far skyline on EVERY track
   buildRain(sc);            // always present, drawn at whatever intensity the weather calls for
   FX.init(sc);              // tyre smoke, rubber, sparks and surface debris
@@ -2457,6 +2561,50 @@ function buildWorld(sc,cfg){
       lt-=dt*st; if(lt<=0){flash=1;lt=3+Math.random()*8;}
       if(flash>0)flash=Math.max(0,flash-dt*3.5);
       renderer.toneMappingExposure*=1+flash*flash*2.4*st; }}; }
+  /* Bake every static group in the world down to one mesh per material. This is
+     the single biggest frame-time win available: a detailed building, grandstand
+     or hospitality unit is dozens of small boxes, and each one is a draw call
+     every frame for something that never moves. */
+  { const skip=new Set();
+    // buildWorld runs once at module init, BEFORE `const CAR` is initialised, and
+    // `typeof` does not save you from a const's temporal dead zone — it throws.
+    try{ if(CAR&&CAR.rig) skip.add(CAR.rig); }catch(e){}
+    const st=bakeScene(sc,skip);
+    sc.userData.bakeStats=st; }
+  /* ============ SHADOW BUDGET ==============================================
+     The shadow map re-renders every castShadow object in the scene EVERY FRAME.
+     Monte-Carlo was flagging ten thousand of them — every window ledge, awning,
+     balcony and rooftop unit in the whole city — which is a second full scene
+     draw per frame for shadows that land on rooftops you cannot see.
+     A shadow is only worth paying for if it falls somewhere you are looking:
+     near the circuit, and cast by something big enough to read. Everything else
+     keeps RECEIVING shadows (that is free) but stops casting them.           */
+  { const csamp2=[]; for(let i=0;i<N;i+=6) csamp2.push(P[i]);
+    // the sun's shadow camera is a 300 m box that follows the car, so a caster
+    // more than ~80 m off the racing line never puts a pixel on screen anyway
+    const NEAR=80*80;                                 // metres² from the circuit
+    const bs=new THREE.Box3(), sz=new THREE.Vector3();
+    let kept=0, dropped=0;
+    sc.traverse(o=>{
+      if(!o.isMesh || !o.castShadow) return;
+      // instanced scatter is one object with thousands of copies: never a caster
+      if(o.isInstancedMesh){ o.castShadow=false; dropped++; return; }
+      const m=o.matrixWorld ? null : null;
+      o.updateWorldMatrix(true,false);
+      const px=o.matrixWorld.elements[12], pz=o.matrixWorld.elements[14];
+      let mn=1e9;
+      for(const q of csamp2){const dx=px-q.x,dz=pz-q.z;const d=dx*dx+dz*dz;if(d<mn)mn=d;}
+      if(mn>NEAR){ o.castShadow=false; dropped++; return; }
+      // near the track, but keep only things with real presence
+      if(o.geometry){
+        if(!o.geometry.boundingBox) o.geometry.computeBoundingBox();
+        bs.copy(o.geometry.boundingBox).applyMatrix4(o.matrixWorld);
+        bs.getSize(sz);
+        if(Math.max(sz.x,sz.y,sz.z)<3.5){ o.castShadow=false; dropped++; return; }
+      }
+      kept++;
+    });
+    sc.userData.shadowStats={kept,dropped}; }
   miniProj=null;                                   // minimap recomputes for new track
   return {};
 }
@@ -2563,6 +2711,7 @@ function updateDynamicSky(sc,dt){
    jittered, tapering rings from a dark cloud base down to a dust-swirl at ground level */
 function buildTornado(sc,worldR){
   const g=new THREE.Group();
+  g.userData.noBake=true;              // its children are animated individually
   const dist=worldR*1.7, ang=2.35, cx=Math.cos(ang)*dist, cz=Math.sin(ang)*dist;
   const cloudTopY=260, groundY=6;
   const funnelMat=new THREE.MeshStandardMaterial({color:0x555a62,roughness:1,transparent:true,opacity:0.55,side:THREE.DoubleSide});
@@ -3210,7 +3359,7 @@ function buildYasHotel(sc,P,Nm,Tg){
       for(let k=0;k<uu.length;k++){const hue=(uu[k]*2.2 + t)%1;
         tmp.setHSL(hue,0.85,0.55);cAttr.setXYZ(k,tmp.r,tmp.g,tmp.b);}cAttr.needsUpdate=true;};
     sc.add(led);
-    const gl=new THREE.PointLight(0x3a70ff,5,340,2);gl.position.copy(at(0,0,H(0,0)+6));sc.add(gl); }
+    { const q=at(0,0,H(0,0)+6); LIGHTS.point(sc,0x3a70ff,5,340,2,q.x,q.y,q.z); } }
   // ---- two curved hotel buildings under the humps (lit glass facades) ----
   const facade=(cols,rows)=>new THREE.MeshStandardMaterial({map:makeWindows(cols,rows,'#7fd0ff'),
     emissive:0x14304a,emissiveIntensity:1.0,roughness:0.4,metalness:0.3});
@@ -3840,12 +3989,20 @@ function makeMonacoBuilding(w,d,h,type,col){
   const plinth=new THREE.Mesh(new THREE.BoxGeometry(w+0.3,h/floors*0.9,d+0.3),dark);plinth.position.y=h/floors*0.45;g.add(plinth);
   if(!glass)for(const fx of [-1,1]){const aw=new THREE.Mesh(new THREE.BoxGeometry(0.7,0.25,d*0.86),new THREE.MeshStandardMaterial({color:awnCol,roughness:0.8}));
     aw.position.set(fx*(w/2+0.35),h/floors*0.75,0);aw.rotation.z=fx*0.3;g.add(aw);}
-  // cornice ledges every floor + slim iron balconies every other floor (kept light for perf)
-  for(let f=1;f<floors;f++){const ly=f*h/floors;
-    const ledge=new THREE.Mesh(new THREE.BoxGeometry(w+0.4,0.26,d+0.4),trim);ledge.position.y=ly;g.add(ledge);}
-  if(!glass)for(let f=1;f<floors;f+=2){const ly=f*h/floors;
-    for(const fx of [-1,1]){const bal=new THREE.Mesh(new THREE.BoxGeometry(0.42,0.5,d*0.82),rail);
-      bal.position.set(fx*(w/2+0.26),ly+0.3,0);g.add(bal);}}
+  /* Cornices and balconies. A ledge at every floor plus a balcony every other
+     floor on both flanks came to forty-odd extra meshes on every building, and
+     with a hundred and fifty buildings that was ten thousand draw calls for
+     Monte-Carlo on its own. The window texture already carries the floor lines,
+     so this keeps a string course at the two heights that read from the car and
+     one balcony band per flank, which is visually the same at any distance you
+     can see them from. */
+  for(const f of [Math.max(1,Math.round(floors*0.34)), Math.max(2,Math.round(floors*0.68))]){
+    const ledge=new THREE.Mesh(new THREE.BoxGeometry(w+0.4,0.30,d+0.4),trim);
+    ledge.position.y=f*h/floors;g.add(ledge);}
+  if(!glass) for(const fx of [-1,1]){
+    const ly=Math.max(1,Math.round(floors*0.5))*h/floors;
+    const bal=new THREE.Mesh(new THREE.BoxGeometry(0.42,0.5,d*0.82),rail);
+    bal.position.set(fx*(w/2+0.26),ly+0.3,0);g.add(bal);}
   // rooflines by archetype
   if(type===0){ // Belle-Époque: mansard roof + chimneys + parapet
     const par=new THREE.Mesh(new THREE.BoxGeometry(w+0.5,0.9,d+0.5),trim);par.position.y=h+0.45;g.add(par);
@@ -3867,7 +4024,9 @@ function makeMonacoBuilding(w,d,h,type,col){
     for(const fx of [-1,1]){const pole=new THREE.Mesh(new THREE.CylinderGeometry(0.06,0.06,3),rail);pole.position.set(fx*(w/2-0.6),h+3,d/2-0.4);g.add(pole);}
   }
   g.traverse(o=>{o.castShadow=true;o.receiveShadow=true;});
-  return g;
+  // fifty little boxes per building × a hundred and fifty buildings is seven
+  // thousand draw calls for scenery that never moves: bake it down by material
+  return bakeGroup(g);
 }
 /* ---- Monaco: tight streets lined with tall city blocks, the harbour + yachts, a tunnel ---- */
 function buildMonaco(sc,P,Nm,Tg,offL,offR){
@@ -3954,19 +4113,30 @@ function buildMonaco(sc,P,Nm,Tg,offL,offR){
               pl.position.set((q-1)*w*0.28,h+1.9,d*0.24);g.add(pl);}}
           g.position.set(x,gy,z);g.rotation.y=ang+(Math.random()-0.5)*0.5;
           g.traverse(o=>{o.castShadow=true;o.receiveShadow=true;});sc.add(g);}}}
-    // the terrace retaining walls the ranks stand on
-    const retain=new THREE.MeshStandardMaterial({color:0xbdb3a0,roughness:0.95});
-    for(let rank=1;rank<=4;rank++){
-      const back=34+rank*40-16, lift=rank*17;
-      for(let i=0;i<N;i+=5){
-        const p=P[i],n=Nm[i],ang=Math.atan2(Tg[i].x,Tg[i].z);
-        for(const [side,off] of [[1,offL],[-1,offR]]){
-          const dist=off(i)+back;
-          const x=p.x+n.x*side*dist, z=p.z+n.z*side*dist;
-          if(inHarbour(x,z)) continue;
-          if(clearB(x,z)<(HW+back*0.5)**2) continue;
-          const w=new THREE.Mesh(new THREE.BoxGeometry(2.0,lift+3,26),retain);
-          w.position.set(x,gh(x,z)+(lift+3)/2,z);w.rotation.y=ang;sc.add(w);}}}
+    /* The terrace retaining walls the ranks of buildings stand on. Four ranks ×
+       every fifth index × both sides came to around SEVEN HUNDRED individual
+       meshes — on its own the single biggest draw-call cost anywhere in the game,
+       and Monte-Carlo's lag. It is one wall repeated, so it is one InstancedMesh. */
+    { const retain=new THREE.MeshStandardMaterial({color:0xbdb3a0,roughness:0.95});
+      const segs=[];
+      for(let rank=1;rank<=4;rank++){
+        const back=34+rank*40-16, lift=rank*17;
+        for(let i=0;i<N;i+=5){
+          const p=P[i],n=Nm[i],ang=Math.atan2(Tg[i].x,Tg[i].z);
+          for(const [side,off] of [[1,offL],[-1,offR]]){
+            const dist=off(i)+back;
+            const x=p.x+n.x*side*dist, z=p.z+n.z*side*dist;
+            if(inHarbour(x,z)) continue;
+            if(clearB(x,z)<(HW+back*0.5)**2) continue;
+            segs.push({x,z,y:gh(x,z)+(lift+3)/2,h:lift+3,ang});}}}
+      if(segs.length){
+        const im=new THREE.InstancedMesh(new THREE.BoxGeometry(2.0,1,26),retain,segs.length);
+        im.frustumCulled=false;im.receiveShadow=true;im.castShadow=false;
+        const M3=new THREE.Matrix4(),T3=new THREE.Vector3(),S3=new THREE.Vector3();
+        segs.forEach((o,i)=>{T3.set(o.x,o.y,o.z);S3.set(1,o.h,1);
+          M3.compose(T3,new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0),o.ang),S3);
+          im.setMatrixAt(i,M3);});
+        im.instanceMatrix.needsUpdate=true;sc.add(im);} }
   }
   /* --- the Casino de Monte-Carlo: a Belle Époque palace with green copper
      domes and its terrace, and the Hôtel de Paris beside it --- */
@@ -4022,7 +4192,11 @@ function buildMonaco(sc,P,Nm,Tg,offL,offR){
     for(let i=0;i<seg;i++){const a=i*2;idL.push(a,a+2,a+1,a+1,a+2,a+3);idR.push(a,a+1,a+2,a+1,a+3,a+2);idC.push(a,a+2,a+1,a+1,a+2,a+3);}
     const mk=(v,id,mat)=>{const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(v,3));g.setIndex(id);g.computeVertexNormals();const m=new THREE.Mesh(g,mat);m.renderOrder=2;sc.add(m);};
     mk(vL,idL,wallMat);mk(vR,idR,wallMat);mk(vC,idC,roofMat);
-    for(let i=i0;i<=i1;i+=3){const k=i%N,p=P[k];const lt=new THREE.PointLight(0xffdd88,2.2,26,2);lt.position.set(p.x,p.y+TH-0.6,p.z);sc.add(lt);} }
+    /* the tunnel used to put a real light every three indices — dozens of them,
+       each one slowing every material in the scene. Two lights and the emissive
+       strip give the same tunnel. */
+    for(const f of [0.3,0.7]){const k=Math.round(i0+(i1-i0)*f)%N,p=P[k];
+      LIGHTS.point(sc,0xffdd88,3.4,150,2,p.x,p.y+TH-0.6,p.z);} }
   // --- headland behind the city so the horizon isn't empty ---
   const hill=new THREE.Mesh(new THREE.CylinderGeometry(R*1.7,R*1.9,140,48,1,true),
     new THREE.MeshStandardMaterial({color:0x6a6b5a,roughness:1,side:THREE.BackSide}));
@@ -4357,7 +4531,7 @@ function buildJeddah(sc,P,Nm,Tg,offL,offR){
     const basin=new THREE.Mesh(new THREE.CylinderGeometry(34,38,4,26),
       new THREE.MeshStandardMaterial({color:0x9aa4ae,roughness:0.7,emissive:0x2a4a6a,emissiveIntensity:0.8}));
     basin.position.y=-1;g.add(basin);
-    const glow=new THREE.PointLight(0xbfe0ff,3.0,420,2);glow.position.set(0,40,0);g.add(glow);
+    { const L=LIGHTS.point(sc,0xbfe0ff,3.0,420,2,0,40,0); if(L) g.add(L); }
     g.position.set(fx,0,fz);sc.add(g); }
 
   // --- moored dhows along the corniche, lit up for the evening ---
@@ -4906,7 +5080,7 @@ function buildVegasLandmarks(sc,clr,R,gh){
       const skirt=new THREE.Mesh(new THREE.CylinderGeometry(rad*0.96,rad*0.96,0.8,30),
         new THREE.MeshStandardMaterial({color:0xff3a7a,emissive:0xff3a7a,emissiveIntensity:1.4}));
       skirt.position.set(sp.x,gy+rad*0.34,sp.z);sc.add(skirt);
-      const L=new THREE.PointLight(0xff40a0,2.6,340,2);L.position.set(sp.x,gy+rad,sp.z);sc.add(L);} }
+      LIGHTS.point(sc,0xff40a0,2.6,340,2,sp.x,gy+rad,sp.z);} }
 
   // --- Luxor: the black glass pyramid, its sphinx and the light beam ---
   { const sp=place(150,0.9,1.7); if(sp){
@@ -5163,8 +5337,8 @@ function buildVegas(sc,P,Nm,Tg,offL,offR){
             new THREE.MeshBasicMaterial({color:0xdff2ff,transparent:true,opacity:0.42,
               side:THREE.DoubleSide,blending:THREE.AdditiveBlending,depthWrite:false}));
           jt.position.set(-Math.cos(a)*rr,jh/2,-34-Math.sin(a)*rr*0.6);g.add(jt);
-          const sp=new THREE.PointLight(0x9fd8ff,0.5,60,2);
-          sp.position.set(-Math.cos(a)*rr,2,-34-Math.sin(a)*rr*0.6);if(k%4===0)g.add(sp);}
+          if(k===8){const L=LIGHTS.point(sc,0x9fd8ff,1.4,120,2,
+            -Math.cos(a)*rr,4,-34-Math.sin(a)*rr*0.6); if(L) g.add(L);}}
         porteCochere(g,66,R2*0.42+30,'#2a6aff');
         marquee(g,'BELLAGIO','#2a6aff',30,13,R2*0.42+52);
         frontage(g,120,R2*0.42+44);
@@ -5238,8 +5412,7 @@ function buildVegas(sc,P,Nm,Tg,offL,offR){
           pl.position.set(px,2,-16);g.add(pl);
           const st=new THREE.Mesh(new THREE.CapsuleGeometry(1.0,3.2,4,8),VEG.stone);
           st.position.set(px,6.4,-16);g.add(st);
-          const L2=new THREE.PointLight(0xffe8bc,0.7,40,2);L2.position.set(px,5,-14);
-          if(k%2===0)g.add(L2);}
+          if(k===2){const L2=LIGHTS.point(sc,0xffe8bc,1.4,90,2,px,6,-14); if(L2) g.add(L2);}}
         porteCochere(g,58,-32,'#ffd23a');
         marquee(g,'CAESARS','#ffd23a',30,14,-52);
         frontage(g,100,-44);
@@ -5259,7 +5432,7 @@ function buildVegas(sc,P,Nm,Tg,offL,offR){
           new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:0.20,
             side:THREE.DoubleSide,blending:THREE.AdditiveBlending,depthWrite:false}));
         beam.position.y=H+230;g.add(beam);
-        const apex=new THREE.PointLight(0xffffff,7,520,2);apex.position.y=H+3;g.add(apex);
+        { const A=LIGHTS.point(sc,0xffffff,7,520,2,0,H+3,0); if(A) g.add(A); }
         // the obelisk and a sphinx-shaped entry pavilion
         const ob=new THREE.Mesh(new THREE.CylinderGeometry(1.0,3.4,52,4),VEG.stone);
         ob.rotation.y=Math.PI/4;ob.position.set(-52,26,-56);g.add(ob);
@@ -5403,7 +5576,7 @@ function buildVegas(sc,P,Nm,Tg,offL,offR){
           new THREE.MeshBasicMaterial({color:0xff7a20,transparent:true,opacity:0.22,
             side:THREE.DoubleSide,blending:THREE.AdditiveBlending,depthWrite:false}));
         plume.position.set(0,38,-46);g.add(plume);
-        const vl=new THREE.PointLight(0xff6a20,5,180,2);vl.position.set(0,24,-46);g.add(vl);
+        { const V=LIGHTS.point(sc,0xff6a20,5,180,2,0,24,-46); if(V) g.add(V); }
         // palm-fringed rockwork round the lagoon
         for(let k=0;k<10;k++){const a2=Math.random()*TAU, rr=44+Math.random()*10;
           const rk=new THREE.Mesh(new THREE.DodecahedronGeometry(3.4+Math.random()*3,0),
@@ -5519,8 +5692,7 @@ function buildVegas(sc,P,Nm,Tg,offL,offR){
         g.traverse(o=>{o.castShadow=true;o.receiveShadow=true;});
         sc.add(g);
         // one warm light per property, so the Strip actually lights its own street
-        const L2=new THREE.PointLight(new THREE.Color(R2.hue),2.6,260,2.0);
-        L2.position.set(x,gy+40,z);sc.add(L2);
+        LIGHTS.point(sc,new THREE.Color(R2.hue),2.6,260,2.0,x,gy+40,z);
         placed++; ri++;
       }
     }
@@ -5627,8 +5799,7 @@ function buildVegas(sc,P,Nm,Tg,offL,offR){
           bea.position.y=H+H*0.10+2;g.add(bea); }
         g.position.set(x,gy,z);g.rotation.y=rot+Math.PI;
         g.traverse(o=>{o.castShadow=true;o.receiveShadow=true;});sc.add(g);
-        const L2=new THREE.PointLight(new THREE.Color(led),2.0,240,2.0);
-        L2.position.set(x,gy+H*0.8,z);sc.add(L2);
+        LIGHTS.point(sc,new THREE.Color(led),2.0,240,2.0,x,gy+H*0.8,z);
         mplaced++;
       } } }
   /* BOULEVARDS: wide lit multi-lane roads running out from the circuit across the
@@ -7267,7 +7438,7 @@ function buildSingapore(sc,P,Nm,Tg,offL,offR){
         sgn.position.set(0,H*0.82,D/2+0.6);g.add(sgn);
         g.position.set(sp.x,sp.gy,sp.z);g.rotation.y=Math.atan2(cX-sp.x,cZ-sp.z);
         g.traverse(o=>{o.castShadow=true;o.receiveShadow=true;});sc.add(g);
-        const L=new THREE.PointLight(0x9fd8f0,2.4,220,2.0);L.position.set(sp.x,sp.gy+H,sp.z);sc.add(L);} }
+        LIGHTS.point(sc,0x9fd8f0,2.4,220,2.0,sp.x,sp.gy+H,sp.z);} }
     // 2) EXHIBITION SHELL: a fanned set of leaning glass petals
     { const sp=spotAt(bayA+1.85,60);
       if(sp){ const g=new THREE.Group();
@@ -7281,7 +7452,7 @@ function buildSingapore(sc,P,Nm,Tg,offL,offR){
         const pod=new THREE.Mesh(new THREE.BoxGeometry(104,7,34),deckM);pod.position.y=3.5;g.add(pod);
         g.position.set(sp.x,sp.gy,sp.z);g.rotation.y=Math.atan2(cX-sp.x,cZ-sp.z);
         g.traverse(o=>{o.castShadow=true;});sc.add(g);
-        const L=new THREE.PointLight(0xbfe8ff,2.0,190,2.0);L.position.set(sp.x,sp.gy+34,sp.z);sc.add(L);} }
+        LIGHTS.point(sc,0xbfe8ff,2.0,190,2.0,sp.x,sp.gy+34,sp.z);} }
     // 3) TRANSIT INTERCHANGE: an elevated guideway with a glazed station on it
     { const sp=spotAt(bayA-1.45,60);
       if(sp){ const g=new THREE.Group();
@@ -7328,7 +7499,7 @@ function buildSingapore(sc,P,Nm,Tg,offL,offR){
         shaft.position.set(0,(H+6)/2,0);g.add(shaft);
         g.position.set(sp.x,sp.gy,sp.z);g.rotation.y=Math.random()*TAU;
         g.traverse(o=>{o.castShadow=true;});sc.add(g);
-        const L=new THREE.PointLight(0xc8a0ff,1.1,130,2.0);L.position.set(sp.x,sp.gy+H+8,sp.z);sc.add(L);} }
+        LIGHTS.point(sc,0xc8a0ff,1.1,130,2.0,sp.x,sp.gy+H+8,sp.z);} }
   }
   /* Gardens by the Bay: the Supertrees. Lit purple and gold at night, visible
      from most of the circuit, and completely unlike anything else on the
@@ -7360,8 +7531,7 @@ function buildSingapore(sc,P,Nm,Tg,offL,offR){
         pe.rotation.y=qa;sc.add(pe);}
       // one purple light for the whole grove, high up: nine of them at ground
       // level painted purple pools all over the terrain
-      if(k===0){const L=new THREE.PointLight(0xa040ff,1.5,150,2.0);
-        L.position.set(x,gy+H*1.3,z);sc.add(L);}}
+      if(k===0) LIGHTS.point(sc,0xa040ff,1.5,150,2.0,x,gy+H*1.3,z);}
     // the two conservatory domes beside them
     for(const off of [-70,64]){
       const x=sx+Math.cos(sa+Math.PI/2)*off, z=sz+Math.sin(sa+Math.PI/2)*off;
@@ -7500,9 +7670,11 @@ function buildSingapore(sc,P,Nm,Tg,offL,offR){
   // Marina Bay is the brightest-lit circuit on the calendar: the road surface,
   // not the sky, is what you see. Add a warm ambient wash and lit road level.
   { const amb=new THREE.HemisphereLight(0x1e2a3c,0x0e1014,0.34);sc.add(amb);
-    for(let k=0;k<26;k++){const i=Math.round(N*k/26)%N,p=P[i];
-      const L=new THREE.PointLight(0xffe6bc,1.1,110,2.0);
-      L.position.set(p.x,p.y+16,p.z);sc.add(L);} }
+    // four road-level lights, not twenty-six: the floodlight rigs and the
+    // emissive city already light the street, and every extra light costs a
+    // shader loop in every material in the scene
+    for(let k=0;k<4;k++){const i=Math.round(N*k/4)%N,p=P[i];
+      LIGHTS.point(sc,0xffe6bc,2.2,220,2.0,p.x,p.y+18,p.z);} }
   // dark low horizon — at night the far city is just haze
   const ring=new THREE.Mesh(new THREE.CylinderGeometry(R*2.0,R*2.15,90,56,1,true),
     new THREE.MeshStandardMaterial({color:0x0e1526,roughness:1,side:THREE.BackSide,
@@ -7539,9 +7711,7 @@ function buildFloodlights(sc,P,Nm,offL,offR,clr,opt){
         bl.position.set(q*1.22,by,2.4);g.add(bl);}}
     g.position.set(x,gy,z);g.lookAt(p.x,gy,p.z);
     g.traverse(m=>{m.castShadow=false;});sc.add(g);
-    if(k%realEvery===0){
-      const L=new THREE.PointLight(0xfff2d8, 2.6, 220, 2.0);
-      L.position.set(x,gy+H*0.9,z); sc.add(L);}
+    if(k%realEvery===0) LIGHTS.point(sc,0xfff2d8,2.6,220,2.0,x,gy+H*0.9,z);
   }
 }
 /* ===================== MADRING — Madrid =====================
@@ -10177,12 +10347,25 @@ const PHYS={
   // A real car makes ~735 kW and tops out near 350 km/h. It was geared for 340
   // and reached it lazily; power, peak tractive force and braking are all up, and
   // the aero comes with them so the extra speed is usable rather than terrifying.
-  mass:798, power:560000, maxForce:10200, brakeForce:74000,
+  mass:798, power:560000, maxForce:10200,
+  /* BRAKING. 74 kN on 798 kg is 9.4 g, which is roughly double what an F1 car can
+     actually do and made every braking zone feel like hitting a wall — you simply
+     stopped, with no sense of the limit. 46 kN is ~5.9 g at speed with the wings
+     loaded, and because the brake force is now capped by GRIP rather than being a
+     flat number (below), it fades as the downforce comes off. Braking has to be
+     something you manage, not a switch. */
+  brakeForce:34000,
   cdA:1.02, downK:4.6, mu:2.02, roll:250, engBrake:1500,
   wheelbase:3.6, aFront:1.62, aRear:1.98,                      // CG slightly rearward
   izK:2.3,                                                     // yaw inertia (planted but not sluggish)
-  Cf:126000, Cr:176000,                                       // scaled with the extra grip so the balance is unchanged
-  maxSteerLo:0.26, maxSteerHi:0.078, steerRate:3.2, steerReturn:6.4,
+  /* Rear stiffness down relative to the front: the car had so much rear grip that
+     it simply would not step out, which is what made it too easy. Now it rotates
+     on the throttle and will bite if you are greedy with it. */
+  Cf:132000, Cr:150000,
+  /* STEERING. 0.26 rad is only 15° of road wheel — not enough lock for a hairpin,
+     so slow corners felt like the car refused to turn. 0.40 rad is ~23°, which is
+     about right, and the rate is up so it actually gets there. */
+  maxSteerLo:0.40, maxSteerHi:0.070, steerRate:5.2, steerReturn:8.0,
   vMax:V_TOP,                                                  // ~353 km/h
   // ERS energy store: extra boost power, drain/regen time-constants (seconds for a full swing)
   ersPower:190000, ersForce:3900, ersDrain:6.5, ersRegen:9.0, ersHarvest:22.0,
@@ -10782,7 +10965,13 @@ function stepPhysics(dt,inp){
   const target=inp.steer;
   CAR.steerCmd=damp(CAR.steerCmd,target,(target?P.steerRate:P.steerReturn),dt);
   const spd=Math.abs(CAR.v);
-  const maxSteer=lerp(P.maxSteerLo,P.maxSteerHi,clamp(spd/PHYS.vMax,0,1));
+  /* Speed-sensitive lock. A straight lerp over the whole speed range meant that by
+     40 m/s — a third of the way to top speed — you had already lost a third of your
+     lock, which is why slow and medium corners felt vague and heavy. The falloff is
+     now weighted to the top of the range: full lock stays available where you need
+     it, and only gets taken away at genuinely high speed. */
+  const sf=clamp(spd/PHYS.vMax,0,1);
+  const maxSteer=lerp(P.maxSteerLo,P.maxSteerHi,Math.pow(sf,1.5));
   CAR.steer=CAR.steerCmd*maxSteer;
 
   // longitudinal
@@ -10818,7 +11007,17 @@ function stepPhysics(dt,inp){
     CAR.ers=Math.min(1,CAR.ers + dt/P.ersHarvest);          // passive MGU-H trickle on power
   }
   CAR.ersActive=damp(CAR.ersActive, deploying?1:0, 12, dt);
-  let Fbrake=inp.brake*P.brakeForce;
+  /* BRAKING IS GRIP-LIMITED, not a flat number. A constant brake force meant the
+     car stopped exactly as hard at 40 km/h as at 340, which is why braking felt
+     like a switch: there was no limit to find and no reward for releasing the
+     pedal as the downforce came off. The tyres can only take µ × (weight +
+     downforce), so peak braking now fades as you slow — trail braking and brake
+     release actually matter, and standing on it at low speed locks the fronts. */
+  { const dfB=P.downK*CAR.v*CAR.v;
+    const gm=(CAR.gripMul!==undefined?CAR.gripMul:1);
+    const brakeCap=P.mu*gm*(P.mass*9.81+dfB)*0.92;
+    CAR.brakeCap=brakeCap; }
+  let Fbrake=Math.min(inp.brake*P.brakeForce, CAR.brakeCap);
   /* DRS: open only inside a marked zone, above the activation speed, and it
      shuts the instant you touch the brakes — exactly as the real system does. */
   const inZone=!!(TRACK.drs && TRACK.drs[CAR.trackIdx||0]);
@@ -10872,6 +11071,7 @@ function stepPhysics(dt,inp){
   const wetFit=compoundWetFit(CAR.compound||'medium',WEATHER.wetness);
   const tireGrip=lerp(0.82,1.0,CAR.tire)*comp.grip*tempGrip*wetFit;
   const gripMul=(off?0.55:(onKerb?0.82:1.0))*wetMul*tireGrip*rdGrip();
+  CAR.gripMul=gripMul;                 // next frame's brake cap uses this
   // a tyre outside its window also wears faster
   if(spd>2 && (tw<0.35||tw>0.95)) CAR.tire=Math.max(0,CAR.tire-dt*0.004);
   // running the wrong tyre for the conditions destroys it
@@ -12470,6 +12670,14 @@ function spawnGrid(n){
       lap:-1, lapT:0, bestLap:0, lastLapT:0, prevLap:-1, done:false});
   });
   AI.on=true; AI.hold=true;
+  // seat every car on its slot NOW: startAISim snaps the camera off mesh.position
+  // on the same frame, and a mesh still at the origin aims it at the world centre
+  { const segL=TRACK.len/N;
+    for(const c of AI.cars){
+      const pi=(Math.round(c.idx)%N+N)%N;
+      const pp=TRACK.pts[pi], pn=TRACK.nrm[pi], ptg=TRACK.tan[pi];
+      c.mesh.position.set(pp.x+pn.x*c.lat,(pp.y||0)+0.02,pp.z+pn.z*c.lat);
+      c.mesh.rotation.y=Math.atan2(ptg.x,ptg.z);} }
 }
 function startAISim(){
   const cf=curCfg();
@@ -12590,10 +12798,16 @@ function stepAISim(dt){
   if(SIM.phase==='form'){
     // hold the grid for a beat so you can see the formation, then run the lights
     AI.hold=true;
+    /* stepAI has to run even while the grid is held: its hold branch is what
+       PLACES each car on its slot. Without this the meshes stayed at the group
+       origin — the world centre, below the road surface — until the lights went
+       out, which is why the field appeared to spawn under the map. */
+    stepAI(dt);
     if(SIM.t>2.4){ SIM.phase='lights'; SIM.t=0; SIM.lights=0;
       $('#simMsg').textContent=''; }
   }else if(SIM.phase==='lights'){
     AI.hold=true;
+    stepAI(dt);
     // one light per second, five lights, then a random 0.2-1.4 s hold, then out
     const want=Math.min(5,Math.floor(SIM.t/0.95));
     if(want!==SIM.lights){ SIM.lights=want;
@@ -12717,20 +12931,30 @@ function stepAI(dt){
     // --- proper speed planning: for every point in the braking zone ahead, work out the
     // corner speed it allows (v=sqrt(µgR)) and how fast we may be going NOW to still brake
     // down to it (v² = vc² + 2·a·d). The tightest constraint wins. ---
+    /* The AI was cornering and braking at figures well below what the car is
+       actually capable of — 1.75 g of lateral grip against the player's 2.02 with
+       downforce on top, and a 94 m/s ceiling against a 98 m/s top speed. On a
+       1.2×-scale circuit that made it several seconds a lap slow. It now plans
+       against the same numbers the physics gives the player. */
     const ARC=8*segLen;                       // curvAtIdx measures the turn over 8 segments
-    let vLimit=94;
+    const VCAP=PHYS.vMax;
+    let vLimit=VCAP;
     for(let k=0;k<=26;k++){
       const th=curvAtIdx((pi+k)%N);
       if(th<0.02) continue;                   // effectively straight
       const R=ARC/th;                         // corner radius from the turned angle
-      const vC=Math.sqrt(1.75*9.81*R);        // grip-limited apex speed
-      const vAllow=Math.sqrt(vC*vC + 2*42*(k*segLen));   // brake back from it (~4g)
+      // lateral grip rises with speed because the wings load the tyres, exactly
+      // as PHYS.downK does for the player — so fast corners are taken fast
+      const vGuess=Math.min(c.v||40,VCAP);
+      const aeroMu=PHYS.mu*(1+PHYS.downK*vGuess*vGuess/(PHYS.mass*9.81*260));
+      const vC=Math.sqrt(Math.min(aeroMu,3.4)*9.81*R);
+      const vAllow=Math.sqrt(vC*vC + 2*52*(k*segLen));   // brake back from it (~5.3g)
       if(vAllow<vLimit) vLimit=vAllow;
     }
     // pace = driver skill, degraded by tyre life, cut by a wet track
     const tyreGrip=lerp(0.86,1.0,c.tyre);
     const wetCut=1.0-0.22*clamp(WEATHER.wetness,0,1);   // a wet track is kinder to the tyres
-    let targetV=Math.min(94,vLimit)*c.skill*tyreGrip*wetCut;
+    let targetV=Math.min(VCAP,vLimit)*c.skill*tyreGrip*wetCut;
     targetV*= 0.99 + 0.02*Math.sin(c.idx*0.05 + c.seed);          // subtle lap-to-lap rhythm
     // traffic scan: who's just ahead, who's right behind, and how close
     let slow=1, blockedSide=0, closeAhead=99, behindGap=99, aheadV=99;
@@ -12744,7 +12968,7 @@ function stepAI(dt){
     // follow rather than crawl: never demand more than a shade over the car we're stuck behind
     if(closeAhead<12) targetV=Math.min(targetV, aheadV*1.06+2);
     // SLIPSTREAM + ERS: tow from the car ahead on a straight, then deploy to attack
-    const straight=vLimit>80;
+    const straight=vLimit>VCAP*0.85;
     const tow=(straight&&closeAhead<26)?clamp(1-closeAhead/26,0,1)*7.5:0;
     targetV+=tow;
     if(straight && c.ers>0.12 && (closeAhead<40||c.lap<1)){ targetV+=9; c.ers-=dt/8; }
@@ -12755,7 +12979,13 @@ function stepAI(dt){
     if(c.mistakeT<-5 && Math.random()<0.0016*(2-c.consist)*pressure) c.mistakeT=0.4+Math.random()*0.5;
     const mist=c.mistakeT>0?0.8:1;
     const desired=targetV*slow*mist;
-    c.v=damp(c.v, desired, desired>c.v?2.2:6.8, dt);              // brakes bite harder than throttle
+    /* And it has to be able to USE that speed. Damping toward the target at 2.2
+       per second means about 0.45 s to close 63% of the gap — an F1 car pulls
+       away from a hairpin far harder than that, which is a large part of why the
+       field looked slow. Acceleration now falls off with speed the way real
+       traction-then-drag-limited acceleration does, and braking is sharp. */
+    { const accRate=lerp(5.2,1.5,clamp(c.v/VCAP,0,1));
+      c.v=damp(c.v, desired, desired>c.v?accRate:9.5, dt); }
     c.idx+=(c.v*dt)/segLen; if(c.idx>=N){c.idx-=N;c.lap++;}
     // racing line: apex-seeking, with an aggression-scaled lunge past traffic
     const turn=signedTurnIdx(pi);
@@ -12766,9 +12996,35 @@ function stepAI(dt){
     if(behindGap<16 && straight){ c.defend=damp(c.defend, -Math.sign(turn||1)*1.5*c.aggro, 1.6, dt); }
     else c.defend=damp(c.defend,0,2,dt);
     c.lat=damp(c.lat, clamp(lineLat+c.dodge+c.defend,-(HW-0.9),HW-0.9), 1.9, dt);
-    const p=TRACK.pts[pi], n=TRACK.nrm[pi], tg=TRACK.tan[pi];
-    c.mesh.position.set(p.x+n.x*c.lat, (p.y||0)+0.02-(CAR.tireDrop||0), p.z+n.z*c.lat);
-    c.mesh.rotation.y=Math.atan2(tg.x,tg.z);
+    /* SMOOTH MOTION. The car used to be snapped onto the ROUNDED centreline index
+       every frame and given that index's tangent as its heading. At ~15 m between
+       indices that is a visible jump forwards and a visible flick of the nose on
+       every index change — which is exactly the jagging on corner entry. Now the
+       position is interpolated across the fractional part of c.idx, and the yaw is
+       eased toward the interpolated tangent (plus a slip angle from how fast the
+       car is crossing the track), so it flows through a corner. */
+    { const fi=((c.idx%N)+N)%N, i0=Math.floor(fi)%N, i1=(i0+1)%N, f=fi-Math.floor(fi);
+      const p0=TRACK.pts[i0], p1=TRACK.pts[i1];
+      const n0=TRACK.nrm[i0], n1=TRACK.nrm[i1];
+      const t0=TRACK.tan[i0], t1=TRACK.tan[i1];
+      const px=lerp(p0.x,p1.x,f), py=lerp(p0.y||0,p1.y||0,f), pz=lerp(p0.z,p1.z,f);
+      const nx=lerp(n0.x,n1.x,f), nz=lerp(n0.z,n1.z,f);
+      const nl=Math.hypot(nx,nz)||1;
+      c.mesh.position.set(px+(nx/nl)*c.lat, py+0.02-(CAR.tireDrop||0), pz+(nz/nl)*c.lat);
+      // heading: the interpolated tangent, plus the slip from lateral movement
+      const tx=lerp(t0.x,t1.x,f), tz=lerp(t0.z,t1.z,f);
+      const latRate=(c.lat-(c.latPrev===undefined?c.lat:c.latPrev))/Math.max(dt,1e-4);
+      c.latPrev=c.lat;
+      const slip=clamp(-latRate/Math.max(c.v,12),-0.22,0.22);
+      const want=Math.atan2(tx,tz)+slip;
+      if(c.yaw===undefined) c.yaw=want;
+      // shortest-arc easing, so it never spins the long way round at the wrap
+      let d2=want-c.yaw; while(d2>Math.PI)d2-=TAU; while(d2<-Math.PI)d2+=TAU;
+      c.yaw+=d2*(1-Math.exp(-9*dt));
+      c.mesh.rotation.y=c.yaw;
+      // and lean the car into the corner a little, as a real one does
+      const bank=clamp(d2*2.2,-0.06,0.06);
+      c.mesh.rotation.z=(c.mesh.rotation.z||0)+((bank-(c.mesh.rotation.z||0))*(1-Math.exp(-6*dt))); }
     const spray=c.mesh.userData.spray;
     if(spray){ const w=clamp(WEATHER.wetness,0,1), spF=clamp(c.v/34,0,1);
       spray.material.opacity=spF*w*(0.55+0.42*(WEATHER.stormAmt||0));
