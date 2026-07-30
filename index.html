@@ -11077,7 +11077,18 @@ function stepPhysics(dt,inp){
   const absLat=Math.abs(near.lat);
   const off=absLat>TRACK.halfW+4.0;               // fully off track (past the wider kerb)
   const onKerb=absLat>TRACK.halfW-0.15 && absLat<TRACK.halfW+2.9;
-  const wetMul=1.0-0.36*clamp(WEATHER.wetness,0,1);                 // the wetter the track, the less grip
+  /* WET GRIP. A flat 36% off everywhere made the tight technical circuits close
+     to undriveable: on a fast sweeper you have downforce loading the tyres, but
+     in a second-gear corner you have almost none, so the same percentage cut is
+     far harsher there — and those corners are most of Monaco, Singapore, Baku and
+     the Hungaroring. It also ignored the wet tyres being ON the car, which is the
+     whole point of fitting them.
+     So: a gentler baseline cut, less of it at low speed where you are already
+     short of grip, and a real reward for being on the right compound. */
+  const wetAmt=clamp(WEATHER.wetness,0,1);
+  const lowSpd=1-clamp(spd/45,0,1);                                 // 1 in slow corners, 0 at speed
+  const wetCut=0.27*wetAmt*(1-0.35*lowSpd);                         // ~18% off in a hairpin, 27% flat out
+  const wetMul=1.0-wetCut;
   // tyre wear: deplete over the chosen compound's lap-life for THIS surface (laps, not seconds).
   // pushing — full throttle, sliding, braking hard, running kerbs/off — eats the life faster.
   const slipMag=Math.min(Math.abs(CAR.vLat)/6,1.5);
@@ -13361,18 +13372,22 @@ function stepAI(dt){
        never fight the collision pass because there is nothing left to collide
        with. Contact becomes the rare exception it should be.                */
     let avoid=0, sideBySide=false;
-    { const CAR_L2=5.4, SAFE=2.6;                 // lateral space a car wants
+    { const CAR_L2=5.4, SAFE=3.0;                 // lateral space a car wants
       for(const o of all){
         if(o.ai===c) continue;
         let ds=(o.idx-c.idx); ds=((ds%N)+N)%N; if(ds>N/2) ds-=N;
         const dLong=ds*segLen;
-        if(Math.abs(dLong)>CAR_L2*1.6) continue;   // not beside us
+        /* Start moving over EARLY. Lateral movement is rate-limited now, so a car
+           that only notices its rival when they are already abeam cannot get out
+           of the way in time — which is the contact that was left. Look a couple
+           of car lengths further fore and aft. */
+        if(Math.abs(dLong)>CAR_L2*2.4) continue;   // not beside us
         sideBySide=true;
         const dLat=c.lat-o.lat;
         const room=SAFE-Math.abs(dLat);
         if(room<=0) continue;
         // strongest when directly abeam, easing off as they slide fore or aft
-        const along=1-clamp((Math.abs(dLong)-CAR_L2*0.6)/(CAR_L2*1.0),0,1);
+        const along=1-clamp((Math.abs(dLong)-CAR_L2*0.7)/(CAR_L2*1.7),0,1);
         // if we are nearly level with them, commit to the side we are already on
         const sgn=Math.abs(dLat)<0.25 ? (c.atkSide||((c.seed||0)%2<1?1:-1)) : Math.sign(dLat);
         avoid+=sgn*room*along*1.15;
@@ -13416,8 +13431,31 @@ function stepAI(dt){
         want=lerp(c.gridLat,want,sm);
         if(c.gridBlend>=1) c.gridLat=undefined;
       }
-      const rate=lerp(3.0,1.8,clamp(c.v/VCAP,0,1));
-      c.lat=damp(c.lat, want, rate, dt); }
+      /* ===== THE CAR CANNOT MOVE SIDEWAYS FASTER THAN A CAR CAN =====
+         This is the fight you can see. `want` is the sum of four things that
+         disagree — the racing line, the overtaking line, the defensive line and
+         avoidance — and damping straight to it let the car translate across the
+         road as fast as those terms could change, with nothing physical in the
+         way. Meanwhile its nose was taken from the TRACK TANGENT, so it pointed
+         down the road no matter which way it was actually travelling. The result
+         is a car that slides and snaps sideways while aimed straight ahead, and
+         the harder the terms disagree — mid-corner, alongside someone — the worse
+         it gets.
+         So the lateral movement is now a real velocity with a real acceleration
+         limit. It cannot jump, it cannot reverse instantly, and it is bounded by
+         what the front tyres could actually do at this speed. The competing
+         targets can shout as loudly as they like; the car answers at a car's
+         rate. */
+      const maxLatV=Math.min(7.0, c.v*0.20);     // sideways speed a car can carry
+      const maxLatA=11.0;                        // and how fast it can build it
+      let wantRate=clamp((want-c.lat)/Math.max(dt,1e-3), -maxLatV, maxLatV);
+      // ease off as we arrive, so it settles onto the line instead of overshooting
+      wantRate*=clamp(Math.abs(want-c.lat)/0.8,0,1);
+      if(c.latV===undefined) c.latV=0;
+      c.latV+=clamp(wantRate-c.latV, -maxLatA*dt, maxLatA*dt);
+      c.lat=clamp(c.lat+c.latV*dt, -(HW-0.9), HW-0.9);
+      if(Math.abs(c.lat)>=HW-0.9-1e-6) c.latV*=0.3;      // do not grind the edge
+    }
     /* SMOOTH MOTION. The car used to be snapped onto the ROUNDED centreline index
        every frame and given that index's tangent as its heading. At ~15 m between
        indices that is a visible jump forwards and a visible flick of the nose on
@@ -13433,12 +13471,16 @@ function stepAI(dt){
       const nx=lerp(n0.x,n1.x,f), nz=lerp(n0.z,n1.z,f);
       const nl=Math.hypot(nx,nz)||1;
       c.mesh.position.set(px+(nx/nl)*c.lat, py+0.02-(CAR.tireDrop||0), pz+(nz/nl)*c.lat);
-      // heading: the interpolated tangent, plus the slip from lateral movement
+      /* HEADING FROM THE DIRECTION OF TRAVEL. The nose used to come from the
+         track tangent with a slip angle bolted on, so a car crossing the road
+         still pointed straight down it — which is the other half of why the
+         corners looked wrong. Its heading is now the actual world velocity:
+         along the track at c.v, across it at c.latV. Move left, point left. */
       const tx=lerp(t0.x,t1.x,f), tz=lerp(t0.z,t1.z,f);
-      const latRate=(c.lat-(c.latPrev===undefined?c.lat:c.latPrev))/Math.max(dt,1e-4);
-      c.latPrev=c.lat;
-      const slip=clamp(-latRate/Math.max(c.v,12),-0.22,0.22);
-      const want=Math.atan2(tx,tz)+slip;
+      const tl=Math.hypot(tx,tz)||1;
+      const wvx=(tx/tl)*Math.max(c.v,1) + (nx/nl)*(c.latV||0);
+      const wvz=(tz/tl)*Math.max(c.v,1) + (nz/nl)*(c.latV||0);
+      const want=Math.atan2(wvx,wvz);
       if(c.yaw===undefined) c.yaw=want;
       // shortest-arc easing, so it never spins the long way round at the wrap
       let d2=want-c.yaw; while(d2>Math.PI)d2-=TAU; while(d2<-Math.PI)d2+=TAU;
