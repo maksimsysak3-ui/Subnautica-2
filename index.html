@@ -10407,30 +10407,15 @@ const PHYS={
   // A real car makes ~735 kW and tops out near 350 km/h. It was geared for 340
   // and reached it lazily; power, peak tractive force and braking are all up, and
   // the aero comes with them so the extra speed is usable rather than terrifying.
-  mass:798, power:560000, maxForce:10200,
-  /* BRAKING. 74 kN on 798 kg is 9.4 g, which is roughly double what an F1 car can
-     actually do and made every braking zone feel like hitting a wall — you simply
-     stopped, with no sense of the limit. 46 kN is ~5.9 g at speed with the wings
-     loaded, and because the brake force is now capped by GRIP rather than being a
-     flat number (below), it fades as the downforce comes off. Braking has to be
-     something you manage, not a switch. */
-  brakeForce:41000,
+  mass:798, power:560000, maxForce:10200, brakeForce:74000,
   cdA:1.02, downK:4.6, mu:2.02, roll:250, engBrake:1500,
   wheelbase:3.6, aFront:1.62, aRear:1.98,                      // CG slightly rearward
   izK:2.3,                                                     // yaw inertia (planted but not sluggish)
-  /* Rear stiffness down relative to the front: the car had so much rear grip that
-     it simply would not step out, which is what made it too easy. Now it rotates
-     on the throttle and will bite if you are greedy with it. */
-  /* Cornering stiffness. Cr was dropped to 150k to stop the car being immovable,
-     but that overshot the other way and left it loose — the rear let go too
-     readily and the car felt like it was on ice. Back up, with the front raised
-     to match so the balance stays neutral: it rotates when you ask, and holds on
-     when you do not. */
-  Cf:150000, Cr:178000,
-  /* STEERING. 0.26 rad is only 15° of road wheel — not enough lock for a hairpin,
-     so slow corners felt like the car refused to turn. 0.40 rad is ~23°, which is
-     about right, and the rate is up so it actually gets there. */
-  maxSteerLo:0.40, maxSteerHi:0.070, steerRate:5.2, steerReturn:8.0,
+  Cf:126000, Cr:176000,
+  /* Back to the original handling. The one change kept from the retune is a
+     little more lock and a slightly quicker rack at low speed, because slow
+     corners were heavy: 0.30 rad is ~17 deg instead of 15. */
+  maxSteerLo:0.30, maxSteerHi:0.078, steerRate:3.8, steerReturn:6.4,
   vMax:V_TOP,                                                  // ~353 km/h
   // ERS energy store: extra boost power, drain/regen time-constants (seconds for a full swing)
   ersPower:190000, ersForce:3900, ersDrain:6.5, ersRegen:9.0, ersHarvest:22.0,
@@ -11030,13 +11015,7 @@ function stepPhysics(dt,inp){
   const target=inp.steer;
   CAR.steerCmd=damp(CAR.steerCmd,target,(target?P.steerRate:P.steerReturn),dt);
   const spd=Math.abs(CAR.v);
-  /* Speed-sensitive lock. A straight lerp over the whole speed range meant that by
-     40 m/s — a third of the way to top speed — you had already lost a third of your
-     lock, which is why slow and medium corners felt vague and heavy. The falloff is
-     now weighted to the top of the range: full lock stays available where you need
-     it, and only gets taken away at genuinely high speed. */
-  const sf=clamp(spd/PHYS.vMax,0,1);
-  const maxSteer=lerp(P.maxSteerLo,P.maxSteerHi,Math.pow(sf,1.5));
+  const maxSteer=lerp(P.maxSteerLo,P.maxSteerHi,clamp(spd/PHYS.vMax,0,1));
   CAR.steer=CAR.steerCmd*maxSteer;
 
   // longitudinal
@@ -11072,17 +11051,7 @@ function stepPhysics(dt,inp){
     CAR.ers=Math.min(1,CAR.ers + dt/P.ersHarvest);          // passive MGU-H trickle on power
   }
   CAR.ersActive=damp(CAR.ersActive, deploying?1:0, 12, dt);
-  /* BRAKING IS GRIP-LIMITED, not a flat number. A constant brake force meant the
-     car stopped exactly as hard at 40 km/h as at 340, which is why braking felt
-     like a switch: there was no limit to find and no reward for releasing the
-     pedal as the downforce came off. The tyres can only take µ × (weight +
-     downforce), so peak braking now fades as you slow — trail braking and brake
-     release actually matter, and standing on it at low speed locks the fronts. */
-  { const dfB=P.downK*CAR.v*CAR.v;
-    const gm=(CAR.gripMul!==undefined?CAR.gripMul:1);
-    const brakeCap=P.mu*gm*(P.mass*9.81+dfB)*0.92;
-    CAR.brakeCap=brakeCap; }
-  let Fbrake=Math.min(inp.brake*P.brakeForce, CAR.brakeCap);
+  let Fbrake=inp.brake*P.brakeForce;
   /* DRS: open only inside a marked zone, above the activation speed, and it
      shuts the instant you touch the brakes — exactly as the real system does. */
   const inZone=!!(TRACK.drs && TRACK.drs[CAR.trackIdx||0]);
@@ -12786,7 +12755,13 @@ function spawnGrid(n){
     .map(d=>({d,q:d.skill+(Math.random()-0.5)*0.004*(2-d.consist)}))
     .sort((a,b)=>b.q-a.q).map(o=>o.d);
   const teams=TEAM_IDS.slice();
-  const rowGap=8.5/segLen;                       // 8.5 m between rows, in indices
+  /* 12 m between rows. At 8.5 m the cars in the SAME column sat inside the
+     avoidance window of the car in front of them, so on the grid every car was
+     permanently "beside" someone and the whole field crabbed about trying to
+     resolve it — the contact you saw at the start. A real grid box is about eight
+     metres; on a 1.2x circuit twelve is the equivalent, and it puts a column mate
+     comfortably outside the window. */
+  const rowGap=12/segLen;
   roster.forEach((d,i)=>{
     const team=LIVERIES[d.t]?d.t:teams[i%teams.length];
     const mesh=makeAICar(new THREE.Color(LIVERIES[team].base),team);driveScene.add(mesh);
@@ -13367,7 +13342,49 @@ function stepAI(dt){
        was still drifting toward its apex line well past the apex, which reads as
        the car snapping across the road late. Scales with speed the way a real
        change of direction does. */
-    { let want=clamp(lineLat+c.dodge+c.defend,-(HW-0.9),HW-0.9);
+    /* ============ AVOIDANCE, NOT COLLISION ==============================
+       This is the fix for the jitter, for passes being shoved back, and for the
+       contact on the grid — they were all one bug.
+
+       Until now the AI picked a target line with no idea another car was there,
+       drove into it, and the collision pass afterwards teleported the two apart.
+       The next frame the AI pulled straight back toward the line it wanted, the
+       collision pass shoved it out again, and so on — an oscillation running at
+       the frame rate. That is the jitter you see, and it is worst exactly when
+       two cars are side by side, which is when it matters most.
+
+       A driver does not work that way. They see the car beside them and steer
+       around it, continuously, before there is any contact. So: every nearby car
+       that overlaps us longitudinally pushes our TARGET lateral position away
+       from it, proportional to how close it is. It is part of the line we are
+       aiming at, it goes through the same damping as everything else, and it can
+       never fight the collision pass because there is nothing left to collide
+       with. Contact becomes the rare exception it should be.                */
+    let avoid=0, sideBySide=false;
+    { const CAR_L2=5.4, SAFE=2.6;                 // lateral space a car wants
+      for(const o of all){
+        if(o.ai===c) continue;
+        let ds=(o.idx-c.idx); ds=((ds%N)+N)%N; if(ds>N/2) ds-=N;
+        const dLong=ds*segLen;
+        if(Math.abs(dLong)>CAR_L2*1.6) continue;   // not beside us
+        sideBySide=true;
+        const dLat=c.lat-o.lat;
+        const room=SAFE-Math.abs(dLat);
+        if(room<=0) continue;
+        // strongest when directly abeam, easing off as they slide fore or aft
+        const along=1-clamp((Math.abs(dLong)-CAR_L2*0.6)/(CAR_L2*1.0),0,1);
+        // if we are nearly level with them, commit to the side we are already on
+        const sgn=Math.abs(dLat)<0.25 ? (c.atkSide||((c.seed||0)%2<1?1:-1)) : Math.sign(dLat);
+        avoid+=sgn*room*along*1.15;
+      }
+      avoid=clamp(avoid,-(HW-1.0),HW-1.0);
+    }
+    { let want=clamp(lineLat+c.dodge+c.defend+avoid,-(HW-0.9),HW-0.9);
+      /* While there IS a car alongside, neither of us goes back to the racing
+         line — you hold your side until the move resolves. Without this the two
+         cars fight over the same apex, which is what "it holds its line, I hold
+         mine, then I get hit back" was. */
+      if(sideBySide) want=clamp(c.lat+ (want-c.lat)*0.35, -(HW-0.9), HW-0.9);
       // off the line: stay in your grid column until nobody is occupying the
       // racing line beside you, then ease across over a couple of seconds
       if(c.gridLat!==undefined){
@@ -13503,31 +13520,32 @@ function stepAI(dt){
       const ovLong=CAR_L-Math.abs(dLong), ovLat=CAR_W-Math.abs(dLat);
       if(ovLong<=0||ovLat<=0) continue;
       const sevr=clamp(Math.min(ovLong/CAR_L,ovLat/CAR_W),0,1);
-      if(ovLat<ovLong*(CAR_W/CAR_L)){
-        /* Side by side: ease them apart rather than teleporting them. Snapping the
-           full overlap out in one frame makes both cars twitch sideways, and while
-           they stay in contact it repeats every frame — which reads as the pair
-           vibrating against each other. A fraction per frame separates them just
-           as fast and looks like two cars leaning on one another. */
-        const push=(ovLat*0.5+0.02)*Math.min(1,dt*14), sgn=dLat>=0?1:-1;
-        if(A.ai){A.ai.lat=clamp(A.ai.lat-sgn*push,-(HW-0.7),HW-0.7); A.ai.v*=1-0.05*sevr*Math.min(1,dt*12);}
-        if(B.ai){B.ai.lat=clamp(B.ai.lat+sgn*push,-(HW-0.7),HW-0.7); B.ai.v*=1-0.05*sevr*Math.min(1,dt*12);}
+      /* Which kind of contact this is must be decided by GEOMETRY, not by which
+         overlap happens to be smaller. Two cars running side by side with a
+         slight longitudinal offset used to flip between the two branches from
+         frame to frame — shoved sideways one frame, braked the next — which is
+         what made an overtaking car "get hit back and lose a lot". If there is
+         real lateral separation it is a side-by-side; only a car genuinely
+         square behind another is a rear-end. */
+      const rearEnd = Math.abs(dLat) < CAR_W*0.55;
+      if(!rearEnd){
+        /* Side by side. Avoidance above should already have kept them apart, so
+           this is only the backstop. Separate them gently and take NO speed off
+           either car — scrubbing speed here is what destroyed a pass that was
+           otherwise working, and with avoidance in place it is not needed. */
+        const push=(ovLat*0.5+0.02)*Math.min(1,dt*10), sgn=dLat>=0?1:-1;
+        if(A.ai) A.ai.lat=clamp(A.ai.lat-sgn*push,-(HW-0.7),HW-0.7);
+        if(B.ai) B.ai.lat=clamp(B.ai.lat+sgn*push,-(HW-0.7),HW-0.7);
         if(!A.ai||!B.ai){ CAR.vLat=(CAR.vLat||0)-sgn*(A.ai?1:-1)*6*sevr;
           CAR.damage=Math.min(1,(CAR.damage||0)+0.010*sevr); }
       }else{
-        // nose to tail: the car behind is checked, the car ahead is nudged on
+        // genuinely square behind: the following car is checked, nobody gains
         const behind=dLong>0?A:B, ahead=dLong>0?B:A;
-        /* The car behind is pushed BACK out of the overlap; the car ahead is not
-           pushed forward. Advancing it was a ratchet — in a fourteen-car pack the
-           cars at the back shunt the cars in front of them along, over and over,
-           and contact literally manufactured track position. It is why the
-           slowest driver on the grid could arrive from P14 to P3 in one lap. */
         const push=(ovLong/segL)*Math.min(1,dt*14);
         if(behind.ai){ behind.ai.idx-=push; behind.ai.v=Math.min(behind.ai.v,
-          (ahead.ai?ahead.ai.v:Math.abs(CAR.v))*0.94); }
-        if(ahead.ai){ ahead.ai.v*=1-0.03*sevr; }
+          (ahead.ai?ahead.ai.v:Math.abs(CAR.v))*0.96); }
         if(!behind.ai||!ahead.ai){
-          CAR.v*= (behind.ai?1.02:0.90);      // rear-ended pushes you, hitting scrubs
+          CAR.v*= (behind.ai?1.02:0.92);
           CAR.damage=Math.min(1,(CAR.damage||0)+0.016*sevr); }
       }
       // rubber and smoke off the contact point, so you SEE it happen
