@@ -2070,6 +2070,27 @@ function buildWorld(sc,cfg){
       Kc=s;
     }
     TRACK.Kc=Kc;
+    /* And a FINE version, measured over about eight metres. The smooth table
+       above is what the steering wheel follows — a wide window there keeps the
+       wheel from stepping at every centreline point. It is the wrong tool for
+       deciding a corner SPEED, because a twenty-metre window is longer than the
+       Monaco hairpin and so reports it as far more open than it is. A driver
+       braking on that number arrives forty km/h too fast and the car has to be
+       yanked round. This one resolves the tightest thing on any circuit. */
+    { const wf=Math.max(1,Math.round(8/Math.max(ds,0.5)));
+      let Kf=new Array(N);
+      for(let i=0;i<N;i++){
+        let d=hd[(i+wf)%N]-hd[(i-wf+N)%N];
+        while(d>Math.PI)d-=TAU; while(d<-Math.PI)d+=TAU;
+        Kf[i]=d/(2*wf*ds);
+      }
+      for(let pass=0;pass<2;pass++){
+        const s=new Array(N);
+        for(let i=0;i<N;i++) s[i]=0.25*Kf[(i-1+N)%N]+0.5*Kf[i]+0.25*Kf[(i+1)%N];
+        Kf=s;
+      }
+      TRACK.Kf=Kf;
+    }
   }
   const vApex=new Array(N), runL=new Array(N), runR=new Array(N);
   const surf=new Array(N), barr=new Array(N);
@@ -10856,15 +10877,19 @@ async function loadCar(loader,onProg){
     rubber.forEach(m=>{const b=new THREE.Box3().setFromObject(m);const cz=(b.min.z+b.max.z)/2;
       (cz>0?frontMeshes:rearMeshes).push(m);});
   }
-  const axle=(meshes)=>{
+  /* The axle pivots are NAMED so a cloned model can find them again. Every AI car
+     is a clone of this model, so they inherit this structure — they just had no
+     way to locate it, and were rotating raw wheel meshes about the car's origin
+     instead, which swings a wheel through an arc rather than steering it. */
+  const axle=(meshes,tag)=>{
     const box=new THREE.Box3(); meshes.forEach(m=>box.expandByObject(m));
     const c=box.getCenter(new THREE.Vector3());
-    const steer=new THREE.Group(); steer.position.copy(c); model.add(steer);
-    const spin=new THREE.Group(); steer.add(spin);
+    const steer=new THREE.Group(); steer.position.copy(c); steer.name='axleSteer_'+tag; model.add(steer);
+    const spin=new THREE.Group(); spin.name='axleSpin_'+tag; steer.add(spin);
     meshes.forEach(m=>spin.attach(m));
     return {steer,spin,center:c};
   };
-  CAR.front=axle(frontMeshes); CAR.rear=axle(rearMeshes);
+  CAR.front=axle(frontMeshes,'F'); CAR.rear=axle(rearMeshes,'R');
   // guarantee NO livery lands on the wheels: any wheel-group mesh still on the body
   // material gets the neutral dark carbon instead (keeps logos off the rims)
   [CAR.front.spin,CAR.rear.spin].forEach(s=>s.traverse(o=>{if(o.isMesh&&o.material===bodyMat)o.material=wheelCarbon;}));
@@ -11164,7 +11189,7 @@ function stepPhysics(dt,inp){
      short of grip, and a real reward for being on the right compound. */
   const wetAmt=clamp(WEATHER.wetness,0,1);
   const lowSpd=1-clamp(spd/45,0,1);                                 // 1 in slow corners, 0 at speed
-  const wetCut=0.22*wetAmt*(1-0.35*lowSpd);                         // ~14% off in a hairpin, 22% flat out
+  const wetCut=0.19*wetAmt*(1-0.40*lowSpd);                         // ~11% off in a hairpin, 19% flat out
   const wetMul=1.0-wetCut;
   // tyre wear: deplete over the chosen compound's lap-life for THIS surface (laps, not seconds).
   // pushing — full throttle, sliding, braking hard, running kerbs/off — eats the life faster.
@@ -11172,8 +11197,12 @@ function stepPhysics(dt,inp){
   const push=0.55 + 0.45*Math.abs(inp.throttle||0) + 0.6*Math.min(slipMag,1) + 0.4*(inp.brake||0)
              + (onKerb?0.4:0) + (off?0.9:0);
   const lifeLaps=CAR.tireLapsLife||compoundLaps(CAR.compound||'medium',CFG.id);
+  /* COMPOUNDS[].laps is what the compound is supposed to last. `push` came out
+     around 1.5 for ordinary racing, so every set was running out a third early
+     before anything else was counted against it. Normalise it so normal racing
+     wears at 1.0 and the quoted life is the life you actually get; abusing the
+     tyre still costs you, which is the point of the term. */
   const wearPerM=1/Math.max(1,lifeLaps*TRACK.len);
-  if(spd>2) CAR.tire=Math.max(0, CAR.tire - spd*dt*wearPerM*Math.min(push,2.6));
   const comp=COMPOUNDS[CAR.compound||'medium']||COMPOUNDS.medium;
   /* ---- TYRE TEMPERATURE -------------------------------------------------
      A cold tyre does not grip and neither does an overheated one. Working the
@@ -11208,14 +11237,21 @@ function stepPhysics(dt,inp){
      back to the pits. */
   if(!off && wetAmt>0.05){
     const right=compoundWetFit(CAR.compound||'medium',WEATHER.wetness)>0.98;
-    const floor=(right?0.74:0.52)*rdGrip()*lerp(0.82,1.0,CAR.tire);
+    const floor=(right?0.80:0.62)*rdGrip()*lerp(0.82,1.0,CAR.tire);
     gripMul=Math.max(gripMul, floor*(onKerb?0.82:1.0));
   }
   CAR.gripMul=gripMul;                 // next frame's brake cap uses this
-  // a tyre outside its window also wears faster
-  if(spd>2 && (tw<0.35||tw>0.95)) CAR.tire=Math.max(0,CAR.tire-dt*0.004);
-  // running the wrong tyre for the conditions destroys it
-  if(spd>2 && wetFit<0.9) CAR.tire=Math.max(0,CAR.tire-dt*(1-wetFit)*0.030);
+  /* THE WEAR ITSELF. The two terms folded in here used to take a flat slice of
+     the tyre PER SECOND: 0.004/s outside the temperature window and up to
+     0.014/s on the wrong compound. Over a two-minute lap that is half a set and
+     a whole set respectively — a set was gone in a lap or two no matter how it
+     was driven, which is why they ran out so fast. Both effects are real and
+     both stay, but as a multiplier on the wear the driving is already doing, so
+     they scale with the lap like everything else does. */
+  const outOfWindow=(tw<0.35||tw>0.95)?1.25:1.0;
+  const wrongTyre=1+(1-Math.min(wetFit,1))*1.6;
+  if(spd>2) CAR.tire=Math.max(0,
+    CAR.tire - spd*dt*wearPerM*Math.min(push/1.35,2.0)*outOfWindow*wrongTyre);
   // and a wet tyre on a drying track runs hot, because there is no water to cool it
   if((CAR.compound==='wet'||CAR.compound==='inter') && WEATHER.wetness<0.15)
     CAR.tTemp=Math.min(1.25,CAR.tTemp+dt*0.07);
@@ -12741,6 +12777,11 @@ function makeAICar(col,teamKey){
       o.castShadow=true; o.frustumCulled=false; });
     // rims never wear the body livery
     m.traverse(o=>{ if(o.isMesh&&(o.name==='Object_12'||o.name==='Object_20')) o.material=shared.rim; });
+    /* THE FRONT WHEELS. The clone carries the player's axle rig; find it, and an
+       AI car steers and rolls on the same pivots the player's does. */
+    const ax=(t)=>{ const s=m.getObjectByName('axleSteer_'+t), p=m.getObjectByName('axleSpin_'+t);
+                    return (s&&p)?{steer:s,spin:p}:null; };
+    g.userData.axF=ax('F'); g.userData.axR=ax('R');
     g.add(m);
   }else{
     const bMat=new THREE.MeshStandardMaterial({color:col,roughness:0.5,metalness:0.35});
@@ -13178,6 +13219,35 @@ function stepAI(dt){
        depends on the speed. Two fixed-point passes converge. */
     const Rc=TRACK.Rc;
     let vLimit=VCAP;
+    /* Plan with the grip the car ACTUALLY HAS, not with dry-track mu. This is
+       why they were all off the road in the wet: the driver worked out its
+       corner speeds from PHYS.mu as though the track were dry, while the car
+       underneath it was on a wet-reduced coefficient. It arrived at every corner
+       carrying more than the tyres could hold, understeered straight on, and did
+       it again at the next one. Tyre life and skill belong here for the same
+       reason, and a driver keeps a small margin in hand. */
+    const gripPlan=PHYS.mu
+      *(1-0.19*clamp(WEATHER.wetness,0,1))
+      *lerp(0.86,1.0,c.tyre)
+      *(c.skill*0.35+0.65)
+      *0.95;
+    // grip-limited speed for a radius, solved for v because grip depends on v
+    const vForR=(R)=>{
+      let v=Math.sqrt(gripPlan*9.81*R);
+      for(let it=0;it<3;it++){
+        const vv=Math.min(v,VCAP), W=PHYS.mass*9.81, load=W+PHYS.downK*vv*vv;
+        v=Math.sqrt(gripPlan*tyreMuFactor(load,W)*load/PHYS.mass*R);
+      }
+      return Math.min(v,VCAP);
+    };
+    // tightest true curvature in a window around an index (fine table — the
+    // smooth one is for the steering wheel, not for deciding a corner speed)
+    const KT=TRACK.Kf||TRACK.Kc;
+    const TIGHT_R=210;                 // below this, Rc's smoothing is not to be trusted
+    const kAt=(j,w)=>{ if(!KT) return 0; let k=0;
+      for(let q=-w;q<=w;q++){ const a=Math.abs(KT[(j+q+N)%N]); if(a>k) k=a; }
+      return Math.min(k, 1/22);        // nothing on any of these circuits is tighter than 22 m
+    };
     // look far enough ahead to brake from top speed: v²/2a is about 190 m here
     const LOOK=Math.max(24, Math.min(N-1, Math.round(260/segLen)));
     for(let k=0;k<=LOOK;k++){
@@ -13187,28 +13257,29 @@ function stepAI(dt){
          larger radius than the centreline does. Across a full-width circuit that
          is worth roughly a tenth on the radius, and it is the difference between
          the AI driving the white line and the AI driving a lap. */
-      const R=(Rc?Rc[j]:8000)*1.12;
-      /* Plan with the grip the car ACTUALLY HAS, not with dry-track mu. This is
-         why they were all off the road in the wet: the driver worked out its
-         corner speeds from PHYS.mu as though the track were dry, while the car
-         underneath it was on a wet-reduced coefficient. It arrived at every
-         corner carrying more than the tyres could hold, understeered straight on,
-         and did it again at the next one. Tyre life and skill belong here for the
-         same reason, and a driver keeps a small margin in hand. */
-      const gripPlan=PHYS.mu
-        *(1-0.22*clamp(WEATHER.wetness,0,1))
-        *lerp(0.86,1.0,c.tyre)
-        *(c.skill*0.35+0.65)
-        *0.95;
-      let vC=Math.sqrt(gripPlan*9.81*R);
-      for(let it=0;it<2;it++){
-        const vv=Math.min(vC,VCAP);
-        // the tyre gives grip back under aero load, same as the player's — a
-        // driver who planned without it would carry too much into fast corners
-        const W=PHYS.mass*9.81, load=W+PHYS.downK*vv*vv;
-        vC=Math.sqrt(gripPlan*tyreMuFactor(load,W)*load/PHYS.mass*R);
-      }
-      vC=Math.min(vC,VCAP);
+      /* RADIUS FROM THE TRUE CURVATURE, NOT THE RUN-OFF AVERAGE.
+         Rc is smoothed over ninety metres. That is right for sizing run-off and
+         badly wrong for deciding a corner speed: it reads the Monaco hairpin as
+         a wide sweeper, so the driver arrived at 190 km/h and the path then had
+         to yaw the car at 250 deg/s — twenty-four g — to get it round. That is
+         the whole reason the AI looked flung through slow corners. TRACK.Kc is
+         the real signed curvature over a twenty-metre window, so a hairpin is a
+         hairpin. Take the TIGHTEST curvature in the couple of points either
+         side, because that is the bit of the corner that decides entry speed. */
+      /* Rc for the general case — it is smoothed over ninety metres and proven
+         to give a quick, clean lap. It has ONE blind spot: a corner tighter than
+         its own smoothing window reads as far more open than it is, which is how
+         a driver ended up taking the Monaco hairpin at 190 km/h and the path had
+         to yaw the car at 250 deg/s to get it round. So where the FINE curvature
+         says the corner is genuinely slow, that number wins. Everywhere else the
+         fine table is left alone, because over a short baseline ordinary wiggle
+         in the centreline reads as curvature and the car brakes for corners that
+         are not there. */
+      let R=(Rc?Rc[j]:8000);
+      { const kj=kAt(j,0);
+        if(kj>1.25e-4){ const Rf=1/kj; if(Rf<TIGHT_R && Rf<R) R=Rf; } }
+      R*=1.12;
+      const vC=vForR(R);
       if(vC>=vLimit) continue;                 // cannot bind
       /* Brake back from it at the deceleration available ACROSS the braking zone,
          not the deceleration at the apex. Sizing it off the corner speed alone
@@ -13224,10 +13295,23 @@ function stepAI(dt){
       const vAllow=Math.sqrt(vC*vC + 2*aBrk*(k*segLen)*(c.brakeLate||1));
       if(vAllow<vLimit) vLimit=vAllow;
     }
+    /* GOVERNOR. The look-ahead is a plan, and a plan can be beaten by a corner
+       that tightens, by a car ahead forcing a different line, or simply by
+       arriving hot. Whatever it decided, the speed carried through the point the
+       car is ON can never exceed what the curvature there will hold — otherwise
+       the path has to yaw the car harder than any tyre could, which is exactly
+       what made slow corners look flung rather than driven. */
+    { const kNow=kAt(pi,1);
+      if(kNow>1.25e-4){ const Rn=1/kNow;
+        if(Rn<TIGHT_R) vLimit=Math.min(vLimit, vForR(Rn*1.12)); } }
     // pace = driver skill, degraded by tyre life, cut by a wet track
     const tyreGrip=lerp(0.86,1.0,c.tyre);
-    const wetCut=1.0-0.22*clamp(WEATHER.wetness,0,1);   // a wet track is kinder to the tyres
-    let targetV=Math.min(VCAP,vLimit)*c.skill*tyreGrip*wetCut*(c.defLate||1);
+    /* NO WET FACTOR HERE. gripPlan above already carries the wet coefficient, and
+       vLimit is derived from it — multiplying targetV by the same cut again
+       charged for the rain twice and made a wet lap 28% slower than a dry one.
+       Heavy rain is worth about twelve per cent in reality, which is what taking
+       it out once leaves. */
+    let targetV=Math.min(VCAP,vLimit)*c.skill*tyreGrip*(c.defLate||1);
     targetV*= 0.99 + 0.02*Math.sin(c.idx*0.05 + c.seed);          // subtle lap-to-lap rhythm
     /* TRAFFIC. Look further ahead than before — a slipstream reaches a long way
        at these speeds, and a car that only notices the one in front at 14 indices
@@ -13667,19 +13751,20 @@ function stepAI(dt){
       c.mesh.rotation.set(c.pitch, c.yaw+c.beta, c.roll, 'YXZ');
       c.rideY=(c.rideY===undefined)?0:c.rideY+((clamp(-Math.abs(aLong)*0.0016,-0.05,0)-c.rideY)*(1-Math.exp(-6*dt)));
       c.mesh.position.y+=c.rideY;
-      /* the front wheels wear the lock the corner actually demands. No fudge on
-         top: d already folds in the understeer, so it winds ON into a slow
-         corner and comes OFF as the car picks up speed, by itself. */
-      if(c.wheels===undefined){
-        c.wheels=[];
-        c.mesh.traverse(o=>{ if(o.isMesh&&(o.name==='Object_12'||o.name==='Object_20')) c.wheels.push(o); });
-        c.wheels=c.wheels.slice(0,2);
-        for(const w of c.wheels) w.userData.rest=w.rotation.y;
-      }
-      if(c.wheels.length){
-        const lock=clamp(c.steerVis, -0.40, 0.40);
-        for(const w of c.wheels) w.rotation.y=w.userData.rest+lock;
-      } }
+      /* THE FRONT WHEELS ACTUALLY STEER, AND ALL FOUR ROLL.
+         This is what was missing. The old code grabbed two rim meshes by name —
+         one of them a REAR rim — and set rotation.y on them directly. Those
+         meshes sit at the model's origin with their geometry offset out to the
+         corners of the car, so rotating them swung a wheel around the CAR's
+         centre in a great arc. It was not steering, and it is why the car never
+         looked like it was turning. The car model carries proper axle pivots
+         (the player's car steers on them); use those. */
+      const axF=c.mesh.userData.axF, axR=c.mesh.userData.axR;
+      if(axF) axF.steer.rotation.y=-clamp(c.steerVis,-0.40,0.40);
+      { const wr=CAR.wheelR||0.36;
+        c.wRoll=(c.wRoll||0)+(c.v/wr)*dt;
+        if(axF) axF.spin.rotation.x=c.wRoll;
+        if(axR) axR.spin.rotation.x=c.wRoll; } }
     const spray=c.mesh.userData.spray;
     if(spray){ const w=clamp(WEATHER.wetness,0,1), spF=clamp(c.v/34,0,1);
       spray.material.opacity=spF*w*(0.55+0.42*(WEATHER.stormAmt||0));
