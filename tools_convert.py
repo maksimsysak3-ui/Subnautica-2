@@ -1,14 +1,36 @@
 #!/usr/bin/env python3
 """Convert the supplied USDZ meshes to web-ready GLB files.
+
 Car  -> assets/models/f1_car.glb        (33 parts, value-based PBR, node names kept)
 Wheel-> assets/models/steering_wheel.glb (textured PBR, maps embedded in the GLB)
 Nothing is embedded in index.html; these are separate binary assets.
-"""
-import numpy as np, trimesh, io
-from PIL import Image
-from pxr import Usd, UsdGeom, UsdShade
 
-OUT="assets/models"
+Requires: numpy, trimesh, Pillow, and usd-core (the `pxr` module).
+
+    python3 -m pip install numpy trimesh pillow usd-core
+    python3 tools_convert.py
+
+The USD sources are the extracted contents of the original .usdz files and are
+NOT in the repository (see .gitignore) — extract them to assets/models/car_src/
+and assets/models/wheel_src/ before running, or point --out somewhere else.
+"""
+import argparse, sys, os
+
+try:
+    import numpy as np
+    import trimesh
+    from PIL import Image
+    from pxr import Usd, UsdGeom, UsdShade
+except ImportError as e:                       # a clear message beats a bare traceback
+    sys.exit(f"Missing dependency: {e.name}.\n"
+             "Install with:  python3 -m pip install numpy trimesh pillow usd-core")
+
+# Resolved from the script's own location, not the current directory, so running
+# it from anywhere writes to the repo rather than to wherever the shell happens
+# to be. --out overrides it.
+REPO_ROOT = os.path.dirname(os.path.abspath(__file__))
+OUT = os.path.join(REPO_ROOT, "assets", "models")
+TEX_SIZE = 1024                                # steering-wheel map resolution
 
 # ---- car material name -> approximate PBR values -------------------------
 CAR_MAT = {
@@ -33,17 +55,29 @@ def tri_faces(counts):
 
 def mesh_arrays(prim, xform, yshift, want_uv=False):
     m=UsdGeom.Mesh(prim)
-    P=np.array(m.GetPointsAttr().Get(), dtype=np.float64)
-    N=np.array(m.GetNormalsAttr().Get(), dtype=np.float64)
+    pts=m.GetPointsAttr().Get()
+    if pts is None:
+        raise ValueError(f"{prim.GetPath()} has no points")
+    P=np.array(pts, dtype=np.float64)
     fc=np.array(m.GetFaceVertexCountsAttr().Get(), dtype=np.int64)
     fi=np.array(m.GetFaceVertexIndicesAttr().Get(), dtype=np.int64)
     # world transform (row-vector convention)
     M=np.array(xform.GetLocalToWorldTransform(prim), dtype=np.float64)
     Pw=(np.c_[P, np.ones(len(P))] @ M)[:, :3]
     Pw[:,1]+=yshift
-    Nm=np.linalg.inv(M[:3,:3]).T
-    Nw=N @ Nm
-    Nw/=(np.linalg.norm(Nw,axis=1,keepdims=True)+1e-12)
+    # Normals are optional in USD. This used to index straight into the attribute
+    # and die with an opaque TypeError on any mesh without authored normals;
+    # trimesh can derive them from the faces perfectly well, so hand back None.
+    raw_n=m.GetNormalsAttr().Get()
+    if raw_n is None or len(raw_n)!=len(P):
+        # None, or authored face-varying (one per face-vertex) rather than one per
+        # point — either way it does not line up with the vertex array, so drop it
+        Nw=None
+    else:
+        N=np.array(raw_n, dtype=np.float64)
+        Nm=np.linalg.inv(M[:3,:3]).T
+        Nw=N @ Nm
+        Nw/=(np.linalg.norm(Nw,axis=1,keepdims=True)+1e-12)
     # triangulate: build faces that index into the point array via fi stream
     facestream=tri_faces(fc)             # indices into fi order
     faces=fi[facestream]                 # -> point indices  (T,3)
@@ -54,18 +88,36 @@ def mesh_arrays(prim, xform, yshift, want_uv=False):
             uv=np.array(st.Get(), dtype=np.float64)[:, :2]
     return Pw, Nw, faces, uv
 
+def open_stage(rel):
+    """Open a USD stage, with a message that says what to do if it isn't there."""
+    path=os.path.join(OUT, rel)
+    if not os.path.exists(path):
+        sys.exit(f"Source not found: {path}\n"
+                 "The extracted USD sources are not committed (see .gitignore) — "
+                 "unzip the original .usdz into that folder first.")
+    stage=Usd.Stage.Open(path)
+    if stage is None:
+        sys.exit(f"Could not open {path} as a USD stage.")
+    return stage
+
 # =========================================================================
 def convert_car():
-    st=Usd.Stage.Open(f"{OUT}/car_src/scene.usdc")
+    st=open_stage("car_src/scene.usdc")
     xf=UsdGeom.XformCache(Usd.TimeCode.Default())
-    # global min-y to drop wheels onto ground plane y=0
-    gminy=1e9
     prims=[p for p in st.Traverse() if p.GetTypeName()=="Mesh"]
+    if not prims:
+        sys.exit("car_src/scene.usdc contains no Mesh prims.")
+    # global min-y to drop the wheels onto the ground plane at y=0
+    mins=[]
     for p in prims:
-        m=UsdGeom.Mesh(p); P=np.array(m.GetPointsAttr().Get(),dtype=np.float64)
+        m=UsdGeom.Mesh(p); pts=m.GetPointsAttr().Get()
+        if pts is None: continue
+        P=np.array(pts,dtype=np.float64)
         M=np.array(xf.GetLocalToWorldTransform(p),dtype=np.float64)
-        gminy=min(gminy, ((np.c_[P,np.ones(len(P))]@M)[:,1]).min())
-    yshift=-gminy
+        mins.append(((np.c_[P,np.ones(len(P))]@M)[:,1]).min())
+    if not mins:
+        sys.exit("None of the car meshes have points — nothing to convert.")
+    yshift=-min(mins)
     scene=trimesh.Scene()
     tot=0
     for p in prims:
@@ -87,15 +139,23 @@ def convert_car():
 
 # =========================================================================
 def convert_wheel():
-    st=Usd.Stage.Open(f"{OUT}/wheel_src/scene.usdc")
+    st=open_stage("wheel_src/scene.usdc")
     xf=UsdGeom.XformCache(Usd.TimeCode.Default())
-    p=[pr for pr in st.Traverse() if pr.GetTypeName()=="Mesh"][0]
+    meshes=[pr for pr in st.Traverse() if pr.GetTypeName()=="Mesh"]
+    if not meshes:
+        sys.exit("wheel_src/scene.usdc contains no Mesh prims.")
+    p=meshes[0]
     Pw,Nw,faces,uv=mesh_arrays(p, xf, 0.0, want_uv=True)
-    TS=(1024,1024)
-    base=Image.open(f"{OUT}/wheel_src/0/DefaultMaterial_baseColor.jpg").convert("RGB").resize(TS)
-    normal=Image.open(f"{OUT}/wheel_src/0/DefaultMaterial_normal.jpg").convert("RGB").resize(TS)
-    rough=Image.open(f"{OUT}/wheel_src/0/DefaultMaterial_metallicRoughness_rough.jpg").convert("L").resize(TS)
-    metal=Image.open(f"{OUT}/wheel_src/0/DefaultMaterial_metallicRoughness_metal.jpg").convert("L").resize(TS)
+    TS=(TEX_SIZE,TEX_SIZE)
+    def tex(name, mode):
+        path=os.path.join(OUT,"wheel_src","0",name)
+        if not os.path.exists(path):
+            sys.exit(f"Missing wheel texture: {path}")
+        return Image.open(path).convert(mode).resize(TS)
+    base  =tex("DefaultMaterial_baseColor.jpg","RGB")
+    normal=tex("DefaultMaterial_normal.jpg","RGB")
+    rough =tex("DefaultMaterial_metallicRoughness_rough.jpg","L")
+    metal =tex("DefaultMaterial_metallicRoughness_metal.jpg","L")
     # glTF metallicRoughness: G=roughness, B=metallic
     sz=rough.size
     if metal.size!=sz: metal=metal.resize(sz)
@@ -113,5 +173,17 @@ def convert_wheel():
     print(f"wheel-> steering_wheel.glb tris={len(faces)} uv={uv is not None} tex={sz}")
 
 if __name__=="__main__":
-    convert_car()
-    convert_wheel()
+    ap=argparse.ArgumentParser(description=__doc__,
+        formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--out", default=OUT,
+        help="model directory to read *_src/ from and write the .glb files into "
+             "(default: the repo's assets/models)")
+    ap.add_argument("--tex-size", type=int, default=1024,
+        help="steering-wheel texture resolution, px (default: 1024)")
+    ap.add_argument("--only", choices=["car","wheel"],
+        help="convert just one of the two assets")
+    args=ap.parse_args()
+    OUT=os.path.abspath(args.out)
+    TEX_SIZE=args.tex_size
+    if args.only!="wheel": convert_car()
+    if args.only!="car":   convert_wheel()

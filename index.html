@@ -25,15 +25,19 @@
   #vignette{background:radial-gradient(ellipse 120% 100% at center,transparent 45%,rgba(0,0,0,.6) 100%);z-index:12}
   #stormWhite{background:radial-gradient(ellipse 150% 130% at center,rgba(200,206,214,0) 22%,rgba(206,212,220,.92) 100%);
     z-index:11;opacity:0;mix-blend-mode:screen}
-  /* cockpit-view helmet visor: dark frame + curved aperture + a faint reflection sweep */
+  /* Cockpit view. The helmet is real geometry in the scene now (see makeHelmet),
+     so this layer no longer has to pretend to BE the helmet — it is just the
+     optical work a mesh cannot do: the soft falloff of peripheral vision at the
+     very edge of frame, and a faint smear on the inside of the visor. Kept much
+     lighter than it was, or it double-darkens over the geometry behind it. */
   #visorMask{z-index:16;opacity:0;transition:opacity .2s}
   #visorMask .vFrame{position:absolute;inset:0;
-    background:radial-gradient(ellipse 92% 78% at 50% 46%,transparent 62%,rgba(6,7,10,.97) 88%);}
-  #visorMask .vTop{position:absolute;left:0;right:0;top:0;height:9%;
-    background:linear-gradient(180deg,rgba(6,7,10,.97),transparent)}
-  #visorMask .vBrow{position:absolute;left:8%;right:8%;top:6%;height:2px;background:rgba(255,255,255,.06);border-radius:50%}
-  #visorMask .vShine{position:absolute;left:10%;top:14%;width:38%;height:16%;
-    background:linear-gradient(120deg,rgba(255,255,255,.07),transparent 70%);border-radius:50%;filter:blur(3px)}
+    background:radial-gradient(ellipse 104% 96% at 50% 48%,transparent 74%,rgba(6,7,10,.55) 100%);}
+  #visorMask .vTop{position:absolute;left:0;right:0;top:0;height:5%;
+    background:linear-gradient(180deg,rgba(6,7,10,.45),transparent)}
+  #visorMask .vBrow{display:none}
+  #visorMask .vShine{position:absolute;left:12%;top:30%;width:34%;height:12%;
+    background:linear-gradient(120deg,rgba(255,255,255,.035),transparent 70%);border-radius:50%;filter:blur(5px)}
   #replayBadge{position:fixed;left:50%;top:14%;transform:translateX(-50%);z-index:16;
     font-family:var(--mono);font-size:10px;font-weight:800;letter-spacing:.16em;color:#ffcf6a;
     padding:5px 12px;border:1px solid rgba(255,207,106,.5);border-radius:5px;background:rgba(10,12,18,.7);
@@ -449,6 +453,122 @@
   #rdOverall .ov .k{font-size:9px;letter-spacing:.2em;color:var(--grey);text-transform:uppercase}
   #rdOverall .ov .v{font-family:var(--mono);font-weight:900;font-size:20px}
 
+  /* ============ PIT STRATEGY ============ */
+  #strategy{position:fixed;inset:0;z-index:44;display:none;align-items:center;justify-content:center}
+  #strategy.on{display:flex}
+  .stScrim{position:absolute;inset:0;background:rgba(4,6,10,.72);backdrop-filter:blur(3px)}
+  .stPanel{position:relative;width:min(560px,92vw);padding:26px 28px 20px;border-radius:12px;
+    background:linear-gradient(160deg,rgba(16,21,29,.98),rgba(8,11,16,.98));
+    border:1px solid rgba(255,255,255,.14);box-shadow:0 26px 70px rgba(0,0,0,.7)}
+  .stHead{display:flex;align-items:baseline;gap:12px;padding-bottom:14px;
+    border-bottom:1px solid rgba(255,255,255,.10)}
+  .stTag{font-family:var(--mono);font-size:12px;font-weight:900;letter-spacing:.20em;color:var(--red)}
+  .stTrack{font-family:var(--mono);font-size:9px;letter-spacing:.18em;color:var(--grey);margin-left:auto}
+  .stNow{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:16px 0 6px}
+  .stStat{display:flex;flex-direction:column;gap:5px}
+  .stStat .k{font-family:var(--mono);font-size:8px;letter-spacing:.14em;color:var(--grey-lo)}
+  .stStat .v{font-family:var(--mono);font-size:17px;font-weight:900;color:#eef2f6}
+  .stSect{margin-top:16px}
+  .stLabel{font-family:var(--mono);font-size:8.5px;letter-spacing:.22em;color:var(--grey);margin-bottom:8px}
+  .stChips{display:flex;flex-wrap:wrap;gap:7px}
+  .stChip{font-family:var(--mono);font-size:10px;font-weight:800;letter-spacing:.08em;
+    padding:8px 12px;border-radius:5px;cursor:pointer;color:#b9c2cd;
+    border:1px solid rgba(255,255,255,.16);background:rgba(255,255,255,.04);transition:.13s}
+  .stChip:hover{background:rgba(255,255,255,.11);color:#fff}
+  .stChip.on{color:#05070b;background:#ffcf6a;border-color:#ffcf6a}
+  .stChip.bad{opacity:.55}
+  .stNote{margin-top:9px;font-size:11px;color:var(--grey);line-height:1.5}
+  .stBtns{display:flex;gap:9px;margin-top:20px}
+  .stBtns button{flex:1;font-family:var(--mono);font-size:10px;font-weight:800;letter-spacing:.13em;
+    padding:12px;border-radius:6px;cursor:pointer;border:1px solid rgba(255,255,255,.18);
+    background:rgba(255,255,255,.06);color:#dfe5ec;transition:.15s}
+  .stBtns button:hover{background:rgba(255,255,255,.14);color:#fff}
+  #stConfirm{background:var(--red);border-color:var(--red);color:#fff}
+  #stConfirm:hover{background:#ff2a1c}
+  .stHint{margin-top:13px;text-align:center;font-family:var(--mono);font-size:8.5px;
+    letter-spacing:.1em;color:var(--grey-lo)}
+  .stHint b{color:#cfd6de}
+  /* the in-race call: "box this lap" */
+  #pitCue{position:fixed;left:50%;top:23%;transform:translateX(-50%);z-index:17;
+    font-family:var(--mono);font-size:12px;font-weight:900;letter-spacing:.20em;
+    padding:9px 18px;border-radius:6px;color:#fff;pointer-events:none;
+    background:linear-gradient(90deg,rgba(225,6,0,.92),rgba(140,4,0,.92));
+    border:1px solid rgba(255,120,110,.6);box-shadow:0 0 26px rgba(225,6,0,.5);
+    opacity:0;transition:opacity .3s}
+  #pitCue.on{opacity:1;animation:pitPulse 1.1s ease-in-out infinite}
+  @keyframes pitPulse{0%,100%{box-shadow:0 0 22px rgba(225,6,0,.45)}50%{box-shadow:0 0 40px rgba(225,6,0,.8)}}
+  /* pit-lane limiter badge */
+  #limiter{position:absolute;left:50%;bottom:26%;transform:translateX(-50%);z-index:17;
+    font-family:var(--mono);font-size:10px;font-weight:800;letter-spacing:.18em;color:#8fd8ff;
+    padding:6px 14px;border-radius:5px;background:rgba(10,20,32,.8);
+    border:1px solid rgba(90,180,255,.5);opacity:0;transition:opacity .2s;pointer-events:none}
+  #limiter.on{opacity:1}
+
+  /* ============ SETTINGS ============ */
+  #settings{position:fixed;inset:0;z-index:46;display:none;flex-direction:column;
+    background:radial-gradient(ellipse 90% 80% at 30% 0%,#141a24,#05070b 70%)}
+  #settings.on{display:flex}
+  #setHead{display:flex;align-items:center;gap:16px;padding:22px clamp(24px,4vw,64px) 16px;
+    border-bottom:1px solid rgba(255,255,255,.10)}
+  #setTitle{font-family:var(--mono);font-size:clamp(17px,2.1vw,25px);font-weight:900;letter-spacing:.10em}
+  #setTitle small{display:block;font-family:var(--f1);font-size:11px;font-weight:600;
+    letter-spacing:.16em;color:var(--grey);text-transform:uppercase;margin-top:5px}
+  #setHead button{margin-left:0;font-family:var(--mono);font-size:9.5px;font-weight:800;letter-spacing:.14em;
+    color:#cfd6de;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.16);
+    border-radius:5px;padding:8px 13px;cursor:pointer;transition:.15s}
+  #setHead button:hover{background:rgba(255,255,255,.13);color:#fff}
+  #setDefaults{margin-left:auto!important}
+  #setBody{flex:1;display:flex;gap:clamp(16px,2.6vw,40px);
+    padding:20px clamp(24px,4vw,64px);overflow:hidden}
+  #setTabs{flex:0 0 clamp(150px,16vw,210px);display:flex;flex-direction:column;gap:3px}
+  .setTab{font-family:var(--mono);font-size:10px;font-weight:800;letter-spacing:.14em;
+    color:var(--grey);padding:12px 14px;border-radius:6px;cursor:pointer;
+    border-left:2px solid transparent;transition:.15s;text-transform:uppercase}
+  .setTab:hover{color:#dfe5ec;background:rgba(255,255,255,.05)}
+  .setTab.on{color:#fff;background:linear-gradient(90deg,rgba(225,6,0,.24),transparent);
+    border-left-color:var(--red)}
+  #setPane{flex:1;overflow-y:auto;overflow-x:hidden;padding-right:8px;
+    display:flex;flex-direction:column;gap:2px}
+  #setPane::-webkit-scrollbar{width:6px}
+  #setPane::-webkit-scrollbar-thumb{background:rgba(255,255,255,.16);border-radius:3px}
+  .setRow{display:flex;align-items:center;gap:16px;padding:13px 16px;border-radius:7px;
+    border:1px solid transparent;transition:.12s;cursor:pointer}
+  .setRow:hover{background:rgba(255,255,255,.04)}
+  .setRow.cur{background:rgba(255,255,255,.07);border-color:rgba(255,255,255,.16)}
+  .setRow .sL{flex:1;min-width:0}
+  .setRow .sN{font-size:13.5px;font-weight:600;color:#eef2f6}
+  .setRow .sD{font-size:11px;color:var(--grey);margin-top:3px;line-height:1.45}
+  .setRow .sV{flex:0 0 auto;display:flex;align-items:center;gap:10px}
+  .setArrow{font-family:var(--mono);font-size:12px;color:var(--grey-lo);
+    padding:2px 5px;border-radius:3px;transition:.12s;user-select:none}
+  .setRow.cur .setArrow{color:#cfd6de}
+  .setArrow:hover{color:#fff;background:rgba(255,255,255,.12)}
+  .setVal{font-family:var(--mono);font-size:11px;font-weight:800;letter-spacing:.1em;
+    color:#ffcf6a;min-width:88px;text-align:center}
+  /* on/off pill */
+  .setPill{width:44px;height:22px;border-radius:12px;background:rgba(255,255,255,.12);
+    position:relative;transition:.18s;flex:0 0 auto}
+  .setPill i{position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:50%;
+    background:#8a94a2;transition:.18s}
+  .setPill.on{background:rgba(78,224,150,.30)}
+  .setPill.on i{left:25px;background:#4be08a}
+  /* slider */
+  .setBar{width:130px;height:4px;border-radius:3px;background:rgba(255,255,255,.14);position:relative;flex:0 0 auto}
+  .setBar i{position:absolute;left:0;top:0;bottom:0;border-radius:3px;background:#ffcf6a}
+  .setBar b{position:absolute;top:50%;width:11px;height:11px;border-radius:50%;background:#ffcf6a;
+    transform:translate(-50%,-50%);box-shadow:0 0 8px rgba(255,207,106,.6)}
+  .setGroupT{font-family:var(--mono);font-size:9px;letter-spacing:.28em;color:var(--red);
+    font-weight:800;margin:18px 0 6px 16px;text-transform:uppercase}
+  .setGroupT:first-child{margin-top:0}
+  #setFoot{display:flex;gap:20px;align-items:center;padding:14px clamp(24px,4vw,64px);
+    border-top:1px solid rgba(255,255,255,.10);font-family:var(--mono);font-size:9px;
+    letter-spacing:.12em;color:var(--grey-lo);text-transform:uppercase}
+  #setFoot b{color:#cfd6de;margin-right:4px}
+  #setSaved{margin-left:auto;color:#4be08a}
+  @media(max-width:720px){#setBody{flex-direction:column;gap:10px}
+    #setTabs{flex:0 0 auto;flex-direction:row;overflow-x:auto}
+    .setRow .sD{display:none}}
+
   /* ============ HUD (drive) ============ */
   #hud{position:fixed;inset:0;z-index:20;pointer-events:none;opacity:0;transition:opacity .6s}
   #hud.on{opacity:1}
@@ -628,14 +748,25 @@
   #offTrack{position:absolute;left:50%;top:38%;transform:translate(-50%,-50%);font-size:14px;letter-spacing:.42em;color:var(--red);text-transform:uppercase;font-weight:700;opacity:0;transition:opacity .2s;text-shadow:0 0 20px var(--red-glow)}
   #offTrack.on{opacity:.9}
   /* track-limit warnings and any time penalty carried */
+  /* The centre-screen track-limits banner is an ALERT, not a readout: it says
+     "that one counted" and then gets out of the way. It used to be latched on
+     for the rest of the race the moment you picked up a single warning, parked
+     in the middle of the screen over the corner you were trying to look at.
+     The running count now lives in the small status chip under the minimap. */
   #limitWarn{position:absolute;left:50%;top:46%;transform:translateX(-50%);display:flex;gap:8px;
-    align-items:center;opacity:0;transition:opacity .2s;font-family:var(--mono);font-size:10px;
+    align-items:center;opacity:0;transition:opacity .45s ease;font-family:var(--mono);font-size:10px;
     letter-spacing:.18em;font-weight:700;pointer-events:none}
-  #limitWarn.on{opacity:1}
+  #limitWarn.on{opacity:1;transition:opacity .12s ease}
   #limitWarn b{color:#fff;background:var(--red);border-radius:3px;padding:2px 7px;
     box-shadow:0 0 18px var(--red-glow)}
   #limitWarn i{font-style:normal;color:#ffcf6a;border:1px solid rgba(255,207,106,.5);
     border-radius:3px;padding:2px 7px;background:rgba(10,12,18,.6)}
+  /* persistent, unobtrusive limits/penalty state in the status row */
+  #limChip{display:none;font-family:var(--mono);font-size:8.5px;font-weight:800;letter-spacing:.1em;
+    padding:2px 6px;border-radius:3px;border:1px solid rgba(255,207,106,.45);
+    color:#ffcf6a;background:rgba(255,207,106,.10);white-space:nowrap}
+  #limChip.on{display:inline-block}
+  #limChip.pen{color:#ff8f8f;border-color:rgba(255,91,91,.55);background:rgba(255,91,91,.12)}
   /* keys, tucked under the car-status bar bottom-left and out of the way */
   #keyHelp{position:absolute;left:clamp(16px,2.4vw,36px);bottom:clamp(28px,5.4vh,58px);
     max-width:250px;font-family:var(--mono);font-size:8px;letter-spacing:.1em;line-height:2.0;
@@ -841,6 +972,24 @@
   <div id="rdFoot"><span><b>Esc</b> Back</span><span>Research parts with R&amp;D points · Fit them with budget</span></div>
 </div>
 
+<!-- ===== SETTINGS ===== -->
+<div id="settings">
+  <header id="setHead">
+    <div id="setTitle">SETTINGS<small>Set the cockpit up your way</small></div>
+    <button id="setDefaults">RESTORE DEFAULTS</button>
+    <button id="setBack">◂ BACK</button>
+  </header>
+  <div id="setBody">
+    <nav id="setTabs"></nav>
+    <div id="setPane"></div>
+  </div>
+  <footer id="setFoot">
+    <span><b>↑↓</b> Option</span><span><b>◂ ▸</b> Change</span>
+    <span><b>Tab</b> Section</span><span><b>Esc</b> Back</span>
+    <span id="setSaved">Saved automatically</span>
+  </footer>
+</div>
+
 <!-- ===== HUD ===== -->
 <div id="hud">
   <div id="shift"></div>
@@ -857,7 +1006,7 @@
     <div id="mapName">SPA-FRANCORCHAMPS <span>· BELGIUM</span></div>
     <canvas id="minimap" width="230" height="230"></canvas>
     <div id="wxRow"><span id="wxIcon">☀</span><span id="wxLabel">CLEAR</span><span id="wxTrack">DRY</span></div>
-    <div id="statusRow"><span id="drs">DRS</span><span id="camTag">CAM <b id="camName">CHASE</b></span></div>
+    <div id="statusRow"><span id="drs">DRS</span><span id="limChip"></span><span id="camTag">CAM <b id="camName">CHASE</b></span></div>
   </div>
   <div id="cluster">
     <div id="pedals">
@@ -907,8 +1056,9 @@
   </div>
   <!-- the control strip used to run across the bottom of the screen, straight
        through the cluster; the keys live in the collapsible panel bottom-left -->
-  <div id="keyHelp"><b>W</b>THR <b>SPACE</b>BRK <b>A/D</b>STEER <b>SHIFT</b>ERS <b>C</b>CAM <b>Y</b>REPLAY <b>R</b>RESET <b>ESC</b>MENU</div>
+  <div id="keyHelp"><b>W</b>THR <b>SPACE</b>BRK <b>A/D</b>STEER <b>SHIFT</b>ERS <b>P</b>PIT <b>C</b>CAM <b>Y</b>REPLAY <b>R</b>RESET <b>ESC</b>MENU</div>
   <div id="replayBadge">REPLAY READY</div>
+  <div id="limiter">PIT LIMITER · 80</div>
 </div>
 <div id="replayBar">
   <div class="rpTop">
@@ -919,15 +1069,48 @@
   </div>
   <div class="rpHint"><b>SPACE</b>Play/Pause <b>◄ ►</b>Scrub <b>[ ]</b>Lap <b>▲▼</b>Speed <b>C</b>Cam <b>ESC/Y</b>Live</div>
 </div>
+<!-- ===== PIT STRATEGY ===== -->
+<div id="strategy">
+  <div class="stScrim"></div>
+  <div class="stPanel">
+    <div class="stHead">
+      <div class="stTag">PIT STRATEGY</div>
+      <div class="stTrack" id="stTrack">—</div>
+    </div>
+    <div class="stNow">
+      <div class="stStat"><span class="k">LAP</span><span class="v" id="stLap">1</span></div>
+      <div class="stStat"><span class="k">CURRENT TYRE</span><span class="v" id="stCur">M</span></div>
+      <div class="stStat"><span class="k">LIFE LEFT</span><span class="v" id="stLife">100%</span></div>
+      <div class="stStat"><span class="k">EST. LAPS LEFT</span><span class="v" id="stLeft">—</span></div>
+    </div>
+    <div class="stSect">
+      <div class="stLabel">BOX ON LAP</div>
+      <div class="stChips" id="stLaps"></div>
+    </div>
+    <div class="stSect">
+      <div class="stLabel">FIT COMPOUND</div>
+      <div class="stChips" id="stComps"></div>
+      <div class="stNote" id="stNote">—</div>
+    </div>
+    <div class="stBtns">
+      <button id="stConfirm">CONFIRM STOP</button>
+      <button id="stCancel">CANCEL PLAN</button>
+      <button id="stClose">CLOSE</button>
+    </div>
+    <div class="stHint"><b>◂ ▸</b> Lap &nbsp; <b>1–5</b> Compound &nbsp; <b>⏎</b> Confirm &nbsp; <b>P/Esc</b> Close</div>
+  </div>
+</div>
+<div id="pitCue"></div>
+
 <div id="cd"><div id="cdNum"></div></div>
 <div id="sndBtn"><svg id="sndIcon" viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9H4z"/><path d="M16 8a5 5 0 010 8"/></svg></div>
 
-<!-- classic script: runs even when the ES modules below are blocked (file://) -->
+<!-- classic script: runs even when the ES modules below are blocked (file://).
+     The message lives here, once, and boot() reuses it via window.__fileProtoMsg
+     rather than keeping a second copy that drifts out of sync. -->
 <script>
-if(location.protocol==='file:'){
-  var elm=document.getElementById('loader');
-  if(elm) elm.innerHTML=
-    '<div id="ldMark">APEX<span class="r">·</span>GP</div>'+
+window.__fileProtoMsg=function(){
+  return '<div id="ldMark">APEX<span class="r">·</span>GP</div>'+
     '<div style="max-width:540px;text-align:center;margin-top:30px;line-height:1.75;color:#c7d0da;font-size:14px;padding:0 20px">'+
     'This game has to run from a <b>local web server</b> — opening the file directly '+
     '(a <code>file://</code> address) is blocked by the browser for security.<br><br>'+
@@ -936,6 +1119,10 @@ if(location.protocol==='file:'){
     '<b style="color:#fff">Or</b> open Terminal in this folder and run:<br>'+
     '<code style="color:#39d98a;font-family:Orbitron,monospace">python3 -m http.server 8000</code><br>'+
     'then visit <code style="color:#39d98a;font-family:Orbitron,monospace">http://localhost:8000</code></div>';
+};
+if(location.protocol==='file:'){
+  var elm=document.getElementById('loader');
+  if(elm) elm.innerHTML=window.__fileProtoMsg();
 }
 </script>
 <script type="importmap">
@@ -952,10 +1139,69 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 const $=s=>document.querySelector(s);
+/* HTML-escape anything the player typed before it goes near innerHTML. The only
+   free-text field in the game is the season driver name, but that is enough:
+   `<svg onload=…>` fits inside its 14-character limit. */
+const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>
+  ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+/* Console handles for every internal in the game used to be exported on every
+   load. They are a debugging convenience, not part of the game — opt in with
+   ?debug (or #debug) and the shipped page keeps its internals to itself. */
+const DEBUG=typeof window!=='undefined' &&
+  (/[?&]debug\b/.test(location.search)||/\bdebug\b/.test(location.hash));
 const clamp=(v,a,b)=>v<a?a:v>b?b:v;
 const lerp=(a,b,t)=>a+(b-a)*t;
 const damp=(a,b,l,dt)=>lerp(a,b,1-Math.exp(-l*dt));
 const TAU=Math.PI*2;
+
+/* ==================================================================
+   SETTINGS — state
+   The values live up here, before anything that reads them. buildWorld() runs
+   during module initialisation and rolls the session weather, which consults
+   SET.weatherMode; a `const` declared further down the file is in its temporal
+   dead zone at that point and throws on read, taking the whole game with it.
+   The settings SCREEN (schema, rendering, navigation) is further down with the
+   rest of the menu code — only the state and the lookups the simulation needs
+   have to be here.
+   ================================================================== */
+const SETTINGS_KEY='apexgp.settings.v1';
+const SET={
+  // camera & view
+  helmet:true, defaultCam:'chase', fovScale:1.0, headMotion:0.9, grain:true, vignette:true,
+  // hud
+  hudTiming:true, hudMap:true, hudStatus:true, hudHints:true, units:'kmh',
+  // audio
+  volMaster:0.6, volEngine:1.0, radioEngineer:true, radioCommentary:true, speech:true,
+  // gameplay
+  difficulty:'pro', raceLaps:8, weatherMode:'dynamic', trackLimits:true,
+  tyreWear:'normal', steerSpeed:1.0,
+  // graphics
+  shadows:true, fxDensity:'high', resScale:1.0,
+};
+const DEFAULT_SET=Object.assign({},SET);
+function loadSettings(){
+  try{
+    const raw=localStorage.getItem(SETTINGS_KEY); if(!raw) return;
+    const j=JSON.parse(raw);
+    // only take keys we know about, and only at the right type — a stale or
+    // hand-edited blob must never be able to put anything else into SET
+    for(const k in DEFAULT_SET)
+      if(Object.prototype.hasOwnProperty.call(j,k) && typeof j[k]===typeof DEFAULT_SET[k]) SET[k]=j[k];
+  }catch(e){}
+}
+function saveSettings(){
+  try{ localStorage.setItem(SETTINGS_KEY,JSON.stringify(SET)); }catch(e){}
+}
+/* multipliers the simulation reads directly, so a setting costs one lookup */
+const DIFF_SKILL={rookie:0.955,pro:1.0,legend:1.022};
+const WEAR_MUL={off:0,low:0.55,normal:1,high:1.7};
+const FX_MUL={low:0.3,med:0.65,high:1};
+function aiSkillMul(){ return DIFF_SKILL[SET.difficulty]||1; }
+function fxMul(){ const m=FX_MUL[SET.fxDensity]; return m===undefined?1:m; }
+/* settings weather mode -> the preset it pins the session to */
+const WEATHER_FORCED={clear:'clear',cloud:'overcast',rain:'rain',storm:'storm'};
+// read the stored settings before ANY of the init-time world building runs
+loadSettings();
 
 /* ============ FOOTPRINT REGISTRY ==============================================
    Every placer in this file used to test only "am I clear of the TRACK?" and
@@ -1468,9 +1714,10 @@ const WEATHER={cond:'clear', next:null, blend:1, wetness:0, cloud:0, tod:0.4, to
 /* pick the session's starting weather + time of day for this venue */
 function rollWeather(cfg){
   const cl=CLIMATE[cfg.id]||{w:{clear:3,scattered:3,overcast:2,damp:1,rain:1,storm:0.5},vol:0.8,tod:[0.3,0.6]};
-  // an explicit forced condition (used by the replay + by the season calendar)
+  // an explicit forced condition (used by the replay + by the season calendar),
+  // or the player pinning the weather in settings, which outranks both
   const forced=WEATHER.force; WEATHER.force=null;
-  let pick=forced;
+  let pick=(SET.weatherMode!=='dynamic'?WEATHER_FORCED[SET.weatherMode]:null)||forced;
   if(!pick){ let tot=0; for(const k in cl.w) tot+=cl.w[k];
     let r=Math.random()*tot; pick='clear';
     for(const k in cl.w){ r-=cl.w[k]; if(r<=0){pick=k;break;} } }
@@ -1495,6 +1742,8 @@ function sunDirFor(tod,night){
    not teleport from bright sunshine to a thunderstorm */
 const WEATHER_CHAIN=['clear','scattered','overcast','damp','rain','storm'];
 function pickNextWeather(cfg){
+  // pinned weather does not roll — that is the whole point of pinning it
+  if(SET.weatherMode!=='dynamic') return null;
   const cl=CLIMATE[cfg.id]; if(!cl) return null;
   const i=WEATHER_CHAIN.indexOf(WEATHER.cond);
   const opts=[];
@@ -1776,10 +2025,33 @@ let CFG=TRACKS.spa;
 let selLivery='redbull';          // chosen team livery (editor)
 let miniCtx=null,miniProj=null;   // hoisted (buildWorld resets miniProj)
 const TRACK={N:0,halfW:6.6,pts:[],tan:[],nrm:[],cum:[],len:0,radius:1400,scale:1};
-if(typeof window!=='undefined') window.__TRACK=TRACK;
+if(DEBUG) window.__TRACK=TRACK;
+/* Tear a built world down properly.
+   This used to dispose geometries and nothing else. Every buildWorld() generates
+   dozens of fresh canvas textures (asphalt, kerbs, terrain, liveries, hoardings,
+   billboards, window facades…) and the materials that hold them, and none of it
+   was ever released — so switching circuits a few times in one session grew GPU
+   memory monotonically until the context was lost. Geometry, material and every
+   texture map hanging off that material all go back now.
+   The car rig is skipped: it is re-parented between scenes and must survive. */
+const MAP_KEYS=['map','normalMap','roughnessMap','metalnessMap','emissiveMap','alphaMap',
+  'aoMap','bumpMap','displacementMap','envMap','lightMap','specularMap','clearcoatMap'];
+function disposeMaterial(m){
+  if(!m||m.__disposed) return;
+  m.__disposed=true;
+  for(const k of MAP_KEYS){ const t=m[k]; if(t&&t.isTexture&&t.dispose) t.dispose(); }
+  if(m.dispose) m.dispose();
+}
+function disposeObject(o){
+  if(o.geometry&&o.geometry.dispose) o.geometry.dispose();
+  const mt=o.material;
+  if(Array.isArray(mt)) mt.forEach(disposeMaterial); else disposeMaterial(mt);
+}
 function clearScene(sc){ for(let i=sc.children.length-1;i>=0;i--){const o=sc.children[i];
   if(o.isCamera||(typeof CAR!=='undefined'&&o===CAR.rig))continue; sc.remove(o);
-  o.traverse&&o.traverse(m=>{if(m.geometry)m.geometry.dispose();}); } }
+  o.traverse&&o.traverse(disposeObject); }
+  // the userData handles point at objects that have just been disposed
+  sc.userData.rain=null; sc.userData.lightning=null; sc.userData.sun=null; }
 function buildWorld(sc,cfg){
   cfg=cfg||CFG; CFG=cfg;
   clearScene(sc);
@@ -1854,6 +2126,15 @@ function buildWorld(sc,cfg){
     const h=lerp(near, far, t*t*(3-2*t));
     return Math.min(h, ceil);
   };
+  /* THE PIT COMPLEX STANDS ON FLAT GROUND. Every real one does — you cannot
+     build garages, a pit wall and a paddock on a hillside, and you certainly
+     cannot work on a car that is sitting on a slope. Flattening the terrain
+     here, right where terrainH is created, means everything built afterwards
+     agrees with it: the ground mesh, the lane, the garages, the crew and the
+     scenery all read the same heights, so nothing can float over a gap or sink
+     into a bank. Doing it later — grading only the lane ribbon to fit a sloping
+     landscape — left up to three metres of daylight under the lane at Spa. */
+  pitFlattenTerrain();
 
   // ---- weather: rolled per session from the venue's climate, then allowed to
   // CHANGE during the race. Nothing below reads cfg.rain/cfg.storm directly any
@@ -2604,6 +2885,10 @@ function buildWorld(sc,cfg){
   TRACK.barOffL=barOff;TRACK.barOffR=barOffR;
   TRACK.wallL=[];TRACK.wallR=[];
   for(let i=0;i<N;i++){TRACK.wallL[i]=barOff(i);TRACK.wallR[i]=barOffR(i);}
+  /* THE PIT LANE. Defined before the barriers go in, because the pit-side wall
+     has to be pushed out over the whole corridor or the car would be shoved
+     back onto the circuit the moment it took the entry. */
+  definePitLane();
 
   buildBarriers(sc,P,Nm,cum,barOff,barOffR);
   buildSafetyBarriers(sc,P,Nm,barOff,barOffR);                   // TecPro / tyre stacks / armco by design pass
@@ -2618,6 +2903,8 @@ function buildWorld(sc,cfg){
      frontage would take the ground a stand needed and the two would interpenetrate. */
   buildGrandstands(sc,P,Nm,Tg,barOff,barOffR);                  // grandstands on every circuit (clearance-checked)
   buildPit(sc,P,Nm,Tg);
+  buildPitLaneGeometry(sc);                                      // the drivable lane itself
+  buildPitCrew(sc);                                              // the crew that works the stop
   if(cfg.env==='monaco') buildMonaco(sc,P,Nm,Tg,barOff,barOffR);   // tight streets, tunnel, harbour
   else if(cfg.env==='austria') buildAustria(sc,P,Nm,barOff,barOffR); // open, distant mountains
   else if(cfg.env==='saopaulo') buildSaoPaulo(sc,P,Nm,barOff,barOffR); // Interlagos: trees, favelas
@@ -2968,9 +3255,14 @@ const FX={
     this.mHead=0; this.mPrev=null;
     this.ready=true;
   },
-  /* one puff / clod / stone */
+  /* One puff / clod / stone.
+     The effects-detail setting is enforced here rather than at each of the
+     dozen call sites: below full detail a proportion of requests are simply
+     dropped. Which ones is random, so lowering the setting thins the smoke
+     evenly instead of removing one effect entirely. */
   spawn(x,y,z, vx,vy,vz, r,g,b, size, life, grow, drag){
     if(!this.ready) return;
+    const fm=fxMul(); if(fm<1 && Math.random()>fm) return;
     const i=this.head; this.head=(this.head+1)%this.N;
     const P=this.pts.geometry.attributes;
     P.position.array[i*3]=x; P.position.array[i*3+1]=y; P.position.array[i*3+2]=z;
@@ -2981,6 +3273,7 @@ const FX={
   },
   spark(x,y,z, vx,vy,vz, life){
     if(!this.ready) return;
+    const fm=fxMul(); if(fm<1 && Math.random()>fm) return;
     const i=this.sHead; this.sHead=(this.sHead+1)%this.SN;
     const a=this.sparks.geometry.attributes.position.array;
     a[i*6]=x;a[i*6+1]=y;a[i*6+2]=z;
@@ -10050,6 +10343,479 @@ function buildTracksideLife(sc,P,Nm,Tg,offL,offR,clr){
 }
 
 /* ---- full pit complex: garages, pit lane, pit wall + start/finish gantry ---- */
+/* ==================================================================
+   THE PIT LANE
+   There was a pit COMPLEX before — garages, a wall, a paddock — but no pit
+   lane: the apron in front of the garages was a flat box floating beside the
+   circuit with no way in and no way out, and the AI "pitted" by sliding
+   sideways off the racing line for a few seconds and sliding back.
+
+   This builds a real one. It is derived from the circuit's own centreline, so
+   it follows the track rather than being a straight slab bolted next to it: an
+   entry that peels away from the racing surface before the line, a lane running
+   parallel behind the wall past every garage, and an exit that merges back on
+   afterwards. The car drives down it under its own power, the speed limiter
+   holds it at 80, and the boxes are real positions you have to stop in.
+
+   Everything is expressed as a SIGNED DISTANCE from the start/finish line,
+   wrapped to ±half a lap, so it works on a 3 km street circuit and a 7 km
+   forest one without any per-venue tuning.
+   ================================================================== */
+const PIT={
+  boxRun:164,          // length of the garage frontage — matches the pit building
+  entryLen:150,        // how far before the boxes the lane peels off the circuit
+  exitLen:190,         // and how far after them it merges back
+  offset:10,           // lane centre, metres OUTSIDE the track edge
+  halfW:5.5,           // half width of the lane surface
+  limit:80/3.6,        // pit-lane speed limit, m/s (80 km/h)
+  side:-1,             // which side of the centreline (matches buildPit)
+};
+/* signed distance from the start/finish line, wrapped to (-len/2, +len/2] */
+function lapSigned(s){
+  const L=TRACK.len; let d=s%L; if(d>L/2) d-=L; if(d<-L/2) d+=L; return d;
+}
+/* How far outside the track edge the pit lane is at signed distance d, and how
+   far through the transition we are. Returns null outside the corridor.
+   `t` is 0 on the racing line and 1 fully in the lane — the ramps use a smooth
+   step so the entry is a curve you drive round, not a corner you turn. */
+function pitLaneAt(d){
+  const G=TRACK.pitGeom||PIT;
+  const B=PIT.boxRun/2, E=G.entryLen, X=G.exitLen;
+  if(d<-(B+E) || d>(B+X)) return null;
+  let t;
+  if(d<-B)      t=(d+B+E)/E;            // entry ramp
+  else if(d<=B) t=1;                    // alongside the garages
+  else          t=1-(d-B)/X;            // exit ramp
+  t=clamp(t,0,1);
+  const sm=t*t*(3-2*t);                 // smoothstep — no kink at either end
+  return {t:sm, off:TRACK.halfW+PIT.offset*sm, raw:t};
+}
+/* Precompute the corridor per centreline index, and open the pit-side wall over
+   it so the car can actually be there. */
+function definePitLane(){
+  const N=TRACK.N, cum=TRACK.cum;
+  const lane=new Array(N).fill(null);
+  let boxIdx=0, bestBox=1e9, inIdx=null, outIdx=null;
+  for(let i=0;i<N;i++){
+    const d=lapSigned(cum[i]);
+    const L=pitLaneAt(d);
+    lane[i]=L;
+    if(!L) continue;
+    if(inIdx===null||Math.abs(lapSigned(cum[i]-cum[inIdx]))>0) { /* order handled below */ }
+    if(Math.abs(d)<bestBox){bestBox=Math.abs(d);boxIdx=i;}
+    // the pit-side wall has to clear the lane, plus room for the crew
+    const need=L.off+PIT.halfW+2.5;
+    const arr=PIT.side<0?TRACK.wallR:TRACK.wallL;
+    if(arr[i]<need) arr[i]=need;
+  }
+  // first and last index of the corridor, walking forward from the entry
+  for(let i=0;i<N;i++){
+    const prev=lane[(i-1+N)%N];
+    if(lane[i]&&!prev) inIdx=i;
+    if(!lane[i]&&prev) outIdx=(i-1+N)%N;
+  }
+  TRACK.pitLane=lane;
+  TRACK.pit={boxIdx, inIdx, outIdx, len:TRACK.len};
+}
+/* Where a pit-lane point is in plan, and how high the RACING SURFACE is beside
+   it. Deliberately free of any terrain lookup, so the terrain flattener can use
+   it while it is busy replacing the terrain function. */
+function pitPointXZ(d,across){
+  const N=TRACK.N, L=TRACK.len;
+  const s=((d%L)+L)%L;
+  const f=s/L*N, i0=Math.floor(f)%N, i1=(i0+1)%N, g=f-Math.floor(f);
+  const p0=TRACK.pts[i0], p1=TRACK.pts[i1], n0=TRACK.nrm[i0], n1=TRACK.nrm[i1];
+  const info=pitLaneAt(lapSigned(s));
+  const off=(info?info.off:TRACK.halfW)+(across||0);
+  const nx=lerp(n0.x,n1.x,g), nz=lerp(n0.z,n1.z,g), nl=Math.hypot(nx,nz)||1;
+  return {
+    x:lerp(p0.x,p1.x,g)+(nx/nl)*PIT.side*off,
+    z:lerp(p0.z,p1.z,g)+(nz/nl)*PIT.side*off,
+    yTrack:lerp(p0.y||0,p1.y||0,g),
+    t:info?info.t:0,
+  };
+}
+/* Flatten the ground over the whole pit complex to one level, with a soft
+   shoulder out to the surrounding landscape so there is no cliff edge. Wraps
+   whatever terrainH was already there, and bails out cheaply on the bounding
+   box so the rest of the circuit pays almost nothing for it. */
+/* HOW LONG THE ENTRY AND EXIT CAN ACTUALLY BE.
+   A fixed 150 m entry and 190 m exit is right on a circuit whose pit straight
+   is long and straight. At Spa it is not: La Source is a 180° hairpin barely
+   200 m before the line, so a corridor of that length wrapped around it and
+   came back within SEVEN METRES of itself. Every height lookup near the
+   hairpin then resolved to the wrong branch of the lane — a piece of road at a
+   completely different elevation — and the ground under the entry ended up six
+   metres out.
+   So the lengths are per-circuit: walk outward from the boxes in each direction
+   and stop before the lane gets close enough to another part of itself to be
+   confused with it. A short pit entry is what a hairpin before the line gives
+   you in reality too. */
+function pitPlanLane(){
+  const G={entryLen:PIT.entryLen, exitLen:PIT.exitLen};
+  TRACK.pitGeom=G;
+  /* MIN must stay BELOW apart, or a reference point that is merely `apart`
+     metres further along a straight looks like a clash and every circuit
+     collapses to the minimum length. Spa's two branches are 34 m apart along
+     the lane and 7.6 m apart in space, which is the case this has to catch. */
+  const B=PIT.boxRun/2, MIN=22, STEP=6;
+  const N=TRACK.N, L=TRACK.len;
+  // plan position at the FULL lane offset, independent of the ramps, so the
+  // probe measures where the lane would be rather than where it currently ends
+  const probe=(d)=>{
+    const s=((d%L)+L)%L, f=s/L*N, i0=Math.floor(f)%N, i1=(i0+1)%N, g=f-Math.floor(f);
+    const p0=TRACK.pts[i0], p1=TRACK.pts[i1], n0=TRACK.nrm[i0], n1=TRACK.nrm[i1];
+    const off=TRACK.halfW+PIT.offset;
+    const nx=lerp(n0.x,n1.x,g), nz=lerp(n0.z,n1.z,g), nl=Math.hypot(nx,nz)||1;
+    return {x:lerp(p0.x,p1.x,g)+(nx/nl)*PIT.side*off,
+            z:lerp(p0.z,p1.z,g)+(nz/nl)*PIT.side*off};
+  };
+  /* Only a point that is FAR AWAY ALONG THE LANE but close in space counts as
+     doubling back. Without the along-lane test every candidate clashes with the
+     piece of lane it was just extended from — they are six metres apart by
+     construction — and every circuit collapses to the minimum length. */
+  const APART=28;
+  const clash=(p,dc,ref)=>{
+    for(const r of ref){
+      if(Math.abs(r.d-dc)<APART) continue;
+      const dx=p.x-r.x,dz=p.z-r.z; if(dx*dx+dz*dz<MIN*MIN) return true;
+    }
+    return false;
+  };
+  const span=(a,b)=>{const out=[];for(let d=a;d<=b;d+=STEP){const q=probe(d);q.d=d;out.push(q);}return out;};
+  /* The reference set GROWS as the lane is extended, so each new metre of entry
+     is checked against the entry already laid down as well as against the boxes
+     and the exit. Spa's conflict is entry-against-entry — the corridor wraps La
+     Source and comes back alongside itself — so checking only against the boxes
+     and the exit missed it entirely. */
+  const grow=(from,dir,limit,ref)=>{
+    let n=0;
+    while(n+STEP<=limit){
+      const dc=from+dir*(n+STEP), p=probe(dc);
+      if(clash(p,dc,ref)) break;
+      p.d=dc; ref.push(p); n+=STEP;
+    }
+    return n;
+  };
+  // entry, against the boxes and the full exit, plus itself as it grows
+  { const ref=span(-B, B+PIT.exitLen);
+    G.entryLen=Math.max(50, grow(-B,-1,PIT.entryLen,ref)); }
+  // exit, against the boxes and the entry we just settled on, plus itself
+  { const ref=span(-B-G.entryLen, B);
+    G.exitLen=Math.max(60, grow(B,+1,PIT.exitLen,ref)); }
+}
+function pitFlattenTerrain(){
+  if(!TRACK.terrainH||!TRACK.len||!TRACK.N) return;
+  pitPlanLane();
+  const base=TRACK.terrainH;
+  const G=TRACK.pitGeom;
+  const D0=-(PIT.boxRun/2+G.entryLen), D1=PIT.boxRun/2+G.exitLen;
+  /* The level everything sits at: the racing surface at the start/finish line.
+     Picking the track's own height means the lane still meets the circuit
+     exactly where it joins it, at both ends. */
+  const refY=pitPointXZ(0,0).yTrack;
+  PIT.refY=refY;
+  /* Sample the lane's plan, and with each sample the height the LANE will be at
+     there — flat at refY across the boxes, blending back to the racing surface
+     through the entry and exit ramps.
+     Flattening the whole complex to one constant was the obvious thing and it
+     was wrong: at Texas the circuit climbs 20 m away from the pit straight, so a
+     constant floor left the entry ramp hanging in the air over it. The ground
+     has to follow the lane where the lane is still coming down off the track,
+     and only go flat where the lane does. */
+  const NS=56, pts=[];
+  for(let i=0;i<=NS;i++){
+    const d=D0+(D1-D0)*i/NS;
+    const p=pitPointXZ(d, PIT.offset*0.35);
+    p.d=d;
+    p.yLane=lerp(p.yTrack, refY, p.t);
+    pts.push(p);
+  }
+  /* The lane's height at any distance along it, evaluated exactly.
+     Averaging the sampled heights instead was accurate to a few centimetres on
+     23 circuits and four metres at Spa, because the samples are 9 m apart and
+     Spa's start/finish straight drops away steeply toward Eau Rouge — averaging
+     across a steep gradient is exactly where an interpolation goes wrong. There
+     is no need to approximate it: project onto the lane, then ask the same
+     function the lane itself uses. */
+  const laneYAt=(d)=>{
+    const q=pitPointXZ(d,0);
+    return lerp(q.yTrack, refY, q.t);
+  };
+  let minx=1e18,maxx=-1e18,minz=1e18,maxz=-1e18;
+  for(const p of pts){minx=Math.min(minx,p.x);maxx=Math.max(maxx,p.x);
+                      minz=Math.min(minz,p.z);maxz=Math.max(maxz,p.z);}
+  // flat right out past the garages and the paddock behind them, then a shoulder
+  const INNER=30, OUTER=85, PAD=OUTER+10;
+  PIT.flatBox={minx,maxx,minz,maxz,INNER,OUTER};
+  TRACK.terrainH=(x,z)=>{
+    if(x<minx-PAD||x>maxx+PAD||z<minz-PAD||z>maxz+PAD) return base(x,z);
+    /* Nearest distance for the falloff, and an inverse-distance blend of the
+       nearby samples' lane heights for the level. The blend keeps the surface
+       smooth where the ramps meet the flat, instead of stepping between
+       samples. */
+    // nearest sample, then refine by projecting onto the neighbouring span so
+    // the distance along the lane is continuous rather than quantised
+    let best=1e18, bi=0;
+    for(let i=0;i<pts.length;i++){
+      const dx=x-pts[i].x, dz=z-pts[i].z, d2=dx*dx+dz*dz;
+      if(d2<best){best=d2;bi=i;}
+    }
+    let dAlong=pts[bi].d;
+    { const a=pts[bi], b=pts[bi+1]||pts[bi-1];
+      if(b&&b!==a){
+        const ex=b.x-a.x, ez=b.z-a.z, L2=ex*ex+ez*ez;
+        if(L2>1e-6){
+          const u=clamp(((x-a.x)*ex+(z-a.z)*ez)/L2,-1,1);
+          dAlong=a.d+(b.d-a.d)*u;
+        } } }
+    const target=laneYAt(dAlong);
+    const d=Math.sqrt(best);
+    if(d>=OUTER) return base(x,z);
+    if(d<=INNER) return target;
+    const t=1-(d-INNER)/(OUTER-INNER);
+    return lerp(base(x,z), target, t*t*(3-2*t));
+  };
+}
+
+/* World position of a point in the pit lane: signed distance d along the lap,
+   `across` metres across the lane (0 = lane centre, + toward the garages).
+
+   HEIGHT. The ground under the whole pit complex has already been flattened to
+   PIT.refY — the height of the racing surface at the start/finish line — so the
+   lane simply has to blend from the track it leaves to that level, using the
+   same smoothstep that carries it sideways. At the entry and exit it is exactly
+   the height of the racing surface it joins, which it has to be or the car would
+   drop off a step; across the boxes it is dead flat, which is what lets the
+   garages, the wall and twenty crew all agree about where the floor is. */
+function pitPos(d,across){
+  const q=pitPointXZ(d,across);
+  const refY=(PIT.refY===undefined)?q.yTrack:PIT.refY;
+  return new THREE.Vector3(q.x, lerp(q.yTrack, refY, q.t), q.z);
+}
+/* Which team owns which garage — the player's box is the one they stop in.
+   buildWorld() runs once during module initialisation, before the livery tables
+   further down the file exist, and `typeof` does not save you from a const's
+   temporal dead zone (it throws). That first world is a throwaway that exists to
+   warm the shaders up and is rebuilt before any race, so falling back to a
+   neutral set of boxes there costs nothing. */
+const PIT_FALLBACK_TEAMS=['redbull','ferrari','mercedes','mclaren','aston'];
+function pitBoxOrder(){
+  try{
+    const ids=LIVERY_IDS.filter(k=>!(LIVERIES[k]&&LIVERIES[k].plain));
+    if(ids.length) return ids;
+  }catch(e){}
+  return PIT_FALLBACK_TEAMS;
+}
+function pitTeamColour(key){
+  try{ return new THREE.Color((LIVERIES[key]||LIVERIES.redbull).base); }
+  catch(e){ return new THREE.Color(0x8a94a2); }
+}
+function pitSelfTeam(){ try{ return selLivery; }catch(e){ return PIT_FALLBACK_TEAMS[0]; } }
+function playerBoxD(){
+  const order=pitBoxOrder(), n=order.length;
+  const i=Math.max(0,order.indexOf(pitSelfTeam()));
+  // boxes laid out along the garage frontage, front of the lane to the back
+  const span=PIT.boxRun*0.86;
+  return -span/2 + span*(i+0.5)/n;
+}
+/* the drivable surface, the markings, and a painted box per team */
+function buildPitLaneGeometry(sc){
+  if(!TRACK.pit) return;
+  const g=new THREE.Group();
+  const G=TRACK.pitGeom||PIT;
+  const D0=-(PIT.boxRun/2+G.entryLen), D1=PIT.boxRun/2+G.exitLen;
+  const STEP=4, n=Math.max(8,Math.round((D1-D0)/STEP));
+  // --- the tarmac ribbon --------------------------------------------------
+  const v=[],uv=[],idx=[];
+  for(let i=0;i<=n;i++){
+    const d=D0+(D1-D0)*i/n;
+    const a=pitPos(d,-PIT.halfW), b=pitPos(d,PIT.halfW);
+    v.push(a.x,a.y+0.03,a.z, b.x,b.y+0.03,b.z);
+    uv.push(0,i*0.5, 1,i*0.5);
+    if(i<n){const o=i*2; idx.push(o,o+2,o+1, o+1,o+2,o+3);}
+  }
+  const geo=new THREE.BufferGeometry();
+  geo.setAttribute('position',new THREE.Float32BufferAttribute(v,3));
+  geo.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));
+  geo.setIndex(idx); flatUp(geo);
+  const road=new THREE.Mesh(geo,new THREE.MeshStandardMaterial({
+    map:makeAsphalt(),color:0x9a9a9e,roughness:0.94,side:THREE.DoubleSide}));
+  road.receiveShadow=true; road.renderOrder=3; g.add(road);
+  // --- a line down each edge, and the fast-lane line the crew must not cross -
+  const stripe=(across,col,w,y)=>{
+    const sv=[],sid=[];
+    for(let i=0;i<=n;i++){
+      const d=D0+(D1-D0)*i/n;
+      const a=pitPos(d,across-w), b=pitPos(d,across+w);
+      sv.push(a.x,a.y+(y||0.045),a.z, b.x,b.y+(y||0.045),b.z);
+      if(i<n){const o=i*2; sid.push(o,o+2,o+1, o+1,o+2,o+3);}
+    }
+    const sg=new THREE.BufferGeometry();
+    sg.setAttribute('position',new THREE.Float32BufferAttribute(sv,3));
+    sg.setIndex(sid); flatUp(sg);
+    const m=new THREE.Mesh(sg,new THREE.MeshStandardMaterial({color:col,roughness:0.7,side:THREE.DoubleSide}));
+    m.renderOrder=4; g.add(m); return m;
+  };
+  /* --- THE SKIRT ----------------------------------------------------------
+     A graded platform still leaves a step wherever the ground beside it is
+     lower, and an unclosed step is exactly what "floating" looks like. This
+     drops a wall from each edge of the lane down to below the terrain, so the
+     lane always meets the ground somewhere and reads as an embankment.
+     Built as one strip per side rather than per-segment quads so it stays a
+     single draw call. */
+  { const skirtMat=new THREE.MeshStandardMaterial({color:0x3a3f47,roughness:0.97,side:THREE.DoubleSide});
+    for(const edge of [-PIT.halfW,PIT.halfW]){
+      const sv=[],sid=[];
+      for(let i=0;i<=n;i++){
+        const d=D0+(D1-D0)*i/n;
+        const top=pitPos(d,edge);
+        const ground=TRACK.terrainH?TRACK.terrainH(top.x,top.z):top.y;
+        // always go DOWN, and always far enough to bury the seam
+        const bottom=Math.min(ground,top.y)-1.2;
+        sv.push(top.x,top.y+0.03,top.z, top.x,bottom,top.z);
+        if(i<n){const o=i*2; sid.push(o,o+2,o+1, o+1,o+2,o+3);}
+      }
+      const sg=new THREE.BufferGeometry();
+      sg.setAttribute('position',new THREE.Float32BufferAttribute(sv,3));
+      sg.setIndex(sid); sg.computeVertexNormals();
+      const m=new THREE.Mesh(sg,skirtMat); m.receiveShadow=true; g.add(m);
+    } }
+  stripe(-PIT.halfW+0.2,0xf2f5f8,0.14);            // outer edge (track side)
+  stripe( PIT.halfW-0.2,0xf2f5f8,0.14);            // inner edge (garage side)
+  stripe( 0.6,0xf2f5f8,0.10);                      // fast-lane divider
+  // --- painted boxes, one per team, in front of its garage -----------------
+  const order=pitBoxOrder(), nb=order.length, span=PIT.boxRun*0.86;
+  for(let i=0;i<nb;i++){
+    const d=-span/2 + span*(i+0.5)/nb;
+    const col=pitTeamColour(order[i]);
+    const bm=new THREE.MeshStandardMaterial({color:col,roughness:0.6,
+      emissive:col,emissiveIntensity:0.18,side:THREE.DoubleSide});
+    // box outline: two rails across the lane plus a stop line
+    for(const dd of [d-3.2,d+3.2]){
+      const a=pitPos(dd,1.0), b=pitPos(dd,PIT.halfW-0.4);
+      const bar=new THREE.Mesh(new THREE.BoxGeometry(a.distanceTo(b),0.02,0.16),bm);
+      bar.position.set((a.x+b.x)/2,a.y+0.05,(a.z+b.z)/2);
+      bar.rotation.y=Math.atan2(b.x-a.x,b.z-a.z)+Math.PI/2; g.add(bar);
+    }
+    const s0=pitPos(d,1.0), s1=pitPos(d,PIT.halfW-0.4);
+    const stop=new THREE.Mesh(new THREE.BoxGeometry(s0.distanceTo(s1),0.02,0.34),
+      new THREE.MeshStandardMaterial({color:0xf2f5f8,roughness:0.6,side:THREE.DoubleSide}));
+    stop.position.set((s0.x+s1.x)/2,s0.y+0.055,(s0.z+s1.z)/2);
+    stop.rotation.y=Math.atan2(s1.x-s0.x,s1.z-s0.z)+Math.PI/2; g.add(stop);
+  }
+  // --- speed-limit boards at the entry and the exit ------------------------
+  for(const [d,txt] of [[D0+16,'80'],[D1-24,'END']]){
+    const p=pitPos(d,-PIT.halfW-1.4);
+    const c=cnv(128,128), x=c.getContext('2d');
+    x.fillStyle='#f2f5f8'; x.beginPath(); x.arc(64,64,60,0,TAU); x.fill();
+    x.strokeStyle='#cf1020'; x.lineWidth=11; x.beginPath(); x.arc(64,64,54,0,TAU); x.stroke();
+    x.fillStyle='#0a0c10'; x.font='900 '+(txt.length>2?38:54)+'px Orbitron,monospace';
+    x.textAlign='center'; x.textBaseline='middle'; x.fillText(txt,64,66);
+    const t=new THREE.CanvasTexture(c); t.colorSpace=THREE.SRGBColorSpace;
+    const sign=new THREE.Mesh(new THREE.PlaneGeometry(1.5,1.5),
+      new THREE.MeshBasicMaterial({map:t,transparent:true,side:THREE.DoubleSide}));
+    sign.position.set(p.x,p.y+2.1,p.z);
+    const ahead=pitPos(d+8,-PIT.halfW-1.4);
+    sign.lookAt(ahead.x,p.y+2.1,ahead.z); sign.rotateY(Math.PI/2); g.add(sign);
+    const post=new THREE.Mesh(new THREE.CylinderGeometry(0.07,0.07,2.1,8),
+      new THREE.MeshStandardMaterial({color:0x2a2f38,roughness:0.7}));
+    post.position.set(p.x,p.y+1.05,p.z); g.add(post);
+  }
+  g.traverse(o=>{o.receiveShadow=true;});
+  sc.add(g);
+  sc.userData.pitLaneGroup=g;
+}
+/* ==================================================================
+   THE PIT CREW
+   Twenty people, and each one has a job you can watch them do: a gunner and a
+   carrier on each corner, a man on the front jack and a man on the rear, and
+   the lollipop operator on the light. They are built once when the world is,
+   parked out of the way, and moved into position when a stop starts.
+
+   Deliberately stylised rather than realistic — these are read at a glance from
+   inside a cockpit, over a two-and-a-half second window, and a crowd of
+   detailed figures would cost far more than it showed.
+   ================================================================== */
+function makeCrewFigure(suit,accent){
+  const f=new THREE.Group();
+  const body=new THREE.Mesh(new THREE.CapsuleGeometry(0.20,0.52,4,10),suit);
+  body.position.y=0.86; f.add(body);
+  const chest=new THREE.Mesh(new THREE.BoxGeometry(0.34,0.16,0.30),accent);
+  chest.position.y=1.02; f.add(chest);
+  const head=new THREE.Mesh(new THREE.SphereGeometry(0.145,12,10),accent);
+  head.position.y=1.36; f.add(head);
+  const visor=new THREE.Mesh(new THREE.BoxGeometry(0.20,0.075,0.03),
+    new THREE.MeshStandardMaterial({color:0x10141c,roughness:0.25,metalness:0.4}));
+  visor.position.set(0,1.37,0.135); f.add(visor);
+  for(const sx of [-1,1]){
+    const leg=new THREE.Mesh(new THREE.CapsuleGeometry(0.085,0.42,3,8),suit);
+    leg.position.set(sx*0.11,0.32,0); f.add(leg);
+  }
+  const arms=new THREE.Group(); f.add(arms);
+  for(const sx of [-1,1]){
+    const arm=new THREE.Mesh(new THREE.CapsuleGeometry(0.068,0.40,3,8),suit);
+    arm.position.set(sx*0.27,0.92,0.10); arm.rotation.x=-0.5; arms.add(arm);
+  }
+  f.traverse(o=>{o.castShadow=true;});
+  f.userData.arms=arms;
+  return f;
+}
+function buildPitCrew(sc){
+  if(!TRACK.pit) return;
+  const teamCol=pitTeamColour(pitSelfTeam());
+  const suit=new THREE.MeshStandardMaterial({color:0x14171d,roughness:0.85});
+  const accent=new THREE.MeshStandardMaterial({color:teamCol,roughness:0.55,metalness:0.15});
+  const gunMat=new THREE.MeshStandardMaterial({color:0xd8dde4,roughness:0.35,metalness:0.6});
+  const tyreMat=new THREE.MeshStandardMaterial({color:0x101216,roughness:0.92});
+  const grp=new THREE.Group();
+  const crew=[];
+  /* Corner crews. Local frame: +x across the lane toward the garages, +z along
+     the lane in the direction of travel. Placed relative to the box centre and
+     mapped onto the circuit when the stop starts. */
+  const corners=[[-1.05,1.55],[1.05,1.55],[-1.05,-1.55],[1.05,-1.55]];
+  corners.forEach(([lx,lz],i)=>{
+    const gun=makeCrewFigure(suit,accent);
+    gun.userData.home=new THREE.Vector3(lx*1.9,0,lz);
+    gun.userData.work=new THREE.Vector3(lx*1.15,0,lz);
+    const wg=new THREE.Mesh(new THREE.BoxGeometry(0.13,0.13,0.42),gunMat);
+    wg.position.set(0,0.92,0.30); gun.add(wg); gun.userData.gun=wg;
+    grp.add(gun); crew.push({f:gun,role:'gun',i});
+    const carrier=makeCrewFigure(suit,accent);
+    carrier.userData.home=new THREE.Vector3(lx*2.9,0,lz);
+    carrier.userData.work=new THREE.Vector3(lx*1.55,0,lz);
+    const wheel=new THREE.Mesh(new THREE.CylinderGeometry(0.36,0.36,0.38,16),tyreMat);
+    wheel.rotation.z=Math.PI/2; wheel.position.set(0,0.66,0.42);
+    carrier.add(wheel); carrier.userData.wheel=wheel;
+    grp.add(carrier); crew.push({f:carrier,role:'carry',i});
+  });
+  // jack men, front and rear, each with a jack that actually swings under
+  for(const [lz,tag] of [[3.1,'front'],[-3.1,'rear']]){
+    const j=makeCrewFigure(suit,accent);
+    j.userData.home=new THREE.Vector3(0,0,lz*1.5);
+    j.userData.work=new THREE.Vector3(0,0,lz);
+    const jack=new THREE.Group();
+    const bar=new THREE.Mesh(new THREE.BoxGeometry(0.09,0.09,1.5),gunMat);
+    bar.position.z=Math.sign(lz)*-0.6; jack.add(bar);
+    const pad=new THREE.Mesh(new THREE.BoxGeometry(0.5,0.09,0.16),gunMat);
+    pad.position.z=Math.sign(lz)*-1.25; jack.add(pad);
+    jack.position.y=0.32; j.add(jack); j.userData.jack=jack;
+    grp.add(j); crew.push({f:j,role:'jack',tag});
+  }
+  // the operator, and the light on its post that releases the car
+  const lolly=makeCrewFigure(suit,accent);
+  lolly.userData.home=new THREE.Vector3(-3.4,0,5.4);
+  lolly.userData.work=new THREE.Vector3(-1.9,0,4.6);
+  const post=new THREE.Mesh(new THREE.CylinderGeometry(0.045,0.045,2.3,8),gunMat);
+  post.position.y=1.5; lolly.add(post);
+  const lampMat=new THREE.MeshStandardMaterial({color:0x400000,emissive:0xff1810,emissiveIntensity:2.4});
+  const lamp=new THREE.Mesh(new THREE.SphereGeometry(0.17,12,10),lampMat);
+  lamp.position.set(0,2.6,0); lolly.add(lamp);
+  grp.add(lolly); crew.push({f:lolly,role:'lolly'});
+  grp.visible=false;
+  sc.add(grp);
+  sc.userData.pitCrew={group:grp,crew,lampMat,teamCol};
+}
 function buildPit(sc,P,Nm,Tg){
   const p=P[0],n=Nm[0],tg=Tg[0], gh=TRACK.terrainH, HW=TRACK.halfW;
   const side=-1, off=HW+24;                   // building set back across the pit lane
@@ -10057,10 +10823,10 @@ function buildPit(sc,P,Nm,Tg){
   const g=new THREE.Group(); const len=164;
   const pitCol=(TRACK_PIT[CFG.id]||0xe9edf1), accent=(TRACK_ACCENT[CFG.id]||0xb11015);
   const night=CFG.night||CFG.id==='austria';
-  // pit-lane tarmac apron (local +Z faces the track after lookAt)
-  const lane=new THREE.Mesh(new THREE.BoxGeometry(len,0.12,13),new THREE.MeshStandardMaterial({color:0x26292f,roughness:0.9}));
-  lane.position.set(0,0.06,14);g.add(lane);
-  const fast=new THREE.Mesh(new THREE.BoxGeometry(len,0.02,0.35),new THREE.MeshBasicMaterial({color:0xf2f5f8}));fast.position.set(0,0.14,10.5);g.add(fast);
+  /* The flat apron box that used to sit here is gone. buildPitLaneGeometry()
+     lays a real lane that follows the circuit's centreline from the entry to
+     the exit, and a straight slab dropped alongside it only z-fought with it.
+     What is left in this function is the BUILDING — garages, wall, paddock. */
   const apr=new THREE.Mesh(new THREE.BoxGeometry(len,0.02,0.35),new THREE.MeshStandardMaterial({color:accent,emissive:accent,emissiveIntensity:0.5}));apr.position.set(0,0.14,17.5);g.add(apr);
   // --- garage block: solid building with RECESSED open garages (dark interior) + accent lintels ---
   const bodyMat=new THREE.MeshStandardMaterial({color:pitCol,roughness:0.72,metalness:night?0.25:0,emissive:night?0x0a0e16:0,emissiveIntensity:night?0.35:0});
@@ -10578,7 +11344,7 @@ const CAR={
   ers:0.75, ersActive:0,        // battery charge 0..1 and smoothed deploy amount for the gauge
   tire:1, damage:0,             // tyre life 1..0 and car damage 0..1
 };
-if(typeof window!=='undefined') window.__CAR=CAR;
+if(DEBUG) window.__CAR=CAR;
 const PHYS={
   // A real car makes ~735 kW and tops out near 350 km/h. It was geared for 340
   // and reached it lazily; power, peak tractive force and braking are all up, and
@@ -10908,6 +11674,10 @@ function applyLivery(mat,tex,scale,baseCol){
 function setLivery(teamKey){
   selLivery=teamKey;
   const L=LIVERIES[teamKey]||LIVERIES.redbull;
+  // the driver's helmet is painted in the team's colours too — the trim ring on
+  // the visor seal and the brow flash are the parts of it you can see from inside
+  if(CAR.helmet&&CAR.helmet.userData.trimMats)
+    for(const m of CAR.helmet.userData.trimMats){ m.color.set(L.base); m.emissive.set(L.base); }
   const u=CAR.bodyMat&&CAR.bodyMat.userData.livU;
   if(L.plain){                                         // no-livery matte-carbon car
     if(u){ if(!PLAIN_TEX)PLAIN_TEX=makePlainTex(); u.uLiv.value=PLAIN_TEX; u.uBase.value.set(L.base); }
@@ -11070,6 +11840,220 @@ async function loadEarth(loader){
   return grp;
 }
 
+/* ==================================================================
+   THE HELMET
+   The cockpit view used to be a flat CSS gradient painted over the top of the
+   frame — a dark vignette pretending to be a visor. It never moved, nothing was
+   ever behind anything else, and the moment the car got loaded up under braking
+   the illusion fell apart because the "helmet" was welded to the screen rather
+   than to a head.
+   This is the real thing: geometry, sitting around the eye point, that the
+   camera looks out through. A padded eye-port surround with a shaped aperture,
+   a team-coloured trim ring on the seal, a chin bar and brow you can see the
+   thickness of, cheek pads out in the periphery, a tinted visor with a moving
+   reflection across it, tear-off tabs on the edge, and a HANS collar at the
+   bottom of frame. Because it is geometry it occludes properly, it parallaxes
+   when the head moves against the car, and it takes the scene's light — a
+   floodlit night race lights the inside of the visor differently from a
+   midday one, for free.
+   ================================================================== */
+/* The eye port. A superellipse — a rounded rectangle, which is what a modern
+   helmet aperture actually is — asymmetric top to bottom, because you need to
+   see the top of the wheel and your hands but you do not need to see the sky.
+   Angles quoted from the eye at APERTURE_Z. */
+const HELM={
+  z:0.155,              // aperture plane, metres in front of the eye (> camera near of 0.1)
+  halfW:0.150,          // ±44° — inside the 16:9 frame, so the sides of the port read
+  topH:0.068,           // 24° up  — the brow crops the top of the frame
+  botH:0.095,           // 32° down — low enough that the top of the wheel still shows
+};
+function aperturePath(n,scale){
+  const s=scale===undefined?1:scale, out=[];
+  const P=3.0;                                    // superellipse exponent → rounded rect
+  for(let i=0;i<n;i++){
+    const a=i/n*TAU, c=Math.cos(a), si=Math.sin(a);
+    const h=(si>=0?HELM.topH:HELM.botH)*s, w=HELM.halfW*s;
+    const r=1/Math.pow(Math.pow(Math.abs(c),P)+Math.pow(Math.abs(si),P),1/P);
+    let x=r*c*w, y=r*si*h;
+    // the brow: the top edge dips in the middle, the way a real shell does
+    if(si>0) y-=h*0.15*Math.pow(Math.max(0,1-Math.abs(c)*1.3),2);
+    out.push(new THREE.Vector2(x,y));
+  }
+  return out;
+}
+/* a cheap fabric-ish noise map so the padding is not a flat colour */
+function makeHelmetLining(){
+  const c=cnv(64,64), x=c.getContext('2d');
+  x.fillStyle='#15181e'; x.fillRect(0,0,64,64);
+  for(let i=0;i<900;i++){
+    const g=18+Math.random()*26;
+    x.fillStyle=`rgba(${g|0},${(g+2)|0},${(g+6)|0},${0.25+Math.random()*0.5})`;
+    x.fillRect(Math.random()*64,Math.random()*64,1.5,1.5);
+  }
+  const t=new THREE.CanvasTexture(c);
+  t.wrapS=t.wrapT=THREE.RepeatWrapping; t.repeat.set(7,7);
+  return t;
+}
+function makeHelmet(teamHex){
+  const H=new THREE.Group();
+  const trimMats=[];
+  const Z=HELM.z;
+
+  // --- 1. the surround: everything outside the aperture is solid helmet -------
+  // A big plate with the eye port cut out of it, extruded so the rim has real
+  // thickness you can see the inside edge of when you look off-axis.
+  const outer=new THREE.Shape();
+  outer.moveTo(-0.9,-0.9); outer.lineTo(0.9,-0.9); outer.lineTo(0.9,0.9); outer.lineTo(-0.9,0.9);
+  outer.closePath();
+  const hole=new THREE.Path(); const ap=aperturePath(72);
+  hole.moveTo(ap[0].x,ap[0].y);
+  for(let i=1;i<ap.length;i++) hole.lineTo(ap[i].x,ap[i].y);
+  hole.closePath();
+  outer.holes.push(hole);
+  const lining=makeHelmetLining();
+  const padMat=new THREE.MeshStandardMaterial({
+    color:0x14171d, map:lining, roughness:0.95, metalness:0.0,
+    emissive:0x090b10, emissiveIntensity:0.55, side:THREE.DoubleSide});
+  const surround=new THREE.Mesh(new THREE.ExtrudeGeometry(outer,{
+    depth:0.055, bevelEnabled:true, bevelThickness:0.010, bevelSize:0.010,
+    bevelSegments:2, curveSegments:2}), padMat);
+  surround.position.z=Z;                  // extrudes forward, away from the eye
+  H.add(surround);
+
+  // --- 2. trim ring on the aperture seal, in the team's colour ---------------
+  const ringShape=new THREE.Shape();
+  const ro=aperturePath(72,1.055);
+  ringShape.moveTo(ro[0].x,ro[0].y);
+  for(let i=1;i<ro.length;i++) ringShape.lineTo(ro[i].x,ro[i].y);
+  ringShape.closePath();
+  const rh=new THREE.Path(); const ri=aperturePath(72,1.0);
+  rh.moveTo(ri[0].x,ri[0].y);
+  for(let i=1;i<ri.length;i++) rh.lineTo(ri[i].x,ri[i].y);
+  rh.closePath();
+  ringShape.holes.push(rh);
+  const trimMat=new THREE.MeshStandardMaterial({color:teamHex,roughness:0.38,metalness:0.35,
+    emissive:teamHex,emissiveIntensity:0.10,side:THREE.DoubleSide});
+  trimMats.push(trimMat);
+  const trim=new THREE.Mesh(new THREE.ExtrudeGeometry(ringShape,{
+    depth:0.014,bevelEnabled:false,curveSegments:2}),trimMat);
+  trim.position.z=Z-0.014;
+  H.add(trim);
+
+  /* --- 3. chin bar and brow ------------------------------------------------
+     These stand PROUD of the flat surround, nearer the eye, so the port has a
+     lip you can see the roundness of rather than a printed edge. Everything
+     here is sized off the aperture cone at its own depth: at plane z the view
+     reaches ±edge*(z/Z), so a bulge at z=0.128 has to clear ±edge*0.826 or it
+     grows into the middle of the screen. Learned the hard way — the first pass
+     put a HANS collar 0.19 m across at z=0.08 and it filled the bottom half of
+     the frame like a dashboard. */
+  const shellMat=new THREE.MeshStandardMaterial({color:0x1b1f26,roughness:0.55,metalness:0.15});
+  const BZ=0.128, k=BZ/Z;                          // bulge plane, and its cone scale
+  const chinR=0.030, browR=0.026;
+  const chin=new THREE.Mesh(new THREE.CylinderGeometry(chinR,chinR,HELM.halfW*2.4,18,1,false,0,Math.PI),shellMat);
+  chin.rotation.z=Math.PI/2; chin.rotation.y=Math.PI/2;
+  chin.position.set(0,-HELM.botH*k-chinR-0.004,BZ);
+  H.add(chin);
+  const brow=new THREE.Mesh(new THREE.CylinderGeometry(browR,browR,HELM.halfW*2.4,18,1,false,Math.PI,Math.PI),shellMat);
+  brow.rotation.z=Math.PI/2; brow.rotation.y=Math.PI/2;
+  brow.position.set(0,HELM.topH*k+browR+0.004,BZ);
+  H.add(brow);
+  // a team-coloured flash along the brow, the one bit of the paint you can see
+  const flash=new THREE.Mesh(new THREE.BoxGeometry(HELM.halfW*1.7,0.008,0.024),trimMat);
+  flash.position.set(0,HELM.topH*k+browR*0.35,BZ-browR*0.75); H.add(flash);
+
+  /* --- 4. cheek pads, right at the edge of peripheral vision ----------------
+     Closest thing to the eye, so they swing the furthest across the frame when
+     the head moves — which is the whole reason they are here. Placed just
+     outside the aperture cone at their own depth so they graze the edge of the
+     picture rather than sitting in the middle of it. */
+  { const PZ=0.102, pk=PZ/Z, padHalf=0.020;
+    for(const sx of [-1,1]){
+      const pad=new THREE.Mesh(new THREE.SphereGeometry(1,14,12),padMat);
+      pad.scale.set(padHalf,0.075,0.030);
+      pad.position.set(sx*(HELM.halfW*pk+padHalf*1.55),-0.012,PZ);
+      H.add(pad);
+    } }
+
+  // --- 5. the visor: tinted, bowed forward at the centre, with a live sheen ---
+  const vg=new THREE.PlaneGeometry(HELM.halfW*2.25,(HELM.topH+HELM.botH)*1.25,20,10);
+  { const pos=vg.attributes.position;
+    for(let i=0;i<pos.count;i++){
+      const x=pos.getX(i)/(HELM.halfW*1.13);
+      pos.setZ(i, 0.016*(1-clamp(x*x,0,1)));      // wraps back toward the temples
+    }
+    vg.computeVertexNormals(); }
+  const visorMat=new THREE.MeshPhysicalMaterial({
+    color:0x0d1420, transparent:true, opacity:0.13, roughness:0.06, metalness:0.0,
+    transmission:0.0, side:THREE.DoubleSide, depthWrite:false});
+  const visor=new THREE.Mesh(vg,visorMat);
+  visor.position.set(0,(HELM.topH-HELM.botH)/2,Z-0.024);
+  visor.renderOrder=6;
+  H.add(visor);
+  // the reflection that slides across the visor as the car changes heading
+  const sheenMat=new THREE.MeshBasicMaterial({color:0xbcd4f0,transparent:true,opacity:0.055,
+    blending:THREE.AdditiveBlending,depthWrite:false,side:THREE.DoubleSide});
+  const sheen=new THREE.Mesh(new THREE.PlaneGeometry(0.19,0.055),sheenMat);
+  sheen.rotation.z=0.42; sheen.position.set(-0.05,0.020,Z-0.030); sheen.renderOrder=7;
+  H.add(sheen);
+  // tear-offs stacked on the left edge, with the pull tab standing proud
+  { const toMat=new THREE.MeshStandardMaterial({color:0x8fa4bb,transparent:true,opacity:0.30,
+      roughness:0.15,side:THREE.DoubleSide,depthWrite:false});
+    for(let i=0;i<3;i++){
+      const t=new THREE.Mesh(new THREE.PlaneGeometry(0.020,0.052),toMat);
+      t.position.set(-HELM.halfW+0.014+i*0.0035,0.004,Z-0.026-i*0.0016);
+      t.renderOrder=6; H.add(t); }
+    const tab=new THREE.Mesh(new THREE.BoxGeometry(0.026,0.010,0.004),trimMat);
+    tab.position.set(-HELM.halfW-0.004,-0.030,Z-0.030); tab.rotation.z=-0.35; H.add(tab); }
+
+  /* No HANS collar. It is below the chin bar on a real driver, which means it is
+     below the bottom of the eye port — you cannot see your own from inside the
+     helmet, and every size that was visible on screen was a size that ate the
+     bottom of the picture. */
+
+  H.traverse(o=>{o.castShadow=false;o.receiveShadow=false;o.frustumCulled=false;});
+  H.userData={trimMats,visorMat,sheen,sheenMat,visor,lining};
+  H.visible=false;                                  // only in the cockpit camera
+  return H;
+}
+/* The head is not bolted to the chassis. Under braking it pitches forward, under
+   lateral load it leans and lags a fraction behind the car, and over a kerb it
+   gets thrown. Moving the HELMET against the fixed camera is what sells that —
+   the aperture drifts a few millimetres across the view instead of being painted
+   on the glass. Small numbers on purpose: this is a suggestion of a neck, and
+   anything bigger reads as the camera being broken. */
+function updateHelmet(dt){
+  const H=CAR.helmet; if(!H||!H.visible) return;
+  const u=H.userData;
+  const M=SET.headMotion;                 // 0 pins the helmet dead still
+  const lat=clamp((CAR.vLat||0)/9,-1,1)*M;
+  const brake=clamp((CAR.comp||0)*0.5,0,1)*M;
+  const spd=clamp(Math.abs(CAR.v)/PHYS.vMax,0,1);
+  const hop=clamp((CAR.hop||0)*1.6,0,1)*M;
+  // target offsets: head lags the corner, nods under load, jolts over a kerb
+  const tx= lat*0.007;
+  const ty=-brake*0.006 - hop*0.010 + Math.sin(performance.now()*0.011)*0.0006*spd;
+  const tz= brake*0.004;
+  H.position.x=damp(H.position.x||0,tx,7,dt);
+  H.position.y=damp(H.position.y||0,ty,9,dt);
+  H.position.z=damp(H.position.z||0,tz,7,dt);
+  H.rotation.z=damp(H.rotation.z||0,-lat*0.035,6,dt);          // lean into the load
+  H.rotation.x=damp(H.rotation.x||0,brake*0.020,7,dt);
+  // the reflection tracks the world: it slides as the car changes heading and
+  // brightens with speed, so a long straight has a moving highlight on the visor
+  if(u.sheen){
+    const t=performance.now()*0.001;
+    u.sheen.position.x=-0.02+Math.sin(CAR.heading*1.7+t*0.25)*0.085;
+    u.sheen.position.y=0.018+Math.cos(CAR.heading*1.1)*0.010;
+    const wet=clamp(WEATHER.wetness,0,1);
+    u.sheenMat.opacity=0.030+0.055*spd+0.035*wet;
+  }
+  // a wet track fogs and beads the visor; a dry one keeps it clear
+  if(u.visorMat){
+    const wet=clamp(WEATHER.wetness,0,1);
+    u.visorMat.opacity=0.13+wet*0.10;
+  }
+}
 /* place cockpit cam + wheel (tuned constants; oriented for +Z forward) */
 function mountCockpit(){
   const S=CAR.scale;
@@ -11142,6 +12126,17 @@ function mountCockpit(){
     arms.push({sx,La,Lf,shoulder,upper,elbow,fore,glove});
   }
   CAR.cockpit.add(holder);
+  /* THE HELMET. It hangs off a pivot carrying the fixed aim — the cockpit camera
+     looks at a point 0.7 m low at 10 m, so the eye port has to be pitched by the
+     same amount or it rides high in the frame. The pivot holds that; the helmet
+     inside it is free for updateHelmet() to shove around under load without
+     fighting the base pose. */
+  const helmetPivot=new THREE.Object3D();
+  helmetPivot.rotation.x=-Math.atan2(0.7,10);
+  camNode.add(helmetPivot);
+  const helmet=makeHelmet(teamBase);
+  helmetPivot.add(helmet);
+  CAR.helmet=helmet; CAR.helmetPivot=helmetPivot;
   CAR.wheelHub=spinHub; CAR.wheelHolder=holder; CAR.arms=arms; CAR.rimR=R;
   solveArms(0);                                      // pose once so it's correct on frame 0
 }
@@ -11187,9 +12182,12 @@ function resetCar(){
   CAR.pos.set(p.x,0,p.z);
   CAR.heading=Math.atan2(tg.x,tg.z);
   CAR.v=0;CAR.steer=0;CAR.steerCmd=0;CAR.yawRate=0;CAR.vLat=0;CAR.pitch=0;
-  CAR.lock=0;CAR.spin=0;CAR.comp=0;CAR.slope=undefined;
+  CAR.lock=0;CAR.spin=0;CAR.comp=0;CAR.slope=undefined;CAR.slipDrive=0;CAR.gripMul=1;
   CAR.gear=0;CAR.shiftT=0;CAR.tTemp=0.30;CAR.drsOpen=false;CAR.drsZone=false;
-  CAR.limits=0;CAR.limitArmed=false;CAR.penalty=0;
+  CAR.limits=0;CAR.limitArmed=false;CAR.penalty=0;CAR.limitFlashT=0;
+  { const lw=$('#limitWarn'); if(lw){lw.classList.remove('on');lw.innerHTML='';}
+    const lc=$('#limChip'); if(lc){lc.classList.remove('on','pen');lc.textContent='';}
+    const tl=$('#tyreToast'); if(tl){clearTimeout(tl._h);tl.classList.remove('on');} }
   FX.reset();
   CAR.ers=0.75;CAR.ersActive=0;CAR.tire=1;CAR.damage=0;
   CAR.compound=selCompound; CAR.tireLapsLife=compoundLaps(selCompound,CFG.id);
@@ -11201,6 +12199,24 @@ function resetCar(){
 }
 function stepPhysics(dt,inp){
   const P=PHYS;
+  /* ---- PIT LANE ----------------------------------------------------------
+     Done first, because a stop in progress takes the car out of the player's
+     hands entirely and there is no point integrating anything else. */
+  if(PITSTOP.phase!=='none' && PITSTOP.phase!=='go'){
+    if(stepPitStop(dt)){
+      const bp=PITSTOP.boxPos||pitPos(PITSTOP.boxD,PIT.halfW-2.6);
+      const ah=pitPos(PITSTOP.boxD+6,PIT.halfW-2.6);
+      CAR.pos.x=bp.x; CAR.pos.z=bp.z;
+      CAR.heading=Math.atan2(ah.x-bp.x,ah.z-bp.z);
+      CAR.groundY=bp.y;
+      CAR.rig.position.set(bp.x,bp.y+0.02-(CAR.tireDrop||0)+(CAR.pitLift||0),bp.z);
+      CAR.rig.rotation.set(0,CAR.heading,0,'YXZ');
+      updatePitCrew(dt);
+      Sound.engine(0,0.12);
+      return {off:false,near:nearestTrack(CAR.pos,CAR.trackIdx,55),inPit:true};
+    }
+  }
+  updatePitCrew(dt);
   // steering command w/ speed sensitivity
   const target=inp.steer;
   CAR.steerCmd=damp(CAR.steerCmd,target,(target?P.steerRate:P.steerReturn),dt);
@@ -11210,11 +12226,21 @@ function stepPhysics(dt,inp){
 
   // longitudinal
   const dmgMul=1-CAR.damage*0.35;                  // damage saps power/aero
+  /* How much grip the tyres had LAST frame. gripMul is only known once we have
+     worked out what the car is standing on, which happens further down, but
+     traction and braking both need it before then; at 120 Hz it is 8 ms stale
+     and nothing can feel that. */
+  const gripPrev=(CAR.gripMul===undefined)?1:CAR.gripMul;
   /* ---- GEARBOX -----------------------------------------------------------
-     An 8-speed with a real torque curve per ratio, and a brief cut on every
-     upshift. Before this the car simply made a flat power figure and the gear
-     readout was cosmetic — you could not feel the engine at all, which is a lot
-     of why it did not drive like the real thing. */
+     An 8-speed with a torque curve across each ratio and a brief ignition cut on
+     every upshift. Before this the car made a flat power figure and the gear
+     readout was pure decoration — you could not feel the engine at all, which is
+     a lot of why it did not drive like the real thing.
+     To be precise about what this is: the ratio is a function of SPEED, not of
+     engine revs, so the car is always in the right gear and you cannot bog it
+     down or over-rev it. It is a speed-indexed torque curve, not a modelled
+     driveline — enough to give the engine a shape you can hear and feel through
+     a corner exit, and deliberately not a gearbox you have to manage. */
   const gearOf=(v)=>v<0.3?0:clamp(Math.ceil(v/P.vMax*8),1,8);
   const gNow=gearOf(spd);
   if(CAR.gear===undefined) CAR.gear=gNow;
@@ -11241,7 +12267,27 @@ function stepPhysics(dt,inp){
     CAR.ers=Math.min(1,CAR.ers + dt/P.ersHarvest);          // passive MGU-H trickle on power
   }
   CAR.ersActive=damp(CAR.ersActive, deploying?1:0, 12, dt);
-  let Fbrake=inp.brake*P.brakeForce;
+  /* TRACTION. The rear tyres can only put down what they can hold, and in the
+     wet that is a lot less than the engine is offering. Without this the car
+     accelerated out of a hairpin in a downpour exactly as hard as on a dry line
+     — the wheelspin effect fired and made smoke, but the car still went. Now
+     spinning the wheels genuinely costs you drive, so getting on the power early
+     in the rain is a mistake rather than a free light show. */
+  { const rearLoad=P.mass*9.81*P.aFront/(P.aFront+P.aRear) + P.downK*CAR.v*CAR.v*0.54;
+    const tractionCap=P.mu*gripPrev*rearLoad*1.05;
+    if(Fdrive>tractionCap){
+      CAR.slipDrive=clamp((Fdrive/Math.max(tractionCap,1)-1),0,1);
+      Fdrive=tractionCap*(1+0.10*CAR.slipDrive);   // a spinning tyre still pushes a little
+    } else CAR.slipDrive=0; }
+  /* BRAKING IS A GRIP PROBLEM TOO. This used to be the raw pedal times the raw
+     brake force, so stopping distances in a downpour were identical to a dry
+     line — you could stand on the pedal in standing water and pull full dry
+     deceleration. The brakes can always lock the wheels; what actually stops the
+     car is the tyre, so the demand is capped at what the contact patch will take.
+     gripMul is last frame's (it is computed further down, once the surface under
+     the car is known), which at 120 Hz is 8 ms stale and unnoticeable. */
+  const brakeCap=P.mu*gripPrev*(P.mass*9.81 + P.downK*CAR.v*CAR.v)*0.92;
+  let Fbrake=Math.min(inp.brake*P.brakeForce, brakeCap);
   /* DRS: open only inside a marked zone, above the activation speed, and it
      shuts the instant you touch the brakes — exactly as the real system does. */
   const inZone=!!(TRACK.drs && TRACK.drs[CAR.trackIdx||0]);
@@ -11265,20 +12311,61 @@ function stepPhysics(dt,inp){
   const near=nearestTrack(CAR.pos, CAR.trackIdx, 55);
   CAR.trackIdx=near.idx;
   const absLat=Math.abs(near.lat);
-  const off=absLat>TRACK.halfW+4.0;               // fully off track (past the wider kerb)
-  const onKerb=absLat>TRACK.halfW-0.15 && absLat<TRACK.halfW+2.9;
-  /* WET GRIP. A flat 36% off everywhere made the tight technical circuits close
-     to undriveable: on a fast sweeper you have downforce loading the tyres, but
-     in a second-gear corner you have almost none, so the same percentage cut is
-     far harsher there — and those corners are most of Monaco, Singapore, Baku and
-     the Hungaroring. It also ignored the wet tyres being ON the car, which is the
-     whole point of fitting them.
-     So: a gentler baseline cut, less of it at low speed where you are already
-     short of grip, and a real reward for being on the right compound. */
+  /* ---- ARE WE IN THE PIT LANE? -------------------------------------------
+     The corridor is a band of the lap, on one side of the centreline, at a
+     lateral offset that ramps in and out. Being inside it makes the surface
+     road (so the car has grip out there), suppresses the off-track penalty
+     (the pit lane is not a track-limits violation), and arms the limiter. */
+  const laneInfo=TRACK.pitLane?TRACK.pitLane[near.idx]:null;
+  const onPitSide=Math.sign(near.lat)===PIT.side;
+  const inPitLane=!!(laneInfo && onPitSide && absLat>TRACK.halfW+1.0
+                     && absLat<laneInfo.off+PIT.halfW+1.5);
+  CAR.inPit=inPitLane;
+  const off=inPitLane?false:(absLat>TRACK.halfW+4.0);   // fully off track (past the wider kerb)
+  const onKerb=inPitLane?false:(absLat>TRACK.halfW-0.15 && absLat<TRACK.halfW+2.9);
+  /* THE LIMITER. Every car has one and it is not optional, so this is a hard
+     clamp rather than a penalty — you physically cannot speed in the pit lane,
+     which is both accurate and kinder than handing out drive-throughs. */
+  if(inPitLane && CAR.v>PIT.limit){
+    CAR.v=Math.max(PIT.limit, CAR.v-28*dt);
+    CAR.limiterOn=true;
+  } else CAR.limiterOn=false;
+  /* ============================ WET GRIP ==================================
+     A wet track is not a dry track that is harder work. It is a LOOSE one.
+
+     The previous model took a modest percentage off grip everywhere and then
+     put a high floor under it, which produced exactly the wrong feel: the car
+     still bit hard on turn-in, still refused to rotate, and the only thing rain
+     changed was that everything took more effort. Tight and heavy. Rain should
+     do the opposite — the car should feel like it is floating slightly, take a
+     beat to answer the wheel, and let the back come round in a way you can see
+     coming and catch.
+
+     Three separate things make that happen, and only the first one is "less
+     grip":
+
+       1. LESS GRIP, and meaningfully less. Up to ~38% off in a downpour on the
+          right tyre, worse on the wrong one. The old 19% was not enough to
+          change how you drive.
+       2. A SOFTER TYRE. Cornering stiffness falls with wetness, so slip angle
+          has to build before the tyre gives you force back. That is the whole
+          "slippery" sensation: the car answers late and progressively instead
+          of darting, and a slide arrives as a slow lean rather than a snap.
+       3. A LOOSE REAR. The rear axle loses more than the front, so the car
+          oversteers rather than washing wide. Understeer in the rain is
+          frustrating; oversteer is the thing you are actually fighting.
+
+     Standing water on top of all that: aquaplaning scales with speed, and it
+     takes grip away fastest exactly where you least want it.                */
   const wetAmt=clamp(WEATHER.wetness,0,1);
-  const lowSpd=1-clamp(spd/45,0,1);                                 // 1 in slow corners, 0 at speed
-  const wetCut=0.19*wetAmt*(1-0.40*lowSpd);                         // ~11% off in a hairpin, 19% flat out
+  // aquaplaning — the film of water the tyre cannot clear, worse the faster you go
+  const aqua=wetAmt*wetAmt*clamp((spd-38)/95,0,1)*0.20;
+  const wetCut=clamp(0.38*wetAmt+aqua,0,0.62);
   const wetMul=1.0-wetCut;
+  /* How soft the tyre goes, and how much of the loss is charged to the rear.
+     Both are read again further down where the lateral forces are built. */
+  const wetSoft=1-0.42*wetAmt;          // multiplies Cf/Cr → force builds later
+  const wetLoose=1-0.13*wetAmt;         // multiplies the REAR friction circle only
   // tyre wear: deplete over the chosen compound's lap-life for THIS surface (laps, not seconds).
   // pushing — full throttle, sliding, braking hard, running kerbs/off — eats the life faster.
   const slipMag=Math.min(Math.abs(CAR.vLat)/6,1.5);
@@ -11290,7 +12377,9 @@ function stepPhysics(dt,inp){
      before anything else was counted against it. Normalise it so normal racing
      wears at 1.0 and the quoted life is the life you actually get; abusing the
      tyre still costs you, which is the point of the term. */
-  const wearPerM=1/Math.max(1,lifeLaps*TRACK.len);
+  // WEAR_MUL.off is 0, which turns the whole wear term off — a set then lasts
+  // the race, for anyone who wants to drive rather than manage
+  const wearPerM=WEAR_MUL[SET.tyreWear]/Math.max(1,lifeLaps*TRACK.len);
   const comp=COMPOUNDS[CAR.compound||'medium']||COMPOUNDS.medium;
   /* ---- TYRE TEMPERATURE -------------------------------------------------
      A cold tyre does not grip and neither does an overheated one. Working the
@@ -11315,21 +12404,22 @@ function stepPhysics(dt,inp){
   const tireGrip=lerp(0.82,1.0,CAR.tire)*comp.grip*tempGrip*wetFit;
   let gripMul=(off?0.55:(onKerb?0.82:1.0))*wetMul*tireGrip*rdGrip();
   if(CAR.airborne) gripMul*=0.05;      // nothing is touching the road
-  /* FLOOR ON THE WET. Four separate multipliers were all pulling the same way
-     in the rain — the surface cut, the compound's own grip, the tyre running
-     cold because rain cools it, and the wet-fit penalty — and they multiply.
-     On the CORRECT tyre in a downpour that stacked to about 62% of dry grip,
-     which on a tight circuit is not a challenge, it is a wall. Each of those
-     is a real effect and they all stay; they just are not allowed to compound
-     into something no driver could hold. On the wrong tyre you still lose a
-     lot, because that is the point of the wrong tyre — but you can get it
-     back to the pits. */
+  /* FLOOR ON THE WET. Four separate multipliers pull the same way in the rain —
+     the surface cut, the compound's own grip, the tyre running cold because rain
+     cools it, and the wet-fit penalty — and they all multiply. Left alone they
+     stack into a number no driver could do anything with, which is not a
+     challenge, it is a wall.
+     The floor is much lower than it was, because the point of the rework is that
+     the car SHOULD be short of grip in the wet: it is now there to stop the
+     multipliers compounding into a total loss of control, not to keep the car
+     fast. On the wrong tyre you lose a great deal more, because that is what the
+     wrong tyre means — but you can still get it back to the pits. */
   if(!off && wetAmt>0.05){
     const right=compoundWetFit(CAR.compound||'medium',WEATHER.wetness)>0.98;
-    const floor=(right?0.80:0.62)*rdGrip()*lerp(0.82,1.0,CAR.tire);
+    const floor=(right?0.56:0.42)*rdGrip()*lerp(0.82,1.0,CAR.tire);
     gripMul=Math.max(gripMul, floor*(onKerb?0.82:1.0));
   }
-  CAR.gripMul=gripMul;                 // next frame's brake cap uses this
+  CAR.gripMul=gripMul;                 // the brake cap above reads this next frame
   /* THE WEAR ITSELF. The two terms folded in here used to take a flat slice of
      the tyre PER SECOND: 0.004/s outside the temperature window and up to
      0.014/s on the wrong compound. Over a two-minute lap that is half a set and
@@ -11389,15 +12479,27 @@ function stepPhysics(dt,inp){
   const loadF=m*g*b/L + df*0.46, loadR=m*g*a/L + df*0.54;
   // tyres give grip back as the aero load piles on — see TYRE_LS
   const muF=P.mu*tyreMuFactor(loadF,m*g*b/L), muR=P.mu*tyreMuFactor(loadR,m*g*a/L);
-  const FyfMax=muF*gripMul*loadF, FyrMax=muR*gripMul*loadR;
+  /* THE LOOSE REAR. wetLoose only touches the rear axle's friction circle, so as
+     the track wets the back of the car runs out of grip before the front does.
+     That is the difference between a wet lap that washes wide at every corner
+     (miserable) and one where the car steps out on the exit and you catch it
+     (the reason people watch wet races). */
+  const FyfMax=muF*gripMul*loadF, FyrMax=muR*gripMul*loadR*wetLoose;
   const vx=Math.max(Math.abs(CAR.v),0.6);
   let af=0,ar=0;
   if(spd>1.2){
     af=CAR.steer - Math.atan2(CAR.vLat + CAR.yawRate*a, vx);
     ar=          - Math.atan2(CAR.vLat - CAR.yawRate*b, vx);
   }
-  let Fyf=clamp(P.Cf*af,-FyfMax,FyfMax);
-  let Fyr=clamp(P.Cr*ar,-FyrMax,FyrMax);
+  /* THE SOFT TYRE. In the dry the tyre is stiff: a little slip angle produces a
+     lot of force straight away, which is why the car darts at the apex. Water
+     takes that stiffness away — the same slip angle buys you much less force, so
+     you have to wind more angle in and the car answers a beat late and then
+     keeps rotating. Scaling Cf/Cr by wetSoft is the single change that turns
+     "wet is hard work" into "wet is slippery", and it also means a slide comes
+     on gradually enough to see and hold instead of snapping past the clip. */
+  let Fyf=clamp(P.Cf*wetSoft*af,-FyfMax,FyfMax);
+  let Fyr=clamp(P.Cr*wetSoft*ar,-FyrMax,FyrMax);
   const vLatDot=(Fyf+Fyr)/m - CAR.v*CAR.yawRate;
   const yawAcc=(a*Fyf - b*Fyr)/Iz;
   CAR.vLat   += vLatDot*dt;
@@ -11467,6 +12569,9 @@ function stepPhysics(dt,inp){
 
     // FRONT LOCK-UP: hard on the brakes at speed, past what the front axle can
     // take. Real lock-ups smoke white and flat-spot the tyre.
+    // FRONT LOCK-UP threshold: the raw pedal demand against what the front axle
+    // will take. Uses the UNCAPPED demand on purpose — a lock-up is exactly the
+    // case where you asked for more than the tyre had.
     const brakeDemand=(inp.brake||0)*P.brakeForce;
     const frontCap=P.mu*gripMul*loadF*1.9;
     CAR.lock=damp(CAR.lock||0, (spd>16 && brakeDemand>frontCap)?1:0, 14, dt);
@@ -11480,10 +12585,15 @@ function stepPhysics(dt,inp){
       CAR.tire=Math.max(0,CAR.tire-dt*0.010*CAR.lock);     // flat-spotting costs tyre life
     }
 
-    // WHEELSPIN: too much torque for the rear tyres, mostly out of slow corners
-    const rearCap=P.mu*gripMul*loadR;
-    const tractionDemand=Math.abs(Fdrive);
-    CAR.spin=damp(CAR.spin||0, (spd<34 && (inp.throttle||0)>0.55 && tractionDemand>rearCap*0.85)?1:0, 12, dt);
+    /* WHEELSPIN. Driven off CAR.slipDrive — the traction limiter above already
+       works out how much more torque was asked for than the tyres would take, so
+       the smoke appears exactly when drive is actually being lost rather than
+       being guessed at a second time from the uncapped demand. (Reading Fdrive
+       here no longer works: by this point it has been clipped to the cap, so the
+       old test could never fire.) In the wet the cap is far lower, so the rears
+       light up at speeds where a dry lap would simply drive away. */
+    CAR.spin=damp(CAR.spin||0,
+      ((CAR.slipDrive||0)>0.02 && (inp.throttle||0)>0.35 && spd>1.5)?clamp((CAR.slipDrive||0)*3,0,1):0, 12, dt);
     if(CAR.spin>0.25){
       for(const sx of [-1,1]){
         const px=rearX+rgtX*sx*0.85, pz=rearZ+rgtZ*sx*0.85;
@@ -11547,6 +12657,25 @@ function stepPhysics(dt,inp){
           0.88,0.90,0.93, 0.62, 0.55, 2.6, 1.9);}
     }
   }
+  /* ---- ARRIVING IN THE BOX ------------------------------------------------
+     Stationary, in the lane, on your marks. The window is generous enough to
+     be hittable at 80 km/h coming in but tight enough that you have to aim for
+     it — stop short or long and you have to shuffle the car into place. */
+  if(inPitLane && PITSTOP.phase==='none' && STATE==='drive' && PITSTOP.boxPos){
+    /* Measured as a straight-line distance to the box itself, not as an arc
+       length along the centreline. TRACK.cum only has a sample every ~6 m, so
+       comparing quantised lap distances could be three metres out before you
+       start — which is wider than the box. */
+    const bx=CAR.pos.x-PITSTOP.boxPos.x, bz=CAR.pos.z-PITSTOP.boxPos.z;
+    if(bx*bx+bz*bz < 3.4*3.4 && spd<2.6){
+      PITSTOP.phase='stopped'; PITSTOP.t=0.12; PITSTOP.total=0;
+      placePitCrew();
+      Radio.say('engineer','box_confirm',{cool:0});
+    }
+  }
+  // leaving the corridor clears the "you have been released" state
+  if(!inPitLane && PITSTOP.phase==='go') PITSTOP.phase='none';
+
   const rumble=CAR.kerb?Math.sin(performance.now()*0.05)*0.035*clamp(spd/22,0,1):0;
   // seat the tyres exactly on the road surface (road strip sits +0.02; tireDrop removes the float)
   CAR.rig.position.set(CAR.pos.x, CAR.groundY+0.02-(CAR.tireDrop||0)+rumble+(CAR.hop||0), CAR.pos.z);
@@ -11579,7 +12708,9 @@ function stepPhysics(dt,inp){
   Sound.engine(spd, inp.throttle);
   return {off, near};
 }
-if(typeof window!=='undefined'){window.__step=stepPhysics;window.__reset=resetCar;
+/* Debug handles. These are for poking at the sim from the console; shipping them
+   unconditionally hands every internal in the game to the page. Behind ?debug. */
+if(DEBUG){window.__step=stepPhysics;window.__reset=resetCar;
   window.__buildTrack=(id)=>{buildWorld(driveScene,TRACKS[id]);builtTrackId=id;return true;};
   window.__trackIds=()=>Object.keys(TRACKS);
   window.__driveScene=driveScene; window.__updateDynamicSky=updateDynamicSky;
@@ -11590,14 +12721,132 @@ if(typeof window!=='undefined'){window.__step=stepPhysics;window.__reset=resetCa
   window.__makeLivery=makeLivery; window.__liveryIds=()=>LIVERY_IDS;
   window.__FX=FX; window.__CAR=()=>CAR;}
 
-/* nearest centreline point (dist + signed lateral + outward normal) */
-function nearestTrack(pos,hint,window){
+/* ==================================================================
+   THE PIT STOP
+   Phases, in order, with the timings a real stop actually has. The car is only
+   taken out of the player's hands once it is stationary in the box — you drive
+   the entry, you hit your marks, and if you overshoot you have to reverse back,
+   which is exactly the pressure that makes a stop worth doing.
+   ================================================================== */
+const STOP=
+  { none:0, jack:0.55, change:2.15, drop:0.40, hold:0.35 };   // seconds per phase
+const PITSTOP={
+  phase:'none',      // none | stopped | jack | change | drop | hold | go
+  t:0,               // seconds left in the current phase
+  total:0,           // elapsed stop time, for the readout
+  planLap:null,      // lap the strategy window asked for (null = no plan)
+  planComp:'medium', // compound to fit
+  armed:false,       // the plan is for THIS lap — the engineer has called you in
+  done:0,            // stops completed
+  lastTime:null,     // duration of the last completed stop
+  boxD:0,            // signed distance of the player's box
+};
+function pitReset(){
+  PITSTOP.phase='none'; PITSTOP.t=0; PITSTOP.total=0;
+  PITSTOP.planLap=null; PITSTOP.armed=false; PITSTOP.done=0; PITSTOP.lastTime=null;
+  PITSTOP.boxPos=null; CAR.pitLift=0;
+  const c=driveScene.userData.pitCrew; if(c) c.group.visible=false;
+}
+/* Put the crew on the ground around the player's box. The group is built in a
+   local frame (+x toward the garages, +z along the lane) and dropped onto the
+   circuit here, so it lands correctly whatever the pit straight is doing. */
+function placePitCrew(){
+  const pc=driveScene.userData.pitCrew; if(!pc) return;
+  const d=PITSTOP.boxD;
+  /* Anchored on the BOX, not the centre of the lane. The crew works around the
+     car, and the car stops over toward the garage side — putting the group on
+     the lane centreline left them standing three metres away from the car they
+     were supposed to be changing the wheels on. */
+  const across=PIT.halfW-2.6;
+  const c0=pitPos(d,across), ahead=pitPos(d+6,across);
+  const yaw=Math.atan2(ahead.x-c0.x,ahead.z-c0.z);
+  pc.group.position.set(c0.x,c0.y,c0.z);
+  pc.group.rotation.set(0,yaw,0);
+  pc.group.visible=true;
+  for(const m of pc.crew) m.f.position.copy(m.f.userData.home);
+}
+/* Drive the animation. Everything is keyed off the phase timer so the whole
+   sequence stays in step with the clock the stop is actually timed against. */
+function updatePitCrew(dt){
+  const pc=driveScene.userData.pitCrew; if(!pc||!pc.group.visible) return;
+  const ph=PITSTOP.phase;
+  // 0 while the car is arriving, 1 once the crew is on it
+  const engaged=(ph==='jack'||ph==='change'||ph==='drop')?1:0;
+  for(const m of pc.crew){
+    const want=engaged?m.f.userData.work:m.f.userData.home;
+    m.f.position.lerp(want,1-Math.exp(-11*dt));
+    if(m.role==='gun'){
+      // the gun goes to the nut during the change and rattles while it is there
+      const on=(ph==='change');
+      m.f.userData.gun.rotation.x=damp(m.f.userData.gun.rotation.x,on?-0.9:0,12,dt);
+      if(on) m.f.userData.gun.position.x=Math.sin(performance.now()*0.09+m.i)*0.02;
+      m.f.userData.arms.rotation.x=damp(m.f.userData.arms.rotation.x,on?-0.55:0,10,dt);
+    }else if(m.role==='carry'){
+      // old wheel off in the first half of the change, new wheel on in the second
+      const half=PITSTOP.t>STOP.change*0.5;
+      const lift=(ph==='change')?(half?0.30:0.05):0.66;
+      m.f.userData.wheel.position.y=damp(m.f.userData.wheel.position.y,lift,9,dt);
+      m.f.userData.wheel.rotation.x+=(ph==='change'?6:0)*dt;
+    }else if(m.role==='jack'){
+      // the jack swings under on approach and levers the car up
+      const under=(ph==='jack'||ph==='change');
+      m.f.userData.jack.rotation.x=damp(m.f.userData.jack.rotation.x,under?-0.30:0.55,10,dt);
+    }else if(m.role==='lolly'){
+      // red the whole way through, green the instant the car is released
+      const go=(ph==='hold'||ph==='go'||ph==='none');
+      pc.lampMat.emissive.setHex(go?0x22ff44:0xff1810);
+      pc.lampMat.emissiveIntensity=(ph==='hold')?4.2:2.4;
+    }
+  }
+}
+/* Run the stop itself. Called from stepPhysics once the car is stationary in
+   the box; returns true while it has control of the car. */
+function stepPitStop(dt){
+  const P=PITSTOP;
+  if(P.phase==='none') return false;
+  P.total+=dt; P.t-=dt;
+  // the car is pinned in the box and lifted on the jacks
+  CAR.v=0; CAR.vLat=0; CAR.yawRate=0;
+  const lifted=(P.phase==='change')?0.085:(P.phase==='jack'?0.085*(1-clamp(P.t/STOP.jack,0,1))
+              :(P.phase==='drop'?0.085*clamp(P.t/STOP.drop,0,1):0));
+  CAR.pitLift=lifted;
+  if(P.t>0) return true;
+  if(P.phase==='stopped'){ P.phase='jack';  P.t=STOP.jack;  Sound.blip(300,.10); }
+  else if(P.phase==='jack'){ P.phase='change'; P.t=STOP.change;
+    Sound.whoosh(0.35,0.30); }
+  else if(P.phase==='change'){
+    // NEW RUBBER ON. This is the point of the whole exercise.
+    fitTyres(P.planComp||selCompound,true);
+    CAR.damage=Math.max(0,(CAR.damage||0)-0.45);      // the crew pulls the damaged wing off
+    P.phase='drop'; P.t=STOP.drop; Sound.hit();
+  }
+  else if(P.phase==='drop'){ P.phase='hold'; P.t=STOP.hold; }
+  else if(P.phase==='hold'){
+    P.phase='go'; P.t=0; P.done++; P.lastTime=P.total;
+    P.planLap=null; P.armed=false;
+    CAR.pitLift=0;
+    Radio.say('engineer','new_tyres',{cool:0});
+    const tl=$('#tyreToast');
+    if(tl){tl.textContent=`STOP COMPLETE · ${P.total.toFixed(1)}s · ${COMPOUNDS[CAR.compound].name.toUpperCase()}`;
+      tl.style.color='#4be08a'; tl.classList.add('on');
+      clearTimeout(tl._h); tl._h=setTimeout(()=>tl.classList.remove('on'),2600);}
+    Sound.rev();
+    return false;
+  }
+  return true;
+}
+
+/* nearest centreline point (dist + signed lateral + outward normal)
+   `span` is how many points either side of the hint to search. It used to be
+   named `window`, which shadowed the global inside this function — harmless
+   today only because nothing here touches it, and a trap for the next edit. */
+function nearestTrack(pos,hint,span){
   let best=1e9,bi=hint==null?0:hint;
   if(hint==null){
     for(let i=0;i<TRACK.N;i++){const p=TRACK.pts[i];
       const dx=pos.x-p.x,dz=pos.z-p.z;const d=dx*dx+dz*dz;if(d<best){best=d;bi=i;}}
   }else{ // search only near the car's current progress → never snaps to another section
-    for(let d=-window;d<=window;d++){const i=(hint+d+TRACK.N)%TRACK.N;const p=TRACK.pts[i];
+    for(let d=-span;d<=span;d++){const i=(hint+d+TRACK.N)%TRACK.N;const p=TRACK.pts[i];
       const dx=pos.x-p.x,dz=pos.z-p.z;const dd=dx*dx+dz*dz;if(dd<best){best=dd;bi=i;}}
   }
   const p=TRACK.pts[bi],n=TRACK.nrm[bi];
@@ -11658,7 +12907,7 @@ function fmt(s){if(s==null)return'—:——.—';const m=Math.floor(s/60);const
    ================================================================== */
 const Sound={ctx:null,master:null,osc:null,osc2:null,gain:null,filt:null,muted:false,started:false,
   init(){if(this.ctx)return;try{this.ctx=new(window.AudioContext||window.webkitAudioContext)();
-    this.master=this.ctx.createGain();this.master.gain.value=0.6;this.master.connect(this.ctx.destination);}catch(e){}},
+    this.master=this.ctx.createGain();this.master.gain.value=SET.volMaster;this.master.connect(this.ctx.destination);}catch(e){}},
   start(){if(!this.ctx||this.started)return;this.started=true;const t=this.ctx.currentTime;
     this.osc=this.ctx.createOscillator();this.osc2=this.ctx.createOscillator();
     this.gain=this.ctx.createGain();this.filt=this.ctx.createBiquadFilter();
@@ -11668,7 +12917,7 @@ const Sound={ctx:null,master:null,osc:null,osc2:null,gain:null,filt:null,muted:f
   engine(spd,thr){if(!this.osc)return;const rpm=0.15+Math.min(spd/PHYS.vMax,1)*0.85;
     const f=60+rpm*520;this.osc.frequency.value=f;this.osc2.frequency.value=f*1.5;
     this.filt.frequency.value=500+rpm*3600+thr*1200;
-    this.gain.gain.value=this.muted?0:(0.05+rpm*0.16+thr*0.05);},
+    this.gain.gain.value=this.muted?0:(0.05+rpm*0.16+thr*0.05)*SET.volEngine;},
   blip(fr=600,d=.06){if(!this.ctx||this.muted)return;const t=this.ctx.currentTime;
     const o=this.ctx.createOscillator(),g=this.ctx.createGain();o.type='square';o.frequency.value=fr;
     g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(.12,t+.01);g.gain.exponentialRampToValueAtTime(.0001,t+d);
@@ -11692,7 +12941,7 @@ const Sound={ctx:null,master:null,osc:null,osc2:null,gain:null,filt:null,muted:f
     o.frequency.setValueAtTime(80,t);o.frequency.linearRampToValueAtTime(560,t+0.5);o.frequency.linearRampToValueAtTime(120,t+0.9);
     g.gain.setValueAtTime(0.0,t);g.gain.linearRampToValueAtTime(0.2,t+0.1);g.gain.exponentialRampToValueAtTime(0.0001,t+0.95);
     o.connect(f).connect(g).connect(this.master);o.start();o.stop(t+1.0);},
-  toggle(){this.muted=!this.muted;if(this.master)this.master.gain.value=this.muted?0:0.6;
+  toggle(){this.muted=!this.muted;if(this.master)this.master.gain.value=this.muted?0:SET.volMaster;
     $('#sndIcon').innerHTML=this.muted?'<path d="M4 9v6h4l5 4V5L8 9H4z"/><path d="M23 9l-6 6M17 9l6 6"/>':'<path d="M4 9v6h4l5 4V5L8 9H4z"/><path d="M16 8a5 5 0 010 8"/>';return this.muted;}
 };
 $('#sndBtn').addEventListener('click',()=>{Sound.init();Sound.toggle();Sound.blip(420);});
@@ -11739,9 +12988,17 @@ const Radio={
     const idx=(Math.random()*a.length)|0; return {text:a[idx],idx};},
   say(kind,ev,{cool=9,vars={}}={}){
     if(Sound.muted) return;
+    // each voice can be turned off on its own — some people want the engineer
+    // but not the commentary box, and vice versa
+    if(kind==='engineer'   && !SET.radioEngineer)   return;
+    if(kind==='commentator'&& !SET.radioCommentary) return;
     const now=performance.now(), key=kind+'/'+ev;
     if(this.last[key] && now-this.last[key]<cool*1000) return;         // per-line cooldown
-    if(this.last['_any'+kind] && now-this.last['_any'+kind]<2500) { this.q.push({kind,ev,vars}); return; }
+    // queue behind the last line of the SAME kind, and never let the queue grow
+    // without bound — a stale line delivered a lap later is worse than no line
+    if(this.last['_any'+kind] && now-this.last['_any'+kind]<2500) {
+      if(this.q.length<6) this.q.push({kind,ev,vars,t:now});
+      return; }
     this.last[key]=now; this.last['_any'+kind]=now;
     const p=this.pick(kind,ev); if(!p) return;
     let text=p.text; for(const k in vars) text=text.replace('{'+k+'}',vars[k]);
@@ -11755,18 +13012,35 @@ const Radio={
     else{const b=$('#comBox');$('#comText').textContent='“'+text+'”';b.classList.add('on');
       clearTimeout(this._ch);this._ch=setTimeout(()=>b.classList.remove('on'),Math.max(3200,text.length*68));}
   },
+  /* Are the baked clips present at all? tools/generate_radio.mjs writes them and
+     they are not committed, so on a plain checkout EVERY line used to fire a
+     failed <audio> load and log a 404 before falling back to speech. One HEAD
+     request settles it for the whole session: `baked` is null while unknown,
+     false once we know the folder is not there, true once a clip has answered. */
+  baked:null, probing:false,
+  probe(){
+    if(this.probing||this.baked!==null) return;
+    this.probing=true;
+    const first=(RADIO_LINES.engineer&&RADIO_LINES.engineer.start)?'assets/radio/engineer/start_0.mp3':null;
+    if(!first){ this.baked=false; return; }
+    fetch(first,{method:'HEAD'})
+      .then(r=>{ this.baked=!!r.ok; })
+      .catch(()=>{ this.baked=false; });
+  },
   play(kind,ev,idx,text){
+    if(this.baked===null){ this.probe(); this.speak(kind,text); return; }
+    if(this.baked===false){ this.speak(kind,text); return; }
     // prefer a pre-baked ElevenLabs clip if it exists; else use browser speech
     const vk=kind==='engineer'?'engineer':'commentator';
     const url='assets/radio/'+vk+'/'+ev+'_'+idx+'.mp3';
-    if(this.clipOk[url]!==false){
-      const a=new Audio(url); a.volume=0.9;
-      a.onplaying=()=>{this.clipOk[url]=true;};
-      a.onerror=()=>{ if(this.clipOk[url]!==true){this.clipOk[url]=false; this.speak(kind,text);} };
-      a.play().catch(()=>{ if(this.clipOk[url]!==true){this.clipOk[url]=false; this.speak(kind,text);} });
-    } else this.speak(kind,text);
+    if(this.clipOk[url]===false){ this.speak(kind,text); return; }
+    const a=new Audio(url); a.volume=0.9;
+    a.onplaying=()=>{this.clipOk[url]=true;};
+    a.onerror=()=>{ if(this.clipOk[url]!==true){this.clipOk[url]=false; this.speak(kind,text);} };
+    a.play().catch(()=>{ if(this.clipOk[url]!==true){this.clipOk[url]=false; this.speak(kind,text);} });
   },
   speak(kind,text){
+    if(!SET.speech) return;                 // captions only
     if(!('speechSynthesis' in window)) return;
     try{ const u=new SpeechSynthesisUtterance(text);
       const vs=speechSynthesis.getVoices();
@@ -11779,11 +13053,22 @@ const Radio={
   },
   reset(){this.q=[];this.last={};}
 };
-// drain any queued lines shortly after the last one
-setInterval(()=>{ if(!Radio.q.length)return; const now=performance.now();
-  if(!Radio.last['_anyengineer']||now-Radio.last['_anyengineer']>2600){ const n=Radio.q.shift(); if(n)Radio.say(n.kind,n.ev,{vars:n.vars,cool:0}); }
+/* Drain any queued lines shortly after the last one OF THAT KIND. This used to
+   check '_anyengineer' no matter what was queued, so a commentator line sat
+   behind the engineer's timer and could be starved outright. A queued line that
+   has gone stale (the moment it described is 12 s gone) is dropped rather than
+   delivered late — "lights out, we are racing" two corners in is worse than
+   silence. Only runs while there is actually a session to talk over. */
+setInterval(()=>{
+  if(!Radio.q.length) return;
+  if(STATE!=='drive'&&STATE!=='result'){ Radio.q.length=0; return; }
+  const now=performance.now();
+  while(Radio.q.length && now-(Radio.q[0].t||now)>12000) Radio.q.shift();
+  const n=Radio.q[0]; if(!n) return;
+  const lastOfKind=Radio.last['_any'+n.kind];
+  if(!lastOfKind || now-lastOfKind>2600){ Radio.q.shift(); Radio.say(n.kind,n.ev,{vars:n.vars,cool:0}); }
 },1200);
-if(typeof window!=='undefined') window.__Radio=Radio;
+if(DEBUG) window.__Radio=Radio;
 // keep lines in sync with the generator: load assets/radio/lines.json if present
 fetch('assets/radio/lines.json').then(r=>r.ok?r.json():null).then(j=>{ if(!j)return;
   if(j.engineer)Object.assign(RADIO_LINES.engineer,j.engineer);
@@ -11894,11 +13179,18 @@ function updateReplay(dt){
 const CAM_MODES=['chase','cockpit','hood','tcam','trackside','helicam','ground'];
 const CAM_LABEL={chase:'CHASE',cockpit:'COCKPIT',hood:'HOOD',tcam:'T-CAM',
   trackside:'TRACKSIDE',helicam:'HELICAM',ground:'LOW'};
-function syncVisor(){const v=$('#visorMask'); if(v)v.style.opacity=CAM.mode==='cockpit'?1:0;}
+function syncVisor(){
+  const on=CAM.mode==='cockpit' && SET.helmet;
+  // the CSS layer is now only the soft peripheral falloff over the top of the
+  // real geometry — the helmet itself is the thing doing the occluding
+  const v=$('#visorMask'); if(v)v.style.opacity=on?1:0;
+  if(CAR.helmet){ CAR.helmet.visible=on;
+    if(on){ CAR.helmet.position.set(0,0,0); CAR.helmet.rotation.set(0,0,0); } }
+}
 function cycleCam(){CAM.mode=CAM_MODES[(CAM_MODES.indexOf(CAM.mode)+1)%CAM_MODES.length];
   CAM.tsPost=null;
   $('#camName').textContent=CAM_LABEL[CAM.mode]||CAM.mode.toUpperCase();Sound.blip(520,.05);syncVisor();}
-if(typeof window!=='undefined'){window.__setCam=(m)=>{CAM.mode=m;CAM.tsPost=null;$('#camName').textContent=CAM_LABEL[m]||m.toUpperCase();syncVisor();};
+if(DEBUG){window.__setCam=(m)=>{CAM.mode=m;CAM.tsPost=null;$('#camName').textContent=CAM_LABEL[m]||m.toUpperCase();syncVisor();};
   window.__setLivery=(t)=>setLivery(t); window.__snapCam=()=>snapCamera();
   // dev/QA: park the camera on a high orbit to inspect the whole venue
   window.__aerial=(h,ang,dist)=>{CAM.mode='free';
@@ -11909,8 +13201,25 @@ if(typeof window!=='undefined'){window.__setCam=(m)=>{CAM.mode=m;CAM.tsPost=null
   window.__zoneBoards=()=>ZONE_SPONSORS.map(makeZoneBoard); window.__simQuali=simulateQualifying; window.__initRD=initRD; window.__rdGrip=rdGrip; window.__rdPower=rdPower; window.__commitLap=replayCommitLap; window.__updateReplay=updateReplay; window.__pickLap=replayPickLap;
   setTimeout(()=>{window.__SEASON=SEASON;window.__endSeasonRace=endSeasonRace;window.__seasonBuildTable=seasonBuildTable;
     window.__seasonConstructors=seasonConstructors;},0);
-  window.__replayRecord=replayRecord;}
+  window.__replayRecord=replayRecord;
+  window.__PITSTOP=PITSTOP;window.__pitPos=pitPos;window.__PIT=PIT;
+  window.__CINE=()=>CINE;window.__CHASE=()=>CHASE;
+  window.__nearestTrack=nearestTrack;window.__lapSigned=lapSigned;window.__pitLaneAt=pitLaneAt;
+  setTimeout(()=>{window.__openSettings=openSettings;window.__closeSettings=closeSettings;
+    window.__SET=SET;window.__applySettings=applySettings;},0);}
+/* Every camera picks its own field of view, and each of them returns as soon as
+   it has. Rather than thread the player's FOV preference through all seven, the
+   real work happens in updateCameraRaw() and this wrapper scales whatever it
+   settled on — one place, and a new camera mode gets the setting for free. */
 function updateCamera(dt){
+  updateCameraRaw(dt);
+  const s=SET.fovScale;
+  if(s!==1 && CAM.mode!=='free'){
+    camera.fov=clamp(camera.fov*s,12,120);
+    camera.updateProjectionMatrix();
+  }
+}
+function updateCameraRaw(dt){
   const spd=Math.abs(CAR.v);
   if(CAM.mode==='free') return;                 // dev/QA aerial: leave the camera where it was parked
   const fwd0=new THREE.Vector3(Math.sin(CAR.heading),0,Math.cos(CAR.heading));
@@ -12038,6 +13347,193 @@ const MODES=[
    meta:[['Assists','LOW'],['Input','KEYS'],['Units','KM/H']]},
 ];
 let sel=0, sessionMode='gp';
+
+/* ==================================================================
+   SETTINGS
+   Everything the game used to hard-code and never let you touch, in one
+   place, applied live and remembered between sessions.
+
+   The schema below is the single source of truth: the screen renders itself
+   from it, the keyboard walks it, and applySettings() reads it. Adding an
+   option means adding one entry here and one line in applySettings — there is
+   no separate list of widgets to keep in sync.
+
+   Nothing in here is decorative. Every option is wired to something that
+   actually changes; an option that does nothing is worse than no option,
+   because it makes you doubt the ones that work.
+   ================================================================== */
+const SETTINGS_DEF=[
+ {id:'view', t:'Camera & View', items:[
+   {k:'helmet',type:'bool',t:'Cockpit helmet',
+    d:'Show the driver’s helmet, visor and eye port in the cockpit camera. Off gives an unobstructed view.'},
+   {k:'headMotion',type:'range',t:'Head movement',min:0,max:1.6,step:0.2,pct:true,
+    d:'How much the helmet moves against the car under braking, cornering and over kerbs.'},
+   {k:'defaultCam',type:'enum',t:'Starting camera',
+    opts:[['chase','CHASE'],['cockpit','COCKPIT'],['hood','HOOD'],['tcam','T-CAM'],
+          ['trackside','TRACKSIDE'],['helicam','HELICAM'],['ground','LOW']],
+    d:'Which camera a session begins on. C still cycles through all of them.'},
+   {k:'fovScale',type:'range',t:'Field of view',min:0.8,max:1.3,step:0.05,pct:true,
+    d:'Widens or narrows every camera. Higher feels faster and shows more of the track.'},
+   {k:'vignette',type:'bool',t:'Vignette',d:'Darkened corners of the frame.'},
+   {k:'grain',type:'bool',t:'Film grain',d:'Broadcast-style grain over the picture.'},
+ ]},
+ {id:'hud', t:'HUD', items:[
+   {k:'hudTiming',type:'bool',t:'Timing tower',d:'Position, lap, current/last/best and sector times.'},
+   {k:'hudMap',type:'bool',t:'Track map & weather',d:'The minimap, conditions and DRS/camera status.'},
+   {k:'hudStatus',type:'bool',t:'Car status panel',d:'Tyre life, temperature, damage and battery, bottom left.'},
+   {k:'hudHints',type:'bool',t:'Control hints',d:'The list of keys in the corner of the screen.'},
+   {k:'units',type:'enum',t:'Speed units',opts:[['kmh','KM/H'],['mph','MPH']],
+    d:'Units on the speed readout.'},
+ ]},
+ {id:'audio', t:'Audio', items:[
+   {k:'volMaster',type:'range',t:'Master volume',min:0,max:1,step:0.1,pct:true,d:'Everything the game plays.'},
+   {k:'volEngine',type:'range',t:'Engine volume',min:0,max:1.5,step:0.1,pct:true,
+    d:'The engine note, relative to everything else.'},
+   {k:'radioEngineer',type:'bool',t:'Team radio',d:'Your race engineer on the radio during a session.'},
+   {k:'radioCommentary',type:'bool',t:'Commentary',d:'Broadcast commentary over the big moments.'},
+   {k:'speech',type:'bool',t:'Spoken radio',
+    d:'Read the radio out loud using the browser’s voice. Off leaves the captions only.'},
+ ]},
+ {id:'race', t:'Racing', items:[
+   {k:'difficulty',type:'enum',t:'AI difficulty',
+    opts:[['rookie','ROOKIE'],['pro','PRO'],['legend','LEGEND']],
+    d:'How quick the field is. Legend runs closer to the limit and makes fewer mistakes.'},
+   {k:'raceLaps',type:'enum',t:'Race length',
+    opts:[[3,'3 LAPS'],[5,'5 LAPS'],[8,'8 LAPS'],[12,'12 LAPS'],[20,'20 LAPS'],[35,'35 LAPS']],
+    d:'Laps in a season race. Longer races make tyre strategy matter more.'},
+   {k:'weatherMode',type:'enum',t:'Weather',
+    opts:[['dynamic','DYNAMIC'],['clear','CLEAR'],['cloud','OVERCAST'],['rain','RAIN'],['storm','STORM']],
+    d:'Dynamic rolls fronts through mid-race. The rest force one condition.'},
+   {k:'tyreWear',type:'enum',t:'Tyre wear',opts:[['off','OFF'],['low','LOW'],['normal','NORMAL'],['high','HIGH']],
+    d:'How fast a set goes off. Off means a set lasts the whole race.'},
+   {k:'trackLimits',type:'bool',t:'Track limits',
+    d:'Police running wide: three warnings, then a five-second penalty.'},
+   {k:'steerSpeed',type:'range',t:'Steering speed',min:0.5,max:1.8,step:0.1,pct:true,
+    d:'How fast the wheel answers the key. Lower is smoother, higher is sharper.'},
+ ]},
+ {id:'gfx', t:'Graphics', items:[
+   {k:'shadows',type:'bool',t:'Shadows',d:'Sun shadows on the car and the circuit. The biggest single frame-rate cost.'},
+   {k:'fxDensity',type:'enum',t:'Effects detail',opts:[['low','LOW'],['med','MEDIUM'],['high','HIGH']],
+    d:'Tyre smoke, sparks, spray and debris. Lower if the frame rate drops in the rain.'},
+   {k:'resScale',type:'range',t:'Resolution scale',min:0.5,max:1.0,step:0.1,pct:true,
+    d:'Renders below native and scales up. The most effective thing to lower on a slow machine.'},
+ ]},
+];
+/* Push the current settings into the running game. Safe to call at any time and
+   as often as you like — everything here is idempotent. */
+function applySettings(){
+  // --- view ---
+  const g=$('#grain'); if(g) g.style.display=SET.grain?'':'none';
+  const vg=$('#vignette'); if(vg) vg.style.display=SET.vignette?'':'none';
+  syncVisor();
+  // --- hud ---
+  const show=(s,on)=>{const e=$(s); if(e) e.style.display=on?'':'none';};
+  show('#timing',SET.hudTiming); show('#mapWrap',SET.hudMap);
+  show('#carInfo',SET.hudStatus); show('#keyHelp',SET.hudHints);
+  const su=$('#speedU'); if(su) su.textContent=SET.units==='mph'?'MPH':'KM/H';
+  { const marks=$('#speedMarks');
+    if(marks) marks.innerHTML=SET.units==='mph'?'<span>0</span><span>110</span><span>215</span>'
+                                               :'<span>0</span><span>175</span><span>350</span>'; }
+  // --- audio ---
+  if(Sound.master) Sound.master.gain.value=Sound.muted?0:SET.volMaster;
+  // --- gameplay ---
+  PHYS.steerRate=3.8*SET.steerSpeed; PHYS.steerReturn=6.4*SET.steerSpeed;
+  SEASON.raceLaps=SET.raceLaps;
+  // --- graphics ---
+  if(renderer.shadowMap.enabled!==SET.shadows){
+    renderer.shadowMap.enabled=SET.shadows;
+    driveScene.traverse(o=>{if(o.isMesh&&o.material)
+      (Array.isArray(o.material)?o.material:[o.material]).forEach(m=>{m.needsUpdate=true;});});
+  }
+  renderer.setPixelRatio(Math.min(devicePixelRatio,1.5)*SET.resScale);
+  renderer.setSize(innerWidth,innerHeight);
+}
+/* ---- the screen ---- */
+let setOn=false, setTab=0, setRow=0;
+function setItems(){ return SETTINGS_DEF[setTab].items; }
+function fmtSetting(it){
+  const v=SET[it.k];
+  if(it.type==='bool') return v?'ON':'OFF';
+  if(it.type==='enum'){ const o=it.opts.find(o=>o[0]===v); return o?o[1]:String(v); }
+  return it.pct?Math.round(v*100)+'%':String(v);
+}
+function bumpSetting(it,dir){
+  const v=SET[it.k];
+  if(it.type==='bool') SET[it.k]=!v;
+  else if(it.type==='enum'){
+    const i=it.opts.findIndex(o=>o[0]===v);
+    SET[it.k]=it.opts[((i<0?0:i)+dir+it.opts.length)%it.opts.length][0];
+  }else{
+    const n=Math.round((v+dir*it.step)/it.step)*it.step;
+    SET[it.k]=clamp(Number(n.toFixed(3)),it.min,it.max);
+  }
+  saveSettings(); applySettings(); renderSettings();
+  Sound.init(); Sound.blip(it.type==='bool'?(SET[it.k]?620:420):520,.04);
+}
+function renderSettings(){
+  const tabs=$('#setTabs'); if(!tabs) return;
+  tabs.innerHTML='';
+  SETTINGS_DEF.forEach((gp,i)=>{
+    const d=document.createElement('div');
+    d.className='setTab'+(i===setTab?' on':''); d.textContent=gp.t;
+    d.onclick=()=>{setTab=i;setRow=0;renderSettings();Sound.blip(480,.04);};
+    tabs.appendChild(d);
+  });
+  const pane=$('#setPane'); pane.innerHTML='';
+  setItems().forEach((it,i)=>{
+    const row=document.createElement('div');
+    row.className='setRow'+(i===setRow?' cur':'');
+    const left=document.createElement('div'); left.className='sL';
+    const nm=document.createElement('div'); nm.className='sN'; nm.textContent=it.t;
+    const ds=document.createElement('div'); ds.className='sD'; ds.textContent=it.d||'';
+    left.appendChild(nm); left.appendChild(ds); row.appendChild(left);
+    const right=document.createElement('div'); right.className='sV';
+    if(it.type==='bool'){
+      const p=document.createElement('div'); p.className='setPill'+(SET[it.k]?' on':'');
+      p.appendChild(document.createElement('i')); right.appendChild(p);
+    }else{
+      const la=document.createElement('span'); la.className='setArrow'; la.textContent='◂';
+      la.onclick=(e)=>{e.stopPropagation();setRow=i;bumpSetting(it,-1);};
+      const val=document.createElement('span'); val.className='setVal'; val.textContent=fmtSetting(it);
+      const ra=document.createElement('span'); ra.className='setArrow'; ra.textContent='▸';
+      ra.onclick=(e)=>{e.stopPropagation();setRow=i;bumpSetting(it,1);};
+      right.appendChild(la);
+      if(it.type==='range'){
+        const bar=document.createElement('div'); bar.className='setBar';
+        const f=(SET[it.k]-it.min)/(it.max-it.min);
+        const fill=document.createElement('i'); fill.style.width=(f*100)+'%';
+        const knob=document.createElement('b'); knob.style.left=(f*100)+'%';
+        bar.appendChild(fill); bar.appendChild(knob); right.appendChild(bar);
+      }
+      right.appendChild(val); right.appendChild(ra);
+    }
+    row.appendChild(right);
+    row.onclick=()=>{setRow=i; bumpSetting(it,1);};
+    pane.appendChild(row);
+  });
+}
+function openSettings(){
+  setOn=true; setTab=0; setRow=0;
+  $('#settings').classList.add('on');
+  $('#menu').classList.remove('on');
+  renderSettings();
+}
+function closeSettings(){
+  setOn=false;
+  $('#settings').classList.remove('on');
+  $('#menu').classList.add('on');
+  renderDetail();
+}
+function settingsKey(k){
+  const items=setItems();
+  if(k==='escape'){ closeSettings(); return true; }
+  if(k==='tab'){ setTab=(setTab+1)%SETTINGS_DEF.length; setRow=0; renderSettings(); return true; }
+  if(k==='arrowup'||k==='w'){ setRow=(setRow-1+items.length)%items.length; renderSettings(); return true; }
+  if(k==='arrowdown'||k==='s'){ setRow=(setRow+1)%items.length; renderSettings(); return true; }
+  if(k==='arrowleft'||k==='a'){ bumpSetting(items[setRow],-1); return true; }
+  if(k==='arrowright'||k==='d'||k==='enter'||k===' '){ bumpSetting(items[setRow],1); return true; }
+  return false;
+}
 const TYREWEAR={catalunya:1.75,silverstone:1.45,bahrain:1.5,spa:1.2,austria:1.1,saopaulo:1.2,monaco:0.7,jeddah:1.0,miami:1.15,montreal:1.1,australia:1.15,lasvegas:0.95,yas:1.0,zandvoort:1.35,baku:0.95,hungary:1.25,qatar:1.4,texas:1.3};
 /* tyre compounds: lap life at [very abrasive → non-abrasive] surfaces, plus grip.
    Softs give the most grip but wear fastest; hards the least grip but last longest.
@@ -12153,6 +13649,7 @@ function chooseMode(){const m=MODES[sel];Sound.init();Sound.blip(660,.08);
   else if(m.id==='aisim'){sessionMode='aisim';startAISim();}
   else if(m.id==='garage'){openGarage();}
   else if(m.id==='season'){openSeasonSetup();}
+  else if(m.id==='settings'){openSettings();}
   else{ /* placeholder modes */ flashMsg(); }
 }
 function flashMsg(){const d=$('#mdTag');d.textContent='COMING SOON';setTimeout(()=>renderDetail(),1400);}
@@ -12182,16 +13679,137 @@ function buildTyreChips(){
     life.textContent=`≈ ${n} laps on this surface — ${trackAbrasion(id)>0.6?'abrasive':trackAbrasion(id)<0.35?'gentle':'medium'} track. Push harder = fewer laps.`;}
 }
 /* fit a fresh set of the chosen compound (garage pick, or a mid-race "pit" change) */
-function fitTyres(comp){
-  if(!COMPOUNDS[comp]||comp===CAR.compound&&CAR.tire>0.99)return;
+/* Fit a set. `fromPit` is the real thing — a crew changing the wheels during a
+   stop — and it always fits, silently, because the stop sequence does its own
+   announcing. Without it this is the garage fitting tyres before the session,
+   where refusing a redundant change and talking about it are both correct. */
+function fitTyres(comp,fromPit){
+  if(!COMPOUNDS[comp]) return;
+  if(!fromPit && comp===CAR.compound && CAR.tire>0.99) return;
   selCompound=comp; CAR.compound=comp;
   CAR.tireLapsLife=compoundLaps(comp,CFG?CFG.id:builtTrackId); CAR.tire=1;
   CAR.tTemp=0.22;                                                   // a new set goes on cold
   CAR.rTyreWarn=false; CAR.rTyreCrit=false;                         // fresh stint → warnings re-arm
+  if(fromPit) return;
   Sound.init&&Sound.init(); Sound.blip&&Sound.blip(620,.06);
-  if(STATE==='drive'){ Radio.say('engineer','box_confirm',{cool:0}); setTimeout(()=>Radio.say('engineer','new_tyres',{cool:0}),3200); }
   const t=$('#tyreToast'); if(t){t.textContent=`${COMPOUNDS[comp].name} TYRES FITTED · ≈${CAR.tireLapsLife} LAPS`;
     t.style.color=COMPOUNDS[comp].col; t.classList.add('on'); clearTimeout(t._h); t._h=setTimeout(()=>t.classList.remove('on'),1800);}
+}
+/* ==================================================================
+   THE STRATEGY WINDOW
+   Pressing 1/2/3 mid-race used to teleport a fresh set of tyres onto the car
+   for free, which made the whole idea of a pit stop pointless. Now a tyre
+   change is a PLAN: you pick the lap and the compound here, the engineer
+   confirms it on the radio, and then you have to actually drive into the pit
+   lane on that lap and hit your box to get it.
+
+   The window holds the race while it is open. A real strategy call happens at
+   300 km/h over the radio, but this is a keyboard game with one hand on the
+   throttle — asking someone to navigate a menu mid-corner would mean nobody
+   ever used it.
+   ================================================================== */
+let stratOn=false, stratLapSel=0, stratComp='medium';
+const STRAT_COMPS=['soft','medium','hard','inter','wet'];
+function stratLapOptions(){
+  const cur=(lap.num||0)+1;
+  const total=(sessionMode==='season'&&SEASON.active)?SEASON.raceLaps:null;
+  const out=[[cur,'THIS LAP']];
+  for(let k=1;k<=4;k++){
+    const L=cur+k;
+    if(total&&L>total) break;
+    out.push([L,'LAP '+L]);
+  }
+  return out;
+}
+function renderStrategy(){
+  if(!stratOn) return;
+  const cur=(lap.num||0)+1;
+  $('#stTrack').textContent=(CFG&&CFG.name?CFG.name:'—').toUpperCase();
+  $('#stLap').textContent=cur;
+  const cc=COMPOUNDS[CAR.compound||'medium'];
+  const sc=$('#stCur'); sc.textContent=cc.short; sc.style.color=cc.col;
+  $('#stLife').textContent=Math.round(CAR.tire*100)+'%';
+  const lapsLeft=Math.max(0,Math.round(CAR.tire*(CAR.tireLapsLife||1)));
+  $('#stLeft').textContent=lapsLeft;
+  // lap chips
+  const lw=$('#stLaps'); lw.innerHTML='';
+  const opts=stratLapOptions();
+  stratLapSel=clamp(stratLapSel,0,opts.length-1);
+  opts.forEach(([L,label],i)=>{
+    const c=document.createElement('div');
+    c.className='stChip'+(i===stratLapSel?' on':'');
+    c.textContent=label;
+    c.onclick=()=>{stratLapSel=i;renderStrategy();Sound.blip(520,.04);};
+    lw.appendChild(c);
+  });
+  // compound chips, with the ones that suit the current conditions marked
+  const cw=$('#stComps'); cw.innerHTML='';
+  const wet=clamp(WEATHER.wetness,0,1);
+  STRAT_COMPS.forEach(k=>{
+    const C=COMPOUNDS[k];
+    const fit=compoundWetFit(k,wet);
+    const c=document.createElement('div');
+    c.className='stChip'+(k===stratComp?' on':'')+(fit<0.9?' bad':'');
+    c.innerHTML=`<span style="color:${k===stratComp?'#05070b':C.col}">${C.short}</span> ${C.name.toUpperCase()}`;
+    c.onclick=()=>{stratComp=k;renderStrategy();Sound.blip(560,.04);};
+    cw.appendChild(c);
+  });
+  const life=compoundLaps(stratComp,CFG?CFG.id:builtTrackId);
+  const fit=compoundWetFit(stratComp,wet);
+  const cond=wet<0.08?'a dry track':wet<0.45?'a damp track':wet<0.85?'a wet track':'standing water';
+  $('#stNote').textContent=
+    `${COMPOUNDS[stratComp].name} should last about ${life} laps here. `+
+    (fit>0.98?`The right tyre for ${cond}.`
+     :fit>0.85?`Workable on ${cond}, but not the obvious call.`
+     :`The wrong tyre for ${cond} — you will lose a lot of grip.`);
+}
+function openStrategy(){
+  if(STATE!=='drive') return;
+  stratOn=true;
+  stratComp=PITSTOP.planComp||CAR.compound||'medium';
+  stratLapSel=0;
+  $('#strategy').classList.add('on');
+  renderStrategy();
+  Sound.init(); Sound.blip(640,.06);
+}
+function closeStrategy(){
+  stratOn=false;
+  $('#strategy').classList.remove('on');
+}
+function confirmStrategy(){
+  const opts=stratLapOptions();
+  const [L]=opts[clamp(stratLapSel,0,opts.length-1)];
+  PITSTOP.planLap=L; PITSTOP.planComp=stratComp;
+  closeStrategy();
+  Radio.say('engineer','box_confirm',{cool:0});
+  updatePitCue();
+  Sound.blip(760,.09);
+}
+function cancelStrategy(){
+  PITSTOP.planLap=null; PITSTOP.armed=false;
+  closeStrategy(); updatePitCue();
+  Sound.blip(360,.07);
+}
+/* The banner that tells you the plan is live and you should be turning in. */
+function updatePitCue(){
+  const cue=$('#pitCue'); if(!cue) return;
+  const cur=(lap.num||0)+1;
+  if(PITSTOP.planLap==null || STATE!=='drive'){ cue.classList.remove('on'); return; }
+  if(PITSTOP.planLap<cur){ PITSTOP.planLap=null; cue.classList.remove('on'); return; }
+  const armed=(PITSTOP.planLap===cur);
+  if(armed && !PITSTOP.armed){ PITSTOP.armed=true; Radio.say('engineer','tyre_crit',{cool:0}); }
+  cue.classList.add('on');
+  cue.textContent=armed
+    ? `BOX THIS LAP · ${COMPOUNDS[PITSTOP.planComp].name.toUpperCase()}`
+    : `BOX LAP ${PITSTOP.planLap} · ${COMPOUNDS[PITSTOP.planComp].name.toUpperCase()}`;
+}
+function strategyKey(k){
+  if(k==='escape'||k==='p'){ closeStrategy(); return true; }
+  if(k==='enter'){ confirmStrategy(); return true; }
+  if(k==='arrowleft'||k==='a'){ stratLapSel--; renderStrategy(); Sound.blip(480,.04); return true; }
+  if(k==='arrowright'||k==='d'){ stratLapSel++; renderStrategy(); Sound.blip(480,.04); return true; }
+  if(k>='1'&&k<='5'){ stratComp=STRAT_COMPS[+k-1]; renderStrategy(); Sound.blip(560,.04); return true; }
+  return false;
 }
 function pickLivery(key){
   setLivery(key);Sound.init();Sound.blip(620,.06);
@@ -12294,8 +13912,9 @@ function renderSeasonHub(){
   table.forEach((r,i)=>{const el=document.createElement('div');el.className='shRow'+(r.me?' me':'');
     const tn=(LIVERIES[r.team]&&LIVERIES[r.team].name)||'';
     const sw=(LIVERIES[r.team]&&LIVERIES[r.team].base)||'#555';
+    // r.nm is typed by the player in the season setup — never interpolate it raw
     el.innerHTML=`<span class="p">${i+1}</span><i class="tsw" style="background:${sw}"></i>`+
-      `<span class="nm">${r.nm}${r.me?' (You)':''}<small>${tn}</small></span><span class="pts">${r.pts}</span>`;
+      `<span class="nm">${esc(r.nm)}${r.me?' (You)':''}<small>${esc(tn)}</small></span><span class="pts">${r.pts}</span>`;
     rows.appendChild(el);});
   const ch=document.createElement('div');ch.className='shSub';ch.textContent='CONSTRUCTORS';rows.appendChild(ch);
   seasonConstructors().forEach((c,i)=>{const el=document.createElement('div');
@@ -12601,12 +14220,206 @@ function buildChaseScene(){
     line.rotation.z=-Math.atan2(tan[6].x,tan[6].z); S.add(line); }
   { const stM=new THREE.MeshStandardMaterial({color:0x1d232e,roughness:0.9});
     const roofM=new THREE.MeshStandardMaterial({color:0x2a323f,roughness:0.7,metalness:0.3});
-    for(let i=0;i<N;i+=58){ const p=pts[i],n=nrm[i],sd=(i/58|0)%2?1:-1;
+    /* Grandstands with people in them. An empty silhouette reads as scenery;
+       a full one reads as a Grand Prix, and the whole point of the opening is
+       that this is a race somebody is watching. The crowd is one instanced mesh
+       of coloured chips — thousands of them for a single draw call. */
+    const seatM=new THREE.MeshStandardMaterial({color:0x11161d,roughness:0.95});
+    const crowdGeo=new THREE.BoxGeometry(0.62,0.85,0.5);
+    const crowdMat=new THREE.MeshStandardMaterial({vertexColors:true,roughness:0.9});
+    const MAXC=9000;
+    const crowd=new THREE.InstancedMesh(crowdGeo,crowdMat,MAXC);
+    crowd.instanceColor=new THREE.InstancedBufferAttribute(new Float32Array(MAXC*3),3);
+    const M=new THREE.Matrix4(), Q=new THREE.Quaternion(), T=new THREE.Vector3(), SC=new THREE.Vector3(1,1,1);
+    const CC=new THREE.Color();
+    let ci=0;
+    const stands=[];
+    for(let i=0;i<N;i+=42){ const p=pts[i],n=nrm[i],sd=(i/42|0)%2?1:-1;
       const g2=new THREE.Group();
+      const yaw=Math.atan2(tan[i].x,tan[i].z);
       const body=new THREE.Mesh(new THREE.BoxGeometry(46,11,17),stM); body.position.y=5.5; g2.add(body);
       const roof=new THREE.Mesh(new THREE.BoxGeometry(50,0.7,15),roofM); roof.position.set(0,13.5,-1); g2.add(roof);
+      // raked seating deck facing the circuit
+      for(let r=0;r<7;r++){
+        const step=new THREE.Mesh(new THREE.BoxGeometry(44,0.5,1.7),seatM);
+        step.position.set(0,2.2+r*1.25,6.4-r*1.6); g2.add(step);
+      }
       g2.position.set(p.x+n.x*sd*(HW+31),0,p.z+n.z*sd*(HW+31));
-      g2.rotation.y=Math.atan2(tan[i].x,tan[i].z); S.add(g2); } }
+      g2.rotation.y=yaw; S.add(g2);
+      stands.push({g2,sd,yaw});
+      // fill it
+      const cs=Math.cos(yaw), sn=Math.sin(yaw);
+      for(let r=0;r<7;r++) for(let c=0;c<58;c++){
+        if(ci>=MAXC || Math.random()<0.14) continue;
+        const lx=-21.5+c*0.75+(Math.random()-0.5)*0.3;
+        const ly=2.9+r*1.25, lz=6.4-r*1.6+(Math.random()-0.5)*0.3;
+        T.set(g2.position.x+ (lx*cs + lz*sn), ly, g2.position.z + (-lx*sn + lz*cs));
+        Q.setFromAxisAngle(new THREE.Vector3(0,1,0), yaw);
+        M.compose(T,Q,SC); crowd.setMatrixAt(ci,M);
+        CC.setHSL(Math.random(), 0.45+Math.random()*0.4, 0.34+Math.random()*0.3);
+        crowd.instanceColor.setXYZ(ci,CC.r,CC.g,CC.b);
+        ci++;
+      }
+    }
+    crowd.count=ci; crowd.instanceMatrix.needsUpdate=true; crowd.instanceColor.needsUpdate=true;
+    S.add(crowd);
+    /* CAMERA FLASHES in the crowd. Nothing says "this matters" like a stand
+       going off like a lightning storm as the cars come past. Sixty additive
+       sprites, re-homed at random and pulsed by the step function. */
+    const flashGeo=new THREE.PlaneGeometry(1.5,1.5);
+    const flashMat=new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:0,
+      blending:THREE.AdditiveBlending,depthWrite:false});
+    const flashes=new THREE.InstancedMesh(flashGeo,flashMat,60);
+    const fState=[];
+    for(let k=0;k<60;k++){
+      const st=stands[(Math.random()*stands.length)|0];
+      const cs=Math.cos(st.yaw), sn=Math.sin(st.yaw);
+      const lx=-20+Math.random()*40, ly=3+Math.random()*8, lz=6-Math.random()*10;
+      T.set(st.g2.position.x+(lx*cs+lz*sn), ly, st.g2.position.z+(-lx*sn+lz*cs));
+      M.compose(T,new THREE.Quaternion(),SC); flashes.setMatrixAt(k,M);
+      fState.push({t:Math.random()*3});
+    }
+    flashes.instanceMatrix.needsUpdate=true;
+    S.add(flashes);
+    CHASE.flashes=flashes; CHASE.fState=fState; CHASE.flashMat=flashMat;
+  }
+  /* --- the land the circuit sits in ---------------------------------------
+     The road used to end in fog with nothing beyond it. A ring of low hills and
+     a forest line give the horizon somewhere to be, and at night they read as
+     silhouette, which costs almost nothing and does most of the work. */
+  { const hillM=new THREE.MeshStandardMaterial({color:0x0d1712,roughness:1,flatShading:true});
+    for(let k=0;k<26;k++){
+      const a=k/26*TAU+Math.random()*0.1;
+      const r=430+Math.random()*260;
+      const h=40+Math.random()*90, rad=110+Math.random()*130;
+      const hill=new THREE.Mesh(new THREE.ConeGeometry(rad,h,7,1),hillM);
+      hill.position.set(120+Math.cos(a)*r,h*0.5-16,-110+Math.sin(a)*r);
+      hill.rotation.y=Math.random()*TAU; S.add(hill);
+    }
+    // pine belt just outside the barriers
+    const treeM=new THREE.MeshStandardMaterial({color:0x0e2016,roughness:1,flatShading:true});
+    const treeGeo=new THREE.ConeGeometry(3.4,13,6,1);
+    const trees=new THREE.InstancedMesh(treeGeo,treeM,900);
+    { const M2=new THREE.Matrix4(),Q2=new THREE.Quaternion(),T2=new THREE.Vector3(),S2=new THREE.Vector3();
+      let t=0;
+      for(let i=0;i<N&&t<900;i+=2) for(const sd of [1,-1]){
+        if(t>=900||Math.random()<0.45) continue;
+        const p=pts[i],n=nrm[i], d=HW+42+Math.random()*90;
+        T2.set(p.x+n.x*sd*d+(Math.random()-0.5)*16,0,p.z+n.z*sd*d+(Math.random()-0.5)*16);
+        const s=0.7+Math.random()*0.9; S2.set(s,s*(0.8+Math.random()*0.6),s);
+        T2.y=S2.y*6.5-1;
+        M2.compose(T2,Q2,S2); trees.setMatrixAt(t++,M2);
+      }
+      trees.count=t; trees.instanceMatrix.needsUpdate=true; S.add(trees); }
+  }
+  /* --- the pit building down the main straight ---------------------------- */
+  { const pitM=new THREE.MeshStandardMaterial({color:0x1a212b,roughness:0.75});
+    const winM=new THREE.MeshStandardMaterial({color:0x0c1520,emissive:0x2a5a86,emissiveIntensity:0.9,roughness:0.4});
+    const anchor=pts[Math.round(N*0.02)], an=nrm[Math.round(N*0.02)];
+    const yaw=Math.atan2(tan[Math.round(N*0.02)].x,tan[Math.round(N*0.02)].z);
+    const g3=new THREE.Group();
+    // Object3D.position is a read-only accessor — it can be set INTO, not
+    // replaced, so these have to be built and then positioned.
+    const lower=new THREE.Mesh(new THREE.BoxGeometry(150,9,14),pitM);
+    lower.position.set(0,4.5,0); g3.add(lower);
+    const band=new THREE.Mesh(new THREE.BoxGeometry(150,3.4,0.6),winM); band.position.set(0,10.6,6.6); g3.add(band);
+    const upper=new THREE.Mesh(new THREE.BoxGeometry(152,5.5,13),pitM);
+    upper.position.set(0,12.2,0); g3.add(upper);
+    // lit garage mouths
+    const mouth=new THREE.MeshStandardMaterial({color:0x0a0c10,emissive:0xffb45a,emissiveIntensity:0.55,roughness:0.9});
+    for(let k=0;k<11;k++){
+      const m2=new THREE.Mesh(new THREE.BoxGeometry(9,5,1.2),mouth);
+      m2.position.set(-70+k*14,2.6,7.1); g3.add(m2);
+    }
+    g3.position.set(anchor.x+an.x*(HW+22),0,anchor.z+an.z*(HW+22));
+    g3.rotation.y=yaw; S.add(g3);
+  }
+  /* --- trackside hoardings, marshal posts, a distant city glow ------------ */
+  { const adM=new THREE.MeshStandardMaterial({color:0x8d1119,roughness:0.7,
+      emissive:0x2a0508,emissiveIntensity:0.6});
+    const adGeo=new THREE.BoxGeometry(7.6,1.5,0.2);
+    const ads=new THREE.InstancedMesh(adGeo,adM,180);
+    const M3=new THREE.Matrix4(),Q3=new THREE.Quaternion(),T3=new THREE.Vector3(),S3=new THREE.Vector3(1,1,1);
+    let a3=0;
+    for(let i=0;i<N&&a3<180;i+=8) for(const sd of [1,-1]){
+      if(a3>=180) break;
+      const p=pts[i],n=nrm[i];
+      T3.set(p.x+n.x*sd*(HW+3.0),1.75,p.z+n.z*sd*(HW+3.0));
+      Q3.setFromAxisAngle(new THREE.Vector3(0,1,0),Math.atan2(tan[i].x,tan[i].z));
+      M3.compose(T3,Q3,S3); ads.setMatrixAt(a3++,M3);
+    }
+    ads.count=a3; ads.instanceMatrix.needsUpdate=true; S.add(ads);
+    // marshal posts: a small orange light every so often, flickering
+    const postM=new THREE.MeshBasicMaterial({color:0xffa030});
+    for(let i=6;i<N;i+=76){
+      const p=pts[i],n=nrm[i];
+      const l=new THREE.Mesh(new THREE.SphereGeometry(0.34,8,6),postM);
+      l.position.set(p.x+n.x*(HW+6.5),3.1,p.z+n.z*(HW+6.5)); S.add(l);
+    }
+    // a city on the horizon, so the night has a somewhere
+    const cityM=new THREE.MeshStandardMaterial({color:0x0a1018,emissive:0x14202e,emissiveIntensity:1.0,roughness:1});
+    for(let k=0;k<40;k++){
+      const a=-0.9+k*0.045, r=980+Math.random()*260;
+      const h=30+Math.random()*120, w=18+Math.random()*26;
+      const b=new THREE.Mesh(new THREE.BoxGeometry(w,h,w),cityM);
+      b.position.set(120+Math.cos(a)*r,h/2-10,-110+Math.sin(a)*r); S.add(b);
+    }
+  }
+  /* --- rain. It is a wet night; the streaks are what make it one. --------- */
+  { const RN=1400, pos=new Float32Array(RN*6);
+    const g4=new THREE.BufferGeometry();
+    g4.setAttribute('position',new THREE.BufferAttribute(pos,3));
+    const rainMat=new THREE.LineBasicMaterial({color:0xbdd2e8,transparent:true,opacity:0.32});
+    const rain=new THREE.LineSegments(g4,rainMat);
+    rain.frustumCulled=false; S.add(rain);
+    const box=70, top=42;
+    const seed=(i,cx,cz)=>{
+      const x=cx+(Math.random()-0.5)*box*2, z=cz+(Math.random()-0.5)*box*2;
+      const y=Math.random()*top;
+      pos[i*6]=x; pos[i*6+1]=y; pos[i*6+2]=z;
+      pos[i*6+3]=x+0.5; pos[i*6+4]=y-2.6; pos[i*6+5]=z+0.5;
+    };
+    for(let i=0;i<RN;i++) seed(i,0,0);
+    CHASE.rain={mesh:rain,pos,RN,box,top,seed,
+      update(dt,cam){
+        for(let i=0;i<RN;i++){
+          pos[i*6+1]-=48*dt; pos[i*6+4]-=48*dt;
+          if(pos[i*6+4]<cam.y-14 || Math.abs(pos[i*6]-cam.x)>box || Math.abs(pos[i*6+2]-cam.z)>box){
+            seed(i,cam.x,cam.z);
+            pos[i*6+1]+=cam.y; pos[i*6+4]+=cam.y;
+          }
+        }
+        g4.attributes.position.needsUpdate=true;
+      }};
+  }
+  /* --- spray plumes and sparks that live with the cars -------------------- */
+  /* A soft radial falloff, not a flat colour. An additively-blended plane with
+     a solid colour is a glowing RECTANGLE — you can see all four of its edges,
+     and it looked like a grey card had been taped behind the car. The alpha has
+     to go to nothing at the border for the quad to read as a plume. */
+  { const sc2=cnv(64,64), sx2=sc2.getContext('2d');
+    const grd=sx2.createRadialGradient(32,38,2,32,38,31);
+    grd.addColorStop(0,'rgba(255,255,255,0.95)');
+    grd.addColorStop(0.45,'rgba(220,232,245,0.35)');
+    grd.addColorStop(1,'rgba(200,214,230,0)');
+    sx2.fillStyle=grd; sx2.fillRect(0,0,64,64);
+    const sprayTex=new THREE.CanvasTexture(sc2);
+    const sprayMat=new THREE.MeshBasicMaterial({map:sprayTex,color:0xc8d6e6,transparent:true,
+      opacity:0.0,depthWrite:false,blending:THREE.AdditiveBlending,side:THREE.DoubleSide});
+    const mk=()=>{const m=new THREE.Mesh(new THREE.PlaneGeometry(6.0,4.2),sprayMat);m.renderOrder=8;S.add(m);return m;};
+    CHASE.spray=[mk(),mk()]; CHASE.sprayMat=sprayMat;
+    const kc=cnv(64,16), kx=kc.getContext('2d');
+    const kg=kx.createLinearGradient(0,0,64,0);
+    kg.addColorStop(0,'rgba(255,190,110,0)');
+    kg.addColorStop(0.35,'rgba(255,205,140,0.95)');
+    kg.addColorStop(1,'rgba(255,120,40,0)');
+    kx.fillStyle=kg; kx.fillRect(0,0,64,16);
+    const sparkTex=new THREE.CanvasTexture(kc);
+    const sparkMat=new THREE.MeshBasicMaterial({map:sparkTex,color:0xffb257,transparent:true,
+      opacity:0,depthWrite:false,blending:THREE.AdditiveBlending,side:THREE.DoubleSide});
+    const sp=new THREE.Mesh(new THREE.PlaneGeometry(3.4,0.7),sparkMat); sp.renderOrder=9; S.add(sp);
+    CHASE.sparks=sp; CHASE.sparkMat=sparkMat;
+  }
 }
 /* where a car sits on the chase circuit: u is a lap fraction, lat is metres across */
 function chasePose(u,lat){
@@ -12643,30 +14456,56 @@ function startCinematic(){
   CINE={ start:performance.now(), rim, rival, timers:[], ended:false };
   const S=(ms,fn)=>CINE.timers.push(setTimeout(fn,ms));
   Sound.init();
-  /* THE BEATS. Nine seconds, and every one of them is the gap closing.        */
-  S(200 ,()=>Sound.rev());
-  S(1900,()=>Sound.whoosh(0.35));                       // he's there. in the mirrors.
-  S(3600,()=>Sound.whoosh(0.5));                        // through the corner, closer
-  S(5200,()=>Sound.rev());                              // onto the straight, DRS
-  S(6600,()=>Sound.whoosh(0.65));                       // alongside
-  S(7700,()=>Sound.whoosh(0.8));                        // wheel to wheel, and —
+  /* ============================ THE BEATS =================================
+     The old cut was nine seconds long and started at full speed, which gave it
+     nowhere to go: it opened at ten out of ten and stayed there, and a chase
+     that is flat out from the first frame has no suspense in it because nothing
+     is building.
+
+     This runs twenty-six seconds and it is shaped. It opens almost still — an
+     empty wet circuit at night, no cars, just floodlights and rain — and holds
+     there long enough to be uncomfortable. The leader arrives alone. Then a
+     second set of lights appears a long way back, and from that moment one
+     number does all the work: the gap. It comes down at every single corner and
+     never once goes back out.
+
+     The cutting rate tightens as it goes. The first shot is nearly five seconds
+     long; the last three are barely one each. That acceleration is the suspense
+     — you feel the thing tightening before you consciously notice why.       */
+  S(600  ,()=>Sound.whoosh(1.4,0.16));                  // wind and rain over an empty circuit
+  S(3400 ,()=>Sound.rev());                             // something is coming
+  S(5200 ,()=>Sound.whoosh(0.6,0.26));                  // the leader goes past, alone
+  S(8600 ,()=>Sound.whoosh(0.45,0.22));                 // and there he is, a long way back
+  S(11400,()=>Sound.rev());                             // through the corner, closer
+  S(13800,()=>Sound.whoosh(0.55,0.34));
+  S(16000,()=>Sound.rev());                             // onto the straight, wing open
+  S(18200,()=>Sound.whoosh(0.7,0.40));                  // he is in the mirrors now
+  S(20100,()=>Sound.whoosh(0.8,0.46));                  // alongside
+  S(21600,()=>Sound.hit());                             // contact — wheel to wheel
+  S(22600,()=>Sound.whoosh(0.9,0.55));                  // the last corner, both of them
   // — CUT. Black, one beat before the line, and you never find out who won.
-  S(8500,()=>{ const B=$('#cineBlack'); if(B) B.classList.add('on'); });
-  S(9100,()=>{const T=$('#cineTitle');T.innerHTML='APEX <span class="r">GP</span>';
+  S(23800,()=>{ const B=$('#cineBlack'); if(B) B.classList.add('on'); });
+  S(24500,()=>{const T=$('#cineTitle');T.innerHTML='APEX <span class="r">GP</span>';
     void T.offsetWidth;T.classList.add('slam');
     $('#cineFlash').classList.add('on');setTimeout(()=>$('#cineFlash').classList.remove('on'),110);
     Sound.hit();});
-  S(9550,()=>{const Su=$('#cineSub');Su.textContent='2026 WORLD CHAMPIONSHIP';Su.classList.add('show');});
-  S(11600,()=>endCinematic());
+  S(25000,()=>{const Su=$('#cineSub');Su.textContent='2026 WORLD CHAMPIONSHIP';Su.classList.add('show');});
+  S(27200,()=>endCinematic());
   STATE='cine';
   renderer.toneMappingExposure=1.25;      // a night race is lit, not unlit
   camera.fov=44; camera.updateProjectionMatrix();
   $('#cine').classList.add('on');
 }
-/* the gap in metres at time t — it comes down at every corner and never once
-   goes back out, which is the only thing this sequence has to communicate */
+/* The gap in metres at time t. It comes down at every corner and never once
+   goes back out, which is the only thing this sequence has to communicate.
+   The leader is not on track until CINE_T0; before that the circuit is empty
+   and the gap is meaningless. */
+const CINE_T0=4.2;          // the leader arrives
+const CINE_T1=7.6;          // the rival's lights appear behind him
 function chaseGap(t){
-  const keys=[[0,42],[1.8,30],[3.2,22],[4.6,14],[5.6,8.5],[6.6,3.2],[7.4,0.4],[8.6,-1.4]];
+  const keys=[[CINE_T1,150],[9.5,112],[11.4,86],[13.0,64],[14.6,48],[16.2,34],
+              [17.8,22],[19.2,13],[20.4,6.5],[21.4,2.4],[22.4,0.5],[23.6,-1.6]];
+  if(t<=keys[0][0]) return keys[0][1];
   for(let i=0;i<keys.length-1;i++){
     const [a,ga]=keys[i],[b,gb]=keys[i+1];
     if(t<=b){ const u=clamp((t-a)/(b-a),0,1), e=u*u*(3-2*u); return ga+(gb-ga)*e; }
@@ -12679,45 +14518,145 @@ function stepCinematic(dt){
   if(!CHASE) return;
   const LAP=1420;                                        // metres round the chase circuit
   const V=76;                                            // ~275 km/h
-  // the leader runs a lap and a bit; the last beat lands on the long straight
-  const uL=(0.55 + el*V/LAP)%1;
+  // the leader is only on the circuit from CINE_T0; before that it is empty
+  const running=Math.max(0,el-CINE_T0);
+  const uL=(0.42 + running*V/LAP)%1;
   const gap=chaseGap(el);
   const uR=uL - gap/LAP;
   // the rival comes off line and out to the inside as he commits
-  const commit=clamp((el-5.4)/2.0,0,1);
-  const latL=1.1 - 0.9*clamp((el-6.4)/1.6,0,1);           // the leader covers, a little late
-  const latR=1.1 - 5.4*commit*commit*(3-2*commit)/1;
+  const commit=clamp((el-18.4)/2.6,0,1);
+  const latL=1.1 - 0.9*clamp((el-20.2)/2.0,0,1);          // the leader covers, a little late
+  const latR=1.1 - 5.4*commit*commit*(3-2*commit);
   const L=chasePose(uL,latL), R=chasePose(uR,latR);
   const drop=(CAR.tireDrop||0);
+  const onTrack=el>=CINE_T0, rivalOn=el>=CINE_T1-1.2;
+  CAR.rig.visible=onTrack;
   CAR.rig.position.set(L.x,0.02-drop,L.z); CAR.rig.rotation.set(0,L.yaw,0);
-  if(CINE.rival){ CINE.rival.position.set(R.x,0.02-drop,R.z); CINE.rival.rotation.set(0,R.yaw,0); }
-  if(CINE.rim){ CINE.rim.position.set(R.x,1.6,R.z); CINE.rim.intensity=6*clamp((el-1.2)/2,0,1); }
+  if(CINE.rival){ CINE.rival.visible=rivalOn;
+    CINE.rival.position.set(R.x,0.02-drop,R.z); CINE.rival.rotation.set(0,R.yaw,0); }
+  if(CINE.rim){ CINE.rim.position.set(R.x,1.6,R.z);
+    CINE.rim.intensity=rivalOn?7*clamp((el-CINE_T1+1.2)/2,0,1):0; }
 
-  /* THE SHOTS. Each one is chosen to answer "how close is he now?" ---------- */
+  /* Exposure comes UP through the sequence. The empty circuit is deliberately
+     under-lit — you are straining to see it — and the picture opens out as the
+     cars arrive and again as the two of them come together, so the last shots
+     are the brightest thing in the whole cut. */
+  renderer.toneMappingExposure=1.02+0.30*clamp((el-2.0)/4.0,0,1)+0.26*clamp((el-17)/5.5,0,1);
+
+  /* ---- the wet night doing its work -------------------------------------- */
+  if(CHASE.rain) CHASE.rain.update(dt,camera.position);
+  if(CHASE.flashes){                     // camera flashes ripple through the stands
+    const heat=clamp((el-CINE_T0)/6,0,1)*0.6+clamp((el-17)/5,0,1)*0.4;
+    let any=0;
+    for(let k=0;k<CHASE.fState.length;k++){
+      const f=CHASE.fState[k];
+      f.t-=dt*(0.6+heat*2.4);
+      if(f.t<=0) f.t=0.35+Math.random()*2.2;
+      if(f.t>0.30) any++;
+    }
+    CHASE.flashMat.opacity=0.55*heat*(0.5+0.5*Math.sin(performance.now()*0.02));
+  }
+  if(CHASE.spray && onTrack){            // rooster tails off both cars
+    const amt=clamp((el-CINE_T0)/1.5,0,1);
+    CHASE.sprayMat.opacity=0.20*amt;
+    const put=(m,pose,on)=>{ m.visible=on;
+      m.position.set(pose.x-Math.sin(pose.yaw)*3.2,1.15,pose.z-Math.cos(pose.yaw)*3.2);
+      m.lookAt(camera.position); };
+    put(CHASE.spray[0],L,true); put(CHASE.spray[1],R,rivalOn);
+  }
+  if(CHASE.sparks){                      // the floor grounding out, late on
+    const on=el>19.5&&el<23.6;
+    CHASE.sparkMat.opacity=on?(0.5+0.5*Math.sin(el*37))*0.85:0;
+    CHASE.sparks.visible=on;
+    if(on){ CHASE.sparks.position.set(L.x-Math.sin(L.yaw)*2.0,0.16,L.z-Math.cos(L.yaw)*2.0);
+      CHASE.sparks.lookAt(camera.position); }
+  }
+
+  /* ======================== THE SHOTS =====================================
+     Nine of them, and they get shorter. The first holds for four and a half
+     seconds on an empty circuit; the last three are about a second each. Every
+     one after the leader arrives is framed to answer the same question — how
+     close is he now — and the answer is always "closer than last time".     */
   const cam=new THREE.Vector3(), look=new THREE.Vector3();
   const at=(pose,fwd,side,up)=>new THREE.Vector3(
     pose.x+Math.sin(pose.yaw)*fwd+Math.cos(pose.yaw)*side, up,
     pose.z+Math.cos(pose.yaw)*fwd-Math.sin(pose.yaw)*side);
-  let fov=44;
-  if(el<1.9){                    // 1. low and locked to the leader's gearbox
-    const k=clamp(el/1.9,0,1);
-    cam.copy(at(L,-7.5-2.5*k,0.4,0.95+0.25*k)); look.set(L.x,0.55,L.z); fov=40;
-  }else if(el<3.5){              // 2. THE MIRRORS — over the leader's shoulder, looking
-                                 //    back. A long lens so he LOOMS as he closes.
-    const k=clamp((el-1.9)/1.6,0,1);
-    cam.copy(at(L,-1.3,0.86,1.52)); look.set(R.x,0.75,R.z); fov=26+6*k;
-  }else if(el<5.4){              // 3. trackside, both cars through a corner
-    const k=clamp((el-3.5)/1.9,0,1);
-    const anchor=chasePose(uL+0.010,0);
-    cam.copy(at(anchor,0,15.5-4*k,2.4-0.9*k));
-    look.set((L.x+R.x)/2,0.7,(L.z+R.z)/2); fov=34;
-  }else if(el<7.0){              // 4. the run to the line, from ahead, low
-    const k=clamp((el-5.4)/1.6,0,1);
-    cam.copy(at(L,11.5+4*k,-1.4,0.62)); look.set((L.x+R.x)/2,0.66,(L.z+R.z)/2); fov=40-4*k;
-  }else{                         // 5. wheel to wheel, on the deck, between them
-    const k=clamp((el-7.0)/1.6,0,1);
-    const mid={x:(L.x+R.x)/2,z:(L.z+R.z)/2,yaw:L.yaw};
-    cam.copy(at(mid,-4.2+1.4*k,-6.4+2.2*k,0.44)); look.set(mid.x,0.6,mid.z); fov=46+6*k;
+  const mid={x:(L.x+R.x)/2,z:(L.z+R.z)/2,yaw:L.yaw};
+  let fov=44, shake=0;
+  if(el<4.6){
+    /* 1. AN EMPTY CIRCUIT, IN THE RAIN. A slow crane down toward the start/
+       finish line with nothing on it. Four and a half seconds of nothing
+       happening is a long time on screen, which is the point — it buys
+       everything after.
+       Positioned through at() rather than by adding world-space offsets: the
+       circuit is not axis-aligned, so a raw -46/-30 nudge put the camera inside
+       the pit building. Everything here is relative to the road's own heading,
+       and on the opposite side from the pits. */
+    const k=el/4.6, e=k*k*(3-2*k);
+    const anchor=chasePose(0.055,0);
+    const down=chasePose(0.135,0);            // a point further down the road
+    cam.copy(at(anchor,-92+e*54,-20+e*11,30-e*23));
+    // look down the straight rather than at one spot, so the road leads the eye
+    look.set(lerp(anchor.x,down.x,e*0.7),1.4,lerp(anchor.z,down.z,e*0.7));
+    fov=44-e*6;
+  }else if(el<7.6){
+    /* 2. THE LEADER ARRIVES, ALONE. Low, static, trackside — he comes from
+       nowhere, fills the frame and is gone, and the road behind him is empty. */
+    const anchor=chasePose(0.10,0);
+    cam.copy(at(anchor,0,13.5,1.15));
+    look.set(L.x,0.7,L.z); fov=42; shake=0.10;
+  }else if(el<10.6){
+    /* 3. THE MIRRORS. Over the leader's shoulder, looking back down an empty
+       road — and then a second set of lights in it. Long lens so the rival
+       LOOMS rather than approaches. */
+    const k=clamp((el-7.6)/3.0,0,1);
+    cam.copy(at(L,-1.35,0.88,1.54)); look.set(R.x,0.85,R.z); fov=24+9*k; shake=0.16;
+  }else if(el<13.4){
+    /* 4. HELICOPTER. High and wide, so you can see the whole gap at once and
+       measure it for yourself.
+       Anchored behind the RIVAL, not behind the midpoint between the two cars.
+       The midpoint is half a gap ahead of the car at the back, so at this stage
+       — when the gap is still eighty metres — a camera placed behind it sat
+       exactly on top of the rival and framed him straight out of the shot. The
+       whole purpose of this angle is that both cars are in it. */
+    const k=clamp((el-10.6)/2.8,0,1);
+    cam.copy(at(R,-34,11,25-5*k));
+    look.set(mid.x,0.7,mid.z); fov=42; shake=0.05;
+  }else if(el<16.0){
+    /* 5. TRACKSIDE THROUGH A CORNER, both cars in one frame, the camera panning
+       with them. The gap is now small enough to read without being told. */
+    const anchor=chasePose(uL+0.012,0);
+    cam.copy(at(anchor,0,17.0,2.7));
+    look.set(mid.x,0.7,mid.z); fov=34; shake=0.12;
+  }else if(el<18.4){
+    /* 6. ONTO THE STRAIGHT, from ahead and low, wing open. */
+    const k=clamp((el-16.0)/2.4,0,1);
+    cam.copy(at(L,13.0+5*k,-1.5,0.66));
+    look.set(mid.x,0.66,mid.z); fov=40-5*k; shake=0.20;
+  }else if(el<20.4){
+    /* 7. ONBOARD-ISH. Pinned to the leader's gearbox with the rival filling the
+       mirror behind. Fast now, and the camera is starting to move. */
+    cam.copy(at(L,-6.6,0.5,1.05));
+    look.set(L.x,0.6,L.z); fov=46; shake=0.34;
+  }else if(el<22.3){
+    /* 8. WHEEL TO WHEEL, on the deck, between the two of them. */
+    const k=clamp((el-20.4)/1.9,0,1);
+    cam.copy(at(mid,-4.4+1.5*k,-6.6+2.4*k,0.42));
+    look.set(mid.x,0.6,mid.z); fov=48+7*k; shake=0.55;
+  }else{
+    /* 9. THE LAST CORNER. Tight on the two of them, shaking, and then black. */
+    const k=clamp((el-22.3)/1.5,0,1);
+    cam.copy(at(mid,-3.0,3.2-1.4*k,0.78));
+    look.set(mid.x,0.62,mid.z); fov=52+8*k; shake=0.85;
+  }
+  /* Handheld. Zero for the opening crane — a locked-off camera is part of why
+     the empty circuit feels still — and rising with the tension until the last
+     shot is barely holding on. */
+  if(shake>0){
+    const t=performance.now()*0.001;
+    cam.x+=Math.sin(t*31.3)*shake*0.10+Math.sin(t*11.7)*shake*0.06;
+    cam.y+=Math.sin(t*27.9+1.7)*shake*0.07;
+    cam.z+=Math.cos(t*35.1+0.4)*shake*0.10;
   }
   camera.position.copy(cam); camera.lookAt(look);
   if(Math.abs(camera.fov-fov)>0.01){ camera.fov=fov; camera.updateProjectionMatrix(); }
@@ -12729,8 +14668,12 @@ function endCinematic(){
   CINE.timers.forEach(clearTimeout);
   if(CINE.rim) cineScene.remove(CINE.rim);
   if(CINE.rival) cineScene.remove(CINE.rival);
+  CAR.rig.visible=true;                    // the opening hides it until the leader arrives
+  if(CHASE){ if(CHASE.sparks) CHASE.sparks.visible=false;
+    if(CHASE.spray) for(const m of CHASE.spray) m.visible=false; }
   if(CINE_KEY){cineScene.remove(CINE_KEY);CINE_KEY=null;}
   { const B=$('#cineBlack'); if(B) B.classList.remove('on'); }
+  renderer.toneMappingExposure=1.05;                   // the ramp above leaves it high
   setCarPlain(false);                                  // restore the selected livery
   $('#cineFx').innerHTML='';
   $('#cineTitle').classList.remove('slam');$('#cineSub').classList.remove('show');
@@ -12875,7 +14818,15 @@ function startDrive(){
   $('#mapName').innerHTML=cf.name+' <span>· '+cf.country+'</span>';
   driveScene.add(CAR.rig);
   resetCar();
+  // start on the camera the player asked for, not always chase
+  CAM.mode=SET.defaultCam||'chase'; CAM.tsPost=null;
+  $('#camName').textContent=CAM_LABEL[CAM.mode]||CAM.mode.toUpperCase();
   replayReset(); $('#replayBadge').classList.remove('on'); $('#replayBar').classList.remove('on');
+  // fresh pit state, and work out which garage is ours on this circuit
+  pitReset(); PITSTOP.planComp=selCompound; PITSTOP.boxD=playerBoxD();
+  // where the car has to come to rest: in the painted box, over toward the garage
+  PITSTOP.boxPos=pitPos(PITSTOP.boxD,PIT.halfW-2.6);
+  closeStrategy(); updatePitCue();
   // AI field for Grand Prix / Season races (Time Trial & Qualifying stay solo)
   if(sessionMode==='gp'||sessionMode==='season'){ spawnAIs(7); } else { clearAIs(); }
   // globe → sector outline → overhead intro, then lights out
@@ -12934,7 +14885,7 @@ function endQuali(best){
   if(pos){const p=me?me.pos:grid.length, pole=grid[0];
     const gap=me&&pole&&!me.me===false?(me.t-pole.t):0;
     pos.innerHTML=p===1?'POLE POSITION'
-      :`P${p} ON THE GRID <small style="opacity:.7">· +${gap.toFixed(3)}s to ${pole.nm}</small>`;}
+      :`P${p} ON THE GRID <small style="opacity:.7">· +${gap.toFixed(3)}s to ${esc(pole.nm)}</small>`;}
   $('#qResult').classList.add('on');
   Sound.hit();
 }
@@ -12975,6 +14926,8 @@ addEventListener('keydown',e=>{
     else if(k==='l'){ SIM.laps=SIM.laps>=3?1:SIM.laps+1; const m=$('#simMsg');
       if(m){m.textContent=SIM.laps+(SIM.laps>1?' LAPS':' LAP');setTimeout(()=>{m.textContent='';},1200);} }
     e.preventDefault();return;}
+  if(stratOn){ if(strategyKey(k)) e.preventDefault(); return; }
+  if(setOn){ if(settingsKey(k)) e.preventDefault(); return; }
   if(SEASON.on==='setup'){ if(k==='escape'){closeSeasonSetup();} else if(k==='enter'&&document.activeElement.tagName!=='INPUT'){beginSeason();} return; }
   if(SEASON.on==='hub'){ if(k==='escape'){closeSeasonHub();} else if(k==='enter'){seasonRace();} e.preventDefault();return; }
   if(SEASON.on==='rd'){ if(k==='escape'){ if($('#rdScreen').classList.contains('area'))renderRDHome(); else closeRD(); } e.preventDefault();return; }
@@ -12997,7 +14950,19 @@ addEventListener('keydown',e=>{
     if(k==='c')cycleCam();
     else if(k==='r')resetCar();
     else if(k==='i'){$('#carInfo').classList.toggle('on');Sound.init();Sound.blip(480,.04);}
-    else if(k==='1'||k==='2'||k==='3'){fitTyres(['soft','medium','hard'][+k-1]);}
+    /* 1/2/3 used to bolt a fresh set straight onto a moving car, for free,
+       which made pit stops pointless. They now set the compound you INTEND to
+       fit; you still have to come down the pit lane and take the stop. */
+    else if(k==='1'||k==='2'||k==='3'||k==='4'||k==='5'){
+      stratComp=STRAT_COMPS[+k-1];
+      PITSTOP.planComp=stratComp;
+      const t=$('#tyreToast');
+      if(t){t.textContent=`PLAN · ${COMPOUNDS[stratComp].name.toUpperCase()} AT THE NEXT STOP`;
+        t.style.color=COMPOUNDS[stratComp].col; t.classList.add('on');
+        clearTimeout(t._h); t._h=setTimeout(()=>t.classList.remove('on'),1700);}
+      Sound.init(); Sound.blip(560,.05); updatePitCue();
+    }
+    else if(k==='p')openStrategy();
     else if(k==='y')enterReplay();
     else if(k==='escape')exitToMenu();
     else if(k==='m'){Sound.init();Sound.toggle();}
@@ -13015,6 +14980,12 @@ addEventListener('keydown',e=>{
   }
 });
 addEventListener('keyup',e=>{keys[e.key.toLowerCase()]=false;});
+/* Alt-tab with the throttle held and the keyup never arrives — the browser sends
+   it to whatever you switched to. The car then drives itself into a wall while
+   you are not even looking at the page. Losing focus releases everything. */
+const releaseAllKeys=()=>{for(const k in keys) keys[k]=false;};
+addEventListener('blur',releaseAllKeys);
+addEventListener('visibilitychange',()=>{if(document.hidden)releaseAllKeys();});
 addEventListener('pointerdown',()=>{if(STATE==='cine')endCinematic();else if(STATE==='intro')endTrackIntro(true);});
 function readInput(){
   const thr=(keys['w']||keys['arrowup'])?1:0;
@@ -13029,7 +15000,7 @@ function readInput(){
    overtakes, defends, mistakes, ERS, and contact avoidance.
    ================================================================== */
 const AI={cars:[], on:false, playerPos:1, hold:false};
-if(typeof window!=='undefined'){window.__AI=AI;setTimeout(()=>{window.__stepAI=stepAI;window.__spawnAIs=spawnAIs;},0);}
+if(DEBUG){window.__AI=AI;setTimeout(()=>{window.__stepAI=stepAI;window.__spawnAIs=spawnAIs;},0);}
 /* Build an AI car in a team's REAL livery.
    It used to flat-fill the bodywork with the team's base colour, so every rival
    was a plain block of paint while your car wore the full design — no stripes,
@@ -13167,7 +15138,10 @@ function spawnAIs(n){
     const mesh=makeAICar(new THREE.Color(LIVERIES[team].base),team);driveScene.add(mesh);
     const comp=i<3?'medium':(i%2?'hard':'soft');           // varied starting strategies
     AI.cars.push({mesh, idx:slotOf(d.n,i), lat:(i%2?1:-1)*2.4, v:0, lap:0, team,
-      name:d.n, skill:d.skill, aggro:d.aggro, consist:d.consist, psn:d.psn||{},
+      // difficulty scales the whole field's pace; consistency moves with it, so
+      // Rookie also makes more mistakes rather than just driving slower
+      name:d.n, skill:clamp(d.skill*aiSkillMul(),0.5,1.06), aggro:d.aggro,
+      consist:clamp(d.consist*aiSkillMul(),0.4,1), psn:d.psn||{},
       ers:0.7, mistakeT:-99, dodge:0, defend:0, seed:Math.random()*TAU,
       compound:comp, tyre:1, tyreLife:compoundLaps(comp,CFG.id), stops:0,
       pitFlag:false, pitPhase:0, pitTimer:0, lastIdx:0});
@@ -13184,7 +15158,7 @@ function spawnAIs(n){
 const SIM={on:false, phase:'', t:0, lights:0, follow:0, cam:0, camT:0,
   laps:1, order:[], finished:[], startT:0, auto:true, fastest:null, _flT:0};
 const SIM_CAMS=['chase','tcam','trackside','helicam','onboard'];
-if(typeof window!=='undefined'){ window.__SIM=SIM;
+if(DEBUG){ window.__SIM=SIM;
   setTimeout(()=>{window.__startAISim=startAISim;window.__stepAISim=stepAISim;},0); }
 /* line the whole field up on the grid: two abreast, staggered, 8 m apart, with
    the front row right on the start line. This is the grid, not a rolling train. */
@@ -13218,7 +15192,10 @@ function spawnGrid(n){
     const lat=(sideL?-1:1)*Math.min(HW*0.46,2.9);
     const comp=i<4?'soft':(i%2?'medium':'hard');
     AI.cars.push({mesh, idx, lat, v:0, team,
-      name:d.n, skill:d.skill, aggro:d.aggro, consist:d.consist, psn:d.psn||{},
+      // difficulty scales the whole field's pace; consistency moves with it, so
+      // Rookie also makes more mistakes rather than just driving slower
+      name:d.n, skill:clamp(d.skill*aiSkillMul(),0.5,1.06), aggro:d.aggro,
+      consist:clamp(d.consist*aiSkillMul(),0.4,1), psn:d.psn||{},
       ers:1.0, mistakeT:-99, dodge:0, defend:0, seed:Math.random()*TAU,
       compound:comp, tyre:1, tyreLife:compoundLaps(comp,CFG.id), stops:0,
       pitFlag:false, pitPhase:0, pitTimer:0, lastIdx:0,
@@ -13483,27 +15460,49 @@ function stepAI(dt){
     }
     c.lastIdx=i;
     // --- pit stop sequence: run down the pit side at the limit, stop, rejoin on fresh rubber ---
+    /* AI PIT STOPS. These used to slide the car sideways to a fixed lateral
+       offset and back — the car simply translated off the racing line, through
+       whatever was there, and "pitted" in mid-air beside the track.
+       Now they drive the same pit lane the player does: the corridor's own
+       offset curve carries them off the circuit at the entry, down past the
+       garages under the limit, and back on at the exit, so an AI stop is a
+       thing you can watch happen from the car behind. */
     if(c.pitPhase>0){
       c.pitTimer-=dt;
-      const pitLat=(HW+7)*(-1);                          // pit lane sits on the -normal side
-      c.lat=damp(c.lat,pitLat,3,dt);
+      const dHere=lapSigned(TRACK.cum[pi]);
+      const info=pitLaneAt(dHere);
+      // follow the lane's own geometry when we are inside the corridor; outside
+      // it, hold the pit side so the entry and exit read as deliberate
+      const pitLat=PIT.side*((info?info.off:TRACK.halfW+PIT.offset)+PIT.halfW*0.35);
+      c.lat=damp(c.lat,pitLat,info?6:3,dt);
       if(c.pitPhase===1){                                // rolling in, speed-limited
-        c.v=damp(c.v,21,4,dt); if(c.pitTimer<=0){c.pitPhase=2;c.pitTimer=2.3+Math.random()*0.9;}
+        c.v=damp(c.v,PIT.limit,4,dt); if(c.pitTimer<=0){c.pitPhase=2;c.pitTimer=2.3+Math.random()*0.9;}
       }else if(c.pitPhase===2){                          // stationary for the tyre change
         c.v=damp(c.v,0,8,dt);
         if(c.pitTimer<=0){ const comp=c.tyre<0.5&&c.lap>6?'soft':'medium';
           c.compound=comp; c.tyre=1; c.tyreLife=compoundLaps(comp,CFG.id); c.stops++;
           c.pitPhase=3; c.pitTimer=2.6; }
       }else{                                             // accelerating back out
-        c.v=damp(c.v,24,3,dt); if(c.pitTimer<=0){c.pitPhase=0;c.pitFlag=false;}
+        c.v=damp(c.v,26,3,dt); if(c.pitTimer<=0){c.pitPhase=0;c.pitFlag=false;}
       }
       c.idx+=(c.v*dt)/segLen; if(c.idx>=N){c.idx-=N;c.lap++;}
       const pp=TRACK.pts[pi], pn=TRACK.nrm[pi], ptg=TRACK.tan[pi];
-      c.mesh.position.set(pp.x+pn.x*c.lat,(pp.y||0)+0.02-(CAR.tireDrop||0),pp.z+pn.z*c.lat);
+      const px=pp.x+pn.x*c.lat, pz=pp.z+pn.z*c.lat;
+      /* Sit on the LANE, not on the centreline's height. The pit lane is graded
+         away from the racing surface, so a car placed at the track's y out here
+         hangs in the air exactly as the lane itself used to. */
+      let py=(pp.y||0);
+      if(info) py=pitPos(dHere,Math.abs(c.lat)-info.off).y;
+      c.mesh.position.set(px,py+0.02-(CAR.tireDrop||0),pz);
       c.mesh.rotation.y=Math.atan2(ptg.x,ptg.z);
+      c.inPitLane=true;
       continue;
     }
-    if(c.pitFlag && i<12 && c.v>10){ c.pitPhase=1; c.pitTimer=1.6; }   // dive in at the pit entry
+    // dive in at the pit entry — the real one, where the lane leaves the circuit
+    if(c.pitFlag && c.v>10 && TRACK.pit && TRACK.pit.inIdx!=null){
+      const rel=((i-TRACK.pit.inIdx)%N+N)%N;
+      if(rel<10){ c.pitPhase=1; c.pitTimer=1.6; }
+    }
     // --- proper speed planning: for every point in the braking zone ahead, work out the
     // corner speed it allows (v=sqrt(µgR)) and how fast we may be going NOW to still brake
     // down to it (v² = vc² + 2·a·d). The tightest constraint wins. ---
@@ -14144,8 +16143,11 @@ function stepAI(dt){
             0.55,0.55,0.58,0.55,0.5,1.8,2.2);}
       }
     }
-    // re-seat anything the shove moved, so the visual matches the new position
+    // re-seat anything the shove moved, so the visual matches the new position.
+    // Cars in the pit lane are placed by the pit code against the graded lane
+    // height and must not be dragged back onto the centreline's elevation.
     for(const c of AI.cars){
+      if(c.pitPhase>0||c.inPitLane){ c.inPitLane=false; continue; }
       const fi=((c.idx%N)+N)%N, i0=Math.floor(fi)%N, i1=(i0+1)%N, f=fi-Math.floor(fi);
       const p0=TRACK.pts[i0],p1=TRACK.pts[i1],n0=TRACK.nrm[i0],n1=TRACK.nrm[i1];
       const nx=lerp(n0.x,n1.x,f), nz=lerp(n0.z,n1.z,f), nl=Math.hypot(nx,nz)||1;
@@ -14174,15 +16176,17 @@ function stepAI(dt){
    ================================================================== */
 let last=performance.now();
 let physAcc=0;                                   // fixed-timestep physics accumulator
+let LAST_STEP=null;                              // last stepPhysics() result, for frames that bank instead of step
 function frame(){
   const t=performance.now();let dt=(t-last)/1000;last=t;dt=Math.min(dt,0.05);
   if(STATE==='menu'){
     menuSpin+=dt*0.18; CAR.rig.rotation.y=-0.6+Math.sin(menuSpin)*0.5;
-    renderer.render(menuScene,camera);
-    // fixed showroom camera
-    camera.fov=38;camera.updateProjectionMatrix();
+    // showroom camera FIRST — rendering before moving it drew a frame from where
+    // the camera was last frame, at whatever FOV the previous state left behind
+    if(camera.fov!==38){camera.fov=38;camera.updateProjectionMatrix();}
     camera.position.set(Math.cos(menuSpin*0.3)*9.5,3.1,Math.sin(menuSpin*0.3)*9.5+3.5);
     camera.lookAt(0.4,0.8,0);
+    renderer.render(menuScene,camera);
   }else if(STATE==='cine'){
     stepCinematic(dt);
     renderer.render(cineScene,camera);
@@ -14194,24 +16198,40 @@ function frame(){
   }else if(STATE==='countdown'){
     renderer.render(driveScene,camera);              // frozen grid while the lights run
   }else if(STATE==='drive'){
+    /* The strategy window holds the race. Still rendering the world behind it,
+       just not advancing it — you are making a decision, not driving. */
+    if(stratOn){ renderer.render(driveScene,camera); requestAnimationFrame(frame); return; }
     const inp=readInput();
     /* FIXED-TIMESTEP PHYSICS. Stepping the car by the frame time meant the
        handling literally changed with the framerate — a slip-angle model
        integrated at 30 fps behaves differently from one at 144, and a long
        frame used to produce a lurch. The car is now always integrated in 1/120 s
-       slices with the remainder carried over, so it feels the same on any
-       machine and stays smooth through a hitch. */
+       slices with the remainder CARRIED, so it feels the same on any machine
+       and stays smooth through a hitch.
+
+       There used to be a "no whole step this frame → just step the remainder"
+       fallback here, and above 120 fps that fired on most frames: dt (1/144)
+       never reaches H, so the car was integrated at a variable dt and the
+       accumulator was zeroed, throwing the carry away. That is exactly the
+       framerate dependence this block exists to remove. There is no fallback
+       now — a frame that does not fill a slice simply banks its time and the
+       car holds last frame's pose, which is what an accumulator is for. */
     let r=null;
     physAcc+=dt;
     const H=1/120;
     let steps=0;
     while(physAcc>=H && steps<12){ r=stepPhysics(H,inp); physAcc-=H; steps++; }
     if(steps>=12) physAcc=0;                     // came back from a long stall: do not catch up
-    if(!r) r=stepPhysics(Math.max(physAcc,1e-4),inp), physAcc=0;
+    // no step ran (we are above 120 fps): reuse last frame's result for the HUD,
+    // and keep the banked time so the next frame steps it.
+    if(!r) r=LAST_STEP;
+    else LAST_STEP=r;
+    if(!r) r={off:false,near:nearestTrack(CAR.pos,CAR.trackIdx,55)};
     updateCamera(dt);
+    updateHelmet(dt);
     lap.update(dt,r.near.idx);
     stepAI(dt);
-    updateHUD(inp,r);
+    updateHUD(inp,r,dt);
     replayRecord(dt);
     const rb=$('#replayBadge'); if(rb)rb.classList.toggle('on',REPLAY.laps.length>0);
     updateWeather(driveScene,dt);                       // sun moves, fronts roll through
@@ -14222,6 +16242,7 @@ function frame(){
     renderer.render(driveScene,camera);
   }else if(STATE==='replay'){
     updateReplay(dt);
+    updateHelmet(dt);
     updateWeather(driveScene,dt);                       // sun moves, fronts roll through
     FX.update(dt);
     const rain=driveScene.userData.rain; if(rain) rain.update(dt,camera.position);
@@ -14253,9 +16274,10 @@ function updateWeatherHUD(){
   row.classList.toggle('storm', st>0.4);
   row.classList.toggle('turning', !!WEATHER.next);
 }
-function updateHUD(inp,r){
+function updateHUD(inp,r,dt){
+  dt=dt||0.016;
   const spd=Math.abs(CAR.v);
-  $('#speed').textContent=Math.round(spd*3.6);
+  $('#speed').textContent=Math.round(spd*(SET.units==='mph'?2.23694:3.6));
   updateWeatherHUD();
   // heavy-rain whiteout: blinding spray thrown up by your own car + any car you're tucked behind
   { const sw=$('#stormWhite'); const w=clamp(WEATHER.wetness,0,1);
@@ -14302,7 +16324,7 @@ function updateHUD(inp,r){
   /* TRACK LIMITS. Running all four wheels off the road is worth a warning, and
      the fourth one is a five-second penalty — which is how it is actually
      policed. Without this, cutting a corner was simply free. */
-  { const off=r.off&&spd>8;
+  { const off=r.off&&spd>8&&SET.trackLimits;
     if(off && !CAR.limitArmed){ CAR.limitArmed=true;
       CAR.limits=(CAR.limits||0)+1;
       const n=CAR.limits;
@@ -14315,12 +16337,23 @@ function updateHUD(inp,r){
         if(tl){tl.textContent='+5s PENALTY · TRACK LIMITS';tl.style.color='#ff5b5b';
           tl.classList.add('on');clearTimeout(tl._h);tl._h=setTimeout(()=>tl.classList.remove('on'),2400);}
       }
+      CAR.limitFlashT=3.2;                       // seconds the centre banner stays up
     }
     if(!r.off) CAR.limitArmed=false;
+    /* The centre banner counts itself down and clears. Latching it on for as
+       long as you had any warning at all meant one early mistake left a badge
+       sitting over the apex for the rest of the race. */
+    if(CAR.limitFlashT>0) CAR.limitFlashT=Math.max(0,CAR.limitFlashT-dt);
+    const n=CAR.limits||0, pen=CAR.penalty||0;
     const lw=$('#limitWarn');
-    if(lw){ const n=CAR.limits||0, pen=CAR.penalty||0;
-      lw.classList.toggle('on', n>0||pen>0);
-      lw.innerHTML = (pen? `<b>+${pen}s</b>` : '') + (n? `<i>LIMITS ${n}/3</i>` : ''); } }
+    if(lw){ const show=CAR.limitFlashT>0;
+      lw.classList.toggle('on', show);
+      if(show) lw.innerHTML = (pen? `<b>+${pen}s</b>` : '') + (n? `<i>LIMITS ${n}/3</i>` : ''); }
+    // …and the standing count lives here instead, small and out of the way
+    const lc=$('#limChip');
+    if(lc){ lc.classList.toggle('on', n>0||pen>0);
+      lc.classList.toggle('pen', pen>0);
+      lc.textContent = (pen?`+${pen}s`:'') + (pen&&n?' · ':'') + (n?`LIM ${n}/3`:''); } }
   $('#offTrack').classList.toggle('on',r.off&&spd>4);
   $('#drs').classList.toggle('on', !!CAR.drsOpen);
   $('#drs').classList.toggle('avail', !!CAR.drsZone && !CAR.drsOpen);
@@ -14343,6 +16376,13 @@ function updateHUD(inp,r){
     if(!CAR.rDmg && CAR.damage>0.3){CAR.rDmg=true;Radio.say('engineer','damage',{cool:0});}
   }
   const df=$('#dmgFill'); if(df) df.style.height=(CAR.damage*100)+'%';
+  // pit lane: the limiter badge, and the state of the planned stop
+  { const lm=$('#limiter');
+    if(lm){ lm.classList.toggle('on', !!CAR.inPit);
+      lm.textContent = PITSTOP.phase!=='none' && PITSTOP.phase!=='go'
+        ? `IN THE BOX · ${PITSTOP.total.toFixed(1)}s`
+        : (CAR.limiterOn?'PIT LIMITER · 80':'PIT LANE'); } }
+  updatePitCue();
   // car-status drop-down: the collapsed bar still shows a one-line summary, so
   // closing it costs you nothing but the screen space
   { const ci=$('#carInfo'), dp=Math.round(CAR.damage*100);
@@ -14390,16 +16430,8 @@ function ldPct(p){p=Math.round(p);$('#ldBar').style.width=p+'%';$('#ldPct').text
 
 async function boot(){
   if(location.protocol==='file:'){
-    $('#loader').innerHTML=
-      '<div id="ldMark">APEX<span class="r">·</span>GP</div>'+
-      '<div style="max-width:540px;text-align:center;margin-top:30px;line-height:1.75;color:#c7d0da;font-size:14px;padding:0 20px">'+
-      'This game has to run from a <b>local web server</b> — opening the file directly '+
-      '(a <code>file://</code> address) is blocked by the browser for security.<br><br>'+
-      '<b style="color:#fff">Easiest:</b> double-click <b style="color:#e10600">PLAY.command</b> (macOS) or '+
-      '<b style="color:#e10600">play.bat</b> (Windows) in this folder — it opens the game for you.<br><br>'+
-      '<b style="color:#fff">Or</b> open Terminal in this folder and run:<br>'+
-      '<code style="color:#39d98a;font-family:Orbitron,monospace">python3 -m http.server 8000</code><br>'+
-      'then visit <code style="color:#39d98a;font-family:Orbitron,monospace">http://localhost:8000</code></div>';
+    // same message the classic script above already put up — one source, no drift
+    $('#loader').innerHTML=window.__fileProtoMsg();
     return;
   }
   const loader=new GLTFLoader();
@@ -14418,6 +16450,19 @@ async function boot(){
   await new Promise(r=>setTimeout(r,200));
   ldPct(100);ldState(5);
   buildMenu();
+  // settings screen wiring — the buttons, and the first application of whatever
+  // was loaded from storage before anything is on screen
+  $('#stConfirm').onclick=()=>confirmStrategy();
+  $('#stCancel').onclick=()=>cancelStrategy();
+  $('#stClose').onclick=()=>{closeStrategy();Sound.blip(430,.05);};
+  $('#setBack').onclick=()=>{closeSettings();Sound.blip(430,.05);};
+  $('#setDefaults').onclick=()=>{
+    Object.assign(SET,DEFAULT_SET); saveSettings(); applySettings(); renderSettings();
+    const s=$('#setSaved'); if(s){s.textContent='Defaults restored';
+      clearTimeout(s._t); s._t=setTimeout(()=>{s.textContent='Saved automatically';},1800);}
+    Sound.init(); Sound.blip(700,.08);
+  };
+  applySettings();
   setTimeout(()=>{
     $('#loader').classList.add('gone');
     startCinematic();     // play the opening flythrough, then land on the menu
