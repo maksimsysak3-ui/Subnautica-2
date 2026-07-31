@@ -1797,10 +1797,45 @@ function buildWorld(sc,cfg){
   TRACK.N=N;TRACK.pts=P;TRACK.tan=Tg;TRACK.nrm=Nm;TRACK.cum=cum;TRACK.len=len;
   const wb=new THREE.Box3().setFromPoints(P);
   const worldR=wb.getSize(new THREE.Vector3()).length()/2; TRACK.radius=worldR;
-  // smooth terrain height field that hugs the elevated track
-  const samp=[];for(let i=0;i<N;i+=7)samp.push(P[i]);
-  TRACK.terrainH=(x,z)=>{let ws=0,hs=0;for(const s of samp){const dx=x-s.x,dz=z-s.z;
-    const d2=dx*dx+dz*dz+90;const w=1/(d2*d2);ws+=w;hs+=w*s.y;}return hs/ws;};
+  /* GROUND HEIGHT BESIDE THE ROAD.
+     This was a single inverse-distance average over the whole centreline, and
+     that is fine only on a circuit that never passes itself. Where a track
+     doubles back at a different elevation the average splits the difference, so
+     the ground next to the LOW section is dragged up toward the HIGH one and
+     comes through the tarmac. Measured on the old field: +33 m above the road at
+     Monaco, +12 m at Interlagos, +7 m at Spa. Everything that sits on the ground
+     — verges, banks, walls, trees, spectators — inherited it.
+
+     So it is now two fields blended by distance from the road. Close in, the
+     weighting is relative to the NEAREST sample, which makes the section you are
+     actually beside dominate by eight orders of magnitude over one that merely
+     passes nearby at another height, while still averaging smoothly along the
+     road. Far out it relaxes into the old smooth field so the landscape still
+     rolls. */
+  const samp=[];for(let i=0;i<N;i+=4)samp.push(P[i]);
+  TRACK.terrainH=(x,z)=>{
+    let best=1e18, ny=0;
+    for(const s of samp){const dx=x-s.x,dz=z-s.z;const d2=dx*dx+dz*dz;if(d2<best){best=d2;ny=s.y;}}
+    let wsN=0,hsN=0,wsF=0,hsF=0,ceil=1e18;
+    for(const s of samp){
+      const dx=x-s.x,dz=z-s.z,d2=dx*dx+dz*dz;
+      const e=d2-best+30, wN=1/(e*e*e);   wsN+=wN; hsN+=wN*s.y;   // relative to the nearest
+      const f=d2+90,      wF=1/(f*f);     wsF+=wF; hsF+=wF*s.y;   // the old global field
+      /* CEILING FROM EVERY PIECE OF ROAD, not just the closest one. Where a
+         circuit stacks over itself — Monaco under the hill, Eau Rouge under
+         Radillon — the nearest sample is the UPPER road, so clamping to that
+         alone still let its ground lie across the lower one twenty metres
+         below. Each sample instead contributes a ceiling that starts at its own
+         tarmac and climbs away at about thirty degrees; the ground takes the
+         lowest of them. Nothing can then sit above any road it is beside. */
+      const c=s.y-0.25+Math.max(0,Math.sqrt(d2)-18)*0.6;
+      if(c<ceil) ceil=c;
+    }
+    const near=hsN/wsN, far=hsF/wsF;
+    const d=Math.sqrt(best), t=clamp((d-70)/170,0,1);
+    const h=lerp(near, far, t*t*(3-2*t));
+    return Math.min(h, ceil);
+  };
 
   // ---- weather: rolled per session from the venue's climate, then allowed to
   // CHANGE during the race. Nothing below reads cfg.rain/cfg.storm directly any
