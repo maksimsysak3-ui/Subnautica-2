@@ -91,6 +91,9 @@
     background:linear-gradient(90deg,rgba(225,6,0,0) 0%,#ff1417 40%,#b00 70%,rgba(160,0,0,0));
     transform:skewX(-22deg);filter:blur(1px);box-shadow:0 0 40px rgba(255,20,20,.6);opacity:.92;will-change:left,opacity}
   #cineFlash{position:absolute;inset:0;background:#fff;opacity:0;pointer-events:none}
+  /* the hard cut, one beat before the line — the whole point of the sequence */
+  #cineBlack{position:absolute;inset:0;background:#000;opacity:0;pointer-events:none}
+  #cineBlack.on{opacity:1;transition:opacity .09s linear}
   #cineFlash.on{opacity:.85;transition:opacity .05s ease}
   #cineText{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center}
   #cineTitle{font-family:var(--mono);font-weight:900;color:#fff;line-height:.95;letter-spacing:.02em;
@@ -166,6 +169,19 @@
   #simResult{position:fixed;inset:0;z-index:41;display:none;align-items:center;justify-content:center;
     background:radial-gradient(ellipse at 50% 40%,rgba(10,14,22,.86),rgba(2,4,8,.96))}
   #simResult.on{display:flex}
+  /* the fastest-lap call is a strap, not the giant race-message type */
+  #simMsg.fl{top:15%;font-size:clamp(13px,1.8vw,20px);letter-spacing:.2em;color:#c86bff;
+    text-shadow:0 0 26px rgba(160,60,230,.6)}
+  #simMsg.fl b{color:#fff;letter-spacing:.09em}
+  /* fastest lap: purple, the way it is on the timing screens */
+  #simTable td.fl{color:#c86bff;font-weight:800}
+  .flTag{font-size:.62em;letter-spacing:.12em;background:#7d2dc4;color:#fff;
+    padding:1px 5px;border-radius:3px;vertical-align:middle;margin-left:6px}
+  #simFastest{margin-top:14px;text-align:center;font-family:var(--mono);font-size:13px;
+    letter-spacing:.16em;color:#c86bff;text-transform:uppercase}
+  #simFastest b{color:#fff;letter-spacing:.08em}
+  .flDot{display:inline-block;width:8px;height:8px;border-radius:50%;background:#c86bff;
+    margin-right:9px;vertical-align:middle;box-shadow:0 0 10px #c86bff}
   .simCard{padding:34px 44px;border:1px solid var(--grey-lo);border-radius:10px;background:rgba(12,16,26,.78);
     box-shadow:0 30px 90px rgba(0,0,0,.6);text-align:center;max-height:86vh;overflow:auto}
   #simTable{margin-top:22px;border-collapse:collapse;font-size:12.5px}
@@ -659,6 +675,7 @@
   <div class="cBar top"></div><div class="cBar bot"></div>
   <div id="cineFx"></div>
   <div id="cineFlash"></div>
+  <div id="cineBlack"></div>
   <div id="cineText"><div id="cineTitle"></div><div id="cineSub"></div></div>
   <div id="cineSkip">Press any key to skip ▸</div>
 </div>
@@ -705,6 +722,7 @@
       <thead><tr><th>POS</th><th>DRIVER</th><th>TEAM</th><th>GRID</th><th>BEST LAP</th><th>GAP</th></tr></thead>
       <tbody id="simResultBody"></tbody>
     </table>
+    <div id="simFastest"></div>
     <div class="qHint"><b>R</b> Run it again &nbsp;·&nbsp; <b>⏎</b> Back to menu</div>
   </div>
 </div>
@@ -2589,9 +2607,10 @@ function buildWorld(sc,cfg){
 
   buildBarriers(sc,P,Nm,cum,barOff,barOffR);
   buildSafetyBarriers(sc,P,Nm,barOff,barOffR);                   // TecPro / tyre stacks / armco by design pass
-  // Monza's chicanes carry the biggest sausage kerbs in the sport — they are
-  // what launches cars at the Rettifilo and the Roggia every single year
-  if(cfg.sausage) buildSausageKerbs(sc,P,Nm,cum,runL,runR,HW,1.9);
+  /* Every circuit has sausage kerbs at the corners worth cutting; Monza's are
+     the biggest in the sport, which is what launches cars at the Rettifilo and
+     the Roggia every single year. */
+  buildSausageKerbs(sc,P,Nm,cum,runL,runR,HW,cfg.sausage?1.55:1.0);
   /* GRANDSTANDS AND THE PIT COMPLEX GO DOWN FIRST. They are the things that have
      to be right, so they get first claim on the ground in OCCUPY; the venue's
      buildings, trees and props are then built AROUND them rather than through
@@ -3683,30 +3702,64 @@ function makeZoneBoard(sp){
     x.strokeStyle='rgba(0,0,0,.18)';x.lineWidth=2;x.strokeRect(x0+1,1,pw-2,ph-2);}
   const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;t.wrapS=THREE.RepeatWrapping;t.wrapT=THREE.ClampToEdgeWrapping;t.anisotropy=16;t.generateMipmaps=true;t.minFilter=THREE.LinearMipmapLinearFilter;return t;
 }
-/* yellow/black "sausage" kerbs along chicane edges (run width tells us where) */
+/* ---- SAUSAGE KERBS -----------------------------------------------------------
+   The yellow-and-black blocks bolted onto a kerb at a corner a driver would
+   otherwise cut. They are NOT a continuous edging, and running them down the
+   whole side of the circuit is exactly wrong — a real track puts them only where
+   cutting gains time, in runs of a few metres: the apex of a slow corner, and
+   the exit of a chicane, where the big ones live. Riding one is meant to hurt.
+   This records what it builds in TRACK.saus so the physics can act on it.      */
 function buildSausageKerbs(sc,P,Nm,cum,runL,runR,HW,scale){
   const SC=scale||1;
-  const N=P.length, gh=TRACK.terrainH;
+  const N=P.length;
+  const K=TRACK.Kf||TRACK.Kc; if(!K) return;
   const yel=new THREE.MeshStandardMaterial({color:0xf2c200,roughness:0.6,emissive:0x2a2200,emissiveIntensity:0.3});
   const blk=new THREE.MeshStandardMaterial({color:0x141414,roughness:0.8});
-  const geo=new THREE.CylinderGeometry(0.15*SC,0.15*SC,2.0,10);
   const Yup=new THREE.Vector3(0,1,0),q=new THREE.Quaternion();
+  const saus=new Int8Array(N);
+  const strips=[];
+  /* Walk the lap and pull out contiguous corners from the true curvature, then
+     decide per corner where a block would actually be bolted down. */
+  const ENTER=1/190, STAY=1/280;
+  let i=0, guard=0;
+  while(i<N && guard++<N){
+    if(Math.abs(K[i])<ENTER){ i++; continue; }
+    let j=i, kmax=0, ksum=0;
+    while(j<N && Math.abs(K[j])>=STAY){ const a=Math.abs(K[j]); if(a>kmax)kmax=a; ksum+=K[j]; j++; }
+    const len=j-i;
+    if(len>=3){
+      const R=1/Math.max(kmax,1e-9);
+      // the inside of the corner is the side the car cuts toward
+      const inside=-Math.sign(ksum||1);
+      const tight=R<95, veryTight=R<58;
+      // a mid-speed corner gets nothing: there is nothing to gain by cutting it
+      if(tight){
+        const apex=Math.round(i+len*0.5);
+        strips.push({a:apex-2,b:apex+2,side:inside,big:false});
+        // and a proper deterrent on the way out of the really slow ones
+        if(veryTight){ const ex=Math.round(i+len*0.82);
+          strips.push({a:ex,b:ex+3,side:inside,big:true}); }
+      }
+    }
+    i=j+1;
+  }
+  const geoS=new THREE.CylinderGeometry(0.085*SC,0.085*SC,1.7,8);
+  const geoB=new THREE.CylinderGeometry(0.165*SC,0.165*SC,1.7,10);
   let ci=0;
-  const Rc=TRACK.Rc;
-  for(const [side,run] of [[1,runL],[-1,runR]]){
-    for(let i=0;i<N;i+=2){
-      // scaled venues put them at the tight chicanes; the default is wherever
-      // there is enough run-off to warrant a deterrent
-      if(SC>1.2){ if(!Rc || Rc[i]>170) continue; }
-      else if(run[i]<3.5) continue;
-      const p=P[i],n=Nm[i];const tg=new THREE.Vector3(-n.z,0,n.x);
-      const off=HW+1.15;const x=p.x+n.x*side*off, z=p.z+n.z*side*off;
-      const m=new THREE.Mesh(geo,(ci++&1)?blk:yel);
+  for(const st of strips){
+    for(let k=st.a;k<=st.b;k++){
+      const idx=((k%N)+N)%N;
+      const p=P[idx],n=Nm[idx];const tg=new THREE.Vector3(-n.z,0,n.x);
+      const off=HW+0.62;
+      const m=new THREE.Mesh(st.big?geoB:geoS,(ci++&1)?blk:yel);
       q.setFromUnitVectors(Yup,tg); m.quaternion.copy(q);
       // sit on the ROAD's height, not a terrain average, or they float and sink
-      m.position.set(x,p.y+0.05*SC,z); m.castShadow=true; sc.add(m);
+      m.position.set(p.x+n.x*st.side*off, p.y+0.04*SC, p.z+n.z*st.side*off);
+      m.castShadow=true; sc.add(m);
+      saus[idx]=st.side*(st.big?2:1);
     }
   }
+  TRACK.saus=saus;
 }
 /* ---- FIA safety barriers: the hardware that actually sits in front of the
    sponsor wall. Which type goes where comes from the design pass:
@@ -11141,7 +11194,7 @@ function resetCar(){
   CAR.ers=0.75;CAR.ersActive=0;CAR.tire=1;CAR.damage=0;
   CAR.compound=selCompound; CAR.tireLapsLife=compoundLaps(selCompound,CFG.id);
   CAR.rTyreWarn=false; CAR.rTyreCrit=false; CAR.rDmg=false; CAR.rPrevPos=8; CAR.rPrevBest=null;
-  CAR.trackIdx=0; CAR.groundY=p.y;
+  CAR.trackIdx=0; CAR.groundY=p.y; CAR.hop=0; CAR.hopV=0; CAR.kerbKick=0; CAR.airborne=false;
   CAR.rig.position.set(p.x,p.y+0.02-(CAR.tireDrop||0),p.z);   // seat on the grid during the countdown
   CAR.rig.rotation.set(0,CAR.heading,0,'YXZ');
   lap.reset();
@@ -11261,6 +11314,7 @@ function stepPhysics(dt,inp){
   const wetFit=compoundWetFit(CAR.compound||'medium',WEATHER.wetness);
   const tireGrip=lerp(0.82,1.0,CAR.tire)*comp.grip*tempGrip*wetFit;
   let gripMul=(off?0.55:(onKerb?0.82:1.0))*wetMul*tireGrip*rdGrip();
+  if(CAR.airborne) gripMul*=0.05;      // nothing is touching the road
   /* FLOOR ON THE WET. Four separate multipliers were all pulling the same way
      in the rain — the surface cut, the compound's own grip, the tyre running
      cold because rain cools it, and the wet-fit penalty — and they multiply.
@@ -11291,6 +11345,41 @@ function stepPhysics(dt,inp){
   if((CAR.compound==='wet'||CAR.compound==='inter') && WEATHER.wetness<0.15)
     CAR.tTemp=Math.min(1.25,CAR.tTemp+dt*0.07);
   CAR.kerb=onKerb;
+  /* ---- SAUSAGE KERBS -----------------------------------------------------
+     A sausage kerb is not scenery. Put a wheel over one at speed and it lifts
+     that corner of the car, unloads the tyres on that side and pitches you
+     sideways; over a big one at a chicane it launches the car outright and you
+     are a passenger until it lands. That is the whole reason they are bolted
+     there, and it is what makes cutting a corner a decision rather than a
+     freebie. Airborne means no grip at all — nothing is touching the road. */
+  if(CAR.hop===undefined){CAR.hop=0;CAR.hopV=0;CAR.kerbKick=0;}
+  { const S=TRACK.saus?TRACK.saus[near.idx]:0;
+    const sSide=S>0?1:(S<0?-1:0), big=Math.abs(S)>1;
+    const on = sSide && Math.sign(near.lat)===sSide
+               && absLat>TRACK.halfW-0.30 && absLat<TRACK.halfW+1.55;
+    if(on && spd>8){
+      const bite=clamp(spd/55,0.25,1.35)*(big?1.0:0.42);
+      // the blocks are spaced, so the car is thrown once per block, not shoved
+      CAR.kerbKick-=dt;
+      if(CAR.kerbKick<=0){
+        CAR.kerbKick=Math.max(0.09, 1.7/Math.max(spd,10));
+        CAR.hopV+=bite*(big?4.6:1.9);
+        // the outside wheels are still down, so it also yaws and slides away
+        CAR.yawRate+=sSide*bite*(big?0.95:0.34);
+        CAR.vLat   -=sSide*bite*(big?3.1:1.1);
+        FX.ready&&FX.spawn(CAR.pos.x,(CAR.groundY||0)+0.2,CAR.pos.z,
+          (Math.random()-0.5)*3,1.4+Math.random()*1.4,(Math.random()-0.5)*3,
+          0.82,0.80,0.74,0.55,0.5,2.0,1.8);
+      }
+      CAR.damage=Math.min(1,(CAR.damage||0)+dt*(big?0.045:0.012));
+    }
+  }
+  // gravity. Downforce is worth several g, so a car comes back down hard.
+  CAR.hopV=Math.min(CAR.hopV,4.6);        // a kerb launches a car, it does not fire it
+  CAR.hopV-=22.0*dt;
+  CAR.hop=clamp(CAR.hop+CAR.hopV*dt,0,1.5);
+  if(CAR.hop<=0 && CAR.hopV<0) CAR.hopV=0;
+  CAR.airborne=CAR.hop>0.045;
 
   // lateral: dynamic bicycle model — real slip angles give understeer/oversteer.
   // Front/rear tyre loads (static split + downforce, rear-biased) size each axle's
@@ -11460,7 +11549,7 @@ function stepPhysics(dt,inp){
   }
   const rumble=CAR.kerb?Math.sin(performance.now()*0.05)*0.035*clamp(spd/22,0,1):0;
   // seat the tyres exactly on the road surface (road strip sits +0.02; tireDrop removes the float)
-  CAR.rig.position.set(CAR.pos.x, CAR.groundY+0.02-(CAR.tireDrop||0)+rumble, CAR.pos.z);
+  CAR.rig.position.set(CAR.pos.x, CAR.groundY+0.02-(CAR.tireDrop||0)+rumble+(CAR.hop||0), CAR.pos.z);
   CAR.rig.rotation.set(CAR.pitch||0,CAR.heading,0,'YXZ');
 
   // sun shadow follows the car (7 km track can't fit one shadow map)
@@ -12405,24 +12494,129 @@ let STATE='load'; // load | cine | menu | drive
 let menuSpin=0;
 
 /* ---- cinematic opening: dark-studio car reveal (no track) ---- */
-let CINE=null, CINE_KEY=null, cineBuilt=false;
-function buildCineStudio(){
+let CINE=null, CINE_KEY=null, cineBuilt=false, CHASE=null;
+/* ============================ THE CHASE =====================================
+   The opening is a race, not a product shot. A leader under pressure, a rival
+   who is a shape in the mirrors and then a nose alongside, the gap closing
+   corner by corner, and a cut to black one beat before the line — so the
+   question of who won is the thing you are left holding.
+
+   It is built on a private circuit rather than a real one, because none of the
+   venues exist yet when this plays: a floodlit night lap on a wet surface, four
+   corners and a long straight, which is all a chase needs and costs almost
+   nothing to build.                                                          */
+function buildChaseScene(){
   if(cineBuilt)return; cineBuilt=true;
-  cineScene.background=new THREE.Color(0x05060a);
-  cineScene.fog=new THREE.Fog(0x05060a,14,60);
-  // reflective dark studio floor
-  const floor=new THREE.Mesh(new THREE.CircleGeometry(80,64),
-    new THREE.MeshStandardMaterial({color:0x0a0c11,metalness:0.85,roughness:0.28,envMapIntensity:0.7}));
-  floor.rotation.x=-Math.PI/2;floor.position.y=-0.01;floor.receiveShadow=true;cineScene.add(floor);
-  // soft red glow pool under the car
-  const glow=new THREE.Mesh(new THREE.CircleGeometry(6,48),
-    new THREE.MeshBasicMaterial({color:0x3a0808,transparent:true,opacity:0.5}));
-  glow.rotation.x=-Math.PI/2;glow.position.y=0.02;cineScene.add(glow);
-  cineScene.add(new THREE.HemisphereLight(0x3a4256,0x070a10,0.75));
-  const spot=new THREE.SpotLight(0xffffff,4.2,90,0.7,0.5,1.2);
-  spot.position.set(0,26,6);spot.target.position.set(0,0,0);cineScene.add(spot,spot.target);
-  const back=new THREE.PointLight(0x3355ff,1.6,60,2);back.position.set(-6,5,-8);cineScene.add(back);
-  const fillL=new THREE.PointLight(0xffffff,1.8,50,2);fillL.position.set(5,3,7);cineScene.add(fillL);
+  const S=cineScene;
+  S.background=new THREE.Color(0x05070d);
+  S.fog=new THREE.FogExp2(0x070a12,0.0052);
+
+  // --- the circuit: a closed loop with a long straight and four real corners ---
+  const CP=[[0,0],[210,0],[290,-40],[300,-130],[250,-205],[140,-232],[20,-215],
+            [-70,-160],[-96,-80],[-60,-20]].map(([x,z])=>new THREE.Vector3(x,0,z));
+  const curve=new THREE.CatmullRomCurve3(CP,true,'catmullrom',0.5);
+  const N=520, pts=[], tan=[], nrm=[];
+  for(let i=0;i<N;i++){
+    const t=i/N, p=curve.getPointAt(t), d=curve.getTangentAt(t).setY(0).normalize();
+    pts.push(p); tan.push(d); nrm.push(new THREE.Vector3(-d.z,0,d.x));
+  }
+  CHASE={curve,pts,tan,nrm,N,HW:7.4};
+  const HW=CHASE.HW;
+  const ribbon=(a,b,y,mat,uvScale)=>{
+    const v=[],uv=[],id=[];
+    for(let i=0;i<=N;i++){ const k=i%N, p=pts[k], n=nrm[k];
+      v.push(p.x+n.x*a,y,p.z+n.z*a, p.x+n.x*b,y,p.z+n.z*b);
+      const u=i*(uvScale||0.18); uv.push(0,u,1,u);
+      if(i<N){const o=i*2;id.push(o,o+2,o+1,o+1,o+2,o+3);} }
+    const g=new THREE.BufferGeometry();
+    g.setAttribute('position',new THREE.Float32BufferAttribute(v,3));
+    g.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));
+    g.setIndex(id);
+    /* Straight up. The winding here runs whichever way the curve happens to
+       turn, so computeVertexNormals gave half the lap a downward normal — the
+       road was lit from underneath and rendered as a black hole. It is flat
+       ground; the normal is known. */
+    const nrmArr=new Float32Array(v.length);
+    for(let i=1;i<nrmArr.length;i+=3) nrmArr[i]=1;
+    g.setAttribute('normal',new THREE.BufferAttribute(nrmArr,3));
+    mat.side=THREE.DoubleSide;
+    const m=new THREE.Mesh(g,mat); m.receiveShadow=true; S.add(m); return m;
+  };
+  // wet tarmac: low roughness so the floodlights streak down it
+    /* NO METALNESS. There is no environment map in this scene, and a metallic
+     surface with nothing to reflect renders black — which is exactly what the
+     road did. Roughness alone gives the damp sheen. */
+  ribbon(-HW,HW,0.0,new THREE.MeshStandardMaterial({color:0x33383f,roughness:0.52}));
+  // white lines and kerbs
+  const white=new THREE.MeshStandardMaterial({color:0xd8dde4,roughness:0.6,emissive:0x1a1d22,emissiveIntensity:0.4});
+  ribbon(HW-0.34,HW,0.012,white); ribbon(-HW,-HW+0.34,0.012,white);
+  { const kc=document.createElement('canvas');kc.width=8;kc.height=64;
+    const cx=kc.getContext('2d');
+    for(let i=0;i<8;i++){cx.fillStyle=(i&1)?'#e8ecf0':'#cf1020';cx.fillRect(0,i*8,8,8);}
+    const kt=new THREE.CanvasTexture(kc);kt.wrapS=kt.wrapT=THREE.RepeatWrapping;kt.repeat.set(1,90);
+    const km=new THREE.MeshStandardMaterial({map:kt,roughness:0.55});
+    ribbon(HW,HW+1.5,0.05,km,0.18); ribbon(-HW-1.5,-HW,0.05,km,0.18); }
+  // grey apron either side so the road is not floating in the dark
+  const apron=new THREE.MeshStandardMaterial({color:0x1b2b1f,roughness:0.98});
+  ribbon(HW+1.5,HW+26,-0.05,apron); ribbon(-HW-26,-HW-1.5,-0.05,apron);
+  // --- barrier walls, sponsor-red, with a debris fence line above ---
+  const wallM=new THREE.MeshStandardMaterial({color:0xb2141c,roughness:0.7});
+  const wallW=new THREE.MeshStandardMaterial({color:0xe8ecf0,roughness:0.7});
+  const wallG=new THREE.InstancedMesh(new THREE.BoxGeometry(3.4,1.15,0.4),wallM,N);
+  const wallG2=new THREE.InstancedMesh(new THREE.BoxGeometry(3.4,1.15,0.4),wallW,N);
+  { const M=new THREE.Matrix4(),Q=new THREE.Quaternion(),T=new THREE.Vector3(),Sc=new THREE.Vector3(1,1,1);
+    let a=0,b=0;
+    for(let i=0;i<N;i+=2) for(const sd of [1,-1]){
+      const p=pts[i],n=nrm[i];
+      T.set(p.x+n.x*sd*(HW+3.0),0.58,p.z+n.z*sd*(HW+3.0));
+      Q.setFromAxisAngle(new THREE.Vector3(0,1,0),Math.atan2(tan[i].x,tan[i].z));
+      M.compose(T,Q,Sc);
+      if((i>>1)&1) wallG.setMatrixAt(a++,M); else wallG2.setMatrixAt(b++,M);
+    }
+    wallG.count=a; wallG2.count=b; S.add(wallG,wallG2); }
+  // --- floodlight masts: emissive heads, so the budget stays at two real lights ---
+  const mastM=new THREE.MeshStandardMaterial({color:0x20242c,roughness:0.7,metalness:0.5});
+  const headM=new THREE.MeshBasicMaterial({color:0xfff6e2});
+  for(let i=0;i<N;i+=34) for(const sd of [1,-1]){
+    const p=pts[i],n=nrm[i], x=p.x+n.x*sd*(HW+18), z=p.z+n.z*sd*(HW+18);
+    const pole=new THREE.Mesh(new THREE.CylinderGeometry(0.28,0.42,21,6),mastM);
+    pole.position.set(x,10.5,z); S.add(pole);
+    const head=new THREE.Mesh(new THREE.BoxGeometry(4.2,0.7,1.0),headM);
+    head.position.set(x,21.2,z); head.lookAt(p.x,20,p.z); S.add(head);
+  }
+  // sky glow + a cold key so the bodywork reads
+  S.add(new THREE.HemisphereLight(0x50607e,0x14181f,1.9));
+  S.add(new THREE.AmbientLight(0xa8b6cc,0.55));
+  const key=new THREE.DirectionalLight(0xeaf1ff,2.6); key.position.set(40,90,20); S.add(key);
+  const key2=new THREE.DirectionalLight(0xffe9c8,1.3); key2.position.set(-60,70,-40); S.add(key2);
+  /* start/finish line and a low grandstand silhouette, so the straight has a
+     destination and the frame has something behind the cars */
+  { const cc=document.createElement('canvas');cc.width=32;cc.height=32;
+    const cx2=cc.getContext('2d');
+    for(let a=0;a<4;a++)for(let bq=0;bq<4;bq++){cx2.fillStyle=((a+bq)&1)?'#f0f2f5':'#15171c';cx2.fillRect(a*8,bq*8,8,8);}
+    const ct=new THREE.CanvasTexture(cc);ct.wrapS=ct.wrapT=THREE.RepeatWrapping;ct.repeat.set(10,1);
+    const line=new THREE.Mesh(new THREE.PlaneGeometry(HW*2,1.6),
+      new THREE.MeshStandardMaterial({map:ct,roughness:0.7}));
+    line.rotation.x=-Math.PI/2; line.position.set(pts[6].x,0.016,pts[6].z);
+    line.rotation.z=-Math.atan2(tan[6].x,tan[6].z); S.add(line); }
+  { const stM=new THREE.MeshStandardMaterial({color:0x1d232e,roughness:0.9});
+    const roofM=new THREE.MeshStandardMaterial({color:0x2a323f,roughness:0.7,metalness:0.3});
+    for(let i=0;i<N;i+=58){ const p=pts[i],n=nrm[i],sd=(i/58|0)%2?1:-1;
+      const g2=new THREE.Group();
+      const body=new THREE.Mesh(new THREE.BoxGeometry(46,11,17),stM); body.position.y=5.5; g2.add(body);
+      const roof=new THREE.Mesh(new THREE.BoxGeometry(50,0.7,15),roofM); roof.position.set(0,13.5,-1); g2.add(roof);
+      g2.position.set(p.x+n.x*sd*(HW+31),0,p.z+n.z*sd*(HW+31));
+      g2.rotation.y=Math.atan2(tan[i].x,tan[i].z); S.add(g2); } }
+}
+/* where a car sits on the chase circuit: u is a lap fraction, lat is metres across */
+function chasePose(u,lat){
+  const {pts,tan,nrm,N}=CHASE;
+  const f=((u%1)+1)%1*N, i0=Math.floor(f)%N, i1=(i0+1)%N, g=f-Math.floor(f);
+  const p0=pts[i0],p1=pts[i1],n0=nrm[i0],n1=nrm[i1],t0=tan[i0],t1=tan[i1];
+  const nx=n0.x+(n1.x-n0.x)*g, nz=n0.z+(n1.z-n0.z)*g, nl=Math.hypot(nx,nz)||1;
+  const tx=t0.x+(t1.x-t0.x)*g, tz=t0.z+(t1.z-t0.z)*g;
+  return { x:p0.x+(p1.x-p0.x)*g+(nx/nl)*lat, z:p0.z+(p1.z-p0.z)*g+(nz/nl)*lat,
+           yaw:Math.atan2(tx,tz) };
 }
 function spawnSwoosh(topPct,rev,dur){
   dur=dur||520;const el=document.createElement('div');el.className='swoosh';
@@ -12436,57 +12630,97 @@ function spawnSwoosh(topPct,rev,dur){
   setTimeout(()=>el.remove(),dur+140);
 }
 function startCinematic(){
-  // dark studio reveal — NO track behind the car
-  buildCineStudio();
+  buildChaseScene();
   cineScene.add(CAR.rig); resetCar();
-  CAR.rig.position.set(0,0,0); CAR.rig.rotation.set(0,0,0);
   builtTrackId=null;                                   // first race still builds its world
   camera.position.set(5,3,6);camera.lookAt(0,0.7,0);   // throwaway render → compiles the livery shader (sets its uniforms)
   renderer.render(cineScene,camera);
-  setCarPlain(true);                                   // clean, unbranded car for the reveal
-  const fwd=new THREE.Vector3(0,0,1), rgt=new THREE.Vector3(1,0,0);
-  const Pc=(f,r,u)=>new THREE.Vector3(rgt.x*r, u, fwd.z*f);
-  const LOOK=new THREE.Vector3(0,0.7,0);               // keep the CAR centred in every shot
-  const rim=new THREE.PointLight(0xff2626,0,70,2);rim.position.copy(Pc(1,4,3));cineScene.add(rim);
-  const key=new THREE.PointLight(0xffffff,4.0,60,2);key.position.copy(Pc(3,-3,4));cineScene.add(key);CINE_KEY=key;
-  CINE={ start:performance.now(), rim, timers:[], ended:false, shots:[
-    {t0:0.0,t1:1.8, p0:Pc(6,-3.4,0.55), p1:Pc(4.4,3.6,1.0),  l0:LOOK, l1:LOOK},   // front-3/4 low sweep, car centred
-    {t0:1.8,t1:3.2, p0:Pc(-1,-6,0.9),   p1:Pc(-5,-6.5,2.6),  l0:LOOK, l1:LOOK},   // side profile rising
-    {t0:3.2,t1:5.2, p0:Pc(-2,5,1.1),    p1:Pc(3,10,5),       l0:LOOK, l1:new THREE.Vector3(1.5,0.5,0)}, // hero pull-out
-  ]};
+  setCarPlain(true);                                   // the leader runs unbranded
+  // THE RIVAL. A second car, in red, so you can never mistake which is which.
+  let rival=null;
+  try{ rival=makeAICar(0xd80f16,'ferrari'); cineScene.add(rival); }catch(e){}
+  const rim=new THREE.PointLight(0xff2626,0,70,2);cineScene.add(rim);
+  CINE={ start:performance.now(), rim, rival, timers:[], ended:false };
   const S=(ms,fn)=>CINE.timers.push(setTimeout(fn,ms));
   Sound.init();
-  // red-swoosh + sound timeline (real time, framerate-independent)
-  S(120,()=>{spawnSwoosh(22,false);Sound.whoosh(0.45);});
-  S(360,()=>{spawnSwoosh(58,true); Sound.whoosh(0.4);});
-  S(640,()=>{spawnSwoosh(38,false);Sound.whoosh(0.42);});
-  S(920,()=>{spawnSwoosh(72,true); Sound.whoosh(0.4);});
-  S(1180,()=>{spawnSwoosh(14,false,600);Sound.whoosh(0.5);});
-  S(1500,()=>Sound.rev());
-  S(1650,()=>{spawnSwoosh(48,true,650);Sound.whoosh(0.55);});
-  S(2200,()=>{spawnSwoosh(30,false);Sound.whoosh(0.45);});
-  S(2600,()=>{spawnSwoosh(45,false,420);spawnSwoosh(52,true,420);Sound.whoosh(0.4);});
-  // TITLE slam
-  S(2980,()=>{const T=$('#cineTitle');T.innerHTML='APEX <span class="r">GP</span>';
+  /* THE BEATS. Nine seconds, and every one of them is the gap closing.        */
+  S(200 ,()=>Sound.rev());
+  S(1900,()=>Sound.whoosh(0.35));                       // he's there. in the mirrors.
+  S(3600,()=>Sound.whoosh(0.5));                        // through the corner, closer
+  S(5200,()=>Sound.rev());                              // onto the straight, DRS
+  S(6600,()=>Sound.whoosh(0.65));                       // alongside
+  S(7700,()=>Sound.whoosh(0.8));                        // wheel to wheel, and —
+  // — CUT. Black, one beat before the line, and you never find out who won.
+  S(8500,()=>{ const B=$('#cineBlack'); if(B) B.classList.add('on'); });
+  S(9100,()=>{const T=$('#cineTitle');T.innerHTML='APEX <span class="r">GP</span>';
     void T.offsetWidth;T.classList.add('slam');
-    $('#cineFlash').classList.add('on');setTimeout(()=>$('#cineFlash').classList.remove('on'),120);
-    for(let k=0;k<4;k++)setTimeout(()=>spawnSwoosh(20+k*18,k%2===0,700),k*40);
+    $('#cineFlash').classList.add('on');setTimeout(()=>$('#cineFlash').classList.remove('on'),110);
     Sound.hit();});
-  S(3320,()=>{const Su=$('#cineSub');Su.textContent='2026 WORLD CHAMPIONSHIP';Su.classList.add('show');});
-  S(5200,()=>endCinematic());
+  S(9550,()=>{const Su=$('#cineSub');Su.textContent='2026 WORLD CHAMPIONSHIP';Su.classList.add('show');});
+  S(11600,()=>endCinematic());
   STATE='cine';
-  camera.fov=32; camera.updateProjectionMatrix();
+  renderer.toneMappingExposure=1.25;      // a night race is lit, not unlit
+  camera.fov=44; camera.updateProjectionMatrix();
   $('#cine').classList.add('on');
+}
+/* the gap in metres at time t — it comes down at every corner and never once
+   goes back out, which is the only thing this sequence has to communicate */
+function chaseGap(t){
+  const keys=[[0,42],[1.8,30],[3.2,22],[4.6,14],[5.6,8.5],[6.6,3.2],[7.4,0.4],[8.6,-1.4]];
+  for(let i=0;i<keys.length-1;i++){
+    const [a,ga]=keys[i],[b,gb]=keys[i+1];
+    if(t<=b){ const u=clamp((t-a)/(b-a),0,1), e=u*u*(3-2*u); return ga+(gb-ga)*e; }
+  }
+  return keys[keys.length-1][1];
 }
 function stepCinematic(dt){
   if(!carPlain) setCarPlain(true);                       // retry until the livery shader is compiled
   const el=(typeof window!=='undefined'&&window.__holdCine!=null)?window.__holdCine:(performance.now()-CINE.start)/1000;
-  let shot=CINE.shots[0];
-  for(const s of CINE.shots){ if(el>=s.t0){shot=s;} }
-  const lt=clamp((el-shot.t0)/(shot.t1-shot.t0),0,1), e=lt*lt*(3-2*lt);
-  camera.position.lerpVectors(shot.p0,shot.p1,e);
-  camera.lookAt(new THREE.Vector3().lerpVectors(shot.l0,shot.l1,e));
-  if(CINE.rim) CINE.rim.intensity=clamp(el*3,0,7)*(el<3?1:Math.max(0,1-(el-3)));  // rim flares then fades
+  if(!CHASE) return;
+  const LAP=1420;                                        // metres round the chase circuit
+  const V=76;                                            // ~275 km/h
+  // the leader runs a lap and a bit; the last beat lands on the long straight
+  const uL=(0.55 + el*V/LAP)%1;
+  const gap=chaseGap(el);
+  const uR=uL - gap/LAP;
+  // the rival comes off line and out to the inside as he commits
+  const commit=clamp((el-5.4)/2.0,0,1);
+  const latL=1.1 - 0.9*clamp((el-6.4)/1.6,0,1);           // the leader covers, a little late
+  const latR=1.1 - 5.4*commit*commit*(3-2*commit)/1;
+  const L=chasePose(uL,latL), R=chasePose(uR,latR);
+  const drop=(CAR.tireDrop||0);
+  CAR.rig.position.set(L.x,0.02-drop,L.z); CAR.rig.rotation.set(0,L.yaw,0);
+  if(CINE.rival){ CINE.rival.position.set(R.x,0.02-drop,R.z); CINE.rival.rotation.set(0,R.yaw,0); }
+  if(CINE.rim){ CINE.rim.position.set(R.x,1.6,R.z); CINE.rim.intensity=6*clamp((el-1.2)/2,0,1); }
+
+  /* THE SHOTS. Each one is chosen to answer "how close is he now?" ---------- */
+  const cam=new THREE.Vector3(), look=new THREE.Vector3();
+  const at=(pose,fwd,side,up)=>new THREE.Vector3(
+    pose.x+Math.sin(pose.yaw)*fwd+Math.cos(pose.yaw)*side, up,
+    pose.z+Math.cos(pose.yaw)*fwd-Math.sin(pose.yaw)*side);
+  let fov=44;
+  if(el<1.9){                    // 1. low and locked to the leader's gearbox
+    const k=clamp(el/1.9,0,1);
+    cam.copy(at(L,-7.5-2.5*k,0.4,0.95+0.25*k)); look.set(L.x,0.55,L.z); fov=40;
+  }else if(el<3.5){              // 2. THE MIRRORS — over the leader's shoulder, looking
+                                 //    back. A long lens so he LOOMS as he closes.
+    const k=clamp((el-1.9)/1.6,0,1);
+    cam.copy(at(L,-1.3,0.86,1.52)); look.set(R.x,0.75,R.z); fov=26+6*k;
+  }else if(el<5.4){              // 3. trackside, both cars through a corner
+    const k=clamp((el-3.5)/1.9,0,1);
+    const anchor=chasePose(uL+0.010,0);
+    cam.copy(at(anchor,0,15.5-4*k,2.4-0.9*k));
+    look.set((L.x+R.x)/2,0.7,(L.z+R.z)/2); fov=34;
+  }else if(el<7.0){              // 4. the run to the line, from ahead, low
+    const k=clamp((el-5.4)/1.6,0,1);
+    cam.copy(at(L,11.5+4*k,-1.4,0.62)); look.set((L.x+R.x)/2,0.66,(L.z+R.z)/2); fov=40-4*k;
+  }else{                         // 5. wheel to wheel, on the deck, between them
+    const k=clamp((el-7.0)/1.6,0,1);
+    const mid={x:(L.x+R.x)/2,z:(L.z+R.z)/2,yaw:L.yaw};
+    cam.copy(at(mid,-4.2+1.4*k,-6.4+2.2*k,0.44)); look.set(mid.x,0.6,mid.z); fov=46+6*k;
+  }
+  camera.position.copy(cam); camera.lookAt(look);
+  if(Math.abs(camera.fov-fov)>0.01){ camera.fov=fov; camera.updateProjectionMatrix(); }
 }
 function endCinematic(){
   if(typeof window!=='undefined'&&window.__holdCine!=null)return;   // debug: hold for capture
@@ -12494,7 +12728,9 @@ function endCinematic(){
   CINE.ended=true;
   CINE.timers.forEach(clearTimeout);
   if(CINE.rim) cineScene.remove(CINE.rim);
+  if(CINE.rival) cineScene.remove(CINE.rival);
   if(CINE_KEY){cineScene.remove(CINE_KEY);CINE_KEY=null;}
+  { const B=$('#cineBlack'); if(B) B.classList.remove('on'); }
   setCarPlain(false);                                  // restore the selected livery
   $('#cineFx').innerHTML='';
   $('#cineTitle').classList.remove('slam');$('#cineSub').classList.remove('show');
@@ -12551,16 +12787,43 @@ function drawTrackOutline(prog){
   // start/finish marker
   x.fillStyle='#fff';x.fillRect(X(pts[0])-4,Y(pts[0])-4,8,8);
 }
+/* THE ESTABLISHING SHOT, in two beats.
+   First a true plan view: dead overhead, the whole circuit in frame, turning
+   slowly so you can read the layout you are about to drive. Then the camera
+   comes off the ceiling and swings all the way down to the grid, so the last
+   thing you see before the lights is the start line from a driver's height. */
 function overheadCam(k){
-  const pts=TRACK.pts;let cx=0,cz=0;for(const p of pts)  {cx+=p.x;cz+=p.z;}cx/=pts.length;cz/=pts.length;
-  const R=TRACK.radius, ang=k*0.5;
-  const dist=lerp(R*2.4,R*1.5,k*k*(3-2*k));
-  camera.position.set(cx+Math.sin(ang)*dist*0.15,dist,cz+Math.cos(ang)*dist*0.15);
-  camera.up.set(0,0,-1);camera.lookAt(cx,0,cz);
-  camera.fov=45;camera.updateProjectionMatrix();
+  const pts=TRACK.pts;let cx=0,cz=0;for(const p of pts){cx+=p.x;cz+=p.z;}cx/=pts.length;cz/=pts.length;
+  const R=TRACK.radius;
+  const HOLD=0.42;                                    // fraction of the shot spent overhead
+  if(k<HOLD){
+    const e=k/HOLD;
+    const ang=-0.22+e*0.44;                           // a slow drift across the plan
+    const dist=lerp(R*2.55,R*2.15,e*e*(3-2*e));
+    camera.position.set(cx+Math.sin(ang)*dist*0.06,dist,cz+Math.cos(ang)*dist*0.06);
+    camera.up.set(0,0,-1); camera.lookAt(cx,0,cz);
+    camera.fov=45; camera.updateProjectionMatrix();
+    return;
+  }
+  // ---- the descent: from the plan view down onto the start/finish line ----
+  const e0=clamp((k-HOLD)/(1-HOLD),0,1), e=e0*e0*(3-2*e0);
+  const p0=TRACK.pts[0], tg=TRACK.tan[0], gy=(p0.y||0);
+  // where it starts: the last overhead position. Where it ends: behind the grid.
+  const startY=R*2.15, startX=cx+Math.sin(0.22)*startY*0.06, startZ=cz+Math.cos(0.22)*startY*0.06;
+  const endX=p0.x-tg.x*46, endZ=p0.z-tg.z*46, endY=gy+7.5;
+  // an arc rather than a straight line — it should feel flown, not lerped
+  const lift=Math.sin(Math.PI*e)*R*0.22;
+  camera.position.set(lerp(startX,endX,e), lerp(startY,endY,e)+lift*(1-e), lerp(startZ,endZ,e));
+  // the look target slides from the middle of the circuit to the start line
+  const lx=lerp(cx,p0.x+tg.x*30,e), lz=lerp(cz,p0.z+tg.z*30,e), ly=lerp(0,gy+1.2,e);
+  // and the up vector rolls back upright as the camera comes off the ceiling
+  const up=clamp(e*2.1,0,1);
+  camera.up.set(0,up,-(1-up)).normalize();
+  camera.lookAt(lx,ly,lz);
+  camera.fov=lerp(45,38,e); camera.updateProjectionMatrix();
 }
 function introStep(dt){
-  const el=(typeof window!=='undefined'&&window.__holdIntro!=null)?window.__holdIntro:(performance.now()-TINTRO.start)/1000, A=2.9,B=A+2.3,C=B+1.7;
+  const el=(typeof window!=='undefined'&&window.__holdIntro!=null)?window.__holdIntro:(performance.now()-TINTRO.start)/1000, A=2.9,B=A+2.3,C=B+4.0;
   if(el<A && !TINTRO.noGlobe){                       // globe zoom (skipped if the globe didn't load)
     $('#tCanvas').style.opacity='0';
     const k=clamp(el/A,0,1),e=k*k*(3-2*k);
@@ -12919,7 +13182,7 @@ function spawnAIs(n){
    track — the point is to be able to WATCH the AI and judge it.
    ================================================================== */
 const SIM={on:false, phase:'', t:0, lights:0, follow:0, cam:0, camT:0,
-  laps:1, order:[], finished:[], startT:0, auto:true};
+  laps:1, order:[], finished:[], startT:0, auto:true, fastest:null, _flT:0};
 const SIM_CAMS=['chase','tcam','trackside','helicam','onboard'];
 if(typeof window!=='undefined'){ window.__SIM=SIM;
   setTimeout(()=>{window.__startAISim=startAISim;window.__stepAISim=stepAISim;},0); }
@@ -12985,7 +13248,7 @@ function startAISim(){
   if(CAR.rig.parent===driveScene) driveScene.remove(CAR.rig);
   spawnGrid(Math.min(14,DRIVER_POOL.length));
   SIM.on=true; SIM.phase='form'; SIM.t=0; SIM.lights=0; SIM.follow=0;
-  SIM.cam=0; SIM.camT=0; SIM.finished=[]; SIM.startT=0;
+  SIM.cam=0; SIM.camT=0; SIM.finished=[]; SIM.startT=0; SIM.fastest=null;
   SIM.laps=Math.max(1,SIM.laps|0);
   if(TRACK.startLights) TRACK.startLights.set(0);
   $('#hud').classList.remove('on');
@@ -13136,7 +13399,15 @@ function stepAISim(dt){
       if(c.done) continue;
       if(c.lap>c.prevLap){
         if(c.lap>=1){ c.lastLapT=c.lapT;
-          if(!c.bestLap||c.lapT<c.bestLap) c.bestLap=c.lapT; }
+          if(!c.bestLap||c.lapT<c.bestLap) c.bestLap=c.lapT;
+          // a new OVERALL fastest lap is a broadcast moment, so call it
+          if(!SIM.fastest || c.lapT<SIM.fastest.t){
+            SIM.fastest={t:c.lapT,name:c.name,team:c.team};
+            const m=$('#simMsg');
+            if(m){ m.innerHTML='<span class="flDot"></span>FASTEST LAP &nbsp;<b>'+c.name+'</b>&nbsp; '+fmt(c.lapT);
+              m.classList.add('fl');
+              clearTimeout(SIM._flT);
+              SIM._flT=setTimeout(()=>{m.classList.remove('fl');m.innerHTML='';},3200); } } }
         c.lapT=0; c.prevLap=c.lap;}
       if(c.lap>=SIM.laps){ c.done=true; c.finishT=SIM.t; SIM.finished.push(c);}
     }
@@ -13162,13 +13433,20 @@ function stepAISim(dt){
 }
 function showSimResult(){
   const ord=SIM.order;
+  // FASTEST LAP — the one time in a race a result sheet turns purple
+  let fl=null;
+  for(const c of ord) if(c.bestLap && (!fl || c.bestLap<fl.bestLap)) fl=c;
   const rows=ord.map((c,i)=>{
     const gap=i===0?'—':'+'+((c.finishT||0)-(ord[0].finishT||0)).toFixed(3);
-    return `<tr><td>${i+1}</td><td>${c.name}</td>`+
+    const isFL=fl&&c===fl;
+    const lap=c.bestLap?fmt(c.bestLap):'—';
+    return `<tr><td>${i+1}</td><td>${c.name}${isFL?' <span class="flTag">FL</span>':''}</td>`+
       `<td style="color:${(LIVERIES[c.team]&&LIVERIES[c.team].base)||'#888'}">${(LIVERIES[c.team]&&LIVERIES[c.team].name)||c.team.toUpperCase()}</td>`+
-      `<td>P${c.gridPos}</td><td>${c.bestLap?fmt(c.bestLap):'—'}</td><td>${gap}</td></tr>`;
+      `<td>P${c.gridPos}</td><td${isFL?' class="fl"':''}>${lap}</td><td>${gap}</td></tr>`;
   }).join('');
   const el=$('#simResultBody'); if(el) el.innerHTML=rows;
+  const f=$('#simFastest');
+  if(f) f.innerHTML = fl ? `<span class="flDot"></span>FASTEST LAP &nbsp;<b>${fl.name}</b>&nbsp; ${fmt(fl.bestLap)}` : '';
   const r=$('#simResult'); if(r) r.classList.add('on');
 }
 function stepAI(dt){
