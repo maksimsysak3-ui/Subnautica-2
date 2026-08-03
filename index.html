@@ -1710,14 +1710,21 @@ const CLIMATE={
   singapore:  {w:{clear:2,scattered:3,overcast:2,damp:1.5,rain:2,storm:1.5},vol:1.1, tod:[0.88,0.96]},
 };
 const WEATHER={cond:'clear', next:null, blend:1, wetness:0, cloud:0, tod:0.4, todRate:0,
-  timer:60, vol:0.8, forecast:'', changed:false};
+  timer:60, vol:0.8, forecast:'', changed:false,
+  force:null,        // one-shot request from the replay or the season calendar
+  forceHard:null};   // the opening cinematic — outranks even the settings pin
 /* pick the session's starting weather + time of day for this venue */
 function rollWeather(cfg){
   const cl=CLIMATE[cfg.id]||{w:{clear:3,scattered:3,overcast:2,damp:1,rain:1,storm:0.5},vol:0.8,tod:[0.3,0.6]};
-  // an explicit forced condition (used by the replay + by the season calendar),
-  // or the player pinning the weather in settings, which outranks both
+  /* Three ways the condition can be decided, in priority order:
+       forceHard — the opening cinematic, which is a directed sequence and has
+                   to look the same every time whatever the player has set;
+       the settings pin — the player asking for one condition all season;
+       force     — the replay and the season calendar asking for a specific one.
+     Anything left over is rolled from the venue's climate. */
+  const hard=WEATHER.forceHard;
   const forced=WEATHER.force; WEATHER.force=null;
-  let pick=(SET.weatherMode!=='dynamic'?WEATHER_FORCED[SET.weatherMode]:null)||forced;
+  let pick=hard||(SET.weatherMode!=='dynamic'?WEATHER_FORCED[SET.weatherMode]:null)||forced;
   if(!pick){ let tot=0; for(const k in cl.w) tot+=cl.w[k];
     let r=Math.random()*tot; pick='clear';
     for(const k in cl.w){ r-=cl.w[k]; if(r<=0){pick=k;break;} } }
@@ -1744,6 +1751,7 @@ const WEATHER_CHAIN=['clear','scattered','overcast','damp','rain','storm'];
 function pickNextWeather(cfg){
   // pinned weather does not roll — that is the whole point of pinning it
   if(SET.weatherMode!=='dynamic') return null;
+  if(STATE==='cine') return null;          // the intro is directed, not simulated
   const cl=CLIMATE[cfg.id]; if(!cl) return null;
   const i=WEATHER_CHAIN.indexOf(WEATHER.cond);
   const opts=[];
@@ -2889,6 +2897,7 @@ function buildWorld(sc,cfg){
      has to be pushed out over the whole corridor or the car would be shoved
      back onto the circuit the moment it took the entry. */
   definePitLane();
+  computeRacingLine();
 
   buildBarriers(sc,P,Nm,cum,barOff,barOffR);
   buildSafetyBarriers(sc,P,Nm,barOff,barOffR);                   // TecPro / tyre stacks / armco by design pass
@@ -10390,6 +10399,102 @@ function pitLaneAt(d){
   const sm=t*t*(3-2*t);                 // smoothstep — no kink at either end
   return {t:sm, off:TRACK.halfW+PIT.offset*sm, raw:t};
 }
+/* ==================================================================
+   THE RACING LINE
+   The AI's line used to be computed on the fly from the local curvature:
+   "however much the road is turning, sit that far toward the inside". That is
+   an apex and nothing else. It never ran wide on the way in and never used the
+   exit, so every corner was taken on the tightest radius the circuit offers
+   rather than the widest one the track width allows — which is precisely why
+   the AI were slow, and no amount of tuning their bravery was going to fix a
+   path that was geometrically the wrong shape.
+
+   This solves the real thing once, per circuit, at build time. A racing line is
+   the minimum-curvature path through the corridor, and there is a classic way
+   to find it: repeatedly move every point toward the midpoint of its two
+   neighbours, and after each move clamp it back inside the track. Pulling
+   toward the midpoint is what straightens the path; the clamp is what stops it
+   straightening into the scenery. It converges to the familiar outside-inside-
+   outside shape without anyone having to describe that shape to it.
+
+   The result is stored as a lateral offset per centreline point, along with the
+   radius the line actually describes — which is what the corner speeds should
+   have been solved against all along, instead of the centreline's radius with a
+   12% fudge factor bolted on.
+   ================================================================== */
+function computeRacingLine(){
+  const N=TRACK.N; if(!N) return;
+  const P=TRACK.pts, Nm=TRACK.nrm, HW=TRACK.halfW;
+  const lim=Math.max(0.5,HW-1.05);          // keep a wheel's width off the kerb
+  const lat=new Float32Array(N);
+  const wx=new Float32Array(N), wz=new Float32Array(N);
+  const bake=()=>{ for(let i=0;i<N;i++){ wx[i]=P[i].x+Nm[i].x*lat[i]; wz[i]=P[i].z+Nm[i].z*lat[i]; } };
+  bake();
+  /* Relaxation. 240 sweeps is comfortably past convergence on every circuit
+     here and costs a few milliseconds once, at build time. */
+  for(let it=0;it<240;it++){
+    for(let i=0;i<N;i++){
+      const a=(i-1+N)%N, b=(i+1)%N;
+      const mx=(wx[a]+wx[b])*0.5, mz=(wz[a]+wz[b])*0.5;
+      // where that midpoint sits along THIS point's normal
+      const t=(mx-P[i].x)*Nm[i].x+(mz-P[i].z)*Nm[i].z;
+      lat[i]=clamp(lat[i]+(t-lat[i])*0.35,-lim,lim);
+      wx[i]=P[i].x+Nm[i].x*lat[i]; wz[i]=P[i].z+Nm[i].z*lat[i];
+    }
+  }
+  /* Take the numerical fuzz out of the solved path before measuring it. The
+     relaxation converges to the right SHAPE but leaves centimetre-scale wiggle
+     between neighbouring points, and a radius is a second derivative — it turns
+     a centimetre of wiggle into a corner that is not there. */
+  for(let pass=0;pass<8;pass++){
+    const t=lat.slice();
+    for(let i=0;i<N;i++){
+      const a=(i-1+N)%N,b=(i+1)%N;
+      lat[i]=clamp(t[i]*0.5+t[a]*0.25+t[b]*0.25,-lim,lim);
+    }
+  }
+  bake();
+  /* The radius the LINE describes, from the circumradius of three points on it.
+     This is the number the corner speeds want: a path that uses the full width
+     straightens a corner considerably, and the old code approximated that with
+     a flat ×1.12 on the centreline radius.
+     Two things had to be got right before it beat the fudge factor. The
+     baseline has to be long — 26 m was short enough that residual wiggle still
+     dominated on the straights. And the window smoothing has to AVERAGE rather
+     than take the minimum: taking the tightest radius within a few points of
+     every point turns every small imperfection into a braking event, which made
+     the AI slower at Monza than the crude approximation it replaced. */
+  const R=new Float32Array(N);
+  const S=Math.max(4,Math.round(42/Math.max(1,TRACK.len/N)));   // ~42 m baseline
+  for(let i=0;i<N;i++){
+    const a=(i-S+N)%N, b=(i+S)%N;
+    const ax=wx[a],az=wz[a], bx=wx[i],bz=wz[i], cx=wx[b],cz=wz[b];
+    const A=Math.hypot(bx-ax,bz-az), B=Math.hypot(cx-bx,cz-bz), C=Math.hypot(cx-ax,cz-az);
+    const area=Math.abs((bx-ax)*(cz-az)-(cx-ax)*(bz-az))*0.5;
+    R[i]=area<1e-4?9000:Math.min(9000,(A*B*C)/(4*area));
+  }
+  const Rs=new Float32Array(N);
+  const Rc=TRACK.Rc;
+  for(let i=0;i<N;i++){
+    let sum=0,n=0;
+    for(let q=-3;q<=3;q++){ sum+=R[(i+q+N)%N]; n++; }
+    let r=sum/n;
+    /* A RACING LINE IS NEVER MUCH TIGHTER THAN THE ROAD IT IS ON.
+       Minimum-curvature relaxation pinned against the edge of a narrow corridor
+       can produce a very tight apex with wide entry and exit — geometrically
+       real, and over a whole corner it is quicker, but as an instantaneous
+       radius it is an artefact of the clamp. At Texas it read 22 m where the
+       centreline is 38, and the speed planner obediently slowed the field to a
+       crawl for a corner that is not that tight, which bunched the whole field
+       at the line and put them into each other.
+       The centreline's own radius is the floor. Straightening is still rewarded
+       — where the line genuinely opens a corner out, r is far larger than Rc
+       and that is left alone. */
+    if(Rc && Rc[i]) r=Math.max(r, Rc[i]*0.92);
+    Rs[i]=r;
+  }
+  TRACK.line=lat; TRACK.lineR=Rs;
+}
 /* Precompute the corridor per centreline index, and open the pit-side wall over
    it so the car can actually be there. */
 function definePitLane(){
@@ -12221,7 +12326,16 @@ function stepPhysics(dt,inp){
   const target=inp.steer;
   CAR.steerCmd=damp(CAR.steerCmd,target,(target?P.steerRate:P.steerReturn),dt);
   const spd=Math.abs(CAR.v);
-  const maxSteer=lerp(P.maxSteerLo,P.maxSteerHi,clamp(spd/PHYS.vMax,0,1));
+  /* THE LOCK COMES DOWN IN THE WET.
+     On a keyboard the steering input is binary — hold the key and the command
+     goes to 100% and stays there — so the player is asking for full lock in
+     every corner whether they mean to or not. A real driver in the rain simply
+     does not put that much angle in; they wind on less and wait for the car.
+     Taking the top of the range away in the wet is that driver instinct, and it
+     is the single change that turned "spins at every corner" into "loose but
+     you can hold it" without making the rain grippier. */
+  const wetLockCut=1-0.20*clamp(WEATHER.wetness,0,1);
+  const maxSteer=lerp(P.maxSteerLo,P.maxSteerHi,clamp(spd/PHYS.vMax,0,1))*wetLockCut;
   CAR.steer=CAR.steerCmd*maxSteer;
 
   // longitudinal
@@ -12359,13 +12473,22 @@ function stepPhysics(dt,inp){
      takes grip away fastest exactly where you least want it.                */
   const wetAmt=clamp(WEATHER.wetness,0,1);
   // aquaplaning — the film of water the tyre cannot clear, worse the faster you go
-  const aqua=wetAmt*wetAmt*clamp((spd-38)/95,0,1)*0.20;
-  const wetCut=clamp(0.38*wetAmt+aqua,0,0.62);
+  const aqua=wetAmt*wetAmt*clamp((spd-38)/95,0,1)*0.10;
+  const wetCut=clamp(0.24*wetAmt+aqua,0,0.42);
   const wetMul=1.0-wetCut;
   /* How soft the tyre goes, and how much of the loss is charged to the rear.
-     Both are read again further down where the lateral forces are built. */
-  const wetSoft=1-0.42*wetAmt;          // multiplies Cf/Cr → force builds later
-  const wetLoose=1-0.13*wetAmt;         // multiplies the REAR friction circle only
+     Both are read again further down where the lateral forces are built.
+
+     THESE NUMBERS WERE HALVED AFTER PLAYTESTING. The first pass took 38% of
+     grip away, softened the tyre by 42% and took another 13% off the rear, and
+     the result was a car that spun at every corner — not loose, undriveable.
+     The reason it was so much worse in the hands than it looked on paper is
+     underneath: the game is played on a KEYBOARD, so the steering input is not
+     analogue. It is zero or it is one. A player never asks for 35% lock, which
+     is what the balance was quietly being judged at; they ask for 100% of it,
+     every corner, and a car set up to let go at 55% has nothing left. */
+  const wetSoft=1-0.24*wetAmt;          // multiplies Cf/Cr → force builds later
+  const wetLoose=1-0.06*wetAmt;         // multiplies the REAR friction circle only
   // tyre wear: deplete over the chosen compound's lap-life for THIS surface (laps, not seconds).
   // pushing — full throttle, sliding, braking hard, running kerbs/off — eats the life faster.
   const slipMag=Math.min(Math.abs(CAR.vLat)/6,1.5);
@@ -12416,7 +12539,7 @@ function stepPhysics(dt,inp){
      wrong tyre means — but you can still get it back to the pits. */
   if(!off && wetAmt>0.05){
     const right=compoundWetFit(CAR.compound||'medium',WEATHER.wetness)>0.98;
-    const floor=(right?0.56:0.42)*rdGrip()*lerp(0.82,1.0,CAR.tire);
+    const floor=(right?0.70:0.50)*rdGrip()*lerp(0.82,1.0,CAR.tire);
     gripMul=Math.max(gripMul, floor*(onKerb?0.82:1.0));
   }
   CAR.gripMul=gripMul;                 // the brake cap above reads this next frame
@@ -12900,6 +13023,15 @@ const lap={t:0,num:1,last:null,best:null,prevIdx:0,armed:false,cur:null,bestArr:
     if(this.bestArr&&this.bestArr[idx]>=0){const d=this.t-this.bestArr[idx];const el=$('#delta');
       el.textContent=(d<=0?'−':'+')+Math.abs(d).toFixed(2);el.className=d<=0?'ahead':'behind';}
   }};
+/* LAPS COMPLETED, which is not what lap.num holds.
+   lap.num is the lap you are ON — it starts at 1 on the formation lap and ticks
+   to 2 the first time you cross the line. The AI count the other way: c.lap is
+   how many laps a car has FINISHED, starting at 0. Every place both numbers met
+   they were treated as the same quantity, so the player was credited with a
+   whole extra lap of race distance against the entire field. That is why you
+   finished first no matter where you actually came, and why the position
+   readout said P1 for the whole race. */
+function playerLapsDone(){ return Math.max(0,(lap.num||1)-1); }
 function fmt(s){if(s==null)return'—:——.—';const m=Math.floor(s/60);const r=(s-m*60);return `${m}:${r.toFixed(1).padStart(4,'0')}`;}
 
 /* ==================================================================
@@ -13961,7 +14093,7 @@ function endSeasonRace(){
      penalty. */
   const penMetres=(CAR.penalty||0)*55;
   order.push({nm:SEASON.name,team:SEASON.team,
-    d:dOf(CAR.trackIdx||0,lap.num||0)-penMetres, me:true, pen:CAR.penalty||0});
+    d:dOf(CAR.trackIdx||0,playerLapsDone())-penMetres, me:true, pen:CAR.penalty||0});
   order.sort((a,b)=>b.d-a.d);
   // award championship points down the top ten
   const res=order.map((o,i)=>({pos:i+1,nm:o.nm,team:o.team,me:o.me,pts:F1PTS[i]||0}));
@@ -14124,275 +14256,56 @@ let CINE=null, CINE_KEY=null, cineBuilt=false, CHASE=null;
    venues exist yet when this plays: a floodlit night lap on a wet surface, four
    corners and a long straight, which is all a chase needs and costs almost
    nothing to build.                                                          */
+/* Bahrain: floodlit, at night, in the desert, with wide open run-off on both
+   sides. The run-off is the reason — a trackside camera needs somewhere to
+   STAND. The first attempt used Jeddah, which is a night street circuit, and
+   every trackside angle ended up inside a barrier, a palm tree or an
+   advertising hoarding because there is no space beside the road at all. */
+const CINE_TRACK='bahrain';
 function buildChaseScene(){
   if(cineBuilt)return; cineBuilt=true;
   const S=cineScene;
-  S.background=new THREE.Color(0x05070d);
-  S.fog=new THREE.FogExp2(0x070a12,0.0052);
+  /* THIS IS A REAL CIRCUIT.
+     The opening used to be staged on an invented private loop — ten control
+     points, a catmull-rom through them, and then three hundred lines
+     hand-building barriers, floodlights, hills, trees, a pit block and a city
+     to stand behind it. All of that already exists, properly, in buildWorld():
+     it is what every race in the game is built with. Reproducing a worse copy
+     of it for the intro was wasted work and it looked like a worse copy.
+     So the intro runs on a real circuit, built by the same code the race uses,
+     with its grandstands, its pit complex, its floodlights and its crowd. */
+  const cfg=TRACKS[CINE_TRACK]||TRACKS[TRACK_IDS[0]];
+  WEATHER.forceHard='rain';          // wet, whatever the player has pinned in settings
+  buildWorld(S,cfg);
+  WEATHER.forceHard=null;
+  /* The chase reads the circuit straight out of TRACK. buildWorld leaves the
+     centreline there, and startDrive rebuilds the world for the race anyway
+     (startCinematic clears builtTrackId), so borrowing it here is free. */
+  CHASE={pts:TRACK.pts,tan:TRACK.tan,nrm:TRACK.nrm,N:TRACK.N,HW:TRACK.halfW,len:TRACK.len};
 
-  // --- the circuit: a closed loop with a long straight and four real corners ---
-  const CP=[[0,0],[210,0],[290,-40],[300,-130],[250,-205],[140,-232],[20,-215],
-            [-70,-160],[-96,-80],[-60,-20]].map(([x,z])=>new THREE.Vector3(x,0,z));
-  const curve=new THREE.CatmullRomCurve3(CP,true,'catmullrom',0.5);
-  const N=520, pts=[], tan=[], nrm=[];
-  for(let i=0;i<N;i++){
-    const t=i/N, p=curve.getPointAt(t), d=curve.getTangentAt(t).setY(0).normalize();
-    pts.push(p); tan.push(d); nrm.push(new THREE.Vector3(-d.z,0,d.x));
-  }
-  CHASE={curve,pts,tan,nrm,N,HW:7.4};
-  const HW=CHASE.HW;
-  const ribbon=(a,b,y,mat,uvScale)=>{
-    const v=[],uv=[],id=[];
-    for(let i=0;i<=N;i++){ const k=i%N, p=pts[k], n=nrm[k];
-      v.push(p.x+n.x*a,y,p.z+n.z*a, p.x+n.x*b,y,p.z+n.z*b);
-      const u=i*(uvScale||0.18); uv.push(0,u,1,u);
-      if(i<N){const o=i*2;id.push(o,o+2,o+1,o+1,o+2,o+3);} }
-    const g=new THREE.BufferGeometry();
-    g.setAttribute('position',new THREE.Float32BufferAttribute(v,3));
-    g.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));
-    g.setIndex(id);
-    /* Straight up. The winding here runs whichever way the curve happens to
-       turn, so computeVertexNormals gave half the lap a downward normal — the
-       road was lit from underneath and rendered as a black hole. It is flat
-       ground; the normal is known. */
-    const nrmArr=new Float32Array(v.length);
-    for(let i=1;i<nrmArr.length;i+=3) nrmArr[i]=1;
-    g.setAttribute('normal',new THREE.BufferAttribute(nrmArr,3));
-    mat.side=THREE.DoubleSide;
-    const m=new THREE.Mesh(g,mat); m.receiveShadow=true; S.add(m); return m;
-  };
-  // wet tarmac: low roughness so the floodlights streak down it
-    /* NO METALNESS. There is no environment map in this scene, and a metallic
-     surface with nothing to reflect renders black — which is exactly what the
-     road did. Roughness alone gives the damp sheen. */
-  ribbon(-HW,HW,0.0,new THREE.MeshStandardMaterial({color:0x33383f,roughness:0.52}));
-  // white lines and kerbs
-  const white=new THREE.MeshStandardMaterial({color:0xd8dde4,roughness:0.6,emissive:0x1a1d22,emissiveIntensity:0.4});
-  ribbon(HW-0.34,HW,0.012,white); ribbon(-HW,-HW+0.34,0.012,white);
-  { const kc=document.createElement('canvas');kc.width=8;kc.height=64;
-    const cx=kc.getContext('2d');
-    for(let i=0;i<8;i++){cx.fillStyle=(i&1)?'#e8ecf0':'#cf1020';cx.fillRect(0,i*8,8,8);}
-    const kt=new THREE.CanvasTexture(kc);kt.wrapS=kt.wrapT=THREE.RepeatWrapping;kt.repeat.set(1,90);
-    const km=new THREE.MeshStandardMaterial({map:kt,roughness:0.55});
-    ribbon(HW,HW+1.5,0.05,km,0.18); ribbon(-HW-1.5,-HW,0.05,km,0.18); }
-  // grey apron either side so the road is not floating in the dark
-  const apron=new THREE.MeshStandardMaterial({color:0x1b2b1f,roughness:0.98});
-  ribbon(HW+1.5,HW+26,-0.05,apron); ribbon(-HW-26,-HW-1.5,-0.05,apron);
-  // --- barrier walls, sponsor-red, with a debris fence line above ---
-  const wallM=new THREE.MeshStandardMaterial({color:0xb2141c,roughness:0.7});
-  const wallW=new THREE.MeshStandardMaterial({color:0xe8ecf0,roughness:0.7});
-  const wallG=new THREE.InstancedMesh(new THREE.BoxGeometry(3.4,1.15,0.4),wallM,N);
-  const wallG2=new THREE.InstancedMesh(new THREE.BoxGeometry(3.4,1.15,0.4),wallW,N);
-  { const M=new THREE.Matrix4(),Q=new THREE.Quaternion(),T=new THREE.Vector3(),Sc=new THREE.Vector3(1,1,1);
-    let a=0,b=0;
-    for(let i=0;i<N;i+=2) for(const sd of [1,-1]){
-      const p=pts[i],n=nrm[i];
-      T.set(p.x+n.x*sd*(HW+3.0),0.58,p.z+n.z*sd*(HW+3.0));
-      Q.setFromAxisAngle(new THREE.Vector3(0,1,0),Math.atan2(tan[i].x,tan[i].z));
-      M.compose(T,Q,Sc);
-      if((i>>1)&1) wallG.setMatrixAt(a++,M); else wallG2.setMatrixAt(b++,M);
-    }
-    wallG.count=a; wallG2.count=b; S.add(wallG,wallG2); }
-  // --- floodlight masts: emissive heads, so the budget stays at two real lights ---
-  const mastM=new THREE.MeshStandardMaterial({color:0x20242c,roughness:0.7,metalness:0.5});
-  const headM=new THREE.MeshBasicMaterial({color:0xfff6e2});
-  for(let i=0;i<N;i+=34) for(const sd of [1,-1]){
-    const p=pts[i],n=nrm[i], x=p.x+n.x*sd*(HW+18), z=p.z+n.z*sd*(HW+18);
-    const pole=new THREE.Mesh(new THREE.CylinderGeometry(0.28,0.42,21,6),mastM);
-    pole.position.set(x,10.5,z); S.add(pole);
-    const head=new THREE.Mesh(new THREE.BoxGeometry(4.2,0.7,1.0),headM);
-    head.position.set(x,21.2,z); head.lookAt(p.x,20,p.z); S.add(head);
-  }
-  // sky glow + a cold key so the bodywork reads
-  S.add(new THREE.HemisphereLight(0x50607e,0x14181f,1.9));
-  S.add(new THREE.AmbientLight(0xa8b6cc,0.55));
-  const key=new THREE.DirectionalLight(0xeaf1ff,2.6); key.position.set(40,90,20); S.add(key);
-  const key2=new THREE.DirectionalLight(0xffe9c8,1.3); key2.position.set(-60,70,-40); S.add(key2);
-  /* start/finish line and a low grandstand silhouette, so the straight has a
-     destination and the frame has something behind the cars */
-  { const cc=document.createElement('canvas');cc.width=32;cc.height=32;
-    const cx2=cc.getContext('2d');
-    for(let a=0;a<4;a++)for(let bq=0;bq<4;bq++){cx2.fillStyle=((a+bq)&1)?'#f0f2f5':'#15171c';cx2.fillRect(a*8,bq*8,8,8);}
-    const ct=new THREE.CanvasTexture(cc);ct.wrapS=ct.wrapT=THREE.RepeatWrapping;ct.repeat.set(10,1);
-    const line=new THREE.Mesh(new THREE.PlaneGeometry(HW*2,1.6),
-      new THREE.MeshStandardMaterial({map:ct,roughness:0.7}));
-    line.rotation.x=-Math.PI/2; line.position.set(pts[6].x,0.016,pts[6].z);
-    line.rotation.z=-Math.atan2(tan[6].x,tan[6].z); S.add(line); }
-  { const stM=new THREE.MeshStandardMaterial({color:0x1d232e,roughness:0.9});
-    const roofM=new THREE.MeshStandardMaterial({color:0x2a323f,roughness:0.7,metalness:0.3});
-    /* Grandstands with people in them. An empty silhouette reads as scenery;
-       a full one reads as a Grand Prix, and the whole point of the opening is
-       that this is a race somebody is watching. The crowd is one instanced mesh
-       of coloured chips — thousands of them for a single draw call. */
-    const seatM=new THREE.MeshStandardMaterial({color:0x11161d,roughness:0.95});
-    const crowdGeo=new THREE.BoxGeometry(0.62,0.85,0.5);
-    const crowdMat=new THREE.MeshStandardMaterial({vertexColors:true,roughness:0.9});
-    const MAXC=9000;
-    const crowd=new THREE.InstancedMesh(crowdGeo,crowdMat,MAXC);
-    crowd.instanceColor=new THREE.InstancedBufferAttribute(new Float32Array(MAXC*3),3);
-    const M=new THREE.Matrix4(), Q=new THREE.Quaternion(), T=new THREE.Vector3(), SC=new THREE.Vector3(1,1,1);
-    const CC=new THREE.Color();
-    let ci=0;
-    const stands=[];
-    for(let i=0;i<N;i+=42){ const p=pts[i],n=nrm[i],sd=(i/42|0)%2?1:-1;
-      const g2=new THREE.Group();
-      const yaw=Math.atan2(tan[i].x,tan[i].z);
-      const body=new THREE.Mesh(new THREE.BoxGeometry(46,11,17),stM); body.position.y=5.5; g2.add(body);
-      const roof=new THREE.Mesh(new THREE.BoxGeometry(50,0.7,15),roofM); roof.position.set(0,13.5,-1); g2.add(roof);
-      // raked seating deck facing the circuit
-      for(let r=0;r<7;r++){
-        const step=new THREE.Mesh(new THREE.BoxGeometry(44,0.5,1.7),seatM);
-        step.position.set(0,2.2+r*1.25,6.4-r*1.6); g2.add(step);
-      }
-      g2.position.set(p.x+n.x*sd*(HW+31),0,p.z+n.z*sd*(HW+31));
-      g2.rotation.y=yaw; S.add(g2);
-      stands.push({g2,sd,yaw});
-      // fill it
-      const cs=Math.cos(yaw), sn=Math.sin(yaw);
-      for(let r=0;r<7;r++) for(let c=0;c<58;c++){
-        if(ci>=MAXC || Math.random()<0.14) continue;
-        const lx=-21.5+c*0.75+(Math.random()-0.5)*0.3;
-        const ly=2.9+r*1.25, lz=6.4-r*1.6+(Math.random()-0.5)*0.3;
-        T.set(g2.position.x+ (lx*cs + lz*sn), ly, g2.position.z + (-lx*sn + lz*cs));
-        Q.setFromAxisAngle(new THREE.Vector3(0,1,0), yaw);
-        M.compose(T,Q,SC); crowd.setMatrixAt(ci,M);
-        CC.setHSL(Math.random(), 0.45+Math.random()*0.4, 0.34+Math.random()*0.3);
-        crowd.instanceColor.setXYZ(ci,CC.r,CC.g,CC.b);
-        ci++;
-      }
-    }
-    crowd.count=ci; crowd.instanceMatrix.needsUpdate=true; crowd.instanceColor.needsUpdate=true;
-    S.add(crowd);
-    /* CAMERA FLASHES in the crowd. Nothing says "this matters" like a stand
-       going off like a lightning storm as the cars come past. Sixty additive
-       sprites, re-homed at random and pulsed by the step function. */
-    const flashGeo=new THREE.PlaneGeometry(1.5,1.5);
+  /* The two things a Grand Prix broadcast has that a built world does not:
+     camera flashes going off in the crowd as the cars come past, and spray and
+     sparks that belong to these two specific cars. */
+  { const flashGeo=new THREE.PlaneGeometry(2.0,2.0);
     const flashMat=new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:0,
       blending:THREE.AdditiveBlending,depthWrite:false});
-    const flashes=new THREE.InstancedMesh(flashGeo,flashMat,60);
+    const NF=90;
+    const flashes=new THREE.InstancedMesh(flashGeo,flashMat,NF);
+    const M=new THREE.Matrix4(),Q=new THREE.Quaternion(),T=new THREE.Vector3(),SC=new THREE.Vector3(1,1,1);
+    const N=TRACK.N;
     const fState=[];
-    for(let k=0;k<60;k++){
-      const st=stands[(Math.random()*stands.length)|0];
-      const cs=Math.cos(st.yaw), sn=Math.sin(st.yaw);
-      const lx=-20+Math.random()*40, ly=3+Math.random()*8, lz=6-Math.random()*10;
-      T.set(st.g2.position.x+(lx*cs+lz*sn), ly, st.g2.position.z+(-lx*sn+lz*cs));
-      M.compose(T,new THREE.Quaternion(),SC); flashes.setMatrixAt(k,M);
+    for(let k=0;k<NF;k++){
+      const i=((Math.random()*N)|0), p=TRACK.pts[i], n=TRACK.nrm[i];
+      const sd=Math.random()<0.5?1:-1;
+      const off=(sd>0?TRACK.wallL:TRACK.wallR)[i]+6+Math.random()*16;
+      T.set(p.x+n.x*sd*off,(p.y||0)+3+Math.random()*9,p.z+n.z*sd*off);
+      M.compose(T,Q,SC); flashes.setMatrixAt(k,M);
       fState.push({t:Math.random()*3});
     }
-    flashes.instanceMatrix.needsUpdate=true;
+    flashes.instanceMatrix.needsUpdate=true; flashes.frustumCulled=false;
     S.add(flashes);
     CHASE.flashes=flashes; CHASE.fState=fState; CHASE.flashMat=flashMat;
   }
-  /* --- the land the circuit sits in ---------------------------------------
-     The road used to end in fog with nothing beyond it. A ring of low hills and
-     a forest line give the horizon somewhere to be, and at night they read as
-     silhouette, which costs almost nothing and does most of the work. */
-  { const hillM=new THREE.MeshStandardMaterial({color:0x0d1712,roughness:1,flatShading:true});
-    for(let k=0;k<26;k++){
-      const a=k/26*TAU+Math.random()*0.1;
-      const r=430+Math.random()*260;
-      const h=40+Math.random()*90, rad=110+Math.random()*130;
-      const hill=new THREE.Mesh(new THREE.ConeGeometry(rad,h,7,1),hillM);
-      hill.position.set(120+Math.cos(a)*r,h*0.5-16,-110+Math.sin(a)*r);
-      hill.rotation.y=Math.random()*TAU; S.add(hill);
-    }
-    // pine belt just outside the barriers
-    const treeM=new THREE.MeshStandardMaterial({color:0x0e2016,roughness:1,flatShading:true});
-    const treeGeo=new THREE.ConeGeometry(3.4,13,6,1);
-    const trees=new THREE.InstancedMesh(treeGeo,treeM,900);
-    { const M2=new THREE.Matrix4(),Q2=new THREE.Quaternion(),T2=new THREE.Vector3(),S2=new THREE.Vector3();
-      let t=0;
-      for(let i=0;i<N&&t<900;i+=2) for(const sd of [1,-1]){
-        if(t>=900||Math.random()<0.45) continue;
-        const p=pts[i],n=nrm[i], d=HW+42+Math.random()*90;
-        T2.set(p.x+n.x*sd*d+(Math.random()-0.5)*16,0,p.z+n.z*sd*d+(Math.random()-0.5)*16);
-        const s=0.7+Math.random()*0.9; S2.set(s,s*(0.8+Math.random()*0.6),s);
-        T2.y=S2.y*6.5-1;
-        M2.compose(T2,Q2,S2); trees.setMatrixAt(t++,M2);
-      }
-      trees.count=t; trees.instanceMatrix.needsUpdate=true; S.add(trees); }
-  }
-  /* --- the pit building down the main straight ---------------------------- */
-  { const pitM=new THREE.MeshStandardMaterial({color:0x1a212b,roughness:0.75});
-    const winM=new THREE.MeshStandardMaterial({color:0x0c1520,emissive:0x2a5a86,emissiveIntensity:0.9,roughness:0.4});
-    const anchor=pts[Math.round(N*0.02)], an=nrm[Math.round(N*0.02)];
-    const yaw=Math.atan2(tan[Math.round(N*0.02)].x,tan[Math.round(N*0.02)].z);
-    const g3=new THREE.Group();
-    // Object3D.position is a read-only accessor — it can be set INTO, not
-    // replaced, so these have to be built and then positioned.
-    const lower=new THREE.Mesh(new THREE.BoxGeometry(150,9,14),pitM);
-    lower.position.set(0,4.5,0); g3.add(lower);
-    const band=new THREE.Mesh(new THREE.BoxGeometry(150,3.4,0.6),winM); band.position.set(0,10.6,6.6); g3.add(band);
-    const upper=new THREE.Mesh(new THREE.BoxGeometry(152,5.5,13),pitM);
-    upper.position.set(0,12.2,0); g3.add(upper);
-    // lit garage mouths
-    const mouth=new THREE.MeshStandardMaterial({color:0x0a0c10,emissive:0xffb45a,emissiveIntensity:0.55,roughness:0.9});
-    for(let k=0;k<11;k++){
-      const m2=new THREE.Mesh(new THREE.BoxGeometry(9,5,1.2),mouth);
-      m2.position.set(-70+k*14,2.6,7.1); g3.add(m2);
-    }
-    g3.position.set(anchor.x+an.x*(HW+22),0,anchor.z+an.z*(HW+22));
-    g3.rotation.y=yaw; S.add(g3);
-  }
-  /* --- trackside hoardings, marshal posts, a distant city glow ------------ */
-  { const adM=new THREE.MeshStandardMaterial({color:0x8d1119,roughness:0.7,
-      emissive:0x2a0508,emissiveIntensity:0.6});
-    const adGeo=new THREE.BoxGeometry(7.6,1.5,0.2);
-    const ads=new THREE.InstancedMesh(adGeo,adM,180);
-    const M3=new THREE.Matrix4(),Q3=new THREE.Quaternion(),T3=new THREE.Vector3(),S3=new THREE.Vector3(1,1,1);
-    let a3=0;
-    for(let i=0;i<N&&a3<180;i+=8) for(const sd of [1,-1]){
-      if(a3>=180) break;
-      const p=pts[i],n=nrm[i];
-      T3.set(p.x+n.x*sd*(HW+3.0),1.75,p.z+n.z*sd*(HW+3.0));
-      Q3.setFromAxisAngle(new THREE.Vector3(0,1,0),Math.atan2(tan[i].x,tan[i].z));
-      M3.compose(T3,Q3,S3); ads.setMatrixAt(a3++,M3);
-    }
-    ads.count=a3; ads.instanceMatrix.needsUpdate=true; S.add(ads);
-    // marshal posts: a small orange light every so often, flickering
-    const postM=new THREE.MeshBasicMaterial({color:0xffa030});
-    for(let i=6;i<N;i+=76){
-      const p=pts[i],n=nrm[i];
-      const l=new THREE.Mesh(new THREE.SphereGeometry(0.34,8,6),postM);
-      l.position.set(p.x+n.x*(HW+6.5),3.1,p.z+n.z*(HW+6.5)); S.add(l);
-    }
-    // a city on the horizon, so the night has a somewhere
-    const cityM=new THREE.MeshStandardMaterial({color:0x0a1018,emissive:0x14202e,emissiveIntensity:1.0,roughness:1});
-    for(let k=0;k<40;k++){
-      const a=-0.9+k*0.045, r=980+Math.random()*260;
-      const h=30+Math.random()*120, w=18+Math.random()*26;
-      const b=new THREE.Mesh(new THREE.BoxGeometry(w,h,w),cityM);
-      b.position.set(120+Math.cos(a)*r,h/2-10,-110+Math.sin(a)*r); S.add(b);
-    }
-  }
-  /* --- rain. It is a wet night; the streaks are what make it one. --------- */
-  { const RN=1400, pos=new Float32Array(RN*6);
-    const g4=new THREE.BufferGeometry();
-    g4.setAttribute('position',new THREE.BufferAttribute(pos,3));
-    const rainMat=new THREE.LineBasicMaterial({color:0xbdd2e8,transparent:true,opacity:0.32});
-    const rain=new THREE.LineSegments(g4,rainMat);
-    rain.frustumCulled=false; S.add(rain);
-    const box=70, top=42;
-    const seed=(i,cx,cz)=>{
-      const x=cx+(Math.random()-0.5)*box*2, z=cz+(Math.random()-0.5)*box*2;
-      const y=Math.random()*top;
-      pos[i*6]=x; pos[i*6+1]=y; pos[i*6+2]=z;
-      pos[i*6+3]=x+0.5; pos[i*6+4]=y-2.6; pos[i*6+5]=z+0.5;
-    };
-    for(let i=0;i<RN;i++) seed(i,0,0);
-    CHASE.rain={mesh:rain,pos,RN,box,top,seed,
-      update(dt,cam){
-        for(let i=0;i<RN;i++){
-          pos[i*6+1]-=48*dt; pos[i*6+4]-=48*dt;
-          if(pos[i*6+4]<cam.y-14 || Math.abs(pos[i*6]-cam.x)>box || Math.abs(pos[i*6+2]-cam.z)>box){
-            seed(i,cam.x,cam.z);
-            pos[i*6+1]+=cam.y; pos[i*6+4]+=cam.y;
-          }
-        }
-        g4.attributes.position.needsUpdate=true;
-      }};
-  }
-  /* --- spray plumes and sparks that live with the cars -------------------- */
   /* A soft radial falloff, not a flat colour. An additively-blended plane with
      a solid colour is a glowing RECTANGLE — you can see all four of its edges,
      and it looked like a grey card had been taped behind the car. The alpha has
@@ -14421,7 +14334,23 @@ function buildChaseScene(){
     CHASE.sparks=sp; CHASE.sparkMat=sparkMat;
   }
 }
-/* where a car sits on the chase circuit: u is a lap fraction, lat is metres across */
+/* Where a car sits on the chase circuit: u is a lap fraction, lat is metres
+   across. Returns ELEVATION as well now — a real circuit is not flat, and every
+   camera and car placement in the sequence was pinning things to y=0, which on
+   a track that climbs and drops means the cars sink into the road on one part
+   of the lap and hover over it on another. */
+/* Where a trackside camera can actually stand.
+   Two wrong answers were tried first. A fixed 13-17 m offset works on an
+   invented loop with uniform run-off and buries the camera in a barrier the
+   moment the circuit is a real one. Placing it just BEYOND the barrier is worse:
+   the barrier line is exactly where buildGrandstands, the hoardings and the
+   trackside furniture all start, so "just outside the wall" means "inside a
+   grandstand".
+   The right answer is the other way — INSIDE the barrier, out in the run-off,
+   which is guaranteed empty because that is what run-off is. It is also where
+   a real trackside camera looks like it is: low, close to the road, with the
+   cars coming straight at it. */
+function chaseSide(extra){ return CHASE.HW+(extra===undefined?5:extra); }
 function chasePose(u,lat){
   const {pts,tan,nrm,N}=CHASE;
   const f=((u%1)+1)%1*N, i0=Math.floor(f)%N, i1=(i0+1)%N, g=f-Math.floor(f);
@@ -14429,6 +14358,7 @@ function chasePose(u,lat){
   const nx=n0.x+(n1.x-n0.x)*g, nz=n0.z+(n1.z-n0.z)*g, nl=Math.hypot(nx,nz)||1;
   const tx=t0.x+(t1.x-t0.x)*g, tz=t0.z+(t1.z-t0.z)*g;
   return { x:p0.x+(p1.x-p0.x)*g+(nx/nl)*lat, z:p0.z+(p1.z-p0.z)*g+(nz/nl)*lat,
+           y:(p0.y||0)+((p1.y||0)-(p0.y||0))*g,
            yaw:Math.atan2(tx,tz) };
 }
 function spawnSwoosh(topPct,rev,dur){
@@ -14502,6 +14432,13 @@ function startCinematic(){
    and the gap is meaningless. */
 const CINE_T0=4.2;          // the leader arrives
 const CINE_T1=7.6;          // the rival's lights appear behind him
+/* Where on the lap the sequence is staged. The static camera positions used to
+   be absolute lap fractions, which was fine on a 1.4 km invented loop where the
+   cars covered 5% of it a second. On a real 5.4 km circuit at the same speed
+   they cover barely 1.4% a second, so a camera parked at "10% of the lap" was
+   most of a kilometre from the cars and filmed an empty road for the whole cut.
+   Every fixed anchor is now placed relative to CINE_U0 or to the leader. */
+const CINE_U0=0.42;
 function chaseGap(t){
   const keys=[[CINE_T1,150],[9.5,112],[11.4,86],[13.0,64],[14.6,48],[16.2,34],
               [17.8,22],[19.2,13],[20.4,6.5],[21.4,2.4],[22.4,0.5],[23.6,-1.6]];
@@ -14516,11 +14453,11 @@ function stepCinematic(dt){
   if(!carPlain) setCarPlain(true);                       // retry until the livery shader is compiled
   const el=(typeof window!=='undefined'&&window.__holdCine!=null)?window.__holdCine:(performance.now()-CINE.start)/1000;
   if(!CHASE) return;
-  const LAP=1420;                                        // metres round the chase circuit
+  const LAP=CHASE.len||1420;                             // metres round the real circuit
   const V=76;                                            // ~275 km/h
   // the leader is only on the circuit from CINE_T0; before that it is empty
   const running=Math.max(0,el-CINE_T0);
-  const uL=(0.42 + running*V/LAP)%1;
+  const uL=(CINE_U0 + running*V/LAP)%1;
   const gap=chaseGap(el);
   const uR=uL - gap/LAP;
   // the rival comes off line and out to the inside as he commits
@@ -14531,10 +14468,11 @@ function stepCinematic(dt){
   const drop=(CAR.tireDrop||0);
   const onTrack=el>=CINE_T0, rivalOn=el>=CINE_T1-1.2;
   CAR.rig.visible=onTrack;
-  CAR.rig.position.set(L.x,0.02-drop,L.z); CAR.rig.rotation.set(0,L.yaw,0);
+  // sit on the ROAD, at whatever height the circuit is at that point
+  CAR.rig.position.set(L.x,L.y+0.02-drop,L.z); CAR.rig.rotation.set(0,L.yaw,0);
   if(CINE.rival){ CINE.rival.visible=rivalOn;
-    CINE.rival.position.set(R.x,0.02-drop,R.z); CINE.rival.rotation.set(0,R.yaw,0); }
-  if(CINE.rim){ CINE.rim.position.set(R.x,1.6,R.z);
+    CINE.rival.position.set(R.x,R.y+0.02-drop,R.z); CINE.rival.rotation.set(0,R.yaw,0); }
+  if(CINE.rim){ CINE.rim.position.set(R.x,R.y+1.6,R.z);
     CINE.rim.intensity=rivalOn?7*clamp((el-CINE_T1+1.2)/2,0,1):0; }
 
   /* Exposure comes UP through the sequence. The empty circuit is deliberately
@@ -14560,7 +14498,7 @@ function stepCinematic(dt){
     const amt=clamp((el-CINE_T0)/1.5,0,1);
     CHASE.sprayMat.opacity=0.20*amt;
     const put=(m,pose,on)=>{ m.visible=on;
-      m.position.set(pose.x-Math.sin(pose.yaw)*3.2,1.15,pose.z-Math.cos(pose.yaw)*3.2);
+      m.position.set(pose.x-Math.sin(pose.yaw)*3.2,(pose.y||0)+1.15,pose.z-Math.cos(pose.yaw)*3.2);
       m.lookAt(camera.position); };
     put(CHASE.spray[0],L,true); put(CHASE.spray[1],R,rivalOn);
   }
@@ -14568,7 +14506,7 @@ function stepCinematic(dt){
     const on=el>19.5&&el<23.6;
     CHASE.sparkMat.opacity=on?(0.5+0.5*Math.sin(el*37))*0.85:0;
     CHASE.sparks.visible=on;
-    if(on){ CHASE.sparks.position.set(L.x-Math.sin(L.yaw)*2.0,0.16,L.z-Math.cos(L.yaw)*2.0);
+    if(on){ CHASE.sparks.position.set(L.x-Math.sin(L.yaw)*2.0,L.y+0.16,L.z-Math.cos(L.yaw)*2.0);
       CHASE.sparks.lookAt(camera.position); }
   }
 
@@ -14578,10 +14516,14 @@ function stepCinematic(dt){
      one after the leader arrives is framed to answer the same question — how
      close is he now — and the answer is always "closer than last time".     */
   const cam=new THREE.Vector3(), look=new THREE.Vector3();
+  /* `up` is now height ABOVE THE ROAD at that point, not an absolute world y.
+     On a flat invented loop the two were the same thing; on a real circuit that
+     climbs and drops, an absolute height buries the camera in the tarmac on the
+     high part of the lap and leaves it in the sky on the low part. */
   const at=(pose,fwd,side,up)=>new THREE.Vector3(
-    pose.x+Math.sin(pose.yaw)*fwd+Math.cos(pose.yaw)*side, up,
+    pose.x+Math.sin(pose.yaw)*fwd+Math.cos(pose.yaw)*side, (pose.y||0)+up,
     pose.z+Math.cos(pose.yaw)*fwd-Math.sin(pose.yaw)*side);
-  const mid={x:(L.x+R.x)/2,z:(L.z+R.z)/2,yaw:L.yaw};
+  const mid={x:(L.x+R.x)/2,z:(L.z+R.z)/2,y:(L.y+R.y)/2,yaw:L.yaw};
   let fov=44, shake=0;
   if(el<4.6){
     /* 1. AN EMPTY CIRCUIT, IN THE RAIN. A slow crane down toward the start/
@@ -14593,24 +14535,27 @@ function stepCinematic(dt){
        the pit building. Everything here is relative to the road's own heading,
        and on the opposite side from the pits. */
     const k=el/4.6, e=k*k*(3-2*k);
-    const anchor=chasePose(0.055,0);
-    const down=chasePose(0.135,0);            // a point further down the road
-    cam.copy(at(anchor,-92+e*54,-20+e*11,30-e*23));
+    const anchor=chasePose(CINE_U0+0.006,0);
+    const down=chasePose(CINE_U0+0.030,0);    // a point further down the road
+    // high enough at the start to clear everything, dropping into the run-off
+    cam.copy(at(anchor,-92+e*58,-chaseSide(9),34-e*27));
     // look down the straight rather than at one spot, so the road leads the eye
-    look.set(lerp(anchor.x,down.x,e*0.7),1.4,lerp(anchor.z,down.z,e*0.7));
+    look.set(lerp(anchor.x,down.x,e*0.7),lerp(anchor.y,down.y,e*0.7)+1.4,
+             lerp(anchor.z,down.z,e*0.7));
     fov=44-e*6;
   }else if(el<7.6){
     /* 2. THE LEADER ARRIVES, ALONE. Low, static, trackside — he comes from
        nowhere, fills the frame and is gone, and the road behind him is empty. */
-    const anchor=chasePose(0.10,0);
-    cam.copy(at(anchor,0,13.5,1.15));
-    look.set(L.x,0.7,L.z); fov=42; shake=0.10;
+    // sit a little way ahead of the leader so he arrives, fills frame and goes
+    const anchor=chasePose(uL+0.0055,0);
+    cam.copy(at(anchor,0,chaseSide(5),1.35));
+    look.set(L.x,L.y+0.7,L.z); fov=42; shake=0.10;
   }else if(el<10.6){
     /* 3. THE MIRRORS. Over the leader's shoulder, looking back down an empty
        road — and then a second set of lights in it. Long lens so the rival
        LOOMS rather than approaches. */
     const k=clamp((el-7.6)/3.0,0,1);
-    cam.copy(at(L,-1.35,0.88,1.54)); look.set(R.x,0.85,R.z); fov=24+9*k; shake=0.16;
+    cam.copy(at(L,-1.35,0.88,1.54)); look.set(R.x,R.y+0.85,R.z); fov=24+9*k; shake=0.16;
   }else if(el<13.4){
     /* 4. HELICOPTER. High and wide, so you can see the whole gap at once and
        measure it for yourself.
@@ -14621,33 +14566,33 @@ function stepCinematic(dt){
        whole purpose of this angle is that both cars are in it. */
     const k=clamp((el-10.6)/2.8,0,1);
     cam.copy(at(R,-34,11,25-5*k));
-    look.set(mid.x,0.7,mid.z); fov=42; shake=0.05;
+    look.set(mid.x,mid.y+0.7,mid.z); fov=42; shake=0.05;
   }else if(el<16.0){
     /* 5. TRACKSIDE THROUGH A CORNER, both cars in one frame, the camera panning
        with them. The gap is now small enough to read without being told. */
     const anchor=chasePose(uL+0.012,0);
-    cam.copy(at(anchor,0,17.0,2.7));
-    look.set(mid.x,0.7,mid.z); fov=34; shake=0.12;
+    cam.copy(at(anchor,0,chaseSide(7),2.9));
+    look.set(mid.x,mid.y+0.7,mid.z); fov=34; shake=0.12;
   }else if(el<18.4){
     /* 6. ONTO THE STRAIGHT, from ahead and low, wing open. */
     const k=clamp((el-16.0)/2.4,0,1);
     cam.copy(at(L,13.0+5*k,-1.5,0.66));
-    look.set(mid.x,0.66,mid.z); fov=40-5*k; shake=0.20;
+    look.set(mid.x,mid.y+0.66,mid.z); fov=40-5*k; shake=0.20;
   }else if(el<20.4){
     /* 7. ONBOARD-ISH. Pinned to the leader's gearbox with the rival filling the
        mirror behind. Fast now, and the camera is starting to move. */
     cam.copy(at(L,-6.6,0.5,1.05));
-    look.set(L.x,0.6,L.z); fov=46; shake=0.34;
+    look.set(L.x,L.y+0.6,L.z); fov=46; shake=0.34;
   }else if(el<22.3){
     /* 8. WHEEL TO WHEEL, on the deck, between the two of them. */
     const k=clamp((el-20.4)/1.9,0,1);
     cam.copy(at(mid,-4.4+1.5*k,-6.6+2.4*k,0.42));
-    look.set(mid.x,0.6,mid.z); fov=48+7*k; shake=0.55;
+    look.set(mid.x,mid.y+0.6,mid.z); fov=48+7*k; shake=0.55;
   }else{
     /* 9. THE LAST CORNER. Tight on the two of them, shaking, and then black. */
     const k=clamp((el-22.3)/1.5,0,1);
     cam.copy(at(mid,-3.0,3.2-1.4*k,0.78));
-    look.set(mid.x,0.62,mid.z); fov=52+8*k; shake=0.85;
+    look.set(mid.x,mid.y+0.62,mid.z); fov=52+8*k; shake=0.85;
   }
   /* Handheld. Zero for the opening crane — a locked-off camera is part of why
      the empty circuit feels still — and rising with the tension until the last
@@ -15446,7 +15391,20 @@ function stepAI(dt){
   const all=AI.cars.map(c=>({idx:c.idx,lat:c.lat,lap:c.lap,ai:c}));
   // in the watch-only simulation there IS no player car, so do not make the
   // field race against a phantom sitting on the racing line
-  if(!(typeof SIM!=='undefined'&&SIM.on)) all.push({idx:pIdx,lat:0,lap:(lap.num||0),ai:null});
+  /* The player is traffic only while the player is actually racing.
+     This used to add them unconditionally, so whenever the car was parked —
+     sitting in the menu, in a replay, stopped in the pits — the entire field
+     found a stationary obstacle on the racing line and dutifully queued up
+     behind it rather than driving past, which brought the whole race to a
+     standstill just before the line. */
+  const playerRacing=(STATE==='drive'||STATE==='countdown'||STATE==='result')
+    && !(typeof SIM!=='undefined'&&SIM.on);
+  if(playerRacing) all.push({idx:pIdx,lat:0,lap:playerLapsDone(),ai:null});
+  // a car in the pit lane is not traffic for anyone still racing
+  // ...including one still on its way down the pit entry or rejoining from the
+  // exit, which is why this tests where the car actually IS, not just its phase
+  for(let i=all.length-1;i>=0;i--){ const a2=all[i].ai;
+    if(a2 && (a2.pitPhase>0 || a2.rejoin>0 || Math.abs(a2.lat)>TRACK.halfW+2.5)) all.splice(i,1); }
   // how close is the player tucked in behind a car ahead (drives the spray whiteout in the rain)
   { let gap=99; for(const o of all){ if(o.ai===null) continue;
       const di=(o.idx-pIdx+N)%N; if(di>0&&di<10) gap=Math.min(gap,di*segLen); }
@@ -15483,7 +15441,8 @@ function stepAI(dt){
           c.compound=comp; c.tyre=1; c.tyreLife=compoundLaps(comp,CFG.id); c.stops++;
           c.pitPhase=3; c.pitTimer=2.6; }
       }else{                                             // accelerating back out
-        c.v=damp(c.v,26,3,dt); if(c.pitTimer<=0){c.pitPhase=0;c.pitFlag=false;}
+        c.v=damp(c.v,26,3,dt);
+        if(c.pitTimer<=0){ c.pitPhase=0; c.pitFlag=false; c.rejoin=5.0; }
       }
       c.idx+=(c.v*dt)/segLen; if(c.idx>=N){c.idx-=N;c.lap++;}
       const pp=TRACK.pts[pi], pn=TRACK.nrm[pi], ptg=TRACK.tan[pi];
@@ -15587,10 +15546,21 @@ function stepAI(dt){
          fine table is left alone, because over a short baseline ordinary wiggle
          in the centreline reads as curvature and the car brakes for corners that
          are not there. */
-      let R=(Rc?Rc[j]:8000);
-      { const kj=kAt(j,0);
-        if(kj>1.25e-4){ const Rf=1/kj; if(Rf<TIGHT_R && Rf<R) R=Rf; } }
-      R*=1.12;
+      /* The radius of the LINE the car is going to drive, not of the white
+         line down the middle of the road. computeRacingLine() solves the
+         minimum-curvature path through the corridor once per circuit and
+         records the radius it describes; a path that uses the full width
+         straightens a corner substantially, which the old code approximated
+         with a flat 12% bonus on the centreline radius. Using the real figure
+         is both quicker and correct at the places the fudge was worst — a
+         hairpin, where the line barely straightens at all, and a long sweeper,
+         where it straightens far more than 12%. */
+      let R=(TRACK.lineR?TRACK.lineR[j]:(Rc?Rc[j]:8000));
+      if(!TRACK.lineR){
+        const kj=kAt(j,0);
+        if(kj>1.25e-4){ const Rf=1/kj; if(Rf<TIGHT_R && Rf<R) R=Rf; }
+        R*=1.12;
+      }
       const vC=vForR(R);
       if(vC>=vLimit) continue;                 // cannot bind
       /* Brake back from it at the deceleration available ACROSS the braking zone,
@@ -15743,14 +15713,44 @@ function stepAI(dt){
        sit in the tow, and use it.
        So the cap only bites inside a couple of car lengths, and even then only
        enough to avoid driving into the back of them. Above that, close. */
-    if(aheadCar && c.phase==='stalk'){
-      const MIN=3.4;                              // under a car length: back out
-      if(closeAhead<MIN){
-        const cap=aheadV + (closeAhead-MIN)*2.2;  // proportional, gentle
-        targetV=Math.min(targetV, cap);
-      }else if(closeAhead<7 && !straight){
-        // in the twisty bits hold a small margin so a corner does not end in a hit
-        targetV=Math.min(targetV, aheadV+2.5);
+    /* THE FOLLOWING CONTROLLER.
+       The old version only reacted inside 3.4 m — shorter than the car, which is
+       5.2 m long. By the time it did anything the two cars were already
+       overlapping, the contact resolution shoved them apart, they closed again,
+       and it shoved them again: that oscillation is the rear-ending, the backing
+       out and the pushing back all at once, and it is why a race ran with cars
+       permanently banging together.
+       A driver does not wait until contact to lift. This closes on the car ahead
+       until a car length and a half, then matches its speed, and damps on the
+       CLOSING RATE as well as the gap so it settles instead of hunting. It still
+       lets them right up — the tow needs a second's gap, which is fifty metres
+       plus — it just stops them driving through each other. */
+    c.bumped=Math.max(0,(c.bumped||0)-dt);
+    // count the rejoin down once the car is actually back on the road and moving
+    if(c.rejoin>0 && Math.abs(c.lat)<TRACK.halfW+1 && c.v>40) c.rejoin=0;
+    else if(c.rejoin>0) c.rejoin=Math.max(0,c.rejoin-dt);
+    if(aheadCar && Math.abs(aheadLat-c.lat)<2.4 && c.phase!=='alongside'){
+      /* A TIME gap, not a fixed distance.
+         A fixed safe distance deadlocks a standing field: at the start every car
+         is stationary and inside it, so every car is told to go slower than the
+         stationary car in front, and the whole grid sits there forever. Braking
+         distance scales with speed anyway — half a second of gap is a car length
+         at walking pace and forty metres flat out, which is what a driver
+         actually leaves.
+         `bumped` widens it briefly after contact so a car that has just been hit
+         backs out properly instead of climbing straight back onto the bumper. */
+      const CARL=5.2;
+      const SAFE=CARL*1.1 + c.v*(c.bumped>0?0.85:0.50);
+      if(closeAhead<SAFE){
+        const closing=Math.max(0,c.v-aheadV);     // how fast the gap is shrinking
+        const err=closeAhead-SAFE;                // negative when too close
+        const cap=aheadV + err*1.0 - closing*0.5;
+        // never demand less than three quarters of the pace of the car ahead:
+        // a deeper cut cascades down a queue and stops the whole field
+        targetV=Math.min(targetV, Math.max(cap, aheadV*0.75));
+      }else if(closeAhead<CARL*3 && !straight){
+        // in the twisty bits hold a margin so a corner does not end in a hit
+        targetV=Math.min(targetV, aheadV+2.0);
       }
     }
     // mistakes: rarer for consistent drivers, more likely under pressure from behind
@@ -15758,7 +15758,20 @@ function stepAI(dt){
     c.mistakeT-=dt;
     if(c.mistakeT<-5 && Math.random()<0.0016*(2-c.consist)*pressure) c.mistakeT=0.4+Math.random()*0.5;
     const mist=c.mistakeT>0?0.8:1;
-    const desired=targetV*slow*mist;
+    /* A FLOOR, AND WHY IT IS HERE.
+       Every cascade found so far has been fixed at its source — the subtractive
+       contact cap, the fixed-distance follow gap, the parked player counted as
+       traffic, pit-lane queues counted as collisions. One residual case remains
+       that I have not tracked to its root: at Bahrain a car occasionally winds
+       itself down to a standstill on a straight with nothing ahead of it, and
+       once one car stops the queue behind it does too and the race is over.
+       This is a guard, not a fix, and it is deliberately crude: on a piece of
+       road the speed plan itself says is quick, a racing driver is never doing
+       walking pace, so refuse to command it. It bounds the damage of anything
+       like this that is left without papering over the cases already corrected.
+       The proper fix is to find what drives targetV to zero there. */
+    let desired=targetV*slow*mist;
+    if(vLimit>VCAP*0.5 && closeAhead>30 && !(c.pitPhase>0)) desired=Math.max(desired,18);
     /* FORCE-BASED LONGITUDINAL MOTION. Damping toward a target speed meant the
        car simply appeared at that speed — which is why the field snapped to full
        pace the instant the lights went out instead of launching. It now
@@ -15801,7 +15814,24 @@ function stepAI(dt){
       turn+=signedTurnIdx((pi+k+N)%N)*w; tw+=w;
     }
     turn/=Math.max(tw,1e-6);
-    let lineLat=clamp(-turn*300,-(HW-1.0),HW-1.0);
+    /* THE LINE COMES FROM THE PRECOMPUTED PATH.
+       `-turn*300` describes an apex and only an apex: sit toward the inside in
+       proportion to how hard the road is turning right here. It never ran wide
+       on entry and never used the exit, so every corner was driven on close to
+       the tightest radius the circuit offers. TRACK.line is the solved
+       minimum-curvature path, read a little way AHEAD of the car so the move to
+       the next apex is already under way by the time the corner arrives —
+       which is what turning in looks like. */
+    let lineLat;
+    if(TRACK.line){
+      const LA=Math.max(2,Math.round(16/segLen));       // ~16 m of anticipation
+      let sum=0,sw=0;
+      for(let k=0;k<=LA;k++){ const w=1-k/(LA+1);
+        sum+=TRACK.line[(pi+k)%N]*w; sw+=w; }
+      lineLat=clamp(sum/Math.max(sw,1e-6),-(HW-1.0),HW-1.0);
+    }else{
+      lineLat=clamp(-turn*300,-(HW-1.0),HW-1.0);
+    }
     if(c.phase==='commit'||c.phase==='alongside'){
       // out of the tow and committed to the side, held steady
       c.dodge=damp(c.dodge, c.atkSide*(HW-1.3), c.phase==='commit'?2.4:3.2, dt);
@@ -16046,7 +16076,20 @@ function stepAI(dt){
       const aLong=(c.v-(c.vPrev===undefined?c.v:c.vPrev))/Math.max(dt,1e-4);
       c.vPrev=c.v;
       beta*= 1 + clamp(aLong*0.04,0,0.8);
-      beta=clamp(beta,-0.16,0.16);
+      /* MAKE THE CAR ROTATE, VISIBLY.
+         The physical slip angle for a car at the limit is a couple of degrees,
+         and a couple of degrees is invisible from a car length behind — so the
+         AI read as though they pivoted about the front axle, with the fronts
+         doing all the turning and the rear just following the nose round. That
+         is not what a racing car looks like: the back of it steps out and the
+         whole car rotates into the corner.
+         Scaled up, and given more room to move. This is a deliberate visual
+         exaggeration and it changes nothing about where the car goes — beta is
+         applied to the MESH's yaw only, not to the path — but it is the
+         difference between watching a car being steered and watching a car
+         being driven. */
+      beta*=2.6;
+      beta=clamp(beta,-0.30,0.30);
       c.beta=(c.beta===undefined)?0:c.beta+((beta-c.beta)*(1-Math.exp(-7*dt)));
       // lateral acceleration the car is actually pulling, for the body roll
       const aLat=v2*kappa;
@@ -16092,7 +16135,19 @@ function stepAI(dt){
      resolve instead of the two of them occupying the same metre of road.
      Damage is charged to the player as well, so contact is not free.        */
   { const CAR_L=5.2, CAR_W=2.1, segL=TRACK.len/N;
-    const list=AI.cars.map(c=>({ai:c,idx:c.idx,lat:c.lat}));
+    /* Cars in the pit lane are not on the circuit.
+       They sit at the same lateral offset as each other — that is what a pit
+       lane is — so a queue of them waiting to be served reads to this code as
+       eight cars occupying the same metre of road, and it generated tens of
+       thousands of "collisions" a race and scrubbed everyone's speed for it.
+       They are excluded here; the pit code owns them until they rejoin. */
+    /* A car on its way out of the pit exit is not yet racing. It is doing 90
+       while the field is doing 300, it is still crossing back over from the pit
+       side, and treating it as a car on the racing line put it in contact with
+       everything that came past. `rejoin` keeps it out of the reckoning until it
+       is genuinely back on the road and up to speed. */
+    const onTrackNow=(c)=>!(c.pitPhase>0) && !(c.rejoin>0) && Math.abs(c.lat)<TRACK.halfW+2.5;
+    const list=AI.cars.filter(onTrackNow).map(c=>({ai:c,idx:c.idx,lat:c.lat}));
     // the player is a solid object too
     const pLat=(typeof CAR!=='undefined'&&CAR.trackIdx!==undefined)?
       (nearestTrack(CAR.pos,CAR.trackIdx,55).lat):null;
@@ -16125,13 +16180,34 @@ function stepAI(dt){
         if(!A.ai||!B.ai){ CAR.vLat=(CAR.vLat||0)-sgn*(A.ai?1:-1)*6*sevr;
           CAR.damage=Math.min(1,(CAR.damage||0)+0.010*sevr); }
       }else{
-        // genuinely square behind: the following car is checked, nobody gains
+        /* Genuinely square behind.
+           This used to drag the following car BACKWARDS along the track —
+           `behind.ai.idx -= push`, every frame, for as long as the overlap
+           lasted. Moving a car's race position by hand is a teleport, and doing
+           it sixty times a second against a car that is still driving forwards
+           is precisely the visible juddering and the "pushed back" look: the
+           two of them fought, one gaining by driving and the other losing by
+           decree, and neither ever settled.
+           Nothing is teleported now. The car behind simply lifts — its speed is
+           capped below the car in front, which is what a driver does and what
+           actually opens the gap — and a short cooldown stops it slamming
+           straight back into the same bumper on the next frame. */
         const behind=dLong>0?A:B, ahead=dLong>0?B:A;
-        const push=(ovLong/segL)*Math.min(1,dt*14);
-        if(behind.ai){ behind.ai.idx-=push; behind.ai.v=Math.min(behind.ai.v,
-          (ahead.ai?ahead.ai.v:Math.abs(CAR.v))*0.96); }
+        const aheadV2=ahead.ai?ahead.ai.v:Math.abs(CAR.v);
+        if(behind.ai){
+          /* Take a SHARE off, not a fixed amount. Subtracting a fixed 1.2 m/s
+             plus a severity term from the car in front compounds down a queue:
+             each car is slower than the one ahead of it by that much, so eight
+             cars nose to tail cascade to a standstill and never recover. A
+             proportional lift cannot do that, and the following controller above
+             does the real work of opening the gap anyway. */
+          behind.ai.v=Math.min(behind.ai.v, aheadV2*(1-0.06*sevr));
+          behind.ai.v=Math.max(behind.ai.v,0);
+          behind.ai.bumped=0.7;                 // back out and stay backed out
+        }
         if(!behind.ai||!ahead.ai){
-          CAR.v*= (behind.ai?1.02:0.92);
+          // the player is one of the two: they take the damage either way
+          if(behind.ai) CAR.v*=1.0; else CAR.v=Math.min(CAR.v,aheadV2*0.90);
           CAR.damage=Math.min(1,(CAR.damage||0)+0.016*sevr); }
       }
       // rubber and smoke off the contact point, so you SEE it happen
@@ -16157,7 +16233,7 @@ function stepAI(dt){
     } }
   // standings: total distance = lap*len + along-lap distance
   const dOf=(idx,lp)=>lp*TRACK.len + TRACK.cum[Math.round(idx)%N];
-  const field=AI.cars.map(c=>({d:dOf(c.idx,c.lap),me:false})).concat([{d:dOf(pIdx,lap.num||0),me:true}]);
+  const field=AI.cars.map(c=>({d:dOf(c.idx,c.lap),me:false})).concat([{d:dOf(pIdx,playerLapsDone()),me:true}]);
   field.sort((a,b)=>b.d-a.d);
   AI.playerPos=field.findIndex(f=>f.me)+1;
   const pn=$('#posNum'); if(pn) pn.textContent=AI.playerPos;
