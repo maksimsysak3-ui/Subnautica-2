@@ -338,6 +338,71 @@
   .ssTeam .tn{font-size:14px;font-weight:700;color:#fff;letter-spacing:.05em}
   .ssTeam.on .tn::after{content:' ✓';color:#4ce0a0}
   /* ===== SEASON HUB ===== */
+  /* ============ GARAGE TABLET ============
+     Deliberately NOT the weekend tablet. That one is a slab you hold; this one
+     hangs from the garage ceiling on an arm and drops into view in front of the
+     driver — amber-on-black instrumentation rather than a glass slate, because
+     it is a working screen in a workshop, not a brochure. */
+  #gtab{position:fixed;left:50%;top:0;transform:translateX(-50%) translateY(-102%);
+    z-index:24;width:min(940px,92vw);pointer-events:none;
+    transition:transform .5s cubic-bezier(.3,.9,.3,1)}
+  #gtab.on{transform:translateX(-50%) translateY(0);pointer-events:auto}
+  /* the arm it hangs from */
+  #gtArm{width:14px;height:26px;margin:0 auto;border-radius:0 0 4px 4px;
+    background:linear-gradient(180deg,#2a2e36,#15181d);box-shadow:0 2px 6px rgba(0,0,0,.6)}
+  #gtBody{border:1px solid rgba(255,176,60,.24);border-top:none;
+    border-radius:0 0 16px 16px;padding:14px 18px 12px;
+    background:linear-gradient(180deg,rgba(10,9,7,.97),rgba(6,6,8,.97));
+    box-shadow:0 26px 60px rgba(0,0,0,.8),inset 0 -1px 0 rgba(255,176,60,.12)}
+  #gtHead{display:flex;justify-content:space-between;align-items:center;
+    padding-bottom:10px;margin-bottom:12px;border-bottom:1px solid rgba(255,176,60,.20)}
+  #gtHead .gtT{display:flex;align-items:baseline;gap:14px}
+  #gtSess{font-family:var(--mono);font-size:12px;letter-spacing:.28em;font-weight:800;color:#ffb03c}
+  #gtClock{font-family:var(--mono);font-style:normal;font-size:19px;font-weight:800;color:#fff}
+  #gtClose{background:transparent;border:1px solid rgba(255,176,60,.3);color:#ffb03c;
+    border-radius:5px;width:26px;height:22px;cursor:pointer;font-size:10px;line-height:1}
+  #gtClose:hover{background:rgba(255,176,60,.14)}
+  #gtTabs{display:flex;gap:6px;margin-bottom:11px}
+  .gtTab{flex:1;font-family:var(--mono);font-size:9.5px;letter-spacing:.2em;font-weight:800;
+    color:#8a8578;background:transparent;border:1px solid rgba(255,255,255,.09);
+    border-radius:7px;padding:7px 4px;cursor:pointer;transition:color .15s,border-color .15s,background .15s}
+  .gtTab:hover{color:#fff}
+  .gtTab.on{color:#ffb03c;border-color:rgba(255,176,60,.5);background:rgba(255,176,60,.12)}
+  .gtPage{display:none}
+  .gtPage.on{display:block}
+  .gtActs{display:flex;gap:8px;margin-top:12px}
+  .gtActs button{flex:1;font-family:var(--mono);font-size:10px;letter-spacing:.16em;font-weight:800;
+    color:#ffb03c;background:rgba(255,176,60,.10);border:1px solid rgba(255,176,60,.4);
+    border-radius:7px;padding:9px 6px;cursor:pointer;transition:background .15s,color .15s}
+  .gtActs button:hover{background:rgba(255,176,60,.22);color:#fff}
+  .gtActs button:disabled{opacity:.35;cursor:not-allowed;color:#8a8578;border-color:rgba(255,255,255,.1);background:transparent}
+  .gtPanel{border:1px solid rgba(255,255,255,.08);border-radius:9px;padding:11px 13px;
+    background:rgba(255,255,255,.022)}
+  .gtPanel h4{font-family:var(--mono);font-size:9px;letter-spacing:.26em;color:#8a8578;
+    font-weight:800;margin-bottom:9px;display:flex;justify-content:space-between;align-items:baseline}
+  .gtPanel h4 small{font-family:var(--mono);font-size:12px;letter-spacing:.04em;color:#ffb03c;font-weight:800}
+  #gtTyreRow{display:flex;gap:7px}
+  .gtTyre{flex:1;border:1px solid var(--grey-lo);border-radius:7px;padding:8px 4px;text-align:center;
+    cursor:pointer;transition:border-color .15s,background .15s,transform .15s}
+  .gtTyre:hover{transform:translateY(-2px)}
+  .gtTyre .tc{display:block;width:20px;height:20px;border-radius:50%;margin:0 auto 6px;
+    border:3px solid currentColor}
+  .gtTyre .tn{font-family:var(--mono);font-size:9px;letter-spacing:.14em;font-weight:800;color:#cfd5dd}
+  .gtTyre.on{border-color:#ffb03c;background:rgba(255,176,60,.13)}
+  .gtNote{margin-top:9px;font-size:10.5px;line-height:1.45;color:#8a8578}
+  .gtRow{display:flex;justify-content:space-between;align-items:baseline;padding:3px 0}
+  .gtRow .k{font-family:var(--mono);font-size:9px;letter-spacing:.2em;color:#8a8578;font-weight:700}
+  .gtRow .v{font-family:var(--mono);font-size:13px;font-weight:800;color:#fff}
+  .gtRow .v.big{font-size:19px;color:#ffb03c}
+  #gtSecs{display:flex;gap:6px;margin-top:9px}
+  .gtSec{flex:1;text-align:center;border:1px solid rgba(255,255,255,.08);border-radius:6px;padding:5px 2px}
+  .gtSec .sn{display:block;font-family:var(--mono);font-size:8px;letter-spacing:.18em;color:#8a8578;font-weight:800}
+  .gtSec .sv{display:block;font-family:var(--mono);font-size:11.5px;font-weight:800;color:#fff;margin-top:2px}
+  #gtGraph{display:block;width:100%;height:auto;border-radius:6px;background:rgba(0,0,0,.35)}
+  #gtFoot{display:flex;justify-content:space-between;margin-top:11px;
+    font-family:var(--mono);font-size:9.5px;letter-spacing:.18em;color:#6f6a5e}
+  #gtFoot b{color:#ffb03c}
+
   /* ============ RACE WEEKEND TABLET ============
      The round's sessions, presented as the pit-wall tablet an engineer actually
      hands you: a physical slab tilted in space with the weekend laid out on it. */
@@ -1129,6 +1194,65 @@
   <div id="shFoot"><span><b>Esc</b> Main Menu</span><span id="shPts">0 PTS</span></div>
 </div>
 
+<!-- ===== Garage tablet: drops down in the box during practice / qualifying ===== -->
+<div id="gtab">
+  <div id="gtArm"></div>
+  <div id="gtBody">
+    <div id="gtHead">
+      <div class="gtT"><span id="gtSess">PRACTICE 1</span><i id="gtClock">30:00</i></div>
+      <button id="gtClose" title="Stow">▲</button>
+    </div>
+    <div id="gtTabs">
+      <button class="gtTab on" data-tab="tyres">TYRES</button>
+      <button class="gtTab" data-tab="timing">TIMING</button>
+      <button class="gtTab" data-tab="delta">DELTA</button>
+      <button class="gtTab" data-tab="session">SESSION</button>
+    </div>
+    <div id="gtPages">
+      <section class="gtPage on" data-page="tyres">
+        <div class="gtPanel">
+          <h4>TYRE COMPOUND</h4>
+          <div id="gtTyreRow"></div>
+          <div class="gtNote" id="gtTyreNote">Soft: fastest, shortest life.</div>
+        </div>
+      </section>
+      <section class="gtPage" data-page="timing">
+        <div class="gtPanel">
+          <h4>SESSION TIMES</h4>
+          <div class="gtRow"><span class="k">BEST</span><span class="v big" id="gtBest">—:——.—</span></div>
+          <div class="gtRow"><span class="k">LAST</span><span class="v" id="gtLast">—:——.—</span></div>
+          <div class="gtRow"><span class="k">LAPS</span><span class="v" id="gtLaps">0</span></div>
+          <div id="gtSecs">
+            <div class="gtSec"><span class="sn">S1</span><span class="sv" id="gtS1">—</span></div>
+            <div class="gtSec"><span class="sn">S2</span><span class="sv" id="gtS2">—</span></div>
+            <div class="gtSec"><span class="sn">S3</span><span class="sv" id="gtS3">—</span></div>
+          </div>
+        </div>
+      </section>
+      <section class="gtPage" data-page="delta">
+        <div class="gtPanel">
+          <h4>DELTA TO BEST <small id="gtDeltaNow">—</small></h4>
+          <canvas id="gtGraph" width="760" height="200"></canvas>
+          <div class="gtNote">Green below the line is time gained on your best lap.</div>
+        </div>
+      </section>
+      <section class="gtPage" data-page="session">
+        <div class="gtPanel">
+          <h4>SESSION CONTROL</h4>
+          <div class="gtRow"><span class="k">SESSION</span><span class="v" id="gtSessName">—</span></div>
+          <div class="gtRow"><span class="k">REMAINING</span><span class="v" id="gtSessLeft">—</span></div>
+          <div class="gtNote">You have to be stopped in the garage to end a session early.</div>
+          <div class="gtActs">
+            <button id="gtSkip">END SESSION ▸</button>
+            <button id="gtSimRest">SIMULATE REST ▸</button>
+          </div>
+        </div>
+      </section>
+    </div>
+    <div id="gtFoot"><span><b>T</b> Stow / show &nbsp; <b>1-4</b> Tabs</span><span id="gtHint">Pit lane · roll out when ready</span></div>
+  </div>
+</div>
+
 <!-- ===== Race weekend tablet: the sessions of a round, in order ===== -->
 <div id="wkScreen">
   <div id="wkTablet">
@@ -1299,6 +1423,15 @@
       <div class="stLabel">FIT COMPOUND</div>
       <div class="stChips" id="stComps"></div>
       <div class="stNote" id="stNote">—</div>
+    </div>
+    <div class="stSect" id="stGarageSect">
+      <div class="stLabel">AFTER THE STOP</div>
+      <div class="stChips" id="stAfter">
+        <div class="stChip on" id="stAfterOut">REJOIN</div>
+        <div class="stChip" id="stAfterGar">INTO GARAGE</div>
+      </div>
+      <div class="stNote">Into the garage puts the car back in the box when the
+        stop is done, so you can change tyres, read the session and end it.</div>
     </div>
     <div class="stBtns">
       <button id="stConfirm">CONFIRM STOP</button>
@@ -11411,10 +11544,87 @@ function buildPit(sc,P,Nm,Tg){
   const darkInt=new THREE.MeshStandardMaterial({color:0x0a0c10,roughness:0.95,emissive:0x090c12,emissiveIntensity:night?0.7:0.4});
   const accentMat=new THREE.MeshStandardMaterial({color:accent,roughness:0.5,metalness:0.3});
   const nGar=13, gw=len/nGar;
+  const order2=pitBoxOrder();
+  /* A GARAGE IS A ROOM, NOT A BLACK RECTANGLE.
+     Each bay was a flat dark panel set into the frontage, so from the lane the
+     pit building read as a wall with painted-on holes — and sitting in your own
+     box for a practice session, there was visibly nothing behind you. Every bay
+     now has a floor, a back wall, a lit ceiling and the equipment a garage
+     actually contains, plus a roller door that can be raised. */
+  const doors=[];
+  const floorMat=new THREE.MeshStandardMaterial({color:0x1a1d23,roughness:0.55,metalness:0.15});
+  const backMat=new THREE.MeshStandardMaterial({color:0x14171d,roughness:0.85});
+  const ceilMat=new THREE.MeshStandardMaterial({color:0xe8ecf0,roughness:0.5,
+    emissive:0xdfe8f2,emissiveIntensity:night?0.85:0.45});
+  const steelMat=new THREE.MeshStandardMaterial({color:0x2a2e36,roughness:0.5,metalness:0.6});
+  const rubberMat=new THREE.MeshStandardMaterial({color:0x101216,roughness:0.95});
+  const screenMat=new THREE.MeshStandardMaterial({color:0x0a1622,emissive:0x1e88d8,emissiveIntensity:0.9});
+  const doorMat=new THREE.MeshStandardMaterial({map:makeRibbedDeck('#b9c0c8'),color:0xffffff,
+    roughness:0.55,metalness:0.35});
+  const GD=5.2, BAYD=9.0;                 // door height, how deep the bay runs back
   for(let d=0;d<nGar;d++){const gx=-len/2+gw*(d+0.5);
-    const open=new THREE.Mesh(new THREE.BoxGeometry(gw-2.0,5.2,1.6),darkInt);open.position.set(gx,2.9,5.2);g.add(open);   // recessed garage mouth
+    const bw=gw-2.0;
+    const open=new THREE.Mesh(new THREE.BoxGeometry(bw,GD,0.3),darkInt);open.position.set(gx,2.9,5.2);g.add(open);
+    // the room behind the mouth
+    const fl=new THREE.Mesh(new THREE.BoxGeometry(bw,0.12,BAYD),floorMat);
+    fl.position.set(gx,0.30,5.2-BAYD/2);g.add(fl);
+    const bk=new THREE.Mesh(new THREE.BoxGeometry(bw,GD,0.25),backMat);
+    bk.position.set(gx,2.9,5.2-BAYD);g.add(bk);
+    const cl=new THREE.Mesh(new THREE.BoxGeometry(bw*0.72,0.16,BAYD*0.7),ceilMat);
+    cl.position.set(gx,GD+0.15,5.2-BAYD/2);g.add(cl);
+    // side partitions, so one bay does not read straight through into the next
+    for(const sx of [-1,1]){
+      const pw=new THREE.Mesh(new THREE.BoxGeometry(0.22,GD,BAYD),backMat);
+      pw.position.set(gx+sx*bw/2,2.9,5.2-BAYD/2);g.add(pw); }
+    // --- furniture: tool trolleys, tyre stacks, a bench and wall monitors ---
+    for(const sx of [-1,1]){
+      const tb=new THREE.Mesh(new THREE.BoxGeometry(1.5,1.0,0.7),steelMat);
+      tb.position.set(gx+sx*(bw/2-1.1),0.86,5.2-BAYD+1.4);g.add(tb);
+      const top=new THREE.Mesh(new THREE.BoxGeometry(1.6,0.08,0.8),accentMat);
+      top.position.set(gx+sx*(bw/2-1.1),1.40,5.2-BAYD+1.4);g.add(top);
+      // a stack of tyres against the partition
+      for(let t=0;t<3;t++){
+        const ty=new THREE.Mesh(new THREE.CylinderGeometry(0.36,0.36,0.26,14),rubberMat);
+        ty.position.set(gx+sx*(bw/2-0.55),0.49+t*0.27,5.2-BAYD+3.1);g.add(ty); }
+    }
+    // engineers' bench along the back wall with lit screens over it
+    const bench=new THREE.Mesh(new THREE.BoxGeometry(bw*0.5,0.09,0.6),steelMat);
+    bench.position.set(gx,1.05,5.2-BAYD+0.5);g.add(bench);
+    for(let s=0;s<2;s++){
+      const sc2=new THREE.Mesh(new THREE.PlaneGeometry(0.9,0.55),screenMat);
+      sc2.position.set(gx-0.6+s*1.2,1.95,5.2-BAYD+0.32);g.add(sc2); }
+    // overhead service gantry across the bay
+    const gan=new THREE.Mesh(new THREE.BoxGeometry(bw*0.9,0.14,0.14),steelMat);
+    gan.position.set(gx,GD-0.5,5.2-BAYD*0.45);g.add(gan);
+    /* THE ROLLER DOOR. Sits up under the lintel when the bay is open and drops
+       to the floor when it is shut; `open()` on TRACK.garageDoors raises one. */
+    const door=new THREE.Mesh(new THREE.BoxGeometry(bw,GD,0.12),doorMat);
+    door.position.set(gx,2.9,5.42);
+    door.userData.shutY=2.9; door.userData.openY=2.9+GD*0.92;
+    door.position.y=door.userData.openY;      // pits start open on a race weekend
+    g.add(door); doors.push(door);
+    /* STAFF. A garage with nobody in it is a storage unit. Three or four people
+       per bay — a couple at the bench, one at a trolley, one by the mouth
+       watching the lane — in the team's colours. */
+    { const teamKey=(order2[d%order2.length])||'redbull';
+      const suit=new THREE.MeshStandardMaterial({color:pitTeamColour(teamKey),roughness:0.75});
+      const acc=new THREE.MeshStandardMaterial({color:0x14171d,roughness:0.7});
+      const spots=[[-bw*0.22,5.2-BAYD+1.0,0.4],[bw*0.18,5.2-BAYD+1.0,-0.3],
+                   [-bw*0.30,5.2-BAYD+3.4,1.2],[bw*0.30,4.2,2.6]];
+      for(const [ox,oz,rot] of spots){
+        const fig=makeCrewFigure(suit,acc);
+        fig.position.set(gx+ox,0.36,oz); fig.rotation.y=rot;
+        fig.traverse(o=>{o.castShadow=true;}); g.add(fig); } }
     const lintel=new THREE.Mesh(new THREE.BoxGeometry(gw-1.0,0.9,0.7),accentMat);lintel.position.set(gx,5.9,5.9);g.add(lintel);
     const pillar=new THREE.Mesh(new THREE.BoxGeometry(0.7,6,0.7),bodyMat);pillar.position.set(gx+gw/2,3,5.7);g.add(pillar);}
+  /* Addressable doors: seatInGarage() raises the player's, and anything else
+     that wants to shut the pits can close them all. */
+  TRACK.garageDoors={
+    meshes:doors,
+    open(i){ const m=doors[i]; if(m) m.position.y=m.userData.openY; },
+    close(i){ const m=doors[i]; if(m) m.position.y=m.userData.shutY; },
+    openAll(){ for(const m of doors) m.position.y=m.userData.openY; },
+  };
   // upper media/hospitality deck with a lit glass window band + accent roof line
   const upper=new THREE.Mesh(new THREE.BoxGeometry(len,6,12),
     new THREE.MeshStandardMaterial({map:makeWindows(Math.max(8,len/6|0),3,night?'#bfe0ff':'#2a3c4a'),color:pitCol,roughness:0.5,metalness:0.4,emissive:night?0x16283a:0x0a1218,emissiveIntensity:night?0.6:0.2}));
@@ -12924,6 +13134,37 @@ function resetCar(){
   CAR.rig.position.set(p.x,p.y+0.02-(CAR.tireDrop||0),p.z);   // seat on the grid during the countdown
   CAR.rig.rotation.set(0,CAR.heading,0,'YXZ');
   lap.reset();
+  /* PRACTICE AND QUALIFYING START IN THE GARAGE.
+     You do not appear on the start line for a Friday session — you are sitting
+     in the box with the door up, and the session begins when you roll out down
+     the pit lane. Only the timed sessions do this; a race still forms up on the
+     grid where it belongs. */
+  if(sessionMode==='practice'||sessionMode==='quali') seatInGarage();
+}
+/* Put the car in its own pit box, pointing down the lane, ready to be driven
+   out. Uses the same box the pit stop sequence parks in, so the car lines up
+   with the garage that belongs to the player's team. */
+function seatInGarage(){
+  if(!PIT||!TRACK.pitGeom) return;
+  const d=(typeof playerBoxD==='function')?playerBoxD():0;
+  const here=pitPos(d, PIT.halfW-2.9);
+  const ahead=pitPos(d+6, PIT.halfW-2.9);
+  CAR.pos.set(here.x,0,here.z);
+  CAR.heading=Math.atan2(ahead.x-here.x, ahead.z-here.z);
+  CAR.groundY=here.y;
+  CAR.trackIdx=nearestTrack(CAR.pos).idx;
+  CAR.rig.position.set(here.x, here.y+0.02-(CAR.tireDrop||0), here.z);
+  CAR.rig.rotation.set(0,CAR.heading,0,'YXZ');
+  // the box door is up while the car is in it
+  /* Which bay is ours: the painted boxes and the garage mouths are both laid
+     out left-to-right along the same frontage, so the team's index into the box
+     order maps onto the bay, scaled for the two different counts. */
+  if(TRACK.garageDoors){
+    const order=pitBoxOrder();
+    const i=Math.max(0,order.indexOf(pitSelfTeam()));
+    const n=TRACK.garageDoors.meshes.length||1;
+    TRACK.garageDoors.open(Math.min(n-1,Math.round((i+0.5)/order.length*n)));
+  }
 }
 function stepPhysics(dt,inp){
   const P=PHYS;
@@ -13619,6 +13860,20 @@ function stepPitStop(dt){
       tl.style.color='#4be08a'; tl.classList.add('on');
       clearTimeout(tl._h); tl._h=setTimeout(()=>tl.classList.remove('on'),2600);}
     Sound.rev();
+    /* INTO THE GARAGE. If the strategy plan asked for it, the stop ends with
+       the car being pushed back into its box rather than released down the
+       lane — which is what the tablet's session controls and the tyre rack
+       need you to be, and how you actually end a practice run. */
+    if(PITSTOP.toGarage){
+      PITSTOP.toGarage=false;
+      seatInGarage();
+      CAR.v=0; CAR.vLat=0; CAR.yawRate=0;
+      if(SESS.on) gtabOpen();
+      const tl2=$('#tyreToast');
+      if(tl2){tl2.textContent='IN THE GARAGE · TABLET DOWN';
+        tl2.style.color='#ffb03c'; tl2.classList.add('on');
+        clearTimeout(tl2._h); tl2._h=setTimeout(()=>tl2.classList.remove('on'),2600);}
+    }
     return false;
   }
   return true;
@@ -13672,6 +13927,7 @@ const lap={t:0,num:1,last:null,best:null,prevIdx:0,armed:false,cur:null,bestArr:
       this.num++; this.t=0; this.sec=0; this.secStart=0; this.cur=new Float32Array(TRACK.N).fill(-1);
       $('#lapNum').textContent=this.num;$('#lapLast').textContent=fmt(this.last);$('#lapBest').textContent=fmt(this.best);
       Sound.blip(760,.09);
+      if(SESS.on) gtabLapDone();       // bank the lap the delta trace compares against
       // radio: fastest lap of the race (a new personal best after the opening lap)
       if(improved && this.num>2 && (sessionMode==='gp'||sessionMode==='season')){
         Radio.say('engineer','fastest_lap',{cool:30});
@@ -14614,6 +14870,7 @@ function openStrategy(){
   if(STATE!=='drive') return;
   stratOn=true;
   stratComp=PITSTOP.planComp||CAR.compound||'medium';
+  stratGarage=!!PITSTOP.toGarage; renderStratGarage();
   stratLapSel=0;
   $('#strategy').classList.add('on');
   renderStrategy();
@@ -14623,10 +14880,18 @@ function closeStrategy(){
   stratOn=false;
   $('#strategy').classList.remove('on');
 }
+/* Whether the stop ends with the car released or pushed back into the box. */
+let stratGarage=false;
+function renderStratGarage(){
+  const o=$('#stAfterOut'), gsel=$('#stAfterGar');
+  if(o) o.classList.toggle('on',!stratGarage);
+  if(gsel) gsel.classList.toggle('on',stratGarage);
+}
 function confirmStrategy(){
   const opts=stratLapOptions();
   const [L]=opts[clamp(stratLapSel,0,opts.length-1)];
   PITSTOP.planLap=L; PITSTOP.planComp=stratComp;
+  PITSTOP.toGarage=stratGarage;
   closeStrategy();
   Radio.say('engineer','box_confirm',{cool:0});
   updatePitCue();
@@ -15004,6 +15269,7 @@ function sessStart(kind,label,mins){
 function sessStop(){
   SESS.on=false;
   const bar=$('#sessBar'); if(bar) bar.classList.remove('on');
+  gtabClose();
 }
 function sessLeft(){ return Math.max(0,SESS.ends-performance.now()/1000); }
 /* The clock the player reads is the session's REAL length — thirty minutes of
@@ -15075,6 +15341,161 @@ function finishQualifying(rows, knockedOut){
   SESS.eliminated=null; SESS.part=0;
   const me=grid.find(r=>r.me);
   endQuali(me?me.t:null, grid, knockedOut);
+}
+/* ==================================================================
+   THE GARAGE TABLET
+   Hangs from the garage ceiling and drops in front of the driver during a timed
+   session: pick the tyre you are going out on, read the session's times and
+   sectors, and watch a delta trace of the lap you are on against your best.
+   Nothing to do with the weekend tablet — that one plans the weekend, this one
+   runs the session you are sitting in.
+   ================================================================== */
+const GTAB={on:false, tab:'tyres', trace:[], best:null, bestTrace:null};
+const GT_COMPOUNDS=[
+  {k:'soft',   nm:'SOFT',   col:'#e4343a', note:'Soft: fastest, shortest life.'},
+  {k:'medium', nm:'MEDIUM', col:'#e8c93a', note:'Medium: the balanced run.'},
+  {k:'hard',   nm:'HARD',   col:'#e8ecf0', note:'Hard: slowest, goes the distance.'},
+  {k:'inter',  nm:'INTER',  col:'#3ea94a', note:'Intermediate: for a damp track.'},
+  {k:'wet',    nm:'WET',    col:'#2a7fd0', note:'Full wet: standing water only.'},
+];
+function gtabOpen(){ GTAB.on=true; $('#gtab').classList.add('on'); gtabRender(); }
+/* Are we parked in our own box? The session controls and the tyre change both
+   need it — you cannot swap compounds or call the session off from halfway
+   round the circuit. */
+function inGarage(){
+  if(Math.abs(CAR.v)>1.5) return false;
+  if(!PIT||!TRACK.pitGeom) return false;
+  const b=pitPos(playerBoxD(), PIT.halfW-2.9);
+  return CAR.pos.distanceTo(new THREE.Vector3(b.x,CAR.pos.y,b.z))<6.0;
+}
+function gtabTab(name){
+  GTAB.tab=name;
+  document.querySelectorAll('.gtTab').forEach(t=>t.classList.toggle('on',t.dataset.tab===name));
+  document.querySelectorAll('.gtPage').forEach(p=>p.classList.toggle('on',p.dataset.page===name));
+  Sound.blip(520,.04);
+}
+function gtabClose(){ GTAB.on=false; $('#gtab').classList.remove('on'); }
+function gtabToggle(){ GTAB.on?gtabClose():gtabOpen(); }
+if(DEBUG) setTimeout(()=>{window.__GTAB=GTAB;window.__gtabOpen=gtabOpen;},0);
+function gtabRender(){
+  const row=$('#gtTyreRow'); if(!row) return;
+  row.innerHTML='';
+  GT_COMPOUNDS.forEach(t=>{
+    const el=document.createElement('div');
+    el.className='gtTyre'+(selCompound===t.k?' on':'');
+    el.innerHTML=`<i class="tc" style="color:${t.col}"></i><span class="tn">${t.nm}</span>`;
+    el.onclick=()=>{
+      /* Changing compound in the garage is free — you have not gone out yet.
+         Once the car is rolling this is a plan for the next stop, which is what
+         the strategy screen is for, so only allow it while stationary in the
+         box. */
+      if(!inGarage()){ Sound.blip(220,.06); return; }
+      selCompound=t.k;
+      CAR.compound=t.k; CAR.tire=1; CAR.tireLapsLife=compoundLaps(t.k,CFG.id);
+      $('#gtTyreNote').textContent=t.note;
+      Sound.blip(660,.05); gtabRender();
+    };
+    row.appendChild(el);
+  });
+  const cur=GT_COMPOUNDS.find(t=>t.k===selCompound);
+  if(cur) $('#gtTyreNote').textContent=cur.note;
+}
+/* Called every frame while a timed session is running. */
+function gtabUpdate(){
+  if(!GTAB.on) return;
+  $('#gtSess').textContent=SESS.label||'SESSION';
+  const el=$('#gtClock'), sc=$('#sessClock');
+  if(el&&sc) el.textContent=sc.textContent;
+  $('#gtBest').textContent=fmt(lap.best);
+  $('#gtLast').textContent=fmt(lap.last);
+  $('#gtLaps').textContent=Math.max(0,lap.num-1);
+  for(let i=0;i<3;i++){
+    const v=lap.secBest&&lap.secBest[i];
+    const e=$('#gtS'+(i+1)); if(e) e.textContent=v?v.toFixed(3):'—';
+  }
+  const d=$('#gtDeltaNow');
+  if(d){
+    const dv=gtabDelta();
+    d.textContent=dv==null?'—':(dv>=0?'+':'')+dv.toFixed(2);
+    d.style.color=dv==null?'#ffb03c':(dv<0?'#4fd97a':'#ff6a64');
+  }
+  // session tab
+  const sn=$('#gtSessName'), sl=$('#gtSessLeft');
+  if(sn) sn.textContent=SESS.label||'—';
+  if(sl&&sc) sl.textContent=sc.textContent;
+  { const home=inGarage();
+    const a1=$('#gtSkip'), a2b=$('#gtSimRest');
+    if(a1) a1.disabled=!home;
+    if(a2b) a2b.disabled=!home; }
+  if(GTAB.tab==='delta') gtabDrawGraph();
+}
+/* Where the current lap stands against the best one, at the same point on the
+   circuit — the number every delta bar in the sport shows. */
+function gtabDelta(){
+  if(!GTAB.bestTrace||!GTAB.bestTrace.length) return null;
+  const f=lap.t>0?gtabLapFrac():0;
+  if(f<=0) return null;
+  const bt=GTAB.bestTrace;
+  const i=Math.min(bt.length-1,Math.max(0,Math.round(f*(bt.length-1))));
+  return lap.t-bt[i];
+}
+function gtabLapFrac(){
+  const N=TRACK.N||1, idx=CAR.trackIdx||0;
+  return clamp(idx/N,0,1);
+}
+/* Record where we are, so the trace can be drawn and so a new best lap becomes
+   the reference the next lap is measured against. */
+function gtabSample(){
+  if(!SESS.on) return;
+  const f=gtabLapFrac();
+  GTAB.trace.push({f, t:lap.t});
+  if(GTAB.trace.length>4000) GTAB.trace.shift();
+}
+function gtabLapDone(){
+  // resample the lap we just finished onto a fixed grid and keep it if it's best
+  if(!GTAB.trace.length) return;
+  const S=120, arr=new Array(S);
+  for(let i=0;i<S;i++){
+    const want=i/(S-1);
+    let best=GTAB.trace[0];
+    for(const s of GTAB.trace) if(Math.abs(s.f-want)<Math.abs(best.f-want)) best=s;
+    arr[i]=best.t;
+  }
+  if(GTAB.best==null||lap.last<GTAB.best){ GTAB.best=lap.last; GTAB.bestTrace=arr; }
+  GTAB.trace=[];
+}
+function gtabDrawGraph(){
+  const cv=$('#gtGraph'); if(!cv) return;
+  const x=cv.getContext('2d'), W=cv.width, H=cv.height;
+  x.clearRect(0,0,W,H);
+  // grid
+  x.strokeStyle='rgba(255,255,255,.07)'; x.lineWidth=1;
+  for(let i=1;i<4;i++){const y=H*i/4; x.beginPath();x.moveTo(0,y);x.lineTo(W,y);x.stroke();}
+  for(let i=1;i<6;i++){const xx=W*i/6; x.beginPath();x.moveTo(xx,0);x.lineTo(xx,H);x.stroke();}
+  // the zero line: your best lap
+  x.strokeStyle='rgba(255,176,60,.55)'; x.lineWidth=1.5;
+  x.beginPath();x.moveTo(0,H/2);x.lineTo(W,H/2);x.stroke();
+  if(!GTAB.bestTrace||!GTAB.trace.length){
+    x.fillStyle='#6f6a5e';x.font='11px monospace';x.textAlign='center';
+    x.fillText(GTAB.bestTrace?'Running…':'Set a lap to start comparing', W/2, H/2-10);
+    return;
+  }
+  const SCALE=2.0;                     // seconds shown top to bottom of the panel
+  const bt=GTAB.bestTrace;
+  x.lineWidth=2;
+  let started=false;
+  x.beginPath();
+  for(const s of GTAB.trace){
+    const i=Math.min(bt.length-1,Math.max(0,Math.round(s.f*(bt.length-1))));
+    const d=clamp(s.t-bt[i],-SCALE,SCALE);
+    const px=s.f*W, py=H/2 + (d/SCALE)*(H/2);
+    started?x.lineTo(px,py):x.moveTo(px,py); started=true;
+  }
+  // gaining time draws green, losing draws red — take the colour from the end
+  const last=GTAB.trace[GTAB.trace.length-1];
+  const li=Math.min(bt.length-1,Math.max(0,Math.round(last.f*(bt.length-1))));
+  x.strokeStyle=(last.t-bt[li])<0?'#4fd97a':'#ff6a64';
+  x.stroke();
 }
 /* ---- paddock news: a short running feed of what the weekend has produced ---- */
 function wkNews(headline, body){
@@ -15871,6 +16292,9 @@ function startDrive(){
       }else{
         qualiBegin();
       }
+      // you start in the box, so the tablet is down in front of you
+      GTAB.trace=[]; GTAB.best=null; GTAB.bestTrace=null;
+      gtabOpen();
       setTimeout(()=>Radio.say('engineer','session_start',{cool:0}),900);
     });
     return;
@@ -16081,6 +16505,10 @@ addEventListener('keydown',e=>{
       Sound.init(); Sound.blip(560,.05); updatePitCue();
     }
     else if(k==='p')openStrategy();
+    // the garage tablet, but only in a session that actually has one
+    else if(k==='t'&&SESS.on)gtabToggle();
+    else if(SESS.on&&GTAB.on&&k>='1'&&k<='4'){
+      gtabTab(['tyres','timing','delta','session'][+k-1]); }
     else if(k==='o'){togglePhoto();e.preventDefault();}
     else if(k==='y')enterReplay();
     else if(k==='escape')exitToMenu();
@@ -18325,7 +18753,7 @@ function frame(){
     updateHelmet(dt);
     lap.update(dt,r.near.idx);
     // practice and qualifying run to a clock, not a lap count
-    if(SESS.on){ sessUpdate(); if(!SESS.on) return; }
+    if(SESS.on){ sessUpdate(); if(!SESS.on) return; gtabSample(); gtabUpdate(); }
     stepSafetyCar(dt);
     stepAI(dt);
     updateBattle(dt);
@@ -18551,6 +18979,20 @@ async function boot(){
   buildMenu();
   // settings screen wiring — the buttons, and the first application of whatever
   // was loaded from storage before anything is on screen
+  $('#gtClose').onclick=()=>{gtabClose();Sound.blip(380,.05);};
+  document.querySelectorAll('.gtTab').forEach(t=>{ t.onclick=()=>gtabTab(t.dataset.tab); });
+  /* END SESSION closes the session where it stands and takes the result you
+     have actually set; SIMULATE REST hands the remaining time to the engineers,
+     who may improve on it. Both need you parked in your own box. */
+  $('#gtSkip').onclick=()=>{ if(!inGarage())return; Sound.blip(420,.06); SESS.ends=performance.now()/1000; };
+  $('#gtSimRest').onclick=()=>{ if(!inGarage())return; Sound.blip(680,.06);
+    const cf=curCfg(), base=parseLapRec(cf.laprec)+1.1;
+    const simmed=base+0.3+Math.random()*1.4;
+    if(lap.best==null||simmed<lap.best){ lap.best=simmed;
+      const lb=$('#lapBest'); if(lb) lb.textContent=fmt(simmed); }
+    SESS.ends=performance.now()/1000; };
+  $('#stAfterOut').onclick=()=>{stratGarage=false;renderStratGarage();Sound.blip(480,.05);};
+  $('#stAfterGar').onclick=()=>{stratGarage=true;renderStratGarage();Sound.blip(640,.05);};
   $('#stConfirm').onclick=()=>confirmStrategy();
   $('#stCancel').onclick=()=>cancelStrategy();
   $('#stClose').onclick=()=>{closeStrategy();Sound.blip(430,.05);};
