@@ -453,6 +453,20 @@
   #rdOverall .ov .k{font-size:9px;letter-spacing:.2em;color:var(--grey);text-transform:uppercase}
   #rdOverall .ov .v{font-family:var(--mono);font-weight:900;font-size:20px}
 
+  /* ============ PODIUM ============ */
+  #podHud{position:fixed;inset:0;z-index:18;pointer-events:none;opacity:0;transition:opacity .4s}
+  #podHud.on{opacity:1}
+  #podHud::before,#podHud::after{content:'';position:absolute;left:0;right:0;height:9vh;
+    background:#05070b}
+  #podHud::before{top:0}#podHud::after{bottom:0}
+  #podCap{position:absolute;left:clamp(24px,5vw,70px);bottom:12vh;font-family:var(--mono);
+    font-size:clamp(13px,1.8vw,20px);font-weight:900;letter-spacing:.28em;color:#fff;
+    text-shadow:0 2px 20px rgba(0,0,0,.8)}
+  #podCap::before{content:'';display:block;width:44px;height:3px;background:var(--red);margin-bottom:10px}
+  #podHint{position:absolute;right:clamp(24px,5vw,70px);bottom:12vh;font-family:var(--mono);
+    font-size:9px;letter-spacing:.14em;color:rgba(255,255,255,.5)}
+  #podHint b{color:#fff}
+
   /* ============ PIT STRATEGY ============ */
   #strategy{position:fixed;inset:0;z-index:44;display:none;align-items:center;justify-content:center}
   #strategy.on{display:flex}
@@ -1101,6 +1115,11 @@
   </div>
 </div>
 <div id="pitCue"></div>
+
+<div id="podHud">
+  <div id="podCap">PARC FERMÉ</div>
+  <div id="podHint"><b>SPACE</b> Next &nbsp;·&nbsp; <b>ESC</b> Menu</div>
+</div>
 
 <div id="cd"><div id="cdNum"></div></div>
 <div id="sndBtn"><svg id="sndIcon" viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9H4z"/><path d="M16 8a5 5 0 010 8"/></svg></div>
@@ -4261,6 +4280,22 @@ function buildBarriers(sc,P,Nm,cum,offL,offR){
      over three metres including the part buried in the ground. */
   const ZN=zones.length, N=P.length;
   const BOARD_M=10;                       // one wordmark every 10 m of barrier
+  /* HOLES FOR THE PIT LANE.
+     The trackside barrier used to run unbroken all the way round, including
+     straight across the mouth of the pit entry and the pit exit — so the car
+     drove through a solid sponsor wall to get into the pits and back out
+     through another one. A real circuit has an opening at each, with the
+     barrier returning at an angle to guide you in.
+     The gaps are where the pit corridor's ramps meet the racing surface: the
+     lane is peeling away from the road there, so that is exactly the stretch of
+     wall that cannot exist. */
+  const pitGapAt=(i)=>{
+    if(!TRACK.pitLane) return false;
+    const L=TRACK.pitLane[i%N];
+    if(!L) return false;
+    return L.raw>0.02 && L.raw<0.97;      // the ramps, not the run past the boxes
+  };
+  const isPitSide=(side)=>side===PIT.side;
   const SKIRT_TOP=0.72, BOARD_TOP=2.42, CAP_TOP=2.58;
   const zoneTex=zones.map(makeZoneBoard);
   const skirtMat=new THREE.MeshStandardMaterial({map:makeBarrierSkirt(),roughness:0.92,side:THREE.DoubleSide});
@@ -4281,13 +4316,25 @@ function buildBarriers(sc,P,Nm,cum,offL,offR){
     g.setIndex(id);g.computeVertexNormals();
     const m=new THREE.Mesh(g,mat);m.castShadow=true;m.receiveShadow=true;sc.add(m);return m;};
   for(const [side,off] of [[1,offL],[-1,offR]]){
+    const gapHere=(i)=>isPitSide(side)&&pitGapAt(i);
     for(let z=0;z<ZN;z++){
-      const i0=Math.floor(z/ZN*N), i1=Math.floor((z+1)/ZN*N);
-      band(side,off,i0,i1,0,SKIRT_TOP,skirtMat,6,0,true);                        // barrier below
-      band(side,off,i0,i1,SKIRT_TOP,BOARD_TOP,
-        new THREE.MeshStandardMaterial({map:zoneTex[z],roughness:0.62,metalness:0.05,side:THREE.DoubleSide}),
-        BOARD_M*4,0,false);                                                      // printed face
-      band(side,off,i0,i1,BOARD_TOP,CAP_TOP,capMat,6,0,false);                   // capping rail
+      const z0=Math.floor(z/ZN*N), z1=Math.floor((z+1)/ZN*N);
+      const boardMat=new THREE.MeshStandardMaterial({map:zoneTex[z],roughness:0.62,metalness:0.05,side:THREE.DoubleSide});
+      // walk the zone and emit a run of wall for each unbroken stretch
+      let runStart=null;
+      for(let i=z0;i<=z1;i++){
+        const solid=!gapHere(i);
+        if(solid && runStart===null) runStart=i;
+        if((!solid||i===z1) && runStart!==null){
+          const end=solid?i:i-1;
+          if(end-runStart>=1){
+            band(side,off,runStart,end,0,SKIRT_TOP,skirtMat,6,0,true);
+            band(side,off,runStart,end,SKIRT_TOP,BOARD_TOP,boardMat,BOARD_M*4,0,false);
+            band(side,off,runStart,end,BOARD_TOP,CAP_TOP,capMat,6,0,false);
+          }
+          runStart=null;
+        }
+      }
     }
   }
   // tall debris catch-fencing on top of the sponsor walls (most circuits)
@@ -4300,13 +4347,16 @@ function buildBarriers(sc,P,Nm,cum,offL,offR){
     const postGeo=new THREE.CylinderGeometry(0.11,0.11,FH+0.3,6);
     for(const [side,off] of [[1,offL],[-1,offR]]){
       const v=[],uv=[],id=[];const posts=[];
+      const gapHere=(i)=>isPitSide(side)&&pitGapAt(i);
       for(let i=0;i<=N;i++){const k=i%N,p=P[k],n=Nm[k];
         const b=new THREE.Vector3().copy(p).addScaledVector(n,side*(off(k)+0.05));
         const top=p.y+WH2;
         v.push(b.x,top,b.z, b.x,top+FH,b.z);
         const u=cum[i]/2.2; uv.push(u,0,u,FH/2.2);    // dense repeats → fine mesh
-        if(i%4===0)posts.push({x:b.x,y:top,z:b.z});}
-      for(let i=0;i<N;i++){const a=i*2;id.push(a,a+1,a+2,a+1,a+3,a+2);}
+        if(i%4===0&&!gapHere(k))posts.push({x:b.x,y:top,z:b.z});}
+      // ...and the fence panels themselves stop at the pit openings
+      for(let i=0;i<N;i++){ if(gapHere(i)||gapHere(i+1)) continue;
+        const a=i*2;id.push(a,a+1,a+2,a+1,a+3,a+2);}
       const g=new THREE.BufferGeometry();
       g.setAttribute('position',new THREE.Float32BufferAttribute(v,3));
       g.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));
@@ -9734,12 +9784,21 @@ function buildGrandstands(sc,P,Nm,Tg,offL,offR){
     const rot=Math.atan2(faceX-bx, faceZ-bz);
     const cosA=Math.cos(rot), sinA=Math.sin(rot);
     const gy=gh(bx,bz);
-    const nRows=Math.min(tiers,rowsWanted);
-    const perRow=Math.max(4,Math.round(len/1.35));
+    /* FILL THE WHOLE STAND.
+       Only the front four or five rows were ever built as people; everything
+       behind them was a painted crowd texture on the bench face. From trackside
+       that reads exactly as what it is — a few rows of spectators with a mural
+       behind them — and it is the main reason the grandstands looked empty.
+       Every tier gets real figures now. They are instanced, so the cost of the
+       back rows is a matrix each, not a draw call each. */
+    const nRows=tiers;
+    const perRow=Math.max(6,Math.round(len/1.30));
     for(let t=0;t<nRows;t++){
       const lz=depthHalf - t*stepD - stepD*0.5, ly=baseY + t*stepH + seatY;
+      // a stand fills from the front: the cheap seats at the very back thin out
+      const emptyChance=0.09+0.16*(t/Math.max(1,nRows-1));
       for(let q=0;q<perRow;q++){
-        if(Math.random()<0.14) continue;                 // gaps: no stand is ever full
+        if(Math.random()<emptyChance) continue;          // gaps: no stand is ever full
         const lx=-len/2+ (q+0.5)*(len/perRow) + (Math.random()-0.5)*0.5;
         const zz=lz+(Math.random()-0.5)*0.30;
         // stand-local (lx,zz) → world, through the group's yaw
@@ -9747,6 +9806,7 @@ function buildGrandstands(sc,P,Nm,Tg,offL,offR){
           x: bx + lx*cosA + zz*sinA,
           z: bz - lx*sinA + zz*cosA,
           y: gy+ly, r: rot+(Math.random()-0.5)*0.4,
+          simple: t>=6,                    // past the sixth row nobody sees limbs
           c: STAND_SHIRTS[(Math.random()*STAND_SHIRTS.length)|0]});
       }
     }
@@ -9841,7 +9901,7 @@ function buildGrandstands(sc,P,Nm,Tg,offL,offR){
       const fl=new THREE.Mesh(new THREE.BoxGeometry(3.4,0.9,1),new THREE.MeshStandardMaterial({color:0xffffff,emissive:0xfff2d0,emissiveIntensity:2.2}));
       fl.position.set(sx,roofY+1,roofZc);g.add(fl);}}
     const gy=gh(bx,bz);g.position.set(bx,gy,bz);g.lookAt(p.x,gy,p.z);
-    seatRows(g,bx,bz,p.x,p.z,len,tiers,stepD,stepH,baseY,depth/2,0.30,big?5:4);
+    seatRows(g,bx,bz,p.x,p.z,len,tiers,stepD,stepH,baseY,depth/2,0.30,tiers);
     g.traverse(o=>{o.castShadow=true;o.receiveShadow=true;});sc.add(g);return true;
   };
   // simple OPEN bleacher: raked aluminium bench rows on a bare steel truss frame —
@@ -9927,7 +9987,7 @@ function buildGrandstands(sc,P,Nm,Tg,offL,offR){
     const skirtB=new THREE.Mesh(new THREE.BoxGeometry(len,baseY,0.4),barPlainMat);
     skirtB.position.set(0,baseY/2,depth/2+0.2);g.add(skirtB);
     const gy=gh(bx,bz);g.position.set(bx,gy,bz);g.lookAt(p.x,gy,p.z);
-    seatRows(g,bx,bz,p.x,p.z,len,tiers,stepD,stepH,baseY,depth/2,0.34,4);
+    seatRows(g,bx,bz,p.x,p.z,len,tiers,stepD,stepH,baseY,depth/2,0.34,tiers);
     g.traverse(o=>{o.castShadow=true;o.receiveShadow=true;});sc.add(g);return true;
   };
   if(CFG.street){
@@ -9983,78 +10043,132 @@ function buildGrandstands(sc,P,Nm,Tg,offL,offR){
 function buildSpectatorBanks(sc,P,Nm,offL,offR,clr){
   if(CFG.street) return;                                  // no room on a street circuit
   const N=P.length, gh=TRACK.terrainH, HW=TRACK.halfW;
-  const M=new THREE.Matrix4(),S=new THREE.Vector3(),Q=new THREE.Quaternion(),T=new THREE.Vector3();
-  const RY=a=>new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0),a);
-  const grassM=new THREE.MeshStandardMaterial({color:0x4a7a34,roughness:1,side:THREE.DoubleSide,flatShading:true});
-  const pathM =new THREE.MeshStandardMaterial({color:0x8a8272,roughness:1,side:THREE.DoubleSide});
+  const grassM=new THREE.MeshStandardMaterial({color:0x4a7a34,roughness:1,flatShading:true});
+  const stepM =new THREE.MeshStandardMaterial({color:0x6e6a60,roughness:0.95});
   const people=[], cars=[];
   const cols=[0x2b3a4c,0xd8dce2,0x9b2226,0x1b4a7a,0x2f4f34,0xc7ad3a,0xe0e4e8,0x5a4a6a,0xd94f3d,0xff7a1a];
   const carCols=[0x1b1e24,0xd8dce2,0x8d939c,0x9b2226,0x1b4a7a,0x2f4f34,0xc7ad3a];
-  // five banks around the lap rather than eight — with grandstand clusters in
-  // between, eight terraced crowds meant the whole lap was lined with people
+
+  /* ==================== THE BANKS ARE SOLID GROUND ======================
+     These used to be a single sloped quad strip: one surface running from the
+     foot of the bank up to the crest, with no top, no back and no ends. From
+     anywhere but straight on that is a thin sheet standing in the air with
+     daylight under it and nothing behind it — a flat plane pretending to be a
+     hillside.
+     A bank is now a swept SOLID with a real cross-section: it rises from the
+     ground in terraced steps, runs flat across the crest, and falls away down
+     the back to meet the ground again, and both ends are capped. The terraces
+     are what people actually sit on, so the crowd is placed in rows along them
+     rather than scattered up a smooth ramp.                                */
   const NB=5;
   for(let b=0;b<NB;b++){
     const side=(b%2)?1:-1, off=(side>0?offL:offR);
     const i0=Math.round(N*(b+0.35)/NB)%N, len=Math.round(N*0.055);
-    const pos=[],idx=[]; let vc=0, built=0;
-    const HTOP=7.5, DEEP=26;
-    for(let k=0;k<len;k++){
-      const i=(i0+k)%N, i2=(i0+k+1)%N;
-      const mk=(ii)=>{const p=P[ii],n=Nm[ii],d0=off(ii)+7;
-        return {p,n,d0};};
-      const a=mk(i), c=mk(i2);
-      const foot=(q,d)=>({x:q.p.x+q.n.x*side*d, z:q.p.z+q.n.z*side*d});
-      const A0=foot(a,a.d0), A1=foot(a,a.d0+DEEP), C0=foot(c,c.d0), C1=foot(c,c.d0+DEEP);
-      // Test EVERY corner of the quad and its middle, at the full bank clearance.
-      // Checking only the outer foot let the bank climb over an adjacent part of
-      // the circuit wherever the layout doubled back on itself.
-      const need=HW+16, need2=need*need;
-      let clearOK=true;
-      for(const q of [A0,A1,C0,C1,{x:(A1.x+C1.x)/2,z:(A1.z+C1.z)/2},{x:(A0.x+C0.x)/2,z:(A0.z+C0.z)/2}])
-        if(clr(q.x,q.z)<need2){clearOK=false;break;}
-      if(!clearOK) continue;
-      const yA0=gh(A0.x,A0.z), yC0=gh(C0.x,C0.z);
-      pos.push(A0.x,yA0+0.1,A0.z, A1.x,yA0+HTOP,A1.z, C0.x,yC0+0.1,C0.z, C1.x,yC0+HTOP,C1.z);
-      idx.push(vc,vc+2,vc+1, vc+1,vc+2,vc+3); vc+=4; built++;
-      // crowd standing up the face of the bank, denser near the top
-      for(let q=0;q<7;q++){
-        const t=0.25+Math.random()*0.72;
-        const x=A0.x+(A1.x-A0.x)*t+(Math.random()-0.5)*3;
-        const z=A0.z+(A1.z-A0.z)*t+(Math.random()-0.5)*3;
-        people.push({x,z,y:yA0+0.1+HTOP*t,c:cols[(Math.random()*cols.length)|0],r:Math.random()*TAU});}
-      // cars parked along the crest, and a gravel service path behind them
-      if(k%9===0){
-        const cx=A1.x+(A1.x-A0.x)*0.16, cz=A1.z+(A1.z-A0.z)*0.16;
-        cars.push({x:cx,z:cz,y:yA0+HTOP,r:Math.atan2(A1.z-A0.z,A1.x-A0.x)+Math.PI/2,
-          c:carCols[(Math.random()*carCols.length)|0]});}
+    const HTOP=7.5, DEEP=30, ROWS=6;
+    /* The cross-section, as (distance out from the track edge, height above the
+       foot). Built once and swept along the bank. */
+    const prof=[];
+    const riser=HTOP/ROWS, tread=9.5/ROWS;
+    prof.push([0,0]);
+    for(let r=0;r<ROWS;r++){
+      prof.push([2.0+r*tread, r*riser]);            // back of this tread
+      prof.push([2.0+r*tread, (r+1)*riser]);        // up the riser
+      prof.push([2.0+(r+1)*tread, (r+1)*riser]);    // along the next tread
     }
-    if(!built) continue;
+    prof.push([DEEP-9, HTOP]);                      // flat crest, room for parking
+    prof.push([DEEP, 0]);                           // back slope down to the ground
+    const rows=[];                                  // one ring of world points per station
+    let built=0;
+    for(let k=0;k<=len;k++){
+      const i=(i0+k)%N;
+      const p=P[i], n=Nm[i], d0=off(i)+7;
+      const foot=(d)=>({x:p.x+n.x*side*d, z:p.z+n.z*side*d});
+      const A0=foot(d0), A1=foot(d0+DEEP);
+      const need=HW+16, need2=need*need;
+      let ok=true;
+      for(const q of [A0,A1,foot(d0+DEEP*0.5)]) if(clr(q.x,q.z)<need2){ok=false;break;}
+      if(!ok){ rows.push(null); continue; }
+      const y0=gh(A0.x,A0.z);
+      const ring=prof.map(([d,h])=>{const q=foot(d0+d);return new THREE.Vector3(q.x,y0+0.05+h,q.z);});
+      ring.__y0=y0; ring.__A0=A0; ring.__A1=A1;
+      rows.push(ring); built++;
+    }
+    if(built<3) continue;
+    // sweep the profile between consecutive stations
+    const pos=[],idx=[]; let vc=0;
+    const pushRing=(r)=>{ const base=vc; for(const v of r){pos.push(v.x,v.y,v.z); vc++;} return base; };
+    let prev=null, prevBase=-1, firstRing=null, lastRing=null;
+    for(const ring of rows){
+      if(!ring){ prev=null; prevBase=-1; continue; }
+      const base=pushRing(ring);
+      if(!firstRing){firstRing=ring;}
+      lastRing=ring;
+      if(prev){
+        for(let q=0;q<prof.length-1;q++){
+          const a=prevBase+q, b2=prevBase+q+1, c2=base+q, d2=base+q+1;
+          idx.push(a,c2,b2, b2,c2,d2);
+        }
+      }
+      prev=ring; prevBase=base;
+    }
+    // cap both ends so the bank is closed rather than a hollow shell
+    for(const ring of [firstRing,lastRing]){
+      if(!ring) continue;
+      const base=pushRing(ring);
+      const gy=ring.__y0+0.05;
+      pos.push(ring[0].x,gy,ring[0].z); const gA=vc++;
+      pos.push(ring[ring.length-1].x,gy,ring[ring.length-1].z); const gB=vc++;
+      for(let q=0;q<prof.length-1;q++) idx.push(base+q, base+q+1, gA);
+      idx.push(gA, base+prof.length-1, gB);
+    }
     const g=new THREE.BufferGeometry();
     g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));
     g.setIndex(idx); g.computeVertexNormals();
-    const m=new THREE.Mesh(g,grassM);m.receiveShadow=true;sc.add(m);
+    const m=new THREE.Mesh(g,grassM); m.receiveShadow=true; m.castShadow=true; sc.add(m);
+
+    /* The crowd sits ON the terraces, in rows. Scattering people up a smooth
+       slope put them at random heights with their feet in mid-air; a terrace
+       gives every one of them a step to be on. */
+    for(let k=0;k<rows.length;k++){
+      const ring=rows[k]; if(!ring) continue;
+      if(k%2) continue;                             // one station in two, for spacing
+      for(let r=0;r<ROWS;r++){
+        const vi=1+r*3+2;                           // the tread of row r
+        const a=ring[vi], nxt=rows[k+2];
+        if(!a) continue;
+        const along=nxt&&nxt[vi]?nxt[vi]:null;
+        const seats=3;
+        for(let q2=0;q2<seats;q2++){
+          if(Math.random()<0.18) continue;          // a few empty seats
+          const t=(q2+0.5)/seats;
+          const x=along?lerp(a.x,along.x,t):a.x+(Math.random()-0.5)*2;
+          const z=along?lerp(a.z,along.z,t):a.z+(Math.random()-0.5)*2;
+          people.push({x,z,y:a.y,c:cols[(Math.random()*cols.length)|0],r:Math.random()*TAU});
+        }
+      }
+      // cars parked along the crest
+      if(k%18===0 && ring.__A1){
+        const crest=ring[prof.length-2];
+        cars.push({x:crest.x,z:crest.z,y:crest.y,
+          r:Math.atan2(ring.__A1.z-ring.__A0.z,ring.__A1.x-ring.__A0.x)+Math.PI/2,
+          c:carCols[(Math.random()*carCols.length)|0]});
+      }
+    }
   }
-  if(people.length){
-    // the people on the banks are actual figures, and a good number of them are
-    // sitting on the grass — which is what a grass bank looks like
-    buildCrowd(sc,people,{cheer:0.20,seatedFrac:0.42});
-  }
+  if(people.length) buildCrowd(sc,people,{cheer:0.20,seatedFrac:0.85});
   if(cars.length){
     const ci=new THREE.InstancedMesh(new THREE.BoxGeometry(2.0,1.35,4.5),
       new THREE.MeshStandardMaterial({roughness:0.5,metalness:0.3}),cars.length);
     ci.castShadow=true;const col=new THREE.Color();
-    cars.forEach((o,i)=>{T.set(o.x,o.y+0.7,o.z);S.set(1,1,1);M.compose(T,RY(o.r),S);ci.setMatrixAt(i,M);
-      col.setHex(o.c);ci.setColorAt(i,col);});
-    ci.instanceMatrix.needsUpdate=true;if(ci.instanceColor)ci.instanceColor.needsUpdate=true;
-    sc.add(ci);
+    const M=new THREE.Matrix4(),S=new THREE.Vector3(1,1,1),Q=new THREE.Quaternion(),T=new THREE.Vector3();
+    ci.instanceColor=new THREE.InstancedBufferAttribute(new Float32Array(cars.length*3),3);
+    cars.forEach((c,i)=>{ T.set(c.x,c.y+0.7,c.z);
+      Q.setFromAxisAngle(new THREE.Vector3(0,1,0),c.r); M.compose(T,Q,S); ci.setMatrixAt(i,M);
+      col.setHex(c.c); ci.instanceColor.setXYZ(i,col.r,col.g,col.b); });
+    ci.instanceMatrix.needsUpdate=true; ci.instanceColor.needsUpdate=true;
+    ci.material.vertexColors=true; sc.add(ci);
   }
 }
-
-/* ---- the rest of the venue --------------------------------------------------
-   A Grand Prix circuit is a small town for a weekend: paved spectator concourses
-   with planting, VIP hospitality decks overlooking the corners, marshal control
-   towers, a medical centre, a race-control building and landscaped parkland
-   between the stands.                                                         */
 function buildVenueGrounds(sc,P,Nm,Tg,offL,offR,clr){
   const N=P.length, gh=TRACK.terrainH, HW=TRACK.halfW;
   const M=new THREE.Matrix4(),S=new THREE.Vector3(),Q=new THREE.Quaternion(),T=new THREE.Vector3();
@@ -10674,12 +10788,22 @@ function pitFlattenTerrain(){
           const u=clamp(((x-a.x)*ex+(z-a.z)*ez)/L2,-1,1);
           dAlong=a.d+(b.d-a.d)*u;
         } } }
-    const target=laneYAt(dAlong);
+    /* A HAIR BELOW THE LANE, NEVER THROUGH IT.
+       Flattening the ground to exactly the lane's height means the two surfaces
+       are coplanar, and coplanar surfaces z-fight: the terrain shows THROUGH the
+       tarmac in bands. Dropping the ground ten centimetres under the road it
+       carries costs nothing to look at and guarantees the road always wins. */
+    const target=laneYAt(dAlong)-0.10;
     const d=Math.sqrt(best);
     if(d>=OUTER) return base(x,z);
     if(d<=INNER) return target;
     const t=1-(d-INNER)/(OUTER-INNER);
-    return lerp(base(x,z), target, t*t*(3-2*t));
+    /* In the shoulder the ground blends back to the surrounding landscape — and
+       where that landscape is HIGHER than the pit platform it was rising over
+       the road, which is the terrain-through-the-tarmac you can see at Texas.
+       Anywhere inside the pit region the ground is not allowed above the lane
+       it carries, full stop. */
+    return Math.min(lerp(base(x,z), target, t*t*(3-2*t)), target+0.05);
   };
 }
 
@@ -10736,7 +10860,7 @@ function buildPitLaneGeometry(sc){
   for(let i=0;i<=n;i++){
     const d=D0+(D1-D0)*i/n;
     const a=pitPos(d,-PIT.halfW), b=pitPos(d,PIT.halfW);
-    v.push(a.x,a.y+0.03,a.z, b.x,b.y+0.03,b.z);
+    v.push(a.x,a.y+0.06,a.z, b.x,b.y+0.06,b.z);
     uv.push(0,i*0.5, 1,i*0.5);
     if(i<n){const o=i*2; idx.push(o,o+2,o+1, o+1,o+2,o+3);}
   }
@@ -10826,6 +10950,41 @@ function buildPitLaneGeometry(sc){
     const post=new THREE.Mesh(new THREE.CylinderGeometry(0.07,0.07,2.1,8),
       new THREE.MeshStandardMaterial({color:0x2a2f38,roughness:0.7}));
     post.position.set(p.x,p.y+1.05,p.z); g.add(post);
+  }
+  /* --- THE PIT WALL -------------------------------------------------------
+     The thing that separates the pit lane from the circuit, which the lane did
+     not have: a low concrete wall along the whole box run with the teams'
+     boards on it, a debris fence above, and — critically — NOTHING across the
+     entry and the exit, because that is where the cars cross. It is what makes
+     the lane read as a pit lane rather than as a second road running alongside
+     the first. */
+  { const wallMat=new THREE.MeshStandardMaterial({color:0xdfe4ea,roughness:0.72});
+    const capMat2=new THREE.MeshStandardMaterial({color:(TRACK_ACCENT[CFG.id]||0xb11015),
+      roughness:0.5,metalness:0.3});
+    const B=PIT.boxRun/2;
+    const WSTEP=5, wn=Math.max(4,Math.round((B*2)/WSTEP));
+    const v=[],idx2=[],cv=[],cidx=[]; let vc2=0,cc=0;
+    for(let i=0;i<=wn;i++){
+      const d=-B+(B*2)*i/wn;
+      const q=pitPos(d,-PIT.halfW-0.5);
+      v.push(q.x,q.y,q.z, q.x,q.y+1.05,q.z);
+      cv.push(q.x,q.y+1.05,q.z, q.x,q.y+1.28,q.z);
+      if(i<wn){const o=i*2; idx2.push(o,o+2,o+1,o+1,o+2,o+3); cidx.push(o,o+2,o+1,o+1,o+2,o+3);}
+      vc2+=2; cc+=2;
+    }
+    const mkw=(arr,ix,mat)=>{const gg=new THREE.BufferGeometry();
+      gg.setAttribute('position',new THREE.Float32BufferAttribute(arr,3));
+      gg.setIndex(ix); gg.computeVertexNormals();
+      const mm=new THREE.Mesh(gg,mat); mm.castShadow=true; mm.receiveShadow=true;
+      mm.material.side=THREE.DoubleSide; g.add(mm);};
+    mkw(v,idx2,wallMat); mkw(cv,cidx,capMat2);
+    // the crew stand behind it on a raised platform, as they do
+    for(let i=0;i<wn;i+=3){
+      const d=-B+(B*2)*i/wn;
+      const q=pitPos(d,-PIT.halfW-1.8);
+      const post=new THREE.Mesh(new THREE.BoxGeometry(0.14,2.2,0.14),capMat2);
+      post.position.set(q.x,q.y+1.6,q.z); g.add(post);
+    }
   }
   g.traverse(o=>{o.receiveShadow=true;});
   sc.add(g);
@@ -11360,7 +11519,16 @@ function buildCrowd(sc, spots, opt){
     T.set(x,y,z);S.set(sx,sy,sz);
     E.set(tilt||0,rot,roll||0);Q.setFromEuler(E);
     M.compose(T,Q,S);im.setMatrixAt(i,M);};
+  /* LEVEL OF DETAIL FOR A CROWD.
+     A figure is seven instances: torso, head, hair, two arms, two legs. Filling
+     every row of every grandstand pushed that past a hundred thousand and added
+     three and a half seconds to a track load, most of it spent composing
+     matrices for the limbs of people forty rows back who are four pixels tall.
+     A spot marked `simple` gets a torso and a head and nothing else. Nobody can
+     tell from trackside, and it takes the per-person work down from seven
+     matrices to two for the large majority of the crowd. */
   spots.forEach((p,i)=>{
+    const simple=!!p.simple;
     /* These stood about 1.3 m tall, which is why a packed bank read as a
        scattering of dolls. HUMAN scales the figure so an average adult comes out
        at roughly 1.78 m against a 2.6 m trackside barrier — which is the height
@@ -11378,7 +11546,7 @@ function buildCrowd(sc, spots, opt){
     // adult proportions: the leg is about half the standing height, not a third
     const legL=(seated?0.36:0.52)*sc2, torsoY=gy+(seated?0.32:0.56)*sc2+0.28*sc2;
     // legs
-    for(let s2=0;s2<2;s2++){
+    for(let s2=0;s2<2 && !simple;s2++){
       const dx=Math.sin(rot+Math.PI/2)*(s2?0.085:-0.085)*sc2;
       const dz=Math.cos(rot+Math.PI/2)*(s2?0.085:-0.085)*sc2;
       put(legs,i*2+s2, p.x+dx, gy+legL*0.5, p.z+dz, rot, sc2, legL, sc2,
@@ -11389,7 +11557,7 @@ function buildCrowd(sc, spots, opt){
     put(torso,i, p.x, torsoY, p.z, rot, sc2, sc2*(seated?0.92:1), sc2, seated?0.16:0, 0);
     col.setHex(shirt);torso.setColorAt(i,col);
     // arms: down by the sides, or straight up if cheering
-    for(let s2=0;s2<2;s2++){
+    for(let s2=0;s2<2 && !simple;s2++){
       const off=(s2?0.215:-0.215)*sc2;
       const dx=Math.sin(rot+Math.PI/2)*off, dz=Math.cos(rot+Math.PI/2)*off;
       const armL=0.50*sc2;
@@ -11402,8 +11570,8 @@ function buildCrowd(sc, spots, opt){
     const hy=torsoY+0.28*sc2+0.13*sc2;
     put(head,i, p.x, hy, p.z, rot, sc2,sc2,sc2, seated?0.1:0, 0);
     col.setHex(skin);head.setColorAt(i,col);
-    put(hair,i, p.x, hy+0.02*sc2, p.z, rot, sc2,sc2,sc2, seated?0.1:0, 0);
-    col.setHex(hairC);hair.setColorAt(i,col);
+    if(!simple){ put(hair,i, p.x, hy+0.02*sc2, p.z, rot, sc2,sc2,sc2, seated?0.1:0, 0);
+      col.setHex(hairC);hair.setColorAt(i,col); }
   });
   for(const im of [torso,head,hair,arms,legs]){
     im.instanceMatrix.needsUpdate=true;
@@ -11462,7 +11630,22 @@ const PHYS={
   /* Back to the original handling. The one change kept from the retune is a
      little more lock and a slightly quicker rack at low speed, because slow
      corners were heavy: 0.30 rad is ~17 deg instead of 15. */
-  maxSteerLo:0.30, maxSteerHi:0.078, steerRate:3.8, steerReturn:6.4,
+  maxSteerLo:0.33, maxSteerHi:0.082, steerRate:5.2, steerReturn:8.0,
+  /* YAW DAMPING. A linear-then-clip tyre gives cornering force but none of the
+     things that actually settle a car: tyre relaxation length, the aligning
+     moment that tries to straighten the steering, the damping in the
+     suspension. Without them the yaw response is badly underdamped — measured
+     at 38% overshoot at mid speed and 43% flat out, meaning the car rotated
+     half again as far as the steering asked for and then swung back. That is
+     what "turning feels awkward" is: you point the car and it darts past the
+     line, so you correct, and now it darts the other way.
+     One explicit damping term fixes it. It is not a fudge — it stands in for
+     real physical effects the tyre model omits — and it is scaled out at
+     walking pace where the kinematic blend takes over instead. */
+  yawDamp:6.5,
+  /* How quickly the driver winds lock ON compared with how quickly they take it
+     off. Coming off the lock faster than going on is what a real pair of hands
+     does and it stops the car carrying rotation out of a corner. */
   vMax:V_TOP,                                                  // ~353 km/h
   // ERS energy store: extra boost power, drain/regen time-constants (seconds for a full swing)
   ersPower:190000, ersForce:3900, ersDrain:6.5, ersRegen:9.0, ersHarvest:22.0,
@@ -12324,7 +12507,17 @@ function stepPhysics(dt,inp){
   updatePitCrew(dt);
   // steering command w/ speed sensitivity
   const target=inp.steer;
-  CAR.steerCmd=damp(CAR.steerCmd,target,(target?P.steerRate:P.steerReturn),dt);
+  /* PROGRESSIVE LOCK. A held key is a step input — the command goes from 0 to 1
+     and stays — and feeding a step into the front axle is a large part of why
+     the car snapped into corners. The rate falls off as the command approaches
+     the target, so lock winds on quickly at first and then eases in, which is
+     what a hand on a wheel does and what stops the front axle being slapped. */
+  { const remaining=Math.abs(target-CAR.steerCmd);
+    // easing applies to winding lock ON only. Letting go should be immediate —
+    // easing the RETURN as well left the car carrying rotation out of a corner
+    // and nearly doubled how long it took to run straight again.
+    const rate=target ? P.steerRate*(0.55+0.45*clamp(remaining,0,1)) : P.steerReturn;
+    CAR.steerCmd=damp(CAR.steerCmd,target,rate,dt); }
   const spd=Math.abs(CAR.v);
   /* THE LOCK COMES DOWN IN THE WET.
      On a keyboard the steering input is binary — hold the key and the command
@@ -12624,7 +12817,9 @@ function stepPhysics(dt,inp){
   let Fyf=clamp(P.Cf*wetSoft*af,-FyfMax,FyfMax);
   let Fyr=clamp(P.Cr*wetSoft*ar,-FyrMax,FyrMax);
   const vLatDot=(Fyf+Fyr)/m - CAR.v*CAR.yawRate;
-  const yawAcc=(a*Fyf - b*Fyr)/Iz;
+  let yawAcc=(a*Fyf - b*Fyr)/Iz;
+  // see PHYS.yawDamp — the settling the tyre model does not model
+  yawAcc-=P.yawDamp*CAR.yawRate*clamp(spd/20,0,1);
   CAR.vLat   += vLatDot*dt;
   CAR.yawRate+= yawAcc*dt;
   // below walking pace blend toward kinematic steering so it settles instead of jitters
@@ -12654,6 +12849,20 @@ function stepPhysics(dt,inp){
 
   // smoothly INTERPOLATED road height (continuous along the centreline) so the car
   // never steps/bounces between points or sinks through the road on slopes.
+  /* WHAT THE CAR IS STANDING ON.
+     The height below came from the CIRCUIT's centreline whatever the car was
+     doing — so in the pit lane, which is graded away from the racing surface to
+     its own flat level, the car took the road's height and sank through the
+     lane wherever the two differed. The pit lane is a road; it needs its own
+     collision surface. */
+  if(inPitLane){
+    const dNow=lapSigned(TRACK.cum[near.idx]);
+    const across=Math.abs(near.lat)-(laneInfo?laneInfo.off:TRACK.halfW);
+    const surf=pitPos(dNow,clamp(across,-PIT.halfW,PIT.halfW));
+    if(CAR.groundY===undefined) CAR.groundY=surf.y;
+    CAR.groundY=damp(CAR.groundY,surf.y,26,dt);
+    CAR.slope=0; CAR.pitch=damp(CAR.pitch||0,0,6,dt);
+  } else
   { const N=TRACK.N,i0=near.idx;
     const A=TRACK.pts[i0],Bp=TRACK.pts[(i0+1)%N],Am=TRACK.pts[(i0-1+N)%N];
     const proj=(P0,P1)=>{const dx=P1.x-P0.x,dz=P1.z-P0.z,L2=dx*dx+dz*dz||1;
@@ -13336,6 +13545,9 @@ if(DEBUG){window.__setCam=(m)=>{CAM.mode=m;CAM.tsPost=null;$('#camName').textCon
   window.__replayRecord=replayRecord;
   window.__PITSTOP=PITSTOP;window.__pitPos=pitPos;window.__PIT=PIT;
   window.__CINE=()=>CINE;window.__CHASE=()=>CHASE;
+  window.__setState=(v)=>{STATE=v;};
+  // deferred: PODIUM is declared further down and is in its dead zone here
+  setTimeout(()=>{window.__startPodium=startPodium;window.__PODIUM=PODIUM;},0);
   window.__nearestTrack=nearestTrack;window.__lapSigned=lapSigned;window.__pitLaneAt=pitLaneAt;
   setTimeout(()=>{window.__openSettings=openSettings;window.__closeSettings=closeSettings;
     window.__SET=SET;window.__applySettings=applySettings;},0);}
@@ -13468,6 +13680,9 @@ const MODES=[
   {id:'aisim',t:'AI Simulation',tag:'WATCH',
    desc:'Sit in the director\u2019s chair. The full field forms up on the grid, the lights go out, and the AI races while you cut between the broadcast cameras.',
    meta:[['Grid','14 CARS'],['Laps','1'],['You','SPECTATE']]},
+  {id:'podium',t:'Podium Ceremony',tag:'CEREMONY',
+   desc:'The bit after the flag. Park in the pits, climb out, and take the rostrum — trophies, anthem and a bottle of something cold over the man who beat you.',
+   meta:[['Scene','PARC FERME'],['Cast','TOP 3'],['Ends','CHAMPAGNE']]},
   {id:'season',t:'Season',tag:'CAMPAIGN',
    desc:'Create your driver, pick your team and sponsor, and race a five-round championship.',
    meta:[['Rounds','5'],['Teams','5'],['Mode','BETA']]},
@@ -13781,6 +13996,7 @@ function chooseMode(){const m=MODES[sel];Sound.init();Sound.blip(660,.08);
   else if(m.id==='aisim'){sessionMode='aisim';startAISim();}
   else if(m.id==='garage'){openGarage();}
   else if(m.id==='season'){openSeasonSetup();}
+  else if(m.id==='podium'){sessionMode='podium';startPodium();}
   else if(m.id==='settings'){openSettings();}
   else{ /* placeholder modes */ flashMsg(); }
 }
@@ -14856,6 +15072,10 @@ addEventListener('keydown',e=>{
   if(STATE==='cine'){endCinematic();e.preventDefault();return;}
   if(STATE==='intro'){endTrackIntro(true);e.preventDefault();return;}
   if(STATE==='result'){ if(k==='enter'||k==='escape'||k===' '){exitToMenu();} e.preventDefault();return;}
+  if(STATE==='podium'){
+    if(k==='escape'||k==='enter'){ endPodium(); }
+    else if(k===' '){ PODIUM.t=1e9; }        // skip to the next act
+    e.preventDefault(); return; }
   if(STATE==='aisim'){
     const res=$('#simResult'), over=res&&res.classList.contains('on');
     if(over){
@@ -15160,6 +15380,532 @@ function spawnGrid(n){
       const pp=TRACK.pts[pi], pn=TRACK.nrm[pi], ptg=TRACK.tan[pi];
       c.mesh.position.set(pp.x+pn.x*c.lat,(pp.y||0)+0.02,pp.z+pn.z*c.lat);
       c.mesh.rotation.y=Math.atan2(ptg.x,ptg.z);} }
+}
+/* ==================================================================
+   THE PODIUM CEREMONY
+   A race does not end at the flag, it ends here. The sequence runs in the real
+   venue — the world is already built, with its pit complex, its grandstands and
+   its crowd — and plays out in five acts: the winner stops in parc ferme and
+   climbs out of the car; he stands on it and celebrates; he walks off; the top
+   three take the rostrum and are handed their trophies; and then somebody opens
+   a bottle over somebody else.
+
+   The people are deliberately blocky. They are seen from ten metres for twenty
+   seconds and a crowd of them has to cost nothing, so they are boxes and
+   capsules with a helmet on top — read at a glance, free to draw.
+   ================================================================== */
+const PODIUM={
+  on:false, phase:0, t:0, group:null, drivers:[], trophies:[], bottles:[],
+  cam:new THREE.Vector3(), look:new THREE.Vector3(), spray:null, order:[],
+};
+const POD_PHASES=[
+  {k:'arrive',  d:4.0, cap:'PARC FERMÉ'},
+  {k:'climbOut',d:4.5, cap:'PARC FERMÉ'},
+  {k:'onCar',   d:4.5, cap:'THE WINNER'},
+  {k:'walk',    d:3.0, cap:'WEIGHBRIDGE'},
+  {k:'take',    d:5.0, cap:'THE ROSTRUM'},
+  {k:'anthem',  d:5.0, cap:'NATIONAL ANTHEM'},
+  {k:'trophy',  d:5.0, cap:'THE TROPHIES'},
+  {k:'champagne',d:8.0,cap:'CHAMPAGNE'},
+];
+/* a blocky driver: race suit in the team's colours, gloves, boots, helmet */
+function makeDriverFigure(teamKey){
+  const L=(typeof LIVERIES!=='undefined'&&LIVERIES[teamKey])?LIVERIES[teamKey]:{base:0x8a94a2,swatch:['#888']};
+  const base=new THREE.Color(L.base);
+  const suit=new THREE.MeshStandardMaterial({color:base,roughness:0.72});
+  const dark=new THREE.MeshStandardMaterial({color:0x14171d,roughness:0.85});
+  const white=new THREE.MeshStandardMaterial({color:0xe8ecf2,roughness:0.7});
+  const skin=new THREE.MeshStandardMaterial({color:0xe8b48c,roughness:0.9});
+  const g=new THREE.Group();
+  const torso=new THREE.Mesh(new THREE.BoxGeometry(0.46,0.62,0.28),suit);
+  torso.position.y=1.14; g.add(torso);
+  // sponsor band across the chest, like every race suit has
+  const band=new THREE.Mesh(new THREE.BoxGeometry(0.47,0.10,0.29),white);
+  band.position.y=1.30; g.add(band);
+  const belt=new THREE.Mesh(new THREE.BoxGeometry(0.47,0.07,0.29),dark);
+  belt.position.y=0.90; g.add(belt);
+  const hips=new THREE.Mesh(new THREE.BoxGeometry(0.42,0.22,0.27),suit);
+  hips.position.y=0.79; g.add(hips);
+  const arms=[],legs=[];
+  for(const sx of [-1,1]){
+    const upper=new THREE.Mesh(new THREE.BoxGeometry(0.15,0.34,0.16),suit);
+    upper.position.set(sx*0.30,1.24,0);
+    const fore=new THREE.Mesh(new THREE.BoxGeometry(0.13,0.32,0.14),suit);
+    fore.position.set(sx*0.30,0.94,0);
+    const glove=new THREE.Mesh(new THREE.BoxGeometry(0.14,0.16,0.15),dark);
+    glove.position.set(sx*0.30,0.75,0);
+    g.add(upper,fore,glove); arms.push({sx,upper,fore,glove});
+    const thigh=new THREE.Mesh(new THREE.BoxGeometry(0.18,0.38,0.19),suit);
+    thigh.position.set(sx*0.12,0.52,0);
+    const shin=new THREE.Mesh(new THREE.BoxGeometry(0.16,0.36,0.17),suit);
+    shin.position.set(sx*0.12,0.19,0);
+    const boot=new THREE.Mesh(new THREE.BoxGeometry(0.17,0.11,0.26),dark);
+    boot.position.set(sx*0.12,0.05,0.04);
+    g.add(thigh,shin,boot); legs.push({sx,thigh,shin,boot});
+  }
+  const neck=new THREE.Mesh(new THREE.CylinderGeometry(0.09,0.10,0.10,10),skin);
+  neck.position.y=1.49; g.add(neck);
+  // the helmet: shell, visor, team stripe, and an aero peak
+  const helmet=new THREE.Group(); helmet.position.y=1.68;
+  const shell=new THREE.Mesh(new THREE.SphereGeometry(0.155,16,14),
+    new THREE.MeshStandardMaterial({color:base,roughness:0.28,metalness:0.15}));
+  shell.scale.set(1,1.06,1.02); helmet.add(shell);
+  const chin=new THREE.Mesh(new THREE.BoxGeometry(0.24,0.11,0.20),
+    new THREE.MeshStandardMaterial({color:base,roughness:0.28,metalness:0.15}));
+  chin.position.set(0,-0.10,0.06); helmet.add(chin);
+  const visor=new THREE.Mesh(new THREE.SphereGeometry(0.158,16,12,
+      Math.PI*0.72,Math.PI*0.56,Math.PI*0.34,Math.PI*0.30),
+    new THREE.MeshStandardMaterial({color:0x0a0e16,roughness:0.06,metalness:0.5,side:THREE.DoubleSide}));
+  visor.rotation.y=Math.PI; helmet.add(visor);
+  const stripe=new THREE.Mesh(new THREE.BoxGeometry(0.055,0.30,0.20),white);
+  stripe.position.set(0,0.02,-0.02); helmet.add(stripe);
+  const peak=new THREE.Mesh(new THREE.BoxGeometry(0.26,0.03,0.09),white);
+  peak.position.set(0,0.05,0.15); peak.rotation.x=-0.28; helmet.add(peak);
+  g.add(helmet);
+  g.traverse(o=>{o.castShadow=true;});
+  g.userData={arms,legs,helmet,teamKey,base};
+  return g;
+}
+/* ==================== A TROPHY FOR EVERY CIRCUIT =======================
+   Every Grand Prix has its own, and they look nothing like each other — Monaco
+   hands over a squat silver cup, Monza a tall fluted column, Austin a stetson
+   on a plinth, Suzuka a lacquered tiered piece. One generic gold cup for all
+   twenty-four venues is the sort of detail whose absence you feel without being
+   able to name it.
+   Six forms, assigned per circuit, each rendered in that venue's own metal and
+   accent. Position (1st/2nd/3rd) still shades the metal gold/silver/bronze. */
+const TROPHY_FORM={
+  monaco:'cup', monza:'column', texas:'hat', suzuka:'tier', spa:'wing',
+  silverstone:'cup', bahrain:'obelisk', jeddah:'obelisk', yas:'obelisk',
+  qatar:'obelisk', lasvegas:'star', miami:'star', australia:'wing',
+  singapore:'tier', china:'tier', mexico:'star', saopaulo:'wing',
+  catalunya:'cup', montreal:'column', hungary:'column', austria:'wing',
+  zandvoort:'cup', baku:'obelisk', madrid:'column',
+};
+function makeTrophy(kind,trackId){
+  const g=new THREE.Group();
+  const metalHex=kind===0?0xf0c419:(kind===1?0xd8dde4:0xc98a4b);
+  const metal=new THREE.MeshStandardMaterial({color:metalHex,roughness:0.16,metalness:0.96});
+  const accentHex=(typeof TRACK_ACCENT!=='undefined'&&TRACK_ACCENT[trackId])||0xb11015;
+  const accent=new THREE.MeshStandardMaterial({color:accentHex,roughness:0.35,metalness:0.5});
+  const wood=new THREE.MeshStandardMaterial({color:0x241a12,roughness:0.62});
+  const plinth=new THREE.Mesh(new THREE.BoxGeometry(0.24,0.10,0.24),wood);
+  g.add(plinth);
+  const nameBand=new THREE.Mesh(new THREE.BoxGeometry(0.25,0.035,0.245),accent);
+  nameBand.position.y=0.055; g.add(nameBand);
+  const form=TROPHY_FORM[trackId]||'cup';
+  if(form==='cup'){
+    const stem=new THREE.Mesh(new THREE.CylinderGeometry(0.035,0.06,0.16,14),metal);
+    stem.position.y=0.18; g.add(stem);
+    const bowl=new THREE.Mesh(new THREE.SphereGeometry(0.155,18,14,0,TAU,0,Math.PI*0.56),metal);
+    bowl.position.y=0.31; bowl.rotation.x=Math.PI; g.add(bowl);
+    const lip=new THREE.Mesh(new THREE.TorusGeometry(0.155,0.014,8,20),metal);
+    lip.position.y=0.31; lip.rotation.x=Math.PI/2; g.add(lip);
+    for(const sx of [-1,1]){
+      const h=new THREE.Mesh(new THREE.TorusGeometry(0.075,0.013,6,14,Math.PI),metal);
+      h.position.set(sx*0.15,0.26,0); h.rotation.y=Math.PI/2; h.rotation.z=sx>0?-0.3:Math.PI+0.3;
+      g.add(h);}
+  }else if(form==='column'){
+    const col=new THREE.Mesh(new THREE.CylinderGeometry(0.055,0.075,0.62,16),metal);
+    col.position.y=0.41; g.add(col);
+    for(let f=0;f<8;f++){
+      const fl=new THREE.Mesh(new THREE.BoxGeometry(0.012,0.58,0.012),accent);
+      const a2=f/8*TAU; fl.position.set(Math.cos(a2)*0.062,0.41,Math.sin(a2)*0.062); g.add(fl);}
+    const cap=new THREE.Mesh(new THREE.SphereGeometry(0.075,14,12),metal);
+    cap.position.y=0.75; g.add(cap);
+  }else if(form==='obelisk'){
+    const ob=new THREE.Mesh(new THREE.CylinderGeometry(0.012,0.11,0.72,4),metal);
+    ob.position.y=0.46; ob.rotation.y=Math.PI/4; g.add(ob);
+    const ring=new THREE.Mesh(new THREE.TorusGeometry(0.10,0.016,8,20),accent);
+    ring.position.y=0.22; ring.rotation.x=Math.PI/2; g.add(ring);
+  }else if(form==='star'){
+    const core=new THREE.Mesh(new THREE.IcosahedronGeometry(0.13,0),metal);
+    core.position.y=0.40; g.add(core);
+    for(let f=0;f<6;f++){
+      const sp=new THREE.Mesh(new THREE.ConeGeometry(0.035,0.20,4),metal);
+      const a2=f/6*TAU;
+      sp.position.set(Math.cos(a2)*0.19,0.40,Math.sin(a2)*0.19);
+      sp.rotation.z=-Math.PI/2; sp.rotation.y=-a2; g.add(sp);}
+    const stem=new THREE.Mesh(new THREE.CylinderGeometry(0.03,0.045,0.20,12),accent);
+    stem.position.y=0.19; g.add(stem);
+  }else if(form==='hat'){
+    const stem=new THREE.Mesh(new THREE.CylinderGeometry(0.04,0.055,0.18,12),metal);
+    stem.position.y=0.19; g.add(stem);
+    const brim=new THREE.Mesh(new THREE.CylinderGeometry(0.24,0.24,0.022,22),metal);
+    brim.position.y=0.30; g.add(brim);
+    const crown=new THREE.Mesh(new THREE.CylinderGeometry(0.10,0.125,0.20,18),metal);
+    crown.position.y=0.41; g.add(crown);
+    const dent=new THREE.Mesh(new THREE.BoxGeometry(0.05,0.07,0.22),accent);
+    dent.position.y=0.50; g.add(dent);
+    const bandT=new THREE.Mesh(new THREE.TorusGeometry(0.122,0.018,8,20),accent);
+    bandT.position.y=0.33; bandT.rotation.x=Math.PI/2; g.add(bandT);
+  }else if(form==='tier'){
+    for(let f=0;f<4;f++){
+      const r=0.17-f*0.033;
+      const t2=new THREE.Mesh(new THREE.CylinderGeometry(r,r+0.012,0.10,18),f%2?accent:metal);
+      t2.position.y=0.16+f*0.115; g.add(t2);
+      const rim=new THREE.Mesh(new THREE.TorusGeometry(r+0.01,0.010,6,18),metal);
+      rim.position.y=0.21+f*0.115; rim.rotation.x=Math.PI/2; g.add(rim);}
+    const fin=new THREE.Mesh(new THREE.ConeGeometry(0.045,0.14,12),metal);
+    fin.position.y=0.68; g.add(fin);
+  }else{ // 'wing'
+    const stem=new THREE.Mesh(new THREE.CylinderGeometry(0.03,0.05,0.22,12),metal);
+    stem.position.y=0.21; g.add(stem);
+    const main=new THREE.Mesh(new THREE.BoxGeometry(0.44,0.028,0.13),metal);
+    main.position.y=0.40; main.rotation.x=-0.22; g.add(main);
+    const flap=new THREE.Mesh(new THREE.BoxGeometry(0.42,0.022,0.08),accent);
+    flap.position.set(0,0.47,-0.05); flap.rotation.x=-0.45; g.add(flap);
+    for(const sx of [-1,1]){
+      const ep=new THREE.Mesh(new THREE.BoxGeometry(0.02,0.20,0.20),metal);
+      ep.position.set(sx*0.22,0.44,-0.02); g.add(ep);}
+  }
+  g.traverse(o=>{o.castShadow=true;});
+  return g;
+}
+function makeChampagne(){
+  const g=new THREE.Group();
+  const glass=new THREE.MeshStandardMaterial({color:0x1f3320,roughness:0.15,metalness:0.1,
+    transparent:true,opacity:0.85});
+  const body=new THREE.Mesh(new THREE.CylinderGeometry(0.045,0.045,0.24,12),glass);
+  body.position.y=0.12; g.add(body);
+  const neck=new THREE.Mesh(new THREE.CylinderGeometry(0.017,0.042,0.14,12),glass);
+  neck.position.y=0.30; g.add(neck);
+  const foil=new THREE.Mesh(new THREE.CylinderGeometry(0.019,0.019,0.05,12),
+    new THREE.MeshStandardMaterial({color:0xd8b64a,roughness:0.3,metalness:0.8}));
+  foil.position.y=0.38; g.add(foil);
+  return g;
+}
+/* the rostrum, the sponsor backdrop behind it, and the barrier in front */
+function buildPodiumStructure(){
+  const g=new THREE.Group();
+  const accent=new THREE.Color(TRACK_ACCENT[CFG.id]||0xb11015);
+  const deck=new THREE.MeshStandardMaterial({color:0x1b2029,roughness:0.6,metalness:0.2});
+  const trim=new THREE.MeshStandardMaterial({color:accent,roughness:0.45,metalness:0.3,
+    emissive:accent,emissiveIntensity:0.18});
+  const heights=[1.35,1.00,0.75];           // 1st, 2nd, 3rd
+  const xs=[0,-1.65,1.65];
+  PODIUM.steps=[];
+  for(let i=0;i<3;i++){
+    const h=heights[i];
+    const b=new THREE.Mesh(new THREE.BoxGeometry(1.55,h,1.5),deck);
+    b.position.set(xs[i],h/2,0); g.add(b);
+    const cap=new THREE.Mesh(new THREE.BoxGeometry(1.62,0.07,1.57),trim);
+    cap.position.set(xs[i],h+0.035,0); g.add(cap);
+    // the number on the face
+    const c=cnv(128,128), x=c.getContext('2d');
+    x.fillStyle='#0e1218'; x.fillRect(0,0,128,128);
+    x.fillStyle='#f2f5f8'; x.font='900 96px Orbitron,monospace';
+    x.textAlign='center'; x.textBaseline='middle'; x.fillText(String(i+1),64,70);
+    const t=new THREE.CanvasTexture(c); t.colorSpace=THREE.SRGBColorSpace;
+    const num=new THREE.Mesh(new THREE.PlaneGeometry(0.55,0.55),
+      new THREE.MeshBasicMaterial({map:t,transparent:true}));
+    num.position.set(xs[i],h*0.55,0.76); g.add(num);
+    PODIUM.steps.push({x:xs[i],y:h});
+  }
+  /* THE BACKDROP. A sponsor wall is what makes a podium read as a podium, and
+     it is the one place in motorsport where the branding is the point. Built
+     from the same zone boards the trackside hoardings use, so it matches the
+     venue instead of being a separate invention. */
+  { const zones=sponsorZones(CFG.id);
+    /* Three wide boards, not six narrow ones. A backdrop board is a 4:1 letterbox
+       with one wordmark on it; squeezing six of them across thirteen metres made
+       each one nearly square, so every logo was crushed and the wall read as
+       noise rather than as sponsorship. */
+    const W=13.5, H=4.6, panels=3;
+    for(let i=0;i<panels;i++){
+      const sp=zones[(i*2)%zones.length];
+      const tex=makeZoneBoard(sp);
+      tex.wrapS=THREE.RepeatWrapping; tex.repeat.set(1,1);
+      const board=new THREE.Mesh(new THREE.PlaneGeometry(W/panels-0.15,H*0.42),
+        new THREE.MeshStandardMaterial({map:tex,roughness:0.6,side:THREE.DoubleSide}));
+      board.position.set(-W/2+(i+0.5)*(W/panels), H*0.50, -1.5);
+      g.add(board);
+    }
+    const backer=new THREE.Mesh(new THREE.BoxGeometry(W+0.4,H,0.22),
+      new THREE.MeshStandardMaterial({color:0x11151c,roughness:0.8}));
+    backer.position.set(0,H/2,-1.62); g.add(backer);
+    const topBar=new THREE.Mesh(new THREE.BoxGeometry(W+0.6,0.30,0.34),trim);
+    topBar.position.set(0,H+0.15,-1.62); g.add(topBar);
+    // the venue name across the top
+    const c2=cnv(1024,96), x2=c2.getContext('2d');
+    x2.fillStyle='#0b0e14'; x2.fillRect(0,0,1024,96);
+    x2.fillStyle='#f2f5f8'; x2.font='900 52px Orbitron,monospace';
+    x2.textAlign='center'; x2.textBaseline='middle';
+    x2.fillText((CFG.name||'GRAND PRIX').toUpperCase(),512,52);
+    const t2=new THREE.CanvasTexture(c2); t2.colorSpace=THREE.SRGBColorSpace;
+    const sign=new THREE.Mesh(new THREE.PlaneGeometry(W,0.9),
+      new THREE.MeshBasicMaterial({map:t2}));
+    sign.position.set(0,H-0.35,-1.44); g.add(sign);
+  }
+  /* ================= THE BALCONY =====================================
+     An F1 podium is not a box on the grass. It is a balcony on the front of the
+     pit building, above the garages, with the crowd in the pit lane below
+     looking up at it — which is why the champagne goes over the rail and why
+     the drivers appear from a door rather than walking across a field.
+     This builds the deck the rostrum stands on, the parapet along its front,
+     the columns carrying it and the doorway they come out of. */
+  const deckMat=new THREE.MeshStandardMaterial({color:0x2a3038,roughness:0.7,metalness:0.15});
+  const paleMat=new THREE.MeshStandardMaterial({color:0xdfe4ea,roughness:0.68});
+  const floor=new THREE.Mesh(new THREE.BoxGeometry(16,0.45,8.2),deckMat);
+  floor.position.set(0,-0.22,0.4); g.add(floor);
+  const soffit=new THREE.Mesh(new THREE.BoxGeometry(16.4,0.22,8.6),paleMat);
+  soffit.position.set(0,-0.52,0.4); g.add(soffit);
+  // the parapet the drivers lean over, glass in a painted frame
+  const para=new THREE.Mesh(new THREE.BoxGeometry(16,0.16,0.26),trim);
+  para.position.set(0,1.12,4.35); g.add(para);
+  const glass=new THREE.Mesh(new THREE.BoxGeometry(15.6,1.02,0.10),
+    new THREE.MeshStandardMaterial({color:0x9fc6e8,roughness:0.12,metalness:0.1,
+      transparent:true,opacity:0.35}));
+  glass.position.set(0,0.55,4.35); g.add(glass);
+  for(let i=-3;i<=3;i++){
+    const post=new THREE.Mesh(new THREE.BoxGeometry(0.12,1.15,0.16),paleMat);
+    post.position.set(i*2.6,0.55,4.35); g.add(post);
+  }
+  // and the sides, so it is a balcony rather than a shelf
+  for(const sx of [-1,1]){
+    const side=new THREE.Mesh(new THREE.BoxGeometry(0.16,1.15,8.0),paleMat);
+    side.position.set(sx*7.9,0.55,0.5); g.add(side);
+  }
+  // columns down to the pit lane
+  for(let i=-2;i<=2;i++){
+    const col=new THREE.Mesh(new THREE.BoxGeometry(0.55,9.0,0.55),paleMat);
+    col.position.set(i*3.6,-5.0,3.6); g.add(col);
+  }
+  // the doorway the three of them come out of
+  const door=new THREE.Mesh(new THREE.BoxGeometry(1.6,2.3,0.18),
+    new THREE.MeshStandardMaterial({color:0x0a0c12,roughness:0.9,
+      emissive:0x14304a,emissiveIntensity:0.5}));
+  door.position.set(-5.6,1.15,-1.45); g.add(door);
+  g.traverse(o=>{o.castShadow=true;o.receiveShadow=true;});
+  return g;
+}
+function startPodium(){
+  const cf=curCfg();
+  $('#menu').classList.remove('on');
+  if(builtTrackId!==cf.id){ buildWorld(driveScene,cf); builtTrackId=cf.id; }
+  driveScene.add(CAR.rig);
+  resetCar();
+  clearAIs();
+  // who is on it: the player's team wins, then two others
+  const others=(typeof LIVERY_IDS!=='undefined'?LIVERY_IDS:[]).filter(k=>k!==selLivery&&!(LIVERIES[k]&&LIVERIES[k].plain));
+  PODIUM.order=[selLivery,others[0]||selLivery,others[1]||selLivery];
+  // stage it on the pit straight in front of the garages
+  /* On the front of the pit building, one storey up, looking back across the
+     pit lane at the circuit — which is where a podium actually is. */
+  const BALC_Y=9.4;
+  const base=pitPos(0, PIT.halfW+7.0), ahead=pitPos(12, PIT.halfW+7.0);
+  const yaw=Math.atan2(ahead.x-base.x,ahead.z-base.z);
+  const g=new THREE.Group();
+  const struct=buildPodiumStructure();
+  g.add(struct);
+  g.position.set(base.x,base.y+BALC_Y,base.z);
+  g.rotation.y=yaw+Math.PI/2;          // parapet toward the pit lane and the track
+  driveScene.add(g);
+  PODIUM.group=g; PODIUM.struct=struct;
+  // the three drivers, parked off stage to begin with
+  PODIUM.drivers=PODIUM.order.map((k,i)=>{
+    const d=makeDriverFigure(k);
+    d.position.set(-5.6-i*0.5,0,-1.2);   // waiting inside the doorway
+    g.add(d); return d;
+  });
+  PODIUM.trophies=[0,1,2].map(i=>{const t=makeTrophy(i,CFG.id); t.visible=false; g.add(t); return t;});
+  PODIUM.bottles=[0,1,2].map(()=>{const b=makeChampagne(); b.visible=false; g.add(b); return b;});
+  // the car the winner climbs out of, parked in parc fermé beside the rostrum
+  PODIUM.carPos=pitPos(-16, PIT.halfW-2.2);
+  const ca=pitPos(-10, PIT.halfW-2.2);
+  CAR.rig.position.set(PODIUM.carPos.x,PODIUM.carPos.y+0.02-(CAR.tireDrop||0),PODIUM.carPos.z);
+  CAR.rig.rotation.set(0,Math.atan2(ca.x-PODIUM.carPos.x,ca.z-PODIUM.carPos.z),0);
+  CAR.rig.visible=true;
+  // champagne spray
+  { const c=cnv(64,64), x=c.getContext('2d');
+    const gr=x.createRadialGradient(32,32,1,32,32,31);
+    gr.addColorStop(0,'rgba(255,252,235,0.95)'); gr.addColorStop(1,'rgba(240,235,200,0)');
+    x.fillStyle=gr; x.fillRect(0,0,64,64);
+    const tex=new THREE.CanvasTexture(c);
+    const NP=260;
+    const geo=new THREE.BufferGeometry();
+    const pos=new Float32Array(NP*3);
+    geo.setAttribute('position',new THREE.BufferAttribute(pos,3));
+    const mat=new THREE.PointsMaterial({map:tex,size:0.22,transparent:true,opacity:0.9,
+      depthWrite:false,blending:THREE.AdditiveBlending,sizeAttenuation:true});
+    const pts=new THREE.Points(geo,mat); pts.frustumCulled=false; pts.visible=false;
+    g.add(pts);
+    PODIUM.spray={pts,pos,NP,vel:new Float32Array(NP*3),life:new Float32Array(NP),head:0,geo};
+  }
+  PODIUM.on=true; PODIUM.phase=0; PODIUM.t=0;
+  STATE='podium';
+  $('#hud').classList.remove('on'); $('#sndBtn').classList.add('show');
+  $('#podHud').classList.add('on');
+  Sound.init(); Sound.start&&Sound.start();
+  renderer.toneMappingExposure=1.10;
+}
+function endPodium(){
+  if(!PODIUM.on) return;
+  PODIUM.on=false;
+  if(PODIUM.group){ driveScene.remove(PODIUM.group);
+    PODIUM.group.traverse(disposeObject); PODIUM.group=null; }
+  PODIUM.drivers=[]; PODIUM.trophies=[]; PODIUM.bottles=[]; PODIUM.spray=null;
+  $('#podHud').classList.remove('on');
+  CAR.rig.visible=true;
+  camera.fov=38; camera.updateProjectionMatrix();
+  enterMenu();
+}
+function podiumSprayStep(dt,active,sources){
+  const S=PODIUM.spray; if(!S) return;
+  S.pts.visible=true;
+  if(active){
+    for(let n=0;n<7;n++){
+      const i=S.head; S.head=(S.head+1)%S.NP;
+      const src=sources[(Math.random()*sources.length)|0];
+      S.pos[i*3]=src.x; S.pos[i*3+1]=src.y; S.pos[i*3+2]=src.z;
+      const a=Math.random()*TAU, sp=3.2+Math.random()*3.4;
+      S.vel[i*3]=Math.cos(a)*sp*0.5; S.vel[i*3+1]=2.6+Math.random()*2.6; S.vel[i*3+2]=Math.sin(a)*sp*0.5;
+      S.life[i]=1.1+Math.random()*0.7;
+    }
+  }
+  for(let i=0;i<S.NP;i++){
+    if(S.life[i]<=0){ S.pos[i*3+1]=-999; continue; }
+    S.life[i]-=dt;
+    S.vel[i*3+1]-=9.0*dt;
+    S.pos[i*3]+=S.vel[i*3]*dt; S.pos[i*3+1]+=S.vel[i*3+1]*dt; S.pos[i*3+2]+=S.vel[i*3+2]*dt;
+  }
+  S.geo.attributes.position.needsUpdate=true;
+}
+function stepPodium(dt){
+  if(!PODIUM.on) return;
+  PODIUM.t+=dt;
+  const ph=POD_PHASES[PODIUM.phase]; if(!ph){ endPodium(); return; }
+  const k=clamp(PODIUM.t/ph.d,0,1), e=k*k*(3-2*k);
+  const G=PODIUM.group, D=PODIUM.drivers;
+  const local=(x,y,z)=>{ const v=new THREE.Vector3(x,y,z); G.localToWorld(v); return v; };
+  const winner=D[0];
+  // where the winner is between the car and the rostrum, in podium-local space
+  const carLocal=new THREE.Vector3().copy(PODIUM.carPos); G.worldToLocal(carLocal);
+
+  if(ph.k==='arrive'){
+    // slow pan across parc ferme onto the car
+    const c=local(carLocal.x-5+e*2.2, 2.4-e*0.9, carLocal.z+6.5-e*1.5);
+    PODIUM.cam.copy(c); PODIUM.look.copy(local(carLocal.x,0.7,carLocal.z));
+    winner.visible=false; camera.fov=44;
+  }else if(ph.k==='climbOut'){
+    // out of the cockpit and up onto the sidepod
+    winner.visible=true;
+    const y=e*1.05, fwd=e*0.5;
+    winner.position.set(carLocal.x+0.55, carLocal.y+y, carLocal.z+fwd);
+    winner.rotation.y=-0.4+e*0.9;
+    for(const a of winner.userData.arms) a.upper.rotation.x=-1.1*(1-e);
+    const c=local(carLocal.x+3.2, 1.9, carLocal.z+3.4);
+    PODIUM.cam.copy(c); PODIUM.look.copy(local(carLocal.x+0.4,1.3,carLocal.z));
+    camera.fov=40;
+  }else if(ph.k==='onCar'){
+    // standing on the car, both arms up, the crowd going
+    winner.visible=true;
+    winner.position.set(carLocal.x+0.55, carLocal.y+1.05, carLocal.z+0.5);
+    winner.rotation.y=0.5+Math.sin(PODIUM.t*1.6)*0.28;
+    const pump=Math.max(0,Math.sin(PODIUM.t*4.4));
+    for(const a of winner.userData.arms){
+      a.upper.rotation.x=-2.4-pump*0.5; a.fore.rotation.x=-2.6-pump*0.4;
+      a.upper.position.y=1.24+0.10*pump; a.fore.position.y=1.30+0.22*pump;
+      a.glove.position.y=1.52+0.30*pump;
+    }
+    const ang=PODIUM.t*0.5;
+    const c=local(carLocal.x+Math.cos(ang)*5.0, 2.6, carLocal.z+Math.sin(ang)*5.0);
+    PODIUM.cam.copy(c); PODIUM.look.copy(local(carLocal.x+0.5,1.7,carLocal.z));
+    camera.fov=38;
+  }else if(ph.k==='walk'){
+    // down off the car and away toward the rostrum
+    winner.visible=true;
+    const sx=lerp(carLocal.x+0.55,-7.5,e), sz=lerp(carLocal.z+0.5,4.0,e);
+    winner.position.set(sx, lerp(carLocal.y+1.05,0,Math.min(1,e*2.4)), sz);
+    winner.rotation.y=Math.atan2(-7.5-carLocal.x, 4.0-carLocal.z);
+    const st=Math.sin(PODIUM.t*7);
+    for(const a of winner.userData.arms){ a.upper.rotation.x=st*a.sx*0.5; a.fore.rotation.x=0; }
+    for(const l of winner.userData.legs){ l.thigh.rotation.x=st*l.sx*0.55; l.shin.rotation.x=0; }
+    PODIUM.cam.copy(local(sx+4.5,2.0,sz+3.0)); PODIUM.look.copy(local(sx,1.1,sz));
+    camera.fov=42;
+  }else if(ph.k==='take'){
+    // all three walk on and take their steps
+    D.forEach((d,i)=>{
+      d.visible=true;
+      const st=PODIUM.steps[i];
+      const from=new THREE.Vector3(-5.6-i*0.5,0,-1.2);
+      const to=new THREE.Vector3(st.x,st.y,0.15);
+      const kk=clamp((PODIUM.t-i*0.55)/(ph.d-1.2),0,1), ee=kk*kk*(3-2*kk);
+      d.position.lerpVectors(from,to,ee);
+      d.rotation.y=0;                             // face the cameras, which sit on +z
+      const sw=Math.sin(PODIUM.t*7+i);
+      const moving=ee<0.98;
+      for(const a of d.userData.arms){ a.upper.rotation.x=moving?sw*a.sx*0.5:0; a.fore.rotation.x=0;
+        a.upper.position.y=1.24; a.fore.position.y=0.94; a.glove.position.y=0.75; }
+      for(const l of d.userData.legs) l.thigh.rotation.x=moving?sw*l.sx*0.55:0;
+    });
+    PODIUM.cam.copy(local(0,3.4,9.5)); PODIUM.look.copy(local(0,1.9,0));
+    camera.fov=46;
+  }else if(ph.k==='anthem'){
+    // stood still, facing the flag
+    D.forEach((d,i)=>{ const st=PODIUM.steps[i];
+      d.visible=true; d.position.set(st.x,st.y,0.15); d.rotation.y=0;
+      for(const a of d.userData.arms){a.upper.rotation.x=0;a.fore.rotation.x=0;}
+      for(const l of d.userData.legs) l.thigh.rotation.x=0; });
+    const ang=-0.5+e*1.0;
+    PODIUM.cam.copy(local(Math.sin(ang)*8.5,2.2+e*1.2,7.5));
+    PODIUM.look.copy(local(0,1.8,0));
+    camera.fov=40;
+  }else if(ph.k==='trophy'){
+    // handed up, and lifted
+    D.forEach((d,i)=>{
+      const st=PODIUM.steps[i];
+      d.position.set(st.x,st.y,0.15); d.rotation.y=0;
+      const tr=PODIUM.trophies[i]; tr.visible=true;
+      const lift=clamp((PODIUM.t-0.8-i*0.35)/1.6,0,1), le=lift*lift*(3-2*lift);
+      const hy=st.y+lerp(1.0,2.05,le);
+      tr.position.set(st.x,hy,0.55);
+      tr.rotation.y=PODIUM.t*0.8;
+      tr.scale.setScalar(lerp(0.8,1.0,le));
+      for(const a of d.userData.arms){
+        a.upper.rotation.x=-2.1*le; a.fore.rotation.x=-2.3*le;
+        a.upper.position.y=1.24+0.10*le; a.fore.position.y=1.30*le+0.94*(1-le);
+        a.glove.position.y=lerp(0.75,1.62,le);
+      }
+    });
+    PODIUM.cam.copy(local(0,2.9,7.2)); PODIUM.look.copy(local(0,2.3,0));
+    camera.fov=44;
+  }else if(ph.k==='champagne'){
+    const srcs=[];
+    D.forEach((d,i)=>{
+      const st=PODIUM.steps[i];
+      d.position.set(st.x,st.y,0.15);
+      const b=PODIUM.bottles[i]; b.visible=true;
+      const tr=PODIUM.trophies[i]; tr.visible=true;
+      tr.position.set(st.x+(i===0?0.9:(i===1?-0.85:0.85)),st.y+0.05,0.55);
+      tr.rotation.y=0;
+      // everyone turns on the winner
+      const aim=i===0?0:(i===1?1:-1);
+      d.rotation.y=aim*0.55;
+      const shake=Math.sin(PODIUM.t*9+i)*0.25;
+      for(const a of d.userData.arms){
+        a.upper.rotation.x=-2.0+shake*0.2; a.fore.rotation.x=-2.4;
+        a.glove.position.y=1.66;
+      }
+      const bx=st.x+(i===0?0:(i===1?0.5:-0.5)), by=st.y+1.95, bz=0.45;
+      b.position.set(bx,by,bz);
+      b.rotation.set(-2.3+shake,0,aim*0.5);
+      srcs.push(local(bx+aim*0.25, by+0.30, bz+0.30));
+    });
+    podiumSprayStep(dt,PODIUM.t<ph.d-1.2,srcs);
+    const ang=0.6-e*1.2;
+    PODIUM.cam.copy(local(Math.sin(ang)*6.5,2.6,6.0));
+    PODIUM.look.copy(local(0,2.1,0));
+    camera.fov=50;
+  }
+  camera.position.lerp(PODIUM.cam,1-Math.exp(-6*dt));
+  camera.lookAt(PODIUM.look);
+  camera.updateProjectionMatrix();
+  const cap=$('#podCap'); if(cap&&cap.textContent!==ph.cap) cap.textContent=ph.cap;
+  if(PODIUM.t>=ph.d){ PODIUM.phase++; PODIUM.t=0;
+    if(PODIUM.phase===2) Sound.rev&&Sound.rev();
+    if(POD_PHASES[PODIUM.phase]&&POD_PHASES[PODIUM.phase].k==='champagne') Sound.hit&&Sound.hit();
+    if(PODIUM.phase>=POD_PHASES.length) endPodium(); }
 }
 function startAISim(){
   const cf=curCfg();
@@ -15758,20 +16504,45 @@ function stepAI(dt){
     c.mistakeT-=dt;
     if(c.mistakeT<-5 && Math.random()<0.0016*(2-c.consist)*pressure) c.mistakeT=0.4+Math.random()*0.5;
     const mist=c.mistakeT>0?0.8:1;
-    /* A FLOOR, AND WHY IT IS HERE.
-       Every cascade found so far has been fixed at its source — the subtractive
-       contact cap, the fixed-distance follow gap, the parked player counted as
-       traffic, pit-lane queues counted as collisions. One residual case remains
-       that I have not tracked to its root: at Bahrain a car occasionally winds
-       itself down to a standstill on a straight with nothing ahead of it, and
-       once one car stops the queue behind it does too and the race is over.
-       This is a guard, not a fix, and it is deliberately crude: on a piece of
-       road the speed plan itself says is quick, a racing driver is never doing
-       walking pace, so refuse to command it. It bounds the damage of anything
-       like this that is left without papering over the cases already corrected.
-       The proper fix is to find what drives targetV to zero there. */
-    let desired=targetV*slow*mist;
-    if(vLimit>VCAP*0.5 && closeAhead>30 && !(c.pitPhase>0)) desired=Math.max(desired,18);
+    /* ================= A MISTAKE WITH CONSEQUENCES ========================
+       A mistake used to be a 20% lift for half a second and nothing else — the
+       car never left the road, never lost the back, never lost a place it could
+       not immediately take back. Real ones cost the race.
+       Rarely, and only where a mistake actually costs you — hard on the brakes,
+       or getting on the power in a slow corner, or in the wet — the car lets go
+       properly: it spins, it slides off the road, it collects gravel, and it has
+       to gather itself up and rejoin. Everyone behind has to deal with it.    */
+    c.spinT=Math.max(0,(c.spinT||0)-dt);
+    if(!c.spinT && c.mistakeT>0 && !c.spinArmed){
+      c.spinArmed=true;
+      const wet=clamp(WEATHER.wetness,0,1);
+      const loading=(!straight?0.7:0.15) + wet*0.9 + (c.tyre<0.3?0.5:0) + (pressure>1?0.25:0);
+      // consistent drivers almost never do this; it is rare on purpose
+      if(Math.random() < 0.012*loading*(2-c.consist)){
+        c.spinT=2.2+Math.random()*2.4;
+        c.spinYaw=0; c.spinDir=Math.random()<0.5?-1:1;
+        c.spinLat=c.lat; c.spinV=c.v;
+      }
+    }
+    if(c.mistakeT<=0) c.spinArmed=false;
+    const desired=targetV*slow*mist;
+    /* A CAR THAT IS SPINNING IS NOT DRIVING.
+       While the spin lasts the driver is a passenger: the car scrubs speed hard,
+       slides off toward the outside of the corner, and the body rotates through
+       most of a full turn. Then it is gathered up and rejoins slowly, which is
+       the part that actually costs the places. */
+    if(c.spinT>0){
+      const k=c.spinT/ (c.spinDur||(c.spinDur=c.spinT));
+      c.v=Math.max(6, c.v-(28+40*(1-k))*dt);          // tyres flat-spotting
+      c.lat=clamp(c.lat + c.spinDir*9*dt, -(HW+7), HW+7);   // away to the outside
+      c.spinYaw=(c.spinYaw||0)+c.spinDir*5.4*dt*Math.max(0.25,k);
+      c.tyre=Math.max(0,c.tyre-dt*0.02);              // and it ruins the tyres
+      if(c.spinT<=dt){ c.spinDur=null; c.rejoinSlow=3.0; }
+    } else if(c.rejoinSlow>0){
+      c.rejoinSlow=Math.max(0,c.rejoinSlow-dt);
+      c.lat=damp(c.lat, 0, 1.6, dt);        // ease back toward the road
+      c.spinYaw=damp(c.spinYaw||0,0,4,dt);
+    }
     /* FORCE-BASED LONGITUDINAL MOTION. Damping toward a target speed meant the
        car simply appeared at that speed — which is why the field snapped to full
        pace the instant the lights went out instead of launching. It now
@@ -15779,7 +16550,8 @@ function stepAI(dt){
        traction, minus drag and rolling resistance, and braking limited by grip.
        So it accelerates off the line, out of a hairpin, and down a straight at
        the rate the car is actually capable of, and no faster. */
-    { const P2=PHYS;
+    if(c.spinT>0){ /* the spin above owns the speed */ }
+    else { const P2=PHYS;
       const vv=Math.max(c.v,0.5);
       if(desired>c.v+0.15){
         // engine force, capped by what the rear tyres can put down
@@ -16103,7 +16875,7 @@ function stepAI(dt){
       c.roll=(c.roll===undefined)?0:c.roll+((rollWant-c.roll)*(1-Math.exp(-5.5*dt)));
       // the nose points at the course PLUS the body slip — that is what makes a
       // car look like it is being steered rather than pointed
-      c.mesh.rotation.set(c.pitch, c.yaw+c.beta, c.roll, 'YXZ');
+      c.mesh.rotation.set(c.pitch, c.yaw+c.beta+(c.spinYaw||0), c.roll, 'YXZ');
       c.rideY=(c.rideY===undefined)?0:c.rideY+((clamp(-Math.abs(aLong)*0.0016,-0.05,0)-c.rideY)*(1-Math.exp(-6*dt)));
       c.mesh.position.y+=c.rideY;
       /* THE FRONT WHEELS ACTUALLY STEER, AND ALL FOUR ROLL.
@@ -16146,12 +16918,21 @@ function stepAI(dt){
        side, and treating it as a car on the racing line put it in contact with
        everything that came past. `rejoin` keeps it out of the reckoning until it
        is genuinely back on the road and up to speed. */
-    const onTrackNow=(c)=>!(c.pitPhase>0) && !(c.rejoin>0) && Math.abs(c.lat)<TRACK.halfW+2.5;
+    const onTrackNow=(c)=>!(c.pitPhase>0) && !(c.rejoin>0) && !(c.spinT>0) && Math.abs(c.lat)<TRACK.halfW+2.5;
     const list=AI.cars.filter(onTrackNow).map(c=>({ai:c,idx:c.idx,lat:c.lat}));
     // the player is a solid object too
     const pLat=(typeof CAR!=='undefined'&&CAR.trackIdx!==undefined)?
       (nearestTrack(CAR.pos,CAR.trackIdx,55).lat):null;
-    if(pLat!==null) list.push({ai:null,idx:pIdx,lat:pLat});
+    /* ...and only while they are actually racing.
+       The traffic list was gated on this already; the COLLISION list was not,
+       and that was the last of the standstills. A parked player car — sitting in
+       the menu, in a replay, stopped anywhere on the circuit — stayed a solid
+       object here. The leader came round, hit it, and the rear-end branch capped
+       the leader's speed at the parked car's, which is zero. Then the queue
+       behind the leader capped itself against the leader, and the whole field
+       was stopped. It took a full lap to appear, which is exactly why it looked
+       like a mysterious freeze on a clear straight a hundred seconds in. */
+    if(pLat!==null && playerRacing) list.push({ai:null,idx:pIdx,lat:pLat});
     for(let a=0;a<list.length;a++) for(let b=a+1;b<list.length;b++){
       const A=list[a], B=list[b];
       // longitudinal separation along the lap, signed and wrapped
@@ -16268,6 +17049,11 @@ function frame(){
     renderer.render(cineScene,camera);
   }else if(STATE==='intro'){
     introStep(dt);
+  }else if(STATE==='podium'){
+    stepPodium(dt);
+    updateWeather(driveScene,dt);
+    const rain2=driveScene.userData.rain; if(rain2) rain2.update(dt,camera.position);
+    renderer.render(driveScene,camera);
   }else if(STATE==='aisim'){
     stepAISim(dt);
     renderer.render(driveScene,camera);
