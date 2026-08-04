@@ -19299,6 +19299,39 @@ function stepAI(dt){
     if(c.lastIdx>N*0.8 && i<N*0.2){
       c.tyre=Math.max(0,c.tyre-1/Math.max(1,c.tyreLife));
       if(c.tyre<0.14) c.pitFlag=true;                   // box next time past the pits
+      /* PIT STRATEGY THAT REACTS TO THE RACE, not only to the tyre. Two moves
+         every pit wall makes:
+         THE UNDERCUT — stuck behind a car you cannot pass, box early and use
+         the fresh tyres to come out ahead once they stop.
+         THE COVER — the car right behind you has just stopped, so you stop too
+         rather than let them undercut you.
+         Both need the tyre to be worn enough to be worth it; neither is worth
+         doing on a set with most of its life left. */
+      if(!c.pitFlag && c.tyre<0.55 && c.stops<2 && isRace()){
+        // who is immediately ahead and behind on the road
+        let ahead=null, behind=null, dA=1e9, dB=1e9;
+        for(const o of AI.cars){
+          if(o===c||o.dnf) continue;
+          let d=(o.idx-c.idx); d=((d%N)+N)%N; if(d>N/2) d-=N;
+          const m=Math.abs(d)*segLen;
+          if(d>0&&m<dA){dA=m;ahead=o;} else if(d<0&&m<dB){dB=m;behind=o;}
+        }
+        // undercut: held up, close, and our tyres are the worse of the two
+        if(ahead && dA<22 && c.tyre<ahead.tyre-0.08 && Math.random()<0.02){
+          c.pitFlag=true; c.pitReason='undercut';
+        }
+        // cover: the car behind has just pitted and will come at us on new rubber
+        else if(behind && behind.pitPhase>0 && dB<40 && Math.random()<0.05){
+          c.pitFlag=true; c.pitReason='cover';
+        }
+        /* And the player counts as a rival too. Boxing while the car behind you
+           is an AI that then covers you off is the whole game of strategy; if
+           the field ignores what you do, there is no game. */
+        else if(PITSTOP.phase!=='none' && PITSTOP.phase!=='go' && Math.random()<0.04){
+          let d=(pIdx-c.idx); d=((d%N)+N)%N; if(d>N/2) d-=N;
+          if(d<0 && Math.abs(d)*segLen<45){ c.pitFlag=true; c.pitReason='cover'; }
+        }
+      }
     }
     c.lastIdx=i;
     // --- pit stop sequence: run down the pit side at the limit, stop, rejoin on fresh rubber ---
@@ -19500,6 +19533,19 @@ function stepAI(dt){
        lap is a second and a half — enough to close a gap and force a move. */
     let targetV=Math.min(VCAP,vLimit)*tyreGrip*(c.defLate||1)
                 *lerp(0.978,1.0,clamp((c.skill-0.93)/0.07,0,1));
+    targetV*= 0.99 + 0.02*Math.sin(c.idx*0.05 + c.seed);          // subtle lap-to-lap rhythm
+    /* TRAFFIC. Look further ahead than before — a slipstream reaches a long way
+       at these speeds, and a car that only notices the one in front at 14 indices
+       can never set an overtake up. */
+    let slow=1, blockedSide=0, closeAhead=99, behindGap=99, aheadV=99, aheadCar=null, aheadLat=0;
+    for(const o of all){ if(o.ai===c) continue;
+      const di=(o.idx-c.idx+N)%N, db=(c.idx-o.idx+N)%N;
+      if(di>0&&di<34){const gap=di*segLen;
+        if(gap<closeAhead){closeAhead=gap;aheadV=o.ai?o.ai.v:Math.abs(CAR.v);
+          aheadCar=o; aheadLat=o.lat;}
+        if(gap<16&&Math.abs(o.lat-c.lat)<2.6){ slow=Math.min(slow,clamp(gap/16,0.70,1)); blockedSide=o.lat>c.lat?-1:1; } }
+      if(db>0&&db<12) behindGap=Math.min(behindGap,db*segLen);
+    }
     /* THE AI PAYS THE SAME BILLS. Its power unit wears through the race, its
        damage costs it downforce, and it picks an ERS mode to suit its
        situation — attacking when it is close to the car ahead, harvesting when
@@ -19521,19 +19567,6 @@ function stepAI(dt){
       const wearLoss=1-clamp(c.puWear,0,1)*0.12-(c.puFailed?0.6:0);
       const dmgLoss=1-(c.dmgF||0)*0.10-(c.dmgFloor||0)*0.08;
       targetV*=wearLoss*dmgLoss;
-    }
-    targetV*= 0.99 + 0.02*Math.sin(c.idx*0.05 + c.seed);          // subtle lap-to-lap rhythm
-    /* TRAFFIC. Look further ahead than before — a slipstream reaches a long way
-       at these speeds, and a car that only notices the one in front at 14 indices
-       can never set an overtake up. */
-    let slow=1, blockedSide=0, closeAhead=99, behindGap=99, aheadV=99, aheadCar=null, aheadLat=0;
-    for(const o of all){ if(o.ai===c) continue;
-      const di=(o.idx-c.idx+N)%N, db=(c.idx-o.idx+N)%N;
-      if(di>0&&di<34){const gap=di*segLen;
-        if(gap<closeAhead){closeAhead=gap;aheadV=o.ai?o.ai.v:Math.abs(CAR.v);
-          aheadCar=o; aheadLat=o.lat;}
-        if(gap<16&&Math.abs(o.lat-c.lat)<2.6){ slow=Math.min(slow,clamp(gap/16,0.70,1)); blockedSide=o.lat>c.lat?-1:1; } }
-      if(db>0&&db<12) behindGap=Math.min(behindGap,db*segLen);
     }
     /* ================= RACING ANOTHER CAR =================================
        A pass is a sequence, not a switch. You sit DIRECTLY behind to build the
@@ -19721,6 +19754,34 @@ function stepAI(dt){
     c.mistakeT-=dt;
     if(c.mistakeT<-5 && Math.random()<0.0016*(2-c.consist)*pressure) c.mistakeT=0.4+Math.random()*0.5;
     const mist=c.mistakeT>0?0.8:1;
+    /* THE MISTAKES A DRIVER ACTUALLY MAKES. A spin was the only error in the
+       game, so the AI either drove perfectly or ended up in the barrier —
+       nothing in between. Most real mistakes are much smaller than that: a
+       locked front into a slow corner, or running a little wide on the exit and
+       losing two tenths. Those are what make a lap look human, and what gives
+       the car behind a chance without anybody crashing. */
+    if(!c.lockT && !c.wideT && !c.spinT && c.mistakeT<-2){
+      const slowCorner=vLimit<VCAP*0.45;
+      const risk=(2-c.consist)*(0.65+0.5*pressure);
+      if(slowCorner && Math.random()<dt*0.055*risk){
+        c.lockT=0.55+Math.random()*0.4;         // locked a front into the corner
+      }else if(!slowCorner && Math.random()<dt*0.030*risk){
+        c.wideT=0.75+Math.random()*0.6;         // ran wide on the exit
+        c.wideSide=signedTurnIdx(c.idx)<0?1:-1;
+      }
+    }
+    if(c.lockT>0){
+      c.lockT-=dt;
+      // locked wheels do not slow you as well as braking properly does
+      c.v=Math.max(c.v, Math.min(c.v+8*dt, VCAP));
+      c.tyre=Math.max(0,c.tyre-dt*0.012);       // and it flat-spots the tyre
+      c.wideT=Math.max(c.wideT||0,0.35);        // which means running wide anyway
+    }
+    if(c.wideT>0){
+      c.wideT-=dt;
+      c.lat=clamp(c.lat + (c.wideSide||1)*4.2*dt, -(HW+3.2), HW+3.2);
+      c.v=Math.max(8, c.v-11*dt);               // and it costs you time
+    }
     /* ================= A MISTAKE WITH CONSEQUENCES ========================
        A mistake used to be a 20% lift for half a second and nothing else — the
        car never left the road, never lost the back, never lost a place it could
