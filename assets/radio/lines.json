@@ -70,6 +70,16 @@
       "Track's drying out now, grip is coming back to you.",
       "Conditions improving — a dry line is starting to appear.",
       "Rain's easing off, you can start leaning on it again."
+    ],
+    "session_start": [
+      "Track is clear, box is open. Take your time on the out lap and build into it.",
+      "Right, session's live. Bring the tyres up gently, then we'll look at a lap.",
+      "We're green. Long run first, let's get some temperature in it."
+    ],
+    "session_end": [
+      "That's the chequered flag on the session. Bring it back to the garage.",
+      "Session's done. Good work — come on in.",
+      "Flag's out. Cool it down and bring it home."
     ]
   },
   "commentator": {

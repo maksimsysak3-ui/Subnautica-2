@@ -344,18 +344,36 @@
   #wkScreen{position:fixed;inset:0;z-index:27;display:none;align-items:center;justify-content:center;
     background:radial-gradient(ellipse at 50% 10%,#0f1622,#04060a 70%);perspective:1600px}
   #wkScreen.on{display:flex}
-  #wkTablet{width:min(1180px,94vw);height:min(760px,92vh);
-    transform:rotateX(7deg);transform-style:preserve-3d;
+  /* The tilt is a look, but it was rotating the top edge of the panel out of the
+     viewport and clipping the circuit name. Less tilt, and the transform origin
+     pinned to the centre so the rotation cannot walk content off screen. */
+  #wkTablet{width:min(1180px,94vw);height:min(730px,88vh);
+    transform:rotateX(3deg);transform-origin:50% 50%;transform-style:preserve-3d;
     animation:wkIn .55s cubic-bezier(.2,.8,.25,1) both}
-  @keyframes wkIn{from{opacity:0;transform:rotateX(16deg) translateY(40px) scale(.95)}
-                  to{opacity:1;transform:rotateX(7deg) translateY(0) scale(1)}}
-  #wkBezel{width:100%;height:100%;display:flex;flex-direction:column;gap:14px;
-    padding:clamp(16px,2.2vw,30px);border-radius:22px;
-    background:linear-gradient(160deg,#1a2130,#0c1119 60%);
+  @keyframes wkIn{from{opacity:0;transform:rotateX(10deg) translateY(28px) scale(.96)}
+                  to{opacity:1;transform:rotateX(3deg) translateY(0) scale(1)}}
+  #wkBezel{position:relative;width:100%;height:100%;display:flex;flex-direction:column;gap:14px;
+    padding:clamp(16px,2.2vw,30px);border-radius:22px;overflow:hidden;
+    background:linear-gradient(160deg,#1b2334,#0b1018 62%);
     border:1px solid rgba(255,255,255,.10);
     box-shadow:0 40px 90px rgba(0,0,0,.75),0 0 0 9px #0a0d13,0 0 0 10px rgba(255,255,255,.07),
-               inset 0 1px 0 rgba(255,255,255,.10)}
-  #wkHead{display:flex;flex-direction:column;gap:3px}
+               inset 0 1px 0 rgba(255,255,255,.12)}
+  /* a faint engineering grid under the content, and a glass sheen across the top */
+  #wkBezel::before{content:'';position:absolute;inset:0;pointer-events:none;opacity:.5;
+    background-image:linear-gradient(rgba(255,255,255,.035) 1px,transparent 1px),
+                     linear-gradient(90deg,rgba(255,255,255,.035) 1px,transparent 1px);
+    background-size:34px 34px;
+    mask-image:radial-gradient(ellipse 80% 70% at 50% 30%,#000,transparent 78%)}
+  #wkBezel::after{content:'';position:absolute;left:0;right:0;top:0;height:38%;pointer-events:none;
+    background:linear-gradient(180deg,rgba(255,255,255,.07),transparent);border-radius:22px 22px 0 0}
+  #wkBezel>*{position:relative;z-index:1}
+  #wkHead{display:flex;justify-content:space-between;align-items:flex-end;gap:18px;
+    padding-bottom:12px;border-bottom:1px solid rgba(255,255,255,.09)}
+  #wkHeadL{display:flex;flex-direction:column;gap:3px}
+  #wkMeta{display:flex;gap:20px;text-align:right}
+  #wkMeta .wkM{display:flex;flex-direction:column;gap:3px}
+  #wkMeta .k{font-family:var(--mono);font-size:8.5px;letter-spacing:.24em;color:var(--grey);font-weight:700}
+  #wkMeta .v{font-family:var(--mono);font-size:13px;font-weight:800;color:#fff;letter-spacing:.03em}
   #wkHead .wkTitle{font-family:var(--mono);font-weight:900;font-size:clamp(22px,2.8vw,38px);color:#fff;line-height:1}
   #wkHead .wkSub{font-family:var(--mono);font-size:11px;letter-spacing:.3em;color:var(--red);font-weight:700}
   #wkTiles{display:grid;grid-template-columns:repeat(5,1fr);gap:12px}
@@ -374,10 +392,13 @@
     letter-spacing:.12em;padding:2px 6px;border-radius:3px;font-weight:800}
   .wkTile.done .wkTag{background:rgba(60,200,120,.18);color:#6fe3a0}
   .wkTile.cur  .wkTag{background:rgba(225,6,0,.20);color:#ff7d78}
-  .wkSkip{margin-top:2px;font-family:var(--mono);font-size:9.5px;letter-spacing:.14em;
+  .wkBtns{display:flex;gap:6px;margin-top:2px}
+  .wkSkip{font-family:var(--mono);font-size:9.5px;letter-spacing:.14em;
     color:var(--grey);border:1px solid var(--grey-lo);border-radius:20px;padding:3px 11px;
-    background:transparent;cursor:pointer;transition:color .15s,border-color .15s}
+    background:transparent;cursor:pointer;transition:color .15s,border-color .15s,background .15s}
   .wkSkip:hover{color:#fff;border-color:rgba(255,255,255,.4)}
+  .wkSkip.sim{color:#7fc8ff;border-color:rgba(63,169,255,.4)}
+  .wkSkip.sim:hover{color:#fff;border-color:#3fa9ff;background:rgba(63,169,255,.16)}
   #wkNewsPane{flex:1;min-height:0;border:1px solid var(--grey-lo);border-radius:14px;
     padding:14px 16px;display:flex;flex-direction:column;gap:8px;
     background:linear-gradient(180deg,rgba(255,255,255,.035),transparent)}
@@ -735,6 +756,15 @@
   #timing{position:absolute;left:clamp(22px,4vw,50px);top:clamp(18px,3vh,32px);min-width:236px;
     background:linear-gradient(180deg,rgba(8,11,16,.82),rgba(8,11,16,.5));border-left:3px solid var(--red);
     border-radius:4px;padding:12px 16px 13px;backdrop-filter:blur(7px)}
+  /* session header — only shown in practice and qualifying, where the thing that
+     governs the session is a clock rather than a lap count */
+  #sessBar{display:none;justify-content:space-between;align-items:baseline;gap:12px;
+    margin:-2px 0 9px;padding-bottom:8px;border-bottom:1px solid rgba(255,255,255,.1)}
+  #sessBar.on{display:flex}
+  #sessName{font-family:var(--mono);font-size:11px;letter-spacing:.22em;font-weight:800;color:var(--red)}
+  #sessClock{font-family:var(--mono);font-size:15px;font-weight:800;color:#fff;letter-spacing:.04em}
+  #sessClock.low{color:#ffd23a}
+  #sessClock.out{color:#ff5b5b}
   #timing .ttHead{display:flex;justify-content:space-between;align-items:center;margin-bottom:9px;padding-bottom:9px;border-bottom:1px solid rgba(255,255,255,.1)}
   #timing .pos{font-size:11px;letter-spacing:.2em;color:var(--grey);font-weight:600}
   #timing .pos b{font-family:var(--mono);font-size:19px;color:#fff;margin-left:3px}
@@ -1104,8 +1134,16 @@
   <div id="wkTablet">
     <div id="wkBezel">
       <div id="wkHead">
-        <div class="wkTitle" id="wkTrack">SPA-FRANCORCHAMPS</div>
-        <div class="wkSub" id="wkSub">ROUND 1 · BELGIUM</div>
+        <div id="wkHeadL">
+          <div class="wkTitle" id="wkTrack">SPA-FRANCORCHAMPS</div>
+          <div class="wkSub" id="wkSub">ROUND 1 · BELGIUM</div>
+        </div>
+        <div id="wkMeta">
+          <div class="wkM"><span class="k">LENGTH</span><span class="v" id="wkLen">—</span></div>
+          <div class="wkM"><span class="k">LAP RECORD</span><span class="v" id="wkRec">—</span></div>
+          <div class="wkM"><span class="k">RACE</span><span class="v" id="wkLaps">—</span></div>
+          <div class="wkM"><span class="k">WEATHER</span><span class="v" id="wkWx">—</span></div>
+        </div>
       </div>
       <div id="wkTiles"></div>
       <div id="wkNewsPane"><div class="wkPanelT">PADDOCK NEWS</div><div id="wkNewsRows"></div></div>
@@ -1162,6 +1200,8 @@
 <div id="hud">
   <div id="shift"></div>
   <div id="timing">
+    <!-- practice / qualifying header: which session, and how long is left in it -->
+    <div id="sessBar"><span id="sessName">PRACTICE 1</span><span id="sessClock">30:00</span></div>
     <div class="ttHead"><span class="pos">P<b id="posNum">1</b></span><span class="lapc">LAP <b id="lapNum">1</b></span></div>
     <div class="ttRow"><span class="k">CURRENT</span><span class="v big" id="lapCur">0:00.0</span></div>
     <div class="ttRow"><span class="k">LAST</span><span class="v" id="lapLast">—:——.—</span></div>
@@ -13637,7 +13677,10 @@ const lap={t:0,num:1,last:null,best:null,prevIdx:0,armed:false,cur:null,bestArr:
         Radio.say('engineer','fastest_lap',{cool:30});
         setTimeout(()=>Radio.say('commentator','fastest_lap',{cool:30}),700);
       }
-      if(sessionMode==='quali' && this.num>3){ endQuali(this.best); }   // 3 flying laps done
+      /* Qualifying is Q1, Q2 and Q3, and each of them is a CLOCK — you run as
+         many laps as you can fit in it, and the slowest cars drop out at the end
+         of each part. The session no longer ends after a fixed three laps; SESS
+         drives it, and the clock is what closes each segment. */
       /* A GRAND PRIX IS A RACE DISTANCE. Quick-race mode ran forever with no
          finish, so there was no result, no reason to pit and no reason to manage
          anything — you drove until you got bored. It runs the length set in
@@ -13679,6 +13722,27 @@ const Sound={ctx:null,master:null,osc:null,osc2:null,gain:null,filt:null,muted:f
     this.osc.type='sawtooth';this.osc2.type='square';this.filt.type='lowpass';this.filt.frequency.value=900;
     this.gain.gain.value=0.0;this.osc.connect(this.filt);this.osc2.connect(this.filt);
     this.filt.connect(this.gain).connect(this.master);this.osc.start();this.osc2.start();},
+  /* THE ENGINE HAS TO BE ABLE TO STOP.
+     start() spun up two oscillators and there was no way to shut them down, so
+     the engine note carried on droning over the menus, the season hub and every
+     result screen once you had driven anything. Fade the gain out over a few
+     tens of milliseconds rather than cutting it, or stopping the oscillator
+     mid-cycle puts a click through the speakers, then tear the nodes down so
+     the next start() builds a fresh pair. */
+  stop(){ if(!this.ctx||!this.started) return;
+    this.started=false;
+    const t=this.ctx.currentTime;
+    try{
+      if(this.gain){ this.gain.gain.cancelScheduledValues(t);
+        this.gain.gain.setValueAtTime(this.gain.gain.value,t);
+        this.gain.gain.linearRampToValueAtTime(0,t+0.05); }
+      const os=[this.osc,this.osc2];
+      for(const o of os) if(o) o.stop(t+0.07);
+      setTimeout(()=>{ for(const o of os){ try{o.disconnect();}catch(e){} }
+        try{this.filt&&this.filt.disconnect();}catch(e){}
+        try{this.gain&&this.gain.disconnect();}catch(e){} },140);
+    }catch(e){}
+    this.osc=this.osc2=null; this.gain=null; this.filt=null; },
   engine(spd,thr){if(!this.osc)return;const rpm=0.15+Math.min(spd/PHYS.vMax,1)*0.85;
     const f=60+rpm*520;this.osc.frequency.value=f;this.osc2.frequency.value=f*1.5;
     this.filt.frequency.value=500+rpm*3600+thr*1200;
@@ -14786,6 +14850,11 @@ function renderWeekend(){
   const id=SEASON.cal[SEASON.round], cf=TRACKS[id];
   $('#wkTrack').textContent=cf.name;
   $('#wkSub').textContent=`ROUND ${SEASON.round+1} / ${SEASON.cal.length} · ${cf.country}`;
+  $('#wkLen').textContent=(cf.len/1000).toFixed(3)+' km';
+  $('#wkRec').textContent=cf.laprec||'—';
+  $('#wkLaps').textContent=(SEASON.raceLaps||SET.raceLaps)+' LAPS';
+  { const w=CLIMATE&&CLIMATE[cf.id];
+    $('#wkWx').textContent=cf.night?'NIGHT':(w&&w.w&&w.w.rain>2?'MIXED':'DRY'); }
   const cur=wkStage();
   const wrap=$('#wkTiles'); wrap.innerHTML='';
   WK_SESSIONS.forEach((s,i)=>{
@@ -14800,13 +14869,22 @@ function renderWeekend(){
     if(!locked&&!done){
       el.onclick=()=>{ Sound.blip(620,.05); wkEnter(s); };
       if(s.mode!=='season'){
+        /* Two ways to not drive a session. SKIP sits it out and you get nothing
+           from it; SIMULATE hands it to the engineers, who run it for you and
+           come back with a real result — a practice best, or an actual grid
+           slot out of qualifying. */
+        const row=document.createElement('div'); row.className='wkBtns';
+        const sim=document.createElement('button');
+        sim.className='wkSkip sim'; sim.textContent='SIM';
+        sim.onclick=(e)=>{ e.stopPropagation(); Sound.blip(620,.05); wkSimulate(s); };
         const sk=document.createElement('button');
         sk.className='wkSkip'; sk.textContent='SKIP';
         sk.onclick=(e)=>{ e.stopPropagation(); Sound.blip(360,.04);
           wk.done[s.k]=true; wkNews(`${s.nm} skipped.`,
             `${esc(SEASON.name)} sat out ${s.nm.toLowerCase()} at ${esc(cf.name)}, banking mileage on the car instead.`);
           renderWeekend(); };
-        el.appendChild(sk);
+        row.appendChild(sim); row.appendChild(sk);
+        el.appendChild(row);
       }
     }
     wrap.appendChild(el);
@@ -14814,19 +14892,69 @@ function renderWeekend(){
   $('#wkHint').textContent = WK_SESSIONS[cur] ? `Next: ${WK_SESSIONS[cur].nm}` : 'Weekend complete';
   renderWkNews();
 }
+/* Run a session on the player's behalf. Practice returns a plausible best lap
+   for the car and driver; qualifying runs the whole Q1/Q2/Q3 elimination and
+   produces the grid the race will start from. */
+function wkSimulate(s){
+  const wk=wkInit(), cf=TRACKS[SEASON.cal[SEASON.round]];
+  if(s.mode==='practice'){
+    const base=parseLapRec(cf.laprec)+1.1;
+    const t=base+0.4+Math.random()*1.6;                 // practice is not a qualifying lap
+    wk.done[s.k]=true;
+    wkNews(`${s.nm} simulated.`,
+      `The team ran ${s.nm.toLowerCase()} at ${esc(cf.name)} without you. Best of the session: ${fmt(t)}.`);
+    renderWeekend();
+    return;
+  }
+  // qualifying: run every part, eliminating as it goes, exactly as driving it would
+  let alive=null, eliminated=[];
+  for(const P of QUALI_PARTS){
+    const rows=simulateQualifying(null, alive);
+    // no player lap means the sim has to stand in for one, at the driver's level
+    const base=parseLapRec(cf.laprec)+1.1;
+    const mine=rows.find(r=>r.me);
+    if(mine) mine.t=base+0.25+Math.random()*1.5;
+    rows.sort((a,b)=>a.t-b.t); rows.forEach((r,i)=>r.pos=i+1);
+    if(P.drop>0 && rows.length>P.drop){
+      const out=rows.slice(rows.length-P.drop);
+      eliminated=eliminated.concat(out);
+      if(out.find(r=>r.me)){ alive=null; SESS.eliminated=eliminated;
+        const grid=rows.concat(eliminated.slice().reverse());
+        grid.forEach((r,i)=>r.pos=i+1);
+        wkFinishSimQuali(grid,cf); return; }
+      alive=rows.slice(0,rows.length-P.drop).map(r=>r.nm);
+    }else{
+      const grid=rows.concat(eliminated.slice().reverse());
+      grid.forEach((r,i)=>r.pos=i+1);
+      wkFinishSimQuali(grid,cf); return;
+    }
+  }
+}
+function wkFinishSimQuali(grid,cf){
+  const wk=wkInit();
+  const me=grid.find(r=>r.me);
+  SEASON.grid=grid; SEASON.gridPos=me?me.pos:grid.length;
+  SESS.eliminated=null; SESS.part=0;
+  wk.done.q=true;
+  const p=me?me.pos:grid.length;
+  wkNews(p===1?'Pole position (simulated).':`Qualified P${p} (simulated).`,
+    `The team put the car P${p} on the grid at ${esc(cf.name)}${me&&me.t?` with a ${fmt(me.t)}`:''}.`);
+  renderWeekend();
+}
 function wkEnter(s){
   const wk=wkInit();
   $('#wkScreen').classList.remove('on');
   SEASON.on=false;
   if(s.mode==='practice'){
     SEASON.practiceKey=s.k;
-    SEASON.practiceEnds=performance.now()/1000 + s.len*60/PRACTICE_SCALE;
+    SEASON.practiceLen=s.len;
     sessionMode='practice';
     startDrive();
   }else if(s.mode==='quali'){
     SEASON.pendingRace=true;
     sessionMode='quali';
     SEASON.grid=null; SEASON.gridPos=null;
+    SESS.eliminated=null;
     startDrive();
   }else{
     wk.done.r=true;
@@ -14840,13 +14968,113 @@ const PRACTICE_SCALE=6;
 function endPractice(){
   const wk=wkInit();
   if(SEASON.practiceKey) wk.done[SEASON.practiceKey]=true;
-  SEASON.practiceKey=null; SEASON.practiceEnds=0;
+  SEASON.practiceKey=null;
+  sessStop();
   const best=(typeof lap!=='undefined'&&lap.best)||0;
   if(best) wkNews('Practice pace.',
     `${esc(SEASON.name)} ended the session with a best of ${fmt(best)}.`);
   STATE='menu';
+  Sound.stop();
   $('#hud').classList.remove('on');
   openWeekend();
+}
+/* ==================================================================
+   TIMED SESSIONS (practice and qualifying)
+   A practice or qualifying session is governed by a clock, not a lap count, and
+   qualifying is three of them back to back with the slowest cars eliminated
+   between each. SESS holds the running session so the HUD, the radio and the
+   end-of-session logic all agree about what is happening.
+   ================================================================== */
+const SESS={on:false, kind:'', part:0, label:'', ends:0, len:0, best:null, drop:0, alive:null};
+/* Is this session actually a race? Practice and qualifying were getting the full
+   race treatment — position-change radio, "you've taken the lead", overtake
+   commentary — for laps where there is no position and nobody to overtake. */
+const isRace=()=>sessionMode==='gp'||sessionMode==='season';
+/* Real Q1/Q2/Q3 lengths, compressed like practice is. */
+const QUALI_PARTS=[{nm:'Q1',len:18,drop:5},{nm:'Q2',len:15,drop:5},{nm:'Q3',len:12,drop:0}];
+if(DEBUG) setTimeout(()=>{window.__SESS=SESS;},0);
+function sessStart(kind,label,mins){
+  SESS.on=true; SESS.kind=kind; SESS.label=label;
+  SESS.len=mins*60/PRACTICE_SCALE;
+  SESS.ends=performance.now()/1000+SESS.len;
+  SESS.best=null;
+  const bar=$('#sessBar'); if(bar) bar.classList.add('on');
+  const nm=$('#sessName'); if(nm) nm.textContent=label;
+}
+function sessStop(){
+  SESS.on=false;
+  const bar=$('#sessBar'); if(bar) bar.classList.remove('on');
+}
+function sessLeft(){ return Math.max(0,SESS.ends-performance.now()/1000); }
+/* The clock the player reads is the session's REAL length — thirty minutes of
+   practice reads as thirty minutes and counts down at that rate, even though it
+   is played out over five. Showing the compressed time would say 5:00 for a
+   session announced as 30, which is just confusing. */
+function sessUpdate(){
+  if(!SESS.on) return;
+  const left=sessLeft();
+  const shown=left*PRACTICE_SCALE;
+  const el=$('#sessClock');
+  if(el){
+    const m=Math.floor(shown/60), s=Math.floor(shown%60);
+    el.textContent=`${m}:${String(s).padStart(2,'0')}`;
+    el.classList.toggle('low',shown<=120&&shown>30);
+    el.classList.toggle('out',shown<=30);
+  }
+  if(left<=0) sessExpire();
+}
+function sessExpire(){
+  if(SESS.kind==='practice'){ sessStop(); endPractice(); return; }
+  if(SESS.kind==='quali'){ sessStop(); qualiPartOver(); return; }
+  sessStop();
+}
+/* ---- qualifying: three parts, with the slowest eliminated after each ---- */
+function qualiBegin(){
+  SESS.part=0;
+  SESS.alive=null;                       // built on the first part from the full field
+  qualiRunPart();
+}
+function qualiRunPart(){
+  const P=QUALI_PARTS[SESS.part];
+  lap.reset();
+  sessStart('quali',P.nm,P.len);
+}
+/* The player's best of the part, plus a simulated time for every surviving AI,
+   sorted; the slowest `drop` are out and are locked into the back of the grid in
+   the order they fell. That is what makes Q1 and Q2 mean anything. */
+function qualiPartOver(){
+  const P=QUALI_PARTS[SESS.part];
+  const myBest=lap.best||null;
+  const rows=simulateQualifying(myBest, SESS.alive);
+  if(P.drop>0 && rows.length>P.drop){
+    const survivors=rows.slice(0,rows.length-P.drop);
+    const out=rows.slice(rows.length-P.drop);
+    SESS.eliminated=(SESS.eliminated||[]).concat(out);
+    const meOut=out.find(r=>r.me);
+    if(meOut){
+      // knocked out — the weekend is over for qualifying, grid position is where you fell
+      SESS.alive=null;
+      finishQualifying(rows, true);
+      return;
+    }
+    SESS.alive=survivors.map(r=>r.nm);
+    SESS.part++;
+    qualiRunPart();
+    return;
+  }
+  SESS.alive=null;
+  finishQualifying(rows, false);
+}
+/* The final grid: whoever is left, in order, then everyone who was knocked out
+   behind them in the reverse order they fell — Q2's casualties ahead of Q1's,
+   which is how a real grid is assembled. */
+function finishQualifying(rows, knockedOut){
+  const elim=(SESS.eliminated||[]);
+  const grid=rows.concat(elim.slice().reverse());
+  grid.forEach((r,i)=>r.pos=i+1);
+  SESS.eliminated=null; SESS.part=0;
+  const me=grid.find(r=>r.me);
+  endQuali(me?me.t:null, grid, knockedOut);
 }
 /* ---- paddock news: a short running feed of what the weekend has produced ---- */
 function wkNews(headline, body){
@@ -14886,6 +15114,7 @@ function seasonRaceStart(){
    the qualifying card because a result is a result. */
 function endGrandPrix(){
   STATE='result';
+  Sound.stop();
   $('#hud').classList.remove('on');
   const N=TRACK.N||1;
   const dOf=(idx,lp)=>lp*TRACK.len + (TRACK.cum?TRACK.cum[Math.round(idx)%N]||0:0);
@@ -14959,7 +15188,7 @@ function endSeasonRace(){
   if(SEASON.round<SEASON.cal.length-1)SEASON.round++;
   SEASON.wk=null;                       // next round starts a fresh weekend
   clearAIs();
-  STATE='menu';$('#hud').classList.remove('on');$('#sndBtn').classList.remove('show');
+  STATE='menu';Sound.stop();$('#hud').classList.remove('on');$('#sndBtn').classList.remove('show');
   if(CAR.rig.parent!==menuScene)menuScene.add(CAR.rig);
   openSeasonHub();
 }
@@ -15596,6 +15825,7 @@ function endTrackIntro(skip){
 
 function enterMenu(){
   STATE='menu';
+  Sound.stop();                       // never let the engine drone over the menus
   $('#menu').classList.add('on');$('#hud').classList.remove('on');
   $('#sndBtn').classList.remove('show');
   const vm=$('#visorMask'); if(vm)vm.style.opacity=0;
@@ -15627,13 +15857,21 @@ function startDrive(){
   if(sessionMode==='gp'||sessionMode==='season'){ spawnAIs(7); } else { clearAIs(); }
   /* Practice runs out of the garage, not off a grid — there are no lights in a
      Friday session, you just go out when you feel like it. */
-  if(sessionMode==='practice'){
+  /* Practice and qualifying both roll out of the garage against a clock rather
+     than launching off a grid — there are no lights in either one. */
+  if(sessionMode==='practice'||sessionMode==='quali'){
     trackIntro(cf, ()=>{
       snapCamera();
       STATE='drive';
       $('#hud').classList.add('on'); $('#sndBtn').classList.add('show');
       syncVisor(); Sound.init(); Sound.start(); Radio.reset();
-      setTimeout(()=>Radio.say('engineer','start',{cool:0}),900);
+      if(sessionMode==='practice'){
+        const label=({fp1:'PRACTICE 1',fp2:'PRACTICE 2',fp3:'PRACTICE 3'})[SEASON.practiceKey]||'PRACTICE';
+        sessStart('practice',label,SEASON.practiceLen||30);
+      }else{
+        qualiBegin();
+      }
+      setTimeout(()=>Radio.say('engineer','session_start',{cool:0}),900);
     });
     return;
   }
@@ -15676,9 +15914,13 @@ function exitToMenu(){
 }
 /* qualifying: simulate the rest of the field's best laps and produce a real grid */
 function parseLapRec(s){const m=/(\d+):(\d+)/.exec(s||''); return m?(+m[1]*60+ +m[2]):90;}
-function simulateQualifying(playerBest){
+function simulateQualifying(playerBest, onlyNames){
   const cf=curCfg(), base=parseLapRec(cf.laprec)+1.1;   // pole sits a shade off the outright record
-  const rows=DRIVER_POOL.filter(d=>d.t!==(SEASON.active?SEASON.team:selLivery)).map(d=>{
+  /* `onlyNames` limits the field to the drivers still in the session, so Q2 is
+     run between the cars that survived Q1 rather than the whole entry list. */
+  const rows=DRIVER_POOL.filter(d=>d.t!==(SEASON.active?SEASON.team:selLivery))
+    .filter(d=>!onlyNames || onlyNames.includes(d.n))
+    .map(d=>{
     // a slower driver loses time proportionally; inconsistent ones scatter more
     const pen=(1-d.skill)*base*2.1 + (1-d.consist)*Math.random()*1.4;
     return {nm:d.n,team:d.t,t:base+pen,me:false};
@@ -15688,13 +15930,15 @@ function simulateQualifying(playerBest){
   rows.forEach((r,i)=>r.pos=i+1);
   return rows;
 }
-function endQuali(best){
+function endQuali(best, prebuiltGrid, knockedOut){
   STATE='result';
+  Sound.stop(); sessStop();
   { const lbl=document.querySelector('#qResult .qLabel'); if(lbl) lbl.textContent='BEST LAP';
     const tag=document.querySelector('#qResult .qTag');
-    if(tag) tag.innerHTML='QUALIFYING · <span id="qTrack">—</span>'; }
+    if(tag) tag.innerHTML=(knockedOut?'KNOCKED OUT':'QUALIFYING')+' · <span id="qTrack">—</span>'; }
   $('#hud').classList.remove('on');
-  const grid=simulateQualifying(best);
+  // the Q1/Q2/Q3 run hands the finished grid in; a one-off quali still builds its own
+  const grid=prebuiltGrid||simulateQualifying(best);
   const me=grid.find(r=>r.me);
   SEASON.grid=grid; SEASON.gridPos=me?me.pos:grid.length;
   /* Qualifying is a weekend session: tick it off and file the grid slot as news,
@@ -18002,8 +18246,8 @@ function stepAI(dt){
   field.sort((a,b)=>b.d-a.d);
   AI.playerPos=field.findIndex(f=>f.me)+1;
   const pn=$('#posNum'); if(pn) pn.textContent=AI.playerPos;
-  // radio: position changes (gained / lost a place)
-  if(CAR.rPrevPos){
+  // radio: position changes (gained / lost a place) — races only
+  if(CAR.rPrevPos && isRace()){
     if(AI.playerPos<CAR.rPrevPos){ Radio.say('engineer','overtake_made',{cool:8});
       setTimeout(()=>Radio.say('commentator','overtake',{cool:8}),400);
       if(AI.playerPos===1) setTimeout(()=>Radio.say('commentator','lead',{cool:20}),900); }
@@ -18080,9 +18324,8 @@ function frame(){
     updateCamera(dt);
     updateHelmet(dt);
     lap.update(dt,r.near.idx);
-    // practice runs to a clock, not a lap count — when it expires, the session ends
-    if(sessionMode==='practice' && SEASON.practiceEnds &&
-       performance.now()/1000 >= SEASON.practiceEnds){ endPractice(); return; }
+    // practice and qualifying run to a clock, not a lap count
+    if(SESS.on){ sessUpdate(); if(!SESS.on) return; }
     stepSafetyCar(dt);
     stepAI(dt);
     updateBattle(dt);
