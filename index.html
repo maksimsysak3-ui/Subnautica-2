@@ -547,7 +547,22 @@
   .wkSkip:hover{color:#fff;border-color:rgba(255,255,255,.4)}
   .wkSkip.sim{color:#7fc8ff;border-color:rgba(63,169,255,.4)}
   .wkSkip.sim:hover{color:#fff;border-color:#3fa9ff;background:rgba(63,169,255,.16)}
-  #wkNewsPane{flex:1;min-height:0;border:1px solid var(--grey-lo);border-radius:14px;
+  #wkLower{flex:1;min-height:0;display:grid;grid-template-columns:minmax(240px,0.8fr) 1.6fr;gap:12px}
+  #wkCareer{border:1px solid var(--grey-lo);border-radius:14px;padding:14px 16px;overflow:auto;
+    background:linear-gradient(180deg,rgba(255,255,255,.035),transparent)}
+  #wkObjRows{display:flex;flex-direction:column;gap:7px;margin-top:8px}
+  .wkObj{display:flex;align-items:flex-start;gap:9px;font-size:11.5px;color:#cfd5dd;line-height:1.35}
+  .wkObj i{flex:0 0 14px;height:14px;border-radius:3px;border:1px solid var(--grey-lo);margin-top:1px}
+  .wkObj.done i{background:#4fd97a;border-color:#4fd97a}
+  .wkObj .n{margin-left:auto;font-family:var(--mono);font-size:9px;color:var(--red);font-weight:800}
+  #wkCareerRows{display:flex;flex-direction:column;gap:6px;margin-top:8px}
+  .wkCr{display:flex;justify-content:space-between;align-items:baseline;font-size:11px}
+  .wkCr .k{font-family:var(--mono);font-size:9px;letter-spacing:.16em;color:var(--grey);font-weight:700}
+  .wkCr .v{font-family:var(--mono);font-size:11.5px;color:#fff;font-weight:800}
+  .wkBar{height:6px;border-radius:3px;background:rgba(255,255,255,.1);position:relative;margin-top:3px}
+  .wkBar i{position:absolute;left:0;top:0;bottom:0;border-radius:3px;background:#4fd97a}
+  .wkBar.low i{background:#ff6a64}
+  #wkNewsPane{min-height:0;border:1px solid var(--grey-lo);border-radius:14px;
     padding:14px 16px;display:flex;flex-direction:column;gap:8px;
     background:linear-gradient(180deg,rgba(255,255,255,.035),transparent)}
   .wkPanelT{font-family:var(--mono);font-size:10.5px;letter-spacing:.3em;color:var(--grey);font-weight:700}
@@ -1403,7 +1418,15 @@
         </div>
       </div>
       <div id="wkTiles"></div>
-      <div id="wkNewsPane"><div class="wkPanelT">PADDOCK NEWS</div><div id="wkNewsRows"></div></div>
+      <div id="wkLower">
+        <div id="wkCareer">
+          <div class="wkPanelT">THIS WEEKEND</div>
+          <div id="wkObjRows"></div>
+          <div class="wkPanelT" style="margin-top:12px">STANDING</div>
+          <div id="wkCareerRows"></div>
+        </div>
+        <div id="wkNewsPane"><div class="wkPanelT">PADDOCK NEWS</div><div id="wkNewsRows"></div></div>
+      </div>
       <div id="wkFoot"><span><b>Esc</b> Hub</span><span id="wkHint">Select a session</span></div>
     </div>
   </div>
@@ -15760,6 +15783,117 @@ const SEASON={active:false,on:false,slot:null,team:'redbull',diff:'Pro',name:'M.
 const F1PTS=[25,18,15,12,10,8,6,4,2,1];
 
 /* ==================================================================
+   CONTRACTS, RIVALRIES AND OBJECTIVES
+   A championship was a points table and nothing around it. These are the things
+   that make a season feel like a career rather than eighteen races in a row:
+   somebody you are measured against, a team that has an opinion about how you
+   are doing, and a contract that can end.
+   ================================================================== */
+function seasonInitCareer(){
+  SEASON.contract={
+    years:1, sinceStart:0,
+    target:Math.max(4, 10-Math.round((SEASON.rep||50)/12)),   // championship position wanted
+    happy:55,                                                 // 0..100
+  };
+  SEASON.rep=SEASON.rep||50;
+  SEASON.rivalry={name:null, score:0};
+  SEASON.objectives=[];
+  seasonRollObjectives();
+}
+/* A couple of things the team wants from THIS weekend. Small, concrete, and
+   worth money and R&D points, so there is a reason to care about a race you
+   cannot win. */
+function seasonRollObjectives(){
+  const id=SEASON.cal[SEASON.round], cf=TRACKS[id]||{};
+  const pool=[
+    {k:'finish',  n:6, t:`Finish in the points`,               test:r=>r.pos<=10},
+    {k:'beatmate',n:8, t:`Beat your team mate`,                test:r=>r.beatMate},
+    {k:'podium',  n:14,t:`Stand on the podium at ${cf.name||'this round'}`, test:r=>r.pos<=3},
+    {k:'quali',   n:8, t:`Qualify in the top five`,            test:r=>r.gridPos<=5},
+    {k:'clean',   n:7, t:`Finish with no penalties`,           test:r=>!r.penalties},
+    {k:'fastlap', n:10,t:`Set the fastest lap`,                test:r=>r.fastestLap},
+  ];
+  // two, never the same one twice
+  const picked=[];
+  while(picked.length<2 && pool.length){
+    const i=(Math.random()*pool.length)|0;
+    picked.push(pool.splice(i,1)[0]);
+  }
+  SEASON.objectives=picked.map(o=>({...o, done:false}));
+}
+/* Who you are actually racing. Picked from whoever is nearest you in the table
+   with a similar car, and it persists — a rivalry that changes every round is
+   not a rivalry. */
+function seasonPickRival(){
+  const table=(SEASON.table||[]).slice().sort((a,b)=>b.pts-a.pts);
+  const me=table.findIndex(r=>r.me);
+  if(me<0) return;
+  const cand=[table[me-1],table[me+1]].filter(Boolean);
+  if(!cand.length) return;
+  const pick=cand[(Math.random()*cand.length)|0];
+  if(!SEASON.rivalry) SEASON.rivalry={name:null,score:0};
+  if(SEASON.rivalry.name!==pick.nm){
+    SEASON.rivalry={name:pick.nm, score:0};
+    wkNews('A rivalry forms.',
+      `${esc(SEASON.name)} and ${esc(pick.nm)} are separated by a handful of points, `+
+      `and the paddock has noticed.`);
+  }
+}
+/* Settle up after a race: objectives, the rivalry, the team's mood, and whether
+   the contract survives. */
+function seasonSettleCareer(res, myRes){
+  if(!SEASON.contract) seasonInitCareer();
+  const mate=(SEASON.table||[]).find(r=>!r.me && r.team===SEASON.team);
+  const mateRes=mate?res.find(r=>r.nm===mate.nm):null;
+  const ctx={
+    pos:myRes?myRes.pos:res.length,
+    gridPos:SEASON.gridPos||20,
+    penalties:(CAR.penalty||0)>0||(CAR.contacts||0)>0,
+    fastestLap:!!(myRes&&myRes.fl),
+    beatMate: mateRes?((myRes?myRes.pos:99)<mateRes.pos):true,
+  };
+  let earned=0;
+  for(const o of SEASON.objectives||[]){
+    if(o.done) continue;
+    if(o.test(ctx)){ o.done=true; earned+=o.n;
+      wkNews('Objective met.', `${esc(o.t)} — worth ${o.n} R&D points.`); }
+  }
+  SEASON.rdPts=(SEASON.rdPts||0)+earned;
+  // the rivalry
+  if(SEASON.rivalry&&SEASON.rivalry.name){
+    const rv=res.find(r=>r.nm===SEASON.rivalry.name);
+    if(rv&&myRes){
+      SEASON.rivalry.score += (myRes.pos<rv.pos)?1:-1;
+      if(Math.abs(SEASON.rivalry.score)===3){
+        wkNews(SEASON.rivalry.score>0?'Getting the upper hand.':'Losing the head-to-head.',
+          `${esc(SEASON.name)} is ${SEASON.rivalry.score>0?'ahead of':'behind'} `+
+          `${esc(SEASON.rivalry.name)} three races running.`);
+      }
+    }
+  }
+  /* THE TEAM HAS AN OPINION. Beat the target and they are pleased; miss it
+     repeatedly and the contract is in trouble, which is the only thing that
+     makes a mid-table season have any stakes at all. */
+  const C=SEASON.contract;
+  const good = ctx.pos<=C.target;
+  C.happy=clamp(C.happy + (good?6:-5) + (ctx.beatMate?3:-3), 0, 100);
+  if(C.happy<18 && !C.warned){
+    C.warned=true;
+    wkNews('The team wants more.',
+      `${esc(LIVERIES[SEASON.team]?LIVERIES[SEASON.team].name:'The team')} has made it clear `+
+      `that results have to improve if the seat is to be renewed.`);
+  }
+  if(C.happy>78 && !C.praised){
+    C.praised=true;
+    wkNews('Contract talks going well.',
+      `${esc(SEASON.name)} is delivering, and the team has opened talks about an extension.`);
+  }
+  SEASON.rep=clamp((SEASON.rep||50) + (good?1.5:-1.0) + (ctx.pos<=3?2:0), 0, 100);
+  seasonPickRival();
+  seasonRollObjectives();
+}
+
+/* ==================================================================
    POWER UNIT COMPONENTS
    You get a fixed allocation of engines, gearboxes and batteries for the whole
    season. Each one wears with use — hard, if you run it in attack mode all race
@@ -15893,6 +16027,7 @@ function seasonSnapshot(){
     cal:SEASON.cal, table:SEASON.table, lastResult:SEASON.lastResult,
     raceLaps:SEASON.raceLaps, rd:SEASON.rd, rdPts:SEASON.rdPts, money:SEASON.money,
     news:SEASON.news, pu:SEASON.pu, gridPenalty:SEASON.gridPenalty, setup:CAR.setup,
+    contract:SEASON.contract, rep:SEASON.rep, rivalry:SEASON.rivalry, objectives:SEASON.objectives,
   };
 }
 function seasonRestore(s){
@@ -15907,6 +16042,9 @@ function seasonRestore(s){
   SEASON.news=s.news||[];
   SEASON.pu=s.pu||null; if(!SEASON.pu) puReset();
   SEASON.gridPenalty=s.gridPenalty||0;
+  SEASON.contract=s.contract||null; SEASON.rep=s.rep||50;
+  SEASON.rivalry=s.rivalry||null; SEASON.objectives=s.objectives||[];
+  if(!SEASON.contract) seasonInitCareer();
   if(s.setup){ CAR.setup=s.setup; applySetup(); }
   // a restored season starts at the weekend hub, never mid-session
   SEASON.wk=null; SEASON.grid=null; SEASON.gridPos=null; SEASON.pendingRace=false;
@@ -16046,6 +16184,7 @@ function beginSeason(){
   SEASON.active=true;SEASON.round=0;SEASON.points=0;
   SEASON.rd=null; initRD();                            // fresh R&D tree + starting resources
   puReset();                                           // a fresh allocation of components
+  SEASON.rep=50; seasonInitCareer();                   // a fresh career state
   SEASON.lastResult=null;
   seasonBuildTable();
   SEASON.news=[]; SEASON.wk=null;
@@ -16216,6 +16355,7 @@ function renderWeekend(){
     wrap.appendChild(el);
   });
   $('#wkHint').textContent = WK_SESSIONS[cur] ? `Next: ${WK_SESSIONS[cur].nm}` : 'Weekend complete';
+  renderWkCareer();
   renderWkNews();
 }
 /* Run a session on the player's behalf. Practice returns a plausible best lap
@@ -16727,6 +16867,36 @@ function wkNews(headline, body){
   SEASON.news.unshift({when:`R${SEASON.round+1}`, hl:headline, tx:body});
   if(SEASON.news.length>40) SEASON.news.length=40;
 }
+/* Objectives, the rivalry, the team's mood and your reputation — the things
+   that make a mid-table season have stakes. */
+function renderWkCareer(){
+  if(!SEASON.contract) seasonInitCareer();
+  const ob=$('#wkObjRows'); if(ob){
+    ob.innerHTML='';
+    for(const o of SEASON.objectives||[]){
+      const el=document.createElement('div');
+      el.className='wkObj'+(o.done?' done':'');
+      el.innerHTML=`<i></i><span>${esc(o.t)}</span><span class="n">+${o.n}</span>`;
+      ob.appendChild(el);
+    }
+    if(!(SEASON.objectives||[]).length) ob.innerHTML='<div class="wkObj"><span>No objectives set.</span></div>';
+  }
+  const cr=$('#wkCareerRows'); if(!cr) return;
+  const C=SEASON.contract;
+  const table=(SEASON.table||[]).slice().sort((a,b)=>b.pts-a.pts);
+  const pos=table.findIndex(r=>r.me)+1;
+  const riv=SEASON.rivalry&&SEASON.rivalry.name;
+  cr.innerHTML=
+    `<div class="wkCr"><span class="k">CHAMPIONSHIP</span><span class="v">P${pos||'—'}</span></div>`+
+    `<div class="wkCr"><span class="k">TEAM TARGET</span><span class="v">P${C.target}</span></div>`+
+    `<div><div class="wkCr"><span class="k">TEAM SATISFACTION</span><span class="v">${Math.round(C.happy)}%</span></div>`+
+      `<div class="wkBar${C.happy<30?' low':''}"><i style="width:${Math.round(C.happy)}%"></i></div></div>`+
+    `<div><div class="wkCr"><span class="k">REPUTATION</span><span class="v">${Math.round(SEASON.rep||50)}</span></div>`+
+      `<div class="wkBar"><i style="width:${Math.round(SEASON.rep||50)}%"></i></div></div>`+
+    (riv?`<div class="wkCr"><span class="k">RIVAL</span><span class="v">${esc(riv)} `+
+      `<small style="color:${SEASON.rivalry.score>=0?'#4fd97a':'#ff6a64'}">`+
+      `${SEASON.rivalry.score>=0?'+':''}${SEASON.rivalry.score}</small></span></div>`:'');
+}
 function renderWkNews(){
   const rows=$('#wkNewsRows'); if(!rows) return;
   rows.innerHTML='';
@@ -16832,6 +17002,7 @@ function endSeasonRace(){
   }
   if(SEASON.round<SEASON.cal.length-1)SEASON.round++;
   SEASON.wk=null;                       // next round starts a fresh weekend
+  seasonSettleCareer(res, myRes);       // objectives, rivalry, contract, reputation
   seasonAutosave();                     // a finished round is progress worth keeping
   clearAIs();
   STATE='menu';Sound.stop();$('#hud').classList.remove('on');$('#sndBtn').classList.remove('show');
