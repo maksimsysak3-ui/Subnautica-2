@@ -12318,8 +12318,67 @@ function setCarPlain(plain){                            // unbranded matte-carbo
     if(!PLAIN_TEX)PLAIN_TEX=makePlainTex(); u.uLiv.value=PLAIN_TEX; u.uBase.value.set(0x0c0e13); carPlain=true; return true; }
   carPlain=false; setLivery(selLivery); return true;
 }
+/* A BLOCKY CAR IS BETTER THAN NO GAME.
+   The player's car came from a 19 MB GLB and a failed load rejected out of
+   boot(), so the whole game died on the loading screen with an error — no menu,
+   no circuits, nothing. The AI cars have always had a simple built-from-boxes
+   fallback for exactly this case; the player's car now has the same one, built
+   with the axle rig the rest of the code steers and spins. Nothing else in the
+   game has to know which one it got. */
+function buildFallbackCar(){
+  const model=new THREE.Group();
+  const bodyMat=new THREE.MeshStandardMaterial({name:'Carbon_Fiber___Twill',
+    color:(LIVERIES[selLivery]||LIVERIES.redbull).base, metalness:0.5,roughness:0.42});
+  const dark=new THREE.MeshStandardMaterial({color:0x14161c,metalness:0.7,roughness:0.4});
+  const tyre=new THREE.MeshStandardMaterial({color:0x0e0e12,roughness:0.95});
+  // millimetres, like the real model, so the wheelbase scaling below still works
+  const add=(geo,mat,x,y,z)=>{const m=new THREE.Mesh(geo,mat);m.position.set(x,y,z);
+    m.castShadow=true;m.receiveShadow=true;model.add(m);return m;};
+  add(new THREE.BoxGeometry(380,180,3400),bodyMat,0,220,0);           // tub
+  add(new THREE.BoxGeometry(300,190,900),bodyMat,0,330,-500);         // engine cover
+  add(new THREE.BoxGeometry(1600,40,420),bodyMat,0,150,1700);         // front wing
+  add(new THREE.BoxGeometry(1300,260,120),bodyMat,0,520,-1700);       // rear wing
+  add(new THREE.BoxGeometry(140,300,140),dark,0,520,-260);            // airbox
+  const wheels={};
+  for(const [tag,zz] of [['F',1450],['R',-1450]]){
+    const steer=new THREE.Group(); steer.name='axleSteer_'+tag;
+    steer.position.set(0,0,zz); model.add(steer);
+    const spin=new THREE.Group(); spin.name='axleSpin_'+tag; steer.add(spin);
+    for(const sx of [-1,1]){
+      const w=new THREE.Mesh(new THREE.CylinderGeometry(330,330,380,16),tyre);
+      w.rotation.z=Math.PI/2; w.position.set(sx*760,0,0);
+      w.castShadow=true; spin.add(w);
+    }
+    wheels[tag]={steer,spin,center:new THREE.Vector3(0,0,zz)};
+  }
+  return {model, wheels, bodyMat};
+}
 async function loadCar(loader,onProg){
-  const gltf=await loader.loadAsync('assets/models/f1_car.glb',e=>onProg&&onProg(e));
+  let gltf=null;
+  try{
+    gltf=await loader.loadAsync('assets/models/f1_car.glb',e=>onProg&&onProg(e));
+  }catch(err){
+    console.warn('f1_car.glb unavailable — using the built-in car.',err);
+    const fb=buildFallbackCar();
+    const model=fb.model;
+    CAR.front=fb.wheels.F; CAR.rear=fb.wheels.R;
+    CAR.bodyMat=fb.bodyMat;
+    const wbModel=CAR.front.center.z-CAR.rear.center.z;
+    const S=PHYS.wheelbase/Math.abs(wbModel);
+    CAR.scale=S; CAR.wheelR=330*S;
+    model.scale.setScalar(S);
+    const rig=new THREE.Group(); rig.add(model);
+    CAR.model=model; CAR.rig=rig;
+    model.updateWorldMatrix(true,true);
+    const wbb=new THREE.Box3();
+    [CAR.front.spin,CAR.rear.spin].forEach(s=>wbb.expandByObject(s));
+    CAR.tireDrop=isFinite(wbb.min.y)?wbb.min.y:0;
+    const spriteMat=()=>new THREE.SpriteMaterial({map:makeSprayTex(),transparent:true,opacity:0,
+      depthWrite:false,blending:THREE.NormalBlending});
+    CAR.sprayL=new THREE.Sprite(spriteMat()); CAR.sprayR=new THREE.Sprite(spriteMat());
+    [CAR.sprayL,CAR.sprayR].forEach(s=>{s.scale.set(0.1,0.1,1);s.renderOrder=15;rig.add(s);});
+    return;
+  }
   const model=gltf.scene;
   model.updateWorldMatrix(true,true);
   const baseCol=(LIVERIES[selLivery]||LIVERIES.redbull).base;
