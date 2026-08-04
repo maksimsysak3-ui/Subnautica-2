@@ -878,6 +878,17 @@
   #shift .led.on.r{background:#e10600;box-shadow:0 0 10px var(--red-glow)}
   #shift .led.on.b{background:#3aa0ff;box-shadow:0 0 12px #3aa0ff}
   /* timing tower */
+  /* ============ MARSHAL FLAGS ============ */
+  #flagBar{position:absolute;top:clamp(14px,2.4vh,26px);left:50%;transform:translateX(-50%);
+    display:flex;gap:8px;z-index:6;pointer-events:none}
+  .flagChip{font-family:var(--mono);font-size:11px;letter-spacing:.22em;font-weight:800;
+    padding:6px 14px;border-radius:4px;color:#111;animation:flagPulse 1s ease-in-out infinite}
+  @keyframes flagPulse{0%,100%{opacity:1}50%{opacity:.55}}
+  .flagChip.y{background:#f5d000}
+  .flagChip.yy{background:#f5d000;box-shadow:0 0 0 2px #111 inset}
+  .flagChip.b{background:#1f6feb;color:#fff;animation:none}
+  .flagChip.r{background:#e10600;color:#fff}
+  .flagChip.vsc{background:#f5d000;color:#111}
   #timing{position:absolute;left:clamp(22px,4vw,50px);top:clamp(18px,3vh,32px);min-width:236px;
     background:linear-gradient(180deg,rgba(8,11,16,.82),rgba(8,11,16,.5));border-left:3px solid var(--red);
     border-radius:4px;padding:12px 16px 13px;backdrop-filter:blur(7px)}
@@ -1412,6 +1423,8 @@
     <div id="sectors"><span class="sv" id="sec0">—</span><span class="sv" id="sec1">—</span><span class="sv" id="sec2">—</span></div>
     <div id="ttBrand"><span class="f1m"><b>F1</b><i></i><i></i><i></i></span><span class="tv">TV</span><span class="ttLive">TIMING</span></div>
   </div>
+  <!-- marshal flags: what the post ahead of you is showing -->
+  <div id="flagBar"></div>
   <div id="mapWrap">
     <div id="mapName">SPA-FRANCORCHAMPS <span>· BELGIUM</span></div>
     <canvas id="minimap" width="230" height="230"></canvas>
@@ -2067,6 +2080,9 @@ FX2.setSpeed=function(v01,dt){
   u.uSpeed.value=damp(u.uSpeed.value,clamp(v01,0,1),3.0,dt||0.016);
 };
 if(DEBUG) window.__FX2=FX2;
+if(DEBUG) setTimeout(()=>{window.__FLAG=FLAG;window.__SC=SC;window.__STEW=STEW;
+  window.__throwYellow=throwYellow;window.__deployVSC=deployVSC;
+  window.__issuePenalty=issuePenalty;window.__updateFlagBar=updateFlagBar;},0);
 
 /* ==================================================================
    SCENES
@@ -13883,7 +13899,17 @@ function stepPhysics(dt,inp){
   if(inPitLane && CAR.v>PIT.limit){
     CAR.v=Math.max(PIT.limit, CAR.v-28*dt);
     CAR.limiterOn=true;
+    /* THE LIMITER CATCHES YOU, THE STEWARDS STILL NOTICE.
+       Clamping the speed is accurate — the limiter is not optional — but
+       arriving in the lane well over the limit and being dragged down to it is
+       exactly the offence that gets punished, so a big overspeed is a
+       drive-through rather than a free ride. */
+    if(CAR.v>PIT.limit*1.35 && (CAR.pitSpeedCool||0)<=0){
+      CAR.pitSpeedCool=8;
+      issuePenalty('drivethrough','SPEEDING IN THE PIT LANE');
+    }
   } else CAR.limiterOn=false;
+  if(CAR.pitSpeedCool>0) CAR.pitSpeedCool-=dt;
   /* ============================ WET GRIP ==================================
      A wet track is not a dry track that is harder work. It is a LOOSE one.
 
@@ -17187,7 +17213,7 @@ function startDrive(){
     SEASON.practiceKey=null;
   }
   try{ driveScene.userData.racingLine=null; syncRacingLine(); }catch(e){}
-  pitReset(); scReset(); PITSTOP.planComp=selCompound; PITSTOP.boxD=playerBoxD();
+  pitReset(); scReset(); flagReset(); stewReset(); PITSTOP.planComp=selCompound; PITSTOP.boxD=playerBoxD();
   // where the car has to come to rest: in the painted box, over toward the garage
   PITSTOP.boxPos=pitPos(PITSTOP.boxD,PIT.halfW-2.6);
   closeStrategy(); updatePitCue();
@@ -18496,11 +18522,148 @@ function stepPhoto(dt){
    strategy problem, which is the most interesting thing that can happen in a
    race that is otherwise a procession.
    ================================================================== */
-const SC={on:false, t:0, phase:'none', lapsLeft:0, cause:''};
-function scReset(){ SC.on=false; SC.t=0; SC.phase='none'; SC.cause=''; }
+const SC={on:false, t:0, phase:'none', lapsLeft:0, cause:'', vsc:false};
+function scReset(){ SC.on=false; SC.t=0; SC.phase='none'; SC.cause=''; SC.vsc=false; }
+
+/* ==================================================================
+   FLAGS AND PENALTIES
+   The circuit could throw a safety car and nothing else. A race is governed by
+   a lot more than that: a yellow over the sector where something is broken and
+   you may not overtake through it, blue flags telling a lapped car to move, and
+   a stewards' process that hands out real penalties rather than only adding
+   seconds at the flag.
+   ================================================================== */
+const FLAG={
+  sector:[0,0,0],      // 0 = green, 1 = yellow, 2 = double yellow, 3 = red
+  t:[0,0,0],           // seconds left on each
+  blue:false,          // shown TO the player: a faster car is coming to lap you
+  blueT:0,
+  red:false,
+};
+function flagReset(){ FLAG.sector=[0,0,0]; FLAG.t=[0,0,0]; FLAG.blue=false; FLAG.blueT=0; FLAG.red=false; }
+/* Which sector a point on the lap is in, from the circuit's own split points. */
+function sectorOfIdx(i){
+  const N=TRACK.N||1, s=(CFG.sectors||SECTORS[CFG.id]||[0.3333,0.6667]);
+  const f=(i%N)/N;
+  return f<s[0]?0:(f<s[1]?1:2);
+}
+function throwYellow(i,double,secs){
+  const s=sectorOfIdx(i);
+  FLAG.sector[s]=Math.max(FLAG.sector[s], double?2:1);
+  FLAG.t[s]=Math.max(FLAG.t[s], secs||18);
+}
+/* What the marshal post ahead of you is showing — the sector you are in, plus
+   any blue flag being waved at you. */
+function updateFlagBar(){
+  const el=$('#flagBar'); if(!el) return;
+  const out=[];
+  if(SC.on && SC.vsc) out.push('<span class="flagChip vsc">VIRTUAL SAFETY CAR</span>');
+  else if(SC.on) out.push('<span class="flagChip y">SAFETY CAR</span>');
+  const s=sectorOfIdx(CAR.trackIdx||0);
+  if(FLAG.sector[s]===2) out.push('<span class="flagChip yy">DOUBLE YELLOW · S'+(s+1)+'</span>');
+  else if(FLAG.sector[s]===1) out.push('<span class="flagChip y">YELLOW · S'+(s+1)+'</span>');
+  if(FLAG.blue) out.push('<span class="flagChip b">BLUE · LET THEM BY</span>');
+  const pend=STEW.queue.find(p=>p.kind!=='time5');
+  if(pend) out.push('<span class="flagChip r">'+(pend.kind==='stopgo'?'STOP-GO':'DRIVE-THROUGH')+' TO SERVE</span>');
+  const html=out.join('');
+  if(el._h!==html){ el.innerHTML=html; el._h=html; }
+}
+function stepFlags(dt){
+  for(let s=0;s<3;s++){
+    if(FLAG.t[s]>0){ FLAG.t[s]-=dt; if(FLAG.t[s]<=0){ FLAG.t[s]=0; FLAG.sector[s]=0; } }
+  }
+  if(FLAG.blueT>0){ FLAG.blueT-=dt; if(FLAG.blueT<=0) FLAG.blue=false; }
+  /* BLUE FLAGS. Shown to a car about to be lapped. In a race this short nobody
+     gets lapped often, but when it happens the car in front has to yield, and
+     the AI following code reads FLAG.blue on its own cars to decide to move. */
+  if(STATE==='drive' && AI.cars.length && TRACK.N){
+    const N=TRACK.N, pIdx=CAR.trackIdx||0, pLap=playerLapsDone();
+    let closing=null;
+    for(const c of AI.cars){
+      if(c.dnf) continue;
+      const lapDiff=(c.lap||0)-pLap;
+      if(lapDiff<1) continue;                 // only a car a full lap up
+      let d=(c.idx-pIdx); d=((d%N)+N)%N;      // how far behind us it is
+      const back=N-d;
+      if(back*(TRACK.len/N)<90){ closing=c; break; }
+    }
+    if(closing){ FLAG.blue=true; FLAG.blueT=3.0; }
+    /* And the same the other way: an AI a lap down with the player closing on
+       it gets a blue flag of its own, which its driving code reads. */
+    for(const c of AI.cars){
+      if(c.dnf) continue;
+      if(pLap-(c.lap||0)<1) continue;
+      let d=(pIdx-c.idx); d=((d%N)+N)%N;
+      const back=N-d;
+      if(back*(TRACK.len/N)<80){ c.blueT=2.5; c.blueSide=(CAR.trackIdx%2)?1:-1; }
+    }
+  }
+}
+/* ---- the stewards ----------------------------------------------------------
+   A penalty is not always five seconds at the end. The three that matter here:
+   a time penalty added to your race, a drive-through (you come down the lane at
+   the limit and do not stop), and a stop-go (the same but you sit for ten
+   seconds). Serving one is a real cost, which is what makes causing a collision
+   something you think about. */
+const STEW={queue:[], serving:null, servedT:0, msgT:0};
+function stewReset(){ STEW.queue.length=0; STEW.serving=null; STEW.servedT=0; }
+function issuePenalty(kind,reason){
+  /* Practice and qualifying have their own consequences (a deleted lap); the
+     stewards' penalties belong to a race. */
+  if(!isRace()) return;
+  STEW.queue.push({kind,reason});
+  const tl=$('#tlWarn');
+  const label = kind==='time5'?'+5s PENALTY'
+              : kind==='drivethrough'?'DRIVE-THROUGH PENALTY'
+              : kind==='stopgo'?'10s STOP-GO PENALTY':'PENALTY';
+  if(tl){ tl.textContent=`${label} · ${reason}`;
+    tl.style.color='#ff5b5b'; tl.classList.add('on');
+    clearTimeout(CAR._tlT); CAR._tlT=setTimeout(()=>tl.classList.remove('on'),3600); }
+  if(kind==='time5') CAR.penalty=(CAR.penalty||0)+5;
+  Radio.say('engineer','penalty',{cool:0});
+}
+/* A queued drive-through or stop-go is discharged by coming through the pit
+   lane — at the limit for a drive-through, stationary for ten for a stop-go. */
+function stepStewards(dt){
+  if(!isRace()) return;
+  const pending=STEW.queue.find(p=>p.kind!=='time5');
+  if(!pending) return;
+  if(!CAR.inPit){ STEW.servedT=0; return; }
+  if(pending.kind==='drivethrough'){
+    // simply being in the lane, under the limit, and not stopping serves it
+    if(Math.abs(CAR.v)>3){
+      STEW.servedT+=dt;
+      if(STEW.servedT>3.0){ dischargePenalty(pending,'DRIVE-THROUGH SERVED'); }
+    }
+  }else if(pending.kind==='stopgo'){
+    if(Math.abs(CAR.v)<0.6){
+      STEW.servedT+=dt;
+      if(STEW.servedT>=10){ dischargePenalty(pending,'STOP-GO SERVED'); }
+    }
+  }
+}
+function dischargePenalty(p,msg){
+  const i=STEW.queue.indexOf(p); if(i>=0) STEW.queue.splice(i,1);
+  STEW.servedT=0;
+  const tl=$('#tlWarn');
+  if(tl){ tl.textContent=msg; tl.style.color='#4be08a'; tl.classList.add('on');
+    clearTimeout(CAR._tlT); CAR._tlT=setTimeout(()=>tl.classList.remove('on'),2600); }
+}
+/* A VIRTUAL safety car: no car on track, everyone just has to slow down. Used
+   for the incidents that need the field neutralised but not bunched up, which
+   is most of them — a full safety car for every spin is what makes a race feel
+   like it is being managed rather than raced. */
+function deployVSC(cause){
+  if(SC.on||STATE!=='drive') return;
+  SC.on=true; SC.vsc=true; SC.phase='deployed'; SC.t=0; SC.cause=cause||'INCIDENT';
+  const tl=$('#tlWarn');
+  if(tl){ tl.textContent='VIRTUAL SAFETY CAR · '+SC.cause; tl.style.color='#f5d000';
+    tl.classList.add('on'); clearTimeout(CAR._tlT);
+    CAR._tlT=setTimeout(()=>tl.classList.remove('on'),3200); }
+}
 function deploySafetyCar(cause){
   if(SC.on||STATE!=='drive') return;
-  SC.on=true; SC.phase='deployed'; SC.t=0; SC.cause=cause||'INCIDENT';
+  SC.on=true; SC.vsc=false; SC.phase='deployed'; SC.t=0; SC.cause=cause||'INCIDENT';
   Radio.say('engineer','damage',{cool:0});
   setTimeout(()=>Radio.say('commentator','off',{cool:0}),500);
   Sound.blip&&Sound.blip(300,.3);
@@ -18918,7 +19081,11 @@ function stepAI(dt){
        commit   → pull out to the chosen side (tow lost)
        alongside→ draw level, slowly, on your own air
        done     → past; hold the line and pull clear                        */
-    const canTry = aheadCar && closeAhead<40 && !launching && !SC.on;
+    /* YOU DO NOT OVERTAKE UNDER A YELLOW. The flag exists to protect whoever is
+       stopped at the side of the road, and a field that races through it makes
+       the flag decoration. */
+    const yellowHere = FLAG.sector[sectorOfIdx(c.idx)]>0;
+    const canTry = aheadCar && closeAhead<40 && !launching && !SC.on && !yellowHere;
     if(!canTry){ c.phase='clear'; c.atk=0; c.atkSide=0; }
     else if(c.phase==='clear'){ c.phase='stalk'; c.stalk=0; }
     if(c.phase==='stalk'){
@@ -19053,7 +19220,14 @@ function stepAI(dt){
        Math.random()<0.000012*(1+(c.lap||0)*0.10)*(c.damage>0.4?2.2:1)){
       c.dnf=true; c.dnfLap=c.lap;
       c.spinT=1.4; c.spinDir=Math.random()<0.5?-1:1;
-      if(Math.random()<0.5) deploySafetyCar('CAR '+(c.name||'').split(' ').pop().toUpperCase());
+      /* A SPIN IS A YELLOW, ALWAYS — and only sometimes more than that. A full
+         safety car for every spin neutralises the race constantly; a local
+         yellow over the sector, escalating to a virtual safety car and only
+         occasionally to the real one, is how it actually goes. */
+      throwYellow(c.idx,true,16);
+      const r=Math.random();
+      if(r<0.18) deploySafetyCar('CAR '+(c.name||'').split(' ').pop().toUpperCase());
+      else if(r<0.45) deployVSC('CAR '+(c.name||'').split(' ').pop().toUpperCase());
     }
     if(c.dnf){ c.v=Math.max(0,c.v-24*dt); }
     c.spinT=Math.max(0,(c.spinT||0)-dt);
@@ -19064,7 +19238,10 @@ function stepAI(dt){
       // consistent drivers almost never do this; it is rare on purpose
       if(Math.random() < 0.012*loading*(2-c.consist)){
         // a big one brings out the safety car
-        if(Math.random()<0.45) deploySafetyCar(c.name?('CAR '+c.name.split(' ').pop().toUpperCase()):'INCIDENT');
+        throwYellow(c.idx,true,20);
+        { const r2=Math.random();
+          if(r2<0.22) deploySafetyCar(c.name?('CAR '+c.name.split(' ').pop().toUpperCase()):'INCIDENT');
+          else if(r2<0.55) deployVSC(c.name?('CAR '+c.name.split(' ').pop().toUpperCase()):'INCIDENT'); }
         c.spinT=2.2+Math.random()*2.4;
         c.spinYaw=0; c.spinDir=Math.random()<0.5?-1:1;
         c.spinLat=c.lat; c.spinV=c.v;
@@ -19075,8 +19252,24 @@ function stepAI(dt){
     /* Behind the safety car nobody races. The whole field runs to a delta and
        closes right up, which is what wipes out the gaps. */
     if(SC.on){
-      desired=Math.min(desired, SC.phase==='ending'?34:24);
-      c.phase='clear'; c.atk=0; c.atkSide=0;      // no moves under yellow
+      /* A VIRTUAL safety car does not bunch the field up — everyone runs to a
+         delta, so the gaps are held and the cars keep circulating at a decent
+         clip. A real one brings them right down and closes them together. That
+         difference is the whole reason both exist. */
+      desired=Math.min(desired, SC.vsc ? 44 : (SC.phase==='ending'?34:24));
+      c.phase='clear'; c.atk=0; c.atkSide=0;      // no moves under either
+    }
+    /* LOCAL YELLOWS. Slow down for the sector that has the incident in it, and
+       only that sector — the rest of the lap is still green. */
+    if(!SC.on && FLAG.sector[sectorOfIdx(c.idx)]>0){
+      desired=Math.min(desired, FLAG.sector[sectorOfIdx(c.idx)]===2?38:52);
+      c.phase='clear'; c.atk=0; c.atkSide=0;
+    }
+    /* BLUE FLAGS. A car about to be lapped pulls off the line and lifts. */
+    if(c.blueT>0){
+      c.blueT-=dt;
+      desired*=0.90;
+      c.dodge=damp(c.dodge,(HW-1.6)*(c.blueSide||1),2.4,dt);
     }
     /* A CAR THAT IS SPINNING IS NOT DRIVING.
        While the spin lasts the driver is a passenger: the car scrubs speed hard,
@@ -19573,12 +19766,11 @@ function stepAI(dt){
           if(!behind.ai && sevr>0.35 && (CAR.contactCool||0)<=0){
             CAR.contactCool=3.0;
             CAR.contacts=(CAR.contacts||0)+1;
-            CAR.penalty=(CAR.penalty||0)+5;
-            const tl=$('#tlWarn');
-            if(tl){ tl.textContent='+5s PENALTY · CAUSING A COLLISION';
-              tl.style.color='#ff5b5b'; tl.classList.add('on');
-              clearTimeout(CAR._tlT); CAR._tlT=setTimeout(()=>tl.classList.remove('on'),3200); }
-            if(typeof radio==='function') radio('engineer','penalty');
+            /* Repeat offenders escalate. One shunt is five seconds; keep doing
+               it and the stewards stop being polite about it. */
+            issuePenalty(CAR.contacts>=3?'drivethrough':'time5','CAUSING A COLLISION');
+            // a heavy shunt brings out a local yellow over that stretch
+            if(sevr>0.7) throwYellow(CAR.trackIdx||0,false,14);
           } }
       }
       // rubber and smoke off the contact point, so you SEE it happen
@@ -19691,9 +19883,12 @@ function frame(){
     // practice and qualifying run to a clock, not a lap count
     if(SESS.on){ sessUpdate(); if(!SESS.on) return; gtabSample(); gtabUpdate(); }
     stepSafetyCar(dt);
+    stepFlags(dt);
+    stepStewards(dt);
     stepAI(dt);
     updateBattle(dt);
     updateHUD(inp,r,dt);
+    updateFlagBar();
     replayRecord(dt);
     const rb=$('#replayBadge'); if(rb)rb.classList.toggle('on',REPLAY.laps.length>0);
     updateWeather(driveScene,dt);                       // sun moves, fronts roll through
@@ -19795,7 +19990,17 @@ function updateHUD(inp,r,dt){
         if(tl){tl.textContent=`TRACK LIMITS · WARNING ${n}/3`;tl.style.color='#ffcf6a';
           tl.classList.add('on');clearTimeout(tl._h);tl._h=setTimeout(()=>tl.classList.remove('on'),1700);}
       }else{
-        CAR.penalty=(CAR.penalty||0)+5; CAR.limits=0;
+        /* IN QUALIFYING A LAP IS DELETED, NOT PENALISED. Adding five seconds to
+           a qualifying lap means nothing — the lap simply does not count, which
+           is both the real rule and the one that actually stings. */
+        if(sessionMode==='quali'||sessionMode==='practice'){
+          lap.deleted=true; CAR.limits=0;
+          const tl2=$('#tlWarn');
+          if(tl2){ tl2.textContent='LAP DELETED · TRACK LIMITS'; tl2.style.color='#ff5b5b';
+            tl2.classList.add('on'); clearTimeout(CAR._tlT);
+            CAR._tlT=setTimeout(()=>tl2.classList.remove('on'),3000); }
+        } else { CAR.penalty=(CAR.penalty||0)+5; }
+        CAR.limits=0;
         if(tl){tl.textContent='+5s PENALTY · TRACK LIMITS';tl.style.color='#ff5b5b';
           tl.classList.add('on');clearTimeout(tl._h);tl._h=setTimeout(()=>tl.classList.remove('on'),2400);}
       }
