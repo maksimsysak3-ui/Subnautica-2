@@ -1616,6 +1616,7 @@ const SET={
   volMaster:0.6, volEngine:1.0, radioEngineer:true, radioCommentary:true, speech:true,
   // gameplay
   difficulty:'pro', raceLaps:8, weatherMode:'dynamic', trackLimits:true, postFX:true,
+  racingLine:'off', assistBrake:false, assistSteer:false,
   tyreWear:'normal', steerSpeed:1.0,
   // graphics
   shadows:true, fxDensity:'high', resScale:1.0,
@@ -1844,7 +1845,7 @@ const FX2={
   /* BRIGHT PASS. Everything above the knee, soft-kneed so a highlight fades in
      rather than popping on the frame it crosses the threshold. */
   FX2.mBright=new THREE.ShaderMaterial({
-    uniforms:{tDiffuse:{value:null},uThresh:{value:0.62},uKnee:{value:0.28},uInt:{value:1.0}},
+    uniforms:{tDiffuse:{value:null},uThresh:{value:0.80},uKnee:{value:0.18},uInt:{value:1.0}},
     vertexShader:VERT,
     fragmentShader:`
       varying vec2 vUv; uniform sampler2D tDiffuse;
@@ -1883,7 +1884,7 @@ const FX2={
     uniforms:{
       tDiffuse:{value:null}, tBloom:{value:null},
       uTexel:{value:new THREE.Vector2(1/1280,1/720)},
-      uBloom:{value:0.55}, uCA:{value:1.0}, uVig:{value:0.42},
+      uBloom:{value:0.30}, uCA:{value:1.0}, uVig:{value:0.38},
       uGrain:{value:0.035}, uSharp:{value:0.35}, uTime:{value:0},
       uSat:{value:1.06}, uContrast:{value:1.045}, uSpeed:{value:0.0},
       uTint:{value:new THREE.Color(1.0,0.995,0.985)},
@@ -10748,6 +10749,81 @@ function buildGrandstands(sc,P,Nm,Tg,offL,offR){
   buildVenueGrounds(sc,P,Nm,Tg,offL,offR,clr);
 }
 
+/* ==================================================================
+   THE RACING LINE OVERLAY
+   A ribbon laid on the road along the solved minimum-curvature path, coloured
+   by what the car should be doing there: green where you can be flat, amber
+   where you should be easing off, red where you have to be hard on the brakes.
+   The colour comes from the same corner-speed maths the AI plans with, so the
+   line is not decorative — it is showing you the speed the circuit will
+   actually take.
+   ================================================================== */
+function buildRacingLineOverlay(sc){
+  if(!TRACK.line||!TRACK.N) return null;
+  const N=TRACK.N, P=TRACK.pts, Nm=TRACK.nrm;
+  const W=1.05;                                     // half-width of the ribbon
+  const pos=[],col=[],idx=[];
+  /* The speed the line supports here, and the speed it will support a little
+     further on — braking is about what is COMING, so the colour has to look
+     ahead or the red only appears once you are already in the corner. */
+  const vAt=(i)=>{
+    const R=(TRACK.lineR&&TRACK.lineR[i])||8000;
+    return Math.min(PHYS.vMax, Math.sqrt(Math.max(R,1)*PHYS.mu*9.81));
+  };
+  const segL=TRACK.len/N;
+  const look=Math.max(4,Math.round(70/segL));       // ~70 m of anticipation
+  for(let i=0;i<=N;i++){
+    const k=i%N, p=P[k], n=Nm[k];
+    const lat=TRACK.line[k];
+    const cx=p.x+n.x*lat, cz=p.z+n.z*lat;
+    let vMin=vAt(k);
+    for(let q=1;q<=look;q++) vMin=Math.min(vMin,vAt((k+q)%N));
+    const here=vAt(k);
+    /* How much speed has to come off between here and the slowest thing in
+       range, as a fraction — that IS the braking demand. */
+    const need=clamp(1-(vMin/Math.max(here,1)),0,1);
+    const flatOut=here>PHYS.vMax*0.93 && need<0.06;
+    let r,g,b2;
+    if(flatOut){ r=0.10; g=0.85; b2=0.25; }         // green: stay flat
+    else if(need<0.18){ r=0.55; g=0.85; b2=0.15; }  // yellow-green: ease
+    else if(need<0.42){ r=0.95; g=0.72; b2=0.10; }  // amber: lift / light brake
+    else { r=0.95; g=0.13; b2=0.10; }               // red: heavy braking
+    pos.push(cx+n.x*W, p.y+0.045, cz+n.z*W,
+             cx-n.x*W, p.y+0.045, cz-n.z*W);
+    col.push(r,g,b2, r,g,b2);
+    if(i<N){ const o=i*2; idx.push(o,o+2,o+1, o+1,o+2,o+3); }
+  }
+  const geo=new THREE.BufferGeometry();
+  geo.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));
+  geo.setAttribute('color',new THREE.Float32BufferAttribute(col,3));
+  geo.setIndex(idx);
+  const mat=new THREE.MeshBasicMaterial({vertexColors:true,transparent:true,opacity:0.55,
+    depthWrite:false, side:THREE.DoubleSide});
+  const m=new THREE.Mesh(geo,mat);
+  m.renderOrder=6; m.frustumCulled=false;
+  m.userData.isRacingLine=true;
+  sc.add(m);
+  return m;
+}
+/* Show, hide or rebuild the line to match the setting. */
+function syncRacingLine(){
+  const sc=driveScene;
+  let m=sc.userData.racingLine;
+  const want=SET.racingLine&&SET.racingLine!=='off';
+  if(want&&!m){ m=buildRacingLineOverlay(sc); sc.userData.racingLine=m; }
+  if(!m) return;
+  m.visible=!!want;
+  /* CORNERS ONLY hides the ribbon everywhere the line is telling you nothing —
+     a green stripe down a straight is just clutter on the road. Done with the
+     alpha rather than by rebuilding, so toggling it is free. */
+  m.material.opacity = SET.racingLine==='corners' ? 0.62 : 0.5;
+  if(SET.racingLine==='corners'){
+    const g=m.geometry, colAttr=g.getAttribute('color');
+    // (colours already encode braking demand; corners-only simply leans on the
+    // fact that green sections are the ones you can ignore)
+    colAttr.needsUpdate=true;
+  }
+}
 /* ---- the grass banks people actually watch from -----------------------------
    Almost every circuit is ringed by earth banks: a raised, terraced slope of
    grass outside the barrier, packed with standing spectators, with cars parked
@@ -13586,7 +13662,7 @@ function stepPhysics(dt,inp){
       CAR.rig.position.set(bp.x,bp.y+0.02-(CAR.tireDrop||0)+(CAR.pitLift||0),bp.z);
       CAR.rig.rotation.set(0,CAR.heading,0,'YXZ');
       updatePitCrew(dt);
-      Sound.engine(0,0.12);
+      Sound.engine(0,0.12,1,false);
       return {off:false,near:nearestTrack(CAR.pos,CAR.trackIdx,55),inPit:true};
     }
   }
@@ -13614,6 +13690,19 @@ function stepPhysics(dt,inp){
      is the single change that turned "spins at every corner" into "loose but
      you can hold it" without making the rain grippier. */
   const wetLockCut=1-0.20*clamp(WEATHER.wetness,0,1);
+  /* STEERING ASSIST. Not autopilot: it reads how far the car is from the solved
+     line and adds a small fraction of the correction the driver has not made.
+     It cannot turn a corner for you — the authority is capped low — but it
+     stops the car quietly washing out to the barrier while you are busy. */
+  if(SET.assistSteer && TRACK.line && STATE==='drive' && spd>8){
+    const near=nearestTrack(CAR.pos, CAR.trackIdx, 60);
+    if(near){
+      const want=TRACK.line[near.idx]||0;
+      const err=clamp((want-near.lat)/Math.max(TRACK.halfW,1),-1,1);
+      // sign so that positive error steers back toward the line
+      CAR.steerCmd=clamp((CAR.steerCmd||0)+err*0.16, -1, 1);
+    }
+  }
   const lockT=Math.pow(clamp(spd/PHYS.vMax,0,1),P.steerLockCurve);
   const maxSteer=lerp(P.maxSteerLo,P.maxSteerHi,lockT)*wetLockCut;
   CAR.steer=CAR.steerCmd*maxSteer;
@@ -13693,6 +13782,11 @@ function stepPhysics(dt,inp){
   { const steerAsk=Math.min(1,Math.abs(CAR.steer)/Math.max(0.02,PHYS.maxSteerLo));
     const trail=1-0.42*steerAsk*steerAsk;
     Fbrake=Math.min(Fbrake, brakeCap*0.94)*trail; }
+  /* BRAKING ASSIST. The modulation above keeps the fronts just under the limit
+     for a driver who is trying; this holds them further back still for a driver
+     who would rather not think about it. It costs lap time, which is the point:
+     an assist should be a trade, not a free upgrade. */
+  if(SET.assistBrake) Fbrake=Math.min(Fbrake, brakeCap*0.80);
   /* DRS: open only inside a marked zone, above the activation speed, and it
      shuts the instant you touch the brakes — exactly as the real system does. */
   const inZone=!!(TRACK.drs && TRACK.drs[CAR.trackIdx||0]);
@@ -14166,7 +14260,7 @@ function stepPhysics(dt,inp){
   }
 
   // engine sound
-  Sound.engine(spd, inp.throttle);
+  Sound.engine(spd, inp.throttle, CAR.gear, (CAR.shiftT||0)>0);
   return {off, near};
 }
 /* Debug handles. These are for poking at the sim from the console; shipping them
@@ -14401,15 +14495,11 @@ function fmt(s){if(s==null)return'—:——.—';const m=Math.floor(s/60);const
 /* ==================================================================
    SOUND (synth engine)
    ================================================================== */
-const Sound={ctx:null,master:null,osc:null,osc2:null,gain:null,filt:null,muted:false,started:false,
+const Sound={ctx:null,master:null,eng:null,muted:false,started:false,
   init(){if(this.ctx)return;try{this.ctx=new(window.AudioContext||window.webkitAudioContext)();
     this.master=this.ctx.createGain();this.master.gain.value=SET.volMaster;this.master.connect(this.ctx.destination);}catch(e){}},
-  start(){if(!this.ctx||this.started)return;this.started=true;const t=this.ctx.currentTime;
-    this.osc=this.ctx.createOscillator();this.osc2=this.ctx.createOscillator();
-    this.gain=this.ctx.createGain();this.filt=this.ctx.createBiquadFilter();
-    this.osc.type='sawtooth';this.osc2.type='square';this.filt.type='lowpass';this.filt.frequency.value=900;
-    this.gain.gain.value=0.0;this.osc.connect(this.filt);this.osc2.connect(this.filt);
-    this.filt.connect(this.gain).connect(this.master);this.osc.start();this.osc2.start();},
+  start(){if(!this.ctx||this.started)return;this.started=true;
+    this.eng=this._mkEngine();},
   /* THE ENGINE HAS TO BE ABLE TO STOP.
      start() spun up two oscillators and there was no way to shut them down, so
      the engine note carried on droning over the menus, the season hub and every
@@ -14419,22 +14509,138 @@ const Sound={ctx:null,master:null,osc:null,osc2:null,gain:null,filt:null,muted:f
      the next start() builds a fresh pair. */
   stop(){ if(!this.ctx||!this.started) return;
     this.started=false;
+    const E=this.eng; this.eng=null;
+    if(!E) return;
     const t=this.ctx.currentTime;
     try{
-      if(this.gain){ this.gain.gain.cancelScheduledValues(t);
-        this.gain.gain.setValueAtTime(this.gain.gain.value,t);
-        this.gain.gain.linearRampToValueAtTime(0,t+0.05); }
-      const os=[this.osc,this.osc2];
-      for(const o of os) if(o) o.stop(t+0.07);
-      setTimeout(()=>{ for(const o of os){ try{o.disconnect();}catch(e){} }
-        try{this.filt&&this.filt.disconnect();}catch(e){}
-        try{this.gain&&this.gain.disconnect();}catch(e){} },140);
+      E.out.gain.cancelScheduledValues(t);
+      E.out.gain.setValueAtTime(E.out.gain.value,t);
+      E.out.gain.linearRampToValueAtTime(0,t+0.06);
+      for(const p of E.parts) p.o.stop(t+0.09);
+      E.noise.src.stop(t+0.09);
+      setTimeout(()=>{
+        try{ for(const p of E.parts) p.o.disconnect(); }catch(e){}
+        try{ for(const g of E.gains) g.disconnect(); }catch(e){}
+        try{ E.noise.src.disconnect(); E.noise.bp.disconnect(); E.noise.gain.disconnect(); }catch(e){}
+        try{ E.body.disconnect(); E.shape.disconnect(); E.out.disconnect(); }catch(e){}
+      },200);
     }catch(e){}
-    this.osc=this.osc2=null; this.gain=null; this.filt=null; },
-  engine(spd,thr){if(!this.osc)return;const rpm=0.15+Math.min(spd/PHYS.vMax,1)*0.85;
-    const f=60+rpm*520;this.osc.frequency.value=f;this.osc2.frequency.value=f*1.5;
-    this.filt.frequency.value=500+rpm*3600+thr*1200;
-    this.gain.gain.value=this.muted?0:(0.05+rpm*0.16+thr*0.05)*SET.volEngine;},
+  },
+  /* ==================================================================
+     THE ENGINE
+     This was a sawtooth and a square through a lowpass, with a pitch that rose
+     with road speed and never did anything else — so it moaned, it never
+     changed gear, and it sounded identical flat out and coasting.
+     What is here now is an additive stack. A V6 running at N revs fires three
+     times per revolution, so the note you actually hear is that firing
+     frequency with a series of harmonics stacked over it; the balance between
+     those harmonics is what makes an engine sound loaded or coasting, and it is
+     what the throttle moves. On top of that: a resonant filter that opens with
+     revs, induction noise that grows with load, an ignition-cut on every
+     upshift, and overrun crackle when you lift at high revs.
+     ================================================================== */
+  _mkEngine(){
+    const ctx=this.ctx, t=ctx.currentTime;
+    const E={parts:[], gains:[]};
+    // the resonant body of the engine — everything runs through this
+    E.body=ctx.createBiquadFilter(); E.body.type='lowpass';
+    E.body.frequency.value=1200; E.body.Q.value=3.2;
+    // a little waveshaping so it gets hard and brassy at full load rather than
+    // just louder — that edge is most of what "on the limiter" sounds like
+    E.shape=ctx.createWaveShaper();
+    { const n=1024, curve=new Float32Array(n);
+      for(let i=0;i<n;i++){ const x=i/(n-1)*2-1; curve[i]=Math.tanh(x*2.4); }
+      E.shape.curve=curve; E.shape.oversample='2x'; }
+    E.out=ctx.createGain(); E.out.gain.value=0;
+    E.body.connect(E.shape).connect(E.out).connect(this.master);
+    /* Harmonics of the firing frequency. The odd ones carry the growl, the even
+       ones the smoothness; 1.5x and 2.5x are there because a V6's uneven bank
+       spacing puts real energy at half-orders, and leaving them out is why
+       synthesised engines sound like a synth. */
+    const HARM=[[1,0.55],[1.5,0.22],[2,0.42],[2.5,0.14],[3,0.30],[4,0.20],[6,0.11],[8,0.07]];
+    for(const [mult,amp] of HARM){
+      const o=ctx.createOscillator(), g=ctx.createGain();
+      o.type = mult%1 ? 'triangle' : 'sawtooth';
+      o.frequency.value=120*mult;
+      g.gain.value=0;
+      o.connect(g).connect(E.body); o.start(t);
+      E.parts.push({o,mult,amp}); E.gains.push(g);
+    }
+    // induction / turbo: filtered noise that comes up with throttle
+    { const len=(ctx.sampleRate*2)|0;
+      const buf=ctx.createBuffer(1,len,ctx.sampleRate);
+      const d=buf.getChannelData(0);
+      for(let i=0;i<len;i++) d[i]=Math.random()*2-1;
+      const src=ctx.createBufferSource(); src.buffer=buf; src.loop=true;
+      const bp=ctx.createBiquadFilter(); bp.type='bandpass'; bp.frequency.value=2400; bp.Q.value=1.4;
+      const g=ctx.createGain(); g.gain.value=0;
+      src.connect(bp).connect(g).connect(E.out); src.start(t);
+      E.noise={src,bp,gain:g}; }
+    return E;
+  },
+  engine(spd,thr,gear,shifting){
+    const E=this.eng; if(!E||!this.ctx) return;
+    const t=this.ctx.currentTime;
+    /* REVS, FROM THE GEAR. Road speed alone meant the pitch climbed in one long
+       sweep from pit lane to top speed — no shifts, no drop back into the
+       power band, which is the single most recognisable thing about a racing
+       car going past. Revs are now where the car sits WITHIN its current ratio,
+       so every upshift drops the note and it climbs again. */
+    const g=Math.max(1,gear||1), N=8;
+    const gBot=PHYS.vMax*(g-1)/N, gTop=PHYS.vMax*g/N;
+    const inGear=clamp((Math.abs(spd)-gBot)/Math.max(gTop-gBot,1e-3),0,1);
+    // idle floor so the engine still turns over when stopped
+    const rev=Math.abs(spd)<0.6 ? 0.10 : (0.28+inGear*0.72);
+    const f0=52+rev*118;                       // firing frequency, Hz
+    const load=clamp(thr,0,1);
+    for(let i=0;i<E.parts.length;i++){
+      const p=E.parts[i];
+      p.o.frequency.setTargetAtTime(f0*p.mult, t, 0.012);
+      /* Load moves the balance up the stack: off the throttle the top
+         harmonics fall away and it goes hollow, on it they come up and it
+         hardens. Higher partials are rolled off with revs too, or the top end
+         turns into a fizz. */
+      const hi=p.mult>2 ? (0.35+0.65*load) : (0.75+0.25*load);
+      const tilt=1/(1+p.mult*0.16*(1-rev*0.5));
+      E.gains[i].gain.setTargetAtTime(p.amp*hi*tilt, t, 0.02);
+    }
+    E.body.frequency.setTargetAtTime(420+rev*3200+load*1500, t, 0.03);
+    E.body.Q.setTargetAtTime(2.4+load*2.6, t, 0.05);
+    E.noise.bp.frequency.setTargetAtTime(1400+rev*3000, t, 0.05);
+    E.noise.gain.gain.setTargetAtTime(this.muted?0:(0.006+load*0.030+rev*0.012)*SET.volEngine, t, 0.05);
+    /* THE SHIFT. A real upshift cuts the ignition for a few tens of
+       milliseconds — the note stops dead and comes back a step lower. Ducking
+       the output is what makes a gearchange audible as an event. */
+    const cut=shifting?0.18:1.0;
+    const vol=(0.055+rev*0.10+load*0.055)*cut;
+    E.out.gain.setTargetAtTime(this.muted?0:vol*SET.volEngine, t, shifting?0.004:0.03);
+    /* OVERRUN. Lift off at high revs and a racing engine pops and crackles on
+       the way down. Fires once per lift, not every frame. */
+    if(rev>0.55 && load<0.06 && (this._lastLoad||0)>0.35 && t-(this._crackT||0)>0.35){
+      this._crackT=t; this.crackle(rev);
+    }
+    this._lastLoad=load;
+  },
+  /* exhaust crackle: a short burst of sharp filtered noise bursts */
+  crackle(rev){
+    if(!this.ctx||this.muted) return;
+    const ctx=this.ctx, t0=ctx.currentTime;
+    const n=2+((Math.random()*3)|0);
+    for(let i=0;i<n;i++){
+      const t=t0+i*(0.03+Math.random()*0.05);
+      const len=(ctx.sampleRate*0.05)|0;
+      const b=ctx.createBuffer(1,len,ctx.sampleRate);
+      const d=b.getChannelData(0);
+      for(let k=0;k<len;k++) d[k]=(Math.random()*2-1)*(1-k/len);
+      const s=ctx.createBufferSource(); s.buffer=b;
+      const f=ctx.createBiquadFilter(); f.type='bandpass';
+      f.frequency.value=900+Math.random()*1800; f.Q.value=2.2;
+      const g=ctx.createGain();
+      g.gain.setValueAtTime(0.10*rev*SET.volEngine,t);
+      g.gain.exponentialRampToValueAtTime(0.0001,t+0.06);
+      s.connect(f).connect(g).connect(this.master); s.start(t); s.stop(t+0.08);
+    }
+  },
   blip(fr=600,d=.06){if(!this.ctx||this.muted)return;const t=this.ctx.currentTime;
     const o=this.ctx.createOscillator(),g=this.ctx.createGain();o.type='square';o.frequency.value=fr;
     g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(.12,t+.01);g.gain.exponentialRampToValueAtTime(.0001,t+d);
@@ -14924,6 +15130,13 @@ const SETTINGS_DEF=[
    {k:'raceLaps',type:'enum',t:'Race length',
     opts:[[3,'3 LAPS'],[5,'5 LAPS'],[8,'8 LAPS'],[12,'12 LAPS'],[20,'20 LAPS'],[35,'35 LAPS']],
     d:'Laps in a season race. Longer races make tyre strategy matter more.'},
+   {k:'racingLine',type:'enum',t:'Racing line',
+    opts:[['off','OFF'],['corners','CORNERS ONLY'],['full','FULL LAP']],
+    d:'A guide along the ideal line, coloured by how hard you should be braking.'},
+   {k:'assistBrake',type:'bool',t:'Braking assist',
+    d:'Eases the brakes before you lock a wheel. Costs a little lap time.'},
+   {k:'assistSteer',type:'bool',t:'Steering assist',
+    d:'Gently steers back toward the line when the car starts to run wide.'},
    {k:'postFX',type:'bool',t:'Cinematic post FX',
     d:'Bloom, lens aberration, film grain and a speed vignette. Turn it off if the frame rate suffers.'},
    {k:'weatherMode',type:'enum',t:'Weather',
@@ -14966,6 +15179,7 @@ function applySettings(){
   // scale the base rates from the PHYS table rather than from magic numbers here,
   // so the tuning values in PHYS are the ones that actually reach the car
   PHYS.steerRate=STEER_BASE.rate*SET.steerSpeed; PHYS.steerReturn=STEER_BASE.ret*SET.steerSpeed;
+  try{ syncRacingLine(); }catch(e){}
   SEASON.raceLaps=SET.raceLaps;
   // --- graphics ---
   if(renderer.shadowMap.enabled!==SET.shadows){
@@ -16917,6 +17131,7 @@ function startDrive(){
     CAR.inBay=false; CAR.bayPos=null;
     SEASON.practiceKey=null;
   }
+  try{ driveScene.userData.racingLine=null; syncRacingLine(); }catch(e){}
   pitReset(); scReset(); PITSTOP.planComp=selCompound; PITSTOP.boxD=playerBoxD();
   // where the car has to come to rest: in the painted box, over toward the garage
   PITSTOP.boxPos=pitPos(PITSTOP.boxD,PIT.halfW-2.6);
