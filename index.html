@@ -14465,6 +14465,14 @@ function stepPhysics(dt,inp){
 
   // engine sound
   Sound.engine(spd, inp.throttle, CAR.gear, (CAR.shiftT||0)>0);
+  /* The world around the car. Slip is how far the tyres are from gripping —
+     the same quantity the smoke and the marks are driven from — so the scrub
+     comes in exactly when the car is actually sliding. */
+  { const slipS=clamp(Math.abs(CAR.vLat)/7,0,1)+ (CAR.lock||0)*0.6 + (CAR.spin||0)*0.8;
+    const kerb=!!CAR.kerbKick && Math.abs(CAR.kerbKick)>0.02;
+    // the crowd is loudest where the grandstands are, which is near the line
+    const nearLine=1-clamp(Math.abs(((CAR.trackIdx||0)/(TRACK.N||1))-0.0)*4,0,1);
+    Sound.world(spd, slipS, kerb, nearLine*0.9); }
   return {off, near};
 }
 /* Debug handles. These are for poking at the sim from the console; shipping them
@@ -14705,7 +14713,8 @@ const Sound={ctx:null,master:null,eng:null,muted:false,started:false,
   init(){if(this.ctx)return;try{this.ctx=new(window.AudioContext||window.webkitAudioContext)();
     this.master=this.ctx.createGain();this.master.gain.value=SET.volMaster;this.master.connect(this.ctx.destination);}catch(e){}},
   start(){if(!this.ctx||this.started)return;this.started=true;
-    this.eng=this._mkEngine();},
+    this.eng=this._mkEngine();
+    this.amb=this._mkAmbience();},
   /* THE ENGINE HAS TO BE ABLE TO STOP.
      start() spun up two oscillators and there was no way to shut them down, so
      the engine note carried on droning over the menus, the season hub and every
@@ -14716,6 +14725,14 @@ const Sound={ctx:null,master:null,eng:null,muted:false,started:false,
   stop(){ if(!this.ctx||!this.started) return;
     this.started=false;
     const E=this.eng; this.eng=null;
+    const A=this.amb; this.amb=null;
+    if(A){ const t0=this.ctx.currentTime;
+      for(const k of ['wind','scrub','crowd']) if(A[k]){
+        try{ A[k].g.gain.cancelScheduledValues(t0);
+          A[k].g.gain.setValueAtTime(A[k].g.gain.value,t0);
+          A[k].g.gain.linearRampToValueAtTime(0,t0+0.08);
+          A[k].s.stop(t0+0.12); }catch(e){}
+      } }
     if(!E) return;
     const t=this.ctx.currentTime;
     try{
@@ -14826,6 +14843,65 @@ const Sound={ctx:null,master:null,eng:null,muted:false,started:false,
       this._crackT=t; this.crackle(rev);
     }
     this._lastLoad=load;
+  },
+  /* ==================================================================
+     THE WORLD, NOT JUST THE CAR
+     Wind over the airbox, tyres scrubbing at the limit, kerbs battering the
+     floor, and the crowd. None of it existed — the only sound in the game was
+     the engine, which is why it felt like driving in a vacuum.
+     ================================================================== */
+  _mkAmbience(){
+    const ctx=this.ctx;
+    const A={};
+    const len=(ctx.sampleRate*2)|0;
+    const noise=()=>{ const b=ctx.createBuffer(1,len,ctx.sampleRate);
+      const d=b.getChannelData(0);
+      for(let i=0;i<len;i++) d[i]=Math.random()*2-1;
+      const s=ctx.createBufferSource(); s.buffer=b; s.loop=true; s.start(); return s; };
+    // WIND: broad noise, opening up and getting louder with speed
+    { const s=noise(), f=ctx.createBiquadFilter(), g=ctx.createGain();
+      f.type='bandpass'; f.frequency.value=600; f.Q.value=0.6; g.gain.value=0;
+      s.connect(f).connect(g).connect(this.master);
+      A.wind={s,f,g}; }
+    // SCRUB: narrower and higher, only when the tyres are actually sliding
+    { const s=noise(), f=ctx.createBiquadFilter(), g=ctx.createGain();
+      f.type='bandpass'; f.frequency.value=1500; f.Q.value=4.5; g.gain.value=0;
+      s.connect(f).connect(g).connect(this.master);
+      A.scrub={s,f,g}; }
+    // CROWD: very low, slow noise — a wash rather than anything you can pick out
+    { const s=noise(), f=ctx.createBiquadFilter(), g=ctx.createGain();
+      f.type='lowpass'; f.frequency.value=900; f.Q.value=0.4; g.gain.value=0;
+      s.connect(f).connect(g).connect(this.master);
+      A.crowd={s,f,g}; }
+    return A;
+  },
+  /* Called every frame with what the car is doing. */
+  world(spd,slip,onKerb,crowdNear){
+    if(!this.amb||!this.ctx) return;
+    const t=this.ctx.currentTime, A=this.amb;
+    const v=clamp(spd/PHYS.vMax,0,1);
+    const mv=this.muted?0:SET.volEngine;
+    A.wind.f.frequency.setTargetAtTime(300+v*1400,t,0.08);
+    A.wind.g.gain.setTargetAtTime(v*v*0.055*mv,t,0.10);
+    const sl=clamp(slip,0,1);
+    A.scrub.f.frequency.setTargetAtTime(1100+sl*1600,t,0.05);
+    A.scrub.g.gain.setTargetAtTime(sl*sl*0.075*mv,t,0.05);
+    A.crowd.g.gain.setTargetAtTime(clamp(crowdNear||0,0,1)*0.022*mv,t,0.4);
+    /* KERBS. A short rattle each time a wheel is on one — fired here rather
+       than looped, because a kerb is an impact, not a texture. */
+    if(onKerb && t-(this._kerbT||0)>0.055){
+      this._kerbT=t;
+      const b=this.ctx.createBuffer(1,(this.ctx.sampleRate*0.04)|0,this.ctx.sampleRate);
+      const d=b.getChannelData(0);
+      for(let i=0;i<d.length;i++) d[i]=(Math.random()*2-1)*(1-i/d.length);
+      const s=this.ctx.createBufferSource(); s.buffer=b;
+      const f=this.ctx.createBiquadFilter(); f.type='bandpass';
+      f.frequency.value=150+Math.random()*220; f.Q.value=1.6;
+      const g=this.ctx.createGain();
+      g.gain.setValueAtTime(0.10*mv*(0.4+v*0.6),t);
+      g.gain.exponentialRampToValueAtTime(0.0001,t+0.05);
+      s.connect(f).connect(g).connect(this.master); s.start(t); s.stop(t+0.06);
+    }
   },
   /* exhaust crackle: a short burst of sharp filtered noise bursts */
   crackle(rev){
