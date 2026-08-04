@@ -3393,16 +3393,19 @@ function buildWorld(sc,cfg){
   const baseOffR=k=>Math.min(HW+barBase*(1-tight[k]*0.72)+runR[k]+tight[k]*0.6, maxOff[k]);
   TRACK.wallL=[];TRACK.wallR=[];
   for(let i=0;i<N;i++){TRACK.wallL[i]=baseOffL(i);TRACK.wallR[i]=baseOffR(i);}
-  /* THE BARRIER FOLLOWS THE WALL, INCLUDING OVER THE PIT LANE.
-     These used to be closures over the raw corner geometry, evaluated fresh
-     every time a builder asked. definePitLane() runs a moment later and pushes
-     TRACK.wallL/wallR out to clear the pit corridor — but only the ARRAYS, so
-     the collision wall moved and the barrier you can see did not. The result
-     was the circuit's own barrier standing across the front of the pit road.
-     Reading the arrays means the visible barrier goes wherever the wall goes,
-     and the pit lane is separated from the circuit by the pit wall instead. */
-  const barOff=k=>TRACK.wallL[k];
-  const barOffR=k=>TRACK.wallR[k];
+  /* WHERE THE BARRIER IS DRAWN, WHICH IS NOT WHERE THE COLLISION WALL IS.
+     Two different jobs. The collision wall (TRACK.wallL/wallR) is pushed right
+     out past the pit lane by definePitLane(), because a car in the pits must not
+     be shoved back onto the circuit. The barrier you can SEE must not go out
+     there with it — do that and it stands between the pit lane and the garages,
+     which is a wall across the front of your own box.
+     Along the pit corridor the visible barrier sits on the TRACK side of the
+     lane, where a pit wall belongs: circuit, then wall, then pit lane, then
+     garages, with nothing between the lane and the boxes. */
+  TRACK.barVisL=[]; TRACK.barVisR=[];
+  for(let i=0;i<N;i++){ TRACK.barVisL[i]=baseOffL(i); TRACK.barVisR[i]=baseOffR(i); }
+  const barOff=k=>TRACK.barVisL[k];
+  const barOffR=k=>TRACK.barVisR[k];
   TRACK.barOffL=barOff;TRACK.barOffR=barOffR;
   /* THE PIT LANE. Defined before the barriers go in, because the pit-side wall
      has to be pushed out over the whole corridor or the car would be shoved
@@ -11134,10 +11137,15 @@ function definePitLane(){
     if(!L) continue;
     if(inIdx===null||Math.abs(lapSigned(cum[i]-cum[inIdx]))>0) { /* order handled below */ }
     if(Math.abs(d)<bestBox){bestBox=Math.abs(d);boxIdx=i;}
-    // the pit-side wall has to clear the lane, plus room for the crew
+    // the pit-side COLLISION wall has to clear the lane, plus room for the crew
     const need=L.off+PIT.halfW+2.5;
     const arr=PIT.side<0?TRACK.wallR:TRACK.wallL;
     if(arr[i]<need) arr[i]=need;
+    /* The visible barrier goes the other way: in to the lane's track-side edge,
+       so it reads as the pit wall rather than a fence behind the garages. */
+    const vis=PIT.side<0?TRACK.barVisR:TRACK.barVisL;
+    if(vis){ const edge=Math.max(TRACK.halfW+1.0, L.off-PIT.halfW-1.0);
+      if(vis[i]>edge) vis[i]=edge; }
   }
   // first and last index of the corridor, walking forward from the entry
   for(let i=0;i<N;i++){
@@ -11449,29 +11457,9 @@ function buildPitLaneGeometry(sc){
     stop.position.set((s0.x+s1.x)/2,s0.y+0.055,(s0.z+s1.z)/2);
     stop.rotation.y=Math.atan2(s1.x-s0.x,s1.z-s0.z)+Math.PI/2; g.add(stop);
   }
-  /* --- THE PIT WALL ------------------------------------------------------
-     What actually separates the pit lane from the circuit. The barrier that
-     used to stand here was the track's own, drawn across the front of the pit
-     road; now that the barrier follows the wall out past the corridor, this
-     runs down the gap between the two — a low concrete wall with a painted cap,
-     the length of the boxes, open at both ends for the entry and the exit. */
-  { const D0w=-PIT.boxRun/2-6, D1w=PIT.boxRun/2+6;
-    const wallMat=new THREE.MeshStandardMaterial({color:0xe9edf1,roughness:0.75});
-    const capMat=new THREE.MeshStandardMaterial({color:(TRACK_ACCENT[CFG.id]||0xb11015),
-      roughness:0.55,metalness:0.25});
-    const STEP=7;
-    for(let d=D0w; d<D1w; d+=STEP){
-      const a0=pitPos(d,-PIT.halfW-0.9), a1=pitPos(Math.min(d+STEP,D1w),-PIT.halfW-0.9);
-      const L=a0.distanceTo(a1); if(L<0.2) continue;
-      const mid=new THREE.Vector3().addVectors(a0,a1).multiplyScalar(0.5);
-      const rot=Math.atan2(a1.x-a0.x,a1.z-a0.z);
-      const w=new THREE.Mesh(new THREE.BoxGeometry(0.42,1.05,L*1.02),wallMat);
-      w.position.set(mid.x,mid.y+0.52,mid.z); w.rotation.y=rot;
-      w.castShadow=true; w.receiveShadow=true; g.add(w);
-      const cap=new THREE.Mesh(new THREE.BoxGeometry(0.54,0.14,L*1.02),capMat);
-      cap.position.set(mid.x,mid.y+1.11,mid.z); cap.rotation.y=rot; g.add(cap);
-    }
-  }
+  /* The wall between the pit lane and the circuit is the track barrier itself,
+     pulled in to the lane's track-side edge by definePitLane() — see barVis
+     there. Building a second wall here put two surfaces in the same place. */
   // --- speed-limit boards at the entry and the exit ------------------------
   for(const [d,txt] of [[D0+16,'80'],[D1-24,'END']]){
     const p=pitPos(d,-PIT.halfW-1.4);
@@ -11655,10 +11643,22 @@ function buildPit(sc,P,Nm,Tg){
     }
     return worst;
   };
-  const off0=HW+24;
+  /* THE GARAGES SIT ON THE PIT LANE. Obvious, and it was not happening: the
+     offset started at a fixed HW+24 and then a clearance test could add up to
+     sixty metres more, so on a lot of circuits the pit building ended up the
+     better part of a hundred metres from the lane. You rolled out of "the
+     garage" onto a pit road with the building a field away behind you.
+     The offset is derived from the LANE now — far enough back that the bay
+     mouths open right onto the far edge of it, and no further. The clearance
+     push survives, because Miami genuinely needs it, but only a few metres of
+     it: if the building still cannot fit it is the lane that is in the wrong
+     place, not the building. */
+  const laneOff=(PIT.offset!=null? (HW+PIT.offset) : (HW+10));
+  const MOUTH_Z=5.2;                        // bay mouth in the building's local frame
+  const off0=laneOff+PIT.halfW+1.6+MOUTH_Z; // mouth lands just past the lane edge
   const pushL=pushFor(-1,off0), pushR=pushFor(1,off0);
   const side=(pushR<pushL-4)?1:-1;          // the outside of the bend, if it matters
-  let off=off0+Math.min(side<0?pushL:pushR,60);
+  let off=off0+Math.min(side<0?pushL:pushR,5);
   const base=new THREE.Vector3().copy(p).addScaledVector(n,side*off);
   const g=new THREE.Group(); const len=164;
   const pitCol=(TRACK_PIT[CFG.id]||0xe9edf1), accent=(TRACK_ACCENT[CFG.id]||0xb11015);
@@ -13308,6 +13308,11 @@ function seatInGarage(){
   gpr.updateWorldMatrix(true,false);
   const here=gpr.localToWorld(new THREE.Vector3(gx, PB.floorY, PB.bayZ));
   const ahead=gpr.localToWorld(new THREE.Vector3(gx, PB.floorY, PB.bayZ+6));
+  /* Claim the bay first: everything after this is positioning detail, and the
+     car is logically in its box either way. This is what the wall exemption,
+     the ground height and the tablet's session controls all key off. */
+  CAR.inBay=true;
+  CAR.bayPos=new THREE.Vector3(here.x,here.y,here.z);
   CAR.pos.set(here.x,0,here.z);
   CAR.heading=Math.atan2(ahead.x-here.x, ahead.z-here.z);
   CAR.groundY=here.y;
@@ -13706,7 +13711,18 @@ function stepPhysics(dt,inp){
      its own flat level, the car took the road's height and sank through the
      lane wherever the two differed. The pit lane is a road; it needs its own
      collision surface. */
-  if(inPitLane){
+  /* PARKED IN THE GARAGE. The bay floor is several metres off the lane and well
+     off the circuit centreline, so neither height source below describes it —
+     the car was left hanging over whatever the road happened to be doing and
+     rolled away out of its own box. While it is in the bay the floor IS the
+     ground, and a car nobody is driving stays where it was put. */
+  if(CAR.inBay && CAR.bayPos){
+    CAR.groundY=CAR.bayPos.y;
+    CAR.slope=0; CAR.pitch=damp(CAR.pitch||0,0,6,dt);
+    if(Math.abs(CAR.v)<0.4 && !inp.thr){ CAR.v=0; CAR.vLat=0; CAR.yawRate=0;
+      CAR.pos.x=CAR.bayPos.x; CAR.pos.z=CAR.bayPos.z; }
+    if(CAR.pos.distanceTo(CAR.bayPos)>18) CAR.inBay=false;
+  } else if(inPitLane){
     const dNow=lapSigned(TRACK.cum[near.idx]);
     const across=Math.abs(near.lat)-(laneInfo?laneInfo.off:TRACK.halfW);
     const surf=pitPos(dNow,clamp(across,-PIT.halfW,PIT.halfW));
