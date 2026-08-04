@@ -214,7 +214,14 @@
   #mProfile .t{font-size:10.5px;letter-spacing:.3em;color:var(--red);text-transform:uppercase;font-weight:700;margin-top:5px}
   #mProfile .l{font-size:9.5px;letter-spacing:.28em;color:var(--grey);text-transform:uppercase;font-weight:600;margin-top:5px}
 
-  #mBody{position:absolute;left:clamp(28px,5vw,66px);top:50%;transform:translateY(-50%);max-width:44vw}
+  /* MENU. The list floated in the middle of a dark screen with the car behind
+     it and nothing holding the composition together. It sits in a framed column
+     now, with a rule down its edge and a red gradient marking the top of it, so
+     the screen reads as a designed page rather than as text laid over 3D. */
+  #mBody{position:absolute;left:clamp(28px,5vw,66px);top:50%;transform:translateY(-50%);max-width:44vw;
+    padding-left:clamp(14px,1.6vw,26px);border-left:1px solid rgba(255,255,255,.12)}
+  #mBody::before{content:'';position:absolute;left:-2px;top:0;width:3px;height:70px;
+    background:linear-gradient(180deg,var(--red),transparent)}
   #mKicker{font-size:11px;letter-spacing:.5em;color:var(--red);text-transform:uppercase;font-weight:700;margin-bottom:20px;padding-left:.2em}
   #navList{list-style:none}
   #navList li{position:relative;cursor:pointer;padding:7px 0;display:flex;align-items:baseline;gap:16px;
@@ -452,6 +459,32 @@
   #rdOverall .ov{text-align:right}
   #rdOverall .ov .k{font-size:9px;letter-spacing:.2em;color:var(--grey);text-transform:uppercase}
   #rdOverall .ov .v{font-family:var(--mono);font-weight:900;font-size:20px}
+
+  /* ============ SAFETY CAR + PHOTO MODE ============ */
+  #scBanner{position:fixed;left:50%;top:11%;transform:translateX(-50%);z-index:19;
+    font-family:var(--mono);font-size:clamp(11px,1.5vw,16px);font-weight:900;letter-spacing:.22em;
+    padding:10px 22px;border-radius:6px;color:#141005;pointer-events:none;opacity:0;
+    background:linear-gradient(90deg,#ffd23a,#ffb400);border:1px solid rgba(255,225,120,.9);
+    box-shadow:0 0 30px rgba(255,200,40,.55);transition:opacity .3s}
+  #scBanner.on{opacity:1;animation:scPulse 1.0s ease-in-out infinite}
+  #scBanner.ending{background:linear-gradient(90deg,#7be08a,#3fc46a)}
+  @keyframes scPulse{0%,100%{box-shadow:0 0 24px rgba(255,200,40,.45)}50%{box-shadow:0 0 46px rgba(255,200,40,.9)}}
+  body.photo #hud,body.photo #podHud,body.photo #scBanner,body.photo #vignette,
+  body.photo #grain,body.photo #visorMask,body.photo #sndBtn{display:none!important}
+  #photoHud{position:fixed;inset:0;z-index:20;pointer-events:none;opacity:0;transition:opacity .3s;
+    font-family:var(--mono)}
+  #photoHud.on{opacity:1}
+  #photoHud::before,#photoHud::after{content:'';position:absolute;left:0;right:0;height:6vh;
+    background:linear-gradient(180deg,rgba(4,6,10,.85),transparent)}
+  #photoHud::after{bottom:0;transform:rotate(180deg)}
+  #photoTag{position:absolute;left:clamp(20px,4vw,52px);top:calc(6vh + 14px);font-size:10px;
+    font-weight:900;letter-spacing:.28em;color:#ffcf6a}
+  #photoTag::before{content:'● ';color:var(--red)}
+  #photoRead{position:absolute;right:clamp(20px,4vw,52px);top:calc(6vh + 14px);font-size:10px;
+    letter-spacing:.14em;color:rgba(255,255,255,.75)}
+  #photoKeys{position:absolute;left:50%;bottom:calc(6vh + 12px);transform:translateX(-50%);
+    font-size:8.5px;letter-spacing:.1em;color:rgba(255,255,255,.5);white-space:nowrap}
+  #photoKeys b{color:#fff}
 
   /* ============ PODIUM ============ */
   #podHud{position:fixed;inset:0;z-index:18;pointer-events:none;opacity:0;transition:opacity .4s}
@@ -804,6 +837,7 @@
 <div id="vignette" class="layer"></div>
 <div id="stormWhite" class="layer"></div>
 <div id="visorMask" class="layer"><div class="vFrame"></div><div class="vTop"></div><div class="vBrow"></div><div class="vShine"></div></div>
+<div id="grade" class="layer"></div>
 <div id="grain" class="layer"></div>
 
 <!-- ===== LOADING ===== -->
@@ -1116,6 +1150,14 @@
 </div>
 <div id="pitCue"></div>
 
+<div id="scBanner">SAFETY CAR</div>
+<div id="photoHud">
+  <div id="photoTag">PHOTO MODE</div>
+  <div id="photoRead">40mm-ish · 12.0m</div>
+  <div id="photoKeys"><b>WASD/Arrows</b> Orbit &nbsp; <b>Q/E</b> Dolly &nbsp; <b>R/F</b> Height &nbsp;
+    <b>Z/X</b> Lens &nbsp; <b>Shift</b> Faster &nbsp; <b>O/Esc</b> Exit</div>
+</div>
+
 <div id="podHud">
   <div id="podCap">PARC FERMÉ</div>
   <div id="podHint"><b>SPACE</b> Next &nbsp;·&nbsp; <b>ESC</b> Menu</div>
@@ -1186,7 +1228,7 @@ const TAU=Math.PI*2;
 const SETTINGS_KEY='apexgp.settings.v1';
 const SET={
   // camera & view
-  helmet:true, defaultCam:'chase', fovScale:1.0, headMotion:0.9, grain:true, vignette:true,
+  helmet:true, defaultCam:'chase', fovScale:1.0, headMotion:0.9, grain:true, vignette:true, grade:true,
   // hud
   hudTiming:true, hudMap:true, hudStatus:true, hudHints:true, units:'kmh',
   // audio
@@ -13547,7 +13589,7 @@ if(DEBUG){window.__setCam=(m)=>{CAM.mode=m;CAM.tsPost=null;$('#camName').textCon
   window.__CINE=()=>CINE;window.__CHASE=()=>CHASE;
   window.__setState=(v)=>{STATE=v;};
   // deferred: PODIUM is declared further down and is in its dead zone here
-  setTimeout(()=>{window.__startPodium=startPodium;window.__PODIUM=PODIUM;},0);
+  setTimeout(()=>{window.__startPodium=startPodium;window.__PODIUM=PODIUM;window.__SC=SC;window.__deploySafetyCar=deploySafetyCar;window.__stepSafetyCar=stepSafetyCar;window.__PHOTO=PHOTO;},0);
   window.__nearestTrack=nearestTrack;window.__lapSigned=lapSigned;window.__pitLaneAt=pitLaneAt;
   setTimeout(()=>{window.__openSettings=openSettings;window.__closeSettings=closeSettings;
     window.__SET=SET;window.__applySettings=applySettings;},0);}
@@ -13721,6 +13763,8 @@ const SETTINGS_DEF=[
     d:'Which camera a session begins on. C still cycles through all of them.'},
    {k:'fovScale',type:'range',t:'Field of view',min:0.8,max:1.3,step:0.05,pct:true,
     d:'Widens or narrows every camera. Higher feels faster and shows more of the track.'},
+   {k:'grade',type:'bool',t:'Colour grade',
+    d:'Cools the shadows and warms the highlights, the way a broadcast picture is graded.'},
    {k:'vignette',type:'bool',t:'Vignette',d:'Darkened corners of the frame.'},
    {k:'grain',type:'bool',t:'Film grain',d:'Broadcast-style grain over the picture.'},
  ]},
@@ -13771,6 +13815,7 @@ const SETTINGS_DEF=[
 function applySettings(){
   // --- view ---
   const g=$('#grain'); if(g) g.style.display=SET.grain?'':'none';
+  const gr=$('#grade'); if(gr) gr.style.display=SET.grade?'':'none';
   const vg=$('#vignette'); if(vg) vg.style.display=SET.vignette?'':'none';
   syncVisor();
   // --- hud ---
@@ -14303,7 +14348,8 @@ function endSeasonRace(){
   // classify on ACTUAL race distance covered — the player is scored on where they really finished
   const N=TRACK.N||1, order=[];
   const dOf=(idx,lp)=>lp*TRACK.len + (TRACK.cum?TRACK.cum[Math.round(idx)%N]||0:0);
-  AI.cars.forEach(c=>order.push({nm:c.name,team:c.team,d:dOf(c.idx,c.lap),me:false}));
+  AI.cars.forEach(c=>order.push({nm:c.name,team:c.team,d:c.dnf?-1e9+(c.lap||0):dOf(c.idx,c.lap),
+    me:false, dnf:!!c.dnf, best:c.bestLap||null}));
   /* Any time penalty is served here, converted to distance at racing speed —
      a five-second penalty has to actually cost you places, or it is not a
      penalty. */
@@ -14311,13 +14357,24 @@ function endSeasonRace(){
   order.push({nm:SEASON.name,team:SEASON.team,
     d:dOf(CAR.trackIdx||0,playerLapsDone())-penMetres, me:true, pen:CAR.penalty||0});
   order.sort((a,b)=>b.d-a.d);
-  // award championship points down the top ten
-  const res=order.map((o,i)=>({pos:i+1,nm:o.nm,team:o.team,me:o.me,pts:F1PTS[i]||0}));
+  /* THE FASTEST LAP POINT. One extra point for the quickest lap of the race,
+     and only if you finished in the top ten — which is the rule, and which is
+     what makes a driver on fresh tyres in eleventh worth watching. */
+  let flOwner=null, flTime=Infinity;
+  order.forEach((o,i)=>{ if(o.dnf) return;
+    const t=o.me?(lap.best||Infinity):(o.best||Infinity);
+    if(t<flTime){ flTime=t; flOwner=i; } });
+  const res=order.map((o,i)=>({pos:i+1,nm:o.nm,team:o.team,me:o.me,dnf:!!o.dnf,
+    pts:(o.dnf?0:(F1PTS[i]||0)) + ((i===flOwner&&i<10&&!o.dnf)?1:0),
+    fl:i===flOwner&&i<10&&!o.dnf,
+    gap:i===0?0:((order[0].d-o.d))}));
+  SEASON.fastestLap=flOwner!=null?{nm:order[flOwner].nm,t:flTime}:null;
   res.forEach(r=>{const row=(SEASON.table||[]).find(t=>t.nm===r.nm); if(row)row.pts+=r.pts;});
   const me=(SEASON.table||[]).find(r=>r.me); SEASON.points=me?me.pts:0;
   const myRes=res.find(r=>r.me);
   SEASON.lastResult={track:CFG.id,name:CFG.name,pos:myRes?myRes.pos:res.length,
-    pts:myRes?myRes.pts:0,order:res.slice(0,10)};
+    pts:myRes?myRes.pts:0,order:res.slice(0,10),
+    fl:SEASON.fastestLap, dnfs:res.filter(r=>r.dnf).length};
   // weekend rewards scale with how well you actually did
   const posBonus=Math.max(0,11-(myRes?myRes.pos:11));
   SEASON.rdPts=(SEASON.rdPts||0)+25+posBonus*4;
@@ -14984,7 +15041,7 @@ function startDrive(){
   $('#camName').textContent=CAM_LABEL[CAM.mode]||CAM.mode.toUpperCase();
   replayReset(); $('#replayBadge').classList.remove('on'); $('#replayBar').classList.remove('on');
   // fresh pit state, and work out which garage is ours on this circuit
-  pitReset(); PITSTOP.planComp=selCompound; PITSTOP.boxD=playerBoxD();
+  pitReset(); scReset(); PITSTOP.planComp=selCompound; PITSTOP.boxD=playerBoxD();
   // where the car has to come to rest: in the painted box, over toward the garage
   PITSTOP.boxPos=pitPos(PITSTOP.boxD,PIT.halfW-2.6);
   closeStrategy(); updatePitCue();
@@ -15069,6 +15126,8 @@ function countdown(done){
 const keys={};
 addEventListener('keydown',e=>{
   const k=e.key.toLowerCase();keys[k]=true;
+  // photo mode owns the keyboard while it is up
+  if(PHOTO.on){ if(k==='o'||k==='escape') exitPhoto(); e.preventDefault(); return; }
   if(STATE==='cine'){endCinematic();e.preventDefault();return;}
   if(STATE==='intro'){endTrackIntro(true);e.preventDefault();return;}
   if(STATE==='result'){ if(k==='enter'||k==='escape'||k===' '){exitToMenu();} e.preventDefault();return;}
@@ -15128,6 +15187,7 @@ addEventListener('keydown',e=>{
       Sound.init(); Sound.blip(560,.05); updatePitCue();
     }
     else if(k==='p')openStrategy();
+    else if(k==='o'){togglePhoto();e.preventDefault();}
     else if(k==='y')enterReplay();
     else if(k==='escape')exitToMenu();
     else if(k==='m'){Sound.init();Sound.toggle();}
@@ -16117,6 +16177,89 @@ function showSimResult(){
   if(f) f.innerHTML = fl ? `<span class="flDot"></span>FASTEST LAP &nbsp;<b>${fl.name}</b>&nbsp; ${fmt(fl.bestLap)}` : '';
   const r=$('#simResult'); if(r) r.classList.add('on');
 }
+/* ==================================================================
+   PHOTO MODE
+   Freeze the race, hide every piece of the interface, and fly the camera
+   wherever you like. The game builds twenty-four circuits with grandstands,
+   crowds, weather and light, and until now the only way to look at any of it was
+   through a HUD at 300 km/h.
+   ================================================================== */
+const PHOTO={on:false, yaw:0.6, pitch:0.32, dist:12, height:1.4, fov:40, saved:null};
+function togglePhoto(){
+  if(PHOTO.on){ exitPhoto(); return; }
+  if(STATE!=='drive'&&STATE!=='replay'&&STATE!=='podium'&&STATE!=='aisim') return;
+  PHOTO.on=true; PHOTO.saved={state:STATE, fov:camera.fov};
+  document.body.classList.add('photo');
+  $('#photoHud').classList.add('on');
+  Sound.blip&&Sound.blip(720,.05);
+}
+function exitPhoto(){
+  if(!PHOTO.on) return;
+  PHOTO.on=false;
+  document.body.classList.remove('photo');
+  $('#photoHud').classList.remove('on');
+  if(PHOTO.saved){ camera.fov=PHOTO.saved.fov; camera.updateProjectionMatrix(); }
+  Sound.blip&&Sound.blip(420,.05);
+}
+function stepPhoto(dt){
+  const k=keys;
+  const sp=(k['shift']?2.6:1);
+  if(k['arrowleft']||k['a'])  PHOTO.yaw-=1.5*dt*sp;
+  if(k['arrowright']||k['d']) PHOTO.yaw+=1.5*dt*sp;
+  if(k['arrowup']||k['w'])    PHOTO.pitch=clamp(PHOTO.pitch+0.9*dt*sp,-0.5,1.35);
+  if(k['arrowdown']||k['s'])  PHOTO.pitch=clamp(PHOTO.pitch-0.9*dt*sp,-0.5,1.35);
+  if(k['q']) PHOTO.dist=clamp(PHOTO.dist*(1-1.2*dt*sp),2.2,180);
+  if(k['e']) PHOTO.dist=clamp(PHOTO.dist*(1+1.2*dt*sp),2.2,180);
+  if(k['r']) PHOTO.height=clamp(PHOTO.height+2.5*dt*sp,-2,60);
+  if(k['f']) PHOTO.height=clamp(PHOTO.height-2.5*dt*sp,-2,60);
+  if(k['z']) PHOTO.fov=clamp(PHOTO.fov-14*dt*sp,10,100);
+  if(k['x']) PHOTO.fov=clamp(PHOTO.fov+14*dt*sp,10,100);
+  const anchor=(STATE==='podium'&&PODIUM.group)?PODIUM.group.position:CAR.rig.position;
+  const cp=Math.cos(PHOTO.pitch), sp2=Math.sin(PHOTO.pitch);
+  camera.position.set(
+    anchor.x+Math.sin(PHOTO.yaw)*cp*PHOTO.dist,
+    anchor.y+PHOTO.height+sp2*PHOTO.dist,
+    anchor.z+Math.cos(PHOTO.yaw)*cp*PHOTO.dist);
+  camera.lookAt(anchor.x,anchor.y+PHOTO.height*0.35+0.6,anchor.z);
+  if(Math.abs(camera.fov-PHOTO.fov)>0.01){camera.fov=PHOTO.fov;camera.updateProjectionMatrix();}
+  const rd=$('#photoRead');
+  if(rd) rd.textContent=`${PHOTO.fov.toFixed(0)}mm-ish · ${PHOTO.dist.toFixed(1)}m`;
+}
+
+/* ==================================================================
+   THE SAFETY CAR
+   The AI can now put a car off properly, and a car in the barriers is the one
+   thing in motorsport that changes a race for everybody. When somebody has a
+   real accident the safety car comes out: the field slows to a crawl, closes up
+   into a train behind the leader, and nobody is allowed to pass. Whatever gap
+   you had spent twenty laps building is gone, and if you were about to pit it is
+   suddenly the cheapest stop you will ever make.
+   That last part is the point — it turns one car's mistake into everyone's
+   strategy problem, which is the most interesting thing that can happen in a
+   race that is otherwise a procession.
+   ================================================================== */
+const SC={on:false, t:0, phase:'none', lapsLeft:0, cause:''};
+function scReset(){ SC.on=false; SC.t=0; SC.phase='none'; SC.cause=''; }
+function deploySafetyCar(cause){
+  if(SC.on||STATE!=='drive') return;
+  SC.on=true; SC.phase='deployed'; SC.t=0; SC.cause=cause||'INCIDENT';
+  Radio.say('engineer','damage',{cool:0});
+  setTimeout(()=>Radio.say('commentator','off',{cool:0}),500);
+  Sound.blip&&Sound.blip(300,.3);
+}
+function stepSafetyCar(dt){
+  if(!SC.on) return;
+  SC.t+=dt;
+  if(SC.phase==='deployed' && SC.t>22){ SC.phase='ending'; SC.t=0; }
+  else if(SC.phase==='ending' && SC.t>6){ SC.phase='none'; SC.on=false;
+    Sound.rev&&Sound.rev(); }
+  const el=$('#scBanner');
+  if(el){
+    el.classList.toggle('on',SC.on);
+    el.classList.toggle('ending',SC.phase==='ending');
+    el.textContent=SC.phase==='ending'?'SAFETY CAR IN THIS LAP':('SAFETY CAR · '+SC.cause);
+  }
+}
 function stepAI(dt){
   if(!AI.on||!AI.cars.length) return;
   const N=TRACK.N, segLen=TRACK.len/N, HW=TRACK.halfW;
@@ -16150,7 +16293,7 @@ function stepAI(dt){
   // ...including one still on its way down the pit entry or rejoining from the
   // exit, which is why this tests where the car actually IS, not just its phase
   for(let i=all.length-1;i>=0;i--){ const a2=all[i].ai;
-    if(a2 && (a2.pitPhase>0 || a2.rejoin>0 || Math.abs(a2.lat)>TRACK.halfW+2.5)) all.splice(i,1); }
+    if(a2 && (a2.pitPhase>0 || a2.rejoin>0 || a2.dnf || Math.abs(a2.lat)>TRACK.halfW+2.5)) all.splice(i,1); }
   // how close is the player tucked in behind a car ahead (drives the spray whiteout in the rain)
   { let gap=99; for(const o of all){ if(o.ai===null) continue;
       const di=(o.idx-pIdx+N)%N; if(di>0&&di<10) gap=Math.min(gap,di*segLen); }
@@ -16512,6 +16655,17 @@ function stepAI(dt){
        or getting on the power in a slow corner, or in the wet — the car lets go
        properly: it spins, it slides off the road, it collects gravel, and it has
        to gather itself up and rejoin. Everyone behind has to deal with it.    */
+    /* RELIABILITY. A season in which every car finishes every race is not a
+       season. Engines let go, gearboxes break, and it is more likely late in a
+       long race and on a car that has been abused. Rare per second, meaningful
+       over a race distance. */
+    if(!c.dnf && sessionMode==='season' && c.raceT>40 &&
+       Math.random()<0.000012*(1+(c.lap||0)*0.10)*(c.damage>0.4?2.2:1)){
+      c.dnf=true; c.dnfLap=c.lap;
+      c.spinT=1.4; c.spinDir=Math.random()<0.5?-1:1;
+      if(Math.random()<0.5) deploySafetyCar('CAR '+(c.name||'').split(' ').pop().toUpperCase());
+    }
+    if(c.dnf){ c.v=Math.max(0,c.v-24*dt); }
     c.spinT=Math.max(0,(c.spinT||0)-dt);
     if(!c.spinT && c.mistakeT>0 && !c.spinArmed){
       c.spinArmed=true;
@@ -16519,13 +16673,21 @@ function stepAI(dt){
       const loading=(!straight?0.7:0.15) + wet*0.9 + (c.tyre<0.3?0.5:0) + (pressure>1?0.25:0);
       // consistent drivers almost never do this; it is rare on purpose
       if(Math.random() < 0.012*loading*(2-c.consist)){
+        // a big one brings out the safety car
+        if(Math.random()<0.45) deploySafetyCar(c.name?('CAR '+c.name.split(' ').pop().toUpperCase()):'INCIDENT');
         c.spinT=2.2+Math.random()*2.4;
         c.spinYaw=0; c.spinDir=Math.random()<0.5?-1:1;
         c.spinLat=c.lat; c.spinV=c.v;
       }
     }
     if(c.mistakeT<=0) c.spinArmed=false;
-    const desired=targetV*slow*mist;
+    let desired=targetV*slow*mist;
+    /* Behind the safety car nobody races. The whole field runs to a delta and
+       closes right up, which is what wipes out the gaps. */
+    if(SC.on){
+      desired=Math.min(desired, SC.phase==='ending'?34:24);
+      c.phase='clear'; c.atk=0; c.atkSide=0;      // no moves under yellow
+    }
     /* A CAR THAT IS SPINNING IS NOT DRIVING.
        While the spin lasts the driver is a passenger: the car scrubs speed hard,
        slides off toward the outside of the corner, and the body rotates through
@@ -16918,7 +17080,7 @@ function stepAI(dt){
        side, and treating it as a car on the racing line put it in contact with
        everything that came past. `rejoin` keeps it out of the reckoning until it
        is genuinely back on the road and up to speed. */
-    const onTrackNow=(c)=>!(c.pitPhase>0) && !(c.rejoin>0) && !(c.spinT>0) && Math.abs(c.lat)<TRACK.halfW+2.5;
+    const onTrackNow=(c)=>!(c.pitPhase>0) && !(c.rejoin>0) && !(c.spinT>0) && !c.dnf && Math.abs(c.lat)<TRACK.halfW+2.5;
     const list=AI.cars.filter(onTrackNow).map(c=>({ai:c,idx:c.idx,lat:c.lat}));
     // the player is a solid object too
     const pLat=(typeof CAR!=='undefined'&&CAR.trackIdx!==undefined)?
@@ -17059,6 +17221,10 @@ function frame(){
     renderer.render(driveScene,camera);
   }else if(STATE==='countdown'){
     renderer.render(driveScene,camera);              // frozen grid while the lights run
+  }else if(STATE==='drive'&&PHOTO.on){
+    stepPhoto(dt); renderer.render(driveScene,camera);
+  }else if((STATE==='podium'||STATE==='aisim'||STATE==='replay')&&PHOTO.on){
+    stepPhoto(dt); renderer.render(driveScene,camera);
   }else if(STATE==='drive'){
     /* The strategy window holds the race. Still rendering the world behind it,
        just not advancing it — you are making a decision, not driving. */
@@ -17092,6 +17258,7 @@ function frame(){
     updateCamera(dt);
     updateHelmet(dt);
     lap.update(dt,r.near.idx);
+    stepSafetyCar(dt);
     stepAI(dt);
     updateHUD(inp,r,dt);
     replayRecord(dt);
