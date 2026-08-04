@@ -394,7 +394,34 @@
   #gtClose{background:transparent;border:1px solid rgba(255,176,60,.3);color:#ffb03c;
     border-radius:5px;width:26px;height:22px;cursor:pointer;font-size:10px;line-height:1}
   #gtClose:hover{background:rgba(255,176,60,.14)}
-  #gtTabs{display:flex;gap:6px;margin-bottom:11px}
+  #gtTabs{display:flex;gap:5px;margin-bottom:11px}
+  /* setup sliders and power-unit bars */
+  #gtSetupRows{display:flex;flex-direction:column;gap:7px}
+  .gtSet{display:flex;align-items:center;gap:10px}
+  .gtSet .sl{font-family:var(--mono);font-size:9px;letter-spacing:.14em;color:#8a8578;font-weight:800;width:104px}
+  .gtSet .sb{flex:1;height:7px;border-radius:4px;background:rgba(255,255,255,.09);position:relative;cursor:pointer}
+  .gtSet .sb i{position:absolute;left:0;top:0;bottom:0;border-radius:4px;background:#ffb03c}
+  .gtSet .sv{font-family:var(--mono);font-size:11px;font-weight:800;color:#fff;width:52px;text-align:right}
+  .gtSet .sd{display:flex;gap:4px}
+  .gtSet .sd button{font-family:var(--mono);font-size:11px;font-weight:800;width:22px;height:20px;
+    color:#ffb03c;background:transparent;border:1px solid rgba(255,176,60,.35);border-radius:4px;cursor:pointer}
+  .gtSet .sd button:hover{background:rgba(255,176,60,.18);color:#fff}
+  #gtErsRow{display:flex;gap:6px;margin-bottom:11px}
+  .gtErs{flex:1;text-align:center;border:1px solid var(--grey-lo);border-radius:7px;padding:8px 4px;cursor:pointer;
+    font-family:var(--mono);font-size:9.5px;letter-spacing:.14em;font-weight:800;color:#8a8578}
+  .gtErs.on{color:#ffb03c;border-color:rgba(255,176,60,.55);background:rgba(255,176,60,.13)}
+  #gtPuRows{display:flex;flex-direction:column;gap:6px}
+  .gtPu{display:flex;align-items:center;gap:10px}
+  .gtPu .pn{font-family:var(--mono);font-size:9px;letter-spacing:.14em;color:#8a8578;font-weight:800;width:78px}
+  .gtPu .pb{flex:1;height:8px;border-radius:4px;background:rgba(255,255,255,.09);position:relative}
+  .gtPu .pb i{position:absolute;left:0;top:0;bottom:0;border-radius:4px;background:#4fd97a}
+  .gtPu.warn .pb i{background:#ffb03c}
+  .gtPu.bad .pb i{background:#ff6a64}
+  .gtPu .pc{font-family:var(--mono);font-size:9.5px;color:#8a8578;font-weight:800;width:64px;text-align:right}
+  .gtPu button{font-family:var(--mono);font-size:8.5px;letter-spacing:.1em;font-weight:800;
+    color:#ffb03c;background:transparent;border:1px solid rgba(255,176,60,.35);
+    border-radius:14px;padding:3px 9px;cursor:pointer}
+  .gtPu button:hover{background:rgba(255,176,60,.18);color:#fff}
   .gtTab{flex:1;font-family:var(--mono);font-size:9.5px;letter-spacing:.2em;font-weight:800;
     color:#8a8578;background:transparent;border:1px solid rgba(255,255,255,.09);
     border-radius:7px;padding:7px 4px;cursor:pointer;transition:color .15s,border-color .15s,background .15s}
@@ -1293,6 +1320,8 @@
       <button class="gtTab on" data-tab="tyres">TYRES</button>
       <button class="gtTab" data-tab="timing">TIMING</button>
       <button class="gtTab" data-tab="delta">DELTA</button>
+      <button class="gtTab" data-tab="setup">SETUP</button>
+      <button class="gtTab" data-tab="power">POWER</button>
       <button class="gtTab" data-tab="session">SESSION</button>
     </div>
     <div id="gtPages">
@@ -1325,6 +1354,21 @@
           <div class="gtNote" id="gtAnaNote">Green is time gained on the fastest lap of the session.</div>
         </div>
       </section>
+      <section class="gtPage" data-page="setup">
+        <div class="gtPanel">
+          <h4>CAR SETUP <small id="gtSetupNote">—</small></h4>
+          <div id="gtSetupRows"></div>
+          <div class="gtNote">Changes apply when you leave the garage. Locked once qualifying starts.</div>
+        </div>
+      </section>
+      <section class="gtPage" data-page="power">
+        <div class="gtPanel">
+          <h4>POWER UNIT <small id="gtErsMode">BALANCED</small></h4>
+          <div id="gtErsRow"></div>
+          <div id="gtPuRows"></div>
+          <div class="gtNote">Attack spends the battery and wears the unit. A new component past your allocation is a grid penalty.</div>
+        </div>
+      </section>
       <section class="gtPage" data-page="session">
         <div class="gtPanel">
           <h4>SESSION CONTROL</h4>
@@ -1338,7 +1382,7 @@
         </div>
       </section>
     </div>
-    <div id="gtFoot"><span><b>T</b> Stow / show &nbsp; <b>1-4</b> Tabs</span><span id="gtHint">Pit lane · roll out when ready</span></div>
+    <div id="gtFoot"><span><b>T</b> Stow / show &nbsp; <b>1-6</b> Tabs &nbsp; <b>E</b> ERS mode</span><span id="gtHint">Pit lane · roll out when ready</span></div>
   </div>
 </div>
 
@@ -13649,7 +13693,12 @@ function resetCar(){
     const lc=$('#limChip'); if(lc){lc.classList.remove('on','pen');lc.textContent='';}
     const tl=$('#tyreToast'); if(tl){clearTimeout(tl._h);tl.classList.remove('on');} }
   FX.reset();
-  CAR.ers=0.75;CAR.ersActive=0;CAR.tire=1;CAR.damage=0;
+  CAR.ers=0.75;CAR.ersActive=0;CAR.tire=1;CAR.damage=0;CAR.dmg={front:0,floor:0,rear:0};
+  // the setup always exists and is always applied, so nothing downstream has to
+  // guard against a car that has never been to the garage
+  if(!CAR.setup) CAR.setup=setupDefaults();
+  applySetup();
+  CAR.ersMode=CAR.ersMode||'balanced';
   CAR.compound=selCompound; CAR.tireLapsLife=compoundLaps(selCompound,CFG.id);
   CAR.rTyreWarn=false; CAR.rTyreCrit=false; CAR.rDmg=false; CAR.rPrevPos=8; CAR.rPrevBest=null;
   CAR.inBay=false; CAR.bayPos=null;
@@ -13779,7 +13828,21 @@ function stepPhysics(dt,inp){
   CAR.steer=CAR.steerCmd*maxSteer;
 
   // longitudinal
-  const dmgMul=1-CAR.damage*0.35;                  // damage saps power/aero
+  /* DAMAGE THAT MEANS SOMETHING SPECIFIC.
+     A single scalar taking a slice off power and aero meant a broken front wing
+     and a bent floor felt identical, which is to say neither felt like
+     anything. Damage is now carried per area and each area does its own thing:
+     a front wing costs front downforce and gives understeer, the floor costs
+     downforce everywhere, and the rear wing costs top speed and stability. */
+  if(!CAR.dmg) CAR.dmg={front:0,floor:0,rear:0};
+  /* Declared HERE, not further down where the ERS deployment code is. It was
+     below, and dmgMul on this line reads it — a temporal dead zone error that
+     threw on the first physics step every frame, which is why the setup was
+     never applied and the car never moved under its own power. */
+  const EM=ersModeDef();
+  const dmgMul=(1-CAR.damage*0.22)*puPowerMul()*(EM.k==='harvest'?0.965:1);
+  const SUd=(CAR.setupMul&&CAR.setupMul.drag)||1;
+  puWear(dt, inp.throttle, EM.k);
   /* How much grip the tyres had LAST frame. gripMul is only known once we have
      worked out what the car is standing on, which happens further down, but
      traction and braking both need it before then; at 120 Hz it is 8 ms stale
@@ -13813,12 +13876,12 @@ function stepPhysics(dt,inp){
   // --- ERS: deploy button spends battery for an extra power boost; braking regens ---
   const deploying = !!inp.ers && CAR.ers>0.001 && inp.throttle>0.1 && CAR.v>2;
   if(deploying){
-    Fdrive += inp.throttle*Math.min(P.ersPower/Math.max(spd,7),P.ersForce);
-    CAR.ers=Math.max(0,CAR.ers - dt/P.ersDrain);        // ~6.5s of full deploy from full
+    Fdrive += inp.throttle*Math.min(P.ersPower/Math.max(spd,7),P.ersForce)*EM.deploy*puErsMul();
+    CAR.ers=Math.max(0,CAR.ers - dt/P.ersDrain*EM.deploy);
   }else if(inp.brake>0.05 && CAR.v>3){
-    CAR.ers=Math.min(1,CAR.ers + inp.brake*dt/P.ersRegen);  // MGU-K harvest under braking
+    CAR.ers=Math.min(1,CAR.ers + inp.brake*dt/P.ersRegen*EM.regen);  // MGU-K harvest under braking
   }else if(inp.throttle>0.2 && CAR.v>3){
-    CAR.ers=Math.min(1,CAR.ers + dt/P.ersHarvest);          // passive MGU-H trickle on power
+    CAR.ers=Math.min(1,CAR.ers + dt/P.ersHarvest*EM.regen);  // passive MGU-H trickle on power
   }
   CAR.ersActive=damp(CAR.ersActive, deploying?1:0, 12, dt);
   /* TRACTION. The rear tyres can only put down what they can hold, and in the
@@ -13865,7 +13928,8 @@ function stepPhysics(dt,inp){
   if(inZone && spd>62 && (inp.brake||0)<0.05 && Math.abs(CAR.vLat)<3.5) CAR.drsOpen=true;
   if(!inZone || (inp.brake||0)>0.05 || spd<45) CAR.drsOpen=false;
   const drsCd=CAR.drsOpen?0.76:1.0;                 // wing open ≈ 24% less drag
-  const Fdrag=0.5*1.2*P.cdA*drsCd*CAR.v*spd;        // ~v^2 opposing
+  // wing settings and ride height show up here, as drag — which is the price
+  const Fdrag=0.5*1.2*P.cdA*SUd*drsCd*CAR.v*spd;    // ~v^2 opposing
   let F=Fdrive - Fdrag - P.roll*Math.sign(CAR.v);
   if(inp.throttle<0.02) F-=P.engBrake*CAR.v*0.02;   // engine braking
   // braking / reverse handling
@@ -14051,6 +14115,8 @@ function stepPhysics(dt,inp){
           0.82,0.80,0.74,0.55,0.5,2.0,1.8);
       }
       CAR.damage=Math.min(1,(CAR.damage||0)+dt*(big?0.045:0.012));
+    if(!CAR.dmg) CAR.dmg={front:0,floor:0,rear:0};
+    CAR.dmg.floor=Math.min(1,CAR.dmg.floor+dt*(big?0.050:0.014));   // the plank takes it
     }
   }
   // gravity. Downforce is worth several g, so a car comes back down hard.
@@ -14068,7 +14134,14 @@ function stepPhysics(dt,inp){
   /* Downforce split. 46/54 rearward meant the faster the car went the more the
      balance moved away from the front, so exactly the high-speed corners where
      you most want the nose to bite were the ones where it bit least. */
-  const loadF=m*g*b/L + df*0.485, loadR=m*g*a/L + df*0.515;
+  /* Per-area damage lands here, where it can actually change the balance.
+     A broken front wing takes front downforce away and nothing else, which is
+     understeer you can feel; a damaged floor takes it from both ends. */
+  const D=CAR.dmg||{front:0,floor:0,rear:0};
+  const SU=CAR.setupMul||{dfF:1,dfR:1,drag:1,gripF:1,gripR:1,df:1,brakeBias:0.57};
+  const fDF=(1-D.front*0.42)*(1-D.floor*0.30)*SU.dfF*SU.df;
+  const rDF=(1-D.rear*0.28)*(1-D.floor*0.30)*SU.dfR*SU.df;
+  const loadF=m*g*b/L + df*0.485*fDF, loadR=m*g*a/L + df*0.515*rDF;
   // tyres give grip back as the aero load piles on — see TYRE_LS
   const muF=P.mu*tyreMuFactor(loadF,m*g*b/L), muR=P.mu*tyreMuFactor(loadR,m*g*a/L);
   /* THE LOOSE REAR. wetLoose only touches the rear axle's friction circle, so as
@@ -14076,7 +14149,10 @@ function stepPhysics(dt,inp){
      That is the difference between a wet lap that washes wide at every corner
      (miserable) and one where the car steps out on the exit and you catch it
      (the reason people watch wet races). */
-  const FyfMax=muF*gripMul*loadF, FyrMax=muR*gripMul*loadR*wetLoose;
+  // (tyre temperature is already in gripMul, via tireGrip further up — it must
+  //  not be applied a second time here or the window counts twice)
+  // anti-roll bars move grip between the axles; they never create any
+  const FyfMax=muF*gripMul*loadF*SU.gripF, FyrMax=muR*gripMul*loadR*wetLoose*SU.gripR;
   const vx=Math.max(Math.abs(CAR.v),0.6);
   let af=0,ar=0;
   if(spd>1.2){
@@ -14132,7 +14208,12 @@ function stepPhysics(dt,inp){
     CAR.v*=0.55;                                 // scrub forward speed
     CAR.vLat*=-0.12;                             // kill the into-wall slide (tiny inward nudge)
     CAR.yawRate*=0.25;                           // stop the wild spin that "broke" the car
-    CAR.damage=Math.min(1,CAR.damage+Math.min(spd/PHYS.vMax,1)*0.14*rdDura());   // wall contact damages the car (durability R&D softens it)
+    { const hit=Math.min(spd/PHYS.vMax,1)*0.14*rdDura();
+      CAR.damage=Math.min(1,CAR.damage+hit);
+      // a barrier is taken nose-first far more often than not
+      if(!CAR.dmg) CAR.dmg={front:0,floor:0,rear:0};
+      CAR.dmg.front=Math.min(1,CAR.dmg.front+hit*1.5);
+      CAR.dmg.floor=Math.min(1,CAR.dmg.floor+hit*0.4); }
   }
 
   // smoothly INTERPOLATED road height (continuous along the centreline) so the car
@@ -14454,6 +14535,8 @@ function stepPitStop(dt){
     // NEW RUBBER ON. This is the point of the whole exercise.
     fitTyres(P.planComp||selCompound,true);
     CAR.damage=Math.max(0,(CAR.damage||0)-0.45);      // the crew pulls the damaged wing off
+    if(CAR.dmg){ CAR.dmg.front=0; CAR.dmg.rear=Math.max(0,CAR.dmg.rear-0.3); }
+    // the floor is not something you change in three seconds
     P.phase='drop'; P.t=STOP.drop; Sound.hit();
   }
   else if(P.phase==='drop'){ P.phase='hold'; P.t=STOP.hold; }
@@ -15675,6 +15758,111 @@ const SEASON={active:false,on:false,slot:null,team:'redbull',diff:'Pro',name:'M.
   raceLaps:8, lastResult:null,
   field:['M. VÄRLA','R. OKONKWO','L. FENN','S. HÄKKINEN','D. ROSSI','K. TANAKA','A. PETROV','J. MORAIS','E. LARSSON','B. NAKAMURA']};
 const F1PTS=[25,18,15,12,10,8,6,4,2,1];
+
+/* ==================================================================
+   POWER UNIT COMPONENTS
+   You get a fixed allocation of engines, gearboxes and batteries for the whole
+   season. Each one wears with use — hard, if you run it in attack mode all race
+   — and a worn component makes less power and eventually fails. Taking a fresh
+   one past your allocation is a grid penalty at the next race, which is the
+   whole tension: nurse a tired engine, or take the hit and have the power.
+   ================================================================== */
+const PU_KINDS=[
+  {k:'engine',  nm:'ENGINE',   alloc:4, wearK:1.00},
+  {k:'gearbox', nm:'GEARBOX',  alloc:5, wearK:0.72},
+  {k:'battery', nm:'BATTERY',  alloc:3, wearK:0.85},
+];
+function puReset(){
+  SEASON.pu={};
+  for(const K of PU_KINDS) SEASON.pu[K.k]={used:1, wear:0, failed:false};
+  SEASON.gridPenalty=0;
+}
+function puGet(k){
+  if(!SEASON.pu) puReset();
+  return SEASON.pu[k]||(SEASON.pu[k]={used:1,wear:0,failed:false});
+}
+/* Fit a new one. If that takes you past the allocation it costs grid places at
+   the next race — five for the first over, ten thereafter, which is roughly how
+   the real thing works. */
+function puFit(k){
+  const K=PU_KINDS.find(x=>x.k===k); if(!K) return;
+  const c2=puGet(k);
+  c2.used++; c2.wear=0; c2.failed=false;
+  if(c2.used>K.alloc){
+    const places=(c2.used-K.alloc)===1?5:10;
+    SEASON.gridPenalty=(SEASON.gridPenalty||0)+places;
+    wkNews(`${K.nm} change — ${places}-place grid penalty.`,
+      `${esc(SEASON.name)} takes a new ${K.nm.toLowerCase()}, the ${c2.used}${ordSuffix(c2.used)} of the season, `+
+      `and drops ${places} places on the grid for it.`);
+  }else{
+    wkNews(`New ${K.nm.toLowerCase()} fitted.`,
+      `${esc(SEASON.name)} takes the ${c2.used}${ordSuffix(c2.used)} ${K.nm.toLowerCase()} of the season, within the allocation.`);
+  }
+}
+function ordSuffix(n){ return ['th','st','nd','rd'][(n%100>10&&n%100<14)?0:Math.min(n%10,4)]||'th'; }
+/* How much life is left in each component, 0..1 — what the tablet shows and
+   what the power calculation reads. */
+function puHealth(k){ const c2=puGet(k); return clamp(1-c2.wear,0,1); }
+/* Wear the components as the race runs. Attack mode and high revs cost more,
+   which is what makes the ERS mode a real decision rather than free speed. */
+function puWear(dt,load,ersMode){
+  if(!SEASON.active||!isRace()) return;
+  const revShare=clamp(Math.abs(CAR.v)/PHYS.vMax,0,1);
+  const modeK=ersMode==='attack'?1.55:(ersMode==='harvest'?0.72:1.0);
+  for(const K of PU_KINDS){
+    const c2=puGet(K.k);
+    if(c2.failed) continue;
+    let rate=K.wearK*(0.18+0.55*revShare+0.30*load)*modeK;
+    if(K.k==='gearbox') rate*= (0.6+0.8*revShare);
+    c2.wear=clamp(c2.wear + rate*dt/2600, 0, 1.4);
+    /* FAILURE. Past full wear it is running on borrowed time, and each second
+       is a roll of the dice — an engine does not politely stop at exactly 100%. */
+    if(c2.wear>1.0 && Math.random()<dt*0.06*(c2.wear-1.0)*4){
+      c2.failed=true;
+      const tl=$('#tlWarn');
+      if(tl){ tl.textContent=K.nm+' FAILURE'; tl.style.color='#ff5b5b'; tl.classList.add('on');
+        clearTimeout(CAR._tlT); CAR._tlT=setTimeout(()=>tl.classList.remove('on'),4000); }
+      Radio.say('engineer','damage',{cool:0});
+    }
+  }
+}
+/* The multiplier the physics applies: a tired engine makes less power, and a
+   failed one makes almost none. */
+function puPowerMul(){
+  if(!SEASON.active) return 1;
+  const e=puGet('engine');
+  if(e.failed) return 0.35;
+  return 1-clamp(e.wear,0,1)*0.14;
+}
+function puErsMul(){
+  if(!SEASON.active) return 1;
+  const b=puGet('battery');
+  if(b.failed) return 0.25;
+  return 1-clamp(b.wear,0,1)*0.30;
+}
+
+/* ==================================================================
+   ERS MODES
+   The battery is a budget, and how you spend it is a choice: harvest to build
+   it back up at a cost in lap time, attack to spend it faster than you can
+   replace it, or sit in between.
+   ================================================================== */
+const ERS_MODES=[
+  {k:'harvest', nm:'HARVEST', deploy:0.45, regen:1.85, note:'Builds the battery back up. Slower.'},
+  {k:'balanced',nm:'BALANCED',deploy:1.00, regen:1.00, note:'Deploy roughly matches harvest.'},
+  {k:'attack',  nm:'ATTACK',  deploy:1.70, regen:0.55, note:'Everything the battery has. Wears the power unit.'},
+];
+function ersMode(){ return CAR.ersMode||'balanced'; }
+function ersModeDef(){ return ERS_MODES.find(m=>m.k===ersMode())||ERS_MODES[1]; }
+function cycleErsMode(){
+  const i=ERS_MODES.findIndex(m=>m.k===ersMode());
+  CAR.ersMode=ERS_MODES[(i+1)%ERS_MODES.length].k;
+  const d=ersModeDef();
+  const tl=$('#tyreToast');
+  if(tl){ tl.textContent='ERS · '+d.nm; tl.style.color='#3fa9ff'; tl.classList.add('on');
+    clearTimeout(tl._h); tl._h=setTimeout(()=>tl.classList.remove('on'),1800); }
+  Sound.blip(600,.05);
+}
 /* ==================================================================
    SEASON SAVES
    A championship is twenty-four rounds; it has to survive closing the tab.
@@ -15704,7 +15892,7 @@ function seasonSnapshot(){
     sponsor:SEASON.sponsor, round:SEASON.round, points:SEASON.points,
     cal:SEASON.cal, table:SEASON.table, lastResult:SEASON.lastResult,
     raceLaps:SEASON.raceLaps, rd:SEASON.rd, rdPts:SEASON.rdPts, money:SEASON.money,
-    news:SEASON.news,
+    news:SEASON.news, pu:SEASON.pu, gridPenalty:SEASON.gridPenalty, setup:CAR.setup,
   };
 }
 function seasonRestore(s){
@@ -15717,6 +15905,9 @@ function seasonRestore(s){
   SEASON.raceLaps=s.raceLaps||SET.raceLaps;
   SEASON.rd=s.rd; SEASON.rdPts=s.rdPts||0; SEASON.money=s.money||0;
   SEASON.news=s.news||[];
+  SEASON.pu=s.pu||null; if(!SEASON.pu) puReset();
+  SEASON.gridPenalty=s.gridPenalty||0;
+  if(s.setup){ CAR.setup=s.setup; applySetup(); }
   // a restored season starts at the weekend hub, never mid-session
   SEASON.wk=null; SEASON.grid=null; SEASON.gridPos=null; SEASON.pendingRace=false;
   if(!SEASON.table||!SEASON.table.length) seasonBuildTable();
@@ -15854,6 +16045,7 @@ function beginSeason(){
   SEASON.num=Math.max(1,Math.min(99,parseInt($('#ssNum').value)||7));
   SEASON.active=true;SEASON.round=0;SEASON.points=0;
   SEASON.rd=null; initRD();                            // fresh R&D tree + starting resources
+  puReset();                                           // a fresh allocation of components
   SEASON.lastResult=null;
   seasonBuildTable();
   SEASON.news=[]; SEASON.wk=null;
@@ -16231,6 +16423,53 @@ const GT_COMPOUNDS=[
   {k:'inter',  nm:'INTER',  col:'#3ea94a', note:'Intermediate: for a damp track.'},
   {k:'wet',    nm:'WET',    col:'#2a7fd0', note:'Full wet: standing water only.'},
 ];
+/* ==================================================================
+   CAR SETUP
+   Every item here changes a number the physics actually reads, and each one is
+   a trade rather than a slider you push to the right. Wing costs straight-line
+   speed for cornering grip; brake bias trades stability under braking for
+   turn-in; the anti-roll bars move the balance between the axles.
+   ================================================================== */
+const SETUP_ITEMS=[
+  {k:'wingF', nm:'FRONT WING', min:1, max:11, def:6,
+   d:'More front wing bites harder into the corner and costs a little top speed.'},
+  {k:'wingR', nm:'REAR WING',  min:1, max:11, def:6,
+   d:'More rear wing steadies the back and costs more top speed than the front does.'},
+  {k:'brake', nm:'BRAKE BIAS', min:50, max:66, def:57, unit:'%',
+   d:'Forward bias stops harder but locks the fronts; rearward turns in better and is looser.'},
+  {k:'arbF',  nm:'FRONT ARB',  min:1, max:11, def:6,
+   d:'A stiffer front bar reduces roll and adds understeer.'},
+  {k:'arbR',  nm:'REAR ARB',   min:1, max:11, def:6,
+   d:'A stiffer rear bar frees the car up and can make it snappy.'},
+  {k:'ride',  nm:'RIDE HEIGHT',min:1, max:9,  def:4,
+   d:'Lower runs more downforce but bottoms out over kerbs.'},
+];
+function setupDefaults(){ const o={}; for(const it of SETUP_ITEMS) o[it.k]=it.def; return o; }
+function getSetup(){ if(!CAR.setup) CAR.setup=setupDefaults(); return CAR.setup; }
+/* Parc fermé: once qualifying has run, the car is locked for the race. */
+function setupLocked(){
+  return SEASON.active && (sessionMode==='quali' || sessionMode==='season');
+}
+/* Turn the setup into the multipliers the physics reads. Called whenever the
+   setup changes rather than every frame. */
+function applySetup(){
+  const s=getSetup();
+  const nF=(s.wingF-6)/5, nR=(s.wingR-6)/5;          // -1..1 about the default
+  const aF=(s.arbF-6)/5,  aR=(s.arbR-6)/5;
+  const rh=(s.ride-4)/5;
+  CAR.setupMul={
+    // wing: downforce split and drag
+    dfF: 1+nF*0.22,
+    dfR: 1+nR*0.24,
+    drag:1+nF*0.05+nR*0.10-rh*0.03,
+    // anti-roll bars move grip between the axles without adding any
+    gripF:1-aF*0.07+aR*0.04,
+    gripR:1-aR*0.07+aF*0.04,
+    // ride height: downforce against the risk of grounding
+    df:  1-rh*0.06,
+    brakeBias:s.brake/100,
+  };
+}
 function gtabOpen(){ GTAB.on=true; $('#gtab').classList.add('on'); gtabRender(); }
 /* Are we parked in our own box? The session controls and the tyre change both
    need it — you cannot swap compounds or call the session off from halfway
@@ -16243,6 +16482,8 @@ function gtabTab(name){
   GTAB.tab=name;
   if(name==='timing') gtabRenderLaps();
   if(name==='delta') gtabRenderTurns();
+  if(name==='setup') gtabRenderSetup();
+  if(name==='power') gtabRenderPower();
   document.querySelectorAll('.gtTab').forEach(t=>t.classList.toggle('on',t.dataset.tab===name));
   document.querySelectorAll('.gtPage').forEach(p=>p.classList.toggle('on',p.dataset.page===name));
   Sound.blip(520,.04);
@@ -16272,6 +16513,65 @@ function gtabRender(){
   });
   const cur=GT_COMPOUNDS.find(t=>t.k===selCompound);
   if(cur) $('#gtTyreNote').textContent=cur.note;
+}
+/* ---- setup tab ---- */
+function gtabRenderSetup(){
+  const wrap=$('#gtSetupRows'); if(!wrap) return;
+  const s=getSetup(), locked=setupLocked() && !inGarage();
+  $('#gtSetupNote').textContent = setupLocked()?'PARC FERMÉ':'FREE';
+  wrap.innerHTML='';
+  for(const it of SETUP_ITEMS){
+    const v=s[it.k];
+    const t=(v-it.min)/Math.max(1,it.max-it.min);
+    const row=document.createElement('div'); row.className='gtSet';
+    row.innerHTML=`<span class="sl">${it.nm}</span>`+
+      `<span class="sb"><i style="width:${(t*100).toFixed(0)}%"></i></span>`+
+      `<span class="sv">${v}${it.unit||''}</span>`;
+    const d=document.createElement('span'); d.className='sd';
+    const mk=(txt,delta)=>{ const bn=document.createElement('button'); bn.textContent=txt;
+      bn.onclick=()=>{
+        if(locked){ Sound.blip(220,.06); return; }
+        s[it.k]=clamp(s[it.k]+delta,it.min,it.max);
+        applySetup(); Sound.blip(560,.04); gtabRenderSetup();
+        $('#gtSetupNote').textContent=it.d;
+      }; return bn; };
+    d.appendChild(mk('−',-1)); d.appendChild(mk('+',1));
+    row.appendChild(d);
+    wrap.appendChild(row);
+  }
+}
+/* ---- power unit tab ---- */
+function gtabRenderPower(){
+  const er=$('#gtErsRow'), pr=$('#gtPuRows'); if(!er||!pr) return;
+  er.innerHTML='';
+  for(const m of ERS_MODES){
+    const el=document.createElement('div');
+    el.className='gtErs'+(ersMode()===m.k?' on':'');
+    el.textContent=m.nm;
+    el.onclick=()=>{ CAR.ersMode=m.k; Sound.blip(620,.05); gtabRenderPower();
+      $('#gtErsMode').textContent=m.nm; };
+    er.appendChild(el);
+  }
+  $('#gtErsMode').textContent=ersModeDef().nm;
+  pr.innerHTML='';
+  if(!SEASON.active){
+    const e=document.createElement('div'); e.className='gtNote';
+    e.textContent='Component life is tracked across a season. Start a championship to use it.';
+    pr.appendChild(e); return;
+  }
+  for(const K of PU_KINDS){
+    const comp=puGet(K.k), h=puHealth(K.k);
+    const row=document.createElement('div');
+    row.className='gtPu'+(comp.failed?' bad':(h<0.25?' warn':''));
+    row.innerHTML=`<span class="pn">${K.nm}</span>`+
+      `<span class="pb"><i style="width:${Math.round(h*100)}%"></i></span>`+
+      `<span class="pc">${comp.failed?'FAILED':Math.round(h*100)+'% · '+comp.used+'/'+K.alloc}</span>`;
+    const bn=document.createElement('button'); bn.textContent='FIT NEW';
+    bn.onclick=()=>{ if(!inGarage()){Sound.blip(220,.06);return;}
+      puFit(K.k); Sound.blip(660,.06); gtabRenderPower(); };
+    row.appendChild(bn);
+    pr.appendChild(row);
+  }
 }
 /* Called every frame while a timed session is running. */
 function gtabUpdate(){
@@ -17241,6 +17541,7 @@ function startDrive(){
         qualiBegin();
       }
       // you start in the box, so the tablet is down in front of you
+      applySetup();
       GTAB.trace=[]; GTAB.best=null; GTAB.bestTrace=null;
       GTAB.laps=[]; GTAB.sel=null; GTAB.turnT=null; GTAB.turnSeen=null;
       gtabOpen();
@@ -17318,6 +17619,22 @@ function endQuali(best, prebuiltGrid, knockedOut){
      so the paddock feed carries the story of the weekend as it happens. */
   if(SEASON.active && SEASON.wk){
     SEASON.wk.done.q=true;
+    /* GRID PENALTIES ARE SERVED HERE. Taking a fresh engine past the allocation
+       costs places off wherever you qualified, which is the point of the whole
+       component system: the fast way round is not always the fast way to the
+       front row. */
+    if(SEASON.gridPenalty>0 && me){
+      const drop=SEASON.gridPenalty;
+      const from=me.pos;
+      const to=Math.min(grid.length, from+drop);
+      grid.splice(grid.indexOf(me),1);
+      grid.splice(to-1,0,me);
+      grid.forEach((r,i)=>r.pos=i+1);
+      SEASON.gridPos=me.pos;
+      wkNews(`${drop}-place grid penalty applied.`,
+        `${esc(SEASON.name)} qualified P${from} but starts P${me.pos} after taking new power unit components.`);
+      SEASON.gridPenalty=0;
+    }
     const p=me?me.pos:grid.length;
     wkNews(p===1?'Pole position.':`Qualified P${p}.`,
       `${esc(SEASON.name)} will start ${p===1?'from pole':'P'+p} at ${esc(curCfg().name)} `+
@@ -17467,8 +17784,9 @@ addEventListener('keydown',e=>{
     else if(k==='p')openStrategy();
     // the garage tablet, but only in a session that actually has one
     else if(k==='t'&&SESS.on)gtabToggle();
-    else if(SESS.on&&GTAB.on&&k>='1'&&k<='4'){
-      gtabTab(['tyres','timing','delta','session'][+k-1]); }
+    else if(k==='e'){ cycleErsMode(); }
+    else if(SESS.on&&GTAB.on&&k>='1'&&k<='6'){
+      gtabTab(['tyres','timing','delta','setup','power','session'][+k-1]); }
     else if(k==='o'){togglePhoto();e.preventDefault();}
     else if(k==='y')enterReplay();
     else if(k==='escape')exitToMenu();
@@ -17651,6 +17969,11 @@ function spawnAIs(n){
       consist:clamp(d.consist*aiSkillMul(),0.4,1), psn:d.psn||{},
       ers:0.7, mistakeT:-99, dodge:0, defend:0, seed:Math.random()*TAU,
       lineBias:((i%5)-2)/2*(TRACK.halfW||8)*0.30,
+      /* The AI runs the same systems the player does: a power unit that wears,
+         an ERS budget it has to spend and rebuild, and damage that costs it
+         performance. Without this the player is the only one paying for any of
+         it, and a race of managed cars against unmanaged ones is not a race. */
+      puWear:0, puFailed:false, ersMode:'balanced', dmgF:0, dmgFloor:0,
       compound:comp, tyre:1, tyreLife:compoundLaps(comp,CFG.id), stops:0,
       pitFlag:false, pitPhase:0, pitTimer:0, lastIdx:0});
   });
@@ -17706,6 +18029,7 @@ function spawnGrid(n){
       consist:clamp(d.consist*aiSkillMul(),0.4,1), psn:d.psn||{},
       ers:1.0, mistakeT:-99, dodge:0, defend:0, seed:Math.random()*TAU,
       lineBias:((i%5)-2)/2*(TRACK.halfW||8)*0.30,
+      puWear:0, puFailed:false, ersMode:'balanced', dmgF:0, dmgFloor:0,
       compound:comp, tyre:1, tyreLife:compoundLaps(comp,CFG.id), stops:0,
       pitFlag:false, pitPhase:0, pitTimer:0, lastIdx:0,
       gridPos:i+1, startJitter:0.10+Math.random()*0.55*(1.15-d.skill)*4,
@@ -19005,6 +19329,28 @@ function stepAI(dt){
        lap is a second and a half — enough to close a gap and force a move. */
     let targetV=Math.min(VCAP,vLimit)*tyreGrip*(c.defLate||1)
                 *lerp(0.978,1.0,clamp((c.skill-0.93)/0.07,0,1));
+    /* THE AI PAYS THE SAME BILLS. Its power unit wears through the race, its
+       damage costs it downforce, and it picks an ERS mode to suit its
+       situation — attacking when it is close to the car ahead, harvesting when
+       it is on its own — so the field is managing the same things you are. */
+    if(isRace()){
+      c.puWear=Math.min(1.4,(c.puWear||0)+dt/2600*(0.35+0.6*clamp(c.v/PHYS.vMax,0,1))
+                                        *(c.ersMode==='attack'?1.5:c.ersMode==='harvest'?0.7:1));
+      if(!c.puFailed && c.puWear>1.0 && Math.random()<dt*0.05*(c.puWear-1.0)*4){
+        c.puFailed=true; c.dnf=true;              // a blown engine is a retirement
+      }
+      // pick a mode: chase hard when there is someone to catch, otherwise save
+      const chasing = aheadCar && closeAhead<28;
+      c.ersMode = chasing ? (c.ers>0.25?'attack':'harvest')
+                          : (c.ers<0.55?'harvest':'balanced');
+      const EMa=c.ersMode==='attack'?1.7:c.ersMode==='harvest'?0.45:1.0;
+      const EMr=c.ersMode==='attack'?0.55:c.ersMode==='harvest'?1.85:1.0;
+      if(chasing && c.ers>0.02){ c.ers=Math.max(0,c.ers-dt/8.0*EMa); targetV+=2.2*EMa; }
+      else c.ers=Math.min(1,c.ers+dt/16.0*EMr);
+      const wearLoss=1-clamp(c.puWear,0,1)*0.12-(c.puFailed?0.6:0);
+      const dmgLoss=1-(c.dmgF||0)*0.10-(c.dmgFloor||0)*0.08;
+      targetV*=wearLoss*dmgLoss;
+    }
     targetV*= 0.99 + 0.02*Math.sin(c.idx*0.05 + c.seed);          // subtle lap-to-lap rhythm
     /* TRAFFIC. Look further ahead than before — a slipstream reaches a long way
        at these speeds, and a car that only notices the one in front at 14 indices
@@ -19725,7 +20071,10 @@ function stepAI(dt){
         if(B.ai){ B.ai.latV=(B.ai.latV||0)+sgn*push*Math.min(1,dt*8);
           B.ai.lat=clamp(B.ai.lat,-(HW-0.7),HW-0.7); }
         if(!A.ai||!B.ai){ CAR.vLat=(CAR.vLat||0)-sgn*(A.ai?1:-1)*6*sevr;
-          CAR.damage=Math.min(1,(CAR.damage||0)+0.010*sevr); }
+          CAR.damage=Math.min(1,(CAR.damage||0)+0.010*sevr);
+          if(!CAR.dmg) CAR.dmg={front:0,floor:0,rear:0};
+          CAR.dmg.front=Math.min(1,CAR.dmg.front+0.008*sevr);
+          CAR.dmg.floor=Math.min(1,CAR.dmg.floor+0.006*sevr); }
       }else{
         /* Genuinely square behind.
            This used to drag the following car BACKWARDS along the track —
@@ -19751,11 +20100,14 @@ function stepAI(dt){
           behind.ai.v=Math.min(behind.ai.v, aheadV2*(1-0.06*sevr));
           behind.ai.v=Math.max(behind.ai.v,0);
           behind.ai.bumped=0.7;                 // back out and stay backed out
+          behind.ai.dmgF=Math.min(1,(behind.ai.dmgF||0)+0.03*sevr);   // nose damage
         }
         if(!behind.ai||!ahead.ai){
           // the player is one of the two: they take the damage either way
           if(behind.ai) CAR.v*=1.0; else CAR.v=Math.min(CAR.v,aheadV2*0.90);
           CAR.damage=Math.min(1,(CAR.damage||0)+0.016*sevr);
+          if(!CAR.dmg) CAR.dmg={front:0,floor:0,rear:0};
+          CAR.dmg.front=Math.min(1,CAR.dmg.front+0.030*sevr);   // nose into their gearbox
           /* CAUSING A COLLISION IS A PENALTY.
              Driving into the back of the car ahead is the one contact the
              stewards never wave through, and without a cost the fastest way past
