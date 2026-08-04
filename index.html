@@ -1709,7 +1709,7 @@ const SET={
   volMaster:0.6, volEngine:1.0, radioEngineer:true, radioCommentary:true, speech:true,
   // gameplay
   difficulty:'pro', raceLaps:8, weatherMode:'dynamic', trackLimits:true, postFX:true,
-  racingLine:'off', assistBrake:false, assistSteer:false, gamepad:true, colorblind:'off',
+  racingLine:'off', assistBrake:false, assistSteer:false, gamepad:true, colorblind:'off', autoQuality:true,
   tyreWear:'normal', steerSpeed:1.0,
   // graphics
   shadows:true, fxDensity:'high', resScale:1.0,
@@ -15425,6 +15425,8 @@ const SETTINGS_DEF=[
    {k:'raceLaps',type:'enum',t:'Race length',
     opts:[[3,'3 LAPS'],[5,'5 LAPS'],[8,'8 LAPS'],[12,'12 LAPS'],[20,'20 LAPS'],[35,'35 LAPS']],
     d:'Laps in a season race. Longer races make tyre strategy matter more.'},
+   {k:'autoQuality',type:'bool',t:'Automatic quality',
+    d:'Drops render scale, then shadows, then post FX if the frame rate cannot keep up. F9 shows the meter.'},
    {k:'gamepad',type:'bool',t:'Gamepad',
     d:'Use a controller when one is connected. Analogue triggers give you the brake modulation a keyboard cannot.'},
    {k:'colorblind',type:'enum',t:'Colour mode',
@@ -15482,6 +15484,8 @@ function applySettings(){
   try{ syncRacingLine(); }catch(e){}
   // colour mode goes on the root element, where the CSS can key off it
   document.documentElement.setAttribute('data-cb', SET.colorblind&&SET.colorblind!=='off'?SET.colorblind:'');
+  PERF.auto=SET.autoQuality!==false;
+  if(!PERF.auto && PERF.level!==0){ PERF.level=0; perfApply(); }
   SEASON.raceLaps=SET.raceLaps;
   // --- graphics ---
   if(renderer.shadowMap.enabled!==SET.shadows){
@@ -15896,6 +15900,69 @@ const SEASON={active:false,on:false,slot:null,team:'redbull',diff:'Pro',name:'M.
   raceLaps:8, lastResult:null,
   field:['M. VÄRLA','R. OKONKWO','L. FENN','S. HÄKKINEN','D. ROSSI','K. TANAKA','A. PETROV','J. MORAIS','E. LARSSON','B. NAKAMURA']};
 const F1PTS=[25,18,15,12,10,8,6,4,2,1];
+
+/* ==================================================================
+   PERFORMANCE
+   A frame budget you cannot see is a frame budget you cannot manage. This
+   measures where the time actually goes and, if the machine cannot keep up,
+   turns things off in the order that costs the least to lose.
+   ================================================================== */
+const PERF={
+  on:false, fps:60, ms:16.7, acc:0, n:0,
+  auto:true, level:0,        // 0 = everything on, 3 = as light as it goes
+  lowT:0, highT:0,
+};
+function perfSample(dt){
+  PERF.acc+=dt; PERF.n++;
+  if(PERF.acc>=0.5){
+    PERF.ms=(PERF.acc/PERF.n)*1000;
+    PERF.fps=1000/Math.max(PERF.ms,0.001);
+    PERF.acc=0; PERF.n=0;
+    if(PERF.on) perfDraw();
+    if(PERF.auto) perfAdapt();
+  }
+}
+/* AUTOMATIC QUALITY. Only move after the frame rate has been consistently bad
+   or consistently good for a couple of seconds — reacting to a single slow
+   frame makes the quality flicker, which looks far worse than simply being
+   slow. Each level drops the cheapest-to-lose thing first. */
+function perfAdapt(){
+  const bad=PERF.fps<42, good=PERF.fps>57;
+  PERF.lowT = bad ? PERF.lowT+0.5 : 0;
+  PERF.highT= good? PERF.highT+0.5 : 0;
+  if(PERF.lowT>2 && PERF.level<3){ PERF.level++; perfApply(); PERF.lowT=0; }
+  else if(PERF.highT>6 && PERF.level>0){ PERF.level--; perfApply(); PERF.highT=0; }
+}
+function perfApply(){
+  switch(PERF.level){
+    case 0:                                    // everything
+      renderer.setPixelRatio(Math.min(devicePixelRatio,1.5)*(SET.resScale||1));
+      renderer.shadowMap.enabled=SET.shadows!==false; FX2.on=true; break;
+    case 1:                                    // drop the render scale first
+      renderer.setPixelRatio(Math.min(devicePixelRatio,1.15)*(SET.resScale||1));
+      renderer.shadowMap.enabled=SET.shadows!==false; FX2.on=true; break;
+    case 2:                                    // then the shadows
+      renderer.setPixelRatio(1.0*(SET.resScale||1));
+      renderer.shadowMap.enabled=false; FX2.on=true; break;
+    default:                                   // and last the post chain
+      renderer.setPixelRatio(0.85*(SET.resScale||1));
+      renderer.shadowMap.enabled=false; FX2.on=false; break;
+  }
+}
+function perfDraw(){
+  let el=$('#perfHud');
+  if(!el){ el=document.createElement('div'); el.id='perfHud';
+    el.style.cssText='position:fixed;right:8px;top:8px;z-index:99;font:11px ui-monospace,monospace;'+
+      'color:#9fe;background:rgba(0,0,0,.55);padding:5px 8px;border-radius:4px;pointer-events:none;white-space:pre';
+    document.body.appendChild(el); }
+  const tris=renderer.info.render.triangles, calls=renderer.info.render.calls;
+  el.textContent=`${PERF.fps.toFixed(0)} fps  ${PERF.ms.toFixed(1)} ms\n`+
+    `${calls} calls  ${(tris/1000).toFixed(0)}k tris\nquality ${3-PERF.level}/3`;
+}
+function perfToggle(){
+  PERF.on=!PERF.on;
+  const el=$('#perfHud'); if(el&&!PERF.on) el.remove();
+}
 
 /* ==================================================================
    GAMEPAD
@@ -18137,6 +18204,7 @@ addEventListener('keydown',e=>{
     // the garage tablet, but only in a session that actually has one
     else if(k==='t'&&SESS.on)gtabToggle();
     else if(k==='e'){ cycleErsMode(); }
+    else if(k==='f9'){ perfToggle(); }
     else if(SESS.on&&GTAB.on&&k>='1'&&k<='6'){
       gtabTab(['tyres','timing','delta','setup','power','session'][+k-1]); }
     else if(k==='o'){togglePhoto();e.preventDefault();}
@@ -20592,6 +20660,7 @@ let physAcc=0;                                   // fixed-timestep physics accum
 let LAST_STEP=null;                              // last stepPhysics() result, for frames that bank instead of step
 function frame(){
   const t=performance.now();let dt=(t-last)/1000;last=t;dt=Math.min(dt,0.05);
+  perfSample(dt);
   if(STATE==='menu'){
     menuSpin+=dt*0.18; CAR.rig.rotation.y=-0.6+Math.sin(menuSpin)*0.5;
     // showroom camera FIRST — rendering before moving it drew a frame from where
