@@ -460,6 +460,40 @@
   #rdOverall .ov .k{font-size:9px;letter-spacing:.2em;color:var(--grey);text-transform:uppercase}
   #rdOverall .ov .v{font-family:var(--mono);font-weight:900;font-size:20px}
 
+  /* ============ LIVE BATTLE TRACKER ============ */
+  #battle{position:absolute;right:clamp(16px,2.4vw,36px);top:calc(230px + clamp(70px,9vh,110px));
+    width:210px;z-index:14;padding:9px 11px 8px;border-radius:8px;
+    background:linear-gradient(180deg,rgba(8,11,17,.93),rgba(8,11,17,.80));
+    border:1px solid rgba(255,255,255,.13);box-shadow:0 8px 26px rgba(0,0,0,.5);
+    opacity:0;transform:translateX(10px);transition:opacity .35s,transform .35s;pointer-events:none}
+  #battle.on{opacity:1;transform:none}
+  .btHead{display:flex;align-items:center;gap:6px;font-family:var(--mono);font-size:8px;
+    font-weight:800;letter-spacing:.14em;color:#ffcf6a;margin-bottom:7px}
+  .btDot{width:5px;height:5px;border-radius:50%;background:var(--red);
+    box-shadow:0 0 7px var(--red);animation:btp 1.1s ease-in-out infinite}
+  @keyframes btp{0%,100%{opacity:1}50%{opacity:.25}}
+  #btLaps{margin-left:auto;color:var(--grey)}
+  .btRow{display:flex;align-items:center;gap:7px;padding:3px 0}
+  .btRow .p{font-family:var(--mono);font-size:10px;font-weight:900;color:#fff;
+    background:rgba(255,255,255,.12);border-radius:3px;padding:1px 5px;min-width:20px;text-align:center}
+  .btRow .n{flex:1;font-size:11px;font-weight:600;color:#eef2f6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .btRow .t{font-family:var(--mono);font-size:9.5px;color:var(--grey)}
+  .btRow.me .n{color:#ffcf6a}
+  .btBar{height:3px;border-radius:2px;background:rgba(255,255,255,.12);margin:4px 0;position:relative;overflow:hidden}
+  #btFill{position:absolute;left:0;top:0;bottom:0;width:50%;background:linear-gradient(90deg,var(--red),#ff8a3d);
+    transition:width .25s}
+  .btFoot{display:flex;justify-content:space-between;font-family:var(--mono);font-size:9px;
+    font-weight:800;letter-spacing:.08em;margin-top:5px}
+  #btGap{color:#fff}
+  #btTrend{color:#4be08a}
+  #btTrend.away{color:#ff7a6a}
+  .btSect{display:flex;gap:4px;margin-top:6px}
+  .btSect span{flex:1;text-align:center;font-family:var(--mono);font-size:7.5px;font-weight:800;
+    letter-spacing:.06em;padding:2px 0;border-radius:2px;background:rgba(255,255,255,.07);color:var(--grey)}
+  .btSect span.fast{background:rgba(75,224,138,.22);color:#8bf0b4}
+  .btSect span.slow{background:rgba(255,91,91,.18);color:#ff9d9d}
+  @media(max-width:900px){#battle{display:none}}
+
   /* ============ SAFETY CAR + PHOTO MODE ============ */
   #scBanner{position:fixed;left:50%;top:11%;transform:translateX(-50%);z-index:19;
     font-family:var(--mono);font-size:clamp(11px,1.5vw,16px);font-weight:900;letter-spacing:.22em;
@@ -1149,6 +1183,16 @@
   </div>
 </div>
 <div id="pitCue"></div>
+
+<!-- ===== LIVE BATTLE TRACKER ===== -->
+<div id="battle">
+  <div class="btHead"><span class="btDot"></span><span id="btTitle">BATTLE FOR P4</span><span id="btLaps">LAP 6</span></div>
+  <div class="btRow" id="btA"><span class="p">4</span><span class="n">—</span><span class="t">—</span></div>
+  <div class="btBar"><i id="btFill"></i></div>
+  <div class="btRow" id="btB"><span class="p">5</span><span class="n">—</span><span class="t">—</span></div>
+  <div class="btFoot"><span id="btGap">+0.00</span><span id="btTrend">CLOSING</span></div>
+  <div class="btSect"><span id="btS1">S1</span><span id="btS2">S2</span><span id="btS3">S3</span></div>
+</div>
 
 <div id="scBanner">SAFETY CAR</div>
 <div id="photoHud">
@@ -2187,13 +2231,40 @@ function buildWorld(sc,cfg){
          below. Each sample instead contributes a ceiling that starts at its own
          tarmac and climbs away at about thirty degrees; the ground takes the
          lowest of them. Nothing can then sit above any road it is beside. */
-      const c=s.y-0.25+Math.max(0,Math.sqrt(d2)-18)*0.6;
+      /* THE CEILING HAS TO CLEAR THE WHOLE ROAD, NOT JUST THE RACING LINE.
+         This started rising 18 m from a centreline sample and climbed at 0.6 per
+         metre, so ground only 30 m from the road could sit seven metres above
+         it. Where a circuit folds back on itself tightly — Spa's Bus Stop, where
+         the two halves of the chicane run within about thirty metres of each
+         other — the land between them rose over the tarmac and closed in
+         overhead. It was not scenery beside the track, it was a roof on it.
+         The flat zone now covers the full width of the road plus its run-off
+         before the ground is allowed to climb at all, and it climbs at half the
+         old rate. */
+      const flat=(TRACK.halfW||7)+32;
+      const c=s.y-0.35+Math.max(0,Math.sqrt(d2)-flat)*0.24;
       if(c<ceil) ceil=c;
     }
     const near=hsN/wsN, far=hsF/wsF;
     const d=Math.sqrt(best), t=clamp((d-70)/170,0,1);
     const h=lerp(near, far, t*t*(3-2*t));
     return Math.min(h, ceil);
+  };
+  /* The ceiling on its own. Anything that REPLACES terrainH — the pit flattener
+     does — has to be able to ask "how high is the ground allowed to be here",
+     or it will happily raise the land over a piece of circuit that happens to
+     run past. That is what buried Spa's Bus Stop: the pit platform is beside it
+     and the flattener lifted the ground to the pit's level, eleven metres over
+     a chicane that sits much lower, and the result was a roof over the track. */
+  TRACK.roadCeil=(x,z)=>{
+    let ceil=1e18;
+    const flat=(TRACK.halfW||7)+32;
+    for(const s2 of samp){
+      const dx=x-s2.x,dz=z-s2.z,d2=dx*dx+dz*dz;
+      const c=s2.y-0.35+Math.max(0,Math.sqrt(d2)-flat)*0.24;
+      if(c<ceil) ceil=c;
+    }
+    return ceil;
   };
   /* THE PIT COMPLEX STANDS ON FLAT GROUND. Every real one does — you cannot
      build garages, a pit wall and a paddock on a hillside, and you certainly
@@ -2965,7 +3036,13 @@ function buildWorld(sc,cfg){
   /* Every circuit has sausage kerbs at the corners worth cutting; Monza's are
      the biggest in the sport, which is what launches cars at the Rettifilo and
      the Roggia every single year. */
-  buildSausageKerbs(sc,P,Nm,cum,runL,runR,HW,cfg.sausage?1.55:1.0);
+  /* Sausage kerbs are not standard equipment. A handful of circuits bolt them
+     at the corners people persistently cut — Monza's chicanes are the famous
+     ones — and everywhere else the kerb is a painted rumble strip you can use.
+     Every track was getting them, so every track launched the car at every
+     corner. They are now opt-in per circuit. */
+  if(cfg.sausage) buildSausageKerbs(sc,P,Nm,cum,runL,runR,HW,1.55);
+  else TRACK.saus=new Array(N).fill(0);
   /* GRANDSTANDS AND THE PIT COMPLEX GO DOWN FIRST. They are the things that have
      to be right, so they get first claim on the ground in OCCUPY; the venue's
      buildings, trees and props are then built AROUND them rather than through
@@ -6609,38 +6686,12 @@ function buildZandvoort(sc,P,Nm,Tg,offL,offR){
         const st=new THREE.Mesh(new THREE.BoxGeometry(0.5,4.4,0.5),timber);st.position.set(lx,2.2,lz);g.add(st);}
       g.position.set(px,-1.0,pz);g.rotation.y=-seaAng;
       g.traverse(o=>{o.castShadow=true;o.receiveShadow=true;});sc.add(g);} }
-  // --- Zandvoort's signature BANKING: raised angled embankments on the WIDEST sweeping
-  // corners (Tarzan-style long-radius bends), not the tightest hairpins ---
-  { const HW=TRACK.halfW;
-    // sustained turning over a wide window, but only where curvature stays in a
-    // moderate "sweeping" band (too low = straight, too high = tight hairpin)
-    const avgCurv=i=>{let s=0;for(let k=-10;k<=10;k++)s+=curvAtIdx((i+k+N)%N);return s/21;};
-    const cand=[];for(let i=0;i<N;i+=2){const a=avgCurv(i); if(a>0.018&&a<0.055)cand.push([i,a]);}
-    cand.sort((a,b)=>b[1]-a[1]);                          // widest-but-still-a-turn first
-    const picks=[]; for(const [i] of cand){ if(picks.every(pj=>Math.min((i-pj+N)%N,(pj-i+N)%N)>N*0.14)){picks.push(i); if(picks.length>=2)break;} }
-    const bankMat=new THREE.MeshStandardMaterial({color:0x40434a,roughness:0.86,side:THREE.DoubleSide});
-    const rimMat=new THREE.MeshStandardMaterial({color:0xd94f00,roughness:0.7});
-    for(const ci of picks){
-      const side=signedTurnIdx(ci)<0?1:-1;                 // outside of the corner
-      const a0=ci-18,a1=ci+18, inner=HW+1.0, outerW=17, riseMax=8.0, span=a1-a0;
-      const pos=[],idx=[],rimPos=[],rimIdx=[];
-      for(let s=a0;s<=a1;s++){const k=(s+N)%N,p=P[k],n=Nm[k];
-        const taper=Math.sin(((s-a0)/span)*Math.PI);        // 0 at the ends, full in the middle
-        const rise=riseMax*taper, ow=inner+outerW;
-        const ix=p.x+n.x*side*inner, iz=p.z+n.z*side*inner, iy=gh(ix,iz)+0.08;
-        const ox=p.x+n.x*side*ow, oz=p.z+n.z*side*ow, oy=gh(ox,oz)+rise;
-        pos.push(ix,iy,iz, ox,oy,oz);
-        // bright rim strip along the crest
-        const rx=p.x+n.x*side*(ow-1.2), rz=p.z+n.z*side*(ow-1.2);
-        rimPos.push(ox,oy+0.05,oz, rx,gh(rx,rz)+rise*0.92+0.05,rz);
-      }
-      for(let s=0;s<span;s++){const v=s*2;idx.push(v,v+2,v+1,v+1,v+2,v+3);rimIdx.push(v,v+2,v+1,v+1,v+2,v+3);}
-      const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));g.setIndex(idx);g.computeVertexNormals();
-      const bank=new THREE.Mesh(g,bankMat);bank.receiveShadow=true;bank.castShadow=true;sc.add(bank);
-      const rg=new THREE.BufferGeometry();rg.setAttribute('position',new THREE.Float32BufferAttribute(rimPos,3));rg.setIndex(rimIdx);rg.computeVertexNormals();
-      sc.add(new THREE.Mesh(rg,rimMat));
-    }
-  }
+  /* Zandvoort's signature banking used to be a bolted-on embankment mesh
+     standing beside the track — scenery, not road. The actual banking now
+     comes from the circuit's own elev() profile (see the zandvoort CFG
+     entry), which lifts the real centreline through Tarzan and the final
+     banked curve, so the car is actually driving the bank rather than a
+     decorative wall sitting next to a flat road. Nothing to build here. */
   // --- the beach town: low pale apartment blocks on the sea side ---
   { const tints=['#e6e0d4','#dcd4c4','#e8e4da','#cfc8ba'];
     for(let i=0;i<40;i++){const a=Math.atan2(seaDir.z,seaDir.x)+(Math.random()-0.5)*1.4, rr=R*1.4+Math.random()*R*0.7;
@@ -10835,17 +10886,21 @@ function pitFlattenTerrain(){
        are coplanar, and coplanar surfaces z-fight: the terrain shows THROUGH the
        tarmac in bands. Dropping the ground ten centimetres under the road it
        carries costs nothing to look at and guarantees the road always wins. */
-    const target=laneYAt(dAlong)-0.10;
+    /* Take the LOWER of the projected lane height and the nearest sample's, so
+       a projection that lands slightly off on a steep short ramp can only ever
+       err downwards — under the road, never through it. */
+    const target=Math.min(laneYAt(dAlong), pts[bi].yLane)-0.10;
     const d=Math.sqrt(best);
     if(d>=OUTER) return base(x,z);
-    if(d<=INNER) return target;
+    const roof=TRACK.roadCeil?TRACK.roadCeil(x,z):1e18;
+    if(d<=INNER) return Math.min(target,roof);
     const t=1-(d-INNER)/(OUTER-INNER);
     /* In the shoulder the ground blends back to the surrounding landscape — and
        where that landscape is HIGHER than the pit platform it was rising over
        the road, which is the terrain-through-the-tarmac you can see at Texas.
        Anywhere inside the pit region the ground is not allowed above the lane
        it carries, full stop. */
-    return Math.min(lerp(base(x,z), target, t*t*(3-2*t)), target+0.05);
+    return Math.min(lerp(base(x,z), target, t*t*(3-2*t)), target+0.05, roof);
   };
 }
 
@@ -11124,7 +11179,34 @@ function buildPitCrew(sc){
 }
 function buildPit(sc,P,Nm,Tg){
   const p=P[0],n=Nm[0],tg=Tg[0], gh=TRACK.terrainH, HW=TRACK.halfW;
-  const side=-1, off=HW+24;                   // building set back across the pit lane
+  /* HOW FAR BACK THE PIT COMPLEX HAS TO SIT.
+     It was a fixed 24 m behind the track edge, placed at the start/finish point
+     and then extended 164 m as one straight slab. That is fine where the pit
+     straight is straight. Where the circuit curves away — Miami's long top
+     straight is the bad one — the far end of the slab swings across the racing
+     line, so the building sits ON the track, blocks the view down it, and drags
+     its terrain platform over the road with it.
+     The offset is now measured: walk the length the building will occupy, find
+     the closest the circuit itself ever comes to that line, and push the whole
+     complex back until it clears with room to spare. */
+  const side=-1;
+  let off=HW+24;
+  { const N2=P.length, half=164/2;
+    const segL2=TRACK.len/N2;
+    const span=Math.round(half/segL2);
+    const need=HW+30;                       // clearance we insist on
+    let worst=0;
+    for(let k=-span;k<=span;k++){
+      const j=((0+k)%N2+N2)%N2;
+      // where the building's centreline would be at this station
+      const bx=p.x+n.x*side*off + (P[j].x-p.x)*0, bz=p.z+n.z*side*off;
+      // distance from that fixed point to this piece of circuit
+      const dx=P[j].x-bx, dz=P[j].z-bz;
+      const d=Math.hypot(dx,dz);
+      if(d<need) worst=Math.max(worst,need-d);
+    }
+    off+=Math.min(worst,26);                // never push it absurdly far away
+  }
   const base=new THREE.Vector3().copy(p).addScaledVector(n,side*off);
   const g=new THREE.Group(); const len=164;
   const pitCol=(TRACK_PIT[CFG.id]||0xe9edf1), accent=(TRACK_ACCENT[CFG.id]||0xb11015);
@@ -11665,14 +11747,35 @@ const PHYS={
   // and reached it lazily; power, peak tractive force and braking are all up, and
   // the aero comes with them so the extra speed is usable rather than terrifying.
   mass:798, power:560000, maxForce:10200, brakeForce:74000,
-  cdA:1.02, downK:4.6, mu:2.02, roll:250, engBrake:1500,
+  cdA:1.02, downK:4.6, mu:2.28, roll:250, engBrake:1500,
   wheelbase:3.6, aFront:1.62, aRear:1.98,                      // CG slightly rearward
   izK:2.3,                                                     // yaw inertia (planted but not sluggish)
-  Cf:126000, Cr:176000,
+  /* FRONT AND REAR CORNERING STIFFNESS — the car's balance.
+     The car was not short of steering LOCK; measuring the tightest radius it
+     could hold at each speed showed that adding lock changed nothing, because
+     the front tyres were saturating long before the rack ran out. It was simply
+     built to understeer: with Cf at 126000 against Cr at 176000 the understeer
+     gradient was +1.4e-3, so at any speed the front gave up first and the car
+     ran wide however much you asked of it. That is the "turning is too hard"
+     feeling, and it is why lap times came out well off the pace — you had to
+     slow down for corners the car should have carried speed through.
+     Bringing the front closer to the rear roughly halves the understeer. The
+     car still understeers, because a racing car that does not is undriveable on
+     a keyboard, but it now turns when you ask it to. */
+  Cf:148000, Cr:176000,
   /* Back to the original handling. The one change kept from the retune is a
      little more lock and a slightly quicker rack at low speed, because slow
      corners were heavy: 0.30 rad is ~17 deg instead of 15. */
-  maxSteerLo:0.33, maxSteerHi:0.082, steerRate:5.2, steerReturn:8.0,
+  /* STEERING LOCK, AND HOW FAST IT IS TAKEN AWAY.
+     The lock fell off LINEARLY with speed, so by half of top speed the car had
+     already lost two thirds of it — right through the mid-speed corners that
+     make up most of a lap. You could not turn the car at the speed it was
+     capable of carrying, so you slowed down for corners you should have been
+     able to take, and the lap times came out well off what the car can do.
+     More lock overall, and a curve that holds onto it: at half of top speed the
+     car now keeps about two thirds of full lock instead of a third. The yaw
+     damping added alongside is what stops the extra lock making it twitchy. */
+  maxSteerLo:0.36, maxSteerHi:0.086, steerLockCurve:1.50, steerRate:6.6, steerReturn:8.0,
   /* YAW DAMPING. A linear-then-clip tyre gives cornering force but none of the
      things that actually settle a car: tyre relaxation length, the aligning
      moment that tries to straighten the steering, the damping in the
@@ -11684,7 +11787,7 @@ const PHYS={
      One explicit damping term fixes it. It is not a fudge — it stands in for
      real physical effects the tyre model omits — and it is scaled out at
      walking pace where the kinematic blend takes over instead. */
-  yawDamp:6.5,
+  yawDamp:1.2,
   /* How quickly the driver winds lock ON compared with how quickly they take it
      off. Coming off the lock faster than going on is what a real pair of hands
      does and it stops the car carrying rotation out of a corner. */
@@ -11700,7 +11803,15 @@ const PHYS={
    aero-loaded high-speed end gives grip back. Peak lateral goes from about
    9.4 g at 290 km/h (which no car has ever done) to about 5 g, and is
    unchanged at 70 km/h. */
-const TYRE_LS=0.24;
+/* Load sensitivity, reduced. Measuring the tightest radius the car could hold
+   showed something that made every other steering change pointless: cornering
+   is set by the FRICTION CIRCLE, not by the rack or the axle stiffnesses.
+   Changing steering lock moved the achievable radius by 3%; changing Cf moved
+   it by nothing at all, because the front tyre is already clipped. The car was
+   pulling about 1.3 g in a slow corner, which is far less than a car with these
+   tyres should, and that is what made turning feel heavy and put lap times off
+   the pace. Grip is the lever, so grip is what moved. */
+let TYRE_LS=0.18;
 function tyreMuFactor(load,ref){ return 1/(1+TYRE_LS*(load/Math.max(ref,1)-1)); }
 
 /* Red Bull livery texture (projected onto the body — mesh has no UVs) */
@@ -12570,7 +12681,8 @@ function stepPhysics(dt,inp){
      is the single change that turned "spins at every corner" into "loose but
      you can hold it" without making the rain grippier. */
   const wetLockCut=1-0.20*clamp(WEATHER.wetness,0,1);
-  const maxSteer=lerp(P.maxSteerLo,P.maxSteerHi,clamp(spd/PHYS.vMax,0,1))*wetLockCut;
+  const lockT=Math.pow(clamp(spd/PHYS.vMax,0,1),P.steerLockCurve);
+  const maxSteer=lerp(P.maxSteerLo,P.maxSteerHi,lockT)*wetLockCut;
   CAR.steer=CAR.steerCmd*maxSteer;
 
   // longitudinal
@@ -12834,7 +12946,10 @@ function stepPhysics(dt,inp){
   // friction circle; slip angles feed linear-then-saturating cornering forces.
   const m=P.mass, a=P.aFront, b=P.aRear, L=a+b, Iz=m*P.izK;
   const df=P.downK*CAR.v*CAR.v*(CAR.drsOpen?0.88:1.0), g=9.81;   // open wing = less rear load
-  const loadF=m*g*b/L + df*0.46, loadR=m*g*a/L + df*0.54;
+  /* Downforce split. 46/54 rearward meant the faster the car went the more the
+     balance moved away from the front, so exactly the high-speed corners where
+     you most want the nose to bite were the ones where it bit least. */
+  const loadF=m*g*b/L + df*0.485, loadR=m*g*a/L + df*0.515;
   // tyres give grip back as the aero load piles on — see TYRE_LS
   const muF=P.mu*tyreMuFactor(loadF,m*g*b/L), muR=P.mu*tyreMuFactor(loadR,m*g*a/L);
   /* THE LOOSE REAR. wetLoose only touches the rear axle's friction circle, so as
@@ -12860,8 +12975,20 @@ function stepPhysics(dt,inp){
   let Fyr=clamp(P.Cr*wetSoft*ar,-FyrMax,FyrMax);
   const vLatDot=(Fyf+Fyr)/m - CAR.v*CAR.yawRate;
   let yawAcc=(a*Fyf - b*Fyr)/Iz;
-  // see PHYS.yawDamp — the settling the tyre model does not model
   yawAcc-=P.yawDamp*CAR.yawRate*clamp(spd/20,0,1);
+  /* YAW DAMPING.
+     A linear-then-clip tyre gives cornering force but none of the things that
+     settle a car — relaxation length, the aligning moment, suspension damping —
+     so the yaw response was badly underdamped and the car darted past the line
+     you pointed it at.
+     Two more elaborate versions were tried and both were worse. Damping toward
+     the steering's KINEMATIC yaw command drives a spin, because at full lock
+     that command is a radius no car could hold and the damper pushes the car
+     round harder than the tyres hold it. Clamping that command to the friction
+     circle then leaves the damper doing nothing useful at all.
+     So: the simple form, opposing yaw rate directly, at a coefficient low
+     enough that what it costs in steady-state cornering is small — and the
+     front axle is stiffened alongside to more than pay it back. */
   CAR.vLat   += vLatDot*dt;
   CAR.yawRate+= yawAcc*dt;
   // below walking pace blend toward kinematic steering so it settles instead of jitters
@@ -13264,6 +13391,14 @@ const lap={t:0,num:1,last:null,best:null,prevIdx:0,armed:false,cur:null,bestArr:
         setTimeout(()=>Radio.say('commentator','fastest_lap',{cool:30}),700);
       }
       if(sessionMode==='quali' && this.num>3){ endQuali(this.best); }   // 3 flying laps done
+      /* A GRAND PRIX IS A RACE DISTANCE. Quick-race mode ran forever with no
+         finish, so there was no result, no reason to pit and no reason to manage
+         anything — you drove until you got bored. It runs the length set in
+         settings, like the championship rounds do. */
+      if(sessionMode==='gp' && this.num>SET.raceLaps){
+        Radio.say('commentator','win',{cool:0});
+        endGrandPrix();
+      }
       // a championship race is a real race distance — cross the line on the last lap and it's over
       if(sessionMode==='season' && SEASON.active && this.num>SEASON.raceLaps){
         Radio.say('commentator','win',{cool:0}); endSeasonRace(); }
@@ -13589,7 +13724,7 @@ if(DEBUG){window.__setCam=(m)=>{CAM.mode=m;CAM.tsPost=null;$('#camName').textCon
   window.__CINE=()=>CINE;window.__CHASE=()=>CHASE;
   window.__setState=(v)=>{STATE=v;};
   // deferred: PODIUM is declared further down and is in its dead zone here
-  setTimeout(()=>{window.__startPodium=startPodium;window.__PODIUM=PODIUM;window.__SC=SC;window.__deploySafetyCar=deploySafetyCar;window.__stepSafetyCar=stepSafetyCar;window.__PHOTO=PHOTO;},0);
+  setTimeout(()=>{window.__startPodium=startPodium;window.__PODIUM=PODIUM;window.__SC=SC;window.__deploySafetyCar=deploySafetyCar;window.__stepSafetyCar=stepSafetyCar;window.__updateBattle=updateBattle;window.__PHYS=PHYS;window.__PHOTO=PHOTO;},0);
   window.__nearestTrack=nearestTrack;window.__lapSigned=lapSigned;window.__pitLaneAt=pitLaneAt;
   setTimeout(()=>{window.__openSettings=openSettings;window.__closeSettings=closeSettings;
     window.__SET=SET;window.__applySettings=applySettings;},0);}
@@ -14339,10 +14474,46 @@ function drawHubTrack(cf){
     x.beginPath();for(let i=i0;i<=i1;i++){const p=pts[i%N];i===i0?x.moveTo(X(p),Y(p)):x.lineTo(X(p),Y(p));}x.stroke();}
   x.shadowBlur=0;
 }
+/* A RACE WEEKEND HAS A SATURDAY.
+   Season rounds used to drop you straight onto a grid whose order had been made
+   up, so where you started had nothing to do with how quick you were and the
+   championship was decided by a race you could not influence before it began.
+   A round now runs qualifying first — three flying laps, exactly the standalone
+   mode — and the time you set puts you on the grid for the race that follows. */
 function seasonRace(){
-  // race the current round as a Grand Prix; results feed the standings on return
-  sessionMode='season';SEASON.on=false;$('#seasonHub').classList.remove('on');
+  SEASON.on=false; $('#seasonHub').classList.remove('on');
+  SEASON.pendingRace=true;
+  sessionMode='quali';
+  SEASON.grid=null; SEASON.gridPos=null;
   startDrive();
+}
+function seasonRaceStart(){
+  SEASON.pendingRace=false;
+  sessionMode='season';
+  startDrive();
+}
+/* The end of a quick race: classify the field, show it, and go back. Reuses
+   the qualifying card because a result is a result. */
+function endGrandPrix(){
+  STATE='result';
+  $('#hud').classList.remove('on');
+  const N=TRACK.N||1;
+  const dOf=(idx,lp)=>lp*TRACK.len + (TRACK.cum?TRACK.cum[Math.round(idx)%N]||0:0);
+  const order=AI.cars.map(c=>({nm:c.name,dnf:!!c.dnf,
+    d:c.dnf?-1e9+(c.lap||0):dOf(c.idx,c.lap)}));
+  order.push({nm:'YOU',me:true,d:dOf(CAR.trackIdx||0,playerLapsDone())-(CAR.penalty||0)*55});
+  order.sort((a,b)=>b.d-a.d);
+  const pos=order.findIndex(o=>o.me)+1;
+  $('#qTrack').textContent=curCfg().name;
+  $('#qBest').textContent=fmt(lap.best);
+  const pe=$('#qPos');
+  if(pe) pe.innerHTML= pos===1 ? 'WINNER' :
+    `P${pos} OF ${order.length}<small style="opacity:.7"> · ${SET.raceLaps} LAPS</small>`;
+  const lbl=document.querySelector('#qResult .qLabel'); if(lbl) lbl.textContent='FASTEST LAP';
+  const tag=document.querySelector('#qResult .qTag');
+  if(tag) tag.innerHTML='RACE RESULT · <span>'+curCfg().name+'</span>';
+  $('#qResult').classList.add('on');
+  Radio.say('engineer','finish',{cool:0});
 }
 function endSeasonRace(){
   // classify on ACTUAL race distance covered — the player is scored on where they really finished
@@ -15051,7 +15222,14 @@ function startDrive(){
   trackIntro(cf, ()=>{
     snapCamera();
     STATE='countdown';
-    countdown(()=>{
+    /* THE LIGHTS. A Grand Prix start is five red lights coming on one at a time,
+       a hold you cannot predict, and then all of them out at once — and every
+       driver on the grid reacting at their own speed. The player's race used to
+       get a 3-2-1 countdown while the entire AI field was already at racing
+       speed, which is neither a start nor fair. It is the same sequence the
+       watch-only simulation has always used; the player's race just never had
+       it. */
+    gridStart(()=>{
       STATE='drive';
       $('#hud').classList.add('on');$('#sndBtn').classList.add('show');
       syncVisor();
@@ -15093,6 +15271,9 @@ function simulateQualifying(playerBest){
 }
 function endQuali(best){
   STATE='result';
+  { const lbl=document.querySelector('#qResult .qLabel'); if(lbl) lbl.textContent='BEST LAP';
+    const tag=document.querySelector('#qResult .qTag');
+    if(tag) tag.innerHTML='QUALIFYING · <span id="qTrack">—</span>'; }
   $('#hud').classList.remove('on');
   const grid=simulateQualifying(best);
   const me=grid.find(r=>r.me);
@@ -15100,6 +15281,7 @@ function endQuali(best){
   $('#qTrack').textContent=curCfg().name;
   $('#qBest').textContent=fmt(best);
   const pos=$('#qPos');
+  $('#qHint2') && ($('#qHint2').textContent = SEASON.pendingRace ? 'Continue to the race' : 'Continue');
   if(pos){const p=me?me.pos:grid.length, pole=grid[0];
     const gap=me&&pole&&!me.me===false?(me.t-pole.t):0;
     pos.innerHTML=p===1?'POLE POSITION'
@@ -15108,6 +15290,36 @@ function endQuali(best){
   Sound.hit();
 }
 
+function gridStart(done){
+  const el=$('#cdNum');
+  AI.hold=true;
+  for(const c of AI.cars){ c.v=0; c.launched=0; c.launchDelay=c.startJitter||0.2; }
+  $('#hud').classList.add('on');
+  if(TRACK.startLights) TRACK.startLights.set(0);
+  let n=0;
+  const step=()=>{
+    if(n<5){
+      n++; if(TRACK.startLights) TRACK.startLights.set(n);
+      el.textContent='';
+      Sound.init(); Sound.blip(300,.10);
+      setTimeout(step,950);
+      return;
+    }
+    // the hold: between a fifth of a second and a second and a half
+    setTimeout(()=>{
+      if(TRACK.startLights) TRACK.startLights.set(0);
+      el.style.transition='none'; el.style.opacity=1; el.style.transform='scale(1.25)';
+      el.textContent='GO';
+      requestAnimationFrame(()=>{el.style.transition='opacity .7s,transform .7s';
+        el.style.opacity=0; el.style.transform='scale(0.8)';});
+      Sound.init(); Sound.blip(760,.20);
+      AI.hold=false;
+      for(const c of AI.cars){ c.raceT=0; }
+      done();
+    }, 200+Math.random()*1300);
+  };
+  setTimeout(step,700);
+}
 function countdown(done){
   const el=$('#cdNum');let n=3;
   $('#hud').classList.add('on');
@@ -15130,7 +15342,13 @@ addEventListener('keydown',e=>{
   if(PHOTO.on){ if(k==='o'||k==='escape') exitPhoto(); e.preventDefault(); return; }
   if(STATE==='cine'){endCinematic();e.preventDefault();return;}
   if(STATE==='intro'){endTrackIntro(true);e.preventDefault();return;}
-  if(STATE==='result'){ if(k==='enter'||k==='escape'||k===' '){exitToMenu();} e.preventDefault();return;}
+  if(STATE==='result'){
+    if(k==='enter'||k==='escape'||k===' '){
+      // a season weekend goes qualifying -> race, not qualifying -> menu
+      if(SEASON.active && SEASON.pendingRace){ $('#qResult').classList.remove('on'); seasonRaceStart(); }
+      else exitToMenu();
+    }
+    e.preventDefault();return;}
   if(STATE==='podium'){
     if(k==='escape'||k==='enter'){ endPodium(); }
     else if(k===' '){ PODIUM.t=1e9; }        // skip to the next act
@@ -15368,6 +15586,7 @@ function spawnAIs(n){
       name:d.n, skill:clamp(d.skill*aiSkillMul(),0.5,1.06), aggro:d.aggro,
       consist:clamp(d.consist*aiSkillMul(),0.4,1), psn:d.psn||{},
       ers:0.7, mistakeT:-99, dodge:0, defend:0, seed:Math.random()*TAU,
+      lineBias:((i%5)-2)/2*(TRACK.halfW||8)*0.30,
       compound:comp, tyre:1, tyreLife:compoundLaps(comp,CFG.id), stops:0,
       pitFlag:false, pitPhase:0, pitTimer:0, lastIdx:0});
   });
@@ -15422,6 +15641,7 @@ function spawnGrid(n){
       name:d.n, skill:clamp(d.skill*aiSkillMul(),0.5,1.06), aggro:d.aggro,
       consist:clamp(d.consist*aiSkillMul(),0.4,1), psn:d.psn||{},
       ers:1.0, mistakeT:-99, dodge:0, defend:0, seed:Math.random()*TAU,
+      lineBias:((i%5)-2)/2*(TRACK.halfW||8)*0.30,
       compound:comp, tyre:1, tyreLife:compoundLaps(comp,CFG.id), stops:0,
       pitFlag:false, pitPhase:0, pitTimer:0, lastIdx:0,
       gridPos:i+1, startJitter:0.10+Math.random()*0.55*(1.15-d.skill)*4,
@@ -16247,6 +16467,85 @@ function deploySafetyCar(cause){
   setTimeout(()=>Radio.say('commentator','off',{cool:0}),500);
   Sound.blip&&Sound.blip(300,.3);
 }
+/* ==================================================================
+   THE LIVE BATTLE TRACKER
+   A broadcast does not show you the whole field, it finds the story and stays
+   with it: two cars, a gap that is coming down, and the sector where it is
+   coming down. The game had a running order and nothing else, so a fight
+   developing four places behind you — or in front of you — was invisible
+   unless you happened to be looking at the right bit of road.
+   This watches every adjacent pair on the road, scores them on how close they
+   are and how fast the gap is closing, picks the best story, and puts it on
+   screen with the sector comparison that says WHERE the time is going.
+   ================================================================== */
+const BATTLE={pair:null, t:0, hold:0, gapHist:[], sect:[0,0,0], lastIdx:0, sectAcc:[0,0,0]};
+function battleName(o){ return o.ai?o.ai.name:(SEASON.active?SEASON.name:'YOU'); }
+function updateBattle(dt){
+  const el=$('#battle'); if(!el) return;
+  if(STATE!=='drive'||!AI.cars.length||SC.on){ el.classList.remove('on'); BATTLE.pair=null; return; }
+  const N=TRACK.N, segL=TRACK.len/N;
+  const dOf=(idx,lp)=>lp*TRACK.len+(TRACK.cum?TRACK.cum[Math.round(idx)%N]||0:0);
+  // everyone still racing, in race order
+  const field=AI.cars.filter(c=>!c.dnf&&!(c.pitPhase>0))
+    .map(c=>({ai:c,d:dOf(c.idx,c.lap),v:c.v,best:c.bestLap,last:c.lastLapT}));
+  field.push({ai:null,d:dOf(CAR.trackIdx||0,playerLapsDone()),v:Math.abs(CAR.v),
+    best:lap.best,last:lap.last});
+  field.sort((a,b)=>b.d-a.d);
+  BATTLE.hold=Math.max(0,BATTLE.hold-dt);
+  /* Score every adjacent pair. A story is: they are close, and getting closer.
+     The player being in it counts for a lot, because it is their race. */
+  let best=null,bestScore=0;
+  for(let i=0;i<field.length-1;i++){
+    const A=field[i],B=field[i+1];
+    const gapM=A.d-B.d; if(gapM>90||gapM<0) continue;
+    const gapS=gapM/Math.max(B.v,15);
+    const closing=B.v-A.v;                       // + means the chaser is quicker
+    let sc=(1-clamp(gapS/3.0,0,1))*2.0 + clamp(closing/3,0,1)*2.2;
+    if(!A.ai||!B.ai) sc+=2.5;                    // the player's own fight wins
+    if(i<3) sc+=0.6;                             // and so does the front of the race
+    if(sc>bestScore){bestScore=sc;best={A,B,pos:i+1,gapS,closing};}
+  }
+  if(!best||bestScore<1.6){ if(BATTLE.hold<=0){el.classList.remove('on');BATTLE.pair=null;} return; }
+  // stick with a story for a few seconds rather than flicking between them
+  const key=battleName(best.A)+'|'+battleName(best.B);
+  if(BATTLE.pair!==key){
+    if(BATTLE.hold>0) return;
+    BATTLE.pair=key; BATTLE.hold=4.0; BATTLE.gapHist=[];
+  } else BATTLE.hold=Math.max(BATTLE.hold,2.0);
+  BATTLE.gapHist.push(best.gapS); if(BATTLE.gapHist.length>90) BATTLE.gapHist.shift();
+  el.classList.add('on');
+  $('#btTitle').textContent=`BATTLE FOR P${best.pos}`;
+  $('#btLaps').textContent=`LAP ${(lap.num||1)}`;
+  const row=(id,o,pos)=>{
+    const r=$(id); if(!r) return;
+    r.classList.toggle('me',!o.ai);
+    r.children[0].textContent=pos;
+    r.children[1].textContent=battleName(o);
+    r.children[2].textContent=o.last?fmt(o.last):(o.best?fmt(o.best):'—:——.—');
+  };
+  row('#btA',best.A,best.pos); row('#btB',best.B,best.pos+1);
+  $('#btGap').textContent='+'+best.gapS.toFixed(2)+'s';
+  const trend=$('#btTrend');
+  const older=BATTLE.gapHist.length>30?BATTLE.gapHist[BATTLE.gapHist.length-31]:BATTLE.gapHist[0];
+  const rate=older-best.gapS;                   // + = closing
+  trend.textContent = rate>0.015?'CLOSING':(rate<-0.015?'DROPPING BACK':'HOLDING');
+  trend.classList.toggle('away',rate<-0.015);
+  $('#btFill').style.width=(clamp(1-best.gapS/3.0,0,1)*100).toFixed(0)+'%';
+  /* WHERE the time is going. Compares the two cars' pace through each third of
+     the lap, which is the thing that tells you whether the chaser is quicker in
+     the corners or just quicker down the straight. */
+  { const sb=(CFG.sectors||SECTORS[CFG.id]||[0.3333,0.6667]);
+    const idx=(CAR.trackIdx||0)/N;
+    const sec=idx<sb[0]?0:(idx<sb[1]?1:2);
+    const delta=(best.B.v-best.A.v);
+    BATTLE.sectAcc[sec]=BATTLE.sectAcc[sec]*0.985+delta*0.015;
+    for(let q=0;q<3;q++){
+      const e2=$('#btS'+(q+1)); if(!e2) continue;
+      const v=BATTLE.sectAcc[q];
+      e2.className=v>0.25?'fast':(v<-0.25?'slow':'');
+      e2.textContent='S'+(q+1)+(Math.abs(v)>0.25?(v>0?' ▲':' ▼'):'');
+    } }
+}
 function stepSafetyCar(dt){
   if(!SC.on) return;
   SC.t+=dt;
@@ -16386,11 +16685,20 @@ function stepAI(dt){
        carrying more than the tyres could hold, understeered straight on, and did
        it again at the next one. Tyre life and skill belong here for the same
        reason, and a driver keeps a small margin in hand. */
+    /* HOW MUCH GRIP THE DRIVER PLANS WITH.
+       This was leaving a great deal on the table. The wet term was a flat 19%
+       whatever the compound (the player's model is far kinder on the right
+       tyre), skill scaled the whole coefficient rather than the margin, and a
+       further flat 5% came off the top. Compounded, even the quickest driver
+       planned on about 83% of the grip the car actually has, which is most of
+       why they were slow in corners and why they lifted so early for them.
+       Now: the real wet penalty the physics applies, tyre condition, and a
+       margin that is small for a good driver and larger for a poor one. */
+    const wetP=clamp(WEATHER.wetness,0,1);
     const gripPlan=PHYS.mu
-      *(1-0.19*clamp(WEATHER.wetness,0,1))
-      *lerp(0.86,1.0,c.tyre)
-      *(c.skill*0.35+0.65)
-      *0.95;
+      *(1-0.20*wetP)
+      *lerp(0.90,1.0,c.tyre)
+      *lerp(0.905,1.015,clamp((c.skill-0.93)/0.07,0,1));
     // grip-limited speed for a radius, solved for v because grip depends on v
     const vForR=(R)=>{
       let v=Math.sqrt(gripPlan*9.81*R);
@@ -16482,7 +16790,20 @@ function stepAI(dt){
        charged for the rain twice and made a wet lap 28% slower than a dry one.
        Heavy rain is worth about twelve per cent in reality, which is what taking
        it out once leaves. */
-    let targetV=Math.min(VCAP,vLimit)*c.skill*tyreGrip*(c.defLate||1);
+    /* Skill scaled the STRAIGHT-LINE speed as well as the corner speed, so a
+       0.95-skill driver was 5% down the straights too — five metres a second at
+       Monza, for no reason. Everyone has the same engine. Skill belongs in the
+       corner plan (above) and in the mistakes, not in the top speed. */
+    /* PACE SPREAD IS WHAT CREATES RACING.
+       With every driver planning on the same grip and the same top speed, the
+       field settled into a train on lap one and nothing ever happened again —
+       nobody was quick enough to catch anybody. The spread now comes from three
+       real places: the corner margin (above, scaled hard across the skill
+       range), tyre condition, and a small per-car straight-line difference.
+       Roughly two per cent between the quickest and the slowest, which over a
+       lap is a second and a half — enough to close a gap and force a move. */
+    let targetV=Math.min(VCAP,vLimit)*tyreGrip*(c.defLate||1)
+                *lerp(0.978,1.0,clamp((c.skill-0.93)/0.07,0,1));
     targetV*= 0.99 + 0.02*Math.sin(c.idx*0.05 + c.seed);          // subtle lap-to-lap rhythm
     /* TRAFFIC. Look further ahead than before — a slipstream reaches a long way
        at these speeds, and a car that only notices the one in front at 14 indices
@@ -16506,6 +16827,15 @@ function stepAI(dt){
        it is why the old code could send a car from P13 to P2 on one lap: it gave
        a free tow at up to six metres of offset AND a flat speed bonus for
        attacking, so a car could pull out and simply drive past.  */
+    /* THE FIRST FEW SECONDS OF A RACE.
+       Twenty cars leave a standing start inside two car lengths of each other,
+       so the ordinary following distance is met by nobody and everyone is in
+       everyone else's gearbox at once — which is why the start was a demolition
+       derby. Real drivers give each other room off the line and nobody tries a
+       move before the first corner. For the opening seconds the gap they hold is
+       much larger and attacks are off. */
+    const raceAge=(c.raceT||0);
+    const launching=raceAge<7.0;
     const straight=vLimit>VCAP*0.70;
     // which way the corner we are approaching goes — used to pick the inside
     let turnAhead=0;
@@ -16530,7 +16860,10 @@ function stepAI(dt){
     if(gapT<1.0 && c.v>VCAP*0.40 && lineOff<2.6){
       const inLine=1-clamp((lineOff-0.8)/1.8,0,1);       // full only when in line
       // strongest on the gearbox, still worth several km/h at a second back
-      tow=Math.pow(1-gapT,1.15)*(straight?15.0:7.0)*inLine;
+      // a slipstream at these speeds is worth a lot; it was worth too little
+      // to ever produce a run, so lap one shuffled the order and then nothing
+      // ever happened again
+      tow=Math.pow(1-gapT,1.15)*(straight?21.0:9.5)*inLine;
     }
     c.tow=tow;
     targetV+=tow;
@@ -16539,7 +16872,7 @@ function stepAI(dt){
        a car sitting six tenths behind down a straight never actually arrived. */
     const inDrsZone=!!(TRACK.drs && TRACK.drs[pi]);
     c.drs = inDrsZone && gapT<1.0 && c.v>VCAP*0.55 && aheadCar && c.lap>=0;
-    if(c.drs) targetV+=7.5;
+    if(c.drs) targetV+=11.0;
 
     /* THE ATTEMPT.
        clear    → nothing ahead worth chasing
@@ -16547,17 +16880,20 @@ function stepAI(dt){
        commit   → pull out to the chosen side (tow lost)
        alongside→ draw level, slowly, on your own air
        done     → past; hold the line and pull clear                        */
-    const canTry = aheadCar && closeAhead<40;
+    const canTry = aheadCar && closeAhead<40 && !launching && !SC.on;
     if(!canTry){ c.phase='clear'; c.atk=0; c.atkSide=0; }
     else if(c.phase==='clear'){ c.phase='stalk'; c.stalk=0; }
     if(c.phase==='stalk'){
       c.stalk=(c.stalk||0)+dt;
       // to commit you need to be close, in the tow, and genuinely quicker. A
       // patient driver waits longer for a proper run; an aggressive one lunges.
-      const need=1.2-0.6*(PSN.patience!==undefined?1-PSN.patience:0.5);
+      // the bar for "I am quick enough to try" was high enough that in clean
+      // air behind a similar car it was never met, which is why the race went
+      // quiet after the opening lap
+      const need=0.5-0.35*(PSN.patience!==undefined?1-PSN.patience:0.5);
       const quicker=(c.v+tow)>aheadV+need;
       const settled=(c.lap>=0)||((c.launched||0)>=1&&c.raceT>5.5);
-      if(settled && closeAhead<16 && tow>1.2 && quicker && c.atkCool<=0 && c.stalk>0.8){
+      if(settled && closeAhead<24 && tow>0.8 && quicker && c.atkCool<=0 && c.stalk>0.5){
         const inSide=(turnAhead>0)?-1:1;
         const covered=Math.abs(aheadLat-inSide*(HW*0.5))<2.4;
         c.atkSide=covered?-inSide:inSide;
@@ -16577,11 +16913,27 @@ function stepAI(dt){
          you carry it. Without that the move could never finish: the car lost the
          slipstream and then had only a token edge, so it sat alongside for a few
          seconds and dropped back every time. */
-      const edge=1.1+2.1*(PSN.bravery!==undefined?PSN.bravery:c.aggro);
-      targetV+=edge*clamp(1-c.atk/5.5,0.25,1);      // the run bleeds away as it is used
-      if(closeAhead>18||c.atk>6.0){ c.phase='stalk'; c.stalk=0; c.atkCool=2.2+Math.random()*1.5; }
-      // past: the car we were chasing is now behind us
-      if(!aheadCar||closeAhead>30){ c.phase='clear'; c.atkCool=1.0; }
+      // a run built in the tow is worth more than a token: a move that cannot
+      // be completed is not a move, it is two cars driving side by side
+      const edge=2.4+2.8*(PSN.bravery!==undefined?PSN.bravery:c.aggro);
+      targetV+=edge*clamp(1-c.atk/7.0,0.30,1);      // the run bleeds away as it is used
+      /* FINISH THE MOVE.
+         This is why nothing ever actually got past. `closeAhead` only sees cars
+         AHEAD by index, so the instant the attacker drew level the defender
+         stopped existing: aheadCar went null, the phase reset to 'clear', and
+         the speed edge that was in the middle of completing the pass vanished.
+         The attacker was then level, in dirty air, with no run left — and fell
+         straight back behind. Every single time.
+         A move is committed to. Once alongside, the car holds its edge and its
+         line until it is genuinely CLEAR of the other car, not until the other
+         car stops being detectable. */
+      if(c.atk>8.0){ c.phase='stalk'; c.stalk=0; c.atkCool=2.2+Math.random()*1.5; }
+      else if(!aheadCar||closeAhead>30){ c.phase='clearing'; c.atk=0; }
+    }else if(c.phase==='clearing'){
+      // level or just ahead: hold the line and the speed until the move is done
+      c.atk+=dt;
+      targetV+=1.6*clamp(1-c.atk/1.8,0,1);
+      if(c.atk>1.8){ c.phase='clear'; c.atkCool=1.2; c.atkSide=0; }
     }
     if(straight && c.ers>0.12 && (closeAhead<52||c.atk>0||c.lap<1)){ targetV+=9; c.ers-=dt/8; }
     else c.ers=Math.min(1,c.ers+dt/18);
@@ -16618,7 +16970,7 @@ function stepAI(dt){
     // count the rejoin down once the car is actually back on the road and moving
     if(c.rejoin>0 && Math.abs(c.lat)<TRACK.halfW+1 && c.v>40) c.rejoin=0;
     else if(c.rejoin>0) c.rejoin=Math.max(0,c.rejoin-dt);
-    if(aheadCar && Math.abs(aheadLat-c.lat)<2.4 && c.phase!=='alongside'){
+    if(aheadCar && Math.abs(aheadLat-c.lat)<2.4 && c.phase!=='alongside' && c.phase!=='clearing'){
       /* A TIME gap, not a fixed distance.
          A fixed safe distance deadlocks a standing field: at the start every car
          is stationary and inside it, so every car is told to go slower than the
@@ -16629,7 +16981,7 @@ function stepAI(dt){
          `bumped` widens it briefly after contact so a car that has just been hit
          backs out properly instead of climbing straight back onto the bumper. */
       const CARL=5.2;
-      const SAFE=CARL*1.1 + c.v*(c.bumped>0?0.85:0.50);
+      const SAFE=CARL*(launching?2.1:1.1) + c.v*(c.bumped>0?0.85:(launching?0.75:0.50));
       if(closeAhead<SAFE){
         const closing=Math.max(0,c.v-aheadV);     // how fast the gap is shrinking
         const err=closeAhead-SAFE;                // negative when too close
@@ -16762,11 +17114,18 @@ function stepAI(dt){
       let sum=0,sw=0;
       for(let k=0;k<=LA;k++){ const w=1-k/(LA+1);
         sum+=TRACK.line[(pi+k)%N]*w; sw+=w; }
-      lineLat=clamp(sum/Math.max(sw,1e-6),-(HW-1.0),HW-1.0);
+      lineLat=sum/Math.max(sw,1e-6);
+      /* Per-car line bias: a fixed personal offset from the shared optimal line,
+         faded out where the road is turning hard so nobody gets pushed onto a
+         kerb or off track at the apex — it only spreads the field out on the
+         straights and easier corners, which is where it actually helps cars
+         run side by side instead of single-file. */
+      const biasFade=1-clamp(Math.abs(turn)*45,0,1);
+      lineLat=clamp(lineLat+(c.lineBias||0)*biasFade,-(HW-1.0),HW-1.0);
     }else{
       lineLat=clamp(-turn*300,-(HW-1.0),HW-1.0);
     }
-    if(c.phase==='commit'||c.phase==='alongside'){
+    if(c.phase==='commit'||c.phase==='alongside'||c.phase==='clearing'){
       // out of the tow and committed to the side, held steady
       c.dodge=damp(c.dodge, c.atkSide*(HW-1.3), c.phase==='commit'?2.4:3.2, dt);
     }else if(c.phase==='stalk'){
@@ -16809,6 +17168,7 @@ function stepAI(dt){
       breakTow=Math.sin(c.wv*0.9+(c.seed||0))*amp;
     }
     c.defend=damp(c.defend, c.defTgt+breakTow, 1.5, dt);
+
     /* A DEFENDING DRIVER DOES NOT ACCELERATE.
        This used to raise the car's TARGET SPEED by a few per cent whenever
        somebody was close behind — so a defender surged forward on the approach to
@@ -16918,6 +17278,11 @@ function stepAI(dt){
          what the front tyres could actually do at this speed. The competing
          targets can shout as loudly as they like; the car answers at a car's
          rate. */
+      /* One more filter on the TARGET itself. The line, the dodge and the
+         defensive move each settle at their own rate, so when two of them change
+         in the same frame their sum steps even though none of them did. */
+      c.wantF=(c.wantF===undefined)?want:damp(c.wantF,want,6.5,dt);
+      want=c.wantF;
       const maxLatV=Math.min(7.0, c.v*0.20);     // sideways speed a car can carry
       const maxLatA=11.0;                        // and how fast it can build it
       let wantRate=clamp((want-c.lat)/Math.max(dt,1e-3), -maxLatV, maxLatV);
@@ -17117,9 +17482,17 @@ function stepAI(dt){
            this is only the backstop. Separate them gently and take NO speed off
            either car — scrubbing speed here is what destroyed a pass that was
            otherwise working, and with avoidance in place it is not needed. */
-        const push=(ovLat*0.5+0.02)*Math.min(1,dt*10), sgn=dLat>=0?1:-1;
-        if(A.ai) A.ai.lat=clamp(A.ai.lat-sgn*push,-(HW-0.7),HW-0.7);
-        if(B.ai) B.ai.lat=clamp(B.ai.lat+sgn*push,-(HW-0.7),HW-0.7);
+        /* Nudge the lateral VELOCITY, do not rewrite the position.
+           Writing c.lat straight sidesteps the rate limiter that exists a few
+           lines up specifically to stop cars translating sideways faster than a
+           tyre allows — so every frame of contact produced a jump, and a pair of
+           cars running together jumped apart and back sixty times a second.
+           That is the jagging you see in a side-by-side. */
+        const push=(ovLat*0.9+0.05), sgn=dLat>=0?1:-1;
+        if(A.ai){ A.ai.latV=(A.ai.latV||0)-sgn*push*Math.min(1,dt*8);
+          A.ai.lat=clamp(A.ai.lat,-(HW-0.7),HW-0.7); }
+        if(B.ai){ B.ai.latV=(B.ai.latV||0)+sgn*push*Math.min(1,dt*8);
+          B.ai.lat=clamp(B.ai.lat,-(HW-0.7),HW-0.7); }
         if(!A.ai||!B.ai){ CAR.vLat=(CAR.vLat||0)-sgn*(A.ai?1:-1)*6*sevr;
           CAR.damage=Math.min(1,(CAR.damage||0)+0.010*sevr); }
       }else{
@@ -17260,6 +17633,7 @@ function frame(){
     lap.update(dt,r.near.idx);
     stepSafetyCar(dt);
     stepAI(dt);
+    updateBattle(dt);
     updateHUD(inp,r,dt);
     replayRecord(dt);
     const rb=$('#replayBadge'); if(rb)rb.classList.toggle('on',REPLAY.laps.length>0);
