@@ -200,9 +200,19 @@
   /* ============ MENU ============ */
   #menu{position:fixed;inset:0;z-index:20;pointer-events:none;opacity:0;transition:opacity .9s ease}
   #menu.on{opacity:1;pointer-events:auto}
+  /* The scrim does the compositing work: it darkens the left third so the type
+     always has something to sit on whatever the car is doing behind it, closes
+     the top and bottom edges, and adds a corner vignette so the frame holds
+     together instead of fading off into flat black at the sides. */
   #menuScrim{position:fixed;inset:0;pointer-events:none;
-    background:linear-gradient(105deg,rgba(4,6,10,.92) 0%,rgba(4,6,10,.5) 34%,rgba(4,6,10,0) 55%),
-    linear-gradient(0deg,rgba(4,6,10,.8),transparent 26%),linear-gradient(180deg,rgba(4,6,10,.55),transparent 22%)}
+    background:linear-gradient(105deg,rgba(4,6,10,.94) 0%,rgba(4,6,10,.55) 34%,rgba(4,6,10,0) 56%),
+    linear-gradient(0deg,rgba(4,6,10,.84),transparent 26%),linear-gradient(180deg,rgba(4,6,10,.58),transparent 22%),
+    radial-gradient(ellipse 120% 100% at 50% 50%,transparent 42%,rgba(0,0,0,.55) 100%)}
+  /* a slow sweep of red light across the top edge, so the screen is never static */
+  #menuScrim::after{content:'';position:absolute;top:0;left:0;right:0;height:2px;
+    background:linear-gradient(90deg,transparent,rgba(225,6,0,.85),transparent);
+    background-size:44% 100%;background-repeat:no-repeat;animation:mSweep 7s linear infinite}
+  @keyframes mSweep{from{background-position:-46% 0}to{background-position:146% 0}}
 
   #mHead{position:absolute;top:clamp(24px,4vh,42px);left:clamp(28px,5vw,66px);right:clamp(28px,5vw,66px);
     display:flex;justify-content:space-between;align-items:flex-start}
@@ -230,10 +240,16 @@
   #navList li .t{font-weight:700;font-size:clamp(24px,3.2vw,42px);letter-spacing:.01em;line-height:1;text-transform:uppercase;position:relative}
   #navList li .t::before{content:'';position:absolute;left:-16px;top:50%;width:0;height:2px;background:var(--red);
     box-shadow:0 0 12px var(--red-glow);transform:translateY(-50%);transition:width .35s var(--ease)}
+  /* the mode's tag, set small and wide beside the title */
+  #navList li .t .tg{display:inline-block;margin-left:14px;vertical-align:middle;
+    font-family:var(--mono);font-style:normal;font-size:9px;letter-spacing:.24em;font-weight:700;
+    color:var(--grey);border:1px solid var(--grey-lo);border-radius:20px;padding:3px 9px;
+    transform:translateY(-.18em);transition:color .3s,border-color .3s,background .3s}
   #navList li:hover{opacity:.8}
   #navList li.sel{opacity:1;transform:translateX(20px)}
   #navList li.sel .t::before{width:12px}
   #navList li.sel .ix{color:var(--red)}
+  #navList li.sel .t .tg{color:#fff;border-color:var(--red);background:rgba(225,6,0,.18)}
   #navList li.locked{opacity:.24}
   #navList li.locked .t::after{content:' 🔒';font-size:.44em;vertical-align:middle}
 
@@ -4701,9 +4717,24 @@ function makeMonacoBuilding(w,d,h,type,col){
     const t1=new THREE.Mesh(new THREE.BoxGeometry(w*0.78,h*0.12,d*0.78),bodyMat);t1.position.y=h+h*0.06;g.add(t1);
     const cap=new THREE.Mesh(new THREE.BoxGeometry(w*0.5,1.2,d*0.5),dark);cap.position.y=h+h*0.12+0.6;g.add(cap);
     const ant=new THREE.Mesh(new THREE.CylinderGeometry(0.1,0.1,6),rail);ant.position.y=h+h*0.12+3.6;g.add(ant);
-  }else if(type===2||type===4){ // terraced hillside: setback tiers with roof gardens
+  }else if(type===4){ /* terraced hillside: setback tiers with roof gardens.
+       This branch was written `type===2||type===4` and was dead code — type 2 is
+       caught by the case above and the caller never generated a 4 — so a whole
+       archetype was missing from the city and Monte-Carlo was built from three
+       shapes instead of five. */
     let cw=w,cd=d,cy=h;for(let t=0;t<2;t++){cw*=0.7;cd*=0.7;const tier=new THREE.Mesh(new THREE.BoxGeometry(cw,h*0.24,cd),bodyMat);tier.position.set((Math.random()-0.5)*w*0.15,cy+h*0.12,0);g.add(tier);
       const grd=new THREE.Mesh(new THREE.BoxGeometry(cw*0.9,0.3,cd*0.9),green);grd.position.y=cy+0.15;g.add(grd);cy+=h*0.24;}
+    // a terrace pool, which half of Monaco appears to have
+    if(Math.random()<0.5){
+      const pool=new THREE.Mesh(new THREE.BoxGeometry(cw*0.45,0.25,cd*0.35),
+        new THREE.MeshStandardMaterial({color:0x2aa8d8,roughness:0.15,metalness:0.5,
+          emissive:0x0a3f55,emissiveIntensity:0.35}));
+      pool.position.set(0,cy+0.2,0);g.add(pool);}
+  }else if(type===5){ // narrow render-and-shutter townhouse with a pantiled pitch
+    const rf=new THREE.Mesh(new THREE.ConeGeometry(Math.hypot(w,d)*0.52,h*0.16,4),
+      new THREE.MeshStandardMaterial({color:0xa8563a,roughness:0.92}));
+    rf.rotation.y=Math.PI/4;rf.position.y=h+h*0.08;g.add(rf);
+    const par=new THREE.Mesh(new THREE.BoxGeometry(w+0.3,0.5,d+0.3),trim);par.position.y=h+0.25;g.add(par);
   }else{ // ornate hotel/casino: corner towers, balustrade, small dome, flags
     for(const sx of [-1,1])for(const sz of [-1,1]){const pil=new THREE.Mesh(new THREE.BoxGeometry(1.1,h+2,1.1),trim);
       pil.position.set(sx*(w/2-0.4),(h+2)/2,sz*(d/2-0.4));g.add(pil);}
@@ -4738,14 +4769,26 @@ function buildMonaco(sc,P,Nm,Tg,offL,offR){
       if(clearB(x,z)<HWm*HWm) continue; yn++;
       const y=makeYacht(hull,deck,glass);y.position.set(x,-0.5,z);y.rotation.y=Math.random()*TAU;sc.add(y);} }
   // --- differentiated Monte-Carlo blocks lining the streets, pushed well off the wall ---
-  const pastels=['#d8cdb8','#cbb79a','#e6ddcb','#c9a889','#b7bcc2','#d6c2a2','#b9a88e','#e2c8a8','#a9b0b6'];
+  /* The Riviera palette. This was nine near-identical greige tones, which is
+     why the whole principality read as one long beige wall. Monte-Carlo is
+     actually warm — ochre, terracotta, apricot, rose and pale sea-green render
+     next to cream stone — and the colour is a large part of why the place looks
+     like the Côte d'Azur and not an office park. */
+  const pastels=['#e8cfa8','#d9a878','#f0e2c8','#cf8f6a','#e6b98c','#d8c4a0',
+                 '#c9d6c4','#efd9c0','#c48a6a','#e2cbb0','#b9c9cc','#f2e6cc'];
   for(let i=0;i<N;i+=6){const p=P[i],n=Nm[i],tg=Tg[i],ang=Math.atan2(tg.x,tg.z);   // fewer, larger blocks (perf)
     for(const [side,off] of [[1,offL],[-1,offR]]){
       if(Math.random()<0.14) continue;                     // occasional gaps (side streets)
-      const type=(Math.random()*4)|0;
-      const w=(type===2?8+Math.random()*4:12+Math.random()*9);
-      const d=12+Math.random()*12;
-      const h=(type===2?42+Math.random()*34:type===3?14+Math.random()*10:20+Math.random()*30);
+      /* Six archetypes, not three. Monte-Carlo is a jumble of Belle-Époque
+         apartment blocks, glass towers, terraced hillside flats, ornate
+         hotels and narrow shuttered townhouses all crammed together, and the
+         variety is most of what makes it read as that city rather than a
+         generic seafront. */
+      const type=(Math.random()*6)|0;
+      const w=(type===2?8+Math.random()*4:type===5?7+Math.random()*4:12+Math.random()*9);
+      const d=(type===5?9+Math.random()*7:12+Math.random()*12);
+      const h=(type===2?42+Math.random()*34:type===3?14+Math.random()*10
+              :type===5?16+Math.random()*14:20+Math.random()*30);
       const diag=Math.hypot(w/2,d/2);                       // the building's worst-case reach
       const dist=off(i)+diag+2.5;                           // sit the whole footprint off the barrier
       const x=p.x+n.x*side*dist, z=p.z+n.z*side*dist;
@@ -11355,14 +11398,46 @@ function buildPit(sc,P,Nm,Tg){
     const scr=new THREE.Mesh(new THREE.PlaneGeometry(6.0,1.4),new THREE.MeshStandardMaterial({color:0x0a1622,emissive:0x1e88d8,emissiveIntensity:0.8}));
     scr.position.set(sx,standTop+2.2,standZ+1.2);g.add(scr);}
   // --- PADDOCK behind the pits: team motorhomes / hospitality + tarmac apron ---
-  const padGround=new THREE.Mesh(new THREE.BoxGeometry(len+50,0.1,40),new THREE.MeshStandardMaterial({color:0x3d424a,roughness:0.96}));
-  padGround.position.set(0,0.04,-26);g.add(padGround);
+  // deep enough to carry the motorhomes, the working gap and the transporter row
+  const padGround=new THREE.Mesh(new THREE.BoxGeometry(len+50,0.1,66),new THREE.MeshStandardMaterial({color:0x3d424a,roughness:0.96}));
+  padGround.position.set(0,0.04,-33);g.add(padGround);
   const mhCols=[0x2a4a86,0xc8102e,0x00a19a,0x1a1f2a,0xe8b923,0x0a7a3a,0x8a2be2];
   for(let m=0;m<9;m++){const px=-len/2+18+m*(len-36)/8, w=14+((m*5)%6), h=5.5+(m%3), dd=13;
     const mMat=new THREE.MeshStandardMaterial({color:mhCols[m%mhCols.length],roughness:0.6,metalness:0.2,emissive:night?0x0a0e16:0,emissiveIntensity:night?0.3:0});
     const mh=new THREE.Mesh(new THREE.BoxGeometry(w,h,dd),mMat);mh.position.set(px,h/2,-26);g.add(mh);
     const cap=new THREE.Mesh(new THREE.BoxGeometry(w+0.6,0.5,dd+0.6),new THREE.MeshStandardMaterial({color:0xdfe4ea,roughness:0.6}));cap.position.set(px,h+0.25,-26);g.add(cap);
-    if(m%2){const glass=new THREE.Mesh(new THREE.BoxGeometry(w*0.8,h*0.5,0.2),new THREE.MeshStandardMaterial({color:0x9fd8ff,transparent:true,opacity:0.5,emissive:night?0x2a5a80:0,emissiveIntensity:0.5}));glass.position.set(px,h*0.55,-26+dd/2+0.15);g.add(glass);}}
+    if(m%2){const glass=new THREE.Mesh(new THREE.BoxGeometry(w*0.8,h*0.5,0.2),new THREE.MeshStandardMaterial({color:0x9fd8ff,transparent:true,opacity:0.5,emissive:night?0x2a5a80:0,emissiveIntensity:0.5}));glass.position.set(px,h*0.55,-26+dd/2+0.15);g.add(glass);}
+    /* A REAL PADDOCK IS A WORKING YARD, not nine coloured boxes on tarmac.
+       Behind every motorhome sits the team's transporter fleet, the awning it
+       trades under, and the equipment that came out of the trucks. This is the
+       area you look straight into from the pit lane, and it was empty. */
+    // the awning canopy each unit trades under, out toward the lane
+    { const aw=new THREE.Mesh(new THREE.BoxGeometry(w*0.94,0.22,6.5),
+        new THREE.MeshStandardMaterial({color:0xdfe4ea,roughness:0.6}));
+      aw.position.set(px,h*0.86,-26+dd/2+3.2);g.add(aw);
+      for(const sx of [-1,1]){
+        const leg=new THREE.Mesh(new THREE.CylinderGeometry(0.11,0.11,h*0.86),
+          new THREE.MeshStandardMaterial({color:0x2a2e36,roughness:0.5,metalness:0.5}));
+        leg.position.set(px+sx*w*0.42,h*0.43,-26+dd/2+6.2);g.add(leg);} }
+    // two transporters nose-in behind the unit, in the team's colour
+    for(let t=0;t<2;t++){
+      const tx=px-w*0.22+t*w*0.44;
+      const tr=new THREE.Mesh(new THREE.BoxGeometry(3.0,3.6,12),
+        new THREE.MeshStandardMaterial({color:0xe8ecf0,roughness:0.55,metalness:0.15}));
+      tr.position.set(tx,1.8,-44);g.add(tr);
+      const cab=new THREE.Mesh(new THREE.BoxGeometry(3.0,2.5,3.2),mMat);
+      cab.position.set(tx,1.25,-37.4);g.add(cab);
+      const stripe=new THREE.Mesh(new THREE.BoxGeometry(3.06,0.7,12),mMat);
+      stripe.position.set(tx,2.9,-44);g.add(stripe); }
+    // tyre stacks and equipment cases in the working gap
+    for(let q=0;q<3;q++){
+      const bx=px-w*0.3+q*w*0.3;
+      const st=new THREE.Mesh(new THREE.CylinderGeometry(0.9,0.9,1.5,12),
+        new THREE.MeshStandardMaterial({color:0x14161a,roughness:0.92}));
+      st.position.set(bx,0.75,-33.5);g.add(st);
+      const cs=new THREE.Mesh(new THREE.BoxGeometry(1.6,1.1,1.0),
+        new THREE.MeshStandardMaterial({color:0x9aa0a8,roughness:0.7,metalness:0.3}));
+      cs.position.set(bx+1.6,0.55,-33.2);g.add(cs); } }
   const gy=gh(base.x,base.z);
   g.position.copy(base);g.position.y=gy;g.lookAt(p.x,gy,p.z);
   g.traverse(o=>{o.castShadow=true;o.receiveShadow=true;});sc.add(g);
@@ -14211,7 +14286,12 @@ function buildMenu(){
   const ul=$('#navList');ul.innerHTML='';
   MODES.forEach((m,i)=>{
     const li=document.createElement('li');li.className=i===0?'sel':'';
-    li.innerHTML=`<span class="ix">0${i+1}</span><span class="t">${m.t}</span>`;
+    /* The mode's own tag rides with the title. Every entry already carried one
+       and it was only ever shown in the side panel for the highlighted row, so
+       the list itself was six words in a column with no indication of what any
+       of them were until you moved onto them. */
+    li.innerHTML=`<span class="ix">0${i+1}</span>`+
+      `<span class="t">${m.t}<i class="tg">${m.tag||''}</i></span>`;
     li.addEventListener('mouseenter',()=>{if(i!==sel){setSel(i);Sound.init();Sound.blip(340,.04);}});
     li.addEventListener('click',()=>chooseMode());
     ul.appendChild(li);
