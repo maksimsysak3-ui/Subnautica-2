@@ -1615,7 +1615,7 @@ const SET={
   // audio
   volMaster:0.6, volEngine:1.0, radioEngineer:true, radioCommentary:true, speech:true,
   // gameplay
-  difficulty:'pro', raceLaps:8, weatherMode:'dynamic', trackLimits:true,
+  difficulty:'pro', raceLaps:8, weatherMode:'dynamic', trackLimits:true, postFX:true,
   tyreWear:'normal', steerSpeed:1.0,
   // graphics
   shadows:true, fxDensity:'high', resScale:1.0,
@@ -1804,7 +1804,213 @@ const envRT=pmrem.fromScene(new RoomEnvironment(),0.04);
 addEventListener('resize',()=>{
   camera.aspect=innerWidth/innerHeight; camera.updateProjectionMatrix();
   renderer.setSize(innerWidth,innerHeight);
+  FX2.resize();
 });
+
+/* ==================================================================
+   POST PROCESSING
+   Three.js ships an EffectComposer in its addons, but only the loaders,
+   environments and utils are vendored here — so this is the whole chain,
+   written out: a bright pass, a separable blur run at two scales, and one
+   composite that does bloom, chromatic aberration, grade, vignette, grain and
+   a light sharpen in a single pass over the frame.
+
+   The scene is rendered into a target with tone mapping already applied, so
+   the bloom is picked off the graded image rather than off raw radiance. It is
+   not the physically correct order — a real HDR chain blooms before tone
+   mapping — but it keeps every exposure value in the game meaning exactly what
+   it meant before, and at this scale the difference is not something you can
+   see. Getting that wrong would have quietly rebalanced twenty-four circuits.
+   ================================================================== */
+const FX2={
+  on:true, rt:null, a:null, b:null, quad:null, cam:null, scene:null,
+  mBright:null, mBlur:null, mComp:null, t:0, w:0, h:0,
+};
+{
+  const half=THREE.HalfFloatType;
+  const mk=(w,h)=>new THREE.WebGLRenderTarget(Math.max(2,w|0),Math.max(2,h|0),
+    {minFilter:THREE.LinearFilter,magFilter:THREE.LinearFilter,
+     format:THREE.RGBAFormat,type:half,depthBuffer:false,stencilBuffer:false});
+  const sz=renderer.getDrawingBufferSize(new THREE.Vector2());
+  FX2.rt=new THREE.WebGLRenderTarget(sz.x,sz.y,
+    {minFilter:THREE.LinearFilter,magFilter:THREE.LinearFilter,
+     format:THREE.RGBAFormat,type:half,samples:4});
+  FX2.a=mk(sz.x/2,sz.y/2); FX2.b=mk(sz.x/2,sz.y/2);
+  FX2.w=sz.x; FX2.h=sz.y;
+
+  const VERT=`varying vec2 vUv;
+    void main(){ vUv=uv; gl_Position=vec4(position.xy,0.0,1.0); }`;
+
+  /* BRIGHT PASS. Everything above the knee, soft-kneed so a highlight fades in
+     rather than popping on the frame it crosses the threshold. */
+  FX2.mBright=new THREE.ShaderMaterial({
+    uniforms:{tDiffuse:{value:null},uThresh:{value:0.62},uKnee:{value:0.28},uInt:{value:1.0}},
+    vertexShader:VERT,
+    fragmentShader:`
+      varying vec2 vUv; uniform sampler2D tDiffuse;
+      uniform float uThresh, uKnee, uInt;
+      void main(){
+        vec3 c=texture2D(tDiffuse,vUv).rgb;
+        float l=dot(c,vec3(0.2126,0.7152,0.0722));
+        // soft knee: quadratic ramp across the threshold, linear above it
+        float k=clamp(l-uThresh+uKnee,0.0,2.0*uKnee);
+        float soft=k*k/(4.0*uKnee+1e-4);
+        float w=max(soft,l-uThresh)/max(l,1e-4);
+        gl_FragColor=vec4(c*w*uInt,1.0);
+      }`});
+
+  /* SEPARABLE GAUSSIAN. Nine taps, run once across and once down per level. */
+  FX2.mBlur=new THREE.ShaderMaterial({
+    uniforms:{tDiffuse:{value:null},uDir:{value:new THREE.Vector2(1,0)},
+              uTexel:{value:new THREE.Vector2(1/512,1/512)}},
+    vertexShader:VERT,
+    fragmentShader:`
+      varying vec2 vUv; uniform sampler2D tDiffuse;
+      uniform vec2 uDir, uTexel;
+      void main(){
+        vec2 o=uDir*uTexel;
+        vec3 s=texture2D(tDiffuse,vUv).rgb*0.2270270270;
+        s+=texture2D(tDiffuse,vUv+o*1.3846153846).rgb*0.3162162162;
+        s+=texture2D(tDiffuse,vUv-o*1.3846153846).rgb*0.3162162162;
+        s+=texture2D(tDiffuse,vUv+o*3.2307692308).rgb*0.0702702703;
+        s+=texture2D(tDiffuse,vUv-o*3.2307692308).rgb*0.0702702703;
+        gl_FragColor=vec4(s,1.0);
+      }`});
+
+  /* COMPOSITE. One pass over the frame doing everything that is cheap to do
+     while the pixel is already in registers. */
+  FX2.mComp=new THREE.ShaderMaterial({
+    uniforms:{
+      tDiffuse:{value:null}, tBloom:{value:null},
+      uTexel:{value:new THREE.Vector2(1/1280,1/720)},
+      uBloom:{value:0.55}, uCA:{value:1.0}, uVig:{value:0.42},
+      uGrain:{value:0.035}, uSharp:{value:0.35}, uTime:{value:0},
+      uSat:{value:1.06}, uContrast:{value:1.045}, uSpeed:{value:0.0},
+      uTint:{value:new THREE.Color(1.0,0.995,0.985)},
+    },
+    vertexShader:VERT,
+    fragmentShader:`
+      varying vec2 vUv;
+      uniform sampler2D tDiffuse, tBloom;
+      uniform vec2 uTexel;
+      uniform float uBloom,uCA,uVig,uGrain,uSharp,uTime,uSat,uContrast,uSpeed;
+      uniform vec3 uTint;
+
+      float hash(vec2 p){ return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453); }
+
+      void main(){
+        vec2 uv=vUv;
+        vec2 d=uv-0.5;
+        float r2=dot(d,d);
+
+        /* CHROMATIC ABERRATION. Zero in the middle of the frame and growing
+           toward the corners, which is how a real lens behaves — a constant
+           offset across the whole image just looks like a broken video feed.
+           It also opens up with speed, so the edges of the frame smear as the
+           car gets quick. */
+        float ca=uCA*(0.0016+uSpeed*0.0042)*r2;
+        vec3 col;
+        col.r=texture2D(tDiffuse,uv+d*ca).r;
+        col.g=texture2D(tDiffuse,uv).g;
+        col.b=texture2D(tDiffuse,uv-d*ca).b;
+
+        /* SHARPEN. A small unsharp mask puts back the micro-contrast that
+           bilinear sampling and the blur chain take out. */
+        vec3 blur=(
+          texture2D(tDiffuse,uv+vec2( uTexel.x,0.0)).rgb+
+          texture2D(tDiffuse,uv+vec2(-uTexel.x,0.0)).rgb+
+          texture2D(tDiffuse,uv+vec2(0.0, uTexel.y)).rgb+
+          texture2D(tDiffuse,uv+vec2(0.0,-uTexel.y)).rgb)*0.25;
+        col+=(col-blur)*uSharp;
+
+        // bloom, screen-blended so highlights bloom without washing mid-tones
+        vec3 bl=texture2D(tBloom,uv).rgb*uBloom;
+        col=1.0-(1.0-col)*(1.0-clamp(bl,0.0,1.0));
+
+        // grade: contrast about mid-grey, then saturation, then a cool-warm tint
+        col=(col-0.5)*uContrast+0.5;
+        float l=dot(col,vec3(0.2126,0.7152,0.0722));
+        col=mix(vec3(l),col,uSat);
+        col*=uTint;
+
+        /* SPEED VIGNETTE. The frame closes in as the car goes quicker, which is
+           the cheapest and most effective sense of speed there is. */
+        float vig=1.0-uVig*(1.0+uSpeed*0.55)*r2*1.9;
+        col*=clamp(vig,0.0,1.0);
+
+        // film grain, animated, and weighted toward the shadows where it belongs
+        float g=hash(uv*vec2(1920.0,1080.0)+fract(uTime)*97.13)-0.5;
+        col+=g*uGrain*(1.25-l);
+
+        gl_FragColor=vec4(max(col,0.0),1.0);
+      }`});
+
+  FX2.scene=new THREE.Scene();
+  FX2.cam=new THREE.OrthographicCamera(-1,1,1,-1,0,1);
+  // one oversized triangle rather than a quad: no diagonal seam, one less vertex
+  const tri=new THREE.BufferGeometry();
+  tri.setAttribute('position',new THREE.Float32BufferAttribute([-1,-1,0, 3,-1,0, -1,3,0],3));
+  tri.setAttribute('uv',new THREE.Float32BufferAttribute([0,0, 2,0, 0,2],2));
+  FX2.quad=new THREE.Mesh(tri,FX2.mComp);
+  FX2.quad.frustumCulled=false;
+  FX2.scene.add(FX2.quad);
+}
+FX2.resize=function(){
+  const sz=renderer.getDrawingBufferSize(new THREE.Vector2());
+  if(sz.x===FX2.w && sz.y===FX2.h) return;
+  FX2.w=sz.x; FX2.h=sz.y;
+  FX2.rt.setSize(sz.x,sz.y);
+  FX2.a.setSize(Math.max(2,sz.x/2|0),Math.max(2,sz.y/2|0));
+  FX2.b.setSize(Math.max(2,sz.x/2|0),Math.max(2,sz.y/2|0));
+};
+/* Draw a full-screen pass with `mat` into `target` (null = the canvas). */
+FX2.pass=function(mat,target){
+  FX2.quad.material=mat;
+  renderer.setRenderTarget(target||null);
+  renderer.render(FX2.scene,FX2.cam);
+};
+/* The whole chain. Everything in the game renders through this. */
+FX2.render=function(scene,cam,dt){
+  if(!FX2.on || !SET.postFX){ renderer.setRenderTarget(null); renderer.render(scene,cam); return; }
+  FX2.t+=(dt||0.016);
+  // 1. the scene, into a target instead of onto the canvas
+  renderer.setRenderTarget(FX2.rt);
+  renderer.render(scene,cam);
+  /* Tone mapping is applied by the scene pass, so from here on the buffer is
+     display-referred and the post chain must not tone map it again. */
+  const prevTone=renderer.toneMapping;
+  renderer.toneMapping=THREE.NoToneMapping;
+  // 2. bright pass into the half-res buffer
+  FX2.mBright.uniforms.tDiffuse.value=FX2.rt.texture;
+  FX2.pass(FX2.mBright,FX2.a);
+  // 3. blur it, across then down, twice — a wide soft bloom from a cheap kernel
+  const tx=1/FX2.a.width, ty=1/FX2.a.height;
+  for(let i=0;i<2;i++){
+    const spread=1.0+i*1.8;
+    FX2.mBlur.uniforms.tDiffuse.value=FX2.a.texture;
+    FX2.mBlur.uniforms.uDir.value.set(spread,0);
+    FX2.mBlur.uniforms.uTexel.value.set(tx,ty);
+    FX2.pass(FX2.mBlur,FX2.b);
+    FX2.mBlur.uniforms.tDiffuse.value=FX2.b.texture;
+    FX2.mBlur.uniforms.uDir.value.set(0,spread);
+    FX2.pass(FX2.mBlur,FX2.a);
+  }
+  // 4. composite to the canvas
+  const u=FX2.mComp.uniforms;
+  u.tDiffuse.value=FX2.rt.texture;
+  u.tBloom.value=FX2.a.texture;
+  u.uTexel.value.set(1/FX2.w,1/FX2.h);
+  u.uTime.value=FX2.t;
+  FX2.pass(FX2.mComp,null);
+  renderer.toneMapping=prevTone;
+};
+/* How hard the speed-reactive parts of the composite push. Driven from the car,
+   and eased, so a gear change does not make the frame pulse. */
+FX2.setSpeed=function(v01,dt){
+  const u=FX2.mComp.uniforms;
+  u.uSpeed.value=damp(u.uSpeed.value,clamp(v01,0,1),3.0,dt||0.016);
+};
+if(DEBUG) window.__FX2=FX2;
 
 /* ==================================================================
    SCENES
@@ -13339,6 +13545,20 @@ function seatInGarage(){
      the ground height and the tablet's session controls all key off. */
   CAR.inBay=true;
   CAR.bayPos=new THREE.Vector3(here.x,here.y,here.z);
+  /* LIGHT IN THE BOX. The bay ceiling is an emissive panel, and an emissive
+     material in three.js glows without illuminating anything — so the garage
+     was a black hole with a bright strip on its roof. One real light, moved to
+     whichever bay is ours rather than thirteen lights nobody sees, is enough to
+     read the car and the walls around it. */
+  { let gl=driveScene.userData.bayLight;
+    if(!gl){
+      gl=new THREE.PointLight(0xfff2dc, 0, 26, 2.0);
+      gl.castShadow=false;
+      driveScene.userData.bayLight=gl; driveScene.add(gl);
+    }
+    gl.position.set(here.x, here.y+4.1, here.z);
+    gl.intensity=90;
+  }
   CAR.pos.set(here.x,0,here.z);
   CAR.heading=Math.atan2(ahead.x-here.x, ahead.z-here.z);
   CAR.groundY=here.y;
@@ -14704,6 +14924,8 @@ const SETTINGS_DEF=[
    {k:'raceLaps',type:'enum',t:'Race length',
     opts:[[3,'3 LAPS'],[5,'5 LAPS'],[8,'8 LAPS'],[12,'12 LAPS'],[20,'20 LAPS'],[35,'35 LAPS']],
     d:'Laps in a season race. Longer races make tyre strategy matter more.'},
+   {k:'postFX',type:'bool',t:'Cinematic post FX',
+    d:'Bloom, lens aberration, film grain and a speed vignette. Turn it off if the frame rate suffers.'},
    {k:'weatherMode',type:'enum',t:'Weather',
     opts:[['dynamic','DYNAMIC'],['clear','CLEAR'],['cloud','OVERCAST'],['rain','RAIN'],['storm','STORM']],
     d:'Dynamic rolls fronts through mid-race. The rest force one condition.'},
@@ -15620,6 +15842,7 @@ function sessStart(kind,label,mins){
 }
 function sessStop(){
   SESS.on=false;
+  { const gl=driveScene.userData.bayLight; if(gl) gl.intensity=0; }
   const bar=$('#sessBar'); if(bar) bar.classList.remove('on');
   gtabClose();
 }
@@ -16286,7 +16509,7 @@ function startCinematic(){
   cineScene.add(CAR.rig); resetCar();
   builtTrackId=null;                                   // first race still builds its world
   camera.position.set(5,3,6);camera.lookAt(0,0.7,0);   // throwaway render → compiles the livery shader (sets its uniforms)
-  renderer.render(cineScene,camera);
+  FX2.render(cineScene,camera,0.016);
   setCarPlain(true);                                   // the leader runs unbranded
   // THE RIVAL. A second car, in red, so you can never mistake which is which.
   let rival=null;
@@ -16628,17 +16851,17 @@ function introStep(dt){
     const pop=clamp((el-0.9)/0.5,0,1);GLOBE.pin.scale.setScalar(0.001+pop);
     camera.up.set(0,1,0);camera.position.set(0,0,lerp(5.6,2.25,e));camera.lookAt(0,0,0);
     camera.fov=40;camera.updateProjectionMatrix();
-    renderer.render(globeScene,camera);
+    FX2.render(globeScene,camera,dt);
   }else if(el<B){                                    // sector outline on black
     if(!TINTRO.b){TINTRO.b=true;Sound.whoosh(0.5);}
     drawTrackOutline(clamp((el-A)/(B-A-0.4),0,1));
     $('#tCanvas').style.opacity='1';
-    renderer.render(globeScene,camera);              // (hidden behind the opaque canvas)
+    FX2.render(globeScene,camera,dt);              // (hidden behind the opaque canvas)
   }else if(el<C){                                    // overhead of the real track
     if(!TINTRO.c){TINTRO.c=true;Sound.rev();}
     $('#tCanvas').style.opacity='0';
     overheadCam(clamp((el-B)/(C-B),0,1));
-    renderer.render(driveScene,camera);
+    FX2.render(driveScene,camera,dt);
   }else endTrackIntro();
 }
 function endTrackIntro(skip){
@@ -19140,30 +19363,30 @@ function frame(){
     if(camera.fov!==38){camera.fov=38;camera.updateProjectionMatrix();}
     camera.position.set(Math.cos(menuSpin*0.3)*9.5,3.1,Math.sin(menuSpin*0.3)*9.5+3.5);
     camera.lookAt(0.4,0.8,0);
-    renderer.render(menuScene,camera);
+    FX2.render(menuScene,camera,dt);
   }else if(STATE==='cine'){
     stepCinematic(dt);
-    renderer.render(cineScene,camera);
+    FX2.render(cineScene,camera,dt);
   }else if(STATE==='intro'){
     introStep(dt);
   }else if(STATE==='podium'){
     stepPodium(dt);
     updateWeather(driveScene,dt);
     const rain2=driveScene.userData.rain; if(rain2) rain2.update(dt,camera.position);
-    renderer.render(driveScene,camera);
+    FX2.render(driveScene,camera,dt);
   }else if(STATE==='aisim'){
     stepAISim(dt);
-    renderer.render(driveScene,camera);
+    FX2.render(driveScene,camera,dt);
   }else if(STATE==='countdown'){
-    renderer.render(driveScene,camera);              // frozen grid while the lights run
+    FX2.render(driveScene,camera,dt);              // frozen grid while the lights run
   }else if(STATE==='drive'&&PHOTO.on){
-    stepPhoto(dt); renderer.render(driveScene,camera);
+    stepPhoto(dt); FX2.render(driveScene,camera,dt);
   }else if((STATE==='podium'||STATE==='aisim'||STATE==='replay')&&PHOTO.on){
-    stepPhoto(dt); renderer.render(driveScene,camera);
+    stepPhoto(dt); FX2.render(driveScene,camera,dt);
   }else if(STATE==='drive'){
     /* The strategy window holds the race. Still rendering the world behind it,
        just not advancing it — you are making a decision, not driving. */
-    if(stratOn){ renderer.render(driveScene,camera); requestAnimationFrame(frame); return; }
+    if(stratOn){ FX2.render(driveScene,camera,dt); requestAnimationFrame(frame); return; }
     const inp=readInput();
     /* FIXED-TIMESTEP PHYSICS. Stepping the car by the frame time meant the
        handling literally changed with the framerate — a slip-angle model
@@ -19193,6 +19416,8 @@ function frame(){
     updateCamera(dt);
     updateHelmet(dt);
     lap.update(dt,r.near.idx);
+    // the frame reacts to speed: the vignette closes and the edges smear
+    FX2.setSpeed(clamp((Math.abs(CAR.v)-24)/(PHYS.vMax-24),0,1),dt);
     // practice and qualifying run to a clock, not a lap count
     if(SESS.on){ sessUpdate(); if(!SESS.on) return; gtabSample(); gtabUpdate(); }
     stepSafetyCar(dt);
@@ -19206,7 +19431,7 @@ function frame(){
     const rain=driveScene.userData.rain; if(rain) rain.update(dt,camera.position);
     const lg=driveScene.userData.lightning; if(lg) lg.update(dt);
     if(CFG.dynamicSky) updateDynamicSky(driveScene,dt);
-    renderer.render(driveScene,camera);
+    FX2.render(driveScene,camera,dt);
   }else if(STATE==='replay'){
     updateReplay(dt);
     updateHelmet(dt);
@@ -19215,15 +19440,15 @@ function frame(){
     const rain=driveScene.userData.rain; if(rain) rain.update(dt,camera.position);
     const lg=driveScene.userData.lightning; if(lg) lg.update(dt);
     if(CFG.dynamicSky) updateDynamicSky(driveScene,dt);
-    renderer.render(driveScene,camera);
+    FX2.render(driveScene,camera,dt);
   }else if(STATE==='result'){
     // coast the car to a halt behind the results card
     const r=stepPhysics(dt,{throttle:0,brake:0.4,steer:0});
     updateCamera(dt);
     const rain=driveScene.userData.rain; if(rain) rain.update(dt,camera.position);
-    renderer.render(driveScene,camera);
+    FX2.render(driveScene,camera,dt);
   }else{
-    renderer.render(menuScene,camera);
+    FX2.render(menuScene,camera,dt);
   }
   requestAnimationFrame(frame);
 }
