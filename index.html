@@ -338,6 +338,38 @@
   .ssTeam .tn{font-size:14px;font-weight:700;color:#fff;letter-spacing:.05em}
   .ssTeam.on .tn::after{content:' ✓';color:#4ce0a0}
   /* ===== SEASON HUB ===== */
+  /* ============ SEASON SAVE SLOTS ============ */
+  #saveScreen{position:fixed;inset:0;z-index:28;display:none;align-items:center;justify-content:center;
+    background:radial-gradient(ellipse at 50% 10%,rgba(14,20,30,.96),rgba(4,6,10,.98) 70%)}
+  #saveScreen.on{display:flex}
+  .svPanel{width:min(760px,92vw);border:1px solid var(--grey-lo);border-radius:14px;
+    padding:clamp(20px,3vw,34px);background:linear-gradient(160deg,rgba(18,24,34,.96),rgba(8,11,18,.96));
+    box-shadow:0 30px 80px rgba(0,0,0,.7)}
+  .svHead{margin-bottom:18px}
+  .svTag{font-family:var(--mono);font-size:10px;letter-spacing:.4em;color:var(--red);font-weight:800}
+  .svTitle{font-family:var(--mono);font-size:clamp(20px,2.6vw,30px);font-weight:900;color:#fff;margin-top:6px}
+  #svSlots{display:flex;flex-direction:column;gap:10px}
+  .svSlot{display:flex;align-items:center;gap:16px;padding:14px 16px;border-radius:10px;
+    border:1px solid var(--grey-lo);cursor:pointer;background:rgba(255,255,255,.02);
+    transition:border-color .15s,background .15s,transform .15s}
+  .svSlot:hover{transform:translateX(4px);border-color:rgba(255,255,255,.3)}
+  .svSlot.sel{border-color:var(--red);background:rgba(225,6,0,.10)}
+  .svSlot .sn{font-family:var(--mono);font-size:22px;font-weight:900;color:var(--red);width:34px}
+  .svSlot .si{flex:1}
+  .svSlot .st{font-family:var(--mono);font-size:14px;font-weight:800;color:#fff;letter-spacing:.04em}
+  .svSlot .ss{font-size:11px;color:var(--grey);letter-spacing:.1em;margin-top:4px}
+  .svSlot.empty .st{color:var(--grey)}
+  .svSlot .sd{font-family:var(--mono);font-size:9px;letter-spacing:.14em;color:var(--grey);
+    border:1px solid var(--grey-lo);border-radius:16px;padding:4px 10px;background:transparent;cursor:pointer}
+  .svSlot .sd:hover{color:#ff6a64;border-color:#ff6a64}
+  .svBtns{display:flex;gap:10px;margin-top:18px}
+  .svBtns button{font-family:var(--mono);font-size:11px;letter-spacing:.16em;font-weight:800;
+    color:#fff;background:transparent;border:1px solid var(--grey-lo);border-radius:6px;
+    padding:10px 18px;cursor:pointer}
+  .svBtns button:hover{border-color:#fff}
+  .svHint{margin-top:14px;font-family:var(--mono);font-size:9.5px;letter-spacing:.18em;color:var(--grey)}
+  .svHint b{color:#fff;border:1px solid var(--grey-lo);border-radius:3px;padding:2px 5px;margin-right:4px}
+
   /* ============ GARAGE TABLET ============
      Deliberately NOT the weekend tablet. That one is a slab you hold; this one
      hangs from the garage ceiling on an arm and drops into view in front of the
@@ -543,6 +575,10 @@
   .calR .rn{font-family:var(--mono);font-size:10px;letter-spacing:.2em;color:var(--grey)}
   .calR .rt{font-size:13px;font-weight:700;color:#fff;margin-top:5px}
   .calR .rc{font-size:10px;letter-spacing:.1em;color:var(--grey);margin-top:3px;text-transform:uppercase}
+  #shSave{font-family:var(--mono);font-size:9.5px;letter-spacing:.16em;font-weight:800;
+    color:#fff;background:transparent;border:1px solid var(--grey-lo);border-radius:5px;
+    padding:5px 12px;margin-right:14px;cursor:pointer}
+  #shSave:hover{border-color:var(--red);color:var(--red)}
   #shFoot{display:flex;justify-content:space-between;align-items:center;font-size:11px;letter-spacing:.2em;color:var(--grey);text-transform:uppercase}
   #shFoot b{display:inline-block;padding:3px 7px;margin-right:8px;border:1px solid var(--grey-lo);border-radius:3px;color:#fff;font-family:var(--mono);font-size:10px}
   #shPts{color:var(--red);font-family:var(--mono);font-weight:700}
@@ -1215,7 +1251,23 @@
     </section>
   </div>
   <div id="shCal"></div>
-  <div id="shFoot"><span><b>Esc</b> Main Menu</span><span id="shPts">0 PTS</span></div>
+  <div id="shFoot"><span><b>Esc</b> Main Menu &nbsp; <b>S</b> Save</span>
+    <span><button id="shSave">SAVE ▸</button><span id="shPts">0 PTS</span></span></div>
+</div>
+
+<!-- ===== Season save slots ===== -->
+<div id="saveScreen">
+  <div class="svPanel">
+    <div class="svHead">
+      <div class="svTag" id="svTag">SEASON SAVES</div>
+      <div class="svTitle" id="svTitle">CHOOSE A SLOT</div>
+    </div>
+    <div id="svSlots"></div>
+    <div class="svBtns">
+      <button id="svBack">◂ BACK</button>
+    </div>
+    <div class="svHint"><b>1–3</b> Slot &nbsp; <b>Del</b> Erase &nbsp; <b>Esc</b> Back</div>
+  </div>
 </div>
 
 <!-- ===== Garage tablet: drops down in the box during practice / qualifying ===== -->
@@ -14387,7 +14439,7 @@ if(DEBUG){window.__setCam=(m)=>{CAM.mode=m;CAM.tsPost=null;$('#camName').textCon
   window.__getState=()=>STATE; window.__REPLAY=REPLAY; window.__enterReplay=enterReplay; window.__exitReplay=exitReplay;
   window.__zoneBoards=()=>ZONE_SPONSORS.map(makeZoneBoard); window.__simQuali=simulateQualifying; window.__initRD=initRD; window.__rdGrip=rdGrip; window.__rdPower=rdPower; window.__commitLap=replayCommitLap; window.__updateReplay=updateReplay; window.__pickLap=replayPickLap;
   setTimeout(()=>{window.__openWeekend=openWeekend;window.__wkNews=wkNews;window.__endPractice=endPractice;},0);
-  setTimeout(()=>{window.__SEASON=SEASON;window.__endSeasonRace=endSeasonRace;window.__seasonBuildTable=seasonBuildTable;
+  setTimeout(()=>{window.__SEASON=SEASON;window.__endSeasonRace=endSeasonRace;window.__seasonBuildTable=seasonBuildTable;window.__openSaves=openSaves;window.__loadFromSlot=loadFromSlot;window.__seasonAutosave=seasonAutosave;
     window.__seasonConstructors=seasonConstructors;},0);
   window.__replayRecord=replayRecord;
   window.__PITSTOP=PITSTOP;window.__pitPos=pitPos;window.__PIT=PIT;
@@ -14521,9 +14573,6 @@ const MODES=[
   {id:'tt',t:'Time Trial',tag:'SOLO',drive:true,
    desc:'You, the car and the clock. Every corner counts — build up to the lap of your life.',
    meta:[['Ghost','OFF'],['Sectors','3'],['Record','—']]},
-  {id:'quali',t:'Qualifying',tag:'3 LAPS',drive:true,
-   desc:'Three flying laps to set your best time. Nail one clean lap and pole is yours.',
-   meta:[['Laps','3'],['Sectors','3'],['Target','POLE']]},
   {id:'aisim',t:'AI Simulation',tag:'WATCH',
    desc:'Sit in the director\u2019s chair. The full field forms up on the grid, the lights go out, and the AI races while you cut between the broadcast cameras.',
    meta:[['Grid','14 CARS'],['Laps','1'],['You','SPECTATE']]},
@@ -14852,7 +14901,7 @@ function chooseMode(){const m=MODES[sel];Sound.init();Sound.blip(660,.08);
   if(m.drive){sessionMode=m.id;startDrive();}
   else if(m.id==='aisim'){sessionMode='aisim';startAISim();}
   else if(m.id==='garage'){openGarage();}
-  else if(m.id==='season'){openSeasonSetup();}
+  else if(m.id==='season'){openSaves('load');}
   else if(m.id==='podium'){sessionMode='podium';startPodium();}
   else if(m.id==='settings'){openSettings();}
   else{ /* placeholder modes */ flashMsg(); }
@@ -15040,11 +15089,151 @@ function closeGarage(){garageOn=false;$('#garage').classList.remove('on');
 /* ==================================================================
    SEASON MODE (beta)
    ================================================================== */
-const SEASON={active:false,on:false,team:'redbull',diff:'Pro',name:'M. SYSAK',num:7,sponsor:'Oracle',
-  round:0,cal:['australia','bahrain','saopaulo','jeddah','miami','monaco','catalunya','montreal','austria','texas','hungary','zandvoort','silverstone','spa','qatar','baku','lasvegas','yas'],points:0,
+const SEASON={active:false,on:false,slot:null,team:'redbull',diff:'Pro',name:'M. SYSAK',num:7,sponsor:'Oracle',
+  /* The full 24-round calendar. Six circuits — Monza, Suzuka, Mexico, Shanghai,
+     Singapore and Madrid — were built and driveable but never appeared in a
+     season, so a championship skipped a quarter of the game. Ordered roughly as
+     the real season runs: flyaways, the European summer, then the night races. */
+  round:0,cal:['australia','china','suzuka','bahrain','jeddah','miami',
+    'saopaulo','monaco','catalunya','montreal','austria','silverstone','hungary','spa',
+    'zandvoort','monza','baku','singapore','texas','mexico','madrid','lasvegas','qatar','yas'],points:0,
   raceLaps:8, lastResult:null,
   field:['M. VÄRLA','R. OKONKWO','L. FENN','S. HÄKKINEN','D. ROSSI','K. TANAKA','A. PETROV','J. MORAIS','E. LARSSON','B. NAKAMURA']};
 const F1PTS=[25,18,15,12,10,8,6,4,2,1];
+/* ==================================================================
+   SEASON SAVES
+   A championship is twenty-four rounds; it has to survive closing the tab.
+   Three slots, each holding everything that makes a season what it is — the
+   standings, the round you are on, the car you have developed, the money, and
+   the paddock feed.
+   ================================================================== */
+const SAVE_KEY='apexgp.season.v1';
+const SAVE_SLOTS=3;
+const SAVE={mode:'load', slot:0, sel:0};
+function saveReadAll(){
+  try{ const raw=localStorage.getItem(SAVE_KEY); return raw?JSON.parse(raw):{}; }
+  catch(e){ return {}; }
+}
+function saveWriteAll(all){
+  try{ localStorage.setItem(SAVE_KEY,JSON.stringify(all)); return true; }
+  catch(e){ console.warn('could not write save',e); return false; }
+}
+/* Only the fields that ARE the season. Deliberately not the whole SEASON object:
+   it carries transient session state (the weekend in progress, the grid, the
+   qualifying run) that means nothing once reloaded and would restore you into a
+   half-finished session that no longer exists. */
+function seasonSnapshot(){
+  return {
+    v:1, when:Date.now(),
+    name:SEASON.name, num:SEASON.num, team:SEASON.team, diff:SEASON.diff,
+    sponsor:SEASON.sponsor, round:SEASON.round, points:SEASON.points,
+    cal:SEASON.cal, table:SEASON.table, lastResult:SEASON.lastResult,
+    raceLaps:SEASON.raceLaps, rd:SEASON.rd, rdPts:SEASON.rdPts, money:SEASON.money,
+    news:SEASON.news,
+  };
+}
+function seasonRestore(s){
+  if(!s) return false;
+  SEASON.active=true;
+  SEASON.name=s.name; SEASON.num=s.num; SEASON.team=s.team; SEASON.diff=s.diff;
+  SEASON.sponsor=s.sponsor; SEASON.round=s.round||0; SEASON.points=s.points||0;
+  if(s.cal&&s.cal.length) SEASON.cal=s.cal;
+  SEASON.table=s.table; SEASON.lastResult=s.lastResult;
+  SEASON.raceLaps=s.raceLaps||SET.raceLaps;
+  SEASON.rd=s.rd; SEASON.rdPts=s.rdPts||0; SEASON.money=s.money||0;
+  SEASON.news=s.news||[];
+  // a restored season starts at the weekend hub, never mid-session
+  SEASON.wk=null; SEASON.grid=null; SEASON.gridPos=null; SEASON.pendingRace=false;
+  if(!SEASON.table||!SEASON.table.length) seasonBuildTable();
+  try{ setLivery(SEASON.team); }catch(e){}
+  return true;
+}
+function saveToSlot(i){
+  const all=saveReadAll();
+  all['s'+i]=seasonSnapshot();
+  return saveWriteAll(all);
+}
+function loadFromSlot(i){
+  const all=saveReadAll();
+  return seasonRestore(all['s'+i]);
+}
+function eraseSlot(i){
+  const all=saveReadAll();
+  delete all['s'+i];
+  saveWriteAll(all);
+}
+/* Autosave: called after anything that advances the championship, so progress is
+   never more than a round old. */
+function seasonAutosave(){
+  if(!SEASON.active||SEASON.slot==null) return;
+  saveToSlot(SEASON.slot);
+}
+function openSaves(mode){
+  SAVE.mode=mode||'load'; SAVE.sel=0;
+  $('#svTag').textContent = SAVE.mode==='save'?'SAVE SEASON':'SEASON SAVES';
+  $('#svTitle').textContent = SAVE.mode==='save'?'CHOOSE A SLOT TO SAVE TO':'CHOOSE A SLOT';
+  $('#menu').classList.remove('on');
+  $('#seasonHub').classList.remove('on');
+  SEASON.on='saves';
+  $('#saveScreen').classList.add('on');
+  renderSaves();
+}
+function closeSaves(){
+  $('#saveScreen').classList.remove('on');
+  SEASON.on=false;
+  if(SEASON.active&&SAVE.mode==='save') openSeasonHub(); else enterMenu();
+}
+function renderSaves(){
+  const wrap=$('#svSlots'); if(!wrap) return;
+  const all=saveReadAll();
+  wrap.innerHTML='';
+  for(let i=0;i<SAVE_SLOTS;i++){
+    const s=all['s'+i];
+    const el=document.createElement('div');
+    el.className='svSlot'+(i===SAVE.sel?' sel':'')+(s?'':' empty');
+    let title='EMPTY SLOT', sub='Start a new championship here.';
+    if(s){
+      const team=(LIVERIES[s.team]&&LIVERIES[s.team].name)||s.team||'';
+      const trk=(TRACKS[(s.cal||SEASON.cal)[s.round||0]]||{}).name||'—';
+      const d=new Date(s.when||Date.now());
+      title=`${esc(s.name||'DRIVER')} · ${esc(team)}`;
+      sub=`Round ${(s.round||0)+1} / ${(s.cal||SEASON.cal).length} · ${esc(trk)} · `+
+          `${s.points||0} pts · saved ${d.toLocaleDateString()}`;
+    }
+    el.innerHTML=`<span class="sn">${i+1}</span><div class="si">`+
+      `<div class="st">${title}</div><div class="ss">${sub}</div></div>`;
+    if(s){
+      const del=document.createElement('button');
+      del.className='sd'; del.textContent='ERASE';
+      del.onclick=(e)=>{ e.stopPropagation(); eraseSlot(i); Sound.blip(300,.06); renderSaves(); };
+      el.appendChild(del);
+    }
+    el.onclick=()=>{ SAVE.sel=i; useSlot(i); };
+    wrap.appendChild(el);
+  }
+}
+function useSlot(i){
+  const all=saveReadAll(), s=all['s'+i];
+  if(SAVE.mode==='save'){
+    SEASON.slot=i; saveToSlot(i); Sound.hit();
+    $('#saveScreen').classList.remove('on'); SEASON.on=false; openSeasonHub();
+    return;
+  }
+  if(s){
+    SEASON.slot=i;
+    if(loadFromSlot(i)){
+      Sound.hit();
+      $('#saveScreen').classList.remove('on'); SEASON.on=false;
+      openSeasonHub();
+      return;
+    }
+  }
+  // empty slot in load mode → start a fresh championship that will live here
+  SEASON.slot=i;
+  Sound.blip(680,.06);
+  $('#saveScreen').classList.remove('on'); SEASON.on=false;
+  openSeasonSetup();
+}
 /* the championship table is rebuilt from the real driver roster so standings,
    team names and constructor points all line up with who you actually race */
 function seasonBuildTable(){
@@ -15092,6 +15281,9 @@ function beginSeason(){
   SEASON.rd=null; initRD();                            // fresh R&D tree + starting resources
   SEASON.lastResult=null;
   seasonBuildTable();
+  SEASON.news=[]; SEASON.wk=null;
+  if(SEASON.slot==null) SEASON.slot=SAVE.sel||0;
+  seasonAutosave();
   closeSeasonSetup(); openSeasonHub();
 }
 function openSeasonHub(){
@@ -15764,6 +15956,7 @@ function endSeasonRace(){
   }
   if(SEASON.round<SEASON.cal.length-1)SEASON.round++;
   SEASON.wk=null;                       // next round starts a fresh weekend
+  seasonAutosave();                     // a finished round is progress worth keeping
   clearAIs();
   STATE='menu';Sound.stop();$('#hud').classList.remove('on');$('#sndBtn').classList.remove('show');
   if(CAR.rig.parent!==menuScene)menuScene.add(CAR.rig);
@@ -15771,6 +15964,7 @@ function endSeasonRace(){
 }
 $('#ssBegin').addEventListener('click',beginSeason);
 $('#shRaceBtn').addEventListener('click',seasonRace);
+$('#shSave').addEventListener('click',()=>{openSaves('save');Sound.blip(620,.05);});
 
 /* ==================================================================
    RESEARCH & DEVELOPMENT  (points research parts · money fits them)
@@ -16629,7 +16823,18 @@ addEventListener('keydown',e=>{
   if(stratOn){ if(strategyKey(k)) e.preventDefault(); return; }
   if(setOn){ if(settingsKey(k)) e.preventDefault(); return; }
   if(SEASON.on==='setup'){ if(k==='escape'){closeSeasonSetup();} else if(k==='enter'&&document.activeElement.tagName!=='INPUT'){beginSeason();} return; }
-  if(SEASON.on==='hub'){ if(k==='escape'){closeSeasonHub();} else if(k==='enter'){seasonRace();} e.preventDefault();return; }
+  if(SEASON.on==='hub'){ if(k==='escape'){closeSeasonHub();}
+    else if(k==='enter'){seasonRace();}
+    else if(k==='s'){ openSaves('save'); }
+    e.preventDefault();return; }
+  if(SEASON.on==='saves'){
+    if(k==='escape'){ closeSaves(); }
+    else if(k>='1'&&k<='3'){ SAVE.sel=+k-1; renderSaves(); useSlot(SAVE.sel); }
+    else if(k==='arrowdown'){ SAVE.sel=(SAVE.sel+1)%SAVE_SLOTS; renderSaves(); }
+    else if(k==='arrowup'){ SAVE.sel=(SAVE.sel-1+SAVE_SLOTS)%SAVE_SLOTS; renderSaves(); }
+    else if(k==='enter'){ useSlot(SAVE.sel); }
+    else if(k==='delete'||k==='backspace'){ eraseSlot(SAVE.sel); Sound.blip(300,.06); renderSaves(); }
+    e.preventDefault(); return; }
   if(SEASON.on==='weekend'){
     if(k==='escape'){ closeWeekend(); }
     else if(k==='enter'){ const s=WK_SESSIONS[wkStage()]; if(s) wkEnter(s); }
@@ -19141,6 +19346,7 @@ async function boot(){
   buildMenu();
   // settings screen wiring — the buttons, and the first application of whatever
   // was loaded from storage before anything is on screen
+  $('#svBack').onclick=()=>{closeSaves();Sound.blip(380,.05);};
   $('#gtClose').onclick=()=>{gtabClose();Sound.blip(380,.05);};
   document.querySelectorAll('.gtTab').forEach(t=>{ t.onclick=()=>gtabTab(t.dataset.tab); });
   /* END SESSION closes the session where it stands and takes the result you
