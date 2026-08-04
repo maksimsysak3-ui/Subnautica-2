@@ -11395,6 +11395,32 @@ function buildPitLaneGeometry(sc){
   const road=new THREE.Mesh(geo,new THREE.MeshStandardMaterial({
     map:makeAsphalt(),color:0x9a9a9e,roughness:0.94,side:THREE.DoubleSide}));
   road.receiveShadow=true; road.renderOrder=3; g.add(road);
+  /* --- THE GARAGE APRON ---------------------------------------------------
+     The lane surface stopped dead at PIT.halfW, and the garages sit a few
+     metres beyond that, so the strip between the pit road and the boxes was
+     whatever the landscape happened to be — grass, at most circuits. You do not
+     drive across a lawn to get into your garage. This carries the same tarmac
+     from the lane's garage-side edge right up to the building line, over the
+     length of the boxes plus a little either end. */
+  { const APRON=14;                        // comfortably past the bay mouths
+    const dA0=-(PIT.boxRun/2+22), dA1=PIT.boxRun/2+22;
+    const m=Math.max(8,Math.round((dA1-dA0)/STEP));
+    const av=[],auv=[],aidx=[];
+    for(let i=0;i<=m;i++){
+      const d=dA0+(dA1-dA0)*i/m;
+      const a2=pitPos(d,PIT.halfW), b2=pitPos(d,PIT.halfW+APRON);
+      av.push(a2.x,a2.y+0.055,a2.z, b2.x,b2.y+0.055,b2.z);
+      auv.push(0,i*0.5, 1,i*0.5);
+      if(i<m){const o=i*2; aidx.push(o,o+2,o+1, o+1,o+2,o+3);}
+    }
+    const ag=new THREE.BufferGeometry();
+    ag.setAttribute('position',new THREE.Float32BufferAttribute(av,3));
+    ag.setAttribute('uv',new THREE.Float32BufferAttribute(auv,2));
+    ag.setIndex(aidx); flatUp(ag);
+    const apron=new THREE.Mesh(ag,new THREE.MeshStandardMaterial({
+      map:makeAsphalt(),color:0x8e8e92,roughness:0.95,side:THREE.DoubleSide}));
+    apron.receiveShadow=true; apron.renderOrder=2; g.add(apron);
+  }
   // --- a line down each edge, and the fast-lane line the crew must not cross -
   const stripe=(across,col,w,y)=>{
     const sv=[],sid=[];
@@ -12335,7 +12361,7 @@ const PHYS={
      Bringing the front closer to the rear roughly halves the understeer. The
      car still understeers, because a racing car that does not is undriveable on
      a keyboard, but it now turns when you ask it to. */
-  Cf:148000, Cr:200000,
+  Cf:170000, Cr:228000,
   /* Back to the original handling. The one change kept from the retune is a
      little more lock and a slightly quicker rack at low speed, because slow
      corners were heavy: 0.30 rad is ~17 deg instead of 15. */
@@ -12353,7 +12379,7 @@ const PHYS={
      to overwrite them from its own hardcoded 3.8/6.4, which meant the numbers
      here were dead — editing them changed nothing and any tuning done through
      them silently did nothing at all. */
-  maxSteerLo:0.34, maxSteerHi:0.086, steerLockCurve:1.50, steerRate:3.8, steerReturn:6.4,
+  maxSteerLo:0.34, maxSteerHi:0.108, steerLockCurve:1.30, steerRate:4.6, steerReturn:7.0,
   /* YAW DAMPING. A linear-then-clip tyre gives cornering force but none of the
      things that actually settle a car: tyre relaxation length, the aligning
      moment that tries to straighten the steering, the damping in the
@@ -12365,7 +12391,7 @@ const PHYS={
      One explicit damping term fixes it. It is not a fudge — it stands in for
      real physical effects the tyre model omits — and it is scaled out at
      walking pace where the kinematic blend takes over instead. */
-  yawDamp:2.0,
+  yawDamp:2.35,
   /* How quickly the driver winds lock ON compared with how quickly they take it
      off. Coming off the lock faster than going on is what a real pair of hands
      does and it stops the car carrying rotation out of a corner. */
@@ -13436,6 +13462,17 @@ function stepPhysics(dt,inp){
      the car is known), which at 120 Hz is 8 ms stale and unnoticeable. */
   const brakeCap=P.mu*gripPrev*(P.mass*9.81 + P.downK*CAR.v*CAR.v)*0.92;
   let Fbrake=Math.min(inp.brake*P.brakeForce, brakeCap);
+  /* THE PEDAL IS A KEY, SO THE CAR HAS TO MODULATE FOR YOU.
+     A real driver feels the fronts going and eases off; on a keyboard the brake
+     is zero or it is everything, so every stop was a locked-up flat-spotted mess
+     with no steering left in it. Two things happen here that a driver would do:
+     the demand is held just under what the front axle will actually take, and
+     the more steering lock you are asking for the more brake is released — which
+     is trail braking, and is what lets you turn while slowing down instead of
+     ploughing straight on. */
+  { const steerAsk=Math.min(1,Math.abs(CAR.steer)/Math.max(0.02,PHYS.maxSteerLo));
+    const trail=1-0.42*steerAsk*steerAsk;
+    Fbrake=Math.min(Fbrake, brakeCap*0.94)*trail; }
   /* DRS: open only inside a marked zone, above the activation speed, and it
      shuts the instant you touch the brakes — exactly as the real system does. */
   const inZone=!!(TRACK.drs && TRACK.drs[CAR.trackIdx||0]);
@@ -13719,7 +13756,12 @@ function stepPhysics(dt,inp){
   if(CAR.inBay && CAR.bayPos){
     CAR.groundY=CAR.bayPos.y;
     CAR.slope=0; CAR.pitch=damp(CAR.pitch||0,0,6,dt);
-    if(Math.abs(CAR.v)<0.4 && !inp.thr){ CAR.v=0; CAR.vLat=0; CAR.yawRate=0;
+    /* Hold the car still only while it is genuinely being left alone. This read
+       `inp.thr`, which does not exist — the field is `throttle` — so the test was
+       always true and the car was pinned in the box forever, unable to drive
+       out. Reverse counts as trying to move too. */
+    if(Math.abs(CAR.v)<0.4 && inp.throttle<0.02 && inp.brake<0.02){
+      CAR.v=0; CAR.vLat=0; CAR.yawRate=0;
       CAR.pos.x=CAR.bayPos.x; CAR.pos.z=CAR.bayPos.z; }
     if(CAR.pos.distanceTo(CAR.bayPos)>18) CAR.inBay=false;
   } else if(inPitLane){
@@ -16636,6 +16678,22 @@ function startDrive(){
   $('#camName').textContent=CAM_LABEL[CAM.mode]||CAM.mode.toUpperCase();
   replayReset(); $('#replayBadge').classList.remove('on'); $('#replayBar').classList.remove('on');
   // fresh pit state, and work out which garage is ours on this circuit
+  /* A TIMED SESSION BELONGS TO A SEASON WEEKEND AND NOWHERE ELSE.
+     SESS and the garage tablet were only ever switched off when a session ended
+     normally, so leaving practice any other way left them running — and the next
+     Time Trial started with a practice clock ticking in the corner, the tablet
+     hanging in the middle of the screen and the car still flagged as sat in its
+     box. Anything that is not practice or qualifying starts with all of it
+     cleared. */
+  if(sessionMode!=='practice' && sessionMode!=='quali'){
+    sessStop();
+    SESS.kind=''; SESS.label=''; SESS.part=0; SESS.eliminated=null; SESS.alive=null;
+    gtabClose();
+    GTAB.laps=[]; GTAB.sel=null; GTAB.turnT=null; GTAB.turnSeen=null;
+    GTAB.trace=[]; GTAB.best=null; GTAB.bestTrace=null;
+    CAR.inBay=false; CAR.bayPos=null;
+    SEASON.practiceKey=null;
+  }
   pitReset(); scReset(); PITSTOP.planComp=selCompound; PITSTOP.boxD=playerBoxD();
   // where the car has to come to rest: in the painted box, over toward the garage
   PITSTOP.boxPos=pitPos(PITSTOP.boxD,PIT.halfW-2.6);
