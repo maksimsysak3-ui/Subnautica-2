@@ -934,6 +934,15 @@
   :root[data-cb="prot"] #sec0,:root[data-cb="prot"] #sec1,:root[data-cb="prot"] #sec2{filter:hue-rotate(50deg)}
   :root[data-cb="trit"] #sec0,:root[data-cb="trit"] #sec1,:root[data-cb="trit"] #sec2{filter:hue-rotate(-40deg)}
   /* ============ MARSHAL FLAGS ============ */
+  #ersChip,#puChip{display:none;font-family:var(--mono);font-size:9px;letter-spacing:.14em;
+    font-weight:800;padding:3px 7px;border-radius:3px}
+  #ersChip.on,#puChip.on{display:inline-block}
+  #ersChip.harvest{background:rgba(63,169,255,.20);color:#7fc8ff}
+  #ersChip.balanced{background:rgba(255,255,255,.12);color:#cfd5dd}
+  #ersChip.attack{background:rgba(225,6,0,.22);color:#ff7d78}
+  #puChip.ok{background:rgba(79,217,122,.18);color:#6fe3a0}
+  #puChip.warn{background:rgba(255,176,60,.20);color:#ffc266}
+  #puChip.bad{background:rgba(255,91,85,.22);color:#ff8a85}
   #flagBar{position:absolute;top:clamp(14px,2.4vh,26px);left:50%;transform:translateX(-50%);
     display:flex;gap:8px;z-index:6;pointer-events:none}
   .flagChip{font-family:var(--mono);font-size:11px;letter-spacing:.22em;font-weight:800;
@@ -1509,7 +1518,7 @@
     <div id="mapName">SPA-FRANCORCHAMPS <span>· BELGIUM</span></div>
     <canvas id="minimap" width="230" height="230"></canvas>
     <div id="wxRow"><span id="wxIcon">☀</span><span id="wxLabel">CLEAR</span><span id="wxTrack">DRY</span></div>
-    <div id="statusRow"><span id="drs">DRS</span><span id="limChip"></span><span id="camTag">CAM <b id="camName">CHASE</b></span></div>
+    <div id="statusRow"><span id="drs">DRS</span><span id="ersChip"></span><span id="puChip"></span><span id="limChip"></span><span id="camTag">CAM <b id="camName">CHASE</b></span></div>
   </div>
   <div id="cluster">
     <div id="pedals">
@@ -1559,7 +1568,7 @@
   </div>
   <!-- the control strip used to run across the bottom of the screen, straight
        through the cluster; the keys live in the collapsible panel bottom-left -->
-  <div id="keyHelp"><b>W</b>THR <b>SPACE</b>BRK <b>A/D</b>STEER <b>SHIFT</b>ERS <b>P</b>PIT <b>C</b>CAM <b>Y</b>REPLAY <b>R</b>RESET <b>ESC</b>MENU</div>
+  <div id="keyHelp"><b>W</b>THR <b>SPACE</b>BRK <b>A/D</b>STEER <b>SHIFT</b>ERS <b>E</b>MODE <b>P</b>PIT <b>T</b>TABLET <b>C</b>CAM <b>Y</b>REPLAY <b>R</b>RESET <b>ESC</b>MENU</div>
   <div id="replayBadge">REPLAY READY</div>
   <div id="limiter">PIT LIMITER · 80</div>
 </div>
@@ -2177,7 +2186,7 @@ FX2.setSpeed=function(v01,dt){
   u.uSpeed.value=damp(u.uSpeed.value,clamp(v01,0,1),3.0,dt||0.016);
 };
 if(DEBUG) window.__FX2=FX2;
-if(DEBUG) setTimeout(()=>{window.__FLAG=FLAG;window.__SC=SC;window.__STEW=STEW;
+if(DEBUG) setTimeout(()=>{window.__EVO=EVO;window.__PERF=PERF;window.__FLAG=FLAG;window.__SC=SC;window.__STEW=STEW;
   window.__throwYellow=throwYellow;window.__deployVSC=deployVSC;
   window.__issuePenalty=issuePenalty;window.__updateFlagBar=updateFlagBar;},0);
 
@@ -15481,11 +15490,19 @@ function applySettings(){
   // scale the base rates from the PHYS table rather than from magic numbers here,
   // so the tuning values in PHYS are the ones that actually reach the car
   PHYS.steerRate=STEER_BASE.rate*SET.steerSpeed; PHYS.steerReturn=STEER_BASE.ret*SET.steerSpeed;
-  try{ syncRacingLine(); }catch(e){}
   // colour mode goes on the root element, where the CSS can key off it
   document.documentElement.setAttribute('data-cb', SET.colorblind&&SET.colorblind!=='off'?SET.colorblind:'');
-  PERF.auto=SET.autoQuality!==false;
-  if(!PERF.auto && PERF.level!==0){ PERF.level=0; perfApply(); }
+  /* PERF is declared several hundred lines below this function. That is fine
+     while applySettings() is only ever called after the module has finished
+     evaluating — but it is exactly the temporal-dead-zone trap that has bitten
+     this file three times already, and the cost of being wrong is the whole
+     game failing to boot. Guarded, so the worst case is that the quality
+     setting is applied a moment later than it might have been. */
+  try{
+    PERF.auto=SET.autoQuality!==false;
+    if(!PERF.auto && PERF.level!==0){ PERF.level=0; perfApply(); }
+  }catch(e){}
+  try{ syncRacingLine(); }catch(e){}
   SEASON.raceLaps=SET.raceLaps;
   // --- graphics ---
   if(renderer.shadowMap.enabled!==SET.shadows){
@@ -17931,7 +17948,17 @@ function startDrive(){
     CAR.inBay=false; CAR.bayPos=null;
     SEASON.practiceKey=null;
   }
-  try{ driveScene.userData.racingLine=null; syncRacingLine(); }catch(e){}
+  /* Drop the previous circuit's racing line properly. Nulling the reference
+     left the old ribbon in the scene, so every session added another one on top
+     of the last — a leak, and visibly wrong the moment you changed track. */
+  try{
+    const old=driveScene.userData.racingLine;
+    if(old){ driveScene.remove(old);
+      if(old.geometry) old.geometry.dispose();
+      if(old.material) old.material.dispose(); }
+    driveScene.userData.racingLine=null;
+    syncRacingLine();
+  }catch(e){}
   pitReset(); scReset(); flagReset(); stewReset(); evoReset(); PITSTOP.planComp=selCompound; PITSTOP.boxD=playerBoxD();
   // where the car has to come to rest: in the painted box, over toward the garage
   PITSTOP.boxPos=pitPos(PITSTOP.boxD,PIT.halfW-2.6);
@@ -19307,6 +19334,28 @@ function throwYellow(i,double,secs){
 }
 /* What the marshal post ahead of you is showing — the sector you are in, plus
    any blue flag being waved at you. */
+/* ERS mode and the health of the weakest power-unit component, on the status
+   strip — the two things the new systems ask you to manage, which were only
+   visible if you opened the tablet. */
+function updateCarChips(){
+  const e=$('#ersChip');
+  if(e){
+    const d=ersModeDef();
+    e.className=ersMode()+' on';
+    e.textContent='ERS '+d.nm;
+  }
+  const p2=$('#puChip');
+  if(p2){
+    if(!SEASON.active){ p2.className=''; }
+    else{
+      let worst=1, failed=false;
+      for(const K of PU_KINDS){ const h=puHealth(K.k); if(h<worst) worst=h;
+        if(puGet(K.k).failed) failed=true; }
+      p2.className=(failed?'bad':worst<0.25?'warn':'ok')+' on';
+      p2.textContent='PU '+(failed?'FAIL':Math.round(worst*100)+'%');
+    }
+  }
+}
 function updateFlagBar(){
   const el=$('#flagBar'); if(!el) return;
   const out=[];
@@ -20733,6 +20782,7 @@ function frame(){
     updateBattle(dt);
     updateHUD(inp,r,dt);
     updateFlagBar();
+    updateCarChips();
     replayRecord(dt);
     const rb=$('#replayBadge'); if(rb)rb.classList.toggle('on',REPLAY.laps.length>0);
     updateWeather(driveScene,dt);                       // sun moves, fronts roll through
