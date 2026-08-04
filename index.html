@@ -11942,7 +11942,7 @@ const PHYS={
      Bringing the front closer to the rear roughly halves the understeer. The
      car still understeers, because a racing car that does not is undriveable on
      a keyboard, but it now turns when you ask it to. */
-  Cf:148000, Cr:176000,
+  Cf:148000, Cr:200000,
   /* Back to the original handling. The one change kept from the retune is a
      little more lock and a slightly quicker rack at low speed, because slow
      corners were heavy: 0.30 rad is ~17 deg instead of 15. */
@@ -11955,7 +11955,12 @@ const PHYS={
      More lock overall, and a curve that holds onto it: at half of top speed the
      car now keeps about two thirds of full lock instead of a third. The yaw
      damping added alongside is what stops the extra lock making it twitchy. */
-  maxSteerLo:0.36, maxSteerHi:0.086, steerLockCurve:1.50, steerRate:6.6, steerReturn:8.0,
+  /* steerRate/steerReturn are the BASE rates, at a steering-speed setting of 1.
+     applySettings() scales them by SET.steerSpeed into the live values. It used
+     to overwrite them from its own hardcoded 3.8/6.4, which meant the numbers
+     here were dead — editing them changed nothing and any tuning done through
+     them silently did nothing at all. */
+  maxSteerLo:0.34, maxSteerHi:0.086, steerLockCurve:1.50, steerRate:3.8, steerReturn:6.4,
   /* YAW DAMPING. A linear-then-clip tyre gives cornering force but none of the
      things that actually settle a car: tyre relaxation length, the aligning
      moment that tries to straighten the steering, the damping in the
@@ -11967,7 +11972,7 @@ const PHYS={
      One explicit damping term fixes it. It is not a fudge — it stands in for
      real physical effects the tyre model omits — and it is scaled out at
      walking pace where the kinematic blend takes over instead. */
-  yawDamp:1.2,
+  yawDamp:2.0,
   /* How quickly the driver winds lock ON compared with how quickly they take it
      off. Coming off the lock faster than going on is what a real pair of hands
      does and it stops the car carrying rotation out of a corner. */
@@ -11992,6 +11997,9 @@ const PHYS={
    tyres should, and that is what made turning feel heavy and put lap times off
    the pace. Grip is the lever, so grip is what moved. */
 let TYRE_LS=0.18;
+/* Captured once, before applySettings() ever scales PHYS.steerRate in place —
+   otherwise each call would compound on the previous call's result. */
+const STEER_BASE={rate:PHYS.steerRate, ret:PHYS.steerReturn};
 function tyreMuFactor(load,ref){ return 1/(1+TYRE_LS*(load/Math.max(ref,1)-1)); }
 
 /* Red Bull livery texture (projected onto the body — mesh has no UVs) */
@@ -14204,7 +14212,9 @@ function applySettings(){
   // --- audio ---
   if(Sound.master) Sound.master.gain.value=Sound.muted?0:SET.volMaster;
   // --- gameplay ---
-  PHYS.steerRate=3.8*SET.steerSpeed; PHYS.steerReturn=6.4*SET.steerSpeed;
+  // scale the base rates from the PHYS table rather than from magic numbers here,
+  // so the tuning values in PHYS are the ones that actually reach the car
+  PHYS.steerRate=STEER_BASE.rate*SET.steerSpeed; PHYS.steerReturn=STEER_BASE.ret*SET.steerSpeed;
   SEASON.raceLaps=SET.raceLaps;
   // --- graphics ---
   if(renderer.shadowMap.enabled!==SET.shadows){
