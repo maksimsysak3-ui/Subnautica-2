@@ -198,97 +198,182 @@
   #simTable td:last-child{font-family:var(--mono);color:var(--grey)}
 
   /* ============ MENU ============ */
-  #menu{position:fixed;inset:0;z-index:20;pointer-events:none;opacity:0;transition:opacity .9s ease}
+  /* ======================================================================
+     THE MENU
+     Drawn as a printed race programme rather than a dark app: an ink-on-stock
+     page with a spine down one edge, a masthead, oversized entry numerals that
+     bleed past their column, and rules of three different weights doing the
+     work that boxes and drop shadows usually do. Motorsport's own graphic
+     language is diagonal — every livery, every timing graphic, every pit board
+     leans forward — so the active row and the buttons are cut on a slant, and
+     nothing that carries type is a plain rounded rectangle.
+     ====================================================================== */
+  #menu{position:fixed;inset:0;z-index:20;pointer-events:none;opacity:0;
+    transition:opacity .8s cubic-bezier(.2,.7,.2,1)}
   #menu.on{opacity:1;pointer-events:auto}
-  /* The scrim does the compositing work: it darkens the left third so the type
-     always has something to sit on whatever the car is doing behind it, closes
-     the top and bottom edges, and adds a corner vignette so the frame holds
-     together instead of fading off into flat black at the sides. */
   #menuScrim{position:fixed;inset:0;pointer-events:none;
-    background:linear-gradient(105deg,rgba(4,6,10,.94) 0%,rgba(4,6,10,.55) 34%,rgba(4,6,10,0) 56%),
-    linear-gradient(0deg,rgba(4,6,10,.84),transparent 26%),linear-gradient(180deg,rgba(4,6,10,.58),transparent 22%),
-    radial-gradient(ellipse 120% 100% at 50% 50%,transparent 42%,rgba(0,0,0,.55) 100%)}
-  /* a slow sweep of red light across the top edge, so the screen is never static */
-  #menuScrim::after{content:'';position:absolute;top:0;left:0;right:0;height:2px;
-    background:linear-gradient(90deg,transparent,rgba(225,6,0,.85),transparent);
-    background-size:44% 100%;background-repeat:no-repeat;animation:mSweep 7s linear infinite}
-  @keyframes mSweep{from{background-position:-46% 0}to{background-position:146% 0}}
+    background:linear-gradient(100deg,rgba(6,7,11,.96) 0%,rgba(6,7,11,.72) 30%,rgba(6,7,11,.06) 62%),
+    linear-gradient(0deg,rgba(6,7,11,.88),transparent 30%),
+    linear-gradient(180deg,rgba(6,7,11,.62),transparent 20%),
+    radial-gradient(ellipse 130% 110% at 46% 48%,transparent 38%,rgba(0,0,0,.62) 100%)}
+  /* PRINT TEXTURE. A fine halftone plus a paper tooth. This is the single
+     biggest thing separating a page that looks printed from a page that looks
+     rendered — flat digital gradients read as a screenshot of a template. */
+  #mGrain{position:fixed;inset:0;pointer-events:none;z-index:21;opacity:.5;
+    background-image:
+      radial-gradient(rgba(255,255,255,.055) .5px,transparent .6px),
+      radial-gradient(rgba(0,0,0,.20) .5px,transparent .6px);
+    background-size:3px 3px,5px 5px; background-position:0 0,1px 2px;
+    mix-blend-mode:overlay}
 
-  #mHead{position:absolute;top:clamp(24px,4vh,42px);left:clamp(28px,5vw,66px);right:clamp(28px,5vw,66px);
-    display:flex;justify-content:space-between;align-items:flex-start}
-  #mLogo{font-family:var(--mono);font-weight:900;font-size:clamp(21px,2.5vw,32px);letter-spacing:.02em;line-height:.92}
-  #mLogo .r{color:var(--red);text-shadow:0 0 24px var(--red-glow)}
-  #mLogo small{display:block;font-family:var(--f1);font-size:10px;letter-spacing:.5em;color:var(--grey);font-weight:600;margin-top:7px;padding-left:.2em}
-  #mProfile{text-align:right}
-  #mProfile .n{font-family:var(--mono);font-weight:700;font-size:15px;letter-spacing:.05em}
-  #mProfile .t{font-size:10.5px;letter-spacing:.3em;color:var(--red);text-transform:uppercase;font-weight:700;margin-top:5px}
-  #mProfile .l{font-size:9.5px;letter-spacing:.28em;color:var(--grey);text-transform:uppercase;font-weight:600;margin-top:5px}
+  /* THE SPINE. A printed edge: the publication's name set vertically, an issue
+     number, and a hairline. It anchors the whole left side of the page. */
+  #mSpine{position:absolute;left:clamp(12px,1.6vw,22px);top:0;bottom:0;width:26px;
+    display:flex;flex-direction:column;align-items:center;justify-content:space-between;
+    padding:clamp(20px,4vh,40px) 0;pointer-events:none}
+  #mSpine::before{content:'';position:absolute;top:0;bottom:0;left:50%;width:1px;
+    background:linear-gradient(180deg,transparent,rgba(255,255,255,.16) 18%,rgba(255,255,255,.16) 82%,transparent)}
+  #mSpine .sTxt,#mSpine .sNo{writing-mode:vertical-rl;transform:rotate(180deg);
+    font-family:var(--mono);letter-spacing:.42em;font-size:9px;font-weight:700;
+    color:rgba(255,255,255,.34);background:var(--bg,#06070b);padding:10px 0;position:relative}
+  #mSpine .sNo{color:var(--red);letter-spacing:.28em}
 
-  /* MENU. The list floated in the middle of a dark screen with the car behind
-     it and nothing holding the composition together. It sits in a framed column
-     now, with a rule down its edge and a red gradient marking the top of it, so
-     the screen reads as a designed page rather than as text laid over 3D. */
-  #mBody{position:absolute;left:clamp(28px,5vw,66px);top:50%;transform:translateY(-50%);max-width:44vw;
-    padding-left:clamp(14px,1.6vw,26px);border-left:1px solid rgba(255,255,255,.12)}
-  #mBody::before{content:'';position:absolute;left:-2px;top:0;width:3px;height:70px;
-    background:linear-gradient(180deg,var(--red),transparent)}
-  #mKicker{font-size:11px;letter-spacing:.5em;color:var(--red);text-transform:uppercase;font-weight:700;margin-bottom:20px;padding-left:.2em}
-  #navList{list-style:none}
-  #navList li{position:relative;cursor:pointer;padding:7px 0;display:flex;align-items:baseline;gap:16px;
-    opacity:.45;transition:opacity .3s,transform .4s var(--ease)}
-  #navList li .ix{font-family:var(--mono);font-weight:500;font-size:11px;color:var(--grey-lo);width:24px}
-  #navList li .t{font-weight:700;font-size:clamp(24px,3.2vw,42px);letter-spacing:.01em;line-height:1;text-transform:uppercase;position:relative}
-  #navList li .t::before{content:'';position:absolute;left:-16px;top:50%;width:0;height:2px;background:var(--red);
-    box-shadow:0 0 12px var(--red-glow);transform:translateY(-50%);transition:width .35s var(--ease)}
-  /* the mode's tag, set small and wide beside the title */
-  #navList li .t .tg{display:inline-block;margin-left:14px;vertical-align:middle;
-    font-family:var(--mono);font-style:normal;font-size:9px;letter-spacing:.24em;font-weight:700;
-    color:var(--grey);border:1px solid var(--grey-lo);border-radius:20px;padding:3px 9px;
-    transform:translateY(-.18em);transition:color .3s,border-color .3s,background .3s}
-  #navList li:hover{opacity:.8}
-  #navList li.sel{opacity:1;transform:translateX(20px)}
-  #navList li.sel .t::before{width:12px}
-  #navList li.sel .ix{color:var(--red)}
-  #navList li.sel .t .tg{color:#fff;border-color:var(--red);background:rgba(225,6,0,.18)}
-  #navList li.locked{opacity:.24}
-  #navList li.locked .t::after{content:' 🔒';font-size:.44em;vertical-align:middle}
+  /* MASTHEAD. Two weights locked together with no gap, the way a wordmark is
+     built, over a rule and a strapline in small caps. */
+  #mHead{position:absolute;top:clamp(22px,4vh,44px);left:clamp(62px,7vw,104px);
+    right:clamp(28px,5vw,66px);display:flex;justify-content:space-between;align-items:flex-start}
+  #mLogo{position:relative;padding-bottom:11px}
+  #mLogo .lk,#mLogo .lg{font-family:var(--mono);font-weight:900;
+    font-size:clamp(26px,3.4vw,44px);line-height:.86;letter-spacing:-.02em;display:inline-block}
+  #mLogo .lk{color:#fff}
+  #mLogo .lg{color:var(--red);margin-left:.10em;
+    text-shadow:0 0 26px rgba(225,6,0,.55);transform:skewX(-9deg)}
+  #mLogo::after{content:'';position:absolute;left:0;bottom:0;width:100%;height:2px;
+    background:linear-gradient(90deg,var(--red) 0 22%,rgba(255,255,255,.30) 22% 100%)}
+  #mLogo em{display:block;font-style:normal;font-family:var(--f1);font-size:9px;
+    letter-spacing:.46em;color:rgba(255,255,255,.48);font-weight:700;margin-top:9px}
+  /* the driver plate: a race number set like one, with the name beside it */
+  #mProfile{display:flex;align-items:stretch;gap:12px}
+  #mProfile .pNum{font-family:var(--mono);font-weight:900;font-size:clamp(28px,3.4vw,46px);
+    line-height:.9;color:#fff;transform:skewX(-9deg);padding:2px 11px;
+    background:var(--red);box-shadow:0 0 26px rgba(225,6,0,.36)}
+  #mProfile .pTxt{text-align:left;display:flex;flex-direction:column;justify-content:center;gap:3px}
+  #mProfile .n{font-family:var(--mono);font-weight:800;font-size:14px;letter-spacing:.06em;color:#fff}
+  #mProfile .t{font-size:10px;letter-spacing:.26em;color:var(--red);text-transform:uppercase;font-weight:700}
+  #mProfile .l{font-size:9px;letter-spacing:.22em;color:rgba(255,255,255,.42);text-transform:uppercase;font-weight:600}
 
-  #mDetail{position:absolute;right:clamp(28px,5vw,66px);bottom:clamp(96px,16vh,150px);width:min(360px,42vw);text-align:right;pointer-events:none}
-  #mdTag{font-size:10px;letter-spacing:.4em;color:var(--red);text-transform:uppercase;font-weight:700}
-  /* circuit preview card — real track outline drawn from the circuit's own points */
-  #mdCircuit{margin-top:12px;border:1px solid rgba(255,255,255,.13);border-radius:10px;overflow:hidden;
-    background:linear-gradient(160deg,rgba(16,22,34,.82),rgba(8,11,18,.7));display:none}
+  /* THE LIST. No card, no border box — a column of entries hung off a single
+     hairline, each with its number set in the margin the way a contents page
+     does it. The active row is a slab of ink with the type knocked out. */
+  #mBody{position:absolute;left:clamp(62px,7vw,104px);top:50%;transform:translateY(-50%);
+    max-width:min(46vw,560px)}
+  #mKicker{display:flex;align-items:center;gap:10px;font-family:var(--mono);font-size:9.5px;
+    letter-spacing:.44em;color:rgba(255,255,255,.5);text-transform:uppercase;
+    font-weight:700;margin-bottom:22px}
+  #mKicker i{display:block;width:26px;height:2px;background:var(--red)}
+  #navList{list-style:none;position:relative}
+  #navList::before{content:'';position:absolute;left:0;top:4px;bottom:4px;width:1px;
+    background:linear-gradient(180deg,transparent,rgba(255,255,255,.16) 12%,rgba(255,255,255,.16) 88%,transparent)}
+  #navList li{position:relative;cursor:pointer;padding:9px 0 9px 26px;display:flex;
+    align-items:baseline;gap:14px;opacity:.42;
+    transition:opacity .28s ease,transform .42s cubic-bezier(.2,.8,.2,1);
+    animation:navIn .5s cubic-bezier(.2,.8,.2,1) both}
+  @keyframes navIn{from{opacity:0;transform:translateX(-18px)}to{opacity:.42;transform:none}}
+  /* the numeral lives in the margin, larger than it needs to be, like a
+     contents page — not a chip, not a badge */
+  #navList li .ix{font-family:var(--mono);font-weight:800;font-size:11px;
+    color:rgba(255,255,255,.30);width:20px;letter-spacing:.04em}
+  #navList li .t{position:relative;font-family:var(--mono);font-weight:800;
+    font-size:clamp(21px,2.7vw,34px);letter-spacing:-.01em;line-height:1;
+    text-transform:uppercase;color:#fff}
+  /* the ink slab behind the active row, cut on the motorsport diagonal */
+  #navList li::before{content:'';position:absolute;left:0;top:2px;bottom:2px;width:0;
+    background:linear-gradient(90deg,var(--red),rgba(225,6,0,.06));
+    transform:skewX(-11deg);transform-origin:left center;
+    transition:width .34s cubic-bezier(.2,.8,.2,1);z-index:-1}
+  #navList li:hover{opacity:.72}
+  #navList li.sel{opacity:1;transform:translateX(12px)}
+  #navList li.sel::before{width:calc(100% + 34px)}
+  #navList li.sel .ix{color:#fff}
+  /* the tag rides at the baseline of the title, small and wide */
+  /* The tag hangs off the end of the title with a rule between them, so a long
+     name like PODIUM CEREMONY cannot run into its own label. */
+  #navList li .t .tg{display:inline-block;margin-left:16px;vertical-align:middle;
+    font-family:var(--mono);font-style:normal;font-size:8px;letter-spacing:.26em;
+    font-weight:800;color:rgba(255,255,255,.34);transform:translateY(-.34em);
+    padding-left:16px;position:relative;white-space:nowrap;transition:color .28s}
+  #navList li .t .tg::before{content:'';position:absolute;left:0;top:50%;width:9px;height:1px;
+    background:currentColor;opacity:.6}
+  #navList li.sel .t .tg{color:rgba(255,255,255,.92)}
+  #navList li.locked{opacity:.18}
+  #navList li.locked .t::after{content:' ◆';font-size:.4em;vertical-align:middle;color:var(--red)}
+
+  /* THE DOSSIER. Right-hand column, set like a data panel on a timing sheet:
+     a hairline top rule, a label in the margin, the circuit drawn as line art
+     with no frame around it, and figures in a row underneath. Boxing this in a
+     rounded card is what made it read as a generic UI panel. */
+  #mDetail{position:absolute;right:clamp(30px,5vw,70px);bottom:clamp(96px,16vh,150px);
+    width:min(370px,40vw);text-align:right;pointer-events:none}
+  #mDetail::before{content:'';display:block;height:2px;margin-bottom:12px;
+    background:linear-gradient(270deg,var(--red) 0 26%,rgba(255,255,255,.22) 26% 100%)}
+  #mdTag{font-family:var(--mono);font-size:9px;letter-spacing:.44em;color:var(--red);
+    text-transform:uppercase;font-weight:800}
+  #mdCircuit{margin-top:14px;display:none;position:relative}
   #mdCircuit.on{display:block}
-  #mdMap{display:block;width:100%;height:auto}
-  #mdCircInfo{display:flex;align-items:center;gap:9px;justify-content:flex-end;
-    padding:9px 13px;border-top:1px solid rgba(255,255,255,.09);background:rgba(4,6,10,.5)}
-  #mdFlag{font-size:15px;line-height:1}
-  #mdCircName{font-family:var(--mono);font-weight:800;font-size:12px;letter-spacing:.06em;color:#fff;
+  #mdMap{display:block;width:100%;height:auto;
+    filter:drop-shadow(0 0 18px rgba(0,0,0,.7))}
+  #mdCircInfo{display:flex;align-items:baseline;gap:9px;justify-content:flex-end;
+    padding-top:10px;margin-top:6px;border-top:1px solid rgba(255,255,255,.14)}
+  #mdFlag{font-size:14px;line-height:1}
+  #mdCircName{font-family:var(--mono);font-weight:800;font-size:12px;letter-spacing:.05em;color:#fff;
     white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  #mdCircCountry{font-size:8.5px;letter-spacing:.24em;color:var(--grey);text-transform:uppercase;font-weight:700;white-space:nowrap}
-  #mdDesc{margin-top:14px;font-size:13.5px;line-height:1.6;color:#aeb7c4}
-  #mdMeta{margin-top:16px;display:flex;gap:22px;justify-content:flex-end;border-top:1px solid rgba(255,255,255,.12);padding-top:14px}
-  #mdMeta .k{font-size:9px;letter-spacing:.26em;color:var(--grey);text-transform:uppercase;font-weight:600}
-  #mdMeta .v{font-family:var(--mono);font-weight:700;font-size:16px;margin-top:5px}
-  /* circuit selector strip along the bottom */
-  #mTrackStrip{position:absolute;left:clamp(28px,5vw,66px);right:clamp(28px,5vw,66px);bottom:clamp(52px,8.4vh,80px);
-    display:none;gap:6px;overflow-x:auto;scrollbar-width:none;pointer-events:auto;
-    -webkit-mask-image:linear-gradient(90deg,transparent,#000 5%,#000 95%,transparent);
-    mask-image:linear-gradient(90deg,transparent,#000 5%,#000 95%,transparent)}
+  #mdCircCountry{font-size:8.5px;letter-spacing:.26em;color:rgba(255,255,255,.42);
+    text-transform:uppercase;font-weight:700;white-space:nowrap}
+  #mdDesc{margin-top:15px;font-size:13px;line-height:1.66;color:rgba(255,255,255,.62);
+    max-width:34ch;margin-left:auto}
+  #mdMeta{margin-top:17px;display:flex;gap:26px;justify-content:flex-end;
+    border-top:1px solid rgba(255,255,255,.14);padding-top:13px}
+  #mdMeta .k{font-family:var(--mono);font-size:8.5px;letter-spacing:.28em;
+    color:rgba(255,255,255,.40);text-transform:uppercase;font-weight:700}
+  #mdMeta .v{font-family:var(--mono);font-weight:800;font-size:17px;margin-top:6px;color:#fff}
+  /* CIRCUIT STRIP. Tickets in a row, cut on the same diagonal as everything
+     else, with the selected one inked in. */
+  #mTrackStrip{position:absolute;left:clamp(62px,7vw,104px);right:clamp(30px,5vw,70px);
+    bottom:clamp(52px,8.4vh,80px);
+    display:none;gap:5px;overflow-x:auto;scrollbar-width:none;pointer-events:auto;
+    -webkit-mask-image:linear-gradient(90deg,transparent,#000 4%,#000 96%,transparent);
+    mask-image:linear-gradient(90deg,transparent,#000 4%,#000 96%,transparent)}
   #mTrackStrip::-webkit-scrollbar{display:none}
   #mTrackStrip.on{display:flex}
-  .tsChip{flex:0 0 auto;padding:5px 9px;border:1px solid rgba(255,255,255,.13);border-radius:5px;
-    background:rgba(10,14,22,.6);cursor:pointer;font-family:var(--mono);font-size:9px;font-weight:700;
-    letter-spacing:.1em;color:#8b93a0;transition:.15s;white-space:nowrap}
-  .tsChip:hover{color:#fff;border-color:rgba(255,255,255,.34)}
-  .tsChip.on{background:var(--red);border-color:var(--red);color:#fff;box-shadow:0 0 16px var(--red-glow)}
-  #mDetail.swap{animation:swap .4s var(--ease)}
-  @keyframes swap{0%{opacity:0;transform:translateX(12px)}100%{opacity:1;transform:translateX(0)}}
+  .tsChip{flex:0 0 auto;padding:6px 12px;border:none;cursor:pointer;
+    font-family:var(--mono);font-size:9px;font-weight:800;letter-spacing:.14em;
+    color:rgba(255,255,255,.46);white-space:nowrap;transform:skewX(-11deg);
+    background:rgba(255,255,255,.055);transition:background .16s,color .16s}
+  .tsChip>span{display:inline-block;transform:skewX(11deg)}
+  .tsChip:hover{color:#fff;background:rgba(255,255,255,.13)}
+  .tsChip.on{background:var(--red);color:#fff;box-shadow:0 0 20px rgba(225,6,0,.42)}
+  #mDetail.swap{animation:swap .42s cubic-bezier(.2,.8,.2,1)}
+  @keyframes swap{0%{opacity:0;transform:translateX(14px)}100%{opacity:1;transform:none}}
 
-  #mFoot{position:absolute;bottom:clamp(20px,3.4vh,34px);left:clamp(28px,5vw,66px);right:clamp(28px,5vw,66px);
-    display:flex;justify-content:space-between;align-items:center;font-size:10.5px;letter-spacing:.24em;color:var(--grey);text-transform:uppercase;font-weight:600}
-  #mFoot .keys{display:flex;gap:20px}
-  #mFoot .keys b{display:inline-block;min-width:18px;text-align:center;padding:3px 6px;margin-right:8px;border:1px solid var(--grey-lo);border-radius:3px;color:var(--white);font-family:var(--mono);font-size:9px}
+  /* FOOTER. Keycaps drawn as printed keys, and a colophon on the right. */
+  #mFoot{position:absolute;bottom:clamp(20px,3.4vh,34px);left:clamp(62px,7vw,104px);
+    right:clamp(30px,5vw,70px);display:flex;justify-content:space-between;align-items:center;
+    font-size:9.5px;letter-spacing:.26em;color:rgba(255,255,255,.36);
+    text-transform:uppercase;font-weight:600}
+  #mFoot .keys{display:flex;gap:22px}
+  #mFoot .keys b{display:inline-block;min-width:17px;text-align:center;padding:3px 7px;
+    margin-right:9px;color:#fff;font-family:var(--mono);font-size:9px;font-weight:800;
+    background:rgba(255,255,255,.10);
+    box-shadow:inset 0 -2px 0 rgba(0,0,0,.45),inset 0 1px 0 rgba(255,255,255,.14)}
+  #mVer{font-family:var(--mono);letter-spacing:.2em;color:rgba(255,255,255,.26)}
+  /* the car plate, bottom left, set like a spec line */
+  #mCarTag{position:absolute;left:clamp(62px,7vw,104px);bottom:clamp(96px,16vh,150px);
+    pointer-events:none}
+  #mCarTag::before{content:'';display:block;width:34px;height:2px;background:var(--red);margin-bottom:9px}
+  #mCarTag .big{font-family:var(--mono);font-weight:900;font-size:15px;letter-spacing:.1em;color:#fff}
+  #mCarTag .sm{font-size:9.5px;letter-spacing:.24em;color:rgba(255,255,255,.42);
+    text-transform:uppercase;font-weight:600;margin-top:5px}
+
   /* livery editor */
   #garage{position:absolute;right:clamp(28px,5vw,66px);top:50%;transform:translateY(-50%);width:min(340px,42vw);
     display:none;flex-direction:column;gap:12px;z-index:6}
@@ -625,9 +710,7 @@
   #shFoot b{display:inline-block;padding:3px 7px;margin-right:8px;border:1px solid var(--grey-lo);border-radius:3px;color:#fff;font-family:var(--mono);font-size:10px}
   #shPts{color:var(--red);font-family:var(--mono);font-weight:700}
   #mVer{color:var(--grey-lo);letter-spacing:.3em}
-  #mCarTag{position:absolute;right:clamp(28px,5vw,66px);top:clamp(96px,15vh,150px);text-align:right;pointer-events:none}
-  #mCarTag .big{font-family:var(--mono);font-weight:700;font-size:clamp(16px,1.8vw,22px);letter-spacing:.14em}
-  #mCarTag .sm{font-size:10px;letter-spacing:.32em;color:var(--grey);text-transform:uppercase;font-weight:600;margin-top:6px}
+  /* (the car plate is styled with the rest of the menu, further up) */
   #shOpenRD{float:right;margin-top:-4px;padding:4px 10px;background:var(--red);border:none;border-radius:4px;color:#fff;
     font-family:var(--mono);font-size:9px;letter-spacing:.14em;font-weight:700;cursor:pointer}
   #shOpenRD:hover{background:#ff2028}
@@ -1244,12 +1327,25 @@
 <!-- ===== MENU ===== -->
 <div id="menu">
   <div id="menuScrim"></div>
+  <div id="mGrain"></div>
+  <!-- the spine: a printed edge down the left of the page -->
+  <div id="mSpine"><span class="sTxt">APEX GRAND PRIX</span><span class="sNo">No. 26</span></div>
   <header id="mHead">
-    <div id="mLogo">APEX<span class="r"> GP</span><small>2026 WORLD CHAMPIONSHIP</small></div>
-    <div id="mProfile"><div class="n">P. VERSTAND</div><div class="t">Scuderia Apex</div><div class="l">Driver Lvl 14 · 2026 Season</div></div>
+    <div id="mLogo">
+      <span class="lk">APEX</span><span class="lg">GP</span>
+      <em>2026 FIA WORLD CHAMPIONSHIP</em>
+    </div>
+    <div id="mProfile">
+      <div class="pNum">07</div>
+      <div class="pTxt">
+        <div class="n">P. VERSTAND</div>
+        <div class="t">Scuderia Apex</div>
+        <div class="l">Driver Lvl 14</div>
+      </div>
+    </div>
   </header>
   <div id="mBody">
-    <div id="mKicker">Main Menu</div>
+    <div id="mKicker"><i></i>Select Session</div>
     <ul id="navList"></ul>
   </div>
   <div id="mCarTag"><div class="big">APEX AGP-26</div><div class="sm">Hybrid V6 · 1000 bhp</div></div>
@@ -2186,6 +2282,7 @@ FX2.setSpeed=function(v01,dt){
   u.uSpeed.value=damp(u.uSpeed.value,clamp(v01,0,1),3.0,dt||0.016);
 };
 if(DEBUG) window.__FX2=FX2;
+if(DEBUG) setTimeout(()=>{window.__enterMenu=enterMenu;},0);
 if(DEBUG) setTimeout(()=>{window.__EVO=EVO;window.__PERF=PERF;window.__FLAG=FLAG;window.__SC=SC;window.__STEW=STEW;
   window.__throwYellow=throwYellow;window.__deployVSC=deployVSC;
   window.__issuePenalty=issuePenalty;window.__updateFlagBar=updateFlagBar;},0);
@@ -15647,7 +15744,8 @@ function buildMenu(){
        and it was only ever shown in the side panel for the highlighted row, so
        the list itself was six words in a column with no indication of what any
        of them were until you moved onto them. */
-    li.innerHTML=`<span class="ix">0${i+1}</span>`+
+    li.style.animationDelay=(0.05+i*0.045)+'s';
+    li.innerHTML=`<span class="ix">${String(i+1).padStart(2,'0')}</span>`+
       `<span class="t">${m.t}<i class="tg">${m.tag||''}</i></span>`;
     li.addEventListener('mouseenter',()=>{if(i!==sel){setSel(i);Sound.init();Sound.blip(340,.04);}});
     li.addEventListener('click',()=>chooseMode());
@@ -15690,7 +15788,11 @@ function buildTrackStrip(){
   const st=$('#mTrackStrip'); if(!st) return; st.innerHTML='';
   TRACK_IDS.forEach((id,i)=>{const cf=TRACKS[id];
     const c=document.createElement('div');c.className='tsChip'+(i===selTrack?' on':'');
-    c.textContent=cf.flag+' '+(TRACK_SHORT[id]||cf.name.split(/[- ]/)[0]);
+    /* The chip is skewed, so the label sits in a counter-skewed span — otherwise
+       the type leans too and it looks like a mistake rather than a decision. */
+    { const sp=document.createElement('span');
+      sp.textContent=cf.flag+' '+(TRACK_SHORT[id]||cf.name.split(/[- ]/)[0]);
+      c.appendChild(sp); }
     c.onclick=()=>{selTrack=i;renderDetail();Sound.init();Sound.blip(470,.05);};
     st.appendChild(c);});
   // keep the selected circuit in view as you cycle through them
@@ -17583,7 +17685,7 @@ function startCinematic(){
     $('#cineFlash').classList.add('on');setTimeout(()=>$('#cineFlash').classList.remove('on'),110);
     Sound.hit();});
   S(25000,()=>{const Su=$('#cineSub');Su.textContent='2026 WORLD CHAMPIONSHIP';Su.classList.add('show');});
-  S(27200,()=>endCinematic());
+  S(25400,()=>endCinematic());
   STATE='cine';
   renderer.toneMappingExposure=1.25;      // a night race is lit, not unlit
   camera.fov=44; camera.updateProjectionMatrix();
@@ -17593,8 +17695,12 @@ function startCinematic(){
    goes back out, which is the only thing this sequence has to communicate.
    The leader is not on track until CINE_T0; before that the circuit is empty
    and the gap is meaningless. */
-const CINE_T0=4.2;          // the leader arrives
-const CINE_T1=7.6;          // the rival's lights appear behind him
+/* Retimed for the new cut. The first two shots are a detail and a wide of an
+   EMPTY circuit — nothing is on it and nothing should be — and the leader has
+   to arrive into the locked-off ground shot that begins at 6.4s, not before it.
+   The rival's lights appear a beat later, during that same held frame. */
+const CINE_T0=6.1;          // the leader arrives, into the locked-off shot
+const CINE_T1=8.4;          // the rival's lights appear behind him
 /* Where on the lap the sequence is staged. The static camera positions used to
    be absolute lap fractions, which was fine on a 1.4 km invented loop where the
    cars covered 5% of it a second. On a real 5.4 km circuit at the same speed
@@ -17603,8 +17709,11 @@ const CINE_T1=7.6;          // the rival's lights appear behind him
    Every fixed anchor is now placed relative to CINE_U0 or to the leader. */
 const CINE_U0=0.42;
 function chaseGap(t){
-  const keys=[[CINE_T1,150],[9.5,112],[11.4,86],[13.0,64],[14.6,48],[16.2,34],
-              [17.8,22],[19.2,13],[20.4,6.5],[21.4,2.4],[22.4,0.5],[23.6,-1.6]];
+  /* The gap comes down at every one of these and never once goes back out.
+     Level (0) lands at 20.6s, inside the alongside shot, and he is through by
+     the time the camera lets them go. */
+  const keys=[[CINE_T1,168],[10.0,126],[11.6,98],[13.4,72],[15.0,52],[16.4,36],
+              [17.8,23],[19.0,12],[20.0,4.5],[20.6,0.0],[21.6,-2.6],[23.2,-7.0]];
   if(t<=keys[0][0]) return keys[0][1];
   for(let i=0;i<keys.length-1;i++){
     const [a,ga]=keys[i],[b,gb]=keys[i+1];
@@ -17674,89 +17783,137 @@ function stepCinematic(dt){
   }
 
   /* ======================== THE SHOTS =====================================
-     Nine of them, and they get shorter. The first holds for four and a half
-     seconds on an empty circuit; the last three are about a second each. Every
-     one after the leader arrives is framed to answer the same question — how
-     close is he now — and the answer is always "closer than last time".     */
+     A DIFFERENT FILM. The old cut was one continuous chase: a camera hanging
+     off the back of two cars for twenty seconds, which is a lot of the same
+     shot. This is built the way a race opening actually is — as a sequence of
+     DIFFERENT KINDS of image, each held only as long as it earns.
+
+     The grammar, in order:
+       · a detail so tight you cannot tell what you are looking at
+       · a wide that answers it, and shows how big the place is
+       · a low, locked shot of the road with the cars arriving into frame
+       · a lens flare through the barrier as they pass, blind for a beat
+       · a helicopter shot pulling up and away
+       · the chase, finally — earned, and only for a moment
+       · a wheel-height shot of the two of them together
+       · a slow push into the mirror, the rival filling it
+       · black
+
+     The cuts get shorter and the camera gets closer to the ground. Nothing
+     repeats a framing.                                                     */
   const cam=new THREE.Vector3(), look=new THREE.Vector3();
-  /* `up` is now height ABOVE THE ROAD at that point, not an absolute world y.
-     On a flat invented loop the two were the same thing; on a real circuit that
-     climbs and drops, an absolute height buries the camera in the tarmac on the
-     high part of the lap and leaves it in the sky on the low part. */
+  /* `up` is height ABOVE THE ROAD at that point, not an absolute world y — the
+     circuit climbs and drops, and an absolute height buries the camera in the
+     tarmac at Eau Rouge and leaves it in the sky at the bus stop. */
   const at=(pose,fwd,side,up)=>new THREE.Vector3(
     pose.x+Math.sin(pose.yaw)*fwd+Math.cos(pose.yaw)*side, (pose.y||0)+up,
     pose.z+Math.cos(pose.yaw)*fwd-Math.sin(pose.yaw)*side);
   const mid={x:(L.x+R.x)/2,z:(L.z+R.z)/2,y:(L.y+R.y)/2,yaw:L.yaw};
+  const ease=(t)=>t*t*(3-2*t);
   let fov=44, shake=0;
-  if(el<4.6){
-    /* 1. AN EMPTY CIRCUIT, IN THE RAIN. A slow crane down toward the start/
-       finish line with nothing on it. Four and a half seconds of nothing
-       happening is a long time on screen, which is the point — it buys
-       everything after.
-       Positioned through at() rather than by adding world-space offsets: the
-       circuit is not axis-aligned, so a raw -46/-30 nudge put the camera inside
-       the pit building. Everything here is relative to the road's own heading,
-       and on the opposite side from the pits. */
-    const k=el/4.6, e=k*k*(3-2*k);
-    const anchor=chasePose(CINE_U0+0.006,0);
-    const down=chasePose(CINE_U0+0.030,0);    // a point further down the road
-    // high enough at the start to clear everything, dropping into the run-off
-    cam.copy(at(anchor,-92+e*58,-chaseSide(9),34-e*27));
-    // look down the straight rather than at one spot, so the road leads the eye
-    look.set(lerp(anchor.x,down.x,e*0.7),lerp(anchor.y,down.y,e*0.7)+1.4,
-             lerp(anchor.z,down.z,e*0.7));
-    fov=44-e*6;
-  }else if(el<7.6){
-    /* 2. THE LEADER ARRIVES, ALONE. Low, static, trackside — he comes from
-       nowhere, fills the frame and is gone, and the road behind him is empty. */
-    // sit a little way ahead of the leader so he arrives, fills frame and goes
-    const anchor=chasePose(uL+0.0055,0);
-    cam.copy(at(anchor,0,chaseSide(5),1.35));
-    look.set(L.x,L.y+0.7,L.z); fov=42; shake=0.10;
+
+  if(el<3.2){
+    /* 1. TOO CLOSE TO READ. A macro on the wet tarmac itself, drifting, with
+       no horizon and no scale. You are looking at a surface and you do not yet
+       know whose. Three seconds of an image that withholds its own subject. */
+    const k=ease(clamp(el/3.2,0,1));
+    const p0=chasePose((CINE_U0-0.004)%1, 2.2);
+    cam.copy(at(p0, -1.2+k*3.4, 1.9, 0.32+k*0.10));
+    look.copy(at(p0, 5.0+k*4.0, 0.6, 0.16));
+    fov=20; shake=0.02;
+
+  }else if(el<6.4){
+    /* 2. THE ANSWER, AND THE SCALE. Cut hard to a high, wide, static frame:
+       the whole start/finish straight, empty, in the rain. The first shot was
+       a centimetre across; this one is half a kilometre. */
+    const k=ease(clamp((el-3.2)/3.2,0,1));
+    const p0=chasePose(CINE_U0,0);
+    cam.copy(at(p0, -120, -74, 46-k*5));
+    look.copy(at(p0, 40, 0, 2));
+    fov=38; shake=0;
+
+  }else if(el<9.0){
+    /* 3. GROUND LEVEL, LOCKED OFF. The camera is put on the deck at the edge of
+       the road and left there. The leader arrives into frame rather than being
+       followed into it — which is the difference between watching a car and
+       chasing one. */
+    const p0=chasePose((CINE_U0+0.012)%1,0);
+    cam.copy(at(p0, 0, -8.4, 0.42));
+    look.copy(new THREE.Vector3(L.x,L.y+0.7,L.z));
+    fov=34; shake=0.05;
+
   }else if(el<10.6){
-    /* 3. THE MIRRORS. Over the leader's shoulder, looking back down an empty
-       road — and then a second set of lights in it. Long lens so the rival
-       LOOMS rather than approaches. */
-    const k=clamp((el-7.6)/3.0,0,1);
-    cam.copy(at(L,-1.35,0.88,1.54)); look.set(R.x,R.y+0.85,R.z); fov=24+9*k; shake=0.16;
+    /* 4. BLIND FOR A BEAT. Through the barrier as they go past: the frame is
+       mostly obstruction, the cars are a smear between two posts, and the
+       camera cannot keep up with the pan. Deliberately a bad shot, which is
+       what makes it feel like it was filmed rather than rendered. */
+    const k=clamp((el-9.0)/1.6,0,1);
+    cam.copy(at(L, -3.0-k*2.0, -6.2, 0.95));
+    look.copy(new THREE.Vector3(L.x,L.y+0.55,L.z));
+    fov=26; shake=0.42;
+
   }else if(el<13.4){
-    /* 4. HELICOPTER. High and wide, so you can see the whole gap at once and
-       measure it for yourself.
-       Anchored behind the RIVAL, not behind the midpoint between the two cars.
-       The midpoint is half a gap ahead of the car at the back, so at this stage
-       — when the gap is still eighty metres — a camera placed behind it sat
-       exactly on top of the rival and framed him straight out of the shot. The
-       whole purpose of this angle is that both cars are in it. */
-    const k=clamp((el-10.6)/2.8,0,1);
-    cam.copy(at(R,-34,11,25-5*k));
-    look.set(mid.x,mid.y+0.7,mid.z); fov=42; shake=0.05;
-  }else if(el<16.0){
-    /* 5. TRACKSIDE THROUGH A CORNER, both cars in one frame, the camera panning
-       with them. The gap is now small enough to read without being told. */
-    const anchor=chasePose(uL+0.012,0);
-    cam.copy(at(anchor,0,chaseSide(7),2.9));
-    look.set(mid.x,mid.y+0.7,mid.z); fov=34; shake=0.12;
-  }else if(el<18.4){
-    /* 6. ONTO THE STRAIGHT, from ahead and low, wing open. */
-    const k=clamp((el-16.0)/2.4,0,1);
-    cam.copy(at(L,13.0+5*k,-1.5,0.66));
-    look.set(mid.x,mid.y+0.66,mid.z); fov=40-5*k; shake=0.20;
-  }else if(el<20.4){
-    /* 7. ONBOARD-ISH. Pinned to the leader's gearbox with the rival filling the
-       mirror behind. Fast now, and the camera is starting to move. */
-    cam.copy(at(L,-6.6,0.5,1.05));
-    look.set(L.x,L.y+0.6,L.z); fov=46; shake=0.34;
-  }else if(el<22.3){
-    /* 8. WHEEL TO WHEEL, on the deck, between the two of them. */
-    const k=clamp((el-20.4)/1.9,0,1);
-    cam.copy(at(mid,-4.4+1.5*k,-6.6+2.4*k,0.42));
-    look.set(mid.x,mid.y+0.6,mid.z); fov=48+7*k; shake=0.55;
+    /* 5. HELICOPTER. Straight up and away — the shot that says this is a place,
+       not a corridor. It is the only wide left in the cut and it is the last
+       time you see the circuit whole. */
+    const k=ease(clamp((el-10.6)/2.8,0,1));
+    /* Trailing and climbing, not straight overhead. The first pass put the
+       camera seventy metres directly above the cars and pointed it at the
+       ground: the circuit read fine and the cars were two specks, which is the
+       opposite of what an aerial in a race opening is for. It stays behind
+       them and rises, so they are always in the lower third with the track
+       opening out ahead. */
+    cam.copy(at(mid, -46-k*30, 8+k*10, 15+k*18));
+    look.copy(at(mid, 34, 0, 1.5));
+    fov=lerp(44,36,k); shake=0.05;
+
+  }else if(el<15.8){
+    /* 6. THE CHASE, AT LAST. Low behind the leader, and only for two seconds —
+       because it is the one framing the whole opening has been avoiding, and
+       withholding it is what gives it any force. */
+    const k=ease(clamp((el-13.4)/2.4,0,1));
+    cam.copy(at(L, -8.6+k*2.2, 0.5, 1.15));
+    look.copy(at(L, 16, 0, 0.9));
+    fov=lerp(52,58,k); shake=0.16;
+
+  }else if(el<17.8){
+    /* 7. WHEEL HEIGHT. Level with the axles, on the inside, as the rival comes
+       alongside. The road fills the bottom third and the two of them are cut
+       off at the shoulder — you are too low to see the whole car, which is the
+       point. */
+    const k=ease(clamp((el-15.8)/2.0,0,1));
+    cam.copy(at(mid, -5.4, 4.6-k*1.6, 0.34));
+    look.copy(new THREE.Vector3(mid.x,mid.y+0.42,mid.z));
+    fov=lerp(40,48,k); shake=0.22;
+
+  }else if(el<20.0){
+    /* 8. THE MIRROR. A slow push from just behind the leader's shoulder, the
+       rival growing in the frame behind him. Nothing cuts for two seconds; the
+       only thing that changes is how much of the picture the other car is. */
+    const k=ease(clamp((el-17.8)/2.2,0,1));
+    cam.copy(at(L, -2.6-k*0.9, 0.62, 1.02));
+    look.copy(new THREE.Vector3(R.x,R.y+0.62,R.z));
+    fov=lerp(46,32,k); shake=0.20+k*0.14;
+
+  }else if(el<21.6){
+    /* 9. ALONGSIDE, FROM THE OUTSIDE, AND VERY LOW. The last held frame: both
+       cars, level, filling the width, shot from the deck so the barrier and the
+       spray close over the top of them. */
+    const k=ease(clamp((el-20.0)/1.6,0,1));
+    cam.copy(at(mid, -1.2+k*2.6, -3.9+k*0.8, 0.30));
+    look.copy(new THREE.Vector3(mid.x,mid.y+0.48,mid.z));
+    fov=lerp(52,62,k); shake=0.34;
+
   }else{
-    /* 9. THE LAST CORNER. Tight on the two of them, shaking, and then black. */
-    const k=clamp((el-22.3)/1.5,0,1);
-    cam.copy(at(mid,-3.0,3.2-1.4*k,0.78));
-    look.set(mid.x,mid.y+0.62,mid.z); fov=52+8*k; shake=0.85;
+    /* 10. GONE. The camera stops dead and lets them leave — the only shot in
+       the cut where the cars get smaller. Then black. */
+    const k=ease(clamp((el-21.6)/1.6,0,1));
+    const p0=chasePose((uL-0.010)%1,0);
+    cam.copy(at(p0, -2.0, -2.4, 0.46));
+    look.copy(new THREE.Vector3(L.x,L.y+0.5,L.z));
+    fov=lerp(58,44,k); shake=0.30*(1-k);
   }
+
   /* Handheld. Zero for the opening crane — a locked-off camera is part of why
      the empty circuit feels still — and rising with the tension until the last
      shot is barely holding on. */
