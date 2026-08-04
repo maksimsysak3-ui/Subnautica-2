@@ -2594,6 +2594,18 @@ function buildWorld(sc,cfg){
     const braking = vApex[i] < vApex[(i-8+N)%N]*0.72;
     barr[i]= cfg.street ? 'concrete' : (braking&&slow ? 'tyre' : (fast ? 'tecpro' : 'armco'));
   }
+  /* Miami is painted, not planted. The Hard Rock circuit has no grass or gravel
+     run-off at all — every departure lands on the same turquoise-painted tarmac,
+     right up to the barrier. The generic surface rules were giving it grass on
+     the straights and gravel at the slow corners, which is the one thing that
+     circuit conspicuously does not have. Force the whole lap to asphalt and give
+     the straights a verge of paint too, so the teal is continuous. */
+  if(cfg.runoff==='teal'){
+    for(let i=0;i<N;i++){
+      surf[i]='asphalt';
+      runL[i]=Math.max(runL[i],7); runR[i]=Math.max(runR[i],7);
+    }
+  }
   // street circuits: the tightest corners (chicanes) get a small tarmac run-off both
   // sides so the walls are pushed out and they can be ridden a touch faster
   if(cfg.street){ for(let i=0;i<N;i++){ const c=Math.abs(sturn[i]);
@@ -6720,8 +6732,13 @@ function buildBaku(sc,P,Nm,Tg,offL,offR){
   let cX=0,cZ=0;for(const p of P){cX+=p.x;cZ+=p.z;}cX/=N;cZ/=N;
   const sampB=[];for(let i=0;i<N;i+=2)sampB.push(P[i]);
   const clr=(x,z)=>{let m=1e9;for(const q of sampB){const dx=x-q.x,dz=z-q.z;const d=dx*dx+dz*dz;if(d<m)m=d;}return m;};
-  // --- cool cream limestone old-city blocks, packed TIGHT to the walls (trapped street feel) ---
-  const stones=['#cfc6ad','#c2b89c','#d6cdb4','#b9ae90','#c9bfa4','#afa488'];
+  /* BAKU IS NOT AN ITALIAN HILL TOWN. The palette here was warm cream sandstone,
+     the same range Madrid uses, and the two circuits ended up looking like the
+     same city with different signage. Baku's İçərişəhər is cut from a grey-brown
+     Absheron limestone that has weathered dark — closer to slate and dust than to
+     honey — and the old town reads far heavier and cooler than anything in
+     southern Europe. Darker, greyer, desaturated. */
+  const stones=['#8d8878','#7c7768','#9a9484','#6e6a5e','#87816f','#767063'];
   const gapAt=i=>(TRACK.gap&&TRACK.gap[i])||999;
   let gsum=0;for(let i=0;i<N;i++)gsum+=gapAt(i); const gMed=gsum/N;   // avg corridor width
   const domeMat=new THREE.MeshStandardMaterial({color:0x5a8a86,roughness:0.5,metalness:0.4,emissive:0x0a1a18,emissiveIntensity:0.2});
@@ -10160,13 +10177,20 @@ function buildSpectatorBanks(sc,P,Nm,offL,offR,clr){
     const HTOP=7.5, DEEP=30, ROWS=6;
     /* The cross-section, as (distance out from the track edge, height above the
        foot). Built once and swept along the bank. */
+    /* A SPECTATOR BANK IS A GRASS SLOPE, NOT A GRANDSTAND.
+       This was built as terraced steps with risers and treads, which made every
+       bank read as a concrete stand that someone had painted green — and the
+       circuits then looked like they were ringed by grandstands on all sides.
+       A real viewing bank is a smooth mown embankment: it rises off the ground
+       in one continuous face, flattens across the crest where the cars park,
+       and falls away down the back. People stand on the slope itself. */
     const prof=[];
-    const riser=HTOP/ROWS, tread=9.5/ROWS;
     prof.push([0,0]);
-    for(let r=0;r<ROWS;r++){
-      prof.push([2.0+r*tread, r*riser]);            // back of this tread
-      prof.push([2.0+r*tread, (r+1)*riser]);        // up the riser
-      prof.push([2.0+(r+1)*tread, (r+1)*riser]);    // along the next tread
+    const RISE=12;                                   // metres of run used by the climb
+    for(let r=1;r<=ROWS;r++){
+      const t=r/ROWS;
+      // ease the toe and the crest so the slope meets flat ground cleanly
+      prof.push([2.0+RISE*t, HTOP*(t*t*(3-2*t))]);
     }
     prof.push([DEEP-9, HTOP]);                      // flat crest, room for parking
     prof.push([DEEP, 0]);                           // back slope down to the ground
@@ -10219,14 +10243,15 @@ function buildSpectatorBanks(sc,P,Nm,offL,offR,clr){
     g.setIndex(idx); g.computeVertexNormals();
     const m=new THREE.Mesh(g,grassM); m.receiveShadow=true; m.castShadow=true; sc.add(m);
 
-    /* The crowd sits ON the terraces, in rows. Scattering people up a smooth
-       slope put them at random heights with their feet in mid-air; a terrace
-       gives every one of them a step to be on. */
+    /* The crowd stands ON the slope, in bands up the face. The profile carries
+       one vertex per band now that the bank is a smooth embankment rather than a
+       flight of terraces, so each person is placed exactly on a profile point
+       and their feet are always on the grass. */
     for(let k=0;k<rows.length;k++){
       const ring=rows[k]; if(!ring) continue;
       if(k%2) continue;                             // one station in two, for spacing
       for(let r=0;r<ROWS;r++){
-        const vi=1+r*3+2;                           // the tread of row r
+        const vi=1+r;                               // profile point of band r
         const a=ring[vi], nxt=rows[k+2];
         if(!a) continue;
         const along=nxt&&nxt[vi]?nxt[vi]:null;
@@ -11189,24 +11214,34 @@ function buildPit(sc,P,Nm,Tg){
      The offset is now measured: walk the length the building will occupy, find
      the closest the circuit itself ever comes to that line, and push the whole
      complex back until it clears with room to spare. */
-  const side=-1;
-  let off=HW+24;
-  { const N2=P.length, half=164/2;
-    const segL2=TRACK.len/N2;
-    const span=Math.round(half/segL2);
-    const need=HW+30;                       // clearance we insist on
+  /* Measuring a 164 m slab by the clearance at ONE point is what left Miami's
+     paddock on the road. The building runs along the start/finish tangent, so
+     its far ends are eighty metres from the point being tested, and at Miami the
+     circuit curves in over exactly that distance — the midpoint cleared fine
+     while the ends sat on the racing line.
+     Every station along the building's own axis is checked now, against every
+     piece of circuit near it, and the side with more room wins. */
+  const N2=P.length, segL2=TRACK.len/N2, half=164/2;
+  const span=Math.round(half/segL2);
+  const need=HW+30;                         // clearance we insist on
+  // how far back this side has to go for the whole slab to clear the circuit
+  const pushFor=(sd,off0)=>{
     let worst=0;
-    for(let k=-span;k<=span;k++){
-      const j=((0+k)%N2+N2)%N2;
-      // where the building's centreline would be at this station
-      const bx=p.x+n.x*side*off + (P[j].x-p.x)*0, bz=p.z+n.z*side*off;
-      // distance from that fixed point to this piece of circuit
-      const dx=P[j].x-bx, dz=P[j].z-bz;
-      const d=Math.hypot(dx,dz);
-      if(d<need) worst=Math.max(worst,need-d);
+    for(let s=-half;s<=half;s+=8){          // stations along the building
+      const cx=p.x+tg.x*s, cz=p.z+tg.z*s;   // its centreline, before the offset
+      const bx=cx+n.x*sd*off0, bz=cz+n.z*sd*off0;
+      for(let k=-span*2;k<=span*2;k++){     // circuit either side of the pits
+        const j=((k)%N2+N2)%N2;
+        const d=Math.hypot(P[j].x-bx,P[j].z-bz);
+        if(d<need) worst=Math.max(worst,need-d);
+      }
     }
-    off+=Math.min(worst,26);                // never push it absurdly far away
-  }
+    return worst;
+  };
+  const off0=HW+24;
+  const pushL=pushFor(-1,off0), pushR=pushFor(1,off0);
+  const side=(pushR<pushL-4)?1:-1;          // the outside of the bend, if it matters
+  let off=off0+Math.min(side<0?pushL:pushR,60);
   const base=new THREE.Vector3().copy(p).addScaledVector(n,side*off);
   const g=new THREE.Group(); const len=164;
   const pitCol=(TRACK_PIT[CFG.id]||0xe9edf1), accent=(TRACK_ACCENT[CFG.id]||0xb11015);
@@ -12625,7 +12660,7 @@ function resetCar(){
   CAR.v=0;CAR.steer=0;CAR.steerCmd=0;CAR.yawRate=0;CAR.vLat=0;CAR.pitch=0;
   CAR.lock=0;CAR.spin=0;CAR.comp=0;CAR.slope=undefined;CAR.slipDrive=0;CAR.gripMul=1;
   CAR.gear=0;CAR.shiftT=0;CAR.tTemp=0.30;CAR.drsOpen=false;CAR.drsZone=false;
-  CAR.limits=0;CAR.limitArmed=false;CAR.penalty=0;CAR.limitFlashT=0;
+  CAR.limits=0;CAR.limitArmed=false;CAR.penalty=0;CAR.limitFlashT=0;CAR.contactCool=0;CAR.contacts=0;
   { const lw=$('#limitWarn'); if(lw){lw.classList.remove('on');lw.innerHTML='';}
     const lc=$('#limChip'); if(lc){lc.classList.remove('on','pen');lc.textContent='';}
     const tl=$('#tyreToast'); if(tl){clearTimeout(tl._h);tl.classList.remove('on');} }
@@ -17524,7 +17559,24 @@ function stepAI(dt){
         if(!behind.ai||!ahead.ai){
           // the player is one of the two: they take the damage either way
           if(behind.ai) CAR.v*=1.0; else CAR.v=Math.min(CAR.v,aheadV2*0.90);
-          CAR.damage=Math.min(1,(CAR.damage||0)+0.016*sevr); }
+          CAR.damage=Math.min(1,(CAR.damage||0)+0.016*sevr);
+          /* CAUSING A COLLISION IS A PENALTY.
+             Driving into the back of the car ahead is the one contact the
+             stewards never wave through, and without a cost the fastest way past
+             anybody was to simply hit them. Only the car BEHIND is at fault —
+             being rear-ended is not an offence — and only a real hit counts, so
+             brushing along in traffic does not rack up penalties. A cooldown
+             stops one shunt registering sixty times in a second. */
+          if(!behind.ai && sevr>0.35 && (CAR.contactCool||0)<=0){
+            CAR.contactCool=3.0;
+            CAR.contacts=(CAR.contacts||0)+1;
+            CAR.penalty=(CAR.penalty||0)+5;
+            const tl=$('#tlWarn');
+            if(tl){ tl.textContent='+5s PENALTY · CAUSING A COLLISION';
+              tl.style.color='#ff5b5b'; tl.classList.add('on');
+              clearTimeout(CAR._tlT); CAR._tlT=setTimeout(()=>tl.classList.remove('on'),3200); }
+            if(typeof radio==='function') radio('engineer','penalty');
+          } }
       }
       // rubber and smoke off the contact point, so you SEE it happen
       if(sevr>0.25 && typeof FX!=='undefined' && FX.spawn){
@@ -17747,6 +17799,7 @@ function updateHUD(inp,r,dt){
        long as you had any warning at all meant one early mistake left a badge
        sitting over the apex for the rest of the race. */
     if(CAR.limitFlashT>0) CAR.limitFlashT=Math.max(0,CAR.limitFlashT-dt);
+    if(CAR.contactCool>0) CAR.contactCool=Math.max(0,CAR.contactCool-dt);
     const n=CAR.limits||0, pen=CAR.penalty||0;
     const lw=$('#limitWarn');
     if(lw){ const show=CAR.limitFlashT>0;
