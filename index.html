@@ -2024,6 +2024,23 @@ const FX2={
         col=mix(vec3(l),col,uSat);
         col*=uTint;
 
+        /* RADIAL MOTION BLUR. Smearing the frame outward from its centre in
+           proportion to speed is what a camera does when the world is moving
+           past it — and unlike a full velocity-buffer blur it costs a handful
+           of taps and needs no extra pass. Zero in the middle so the thing you
+           are actually looking at stays sharp. */
+        if(uSpeed>0.02){
+          vec3 sm=vec3(0.0); float wsum=0.0;
+          for(int s=1;s<=6;s++){
+            float k=float(s)/6.0;
+            float amt=k*uSpeed*0.055*smoothstep(0.02,0.55,r2);
+            float w=1.0-k*0.55;
+            sm+=texture2D(tDiffuse,uv-d*amt).rgb*w;
+            wsum+=w;
+          }
+          col=mix(col, sm/max(wsum,1e-4), clamp(uSpeed*0.55,0.0,0.55));
+        }
+
         /* SPEED VIGNETTE. The frame closes in as the car goes quicker, which is
            the cheapest and most effective sense of speed there is. */
         float vig=1.0-uVig*(1.0+uSpeed*0.55)*r2*1.9;
@@ -14078,7 +14095,9 @@ function stepPhysics(dt,inp){
                  : lerp(1.0,0.86,clamp((tw-0.85)/0.40,0,1));
   const wetFit=compoundWetFit(CAR.compound||'medium',WEATHER.wetness);
   const tireGrip=lerp(0.82,1.0,CAR.tire)*comp.grip*tempGrip*wetFit;
-  let gripMul=(off?0.55:(onKerb?0.82:1.0))*wetMul*tireGrip*rdGrip();
+  // track evolution: rubber on the line, marbles off it
+  const evoLat=(typeof near!=='undefined'&&near)?near.lat:0;
+  let gripMul=(off?0.55:(onKerb?0.82:1.0))*wetMul*tireGrip*rdGrip()*evoGrip(evoLat);
   if(CAR.airborne) gripMul*=0.05;      // nothing is touching the road
   /* FLOOR ON THE WET. Four separate multipliers pull the same way in the rain —
      the surface cut, the compound's own grip, the tyre running cold because rain
@@ -15781,6 +15800,34 @@ const SEASON={active:false,on:false,slot:null,team:'redbull',diff:'Pro',name:'M.
   raceLaps:8, lastResult:null,
   field:['M. VÄRLA','R. OKONKWO','L. FENN','S. HÄKKINEN','D. ROSSI','K. TANAKA','A. PETROV','J. MORAIS','E. LARSSON','B. NAKAMURA']};
 const F1PTS=[25,18,15,12,10,8,6,4,2,1];
+
+/* ==================================================================
+   TRACK EVOLUTION
+   A circuit is not the same surface all weekend. Cars lay rubber into the
+   racing line and the whole place speeds up; everything they scrub off gets
+   swept to the edges as marbles, so the grip OFF the line gets worse at the
+   same time. That widening gap between the line and everywhere else is why a
+   session gets quicker and why going off-line late in a race is a risk.
+   ================================================================== */
+const EVO={rubber:0, marbles:0};
+function evoReset(){ EVO.rubber=0; EVO.marbles=0; }
+function stepEvolution(dt){
+  if(STATE!=='drive') return;
+  /* Rain washes the rubber straight back off, which is exactly why a wet track
+     is slow even once the racing line dries. */
+  const wet=clamp(WEATHER.wetness,0,1);
+  const cars=1+(AI.cars?AI.cars.filter(c=>!c.dnf).length:0);
+  const rate=dt*cars*0.00055*(1-wet);
+  EVO.rubber=clamp(EVO.rubber + rate - wet*dt*0.02, 0, 1);
+  EVO.marbles=clamp(EVO.marbles + rate*0.8 - wet*dt*0.03, 0, 1);
+}
+/* The grip multiplier for a car at lateral offset `lat`: more on the line as
+   rubber goes down, less off it as the marbles build. */
+function evoGrip(lat){
+  const HW=TRACK.halfW||7;
+  const onLine=1-clamp(Math.abs(lat)/Math.max(HW,1),0,1);   // 1 on line, 0 at the edge
+  return 1 + EVO.rubber*0.055*onLine - EVO.marbles*0.075*(1-onLine);
+}
 
 /* ==================================================================
    CONTRACTS, RIVALRIES AND OBJECTIVES
@@ -17684,7 +17731,7 @@ function startDrive(){
     SEASON.practiceKey=null;
   }
   try{ driveScene.userData.racingLine=null; syncRacingLine(); }catch(e){}
-  pitReset(); scReset(); flagReset(); stewReset(); PITSTOP.planComp=selCompound; PITSTOP.boxD=playerBoxD();
+  pitReset(); scReset(); flagReset(); stewReset(); evoReset(); PITSTOP.planComp=selCompound; PITSTOP.boxD=playerBoxD();
   // where the car has to come to rest: in the painted box, over toward the garage
   PITSTOP.boxPos=pitPos(PITSTOP.boxD,PIT.halfW-2.6);
   closeStrategy(); updatePitCue();
@@ -20468,6 +20515,7 @@ function frame(){
     if(SESS.on){ sessUpdate(); if(!SESS.on) return; gtabSample(); gtabUpdate(); }
     stepSafetyCar(dt);
     stepFlags(dt);
+    stepEvolution(dt);
     stepStewards(dt);
     stepAI(dt);
     updateBattle(dt);
