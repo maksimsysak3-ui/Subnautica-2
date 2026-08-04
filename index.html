@@ -1828,14 +1828,24 @@ const FX2={
   mBright:null, mBlur:null, mComp:null, t:0, w:0, h:0,
 };
 {
-  const half=THREE.HalfFloatType;
+  /* PLAIN 8-BIT TARGETS, AND MSAA ONLY IF THE CONTEXT REALLY HAS IT.
+     The first version of this asked for half-float buffers with 4x MSAA. The
+     software renderer used for testing here supports that happily; a good deal
+     of real hardware does not, and a render target that fails to allocate does
+     not throw — it just gives you a black frame, which is exactly what it did.
+     Nothing in this chain needs the extra range: the scene pass has already
+     tone mapped, so the buffer is display-referred and eight bits per channel
+     is the correct format for it as well as the cheap one. */
+  const isGL2=renderer.capabilities.isWebGL2;
   const mk=(w,h)=>new THREE.WebGLRenderTarget(Math.max(2,w|0),Math.max(2,h|0),
     {minFilter:THREE.LinearFilter,magFilter:THREE.LinearFilter,
-     format:THREE.RGBAFormat,type:half,depthBuffer:false,stencilBuffer:false});
+     format:THREE.RGBAFormat,type:THREE.UnsignedByteType,
+     depthBuffer:false,stencilBuffer:false});
   const sz=renderer.getDrawingBufferSize(new THREE.Vector2());
   FX2.rt=new THREE.WebGLRenderTarget(sz.x,sz.y,
     {minFilter:THREE.LinearFilter,magFilter:THREE.LinearFilter,
-     format:THREE.RGBAFormat,type:half,samples:4});
+     format:THREE.RGBAFormat,type:THREE.UnsignedByteType,
+     samples:isGL2?4:0});
   FX2.a=mk(sz.x/2,sz.y/2); FX2.b=mk(sz.x/2,sz.y/2);
   FX2.w=sz.x; FX2.h=sz.y;
 
@@ -1956,6 +1966,34 @@ const FX2={
   FX2.quad.frustumCulled=false;
   FX2.scene.add(FX2.quad);
 }
+/* PROVE THE CHAIN WORKS BEFORE TRUSTING IT WITH THE FRAME.
+   Render a known colour into the scene target and read it back. A render target
+   that the driver could not allocate does not raise an error — it silently
+   returns nothing — so the only way to be sure is to look. One readback at
+   startup costs a single stall and rules out the whole class of "the game is a
+   black rectangle on my machine" failures. */
+FX2.selfTest=function(){
+  try{
+    const probe=new THREE.ShaderMaterial({
+      vertexShader:`void main(){ gl_Position=vec4(position.xy,0.0,1.0); }`,
+      fragmentShader:`void main(){ gl_FragColor=vec4(0.0,1.0,0.0,1.0); }`});
+    FX2.pass(probe,FX2.rt);
+    const buf=new Uint8Array(4);
+    renderer.readRenderTargetPixels(FX2.rt,(FX2.rt.width/2)|0,(FX2.rt.height/2)|0,1,1,buf);
+    probe.dispose();
+    renderer.setRenderTarget(null);
+    if(buf[1]<100){                       // the green we drew never came back
+      FX2.failed=true;
+      console.warn('post processing unavailable on this device — rendering direct.');
+      return false;
+    }
+    return true;
+  }catch(e){
+    FX2.failed=true;
+    console.warn('post processing self-test failed — rendering direct.',e);
+    return false;
+  }
+};
 FX2.resize=function(){
   const sz=renderer.getDrawingBufferSize(new THREE.Vector2());
   if(sz.x===FX2.w && sz.y===FX2.h) return;
@@ -1972,7 +2010,24 @@ FX2.pass=function(mat,target){
 };
 /* The whole chain. Everything in the game renders through this. */
 FX2.render=function(scene,cam,dt){
-  if(!FX2.on || !SET.postFX){ renderer.setRenderTarget(null); renderer.render(scene,cam); return; }
+  if(!FX2.on || !SET.postFX || FX2.failed){
+    renderer.setRenderTarget(null); renderer.render(scene,cam); return; }
+  /* A BLACK SCREEN IS NEVER AN ACCEPTABLE FAILURE MODE.
+     If anything in the chain throws — an unsupported format, a lost context, a
+     shader that would not compile on this driver — fall back to rendering the
+     scene straight to the canvas, permanently, and say so in the console. The
+     game is still perfectly playable without post processing; it is not
+     playable as a black rectangle. */
+  try{ return FX2._render(scene,cam,dt); }
+  catch(err){
+    console.warn('post processing disabled:',err);
+    FX2.failed=true;
+    renderer.setRenderTarget(null);
+    renderer.toneMapping=THREE.ACESFilmicToneMapping;
+    renderer.render(scene,cam);
+  }
+};
+FX2._render=function(scene,cam,dt){
   FX2.t+=(dt||0.016);
   // 1. the scene, into a target instead of onto the canvas
   renderer.setRenderTarget(FX2.rt);
@@ -19848,6 +19903,7 @@ async function boot(){
   await loadCar(loader,e=>{
     if(e.lengthComputable){ldPct(5+e.loaded/e.total*70);}
   });
+  FX2.selfTest();
   ldPct(76);ldState(2);
   await loadWheel(loader);
   ldPct(86);ldState(3);
