@@ -398,7 +398,31 @@
   .gtSec{flex:1;text-align:center;border:1px solid rgba(255,255,255,.08);border-radius:6px;padding:5px 2px}
   .gtSec .sn{display:block;font-family:var(--mono);font-size:8px;letter-spacing:.18em;color:#8a8578;font-weight:800}
   .gtSec .sv{display:block;font-family:var(--mono);font-size:11.5px;font-weight:800;color:#fff;margin-top:2px}
-  #gtGraph{display:block;width:100%;height:auto;border-radius:6px;background:rgba(0,0,0,.35)}
+  /* the session's laps, clickable */
+  #gtLapList{margin-top:10px;max-height:190px;overflow:auto;display:flex;flex-direction:column;gap:3px}
+  .gtLap{display:flex;align-items:center;gap:10px;padding:5px 9px;border-radius:5px;cursor:pointer;
+    border:1px solid transparent;transition:background .13s,border-color .13s}
+  .gtLap:hover{background:rgba(255,255,255,.05)}
+  .gtLap.sel{border-color:rgba(255,176,60,.55);background:rgba(255,176,60,.12)}
+  .gtLap.fast .lt{color:#c07aff}
+  .gtLap .ln{font-family:var(--mono);font-size:9.5px;letter-spacing:.12em;color:#8a8578;font-weight:800;width:34px}
+  .gtLap .lt{font-family:var(--mono);font-size:13px;font-weight:800;color:#fff;flex:1}
+  .gtLap .lc{font-family:var(--mono);font-size:8.5px;letter-spacing:.1em;color:#8a8578;font-weight:700}
+  .gtLap .ld{font-family:var(--mono);font-size:11px;font-weight:800;width:62px;text-align:right}
+  /* corner-by-corner breakdown */
+  #gtAnaPick{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:10px}
+  #gtAnaPick .ap{font-family:var(--mono);font-size:9px;letter-spacing:.1em;font-weight:800;
+    color:#8a8578;border:1px solid rgba(255,255,255,.1);border-radius:5px;padding:4px 8px;cursor:pointer}
+  #gtAnaPick .ap.on{color:#ffb03c;border-color:rgba(255,176,60,.5);background:rgba(255,176,60,.12)}
+  #gtTurns{display:grid;grid-template-columns:repeat(auto-fill,minmax(88px,1fr));gap:5px;
+    max-height:200px;overflow:auto}
+  .gtTurn{border:1px solid rgba(255,255,255,.08);border-radius:6px;padding:6px 4px;text-align:center;
+    background:rgba(255,255,255,.02)}
+  .gtTurn .tn{display:block;font-family:var(--mono);font-size:8.5px;letter-spacing:.14em;
+    color:#8a8578;font-weight:800}
+  .gtTurn .tdv{display:block;font-family:var(--mono);font-size:12px;font-weight:800;margin-top:3px}
+  .gtTurn.gain{border-color:rgba(79,217,122,.35);background:rgba(79,217,122,.10)}
+  .gtTurn.loss{border-color:rgba(255,106,100,.35);background:rgba(255,106,100,.10)}
   #gtFoot{display:flex;justify-content:space-between;margin-top:11px;
     font-family:var(--mono);font-size:9.5px;letter-spacing:.18em;color:#6f6a5e}
   #gtFoot b{color:#ffb03c}
@@ -1218,22 +1242,24 @@
       </section>
       <section class="gtPage" data-page="timing">
         <div class="gtPanel">
-          <h4>SESSION TIMES</h4>
-          <div class="gtRow"><span class="k">BEST</span><span class="v big" id="gtBest">—:——.—</span></div>
+          <h4>SESSION LAPS <small id="gtBest">—:——.—</small></h4>
           <div class="gtRow"><span class="k">LAST</span><span class="v" id="gtLast">—:——.—</span></div>
-          <div class="gtRow"><span class="k">LAPS</span><span class="v" id="gtLaps">0</span></div>
+          <div class="gtRow"><span class="k">LAPS RUN</span><span class="v" id="gtLaps">0</span></div>
           <div id="gtSecs">
             <div class="gtSec"><span class="sn">S1</span><span class="sv" id="gtS1">—</span></div>
             <div class="gtSec"><span class="sn">S2</span><span class="sv" id="gtS2">—</span></div>
             <div class="gtSec"><span class="sn">S3</span><span class="sv" id="gtS3">—</span></div>
           </div>
+          <div id="gtLapList"></div>
+          <div class="gtNote">Click a lap to break it down corner by corner.</div>
         </div>
       </section>
       <section class="gtPage" data-page="delta">
         <div class="gtPanel">
-          <h4>DELTA TO BEST <small id="gtDeltaNow">—</small></h4>
-          <canvas id="gtGraph" width="760" height="200"></canvas>
-          <div class="gtNote">Green below the line is time gained on your best lap.</div>
+          <h4>LAP ANALYSIS <small id="gtAnaHead">—</small></h4>
+          <div id="gtAnaPick"></div>
+          <div id="gtTurns"></div>
+          <div class="gtNote" id="gtAnaNote">Green is time gained on the fastest lap of the session.</div>
         </div>
       </section>
       <section class="gtPage" data-page="session">
@@ -2890,6 +2916,26 @@ function buildWorld(sc,cfg){
       const from=r.a+Math.round(r.len*0.30), to=r.a+r.len-2;
       for(let j=from;j<=to;j++) drs[j%N]=true;}
     TRACK.drs=drs; }
+  /* NUMBERED CORNERS. A lap analysis that says "you lost a tenth somewhere" is
+     no use; it has to say WHERE. Walk the radius data, take every sustained
+     stretch that is genuinely a corner rather than a kink, and number them from
+     the start line — which is exactly how a circuit map labels them. */
+  { const turns=[]; let i=0;
+    const TURN_R=R_STRAIGHT*0.48;              // tighter than this and it's a corner
+    while(i<N){
+      if(Rc[i]>=TURN_R){i++;continue;}
+      let len=0; while(len<N && Rc[(i+len)%N]<TURN_R) len++;
+      if(len>=Math.max(6,Math.round(N*0.014))){
+        // the apex: the tightest point in the run, which is what you name it by
+        let ai=i, ar=1e18;
+        for(let k=0;k<len;k++){const j=(i+k)%N; if(Rc[j]<ar){ar=Rc[j];ai=j;}}
+        turns.push({idx:ai, a:i%N, len});
+      }
+      i+=len||1;
+    }
+    turns.sort((x,y)=>x.idx-y.idx);
+    turns.forEach((t,k)=>{ t.name='T'+(k+1); });
+    TRACK.turns=turns; }
   const smooth=a=>{const o=a.slice();for(let i=0;i<N;i++){let s=0;for(let k=-9;k<=9;k++)s+=o[(i+k+N)%N];a[i]=s/19;}};
   smooth(runL);smooth(runR);
   // where the circuit doubles back near itself, clamp run-off + barrier so nothing
@@ -3291,11 +3337,21 @@ function buildWorld(sc,cfg){
     TRACK.narrowStart=bi; TRACK.narrowLen=win;
   }
   TRACK.tight=tight;
-  const barOff=k=>Math.min(HW+barBase*(1-tight[k]*0.72)+runL[k]+tight[k]*0.6, maxOff[k]);
-  const barOffR=k=>Math.min(HW+barBase*(1-tight[k]*0.72)+runR[k]+tight[k]*0.6, maxOff[k]);
-  TRACK.barOffL=barOff;TRACK.barOffR=barOffR;
+  const baseOffL=k=>Math.min(HW+barBase*(1-tight[k]*0.72)+runL[k]+tight[k]*0.6, maxOff[k]);
+  const baseOffR=k=>Math.min(HW+barBase*(1-tight[k]*0.72)+runR[k]+tight[k]*0.6, maxOff[k]);
   TRACK.wallL=[];TRACK.wallR=[];
-  for(let i=0;i<N;i++){TRACK.wallL[i]=barOff(i);TRACK.wallR[i]=barOffR(i);}
+  for(let i=0;i<N;i++){TRACK.wallL[i]=baseOffL(i);TRACK.wallR[i]=baseOffR(i);}
+  /* THE BARRIER FOLLOWS THE WALL, INCLUDING OVER THE PIT LANE.
+     These used to be closures over the raw corner geometry, evaluated fresh
+     every time a builder asked. definePitLane() runs a moment later and pushes
+     TRACK.wallL/wallR out to clear the pit corridor — but only the ARRAYS, so
+     the collision wall moved and the barrier you can see did not. The result
+     was the circuit's own barrier standing across the front of the pit road.
+     Reading the arrays means the visible barrier goes wherever the wall goes,
+     and the pit lane is separated from the circuit by the pit wall instead. */
+  const barOff=k=>TRACK.wallL[k];
+  const barOffR=k=>TRACK.wallR[k];
+  TRACK.barOffL=barOff;TRACK.barOffR=barOffR;
   /* THE PIT LANE. Defined before the barriers go in, because the pit-side wall
      has to be pushed out over the whole corridor or the car would be shoved
      back onto the circuit the moment it took the entry. */
@@ -11341,6 +11397,29 @@ function buildPitLaneGeometry(sc){
     stop.position.set((s0.x+s1.x)/2,s0.y+0.055,(s0.z+s1.z)/2);
     stop.rotation.y=Math.atan2(s1.x-s0.x,s1.z-s0.z)+Math.PI/2; g.add(stop);
   }
+  /* --- THE PIT WALL ------------------------------------------------------
+     What actually separates the pit lane from the circuit. The barrier that
+     used to stand here was the track's own, drawn across the front of the pit
+     road; now that the barrier follows the wall out past the corridor, this
+     runs down the gap between the two — a low concrete wall with a painted cap,
+     the length of the boxes, open at both ends for the entry and the exit. */
+  { const D0w=-PIT.boxRun/2-6, D1w=PIT.boxRun/2+6;
+    const wallMat=new THREE.MeshStandardMaterial({color:0xe9edf1,roughness:0.75});
+    const capMat=new THREE.MeshStandardMaterial({color:(TRACK_ACCENT[CFG.id]||0xb11015),
+      roughness:0.55,metalness:0.25});
+    const STEP=7;
+    for(let d=D0w; d<D1w; d+=STEP){
+      const a0=pitPos(d,-PIT.halfW-0.9), a1=pitPos(Math.min(d+STEP,D1w),-PIT.halfW-0.9);
+      const L=a0.distanceTo(a1); if(L<0.2) continue;
+      const mid=new THREE.Vector3().addVectors(a0,a1).multiplyScalar(0.5);
+      const rot=Math.atan2(a1.x-a0.x,a1.z-a0.z);
+      const w=new THREE.Mesh(new THREE.BoxGeometry(0.42,1.05,L*1.02),wallMat);
+      w.position.set(mid.x,mid.y+0.52,mid.z); w.rotation.y=rot;
+      w.castShadow=true; w.receiveShadow=true; g.add(w);
+      const cap=new THREE.Mesh(new THREE.BoxGeometry(0.54,0.14,L*1.02),capMat);
+      cap.position.set(mid.x,mid.y+1.11,mid.z); cap.rotation.y=rot; g.add(cap);
+    }
+  }
   // --- speed-limit boards at the entry and the exit ------------------------
   for(const [d,txt] of [[D0+16,'80'],[D1-24,'END']]){
     const p=pitPos(d,-PIT.halfW-1.4);
@@ -11540,7 +11619,15 @@ function buildPit(sc,P,Nm,Tg){
   // --- garage block: solid building with RECESSED open garages (dark interior) + accent lintels ---
   const bodyMat=new THREE.MeshStandardMaterial({color:pitCol,roughness:0.72,metalness:night?0.25:0,emissive:night?0x0a0e16:0,emissiveIntensity:night?0.35:0});
   const bodyH=8;
-  const body=new THREE.Mesh(new THREE.BoxGeometry(len,bodyH,13),bodyMat);body.position.set(0,bodyH/2,-1.5);g.add(body);
+  /* THE BODY HAS TO SIT BEHIND THE BAYS, NOT THROUGH THEM.
+     This was a solid slab spanning z from -8 to +5, and the garage bays live in
+     z -3.8 to +5.2 — so every bay interior was buried inside solid building and
+     all you could ever see was the dark panel across its mouth. The block now
+     stops where the bays start; the media deck above still cantilevers over
+     them, which is what a real pit building does. */
+  const BODY_FRONT=-3.9, BODY_BACK=-14.0;
+  const body=new THREE.Mesh(new THREE.BoxGeometry(len,bodyH,BODY_FRONT-BODY_BACK),bodyMat);
+  body.position.set(0,bodyH/2,(BODY_FRONT+BODY_BACK)/2);g.add(body);
   const darkInt=new THREE.MeshStandardMaterial({color:0x0a0c10,roughness:0.95,emissive:0x090c12,emissiveIntensity:night?0.7:0.4});
   const accentMat=new THREE.MeshStandardMaterial({color:accent,roughness:0.5,metalness:0.3});
   const nGar=13, gw=len/nGar;
@@ -11564,7 +11651,7 @@ function buildPit(sc,P,Nm,Tg){
   const GD=5.2, BAYD=9.0;                 // door height, how deep the bay runs back
   for(let d=0;d<nGar;d++){const gx=-len/2+gw*(d+0.5);
     const bw=gw-2.0;
-    const open=new THREE.Mesh(new THREE.BoxGeometry(bw,GD,0.3),darkInt);open.position.set(gx,2.9,5.2);g.add(open);
+    // no panel across the mouth — the bay is open, the room behind it is the view
     // the room behind the mouth
     const fl=new THREE.Mesh(new THREE.BoxGeometry(bw,0.12,BAYD),floorMat);
     fl.position.set(gx,0.30,5.2-BAYD/2);g.add(fl);
@@ -11691,6 +11778,10 @@ function buildPit(sc,P,Nm,Tg){
   const gy=gh(base.x,base.z);
   g.position.copy(base);g.position.y=gy;g.lookAt(p.x,gy,p.z);
   g.traverse(o=>{o.castShadow=true;o.receiveShadow=true;});sc.add(g);
+  /* Keep the building and its bay layout: putting the car IN a garage means
+     working in this group's local frame, and nothing else can reconstruct it. */
+  g.updateWorldMatrix(true,false);
+  TRACK.pitBuilding={group:g, len, nGar, gw, bayZ:5.2-BAYD*0.45, floorY:0.36};
   // --- start/finish gantry across the grid with the 5 red start lights ---
   const beamMat=new THREE.MeshStandardMaterial({color:0x111319,roughness:0.7,metalness:0.4});
   const L=new THREE.Vector3().copy(p).addScaledVector(n,HW+2), Rr=new THREE.Vector3().copy(p).addScaledVector(n,-(HW+2));
@@ -13130,6 +13221,7 @@ function resetCar(){
   CAR.ers=0.75;CAR.ersActive=0;CAR.tire=1;CAR.damage=0;
   CAR.compound=selCompound; CAR.tireLapsLife=compoundLaps(selCompound,CFG.id);
   CAR.rTyreWarn=false; CAR.rTyreCrit=false; CAR.rDmg=false; CAR.rPrevPos=8; CAR.rPrevBest=null;
+  CAR.inBay=false; CAR.bayPos=null;
   CAR.trackIdx=0; CAR.groundY=p.y; CAR.hop=0; CAR.hopV=0; CAR.kerbKick=0; CAR.airborne=false;
   CAR.rig.position.set(p.x,p.y+0.02-(CAR.tireDrop||0),p.z);   // seat on the grid during the countdown
   CAR.rig.rotation.set(0,CAR.heading,0,'YXZ');
@@ -13144,11 +13236,26 @@ function resetCar(){
 /* Put the car in its own pit box, pointing down the lane, ready to be driven
    out. Uses the same box the pit stop sequence parks in, so the car lines up
    with the garage that belongs to the player's team. */
+function playerBayIndex(){
+  const order=pitBoxOrder();
+  const i=Math.max(0,order.indexOf(pitSelfTeam()));
+  const n=(TRACK.pitBuilding&&TRACK.pitBuilding.nGar)||13;
+  return Math.min(n-1,Math.round((i+0.5)/order.length*n));
+}
 function seatInGarage(){
-  if(!PIT||!TRACK.pitGeom) return;
-  const d=(typeof playerBoxD==='function')?playerBoxD():0;
-  const here=pitPos(d, PIT.halfW-2.9);
-  const ahead=pitPos(d+6, PIT.halfW-2.9);
+  const PB=TRACK.pitBuilding;
+  if(!PB||!PB.group){ return; }
+  /* INSIDE the bay, in the pit building's own local frame. Placing the car with
+     pitPos() put it on the pit ROAD alongside the garages, which is not the same
+     thing as being in one — the whole point is to be sat in the box looking out
+     down the lane. Local +z points at the circuit, so the car sits back inside
+     the room and faces forward out of the mouth. */
+  const bi=playerBayIndex();
+  const gx=-PB.len/2 + PB.gw*(bi+0.5);
+  const gpr=PB.group;
+  gpr.updateWorldMatrix(true,false);
+  const here=gpr.localToWorld(new THREE.Vector3(gx, PB.floorY, PB.bayZ));
+  const ahead=gpr.localToWorld(new THREE.Vector3(gx, PB.floorY, PB.bayZ+6));
   CAR.pos.set(here.x,0,here.z);
   CAR.heading=Math.atan2(ahead.x-here.x, ahead.z-here.z);
   CAR.groundY=here.y;
@@ -13159,12 +13266,7 @@ function seatInGarage(){
   /* Which bay is ours: the painted boxes and the garage mouths are both laid
      out left-to-right along the same frontage, so the team's index into the box
      order maps onto the bay, scaled for the two different counts. */
-  if(TRACK.garageDoors){
-    const order=pitBoxOrder();
-    const i=Math.max(0,order.indexOf(pitSelfTeam()));
-    const n=TRACK.garageDoors.meshes.length||1;
-    TRACK.garageDoors.open(Math.min(n-1,Math.round((i+0.5)/order.length*n)));
-  }
+  if(TRACK.garageDoors) TRACK.garageDoors.open(playerBayIndex());
 }
 function stepPhysics(dt,inp){
   const P=PHYS;
@@ -15350,7 +15452,10 @@ function finishQualifying(rows, knockedOut){
    Nothing to do with the weekend tablet — that one plans the weekend, this one
    runs the session you are sitting in.
    ================================================================== */
-const GTAB={on:false, tab:'tyres', trace:[], best:null, bestTrace:null};
+/* laps: every completed lap of the session, each with the elapsed time at every
+   numbered corner, so a lap can be compared to the fastest one turn by turn. */
+const GTAB={on:false, tab:'tyres', trace:[], best:null, bestTrace:null,
+            laps:[], sel:null, turnT:null, turnSeen:null};
 const GT_COMPOUNDS=[
   {k:'soft',   nm:'SOFT',   col:'#e4343a', note:'Soft: fastest, shortest life.'},
   {k:'medium', nm:'MEDIUM', col:'#e8c93a', note:'Medium: the balanced run.'},
@@ -15362,21 +15467,21 @@ function gtabOpen(){ GTAB.on=true; $('#gtab').classList.add('on'); gtabRender();
 /* Are we parked in our own box? The session controls and the tyre change both
    need it — you cannot swap compounds or call the session off from halfway
    round the circuit. */
-function inGarage(){
-  if(Math.abs(CAR.v)>1.5) return false;
-  if(!PIT||!TRACK.pitGeom) return false;
-  const b=pitPos(playerBoxD(), PIT.halfW-2.9);
-  return CAR.pos.distanceTo(new THREE.Vector3(b.x,CAR.pos.y,b.z))<6.0;
-}
+/* CAR.inBay is the authoritative answer — it is set when the car is placed in
+   the box and cleared the moment it drives clear of it — so ask that rather than
+   re-deriving it from a distance that has to guess at a threshold. */
+function inGarage(){ return !!CAR.inBay && Math.abs(CAR.v)<=1.5; }
 function gtabTab(name){
   GTAB.tab=name;
+  if(name==='timing') gtabRenderLaps();
+  if(name==='delta') gtabRenderTurns();
   document.querySelectorAll('.gtTab').forEach(t=>t.classList.toggle('on',t.dataset.tab===name));
   document.querySelectorAll('.gtPage').forEach(p=>p.classList.toggle('on',p.dataset.page===name));
   Sound.blip(520,.04);
 }
 function gtabClose(){ GTAB.on=false; $('#gtab').classList.remove('on'); }
 function gtabToggle(){ GTAB.on?gtabClose():gtabOpen(); }
-if(DEBUG) setTimeout(()=>{window.__GTAB=GTAB;window.__gtabOpen=gtabOpen;},0);
+if(DEBUG) setTimeout(()=>{window.__GTAB=GTAB;window.__gtabOpen=gtabOpen;window.__gtabTab=gtabTab;window.__gtabRenderLaps=gtabRenderLaps;window.__inGarage=inGarage;window.__garageDbg=()=>{const PB=TRACK.pitBuilding;if(!PB||!PB.group)return{err:"no building"};const gx=-PB.len/2+PB.gw*(playerBayIndex()+0.5);PB.group.updateWorldMatrix(true,false);const b=PB.group.localToWorld(new THREE.Vector3(gx,PB.floorY,PB.bayZ));return{v:CAR.v,bay:playerBayIndex(),dist:CAR.pos.distanceTo(new THREE.Vector3(b.x,CAR.pos.y,b.z)),carX:CAR.pos.x,carZ:CAR.pos.z,bx:b.x,bz:b.z};};},0);
 function gtabRender(){
   const row=$('#gtTyreRow'); if(!row) return;
   row.innerHTML='';
@@ -15413,12 +15518,6 @@ function gtabUpdate(){
     const v=lap.secBest&&lap.secBest[i];
     const e=$('#gtS'+(i+1)); if(e) e.textContent=v?v.toFixed(3):'—';
   }
-  const d=$('#gtDeltaNow');
-  if(d){
-    const dv=gtabDelta();
-    d.textContent=dv==null?'—':(dv>=0?'+':'')+dv.toFixed(2);
-    d.style.color=dv==null?'#ffb03c':(dv<0?'#4fd97a':'#ff6a64');
-  }
   // session tab
   const sn=$('#gtSessName'), sl=$('#gtSessLeft');
   if(sn) sn.textContent=SESS.label||'—';
@@ -15427,18 +15526,9 @@ function gtabUpdate(){
     const a1=$('#gtSkip'), a2b=$('#gtSimRest');
     if(a1) a1.disabled=!home;
     if(a2b) a2b.disabled=!home; }
-  if(GTAB.tab==='delta') gtabDrawGraph();
+
 }
-/* Where the current lap stands against the best one, at the same point on the
-   circuit — the number every delta bar in the sport shows. */
-function gtabDelta(){
-  if(!GTAB.bestTrace||!GTAB.bestTrace.length) return null;
-  const f=lap.t>0?gtabLapFrac():0;
-  if(f<=0) return null;
-  const bt=GTAB.bestTrace;
-  const i=Math.min(bt.length-1,Math.max(0,Math.round(f*(bt.length-1))));
-  return lap.t-bt[i];
-}
+/* How far round the lap the car is, 0 to 1. */
 function gtabLapFrac(){
   const N=TRACK.N||1, idx=CAR.trackIdx||0;
   return clamp(idx/N,0,1);
@@ -15450,9 +15540,24 @@ function gtabSample(){
   const f=gtabLapFrac();
   GTAB.trace.push({f, t:lap.t});
   if(GTAB.trace.length>4000) GTAB.trace.shift();
+  /* Stamp the clock the first time we reach each corner this lap. Checking the
+     index rather than a distance means it fires once per turn per lap even at
+     two hundred and fifty kilometres an hour. */
+  const turns=TRACK.turns;
+  if(turns&&turns.length){
+    if(!GTAB.turnT||GTAB.turnT.length!==turns.length){
+      GTAB.turnT=new Array(turns.length).fill(null);
+      GTAB.turnSeen=new Array(turns.length).fill(false);
+    }
+    const idx=CAR.trackIdx||0, N=TRACK.N||1;
+    for(let k=0;k<turns.length;k++){
+      if(GTAB.turnSeen[k]) continue;
+      let d=idx-turns[k].idx; if(d<-N/2)d+=N; if(d>N/2)d-=N;
+      if(d>=0&&d<Math.max(4,N*0.01)){ GTAB.turnSeen[k]=true; GTAB.turnT[k]=lap.t; }
+    }
+  }
 }
 function gtabLapDone(){
-  // resample the lap we just finished onto a fixed grid and keep it if it's best
   if(!GTAB.trace.length) return;
   const S=120, arr=new Array(S);
   for(let i=0;i<S;i++){
@@ -15462,40 +15567,91 @@ function gtabLapDone(){
     arr[i]=best.t;
   }
   if(GTAB.best==null||lap.last<GTAB.best){ GTAB.best=lap.last; GTAB.bestTrace=arr; }
+  // file the lap itself, with the corner splits collected on the way round
+  GTAB.laps.push({
+    n:Math.max(1,lap.num-1),
+    t:lap.last,
+    comp:CAR.compound,
+    turns:(GTAB.turnT||[]).slice(),
+  });
+  GTAB.turnT=null; GTAB.turnSeen=null;
   GTAB.trace=[];
+  if(GTAB.on&&GTAB.tab!=='tyres') gtabRenderLaps();
 }
-function gtabDrawGraph(){
-  const cv=$('#gtGraph'); if(!cv) return;
-  const x=cv.getContext('2d'), W=cv.width, H=cv.height;
-  x.clearRect(0,0,W,H);
-  // grid
-  x.strokeStyle='rgba(255,255,255,.07)'; x.lineWidth=1;
-  for(let i=1;i<4;i++){const y=H*i/4; x.beginPath();x.moveTo(0,y);x.lineTo(W,y);x.stroke();}
-  for(let i=1;i<6;i++){const xx=W*i/6; x.beginPath();x.moveTo(xx,0);x.lineTo(xx,H);x.stroke();}
-  // the zero line: your best lap
-  x.strokeStyle='rgba(255,176,60,.55)'; x.lineWidth=1.5;
-  x.beginPath();x.moveTo(0,H/2);x.lineTo(W,H/2);x.stroke();
-  if(!GTAB.bestTrace||!GTAB.trace.length){
-    x.fillStyle='#6f6a5e';x.font='11px monospace';x.textAlign='center';
-    x.fillText(GTAB.bestTrace?'Running…':'Set a lap to start comparing', W/2, H/2-10);
-    return;
+/* The quickest lap of the session — the reference everything is measured to. */
+function gtabFastest(){
+  let b=null;
+  for(const L of GTAB.laps) if(L.t!=null && (b==null||L.t<b.t)) b=L;
+  return b;
+}
+/* ---- the session's laps, and the corner-by-corner analysis of one ---- */
+function gtabRenderLaps(){
+  const list=$('#gtLapList'); if(!list) return;
+  const fast=gtabFastest();
+  list.innerHTML='';
+  if(!GTAB.laps.length){
+    const e=document.createElement('div'); e.className='gtNote';
+    e.textContent='No completed laps yet.'; list.appendChild(e); return;
   }
-  const SCALE=2.0;                     // seconds shown top to bottom of the panel
-  const bt=GTAB.bestTrace;
-  x.lineWidth=2;
-  let started=false;
-  x.beginPath();
-  for(const s of GTAB.trace){
-    const i=Math.min(bt.length-1,Math.max(0,Math.round(s.f*(bt.length-1))));
-    const d=clamp(s.t-bt[i],-SCALE,SCALE);
-    const px=s.f*W, py=H/2 + (d/SCALE)*(H/2);
-    started?x.lineTo(px,py):x.moveTo(px,py); started=true;
+  GTAB.laps.slice().reverse().forEach(L=>{
+    const el=document.createElement('div');
+    const isFast=fast&&L===fast;
+    el.className='gtLap'+(isFast?' fast':'')+(GTAB.sel===L?' sel':'');
+    const d=(fast&&!isFast&&L.t!=null)?(L.t-fast.t):null;
+    const dTxt=isFast?'FASTEST':(d==null?'—':(d>=0?'+':'')+d.toFixed(3));
+    const dCol=isFast?'#c07aff':(d==null?'#8a8578':(d<0?'#4fd97a':'#ff6a64'));
+    el.innerHTML=`<span class="ln">L${L.n}</span><span class="lt">${fmt(L.t)}</span>`+
+      `<span class="lc">${(L.comp||'').slice(0,4).toUpperCase()}</span>`+
+      `<span class="ld" style="color:${dCol}">${dTxt}</span>`;
+    el.onclick=()=>{ GTAB.sel=L; Sound.blip(560,.04); gtabRenderLaps(); gtabRenderTurns();
+      gtabTab('delta'); };
+    list.appendChild(el);
+  });
+}
+/* Where the selected lap gained and lost against the fastest one, corner by
+   corner. The number under each turn is the time taken through that corner's
+   segment minus the same segment on the reference lap — so it says which corner
+   cost you, not just that the lap was slower. */
+function gtabRenderTurns(){
+  const wrap=$('#gtTurns'), head=$('#gtAnaHead'), pick=$('#gtAnaPick');
+  if(!wrap) return;
+  // the lap picker across the top
+  if(pick){
+    pick.innerHTML='';
+    GTAB.laps.slice().reverse().forEach(L=>{
+      const b=document.createElement('div');
+      b.className='ap'+(GTAB.sel===L?' on':'');
+      b.textContent='L'+L.n;
+      b.onclick=()=>{GTAB.sel=L;Sound.blip(520,.04);gtabRenderTurns();gtabRenderLaps();};
+      pick.appendChild(b);
+    });
   }
-  // gaining time draws green, losing draws red — take the colour from the end
-  const last=GTAB.trace[GTAB.trace.length-1];
-  const li=Math.min(bt.length-1,Math.max(0,Math.round(last.f*(bt.length-1))));
-  x.strokeStyle=(last.t-bt[li])<0?'#4fd97a':'#ff6a64';
-  x.stroke();
+  wrap.innerHTML='';
+  const fast=gtabFastest(), sel=GTAB.sel;
+  if(!sel){ if(head) head.textContent='—';
+    const e=document.createElement('div');e.className='gtNote';
+    e.textContent='Pick a lap from TIMING to see where it was won and lost.';
+    wrap.appendChild(e); return; }
+  if(head) head.textContent=`L${sel.n} · ${fmt(sel.t)}`+
+    (fast&&fast!==sel?`  (${(sel.t-fast.t>=0?'+':'')}${(sel.t-fast.t).toFixed(3)} vs L${fast.n})`:'  FASTEST');
+  const turns=TRACK.turns||[];
+  if(!turns.length||!fast){
+    const e=document.createElement('div');e.className='gtNote';
+    e.textContent='Need at least one more lap to compare against.';
+    wrap.appendChild(e); return; }
+  for(let k=0;k<turns.length;k++){
+    const a=sel.turns&&sel.turns[k], b=fast.turns&&fast.turns[k];
+    // segment time through this corner = elapsed here minus elapsed at the last one
+    const ap=k?(sel.turns&&sel.turns[k-1]):0, bp=k?(fast.turns&&fast.turns[k-1]):0;
+    let d=null;
+    if(a!=null&&b!=null&&ap!=null&&bp!=null) d=(a-ap)-(b-bp);
+    const el=document.createElement('div');
+    el.className='gtTurn'+(d==null?'':(d<-0.003?' gain':(d>0.003?' loss':'')));
+    const col=d==null?'#8a8578':(d<0?'#4fd97a':(d>0?'#ff6a64':'#fff'));
+    el.innerHTML=`<span class="tn">${turns[k].name}</span>`+
+      `<span class="tdv" style="color:${col}">${d==null?'—':(d>=0?'+':'')+d.toFixed(3)}</span>`;
+    wrap.appendChild(el);
+  }
 }
 /* ---- paddock news: a short running feed of what the weekend has produced ---- */
 function wkNews(headline, body){
@@ -16282,6 +16438,11 @@ function startDrive(){
      than launching off a grid — there are no lights in either one. */
   if(sessionMode==='practice'||sessionMode==='quali'){
     trackIntro(cf, ()=>{
+      /* Seat the car in the box HERE, not back in resetCar(). resetCar runs
+         before the circuit's pit building exists for this track, so the garage
+         it was aiming at was either missing or the previous track's, and the car
+         ended up on the pit road instead of in the bay. */
+      seatInGarage();
       snapCamera();
       STATE='drive';
       $('#hud').classList.add('on'); $('#sndBtn').classList.add('show');
@@ -16294,6 +16455,7 @@ function startDrive(){
       }
       // you start in the box, so the tablet is down in front of you
       GTAB.trace=[]; GTAB.best=null; GTAB.bestTrace=null;
+      GTAB.laps=[]; GTAB.sel=null; GTAB.turnT=null; GTAB.turnSeen=null;
       gtabOpen();
       setTimeout(()=>Radio.say('engineer','session_start',{cool:0}),900);
     });
