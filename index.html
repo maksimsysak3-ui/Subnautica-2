@@ -920,6 +920,19 @@
   #shift .led.on.r{background:#e10600;box-shadow:0 0 10px var(--red-glow)}
   #shift .led.on.b{background:#3aa0ff;box-shadow:0 0 12px #3aa0ff}
   /* timing tower */
+  /* ============ COLOUR MODES ============
+     Sector colours, tyre colours and the delta all lean on red-versus-green,
+     which is the one pair a large minority of people cannot separate. Each mode
+     rotates the offending hues toward pairs that survive that form of colour
+     blindness, rather than just desaturating everything. */
+  :root[data-cb="deut"]{ --ok:#3f8bff; --bad:#ffb03c; }
+  :root[data-cb="prot"]{ --ok:#00b6d4; --bad:#ffd23a; }
+  :root[data-cb="trit"]{ --ok:#00c07a; --bad:#ff5b9e; }
+  :root{ --ok:#4be08a; --bad:#ff5b5b; }
+  :root[data-cb="deut"] .gtLap.fast .lt{color:#7fc8ff}
+  :root[data-cb="deut"] #sec0,:root[data-cb="deut"] #sec1,:root[data-cb="deut"] #sec2{filter:hue-rotate(35deg)}
+  :root[data-cb="prot"] #sec0,:root[data-cb="prot"] #sec1,:root[data-cb="prot"] #sec2{filter:hue-rotate(50deg)}
+  :root[data-cb="trit"] #sec0,:root[data-cb="trit"] #sec1,:root[data-cb="trit"] #sec2{filter:hue-rotate(-40deg)}
   /* ============ MARSHAL FLAGS ============ */
   #flagBar{position:absolute;top:clamp(14px,2.4vh,26px);left:50%;transform:translateX(-50%);
     display:flex;gap:8px;z-index:6;pointer-events:none}
@@ -1696,7 +1709,7 @@ const SET={
   volMaster:0.6, volEngine:1.0, radioEngineer:true, radioCommentary:true, speech:true,
   // gameplay
   difficulty:'pro', raceLaps:8, weatherMode:'dynamic', trackLimits:true, postFX:true,
-  racingLine:'off', assistBrake:false, assistSteer:false,
+  racingLine:'off', assistBrake:false, assistSteer:false, gamepad:true, colorblind:'off',
   tyreWear:'normal', steerSpeed:1.0,
   // graphics
   shadows:true, fxDensity:'high', resScale:1.0,
@@ -15412,6 +15425,11 @@ const SETTINGS_DEF=[
    {k:'raceLaps',type:'enum',t:'Race length',
     opts:[[3,'3 LAPS'],[5,'5 LAPS'],[8,'8 LAPS'],[12,'12 LAPS'],[20,'20 LAPS'],[35,'35 LAPS']],
     d:'Laps in a season race. Longer races make tyre strategy matter more.'},
+   {k:'gamepad',type:'bool',t:'Gamepad',
+    d:'Use a controller when one is connected. Analogue triggers give you the brake modulation a keyboard cannot.'},
+   {k:'colorblind',type:'enum',t:'Colour mode',
+    opts:[['off','STANDARD'],['deut','DEUTERANOPIA'],['prot','PROTANOPIA'],['trit','TRITANOPIA']],
+    d:'Shifts the timing and tyre colours so red and green stay distinguishable.'},
    {k:'racingLine',type:'enum',t:'Racing line',
     opts:[['off','OFF'],['corners','CORNERS ONLY'],['full','FULL LAP']],
     d:'A guide along the ideal line, coloured by how hard you should be braking.'},
@@ -15462,6 +15480,8 @@ function applySettings(){
   // so the tuning values in PHYS are the ones that actually reach the car
   PHYS.steerRate=STEER_BASE.rate*SET.steerSpeed; PHYS.steerReturn=STEER_BASE.ret*SET.steerSpeed;
   try{ syncRacingLine(); }catch(e){}
+  // colour mode goes on the root element, where the CSS can key off it
+  document.documentElement.setAttribute('data-cb', SET.colorblind&&SET.colorblind!=='off'?SET.colorblind:'');
   SEASON.raceLaps=SET.raceLaps;
   // --- graphics ---
   if(renderer.shadowMap.enabled!==SET.shadows){
@@ -15876,6 +15896,44 @@ const SEASON={active:false,on:false,slot:null,team:'redbull',diff:'Pro',name:'M.
   raceLaps:8, lastResult:null,
   field:['M. VÄRLA','R. OKONKWO','L. FENN','S. HÄKKINEN','D. ROSSI','K. TANAKA','A. PETROV','J. MORAIS','E. LARSSON','B. NAKAMURA']};
 const F1PTS=[25,18,15,12,10,8,6,4,2,1];
+
+/* ==================================================================
+   GAMEPAD
+   The whole lockup problem exists because a keyboard has no middle: the brake
+   is off or it is everything. A stick and a pair of triggers give you the
+   analogue input the physics has always been able to use, so the car can be
+   driven properly rather than modulated for.
+   ================================================================== */
+const PAD={idx:null, on:false, dead:0.12};
+function padPoll(){
+  if(!navigator.getGamepads) return null;
+  const pads=navigator.getGamepads();
+  if(PAD.idx!=null && pads[PAD.idx]) return pads[PAD.idx];
+  for(let i=0;i<pads.length;i++) if(pads[i]&&pads[i].connected){ PAD.idx=i; return pads[i]; }
+  return null;
+}
+/* Map a pad to the same shape the keyboard input produces, so nothing
+   downstream has to know which one is being used. */
+function padInput(){
+  const p=padPoll();
+  if(!p){ PAD.on=false; return null; }
+  PAD.on=true;
+  const dz=(v)=>Math.abs(v)<PAD.dead?0:(v-Math.sign(v)*PAD.dead)/(1-PAD.dead);
+  const ax=p.axes||[], bt=p.buttons||[];
+  const btn=(i)=>bt[i]?(bt[i].value!==undefined?bt[i].value:(bt[i].pressed?1:0)):0;
+  /* Triggers are buttons 6 and 7 on the standard mapping, and analogue on any
+     pad worth using. Fall back to A/B if a pad reports them as digital. */
+  let thr=btn(7), brk=btn(6);
+  if(thr<0.02 && btn(0)>0) thr=btn(0);
+  if(brk<0.02 && btn(1)>0) brk=btn(1);
+  return {
+    steer: clamp(dz(ax[0]||0),-1,1),
+    throttle: clamp(thr,0,1),
+    brake: clamp(brk,0,1),
+    ers: btn(5)>0.5 || btn(2)>0.5,
+    shift: btn(4)>0.5,
+  };
+}
 
 /* ==================================================================
    TRACK EVOLUTION
@@ -18111,6 +18169,15 @@ function readInput(){
   const brk=(keys[' ']||keys['arrowdown']||keys['s'])?1:0;   // brake = SPACE (also S / ↓)
   let st=0; if(keys['a']||keys['arrowleft'])st+=1; if(keys['d']||keys['arrowright'])st-=1;
   const ers=!!(keys['shift']||keys['e']);        // ERS deploy (overtake boost)
+  /* A PAD WINS WHENEVER IT IS BEING USED. Not "instead of the keyboard" — both
+     stay live, and whichever is actually being touched this frame is the one
+     that drives the car, so picking up a controller mid-session just works.
+     This matters more than it sounds: every handling complaint about locking up
+     traces back to a keyboard brake having no middle position. */
+  const pad=SET.gamepad!==false?padInput():null;
+  if(pad && (Math.abs(pad.steer)>0.02||pad.throttle>0.02||pad.brake>0.02)){
+    return {throttle:pad.throttle, brake:pad.brake, steer:pad.steer, ers:pad.ers, pad:true};
+  }
   return {throttle:thr,brake:brk,steer:st,ers};
 }
 
