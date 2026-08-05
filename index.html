@@ -11679,7 +11679,10 @@ function buildGrandstands(sc,P,Nm,Tg,offL,offR){
 function buildRacingLineOverlay(sc){
   if(!TRACK.line||!TRACK.N) return null;
   const N=TRACK.N, P=TRACK.pts, Nm=TRACK.nrm;
-  const W=1.05;                                     // half-width of the ribbon
+  /* THINNER. A 2.1 m ribbon is nearly a third of the road at Monaco — it stopped
+     being a guide and became the thing you were looking at. 1.1 m total reads as
+     a line painted on the circuit rather than a stripe laid over it. */
+  const W=0.55;                                     // half-width of the ribbon
   const pos=[],col=[],idx=[];
   /* The speed the line supports here, and the speed it will support a little
      further on — braking is about what is COMING, so the colour has to look
@@ -11702,10 +11705,13 @@ function buildRacingLineOverlay(sc){
     const need=clamp(1-(vMin/Math.max(here,1)),0,1);
     const flatOut=here>PHYS.vMax*0.93 && need<0.06;
     let r,g,b2;
-    if(flatOut){ r=0.10; g=0.85; b2=0.25; }         // green: stay flat
-    else if(need<0.18){ r=0.55; g=0.85; b2=0.15; }  // yellow-green: ease
-    else if(need<0.42){ r=0.95; g=0.72; b2=0.10; }  // amber: lift / light brake
-    else { r=0.95; g=0.13; b2=0.10; }               // red: heavy braking
+    /* Desaturated a step as well. Fully saturated primaries on a thin line still
+       shout; these read as the same four states without pulling the eye off the
+       corner. */
+    if(flatOut){ r=0.22; g=0.62; b2=0.30; }         // green: stay flat
+    else if(need<0.18){ r=0.52; g=0.66; b2=0.24; }  // yellow-green: ease
+    else if(need<0.42){ r=0.76; g=0.58; b2=0.20; }  // amber: lift / light brake
+    else { r=0.78; g=0.22; b2=0.18; }               // red: heavy braking
     pos.push(cx+n.x*W, p.y+0.045, cz+n.z*W,
              cx-n.x*W, p.y+0.045, cz-n.z*W);
     col.push(r,g,b2, r,g,b2);
@@ -11734,7 +11740,9 @@ function syncRacingLine(){
   /* CORNERS ONLY hides the ribbon everywhere the line is telling you nothing —
      a green stripe down a straight is just clutter on the road. Done with the
      alpha rather than by rebuilding, so toggling it is free. */
-  m.material.opacity = SET.racingLine==='corners' ? 0.62 : 0.5;
+  /* And fainter. It only has to be readable in peripheral vision — at half
+     opacity over bright tarmac it was competing with the road for attention. */
+  m.material.opacity = SET.racingLine==='corners' ? 0.40 : 0.30;
   if(SET.racingLine==='corners'){
     const g=m.geometry, colAttr=g.getAttribute('color');
     // (colours already encode braking demand; corners-only simply leans on the
@@ -13546,7 +13554,13 @@ const PHYS={
   // and reached it lazily; power, peak tractive force and braking are all up, and
   // the aero comes with them so the extra speed is usable rather than terrifying.
   mass:798, power:560000, maxForce:10200, brakeForce:74000,
-  cdA:1.02, downK:4.6, mu:2.28, roll:250, engBrake:1500,
+  /* mu 2.28 -> 2.05. The player was carrying about 45% more cornering grip than
+     the AI plan on for, which is why corners felt too fast and why nobody could
+     stay with you once you were past: they were not driving badly, they simply
+     could not go round the corner at that speed. The AI's own plan is scaled by
+     the inverse of this change (see gripPlan), so THEIR absolute pace is
+     unchanged — this closes the gap from the player's side only. */
+  cdA:1.02, downK:4.6, mu:2.05, roll:250, engBrake:1500,
   wheelbase:3.6, aFront:1.62, aRear:1.98,                      // CG slightly rearward
   izK:2.15,                                                    // yaw inertia — a shade less: the car answers sooner
   /* FRONT AND REAR CORNERING STIFFNESS — the car's balance.
@@ -21306,7 +21320,10 @@ function stepAI(dt){
       *(1-0.20*wetP)
       *lerp(0.90,1.0,c.tyre)
       *evoGrip(c.lat||0)
-      *lerp(0.762,0.808,clamp((c.skill-0.93)/0.07,0,1))
+      /* Rescaled by 2.28/2.05 when PHYS.mu came down, so the absolute grip the
+         AI plans on — and therefore every lap time calibrated against the
+         record — is exactly what it was before. */
+      *lerp(0.847,0.899,clamp((c.skill-0.93)/0.07,0,1))
       *aiPaceNow();          // race pace in a race, qualifying pace otherwise
     // grip-limited speed for a radius, solved for v because grip depends on v
     const vForR=(R)=>{
@@ -21417,6 +21434,23 @@ function stepAI(dt){
     /* TRAFFIC. Look further ahead than before — a slipstream reaches a long way
        at these speeds, and a car that only notices the one in front at 14 indices
        can never set an overtake up. */
+    /* FIGHTING BACK.
+       Being overtaken used to be the end of the story: the car that lost the
+       place settled into whatever pace it was already running, the gap opened,
+       and the race went quiet. A real driver who has just been passed does not
+       accept it — they dump what is left in the battery and stay in the mirrors
+       for a lap trying to get it straight back.
+       This watches whether each car is ahead of the player, and the frame it
+       stops being so, arms a recovery window. */
+    if(playerRacing){
+      const dAhead=((pIdx - c.idx)%N+N)%N;      // >N/2 means the AI is ahead
+      const aheadOfPlayer = dAhead>N/2;
+      if(c.wasAhead && !aheadOfPlayer) c.fightT=13.0;   // just been passed
+      c.wasAhead=aheadOfPlayer;
+    }
+    c.fightT=Math.max(0,(c.fightT||0)-dt);
+    const fight=c.fightT>0 ? c.fightT/13.0 : 0;
+    if(fight>0) targetV+=3.4*fight;             // decays away over the window
     let slow=1, blockedSide=0, closeAhead=99, behindGap=99, aheadV=99, aheadCar=null, aheadLat=0;
     for(const o of all){ if(o.ai===c) continue;
       const di=(o.idx-c.idx+N)%N, db=(c.idx-o.idx+N)%N;
@@ -21437,7 +21471,7 @@ function stepAI(dt){
         c.puFailed=true; c.dnf=true;              // a blown engine is a retirement
       }
       // pick a mode: chase hard when there is someone to catch, otherwise save
-      const chasing = aheadCar && closeAhead<28;
+      const chasing = (aheadCar && closeAhead<28) || fight>0;
       c.ersMode = chasing ? (c.ers>0.25?'attack':'harvest')
                           : (c.ers<0.55?'harvest':'balanced');
       const EMa=c.ersMode==='attack'?1.7:c.ersMode==='harvest'?0.45:1.0;
@@ -21525,7 +21559,9 @@ function stepAI(dt){
       // the bar for "I am quick enough to try" was high enough that in clean
       // air behind a similar car it was never met, which is why the race went
       // quiet after the opening lap
-      const need=0.5-0.35*(PSN.patience!==undefined?1-PSN.patience:0.5);
+      /* A driver who has just lost the place is in no mood to wait for a tidy
+         run, so the bar for committing drops while the recovery window is open. */
+      const need=(0.5-0.35*(PSN.patience!==undefined?1-PSN.patience:0.5))*(1-0.55*fight);
       const quicker=(c.v+tow)>aheadV+need;
       const settled=(c.lap>=0)||((c.launched||0)>=1&&c.raceT>5.5);
       if(settled && closeAhead<24 && tow>0.8 && quicker && c.atkCool<=0 && c.stalk>0.5){
