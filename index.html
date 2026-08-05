@@ -8,12 +8,95 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Titillium+Web:ital,wght@0,300;0,400;0,600;0,700;0,900;1,600&family=Orbitron:wght@500;700;900&display=swap" rel="stylesheet">
 <style>
+  /* ======================================================================
+     THEME
+     Every colour and every edge in the interface comes from here, so a theme is
+     a handful of variables rather than a stylesheet. --red is the accent, and it
+     keeps that name because a hundred rules already refer to it; --red-lo and
+     --red-glow are derived from it at apply time so a custom accent stays
+     coherent instead of keeping a red shadow under a blue button.
+     ====================================================================== */
   :root{
     --red:#e10600; --red-lo:#8a0300; --red-glow:rgba(225,6,0,.5);
     --ink:#05070b; --white:#f2f5f8; --grey:#8a94a2; --grey-lo:#4a525e;
     --f1:'Titillium Web',system-ui,sans-serif; --mono:'Orbitron',monospace;
     --ease:cubic-bezier(.16,.84,.34,1);
+    /* surfaces — the light theme swaps these and nothing else has to know */
+    --sheet:#06070b; --sheet-2:#10141c;
+    --line:rgba(255,255,255,.16); --line-soft:rgba(255,255,255,.08);
+    --type:#ffffff; --type-2:rgba(255,255,255,.62); --type-3:rgba(255,255,255,.38);
+    /* how buttons and panels are cut: the shape language, as a variable */
+    --skew:-11deg;          /* 0deg for the square style */
+    --radius:0px;           /* raised on the soft style */
+    --tex:.5;               /* halftone strength */
   }
+  /* ---- LIGHT. Not an inversion: a printed page is warm paper and black ink,
+     and simply flipping a dark theme's greys produces the flat grey slab every
+     "light mode" toggle produces. These are chosen, not computed. ---- */
+  :root[data-theme="light"]{
+    --ink:#f4f1ea; --white:#14161b;
+    --sheet:#f4f1ea; --sheet-2:#e6e2d8;
+    --line:rgba(20,22,27,.22); --line-soft:rgba(20,22,27,.10);
+    --type:#14161b; --type-2:rgba(20,22,27,.66); --type-3:rgba(20,22,27,.42);
+    --grey:#5d646f; --grey-lo:#a9b0ba;
+    --tex:.28;
+  }
+  :root[data-theme="light"] body{background:var(--sheet);color:var(--type)}
+  /* the menu's scrim and grain have to flip with it or white type sits on white */
+  :root[data-theme="light"] #menuScrim{
+    background:linear-gradient(100deg,rgba(244,241,234,.96) 0%,rgba(244,241,234,.74) 30%,rgba(244,241,234,.10) 62%),
+      linear-gradient(0deg,rgba(244,241,234,.90),transparent 30%),
+      radial-gradient(ellipse 130% 110% at 46% 48%,transparent 40%,rgba(120,112,96,.36) 100%)}
+  :root[data-theme="light"] #mGrain{mix-blend-mode:multiply;opacity:.32}
+  :root[data-theme="light"] #mLogo .lk,
+  :root[data-theme="light"] #navList li .t,
+  :root[data-theme="light"] #mdMeta .v,
+  :root[data-theme="light"] #mCarTag .big,
+  :root[data-theme="light"] #mProfile .n,
+  :root[data-theme="light"] #mdCircName{color:var(--type)}
+  :root[data-theme="light"] #navList li.sel .t,
+  :root[data-theme="light"] #navList li.sel .ix,
+  :root[data-theme="light"] #navList li.sel .t .tg{color:#fff}
+  :root[data-theme="light"] #mSpine .sTxt{color:rgba(20,22,27,.45);background:var(--sheet)}
+  :root[data-theme="light"] #mFoot .keys b{background:rgba(20,22,27,.10);color:var(--type);
+    box-shadow:inset 0 -2px 0 rgba(0,0,0,.18),inset 0 1px 0 rgba(255,255,255,.6)}
+  /* Everything that hard-codes a white alpha has to be restated for paper, or it
+     is white type on a cream page. Listing them explicitly is tedious but it is
+     the honest fix — a blanket filter:invert() would wreck the car, the circuit
+     line art and the team colours along with it. */
+  :root[data-theme="light"] #mLogo em,
+  :root[data-theme="light"] #mKicker,
+  :root[data-theme="light"] #mFoot,
+  :root[data-theme="light"] #mVer,
+  :root[data-theme="light"] #mdDesc,
+  :root[data-theme="light"] #mdMeta .k,
+  :root[data-theme="light"] #mdCircCountry,
+  :root[data-theme="light"] #mCarTag .sm,
+  :root[data-theme="light"] #mProfile .l,
+  :root[data-theme="light"] #navList li .ix{color:rgba(20,22,27,.52)}
+  :root[data-theme="light"] #navList li .t .tg{color:rgba(20,22,27,.46)}
+  :root[data-theme="light"] .tsChip{color:rgba(20,22,27,.55);background:rgba(20,22,27,.08)}
+  :root[data-theme="light"] .tsChip:hover{color:var(--type);background:rgba(20,22,27,.16)}
+  :root[data-theme="light"] .tsChip.on{color:#fff;background:var(--red)}
+  :root[data-theme="light"] #navList::before,
+  :root[data-theme="light"] #mSpine::before{
+    background:linear-gradient(180deg,transparent,rgba(20,22,27,.22) 14%,rgba(20,22,27,.22) 86%,transparent)}
+  :root[data-theme="light"] #mDetail::before{
+    background:linear-gradient(270deg,var(--red) 0 26%,rgba(20,22,27,.26) 26% 100%)}
+  :root[data-theme="light"] #mLogo::after{
+    background:linear-gradient(90deg,var(--red) 0 22%,rgba(20,22,27,.30) 22% 100%)}
+  :root[data-theme="light"] #mdCircInfo,
+  :root[data-theme="light"] #mdMeta{border-top-color:rgba(20,22,27,.20)}
+  :root[data-theme="light"] #mdMap{filter:drop-shadow(0 0 14px rgba(120,112,96,.45))}
+  /* the list rows sit lighter on paper so the inked active row still dominates */
+  :root[data-theme="light"] #navList li{opacity:.55}
+  :root[data-theme="light"] #navList li.sel{opacity:1}
+  /* ---- SHAPE STYLES. The menu's cut is a variable, so a preset can change the
+     whole feel of the interface without touching a rule. ---- */
+  #navList li::before,#mProfile .pNum,.tsChip{ }
+  :root[data-shape="square"]{ --skew:0deg; --radius:0px; }
+  :root[data-shape="soft"]{   --skew:0deg; --radius:9px; }
+  :root[data-shape="blade"]{  --skew:-17deg; --radius:0px; }
   *{margin:0;padding:0;box-sizing:border-box}
   html,body{width:100%;height:100%;overflow:hidden;background:#000;
     font-family:var(--f1);color:var(--white);-webkit-user-select:none;user-select:none;cursor:default}
@@ -285,7 +368,7 @@
   /* PRINT TEXTURE. A fine halftone plus a paper tooth. This is the single
      biggest thing separating a page that looks printed from a page that looks
      rendered — flat digital gradients read as a screenshot of a template. */
-  #mGrain{position:fixed;inset:0;pointer-events:none;z-index:21;opacity:.5;
+  #mGrain{position:fixed;inset:0;pointer-events:none;z-index:21;opacity:var(--tex);
     background-image:
       radial-gradient(rgba(255,255,255,.055) .5px,transparent .6px),
       radial-gradient(rgba(0,0,0,.20) .5px,transparent .6px);
@@ -313,7 +396,7 @@
     font-size:clamp(26px,3.4vw,44px);line-height:.86;letter-spacing:-.02em;display:inline-block}
   #mLogo .lk{color:#fff}
   #mLogo .lg{color:var(--red);margin-left:.10em;
-    text-shadow:0 0 26px rgba(225,6,0,.55);transform:skewX(-9deg)}
+    text-shadow:0 0 26px var(--red-glow);transform:skewX(var(--skew))}
   #mLogo::after{content:'';position:absolute;left:0;bottom:0;width:100%;height:2px;
     background:linear-gradient(90deg,var(--red) 0 22%,rgba(255,255,255,.30) 22% 100%)}
   #mLogo em{display:block;font-style:normal;font-family:var(--f1);font-size:9px;
@@ -321,8 +404,9 @@
   /* the driver plate: a race number set like one, with the name beside it */
   #mProfile{display:flex;align-items:stretch;gap:12px}
   #mProfile .pNum{font-family:var(--mono);font-weight:900;font-size:clamp(28px,3.4vw,46px);
-    line-height:.9;color:#fff;transform:skewX(-9deg);padding:2px 11px;
-    background:var(--red);box-shadow:0 0 26px rgba(225,6,0,.36)}
+    line-height:.9;color:#fff;transform:skewX(var(--skew));padding:2px 11px;
+    border-radius:var(--radius);
+    background:var(--red);box-shadow:0 0 26px var(--red-glow)}
   #mProfile .pTxt{text-align:left;display:flex;flex-direction:column;justify-content:center;gap:3px}
   #mProfile .n{font-family:var(--mono);font-weight:800;font-size:14px;letter-spacing:.06em;color:#fff}
   #mProfile .t{font-size:10px;letter-spacing:.26em;color:var(--red);text-transform:uppercase;font-weight:700}
@@ -355,7 +439,7 @@
   /* the ink slab behind the active row, cut on the motorsport diagonal */
   #navList li::before{content:'';position:absolute;left:0;top:2px;bottom:2px;width:0;
     background:linear-gradient(90deg,var(--red),rgba(225,6,0,.06));
-    transform:skewX(-11deg);transform-origin:left center;
+    transform:skewX(var(--skew));transform-origin:left center;border-radius:var(--radius);
     transition:width .34s cubic-bezier(.2,.8,.2,1);z-index:-1}
   #navList li:hover{opacity:.72}
   #navList li.sel{opacity:1;transform:translateX(12px)}
@@ -413,9 +497,10 @@
   #mTrackStrip.on{display:flex}
   .tsChip{flex:0 0 auto;padding:6px 12px;border:none;cursor:pointer;
     font-family:var(--mono);font-size:9px;font-weight:800;letter-spacing:.14em;
-    color:rgba(255,255,255,.46);white-space:nowrap;transform:skewX(-11deg);
-    background:rgba(255,255,255,.055);transition:background .16s,color .16s}
-  .tsChip>span{display:inline-block;transform:skewX(11deg)}
+    color:var(--type-3);white-space:nowrap;transform:skewX(var(--skew));
+    border-radius:var(--radius);
+    background:rgba(127,127,127,.14);transition:background .16s,color .16s}
+  .tsChip>span{display:inline-block;transform:skewX(calc(var(--skew) * -1))}
   .tsChip:hover{color:#fff;background:rgba(255,255,255,.13)}
   .tsChip.on{background:var(--red);color:#fff;box-shadow:0 0 20px rgba(225,6,0,.42)}
   #mDetail.swap{animation:swap .42s cubic-bezier(.2,.8,.2,1)}
@@ -1930,6 +2015,7 @@ const SET={
   // gameplay
   difficulty:'pro', raceLaps:8, weatherMode:'dynamic', trackLimits:true, postFX:true,
   racingLine:'off', assistBrake:false, assistSteer:false, gamepad:true, colorblind:'off', autoQuality:true,
+  themePreset:'apex', accent:'#e10600', menuShape:'angled', menuTex:'normal', uiTheme:'dark',
   tyreWear:'normal', steerSpeed:1.0,
   // graphics
   shadows:true, fxDensity:'high', resScale:1.0,
@@ -2397,7 +2483,7 @@ FX2.setSpeed=function(v01,dt){
   u.uSpeed.value=damp(u.uSpeed.value,clamp(v01,0,1),3.0,dt||0.016);
 };
 if(DEBUG) window.__FX2=FX2;
-if(DEBUG) setTimeout(()=>{window.__enterMenu=enterMenu;},0);
+if(DEBUG) setTimeout(()=>{window.__enterMenu=enterMenu;window.__SET=SET;window.__applyTheme=applyTheme;},0);
 if(DEBUG) setTimeout(()=>{window.__EVO=EVO;window.__PERF=PERF;window.__FLAG=FLAG;window.__SC=SC;window.__STEW=STEW;
   window.__throwYellow=throwYellow;window.__deployVSC=deployVSC;
   window.__issuePenalty=issuePenalty;window.__updateFlagBar=updateFlagBar;},0);
@@ -15672,6 +15758,23 @@ const SETTINGS_DEF=[
    {k:'steerSpeed',type:'range',t:'Steering speed',min:0.5,max:1.8,step:0.1,pct:true,
     d:'How fast the wheel answers the key. Lower is smoother, higher is sharper.'},
  ]},
+ {id:'look', t:'Appearance', items:[
+   {k:'themePreset',type:'enum',t:'Menu preset',
+    opts:[['apex','APEX RED'],['papyrus','PAPER / LIGHT'],['midnight','MIDNIGHT BLUE'],
+          ['acid','ACID GREEN'],['monaco','MONACO GOLD'],['carbon','CARBON MONO'],['custom','CUSTOM']],
+    d:'A whole look in one pick. Choosing anything but Custom overwrites the settings below.'},
+   {k:'uiTheme',type:'enum',t:'Interface theme',
+    opts:[['dark','DARK'],['light','LIGHT / PAPER']],
+    d:'Light is warm paper and black ink, not an inverted dark theme.'},
+   {k:'accent',type:'colour',t:'Accent colour',
+    d:'Drives every highlight in the interface. The glow and the shade under it follow it.'},
+   {k:'menuShape',type:'enum',t:'Button shape',
+    opts:[['blade','BLADE'],['angled','ANGLED'],['square','SQUARE'],['soft','SOFT']],
+    d:'How buttons and the selected row are cut. Angled is the motorsport default.'},
+   {k:'menuTex',type:'enum',t:'Print texture',
+    opts:[['off','NONE'],['light','LIGHT'],['normal','NORMAL'],['heavy','HEAVY']],
+    d:'The halftone over the menu. It is what stops the page looking like a flat render.'},
+ ]},
  {id:'gfx', t:'Graphics', items:[
    {k:'shadows',type:'bool',t:'Shadows',d:'Sun shadows on the car and the circuit. The biggest single frame-rate cost.'},
    {k:'fxDensity',type:'enum',t:'Effects detail',opts:[['low','LOW'],['med','MEDIUM'],['high','HIGH']],
@@ -15702,6 +15805,7 @@ function applySettings(){
   // scale the base rates from the PHYS table rather than from magic numbers here,
   // so the tuning values in PHYS are the ones that actually reach the car
   PHYS.steerRate=STEER_BASE.rate*SET.steerSpeed; PHYS.steerReturn=STEER_BASE.ret*SET.steerSpeed;
+  applyTheme();
   // colour mode goes on the root element, where the CSS can key off it
   document.documentElement.setAttribute('data-cb', SET.colorblind&&SET.colorblind!=='off'?SET.colorblind:'');
   /* PERF is declared several hundred lines below this function. That is fine
@@ -15728,15 +15832,69 @@ function applySettings(){
 /* ---- the screen ---- */
 let setOn=false, setTab=0, setRow=0;
 function setItems(){ return SETTINGS_DEF[setTab].items; }
+/* A ring of accents to cycle through, so the colour is pickable with the same
+   two keys as every other setting rather than needing a colour wheel. */
+const ACCENTS=['#e10600','#ff6a00','#ffd23a','#3ddc84','#00b6d4','#3f8bff',
+               '#8a4fff','#ff4f9d','#e8e2d4','#9aa3ad'];
+/* ==================================================================
+   THEMES
+   A preset is a set of the same four settings the player can reach themselves,
+   so picking one and then nudging a value simply drops you into Custom. Nothing
+   is hidden behind a preset that is not also exposed.
+   ================================================================== */
+const THEME_PRESETS={
+  apex:     {accent:'#e10600', theme:'dark',  shape:'angled', tex:'normal'},
+  papyrus:  {accent:'#c0392b', theme:'light', shape:'square', tex:'light'},
+  midnight: {accent:'#3f8bff', theme:'dark',  shape:'blade',  tex:'light'},
+  acid:     {accent:'#3ddc84', theme:'dark',  shape:'square', tex:'heavy'},
+  monaco:   {accent:'#d4af37', theme:'dark',  shape:'angled', tex:'normal'},
+  carbon:   {accent:'#9aa3ad', theme:'dark',  shape:'soft',   tex:'off'},
+};
+const TEX_LEVEL={off:0, light:0.26, normal:0.5, heavy:0.85};
+const SHAPE_MAP={blade:'blade', angled:'', square:'square', soft:'soft'};
+/* Darken / lighten a hex by a factor, so the shade and the glow under a custom
+   accent are derived from it rather than left as leftover red. */
+function shadeOf(hex,f){
+  const n=parseInt(String(hex).replace('#',''),16);
+  const r=Math.round(((n>>16)&255)*f), g=Math.round(((n>>8)&255)*f), b=Math.round((n&255)*f);
+  return '#'+[r,g,b].map(v=>Math.max(0,Math.min(255,v)).toString(16).padStart(2,'0')).join('');
+}
+function rgbaOf(hex,a){
+  const n=parseInt(String(hex).replace('#',''),16);
+  return `rgba(${(n>>16)&255},${(n>>8)&255},${n&255},${a})`;
+}
+function applyTheme(){
+  const P=THEME_PRESETS[SET.themePreset];
+  /* A preset writes through to the individual settings rather than sitting
+     beside them, so what the player sees on the other rows is always the truth
+     about what is applied. */
+  if(P){
+    SET.accent=P.accent; SET.menuShape=P.shape; SET.menuTex=P.tex;
+    SET.uiTheme=P.theme;
+  }
+  const root=document.documentElement, st=root.style;
+  const acc=SET.accent||'#e10600';
+  st.setProperty('--red',acc);
+  st.setProperty('--red-lo',shadeOf(acc,0.55));
+  st.setProperty('--red-glow',rgbaOf(acc,0.5));
+  st.setProperty('--tex',String(TEX_LEVEL[SET.menuTex]??0.5));
+  root.setAttribute('data-theme', SET.uiTheme==='light'?'light':'');
+  root.setAttribute('data-shape', SHAPE_MAP[SET.menuShape]||'');
+}
 function fmtSetting(it){
   const v=SET[it.k];
   if(it.type==='bool') return v?'ON':'OFF';
   if(it.type==='enum'){ const o=it.opts.find(o=>o[0]===v); return o?o[1]:String(v); }
+  if(it.type==='colour') return String(v).toUpperCase();
   return it.pct?Math.round(v*100)+'%':String(v);
 }
 function bumpSetting(it,dir){
   const v=SET[it.k];
-  if(it.type==='bool') SET[it.k]=!v;
+  if(it.type==='colour'){
+    const i=ACCENTS.indexOf(v);
+    SET[it.k]=ACCENTS[((i<0?0:i)+dir+ACCENTS.length)%ACCENTS.length];
+  }
+  else if(it.type==='bool') SET[it.k]=!v;
   else if(it.type==='enum'){
     const i=it.opts.findIndex(o=>o[0]===v);
     SET[it.k]=it.opts[((i<0?0:i)+dir+it.opts.length)%it.opts.length][0];
@@ -15744,6 +15902,10 @@ function bumpSetting(it,dir){
     const n=Math.round((v+dir*it.step)/it.step)*it.step;
     SET[it.k]=clamp(Number(n.toFixed(3)),it.min,it.max);
   }
+  /* Touching any of the theme rows by hand means you are no longer running a
+     preset — say so, rather than letting the preset silently overwrite the
+     change on the next apply. */
+  if(['accent','menuShape','menuTex','uiTheme'].includes(it.k)) SET.themePreset='custom';
   saveSettings(); applySettings(); renderSettings();
   Sound.init(); Sound.blip(it.type==='bool'?(SET[it.k]?620:420):520,.04);
 }
