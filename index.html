@@ -2181,6 +2181,7 @@ const SETTINGS_KEY='apexgp.settings.v1';
 const SET={
   // camera & view
   helmet:true, defaultCam:'chase', fovScale:1.0, headMotion:0.9, grain:true, vignette:false, grade:true,
+  vigMigrated:false,
   // hud
   hudTiming:true, hudMap:true, hudStatus:true, hudHints:true, units:'kmh',
   // audio
@@ -2209,16 +2210,39 @@ function loadSettings(){
     // hand-edited blob must never be able to put anything else into SET
     for(const k in DEFAULT_SET)
       if(Object.prototype.hasOwnProperty.call(j,k) && typeof j[k]===typeof DEFAULT_SET[k]) SET[k]=j[k];
+    /* ONE-TIME MIGRATION: turn the DOM vignette off.
+       Changing DEFAULT_SET only affects a profile that has never been saved.
+       Anyone who has played before still had vignette:true sitting in storage,
+       so the dark corner wash they asked to have removed came straight back on
+       load. This clears it once, records that it has been done, and never
+       touches the setting again — turning it back on afterwards sticks. */
+    if(!j.vigMigrated){ SET.vignette=false; SET.vigMigrated=true; saveSettings(); }
   }catch(e){}
 }
 function saveSettings(){
   try{ localStorage.setItem(SETTINGS_KEY,JSON.stringify(SET)); }catch(e){}
 }
 /* multipliers the simulation reads directly, so a setting costs one lookup */
-const DIFF_SKILL={rookie:0.955,pro:1.0,legend:1.022};
+/* Widened. The three levels sat within 6.7% of each other, so picking one
+   barely changed the racing; a level you choose should be felt. */
+const DIFF_SKILL={rookie:0.94,pro:1.0,legend:1.05};
 const WEAR_MUL={off:0,low:0.55,normal:1,high:1.7};
 const FX_MUL={low:0.3,med:0.65,high:1};
-function aiSkillMul(){ return DIFF_SKILL[SET.difficulty]||1; }
+/* THE SEASON'S OWN DIFFICULTY WAS NEVER READ.
+   A season stores the level you pick at setup on SEASON.diff, and this only ever
+   looked at SET.difficulty — the settings-screen one. So choosing Legend when
+   creating a season did nothing at all to how quickly the field ran. Worse, the
+   two use different spellings: DIFFS is ['Rookie','Pro','Legend'] and DIFF_SKILL
+   is keyed lowercase, so even reading it directly would have missed and fallen
+   back to 1. Season races now use the season's level, cased to match. */
+function aiSkillMul(){
+  /* typeof, not a truthiness test: SEASON is a `const` declared thousands of
+     lines below this, so a bare reference here throws on any call that lands
+     before it is initialised rather than falling through. */
+  const S=(typeof SEASON!=='undefined')?SEASON:null;
+  const k=(S&&S.active&&S.diff)?String(S.diff).toLowerCase():SET.difficulty;
+  return DIFF_SKILL[k]||DIFF_SKILL[SET.difficulty]||1;
+}
 function fxMul(){ const m=FX_MUL[SET.fxDensity]; return m===undefined?1:m; }
 /* settings weather mode -> the preset it pins the session to */
 const WEATHER_FORCED={clear:'clear',cloud:'overcast',rain:'rain',storm:'storm'};
@@ -2473,9 +2497,9 @@ const FX2={
     uniforms:{
       tDiffuse:{value:null}, tBloom:{value:null},
       uTexel:{value:new THREE.Vector2(1/1280,1/720)},
-      uBloom:{value:0.30}, uCA:{value:1.0}, uVig:{value:0.22},
+      uBloom:{value:0.30}, uCA:{value:1.0}, uVig:{value:0.12},
       uGrain:{value:0.035}, uSharp:{value:0.35}, uTime:{value:0},
-      uSat:{value:1.06}, uContrast:{value:1.045}, uSpeed:{value:0.0},
+      uSat:{value:1.06}, uContrast:{value:1.012}, uSpeed:{value:0.0},
       uTint:{value:new THREE.Color(1.0,0.995,0.985)},
     },
     vertexShader:VERT,
@@ -3548,16 +3572,26 @@ function buildWorld(sc,cfg){
        low and cool (that is genuinely all the sky contributes), and the light on
        the road comes from a hard, near-vertical key standing in for the
        floodlight masts, plus a warm bounce off the surface itself. */
-    sc.add(new THREE.HemisphereLight(0x3a4560,0x4a4636,1.15));
-    const flood=new THREE.DirectionalLight(0xfff4e0,3.4);
+    /* LIT HARDER. A floodlit circuit is genuinely bright — the whole point of
+       the mast rig is that the surface reads like daylight while the sky stays
+       black — and at 1.15 ambient with a 3.4 key the night races came out as a
+       dark road you were guessing at. The ambience goes up so the trackside
+       furniture, the barriers and the trees are not silhouettes, and the key
+       roughly doubles so the tarmac is the brightest thing in frame. */
+    sc.add(new THREE.HemisphereLight(0x4d5c7e,0x5f5a46,2.05));
+    const flood=new THREE.DirectionalLight(0xfff4e0,6.2);
     flood.position.set(60,520,90);flood.castShadow=true;
     flood.shadow.mapSize.set(2048,2048);
     { const cm=flood.shadow.camera,F=150;cm.left=-F;cm.right=F;cm.top=F;cm.bottom=-F;cm.near=20;cm.far=900;
       flood.shadow.bias=-0.0004; }
     sc.add(flood,flood.target);
-    const bounce=new THREE.DirectionalLight(0xffd8a8,0.9);
+    const bounce=new THREE.DirectionalLight(0xffd8a8,1.7);
     bounce.position.set(-220,90,-260);sc.add(bounce);
-    const moon=new THREE.DirectionalLight(0xdfe6ff,0.9*W0.sunMul);
+    // a second key from the opposite side, so nothing is lit from one direction
+    // only — a real mast rig surrounds the circuit
+    const flood2=new THREE.DirectionalLight(0xfff0d8,2.4);
+    flood2.position.set(-90,420,-140);sc.add(flood2,flood2.target);
+    const moon=new THREE.DirectionalLight(0xdfe6ff,1.5*W0.sunMul);
     moon.position.set(-300,460,220);moon.castShadow=true;moon.shadow.mapSize.set(2048,2048);
     const cm=moon.shadow.camera,F=150;cm.left=-F;cm.right=F;cm.top=F;cm.bottom=-F;cm.near=20;cm.far=900;
     moon.shadow.bias=-0.0005;sc.add(moon,moon.target);sc.userData.sun=moon;
@@ -15942,7 +15976,8 @@ if(DEBUG){window.__setCam=(m)=>{CAM.mode=m;CAM.tsPost=null;$('#camName').textCon
   window.__zoneBoards=()=>ZONE_SPONSORS.map(makeZoneBoard); window.__simQuali=simulateQualifying; window.__initRD=initRD; window.__rdGrip=rdGrip; window.__rdPower=rdPower; window.__commitLap=replayCommitLap; window.__updateReplay=updateReplay; window.__pickLap=replayPickLap;
   setTimeout(()=>{window.__openWeekend=openWeekend;window.__wkNews=wkNews;window.__endPractice=endPractice;},0);
   setTimeout(()=>{window.__SEASON=SEASON;window.__endSeasonRace=endSeasonRace;window.__seasonBuildTable=seasonBuildTable;window.__openSaves=openSaves;window.__loadFromSlot=loadFromSlot;window.__seasonAutosave=seasonAutosave;
-    window.__seasonConstructors=seasonConstructors;},0);
+    window.__seasonConstructors=seasonConstructors;
+    window.__spawnAIs=spawnAIs;window.__AI=AI;window.__aiSkillMul=aiSkillMul;},0);
   window.__replayRecord=replayRecord;
   window.__PITSTOP=PITSTOP;window.__pitPos=pitPos;window.__PIT=PIT;
   window.__CINE=()=>CINE;window.__CHASE=()=>CHASE;
@@ -17418,10 +17453,12 @@ function saveWriteAll(all){
   try{ localStorage.setItem(SAVE_KEY,JSON.stringify(all)); return true; }
   catch(e){ console.warn('could not write save',e); return false; }
 }
-/* Only the fields that ARE the season. Deliberately not the whole SEASON object:
-   it carries transient session state (the weekend in progress, the grid, the
-   qualifying run) that means nothing once reloaded and would restore you into a
-   half-finished session that no longer exists. */
+/* Only the fields that ARE the season — not the whole SEASON object, which also
+   carries live session state that means nothing once reloaded.
+   The WEEKEND is not in that category and used to be excluded by mistake: which
+   sessions have been completed, and the grid qualifying produced, are results,
+   not transient state, and without them a reloaded weekend forgets everything
+   you did in it. */
 function seasonSnapshot(){
   return {
     v:1, when:Date.now(),
@@ -17431,6 +17468,13 @@ function seasonSnapshot(){
     raceLaps:SEASON.raceLaps, rd:SEASON.rd, rdPts:SEASON.rdPts, money:SEASON.money,
     news:SEASON.news, pu:SEASON.pu, gridPenalty:SEASON.gridPenalty, setup:CAR.setup,
     contract:SEASON.contract, rep:SEASON.rep, rivalry:SEASON.rivalry, objectives:SEASON.objectives,
+    /* THE WEEKEND ITSELF. None of this was saved, which is why a reloaded season
+       showed the paddock news for three completed practices and a pole position
+       — news IS in the snapshot — while the weekend tablet sat back on PRACTICE 1
+       with everything after it locked. wk.done is what drives that tablet, and
+       the grid is what the race lines up from, so both have to survive a save. */
+    wk:SEASON.wk, grid:SEASON.grid, gridPos:SEASON.gridPos,
+    practiceKey:SEASON.practiceKey, pendingRace:SEASON.pendingRace,
   };
 }
 function seasonRestore(s){
@@ -17447,6 +17491,8 @@ function seasonRestore(s){
   SEASON.gridPenalty=s.gridPenalty||0;
   SEASON.contract=s.contract||null; SEASON.rep=s.rep||50;
   SEASON.rivalry=s.rivalry||null; SEASON.objectives=s.objectives||[];
+  SEASON.wk=s.wk||null; SEASON.grid=s.grid||null; SEASON.gridPos=s.gridPos||null;
+  SEASON.practiceKey=s.practiceKey||null; SEASON.pendingRace=!!s.pendingRace;
   if(!SEASON.contract) seasonInitCareer();
   SEASON.teamMode=!!s.teamMode;
   if(s.team2){ teamInit(s.team2); TEAM.racing=s.team2.racing||0;
@@ -17454,8 +17500,15 @@ function seasonRestore(s){
       swatch:[TEAM.colours.base,TEAM.colours.trim,TEAM.colours.accent]}; }
   else TEAM.on=false;
   if(s.setup){ CAR.setup=s.setup; applySetup(); }
-  // a restored season starts at the weekend hub, never mid-session
-  SEASON.wk=null; SEASON.grid=null; SEASON.gridPos=null; SEASON.pendingRace=false;
+  /* A restored season starts at the weekend HUB, never mid-session — but the
+     weekend's PROGRESS is not mid-session state, it is the record of what has
+     been completed, and this used to throw it away one line after restoring it.
+     That is the whole bug: the paddock news (which is saved) listed three
+     completed practices and a pole position while the tablet sat back on
+     PRACTICE 1 with everything after it locked, because wk.done had been wiped.
+     What genuinely cannot survive a reload is being part-way through driving a
+     session, so that is all that is cleared now. */
+  SEASON.practiceKey=null; SEASON.pendingRace=false;
   if(!SEASON.table||!SEASON.table.length) seasonBuildTable();
   try{ setLivery(SEASON.team); }catch(e){}
   return true;
@@ -19824,7 +19877,14 @@ function spawnAIs(n){
   const slotOf=(name,i)=>{
     if(!grid) return (i+1)*4;                              // no quali run → default field ahead
     const row=grid.find(r=>r.nm===name);
-    const rel=row?(row.pos-myPos):(i+1);                   // +ve = ahead of the player
+    /* THE GRID WAS REVERSED. A higher index is further along the circuit, so
+       +ve rel means starting AHEAD — but rel was computed as (their position
+       minus yours), which is NEGATIVE for anyone who out-qualified you. Pole
+       therefore started behind the player and the slowest qualifier started at
+       the front. Qualifying was setting the grid backwards, which is also why
+       the field felt slow: you were handed the lead off the line every race
+       regardless of where you actually qualified. */
+    const rel=row?(myPos-row.pos):(i+1);                   // +ve = ahead of the player
     return ((rel*4)%N+N)%N;
   };
   roster.forEach((d,i)=>{
@@ -22163,6 +22223,16 @@ function frame(){
     stepAISim(dt);
     FX2.render(driveScene,camera,dt);
   }else if(STATE==='countdown'){
+    /* THE FIELD HAS TO BE STEPPED WHILE THE LIGHTS RUN.
+       This rendered the frozen grid and nothing else, which sounds right and is
+       the whole bug: stepAI()'s hold branch is what PLACES each car on its slot.
+       Without it the AI meshes sat wherever they were last left — at the world
+       origin, under the map — for the entire lights sequence, and then popped
+       onto the circuit already moving the instant the lights went out. The
+       watch-only simulation has always called stepAI() through its form and
+       lights phases, which is exactly why the start looks right there and never
+       did here. AI.hold is true, so this parks them; it does not race them. */
+    if(AI.on) stepAI(dt);
     FX2.render(driveScene,camera,dt);              // frozen grid while the lights run
   }else if(STATE==='drive'&&PHOTO.on){
     stepPhoto(dt); FX2.render(driveScene,camera,dt);
