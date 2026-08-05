@@ -17615,7 +17615,7 @@ function renderWeekend(){
 function wkSimulate(s){
   const wk=wkInit(), cf=TRACKS[SEASON.cal[SEASON.round]];
   if(s.mode==='practice'){
-    const base=parseLapRec(cf.laprec)+1.1;
+    const base=(parseLapRec(cf.laprec)+1.1)*paceConditions();
     const t=base+0.4+Math.random()*1.6;                 // practice is not a qualifying lap
     wk.done[s.k]=true;
     wkNews(`${s.nm} simulated.`,
@@ -17628,7 +17628,7 @@ function wkSimulate(s){
   for(const P of QUALI_PARTS){
     const rows=simulateQualifying(null, alive);
     // no player lap means the sim has to stand in for one, at the driver's level
-    const base=parseLapRec(cf.laprec)+1.1;
+    const base=(parseLapRec(cf.laprec)+1.1)*paceConditions();
     const mine=rows.find(r=>r.me);
     if(mine) mine.t=base+0.25+Math.random()*1.5;
     rows.sort((a,b)=>a.t-b.t); rows.forEach((r,i)=>r.pos=i+1);
@@ -17803,7 +17803,7 @@ function qualiPartOver(){
      before the session ended is the order the session ended in. Anyone who
      never set a lap is given one now, at the back. */
   const rows=fieldRows().map(r=>({nm:r.nm,team:r.team,me:r.me,
-    t:r.t!=null?r.t:(parseLapRec(curCfg().laprec)+1.1)*1.08+Math.random()}));
+    t:r.t!=null?r.t:(parseLapRec(curCfg().laprec)+1.1)*paceConditions()*1.08+Math.random()}));
   rows.sort((a,b)=>a.t-b.t); rows.forEach((r,i)=>r.pos=i+1);
 
   if(P.drop>0 && rows.length>P.drop){
@@ -19119,13 +19119,26 @@ function parseLapRec(s){const m=/(\d+):(\d+)/.exec(s||''); return m?(+m[1]*60+ +
    screen on the tablet is a thing that CHANGES while you are out there rather
    than a table that appears when the clock stops.
    ================================================================== */
+/* THE CONDITIONS FACTOR. Everything that made a lap time was the lap record and
+   the driver — the session could be a monsoon on a green track and the times came
+   out identical to a dry one on fully rubbered tarmac. Both are worth real time
+   and both are already modelled elsewhere in the game, so the timing screens and
+   the qualifying result now read them. */
+function paceConditions(){
+  const wet=clamp((typeof WEATHER!=='undefined'&&WEATHER.wetness)||0,0,1);
+  /* Twelve per cent for a fully wet track, which is about what it is worth in
+     reality, and up to another two and a half for a green, unrubbered surface —
+     evoGrip returns >1 once the line has rubber in it. */
+  const ev=(typeof EVO!=='undefined')?evoGrip(0):1;
+  return (1+0.12*wet)/Math.max(0.9,ev);
+}
 function fieldPace(d,base){
   // what this driver is ultimately capable of here, and how erratic they are
   return { cap: base + (1-d.skill)*base*2.1 + (1-d.consist)*Math.random()*1.4,
-           scatter: (1-d.consist)*0.9 };
+           scatter: (1-d.consist)*0.9 + 0.6*clamp((WEATHER&&WEATHER.wetness)||0,0,1) };
 }
 function fieldBuild(onlyNames){
-  const cf=curCfg(), base=parseLapRec(cf.laprec)+1.1;
+  const cf=curCfg(), base=(parseLapRec(cf.laprec)+1.1)*paceConditions();
   const mine=SEASON.active?SEASON.team:selLivery;
   const rows=DRIVER_POOL.filter(d=>d.t!==mine)
     .filter(d=>!onlyNames||onlyNames.includes(d.n))
@@ -19165,7 +19178,8 @@ function fieldRows(){
   return F;
 }
 function simulateQualifying(playerBest, onlyNames){
-  const cf=curCfg(), base=parseLapRec(cf.laprec)+1.1;   // pole sits a shade off the outright record
+  // pole sits a shade off the outright record — in the dry, on a rubbered track
+  const cf=curCfg(), base=(parseLapRec(cf.laprec)+1.1)*paceConditions();
   /* `onlyNames` limits the field to the drivers still in the session, so Q2 is
      run between the cars that survived Q1 rather than the whole entry list. */
   const rows=DRIVER_POOL.filter(d=>d.t!==(SEASON.active?SEASON.team:selLivery))
@@ -20200,6 +20214,7 @@ function startAISim(){
   // the player's car is not in this session at all
   if(CAR.rig.parent===driveScene) driveScene.remove(CAR.rig);
   spawnGrid(Math.min(14,DRIVER_POOL.length));
+  evoReset();                       // a green track, not the last race's rubber
   SIM.on=true; SIM.phase='form'; SIM.t=0; SIM.lights=0; SIM.follow=0;
   SIM.cam=0; SIM.camT=0; SIM.finished=[]; SIM.startT=0; SIM.fastest=null;
   SIM.laps=Math.max(1,SIM.laps|0);
@@ -20892,10 +20907,25 @@ function stepAI(dt){
        Now: the real wet penalty the physics applies, tyre condition, and a
        margin that is small for a good driver and larger for a poor one. */
     const wetP=clamp(WEATHER.wetness,0,1);
+    /* CALIBRATED AGAINST THE LAP RECORD, WHICH IS THE ONLY HONEST REFERENCE.
+       The plan used to run to 1.015x of the car's peak grip for a top driver —
+       more grip than the car has — and because the AI TRACKS its target speed
+       kinematically rather than driving to it, it got every bit of it: no slip
+       angle, no friction-circle sharing between braking and turning, no line
+       error. Solving the speed profile over the real curvature put that at
+       98.7s round Spa against a 104.0s outright record. Five seconds under the
+       record, and far beyond anything reachable by hand.
+       Solved over Spa's real curvature: x0.808 gives 104.9s and x0.762 gives
+       106.9s, against a 104.0s record. So the quickest driver plans about a
+       second off the outright record — exactly where the qualifying model puts
+       pole — and the field covers about two seconds, which is a real grid.
+       That profile is a grip-limited optimum with no traffic and no mistakes,
+       so what they actually lap will be a shade slower again. */
     const gripPlan=PHYS.mu
       *(1-0.20*wetP)
       *lerp(0.90,1.0,c.tyre)
-      *lerp(0.905,1.015,clamp((c.skill-0.93)/0.07,0,1));
+      *evoGrip(c.lat||0)
+      *lerp(0.762,0.808,clamp((c.skill-0.93)/0.07,0,1));
     // grip-limited speed for a radius, solved for v because grip depends on v
     const vForR=(R)=>{
       let v=Math.sqrt(gripPlan*9.81*R);
@@ -22298,7 +22328,7 @@ function wireBootHandlers(){
      who may improve on it. Both need you parked in your own box. */
   $('#gtSkip').onclick=()=>{ if(!inGarage())return; Sound.blip(420,.06); SESS.ends=performance.now()/1000; };
   $('#gtSimRest').onclick=()=>{ if(!inGarage())return; Sound.blip(680,.06);
-    const cf=curCfg(), base=parseLapRec(cf.laprec)+1.1;
+    const cf=curCfg(), base=(parseLapRec(cf.laprec)+1.1)*paceConditions();
     const simmed=base+0.3+Math.random()*1.4;
     if(lap.best==null||simmed<lap.best){ lap.best=simmed;
       const lb=$('#lapBest'); if(lb) lb.textContent=fmt(simmed); }
