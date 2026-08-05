@@ -282,7 +282,7 @@
   /* ============ LIVE STANDINGS ============
      The order of the race, on screen, while it is happening. A position number
      on its own tells you where you are and nothing about who is around you. */
-  #standings{position:fixed;left:14px;top:50%;transform:translateY(-50%);z-index:14;
+  #standings{position:fixed;left:clamp(12px,2vw,20px);top:calc(clamp(10px,1.6vh,18px) + 112px);z-index:14;
     width:clamp(168px,15vw,208px);pointer-events:none;opacity:0;transition:opacity .25s ease;
     background:rgba(6,8,12,.62);backdrop-filter:blur(3px);
     border-left:2px solid var(--red);font-family:var(--f1)}
@@ -290,7 +290,7 @@
   :root[data-theme="light"] #standings{background:rgba(255,255,255,.80)}
   /* a full grid is fourteen rows, so cap it rather than let it run off a short
      screen */
-  #stdList{max-height:62vh;overflow:auto}
+  #stdList{max-height:calc(100vh - 210px);overflow:auto}
   #stdHead{display:flex;justify-content:space-between;align-items:baseline;
     padding:6px 9px 5px;border-bottom:1px solid var(--line);
     font-family:var(--mono);font-size:8.5px;letter-spacing:.22em;color:var(--type-3)}
@@ -1355,9 +1355,14 @@
   .flagChip.b{background:#1f6feb;color:#fff;animation:none}
   .flagChip.r{background:#e10600;color:#fff}
   .flagChip.vsc{background:#f5d000;color:#111}
-  #timing{position:absolute;left:clamp(22px,4vw,50px);top:clamp(18px,3vh,32px);min-width:236px;
-    background:linear-gradient(180deg,rgba(8,11,16,.82),rgba(8,11,16,.5));border-left:3px solid var(--red);
-    border-radius:4px;padding:12px 16px 13px;backdrop-filter:blur(7px)}
+  /* CONDENSED. This was a 236 px rounded slab with 24 px numerals over the
+     top-left corner, which is where the standings board also lives — a third of
+     that column for four readings. Rectangular, tighter type, half the padding,
+     and narrow enough that the standings can sit directly under it. */
+  #timing{position:absolute;left:clamp(12px,2vw,20px);top:clamp(10px,1.6vh,18px);
+    min-width:0;width:clamp(150px,13vw,178px);
+    background:linear-gradient(180deg,rgba(8,11,16,.86),rgba(8,11,16,.58));border-left:2px solid var(--red);
+    border-radius:0;padding:6px 9px 7px;backdrop-filter:blur(7px)}
   /* session header — only shown in practice and qualifying, where the thing that
      governs the session is a clock rather than a lap count */
   #sessBar{display:none;justify-content:space-between;align-items:baseline;gap:12px;
@@ -1367,15 +1372,15 @@
   #sessClock{font-family:var(--mono);font-size:15px;font-weight:800;color:#fff;letter-spacing:.04em}
   #sessClock.low{color:#ffd23a}
   #sessClock.out{color:#ff5b5b}
-  #timing .ttHead{display:flex;justify-content:space-between;align-items:center;margin-bottom:9px;padding-bottom:9px;border-bottom:1px solid rgba(255,255,255,.1)}
-  #timing .pos{font-size:11px;letter-spacing:.2em;color:var(--grey);font-weight:600}
-  #timing .pos b{font-family:var(--mono);font-size:19px;color:#fff;margin-left:3px}
-  #timing .lapc{font-size:11px;letter-spacing:.22em;color:var(--grey);font-weight:600}
-  #timing .lapc b{font-family:var(--mono);color:#fff;font-size:15px;margin:0 2px}
-  #timing .ttRow{display:flex;justify-content:space-between;align-items:baseline;gap:20px;padding:3px 0}
-  #timing .k{font-size:10px;letter-spacing:.26em;color:var(--grey);text-transform:uppercase;font-weight:600}
-  #timing .v{font-family:var(--mono);font-weight:700;font-size:16px;color:#eef2f6}
-  #timing .v.big{font-size:24px}
+  #timing .ttHead{display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;padding-bottom:5px;border-bottom:1px solid rgba(255,255,255,.1)}
+  #timing .pos{font-size:8.5px;letter-spacing:.18em;color:var(--grey);font-weight:600}
+  #timing .pos b{font-family:var(--mono);font-size:14px;color:#fff;margin-left:3px}
+  #timing .lapc{font-size:8.5px;letter-spacing:.18em;color:var(--grey);font-weight:600}
+  #timing .lapc b{font-family:var(--mono);color:#fff;font-size:11px;margin:0 2px}
+  #timing .ttRow{display:flex;justify-content:space-between;align-items:baseline;gap:10px;padding:1px 0}
+  #timing .k{font-size:8px;letter-spacing:.2em;color:var(--grey);text-transform:uppercase;font-weight:600}
+  #timing .v{font-family:var(--mono);font-weight:700;font-size:12px;color:#eef2f6}
+  #timing .v.big{font-size:16px}
   #timing .v.best{color:#c07bff}
   #delta.ahead{color:#25e06a} #delta.behind{color:#ff5a52}
   #sectors{display:flex;gap:6px;margin-top:9px}
@@ -2218,7 +2223,7 @@ const SET={
   // camera & view
   helmet:true, defaultCam:'chase', fovScale:1.0, headMotion:0.9, grain:true, vignette:false, grade:true,
   standings:true,
-  vigMigrated:false,
+  vigMigrated:false, aiPaceBumped:false,
   // hud
   hudTiming:true, hudMap:true, hudStatus:true, hudHints:true, units:'kmh',
   // audio
@@ -2241,7 +2246,7 @@ const SET={
      Defaults keep race pace a shade under qualifying pace for exactly that
      reason, and both are set where a person actually laps rather than where the
      car theoretically can. */
-  tyreWear:'normal', steerSpeed:1.0, aiPaceQ:0.88, aiPaceR:0.855,
+  tyreWear:'normal', steerSpeed:1.0, aiPaceQ:0.93, aiPaceR:0.905,
   // graphics
   shadows:true, fxDensity:'high', resScale:1.0,
 };
@@ -2267,6 +2272,15 @@ function loadSettings(){
        carry, so the split does not change how quick they feel on day one. */
     if(j.aiPace!=null && j.aiPaceQ==null){
       SET.aiPaceQ=j.aiPace; SET.aiPaceR=Math.max(0.72,j.aiPace-0.025); saveSettings(); }
+    /* THE FIELD WAS STILL TOO SLOW. Defaults moved 0.88/0.855 -> 0.93/0.905, but
+       a default only reaches a profile that has never been saved — so anyone who
+       has played is bumped too. Only if they are sitting EXACTLY on the old
+       defaults, which means they never touched the slider: a value someone chose
+       themselves is theirs and is left alone. */
+    if(!j.aiPaceBumped){
+      if(SET.aiPaceQ===0.88) SET.aiPaceQ=0.93;
+      if(SET.aiPaceR===0.855) SET.aiPaceR=0.905;
+      SET.aiPaceBumped=true; saveSettings(); }
   }catch(e){}
 }
 function saveSettings(){
@@ -16042,7 +16056,7 @@ if(DEBUG){window.__setCam=(m)=>{CAM.mode=m;CAM.tsPost=null;$('#camName').textCon
   setTimeout(()=>{window.__SEASON=SEASON;window.__endSeasonRace=endSeasonRace;window.__seasonBuildTable=seasonBuildTable;window.__openSaves=openSaves;window.__loadFromSlot=loadFromSlot;window.__seasonAutosave=seasonAutosave;
     window.__seasonConstructors=seasonConstructors;
     window.__spawnAIs=spawnAIs;window.__AI=AI;window.__aiSkillMul=aiSkillMul;
-    window.__stepAI=stepAI;window.__AI_FIELD=AI_FIELD;window.__renderStandings=renderStandings;window.__setSessionMode=(m)=>{sessionMode=m;};window.__aiPaceNow=aiPaceNow;window.__aiPaceTimeMul=aiPaceTimeMul;window.__aiStraightMul=aiStraightMul;
+    window.__stepAI=stepAI;window.__carPlain=()=>carPlain;window.__PLAIN_TEX=()=>PLAIN_TEX;window.__AI_FIELD=AI_FIELD;window.__renderStandings=renderStandings;window.__setSessionMode=(m)=>{sessionMode=m;};window.__aiPaceNow=aiPaceNow;window.__aiPaceTimeMul=aiPaceTimeMul;window.__aiStraightMul=aiStraightMul;
     window.__setSessionMode=(m)=>{sessionMode=m;};window.__isRace=()=>isRace();},0);
   window.__replayRecord=replayRecord;
   window.__PITSTOP=PITSTOP;window.__pitPos=pitPos;window.__PIT=PIT;
@@ -19104,7 +19118,19 @@ function stepCinematic(dt){
      enterMenu() — several seconds of studio card and loading plate — so the
      render loop keeps calling this with CINE already torn down. */
   if(!CINE) return;
+  /* setCarPlain() cannot do anything until the livery shader has compiled and
+     published its uniforms, and it reports that by returning false. On a slow
+     software renderer the compile lands before the first frame and you never
+     notice; on a real GPU the opening frames arrive first and the car is drawn
+     in its FULL LIVERY until the swap catches up. The car simply is not drawn
+     until it is carbon — it is supposed to be invisible in the dark until a
+     swoosh finds it anyway, so there is nothing to lose by waiting. */
   if(!carPlain) setCarPlain(true);                       // retry until the livery shader is compiled
+  /* ...but do not hide it forever. The blocky fallback car that stands in when
+     the GLB fails to load has no livery shader at all, so setCarPlain() can
+     never succeed on it — and it has no livery to hide either. After a second,
+     show whatever we have. */
+  if(CAR.rig) CAR.rig.visible = carPlain || el>1.0;
   const el=(typeof window!=='undefined'&&window.__holdCine!=null)?window.__holdCine:(performance.now()-CINE.start)/1000;
   const ease=(t)=>t*t*(3-2*t);
   const L=(a,b,k)=>a+(b-a)*k;
@@ -19493,10 +19519,10 @@ function parseLapRec(s){const m=/(\d+):(\d+)/.exec(s||''); return m?(+m[1]*60+ +
 /* Which dial applies right now. A race uses race pace; practice, qualifying and
    everything simulated use qualifying pace. */
 function aiPaceNow(){
-  const S=(typeof SET!=='undefined')?SET:null; if(!S) return 0.88;
+  const S=(typeof SET!=='undefined')?SET:null; if(!S) return 0.93;
   const race=(typeof isRace==='function')&&isRace();
   const v=race?S.aiPaceR:S.aiPaceQ;
-  return (v!=null)?v:(race?0.855:0.88);
+  return (v!=null)?v:(race?0.905:0.93);
 }
 /* AND A LITTLE ON THE STRAIGHTS.
    The dial only ever touched the corner plan, so at any setting the field still
@@ -19509,7 +19535,7 @@ function aiPaceNow(){
 function aiStraightMul(){ return 1-(1-aiPaceNow())*0.11; }
 function aiPaceTimeMul(){
   // simulated session times are qualifying and practice times, never race pace
-  const a=(typeof SET!=='undefined'&&SET.aiPaceQ!=null)?SET.aiPaceQ:0.88;
+  const a=(typeof SET!=='undefined'&&SET.aiPaceQ!=null)?SET.aiPaceQ:0.93;
   return 1+(1-a)*0.37;
 }
 function paceConditions(){
