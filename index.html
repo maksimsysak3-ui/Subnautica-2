@@ -267,6 +267,47 @@
   #ldState{margin-top:22px;font-size:9.5px;letter-spacing:.36em;color:rgba(255,255,255,.42);
     text-transform:uppercase;font-weight:700;height:12px}
 
+  /* the live classification on the garage tablet */
+  #gtFieldList{max-height:230px;overflow:auto;margin-top:6px}
+  .gtFRow{display:grid;grid-template-columns:26px 1fr 72px 62px;gap:6px;align-items:center;
+    padding:3px 4px;font-size:11px;color:var(--type-2);border-bottom:1px solid var(--line-soft)}
+  .gtFRow .p{font-family:var(--mono);font-weight:800;color:var(--type-3);text-align:right}
+  .gtFRow .n{font-weight:700;color:var(--type);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .gtFRow .t,.gtFRow .g{font-family:var(--mono);font-size:10px;text-align:right}
+  .gtFRow.me{background:rgba(225,6,0,.16)}
+  .gtFRow.me .n{color:#fff}
+  .gtFRow.drop{opacity:.55}
+  .gtFRow.drop .p{color:#ff5a52}
+
+  /* ============ QUALIFYING BETWEEN-PARTS BOARD ============
+     Q1 ending and Q2 simply starting told you nothing. This is the order as it
+     stands with the drop zone in red, held until you have read it. */
+  #qPart{position:fixed;inset:0;z-index:48;display:none;align-items:center;justify-content:center;
+    background:rgba(3,5,9,.86);backdrop-filter:blur(3px)}
+  #qPart.on{display:flex}
+  #qPart .qpCard{width:min(560px,92vw);max-height:86vh;display:flex;flex-direction:column;
+    background:var(--sheet-2);border:1px solid var(--line);
+    box-shadow:0 30px 90px rgba(0,0,0,.7)}
+  #qPart .qpHead{display:flex;justify-content:space-between;align-items:baseline;gap:12px;
+    padding:14px 18px;border-bottom:1px solid var(--line);
+    font-family:var(--mono);font-size:11px;letter-spacing:.22em;text-transform:uppercase;
+    color:var(--type-2)}
+  #qpVerdict b{font-weight:900;letter-spacing:.16em}
+  #qpVerdict b.ok{color:#4fd97a}
+  #qpVerdict b.no{color:#ff5a52}
+  #qpList{overflow:auto;padding:6px 0}
+  .qpRow{display:grid;grid-template-columns:34px 1fr 78px 62px;gap:8px;align-items:center;
+    padding:5px 18px;font-size:12px;color:var(--type-2)}
+  .qpRow .p{font-family:var(--mono);font-weight:800;color:var(--type-3);text-align:right}
+  .qpRow .n{font-weight:700;color:var(--type);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .qpRow .t,.qpRow .g{font-family:var(--mono);font-size:11px;text-align:right}
+  .qpRow.me{background:rgba(225,6,0,.14)}
+  .qpRow.me .n{color:#fff}
+  .qpRow.out{opacity:.5}
+  .qpRow.out .p{color:#ff5a52}
+  #qPart .qpFoot{padding:11px 18px;border-top:1px solid var(--line);
+    font-size:9.5px;letter-spacing:.30em;text-transform:uppercase;color:var(--type-3)}
+
   /* ============ CINEMATIC INTRO ============ */
   #cine{position:fixed;inset:0;z-index:55;pointer-events:none;opacity:0;transition:opacity .6s ease}
   #cine.on{opacity:1;pointer-events:auto}
@@ -1572,6 +1613,15 @@ window.__introDone=Promise.resolve();
   <div id="tSkip">Any key to skip ▸</div>
 </div>
 
+<!-- ===== QUALIFYING: BETWEEN-PARTS BOARD ===== -->
+<div id="qPart">
+  <div class="qpCard">
+    <div class="qpHead"><span id="qpTag">Q1</span><span id="qpVerdict"></span></div>
+    <div id="qpList"></div>
+    <div class="qpFoot">Any key to continue &#9656;</div>
+  </div>
+</div>
+
 <!-- ===== QUALIFYING RESULT ===== -->
 <div id="qResult">
   <div class="qCard">
@@ -1767,6 +1817,7 @@ window.__introDone=Promise.resolve();
     <div id="gtTabs">
       <button class="gtTab on" data-tab="tyres">TYRES</button>
       <button class="gtTab" data-tab="timing">TIMING</button>
+      <button class="gtTab" data-tab="field">FIELD</button>
       <button class="gtTab" data-tab="delta">DELTA</button>
       <button class="gtTab" data-tab="setup">SETUP</button>
       <button class="gtTab" data-tab="power">POWER</button>
@@ -1792,6 +1843,13 @@ window.__introDone=Promise.resolve();
           </div>
           <div id="gtLapList"></div>
           <div class="gtNote">Click a lap to break it down corner by corner.</div>
+        </div>
+      </section>
+      <section class="gtPage" data-page="field">
+        <div class="gtPanel">
+          <h4>SESSION CLASSIFICATION <small id="gtFieldNote">LIVE</small></h4>
+          <div id="gtFieldList"></div>
+          <div class="gtNote" id="gtFieldHint">Everyone else is running too. The order changes while you are out there.</div>
         </div>
       </section>
       <section class="gtPage" data-page="delta">
@@ -15122,6 +15180,7 @@ const lap={t:0,num:1,last:null,best:null,prevIdx:0,armed:false,cur:null,bestArr:
       $('#lapNum').textContent=this.num;$('#lapLast').textContent=fmt(this.last);$('#lapBest').textContent=fmt(this.best);
       Sound.blip(760,.09);
       if(SESS.on) gtabLapDone();       // bank the lap the delta trace compares against
+      if(SESS.on) sessLapDone();       // quali: out lap, then the one that counts
       // radio: fastest lap of the race (a new personal best after the opening lap)
       if(improved && this.num>2 && (sessionMode==='gp'||sessionMode==='season')){
         Radio.say('engineer','fastest_lap',{cool:30});
@@ -17621,8 +17680,11 @@ function wkEnter(s){
 }
 /* Thirty minutes of real time is thirty minutes of sitting there. A practice
    session runs on a compressed clock — long enough to do real running and
-   learn the circuit, short enough to be a session rather than an evening. */
-const PRACTICE_SCALE=6;
+   learn the circuit, short enough to be a session rather than an evening.
+   At 6x a thirty-minute practice was over in five, which is three or four laps
+   on a long circuit: you could not run a set of tyres, let alone learn a place.
+   At 2.5x it is twelve, which is a session. */
+const PRACTICE_SCALE=2.5;
 function endPractice(){
   const wk=wkInit();
   if(SEASON.practiceKey) wk.done[SEASON.practiceKey]=true;
@@ -17643,19 +17705,30 @@ function endPractice(){
    between each. SESS holds the running session so the HUD, the radio and the
    end-of-session logic all agree about what is happening.
    ================================================================== */
-const SESS={on:false, kind:'', part:0, label:'', ends:0, len:0, best:null, drop:0, alive:null};
+const SESS={on:false, kind:'', part:0, label:'', ends:0, len:0, best:null, drop:0,
+            alive:null, field:null, qLap:0, started:0};
 /* Is this session actually a race? Practice and qualifying were getting the full
    race treatment — position-change radio, "you've taken the lead", overtake
    commentary — for laps where there is no position and nobody to overtake. */
 const isRace=()=>sessionMode==='gp'||sessionMode==='season';
-/* Real Q1/Q2/Q3 lengths, compressed like practice is. */
+/* QUALIFYING IS RUN, NOT TIMED. Each part is exactly two laps: one out lap to
+   get temperature into the tyres, and one flying lap that counts. The clock is
+   still there but only as a backstop for someone who parks it — the part ends
+   when the flying lap is crossed, whichever comes first. */
 const QUALI_PARTS=[{nm:'Q1',len:18,drop:5},{nm:'Q2',len:15,drop:5},{nm:'Q3',len:12,drop:0}];
-if(DEBUG) setTimeout(()=>{window.__SESS=SESS;},0);
+const QUALI_OUTLAP=1;        // laps that do not count before the one that does
+if(DEBUG) setTimeout(()=>{window.__SESS=SESS;window.__fieldBuild=fieldBuild;window.__fieldStep=fieldStep;
+  window.__fieldRows=fieldRows;window.__PRACTICE_SCALE=PRACTICE_SCALE;window.__QUALI_PARTS=QUALI_PARTS;
+  window.__qualiPartOver=qualiPartOver;window.__sessLapDone=sessLapDone;},0);
 function sessStart(kind,label,mins){
   SESS.on=true; SESS.kind=kind; SESS.label=label;
   SESS.len=mins*60/PRACTICE_SCALE;
-  SESS.ends=performance.now()/1000+SESS.len;
-  SESS.best=null;
+  SESS.started=performance.now()/1000;
+  SESS.ends=SESS.started+SESS.len;
+  SESS.best=null; SESS.qLap=0;
+  /* The rest of the entry list starts running now, alongside you, so the timing
+     screen is live rather than a table that appears at the flag. */
+  fieldBuild(kind==='quali'?SESS.alive:null);
   const bar=$('#sessBar'); if(bar) bar.classList.add('on');
   const nm=$('#sessName'); if(nm) nm.textContent=label;
 }
@@ -17681,7 +17754,22 @@ function sessUpdate(){
     el.classList.toggle('low',shown<=120&&shown>30);
     el.classList.toggle('out',shown<=30);
   }
+  fieldStep(SESS.len>0?clamp(1-left/SESS.len,0,1):1);
+  /* In qualifying the clock is a backstop; the thing that matters is which of
+     the two laps you are on, so the bar says that instead. */
+  const nm=$('#sessName');
+  if(nm&&SESS.kind==='quali')
+    nm.textContent=`${SESS.label} · ${SESS.qLap<QUALI_OUTLAP?'OUT LAP':'FLYING LAP'}`;
   if(left<=0) sessExpire();
+}
+/* Called from the lap counter every time the line is crossed during a session.
+   In qualifying, the out lap is discarded and the next one closes the part. */
+function sessLapDone(){
+  if(!SESS.on||SESS.kind!=='quali') return;
+  SESS.qLap++;
+  if(SESS.qLap>QUALI_OUTLAP){ sessStop(); qualiPartOver(); }
+  else { lap.best=null; lap.bestArr=null;    // the out lap does not count
+    const lb=$('#lapBest'); if(lb) lb.textContent='--:--.---'; }
 }
 function sessExpire(){
   if(SESS.kind==='practice'){ sessStop(); endPractice(); return; }
@@ -17696,35 +17784,91 @@ function qualiBegin(){
 }
 function qualiRunPart(){
   const P=QUALI_PARTS[SESS.part];
+  /* Every part starts in the box. Q2 used to begin wherever the car happened to
+     be when Q1's clock stopped — which, now that a part is an out lap and a
+     flying lap, would mean the out lap started from halfway round. */
   lap.reset();
+  STATE='drive';
+  try{ resetCar(); seatInGarage(); snapCamera(); }catch(e){}
   sessStart('quali',P.nm,P.len);
+  gtabOpen();
 }
 /* The player's best of the part, plus a simulated time for every surviving AI,
    sorted; the slowest `drop` are out and are locked into the back of the grid in
    the order they fell. That is what makes Q1 and Q2 mean anything. */
 function qualiPartOver(){
   const P=QUALI_PARTS[SESS.part];
-  const myBest=lap.best||null;
-  const rows=simulateQualifying(myBest, SESS.alive);
+  /* The times come from the FIELD that has been running alongside you, not from
+     a fresh roll of the dice at the flag — so the order on the tablet a second
+     before the session ended is the order the session ended in. Anyone who
+     never set a lap is given one now, at the back. */
+  const rows=fieldRows().map(r=>({nm:r.nm,team:r.team,me:r.me,
+    t:r.t!=null?r.t:(parseLapRec(curCfg().laprec)+1.1)*1.08+Math.random()}));
+  rows.sort((a,b)=>a.t-b.t); rows.forEach((r,i)=>r.pos=i+1);
+
   if(P.drop>0 && rows.length>P.drop){
     const survivors=rows.slice(0,rows.length-P.drop);
     const out=rows.slice(rows.length-P.drop);
     SESS.eliminated=(SESS.eliminated||[]).concat(out);
     const meOut=out.find(r=>r.me);
-    if(meOut){
-      // knocked out — the weekend is over for qualifying, grid position is where you fell
-      SESS.alive=null;
-      finishQualifying(rows, true);
-      return;
-    }
-    SESS.alive=survivors.map(r=>r.nm);
-    SESS.part++;
-    qualiRunPart();
+    /* SHOW THE ORDER, AND WHO IS OUT, BEFORE MOVING ON. Q1 ending and Q2
+       starting with nothing in between gave you no idea whether you had
+       survived, let alone by how much. */
+    qualiShowPart(P, rows, out, ()=>{
+      if(meOut){
+        /* Knocked out. Everything from here is simulated: the remaining parts
+           are run between the drivers who are still in, so the front of the grid
+           is properly ordered rather than frozen in Q1 order behind you. */
+        SESS.alive=null;
+        let alive=survivors.map(r=>r.nm), rest=rows;
+        for(let k=SESS.part+1;k<QUALI_PARTS.length;k++){
+          const Q=QUALI_PARTS[k];
+          rest=simulateQualifying(null, alive);
+          rest.sort((a,b)=>a.t-b.t); rest.forEach((r,i)=>r.pos=i+1);
+          if(Q.drop>0&&rest.length>Q.drop){
+            SESS.eliminated=SESS.eliminated.concat(rest.slice(rest.length-Q.drop));
+            alive=rest.slice(0,rest.length-Q.drop).map(r=>r.nm);
+          }else break;
+        }
+        finishQualifying(rest, true);
+        return;
+      }
+      SESS.alive=survivors.map(r=>r.nm);
+      SESS.part++;
+      qualiRunPart();
+    });
     return;
   }
   SESS.alive=null;
-  finishQualifying(rows, false);
+  qualiShowPart(P, rows, [], ()=>finishQualifying(rows, false));
 }
+/* The between-parts board: the order as it stands, the drop zone in red, and a
+   line telling you whether you are through. Any key moves on. */
+function qualiShowPart(P, rows, out, next){
+  const w=$('#qPart'); if(!w){ next(); return; }
+  const me=rows.find(r=>r.me), pole=rows[0];
+  const outN=new Set(out.map(r=>r.nm));
+  const through=me&&!outN.has(me.nm);
+  $('#qpTag').textContent=`${P.nm} · ${curCfg().name}`;
+  $('#qpVerdict').innerHTML=me
+    ? (through
+        ? `<b class="ok">THROUGH TO ${QUALI_PARTS[Math.min(QUALI_PARTS.length-1,QUALI_PARTS.indexOf(P)+1)].nm}</b> · P${me.pos}`
+        : `<b class="no">ELIMINATED</b> · P${me.pos}`)
+    : '';
+  const L=$('#qpList'); L.innerHTML='';
+  rows.forEach(r=>{
+    const el=document.createElement('div');
+    el.className='qpRow'+(r.me?' me':'')+(outN.has(r.nm)?' out':'');
+    const gap=(r===pole||r.t==null||pole.t==null)?'':'+'+(r.t-pole.t).toFixed(3);
+    el.innerHTML=`<span class="p">${r.pos}</span><span class="n">${esc(r.nm)}</span>`+
+      `<span class="t">${fmt(r.t)}</span><span class="g">${gap}</span>`;
+    L.appendChild(el);
+  });
+  w.classList.add('on');
+  STATE='qpart';
+  QPART_NEXT=()=>{ w.classList.remove('on'); QPART_NEXT=null; next(); };
+}
+let QPART_NEXT=null;
 /* The final grid: whoever is left, in order, then everyone who was knocked out
    behind them in the reverse order they fell — Q2's casualties ahead of Q1's,
    which is how a real grid is assembled. */
@@ -17813,6 +17957,7 @@ function inGarage(){ return !!CAR.inBay && Math.abs(CAR.v)<=1.5; }
 function gtabTab(name){
   GTAB.tab=name;
   if(name==='timing') gtabRenderLaps();
+  if(name==='field') gtabRenderField();
   if(name==='delta') gtabRenderTurns();
   if(name==='setup') gtabRenderSetup();
   if(name==='power') gtabRenderPower();
@@ -17906,8 +18051,13 @@ function gtabRenderPower(){
   }
 }
 /* Called every frame while a timed session is running. */
+let gtFieldT=0;
 function gtabUpdate(){
   if(!GTAB.on) return;
+  /* The classification is redrawn a few times a second, not every frame — it is
+     forty DOM rows and nothing on it moves that fast. */
+  if(GTAB.tab==='field'){ const now=performance.now();
+    if(now-gtFieldT>400){ gtFieldT=now; gtabRenderField(); } }
   $('#gtSess').textContent=SESS.label||'SESSION';
   const el=$('#gtClock'), sc=$('#sessClock');
   if(el&&sc) el.textContent=sc.textContent;
@@ -17977,6 +18127,7 @@ function gtabLapDone(){
   GTAB.turnT=null; GTAB.turnSeen=null;
   GTAB.trace=[];
   if(GTAB.on&&GTAB.tab!=='tyres') gtabRenderLaps();
+  if(GTAB.on&&GTAB.tab==='field') gtabRenderField();
 }
 /* The quickest lap of the session — the reference everything is measured to. */
 function gtabFastest(){
@@ -17985,6 +18136,30 @@ function gtabFastest(){
   return b;
 }
 /* ---- the session's laps, and the corner-by-corner analysis of one ---- */
+/* THE REST OF THE ENTRY LIST, LIVE. Everyone's best of the session so far, the
+   gap to the leader, and — in qualifying — the drop zone, so you can see whether
+   the lap you are on is enough while you are still on it. */
+function gtabRenderField(){
+  const L=$('#gtFieldList'); if(!L) return;
+  const rows=fieldRows();
+  const note=$('#gtFieldNote'), hint=$('#gtFieldHint');
+  const P=(SESS.kind==='quali')?QUALI_PARTS[SESS.part]:null;
+  const cut=(P&&P.drop>0&&rows.length>P.drop)?rows.length-P.drop:-1;
+  if(note) note.textContent=P?`${P.nm} · ${rows.length} CARS`:'LIVE';
+  if(hint) hint.textContent=cut>=0
+    ? `The last ${P.drop} are eliminated at the end of ${P.nm}.`
+    : 'Everyone else is running too. The order changes while you are out there.';
+  const lead=rows.find(r=>r.t!=null);
+  L.innerHTML='';
+  rows.forEach((r,i)=>{
+    const el=document.createElement('div');
+    el.className='gtFRow'+(r.me?' me':'')+(cut>=0&&i>=cut?' drop':'');
+    const gap=(r.t==null)?'—':(r===lead?'LEADER':'+'+(r.t-lead.t).toFixed(3));
+    el.innerHTML=`<span class="p">${r.pos}</span><span class="n">${esc(r.nm)}</span>`+
+      `<span class="t">${r.t==null?'NO TIME':fmt(r.t)}</span><span class="g">${gap}</span>`;
+    L.appendChild(el);
+  });
+}
 function gtabRenderLaps(){
   const list=$('#gtLapList'); if(!list) return;
   const fast=gtabFastest();
@@ -18836,11 +19011,20 @@ function startDrive(){
     sessStop();
     SESS.kind=''; SESS.label=''; SESS.part=0; SESS.eliminated=null; SESS.alive=null;
     gtabClose();
-    GTAB.laps=[]; GTAB.sel=null; GTAB.turnT=null; GTAB.turnSeen=null;
-    GTAB.trace=[]; GTAB.best=null; GTAB.bestTrace=null;
-    CAR.inBay=false; CAR.bayPos=null;
     SEASON.practiceKey=null;
   }
+  /* CLEARED FOR EVERY SESSION, NOT JUST THE NON-PRACTICE ONES.
+     Going from P1 straight into P2 left CAR.inBay true and CAR.bayPos pointing
+     at the box from the SESSION BEFORE. resetCar() had already put the car back
+     on the centreline, but stepPhysics saw inBay and clamped it to that stale
+     bay position every frame — so the car sat frozen on the spot, throttle did
+     nothing, and nothing anywhere reported an error. seatInGarage() sets both
+     again a moment later, correctly, for this session.
+     The tablet's timing and delta data is per-session too: P2 should not open
+     showing P1's laps. */
+  CAR.inBay=false; CAR.bayPos=null;
+  GTAB.laps=[]; GTAB.sel=null; GTAB.turnT=null; GTAB.turnSeen=null;
+  GTAB.trace=[]; GTAB.best=null; GTAB.bestTrace=null; GTAB.field=null;
   /* Drop the previous circuit's racing line properly. Nulling the reference
      left the old ribbon in the scene, so every session added another one on top
      of the last — a leak, and visibly wrong the moment you changed track. */
@@ -18927,6 +19111,59 @@ function exitToMenu(){
 }
 /* qualifying: simulate the rest of the field's best laps and produce a real grid */
 function parseLapRec(s){const m=/(\d+):(\d+)/.exec(s||''); return m?(+m[1]*60+ +m[2]):90;}
+/* ==================================================================
+   THE FIELD — LIVE SESSION TIMING
+   The rest of the entry list is not simulated in one go at the end of a session
+   any more; it runs alongside you. Every driver is given a pace they are capable
+   of when the session opens, and then improves toward it in steps, so the timing
+   screen on the tablet is a thing that CHANGES while you are out there rather
+   than a table that appears when the clock stops.
+   ================================================================== */
+function fieldPace(d,base){
+  // what this driver is ultimately capable of here, and how erratic they are
+  return { cap: base + (1-d.skill)*base*2.1 + (1-d.consist)*Math.random()*1.4,
+           scatter: (1-d.consist)*0.9 };
+}
+function fieldBuild(onlyNames){
+  const cf=curCfg(), base=parseLapRec(cf.laprec)+1.1;
+  const mine=SEASON.active?SEASON.team:selLivery;
+  const rows=DRIVER_POOL.filter(d=>d.t!==mine)
+    .filter(d=>!onlyNames||onlyNames.includes(d.n))
+    .map(d=>{ const P=fieldPace(d,base);
+      return {nm:d.n, team:d.t, me:false, t:null, cap:P.cap, scatter:P.scatter,
+              runs:0, next:0.15+Math.random()*0.35}; });
+  rows.push({nm:SEASON.active?SEASON.name:'YOU', team:SEASON.active?SEASON.team:selLivery,
+             me:true, t:null, cap:base, scatter:0, runs:0, next:9e9});
+  SESS.field=rows;
+  return rows;
+}
+/* Called every frame of a timed session. `frac` is how far through the session
+   we are: drivers go out in their own time, and their laps get quicker as the
+   track rubbers in and they build to a proper effort. */
+function fieldStep(frac){
+  const F=SESS.field; if(!F) return;
+  for(const r of F){
+    if(r.me) continue;
+    if(frac<r.next) continue;
+    r.next=frac+0.16+Math.random()*0.30;
+    r.runs++;
+    /* Early laps are off the pace and they converge on what the driver is
+       actually capable of, so a timing screen read at quarter distance is not
+       the same one you read at the flag. */
+    const rust=Math.max(0,(1.9-r.runs*0.55))*(0.6+0.4*(1-frac));
+    const t=r.cap+rust+(Math.random()*2-1)*r.scatter;
+    if(r.t==null||t<r.t) r.t=t;
+  }
+}
+/* The classification right now: everyone with a lap, in order, then everyone
+   without one. */
+function fieldRows(){
+  const F=SESS.field?SESS.field.slice():[];
+  const me=F.find(r=>r.me); if(me) me.t=(lap&&lap.best)||null;
+  F.sort((a,b)=>(a.t==null)-(b.t==null)||((a.t||0)-(b.t||0)));
+  F.forEach((r,i)=>r.pos=i+1);
+  return F;
+}
 function simulateQualifying(playerBest, onlyNames){
   const cf=curCfg(), base=parseLapRec(cf.laprec)+1.1;   // pole sits a shade off the outright record
   /* `onlyNames` limits the field to the drivers still in the session, so Q2 is
@@ -19041,6 +19278,11 @@ addEventListener('keydown',e=>{
   const k=e.key.toLowerCase();keys[k]=true;
   // photo mode owns the keyboard while it is up
   if(PHOTO.on){ if(k==='o'||k==='escape') exitPhoto(); e.preventDefault(); return; }
+  /* The between-parts board is checked FIRST. It is genuinely modal — nothing
+     behind it should get the key — and putting it after the STATE branches meant
+     anything that had left STATE somewhere else swallowed the keypress and the
+     board could not be dismissed. */
+  if(QPART_NEXT){ QPART_NEXT(); e.preventDefault(); return; }
   if(STATE==='cine'){endCinematic();e.preventDefault();return;}
   if(STATE==='intro'){endTrackIntro(true);e.preventDefault();return;}
   if(STATE==='result'){
@@ -19132,8 +19374,8 @@ addEventListener('keydown',e=>{
     else if(k==='t'&&SESS.on)gtabToggle();
     else if(k==='e'){ cycleErsMode(); }
     else if(k==='f9'){ perfToggle(); }
-    else if(SESS.on&&GTAB.on&&k>='1'&&k<='6'){
-      gtabTab(['tyres','timing','delta','setup','power','session'][+k-1]); }
+    else if(SESS.on&&GTAB.on&&k>='1'&&k<='7'){
+      gtabTab(['tyres','timing','field','delta','setup','power','session'][+k-1]); }
     else if(k==='o'){togglePhoto();e.preventDefault();}
     else if(k==='y')enterReplay();
     else if(k==='escape')exitToMenu();
@@ -19158,7 +19400,9 @@ addEventListener('keyup',e=>{keys[e.key.toLowerCase()]=false;});
 const releaseAllKeys=()=>{for(const k in keys) keys[k]=false;};
 addEventListener('blur',releaseAllKeys);
 addEventListener('visibilitychange',()=>{if(document.hidden)releaseAllKeys();});
-addEventListener('pointerdown',()=>{if(STATE==='cine')endCinematic();else if(STATE==='intro')endTrackIntro(true);});
+addEventListener('pointerdown',()=>{if(STATE==='cine')endCinematic();
+  else if(STATE==='intro')endTrackIntro(true);
+  else if(QPART_NEXT)QPART_NEXT();});
 function readInput(){
   const thr=(keys['w']||keys['arrowup'])?1:0;
   const brk=(keys[' ']||keys['arrowdown']||keys['s'])?1:0;   // brake = SPACE (also S / ↓)
