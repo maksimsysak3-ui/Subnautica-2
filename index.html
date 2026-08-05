@@ -2197,7 +2197,14 @@ const SET={
      costs a human does. Nobody gets near that on a keyboard. 0.88 puts them
      around five seconds off the record, which is a real fight; raise it as you
      get quicker. */
-  tyreWear:'normal', steerSpeed:1.0, aiPace:0.88,
+  /* AI PACE, SPLIT IN TWO. One dial could not be right for both: a qualifying
+     lap is one flat-out effort on fresh tyres and an empty track, and race pace
+     is the same drivers with fuel on board, tyres to look after and traffic in
+     the way — in reality the gap between the two is worth a second or more a lap.
+     Defaults keep race pace a shade under qualifying pace for exactly that
+     reason, and both are set where a person actually laps rather than where the
+     car theoretically can. */
+  tyreWear:'normal', steerSpeed:1.0, aiPaceQ:0.88, aiPaceR:0.855,
   // graphics
   shadows:true, fxDensity:'high', resScale:1.0,
 };
@@ -2217,6 +2224,12 @@ function loadSettings(){
        load. This clears it once, records that it has been done, and never
        touches the setting again — turning it back on afterwards sticks. */
     if(!j.vigMigrated){ SET.vignette=false; SET.vigMigrated=true; saveSettings(); }
+    /* AI pace used to be a single `aiPace`. Anyone who had already tuned it
+       keeps that value on both dials rather than being silently reset to the
+       defaults — race pace then drops the same 2.5% below it that the defaults
+       carry, so the split does not change how quick they feel on day one. */
+    if(j.aiPace!=null && j.aiPaceQ==null){
+      SET.aiPaceQ=j.aiPace; SET.aiPaceR=Math.max(0.72,j.aiPace-0.025); saveSettings(); }
   }catch(e){}
 }
 function saveSettings(){
@@ -15977,7 +15990,9 @@ if(DEBUG){window.__setCam=(m)=>{CAM.mode=m;CAM.tsPost=null;$('#camName').textCon
   setTimeout(()=>{window.__openWeekend=openWeekend;window.__wkNews=wkNews;window.__endPractice=endPractice;},0);
   setTimeout(()=>{window.__SEASON=SEASON;window.__endSeasonRace=endSeasonRace;window.__seasonBuildTable=seasonBuildTable;window.__openSaves=openSaves;window.__loadFromSlot=loadFromSlot;window.__seasonAutosave=seasonAutosave;
     window.__seasonConstructors=seasonConstructors;
-    window.__spawnAIs=spawnAIs;window.__AI=AI;window.__aiSkillMul=aiSkillMul;},0);
+    window.__spawnAIs=spawnAIs;window.__AI=AI;window.__aiSkillMul=aiSkillMul;
+    window.__aiPaceNow=aiPaceNow;window.__aiPaceTimeMul=aiPaceTimeMul;window.__aiStraightMul=aiStraightMul;
+    window.__setSessionMode=(m)=>{sessionMode=m;};window.__isRace=()=>isRace();},0);
   window.__replayRecord=replayRecord;
   window.__PITSTOP=PITSTOP;window.__pitPos=pitPos;window.__PIT=PIT;
   window.__CINE=()=>CINE;window.__CHASE=()=>CHASE;
@@ -16212,8 +16227,10 @@ const SETTINGS_DEF=[
     d:'Police running wide: three warnings, then a five-second penalty.'},
    {k:'steerSpeed',type:'range',t:'Steering speed',min:0.5,max:1.8,step:0.1,pct:true,
     d:'How fast the wheel answers the key. Lower is smoother, higher is sharper.'},
-   {k:'aiPace',type:'range',t:'AI pace',min:0.72,max:1.00,step:0.02,pct:true,
-    d:'How close the AI runs to the outright lap record. 100% is record pace, which no one reaches by hand.'},
+   {k:'aiPaceQ',type:'range',t:'AI qualifying pace',min:0.72,max:1.00,step:0.02,pct:true,
+    d:'How close the AI gets to the outright lap record on a flying lap. 100% is record pace, which no one reaches by hand. Also sets the times in simulated sessions.'},
+   {k:'aiPaceR',type:'range',t:'AI race pace',min:0.72,max:1.00,step:0.02,pct:true,
+    d:'The same, for a race — fuel, tyre management and traffic mean this is normally a little below qualifying pace.'},
  ]},
  {id:'look', t:'Appearance', items:[
    {k:'themePreset',type:'enum',t:'Menu preset',
@@ -19409,8 +19426,26 @@ function parseLapRec(s){const m=/(\d+):(\d+)/.exec(s||''); return m?(+m[1]*60+ +
    the simulated sessions land where the cars on track do. Calibrated off the
    solved profile: dropping the plan from x0.808 to x0.719 (aiPace 0.88) moves a
    Spa lap from 105.0s to about 109.3s, which is 4.1% — hence the 0.37 slope. */
+/* Which dial applies right now. A race uses race pace; practice, qualifying and
+   everything simulated use qualifying pace. */
+function aiPaceNow(){
+  const S=(typeof SET!=='undefined')?SET:null; if(!S) return 0.88;
+  const race=(typeof isRace==='function')&&isRace();
+  const v=race?S.aiPaceR:S.aiPaceQ;
+  return (v!=null)?v:(race?0.855:0.88);
+}
+/* AND A LITTLE ON THE STRAIGHTS.
+   The dial only ever touched the corner plan, so at any setting the field still
+   reached exactly the same terminal speed down a straight — which made the
+   slider feel strong at Monaco and nearly inert at Monza. This gives it a small
+   say in top speed too: deliberately small, because the whole field shares one
+   engine and a slow AI should be slow through the corners, not down the straight.
+   Full travel of the slider is worth about 3% of top speed — a few car lengths
+   at the end of a long straight, not a different car. */
+function aiStraightMul(){ return 1-(1-aiPaceNow())*0.11; }
 function aiPaceTimeMul(){
-  const a=(typeof SET!=='undefined'&&SET.aiPace!=null)?SET.aiPace:0.88;
+  // simulated session times are qualifying and practice times, never race pace
+  const a=(typeof SET!=='undefined'&&SET.aiPaceQ!=null)?SET.aiPaceQ:0.88;
   return 1+(1-a)*0.37;
 }
 function paceConditions(){
@@ -21272,7 +21307,7 @@ function stepAI(dt){
       *lerp(0.90,1.0,c.tyre)
       *evoGrip(c.lat||0)
       *lerp(0.762,0.808,clamp((c.skill-0.93)/0.07,0,1))
-      *(SET.aiPace!=null?SET.aiPace:0.88);
+      *aiPaceNow();          // race pace in a race, qualifying pace otherwise
     // grip-limited speed for a radius, solved for v because grip depends on v
     const vForR=(R)=>{
       let v=Math.sqrt(gripPlan*9.81*R);
@@ -21376,7 +21411,7 @@ function stepAI(dt){
        range), tyre condition, and a small per-car straight-line difference.
        Roughly two per cent between the quickest and the slowest, which over a
        lap is a second and a half — enough to close a gap and force a move. */
-    let targetV=Math.min(VCAP,vLimit)*tyreGrip*(c.defLate||1)
+    let targetV=Math.min(VCAP*aiStraightMul(),vLimit)*tyreGrip*(c.defLate||1)
                 *lerp(0.978,1.0,clamp((c.skill-0.93)/0.07,0,1));
     targetV*= 0.99 + 0.02*Math.sin(c.idx*0.05 + c.seed);          // subtle lap-to-lap rhythm
     /* TRAFFIC. Look further ahead than before — a slipstream reaches a long way
