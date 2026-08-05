@@ -169,9 +169,14 @@
      Shown before anything else: a mark drawn as geometry rather than set in a
      font, so it reads as a logo and not as text. It draws itself on, holds, and
      wipes away — the whole thing is over in four seconds. */
+  /* It no longer plays at parse time. The order is: opening film, THEN the
+     studio card, THEN the artwork loading plate — so the card is held hidden
+     until postIntro() adds .play, and its inner markup is re-inserted at that
+     moment to restart every one of the CSS animations below. */
   #studio{position:fixed;inset:0;z-index:70;background:#000;
     display:flex;align-items:center;justify-content:center;
-    opacity:1;transition:opacity .7s ease}
+    opacity:0;pointer-events:none;transition:opacity .7s ease}
+  #studio.play{opacity:1;pointer-events:auto}
   #studio.gone{opacity:0;pointer-events:none}
   #studioInner{display:flex;flex-direction:column;align-items:center;
     animation:stuUp 1.1s cubic-bezier(.2,.8,.2,1) both}
@@ -195,6 +200,19 @@
     color:rgba(255,255,255,.30);font-style:italic;
     opacity:0;animation:stuFade 1.0s 2.0s ease-out forwards}
   @keyframes stuFade{to{opacity:1}}
+
+  /* ============ PREP COVER ============
+     Something has to be on screen while the car model actually downloads, and
+     it cannot be the artwork plate any more — that now comes at the END, after
+     the film and the studio card. So this: black, a breathing mark, no
+     percentage and no promises. It is gone before the film starts. */
+  #prep{position:fixed;inset:0;z-index:80;background:#04060a;
+    display:flex;align-items:center;justify-content:center;
+    opacity:1;transition:opacity .55s ease}
+  #prep.gone{opacity:0;pointer-events:none}
+  #prepMark{font-family:var(--mono);font-weight:900;font-size:13px;letter-spacing:.62em;
+    color:rgba(255,255,255,.5);padding-left:.62em;animation:prepPulse 1.9s ease-in-out infinite}
+  @keyframes prepPulse{0%,100%{opacity:.30}50%{opacity:.85}}
 
   /* ============ LOADING PLATE ============
      A full-bleed photograph with the type sitting on it, the way a title card
@@ -1482,6 +1500,8 @@
 
 <!-- ===== LOADING ===== -->
 <!-- ===== BOOT: studio card, then the loading plate ===== -->
+<div id="prep"><div id="prepMark">APEX GP</div></div>
+
 <div id="studio">
   <div id="studioInner">
     <svg id="studioMark" viewBox="0 0 120 120" aria-hidden="true">
@@ -1522,20 +1542,11 @@
 </div>
 
 <script>
-/* THE BOOT SEQUENCE RUNS ON REAL TIME, NOT ON MODULE TIME.
-   This was sequenced from inside boot(), which only runs once the whole module
-   has finished evaluating — and that includes building a throwaway world to warm
-   the shaders, several seconds on a slow machine. The studio card therefore sat
-   frozen for the entire slow part of loading and the plate behind it was never
-   seen. Being a classic script, this executes the moment the parser reaches it,
-   so the card plays out and hands over to the loading plate on schedule whatever
-   the module is doing. */
-window.__introDone=new Promise(function(res){
-  var st=document.getElementById('studio'), ld=document.getElementById('loader');
-  setTimeout(function(){ if(ld) ld.classList.add('show'); },3300);
-  setTimeout(function(){ if(st) st.classList.add('gone'); },3600);
-  setTimeout(function(){ if(st&&st.parentNode) st.parentNode.removeChild(st); res(); },4400);
-});
+/* The studio card and the artwork plate are both sequenced from postIntro(),
+   in the module, once the opening film has finished — they are no longer on a
+   parse-time timer. Nothing here needs to run early any more except leaving
+   __introDone defined, because boot() still awaits it. */
+window.__introDone=Promise.resolve();
 </script>
 
 <!-- ===== CINEMATIC INTRO ===== -->
@@ -2291,7 +2302,7 @@ renderer.setSize(innerWidth,innerHeight);
 renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));
 renderer.outputColorSpace=THREE.SRGBColorSpace;
 renderer.toneMapping=THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure=1.05;
+renderer.toneMappingExposure=1.22;
 renderer.shadowMap.enabled=true;
 renderer.shadowMap.type=THREE.PCFSoftShadowMap;
 
@@ -2864,42 +2875,42 @@ const WEATHER_PRESETS={
     sky:{top:[0.24,0.42,0.66],mid:[0.62,0.74,0.86],bot:[0.78,0.82,0.85]},
     skyNight:{top:[0.015,0.02,0.06],mid:[0.05,0.04,0.12],bot:[0.42,0.20,0.10]},
     bg:0x9fb6cc, bgNight:0x0d1424, fog:0xa9c0d6, fogNight:0x141d31,
-    fogNear:0.55, fogFar:2.8, fogFarNight:4.0, exp:1.05, expNight:1.75,
+    fogNear:0.55, fogFar:2.8, fogFarNight:4.0, exp:1.24, expNight:2.00,
     sunCol:0xfff2e0, sunInt:2.7, sunMul:1.0, hemiSky:0xbcd6ef, hemiGnd:0x33372e, hemiInt:0.95,
     sun:{col:[1.0,0.94,0.80], disc:1.15, sharp:480.0, glow:0.20} },
   scattered:{ label:'SCATTERED CLOUD', wetness:0, storm:0, cloud:0.35,
     sky:{top:[0.26,0.42,0.62],mid:[0.60,0.70,0.80],bot:[0.76,0.79,0.82]},
     skyNight:{top:[0.02,0.025,0.06],mid:[0.06,0.05,0.12],bot:[0.38,0.19,0.11]},
     bg:0x9db2c4, bgNight:0x0e1524, fog:0xa6bbcc, fogNight:0x151e30,
-    fogNear:0.50, fogFar:2.5, fogFarNight:3.8, exp:1.02, expNight:1.70,
+    fogNear:0.50, fogFar:2.5, fogFarNight:3.8, exp:1.21, expNight:1.95,
     sunCol:0xfff0dc, sunInt:2.3, sunMul:0.95, hemiSky:0xb2c8de, hemiGnd:0x31352d, hemiInt:1.0,
     sun:{col:[1.0,0.93,0.82], disc:0.85, sharp:400.0, glow:0.18} },
   overcast:{ label:'OVERCAST', wetness:0, storm:0, cloud:0.8,
     sky:{top:[0.44,0.47,0.51],mid:[0.58,0.60,0.63],bot:[0.68,0.69,0.71]},
     skyNight:{top:[0.03,0.035,0.05],mid:[0.07,0.07,0.10],bot:[0.26,0.16,0.12]},
     bg:0x9ca0a6, bgNight:0x11141b, fog:0x9ca0a6, fogNight:0x171b24,
-    fogNear:0.40, fogFar:2.0, fogFarNight:3.3, exp:1.0, expNight:1.65,
+    fogNear:0.40, fogFar:2.0, fogFarNight:3.3, exp:1.19, expNight:1.90,
     sunCol:0xd4d9e0, sunInt:1.55, sunMul:0.8, hemiSky:0xa8aeb6, hemiGnd:0x2e332c, hemiInt:1.1,
     sun:{col:[0.94,0.95,0.97], disc:0.30, sharp:60.0, glow:0.13} },
   damp:{ label:'DAMP / DRIZZLE', wetness:0.35, storm:0, cloud:0.9,
     sky:{top:[0.40,0.43,0.47],mid:[0.54,0.56,0.59],bot:[0.64,0.65,0.67]},
     skyNight:{top:[0.025,0.03,0.045],mid:[0.06,0.06,0.09],bot:[0.24,0.15,0.11]},
     bg:0x94989d, bgNight:0x0a0c11, fog:0x94989d, fogNight:0x0c0e13,
-    fogNear:0.34, fogFar:1.8, fogFarNight:2.5, exp:0.99, expNight:1.48,
+    fogNear:0.34, fogFar:1.8, fogFarNight:2.5, exp:1.18, expNight:1.74,
     sunCol:0xc4c9d0, sunInt:1.2, sunMul:0.72, hemiSky:0x9ba1a8, hemiGnd:0x2c332c, hemiInt:1.15,
     sun:{col:[0.92,0.94,0.97], disc:0.25, sharp:40.0, glow:0.12} },
   rain:{ label:'RAIN', wetness:0.72, storm:0, cloud:1.0,
     sky:{top:[0.26,0.28,0.32],mid:[0.38,0.40,0.44],bot:[0.48,0.49,0.52]},
     skyNight:{top:[0.02,0.022,0.032],mid:[0.045,0.048,0.065],bot:[0.19,0.12,0.09]},
     bg:0x767a80, bgNight:0x080a0e, fog:0x767a80, fogNight:0x0a0b0f,
-    fogNear:0.26, fogFar:1.45, fogFarNight:2.0, exp:0.92, expNight:1.42,
+    fogNear:0.26, fogFar:1.45, fogFarNight:2.0, exp:1.10, expNight:1.68,
     sunCol:0xb0b6be, sunInt:0.95, sunMul:0.6, hemiSky:0x878d95, hemiGnd:0x272c27, hemiInt:1.2,
     sun:{col:[0.88,0.90,0.94], disc:0.10, sharp:22.0, glow:0.07} },
   storm:{ label:'THUNDERSTORM', wetness:1.0, storm:1, cloud:1.0,
     sky:{top:[0.10,0.11,0.14],mid:[0.18,0.19,0.22],bot:[0.28,0.29,0.32]},
     skyNight:{top:[0.012,0.014,0.02],mid:[0.03,0.032,0.042],bot:[0.14,0.09,0.07]},
     bg:0x3a3e46, bgNight:0x05060a, fog:0x3a3e46, fogNight:0x06070b,
-    fogNear:0.20, fogFar:1.10, fogFarNight:1.5, exp:0.82, expNight:1.35,
+    fogNear:0.20, fogFar:1.10, fogFarNight:1.5, exp:1.00, expNight:1.60,
     sunCol:0x8f959d, sunInt:0.7, sunMul:0.45, hemiSky:0x6b7178, hemiGnd:0x1f231f, hemiInt:1.25,
     sun:{col:[0.0,0.0,0.0], disc:0.0, sharp:1.0, glow:0.0} },
 };
@@ -13216,7 +13227,11 @@ const PHYS={
      Bringing the front closer to the rear roughly halves the understeer. The
      car still understeers, because a racing car that does not is undriveable on
      a keyboard, but it now turns when you ask it to. */
-  Cf:148000, Cr:200000,
+  /* A SLIGHT tightening, on top of the reverted baseline. Not the wholesale
+     rebalance that got backed out — the front gains a little bite so the car
+     takes a tighter line for the same input, and that is all. Rack speed is
+     deliberately untouched: that is what the Steering speed setting is for. */
+  Cf:158000, Cr:200000,
   /* Back to the original handling. The one change kept from the retune is a
      little more lock and a slightly quicker rack at low speed, because slow
      corners were heavy: 0.30 rad is ~17 deg instead of 15. */
@@ -13234,7 +13249,10 @@ const PHYS={
      to overwrite them from its own hardcoded 3.8/6.4, which meant the numbers
      here were dead — editing them changed nothing and any tuning done through
      them silently did nothing at all. */
-  maxSteerLo:0.34, maxSteerHi:0.086, steerLockCurve:1.50, steerRate:3.8, steerReturn:6.4,
+  /* maxSteerHi and the curve both move a little so more lock survives into the
+     mid- and high-speed corners, which is where "it will not tighten up" is
+     actually felt. Low-speed lock and the rack rates are unchanged. */
+  maxSteerLo:0.34, maxSteerHi:0.098, steerLockCurve:1.38, steerRate:3.8, steerReturn:6.4,
   /* YAW DAMPING. A linear-then-clip tyre gives cornering force but none of the
      things that actually settle a car: tyre relaxation length, the aligning
      moment that tries to straighten the steering, the damping in the
@@ -13246,7 +13264,7 @@ const PHYS={
      One explicit damping term fixes it. It is not a fudge — it stands in for
      real physical effects the tyre model omits — and it is scaled out at
      walking pace where the kinematic blend takes over instead. */
-  yawDamp:2.0,
+  yawDamp:2.35,   // a touch more: the car settles onto the new line instead of floating to it
   /* How quickly the driver winds lock ON compared with how quickly they take it
      off. Coming off the lock faster than going on is what a real pair of hands
      does and it stops the car carrying rotation out of a corner. */
@@ -18481,7 +18499,7 @@ function startCinematic(){
   S(47500,()=>{const Su=$('#cineSub');Su.textContent='2026 WORLD CHAMPIONSHIP';Su.classList.add('show');});
   S(51600,()=>endCinematic());
   STATE='cine';
-  renderer.toneMappingExposure=1.25;      // a night race is lit, not unlit
+  renderer.toneMappingExposure=1.45;      // a night race is lit, not unlit
   camera.fov=44; camera.updateProjectionMatrix();
   $('#cine').classList.add('on');
 }
@@ -18561,7 +18579,7 @@ function stepCinematic(dt){
      drama is in what is in the frame, not in how little of it you can make out.
      Back to a bright base with a gentle lift, so the empty circuit reads
      clearly from the first frame. */
-  renderer.toneMappingExposure=1.14+0.22*clamp((el-9.0)/8.0,0,1)+0.18*clamp((el-30)/6.0,0,1);
+  renderer.toneMappingExposure=1.34+0.22*clamp((el-9.0)/8.0,0,1)+0.16*clamp((el-30)/6.0,0,1);
 
   /* ---- the wet night doing its work -------------------------------------- */
   if(CHASE.rain) CHASE.rain.update(dt,camera.position);
@@ -18855,7 +18873,7 @@ function endCinematic(){
     if(CHASE.spray) for(const m of CHASE.spray) m.visible=false; }
   if(CINE_KEY){cineScene.remove(CINE_KEY);CINE_KEY=null;}
   { const B=$('#cineBlack'); if(B) B.classList.remove('on'); }
-  renderer.toneMappingExposure=1.05;                   // the ramp above leaves it high
+  renderer.toneMappingExposure=1.22;                   // the ramp above leaves it high
   setCarPlain(false);                                  // restore the selected livery
   $('#cineFx').innerHTML='';
   $('#cineTitle').classList.remove('slam');$('#cineSub').classList.remove('show');
@@ -18863,7 +18881,10 @@ function endCinematic(){
   $('#cine').classList.add('out');
   setTimeout(()=>{$('#cine').classList.remove('on','out');$('#cineTitle').innerHTML='';$('#cineSub').textContent='';},600);
   camera.fov=38;camera.updateProjectionMatrix();
-  enterMenu();
+  /* First time through, the boot order continues: studio card, then the artwork
+     plate. Afterwards the film is only ever replayed from the menu, so it goes
+     straight back there. */
+  if(!introRan) postIntro(); else enterMenu();
 }
 
 /* ---- track-select intro: globe zoom → sector outline → overhead ---- */
@@ -19942,7 +19963,7 @@ function startPodium(){
   $('#hud').classList.remove('on'); $('#sndBtn').classList.add('show');
   $('#podHud').classList.add('on');
   Sound.init(); Sound.start&&Sound.start();
-  renderer.toneMappingExposure=1.10;
+  renderer.toneMappingExposure=1.28;
 }
 function endPodium(){
   if(!PODIUM.on) return;
@@ -22152,32 +22173,62 @@ async function boot(){
     const st=$('#studio'); if(st) st.remove();
     return;
   }
-  const introDone=window.__introDone||Promise.resolve();
+  /* PHASE 1 — the actual download, under the plain prep cover. No percentage
+     here: the artwork plate is the last thing in the boot order now, not the
+     first, so it cannot also be the thing that watches the car come down the
+     wire. */
   const loader=new GLTFLoader();
-  ldBuildTach();
-  ldState(1);
-  // car is the big download → drive the bar with its progress
-  await loadCar(loader,e=>{
-    if(e.lengthComputable){ldPct(5+e.loaded/e.total*70);}
-  });
+  await loadCar(loader);
   FX2.selfTest();
-  ldPct(76);ldState(2);
   await loadWheel(loader);
-  ldPct(86);ldState(3);
   await loadEarth(loader);
-  ldPct(92);
   mountCockpit();
-  ldPct(96);ldState(4);
-  await new Promise(r=>setTimeout(r,200));
-  ldPct(100);ldState(5);
-  /* Wait for the studio card to have finished before the loading plate can be
-     dismissed — otherwise a fast machine blows through both in half a second
-     and neither is ever seen. */
-  await introDone;
-  await new Promise(r=>setTimeout(r,650));   // let the needle settle on 100
-  buildMenu();
-  // settings screen wiring — the buttons, and the first application of whatever
-  // was loaded from storage before anything is on screen
+  applySettings();          // quality/FX settings must be live for the film itself
+  /* PHASE 2 — the opening film. postIntro() picks it up when it ends. */
+  const pv=$('#prep');
+  if(pv){ pv.classList.add('gone'); setTimeout(()=>pv.remove(),700); }
+  setTimeout(()=>startCinematic(),300);
+}
+
+/* Everything after the film: the studio card, then the artwork loading plate
+   counting a real 0-100 over the work that is genuinely left. Called from
+   endCinematic(), which is also what a skip goes through, so the order holds
+   whether the film is watched or not. */
+let introRan=false;
+async function postIntro(){
+  if(introRan) return; introRan=true;
+  const st=$('#studio'), ld=$('#loader');
+  /* Re-inserting the markup restarts every CSS animation on it — the card is
+     drawn on, not faded in, and those keyframes have long since finished. */
+  if(st){ st.innerHTML=st.innerHTML; st.classList.add('play'); }
+  await wait(2900);
+  ldBuildTach(); ldPct(0); ldState(1);
+  if(ld) ld.classList.add('show');
+  await wait(700);
+  if(st){ st.classList.add('gone'); setTimeout(()=>st.remove(),900); }
+  /* The steps are real work, and the plate is held long enough for each of them
+     to read. `hold` is a floor, not a fake: a slow machine simply takes longer
+     than the floor and the number tracks whatever it is actually doing. */
+  const step=async(pct,state,fn,hold)=>{
+    if(state) ldState(state);
+    if(fn){ await wait(30); fn(); }         // yield first so the plate repaints
+    ldPct(pct);
+    await wait(hold||560);
+  };
+  await step(12,1,null,520);
+  await step(34,2,()=>buildMenu(),700);
+  await step(56,3,()=>wireBootHandlers(),640);
+  await step(74,4,()=>{ applySettings(); },640);
+  await step(88,4,()=>{ try{ renderer.compile(menuScene||driveScene,camera); }catch(e){} },700);
+  await step(100,5,null,900);              // let the needle settle on 100
+  if(ld) ld.classList.add('gone');
+  enterMenu();
+}
+function wait(ms){ return new Promise(r=>setTimeout(r,ms)); }
+
+/* The settings/garage/strategy wiring, lifted out of boot() so the loading
+   plate can charge a real percentage against it. */
+function wireBootHandlers(){
   $('#svBack').onclick=()=>{closeSaves();Sound.blip(380,.05);};
   $('#tmBack').onclick=()=>{closeTeam();Sound.blip(380,.05);};
   $('#tmGo').onclick=()=>confirmTeam();
@@ -22205,11 +22256,6 @@ async function boot(){
       clearTimeout(s._t); s._t=setTimeout(()=>{s.textContent='Saved automatically';},1800);}
     Sound.init(); Sound.blip(700,.08);
   };
-  applySettings();
-  setTimeout(()=>{
-    $('#loader').classList.add('gone');
-    startCinematic();     // play the opening flythrough, then land on the menu
-  },450);
 }
 
 function onResizeCam(){camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();}
