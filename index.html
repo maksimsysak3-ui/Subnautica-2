@@ -279,6 +279,35 @@
   .gtFRow.drop{opacity:.55}
   .gtFRow.drop .p{color:#ff5a52}
 
+  /* ============ LIVE STANDINGS ============
+     The order of the race, on screen, while it is happening. A position number
+     on its own tells you where you are and nothing about who is around you. */
+  #standings{position:fixed;left:14px;top:50%;transform:translateY(-50%);z-index:14;
+    width:clamp(168px,15vw,208px);pointer-events:none;opacity:0;transition:opacity .25s ease;
+    background:rgba(6,8,12,.62);backdrop-filter:blur(3px);
+    border-left:2px solid var(--red);font-family:var(--f1)}
+  #standings.on{opacity:1}
+  :root[data-theme="light"] #standings{background:rgba(255,255,255,.80)}
+  #stdHead{display:flex;justify-content:space-between;align-items:baseline;
+    padding:6px 9px 5px;border-bottom:1px solid var(--line);
+    font-family:var(--mono);font-size:8.5px;letter-spacing:.22em;color:var(--type-3)}
+  #stdLap{font-weight:800;color:var(--type-2)}
+  .stdRow{display:grid;grid-template-columns:17px 1fr auto;gap:6px;align-items:center;
+    padding:3px 9px;font-size:11px;color:var(--type-2);
+    border-bottom:1px solid var(--line-soft)}
+  .stdRow:last-child{border-bottom:0}
+  .stdRow .p{font-family:var(--mono);font-weight:800;font-size:10px;color:var(--type-3);text-align:right}
+  .stdRow .n{font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .stdRow .g{font-family:var(--mono);font-size:9.5px;color:var(--type-3)}
+  .stdRow .tm{width:3px;height:12px;border-radius:1px;display:inline-block;margin-right:5px;vertical-align:-1px}
+  .stdRow.me{background:rgba(225,6,0,.20)}
+  .stdRow.me .n,.stdRow.me .p{color:#fff}
+  :root[data-theme="light"] .stdRow.me .n,
+  :root[data-theme="light"] .stdRow.me .p{color:var(--type)}
+  .stdRow.out{opacity:.42}
+  .stdRow.out .g{color:#ff5a52}
+  @media(max-width:820px){#standings{display:none}}
+
   /* ============ QUALIFYING BETWEEN-PARTS BOARD ============
      Q1 ending and Q2 simply starting told you nothing. This is the order as it
      stands with the drop zone in red, held until you have read it. */
@@ -1968,6 +1997,10 @@ window.__introDone=Promise.resolve();
 </div>
 
 <!-- ===== HUD ===== -->
+<!-- ===== LIVE STANDINGS ===== -->
+<div id="standings"><div id="stdHead"><span id="stdTitle">STANDINGS</span><span id="stdLap"></span></div>
+  <div id="stdList"></div></div>
+
 <div id="hud">
   <div id="shift"></div>
   <div id="timing">
@@ -2181,6 +2214,7 @@ const SETTINGS_KEY='apexgp.settings.v1';
 const SET={
   // camera & view
   helmet:true, defaultCam:'chase', fovScale:1.0, headMotion:0.9, grain:true, vignette:false, grade:true,
+  standings:true,
   vigMigrated:false,
   // hud
   hudTiming:true, hudMap:true, hudStatus:true, hudHints:true, units:'kmh',
@@ -16005,7 +16039,7 @@ if(DEBUG){window.__setCam=(m)=>{CAM.mode=m;CAM.tsPost=null;$('#camName').textCon
   setTimeout(()=>{window.__SEASON=SEASON;window.__endSeasonRace=endSeasonRace;window.__seasonBuildTable=seasonBuildTable;window.__openSaves=openSaves;window.__loadFromSlot=loadFromSlot;window.__seasonAutosave=seasonAutosave;
     window.__seasonConstructors=seasonConstructors;
     window.__spawnAIs=spawnAIs;window.__AI=AI;window.__aiSkillMul=aiSkillMul;
-    window.__aiPaceNow=aiPaceNow;window.__aiPaceTimeMul=aiPaceTimeMul;window.__aiStraightMul=aiStraightMul;
+    window.__stepAI=stepAI;window.__renderStandings=renderStandings;window.__setSessionMode=(m)=>{sessionMode=m;};window.__aiPaceNow=aiPaceNow;window.__aiPaceTimeMul=aiPaceTimeMul;window.__aiStraightMul=aiStraightMul;
     window.__setSessionMode=(m)=>{sessionMode=m;};window.__isRace=()=>isRace();},0);
   window.__replayRecord=replayRecord;
   window.__PITSTOP=PITSTOP;window.__pitPos=pitPos;window.__PIT=PIT;
@@ -16237,6 +16271,8 @@ const SETTINGS_DEF=[
     d:'Dynamic rolls fronts through mid-race. The rest force one condition.'},
    {k:'tyreWear',type:'enum',t:'Tyre wear',opts:[['off','OFF'],['low','LOW'],['normal','NORMAL'],['high','HIGH']],
     d:'How fast a set goes off. Off means a set lasts the whole race.'},
+   {k:'standings',type:'bool',t:'Live standings',
+    d:'The running order down the left of the screen during a race.'},
    {k:'trackLimits',type:'bool',t:'Track limits',
     d:'Police running wide: three warnings, then a five-second penalty.'},
    {k:'steerSpeed',type:'range',t:'Steering speed',min:0.5,max:1.8,step:0.1,pct:true,
@@ -19791,6 +19827,18 @@ if(DEBUG){window.__AI=AI;setTimeout(()=>{window.__stepAI=stepAI;window.__spawnAI
    cars share at most fourteen of them. */
 function makeAICar(col,teamKey){
   const g=new THREE.Group();
+  /* NEVER FRUSTUM-CULLED. The cars were disappearing the moment you drove past
+     them. Nothing in the model was wrong — they stay in the scene, keep their
+     positions and keep their speed, which is what made it look like a physics
+     bug — so it was the renderer deciding they were off screen when they were
+     not. These are clones of the player's GLB and they inherit its geometry, and
+     a bounding sphere that does not sit where the renderer thinks it does culls
+     the whole car in one go.
+     Culling is not worth defending here anyway: there are seven to fourteen of
+     them, they are small, and they are always in the part of the world you are
+     looking at. The flag is set on the group and re-asserted over every child
+     below, because a clone brings its own per-mesh flags with it. */
+  g.frustumCulled=false;
   if(CAR.model){
     const m=CAR.model.clone(true);
     const key=teamKey&&LIVERIES[teamKey]?teamKey:null;
@@ -19916,6 +19964,9 @@ function aiRoster(exclude,n){
   const src=pool.length>=n?pool:fallback;
   return src.slice(0,n);
 }
+/* Applied to a finished car, group and children alike. */
+function noCullCar(mesh){ mesh.frustumCulled=false;
+  mesh.traverse(o=>{ o.frustumCulled=false; }); return mesh; }
 function spawnAIs(n){
   clearAIs(); if(!TRACK.N) return;
   const N=TRACK.N, roster=aiRoster(selLivery,n);
@@ -19942,7 +19993,7 @@ function spawnAIs(n){
   const nextSlot=()=>{ if(k===mySlot) k++; return k++; };   // step over the player's box
   order.forEach((d,i)=>{
     const team=LIVERIES[d.t]?d.t:teams[i%teams.length];
-    const mesh=makeAICar(new THREE.Color(LIVERIES[team].base),team);driveScene.add(mesh);
+    const mesh=noCullCar(makeAICar(new THREE.Color(LIVERIES[team].base),team));driveScene.add(mesh);
     const kk=nextSlot(), sl=gridSlot(kk);
     const comp=i<3?'medium':(i%2?'hard':'soft');           // varied starting strategies
     AI.cars.push({mesh, idx:sl.idx, lat:sl.lat, v:0, team,
@@ -20045,7 +20096,7 @@ function spawnGrid(n){
   const rowGap=12/segLen;
   roster.forEach((d,i)=>{
     const team=LIVERIES[d.t]?d.t:teams[i%teams.length];
-    const mesh=makeAICar(new THREE.Color(LIVERIES[team].base),team);driveScene.add(mesh);
+    const mesh=noCullCar(makeAICar(new THREE.Color(LIVERIES[team].base),team));driveScene.add(mesh);
     const {idx,lat}=gridSlot(i);          // the shared layout — see gridSlot()
     const comp=i<4?'soft':(i%2?'medium':'hard');
     AI.cars.push({mesh, idx, lat, v:0, team,
@@ -21054,6 +21105,48 @@ function deploySafetyCar(cause){
    ================================================================== */
 const BATTLE={pair:null, t:0, hold:0, gapHist:[], sect:[0,0,0], lastIdx:0, sectAcc:[0,0,0]};
 function battleName(o){ return o.ai?o.ai.name:(SEASON.active?SEASON.name:'YOU'); }
+/* THE STANDINGS BOARD.
+   Built from the same sorted field the position number already comes from, so
+   there is no second source of truth about who is where. Redrawn a few times a
+   second rather than every frame — nothing on it moves faster than that, and it
+   is a dozen DOM rows. */
+let stdT=0, stdSig='';
+function renderStandings(field){
+  const el=$('#standings'); if(!el) return;
+  const show=isRace() && (STATE==='drive'||STATE==='countdown') && field.length>1
+             && SET.standings!==false;
+  el.classList.toggle('on',show);
+  if(!show) return;
+  const now=performance.now();
+  if(now-stdT<280) return;
+  stdT=now;
+  const lead=field[0];
+  /* Gaps in METRES converted to a time at the leader's pace — a distance gap
+     means nothing to read at a glance, and lap-time maths for every car every
+     frame is not worth it. */
+  const v=Math.max(30,Math.abs(CAR.v)||60);
+  const rows=field.map((f,i)=>{
+    const behind=lead.d-f.d;
+    const laps=TRACK.len?Math.floor(behind/TRACK.len):0;
+    const gap=f.dnf?'DNF':f.pit?'PIT':i===0?'LEADER':
+      (laps>=1?`+${laps}L`:'+'+(behind/v).toFixed(1));
+    return {p:i+1, nm:f.nm||'—', me:!!f.me, out:f.dnf||f.pit,
+      col:(LIVERIES[f.team]&&LIVERIES[f.team].base)||'#888', gap};
+  });
+  /* Only touch the DOM when something has actually changed. */
+  const sig=rows.map(r=>r.p+r.nm+r.gap).join('|');
+  if(sig===stdSig) return;
+  stdSig=sig;
+  const lapEl=$('#stdLap');
+  if(lapEl){ const tot=(SEASON.active?SEASON.raceLaps:SET.raceLaps)||0;
+    lapEl.textContent=tot?`LAP ${Math.min(tot,playerLapsDone()+1)}/${tot}`:''; }
+  const L=$('#stdList'); if(!L) return;
+  L.innerHTML=rows.map(r=>
+    `<div class="stdRow${r.me?' me':''}${r.out?' out':''}">`+
+      `<span class="p">${r.p}</span>`+
+      `<span class="n"><i class="tm" style="background:${r.col}"></i>${esc(r.nm)}</span>`+
+      `<span class="g">${r.gap}</span></div>`).join('');
+}
 function updateBattle(dt){
   const el=$('#battle'); if(!el) return;
   if(STATE!=='drive'||!AI.cars.length||SC.on){ el.classList.remove('on'); BATTLE.pair=null; return; }
@@ -22296,10 +22389,17 @@ function stepAI(dt){
     } }
   // standings: total distance = lap*len + along-lap distance
   const dOf=(idx,lp)=>lp*TRACK.len + TRACK.cum[Math.round(idx)%N];
-  const field=AI.cars.map(c=>({d:dOf(c.idx,c.lap),me:false})).concat([{d:dOf(pIdx,playerLapsDone()),me:true}]);
-  field.sort((a,b)=>b.d-a.d);
+  const field=AI.cars.map(c=>({d:dOf(c.idx,c.lap),me:false,
+      nm:c.name, team:c.team, dnf:!!c.dnf, pit:c.pitPhase>0}))
+    .concat([{d:dOf(pIdx,playerLapsDone()),me:true,
+      nm:(SEASON.active?SEASON.name:'YOU'), team:selLivery, dnf:false, pit:PITSTOP.phase!=='none'}]);
+  /* A RETIRED CAR DOES NOT HOLD A POSITION. Sorting on distance alone left a car
+     that had stopped sitting P2 in the standings — and in the player's position
+     number — because it happened to have stopped a long way round the lap. */
+  field.sort((a,b)=>(a.dnf?1:0)-(b.dnf?1:0) || b.d-a.d);
   AI.playerPos=field.findIndex(f=>f.me)+1;
   const pn=$('#posNum'); if(pn) pn.textContent=AI.playerPos;
+  renderStandings(field);
   // radio: position changes (gained / lost a place) — races only
   if(CAR.rPrevPos && isRace()){
     if(AI.playerPos<CAR.rPrevPos){ Radio.say('engineer','overtake_made',{cool:8});
