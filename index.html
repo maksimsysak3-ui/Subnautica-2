@@ -19871,42 +19871,51 @@ function spawnAIs(n){
   clearAIs(); if(!TRACK.N) return;
   const N=TRACK.N, roster=aiRoster(selLivery,n);
   const teams=TEAM_IDS.filter(k=>k!==selLivery);
-  // if qualifying set a grid, line the field up around the player's real slot:
-  // cars that out-qualified them start ahead, the rest start behind.
-  const grid=SEASON.grid, myPos=SEASON.gridPos||1;
-  const slotOf=(name,i)=>{
-    if(!grid) return (i+1)*4;                              // no quali run → default field ahead
-    const row=grid.find(r=>r.nm===name);
-    /* THE GRID WAS REVERSED. A higher index is further along the circuit, so
-       +ve rel means starting AHEAD — but rel was computed as (their position
-       minus yours), which is NEGATIVE for anyone who out-qualified you. Pole
-       therefore started behind the player and the slowest qualifier started at
-       the front. Qualifying was setting the grid backwards, which is also why
-       the field felt slow: you were handed the lead off the line every race
-       regardless of where you actually qualified. */
-    const rel=row?(myPos-row.pos):(i+1);                   // +ve = ahead of the player
-    return ((rel*4)%N+N)%N;
-  };
-  roster.forEach((d,i)=>{
+  /* THE SAME GRID THE SIMULATION USES, WITH THE PLAYER IN IT.
+     The old scheme placed each AI at an index derived from (their qualifying
+     position minus yours) and left the player wherever resetCar() had dropped
+     them. There were no rows, no columns and no reserved slot, so nothing lined
+     up and the player was always on the pole box's tarmac.
+     Now the field is ordered — by the qualifying result if there is one, by pace
+     otherwise — the player takes the slot they actually qualified in, and every
+     other car fills the remaining slots in order. */
+  const grid=SEASON.grid;
+  const order=roster.slice().sort((a,b)=>{
+    if(grid){
+      const ra=grid.find(r=>r.nm===a.n), rb=grid.find(r=>r.nm===b.n);
+      if(ra&&rb) return ra.pos-rb.pos;
+      if(ra) return -1; if(rb) return 1;
+    }
+    return b.skill-a.skill;
+  });
+  const mySlot=clamp((SEASON.gridPos||(order.length+1))-1,0,order.length);
+  let k=0;
+  const nextSlot=()=>{ if(k===mySlot) k++; return k++; };   // step over the player's box
+  order.forEach((d,i)=>{
     const team=LIVERIES[d.t]?d.t:teams[i%teams.length];
     const mesh=makeAICar(new THREE.Color(LIVERIES[team].base),team);driveScene.add(mesh);
+    const kk=nextSlot(), sl=gridSlot(kk);
     const comp=i<3?'medium':(i%2?'hard':'soft');           // varied starting strategies
-    AI.cars.push({mesh, idx:slotOf(d.n,i), lat:(i%2?1:-1)*2.4, v:0, lap:0, team,
+    AI.cars.push({mesh, idx:sl.idx, lat:sl.lat, v:0, team,
       // difficulty scales the whole field's pace; consistency moves with it, so
       // Rookie also makes more mistakes rather than just driving slower
       name:d.n, skill:clamp(d.skill*aiSkillMul(),0.5,1.06), aggro:d.aggro,
       consist:clamp(d.consist*aiSkillMul(),0.4,1), psn:d.psn||{},
       ers:0.7, mistakeT:-99, dodge:0, defend:0, seed:Math.random()*TAU,
       lineBias:((i%5)-2)/2*(TRACK.halfW||8)*0.30,
-      /* The AI runs the same systems the player does: a power unit that wears,
-         an ERS budget it has to spend and rebuild, and damage that costs it
-         performance. Without this the player is the only one paying for any of
-         it, and a race of managed cars against unmanaged ones is not a race. */
-      puWear:0, puFailed:false, ersMode:'balanced', dmgF:0, dmgFloor:0,
       compound:comp, tyre:1, tyreLife:compoundLaps(comp,CFG.id), stops:0,
-      pitFlag:false, pitPhase:0, pitTimer:0, lastIdx:0});
+      pitFlag:false, pitPhase:0, pitTimer:0, lastIdx:0,
+      gridPos:kk+1,
+      // a start is not simultaneous: a weaker driver reacts later
+      startJitter:0.10+Math.random()*0.55*(1.15-d.skill)*4,
+      /* lap:-1, as the simulation has always done. The grid sits BEHIND the
+         line, so the first crossing starts lap 1 rather than completing it —
+         at 0 every car was credited a full lap after twenty metres. */
+      lap:-1, lapT:0, bestLap:0, lastLapT:0, prevLap:-1, done:false});
+    seatOnGrid(mesh,sl);          // on its box before the first frame is drawn
   });
-  AI.on=true;
+  AI.on=true; AI.hold=true;
+  seatPlayerOnGrid(mySlot);
 }
 /* ==================================================================
    AI SIMULATION MODE
@@ -19923,6 +19932,47 @@ if(DEBUG){ window.__SIM=SIM;
     window.__SIM=SIM;window.__AI=AI;window.__signedTurnIdx=signedTurnIdx;},0); }
 /* line the whole field up on the grid: two abreast, staggered, 8 m apart, with
    the front row right on the start line. This is the grid, not a rolling train. */
+/* THE GRID, ONCE.
+   The watch-only simulation laid out a real staggered grid — two columns, twelve
+   metres between rows, every car seated on its slot before the first frame — and
+   a RACE built its own thing instead: slots derived from an offset relative to
+   the player, no rows, no columns, and the player left wherever resetCar() had
+   dropped them. So the two never looked alike, and only one of them looked like
+   a grid at all. There is now one slot function and both use it.
+   k is 0-based: 0 is pole, 1 is P2 alongside, 2 is P3 on the second row. */
+function gridSlot(k){
+  const N=TRACK.N, segLen=TRACK.len/N, HW=TRACK.halfW;
+  /* 12 m between rows. At 8.5 m a car sat inside the avoidance window of its
+     column mate, so the whole field crabbed about trying to resolve it. */
+  const row=(k/2)|0, sideL=(k%2)===0;
+  return { idx: ((-2 - row*(12/segLen))%N+N)%N,
+           lat: (sideL?-1:1)*Math.min(HW*0.46,2.9) };
+}
+/* Put a car object on a slot in the world, right now. */
+function seatOnGrid(mesh,slot){
+  const N=TRACK.N, pi=(Math.round(slot.idx)%N+N)%N;
+  const pp=TRACK.pts[pi], pn=TRACK.nrm[pi], ptg=TRACK.tan[pi];
+  mesh.position.set(pp.x+pn.x*slot.lat,(pp.y||0)+0.02,pp.z+pn.z*slot.lat);
+  mesh.rotation.y=Math.atan2(ptg.x,ptg.z);
+}
+/* And the player, on theirs — this never happened at all before, so you always
+   sat on the pole slot's tarmac no matter where you qualified. */
+function seatPlayerOnGrid(k){
+  const sl=gridSlot(k), N=TRACK.N;
+  const pi=(Math.round(sl.idx)%N+N)%N;
+  const pp=TRACK.pts[pi], pn=TRACK.nrm[pi], ptg=TRACK.tan[pi];
+  CAR.pos.set(pp.x+pn.x*sl.lat, 0, pp.z+pn.z*sl.lat);
+  CAR.heading=Math.atan2(ptg.x,ptg.z);
+  CAR.v=0; CAR.vLat=0; CAR.yawRate=0; CAR.steer=0; CAR.steerCmd=0;
+  CAR.trackIdx=pi;
+  /* The grid sits just BEHIND the line, so the lap counter has to know where the
+     car actually is or its first reading is a jump of most of a lap. It stays
+     disarmed until the car has been past the far side of the circuit, so pulling
+     off the grid and crossing the line does not credit a lap that was not run. */
+  if(typeof lap!=='undefined'&&lap){ lap.prevIdx=pi; lap.armed=false; }
+  if(CAR.rig){ CAR.rig.position.set(CAR.pos.x,(pp.y||0)+0.02,CAR.pos.z);
+    CAR.rig.rotation.set(0,CAR.heading,0); }
+}
 function spawnGrid(n){
   clearAIs(); if(!TRACK.N) return;
   const N=TRACK.N, segLen=TRACK.len/N, HW=TRACK.halfW;
@@ -19947,10 +19997,7 @@ function spawnGrid(n){
   roster.forEach((d,i)=>{
     const team=LIVERIES[d.t]?d.t:teams[i%teams.length];
     const mesh=makeAICar(new THREE.Color(LIVERIES[team].base),team);driveScene.add(mesh);
-    const row=(i/2)|0, sideL=(i%2)===0;
-    // front row ON the line, each row a car's length or so further back
-    const idx=((-2 - row*rowGap)%N+N)%N;
-    const lat=(sideL?-1:1)*Math.min(HW*0.46,2.9);
+    const {idx,lat}=gridSlot(i);          // the shared layout — see gridSlot()
     const comp=i<4?'soft':(i%2?'medium':'hard');
     AI.cars.push({mesh, idx, lat, v:0, team,
       // difficulty scales the whole field's pace; consistency moves with it, so
