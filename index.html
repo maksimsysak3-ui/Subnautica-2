@@ -18451,404 +18451,130 @@ function startCinematic(){
   camera.position.set(5,3,6);camera.lookAt(0,0.7,0);   // throwaway render → compiles the livery shader (sets its uniforms)
   FX2.render(cineScene,camera,0.016);
   setCarPlain(true);                                   // the leader runs unbranded
-  // THE RIVAL. A second car, in red, so you can never mistake which is which.
-  let rival=null;
-  try{ rival=makeAICar(0xd80f16,'ferrari'); cineScene.add(rival); }catch(e){}
+  /* No second car. There is no race to have one in. */
+  const rival=null;
   const rim=new THREE.PointLight(0xff2626,0,70,2);cineScene.add(rim);
   CINE={ start:performance.now(), rim, rival, timers:[], ended:false };
   const S=(ms,fn)=>CINE.timers.push(setTimeout(fn,ms));
   Sound.init();
   /* ============================ THE BEATS =================================
-     The old cut was nine seconds long and started at full speed, which gave it
-     nowhere to go: it opened at ten out of ten and stayed there, and a chase
-     that is flat out from the first frame has no suspense in it because nothing
-     is building.
+     THE RACE IS GONE. The previous cut was forty-eight seconds of circuit — an
+     empty grid, a gantry, a crane, then two cars fighting over a lap. It was a
+     film, and it was far too long to sit through every time you open the game.
 
-     This runs the better part of a minute and it is shaped. It opens almost
-     still — an empty wet circuit at night, no cars, just floodlights and rain —
-     and holds there for SEVENTEEN SECONDS, long enough to be uncomfortable,
-     long enough that the gantry can run its lights up and put them out over a
-     grid with nothing on it. Only then does the leader arrive, alone. Then a
-     second set of lights appears a long way back, and from that moment one
-     number does all the work: the gap.
-
-     The cutting rate tightens as it goes. The first shot is nearly five seconds
-     long; the last three are barely one each. That acceleration is the suspense
-     — you feel the thing tightening before you consciously notice why.       */
-  S(400  ,()=>Sound.whoosh(1.6,0.14));                  // wind and rain over an empty circuit
-  S(6600 ,()=>Sound.whoosh(0.5,0.10));                  // the gantry wakes up
-  S(10300,()=>Sound.hit());                             // FIVE LIGHTS OUT — over an empty grid
-  S(10700,()=>Sound.whoosh(0.9,0.34));                  // and the camera goes anyway
-  S(15300,()=>Sound.whoosh(1.2,0.12));                  // the crane, the rain, nothing else
-  S(17700,()=>Sound.rev());                             // ACT II — something is coming
-  S(20700,()=>Sound.whoosh(0.6,0.30));                  // he goes past the barrier, alone
-  S(25700,()=>Sound.rev());                             // the chase, briefly
-  S(28100,()=>Sound.whoosh(0.4,0.18));                  // ACT III — two lights, a long way back
-  S(30200,()=>Sound.rev());                             // closer, through the corner
-  S(32700,()=>Sound.whoosh(0.7,0.40));                  // alongside
-  S(34900,()=>Sound.hit());                             // contact — and the move fails
-  S(37300,()=>Sound.rev());                             // and he goes again
-  S(39700,()=>Sound.whoosh(0.9,0.52));                  // head on
-  S(41900,()=>Sound.whoosh(1.0,0.58));                  // wheels, water, gone
-  // — CUT. Black over the empty road, and you never find out who won.
-  S(46200,()=>{ const B=$('#cineBlack'); if(B) B.classList.add('on'); });
-  S(46900,()=>{const T=$('#cineTitle');T.innerHTML='APEX <span class="r">GP</span>';
+     What is left is a title sequence: one unbranded matte-carbon car, held
+     still, lit by a red rim that swings round it, and the camera doing all the
+     moving. Five shots in nine and a half seconds, red swooshes cutting across
+     the frame on the beat, then black and the title. Nothing races, nothing
+     laps, nothing takes a corner. It is a logo animation with a car in it.  */
+  const SW=(t,top,rev,dur)=>S(t,()=>spawnSwoosh(top,rev,dur));
+  S(120  ,()=>Sound.whoosh(1.1,0.16));
+  SW(180 ,62,false,600);
+  S(2200 ,()=>Sound.blip(220,.07));      SW(2240,26,true ,520);
+  S(4200 ,()=>Sound.blip(300,.07));      SW(4240,74,false,520);
+  S(6200 ,()=>Sound.rev());              SW(6240,18,true ,470);
+                                         SW(6420,84,false,470);
+  S(8200 ,()=>Sound.whoosh(0.7,0.42));   SW(8240,46,false,420);
+  SW(8560,38,true ,380);
+  SW(8900,58,false,340);
+  // — CUT. Black, then the mark.
+  S(9600,()=>{ const B=$('#cineBlack'); if(B) B.classList.add('on'); });
+  S(9900,()=>{const T=$('#cineTitle');T.innerHTML='APEX <span class="r">GP</span>';
     void T.offsetWidth;T.classList.add('slam');
     $('#cineFlash').classList.add('on');setTimeout(()=>$('#cineFlash').classList.remove('on'),110);
     Sound.hit();});
-  S(47500,()=>{const Su=$('#cineSub');Su.textContent='2026 WORLD CHAMPIONSHIP';Su.classList.add('show');});
-  S(51600,()=>endCinematic());
+  S(10500,()=>{const Su=$('#cineSub');Su.textContent='2026 WORLD CHAMPIONSHIP';Su.classList.add('show');});
+  S(13200,()=>endCinematic());
   STATE='cine';
   renderer.toneMappingExposure=1.45;      // a night race is lit, not unlit
   camera.fov=44; camera.updateProjectionMatrix();
   $('#cine').classList.add('on');
 }
-/* The gap in metres at time t. It comes down at every corner and never once
-   goes back out, which is the only thing this sequence has to communicate.
-   The leader is not on track until CINE_T0; before that the circuit is empty
-   and the gap is meaningless. */
-/* Retimed for the new cut. The first two shots are a detail and a wide of an
-   EMPTY circuit — nothing is on it and nothing should be — and the leader has
-   to arrive into the locked-off ground shot that begins at 6.4s, not before it.
-   The rival's lights appear a beat later, during that same held frame. */
-/* THE OPENING, IN THREE ACTS — and the whole first act has no cars in it.
-   The cut this replaces was 31 seconds that started with the cars 12 seconds in.
-   This one runs to 48 and holds the empty circuit for seventeen of them: the
-   grid, the lane, the gantry running its lights up and back out over nothing,
-   a crane over the whole place, a kerb in the rain. Then a car arrives, and
-   only then does a second one appear behind it. Nothing is reused from the old
-   sequence except the two anchors that were proven to frame correctly. */
-const CINE_T0=17.6;         // ACT II — the leader arrives, into the locked-off shot
-const CINE_T1=28.0;         // ACT III — the rival's lights appear behind him
-const CINE_END=48.0;        // and the length of the whole thing
-/* Where on the lap the sequence is staged. The static camera positions used to
-   be absolute lap fractions, which was fine on a 1.4 km invented loop where the
-   cars covered 5% of it a second. On a real 5.4 km circuit at the same speed
-   they cover barely 1.4% a second, so a camera parked at "10% of the lap" was
-   most of a kilometre from the cars and filmed an empty road for the whole cut.
-   Every fixed anchor is now placed relative to CINE_U0 or to the leader. */
-const CINE_U0=0.42;
-function chaseGap(t){
-  /* Cut to the SHOTS, not to a smooth line. Every framing in act III names
-     which car should be where, and the gap is whatever puts them there:
-     level (0) lands at 39.4s inside the alongside shot, he loses it again in
-     the wheel-height frame because a move that sticks first time is not a
-     move, and he is through by the time the camera lets them go. */
-  const keys=[[CINE_T1,190],[30.0,120],[31.2,74],[32.4,26],[33.4,9.0],
-              [34.6,6.0],[35.6,11.0],[37.0,5.0],[38.2,2.2],[39.4,0.6],
-              [40.4,-1.4],[41.6,-2.0],[43.0,-1.0],[44.4,-3.5],[46.5,-12.0]];
-  if(t<=keys[0][0]) return keys[0][1];
-  for(let i=0;i<keys.length-1;i++){
-    const [a,ga]=keys[i],[b,gb]=keys[i+1];
-    if(t<=b){ const u=clamp((t-a)/(b-a),0,1), e=u*u*(3-2*u); return ga+(gb-ga)*e; }
-  }
-  return keys[keys.length-1][1];
-}
+/* THE OPENING IS A TITLE SEQUENCE, NOT A FILM.
+   Nine and a half seconds: an unbranded matte-carbon car, parked, and a camera
+   that does all the moving round it while a red rim light swings the other way.
+   Everything the previous version needed — a lap position, a rival, a closing
+   gap, rain, spray, sparks, crowd flashes — is gone with the race it served. */
+const CINE_U0=0.42;                 // where the car is parked on the borrowed circuit
+const CINE_END=9.6;                 // camera runs to here; the title lands just after
 function stepCinematic(dt){
   if(!carPlain) setCarPlain(true);                       // retry until the livery shader is compiled
   const el=(typeof window!=='undefined'&&window.__holdCine!=null)?window.__holdCine:(performance.now()-CINE.start)/1000;
   if(!CHASE) return;
-  const LAP=CHASE.len||1420;                             // metres round the real circuit
-  const V=76;                                            // ~275 km/h
-  // the leader is only on the circuit from CINE_T0; before that it is empty
-  const running=Math.max(0,el-CINE_T0);
-  const uL=(CINE_U0 + running*V/LAP)%1;
-  const gap=chaseGap(el);
-  const uR=uL - gap/LAP;
-  // the rival comes off line and out to the inside as he commits
-  const commit=clamp((el-31.6)/2.6,0,1);
-  const latL=1.1 - 0.9*clamp((el-33.4)/2.0,0,1);          // the leader covers, a little late
-  const latR=1.1 - 5.4*commit*commit*(3-2*commit);
-  const L=chasePose(uL,latL), R=chasePose(uR,latR);
+
+  /* THE CAR DOES NOT MOVE. It is parked, square, unbranded, and it is the only
+     thing in the sequence — which is the whole reason the camera has to work. */
+  const P=chasePose(CINE_U0,0);
   const drop=(CAR.tireDrop||0);
-  const onTrack=el>=CINE_T0, rivalOn=el>=CINE_T1-1.2;
-  CAR.rig.visible=onTrack;
-  // sit on the ROAD, at whatever height the circuit is at that point
-  CAR.rig.position.set(L.x,L.y+0.02-drop,L.z); CAR.rig.rotation.set(0,L.yaw,0);
-  if(CINE.rival){ CINE.rival.visible=rivalOn;
-    CINE.rival.position.set(R.x,R.y+0.02-drop,R.z); CINE.rival.rotation.set(0,R.yaw,0); }
-  if(CINE.rim){ CINE.rim.position.set(R.x,R.y+1.6,R.z);
-    CINE.rim.intensity=rivalOn?7*clamp((el-CINE_T1+1.2)/2,0,1):0; }
+  CAR.rig.visible=true;
+  CAR.rig.position.set(P.x,P.y+0.02-drop,P.z); CAR.rig.rotation.set(0,P.yaw,0);
 
-  /* Exposure comes UP through the sequence. The empty circuit is deliberately
-     under-lit — you are straining to see it — and the picture opens out as the
-     cars arrive and again as the two of them come together, so the last shots
-     are the brightest thing in the whole cut. */
-  /* Reverted. Dropping the floor to 0.88 to make act one feel "under-lit" just
-     made it hard to see — a night circuit is LIT, by floodlights, and the
-     drama is in what is in the frame, not in how little of it you can make out.
-     Back to a bright base with a gentle lift, so the empty circuit reads
-     clearly from the first frame. */
-  renderer.toneMappingExposure=1.34+0.22*clamp((el-9.0)/8.0,0,1)+0.16*clamp((el-30)/6.0,0,1);
-
-  /* ---- the wet night doing its work -------------------------------------- */
-  if(CHASE.rain) CHASE.rain.update(dt,camera.position);
-  if(CHASE.flashes){                     // camera flashes ripple through the stands
-    const heat=clamp((el-CINE_T0)/6,0,1)*0.6+clamp((el-30)/5,0,1)*0.4;
-    let any=0;
-    for(let k=0;k<CHASE.fState.length;k++){
-      const f=CHASE.fState[k];
-      f.t-=dt*(0.6+heat*2.4);
-      if(f.t<=0) f.t=0.35+Math.random()*2.2;
-      if(f.t>0.30) any++;
-    }
-    CHASE.flashMat.opacity=0.55*heat*(0.5+0.5*Math.sin(performance.now()*0.02));
-  }
-  if(CHASE.spray && onTrack){            // rooster tails off both cars
-    const amt=clamp((el-CINE_T0)/1.5,0,1);
-    CHASE.sprayMat.opacity=0.20*amt;
-    const put=(m,pose,on)=>{ m.visible=on;
-      m.position.set(pose.x-Math.sin(pose.yaw)*3.2,(pose.y||0)+1.15,pose.z-Math.cos(pose.yaw)*3.2);
-      m.lookAt(camera.position); };
-    put(CHASE.spray[0],L,true); put(CHASE.spray[1],R,rivalOn);
-  }
-  if(CHASE.sparks){                      // the floor grounding out, late on
-    const on=el>38.5&&el<45.5;
-    CHASE.sparkMat.opacity=on?(0.5+0.5*Math.sin(el*37))*0.85:0;
-    CHASE.sparks.visible=on;
-    if(on){ CHASE.sparks.position.set(L.x-Math.sin(L.yaw)*2.0,L.y+0.16,L.z-Math.cos(L.yaw)*2.0);
-      CHASE.sparks.lookAt(camera.position); }
-  }
-
-  /* ======================== THE SHOTS =====================================
-     A DIFFERENT FILM. The old cut was one continuous chase: a camera hanging
-     off the back of two cars for twenty seconds, which is a lot of the same
-     shot. This is built the way a race opening actually is — as a sequence of
-     DIFFERENT KINDS of image, each held only as long as it earns.
-
-     The grammar, in order — three acts, and the first has no cars in it:
-
-       ACT I, THE EMPTY CIRCUIT (0-17.4s)
-         · the start line, low and tight, nothing on it
-         · the pit lane on a long lens, garages lit, nobody there
-         · a tilt up the gantry, the five lights running on one at a time
-         · the lights go OUT over an empty grid, and the camera runs the straight
-         · a crane, high and wide, the whole place in the rain
-         · a kerb at an apex, close enough to count the ribs
-
-       ACT II, THE LEADER (17.4-30s)
-         · locked off on the deck; he ARRIVES into frame rather than being followed
-         · through the barrier as he passes: blind for a beat
-         · helicopter, trailing and climbing
-         · the chase, low and brief
-         · a long lens down the road as he leaves — and two lights appear behind him
-
-       ACT III, THE FIGHT (30-48s)
-         · out of the leader's mirror, the rival growing
-         · wheel height, both of them
-         · the move, from the outside, very low
-         · head on, filling the frame
-         · nothing but wheels and spray
-         · they pass the camera and go
-         · the empty road again. Black.
-
-     The cuts get shorter and the camera gets closer to the ground. Nothing
-     repeats a framing.                                                     */
   const cam=new THREE.Vector3(), look=new THREE.Vector3();
-  /* `up` is height ABOVE THE ROAD at that point, not an absolute world y — the
-     circuit climbs and drops, and an absolute height buries the camera in the
-     tarmac at Eau Rouge and leaves it in the sky at the bus stop. */
-  const at=(pose,fwd,side,up)=>new THREE.Vector3(
-    pose.x+Math.sin(pose.yaw)*fwd+Math.cos(pose.yaw)*side, (pose.y||0)+up,
-    pose.z+Math.cos(pose.yaw)*fwd-Math.sin(pose.yaw)*side);
-  const mid={x:(L.x+R.x)/2,z:(L.z+R.z)/2,y:(L.y+R.y)/2,yaw:L.yaw};
+  /* `up` is height above the road under the car, not an absolute world y. */
+  const at=(fwd,side,up)=>new THREE.Vector3(
+    P.x+Math.sin(P.yaw)*fwd+Math.cos(P.yaw)*side, (P.y||0)+up,
+    P.z+Math.cos(P.yaw)*fwd-Math.sin(P.yaw)*side);
   const ease=(t)=>t*t*(3-2*t);
-  let fov=44, shake=0;
-  /* Act I is staged on the START/FINISH COMPLEX, at u=0 — that is where the
-     grid paint, the gantry and the pit lane actually exist. An earlier pass
-     framed these off CINE_U0 (42% of the lap, a stretch of ordinary road) and
-     filmed scenery from under the terrain. `su` is a lap fraction from a
-     distance in metres along the start straight. */
-  const su=(m)=>((m/TRACK.len)%1+1)%1;
-  const lightsAt=(n)=>{ if(TRACK.startLights) TRACK.startLights.set(n); };
+  const L=(a,b,k)=>a+(b-a)*k;
+  let fov=40, shake=0;
 
-  if(el<3.0){
-    /* A. THE LINE. Low over the start/finish stripe, tight, drifting forward a
-       metre and a half in three seconds. The quietest image in the game and the
-       first one you see: painted tarmac in the rain with nothing on it. */
-    const k=ease(clamp(el/3.0,0,1));
-    const p0=chasePose(su(0), 2.6);
-    cam.copy(at(p0, -5.4+k*1.6, 0, 0.62-k*0.14));
-    look.copy(at(p0, 1.2+k*1.4, 0, 0.02));
-    fov=lerp(27,23,k); shake=0; lightsAt(0);
+  if(el<2.2){
+    /* 1. REAR THREE-QUARTER, ON THE DECK. Arcing in from behind the left rear
+       to square behind it. You see the diffuser and the rear wing and not much
+       else, and you are low enough that the car is against the sky. */
+    const k=ease(clamp(el/2.2,0,1));
+    cam.copy(at(L(-6.4,-5.0,k), L(-3.6,-1.1,k), L(0.58,0.40,k)));
+    look.copy(at(-0.6,0,0.55));
+    fov=L(31,28,k); shake=0.03;
 
-  }else if(el<6.0){
-    /* B. THE LANE. A long lens straight down the pit lane, the garages lit and
-       nobody in front of them. Depth, and not one moving thing in it. PIT.side
-       picks the correct side; PIT.offset is measured out from the track edge. */
-    const k=ease(clamp((el-3.0)/3.0,0,1));
-    const lat=PIT.side*(TRACK.halfW+PIT.offset);
-    const p0=chasePose(su(-64), lat);
-    cam.copy(at(p0, 0, 0, 1.75));
-    look.copy(at(p0, 58+k*34, 0, 1.30));
-    fov=lerp(21,16,k); shake=0.02; lightsAt(0);
+  }else if(el<4.2){
+    /* 2. ACROSS THE NOSE. A macro that tracks left to right over the front wing
+       at wing height. No car is legible here — just carbon weave and edges. */
+    const k=ease(clamp((el-2.2)/2.0,0,1));
+    cam.copy(at(L(3.8,3.4,k), L(-1.25,1.25,k), 0.22));
+    look.copy(at(2.1,0,0.19));
+    fov=L(22,20,k); shake=0.05;
 
-  }else if(el<9.2){
-    /* C. THE GANTRY, AND THE LIGHTS COMING ON. Tilt up the rig — beam at ~9.8 m,
-       the five lamps at ~8.6 — and run them up one at a time as the camera finds
-       them. Unlit, they are five dark spheres against a dark sky and there is
-       nothing in the frame; lit, the tilt has somewhere to arrive. */
-    const k=ease(clamp((el-6.0)/3.2,0,1));
-    const p0=chasePose(su(0),0);
-    cam.copy(at(p0, -10.5, -1.4, 1.15));
-    look.copy(at(p0, -0.5, 0, lerp(1.0,9.4,k)));
-    fov=lerp(34,25,k); shake=0.015;
-    lightsAt(Math.min(5,Math.floor(clamp((el-6.6)/1.9,0,1)*5.99)));
+  }else if(el<6.2){
+    /* 3. THE FLANK. A straight dolly down the side at hub height, front to
+       back, so the whole shape passes the lens once. The only shot that shows
+       what the car actually is. */
+    const k=ease(clamp((el-4.2)/2.0,0,1));
+    cam.copy(at(L(-4.2,4.2,k), 3.1, 0.40));
+    look.copy(at(0,0,0.46));
+    fov=30; shake=0.04;
 
-  }else if(el<12.2){
-    /* D. AND OUT. Five lights held, then out — a race start with no cars on the
-       grid. The camera does what the field would have done: drops to the deck
-       and runs the straight, accelerating away from a start that never happened.
-       This is the shot the whole first act was setting up. */
-    const k=ease(clamp((el-9.2)/3.0,0,1));
-    lightsAt(el<10.3?5:0);
-    const p0=chasePose(su(-6+k*168),0);
-    cam.copy(at(p0, 0, 0, lerp(1.30,0.52,k)));
-    look.copy(at(p0, 30+k*40, 0, lerp(1.10,0.70,k)));
-    fov=lerp(30,46,ease(clamp((el-10.3)/1.9,0,1)));
-    shake=0.02+0.10*clamp((el-10.3)/1.9,0,1);
-
-  }else if(el<15.2){
-    /* E. THE CRANE. High, wide, and moving barely at all: the whole circuit in
-       the rain, the grandstand lights strung round it. The only time you see
-       the place whole, and it is empty when you do. */
-    const k=ease(clamp((el-12.2)/3.0,0,1));
-    const p0=chasePose(su(200),0);
-    cam.copy(at(p0, -150, -86, 62-k*13));
-    look.copy(at(p0, 30, 0, 2));
-    fov=lerp(40,35,k); shake=0; lightsAt(0);
-
-  }else if(el<17.4){
-    /* F. A KERB. Back to a detail, and the tightest lens in the cut: red and
-       white ribs at an apex with the rain coming off them. After the crane it
-       resets the scale to nothing, so the car that arrives next feels enormous. */
-    const k=ease(clamp((el-15.2)/2.2,0,1));
-    const p0=chasePose((CINE_U0-0.006+1)%1, -(TRACK.halfW-0.4));
-    cam.copy(at(p0, -3.0+k*2.2, -1.5, 0.34));
-    look.copy(at(p0, 6.0, 0.2, 0.10));
-    fov=lerp(19,17,k); shake=0.03;
-
-  }else if(el<20.6){
-    /* G. HE ARRIVES. Camera on the deck at the edge of the road and left there.
-       The leader comes INTO frame rather than being followed into it, which is
-       the difference between watching a car and chasing one. */
-    const p0=chasePose((CINE_U0+0.012)%1,0);
-    cam.copy(at(p0, 0, -8.4, 0.42));
-    look.copy(new THREE.Vector3(L.x,L.y+0.7,L.z));
-    fov=34; shake=0.05;
-
-  }else if(el<22.4){
-    /* H. BLIND FOR A BEAT. Through the barrier as he goes past: the frame is
-       mostly obstruction, the car is a smear between two posts, and the camera
-       cannot keep up with the pan. Deliberately a bad shot, which is what makes
-       it feel filmed rather than rendered. */
-    const k=clamp((el-20.6)/1.8,0,1);
-    cam.copy(at(L, -3.0-k*2.0, -6.2, 0.95));
-    look.copy(new THREE.Vector3(L.x,L.y+0.55,L.z));
-    fov=26; shake=0.42;
-
-  }else if(el<25.6){
-    /* I. HELICOPTER. Trailing and climbing, never straight overhead — an aerial
-       that points at the ground gives you a nice map and two specks. He stays in
-       the lower third with the circuit opening out ahead of him. */
-    const k=ease(clamp((el-22.4)/3.2,0,1));
-    cam.copy(at(L, -46-k*34, 8+k*12, 15+k*20));
-    look.copy(at(L, 36, 0, 1.5));
-    fov=lerp(44,36,k); shake=0.05;
-
-  }else if(el<27.6){
-    /* J. THE CHASE — briefly. Low behind him, two seconds, no more. It is the
-       one framing the whole opening has been avoiding and withholding it is the
-       only thing that gives it any force. */
-    const k=ease(clamp((el-25.6)/2.0,0,1));
-    cam.copy(at(L, -8.6+k*2.2, 0.5, 1.15));
-    look.copy(at(L, 16, 0, 0.9));
-    fov=lerp(52,58,k); shake=0.16;
-
-  }else if(el<30.0){
-    /* K. AND SOMETHING BEHIND HIM. A long lens laid down the road as he goes
-       away from camera — he gets smaller for two seconds, and then two lights
-       come up in the murk behind him. End of act two. */
-    const k=ease(clamp((el-27.6)/2.4,0,1));
-    const p0=chasePose((CINE_U0+0.030)%1,-1.2);
-    cam.copy(at(p0, -14, -2.2, 1.05));
-    look.copy(new THREE.Vector3(L.x,L.y+0.7,L.z));
-    fov=lerp(30,20,k); shake=0.06;
-
-  }else if(el<32.6){
-    /* L. THE MIRROR. Just behind the leader's shoulder, pushing in, the rival
-       growing in the frame behind him. Nothing cuts; the only thing that changes
-       is how much of the picture the other car is. */
-    const k=ease(clamp((el-30.0)/2.6,0,1));
-    cam.copy(at(L, -2.6-k*0.9, 0.62, 1.02));
-    look.copy(new THREE.Vector3(R.x,R.y+0.62,R.z));
-    fov=lerp(46,32,k); shake=0.18+k*0.12;
-
-  }else if(el<34.8){
-    /* M. WHEEL HEIGHT. Level with the axles, on the inside, as he comes
-       alongside. The road fills the bottom third and both cars are cut off at
-       the shoulder — you are too low to see a whole car, which is the point. */
-    const k=ease(clamp((el-32.6)/2.2,0,1));
-    cam.copy(at(mid, -5.4, 4.6-k*1.6, 0.34));
-    look.copy(new THREE.Vector3(mid.x,mid.y+0.42,mid.z));
-    fov=lerp(40,48,k); shake=0.22;
-
-  }else if(el<37.2){
-    /* N. HE LOSES IT. Wide of the pair from the outside as the move fails and
-       the rival drops back a length. A first attempt that sticks is not a move,
-       and the shot that shows it failing is what makes the next one matter. */
-    const k=ease(clamp((el-34.8)/2.4,0,1));
-    cam.copy(at(mid, -10.5+k*2.0, -7.6, 1.55));
-    look.copy(new THREE.Vector3(mid.x,mid.y+0.55,mid.z));
-    fov=lerp(38,44,k); shake=0.18;
-
-  }else if(el<39.6){
-    /* O. AND GOES AGAIN, FROM THE DECK. The last held frame of the pair: both
-       cars level, filling the width, shot from the road so the barrier and the
-       spray close over the top of them. */
-    const k=ease(clamp((el-37.2)/2.4,0,1));
-    cam.copy(at(mid, -1.2+k*2.6, -3.9+k*0.8, 0.30));
-    look.copy(new THREE.Vector3(mid.x,mid.y+0.48,mid.z));
-    fov=lerp(52,62,k); shake=0.34;
-
-  }else if(el<41.8){
-    /* P. HEAD ON. The camera is put on the road IN FRONT of them and left there
-       while they come at it. The only frame in the cut shot from the front, and
-       the only one where the cars get bigger instead of smaller. */
-    const k=ease(clamp((el-39.6)/2.2,0,1));
-    cam.copy(at(mid, 26-k*17, 1.4, 0.44));
-    look.copy(new THREE.Vector3(mid.x,mid.y+0.44,mid.z));
-    fov=lerp(34,50,k); shake=0.12+k*0.26;
-
-  }else if(el<44.0){
-    /* Q. WHEELS AND WATER. Down at hub height on the outside, so close that all
-       that is legible is rubber, standing water and light. No car, no circuit,
-       no context — just the two loudest textures in the sport. */
-    const k=ease(clamp((el-41.8)/2.2,0,1));
-    cam.copy(at(mid, -1.4+k*1.0, -2.35, 0.24));
-    look.copy(new THREE.Vector3(mid.x,mid.y+0.26,mid.z));
-    fov=lerp(30,26,k); shake=0.40;
-
-  }else if(el<46.2){
-    /* R. GONE. The camera stops dead and lets them leave. The only shot in the
-       whole cut where the cars get smaller and nothing follows them. */
-    const k=ease(clamp((el-44.0)/2.2,0,1));
-    const p0=chasePose((uL-0.012+1)%1,0);
-    cam.copy(at(p0, -2.0, -2.4, 0.46));
-    look.copy(new THREE.Vector3(L.x,L.y+0.5,L.z));
-    fov=lerp(58,44,k); shake=0.30*(1-k);
+  }else if(el<8.2){
+    /* 4. FRONT THREE-QUARTER, FALLING IN. High and wide, dropping to eye level
+       with the halo as it pushes. This is the hero frame and it is the only one
+       held long enough to be one. */
+    const k=ease(clamp((el-6.2)/2.0,0,1));
+    cam.copy(at(L(7.2,4.6,k), L(-4.8,-2.9,k), L(1.95,0.92,k)));
+    look.copy(at(0,0,0.55));
+    fov=L(40,31,k); shake=0.07+k*0.06;
 
   }else{
-    /* S. THE ROAD, AGAIN. Back to the empty tarmac the film opened on, held
-       still for a second and a half while the picture goes out. It closes where
-       it started, on nothing, which is the only ending act one earns. */
-    const k=ease(clamp((el-46.2)/1.8,0,1));
-    const p0=chasePose(su(0), 2.6);
-    cam.copy(at(p0, -5.0, 0, 0.58+k*0.10));
-    look.copy(at(p0, 2.4, 0, 0.02));
-    fov=lerp(24,28,k); shake=0.02*(1-k); lightsAt(0);
+    /* 5. HEAD ON, AND TOO CLOSE. Straight down the centreline, pushing until
+       the nose fills the frame and the lens is wide enough to bend it. Then
+       black. */
+    const k=ease(clamp((el-8.2)/1.4,0,1));
+    cam.copy(at(L(6.4,2.9,k), L(0.18,0.05,k), L(0.30,0.35,k)));
+    look.copy(at(0,0,0.46));
+    fov=L(34,48,k); shake=0.10+k*0.30;
   }
 
+  /* THE RED. A rim light swung round the car opposite the camera, so the car is
+     always edged rather than lit, and it climbs through the sequence. All of
+     the colour in the whole opening comes from this one lamp and the swooshes
+     the beats throw across the frame. */
+  if(CINE.rim){
+    const a=el*1.35+2.2, r=7.4;
+    CINE.rim.position.copy(at(Math.cos(a)*r, Math.sin(a)*r, 1.5+0.8*Math.sin(el*0.9)));
+    CINE.rim.intensity=26+70*clamp(el/8.2,0,1)+70*clamp((el-8.2)/1.4,0,1);
+  }
+  /* Exposure comes up as it goes, so the last frame is the brightest. */
+  renderer.toneMappingExposure=1.30+0.30*clamp(el/6.0,0,1)+0.22*clamp((el-8.2)/1.4,0,1);
+  if(CHASE.rain) CHASE.rain.update(dt,camera.position);
   /* Handheld. Zero for the opening crane — a locked-off camera is part of why
      the empty circuit feels still — and rising with the tension until the last
      shot is barely holding on. */
