@@ -282,7 +282,7 @@
   /* ============ LIVE STANDINGS ============
      The order of the race, on screen, while it is happening. A position number
      on its own tells you where you are and nothing about who is around you. */
-  #standings{position:fixed;left:clamp(12px,2vw,20px);top:calc(clamp(10px,1.6vh,18px) + 112px);z-index:14;
+  #standings{position:fixed;left:clamp(12px,2vw,20px);top:clamp(10px,1.6vh,18px);z-index:14;
     width:clamp(168px,15vw,208px);pointer-events:none;opacity:0;transition:opacity .25s ease;
     background:rgba(6,8,12,.62);backdrop-filter:blur(3px);
     border-left:2px solid var(--red);font-family:var(--f1)}
@@ -290,7 +290,7 @@
   :root[data-theme="light"] #standings{background:rgba(255,255,255,.80)}
   /* a full grid is fourteen rows, so cap it rather than let it run off a short
      screen */
-  #stdList{max-height:calc(100vh - 210px);overflow:auto}
+  #stdList{max-height:calc(100vh - 96px);overflow:auto}
   #stdHead{display:flex;justify-content:space-between;align-items:baseline;
     padding:6px 9px 5px;border-bottom:1px solid var(--line);
     font-family:var(--mono);font-size:8.5px;letter-spacing:.22em;color:var(--type-3)}
@@ -1359,8 +1359,13 @@
      top-left corner, which is where the standings board also lives — a third of
      that column for four readings. Rectangular, tighter type, half the padding,
      and narrow enough that the standings can sit directly under it. */
-  #timing{position:absolute;left:clamp(12px,2vw,20px);top:clamp(10px,1.6vh,18px);
-    min-width:0;width:clamp(150px,13vw,178px);
+  /* TOP MIDDLE, ABOVE THE SECTORS. The lap box and the standings were both in
+     the left column, stacked, which is why they fought each other. The left
+     column is now the standings and nothing else; the lap readouts sit centred
+     at the top with the sector strip directly beneath them, so the two pieces of
+     timing information read as one block. */
+  #timing{position:absolute;left:50%;top:clamp(8px,1.2vh,14px);transform:translateX(-50%);
+    min-width:0;width:clamp(178px,15vw,208px);text-align:left;
     background:linear-gradient(180deg,rgba(8,11,16,.86),rgba(8,11,16,.58));border-left:2px solid var(--red);
     border-radius:0;padding:6px 9px 7px;backdrop-filter:blur(7px)}
   /* session header — only shown in practice and qualifying, where the thing that
@@ -1386,11 +1391,11 @@
   /* SECTORS, TOP MIDDLE. They used to be a row of three inside the timing panel
      under everything else, which is the last place your eye goes. Across the top
      centre they are readable at a glance and out of the way of the standings. */
-  #sectors{position:absolute;left:50%;top:clamp(8px,1.4vh,16px);transform:translateX(-50%);
-    display:flex;gap:2px}
-  #sectors .sv{min-width:clamp(62px,7vw,86px);display:flex;flex-direction:column;align-items:center;
-    gap:1px;padding:4px 10px 5px;background:rgba(8,11,16,.72);
-    border-top:2px solid rgba(255,255,255,.16);backdrop-filter:blur(6px)}
+  /* the strip spans the full width of the panel, bleeding into its padding */
+  #sectors{display:flex;gap:2px;margin:6px -9px -7px;}
+  #sectors .sv{flex:1;display:flex;flex-direction:column;align-items:center;
+    gap:1px;padding:4px 2px 5px;background:rgba(255,255,255,.06);
+    border-top:2px solid rgba(255,255,255,.16)}
   #sectors .sv i{font-family:var(--mono);font-style:normal;font-size:7.5px;letter-spacing:.24em;
     color:var(--grey);font-weight:700}
   #sectors .sv b{font-family:var(--mono);font-weight:800;font-size:12px;color:#eef2f6;letter-spacing:.02em}
@@ -2020,14 +2025,7 @@ window.__introDone=Promise.resolve();
 
 <div id="hud">
   <!-- the LED shift lights used to live here; removed on request -->
-  <!-- SECTORS. Lifted out of the timing panel and put across the top middle,
-       where they read as a strip of three rather than a row squeezed under the
-       lap times. -->
-  <div id="sectors">
-    <span class="sv" id="sec0"><i>S1</i><b>—</b></span>
-    <span class="sv" id="sec1"><i>S2</i><b>—</b></span>
-    <span class="sv" id="sec2"><i>S3</i><b>—</b></span>
-  </div>
+
   <div id="timing">
     <!-- practice / qualifying header: which session, and how long is left in it -->
     <div id="sessBar"><span id="sessName">PRACTICE 1</span><span id="sessClock">30:00</span></div>
@@ -2036,6 +2034,15 @@ window.__introDone=Promise.resolve();
     <div class="ttRow"><span class="k">LAST</span><span class="v" id="lapLast">—:——.—</span></div>
     <div class="ttRow"><span class="k">BEST</span><span class="v best" id="lapBest">—:——.—</span></div>
     <div class="ttRow" id="deltaRow"><span class="k">DELTA</span><span class="v" id="delta"></span></div>
+    <!-- SECTORS, directly under the lap readouts and part of the same block.
+         Positioning them absolutely below the panel meant guessing its height,
+         and the guess was wrong the moment the practice session bar appeared —
+         they overlapped it by 34 px. Flowed instead, so they cannot. -->
+    <div id="sectors">
+      <span class="sv" id="sec0"><i>S1</i><b>—</b></span>
+      <span class="sv" id="sec1"><i>S2</i><b>—</b></span>
+      <span class="sv" id="sec2"><i>S3</i><b>—</b></span>
+    </div>
     <div id="ttBrand"><span class="f1m"><b>F1</b><i></i><i></i><i></i></span><span class="tv">TV</span><span class="ttLive">TIMING</span></div>
   </div>
   <!-- marshal flags: what the post ahead of you is showing -->
@@ -21638,13 +21645,14 @@ function stepAI(dt){
         c.puFailed=true; c.dnf=true;              // a blown engine is a retirement
       }
       // pick a mode: chase hard when there is someone to catch, otherwise save
-      const chasing = (aheadCar && closeAhead<28) || fight>0;
-      c.ersMode = chasing ? (c.ers>0.25?'attack':'harvest')
-                          : (c.ers<0.55?'harvest':'balanced');
-      const EMa=c.ersMode==='attack'?1.7:c.ersMode==='harvest'?0.45:1.0;
-      const EMr=c.ersMode==='attack'?0.55:c.ersMode==='harvest'?1.85:1.0;
-      if(chasing && c.ers>0.02){ c.ers=Math.max(0,c.ers-dt/8.0*EMa); targetV+=2.2*EMa; }
-      else c.ers=Math.min(1,c.ers+dt/16.0*EMr);
+      /* MODE ONLY. Deployment itself happens further down, once we know whether
+         the car is on a straight — there used to be TWO independent blocks both
+         draining and regenerating the battery, fighting each other every frame. */
+      const attacking = (aheadCar && closeAhead<28) || fight>0;
+      const defending = behindGap<26;
+      c.ersMode = attacking ? (c.ers>0.25?'attack':'harvest')
+                : defending ? 'attack'
+                : (c.ers<0.45?'harvest':'balanced');
       const wearLoss=1-clamp(c.puWear,0,1)*0.12-(c.puFailed?0.6:0);
       const dmgLoss=1-(c.dmgF||0)*0.10-(c.dmgFloor||0)*0.08;
       targetV*=wearLoss*dmgLoss;
@@ -21773,8 +21781,47 @@ function stepAI(dt){
       targetV+=1.6*clamp(1-c.atk/1.8,0,1);
       if(c.atk>1.8){ c.phase='clear'; c.atkCool=1.2; c.atkSide=0; }
     }
-    if(straight && c.ers>0.12 && (closeAhead<52||c.atk>0||c.lap<1)){ targetV+=9; c.ers-=dt/8; }
-    else c.ers=Math.min(1,c.ers+dt/18);
+    /* ===================== THE BATTERY =====================================
+       The old rule only ever deployed with a car within 52 m, or off the line.
+       A driver in clean air therefore sat on a FULL battery for the entire race
+       and never used a joule of it — which is both slower than it should be and
+       nothing like how the thing is driven.
+       Deploy where it pays: down a straight and on the exit of a corner, never
+       mid-corner where the tyre is already at its limit and more torque does
+       nothing. How eagerly depends on the situation:
+         attacking  — spend it, this is what it is for
+         defending  — spend it, a place lost is not coming back
+         clear      — spend the surplus. Sitting above ~85% in clean air is
+                      wasted energy, so a leading car burns it down to a working
+                      level rather than hoarding it to the flag.
+       Harvest under braking, hard, because that is when the energy exists. */
+    /* `desired` is not computed until further down, so this reads targetV — which
+       is the same intent before traffic and flags trim it, and is what the driver
+       is asking the car for. Using `desired` here would be a use-before-declare
+       and would throw every frame. */
+    { const exiting = (targetV > c.v+1.0) && !straight;   // hard on the power out of a corner
+      const braking = targetV < c.v-0.5;
+      const usable  = straight || exiting;
+      /* The clear-air floor is not a constant. Holding a flat 85% all race is
+         still hoarding, just at a lower number — measured, the leader deployed
+         down to 0.85 in the first ten seconds and then sat there for the rest of
+         the minute. A driver in clean air spends properly down a straight, where
+         it is worth something, and keeps a fuller reserve through the twisty
+         part, where it is not. So the floor moves with the road. */
+      const want = c.ersMode==='attack' ? 0.06
+                 : c.ersMode==='balanced' ? (straight ? 0.50 : 0.88)
+                 : 1.01;                              // harvesting: do not deploy at all
+      if(usable && c.ers>Math.max(0.04,want)){
+        const punch = straight ? 9.0 : 4.5;           // more use down a straight
+        const rate  = c.ersMode==='attack' ? 1/6.5 : 1/9.0;
+        targetV += punch * (c.ersMode==='attack'?1.0:0.72);
+        c.ers = Math.max(0, c.ers - dt*rate);
+      }else if(braking){
+        c.ers = Math.min(1, c.ers + dt/5.5);          // recovery is a braking event
+      }else{
+        c.ers = Math.min(1, c.ers + dt/22);           // and a trickle the rest of the time
+      }
+    }
     /* GAP KEEPING. Nothing was holding a following distance: a car simply drove
        at a shade over the pace of the car in front until it touched it, so a
        fourteen-car pack ran permanently in contact and the collision code scrubbed
