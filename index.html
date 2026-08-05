@@ -72,17 +72,83 @@
   #grain{opacity:.045;mix-blend-mode:overlay;z-index:13;
     background:repeating-linear-gradient(0deg,rgba(255,255,255,.6) 0 1px,transparent 1px 3px)}
 
-  /* ============ LOADING ============ */
-  #loader{position:fixed;inset:0;z-index:60;background:radial-gradient(ellipse at 50% 40%,#0c1017,#000 80%);
-    display:flex;flex-direction:column;align-items:center;justify-content:center;transition:opacity .8s ease}
+  /* ============ STUDIO CARD ============
+     Shown before anything else: a mark drawn as geometry rather than set in a
+     font, so it reads as a logo and not as text. It draws itself on, holds, and
+     wipes away — the whole thing is over in four seconds. */
+  #studio{position:fixed;inset:0;z-index:70;background:#000;
+    display:flex;align-items:center;justify-content:center;
+    opacity:1;transition:opacity .7s ease}
+  #studio.gone{opacity:0;pointer-events:none}
+  #studioInner{display:flex;flex-direction:column;align-items:center;
+    animation:stuUp 1.1s cubic-bezier(.2,.8,.2,1) both}
+  @keyframes stuUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
+  #studioMark{width:clamp(74px,9vw,108px);height:auto}
+  #studioMark .ring{fill:none;stroke:rgba(255,255,255,.26);stroke-width:2;
+    stroke-dasharray:327;stroke-dashoffset:327;animation:stuRing 1.5s .2s ease-out forwards}
+  @keyframes stuRing{to{stroke-dashoffset:0}}
+  #studioMark .chev{fill:none;stroke:#fff;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;
+    stroke-dasharray:120;stroke-dashoffset:120;animation:stuChev 1.0s ease-out forwards}
+  #studioMark .chev.a{animation-delay:.55s}
+  #studioMark .chev.b{stroke:var(--red);animation-delay:.80s}
+  @keyframes stuChev{to{stroke-dashoffset:0}}
+  #studioName{margin-top:20px;font-family:var(--mono);font-weight:900;
+    font-size:clamp(20px,2.6vw,32px);letter-spacing:.34em;color:#fff;padding-left:.34em;
+    opacity:0;animation:stuFade .9s 1.15s ease-out forwards}
+  #studioKind{margin-top:7px;font-size:9px;letter-spacing:.62em;color:rgba(255,255,255,.4);
+    text-transform:uppercase;font-weight:700;padding-left:.62em;
+    opacity:0;animation:stuFade .9s 1.35s ease-out forwards}
+  #studioPresents{margin-top:26px;font-size:10px;letter-spacing:.4em;
+    color:rgba(255,255,255,.30);font-style:italic;
+    opacity:0;animation:stuFade 1.0s 2.0s ease-out forwards}
+  @keyframes stuFade{to{opacity:1}}
+
+  /* ============ LOADING PLATE ============
+     A full-bleed photograph with the type sitting on it, the way a title card
+     in a sports documentary works — not a logo floating in a void. */
+  #loader{position:fixed;inset:0;z-index:60;background:#04060a;
+    display:flex;align-items:center;justify-content:center;
+    opacity:0;transition:opacity .8s ease}
+  #loader.show{opacity:1}
   #loader.gone{opacity:0;pointer-events:none}
-  #ldMark{font-family:var(--mono);font-weight:900;font-size:clamp(32px,6vw,60px);letter-spacing:.02em}
+  #ldArt{position:absolute;inset:0;background-image:url('assets/art/podium.webp');
+    background-size:cover;background-position:52% 42%;
+    transform:scale(1.06);animation:ldDrift 26s ease-in-out infinite alternate}
+  @keyframes ldDrift{from{transform:scale(1.06) translate3d(0,0,0)}
+                     to{transform:scale(1.13) translate3d(-1.4%,-1.0%,0)}}
+  /* graded down and vignetted so white type survives anywhere on the image */
+  #ldArtGrade{position:absolute;inset:0;
+    background:linear-gradient(90deg,rgba(3,5,9,.94) 0%,rgba(3,5,9,.72) 32%,rgba(3,5,9,.30) 62%,rgba(3,5,9,.62) 100%),
+      linear-gradient(0deg,rgba(3,5,9,.92),transparent 44%),
+      radial-gradient(ellipse 120% 100% at 40% 50%,transparent 30%,rgba(0,0,0,.72) 100%)}
+  #ldPlate{position:relative;z-index:2;margin-right:auto;
+    padding-left:clamp(36px,8vw,140px);display:flex;flex-direction:column;align-items:flex-start}
+  #ldMark{font-family:var(--mono);font-weight:900;font-size:clamp(30px,5.4vw,58px);letter-spacing:.01em;color:#fff}
   #ldMark .r{color:var(--red);text-shadow:0 0 30px var(--red-glow)}
-  #ldSub{margin-top:16px;font-size:11px;letter-spacing:.55em;color:var(--grey);text-transform:uppercase;font-weight:600;padding-left:.55em}
-  #ldBarW{margin-top:40px;width:min(360px,64vw);height:3px;background:rgba(255,255,255,.09);overflow:hidden}
-  #ldBar{height:100%;width:0;background:linear-gradient(90deg,var(--red-lo),var(--red));box-shadow:0 0 16px var(--red-glow);transition:width .3s ease}
-  #ldPct{margin-top:14px;font-family:var(--mono);font-size:13px;letter-spacing:.2em;color:#c7d0da}
-  #ldState{margin-top:8px;font-size:10px;letter-spacing:.34em;color:var(--grey-lo);text-transform:uppercase;font-weight:600;height:12px}
+  #ldSub{margin-top:13px;font-size:10px;letter-spacing:.55em;color:rgba(255,255,255,.5);
+    text-transform:uppercase;font-weight:700;padding-left:.55em}
+  /* THE TACHOMETER. The loading indicator is the instrument the game is about:
+     a needle sweeping round a dial with shift lights filling behind it. */
+  #ldTach{position:relative;margin-top:30px;width:min(300px,52vw)}
+  #ldTachSvg{width:100%;height:auto;overflow:visible}
+  #ldArcBg{stroke:rgba(255,255,255,.10);stroke-width:5;stroke-linecap:round}
+  #ldArcFg{stroke:url(#ldGrad);stroke:var(--red);stroke-width:5;stroke-linecap:round;
+    filter:drop-shadow(0 0 8px rgba(225,6,0,.6))}
+  #ldTicks line{stroke:rgba(255,255,255,.34);stroke-width:1.6}
+  #ldTicks line.maj{stroke:rgba(255,255,255,.68);stroke-width:2.4}
+  #ldShift circle{fill:rgba(255,255,255,.13);transition:fill .18s}
+  #ldShift circle.on{fill:#fff}
+  #ldShift circle.on.r{fill:var(--red)}
+  #ldNeedle{stroke:#fff;stroke-width:2.6;stroke-linecap:round;
+    transform-box:fill-box;transform-origin:50% 100%;
+    filter:drop-shadow(0 0 6px rgba(255,255,255,.55))}
+  #ldHub{fill:#0a0c11;stroke:rgba(255,255,255,.5);stroke-width:2}
+  #ldPct{position:absolute;left:50%;bottom:2px;transform:translateX(-58%);
+    font-family:var(--mono);font-weight:900;font-size:26px;color:#fff;letter-spacing:.02em}
+  #ldPctU{position:absolute;left:50%;bottom:6px;transform:translateX(52%);
+    font-family:var(--mono);font-size:11px;color:rgba(255,255,255,.5);font-weight:700}
+  #ldState{margin-top:22px;font-size:9.5px;letter-spacing:.36em;color:rgba(255,255,255,.42);
+    text-transform:uppercase;font-weight:700;height:12px}
 
   /* ============ CINEMATIC INTRO ============ */
   #cine{position:fixed;inset:0;z-index:55;pointer-events:none;opacity:0;transition:opacity .6s ease}
@@ -1259,13 +1325,62 @@
 <div id="grain" class="layer"></div>
 
 <!-- ===== LOADING ===== -->
-<div id="loader">
-  <div id="ldMark">APEX<span class="r">·</span>GP</div>
-  <div id="ldSub">Grand Prix Championship</div>
-  <div id="ldBarW"><div id="ldBar"></div></div>
-  <div id="ldPct">0%</div>
-  <div id="ldState">Booting engine…</div>
+<!-- ===== BOOT: studio card, then the loading plate ===== -->
+<div id="studio">
+  <div id="studioInner">
+    <svg id="studioMark" viewBox="0 0 120 120" aria-hidden="true">
+      <!-- a mark drawn as geometry, not a font: two apex chevrons inside a ring -->
+      <circle class="ring" cx="60" cy="60" r="52"/>
+      <path class="chev a" d="M28 78 L60 30 L92 78"/>
+      <path class="chev b" d="M42 78 L60 51 L78 78"/>
+    </svg>
+    <div id="studioName">NORTHLIGHT</div>
+    <div id="studioKind">Interactive</div>
+    <div id="studioPresents">presents</div>
+  </div>
 </div>
+
+<div id="loader">
+  <div id="ldArt"></div>
+  <div id="ldArtGrade"></div>
+  <div id="ldPlate">
+    <div id="ldMark">APEX<span class="r">·</span>GP</div>
+    <div id="ldSub">Grand Prix Championship</div>
+    <!-- THE LOADING ANIMATION. Not a bar: a rev counter. The needle sweeps to
+         wherever loading has got to and the shift lights fill behind it, so the
+         thing telling you how long is left is the instrument the game is about. -->
+    <div id="ldTach">
+      <svg viewBox="0 0 200 128" id="ldTachSvg">
+        <g id="ldTicks"></g>
+        <path id="ldArcBg" d="M22 112 A 78 78 0 0 0 178 112" fill="none"/>
+        <path id="ldArcFg" d="M22 112 A 78 78 0 0 0 178 112" fill="none"/>
+        <g id="ldShift"></g>
+        <line id="ldNeedle" x1="100" y1="112" x2="100" y2="44"/>
+        <circle id="ldHub" cx="100" cy="112" r="7"/>
+      </svg>
+      <div id="ldPct">0</div>
+      <div id="ldPctU">%</div>
+    </div>
+    <div id="ldState">Booting engine…</div>
+  </div>
+</div>
+
+<script>
+/* THE BOOT SEQUENCE RUNS ON REAL TIME, NOT ON MODULE TIME.
+   This was sequenced from inside boot(), which only runs once the whole module
+   has finished evaluating — and that includes building a throwaway world to warm
+   the shaders, several seconds on a slow machine. The studio card therefore sat
+   frozen for the entire slow part of loading and the plate behind it was never
+   seen. Being a classic script, this executes the moment the parser reaches it,
+   so the card plays out and hands over to the loading plate on schedule whatever
+   the module is doing. */
+window.__introDone=new Promise(function(res){
+  var st=document.getElementById('studio'), ld=document.getElementById('loader');
+  setTimeout(function(){ if(ld) ld.classList.add('show'); },3300);
+  setTimeout(function(){ if(st) st.classList.add('gone'); },3600);
+  setTimeout(function(){ if(st&&st.parentNode) st.parentNode.removeChild(st); res(); },4400);
+});
+</script>
 
 <!-- ===== CINEMATIC INTRO ===== -->
 <div id="cine">
@@ -21145,15 +21260,92 @@ function drawMinimap(){
    ================================================================== */
 const STEPS=['Booting engine…','Loading car mesh…','Loading steering wheel…','Building circuit…','Warming tyres…','Ready.'];
 function ldState(i){$('#ldState').textContent=STEPS[i]||'';}
-function ldPct(p){p=Math.round(p);$('#ldBar').style.width=p+'%';$('#ldPct').textContent=p+'%';}
+/* ==================================================================
+   THE LOADING TACHOMETER
+   Ticks and shift lights are generated rather than written out, so the dial can
+   be re-proportioned by changing two numbers. The needle is eased toward the
+   real figure instead of snapping to it — a needle that jumps is a progress bar
+   wearing a costume. */
+const LDT={target:0, shown:0, raf:0, built:false};
+function ldBuildTach(){
+  if(LDT.built) return; LDT.built=true;
+  const ticks=$('#ldTicks'), shift=$('#ldShift');
+  if(!ticks||!shift) return;
+  const A0=Math.PI, A1=0;                       // 180° sweep, left to right
+  const cx=100, cy=112, rOut=78;
+  for(let i=0;i<=20;i++){
+    const t=i/20, a=A0+(A1-A0)*t, maj=(i%5===0);
+    const r1=rOut-(maj?13:8), r2=rOut-1;
+    /* SVG's y axis grows DOWNWARD, so the top half of a dial is cy MINUS the
+       sine — using plus put the entire scale underneath the hub. */
+    const l=document.createElementNS('http://www.w3.org/2000/svg','line');
+    l.setAttribute('x1',(cx+Math.cos(a)*r1).toFixed(2));
+    l.setAttribute('y1',(cy-Math.sin(a)*r1).toFixed(2));
+    l.setAttribute('x2',(cx+Math.cos(a)*r2).toFixed(2));
+    l.setAttribute('y2',(cy-Math.sin(a)*r2).toFixed(2));
+    if(maj) l.setAttribute('class','maj');
+    ticks.appendChild(l);
+  }
+  // shift lights in an arc above the dial, the last three red
+  for(let i=0;i<9;i++){
+    const t=i/8, a=A0+(A1-A0)*t;
+    const cxx=cx+Math.cos(a)*(rOut+13), cyy=cy-Math.sin(a)*(rOut+13);
+    const ci=document.createElementNS('http://www.w3.org/2000/svg','circle');
+    ci.setAttribute('cx',cxx.toFixed(2)); ci.setAttribute('cy',cyy.toFixed(2));
+    ci.setAttribute('r','3.4');
+    if(i>=6) ci.setAttribute('class','r');
+    shift.appendChild(ci);
+  }
+  // the progress arc, measured so it can be drawn by dash offset
+  /* Build both arcs from the SAME maths as the ticks rather than trusting a
+     hand-written sweep flag. The literal path kept bulging the wrong way — an
+     arc flag is easy to get backwards in a y-down coordinate system, and there
+     is no reason to guess when the two endpoints and the radius are already
+     known here. */
+  { const r=rOut-4;
+    const x0=(cx+Math.cos(A0)*r).toFixed(2), y0=(cy-Math.sin(A0)*r).toFixed(2);
+    const x1=(cx+Math.cos(A1)*r).toFixed(2), y1=(cy-Math.sin(A1)*r).toFixed(2);
+    // sweep 1 with y negated traces the upper half from left to right
+    const d=`M${x0} ${y0} A ${r} ${r} 0 0 1 ${x1} ${y1}`;
+    const bg=$('#ldArcBg'), fg=$('#ldArcFg');
+    if(bg) bg.setAttribute('d',d);
+    if(fg){ fg.setAttribute('d',d);
+      const len=fg.getTotalLength();
+      fg.style.strokeDasharray=len; fg.style.strokeDashoffset=len; LDT.arcLen=len; } }
+}
+function ldTick(){
+  LDT.raf=0;
+  const d=LDT.target-LDT.shown;
+  LDT.shown+=d*0.12;
+  if(Math.abs(d)<0.05) LDT.shown=LDT.target;
+  const p=clamp(LDT.shown,0,100)/100;
+  const nd=$('#ldNeedle');
+  if(nd) nd.style.transform='rotate('+(-90+p*180).toFixed(2)+'deg)';
+  const fg=$('#ldArcFg');
+  if(fg&&LDT.arcLen) fg.style.strokeDashoffset=(LDT.arcLen*(1-p)).toFixed(1);
+  const el=$('#ldPct'); if(el) el.textContent=Math.round(LDT.shown);
+  const lights=$('#ldShift');
+  if(lights){ const n=lights.children.length;
+    for(let i=0;i<n;i++) lights.children[i].classList.toggle('on', p*n>i+0.35); }
+  if(LDT.shown!==LDT.target) LDT.raf=requestAnimationFrame(ldTick);
+}
+function ldPct(p){
+  ldBuildTach();
+  LDT.target=clamp(p,0,100);
+  if(!LDT.raf) LDT.raf=requestAnimationFrame(ldTick);
+}
 
 async function boot(){
   if(location.protocol==='file:'){
     // same message the classic script above already put up — one source, no drift
     $('#loader').innerHTML=window.__fileProtoMsg();
+    $('#loader').classList.add('show');
+    const st=$('#studio'); if(st) st.remove();
     return;
   }
+  const introDone=window.__introDone||Promise.resolve();
   const loader=new GLTFLoader();
+  ldBuildTach();
   ldState(1);
   // car is the big download → drive the bar with its progress
   await loadCar(loader,e=>{
@@ -21169,6 +21361,11 @@ async function boot(){
   ldPct(96);ldState(4);
   await new Promise(r=>setTimeout(r,200));
   ldPct(100);ldState(5);
+  /* Wait for the studio card to have finished before the loading plate can be
+     dismissed — otherwise a fast machine blows through both in half a second
+     and neither is ever seen. */
+  await introDone;
+  await new Promise(r=>setTimeout(r,650));   // let the needle settle on 100
   buildMenu();
   // settings screen wiring — the buttons, and the first application of whatever
   // was loaded from storage before anything is on screen
