@@ -17627,6 +17627,7 @@ function wkSimulate(s){
     const base=(parseLapRec(cf.laprec)+1.1)*paceConditions();
     const t=base+0.4+Math.random()*1.6;                 // practice is not a qualifying lap
     wk.done[s.k]=true;
+    seasonAutosave();
     wkNews(`${s.nm} simulated.`,
       `The team ran ${s.nm.toLowerCase()} at ${esc(cf.name)} without you. Best of the session: ${fmt(t)}.`);
     renderWeekend();
@@ -17662,6 +17663,7 @@ function wkFinishSimQuali(grid,cf){
   SEASON.grid=grid; SEASON.gridPos=me?me.pos:grid.length;
   SESS.eliminated=null; SESS.part=0;
   wk.done.q=true;
+  seasonAutosave();
   const p=me?me.pos:grid.length;
   wkNews(p===1?'Pole position (simulated).':`Qualified P${p} (simulated).`,
     `The team put the car P${p} on the grid at ${esc(cf.name)}${me&&me.t?` with a ${fmt(me.t)}`:''}.`);
@@ -17699,6 +17701,7 @@ function endPractice(){
   if(SEASON.practiceKey) wk.done[SEASON.practiceKey]=true;
   SEASON.practiceKey=null;
   sessStop();
+  seasonAutosave();          // a completed session is progress worth keeping
   const best=(typeof lap!=='undefined'&&lap.best)||0;
   if(best) wkNews('Practice pace.',
     `${esc(SEASON.name)} ended the session with a best of ${fmt(best)}.`);
@@ -19246,6 +19249,9 @@ function endQuali(best, prebuiltGrid, knockedOut){
     wkNews(p===1?'Pole position.':`Qualified P${p}.`,
       `${esc(SEASON.name)} will start ${p===1?'from pole':'P'+p} at ${esc(curCfg().name)} `+
       `with a best of ${fmt(best)}.`);
+    /* Saved AFTER the penalty has been served, so the grid slot on disk is the
+       one the race will actually start from. */
+    seasonAutosave();
   }
   $('#qTrack').textContent=curCfg().name;
   $('#qBest').textContent=fmt(best);
