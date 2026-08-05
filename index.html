@@ -18444,137 +18444,191 @@ function spawnSwoosh(topPct,rev,dur){
   setTimeout(()=>{el.style.opacity='0';},dur*0.62);
   setTimeout(()=>el.remove(),dur+140);
 }
+/* THE VOID. Not a circuit — the opening is not staged anywhere any more. Black
+   background, no environment map, no ambient, no fill: with nothing lighting it
+   the car is genuinely invisible, and the only thing that ever reveals it is a
+   red lamp that fires with a swoosh and dies with it. That is the whole idea,
+   and it does not work if there is a lit world behind the car. */
+let VOID=null;
+function buildVoidScene(){
+  const S=cineScene;
+  S.background=new THREE.Color(0x000000);
+  S.environment=null; S.fog=null;
+  /* Two red keys, one each side and behind, so a pulse rims the car rather than
+     lighting it flat, plus a very dim white top so the carbon weave is not a
+     silhouette when the pulse is at its brightest. */
+  const kL=new THREE.PointLight(0xff1a12,0,60,2); kL.position.set(-5.6,1.5,-2.6);
+  const kR=new THREE.PointLight(0xff2a1a,0,60,2); kR.position.set( 5.6,1.7, 2.2);
+  const kF=new THREE.PointLight(0xff3a22,0,60,2); kF.position.set( 0.6,1.2, 5.2);
+  const top=new THREE.DirectionalLight(0xffd8d0,0); top.position.set(0.4,7,1.2);
+  S.add(kL,kR,kF,top);
+  /* RED PARTICLES. Points streaking laterally past the lens, additive, seeded in
+     a slab around the car. They ride the same pulse the lights do, so they only
+     exist while a swoosh is in the frame. */
+  const NP=520, pos=new Float32Array(NP*3), spd=new Float32Array(NP);
+  for(let i=0;i<NP;i++){
+    pos[i*3  ]=(Math.random()*2-1)*26;
+    pos[i*3+1]=Math.random()*5.2-0.4;
+    pos[i*3+2]=(Math.random()*2-1)*13;
+    spd[i]=16+Math.random()*46;
+  }
+  const pg=new THREE.BufferGeometry();
+  pg.setAttribute('position',new THREE.BufferAttribute(pos,3));
+  const pm=new THREE.PointsMaterial({color:0xff2a18,size:0.10,transparent:true,opacity:0,
+    blending:THREE.AdditiveBlending,depthWrite:false,sizeAttenuation:true});
+  const pts=new THREE.Points(pg,pm); pts.frustumCulled=false; S.add(pts);
+  VOID={kL,kR,kF,top,pts,pm,pos,spd,NP};
+}
 function startCinematic(){
-  buildChaseScene();
-  cineScene.add(CAR.rig); resetCar();
+  if(!VOID) buildVoidScene();
+  cineScene.add(CAR.rig);
   builtTrackId=null;                                   // first race still builds its world
+  CAR.rig.position.set(0,0,0); CAR.rig.rotation.set(0,Math.PI*0.5,0);
   camera.position.set(5,3,6);camera.lookAt(0,0.7,0);   // throwaway render → compiles the livery shader (sets its uniforms)
   FX2.render(cineScene,camera,0.016);
-  setCarPlain(true);                                   // the leader runs unbranded
-  /* No second car. There is no race to have one in. */
+  setCarPlain(true);                                   // no livery: bare carbon
   const rival=null;
-  const rim=new THREE.PointLight(0xff2626,0,70,2);cineScene.add(rim);
+  const rim=null;
   CINE={ start:performance.now(), rim, rival, timers:[], ended:false };
   const S=(ms,fn)=>CINE.timers.push(setTimeout(fn,ms));
   Sound.init();
   /* ============================ THE BEATS =================================
-     THE RACE IS GONE. The previous cut was forty-eight seconds of circuit — an
-     empty grid, a gantry, a crane, then two cars fighting over a lap. It was a
-     film, and it was far too long to sit through every time you open the game.
+     PITCH BLACK, AND THEN A SWOOSH. Nothing is staged and nothing races. The
+     screen is black; a red swoosh rips across it; for the fifth of a second it
+     is in frame it throws enough light to find a bare carbon car, and then it
+     is gone and so is the car. They come again, faster, with red particles
+     streaking past the lens, until the frame barely goes dark between them —
+     and the camera leaves ON one of them, riding it sideways out of the scene
+     and straight into the loading plate.
 
-     What is left is a title sequence: one unbranded matte-carbon car, held
-     still, lit by a red rim that swings round it, and the camera doing all the
-     moving. Five shots in nine and a half seconds, red swooshes cutting across
-     the frame on the beat, then black and the title. Nothing races, nothing
-     laps, nothing takes a corner. It is a logo animation with a car in it.  */
-  const SW=(t,top,rev,dur)=>S(t,()=>spawnSwoosh(top,rev,dur));
-  S(120  ,()=>Sound.whoosh(1.1,0.16));
-  SW(180 ,62,false,600);
-  S(2200 ,()=>Sound.blip(220,.07));      SW(2240,26,true ,520);
-  S(4200 ,()=>Sound.blip(300,.07));      SW(4240,74,false,520);
-  S(6200 ,()=>Sound.rev());              SW(6240,18,true ,470);
-                                         SW(6420,84,false,470);
-  S(8200 ,()=>Sound.whoosh(0.7,0.42));   SW(8240,46,false,420);
-  SW(8560,38,true ,380);
-  SW(8900,58,false,340);
-  // — CUT. Black, then the mark.
-  S(9600,()=>{ const B=$('#cineBlack'); if(B) B.classList.add('on'); });
-  S(9900,()=>{const T=$('#cineTitle');T.innerHTML='APEX <span class="r">GP</span>';
-    void T.offsetWidth;T.classList.add('slam');
-    $('#cineFlash').classList.add('on');setTimeout(()=>$('#cineFlash').classList.remove('on'),110);
-    Sound.hit();});
-  S(10500,()=>{const Su=$('#cineSub');Su.textContent='2026 WORLD CHAMPIONSHIP';Su.classList.add('show');});
-  S(13200,()=>endCinematic());
+     CINE_SW is the single source of truth for when a swoosh exists. The lights,
+     the particles, the exposure and the sound all read it, so nothing can drift
+     out of sync with the thing the whole sequence is made of. */
+  const SW=(t,top,rev,dur)=>S(t*1000,()=>spawnSwoosh(top,rev,dur));
+  for(const [t,top,rev,dur] of CINE_SW) SW(t,top,rev,dur);
+  S(1000 ,()=>Sound.whoosh(1.5,0.30));
+  S(2300 ,()=>Sound.whoosh(1.2,0.26));
+  S(3300 ,()=>Sound.whoosh(1.0,0.28));
+  S(4300 ,()=>Sound.blip(240,.06));
+  S(5300 ,()=>Sound.whoosh(0.9,0.34));
+  S(6000 ,()=>Sound.blip(300,.05));
+  S(6600 ,()=>Sound.whoosh(0.8,0.36));
+  S(7100 ,()=>Sound.blip(360,.05));
+  S(7500 ,()=>Sound.whoosh(0.7,0.40));
+  S(7900 ,()=>Sound.blip(430,.05));
+  S(8200 ,()=>Sound.whoosh(0.6,0.44));
+  S(8600 ,()=>Sound.rev());
+  // — the last swoosh takes the camera with it, and the frame with it
+  S(10250,()=>{ $('#cineFlash').classList.add('on');
+    setTimeout(()=>$('#cineFlash').classList.remove('on'),120); Sound.hit(); });
+  S(10330,()=>{ const B=$('#cineBlack'); if(B) B.classList.add('on'); });
+  S(10600,()=>{const T=$('#cineTitle');T.innerHTML='APEX <span class="r">GP</span>';
+    void T.offsetWidth;T.classList.add('slam');});
+  S(12100,()=>endCinematic());
   STATE='cine';
   renderer.toneMappingExposure=1.45;      // a night race is lit, not unlit
   camera.fov=44; camera.updateProjectionMatrix();
   $('#cine').classList.add('on');
 }
-/* THE OPENING IS A TITLE SEQUENCE, NOT A FILM.
-   Nine and a half seconds: an unbranded matte-carbon car, parked, and a camera
-   that does all the moving round it while a red rim light swings the other way.
-   Everything the previous version needed — a lap position, a rival, a closing
-   gap, rain, spray, sparks, crowd flashes — is gone with the race it served. */
-const CINE_U0=0.42;                 // where the car is parked on the borrowed circuit
-const CINE_END=9.6;                 // camera runs to here; the title lands just after
+/* THE OPENING: BLACK, AND RED THINGS GOING PAST IT.
+   [time, top%, reversed, duration ms] — the only description of the sequence
+   that exists. The DOM swooshes are scheduled from it, and the lights, the
+   particles and the exposure are all computed from it every frame, so the
+   light on the car is always exactly the light of the swoosh that is in the
+   frame. They start a second apart and end a third of a second apart. */
+const CINE_SW=[
+  [1.00,58,false,560],[2.30,24,true ,520],[3.30,72,false,500],[4.30,40,true ,470],
+  [5.30,16,false,450],[6.00,66,true ,430],[6.60,34,false,410],[7.10,80,true ,390],
+  [7.50,48,false,370],[7.90,22,true ,350],[8.20,62,false,340],[8.60,44,true ,900],
+];
+const CINE_LAST=8.60;               // the one the camera leaves on
+const CINE_END=10.3;                // ...and where the frame goes with it
+/* How lit the car is right now: the sum of a fast attack and a short decay on
+   every swoosh that has already fired. Between them it falls to nothing, which
+   is why the car keeps disappearing. */
+function cineGlow(el){
+  let g=0;
+  for(const [t] of CINE_SW){
+    const d=el-t; if(d<-0.10||d>1.30) continue;
+    g+=d<0 ? (1+d/0.10)*0.35                      // a touch of pre-glow as it arrives
+           : Math.exp(-d/(t<5?0.20:0.30));
+  }
+  return Math.min(2.6,g);
+}
 function stepCinematic(dt){
+  /* STATE stays 'cine' after endCinematic() until postIntro() finishes and calls
+     enterMenu() — several seconds of studio card and loading plate — so the
+     render loop keeps calling this with CINE already torn down. */
+  if(!CINE) return;
   if(!carPlain) setCarPlain(true);                       // retry until the livery shader is compiled
   const el=(typeof window!=='undefined'&&window.__holdCine!=null)?window.__holdCine:(performance.now()-CINE.start)/1000;
-  if(!CHASE) return;
-
-  /* THE CAR DOES NOT MOVE. It is parked, square, unbranded, and it is the only
-     thing in the sequence — which is the whole reason the camera has to work. */
-  const P=chasePose(CINE_U0,0);
-  const drop=(CAR.tireDrop||0);
-  CAR.rig.visible=true;
-  CAR.rig.position.set(P.x,P.y+0.02-drop,P.z); CAR.rig.rotation.set(0,P.yaw,0);
-
-  const cam=new THREE.Vector3(), look=new THREE.Vector3();
-  /* `up` is height above the road under the car, not an absolute world y. */
-  const at=(fwd,side,up)=>new THREE.Vector3(
-    P.x+Math.sin(P.yaw)*fwd+Math.cos(P.yaw)*side, (P.y||0)+up,
-    P.z+Math.cos(P.yaw)*fwd-Math.sin(P.yaw)*side);
   const ease=(t)=>t*t*(3-2*t);
   const L=(a,b,k)=>a+(b-a)*k;
-  let fov=40, shake=0;
+  const glow=cineGlow(el);
 
-  if(el<2.2){
-    /* 1. REAR THREE-QUARTER, ON THE DECK. Arcing in from behind the left rear
-       to square behind it. You see the diffuser and the rear wing and not much
-       else, and you are low enough that the car is against the sky. */
-    const k=ease(clamp(el/2.2,0,1));
-    cam.copy(at(L(-6.4,-5.0,k), L(-3.6,-1.1,k), L(0.58,0.40,k)));
-    look.copy(at(-0.6,0,0.55));
-    fov=L(31,28,k); shake=0.03;
+  /* ---- the light, and the particles that ride it ---- */
+  if(VOID){
+    /* These are large numbers because they are physical ones: a point light with
+       decay 2 at six or seven metres delivers a fortieth of its intensity, and
+       the first pass at 150 lit a sliver of bodywork and nothing else. */
+    VOID.kL.intensity=glow*1500; VOID.kR.intensity=glow*1100; VOID.kF.intensity=glow*900;
+    VOID.top.intensity=glow*0.95;                    // just enough to read the weave
+    VOID.pm.opacity=Math.min(0.9,glow*0.66);
+    const P=VOID.pos, arr=VOID.pts.geometry.attributes.position;
+    for(let i=0;i<VOID.NP;i++){
+      P[i*3]+=VOID.spd[i]*dt*(0.4+glow);
+      if(P[i*3]>26) P[i*3]=-26;
+    }
+    arr.array=P; arr.needsUpdate=true;
+    VOID.pts.position.set(0,0,0);
+  }
+  /* Exposure follows the glow too, so a swoosh genuinely blows the frame open
+     and the gaps between them are properly black rather than merely dim. */
+  renderer.toneMappingExposure=0.34+0.90*Math.min(1,glow)+0.30*clamp((el-7.5)/2.0,0,1);
 
-  }else if(el<4.2){
-    /* 2. ACROSS THE NOSE. A macro that tracks left to right over the front wing
-       at wing height. No car is legible here — just carbon weave and edges. */
-    const k=ease(clamp((el-2.2)/2.0,0,1));
-    cam.copy(at(L(3.8,3.4,k), L(-1.25,1.25,k), 0.22));
-    look.copy(at(2.1,0,0.19));
-    fov=L(22,20,k); shake=0.05;
+  /* ---- the camera ---- */
+  const cam=new THREE.Vector3(), look=new THREE.Vector3();
+  let fov=38, shake=0.02+glow*0.05;
 
-  }else if(el<6.2){
-    /* 3. THE FLANK. A straight dolly down the side at hub height, front to
-       back, so the whole shape passes the lens once. The only shot that shows
-       what the car actually is. */
-    const k=ease(clamp((el-4.2)/2.0,0,1));
-    cam.copy(at(L(-4.2,4.2,k), 3.1, 0.40));
-    look.copy(at(0,0,0.46));
-    fov=30; shake=0.04;
-
-  }else if(el<8.2){
-    /* 4. FRONT THREE-QUARTER, FALLING IN. High and wide, dropping to eye level
-       with the halo as it pushes. This is the hero frame and it is the only one
-       held long enough to be one. */
-    const k=ease(clamp((el-6.2)/2.0,0,1));
-    cam.copy(at(L(7.2,4.6,k), L(-4.8,-2.9,k), L(1.95,0.92,k)));
-    look.copy(at(0,0,0.55));
-    fov=L(40,31,k); shake=0.07+k*0.06;
+  if(el<CINE_LAST){
+    /* Each swoosh gets a different angle on the car, and the camera does not
+       move between them — it CUTS. Holding still in the dark is what makes the
+       next flash land; a drifting camera in a black frame reads as a bug. */
+    let i=0; for(let k=0;k<CINE_SW.length;k++) if(el>=CINE_SW[k][0]-0.12) i=k;
+    const A=[
+      [  -5.77,0.62, -2.81, 24],   // rear three-quarter, low
+      [   3.59,0.28,  1.72, 21],   // across the nose
+      [   0.16,0.44,  4.21, 30],   // flank, hub height
+      [   4.84,1.55, -3.43, 34],   // front three-quarter, high
+      [  -4.37,0.24,  1.09, 26],   // rear, on the deck
+      [   2.50,1.90,  3.59, 40],   // above the sidepod
+      [  -1.87,0.30, -4.06, 28],   // behind the rear wheel
+      [   5.30,0.34,  0.47, 30],   // head on, low
+      [  -4.68,1.30,  2.65, 36],   // rear quarter, raised
+      [   1.25,0.22, -3.74, 24],   // under the floor line
+      [   4.06,0.90, -2.03, 32],   // front quarter
+      [   0.00,0.55,  4.84, 30],   // flank again, wider — the one it leaves on
+    ][Math.min(i,11)];
+    const d=clamp(el-CINE_SW[Math.min(i,11)][0],0,2);
+    /* A very small creep, so a held frame is not a still image. */
+    cam.set(A[0]*(1-d*0.012), A[1], A[2]*(1-d*0.012));
+    look.set(0,0.48,0);
+    fov=A[3];
 
   }else{
-    /* 5. HEAD ON, AND TOO CLOSE. Straight down the centreline, pushing until
-       the nose fills the frame and the lens is wide enough to bend it. Then
-       black. */
-    const k=ease(clamp((el-8.2)/1.4,0,1));
-    cam.copy(at(L(6.4,2.9,k), L(0.18,0.05,k), L(0.30,0.35,k)));
-    look.copy(at(0,0,0.46));
-    fov=L(34,48,k); shake=0.10+k*0.30;
+    /* THE EXIT. The camera leaves ON the last swoosh: it whips sideways along
+       the same axis the swoosh travels, faster than it can track, so the car
+       smears out of frame and the screen is a red streak by the time the flash
+       takes it. This is the cut into the loading plate. */
+    const k=ease(clamp((el-CINE_LAST)/(CINE_END-CINE_LAST),0,1));
+    cam.set(L(0.0,-46,k*k), L(0.55,1.5,k), L(6.2,3.0,k));
+    look.set(L(0,-30,k*k), 0.48, L(0,1.4,k));
+    fov=L(30,74,k); shake=0.10+k*0.55;
+    if(VOID){ VOID.kL.intensity=L(1500,7000,k); VOID.kR.intensity=L(1100,5200,k);
+      VOID.kF.intensity=L(900,4200,k);
+      VOID.pm.opacity=Math.min(1,0.6+k*0.4); }
+    renderer.toneMappingExposure=1.10+1.30*k;
   }
-
-  /* THE RED. A rim light swung round the car opposite the camera, so the car is
-     always edged rather than lit, and it climbs through the sequence. All of
-     the colour in the whole opening comes from this one lamp and the swooshes
-     the beats throw across the frame. */
-  if(CINE.rim){
-    const a=el*1.35+2.2, r=7.4;
-    CINE.rim.position.copy(at(Math.cos(a)*r, Math.sin(a)*r, 1.5+0.8*Math.sin(el*0.9)));
-    CINE.rim.intensity=26+70*clamp(el/8.2,0,1)+70*clamp((el-8.2)/1.4,0,1);
-  }
-  /* Exposure comes up as it goes, so the last frame is the brightest. */
-  renderer.toneMappingExposure=1.30+0.30*clamp(el/6.0,0,1)+0.22*clamp((el-8.2)/1.4,0,1);
-  if(CHASE.rain) CHASE.rain.update(dt,camera.position);
   /* Handheld. Zero for the opening crane — a locked-off camera is part of why
      the empty circuit feels still — and rising with the tension until the last
      shot is barely holding on. */
