@@ -2681,6 +2681,54 @@ globeScene.environment=envRT.texture;
 cineScene.environment=envRT.texture;
 let GLOBE=null;                                   // {group, earth, pin, glow}
 /* real-world circuit locations (lat, lon) for the globe pin */
+/* WHAT GROWS BESIDE EACH CIRCUIT.
+   `from` is how far past the barrier the first trunk stands — small, because at
+   a real track they are close enough to throw shade on the tarmac. `depth` and
+   `rows` set how far back the belt goes; anything without an entry (the street
+   circuits and the desert ones) gets no belt at all, which is correct: Jeddah,
+   Vegas, Baku, Bahrain and Qatar are not lined with trees. */
+const TRACK_FLORA={
+  // --- northern European broadleaf and mixed forest ---
+  spa:        {kind:'mixed', from:12, depth:46, rows:8, hMin:26, hMax:48, density:0.92, skip:0.06,
+               tones:[0x2f5a26,0x38682c,0x27491f], tones2:[0x1c4020,0x24501f,0x16331a]},
+  silverstone:{kind:'broad', from:20, depth:28, rows:4, hMin:16, hMax:28, density:0.62, skip:0.30,
+               tones:[0x3d6a30,0x477638,0x325a28]},
+  zandvoort:  {kind:'broad', from:22, depth:26, rows:3, hMin:9,  hMax:16, density:0.50, skip:0.34,
+               tones:[0x4c6a34,0x577640,0x3f5a2a]},   // dune scrub, low and wind-bitten
+  hungary:    {kind:'broad', from:14, depth:35, rows:5, hMin:18, hMax:32, density:0.80, skip:0.12,
+               tones:[0x486b2c,0x527a34,0x3a5a24]},
+  montreal:   {kind:'mixed', from:11, depth:38, rows:7, hMin:20, hMax:36, density:0.88, skip:0.08,
+               tones:[0x3a6a2c,0x467a34,0x2e5624], tones2:[0x21421f,0x2a4f24]},
+  // --- Mediterranean: umbrella pine, cypress, holm oak ---
+  monza:      {kind:'mixed', from:10, depth:44, rows:8, hMin:24, hMax:44, density:0.94, skip:0.05,
+               tones:[0x3c6630,0x467238,0x315528], tones2:[0x24401f,0x2c4a24]},
+  catalunya:  {kind:'conifer',from:16,depth:26, rows:4, hMin:14, hMax:26, density:0.60, skip:0.28,
+               tones:[0x3f5a2a,0x4a6632,0x364e22], slim:0.34},
+  monaco:     null,                                   // a principality, not a park
+  // --- the tropics and the subtropics: palms ---
+  australia:  {kind:'palm',  from:13, depth:26, rows:4, hMin:14, hMax:24, density:0.72, skip:0.16,
+               palm:{frond:0x5c7a3c,frond2:0x6b8a48,trunk:0x9a8a6c,lean:0.16}},  // Melbourne gums + palms
+  miami:      {kind:'palm',  from:12, depth:26, rows:3, hMin:15, hMax:26, density:0.66, skip:0.20,
+               palm:{frond:0x3f7a34,frond2:0x4f8c3f,trunk:0x8f7f61,lean:0.20}},
+  singapore:  {kind:'palm',  from:11, depth:26, rows:3, hMin:16, hMax:28, density:0.70, skip:0.18,
+               palm:{frond:0x2f6a2c,frond2:0x3d7c38,trunk:0x7d6f55,lean:0.14}},
+  saopaulo:   {kind:'broad', from:12, depth:36, rows:5, hMin:20, hMax:38, density:0.84, skip:0.10,
+               tones:[0x2c5a24,0x35682c,0x22481c,0x3f7030]},
+  mexico:     {kind:'broad', from:15, depth:27, rows:4, hMin:16, hMax:28, density:0.64, skip:0.24,
+               tones:[0x44662c,0x4e7234,0x385424]},
+  texas:      {kind:'broad', from:17, depth:29, rows:4, hMin:12, hMax:22, density:0.58, skip:0.30,
+               tones:[0x4f6a2e,0x5c7838,0x415a26]},   // live oak and cedar scrub
+  suzuka:     {kind:'mixed', from:12, depth:40, rows:7, hMin:20, hMax:36, density:0.90, skip:0.07,
+               tones:[0x35662c,0x407434,0x2b5224], tones2:[0x1f4020,0x274c26]},
+  china:      {kind:'broad', from:18, depth:26, rows:3, hMin:14, hMax:24, density:0.52, skip:0.32,
+               tones:[0x466a30,0x517838,0x3a5828]},
+  madrid:     {kind:'conifer',from:16,depth:26, rows:3, hMin:12, hMax:22, density:0.52, skip:0.32,
+               tones:[0x415c2c,0x4b6834], slim:0.36},
+  austria:    {kind:'conifer',from:12,depth:42, rows:7, hMin:22, hMax:40, density:0.90, skip:0.07,
+               tones:[0x1e4522,0x265226,0x17381b,0x2a5a26], slim:0.38},
+  // --- and the ones with nothing: street circuits and open desert ---
+  jeddah:null, lasvegas:null, baku:null, bahrain:null, qatar:null, yas:null,
+};
 const TRACK_LOC={ spa:[50.44,5.97], yas:[24.47,54.60], silverstone:[52.07,-1.02], monaco:[43.73,7.42], austria:[47.22,14.76], saopaulo:[-23.70,-46.70], jeddah:[21.63,39.10], catalunya:[41.57,2.26], miami:[25.96,-80.24], montreal:[45.50,-73.52], australia:[-37.84,144.97], bahrain:[26.03,50.51], lasvegas:[36.11,-115.17], zandvoort:[52.39,4.54], baku:[40.37,49.85], hungary:[47.58,19.25], qatar:[25.49,51.45], texas:[30.13,-97.64],
   monza:[45.62,9.28], suzuka:[34.84,136.54], mexico:[19.40,-99.09], china:[31.34,121.22],
   singapore:[1.29,103.86], madrid:[40.47,-3.62] };
@@ -2946,42 +2994,47 @@ const WEATHER_PRESETS={
     sky:{top:[0.24,0.42,0.66],mid:[0.62,0.74,0.86],bot:[0.78,0.82,0.85]},
     skyNight:{top:[0.015,0.02,0.06],mid:[0.05,0.04,0.12],bot:[0.42,0.20,0.10]},
     bg:0x9fb6cc, bgNight:0x0d1424, fog:0xa9c0d6, fogNight:0x141d31,
-    fogNear:0.55, fogFar:2.8, fogFarNight:4.0, exp:1.05, expNight:1.75,
+    /* FOG PULLED IN. The far distance was clear out to nearly three track radii,
+       which is what let you see across empty terrain to a bare horizon and read
+       the venue as a ribbon laid on a plain. Bringing the far plane in puts a
+       soft limit just past the tree belt, so what you see is trees and then
+       atmosphere — which is what a real circuit looks like from inside it. */
+    fogNear:0.30, fogFar:1.55, fogFarNight:2.1, exp:1.05, expNight:1.75,
     sunCol:0xfff2e0, sunInt:2.7, sunMul:1.0, hemiSky:0xbcd6ef, hemiGnd:0x33372e, hemiInt:0.95,
     sun:{col:[1.0,0.94,0.80], disc:1.15, sharp:480.0, glow:0.20} },
   scattered:{ label:'SCATTERED CLOUD', wetness:0, storm:0, cloud:0.35,
     sky:{top:[0.26,0.42,0.62],mid:[0.60,0.70,0.80],bot:[0.76,0.79,0.82]},
     skyNight:{top:[0.02,0.025,0.06],mid:[0.06,0.05,0.12],bot:[0.38,0.19,0.11]},
     bg:0x9db2c4, bgNight:0x0e1524, fog:0xa6bbcc, fogNight:0x151e30,
-    fogNear:0.50, fogFar:2.5, fogFarNight:3.8, exp:1.02, expNight:1.70,
+    fogNear:0.28, fogFar:1.45, fogFarNight:2.0, exp:1.02, expNight:1.70,
     sunCol:0xfff0dc, sunInt:2.3, sunMul:0.95, hemiSky:0xb2c8de, hemiGnd:0x31352d, hemiInt:1.0,
     sun:{col:[1.0,0.93,0.82], disc:0.85, sharp:400.0, glow:0.18} },
   overcast:{ label:'OVERCAST', wetness:0, storm:0, cloud:0.8,
     sky:{top:[0.44,0.47,0.51],mid:[0.58,0.60,0.63],bot:[0.68,0.69,0.71]},
     skyNight:{top:[0.03,0.035,0.05],mid:[0.07,0.07,0.10],bot:[0.26,0.16,0.12]},
     bg:0x9ca0a6, bgNight:0x11141b, fog:0x9ca0a6, fogNight:0x171b24,
-    fogNear:0.40, fogFar:2.0, fogFarNight:3.3, exp:1.0, expNight:1.65,
+    fogNear:0.25, fogFar:1.28, fogFarNight:1.8, exp:1.0, expNight:1.65,
     sunCol:0xd4d9e0, sunInt:1.55, sunMul:0.8, hemiSky:0xa8aeb6, hemiGnd:0x2e332c, hemiInt:1.1,
     sun:{col:[0.94,0.95,0.97], disc:0.30, sharp:60.0, glow:0.13} },
   damp:{ label:'DAMP / DRIZZLE', wetness:0.35, storm:0, cloud:0.9,
     sky:{top:[0.40,0.43,0.47],mid:[0.54,0.56,0.59],bot:[0.64,0.65,0.67]},
     skyNight:{top:[0.025,0.03,0.045],mid:[0.06,0.06,0.09],bot:[0.24,0.15,0.11]},
     bg:0x94989d, bgNight:0x0a0c11, fog:0x94989d, fogNight:0x0c0e13,
-    fogNear:0.34, fogFar:1.8, fogFarNight:2.5, exp:0.99, expNight:1.48,
+    fogNear:0.22, fogFar:1.15, fogFarNight:1.5, exp:0.99, expNight:1.48,
     sunCol:0xc4c9d0, sunInt:1.2, sunMul:0.72, hemiSky:0x9ba1a8, hemiGnd:0x2c332c, hemiInt:1.15,
     sun:{col:[0.92,0.94,0.97], disc:0.25, sharp:40.0, glow:0.12} },
   rain:{ label:'RAIN', wetness:0.72, storm:0, cloud:1.0,
     sky:{top:[0.26,0.28,0.32],mid:[0.38,0.40,0.44],bot:[0.48,0.49,0.52]},
     skyNight:{top:[0.02,0.022,0.032],mid:[0.045,0.048,0.065],bot:[0.19,0.12,0.09]},
     bg:0x767a80, bgNight:0x080a0e, fog:0x767a80, fogNight:0x0a0b0f,
-    fogNear:0.26, fogFar:1.45, fogFarNight:2.0, exp:0.92, expNight:1.42,
+    fogNear:0.18, fogFar:0.98, fogFarNight:1.3, exp:0.92, expNight:1.42,
     sunCol:0xb0b6be, sunInt:0.95, sunMul:0.6, hemiSky:0x878d95, hemiGnd:0x272c27, hemiInt:1.2,
     sun:{col:[0.88,0.90,0.94], disc:0.10, sharp:22.0, glow:0.07} },
   storm:{ label:'THUNDERSTORM', wetness:1.0, storm:1, cloud:1.0,
     sky:{top:[0.10,0.11,0.14],mid:[0.18,0.19,0.22],bot:[0.28,0.29,0.32]},
     skyNight:{top:[0.012,0.014,0.02],mid:[0.03,0.032,0.042],bot:[0.14,0.09,0.07]},
     bg:0x3a3e46, bgNight:0x05060a, fog:0x3a3e46, fogNight:0x06070b,
-    fogNear:0.20, fogFar:1.10, fogFarNight:1.5, exp:0.82, expNight:1.35,
+    fogNear:0.15, fogFar:0.80, fogFarNight:1.05, exp:0.82, expNight:1.35,
     sunCol:0x8f959d, sunInt:0.7, sunMul:0.45, hemiSky:0x6b7178, hemiGnd:0x1f231f, hemiInt:1.25,
     sun:{col:[0.0,0.0,0.0], disc:0.0, sharp:1.0, glow:0.0} },
 };
@@ -4320,6 +4373,19 @@ function buildWorld(sc,cfg){
   else if(cfg.env==='hungaroring') buildHungaroring(sc,P,Nm,barOff,barOffR); // Mogyoród amphitheatre
   else if(cfg.forest) buildForest(sc,P,Nm,barOff,barOffR);       // Spa: Ardennes forest
   else buildDesert(sc,P,Nm,Tg,barOff,barOffR);                   // Yas: desert + hotel
+  /* THE TREE BELT, ON EVERY CIRCUIT THAT HAS ONE.
+     Planted centrally rather than inside eighteen venue builders, because the
+     problem was the same everywhere: trees were scattered by RADIUS across the
+     outfield, so the ground immediately behind the barrier was bare and you
+     looked straight out over empty terrain to a horizon a kilometre off. That
+     is what "the middle of nowhere" is. A real circuit is walled in by its own
+     trees, starting more or less at the fence and tall enough to close the sky.
+     Species per venue, because a gum tree at Albert Park and a pine at Spa are
+     not interchangeable — half of why a circuit looks like itself is what grows
+     beside it. */
+  { const F=TRACK_FLORA[cfg.id]||TRACK_FLORA[cfg.env];
+    if(F){ const K=venueKit(sc,P,Nm);
+      K.treeBelt(Object.assign({offL:barOff, offR:barOffR}, F)); } }
   buildBridges(sc,P,Nm,Tg,cum,barOff,barOffR);                   // overhead gantries + billboards (all tracks)
   /* buildGroundDetail() used to scatter tussocks, scrub bushes and stones over the
      verges. The ground TEXTURE already carries all of that, and the geometry only
@@ -5920,11 +5986,18 @@ function buildMonaco(sc,P,Nm,Tg,offL,offR){
      actually warm — ochre, terracotta, apricot, rose and pale sea-green render
      next to cream stone — and the colour is a large part of why the place looks
      like the Côte d'Azur and not an office park. */
+  /* Widened again from the photograph. The Riviera palette is warm, but the
+     thing that makes Monaco read is that the warm stock is CUT with cool
+     concrete greys, white modernist slabs and glass — and that the balconies and
+     awnings are a different, stronger colour from the wall behind them. Twelve
+     near-warm tones still averaged out to one beige mass at distance. */
   const pastels=['#e8cfa8','#d9a878','#f0e2c8','#cf8f6a','#e6b98c','#d8c4a0',
-                 '#c9d6c4','#efd9c0','#c48a6a','#e2cbb0','#b9c9cc','#f2e6cc'];
-  for(let i=0;i<N;i+=6){const p=P[i],n=Nm[i],tg=Tg[i],ang=Math.atan2(tg.x,tg.z);   // fewer, larger blocks (perf)
+                 '#c9d6c4','#efd9c0','#c48a6a','#e2cbb0','#b9c9cc','#f2e6cc',
+                 '#b7bcc0','#9fa8ae','#cdd3d6','#f6f4f0','#8f9aa2','#e3e6e6',
+                 '#c86a3c','#a8542f','#6f7d86','#dedad2','#b0846a','#8a94a0'];
+  for(let i=0;i<N;i+=4){const p=P[i],n=Nm[i],tg=Tg[i],ang=Math.atan2(tg.x,tg.z);   // packed: Monaco has no gaps
     for(const [side,off] of [[1,offL],[-1,offR]]){
-      if(Math.random()<0.14) continue;                     // occasional gaps (side streets)
+      if(Math.random()<0.07) continue;                     // occasional gaps (side streets)
       /* Six archetypes, not three. Monte-Carlo is a jumble of Belle-Époque
          apartment blocks, glass towers, terraced hillside flats, ornate
          hotels and narrow shuttered townhouses all crammed together, and the
@@ -5933,8 +6006,12 @@ function buildMonaco(sc,P,Nm,Tg,offL,offR){
       const type=(Math.random()*6)|0;
       const w=(type===2?8+Math.random()*4:type===5?7+Math.random()*4:12+Math.random()*9);
       const d=(type===5?9+Math.random()*7:12+Math.random()*12);
-      const h=(type===2?42+Math.random()*34:type===3?14+Math.random()*10
-              :type===5?16+Math.random()*14:20+Math.random()*30);
+      /* TALLER. The frontage topped out around fifty metres, so the track sat in
+         a shallow dish with sky above it. In the photograph the blocks opposite
+         the barrier go up out of frame — that towering-over is the single most
+         recognisable thing about the place. */
+      const h=(type===2?58+Math.random()*46:type===3?18+Math.random()*14
+              :type===5?22+Math.random()*18:30+Math.random()*44);
       const diag=Math.hypot(w/2,d/2);                       // the building's worst-case reach
       const dist=off(i)+diag+2.5;                           // sit the whole footprint off the barrier
       const x=p.x+n.x*side*dist, z=p.z+n.z*side*dist;
@@ -5951,17 +6028,18 @@ function buildMonaco(sc,P,Nm,Tg,offL,offR){
      rises in terraces behind the track, so from the road you see rank upon rank
      of apartment towers stacked above one another rather than one row of blocks
      against the sky. These are the ranks behind the street frontage. */
-  { const pastels=['#e8e0cc','#dcd0b6','#efe7d6','#d6c2a2','#c9b79c','#e2d4bc'];
+  { const pastels=['#e8e0cc','#dcd0b6','#efe7d6','#d6c2a2','#c9b79c','#e2d4bc',
+                   '#c3c9cd','#aeb6bc','#f2f0ea','#b8845f','#98a2a8','#d7dad9'];
     const balc=new THREE.MeshStandardMaterial({color:0xf4f1ea,roughness:0.75});
     const pantile=new THREE.MeshStandardMaterial({color:0xa8563a,roughness:0.9});
-    for(let rank=1;rank<=4;rank++){
-      const back=34+rank*40, lift=rank*17;          // each rank sits higher up the hill
-      for(let i=0;i<N;i+=9){
+    for(let rank=1;rank<=6;rank++){
+      const back=30+rank*34, lift=rank*21;          // each rank sits higher up the hill
+      for(let i=0;i<N;i+=6){
         const p=P[i],n=Nm[i],tg=Tg[i],ang=Math.atan2(tg.x,tg.z);
         for(const [side,off] of [[1,offL],[-1,offR]]){
-          if(Math.random()<0.25) continue;
+          if(Math.random()<0.12) continue;
           const w=16+Math.random()*14, d=15+Math.random()*12;
-          const h=26+Math.random()*44+rank*6;
+          const h=34+Math.random()*52+rank*9;
           const diag=Math.hypot(w/2,d/2);
           const dist=off(i)+back+diag;
           const x=p.x+n.x*side*dist, z=p.z+n.z*side*dist;
@@ -10000,7 +10078,12 @@ function venueKit(sc,P,Nm){
       im.frustumCulled=false;im.receiveShadow=true;im.castShadow=true;
       const col=new THREE.Color();
       list.forEach((o,i)=>{T.set(o.x,(o.y!==undefined?o.y:gh(o.x,o.z))+(o.yOff!==undefined?o.yOff:o.h*0.5),o.z);
-        S.set(o.w,o.h,o.d!==undefined?o.d:o.w);M.compose(T,RY(o.rot||0),S);im.setMatrixAt(i,M);
+        /* `quat` for anything that has to TILT. add() only ever supported a Y
+           rotation, which is a no-op on a cone — so the palm fronds, which are
+           cones fanned and drooped outward from the top of the trunk, all stood
+           bolt upright inside each other and the tree rendered as a bare pole. */
+        S.set(o.w,o.h,o.d!==undefined?o.d:o.w);
+        M.compose(T,o.quat||RY(o.rot||0),S);im.setMatrixAt(i,M);
         if(o.col!==undefined){col.setHex(o.col);im.setColorAt(i,col);}});
       im.instanceMatrix.needsUpdate=true;if(im.instanceColor)im.instanceColor.needsUpdate=true;
       sc.add(im);return im;}};};
@@ -10045,6 +10128,13 @@ function venueKit(sc,P,Nm){
      are thinned by TREE_N to match, so we draw FEWER, MUCH BIGGER trees that
      actually cover ground (and cost less to render than the old confetti). */
   const TREE_S=1.85, TREE_N=0.66;
+  /* Every trunk this kit actually plants, recorded under ?debug so placement can
+     be measured rather than eyeballed. Counting instanced cylinders and cones
+     off the scene graph does not work: traffic cones, bollards, marshal posts
+     and tyre stacks share those geometries and legitimately stand at the track
+     edge, so a scene-wide sweep reports a two-metre "tree" that is a kerb cone. */
+  const PLANTED=(typeof window!=='undefined'&&window.__DBG_TREES)||null;
+  const plant=(x,z)=>{ if(PLANTED) PLANTED.push(x,z); };
 
   /* rounded broadleaf trees (blob crown + trunk), instanced per tone */
   const broadleaf=(tones,place,count,hMin,hMax)=>{
@@ -10062,6 +10152,7 @@ function venueKit(sc,P,Nm){
       // buildings and through each other's trunks that reads as broken.
       if(!OCCUPY.take(p.x,p.z,h*0.30,0.55)) continue;
       trunkB.add({x:p.x,z:p.z,y,w:h*0.10,h:h*0.44,d:h*0.10,yOff:h*0.22});
+      plant(p.x,p.z);
       // wide, slightly squashed crowns: a broadleaf is broader than it is tall
       const cw=h*(0.86+Math.random()*0.42);
       bs[(Math.random()*bs.length)|0].add({x:p.x,z:p.z,y,w:cw,h:h*0.80,d:cw*(0.85+Math.random()*0.3),yOff:h*0.70});
@@ -10149,9 +10240,133 @@ function venueKit(sc,P,Nm){
       if(!OCCUPY.take(p.x,p.z,w*0.55,0.55)) continue;
       const y=gh(p.x,p.z);
       trunkB.add({x:p.x,z:p.z,y,w:h*0.07,h:h*0.20,d:h*0.07,yOff:h*0.10});
+      plant(p.x,p.z);
       bs[(Math.random()*bs.length)|0].add({x:p.x,z:p.z,y,w,h:h*0.90,d:w,yOff:h*0.58});
       placed++;}
     trunkB.flush(); bs.forEach(b=>b.flush());
+  };
+
+  /* PALMS. There was no palm in the kit at all, so Melbourne, Miami, Jeddah and
+     Yas were all planted with northern-European broadleaf and conifer — which is
+     most of why those circuits did not read as the places they are. A palm is a
+     bare leaning trunk with a burst of long fronds at the very top and nothing
+     in between, and that silhouette is unmistakable even at distance. */
+  const palms=(place,count,hMin,hMax,opt)=>{
+    const o=Object.assign({frond:0x3c6b2c,frond2:0x4f8438,trunk:0x8a7a5c,lean:0.10},opt||{});
+    count=Math.max(10,Math.round(count*TREE_N));
+    /* No TREE_S here. That multiplier exists to make the generic broadleaf and
+       conifer scatter read at distance; the flora table gives palms their real
+       heights already, and multiplying by 1.85 on top produced forty-metre palms
+       leaning over the barrier. */
+    const trunkB=batch(new THREE.CylinderGeometry(0.36,0.5,1,6),
+      new THREE.MeshStandardMaterial({color:o.trunk,roughness:1}));
+    // a frond is a long thin wedge; a crown is eight or nine of them fanned out
+    const frondG=new THREE.ConeGeometry(0.5,1,4);
+    const fb=[o.frond,o.frond2].map(c=>batch(frondG,
+      new THREE.MeshStandardMaterial({color:c,roughness:1,flatShading:true,side:THREE.DoubleSide})));
+    let placed=0,tries=0;
+    while(placed<count && tries<count*14){tries++;
+      const p=place(); if(!p) continue;
+      if(clear(p.x,p.z)<(p.min||70)*(p.min||70)) continue;
+      const h=hMin+Math.random()*(hMax-hMin);
+      if(!OCCUPY.take(p.x,p.z,h*0.16,0.55)) continue;
+      const y=gh(p.x,p.z);
+      const lean=(Math.random()-0.5)*o.lean, la=Math.random()*TAU;
+      const tx=p.x+Math.cos(la)*lean*h*0.5, tz=p.z+Math.sin(la)*lean*h*0.5;
+      trunkB.add({x:(p.x+tx)/2,z:(p.z+tz)/2,y,w:h*0.055,h:h*0.86,d:h*0.055,yOff:h*0.43});
+      plant(p.x,p.z);
+      /* Each frond is a long flattened cone laid along its own axis: fanned
+         round the trunk by a2, tilted past the horizontal by `t` so it splays
+         out and then droops, and positioned along that axis from the crown. */
+      const nF=8+((Math.random()*4)|0), fl=h*(0.36+Math.random()*0.16);
+      const topY=h*0.88;
+      const qx=new THREE.Quaternion(), qy=new THREE.Quaternion(), q=new THREE.Quaternion();
+      const AX=new THREE.Vector3(1,0,0), AY=new THREE.Vector3(0,1,0);
+      for(let f=0;f<nF;f++){
+        const a2=(f/nF)*TAU+(Math.random()-0.5)*0.45;
+        const t=1.02+Math.random()*0.62;               // ~58-94 deg from vertical
+        qy.setFromAxisAngle(AY,a2); qx.setFromAxisAngle(AX,t);
+        q.copy(qy).multiply(qx);
+        // the cone's axis after that rotation, so the blade sits along itself
+        const ax=Math.sin(a2)*Math.sin(t), ay=Math.cos(t), az=Math.cos(a2)*Math.sin(t);
+        fb[(Math.random()*fb.length)|0].add({
+          x:tx+ax*fl*0.5, z:tz+az*fl*0.5, y,
+          w:fl*0.14, h:fl, d:fl*0.30,               // flattened: a blade, not a spike
+          yOff:topY+ay*fl*0.5, quat:q.clone()});
+      }
+      // a few dead fronds hanging under the crown, which is what dates a palm
+      for(let f=0;f<3;f++){
+        const a2=Math.random()*TAU, t=2.5+Math.random()*0.4;
+        qy.setFromAxisAngle(AY,a2); qx.setFromAxisAngle(AX,t);
+        q.copy(qy).multiply(qx);
+        const ax=Math.sin(a2)*Math.sin(t), ay=Math.cos(t), az=Math.cos(a2)*Math.sin(t);
+        fb[0].add({x:tx+ax*fl*0.34, z:tz+az*fl*0.34, y,
+          w:fl*0.10, h:fl*0.7, d:fl*0.20, yOff:topY+ay*fl*0.34, quat:q.clone()});
+      }
+      placed++;}
+    trunkB.flush(); fb.forEach(b=>b.flush());
+  };
+
+  /* THE TREE BELT — the thing that was actually missing.
+     Trees were scattered by radius across the whole outfield, so the ground just
+     behind the barrier was bare and you looked straight out across empty
+     terrain to a horizon a kilometre away. At a real circuit the trees start
+     more or less AT the fence and they are tall enough to close the sky: you
+     cannot see out, and that is what makes a circuit feel like a place rather
+     than a ribbon laid on a plain.
+     This walks the centreline and plants a deep, dense, full-height belt a few
+     metres beyond the barrier, in whatever species the track actually has. */
+  const treeBelt=(opt)=>{
+    /* SHALLOW AND DENSE, not deep and thin. Measuring where trunks actually
+       landed showed the belt spreading its trees from 20 m to 90 m out while the
+       venue's own radius-scattered woodland put 50-78% of everything BEYOND
+       90 m. The net effect was still a thin screen near the road and a mass of
+       trees on the horizon — which is the view that feels like nowhere.
+       The belt is now concentrated in the first ~45 m, where it does the work of
+       closing the view in, and `step` is halved so it is continuous along the
+       lap rather than a row of sentries. */
+    const o=Object.assign({kind:'broad', from:16, depth:26, step:3, rows:7,
+      density:0.95, hMin:20, hMax:40, skip:0.05, sides:[1,-1],
+      tones:[0x36602a,0x40702f,0x2b5122,0x497a34],
+      offL:null, offR:null}, opt||{});
+    const spots=[];
+    for(let i=0;i<N;i+=o.step){
+      const p=P[i], n=Nm[i];
+      if(Math.random()<o.skip) continue;                  // gaps: a marshal post, a gate, a run-off
+      for(const side of o.sides){
+        const base=(side>0?(o.offL&&o.offL(i)):(o.offR&&o.offR(i)))||TRACK.halfW+9;
+        for(let r=0;r<o.rows;r++){
+          if(Math.random()>o.density) continue;
+          /* Rows get deeper AND more jumbled as they go back, so the near edge
+             is a clean line of trunks and the far side is a mass. */
+          const t=r/Math.max(1,o.rows-1);
+          const d=base+o.from+t*o.depth+(Math.random()-0.5)*o.step*2.2;
+          const j=(Math.random()-0.5)*o.step*2.6;
+          const tg=TRACK.tan[i];
+          /* The clearance a trunk must keep from EVERY part of the circuit, not
+             just from this point on it. Measured off the barrier line plus most
+             of the requested setback: at `min:halfW + from*0.55` a trunk could
+             stand inside the barrier on the next corner round, which is how a
+             palm ended up planted on the pit straight. */
+          spots.push({x:p.x+n.x*side*d+tg.x*j, z:p.z+n.z*side*d+tg.z*j,
+                      min:base+o.from*0.80, back:t});
+        }
+      }
+    }
+    // shuffle so the near row is not always planted first and does not win every
+    // occupancy fight along the whole lap
+    for(let i=spots.length-1;i>0;i--){const j=(Math.random()*(i+1))|0;const t=spots[i];spots[i]=spots[j];spots[j]=t;}
+    let k=0;
+    const next=()=>k<spots.length?spots[k++]:null;
+    const n=spots.length;
+    if(o.kind==='palm') palms(next,n,o.hMin,o.hMax,o.palm);
+    else if(o.kind==='conifer') conifers(o.tones,next,n,o.hMin,o.hMax,o.slim||0.40);
+    else if(o.kind==='mixed'){
+      const half=Math.round(n*0.55);
+      conifers(o.tones2||[0x1e4522,0x265226,0x17381b],next,n-half,o.hMin,o.hMax,0.40);
+      k=0; broadleaf(o.tones,next,half,o.hMin,o.hMax);
+    }
+    else broadleaf(o.tones,next,n,o.hMin,o.hMax);
   };
 
   /* spectator car parks: rows of parked road cars in the outfield */
@@ -10566,6 +10781,7 @@ function venueKit(sc,P,Nm){
     return sp;};
 
   return {N,R,gh,clear,cX,cZ,M,S,Q,T,RY,batch,fields,hedgerows,broadleaf,conifers,woodland,
+          palms,treeBelt,
           carPark,marquees,horizon,hills,ring,cranes,funfair,
           fanzone,campsite,observationTower,amphitheatre,sportsPark};
 }
@@ -13978,7 +14194,7 @@ function makeHelmet(teamHex){
     color:0x14171d, map:lining, roughness:0.95, metalness:0.0,
     emissive:0x090b10, emissiveIntensity:0.55, side:THREE.DoubleSide});
   const surround=new THREE.Mesh(new THREE.ExtrudeGeometry(outer,{
-    depth:0.055, bevelEnabled:true, bevelThickness:0.010, bevelSize:0.010,
+    depth:26.055, bevelEnabled:true, bevelThickness:0.010, bevelSize:0.010,
     bevelSegments:2, curveSegments:2}), padMat);
   surround.position.z=Z;                  // extrudes forward, away from the eye
   H.add(surround);
@@ -13998,7 +14214,7 @@ function makeHelmet(teamHex){
     emissive:teamHex,emissiveIntensity:0.10,side:THREE.DoubleSide});
   trimMats.push(trimMat);
   const trim=new THREE.Mesh(new THREE.ExtrudeGeometry(ringShape,{
-    depth:0.014,bevelEnabled:false,curveSegments:2}),trimMat);
+    depth:26.014,bevelEnabled:false,curveSegments:2}),trimMat);
   trim.position.z=Z-0.014;
   H.add(trim);
 
@@ -15003,7 +15219,7 @@ if(DEBUG){window.__step=stepPhysics;window.__reset=resetCar;
   window.__cfgId=()=>CFG.id; window.__WEATHER=WEATHER; window.__rollWeather=rollWeather;
   window.__TRACKS=TRACKS; window.__expo=()=>renderer.toneMappingExposure;
   window.__stepWx=(dt)=>updateWeather(driveScene,dt);
-  window.__camera=camera; window.__THREE=THREE;
+  window.__camera=camera; window.__THREE=THREE; window.__syncRacingLine=syncRacingLine;
   window.__makeLivery=makeLivery; window.__liveryIds=()=>LIVERY_IDS;
   window.__FX=FX; window.__CAR=()=>CAR;}
 
@@ -15732,7 +15948,7 @@ if(DEBUG){window.__setCam=(m)=>{CAM.mode=m;CAM.tsPost=null;$('#camName').textCon
   window.__CINE=()=>CINE;window.__CHASE=()=>CHASE;
   window.__setState=(v)=>{STATE=v;};
   // deferred: PODIUM is declared further down and is in its dead zone here
-  setTimeout(()=>{window.__startPodium=startPodium;window.__PODIUM=PODIUM;window.__SC=SC;window.__deploySafetyCar=deploySafetyCar;window.__stepSafetyCar=stepSafetyCar;window.__updateBattle=updateBattle;window.__PHYS=PHYS;window.__PHOTO=PHOTO;},0);
+  setTimeout(()=>{window.__startPodium=startPodium;window.__PODIUM=PODIUM;window.__SC=SC;window.__deploySafetyCar=deploySafetyCar;window.__stepSafetyCar=stepSafetyCar;window.__updateBattle=updateBattle;window.__PHYS=PHYS;window.__PHOTO=PHOTO;window.__togglePhoto=togglePhoto;},0);
   window.__nearestTrack=nearestTrack;window.__lapSigned=lapSigned;window.__pitLaneAt=pitLaneAt;
   setTimeout(()=>{window.__openSettings=openSettings;window.__closeSettings=closeSettings;
     window.__SET=SET;window.__applySettings=applySettings;},0);}
