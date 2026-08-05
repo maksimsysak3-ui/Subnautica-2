@@ -564,6 +564,7 @@
   #ssBegin{margin-top:8px;padding:14px;background:var(--red);border:none;border-radius:6px;color:#fff;
     font-family:var(--mono);font-weight:700;letter-spacing:.14em;font-size:13px;cursor:pointer;transition:.15s}
   #ssBegin:hover{background:#ff2028;box-shadow:0 0 26px var(--red-glow)}
+  .ssNote{font-size:11px;line-height:1.55;color:var(--type-2);margin:-2px 0 12px;min-height:32px}
   .ssHint{font-size:10px;letter-spacing:.16em;color:var(--grey-lo);text-transform:uppercase}
   #ssTeams{display:flex;flex-direction:column;gap:9px;margin-top:4px}
   .ssTeam{display:flex;align-items:center;gap:12px;padding:11px 13px;border:1px solid var(--grey-lo);border-radius:7px;
@@ -1647,6 +1648,13 @@ window.__introDone=new Promise(function(res){
       <div class="ssField"><label>DIFFICULTY</label><div id="ssDiff" class="ssChips"></div></div>
     </div>
     <div class="ssField"><label>PERSONAL SPONSOR</label><div id="ssSponsor" class="ssChips"></div></div>
+    <div class="ssRow2">
+      <div class="ssField"><label>NATIONALITY</label><div id="ssNat" class="ssChips"></div></div>
+      <div class="ssField"><label>HELMET</label><div id="ssHelm" class="ssChips"></div></div>
+    </div>
+    <div class="ssField"><label>SEASON LENGTH</label><div id="ssLen" class="ssChips"></div></div>
+    <div class="ssField"><label>BACKGROUND</label><div id="ssBg" class="ssChips"></div></div>
+    <div class="ssNote" id="ssBgNote">—</div>
     <button id="ssBegin">BEGIN SEASON ▸</button>
     <div class="ssHint">Hover a team to preview its car</div>
   </div>
@@ -2563,7 +2571,7 @@ FX2.setSpeed=function(v01,dt){
   u.uSpeed.value=damp(u.uSpeed.value,clamp(v01,0,1),3.0,dt||0.016);
 };
 if(DEBUG) window.__FX2=FX2;
-if(DEBUG) setTimeout(()=>{window.__enterMenu=enterMenu;window.__SET=SET;window.__applyTheme=applyTheme;window.__openTeam=openTeam;window.__TM=TM;window.__TEAM=TEAM;window.__renderTeam=renderTeam;},0);
+if(DEBUG) setTimeout(()=>{window.__enterMenu=enterMenu;window.__SET=SET;window.__applyTheme=applyTheme;window.__openTeam=openTeam;window.__TM=TM;window.__TEAM=TEAM;window.__renderTeam=renderTeam;window.__openSeasonSetup=openSeasonSetup;window.__beginSeason=beginSeason;},0);
 if(DEBUG) setTimeout(()=>{window.__EVO=EVO;window.__PERF=PERF;window.__FLAG=FLAG;window.__SC=SC;window.__STEW=STEW;
   window.__throwYellow=throwYellow;window.__deployVSC=deployVSC;
   window.__issuePenalty=issuePenalty;window.__updateFlagBar=updateFlagBar;},0);
@@ -16370,14 +16378,17 @@ function closeGarage(){garageOn=false;$('#garage').classList.remove('on');
 /* ==================================================================
    SEASON MODE (beta)
    ================================================================== */
+const FULL_CALENDAR=['australia','china','suzuka','bahrain','jeddah','miami',
+    'saopaulo','monaco','catalunya','montreal','austria','silverstone','hungary','spa',
+    'zandvoort','monza','baku','singapore','texas','mexico','madrid','lasvegas','qatar','yas'];
 const SEASON={active:false,on:false,slot:null,team:'redbull',diff:'Pro',name:'M. SYSAK',num:7,sponsor:'Oracle',
   /* The full 24-round calendar. Six circuits — Monza, Suzuka, Mexico, Shanghai,
      Singapore and Madrid — were built and driveable but never appeared in a
      season, so a championship skipped a quarter of the game. Ordered roughly as
      the real season runs: flyaways, the European summer, then the night races. */
-  round:0,cal:['australia','china','suzuka','bahrain','jeddah','miami',
-    'saopaulo','monaco','catalunya','montreal','austria','silverstone','hungary','spa',
-    'zandvoort','monza','baku','singapore','texas','mexico','madrid','lasvegas','qatar','yas'],points:0,
+  /* The full 24-round calendar, kept separately so a shortened season can be
+     sampled from it without losing the original. */
+  round:0,cal:FULL_CALENDAR.slice(),points:0,
   raceLaps:8, lastResult:null,
   field:['M. VÄRLA','R. OKONKWO','L. FENN','S. HÄKKINEN','D. ROSSI','K. TANAKA','A. PETROV','J. MORAIS','E. LARSSON','B. NAKAMURA']};
 const F1PTS=[25,18,15,12,10,8,6,4,2,1];
@@ -17233,7 +17244,58 @@ function buildSeasonSetupChips(){
   const sc=$('#ssSponsor');sc.innerHTML='';
   SPONSORS.forEach(s=>{const c=document.createElement('div');c.className='ssChip'+(s===SEASON.sponsor?' on':'');
     c.textContent=s;c.onclick=()=>{SEASON.sponsor=s;buildSeasonSetupChips();Sound.blip(560,.04);};sc.appendChild(c);});
+  /* A generic chip row, so every new choice below is three lines rather than
+     ten. `get` and `set` keep the state in SEASON where the save already
+     handles it. */
+  const chips=(sel,opts,get,set,onPick)=>{
+    const el=$(sel); if(!el) return; el.innerHTML='';
+    opts.forEach(o=>{
+      const [v,label]=Array.isArray(o)?o:[o,o];
+      const d=document.createElement('div');
+      d.className='ssChip'+(get()===v?' on':'');
+      d.textContent=label;
+      d.onclick=()=>{ set(v); onPick&&onPick(v); buildSeasonSetupChips(); Sound.blip(540,.04); };
+      el.appendChild(d);
+    });
+  };
+  chips('#ssNat', NATIONS.map(n=>[n.k,n.flag+' '+n.k]),
+    ()=>SEASON.nat||'GBR', v=>SEASON.nat=v);
+  chips('#ssHelm', HELMET_DESIGNS.map(h=>[h.k,h.nm]),
+    ()=>SEASON.helmet||'classic', v=>SEASON.helmet=v);
+  chips('#ssLen', [[8,'SHORT · 8'],[12,'MEDIUM · 12'],[18,'LONG · 18'],[24,'FULL · 24']],
+    ()=>SEASON.calLen||24, v=>SEASON.calLen=v);
+  /* BACKGROUND. Where you have come from, expressed as a starting condition
+     rather than a difficulty slider: a junior champion arrives with pressure
+     and a good seat, a pay driver arrives with money and no expectations. */
+  chips('#ssBg', BACKGROUNDS.map(b2=>[b2.k,b2.nm]),
+    ()=>SEASON.bg||'academy', v=>SEASON.bg=v,
+    ()=>{ const B=BACKGROUNDS.find(x=>x.k===(SEASON.bg||'academy'));
+          const n=$('#ssBgNote'); if(n&&B) n.textContent=B.d; });
+  { const B=BACKGROUNDS.find(x=>x.k===(SEASON.bg||'academy'));
+    const n=$('#ssBgNote'); if(n&&B) n.textContent=B.d; }
 }
+/* ---- the new career options ---- */
+const NATIONS=[
+  {k:'GBR',flag:'🇬🇧'},{k:'ITA',flag:'🇮🇹'},{k:'GER',flag:'🇩🇪'},{k:'FRA',flag:'🇫🇷'},
+  {k:'ESP',flag:'🇪🇸'},{k:'NED',flag:'🇳🇱'},{k:'BRA',flag:'🇧🇷'},{k:'USA',flag:'🇺🇸'},
+  {k:'JPN',flag:'🇯🇵'},{k:'AUS',flag:'🇦🇺'},{k:'MEX',flag:'🇲🇽'},{k:'FIN',flag:'🇫🇮'},
+];
+const HELMET_DESIGNS=[
+  {k:'classic', nm:'CLASSIC'},{k:'bolt',nm:'BOLT'},{k:'halo',nm:'HALO'},
+  {k:'stripe',  nm:'STRIPE'},{k:'flame',nm:'FLAME'},{k:'matte',nm:'MATTE'},
+];
+/* Each background sets the conditions you start under. They are trades, not
+   tiers — none is simply better than another. */
+const BACKGROUNDS=[
+  {k:'academy', nm:'ACADEMY GRADUATE', rep:62, money:0, target:-1,
+   d:'Junior champion, brought up by a big team. They expect a lot, sooner.'},
+  {k:'pay',     nm:'PAY DRIVER',       rep:38, money:14, target:+3,
+   d:'You brought the budget. Nobody expects much, and the extra money goes into development.'},
+  {k:'karting', nm:'KARTING PRODIGY',  rep:52, money:0, target:0,
+   d:'Raw and quick, with no reputation yet. Everything has to be earned on track.'},
+  {k:'veteran', nm:'LATE SWITCH',      rep:70, money:4, target:0,
+   d:'A name from another series. Respected, watched closely, and not young.'},
+];
 function buildSeasonTeams(){
   const wrap=$('#ssTeams');wrap.innerHTML='';
   TEAM_IDS.forEach(key=>{const L=LIVERIES[key];
@@ -17251,7 +17313,24 @@ function beginSeason(){
   SEASON.active=true;SEASON.round=0;SEASON.points=0;
   SEASON.rd=null; initRD();                            // fresh R&D tree + starting resources
   puReset();                                           // a fresh allocation of components
-  SEASON.rep=50; seasonInitCareer();                   // a fresh career state
+  /* THE BACKGROUND IS APPLIED HERE, not stored as a label. Reputation, starting
+     money and the position the team expects of you all move with it, so the
+     choice is felt on the first weekend rather than being flavour text. */
+  const B=BACKGROUNDS.find(x=>x.k===(SEASON.bg||'academy'))||BACKGROUNDS[0];
+  SEASON.rep=B.rep;
+  seasonInitCareer();
+  if(SEASON.contract) SEASON.contract.target=clamp(SEASON.contract.target+B.target,1,18);
+  SEASON.money=(SEASON.money||0)+B.money*1e6;
+  /* SEASON LENGTH. A shortened calendar takes evenly spaced rounds from the
+     full one rather than the first N, so a short season still visits a spread
+     of circuit types instead of only the flyaways. */
+  { const want=SEASON.calLen||24;
+    if(want<FULL_CALENDAR.length){
+      const out=[];
+      for(let i=0;i<want;i++) out.push(FULL_CALENDAR[Math.round(i*(FULL_CALENDAR.length-1)/(want-1))]);
+      SEASON.cal=[...new Set(out)];
+    } else SEASON.cal=FULL_CALENDAR.slice();
+  }
   SEASON.lastResult=null;
   seasonBuildTable();
   SEASON.news=[]; SEASON.wk=null;
