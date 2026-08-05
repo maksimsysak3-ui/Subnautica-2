@@ -288,6 +288,9 @@
     border-left:2px solid var(--red);font-family:var(--f1)}
   #standings.on{opacity:1}
   :root[data-theme="light"] #standings{background:rgba(255,255,255,.80)}
+  /* a full grid is fourteen rows, so cap it rather than let it run off a short
+     screen */
+  #stdList{max-height:62vh;overflow:auto}
   #stdHead{display:flex;justify-content:space-between;align-items:baseline;
     padding:6px 9px 5px;border-bottom:1px solid var(--line);
     font-family:var(--mono);font-size:8.5px;letter-spacing:.22em;color:var(--type-3)}
@@ -16039,7 +16042,7 @@ if(DEBUG){window.__setCam=(m)=>{CAM.mode=m;CAM.tsPost=null;$('#camName').textCon
   setTimeout(()=>{window.__SEASON=SEASON;window.__endSeasonRace=endSeasonRace;window.__seasonBuildTable=seasonBuildTable;window.__openSaves=openSaves;window.__loadFromSlot=loadFromSlot;window.__seasonAutosave=seasonAutosave;
     window.__seasonConstructors=seasonConstructors;
     window.__spawnAIs=spawnAIs;window.__AI=AI;window.__aiSkillMul=aiSkillMul;
-    window.__stepAI=stepAI;window.__renderStandings=renderStandings;window.__setSessionMode=(m)=>{sessionMode=m;};window.__aiPaceNow=aiPaceNow;window.__aiPaceTimeMul=aiPaceTimeMul;window.__aiStraightMul=aiStraightMul;
+    window.__stepAI=stepAI;window.__AI_FIELD=AI_FIELD;window.__renderStandings=renderStandings;window.__setSessionMode=(m)=>{sessionMode=m;};window.__aiPaceNow=aiPaceNow;window.__aiPaceTimeMul=aiPaceTimeMul;window.__aiStraightMul=aiStraightMul;
     window.__setSessionMode=(m)=>{sessionMode=m;};window.__isRace=()=>isRace();},0);
   window.__replayRecord=replayRecord;
   window.__PITSTOP=PITSTOP;window.__pitPos=pitPos;window.__PIT=PIT;
@@ -19389,7 +19392,12 @@ function startDrive(){
   PITSTOP.boxPos=pitPos(PITSTOP.boxD,PIT.halfW-2.6);
   closeStrategy(); updatePitCue();
   // AI field for Grand Prix / Season races (Time Trial & Qualifying stay solo)
-  if(sessionMode==='gp'||sessionMode==='season'){ spawnAIs(7); } else { clearAIs(); }
+  /* THE WHOLE FIELD. A race ran seven AI plus the player — eight cars — while the
+     watch-only simulation has always fielded the full entry list. There is no
+     reason for a race to be the smaller event, and a grid of eight makes the
+     championship table look like a different sport. aiRoster() already excludes
+     the player's own team, so this asks for everyone else there is. */
+  if(sessionMode==='gp'||sessionMode==='season'){ spawnAIs(AI_FIELD()); } else { clearAIs(); }
   /* Practice runs out of the garage, not off a grid — there are no lights in a
      Friday session, you just go out when you feel like it. */
   /* Practice and qualifying both roll out of the garage against a clock rather
@@ -19453,8 +19461,14 @@ function snapCamera(){
 }
 function exitToMenu(){
   $('#qResult').classList.remove('on');
+  /* CLASSIFY FIRST, THEN CLEAR. clearAIs() used to run before the season branch,
+     so pressing Escape out of a season race deleted the entire field and then
+     asked endSeasonRace() to classify a race with nobody in it — which scored
+     you P1 against an empty grid, every time. It is also what made the cars
+     disappear the moment Escape was pressed: the meshes were removed while the
+     world was still on screen. */
+  if(sessionMode==='season'&&SEASON.active){ endSeasonRace(); clearAIs(); return; }
   clearAIs();
-  if(sessionMode==='season'&&SEASON.active){ endSeasonRace(); return; }  // back to the hub w/ points
   enterMenu();
 }
 /* qualifying: simulate the rest of the field's best laps and produce a real grid */
@@ -19957,6 +19971,13 @@ const DRIVER_POOL=[
   {n:'T. ANDERSEN',t:'williams', skill:0.980, aggro:0.58, consist:0.93,
    psn:{patience:0.95,bravery:0.35,defensive:0.30,towBreak:0.10}},   // rolls over
 ];
+/* How many AI cars a race fields: everyone in the pool who is not on the
+   player's team, capped at the simulation's own limit so the two modes field the
+   same grid. */
+function AI_FIELD(){
+  const mine=SEASON.active?SEASON.team:selLivery;
+  return Math.max(5, Math.min(19, DRIVER_POOL.filter(d=>d.t!==mine).length));
+}
 function aiRoster(exclude,n){
   // prefer drivers whose team actually exists in the livery table, skip the player's team
   const pool=DRIVER_POOL.filter(d=>LIVERIES[d.t]&&d.t!==exclude);
