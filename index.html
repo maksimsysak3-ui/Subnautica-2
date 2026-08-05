@@ -115,7 +115,13 @@
   .fill{position:fixed;inset:0}
   .hidden{display:none!important}
   .layer{position:fixed;inset:0;pointer-events:none;z-index:30}
-  #vignette{background:radial-gradient(ellipse 120% 100% at center,transparent 45%,rgba(0,0,0,.6) 100%);z-index:12}
+  /* THE DARK OVERLAY. This was it, and it was doubled: a DOM layer taking the
+     corners to 60% black over the whole frame, on top of the speed vignette the
+     composite shader already draws. Two vignettes stacked read as a dark film
+     over the picture rather than as a lens. The layer is now a hint rather than
+     a wash, it starts much further out, and it is OFF by default — the shader's
+     version is the one that belongs, because it reacts to speed. */
+  #vignette{background:radial-gradient(ellipse 130% 108% at center,transparent 62%,rgba(0,0,0,.22) 100%);z-index:12}
   #stormWhite{background:radial-gradient(ellipse 150% 130% at center,rgba(200,206,214,0) 22%,rgba(206,212,220,.92) 100%);
     z-index:11;opacity:0;mix-blend-mode:screen}
   /* Cockpit view. The helmet is real geometry in the scene now (see makeHelmet),
@@ -2116,7 +2122,7 @@ const TAU=Math.PI*2;
 const SETTINGS_KEY='apexgp.settings.v1';
 const SET={
   // camera & view
-  helmet:true, defaultCam:'chase', fovScale:1.0, headMotion:0.9, grain:true, vignette:true, grade:true,
+  helmet:true, defaultCam:'chase', fovScale:1.0, headMotion:0.9, grain:true, vignette:false, grade:true,
   // hud
   hudTiming:true, hudMap:true, hudStatus:true, hudHints:true, units:'kmh',
   // audio
@@ -2302,7 +2308,7 @@ renderer.setSize(innerWidth,innerHeight);
 renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));
 renderer.outputColorSpace=THREE.SRGBColorSpace;
 renderer.toneMapping=THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure=1.22;
+renderer.toneMappingExposure=1.05;
 renderer.shadowMap.enabled=true;
 renderer.shadowMap.type=THREE.PCFSoftShadowMap;
 
@@ -2402,7 +2408,7 @@ const FX2={
     uniforms:{
       tDiffuse:{value:null}, tBloom:{value:null},
       uTexel:{value:new THREE.Vector2(1/1280,1/720)},
-      uBloom:{value:0.30}, uCA:{value:1.0}, uVig:{value:0.38},
+      uBloom:{value:0.30}, uCA:{value:1.0}, uVig:{value:0.22},
       uGrain:{value:0.035}, uSharp:{value:0.35}, uTime:{value:0},
       uSat:{value:1.06}, uContrast:{value:1.045}, uSpeed:{value:0.0},
       uTint:{value:new THREE.Color(1.0,0.995,0.985)},
@@ -2471,7 +2477,7 @@ const FX2={
 
         /* SPEED VIGNETTE. The frame closes in as the car goes quicker, which is
            the cheapest and most effective sense of speed there is. */
-        float vig=1.0-uVig*(1.0+uSpeed*0.55)*r2*1.9;
+        float vig=1.0-uVig*(1.0+uSpeed*0.55)*r2*1.4;
         col*=clamp(vig,0.0,1.0);
 
         // film grain, animated, and weighted toward the shadows where it belongs
@@ -2875,42 +2881,42 @@ const WEATHER_PRESETS={
     sky:{top:[0.24,0.42,0.66],mid:[0.62,0.74,0.86],bot:[0.78,0.82,0.85]},
     skyNight:{top:[0.015,0.02,0.06],mid:[0.05,0.04,0.12],bot:[0.42,0.20,0.10]},
     bg:0x9fb6cc, bgNight:0x0d1424, fog:0xa9c0d6, fogNight:0x141d31,
-    fogNear:0.55, fogFar:2.8, fogFarNight:4.0, exp:1.24, expNight:2.00,
+    fogNear:0.55, fogFar:2.8, fogFarNight:4.0, exp:1.05, expNight:1.75,
     sunCol:0xfff2e0, sunInt:2.7, sunMul:1.0, hemiSky:0xbcd6ef, hemiGnd:0x33372e, hemiInt:0.95,
     sun:{col:[1.0,0.94,0.80], disc:1.15, sharp:480.0, glow:0.20} },
   scattered:{ label:'SCATTERED CLOUD', wetness:0, storm:0, cloud:0.35,
     sky:{top:[0.26,0.42,0.62],mid:[0.60,0.70,0.80],bot:[0.76,0.79,0.82]},
     skyNight:{top:[0.02,0.025,0.06],mid:[0.06,0.05,0.12],bot:[0.38,0.19,0.11]},
     bg:0x9db2c4, bgNight:0x0e1524, fog:0xa6bbcc, fogNight:0x151e30,
-    fogNear:0.50, fogFar:2.5, fogFarNight:3.8, exp:1.21, expNight:1.95,
+    fogNear:0.50, fogFar:2.5, fogFarNight:3.8, exp:1.02, expNight:1.70,
     sunCol:0xfff0dc, sunInt:2.3, sunMul:0.95, hemiSky:0xb2c8de, hemiGnd:0x31352d, hemiInt:1.0,
     sun:{col:[1.0,0.93,0.82], disc:0.85, sharp:400.0, glow:0.18} },
   overcast:{ label:'OVERCAST', wetness:0, storm:0, cloud:0.8,
     sky:{top:[0.44,0.47,0.51],mid:[0.58,0.60,0.63],bot:[0.68,0.69,0.71]},
     skyNight:{top:[0.03,0.035,0.05],mid:[0.07,0.07,0.10],bot:[0.26,0.16,0.12]},
     bg:0x9ca0a6, bgNight:0x11141b, fog:0x9ca0a6, fogNight:0x171b24,
-    fogNear:0.40, fogFar:2.0, fogFarNight:3.3, exp:1.19, expNight:1.90,
+    fogNear:0.40, fogFar:2.0, fogFarNight:3.3, exp:1.0, expNight:1.65,
     sunCol:0xd4d9e0, sunInt:1.55, sunMul:0.8, hemiSky:0xa8aeb6, hemiGnd:0x2e332c, hemiInt:1.1,
     sun:{col:[0.94,0.95,0.97], disc:0.30, sharp:60.0, glow:0.13} },
   damp:{ label:'DAMP / DRIZZLE', wetness:0.35, storm:0, cloud:0.9,
     sky:{top:[0.40,0.43,0.47],mid:[0.54,0.56,0.59],bot:[0.64,0.65,0.67]},
     skyNight:{top:[0.025,0.03,0.045],mid:[0.06,0.06,0.09],bot:[0.24,0.15,0.11]},
     bg:0x94989d, bgNight:0x0a0c11, fog:0x94989d, fogNight:0x0c0e13,
-    fogNear:0.34, fogFar:1.8, fogFarNight:2.5, exp:1.18, expNight:1.74,
+    fogNear:0.34, fogFar:1.8, fogFarNight:2.5, exp:0.99, expNight:1.48,
     sunCol:0xc4c9d0, sunInt:1.2, sunMul:0.72, hemiSky:0x9ba1a8, hemiGnd:0x2c332c, hemiInt:1.15,
     sun:{col:[0.92,0.94,0.97], disc:0.25, sharp:40.0, glow:0.12} },
   rain:{ label:'RAIN', wetness:0.72, storm:0, cloud:1.0,
     sky:{top:[0.26,0.28,0.32],mid:[0.38,0.40,0.44],bot:[0.48,0.49,0.52]},
     skyNight:{top:[0.02,0.022,0.032],mid:[0.045,0.048,0.065],bot:[0.19,0.12,0.09]},
     bg:0x767a80, bgNight:0x080a0e, fog:0x767a80, fogNight:0x0a0b0f,
-    fogNear:0.26, fogFar:1.45, fogFarNight:2.0, exp:1.10, expNight:1.68,
+    fogNear:0.26, fogFar:1.45, fogFarNight:2.0, exp:0.92, expNight:1.42,
     sunCol:0xb0b6be, sunInt:0.95, sunMul:0.6, hemiSky:0x878d95, hemiGnd:0x272c27, hemiInt:1.2,
     sun:{col:[0.88,0.90,0.94], disc:0.10, sharp:22.0, glow:0.07} },
   storm:{ label:'THUNDERSTORM', wetness:1.0, storm:1, cloud:1.0,
     sky:{top:[0.10,0.11,0.14],mid:[0.18,0.19,0.22],bot:[0.28,0.29,0.32]},
     skyNight:{top:[0.012,0.014,0.02],mid:[0.03,0.032,0.042],bot:[0.14,0.09,0.07]},
     bg:0x3a3e46, bgNight:0x05060a, fog:0x3a3e46, fogNight:0x06070b,
-    fogNear:0.20, fogFar:1.10, fogFarNight:1.5, exp:1.00, expNight:1.60,
+    fogNear:0.20, fogFar:1.10, fogFarNight:1.5, exp:0.82, expNight:1.35,
     sunCol:0x8f959d, sunInt:0.7, sunMul:0.45, hemiSky:0x6b7178, hemiGnd:0x1f231f, hemiInt:1.25,
     sun:{col:[0.0,0.0,0.0], disc:0.0, sharp:1.0, glow:0.0} },
 };
@@ -13214,7 +13220,7 @@ const PHYS={
   mass:798, power:560000, maxForce:10200, brakeForce:74000,
   cdA:1.02, downK:4.6, mu:2.28, roll:250, engBrake:1500,
   wheelbase:3.6, aFront:1.62, aRear:1.98,                      // CG slightly rearward
-  izK:2.3,                                                     // yaw inertia (planted but not sluggish)
+  izK:2.15,                                                    // yaw inertia — a shade less: the car answers sooner
   /* FRONT AND REAR CORNERING STIFFNESS — the car's balance.
      The car was not short of steering LOCK; measuring the tightest radius it
      could hold at each speed showed that adding lock changed nothing, because
@@ -13231,7 +13237,16 @@ const PHYS={
      rebalance that got backed out — the front gains a little bite so the car
      takes a tighter line for the same input, and that is all. Rack speed is
      deliberately untouched: that is what the Steering speed setting is for. */
-  Cf:158000, Cr:200000,
+  /* WHY IT FELT SLIPPERY. Both axles were soft: at 158k/200k the car needed
+     several degrees of slip angle to make its cornering force, so every input
+     produced a slide first and a direction change second. That is what "loose"
+     is — the grip was there (mu is 2.28) but the car had to slither to find it.
+     A real car of this kind works at slip angles you cannot see, which is why
+     it feels like it is on rails rather than on ice.
+     Both go up by a third, together, so the BALANCE is untouched — the front
+     still gives up before the rear — and only the slip angle needed to get
+     there comes down. This is the tightness, and it is not a grip cheat. */
+  Cf:210000, Cr:268000,
   /* Back to the original handling. The one change kept from the retune is a
      little more lock and a slightly quicker rack at low speed, because slow
      corners were heavy: 0.30 rad is ~17 deg instead of 15. */
@@ -13252,7 +13267,10 @@ const PHYS={
   /* maxSteerHi and the curve both move a little so more lock survives into the
      mid- and high-speed corners, which is where "it will not tighten up" is
      actually felt. Low-speed lock and the rack rates are unchanged. */
-  maxSteerLo:0.34, maxSteerHi:0.098, steerLockCurve:1.38, steerRate:3.8, steerReturn:6.4,
+  /* steerReturn up as well. Self-centring is most of what makes a car feel
+     tight in the hands: lock that falls away the instant you stop asking for it
+     is the difference between placing the car and wrestling it. */
+  maxSteerLo:0.34, maxSteerHi:0.098, steerLockCurve:1.38, steerRate:3.8, steerReturn:7.4,
   /* YAW DAMPING. A linear-then-clip tyre gives cornering force but none of the
      things that actually settle a car: tyre relaxation length, the aligning
      moment that tries to straighten the steering, the damping in the
@@ -13264,7 +13282,7 @@ const PHYS={
      One explicit damping term fixes it. It is not a fudge — it stands in for
      real physical effects the tyre model omits — and it is scaled out at
      walking pace where the kinematic blend takes over instead. */
-  yawDamp:2.35,   // a touch more: the car settles onto the new line instead of floating to it
+  yawDamp:2.90,   // raised with the stiffnesses: stiff axles without damping ring
   /* How quickly the driver winds lock ON compared with how quickly they take it
      off. Coming off the lock faster than going on is what a real pair of hands
      does and it stops the car carrying rotation out of a corner. */
@@ -18526,7 +18544,7 @@ function startCinematic(){
     void T.offsetWidth;T.classList.add('slam');});
   S(12100,()=>endCinematic());
   STATE='cine';
-  renderer.toneMappingExposure=1.45;      // a night race is lit, not unlit
+  renderer.toneMappingExposure=1.25;      // a night race is lit, not unlit
   camera.fov=44; camera.updateProjectionMatrix();
   $('#cine').classList.add('on');
 }
@@ -18653,7 +18671,7 @@ function endCinematic(){
     if(CHASE.spray) for(const m of CHASE.spray) m.visible=false; }
   if(CINE_KEY){cineScene.remove(CINE_KEY);CINE_KEY=null;}
   { const B=$('#cineBlack'); if(B) B.classList.remove('on'); }
-  renderer.toneMappingExposure=1.22;                   // the ramp above leaves it high
+  renderer.toneMappingExposure=1.05;                   // the ramp above leaves it high
   setCarPlain(false);                                  // restore the selected livery
   $('#cineFx').innerHTML='';
   $('#cineTitle').classList.remove('slam');$('#cineSub').classList.remove('show');
@@ -19743,7 +19761,7 @@ function startPodium(){
   $('#hud').classList.remove('on'); $('#sndBtn').classList.add('show');
   $('#podHud').classList.add('on');
   Sound.init(); Sound.start&&Sound.start();
-  renderer.toneMappingExposure=1.28;
+  renderer.toneMappingExposure=1.10;
 }
 function endPodium(){
   if(!PODIUM.on) return;
