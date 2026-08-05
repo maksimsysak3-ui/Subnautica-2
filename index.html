@@ -1383,10 +1383,19 @@
   #timing .v.big{font-size:16px}
   #timing .v.best{color:#c07bff}
   #delta.ahead{color:#25e06a} #delta.behind{color:#ff5a52}
-  #sectors{display:flex;gap:6px;margin-top:9px}
-  #sectors .sv{flex:1;text-align:center;font-family:var(--mono);font-weight:700;font-size:12px;padding:4px 0;
-    background:rgba(255,255,255,.06);border-radius:3px;color:#c7d0da}
-  #sectors .sv.best{background:rgba(192,123,255,.22);color:#d7b6ff}
+  /* SECTORS, TOP MIDDLE. They used to be a row of three inside the timing panel
+     under everything else, which is the last place your eye goes. Across the top
+     centre they are readable at a glance and out of the way of the standings. */
+  #sectors{position:absolute;left:50%;top:clamp(8px,1.4vh,16px);transform:translateX(-50%);
+    display:flex;gap:2px}
+  #sectors .sv{min-width:clamp(62px,7vw,86px);display:flex;flex-direction:column;align-items:center;
+    gap:1px;padding:4px 10px 5px;background:rgba(8,11,16,.72);
+    border-top:2px solid rgba(255,255,255,.16);backdrop-filter:blur(6px)}
+  #sectors .sv i{font-family:var(--mono);font-style:normal;font-size:7.5px;letter-spacing:.24em;
+    color:var(--grey);font-weight:700}
+  #sectors .sv b{font-family:var(--mono);font-weight:800;font-size:12px;color:#eef2f6;letter-spacing:.02em}
+  #sectors .sv.best{border-top-color:#c07bff}
+  #sectors .sv.best b{color:#d7b6ff}
   /* minimap */
   #mapWrap{position:absolute;right:clamp(22px,4vw,50px);top:clamp(18px,3vh,32px);width:230px;text-align:right}
   #mapName{font-size:10px;letter-spacing:.26em;color:#fff;font-weight:700;text-transform:uppercase;margin-bottom:7px}
@@ -2010,7 +2019,15 @@ window.__introDone=Promise.resolve();
   <div id="stdList"></div></div>
 
 <div id="hud">
-  <div id="shift"></div>
+  <!-- the LED shift lights used to live here; removed on request -->
+  <!-- SECTORS. Lifted out of the timing panel and put across the top middle,
+       where they read as a strip of three rather than a row squeezed under the
+       lap times. -->
+  <div id="sectors">
+    <span class="sv" id="sec0"><i>S1</i><b>—</b></span>
+    <span class="sv" id="sec1"><i>S2</i><b>—</b></span>
+    <span class="sv" id="sec2"><i>S3</i><b>—</b></span>
+  </div>
   <div id="timing">
     <!-- practice / qualifying header: which session, and how long is left in it -->
     <div id="sessBar"><span id="sessName">PRACTICE 1</span><span id="sessClock">30:00</span></div>
@@ -2019,7 +2036,6 @@ window.__introDone=Promise.resolve();
     <div class="ttRow"><span class="k">LAST</span><span class="v" id="lapLast">—:——.—</span></div>
     <div class="ttRow"><span class="k">BEST</span><span class="v best" id="lapBest">—:——.—</span></div>
     <div class="ttRow" id="deltaRow"><span class="k">DELTA</span><span class="v" id="delta"></span></div>
-    <div id="sectors"><span class="sv" id="sec0">—</span><span class="sv" id="sec1">—</span><span class="sv" id="sec2">—</span></div>
     <div id="ttBrand"><span class="f1m"><b>F1</b><i></i><i></i><i></i></span><span class="tv">TV</span><span class="ttLive">TIMING</span></div>
   </div>
   <!-- marshal flags: what the post ahead of you is showing -->
@@ -15494,9 +15510,14 @@ const lap={t:0,num:1,last:null,best:null,prevIdx:0,armed:false,cur:null,bestArr:
   reset(){this.t=0;this.num=1;this.last=null;this.best=null;this.prevIdx=nearestTrack(CAR.pos).idx;this.armed=false;
     this.cur=new Float32Array(TRACK.N).fill(-1);this.bestArr=null;this.secBest=[null,null,null];this.secStart=0;this.sec=0;
     $('#lapNum').textContent='1';$('#lapCur').textContent='0:00.0';$('#lapLast').textContent='—:——.—';$('#lapBest').textContent='—:——.—';
-    for(let i=0;i<3;i++){$('#sec'+i).textContent='—';$('#sec'+i).className='sv';}$('#delta').textContent='';$('#delta').className='';},
+    /* The value lives in the <b> now — the span also carries a fixed S1/S2/S3
+       label, so writing textContent on it would wipe the label out. */
+    for(let i=0;i<3;i++){const e=$('#sec'+i); if(!e) continue;
+      const v=e.querySelector('b'); if(v) v.textContent='—'; e.className='sv';}
+    $('#delta').textContent='';$('#delta').className='';},
   split(s){const sT=this.t-this.secStart;this.secStart=this.t;
-    const el=$('#sec'+s);el.textContent=sT.toFixed(1);
+    const el=$('#sec'+s); if(!el) return;
+    const v=el.querySelector('b'); if(v) v.textContent=sT.toFixed(1);
     if(this.secBest[s]==null||sT<this.secBest[s]){this.secBest[s]=sT;el.className='sv best';}else el.className='sv';},
   update(dt,idx){
     this.t+=dt;
@@ -21463,7 +21484,13 @@ function stepAI(dt){
       /* Rescaled by 2.28/2.05 when PHYS.mu came down, so the absolute grip the
          AI plans on — and therefore every lap time calibrated against the
          record — is exactly what it was before. */
-      *lerp(0.847,0.899,clamp((c.skill-0.93)/0.07,0,1))
+      /* RAISED ~25%. Even with the dial at 100% the plan only reached 0.899 of
+         the car's grip, so the AI cornered below what the player can do and no
+         dial setting could fix it — the ceiling was in here, not in the slider.
+         Above 1.0 they plan on MORE than the raw coefficient, which is the
+         point: they never actually reach their plan (traffic, the line, the
+         margin they leave), while a player who is trying does. */
+      *lerp(1.060,1.124,clamp((c.skill-0.93)/0.07,0,1))
       *aiPaceNow();          // race pace in a race, qualifying pace otherwise
     // grip-limited speed for a radius, solved for v because grip depends on v
     const vForR=(R)=>{
@@ -21932,16 +21959,23 @@ function stepAI(dt){
     if(c.spinT>0){ /* the spin above owns the speed */ }
     else { const P2=PHYS;
       const vv=Math.max(c.v,0.5);
+      /* AI_SHOVE. Getting off a corner and getting stopped for one are as much
+         of a lap as the corner itself, and both ran at exactly the player's
+         numbers while the AI also left a margin everywhere else. A quarter more
+         drive and a quarter more brake, applied to acceleration and deceleration
+         ONLY — VCAP is untouched below, so this buys nothing down a straight and
+         their terminal speed is still the car's. */
+      const SHOVE=1.25;
       if(desired>c.v+0.15){
         // engine force, capped by what the rear tyres can put down
-        const Fdrive=Math.min(P2.power/vv, P2.maxForce)*(0.94+0.06*c.skill);
-        const grip=P2.mu*(P2.mass*9.81+P2.downK*c.v*c.v)*0.55;   // rear axle share
+        const Fdrive=Math.min(P2.power/vv, P2.maxForce)*(0.94+0.06*c.skill)*SHOVE;
+        const grip=P2.mu*SHOVE*(P2.mass*9.81+P2.downK*c.v*c.v)*0.55;   // rear axle share
         const Fdrag=0.5*1.2*P2.cdA*c.v*c.v;
         const a=(Math.min(Fdrive,grip)-Fdrag-P2.roll)/P2.mass;
         c.v=Math.min(desired, c.v+Math.max(a,0)*dt);
       }else if(desired<c.v-0.15){
         const aBrk=Math.min(P2.brakeForce/P2.mass,
-          P2.mu*(P2.mass*9.81+P2.downK*c.v*c.v)/P2.mass);
+          P2.mu*(P2.mass*9.81+P2.downK*c.v*c.v)/P2.mass)*SHOVE;
         const Fdrag=0.5*1.2*P2.cdA*c.v*c.v;
         c.v=Math.max(desired, c.v-(aBrk+Fdrag/P2.mass)*dt);
       }else c.v=desired;
@@ -22609,17 +22643,21 @@ function updateHUD(inp,r,dt){
     } else if(sw) sw.style.opacity=0;
   }
   // LED shift lights
+  /* The LED shift lights are gone from the HUD. Everything that drove them is
+     null-guarded rather than deleted, because the rev figure below it is what the
+     gear readout and the engine note are computed from. */
   const el=$('#shift');
-  if(!shiftBuilt){el.innerHTML='';for(let i=0;i<15;i++){const d=document.createElement('div');
+  if(el && !shiftBuilt){el.innerHTML='';for(let i=0;i<15;i++){const d=document.createElement('div');
     d.className='led '+(i<6?'g':i<11?'r':'b');el.appendChild(d);}shiftBuilt=true;}
   // rev counter follows the gear, so the lights sweep and reset on every shift
   // instead of creeping up once across the whole speed range
   const gearN=spd<0.3?0:clamp(Math.ceil(spd/PHYS.vMax*8),1,8);
   const gTop=PHYS.vMax*gearN/8, gBot=PHYS.vMax*(gearN-1)/8;
   const inGear=gearN?clamp((spd-gBot)/Math.max(gTop-gBot,1),0,1):clamp(spd/8,0,1);
-  const rpm=clamp(0.30+inGear*0.70,0,1), leds=el.children, lit=Math.floor(rpm*leds.length);
-  const flash=rpm>0.95&&(performance.now()%140<70);
-  for(let i=0;i<leds.length;i++)leds[i].classList.toggle('on',flash||i<lit);
+  const rpm=clamp(0.30+inGear*0.70,0,1);
+  if(el){ const leds=el.children, lit=Math.floor(rpm*leds.length);
+    const flash=rpm>0.95&&(performance.now()%140<70);
+    for(let i=0;i<leds.length;i++)leds[i].classList.toggle('on',flash||i<lit); }
   const gear=spd<0.3?(CAR.v<-0.3?'R':'N'):gearN;
   const gEl=$('#gear');
   if(gEl.textContent!==String(gear)){ gEl.classList.add('shift');
