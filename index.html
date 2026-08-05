@@ -574,6 +574,66 @@
   .ssTeam .tn{font-size:14px;font-weight:700;color:#fff;letter-spacing:.05em}
   .ssTeam.on .tn::after{content:' ✓';color:#4ce0a0}
   /* ===== SEASON HUB ===== */
+  /* ============ TEAM MODE ============ */
+  #teamScreen{position:fixed;inset:0;z-index:29;display:none;align-items:center;justify-content:center;
+    background:radial-gradient(ellipse at 50% 8%,rgba(14,20,30,.97),rgba(4,6,10,.99) 70%)}
+  #teamScreen.on{display:flex}
+  .tmPanel{width:min(1100px,95vw);height:min(760px,92vh);display:flex;flex-direction:column;
+    border:1px solid var(--line);padding:clamp(18px,2.6vw,30px);
+    background:linear-gradient(160deg,rgba(255,255,255,.045),rgba(255,255,255,.012))}
+  .tmHead{display:flex;justify-content:space-between;align-items:flex-end;
+    padding-bottom:14px;border-bottom:2px solid var(--red);margin-bottom:14px}
+  .tmTag{font-family:var(--mono);font-size:9.5px;letter-spacing:.44em;color:var(--red);font-weight:800}
+  .tmTitle{font-family:var(--mono);font-size:clamp(20px,2.6vw,32px);font-weight:900;color:var(--type);margin-top:6px}
+  .tmBudget{text-align:right}
+  .tmBudget .k{display:block;font-family:var(--mono);font-size:8.5px;letter-spacing:.3em;color:var(--type-3);font-weight:700}
+  .tmBudget .v{display:block;font-family:var(--mono);font-size:22px;font-weight:900;color:var(--type);margin-top:4px}
+  .tmBudget .v.neg{color:#ff6a64}
+  #tmTabs{display:flex;gap:5px;margin-bottom:14px;flex-wrap:wrap}
+  .tmTab{font-family:var(--mono);font-size:9.5px;letter-spacing:.18em;font-weight:800;
+    color:var(--type-3);background:rgba(127,127,127,.12);border:none;padding:8px 14px;cursor:pointer;
+    transform:skewX(var(--skew));border-radius:var(--radius);transition:.15s}
+  .tmTab>span{display:inline-block;transform:skewX(calc(var(--skew) * -1))}
+  .tmTab:hover{color:var(--type)}
+  .tmTab.on{background:var(--red);color:#fff}
+  #tmPane{flex:1;min-height:0;overflow:auto;padding-right:6px}
+  /* option rows: a card list that works for drivers, engines, sponsors and staff */
+  .tmRow{display:flex;align-items:center;gap:14px;padding:11px 13px;margin-bottom:6px;
+    border:1px solid var(--line-soft);cursor:pointer;transition:.15s;background:rgba(255,255,255,.02)}
+  .tmRow:hover{border-color:var(--line);background:rgba(255,255,255,.05)}
+  .tmRow.on{border-color:var(--red);background:rgba(225,6,0,.10)}
+  .tmRow .rN{font-family:var(--mono);font-size:13px;font-weight:800;color:var(--type);flex:0 0 190px}
+  .tmRow .rD{font-size:11.5px;color:var(--type-2);flex:1;line-height:1.4}
+  .tmRow .rV{font-family:var(--mono);font-size:12px;font-weight:800;color:var(--type);text-align:right;flex:0 0 92px}
+  .tmRow .rV small{display:block;font-size:8.5px;letter-spacing:.16em;color:var(--type-3);margin-top:3px}
+  .tmStat{display:flex;gap:5px;flex:0 0 120px}
+  .tmStat i{flex:1;height:5px;background:rgba(255,255,255,.12);position:relative;border-radius:3px}
+  .tmStat i b{position:absolute;inset:0;background:var(--red);border-radius:3px;display:block}
+  /* livery editor */
+  #tmLivery{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+  .tmSwatches{display:flex;gap:7px;flex-wrap:wrap;margin-top:8px}
+  .tmSw{width:34px;height:34px;border:2px solid transparent;cursor:pointer;border-radius:var(--radius)}
+  .tmSw.on{border-color:var(--type)}
+  #tmCarPrev{width:100%;height:150px;border:1px solid var(--line-soft);position:relative;overflow:hidden}
+  .tmLabel{font-family:var(--mono);font-size:9px;letter-spacing:.28em;color:var(--type-3);font-weight:800;margin-top:14px}
+  .tmField{width:100%;margin-top:8px;background:rgba(255,255,255,.06);border:1px solid var(--line-soft);
+    color:var(--type);font-family:var(--mono);font-size:14px;font-weight:800;padding:10px 12px;letter-spacing:.06em}
+  .tmBtns{display:flex;gap:9px;margin-top:14px}
+  .tmBtns button{font-family:var(--mono);font-size:11px;letter-spacing:.16em;font-weight:800;
+    color:var(--type);background:transparent;border:1px solid var(--line);padding:11px 20px;cursor:pointer;
+    border-radius:var(--radius)}
+  .tmBtns button:hover{border-color:var(--red);color:var(--red)}
+  #tmGo{background:var(--red);border-color:var(--red);color:#fff}
+  #tmGo:hover{background:#ff2a1c;color:#fff}
+  .tmHint{margin-top:11px;font-family:var(--mono);font-size:9px;letter-spacing:.2em;color:var(--type-3)}
+  .tmHint b{color:var(--type);border:1px solid var(--line);padding:2px 6px;margin-right:4px}
+  .tmNote{font-size:11.5px;color:var(--type-2);line-height:1.6;margin-bottom:12px}
+  .tmFin{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:16px}
+  .tmFinCard{border:1px solid var(--line-soft);padding:13px}
+  .tmFinCard .k{font-family:var(--mono);font-size:8.5px;letter-spacing:.26em;color:var(--type-3);font-weight:700}
+  .tmFinCard .v{font-family:var(--mono);font-size:21px;font-weight:900;color:var(--type);margin-top:6px}
+  .tmFinCard .v.pos{color:#4fd97a} .tmFinCard .v.neg{color:#ff6a64}
+
   /* ============ SEASON SAVE SLOTS ============ */
   #saveScreen{position:fixed;inset:0;z-index:28;display:none;align-items:center;justify-content:center;
     background:radial-gradient(ellipse at 50% 10%,rgba(14,20,30,.96),rgba(4,6,10,.98) 70%)}
@@ -1626,6 +1686,26 @@ window.__introDone=new Promise(function(res){
     <span><button id="shSave">SAVE ▸</button><span id="shPts">0 PTS</span></span></div>
 </div>
 
+<!-- ===== TEAM MODE: create-a-team, and the team hub ===== -->
+<div id="teamScreen">
+  <div class="tmPanel">
+    <header class="tmHead">
+      <div>
+        <div class="tmTag" id="tmTag">CREATE A TEAM</div>
+        <div class="tmTitle" id="tmTitle">BUILD YOUR OUTFIT</div>
+      </div>
+      <div class="tmBudget"><span class="k">BUDGET</span><span class="v" id="tmBudget">$120M</span></div>
+    </header>
+    <nav id="tmTabs"></nav>
+    <div id="tmPane"></div>
+    <div class="tmBtns">
+      <button id="tmGo">CONFIRM ▸</button>
+      <button id="tmBack">◂ BACK</button>
+    </div>
+    <div class="tmHint"><b>◂ ▸</b> Change &nbsp; <b>1–6</b> Tab &nbsp; <b>Esc</b> Back</div>
+  </div>
+</div>
+
 <!-- ===== Season save slots ===== -->
 <div id="saveScreen">
   <div class="svPanel">
@@ -2483,7 +2563,7 @@ FX2.setSpeed=function(v01,dt){
   u.uSpeed.value=damp(u.uSpeed.value,clamp(v01,0,1),3.0,dt||0.016);
 };
 if(DEBUG) window.__FX2=FX2;
-if(DEBUG) setTimeout(()=>{window.__enterMenu=enterMenu;window.__SET=SET;window.__applyTheme=applyTheme;},0);
+if(DEBUG) setTimeout(()=>{window.__enterMenu=enterMenu;window.__SET=SET;window.__applyTheme=applyTheme;window.__openTeam=openTeam;window.__TM=TM;window.__TEAM=TEAM;window.__renderTeam=renderTeam;},0);
 if(DEBUG) setTimeout(()=>{window.__EVO=EVO;window.__PERF=PERF;window.__FLAG=FLAG;window.__SC=SC;window.__STEW=STEW;
   window.__throwYellow=throwYellow;window.__deployVSC=deployVSC;
   window.__issuePenalty=issuePenalty;window.__updateFlagBar=updateFlagBar;},0);
@@ -15665,6 +15745,10 @@ const MODES=[
   {id:'podium',t:'Podium Ceremony',tag:'CEREMONY',
    desc:'The bit after the flag. Park in the pits, climb out, and take the rostrum — trophies, anthem and a bottle of something cold over the man who beat you.',
    meta:[['Scene','PARC FERME'],['Cast','TOP 3'],['Ends','CHAMPAGNE']]},
+  {id:'team',t:'Team Principal',tag:'MANAGE',
+   desc:'Run the outfit rather than drive for it. Hire two drivers, buy an engine, sign sponsors, '+
+        'staff the factory — then pick which car you get in each round while the AI takes the other.',
+   meta:[['Cars','2'],['Budget','$120M'],['Rounds','24']]},
   {id:'season',t:'Season',tag:'CAMPAIGN',
    desc:'Create your driver, pick your team and sponsor, and race a five-round championship.',
    meta:[['Rounds','5'],['Teams','5'],['Mode','BETA']]},
@@ -16098,6 +16182,7 @@ function chooseMode(){const m=MODES[sel];Sound.init();Sound.blip(660,.08);
   else if(m.id==='aisim'){sessionMode='aisim';startAISim();}
   else if(m.id==='garage'){openGarage();}
   else if(m.id==='season'){openSaves('load');}
+  else if(m.id==='team'){openTeam('create');}
   else if(m.id==='podium'){sessionMode='podium';startPodium();}
   else if(m.id==='settings'){openSettings();}
   else{ /* placeholder modes */ flashMsg(); }
@@ -16427,6 +16512,339 @@ function evoGrip(lat){
 }
 
 /* ==================================================================
+   TEAM MODE
+   A second way to play a season: you run the team rather than drive for it. You
+   field two cars, and before every round you pick which of your drivers you get
+   in — the other one is driven by the AI. Everything a team principal actually
+   worries about is here as a decision with a cost: who you employ, what you pay
+   them, whose engine you run, who sponsors you, and what you spend the money on.
+   ================================================================== */
+const ENGINE_SUPPLIERS=[
+  {k:'apex',   nm:'APEX RACING',   power:0.92, rely:0.95, cost:12, d:'Works unit. Modest power, never breaks.'},
+  {k:'brandt', nm:'BRANDT MOTOREN',power:1.00, rely:0.86, cost:26, d:'The benchmark. Expensive and highly strung.'},
+  {k:'sakura', nm:'SAKURA HEAVY',  power:0.96, rely:0.91, cost:19, d:'Strong midrange, good service.'},
+  {k:'volta',  nm:'VOLTA ENERGIA', power:0.98, rely:0.82, cost:16, d:'Fierce deployment, fragile.'},
+  {k:'ferrum', nm:'FERRUM CORSE',  power:0.94, rely:0.93, cost:15, d:'Old-fashioned, dependable, cheap to run.'},
+];
+const SPONSOR_POOL=[
+  {k:'orbital', nm:'ORBITAL',      pay:14, demand:8,  d:'Wants points finishes.'},
+  {k:'kestrel', nm:'KESTREL BANK', pay:22, demand:14, d:'Wants podiums, and says so loudly.'},
+  {k:'lumen',   nm:'LUMEN',        pay:9,  demand:4,  d:'Happy to be seen. Undemanding.'},
+  {k:'trak',    nm:'TRAK ENERGY',  pay:18, demand:11, d:'Wants a top-five car.'},
+  {k:'meridian',nm:'MERIDIAN AIR', pay:12, demand:6,  d:'Steady money, mild expectations.'},
+  {k:'volkan',  nm:'VOLKAN TOOLS', pay:7,  demand:2,  d:'Small cheque, no strings.'},
+];
+const STAFF_ROLES=[
+  {k:'tech',   nm:'TECHNICAL DIRECTOR', d:'Raises the ceiling of every R&D project.'},
+  {k:'aero',   nm:'HEAD OF AERO',       d:'Downforce, and how quickly upgrades arrive.'},
+  {k:'strat',  nm:'RACE STRATEGIST',    d:'Better calls on tyres and stop timing.'},
+  {k:'crew',   nm:'CREW CHIEF',         d:'Faster, more reliable pit stops.'},
+];
+const STAFF_MARKET=[
+  {n:'H. Ekstrom', role:'tech',  rating:88, wage:9},
+  {n:'M. Duval',   role:'tech',  rating:74, wage:5},
+  {n:'S. Iyer',    role:'aero',  rating:91, wage:11},
+  {n:'P. Novak',   role:'aero',  rating:70, wage:4},
+  {n:'L. Bianchi', role:'strat', rating:85, wage:7},
+  {n:'R. Adeyemi', role:'strat', rating:72, wage:4},
+  {n:'K. Osei',    role:'crew',  rating:83, wage:6},
+  {n:'T. Halvorsen',role:'crew', rating:69, wage:3},
+];
+/* Fresh team state. Budget is in millions, and everything is expressed in the
+   same unit so a wage and a sponsor cheque can be compared at a glance. */
+function teamInit(opts){
+  const o=opts||{};
+  TEAM.on=true;
+  TEAM.name=o.name||'APEX RACING';
+  TEAM.colours=o.colours||{base:'#e10600',trim:'#f2f5f8',accent:'#14161b'};
+  TEAM.engine=o.engine||'apex';
+  TEAM.budget=o.budget!=null?o.budget:120;
+  TEAM.sponsors=o.sponsors||['lumen','meridian'];
+  TEAM.staff=o.staff||{tech:null,aero:null,strat:null,crew:null};
+  TEAM.drivers=o.drivers||[];
+  TEAM.racing=0;                    // which of the two seats YOU take this round
+  TEAM.facilities={factory:1,windtunnel:1,academy:1};
+  TEAM.history=[];
+}
+const TEAM={on:false,name:'',colours:null,engine:'apex',budget:120,
+  sponsors:[],staff:{},drivers:[],racing:0,facilities:null,history:[]};
+/* Weekly money in and out. Sponsors pay per round; staff and the engine bill
+   every round too, so a team that hires everyone runs itself out of money. */
+function teamRoundFinances(){
+  let income=0, cost=0;
+  for(const s of TEAM.sponsors){ const S=SPONSOR_POOL.find(x=>x.k===s); if(S) income+=S.pay; }
+  const E=ENGINE_SUPPLIERS.find(x=>x.k===TEAM.engine); if(E) cost+=E.cost;
+  for(const r of Object.keys(TEAM.staff||{})){
+    const m=TEAM.staff[r]; if(m) cost+=m.wage;
+  }
+  for(const d of TEAM.drivers) cost+=d.wage||0;
+  return {income,cost,net:income-cost};
+}
+/* What the sponsors think. Each one wants a certain level of result; miss it
+   repeatedly and they walk, which is the pressure that makes the cheap
+   undemanding sponsor a real choice rather than an obviously bad one. */
+function teamSettleSponsors(bestPos){
+  const lost=[];
+  TEAM.sponsors=TEAM.sponsors.filter(k=>{
+    const S=SPONSOR_POOL.find(x=>x.k===k); if(!S) return false;
+    const met=bestPos<=Math.max(1,Math.round(20-S.demand));
+    S._miss=met?0:((S._miss||0)+1);
+    if(S._miss>=3){ lost.push(S.nm); S._miss=0; return false; }
+    return true;
+  });
+  for(const nm of lost) wkNews('Sponsor walks.',
+    `${esc(nm)} has ended its deal with ${esc(TEAM.name)} after a run of results below what it was promised.`);
+}
+/* The engine you bought shows up as power and as reliability, for both cars. */
+function teamEngineMul(){
+  const E=ENGINE_SUPPLIERS.find(x=>x.k===TEAM.engine);
+  return E?{power:E.power,rely:E.rely}:{power:1,rely:1};
+}
+
+/* Confirming: from create it validates and starts the championship; from the
+   hub it just closes. Validation is deliberately about the things that make a
+   season impossible rather than the things that make it hard — you are allowed
+   to build a bad team. */
+function confirmTeam(){
+  if(TM.mode==='create'){
+    if(TEAM.drivers.length<2){
+      const t=$('#tmTitle'); const old=t.textContent;
+      t.textContent='YOU NEED TWO DRIVERS'; Sound.blip(220,.09);
+      TM.tab=1; renderTeam();
+      setTimeout(()=>{ if(t.textContent==='YOU NEED TWO DRIVERS') t.textContent=old; },1800);
+      return;
+    }
+    if(!TEAM.name.trim()) TEAM.name='APEX RACING';
+    /* Committing the build: this becomes a season like any other, with the
+       team's own livery registered so the grid, the standings and the podium
+       all use it. */
+    SEASON.teamMode=true;
+    SEASON.team='__player';
+    LIVERIES['__player']={name:TEAM.name, base:TEAM.colours.base,
+      swatch:[TEAM.colours.base,TEAM.colours.trim,TEAM.colours.accent]};
+    SEASON.name=TEAM.drivers[0].n;
+    TEAM.racing=0;
+    $('#teamScreen').classList.remove('on'); SEASON.on=false;
+    beginSeasonFromTeam();
+    return;
+  }
+  closeTeam();
+}
+/* Start a championship for the team just built. */
+function beginSeasonFromTeam(){
+  SEASON.active=true; SEASON.round=0; SEASON.points=0;
+  SEASON.rd=null; initRD(); puReset();
+  SEASON.rep=50; seasonInitCareer();
+  SEASON.lastResult=null; SEASON.news=[]; SEASON.wk=null;
+  seasonBuildTable();
+  if(SEASON.slot==null) SEASON.slot=0;
+  seasonAutosave();
+  openSeasonHub();
+}
+/* ---- the create-a-team / team-hub screen ---------------------------------
+   One screen serves both jobs. Building a team and running one ask the same
+   questions — who drives, whose engine, who pays, who you employ — so it is the
+   same set of tabs either way, and the only difference is whether CONFIRM
+   starts a season or returns to the hub. */
+const TM={tab:0, mode:'create', tabs:[
+  {k:'identity', nm:'IDENTITY'},
+  {k:'drivers',  nm:'DRIVERS'},
+  {k:'engine',   nm:'ENGINE'},
+  {k:'sponsors', nm:'SPONSORS'},
+  {k:'staff',    nm:'STAFF'},
+  {k:'finance',  nm:'FINANCE'},
+]};
+const LIVERY_SWATCHES=['#e10600','#ff6a00','#ffd23a','#3ddc84','#00b6d4','#3f8bff',
+                       '#8a4fff','#ff4f9d','#f2f5f8','#14161b','#0a3d91','#00594f'];
+function openTeam(mode){
+  TM.mode=mode||'create'; TM.tab=0;
+  if(mode==='create'&&!TEAM.on) teamInit();
+  $('#menu').classList.remove('on');
+  $('#seasonHub').classList.remove('on');
+  SEASON.on='team';
+  $('#teamScreen').classList.add('on');
+  $('#tmTag').textContent=TM.mode==='create'?'CREATE A TEAM':'TEAM PRINCIPAL';
+  $('#tmTitle').textContent=TM.mode==='create'?'BUILD YOUR OUTFIT':(TEAM.name||'YOUR TEAM');
+  $('#tmGo').textContent=TM.mode==='create'?'START SEASON ▸':'DONE ▸';
+  renderTeam();
+}
+function closeTeam(){
+  $('#teamScreen').classList.remove('on'); SEASON.on=false;
+  if(TM.mode==='create') enterMenu(); else openSeasonHub();
+}
+function renderTeam(){
+  const tabs=$('#tmTabs'); if(!tabs) return;
+  tabs.innerHTML='';
+  TM.tabs.forEach((t,i)=>{
+    const b2=document.createElement('button');
+    b2.className='tmTab'+(i===TM.tab?' on':'');
+    b2.innerHTML='<span>'+t.nm+'</span>';
+    b2.onclick=()=>{TM.tab=i;renderTeam();Sound.blip(520,.04);};
+    tabs.appendChild(b2);
+  });
+  const fin=teamRoundFinances();
+  const bg=$('#tmBudget');
+  bg.textContent='$'+Math.round(TEAM.budget)+'M';
+  bg.classList.toggle('neg',TEAM.budget<0);
+  const pane=$('#tmPane'); pane.innerHTML='';
+  const k=TM.tabs[TM.tab].k;
+  if(k==='identity') tmIdentity(pane);
+  else if(k==='drivers') tmDrivers(pane);
+  else if(k==='engine') tmEngine(pane);
+  else if(k==='sponsors') tmSponsors(pane);
+  else if(k==='staff') tmStaff(pane);
+  else tmFinance(pane,fin);
+}
+/* ---- identity: name and livery ---- */
+function tmIdentity(pane){
+  const wrap=document.createElement('div'); wrap.id='tmLivery';
+  const left=document.createElement('div');
+  left.innerHTML='<div class="tmNote">Your team\'s name and colours. The livery is applied to '+
+    'both of your cars and appears on the grid, in the standings and on the podium.</div>'+
+    '<div class="tmLabel">TEAM NAME</div>';
+  const inp=document.createElement('input');
+  inp.className='tmField'; inp.value=TEAM.name; inp.maxLength=22;
+  inp.oninput=()=>{ TEAM.name=inp.value.toUpperCase().slice(0,22);
+    if(TM.mode!=='create') $('#tmTitle').textContent=TEAM.name; };
+  left.appendChild(inp);
+  for(const [key,label] of [['base','PRIMARY'],['trim','SECONDARY'],['accent','DETAIL']]){
+    const lb=document.createElement('div'); lb.className='tmLabel'; lb.textContent=label;
+    const sw=document.createElement('div'); sw.className='tmSwatches';
+    LIVERY_SWATCHES.forEach(col=>{
+      const s=document.createElement('div');
+      s.className='tmSw'+(TEAM.colours[key]===col?' on':'');
+      s.style.background=col;
+      s.onclick=()=>{ TEAM.colours[key]=col; Sound.blip(600,.04); renderTeam(); };
+      sw.appendChild(s);
+    });
+    left.appendChild(lb); left.appendChild(sw);
+  }
+  const right=document.createElement('div');
+  right.innerHTML='<div class="tmLabel">PREVIEW</div>';
+  const prev=document.createElement('div'); prev.id='tmCarPrev';
+  /* A drawn preview rather than a 3D render: the point is to show how the three
+     colours sit together, and a flat elevation does that better than a dark
+     photoreal car with most of its bodywork in shadow. */
+  prev.style.background=`linear-gradient(105deg,${TEAM.colours.base} 0 52%,${TEAM.colours.trim} 52% 74%,${TEAM.colours.accent} 74% 100%)`;
+  const badge=document.createElement('div');
+  badge.style.cssText='position:absolute;left:12px;bottom:10px;font-family:var(--mono);font-weight:900;'+
+    'font-size:15px;letter-spacing:.1em;color:#fff;text-shadow:0 2px 10px rgba(0,0,0,.7)';
+  badge.textContent=TEAM.name||'YOUR TEAM';
+  prev.appendChild(badge);
+  right.appendChild(prev);
+  wrap.appendChild(left); wrap.appendChild(right);
+  pane.appendChild(wrap);
+}
+/* ---- drivers: two seats, hired from the pool at a wage ---- */
+function tmDrivers(pane){
+  const note=document.createElement('div'); note.className='tmNote';
+  note.textContent='Pick two drivers. Before every round you choose which of them you get in — '+
+    'the other is driven by the AI. A quick driver costs more per round.';
+  pane.appendChild(note);
+  const pool=DRIVER_POOL.slice(0,16).map(d=>({
+    n:d.n, skill:d.skill, consist:d.consist, aggro:d.aggro,
+    wage:Math.max(2,Math.round((d.skill-0.86)*160))
+  }));
+  pool.forEach(d=>{
+    const hired=TEAM.drivers.find(x=>x.n===d.n);
+    const row=document.createElement('div');
+    row.className='tmRow'+(hired?' on':'');
+    row.innerHTML=`<span class="rN">${esc(d.n)}</span>`+
+      `<span class="tmStat">${[d.skill,d.consist,d.aggro].map(v=>
+        `<i><b style="width:${Math.round(clamp((v-0.55)/0.5,0,1)*100)}%"></b></i>`).join('')}</span>`+
+      `<span class="rD">Pace / consistency / aggression</span>`+
+      `<span class="rV">$${d.wage}M<small>PER ROUND</small></span>`;
+    row.onclick=()=>{
+      const i=TEAM.drivers.findIndex(x=>x.n===d.n);
+      if(i>=0) TEAM.drivers.splice(i,1);
+      else if(TEAM.drivers.length<2) TEAM.drivers.push({...d});
+      else { Sound.blip(220,.06); return; }     // both seats are taken
+      Sound.blip(620,.05); renderTeam();
+    };
+    pane.appendChild(row);
+  });
+}
+function tmEngine(pane){
+  const note=document.createElement('div'); note.className='tmNote';
+  note.textContent='Your engine supplier sets how much power both cars have and how often they finish. '+
+    'The bill arrives every round whether you score or not.';
+  pane.appendChild(note);
+  ENGINE_SUPPLIERS.forEach(E=>{
+    const row=document.createElement('div');
+    row.className='tmRow'+(TEAM.engine===E.k?' on':'');
+    row.innerHTML=`<span class="rN">${E.nm}</span>`+
+      `<span class="tmStat">${[E.power,E.rely].map(v=>
+        `<i><b style="width:${Math.round(clamp((v-0.78)/0.24,0,1)*100)}%"></b></i>`).join('')}</span>`+
+      `<span class="rD">${E.d}</span>`+
+      `<span class="rV">$${E.cost}M<small>PER ROUND</small></span>`;
+    row.onclick=()=>{ TEAM.engine=E.k; Sound.blip(620,.05); renderTeam(); };
+    pane.appendChild(row);
+  });
+}
+function tmSponsors(pane){
+  const note=document.createElement('div'); note.className='tmNote';
+  note.textContent='Sponsors pay every round and expect results for it. Miss what one wants three '+
+    'rounds running and it walks — which is why the small undemanding cheque is a real choice.';
+  pane.appendChild(note);
+  SPONSOR_POOL.forEach(S=>{
+    const has=TEAM.sponsors.includes(S.k);
+    const row=document.createElement('div');
+    row.className='tmRow'+(has?' on':'');
+    row.innerHTML=`<span class="rN">${S.nm}</span>`+
+      `<span class="rD">${S.d}</span>`+
+      `<span class="rV">+$${S.pay}M<small>PER ROUND</small></span>`;
+    row.onclick=()=>{
+      const i=TEAM.sponsors.indexOf(S.k);
+      if(i>=0) TEAM.sponsors.splice(i,1);
+      else if(TEAM.sponsors.length<4) TEAM.sponsors.push(S.k);
+      else { Sound.blip(220,.06); return; }     // four is the limit on the car
+      Sound.blip(620,.05); renderTeam();
+    };
+    pane.appendChild(row);
+  });
+}
+function tmStaff(pane){
+  const note=document.createElement('div'); note.className='tmNote';
+  note.textContent='Four roles, one person in each. A better name costs more every round and is the '+
+    'difference between an upgrade that works and one that does not.';
+  pane.appendChild(note);
+  STAFF_ROLES.forEach(R=>{
+    const head=document.createElement('div'); head.className='tmLabel'; head.textContent=R.nm+' — '+R.d;
+    pane.appendChild(head);
+    STAFF_MARKET.filter(m=>m.role===R.k).forEach(m=>{
+      const cur=TEAM.staff[R.k];
+      const row=document.createElement('div');
+      row.className='tmRow'+(cur&&cur.n===m.n?' on':'');
+      row.innerHTML=`<span class="rN">${esc(m.n)}</span>`+
+        `<span class="tmStat"><i><b style="width:${m.rating}%"></b></i></span>`+
+        `<span class="rD">Rating ${m.rating}</span>`+
+        `<span class="rV">$${m.wage}M<small>PER ROUND</small></span>`;
+      row.onclick=()=>{ TEAM.staff[R.k]=(cur&&cur.n===m.n)?null:{...m};
+        Sound.blip(620,.05); renderTeam(); };
+      pane.appendChild(row);
+    });
+  });
+}
+function tmFinance(pane,fin){
+  const cards=document.createElement('div'); cards.className='tmFin';
+  const mk=(k,v,cls)=>`<div class="tmFinCard"><div class="k">${k}</div><div class="v ${cls||''}">${v}</div></div>`;
+  cards.innerHTML=
+    mk('BUDGET','$'+Math.round(TEAM.budget)+'M',TEAM.budget<0?'neg':'')+
+    mk('INCOME / ROUND','+$'+fin.income+'M','pos')+
+    mk('OUTGOINGS / ROUND','−$'+fin.cost+'M','neg');
+  pane.appendChild(cards);
+  const net=document.createElement('div'); net.className='tmFin';
+  net.innerHTML=mk('NET / ROUND',(fin.net>=0?'+':'−')+'$'+Math.abs(fin.net)+'M',fin.net>=0?'pos':'neg')+
+    mk('DRIVERS',TEAM.drivers.length+' / 2')+
+    mk('SPONSORS',TEAM.sponsors.length+' / 4');
+  pane.appendChild(net);
+  const note=document.createElement('div'); note.className='tmNote';
+  note.innerHTML='Prize money is paid on where you finish the championship. Running a deficit is '+
+    'survivable for a while and fatal eventually: at zero the team folds and the season ends.'+
+    '<br><br>Every round the net above is applied to the budget, then race winnings are added.';
+  pane.appendChild(note);
+}
+/* ==================================================================
    CONTRACTS, RIVALRIES AND OBJECTIVES
    A championship was a points table and nothing around it. These are the things
    that make a season feel like a career rather than eighteen races in a row:
@@ -16689,6 +17107,11 @@ function seasonRestore(s){
   SEASON.contract=s.contract||null; SEASON.rep=s.rep||50;
   SEASON.rivalry=s.rivalry||null; SEASON.objectives=s.objectives||[];
   if(!SEASON.contract) seasonInitCareer();
+  SEASON.teamMode=!!s.teamMode;
+  if(s.team2){ teamInit(s.team2); TEAM.racing=s.team2.racing||0;
+    LIVERIES['__player']={name:TEAM.name, base:TEAM.colours.base,
+      swatch:[TEAM.colours.base,TEAM.colours.trim,TEAM.colours.accent]}; }
+  else TEAM.on=false;
   if(s.setup){ CAR.setup=s.setup; applySetup(); }
   // a restored season starts at the weekend hub, never mid-session
   SEASON.wk=null; SEASON.grid=null; SEASON.gridPos=null; SEASON.pendingRace=false;
@@ -18617,6 +19040,13 @@ addEventListener('keydown',e=>{
     else if(k==='enter'){seasonRace();}
     else if(k==='s'){ openSaves('save'); }
     e.preventDefault();return; }
+  if(SEASON.on==='team'){
+    if(k==='escape'){ closeTeam(); }
+    else if(k==='enter'){ confirmTeam(); }
+    else if(k>='1'&&k<='6'){ TM.tab=Math.min(TM.tabs.length-1,+k-1); renderTeam(); }
+    else if(k==='arrowright'){ TM.tab=(TM.tab+1)%TM.tabs.length; renderTeam(); }
+    else if(k==='arrowleft'){ TM.tab=(TM.tab-1+TM.tabs.length)%TM.tabs.length; renderTeam(); }
+    e.preventDefault(); return; }
   if(SEASON.on==='saves'){
     if(k==='escape'){ closeSaves(); }
     else if(k>='1'&&k<='3'){ SAVE.sel=+k-1; renderSaves(); useSlot(SAVE.sel); }
@@ -21532,6 +21962,8 @@ async function boot(){
   // settings screen wiring — the buttons, and the first application of whatever
   // was loaded from storage before anything is on screen
   $('#svBack').onclick=()=>{closeSaves();Sound.blip(380,.05);};
+  $('#tmBack').onclick=()=>{closeTeam();Sound.blip(380,.05);};
+  $('#tmGo').onclick=()=>confirmTeam();
   $('#gtClose').onclick=()=>{gtabClose();Sound.blip(380,.05);};
   document.querySelectorAll('.gtTab').forEach(t=>{ t.onclick=()=>gtabTab(t.dataset.tab); });
   /* END SESSION closes the session where it stands and takes the result you
