@@ -19490,7 +19490,23 @@ function makeAICar(col,teamKey){
   return g;
 }
 function curvAtIdx(i){const N=TRACK.N,a=TRACK.tan[(i-4+N)%N],b=TRACK.tan[(i+4)%N];return Math.acos(clamp(a.x*b.x+a.z*b.z,-1,1));}
-function signedTurnIdx(i){const N=TRACK.N,a=TRACK.tan[(i-3+N)%N],b=TRACK.tan[(i+3)%N];return a.x*b.z-a.z*b.x;}
+/* Which way the circuit bends at centreline index `i`, as a signed cross
+   product. The index arrives from car state (c.idx) and from arithmetic on it,
+   and it was trusted absolutely: `(i-3+N)%N` is only in range when i is already
+   a whole number inside [0,N), so a NaN idx, a negative one, or one left over
+   from a longer circuit indexed straight past the end of TRACK.tan and threw
+   on `a.x` — an uncaught TypeError inside the frame loop, which kills the
+   render. Normalised properly, and it gives up quietly if the track is not
+   there rather than taking the whole game down with it. */
+function signedTurnIdx(i){
+  const T=TRACK&&TRACK.tan; if(!T) return 0;
+  const N=T.length; if(!N) return 0;
+  const j=Math.floor(i);
+  if(!Number.isFinite(j)) return 0;
+  const a=T[(((j-3)%N)+N)%N], b=T[(((j+3)%N)+N)%N];
+  if(!a||!b) return 0;
+  return a.x*b.z-a.z*b.x;
+}
 function clearAIs(){ AI.cars.forEach(c=>driveScene.remove(c.mesh)); AI.cars=[]; AI.on=false; }
 /* the AI field: two drivers per team, each with their own skill, aggression and
    consistency so the grid behaves like a real field instead of a uniform train */
@@ -19590,7 +19606,8 @@ const SIM={on:false, phase:'', t:0, lights:0, follow:0, cam:0, camT:0,
   laps:1, order:[], finished:[], startT:0, auto:true, fastest:null, _flT:0};
 const SIM_CAMS=['chase','tcam','trackside','helicam','onboard'];
 if(DEBUG){ window.__SIM=SIM;
-  setTimeout(()=>{window.__startAISim=startAISim;window.__stepAISim=stepAISim;},0); }
+  setTimeout(()=>{window.__startAISim=startAISim;window.__stepAISim=stepAISim;
+    window.__SIM=SIM;window.__AI=AI;window.__signedTurnIdx=signedTurnIdx;},0); }
 /* line the whole field up on the grid: two abreast, staggered, 8 m apart, with
    the front row right on the start line. This is the grid, not a rolling train. */
 function spawnGrid(n){
