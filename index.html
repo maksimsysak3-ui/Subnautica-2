@@ -2189,7 +2189,14 @@ const SET={
   difficulty:'pro', raceLaps:8, weatherMode:'dynamic', trackLimits:true, postFX:true,
   racingLine:'off', assistBrake:false, assistSteer:false, gamepad:true, colorblind:'off', autoQuality:true,
   themePreset:'apex', accent:'#e10600', menuShape:'angled', menuTex:'normal', uiTheme:'dark',
-  tyreWear:'normal', steerSpeed:1.0,
+  /* AI PACE. Defaulted to where a person actually laps, not to where the car
+     theoretically can. At 100% the AI plans a lap about a second off the outright
+     record — which it reaches exactly, because it tracks a speed rather than
+     driving to it, so it pays none of the slip angle, friction-circle and input
+     costs a human does. Nobody gets near that on a keyboard. 0.88 puts them
+     around five seconds off the record, which is a real fight; raise it as you
+     get quicker. */
+  tyreWear:'normal', steerSpeed:1.0, aiPace:0.88,
   // graphics
   shadows:true, fxDensity:'high', resScale:1.0,
 };
@@ -15954,6 +15961,8 @@ const SETTINGS_DEF=[
     d:'Police running wide: three warnings, then a five-second penalty.'},
    {k:'steerSpeed',type:'range',t:'Steering speed',min:0.5,max:1.8,step:0.1,pct:true,
     d:'How fast the wheel answers the key. Lower is smoother, higher is sharper.'},
+   {k:'aiPace',type:'range',t:'AI pace',min:0.72,max:1.00,step:0.02,pct:true,
+    d:'How close the AI runs to the outright lap record. 100% is record pace, which no one reaches by hand.'},
  ]},
  {id:'look', t:'Appearance', items:[
    {k:'themePreset',type:'enum',t:'Menu preset',
@@ -19124,13 +19133,21 @@ function parseLapRec(s){const m=/(\d+):(\d+)/.exec(s||''); return m?(+m[1]*60+ +
    out identical to a dry one on fully rubbered tarmac. Both are worth real time
    and both are already modelled elsewhere in the game, so the timing screens and
    the qualifying result now read them. */
+/* The same dial the AI's corner plan uses, expressed as a LAP TIME multiplier so
+   the simulated sessions land where the cars on track do. Calibrated off the
+   solved profile: dropping the plan from x0.808 to x0.719 (aiPace 0.88) moves a
+   Spa lap from 105.0s to about 109.3s, which is 4.1% — hence the 0.37 slope. */
+function aiPaceTimeMul(){
+  const a=(typeof SET!=='undefined'&&SET.aiPace!=null)?SET.aiPace:0.88;
+  return 1+(1-a)*0.37;
+}
 function paceConditions(){
   const wet=clamp((typeof WEATHER!=='undefined'&&WEATHER.wetness)||0,0,1);
   /* Twelve per cent for a fully wet track, which is about what it is worth in
      reality, and up to another two and a half for a green, unrubbered surface —
      evoGrip returns >1 once the line has rubber in it. */
   const ev=(typeof EVO!=='undefined')?evoGrip(0):1;
-  return (1+0.12*wet)/Math.max(0.9,ev);
+  return (1+0.12*wet)/Math.max(0.9,ev)*aiPaceTimeMul();
 }
 function fieldPace(d,base){
   // what this driver is ultimately capable of here, and how erratic they are
@@ -20925,7 +20942,8 @@ function stepAI(dt){
       *(1-0.20*wetP)
       *lerp(0.90,1.0,c.tyre)
       *evoGrip(c.lat||0)
-      *lerp(0.762,0.808,clamp((c.skill-0.93)/0.07,0,1));
+      *lerp(0.762,0.808,clamp((c.skill-0.93)/0.07,0,1))
+      *(SET.aiPace!=null?SET.aiPace:0.88);
     // grip-limited speed for a radius, solved for v because grip depends on v
     const vForR=(R)=>{
       let v=Math.sqrt(gripPlan*9.81*R);
