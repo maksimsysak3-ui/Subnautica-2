@@ -14610,6 +14610,22 @@ function solveArms(steerCmd){
    PHYSICS + WHEEL ANIMATION
    ================================================================== */
 function resetCar(){
+  /* Put anything that came off back on, and clear the circuit of the pieces —
+     a new session must not start with the last one's wreckage on the road. */
+  try{
+    /* CLEAR THE CIRCUIT FIRST, THEN REFIT. Done the other way round, looseReset()
+       runs over a list that still contains the wheel we have just bolted back on
+       and removes it from its parent again — the car came out of a reset still
+       missing it, which is exactly what the test caught. */
+    looseReset();
+    for(const r of (CAR.refit||[])){
+      if(r.mesh.parent) r.mesh.parent.remove(r.mesh);
+      r.parent.add(r.mesh);
+      r.mesh.position.copy(r.pos); r.mesh.quaternion.copy(r.quat); r.mesh.scale.copy(r.scale);
+      r.mesh.visible=true;
+    }
+    CAR.refit=[]; CAR.wheelGone=0;
+  }catch(e){}
   const p=TRACK.pts[0], tg=TRACK.tan[0];
   CAR.pos.set(p.x,0,p.z);
   CAR.heading=Math.atan2(tg.x,tg.z);
@@ -15057,6 +15073,12 @@ function stepPhysics(dt,inp){
     const floor=(right?0.70:0.50)*rdGrip()*lerp(0.82,1.0,CAR.tire);
     gripMul=Math.max(gripMul, floor*(onKerb?0.82:1.0));
   }
+  /* A WHEEL THAT IS NOT THERE. Losing one is currently a visual event, and a car
+     that drives identically on three wheels makes the whole thing a decoration.
+     It costs a lot of grip — enough that you have to nurse it to the pits, which
+     is the correct outcome — but not so much that the car is undriveable and the
+     race is simply over where you stopped. */
+  if(CAR.wheelGone) gripMul*=Math.max(0.34, 1-0.30*CAR.wheelGone);
   CAR.gripMul=gripMul;                 // the brake cap above reads this next frame
   /* THE WEAR ITSELF. The two terms folded in here used to take a flat slice of
      the tyre PER SECOND: 0.004/s outside the temperature window and up to
@@ -15205,7 +15227,15 @@ function stepPhysics(dt,inp){
       const before=CAR.dmg.front;
       CAR.dmg.front=Math.min(1,CAR.dmg.front+hit*1.5);
       CAR.dmg.floor=Math.min(1,CAR.dmg.floor+hit*0.4);
-      shedDebris(hit, CAR.dmg.front-before); }
+      shedDebris(hit, CAR.dmg.front-before);
+      /* SOMETHING COMES OFF IN A BIG ONE. Scaled to the hit, so a scrape marks
+         the car and a proper accident strips it. The side is whichever way the
+         car was sliding when it went in. */
+      const sideHit=(CAR.vLat||0)>=0?1:-1;
+      if(hit>0.030) losePart('frontWing',sideHit,hit);
+      if(hit>0.055) losePart('floor',sideHit,hit);
+      if(hit>0.070) losePart('rearWing',sideHit,hit);
+      if(hit>0.085) losePart('wheel',sideHit,hit); }
   }
 
   // smoothly INTERPOLATED road height (continuous along the centreline) so the car
@@ -15536,6 +15566,21 @@ function stepPitStop(dt){
     fitTyres(P.planComp||selCompound,true);
     CAR.damage=Math.max(0,(CAR.damage||0)-0.45);      // the crew pulls the damaged wing off
     if(CAR.dmg){ CAR.dmg.front=0; CAR.dmg.rear=Math.max(0,CAR.dmg.rear-0.3); }
+    /* NEW BODYWORK AND A WHEEL BACK ON. Anything that came off is refitted — the
+       detached meshes stay lying on the circuit where they fell, because that is
+       where they are, but the CAR gets its parts back. */
+    if(CAR.lost) CAR.lost={};
+    CAR.wheelGone=0;
+    for(const r of (CAR.refit||[])){
+      // take it out of the loose-parts list first, or it keeps being simulated
+      const li=LOOSE.parts.findIndex(p=>p.mesh===r.mesh);
+      if(li>=0) LOOSE.parts.splice(li,1);
+      if(r.mesh.parent) r.mesh.parent.remove(r.mesh);
+      r.parent.add(r.mesh);
+      r.mesh.position.copy(r.pos); r.mesh.quaternion.copy(r.quat); r.mesh.scale.copy(r.scale);
+      r.mesh.visible=true;
+    }
+    CAR.refit=[];
     // the floor is not something you change in three seconds
     P.phase='drop'; P.t=STOP.drop; Sound.hit();
   }
@@ -16164,7 +16209,7 @@ if(DEBUG){window.__setCam=(m)=>{CAM.mode=m;CAM.tsPost=null;$('#camName').textCon
   setTimeout(()=>{window.__SEASON=SEASON;window.__endSeasonRace=endSeasonRace;window.__seasonBuildTable=seasonBuildTable;window.__openSaves=openSaves;window.__loadFromSlot=loadFromSlot;window.__seasonAutosave=seasonAutosave;
     window.__seasonConstructors=seasonConstructors;
     window.__spawnAIs=spawnAIs;window.__AI=AI;window.__aiSkillMul=aiSkillMul;
-    window.__stepAI=stepAI;window.__shedDebris=shedDebris;window.__stepCarFire=stepCarFire;window.__PIT=PIT;window.__scLimitNow=scLimitNow;window.__stepSCCompliance=stepSCCompliance;window.__compoundLaps=compoundLaps;window.__seasonRollObjectives=seasonRollObjectives;
+    window.__stepAI=stepAI;window.__losePart=losePart;window.__LOOSE=LOOSE;window.__stepLooseParts=stepLooseParts;window.__shedDebris=shedDebris;window.__stepCarFire=stepCarFire;window.__PIT=PIT;window.__scLimitNow=scLimitNow;window.__stepSCCompliance=stepSCCompliance;window.__compoundLaps=compoundLaps;window.__seasonRollObjectives=seasonRollObjectives;
     window.__seasonSettleCareer=seasonSettleCareer;window.__carPlain=()=>carPlain;window.__PLAIN_TEX=()=>PLAIN_TEX;window.__AI_FIELD=AI_FIELD;window.__renderStandings=renderStandings;window.__setSessionMode=(m)=>{sessionMode=m;};window.__aiPaceNow=aiPaceNow;window.__aiPaceTimeMul=aiPaceTimeMul;window.__aiStraightMul=aiStraightMul;
     window.__setSessionMode=(m)=>{sessionMode=m;};window.__isRace=()=>isRace();},0);
   window.__replayRecord=replayRecord;
@@ -21159,6 +21204,99 @@ function stepSCCompliance(dt){
        flame at the back of the floor with black smoke rising off it, running
        continuously while the damage is there.
    ================================================================== */
+/* ===================== PARTS THAT ACTUALLY COME OFF ======================
+   Particles are spray; they are not a car breaking. Hit a barrier hard enough
+   and something should LEAVE the car and be lying on the road behind you.
+   A lost part is detached from the car's own rig into the world with its world
+   transform preserved, then given a velocity, a tumble and gravity, and left to
+   bounce and settle. The car is visibly missing it from that moment until the
+   crew put it back on at a pit stop. */
+const LOOSE={parts:[], max:16};
+function looseReset(){
+  for(const p of LOOSE.parts){ if(p.mesh&&p.mesh.parent) p.mesh.parent.remove(p.mesh); }
+  LOOSE.parts.length=0;
+  CAR.lost={};
+}
+/* Hand a mesh to the world with a shove and a spin. */
+function looseAdd(mesh, vx,vy,vz){
+  if(!mesh) return;
+  driveScene.attach(mesh);                       // keeps the world transform exactly
+  if(LOOSE.parts.length>=LOOSE.max){
+    const old=LOOSE.parts.shift(); if(old.mesh&&old.mesh.parent) old.mesh.parent.remove(old.mesh);
+  }
+  LOOSE.parts.push({mesh, v:new THREE.Vector3(vx,vy,vz),
+    w:new THREE.Vector3((Math.random()-0.5)*9,(Math.random()-0.5)*7,(Math.random()-0.5)*9),
+    rest:0, t:0});
+}
+function stepLooseParts(dt){
+  if(!LOOSE.parts.length) return;
+  for(let i=LOOSE.parts.length-1;i>=0;i--){
+    const p=LOOSE.parts[i]; p.t+=dt;
+    const m=p.mesh;
+    if(p.rest>0){ p.rest+=dt; continue; }         // settled: leave it lying there
+    p.v.y-=9.81*dt;
+    p.v.multiplyScalar(1-Math.min(0.9,1.6*dt));   // air drag
+    m.position.addScaledVector(p.v,dt);
+    m.rotateX(p.w.x*dt); m.rotateY(p.w.y*dt); m.rotateZ(p.w.z*dt);
+    const g=(TRACK.terrainH?TRACK.terrainH(m.position.x,m.position.z):0)+0.16;
+    if(m.position.y<=g){
+      m.position.y=g;
+      if(Math.abs(p.v.y)<1.4 && p.v.lengthSq()<9){ p.rest=0.001; p.v.set(0,0,0); p.w.set(0,0,0); }
+      else { p.v.y=Math.abs(p.v.y)*0.34; p.v.x*=0.62; p.v.z*=0.62; p.w.multiplyScalar(0.6); }
+    }
+    // it is scenery once it has stopped, but do not keep them forever
+    if(p.t>75){ if(m.parent) m.parent.remove(m); LOOSE.parts.splice(i,1); }
+  }
+}
+/* Take a specific thing off the car. `side` is -1/+1 across the car. */
+function losePart(kind, side, energy){
+  if(!CAR.lost) CAR.lost={};
+  const key=kind+(kind==='wheel'?(side<0?'L':'R'):'');
+  if(CAR.lost[key]) return false;                 // it has already gone
+  const yaw=CAR.heading, fx=Math.sin(yaw), fz=Math.cos(yaw);
+  const spd=Math.abs(CAR.v);
+  const kick=(m)=>looseAdd(m,
+    -fx*spd*0.35+(Math.random()-0.5)*7+fz*side*3,
+    3.2+Math.random()*4.5+energy*7,
+    -fz*spd*0.35+(Math.random()-0.5)*7-fx*side*3);
+  if(kind==='wheel'){
+    /* Pull an actual wheel off the axle rig rather than faking one — it is the
+       car's own wheel, with the car's own rim and tyre on it. */
+    const ax=(Math.random()<0.5?CAR.front:CAR.rear);
+    if(!ax||!ax.spin) return false;
+    const kids=ax.spin.children.filter(o=>o.visible!==false);
+    if(!kids.length) return false;
+    // the one on the struck side, by local x
+    let pick=kids[0], best=-1e9;
+    for(const k of kids){ const v=k.position.x*side; if(v>best){best=v;pick=k;} }
+    /* Record where it belongs BEFORE it is detached. A wheel handed to the scene
+       is no longer a child of the axle, so "make the axle's children visible
+       again" cannot put it back — the crew need its original parent and its
+       original local transform. */
+    CAR.refit=CAR.refit||[];
+    CAR.refit.push({mesh:pick, parent:ax.spin,
+      pos:pick.position.clone(), quat:pick.quaternion.clone(), scale:pick.scale.clone()});
+    kick(pick);
+    CAR.lost[key]=true;
+    CAR.wheelGone=(CAR.wheelGone||0)+1;
+    Radio.say&&Radio.say('engineer','damage',{cool:0});
+    return true;
+  }
+  // bodywork: a carbon panel roughly where that part sits
+  const spec={ frontWing:{w:1.75,h:0.09,d:0.55, fwd: 2.45, y:0.16},
+               rearWing: {w:1.15,h:0.42,d:0.16, fwd:-2.25, y:0.92},
+               floor:    {w:1.30,h:0.06,d:1.10, fwd:-0.30, y:0.10} }[kind];
+  if(!spec) return false;
+  const mat=new THREE.MeshStandardMaterial({color:0x14161c,metalness:0.35,roughness:0.55});
+  const m=new THREE.Mesh(new THREE.BoxGeometry(spec.w,spec.h,spec.d),mat);
+  m.castShadow=true;
+  m.position.set(CAR.pos.x+fx*spec.fwd, (CAR.groundY||0)+spec.y, CAR.pos.z+fz*spec.fwd);
+  m.rotation.y=yaw;
+  driveScene.add(m);
+  kick(m);
+  CAR.lost[key]=true;
+  return true;
+}
 function shedDebris(hit, frontHit){
   if(!FX.ready) return;
   const n=Math.round(clamp(hit*140,3,34));
@@ -22843,6 +22981,7 @@ function frame(){
     if(SESS.on){ sessUpdate(); if(!SESS.on) return; gtabSample(); gtabUpdate(); }
     stepSCCompliance(dt);        // the safety car is not optional for the player either
     stepCarFire(dt);             // a badly hurt car smokes, and a very badly hurt one burns
+    stepLooseParts(dt);          // and whatever came off it is lying on the road
     stepSafetyCar(dt);
     stepFlags(dt);
     stepEvolution(dt);
