@@ -12646,7 +12646,18 @@ function pitTeamColour(key){
   try{ return new THREE.Color((LIVERIES[key]||LIVERIES.redbull).base); }
   catch(e){ return new THREE.Color(0x8a94a2); }
 }
-function pitSelfTeam(){ try{ return selLivery; }catch(e){ return PIT_FALLBACK_TEAMS[0]; } }
+/* Whose box is ours. This read the MENU livery, so in a season — where the team
+   is SEASON.team — and in team mode, where the livery is a generated '__player'
+   entry that is not in the box order at all, indexOf() missed and the player was
+   given box 0: somebody else's pit box, at the wrong end of the lane. */
+function pitSelfTeam(){
+  try{
+    if(typeof SEASON!=='undefined' && SEASON.active && SEASON.team &&
+       LIVERIES[SEASON.team]) return SEASON.team;
+    if(LIVERIES[selLivery]) return selLivery;
+    return PIT_FALLBACK_TEAMS[0];
+  }catch(e){ return PIT_FALLBACK_TEAMS[0]; }
+}
 function playerBoxD(){
   const order=pitBoxOrder(), n=order.length;
   const i=Math.max(0,order.indexOf(pitSelfTeam()));
@@ -14992,10 +15003,15 @@ function stepPhysics(dt,inp){
      was driven, which is why they ran out so fast. Both effects are real and
      both stay, but as a multiplier on the wear the driving is already doing, so
      they scale with the lap like everything else does. */
-  const outOfWindow=(tw<0.35||tw>0.95)?1.25:1.0;
+  const outOfWindow=(tw<0.35||tw>0.95)?1.15:1.0;
   const wrongTyre=1+(1-Math.min(wetFit,1))*1.6;
-  if(spd>2) CAR.tire=Math.max(0,
-    CAR.tire - spd*dt*wearPerM*Math.min(push/1.35,2.0)*outOfWindow*wrongTyre);
+  /* ONE CAP OVER ALL OF IT. These three multiply, so a hot lap on a cold tyre
+     with a wheel over a kerb was running at 2 x 1.25 x whatever — and the quoted
+     life stopped meaning anything. Driving badly should still cost you tyres,
+     but no more than half again, so the number on the compound is a number you
+     can plan a race around. */
+  const abuse=Math.min(1.5, Math.min(push/1.35,1.8)*outOfWindow*wrongTyre);
+  if(spd>2) CAR.tire=Math.max(0, CAR.tire - spd*dt*wearPerM*abuse);
   // and a wet tyre on a drying track runs hot, because there is no water to cool it
   if((CAR.compound==='wet'||CAR.compound==='inter') && WEATHER.wetness<0.15)
     CAR.tTemp=Math.min(1.25,CAR.tTemp+dt*0.07);
@@ -16084,7 +16100,7 @@ if(DEBUG){window.__setCam=(m)=>{CAM.mode=m;CAM.tsPost=null;$('#camName').textCon
   setTimeout(()=>{window.__SEASON=SEASON;window.__endSeasonRace=endSeasonRace;window.__seasonBuildTable=seasonBuildTable;window.__openSaves=openSaves;window.__loadFromSlot=loadFromSlot;window.__seasonAutosave=seasonAutosave;
     window.__seasonConstructors=seasonConstructors;
     window.__spawnAIs=spawnAIs;window.__AI=AI;window.__aiSkillMul=aiSkillMul;
-    window.__stepAI=stepAI;window.__seasonRollObjectives=seasonRollObjectives;
+    window.__stepAI=stepAI;window.__scLimitNow=scLimitNow;window.__stepSCCompliance=stepSCCompliance;window.__compoundLaps=compoundLaps;window.__seasonRollObjectives=seasonRollObjectives;
     window.__seasonSettleCareer=seasonSettleCareer;window.__carPlain=()=>carPlain;window.__PLAIN_TEX=()=>PLAIN_TEX;window.__AI_FIELD=AI_FIELD;window.__renderStandings=renderStandings;window.__setSessionMode=(m)=>{sessionMode=m;};window.__aiPaceNow=aiPaceNow;window.__aiPaceTimeMul=aiPaceTimeMul;window.__aiStraightMul=aiStraightMul;
     window.__setSessionMode=(m)=>{sessionMode=m;};window.__isRace=()=>isRace();},0);
   window.__replayRecord=replayRecord;
@@ -16553,11 +16569,18 @@ const TYREWEAR={catalunya:1.75,silverstone:1.45,bahrain:1.5,spa:1.2,austria:1.1,
    hopeless and a full wet on a dry one overheats and goes off, which is what
    makes a crossover call matter. */
 const COMPOUNDS={
-  soft:  {name:'SOFT',  short:'S', col:'#e02020', laps:[12,20], grip:1.03,  wet:[0.00,0.10]},
-  medium:{name:'MEDIUM',short:'M', col:'#f5c518', laps:[23,29], grip:1.00,  wet:[0.00,0.14]},
-  hard:  {name:'HARD',  short:'H', col:'#eef1f4', laps:[32,40], grip:0.975, wet:[0.00,0.18]},
-  inter: {name:'INTER', short:'I', col:'#3fc23f', laps:[16,24], grip:0.955, wet:[0.18,0.70]},
-  wet:   {name:'WET',   short:'W', col:'#2f7fe0', laps:[20,30], grip:0.925, wet:[0.55,1.00]},
+  /* `laps` is [abrasive circuit, gentle circuit] and is the life you should get
+     driving normally. The quoted numbers were already reasonable — a medium
+     nominally 26 laps at Spa — but the multipliers stacked on top of them could
+     take a set out in a handful: push up to 2x, out of temperature window
+     another 1.25x, and off the road another slab on top of that. Raised across
+     the board AND the abuse multipliers are capped below, so a medium driven
+     hard still gives you the twenty-odd laps a medium is supposed to give. */
+  soft:  {name:'SOFT',  short:'S', col:'#e02020', laps:[18,26], grip:1.03,  wet:[0.00,0.10]},
+  medium:{name:'MEDIUM',short:'M', col:'#f5c518', laps:[32,40], grip:1.00,  wet:[0.00,0.14]},
+  hard:  {name:'HARD',  short:'H', col:'#eef1f4', laps:[44,54], grip:0.975, wet:[0.00,0.18]},
+  inter: {name:'INTER', short:'I', col:'#3fc23f', laps:[24,34], grip:0.955, wet:[0.18,0.70]},
+  wet:   {name:'WET',   short:'W', col:'#2f7fe0', laps:[28,40], grip:0.925, wet:[0.55,1.00]},
 };
 /* How well the fitted compound suits the current amount of water. 1.0 inside its
    window, falling away outside it — badly on a slick in the rain, mildly on a
@@ -21022,7 +21045,42 @@ function stepPhoto(dt){
    race that is otherwise a procession.
    ================================================================== */
 const SC={on:false, t:0, phase:'none', lapsLeft:0, cause:'', vsc:false};
-function scReset(){ SC.on=false; SC.t=0; SC.phase='none'; SC.cause=''; SC.vsc=false; }
+function scReset(){ SC.on=false; SC.t=0; SC.phase='none'; SC.cause=''; SC.vsc=false;
+  SC.over=0; SC.warned=0; }
+/* ===================== THE SAFETY CAR APPLIES TO YOU TOO ===================
+   The whole field slowed down and nothing at all was asked of the player: you
+   could stay flat out under a safety car, take the places everyone else had just
+   given up, and no part of the game noticed. A safety car that only the AI obey
+   is not a safety car, it is a gift.
+   So: a speed limit while it is out, the same one the field runs to. Exceed it
+   and you get a warning; keep exceeding it and the stewards deal with it. The
+   limit is generous — this is about not racing, not about creeping round. */
+function scLimitNow(){
+  if(!SC.on) return null;
+  if(SC.vsc) return 48;                       // a VSC delta: quick, but not racing
+  return SC.phase==='ending' ? 38 : 28;       // a real one bunches everyone up
+}
+function stepSCCompliance(dt){
+  const lim=scLimitNow();
+  if(lim==null || !isRace() || STATE!=='drive' || CAR.inPit){ SC.over=0; return; }
+  const spd=Math.abs(CAR.v);
+  const cue=$('#tlWarn');
+  if(spd>lim+4){
+    SC.over=(SC.over||0)+dt;
+    /* A brief overshoot is a driver reacting, not an offence. Two seconds over
+       is a decision. */
+    if(SC.over>0.6 && cue){
+      cue.textContent=`${SC.vsc?'VSC':'SAFETY CAR'} · SLOW DOWN · LIMIT ${Math.round(lim*3.6)} KM/H`;
+      cue.style.color='#ffd23a'; cue.classList.add('on');
+      clearTimeout(CAR._scT); CAR._scT=setTimeout(()=>cue.classList.remove('on'),1200);
+    }
+    if(SC.over>2.4 && (performance.now()/1000-(SC.warned||0))>12){
+      SC.warned=performance.now()/1000;
+      issuePenalty('time5', SC.vsc?'Ignoring the virtual safety car':'Speeding under the safety car');
+      SC.over=0;
+    }
+  }else SC.over=Math.max(0,(SC.over||0)-dt*1.6);
+}
 
 /* ==================================================================
    FLAGS AND PENALTIES
@@ -22643,6 +22701,7 @@ function frame(){
     FX2.setSpeed(clamp((Math.abs(CAR.v)-24)/(PHYS.vMax-24),0,1),dt);
     // practice and qualifying run to a clock, not a lap count
     if(SESS.on){ sessUpdate(); if(!SESS.on) return; gtabSample(); gtabUpdate(); }
+    stepSCCompliance(dt);        // the safety car is not optional for the player either
     stepSafetyCar(dt);
     stepFlags(dt);
     stepEvolution(dt);
