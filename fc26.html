@@ -292,9 +292,8 @@ button{font-family:inherit; cursor:pointer; color:inherit; border:none; backgrou
 .search{flex:1; min-width:200px; display:flex; align-items:center; gap:10px; padding:10px 14px; border-radius:12px; border:1px solid var(--line); background:var(--panel)}
 .search input{flex:1; background:none; border:none; outline:none; color:var(--txt); font-size:14px; font-family:inherit}
 .filter-sel{padding:10px 12px; border-radius:12px; border:1px solid var(--line); background:var(--panel); color:var(--txt); font-family:inherit; font-weight:700; font-size:13px}
-.market-row{display:grid; grid-template-columns:44px 40px 1.4fr .8fr .7fr .9fr auto; align-items:center; gap:12px; padding:10px 12px; border-bottom:1px solid var(--line)}
+.market-row{display:grid; grid-template-columns:44px 1.4fr .8fr .7fr .9fr auto; align-items:center; gap:12px; padding:10px 12px; border-bottom:1px solid var(--line)}
 .market-row:hover{background:var(--panel2)}
-.market-row .face{width:38px; height:38px; border-radius:10px; overflow:hidden; border:1px solid var(--line2); background:#0a0e18}
 .flag{width:22px; height:15px; border-radius:3px; object-fit:cover; display:inline-block; border:1px solid rgba(255,255,255,.15)}
 
 /* ============ MATCH SIM ============ */
@@ -490,9 +489,8 @@ button{font-family:inherit; cursor:pointer; color:inherit; border:none; backgrou
 .pp{position:absolute; transform:translate(-50%,-50%); width:96px; text-align:center; cursor:pointer; transition:transform var(--fast)}
 .pp:hover{transform:translate(-50%,-50%) scale(1.06)}
 .pp.sel{filter:drop-shadow(0 0 0 2px var(--acc))}
-.pp-top{position:relative; width:52px; height:52px; margin:0 auto}
-.pp-face{width:52px; height:52px; border-radius:50%; overflow:hidden; border:2px solid rgba(255,255,255,.6); background:#0a0e18; box-shadow:0 6px 16px rgba(0,0,0,.55)}
-.pp.sel .pp-face{border-color:var(--acc); box-shadow:0 0 0 3px rgba(198,255,46,.4)}
+.pp-top{position:relative; width:52px; height:52px; margin:0 auto; border-radius:50%; border:2px solid rgba(255,255,255,.6); background:#0a0e18; box-shadow:0 6px 16px rgba(0,0,0,.55)}
+.pp.sel .pp-top{border-color:var(--acc); box-shadow:0 0 0 3px rgba(198,255,46,.4)}
 .pp-ovr{position:absolute; top:-6px; right:-14px; min-width:22px; height:20px; padding:0 4px; border-radius:6px; font-size:12px; font-weight:900;
   display:flex; align-items:center; justify-content:center; background:#05070c; border:1px solid var(--line2); color:#fff}
 .pp-bar{height:4px; width:64px; margin:6px auto 4px; border-radius:4px; background:linear-gradient(90deg,#38e08a,#8ef0b6)}
@@ -599,14 +597,6 @@ button{font-family:inherit; cursor:pointer; color:inherit; border:none; backgrou
 .cover-stadium{position:absolute; z-index:0; left:0; right:0; bottom:0; height:40%; pointer-events:none; opacity:.5}
 .cover-crests{position:absolute; z-index:3; left:0; right:0; bottom:9%; display:flex; justify-content:center; gap:34px; opacity:.4; filter:grayscale(.25); pointer-events:none; animation:fadeUp 1.4s .2s both}
 .cover-crests svg{filter:drop-shadow(0 6px 10px rgba(0,0,0,.6))}
-.cover-heroes{position:absolute; z-index:2; inset:0; pointer-events:none; display:flex; align-items:center; justify-content:space-between; padding:0 4vw}
-.cover-hero{width:min(19vw,210px); height:min(19vw,210px); border-radius:50%; overflow:hidden; position:relative;
-  border:3px solid rgba(255,255,255,.14); box-shadow:0 18px 40px rgba(0,0,0,.65), 0 0 46px rgba(198,255,46,.14);
-  opacity:0; animation:heroRise 1.4s cubic-bezier(.2,.8,.2,1) both}
-.cover-hero.left{animation-delay:.15s}
-.cover-hero.right{animation-delay:.3s}
-.cover-hero svg{position:absolute; top:-18%; left:-25%; width:150%; height:150%; display:block}
-@keyframes heroRise{from{opacity:0; transform:translateY(30px) scale(.9)} to{opacity:1; transform:none}}
 .logo3d{position:relative; text-align:center; transform-style:preserve-3d; animation:logoIn 1.6s cubic-bezier(.2,.8,.2,1) both}
 .logo3d .ea{display:inline-flex; gap:12px; align-items:center; padding:8px 20px; border:1px solid rgba(255,255,255,.18); border-radius:100px; margin-bottom:22px;
   letter-spacing:.42em; font-weight:800; font-size:14px; background:rgba(255,255,255,.03); animation:fadeUp .8s .4s both}
@@ -642,10 +632,6 @@ button{font-family:inherit; cursor:pointer; color:inherit; border:none; backgrou
         <g fill="#0a0f0a"><rect x="20" y="60" width="10" height="130"/><rect x="970" y="60" width="10" height="130"/></g>
         <g fill="#c6ff2e" opacity=".85"><circle cx="25" cy="55" r="7"/><circle cx="975" cy="55" r="7"/></g>
       </svg>
-      <div class="cover-heroes">
-        <div class="cover-hero left" id="coverHeroL"></div>
-        <div class="cover-hero right" id="coverHeroR"></div>
-      </div>
       <div class="cover-crests" id="coverCrests"></div>
       <div class="pitch3d"></div>
       <div class="beam"></div><div class="beam b2"></div><div class="beam b3"></div>
@@ -774,6 +760,8 @@ const NATIONS = {
   SRB:{name:'Serbia',c1:'#c6363c',c2:'#0c4076'}
 };
 const NATION_KEYS = Object.keys(NATIONS);
+const DOMESTIC_CUP_NAMES={ENG:'FA Cup',ESP:'Copa del Rey',ITA:'Coppa Italia',GER:'DFB-Pokal',FRA:'Coupe de France',NED:'KNVB Beker'};
+function domesticCupName(nat){ return DOMESTIC_CUP_NAMES[nat]||'Domestic Cup'; }
 const FIRST_NAMES = ['Adrien','Mateo','Luka','Kian','Renzo','Milos','Tariq','Emile','Nuno','Dario','Yannick','Sten','Oskar','Vito','Andrei','Kaito','Silas','Samir','Ravi','Nolan','Elias','Bruno','Marco','Ivo','Teo','Aleks','Cato','Remy','Sol','Nael','Dino','Piet','Kofi','Amaro','Enzo','Lior','Vasco','Dane','Ugo','Casimir','Hadi','Osei','Leon','Rafa','Niko','Bastian','Corin','Emeka',
 'Matteo','Joaquin','Sander','Rico','Timo','Aleksi','Zeno','Ilias','Malik','Nikolai','Damir','Fabio','Gael','Hakim','Iker','Janko','Kylian','Lasse','Mika','Otto','Pavlos','Quinten','Rasmus','Salif','Toma','Uros','Vince','Wilder','Yusuf','Zayd','Aris','Bilal','Cedric','Dries','Erling','Florent','Goran','Henrik','Idris','Jonas','Kenan','Lucca','Mory','Noah','Pol','Reo','Souleyman','Thiago','Vadim','Wout',
 'Antoine','Bakari','Caio','Diego','Emrys','Farid','Gustaw','Hugo','Ismael','Jamal','Kasimir','Lukas','Moises','Nasser','Omar','Pablo','Qasim','Rodrigo','Santiago','Tobias','Umut','Valentin','Wesley','Xander','Yasin','Zoran','Adama','Boris','Cesar','Davor','Emanuel','Farouk','Giorgio','Haruto','Ignacio','Jerome','Kwame','Luccas','Mustafa','Nikita','Obinna','Petar','Quentin','Rayan','Stefan','Tomas','Uwe','Viktor','Wilhelm','Ximun','Yusuke','Zakaria','Alonso','Bram','Cristian','Diallo','Endre','Frederic','Gio','Herve',
@@ -796,77 +784,137 @@ function C(name,short,c1,c2,ovr){
   return {name,short,c1,c2,ovr,budget};
 }
 const LEAGUES = [
- {id:'crown', name:'Crown League', flag:'ENG', color:'#37003c', nat:'ENG', clubs:[
-   C('Kingsport United','KGP','#d21f2b','#12132b',89),
-   C('Rivenshire FC','RVN','#c8102e','#00b2a9',87),
-   C('Ashford City','ASH','#6cabdd','#12203a',86),
-   C('Blackwell Rovers','BLW','#141824','#e6b400',84),
-   C('Thornbury FC','THB','#0a3d2a','#ffffff',83),
-   C('Draymoor Town','DRM','#5a1030','#f0c0d0',81),
-   C('Harrowgate','HRW','#1b458f','#c4122e',80),
-   C('Westmere United','WSM','#7a263a','#3fd0e6',79),
-   C('Coldharbour FC','CLD','#003399','#ffffff',78),
-   C('Elmbridge City','ELM','#2b6a2b','#ffe066',77),
+ {id:'eng1', name:'Premier League', flag:'ENG', color:'#37003c', nat:'ENG', clubs:[
+   C('Manchester City','MCI','#6cabdd','#1c2c5b',90),
+   C('Arsenal','ARS','#ef0107','#063672',88),
+   C('Liverpool','LIV','#c8102e','#00b2a9',88),
+   C('Manchester United','MUN','#da291c','#fbe122',85),
+   C('Chelsea','CHE','#034694','#ffffff',84),
+   C('Tottenham Hotspur','TOT','#132257','#ffffff',83),
+   C('Newcastle United','NEW','#241f20','#ffffff',82),
+   C('Aston Villa','AVL','#670e36','#95bfe5',82),
+   C('West Ham United','WHU','#7a263a','#1bb1e7',79),
+   C('Brighton & Hove Albion','BHA','#0057b8','#ffffff',79),
+   C('Wolverhampton Wanderers','WOL','#fdb913','#231f20',78),
+   C('Everton','EVE','#003399','#ffffff',77),
+   C('Crystal Palace','CRY','#1b458f','#c4122e',77),
+   C('Brentford','BRE','#e30613','#ffdb00',77),
+   C('Fulham','FUL','#ffffff','#000000',77),
+   C('Nottingham Forest','NFO','#dd0000','#ffffff',76),
+   C('Bournemouth','BOU','#da291c','#000000',76),
+   C('Leicester City','LEI','#003090','#fdbe11',75),
+   C('Southampton','SOU','#d71920','#ffffff',74),
+   C('Ipswich Town','IPS','#0044a9','#ffffff',73),
  ]},
- {id:'sol', name:'Sol Primera', flag:'ESP', color:'#ee8707', nat:'ESP', clubs:[
-   C('Solterra CF','SOL','#f3f3f3','#e0a400',88),
-   C('Montecarra','MTC','#a50044','#12345a',86),
-   C('Alvaredo FC','ALV','#c8341f','#ffffff',85),
-   C('Costa Verde','CVD','#009a5b','#ffffff',82),
-   C('Puebla Nova','PBN','#ffcc00','#12203a',81),
-   C('Serrano CF','SRR','#0067b1','#ffffff',80),
-   C('Andira FC','AND','#7a1fa2','#ffd35a',79),
-   C('Ribalta','RBT','#e23227','#141824',78),
-   C('Cordava CF','CDV','#146b3a','#ffffff',78),
-   C('Miravel','MRL','#d50032','#0a0a12',77),
+ {id:'esp1', name:'La Liga', flag:'ESP', color:'#ee8707', nat:'ESP', clubs:[
+   C('Real Madrid','RMA','#ffffff','#febe10',91),
+   C('Barcelona','BAR','#a50044','#004d98',88),
+   C('Atlético Madrid','ATM','#cb3524','#272e61',85),
+   C('Girona','GIR','#cb2229','#ffffff',81),
+   C('Real Sociedad','RSO','#0067b1','#ffffff',80),
+   C('Real Betis','BET','#00954c','#ffffff',80),
+   C('Athletic Bilbao','ATH','#ee2523','#ffffff',80),
+   C('Villarreal','VIL','#ffe667','#005187',79),
+   C('Sevilla','SEV','#d71920','#ffffff',78),
+   C('Valencia','VAL','#ff7f02','#ffffff',77),
+   C('Celta Vigo','CEL','#8ac3ee','#ffffff',76),
+   C('Osasuna','OSA','#d91a21','#002b7f',76),
+   C('Getafe','GET','#005ca9','#ffffff',75),
+   C('Rayo Vallecano','RAY','#e2231a','#ffffff',75),
+   C('Mallorca','MLL','#e20613','#000000',75),
+   C('Las Palmas','LPA','#ffe667','#005ca9',74),
+   C('Alavés','ALV','#1e4295','#ffffff',74),
+   C('Espanyol','ESY','#0a4c9b','#ffffff',74),
+   C('Leganés','LEG','#002454','#ffffff',73),
+   C('Real Valladolid','VLL','#6a0f49','#ffffff',73),
  ]},
- {id:'adriatica', name:'Adriatica Serie', flag:'ITA', color:'#0b1560', nat:'ITA', clubs:[
-   C('Aquila Nera','AQL','#0b2a55','#8a1e03',86),
-   C('Castelmonte','CST','#141824','#ffffff',84),
-   C('Verdoro FC','VDR','#0f7a3d','#ffd35a',84),
-   C('Portomar','PTM','#12a0d7','#ffffff',83),
-   C('Riviera FC','RVR','#8a1e03','#f0bc42',82),
-   C('San Vito','SNV','#5b2c8f','#ffffff',80),
-   C('Terranova','TRN','#c1272d','#0a3d2a',79),
-   C('Valdarno','VLD','#1d4ed8','#141824',78),
-   C('Montebello','MNB','#0a6b52','#ffffff',78),
-   C('Lucania FC','LUC','#7a1030','#ffcc00',77),
+ {id:'ita1', name:'Serie A', flag:'ITA', color:'#0b1560', nat:'ITA', clubs:[
+   C('Inter Milan','INT','#010e80','#000000',89),
+   C('AC Milan','ACM','#fb090b','#000000',85),
+   C('Juventus','JUV','#000000','#ffffff',85),
+   C('Napoli','NAP','#12a0d7','#ffffff',84),
+   C('AS Roma','ROM','#8e1f2f','#f0bc42',81),
+   C('Lazio','LAZ','#87d8f7','#ffffff',80),
+   C('Atalanta','ATA','#0057a8','#000000',82),
+   C('Fiorentina','FIO','#4b2e83','#ffffff',79),
+   C('Bologna','BOL','#c1272d','#0b1560',78),
+   C('Torino','TOR','#7a1030','#ffffff',77),
+   C('Udinese','UDI','#141824','#ffffff',76),
+   C('Genoa','GEN','#c8102e','#0b1560',75),
+   C('Cagliari','CAG','#c1272d','#0b1560',74),
+   C('Hellas Verona','VER','#0057a8','#ffd700',74),
+   C('Lecce','LEC','#ffd700','#c8102e',74),
+   C('Sassuolo','SAS','#00a94f','#141824',74),
+   C('Empoli','EMP','#005ca9','#ffffff',73),
+   C('Parma','PAR','#ffd700','#002b7f',73),
+   C('Como','COM','#005ca9','#ffffff',73),
+   C('Venezia','VEN','#ff7f02','#141824',73),
  ]},
- {id:'rheinland', name:'Rheinland Klasse', flag:'GER', color:'#d20515', nat:'GER', clubs:[
-   C('Königstadt','KNG','#d0121b','#141824',86),
-   C('Nordwald FC','NRW','#0a5c2e','#ffffff',85),
-   C('Eisenberg','EIS','#2a3550','#e6e6ee',83),
-   C('Rheinburg','RHB','#1961b5','#ffffff',82),
-   C('Schwarztal','SWZ','#141824','#e6b400',81),
-   C('Adlerhof','ADL','#8a1e03','#ffffff',79),
-   C('Sturmfeld','STF','#0f7a6b','#ffffff',79),
-   C('Grünwald','GRW','#3a7a1e','#ffffff',78),
-   C('Hafenstadt','HFN','#0b4a8a','#ffcc00',77),
-   C('Wolfsheim','WLF','#4a4a55','#e2001a',77),
+ {id:'ger1', name:'Bundesliga', flag:'GER', color:'#d20515', nat:'GER', clubs:[
+   C('Bayern Munich','FCB','#dc052d','#0066b2',90),
+   C('Borussia Dortmund','BVB','#fde100','#000000',84),
+   C('RB Leipzig','RBL','#dd0741','#ffffff',83),
+   C('Bayer Leverkusen','B04','#e32221','#000000',85),
+   C('Eintracht Frankfurt','SGE','#e1000f','#000000',80),
+   C('VfB Stuttgart','VFB','#e32219','#ffffff',80),
+   C('Borussia Mönchengladbach','BMG','#000000','#ffffff',77),
+   C('Werder Bremen','SVW','#1d9053','#ffffff',77),
+   C('VfL Wolfsburg','WOB','#65b32e','#ffffff',77),
+   C('SC Freiburg','SCF','#000000','#e2001a',77),
+   C('Union Berlin','FCU','#eb1923','#ffffff',76),
+   C('Mainz 05','M05','#c3141e','#ffffff',75),
+   C('FC Augsburg','FCA','#ba3733','#146934',74),
+   C('TSG Hoffenheim','TSG','#1961b5','#ffffff',75),
+   C('FC Köln','KOE','#ed1c24','#ffffff',73),
+   C('VfL Bochum','BOC','#1961b5','#ffffff',72),
+   C('Holstein Kiel','KIE','#003399','#ffffff',72),
+   C('FC Heidenheim','FCH','#e2001a','#0033a0',72),
+   C('St. Pauli','STP','#6b4226','#ffffff',72),
+   C('Hamburger SV','HSV','#0f1c4d','#ffffff',73),
  ]},
- {id:'gallia', name:'Gallia Élite', flag:'FRA', color:'#1a3a8a', nat:'FRA', clubs:[
-   C('Montclair FC','MTL','#0a2a5c','#d21f2b',85),
-   C('Vaucourt','VCT','#2faee0','#141824',82),
-   C('Bellerive','BLV','#7a1030','#ffffff',81),
-   C('Saint-Roc','SRC','#c8102e','#141824',80),
-   C('Aurignac','AUR','#e0a400','#0a2a5c',79),
-   C('Beaumont FC','BMT','#0f6b3a','#ffffff',79),
-   C('Valmont','VLM','#5b2c8f','#e6e6ee',78),
-   C('Lac Noir','LNR','#141824','#3fd0e6',77),
-   C('Rivière FC','RVE','#1d4ed8','#ffffff',77),
-   C('Portville','PVL','#b8481f','#ffe066',76),
+ {id:'fra1', name:'Ligue 1', flag:'FRA', color:'#1a3a8a', nat:'FRA', clubs:[
+   C('Paris Saint-Germain','PSG','#004170','#da291c',88),
+   C('Monaco','ASM','#e2231a','#ffffff',82),
+   C('Marseille','OM','#2faee0','#ffffff',80),
+   C('Lyon','OL','#ef3e42','#0a2a5c',78),
+   C('Lille','LOS','#e2231a','#001e62',79),
+   C('Nice','NIC','#e2231a','#000000',77),
+   C('Rennes','REN','#e2231a','#000000',77),
+   C('Lens','RCL','#ffd700','#c8102e',77),
+   C('Strasbourg','STR','#0a5cae','#ffffff',75),
+   C('Nantes','FCN','#ffd700','#00a94f',74),
+   C('Toulouse','TFC','#6a0dad','#ffffff',74),
+   C('Montpellier','MHS','#ff7f02','#002b7f',74),
+   C('Reims','SDR','#e2231a','#ffffff',74),
+   C('Le Havre','HAC','#0a5cae','#ffffff',73),
+   C('Brest','SB2','#e2231a','#ffffff',75),
+   C('Auxerre','AJA','#141824','#ffffff',73),
+   C('Angers','SCO','#141824','#ffffff',73),
+   C('Saint-Étienne','ASS','#1ba64c','#ffffff',73),
+   C('Metz','FCM','#8a1e03','#ffffff',72),
+   C('Lorient','FCL','#ff7f02','#141824',72),
  ]},
- {id:'lowland', name:'Lowland League', flag:'NED', color:'#b3451a', nat:'NED', clubs:[
-   C('Havenstad FC','HVN','#ff6a00','#141824',84),
-   C('Grootveld','GRV','#c8102e','#ffffff',83),
-   C('Zilvermeer','ZLV','#0a5cae','#e6e6ee',81),
-   C('Nieuwpoort','NWP','#0f7a3d','#ffffff',80),
-   C('Roodbrug','RDB','#9d1a1a','#ffd35a',79),
-   C('Sterrenveld','STV','#141824','#f0c020',78),
-   C('Kaaphaven','KPH','#0891b2','#ffffff',78),
-   C('Molenbeek FC','MLB','#5b2c8f','#ffffff',77),
-   C('Duinrand','DNR','#b8481f','#141824',77),
-   C('Oostergouw','OSG','#0f6b52','#ffe066',76),
+ {id:'ned1', name:'Eredivisie', flag:'NED', color:'#b3451a', nat:'NED', clubs:[
+   C('Ajax','AJX','#d2122e','#ffffff',82),
+   C('PSV Eindhoven','PSV','#ed1c24','#ffffff',83),
+   C('Feyenoord','FEY','#e2231a','#ffffff',81),
+   C('AZ Alkmaar','AZA','#e2231a','#ffffff',78),
+   C('FC Twente','TWE','#e2231a','#ffffff',77),
+   C('FC Utrecht','UTR','#c8102e','#141824',76),
+   C('Vitesse','VIT','#ffd700','#141824',73),
+   C('Sparta Rotterdam','SPR','#c8102e','#ffffff',73),
+   C('Go Ahead Eagles','GAE','#ffd700','#141824',73),
+   C('NEC Nijmegen','NEC','#141824','#e2231a',73),
+   C('Heerenveen','HEE','#0057a8','#ffffff',73),
+   C('Fortuna Sittard','FOR','#ffd700','#141824',72),
+   C('PEC Zwolle','PEC','#0057a8','#141824',72),
+   C('FC Groningen','GRO','#1ba64c','#ffffff',72),
+   C('Heracles Almelo','HER','#ffffff','#141824',72),
+   C('Willem II','WI2','#e2231a','#141824',72),
+   C('Excelsior','EXC','#e2231a','#141824',72),
+   C('Volendam','VOL','#141824','#e2231a',71),
+   C('NAC Breda','NAC','#ffd700','#141824',71),
+   C('Almere City','ALC','#0057a8','#141824',71),
  ]},
 ];
 /* --- expand every league to 20 clubs with procedurally-generated sides --- */
@@ -914,134 +962,6 @@ const LEAGUES = [
   tier2.forEach(l=>LEAGUES.push(l));
 })();
 
-/* ============================================================
-   PROCEDURAL FACE "SCAN" GENERATOR  (stylized SVG portrait)
-   ============================================================ */
-const SKIN = ['#f6d5b8','#f0c6a4','#e6b48c','#dba679','#cf9668','#c08a5c','#a86b42','#925838','#7a4a2c','#5f3a22','#4a2e1b'];
-const HAIR = ['#0b0b0e','#181012','#241812','#3a2412','#4a2f16','#5a3a1a','#7a4a20','#8a5a28','#a06a2a','#c99a4a','#e0c070','#efe0a0','#2a2a2e','#3a3a42','#6a6a72','#f2f2f5','#9a9aa2'];
-function faceSVG(seed, size, o){
-  o=o||{};
-  const r = seeded('face-'+seed);
-  const skin = o.skin!=null ? SKIN[o.skin%SKIN.length] : SKIN[Math.floor(r()*SKIN.length)];
-  const hair = o.hair!=null ? HAIR[o.hair%HAIR.length] : HAIR[Math.floor(r()*HAIR.length)];
-  const bald = o.bald!=null ? o.bald : r()<0.08;
-  const beard = o.beard!=null ? o.beard : r()<0.52;
-  const beardType = o.beardType || pick(r,['stubble','full','goatee','chinstrap','mustache']);
-  const eyeColor = pick(r,['#3a2a1a','#4a2f18','#2a3a4a','#3a4a2a','#1a1a22','#5a4a2a','#3a5a4a']);
-  const hairStyle = o.hairStyle!=null ? o.hairStyle%12 : ri(r,0,11);
-  const mouthType = ri(r,0,2);
-  const chinY = 78+ri(r,-3,5);            // subtle jaw-length variance, doesn't touch the hairline
-  const bg1 = pick(r,['#eef1f8','#f0ecf4','#e9f1ee','#f2ebec','#eaedf5']);
-  const bg2 = pick(r,['#aeb8ce','#bcafca','#a4c1b7','#c6adb2','#a9b3cd']);
-  const shirt = pick(r,['#1b2333','#22262e','#2a2233','#213026','#2b283a','#2d2431']);
-  const browH = ri(r,-2,2);               // brow height/expression variance
-  const freckles = r()<0.1;
-  const id = 'f'+Math.floor(r()*1e6);
-  function darken(hex,f){const n=parseInt(hex.slice(1),16);let R=(n>>16)&255,G=(n>>8)&255,B=n&255;R*=f;G*=f;B*=f;return`rgb(${R|0},${G|0},${B|0})`}
-  const hairD = darken(hair,0.7);
-  const mouthY = chinY-11;
-
-  // every hairstyle shares this outer silhouette — it always starts and ends at the exact
-  // same temple anchors (26,50)/(74,50) that overlap the head shape, so hair can never
-  // visually detach from the skull no matter how the crown/hairline varies per style
-  function hairCap(peakY,lineY,notch){
-    // clamp the crown so it sits right at the head's own peak (y=24) — high enough that no
-    // bald ring shows, but not so high it stretches the silhouette above the actual skull
-    const cy = Math.min(Math.max(peakY,20),24);
-    const ctrl = cy-4;
-    return `M26 50 Q23 ${ctrl} 50 ${cy} Q77 ${ctrl} 74 50 Q72 43 65 ${lineY-2} Q58 ${lineY-4} 50 ${lineY+notch} Q42 ${lineY-4} 35 ${lineY-2} Q28 43 26 50 Z`;
-  }
-  let hairPath='';
-  if(!bald){
-    if(hairStyle===0) // short crop
-      hairPath=`<path d="${hairCap(23,40,0)}" fill="url(#hg${id})"/>`;
-    else if(hairStyle===1) // textured messy top — jagged crown as one connected silhouette
-      hairPath=`<path d="M26 50 Q24 40 30 35 L34 39 L38 30 L43 36 L47 27 L50 35 L53 27 L57 36 L62 30 L66 39 L70 35 Q76 40 74 50 Q72 43 65 39 Q58 36 50 37 Q42 36 35 39 Q28 43 26 50Z" fill="url(#hg${id})"/>`;
-    else if(hairStyle===2){ // afro volume
-      let puffs=''; for(let i=0;i<9;i++){const a=(i/8)*Math.PI; puffs+=`<circle cx="${50-28*Math.cos(a)}" cy="${31+(1-Math.sin(a))*12}" r="7.5" fill="url(#hg${id})"/>`;}
-      hairPath=`${puffs}<path d="${hairCap(20,39,0)}" fill="url(#hg${id})"/>`;
-    }
-    else if(hairStyle===3) // buzz / close fade
-      hairPath=`<path d="${hairCap(24,41,0)}" fill="url(#hg${id})" opacity="0.82"/>`;
-    else if(hairStyle===4) // swept quiff
-      hairPath=`<path d="${hairCap(22,40,0)}" fill="url(#hg${id})"/><path d="M39 39 Q48 24 63 30 Q55 31 51 37 Q46 34 39 39Z" fill="${hair}"/>`;
-    else if(hairStyle===5) // side part
-      hairPath=`<path d="${hairCap(22,40,-1)}" fill="url(#hg${id})"/><path d="M50 25 Q56 33 60 42" stroke="${hairD}" stroke-width="1.6" fill="none" opacity="0.7"/>`;
-    else if(hairStyle===6){ // cornrows / braided lines
-      let lines=''; for(let i=0;i<6;i++){const x=32+i*7.2; lines+=`<path d="M${x} 42 Q${x+2} 33 50 25" stroke="${hairD}" stroke-width="2" fill="none" opacity="0.85"/>`;}
-      hairPath=`<path d="${hairCap(22,41,0)}" fill="url(#hg${id})"/>${lines}`;
-    }
-    else if(hairStyle===7) // long flowing hair, past the ears
-      hairPath=`<path d="M26 50 Q18 68 24 88 Q29 90 32 84 Q28 68 32 52Z" fill="url(#hg${id})"/><path d="M74 50 Q82 68 76 88 Q71 90 68 84 Q72 68 68 52Z" fill="url(#hg${id})"/><path d="${hairCap(21,39,0)}" fill="url(#hg${id})"/>`;
-    else if(hairStyle===8){ // mohawk — thick connected ridge, shaved sides
-      hairPath=`<path d="M40 42 Q39 40 42 39 L44 27 L46 32 L48 25 L50 32 L52 25 L54 32 L56 27 L58 39 Q61 40 60 42 Q58 36 50 37 Q42 36 40 42Z" fill="url(#hg${id})"/><path d="M27 45 Q26 41 30 40 Q32 44 29 49Z" fill="${hairD}" opacity="0.4"/><path d="M73 45 Q74 41 70 40 Q68 44 71 49Z" fill="${hairD}" opacity="0.4"/>`;
-    }
-    else if(hairStyle===9){ // undercut — short shaved sides, fuller brushed-up top
-      hairPath=`<path d="M36 40 Q34 24 50 22 Q66 24 64 40 Q64 36 58 35 Q54 28 50 29 Q46 28 42 35 Q36 36 36 40Z" fill="url(#hg${id})"/><path d="M28 44 Q27 40 32 39 Q35 43 31 48Z" fill="${hairD}" opacity="0.45"/><path d="M72 44 Q73 40 68 39 Q65 43 69 48Z" fill="${hairD}" opacity="0.45"/>`;
-    }
-    else if(hairStyle===10){ // curly fade — bumps spread evenly along the crown arc
-      let bumps=''; for(let i=0;i<8;i++){const t=i/7; bumps+=`<circle cx="${27+t*46}" cy="${41-Math.sin(t*Math.PI)*13}" r="5.5" fill="url(#hg${id})"/>`;}
-      hairPath=`<path d="${hairCap(23,40,0)}" fill="url(#hg${id})"/>${bumps}`;
-    }
-    else // slicked back
-      hairPath=`<path d="${hairCap(22,37,-2)}" fill="url(#hg${id})"/><path d="M34 32 Q42 28 50 27M50 27 Q58 28 66 32" stroke="${hairD}" stroke-width="1" fill="none" opacity="0.6"/>`;
-  } else {
-    // clean shave — faint stubble hugging the sides only, no separate floating shape
-    hairPath=`<path d="M27 46 Q26 40 30 40 Q32 44 29 49Z" fill="${hair}" opacity="0.35"/><path d="M73 46 Q74 40 70 40 Q68 44 71 49Z" fill="${hair}" opacity="0.35"/>`;
-  }
-
-  // facial hair stays confined to the jaw/chin — never rises above cheekbone level (y~58)
-  let beardPath='';
-  // a single continuous perimeter loop (down one side, across the chin, up the other,
-  // back across the top) — never doubles back through the middle, so it can't self-intersect
-  // into the bowtie/blob artifact a two-boundary path would risk
-  function jawBeardPath(topY){
-    return `M28 58 Q25 62 27 68 Q31 ${chinY-6} 38 ${chinY-3} Q44 ${chinY+1} 50 ${chinY+2} Q56 ${chinY+1} 62 ${chinY-3} Q69 ${chinY-6} 73 68 Q75 62 72 58 Q65 ${topY} 58 ${topY-2} Q54 ${topY} 50 ${topY} Q46 ${topY} 42 ${topY-2} Q35 ${topY} 28 58 Z`;
-  }
-  if(beard){
-    const bc=darken(hair,0.75);
-    if(beardType==='stubble')
-      beardPath=`<path d="${jawBeardPath(65)}" fill="${bc}" opacity="0.3"/>`;
-    else if(beardType==='full')
-      beardPath=`<path d="${jawBeardPath(61)}" fill="${bc}"/>`;
-    else if(beardType==='chinstrap')
-      beardPath=`<path d="M30 58 Q28 63 32 67 Q36 ${chinY-3} 50 ${chinY} Q64 ${chinY-3} 68 67 Q72 63 70 58" fill="none" stroke="${bc}" stroke-width="3" stroke-linecap="round" opacity="0.9"/>`;
-    else if(beardType==='goatee')
-      beardPath=`<path d="M42 ${chinY-8} Q50 ${chinY+2} 58 ${chinY-8} Q56 ${chinY-12} 50 ${chinY-11} Q44 ${chinY-12} 42 ${chinY-8}Z" fill="${bc}"/><path d="M44 ${mouthY-3} Q50 ${mouthY-1} 56 ${mouthY-3} Q50 ${mouthY} 44 ${mouthY-3}Z" fill="${bc}" opacity="0.9"/>`;
-    else // mustache only
-      beardPath=`<path d="M43 ${mouthY-3} Q50 ${mouthY-0.5} 57 ${mouthY-3} Q50 ${mouthY+1.2} 43 ${mouthY-3}Z" fill="${bc}"/>`;
-  }
-  const mouth = mouthType===0?`<path d="M43 ${mouthY} Q50 ${mouthY+4} 57 ${mouthY}" stroke="${darken(skin,0.6)}" stroke-width="2" fill="none" stroke-linecap="round"/>`
-    : mouthType===1?`<path d="M43 ${mouthY+1} Q50 ${mouthY+5} 57 ${mouthY+1} Q50 ${mouthY+3} 43 ${mouthY+1}Z" fill="${darken(skin,0.55)}"/>`
-    : `<path d="M44 ${mouthY} Q50 ${mouthY+2} 56 ${mouthY}" stroke="${darken(skin,0.58)}" stroke-width="1.8" fill="none" stroke-linecap="round"/>`;
-  const freckleDots = freckles ? [[36,60],[39,63],[43,61],[57,61],[61,63],[64,60]].map(([x,y])=>`<circle cx="${x}" cy="${y}" r="0.7" fill="${darken(skin,0.65)}" opacity="0.55"/>`).join('') : '';
-  return `<svg viewBox="0 0 100 100" width="${size||100}" height="${size||100}" xmlns="http://www.w3.org/2000/svg">
-    <defs>
-      <linearGradient id="bg${id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="${bg1}"/><stop offset="100%" stop-color="${bg2}"/></linearGradient>
-      <radialGradient id="sk${id}" cx="42%" cy="35%"><stop offset="0%" stop-color="${skin}"/><stop offset="100%" stop-color="${darken(skin,0.8)}"/></radialGradient>
-      <linearGradient id="hg${id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="${hair}"/><stop offset="100%" stop-color="${hairD}"/></linearGradient>
-      <linearGradient id="lt${id}" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#ffffff" stop-opacity="0.22"/><stop offset="45%" stop-color="#ffffff" stop-opacity="0"/></linearGradient>
-    </defs>
-    <rect width="100" height="100" fill="url(#bg${id})"/>
-    <path d="M43 ${chinY-4} L43 88 Q50 92 57 88 L57 ${chinY-4}Z" fill="${darken(skin,0.86)}"/>
-    <path d="M16 100 Q19 87 40 84 Q50 90 60 84 Q81 87 84 100Z" fill="${shirt}"/>
-    <path d="M40 85 Q50 92 60 85 L58 100 L42 100Z" fill="${darken(shirt,1.15)}" opacity="0.6"/>
-    <path d="M28 47 Q21 46 21 55 Q21 64 27 63 Q25 55 28 47Z" fill="url(#sk${id})"/><path d="M24 51 Q22 55 24 58" fill="none" stroke="${darken(skin,0.7)}" stroke-width="1" stroke-linecap="round"/>
-    <path d="M72 47 Q79 46 79 55 Q79 64 73 63 Q75 55 72 47Z" fill="url(#sk${id})"/><path d="M76 51 Q78 55 76 58" fill="none" stroke="${darken(skin,0.7)}" stroke-width="1" stroke-linecap="round"/>
-    <path d="M28 42 Q25 58 31 70 Q36 ${chinY-3} 50 ${chinY} Q64 ${chinY-3} 69 70 Q75 58 72 42 Q72 29 50 24 Q28 29 28 42Z" fill="url(#sk${id})"/>
-    ${freckleDots}
-    ${beardPath}
-    <path d="M37 ${45-browH} Q42 ${41-browH} 48 ${44-browH} Q42 ${44.5-browH} 37 ${47-browH}Z" fill="${darken(hair,0.55)}"/>
-    <path d="M63 ${45-browH} Q58 ${41-browH} 52 ${44-browH} Q58 ${44.5-browH} 63 ${47-browH}Z" fill="${darken(hair,0.55)}"/>
-    <ellipse cx="41" cy="53" rx="4.2" ry="3" fill="#fff"/><ellipse cx="59" cy="53" rx="4.2" ry="3" fill="#fff"/>
-    <circle cx="41.5" cy="53.4" r="2" fill="${eyeColor}"/><circle cx="59.5" cy="53.4" r="2" fill="${eyeColor}"/>
-    <circle cx="42.2" cy="52.7" r="0.7" fill="#fff"/><circle cx="60.2" cy="52.7" r="0.7" fill="#fff"/>
-    <path d="M48 56 Q50 63 46 64 Q50 66 52 64" stroke="${darken(skin,0.72)}" stroke-width="1.6" fill="none" stroke-linecap="round"/>
-    ${mouth}
-    ${hairPath}
-    <rect width="100" height="100" fill="url(#lt${id})"/>
-  </svg>`;
-}
 
 /* ============================================================
    CREST + KIT + FLAG GENERATORS
@@ -1125,7 +1045,7 @@ function leagueLogo(league,size){
   else core=`<path d="M24 5 L43 24 L24 43 L5 24Z" fill="${c}"/><circle cx="24" cy="24" r="8" fill="none" stroke="#fff" stroke-width="3"/>`;
   return `<svg viewBox="0 0 48 48" width="${s}" height="${s}" xmlns="http://www.w3.org/2000/svg">${core}</svg>`;
 }
-/* Champions Cup emblem — silver star ball */
+/* Champions League emblem — silver star ball */
 function ccBall(size){const s=size||40;return `<svg viewBox="0 0 48 48" width="${s}" height="${s}" xmlns="http://www.w3.org/2000/svg">
   <defs><radialGradient id="ccb" cx="40%" cy="35%"><stop offset="0%" stop-color="#f4f7ff"/><stop offset="100%" stop-color="#8794b8"/></radialGradient></defs>
   <circle cx="24" cy="24" r="20" fill="url(#ccb)" stroke="#3a4a72" stroke-width="1.5"/>
@@ -1558,18 +1478,15 @@ Game.initSfx=function(){
 /* ============================================================
    BOOT / INTRO
    ============================================================ */
-const TIPS=['Loading face-scan data…','Syncing transfer market…','Compiling tactical systems…','Rendering 5 leagues…','Preparing International mode…','Polishing the trophy cabinet…'];
+const TIPS=['Loading real club data…','Syncing transfer market…','Compiling tactical systems…','Rendering 6 leagues…','Preparing International mode…','Polishing the trophy cabinet…'];
 window.addEventListener('load',()=>{
   Game.init();
-  // build an original cover-art composition for the loading screen entirely from the game's
-  // own procedural generators (face scans + club crests) — no external artwork of any kind
+  // loading-screen crest strip — built from the game's own procedural crest generator
   try{
-    const heroL=$('#coverHeroL'), heroR=$('#coverHeroR'), crestRow=$('#coverCrests');
+    const crestRow=$('#coverCrests');
     const seedR=seeded('cover-'+new Date().toDateString());
-    if(heroL) heroL.innerHTML=faceSVG('cover-hero-a',420,{hairStyle:Math.floor(seedR()*11),beard:seedR()<0.6});
-    if(heroR) heroR.innerHTML=faceSVG('cover-hero-b',420,{hairStyle:Math.floor(seedR()*11),beard:seedR()<0.6});
     if(crestRow && typeof LEAGUES!=='undefined'){
-      const picks=LEAGUES.slice(0,5).map(l=>l.clubs[Math.floor(seedR()*l.clubs.length)]);
+      const picks=LEAGUES.map(l=>l.clubs[Math.floor(seedR()*l.clubs.length)]);
       crestRow.innerHTML=picks.map(c=>crestSVG(c,46)).join('');
     }
   }catch(e){/* cosmetic only — never block boot on it */}
@@ -1687,7 +1604,7 @@ Game.updateHUD=function(){
     hud.innerHTML=`
       <div class="chip"><span class="lbl">Season</span><span class="val">${this.state.season}</span></div>
       <div class="chip club" title="${natName(k)}"><span style="font-size:18px">${flagEmoji(k)}</span><span class="val">${natName(k)}</span></div>
-      ${m?`<div class="chip" style="gap:8px;padding-left:6px" title="${m.name}"><span style="width:26px;height:26px;border-radius:8px;overflow:hidden;display:inline-block">${faceSVG('mgr',26,m)}</span><span class="val" style="max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${m.name.split(' ')[0]}</span></div>`:''}
+      ${m?`<div class="chip" style="gap:8px;padding-left:6px" title="${m.name}"><span class="val" style="max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${m.name.split(' ')[0]}</span></div>`:''}
     `;
     return;
   }
@@ -1699,7 +1616,7 @@ Game.updateHUD=function(){
     <div class="chip"><span class="lbl">Budget</span><span class="val" style="color:var(--acc)">${money(this.state.budget)}</span></div>
     <div class="chip" title="Dynasty Points — required to sign top-rated players"><span class="lbl">DP</span><span class="val" style="color:var(--gold,#e6b400)">${this.state.dynastyPoints||0}</span></div>
     <div class="chip club" title="${c.name}"><span class="mini-crest">${crestSVG(c,26)}</span><span class="val">${c.short}</span></div>
-    ${m?`<div class="chip" style="gap:8px;padding-left:6px" title="${m.name}"><span style="width:26px;height:26px;border-radius:8px;overflow:hidden;display:inline-block">${faceSVG('mgr',26,m)}</span><span class="val" style="max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${m.name.split(' ')[0]}</span></div>`:''}
+    ${m?`<div class="chip" style="gap:8px;padding-left:6px" title="${m.name}"><span class="val" style="max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${m.name.split(' ')[0]}</span></div>`:''}
   `;
 };
 
@@ -1765,7 +1682,7 @@ Game.applyTheme=function(id){
   if(nf && nf.derby && leagueCtx) mode='derby';
   else if(id==='wc') mode='wc';
   else if(id==='cups') mode = this.cupsTab==='dc' ? 'domestic' : 'champions';
-  else if(nf && leagueCtx && nf.comp==='Champions Cup') mode='champions';
+  else if(nf && leagueCtx && nf.comp==='Champions League') mode='champions';
   else if(nf && leagueCtx && nf.comp==='Domestic Cup') mode='domestic';
   document.documentElement.dataset.event = mode;
   const b=document.body;
@@ -1871,8 +1788,8 @@ Game.renderPlayerCreator=function(){
     const wrap=el('div','grid'); wrap.style.gridTemplateColumns='320px 1fr'; wrap.style.alignItems='start';
     const preview=el('div','card card-pad'); preview.style.textAlign='center';
     const used=Object.values(pc.attrs).reduce((a,b)=>a+b,0);
-    preview.innerHTML=`<div style="width:180px;height:180px;border-radius:22px;overflow:hidden;margin:0 auto 14px;border:1px solid var(--line2)">${faceSVG(pc.seed,180)}</div>
-      <button class="btn ghost sm" onclick="Game.pcReroll()">🎲 Reroll Look</button>
+    preview.innerHTML=`
+      <button class="btn ghost sm" onclick="Game.pcReroll()">🎲 Reroll Identity</button>
       <div style="font-size:20px;font-weight:900;margin-top:12px">${pc.name||'Your Player'}</div>
       <div style="color:var(--dim);font-size:12px;margin-top:4px">${pc.pos} · ${natName(pc.nat)}</div>
       <div style="margin-top:14px;font-size:12px;color:var(--dim)">Attribute Points<br><b style="color:var(--acc);font-size:16px">${pc.budgetCap-used} left</b></div>`;
@@ -1982,7 +1899,7 @@ Game.renderMyCareer=function(v){
   v.innerHTML=`<div class="view-head"><div><div class="kicker">My Career</div><h2>${p.name}</h2><div class="sub">${p.pos} · ${club.name} · Age ${p.age}</div></div></div>
     <div class="grid" style="grid-template-columns:280px 1fr;align-items:start;gap:18px">
       <div class="card card-pad" style="text-align:center">
-        <div style="width:160px;height:160px;border-radius:20px;overflow:hidden;margin:0 auto 14px;border:1px solid var(--line2)">${faceSVG(p.seed,160)}</div>
+        
         <div style="font-size:19px;font-weight:900">${p.name}</div>
         <div style="color:var(--dim);font-size:12px;margin:4px 0 12px">${p.pos} · OVR ${p.ovr} · POT ${p.potential}</div>
         <div class="ovrbar"><div class="bar"><i style="width:${clamp((p.ovr-40)/55*100,0,100)}%"></i></div><b style="font-size:13px">${p.ovr}</b></div>
@@ -2136,36 +2053,22 @@ Game.movePlayerToClub=function(clubName){
 /* ---------------- CLUB SELECT ---------------- */
 Game.renderManagerCreator=function(){
   const main=$('#main'); let view=$('#view'); if(!view){view=el('div','view');view.id='view';main.appendChild(view)}
-  const m=this._mgr=this._mgr||{name:'',skin:2,hair:0,hairStyle:0,beard:true};
+  const m=this._mgr=this._mgr||{name:''};
   view.classList.remove('on');
   setTimeout(()=>{
     view.innerHTML='';
-    const head=el('div','view-head',`<div><div class="kicker">Manager Career</div><h2>Create Your Manager</h2><div class="sub">Design your gaffer — you'll appear in press, the dugout and the inbox.</div></div>`);
+    const head=el('div','view-head',`<div><div class="kicker">Manager Career</div><h2>Create Your Manager</h2><div class="sub">Name your gaffer — you'll appear in press, the dugout and the inbox.</div></div>`);
     view.appendChild(head);
-    const wrap=el('div','grid'); wrap.style.gridTemplateColumns='320px 1fr'; wrap.style.alignItems='start';
-    const preview=el('div','card card-pad'); preview.style.textAlign='center';
-    preview.innerHTML=`<div id="mgrFace" style="width:180px;height:180px;border-radius:22px;overflow:hidden;margin:0 auto 16px;border:1px solid var(--line2)">${faceSVG('mgr',180,m)}</div>
-      <div style="font-size:20px;font-weight:900">${m.name||'Your Manager'}</div><div style="color:var(--dim);font-size:12px;margin-top:4px">Head Coach</div>`;
-    wrap.appendChild(preview);
-    const controls=el('div','card card-pad');
-    const swatchRow=(label,arr,key)=>`<div style="margin-bottom:16px"><div style="font-size:12px;color:var(--dim);text-transform:uppercase;letter-spacing:.1em;margin-bottom:8px">${label}</div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap">${arr.map((c,i)=>`<button onclick="Game.mgrSet('${key}',${i})" style="width:30px;height:30px;border-radius:8px;background:${c};border:2px solid ${m[key]===i?'var(--acc)':'var(--line2)'};cursor:pointer"></button>`).join('')}</div></div>`;
+    const controls=el('div','card card-pad'); controls.style.maxWidth='420px';
     controls.innerHTML=`
       <div style="margin-bottom:16px"><div style="font-size:12px;color:var(--dim);text-transform:uppercase;letter-spacing:.1em;margin-bottom:8px">Manager Name</div>
         <div class="search"><input id="mgrName" placeholder="Enter your name…" value="${m.name}" style="font-size:15px"></div></div>
-      ${swatchRow('Skin Tone',SKIN,'skin')}
-      ${swatchRow('Hair Colour',HAIR.slice(0,12),'hair')}
-      <div style="margin-bottom:16px"><div style="font-size:12px;color:var(--dim);text-transform:uppercase;letter-spacing:.1em;margin-bottom:8px">Hairstyle</div>
-        <div class="seg">${['Crop','Curly','Afro','Buzz','Quiff','Side','Rows','Long'].map((s,i)=>`<button class="${m.hairStyle===i?'on':''}" onclick="Game.mgrSet('hairStyle',${i})">${s}</button>`).join('')}</div></div>
-      <div style="margin-bottom:20px"><div class="seg"><button class="${m.beard?'on':''}" onclick="Game.mgrSet('beard',true)">Beard</button><button class="${!m.beard?'on':''}" onclick="Game.mgrSet('beard',false)">Clean Shaven</button></div></div>
       <button class="btn primary" onclick="Game.confirmManager()">Continue to Club Selection →</button>`;
-    wrap.appendChild(controls);
-    view.appendChild(wrap);
-    const inp=$('#mgrName'); if(inp) inp.oninput=()=>{ m.name=inp.value; const f=$('#mgrFace'); };
+    view.appendChild(controls);
+    const inp=$('#mgrName'); if(inp) inp.oninput=()=>{ m.name=inp.value; };
     view.classList.add('on'); this.updateHUD();
   },140);
 };
-Game.mgrSet=function(k,v){ this._mgr[k]=v; const nm=$('#mgrName'); if(nm)this._mgr.name=nm.value; this.renderManagerCreator(); };
 Game.confirmManager=function(){ const nm=$('#mgrName'); if(nm)this._mgr.name=nm.value; if(!this._mgr.name.trim())this._mgr.name='Alex Vandenberg';
   this.manager={...this._mgr}; toast('Welcome, '+this.manager.name);
   if(this._pendingIntl){ this._pendingIntl=false; this.renderNationSelect(); this.setCrumbs('Manager','Choose a Nation'); return; }
@@ -2264,7 +2167,7 @@ Game.startCareer=function(clubName){
     this.state.weekIndex[l.id]=0;
   });
   this.state.lineup=this.buildLineup(clubName);
-  this.state.manager=this.manager||{name:'Alex Vandenberg',skin:2,hair:0,hairStyle:0,beard:true};
+  this.state.manager=this.manager||{name:'Alex Vandenberg'};
   this.manager=this.state.manager;
   this.state.academy=this.buildAcademy();
   this.state.freeAgents=this.buildFreeAgents();
@@ -2306,7 +2209,7 @@ Game.startInternationalCareer=function(k){
     season:'2026/27', seasonNum:1, year:2026,
     trophies:{}, newsFeed:[], mail:[], scorers:{}, apps:{}, awards:[], simSpeed:'normal', autosave:true,
   };
-  this.state.manager=this.manager||{name:'Alex Vandenberg',skin:2,hair:0,hairStyle:0,beard:true};
+  this.state.manager=this.manager||{name:'Alex Vandenberg'};
   this.manager=this.state.manager;
   this._natSquads={};
   this.generateNewsBatch(4);
@@ -2374,7 +2277,7 @@ Game.signFreeAgent=function(id){
   const wageAsk=Math.round(p.wage*(1.1+r()*0.3)/1e3)*1e3;
   const dpCost=this.transferDpCost(p); const dp=this.state.dynastyPoints||0; const overDp=dpCost>dp;
   this.openModalHTML(`<div class="pcard-top"><div class="pcard-glow"></div>
-    <div class="big-face">${faceSVG(p.seed,150)}</div>
+    
     <div class="pcard-info"><div class="kicker">Free Agent</div><h2>${p.name}</h2>
       <div class="row">${span(flagSVG(p.nat,20))} ${natName(p.nat)} · ${p.pos} · Age ${p.age}</div>
       <div class="big-ovr"><div class="n">${p.ovr}</div><div class="l">OVR</div></div></div></div>
@@ -2418,7 +2321,7 @@ Game.requestLoan=function(id){
   const r=seeded('loanreq-'+id+this.state.seasonNum);
   const fee=Math.round(p.value*0.06/1e5)*1e5, wageShare=Math.round(p.wage*0.5/1e3)*1e3;
   this.openModalHTML(`<div class="pcard-top"><div class="pcard-glow"></div>
-    <div class="big-face">${faceSVG(p.seed,150)}</div>
+    
     <div class="pcard-info"><div class="kicker">Loan Enquiry · ${this.clubOf(p.club).name}</div><h2>${p.name}</h2>
       <div class="row">${p.pos} · ${p.ovr} OVR · Age ${p.age}</div><div class="big-ovr"><div class="n">${p.ovr}</div><div class="l">OVR</div></div></div></div>
     <div style="padding:0 28px 24px">
@@ -2655,7 +2558,7 @@ Game.academyProspectCardHTML=function(p,opts){
        <button class="btn sm ghost" style="color:var(--bad)" onclick="Game.releaseYouth('${p.id}')">Release</button>`;
   const card=el('div','club-card'); card.style.cursor='default';
   card.innerHTML=`<div style="display:flex;gap:12px;align-items:center;cursor:pointer" onclick='Game.openPlayer("${p.id}")'>
-    <div style="width:56px;height:56px;border-radius:14px;overflow:hidden;border:1px solid var(--line2)">${faceSVG(p.seed,56)}</div>
+    
     <div><div style="font-weight:900;font-size:15px">${p.name}</div><div style="color:var(--dim);font-size:12px">${span(flagSVG(p.nat,16))} ${p.pos} · Age ${p.age} · <span style="color:var(--acc2)">${p.personality}</span></div></div></div>
     <div style="display:flex;gap:14px;margin-top:12px;align-items:center">
       <div style="text-align:center"><div style="font-size:10px;color:var(--dim)">CURRENT</div><b style="font-size:18px">${p.ovr}</b></div>
@@ -2884,7 +2787,7 @@ Game.renderCareer=function(v){
     const H=uf.home?c:oppC, A=uf.home?oppC:c;
     const col=COMP_COLOR[uf.comp]||'var(--acc)';
     const oppMeta = uf.comp==='League'? `OVR ${oppC.ovr} · ${this.clubRankLabel(uf.oppName)}` : `OVR ${oppC.ovr}`;
-    nm.innerHTML=`<div class="kicker" style="text-align:center;color:${col};display:flex;gap:8px;align-items:center;justify-content:center">${uf.comp==='Champions Cup'?ccBall(18):''}${uf.comp}${uf.roundName?' · '+uf.roundName:''}${uf.derby?' <span class="badge" style="color:var(--acc3);border-color:rgba(255,46,136,.4)">DERBY</span>':''}</div>
+    nm.innerHTML=`<div class="kicker" style="text-align:center;color:${col};display:flex;gap:8px;align-items:center;justify-content:center">${uf.comp==='Champions League'?ccBall(18):''}${uf.comp}${uf.roundName?' · '+uf.roundName:''}${uf.derby?' <span class="badge" style="color:var(--acc3);border-color:rgba(255,46,136,.4)">DERBY</span>':''}</div>
       <div class="nm-vs">
         <div class="nm-team" ${H!==c?`style="cursor:pointer" onclick='Game.showClub("${uf.oppName}")'`:''}><div style="display:flex;align-items:flex-end;gap:6px"><div style="width:44px">${kitSVG(H,44)}</div><div class="crest">${crestSVG(H,58)}</div></div><b>${H.short}</b><span style="color:var(--dim);font-size:11px">${H===c?'(You)':oppMeta}</span></div>
         <div class="nm-mid"><div class="comp" style="color:${col}">${COMP_SHORT[uf.comp]}</div><div class="vs">VS</div><div style="color:var(--dim);font-size:11px">${this.fmtDate(uf.date)}</div></div>
@@ -2926,7 +2829,7 @@ Game.renderCareer=function(v){
   const starCard=el('div','card card-pad');
   starCard.innerHTML=`<h4 style="margin-bottom:12px">Star Man</h4>
     <div style="display:flex;gap:16px;align-items:center;cursor:pointer" onclick='Game.openPlayer("${topScorer.id}")'>
-      <div style="width:72px;height:72px;border-radius:16px;overflow:hidden;border:1px solid var(--line2)">${faceSVG(topScorer.seed,72)}</div>
+      
       <div><div style="font-size:18px;font-weight:900">${topScorer.name}</div>
         <div style="color:var(--dim);font-size:12px;margin-top:3px">${topScorer.pos} · Age ${topScorer.age} · ${money(topScorer.value)}</div>
         <div style="margin-top:8px">${topScorer.ps.slice(0,2).map(p=>`<span class="ps ${p.plus?'plus':''}" style="padding:4px 8px;font-size:10.5px">${p.name}${p.plus?'+':''}</span>`).join(' ')}</div>
@@ -2973,7 +2876,7 @@ Game.renderSquad=function(v){
   const slots=this.slotList();
   const bcard=(id)=>{const p=this.findPlayer(id); if(!p)return ''; const sel=this._selSquad===id?' sel':''; const inj=this.isInjured(p);
     return `<div class="bcard${sel}" onclick="Game.pickSquad('${id}')"><div class="bpos"><i></i>${p.pos}</div>
-      <div class="bface" style="${inj?'filter:grayscale(.7) opacity(.7)':''}">${faceSVG(p.seed,40)}</div><div style="min-width:0"><div class="bnm">${p.last}${inj?` <span style="color:var(--bad);font-size:9px">✚${p.injWeeks}</span>`:''}</div><div class="bage">${inj?'Injured':'Age '+p.age}</div></div><div class="bovr ${ovrClass(p.ovr)}" style="background:none;border:none;width:auto;height:auto">${p.ovr}</div></div>`};
+      <div style="min-width:0"><div class="bnm">${p.last}${inj?` <span style="color:var(--bad);font-size:9px">✚${p.injWeeks}</span>`:''}</div><div class="bage">${inj?'Injured':'Age '+p.age}</div></div><div class="bovr ${ovrClass(p.ovr)}" style="background:none;border:none;width:auto;height:auto">${p.ovr}</div></div>`};
   benchCard.innerHTML=`<h4>Substitutes</h4><div class="bench-grid">${benchIds.map(bcard).join('')}</div>
     ${resIds.length?`<h4 style="margin:18px 0 12px">Reserves</h4><div class="bench-grid">${resIds.map(bcard).join('')}</div>`:''}`;
   grid.appendChild(benchCard);
@@ -3028,7 +2931,7 @@ Game.trainingEl=function(){
     <h4 style="margin-bottom:12px">Tired Players</h4>
     <div class="roster" style="max-height:320px">${Game.squad(this.state.club).slice().sort((a,b)=>(a.energy==null?100:a.energy)-(b.energy==null?100:b.energy)).slice(0,8).map(p=>{const e=p.energy==null?100:p.energy;
       return `<div class="rrow" onclick='Game.openPlayer("${p.id}")'><div class="ovr ${ovrClass(p.ovr)}" style="width:34px;height:34px;font-size:14px">${p.ovr}</div>
-      <div class="face">${faceSVG(p.seed,40)}</div><div class="info"><b>${p.name}</b><div class="sub"><div class="energy" style="width:80px;margin-top:4px"><i style="width:${e}%;background:${e>=60?'var(--good)':e>=35?'var(--warn)':'var(--bad)'}"></i></div></div></div><div class="pos-tag">${p.pos}</div></div>`}).join('')}</div>`;
+      <div class="info"><b>${p.name}</b><div class="sub"><div class="energy" style="width:80px;margin-top:4px"><i style="width:${e}%;background:${e>=60?'var(--good)':e>=35?'var(--warn)':'var(--bad)'}"></i></div></div></div><div class="pos-tag">${p.pos}</div></div>`}).join('')}</div>`;
   wrap.appendChild(right);
   return wrap;
 };
@@ -3053,7 +2956,7 @@ Game.pitchEl=function(xi){
     const chip=el('div','pp'+sel);
     chip.style.left=x+'%'; chip.style.top=y+'%';
     const inj=this.isInjured(p);
-    chip.innerHTML=`<div class="pp-top"><div class="pp-face" style="${inj?'filter:grayscale(.6) opacity(.8)':''}">${faceSVG(p.seed,52)}</div><div class="pp-ovr">${p.ovr}</div>${inj?`<div style="position:absolute;bottom:-2px;left:-6px;background:var(--bad);color:#fff;font-size:9px;font-weight:900;border-radius:5px;padding:0 3px">✚${p.injWeeks}</div>`:''}</div>
+    chip.innerHTML=`<div class="pp-top"><div class="pp-ovr">${p.ovr}</div>${inj?`<div style="position:absolute;bottom:-2px;left:-6px;background:var(--bad);color:#fff;font-size:9px;font-weight:900;border-radius:5px;padding:0 3px">✚${p.injWeeks}</div>`:''}</div>
       <div class="pp-bar"></div><div class="pp-name">${p.last}</div><div class="pp-pos">${slots[i]}</div>`;
     chip.onclick=()=>this.pickSquad(p.id);
     pitch.appendChild(chip);
@@ -3168,7 +3071,6 @@ Game.marketRowHTML=function(p,opts){
   const dpCost=this.transferDpCost(p); const lockedByDp=dpCost>(this.state.dynastyPoints||0);
   return `<div class="market-row">
     <div class="ovr ${ovrClass(p.ovr)}">${p.ovr}</div>
-    <div class="face">${faceSVG(p.seed,40)}</div>
     <div style="cursor:pointer" onclick='Game.openPlayer("${p.id}")'><b>${p.name}</b> ${dpCost>0?`<span class="badge ${lockedByDp?'bad':'gold'}" style="font-size:9.5px;padding:2px 6px" title="Requires ${dpCost} Dynasty Points to sign">${dpCost} DP</span>`:''}<div style="color:var(--dim);font-size:11.5px;margin-top:2px">${span(flagSVG(p.nat,16))} ${p.pos} · Age ${p.age} · ${this.clubOf(p.club)?`<span style="cursor:pointer;text-decoration:underline dotted" onclick='event.stopPropagation();Game.showClub("${p.club}")'>${this.clubOf(p.club).short}</span> · ${this.leagueOf(p.club).name}`:p.club}</div></div>
     <div style="text-align:center"><div style="font-size:10px;color:var(--dim)">POT</div><b>${p.potential}</b></div>
     <div style="text-align:center"><div style="font-size:10px;color:var(--dim)">WAGE</div><b style="font-size:12px">${wage(p.wage)}</b></div>
@@ -3234,7 +3136,7 @@ Game.renderNego=function(){
   const step=Math.max(5e5,Math.round(n.min*0.05/5e5)*5e5);
   this.openModalHTML(`
     <div class="pcard-top"><div class="pcard-glow"></div>
-      <div class="big-face">${faceSVG(p.seed,150)}</div>
+      
       <div class="pcard-info"><div class="kicker">Negotiation · ${this.clubOf(p.club).name}</div><h2>${p.name}</h2>
         <div class="row">${span(flagSVG(p.nat,20))} ${natName(p.nat)} · ${p.pos} · Age ${p.age} · Value ${money(p.value)}</div>
         <div class="row"><span class="badge ${n.preferCash?'bad':'good'}">${n.preferCash?'Prefers cash only':'Open to part-exchange'}</span><span class="badge gold">Asking ${money(n.ask)}</span></div>
@@ -3370,7 +3272,7 @@ Game.signingCutscene=function(p,fee){
       let conf=''; for(let i=0;i<40;i++){const c=[club.c1,club.c2,'#c6ff2e','#00e5ff'][i%4]; conf+=`<div class="confetti" style="left:${Math.random()*100}%;background:${c};animation-duration:${2+Math.random()*2}s;animation-delay:${Math.random()*1.5}s"></div>`;}
       let flashes=''; for(let i=0;i<6;i++)flashes+=`<div class="flash" style="left:${10+Math.random()*80}%;top:${10+Math.random()*70}%;animation-delay:${Math.random()*1.4}s"></div>`;
       stage.innerHTML=`${conf}${flashes}<div class="cut-reveal">
-        <div class="cut-figure"><div class="kit">${kitSVG(club,180)}</div><div class="head">${faceSVG(p.seed,78)}</div></div>
+        <div class="cut-figure"><div class="kit">${kitSVG(club,180)}</div></div>
         <div class="cut-name">${p.name}</div><div class="cut-club">Welcome to ${club.name}</div>
         <div style="margin-top:22px"><button class="btn primary" onclick="Game.skipCutscene()">Continue →</button></div></div>`;
     },1600);
@@ -3381,7 +3283,7 @@ Game.showMyTransfers=function(){
   const t=this.state.transfersDone;
   this.openModalHTML(`<div style="padding:28px"><div class="kicker">This Window</div><h2 style="margin:6px 0 16px">Your Signings</h2>
     ${t.length? t.map(x=>`<div style="display:flex;align-items:center;gap:14px;padding:12px 0;border-bottom:1px solid var(--line)">
-      <div style="width:44px;height:44px;border-radius:11px;overflow:hidden;border:1px solid var(--line2)">${faceSVG(x.seed,44)}</div>
+      
       <div><b>${x.name}</b><div style="color:var(--dim);font-size:12px">OVR ${x.ovr}</div></div>
       <b style="margin-left:auto;color:var(--acc)">${money(x.fee)}</b></div>`).join('')
      : '<div class="empty">No signings yet. Go make a splash in the market.</div>'}
@@ -3440,7 +3342,7 @@ Game.matchPress=function(kind,ctx,cb){
   const idx=Math.floor(r()*1000);
   this.openModalHTML(`<div style="padding:26px">
     <div class="kicker">${kind==='pre'?'Pre-Match Press':'Post-Match Press'}</div>
-    <div class="q-bubble" style="margin-top:12px"><div class="rep">${faceSVG('rep'+idx,44)}</div><div><div class="who">Press Room</div><div class="q">${q}</div></div></div>
+    <div class="q-bubble" style="margin-top:12px"><div><div class="who">Press Room</div><div class="q">${q}</div></div></div>
     <div class="answers" id="mpAns"></div></div>`);
   const box=$('#mpAns');
   ans.forEach(a=>{ const btn=el('button','answer',`<span class="tone tone-${a.tone}">${a.tone}</span><span>${a.t}</span>`);
@@ -3496,11 +3398,11 @@ Game.seasonDecision=function(cont){
     box.appendChild(btn); });
 };
 /* ============================================================
-   DATED SEASON: League + Champions Cup (group + KO) + Domestic Cup
+   DATED SEASON: League + Champions League (group + KO) + Domestic Cup
    ============================================================ */
 function addDays(d,n){const x=new Date(d);x.setDate(x.getDate()+n);return x;}
-const COMP_COLOR={'League':'#c6ff2e','Champions Cup':'#00e5ff','Domestic Cup':'#ff2e88'};
-const COMP_SHORT={'League':'LEAGUE','Champions Cup':'UCL','Domestic Cup':'CUP'};
+const COMP_COLOR={'League':'#c6ff2e','Champions League':'#00e5ff','Domestic Cup':'#ff2e88'};
+const COMP_SHORT={'League':'LEAGUE','Champions League':'UCL','Domestic Cup':'CUP'};
 Game.qualifiedForCC=function(){
   const lg=this.leagueOf(this.state.club);
   if((lg.tier||1)!==1) return false; // only the top flight qualifies
@@ -3527,7 +3429,7 @@ Game.buildUserSeason=function(){
   const target = rankByOvr<=1?'win the league': rankByOvr<=4?'finish in the top four': rankByOvr<=10?'secure a top-half finish':'achieve a comfortable mid-table finish and avoid relegation';
   this.state.objective=target; this.state.objectiveRank=rankByOvr;
   this.state.sackWarned=false; this.state.lossStreak=0;
-  this.pushMail('Club Board',`Season ${this.state.season} objectives`,`Welcome to the new campaign. The board expects you to ${target} in the ${lg.name}${this.qualifiedForCC()?', and to represent us with pride in the Champions Cup':''}. Good luck.`);
+  this.pushMail('Club Board',`Season ${this.state.season} objectives`,`Welcome to the new campaign. The board expects you to ${target} in the ${lg.name}${this.qualifiedForCC()?', and to represent us with pride in the Champions League':''}. Good luck.`);
 };
 Game.setupChampionsCup=function(fx,start){
   const r=seeded('cc-'+this.state.seasonNum+this.state.club);
@@ -3545,7 +3447,7 @@ Game.setupChampionsCup=function(fx,start){
   const slots=[3,5,7,10,12,15]; const g=groups[ug];
   g.rr.forEach((round,ri)=>{ const pair=round.map(p=>[g.teams[p[0]],g.teams[p[1]]]).find(m=>m.includes(this.state.club));
     const home=pair[0]===this.state.club, opp=home?pair[1]:pair[0];
-    fx.push({id:'CCg'+ri,date:addDays(start,14+slots[ri]*7+3).getTime(),comp:'Champions Cup',ccStage:'group',ccRound:ri,oppName:opp,home,played:false}); });
+    fx.push({id:'CCg'+ri,date:addDays(start,14+slots[ri]*7+3).getTime(),comp:'Champions League',ccStage:'group',ccRound:ri,oppName:opp,home,played:false}); });
 };
 Game.ccRow=function(table,a,b,hg,ag){ const H=table[a],A=table[b]; H.P++;A.P++;H.GF+=hg;H.GA+=ag;A.GF+=ag;A.GA+=hg;
   if(hg>ag){H.W++;A.L++;H.Pts+=3;}else if(ag>hg){A.W++;H.L++;A.Pts+=3;}else{H.D++;A.D++;H.Pts++;A.Pts++;} };
@@ -3575,19 +3477,19 @@ Game.ccInjectUserKo=function(){
   const ti=this.ccUserTie(); if(ti<0){ cc.eliminated=true; this.ccSimRemainder(); return; }
   const t=cc.knockout[cc.koStage][ti]; const home=t.hk===this.state.club, opp=home?t.ak:t.hk;
   const slotWk={R16:19,QF:24,SF:29,Final:34}[cc.koStage];
-  this.addFixture({id:'CCk'+cc.koStage,date:addDays(new Date(this.state.calStart),14+slotWk*7+3).getTime(),comp:'Champions Cup',ccStage:'ko',oppName:opp,home,played:false});
+  this.addFixture({id:'CCk'+cc.koStage,date:addDays(new Date(this.state.calStart),14+slotWk*7+3).getTime(),comp:'Champions League',ccStage:'ko',oppName:opp,home,played:false});
 };
 Game.ccKoFinish=function(f,res){
   const cc=this.state.cc; const st=cc.koStage; const ties=cc.knockout[st]; const ti=this.ccUserTie();
   const finishRest=()=>{
     ties.forEach((t,i)=>{ if(!t.done){ const s=simMatch(t.hk,t.ak,{seed:'cck'+st+i}); let w; if(s.gh===s.ga)w=(seeded('x'+st+i)()<0.5)?t.hk:t.ak; else w=s.gh>s.ga?t.hk:t.ak; Object.assign(t,{hg:s.gh,ag:s.ga,w,done:true,pens:s.gh===s.ga}); } });
     const order=['R16','QF','SF','Final']; const winners=ties.map(t=>t.w);
-    if(st==='Final'){ cc.champion=winners[0]; cc.round='done'; if(cc.champion===this.state.club) this.awardTrophy('Champions Cup'); this.addNews('trophy',`${this.clubOf(cc.champion).name} win the Champions Cup`,`European glory under the lights.`,''); return; }
+    if(st==='Final'){ cc.champion=winners[0]; cc.round='done'; if(cc.champion===this.state.club) this.awardTrophy('Champions League'); this.addNews('trophy',`${this.clubOf(cc.champion).name} win the Champions League`,`European glory under the lights.`,''); return; }
     const nx=order[order.indexOf(st)+1]; const nt=[]; for(let i=0;i<winners.length;i+=2)nt.push({hk:winners[i],ak:winners[i+1]});
     cc.knockout[nx]=nt; cc.koStage=nx;
     if(winners.includes(this.state.club)){ this.ccInjectUserKo(); } else { cc.eliminated=true; this.ccSimRemainder(); }
   };
-  if(ti>=0){ const t=ties[ti]; this.resolveKoTie(t,res.gh,res.ga,false,(w,pens)=>{ Object.assign(t,{hg:res.gh,ag:res.ga,w,done:true,pens}); if(w===this.state.club)this.addDynastyPoints(25,'Champions Cup round win'); finishRest(); }); }
+  if(ti>=0){ const t=ties[ti]; this.resolveKoTie(t,res.gh,res.ga,false,(w,pens)=>{ Object.assign(t,{hg:res.gh,ag:res.ga,w,done:true,pens}); if(w===this.state.club)this.addDynastyPoints(25,'Champions League round win'); finishRest(); }); }
   else finishRest();
 };
 Game.ccSimRemainder=function(){
@@ -3595,7 +3497,7 @@ Game.ccSimRemainder=function(){
   let st=cc.koStage||'R16';
   while(st){ const ties=cc.knockout[st]; ties.forEach((t,i)=>{ if(!t.done){ const s=simMatch(t.hk,t.ak,{seed:'ccr'+st+i}); let w; if(s.gh===s.ga)w=(seeded('y'+st+i)()<0.5)?t.hk:t.ak; else w=s.gh>s.ga?t.hk:t.ak; Object.assign(t,{hg:s.gh,ag:s.ag||s.ga,w,done:true,pens:s.gh===s.ga}); } });
     const winners=ties.map(t=>t.w);
-    if(st==='Final'){ cc.champion=winners[0]; cc.round='done'; if(cc.champion===this.state.club)this.awardTrophy('Champions Cup'); break; }
+    if(st==='Final'){ cc.champion=winners[0]; cc.round='done'; if(cc.champion===this.state.club)this.awardTrophy('Champions League'); break; }
     const nx=order[order.indexOf(st)+1]; const nt=[]; for(let i=0;i<winners.length;i+=2)nt.push({hk:winners[i],ak:winners[i+1]}); cc.knockout[nx]=nt; cc.koStage=nx; st=nx; }
 };
 const DC_STAGES=['R32','R16','QF','SF','Final'];
@@ -3637,8 +3539,9 @@ Game.dcFinish=function(f,res){
     const winners=ties.map(t=>t.w);
     const stIdx=DC_STAGES.indexOf(stage);
     if(stage==='Final'){ dc.champion=winners[0]; dc.stage='done'; dc.alive=dc.champion===me;
-      if(dc.champion===me)this.awardTrophy('Domestic Cup');
-      this.addNews('trophy',`${this.clubOf(dc.champion).name} win the Domestic Cup`,`Silverware secured in a dramatic final.`,''); return; }
+      const dcName=domesticCupName(this.leagueOf(me).nat);
+      if(dc.champion===me)this.awardTrophy(dcName);
+      this.addNews('trophy',`${this.clubOf(dc.champion).name} win the ${dcName}`,`Silverware secured in a dramatic final.`,''); return; }
     const next=DC_STAGES[stIdx+1]; const nt=[]; for(let i=0;i<winners.length;i+=2)nt.push({hk:winners[i],ak:winners[i+1]});
     dc.rounds[next]=nt; dc.stage=next;
     if(winners.includes(me)){ this.dcInjectUserFixture(null); } else { dc.alive=false; this.dcSimRemainder(); }
@@ -3649,8 +3552,8 @@ Game.dcFinish=function(f,res){
       Object.assign(t,{hg:res.gh,ag:res.ga,w,pens,done:true});
       const myG=res.home===me?res.gh:res.ga, opG=res.home===me?res.ga:res.gh;
       dc.history.push({round:DC_NAMES[DC_STAGES.indexOf(stage)],opp:f.oppName,myG,opG,win:w===me,pens});
-      if(w===me) this.addDynastyPoints(25,'Domestic Cup round win');
-      if(w!==me) this.addNews('match',`${this.clubOf(me).short} knocked out of the Domestic Cup`,`Cup run ends in the ${DC_NAMES[DC_STAGES.indexOf(stage)]}.`,'');
+      if(w===me) this.addDynastyPoints(25,domesticCupName(this.leagueOf(me).nat)+' round win');
+      if(w!==me) this.addNews('match',`${this.clubOf(me).short} knocked out of the ${domesticCupName(this.leagueOf(me).nat)}`,`Cup run ends in the ${DC_NAMES[DC_STAGES.indexOf(stage)]}.`,'');
       finishRest();
     });
   } else finishRest();
@@ -3663,7 +3566,7 @@ Game.dcSimRemainder=function(){
     ties.forEach((t,i)=>{ if(!t.done){ const s=simMatch(t.hk,t.ak,{seed:'dcrem'+stage+i+this.state.seasonNum}); let w,pens=false; if(s.gh===s.ga){pens=true;w=(seeded('dcy'+stage+i+this.state.seasonNum)()<0.5)?t.hk:t.ak;} else w=s.gh>s.ga?t.hk:t.ak; Object.assign(t,{hg:s.gh,ag:s.ga,w,pens,done:true}); } });
     const winners=ties.map(t=>t.w);
     const stIdx=DC_STAGES.indexOf(stage);
-    if(stage==='Final'){ dc.champion=winners[0]; dc.stage='done'; if(dc.champion===this.state.club)this.awardTrophy('Domestic Cup'); break; }
+    if(stage==='Final'){ dc.champion=winners[0]; dc.stage='done'; if(dc.champion===this.state.club)this.awardTrophy(domesticCupName(this.leagueOf(this.state.club).nat)); break; }
     const next=DC_STAGES[stIdx+1]; const nt=[]; for(let i=0;i<winners.length;i+=2)nt.push({hk:winners[i],ak:winners[i+1]}); dc.rounds[next]=nt; dc.stage=next; stage=next;
   }
 };
@@ -3699,13 +3602,13 @@ Game.startLiveMatch=function(f){
   const ms=$('#matchsim'); const H=this.clubOf(home),A=this.clubOf(away);
   $('#msCrestH').innerHTML=crestSVG(H,70); $('#msCrestA').innerHTML=crestSVG(A,70);
   $('#msNameH').textContent=H.short; $('#msNameA').textContent=A.short;
-  $('#msComp').textContent=(f.comp==='Champions Cup'?'★ ':'')+f.comp+(f.roundName?' · '+f.roundName:'');
+  $('#msComp').textContent=(f.comp==='Champions League'?'★ ':'')+f.comp+(f.roundName?' · '+f.roundName:'');
   $('#msScoreH').textContent='0'; $('#msScoreA').textContent='0'; $('#msBar').style.width='0'; $('#msClock').textContent="0'";
   $('#msBody').innerHTML='<div class="ms-pitch" id="msPitch"></div><div class="ms-feed" id="msFeed"></div>'; $('#msManage').classList.remove('on');
   this.renderMsPitch();
   ms.classList.remove('cc-theme','dc-theme','derby-theme','wc-theme');
   if(f.derby) ms.classList.add('derby-theme');
-  else if(f.comp==='Champions Cup') ms.classList.add('cc-theme');
+  else if(f.comp==='Champions League') ms.classList.add('cc-theme');
   else if(f.comp==='Domestic Cup') ms.classList.add('dc-theme');
   ms.classList.add('on');
   this.lmFoot();
@@ -4033,7 +3936,7 @@ Game.renderManage=function(){
   const bench=this.matchBench();
   const rrow=(p,onPitch)=>{ const d=LM.pdata[p.id]||{rating:6.5}; const sel=LM.sel===p.id?' sel':'';
     return `<div class="mng-row${sel}" onclick="Game.lmPick('${p.id}',${onPitch})">
-      <div class="pos">${p.pos}</div><div class="face">${faceSVG(p.seed,30)}</div>
+      <div class="pos">${p.pos}</div>
       <div style="min-width:0"><div style="font-weight:800;font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${p.last} <span style="color:var(--dim);font-weight:600">${p.ovr}</span></div>
         <div class="energy" style="margin-top:4px"><i style="width:${clamp(p.energy,0,100)}%;background:${p.energy>50?'var(--good)':p.energy>28?'var(--warn)':'var(--bad)'}"></i></div></div>
       <div class="rt"><span class="rating-pill ${this.ratingClass(d.rating)}">${d.rating.toFixed(1)}</span></div>
@@ -4120,11 +4023,11 @@ Game.lmFullTime=function(){
 Game.showBoxScore=function(box,res){
   const LM=this.LM; const H=this.clubOf(LM.home),A=this.clubOf(LM.away);
   const statRow=(lbl,h,a,max)=>`<div class="box-stat-row"><b style="text-align:right">${h}</b><div style="grid-column:2"><div style="text-align:center;color:var(--dim);font-size:10px;text-transform:uppercase;letter-spacing:.08em;margin-bottom:3px">${lbl}</div><div class="box-bar"><div class="h" style="width:${max?h/(h+a||1)*100:h}%"></div><div class="a" style="width:${max?a/(h+a||1)*100:a}%"></div></div></div><b>${a}</b></div>`;
-  const plList=(side)=>Object.values(box.pdata).filter(d=>d.side===side).sort((a,b)=>b.rating-a.rating).map(d=>`<div class="box-pl"><span style="width:26px;height:26px;border-radius:7px;overflow:hidden;border:1px solid var(--line2)">${faceSVG(d.seed,26)}</span><span style="font-size:12px">${d.name}</span>${d.goals?`<span style="color:var(--acc);font-size:11px;margin-left:4px">⚽${d.goals>1?d.goals:''}</span>`:''}${d.red?'<span class="card-r">■</span>':d.yellow?'<span class="card-y">■</span>':''}<span class="rt"><span class="rating-pill ${this.ratingClass(d.rating)}">${d.rating.toFixed(1)}</span></span></div>`).join('');
+  const plList=(side)=>Object.values(box.pdata).filter(d=>d.side===side).sort((a,b)=>b.rating-a.rating).map(d=>`<div class="box-pl"><span style="font-size:12px">${d.name}</span>${d.goals?`<span style="color:var(--acc);font-size:11px;margin-left:4px">⚽${d.goals>1?d.goals:''}</span>`:''}${d.red?'<span class="card-r">■</span>':d.yellow?'<span class="card-y">■</span>':''}<span class="rt"><span class="rating-pill ${this.ratingClass(d.rating)}">${d.rating.toFixed(1)}</span></span></div>`).join('');
   const motmD=Object.values(box.pdata).find(d=>d.name===box.motm);
   $('#msManage').classList.remove('on');
   $('#msBody').innerHTML=`<div class="box-wrap">
-    <div class="motm"><span style="width:52px;height:52px;border-radius:12px;overflow:hidden;border:1px solid var(--line2)">${motmD?faceSVG(motmD.seed,52):''}</span>
+    <div class="motm">
       <div><div class="kicker" style="color:var(--gold)">Player of the Match</div><div style="font-weight:900;font-size:17px">${box.motm}</div><div style="color:var(--dim);font-size:12px">Rating ${motmD?motmD.rating.toFixed(1):''}${motmD&&motmD.goals?' · '+motmD.goals+' goal'+(motmD.goals>1?'s':''):''}</div></div>
       <div style="margin-left:auto;text-align:center"><div style="font-size:26px;font-weight:900">${res.gh}–${res.ga}</div><div style="font-size:10px;color:var(--dim)">${H.short} v ${A.short}</div></div></div>
     <div class="card card-pad" style="margin-bottom:14px">
@@ -4221,7 +4124,7 @@ Game.finishUserFixture=function(f,res,quick,box){
       else this.addNews('match',`Derby stalemate: ${this.clubOf(me).short} ${myG}-${opG} ${oppShort}`,`Honours even in a tense local derby.`,'');
     } else if(w>0)this.addNews('match',`${this.clubOf(me).short} win ${myG}-${opG}`,`${res.scorers.filter(s=>(s.team==='H')===(res.home===me)).map(s=>s.player).join(', ')||'A solid display'} did the damage.`);
     else if(this.state.lossStreak>=3) this.addNews('drama',`Crisis club? ${this.clubOf(me).short} slump to ${this.state.lossStreak} defeats in a row`,`Pressure is mounting on the manager after a miserable run of form.`,'');
-  } else if(f.comp==='Champions Cup'){ this.ccFinish(f,res); }
+  } else if(f.comp==='Champions League'){ this.ccFinish(f,res); }
   else if(f.comp==='Domestic Cup'){ this.dcFinish(f,res); }
   // unhappy players may demand a transfer
   Game.squad(me).forEach(p=>{ if(p.morale<20 && Math.random()<0.05 && !(this.state.transferList||[]).includes(p.id)){
@@ -4309,14 +4212,14 @@ Game.endOfSeasonFlow=function(){
 };
 Game.showSeasonSummary=function(){
   const pos=this.clubRank(this.state.club); const lg=this.leagueOf(this.state.club);
-  const cc=this.state.cc, dc=this.state.dc;
-  const ccLine= cc? (cc.champion===this.state.club?'Champions Cup: WON':cc.eliminated?'Champions Cup: eliminated':'Champions Cup: —') : 'Did not qualify for the Champions Cup';
-  const dcLine= dc.champion?'Domestic Cup: WON': dc.alive?'Domestic Cup: —':'Domestic Cup: knocked out';
+  const cc=this.state.cc, dc=this.state.dc; const dcName=domesticCupName(lg.nat);
+  const ccLine= cc? (cc.champion===this.state.club?'Champions League: WON':cc.eliminated?'Champions League: eliminated':'Champions League: —') : 'Did not qualify for the Champions League';
+  const dcLine= dc.champion?dcName+': WON': dc.alive?dcName+': —':dcName+': knocked out';
   this.openModalHTML(`<div style="padding:28px">
     <div class="kicker">Season ${this.state.season} Review</div><h2 style="margin:6px 0 16px">${this.clubOf(this.state.club).name}</h2>
     <div class="stat-row" style="grid-template-columns:1fr 1fr 1fr"><div class="stat-box"><div class="k">${lg.name}</div><div class="v">${pos}<small>${ordinal(pos)}</small></div></div>
-      <div class="stat-box"><div class="k">Champions Cup</div><div class="v" style="font-size:15px">${cc?(cc.champion===this.state.club?'Winners':cc.eliminated?'Out':'—'):'—'}</div></div>
-      <div class="stat-box"><div class="k">Domestic Cup</div><div class="v" style="font-size:15px">${dc.champion?'Winners':dc.alive?'—':'Out'}</div></div></div>
+      <div class="stat-box"><div class="k">Champions League</div><div class="v" style="font-size:15px">${cc?(cc.champion===this.state.club?'Winners':cc.eliminated?'Out':'—'):'—'}</div></div>
+      <div class="stat-box"><div class="k">${dcName}</div><div class="v" style="font-size:15px">${dc.champion?'Winners':dc.alive?'—':'Out'}</div></div></div>
     <div style="margin-top:16px;display:flex;gap:10px"><button class="btn primary" onclick="Game.afterSeasonSummary()">Continue to Summer →</button></div>
   </div>`);
 };
@@ -4366,12 +4269,13 @@ Game.renderCalendar=function(v){
   html+='</div><div class="cal-legend">'+Object.entries(COMP_COLOR).map(([k,c])=>`<span><i style="background:${c}"></i>${k}</span>`).join('')+'</div>';
   card.innerHTML=html; v.appendChild(card);
 };
-/* ---------------- CUPS (Champions Cup + Domestic Cup) ---------------- */
+/* ---------------- CUPS (Champions League + Domestic Cup) ---------------- */
 Game.renderCups=function(v){
   this.setCrumbs('Competitions','Cups');
   const tab=this.cupsTab||'cc';
+  const dcName=this.state.club?domesticCupName(this.leagueOf(this.state.club).nat):'Domestic Cup';
   v.innerHTML=`<div class="view-head"><div><div class="kicker">European & Domestic</div><h2>Cup Competitions</h2><div class="sub">Full brackets — every club's path, not just yours.</div></div>
-    <div class="seg">${[['cc','Champions Cup'],['dc','Domestic Cup']].map(t=>`<button class="${tab===t[0]?'on':''}" onclick="Game.setCupsTab('${t[0]}')">${t[1]}</button>`).join('')}</div></div>`;
+    <div class="seg">${[['cc','Champions League'],['dc',dcName]].map(t=>`<button class="${tab===t[0]?'on':''}" onclick="Game.setCupsTab('${t[0]}')">${t[1]}</button>`).join('')}</div></div>`;
   v.appendChild(tab==='cc'? this.ccPanelEl() : this.dcPanelEl());
 };
 Game.setCupsTab=function(t){this.cupsTab=t;this.go('cups')};
@@ -4385,7 +4289,7 @@ Game.bracketTieRow=function(t){
 Game.ccPanelEl=function(){
   const cc=this.state.cc;
   const card=el('div','card card-pad');
-  if(!cc){ card.innerHTML='<h4>Champions Cup</h4><div class="empty">You didn\'t qualify this season. Finish in the top four of the top flight to reach the Champions Cup.</div>'; return card; }
+  if(!cc){ card.innerHTML='<h4>Champions League</h4><div class="empty">You didn\'t qualify this season. Finish in the top four of the top flight to reach the Champions League.</div>'; return card; }
   const g=cc.groups[cc.userGroupIdx];
   card.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><h4 style="display:flex;align-items:center;gap:8px">${ccBall(20)} Group ${g.letter}</h4>${cc.champion?`<span class="badge gold">${this.clubOf(cc.champion).short} won it</span>`:''}</div>
     <table class="tbl"><thead><tr><th>Club</th><th class="n">P</th><th class="n">GD</th><th class="n">Pts</th></tr></thead><tbody>
@@ -4402,11 +4306,11 @@ Game.ccPanelEl=function(){
   return card;
 };
 Game.dcPanelEl=function(){
-  const dc=this.state.dc;
+  const dc=this.state.dc; const dcName=domesticCupName(this.leagueOf(this.state.club).nat);
   const wrap=el('div',null);
-  if(!dc){ wrap.innerHTML='<div class="card card-pad"><div class="empty">Your Domestic Cup run begins once the season is underway.</div></div>'; return wrap; }
+  if(!dc){ wrap.innerHTML=`<div class="card card-pad"><div class="empty">Your ${dcName} run begins once the season is underway.</div></div>`; return wrap; }
   const status=el('div','card card-pad'); status.style.marginBottom='16px';
-  status.innerHTML=`<div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap"><h4 style="margin:0">Domestic Cup · 32-club knockout</h4>
+  status.innerHTML=`<div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap"><h4 style="margin:0">${dcName} · 32-club knockout</h4>
     ${dc.champion?`<span class="badge gold">${this.clubOf(dc.champion).short} are champions</span>`:dc.alive?'<span class="badge good">You are still in it</span>':'<span class="badge bad">You were knocked out</span>'}</div>
     ${dc.history.length?`<div style="margin-top:12px">${dc.history.map(h=>`<div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--line);cursor:pointer" onclick='Game.showClub("${h.opp}")'><span style="width:100px;color:var(--dim);font-size:11px">${h.round}</span><span class="mini-crest">${crestSVG(this.clubOf(h.opp),18)}</span><b style="font-size:12.5px">${this.clubOf(h.opp).short}</b><span style="margin-left:auto;font-weight:900;color:${h.win?'var(--good)':'var(--bad)'}">${h.myG}-${h.opG}${h.pens?' (p)':''}</span></div>`).join('')}</div>`:''}`;
   wrap.appendChild(status);
@@ -4604,7 +4508,7 @@ Game.showInbox=function(){
         <button class="btn sm" onclick="Game.acceptNatJob('${j.nat}')">Accept</button></div>`).join('')}<div class="divider"></div>`:''}
     ${o.bids.length?`<div style="font-size:12px;color:var(--dim);text-transform:uppercase;letter-spacing:.1em;margin:6px 0 8px">Bids for Your Players</div>${o.bids.map((b,i)=>`
       <div class="market-row" style="grid-template-columns:40px 1fr auto auto auto">
-        <div class="face" style="width:38px;height:38px;border-radius:10px;overflow:hidden;border:1px solid var(--line2)">${faceSVG(b.seed,38)}</div>
+        
         <div><b>${b.name}</b> <span style="color:var(--dim);font-size:12px">${b.pos} · ${b.ovr}</span><div style="color:var(--dim);font-size:11.5px">${this.clubOf(b.buyer).name} bid</div></div>
         <b style="color:var(--acc);margin-right:6px">${money(b.bid)}</b>
         <button class="btn sm ghost" onclick="Game.negotiateBid(${i})">Negotiate</button>
@@ -5494,12 +5398,12 @@ Game.wcManageSquad=function(){
   const sq=this.nationSquad(uk);
   const bench=L.subs.map(id=>this._natCache[id]).filter(Boolean);
   const slots=this.slotList();
-  const bcard=(p)=>`<div class="bcard ${this._wcSel===p.id?'sel':''}" onclick="Game.wcPick('${p.id}')"><div class="bpos"><i></i>${p.pos}</div><div class="bface">${faceSVG(p.seed,40)}</div><div style="min-width:0"><div class="bnm">${p.last}</div><div class="bage">Age ${p.age}</div></div><div class="bovr">${p.ovr}</div></div>`;
+  const bcard=(p)=>`<div class="bcard ${this._wcSel===p.id?'sel':''}" onclick="Game.wcPick('${p.id}')"><div class="bpos"><i></i>${p.pos}</div><div style="min-width:0"><div class="bnm">${p.last}</div><div class="bage">Age ${p.age}</div></div><div class="bovr">${p.ovr}</div></div>`;
   const pitch=el('div','tm-pitch');
   const f=FORMATIONS[this.state.formation]||FORMATIONS['4-3-3'];
   pitch.innerHTML=`<svg viewBox="0 0 100 81" preserveAspectRatio="none"><g class="pitch-line"><rect x="3" y="3" width="94" height="75"/><line x1="3" y1="40.5" x2="97" y2="40.5"/><circle cx="50" cy="40.5" r="9"/></g></svg>`;
   xi.forEach((p,i)=>{const[x,y]=f.pos[i];const chip=el('div','pp'+(this._wcSel===p.id?' sel':''));chip.style.left=x+'%';chip.style.top=y+'%';
-    chip.innerHTML=`<div class="pp-top"><div class="pp-face">${faceSVG(p.seed,52)}</div><div class="pp-ovr">${p.ovr}</div></div><div class="pp-bar"></div><div class="pp-name">${p.last}</div><div class="pp-pos">${slots[i]}</div>`;
+    chip.innerHTML=`<div class="pp-top"><div class="pp-ovr">${p.ovr}</div></div><div class="pp-bar"></div><div class="pp-name">${p.last}</div><div class="pp-pos">${slots[i]}</div>`;
     chip.onclick=()=>this.wcPick(p.id); pitch.appendChild(chip);});
   this.openModalHTML(`<div style="padding:22px"><div class="kicker">${flagEmoji(uk)} ${natName(uk)}</div><h2 style="margin:6px 0 4px">Manage Squad</h2>
     <div class="tm-hint">Tap two players to swap. Your XI is used in matches.</div>
@@ -5690,14 +5594,14 @@ Game.showClub=function(name){
   let pitchInner=`<svg viewBox="0 0 100 81" preserveAspectRatio="none"><g class="pitch-line"><rect x="3" y="3" width="94" height="75"/><line x1="3" y1="40.5" x2="97" y2="40.5"/><circle cx="50" cy="40.5" r="9"/></g></svg>`;
   xi.forEach((p,i)=>{ const pos=f.pos[i]; if(!pos)return; const [x,y]=pos;
     pitchInner+=`<div class="pp" style="left:${x}%;top:${y}%" onclick='Game.openPlayer("${p.id}")'>
-      <div class="pp-top"><div class="pp-face">${faceSVG(p.seed,52)}</div><div class="pp-ovr">${p.ovr}</div></div>
+      <div class="pp-top"><div class="pp-ovr">${p.ovr}</div></div>
       <div class="pp-bar"></div><div class="pp-name">${p.last}</div><div class="pp-pos">${slots[i]||p.pos}</div></div>`; });
   const groups={GK:'Goalkeepers',DEF:'Defenders',MID:'Midfielders',ATT:'Forwards'};
   let roster='';
   ['GK','DEF','MID','ATT'].forEach(g=>{ const list=sq.filter(p=>p.posGroup===g); if(!list.length)return;
     roster+=`<div class="roster-group">${groups[g]} · ${list.length}</div>`+list.map(p=>`<div class="rrow" onclick='Game.openPlayer("${p.id}")'>
       <div class="ovr ${ovrClass(p.ovr)}" style="width:34px;height:34px;font-size:14px">${p.ovr}</div>
-      <div class="face">${faceSVG(p.seed,40)}</div>
+      
       <div class="info"><b>${p.name}</b><div class="sub">Age ${p.age} · ${money(p.value)}</div></div>
       <div class="pos-tag">${p.pos}</div></div>`).join(''); });
   this.openModalHTML(`<div style="padding:26px 26px 0">
@@ -5731,7 +5635,7 @@ Game.showNationSquad=function(k){
     <div class="pcard-info"><div class="kicker">National Team</div><h2>${n.name}</h2><div class="row">Projected Starting XI · Avg OVR ${Math.round(players.reduce((s,p)=>s+p.ovr,0)/players.length)}</div></div></div>
     <div style="padding:0 20px 20px">${players.map(p=>`<div class="rrow" onclick='Game.openPlayer("${p.id}")' style="cursor:pointer">
       <div class="ovr ${ovrClass(p.ovr)}" style="width:32px;height:32px;font-size:13px">${p.ovr}</div>
-      <div class="face">${faceSVG(p.seed,40)}</div><div class="info"><b>${p.name}</b><div class="sub">${p.pos} · Age ${p.age}</div></div><div class="pos-tag">${p.pos}</div></div>`).join('')}</div>`);
+      <div class="info"><b>${p.name}</b><div class="sub">${p.pos} · Age ${p.age}</div></div><div class="pos-tag">${p.pos}</div></div>`).join('')}</div>`);
   // register these players so openPlayer can find them
   this._natCache=this._natCache||{}; players.forEach(p=>this._natCache[p.id]=p);
 };
@@ -5775,7 +5679,7 @@ Game.renderTrophies=function(v){
   const label=c?c.name:this.state.internationalOnly?natName(this.state.natJob):'Manager';
   this.setCrumbs('Manager',label,'Trophies');
   v.innerHTML=`<div class="view-head"><div><div class="kicker">Legacy</div><h2>Trophy Cabinet</h2><div class="sub">Silverware won during your ${label} tenure.</div></div></div>`;
-  const all=(c?LEAGUES.map(l=>l.name):[]).concat(['Champions Cup','Domestic Cup','Continental Cup','Challenger Cup','World Cup','Continental Championship']);
+  const all=(c?LEAGUES.map(l=>l.name):[]).concat(['Champions League','Domestic Cup','Continental Cup','Challenger Cup','World Cup','Continental Championship']);
   const grid=el('div','trophy-grid');
   all.forEach(name=>{
     const won=this.state.trophies[name]||0;
@@ -5922,7 +5826,7 @@ Game.renderPresser=function(v){
   meters.innerHTML=`<div class="meters">${meter('Board Confidence',this.state.boardConfidence,'var(--acc2)')}${meter('Squad Morale',this.state.morale,'var(--acc)')}${meter('Fan Happiness',this.state.fanHappiness,'var(--gold)')}</div>`;
   wrap.appendChild(meters);
   const q=el('div','q-bubble');
-  q.innerHTML=`<div class="rep">${faceSVG('reporter'+idx,44)}</div><div><div class="who">${p.who}</div><div class="q">${p.q}</div></div>`;
+  q.innerHTML=`<div><div class="who">${p.who}</div><div class="q">${p.q}</div></div>`;
   wrap.appendChild(q);
   const ans=el('div','answers');
   p.a.forEach((a,i)=>{
@@ -5970,7 +5874,7 @@ Game.renderStats=function(v){
       <div class="stat-box"><div class="k">Players Used</div><div class="v">${rows.filter(x=>x.apps>0).length}</div></div>
       <div class="stat-box"><div class="k">Top Scorer</div><div class="v" style="font-size:15px">${(rows[0]&&rows[0].g)?rows[0].p.last+' ('+rows[0].g+')':'—'}</div></div></div>
       <table class="tbl"><thead><tr><th>Player</th><th>Pos</th><th class="n">Apps</th><th class="n">Goals</th><th class="n">Assists</th><th class="n">G+A</th></tr></thead><tbody>
-      ${rows.map(x=>`<tr><td class="cl" style="cursor:pointer" onclick='Game.openPlayer("${x.p.id}")'><div class="face" style="width:26px;height:26px;border-radius:7px;overflow:hidden;border:1px solid var(--line2)">${faceSVG(x.p.seed,26)}</div>${x.p.name} <span style="color:var(--dim);font-weight:600">${x.p.ovr}</span></td>
+      ${rows.map(x=>`<tr><td class="cl" style="cursor:pointer" onclick='Game.openPlayer("${x.p.id}")'>${x.p.name} <span style="color:var(--dim);font-weight:600">${x.p.ovr}</span></td>
         <td>${x.p.pos}</td><td class="n">${x.apps}</td><td class="n"><b>${x.g}</b></td><td class="n">${x.a}</td><td class="n"><b>${x.g+x.a}</b></td></tr>`).join('')}
       </tbody></table>`;
     v.appendChild(card); return;
@@ -6342,7 +6246,7 @@ Game.openPlayer=function(id){
   if(onLoanElsewhere) statusBadges.push(`<span class="badge">On loan at ${this.clubOf(p.club)?this.clubOf(p.club).short:p.club}</span>`);
   this.openModalHTML(`
     <div class="pcard-top"><div class="pcard-glow"></div>
-      <div class="big-face">${faceSVG(p.seed,150)}</div>
+      
       <div class="pcard-info">
         <div class="kicker">${isFree?'Free Agent':this.clubOf(p.club)?this.clubOf(p.club).name:p.club} · ${p.pos}</div>
         <h2>${p.name}</h2>
