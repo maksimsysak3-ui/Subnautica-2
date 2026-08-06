@@ -416,9 +416,27 @@
   :root[data-layout="risingstars"] #menuScrim{
     background:linear-gradient(0deg,rgba(6,7,11,.94) 0%,rgba(6,7,11,.35) 18%,transparent 34%),
       linear-gradient(180deg,rgba(6,7,11,.80),transparent 26%)}
+  /* The helmet layouts strip the page back, and the circuit selector went with
+     it -- which left no way to see or change what you were about to drive on.
+     It comes back in the top-left corner, clear of the title and of the
+     left-hand helmet, and it opens DOWNWARD because up there is no room above
+     it. Everything else on these layouts stays gone. */
   :root[data-layout="legends"] #mTrackStrip,
   :root[data-layout="scanned"] #mTrackStrip,
-  :root[data-layout="risingstars"] #mTrackStrip{display:none}
+  :root[data-layout="risingstars"] #mTrackStrip{
+    left:clamp(24px,3vw,48px);right:auto;top:clamp(22px,3.6vh,42px);bottom:auto;
+    width:min(268px,34vw)}
+  :root[data-layout="legends"] #tsBtn,
+  :root[data-layout="scanned"] #tsBtn,
+  :root[data-layout="risingstars"] #tsBtn,
+  :root[data-layout="legends"] #tsMenu,
+  :root[data-layout="scanned"] #tsMenu,
+  :root[data-layout="risingstars"] #tsMenu{width:100%}
+  /* opens downward here, not upward */
+  :root[data-layout="legends"] #tsMenu,
+  :root[data-layout="scanned"] #tsMenu,
+  :root[data-layout="risingstars"] #tsMenu{bottom:auto;top:calc(100% + 6px);
+    max-height:min(62vh,430px);box-shadow:0 22px 54px -14px rgba(0,0,0,.85)}
 
   /* ---- SHAPE STYLES. The menu's cut is a variable, so a preset can change the
      whole feel of the interface without touching a rule. ---- */
