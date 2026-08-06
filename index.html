@@ -85,9 +85,6 @@
   :root[data-theme="light"] #mProfile .l,
   :root[data-theme="light"] #navList li .ix{color:rgba(20,22,27,.52)}
   :root[data-theme="light"] #navList li .t .tg{color:rgba(20,22,27,.46)}
-  :root[data-theme="light"] .tsChip{color:rgba(20,22,27,.72);background:rgba(20,22,27,.10)}
-  :root[data-theme="light"] .tsChip:hover{color:var(--type);background:rgba(20,22,27,.16)}
-  :root[data-theme="light"] .tsChip.on{color:#fff;background:var(--red)}
   :root[data-theme="light"] #navList::before,
   :root[data-theme="light"] #mSpine::before{
     background:linear-gradient(180deg,transparent,rgba(20,22,27,.22) 14%,rgba(20,22,27,.22) 86%,transparent)}
@@ -425,7 +422,7 @@
 
   /* ---- SHAPE STYLES. The menu's cut is a variable, so a preset can change the
      whole feel of the interface without touching a rule. ---- */
-  #navList li::before,#mProfile .pNum,.tsChip{ }
+  #navList li::before,#mProfile .pNum{ }
   :root[data-shape="square"]{ --skew:0deg; --radius:0px; }
   :root[data-shape="soft"]{   --skew:0deg; --radius:9px; }
   :root[data-shape="blade"]{  --skew:-17deg; --radius:0px; }
@@ -915,23 +912,48 @@
   #mdMeta .k{font-family:var(--mono);font-size:8.5px;letter-spacing:.28em;
     color:rgba(255,255,255,.40);text-transform:uppercase;font-weight:700}
   #mdMeta .v{font-family:var(--mono);font-weight:800;font-size:17px;margin-top:6px;color:#fff}
-  /* CIRCUIT STRIP. Tickets in a row, cut on the same diagonal as everything
-     else, with the selected one inked in. */
+  /* CIRCUIT SELECTOR. Twenty-odd tickets in a scrolling row meant the circuit
+     you wanted was usually off the end of the strip, and on the layouts where
+     the strip is narrow it was nearly all off the end. A dropdown shows the
+     current choice at a glance and the whole calendar in one press. */
   #mTrackStrip{position:absolute;left:clamp(62px,7vw,104px);right:clamp(30px,5vw,70px);
-    bottom:clamp(52px,8.4vh,80px);
-    display:none;gap:5px;overflow-x:auto;scrollbar-width:none;pointer-events:auto;
-    -webkit-mask-image:linear-gradient(90deg,transparent,#000 4%,#000 96%,transparent);
-    mask-image:linear-gradient(90deg,transparent,#000 4%,#000 96%,transparent)}
-  #mTrackStrip::-webkit-scrollbar{display:none}
-  #mTrackStrip.on{display:flex}
-  .tsChip{flex:0 0 auto;padding:6px 12px;border:none;cursor:pointer;
-    font-family:var(--mono);font-size:9px;font-weight:800;letter-spacing:.14em;
-    color:var(--type-3);white-space:nowrap;transform:skewX(var(--skew));
-    border-radius:var(--radius);
-    background:rgba(127,127,127,.14);transition:background .16s,color .16s}
-  .tsChip>span{display:inline-block;transform:skewX(calc(var(--skew) * -1))}
-  .tsChip:hover{color:#fff;background:rgba(255,255,255,.13)}
-  .tsChip.on{background:var(--red);color:#fff;box-shadow:0 0 20px rgba(225,6,0,.42)}
+    bottom:clamp(52px,8.4vh,80px);display:none;pointer-events:auto;z-index:22}
+  #mTrackStrip.on{display:block}
+  #tsBtn{display:flex;align-items:center;gap:10px;width:min(340px,100%);
+    padding:9px 12px;cursor:pointer;border:1px solid rgba(127,127,127,.30);
+    border-left:2px solid var(--red);border-radius:var(--radius);
+    background:rgba(10,13,18,.82);font-family:var(--mono);font-size:10px;
+    font-weight:800;letter-spacing:.16em;color:var(--type);
+    transition:border-color .16s,background .16s}
+  #tsBtn:hover{background:rgba(18,22,30,.92);border-color:rgba(255,255,255,.34)}
+  #tsBtn .tsFlag{font-size:14px;letter-spacing:0}
+  #tsBtn .tsName{flex:1;text-align:left;white-space:nowrap;overflow:hidden;
+    text-overflow:ellipsis}
+  #tsBtn .tsCue{font-size:8px;color:var(--type-3);letter-spacing:.2em}
+  /* the caret flips when the list is open, which is the only affordance a
+     dropdown really needs */
+  #tsBtn .tsArrow{transition:transform .18s ease}
+  #mTrackStrip.open #tsBtn .tsArrow{transform:rotate(180deg)}
+  #mTrackStrip.open #tsBtn{border-color:var(--red)}
+  /* opens UPWARD: the button lives near the bottom edge of every layout that
+     shows it, so a list dropping down would run off the screen */
+  #tsMenu{display:none;position:absolute;left:0;bottom:calc(100% + 6px);
+    width:min(340px,100%);max-height:min(46vh,340px);overflow-y:auto;
+    background:rgba(8,10,15,.96);border:1px solid rgba(127,127,127,.26);
+    border-radius:var(--radius);box-shadow:0 18px 50px -12px rgba(0,0,0,.8)}
+  #mTrackStrip.open #tsMenu{display:block}
+  #tsMenu::-webkit-scrollbar{width:6px}
+  #tsMenu::-webkit-scrollbar-thumb{background:rgba(255,255,255,.18)}
+  .tsRow{display:flex;align-items:center;gap:10px;padding:8px 12px;cursor:pointer;
+    font-family:var(--mono);font-size:9.5px;font-weight:700;letter-spacing:.13em;
+    color:var(--type-2);border-left:2px solid transparent}
+  .tsRow .tsFlag{font-size:13px;letter-spacing:0}
+  .tsRow .tsLen{margin-left:auto;font-size:8px;color:var(--type-3);letter-spacing:.08em}
+  .tsRow:hover{background:rgba(255,255,255,.07);color:#fff}
+  .tsRow.on{background:rgba(225,6,0,.18);border-left-color:var(--red);color:#fff}
+  :root[data-theme="light"] #tsBtn,:root[data-theme="light"] #tsMenu{
+    background:rgba(250,250,252,.96)}
+  :root[data-theme="light"] .tsRow:hover{background:rgba(20,22,27,.08);color:var(--type)}
   #mDetail.swap{animation:swap .42s cubic-bezier(.2,.8,.2,1)}
   @keyframes swap{0%{opacity:0;transform:translateX(14px)}100%{opacity:1;transform:none}}
 
@@ -3523,34 +3545,13 @@ const WEATHER={cond:'clear', next:null, blend:1, wetness:0, cloud:0, tod:0.4, to
    shared by every material that sways, so the whole world moves together and a
    gust crosses the circuit rather than hitting each tree independently. */
 const WINDU={value:new THREE.Vector4(0.7,0.7,0.35,0)};
-/* Patch a standard material to sway. The displacement is applied to the
-   INSTANCE, not to the vertices within it: a crown lobe rocks as one mass,
-   which is what a canopy does, and it costs one sine per vertex rather than a
-   skinned tree per frame. Amplitude scales with the instance's own height, so
-   an emergent moves visibly and a sapling barely does, and the phase is taken
-   from world position so the gust travels. */
-function windify(mat, k){
-  k=k===undefined?1:k;
-  mat.onBeforeCompile=(sh)=>{
-    sh.uniforms.uWind=WINDU;
-    sh.uniforms.uWindK={value:k};
-    sh.vertexShader='uniform vec4 uWind;\nuniform float uWindK;\n'+sh.vertexShader;
-    sh.vertexShader=sh.vertexShader.replace('#include <begin_vertex>',
-      `#include <begin_vertex>
-       #ifdef USE_INSTANCING
-         vec3 iPos = instanceMatrix[3].xyz;
-         float iH  = length(instanceMatrix[1].xyz);
-         float ph  = iPos.x*0.035 + iPos.z*0.028;
-         float w   = sin(uWind.w*1.7 + ph) * 0.62
-                   + sin(uWind.w*3.3 + ph*1.7) * 0.26
-                   + sin(uWind.w*6.1 + ph*2.9) * 0.12;
-         transformed.xz += uWind.xy * w * uWind.z * uWindK * iH * 0.075;
-       #endif`);
-  };
-  // a patched shader is a different program; three keys its cache on this
-  mat.customProgramCacheKey=()=>'wind'+k;
-  return mat;
-}
+/* SWAY IS OFF. It moved the crowns and not the trunks, which is exactly the
+   look it was meant to avoid: foliage drifting off the log it grows on. The
+   uniform stays -- it costs nothing and the rain slant reads it -- but nothing
+   displaces geometry any more, so windify() hands the material straight back.
+   Restoring it means re-adding the onBeforeCompile patch here AND giving the
+   trunks the same displacement, or it will look wrong again. */
+function windify(mat){ return mat; }
 /* pick the session's starting weather + time of day for this venue */
 function rollWeather(cfg){
   const cl=CLIMATE[cfg.id]||{w:{clear:3,scattered:3,overcast:2,damp:1,rain:1,storm:0.5},vol:0.8,tod:[0.3,0.6]};
@@ -6342,8 +6343,8 @@ function buildForest(sc,P,Nm,offL,offR){
     const bi=(Math.random()*buckets.length)|0;
     const conifer=bi<3;
     if(conifer){
-      trunks.list.push({x,y,z,w:h*0.045,h:h*0.22,yOff:h*0.11});
-      for(const [tw,th,ty] of [[1.00,0.46,0.30],[0.74,0.34,0.56],[0.46,0.26,0.78]])
+      trunks.list.push({x,y,z,w:h*0.045,h:h*0.40,yOff:h*0.20});
+      for(const [tw,th,ty] of [[1.00,0.50,0.22],[0.74,0.36,0.50],[0.46,0.28,0.74]])
         buckets[bi].list.push({x,y,z,w:w*tw,h:h*th,yOff:h*(ty+th*0.5)});
     }else{
       trunks.list.push({x,y,z,w:h*0.055,h:h*0.52,yOff:h*0.26});
@@ -10795,11 +10796,11 @@ function venueKit(sc,P,Nm){
         const h=treeH(o.hMin,o.hMax)*sizeBias;
         if(Math.random()<o.coniferMix){
           const w=h*(0.22+Math.random()*0.12);
-          trunkB.add({x,z,y,w:h*0.045,h:h*0.20,d:h*0.045,yOff:h*0.10});
+          trunkB.add({x,z,y,w:h*0.045,h:h*0.40,d:h*0.045,yOff:h*0.20});
           // same stacked skirts as the belt conifers, so a stand read from the
           // car and a stand read from the horizon are the same species
           const bi=(Math.random()*coneB.length)|0;
-          for(const [tw,th,ty] of [[1.00,0.46,0.30],[0.74,0.34,0.56],[0.46,0.26,0.78]])
+          for(const [tw,th,ty] of [[1.00,0.50,0.22],[0.74,0.36,0.50],[0.46,0.28,0.74]])
             coneB[bi].add({x,z,y,w:w*tw,h:h*th,d:w*tw,yOff:h*(ty+th*0.5)});
         }else{
           trunkB.add({x,z,y,w:h*0.055,h:h*0.52,d:h*0.055,yOff:h*0.26});
@@ -10838,13 +10839,16 @@ function venueKit(sc,P,Nm){
       const h=treeH(hMin,hMax), w=h*(slim||0.42)*0.68*(0.85+Math.random()*0.4);
       if(!OCCUPY.take(p.x,p.z,w*0.55,0.55)) continue;
       const y=gh(p.x,p.z);
-      trunkB.add({x:p.x,z:p.z,y,w:h*0.045,h:h*0.22,d:h*0.045,yOff:h*0.11});
+      /* The bole has to reach INTO the crown. At h*0.22 its top finished a
+         twelfth of the tree below where the bottom skirt began, and the whole
+         canopy floated clear of the log it was supposed to be growing on. */
+      trunkB.add({x:p.x,z:p.z,y,w:h*0.045,h:h*0.40,d:h*0.045,yOff:h*0.20});
       plant(p.x,p.z);
       /* A fir is not one cone. It is a stack of skirts, each narrower and
          shorter than the one below, and that stepped silhouette is what makes a
          conifer read as a conifer instead of as a traffic cone. */
       const bi=(Math.random()*bs.length)|0;
-      const tiers=[[1.00,0.46,0.30],[0.74,0.34,0.56],[0.46,0.26,0.78]];
+      const tiers=[[1.00,0.50,0.22],[0.74,0.36,0.50],[0.46,0.28,0.74]];
       for(const [tw,th,ty] of tiers)
         bs[bi].add({x:p.x,z:p.z,y,w:w*tw,h:h*th,d:w*tw,yOff:h*(ty+th*0.5)});
       placed++;}
@@ -17348,10 +17352,17 @@ let peekT=null;
 function settingsPeek(ms){
   const el=$('#settings'); if(!el) return;
   el.classList.add('peek');
+  /* openSettings() takes the menu down. Fading the settings sheet therefore
+     revealed the empty backdrop, and the only layouts that appeared to change
+     were the helmet ones -- because those change the 3D scene rather than the
+     panels. The menu goes back up for the duration of the preview, which is the
+     entire point of it. */
+  const mn=$('#menu'); if(mn) mn.classList.add('on');
   const hint=$('#setPeekHint'); if(hint) hint.classList.add('on');
   clearTimeout(peekT);
   peekT=setTimeout(()=>{ el.classList.remove('peek');
-    const h=$('#setPeekHint'); if(h) h.classList.remove('on'); }, ms||1500);
+    if(setOn){ const m=$('#menu'); if(m) m.classList.remove('on'); }
+    const h=$('#setPeekHint'); if(h) h.classList.remove('on'); }, ms||1900);
 }
 function renderSettings(){
   const tabs=$('#setTabs'); if(!tabs) return;
@@ -17512,20 +17523,43 @@ const TRACK_SHORT={spa:'SPA',yas:'ABU DHABI',silverstone:'SILVERSTONE',monaco:'M
   saopaulo:'INTERLAGOS',jeddah:'JEDDAH',catalunya:'BARCELONA',miami:'MIAMI',montreal:'MONTREAL',
   australia:'MELBOURNE',bahrain:'BAHRAIN',lasvegas:'VEGAS',zandvoort:'ZANDVOORT',baku:'BAKU',
   hungary:'HUNGARORING',qatar:'LOSAIL',texas:'AUSTIN'};
+/* Closing the circuit list when you press anywhere else. Registered once. */
+let _tsBound=false;
 function buildTrackStrip(){
-  const st=$('#mTrackStrip'); if(!st) return; st.innerHTML='';
-  TRACK_IDS.forEach((id,i)=>{const cf=TRACKS[id];
-    const c=document.createElement('div');c.className='tsChip'+(i===selTrack?' on':'');
-    /* The chip is skewed, so the label sits in a counter-skewed span — otherwise
-       the type leans too and it looks like a mistake rather than a decision. */
-    { const sp=document.createElement('span');
-      sp.textContent=cf.flag+' '+(TRACK_SHORT[id]||cf.name.split(/[- ]/)[0]);
-      c.appendChild(sp); }
-    c.onclick=()=>{selTrack=i;renderDetail();Sound.init();Sound.blip(470,.05);};
-    st.appendChild(c);});
-  // keep the selected circuit in view as you cycle through them
-  const on=st.children[selTrack];
-  if(on&&on.scrollIntoView) on.scrollIntoView({block:'nearest',inline:'center'});
+  const st=$('#mTrackStrip'); if(!st) return;
+  const cur=TRACKS[TRACK_IDS[selTrack]];
+  st.innerHTML=
+    `<div id="tsBtn">
+       <span class="tsFlag">${cur.flag}</span>
+       <span class="tsName">${esc(cur.name)}</span>
+       <span class="tsCue">CIRCUIT</span>
+       <span class="tsArrow">▾</span>
+     </div>
+     <div id="tsMenu">`+
+    TRACK_IDS.map((id,i)=>{const cf=TRACKS[id];
+      return `<div class="tsRow${i===selTrack?' on':''}" data-i="${i}">
+                <span class="tsFlag">${cf.flag}</span>
+                <span>${esc(TRACK_SHORT[id]||cf.name)}</span>
+                <span class="tsLen">${(cf.len/1000).toFixed(2)} KM</span>
+              </div>`;}).join('')+
+    `</div>`;
+  const btn=st.querySelector('#tsBtn'), menu=st.querySelector('#tsMenu');
+  btn.onclick=(e)=>{ e.stopPropagation();
+    st.classList.toggle('open'); Sound.init(); Sound.blip(470,.05);
+    if(st.classList.contains('open')){
+      const on=menu.querySelector('.tsRow.on');
+      if(on&&on.scrollIntoView) on.scrollIntoView({block:'nearest'});
+    }};
+  menu.onclick=(e)=>{ e.stopPropagation();
+    const row=e.target.closest('.tsRow'); if(!row) return;
+    selTrack=+row.dataset.i; st.classList.remove('open');
+    renderDetail(); Sound.init(); Sound.blip(560,.05); };
+  if(!_tsBound){ _tsBound=true;
+    document.addEventListener('click',()=>{
+      const w=$('#mTrackStrip'); if(w) w.classList.remove('open'); });
+    document.addEventListener('keydown',(e)=>{
+      if(e.key==='Escape'){ const w=$('#mTrackStrip'); if(w) w.classList.remove('open'); } });
+  }
 }
 function renderDetail(){const m=MODES[sel];
   $('#mdTag').textContent=m.tag;
@@ -23658,6 +23692,11 @@ function frame(){
      stepWeather meant it only ticked during a session, so the trees stood dead
      still in the menu, on the grid and in every replay. */
   WINDU.value.w=(WINDU.value.w+dt)%10000;
+  /* THE CAR HAS TO BE VISIBLE EVERYWHERE THAT IS NOT THE MENU. The car-less
+     menu layouts -- pitwall, dossier, tiles, minimal, the helmet trios -- hide
+     the rig, and nothing put it back, so picking one of those layouts and then
+     starting a race gave you an invisible car for the rest of the session. */
+  if(STATE!=='menu' && CAR.rig && !CAR.rig.visible) CAR.rig.visible=true;
   if(STATE==='menu'){
     /* EACH LAYOUT IS ITS OWN SCREEN, NOT THE SAME SCREEN REARRANGED.
        Moving the panels around still leaves eleven versions of "a car with some
