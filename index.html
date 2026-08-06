@@ -3510,8 +3510,47 @@ const CLIMATE={
 };
 const WEATHER={cond:'clear', next:null, blend:1, wetness:0, cloud:0, tod:0.4, todRate:0,
   timer:60, vol:0.8, forecast:'', changed:false,
+  /* WIND. Every tree, hedge and patch of long grass in the world reads this,
+     through one shared uniform rather than through the scene graph — swaying
+     fifty thousand instanced crowns from JavaScript is not affordable, and it
+     does not need to be, because the sway is a vertex-shader displacement of
+     each instance as a whole. `str` is the base strength; gusts ride on top of
+     it, so a still day still breathes and a storm thrashes. */
+  windDir:0.7, windStr:0.35, windGust:0,
   force:null,        // one-shot request from the replay or the season calendar
   forceHard:null};   // the opening cinematic — outranks even the settings pin
+/* THE WIND UNIFORM. One Vector4 — direction x, direction z, strength, time —
+   shared by every material that sways, so the whole world moves together and a
+   gust crosses the circuit rather than hitting each tree independently. */
+const WINDU={value:new THREE.Vector4(0.7,0.7,0.35,0)};
+/* Patch a standard material to sway. The displacement is applied to the
+   INSTANCE, not to the vertices within it: a crown lobe rocks as one mass,
+   which is what a canopy does, and it costs one sine per vertex rather than a
+   skinned tree per frame. Amplitude scales with the instance's own height, so
+   an emergent moves visibly and a sapling barely does, and the phase is taken
+   from world position so the gust travels. */
+function windify(mat, k){
+  k=k===undefined?1:k;
+  mat.onBeforeCompile=(sh)=>{
+    sh.uniforms.uWind=WINDU;
+    sh.uniforms.uWindK={value:k};
+    sh.vertexShader='uniform vec4 uWind;\nuniform float uWindK;\n'+sh.vertexShader;
+    sh.vertexShader=sh.vertexShader.replace('#include <begin_vertex>',
+      `#include <begin_vertex>
+       #ifdef USE_INSTANCING
+         vec3 iPos = instanceMatrix[3].xyz;
+         float iH  = length(instanceMatrix[1].xyz);
+         float ph  = iPos.x*0.035 + iPos.z*0.028;
+         float w   = sin(uWind.w*1.7 + ph) * 0.62
+                   + sin(uWind.w*3.3 + ph*1.7) * 0.26
+                   + sin(uWind.w*6.1 + ph*2.9) * 0.12;
+         transformed.xz += uWind.xy * w * uWind.z * uWindK * iH * 0.075;
+       #endif`);
+  };
+  // a patched shader is a different program; three keys its cache on this
+  mat.customProgramCacheKey=()=>'wind'+k;
+  return mat;
+}
 /* pick the session's starting weather + time of day for this venue */
 function rollWeather(cfg){
   const cl=CLIMATE[cfg.id]||{w:{clear:3,scattered:3,overcast:2,damp:1,rain:1,storm:0.5},vol:0.8,tod:[0.3,0.6]};
@@ -4941,6 +4980,19 @@ function updateWeather(sc,dt){
   applyWeatherLook(sc,night,A,B,t);
   if(sc.userData.rain) sc.userData.rain.setIntensity(WEATHER.wetness, WEATHER.stormAmt);
   if(sc.userData.wetRoad) sc.userData.wetRoad(WEATHER.wetness);
+  /* THE WIND. It is not a constant: a calm day still has air moving through the
+     trees, and a storm has gusts that build and drop rather than a steady blast.
+     The direction wanders slowly, the gust rides a slow sine on top of the base
+     strength, and both are pushed hard by the storm amount so a wet, blowing
+     race actually looks like one. */
+  WEATHER.windDir += dt*0.035;
+  const base=0.22 + WEATHER.cloud*0.30 + WEATHER.stormAmt*1.15;
+  WEATHER.windGust = 0.5+0.5*Math.sin(WEATHER.windDir*2.7)
+                   + (0.5+0.5*Math.sin(WEATHER.windDir*7.3))*0.5;
+  WEATHER.windStr += ((base*(0.72+WEATHER.windGust*0.5)) - WEATHER.windStr)*Math.min(1,dt*0.6);
+  WINDU.value.x=Math.cos(WEATHER.windDir);
+  WINDU.value.y=Math.sin(WEATHER.windDir);
+  WINDU.value.z=WEATHER.windStr;
   // reflections track the sky, refreshed every few seconds rather than every frame
   _wxEnvT+=dt; if(_wxEnvT>3.5){ _wxEnvT=0; refreshEnvMap(sc); }
 }
@@ -6278,7 +6330,7 @@ function buildForest(sc,P,Nm,offL,offR){
   const defs=[[coneG,0x18331a],[coneG,0x22461c],[coneG,0x143017],
               [blobG,0x2f5a26],[blobG,0x3c6a2e]];
   const trunkG=new THREE.CylinderGeometry(0.5,0.66,1,5);
-  const buckets=defs.map(([g,c])=>({geo:g,mat:new THREE.MeshStandardMaterial({color:c,roughness:1,flatShading:true}),list:[]}));
+  const buckets=defs.map(([g,c],bi)=>({geo:g,mat:windify(new THREE.MeshStandardMaterial({color:c,roughness:1,flatShading:true}),bi<3?0.55:1.0),list:[]}));
   const trunks={geo:trunkG,mat:new THREE.MeshStandardMaterial({color:0x43331f,roughness:1}),list:[]};
   /* One cone on the ground is not a tree, it is a bollard, and this forest was
      nothing but bollards -- no trunk, one primitive, and a flat height draw
@@ -10631,6 +10683,17 @@ function venueKit(sc,P,Nm){
     if(u<0.24) return hMin*(0.45+Math.random()*0.42);
     return hMin+(hMax-hMin)*Math.pow(Math.random(),1.75);
   };
+  /* A BOUGH. Two points and a radius; the batch gets a tapered cylinder laid
+     along the line between them. Branches are what separate a tree from a green
+     ball balanced on a stick, and they cost nothing extra to draw because they
+     go into the trunk's own batch — same geometry, same material, same call. */
+  const BUP=new THREE.Vector3(0,1,0), BD=new THREE.Vector3();
+  const bough=(b, x0,y0,z0, x1,y1,z1, r)=>{
+    BD.set(x1-x0, y1-y0, z1-z0);
+    const len=BD.length(); if(len<0.4) return;
+    const q=new THREE.Quaternion().setFromUnitVectors(BUP, BD.normalize());
+    b.add({x:(x0+x1)/2, z:(z0+z1)/2, y:0, yOff:(y0+y1)/2, w:r, h:len, d:r, quat:q});
+  };
   /* Every trunk this kit actually plants, recorded under ?debug so placement can
      be measured rather than eyeballed. Counting instanced cylinders and cones
      off the scene graph does not work: traffic cones, bollards, marshal posts
@@ -10644,7 +10707,7 @@ function venueKit(sc,P,Nm){
     count=Math.max(12,Math.round(count*TREE_N));
     const crown=new THREE.IcosahedronGeometry(0.5,1);
     const trunkB=batch(new THREE.CylinderGeometry(0.5,0.6,1,5),new THREE.MeshStandardMaterial({color:0x4a3a2a,roughness:1}));
-    const bs=tones.map(c=>batch(crown,new THREE.MeshStandardMaterial({color:c,roughness:1,flatShading:true})));
+    const bs=tones.map(c=>batch(crown,windify(new THREE.MeshStandardMaterial({color:c,roughness:1,flatShading:true}),1.0)));
     let placed=0,tries=0;
     while(placed<count && tries<count*14){tries++;
       const p=place(); if(!p) continue;
@@ -10663,12 +10726,21 @@ function venueKit(sc,P,Nm){
       const cw=h*(0.62+Math.random()*0.30);
       const bi=(Math.random()*bs.length)|0;
       bs[bi].add({x:p.x,z:p.z,y,w:cw,h:h*0.62,d:cw*(0.88+Math.random()*0.24),yOff:h*0.66});
+      // the crotch: where the bole stops being a bole and starts being branches
+      const forkY=y+h*0.50;
       for(let L=0;L<2;L++){
         const la=Math.random()*TAU, lr=cw*(0.20+Math.random()*0.22), ls=0.50+Math.random()*0.26;
+        const lx=p.x+Math.cos(la)*lr, lz=p.z+Math.sin(la)*lr, ly=y+h*(0.60+Math.random()*0.22);
         bs[(Math.random()*bs.length)|0].add({
-          x:p.x+Math.cos(la)*lr, z:p.z+Math.sin(la)*lr, y,
-          w:cw*ls, h:h*0.44*ls/0.62, d:cw*ls,
-          yOff:h*(0.60+Math.random()*0.22)});
+          x:lx, z:lz, y, w:cw*ls, h:h*0.44*ls/0.62, d:cw*ls, yOff:ly-y});
+        bough(trunkB, p.x,forkY,p.z, lx,ly,lz, h*0.024);
+      }
+      // and a couple of bare limbs into the main mass, so the silhouette against
+      // the sky has structure in it rather than a clean edge
+      for(let L=0;L<2;L++){
+        const la=Math.random()*TAU, lr=cw*(0.34+Math.random()*0.20);
+        bough(trunkB, p.x,forkY,p.z,
+              p.x+Math.cos(la)*lr, y+h*(0.62+Math.random()*0.24), p.z+Math.sin(la)*lr, h*0.018);
       }
       placed++;}
     trunkB.flush(); bs.forEach(b=>b.flush());
@@ -10692,10 +10764,10 @@ function venueKit(sc,P,Nm){
     const crownG=new THREE.IcosahedronGeometry(0.5,1);
     const trunkG=new THREE.CylinderGeometry(0.5,0.66,1,6);
     const trunkB=batch(trunkG,new THREE.MeshStandardMaterial({color:0x4a3a2a,roughness:1}));
-    const coneB=o.coniferTones.map(c=>batch(coneG,new THREE.MeshStandardMaterial({color:c,roughness:1,flatShading:true})));
-    const crownB=o.broadTones.map(c=>batch(crownG,new THREE.MeshStandardMaterial({color:c,roughness:1,flatShading:true})));
+    const coneB=o.coniferTones.map(c=>batch(coneG,windify(new THREE.MeshStandardMaterial({color:c,roughness:1,flatShading:true}),0.55)));
+    const crownB=o.broadTones.map(c=>batch(crownG,windify(new THREE.MeshStandardMaterial({color:c,roughness:1,flatShading:true}),1.0)));
     const scrubB=batch(new THREE.IcosahedronGeometry(0.5,0),
-      new THREE.MeshStandardMaterial({color:0x3f6b2a,roughness:1,flatShading:true}));
+      windify(new THREE.MeshStandardMaterial({color:0x3f6b2a,roughness:1,flatShading:true}),1.6));
     const moundM=new THREE.MeshStandardMaterial({color:0x3a6630,roughness:1,flatShading:true});
     let made=0;
     for(let c=0;c<o.clumps;c++){
@@ -10734,11 +10806,13 @@ function venueKit(sc,P,Nm){
           const w=h*(0.62+Math.random()*0.30);
           const bi=(Math.random()*crownB.length)|0;
           crownB[bi].add({x,z,y,w,h:h*0.62,d:w*(0.88+Math.random()*0.24),yOff:h*0.66});
+          const forkY=y+h*0.50;
           for(let L=0;L<2;L++){
             const la=Math.random()*TAU, lr=w*(0.20+Math.random()*0.22), ls=0.50+Math.random()*0.26;
+            const lx=x+Math.cos(la)*lr, lz=z+Math.sin(la)*lr, ly=y+h*(0.60+Math.random()*0.22);
             crownB[(Math.random()*crownB.length)|0].add({
-              x:x+Math.cos(la)*lr, z:z+Math.sin(la)*lr, y,
-              w:w*ls, h:h*0.44*ls/0.62, d:w*ls, yOff:h*(0.60+Math.random()*0.22)});
+              x:lx, z:lz, y, w:w*ls, h:h*0.44*ls/0.62, d:w*ls, yOff:ly-y});
+            bough(trunkB, x,forkY,z, lx,ly,lz, h*0.024);
           }
         }
         made++;
@@ -10756,7 +10830,7 @@ function venueKit(sc,P,Nm){
     count=Math.max(10,Math.round(count*TREE_N));
     const cone=new THREE.ConeGeometry(0.5,1,7);
     const trunkB=batch(new THREE.CylinderGeometry(0.5,0.7,1,5),new THREE.MeshStandardMaterial({color:0x3e3024,roughness:1}));
-    const bs=tones.map(c=>batch(cone,new THREE.MeshStandardMaterial({color:c,roughness:1,flatShading:true})));
+    const bs=tones.map(c=>batch(cone,windify(new THREE.MeshStandardMaterial({color:c,roughness:1,flatShading:true}),0.55)));
     let placed=0,tries=0;
     while(placed<count && tries<count*14){tries++;
       const p=place(); if(!p) continue;
@@ -10792,7 +10866,7 @@ function venueKit(sc,P,Nm){
     // a frond is a long thin wedge; a crown is eight or nine of them fanned out
     const frondG=new THREE.ConeGeometry(0.5,1,4);
     const fb=[o.frond,o.frond2].map(c=>batch(frondG,
-      new THREE.MeshStandardMaterial({color:c,roughness:1,flatShading:true,side:THREE.DoubleSide})));
+      windify(new THREE.MeshStandardMaterial({color:c,roughness:1,flatShading:true,side:THREE.DoubleSide}),2.2)));
     let placed=0,tries=0;
     while(placed<count && tries<count*14){tries++;
       const p=place(); if(!p) continue;
@@ -15865,7 +15939,7 @@ function stepPhysics(dt,inp){
    unconditionally hands every internal in the game to the page. Behind ?debug. */
 if(DEBUG){window.__step=stepPhysics;window.__reset=resetCar;
   window.__buildTrack=(id)=>{buildWorld(driveScene,TRACKS[id]);builtTrackId=id;return true;};
-  window.__driveScene=driveScene;
+  window.__driveScene=driveScene; window.__WINDU=WINDU;
   window.__trackIds=()=>Object.keys(TRACKS);
   window.__driveScene=driveScene; window.__updateDynamicSky=updateDynamicSky;
   window.__cfgId=()=>CFG.id; window.__WEATHER=WEATHER; window.__rollWeather=rollWeather;
@@ -16997,7 +17071,7 @@ const MENU_LAYOUTS={
 const HELMET_SETS={
   legends:{ title:'LEGENDS', sub:'Three that defined an era',
     picks:[
-      {file:'redbull',      name:'M. VERSTAPPEN', num:'33', sig:'Verstappen', team:'Oracle Red Bull', col:'#1e41ff'},
+      {file:'redbull',      name:'S. VETTEL',     num:'1',  sig:'Vettel',     team:'Red Bull Racing', col:'#1e41ff'},
       {file:'marlboro',     name:'M. SCHUMACHER', num:'1',  sig:'Schumacher', team:'Scuderia Ferrari', col:'#ff5a00'},
       /* the pink lid is Hamilton's, not Mansell's */
       {file:'ferrari_pink', name:'L. HAMILTON',   num:'44', sig:'Hamilton',   team:'Scuderia Ferrari', col:'#ff2e88'},
@@ -17009,7 +17083,7 @@ const HELMET_SETS={
     picks:[
       {file:'norris',        name:'L. NORRIS',     num:'4',  sig:'Norris',     team:'McLaren',        col:'#ff8000'},
       {file:'verstappen_rb', name:'M. VERSTAPPEN', num:'1',  sig:'Verstappen', team:'Oracle Red Bull', col:'#1e41ff'},
-      {file:'classic',       name:'M. SCHUMACHER', num:'1',  sig:'Schumacher', team:'Scuderia Ferrari', col:'#e10600'},
+      {file:'classic',       name:'F. MASSA',      num:'19', sig:'Massa',      team:'Scuderia Ferrari', col:'#e10600'},
     ]},
   risingstars:{ title:'RISING STARS', sub:'The next three on the block',
     picks:[
@@ -23580,6 +23654,10 @@ let LAST_STEP=null;                              // last stepPhysics() result, f
 function frame(){
   const t=performance.now();let dt=(t-last)/1000;last=t;dt=Math.min(dt,0.05);
   perfSample(dt);
+  /* The wind clock runs every frame, in every state. Advancing it inside
+     stepWeather meant it only ticked during a session, so the trees stood dead
+     still in the menu, on the grid and in every replay. */
+  WINDU.value.w=(WINDU.value.w+dt)%10000;
   if(STATE==='menu'){
     /* EACH LAYOUT IS ITS OWN SCREEN, NOT THE SAME SCREEN REARRANGED.
        Moving the panels around still leaves eleven versions of "a car with some
