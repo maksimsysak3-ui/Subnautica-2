@@ -3113,42 +3113,42 @@ let GLOBE=null;                                   // {group, earth, pin, glow}
    Vegas, Baku, Bahrain and Qatar are not lined with trees. */
 const TRACK_FLORA={
   // --- northern European broadleaf and mixed forest ---
-  spa:        {kind:'mixed', from:12, depth:46, rows:8, hMin:26, hMax:48, density:0.92, skip:0.06,
+  spa:        {kind:'mixed', from:12, depth:46, rows:8, hMin:16, hMax:34, density:0.92, skip:0.06,
                tones:[0x2f5a26,0x38682c,0x27491f], tones2:[0x1c4020,0x24501f,0x16331a]},
-  silverstone:{kind:'broad', from:20, depth:28, rows:4, hMin:16, hMax:28, density:0.62, skip:0.30,
+  silverstone:{kind:'broad', from:20, depth:28, rows:4, hMin:11, hMax:22, density:0.62, skip:0.30,
                tones:[0x3d6a30,0x477638,0x325a28]},
-  zandvoort:  {kind:'broad', from:22, depth:26, rows:3, hMin:9,  hMax:16, density:0.50, skip:0.34,
+  zandvoort:  {kind:'broad', from:22, depth:26, rows:3, hMin:4,  hMax:9, density:0.50, skip:0.34,
                tones:[0x4c6a34,0x577640,0x3f5a2a]},   // dune scrub, low and wind-bitten
-  hungary:    {kind:'broad', from:14, depth:35, rows:5, hMin:18, hMax:32, density:0.80, skip:0.12,
+  hungary:    {kind:'broad', from:14, depth:35, rows:5, hMin:12, hMax:24, density:0.80, skip:0.12,
                tones:[0x486b2c,0x527a34,0x3a5a24]},
-  montreal:   {kind:'mixed', from:11, depth:38, rows:7, hMin:20, hMax:36, density:0.88, skip:0.08,
+  montreal:   {kind:'mixed', from:11, depth:38, rows:7, hMin:13, hMax:26, density:0.88, skip:0.08,
                tones:[0x3a6a2c,0x467a34,0x2e5624], tones2:[0x21421f,0x2a4f24]},
   // --- Mediterranean: umbrella pine, cypress, holm oak ---
-  monza:      {kind:'mixed', from:10, depth:44, rows:8, hMin:24, hMax:44, density:0.94, skip:0.05,
+  monza:      {kind:'mixed', from:10, depth:44, rows:8, hMin:15, hMax:32, density:0.94, skip:0.05,
                tones:[0x3c6630,0x467238,0x315528], tones2:[0x24401f,0x2c4a24]},
-  catalunya:  {kind:'conifer',from:16,depth:26, rows:4, hMin:14, hMax:26, density:0.60, skip:0.28,
+  catalunya:  {kind:'conifer',from:16,depth:26, rows:4, hMin:9, hMax:19, density:0.60, skip:0.28,
                tones:[0x3f5a2a,0x4a6632,0x364e22], slim:0.34},
   monaco:     null,                                   // a principality, not a park
   // --- the tropics and the subtropics: palms ---
-  australia:  {kind:'palm',  from:13, depth:26, rows:4, hMin:14, hMax:24, density:0.72, skip:0.16,
+  australia:  {kind:'palm',  from:13, depth:26, rows:4, hMin:9, hMax:18, density:0.72, skip:0.16,
                palm:{frond:0x5c7a3c,frond2:0x6b8a48,trunk:0x9a8a6c,lean:0.16}},  // Melbourne gums + palms
-  miami:      {kind:'palm',  from:12, depth:26, rows:3, hMin:15, hMax:26, density:0.66, skip:0.20,
+  miami:      {kind:'palm',  from:12, depth:26, rows:3, hMin:10, hMax:19, density:0.66, skip:0.20,
                palm:{frond:0x3f7a34,frond2:0x4f8c3f,trunk:0x8f7f61,lean:0.20}},
-  singapore:  {kind:'palm',  from:11, depth:26, rows:3, hMin:16, hMax:28, density:0.70, skip:0.18,
+  singapore:  {kind:'palm',  from:11, depth:26, rows:3, hMin:11, hMax:21, density:0.70, skip:0.18,
                palm:{frond:0x2f6a2c,frond2:0x3d7c38,trunk:0x7d6f55,lean:0.14}},
-  saopaulo:   {kind:'broad', from:12, depth:36, rows:5, hMin:20, hMax:38, density:0.84, skip:0.10,
+  saopaulo:   {kind:'broad', from:12, depth:36, rows:5, hMin:14, hMax:29, density:0.84, skip:0.10,
                tones:[0x2c5a24,0x35682c,0x22481c,0x3f7030]},
-  mexico:     {kind:'broad', from:15, depth:27, rows:4, hMin:16, hMax:28, density:0.64, skip:0.24,
+  mexico:     {kind:'broad', from:15, depth:27, rows:4, hMin:11, hMax:21, density:0.64, skip:0.24,
                tones:[0x44662c,0x4e7234,0x385424]},
-  texas:      {kind:'broad', from:17, depth:29, rows:4, hMin:12, hMax:22, density:0.58, skip:0.30,
+  texas:      {kind:'broad', from:17, depth:29, rows:4, hMin:7, hMax:15, density:0.58, skip:0.30,
                tones:[0x4f6a2e,0x5c7838,0x415a26]},   // live oak and cedar scrub
-  suzuka:     {kind:'mixed', from:12, depth:40, rows:7, hMin:20, hMax:36, density:0.90, skip:0.07,
+  suzuka:     {kind:'mixed', from:12, depth:40, rows:7, hMin:13, hMax:27, density:0.90, skip:0.07,
                tones:[0x35662c,0x407434,0x2b5224], tones2:[0x1f4020,0x274c26]},
-  china:      {kind:'broad', from:18, depth:26, rows:3, hMin:14, hMax:24, density:0.52, skip:0.32,
+  china:      {kind:'broad', from:18, depth:26, rows:3, hMin:9, hMax:18, density:0.52, skip:0.32,
                tones:[0x466a30,0x517838,0x3a5828]},
-  madrid:     {kind:'conifer',from:16,depth:26, rows:3, hMin:12, hMax:22, density:0.52, skip:0.32,
+  madrid:     {kind:'conifer',from:16,depth:26, rows:3, hMin:8, hMax:16, density:0.52, skip:0.32,
                tones:[0x415c2c,0x4b6834], slim:0.36},
-  austria:    {kind:'conifer',from:12,depth:42, rows:7, hMin:22, hMax:40, density:0.90, skip:0.07,
+  austria:    {kind:'conifer',from:12,depth:42, rows:7, hMin:14, hMax:30, density:0.90, skip:0.07,
                tones:[0x1e4522,0x265226,0x17381b,0x2a5a26], slim:0.38},
   // --- and the ones with nothing: street circuits and open desert ---
   jeddah:null, lasvegas:null, baku:null, bahrain:null, qatar:null, yas:null,
@@ -10560,10 +10560,26 @@ function venueKit(sc,P,Nm){
 
   /* MATURE TREES. A few hundred tiny cones make no difference to how populated a
      circuit looks — real trackside trees are 20-45 m tall with crowns wide enough
-     to close over each other. Everything here is scaled by TREE_S and the counts
-     are thinned by TREE_N to match, so we draw FEWER, MUCH BIGGER trees that
-     actually cover ground (and cost less to render than the old confetti). */
-  const TREE_S=1.85, TREE_N=0.66;
+     to close over each other. Counts are thinned by TREE_N so we draw fewer,
+     bigger trees that actually cover ground; heights come from treeH, which
+     gives a stand a real spread of ages rather than one size repeated. */
+  const TREE_N=0.66;
+  /* HOW TALL A TREE ACTUALLY IS. Every species here used to be multiplied by a
+     flat 1.85 on top of its table height, which is where the forest of eighty-
+     metre beeches came from — nothing on earth is that size, and worse, they
+     were ALL that size, because the height was drawn from a flat distribution
+     and a flat draw over a narrow band makes every tree the same tree.
+     A real stand is mostly middling with a few emergents standing clear of the
+     canopy and a scatter of young growth underneath, so the draw is weighted
+     hard toward the bottom of the range and only occasionally reaches the top. */
+  const treeH=(hMin,hMax)=>{
+    const u=Math.random();
+    // one in fourteen is an emergent: over the canopy, and noticeably so
+    if(u<0.07) return hMax*(0.94+Math.random()*0.16);
+    // one in six is young growth well under the canopy
+    if(u<0.24) return hMin*(0.45+Math.random()*0.42);
+    return hMin+(hMax-hMin)*Math.pow(Math.random(),1.75);
+  };
   /* Every trunk this kit actually plants, recorded under ?debug so placement can
      be measured rather than eyeballed. Counting instanced cylinders and cones
      off the scene graph does not work: traffic cones, bollards, marshal posts
@@ -10582,16 +10598,27 @@ function venueKit(sc,P,Nm){
     while(placed<count && tries<count*14){tries++;
       const p=place(); if(!p) continue;
       if(clear(p.x,p.z)<(p.min||70)*(p.min||70)) continue;
-      const h=(hMin+Math.random()*(hMax-hMin))*TREE_S, y=gh(p.x,p.z);
+      const h=treeH(hMin,hMax), y=gh(p.x,p.z);
       // clear of everything already built. A lot of slack, because touching
       // canopies are what a wood looks like — it is trees growing out of
       // buildings and through each other's trunks that reads as broken.
       if(!OCCUPY.take(p.x,p.z,h*0.30,0.55)) continue;
-      trunkB.add({x:p.x,z:p.z,y,w:h*0.10,h:h*0.44,d:h*0.10,yOff:h*0.22});
+      trunkB.add({x:p.x,z:p.z,y,w:h*0.055,h:h*0.52,d:h*0.055,yOff:h*0.26});
       plant(p.x,p.z);
-      // wide, slightly squashed crowns: a broadleaf is broader than it is tall
-      const cw=h*(0.86+Math.random()*0.42);
-      bs[(Math.random()*bs.length)|0].add({x:p.x,z:p.z,y,w:cw,h:h*0.80,d:cw*(0.85+Math.random()*0.3),yOff:h*0.70});
+      /* The crown is three overlapping lobes rather than one ball. A single
+         blob on a stick reads as a lollipop from any angle; a broadleaf canopy
+         is lumpy, wider than it is tall, and asymmetric — one big mass with a
+         couple of smaller boughs pushing out of it. */
+      const cw=h*(0.62+Math.random()*0.30);
+      const bi=(Math.random()*bs.length)|0;
+      bs[bi].add({x:p.x,z:p.z,y,w:cw,h:h*0.62,d:cw*(0.88+Math.random()*0.24),yOff:h*0.66});
+      for(let L=0;L<2;L++){
+        const la=Math.random()*TAU, lr=cw*(0.20+Math.random()*0.22), ls=0.50+Math.random()*0.26;
+        bs[(Math.random()*bs.length)|0].add({
+          x:p.x+Math.cos(la)*lr, z:p.z+Math.sin(la)*lr, y,
+          w:cw*ls, h:h*0.44*ls/0.62, d:cw*ls,
+          yOff:h*(0.60+Math.random()*0.22)});
+      }
       placed++;}
     trunkB.flush(); bs.forEach(b=>b.flush());
   };
@@ -10605,7 +10632,7 @@ function venueKit(sc,P,Nm){
     const o=Object.assign({rIn:0.35,rOut:2.0,clumps:220,perClump:14,spread:34,
       min:95, coniferTones:[0x1e4522,0x265226,0x17381b],
       broadTones:[0x38672c,0x437634,0x2c5322], coniferMix:0.6,
-      hMin:18,hMax:44, mound:true},opt||{});
+      hMin:9,hMax:27, mound:true},opt||{});
     // fewer clumps, but each one much bigger — a stand of mature trees rather
     // than a scatter of saplings that reads as noise from the car
     o.clumps=Math.max(24,Math.round(o.clumps*0.62));
@@ -10642,15 +10669,26 @@ function venueKit(sc,P,Nm){
         const x=cx2+Math.cos(ang2)*rad, z=cz2+Math.sin(ang2)*rad;
         if(clear(x,z)<o.min*o.min*0.62) continue;
         const y=gh(x,z);
-        const h=(o.hMin+Math.random()*(o.hMax-o.hMin))*sizeBias;
+        const h=treeH(o.hMin,o.hMax)*sizeBias;
         if(Math.random()<o.coniferMix){
-          const w=h*(0.34+Math.random()*0.18);
-          trunkB.add({x,z,y,w:h*0.06,h:h*0.18,d:h*0.06,yOff:h*0.09});
-          coneB[(Math.random()*coneB.length)|0].add({x,z,y,w,h:h*0.92,d:w,yOff:h*0.55});
+          const w=h*(0.22+Math.random()*0.12);
+          trunkB.add({x,z,y,w:h*0.045,h:h*0.20,d:h*0.045,yOff:h*0.10});
+          // same stacked skirts as the belt conifers, so a stand read from the
+          // car and a stand read from the horizon are the same species
+          const bi=(Math.random()*coneB.length)|0;
+          for(const [tw,th,ty] of [[1.00,0.46,0.30],[0.74,0.34,0.56],[0.46,0.26,0.78]])
+            coneB[bi].add({x,z,y,w:w*tw,h:h*th,d:w*tw,yOff:h*(ty+th*0.5)});
         }else{
-          trunkB.add({x,z,y,w:h*0.10,h:h*0.46,d:h*0.10,yOff:h*0.23});
-          const w=h*(0.80+Math.random()*0.42);
-          crownB[(Math.random()*crownB.length)|0].add({x,z,y,w,h:h*0.76,d:w*(0.85+Math.random()*0.3),yOff:h*0.72});
+          trunkB.add({x,z,y,w:h*0.055,h:h*0.52,d:h*0.055,yOff:h*0.26});
+          const w=h*(0.62+Math.random()*0.30);
+          const bi=(Math.random()*crownB.length)|0;
+          crownB[bi].add({x,z,y,w,h:h*0.62,d:w*(0.88+Math.random()*0.24),yOff:h*0.66});
+          for(let L=0;L<2;L++){
+            const la=Math.random()*TAU, lr=w*(0.20+Math.random()*0.22), ls=0.50+Math.random()*0.26;
+            crownB[(Math.random()*crownB.length)|0].add({
+              x:x+Math.cos(la)*lr, z:z+Math.sin(la)*lr, y,
+              w:w*ls, h:h*0.44*ls/0.62, d:w*ls, yOff:h*(0.60+Math.random()*0.22)});
+          }
         }
         made++;
         // understorey, so you cannot see straight through the trunks
@@ -10672,12 +10710,18 @@ function venueKit(sc,P,Nm){
     while(placed<count && tries<count*14){tries++;
       const p=place(); if(!p) continue;
       if(clear(p.x,p.z)<(p.min||70)*(p.min||70)) continue;
-      const h=(hMin+Math.random()*(hMax-hMin))*TREE_S, w=h*(slim||0.42)*(0.85+Math.random()*0.4);
+      const h=treeH(hMin,hMax), w=h*(slim||0.42)*0.68*(0.85+Math.random()*0.4);
       if(!OCCUPY.take(p.x,p.z,w*0.55,0.55)) continue;
       const y=gh(p.x,p.z);
-      trunkB.add({x:p.x,z:p.z,y,w:h*0.07,h:h*0.20,d:h*0.07,yOff:h*0.10});
+      trunkB.add({x:p.x,z:p.z,y,w:h*0.045,h:h*0.22,d:h*0.045,yOff:h*0.11});
       plant(p.x,p.z);
-      bs[(Math.random()*bs.length)|0].add({x:p.x,z:p.z,y,w,h:h*0.90,d:w,yOff:h*0.58});
+      /* A fir is not one cone. It is a stack of skirts, each narrower and
+         shorter than the one below, and that stepped silhouette is what makes a
+         conifer read as a conifer instead of as a traffic cone. */
+      const bi=(Math.random()*bs.length)|0;
+      const tiers=[[1.00,0.46,0.30],[0.74,0.34,0.56],[0.46,0.26,0.78]];
+      for(const [tw,th,ty] of tiers)
+        bs[bi].add({x:p.x,z:p.z,y,w:w*tw,h:h*th,d:w*tw,yOff:h*(ty+th*0.5)});
       placed++;}
     trunkB.flush(); bs.forEach(b=>b.flush());
   };
@@ -10690,10 +10734,8 @@ function venueKit(sc,P,Nm){
   const palms=(place,count,hMin,hMax,opt)=>{
     const o=Object.assign({frond:0x3c6b2c,frond2:0x4f8438,trunk:0x8a7a5c,lean:0.10},opt||{});
     count=Math.max(10,Math.round(count*TREE_N));
-    /* No TREE_S here. That multiplier exists to make the generic broadleaf and
-       conifer scatter read at distance; the flora table gives palms their real
-       heights already, and multiplying by 1.85 on top produced forty-metre palms
-       leaning over the barrier. */
+    /* A coconut palm tops out around 25 m and a date palm rather less, so the
+       flora table's own numbers are the whole story here. */
     const trunkB=batch(new THREE.CylinderGeometry(0.36,0.5,1,6),
       new THREE.MeshStandardMaterial({color:o.trunk,roughness:1}));
     // a frond is a long thin wedge; a crown is eight or nine of them fanned out
@@ -10704,7 +10746,7 @@ function venueKit(sc,P,Nm){
     while(placed<count && tries<count*14){tries++;
       const p=place(); if(!p) continue;
       if(clear(p.x,p.z)<(p.min||70)*(p.min||70)) continue;
-      const h=hMin+Math.random()*(hMax-hMin);
+      const h=treeH(hMin,hMax);
       if(!OCCUPY.take(p.x,p.z,h*0.16,0.55)) continue;
       const y=gh(p.x,p.z);
       const lean=(Math.random()-0.5)*o.lean, la=Math.random()*TAU;
@@ -10762,7 +10804,7 @@ function venueKit(sc,P,Nm){
        closing the view in, and `step` is halved so it is continuous along the
        lap rather than a row of sentries. */
     const o=Object.assign({kind:'broad', from:16, depth:26, step:3, rows:7,
-      density:0.95, hMin:20, hMax:40, skip:0.05, sides:[1,-1],
+      density:0.95, hMin:12, hMax:26, skip:0.05, sides:[1,-1],
       tones:[0x36602a,0x40702f,0x2b5122,0x497a34],
       offL:null, offR:null}, opt||{});
     const spots=[];
@@ -16998,18 +17040,9 @@ async function helmLoad(setKey, onProgress){
     /* Centred: the mode list runs along the bottom of this layout, so the trio
        has the middle of the screen to itself. */
     inst.position.set((i-1)*1.10, 0.13-bb2.min.y, 0);
-    /* These came out of a photogrammetry pipeline, and their baked maps carry
-       the usual scan grain. A hard clearcoat-style specular picks every speck of
-       it out; a softer, less metallic finish lets the paint read as paint. */
-    inst.traverse(o=>{
-      if(!o.isMesh) return;
-      o.castShadow=true; o.receiveShadow=true;
-      const m=o.material;
-      if(m&&m.isMeshStandardMaterial){
-        m.roughness=Math.max(m.roughness,0.55);
-        m.metalness=Math.min(m.metalness,0.12);
-      }
-    });
+    /* Nothing is retuned here. The finish these were authored with is the
+       finish they get. */
+    inst.traverse(o=>{ if(o.isMesh){o.castShadow=true;o.receiveShadow=true;} });
     inst.userData.pick=pick;
     HTRIO.group.add(inst);
     // two lights per helmet — the key spot and the rim behind it
