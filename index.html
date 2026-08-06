@@ -306,6 +306,7 @@
   #setPeekHint.on{opacity:1}
   #helmWrap{position:absolute;inset:0;display:none;pointer-events:none}
   :root[data-layout="legends"] #helmWrap,
+  :root[data-layout="scanned"] #helmWrap,
   :root[data-layout="risingstars"] #helmWrap{display:block}
   #helmHead{position:absolute;left:0;right:0;top:clamp(26px,5vh,58px);text-align:center}
   #helmTitle{display:block;font-family:var(--mono);font-weight:900;
@@ -354,55 +355,72 @@
 
   /* the two helmet layouts strip the car page back to almost nothing */
   :root[data-layout="legends"] #mDetail,
+  :root[data-layout="scanned"] #mDetail,
   :root[data-layout="risingstars"] #mDetail,
   :root[data-layout="legends"] #mCarTag,
+  :root[data-layout="scanned"] #mCarTag,
   :root[data-layout="risingstars"] #mCarTag,
   :root[data-layout="legends"] #mSpine,
+  :root[data-layout="scanned"] #mSpine,
   :root[data-layout="risingstars"] #mSpine,
   :root[data-layout="legends"] #mProfile,
+  :root[data-layout="scanned"] #mProfile,
   :root[data-layout="risingstars"] #mProfile{display:none}
   :root[data-layout="legends"] #mHead,
+  :root[data-layout="scanned"] #mHead,
   :root[data-layout="risingstars"] #mHead{display:none}
   /* The mode list runs along the bottom as a row of engraved plaques. Down the
      left it sat straight over the left-hand helmet, and no amount of shifting
      the trio sideways fixes that on a narrow window — so the list leaves the
      helmets' half of the screen entirely. */
   :root[data-layout="legends"] #mBody,
+  :root[data-layout="scanned"] #mBody,
   :root[data-layout="risingstars"] #mBody{left:0;right:0;top:auto;
     bottom:clamp(26px,4vh,52px);transform:none;max-width:none;
     padding:0 clamp(28px,4vw,80px)}
   :root[data-layout="legends"] #mKicker,
+  :root[data-layout="scanned"] #mKicker,
   :root[data-layout="risingstars"] #mKicker{display:none}
   :root[data-layout="legends"] #navList,
+  :root[data-layout="scanned"] #navList,
   :root[data-layout="risingstars"] #navList{display:flex;gap:6px}
   :root[data-layout="legends"] #navList::before,
+  :root[data-layout="scanned"] #navList::before,
   :root[data-layout="risingstars"] #navList::before,
   :root[data-layout="legends"] #navList li::before,
+  :root[data-layout="scanned"] #navList li::before,
   :root[data-layout="risingstars"] #navList li::before{display:none}
   :root[data-layout="legends"] #navList li,
+  :root[data-layout="scanned"] #navList li,
   :root[data-layout="risingstars"] #navList li{flex:1;justify-content:center;
     padding:9px 4px;overflow:hidden;opacity:.5;background:linear-gradient(180deg,rgba(22,26,33,.86),rgba(9,11,15,.86));
     border:1px solid rgba(255,255,255,.10);border-top-color:rgba(255,255,255,.22)}
   /* eight plaques share one row, so the label has to be small enough that the
      longest of them still fits its own plaque and never runs into the next */
   :root[data-layout="legends"] #navList li .t,
+  :root[data-layout="scanned"] #navList li .t,
   :root[data-layout="risingstars"] #navList li .t{font-size:clamp(7.5px,.92vw,11px);
     letter-spacing:.08em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
     max-width:100%}
   :root[data-layout="legends"] #navList li .ix,
+  :root[data-layout="scanned"] #navList li .ix,
   :root[data-layout="risingstars"] #navList li .ix,
   :root[data-layout="legends"] #navList li .t .tg,
+  :root[data-layout="scanned"] #navList li .t .tg,
   :root[data-layout="risingstars"] #navList li .t .tg{display:none}
   :root[data-layout="legends"] #navList li.sel,
+  :root[data-layout="scanned"] #navList li.sel,
   :root[data-layout="risingstars"] #navList li.sel{opacity:1;transform:none;
     border-color:var(--red);box-shadow:0 0 26px -6px var(--red-glow) inset}
   /* the scrim darkens top and bottom only, leaving the middle band — where the
      helmets are — clean */
   :root[data-layout="legends"] #menuScrim,
+  :root[data-layout="scanned"] #menuScrim,
   :root[data-layout="risingstars"] #menuScrim{
     background:linear-gradient(0deg,rgba(6,7,11,.94) 0%,rgba(6,7,11,.35) 18%,transparent 34%),
       linear-gradient(180deg,rgba(6,7,11,.80),transparent 26%)}
   :root[data-layout="legends"] #mTrackStrip,
+  :root[data-layout="scanned"] #mTrackStrip,
   :root[data-layout="risingstars"] #mTrackStrip{display:none}
 
   /* ---- SHAPE STYLES. The menu's cut is a variable, so a preset can change the
@@ -16848,7 +16866,8 @@ const SETTINGS_DEF=[
           ['pitwall','PIT WALL'],['cinema','CINEMA'],['dossier','DOSSIER'],
           ['tiles','TILES'],['timing','TIMING TOWER'],['poster','POSTER'],
           ['cockpit','COCKPIT'],['minimal','MINIMAL'],
-          ['legends','HELMETS · LEGENDS'],['risingstars','HELMETS · RISING STARS']],
+          ['legends','HELMETS · LEGENDS'],['risingstars','HELMETS · RISING STARS'],
+          ['scanned','HELMETS · THE SCANS']],
     d:'Where everything sits. These move the furniture, not the colours — eleven genuinely different arrangements.'},
    {k:'themePreset',type:'enum',t:'Menu preset',
     opts:[['apex','APEX RED'],['papyrus','PAPER / LIGHT'],['midnight','MIDNIGHT BLUE'],
@@ -16964,6 +16983,7 @@ const MENU_LAYOUTS={
   /* helmets:'x' means this layout renders the helmet scene instead of the car
      scene, and fetches that set the first time it is shown. */
   legends:    {car:false, helmets:'legends'},
+  scanned:    {car:false, helmets:'scanned'},
   risingstars:{car:false, helmets:'risingstars'},
 };
 /* ===================== THE HELMET LAYOUTS =================================
@@ -16981,6 +17001,15 @@ const HELMET_SETS={
       {file:'marlboro',     name:'M. SCHUMACHER', num:'1',  sig:'Schumacher', team:'Scuderia Ferrari', col:'#ff5a00'},
       /* the pink lid is Hamilton's, not Mansell's */
       {file:'ferrari_pink', name:'L. HAMILTON',   num:'44', sig:'Hamilton',   team:'Scuderia Ferrari', col:'#ff2e88'},
+    ]},
+  /* The third set is a different kind of object: these three are photogrammetry
+     scans rather than generated lids, several meshes each with their own baked
+     maps, so they carry real strap buckles, visor tear-offs and trim. */
+  scanned:{ title:'THE SCANS', sub:'Photographed, not painted',
+    picks:[
+      {file:'norris',        name:'L. NORRIS',     num:'4',  sig:'Norris',     team:'McLaren',        col:'#ff8000'},
+      {file:'verstappen_rb', name:'M. VERSTAPPEN', num:'1',  sig:'Verstappen', team:'Oracle Red Bull', col:'#1e41ff'},
+      {file:'classic',       name:'M. SCHUMACHER', num:'1',  sig:'Schumacher', team:'Scuderia Ferrari', col:'#e10600'},
     ]},
   risingstars:{ title:'RISING STARS', sub:'The next three on the block',
     picks:[
