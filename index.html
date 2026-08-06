@@ -6259,9 +6259,39 @@ function buildForest(sc,P,Nm,offL,offR){
   // buckets: 3 conifer (cone) + 2 deciduous (blob)
   const defs=[[coneG,0x18331a],[coneG,0x22461c],[coneG,0x143017],
               [blobG,0x2f5a26],[blobG,0x3c6a2e]];
+  const trunkG=new THREE.CylinderGeometry(0.5,0.66,1,5);
   const buckets=defs.map(([g,c])=>({geo:g,mat:new THREE.MeshStandardMaterial({color:c,roughness:1,flatShading:true}),list:[]}));
-  const push=(x,z,w,h)=>{const bi=(Math.random()*buckets.length)|0;
-    buckets[bi].list.push({x,y:gh(x,z)-0.55,z,w,h});};
+  const trunks={geo:trunkG,mat:new THREE.MeshStandardMaterial({color:0x43331f,roughness:1}),list:[]};
+  /* One cone on the ground is not a tree, it is a bollard, and this forest was
+     nothing but bollards -- no trunk, one primitive, and a flat height draw
+     multiplied by 1.85 on top, which is where Spa's hundred-and-sixty-metre
+     spruces came from. A tree here is now a bole with a stepped conifer crown
+     or a lumpy broadleaf one, and its height is a real height. */
+  const push=(x,z,w,h)=>{
+    const y=gh(x,z)-0.55;
+    const bi=(Math.random()*buckets.length)|0;
+    const conifer=bi<3;
+    if(conifer){
+      trunks.list.push({x,y,z,w:h*0.045,h:h*0.22,yOff:h*0.11});
+      for(const [tw,th,ty] of [[1.00,0.46,0.30],[0.74,0.34,0.56],[0.46,0.26,0.78]])
+        buckets[bi].list.push({x,y,z,w:w*tw,h:h*th,yOff:h*(ty+th*0.5)});
+    }else{
+      trunks.list.push({x,y,z,w:h*0.055,h:h*0.52,yOff:h*0.26});
+      buckets[bi].list.push({x,y,z,w,h:h*0.62,yOff:h*0.66});
+      for(let L=0;L<2;L++){
+        const la=Math.random()*TAU, lr=w*(0.20+Math.random()*0.22), ls=0.50+Math.random()*0.26;
+        buckets[3+((Math.random()*2)|0)].list.push({
+          x:x+Math.cos(la)*lr, z:z+Math.sin(la)*lr, y,
+          w:w*ls, h:h*0.44*ls/0.62, yOff:h*(0.60+Math.random()*0.22)});
+      }
+    }
+  };
+  /* Same weighted draw the rest of the kit uses: mostly canopy height, a few
+     emergents over it, a scatter of young growth under it. */
+  const fH=(a,b)=>{const u=Math.random();
+    if(u<0.07) return b*(0.94+Math.random()*0.16);
+    if(u<0.24) return a*(0.45+Math.random()*0.42);
+    return a+(b-a)*Math.pow(Math.random(),1.75);};
   // distance² to the NEAREST point of ANY part of the track (handles near-crossings)
   const samp=[];for(let i=0;i<N;i+=4)samp.push(P[i]);
   const clear=(x,z)=>{let m=1e9;for(const q of samp){const dx=x-q.x,dz=z-q.z;const d=dx*dx+dz*dz;if(d<m)m=d;}return m;};
@@ -6278,7 +6308,9 @@ function buildForest(sc,P,Nm,offL,offR){
         const jt=(Math.random()-0.5)*5;
         const x=p.x+n.x*side*dist+tgx*jt, z=p.z+n.z*side*dist+tgz*jt;
         if(clear(x,z)<MINCLR*MINCLR) continue;   // skip if it would land near any track section
-        const h=(9+r*1.6+Math.random()*12)*1.85, w=h*(0.46+Math.random()*0.30);
+        // the treeline climbs as it goes back up the hillside, but a Norway
+        // spruce is a thirty-five metre tree at the very top of its range
+        const h=fH(9+r*0.9, 17+r*1.3), w=h*(0.24+Math.random()*0.16);
         push(x,z,w,h);
       }
     }
@@ -6289,15 +6321,16 @@ function buildForest(sc,P,Nm,offL,offR){
     const a=Math.random()*TAU, rr=R*0.75+Math.random()*R*1.5;
     const x=Math.cos(a)*rr,z=Math.sin(a)*rr;
     if(clear(x,z)<70*70) continue;
-    const h=(14+Math.random()*26)*1.85, w=h*(0.46+Math.random()*0.28);
+    const h=fH(11,32), w=h*(0.24+Math.random()*0.16);
     push(x,z,w,h); placed++;
   }
-  buckets.forEach(b=>{
+  buckets.concat([trunks]).forEach(b=>{
     if(!b.list.length)return;
     const im=new THREE.InstancedMesh(b.geo,b.mat,b.list.length);
     im.frustumCulled=false; im.receiveShadow=true; im.castShadow=false;
     const m=new THREE.Matrix4(),s=new THREE.Vector3(),q=new THREE.Quaternion(),t=new THREE.Vector3();
-    b.list.forEach((o,i)=>{t.set(o.x,o.y+o.h*0.5,o.z);s.set(o.w,o.h,o.w);m.compose(t,q,s);im.setMatrixAt(i,m);});
+    b.list.forEach((o,i)=>{t.set(o.x,o.y+(o.yOff!==undefined?o.yOff:o.h*0.5),o.z);
+      s.set(o.w,o.h,o.w);m.compose(t,q,s);im.setMatrixAt(i,m);});
     im.instanceMatrix.needsUpdate=true;sc.add(im);
   });
   // distant forested hill mass so no sky shows through the canopy
@@ -15814,6 +15847,7 @@ function stepPhysics(dt,inp){
    unconditionally hands every internal in the game to the page. Behind ?debug. */
 if(DEBUG){window.__step=stepPhysics;window.__reset=resetCar;
   window.__buildTrack=(id)=>{buildWorld(driveScene,TRACKS[id]);builtTrackId=id;return true;};
+  window.__driveScene=driveScene;
   window.__trackIds=()=>Object.keys(TRACKS);
   window.__driveScene=driveScene; window.__updateDynamicSky=updateDynamicSky;
   window.__cfgId=()=>CFG.id; window.__WEATHER=WEATHER; window.__rollWeather=rollWeather;
@@ -16989,14 +17023,41 @@ function helmScene(){
   const floor=new THREE.Mesh(new THREE.PlaneGeometry(14,10),
     new THREE.MeshStandardMaterial({color:0x070910,roughness:0.34,metalness:0.55}));
   floor.rotation.x=-Math.PI/2; floor.position.y=-0.61; S.add(floor);
+  /* THE MARK. Drawn rather than fetched, so it costs nothing and themes with
+     the rest of the interface. */
+  const markTex=(()=>{
+    const c=document.createElement('canvas'); c.width=512; c.height=128;
+    const g=c.getContext('2d');
+    g.fillStyle='#000'; g.fillRect(0,0,512,128);
+    // the speed bars, leaning forward and shortening as they trail off
+    g.fillStyle='#e10600';
+    for(let i=0;i<5;i++){
+      const w=132-i*24, y=30+i*13, h=9;
+      g.save(); g.translate(300+i*14,y); g.transform(1,0,-0.42,1,0,0);
+      g.fillRect(0,0,w,h); g.restore();
+    }
+    // the numeral, cut on the same slant
+    g.save(); g.translate(196,96); g.transform(1,0,-0.30,1,0,0);
+    g.fillStyle='#fff'; g.font='900 92px Orbitron, Arial Black, sans-serif';
+    g.textAlign='right'; g.fillText('1',0,0); g.restore();
+    const t=new THREE.CanvasTexture(c);
+    t.colorSpace=THREE.SRGBColorSpace; t.anisotropy=8;
+    return t;
+  })();
+  const sideM=()=>new THREE.MeshStandardMaterial({color:0x05060a,roughness:0.34,metalness:0.6});
+  const topM =()=>new THREE.MeshStandardMaterial({color:0x08090d,roughness:0.22,metalness:0.75});
+  const faceM=()=>new THREE.MeshStandardMaterial({color:0xffffff,map:markTex,
+    roughness:0.42,metalness:0.25});
   HTRIO.lights=[]; HTRIO.pedestals=[];
   for(let i=0;i<3;i++){
     const x=(i-1)*1.10;
     // a low pedestal under each helmet, tinted by that driver's colour
-    const ped=new THREE.Mesh(new THREE.CylinderGeometry(0.30,0.34,0.13,40),
-      new THREE.MeshStandardMaterial({color:0x11151c,roughness:0.26,metalness:0.8,
-        emissive:0x000000, emissiveIntensity:1}));
-    ped.position.set(x,0.065,0); S.add(ped); HTRIO.pedestals.push(ped);
+    /* A black podium with the championship mark on its face. Square, because a
+       display plinth is square, and the mark reads straight-on rather than
+       wrapping round a cylinder. */
+    const ped=new THREE.Mesh(new THREE.BoxGeometry(0.62,0.16,0.62),
+      [sideM(),sideM(),topM(),topM(),faceM(),sideM()]);
+    ped.position.set(x,0.08,0); S.add(ped); HTRIO.pedestals.push(ped);
     // a spot over each plinth position, coloured to that helmet
     const sp=new THREE.SpotLight(0xffffff, 26, 6.0, 0.62, 0.55, 1.4);
     sp.position.set(x, 2.5, 0.55);
@@ -17039,7 +17100,7 @@ async function helmLoad(setKey, onProgress){
     const bb2=new THREE.Box3().setFromObject(inst);
     /* Centred: the mode list runs along the bottom of this layout, so the trio
        has the middle of the screen to itself. */
-    inst.position.set((i-1)*1.10, 0.13-bb2.min.y, 0);
+    inst.position.set((i-1)*1.10, 0.16-bb2.min.y, 0);
     /* Nothing is retuned here except the sampling. The finish these were
        authored with is the finish they get -- but a 2048 map on a curved shell
        is viewed at a glancing angle almost everywhere, and without anisotropic
@@ -17057,10 +17118,7 @@ async function helmLoad(setKey, onProgress){
     // two lights per helmet — the key spot and the rim behind it
     if(HTRIO.lights[i*2])   HTRIO.lights[i*2].color.set(pick.col);
     if(HTRIO.lights[i*2+1]) HTRIO.lights[i*2+1].color.set(pick.col);
-    if(HTRIO.pedestals&&HTRIO.pedestals[i]){
-      HTRIO.pedestals[i].material.emissive.set(pick.col);
-      HTRIO.pedestals[i].material.emissiveIntensity=0.22;
-    }
+
   }
   onProgress&&onProgress(1,'');
   HTRIO.loading=false;
