@@ -16943,8 +16943,8 @@ const MENU_LAYOUTS={
 const HELMET_SETS={
   legends:{ title:'LEGENDS', sub:'Three that defined an era',
     picks:[
-      {file:'redbull',      name:'M. VERSTAPPEN', num:'1',  sig:'Verstappen', team:'Oracle Red Bull', col:'#1e41ff'},
-      {file:'marlboro',     name:'A. SENNA',      num:'12', sig:'Senna',      team:'Marlboro McLaren', col:'#ff5a00'},
+      {file:'redbull',      name:'M. VERSTAPPEN', num:'33', sig:'Verstappen', team:'Oracle Red Bull', col:'#1e41ff'},
+      {file:'marlboro',     name:'M. SCHUMACHER', num:'1',  sig:'Schumacher', team:'Scuderia Ferrari', col:'#ff5a00'},
       /* the pink lid is Hamilton's, not Mansell's */
       {file:'ferrari_pink', name:'L. HAMILTON',   num:'44', sig:'Hamilton',   team:'Scuderia Ferrari', col:'#ff2e88'},
     ]},
@@ -16952,7 +16952,7 @@ const HELMET_SETS={
     picks:[
       {file:'mercedes',    name:'K. ANTONELLI', num:'12', sig:'Antonelli', team:'Mercedes-AMG',   col:'#00d2be'},
       {file:'ferrari_red', name:'O. BEARMAN',   num:'87', sig:'Bearman',   team:'Scuderia Ferrari', col:'#e8002d'},
-      {file:'chromatic',   name:'G. BORTOLETO', num:'5',  sig:'Bortoleto', team:'Kick Sauber',    col:'#c9d1d9'},
+      {file:'chromatic',   name:'O. PIASTRI',   num:'81', sig:'Piastri',   team:'McLaren',        col:'#ff8000'},
     ]},
 };
 /* The scene the helmets live in — built once, populated per set. */
@@ -17040,9 +17040,18 @@ async function helmLoad(setKey, onProgress){
     /* Centred: the mode list runs along the bottom of this layout, so the trio
        has the middle of the screen to itself. */
     inst.position.set((i-1)*1.10, 0.13-bb2.min.y, 0);
-    /* Nothing is retuned here. The finish these were authored with is the
-       finish they get. */
-    inst.traverse(o=>{ if(o.isMesh){o.castShadow=true;o.receiveShadow=true;} });
+    /* Nothing is retuned here except the sampling. The finish these were
+       authored with is the finish they get -- but a 2048 map on a curved shell
+       is viewed at a glancing angle almost everywhere, and without anisotropic
+       filtering the driver's own sponsor lettering smears into the paint. That
+       is not the artwork being soft, it is the sampler. */
+    const aniso=renderer.capabilities.getMaxAnisotropy();
+    inst.traverse(o=>{
+      if(!o.isMesh) return;
+      o.castShadow=true; o.receiveShadow=true;
+      const m=o.material;
+      if(m&&m.map){ m.map.anisotropy=aniso; m.map.needsUpdate=true; }
+    });
     inst.userData.pick=pick;
     HTRIO.group.add(inst);
     // two lights per helmet — the key spot and the rim behind it
@@ -23512,7 +23521,11 @@ function frame(){
       /* Centred now that the mode list has moved to the bottom of the screen. */
       camera.position.set(Math.sin(HTRIO.spin*0.18)*0.38, 0.62, 3.05);
       camera.lookAt(0,0.30,0);
-      FX2.render(S,camera,dt);
+      /* Straight to the canvas. The post chain is built for a car at 300 km/h
+         -- bloom, chromatic aberration, grain, radial blur -- and every one of
+         those is a way of making a still object look softer than it is. */
+      renderer.setRenderTarget(null);
+      renderer.render(S,camera);
       helmAlignPlates();
       requestAnimationFrame(frame); return;
     }
