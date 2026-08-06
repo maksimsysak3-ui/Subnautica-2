@@ -57,7 +57,7 @@ canvas#gl{position:fixed;inset:0;display:block;touch-action:none;}
   border-bottom:1px solid var(--edge);
 }
 .hdr .dot{width:7px;height:7px;border-radius:50%;background:var(--accent);box-shadow:0 0 10px var(--accent);}
-.hdr .x{margin-left:auto;cursor:pointer;color:var(--dim);font-size:15px;line-height:1;padding:0 3px;border-radius:4px}
+.hdr .x{margin-left:auto;cursor:pointer;color:var(--dim);line-height:1;padding:2px;border-radius:4px;display:flex}
 .hdr .x:hover{color:#fff;background:rgba(255,255,255,.10)}
 .scroll{overflow-y:auto;scrollbar-width:thin;scrollbar-color:#2c3a4e transparent}
 .scroll::-webkit-scrollbar{width:9px}
@@ -79,7 +79,19 @@ canvas#gl{position:fixed;inset:0;display:block;touch-action:none;}
   white-space:nowrap;
 }
 .stat:hover{background:rgba(255,255,255,.05)}
-.stat .ico{font-size:16px;filter:saturate(1.2)}
+.stat .ico{display:flex;align-items:center;color:var(--dim)}
+.ic{width:18px;height:18px;display:block;flex:0 0 auto}
+.tool .ic{width:23px;height:23px}
+.sbtn .ic{width:17px;height:17px}
+.btn .ic{width:15px;height:15px;display:inline-block;vertical-align:-3px;margin-right:5px}
+.item .th{width:100%;aspect-ratio:1/1;object-fit:contain;display:block;
+  filter:drop-shadow(0 3px 6px rgba(0,0,0,.55));transition:transform .16s}
+.item:hover .th{transform:scale(1.08)}
+.item.wide .th{aspect-ratio:16/11}
+.pc img{width:100%;height:100%;object-fit:contain;filter:drop-shadow(0 2px 5px rgba(0,0,0,.5))}
+.pc{padding:2px}
+.thumbrow{display:flex;gap:9px;align-items:center}
+.thumbrow img{width:52px;height:52px;object-fit:contain;flex:0 0 auto}
 .stat .col{display:flex;flex-direction:column;line-height:1.15}
 .stat .lbl{font-size:9px;letter-spacing:.10em;text-transform:uppercase;color:var(--dim)}
 .stat .val{font-size:15px;font-weight:700}
@@ -138,6 +150,7 @@ canvas#gl{position:fixed;inset:0;display:block;touch-action:none;}
 .item:hover{background:rgba(57,192,255,.15);border-color:var(--edge-hot);transform:translateY(-2px)}
 .item.on{background:linear-gradient(180deg,rgba(57,192,255,.30),rgba(57,192,255,.08));border-color:var(--accent)}
 .item .e{font-size:22px;display:block;line-height:1.15}
+.item .n{display:block}
 .item .n{font-size:10.5px;margin-top:3px;font-weight:600}
 .item .c{font-size:9.5px;color:var(--gold);margin-top:1px;font-variant-numeric:tabular-nums}
 .item.locked{opacity:.36;cursor:not-allowed}
@@ -145,12 +158,12 @@ canvas#gl{position:fixed;inset:0;display:block;touch-action:none;}
 
 /* ---------- coaster editor ---------- */
 #coasterPanel{
-  position:absolute;right:12px;top:64px;width:300px;max-height:calc(100% - 168px);
+  position:absolute;right:12px;top:64px;width:326px;max-height:calc(100% - 168px);
   display:none;flex-direction:column;
 }
 #coasterPanel.show{display:flex}
 #cpBody{padding:10px;display:flex;flex-direction:column;gap:9px;overflow-y:auto}
-.piecegrid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.piecegrid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
 .pc{
   aspect-ratio:1;border-radius:8px;background:rgba(255,255,255,.05);
   border:1px solid var(--edge);display:flex;align-items:center;justify-content:center;
@@ -241,7 +254,7 @@ body.ridemode #toolbar,
 body.ridemode #hint,
 body.ridemode #minimap{display:none!important}
 /* the inspector steps aside when the coaster editor is open */
-#coasterPanel.show ~ #inspector{right:326px}
+#coasterPanel.show ~ #inspector{right:352px}
 #ridecam{position:absolute;inset:0;display:none;pointer-events:none}
 #ridecam.show{display:block}
 #ridecam .vig{position:absolute;inset:0;box-shadow:inset 0 0 220px rgba(0,0,0,.65)}
@@ -256,7 +269,7 @@ body.ridemode #minimap{display:none!important}
 /* ---------- modal ---------- */
 #modalWrap{position:absolute;inset:0;background:rgba(4,7,11,.72);display:none;align-items:center;justify-content:center;backdrop-filter:blur(5px);z-index:40}
 #modalWrap.show{display:flex}
-#modal{width:min(680px,92vw);max-height:82vh;display:flex;flex-direction:column}
+#modal{width:min(900px,94vw);max-height:88vh;display:flex;flex-direction:column}
 #modalBody{padding:16px;overflow-y:auto;font-size:12.5px;line-height:1.6}
 #modalBody h3{font-size:13px;color:var(--accent);margin:14px 0 6px;letter-spacing:.05em;text-transform:uppercase}
 #modalBody h3:first-child{margin-top:0}
@@ -301,44 +314,47 @@ table.tb tr:hover td{background:rgba(255,255,255,.04)}
   <div id="fps"></div>
 
   <div id="topbar" class="panel">
-    <div class="stat"><span class="ico">💰</span><span class="col"><span class="lbl">Funds</span><span class="val" id="vMoney">$0</span></span></div>
+    <div class="stat"><span class="ico" data-ic="money"></span><span class="col"><span class="lbl">Funds</span><span class="val" id="vMoney">$0</span></span></div>
     <div class="sep"></div>
-    <div class="stat"><span class="ico">👥</span><span class="col"><span class="lbl">Guests</span><span class="val" id="vGuests">0</span></span></div>
+    <div class="stat"><span class="ico" data-ic="guests"></span><span class="col"><span class="lbl">Guests</span><span class="val" id="vGuests">0</span></span></div>
     <div class="sep"></div>
-    <div class="stat"><span class="ico">⭐</span><span class="col"><span class="lbl">Rating</span><span class="val" id="vRating">0</span></span></div>
+    <div class="stat"><span class="ico" data-ic="star"></span><span class="col"><span class="lbl">Rating</span><span class="val" id="vRating">0</span></span></div>
     <div class="sep"></div>
-    <div class="stat"><span class="ico">😊</span><span class="col"><span class="lbl">Happiness</span><span class="val" id="vHappy">0%</span></span></div>
+    <div class="stat"><span class="ico" data-ic="smile"></span><span class="col"><span class="lbl">Happiness</span><span class="val" id="vHappy">0%</span></span></div>
     <div class="sep"></div>
-    <div class="stat"><span class="ico">📈</span><span class="col"><span class="lbl">Profit / hr</span><span class="val" id="vProfit">$0</span></span></div>
+    <div class="stat"><span class="ico" data-ic="chart"></span><span class="col"><span class="lbl">Profit / hr</span><span class="val" id="vProfit">$0</span></span></div>
     <div class="sep"></div>
-    <div class="stat"><span class="ico">🕒</span><span class="col"><span class="lbl">Park Time</span><span class="val" id="vTime">Day 1 · 09:00</span></span></div>
+    <div class="stat"><span class="ico" data-ic="land"></span><span class="col"><span class="lbl">Owned Land</span><span class="val" id="vLand">0</span></span></div>
+    <div class="sep"></div>
+    <div class="stat"><span class="ico" data-ic="clock"></span><span class="col"><span class="lbl">Park Time</span><span class="val" id="vTime">Day 1 · 09:00</span></span></div>
   </div>
 
   <div id="speedbar" class="panel">
-    <div class="sbtn" id="spd0" title="Pause (Space)">❚❚</div>
-    <div class="sbtn on" id="spd1" title="Normal speed (1)">▶</div>
-    <div class="sbtn" id="spd2" title="Fast (2)">▶▶</div>
-    <div class="sbtn" id="spd3" title="Very fast (3)">▶▶▶</div>
+    <div class="sbtn" id="spd0" title="Pause (Space)" data-ic="pause"></div>
+    <div class="sbtn on" id="spd1" title="Normal speed" data-ic="play"></div>
+    <div class="sbtn" id="spd2" title="Fast" data-ic="play2"></div>
+    <div class="sbtn" id="spd3" title="Very fast" data-ic="play3"></div>
     <div class="sep"></div>
-    <div class="sbtn" id="btnMap" title="Minimap (M)">🗺</div>
-    <div class="sbtn" id="btnFin" title="Finances (F)">📊</div>
-    <div class="sbtn" id="btnHelp" title="Help (H)">?</div>
+    <div class="sbtn" id="btnLand" title="Buy land (L)" data-ic="land"></div>
+    <div class="sbtn" id="btnMap" title="Minimap (M)" data-ic="map"></div>
+    <div class="sbtn" id="btnFin" title="Park management (F)" data-ic="stats"></div>
+    <div class="sbtn" id="btnHelp" title="Help (H)" data-ic="help"></div>
   </div>
 
   <div id="notif"></div>
 
   <div id="buildPanel" class="panel">
-    <div class="hdr"><span class="dot"></span><span id="bpTitle">Build</span><span class="x" onclick="UI.closeBuild()">✕</span></div>
+    <div class="hdr"><span class="dot"></span><span id="bpTitle">Build</span><span class="x" data-ic="close" onclick="UI.closeBuild()"></span></div>
     <div id="bpBody" class="scroll"></div>
   </div>
 
   <div id="coasterPanel" class="panel">
-    <div class="hdr"><span class="dot"></span>Coaster Editor<span class="x" onclick="Coaster.exit()">✕</span></div>
+    <div class="hdr"><span class="dot"></span>Coaster Editor<span class="x" data-ic="close" onclick="Coaster.exit()"></span></div>
     <div id="cpBody" class="scroll"></div>
   </div>
 
   <div id="inspector" class="panel">
-    <div class="hdr"><span class="dot"></span><span id="insTitle">Inspector</span><span class="x" onclick="UI.closeInspector()">✕</span></div>
+    <div class="hdr"><span class="dot"></span><span id="insTitle">Inspector</span><span class="x" data-ic="close" onclick="UI.closeInspector()"></span></div>
     <div id="insBody" class="scroll"></div>
   </div>
 
@@ -357,7 +373,7 @@ table.tb tr:hover td{background:rgba(255,255,255,.04)}
   </div>
 
   <div id="modalWrap"><div id="modal" class="panel">
-    <div class="hdr"><span class="dot"></span><span id="modalTitle">Info</span><span class="x" onclick="UI.closeModal()">✕</span></div>
+    <div class="hdr"><span class="dot"></span><span id="modalTitle">Info</span><span class="x" data-ic="close" onclick="UI.closeModal()"></span></div>
     <div id="modalBody" class="scroll"></div>
     <div id="modalFoot"><button class="btn pri" style="flex:0 0 auto;padding:8px 22px" onclick="UI.closeModal()">Close</button></div>
   </div></div>
@@ -798,10 +814,36 @@ void main(){
   gl_FragColor = vec4(c,1.0);
 }`;
 
+const FS_POST = `
+precision highp float; varying vec2 vUv;
+uniform sampler2D uScene; uniform vec2 uPixel;
+uniform float uVignette, uSat, uContrast, uLift, uNight;
+void main(){
+  vec3 c = texture2D(uScene, vUv).rgb;
+  // gentle unsharp: sharpen the low-poly silhouettes without ringing
+  vec3 blur = (texture2D(uScene, vUv + vec2(uPixel.x, 0.0)).rgb
+             + texture2D(uScene, vUv - vec2(uPixel.x, 0.0)).rgb
+             + texture2D(uScene, vUv + vec2(0.0, uPixel.y)).rgb
+             + texture2D(uScene, vUv - vec2(0.0, uPixel.y)).rgb) * 0.25;
+  c = clamp(c + (c - blur) * 0.35, 0.0, 2.0);
+  // filmic-ish tone curve
+  c = (c * (2.51 * c + 0.03)) / (c * (2.43 * c + 0.59) + 0.14);
+  float l = dot(c, vec3(0.2126, 0.7152, 0.0722));
+  c = mix(vec3(l), c, uSat);
+  c = (c - 0.5) * uContrast + 0.5 + uLift;
+  // cool the shadows a touch at night
+  c = mix(c, c * vec3(0.82, 0.90, 1.12), uNight * 0.5);
+  vec2 d = vUv - 0.5;
+  float vig = 1.0 - dot(d, d) * uVignette;
+  c *= vig;
+  gl_FragColor = vec4(clamp(c, 0.0, 1.0), 1.0);
+}`;
+
 class Renderer {
-  constructor(canvas) {
+  constructor(canvas, cfg) {
     this.cv = canvas;
-    const opts = { antialias: true, alpha: false, powerPreference: 'high-performance', stencil: false };
+    this.cfg = cfg || {};
+    const opts = { antialias: true, alpha: !!this.cfg.alpha, premultipliedAlpha: false, powerPreference: 'high-performance', stencil: false };
     let gl = canvas.getContext('webgl2', opts);
     this.gl2 = !!gl;
     if (!gl) gl = canvas.getContext('webgl', opts) || canvas.getContext('experimental-webgl', opts);
@@ -825,8 +867,9 @@ class Renderer {
     gl.bindBuffer(gl.ARRAY_BUFFER, this.skyBuf);
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
 
-    this.SHADOW = 1536;
+    this.SHADOW = this.cfg.shadowSize || 1536;
     this.initShadow();
+    if (!this.cfg.alpha) { this.progPost = this.rawProg(VS_SKY, FS_POST); this.initPost(); }
 
     this.vp = M4.create(); this.lightVP = M4.create();
     this.proj = M4.create(); this.view = M4.create();
@@ -881,8 +924,65 @@ class Renderer {
   resize() {
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
     const w = Math.floor(innerWidth * dpr), h = Math.floor(innerHeight * dpr);
-    if (this.cv.width !== w || this.cv.height !== h) { this.cv.width = w; this.cv.height = h; }
+    if (this.cv.width !== w || this.cv.height !== h) { this.cv.width = w; this.cv.height = h; this.resizePost(w, h); }
     this.aspect = w / h;
+  }
+  /* Offscreen colour target so the frame can be graded before it is shown. */
+  initPost() {
+    const gl = this.gl;
+    this.postTex = gl.createTexture();
+    this.postFbo = gl.createFramebuffer();
+    this.postRb = gl.createRenderbuffer();
+    this.postW = 0; this.postH = 0;
+  }
+  resizePost(w, h) {
+    if (!this.progPost) return;
+    const gl = this.gl;
+    if (this.postW === w && this.postH === h) return;
+    this.postW = w; this.postH = h;
+    gl.bindTexture(gl.TEXTURE_2D, this.postTex);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, this.postFbo);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.postTex, 0);
+    gl.bindRenderbuffer(gl.RENDERBUFFER, this.postRb);
+    gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT16, w, h);
+    gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, this.postRb);
+    this.postOk = gl.checkFramebufferStatus(gl.FRAMEBUFFER) === gl.FRAMEBUFFER_COMPLETE;
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  }
+  beginPost() {
+    if (!this.progPost || !this.postOk) return false;
+    const gl = this.gl;
+    gl.bindFramebuffer(gl.FRAMEBUFFER, this.postFbo);
+    gl.viewport(0, 0, this.postW, this.postH);
+    return true;
+  }
+  endPost(night) {
+    if (!this.progPost || !this.postOk) return;
+    const gl = this.gl, p = this.progPost;
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    gl.viewport(0, 0, this.cv.width, this.cv.height);
+    gl.disable(gl.DEPTH_TEST);
+    gl.useProgram(p);
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.skyBuf);
+    gl.enableVertexAttribArray(p.a.aPos);
+    gl.vertexAttribPointer(p.a.aPos, 2, gl.FLOAT, false, 0, 0);
+    this.divisor(p.a.aPos, 0);
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, this.postTex);
+    gl.uniform1i(p.u.uScene, 0);
+    gl.uniform2f(p.u.uPixel, 1 / this.postW, 1 / this.postH);
+    gl.uniform1f(p.u.uVignette, 0.42);
+    gl.uniform1f(p.u.uSat, 1.12);
+    gl.uniform1f(p.u.uContrast, 1.06);
+    gl.uniform1f(p.u.uLift, 0.008);
+    gl.uniform1f(p.u.uNight, night || 0);
+    gl.drawArrays(gl.TRIANGLES, 0, 3);
+    gl.enable(gl.DEPTH_TEST);
   }
   /* --- Mesh objects --- */
   makeMesh(geo) { const m = new Mesh(this.gl, this.gl2, this.extInst); m.upload(geo); return m; }
@@ -1051,7 +1151,7 @@ Renderer.prototype.endShadow = function () {
 };
 Renderer.prototype.clearMain = function () {
   const gl = this.gl;
-  gl.viewport(0, 0, this.cv.width, this.cv.height);
+  if (!(this.progPost && this.postOk)) gl.viewport(0, 0, this.cv.width, this.cv.height);
   gl.clearColor(this.fogCol[0], this.fogCol[1], this.fogCol[2], 1);
   gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
   this.drawCalls = 0; this.tris = 0;
@@ -1190,13 +1290,14 @@ const Cam = {
    footprint) and a height. Terrain is regenerated whenever tiles change.
    ========================================================================== */
 const TILE = 4;                 // world units per tile
-const N = 112;                  // tiles per side (448 m of park)
+const N = 140;                  // tiles per side (560 m across)
 const T_GRASS = 0, T_PATH = 1, T_QUEUE = 2, T_BUILD = 3, T_WATER = 4, T_ENTRY = 5, T_PLAZA = 6;
 
 const WORLD = {
   n: N, tile: TILE, half: N * TILE / 2,
   type: new Uint8Array(N * N),
   own: new Int32Array(N * N),        // id of object occupying tile (-1 none)
+  land: new Uint8Array(N * N),       // 1 = the park owns this tile
   h: new Float32Array((N + 1) * (N + 1)),
   dirty: true,
   mesh: null, waterMesh: null, propMesh: null,
@@ -1213,6 +1314,9 @@ const WORLD = {
   wz(j) { return (j - N / 2) * TILE + TILE / 2; },
   ti(x) { return Math.floor(x / TILE + N / 2); },
   tj(z) { return Math.floor(z / TILE + N / 2); },
+
+  ownsTile(i, j) { return this.inb(i, j) && this.land[j * N + i] === 1; },
+  ownsWorld(x, z) { return this.ownsTile(this.ti(x), this.tj(z)); },
 
   hAt(x, z) {
     const fx = clamp(x / TILE + N / 2, 0, N), fz = clamp(z / TILE + N / 2, 0, N);
@@ -1241,6 +1345,7 @@ const WORLD = {
     }
     this.type.fill(T_GRASS);
     this.own.fill(-1);
+    Land.reset();
     // Entrance plaza & main street
     const c = N >> 1;
     for (let j = c + 12; j < c + 20; j++) for (let i = c - 3; i <= c + 3; i++) this.type[j * N + i] = T_PATH;
@@ -1254,10 +1359,10 @@ const WORLD = {
   /* Build the terrain mesh: flat-shaded quads with a hand-painted look. */
   buildMesh(R) {
     const g = new Geo(), W = N + 1;
-    const grassA = hex(0x5aa84e), grassB = hex(0x6bbd58), grassC = hex(0x4d9647);
-    const rock = hex(0x7b7468), sand = hex(0xd7c48f);
-    const pathC = hex(0xcfc2a8), pathD = hex(0xb9ab90);
-    const queueC = hex(0xc0a8d8), plazaA = hex(0xe0d6c0), plazaB = hex(0xcbbea3), entryC = hex(0xd9b98c);
+    const grassA = hex(0x4e9b46), grassB = hex(0x62b054), grassC = hex(0x3f8a3e), grassD = hex(0x74bd5e);
+    const rock = hex(0x6f6a62), rock2 = hex(0x857f74), sand = hex(0xcfbc88);
+    const pathC = hex(0xc4b79d), pathD = hex(0xb0a288);
+    const queueC = hex(0xb59ad0), plazaA = hex(0xd8cdb6), plazaB = hex(0xc2b59a), entryC = hex(0xcfae82);
     for (let j = 0; j < N; j++) {
       for (let i = 0; i < N; i++) {
         const t = this.type[j * N + i];
@@ -1272,12 +1377,15 @@ const WORLD = {
         else {
           const slope = Math.max(Math.abs(y10 - y00), Math.abs(y01 - y00)) / TILE;
           const hh = (y00 + y11) * .5;
-          const n = noise2(i * .31, j * .31);
-          c = n > .62 ? grassB : n < .34 ? grassC : grassA;
-          if (slope > .62) c = shade(rock, .9 + n * .25);
-          else if (hh < -1.2) c = shade(sand, .9 + n * .2);
-          if (hh > 16) c = shade(rock, 1.05 + n * .2);
+          const n = noise2(i * .31, j * .31), n2 = noise2(i * .09 + 11, j * .09 + 7);
+          c = n > .70 ? grassD : n > .55 ? grassB : n < .32 ? grassC : grassA;
+          c = shade(c, .93 + n2 * .16);
+          if (slope > .58) c = shade(n > .5 ? rock2 : rock, .9 + n * .25);
+          else if (hh < -1.0) c = shade(sand, .9 + n * .2);
+          if (hh > 18) c = shade(rock2, 1.0 + n * .22);
         }
+        // land the park does not own reads cooler and darker
+        if (this.land[j * N + i] !== 1) c = [c[0] * .42 + .06, c[1] * .46 + .07, c[2] * .50 + .10];
         // choose the diagonal that keeps the quad convex-ish
         if (Math.abs(y00 - y11) < Math.abs(y10 - y01)) {
           g.triV([x0, y00, z0], [x0, y01, z1], [x1, y11, z1], c);
@@ -1301,15 +1409,20 @@ const WORLD = {
         }
       }
     }
-    // Boundary fence around the buildable area
+    // Fence along the edge of the land the park actually owns
     const fenceC = hex(0x6c5a47);
-    const lim = (N / 2 - 2) * TILE;
-    for (let s = -lim; s < lim; s += TILE) {
-      for (const [ax, az, bx, bz] of [[s, -lim, s + TILE, -lim], [s, lim, s + TILE, lim], [-lim, s, -lim, s + TILE], [lim, s, lim, s + TILE]]) {
-        const ay = this.hAt(ax, az) + 1.2, by = this.hAt(bx, bz) + 1.2;
-        g.beam(ax, ay, az, bx, by, bz, .1, .12, fenceC);
-        g.beam(ax, ay - .5, az, bx, by - .5, bz, .1, .12, fenceC);
-        g.box(ax, this.hAt(ax, az), az, .2, 1.45, .2, shade(fenceC, .85));
+    for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
+      if (this.land[j * N + i] !== 1) continue;
+      const cx = this.wx(i), cz = this.wz(j);
+      for (const [di, dj] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        if (this.ownsTile(i + di, j + dj)) continue;
+        const ex = cx + di * TILE / 2, ez = cz + dj * TILE / 2;
+        const ax = ex - dj * TILE / 2, az = ez - di * TILE / 2;
+        const bx = ex + dj * TILE / 2, bz = ez + di * TILE / 2;
+        const ay = this.hAt(ax, az) + 1.25, by = this.hAt(bx, bz) + 1.25;
+        g.beam(ax, ay, az, bx, by, bz, .09, .11, fenceC);
+        g.beam(ax, ay - .5, az, bx, by - .5, bz, .09, .11, fenceC);
+        g.box(ax, this.hAt(ax, az), az, .17, 1.4, .17, shade(fenceC, .85));
       }
     }
     if (this.mesh) this.mesh.dispose();
@@ -1365,6 +1478,7 @@ const WORLD = {
   areaFree(i0, j0, w, d, allowPath) {
     for (let j = j0; j < j0 + d; j++) for (let i = i0; i < i0 + w; i++) {
       if (!this.inb(i, j)) return false;
+      if (this.land[j * N + i] !== 1) return false;
       const t = this.type[j * N + i];
       if (t === T_BUILD || t === T_QUEUE) return false;
       if (!allowPath && (t === T_PATH || t === T_PLAZA || t === T_ENTRY)) return false;
@@ -1381,64 +1495,160 @@ const WORLD = {
 };
 
 /* ============================================================================
+   SECTION 6b — LAND OWNERSHIP
+   The map is divided into plots. The park starts on a handful of them and
+   the rest can be bought, at a price that climbs the further out you go.
+   ========================================================================== */
+const PLOT = 14;                       // tiles per side of a purchasable plot
+const PLOTS = Math.ceil(N / PLOT);     // plots per side
+
+const Land = {
+  ownedPlots: new Uint8Array(PLOTS * PLOTS),
+  bought: 0,
+
+  reset() {
+    this.ownedPlots.fill(0);
+    this.bought = 0;
+    const c = Math.floor(PLOTS / 2);
+    // the starting park is the central three-by-three block of plots
+    for (let pj = c - 1; pj <= c + 1; pj++) for (let pi = c - 1; pi <= c + 1; pi++) this.claim(pi, pj);
+  },
+  idx(pi, pj) { return pj * PLOTS + pi; },
+  inb(pi, pj) { return pi >= 0 && pj >= 0 && pi < PLOTS && pj < PLOTS; },
+  owns(pi, pj) { return this.inb(pi, pj) && this.ownedPlots[this.idx(pi, pj)] === 1; },
+  plotOf(i, j) { return { pi: Math.floor(i / PLOT), pj: Math.floor(j / PLOT) }; },
+
+  claim(pi, pj) {
+    if (!this.inb(pi, pj) || this.owns(pi, pj)) return false;
+    this.ownedPlots[this.idx(pi, pj)] = 1;
+    this.bought++;
+    for (let j = pj * PLOT; j < Math.min(N, (pj + 1) * PLOT); j++)
+      for (let i = pi * PLOT; i < Math.min(N, (pi + 1) * PLOT); i++) WORLD.land[j * N + i] = 1;
+    WORLD.dirty = true;
+    return true;
+  },
+  /* Only plots touching land you already own are for sale. */
+  adjacent(pi, pj) {
+    return this.owns(pi - 1, pj) || this.owns(pi + 1, pj) || this.owns(pi, pj - 1) || this.owns(pi, pj + 1);
+  },
+  /* Buildable terrain is worth more; distant, mountainous plots are cheap but useless. */
+  price(pi, pj) {
+    let flat = 0, n = 0;
+    for (let j = pj * PLOT; j < Math.min(N, (pj + 1) * PLOT); j += 2)
+      for (let i = pi * PLOT; i < Math.min(N, (pi + 1) * PLOT); i += 2) {
+        n++; if (Math.abs(WORLD.tileH(i, j)) < 3.2) flat++;
+      }
+    const usable = n ? flat / n : 0;
+    const base = 6000 + this.bought * 1500;
+    return Math.round((base * (0.35 + usable * 1.15)) / 100) * 100;
+  },
+  buy(pi, pj) {
+    if (!this.inb(pi, pj)) return 'That plot is off the map.';
+    if (this.owns(pi, pj)) return 'You already own that plot.';
+    if (!this.adjacent(pi, pj)) return 'You can only buy land next to your park.';
+    const cost = this.price(pi, pj);
+    if (Park.money < cost) return 'You cannot afford that plot (' + money(cost) + ').';
+    Park.spend(cost);
+    this.claim(pi, pj);
+    Audio.play('cash');
+    UI.notify('Land purchased', 'Plot bought for ' + money(cost) + '. The park now covers ' + this.areaText() + '.', 'money');
+    return null;
+  },
+  tilesOwned() { let n = 0; for (let k = 0; k < N * N; k++) if (WORLD.land[k]) n++; return n; },
+  areaText() {
+    const m2 = this.tilesOwned() * TILE * TILE;
+    return m2 >= 10000 ? (m2 / 10000).toFixed(1) + ' ha' : m2 + ' m2';
+  }
+};
+
+/* ============================================================================
    SECTION 7 — CONTENT CATALOGUE
    Everything the player can place. Names, costs, stats, prefabs.
    ========================================================================== */
 const CAT = {
   /* ---------------- Shops & facilities ---------------- */
   shops: [
-    { id: 'burger', name: 'Burger Barn', e: '🍔', cost: 1200, up: 22, w: 2, d: 2, need: 'hunger', price: 8, satisfy: 62, color: 0xd94f3c, roof: 0xf2c14e },
-    { id: 'pizza', name: 'Pizza Palace', e: '🍕', cost: 1500, up: 26, w: 2, d: 2, need: 'hunger', price: 10, satisfy: 74, color: 0xe0663f, roof: 0xf7e08a },
-    { id: 'noodle', name: 'Noodle Nook', e: '🍜', cost: 1700, up: 28, w: 2, d: 2, need: 'hunger', price: 11, satisfy: 80, color: 0xc0453c, roof: 0x2f3b52 },
-    { id: 'drink', name: 'Soda Stop', e: '🥤', cost: 900, up: 16, w: 1, d: 1, need: 'thirst', price: 5, satisfy: 70, color: 0x3ba7d4, roof: 0xffffff },
-    { id: 'coffee', name: 'Coaster Coffee', e: '☕', cost: 1100, up: 18, w: 1, d: 1, need: 'thirst', price: 6, satisfy: 62, color: 0x6b4630, roof: 0xd9c7a5 },
-    { id: 'icecream', name: 'Gelato Cart', e: '🍦', cost: 800, up: 14, w: 1, d: 1, need: 'hunger', price: 6, satisfy: 40, color: 0xf2a0c0, roof: 0xffffff },
-    { id: 'donut', name: 'Donut Dome', e: '🍩', cost: 1300, up: 20, w: 2, d: 1, need: 'hunger', price: 7, satisfy: 50, color: 0xe8749b, roof: 0x8b5ab8 },
-    { id: 'popcorn', name: 'Popcorn Stand', e: '🍿', cost: 850, up: 15, w: 1, d: 1, need: 'hunger', price: 5, satisfy: 34, color: 0xe8d24a, roof: 0xd94f3c },
-    { id: 'toilet', name: 'Restrooms', e: '🚻', cost: 900, up: 20, w: 2, d: 2, need: 'toilet', price: 0, satisfy: 100, color: 0x8fa3b8, roof: 0x4d6480 },
-    { id: 'gift', name: 'Gift Shop', e: '🎁', cost: 2000, up: 30, w: 2, d: 2, need: 'shop', price: 18, satisfy: 55, color: 0x7b5bd4, roof: 0xffd76a },
-    { id: 'balloon', name: 'Balloon Stall', e: '🎈', cost: 700, up: 12, w: 1, d: 1, need: 'shop', price: 6, satisfy: 40, color: 0xff6f91, roof: 0x69d2f0 },
-    { id: 'firstaid', name: 'First Aid', e: '🏥', cost: 1400, up: 24, w: 2, d: 1, need: 'nausea', price: 0, satisfy: 100, color: 0xf4f4f4, roof: 0xd94f3c },
-    { id: 'atm', name: 'Cash Machine', e: '🏧', cost: 600, up: 8, w: 1, d: 1, need: 'cash', price: 0, satisfy: 100, color: 0x3c4a5e, roof: 0x2ad07a },
-    { id: 'info', name: 'Info Kiosk', e: 'ℹ️', cost: 500, up: 8, w: 1, d: 1, need: 'info', price: 0, satisfy: 100, color: 0x2f80c0, roof: 0xffffff },
+    { id: 'burger', name: 'Burger Barn', cost: 1200, up: 22, w: 2, d: 2, need: 'hunger', price: 8, satisfy: 62, color: 0xd94f3c, roof: 0xf2c14e },
+    { id: 'pizza', name: 'Pizza Palace', cost: 1500, up: 26, w: 2, d: 2, need: 'hunger', price: 10, satisfy: 74, color: 0xe0663f, roof: 0xf7e08a },
+    { id: 'noodle', name: 'Noodle Nook', cost: 1700, up: 28, w: 2, d: 2, need: 'hunger', price: 11, satisfy: 80, color: 0xc0453c, roof: 0x2f3b52 },
+    { id: 'drink', name: 'Soda Stop', cost: 900, up: 16, w: 1, d: 1, need: 'thirst', price: 5, satisfy: 70, color: 0x3ba7d4, roof: 0xffffff },
+    { id: 'coffee', name: 'Coaster Coffee', cost: 1100, up: 18, w: 1, d: 1, need: 'thirst', price: 6, satisfy: 62, color: 0x6b4630, roof: 0xd9c7a5 },
+    { id: 'icecream', name: 'Gelato Cart', cost: 800, up: 14, w: 1, d: 1, need: 'hunger', price: 6, satisfy: 40, color: 0xf2a0c0, roof: 0xffffff },
+    { id: 'donut', name: 'Donut Dome', cost: 1300, up: 20, w: 2, d: 1, need: 'hunger', price: 7, satisfy: 50, color: 0xe8749b, roof: 0x8b5ab8 },
+    { id: 'popcorn', name: 'Popcorn Stand', cost: 850, up: 15, w: 1, d: 1, need: 'hunger', price: 5, satisfy: 34, color: 0xe8d24a, roof: 0xd94f3c },
+    { id: 'toilet', name: 'Restrooms', cost: 900, up: 20, w: 2, d: 2, need: 'toilet', price: 0, satisfy: 100, color: 0x8fa3b8, roof: 0x4d6480 },
+    { id: 'gift', name: 'Gift Shop', cost: 2000, up: 30, w: 2, d: 2, need: 'shop', price: 18, satisfy: 55, color: 0x7b5bd4, roof: 0xffd76a },
+    { id: 'balloon', name: 'Balloon Stall', cost: 700, up: 12, w: 1, d: 1, need: 'shop', price: 6, satisfy: 40, color: 0xff6f91, roof: 0x69d2f0 },
+    { id: 'firstaid', name: 'First Aid', cost: 1400, up: 24, w: 2, d: 1, need: 'nausea', price: 0, satisfy: 100, color: 0xf4f4f4, roof: 0xd94f3c },
+    { id: 'atm', name: 'Cash Machine', cost: 600, up: 8, w: 1, d: 1, need: 'cash', price: 0, satisfy: 100, color: 0x3c4a5e, roof: 0x2ad07a },
+    { id: 'info', name: 'Info Kiosk', cost: 500, up: 8, w: 1, d: 1, need: 'info', price: 0, satisfy: 100, color: 0x2f80c0, roof: 0xffffff },
+    { id: 'hotdog', name: 'Hot Dog Hut', cost: 1150, up: 20, w: 2, d: 1, need: 'hunger', price: 8, satisfy: 58, color: 0xc0392b, roof: 0xf5e6c8 },
+    { id: 'taco', name: 'Taco Cantina', cost: 1600, up: 26, w: 2, d: 2, need: 'hunger', price: 11, satisfy: 76, color: 0xe07a2f, roof: 0x2e8b57 },
+    { id: 'sushi', name: 'Sushi Bar', cost: 2100, up: 32, w: 2, d: 2, need: 'hunger', price: 15, satisfy: 88, color: 0x2b3a4a, roof: 0xd94f3c },
+    { id: 'bbq', name: 'Smokehouse BBQ', cost: 2400, up: 34, w: 3, d: 2, need: 'hunger', price: 16, satisfy: 92, color: 0x6b3f2a, roof: 0x3a3a3a },
+    { id: 'pretzel', name: 'Pretzel Cart', cost: 780, up: 13, w: 1, d: 1, need: 'hunger', price: 5, satisfy: 36, color: 0xb5651d, roof: 0xf0d9a0 },
+    { id: 'smoothie', name: 'Smoothie Shack', cost: 1250, up: 21, w: 2, d: 1, need: 'thirst', price: 8, satisfy: 84, color: 0x2ecc71, roof: 0xffd23f },
+    { id: 'tea', name: 'Tea Garden', cost: 1350, up: 22, w: 2, d: 2, need: 'thirst', price: 7, satisfy: 72, color: 0x8fbf6a, roof: 0x5c4033 },
+    { id: 'candy', name: 'Candy Emporium', cost: 1700, up: 26, w: 2, d: 2, need: 'shop', price: 12, satisfy: 60, color: 0xff7fb0, roof: 0x7ed6df },
+    { id: 'hatshop', name: 'Hat Stand', cost: 900, up: 15, w: 1, d: 1, need: 'shop', price: 9, satisfy: 45, color: 0x4a6fd4, roof: 0xffd76a },
+    { id: 'photobooth', name: 'Photo Booth', cost: 1450, up: 24, w: 1, d: 1, need: 'shop', price: 14, satisfy: 66, color: 0x34495e, roof: 0xe74c3c },
+    { id: 'locker', name: 'Locker Room', cost: 1000, up: 17, w: 2, d: 1, need: 'shop', price: 4, satisfy: 30, color: 0x7f8c8d, roof: 0x2c3e50 },
   ],
   /* ---------------- Scenery ---------------- */
   scenery: [
-    { id: 'bench', name: 'Bench', e: '🪑', cost: 60, up: .4, w: 1, d: 1, kind: 'bench', beauty: 3 },
-    { id: 'bin', name: 'Litter Bin', e: '🗑️', cost: 50, up: .4, w: 1, d: 1, kind: 'bin', beauty: 1 },
-    { id: 'lamp', name: 'Lamp Post', e: '💡', cost: 120, up: .8, w: 1, d: 1, kind: 'lamp', beauty: 4, light: true },
-    { id: 'tree', name: 'Oak Tree', e: '🌳', cost: 90, up: .3, w: 1, d: 1, kind: 'tree', beauty: 7 },
-    { id: 'pine', name: 'Pine Tree', e: '🌲', cost: 80, up: .3, w: 1, d: 1, kind: 'pine', beauty: 6 },
-    { id: 'palm', name: 'Palm Tree', e: '🌴', cost: 140, up: .4, w: 1, d: 1, kind: 'palm', beauty: 8 },
-    { id: 'flower', name: 'Flower Bed', e: '🌷', cost: 45, up: .3, w: 1, d: 1, kind: 'flower', beauty: 5 },
-    { id: 'hedge', name: 'Hedge', e: '🌿', cost: 40, up: .2, w: 1, d: 1, kind: 'hedge', beauty: 3 },
-    { id: 'fountain', name: 'Grand Fountain', e: '⛲', cost: 1800, up: 6, w: 2, d: 2, kind: 'fountain', beauty: 40 },
-    { id: 'statue', name: 'Marble Statue', e: '🗿', cost: 900, up: 2, w: 1, d: 1, kind: 'statue', beauty: 22 },
-    { id: 'topiary', name: 'Topiary Bear', e: '🐻', cost: 420, up: 1.2, w: 1, d: 1, kind: 'topiary', beauty: 15 },
-    { id: 'arch', name: 'Themed Arch', e: '🏛️', cost: 700, up: 2, w: 2, d: 1, kind: 'arch', beauty: 18 },
-    { id: 'speaker', name: 'Music Speaker', e: '🔊', cost: 260, up: 1.5, w: 1, d: 1, kind: 'speaker', beauty: 8 },
-    { id: 'firework', name: 'Firework Mortar', e: '🎆', cost: 1500, up: 8, w: 1, d: 1, kind: 'firework', beauty: 25 },
-    { id: 'clock', name: 'Clock Tower', e: '🕰️', cost: 2600, up: 9, w: 2, d: 2, kind: 'clock', beauty: 55 },
-    { id: 'castle', name: 'Fairytale Castle', e: '🏰', cost: 9000, up: 30, w: 4, d: 4, kind: 'castle', beauty: 160 },
+    { id: 'bench', name: 'Bench', cost: 60, up: .4, w: 1, d: 1, kind: 'bench', beauty: 3 },
+    { id: 'bin', name: 'Litter Bin', cost: 50, up: .4, w: 1, d: 1, kind: 'bin', beauty: 1 },
+    { id: 'lamp', name: 'Lamp Post', cost: 120, up: .8, w: 1, d: 1, kind: 'lamp', beauty: 4, light: true },
+    { id: 'tree', name: 'Oak Tree', cost: 90, up: .3, w: 1, d: 1, kind: 'tree', beauty: 7 },
+    { id: 'pine', name: 'Pine Tree', cost: 80, up: .3, w: 1, d: 1, kind: 'pine', beauty: 6 },
+    { id: 'palm', name: 'Palm Tree', cost: 140, up: .4, w: 1, d: 1, kind: 'palm', beauty: 8 },
+    { id: 'flower', name: 'Flower Bed', cost: 45, up: .3, w: 1, d: 1, kind: 'flower', beauty: 5 },
+    { id: 'hedge', name: 'Hedge', cost: 40, up: .2, w: 1, d: 1, kind: 'hedge', beauty: 3 },
+    { id: 'fountain', name: 'Grand Fountain', cost: 1800, up: 6, w: 2, d: 2, kind: 'fountain', beauty: 40 },
+    { id: 'statue', name: 'Marble Statue', cost: 900, up: 2, w: 1, d: 1, kind: 'statue', beauty: 22 },
+    { id: 'topiary', name: 'Topiary Bear', cost: 420, up: 1.2, w: 1, d: 1, kind: 'topiary', beauty: 15 },
+    { id: 'arch', name: 'Themed Arch', cost: 700, up: 2, w: 2, d: 1, kind: 'arch', beauty: 18 },
+    { id: 'speaker', name: 'Music Speaker', cost: 260, up: 1.5, w: 1, d: 1, kind: 'speaker', beauty: 8 },
+    { id: 'firework', name: 'Firework Mortar', cost: 1500, up: 8, w: 1, d: 1, kind: 'firework', beauty: 25 },
+    { id: 'clock', name: 'Clock Tower', cost: 2600, up: 9, w: 2, d: 2, kind: 'clock', beauty: 55 },
+    { id: 'castle', name: 'Fairytale Castle', cost: 9000, up: 30, w: 4, d: 4, kind: 'castle', beauty: 160 },
+    { id: 'gazebo', name: 'Garden Gazebo', cost: 1400, up: 4, w: 2, d: 2, kind: 'gazebo', beauty: 46 },
+    { id: 'torii', name: 'Torii Gate', cost: 1100, up: 3, w: 2, d: 1, kind: 'torii', beauty: 40 },
+    { id: 'rockarch', name: 'Rock Arch', cost: 1600, up: 4, w: 3, d: 2, kind: 'rockarch', beauty: 44 },
+    { id: 'dino', name: 'Dinosaur Statue', cost: 3200, up: 9, w: 3, d: 2, kind: 'dino', beauty: 84 },
+    { id: 'pond', name: 'Koi Pond', cost: 1900, up: 5, w: 3, d: 3, kind: 'pond', beauty: 52 },
+    { id: 'campfire', name: 'Campfire Circle', cost: 520, up: 2, w: 2, d: 2, kind: 'campfire', beauty: 20 },
+    { id: 'pylon', name: 'Neon Pylon', cost: 860, up: 3, w: 1, d: 1, kind: 'pylon', beauty: 26 },
+    { id: 'saloon', name: 'Western Facade', cost: 2400, up: 7, w: 3, d: 1, kind: 'saloon', beauty: 62 },
+    { id: 'lights', name: 'Festoon Lights', cost: 340, up: 1.4, w: 1, d: 1, kind: 'lights', beauty: 16 },
+    { id: 'banner', name: 'Banner Pole', cost: 260, up: 1, w: 1, d: 1, kind: 'banner', beauty: 12 },
+    { id: 'maze', name: 'Maze Hedge', cost: 180, up: .6, w: 1, d: 1, kind: 'maze', beauty: 9 },
   ],
   /* ---------------- Flat rides ---------------- */
   rides: [
-    { id: 'carousel', name: 'Grand Carousel', e: '🎠', cost: 4500, up: 55, w: 4, d: 4, cap: 16, dur: 42, exc: 3.2, fear: 0.6, naus: 1.1, price: 5, kind: 'carousel' },
-    { id: 'ferris', name: 'Skyline Wheel', e: '🎡', cost: 9000, up: 90, w: 4, d: 4, cap: 24, dur: 70, exc: 4.0, fear: 2.2, naus: 0.8, price: 7, kind: 'ferris' },
-    { id: 'drop', name: 'Terror Drop', e: '🗼', cost: 12000, up: 120, w: 3, d: 3, cap: 12, dur: 38, exc: 7.6, fear: 8.4, naus: 4.2, price: 9, kind: 'drop' },
-    { id: 'swing', name: 'Wave Swinger', e: '🎪', cost: 6800, up: 70, w: 4, d: 4, cap: 20, dur: 46, exc: 5.1, fear: 3.4, naus: 3.0, price: 6, kind: 'swing' },
-    { id: 'teacup', name: 'Spinning Teacups', e: '🫖', cost: 3800, up: 45, w: 3, d: 3, cap: 12, dur: 40, exc: 3.6, fear: 1.2, naus: 6.5, price: 5, kind: 'teacup' },
-    { id: 'pirate', name: 'Pirate Galleon', e: '🚢', cost: 8200, up: 82, w: 4, d: 3, cap: 24, dur: 50, exc: 6.2, fear: 5.0, naus: 4.6, price: 7, kind: 'pirate' },
-    { id: 'bumper', name: 'Bumper Cars', e: '🚗', cost: 5200, up: 60, w: 4, d: 4, cap: 14, dur: 55, exc: 4.4, fear: 1.0, naus: 1.4, price: 5, kind: 'bumper' },
-    { id: 'observation', name: 'Observation Tower', e: '🔭', cost: 7000, up: 65, w: 3, d: 3, cap: 20, dur: 60, exc: 3.0, fear: 3.0, naus: 0.4, price: 6, kind: 'tower' },
+    { id: 'carousel', name: 'Grand Carousel', cost: 4500, up: 55, w: 4, d: 4, cap: 16, dur: 42, exc: 3.2, fear: 0.6, naus: 1.1, price: 5, kind: 'carousel' },
+    { id: 'ferris', name: 'Skyline Wheel', cost: 9000, up: 90, w: 4, d: 4, cap: 24, dur: 70, exc: 4.0, fear: 2.2, naus: 0.8, price: 7, kind: 'ferris' },
+    { id: 'drop', name: 'Terror Drop', cost: 12000, up: 120, w: 3, d: 3, cap: 12, dur: 38, exc: 7.6, fear: 8.4, naus: 4.2, price: 9, kind: 'drop' },
+    { id: 'swing', name: 'Wave Swinger', cost: 6800, up: 70, w: 4, d: 4, cap: 20, dur: 46, exc: 5.1, fear: 3.4, naus: 3.0, price: 6, kind: 'swing' },
+    { id: 'teacup', name: 'Spinning Teacups', cost: 3800, up: 45, w: 3, d: 3, cap: 12, dur: 40, exc: 3.6, fear: 1.2, naus: 6.5, price: 5, kind: 'teacup' },
+    { id: 'pirate', name: 'Pirate Galleon', cost: 8200, up: 82, w: 4, d: 3, cap: 24, dur: 50, exc: 6.2, fear: 5.0, naus: 4.6, price: 7, kind: 'pirate' },
+    { id: 'bumper', name: 'Bumper Cars', cost: 5200, up: 60, w: 4, d: 4, cap: 14, dur: 55, exc: 4.4, fear: 1.0, naus: 1.4, price: 5, kind: 'bumper' },
+    { id: 'observation', name: 'Observation Tower', cost: 7000, up: 65, w: 3, d: 3, cap: 20, dur: 60, exc: 3.0, fear: 3.0, naus: 0.4, price: 6, kind: 'tower' },
+    { id: 'enterprise', name: 'Enterprise', cost: 8600, up: 86, w: 4, d: 4, cap: 20, dur: 48, exc: 6.4, fear: 5.6, naus: 5.4, price: 7, kind: 'enterprise' },
+    { id: 'topspin', name: 'Top Spin', cost: 9400, up: 95, w: 4, d: 3, cap: 16, dur: 44, exc: 7.2, fear: 7.4, naus: 6.8, price: 8, kind: 'topspin' },
+    { id: 'frisbee', name: 'Sky Frisbee', cost: 11000, up: 110, w: 4, d: 4, cap: 24, dur: 52, exc: 8.0, fear: 7.8, naus: 5.2, price: 9, kind: 'frisbee' },
+    { id: 'gravitron', name: 'Gravitron', cost: 5600, up: 62, w: 3, d: 3, cap: 18, dur: 46, exc: 4.6, fear: 3.2, naus: 7.4, price: 5, kind: 'gravitron' },
+    { id: 'haunted', name: 'Haunted Manor', cost: 10500, up: 96, w: 4, d: 4, cap: 20, dur: 80, exc: 5.4, fear: 4.4, naus: 0.6, price: 8, kind: 'haunted' },
+    { id: 'balloonride', name: 'Balloon Race', cost: 4200, up: 48, w: 4, d: 4, cap: 16, dur: 44, exc: 3.0, fear: 0.8, naus: 1.6, price: 4, kind: 'balloonride' },
+    { id: 'rapids', name: 'River Rapids', cost: 13500, up: 128, w: 4, d: 4, cap: 24, dur: 72, exc: 6.8, fear: 3.6, naus: 3.4, price: 8, kind: 'rapids' },
   ],
   /* ---------------- Staff ---------------- */
   staff: [
-    { id: 'janitor', name: 'Janitor', e: '🧹', cost: 300, wage: 22, color: 0x3fa9d8 },
-    { id: 'mechanic', name: 'Mechanic', e: '🔧', cost: 420, wage: 30, color: 0xf0a63c },
-    { id: 'entertainer', name: 'Entertainer', e: '🤹', cost: 380, wage: 26, color: 0xe05fa0 },
-    { id: 'security', name: 'Security', e: '👮', cost: 350, wage: 25, color: 0x2f3f5c },
-    { id: 'vendor', name: 'Vendor', e: '🧑‍🍳', cost: 330, wage: 24, color: 0x8fd06a },
+    { id: 'janitor', name: 'Janitor', cost: 300, wage: 22, color: 0x3fa9d8 },
+    { id: 'mechanic', name: 'Mechanic', cost: 420, wage: 30, color: 0xf0a63c },
+    { id: 'entertainer', name: 'Entertainer', cost: 380, wage: 26, color: 0xe05fa0 },
+    { id: 'security', name: 'Security', cost: 350, wage: 25, color: 0x2f3f5c },
+    { id: 'vendor', name: 'Vendor', cost: 330, wage: 24, color: 0x8fd06a },
   ],
   /* ---------------- Coaster track styles ---------------- */
   coasterTypes: [
@@ -1448,6 +1658,13 @@ const CAT = {
     { id: 'inverted', name: 'Inverted Screamer', rail: 0x7b3fd4, spine: 0xe8e0f5, tie: 0xc9b8e6, cars: 6, seat: 4, mass: 1, fric: .00068, maxSpeed: 44, carColor: 0xffe066, style: 'inverted' },
     { id: 'mine', name: 'Mine Train', rail: 0x6b6357, spine: 0x8b8172, tie: 0x4f4941, cars: 5, seat: 4, mass: 1.2, fric: .00095, maxSpeed: 32, carColor: 0xb5651d, style: 'wood' },
     { id: 'launch', name: 'Launch Accelerator', rail: 0x22262e, spine: 0xf5c518, tie: 0x3a3f48, cars: 4, seat: 4, mass: .9, fric: .00046, maxSpeed: 62, carColor: 0xff4d4d, style: 'tube' },
+    { id: 'giga', name: 'Giga Coaster', rail: 0x2b8f5a, spine: 0xe8f0e8, tie: 0xc2d4c8, cars: 9, seat: 4, mass: 1.15, fric: .00044, maxSpeed: 66, carColor: 0xf25c05, style: 'tube' },
+    { id: 'wing', name: 'Wing Rider', rail: 0xe06a1f, spine: 0x2e3440, tie: 0x4a5462, cars: 5, seat: 4, mass: 1.05, fric: .00066, maxSpeed: 42, carColor: 0x1fb6c9, style: 'wing' },
+    { id: 'dive', name: 'Dive Machine', rail: 0x1f6fd4, spine: 0xf0f4f8, tie: 0xb8c6d6, cars: 3, seat: 6, mass: 1.25, fric: .00060, maxSpeed: 48, carColor: 0xffce3d, style: 'tube' },
+    { id: 'spin', name: 'Spinning Coaster', rail: 0x8ac63f, spine: 0x3d4a2a, tie: 0x6b7a4a, cars: 4, seat: 4, mass: .95, fric: .00082, maxSpeed: 30, carColor: 0xc341a0, style: 'tube' },
+    { id: 'family', name: 'Family Coaster', rail: 0x39a0e0, spine: 0xfff0d0, tie: 0xd8c9a8, cars: 5, seat: 4, mass: 1, fric: .00090, maxSpeed: 22, carColor: 0xffd23f, style: 'tube' },
+    { id: 'mouse', name: 'Wild Mouse', rail: 0xf0f0f0, spine: 0xd94f3c, tie: 0xb0b6bd, cars: 1, seat: 4, mass: .8, fric: .00120, maxSpeed: 20, carColor: 0xf5f5f5, style: 'tube' },
+    { id: 'suspend', name: 'Suspended Swinger', rail: 0x9b59b6, spine: 0xe8dff0, tie: 0xc9b8e6, cars: 6, seat: 4, mass: 1.05, fric: .00074, maxSpeed: 38, carColor: 0x2ecc71, style: 'inverted' },
   ],
 };
 /* ============================================================================
@@ -1702,6 +1919,132 @@ const Prefab = {
         g.box(0, 5.2, -3.6, 3.0, .4, .8, s);
         break;
       }
+      case 'gazebo': {
+        const post = hex(0xf0e6d2), roof = hex(0x8b5a2b);
+        g.cyl(0, 0, 0, 3.4, .5, 12, hex(0xd8cdb4));
+        g.cyl(0, .5, 0, 3.1, .25, 12, hex(0xe8dcc0));
+        for (let i = 0; i < 8; i++) { const a = i / 8 * TAU; g.cyl(Math.cos(a) * 2.8, .75, Math.sin(a) * 2.8, .16, 3.2, 6, post); }
+        for (let i = 0; i < 8; i++) {
+          const a = i / 8 * TAU, a2 = (i + 1) / 8 * TAU;
+          g.beam(Math.cos(a) * 2.8, 3.95, Math.sin(a) * 2.8, Math.cos(a2) * 2.8, 3.95, Math.sin(a2) * 2.8, .14, .3, post);
+        }
+        this.stripedRoof(g, 0, 4.1, 0, 3.6, 1.8, 12, roof, shade(roof, 1.25));
+        g.sphere(0, 6.1, 0, .4, 7, hex(0xffd76a));
+        g.cyl(0, .75, 0, .5, .5, 8, hex(0xd8cdb4));
+        break;
+      }
+      case 'torii': {
+        const c = hex(0xc0392b), t = hex(0x2b2118);
+        for (const sx of [-1, 1]) { g.cyl(sx * 2.6, 0, 0, .4, 5.4, 8, c, .88); g.cyl(sx * 2.6, 0, 0, .55, .3, 8, t); }
+        g.box(0, 5.4, 0, 7.6, .5, .9, t);
+        g.box(0, 5.9, 0, 8.6, .45, 1.0, c);
+        g.box(0, 4.3, 0, 5.6, .4, .7, c);
+        g.box(0, 4.7, 0, .7, .8, .7, t);
+        break;
+      }
+      case 'rockarch': {
+        const r = hex(0x8a8378);
+        for (const sx of [-1, 1]) {
+          g.sphere(sx * 3.2, 1.4, 0, 2.0, 6, shade(r, .95));
+          g.sphere(sx * 3.0, 3.4, .3, 1.6, 6, shade(r, 1.08));
+          g.sphere(sx * 2.4, 5.0, -.2, 1.3, 6, shade(r, .9));
+        }
+        g.sphere(0, 5.8, 0, 1.7, 6, shade(r, 1.12));
+        g.sphere(-1.3, 5.6, .2, 1.3, 5, shade(r, 1.0));
+        g.sphere(1.3, 5.6, -.2, 1.3, 5, shade(r, 1.0));
+        g.sphere(-3.4, .4, 1.8, 1.0, 5, shade(r, .85));
+        g.sphere(3.6, .3, -1.6, .8, 5, shade(r, .85));
+        break;
+      }
+      case 'dino': {
+        const c = hex(0x4f7f4a), b = hex(0xd8cdb4);
+        g.box(0, 0, 0, 10, .5, 5, b);
+        g.cbox(0, 5.4, 0, 2.6, 3.2, 5.4, c);                 // body
+        g.beam(0, 4.6, -2.4, 0, 8.6, -4.6, 1.2, 1.2, c);     // neck
+        g.cbox(0, 9.6, -5.2, 1.4, 1.3, 2.6, shade(c, 1.1));  // head
+        g.cbox(0, 9.1, -6.2, 1.0, .5, 1.2, hex(0xe0d6c0));   // jaw
+        g.beam(0, 4.6, 2.4, 0, 2.2, 6.4, 1.0, 1.0, c);       // tail
+        g.beam(0, 2.2, 6.4, 0, 1.2, 8.4, .5, .5, c);
+        for (const sx of [-1, 1]) { g.cyl(sx * 1.0, .5, -1.4, .6, 3.4, 6, shade(c, .9)); g.cyl(sx * 1.1, .5, 1.6, .7, 3.6, 6, shade(c, .9)); }
+        for (let i = 0; i < 5; i++) g.cone(0, 6.6 + i * .1, -1.6 + i * 1.1, .45, .9, 5, hex(0xc9a227));
+        break;
+      }
+      case 'pond': {
+        g.cyl(0, 0, 0, 5.4, .5, 18, hex(0x6b8f4a));
+        g.cyl(0, .5, 0, 4.6, .12, 18, hex(0x2f86b8));
+        for (let i = 0; i < 14; i++) {
+          const a = i / 14 * TAU;
+          g.sphere(Math.cos(a) * 5.0, .5, Math.sin(a) * 5.0, .5 + (i % 3) * .18, 5, hex(0x8a8378));
+        }
+        for (let i = 0; i < 5; i++) {
+          const a = i * 1.9, r2 = 1.4 + (i % 3);
+          g.cyl(Math.cos(a) * r2, .6, Math.sin(a) * r2, .55, .06, 7, hex(0x3f8a4a));
+        }
+        g.cyl(1.2, .6, -1.0, .18, .5, 5, hex(0x3f8a4a));
+        g.sphere(1.2, 1.2, -1.0, .3, 5, hex(0xff8fb1));
+        break;
+      }
+      case 'campfire': {
+        g.cyl(0, 0, 0, 2.2, .25, 12, hex(0x9c8c70));
+        for (let i = 0; i < 12; i++) { const a = i / 12 * TAU; g.sphere(Math.cos(a) * 2.0, .2, Math.sin(a) * 2.0, .35, 5, hex(0x8a8378)); }
+        for (let i = 0; i < 5; i++) {
+          const a = i / 5 * TAU;
+          g.beam(Math.cos(a) * .8, .2, Math.sin(a) * .8, 0, 1.4, 0, .18, .18, hex(0x6b4a2f));
+        }
+        for (const [sx, sz] of [[-2.8, 0], [2.8, 0], [0, 2.8]]) { g.box(sx, 0, sz, 1.8, .45, .5, hex(0x9a6b42)); }
+        const fire = new Geo();
+        fire.cone(0, 0, 0, .7, 1.6, 6, hex(0xff8c1a));
+        fire.cone(0, .5, 0, .45, 1.2, 6, hex(0xffd23f));
+        parts.push({ geo: fire, anim: (m, o, t) => M4.compose(m, 0, .5, 0, 0, t * 2.4, 0, 1 + Math.sin(t * 9) * .12, 1 + Math.sin(t * 7) * .18, 1) });
+        break;
+      }
+      case 'pylon': {
+        g.box(0, 0, 0, 1.6, .5, 1.6, hex(0x2b3138));
+        g.cyl(0, .5, 0, .34, 5.5, 6, hex(0x3d444d));
+        for (let i = 0; i < 4; i++) g.box(0, 1.4 + i * 1.2, 0, 1.5, .22, 1.5, hex([0x39c0ff, 0xff2fa0, 0x7ef0c0, 0xffd23f][i]));
+        g.cone(0, 6.0, 0, .6, 1.4, 6, hex(0x39c0ff));
+        g.sphere(0, 7.5, 0, .3, 6, hex(0xff2fa0));
+        break;
+      }
+      case 'saloon': {
+        const w = hex(0x9a6b42), t = hex(0x6b4a2f), sgn = hex(0xd94f3c);
+        g.box(0, 0, 0, 11, 6.5, 1.2, w);
+        for (let i = -4; i <= 4; i += 2) g.box(i, 0, 0, .5, 6.5, 1.3, shade(w, .85));
+        g.box(0, 6.5, 0, 11.6, 1.8, 1.6, t);
+        g.box(0, 7.0, -.9, 9.0, .9, .12, sgn);
+        g.box(0, 2.6, -.7, 11.4, .25, 1.6, t);
+        for (const sx of [-4.6, 4.6]) g.cyl(sx, 0, -1.2, .18, 2.6, 6, t);
+        g.box(0, 0, -.7, 2.6, 2.4, .3, hex(0x5c4033));
+        for (const sx of [-3.2, 3.2]) g.box(sx, 2.8, -.66, 1.6, 1.8, .12, hex(0xffe9a8));
+        break;
+      }
+      case 'lights': {
+        g.cyl(0, 0, 0, .16, 4.6, 6, hex(0x3d3d3d));
+        g.box(0, 4.6, 0, .5, .2, .5, hex(0x3d3d3d));
+        for (let k = 0; k < 3; k++) {
+          const a = k / 3 * TAU;
+          for (let i = 1; i < 6; i++) {
+            const t = i / 6, x = Math.cos(a) * t * 4.5, z = Math.sin(a) * t * 4.5;
+            const y = 4.5 - Math.sin(t * PI) * 1.1 - t * 1.4;
+            g.sphere(x, y, z, .17, 5, hex([0xffd76a, 0xff8fb1, 0x7ef0c0][i % 3]));
+          }
+        }
+        break;
+      }
+      case 'banner': {
+        g.cyl(0, 0, 0, .16, 6.0, 6, hex(0xd8d2c4));
+        g.sphere(0, 6.1, 0, .26, 6, hex(0xffd76a));
+        const c = hex(0x3ba7d4);
+        g.box(.9, 3.4, 0, 1.7, 2.4, .08, c);
+        g.box(.9, 3.4, 0, 1.5, .5, .12, hex(0xfff4e0));
+        break;
+      }
+      case 'maze': {
+        const c = hex(0x2f7a3f);
+        g.box(0, 0, 0, 3.8, 2.6, 1.2, c, 1.12, .92, .8);
+        g.box(0, 2.6, 0, 3.4, .26, .9, shade(c, 1.2));
+        break;
+      }
     }
     return { base: g, parts };
   },
@@ -1921,6 +2264,152 @@ const Prefab = {
         parts.push({ geo: cab, anim: (m, o) => M4.compose(m, 0, 2 + o.h * (H - 6), 0, 0, o.spin * .5, 0, 1, 1, 1) });
         break;
       }
+      case 'enterprise': {
+        const R0 = 9;
+        g.cyl(0, 0, 0, 4.0, 1.0, 12, hex(0xd8cdb4));
+        for (const sx of [-1, 1]) g.beam(sx * 4.5, 1.0, 0, sx * 1.4, 9.5, 0, .5, .5, hex(0xb9c1c9));
+        g.box(0, 9.5, 0, 3.2, .8, 1.4, hex(0x9aa4ae));
+        const wheel = new Geo();
+        wheel.cyl(0, 0, -0.6, 1.2, 1.2, 12, hex(0xd94f3c));
+        for (let i = 0; i < 16; i++) {
+          const a = i / 16 * TAU, cx = Math.cos(a) * R0, cy = Math.sin(a) * R0;
+          wheel.beam(0, 0, 0, cx, cy, 0, .16, .16, hex(0xe8e8e8));
+          const c = hex([0xd94f3c, 0x3ba7d4, 0xffd23f, 0x6ac46a][i % 4]);
+          wheel.box(cx, cy, 0, 1.6, 1.4, 2.6, c);
+          wheel.box(cx, cy + 1.4, 0, 1.7, .2, 2.7, shade(c, 1.2));
+        }
+        for (let i = 0; i < 16; i++) {
+          const a = i / 16 * TAU, a2 = (i + 1) / 16 * TAU;
+          wheel.beam(Math.cos(a) * R0, Math.sin(a) * R0, 0, Math.cos(a2) * R0, Math.sin(a2) * R0, 0, .18, .18, hex(0xf0f0f0));
+        }
+        parts.push({ geo: wheel, anim: (m, o) => M4.compose(m, 0, 9.6, 0, -o.h * 1.15, 0, o.spin, 1, 1, 1) });
+        break;
+      }
+      case 'topspin': {
+        for (const sx of [-1, 1]) {
+          g.box(sx * 5.2, 0, 0, 2.0, 1.0, 6.0, hex(0xc4b89c));
+          g.beam(sx * 5.2, 1.0, -2.2, sx * 5.2, 8.0, 0, .55, .55, hex(0xe04b4b));
+          g.beam(sx * 5.2, 1.0, 2.2, sx * 5.2, 8.0, 0, .55, .55, hex(0xe04b4b));
+          g.cyl(sx * 5.2, 8.0, 0, .8, .8, 10, hex(0x9aa4ae));
+        }
+        g.box(0, 0, 0, 12, .5, 7, hex(0xd8cdb4));
+        const arm = new Geo();
+        for (const sx of [-1, 1]) arm.beam(sx * 4.6, 0, 0, sx * 3.0, -3.4, 0, .5, .5, hex(0xf0c419));
+        const gond = new Geo();
+        gond.box(0, -.4, 0, 7.0, .8, 2.6, hex(0x2b3138));
+        for (let i = -3; i <= 3; i++) {
+          gond.box(i * 1.0, .4, 0, .8, .9, 1.2, hex(0x3ba7d4));
+          gond.box(i * 1.0, 1.3, -.2, .9, .15, 1.0, hex(0xd94f3c));
+        }
+        gond.box(0, 1.1, 1.5, 7.2, .2, .3, hex(0x9aa4ae));
+        parts.push({ geo: arm, anim: (m, o) => M4.compose(m, 0, 8.0, 0, 0, 0, 0, 1, 1, 1) });
+        parts.push({
+          geo: gond, anim: (m, o, t) => {
+            const swing = Math.sin(o.spin * .7) * 2.6;
+            const px = Math.sin(swing) * 3.4, py = 8.0 - Math.cos(swing) * 3.4;
+            return M4.compose(m, 0, py, px * 0, 0, 0, swing + o.spin * .9, 1, 1, 1);
+          }
+        });
+        break;
+      }
+      case 'frisbee': {
+        const H = 16;
+        g.cyl(0, 0, 0, 3.0, 1.0, 12, hex(0xd8cdb4));
+        for (const sx of [-1, 1]) g.beam(sx * 4.0, 1.0, 0, sx * 0.8, H, 0, .55, .55, hex(0x2f7fd4));
+        g.cyl(0, H, 0, 1.1, 1.0, 10, hex(0x9aa4ae));
+        const pend = new Geo();
+        pend.beam(0, 0, 0, 0, -11, 0, .45, .45, hex(0xe8e8e8));
+        pend.cyl(0, -12.4, 0, 5.0, .7, 16, hex(0x2b3138));
+        pend.cyl(0, -11.7, 0, 1.4, 1.2, 10, hex(0xf0c419));
+        for (let i = 0; i < 16; i++) {
+          const a = i / 16 * TAU, cx = Math.cos(a) * 4.0, cz = Math.sin(a) * 4.0;
+          const c = hex([0xd94f3c, 0x3ba7d4, 0xffd23f, 0x6ac46a][i % 4]);
+          pend.box(cx, -12.4, cz, 1.1, 1.3, 1.1, c);
+          pend.beam(cx, -11.2, cz, cx * .5, -11.9, cz * .5, .1, .1, hex(0x9aa4ae));
+        }
+        parts.push({
+          geo: pend, anim: (m, o, t) => {
+            const sw = Math.sin(t * 1.05) * (0.25 + o.h * 1.15);
+            return M4.compose(m, 0, H, 0, 0, o.spin * 1.6, sw, 1, 1, 1);
+          }
+        });
+        break;
+      }
+      case 'gravitron': {
+        g.cyl(0, 0, 0, 6.0, 1.2, 16, hex(0xc4b89c));
+        g.cyl(0, 1.2, 0, 5.6, .4, 16, hex(0x2b3138));
+        for (let i = 0; i < 16; i++) { const a = i / 16 * TAU; g.cyl(Math.cos(a) * 5.9, 1.2, Math.sin(a) * 5.9, .16, 6.5, 6, hex(0x556070)); }
+        this.stripedRoof(g, 0, 7.7, 0, 6.4, 2.0, 16, hex(0x7b3fd4), hex(0xffd23f));
+        this.lightBulbs(g, 0, 7.6, 0, 6.0, 16, hex(0xfff3c4));
+        const drum = new Geo();
+        drum.cyl(0, 0, 0, 5.0, .5, 16, hex(0x3d444d));
+        for (let i = 0; i < 16; i++) {
+          const a = i / 16 * TAU;
+          const c = hex(i % 2 ? 0x9b59b6 : 0x2ecc71);
+          drum.box(Math.cos(a) * 4.6, .5, Math.sin(a) * 4.6, 1.4, 3.2, .5, c);
+        }
+        drum.cyl(0, 3.7, 0, 5.0, .3, 16, hex(0x2b3138));
+        parts.push({ geo: drum, anim: (m, o) => M4.compose(m, 0, 1.6 + o.h * 1.2, 0, 0, o.spin * 2.2, 0, 1, 1, 1) });
+        break;
+      }
+      case 'haunted': {
+        const wall = hex(0x4a4250), roof = hex(0x2b2530);
+        g.box(0, 0, 0, W - 1, 7, D - 1, wall);
+        for (let i = -1; i <= 1; i++) for (let j = 0; j < 2; j++)
+          g.box(i * 3.2, 1.6 + j * 2.6, -(D - 1) / 2 - .06, 1.2, 1.6, .2, hex(j ? 0xffd76a : 0x6ac46a));
+        g.box(0, 7, 0, W + .6, .5, D + .6, roof);
+        for (const sx of [-1, 1]) { g.cone(sx * (W / 2 - 1.6), 7.5, -(D / 2 - 1.6), 2.0, 4.5, 6, roof); g.cone(sx * (W / 2 - 1.6), 7.5, (D / 2 - 1.6), 2.0, 4.5, 6, roof); }
+        g.cone(0, 7.5, 0, 3.2, 6.5, 8, shade(roof, 1.15));
+        g.box(0, 0, -(D - 1) / 2 - .3, 3.0, 4.4, .5, hex(0x2a1f18));
+        g.box(0, 4.4, -(D - 1) / 2 - .4, 4.0, .5, .8, roof);
+        for (let k = 0; k < 6; k++) g.box(-W / 2 + 1 + k * 2, 0, D / 2 - .4, .5, 1.4, .2, hex(0x6b6357));
+        const ghost = new Geo();
+        ghost.sphere(0, 0, 0, .9, 7, hex(0xe8f0ff));
+        ghost.cone(0, -1.6, 0, .9, 1.6, 7, hex(0xd8e4f5));
+        parts.push({ geo: ghost, anim: (m, o, t) => M4.compose(m, Math.sin(t * .8) * 5, 9.5 + Math.sin(t * 1.6) * .7, Math.cos(t * .8) * 5, 0, -t * .8, 0, 1, 1, 1) });
+        break;
+      }
+      case 'balloonride': {
+        g.cyl(0, 0, 0, 6.4, .8, 16, hex(0xe8d9b8));
+        g.cyl(0, .8, 0, 1.4, 7.0, 10, hex(0xf0e6d2));
+        this.stripedRoof(g, 0, 7.8, 0, 3.0, 1.8, 12, hex(0x3ba7d4), hex(0xfff4e0));
+        const arms = new Geo();
+        for (let i = 0; i < 8; i++) {
+          const a = i / 8 * TAU, cx = Math.cos(a) * 5.2, cz = Math.sin(a) * 5.2;
+          arms.beam(0, 0, 0, cx, -.6, cz, .16, .16, hex(0x9aa4ae));
+          const c = hex([0xd94f3c, 0x3ba7d4, 0xffd23f, 0x6ac46a, 0xc77dff, 0xff8c42, 0x2ecc71, 0xff6f91][i]);
+          arms.sphere(cx, -2.4, cz, 1.5, 8, c);
+          arms.cone(cx, -4.1, cz, 1.0, 1.2, 8, shade(c, .8));
+          arms.box(cx, -5.0, cz, 1.1, 1.0, 1.1, hex(0x8b6b3a));
+        }
+        parts.push({ geo: arms, anim: (m, o) => M4.compose(m, 0, 7.4 - (1 - o.h) * 1.6, 0, 0, o.spin, 0, 1, 1, 1) });
+        break;
+      }
+      case 'rapids': {
+        g.cyl(0, 0, 0, 7.6, 1.2, 20, hex(0x8a8378));
+        g.cyl(0, 1.2, 0, 7.0, .4, 20, hex(0x2a6fa8));
+        g.cyl(0, 1.2, 0, 3.0, .9, 16, hex(0x6b8f4a));
+        for (let i = 0; i < 10; i++) {
+          const a = i / 10 * TAU;
+          g.sphere(Math.cos(a) * 3.0, 2.1, Math.sin(a) * 3.0, .8 + (i % 3) * .3, 5, hex(0x7b7468));
+        }
+        for (let i = 0; i < 20; i++) { const a = i / 20 * TAU; g.box(Math.cos(a) * 7.4, 1.2, Math.sin(a) * 7.4, .5, 1.0, .5, hex(0x6b5a45)); }
+        for (let i = 0; i < 5; i++) {
+          const boat = new Geo();
+          const c = hex([0xf5d020, 0x2ecc71, 0xe74c3c, 0x3498db, 0xe67e22][i]);
+          boat.cyl(0, 0, 0, 1.5, .9, 10, c);
+          boat.cyl(0, .9, 0, 1.55, .18, 10, shade(c, 1.25));
+          boat.cyl(0, .3, 0, 1.0, .5, 10, hex(0x3d3d3d));
+          const ph = i / 5 * TAU;
+          parts.push({
+            geo: boat, anim: (m, o, t) => {
+              const a = t * .55 + ph;
+              return M4.compose(m, Math.cos(a) * 5.2, 1.5 + Math.sin(t * 2 + i) * .18, Math.sin(a) * 5.2, 0, -a + Math.sin(t * 1.4 + i) * .6, Math.sin(t * 2.2 + i) * .12, 1, 1, 1);
+            }
+          });
+        }
+        break;
+      }
     }
     // entrance sign for every ride
     g.box(0, 3.4, -D / 2 - .3, W * .6, 1.2, .3, hex(0x2f3b52));
@@ -1938,6 +2427,41 @@ const Prefab = {
       g.cyl(s * 1.7, 0, 1.4, .07, 1.0, 5, c);
       g.beam(s * 1.7, .95, -2, s * 1.7, .95, 2, .06, .06, shade(c, 1.2));
     }
+    return g;
+  },
+
+  /* A static humanoid, used for staff thumbnails and signage */
+  person(shirt, pants, skin, hair) {
+    const g = new Geo();
+    const sh = hex(shirt), pa = hex(pants), sk = hex(skin), ha = hex(hair);
+    g.cbox(-.13, .46, 0, .20, .92, .22, pa);
+    g.cbox(.13, .46, 0, .20, .92, .22, pa);
+    g.box(-.13, 0, .07, .22, .13, .34, hex(0x2b2b2b));
+    g.box(.13, 0, .07, .22, .13, .34, hex(0x2b2b2b));
+    g.cbox(0, 1.05, 0, .46, .20, .29, pa);
+    g.cbox(0, 1.60, 0, .50, .64, .31, sh);
+    g.cbox(-.32, 1.52, 0, .17, .66, .18, sh);
+    g.cbox(.32, 1.52, 0, .17, .66, .18, sh);
+    g.cbox(-.32, .90, 0, .15, .60, .16, sk);
+    g.cbox(.32, .90, 0, .15, .60, .16, sk);
+    g.cbox(0, 1.72, 0, .18, .14, .18, sk);
+    g.cbox(0, 2.05, 0, .35, .37, .33, sk);
+    g.cbox(0, 2.18, 0, .39, .13, .37, ha);
+    return g;
+  },
+
+  /* A short sample of path surface for the path catalogue */
+  pathSample(kind) {
+    const g = new Geo();
+    const c = kind === 'queue' ? hex(0xc0a8d8) : kind === 'plaza' ? hex(0xe0d6c0) : hex(0xcfc2a8);
+    for (let j = 0; j < 2; j++) for (let i = 0; i < 2; i++) {
+      const sh2 = ((i ^ j) & 1) ? .92 : 1;
+      g.box((i - .5) * 4, 0, (j - .5) * 4, 4, .3, 4, shade(c, sh2));
+    }
+    const kc = kind === 'queue' ? hex(0x8f6fb0) : hex(0xa89478);
+    for (const sx of [-1, 1]) g.box(sx * 3.9, .3, 0, .3, .18, 8, kc);
+    if (kind === 'queue') { const r = this.queueRail(); g.merge(r, 0, .3, -2); g.merge(r, 0, .3, 2); }
+    if (kind === 'erase') { g.clear(); g.box(0, 0, 0, 8, .3, 8, hex(0x5aa84e)); }
     return g;
   },
 
@@ -1987,31 +2511,46 @@ function rotAxis(out, v, ax, ang) {
 
 /* Piece definitions. len = metres, y/p/r = total degrees over the piece. */
 const PIECES = [
-  { id: 'straight', n: 'Straight', e: '▬', len: 8, y: 0, p: 0, r: 0, cost: 220 },
-  { id: 'left', n: 'Turn Left', e: '↰', len: 12, y: -30, p: 0, r: 0, cost: 300, autoBank: -26 },
-  { id: 'right', n: 'Turn Right', e: '↱', len: 12, y: 30, p: 0, r: 0, cost: 300, autoBank: 26 },
-  { id: 'lturn', n: 'Wide Left', e: '⤺', len: 20, y: -30, p: 0, r: 0, cost: 380, autoBank: -16 },
-  { id: 'rturn', n: 'Wide Right', e: '⤻', len: 20, y: 30, p: 0, r: 0, cost: 380, autoBank: 16 },
-  { id: 'up', n: 'Slope Up', e: '⬈', len: 10, y: 0, p: 22, r: 0, cost: 300 },
-  { id: 'down', n: 'Slope Down', e: '⬊', len: 10, y: 0, p: -22, r: 0, cost: 300 },
-  { id: 'steepup', n: 'Steep Up', e: '⇑', len: 10, y: 0, p: 40, r: 0, cost: 360 },
-  { id: 'steepdn', n: 'Steep Down', e: '⇓', len: 10, y: 0, p: -40, r: 0, cost: 360 },
-  { id: 'level', n: 'Level Out', e: '⟼', len: 16, y: 0, p: 0, r: 0, cost: 300, levelOut: true },
-  { id: 'bankl', n: 'Bank Left', e: '◤', len: 8, y: 0, p: 0, r: -30, cost: 260 },
-  { id: 'bankr', n: 'Bank Right', e: '◥', len: 8, y: 0, p: 0, r: 30, cost: 260 },
-  { id: 'unbank', n: 'Unbank', e: '▭', len: 8, y: 0, p: 0, r: 0, cost: 240, unbank: true },
-  { id: 'loop', n: 'Vertical Loop', e: '⭕', len: 56, y: 0, p: 360, r: 0, cost: 2400, inversion: 1 },
-  { id: 'corkl', n: 'Corkscrew L', e: '🌀', len: 28, y: -40, p: 0, r: -360, cost: 2100, inversion: 1 },
-  { id: 'corkr', n: 'Corkscrew R', e: '🌪', len: 28, y: 40, p: 0, r: 360, cost: 2100, inversion: 1 },
-  { id: 'barrel', n: 'Barrel Roll', e: '🎢', len: 26, y: 0, p: 0, r: 360, cost: 1900, inversion: 1 },
-  { id: 'camel', n: 'Camelback', e: '⌒', len: 34, y: 0, p: 0, r: 0, cost: 900, camel: true },
-  { id: 'helixl', n: 'Helix Left', e: '🔄', len: 36, y: -180, p: -14, r: -34, cost: 1500 },
-  { id: 'helixr', n: 'Helix Right', e: '🔃', len: 36, y: 180, p: -14, r: 34, cost: 1500 },
-  { id: 'lift', n: 'Chain Lift', e: '⛓', len: 8, y: 0, p: 0, r: 0, cost: 480, lift: true, holdPitch: 30 },
-  { id: 'liftflat', n: 'Flat Chain', e: '⚙', len: 8, y: 0, p: 0, r: 0, cost: 420, lift: true, holdPitch: 0 },
-  { id: 'launch', n: 'Launch Track', e: '🚀', len: 12, y: 0, p: 0, r: 0, cost: 2600, launch: true },
-  { id: 'brake', n: 'Brake Run', e: '🛑', len: 8, y: 0, p: 0, r: 0, cost: 420, brake: true },
-  { id: 'block', n: 'Block Brake', e: '⏸', len: 8, y: 0, p: 0, r: 0, cost: 560, brake: true, block: true },
+  { id: 'straight', n: 'Straight', len: 8, y: 0, p: 0, r: 0, cost: 220, group: 'basic' },
+  { id: 'left', n: 'Turn Left', len: 12, y: -30, p: 0, r: 0, cost: 300, autoBank: -26, group: 'turn' },
+  { id: 'right', n: 'Turn Right', len: 12, y: 30, p: 0, r: 0, cost: 300, autoBank: 26, group: 'turn' },
+  { id: 'lturn', n: 'Wide Left', len: 20, y: -30, p: 0, r: 0, cost: 380, autoBank: -16, group: 'turn' },
+  { id: 'rturn', n: 'Wide Right', len: 20, y: 30, p: 0, r: 0, cost: 380, autoBank: 16, group: 'turn' },
+  { id: 'up', n: 'Slope Up', len: 10, y: 0, p: 22, r: 0, cost: 300, group: 'hill' },
+  { id: 'down', n: 'Slope Down', len: 10, y: 0, p: -22, r: 0, cost: 300, group: 'hill' },
+  { id: 'steepup', n: 'Steep Up', len: 10, y: 0, p: 40, r: 0, cost: 360, group: 'hill' },
+  { id: 'steepdn', n: 'Steep Down', len: 10, y: 0, p: -40, r: 0, cost: 360, group: 'hill' },
+  { id: 'level', n: 'Level Out', len: 16, y: 0, p: 0, r: 0, cost: 300, levelOut: true, group: 'hill' },
+  { id: 'bankl', n: 'Bank Left', len: 8, y: 0, p: 0, r: -30, cost: 260, group: 'turn' },
+  { id: 'bankr', n: 'Bank Right', len: 8, y: 0, p: 0, r: 30, cost: 260, group: 'turn' },
+  { id: 'unbank', n: 'Unbank', len: 8, y: 0, p: 0, r: 0, cost: 240, unbank: true, group: 'turn' },
+  { id: 'loop', n: 'Vertical Loop', len: 56, y: 0, p: 360, r: 0, cost: 2400, inversion: 1, group: 'special' },
+  { id: 'corkl', n: 'Corkscrew L', len: 28, y: -40, p: 0, r: -360, cost: 2100, inversion: 1, group: 'special' },
+  { id: 'corkr', n: 'Corkscrew R', len: 28, y: 40, p: 0, r: 360, cost: 2100, inversion: 1, group: 'special' },
+  { id: 'barrel', n: 'Barrel Roll', len: 26, y: 0, p: 0, r: 360, cost: 1900, inversion: 1, group: 'special' },
+  { id: 'camel', n: 'Camelback', len: 34, y: 0, p: 0, r: 0, cost: 900, camel: true, group: 'hill' },
+  { id: 'helixl', n: 'Helix Left', len: 36, y: -180, p: -14, r: -34, cost: 1500, group: 'special' },
+  { id: 'helixr', n: 'Helix Right', len: 36, y: 180, p: -14, r: 34, cost: 1500, group: 'special' },
+  { id: 'lift', n: 'Chain Lift', len: 8, y: 0, p: 0, r: 0, cost: 480, lift: true, holdPitch: 30, group: 'service' },
+  { id: 'liftflat', n: 'Flat Chain', len: 8, y: 0, p: 0, r: 0, cost: 420, lift: true, holdPitch: 0, group: 'service' },
+  { id: 'launch', n: 'Launch Track', len: 12, y: 0, p: 0, r: 0, cost: 2600, launch: true, group: 'service' },
+  { id: 'brake', n: 'Brake Run', len: 8, y: 0, p: 0, r: 0, cost: 420, brake: true, group: 'service' },
+  { id: 'block', n: 'Block Brake', len: 8, y: 0, p: 0, r: 0, cost: 560, brake: true, block: true, group: 'service' },
+
+  /* ---- advanced elements ---- */
+  { id: 'vertup', n: 'Vertical Climb', len: 12, y: 0, p: 0, r: 0, cost: 720, holdPitch: 90, group: 'hill' },
+  { id: 'vertdn', n: 'Vertical Drop', len: 12, y: 0, p: 0, r: 0, cost: 720, holdPitch: -90, group: 'hill' },
+  { id: 'crest', n: 'Top Hat Crest', len: 26, y: 0, p: 0, r: 0, cost: 1500, mirrorPitch: true, group: 'hill' },
+  { id: 'sbendl', n: 'S-Bend Left', len: 26, y: 0, p: 0, r: 0, cost: 760, sbend: -34, group: 'turn' },
+  { id: 'sbendr', n: 'S-Bend Right', len: 26, y: 0, p: 0, r: 0, cost: 760, sbend: 34, group: 'turn' },
+  { id: 'obankl', n: 'Overbank Left', len: 30, y: -60, p: 0, r: -110, cost: 1800, group: 'special' },
+  { id: 'obankr', n: 'Overbank Right', len: 30, y: 60, p: 0, r: 110, cost: 1800, group: 'special' },
+  { id: 'immel', n: 'Immelmann', len: 40, y: 0, p: 180, r: 180, cost: 2600, inversion: 1, group: 'special' },
+  { id: 'diveloop', n: 'Dive Loop', len: 40, y: 0, p: -180, r: 180, cost: 2600, inversion: 1, group: 'special' },
+  { id: 'zerog', n: 'Zero-G Roll', len: 34, y: 0, p: 0, r: 360, cost: 2200, inversion: 1, camel: true, group: 'special' },
+  { id: 'photo', n: 'On-Ride Photo', len: 10, y: 0, p: 0, r: 0, cost: 1400, photo: true, group: 'service' },
+  { id: 'tunnel', n: 'Tunnel', len: 14, y: 0, p: 0, r: 0, cost: 900, tunnel: true, group: 'service' },
+  { id: 'holdbrake', n: 'Holding Brake', len: 10, y: 0, p: 0, r: 0, cost: 900, brake: true, hold: true, group: 'service' },
 ];
 const PIECE_BY_ID = {}; PIECES.forEach(p => PIECE_BY_ID[p.id] = p);
 
@@ -2054,6 +2593,7 @@ class Track {
     if (def.levelOut) pTot = -pitch0;
     // A chain lift climbs at its own fixed grade instead of compounding.
     if (def.holdPitch !== undefined) pTot = def.holdPitch * DEG - pitch0;
+    if (def.mirrorPitch) pTot = -2 * pitch0;         // hill crest: mirror the entry angle
     // Ordinary pieces may not pitch past vertical — only inversions do that.
     if (!def.inversion && !def.camel) {
       const LIM = 85 * DEG, end = pitch0 + pTot;
@@ -2081,7 +2621,10 @@ class Track {
       // camelback: smooth up-then-down hill
       let dp = pTot / steps;
       if (def.camel) dp = (Math.sin(t * TAU) - Math.sin(tp * TAU)) * 19 * DEG;
-      const dy = yTot / steps, dr = rTot / steps;
+      let dy = yTot / steps;
+      // an s-bend swings one way then back, ending on the original heading
+      if (def.sbend) dy = (Math.sin(t * TAU) - Math.sin(tp * TAU)) * def.sbend * DEG;
+      const dr = rTot / steps;
       // Yaw about world vertical: a banked turn steers horizontally, it must
       // not climb. (Yawing about the tilted local up would spiral upward.)
       if (dy) { rotAxis(f, f, WORLD_UP, dy); rotAxis(u, u, WORLD_UP, dy); }
@@ -2463,8 +3006,15 @@ class Ride extends ParkObject {
           this.h = smoothstep(clamp(Math.sin(p * PI) * 1.4, 0, 1));
         } else if (this.def.kind === 'pirate') {
           this.spin = Math.sin(Park.now * 1.4) * (0.35 + env * 0.75);
-        } else if (this.def.kind === 'swing') {
+        } else if (this.def.kind === 'swing' || this.def.kind === 'balloonride' || this.def.kind === 'gravitron') {
           this.h = env;
+        } else if (this.def.kind === 'enterprise') {
+          this.h = smoothstep(clamp((p - .18) / .35, 0, 1)) * (p > .8 ? 1 - smoothstep((p - .8) / .2) : 1);
+        } else if (this.def.kind === 'topspin' || this.def.kind === 'frisbee') {
+          this.h = env;
+          this.spin += dt * 1.1 * env;
+        } else if (this.def.kind === 'haunted' || this.def.kind === 'rapids') {
+          this.spin = 0; this.h = 0;
         }
         if (this.timer <= 0) { this.state = 'unloading'; this.timer = 4; }
         break;
@@ -2532,6 +3082,9 @@ class CoasterRide extends ParkObject {
     // Simulate a lap to gather speed / G data
     let v = 4, d = 0, maxV = 0, maxG = -99, minG = 99, maxLat = 0, air = 0, samples = 0, stall = 0;
     const dt = 0.02;
+    const profile = [];
+    let rideTime = 0, vSum = 0, lastProfileD = -99;
+    let dropStartY = null, lastY = null, drops = [], banked = 0, bankSum = 0;
     for (let step = 0; step < 20000 && d < t.length * 1.02; step++) {
       const s = t.sampleAt(d);
       if (!s) break;
@@ -2551,13 +3104,41 @@ class CoasterRide extends ParkObject {
       maxV = Math.max(maxV, v); maxG = Math.max(maxG, vertG); minG = Math.min(minG, vertG);
       maxLat = Math.max(maxLat, latG);
       if (vertG < 0.25 && v > 2.5) air += dt;
-      samples++;
+      samples++; rideTime += dt; vSum += v;
+      // profile sample every couple of metres for the report chart
+      if (d - lastProfileD > 2) {
+        lastProfileD = d;
+        profile.push({ d, y: s.p.y - this.y, v, gv: vertG, gl: latG });
+      }
+      if (Math.abs(s.bank) > 12 * DEG) { banked += dt; bankSum += Math.abs(s.bank); }
+      // track descents so we can report the drops like a real ride sheet
+      if (lastY !== null) {
+        if (s.p.y < lastY - 0.01) { if (dropStartY === null) dropStartY = lastY; }
+        else if (dropStartY !== null) {
+          const h = dropStartY - lastY;
+          if (h > 3) drops.push(h);
+          dropStartY = null;
+        }
+      }
+      lastY = s.p.y;
       d += v * dt;
     }
     this.maxSpeed = maxV; this.maxG = maxG; this.minG = minG; this.maxLatG = maxLat;
     this.airtime = air;
     this.stallTime = stall;
     this.stalls = stall > 3.0;
+    if (dropStartY !== null && lastY !== null && dropStartY - lastY > 3) drops.push(dropStartY - lastY);
+    drops.sort((a, b) => b - a);
+    this.profile = profile;
+    this.rideTime = rideTime;
+    this.avgSpeed = samples ? vSum / samples : 0;
+    this.drops = drops;
+    this.biggestDrop = drops.length ? drops[0] : 0;
+    this.bankedFraction = rideTime ? banked / rideTime : 0;
+    this.avgBank = banked ? bankSum / (banked / dt) : 0;
+    const dwell = 14;
+    this.throughput = Math.round(this.cap * Math.max(1, this.trains.length || 1) * 3600 / Math.max(20, rideTime + dwell));
+    this.prestige = Math.round(clamp(this.excitement * 6 + t.inversions * 4 + this.biggestDrop * .7 + t.length * .02, 0, 200));
     const L = t.length, drop = t.drop, inv = t.inversions;
     let exc = 0;
     exc += clamp(maxV / 6, 0, 8);
@@ -2571,15 +3152,27 @@ class CoasterRide extends ParkObject {
     // brutal rides scare guests off
     if (inten > 9) exc *= .8;
     if (maxG > 6) { exc *= .6; inten += 2; }
-    this.excitement = clamp(exc, 0, 14);
-    this.intensity = inten;
-    this.nausea = naus;
+    // soft-compress the raw scores: a 14 should be a once-in-a-park ride
+    const soften = (raw, scale) => 14 * (1 - Math.exp(-Math.max(0, raw) / scale));
+    this.excitement = clamp(soften(exc, 8.5), 0, 14);
+    this.intensity = clamp(soften(inten, 7.0), 0, 14);
+    this.nausea = clamp(soften(naus, 7.0), 0, 14);
     this.price = clamp(Math.round(2 + this.excitement * 1.05), 2, 26);
   }
   repair() {
     this.broken = false; this.wear = 0;
     this.state = this.openR ? 'open' : 'closed';
     const k = Park.needMechanic.indexOf(this); if (k >= 0) Park.needMechanic.splice(k, 1);
+  }
+  elementCensus() {
+    const t = this.track, out = {};
+    if (!t) return out;
+    for (const id of t.pieces) {
+      const def = PIECE_BY_ID[id];
+      if (!def) continue;
+      out[def.n] = (out[def.n] || 0) + 1;
+    }
+    return out;
   }
   spawnTrains(n) {
     this.trains.length = 0;
@@ -2651,6 +3244,17 @@ const Park = {
   },
 
   /* Park value & rating -------------------------------------------------- */
+  /* The path component the entrance belongs to — the park proper. */
+  mainComponent: 0,
+  mainSpot() {
+    if (this._mainSpot && this._mainSpotV === Path.version) return this._mainSpot;
+    const c = N >> 1;
+    const n = Path.nearestWalkable(c, c + 18, 12) || Path.nearestWalkable(c, c, 30);
+    const spot = n ? { x: WORLD.wx(n.i), z: WORLD.wz(n.j) } : { x: 0, z: 0 };
+    this.mainComponent = n ? Path.comp[n.j * N + n.i] : -1;
+    this._mainSpot = spot; this._mainSpotV = Path.version;
+    return spot;
+  },
   computeRating() {
     const atts = this.attractions();
     let score = 0;
@@ -3005,7 +3609,8 @@ class Guest extends Person {
     mood += Park.beautyAt(this.x, this.z) * .0009;
     mood -= Math.min(.02, Park.litter.length * .00004);
     if (this.state === 'walking' || this.state === 'idle') mood += .004;
-    this.happy = clamp(this.happy + mood * rate * 60 * .06, 0, 1);
+    // happiness drifts on the same park-hour scale as the needs above
+    this.happy = clamp(this.happy + mood * rate * 1.5, 0, 1);
 
     switch (this.state) {
       case 'arriving': {
@@ -3065,6 +3670,24 @@ class Guest extends Person {
         this.moving = false;
         this.wait -= dt;
         if (this.wait <= 0) this.state = 'idle';
+        break;
+      }
+      // Stranded on a disconnected stub: cut across the grass back to the
+      // main network rather than standing there forever.
+      case 'lost': {
+        const tx = this.lostX, tz = this.lostZ;
+        const dx = tx - this.x, dz = tz - this.z, d = Math.hypot(dx, dz);
+        this.moving = true; this.anim += dt * this.speed * 1.75;
+        this.yawT = Math.atan2(dz, dx);
+        if (d > 1.2) {
+          this.x += dx / d * this.speed * .8 * dt;
+          this.z += dz / d * this.speed * .8 * dt;
+        }
+        const i = WORLD.ti(this.x), j = WORLD.tj(this.z);
+        if (d <= 1.2 || (Path.walkable(i, j) && Path.comp[j * N + i] === Park.mainComponent)) {
+          this.state = 'idle'; this.stuckCount = 0; this.moving = false;
+          this.happy = clamp(this.happy - .04, 0, 1);
+        }
         break;
       }
     }
@@ -3140,18 +3763,32 @@ class Guest extends Person {
     }
     // wander to a random path tile
     const spot = this.randomPathSpot();
-    if (spot && this.goto(spot.x, spot.z)) { this.state = 'walking'; this.wantAction = 'wander'; }
-    else { this.state = 'stuck'; this.wait = 1.4; }
-  }
-  randomPathSpot() {
-    for (let k = 0; k < 24; k++) {
-      const i = rndi(0, N - 1), j = rndi(0, N - 1);
-      if (Path.walk[j * N + i] === 1 && WORLD.type[j * N + i] !== T_QUEUE) {
-        const x = WORLD.wx(i), z = WORLD.wz(j);
-        if (dist2(x, z, this.x, this.z) < 6000) return { x, z };
-      }
+    if (spot && this.goto(spot.x, spot.z)) { this.state = 'walking'; this.wantAction = 'wander'; this.stuckCount = 0; }
+    else {
+      this.stuckCount = (this.stuckCount || 0) + 1;
+      if (this.stuckCount > 3) {
+        // walk back to the main path network across open ground
+        const t = Park.mainSpot();
+        this.lostX = t.x; this.lostZ = t.z;
+        this.state = 'lost';
+        this.think('How do I get back?');
+      } else { this.state = 'stuck'; this.wait = 1.4; }
     }
-    return null;
+  }
+  /* Somewhere to stroll: a walkable tile a short way from where we are.
+     Sampling the whole map would almost always miss on a park this size. */
+  randomPathSpot() {
+    const ci = WORLD.ti(this.x), cj = WORLD.tj(this.z);
+    for (let k = 0; k < 36; k++) {
+      const r = 3 + Math.random() * 16, a = Math.random() * TAU;
+      const i = ci + Math.round(Math.cos(a) * r), j = cj + Math.round(Math.sin(a) * r);
+      if (!Path.walkable(i, j)) continue;
+      if (WORLD.type[j * N + i] === T_QUEUE) continue;
+      return { x: WORLD.wx(i), z: WORLD.wz(j) };
+    }
+    // nothing nearby — fall back to the main concourse
+    const spot = Park.mainSpot();
+    return (spot && dist2(spot.x, spot.z, this.x, this.z) > 4) ? spot : null;
   }
   findBench() {
     let best = null, bd = 40 * 40;
@@ -3385,15 +4022,15 @@ const el = (tag, cls, html) => { const e = document.createElement(tag); if (cls)
 const money = (n) => (n < 0 ? '-$' : '$') + Math.abs(Math.round(n)).toLocaleString();
 
 const TOOLS = [
-  { id: 'select', e: '👆', t: 'Select', k: '1' },
-  { id: 'path', e: '🛣️', t: 'Paths', k: '2' },
-  { id: 'coaster', e: '🎢', t: 'Coasters', k: '3' },
-  { id: 'ride', e: '🎠', t: 'Rides', k: '4' },
-  { id: 'shop', e: '🍔', t: 'Shops', k: '5' },
-  { id: 'scenery', e: '🌳', t: 'Scenery', k: '6' },
-  { id: 'staff', e: '👷', t: 'Staff', k: '7' },
-  { id: 'terrain', e: '⛰️', t: 'Terrain', k: '8' },
-  { id: 'delete', e: '🧨', t: 'Demolish', k: '9' },
+  { id: 'select', ic: 'cursor', t: 'Select', k: '1' },
+  { id: 'path', ic: 'path', t: 'Paths', k: '2' },
+  { id: 'coaster', ic: 'coaster', t: 'Coasters', k: '3' },
+  { id: 'ride', ic: 'ride', t: 'Rides', k: '4' },
+  { id: 'shop', ic: 'shop', t: 'Shops', k: '5' },
+  { id: 'scenery', ic: 'tree', t: 'Scenery', k: '6' },
+  { id: 'staff', ic: 'staff', t: 'Staff', k: '7' },
+  { id: 'terrain', ic: 'terrain', t: 'Terrain', k: '8' },
+  { id: 'delete', ic: 'demolish', t: 'Demolish', k: '9' },
 ];
 
 const UI = {
@@ -3405,7 +4042,7 @@ const UI = {
   init() {
     const tb = $('#toolbar');
     for (const t of TOOLS) {
-      const d = el('div', 'tool', `<span class="e">${t.e}</span><span class="t">${t.t}</span><span class="key">${t.k}</span>`);
+      const d = el('div', 'tool', `${ICON[t.ic]}<span class="t">${t.t}</span><span class="key">${t.k}</span>`);
       d.onclick = () => this.setTool(t.id);
       d.dataset.id = t.id;
       tb.appendChild(d);
@@ -3417,6 +4054,9 @@ const UI = {
     $('#btnMap').onclick = () => $('#minimap').classList.toggle('show');
     $('#btnFin').onclick = () => this.finances();
     $('#btnHelp').onclick = () => this.help();
+    $('#btnLand').onclick = () => this.landDialog();
+    // paint the static SVG icons declared in the markup
+    document.querySelectorAll('[data-ic]').forEach(e => { e.innerHTML = ICON[e.dataset.ic] || ''; });
     this.refreshTools();
   },
   setTool(id) {
@@ -3455,13 +4095,13 @@ const UI = {
 
     if (id === 'path') {
       addGrid('Surface', [
-        { id: 'path', name: 'Walkway', e: '🛣️', cost: 24 },
-        { id: 'queue', name: 'Queue Line', e: '🚧', cost: 34 },
-        { id: 'plaza', name: 'Plaza Tile', e: '⬜', cost: 40 },
-        { id: 'erase', name: 'Remove', e: '❌', cost: 0 },
-      ], 'grid2', it => `<span class="e">${it.e}</span><span class="n">${it.name}</span>${it.cost ? cost(it.cost) : ''}`,
+        { id: 'path', name: 'Walkway', cost: 24 },
+        { id: 'queue', name: 'Queue Line', cost: 34 },
+        { id: 'plaza', name: 'Plaza Tile', cost: 40 },
+        { id: 'erase', name: 'Remove', cost: 0 },
+      ], 'grid2', it => `<img class="th" src="${Thumbs.path(it.id)}" alt=""><span class="n">${it.name}</span>${it.cost ? cost(it.cost) : '<span class="c">refund</span>'}`,
         (it, d) => this.pick(it, d));
-      b.appendChild(el('div', 'cat', 'Tips'));
+      b.appendChild(el('div', 'cat', 'How paths work'));
       b.appendChild(el('div', '', `<div style="font-size:11px;color:var(--dim);line-height:1.55;padding:0 3px">
         Drag to lay a run of path. Guests can only walk on <b style="color:#cfe3f5">walkways</b>.
         Connect every ride entrance to the network, and run a <b style="color:#c9a8e8">queue line</b>
@@ -3469,46 +4109,51 @@ const UI = {
     }
     else if (id === 'coaster') {
       addGrid('Track Type', CAT.coasterTypes, 'grid2',
-        it => `<span class="e">🎢</span><span class="n">${it.name}</span><span class="c">${money(6000)} base</span>`,
+        it => `<img class="th" src="${Thumbs.coasterType(it)}" alt=""><span class="n">${it.name}</span><span class="c">${money(6000)} station</span>`,
         (it, d) => { this.pick(it, d); Coaster.beginPlacement(it); });
       b.appendChild(el('div', 'cat', 'Existing Coasters'));
       const list = el('div', '');
       if (!Park.coasters.length) list.innerHTML = `<div style="font-size:11px;color:var(--dim);padding:3px">None yet. Pick a track type, place the station, then lay track piece by piece.</div>`;
       for (const c of Park.coasters) {
-        const row = el('div', 'item', `<span class="n">${c.name}</span><span class="c">${c.state}${c.track ? ' · ' + Math.round(c.track.length) + 'm' : ''}</span>`);
-        row.onclick = () => { Game.select(c); Cam.tx = c.x; Cam.tz = c.z; };
+        const row = el('div', 'item', `<span class="n">${c.name}</span><span class="c">${c.state}${c.track ? ' · ' + Math.round(c.track.length) + ' m' : ''}</span>`);
+        row.onclick = () => { Game.select(c); Cam.tx = c.x; Cam.tz = c.z; if (c.track) Coaster.enter(c); };
         list.appendChild(row);
       }
       b.appendChild(list);
     }
     else if (id === 'ride') {
-      addGrid('Flat Rides', CAT.rides, 'grid2',
-        it => `<span class="e">${it.e}</span><span class="n">${it.name}</span>${cost(it.cost)}`,
-        (it, d) => this.pick(it, d));
+      const gentle = CAT.rides.filter(r => r.fear < 3.5);
+      const thrill = CAT.rides.filter(r => r.fear >= 3.5 && r.fear < 6.5);
+      const extreme = CAT.rides.filter(r => r.fear >= 6.5);
+      const rr = it => `<img class="th" src="${Thumbs.ride(it)}" alt=""><span class="n">${it.name}</span>${cost(it.cost)}<span class="c" style="color:var(--dim)">exc ${it.exc.toFixed(1)} · int ${it.fear.toFixed(1)}</span>`;
+      addGrid('Gentle', gentle, 'grid2', rr, (it, d) => this.pick(it, d));
+      addGrid('Thrill', thrill, 'grid2', rr, (it, d) => this.pick(it, d));
+      addGrid('Extreme', extreme, 'grid2', rr, (it, d) => this.pick(it, d));
     }
     else if (id === 'shop') {
-      addGrid('Food & Drink', CAT.shops.filter(s => ['hunger', 'thirst'].includes(s.need)), 'grid2',
-        it => `<span class="e">${it.e}</span><span class="n">${it.name}</span>${cost(it.cost)}`, (it, d) => this.pick(it, d));
-      addGrid('Facilities', CAT.shops.filter(s => !['hunger', 'thirst'].includes(s.need)), 'grid2',
-        it => `<span class="e">${it.e}</span><span class="n">${it.name}</span>${cost(it.cost)}`, (it, d) => this.pick(it, d));
+      const sr = it => `<img class="th" src="${Thumbs.shop(it)}" alt=""><span class="n">${it.name}</span>${cost(it.cost)}`;
+      addGrid('Food', CAT.shops.filter(x => x.need === 'hunger'), 'grid2', sr, (it, d) => this.pick(it, d));
+      addGrid('Drink', CAT.shops.filter(x => x.need === 'thirst'), 'grid2', sr, (it, d) => this.pick(it, d));
+      addGrid('Retail', CAT.shops.filter(x => x.need === 'shop'), 'grid2', sr, (it, d) => this.pick(it, d));
+      addGrid('Facilities', CAT.shops.filter(x => !['hunger', 'thirst', 'shop'].includes(x.need)), 'grid2', sr, (it, d) => this.pick(it, d));
     }
     else if (id === 'scenery') {
-      addGrid('Small', CAT.scenery.filter(s => s.cost < 300), 'grid3',
-        it => `<span class="e">${it.e}</span><span class="n">${it.name}</span>${cost(it.cost)}`, (it, d) => this.pick(it, d));
-      addGrid('Feature', CAT.scenery.filter(s => s.cost >= 300), 'grid2',
-        it => `<span class="e">${it.e}</span><span class="n">${it.name}</span>${cost(it.cost)}`, (it, d) => this.pick(it, d));
+      const cr = it => `<img class="th" src="${Thumbs.scenery(it)}" alt=""><span class="n">${it.name}</span>${cost(it.cost)}`;
+      addGrid('Nature', CAT.scenery.filter(x => ['tree', 'pine', 'palm', 'flower', 'hedge', 'maze', 'pond', 'rockarch'].includes(x.kind)), 'grid2', cr, (it, d) => this.pick(it, d));
+      addGrid('Park Furniture', CAT.scenery.filter(x => ['bench', 'bin', 'lamp', 'speaker', 'lights', 'banner', 'campfire'].includes(x.kind)), 'grid2', cr, (it, d) => this.pick(it, d));
+      addGrid('Feature Pieces', CAT.scenery.filter(x => !['tree', 'pine', 'palm', 'flower', 'hedge', 'maze', 'pond', 'rockarch', 'bench', 'bin', 'lamp', 'speaker', 'lights', 'banner', 'campfire'].includes(x.kind)), 'grid2', cr, (it, d) => this.pick(it, d));
     }
     else if (id === 'staff') {
       addGrid('Hire', CAT.staff, 'grid2',
-        it => `<span class="e">${it.e}</span><span class="n">${it.name}</span>${cost(it.cost)}<span class="c" style="color:var(--dim)">${money(it.wage)}/hr</span>`,
+        it => `<img class="th" src="${Thumbs.staff(it)}" alt=""><span class="n">${it.name}</span>${cost(it.cost)}<span class="c" style="color:var(--dim)">${money(it.wage)}/hr</span>`,
         (it) => Game.hire(it));
       b.appendChild(el('div', 'cat', 'Roster'));
       const list = el('div', 'scroll');
       list.style.maxHeight = '190px';
       if (!Park.staff.length) list.innerHTML = `<div style="font-size:11px;color:var(--dim);padding:3px">No staff hired. Janitors clean litter, mechanics repair rides, entertainers keep queues happy.</div>`;
-      for (const s of Park.staff) {
-        const row = el('div', 'item', `<span class="n">${s.def.e} ${s.name}</span><span class="c" style="color:var(--dim)">${s.def.name} · ${s.state}</span>`);
-        row.onclick = () => { Cam.tx = s.x; Cam.tz = s.z; Game.select(s); };
+      for (const st of Park.staff) {
+        const row = el('div', 'item', `<span class="n">${st.name}</span><span class="c" style="color:var(--dim)">${st.def.name} · ${st.state}</span>`);
+        row.onclick = () => { Cam.tx = st.x; Cam.tz = st.z; Game.select(st); };
         list.appendChild(row);
       }
       b.appendChild(list);
@@ -3522,9 +4167,188 @@ const UI = {
     else this.hint(`Placing <b>${it.name || it.n}</b> — drag to place many, <kbd>Esc</kbd> to cancel.`);
   },
   closeBuild() { $('#buildPanel').classList.remove('show'); this.sub = null; },
+
+  /* --------- land market --------- */
+  landDialog() {
+    const c = Math.floor(PLOTS / 2);
+    let h = `<p>Your park occupies <b>${Land.areaText()}</b> across ${Land.bought} plots.
+      Buy plots next to the land you already own; flat, usable ground costs more than mountainside.</p>`;
+    h += `<div style="display:grid;grid-template-columns:repeat(${PLOTS},1fr);gap:3px;margin:12px 0">`;
+    for (let pj = 0; pj < PLOTS; pj++) for (let pi = 0; pi < PLOTS; pi++) {
+      const owned = Land.owns(pi, pj);
+      const forSale = !owned && Land.adjacent(pi, pj);
+      const price = forSale ? Land.price(pi, pj) : 0;
+      const afford = forSale && Park.money >= price;
+      const bg = owned ? 'linear-gradient(180deg,#2a6b45,#1d4a30)'
+        : forSale ? (afford ? 'linear-gradient(180deg,#2a5f8a,#1c4160)' : 'linear-gradient(180deg,#5a3030,#3a2020)')
+          : 'rgba(255,255,255,.04)';
+      const title = owned ? 'Owned' : forSale ? 'For sale — ' + money(price) : 'Not adjacent to your park';
+      h += `<div title="${title}" ${forSale ? `onclick="UI.buyPlot(${pi},${pj})"` : ''}
+        style="aspect-ratio:1;border-radius:5px;background:${bg};border:1px solid ${owned ? '#3f8f5f' : forSale ? '#3f7fb0' : 'rgba(255,255,255,.07)'};
+        cursor:${forSale ? 'pointer' : 'default'};display:flex;align-items:center;justify-content:center;
+        font-size:8px;color:#cfe3f5;font-variant-numeric:tabular-nums">${forSale ? (price / 1000).toFixed(0) + 'k' : ''}</div>`;
+    }
+    h += `</div>`;
+    h += `<p style="font-size:11px;color:var(--dim)">Green plots are yours. Blue plots are for sale at the price shown in thousands; red means you cannot afford it yet.</p>`;
+    this.modal('Land Market', h);
+  },
+  buyPlot(pi, pj) {
+    const err = Land.buy(pi, pj);
+    if (err) { this.notify('Cannot buy', err, 'warn'); Audio.play('error'); }
+    this.landDialog();
+  },
   closeInspector() { $('#inspector').classList.remove('show'); Game.selected = null; },
   closeModal() { $('#modalWrap').classList.remove('show'); },
-  modal(title, html) { $('#modalTitle').textContent = title; $('#modalBody').innerHTML = html; $('#modalWrap').classList.add('show'); },
+  modal(title, html, after) {
+    $('#modalTitle').textContent = title;
+    $('#modalBody').innerHTML = html;
+    $('#modalWrap').classList.add('show');
+    if (after) requestAnimationFrame(() => after());
+  },
+
+  /* --------- full ride analysis, Planet Coaster style --------- */
+  ratingWord(kind, v) {
+    const scales = {
+      exc: [[2, 'Dull'], [4, 'Mild'], [6, 'Fun'], [8, 'Exciting'], [10, 'Thrilling'], [99, 'Legendary']],
+      int: [[2, 'Very Gentle'], [4, 'Gentle'], [6, 'Moderate'], [8, 'High'], [10, 'Extreme'], [99, 'Ultra Extreme']],
+      nau: [[2, 'Negligible'], [4, 'Low'], [6, 'Moderate'], [8, 'High'], [99, 'Severe']],
+    };
+    for (const [lim, word] of scales[kind]) if (v < lim) return word;
+    return '';
+  },
+  grade(v) { return v >= 12 ? 'A+' : v >= 10 ? 'A' : v >= 8 ? 'B' : v >= 6 ? 'C' : v >= 4 ? 'D' : v >= 2 ? 'E' : 'F'; },
+
+  rideReport(id) {
+    const c = Park.coasters.find(x => x.id === id);
+    if (!c || !c.track || !c.track.complete) { this.notify('No data', 'Complete the circuit first.', 'warn'); return; }
+    c.computeStats();
+    const t = c.track;
+    const bar = (label, v, max, col, word) => `
+      <div class="meter" style="margin:5px 0">
+        <span class="mn" style="min-width:86px">${label}</span>
+        <span class="bar" style="height:9px"><span class="fill" style="width:${clamp(v / max * 100, 0, 100)}%;background:${col}"></span></span>
+        <span class="mv" style="min-width:74px;text-align:right">${v.toFixed(2)} <span style="color:var(--dim);font-weight:400">${word || ''}</span></span>
+      </div>`;
+    const row = (k, v, note) => `<tr><td>${k}</td><td style="text-align:right;font-weight:600">${v}</td><td style="color:var(--dim);font-size:10.5px">${note || ''}</td></tr>`;
+
+    let h = `<div style="display:flex;gap:14px;align-items:flex-start;margin-bottom:6px">
+      <img src="${Thumbs.coasterType(c.type)}" style="width:88px;height:88px;object-fit:contain;flex:0 0 auto">
+      <div style="flex:1">
+        <div style="font-size:17px;font-weight:700">${c.name}</div>
+        <div style="color:var(--dim);font-size:11.5px;margin-bottom:8px">${c.type.name} &middot; ${t.pieces.length} pieces &middot; ${c.state}${c.stalls ? ' &middot; <b style="color:var(--bad)">stalls on circuit</b>' : ''}</div>
+        ${bar('Excitement', c.excitement, 14, 'linear-gradient(90deg,#3d8f5a,#6be675)', this.ratingWord('exc', c.excitement) + ' (' + this.grade(c.excitement) + ')')}
+        ${bar('Intensity', c.intensity, 14, 'linear-gradient(90deg,#8a6a2a,#ffb84d)', this.ratingWord('int', c.intensity))}
+        ${bar('Nausea', c.nausea, 14, 'linear-gradient(90deg,#6a7020,#c8d84a)', this.ratingWord('nau', c.nausea))}
+      </div></div>`;
+
+    h += `<h3>Ride Profile</h3>
+      <canvas id="rcChart" width="1200" height="320" style="width:100%;height:auto;border-radius:9px;background:rgba(0,0,0,.28);border:1px solid var(--edge)"></canvas>
+      <div style="display:flex;gap:16px;font-size:10.5px;color:var(--dim);margin-top:6px;flex-wrap:wrap">
+        <span><b style="color:#7ec8ff">&#9644;</b> height</span>
+        <span><b style="color:#ffd76a">&#9644;</b> speed</span>
+        <span><b style="color:#ff8f8f">&#9644;</b> vertical G</span>
+        <span><b style="color:#9be89b">&#9644;</b> lateral G</span>
+        <span>horizontal axis: distance along the track</span>
+      </div>`;
+
+    h += `<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:14px">`;
+    h += `<div><h3>Track</h3><table class="tb">
+      ${row('Track length', Math.round(t.length) + ' m')}
+      ${row('Ride time', (c.rideTime || 0).toFixed(1) + ' s')}
+      ${row('Max height', (t.maxH - c.y).toFixed(1) + ' m')}
+      ${row('Highest drop', (c.biggestDrop || 0).toFixed(1) + ' m')}
+      ${row('Drops', (c.drops || []).length, (c.drops || []).slice(0, 3).map(d => d.toFixed(0) + 'm').join(', '))}
+      ${row('Inversions', t.inversions)}
+      ${row('Banked track', Math.round((c.bankedFraction || 0) * 100) + '%')}
+      </table></div>`;
+    h += `<div><h3>Forces</h3><table class="tb">
+      ${row('Top speed', Math.round(c.maxSpeed * 3.6) + ' km/h', Math.round(c.maxSpeed) + ' m/s')}
+      ${row('Average speed', Math.round((c.avgSpeed || 0) * 3.6) + ' km/h')}
+      ${row('Max positive G', c.maxG.toFixed(2) + ' G', c.maxG > 5 ? 'punishing' : c.maxG > 3.5 ? 'strong' : 'comfortable')}
+      ${row('Max negative G', c.minG.toFixed(2) + ' G', c.minG < -1.2 ? 'ejector' : c.minG < 0 ? 'floater' : '')}
+      ${row('Max lateral G', (c.maxLatG || 0).toFixed(2) + ' G', c.maxLatG > 1.6 ? 'unbanked turns' : 'well banked')}
+      ${row('Airtime', (c.airtime || 0).toFixed(1) + ' s')}
+      ${row('Prestige', c.prestige || 0)}
+      </table></div>`;
+    h += `<div><h3>Operations</h3><table class="tb">
+      ${row('Trains', c.trains.length)}
+      ${row('Capacity', c.cap + ' riders')}
+      ${row('Throughput', (c.throughput || 0) + ' /hr')}
+      ${row('Ticket price', money(c.price))}
+      ${row('Total riders', c.ridden)}
+      ${row('Revenue', money(c.revenue))}
+      ${row('Reliability', Math.round(clamp(c.reliability - c.wear, 0, 1) * 100) + '%', c.broken ? 'broken down' : '')}
+      </table></div>`;
+    const cens = c.elementCensus();
+    const centries = Object.entries(cens).sort((a, b) => b[1] - a[1]).slice(0, 10);
+    h += `<div><h3>Elements Used</h3><table class="tb">
+      ${centries.map(([k, v]) => row(k, v)).join('')}
+      </table></div>`;
+    h += `</div>`;
+
+    const verdict = c.stalls ? ['Fails safety test', 'The train loses momentum and stops on the circuit. Add a chain lift or launch, or lower the layout.', 'var(--bad)']
+      : c.maxG > 6 ? ['Dangerously intense', 'Peak forces above 6 G will frighten almost every guest away. Widen the turns and soften the pull-outs.', 'var(--warn)']
+        : c.excitement > 8 && c.intensity < 8 ? ['Outstanding', 'A thrilling ride most guests will queue for. Well balanced forces.', 'var(--good)']
+          : c.excitement < 4 ? ['Forgettable', 'Guests will ride it once. More height, speed and airtime would help.', 'var(--warn)']
+            : ['Solid', 'A respectable ride. More airtime or an inversion would push the excitement higher.', 'var(--accent)'];
+    h += `<h3>Verdict</h3><div style="border-left:3px solid ${verdict[2]};padding:8px 12px;background:rgba(255,255,255,.04);border-radius:0 8px 8px 0">
+      <b style="color:${verdict[2]}">${verdict[0]}</b><div style="color:var(--dim);margin-top:3px">${verdict[1]}</div></div>`;
+
+    this.modal('Ride Report', h, () => this.drawProfile(c));
+  },
+
+  /* Height, speed and G-force plotted along the length of the track. */
+  drawProfile(c) {
+    const cv = document.getElementById('rcChart');
+    if (!cv || !c.profile || !c.profile.length) return;
+    const x = cv.getContext('2d');
+    const W = cv.width, H = cv.height, PADL = 46, PADR = 16, PADT = 12, PADB = 26;
+    x.clearRect(0, 0, W, H);
+    const P = c.profile;
+    const maxD = P[P.length - 1].d || 1;
+    let maxY = 1, maxV = 1, maxA = 1;
+    for (const p of P) { maxY = Math.max(maxY, p.y); maxV = Math.max(maxV, p.v); maxA = Math.max(maxA, Math.abs(p.gv), Math.abs(p.gl)); }
+    const px = (d) => PADL + (d / maxD) * (W - PADL - PADR);
+    const py = (v, max, min) => { min = min || 0; return H - PADB - ((v - min) / (max - min)) * (H - PADT - PADB); };
+
+    // grid
+    x.strokeStyle = 'rgba(255,255,255,.08)'; x.lineWidth = 1;
+    x.fillStyle = 'rgba(220,235,250,.45)'; x.font = '13px system-ui';
+    for (let i = 0; i <= 4; i++) {
+      const yy = PADT + (H - PADT - PADB) * i / 4;
+      x.beginPath(); x.moveTo(PADL, yy); x.lineTo(W - PADR, yy); x.stroke();
+      x.fillText(Math.round(maxY * (1 - i / 4)) + 'm', 6, yy + 4);
+    }
+    for (let i = 0; i <= 6; i++) {
+      const xx = px(maxD * i / 6);
+      x.beginPath(); x.moveTo(xx, PADT); x.lineTo(xx, H - PADB); x.stroke();
+      x.fillText(Math.round(maxD * i / 6) + 'm', xx - 12, H - 7);
+    }
+    // height as a filled area
+    x.beginPath(); x.moveTo(px(0), H - PADB);
+    for (const p of P) x.lineTo(px(p.d), py(p.y, maxY));
+    x.lineTo(px(maxD), H - PADB); x.closePath();
+    const grad = x.createLinearGradient(0, PADT, 0, H - PADB);
+    grad.addColorStop(0, 'rgba(126,200,255,.45)'); grad.addColorStop(1, 'rgba(126,200,255,.05)');
+    x.fillStyle = grad; x.fill();
+    x.strokeStyle = '#7ec8ff'; x.lineWidth = 2; x.beginPath();
+    P.forEach((p, i) => i ? x.lineTo(px(p.d), py(p.y, maxY)) : x.moveTo(px(p.d), py(p.y, maxY)));
+    x.stroke();
+    // speed
+    x.strokeStyle = '#ffd76a'; x.lineWidth = 2; x.beginPath();
+    P.forEach((p, i) => { const yy = py(p.v, maxV); i ? x.lineTo(px(p.d), yy) : x.moveTo(px(p.d), yy); });
+    x.stroke();
+    // G forces, centred on the 1 G line
+    const gy = (g) => py(g, maxA, -maxA);
+    x.strokeStyle = 'rgba(255,255,255,.20)'; x.setLineDash([4, 4]); x.beginPath();
+    x.moveTo(PADL, gy(0)); x.lineTo(W - PADR, gy(0)); x.stroke(); x.setLineDash([]);
+    x.strokeStyle = '#ff8f8f'; x.lineWidth = 1.6; x.beginPath();
+    P.forEach((p, i) => { const yy = gy(p.gv); i ? x.lineTo(px(p.d), yy) : x.moveTo(px(p.d), yy); });
+    x.stroke();
+    x.strokeStyle = '#9be89b'; x.lineWidth = 1.4; x.beginPath();
+    P.forEach((p, i) => { const yy = gy(p.gl); i ? x.lineTo(px(p.d), yy) : x.moveTo(px(p.d), yy); });
+    x.stroke();
+  },
 
   hint(h) {
     const e = $('#hint'); e.innerHTML = h; e.classList.add('show');
@@ -3548,6 +4372,7 @@ const UI = {
     $('#vMoney').textContent = money(Park.money);
     $('#vGuests').textContent = Park.guests.length;
     $('#vRating').textContent = Park.rating;
+    $('#vLand').textContent = Land.areaText();
     $('#vHappy').textContent = Math.round(Park.happiness * 100) + '%';
     const pph = Park.profitPerHour || 0;
     const pe = $('#vProfit');
@@ -3587,7 +4412,7 @@ const UI = {
       if (o.thought) h += `<div style="font-style:italic;color:#cfe3f5;background:rgba(255,255,255,.05);padding:7px;border-radius:8px">“${o.thought}”</div>`;
     }
     else if (o instanceof Staff) {
-      $('#insTitle').textContent = o.def.e + ' ' + o.name;
+      $('#insTitle').textContent = o.name;
       h += kv('Role', o.def.name);
       h += kv('Status', o.state);
       h += kv('Wage', money(o.wage) + ' / hr');
@@ -3621,8 +4446,9 @@ const UI = {
       h += `<div class="row"><label>Price</label><input type="range" min="0" max="30" step="1" value="${o.price}" oninput="Game.setPrice(${o.id},this.value)"><span class="num" id="prc${o.id}">$${o.price}</span></div>`;
       h += `<div class="btnrow">
         <button class="btn ${o.openR ? '' : 'go'}" onclick="Game.toggleOpen(${o.id})">${o.openR ? 'Close' : 'Open'}</button>
-        ${isC ? `<button class="btn pri" onclick="Game.rideCam(${o.id})">Ride Cam</button>` : ''}
+        ${isC ? `<button class="btn pri" onclick="UI.rideReport(${o.id})">Report</button>` : ''}
         <button class="btn dan" onclick="Game.demolish(${o.id})">Demolish</button></div>`;
+      if (isC) h += `<div class="btnrow"><button class="btn" onclick="Game.rideCam(${o.id})">Ride Cam</button><button class="btn" onclick="Coaster.enter(Park.coasters.find(x=>x.id===${o.id}))">Edit Track</button></div>`;
       if (o.broken) h += `<div style="color:var(--bad);font-size:11px">A mechanic must repair this ride.</div>`;
     }
     else if (o.kind === 'shop') {
@@ -3686,6 +4512,12 @@ const UI = {
         <li>Place <b>food, drink and restrooms</b> — unhappy needs drain happiness fast.</li>
         <li>Hire <b>janitors</b> for litter and <b>mechanics</b> for breakdowns.</li>
       </ul>
+      <h3>Buying land</h3>
+      <ul>
+        <li>Your park starts on nine plots. Press <kbd>L</kbd> to open the <b>land market</b>.</li>
+        <li>Only plots touching your park are for sale. Flat, usable ground costs more than mountainside, and every purchase pushes the price of the next one up.</li>
+        <li>Nothing — paths, rides or track — can be built on land you do not own.</li>
+      </ul>
       <h3>Building a coaster by hand</h3>
       <ul>
         <li>Pick <b>Coasters</b> → a track style, then click the ground to drop the <b>station</b>.</li>
@@ -3694,6 +4526,15 @@ const UI = {
         <li>Bring the track back to the station — when the marker glows green press <b>Complete Circuit</b>.</li>
         <li><b>Test</b> the ride to measure speed, G-forces and airtime, then <b>Open</b> it.</li>
         <li>Steep drops and inversions raise excitement; excessive G-force and lateral force raise intensity and nausea, which scares guests away.</li>
+        <li><b>Auto-Route</b> plans a legal way back to the station when you have painted yourself into a corner.</li>
+        <li><b>Test Ride</b> opens the full report: a height, speed and G-force profile of the whole circuit, every drop, airtime, throughput and a verdict.</li>
+      </ul>
+      <h3>Reading the ride report</h3>
+      <ul>
+        <li><b>Excitement</b> comes from speed, drop height, inversions, airtime and length.</li>
+        <li><b>Intensity</b> is driven by peak G-force and unbanked lateral force. Above about 9 most guests refuse to ride.</li>
+        <li><b>Nausea</b> rises with inversions, lateral force, sustained negative G and helices.</li>
+        <li>A train that runs out of momentum <b>stalls</b> and the ride cannot open — add a chain lift, a launch, or lower the layout.</li>
       </ul>
       <h3>Hotkeys</h3>
       <ul>
@@ -3820,14 +4661,20 @@ const Coaster = {
     let h = `<div style="font-size:12px;font-weight:700">${c.name}</div>`;
     h += `<div style="font-size:10.5px;color:var(--dim);margin-top:-4px">${c.type.name} · ${t.pieces.length} pieces · ${Math.round(t.length)} m</div>`;
 
-    h += `<div class="cat">Track Pieces</div><div class="piecegrid">`;
-    for (const p of PIECES) {
-      h += `<div class="pc ${this.piece === p.id ? 'on' : ''}" onclick="Coaster.setPiece('${p.id}')">${p.e}<span class="tip">${p.n} · ${money(p.cost)}</span></div>`;
+    const GROUPS = [['basic', 'Straight'], ['turn', 'Turns & Banking'], ['hill', 'Hills & Drops'], ['special', 'Inversions & Specials'], ['service', 'Lifts, Launches & Brakes']];
+    for (const [gid, label] of GROUPS) {
+      const list = PIECES.filter(p => (p.group || 'basic') === gid);
+      if (!list.length) continue;
+      h += `<div class="cat">${label}</div><div class="piecegrid">`;
+      for (const p of list) {
+        h += `<div class="pc ${this.piece === p.id ? 'on' : ''}" onclick="Coaster.setPiece('${p.id}')">` +
+          `<img src="${Thumbs.piece(p)}" alt=""><span class="tip">${p.n} · ${money(p.cost)}</span></div>`;
+      }
+      h += `</div>`;
     }
-    h += `</div>`;
 
-    h += `<div class="btnrow"><button class="btn go" onclick="Coaster.add()">➕ Add Piece <span style="opacity:.6">(Enter)</span></button>
-          <button class="btn" onclick="Coaster.undo()" ${t.pieces.length <= 3 ? 'disabled' : ''}>↩ Undo</button></div>`;
+    h += `<div class="btnrow"><button class="btn go" onclick="Coaster.add()">${ICON.plus}Add Piece</button>
+          <button class="btn" onclick="Coaster.undo()" ${t.pieces.length <= 3 ? 'disabled' : ''}>${ICON.undo}Undo</button></div>`;
     h += `<div class="row"><label>Auto‑bank</label><input type="checkbox" ${this.autoBank ? 'checked' : ''} onchange="Coaster.autoBank=this.checked"></div>`;
 
     h += `<div class="meterbox">
@@ -3838,8 +4685,8 @@ const Coaster = {
     </div>`;
 
     if (!t.complete) {
-      h += `<div class="btnrow"><button class="btn ${close.ok ? 'go' : ''}" ${close.ok ? '' : 'disabled'} onclick="Coaster.complete()">🔗 Complete Circuit</button>
-            <button class="btn pri" onclick="Coaster.autoComplete()">🪄 Auto‑Route Home</button></div>`;
+      h += `<div class="btnrow"><button class="btn ${close.ok ? 'go' : ''}" ${close.ok ? '' : 'disabled'} onclick="Coaster.complete()">${ICON.link}Complete Circuit</button>
+            <button class="btn pri" onclick="Coaster.autoComplete()">${ICON.wand}Auto-Route</button></div>`;
       if (!close.ok) h += `<div style="font-size:10.5px;color:var(--dim)">Bring the track back near the station, level and facing the same way, to close the loop.</div>`;
     } else {
       h += `<div class="meterbox">
@@ -3853,10 +4700,11 @@ const Coaster = {
       </div>`;
       h += `<div class="row"><label>Ticket price</label><input type="range" min="0" max="30" value="${c.price}" oninput="Game.setPrice(${c.id},this.value)"><span class="num" id="prc${c.id}">$${c.price}</span></div>`;
       h += `<div class="row"><label>Trains</label><input type="range" min="1" max="3" value="${c.trains.length || 1}" oninput="Coaster.setTrains(this.value)"><span class="num">${c.trains.length || 1}</span></div>`;
-      h += `<div class="btnrow"><button class="btn pri" onclick="Coaster.test()">🧪 Test</button>
-            <button class="btn ${c.openR ? '' : 'go'}" onclick="Game.toggleOpen(${c.id});Coaster.refresh()">${c.openR ? '⏹ Close' : '▶ Open'}</button></div>`;
-      h += `<div class="btnrow"><button class="btn" onclick="Game.rideCam(${c.id})">🎥 Ride Cam</button>
-            <button class="btn dan" onclick="Coaster.demolish()">💥 Demolish</button></div>`;
+      h += `<div class="btnrow"><button class="btn pri" onclick="Coaster.test()">${ICON.flask}Test Ride</button>
+            <button class="btn ${c.openR ? '' : 'go'}" onclick="Game.toggleOpen(${c.id});Coaster.refresh()">${c.openR ? ICON.stop + 'Close' : ICON.open + 'Open'}</button></div>`;
+      h += `<div class="btnrow"><button class="btn" onclick="Game.rideCam(${c.id})">${ICON.camera}Ride Cam</button>
+            <button class="btn pri" onclick="UI.rideReport(${c.id})">${ICON.stats}Full Report</button></div>`;
+      h += `<div class="btnrow"><button class="btn dan" onclick="Coaster.demolish()">${ICON.trash}Demolish</button></div>`;
     }
     b.innerHTML = h;
   },
@@ -3874,7 +4722,7 @@ const Coaster = {
     let ok = true;
     for (const p of s) {
       if (p.p.y - WORLD.hAt(p.p.x, p.p.z) < 0.6) ok = false;
-      if (Math.abs(p.p.x) > WORLD.half - 6 || Math.abs(p.p.z) > WORLD.half - 6) ok = false;
+      if (!WORLD.ownsWorld(p.p.x, p.p.z)) ok = false;
       if (p.p.y > 130) ok = false;
     }
     if (Park.money < def.cost) ok = false;
@@ -3928,8 +4776,7 @@ const Coaster = {
       UI.notify('Test passed', 'Top speed ' + Math.round(c.maxSpeed * 3.6) + ' km/h, ' + c.airtime.toFixed(1) + ' s of airtime.', 'good');
     }
     c.trains[0].state = 'run'; c.trains[0].v = 3; c.trains[0].d = c.track.stationEnd;
-    Game.rideCam(c.id);
-    UI.notify('Test run', 'Watch the G‑force meter. Sustained forces over 5 G terrify guests.', '');
+    UI.rideReport(c.id);
   },
   /* --------------------------------------------------------------
      Auto-complete: plans a run of pieces that brings the track back
@@ -3962,7 +4809,7 @@ const Coaster = {
   validSamples(samples) {
     for (const p of samples) {
       if (p.p.y - WORLD.hAt(p.p.x, p.p.z) < 0.7) return false;
-      if (Math.abs(p.p.x) > WORLD.half - 8 || Math.abs(p.p.z) > WORLD.half - 8) return false;
+      if (!WORLD.ownsWorld(p.p.x, p.p.z)) return false;
       if (p.p.y > 130) return false;
     }
     return true;
@@ -4302,6 +5149,214 @@ const PF = {
 };
 
 /* ============================================================================
+   SECTION 19b — THUMBNAIL RENDERER
+   Every catalogue entry and every piece of track is previewed with a real
+   render of its own geometry, produced on a second, offscreen GL context.
+   ========================================================================== */
+const Thumbs = {
+  size: 168,
+  cache: {},
+  R: null, cv: null,
+
+  init() {
+    this.cv = document.createElement('canvas');
+    this.cv.width = this.cv.height = this.size;
+    this.R = new Renderer(this.cv, { alpha: true, shadowSize: 256 });
+    const R = this.R;
+    R.aspect = 1;
+    R.shadowOn = 0;
+    R.fogDens = 0;
+    V3.norm(R.sun.dir, V3.set(R.sun.dir, .48, .74, .48));
+    R.sun.col = [1.02, .98, .92];
+    R.sky = [.46, .52, .60];
+    R.gnd = [.26, .25, .24];
+  },
+
+  /* Render a Geo from a three-quarter view that frames it exactly. */
+  shot(geo, opt) {
+    if (!this.R) this.init();
+    opt = opt || {};
+    const R = this.R, gl = R.gl;
+    if (!geo.pos.length) return '';
+    let x0 = 1e9, y0 = 1e9, z0 = 1e9, x1 = -1e9, y1 = -1e9, z1 = -1e9;
+    for (let i = 0; i < geo.pos.length; i += 3) {
+      const x = geo.pos[i], y = geo.pos[i + 1], z = geo.pos[i + 2];
+      if (x < x0) x0 = x; if (x > x1) x1 = x;
+      if (y < y0) y0 = y; if (y > y1) y1 = y;
+      if (z < z0) z0 = z; if (z > z1) z1 = z;
+    }
+    const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2, cz = (z0 + z1) / 2;
+    const rad = Math.max(.6, Math.hypot(x1 - x0, y1 - y0, z1 - z0) / 2);
+    const yaw = opt.yaw !== undefined ? opt.yaw : -2.35;
+    const pitch = opt.pitch !== undefined ? opt.pitch : 0.52;
+    const dist = rad * (opt.zoom || 2.35);
+    const eye = V3.make(
+      cx + Math.cos(yaw) * Math.cos(pitch) * dist,
+      cy + Math.sin(pitch) * dist,
+      cz + Math.sin(yaw) * Math.cos(pitch) * dist);
+    R.setCamera(eye, V3.make(cx, cy, cz), WORLD_UP, 30 * DEG, Math.max(.05, dist * .05), dist * 6);
+    const mesh = R.makeMesh(geo);
+    gl.viewport(0, 0, this.size, this.size);
+    gl.clearColor(0, 0, 0, 0);
+    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+    R.useProgram(R.progMain, false);
+    R.draw(mesh);
+    const url = this.cv.toDataURL('image/png');
+    mesh.dispose();
+    return url;
+  },
+
+  /* Queue every catalogue thumbnail and render a couple per frame. */
+  warmQueue: null,
+  warm(budgetMs) {
+    if (!this.warmQueue) {
+      this.warmQueue = [];
+      for (const d of CAT.coasterTypes) this.warmQueue.push(() => this.coasterType(d));
+      for (const d of PIECES) this.warmQueue.push(() => this.piece(d));
+      for (const d of CAT.rides) this.warmQueue.push(() => this.ride(d));
+      for (const d of CAT.shops) this.warmQueue.push(() => this.shop(d));
+      for (const d of CAT.scenery) this.warmQueue.push(() => this.scenery(d));
+      for (const d of CAT.staff) this.warmQueue.push(() => this.staff(d));
+      for (const k of ['path', 'queue', 'plaza', 'erase']) this.warmQueue.push(() => this.path(k));
+    }
+    const t0 = performance.now();
+    while (this.warmQueue.length && performance.now() - t0 < (budgetMs || 6)) this.warmQueue.shift()();
+    return this.warmQueue.length;
+  },
+
+  get(key, make, opt) {
+    if (this.cache[key] !== undefined) return this.cache[key];
+    let url = '';
+    try { url = this.shot(make(), opt); } catch (e) { console.warn('thumb', key, e); }
+    this.cache[key] = url;
+    return url;
+  },
+
+  shop(def) { return this.get('shop:' + def.id, () => Prefab.shop(def).base, { yaw: -2.2, pitch: .42, zoom: 2.2 }); },
+  ride(def) {
+    return this.get('ride:' + def.id, () => {
+      const pf = Prefab.ride(def.kind, def);
+      const g = new Geo();
+      g.merge(pf.base);
+      const m = M4.create();
+      const fake = { spin: 0.6, h: 0.45 };
+      for (const part of pf.parts) { part.anim(m, fake, 0.6); g.mergeM(part.geo, m); }
+      return g;
+    }, { yaw: -2.2, pitch: .40, zoom: 2.15 });
+  },
+  scenery(def) {
+    return this.get('sc:' + def.kind, () => {
+      const pf = Prefab.scenery(def.kind, 2);
+      const g = new Geo(); g.merge(pf.base);
+      const m = M4.create();
+      for (const part of pf.parts) { part.anim(m, { spin: 0, h: 0 }, 0.4); g.mergeM(part.geo, m); }
+      return g;
+    }, { yaw: -2.3, pitch: .38, zoom: 2.3 });
+  },
+  staff(def) {
+    return this.get('staff:' + def.id, () => Prefab.person(def.color, 0x2c3e50, 0xe8b184, 0x4a2c14), { yaw: -1.9, pitch: .22, zoom: 2.5 });
+  },
+  path(kind) { return this.get('path:' + kind, () => Prefab.pathSample(kind), { yaw: -2.3, pitch: .55, zoom: 1.9 }); },
+
+  /* A short demo train + track in the style of the chosen coaster */
+  coasterType(type) {
+    return this.get('ct:' + type.id, () => {
+      const t = new Track(type, 0, 6, 0, 0);
+      t.append('straight'); t.append('right'); t.append('down'); t.append('level');
+      const g = buildTrackGeo(t);
+      const sm = t.sampleAt(t.length * .18);
+      if (sm) {
+        const r = V3.cross({}, sm.f, sm.u);
+        const m = M4.fromBasis(M4.create(), r.x, r.y, r.z, sm.u.x, sm.u.y, sm.u.z, sm.f.x, sm.f.y, sm.f.z, sm.p.x, sm.p.y, sm.p.z, 1, 1, 1);
+        g.mergeM(buildCarGeo(type, true), m);
+      }
+      return g;
+    }, { yaw: -2.45, pitch: .30, zoom: 1.55 });
+  },
+
+  /* Literally a picture of the track piece, entered from level track */
+  piece(def) {
+    return this.get('pc:' + def.id, () => {
+      const t = new Track(CAT.coasterTypes[0], 0, 40, 0, 0);
+      t.samples.length = 0; t.pieces.length = 0; t.length = 0;
+      t.append('straight');
+      const from = t.samples.length;
+      t.append(def.id, { autoBank: true });
+      t.append('straight');
+      const g = new Geo();
+      const S = t.samples, gauge = 1.25;
+      const railC = hex(def.lift ? 0xf0c419 : def.brake ? 0xff4d4d : def.launch ? 0xf5c518 : 0x39c0ff);
+      const dim = hex(0x5a6472);
+      for (let i = 0; i + 1 < S.length; i++) {
+        const a = S[i], b = S[i + 1];
+        const active = i >= from - 1 && i <= from + Math.round(def.len / .6);
+        const c = active ? railC : dim;
+        const ra = V3.cross({}, a.f, a.u), rb = V3.cross({}, b.f, b.u);
+        for (const side of [-1, 1]) {
+          g.beam(a.p.x + ra.x * side * gauge, a.p.y + ra.y * side * gauge, a.p.z + ra.z * side * gauge,
+            b.p.x + rb.x * side * gauge, b.p.y + rb.y * side * gauge, b.p.z + rb.z * side * gauge,
+            .30, .30, c, a.u.x, a.u.y, a.u.z);
+        }
+        if (i % 3 === 0) {
+          g.beam(a.p.x + ra.x * gauge, a.p.y + ra.y * gauge, a.p.z + ra.z * gauge,
+            a.p.x - ra.x * gauge, a.p.y - ra.y * gauge, a.p.z - ra.z * gauge,
+            .26, .26, active ? shade(c, .8) : dim, a.u.x, a.u.y, a.u.z);
+          const sp = [a.p.x + a.u.x * -.55, a.p.y + a.u.y * -.55, a.p.z + a.u.z * -.55];
+          g.beam(a.p.x, a.p.y, a.p.z, sp[0], sp[1], sp[2], .3, .3, active ? shade(c, .7) : dim);
+        }
+      }
+      return g;
+    }, { yaw: -2.45, pitch: .34, zoom: 2.0 });
+  }
+};
+
+/* ============================================================================
+   SECTION 19c — ICONS
+   A small stroke-based SVG set. No emoji anywhere in the interface.
+   ========================================================================== */
+const ICON = (() => {
+  const w = (d, extra) => `<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
+  return {
+    cursor: w('<path d="M5 3l6.5 16 2.2-6.4 6.3-2.3z"/>'),
+    path: w('<path d="M3 21c4-2 4-7 7-9s6 1 7-3"/><path d="M3 21h18" opacity=".45"/>'),
+    coaster: w('<path d="M2 18c3 0 4-11 8-11s4 7 6 7 3-3 6-3"/><path d="M2 21h20"/><path d="M6 21v-4M12 21v-6M18 21v-5" opacity=".5"/>'),
+    ride: w('<circle cx="12" cy="11" r="7"/><path d="M12 4v14M5 11h14M7 6l10 10M17 6L7 16" opacity=".55"/><path d="M4 21h16"/>'),
+    shop: w('<path d="M4 9h16l-1 11H5z"/><path d="M4 9l1.6-4h12.8L20 9"/><path d="M9.5 13v3M14.5 13v3" opacity=".5"/>'),
+    tree: w('<path d="M12 3l5 7h-3l4 6H6l4-6H7z"/><path d="M12 16v5"/>'),
+    staff: w('<circle cx="12" cy="7.5" r="3.2"/><path d="M4.5 21c0-4.2 3.4-6.5 7.5-6.5s7.5 2.3 7.5 6.5"/>'),
+    terrain: w('<path d="M2 19l6.5-9 4.5 6 3-4 6 7z"/><path d="M2 19h20"/>'),
+    demolish: w('<path d="M14.5 3.5l6 6-4 4-6-6z"/><path d="M10.5 7.5L3 15v6h6l7.5-7.5"/>'),
+    money: w('<circle cx="12" cy="12" r="8.5"/><path d="M12 7v10M14.6 9.4c-.6-.9-1.7-1.2-2.8-1.2-1.4 0-2.5.7-2.5 1.9 0 2.6 5.4 1.4 5.4 4.1 0 1.3-1.2 2-2.7 2-1.2 0-2.3-.4-2.9-1.3"/>'),
+    guests: w('<circle cx="9" cy="8" r="3"/><path d="M3 20c0-3.4 2.7-5.3 6-5.3s6 1.9 6 5.3"/><path d="M16 5.4a3 3 0 010 5.2M17.5 14.4c2.2.6 3.5 2.3 3.5 5.1"/>'),
+    star: w('<path d="M12 3l2.7 5.6 6.1.8-4.4 4.3 1.1 6.1L12 17l-5.5 2.8 1.1-6.1L3.2 9.4l6.1-.8z"/>'),
+    smile: w('<circle cx="12" cy="12" r="8.5"/><path d="M8.5 14c.9 1.4 2.1 2.1 3.5 2.1s2.6-.7 3.5-2.1"/><path d="M9 9.5h.01M15 9.5h.01" stroke-width="2.4"/>'),
+    chart: w('<path d="M3 20h18"/><path d="M6 20v-6M10.5 20V8M15 20v-9M19.5 20V5"/>'),
+    clock: w('<circle cx="12" cy="12" r="8.5"/><path d="M12 7v5.3l3.4 2"/>'),
+    pause: w('<path d="M9 5v14M15 5v14" stroke-width="2.4"/>'),
+    play: w('<path d="M7 4.5l12 7.5-12 7.5z" fill="currentColor" stroke-linejoin="round"/>'),
+    play2: w('<path d="M3 4.5l8.5 7.5L3 19.5z" fill="currentColor"/><path d="M12.5 4.5L21 12l-8.5 7.5z" fill="currentColor"/>'),
+    play3: w('<path d="M1 5.5l6.5 6.5L1 18.5z" fill="currentColor"/><path d="M8.5 5.5L15 12l-6.5 6.5z" fill="currentColor"/><path d="M16 5.5L22.5 12 16 18.5z" fill="currentColor"/>'),
+    map: w('<path d="M3 6.5l6-2.5 6 2.5 6-2.5v13l-6 2.5-6-2.5-6 2.5z"/><path d="M9 4v13M15 6.5v13"/>'),
+    stats: w('<rect x="3.5" y="3.5" width="17" height="17" rx="2.5"/><path d="M8 16v-4M12 16V8M16 16v-6"/>'),
+    help: w('<circle cx="12" cy="12" r="8.5"/><path d="M9.6 9.4c.2-1.4 1.2-2.3 2.6-2.3 1.5 0 2.5 1 2.5 2.3 0 2-2.4 2.1-2.6 4"/><path d="M12 17h.01" stroke-width="2.4"/>'),
+    close: w('<path d="M6 6l12 12M18 6L6 18"/>'),
+    plus: w('<path d="M12 5v14M5 12h14"/>'),
+    undo: w('<path d="M4 10h9.5a5 5 0 110 10H8"/><path d="M4 10l4-4M4 10l4 4"/>'),
+    link: w('<path d="M10 13.5a4 4 0 005.7 0l3-3a4 4 0 10-5.7-5.7l-1.3 1.3"/><path d="M14 10.5a4 4 0 00-5.7 0l-3 3a4 4 0 105.7 5.7l1.3-1.3"/>'),
+    wand: w('<path d="M4 20L15 9"/><path d="M13 4.5l.9 2.1 2.1.9-2.1.9-.9 2.1-.9-2.1-2.1-.9 2.1-.9z"/><path d="M19 13l.6 1.4 1.4.6-1.4.6-.6 1.4-.6-1.4-1.4-.6 1.4-.6z"/>'),
+    flask: w('<path d="M10 3v6.2L4.8 18a2 2 0 001.7 3h11a2 2 0 001.7-3L14 9.2V3"/><path d="M9 3h6"/><path d="M7.2 14h9.6" opacity=".6"/>'),
+    camera: w('<rect x="2.5" y="7" width="19" height="13" rx="2.5"/><circle cx="12" cy="13.5" r="3.6"/><path d="M8.5 7l1.5-3h4l1.5 3"/>'),
+    open: w('<circle cx="12" cy="12" r="8.5"/><path d="M10 8.5l6 3.5-6 3.5z" fill="currentColor" stroke="none"/>'),
+    stop: w('<circle cx="12" cy="12" r="8.5"/><rect x="9" y="9" width="6" height="6" rx="1" fill="currentColor" stroke="none"/>'),
+    land: w('<path d="M3 8.5l9-4.5 9 4.5-9 4.5z"/><path d="M3 14l9 4.5 9-4.5"/>'),
+    ticket: w('<path d="M3 8.5a2 2 0 012-2h14a2 2 0 012 2v2a2 2 0 000 4v2a2 2 0 01-2 2H5a2 2 0 01-2-2v-2a2 2 0 000-4z"/><path d="M14 7v10" stroke-dasharray="2 2"/>'),
+    warn: w('<path d="M12 4l8.6 15H3.4z"/><path d="M12 10v4M12 17h.01" stroke-width="2"/>'),
+    check: w('<path d="M5 12.5l4.5 4.5L19 7.5"/>'),
+    trash: w('<path d="M4.5 7h15"/><path d="M9 7V4.5h6V7"/><path d="M6.5 7l1 13h9l1-13"/><path d="M10.5 11v6M13.5 11v6" opacity=".5"/>'),
+  };
+})();
+
+/* ============================================================================
    SECTION 20 — GAME
    ========================================================================== */
 const Game = {
@@ -4416,6 +5471,7 @@ const Game = {
       }
       if (k === 'r') { UI.rot = (UI.rot + 1) % 4; this.ghostKey = ''; return; }
       if (k === 'm') { $('#minimap').classList.toggle('show'); return; }
+      if (k === 'l') { UI.landDialog(); return; }
       if (k === 'f') { UI.finances(); return; }
       if (k === 'h') { UI.help(); return; }
       if (k === 'c' && Cam.mode === 'ride') { this.rideCamCar = (this.rideCamCar + 1) % 8; return; }
@@ -4502,6 +5558,13 @@ const Game = {
     const kind = UI.sub.id;
     const t = WORLD.t(i, j);
     if (t === T_BUILD) return;
+    if (!WORLD.ownsTile(i, j)) {
+      if (!this._landWarn || Date.now() - this._landWarn > 2000) {
+        this._landWarn = Date.now();
+        UI.notify('Not your land', 'Buy this plot from the land market first (L).', 'warn');
+      }
+      return;
+    }
     if (kind === 'erase') {
       if (t === T_GRASS) return;
       WORLD.setT(i, j, T_GRASS); Path.dirty = true; Park.money += 8;
@@ -4518,6 +5581,7 @@ const Game = {
     if (Math.random() < .25) Audio.play('click');
   },
   editTerrain(i, j, dir, level) {
+    if (!WORLD.ownsTile(i, j)) return;
     const W = N + 1, r = 2;
     const cost = 30;
     if (Park.money < cost) return;
@@ -4598,7 +5662,7 @@ const Game = {
     Park.spend(def.cost);
     const s = new Staff(def.id, WORLD.wx(N / 2), WORLD.wz(N / 2 + 16));
     Park.staff.push(s);
-    UI.notify('Hired', def.e + ' ' + s.name + ' joined as ' + def.name + '.', 'good');
+    UI.notify('Hired', s.name + ' joined the team as a ' + def.name.toLowerCase() + '.', 'good');
     UI.openBuild('staff');
   },
   fire(id) {
@@ -4802,7 +5866,7 @@ const Game = {
     for (const o of Park.objects) if (o.kind === 'ride') o.wear = Math.max(0, o.wear - .02);
     if (Park.rating > 700 && !Park.awards.includes('best')) {
       Park.awards.push('best');
-      UI.notify('🏆 Award!', 'Your park has been voted Best Theme Park of the Year! +$25,000', 'money');
+      UI.notify('Award won', 'Your park has been voted Best Theme Park of the Year. Bonus ' + money(25000) + '.', 'money');
       Park.money += 25000;
     }
   },
@@ -4820,6 +5884,7 @@ const Game = {
           price: c.price, open: c.openR, name: c.name, se: c.track.stationEnd, trains: c.trains.length
         })),
         staff: Park.staff.map(s => ({ r: s.role, x: s.x, z: s.z })),
+        land: Array.from(Land.ownedPlots), bought: Land.bought,
         log: Park.log
       };
       localStorage.setItem('planetcoaster_save', JSON.stringify(d));
@@ -4835,6 +5900,14 @@ const Game = {
       for (const c of Park.coasters) { if (c.trackMesh) c.trackMesh.dispose(); if (c.stationMesh) c.stationMesh.dispose(); }
       Park.objects.length = 0; Park.coasters.length = 0; Park.guests.length = 0; Park.staff.length = 0; Park.litter.length = 0;
       WORLD.h.set(d.h); WORLD.type.set(d.t); WORLD.own.fill(-1);
+      if (d.land && d.land.length === Land.ownedPlots.length) {
+        Land.ownedPlots.set(d.land); Land.bought = d.bought || 0;
+        WORLD.land.fill(0);
+        for (let pj = 0; pj < PLOTS; pj++) for (let pi = 0; pi < PLOTS; pi++)
+          if (Land.owns(pi, pj))
+            for (let j = pj * PLOT; j < Math.min(N, (pj + 1) * PLOT); j++)
+              for (let i = pi * PLOT; i < Math.min(N, (pi + 1) * PLOT); i++) WORLD.land[j * N + i] = 1;
+      }
       Park.money = d.money; Park.time = d.time; Park.day = d.day; Park.entryFee = d.fee;
       Park.log = d.log || Park.log;
       for (const s of d.objs) {
@@ -5046,7 +6119,8 @@ Object.assign(Game, {
     if (this.crowdCount) { R.useProgram(R.progDepI, true); R.drawInstanced(this.crowdMesh); }
     R.endShadow();
 
-    // ---- main pass ----
+    // ---- main pass, rendered offscreen so it can be graded ----
+    const posted = R.beginPost();
     R.clearMain();
     const sp = R.projectToScreen(Cam.eye.x + R.sun.dir.x * 300, Cam.eye.y + R.sun.dir.y * 300, Cam.eye.z + R.sun.dir.z * 300);
     const onScreen = sp.z > 0;
@@ -5085,6 +6159,8 @@ Object.assign(Game, {
 
     // ---- crowd ----
     if (this.crowdCount) { R.useProgram(R.progMainI, false); R.drawInstanced(this.crowdMesh); }
+
+    if (posted) R.endPost(night);
   }
 });
 
@@ -5099,10 +6175,11 @@ function frame(now) {
   Game.update(dt);
 
   if (WORLD.dirty) WORLD.buildMesh(Game.R);
-  if (Path.dirty) { Path.rebuild(); Game.queueDirty = true; }
+  if (Path.dirty) { Path.rebuild(); Game.queueDirty = true; Park.mainSpot(); }
   if (Game.queueDirty) Game.rebuildQueues();
   if (Game.sceneryDirty) Game.rebuildScenery();
   if (Park.litterDirty) Game.rebuildLitter();
+  if (Thumbs.warmQueue === null || Thumbs.warmQueue.length) Thumbs.warm(5);
   Game.updatePlaceGhost();
   Coaster.updateGhost(Game.R);
   Game.buildCrowd();
