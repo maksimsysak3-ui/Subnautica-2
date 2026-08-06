@@ -152,7 +152,7 @@ canvas#gl{position:fixed;inset:0;display:block;touch-action:none;}
 .item .e{font-size:22px;display:block;line-height:1.15}
 .item .n{display:block}
 .item .n{font-size:10.5px;margin-top:3px;font-weight:600}
-.item .c{font-size:9.5px;color:var(--gold);margin-top:1px;font-variant-numeric:tabular-nums}
+.item .c{display:block;font-size:9.5px;color:var(--gold);margin-top:1px;font-variant-numeric:tabular-nums;line-height:1.35}
 .item.locked{opacity:.36;cursor:not-allowed}
 .item.locked:hover{transform:none;background:rgba(255,255,255,.045);border-color:var(--edge)}
 
@@ -1192,9 +1192,9 @@ const WORLD_UP = V3.make(0, 1, 0);
 const Cam = {
   tx: 0, ty: 0, tz: 0,          // focus target
   dx: 0, dy: 0, dz: 0,          // smoothed focus
-  yaw: -0.7, pitch: 0.62, distT: 62, dist: 62,
-  yawS: -0.7, pitchS: 0.62,
-  fov: 52 * DEG,
+  yaw: -2.05, pitch: 0.66, distT: 128, dist: 128,
+  yawS: -2.05, pitchS: 0.66,
+  fov: 38 * DEG,                 // long lens: far less perspective distortion
   mode: 'orbit',                 // orbit | ride | fly
   eye: V3.make(), look: V3.make(),
   shake: 0, shakeX: 0, shakeY: 0,
@@ -1209,6 +1209,7 @@ const Cam = {
     this.dist = damp(this.dist, this.distT, 9, dt);
     this.yawS = damp(this.yawS, this.yaw, 14, dt);
     this.pitchS = damp(this.pitchS, this.pitch, 14, dt);
+    this.fovS = this.fovS === undefined ? this.fov : damp(this.fovS, this.fov, 10, dt);
     if (this.shake > 0) {
       this.shake = Math.max(0, this.shake - dt * 2.2);
       this.shakeX = (Math.random() - .5) * this.shake * .06;
@@ -1236,9 +1237,20 @@ const Cam = {
     const up = this.mode === 'ride' ? this.rideUp : WORLD_UP;
     const e = V3.make(this.eye.x, this.eye.y, this.eye.z);
     if (this.shake > 0) { e.x += this.shakeX * 3; e.y += this.shakeY * 3; }
-    R.setCamera(e, this.look, up, this.fov, 0.25, 900);
+    R.setCamera(e, this.look, up, this.fovS || this.fov, 0.25, 1200);
   },
-  zoom(d) { this.distT = clamp(this.distT * (1 + d * .0016), 8, 260); },
+  /* Zoom towards whatever is under the cursor, the way a map does. */
+  zoom(d, focus) {
+    const before = this.distT;
+    this.distT = clamp(this.distT * (1 + d * .0013), 14, 300);
+    if (focus && this.mode === 'orbit') {
+      const f = 1 - this.distT / before;               // positive when zooming in
+      if (f > 0) {
+        this.tx = clamp(lerp(this.tx, focus.x, f * .85), -WORLD.half, WORLD.half);
+        this.tz = clamp(lerp(this.tz, focus.z, f * .85), -WORLD.half, WORLD.half);
+      }
+    }
+  },
   pan(dx, dz) {
     const s = this.dist * 0.0016;
     const c = Math.cos(this.yawS), si = Math.sin(this.yawS);
@@ -1510,8 +1522,9 @@ const Land = {
     this.ownedPlots.fill(0);
     this.bought = 0;
     const c = Math.floor(PLOTS / 2);
-    // the starting park is the central three-by-three block of plots
-    for (let pj = c - 1; pj <= c + 1; pj++) for (let pi = c - 1; pi <= c + 1; pi++) this.claim(pi, pj);
+    // the starting park is a generous central block — room for several
+    // coasters before anyone needs to think about buying land
+    for (let pj = c - 2; pj <= c + 2; pj++) for (let pi = c - 2; pi <= c + 2; pi++) this.claim(pi, pj);
   },
   idx(pi, pj) { return pj * PLOTS + pi; },
   inb(pi, pj) { return pi >= 0 && pj >= 0 && pi < PLOTS && pj < PLOTS; },
@@ -1539,7 +1552,7 @@ const Land = {
         n++; if (Math.abs(WORLD.tileH(i, j)) < 3.2) flat++;
       }
     const usable = n ? flat / n : 0;
-    const base = 6000 + this.bought * 1500;
+    const base = 5000 + this.bought * 700;
     return Math.round((base * (0.35 + usable * 1.15)) / 100) * 100;
   },
   buy(pi, pj) {
@@ -3497,11 +3510,13 @@ class Person {
     const bounce = walking ? Math.abs(Math.sin(this.anim * 2)) * .05 : Math.sin(t * 2 + this.phase) * .012;
     const sitting = this.state === 'sitting' || this.state === 'riding';
     const root = M4.create();
-    M4.compose(root, this.x, this.y + bounce * H, this.z, 0, -this.yaw + PI / 2, 0, 1, 1, 1);
+    // Height scales the whole figure uniformly: scaling only Y would pull the
+    // limbs (whose positions come from sin/cos of the swing) out of their sockets.
+    M4.compose(root, this.x, this.y + bounce * H, this.z, 0, -this.yaw + PI / 2, 0, H, H, H);
     const tmp = M4.create(), out = M4.create();
 
     const put = (px, py, pz, rx, sx, sy, sz, col) => {
-      M4.compose(tmp, px, py * H, pz, rx, 0, 0, sx, sy * H, sz);
+      M4.compose(tmp, px, py, pz, rx, 0, 0, sx, sy, sz);
       M4.mul(out, root, tmp);
       for (let k = 0; k < 16; k++) buf[o + k] = out[k];
       buf[o + 16] = col[0]; buf[o + 17] = col[1]; buf[o + 18] = col[2]; buf[o + 19] = 0;
@@ -4350,9 +4365,10 @@ const UI = {
     x.stroke();
   },
 
-  hint(h) {
+  hint(h, sticky) {
     const e = $('#hint'); e.innerHTML = h; e.classList.add('show');
-    clearTimeout(this._ht); this._ht = setTimeout(() => e.classList.remove('show'), 5200);
+    clearTimeout(this._ht);
+    if (!sticky) this._ht = setTimeout(() => e.classList.remove('show'), 5200);
   },
   notify(title, body, cls) {
     const n = el('div', 'note ' + (cls || ''), `<div class="nt">${title}</div><div class="nb">${body}</div>`);
@@ -4625,7 +4641,7 @@ const Coaster = {
   },
   stationGeo(c) {
     const g = new Geo();
-    const W = c.gw * TILE, D = c.gd * TILE;
+    const W = (c.gw || 4) * TILE, D = (c.gd || 3) * TILE;
     const T = c.type;
     g.box(0, -.4, 0, W + 2, .8, D + 2, hex(0xb0a48c));
     // platforms either side of the track
@@ -5139,6 +5155,19 @@ const PF = {
     return entry;
   },
   shop(def) { return this.get('shop_' + def.id, () => Prefab.shop(def)); },
+  /* Single merged mesh of a prefab in a neutral pose — used for the build ghost. */
+  ghost(kind, def) {
+    const key = 'ghost_' + kind + '_' + (def.id || def.kind);
+    if (this.cache[key]) return this.cache[key];
+    const built = kind === 'shop' ? Prefab.shop(def) : kind === 'ride' ? Prefab.ride(def.kind, def) : Prefab.scenery(def.kind, 2);
+    const g = new Geo();
+    g.merge(built.base);
+    const m = M4.create();
+    for (const part of built.parts) { part.anim(m, { spin: 0.5, h: 0.4 }, 0.5); g.mergeM(part.geo, m); }
+    const entry = { mesh: Game.R.makeMesh(g), parts: [] };
+    this.cache[key] = entry;
+    return entry;
+  },
   ride(def) { return this.get('ride_' + def.id, () => Prefab.ride(def.kind, def)); },
   scenery(def, seed) { return this.get('sc_' + def.kind, () => Prefab.scenery(def.kind, 3)); },
   sceneryGeo(def, seed) {
@@ -5387,7 +5416,7 @@ const Game = {
     this.crowdBuf = new Float32Array(340 * BODY_PARTS * INST_STRIDE);
     this.litterGeos = [Prefab.litter(0), Prefab.litter(1), Prefab.litter(2)];
     boot(70, 'opening the gates…');
-    Cam.init(0, 24);
+    Cam.init(0, -4);
     UI.init();
     Minimap.init();
     this.bindInput();
@@ -5398,8 +5427,8 @@ const Game = {
     this.rebuildScenery();
     setTimeout(() => {
       $('#boot').classList.add('gone');
-      UI.notify('Welcome, Architect!', 'Your plot is ready. Press <b>H</b> for the guide, or jump straight in with the Coasters tool.', 'good');
-      UI.hint('Start by laying <b>paths</b> from the entrance, then build a coaster.');
+      UI.notify('Welcome, Architect!', 'Your park is ready. Press <b>H</b> for the guide. Right-drag to look around, scroll to zoom.', 'good');
+      UI.hint('Pick a tool below. The <b>green grid</b> under the cursor shows exactly where a building will land — red means it will not fit, and the reason is shown here.');
     }, 500);
     boot(100, 'ready');
   },
@@ -5443,7 +5472,7 @@ const Game = {
       if (this.mouse.down) this.mouse.moved += Math.abs(dx) + Math.abs(dy);
       if (this.mouse.down && (this.mouse.btn === 2 || this.mouse.btn === 1)) {
         if (e.shiftKey || this.mouse.btn === 1) Cam.panWorld(-dx, -dy);
-        else { Cam.yaw += dx * .0055; Cam.pitch = clamp(Cam.pitch - dy * .005, .12, 1.45); }
+        else { Cam.yaw += dx * .0042; Cam.pitch = clamp(Cam.pitch - dy * .0038, .34, 1.36); }
       } else if (this.mouse.down && this.mouse.btn === 0 && Cam.mode === 'orbit') {
         this.pointerAction(e, false);
       }
@@ -5453,7 +5482,7 @@ const Game = {
       if (this.mouse.down && this.mouse.btn === 0 && this.mouse.moved < 6) this.click(e);
       this.mouse.down = false; this.paintStart = null;
     });
-    cv.addEventListener('wheel', e => { e.preventDefault(); Cam.zoom(e.deltaY); }, { passive: false });
+    cv.addEventListener('wheel', e => { e.preventDefault(); Cam.zoom(e.deltaY, this.hoverPoint); }, { passive: false });
 
     window.addEventListener('keydown', e => {
       this.keys[e.key.toLowerCase()] = true;
@@ -5479,8 +5508,11 @@ const Game = {
       if (k === 'enter' && Coaster.active) { Coaster.add(); return; }
       if (k === 'backspace' && Coaster.active) { e.preventDefault(); Coaster.undo(); return; }
       if (k >= '1' && k <= '9' && !Coaster.active) { const t = TOOLS[+k - 1]; if (t) UI.setTool(t.id); }
-      if (k === 'q') Cam.yaw -= .18;
-      if (k === 'e') Cam.yaw += .18;
+      // snap the view to the next 45 degrees, so the build grid stays readable
+      if (k === 'q') Cam.yaw = (Math.round(Cam.yaw / (PI / 4)) - 1) * (PI / 4);
+      if (k === 'e') Cam.yaw = (Math.round(Cam.yaw / (PI / 4)) + 1) * (PI / 4);
+      if (k === 'z') Cam.pitch = 1.30;
+      if (k === 'x') Cam.pitch = 0.55;
       if (k === 'p') this.setSpeed(this.speed === 0 ? 1 : 0);
     });
     window.addEventListener('keyup', e => { this.keys[e.key.toLowerCase()] = false; });
@@ -5492,12 +5524,22 @@ const Game = {
     let best = p;
     const ray = Cam.rayDir(this.R, this.mouse.x, this.mouse.y);
     if (ray) {
-      let t = 0;
-      for (let k = 0; k < 260; k++) {
-        const x = ray.o.x + ray.d.x * t, y = ray.o.y + ray.d.y * t, z = ray.o.z + ray.d.z * t;
-        if (y < WORLD.hAt(x, z)) { best = { x, y, z }; break; }
-        t += 1.2;
-        if (t > 800) break;
+      const at = (t) => ({ x: ray.o.x + ray.d.x * t, y: ray.o.y + ray.d.y * t, z: ray.o.z + ray.d.z * t });
+      let t = 0, prev = 0, hit = -1;
+      for (let k = 0; k < 400; k++) {
+        const q = at(t);
+        if (q.y < WORLD.hAt(q.x, q.z)) { hit = t; break; }
+        prev = t; t += 1.0;
+        if (t > 900) break;
+      }
+      if (hit >= 0) {
+        // binary refine so the cursor lands on the exact tile, not a metre off
+        let lo = prev, hi = hit;
+        for (let k = 0; k < 18; k++) {
+          const mid = (lo + hi) / 2, q = at(mid);
+          if (q.y < WORLD.hAt(q.x, q.z)) hi = mid; else lo = mid;
+        }
+        best = at((lo + hi) / 2);
       }
     }
     this.hoverPoint = best;
@@ -5517,7 +5559,11 @@ const Game = {
     if (!this.hoverTile) return;
     Audio.resume();
     const { i, j } = this.hoverTile;
-    if (Coaster.placing) { Coaster.placeStation(i, j, UI.rot); return; }
+    if (Coaster.placing) {
+      const a = this.anchorTile({ w: 4, d: 3 }, UI.rot);
+      Coaster.placeStation(a.i, a.j, UI.rot);
+      return;
+    }
     switch (UI.tool) {
       case 'select': {
         const g = this.pickPerson();
@@ -5597,6 +5643,14 @@ const Game = {
     }
     WORLD.dirty = true;
   },
+  /* Top-left tile of a footprint centred on the hovered tile. */
+  anchorTile(def, rot) {
+    const rotated = (rot % 2) === 1;
+    const gw = rotated ? def.d : def.w, gd = rotated ? def.w : def.d;
+    const h = this.hoverTile;
+    if (!h) return null;
+    return { i: h.i - ((gw - 1) >> 1), j: h.j - ((gd - 1) >> 1), gw, gd };
+  },
   placementDef() {
     if (!UI.sub) return null;
     if (UI.tool === 'shop') return { kind: 'shop', def: UI.sub };
@@ -5604,15 +5658,40 @@ const Game = {
     if (UI.tool === 'scenery') return { kind: 'scenery', def: UI.sub };
     return null;
   },
+  /* Why a footprint cannot be built here — used by the ghost and the hint line. */
+  blockReason(def, i0, j0, gw, gd, allowPath) {
+    let unowned = 0, occupied = 0, onPath = 0, steep = 0, off = 0;
+    for (let j = j0; j < j0 + gd; j++) for (let i = i0; i < i0 + gw; i++) {
+      if (!WORLD.inb(i, j)) { off++; continue; }
+      if (WORLD.land[j * N + i] !== 1) { unowned++; continue; }
+      const t = WORLD.type[j * N + i];
+      if (t === T_BUILD || t === T_QUEUE) occupied++;
+      else if (!allowPath && (t === T_PATH || t === T_PLAZA || t === T_ENTRY)) onPath++;
+      if (Math.abs(WORLD.tileH(i, j)) > 3.2) steep++;
+    }
+    if (off) return 'outside the map';
+    if (unowned) return 'you do not own this land — press L to buy it';
+    if (occupied) return 'something is already built here';
+    if (onPath) return 'this would sit on a path';
+    if (steep) return 'the ground is too steep — level it with the terrain tool';
+    if (Park.money < def.cost) return 'you cannot afford this (' + money(def.cost) + ')';
+    return null;
+  },
   tryPlace() {
     const p = this.placementDef(); if (!p || !this.hoverTile) return;
-    const { i, j } = this.hoverTile;
+    const a = this.anchorTile(p.def, UI.rot); if (!a) return;
+    const { i, j, gw, gd } = a;
     const rot = UI.rot;
-    const rotated = rot % 2 === 1;
-    const gw = rotated ? p.def.d : p.def.w, gd = rotated ? p.def.w : p.def.d;
-    const allowPath = p.kind === 'scenery' && ['bench', 'bin', 'lamp', 'speaker', 'statue', 'topiary'].includes(p.def.kind);
-    if (!WORLD.areaFree(i, j, gw, gd, allowPath)) { if (!this._blockWarn || Date.now() - this._blockWarn > 1500) { this._blockWarn = Date.now(); UI.notify('Blocked', 'Something is already there, or the ground is too steep.', 'warn'); Audio.play('error'); } return; }
-    if (Park.money < p.def.cost) { UI.notify('Out of funds', 'You need ' + money(p.def.cost) + '.', 'bad'); Audio.play('error'); return; }
+    const allowPath = p.kind === 'scenery' && ['bench', 'bin', 'lamp', 'speaker', 'statue', 'topiary', 'lights', 'banner'].includes(p.def.kind);
+    const why = this.blockReason(p.def, i, j, gw, gd, allowPath);
+    if (why) {
+      if (!this._blockWarn || Date.now() - this._blockWarn > 1200) {
+        this._blockWarn = Date.now();
+        UI.notify('Cannot build here', why.charAt(0).toUpperCase() + why.slice(1) + '.', 'warn');
+        Audio.play('error');
+      }
+      return;
+    }
     Park.spend(p.def.cost);
     let o;
     if (p.kind === 'shop') o = new Shop(p.def, i, j, rot);
@@ -5699,7 +5778,7 @@ const Game = {
     Cam.mode = 'orbit'; this.rideCamTarget = null;
     $('#ridecam').classList.remove('show');
     document.body.classList.remove('ridemode');
-    Cam.fov = 52 * DEG; Cam.shake = 0;
+    Cam.fov = 38 * DEG; Cam.shake = 0;
     Audio.setRumble(0);
   },
 
@@ -5742,7 +5821,7 @@ const Game = {
       if (this.keys['a'] || this.keys['arrowleft']) r -= 1;
       if (this.keys['d'] || this.keys['arrowright']) r += 1;
       if (f || r) Cam.moveRelative(f, r, dt);
-      Cam.ty = damp(Cam.ty, WORLD.hAt(Cam.dx, Cam.dz), 4, dt);
+      Cam.ty = damp(Cam.ty, WORLD.hAt(Cam.dx, Cam.dz), 2.2, dt);
     }
     Audio.setCrowd(Math.min(.09, Park.guests.length * .0007));
     if (this.selected && (this.selected instanceof Person) && Park.now - (this._insT || 0) > .4) {
@@ -5803,7 +5882,7 @@ const Game = {
     Cam.rideLook.y = Cam.ridePos.y + fy * 10;
     Cam.rideLook.z = Cam.ridePos.z + fz * 10;
     V3.set(Cam.rideUp, ux, uy, uz);
-    Cam.fov = lerp(52, 74, clamp(tr.v / 45, 0, 1)) * DEG;
+    Cam.fov = lerp(52, 76, clamp(tr.v / 45, 0, 1)) * DEG;
     Cam.shake = clamp(tr.v / 40, 0, 1) * 1.2;
     const g = tr.g || 1;
     $('#rcSpd').textContent = Math.round(tr.v * 3.6);
@@ -5999,17 +6078,73 @@ Object.assign(Game, {
 
   /* Placement ghost for shops / rides / scenery */
   updatePlaceGhost() {
+    // the coaster station gets the same preview treatment as everything else
+    if (Coaster.placing && this.hoverTile && Cam.mode !== 'ride') {
+      const a = this.anchorTile({ w: 4, d: 3 }, UI.rot);
+      const why = this.blockReason({ cost: 6000 }, a.i, a.j, a.gw, a.gd, false);
+      this.ghostOK = !why;
+      if (why !== this._lastWhy) {
+        this._lastWhy = why;
+        UI.hint(why ? '<b style="color:#ff8f8f">' + why.charAt(0).toUpperCase() + why.slice(1) + '</b>'
+          : 'Click to drop the <b>station</b> &middot; <kbd>R</kbd> rotate &middot; <kbd>Esc</kbd> cancel', true);
+      }
+      let y = -1e9;
+      for (let jj = a.j; jj < a.j + a.gd; jj++) for (let ii = a.i; ii < a.i + a.gw; ii++) if (WORLD.inb(ii, jj)) y = Math.max(y, WORLD.tileH(ii, jj));
+      if (y < -1e8) y = 0;
+      const x = WORLD.wx(a.i) + (a.gw - 1) * TILE / 2, z = WORLD.wz(a.j) + (a.gd - 1) * TILE / 2;
+      if (!this._stationGhost || this._stationGhostType !== Coaster.placing.id) {
+        this._stationGhostType = Coaster.placing.id;
+        if (this._stationGhost) this._stationGhost.dispose();
+        this._stationGhost = this.R.makeMesh(Coaster.stationGeo({ gw: 4, gd: 3, type: Coaster.placing }));
+      }
+      this.ghostObj = { pf: { mesh: this._stationGhost }, m: M4.compose(M4.create(), x, y, z, 0, -UI.rot * PI / 2, 0, 1, 1, 1) };
+      this.buildFootprint(a.i, a.j, a.gw, a.gd, false);
+      return;
+    }
     const p = this.placementDef();
-    if (!p || !this.hoverTile || Cam.mode === 'ride') { this.ghostObj = null; return; }
-    const { i, j } = this.hoverTile;
-    const rotated = UI.rot % 2 === 1;
-    const gw = rotated ? p.def.d : p.def.w, gd = rotated ? p.def.w : p.def.d;
-    const allowPath = p.kind === 'scenery' && ['bench', 'bin', 'lamp', 'speaker', 'statue', 'topiary'].includes(p.def.kind);
-    this.ghostOK = WORLD.areaFree(i, j, gw, gd, allowPath) && Park.money >= p.def.cost;
+    if (!p || !this.hoverTile || Cam.mode === 'ride') { this.ghostObj = null; this._fpKey = null; this._lastWhy = undefined; return; }
+    const a = this.anchorTile(p.def, UI.rot);
+    const { i, j, gw, gd } = a;
+    const allowPath = p.kind === 'scenery' && ['bench', 'bin', 'lamp', 'speaker', 'statue', 'topiary', 'lights', 'banner'].includes(p.def.kind);
+    const why = this.blockReason(p.def, i, j, gw, gd, allowPath);
+    this.ghostOK = !why;
+    if (why !== this._lastWhy) {
+      this._lastWhy = why;
+      UI.hint(why ? '<b style="color:#ff8f8f">' + why.charAt(0).toUpperCase() + why.slice(1) + '</b>'
+        : 'Click to place <b>' + p.def.name + '</b> &middot; <kbd>R</kbd> rotate &middot; <kbd>Esc</kbd> cancel', true);
+    }
     const x = WORLD.wx(i) + (gw - 1) * TILE / 2, z = WORLD.wz(j) + (gd - 1) * TILE / 2;
-    const y = WORLD.tileH(i, j);
-    const pf = p.kind === 'shop' ? PF.shop(p.def) : p.kind === 'ride' ? PF.ride(p.def) : PF.scenery(p.def, 0);
+    let y = -1e9;
+    for (let jj = j; jj < j + gd; jj++) for (let ii = i; ii < i + gw; ii++) if (WORLD.inb(ii, jj)) y = Math.max(y, WORLD.tileH(ii, jj));
+    if (y < -1e8) y = 0;
+    const pf = PF.ghost(p.kind, p.def);
     this.ghostObj = { pf, m: M4.compose(M4.create(), x, y, z, 0, -UI.rot * PI / 2, 0, 1, 1, 1) };
+    this.buildFootprint(i, j, gw, gd, allowPath);
+  },
+
+  /* A tile-by-tile grid under the ghost: green where it can sit, red where it cannot. */
+  buildFootprint(i0, j0, gw, gd, allowPath) {
+    const key = i0 + ',' + j0 + ',' + gw + ',' + gd + ',' + (this.ghostOK ? 1 : 0);
+    if (key === this._fpKey) return;
+    this._fpKey = key;
+    const g = new Geo();
+    for (let j = j0; j < j0 + gd; j++) for (let i = i0; i < i0 + gw; i++) {
+      let ok = WORLD.inb(i, j) && WORLD.land[j * N + i] === 1;
+      if (ok) {
+        const t = WORLD.type[j * N + i];
+        if (t === T_BUILD || t === T_QUEUE) ok = false;
+        else if (!allowPath && (t === T_PATH || t === T_PLAZA || t === T_ENTRY)) ok = false;
+        else if (Math.abs(WORLD.tileH(i, j)) > 3.2) ok = false;
+      }
+      const c = ok ? [.35, 1, .55] : [1, .32, .32];
+      const y = (WORLD.inb(i, j) ? WORLD.tileH(i, j) : 0) + .10;
+      const x = WORLD.wx(i), z = WORLD.wz(j), h = TILE / 2 - .16;
+      g.quadV([x - h, y, z + h], [x + h, y, z + h], [x + h, y, z - h], [x - h, y, z - h], [c[0] * .35, c[1] * .35, c[2] * .35]);
+      for (const [dx, dz] of [[0, -1], [0, 1], [-1, 0], [1, 0]])
+        g.box(x + dx * h, y, z + dz * h, dx ? .18 : TILE - .3, .07, dz ? .18 : TILE - .3, c);
+    }
+    if (this.footprintMesh) this.footprintMesh.dispose();
+    this.footprintMesh = this.R.makeMesh(g);
   },
 
   /* Fill the instance buffer with every visible person */
@@ -6142,12 +6277,16 @@ Object.assign(Game, {
       else if (o.kind === 'ride') R.draw(PF.ride(o.def).mesh, o.matrix, { emissive: .35 + Math.sin(Park.now * 6) * .12, tint: [1.2, 1.3, 1.5] });
     }
 
-    // placement ghost
+    // placement ghost — drawn solid so complex rides stay readable
     if (this.ghostObj) {
       const gl = R.gl;
-      gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA); gl.depthMask(false);
-      R.draw(this.ghostObj.pf.mesh, this.ghostObj.m, { alpha: .55, emissive: .5, tint: this.ghostOK ? [.5, 1.4, .8] : [1.5, .5, .5] });
-      gl.depthMask(true); gl.disable(gl.BLEND);
+      gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+      if (this.footprintMesh) { gl.depthMask(false); R.draw(this.footprintMesh, null, { alpha: .8, emissive: .95 }); gl.depthMask(true); }
+      R.draw(this.ghostObj.pf.mesh, this.ghostObj.m, {
+        alpha: .92, emissive: .30,
+        tint: this.ghostOK ? [.62, 1.25, .82] : [1.45, .55, .55]
+      });
+      gl.disable(gl.BLEND);
     }
     // coaster ghost piece
     if (Coaster.ghostMesh) {
