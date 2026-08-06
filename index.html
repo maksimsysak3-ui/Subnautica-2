@@ -101,6 +101,199 @@
   /* the list rows sit lighter on paper so the inked active row still dominates */
   :root[data-theme="light"] #navList li{opacity:.68}
   :root[data-theme="light"] #navList li.sel{opacity:1}
+  /* ==================== MENU LAYOUTS =======================================
+     Not a recolour and not a button style — these move the FURNITURE. Every
+     block of the menu is absolutely positioned, so a layout is a set of
+     overrides that puts the list, the detail panel, the logo, the spine and the
+     strip somewhere genuinely different. The car behind never moves; everything
+     arranged around it does, and each one reads as a different piece of design.
+     ======================================================================== */
+
+  /* 2. CENTRE — symmetrical. Logo centred over a centred list, detail beneath.
+        The car sits dead behind the type instead of beside it. */
+  :root[data-layout="centre"] #mHead{left:0;right:0;justify-content:center;text-align:center}
+  :root[data-layout="centre"] #mProfile{display:none}
+  :root[data-layout="centre"] #mLogo{text-align:center}
+  :root[data-layout="centre"] #mLogo::after{background:linear-gradient(90deg,transparent,var(--red) 40% 60%,transparent)}
+  /* Lifted and tightened. Centred, the list has the foot of the page to share
+     with the detail bar, and at the default row height the two ran into each
+     other by about seventy pixels on a 560-tall window. */
+  :root[data-layout="centre"] #mBody{left:50%;right:auto;top:42%;transform:translate(-50%,-50%);
+    max-width:min(70vw,640px);text-align:center}
+  :root[data-layout="centre"] #navList li{padding-top:6px;padding-bottom:6px}
+  :root[data-layout="centre"] #mKicker{justify-content:center}
+  :root[data-layout="centre"] #navList::before{display:none}
+  :root[data-layout="centre"] #navList li{justify-content:center;padding-left:0}
+  /* The detail panel carries a 360x200 circuit map, a description and a meta
+     row — nearly 500 px tall. Down the side of the page that is fine; centred
+     under a centred list it is taller than the space left and it sat straight
+     over the menu. Centre gets a COMPACT version: the circuit name and the
+     numbers, as a single bar across the foot, and the map is dropped because
+     the list is now where the map used to be. */
+  :root[data-layout="centre"] #mDetail{right:auto;left:50%;transform:translateX(-50%);
+    text-align:center;width:min(620px,86vw);bottom:clamp(34px,5.5vh,56px)}
+  :root[data-layout="centre"] #mdCircuit,
+  :root[data-layout="centre"] #mdDesc{display:none!important}
+  :root[data-layout="centre"] #mdMeta{justify-content:center;margin-top:12px;gap:34px}
+  :root[data-layout="centre"] #mdCircInfo{justify-content:center}
+  :root[data-layout="centre"] #mSpine,
+  :root[data-layout="centre"] #mCarTag{display:none}
+  :root[data-layout="centre"] #menuScrim{
+    background:radial-gradient(ellipse 80% 70% at 50% 50%,rgba(6,7,11,.30),rgba(6,7,11,.94) 80%)}
+
+  /* 3. TOWER — the whole thing mirrored: list right, detail left. */
+  :root[data-layout="tower"] #mHead{flex-direction:row-reverse}
+  :root[data-layout="tower"] #mBody{left:auto;right:clamp(40px,5vw,80px);text-align:right}
+  :root[data-layout="tower"] #mKicker{flex-direction:row-reverse}
+  :root[data-layout="tower"] #navList::before{left:auto;right:0}
+  :root[data-layout="tower"] #navList li{padding-left:0;padding-right:26px;flex-direction:row-reverse}
+  :root[data-layout="tower"] #mDetail{right:auto;left:clamp(40px,5vw,80px);text-align:left}
+  :root[data-layout="tower"] #mdMeta,
+  :root[data-layout="tower"] #mdCircInfo{justify-content:flex-start}
+  :root[data-layout="tower"] #mdDesc{margin-left:0;margin-right:auto}
+  :root[data-layout="tower"] #mDetail::before{background:linear-gradient(90deg,var(--red) 0 26%,rgba(255,255,255,.22) 26% 100%)}
+  :root[data-layout="tower"] #mSpine{left:auto;right:clamp(12px,1.6vw,22px)}
+  :root[data-layout="tower"] #mCarTag{left:auto;right:clamp(62px,7vw,104px);text-align:right}
+  :root[data-layout="tower"] #menuScrim{
+    background:linear-gradient(260deg,rgba(6,7,11,.96) 0%,rgba(6,7,11,.72) 30%,rgba(6,7,11,.06) 62%),
+      linear-gradient(0deg,rgba(6,7,11,.88),transparent 30%)}
+
+  /* 4. PITWALL — the list becomes a bank of monitors along the bottom edge. */
+  :root[data-layout="pitwall"] #mBody{left:0;right:0;top:auto;bottom:clamp(30px,5vh,54px);
+    transform:none;max-width:none;padding:0 clamp(40px,5vw,90px)}
+  :root[data-layout="pitwall"] #mKicker{display:none}
+  :root[data-layout="pitwall"] #navList{display:flex;gap:2px}
+  :root[data-layout="pitwall"] #navList::before{display:none}
+  :root[data-layout="pitwall"] #navList li{flex:1;flex-direction:column;align-items:flex-start;
+    gap:4px;padding:11px 13px;background:rgba(8,11,16,.62);
+    border-top:2px solid rgba(255,255,255,.14);opacity:.55}
+  :root[data-layout="pitwall"] #navList li.sel{opacity:1;border-top-color:var(--red);
+    background:rgba(225,6,0,.16)}
+  :root[data-layout="pitwall"] #navList li::before{display:none}
+  :root[data-layout="pitwall"] #mDetail{bottom:auto;top:clamp(22px,4vh,44px);
+    right:clamp(40px,5vw,80px)}
+  :root[data-layout="pitwall"] #mHead{right:auto}
+  :root[data-layout="pitwall"] #mProfile{display:none}
+  :root[data-layout="pitwall"] #mTrackStrip{bottom:auto;top:clamp(120px,20vh,190px)}
+  :root[data-layout="pitwall"] #mCarTag{bottom:clamp(150px,24vh,220px)}
+  :root[data-layout="pitwall"] #mFoot{display:none}
+
+  /* 5. CINEMA — letterboxed. Almost no chrome, a very large car, type small and
+        low in the frame. */
+  :root[data-layout="cinema"] #menu::before,
+  :root[data-layout="cinema"] #menu::after{content:'';position:fixed;left:0;right:0;
+    height:9vh;background:#000;z-index:24;pointer-events:none}
+  :root[data-layout="cinema"] #menu::before{top:0}
+  :root[data-layout="cinema"] #menu::after{bottom:0}
+  :root[data-layout="cinema"] #mBody{top:auto;bottom:16vh;transform:none}
+  :root[data-layout="cinema"] #navList li{padding:5px 0 5px 22px}
+  :root[data-layout="cinema"] #navList li .t{font-size:clamp(15px,1.7vw,22px)}
+  :root[data-layout="cinema"] #mDetail{bottom:16vh;width:min(300px,32vw)}
+  :root[data-layout="cinema"] #mdDesc,
+  :root[data-layout="cinema"] #mdCircuit,
+  :root[data-layout="cinema"] #mSpine,
+  :root[data-layout="cinema"] #mTrackStrip,
+  :root[data-layout="cinema"] #mCarTag{display:none}
+  :root[data-layout="cinema"] #mHead{top:11vh}
+  :root[data-layout="cinema"] #mFoot{bottom:10.4vh}
+  :root[data-layout="cinema"] #menuScrim{
+    background:linear-gradient(0deg,rgba(6,7,11,.92),transparent 42%)}
+
+  /* 6. DOSSIER — a technical file. Everything boxed and ruled, top-left. */
+  :root[data-layout="dossier"] #mBody{top:clamp(150px,22vh,210px);transform:none;
+    background:rgba(8,11,16,.72);border:1px solid var(--line);padding:18px 22px 16px;
+    max-width:min(42vw,470px)}
+  :root[data-layout="dossier"] #mKicker{margin-bottom:14px;padding-bottom:12px;
+    border-bottom:1px solid var(--line)}
+  :root[data-layout="dossier"] #navList li{padding:7px 0 7px 24px}
+  :root[data-layout="dossier"] #mDetail{background:rgba(8,11,16,.72);border:1px solid var(--line);
+    padding:16px 20px;bottom:clamp(60px,10vh,96px);text-align:left;width:min(340px,36vw)}
+  :root[data-layout="dossier"] #mdMeta,
+  :root[data-layout="dossier"] #mdCircInfo{justify-content:flex-start}
+  :root[data-layout="dossier"] #mdDesc{margin-left:0}
+  :root[data-layout="dossier"] #mSpine{display:none}
+
+  /* 7. TILES — a dashboard of cards rather than a list. */
+  :root[data-layout="tiles"] #mBody{max-width:min(56vw,660px)}
+  :root[data-layout="tiles"] #navList{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  :root[data-layout="tiles"] #navList::before{display:none}
+  :root[data-layout="tiles"] #navList li{flex-direction:column;align-items:flex-start;gap:5px;
+    padding:14px 16px;background:rgba(8,11,16,.60);border-left:2px solid rgba(255,255,255,.14);
+    opacity:.6}
+  :root[data-layout="tiles"] #navList li.sel{opacity:1;border-left-color:var(--red);
+    background:rgba(225,6,0,.14)}
+  :root[data-layout="tiles"] #navList li::before{display:none}
+  /* Measured: the tile grid ran into the detail panel. Tiles is a DASHBOARD —
+     the tiles carry the information — so the side panel goes and the grid takes
+     the width it needs. */
+  :root[data-layout="tiles"] #mCarTag,
+  :root[data-layout="tiles"] #mDetail{display:none}
+  :root[data-layout="tiles"] #mBody{left:50%;transform:translate(-50%,-50%);
+    max-width:min(76vw,860px)}
+  :root[data-layout="tiles"] #navList{grid-template-columns:repeat(3,1fr)}
+
+  /* 8. TIMING — a broadcast tower down the left edge, full bleed. */
+  :root[data-layout="timing"] #mBody{left:0;top:0;bottom:0;transform:none;
+    width:min(300px,30vw);max-width:none;background:rgba(6,8,12,.80);
+    border-right:2px solid var(--red);display:flex;flex-direction:column;justify-content:center;
+    padding:0 0 0 clamp(16px,2vw,26px)}
+  :root[data-layout="timing"] #navList li{padding:8px 16px 8px 0;border-bottom:1px solid var(--line-soft)}
+  :root[data-layout="timing"] #navList::before{display:none}
+  :root[data-layout="timing"] #mHead{left:calc(min(300px,30vw) + clamp(24px,3vw,44px))}
+  :root[data-layout="timing"] #mSpine{display:none}
+  :root[data-layout="timing"] #mCarTag{left:calc(min(300px,30vw) + clamp(24px,3vw,44px))}
+  :root[data-layout="timing"] #mTrackStrip{left:calc(min(300px,30vw) + clamp(24px,3vw,44px))}
+  :root[data-layout="timing"] #mFoot{left:calc(min(300px,30vw) + clamp(24px,3vw,44px))}
+  :root[data-layout="timing"] #menuScrim{
+    background:linear-gradient(90deg,rgba(6,7,11,.55) 0%,transparent 40%),
+      linear-gradient(0deg,rgba(6,7,11,.80),transparent 26%)}
+
+  /* 9. POSTER — one huge mark, the modes set as a single line of words beneath. */
+  :root[data-layout="poster"] #mHead{left:0;right:0;top:clamp(40px,9vh,110px);justify-content:center}
+  :root[data-layout="poster"] #mProfile{display:none}
+  :root[data-layout="poster"] #mLogo .lk,
+  :root[data-layout="poster"] #mLogo .lg{font-size:clamp(52px,9vw,132px)}
+  :root[data-layout="poster"] #mLogo em{letter-spacing:.7em;text-align:center;margin-top:16px}
+  :root[data-layout="poster"] #mBody{left:0;right:0;top:auto;bottom:14vh;transform:none;
+    max-width:none;padding:0 6vw;text-align:center}
+  :root[data-layout="poster"] #mKicker{display:none}
+  :root[data-layout="poster"] #navList{display:flex;flex-wrap:wrap;justify-content:center;gap:4px 26px}
+  :root[data-layout="poster"] #navList::before{display:none}
+  :root[data-layout="poster"] #navList li{padding:4px 0}
+  :root[data-layout="poster"] #navList li .ix,
+  :root[data-layout="poster"] #navList li .tg{display:none}
+  :root[data-layout="poster"] #navList li .t{font-size:clamp(13px,1.5vw,19px)}
+  :root[data-layout="poster"] #mDetail,
+  :root[data-layout="poster"] #mSpine,
+  :root[data-layout="poster"] #mCarTag{display:none}
+  :root[data-layout="poster"] #menuScrim{
+    background:radial-gradient(ellipse 90% 80% at 50% 55%,rgba(6,7,11,.22),rgba(6,7,11,.96) 85%)}
+
+  /* 10. COCKPIT — the list staggered like a bank of switches, detail as a
+         right-hand instrument cluster. */
+  :root[data-layout="cockpit"] #navList li:nth-child(odd){margin-left:0}
+  :root[data-layout="cockpit"] #navList li:nth-child(even){margin-left:34px}
+  :root[data-layout="cockpit"] #navList li{border-left:2px solid rgba(255,255,255,.12);
+    padding-left:16px;margin-bottom:3px}
+  :root[data-layout="cockpit"] #navList li.sel{border-left-color:var(--red)}
+  :root[data-layout="cockpit"] #navList::before{display:none}
+  :root[data-layout="cockpit"] #mDetail{top:50%;bottom:auto;transform:translateY(-50%);
+    background:rgba(8,11,16,.70);border:1px solid var(--line);padding:18px 20px;
+    border-radius:var(--radius)}
+  :root[data-layout="cockpit"] #mTrackStrip{display:none!important}
+
+  /* 11. MINIMAL — the list, and nothing else at all. */
+  :root[data-layout="minimal"] #mDetail,
+  :root[data-layout="minimal"] #mSpine,
+  :root[data-layout="minimal"] #mCarTag,
+  :root[data-layout="minimal"] #mTrackStrip,
+  :root[data-layout="minimal"] #mProfile,
+  :root[data-layout="minimal"] #mGrain{display:none}
+  :root[data-layout="minimal"] #mBody{top:auto;bottom:clamp(60px,11vh,110px);transform:none}
+  :root[data-layout="minimal"] #mKicker{display:none}
+  :root[data-layout="minimal"] #menuScrim{
+    background:linear-gradient(0deg,rgba(6,7,11,.90),transparent 38%)}
+
   /* ---- SHAPE STYLES. The menu's cut is a variable, so a preset can change the
      whole feel of the interface without touching a rule. ---- */
   #navList li::before,#mProfile .pNum,.tsChip{ }
@@ -2245,7 +2438,7 @@ const SETTINGS_KEY='apexgp.settings.v1';
 const SET={
   // camera & view
   helmet:true, defaultCam:'chase', fovScale:1.0, headMotion:0.9, grain:true, vignette:false, grade:true,
-  standings:true,
+  standings:true, menuLayout:'broadsheet',
   vigMigrated:false, aiPaceBumped:false,
   // hud
   hudTiming:true, hudMap:true, hudStatus:true, hudHints:true, units:'kmh',
@@ -2774,7 +2967,7 @@ FX2.setSpeed=function(v01,dt){
   u.uSpeed.value=damp(u.uSpeed.value,clamp(v01,0,1),3.0,dt||0.016);
 };
 if(DEBUG) window.__FX2=FX2;
-if(DEBUG) setTimeout(()=>{window.__enterMenu=enterMenu;window.__SET=SET;window.__applyTheme=applyTheme;window.__openTeam=openTeam;window.__TM=TM;window.__TEAM=TEAM;window.__renderTeam=renderTeam;window.__openSeasonSetup=openSeasonSetup;window.__beginSeason=beginSeason;},0);
+if(DEBUG) setTimeout(()=>{window.__enterMenu=enterMenu;window.__SET=SET;window.__applyTheme=applyTheme;window.__ACCENTS=ACCENTS;window.__openTeam=openTeam;window.__TM=TM;window.__TEAM=TEAM;window.__renderTeam=renderTeam;window.__openSeasonSetup=openSeasonSetup;window.__beginSeason=beginSeason;},0);
 if(DEBUG) setTimeout(()=>{window.__EVO=EVO;window.__PERF=PERF;window.__FLAG=FLAG;window.__SC=SC;window.__STEW=STEW;
   window.__throwYellow=throwYellow;window.__deployVSC=deployVSC;
   window.__issuePenalty=issuePenalty;window.__updateFlagBar=updateFlagBar;},0);
@@ -16454,6 +16647,12 @@ const SETTINGS_DEF=[
     d:'The same, for a race — fuel, tyre management and traffic mean this is normally a little below qualifying pace.'},
  ]},
  {id:'look', t:'Appearance', items:[
+   {k:'menuLayout',type:'enum',t:'Menu layout',
+    opts:[['broadsheet','BROADSHEET'],['centre','CENTRE'],['tower','TOWER'],
+          ['pitwall','PIT WALL'],['cinema','CINEMA'],['dossier','DOSSIER'],
+          ['tiles','TILES'],['timing','TIMING TOWER'],['poster','POSTER'],
+          ['cockpit','COCKPIT'],['minimal','MINIMAL']],
+    d:'Where everything sits. These move the furniture, not the colours — eleven genuinely different arrangements.'},
    {k:'themePreset',type:'enum',t:'Menu preset',
     opts:[['apex','APEX RED'],['papyrus','PAPER / LIGHT'],['midnight','MIDNIGHT BLUE'],
           ['acid','ACID GREEN'],['monaco','MONACO GOLD'],['carbon','CARBON MONO'],['custom','CUSTOM']],
@@ -16529,14 +16728,43 @@ let setOn=false, setTab=0, setRow=0;
 function setItems(){ return SETTINGS_DEF[setTab].items; }
 /* A ring of accents to cycle through, so the colour is pickable with the same
    two keys as every other setting rather than needing a colour wheel. */
-const ACCENTS=['#e10600','#ff6a00','#ffd23a','#3ddc84','#00b6d4','#3f8bff',
-               '#8a4fff','#ff4f9d','#e8e2d4','#9aa3ad'];
+/* Ten was a thin ring to cycle through and it skipped whole families — no deep
+   reds, no oranges between amber and signal, nothing in the greens between mint
+   and forest, and no warm neutrals at all. Twenty-eight, ordered round the wheel
+   so stepping through it reads as a spectrum rather than a shuffle. */
+const ACCENTS=[
+  '#e10600','#c1121f','#8b0f1a','#ff3b1f','#ff6a00','#ff8c1a',
+  '#ffb020','#ffd23a','#f2ea3c','#c8e030','#8fd633','#3ddc84',
+  '#1fbf6b','#12a17e','#00b6d4','#25a0e8','#3f8bff','#2f5fe0',
+  '#5b45ff','#8a4fff','#b44ce8','#e04bd0','#ff4f9d','#ff6f7d',
+  '#c98a5e','#e8e2d4','#9aa3ad','#6b7480'];
 /* ==================================================================
    THEMES
    A preset is a set of the same four settings the player can reach themselves,
    so picking one and then nudging a value simply drops you into Custom. Nothing
    is hidden behind a preset that is not also exposed.
    ================================================================== */
+/* WHAT EACH LAYOUT DOES WITH THE 3D BEHIND IT.
+     car:false  — not a car screen at all. The list, the panels and the paper ARE
+                  the design, and a turntable behind them would only compete.
+     cam        — for the ones that are car screens: r is the orbit radius, y the
+                  height, z the push toward the nose, and sway how far the car
+                  turns on its own. Between them these give a showroom turntable,
+                  a low hero shot, a tight three-quarter and a slow drift, which
+                  read as four different photographs rather than one camera. */
+const MENU_LAYOUTS={
+  broadsheet:{car:true,  spin:0.18, cam:{r:9.5, y:3.1, z:3.5, fov:38, look:[0.4,0.8,0]}},
+  centre:    {car:true,  spin:0.07, cam:{r:12.5,y:2.0, z:0.0, fov:32, look:[0,0.7,0], sway:0.18}},
+  tower:     {car:true,  spin:0.18, cam:{r:9.5, y:3.1, z:-3.5,fov:38, look:[-0.4,0.8,0], yaw:0.6}},
+  pitwall:   {car:false},
+  cinema:    {car:true,  spin:0.05, cam:{r:6.2, y:0.75,z:1.2, fov:52, look:[0,0.55,0], sway:0.10}},
+  dossier:   {car:false},
+  tiles:     {car:false},
+  timing:    {car:true,  spin:0.12, cam:{r:10.5,y:2.4, z:2.0, fov:36, look:[1.2,0.8,0]}},
+  poster:    {car:true,  spin:0.03, cam:{r:8.0, y:1.15,z:2.4, fov:44, look:[0,0.8,0], sway:0.06, yaw:-0.9}},
+  cockpit:   {car:true,  spin:0.09, cam:{r:5.4, y:1.45,z:2.8, fov:40, look:[0.2,0.95,0], sway:0.22}},
+  minimal:   {car:false},
+};
 const THEME_PRESETS={
   apex:     {accent:'#e10600', theme:'dark',  shape:'angled', tex:'normal'},
   papyrus:  {accent:'#c0392b', theme:'light', shape:'square', tex:'light'},
@@ -16568,6 +16796,9 @@ function applyTheme(){
     SET.uiTheme=P.theme;
   }
   const root=document.documentElement, st=root.style;
+  /* The layout is an attribute on the root, and every layout rule is written
+     against it, so switching is one attribute write and no relayout code. */
+  root.setAttribute('data-layout', SET.menuLayout||'broadsheet');
   const acc=SET.accent||'#e10600';
   st.setProperty('--red',acc);
   st.setProperty('--red-lo',shadeOf(acc,0.55));
@@ -22906,12 +23137,28 @@ function frame(){
   const t=performance.now();let dt=(t-last)/1000;last=t;dt=Math.min(dt,0.05);
   perfSample(dt);
   if(STATE==='menu'){
-    menuSpin+=dt*0.18; CAR.rig.rotation.y=-0.6+Math.sin(menuSpin)*0.5;
-    // showroom camera FIRST — rendering before moving it drew a frame from where
-    // the camera was last frame, at whatever FOV the previous state left behind
-    if(camera.fov!==38){camera.fov=38;camera.updateProjectionMatrix();}
-    camera.position.set(Math.cos(menuSpin*0.3)*9.5,3.1,Math.sin(menuSpin*0.3)*9.5+3.5);
-    camera.lookAt(0.4,0.8,0);
+    /* EACH LAYOUT IS ITS OWN SCREEN, NOT THE SAME SCREEN REARRANGED.
+       Moving the panels around still leaves eleven versions of "a car with some
+       type next to it". The 3D behind belongs to the layout too: some of these
+       are car screens and are framed as such, and some are not car screens at
+       all — a dashboard, a document, a monitor bank — where the car is switched
+       off entirely and the page is the whole design. */
+    const LY=MENU_LAYOUTS[SET.menuLayout]||MENU_LAYOUTS.broadsheet;
+    menuSpin+=dt*(LY.spin===undefined?0.18:LY.spin);
+    if(CAR.rig) CAR.rig.visible=LY.car!==false;
+    if(LY.car===false){
+      /* No car: draw the empty room instead of an empty stage. The camera is
+         parked low and still so the backdrop reads as a lit surface rather than
+         a turntable someone forgot to put anything on. */
+      if(camera.fov!==46){camera.fov=46;camera.updateProjectionMatrix();}
+      camera.position.set(6.5,1.6,7.5); camera.lookAt(0,1.0,0);
+    }else{
+      const C=LY.cam||{r:9.5,y:3.1,z:3.5,fov:38,look:[0.4,0.8,0]};
+      if(camera.fov!==C.fov){camera.fov=C.fov;camera.updateProjectionMatrix();}
+      CAR.rig.rotation.y=(C.yaw!==undefined?C.yaw:-0.6)+Math.sin(menuSpin)*(C.sway===undefined?0.5:C.sway);
+      camera.position.set(Math.cos(menuSpin*0.3)*C.r, C.y, Math.sin(menuSpin*0.3)*C.r+C.z);
+      camera.lookAt(C.look[0],C.look[1],C.look[2]);
+    }
     FX2.render(menuScene,camera,dt);
   }else if(STATE==='cine'){
     stepCinematic(dt);
