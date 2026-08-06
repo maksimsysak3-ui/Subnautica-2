@@ -294,6 +294,117 @@
   :root[data-layout="minimal"] #menuScrim{
     background:linear-gradient(0deg,rgba(6,7,11,.90),transparent 38%)}
 
+  /* ============ HELMET TRIO ============ */
+  /* live preview: the settings sheet steps aside rather than closing, so the
+     menu behind can be seen wearing the change */
+  #settings.peek{opacity:.10;transition:opacity .18s ease;pointer-events:none}
+  #settings.peek #setPane,#settings.peek #setHead,#settings.peek #setTabs{filter:blur(1px)}
+  #setPeekHint{position:fixed;left:50%;bottom:26px;transform:translateX(-50%);
+    z-index:70;opacity:0;transition:opacity .18s ease;pointer-events:none;
+    font-family:var(--mono);font-size:9px;letter-spacing:.36em;font-weight:800;
+    color:#fff;background:rgba(6,8,12,.78);padding:7px 14px;border-left:2px solid var(--red)}
+  #setPeekHint.on{opacity:1}
+  #helmWrap{position:absolute;inset:0;display:none;pointer-events:none}
+  :root[data-layout="legends"] #helmWrap,
+  :root[data-layout="risingstars"] #helmWrap{display:block}
+  #helmHead{position:absolute;left:0;right:0;top:clamp(26px,5vh,58px);text-align:center}
+  #helmTitle{display:block;font-family:var(--mono);font-weight:900;
+    font-size:clamp(26px,4.2vw,54px);letter-spacing:.10em;color:var(--type);
+    text-shadow:0 0 34px var(--red-glow)}
+  #helmSub{display:block;margin-top:8px;font-style:normal;font-size:9.5px;
+    letter-spacing:.46em;text-transform:uppercase;color:var(--type-3);font-weight:700}
+  /* Two rows: the signature floats above each helmet, the name and number sit
+     under it. Neither row is laid out with flexbox — each column is placed at
+     the screen x of the helmet it belongs to, projected from the 3D scene every
+     frame (see the helmets branch of frame()), so a card is always dead centre
+     under its own helmet whatever the window shape does. */
+  #helmSigs,#helmPlates{position:absolute;left:0;right:0;height:0;text-align:center}
+  #helmSigs{top:clamp(112px,19vh,196px)}
+  #helmPlates{bottom:clamp(96px,17vh,180px)}
+  .helmCard,.helmSig{position:absolute;width:clamp(96px,13vw,178px);left:50%}
+  /* the card hangs UP from its anchor line, so however tall it gets it grows
+     away from the mode row along the bottom rather than into it */
+  .helmCard{transform:translate(-50%,-100%)}
+  .helmSig{transform:translateX(-50%)}
+  .hcNum{font-family:var(--mono);font-weight:900;
+    font-size:clamp(22px,2.9vw,38px);line-height:1;color:var(--hc);
+    text-shadow:0 0 26px var(--hc)}
+  /* a hairline under the number, fading out to either side, so the card reads
+     as a plaque on the plinth rather than as three loose lines of type */
+  .hcRule{margin:9px auto 0;width:78%;height:1px;
+    background:linear-gradient(90deg,transparent,var(--hc),transparent);opacity:.55}
+  .hcTeam{margin-top:7px;font-family:var(--mono);font-weight:700;font-size:8.5px;
+    letter-spacing:.34em;color:var(--type-3)}
+  /* the signature: a script face, slanted, above its own helmet */
+  .helmSig{font-family:'Segoe Script','Brush Script MT','Snell Roundhand',cursive;
+    font-size:clamp(15px,2.0vw,26px);color:rgba(255,255,255,.88);
+    transform:translateX(-50%) rotate(-4deg) skewX(-6deg);letter-spacing:.02em;
+    text-shadow:0 0 18px var(--hc)}
+  .helmSig::after{content:'';display:block;margin:5px auto 0;width:46%;height:1px;
+    background:linear-gradient(90deg,transparent,rgba(255,255,255,.42),transparent)}
+  :root[data-theme="light"] .helmSig{color:rgba(20,22,27,.82)}
+  #helmLoad{position:absolute;left:0;right:0;bottom:clamp(46px,8vh,78px);
+    display:none;justify-content:center;align-items:center;gap:10px;
+    font-family:var(--mono);font-size:9px;letter-spacing:.36em;color:var(--type-3);font-weight:700}
+  #helmLoad.on{display:flex}
+  #helmLoad i{display:block;width:clamp(60px,10vw,140px);height:2px;
+    background:rgba(255,255,255,.14);position:relative;overflow:hidden}
+  #helmLoad i::after{content:'';position:absolute;left:0;top:0;bottom:0;
+    width:var(--hp,0%);background:var(--red);transition:width .25s ease}
+
+  /* the two helmet layouts strip the car page back to almost nothing */
+  :root[data-layout="legends"] #mDetail,
+  :root[data-layout="risingstars"] #mDetail,
+  :root[data-layout="legends"] #mCarTag,
+  :root[data-layout="risingstars"] #mCarTag,
+  :root[data-layout="legends"] #mSpine,
+  :root[data-layout="risingstars"] #mSpine,
+  :root[data-layout="legends"] #mProfile,
+  :root[data-layout="risingstars"] #mProfile{display:none}
+  :root[data-layout="legends"] #mHead,
+  :root[data-layout="risingstars"] #mHead{display:none}
+  /* The mode list runs along the bottom as a row of engraved plaques. Down the
+     left it sat straight over the left-hand helmet, and no amount of shifting
+     the trio sideways fixes that on a narrow window — so the list leaves the
+     helmets' half of the screen entirely. */
+  :root[data-layout="legends"] #mBody,
+  :root[data-layout="risingstars"] #mBody{left:0;right:0;top:auto;
+    bottom:clamp(26px,4vh,52px);transform:none;max-width:none;
+    padding:0 clamp(28px,4vw,80px)}
+  :root[data-layout="legends"] #mKicker,
+  :root[data-layout="risingstars"] #mKicker{display:none}
+  :root[data-layout="legends"] #navList,
+  :root[data-layout="risingstars"] #navList{display:flex;gap:6px}
+  :root[data-layout="legends"] #navList::before,
+  :root[data-layout="risingstars"] #navList::before,
+  :root[data-layout="legends"] #navList li::before,
+  :root[data-layout="risingstars"] #navList li::before{display:none}
+  :root[data-layout="legends"] #navList li,
+  :root[data-layout="risingstars"] #navList li{flex:1;justify-content:center;
+    padding:9px 4px;overflow:hidden;opacity:.5;background:linear-gradient(180deg,rgba(22,26,33,.86),rgba(9,11,15,.86));
+    border:1px solid rgba(255,255,255,.10);border-top-color:rgba(255,255,255,.22)}
+  /* eight plaques share one row, so the label has to be small enough that the
+     longest of them still fits its own plaque and never runs into the next */
+  :root[data-layout="legends"] #navList li .t,
+  :root[data-layout="risingstars"] #navList li .t{font-size:clamp(7.5px,.92vw,11px);
+    letter-spacing:.08em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+    max-width:100%}
+  :root[data-layout="legends"] #navList li .ix,
+  :root[data-layout="risingstars"] #navList li .ix,
+  :root[data-layout="legends"] #navList li .t .tg,
+  :root[data-layout="risingstars"] #navList li .t .tg{display:none}
+  :root[data-layout="legends"] #navList li.sel,
+  :root[data-layout="risingstars"] #navList li.sel{opacity:1;transform:none;
+    border-color:var(--red);box-shadow:0 0 26px -6px var(--red-glow) inset}
+  /* the scrim darkens top and bottom only, leaving the middle band — where the
+     helmets are — clean */
+  :root[data-layout="legends"] #menuScrim,
+  :root[data-layout="risingstars"] #menuScrim{
+    background:linear-gradient(0deg,rgba(6,7,11,.94) 0%,rgba(6,7,11,.35) 18%,transparent 34%),
+      linear-gradient(180deg,rgba(6,7,11,.80),transparent 26%)}
+  :root[data-layout="legends"] #mTrackStrip,
+  :root[data-layout="risingstars"] #mTrackStrip{display:none}
+
   /* ---- SHAPE STYLES. The menu's cut is a variable, so a preset can change the
      whole feel of the interface without touching a rule. ---- */
   #navList li::before,#mProfile .pNum,.tsChip{ }
@@ -1940,6 +2051,13 @@ window.__introDone=Promise.resolve();
     <div id="mdDesc">—</div>
     <div id="mdMeta"></div>
   </aside>
+  <!-- helmet trio: the title, the three name plates, and a loading line -->
+  <div id="helmWrap">
+    <div id="helmHead"><span id="helmTitle">LEGENDS</span><em id="helmSub">—</em></div>
+    <div id="helmSigs"></div>
+    <div id="helmPlates"></div>
+    <div id="helmLoad"><i></i><span>LOADING HELMETS</span></div>
+  </div>
   <div id="mTrackStrip"></div>
   <footer id="mFoot">
     <div class="keys"><span><b>↑↓</b>Navigate</span><span><b>◀▶</b>Circuit</span><span><b>⏎</b>Select</span></div>
@@ -2192,6 +2310,8 @@ window.__introDone=Promise.resolve();
   </div>
   <div id="rdFoot"><span><b>Esc</b> Back</span><span>Research parts with R&amp;D points · Fit them with budget</span></div>
 </div>
+
+<div id="setPeekHint">PREVIEW</div>
 
 <!-- ===== SETTINGS ===== -->
 <div id="settings">
@@ -2967,7 +3087,7 @@ FX2.setSpeed=function(v01,dt){
   u.uSpeed.value=damp(u.uSpeed.value,clamp(v01,0,1),3.0,dt||0.016);
 };
 if(DEBUG) window.__FX2=FX2;
-if(DEBUG) setTimeout(()=>{window.__enterMenu=enterMenu;window.__SET=SET;window.__applyTheme=applyTheme;window.__ACCENTS=ACCENTS;window.__openTeam=openTeam;window.__TM=TM;window.__TEAM=TEAM;window.__renderTeam=renderTeam;window.__openSeasonSetup=openSeasonSetup;window.__beginSeason=beginSeason;},0);
+if(DEBUG) setTimeout(()=>{window.__enterMenu=enterMenu;window.__SET=SET;window.__applyTheme=applyTheme;window.__ACCENTS=ACCENTS;window.__HTRIO=HTRIO;window.__openTeam=openTeam;window.__TM=TM;window.__TEAM=TEAM;window.__renderTeam=renderTeam;window.__openSeasonSetup=openSeasonSetup;window.__beginSeason=beginSeason;},0);
 if(DEBUG) setTimeout(()=>{window.__EVO=EVO;window.__PERF=PERF;window.__FLAG=FLAG;window.__SC=SC;window.__STEW=STEW;
   window.__throwYellow=throwYellow;window.__deployVSC=deployVSC;
   window.__issuePenalty=issuePenalty;window.__updateFlagBar=updateFlagBar;},0);
@@ -15657,7 +15777,7 @@ if(DEBUG){window.__step=stepPhysics;window.__reset=resetCar;
   window.__cfgId=()=>CFG.id; window.__WEATHER=WEATHER; window.__rollWeather=rollWeather;
   window.__TRACKS=TRACKS; window.__expo=()=>renderer.toneMappingExposure;
   window.__stepWx=(dt)=>updateWeather(driveScene,dt);
-  window.__camera=camera; window.__THREE=THREE; window.__syncRacingLine=syncRacingLine;
+  window.__camera=camera; window.__THREE=THREE; window.__GLTFLoader=GLTFLoader; window.__syncRacingLine=syncRacingLine;
   window.__makeLivery=makeLivery; window.__liveryIds=()=>LIVERY_IDS;
   window.__FX=FX; window.__CAR=()=>CAR;}
 
@@ -16651,7 +16771,8 @@ const SETTINGS_DEF=[
     opts:[['broadsheet','BROADSHEET'],['centre','CENTRE'],['tower','TOWER'],
           ['pitwall','PIT WALL'],['cinema','CINEMA'],['dossier','DOSSIER'],
           ['tiles','TILES'],['timing','TIMING TOWER'],['poster','POSTER'],
-          ['cockpit','COCKPIT'],['minimal','MINIMAL']],
+          ['cockpit','COCKPIT'],['minimal','MINIMAL'],
+          ['legends','HELMETS · LEGENDS'],['risingstars','HELMETS · RISING STARS']],
     d:'Where everything sits. These move the furniture, not the colours — eleven genuinely different arrangements.'},
    {k:'themePreset',type:'enum',t:'Menu preset',
     opts:[['apex','APEX RED'],['papyrus','PAPER / LIGHT'],['midnight','MIDNIGHT BLUE'],
@@ -16764,7 +16885,182 @@ const MENU_LAYOUTS={
   poster:    {car:true,  spin:0.03, cam:{r:8.0, y:1.15,z:2.4, fov:44, look:[0,0.8,0], sway:0.06, yaw:-0.9}},
   cockpit:   {car:true,  spin:0.09, cam:{r:5.4, y:1.45,z:2.8, fov:40, look:[0.2,0.95,0], sway:0.22}},
   minimal:   {car:false},
+  /* helmets:'x' means this layout renders the helmet scene instead of the car
+     scene, and fetches that set the first time it is shown. */
+  legends:    {car:false, helmets:'legends'},
+  risingstars:{car:false, helmets:'risingstars'},
 };
+/* ===================== THE HELMET LAYOUTS =================================
+   Two menu presets that are not a car screen at all: three helmets stood on a
+   plinth under a spot each, the driver's name glowing above and their number and
+   signature below. Legends carries the three you would put in a trophy cabinet;
+   Rising Stars the three you would bet on.
+   NOTHING HERE IS FETCHED UNTIL THE PRESET IS CHOSEN. Six helmets is nine
+   megabytes, and a player who never opens these should never pay for them, so
+   the models load on selection and are kept once loaded. */
+const HELMET_SETS={
+  legends:{ title:'LEGENDS', sub:'Three that defined an era',
+    picks:[
+      {file:'redbull',      name:'M. VERSTAPPEN', num:'1',  sig:'Verstappen', team:'Oracle Red Bull', col:'#1e41ff'},
+      {file:'marlboro',     name:'A. SENNA',      num:'12', sig:'Senna',      team:'Marlboro McLaren', col:'#ff5a00'},
+      /* the pink lid is Hamilton's, not Mansell's */
+      {file:'ferrari_pink', name:'L. HAMILTON',   num:'44', sig:'Hamilton',   team:'Scuderia Ferrari', col:'#ff2e88'},
+    ]},
+  risingstars:{ title:'RISING STARS', sub:'The next three on the block',
+    picks:[
+      {file:'mercedes',    name:'K. ANTONELLI', num:'12', sig:'Antonelli', team:'Mercedes-AMG',   col:'#00d2be'},
+      {file:'ferrari_red', name:'O. BEARMAN',   num:'87', sig:'Bearman',   team:'Scuderia Ferrari', col:'#e8002d'},
+      {file:'chromatic',   name:'G. BORTOLETO', num:'5',  sig:'Bortoleto', team:'Kick Sauber',    col:'#c9d1d9'},
+    ]},
+};
+/* The scene the helmets live in — built once, populated per set. */
+const HTRIO={scene:null, group:null, set:null, loading:false, cache:{}, spin:0,
+  lights:null, pedestals:null};
+function helmScene(){
+  if(HTRIO.scene) return HTRIO.scene;
+  const S=new THREE.Scene();
+  S.background=new THREE.Color(0x05070b);
+  S.environment=envRT.texture;
+  S.add(new THREE.HemisphereLight(0x36405c,0x0a0c10,0.75));
+  /* A plinth: a long low slab with a dark polished top, so the helmets are stood
+     on something rather than floating in a void. */
+  const top=new THREE.Mesh(new THREE.BoxGeometry(3.6,0.10,1.0),
+    new THREE.MeshStandardMaterial({color:0x0e1116,roughness:0.18,metalness:0.75}));
+  top.position.set(0,-0.05,0); S.add(top);
+  const base=new THREE.Mesh(new THREE.BoxGeometry(3.4,0.5,0.86),
+    new THREE.MeshStandardMaterial({color:0x080a0e,roughness:0.85,metalness:0.1}));
+  base.position.set(0,-0.36,0); S.add(base);
+  /* A dim edge, not a bright one. At full white it read as a stray rule drawn
+     straight through the name cards rather than as a lit lip on the plinth. */
+  const edge=new THREE.Mesh(new THREE.BoxGeometry(3.6,0.010,0.010),
+    new THREE.MeshBasicMaterial({color:0x2a3038}));
+  edge.position.set(0,0.005,0.5); S.add(edge);
+  /* THE ROOM. Three helmets on a slab in a black void is the lazy version of
+     this. What sells it as a display case is what is behind and under them: a
+     dark backdrop wall that catches the spill so the silhouettes have something
+     to sit against, a pool of light on the floor at each plinth position, and a
+     low pedestal per helmet so the trio reads as three exhibits rather than as
+     three objects that happen to be in a line. */
+  const wall=new THREE.Mesh(new THREE.PlaneGeometry(14,7),
+    new THREE.MeshStandardMaterial({color:0x0a0d13,roughness:0.94,metalness:0.0}));
+  wall.position.set(0,1.6,-2.6); S.add(wall);
+  const floor=new THREE.Mesh(new THREE.PlaneGeometry(14,10),
+    new THREE.MeshStandardMaterial({color:0x070910,roughness:0.34,metalness:0.55}));
+  floor.rotation.x=-Math.PI/2; floor.position.y=-0.61; S.add(floor);
+  HTRIO.lights=[]; HTRIO.pedestals=[];
+  for(let i=0;i<3;i++){
+    const x=(i-1)*1.10;
+    // a low pedestal under each helmet, tinted by that driver's colour
+    const ped=new THREE.Mesh(new THREE.CylinderGeometry(0.30,0.34,0.13,40),
+      new THREE.MeshStandardMaterial({color:0x11151c,roughness:0.26,metalness:0.8,
+        emissive:0x000000, emissiveIntensity:1}));
+    ped.position.set(x,0.065,0); S.add(ped); HTRIO.pedestals.push(ped);
+    // a spot over each plinth position, coloured to that helmet
+    const sp=new THREE.SpotLight(0xffffff, 26, 6.0, 0.62, 0.55, 1.4);
+    sp.position.set(x, 2.5, 0.55);
+    sp.target.position.set(x, 0.16, 0);
+    S.add(sp, sp.target); HTRIO.lights.push(sp);
+    // and a faint back-glow on the wall behind it, which is what gives each
+    // helmet its own rim rather than one flat key across all three
+    const rim=new THREE.PointLight(0xffffff, 3.2, 3.4, 2.0);
+    rim.position.set(x, 0.60, -1.15); S.add(rim); HTRIO.lights.push(rim);
+  }
+  HTRIO.group=new THREE.Group(); S.add(HTRIO.group);
+  HTRIO.scene=S; return S;
+}
+/* Load one set, on demand, and report progress so the page can say so. */
+async function helmLoad(setKey, onProgress){
+  const set=HELMET_SETS[setKey]; if(!set) return;
+  if(HTRIO.set===setKey && HTRIO.group && HTRIO.group.children.length) return;
+  helmScene();
+  HTRIO.loading=true; HTRIO.set=setKey;
+  while(HTRIO.group.children.length) HTRIO.group.remove(HTRIO.group.children[0]);
+  const loader=new GLTFLoader();
+  for(let i=0;i<set.picks.length;i++){
+    const pick=set.picks[i];
+    onProgress&&onProgress(i/set.picks.length, pick.name);
+    let obj=HTRIO.cache[pick.file];
+    if(!obj){
+      try{
+        const g=await loader.loadAsync('assets/models/helmets/'+pick.file+'.glb');
+        obj=g.scene; HTRIO.cache[pick.file]=obj;
+      }catch(e){ continue; }
+    }
+    const inst=obj.clone(true);
+    /* Sized to the plinth rather than trusting the export: these came from six
+       different sources and a helmet that is right in metres is still wrong if
+       the next one beside it is not. */
+    const bb=new THREE.Box3().setFromObject(inst);
+    const sz=bb.getSize(new THREE.Vector3());
+    const k=0.62/Math.max(sz.y,0.001);
+    inst.scale.setScalar(k);
+    const bb2=new THREE.Box3().setFromObject(inst);
+    /* Centred: the mode list runs along the bottom of this layout, so the trio
+       has the middle of the screen to itself. */
+    inst.position.set((i-1)*1.10, 0.13-bb2.min.y, 0);
+    /* These came out of a photogrammetry pipeline, and their baked maps carry
+       the usual scan grain. A hard clearcoat-style specular picks every speck of
+       it out; a softer, less metallic finish lets the paint read as paint. */
+    inst.traverse(o=>{
+      if(!o.isMesh) return;
+      o.castShadow=true; o.receiveShadow=true;
+      const m=o.material;
+      if(m&&m.isMeshStandardMaterial){
+        m.roughness=Math.max(m.roughness,0.55);
+        m.metalness=Math.min(m.metalness,0.12);
+      }
+    });
+    inst.userData.pick=pick;
+    HTRIO.group.add(inst);
+    // two lights per helmet — the key spot and the rim behind it
+    if(HTRIO.lights[i*2])   HTRIO.lights[i*2].color.set(pick.col);
+    if(HTRIO.lights[i*2+1]) HTRIO.lights[i*2+1].color.set(pick.col);
+    if(HTRIO.pedestals&&HTRIO.pedestals[i]){
+      HTRIO.pedestals[i].material.emissive.set(pick.col);
+      HTRIO.pedestals[i].material.emissiveIntensity=0.22;
+    }
+  }
+  onProgress&&onProgress(1,'');
+  HTRIO.loading=false;
+  helmRenderPlates(set);
+}
+/* The names, numbers and signatures — DOM over the render, so they are crisp
+   type rather than a texture, and they pick up the theme's own fonts. */
+function helmRenderPlates(set){
+  const w=$('#helmPlates'); if(!w) return;
+  w.innerHTML=set.picks.map((p,i)=>
+    `<div class="helmCard" style="--hc:${p.col}">
+       <div class="hcNum">${esc(p.num)}</div>
+       <div class="hcRule"></div>
+       <div class="hcTeam">${esc(p.team||'')}</div>
+     </div>`).join('');
+  const s=$('#helmSigs');
+  if(s) s.innerHTML=set.picks.map(p=>
+    `<div class="helmSig" style="--hc:${p.col}">${esc(p.sig)}</div>`).join('');
+  const t=$('#helmTitle'); if(t) t.textContent=set.title;
+  const sb=$('#helmSub'); if(sb) sb.textContent=set.sub;
+}
+/* Put each card and signature at the screen x of its own helmet. Laying the two
+   rows out with flexbox lines them up with each other but not with the models —
+   the camera drifts, the window changes shape, and the type slides off its
+   helmet. Projecting the helmet's own world position is the only version that
+   stays put. */
+const HPROJ=new THREE.Vector3();
+function helmAlignPlates(){
+  if(!HTRIO.group) return;
+  const cards=document.querySelectorAll('#helmPlates .helmCard');
+  const sigs=document.querySelectorAll('#helmSigs .helmSig');
+  const n=HTRIO.group.children.length;
+  if(!n || cards.length<n) return;
+  const w=innerWidth;
+  for(let i=0;i<n;i++){
+    const h=HTRIO.group.children[i];
+    HPROJ.set(h.position.x,0.30,0).project(camera);
+    const x=(HPROJ.x*0.5+0.5)*w;
+    if(cards[i]) cards[i].style.left=x.toFixed(1)+'px';
+    if(sigs[i])  sigs[i].style.left=x.toFixed(1)+'px';
+  }
+}
 const THEME_PRESETS={
   apex:     {accent:'#e10600', theme:'dark',  shape:'angled', tex:'normal'},
   papyrus:  {accent:'#c0392b', theme:'light', shape:'square', tex:'light'},
@@ -16833,7 +17129,26 @@ function bumpSetting(it,dir){
      change on the next apply. */
   if(['accent','menuShape','menuTex','uiTheme'].includes(it.k)) SET.themePreset='custom';
   saveSettings(); applySettings(); renderSettings();
+  /* LIVE PREVIEW. Changing a look setting used to show you a label and nothing
+     else — you picked a layout blind, backed out, looked, and went in again.
+     The settings panel now steps aside for a moment so the menu behind it can be
+     seen actually wearing the change, and comes back on its own. */
+  if(['menuLayout','themePreset','accent','menuShape','menuTex','uiTheme'].includes(it.k))
+    settingsPeek();
   Sound.init(); Sound.blip(it.type==='bool'?(SET[it.k]?620:420):520,.04);
+}
+/* Fade the settings sheet down so the live menu shows through, then bring it
+   back. Re-triggering while it is already peeking just extends the window, so
+   scrolling through the layouts is one continuous preview rather than a flicker
+   per keypress. */
+let peekT=null;
+function settingsPeek(ms){
+  const el=$('#settings'); if(!el) return;
+  el.classList.add('peek');
+  const hint=$('#setPeekHint'); if(hint) hint.classList.add('on');
+  clearTimeout(peekT);
+  peekT=setTimeout(()=>{ el.classList.remove('peek');
+    const h=$('#setPeekHint'); if(h) h.classList.remove('on'); }, ms||1500);
 }
 function renderSettings(){
   const tabs=$('#setTabs'); if(!tabs) return;
@@ -23145,6 +23460,29 @@ function frame(){
        off entirely and the page is the whole design. */
     const LY=MENU_LAYOUTS[SET.menuLayout]||MENU_LAYOUTS.broadsheet;
     menuSpin+=dt*(LY.spin===undefined?0.18:LY.spin);
+    /* THE HELMET LAYOUTS RENDER A DIFFERENT SCENE ENTIRELY. Not the car with the
+       panels moved — a different room, with different things in it. The set is
+       fetched the first time the layout is shown and kept thereafter. */
+    if(LY.helmets){
+      if(HTRIO.set!==LY.helmets && !HTRIO.loading){
+        const bar=$('#helmLoad'); if(bar) bar.classList.add('on');
+        helmLoad(LY.helmets,(f)=>{
+          const b=$('#helmLoad'); if(b){ b.style.setProperty('--hp',(f*100).toFixed(0)+'%');
+            if(f>=1) setTimeout(()=>b.classList.remove('on'),350); }
+        });
+      }
+      const S=helmScene();
+      HTRIO.spin+=dt*0.22;
+      if(HTRIO.group) for(let i=0;i<HTRIO.group.children.length;i++)
+        HTRIO.group.children[i].rotation.y=Math.sin(HTRIO.spin+i*0.7)*0.55;
+      if(camera.fov!==34){camera.fov=34;camera.updateProjectionMatrix();}
+      /* Centred now that the mode list has moved to the bottom of the screen. */
+      camera.position.set(Math.sin(HTRIO.spin*0.18)*0.38, 0.62, 3.05);
+      camera.lookAt(0,0.30,0);
+      FX2.render(S,camera,dt);
+      helmAlignPlates();
+      requestAnimationFrame(frame); return;
+    }
     if(CAR.rig) CAR.rig.visible=LY.car!==false;
     if(LY.car===false){
       /* No car: draw the empty room instead of an empty stage. The camera is
