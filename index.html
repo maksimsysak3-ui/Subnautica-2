@@ -16084,7 +16084,8 @@ if(DEBUG){window.__setCam=(m)=>{CAM.mode=m;CAM.tsPost=null;$('#camName').textCon
   setTimeout(()=>{window.__SEASON=SEASON;window.__endSeasonRace=endSeasonRace;window.__seasonBuildTable=seasonBuildTable;window.__openSaves=openSaves;window.__loadFromSlot=loadFromSlot;window.__seasonAutosave=seasonAutosave;
     window.__seasonConstructors=seasonConstructors;
     window.__spawnAIs=spawnAIs;window.__AI=AI;window.__aiSkillMul=aiSkillMul;
-    window.__stepAI=stepAI;window.__carPlain=()=>carPlain;window.__PLAIN_TEX=()=>PLAIN_TEX;window.__AI_FIELD=AI_FIELD;window.__renderStandings=renderStandings;window.__setSessionMode=(m)=>{sessionMode=m;};window.__aiPaceNow=aiPaceNow;window.__aiPaceTimeMul=aiPaceTimeMul;window.__aiStraightMul=aiStraightMul;
+    window.__stepAI=stepAI;window.__seasonRollObjectives=seasonRollObjectives;
+    window.__seasonSettleCareer=seasonSettleCareer;window.__carPlain=()=>carPlain;window.__PLAIN_TEX=()=>PLAIN_TEX;window.__AI_FIELD=AI_FIELD;window.__renderStandings=renderStandings;window.__setSessionMode=(m)=>{sessionMode=m;};window.__aiPaceNow=aiPaceNow;window.__aiPaceTimeMul=aiPaceTimeMul;window.__aiStraightMul=aiStraightMul;
     window.__setSessionMode=(m)=>{sessionMode=m;};window.__isRace=()=>isRace();},0);
   window.__replayRecord=replayRecord;
   window.__PITSTOP=PITSTOP;window.__pitPos=pitPos;window.__PIT=PIT;
@@ -17353,15 +17354,32 @@ function seasonInitCareer(){
 /* A couple of things the team wants from THIS weekend. Small, concrete, and
    worth money and R&D points, so there is a reason to care about a race you
    cannot win. */
+/* THE OBJECTIVE TESTS LIVE HERE, KEYED, AND ARE NEVER STORED ON THE OBJECTIVE.
+   Each objective used to carry its own `test` function, and objectives go into
+   the season snapshot — which is JSON. Functions do not survive
+   JSON.stringify(), so every objective came back from a save as a plain object
+   with no test on it, and the first race finished after loading threw
+   "o.test is not a function" out of seasonSettleCareer, inside the frame loop,
+   which stops the game dead at the moment a race ends.
+   Looked up by key at evaluation time instead, so a stored objective is pure
+   data and any save, old or new, works. */
+const OBJ_TESTS={
+  finish:   r=>r.pos<=10,
+  beatmate: r=>r.beatMate,
+  podium:   r=>r.pos<=3,
+  quali:    r=>r.gridPos<=5,
+  clean:    r=>!r.penalties,
+  fastlap:  r=>r.fastestLap,
+};
 function seasonRollObjectives(){
   const id=SEASON.cal[SEASON.round], cf=TRACKS[id]||{};
   const pool=[
-    {k:'finish',  n:6, t:`Finish in the points`,               test:r=>r.pos<=10},
-    {k:'beatmate',n:8, t:`Beat your team mate`,                test:r=>r.beatMate},
-    {k:'podium',  n:14,t:`Stand on the podium at ${cf.name||'this round'}`, test:r=>r.pos<=3},
-    {k:'quali',   n:8, t:`Qualify in the top five`,            test:r=>r.gridPos<=5},
-    {k:'clean',   n:7, t:`Finish with no penalties`,           test:r=>!r.penalties},
-    {k:'fastlap', n:10,t:`Set the fastest lap`,                test:r=>r.fastestLap},
+    {k:'finish',  n:6, t:`Finish in the points`},
+    {k:'beatmate',n:8, t:`Beat your team mate`},
+    {k:'podium',  n:14,t:`Stand on the podium at ${cf.name||'this round'}`},
+    {k:'quali',   n:8, t:`Qualify in the top five`},
+    {k:'clean',   n:7, t:`Finish with no penalties`},
+    {k:'fastlap', n:10,t:`Set the fastest lap`},
   ];
   // two, never the same one twice
   const picked=[];
@@ -17404,8 +17422,12 @@ function seasonSettleCareer(res, myRes){
   };
   let earned=0;
   for(const o of SEASON.objectives||[]){
-    if(o.done) continue;
-    if(o.test(ctx)){ o.done=true; earned+=o.n;
+    if(!o||o.done) continue;
+    /* By key, and skipped rather than thrown on if the key is unknown — an
+       objective from an older save must never be able to kill the race end. */
+    const test=OBJ_TESTS[o.k];
+    if(typeof test!=='function') continue;
+    if(test(ctx)){ o.done=true; earned+=(o.n||0);
       wkNews('Objective met.', `${esc(o.t)} — worth ${o.n} R&D points.`); }
   }
   SEASON.rdPts=(SEASON.rdPts||0)+earned;
