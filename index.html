@@ -3432,7 +3432,7 @@ const TRACKS={
     halfW:8.0, night:false, env:'catalunya', runoff:'mixed', rural:true,
     kerb:['#d81c1c','#eef1f4'], asphalt:0x35383e, ground:0x8a8248, laprec:'1:12',
     elev:f=>elevProfile(CAT_ELEV,f) },   // dry high plateau: red/white kerbs, gravel
-  miami:{ id:'miami', name:'MIAMI', country:'USA', flag:'🇺🇸', points:MIAMI, len:5412,
+  miami:{ id:'miami', name:'MIAMI', country:'USA', flag:'🇺🇸', points:MIAMI, len:5412, pitSide:1,
     halfW:7.4, night:false, env:'miami', runoff:'teal', fence:true,
     kerb:['#d81c1c','#eef1f4'], asphalt:0x2f333c, ground:0x3d6e4a, laprec:'1:29',
     elev:f=>2*Math.sin(f*TAU*2) },       // Miami: turquoise run-off, palms, marina
@@ -4466,6 +4466,8 @@ function buildWorld(sc,cfg){
      buildings, trees and props are then built AROUND them rather than through
      them. Built the other way round (as this used to be) a street circuit's
      frontage would take the ground a stand needed and the two would interpenetrate. */
+  /* Set BEFORE any pit geometry exists, because all of it reads PIT.side. */
+  PIT.side=(cfg.pitSide===1||cfg.pitSide===-1)?cfg.pitSide:-1;
   buildGrandstands(sc,P,Nm,Tg,barOff,barOffR);                  // grandstands on every circuit (clearance-checked)
   buildPit(sc,P,Nm,Tg);
   buildPitLaneGeometry(sc);                                      // the drivable lane itself
@@ -12288,7 +12290,12 @@ const PIT={
   offset:10,           // lane centre, metres OUTSIDE the track edge
   halfW:5.5,           // half width of the lane surface
   limit:80/3.6,        // pit-lane speed limit, m/s (80 km/h)
-  side:-1,             // which side of the centreline (matches buildPit)
+  /* WHICH SIDE THE LANE IS ON. This was a constant, so every circuit in the game
+     had its pits on the same side of the road. It is now set per track from
+     cfg.pitSide at world-build time, and because every piece of pit geometry and
+     every pit calculation already reads PIT.side, setting it here moves the
+     lane, the boxes, the garages, the paddock and the entry/exit together. */
+  side:-1,             // default; overridden per circuit from cfg.pitSide
 };
 /* signed distance from the start/finish line, wrapped to (-len/2, +len/2] */
 function lapSigned(s){
@@ -14735,13 +14742,35 @@ function stepPhysics(dt,inp){
      line and adds a small fraction of the correction the driver has not made.
      It cannot turn a corner for you — the authority is capped low — but it
      stops the car quietly washing out to the barrier while you are busy. */
-  if(SET.assistSteer && TRACK.line && STATE==='drive' && spd>8){
+  /* STEERING ASSIST, REWRITTEN. The old one added a fraction of the LATERAL
+     error and nothing else, which is the classic way to build an oscillator:
+     with no term for which way the car is pointing it always overshoots the
+     line, corrects, and overshoots the other way. It also applied at full
+     strength while the driver was steering, so it fought you for the wheel
+     rather than helping.
+     Now it reads both how far off the line the car is AND how far its heading is
+     from where the line is going — position plus damping, which is what stops
+     the weave — and it FADES OUT as the driver applies lock, so it holds the car
+     steady when you leave it alone and gets out of the way when you do not. */
+  if(SET.assistSteer && TRACK.line && STATE==='drive' && spd>8 && !CAR.inPit){
     const near=nearestTrack(CAR.pos, CAR.trackIdx, 60);
     if(near){
-      const want=TRACK.line[near.idx]||0;
-      const err=clamp((want-near.lat)/Math.max(TRACK.halfW,1),-1,1);
-      // sign so that positive error steers back toward the line
-      CAR.steerCmd=clamp((CAR.steerCmd||0)+err*0.16, -1, 1);
+      const N=TRACK.N;
+      /* Aim at where the line will be a moment from now, not where it is under
+         the car — you steer for the corner you are arriving at. */
+      const look=Math.max(2,Math.round((spd*0.9)/(TRACK.len/N)));
+      const ai=(near.idx+look)%N;
+      const want=TRACK.line[ai]||0;
+      const latErr=clamp((want-near.lat)/Math.max(TRACK.halfW,1),-1,1);
+      // heading error: where the car points vs where the road goes, in radians
+      const tg=TRACK.tan[ai];
+      let hErr=Math.atan2(tg.x,tg.z)-CAR.heading;
+      while(hErr> Math.PI) hErr-=Math.PI*2;
+      while(hErr<-Math.PI) hErr+=Math.PI*2;
+      const drive=Math.abs(CAR.steerCmd||0);
+      const yield_=1-clamp(drive/0.55,0,1);         // full help hands-off, none at lock
+      const help=clamp(latErr*0.55 + clamp(hErr,-0.6,0.6)*1.15, -1, 1);
+      CAR.steerCmd=clamp((CAR.steerCmd||0)+help*0.42*yield_, -1, 1);
     }
   }
   const lockT=Math.pow(clamp(spd/PHYS.vMax,0,1),P.steerLockCurve);
@@ -14841,7 +14870,40 @@ function stepPhysics(dt,inp){
      for a driver who is trying; this holds them further back still for a driver
      who would rather not think about it. It costs lap time, which is the point:
      an assist should be a trade, not a free upgrade. */
-  if(SET.assistBrake) Fbrake=Math.min(Fbrake, brakeCap*0.80);
+  /* BRAKING ASSIST, REWRITTEN. It used to do exactly one thing: cap your brakes
+     at 80% of what the car has. That is not an assist, it is a handicap — it
+     made you slower and helped with nothing, which is why it felt useless.
+     It now BRAKES FOR YOU. It looks up the road at the speed the corner ahead
+     will actually support, and if you are carrying more than that and have not
+     got on the brakes yourself, it applies as much as the situation needs. Come
+     in far too fast and it stands on them; arrive about right and it does
+     nothing at all. It still costs a little lap time, because it leaves a safety
+     margin a quick driver would not, but it is now help rather than a tax. */
+  if(SET.assistBrake && STATE==='drive' && !CAR.inPit && spd>14 && TRACK.Kf){
+    const N=TRACK.N, segL=TRACK.len/N, here=CAR.trackIdx||0;
+    // how much road to look at: everything inside the current braking distance
+    const aMax=Math.max(6, brakeCap/PHYS.mass);
+    const stopM=(spd*spd)/(2*aMax);
+    const steps=Math.min(N-1, Math.max(4, Math.round((stopM+30)/segL)));
+    let need=0;
+    const mu=PHYS.mu*(CAR.gripMul||1)*0.92;          // the margin the assist keeps
+    for(let k=4;k<=steps;k++){
+      const i=(here+k)%N, kk=Math.abs(TRACK.Kf[i]||0);
+      if(kk<1.25e-4) continue;                        // straight enough to ignore
+      const R=1/kk;
+      const vC=Math.sqrt(mu*(9.81+PHYS.downK*spd*spd/PHYS.mass)*R);
+      if(vC>=spd) continue;
+      const d=k*segL;
+      // deceleration required to be at vC by the time we arrive
+      const req=(spd*spd-vC*vC)/(2*Math.max(d,1));
+      if(req>need) need=req;
+    }
+    if(need>aMax*0.10){
+      const demand=clamp(need/aMax,0,1);
+      // never take the brakes away from a driver already asking for more
+      if(demand>(inp.brake||0)) Fbrake=Math.max(Fbrake, brakeCap*demand);
+    }
+  }
   /* DRS: open only inside a marked zone, above the activation speed, and it
      shuts the instant you touch the brakes — exactly as the real system does. */
   const inZone=!!(TRACK.drs && TRACK.drs[CAR.trackIdx||0]);
@@ -15140,8 +15202,10 @@ function stepPhysics(dt,inp){
       CAR.damage=Math.min(1,CAR.damage+hit);
       // a barrier is taken nose-first far more often than not
       if(!CAR.dmg) CAR.dmg={front:0,floor:0,rear:0};
+      const before=CAR.dmg.front;
       CAR.dmg.front=Math.min(1,CAR.dmg.front+hit*1.5);
-      CAR.dmg.floor=Math.min(1,CAR.dmg.floor+hit*0.4); }
+      CAR.dmg.floor=Math.min(1,CAR.dmg.floor+hit*0.4);
+      shedDebris(hit, CAR.dmg.front-before); }
   }
 
   // smoothly INTERPOLATED road height (continuous along the centreline) so the car
@@ -16100,7 +16164,7 @@ if(DEBUG){window.__setCam=(m)=>{CAM.mode=m;CAM.tsPost=null;$('#camName').textCon
   setTimeout(()=>{window.__SEASON=SEASON;window.__endSeasonRace=endSeasonRace;window.__seasonBuildTable=seasonBuildTable;window.__openSaves=openSaves;window.__loadFromSlot=loadFromSlot;window.__seasonAutosave=seasonAutosave;
     window.__seasonConstructors=seasonConstructors;
     window.__spawnAIs=spawnAIs;window.__AI=AI;window.__aiSkillMul=aiSkillMul;
-    window.__stepAI=stepAI;window.__scLimitNow=scLimitNow;window.__stepSCCompliance=stepSCCompliance;window.__compoundLaps=compoundLaps;window.__seasonRollObjectives=seasonRollObjectives;
+    window.__stepAI=stepAI;window.__shedDebris=shedDebris;window.__stepCarFire=stepCarFire;window.__PIT=PIT;window.__scLimitNow=scLimitNow;window.__stepSCCompliance=stepSCCompliance;window.__compoundLaps=compoundLaps;window.__seasonRollObjectives=seasonRollObjectives;
     window.__seasonSettleCareer=seasonSettleCareer;window.__carPlain=()=>carPlain;window.__PLAIN_TEX=()=>PLAIN_TEX;window.__AI_FIELD=AI_FIELD;window.__renderStandings=renderStandings;window.__setSessionMode=(m)=>{sessionMode=m;};window.__aiPaceNow=aiPaceNow;window.__aiPaceTimeMul=aiPaceTimeMul;window.__aiStraightMul=aiStraightMul;
     window.__setSessionMode=(m)=>{sessionMode=m;};window.__isRace=()=>isRace();},0);
   window.__replayRecord=replayRecord;
@@ -21083,6 +21147,81 @@ function stepSCCompliance(dt){
 }
 
 /* ==================================================================
+   THINGS COMING OFF THE CAR
+   Damage used to be three numbers that quietly changed the handling. You could
+   put the nose into a wall hard enough to lose a third of your front downforce
+   and see nothing at all leave the car, which makes a big accident feel like a
+   small one.
+   Two effects, both off the particle system that already exists:
+     · DEBRIS — carbon shards and paint flakes thrown off at the moment of
+       impact, scaled to how hard the hit was, arcing away and tumbling down.
+     · FIRE  — once the car is properly hurt it smokes, and past that it burns:
+       flame at the back of the floor with black smoke rising off it, running
+       continuously while the damage is there.
+   ================================================================== */
+function shedDebris(hit, frontHit){
+  if(!FX.ready) return;
+  const n=Math.round(clamp(hit*140,3,34));
+  const yaw=CAR.heading, fx=Math.sin(yaw), fz=Math.cos(yaw);
+  const y=(CAR.groundY||0)+0.35;
+  /* Thrown from the nose when the front took it, from under the car otherwise,
+     and always backwards relative to travel — the car drives out from under its
+     own wreckage. */
+  const ox=CAR.pos.x+fx*(frontHit>0.01?2.4:0), oz=CAR.pos.z+fz*(frontHit>0.01?2.4:0);
+  const spd=Math.abs(CAR.v);
+  for(let i=0;i<n;i++){
+    const a=Math.random()*TAU, r=Math.random()*1.1;
+    // carbon is near-black; a little of it carries the car's colour as paint
+    const paint=Math.random()<0.22;
+    const c=paint?[0.85,0.16,0.12]:[0.09,0.10,0.12];
+    FX.spawn(ox+Math.cos(a)*r, y+Math.random()*0.5, oz+Math.sin(a)*r,
+      -fx*spd*(0.25+Math.random()*0.35)+Math.cos(a)*(2+Math.random()*7),
+      1.5+Math.random()*5.5,
+      -fz*spd*(0.25+Math.random()*0.35)+Math.sin(a)*(2+Math.random()*7),
+      c[0],c[1],c[2], 0.10+Math.random()*0.16, 1.4+Math.random()*1.6, -0.5, 0.9);
+  }
+  // a puff of tyre smoke and dust at the contact point, so the hit has weight
+  for(let i=0;i<Math.round(n*0.4);i++){
+    FX.spawn(ox+(Math.random()-0.5)*2, y, oz+(Math.random()-0.5)*2,
+      (Math.random()-0.5)*4, 1+Math.random()*2.5, (Math.random()-0.5)*4,
+      0.55,0.55,0.58, 0.9+Math.random()*1.2, 0.9+Math.random()*0.8, 2.6, 1.6);
+  }
+  Sound.hit&&Sound.hit();
+}
+/* Called every frame while driving: how badly the car is hurt decides whether it
+   smokes, and how badly, and whether there is fire in it. */
+function stepCarFire(dt){
+  if(!FX.ready || STATE!=='drive') return;
+  const d=CAR.dmg||{front:0,floor:0,rear:0};
+  const worst=Math.max(d.front||0,d.floor||0,d.rear||0,CAR.damage||0);
+  if(worst<0.34) return;
+  const yaw=CAR.heading, fx=Math.sin(yaw), fz=Math.cos(yaw);
+  const y=(CAR.groundY||0);
+  // the source is the back of the floor, where an F1 fire actually starts
+  const bx=CAR.pos.x-fx*1.9, bz=CAR.pos.z-fz*1.9;
+  const smoke=clamp((worst-0.34)/0.4,0,1);
+  const burn =clamp((worst-0.68)/0.32,0,1);
+  const rate=(0.55+smoke*2.6+burn*4.0);
+  CAR._fireAcc=(CAR._fireAcc||0)+dt*rate*60;
+  while(CAR._fireAcc>1){
+    CAR._fireAcc-=1;
+    if(burn>0 && Math.random()<burn){
+      // flame: bright, short-lived, rises fast
+      FX.spawn(bx+(Math.random()-0.5)*0.7, y+0.25+Math.random()*0.3, bz+(Math.random()-0.5)*0.7,
+        (Math.random()-0.5)*1.6-fx*Math.abs(CAR.v)*0.12, 2.6+Math.random()*2.4,
+        (Math.random()-0.5)*1.6-fz*Math.abs(CAR.v)*0.12,
+        1.0, 0.55+Math.random()*0.35, 0.12, 0.30+Math.random()*0.28, 0.28+Math.random()*0.22, 1.4, 1.2);
+    }
+    // smoke, dirtier the worse it is
+    const g=0.30-0.22*burn;
+    FX.spawn(bx+(Math.random()-0.5)*0.9, y+0.35+Math.random()*0.4, bz+(Math.random()-0.5)*0.9,
+      (Math.random()-0.5)*1.4-fx*Math.abs(CAR.v)*0.16, 1.5+Math.random()*2.0,
+      (Math.random()-0.5)*1.4-fz*Math.abs(CAR.v)*0.16,
+      g,g,g+0.02, 0.5+Math.random()*0.9, 1.1+Math.random()*1.3, 3.0, 1.5);
+  }
+}
+
+/* ==================================================================
    FLAGS AND PENALTIES
    The circuit could throw a safety car and nothing else. A race is governed by
    a lot more than that: a yellow over the sector where something is broken and
@@ -22557,6 +22696,7 @@ function stepAI(dt){
           CAR.damage=Math.min(1,(CAR.damage||0)+0.016*sevr);
           if(!CAR.dmg) CAR.dmg={front:0,floor:0,rear:0};
           CAR.dmg.front=Math.min(1,CAR.dmg.front+0.030*sevr);   // nose into their gearbox
+          if(sevr>0.30) shedDebris(0.030*sevr, 0.030*sevr);      // and bits of it on the road
           /* CAUSING A COLLISION IS A PENALTY.
              Driving into the back of the car ahead is the one contact the
              stewards never wave through, and without a cost the fastest way past
@@ -22702,6 +22842,7 @@ function frame(){
     // practice and qualifying run to a clock, not a lap count
     if(SESS.on){ sessUpdate(); if(!SESS.on) return; gtabSample(); gtabUpdate(); }
     stepSCCompliance(dt);        // the safety car is not optional for the player either
+    stepCarFire(dt);             // a badly hurt car smokes, and a very badly hurt one burns
     stepSafetyCar(dt);
     stepFlags(dt);
     stepEvolution(dt);
