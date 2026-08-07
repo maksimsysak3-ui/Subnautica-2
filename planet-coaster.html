@@ -5380,11 +5380,40 @@ class Person {
   goto(tx, tz) {
     const si = WORLD.ti(this.x), sj = WORLD.tj(this.z);
     const ti = WORLD.ti(tx), tj = WORLD.tj(tz);
-    const p = Path.find(si, sj, ti, tj);
+    /* Shortest-path routing means everyone heading the same way walks the
+       same corridor. About a third of trips go via a waypoint picked off to
+       one side, which is what a person wandering a park actually does and
+       what stops the crowd looking like it is on rails. */
+    let p = null;
+    if (Math.random() < .34) {
+      const mid = this.detourPoint(si, sj, ti, tj);
+      if (mid) {
+        const a = Path.find(si, sj, mid.i, mid.j);
+        const b = a ? Path.find(mid.i, mid.j, ti, tj) : null;
+        if (a && b) { a.pop(); p = a.concat(b); }
+      }
+    }
+    if (!p) p = Path.find(si, sj, ti, tj);
     if (!p) { this.path = null; return false; }
     p.push({ x: tx, z: tz });
     this.path = p; this.pi = 0;
     return true;
+  }
+  /* A walkable tile off to one side of the straight line between two points. */
+  detourPoint(si, sj, ti, tj) {
+    const mi = (si + ti) / 2, mj = (sj + tj) / 2;
+    const dx = ti - si, dj = tj - sj;
+    const l = Math.hypot(dx, dj) || 1;
+    if (l < 6) return null;
+    const side = Math.random() < .5 ? 1 : -1;
+    const spread = 3 + Math.random() * Math.min(14, l * .5);
+    for (let k = 0; k < 8; k++) {
+      const r = spread * (1 - k / 8);
+      const i = Math.round(mi - (dj / l) * r * side + rnd(-2, 2));
+      const j = Math.round(mj + (dx / l) * r * side + rnd(-2, 2));
+      if (Path.walkable(i, j) && WORLD.type[j * N + i] !== T_QUEUE) return { i, j };
+    }
+    return null;
   }
   followPath(dt, speedMul = 1) {
     if (!this.path || this.pi >= this.path.length) { this.moving = false; return true; }
@@ -5646,11 +5675,62 @@ class Guest extends Person {
     this.vomitT = 0;               // seconds left of being sick
     this.gripe = null;             // what they are angry about
     this.setPersona(pickPersona());
+    this.plan = [];            // what they came here to do, in order
+    this.planIdx = 0;
+    this.lastRide = null;      // so they do not rejoin the queue they just left
+    this.lastRideT = 0;
     /* A lane offset so a crowd walking the same route does not form a single
        file down the middle of the path. */
     this.lane = rnd(-1.15, 1.15);
     this.pace = rnd(.86, 1.16);
     this.speed *= this.pace;
+  }
+  /* ------------------------------------------------------------------
+     THE PLAN
+
+     A guest arrives with a day in mind — a coaster, then something to eat,
+     then the water slides, then the go karts — rather than repeatedly asking
+     "what is the best thing near me right now", which is what made them
+     rejoin the queue they had just walked out of. Urgent needs interrupt the
+     plan; everything else waits its turn. When the plan runs out they either
+     make a new one or go home.
+     ------------------------------------------------------------------ */
+  makePlan() {
+    const P = this.persona || PERSONAS[0];
+    const n = clamp(this.ridesWanted + rndi(-1, 2), 3, 14);
+    const plan = [];
+    // what sorts of ride this person is here for, weighted by their outlook
+    const pool = [];
+    const push = (tag, w) => { for (let k = 0; k < Math.max(0, Math.round(w * 4)); k++) pool.push(tag); };
+    push('coaster', Math.max(.15, P.coaster));
+    push('flat', Math.max(.15, P.flat));
+    push('water', Math.max(.05, P.water));
+    push('gentle', Math.max(.05, P.gentle));
+    if (!pool.length) pool.push('flat');
+    let sinceFood = 0;
+    for (let k = 0; k < n; k++) {
+      plan.push({ kind: 'ride', tag: pick(pool), done: false });
+      sinceFood++;
+      // people eat and drink through the day, not only when starving
+      if (sinceFood >= 2 && Math.random() < .34 * (P.food || 1)) {
+        plan.push({ kind: 'need', need: Math.random() < .55 ? 'thirst' : 'hunger', done: false });
+        sinceFood = 0;
+      }
+      if (Math.random() < .16) plan.push({ kind: 'need', need: 'toilet', done: false });
+      if (Math.random() < .10 * (P.shopping || 1)) plan.push({ kind: 'need', need: 'shop', done: false });
+      if (Math.random() < .12) plan.push({ kind: 'rest', done: false });
+    }
+    this.plan = plan;
+    this.planIdx = 0;
+  }
+  /* The next thing on the list, or null once the day is done. */
+  planStep() {
+    while (this.planIdx < this.plan.length && this.plan[this.planIdx].done) this.planIdx++;
+    return this.planIdx < this.plan.length ? this.plan[this.planIdx] : null;
+  }
+  finishStep() {
+    const st = this.planStep();
+    if (st) { st.done = true; this.planIdx++; }
   }
   setPersona(p) {
     this.persona = p;
@@ -5741,7 +5821,12 @@ class Guest extends Person {
         if (!this.path || this.pi >= this.path.length) { this.state = 'idle'; this.moving = false; }
         break;
       }
-      case 'idle': this.decide(); break;
+      case 'idle': {
+        this.moving = false;
+        this.idleT = (this.idleT || 0) - dt;
+        if (this.idleT <= 0) { this.idleT = rnd(.4, 1.6); this.decide(); }
+        break;
+      }
       case 'walking': {
         const done = this.followPath(dt);
         if (done) { this.arriveAtTarget(); }
@@ -5903,6 +5988,46 @@ class Guest extends Person {
     wants.push(['wander', raining ? .8 : .3]);
     wants.sort((a, b) => b[1] - a[1]);
     let want = wants[0][0];
+
+    /* The plan comes first. Only a genuinely pressing need — desperate for a
+       toilet, about to be sick, parched — interrupts it; otherwise a guest
+       works down the list they arrived with, which is the difference between
+       having a day out and repeatedly rejoining the queue they just left. */
+    const urgent = (this.toilet > .80 || this.nausea > .78 || this.thirst > .82
+      || this.hunger > .85 || this.energy < .12 || this.cash < 12);
+    if (!this.plan.length) this.makePlan();
+    const step = this.planStep();
+    if (step && !urgent) {
+      if (step.kind === 'ride') {
+        const r = this.chooseRide(step.tag) || this.chooseRide(null);
+        if (r) {
+          this.target = r; this.wantAction = 'ride';
+          const e = r.entrance;
+          if (this.goto(e.x, e.z)) { this.claim(r); this.state = 'walking'; this.think('Next up: ' + r.name + '.'); return; }
+        }
+        // nothing of that sort is open or reachable — drop it and move on
+        step.tries = (step.tries || 0) + 1;
+        if (step.tries > 2) this.finishStep();
+      } else if (step.kind === 'rest') {
+        const b = this.findBench();
+        if (b) { this.target = b; this.wantAction = 'sit'; if (this.goto(b.x, b.z)) { this.state = 'walking'; return; } }
+        this.finishStep();
+      } else if (step.kind === 'need') {
+        const shop = this.findShop(step.need);
+        if (shop) {
+          this.target = shop; this.wantAction = 'buy';
+          const a = -shop.rot * PI / 2;
+          const off = (shop.gd * TILE) / 2 + 1.8;
+          if (this.goto(shop.x + Math.sin(a) * off, shop.z - Math.cos(a) * off)) { this.state = 'walking'; return; }
+        }
+        this.finishStep();
+      }
+    }
+    if (!step) {
+      // the day's list is done: another lap if they are still enjoying it
+      if (this.happy > .58 && this.cash > 30 && this.timeInPark < 60 * 6) { this.makePlan(); }
+      else { this.think('That was a good day out.', 1); this.leavePark(); return; }
+    }
     /* A group does what the group is doing. Splitting a family up across four
        different queues is exactly the thing that never happens in a real park. */
     if (this.leader && this.leader !== this && !this.leader.dead && this.leader.wantAction === 'ride'
@@ -6017,7 +6142,7 @@ class Guest extends Person {
     const waiting = r.queue.length + (planning ? (r.incoming || 0) * .6 : 0);
     return waiting / Math.max(1, perHour) * 3600;
   }
-  chooseRide() {
+  chooseRide(tag) {
     let best = null, bs = -2.5;
     const hot = Weather.temp > 24;
     const raining = Weather.rainIntensity() > .25;
@@ -6029,6 +6154,8 @@ class Guest extends Person {
       if (r.price > this.budget - this.spent && this.hunger > .5) continue;
       const e = r.entrance;
       if (!this.canReach(e.x, e.z)) continue;
+      // do not walk straight back into the queue you have just come out of
+      if (r === this.lastRide && Park.now - this.lastRideT < 240) continue;
       const seen = this.ridden.filter(x => x === r.id).length;
       const water = r.def && r.def.water;
       const wetBonus = water ? (Weather.waterAppeal() - 1) * 4.5 + (hot ? 2.2 : -1.4) * this.wetTolerance : 0;
@@ -6043,7 +6170,14 @@ class Guest extends Person {
       if (gentle) taste += P.gentle * .5;
       if ((r.intensity || 0) > 7) taste += P.intense;
 
-      let s = 1.6 + wetBonus + r.ratingFor(this) * 1.0 + taste * 1.15;
+      /* When the plan asked for something specific, everything else is a
+         fallback rather than a rival. */
+      let match = 0;
+      if (tag) {
+        const kindOf = isCoaster ? 'coaster' : water ? 'water' : gentle ? 'gentle' : 'flat';
+        match = kindOf === tag ? 4.5 : (tag === 'gentle' && gentle) || (tag === 'flat' && !isCoaster && !water) ? 2.0 : -1.4;
+      }
+      let s = 1.6 + match + wetBonus + r.ratingFor(this) * 1.0 + taste * 1.15;
       s -= seen * 2.4;                                  // novelty matters
       s += this.opinionOf(r) * 3.0;                     // what they thought last time
       s -= clamp(wait / Math.max(30, this.patience) * 3.4, 0, 7);   // real queue cost
@@ -6127,6 +6261,8 @@ class Guest extends Person {
       }
       this.happy = clamp(this.happy + .04 * value, 0, 1);
       this.anger = clamp(this.anger - .10 - value * .06, 0, 1);
+      const st2 = this.planStep();
+      if (st2 && st2.kind === 'need' && st2.need === s.def.need) this.finishStep();
       if (s.def.need === 'shop') this.fun = clamp(this.fun + .12, 0, 1);
       if (s.price > s.def.price * 1.8) { this.happy -= .09; this.think('That was a rip-off!'); }
     }
@@ -6161,6 +6297,9 @@ class Guest extends Person {
     this.happy = clamp(this.happy + rating * .022 - .01, 0, 1);
     this.nausea = clamp(this.nausea + ride.nausea * .055 * (1 + Math.max(0, ride.nausea - this.nauseaTol) * .25), 0, 1);
     this.energy = clamp(this.energy - .04, 0, 1);
+    this.lastRide = ride; this.lastRideT = Park.now;
+    const st = this.planStep();
+    if (st && st.kind === 'ride') this.finishStep();
     this.remember(ride, (rating - 4.5) * .10);
     this.fun = clamp(this.fun + .22 + rating * .035, 0, 1);
     this.anger = clamp(this.anger - .18 - rating * .02, 0, 1);
@@ -10534,7 +10673,7 @@ const Game = {
       // a queue was already waiting outside: opening the gates lets them in
       // straight away rather than after a minute of nothing happening
       this._spawnAcc = 0;
-      const waiting = Math.round(clamp(3 + Park.rating * .03 + Park.attractions().length * 1.5, 3, 14));
+      const waiting = Math.round(clamp(1 + Park.rating * .02 + Park.attractions().length * 1.2, 1, 12));
       for (let k = 0; k < waiting; k++) this.spawnGuest();
     } else {
       UI.notify('The park is closed', 'No new guests will arrive, and everyone inside will finish up and leave.', 'warn');
@@ -11010,7 +11149,31 @@ const Game = {
     const attract = 34 + Park.rating * .62 + Park.attractions().length * 6 + Park.marketing * 8 + Marketing.draw() * 42;
     const tol = Park.gate ? Park.gate.feeTolerance() : 1;
     const feeFactor = clamp(1.45 - Park.entryFee / ((26 + Park.rating * .55) * tol), .08, 1.7);
-    const daily = 0.35 + Math.sin(clamp((hour - 8) / 13, 0, 1) * PI) * 1.5;
+    /* A real gate has a shape to its day. A trickle when the doors open, a
+       hard build through the late morning, the main peak around noon, a dip
+       while everybody eats, a second smaller peak mid afternoon, then a long
+       decline as families head home and the evening crowd arrives. */
+    const curve = [
+      [8, .10], [9, .35], [10, .85], [11, 1.30], [12, 1.55], [13, 1.20],
+      [14, 1.35], [15, 1.40], [16, 1.15], [17, .85], [18, .70], [19, .55],
+      [20, .30], [21, .10],
+    ];
+    let daily = .10;
+    for (let k = 0; k < curve.length - 1; k++) {
+      if (hour >= curve[k][0] && hour < curve[k + 1][0]) {
+        const f = (hour - curve[k][0]) / (curve[k + 1][0] - curve[k][0]);
+        daily = lerp(curve[k][1], curve[k + 1][1], f);
+        break;
+      }
+    }
+    /* And how many people are out there at all depends on the park itself.
+       A single ride in a field draws almost nobody however long you leave the
+       gates open; word of mouth is earned. */
+    const draw = clamp(
+      Park.attractions().length * .09
+      + Park.objects.filter(o => o.kind === 'shop').length * .03
+      + Park.rating / 620
+      + (Park.gate ? (Park.gate.tier - 1) * .12 : 0), .05, 2.4);
     /* One call now admits a whole party rather than one person, so the rate
        is in parties per park-minute and has to be divided by the average
        party size — but only that. Dividing twice, as an earlier pass did,
@@ -11018,7 +11181,7 @@ const Game = {
        open and reachable always draws somebody, so "I opened it and nothing
        happened" can never be the outcome. */
     const perParty = 2.5;
-    const rate = Math.max(.30, attract * feeFactor * daily * .034 / perParty * Weather.drawFactor());
+    const rate = attract * feeFactor * daily * draw * .030 / perParty * Weather.drawFactor();
     this._arrRate = rate;
     this._spawnAcc = (this._spawnAcc || 0) + rate * dt;
     while (this._spawnAcc >= 1) {
