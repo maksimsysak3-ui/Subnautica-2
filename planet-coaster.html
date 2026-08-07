@@ -614,7 +614,7 @@ table.tb tr:last-child td{border-bottom:0}
       </div>
       <div class="mcard" id="mSandbox">
         <div class="mck">Sandbox</div>
-        <div class="mcd">Unlimited funds, every ride, shop, slide and track piece unlocked from the first minute. Build whatever you like.</div>
+        <div class="mcd">Unlimited funds and everything unlocked from the first minute. Choose from seven landscapes and build whatever you like.</div>
         <div class="mcgo">Start building</div>
       </div>
       <div class="mcard" id="mContinue">
@@ -1882,6 +1882,24 @@ const TILE = 4;                 // world units per tile
 const N = 182;                  // tiles per side (728 m across)
 const T_GRASS = 0, T_PATH = 1, T_QUEUE = 2, T_BUILD = 3, T_WATER = 4, T_ENTRY = 5, T_PLAZA = 6;
 
+/* The maps you can start a park on. */
+const MAPS = [
+  { id: 'meadow', n: 'Green Meadow', blurb: 'Rolling grassland ringed by forest. Flat, generous and forgiving — the place to learn.',
+    flat: .86, freq: .045, amp: 26, base: -5, wall: 18, roll: .9 },
+  { id: 'valley', n: 'Highland Valley', blurb: 'A broad flat floor between steep hills. Room to build, with a horizon that makes a tall coaster look taller.',
+    flat: .70, freq: .038, amp: 44, base: -6, wall: 34, roll: 1.4 },
+  { id: 'desert', n: 'Desert Flats', blurb: 'Baked sand and rolling dunes. Hot weather all season, so drinks and water rides earn their keep.',
+    flat: .84, freq: .05, amp: 16, base: -3, wall: 10, roll: .6, dunes: true, sand: true, hot: 8 },
+  { id: 'lagoon', n: 'Island Lagoon', blurb: 'A plateau surrounded by shallow water and beaches. Water attractions do particularly well here.',
+    flat: .60, freq: .04, amp: 14, base: -2, wall: 8, roll: .7, lagoon: true, sand: true },
+  { id: 'canyon', n: 'Red Canyon', blurb: 'Stepped mesas and sheer red rock. The most dramatic backdrop, and the least room at the edges.',
+    flat: .72, freq: .035, amp: 30, base: -8, wall: 26, roll: 1.1, mesa: true, red: true },
+  { id: 'alpine', n: 'Alpine Basin', blurb: 'A snow-line basin under high peaks. Cold most of the year, so warm food and indoor rides matter.',
+    flat: .76, freq: .04, amp: 58, base: -4, wall: 46, roll: 1.2, snow: true, hot: -9 },
+  { id: 'forest', n: 'Deep Forest', blurb: 'A clearing cut out of dense woodland. Tight but sheltered, with trees right up to the fence.',
+    flat: .88, freq: .05, amp: 20, base: -4, wall: 14, roll: 1.0, dense: true },
+];
+
 const WORLD = {
   n: N, tile: TILE, half: N * TILE / 2,
   type: new Uint8Array(N * N),
@@ -1919,17 +1937,29 @@ const WORLD = {
     return (this.h[j * W + i] + this.h[j * W + i + 1] + this.h[(j + 1) * W + i] + this.h[(j + 1) * W + i + 1]) * .25;
   },
 
-  generate() {
+  /* Every map keeps a flat, buildable plateau in the middle — a site you
+     cannot build on is not a choice, it is a punishment — and differs in what
+     surrounds it, how the ground rolls, and what it is made of. */
+  mapKind: 'meadow',
+  generate(kind) {
+    if (kind) this.mapKind = kind;
+    const M = MAPS.find(m => m.id === this.mapKind) || MAPS[0];
     const W = N + 1;
     for (let j = 0; j <= N; j++) for (let i = 0; i <= N; i++) {
       const x = i - N / 2, z = j - N / 2;
       const r = Math.hypot(x, z) / (N / 2);
-      // Flat buildable plateau in the middle, rolling hills toward the rim
+      const rim = smoothstep(clamp((r - M.flat) / .14, 0, 1));
       let h = 0;
-      const rim = smoothstep(clamp((r - .86) / .14, 0, 1));
-      h += rim * (fbm(i * .045, j * .045, 5) * 26 - 5);
-      h += rim * rim * 18;
-      h += (1 - rim) * (fbm(i * .07 + 40, j * .07 + 40, 3) - .5) * 0.9;
+      h += rim * (fbm(i * M.freq, j * M.freq, 5) * M.amp + M.base);
+      h += rim * rim * M.wall;
+      h += (1 - rim) * (fbm(i * .07 + 40, j * .07 + 40, 3) - .5) * M.roll;
+      if (M.dunes) h += rim * Math.sin(i * .09) * Math.cos(j * .07) * 5.5;
+      if (M.mesa) h += rim * (Math.round(fbm(i * .03 + 9, j * .03 + 9, 3) * 3) / 3) * 22;
+      if (M.lagoon) {
+        // a ring of water outside the plateau, with a beach running up to it
+        const w = smoothstep(clamp((r - M.flat - .04) / .10, 0, 1)) * (1 - smoothstep(clamp((r - .80) / .16, 0, 1)));
+        h -= w * 9.5;
+      }
       this.h[j * W + i] = h;
     }
     this.type.fill(T_GRASS);
@@ -1946,8 +1976,20 @@ const WORLD = {
   /* Build the terrain mesh: flat-shaded quads with a hand-painted look. */
   buildMesh(R) {
     const g = new Geo(), W = N + 1;
-    const grassA = hex(0x4a8f45), grassB = hex(0x59a04f), grassC = hex(0x3d7f3d), grassD = hex(0x69ab57);
-    const rock = hex(0x6f6a62), rock2 = hex(0x857f74), sand = hex(0xcfbc88);
+    const M = MAPS.find(m => m.id === this.mapKind) || MAPS[0];
+    let grassA = hex(0x4a8f45), grassB = hex(0x59a04f), grassC = hex(0x3d7f3d), grassD = hex(0x69ab57);
+    let rock = hex(0x6f6a62), rock2 = hex(0x857f74);
+    const sand = hex(0xcfbc88);
+    if (M.sand) {
+      grassA = hex(0xd6c391); grassB = hex(0xe0cfa0); grassC = hex(0xc6b07c); grassD = hex(0xeadcb4);
+      rock = hex(0xa8916a); rock2 = hex(0xc0a97e);
+    } else if (M.red) {
+      grassA = hex(0xb5703f); grassB = hex(0xc98550); grassC = hex(0x9c5c32); grassD = hex(0xd69a63);
+      rock = hex(0x8d4a2c); rock2 = hex(0xb0603a);
+    } else if (M.snow) {
+      grassA = hex(0xe8f0f6); grassB = hex(0xf4f9fd); grassC = hex(0xd4e2ec); grassD = hex(0xffffff);
+      rock = hex(0x8494a2); rock2 = hex(0xa4b4c2);
+    }
     const pathC = hex(0xc4b79d), pathD = hex(0xb0a288);
     const queueC = hex(0xb59ad0), plazaA = hex(0xd8cdb6), plazaB = hex(0xc2b59a), entryC = hex(0xcfae82);
     for (let j = 0; j < N; j++) {
@@ -2203,6 +2245,52 @@ const Land = {
    SECTION 7 — CONTENT CATALOGUE
    Everything the player can place. Names, costs, stats, prefabs.
    ========================================================================== */
+/* Twelve themes, each with its own palette and its own detailing rules in the
+   archetype builders above. Crossed with the archetypes this produces the
+   decoration catalogue. */
+const GENRES = {
+  classic:   { n: 'Classic Park', c: [0xe8dfc8, 0xc9bda0, 0x8b7355], acc: 0xd94f3c },
+  western:   { n: 'Wild West',    c: [0x9a6b3f, 0x6f4522, 0x3f2d1c], acc: 0xd9a441 },
+  egypt:     { n: 'Ancient Egypt',c: [0xe0c98a, 0xc7a55f, 0x8a6a34], acc: 0x2f80c0 },
+  scifi:     { n: 'Space Port',   c: [0xd8e2ea, 0x8fa3b5, 0x3a4a5c], acc: 0x2fd8e8 },
+  pirate:    { n: 'Pirate Cove',  c: [0x7a5233, 0x4a3120, 0x2b1c12], acc: 0xd94f3c },
+  fairytale: { n: 'Fairytale',    c: [0xf6eaf6, 0xd9b8e6, 0x9b6fc4], acc: 0xff8ec4 },
+  japan:     { n: 'Japanese Garden', c: [0xb03a2e, 0xe8dfc8, 0x3f5f3a], acc: 0xf0c060 },
+  halloween: { n: 'Halloween',    c: [0x3a2c48, 0x24192e, 0x120c1a], acc: 0xff9a2e },
+  circus:    { n: 'Big Top',      c: [0xf5f5f5, 0xd94f3c, 0x2f80c0], acc: 0xffd23f },
+  desert:    { n: 'Desert Oasis', c: [0xd9c08a, 0xb59a63, 0x7a6640], acc: 0x3fb08a },
+  jungle:    { n: 'Lost Jungle',  c: [0x4f7a3a, 0x2f5227, 0x6b5a3a], acc: 0xd9a441 },
+  winter:    { n: 'Winter Village', c: [0xf2f7fb, 0xc9dced, 0x6f8ba3], acc: 0xd94f3c },
+};
+const DECOR_ARCH = [
+  { k: 'tower',  n: 'Tower',    w: 2, d: 2, cost: 1400, up: 5, beauty: 62 },
+  { k: 'arch',   n: 'Archway',  w: 3, d: 1, cost: 850,  up: 3, beauty: 40 },
+  { k: 'statue', n: 'Statue',   w: 1, d: 1, cost: 620,  up: 2, beauty: 30 },
+  { k: 'sign',   n: 'Sign',     w: 2, d: 1, cost: 340,  up: 1.4, beauty: 16 },
+  { k: 'lamp',   n: 'Lantern',  w: 1, d: 1, cost: 180,  up: 1, beauty: 12, light: true },
+  { k: 'fence',  n: 'Fencing',  w: 1, d: 1, cost: 70,   up: .4, beauty: 5 },
+  { k: 'rock',   n: 'Rockwork', w: 2, d: 2, cost: 420,  up: 1.6, beauty: 22 },
+  { k: 'plant',  n: 'Planting', w: 1, d: 1, cost: 150,  up: .6, beauty: 14 },
+  { k: 'banner', n: 'Banner',   w: 1, d: 1, cost: 240,  up: 1, beauty: 15 },
+  { k: 'facade', n: 'Facade',   w: 3, d: 1, cost: 1900, up: 6, beauty: 74 },
+  { k: 'prop',   n: 'Props',    w: 1, d: 1, cost: 210,  up: .9, beauty: 11 },
+];
+/* Eleven archetypes across twelve themes: 132 decorations, each branching on
+   its theme in the builder rather than being the same mesh recoloured. */
+const DECORATIONS = [];
+for (const gk of Object.keys(GENRES)) {
+  for (const a of DECOR_ARCH) {
+    DECORATIONS.push({
+      id: 'gx_' + a.k + '_' + gk,
+      name: GENRES[gk].n + ' ' + a.n,
+      genre: gk, genreName: GENRES[gk].n, arch: a.k,
+      cost: a.cost, up: a.up, w: a.w, d: a.d,
+      kind: 'gx:' + a.k + ':' + gk,
+      beauty: a.beauty, light: !!a.light, decor: true,
+    });
+  }
+}
+
 const CAT = {
   /* ---------------- Shops & facilities ---------------- */
   shops: [
@@ -2269,6 +2357,7 @@ const CAT = {
     { id: 'lights', name: 'Festoon Lights', cost: 340, up: 1.4, w: 1, d: 1, kind: 'lights', beauty: 16 },
     { id: 'banner', name: 'Banner Pole', cost: 260, up: 1, w: 1, d: 1, kind: 'banner', beauty: 12 },
     { id: 'maze', name: 'Maze Hedge', cost: 180, up: .6, w: 1, d: 1, kind: 'maze', beauty: 9 },
+    ...DECORATIONS,
     { id: 'windmill', name: 'Dutch Windmill', cost: 4200, up: 14, w: 3, d: 3, kind: 'windmill', beauty: 108 },
     { id: 'lighthouse', name: 'Lighthouse', cost: 3800, up: 13, w: 2, d: 2, kind: 'lighthouse', beauty: 96, light: true },
     { id: 'pagoda', name: 'Pagoda', cost: 3100, up: 11, w: 2, d: 2, kind: 'pagoda', beauty: 78 },
@@ -2729,6 +2818,145 @@ const Prefab = {
         const c = hex(0x3ba7d4);
         g.box(.9, 3.4, 0, 1.7, 2.4, .08, c);
         g.box(.9, 3.4, 0, 1.5, .5, .12, hex(0xfff4e0));
+        break;
+      }
+      /* ----------------------------------------------------------------
+         THEMED DECORATION
+
+         Each entry is an archetype built for a specific genre: the archetype
+         decides the silhouette, the genre decides the palette, the materials
+         and a good deal of the detailing. A western totem and an Egyptian one
+         are not the same mesh recoloured — they branch. Ids look like
+         "gx:tower:egypt" and are generated into the catalogue below.
+         ---------------------------------------------------------------- */
+      default: {
+        if (kind.indexOf('gx:') !== 0) break;
+        const [, arch, genre] = kind.split(':');
+        const G = GENRES[genre] || GENRES.classic;
+        const c1 = hex(G.c[0]), c2 = hex(G.c[1]), c3 = hex(G.c[2]), acc = hex(G.acc);
+        const rr = (() => { let x = (seed * 9301 + 49297) % 233280; return () => (x = (x * 9301 + 49297) % 233280) / 233280; })();
+
+        switch (arch) {
+          case 'tower': {
+            const h = 9 + rr() * 4;
+            if (genre === 'egypt') {
+              for (let k = 0; k < 5; k++) { const w = 2.6 - k * .42; g.box(0, k * (h / 5), 0, w, h / 5, w, k % 2 ? c2 : c1); }
+              g.cone(0, h, 0, .9, 2.2, 4, acc);
+            } else if (genre === 'scifi') {
+              g.cyl(0, 0, 0, 1.0, h, 8, c1);
+              for (let k = 1; k < 5; k++) g.cyl(0, k * (h / 5), 0, 1.5 - k * .1, .25, 8, acc);
+              g.sphere(0, h + .8, 0, 1.3, 8, c3);
+            } else if (genre === 'japan') {
+              for (let k = 0; k < 4; k++) {
+                const w = 3.0 - k * .5, y = k * 2.3;
+                g.box(0, y, 0, w, 1.5, w, c1);
+                g.box(0, y + 1.5, 0, w + 1.3, .26, w + 1.3, c2);
+              }
+              g.cyl(0, 9.6, 0, .14, 1.8, 6, acc);
+            } else if (genre === 'western') {
+              g.box(0, 0, 0, 2.2, h * .8, 2.2, c1);
+              for (let k = 0; k < 4; k++) g.box(0, k * 2, 0, 2.4, .18, 2.4, c2);
+              g.cone(0, h * .8, 0, 1.9, 1.8, 4, c3);
+            } else {
+              g.cyl(0, 0, 0, 1.5, h, 10, c1);
+              g.cyl(0, h, 0, 1.9, .5, 10, c2);
+              g.cone(0, h + .5, 0, 2.0, 3.0, 10, acc);
+            }
+            break;
+          }
+          case 'arch': {
+            const w = 5.2, h = 6.4;
+            for (const sx of [-1, 1]) {
+              if (genre === 'egypt') g.box(sx * w / 2, 0, 0, 1.5, h, 1.5, c1);
+              else if (genre === 'scifi') { g.cyl(sx * w / 2, 0, 0, .55, h, 6, c1); g.cyl(sx * w / 2, h * .5, 0, .8, .3, 6, acc); }
+              else g.cyl(sx * w / 2, 0, 0, .70, h, 8, c1);
+            }
+            if (genre === 'japan') { g.box(0, h, 0, w + 2.2, .45, .8, acc); g.box(0, h + .8, 0, w + 1.2, .34, .6, c2); }
+            else if (genre === 'scifi') { g.box(0, h, 0, w + .6, .5, 1.0, acc); g.sphere(0, h + 1.0, 0, .7, 8, c3); }
+            else { for (let k = 0; k <= 8; k++) { const a = k / 8 * PI; g.box(Math.cos(a) * w / 2, h - .3 + Math.sin(a) * 1.9, 0, .9, .8, 1.2, c2); } }
+            break;
+          }
+          case 'statue': {
+            g.box(0, 0, 0, 2.2, .7, 2.2, c2);
+            g.box(0, .7, 0, 1.7, .5, 1.7, c1);
+            if (genre === 'egypt') { g.box(0, 1.2, 0, 1.5, 1.6, 2.6, c1); g.box(0, 2.8, 0, .9, 1.1, 1.0, acc); }
+            else if (genre === 'pirate') { g.cyl(0, 1.2, 0, .45, 2.6, 8, c1); g.sphere(0, 3.9, 0, .6, 7, c3); g.box(0, 2.4, .5, 1.5, .2, .3, acc); }
+            else if (genre === 'scifi') { for (let k = 0; k < 3; k++) g.box(0, 1.2 + k * 1.1, 0, 1.0 - k * .2, 1.0, 1.0 - k * .2, k % 2 ? acc : c1); }
+            else { g.cyl(0, 1.2, 0, .5, 2.4, 8, c1); g.sphere(0, 3.7, 0, .62, 8, c1); for (const sx of [-1, 1]) g.box(sx * .62, 2.6, 0, .3, 1.5, .3, c1); }
+            break;
+          }
+          case 'sign': {
+            for (const sx of [-1, 1]) g.cyl(sx * 1.9, 0, 0, .16, 3.6, 6, c2);
+            g.box(0, 3.0, 0, 4.6, 1.5, .3, c1);
+            g.box(0, 3.0, -.22, 4.0, 1.0, .12, acc);
+            if (genre === 'circus' || genre === 'scifi') this.lightBulbs(g, 0, 3.0, -.3, 2.1, 12, hex(0xfff3c4));
+            break;
+          }
+          case 'lamp': {
+            g.cyl(0, 0, 0, .16, 4.2, 6, c2);
+            if (genre === 'scifi') { g.cyl(0, 4.2, 0, .45, .9, 8, acc); g.sphere(0, 4.5, 0, .55, 7, hex(0xbfe8ff)); }
+            else if (genre === 'halloween') { g.box(0, 4.2, 0, .7, .9, .7, c1); g.sphere(0, 4.5, 0, .38, 6, hex(0xff9a2e)); }
+            else { g.cone(0, 4.9, 0, .55, -.9, 6, c1); g.sphere(0, 4.4, 0, .40, 7, hex(0xfff3c4)); }
+            break;
+          }
+          case 'fence': {
+            for (let k = 0; k < 4; k++) {
+              const x = -1.5 + k;
+              if (genre === 'halloween') g.box(x, 0, 0, .22, 2.0 + rr() * .5, .22, c1);
+              else g.box(x, 0, 0, .20, 1.7, .20, c1);
+            }
+            g.box(0, 1.2, 0, 4.0, .16, .14, c2);
+            g.box(0, .5, 0, 4.0, .16, .14, c2);
+            break;
+          }
+          case 'rock': {
+            const n2 = 3 + Math.floor(rr() * 3);
+            for (let k = 0; k < n2; k++) {
+              const a = k / n2 * TAU, r = .5 + rr() * .9;
+              g.sphere(Math.cos(a) * r, .2 + rr() * .5, Math.sin(a) * r, .7 + rr() * .8, 5, shade(c1, .82 + rr() * .4));
+            }
+            if (genre === 'desert') for (let k = 0; k < 2; k++) g.cyl(rr() * 2 - 1, .6, rr() * 2 - 1, .18, 1.6, 6, c3);
+            break;
+          }
+          case 'plant': {
+            if (genre === 'desert') {
+              g.cyl(0, 0, 0, .42, 3.2, 8, c1);
+              for (const sx of [-1, 1]) { g.cyl(sx * .8, 1.4, 0, .26, 1.3, 6, c1); g.box(sx * .8, 1.4, 0, .5, .26, .5, c1); }
+              g.sphere(0, 3.2, 0, .42, 6, c1);
+            } else if (genre === 'japan') {
+              g.cyl(0, 0, 0, .26, 2.4, 6, c3);
+              for (let k = 0; k < 4; k++) { const a = k / 4 * TAU; g.sphere(Math.cos(a) * .8, 2.6, Math.sin(a) * .8, .95, 6, c1); }
+              g.sphere(0, 3.1, 0, 1.0, 6, c2);
+            } else {
+              g.cyl(0, 0, 0, .3, 2.0, 6, c3);
+              g.sphere(0, 2.6, 0, 1.5, 6, c1);
+              g.sphere(0, 3.4, 0, 1.1, 6, c2);
+            }
+            break;
+          }
+          case 'banner': {
+            g.cyl(0, 0, 0, .14, 5.0, 6, c2);
+            for (let k = 0; k < 4; k++) g.box(.55, 4.4 - k * .8, 0, 1.1, .74, .06, k % 2 ? c1 : acc);
+            g.sphere(0, 5.1, 0, .22, 6, acc);
+            break;
+          }
+          case 'facade': {
+            g.box(0, 0, 0, 6.0, 5.0, 1.2, c1);
+            g.box(0, 5.0, 0, 6.6, .5, 1.6, c2);
+            if (genre === 'western') { g.box(0, 5.5, 0, 6.0, 1.6, .3, c1); g.box(0, 2.6, -.75, 6.4, .25, .9, c3); for (const sx of [-2.4, 2.4]) g.cyl(sx, 0, -1.2, .16, 2.8, 6, c3); }
+            else if (genre === 'fairytale') { g.cone(0, 5.5, 0, 3.6, 3.0, 8, acc); for (const sx of [-2.2, 2.2]) { g.cyl(sx, 0, 0, .9, 6.5, 8, c2); g.cone(sx, 6.5, 0, 1.2, 2.4, 8, acc); } }
+            else { for (let k = 0; k < 3; k++) g.box(-2 + k * 2, 1.6, -.65, 1.2, 1.8, .2, c3); }
+            break;
+          }
+          case 'prop': {
+            if (genre === 'pirate') { g.cyl(0, 0, 0, .9, 1.4, 10, c1); g.cyl(0, 1.4, 0, .95, .2, 10, c2); g.box(0, 1.6, 0, .8, .5, 1.2, acc); }
+            else if (genre === 'halloween') { g.sphere(0, .7, 0, .85, 7, hex(0xf07a1e)); g.cyl(0, 1.4, 0, .12, .5, 5, c3); }
+            else if (genre === 'circus') { for (let k = 0; k < 5; k++) g.sphere(rr() * 1.4 - .7, .5 + k * .7, rr() * 1.4 - .7, .45, 6, hex([0xff6f91, 0xffd23f, 0x69d2f0, 0x8fe37a, 0xc38fe8][k])); }
+            else if (genre === 'scifi') { g.box(0, 0, 0, 1.6, 1.2, 1.6, c1); g.cyl(0, 1.2, 0, .5, 1.4, 8, acc); g.sphere(0, 2.7, 0, .45, 7, c3); }
+            else { g.box(0, 0, 0, 1.5, 1.1, 1.1, c1); g.box(0, 1.1, 0, 1.6, .22, 1.2, c2); }
+            break;
+          }
+        }
         break;
       }
       case 'maze': {
@@ -4310,6 +4538,26 @@ function buildGhostGeo(track, samples, ok) {
 }
 
 /* Train car geometry for a coaster type */
+/* Body shells the cars can wear. The chassis, wheels and restraints are the
+   same; the shell over them is not, which is what makes a mine train read as
+   a mine train rather than as a repainted steel one. */
+const TRAIN_STYLES = [
+  { id: 'classic', n: 'Classic' },
+  { id: 'streamlined', n: 'Streamlined' },
+  { id: 'mine', n: 'Mine Cart' },
+  { id: 'rocket', n: 'Rocket' },
+  { id: 'vintage', n: 'Vintage Motorcar' },
+  { id: 'bobsled', n: 'Bobsled' },
+  { id: 'dragon', n: 'Dragon' },
+  { id: 'openair', n: 'Open Air' },
+];
+const STATION_STYLES = [
+  { id: 'modern', n: 'Modern' },
+  { id: 'wooden', n: 'Timber Depot' },
+  { id: 'tent', n: 'Big Top' },
+  { id: 'stone', n: 'Stone Hall' },
+  { id: 'hangar', n: 'Steel Hangar' },
+];
 function buildCarGeo(T, isFront) {
   const g = new Geo();
   const c = hex(T.carColor);
@@ -4317,9 +4565,47 @@ function buildCarGeo(T, isFront) {
   const yb = inverted ? -1.9 : 0.05;
   // chassis
   g.box(0, yb - .25, 0, 1.5, .3, 3.6, hex(0x33383f));
-  // body
-  g.box(0, yb, 0, 1.9, 1.05, 3.5, c);
-  g.box(0, yb + 1.05, 0, 1.75, .16, 3.3, shade(c, 1.25));
+  // body shell, which is what the chosen style actually changes
+  const style = T.carStyle || 'classic';
+  if (style === 'streamlined') {
+    g.box(0, yb, 0, 1.8, .85, 3.5, c);
+    g.box(0, yb + .85, 0, 1.35, .40, 3.0, shade(c, 1.2));
+    for (const sx of [-1, 1]) g.beam(sx * .9, yb + .2, -1.6, sx * 1.15, yb + .5, 1.5, .12, .16, shade(c, .82));
+  } else if (style === 'mine') {
+    g.box(0, yb, 0, 1.9, 1.15, 3.4, hex(0x6b4a2a));
+    for (let k = 0; k < 4; k++) g.box(0, yb + .1 + k * .3, 0, 1.98, .10, 3.45, hex(0x8a6a3a));
+    for (const sz of [-1.5, 1.5]) g.box(0, yb + .6, sz, 2.0, .16, .16, hex(0x4a4038));
+  } else if (style === 'rocket') {
+    g.cyl(0, yb + .55, 0, .92, 3.3, 10, c, 0, true);
+    g.cone(0, yb + .55, -1.65, .92, -1.5, 10, shade(c, 1.2));
+    for (const sx of [-1, 1]) g.triV([sx * .9, yb, 1.4], [sx * 1.7, yb - .1, 1.9], [sx * .9, yb + .9, 1.5], shade(c, .85));
+    g.cyl(0, yb + .35, 1.7, .45, .5, 8, hex(0x3d444d));
+  } else if (style === 'vintage') {
+    g.box(0, yb, 0, 1.85, .95, 3.4, c);
+    g.box(0, yb + .95, -.6, 1.55, .55, 1.6, shade(c, 1.15));
+    for (const sz of [-1.3, 1.3]) for (const sx of [-1, 1])
+      g.cyl(sx * 1.0, yb - .1, sz, .38, .22, 10, hex(0x1e2228), 0, true);
+    g.box(0, yb + .5, -1.75, 1.4, .3, .2, hex(0xd8d8d8));
+  } else if (style === 'bobsled') {
+    g.box(0, yb - .05, 0, 1.7, .70, 3.6, c);
+    g.box(0, yb + .65, 0, 1.5, .30, 3.2, shade(c, 1.25));
+    g.triV([-.85, yb + .65, -1.8], [.85, yb + .65, -1.8], [0, yb + .05, -2.4], shade(c, 1.1));
+  } else if (style === 'dragon') {
+    g.box(0, yb, 0, 1.9, 1.05, 3.5, c);
+    for (let k = 0; k < 5; k++) g.cone(0, yb + 1.05, -1.4 + k * .72, .26, .55, 4, shade(c, .7));
+    if (isFront) {
+      g.sphere(0, yb + .85, -2.0, .72, 7, shade(c, 1.1));
+      for (const sx of [-1, 1]) g.sphere(sx * .34, yb + 1.15, -2.35, .17, 6, hex(0xffe066));
+      for (const sx of [-1, 1]) g.cone(sx * .36, yb + 1.35, -1.9, .16, .55, 4, shade(c, .7));
+    }
+  } else if (style === 'openair') {
+    g.box(0, yb - .1, 0, 1.85, .55, 3.5, c);
+    for (const sx of [-1, 1]) g.box(sx * .88, yb + .45, 0, .14, .55, 3.4, shade(c, 1.2));
+    g.box(0, yb + .45, 1.7, 1.85, .55, .14, shade(c, 1.2));
+  } else {
+    g.box(0, yb, 0, 1.9, 1.05, 3.5, c);
+    g.box(0, yb + 1.05, 0, 1.75, .16, 3.3, shade(c, 1.25));
+  }
   // nose cone on the lead car
   if (isFront) {
     g.triV([-.95, yb + 1.05, -1.75], [.95, yb + 1.05, -1.75], [0, yb + .45, -2.9], shade(c, 1.15));
@@ -4880,6 +5166,33 @@ class CoasterRide extends ParkObject {
     this.broken = false; this.wear = 0;
     this.state = this.openR ? 'open' : 'closed';
     const k = Park.needMechanic.indexOf(this); if (k >= 0) Park.needMechanic.splice(k, 1);
+  }
+  /* The chassis as this particular coaster is painted. */
+  paintedType() {
+    const L = this.livery || {};
+    return Object.assign({}, this.type, {
+      rail: L.rail !== undefined ? L.rail : this.type.rail,
+      spine: L.spine !== undefined ? L.spine : this.type.spine,
+      tie: L.tie !== undefined ? L.tie : this.type.tie,
+      carColor: L.car !== undefined ? L.car : this.type.carColor,
+      carStyle: this.trainStyle || 'classic',
+    });
+  }
+  /* Rebuild every mesh that carries the livery. */
+  repaint() {
+    const R = Game.R;
+    if (!R || !this.track) return;
+    const t = this.paintedType();
+    if (this.trackMesh) this.trackMesh.dispose();
+    const saved = this.track.type; this.track.type = t;
+    this.trackMesh = R.makeMesh(buildTrackGeo(this.track));
+    this.track.type = saved;
+    if (this.carMesh) this.carMesh.dispose();
+    if (this.frontMesh) this.frontMesh.dispose();
+    this.carMesh = R.makeMesh(buildCarGeo(t, false));
+    this.frontMesh = R.makeMesh(buildCarGeo(t, true));
+    if (this.stationMesh) this.stationMesh.dispose();
+    this.stationMesh = R.makeMesh(Coaster.stationGeo(this));
   }
   elementCensus() {
     const t = this.track, out = {};
@@ -6568,6 +6881,7 @@ const TOOLS = [
   { id: 'water', ic: 'water', t: 'Water', k: '5' },
   { id: 'shop', ic: 'shop', t: 'Shops', k: '6' },
   { id: 'scenery', ic: 'tree', t: 'Scenery', k: '7' },
+  { id: 'decor', ic: 'sparkle', t: 'Decor', k: 'y' },
   { id: 'staff', ic: 'staff', t: 'Staff', k: '8' },
   { id: 'terrain', ic: 'terrain', t: 'Terrain', k: '9' },
   { id: 'delete', ic: 'demolish', t: 'Demolish', k: '0' },
@@ -6601,7 +6915,7 @@ const UI = {
     // paint the static SVG icons declared in the markup
     document.querySelectorAll('[data-ic]').forEach(e => { e.innerHTML = ICON[e.dataset.ic] || ''; });
     $('#mCareer').onclick = () => Menu.scenarios();
-    $('#mSandbox').onclick = () => Menu.begin('sandbox', -1);
+    $('#mSandbox').onclick = () => Menu.maps();
     $('#mContinue').onclick = () => Menu.continueGame();
     $('#mBack').onclick = () => Menu.back();
     $('#mHelp').onclick = () => { Menu.hide(); this.help(); };
@@ -7008,9 +7322,9 @@ const UI = {
     const kv = (k, v, note) => `<div class="kv"><span class="k">${k}</span><span class="v">${v}${note ? ` <span style="color:var(--dim);font-weight:600">${note}</span>` : ''}</span></div>`;
     const days = Math.max(1, Park.day - 1 + Park.time / 1440);
 
-    const tabs = isC ? [['overview', 'Overview'], ['stats', 'Ratings'], ['eng', 'Engineering'], ['ops', 'Operations'], ['money', 'Finances']]
-      : isShop ? [['overview', 'Overview'], ['money', 'Finances'], ['ops', 'Stock &amp; Staff']]
-        : [['overview', 'Overview'], ['stats', 'Ratings'], ['ops', 'Operations'], ['money', 'Finances']];
+    const tabs = isC ? [['overview', 'Overview'], ['look', 'Appearance'], ['stats', 'Ratings'], ['eng', 'Engineering'], ['ops', 'Operations'], ['money', 'Finances']]
+      : isShop ? [['overview', 'Overview'], ['look', 'Appearance'], ['money', 'Finances'], ['ops', 'Stock &amp; Staff']]
+        : [['overview', 'Overview'], ['look', 'Appearance'], ['stats', 'Ratings'], ['ops', 'Operations'], ['money', 'Finances']];
     if (!tabs.some(t => t[0] === T)) this.manageTabRide = 'overview';
     let h = `<div class="btnrow" style="margin-bottom:14px">` + tabs.map(([k, l]) =>
       `<button class="btn ${this.manageTabRide === k ? 'pri' : ''}" style="flex:0 0 auto;padding:6px 16px"
@@ -7054,6 +7368,50 @@ const UI = {
         <button class="btn" style="flex:0 0 auto;padding:9px 20px" onclick="Cam.tx=${o.x.toFixed(1)};Cam.tz=${o.z.toFixed(1)};UI.closeModal()">Go to it</button>
         <button class="btn dan" style="flex:0 0 auto;padding:9px 20px" onclick="UI.closeModal();Game.demolish(${id})">Demolish</button>
       </div>`;
+    }
+
+    else if (this.manageTabRide === 'look') {
+      const swatch = (label, key, val) => `
+        <div class="row" style="margin:8px 0">
+          <label style="min-width:120px;flex:0 0 auto">${label}</label>
+          <input type="color" value="#${(val >>> 0).toString(16).padStart(6, '0')}"
+            style="width:56px;height:30px;padding:2px;border:2px solid var(--edge);border-radius:8px;background:#fff;cursor:pointer"
+            oninput="UI.setLivery(${id},'${key}',this.value)">
+          <span style="font-size:11px;color:var(--dim)">click to change</span>
+        </div>`;
+      if (isC) {
+        const L = o.livery || {};
+        h += `<h3>Livery</h3>`;
+        h += swatch('Rails', 'rail', L.rail !== undefined ? L.rail : o.type.rail);
+        h += swatch('Spine &amp; supports', 'spine', L.spine !== undefined ? L.spine : o.type.spine);
+        h += swatch('Cross ties', 'tie', L.tie !== undefined ? L.tie : o.type.tie);
+        h += swatch('Trains', 'car', L.car !== undefined ? L.car : o.type.carColor);
+        h += `<div class="btnrow"><button class="btn" style="flex:0 0 auto;padding:8px 18px"
+          onclick="UI.resetLivery(${id})">Back to the factory colours</button>
+          <button class="btn" style="flex:0 0 auto;padding:8px 18px"
+          onclick="UI.randomLivery(${id})">Surprise me</button></div>`;
+        h += `<h3>Train bodywork</h3><div style="display:grid;grid-template-columns:repeat(4,1fr);gap:7px">`;
+        for (const st of TRAIN_STYLES) h += `<button class="btn ${o.trainStyle === st.id ? 'pri' : ''}"
+          style="padding:8px 4px" onclick="UI.setTrainStyle(${id},'${st.id}')">${st.n}</button>`;
+        h += `</div>`;
+        h += `<h3>Station</h3><div style="display:grid;grid-template-columns:repeat(3,1fr);gap:7px">`;
+        for (const st of STATION_STYLES) h += `<button class="btn ${o.stationStyle === st.id ? 'pri' : ''}"
+          style="padding:8px 4px" onclick="UI.setStationStyle(${id},'${st.id}')">${st.n}</button>`;
+        h += `</div>`;
+        h += `<p>Repainting is free and instant. The bodywork changes the shell over the chassis, not
+          the seats or the restraints, so a mine train still runs on the same running gear.</p>`;
+      } else {
+        const L = o.livery || {};
+        h += `<h3>Colours</h3>`;
+        h += swatch('Main colour', 'main', L.main !== undefined ? L.main : (o.def.color || 0xcccccc));
+        h += swatch('Roof / trim', 'roof', L.roof !== undefined ? L.roof : (o.def.roof || 0x888888));
+        h += `<div class="btnrow"><button class="btn" style="flex:0 0 auto;padding:8px 18px"
+          onclick="UI.resetLivery(${id})">Back to the factory colours</button>
+          <button class="btn" style="flex:0 0 auto;padding:8px 18px"
+          onclick="UI.randomLivery(${id})">Surprise me</button></div>`;
+        h += `<p>Repainting is free. A themed corner of the park &mdash; matching colours and decoration
+          from the same set &mdash; reads as deliberate to guests and lifts the scenery rating around it.</p>`;
+      }
     }
 
     else if (this.manageTabRide === 'stats') {
@@ -7343,6 +7701,42 @@ const UI = {
     }
 
     this.modal('Park Entrance', h);
+  },
+  setLivery(id, key, hexStr) {
+    const o = Park.objects.find(x => x.id === id) || Park.coasters.find(x => x.id === id);
+    if (!o) return;
+    o.livery = o.livery || {};
+    o.livery[key] = parseInt(hexStr.replace('#', ''), 16);
+    if (o.repaint) o.repaint(); else { o.mesh = null; Game.sceneryDirty = true; PF.recolour(o); }
+  },
+  resetLivery(id) {
+    const o = Park.objects.find(x => x.id === id) || Park.coasters.find(x => x.id === id);
+    if (!o) return;
+    o.livery = o.kind === 'coaster'
+      ? { rail: o.type.rail, spine: o.type.spine, tie: o.type.tie, car: o.type.carColor }
+      : {};
+    if (o.repaint) o.repaint(); else PF.recolour(o);
+    this.manage(id, 'look');
+  },
+  randomLivery(id) {
+    const o = Park.objects.find(x => x.id === id) || Park.coasters.find(x => x.id === id);
+    if (!o) return;
+    const r = () => Math.round(Math.random() * 0xffffff);
+    o.livery = o.kind === 'coaster' ? { rail: r(), spine: r(), tie: r(), car: r() } : { main: r(), roof: r() };
+    if (o.repaint) o.repaint(); else PF.recolour(o);
+    this.manage(id, 'look');
+  },
+  setTrainStyle(id, st) {
+    const c = Park.coasters.find(x => x.id === id);
+    if (!c) return;
+    c.trainStyle = st; c.repaint();
+    this.manage(id, 'look');
+  },
+  setStationStyle(id, st) {
+    const c = Park.coasters.find(x => x.id === id);
+    if (!c) return;
+    c.stationStyle = st; c.repaint();
+    this.manage(id, 'look');
   },
   upgradeAll() {
     let n = 0;
@@ -8211,13 +8605,49 @@ const Coaster = {
   stationGeo(c) {
     const g = new Geo();
     const W = (c.gw || 4) * TILE, D = (c.gd || 3) * TILE;
-    const T = c.type;
+    const T = c.paintedType ? c.paintedType() : c.type;
+    const style = c.stationStyle || 'modern';
     g.box(0, -.4, 0, W + 2, .8, D + 2, hex(0xb0a48c));
     // platforms either side of the track
     for (const sx of [-1, 1]) g.box(sx * 3.2, .4, 0, 2.6, .7, D + 1, hex(0xd8cdb4));
-    for (const sx of [-1, 1]) for (let z = -D / 2; z <= D / 2; z += 2.4) g.cyl(sx * 4.3, 1.1, z, .16, 4.2, 6, hex(0x6d5a45));
-    g.box(0, 5.3, 0, W + 3, .5, D + 2.5, hex(T.rail));
-    g.box(0, 5.8, 0, W + 2.4, .3, D + 2.0, hex(0xf0e6d2));
+
+    /* The roof and its supports are what carry the style — the platform and
+       the rails through it stay the same because they have a job to do. */
+    if (style === 'wooden') {
+      for (const sx of [-1, 1]) for (let z = -D / 2; z <= D / 2; z += 2.0) g.box(sx * 4.3, 1.1, z, .34, 4.2, .34, hex(0x7a5233));
+      for (let k = 0; k < 7; k++) {
+        const t = k / 6, y = 5.3 + Math.sin(t * PI) * 1.1;
+        g.box(0, y, -D / 2 - 1 + t * (D + 2), W + 3, .34, (D + 2) / 6, hex(0x8b5a2b));
+      }
+      g.box(0, 6.6, -D / 2 - .9, W, 1.5, .4, hex(0x6f4522));
+      g.box(0, 6.8, -D / 2 - 1.1, W - 1.4, 1.0, .12, hex(0xe8dfc8));
+    } else if (style === 'tent') {
+      for (const sx of [-1, 1]) for (let z = -D / 2; z <= D / 2; z += 2.4) g.cyl(sx * 4.3, 1.1, z, .16, 4.6, 6, hex(0xd8d8d8));
+      for (let k = 0; k < 10; k++) {
+        const a1 = k / 10 * TAU, a2 = (k + 1) / 10 * TAU;
+        const col = k % 2 ? hex(0xd94f3c) : hex(0xf5f5f5);
+        g.triV([0, 9.2, 0], [Math.cos(a1) * (W / 2 + 2), 5.7, Math.sin(a1) * (D / 2 + 2)],
+          [Math.cos(a2) * (W / 2 + 2), 5.7, Math.sin(a2) * (D / 2 + 2)], col);
+      }
+      g.sphere(0, 9.6, 0, .45, 7, hex(0xffd23f));
+    } else if (style === 'stone') {
+      for (const sx of [-1, 1]) for (let z = -D / 2; z <= D / 2; z += 3.0) g.box(sx * 4.4, 1.1, z, .9, 4.4, .9, hex(0xcfc7b4));
+      g.box(0, 5.5, 0, W + 3.4, .9, D + 2.8, hex(0xbdb49f));
+      g.box(0, 6.4, 0, W + 2.2, .5, D + 1.8, hex(0xa89e88));
+      for (let k = 0; k < 5; k++) g.box(-W / 2 + k * (W / 4), 6.9, -D / 2 - 1.2, .8, .9, .5, hex(0xcfc7b4));
+    } else if (style === 'hangar') {
+      for (const sx of [-1, 1]) for (let z = -D / 2; z <= D / 2; z += 2.2) g.cyl(sx * 4.4, 1.1, z, .22, 5.2, 6, hex(0x8fa3b5));
+      for (let k = 0; k <= 8; k++) {
+        const a = k / 8 * PI;
+        g.box(Math.cos(a) * (W / 2 + 1.6), 5.6 + Math.sin(a) * 2.6, 0, .9, .6, D + 2.4, hex(0xdfe8f2));
+      }
+      for (const sx of [-1, 1]) g.box(sx * (W / 2 + 1.2), 5.4, 0, .3, 1.2, D + 2.4, hex(T.rail));
+    } else {
+      for (const sx of [-1, 1]) for (let z = -D / 2; z <= D / 2; z += 2.4) g.cyl(sx * 4.3, 1.1, z, .16, 4.2, 6, hex(0x6d5a45));
+      g.box(0, 5.3, 0, W + 3, .5, D + 2.5, hex(T.rail));
+      g.box(0, 5.8, 0, W + 2.4, .3, D + 2.0, hex(0xf0e6d2));
+    }
+    // name board, same on every style
     g.box(0, 6.1, -D / 2 - .8, W, 1.4, .4, hex(0x2f3b52));
     g.box(0, 6.3, -D / 2 - 1.0, W - 1.4, .9, .12, hex(0xffd76a));
     // rails through the station
@@ -9392,6 +9822,19 @@ const PF = {
     return entry;
   },
   ride(def) { return this.get('ride_' + def.id, () => Prefab.ride(def.kind, def)); },
+  /* An object's own prefab when it has been repainted, the shared one when
+     it has not — a repaint must not recolour every other copy in the park. */
+  forObject(o) {
+    const L = o.livery;
+    if (!L || (L.main === undefined && L.roof === undefined)) {
+      return o.kind === 'shop' ? this.shop(o.def) : this.ride(o.def);
+    }
+    const key = (o.kind === 'shop' ? 'shopL_' : 'rideL_') + o.def.id + '_' + (L.main | 0) + '_' + (L.roof | 0);
+    const def = Object.assign({}, o.def,
+      { color: L.main !== undefined ? L.main : o.def.color, roof: L.roof !== undefined ? L.roof : o.def.roof });
+    return this.get(key, () => o.kind === 'shop' ? Prefab.shop(def) : Prefab.ride(def.kind, def));
+  },
+  recolour(o) { /* the cache key changes with the colours, so nothing to purge */ },
   gate(tier) { return this.get('gate_' + tier, () => Prefab.gate(tier)); },
   scenery(def, seed) { return this.get('sc_' + def.kind, () => Prefab.scenery(def.kind, 3)); },
   sceneryGeo(def, seed) {
@@ -9861,6 +10304,7 @@ const Intro = {
     if (this.done) { Menu.show(); return; }
     this.done = true;
     const el = this.el();
+    WORLD.mapKind = 'meadow';
     Menu.buildShowcase();
     const c = Park.coasters[0];
     if (!c || !c.track || !c.track.complete || !c.trains.length) { Menu.show(); return; }
@@ -10079,8 +10523,23 @@ const Menu = {
     document.getElementById('mScenarios').classList.add('hidden');
     document.getElementById('mBack').style.display = 'none';
   },
+  chosenMap: 'meadow',
+  maps() {
+    document.getElementById('mMain').classList.add('hidden');
+    const w = document.getElementById('mScenarios');
+    w.classList.remove('hidden');
+    w.innerHTML = MAPS.map(m => `
+      <div class="mcard" onclick="Menu.chosenMap='${m.id}';Menu.begin('sandbox',-1)">
+        <div class="mtag">Sandbox</div>
+        <div class="mck">${m.n}</div>
+        <div class="mcd">${m.blurb}</div>
+        <div class="mcgo">Build here</div>
+      </div>`).join('');
+    document.getElementById('mBack').style.display = '';
+  },
   begin(mode, scIndex) {
     this.showcase = false;
+    WORLD.mapKind = this.chosenMap || 'meadow';
     Game.newGame(mode, scIndex >= 0 ? SCENARIOS[scIndex] : null);
     this.hide();
   },
@@ -10398,7 +10857,7 @@ const Game = {
     if (!this.hoverTile) return;
     if (UI.tool === 'path' && UI.sub) { this.paintPath(this.hoverTile.i, this.hoverTile.j); }
     else if (UI.tool === 'terrain') { this.editTerrain(this.hoverTile.i, this.hoverTile.j, e.shiftKey ? -1 : 1, e.ctrlKey); }
-    else if (UI.tool === 'scenery' && UI.sub && !isStart && this.mouse.moved > 20) { this.tryPlace(); }
+    else if ((UI.tool === 'scenery' || UI.tool === 'decor') && UI.sub && !isStart && this.mouse.moved > 20) { this.tryPlace(); }
   },
   click(e) {
     if (Cam.mode === 'ride') return;
@@ -10429,7 +10888,7 @@ const Game = {
       case 'delete': this.deleteAt(i, j); break;
       case 'path': if (UI.sub) this.paintPath(i, j); break;
       case 'terrain': this.editTerrain(i, j, e.shiftKey ? -1 : 1, e.ctrlKey); break;
-      case 'shop': case 'ride': case 'water': case 'scenery': if (UI.sub) this.tryPlace(); break;
+      case 'shop': case 'ride': case 'water': case 'scenery': case 'decor': if (UI.sub) this.tryPlace(); break;
     }
   },
   pickPerson() {
@@ -10522,7 +10981,7 @@ const Game = {
     if (!UI.sub) return null;
     if (UI.tool === 'shop') return { kind: 'shop', def: UI.sub };
     if (UI.tool === 'ride' || UI.tool === 'water') return { kind: 'ride', def: UI.sub };
-    if (UI.tool === 'scenery') return { kind: 'scenery', def: UI.sub };
+    if (UI.tool === 'scenery' || UI.tool === 'decor') return { kind: 'scenery', def: UI.sub };
     return null;
   },
   /* Why a footprint cannot be built here — used by the ghost and the hint line. */
@@ -11815,10 +12274,10 @@ Object.assign(Game, {
     const glow = depthPass ? 0 : (this.nightGlow || 0);
     for (const o of Park.objects) {
       if (o.kind === 'shop') {
-        const pf = PF.shop(o.def);
+        const pf = PF.forObject(o);
         R.draw(pf.mesh, o.matrix, glow ? { emissive: glow * .45 } : null);
       } else if (o.kind === 'ride' || o.kind === 'gate') {
-        const pf = o.kind === 'gate' ? PF.gate(o.tier) : PF.ride(o.def);
+        const pf = o.kind === 'gate' ? PF.gate(o.tier) : PF.forObject(o);
         R.draw(pf.mesh, o.matrix, glow ? { emissive: glow * .40 } : null);
         const tmp = M4.create(), out = M4.create();
         for (const part of pf.parts) {
