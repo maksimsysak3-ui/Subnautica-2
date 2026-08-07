@@ -5698,7 +5698,9 @@ class Guest extends Person {
   makePlan() {
     const P = this.persona || PERSONAS[0];
     const n = clamp(this.ridesWanted + rndi(-1, 2), 3, 14);
-    const plan = [];
+    const R = (tag) => ({ kind: 'ride', tag, done: false });
+    const N2 = (need) => ({ kind: 'need', need, done: false });
+    const REST = () => ({ kind: 'rest', done: false });
     // what sorts of ride this person is here for, weighted by their outlook
     const pool = [];
     const push = (tag, w) => { for (let k = 0; k < Math.max(0, Math.round(w * 4)); k++) pool.push(tag); };
@@ -5707,21 +5709,39 @@ class Guest extends Person {
     push('water', Math.max(.05, P.water));
     push('gentle', Math.max(.05, P.gentle));
     if (!pool.length) pool.push('flat');
-    let sinceFood = 0;
-    for (let k = 0; k < n; k++) {
-      plan.push({ kind: 'ride', tag: pick(pool), done: false });
-      sinceFood++;
-      // people eat and drink through the day, not only when starving
-      if (sinceFood >= 2 && Math.random() < .34 * (P.food || 1)) {
-        plan.push({ kind: 'need', need: Math.random() < .55 ? 'thirst' : 'hunger', done: false });
-        sinceFood = 0;
-      }
-      if (Math.random() < .16) plan.push({ kind: 'need', need: 'toilet', done: false });
-      if (Math.random() < .10 * (P.shopping || 1)) plan.push({ kind: 'need', need: 'shop', done: false });
-      if (Math.random() < .12) plan.push({ kind: 'rest', done: false });
+    const pk = () => pick(pool);
+
+    const shape = pick(Guest.RIDE_SHAPES);
+    let tags = shape.f(P, n, pk);
+    if (!tags || !tags.length) tags = [pk()];
+    const plan = tags.map(t => R(t));
+
+    /* Stops go on afterwards, on one fixed budget regardless of which shape
+       was drawn: roughly one refreshment every four rides, a toilet every
+       six, a sit-down every eight, a look round the shops every seven.
+
+       Keeping this separate from the shape is the whole point. An earlier
+       attempt let each shape decide its own stop density, and the generous
+       ones had guests spending the day queuing at kiosks instead of riding
+       anything — variety in the itinerary must not cost the park its riders. */
+    const insert = (make, every, offset) => {
+      for (let k = offset; k < plan.length; k += every + 1) plan.splice(k, 0, make());
+    };
+    insert(() => N2(Math.random() < .55 ? 'thirst' : 'hunger'), 6, rndi(3, 5));
+    insert(() => N2('toilet'), 9, rndi(5, 8));
+    // a single sit-down or shop stop at most, and only sometimes
+    if (Math.random() < .35) plan.splice(rndi(3, Math.max(4, plan.length - 1)), 0, REST());
+    if (Math.random() < .28 * (P.shopping || 1)) plan.splice(rndi(2, Math.max(3, plan.length - 1)), 0, N2('shop'));
+    if ((P.food || 1) > 2 && Math.random() < .5) plan.unshift(N2('hunger'));
+
+    // two neighbouring items swap now and then, so identical shapes diverge
+    if (Math.random() < .35 && plan.length > 3) {
+      const k = rndi(1, plan.length - 2);
+      const t = plan[k]; plan[k] = plan[k + 1]; plan[k + 1] = t;
     }
     this.plan = plan;
     this.planIdx = 0;
+    this.planName = shape.n;
   }
   /* The next thing on the list, or null once the day is done. */
   planStep() {
@@ -6325,6 +6345,30 @@ class Guest extends Person {
 /* --------------------------------------------------------------------------
    STAFF
    -------------------------------------------------------------------------- */
+
+/* Sixteen different arcs to a day out. Variety here is in the ORDER the
+   rides are taken in and the shape of the day, not in how often somebody
+   eats — the stops are budgeted separately so no shape can starve the park
+   of riders. */
+Guest.RIDE_SHAPES = [
+  { n: 'Straight to the big one', f: (P, n, pk) => { const a = ['coaster']; for (let k = 1; k < n; k++) a.push(pk()); return a; } },
+  { n: 'Work up to it', f: (P, n, pk) => { const a = ['gentle', 'flat']; for (let k = 2; k < n; k++) a.push(k < n * .5 ? 'flat' : 'coaster'); return a; } },
+  { n: 'Coaster marathon', f: (P, n) => new Array(n + 2).fill('coaster') },
+  { n: 'One of everything', f: (P, n, pk) => { const a = ['gentle', 'flat', 'coaster', 'water']; while (a.length < n) a.push(pk()); return a; } },
+  { n: 'Water day', f: (P, n, pk) => { const a = []; for (let k = 0; k < n; k++) a.push(k % 3 === 2 ? pk() : 'water'); return a; } },
+  { n: 'With the little ones', f: (P, n) => { const a = []; for (let k = 0; k < n; k++) a.push(Math.random() < .72 ? 'gentle' : 'flat'); return a; } },
+  { n: 'Biggest first, then wind down', f: (P, n, pk) => { const a = ['coaster', 'coaster']; for (let k = 2; k < n; k++) a.push(k > n * .6 ? 'gentle' : pk()); return a; } },
+  { n: 'Saving the best for last', f: (P, n, pk) => { const a = []; for (let k = 0; k < n - 2; k++) a.push(k < n * .4 ? 'gentle' : pk()); a.push('coaster', 'coaster'); return a; } },
+  { n: 'Alternating thrills and calm', f: (P, n) => { const a = []; for (let k = 0; k < n; k++) a.push(k % 2 ? 'gentle' : 'coaster'); return a; } },
+  { n: 'Working round the park', f: (P, n, pk) => { const a = []; for (let k = 0; k < n; k++) a.push(pk()); return a; } },
+  { n: 'Just passing through', f: (P, n, pk) => [pk(), pk(), pk()] },
+  { n: 'Sightseeing tour', f: (P, n) => { const a = []; for (let k = 0; k < n; k++) a.push(Math.random() < .6 ? 'gentle' : 'flat'); return a; } },
+  { n: 'Evening thrill run', f: () => ['coaster', 'coaster', 'flat', 'coaster'] },
+  { n: 'Repeat favourites', f: (P, n, pk) => { const t = pk(), u = pk(); const a = []; for (let k = 0; k < n; k++) a.push(k % 3 === 2 ? pk() : (k % 2 ? t : u)); return a; } },
+  { n: 'Doing it cheap', f: (P, n, pk) => { const a = []; for (let k = 0; k < Math.max(3, n - 3); k++) a.push(pk()); return a; } },
+  { n: 'Everything twice', f: (P, n, pk) => { const b2 = []; for (let k = 0; k < Math.ceil(n / 2); k++) b2.push(pk()); return b2.concat(b2); } },
+];
+
 class Staff extends Person {
   constructor(role, x, z) {
     super(x, z);
@@ -7191,7 +7235,11 @@ const UI = {
       h += kv('Admissions revenue', money(Park.log.entry || 0), money((Park.log.entry || 0) / days) + ' / day');
       h += kv('Guests all time', Park.totalGuests);
       h += kv('In the park now', Park.guests.length + ' / ' + Park.capacity);
-      h += kv('Arriving', Math.round((this._arrRate || 0) * 60) + ' / hour');
+      const perHour = Math.round((Game._arrRate || 0) * 60 * 2.5);   // parties -> people
+      h += kv('Arriving now', perHour + ' guests / hour');
+      if (Game._arrWhy) h += `<p style="color:var(--warn)"><b>Nobody is arriving.</b> ${Game._arrWhy}</p>`;
+      else h += `<p style="font-size:11px">Arrivals follow the time of day: a trickle at 07:00, the main
+        peak around midday, a second one mid afternoon, then a long decline to closing at 22:00.</p>`;
       h += kv('Turned away by price', gate.turnedAway);
       h += kv('Park rating', Park.rating, '+' + gate.ratingBonus() + ' from the entrance');
       h += `<h3>Marketing</h3>`;
@@ -10673,7 +10721,14 @@ const Game = {
       // a queue was already waiting outside: opening the gates lets them in
       // straight away rather than after a minute of nothing happening
       this._spawnAcc = 0;
-      const waiting = Math.round(clamp(1 + Park.rating * .02 + Park.attractions().length * 1.2, 1, 12));
+      /* People queue outside before a park opens, and how many depends on how
+         worth queueing for it is. This is parties, not heads — a dozen
+         parties is thirty-odd people through the gate in the first minute. */
+      const worth = Park.attractions().length * 3.2
+        + Park.objects.filter(o => o.kind === 'shop').length * .8
+        + Park.rating * .045
+        + (Park.gate ? (Park.gate.tier - 1) * 4 : 0);
+      const waiting = Math.round(clamp(2 + worth, 2, 70));
       for (let k = 0; k < waiting; k++) this.spawnGuest();
     } else {
       UI.notify('The park is closed', 'No new guests will arrive, and everyone inside will finish up and leave.', 'warn');
@@ -11141,10 +11196,21 @@ const Game = {
     if (tr.v > 22 && Math.random() < dt * 1.6) Audio.play('scream');
   },
   spawnGuests(dt) {
-    if (!Park.open) return;
+    this._arrWhy = null;
+    if (!Park.open) { this._arrRate = 0; this._arrWhy = 'The park is closed — open the gates at the entrance.'; return; }
     const hour = Park.time / 60;
-    if (hour < 8 || hour > 21) return;
-    if (Park.guests.length >= Park.capacity) return;
+    // A longer day, and it tapers rather than stopping dead. Nobody arriving
+    // at half past ten at night is correct; being given no idea why is not.
+    if (hour < 7 || hour >= 22.5) {
+      this._arrRate = 0;
+      this._arrWhy = 'It is the middle of the night — the first guests arrive around 07:00.';
+      return;
+    }
+    if (Park.guests.length >= Park.capacity) {
+      this._arrRate = 0;
+      this._arrWhy = 'The park is full. More rides and shops raise how many people it can hold.';
+      return;
+    }
     // a brand new park still draws a trickle, and word of mouth compounds
     const attract = 34 + Park.rating * .62 + Park.attractions().length * 6 + Park.marketing * 8 + Marketing.draw() * 42;
     const tol = Park.gate ? Park.gate.feeTolerance() : 1;
@@ -11154,9 +11220,9 @@ const Game = {
        while everybody eats, a second smaller peak mid afternoon, then a long
        decline as families head home and the evening crowd arrives. */
     const curve = [
-      [8, .10], [9, .35], [10, .85], [11, 1.30], [12, 1.55], [13, 1.20],
-      [14, 1.35], [15, 1.40], [16, 1.15], [17, .85], [18, .70], [19, .55],
-      [20, .30], [21, .10],
+      [7, .12], [8, .40], [9, .80], [10, 1.15], [11, 1.40], [12, 1.55], [13, 1.25],
+      [14, 1.40], [15, 1.45], [16, 1.25], [17, 1.00], [18, .85], [19, .70],
+      [20, .50], [21, .30], [22, .12], [22.5, .04],
     ];
     let daily = .10;
     for (let k = 0; k < curve.length - 1; k++) {
@@ -11181,7 +11247,13 @@ const Game = {
        open and reachable always draws somebody, so "I opened it and nothing
        happened" can never be the outcome. */
     const perParty = 2.5;
-    const rate = attract * feeFactor * daily * draw * .030 / perParty * Weather.drawFactor();
+    /* A park that is open, reachable and has something in it always draws
+       somebody. Without a floor a run of small factors multiplies down to
+       nothing and the gate silently stops, which looks exactly like a bug. */
+    let rate = attract * feeFactor * daily * draw * .042 / perParty * Weather.drawFactor();
+    if (!Number.isFinite(rate) || rate < 0) rate = 0;
+    rate = Math.max(rate, Park.attractions().length ? .45 * daily : .10);
+    if (rate <= 0.001) this._arrWhy = 'Nothing here is drawing anybody in yet — build something to ride.';
     this._arrRate = rate;
     this._spawnAcc = (this._spawnAcc || 0) + rate * dt;
     while (this._spawnAcc >= 1) {
