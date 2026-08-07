@@ -178,6 +178,21 @@ canvas#gl{position:fixed;left:0;top:0;width:100vw;height:100vh;display:block;tou
 @keyframes fg{0%{color:var(--good);transform:translateY(-3px) scale(1.06)}100%{}}
 @keyframes fb{0%{color:var(--bad);transform:translateY(3px) scale(.96)}100%{}}
 
+/* ---------- closed-park banner ---------- */
+#closedBar{
+  position:absolute;bottom:96px;left:50%;transform:translateX(-50%);
+  display:none;align-items:center;gap:12px;
+  padding:9px 12px 9px 18px;border-radius:var(--r-pill);
+  background:#fff;border:2px solid var(--warn);
+  box-shadow:0 6px 0 #e0a83a,var(--e3);
+  font-size:12px;font-weight:700;white-space:nowrap;z-index:34;
+}
+body.parkclosed #closedBar{display:flex;animation:popin var(--sp)}
+body.parkclosed #hint{display:none}          /* they share this spot */
+#closedBar b{color:#a86a08}
+#closedBar .cb-dot{width:10px;height:10px;border-radius:50%;background:var(--warn);
+  box-shadow:0 0 0 4px rgba(245,166,35,.20);animation:pulse 2s ease-in-out infinite}
+
 /* ---------- speed controls ---------- */
 #speedbar{position:absolute;top:10px;right:10px;display:flex;gap:4px;padding:6px;align-items:center}
 .sbtn{
@@ -618,6 +633,8 @@ table.tb tr:last-child td{border-bottom:0}
     <div class="sbtn" id="btnRotL" title="Rotate view left (Q)" data-ic="rotl"></div>
     <div class="sbtn" id="btnRotR" title="Rotate view right (E)" data-ic="rotr"></div>
     <div class="sbtn" id="btnTilt" title="Toggle overhead view (Z)" data-ic="tilt"></div>
+    <div class="sep"></div>
+    <div class="sbtn" id="btnOpen" title="Open / close the park" data-ic="gates"></div>
     <div class="sep"></div>
     <div class="sbtn" id="btnLand" title="Buy land (L)" data-ic="land"></div>
     <div class="sbtn" id="btnMap" title="Minimap (M)" data-ic="map"></div>
@@ -6245,6 +6262,7 @@ const UI = {
     $('#mHelp').onclick = () => { Menu.hide(); this.help(); };
     $('#btnGoals').onclick = () => $('#goals').classList.toggle('show');
     $('#btnSettings').onclick = () => { Audio.resume(); this.settings(); };
+    $('#btnOpen').onclick = () => Game.setParkOpen(!Park.open);
     $('#btnMenu').onclick = () => UI.confirmMenu();
     // The right-hand control cluster grows with the number of buttons, so the
     // status bar's width is measured from it rather than guessed in CSS.
@@ -9255,6 +9273,7 @@ const ICON = (() => {
     play3: w('<path d="M1 5.5l6.5 6.5L1 18.5z" fill="currentColor"/><path d="M8.5 5.5L15 12l-6.5 6.5z" fill="currentColor"/><path d="M16 5.5L22.5 12 16 18.5z" fill="currentColor"/>'),
     map: w('<path d="M3 6.5l6-2.5 6 2.5 6-2.5v13l-6 2.5-6-2.5-6 2.5z"/><path d="M9 4v13M15 6.5v13"/>'),
     stats: w('<rect x="3.5" y="3.5" width="17" height="17" rx="2.5"/><path d="M8 16v-4M12 16V8M16 16v-6"/>'),
+    gates: w('<path d="M3 20V8l4-3 4 3v12"/><path d="M13 20V8l4-3 4 3v12"/><path d="M3 20h18"/><path d="M7 20v-5M17 20v-5"/>'),
     gear: w('<circle cx="12" cy="12" r="3.2"/><path d="M12 3.2v2.1M12 18.7v2.1M20.8 12h-2.1M5.3 12H3.2M18.2 5.8l-1.5 1.5M7.3 16.7l-1.5 1.5M18.2 18.2l-1.5-1.5M7.3 7.3L5.8 5.8"/>'),
     sound: w('<path d="M4 9.5h3.2L12 5.5v13l-4.8-4H4z"/><path d="M16 9.2a4.2 4.2 0 0 1 0 5.6"/><path d="M18.6 6.6a7.8 7.8 0 0 1 0 10.8"/>'),
     help: w('<circle cx="12" cy="12" r="8.5"/><path d="M9.6 9.4c.2-1.4 1.2-2.3 2.6-2.3 1.5 0 2.5 1 2.5 2.3 0 2-2.4 2.1-2.6 4"/><path d="M12 17h.01" stroke-width="2.4"/>'),
@@ -10248,11 +10267,18 @@ const Game = {
     if (v === Park.open) return;
     Park.open = !!v;
     document.body.classList.toggle('parkclosed', !Park.open);
+    const btn = document.getElementById('btnOpen');
+    if (btn) btn.classList.toggle('on', Park.open);
     if (Park.open) {
       Park.openedOn = Park.day;
       if (Park.gate) Park.gate.openedDay = Park.day;
       UI.notify('The park is open', 'The gates are up and the first guests are on their way.', 'good');
       Audio.play('complete');
+      // a queue was already waiting outside: opening the gates lets them in
+      // straight away rather than after a minute of nothing happening
+      this._spawnAcc = 0;
+      const waiting = Math.round(clamp(3 + Park.rating * .03 + Park.attractions().length * 1.5, 3, 14));
+      for (let k = 0; k < waiting; k++) this.spawnGuest();
     } else {
       UI.notify('The park is closed', 'No new guests will arrive, and everyone inside will finish up and leave.', 'warn');
       for (const g of Park.guests) if (g.state !== 'riding' && g.state !== 'leaving') g.leavePark();
@@ -10648,11 +10674,14 @@ const Game = {
     const tol = Park.gate ? Park.gate.feeTolerance() : 1;
     const feeFactor = clamp(1.45 - Park.entryFee / ((26 + Park.rating * .55) * tol), .08, 1.7);
     const daily = 0.35 + Math.sin(clamp((hour - 8) / 13, 0, 1) * PI) * 1.5;
-    /* Arrivals are per party, and a party averages about two and a half
-       people, so the old rate was letting in well over twice what it looked
-       like. Scaled to match, and capped by how much there is to actually do. */
+    /* One call now admits a whole party rather than one person, so the rate
+       is in parties per park-minute and has to be divided by the average
+       party size — but only that. Dividing twice, as an earlier pass did,
+       left the gate barely trickling. There is also a floor: a park that is
+       open and reachable always draws somebody, so "I opened it and nothing
+       happened" can never be the outcome. */
     const perParty = 2.5;
-    const rate = attract * feeFactor * daily * .0092 / perParty * Weather.drawFactor();
+    const rate = Math.max(.06, attract * feeFactor * daily * .019 / perParty * Weather.drawFactor());
     this._arrRate = rate;
     this._spawnAcc = (this._spawnAcc || 0) + rate * dt;
     while (this._spawnAcc >= 1) {
