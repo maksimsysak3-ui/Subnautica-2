@@ -153,6 +153,8 @@ canvas#gl{position:fixed;inset:0;display:block;touch-action:none;}
 .item .n{display:block}
 .item .n{font-size:10.5px;margin-top:3px;font-weight:600}
 .item .c{display:block;font-size:9.5px;color:var(--gold);margin-top:1px;font-variant-numeric:tabular-nums;line-height:1.35}
+.bptag{display:inline-block;font-size:8.5px;letter-spacing:.09em;text-transform:uppercase;
+  padding:1px 7px;border-radius:20px;background:rgba(57,192,255,.16);color:#9fdcff;margin:3px 0 1px}
 .item.locked{opacity:.36;cursor:not-allowed}
 .item.locked:hover{transform:none;background:rgba(255,255,255,.045);border-color:var(--edge)}
 
@@ -164,6 +166,14 @@ canvas#gl{position:fixed;inset:0;display:block;touch-action:none;}
 #coasterPanel.show{display:flex}
 #cpBody{padding:10px;display:flex;flex-direction:column;gap:9px;overflow-y:auto}
 .piecegrid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.steerbox{background:rgba(0,0,0,.28);border:1px solid var(--edge);border-radius:9px;padding:9px;display:flex;flex-direction:column;gap:6px}
+.steerbox .num{min-width:88px;color:var(--accent2)}
+.steerkeys{font-size:10px;color:var(--dim);line-height:1.75;padding:2px 3px}
+.powrow{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;margin-top:3px}
+.pw{padding:5px 2px;border-radius:6px;border:1px solid var(--edge);background:rgba(255,255,255,.05);
+  color:var(--dim);font-family:inherit;font-size:10px;cursor:pointer;transition:.12s}
+.pw:hover{background:rgba(255,255,255,.12);color:var(--txt)}
+.pw.on{background:linear-gradient(180deg,#c99a2a,#8a6a1a);border-color:#ffd76a;color:#fff}
 .pc{
   aspect-ratio:1;border-radius:8px;background:rgba(255,255,255,.05);
   border:1px solid var(--edge);display:flex;align-items:center;justify-content:center;
@@ -462,7 +472,7 @@ table.tb tr:hover td{background:rgba(255,255,255,.04)}
     <div class="gbar"><div class="gfill" id="gFill"></div></div>
     <div class="glab" id="gLab">0.0 G</div>
     <div class="spd"><div class="n" id="rcSpd">0</div><div class="u">KM / H</div></div>
-    <div class="exit">On-Ride Camera — <kbd>Esc</kbd> exit · <kbd>C</kbd> chase / front seat</div>
+    <div class="exit">On-Ride Camera &mdash; <kbd>Esc</kbd> exit &middot; <kbd>C</kbd> chase / front seat / side-on &middot; <kbd>Scroll</kbd> distance</div>
   </div>
 
   <div id="modalWrap"><div id="modal" class="panel">
@@ -3020,53 +3030,81 @@ const Prefab = {
    ========================================================================== */
 const BLUEPRINTS = [
   {
-    id: 'thunderbolt', name: 'Thunderbolt', type: 'steel', price: 11,
-    desc: 'Lift hill, a big first drop and a vertical loop.',
-    seq: ['lift', 'lift', 'lift', 'lift', 'lift', 'lift', 'lift', 'lift', 'level', 'steepdn', 'steepdn',
-      'level', 'loop', 'right', 'right', 'right', 'camel', 'right', 'right', 'right', 'camel', 'brake']
+    id: 'thunderbolt', name: 'Thunderbolt', type: 'steel', price: 12, tag: 'Looper',
+    desc: 'Chain lift, a plunging first drop, a vertical loop and a corkscrew finish.',
+    seq: ['lift', 'lift', 'lift', 'lift', 'lift', 'lift', 'lift', 'lift', 'lift', 'level',
+      'steepdn', 'steepdn', 'level', 'loop', 'right', 'right', 'camel', 'corkr',
+      'right', 'right', 'camel', 'photo', 'right', 'brake']
   },
   {
-    id: 'timberline', name: 'Timberline', type: 'wooden', price: 9,
-    desc: 'A compact woodie built around airtime hills.',
-    seq: ['lift', 'lift', 'lift', 'lift', 'lift', 'lift', 'lift', 'level', 'steepdn', 'level',
-      'camel', 'right', 'right', 'right', 'camel', 'right', 'right', 'right', 'camel', 'brake']
+    id: 'timberline', name: 'Timberline', type: 'wooden', price: 10, tag: 'Airtime',
+    desc: 'A rattling out-and-back woodie: hill after hill after hill.',
+    seq: ['lift', 'lift', 'lift', 'lift', 'lift', 'lift', 'lift', 'lift', 'level', 'steepdn', 'level',
+      'camel', 'camel', 'right', 'right', 'right', 'camel', 'sbendr', 'camel',
+      'right', 'right', 'right', 'camel', 'brake']
   },
   {
-    id: 'skyhawk', name: 'Sky Hawk', type: 'hyper', price: 14,
-    desc: 'Hyper-coaster: huge first drop, long floating hills.',
+    id: 'skyhawk', name: 'Sky Hawk', type: 'hyper', price: 15, tag: 'Hyper',
+    desc: 'Enormous first drop and long floating hills at speed.',
     seq: ['lift', 'lift', 'lift', 'lift', 'lift', 'lift', 'lift', 'lift', 'lift', 'lift', 'level',
-      'steepdn', 'steepdn', 'level', 'right', 'right', 'right', 'camel', 'right', 'right', 'right', 'camel', 'brake']
+      'steepdn', 'steepdn', 'level', 'right', 'right', 'right', 'camel', 'camel',
+      'obankr', 'camel', 'right', 'right', 'camel', 'photo', 'brake']
   },
   {
-    id: 'nightshade', name: 'Nightshade', type: 'inverted', price: 13,
-    desc: 'Inverted layout with a loop and a corkscrew.',
+    id: 'nightshade', name: 'Nightshade', type: 'inverted', price: 14, tag: 'Inverted',
+    desc: 'Feet dangling through a loop, an Immelmann and a corkscrew.',
     seq: ['lift', 'lift', 'lift', 'lift', 'lift', 'lift', 'lift', 'lift', 'level', 'steepdn', 'steepdn',
-      'level', 'loop', 'lturn', 'lturn', 'corkl', 'lturn', 'camel', 'brake']
+      'level', 'loop', 'lturn', 'lturn', 'immel', 'lturn', 'corkl', 'lturn', 'camel', 'brake']
   },
   {
-    id: 'boosterbolt', name: 'Booster Bolt', type: 'launch', price: 12,
-    desc: 'No lift hill: booster straights wind it up into a rise and a drop.',
+    id: 'boosterbolt', name: 'Booster Bolt', type: 'launch', price: 13, tag: 'Launched',
+    desc: 'No lift hill at all: booster straights fling it into a top hat.',
     seq: ['booster', 'booster2', 'steepup', 'steepup', 'level', 'right', 'right', 'right',
       'camel', 'barrel', 'right', 'right', 'right', 'camel', 'booster', 'brake']
   },
   {
-    id: 'prospector', name: 'Prospector Run', type: 'mine', price: 8,
-    desc: 'A gentle mine train twisting along at low level.',
+    id: 'prospector', name: 'Prospector Run', type: 'mine', price: 9, tag: 'Family',
+    desc: 'A runaway mine train weaving along at treetop level.',
     seq: ['lift', 'lift', 'lift', 'lift', 'lift', 'level', 'steepdn', 'level', 'sbendr',
-      'right', 'right', 'right', 'camel', 'right', 'right', 'right', 'brake']
+      'right', 'right', 'right', 'camel', 'sbendl', 'right', 'right', 'right', 'camel', 'brake']
   },
   {
-    id: 'juniorjet', name: 'Junior Jet', type: 'family', price: 5,
-    desc: 'A small family coaster with forces everyone can handle.',
+    id: 'juniorjet', name: 'Junior Jet', type: 'family', price: 6, tag: 'Family',
+    desc: 'Small, smooth and gentle. Everyone in the park can ride this one.',
     seq: ['lift', 'lift', 'lift', 'lift', 'level', 'steepdn', 'level', 'camel',
-      'right', 'right', 'right', 'camel', 'right', 'right', 'right', 'brake']
+      'right', 'right', 'right', 'camel', 'sbendl', 'right', 'right', 'right', 'brake']
   },
   {
-    id: 'vortex', name: 'Vortex', type: 'giga', price: 16,
-    desc: 'Giga scale: an enormous climb, a plunging drop and a zero-g roll.',
+    id: 'vortex', name: 'Vortex', type: 'giga', price: 18, tag: 'Giga',
+    desc: 'Giga scale. A vast climb, a near-vertical plunge and a zero-g roll.',
     seq: ['lift', 'lift', 'lift', 'lift', 'lift', 'lift', 'lift', 'lift', 'lift', 'lift', 'lift', 'level',
       'steepdn', 'steepdn', 'level', 'right', 'right', 'right', 'camel', 'zerog',
-      'right', 'right', 'right', 'camel', 'brake']
+      'right', 'right', 'camel', 'obankr', 'camel', 'photo', 'brake']
+  },
+  {
+    id: 'kraken', name: 'The Kraken', type: 'dive', price: 17, tag: 'Dive',
+    desc: 'Hangs you over the edge, then drops beyond vertical into a dive loop.',
+    seq: ['lift', 'lift', 'lift', 'lift', 'lift', 'lift', 'lift', 'lift', 'lift', 'level',
+      'vertdn', 'level', 'diveloop', 'right', 'right', 'camel', 'immel',
+      'right', 'right', 'camel', 'brake']
+  },
+  {
+    id: 'wingman', name: 'Wingman', type: 'wing', price: 16, tag: 'Wing',
+    desc: 'Seats out either side of the rail, threading overbanks and rolls.',
+    seq: ['lift', 'lift', 'lift', 'lift', 'lift', 'lift', 'lift', 'lift', 'level', 'steepdn', 'level',
+      'obankr', 'camel', 'zerog', 'right', 'right', 'obankl', 'camel', 'right', 'brake']
+  },
+  {
+    id: 'sidewinder', name: 'Sidewinder', type: 'spin', price: 11, tag: 'Spinning',
+    desc: 'Free-spinning cars through a twisting, low-level maze of turns.',
+    seq: ['lift', 'lift', 'lift', 'lift', 'lift', 'lift', 'lift', 'lift', 'level', 'steepdn', 'level',
+      'sbendr', 'right', 'right', 'camel', 'sbendl', 'right', 'right', 'camel', 'brake']
+  },
+  {
+    id: 'whitelightning', name: 'White Lightning', type: 'mouse', price: 8, tag: 'Wild Mouse',
+    desc: 'Single cars, blind hairpins and hops. Slow, and far scarier than it looks.',
+    seq: ['lift', 'lift', 'lift', 'lift', 'lift', 'level', 'left', 'left', 'left', 'right', 'right', 'right',
+      'steepdn', 'level', 'left', 'left', 'camel', 'right', 'right', 'camel', 'brake']
   },
 ];
 
@@ -3143,6 +3181,9 @@ const PIECES = [
   { id: 'holdbrake', n: 'Holding Brake', len: 10, y: 0, p: 0, r: 0, cost: 900, brake: true, hold: true, group: 'service' },
   { id: 'booster', n: 'Booster Straight', len: 16, y: 0, p: 0, r: 0, cost: 1300, boost: 22, group: 'service' },
   { id: 'booster2', n: 'Power Straight', len: 16, y: 0, p: 0, r: 0, cost: 1900, boost: 32, group: 'service' },
+  /* The freehand piece: its shape comes from the steering controls, so it is
+     never picked from the palette. */
+  { id: 'freehand', n: 'Freehand', len: 10, y: 0, p: 0, r: 0, cost: 260, group: 'hidden', freehand: true },
 ];
 const PIECE_BY_ID = {}; PIECES.forEach(p => PIECE_BY_ID[p.id] = p);
 
@@ -3152,6 +3193,7 @@ class Track {
   constructor(type, x, y, z, yaw) {
     this.type = type;
     this.pieces = [];
+    this.custom = [];                       // freehand piece definitions, by value
     this.start = { x, y, z, yaw };
     this.samples = [];
     this.length = 0;
@@ -4855,7 +4897,8 @@ const UI = {
           const type = CAT.coasterTypes.find(t => t.id === it.type);
           const est = 6000 + it.seq.reduce((a, p) => a + (PIECE_BY_ID[p] ? PIECE_BY_ID[p].cost : 0), 0);
           return `<img class="th" src="${Thumbs.coasterType(type)}" alt=""><span class="n">${it.name}</span>` +
-            `<span class="c">${money(est)}</span><span class="c" style="color:var(--dim);font-size:9px">${it.desc}</span>`;
+            `<span class="bptag">${it.tag}</span>` +
+            `<span class="c">${money(est)}</span><span class="c" style="color:var(--dim);font-size:9px;line-height:1.4">${it.desc}</span>`;
         },
         (it, d) => { this.pick(it, d); Coaster.beginBlueprint(it); });
       addGrid('Build Your Own', CAT.coasterTypes, 'grid2',
@@ -5463,6 +5506,15 @@ const Coaster = {
   placing: null,       // track type awaiting station placement
   piece: 'straight',
   autoBank: true,
+  /* ---- freehand steering ---------------------------------------------
+     turn / climb / roll are held between placements, so holding a key and
+     tapping space draws a continuous shape instead of stamping fixed
+     pieces one at a time. */
+  freehand: true,
+  steer: { turn: 0, climb: 0, roll: 0, len: 10, power: '' },
+  followCam: true,
+  savedCam: null,
+  history: [],
   ghostMesh: null,
   ghostOK: false,
   ghostSamples: null,
@@ -5489,7 +5541,7 @@ const Coaster = {
     let rejected = 0;
     for (const pid of bp.seq) {
       const before = c.track.pieces.length;
-      this.piece = pid; this.add();
+      this.add(pid);
       if (c.track.pieces.length === before) rejected++;
     }
     this.autoComplete();
@@ -5580,39 +5632,81 @@ const Coaster = {
 
   enter(c) {
     this.active = c;
+    this.freehand = true;
     Game.select(null);
     $('#coasterPanel').classList.add('show');
+    this.savedCam = { tx: Cam.tx, tz: Cam.tz, ty: Cam.ty, dist: Cam.distT, pitch: Cam.pitch };
     this.refresh();
     Cam.tx = c.x; Cam.tz = c.z;
+    Cam.distT = 46; Cam.pitch = clamp(Cam.pitch, .38, .8);
+    if (!c.track.complete) this.frameHead();
+    UI.hint('Steer with the <b>arrow keys</b> and press <kbd>Space</kbd> to lay track. <kbd>Backspace</kbd> undoes.', true);
   },
   exit() {
+    if (this.savedCam) {
+      Cam.tx = this.savedCam.tx; Cam.tz = this.savedCam.tz;
+      Cam.distT = Math.max(this.savedCam.dist, 70); Cam.pitch = this.savedCam.pitch;
+      this.savedCam = null;
+    }
     this.active = null; this.placing = null; this.blueprint = null;
     $('#coasterPanel').classList.remove('show');
     if (this.ghostMesh) { this.ghostMesh.dispose(); this.ghostMesh = null; }
   },
   refresh() {
     const c = this.active; if (!c) return;
+    requestAnimationFrame(() => this.refreshSteer());
     const b = $('#cpBody');
     const t = c.track;
     const close = t.closeError();
     let h = `<div style="font-size:12px;font-weight:700">${c.name}</div>`;
     h += `<div style="font-size:10.5px;color:var(--dim);margin-top:-4px">${c.type.name} · ${t.pieces.length} pieces · ${Math.round(t.length)} m</div>`;
 
+    const sl = (k, min, max, step) =>
+      `<input type="range" id="sl_${k}" min="${min}" max="${max}" step="${step}" value="${this.steer[k]}"
+        oninput="Coaster.setSteer('${k}',this.value)">`;
+    h += `<div class="cat">Shape the next piece</div>
+      <div class="steerbox">
+        <div class="row"><label>Turn</label>${sl('turn', -1, 1, .05)}<span class="num" id="shTurn"></span></div>
+        <div class="row"><label>Climb</label>${sl('climb', -1, 1, .05)}<span class="num" id="shClimb"></span></div>
+        <div class="row"><label>Roll</label>${sl('roll', -1, 1, .05)}<span class="num" id="shRoll"></span></div>
+        <div class="row"><label>Length</label>${sl('len', 4, 34, 1)}<span class="num" id="shLen"></span></div>
+        <div class="powrow">
+          ${[['', 'Plain'], ['lift', 'Chain lift'], ['brake', 'Brakes'], ['boost', 'Booster']].map(([k, lab]) =>
+        `<button class="pw ${this.steer.power === k ? 'on' : ''}" onclick="Coaster.setPower('${k}')">${lab}</button>`).join('')}
+        </div>
+        <div class="kv" style="margin-top:5px"><span class="k">At the build head</span><span class="v"><span id="shSpeed"></span> &middot; <span id="shHeight"></span></span></div>
+        <div class="kv"><span class="k">Cost of this piece</span><span class="v" id="shCost"></span></div>
+      </div>
+      <div class="steerkeys">
+        <b style="color:#cfe3f5">Drag on the park to shape the track</b> &mdash; sideways bends,
+        up and down climbs, release to lay it.<br>
+        <kbd>Shift</kbd>+drag rolls &nbsp; <kbd>Ctrl</kbd>+drag changes length<br>
+        <kbd>&larr;</kbd><kbd>&rarr;</kbd> turn &nbsp; <kbd>&uarr;</kbd><kbd>&darr;</kbd> climb &nbsp;
+        <kbd>,</kbd><kbd>.</kbd> roll &nbsp; <kbd>-</kbd><kbd>=</kbd> length<br>
+        <kbd>Space</kbd> lay &nbsp; <kbd>Backspace</kbd> undo &nbsp; <kbd>0</kbd> straighten &nbsp; <kbd>P</kbd> lift / brake
+      </div>
+      <div class="btnrow">
+        <button class="btn go" onclick="Coaster.add()">${ICON.plus}Lay Piece</button>
+        <button class="btn" onclick="Coaster.resetSteer()">Straighten</button>
+      </div>
+      <div class="row"><label>Follow head</label><input type="checkbox" ${this.followCam ? 'checked' : ''} onchange="Coaster.followCam=this.checked;if(this.checked)Coaster.frameHead()"></div>`;
+
+    h += `<div class="cat" style="margin-top:8px">Or stamp a ready-made piece</div>`;
     const GROUPS = [['basic', 'Straight'], ['turn', 'Turns & Banking'], ['hill', 'Hills & Drops'], ['special', 'Inversions & Specials'], ['service', 'Lifts, Launches & Brakes']];
     for (const [gid, label] of GROUPS) {
-      const list = PIECES.filter(p => (p.group || 'basic') === gid);
+      const list = PIECES.filter(p => (p.group || 'basic') === gid && gid !== 'hidden');
       if (!list.length) continue;
       h += `<div class="cat">${label}</div><div class="piecegrid">`;
       for (const p of list) {
         const lk = !Progress.pieceUnlocked(p);
-        h += `<div class="pc ${this.piece === p.id ? 'on' : ''}${lk ? ' locked' : ''}" ${lk ? '' : `onclick="Coaster.setPiece('${p.id}')"`}>` +
+        h += `<div class="pc ${(!this.freehand && this.piece === p.id) ? 'on' : ''}${lk ? ' locked' : ''}" ${lk ? '' : `onclick="Coaster.setPiece('${p.id}')"`}>` +
           `<img src="${Thumbs.piece(p)}" alt="" ${lk ? 'style="opacity:.28"' : ''}><span class="tip">${p.n} &middot; ${money(p.cost)}${lk ? ' &middot; locked' : ''}</span></div>`;
       }
       h += `</div>`;
     }
 
-    h += `<div class="btnrow"><button class="btn go" onclick="Coaster.add()">${ICON.plus}Add Piece</button>
-          <button class="btn" onclick="Coaster.undo()" ${t.pieces.length <= 3 ? 'disabled' : ''}>${ICON.undo}Undo</button></div>`;
+    h += `<div class="btnrow"><button class="btn" onclick="Coaster.undo()" ${t.pieces.length <= 3 ? 'disabled' : ''}>${ICON.undo}Undo</button>
+          <button class="btn dan" onclick="Coaster.undoAll()" ${t.pieces.length <= 3 ? 'disabled' : ''}>Clear track</button></div>`;
     h += `<div class="row"><label>Auto‑bank</label><input type="checkbox" ${this.autoBank ? 'checked' : ''} onchange="Coaster.autoBank=this.checked"></div>`;
 
     h += `<div class="meterbox">
@@ -5646,17 +5740,35 @@ const Coaster = {
     }
     b.innerHTML = h;
   },
-  setPiece(id) { this.piece = id; this.refresh(); },
+  setPiece(id) { this.piece = id; this.freehand = false; this._ghostKey = null; this.refresh(); },
   setTrains(n) {
     const c = this.active; if (!c) return;
     c.spawnTrains(clamp(+n, 1, 3));
     this.refresh();
   },
+  /* The definition of the next piece: either a palette entry or the live
+     freehand shape described by the steering controls. */
+  nextDef() {
+    if (!this.freehand) return PIECE_BY_ID[this.piece];
+    const st = this.steer;
+    return {
+      id: 'freehand', n: 'Freehand', freehand: true, group: 'hidden',
+      len: st.len,
+      y: st.turn * 30,
+      p: st.climb * 32,
+      r: st.roll * 45,
+      lift: st.power === 'lift',
+      brake: st.power === 'brake',
+      boost: st.power === 'boost' ? 24 : 0,
+      cost: Math.round(120 + st.len * 14 + Math.abs(st.turn) * 90 + Math.abs(st.climb) * 110 + Math.abs(st.roll) * 70
+        + (st.power === 'lift' ? 260 : st.power === 'brake' ? 220 : st.power === 'boost' ? 900 : 0)),
+    };
+  },
   currentGhost() {
     const c = this.active; if (!c || c.track.complete) return null;
-    const def = PIECE_BY_ID[this.piece];
+    const def = this.nextDef();
     const s = Track.integrate(c.track.endFrame(), def, null, c.track.length, c.track.pieces.length,
-      { autoBank: this.autoBank });
+      { autoBank: this.autoBank && !def.freehand });
     let ok = true;
     for (const p of s) {
       if (p.p.y - WORLD.hAt(p.p.x, p.p.z) < 0.6) ok = false;
@@ -5666,30 +5778,157 @@ const Coaster = {
     if (Park.money < def.cost) ok = false;
     return { samples: s, ok };
   },
-  add() {
+  /* `forceId` lays a specific catalogue piece regardless of the freehand
+     controls — used by blueprints and by the palette buttons. */
+  add(forceId) {
     const c = this.active; if (!c || c.track.complete) return;
-    const def0 = PIECE_BY_ID[this.piece];
-    if (!Progress.pieceUnlocked(def0)) {
-      UI.notify('Locked', def0.n + ' unlocks as your park levels up.', 'warn'); Audio.play('error'); return;
+    const def = forceId ? PIECE_BY_ID[forceId] : this.nextDef();
+    if (!def) return;
+    if (!def.freehand && !Progress.pieceUnlocked(def)) {
+      UI.notify('Locked', def.n + ' unlocks as your park levels up.', 'warn'); Audio.play('error'); return;
     }
-    const gh = this.currentGhost();
-    if (!gh || !gh.ok) { UI.notify('Cannot build', 'That piece would leave the park, hit the ground or you cannot afford it.', 'warn'); Audio.play('error'); return; }
-    const def = PIECE_BY_ID[this.piece];
+    const gh = forceId ? { ok: this.validSamples(Track.integrate(c.track.endFrame(), def, null, c.track.length, c.track.pieces.length, { autoBank: this.autoBank })) } : this.currentGhost();
+    if (!gh || !gh.ok) {
+      UI.hint('<b style="color:#ff8f8f">That would hit the ground, leave your land or cost more than you have</b>', true);
+      Audio.play('error'); return;
+    }
     Park.spend(def.cost);
-    c.track.append(this.piece, { autoBank: this.autoBank });
+    if (def.freehand && !forceId) {
+      // freehand pieces are stored by value so undo and reload rebuild them exactly
+      const key = 'fh' + (c.track.custom.length);
+      c.track.custom.push(def);
+      PIECE_BY_ID[key] = Object.assign({}, def, { id: key });
+      c.track.append(key, { autoBank: false });
+    } else {
+      c.track.append(def.id, { autoBank: this.autoBank });
+    }
     this.rebuild();
     Audio.play('place');
     this.refresh();
+    if (this.followCam) this.frameHead();
   },
   undo() {
     const c = this.active; if (!c) return;
     if (c.track.pieces.length <= 3) { UI.notify('Station', 'The station section cannot be removed.', 'warn'); return; }
     const id = c.track.pieces[c.track.pieces.length - 1];
     c.track.removeLast();
-    Park.money += Math.round(PIECE_BY_ID[id].cost * .7);
+    const d = PIECE_BY_ID[id];
+    Park.money += Math.round((d ? d.cost : 200) * .7);
     c.state = 'building'; c.openR = false;
     this.rebuild();
     this.refresh();
+    if (this.followCam) this.frameHead();
+  },
+  undoAll() {
+    const c = this.active; if (!c) return;
+    let n = 0;
+    while (c.track.pieces.length > 3) { const id = c.track.pieces[c.track.pieces.length - 1]; c.track.removeLast(); const d = PIECE_BY_ID[id]; Park.money += Math.round((d ? d.cost : 200) * .7); n++; }
+    c.track.complete = false; c.state = 'building'; c.openR = false;
+    this.rebuild(); this.refresh();
+    if (n) UI.notify('Track cleared', n + ' pieces removed and refunded.', '');
+    if (this.followCam) this.frameHead();
+  },
+
+  /* Keep the camera on the end of the track while building. */
+  frameHead() {
+    const c = this.active; if (!c || !this.followCam) return;
+    const f = c.track.endFrame();
+    Cam.tx = f.p.x - f.f.x * 6;
+    Cam.tz = f.p.z - f.f.z * 6;
+    Cam.ty = f.p.y;
+    Cam.distT = clamp(Cam.distT, 26, 72);
+  },
+  setSteer(k, v) {
+    this.steer[k] = +v;
+    this._ghostKey = null;
+    this.refreshSteer();
+  },
+  nudgeSteer(k, d) {
+    const lim = k === 'len' ? [4, 34] : [-1, 1];
+    this.steer[k] = clamp(this.steer[k] + d, lim[0], lim[1]);
+    this._ghostKey = null;
+    this.refreshSteer();
+  },
+  resetSteer() { this.steer.turn = 0; this.steer.climb = 0; this.steer.roll = 0; this._ghostKey = null; this.refreshSteer(); },
+  setPower(p) { this.steer.power = this.steer.power === p ? '' : p; this._ghostKey = null; this.refresh(); },
+  cyclePower() {
+    const order = ['', 'lift', 'brake', 'boost'];
+    this.steer.power = order[(order.indexOf(this.steer.power) + 1) % order.length];
+    this._ghostKey = null; this.refresh();
+    UI.hint('Track section: <b>' + (this.steer.power === 'lift' ? 'chain lift' : this.steer.power === 'brake' ? 'brakes'
+      : this.steer.power === 'boost' ? 'booster' : 'plain track') + '</b>');
+  },
+
+  /* ---- direct manipulation ------------------------------------------
+     Press and drag on the park to shape the next piece: sideways bends it,
+     up and down climbs and dives, and the piece is laid on release. ---- */
+  dragging: false, dragMoved: 0, dragBase: null,
+  beginShapeDrag() {
+    if (!this.active || this.active.track.complete) return false;
+    this.dragging = true; this.dragMoved = 0;
+    this.dragBase = { turn: this.steer.turn, climb: this.steer.climb, roll: this.steer.roll, len: this.steer.len };
+    return true;
+  },
+  shapeDrag(dx, dy, mods) {
+    if (!this.dragging) return;
+    this.dragMoved += Math.abs(dx) + Math.abs(dy);
+    const b = this.dragBase;
+    if (mods.shift) {
+      this.steer.roll = clamp(b.roll + dx * .006, -1, 1);
+    } else if (mods.ctrl || mods.alt) {
+      this.steer.len = clamp(b.len + dx * .08, 4, 34);
+    } else {
+      this.steer.turn = clamp(b.turn + dx * .0055, -1, 1);
+      this.steer.climb = clamp(b.climb - dy * .0055, -1, 1);
+    }
+    this._ghostKey = null;
+    this.refreshSteer();
+  },
+  endShapeDrag() {
+    if (!this.dragging) return false;
+    this.dragging = false;
+    const laid = this.dragMoved > 4;      // a real drag lays the piece; a stray click does not
+    if (laid) this.add();
+    return laid;
+  },
+  /* Update just the steering read-outs without rebuilding the whole panel. */
+  refreshSteer() {
+    const set = (id, v) => { const e = document.getElementById(id); if (e) e.textContent = v; };
+    const st = this.steer;
+    set('shTurn', (st.turn === 0 ? 'straight' : (st.turn < 0 ? 'left ' : 'right ') + Math.abs(st.turn * 30).toFixed(0) + '\u00B0'));
+    set('shClimb', (st.climb === 0 ? 'level' : (st.climb > 0 ? 'up ' : 'down ') + Math.abs(st.climb * 32).toFixed(0) + '\u00B0'));
+    set('shRoll', (st.roll === 0 ? 'flat' : (st.roll < 0 ? 'bank left ' : 'bank right ') + Math.abs(st.roll * 45).toFixed(0) + '\u00B0'));
+    set('shLen', st.len.toFixed(0) + ' m');
+    ['turn', 'climb', 'roll', 'len'].forEach(k => { const e = document.getElementById('sl_' + k); if (e && +e.value !== st[k]) e.value = st[k]; });
+    const d = this.nextDef();
+    set('shCost', money(d.cost));
+    const c = this.active;
+    if (c) {
+      const f = c.track.endFrame();
+      set('shHeight', (f.p.y - c.y).toFixed(1) + ' m');
+      set('shSpeed', Math.round(this.headSpeed() * 3.6) + ' km/h');
+    }
+  },
+  /* Roughly how fast a train would be going at the build head right now. */
+  headSpeed() {
+    const c = this.active; if (!c || !c.track.samples.length) return 0;
+    const T = c.type;
+    let v = 3.5;
+    const S = c.track.samples;
+    for (let i = 1; i < S.length; i++) {
+      const a = S[i - 1], bq = S[i];
+      const ds = bq.d - a.d;
+      if (bq.lift) v = Math.max(v, 6.2);
+      else if (bq.boost) v = Math.max(v, bq.boost);
+      else if (bq.launch) v = Math.min(T.maxSpeed, v + 3);
+      else if (bq.brake) v = Math.max(4, v - ds * 1.4);
+      else {
+        const acc = -G * Math.sin(bq.pitch) - T.fric * v * v - .07;
+        v = Math.sqrt(Math.max(.36, v * v + 2 * acc * ds));
+      }
+      v = Math.min(v, T.maxSpeed * 1.25);
+    }
+    return v;
   },
   complete() {
     const c = this.active; if (!c) return;
@@ -5905,7 +6144,9 @@ const Coaster = {
     }
     const gh = this.currentGhost();
     if (!gh) return;
-    const key = this.piece + '|' + this.active.track.pieces.length + '|' + (this.autoBank ? 1 : 0);
+    const st = this.steer;
+    const key = (this.freehand ? 'F' + st.turn + ',' + st.climb + ',' + st.roll + ',' + st.len + ',' + st.power : this.piece)
+      + '|' + this.active.track.pieces.length + '|' + (this.autoBank ? 1 : 0);
     if (key !== this._ghostKey) {
       this._ghostKey = key;
       if (this.ghostMesh) this.ghostMesh.dispose();
@@ -6688,6 +6929,10 @@ const Game = {
       // resolve what is under the cursor for THIS position before acting on it
       this.updateHover();
       if (e.button !== 0) Cam.beginDrag(this.R, e.clientX, e.clientY, e.button === 1 || e.ctrlKey || e.altKey);
+      if (e.button === 0 && Coaster.active && !Coaster.active.track.complete && Cam.mode === 'orbit') {
+        Coaster.beginShapeDrag();
+        return;
+      }
       if (e.button === 0 && Cam.mode === 'orbit') this.pointerAction(e, true);
     });
     cv.addEventListener('pointermove', e => {
@@ -6697,16 +6942,23 @@ const Game = {
       this.updateHover();
       if (this.mouse.down && (this.mouse.btn === 2 || this.mouse.btn === 1)) {
         Cam.dragTo(this.R, e.clientX, e.clientY, dx, dy);
+      } else if (Coaster.dragging) {
+        Coaster.shapeDrag(dx, dy, { shift: e.shiftKey, ctrl: e.ctrlKey, alt: e.altKey });
       } else if (this.mouse.down && this.mouse.btn === 0 && Cam.mode === 'orbit') {
         this.pointerAction(e, false);
       }
     });
     cv.addEventListener('pointerup', e => {
-      if (this.mouse.down && this.mouse.btn === 0 && this.mouse.moved < 6) this.click(e);
+      const shaped = Coaster.endShapeDrag();
+      if (!shaped && this.mouse.down && this.mouse.btn === 0 && this.mouse.moved < 6) this.click(e);
       this.mouse.down = false; this.paintStart = null; Cam.endDrag();
     });
-    cv.addEventListener('pointercancel', () => { this.mouse.down = false; Cam.endDrag(); });
-    cv.addEventListener('wheel', e => { e.preventDefault(); Cam.zoom(e.deltaY, this.hoverPoint); }, { passive: false });
+    cv.addEventListener('pointercancel', () => { this.mouse.down = false; Coaster.dragging = false; Cam.endDrag(); });
+    cv.addEventListener('wheel', e => {
+      e.preventDefault();
+      if (Cam.mode === 'ride') { this.rideCamDist = clamp((this.rideCamDist || 1) * (1 + e.deltaY * .0011), .45, 3.2); return; }
+      Cam.zoom(e.deltaY, this.hoverPoint);
+    }, { passive: false });
 
     window.addEventListener('keydown', e => {
       this.keys[e.key.toLowerCase()] = true;
@@ -6714,6 +6966,20 @@ const Game = {
       if (e.ctrlKey || e.metaKey) {
         if (k === 's') { e.preventDefault(); this.save(); return; }
         if (k === 'l') { e.preventDefault(); this.load(); return; }
+      }
+      if (Coaster.active && !Coaster.active.track.complete) {
+        const S = 0.1;
+        if (k === 'arrowleft') { e.preventDefault(); Coaster.nudgeSteer('turn', -S); return; }
+        if (k === 'arrowright') { e.preventDefault(); Coaster.nudgeSteer('turn', S); return; }
+        if (k === 'arrowup') { e.preventDefault(); Coaster.nudgeSteer('climb', S); return; }
+        if (k === 'arrowdown') { e.preventDefault(); Coaster.nudgeSteer('climb', -S); return; }
+        if (k === ',') { Coaster.nudgeSteer('roll', -S); return; }
+        if (k === '.') { Coaster.nudgeSteer('roll', S); return; }
+        if (k === '-') { Coaster.nudgeSteer('len', -2); return; }
+        if (k === '=' || k === '+') { Coaster.nudgeSteer('len', 2); return; }
+        if (k === '0') { Coaster.resetSteer(); return; }
+        if (k === 'p') { Coaster.cyclePower(); return; }
+        if (k === ' ') { e.preventDefault(); Coaster.add(); return; }
       }
       if (k === 'escape') {
         if (Cam.mode === 'ride') { this.exitRideCam(); return; }
@@ -6729,8 +6995,9 @@ const Game = {
       if (k === 'h') { UI.help(); return; }
       if (k === 'o') { $('#goals').classList.toggle('show'); return; }
       if (k === 'c' && Cam.mode === 'ride') {
-        this.rideCamMode = ((this.rideCamMode || 0) + 1) % 2;
-        UI.hint(this.rideCamMode === 0 ? 'Chase camera' : 'Front-seat camera');
+        this.rideCamMode = ((this.rideCamMode || 0) + 1) % 3;
+        this._rcInit = false;
+        UI.hint(['Chase camera', 'Front-seat camera', 'Side-on camera'][this.rideCamMode]);
         return;
       }
       if (k === ' ') { e.preventDefault(); this.setSpeed(this.speed === 0 ? 1 : 0); return; }
@@ -7083,6 +7350,8 @@ const Game = {
     const c = Park.coasters.find(x => x.id === id);
     if (!c || !c.track || !c.track.complete) return;
     this.rideCamTarget = c;
+    this._rcInit = false;
+    this.rideCamDist = this.rideCamDist || 1;
     Cam.mode = 'ride';
     $('#ridecam').classList.add('show');
     document.body.classList.add('ridemode');
@@ -7273,25 +7542,67 @@ const Game = {
   updateRideCam(dt) {
     const c = this.rideCamTarget;
     if (!c || !c.trains.length) { this.exitRideCam(); return; }
-    const tr = c.trains[0];
-    const car = tr.cars[Math.min(this.rideCamCar, tr.cars.length - 1)];
+    // watch whichever train is actually out on the circuit
+    let tr = c.trains.find(t => t.state === 'run') || c.trains[0];
+    const car = tr.cars[0];
     const m = car.m;
     const fx = m[8], fy = m[9], fz = m[10];
     const ux = m[4], uy = m[5], uz = m[6];
-    // 0 = chase camera above and behind the train, 1 = front-seat view
-    const chase = (this.rideCamMode || 0) === 0;
-    const up = chase ? 4.4 : 2.2;
-    const back = chase ? -8.5 : 1.1;
-    Cam.ridePos.x = m[12] + ux * up + fx * back;
-    Cam.ridePos.y = m[13] + uy * up + fy * back;
-    Cam.ridePos.z = m[14] + uz * up + fz * back;
-    const lookAhead = chase ? 14 : 12, lookDown = chase ? -2.2 : 0;
-    Cam.rideLook.x = Cam.ridePos.x + fx * lookAhead + ux * lookDown;
-    Cam.rideLook.y = Cam.ridePos.y + fy * lookAhead + uy * lookDown;
-    Cam.rideLook.z = Cam.ridePos.z + fz * lookAhead + uz * lookDown;
-    V3.set(Cam.rideUp, ux, uy, uz);
-    Cam.fov = lerp(52, 76, clamp(tr.v / 45, 0, 1)) * DEG;
-    Cam.shake = clamp(tr.v / 40, 0, 1) * 1.2;
+    const rx = m[0], ry = m[1], rz = m[2];
+    const mode = this.rideCamMode || 0;     // 0 chase, 1 front seat, 2 side-on
+    const dist = this.rideCamDist || 1;
+
+    let px, py, pz, lx, ly, lz, upx = ux, upy = uy, upz = uz, fov;
+    // heading flattened onto the ground: the chase rig must not dive with
+    // the train's pitch or roll with its inversions
+    let hx = fx, hz = fz;
+    const hl = Math.hypot(hx, hz) || 1; hx /= hl; hz /= hl;
+    if (mode === 0) {
+      // sit behind the back of the whole train, not the front car
+      const trainLen = tr.cars.length * 4.2;
+      const back = (7 + trainLen * .5 + tr.v * .10) * dist, up = (6.5 + trainLen * .18 + tr.v * .05) * dist;
+      px = m[12] - hx * back;
+      py = m[13] + up;
+      pz = m[14] - hz * back;
+      // never let the rig sink into the station, the supports or the ground
+      py = Math.max(py, m[13] + 4.5, WORLD.hAt(px, pz) + 7.0);
+      lx = m[12] + hx * 5.5; ly = m[13] + 0.4; lz = m[14] + hz * 5.5;
+      upx = 0; upy = 1; upz = 0;
+      fov = lerp(46, 62, clamp(tr.v / 45, 0, 1));
+    } else if (mode === 1) {
+      // Front seat: fully in the car's frame, rolls with the track
+      px = m[12] + ux * 1.5 + fx * 1.4;
+      py = m[13] + uy * 1.5 + fy * 1.4;
+      pz = m[14] + uz * 1.5 + fz * 1.4;
+      lx = px + fx * 12; ly = py + fy * 12; lz = pz + fz * 12;
+      fov = lerp(58, 82, clamp(tr.v / 45, 0, 1));
+    } else {
+      // Side-on: a camera running alongside, level with the horizon
+      const side = 12 * dist;
+      px = m[12] + hz * side; py = m[13] + 3.4; pz = m[14] - hx * side;
+      py = Math.max(py, WORLD.hAt(px, pz) + 3.5);
+      lx = m[12]; ly = m[13] + 0.6; lz = m[14];
+      upx = 0; upy = 1; upz = 0;
+      fov = 48;
+    }
+    // smooth the whole rig so the picture is watchable instead of jittery
+    const k = mode === 1 ? 26 : 9;
+    if (!this._rcInit) {
+      V3.set(Cam.ridePos, px, py, pz); V3.set(Cam.rideLook, lx, ly, lz); this._rcInit = true;
+    } else {
+      Cam.ridePos.x = damp(Cam.ridePos.x, px, k, dt);
+      Cam.ridePos.y = damp(Cam.ridePos.y, py, k, dt);
+      Cam.ridePos.z = damp(Cam.ridePos.z, pz, k, dt);
+      Cam.rideLook.x = damp(Cam.rideLook.x, lx, k * 1.4, dt);
+      Cam.rideLook.y = damp(Cam.rideLook.y, ly, k * 1.4, dt);
+      Cam.rideLook.z = damp(Cam.rideLook.z, lz, k * 1.4, dt);
+    }
+    Cam.rideUp.x = damp(Cam.rideUp.x, upx, 12, dt);
+    Cam.rideUp.y = damp(Cam.rideUp.y, upy, 12, dt);
+    Cam.rideUp.z = damp(Cam.rideUp.z, upz, 12, dt);
+    V3.norm(Cam.rideUp, Cam.rideUp);
+    Cam.fov = fov * DEG;
+    Cam.shake = mode === 1 ? clamp(tr.v / 40, 0, 1) * 1.1 : clamp(tr.v / 60, 0, 1) * .35;
     const g = tr.g || 1;
     $('#rcSpd').textContent = Math.round(tr.v * 3.6);
     $('#gLab').textContent = g.toFixed(1) + ' G';
@@ -7373,7 +7684,7 @@ const Game = {
         t: Array.from(WORLD.type),
         objs: Park.objects.map(o => ({ k: o.kind, d: o.def.id, i: o.i, j: o.j, r: o.rot, p: o.price, open: o.openR })),
         cos: Park.coasters.map(c => ({
-          t: c.type.id, i: c.i, j: c.j, r: c.rot, pieces: c.track.pieces, done: c.track.complete,
+          t: c.type.id, i: c.i, j: c.j, r: c.rot, pieces: c.track.pieces, custom: c.track.custom, done: c.track.complete,
           price: c.price, open: c.openR, name: c.name, se: c.track.stationEnd, trains: c.trains.length
         })),
         staff: Park.staff.map(s => ({ r: s.role, x: s.x, z: s.z })),
@@ -7427,6 +7738,8 @@ const Game = {
         c.y = WORLD.tileH(s.i, s.j); c.updateMatrix();
         const a = -s.r * PI / 2, yaw = a - PI / 2;
         c.track = new Track(type, c.x - Math.cos(yaw) * 9, c.y + 1.2, c.z - Math.sin(yaw) * 9, yaw);
+        (s.custom || []).forEach((d, k) => { PIECE_BY_ID['fh' + k] = Object.assign({}, d, { id: 'fh' + k }); });
+        c.track.custom = (s.custom || []).slice();
         for (const p of s.pieces) c.track.addPiece(p);
         c.track.stationEnd = s.se || 24;
         c.track.complete = s.done;
