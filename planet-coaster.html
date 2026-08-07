@@ -2134,6 +2134,14 @@ const CAT = {
     { id: 'hatshop', name: 'Hat Stand', cost: 900, up: 15, w: 1, d: 1, need: 'shop', price: 9, satisfy: 45, color: 0x4a6fd4, roof: 0xffd76a },
     { id: 'photobooth', name: 'Photo Booth', cost: 1450, up: 24, w: 1, d: 1, need: 'shop', price: 14, satisfy: 66, color: 0x34495e, roof: 0xe74c3c },
     { id: 'locker', name: 'Locker Room', cost: 1000, up: 17, w: 2, d: 1, need: 'shop', price: 4, satisfy: 30, color: 0x7f8c8d, roof: 0x2c3e50 },
+    { id: 'ramen', name: 'Ramen House', cost: 2300, up: 33, w: 2, d: 2, need: 'hunger', price: 14, satisfy: 90, color: 0xb03a2e, roof: 0x1b2631 },
+    { id: 'crepe', name: 'Crepe Cabin', cost: 1250, up: 21, w: 2, d: 1, need: 'hunger', price: 8, satisfy: 54, color: 0xf0c060, roof: 0x8b5a2b },
+    { id: 'juice', name: 'Fresh Juice Bar', cost: 1450, up: 24, w: 2, d: 1, need: 'thirst', price: 9, satisfy: 88, color: 0xf5843c, roof: 0x2ecc71 },
+    { id: 'water', name: 'Water Fountain', cost: 380, up: 5, w: 1, d: 1, need: 'thirst', price: 0, satisfy: 46, color: 0x9fb6c4, roof: 0x5c7f92 },
+    { id: 'popup', name: 'Merch Pop-Up', cost: 1150, up: 19, w: 2, d: 1, need: 'shop', price: 15, satisfy: 52, color: 0xd94f7f, roof: 0x33334d },
+    { id: 'arcade', name: 'Arcade', cost: 3600, up: 44, w: 3, d: 2, need: 'shop', price: 10, satisfy: 74, color: 0x2b2b45, roof: 0x9b30ff },
+    { id: 'nurse', name: 'Medical Post', cost: 1800, up: 28, w: 2, d: 2, need: 'nausea', price: 0, satisfy: 100, color: 0xfafafa, roof: 0x2ecc71 },
+    { id: 'babycare', name: 'Baby Care Room', cost: 1500, up: 24, w: 2, d: 2, need: 'toilet', price: 0, satisfy: 100, color: 0xffd7e6, roof: 0x7fbfe0 },
   ],
   /* ---------------- Scenery ---------------- */
   scenery: [
@@ -2164,6 +2172,16 @@ const CAT = {
     { id: 'lights', name: 'Festoon Lights', cost: 340, up: 1.4, w: 1, d: 1, kind: 'lights', beauty: 16 },
     { id: 'banner', name: 'Banner Pole', cost: 260, up: 1, w: 1, d: 1, kind: 'banner', beauty: 12 },
     { id: 'maze', name: 'Maze Hedge', cost: 180, up: .6, w: 1, d: 1, kind: 'maze', beauty: 9 },
+    { id: 'windmill', name: 'Dutch Windmill', cost: 4200, up: 14, w: 3, d: 3, kind: 'windmill', beauty: 108 },
+    { id: 'lighthouse', name: 'Lighthouse', cost: 3800, up: 13, w: 2, d: 2, kind: 'lighthouse', beauty: 96, light: true },
+    { id: 'pagoda', name: 'Pagoda', cost: 3100, up: 11, w: 2, d: 2, kind: 'pagoda', beauty: 78 },
+    { id: 'obelisk', name: 'Obelisk', cost: 1250, up: 4, w: 1, d: 1, kind: 'obelisk', beauty: 34 },
+    { id: 'waterjet', name: 'Jet Fountain', cost: 900, up: 3, w: 1, d: 1, kind: 'waterjet', beauty: 26 },
+    { id: 'balloonarch', name: 'Balloon Arch', cost: 480, up: 2, w: 2, d: 1, kind: 'balloonarch', beauty: 22 },
+    { id: 'planter', name: 'Stone Planter', cost: 130, up: .5, w: 1, d: 1, kind: 'planter', beauty: 8 },
+    { id: 'picnic', name: 'Picnic Table', cost: 190, up: .7, w: 1, d: 1, kind: 'picnic', beauty: 7 },
+    { id: 'signpost', name: 'Signpost', cost: 150, up: .5, w: 1, d: 1, kind: 'signpost', beauty: 6 },
+    { id: 'rockgarden', name: 'Rock Garden', cost: 640, up: 2, w: 2, d: 2, kind: 'rockgarden', beauty: 30 },
   ],
   /* ---------------- Flat rides ---------------- */
   rides: [
@@ -2182,6 +2200,15 @@ const CAT = {
     { id: 'haunted', name: 'Haunted Manor', cost: 10500, up: 96, w: 4, d: 4, cap: 20, dur: 80, exc: 5.4, fear: 4.4, naus: 0.6, price: 8, kind: 'haunted' },
     { id: 'balloonride', name: 'Balloon Race', cost: 4200, up: 48, w: 4, d: 4, cap: 16, dur: 44, exc: 3.0, fear: 0.8, naus: 1.6, price: 4, kind: 'balloonride' },
     { id: 'rapids', name: 'River Rapids', cost: 13500, up: 128, w: 4, d: 4, cap: 24, dur: 72, exc: 6.8, fear: 3.6, naus: 3.4, price: 8, kind: 'rapids' },
+    { id: 'starflyer', name: 'Star Flyer', cost: 15800, up: 138, w: 4, d: 4, cap: 24, dur: 66, exc: 8.2, fear: 6.4, naus: 3.8, price: 10, kind: 'starflyer', ph: 46 },
+    { id: 'troika', name: 'Troika', cost: 7400, up: 76, w: 4, d: 4, cap: 18, dur: 48, exc: 5.6, fear: 4.2, naus: 5.8, price: 6, kind: 'troika' },
+    { id: 'disko', name: 'Disk-O', cost: 10200, up: 102, w: 5, d: 3, cap: 20, dur: 50, exc: 7.0, fear: 5.8, naus: 6.0, price: 8, kind: 'disko' },
+    { id: 'carpet', name: 'Magic Carpet', cost: 8800, up: 88, w: 4, d: 3, cap: 22, dur: 46, exc: 6.6, fear: 6.0, naus: 4.4, price: 7, kind: 'carpet' },
+    { id: 'logflume', name: 'Log Flume', cost: 14600, up: 132, w: 5, d: 4, cap: 20, dur: 78, exc: 6.9, fear: 4.0, naus: 1.8, price: 8, kind: 'logflume', water: true },
+    { id: 'ghosttrain', name: 'Ghost Train', cost: 9200, up: 88, w: 4, d: 3, cap: 16, dur: 74, exc: 5.0, fear: 3.8, naus: 0.4, price: 7, kind: 'ghosttrain' },
+    { id: 'chairlift', name: 'Scenic Chairlift', cost: 6600, up: 64, w: 3, d: 3, cap: 16, dur: 96, exc: 3.4, fear: 1.4, naus: 0.3, price: 5, kind: 'chairlift', ph: 22 },
+    { id: 'monorail', name: 'Park Monorail', cost: 12400, up: 118, w: 4, d: 4, cap: 30, dur: 110, exc: 4.0, fear: 0.6, naus: 0.2, price: 5, kind: 'monorail', ph: 20 },
+    { id: 'minigolf', name: 'Crazy Golf', cost: 3400, up: 38, w: 4, d: 4, cap: 12, dur: 120, exc: 2.8, fear: 0.2, naus: 0.1, price: 4, kind: 'minigolf' },
 
     /* ---- water park: pools ---- */
     { id: 'poolsmall', name: 'Splash Pool', cost: 3200, up: 40, w: 3, d: 3, cap: 18, dur: 90, exc: 3.4, fear: 0.4, naus: 0.2, price: 4, kind: 'pool', water: true, pool: { depth: 1.1 } },
@@ -2228,6 +2255,11 @@ const CAT = {
     { id: 'family', name: 'Family Coaster', rail: 0x39a0e0, spine: 0xfff0d0, tie: 0xd8c9a8, cars: 5, seat: 4, mass: 1, fric: .00090, maxSpeed: 22, carColor: 0xffd23f, style: 'tube' },
     { id: 'mouse', name: 'Wild Mouse', rail: 0xf0f0f0, spine: 0xd94f3c, tie: 0xb0b6bd, cars: 1, seat: 4, mass: .8, fric: .00120, maxSpeed: 20, carColor: 0xf5f5f5, style: 'tube' },
     { id: 'suspend', name: 'Suspended Swinger', rail: 0x9b59b6, spine: 0xe8dff0, tie: 0xc9b8e6, cars: 6, seat: 4, mass: 1.05, fric: .00074, maxSpeed: 38, carColor: 0x2ecc71, style: 'inverted' },
+    { id: 'hyperwood', name: 'Hybrid Hyper', rail: 0xd8d2c4, spine: 0x8b5a2b, tie: 0x6f4522, cars: 7, seat: 4, mass: 1.2, fric: .00058, maxSpeed: 54, carColor: 0x1f6f4a, style: 'wood' },
+    { id: 'flying', name: 'Flying Coaster', rail: 0x2fb0a8, spine: 0xeaf7f6, tie: 0xbfe0dc, cars: 5, seat: 4, mass: 1.0, fric: .00064, maxSpeed: 46, carColor: 0xff8c42, style: 'inverted' },
+    { id: 'shuttle', name: 'Shuttle Loop', rail: 0xf25c05, spine: 0x2e3440, tie: 0x4a5462, cars: 4, seat: 4, mass: .95, fric: .00052, maxSpeed: 56, carColor: 0x1fb6c9, style: 'tube' },
+    { id: 'bobsled', name: 'Bobsled Run', rail: 0xe8eef5, spine: 0xa8b4c2, tie: 0x7c8894, cars: 4, seat: 4, mass: 1.1, fric: .00105, maxSpeed: 34, carColor: 0xd94f3c, style: 'tube' },
+    { id: 'junior', name: 'Junior Coaster', rail: 0xffb03a, spine: 0xfff2d8, tie: 0xe0cfa8, cars: 4, seat: 4, mass: .9, fric: .00100, maxSpeed: 18, carColor: 0x6ac6f0, style: 'tube' },
   ],
 };
 /* ============================================================================
@@ -2606,6 +2638,112 @@ const Prefab = {
         const c = hex(0x2f7a3f);
         g.box(0, 0, 0, 3.8, 2.6, 1.2, c, 1.12, .92, .8);
         g.box(0, 2.6, 0, 3.4, .26, .9, shade(c, 1.2));
+        break;
+      }
+      case 'windmill': {
+        g.cyl(0, 0, 0, 3.4, 2.0, 8, hex(0x9a8f7c));
+        g.cyl(0, 2.0, 0, 3.0, 9.0, 8, hex(0xe8e0cf));
+        g.cyl(0, 11.0, 0, 3.2, .5, 8, hex(0x8b5a2b));
+        g.cone(0, 11.4, 0, 3.4, 3.2, 8, hex(0x8b3a2b));
+        g.box(0, 4.0, -3.0, 1.4, 2.4, .4, hex(0x6f4522));
+        for (let k = 0; k < 4; k++) {
+          const a = k / 4 * TAU + .3;
+          const ex = Math.cos(a) * 7.6, ey = 8.4 + Math.sin(a) * 7.6;
+          g.beam(0, 8.4, -3.5, ex, ey, -3.5, .22, .16, hex(0xf5f0e2));
+          g.box(ex * .62, 8.4 + (ey - 8.4) * .62, -3.8, 1.6, 1.6, .12, hex(0xfaf6ea));
+        }
+        g.cyl(0, 8.4, -3.5, .55, .9, 8, hex(0x4a4038), 0, true);
+        break;
+      }
+      case 'lighthouse': {
+        for (let k = 0; k < 6; k++) {
+          const r = 2.6 - k * .28;
+          g.cyl(0, k * 2.1, 0, r, 2.1, 10, hex(k % 2 ? 0xf5f5f5 : 0xd94f3c));
+        }
+        g.cyl(0, 12.6, 0, 1.5, .4, 10, hex(0x4a5462));
+        g.cyl(0, 13.0, 0, 1.15, 2.0, 8, hex(0xfff3c4));
+        g.cone(0, 15.0, 0, 1.6, 1.8, 8, hex(0x2f3b52));
+        g.sphere(0, 16.9, 0, .3, 6, hex(0xffd23f));
+        break;
+      }
+      case 'pagoda': {
+        g.box(0, 0, 0, 4.4, .6, 4.4, hex(0x8a8378));
+        for (let k = 0; k < 4; k++) {
+          const y = .6 + k * 2.4, w = 3.6 - k * .55;
+          g.box(0, y, 0, w, 1.7, w, hex(0xe8dfc8));
+          for (const [ox, oz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]])
+            g.cyl(ox * w / 2 * .9, y, oz * w / 2 * .9, .13, 1.7, 6, hex(0x8b2f24));
+          g.box(0, y + 1.7, 0, w + 1.5, .28, w + 1.5, hex(0x8b2f24));
+          g.box(0, y + 1.98, 0, w + .8, .22, w + .8, hex(0xb04a38));
+        }
+        g.cyl(0, 10.4, 0, .16, 2.0, 6, hex(0xffd23f));
+        g.sphere(0, 12.4, 0, .35, 6, hex(0xffd23f));
+        break;
+      }
+      case 'obelisk': {
+        g.box(0, 0, 0, 1.9, .5, 1.9, hex(0x9a948a));
+        g.box(0, .5, 0, 1.5, .4, 1.5, hex(0xb8b2a6));
+        for (let k = 0; k < 6; k++) {
+          const t = k / 6, w = lerp(1.15, .55, t);
+          g.box(0, .9 + k * 1.4, 0, w, 1.4, w, shade(hex(0xd8d2c4), 1 - t * .10));
+        }
+        g.cone(0, 9.3, 0, .42, 1.3, 4, hex(0xffd23f));
+        break;
+      }
+      case 'waterjet': {
+        g.cyl(0, 0, 0, 1.5, .5, 10, hex(0x9a948a));
+        g.cyl(0, .5, 0, 1.2, .25, 10, hex(0x2a6fa8));
+        const jet = new Geo();
+        for (let k = 0; k < 5; k++) jet.sphere(0, k * .9, 0, .30 - k * .04, 5, hex(0xbfe4ff));
+        parts.push({ geo: jet, anim: (m, o, t) => M4.compose(m, 0, .7 + Math.abs(Math.sin(t * 1.6)) * 2.6, 0, 0, 0, 0, 1, .6 + Math.abs(Math.sin(t * 1.6)), 1) });
+        break;
+      }
+      case 'balloonarch': {
+        const cols = [0xff6f91, 0xffd23f, 0x69d2f0, 0x8fe37a, 0xc38fe8];
+        for (let k = 0; k <= 12; k++) {
+          const t = k / 12, a = t * PI;
+          g.sphere(Math.cos(a) * 3.4, Math.sin(a) * 3.6 + .4, (k % 2 ? .22 : -.22), .52, 6, hex(cols[k % 5]));
+        }
+        for (const sx of [-3.4, 3.4]) g.cyl(sx, 0, 0, .16, .6, 6, hex(0x5c5c5c));
+        break;
+      }
+      case 'planter': {
+        g.box(0, 0, 0, 1.7, .75, 1.7, hex(0xc8bfae));
+        g.box(0, .75, 0, 1.5, .12, 1.5, hex(0x5a4632));
+        for (let k = 0; k < 5; k++) {
+          const a = k / 5 * TAU;
+          g.sphere(Math.cos(a) * .45, 1.05, Math.sin(a) * .45, .38, 5, hex([0xe8709b, 0xf5d020, 0xf5f5f5, 0xc38fe8, 0xff8c42][k]));
+        }
+        g.sphere(0, 1.15, 0, .42, 5, hex(0x4f9646));
+        break;
+      }
+      case 'picnic': {
+        g.box(0, .75, 0, 3.0, .18, 1.3, hex(0xb5834a));
+        for (const sz of [-1.05, 1.05]) g.box(0, .42, sz, 3.0, .16, .55, hex(0xb5834a));
+        for (const [sx, sz] of [[-1.2, -.55], [1.2, -.55], [-1.2, .55], [1.2, .55]])
+          g.beam(sx, 0, sz * 1.9, sx, .8, sz * .3, .13, .13, hex(0x8b6535));
+        break;
+      }
+      case 'signpost': {
+        g.cyl(0, 0, 0, .13, 2.8, 6, hex(0x6f4522));
+        for (let k = 0; k < 3; k++) {
+          const a = k * 2.1;
+          g.box(Math.cos(a) * .8, 2.5 - k * .55, Math.sin(a) * .8, 1.6, .38, .10, hex(0xe8dfc8));
+        }
+        g.sphere(0, 2.9, 0, .18, 6, hex(0xffd23f));
+        break;
+      }
+      case 'rockgarden': {
+        g.box(0, 0, 0, 6.4, .35, 6.4, hex(0xd8d2c4));
+        for (let k = 0; k < 7; k++) {
+          const a = k * 2.399963, r = 1.0 + (k % 3) * .9;
+          const sz = .5 + ((k * 7) % 5) * .28;
+          g.sphere(Math.cos(a) * r, .35 + sz * .3, Math.sin(a) * r, sz, 5, shade(hex(0x8a8378), .82 + (k % 4) * .12));
+        }
+        for (let k = 0; k < 4; k++) {
+          const a = k * 1.7 + .5;
+          g.sphere(Math.cos(a) * 2.4, .5, Math.sin(a) * 2.4, .45, 5, hex(0x4f9646));
+        }
         break;
       }
     }
@@ -3204,6 +3342,211 @@ const Prefab = {
         }
         break;
       }
+
+      /* ---- Star Flyer: swings on chains from a very tall mast ---- */
+      case 'starflyer': {
+        const H = 42;
+        g.cyl(0, 0, 0, 2.4, 1.0, 12, hex(0xb0a48c));
+        for (let k = 0; k < 4; k++) {
+          const a = k / 4 * TAU + .78;
+          g.beam(Math.cos(a) * 3.6, .6, Math.sin(a) * 3.6, 0, 14, 0, .38, .22, hex(0xd94f3c));
+        }
+        g.cyl(0, 0, 0, 1.15, H, 12, hex(0xe8eef2));
+        for (let k = 1; k < 7; k++) g.cyl(0, k * (H / 7), 0, 1.35, .45, 12, hex(0xd94f3c));
+        g.cone(0, H, 0, 1.9, 3.2, 10, hex(0xffd23f));
+        this.lightBulbs(g, 0, H + 3.4, 0, .2, 3, hex(0xfff3c4));
+        const disc = new Geo();
+        disc.cyl(0, 0, 0, 3.2, .7, 16, hex(0xf5f0e2));
+        disc.cyl(0, .7, 0, 2.2, .5, 12, hex(0xd94f3c));
+        for (let k = 0; k < 12; k++) {
+          const a = k / 12 * TAU;
+          const cx = Math.cos(a) * 8.4, cz = Math.sin(a) * 8.4;
+          disc.beam(Math.cos(a) * 2.9, 0, Math.sin(a) * 2.9, cx, -7.4, cz, .07, .07, hex(0x9aa4ae));
+          disc.beam(Math.cos(a) * 2.9, 0, Math.sin(a) * 2.9, cx, -7.4, cz, .07, .07, hex(0x9aa4ae));
+          disc.box(cx, -7.7, cz, .9, .5, .9, hex([0x3ba7d4, 0xffd23f, 0xd94f3c, 0x2ecc71][k % 4]));
+        }
+        parts.push({ geo: disc, anim: (m, o, t) => M4.compose(m, 0, 26 + Math.sin(t * .5) * 8, 0, 0, t * 1.5, 0, 1, 1, 1) });
+        break;
+      }
+
+      /* ---- Troika: three arms of spinning cars on a tilted hub ---- */
+      case 'troika': {
+        g.cyl(0, 0, 0, 3.0, 2.6, 12, hex(0x4a5462));
+        g.cyl(0, 2.6, 0, 1.6, 1.4, 10, hex(0xd94f3c));
+        for (let k = 0; k < 3; k++) {
+          const arm = new Geo(), a0 = k / 3 * TAU;
+          arm.beam(0, 0, 0, Math.cos(a0) * 7.2, 1.4, Math.sin(a0) * 7.2, .34, .30, hex(0xf5c518));
+          const hubx = Math.cos(a0) * 7.2, hubz = Math.sin(a0) * 7.2;
+          arm.cyl(hubx, 1.4, hubz, 1.0, .6, 10, hex(0x2f3b52));
+          for (let c2 = 0; c2 < 3; c2++) {
+            const a2 = c2 / 3 * TAU;
+            const cc = hex([0x3ba7d4, 0x2ecc71, 0xe74c3c][c2]);
+            arm.box(hubx + Math.cos(a2) * 2.0, 2.2, hubz + Math.sin(a2) * 2.0, 1.5, 1.1, 1.5, cc);
+          }
+          parts.push({ geo: arm, anim: (m, o, t) => M4.compose(m, 0, 2.8, 0, Math.sin(t * .9) * .22, t * 1.1, 0, 1, 1, 1) });
+        }
+        break;
+      }
+
+      /* ---- Disk-O: a spinning disc that runs up a curved half-pipe ---- */
+      case 'disko': {
+        const L = 15;
+        for (const sx of [-1, 1]) {
+          for (let k = 0; k <= 14; k++) {
+            const t = k / 14, x = (t - .5) * L;
+            const y = Math.pow(Math.abs(t - .5) * 2, 2.1) * 9.0;
+            g.box(x, y + .4, sx * 4.6, L / 14 + .3, .5, .6, hex(0xd0d6de));
+            g.cyl(x, 0, sx * 4.6, .22, y + .4, 6, hex(0x7c8894));
+          }
+        }
+        for (let k = 0; k <= 16; k++) {
+          const t = k / 16, x = (t - .5) * L;
+          const y = Math.pow(Math.abs(t - .5) * 2, 2.1) * 9.0;
+          g.box(x, y, 0, L / 16 + .3, .35, 9.2, hex(0x3a4250));
+        }
+        const disc = new Geo();
+        disc.cyl(0, 0, 0, 3.4, .8, 16, hex(0xf25c05));
+        disc.cyl(0, .8, 0, 3.0, .35, 16, hex(0x2b2b45));
+        disc.cyl(0, -.6, 0, 1.2, .8, 10, hex(0x9aa4ae));
+        for (let k = 0; k < 16; k++) {
+          const a = k / 16 * TAU;
+          disc.box(Math.cos(a) * 2.6, 1.3, Math.sin(a) * 2.6, .7, 1.0, .7, hex(0x3ba7d4));
+        }
+        parts.push({
+          geo: disc, anim: (m, o, t) => {
+            const sw = Math.sin(t * .8), x = sw * 6.0;
+            const y = Math.pow(Math.abs(sw), 2.1) * 9.0 + 1.3;
+            return M4.compose(m, x, y, 0, 0, t * 2.4, -sw * .55, 1, 1, 1);
+          }
+        });
+        break;
+      }
+
+      /* ---- Magic Carpet: a pendulum gondola under an A-frame ---- */
+      case 'carpet': {
+        for (const sz of [-1, 1]) {
+          g.beam(-5.2, .2, sz * 3.4, 0, 12.5, sz * 1.2, .42, .30, hex(0x2f3b52));
+          g.beam(5.2, .2, sz * 3.4, 0, 12.5, sz * 1.2, .42, .30, hex(0x2f3b52));
+        }
+        g.cyl(0, 12.2, 0, .55, 7.0, 8, hex(0x9aa4ae), .0, true);
+        g.box(0, 12.5, 0, 1.2, 1.2, 8.0, hex(0x9aa4ae));
+        const gon = new Geo();
+        gon.beam(0, 0, 0, 0, -9.2, 0, .34, .34, hex(0xd0d6de));
+        gon.box(0, -9.8, 0, 8.6, .9, 3.2, hex(0x7b3fd4));
+        gon.box(0, -9.1, 0, 8.8, .7, 3.4, hex(0xffd23f));
+        for (let k = 0; k < 6; k++) gon.box(-3.6 + k * 1.45, -8.7, 0, 1.1, .9, 2.6, hex(0x2ecc71));
+        parts.push({ geo: gon, anim: (m, o, t) => M4.compose(m, 0, 12.5, 0, 0, 0, Math.sin(t * .95) * 1.15, 1, 1, 1) });
+        break;
+      }
+
+      /* ---- Log Flume: a lift, a channel and a splashdown pool ---- */
+      case 'logflume': {
+        const water = hex(0x2a6fa8);
+        g.box(0, .2, 0, W - 1, .5, D - 1, hex(0x6b8f4a));
+        // splashdown pool
+        g.box(-W / 2 + 5, .5, D / 2 - 4, 9, .9, 6, hex(0x8a8378));
+        g.box(-W / 2 + 5, 1.2, D / 2 - 4, 8.2, .35, 5.4, water);
+        // lift tower and chute
+        g.box(W / 2 - 3, 0, -D / 2 + 3, 3.2, 13, 3.2, hex(0x8b5a2b));
+        for (let k = 0; k <= 12; k++) {
+          const t = k / 12;
+          const x = lerp(W / 2 - 3, -W / 2 + 5, t);
+          const z = lerp(-D / 2 + 3, D / 2 - 4, t * t);
+          const y = lerp(13, 1.4, t * t * t);
+          g.box(x, y, z, 2.6, .5, 2.6, hex(0x6f4522));
+          g.box(x, y + .5, z, 2.2, .25, 2.2, water);
+          if (y > 2) g.cyl(x, 0, z, .3, y, 6, hex(0x8b5a2b));
+        }
+        for (let k = 0; k < 7; k++) g.box(-W / 2 + 2 + k * 1.3, 2.0 + Math.random() * .6, D / 2 - 4, .5, 1.2, .5, hex(0xeaf6ff));
+        break;
+      }
+
+      /* ---- Ghost Train: a dark ride shed with a lit facade ---- */
+      case 'ghosttrain': {
+        g.box(0, 0, 0, W - .6, 7.5, D - .6, hex(0x2b2233));
+        g.box(0, 7.5, 0, W + .4, .5, D + .4, hex(0x1b1424));
+        for (let k = 0; k < 5; k++) {
+          const x = -W / 2 + 1.6 + k * ((W - 3.2) / 4);
+          g.cone(x, 8.0, 0, 1.1, 2.2, 6, hex(0x4a2f5e));
+        }
+        // lit doorway and eyes
+        g.box(0, .1, -D / 2 - .1, 3.4, 4.2, .35, hex(0x120c1a));
+        g.box(0, 4.4, -D / 2 - .2, 5.0, 1.3, .3, hex(0x7b3fd4));
+        for (const sx of [-1.1, 1.1]) g.sphere(sx, 5.9, -D / 2 - .25, .38, 6, hex(0x8fe37a));
+        for (const sx of [-W / 2 + .9, W / 2 - .9]) {
+          g.cyl(sx, 0, -D / 2 - .5, .18, 3.2, 6, hex(0x3a2c48));
+          g.sphere(sx, 3.4, -D / 2 - .5, .32, 6, hex(0x8fe37a));
+        }
+        break;
+      }
+
+      /* ---- Chairlift: two pylons and a moving cable of seats ---- */
+      case 'chairlift': {
+        for (const sz of [-1, 1]) {
+          g.cyl(0, 0, sz * (D / 2 - 1.4), .5, 16, 8, hex(0xd0d6de));
+          g.box(0, 16, sz * (D / 2 - 1.4), 4.0, .6, 1.0, hex(0x7c8894));
+          g.cyl(0, 16.3, sz * (D / 2 - 1.4), 1.5, .5, 10, hex(0xd94f3c), 0, true);
+        }
+        for (const sx of [-1.6, 1.6]) g.beam(sx, 16.3, -(D / 2 - 1.4), sx, 16.3, (D / 2 - 1.4), .07, .07, hex(0x3a4250));
+        for (let k = 0; k < 6; k++) {
+          const seat = new Geo();
+          seat.beam(0, 0, 0, 0, -2.2, 0, .08, .08, hex(0x9aa4ae));
+          seat.box(0, -2.6, 0, 1.5, .3, 1.2, hex(0xf5c518));
+          seat.box(0, -2.1, .5, 1.5, 1.0, .2, hex(0xf5c518));
+          const ph = k / 6;
+          parts.push({
+            geo: seat, anim: (m, o, t) => {
+              const u = ((t * .07 + ph) % 1);
+              const along = u < .5 ? lerp(-(D / 2 - 1.4), (D / 2 - 1.4), u * 2) : lerp((D / 2 - 1.4), -(D / 2 - 1.4), (u - .5) * 2);
+              return M4.compose(m, u < .5 ? -1.6 : 1.6, 16.3, along, 0, 0, Math.sin(t * 1.3 + k) * .10, 1, 1, 1);
+            }
+          });
+        }
+        break;
+      }
+
+      /* ---- Monorail: an elevated loop of beam with a train on it ---- */
+      case 'monorail': {
+        const R0 = W / 2 + 1.5;
+        for (let k = 0; k < 20; k++) {
+          const a = k / 20 * TAU, a2 = (k + 1) / 20 * TAU;
+          g.beam(Math.cos(a) * R0, 9, Math.sin(a) * R0, Math.cos(a2) * R0, 9, Math.sin(a2) * R0, .55, .55, hex(0xdfe8f2));
+          if (k % 5 === 0) g.cyl(Math.cos(a) * R0, 0, Math.sin(a) * R0, .5, 9, 8, hex(0xb8c6d6));
+        }
+        g.box(0, 0, 0, 5, 4.5, 5, hex(0xdfe8f2));
+        g.box(0, 4.5, 0, 5.6, .4, 5.6, hex(0x2f80c0));
+        for (let k = 0; k < 3; k++) {
+          const car = new Geo();
+          car.box(0, 0, 0, 2.0, 1.9, 4.6, hex(0xf5f7fa));
+          car.box(0, .9, 0, 1.8, .5, 4.2, hex(0x2f80c0));
+          car.box(0, -.1, 0, 2.1, .7, 3.8, hex(0x3ba7d4));
+          const ph = k * .06;
+          parts.push({
+            geo: car, anim: (m, o, t) => {
+              const a = t * .30 - ph;
+              return M4.compose(m, Math.cos(a) * R0, 10.4, Math.sin(a) * R0, 0, -a + PI / 2, 0, 1, 1, 1);
+            }
+          });
+        }
+        break;
+      }
+
+      /* ---- Crazy Golf: a walk-around green with obstacles ---- */
+      case 'minigolf': {
+        g.box(0, .1, 0, W - .8, .5, D - .8, hex(0x4f9646));
+        for (let k = 0; k < 5; k++) {
+          const gx = -W / 2 + 3 + (k % 3) * 4.4, gz = -D / 2 + 3.4 + Math.floor(k / 3) * 6.4;
+          g.box(gx, .4, gz, 3.2, .3, 4.6, hex(0x6ac96a));
+          g.box(gx, .5, gz, 3.5, .5, 4.9, hex(0xd8cdb6), 1, 1, 1);
+          g.box(gx, .4, gz, 3.2, .35, 4.6, hex(0x6ac96a));
+          g.cyl(gx + .8, .55, gz + 1.6, .22, .10, 8, hex(0x1b1424));
+          g.cyl(gx + .8, .6, gz + 1.6, .05, 1.5, 5, hex(0xf5f5f5));
+          g.box(gx + .95, 2.0, gz + 1.6, .55, .38, .05, hex(0xd94f3c));
+          if (k % 2) g.cyl(gx - .7, .5, gz - 1.0, .45, 1.1, 8, hex(0x8b5a2b));
+          else g.box(gx - .7, .5, gz - 1.0, .5, 1.2, 1.4, hex(0x3ba7d4));
+        }
+        break;
+      }
     }
     // entrance sign for every ride
     g.box(0, 3.4, -D / 2 - .3, W * .6, 1.2, .3, hex(0x2f3b52));
@@ -3352,6 +3695,37 @@ const BLUEPRINTS = [
       'sbendr', 'right', 'right', 'camel', 'sbendl', 'right', 'right', 'camel', 'brake']
   },
   {
+    id: 'aurora', name: 'Aurora', type: 'hyperwood', price: 19, tag: 'Hybrid',
+    desc: 'Steel rails on a timber frame: hyper height with wooden-coaster relentlessness.',
+    seq: ['lift', 'lift', 'lift', 'lift', 'lift', 'lift', 'lift', 'lift', 'lift', 'lift', 'level',
+      'steepdn', 'steepdn', 'level', 'twincamel', 'swoopr', 'camel', 'obankl', 'hilldn',
+      'swoopr', 'bunny', 'bunny', 'camel', 'right', 'right', 'blockbrk']
+  },
+  {
+    id: 'albatross', name: 'Albatross', type: 'flying', price: 17, tag: 'Flying',
+    desc: 'Lie face-down beneath the rail and fly the whole circuit on your front.',
+    seq: ['lift', 'lift', 'lift', 'lift', 'lift', 'lift', 'lift', 'lift', 'level', 'steepdn', 'level',
+      'stall', 'swoopl', 'camel', 'topgun', 'swoopl', 'camel', 'cutback', 'right', 'right', 'brake']
+  },
+  {
+    id: 'avalanche', name: 'Avalanche', type: 'bobsled', price: 12, tag: 'Bobsled',
+    desc: 'No rails at all — the cars run loose in a banked trough, tipping through every turn.',
+    seq: ['lift', 'lift', 'lift', 'lift', 'lift', 'lift', 'lift', 'level', 'steepdn', 'level',
+      'swoopr', 'sharpr', 'camel', 'swoopl', 'sharpl', 'hilldn', 'swoopr', 'bunny', 'right', 'right', 'magbrake']
+  },
+  {
+    id: 'ladybird', name: 'Ladybird Express', type: 'junior', price: 4, tag: 'Junior',
+    desc: 'A first coaster. Gentle hops and wide bends that nobody in the family will refuse.',
+    seq: ['lift', 'lift', 'lift', 'level', 'steepdn', 'level', 'bunny', 'rturn', 'bunny',
+      'rturn', 'bunny', 'rturn', 'bunny', 'rturn', 'brake']
+  },
+  {
+    id: 'shuttlebolt', name: 'Shuttle Bolt', type: 'shuttle', price: 15, tag: 'Launched',
+    desc: 'Straight out of the station at full power, up and over, and back again.',
+    seq: ['launch', 'launch', 'booster2', 'level', 'loop', 'level', 'swoopr', 'camel', 'topgun',
+      'swoopr', 'hilldn', 'right', 'right', 'blockbrk']
+  },
+  {
     id: 'whitelightning', name: 'White Lightning', type: 'mouse', price: 8, tag: 'Wild Mouse',
     desc: 'Single cars, blind hairpins and hops. Slow, and far scarier than it looks.',
     seq: ['lift', 'lift', 'lift', 'lift', 'lift', 'level', 'left', 'left', 'left', 'right', 'right', 'right',
@@ -3432,6 +3806,19 @@ const PIECES = [
   { id: 'holdbrake', n: 'Holding Brake', len: 10, y: 0, p: 0, r: 0, cost: 900, brake: true, hold: true, group: 'service' },
   { id: 'booster', n: 'Booster Straight', len: 16, y: 0, p: 0, r: 0, cost: 1300, boost: 22, group: 'service' },
   { id: 'booster2', n: 'Power Straight', len: 16, y: 0, p: 0, r: 0, cost: 1900, boost: 32, group: 'service' },
+  { id: 'magbrake', n: 'Magnetic Trim', len: 10, y: 0, p: 0, r: 0, cost: 1500, brake: true, group: 'service' },
+  { id: 'blockbrk', n: 'Block Brake', len: 14, y: 0, p: 0, r: 0, cost: 2200, brake: true, block: true, group: 'service' },
+  { id: 'hilldn', n: 'Speed Hill', len: 26, y: 0, p: 0, r: 0, camel: true, cost: 760, group: 'hill' },
+  { id: 'twincamel', n: 'Twin Camel', len: 44, y: 0, p: 0, r: 0, camel: true, cost: 1180, group: 'hill' },
+  { id: 'bunny', n: 'Bunny Hop', len: 14, y: 0, p: 0, r: 0, camel: true, cost: 420, group: 'hill' },
+  { id: 'sharpl', n: 'Hairpin Left', len: 9, y: -110, p: 0, r: 0, autoBank: -42, cost: 620, group: 'turn' },
+  { id: 'sharpr', n: 'Hairpin Right', len: 9, y: 110, p: 0, r: 0, autoBank: 42, cost: 620, group: 'turn' },
+  { id: 'swoopl', n: 'Swooping Left', len: 30, y: -78, p: -8, r: 0, autoBank: -38, cost: 980, group: 'turn' },
+  { id: 'swoopr', n: 'Swooping Right', len: 30, y: 78, p: -8, r: 0, autoBank: 38, cost: 980, group: 'turn' },
+  { id: 'stall', n: 'Inline Stall', len: 30, y: 0, p: 0, r: 360, inversion: 1, cost: 2400, group: 'invert' },
+  { id: 'cutback', n: 'Cutback', len: 34, y: 46, p: 0, r: 360, inversion: 1, cost: 2600, group: 'invert' },
+  { id: 'batwing', n: 'Batwing', len: 62, y: 178, p: 0, r: 360, inversion: 2, cost: 4200, group: 'invert' },
+  { id: 'topgun', n: 'Heartline Roll', len: 26, y: 0, p: 0, r: 360, inversion: 1, cost: 2100, group: 'invert' },
   /* The freehand piece: its shape comes from the steering controls, so it is
      never picked from the palette. */
   { id: 'freehand', n: 'Freehand', len: 10, y: 0, p: 0, r: 0, cost: 260, group: 'hidden', freehand: true },
@@ -8621,6 +9008,78 @@ const Game = {
       case 'balloonride': { const ring = 8; a = ((k % ring) / ring) * TAU + spin; rad = 5.2; y = 7.4 - (1 - h) * 1.6 - 5.0 + .6; break; }
       case 'rapids': { const boats = 5, bi = k % boats; a = Park.now * .55 + bi / boats * TAU; rad = 5.2; y = 2.0; break; }
       case 'haunted': { rad = 6; a = Park.now * .5 + (k / n) * TAU; y = 1.2; break; }
+      case 'starflyer': {
+        const ring = 12; a = ((k % ring) / ring) * TAU + spin * 1.5;
+        rad = 8.4; y = 26 + Math.sin(Park.now * .5) * 8 - 8.0; roll = -0.42; break;
+      }
+      case 'troika': {
+        const arms = 3, ai = k % arms, ci = Math.floor(k / arms) % 3;
+        const aa = ai / arms * TAU + spin * 1.1;
+        const hx = Math.cos(aa) * 7.2, hz = Math.sin(aa) * 7.2;
+        const a2 = ci / 3 * TAU;
+        g.x = o.x + (hx + Math.cos(a2) * 2.0) * Math.cos(-o.rot * PI / 2) - (hz + Math.sin(a2) * 2.0) * Math.sin(-o.rot * PI / 2);
+        g.z = o.z + (hx + Math.cos(a2) * 2.0) * Math.sin(-o.rot * PI / 2) + (hz + Math.sin(a2) * 2.0) * Math.cos(-o.rot * PI / 2);
+        g.y = o.y + 3.6; g.yaw = -o.rot * PI / 2 - aa; g.roll = Math.sin(Park.now * .9) * .22;
+        g.moving = false; g.state = 'riding'; return;
+      }
+      case 'disko': {
+        const sw = Math.sin(Park.now * .8);
+        const ring = 16; const aa = ((k % ring) / ring) * TAU + spin * 2.4;
+        const lx = sw * 6.0 + Math.cos(aa) * 2.6;
+        const ly = Math.pow(Math.abs(sw), 2.1) * 9.0 + 2.4;
+        const lz = Math.sin(aa) * 2.6;
+        g.x = o.x + lx * Math.cos(-o.rot * PI / 2) - lz * Math.sin(-o.rot * PI / 2);
+        g.z = o.z + lx * Math.sin(-o.rot * PI / 2) + lz * Math.cos(-o.rot * PI / 2);
+        g.y = o.y + ly; g.yaw = -o.rot * PI / 2 - aa; g.roll = -sw * .55;
+        g.moving = false; g.state = 'riding'; return;
+      }
+      case 'carpet': {
+        const sw = Math.sin(Park.now * .95) * 1.15;
+        const seat = (k % 6) - 2.5;
+        const lx = seat * 1.45 * Math.cos(sw) - 0;
+        const px = Math.sin(sw) * 9.8;
+        g.x = o.x + (seat * 1.45) * Math.cos(-o.rot * PI / 2) - px * Math.sin(-o.rot * PI / 2);
+        g.z = o.z + (seat * 1.45) * Math.sin(-o.rot * PI / 2) + px * Math.cos(-o.rot * PI / 2);
+        g.y = o.y + 12.5 - Math.cos(sw) * 9.5;
+        g.yaw = -o.rot * PI / 2; g.roll = sw * .8;
+        g.moving = false; g.state = 'riding'; return;
+      }
+      case 'logflume': {
+        const boats = 4, bi = k % boats;
+        const t = ((Park.now * .12 + bi / boats) % 1);
+        const W2 = o.gw * TILE, D2 = o.gd * TILE;
+        const lx = lerp(W2 / 2 - 3, -W2 / 2 + 5, t);
+        const lz = lerp(-D2 / 2 + 3, D2 / 2 - 4, t * t);
+        const ly = lerp(13, 1.4, t * t * t) + 1.0;
+        g.x = o.x + lx * Math.cos(-o.rot * PI / 2) - lz * Math.sin(-o.rot * PI / 2);
+        g.z = o.z + lx * Math.sin(-o.rot * PI / 2) + lz * Math.cos(-o.rot * PI / 2);
+        g.y = o.y + ly; g.yaw = -o.rot * PI / 2; g.roll = 0;
+        g.moving = false; g.state = 'riding'; g.armLift = t > .55 ? 1 : 0; return;
+      }
+      case 'ghosttrain': case 'minigolf': {
+        // inside the building / walking the course: hidden from view
+        g.x = o.x; g.z = o.z; g.y = o.y - 40; g.moving = false; g.state = 'riding'; return;
+      }
+      case 'chairlift': {
+        const nn = Math.max(1, n), u = ((Park.now * .07 + k / nn) % 1);
+        const D2 = o.gd * TILE, end = D2 / 2 - 1.4;
+        const along = u < .5 ? lerp(-end, end, u * 2) : lerp(end, -end, (u - .5) * 2);
+        const side = u < .5 ? -1.6 : 1.6;
+        g.x = o.x + side * Math.cos(-o.rot * PI / 2) - along * Math.sin(-o.rot * PI / 2);
+        g.z = o.z + side * Math.sin(-o.rot * PI / 2) + along * Math.cos(-o.rot * PI / 2);
+        g.y = o.y + 13.6; g.yaw = -o.rot * PI / 2 + (u < .5 ? 0 : PI); g.roll = 0;
+        g.moving = false; g.state = 'riding'; return;
+      }
+      case 'monorail': {
+        const R0 = o.gw * TILE / 2 + 1.5;
+        const cars = 3, ci = k % cars;
+        const aa = Park.now * .30 - ci * .06;
+        const lx = Math.cos(aa) * R0, lz = Math.sin(aa) * R0;
+        g.x = o.x + lx * Math.cos(-o.rot * PI / 2) - lz * Math.sin(-o.rot * PI / 2);
+        g.z = o.z + lx * Math.sin(-o.rot * PI / 2) + lz * Math.cos(-o.rot * PI / 2);
+        g.y = o.y + 10.0; g.yaw = -o.rot * PI / 2 - aa + PI / 2; g.roll = 0;
+        g.moving = false; g.state = 'riding'; return;
+      }
       // ---- water park ----
       case 'pool': case 'wavepool': {
         // bob about in the basin, chest-deep
