@@ -210,7 +210,11 @@ input[type=range]::-moz-range-thumb{width:14px;height:14px;border:0;border-radiu
 /* ---------- inspector ---------- */
 #inspector{position:absolute;right:12px;bottom:88px;width:262px;display:none;flex-direction:column}
 #inspector.show{display:flex}
-#insBody{padding:10px;display:flex;flex-direction:column;gap:8px;font-size:11.5px;max-height:400px;overflow-y:auto}
+#insBody{padding:10px;display:flex;flex-direction:column;gap:8px;font-size:11.5px;max-height:min(520px,calc(100vh - 260px));overflow-y:auto}
+.nameIn{width:100%;background:rgba(255,255,255,.06);border:1px solid var(--edge);border-radius:7px;
+  color:var(--txt);font-family:inherit;font-size:14px;font-weight:700;padding:6px 9px;outline:none}
+.nameIn:hover{border-color:var(--edge-hot)}
+.nameIn:focus{border-color:var(--accent);background:rgba(57,192,255,.10)}
 .kv{display:flex;justify-content:space-between;gap:8px}
 .kv .k{color:var(--dim)}
 .kv .v{font-weight:600;text-align:right}
@@ -400,6 +404,8 @@ table.tb tr:hover td{background:rgba(255,255,255,.04)}
     <div class="stat"><span class="ico" data-ic="chart"></span><span class="col"><span class="lbl">Profit / hr</span><span class="val" id="vProfit">$0</span></span></div>
     <div class="sep"></div>
     <div class="stat"><span class="ico" data-ic="land"></span><span class="col"><span class="lbl">Owned Land</span><span class="val" id="vLand">0</span></span></div>
+    <div class="sep"></div>
+    <div class="stat"><span class="ico" data-ic="weather"></span><span class="col"><span class="lbl" id="vSeason">Season</span><span class="val" id="vWeather">Fair</span></span></div>
     <div class="sep"></div>
     <div class="stat"><span class="ico" data-ic="clock"></span><span class="col"><span class="lbl">Park Time</span><span class="val" id="vTime">Day 1 · 09:00</span></span></div>
   </div>
@@ -879,11 +885,34 @@ attribute vec2 aPos; varying vec2 vUv;
 void main(){ vUv = aPos*0.5+0.5; gl_Position = vec4(aPos,0.999,1.0); }`;
 const FS_SKY = `
 precision highp float; varying vec2 vUv;
-uniform vec3 uTop,uMid,uBot,uSunCol; uniform vec2 uSunScreen; uniform float uSunUp,uStars,uAspect;
+uniform vec3 uTop,uMid,uBot,uSunCol; uniform vec2 uSunScreen; uniform float uSunUp,uStars,uAspect,uTime,uCloud;
 float h(vec2 p){ return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5); }
+float vnoise(vec2 p){
+  vec2 i = floor(p), f = fract(p);
+  f = f*f*(3.0-2.0*f);
+  return mix(mix(h(i), h(i+vec2(1,0)), f.x), mix(h(i+vec2(0,1)), h(i+vec2(1,1)), f.x), f.y);
+}
+float fbm2(vec2 p){
+  float v = 0.0, a = 0.5;
+  for(int k=0;k<5;k++){ v += a*vnoise(p); p *= 2.03; a *= 0.5; }
+  return v;
+}
 void main(){
   float y = vUv.y;
   vec3 c = y > 0.5 ? mix(uMid,uTop,(y-0.5)*2.0) : mix(uBot,uMid,y*2.0);
+  // banded cloud layer, thicker overhead and compressed towards the horizon
+  if(uCloud > 0.001 && y > 0.42){
+    float hz = pow(clamp((y-0.42)/0.58, 0.0, 1.0), 0.55);
+    vec2 cp = vec2((vUv.x - 0.5) * uAspect / max(hz, 0.06), 1.0/max(hz,0.06));
+    cp = cp * 0.55 + vec2(uTime * 0.012, uTime * 0.004);
+    float n = fbm2(cp * 1.7);
+    float cover = smoothstep(0.52 - uCloud * 0.30, 0.78, n);
+    float shade2 = smoothstep(0.45, 0.95, fbm2(cp * 3.1 + 4.0));
+    vec3 cloudCol = mix(vec3(1.0,0.99,0.97), vec3(0.62,0.66,0.74), shade2 * 0.85);
+    cloudCol = mix(cloudCol, cloudCol * (0.42 + 0.58 * uSunUp), 1.0 - uSunUp * 0.5);
+    cloudCol += uSunCol * 0.20 * uSunUp * (1.0 - shade2);
+    c = mix(c, cloudCol, cover * clamp(hz * 1.5, 0.0, 1.0) * 0.92);
+  }
   // stars at night
   if(uStars > 0.01){
     vec2 g = floor(vUv*vec2(220.0*uAspect,220.0));
@@ -903,28 +932,101 @@ void main(){
 
 const FS_POST = `
 precision highp float; varying vec2 vUv;
-uniform sampler2D uScene; uniform vec2 uPixel;
+uniform sampler2D uScene, uDepth;
+uniform vec2 uPixel;
 uniform float uVignette, uSat, uContrast, uLift, uNight;
+uniform float uNear, uFar, uAO, uOutline, uBloom, uAspect, uTanHalf;
+uniform float uHasDepth;
+
+float linDepth(vec2 uv){
+  float z = texture2D(uDepth, uv).r * 2.0 - 1.0;
+  return (2.0 * uNear * uFar) / (uFar + uNear - z * (uFar - uNear));
+}
+/* View-space position from a depth sample. */
+vec3 viewPos(vec2 uv){
+  float d = linDepth(uv);
+  vec2 ndc = uv * 2.0 - 1.0;
+  return vec3(ndc.x * uAspect * uTanHalf * d, ndc.y * uTanHalf * d, -d);
+}
+
 void main(){
   vec3 c = texture2D(uScene, vUv).rgb;
-  // gentle unsharp: sharpen the low-poly silhouettes without ringing
-  vec3 blur = (texture2D(uScene, vUv + vec2(uPixel.x, 0.0)).rgb
-             + texture2D(uScene, vUv - vec2(uPixel.x, 0.0)).rgb
-             + texture2D(uScene, vUv + vec2(0.0, uPixel.y)).rgb
-             + texture2D(uScene, vUv - vec2(0.0, uPixel.y)).rgb) * 0.25;
-  c = clamp(c + (c - blur) * 0.35, 0.0, 2.0);
-  // filmic-ish tone curve
+
+  float ao = 1.0, edge = 0.0;
+  if(uHasDepth > 0.5){
+    vec3 P = viewPos(vUv);
+    vec3 dx = viewPos(vUv + vec2(uPixel.x, 0.0)) - P;
+    vec3 dy = viewPos(vUv + vec2(0.0, uPixel.y)) - P;
+    vec3 Nv = normalize(cross(dx, dy));
+
+    /* --- ambient occlusion: sample a ring of neighbours and count how many
+           sit in front of the surface plane --- */
+    float radius = clamp(2.6 / max(P.z * -1.0, 1.0), 0.0018, 0.045);
+    float occ = 0.0;
+    const int RINGS = 3;
+    for(int r = 1; r <= RINGS; r++){
+      float rr = radius * float(r) / float(RINGS);
+      for(int k = 0; k < 6; k++){
+        float a = (float(k) + float(r) * 0.5) * 1.0472;
+        vec2 off = vec2(cos(a) * rr / uAspect, sin(a) * rr);
+        vec3 S = viewPos(vUv + off);
+        vec3 dv = S - P;
+        float len = length(dv);
+        if(len < 0.0001) continue;
+        float ndv = dot(Nv, dv / len);
+        float atten = 1.0 / (1.0 + len * len * 0.35);
+        occ += max(ndv - 0.12, 0.0) * atten;
+      }
+    }
+    occ = occ / float(RINGS * 6) * 3.4;
+    ao = clamp(1.0 - occ * uAO, 0.25, 1.0);
+
+    /* --- outlines: a depth and normal discontinuity detector --- */
+    float d0 = -P.z;
+    float dl = -viewPos(vUv - vec2(uPixel.x, 0.0)).z;
+    float dr = -viewPos(vUv + vec2(uPixel.x, 0.0)).z;
+    float dd = -viewPos(vUv - vec2(0.0, uPixel.y)).z;
+    float du = -viewPos(vUv + vec2(0.0, uPixel.y)).z;
+    float dGrad = (abs(dl + dr - 2.0 * d0) + abs(dd + du - 2.0 * d0)) / max(d0, 1.0);
+    vec3 nl = normalize(cross(viewPos(vUv + vec2(uPixel.x,0.0)) - viewPos(vUv - vec2(uPixel.x,0.0)),
+                              viewPos(vUv + vec2(0.0,uPixel.y)) - viewPos(vUv - vec2(0.0,uPixel.y))));
+    float nGrad = 1.0 - clamp(dot(nl, Nv), 0.0, 1.0);
+    /* Lean on depth discontinuity for true silhouettes and keep the normal
+       term small, or every facet of a low-poly tree draws its own line. */
+    edge = clamp(dGrad * 15.0 + nGrad * 0.45, 0.0, 1.0);
+    edge = smoothstep(0.36, 0.92, edge);
+    edge *= smoothstep(420.0, 90.0, d0);
+  }
+
+  c *= mix(1.0, ao, 0.72);
+
+  /* --- cheap bloom: average a few bright taps around the pixel --- */
+  if(uBloom > 0.001){
+    vec3 b = vec3(0.0);
+    for(int k = 0; k < 8; k++){
+      float a = float(k) * 0.7854;
+      vec2 off = vec2(cos(a), sin(a)) * uPixel * 7.0;
+      vec3 t = texture2D(uScene, vUv + off).rgb;
+      b += max(t - 0.72, 0.0);
+    }
+    c += b * (uBloom * 0.42);
+  }
+
+  /* filmic tone curve */
   c = (c * (2.51 * c + 0.03)) / (c * (2.43 * c + 0.59) + 0.14);
   float l = dot(c, vec3(0.2126, 0.7152, 0.0722));
   c = mix(vec3(l), c, uSat);
   c = (c - 0.5) * uContrast + 0.5 + uLift;
-  // cool the shadows a touch at night
   c = mix(c, c * vec3(0.82, 0.90, 1.12), uNight * 0.5);
-  vec2 d = vUv - 0.5;
-  float vig = 1.0 - dot(d, d) * uVignette;
-  c *= vig;
+
+  /* ink the silhouettes */
+  c = mix(c, c * vec3(0.30, 0.33, 0.40), edge * uOutline);
+
+  vec2 dv2 = vUv - 0.5;
+  c *= 1.0 - dot(dv2, dv2) * uVignette;
   gl_FragColor = vec4(clamp(c, 0.0, 1.0), 1.0);
 }`;
+
 
 class Renderer {
   constructor(canvas, cfg) {
@@ -1021,6 +1123,10 @@ class Renderer {
     this.postFbo = gl.createFramebuffer();
     this.postRb = gl.createRenderbuffer();
     this.postW = 0; this.postH = 0;
+    // A sampleable depth buffer is what makes ambient occlusion and outlines
+    // possible without a second geometry pass.
+    this.depthExt = this.gl2 ? true : !!gl.getExtension('WEBGL_depth_texture');
+    if (this.depthExt) this.depthTex = gl.createTexture();
   }
   resizePost(w, h) {
     if (!this.progPost) return;
@@ -1035,10 +1141,30 @@ class Renderer {
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
     gl.bindFramebuffer(gl.FRAMEBUFFER, this.postFbo);
     gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.postTex, 0);
-    gl.bindRenderbuffer(gl.RENDERBUFFER, this.postRb);
-    gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT16, w, h);
-    gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, this.postRb);
+    if (this.depthExt) {
+      gl.bindTexture(gl.TEXTURE_2D, this.depthTex);
+      const ifmt = this.gl2 ? gl.DEPTH_COMPONENT24 : gl.DEPTH_COMPONENT;
+      const type = this.gl2 ? gl.UNSIGNED_INT : gl.UNSIGNED_SHORT;
+      gl.texImage2D(gl.TEXTURE_2D, 0, ifmt, w, h, 0, gl.DEPTH_COMPONENT, type, null);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+      gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.TEXTURE_2D, this.depthTex, 0);
+    } else {
+      gl.bindRenderbuffer(gl.RENDERBUFFER, this.postRb);
+      gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT16, w, h);
+      gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, this.postRb);
+    }
     this.postOk = gl.checkFramebufferStatus(gl.FRAMEBUFFER) === gl.FRAMEBUFFER_COMPLETE;
+    if (!this.postOk && this.depthExt) {
+      // some drivers refuse a depth texture here: fall back to a renderbuffer
+      this.depthExt = false;
+      gl.bindRenderbuffer(gl.RENDERBUFFER, this.postRb);
+      gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT16, w, h);
+      gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, this.postRb);
+      this.postOk = gl.checkFramebufferStatus(gl.FRAMEBUFFER) === gl.FRAMEBUFFER_COMPLETE;
+    }
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
   }
   beginPost() {
@@ -1062,13 +1188,28 @@ class Renderer {
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, this.postTex);
     gl.uniform1i(p.u.uScene, 0);
+    if (this.depthExt && p.u.uDepth) {
+      gl.activeTexture(gl.TEXTURE1);
+      gl.bindTexture(gl.TEXTURE_2D, this.depthTex);
+      gl.uniform1i(p.u.uDepth, 1);
+    }
+    const q = this.quality || {};
     gl.uniform2f(p.u.uPixel, 1 / this.postW, 1 / this.postH);
-    gl.uniform1f(p.u.uVignette, 0.42);
-    gl.uniform1f(p.u.uSat, 1.12);
-    gl.uniform1f(p.u.uContrast, 1.06);
-    gl.uniform1f(p.u.uLift, 0.008);
+    gl.uniform1f(p.u.uVignette, 0.40);
+    gl.uniform1f(p.u.uSat, 1.14);
+    gl.uniform1f(p.u.uContrast, 1.07);
+    gl.uniform1f(p.u.uLift, 0.006);
     gl.uniform1f(p.u.uNight, night || 0);
+    gl.uniform1f(p.u.uHasDepth, this.depthExt ? 1 : 0);
+    gl.uniform1f(p.u.uNear, this.near || 0.25);
+    gl.uniform1f(p.u.uFar, this.far || 1200);
+    gl.uniform1f(p.u.uAspect, this.aspect);
+    gl.uniform1f(p.u.uTanHalf, Math.tan((this.fovY || 38 * DEG) / 2));
+    gl.uniform1f(p.u.uAO, q.ao !== undefined ? q.ao : 1.0);
+    gl.uniform1f(p.u.uOutline, q.outline !== undefined ? q.outline : 0.75);
+    gl.uniform1f(p.u.uBloom, q.bloom !== undefined ? q.bloom : 0.55 + (night || 0) * 0.7);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
+    gl.activeTexture(gl.TEXTURE0);
     gl.enable(gl.DEPTH_TEST);
   }
   /* --- Mesh objects --- */
@@ -1208,6 +1349,7 @@ Renderer.prototype.drawInstanced = function (mesh) {
 };
 Renderer.prototype.setCamera = function (eye, target, up, fov, near, far) {
   V3.copy(this.eye, eye);
+  this.near = near; this.far = far; this.fovY = fov;
   M4.perspective(this.proj, fov, this.aspect, near, far);
   M4.lookAt(this.view, eye, target, up || WORLD_UP);
   M4.mul(this.vp, this.proj, this.view);
@@ -1257,6 +1399,8 @@ Renderer.prototype.drawSky = function (top, mid, bot, sunScreen, sunUp, stars, s
   gl.uniform1f(p.u.uSunUp, sunUp);
   gl.uniform1f(p.u.uStars, stars);
   gl.uniform1f(p.u.uAspect, this.aspect);
+  gl.uniform1f(p.u.uTime, this.skyTime || 0);
+  gl.uniform1f(p.u.uCloud, this.cloud !== undefined ? this.cloud : 0.45);
   gl.drawArrays(gl.TRIANGLES, 0, 3);
   gl.depthMask(true);
 };
@@ -1271,6 +1415,7 @@ Renderer.prototype.projectToScreen = function (x, y, z) {
 };
 
 const WORLD_UP = V3.make(0, 1, 0);
+const flashSafe = (f) => (f > 0 ? f * 1.5 : 0);
 
 /* ============================================================================
    SECTION 5 — CAMERA
@@ -1493,7 +1638,7 @@ const WORLD = {
   /* Build the terrain mesh: flat-shaded quads with a hand-painted look. */
   buildMesh(R) {
     const g = new Geo(), W = N + 1;
-    const grassA = hex(0x4e9b46), grassB = hex(0x62b054), grassC = hex(0x3f8a3e), grassD = hex(0x74bd5e);
+    const grassA = hex(0x4a8f45), grassB = hex(0x59a04f), grassC = hex(0x3d7f3d), grassD = hex(0x69ab57);
     const rock = hex(0x6f6a62), rock2 = hex(0x857f74), sand = hex(0xcfbc88);
     const pathC = hex(0xc4b79d), pathD = hex(0xb0a288);
     const queueC = hex(0xb59ad0), plazaA = hex(0xd8cdb6), plazaB = hex(0xc2b59a), entryC = hex(0xcfae82);
@@ -3640,6 +3785,97 @@ class CoasterRide extends ParkObject {
 }
 
 /* ============================================================================
+   SECTION 11b — WEATHER AND SEASONS
+   Weather drives the sky, the light, how many people turn up and what they
+   feel like doing when they get there.
+   ========================================================================== */
+const SEASONS = [
+  { id: 'spring', name: 'Spring', base: 15, swing: 7, wet: .34, draw: 1.00 },
+  { id: 'summer', name: 'Summer', base: 24, swing: 8, wet: .20, draw: 1.30 },
+  { id: 'autumn', name: 'Autumn', base: 13, swing: 6, wet: .42, draw: 0.85 },
+  { id: 'winter', name: 'Winter', base: 4, swing: 5, wet: .48, draw: 0.55 },
+];
+const WEATHERS = {
+  clear: { name: 'Clear', cloud: .10, sun: 1.00, draw: 1.15, mood: .012, rain: 0 },
+  fair: { name: 'Fair', cloud: .38, sun: .94, draw: 1.05, mood: .008, rain: 0 },
+  cloudy: { name: 'Cloudy', cloud: .68, sun: .74, draw: 0.92, mood: 0, rain: 0 },
+  overcast: { name: 'Overcast', cloud: .92, sun: .55, draw: 0.78, mood: -.006, rain: 0 },
+  rain: { name: 'Rain', cloud: .98, sun: .40, draw: 0.48, mood: -.028, rain: .6 },
+  storm: { name: 'Thunderstorm', cloud: 1.0, sun: .28, draw: 0.24, mood: -.050, rain: 1.0 },
+};
+const WEATHER_ORDER = ['clear', 'fair', 'cloudy', 'overcast', 'rain', 'storm'];
+
+const Weather = {
+  state: 'fair', next: 'fair', blend: 1,
+  temp: 18, seasonIndex: 1, dayOfSeason: 0,
+  DAYS_PER_SEASON: 12,
+  flash: 0, flashT: 0,
+
+  get season() { return SEASONS[this.seasonIndex]; },
+  get def() { return WEATHERS[this.state]; },
+  get nextDef() { return WEATHERS[this.next]; },
+  mix(k) { return lerp(this.def[k], this.nextDef[k], this.blend); },
+  cloudCover() { return this.mix('cloud'); },
+  sunFactor() { return this.mix('sun'); },
+  rainIntensity() { return this.mix('rain'); },
+  drawFactor() { return this.mix('draw') * this.season.draw; },
+  moodFactor() { return this.mix('mood'); },
+  isWet() { return this.rainIntensity() > .15; },
+
+  reset(day) {
+    this.seasonIndex = Math.floor(((day || 1) - 1) / this.DAYS_PER_SEASON) % 4;
+    this.dayOfSeason = ((day || 1) - 1) % this.DAYS_PER_SEASON;
+    this.state = this.next = 'fair'; this.blend = 1;
+    this.temp = this.season.base;
+  },
+  /* A new roll each park hour, weighted by season wetness, easing between. */
+  hourTick(hour) {
+    const wet = this.season.wet;
+    const cur = WEATHER_ORDER.indexOf(this.state);
+    const weights = WEATHER_ORDER.map((k, i) => {
+      let w = 1 / (1 + Math.abs(i - cur) * 1.4);          // weather is persistent
+      if (k === 'rain') w *= wet * 3.2;
+      if (k === 'storm') w *= wet * 1.1;
+      if (k === 'clear') w *= (1 - wet) * 2.4;
+      return w;
+    });
+    const total = weights.reduce((a, b) => a + b, 0);
+    let r = Math.random() * total, pick2 = 0;
+    for (let i = 0; i < weights.length; i++) { r -= weights[i]; if (r <= 0) { pick2 = i; break; } }
+    this.state = this.next;
+    this.next = WEATHER_ORDER[pick2];
+    this.blend = 0;
+    // temperature follows the season plus the time of day and cloud cover
+    const dayCurve = Math.sin(clamp((hour - 5) / 15, 0, 1) * PI);
+    this.temp = Math.round(this.season.base + this.season.swing * dayCurve - this.cloudCover() * 3.5 - this.rainIntensity() * 3);
+  },
+  dayTick(day) {
+    this.dayOfSeason++;
+    if (this.dayOfSeason >= this.DAYS_PER_SEASON) {
+      this.dayOfSeason = 0;
+      this.seasonIndex = (this.seasonIndex + 1) % 4;
+      UI.notify(this.season.name + ' begins', this.seasonIndex === 1 ? 'The busiest months of the year — expect big crowds.'
+        : this.seasonIndex === 3 ? 'Cold and wet. Attendance will drop until spring.'
+          : 'A change in the weather is on the way.', '');
+    }
+  },
+  update(dt) {
+    this.blend = Math.min(1, this.blend + dt * .06);
+    if (this.state === 'storm' || this.next === 'storm') {
+      this.flashT -= dt;
+      if (this.flashT <= 0) { this.flashT = rnd(3, 11); this.flash = 1; }
+    }
+    this.flash = Math.max(0, this.flash - dt * 3.2);
+  },
+  /* how appealing a water attraction is right now */
+  waterAppeal() {
+    const t = this.temp;
+    return clamp(0.35 + (t - 12) * 0.075, 0.15, 1.9) * (this.isWet() ? .45 : 1);
+  },
+  label() { return this.def.name + (this.blend < .5 ? '' : '') + ' · ' + this.temp + '°C'; }
+};
+
+/* ============================================================================
    SECTION 12 — PARK STATE
    ========================================================================== */
 const Park = {
@@ -4091,6 +4327,7 @@ class Guest extends Person {
     if (this.nausea > .6) mood -= .03;
     if (this.state === 'queuing') mood -= .012;
     mood += Park.beautyAt(this.x, this.z) * .0009;
+    mood += Weather.moodFactor();
     mood -= Math.min(.02, Park.litter.length / Math.max(40, Park.guests.length) * .03);
     if (this.state === 'walking' || this.state === 'idle') mood += .004;
     // happiness drifts on the same park-hour scale as the needs above
@@ -4305,7 +4542,8 @@ class Guest extends Person {
       const e = r.entrance;
       if (!this.canReach(e.x, e.z)) continue;
       const seen = this.ridden.filter(x => x === r.id).length;
-      let s = 2.4 + r.ratingFor(this) - seen * 1.5 - r.queue.length * .26 - dist(this.x, this.z, r.x, r.z) * .010 - r.price * .07;
+      const wetBonus = (r.def && r.def.water) ? (Weather.waterAppeal() - 1) * 4.5 : 0;
+      let s = 2.4 + wetBonus + r.ratingFor(this) - seen * 1.5 - r.queue.length * .26 - dist(this.x, this.z, r.x, r.z) * .010 - r.price * .07;
       if (r.intensity > this.prefIntensity + 3.2) s -= 8;
       if (r.nausea > this.nauseaTol + 2) s -= 6;
       s += rnd(-1, 1);
@@ -4905,6 +5143,8 @@ const UI = {
     const pe = $('#vProfit');
     pe.textContent = money(pph);
     pe.style.color = pph >= 0 ? 'var(--good)' : 'var(--bad)';
+    $('#vWeather').textContent = Weather.def.name + ' \u00B7 ' + Weather.temp + '\u00B0C';
+    $('#vSeason').textContent = Weather.season.name + ' \u00B7 day ' + (Weather.dayOfSeason + 1);
     const h = Math.floor(Park.time / 60) % 24, m = Math.floor(Park.time % 60);
     $('#vTime').textContent = `Day ${Park.day} · ${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
     document.querySelectorAll('#speedbar .sbtn').forEach((b, i) => {
@@ -4913,21 +5153,43 @@ const UI = {
   },
 
   /* --------- inspector --------- */
+  rename(id, value) {
+    const o = Park.objects.find(x => x.id === id) || Park.coasters.find(x => x.id === id) || Park.staff.find(x => x.id === id);
+    if (!o) return;
+    const v = String(value).slice(0, 34).trim();
+    if (v) o.name = v;
+    if (Coaster.active && Coaster.active.id === id) Coaster.refresh();
+    if (UI.tool === 'coaster') UI.refreshBuildPanel();
+  },
   inspect(o) {
     const p = $('#inspector'), b = $('#insBody');
     if (!o) { p.classList.remove('show'); return; }
     p.classList.add('show');
     let h = '';
     const meter = (n, v, c) => `<div class="meter"><span class="mn">${n}</span><span class="bar"><span class="fill" style="width:${clamp(v * 100, 0, 100)}%;background:${c}"></span></span><span class="mv">${Math.round(v * 100)}</span></div>`;
-    const kv = (k, v) => `<div class="kv"><span class="k">${k}</span><span class="v">${v}</span></div>`;
+    const kv = (k, v, note) => `<div class="kv"><span class="k">${k}</span><span class="v">${v}${note ? ` <span style="color:var(--dim);font-weight:400">${note}</span>` : ''}</span></div>`;
+    const nameField = (obj) => `<input class="nameIn" value="${(obj.name || '').replace(/"/g, '&quot;')}"
+        onchange="UI.rename(${obj.id}, this.value)" onkeydown="if(event.key==='Enter')this.blur()"
+        title="Click to rename">`;
+    const age = (obj) => {
+      const mins = Math.max(0, Park.time + (Park.day - 1) * 1440 - (obj.built || 0));
+      const d = Math.floor(mins / 1440);
+      return d > 0 ? d + (d === 1 ? ' day' : ' days') + ' old' : Math.floor(mins / 60) + 'h old';
+    };
+    const perDay = (total) => {
+      const days = Math.max(1, Park.day - 1 + Park.time / 1440);
+      return money(total / days) + ' / day';
+    };
 
     if (o instanceof Guest) {
-      $('#insTitle').textContent = o.name;
-      h += kv('Status', o.state);
-      h += kv('Cash', money(o.cash));
-      h += kv('Spent', money(o.spent));
+      $('#insTitle').textContent = 'Guest';
+      h += `<div style="font-size:14px;font-weight:700;margin-bottom:2px">${o.name}</div>`;
+      h += `<div style="font-size:10.5px;color:var(--dim);margin-bottom:6px">${o.state} &middot; in the park ${Math.round(o.timeInPark / 60)}h</div>`;
+      h += kv('Cash left', money(o.cash));
+      h += kv('Spent here', money(o.spent));
       h += kv('Rides taken', o.ridden.length);
-      h += kv('Prefers intensity', o.prefIntensity.toFixed(1));
+      h += kv('Prefers intensity', o.prefIntensity.toFixed(1), 'of 14');
+      h += kv('Nausea tolerance', o.nauseaTol.toFixed(1));
       h += `<div class="meterbox">`;
       h += meter('Happiness', o.happy, 'linear-gradient(90deg,#ff6b6b,#ffd76a,#6be675)');
       h += meter('Hunger', o.hunger, '#f0a63c');
@@ -4936,62 +5198,96 @@ const UI = {
       h += meter('Energy', o.energy, '#6be675');
       h += meter('Nausea', o.nausea, '#9aa832');
       h += `</div>`;
-      if (o.thought) h += `<div style="font-style:italic;color:#cfe3f5;background:rgba(255,255,255,.05);padding:7px;border-radius:8px">“${o.thought}”</div>`;
+      if (o.thought) h += `<div style="font-style:italic;color:#cfe3f5;background:rgba(255,255,255,.05);padding:7px;border-radius:8px">&ldquo;${o.thought}&rdquo;</div>`;
     }
     else if (o instanceof Staff) {
-      $('#insTitle').textContent = o.name;
+      $('#insTitle').textContent = o.def.name;
+      h += nameField(o);
       h += kv('Role', o.def.name);
-      h += kv('Status', o.state);
+      h += kv('Currently', o.state);
       h += kv('Wage', money(o.wage) + ' / hr');
-      if (o.role === 'janitor') h += kv('Litter cleaned', o.cleaned);
-      if (o.role === 'mechanic') h += kv('Repairs', o.repaired);
-      h += `<div class="btnrow"><button class="btn dan" onclick="Game.fire(${o.id})">Dismiss</button></div>`;
+      if (o.role === 'janitor') h += kv('Litter cleared', o.cleaned);
+      if (o.role === 'mechanic') h += kv('Repairs made', o.repaired);
+      h += `<div class="btnrow"><button class="btn" onclick="Cam.tx=${o.x.toFixed(1)};Cam.tz=${o.z.toFixed(1)}">Find</button>
+        <button class="btn dan" onclick="Game.fire(${o.id})">Dismiss</button></div>`;
     }
     else if (o.kind === 'ride' || o.kind === 'coaster') {
-      $('#insTitle').textContent = o.name;
       const isC = o.kind === 'coaster';
-      const st = o.broken ? '<span class="tag" style="background:#5e2020;color:#ffb3b3">BROKEN</span>'
+      $('#insTitle').textContent = isC ? 'Coaster' : (o.def.water ? 'Water Attraction' : 'Flat Ride');
+      h += nameField(o);
+      const st = o.broken ? '<span class="tag" style="background:#5e2020;color:#ffb3b3">BROKEN DOWN</span>'
         : o.openR ? '<span class="tag" style="background:#1e4d33;color:#8ff0b5">OPEN</span>'
           : '<span class="tag" style="background:#4a3a1a;color:#ffd76a">CLOSED</span>';
-      h += kv('Status', st);
+      h += `<div style="display:flex;justify-content:space-between;align-items:center">
+        <span style="font-size:10.5px;color:var(--dim)">${isC ? o.type.name : o.def.name} &middot; ${age(o)}</span>${st}</div>`;
       h += `<div class="meterbox">
         <div class="meter"><span class="mn">Excitement</span><span class="bar"><span class="fill" style="width:${o.excitement / 14 * 100}%;background:#6be675"></span></span><span class="mv">${o.excitement.toFixed(1)}</span></div>
         <div class="meter"><span class="mn">Intensity</span><span class="bar"><span class="fill" style="width:${o.intensity / 14 * 100}%;background:#ffb84d"></span></span><span class="mv">${o.intensity.toFixed(1)}</span></div>
         <div class="meter"><span class="mn">Nausea</span><span class="bar"><span class="fill" style="width:${o.nausea / 14 * 100}%;background:#9aa832"></span></span><span class="mv">${o.nausea.toFixed(1)}</span></div>
       </div>`;
-      h += kv('Queue', (o.queue ? o.queue.length : 0) + ' guests');
+      h += `<div class="cat">Business</div>`;
+      h += kv('Revenue', money(o.revenue), perDay(o.revenue));
       h += kv('Total riders', o.ridden);
-      h += kv('Revenue', money(o.revenue));
+      h += kv('Queue now', (o.queue ? o.queue.length : 0) + ' waiting');
+      h += kv('Riders on board', isC ? o.trains.reduce((a, t) => a + t.riders.length, 0) : o.riders.length);
+      h += kv('Capacity', o.cap + ' per cycle');
+      if (o.throughput) h += kv('Throughput', o.throughput + ' / hr');
+      h += kv('Upkeep', money(isC ? 18 + (o.track ? o.track.length * .04 : 0) : (o.def.up || 0) * .6) + ' / hr');
+      h += kv('Reliability', Math.round(clamp((o.reliability || .9) - o.wear, 0, 1) * 100) + '%');
       if (isC && o.track) {
+        h += `<div class="cat">Engineering</div>`;
         h += kv('Track length', Math.round(o.track.length) + ' m');
         h += kv('Max height', Math.round(o.track.maxH - o.y) + ' m');
         h += kv('Top speed', Math.round(o.maxSpeed * 3.6) + ' km/h');
-        h += kv('Max G', o.maxG.toFixed(1) + ' G');
+        h += kv('Max G', o.maxG.toFixed(1) + ' G', o.maxG > 5 ? 'brutal' : '');
         h += kv('Airtime', (o.airtime || 0).toFixed(1) + ' s');
         h += kv('Inversions', o.track.inversions);
+        h += kv('Ride time', (o.rideTime || 0).toFixed(0) + ' s');
       }
-      h += `<div class="row"><label>Price</label><input type="range" min="0" max="30" step="1" value="${o.price}" oninput="Game.setPrice(${o.id},this.value)"><span class="num" id="prc${o.id}">$${o.price}</span></div>`;
+      h += `<div class="row"><label>Ticket price</label><input type="range" min="0" max="30" step="1" value="${o.price}" oninput="Game.setPrice(${o.id},this.value)"><span class="num" id="prc${o.id}">$${o.price}</span></div>`;
+      const dem = (Park.guests.length ? Park.guests.filter(g => g.cash >= o.price).length / Park.guests.length : 1);
+      h += `<div style="font-size:10.5px;color:var(--dim);margin-top:-2px">${Math.round(dem * 100)}% of guests can afford this.</div>`;
       h += `<div class="btnrow">
         <button class="btn ${o.openR ? '' : 'go'}" onclick="Game.toggleOpen(${o.id})">${o.openR ? 'Close' : 'Open'}</button>
-        ${isC ? `<button class="btn pri" onclick="UI.rideReport(${o.id})">Report</button>` : ''}
+        ${isC ? `<button class="btn pri" onclick="UI.rideReport(${o.id})">Full report</button>` : ''}
+      </div>`;
+      if (isC) h += `<div class="btnrow"><button class="btn" onclick="Game.rideCam(${o.id})">Ride cam</button>
+        <button class="btn" onclick="Coaster.enter(Park.coasters.find(x=>x.id===${o.id}))">Edit track</button></div>`;
+      h += `<div class="btnrow"><button class="btn" onclick="Game.autoConnect(Park.objects.concat(Park.coasters).find(x=>x.id===${o.id}))">Reconnect queue</button>
         <button class="btn dan" onclick="Game.demolish(${o.id})">Demolish</button></div>`;
-      if (isC) h += `<div class="btnrow"><button class="btn" onclick="Game.rideCam(${o.id})">Ride Cam</button><button class="btn" onclick="Coaster.enter(Park.coasters.find(x=>x.id===${o.id}))">Edit Track</button></div>`;
-      if (o.broken) h += `<div style="color:var(--bad);font-size:11px">A mechanic must repair this ride.</div>`;
+      if (o.broken) h += `<div style="color:var(--bad);font-size:11px">A mechanic is needed before this can reopen.</div>`;
     }
     else if (o.kind === 'shop') {
-      $('#insTitle').textContent = o.name;
-      h += kv('Serves', o.def.need);
-      h += kv('Customers', o.served);
-      h += kv('Revenue', money(o.revenue));
-      h += kv('Queue', o.queue.length);
-      h += `<div class="row"><label>Price</label><input type="range" min="0" max="${o.def.price * 3}" step="1" value="${o.price}" oninput="Game.setPrice(${o.id},this.value)"><span class="num" id="prc${o.id}">$${o.price}</span></div>`;
-      h += `<div style="font-size:10.5px;color:var(--dim)">Guests grumble above ${money(o.def.price * 1.8)}.</div>`;
-      h += `<div class="btnrow"><button class="btn dan" onclick="Game.demolish(${o.id})">Demolish</button></div>`;
+      $('#insTitle').textContent = 'Shop';
+      h += nameField(o);
+      h += `<div style="font-size:10.5px;color:var(--dim)">${o.def.name} &middot; ${age(o)}</div>`;
+      const cost = o.def.price * 0.35;
+      const profitEach = Math.max(0, o.price - cost);
+      h += `<div class="cat">Trade</div>`;
+      h += kv('Customers served', o.served);
+      h += kv('Revenue', money(o.revenue), perDay(o.revenue));
+      h += kv('Cost per sale', money(cost));
+      h += kv('Profit per sale', money(profitEach));
+      h += kv('Gross profit', money(o.served * profitEach));
+      h += kv('Queue now', o.queue.length + ' waiting');
+      h += kv('Upkeep', money((o.def.up || 0) * .6) + ' / hr');
+      h += kv('Satisfies', o.def.need);
+      h += `<div class="row"><label>Price</label><input type="range" min="0" max="${Math.max(4, o.def.price * 3)}" step="1" value="${o.price}" oninput="Game.setPrice(${o.id},this.value)"><span class="num" id="prc${o.id}">$${o.price}</span></div>`;
+      const fair = o.def.price;
+      const verdict = o.price > fair * 1.8 ? ['Guests think this is a rip-off', 'var(--bad)']
+        : o.price > fair * 1.25 ? ['On the expensive side', 'var(--warn)']
+          : o.price < fair * .6 ? ['Cheap — you are leaving money on the table', 'var(--warn)']
+            : ['Priced about right', 'var(--good)'];
+      h += `<div style="font-size:10.5px;color:${verdict[1]}">${verdict[0]}. Guests expect around ${money(fair)}.</div>`;
+      h += `<div class="btnrow"><button class="btn" onclick="Game.autoConnect(Park.objects.find(x=>x.id===${o.id}))">Reconnect path</button>
+        <button class="btn dan" onclick="Game.demolish(${o.id})">Demolish</button></div>`;
     }
     else {
-      $('#insTitle').textContent = o.def.name;
+      $('#insTitle').textContent = 'Scenery';
+      h += `<div style="font-size:14px;font-weight:700">${o.def.name}</div>`;
       h += kv('Beauty', '+' + o.def.beauty);
-      h += kv('Upkeep', money(o.def.up) + ' / hr');
+      h += kv('Upkeep', money((o.def.up || 0) * .6) + ' / hr');
+      h += kv('Nearby beauty', Math.round(Park.beautyAt(o.x, o.z)));
       h += `<div class="btnrow"><button class="btn dan" onclick="Game.demolish(${o.id})">Demolish</button></div>`;
     }
     b.innerHTML = h;
@@ -6025,6 +6321,7 @@ const ICON = (() => {
     check: w('<path d="M5 12.5l4.5 4.5L19 7.5"/>'),
     trash: w('<path d="M4.5 7h15"/><path d="M9 7V4.5h6V7"/><path d="M6.5 7l1 13h9l1-13"/><path d="M10.5 11v6M13.5 11v6" opacity=".5"/>'),
     home: w('<path d="M4 11.5L12 4l8 7.5"/><path d="M6 10.5V20h12v-9.5"/><path d="M10 20v-5h4v5"/>'),
+    weather: w('<circle cx="8" cy="8.5" r="3"/><path d="M8 3.2v1.3M3.2 8.5h1.3M4.7 5.2l.9.9M11.3 5.2l-.9.9"/><path d="M10.5 19a3.2 3.2 0 013-3.2 4.1 4.1 0 017.9 1.1 2.5 2.5 0 01-.5 5H13.5a3 3 0 01-3-2.9z"/>'),
     lock: w('<rect x="5" y="10.5" width="14" height="9.5" rx="2"/><path d="M8.5 10.5V8a3.5 3.5 0 017 0v2.5"/>'),
     rotl: w('<path d="M9 5.5L4.5 10 9 14.5"/><path d="M4.5 10h9a6 6 0 010 12H10"/>'),
     rotr: w('<path d="M15 5.5L19.5 10 15 14.5"/><path d="M19.5 10h-9a6 6 0 000 12H14"/>'),
@@ -6336,6 +6633,7 @@ const Game = {
     Park.log = { ticket: 0, shop: 0, entry: 0, wage: 0, upkeep: 0, build: 0 };
     Park.totalGuests = 0; Park.coasterCount = 0; Park.rating = 0; Park.happiness = .75;
     Park.time = 9 * 60; Park.day = 1; Park.now = 0;
+    Weather.reset(1);
     Park.mode = mode;
     Park.xp = 0;
     Park.level = mode === 'sandbox' ? Progress.MAXLEVEL : (scenario ? scenario.level : 2);
@@ -7012,7 +7310,7 @@ const Game = {
     const attract = 34 + Park.rating * .62 + Park.attractions().length * 6 + Park.marketing * 8;
     const feeFactor = clamp(1.45 - Park.entryFee / (26 + Park.rating * .55), .08, 1.7);
     const daily = 0.35 + Math.sin(clamp((hour - 8) / 13, 0, 1) * PI) * 1.5;
-    const rate = attract * feeFactor * daily * .019;
+    const rate = attract * feeFactor * daily * .019 * Weather.drawFactor();
     this._spawnAcc = (this._spawnAcc || 0) + rate * dt;
     while (this._spawnAcc >= 1) {
       this._spawnAcc -= 1;
@@ -7055,6 +7353,7 @@ const Game = {
     UI.notify('A new day', `Day ${Park.day} begins. Rating ${Park.rating}, ${Park.guests.length} guests still in the park.`, 'good');
     // rides recover a little, litter accumulates
     for (const o of Park.objects) if (o.kind === 'ride') o.wear = Math.max(0, o.wear - .02);
+    Weather.dayTick(Park.day);
     if (Park.rating > 700 && !Park.awards.includes('best')) {
       Park.awards.push('best');
       UI.notify('Award won', 'Your park has been voted Best Theme Park of the Year. Bonus ' + money(25000) + '.', 'money');
@@ -7268,6 +7567,44 @@ Object.assign(Game, {
     this.footprintMesh = this.R.makeMesh(g);
   },
 
+  /* Rain: a column of streaks that follows the camera, so a modest number of
+     instances covers the whole visible area. */
+  buildRain() {
+    const intensity = Weather.rainIntensity();
+    if (intensity < .05) { if (this.rainMesh) this.rainMesh.instCount = 0; return; }
+    if (!this.rainMesh) {
+      const g = new Geo();
+      g.box(0, -.5, 0, 1, 1, 1, [0.72, 0.80, 0.95], 1, 1, 1);
+      this.rainMesh = this.R.makeMesh(g);
+      this.rainBuf = new Float32Array(1400 * INST_STRIDE);
+      this.rainSeed = new Float32Array(1400 * 3);
+      for (let i = 0; i < 1400; i++) {
+        this.rainSeed[i * 3] = Math.random();
+        this.rainSeed[i * 3 + 1] = Math.random();
+        this.rainSeed[i * 3 + 2] = Math.random();
+      }
+    }
+    const n = Math.floor(1400 * clamp(intensity, 0, 1));
+    const buf = this.rainBuf, t = Park.now;
+    const SPREAD = 70, TOP = 34;
+    const cx = Cam.eye.x, cz = Cam.eye.z, cy = Cam.look.y;
+    const fall = 26 + intensity * 18;
+    let o = 0;
+    for (let i = 0; i < n; i++) {
+      const s0 = this.rainSeed[i * 3], s1 = this.rainSeed[i * 3 + 1], s2 = this.rainSeed[i * 3 + 2];
+      const x = cx + (s0 - .5) * SPREAD * 2;
+      const z = cz + (s1 - .5) * SPREAD * 2;
+      const y = cy + TOP - ((t * fall + s2 * TOP * 2) % (TOP * 1.6));
+      const len = 1.5 + intensity * 1.8;
+      M4.compose(this.rainTmp || (this.rainTmp = M4.create()), x, y, z, .18, 0, 0, .045, len, .045);
+      const m = this.rainTmp;
+      for (let k = 0; k < 16; k++) buf[o + k] = m[k];
+      buf[o + 16] = 1; buf[o + 17] = 1; buf[o + 18] = 1; buf[o + 19] = 0;
+      o += INST_STRIDE;
+    }
+    this.rainMesh.setInstances(buf.subarray(0, o), n);
+  },
+
   /* Fill the instance buffer with every visible person */
   buildCrowd() {
     const buf = this.crowdBuf;
@@ -7350,18 +7687,25 @@ Object.assign(Game, {
     V3.set(R.sun.dir, Math.cos(sunAng) * .55, Math.max(.06, elev), Math.sin(sunAng) * .35);
     V3.norm(R.sun.dir, R.sun.dir);
     const warm = clamp(dawn, 0, 1);
+    const sunF = Weather.sunFactor(), wet = Weather.rainIntensity(), flash = Weather.flash;
     R.sun.col = [
-      lerp(lerp(1.0, 1.0, warm), 0.30, night),
-      lerp(lerp(0.96, 0.72, warm), 0.34, night),
-      lerp(lerp(0.88, 0.48, warm), 0.52, night)];
+      lerp(lerp(1.0, 1.0, warm), 0.30, night) * sunF + flash * 1.2,
+      lerp(lerp(0.96, 0.72, warm), 0.34, night) * sunF + flash * 1.2,
+      lerp(lerp(0.88, 0.48, warm), 0.52, night) * (sunF * .9 + .1) + flash * 1.4];
     R.sky = [lerp(.34, .13, night), lerp(.44, .15, night), lerp(.58, .24, night)];
     R.gnd = [lerp(.20, .09, night), lerp(.19, .08, night), lerp(.16, .10, night)];
-    this.nightGlow = night;
+    // overcast light is flatter, cooler and drains the colour out of the park
+    const dull = clamp(Weather.cloudCover() * .8 + wet * .4, 0, 1);
+    R.sky = [lerp(R.sky[0], .30, dull * .5) + flash * .4, lerp(R.sky[1], .32, dull * .5) + flash * .4, lerp(R.sky[2], .36, dull * .5) + flash * .5];
+    this.nightGlow = clamp(night + wet * .3, 0, 1);
     const skyTop = [lerp(.16, .02, night), lerp(.42, .04, night), lerp(.86, .12, night)];
     const skyMid = [lerp(.52, .05, night) + warm * .28, lerp(.72, .07, night) + warm * .10, lerp(.96, .17, night)];
     const skyBot = [lerp(.82, .09, night) + warm * .18, lerp(.88, .10, night) - warm * .10, lerp(.98, .18, night) - warm * .22];
     R.fogCol = [lerp(skyBot[0], skyMid[0], .5), lerp(skyBot[1], skyMid[1], .5), lerp(skyBot[2], skyMid[2], .5)];
-    R.fogDens = 0.0022 + night * 0.0016;
+    const grey = clamp(dull * .65 + wet * .5, 0, 1);
+    R.fogCol = [lerp(R.fogCol[0], .60, grey), lerp(R.fogCol[1], .62, grey), lerp(R.fogCol[2], .66, grey)];
+    R.fogDens = 0.0022 + night * 0.0016 + wet * 0.0030 + Weather.cloudCover() * 0.0005;
+    R.quality = { ao: 0.95, outline: 0.7, bloom: 0.45 + night * 0.75 + flashSafe(flash) };
 
     Cam.apply(R);
 
@@ -7380,6 +7724,8 @@ Object.assign(Game, {
     R.clearMain();
     const sp = R.projectToScreen(Cam.eye.x + R.sun.dir.x * 300, Cam.eye.y + R.sun.dir.y * 300, Cam.eye.z + R.sun.dir.z * 300);
     const onScreen = sp.z > 0;
+    R.skyTime = Park.now;
+    R.cloud = (Weather ? Weather.cloudCover() : 0.45);
     R.drawSky(skyTop, skyMid, skyBot,
       [onScreen ? sp.x * .5 + .5 : -5, onScreen ? sp.y * .5 + .5 : -5],
       clamp(elev * 2 + .2, 0, 1),
@@ -7420,6 +7766,17 @@ Object.assign(Game, {
     // ---- crowd ----
     if (this.crowdCount) { R.useProgram(R.progMainI, false); R.drawInstanced(this.crowdMesh); }
 
+    // ---- rain ----
+    if (this.rainMesh && this.rainMesh.instCount) {
+      const gl = R.gl;
+      gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA); gl.depthMask(false);
+      R.useProgram(R.progMainI, false);
+      gl.uniform1f(R.progMainI.u.uAlpha, .38);
+      gl.uniform1f(R.progMainI.u.uEmissive, .85);
+      R.drawInstanced(this.rainMesh);
+      gl.depthMask(true); gl.disable(gl.BLEND);
+    }
+
     if (posted) R.endPost(night);
   }
 });
@@ -7443,6 +7800,7 @@ function frame(now) {
   Game.updatePlaceGhost();
   Coaster.updateGhost(Game.R);
   Game.buildCrowd();
+  Game.buildRain();
   Game.render();
   Minimap.draw(dt);
 
