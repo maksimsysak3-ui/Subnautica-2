@@ -2223,11 +2223,11 @@ const CAT = {
     { id: 'minigolf', name: 'Crazy Golf', cost: 3400, up: 38, w: 4, d: 4, cap: 12, dur: 120, exc: 2.8, fear: 0.2, naus: 0.1, price: 4, kind: 'minigolf' },
 
     /* ---- water park: pools ---- */
-    { id: 'poolsmall', name: 'Splash Pool', cost: 3200, up: 40, w: 3, d: 3, cap: 18, dur: 90, exc: 3.4, fear: 0.4, naus: 0.2, price: 4, kind: 'pool', water: true, pool: { depth: 1.1 } },
-    { id: 'poolbig', name: 'Main Pool', cost: 7600, up: 82, w: 5, d: 4, cap: 40, dur: 110, exc: 4.6, fear: 0.6, naus: 0.2, price: 5, kind: 'pool', water: true, pool: { depth: 1.5 } },
-    { id: 'wavepool', name: 'Wave Pool', cost: 12800, up: 118, w: 5, d: 5, cap: 46, dur: 100, exc: 6.4, fear: 2.0, naus: 1.2, price: 7, kind: 'wavepool', water: true, pool: { depth: 1.6 } },
-    { id: 'lazyriver', name: 'Lazy River', cost: 9800, up: 96, w: 5, d: 5, cap: 32, dur: 140, exc: 4.2, fear: 0.3, naus: 0.4, price: 5, kind: 'lazyriver', water: true },
-    { id: 'kiddie', name: 'Kids Splash Zone', cost: 4400, up: 52, w: 4, d: 3, cap: 20, dur: 80, exc: 3.0, fear: 0.2, naus: 0.1, price: 3, kind: 'kiddie', water: true },
+    { id: 'poolsmall', name: 'Splash Pool', cost: 3200, up: 40, w: 3, d: 3, cap: 26, dur: 90, exc: 3.4, fear: 0.4, naus: 0.2, price: 4, kind: 'pool', water: true, pool: { depth: 1.1 } },
+    { id: 'poolbig', name: 'Main Pool', cost: 7600, up: 82, w: 5, d: 4, cap: 64, dur: 110, exc: 4.6, fear: 0.6, naus: 0.2, price: 5, kind: 'pool', water: true, pool: { depth: 1.5 } },
+    { id: 'wavepool', name: 'Wave Pool', cost: 12800, up: 118, w: 5, d: 5, cap: 78, dur: 100, exc: 6.4, fear: 2.0, naus: 1.2, price: 7, kind: 'wavepool', water: true, pool: { depth: 1.6 } },
+    { id: 'lazyriver', name: 'Lazy River', cost: 9800, up: 96, w: 5, d: 5, cap: 56, dur: 140, exc: 4.2, fear: 0.3, naus: 0.4, price: 5, kind: 'lazyriver', water: true },
+    { id: 'kiddie', name: 'Kids Splash Zone', cost: 4400, up: 52, w: 4, d: 3, cap: 34, dur: 80, exc: 3.0, fear: 0.2, naus: 0.1, price: 3, kind: 'kiddie', water: true },
     { id: 'hottub', name: 'Hot Tub', cost: 2600, up: 34, w: 2, d: 2, cap: 10, dur: 70, exc: 2.6, fear: 0.2, naus: 0.1, price: 5, kind: 'hottub', water: true },
 
     /* ---- water park: slides ---- */
@@ -4077,7 +4077,9 @@ class Track {
     const dy = Math.abs(f.p.y - this.start.y);
     const want = V3.make(Math.cos(this.start.yaw), 0, Math.sin(this.start.yaw));
     const dot = V3.dot(V3.norm({}, f.f), want);
-    return { d, dy, dot, ok: d < 9 && dy < 4.5 && dot > .45 };
+    // A junction is only a junction if the rails actually meet: within a
+    // rail's width, at the same height, pointing the same way.
+    return { d, dy, dot, ok: d < 2.2 && dy < 1.2 && dot > .975 };
   }
   sampleAt(dd) {
     const S = this.samples;
@@ -4339,6 +4341,67 @@ class ParkObject {
   }
   tierName() { return ['', 'Standard', 'Improved', 'Deluxe', 'Flagship'][this.tier] || 'Standard'; }
   footprint(cb) { for (let jj = this.j; jj < this.j + this.gd; jj++) for (let ii = this.i; ii < this.i + this.gw; ii++) cb(ii, jj); }
+
+  /* Walk the actual queue tiles back from the entrance and cache the centre
+     line, so people in a queue stand ON it however it bends. Rebuilt whenever
+     the path network changes. */
+  queuePath() {
+    if (this._qp && this._qpStamp === Path.stamp) return this._qp;
+    const e = this.entrance;
+    const pts = [];
+    let i = WORLD.ti(e.x), j = WORLD.tj(e.z);
+    const seen = new Set();
+    // step outward along connected queue tiles, always away from the entrance
+    for (let k = 0; k < 240; k++) {
+      if (!WORLD.inb(i, j)) break;
+      const key = j * N + i;
+      if (seen.has(key)) break;
+      const t = WORLD.type[key];
+      if (t !== T_QUEUE && k > 0) break;
+      seen.add(key);
+      pts.push({ x: WORLD.wx(i), z: WORLD.wz(j) });
+      let best = null, bd = -1;
+      for (const [di, dj] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const ni = i + di, nj = j + dj;
+        if (!WORLD.inb(ni, nj) || seen.has(nj * N + ni)) continue;
+        if (WORLD.type[nj * N + ni] !== T_QUEUE) continue;
+        const d = dist2(WORLD.wx(ni), WORLD.wz(nj), e.x, e.z);
+        if (d > bd) { bd = d; best = [ni, nj]; }
+      }
+      if (!best) break;
+      i = best[0]; j = best[1];
+    }
+    this._qp = pts;
+    this._qpStamp = Path.stamp;
+    return pts;
+  }
+  /* Where the idx-th person in the queue should stand. */
+  queueSlot(idx) {
+    const pts = this.queuePath();
+    const e = this.entrance;
+    const SPACING = 1.5;
+    if (pts.length > 1) {
+      // walk `back` metres along the queue centre line from the entrance
+      let want = 2.0 + idx * SPACING;
+      for (let k = 1; k < pts.length; k++) {
+        const seg = dist(pts[k - 1].x, pts[k - 1].z, pts[k].x, pts[k].z);
+        if (want <= seg) {
+          const f = seg > 0 ? want / seg : 0;
+          return { x: lerp(pts[k - 1].x, pts[k].x, f), z: lerp(pts[k - 1].z, pts[k].z, f) };
+        }
+        want -= seg;
+      }
+      // past the end of the built queue: trail off behind the last tile
+      const last = pts[pts.length - 1], prev = pts[Math.max(0, pts.length - 2)];
+      const dx = last.x - prev.x, dz = last.z - prev.z;
+      const l = Math.hypot(dx, dz) || 1;
+      return { x: last.x + dx / l * want, z: last.z + dz / l * want };
+    }
+    // no queue path built: fall back to a line straight out of the entrance
+    const a = -this.rot * PI / 2;
+    const back = 2.2 + idx * SPACING;
+    return { x: e.x + Math.sin(a) * back, z: e.z - Math.cos(a) * back };
+  }
   updateMatrix() {
     /* Buildings rise out of the ground and settle with a small overshoot, so
        placing something reads as an event rather than a pop-in. */
@@ -4449,6 +4512,26 @@ class Ride extends ParkObject {
         break;
       case 'running': {
         this.timer -= dt;
+        /* A pool is not a ride cycle. People get in and out continuously, and
+           making everyone queue for a "next sitting" is why pools looked like
+           they could barely take anyone. Open water keeps admitting while it
+           runs, and lets swimmers leave once they have had their swim. */
+        if (this.def.pool || this.def.kind === 'lazyriver' || this.def.kind === 'kiddie') {
+          while (this.riders.length < this.cap && this.queue.length) {
+            const g = this.queue.shift();
+            if (!g || g.dead) continue;
+            g.boardRide(this);
+            this.riders.push(g);
+            Park.money += this.price; this.revenue += this.price;
+            Park.log.ticket += this.price; Progress.add(2);
+          }
+          for (let k = this.riders.length - 1; k >= 0; k--) {
+            const g = this.riders[k];
+            g.swimT = (g.swimT || rnd(.6, 1.5) * this.dur) - dt;
+            if (g.swimT <= 0) { g.swimT = 0; g.finishRide(this); this.ridden++; this.riders.splice(k, 1); }
+          }
+          if (this.timer <= 0) this.timer = this.dur / Park.rideSpeedup;
+        }
         const p = 1 - this.timer / (this.dur / Park.rideSpeedup);
         const env = Math.min(1, Math.min(p, 1 - p) * 6);
         this.spin += dt * 1.4 * env * (this.def.kind === 'teacup' ? 2.2 : 1);
@@ -5425,10 +5508,9 @@ class Guest extends Person {
         // shuffle forward inside the queue
         const idx = t.queue.indexOf(this);
         if (idx < 0) { this.state = 'idle'; break; }
-        const ent = t.entrance;
-        const back = 2.2 + idx * 1.5;
+        const slot = t.queueSlot(idx);
+        const tx = slot.x, tz = slot.z;
         const a = -t.rot * PI / 2;
-        const tx = ent.x + Math.sin(a) * back, tz = ent.z - Math.cos(a) * back;
         const dx = tx - this.x, dz = tz - this.z, d = Math.hypot(dx, dz);
         if (d > .5) { this.x += dx / d * Math.min(d, this.speed * .7 * dt); this.z += dz / d * Math.min(d, this.speed * .7 * dt); this.moving = true; this.anim += dt * 4; this.yawT = Math.atan2(dz, dx); }
         else this.yawT = a + PI / 2;
@@ -5533,6 +5615,9 @@ class Guest extends Person {
   }
 
   decide() {
+    // Whatever we were walking towards, we are reconsidering — give the place
+    // back before choosing again, or the notional queue never drains.
+    this.claim(null);
     /* Needs compete on a single utility scale rather than a fixed ladder, so a
        guest who is a bit hungry AND a bit tired behaves differently from one
        who is desperate for a toilet. Weather and wallet shift the weights. */
@@ -5565,7 +5650,7 @@ class Guest extends Person {
       if (r.openR !== false && !r.broken && r.price <= this.cash && this.willRide(r)) {
         this.target = r; this.wantAction = 'ride';
         const e = r.entrance;
-        if (this.goto(e.x, e.z)) { this.state = 'walking'; return; }
+        if (this.goto(e.x, e.z)) { this.claim(r); this.state = 'walking'; return; }
       }
     }
 
@@ -5578,7 +5663,7 @@ class Guest extends Person {
       if (r) {
         this.target = r; this.wantAction = 'ride';
         const e = r.entrance;
-        if (this.goto(e.x, e.z)) { this.state = 'walking'; this.think('Let’s ride ' + r.name + '!'); return; }
+        if (this.goto(e.x, e.z)) { this.claim(r); this.state = 'walking'; this.think('Let’s ride ' + r.name + '!'); return; }
       }
     }
     if (want === 'shop') want = 'shop';
@@ -5658,9 +5743,18 @@ class Guest extends Person {
   /* Roughly how long the queue at r will take, in seconds. Judging a queue by
      the number of people in it is wrong — forty people on a coaster with four
      trains move faster than ten on a slow flat ride. */
-  estimatedWait(r) {
+  /* Two different questions, so two different answers.
+
+     When CHOOSING between rides, the people already walking towards one count
+     — otherwise a newly opened ride looks empty to everybody at the same
+     instant and the whole park sets off for it at once. When deciding whether
+     to actually JOIN the queue you are standing in front of, only the real
+     queue matters; counting walkers there makes everyone balk and turn round,
+     and they spend the day walking between rides they never get on. */
+  estimatedWait(r, planning) {
     const perHour = r.throughput || (r.cap ? r.cap * 3600 / Math.max(30, (r.dur || 45) + 20) : 300);
-    return r.queue.length / Math.max(1, perHour) * 3600;
+    const waiting = r.queue.length + (planning ? (r.incoming || 0) * .6 : 0);
+    return waiting / Math.max(1, perHour) * 3600;
   }
   chooseRide() {
     let best = null, bs = -2.5;
@@ -5677,7 +5771,7 @@ class Guest extends Person {
       const seen = this.ridden.filter(x => x === r.id).length;
       const water = r.def && r.def.water;
       const wetBonus = water ? (Weather.waterAppeal() - 1) * 4.5 + (hot ? 2.2 : -1.4) * this.wetTolerance : 0;
-      const wait = this.estimatedWait(r);
+      const wait = this.estimatedWait(r, true);
 
       let s = 2.4 + wetBonus + r.ratingFor(this);
       s -= seen * 2.2;                                  // novelty matters
@@ -5695,8 +5789,17 @@ class Guest extends Person {
     }
     return best;
   }
+  /* Book a place in the notional queue while walking there, and give it up
+     on arrival or if we change our mind. */
+  claim(r) {
+    if (this.claimed === r) return;
+    if (this.claimed) this.claimed.incoming = Math.max(0, (this.claimed.incoming || 0) - 1);
+    this.claimed = r || null;
+    if (r) r.incoming = (r.incoming || 0) + 1;
+  }
   arriveAtTarget() {
     const t = this.target;
+    this.claim(null);
     this.moving = false;
     if (this.wantAction === 'sit' && t && !t.taken) {
       t.taken = true; this.bench = t; this.state = 'sitting'; this.sitT = rnd(18, 40);
@@ -5762,6 +5865,7 @@ class Guest extends Person {
     this.state = 'idle';
   }
   leaveQueue(msg) {
+    this.claim(null);
     const t = this.target;
     if (t) { const k = t.queue.indexOf(this); if (k >= 0) t.queue.splice(k, 1); }
     this.happy = clamp(this.happy - .16, 0, 1);
@@ -5792,6 +5896,7 @@ class Guest extends Person {
     this.z = ride.z - Math.cos(a) * off + rnd(-1.5, 1.5);
   }
   leavePark() {
+    this.claim(null);
     this.state = 'leaving';
     const ex = WORLD.wx(N / 2), ez = WORLD.wz(N / 2 + 25);
     if (!this.goto(ex, ez)) this.dead = true;
@@ -6101,6 +6206,15 @@ const UI = {
         { id: 'erase', name: 'Remove', cost: 0 },
       ], 'grid2', it => `<img class="th" src="${Thumbs.path(it.id)}" alt=""><span class="n">${it.name}</span>${it.cost ? cost(it.cost) : '<span class="c">refund</span>'}`,
         (it, d) => this.pick(it, d));
+      b.appendChild(el('div', 'cat', 'Queue connection'));
+      b.appendChild(el('div', '', `<div class="row" style="padding:2px 3px">
+        <label style="min-width:0;flex:1">Connect new rides automatically</label>
+        <input type="checkbox" ${Game.autoQueue ? 'checked' : ''} onchange="Game.autoQueue=this.checked;Game._qmKey=null">
+      </div>
+      <div style="font-size:11px;color:var(--dim);line-height:1.55;padding:2px 3px 0">
+        Automatic queues take the shortest route the pathfinder can find, which is not always the
+        route you would have picked. Turn this off to run every queue by hand — a
+        <b style="color:var(--good)">green marker</b> shows the tile each ride needs you to reach.</div>`));
       b.appendChild(el('div', 'cat', 'How paths work'));
       b.appendChild(el('div', '', `<div style="font-size:11px;color:var(--dim);line-height:1.55;padding:0 3px">
         Drag to lay a run of path. Guests can only walk on <b style="color:var(--txt)">walkways</b>.
@@ -7266,9 +7380,13 @@ const Coaster = {
     this.autoComplete();
     // If the layout cannot get home from where it ended up, walk the tail back
     // a piece at a time and try again — a shorter version of the same design.
-    for (let attempt = 0; attempt < 10 && !c.track.closeError().ok; attempt++) {
+    for (let attempt = 0; attempt < 24 && !c.track.closeError().ok; attempt++) {
       if (c.track.pieces.length <= 4) break;
+      // peel back two at a time once the easy retries are exhausted, so a
+      // design that ended up somewhere awkward gets a genuinely different
+      // starting point rather than the same one twenty times over
       c.track.removeLast();
+      if (attempt > 7) c.track.removeLast();
       this.autoComplete();
     }
     if (!c.track.closeError().ok) {
@@ -7718,10 +7836,37 @@ const Coaster = {
      -------------------------------------------------------------- */
   autoComplete() {
     const c = this.active; if (!c || c.track.complete) return;
+    /* Try to dock straight home first. Dubins reaches any pose within its
+       turning radius, so whenever there is clear ground between here and the
+       station it produces a shorter, cleaner route than the search — and it
+       arrives exactly on the rails rather than approximately. */
+    {
+      const marks = { pieces: c.track.pieces.length, custom: c.track.custom.length, money: Park.money };
+      const solo = this.dockToStation(c, true);
+      if (c.track.closeError().ok) {
+        this.rebuild();
+        UI.notify('Route home found', solo.laid + ' pieces laid for ' + money(solo.cost) + '. Press Complete Circuit.', 'good');
+        this.refresh();
+        return;
+      }
+      // did not reach: put the track back exactly as it was
+      while (c.track.pieces.length > marks.pieces) c.track.removeLast();
+      c.track.custom.length = marks.custom;
+      Park.money = marks.money;
+    }
     let plan = this.planRoute(c.track);
     if (!plan) plan = this.planRoute(c.track, 40000);   // one deeper attempt
     if (!plan) {
-      UI.notify('No route found', 'The station is boxed in, too close or too far. Steer nearer by hand and try again.', 'warn');
+      // The search failing does not mean the track cannot get home: Dubins
+      // reaches anything within its turning radius, so try docking directly.
+      const solo = this.dockToStation(c, true);
+      this.rebuild();
+      if (c.track.closeError().ok) {
+        UI.notify('Route home found', solo.laid + ' pieces laid for ' + money(solo.cost) + '. Press Complete Circuit.', 'good');
+      } else {
+        UI.notify('No route found', 'The station is boxed in, too close or too far. Steer nearer by hand and try again.', 'warn');
+      }
+      this.refresh();
       return;
     }
     let spent = 0, laid = 0;
@@ -7731,11 +7876,289 @@ const Coaster = {
       if (!this.tryAutoAdd(c, p, this.validSamples)) break;
       spent += PIECE_BY_ID[p].cost; laid++;
     }
+    // The A* only gets roughly home; dock the last stretch precisely.
+    const dock = this.dockToStation(c, true);
+    spent += dock.cost; laid += dock.laid;
     this.rebuild();
     const e = c.track.closeError();
     if (e.ok) UI.notify('Route home found', laid + ' pieces laid for ' + money(spent) + '. Press Complete Circuit.', 'good');
-    else UI.notify('Nearly there', 'Auto-route got within ' + e.d.toFixed(0) + ' m — finish it by hand.', 'warn');
+    else UI.notify('Nearly there', 'Auto-route got within ' + e.d.toFixed(1) + ' m — finish it by hand.', 'warn');
     this.refresh();
+  },
+
+  /* ------------------------------------------------------------------
+     DOCKING
+     The A* only has to get roughly home; it stops the moment it is "close
+     enough", which is why the last few metres used to arrive off-axis, at
+     the wrong height and still banked. This drives the track the rest of the
+     way in as a pursuit problem: aim at a stand-off point on the station's
+     centreline, bleed off bank and pitch as you close, then finish with a
+     dead straight, dead level run-in of exactly the remaining distance.
+     ------------------------------------------------------------------ */
+  /* The run-in sits low by design — it is arriving at a station a metre or so
+     off the ground — so it gets a slacker clearance rule than free track, and
+     the first sample is exempt because it inherits wherever the previous
+     piece already ended. */
+  dockSamplesOk(sm) {
+    const c = this.active;
+    const sx = c && c.track ? c.track.start.x : 0, sz = c && c.track ? c.track.start.z : 0;
+    for (let k = 1; k < sm.length; k++) {
+      const q = sm[k];
+      // Close to the station the track is legitimately near the ground, and
+      // the ground there has been flattened to the platform height — so the
+      // usual clearance and land rules would reject the one approach that is
+      // actually correct.
+      const nearStation = dist2(q.p.x, q.p.z, sx, sz) < 30 * 30;
+      if (q.p.y - WORLD.hAt(q.p.x, q.p.z) < (nearStation ? -0.05 : 0.30)) return false;
+      if (!nearStation && !WORLD.ownsWorld(q.p.x, q.p.z)) return false;
+      if (q.p.y > 130) return false;
+    }
+    return true;
+  },
+  commitCustom(c, def) {
+    const sm = Track.integrate(c.track.endFrame(), def, null, c.track.length, c.track.pieces.length, { autoBank: false });
+    if (!this.dockSamplesOk(sm)) return false;
+    const key = 'fh' + c.track.custom.length;
+    c.track.custom.push(def);
+    PIECE_BY_ID[key] = Object.assign({}, def, { id: key });
+    c.track.append(key, { autoBank: false });
+    return true;
+  },
+  /* Dubins docking.
+
+     A pursuit controller cannot solve this: track has a minimum turning
+     radius, so from close range pointing the wrong way there is no steering
+     signal that arrives lined up, and the solver just orbits the station.
+     The shortest path between two poses under a curvature limit is a Dubins
+     path — arc, straight, arc — and it is closed form, so the track lands on
+     the station exactly rather than approximately.
+
+     Note the sign convention: Track.integrate rotates the frame about world
+     up by +y, and rotating a heading phi = atan2(z, x) about +Y by t gives
+     phi - t. A piece's `y` is therefore the NEGATIVE of its change in
+     heading. */
+  dockToStation(c, quiet) {
+    const t = c.track;
+    const wrap = a => { while (a > PI) a -= TAU; while (a < -PI) a += TAU; return a; };
+    const pos = a => { while (a < 0) a += TAU; while (a >= TAU) a -= TAU; return a > TAU - .02 ? 0 : a; };
+    const R = 15;                 // turning radius the emitted arcs use
+    const MAXTURN = 26 * DEG;     // per piece, so the arcs stay smooth
+    const RUNIN = 30;             // runway the trim gets to square everything up
+
+    const f0 = t.endFrame();
+    const p0 = { x: f0.p.x, z: f0.p.z };
+    const phi0 = Math.atan2(f0.f.z, f0.f.x);
+    const curPitch = Math.asin(clamp(f0.f.y, -1, 1));
+    const bank0 = bankAngle(f0.f, f0.u);
+
+    // Aim at a point one run-in short of the station, then run straight in.
+    const phiT = t.start.yaw;
+    const pT = { x: t.start.x - Math.cos(phiT) * RUNIN, z: t.start.z - Math.sin(phiT) * RUNIN };
+    const dyTotal = t.start.y - f0.p.y;
+
+    const nx = -Math.sin(phi0), nz = Math.cos(phi0);      // left normal at start
+    const mx = -Math.sin(phiT), mz = Math.cos(phiT);      // left normal at goal
+
+    /* The four arc-straight-arc families, solved by root find rather than by
+       tangent formulas — for each family the first arc's sweep is the only
+       free variable, because the second is fixed by having to finish on the
+       station's heading. Sweeping it and looking for the point where the
+       straight section actually lines up is exact and has no special cases. */
+    const cands = [];
+    const nrm = (a) => ({ x: -Math.sin(a), z: Math.cos(a) });
+    for (const s1 of [1, -1]) for (const s2 of [1, -1]) {
+      const c1 = { x: p0.x + s1 * R * nx, z: p0.z + s1 * R * nz };
+      const c2 = { x: pT.x + s2 * R * mx, z: pT.z + s2 * R * mz };
+      // where the straight has to leave arc1 and meet arc2, as a function of a1
+      const resid = (a1) => {
+        const phi1 = phi0 + a1;
+        const r1 = nrm(phi1);
+        const p1 = { x: c1.x - s1 * R * r1.x, z: c1.z - s1 * R * r1.z };
+        const p2 = { x: c2.x - s2 * R * r1.x, z: c2.z - s2 * R * r1.z };
+        const vx = p2.x - p1.x, vz = p2.z - p1.z;
+        return { perp: vx * r1.x + vz * r1.z, L: vx * Math.cos(phi1) + vz * Math.sin(phi1), phi1 };
+      };
+      const N = 720;
+      let prev = resid(0);
+      for (let k = 1; k <= N; k++) {
+        const a1 = s1 * (k / N) * TAU;
+        const cur = resid(a1);
+        if (prev.perp === 0 || (prev.perp < 0) !== (cur.perp < 0)) {
+          // bisect for the exact crossing
+          let lo = s1 * ((k - 1) / N) * TAU, hi = a1, rl = prev;
+          for (let it = 0; it < 40; it++) {
+            const mid = (lo + hi) / 2, rm = resid(mid);
+            if ((rl.perp < 0) !== (rm.perp < 0)) hi = mid; else { lo = mid; rl = rm; }
+          }
+          const r = resid((lo + hi) / 2);
+          if (r.L >= -0.01) {
+            const a2raw = phiT - r.phi1;
+            const a2 = s2 > 0 ? pos(a2raw) : -pos(-a2raw);
+            if (Math.abs((lo + hi) / 2) < 4.9 && Math.abs(a2) < 4.9)
+              cands.push({ a1: (lo + hi) / 2, straight: Math.max(0, r.L), a2, len: (Math.abs((lo + hi) / 2) + Math.abs(a2)) * R + Math.max(0, r.L) });
+          }
+        }
+        prev = cur;
+      }
+    }
+    cands.sort((a, b) => a.len - b.len);
+
+    /* Emit a candidate as real pieces. Height is taken up as a constant
+       gradient over the whole path, then levelled out before the run-in. */
+    const emit = (cand, dryRun) => {
+      const total = cand.len + RUNIN;
+      const pitch = Math.atan2(dyTotal, Math.max(20, total));
+      const stretch = 1 / Math.max(.2, Math.cos(pitch));
+      const out = [];
+      let first = true;
+      const piece = (len, dPhi, dPitchDeg, dRollDeg, brake) => {
+        out.push({
+          id: 'dock', n: 'Approach', freehand: true, group: 'hidden',
+          len: Math.max(1.5, len), y: -dPhi / DEG, p: dPitchDeg, r: dRollDeg,
+          brake: !!brake, cost: Math.round(120 + len * 14)
+        });
+      };
+      const arc = (sweep) => {
+        if (Math.abs(sweep) < 1e-4) return;
+        const n = Math.max(1, Math.ceil(Math.abs(sweep) / MAXTURN));
+        for (let k = 0; k < n; k++) {
+          // bank into the turn, and take the pitch and roll set-up on the
+          // very first piece of the whole dock
+          const bankDeg = clamp(sweep / DEG / n * 1.1, -32, 32);
+          const dP = first ? (pitch - curPitch) / DEG : 0;
+          const dR = first ? (bankDeg * DEG - bank0) / DEG : 0;
+          piece(Math.abs(sweep) * R / n * stretch, sweep / n, dP, dR);
+          first = false;
+        }
+      };
+      arc(cand.a1);
+      if (cand.straight > .5) {
+        const n = Math.max(1, Math.ceil(cand.straight / 20));
+        for (let k = 0; k < n; k++) {
+          const dP = first ? (pitch - curPitch) / DEG : 0;
+          piece(cand.straight / n * stretch, 0, dP, first ? -bank0 / DEG : 0);
+          first = false;
+        }
+      }
+      arc(cand.a2);
+      // The run-in is deliberately NOT emitted here: trimToStation measures
+      // what is actually left after integration drift and lays a straight of
+      // exactly that length. Emitting one here as well overshot the station.
+      return out;
+    };
+
+    /* Try each family shortest-first, integrate it, and keep the first that
+       stays above ground and on your land. */
+    for (const cand of cands) {
+      const defs = emit(cand);
+      let frame = t.endFrame(), ok = true, spend = 0;
+      for (const def of defs) {
+        const sm = Track.integrate(frame, def, null, 0, 0, { autoBank: false });
+        if (!this.dockSamplesOk(sm)) { ok = false; break; }
+        frame = sm[sm.length - 1];
+        spend += def.cost;
+      }
+      // measured against the pre-station point the construction aims for, not
+      // the station itself — the run-in is added afterwards by the trim
+      const resid = dist(frame.p.x, frame.p.z, pT.x, pT.z);
+      if (!ok || Park.money < spend) continue;
+      /* Open-loop accuracy is a metre or two over a long dock, because pitch
+         shortens the horizontal advance unevenly. Rather than demand
+         perfection from the construction, lay it and then trim the residual
+         out with a levelling piece and an exactly-measured straight — which
+         is only possible because Dubins guarantees we arrive on the right
+         HEADING, and a straight down the right heading cannot drift. */
+      if (resid > 9) continue;
+      let laid = 0, cost = 0;
+      for (const def of defs) { if (!this.commitCustom(c, def)) break; Park.spend(def.cost); cost += def.cost; laid++; }
+      const fin = this.trimToStation(c);
+      laid += fin.laid; cost += fin.cost;
+      if (!quiet && laid) Park.log.build = (Park.log.build || 0) + cost;
+      return { laid, cost, err: t.closeError() };
+    }
+    return { laid: 0, cost: 0, err: t.closeError() };
+  },
+
+  /* Dubins lands the track on the right heading but a metre or two out in
+     position, because pitch shortens the horizontal advance unevenly. Since
+     the heading is already right, the rest is arithmetic: cancel any sideways
+     offset with a matched pair of opposite bends (which returns to the same
+     heading it started on), level out, then run in with a straight of exactly
+     the remaining distance. A straight down the correct heading cannot drift,
+     so this lands on the station rather than near it. */
+  trimToStation(c) {
+    const t = c.track;
+    const wrap = a => { while (a > PI) a -= TAU; while (a < -PI) a += TAU; return a; };
+    const tfx = Math.cos(t.start.yaw), tfz = Math.sin(t.start.yaw);
+    let laid = 0, cost = 0;
+    const lay = (def) => {
+      if (Park.money < def.cost) return false;
+      if (!this.commitCustom(c, def)) {
+        return false;
+      }
+      Park.spend(def.cost); cost += def.cost; laid++; return true;
+    };
+    const measure = () => {
+      const f = t.endFrame();
+      const dx = t.start.x - f.p.x, dz = t.start.z - f.p.z;
+      return {
+        f,
+        lateral: -dx * tfz + dz * tfx,
+        along: dx * tfx + dz * tfz,
+        dy: t.start.y - f.p.y,
+        yaw: wrap(t.start.yaw - Math.atan2(f.f.z, f.f.x)),
+        pitch: Math.asin(clamp(f.f.y, -1, 1)),
+        bank: bankAngle(f.f, f.u)
+      };
+    };
+
+    for (let pass = 0; pass < 4; pass++) {
+      const m = measure();
+      if (m.along < 3) break;
+      // heading, pitch and bank first — the offset correction assumes them
+      if (Math.abs(m.yaw) > .4 * DEG || Math.abs(m.pitch) > .4 * DEG || Math.abs(m.bank) > .4 * DEG) {
+        const seg = clamp(m.along * .30, 4, 10);
+        if (!lay({
+          id: 'dock', n: 'Level Out', freehand: true, group: 'hidden',
+          len: seg, y: -m.yaw / DEG, p: -m.pitch / DEG, r: -m.bank / DEG, cost: 260
+        })) break;
+        continue;
+      }
+      // sideways offset: an S-bend of +theta then -theta shifts by seg*theta
+      // and finishes on the heading it started on
+      if (Math.abs(m.lateral) > .25 && m.along > 16) {
+        const seg = clamp(m.along * .32, 9, 18);
+        const theta = clamp(m.lateral / seg, -.34, .34);
+        const deg = theta / DEG;
+        if (!lay({ id: 'dock', n: 'Align', freehand: true, group: 'hidden', len: seg, y: -deg, p: 0, r: 0, cost: 240 })) break;
+        if (!lay({ id: 'dock', n: 'Align', freehand: true, group: 'hidden', len: seg, y: deg, p: 0, r: 0, cost: 240 })) break;
+        continue;
+      }
+      // height: take it out over whatever run is left, then level again
+      if (Math.abs(m.dy) > .12 && m.along > 14) {
+        const rise = Math.atan2(m.dy, m.along * .55);
+        const seg = clamp(m.along * .28, 6, 12);
+        if (!lay({ id: 'dock', n: 'Grade', freehand: true, group: 'hidden', len: seg, y: 0, p: rise / DEG, r: 0, cost: 240 })) break;
+        continue;
+      }
+      break;
+    }
+    // final level-out and the run-in itself
+    const m = measure();
+    if (Math.abs(m.pitch) > .3 * DEG || Math.abs(m.yaw) > .3 * DEG || Math.abs(m.bank) > .3 * DEG) {
+      lay({
+        id: 'dock', n: 'Level Out', freehand: true, group: 'hidden',
+        len: clamp(m.along * .3, 3, 8), y: -m.yaw / DEG, p: -m.pitch / DEG, r: -m.bank / DEG, cost: 260
+      });
+    }
+    const run = measure().along;
+    if (run > 1.0) {
+      lay({
+        id: 'dock', n: 'Station Approach', freehand: true, group: 'hidden',
+        len: run, y: 0, p: 0, r: 0, brake: true, cost: Math.round(140 + run * 16)
+      });
+    }
+    return { laid, cost };
   },
 
   validSamples(samples) {
@@ -7830,37 +8253,35 @@ const Coaster = {
     return { acts, frame: nodes[best].f, found, h: bestH };
   },
 
+  /* How far back down the station's centreline the route home aims for. The
+     search stops there rather than at the station itself, so the docking
+     solver has real runway to line up in — routing all the way to the
+     station is what used to leave the track arriving side-on with nowhere
+     left to turn. */
+  APPROACH_GATE: 52,
+
   planRoute(track, budget) {
     const B = budget || 14000;
-    const gx = track.start.x, gy = track.start.y, gz = track.start.z;
     const gdx = Math.cos(track.start.yaw), gdz = Math.sin(track.start.yaw);
-    const finalTol = { d: 8, y: 4.0, dot: .62, align: 16 };
+    const L = this.APPROACH_GATE;
+    // the gate: on the centreline, one approach length behind the station
+    const gx = track.start.x - gdx * L, gy = track.start.y, gz = track.start.z - gdz * L;
+    const gateTol = { d: 9, y: 3.5, dot: .86, align: 22 };
     const start = track.endFrame();
 
-    // Direct attempt first — short routes solve immediately.
     const ceil = Math.max(start.p.y + 3, gy + 3, track.maxH - 10);
-    const direct = this.planSegment(start, gx, gy, gz, gdx, gdz, finalTol, B, ceil);
+    const direct = this.planSegment(start, gx, gy, gz, gdx, gdz, gateTol, B, ceil);
     if (direct.found) return direct.acts;
 
-    // Otherwise aim for an approach point 34 m behind the station, then run in.
+    // Too far for one search: stage through a point further out still.
     const ax = gx - gdx * 34, az = gz - gdz * 34;
-    const leg1 = this.planSegment(start, ax, gy, az, gdx, gdz, { d: 11, y: 4.5, dot: .80, align: 20 }, B, ceil);
+    const leg1 = this.planSegment(start, ax, gy, az, gdx, gdz, { d: 12, y: 4.5, dot: .78, align: 20 }, B, ceil);
     if (leg1.found) {
-      const leg2 = this.planSegment(leg1.frame, gx, gy, gz, gdx, gdz, finalTol, Math.floor(B * .6), ceil);
+      const leg2 = this.planSegment(leg1.frame, gx, gy, gz, gdx, gdz, gateTol, Math.floor(B * .6), ceil);
       if (leg2.found) return leg1.acts.concat(leg2.acts);
-      // aligned but short of the station: straights will finish the job
-      const fill = [];
-      let f = leg1.frame;
-      for (let k = 0; k < 8; k++) {
-        const sm = Track.integrate(f, PIECE_BY_ID.straight, null, 0, 0, {});
-        if (!this.validSamples(sm)) break;
-        f = sm[sm.length - 1]; fill.push('straight');
-        if (Math.hypot(f.p.x - gx, f.p.z - gz) < 8) break;
-      }
-      if (Math.hypot(f.p.x - gx, f.p.z - gz) < 9 && Math.abs(f.p.y - gy) < 4.5) return leg1.acts.concat(fill);
       return leg1.acts.length ? leg1.acts : null;
     }
-    if (direct.h < 9) return direct.acts;
+    if (direct.h < 14) return direct.acts;
     return null;
   },
 
@@ -9280,17 +9701,25 @@ const Game = {
       this.sceneryDirty = true;
     } else {
       Park.addObject(o);
-      // carve a small apron of path in front so guests can reach it
-      const dir = [[0, -1], [-1, 0], [0, 1], [1, 0]][rot];
-      const ci = i + Math.floor(gw / 2), cj = j + Math.floor(gd / 2);
-      const fi = ci + dir[0] * (Math.floor(gd / 2) + 1), fj = cj + dir[1] * (Math.floor(gd / 2) + 1);
-      if (WORLD.t(fi, fj) === T_GRASS) { WORLD.setT(fi, fj, T_PATH); Path.dirty = true; }
+      if (this.autoQueue) {
+        // carve a small apron of path in front so guests can reach it
+        const dir = [[0, -1], [-1, 0], [0, 1], [1, 0]][rot];
+        const ci = i + Math.floor(gw / 2), cj = j + Math.floor(gd / 2);
+        const fi = ci + dir[0] * (Math.floor(gd / 2) + 1), fj = cj + dir[1] * (Math.floor(gd / 2) + 1);
+        if (WORLD.t(fi, fj) === T_GRASS) { WORLD.setT(fi, fj, T_PATH); Path.dirty = true; }
+      }
     }
     Audio.play('build');
     UI.notify('Built', p.def.name + ' — ' + money(p.def.cost), 'money');
-    if (p.kind === 'ride') { o.openR = true; this.autoConnect(o); }
-    if (p.kind === 'shop') this.autoConnect(o, true);
+    if (p.kind === 'ride') o.openR = true;
+    if (this.autoQueue) {
+      if (p.kind === 'ride') this.autoConnect(o);
+      if (p.kind === 'shop') this.autoConnect(o, true);
+    } else if (p.kind !== 'scenery') {
+      UI.hint('Run a <b>queue line</b> from the green marker back to a walkway.', true);
+    }
   },
+  autoQueue: true,          // whether new rides get a queue run automatically
   /* Lay a queue from a ride's entrance to the nearest walkway, so a new ride
      is actually reachable the moment it is built. Charged at the normal rate. */
   autoConnect(o, quiet) {
@@ -9487,6 +9916,7 @@ const Game = {
        highlight pinned to a stale world tile, drifting further from the cursor
        the further the view travelled — which is exactly what it looked like. */
     Menu.tick(dt);
+    if (!Menu.showcase && Cam.mode === 'orbit') this.buildQueueMarkers();
     for (const o of Park.objects) if (o.buildT < 1) o.tickBuild(dt);
     for (const c of Park.coasters) if (c.buildT < 1) c.tickBuild(dt);
     if (Cam.mode === 'orbit') {
@@ -9788,7 +10218,11 @@ const Game = {
     const tol = Park.gate ? Park.gate.feeTolerance() : 1;
     const feeFactor = clamp(1.45 - Park.entryFee / ((26 + Park.rating * .55) * tol), .08, 1.7);
     const daily = 0.35 + Math.sin(clamp((hour - 8) / 13, 0, 1) * PI) * 1.5;
-    const rate = attract * feeFactor * daily * .019 * Weather.drawFactor();
+    /* Arrivals are per party, and a party averages about two and a half
+       people, so the old rate was letting in well over twice what it looked
+       like. Scaled to match, and capped by how much there is to actually do. */
+    const perParty = 2.5;
+    const rate = attract * feeFactor * daily * .0092 / perParty * Weather.drawFactor();
     this._arrRate = rate;
     this._spawnAcc = (this._spawnAcc || 0) + rate * dt;
     while (this._spawnAcc >= 1) {
@@ -10086,6 +10520,45 @@ Object.assign(Game, {
     this.ghostObj = { pf, m: M4.compose(M4.create(), x, y, z, 0, -UI.rot * PI / 2, 0, 1, 1, 1) };
     this.buildFootprint(i, j, gw, gd, allowPath);
     this.footprintOn = true;
+  },
+
+  /* A green arrow standing on the tile a ride's queue has to reach, and a
+     dotted line back to the nearest walkway. Rides that still need connecting
+     are the ones you cannot see, so this is drawn for every one of them at
+     once rather than only for the selected ride. */
+  buildQueueMarkers() {
+    const need = [];
+    for (const o of Park.objects.concat(Park.coasters)) {
+      if (!o.entrance) continue;
+      if (o.kind !== 'ride' && o.kind !== 'shop' && o.kind !== 'coaster') continue;
+      const e = o.entrance;
+      const i = WORLD.ti(e.x), j = WORLD.tj(e.z);
+      const linked = Path.walkable(i, j) && Path.comp[j * N + i] === Park.mainComponent;
+      need.push({ o, e, i, j, linked });
+    }
+    const key = need.map(n => n.o.id + (n.linked ? '1' : '0')).join(',') + '|' + (UI.tool === 'path' ? 1 : 0);
+    if (key === this._qmKey) return;
+    this._qmKey = key;
+    const g = new Geo();
+    const showAll = UI.tool === 'path';
+    for (const n of need) {
+      // A connected ride only shows its marker while you are laying path.
+      if (n.linked && !showAll) continue;
+      const y = WORLD.tileH(n.i, n.j) + .1;
+      const col = n.linked ? [.30, .85, .45] : [.25, 1, .40];
+      const bob = Math.sin(Park.now * 2.2 + n.o.id) * .25;
+      // a stake and a chevron pointing down at the tile
+      g.box(n.e.x, y + 2.2 + bob, n.e.z, .22, 2.4, .22, [col[0] * .7, col[1] * .7, col[2] * .7]);
+      g.cone(n.e.x, y + 1.0 + bob, n.e.z, 1.0, -1.4, 6, col);
+      // and a ring on the ground so the tile itself is unmistakable
+      for (let k = 0; k < 12; k++) {
+        const a = k / 12 * TAU, a2 = (k + 1) / 12 * TAU;
+        g.beam(n.e.x + Math.cos(a) * 1.7, y, n.e.z + Math.sin(a) * 1.7,
+          n.e.x + Math.cos(a2) * 1.7, y, n.e.z + Math.sin(a2) * 1.7, .18, .10, col);
+      }
+    }
+    if (this.queueMarkMesh) this.queueMarkMesh.dispose();
+    this.queueMarkMesh = g.pos.length ? this.R.makeMesh(g) : null;
   },
 
   /* Highlight for the tools that paint tiles rather than drop objects.
@@ -10407,6 +10880,13 @@ Object.assign(Game, {
     }
 
     // placement ghost — drawn solid so complex rides stay readable
+    if (this.queueMarkMesh) {
+      const gl = R.gl;
+      gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+      gl.depthMask(false);
+      R.draw(this.queueMarkMesh, null, { alpha: .92, emissive: .85 });
+      gl.depthMask(true); gl.disable(gl.BLEND);
+    }
     if (this.footprintOn && this.footprintMesh) {
       const gl = R.gl;
       gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
