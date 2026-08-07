@@ -5335,7 +5335,10 @@ const Park = {
   get capacity() {
     const atts = this.attractions().length;
     const shops = this.objects.filter(o => o.kind === 'shop').length;
-    return clamp(Math.round(70 + atts * 78 + shops * 26 + this.rating * .22), 70, this.maxGuests);
+    /* What the park can hold, which is also what caps the crowd. Deliberately
+       below what the rides could physically take: a park that is rammed on
+       day one has nowhere to grow. */
+    return clamp(Math.round(60 + atts * 62 + shops * 20 + this.rating * .18), 60, this.maxGuests);
   },
 
   reset() {
@@ -10760,9 +10763,9 @@ const Game = {
       if (k === 'h') { UI.help(); return; }
       if (k === 'o') { $('#goals').classList.toggle('show'); return; }
       if (k === 'c' && Cam.mode === 'ride') {
-        this.rideCamMode = ((this.rideCamMode || 0) + 1) % 3;
+        this.rideCamMode = ((this.rideCamMode || 0) + 1) % 4;
         this._rcInit = false;
-        UI.hint(['Chase camera', 'Front-seat camera', 'Side-on camera'][this.rideCamMode]);
+        UI.hint(['Chase camera', 'Front-seat camera', 'Side-on camera', 'Onboard camera'][this.rideCamMode]);
         return;
       }
       if (k === ' ') { e.preventDefault(); this.setSpeed(this.speed === 0 ? 1 : 0); return; }
@@ -10855,7 +10858,8 @@ const Game = {
   pointerAction(e, isStart) {
     // continuous painting for paths and terrain
     if (!this.hoverTile) return;
-    if (UI.tool === 'path' && UI.sub) { this.paintPath(this.hoverTile.i, this.hoverTile.j); }
+    if (UI.tool === 'delete') { this.deleteSurface(this.hoverTile.i, this.hoverTile.j); }
+    else if (UI.tool === 'path' && UI.sub) { this.paintPath(this.hoverTile.i, this.hoverTile.j); }
     else if (UI.tool === 'terrain') { this.editTerrain(this.hoverTile.i, this.hoverTile.j, e.shiftKey ? -1 : 1, e.ctrlKey); }
     else if ((UI.tool === 'scenery' || UI.tool === 'decor') && UI.sub && !isStart && this.mouse.moved > 20) { this.tryPlace(); }
   },
@@ -10886,6 +10890,7 @@ const Game = {
         break;
       }
       case 'delete': this.deleteAt(i, j); break;
+      case 'deletedrag': break;
       case 'path': if (UI.sub) this.paintPath(i, j); break;
       case 'terrain': this.editTerrain(i, j, e.shiftKey ? -1 : 1, e.ctrlKey); break;
       case 'shop': case 'ride': case 'water': case 'scenery': case 'decor': if (UI.sub) this.tryPlace(); break;
@@ -11123,10 +11128,25 @@ const Game = {
     if (!quiet && laid) UI.notify('Queue connected', laid + ' tiles laid for ' + money(cost) + '. Guests can reach ' + (o.name || 'it') + ' now.', ok ? 'good' : 'warn');
     return ok;
   },
+  /* Clearing a surface: works on walkways, queue lines and plaza tiles alike,
+     including the ones the auto-connect laid for you, and refunds the same as
+     the path tool does. */
+  deleteSurface(i, j) {
+    const t = WORLD.t(i, j);
+    if (t !== T_PATH && t !== T_QUEUE && t !== T_PLAZA) return false;
+    if (WORLD.ownerOf(i, j) >= 0) return false;      // part of a building's plot
+    WORLD.setT(i, j, T_GRASS);
+    Park.money += t === T_QUEUE ? 12 : 8;
+    Path.dirty = true;
+    this._qmKey = null;
+    if (Math.random() < .3) Audio.play('click');
+    return true;
+  },
   deleteAt(i, j) {
     const o = Park.objAt(i, j) || Park.objects.find(x => x.kind === 'scenery' && WORLD.ownerOf(i, j) === x.id);
-    if (!o) return;
-    this.demolish(o.id);
+    if (o) { this.demolish(o.id); return; }
+    // nothing built here, but there may still be a surface to clear
+    this.deleteSurface(i, j);
   },
   demolish(id) {
     const o = Park.objects.find(x => x.id === id) || Park.coasters.find(x => x.id === id);
@@ -11609,6 +11629,24 @@ const Game = {
 
       // eyes widen with speed, and squeeze under heavy G
       fov = lerp(60, 86, clamp(speed / 45, 0, 1)) - clamp((g - 2.5) * 2.2, 0, 9);
+    } else if (mode === 3) {
+      /* The shot every on-ride video uses: a camera on a short boom off the
+         nose of the lead car, looking back down the train and up the track
+         ahead of it. It sits in the car's frame so it rolls through the
+         inversions with the train — that is the whole appeal — but it is
+         mounted far enough forward that the track, the train and the horizon
+         are all in shot at once rather than a wall of lap bar. */
+      const boom = 5.4, rise = 1.9;
+      px = m[12] + fx * boom + ux * rise;
+      py = m[13] + fy * boom + uy * rise;
+      pz = m[14] + fz * boom + uz * rise;
+      // look slightly back and down, so the front car fills the lower frame
+      const look = { x: fx, y: fy, z: fz };
+      const rr2 = V3.norm({}, V3.cross({}, look, { x: ux, y: uy, z: uz }));
+      rotAxis(look, look, rr2, -10 * DEG);
+      lx = px + look.x * 16; ly = py + look.y * 16; lz = pz + look.z * 16;
+      upx = ux; upy = uy; upz = uz;
+      fov = lerp(72, 96, clamp(tr.v / 45, 0, 1));
     } else {
       // Side-on: a camera running alongside, level with the horizon
       const side = 12 * dist;
@@ -11621,7 +11659,7 @@ const Game = {
     // smooth the whole rig so the picture is watchable instead of jittery
     // The front seat is already smoothed by the neck model, so it wants far
     // less rig damping — over-damping it is what made it feel like a drone.
-    const k = mode === 1 ? 60 : 9;
+    const k = mode === 1 ? 60 : mode === 3 ? 40 : 9;
     if (!this._rcInit) {
       V3.set(Cam.ridePos, px, py, pz); V3.set(Cam.rideLook, lx, ly, lz); this._rcInit = true;
     } else {
@@ -11711,7 +11749,12 @@ const Game = {
        nothing and the gate silently stops, which looks exactly like a bug. */
     let rate = attract * feeFactor * daily * draw * .042 / perParty * Weather.drawFactor();
     if (!Number.isFinite(rate) || rate < 0) rate = 0;
-    rate = Math.max(rate, Park.attractions().length ? .45 * daily : .10);
+    rate = Math.max(rate, Park.attractions().length ? .38 * daily : .08);
+    /* Reputation is built, not switched on. A park in its first week draws a
+       fraction of what the same park draws once word has got round, so the
+       opening days are quiet and the crowd grows with you. */
+    const age = clamp(.42 + (Park.day - 1) * .055 + Park.totalGuests / 9000, .42, 1.0);
+    rate *= age * .85;
     if (rate <= 0.001) this._arrWhy = 'Nothing here is drawing anybody in yet — build something to ride.';
     this._arrRate = rate;
     this._spawnAcc = (this._spawnAcc || 0) + rate * dt;
@@ -12114,8 +12157,12 @@ Object.assign(Game, {
     } else if (T === 'delete') {
       r = 0;
       tint = [1, .38, .38];
-      this.cursorHint(null, WORLD.t(h.i, h.j) !== T_GRASS
-        ? 'Click to clear this <b>surface</b>' : 'Nothing here to remove');
+      const t = WORLD.t(h.i, h.j);
+      const what = t === T_QUEUE ? 'queue line' : t === T_PLAZA ? 'plaza tile'
+        : t === T_PATH ? 'walkway' : t === T_ENTRY ? 'entrance apron' : null;
+      this.cursorHint(null, what
+        ? 'Click to remove this <b>' + what + '</b> &middot; drag to clear a run'
+        : 'Nothing here to remove');
     } else return false;
 
     this.ghostObj = null;
