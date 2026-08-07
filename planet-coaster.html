@@ -2751,6 +2751,81 @@ const Prefab = {
   },
 
   /* ------------------------------------------------------------------
+     PARK ENTRANCE
+     The front gate: ticket windows either side of an archway, a clock and a
+     name board. It is the first thing anyone sees, so it scales with how
+     grand the park has decided to be.
+     ------------------------------------------------------------------ */
+  gate(tier) {
+    const g = new Geo(), parts = [];
+    const T = tier || 1;
+    const W = 11 * TILE, D = 3 * TILE;
+    const stone = hex(0xe8dfc8), trim = hex([0, 0xc0563f, 0x2f80c0, 0x7b3fd4, 0xd4a017][T] || 0xc0563f);
+    const roof = hex([0, 0x8b3a2b, 0x1f5f8f, 0x4a2680, 0x8a6410][T] || 0x8b3a2b);
+
+    g.box(0, -.2, 0, W, .5, D, hex(0xc4b79d));
+    // two ticket blocks either side of the opening
+    for (const sx of [-1, 1]) {
+      const cx = sx * 12.5;
+      g.box(cx, 0, 0, 9, 6.5, D - 1.5, stone);
+      g.box(cx, 6.5, 0, 10, .7, D - .5, roof);
+      g.box(cx, 7.2, 0, 8.4, .5, D - 2.0, trim);
+      // ticket windows facing out
+      for (let k = 0; k < 3; k++) {
+        const wx = cx - 2.8 + k * 2.8;
+        g.box(wx, 2.4, -D / 2 + .55, 1.7, 2.0, .35, hex(0x2b3a4a));
+        g.box(wx, 1.25, -D / 2 + .40, 2.0, .35, .55, hex(0xb8b2a6));
+        g.box(wx, 3.7, -D / 2 + .45, 2.1, .35, .5, trim);
+      }
+      for (let k = 0; k <= 3; k++) g.cyl(cx - 4.2 + k * 2.8, 0, -D / 2 + .2, .28, 6.5, 8, shade(stone, .92));
+    }
+    // the arch across the middle
+    for (const sx of [-1, 1]) g.box(sx * 5.2, 0, 0, 1.6, 9.5, D - 1.0, stone);
+    g.box(0, 9.5, 0, 12.2, 1.5, D - .6, trim);
+    g.box(0, 11.0, 0, 13.0, .6, D, roof);
+    for (let k = 0; k < 9; k++) {
+      const t = k / 8, a = t * PI;
+      g.box(Math.cos(a) * 4.6, 9.5 - Math.sin(a) * 3.2 - .4, 0, 1.0, .8, D - 1.2, shade(stone, .95));
+    }
+    // name board and clock
+    g.box(0, 11.6, 0, 10.0, 2.4, .5, hex(0xf6f1e4));
+    g.box(0, 11.6, -.30, 9.0, 1.8, .12, trim);
+    g.cyl(0, 14.2, 0, 1.9, .5, 14, hex(0xf6f1e4), 0, true);
+    g.cyl(0, 14.2, -.31, 1.5, .12, 14, hex(0x2b3a4a), 0, true);
+    if (T >= 2) {
+      for (const sx of [-1, 1]) { g.cyl(sx * 16.6, 0, -D / 2 - 1.6, .22, 8, 6, hex(0xd8d2c4)); g.box(sx * 16.6, 8.2, -D / 2 - 1.6, 1.4, .9, .1, trim); }
+    }
+    if (T >= 3) {
+      for (const sx of [-1, 1]) for (let k = 0; k < 4; k++)
+        g.sphere(sx * (7 + k * 2.2), 12.9, 0, .30, 6, hex(0xfff3c4));
+      this.lightBulbs(g, 0, 11.9, -.4, 5.4, 14, hex(0xfff3c4));
+    }
+    if (T >= 4) {
+      g.cone(0, 14.7, 0, 2.6, 4.0, 10, roof);
+      g.sphere(0, 18.8, 0, .55, 8, hex(0xffd23f));
+      for (const sx of [-1, 1]) { g.cone(sx * 12.5, 7.2, 0, 5.4, 3.4, 8, roof); g.sphere(sx * 12.5, 10.8, 0, .4, 6, hex(0xffd23f)); }
+    }
+    // the clock hands actually turn with park time
+    const hands = new Geo();
+    hands.box(0, .55, 0, .16, 1.1, .10, hex(0x2b3a4a));
+    parts.push({ geo: hands, anim: (m, o, t) => M4.compose(m, 0, 14.2, -.42, 0, 0, -(Park.time / 60 / 12) * TAU, 1, 1, 1) });
+    const hands2 = new Geo();
+    hands2.box(0, .75, 0, .10, 1.5, .08, hex(0xc0563f));
+    parts.push({ geo: hands2, anim: (m, o, t) => M4.compose(m, 0, 14.2, -.45, 0, 0, -(Park.time % 60) / 60 * TAU, 1, 1, 1) });
+    // a turnstile bar that ticks round as people come in
+    for (const sx of [-3.4, 3.4]) {
+      const turn = new Geo();
+      for (let k = 0; k < 3; k++) {
+        const a = k / 3 * TAU;
+        turn.box(Math.cos(a) * .85, 0, Math.sin(a) * .85, 1.7, .13, .13, hex(0xd0d6de));
+      }
+      parts.push({ geo: turn, anim: (m, o, t) => M4.compose(m, sx, 1.15, D / 2 - .8, 0, Park.totalGuests * .9 + t * .2, 0, 1, 1, 1) });
+      g.cyl(sx, 0, D / 2 - .8, .22, 1.15, 8, hex(0x9aa4ae));
+    }
+    return { base: g, parts };
+  },
+
+  /* ------------------------------------------------------------------
      WATER PARK
      A slide is a descending helix. The same parametric path builds the
      flume geometry and places the guests sliding down it, so what you see
@@ -4213,9 +4288,64 @@ class ParkObject {
     this.matrix = M4.create();
     this.spin = 0; this.h = 0; this.phase = 0;
     this.built = Park.time;
+    this.buildT = 0;              // 0..1 construction animation, 1 = finished
+    /* Refurbishment level. Upgrading an attraction is the alternative to
+       bulldozing it: more throughput, better reliability and a little more
+       appeal, for money and a slice of its upkeep. */
+    this.tier = 1;
   }
+  upgradeCost() { return Math.round((this.def.cost || 1000) * (this.tier === 1 ? .55 : this.tier === 2 ? .95 : 1.7)); }
+  canUpgrade() { return this.tier < 4; }
+  applyTier() {
+    const t = this.tier;
+    if (this.kind === 'ride' || this.kind === 'coaster') {
+      this.cap = Math.round((this.def.cap || this.cap) * (1 + (t - 1) * .18));
+      this.reliability = clamp((this.def.rel || .93) + (t - 1) * .022, 0, .995);
+      if (this.kind === 'ride') {
+        this.excitement = (this.def.exc || 0) * (1 + (t - 1) * .10);
+        this.nausea = (this.def.naus || 0) * (1 - (t - 1) * .07);
+      }
+    } else if (this.kind === 'shop') {
+      this.satisfyMul = 1 + (t - 1) * .14;
+      this.restockRate = 1 + (t - 1) * .5;
+    }
+  }
+  upgrade() {
+    if (!this.canUpgrade()) return false;
+    const c = this.upgradeCost();
+    if (Park.money < c) { UI.notify('Too expensive', 'Refurbishing ' + this.name + ' costs ' + money(c) + '.', 'bad'); return false; }
+    Park.spend(c);
+    Park.log.build = (Park.log.build || 0) + c;
+    this.tier++;
+    this.wear = Math.max(0, this.wear - .5);
+    this.broken = false;
+    this.applyTier();
+    this.buildT = .35; this.updateMatrix();     // it visibly rebuilds itself
+    UI.notify('Refurbished', this.name + ' is now ' + ['', 'Standard', 'Improved', 'Deluxe', 'Flagship'][this.tier] + '.', 'good');
+    Audio.play('build');
+    return true;
+  }
+  tierName() { return ['', 'Standard', 'Improved', 'Deluxe', 'Flagship'][this.tier] || 'Standard'; }
   footprint(cb) { for (let jj = this.j; jj < this.j + this.gd; jj++) for (let ii = this.i; ii < this.i + this.gw; ii++) cb(ii, jj); }
-  updateMatrix() { M4.compose(this.matrix, this.x, this.y, this.z, 0, -this.rot * PI / 2, 0, 1, 1, 1); }
+  updateMatrix() {
+    /* Buildings rise out of the ground and settle with a small overshoot, so
+       placing something reads as an event rather than a pop-in. */
+    const t = this.buildT;
+    if (t >= 1) { M4.compose(this.matrix, this.x, this.y, this.z, 0, -this.rot * PI / 2, 0, 1, 1, 1); return; }
+    const e = 1 - Math.pow(1 - t, 3);                    // ease out
+    const overshoot = Math.sin(t * PI) * .10;            // squash and settle
+    const sy = clamp(e * (1 + overshoot), .02, 1.14);
+    const sxz = clamp(e * (1 - overshoot * .55) + (1 - e) * .55, .30, 1.10);
+    M4.compose(this.matrix, this.x, this.y - (1 - e) * 2.2, this.z,
+      0, -this.rot * PI / 2, 0, sxz, sy, sxz);
+  }
+  /* Advance the construction animation. Returns true while still animating. */
+  tickBuild(dt) {
+    if (this.buildT >= 1) return false;
+    this.buildT = Math.min(1, this.buildT + dt * 1.45);
+    this.updateMatrix();
+    return true;
+  }
   /* The volume the mouse has to hit to select this. Clicking a ride should
      mean clicking the ride itself, not the patch of grass beneath it, so the
      box stands up off the ground to roughly the height of the model. */
@@ -4358,6 +4488,40 @@ class Ride extends ParkObject {
     this.broken = false; this.wear = 0; this.state = 'idle';
     const k = Park.needMechanic.indexOf(this); if (k >= 0) Park.needMechanic.splice(k, 1);
   }
+}
+
+/* The park entrance. There is exactly one, it cannot be demolished, and it is
+   the place admissions, staffing and park-wide upgrades are managed from. */
+class Gate extends ParkObject {
+  constructor(i, j) {
+    super('gate', { w: 11, d: 3, name: 'Park Entrance', cost: 0, up: 12, ph: 20 }, i, j, 0);
+    this.name = 'Park Entrance';
+    this.tier = 1;
+    this.admitted = 0;
+    this.revenue = 0;
+    this.turnedAway = 0;
+    this.buildT = 1;
+  }
+  upgradeCost() { return [0, 12000, 34000, 90000][this.tier] || 0; }
+  canUpgrade() { return this.tier < 4; }
+  /* A grander entrance is worth real money: it lifts the park rating, widens
+     how much people will pay to get in, and speeds up admissions. */
+  ratingBonus() { return (this.tier - 1) * 28; }
+  feeTolerance() { return 1 + (this.tier - 1) * .16; }
+  upgrade() {
+    if (!this.canUpgrade()) return false;
+    const c = this.upgradeCost();
+    if (Park.money < c) { UI.notify('Too expensive', 'Rebuilding the entrance costs ' + money(c) + '.', 'bad'); return false; }
+    Park.spend(c);
+    Park.log.build = (Park.log.build || 0) + c;
+    this.tier++;
+    this.mesh = null;             // rebuilt from the new tier next frame
+    this.buildT = .25; this.updateMatrix();
+    UI.notify('Entrance rebuilt', 'Your park entrance is now a ' + this.tierName() + '.', 'good');
+    Audio.play('complete');
+    return true;
+  }
+  tierName() { return ['', 'Simple Gates', 'Themed Gates', 'Grand Entrance', 'Landmark Plaza'][this.tier]; }
 }
 
 class CoasterRide extends ParkObject {
@@ -4698,6 +4862,8 @@ const Park = {
     if (id < 0) return null;
     return this.objects.find(o => o.id === id) || this.coasters.find(o => o.id === id) || null;
   },
+  gate: null,
+  name: 'My Theme Park',
   attractions() { return this.objects.filter(o => o.kind === 'ride').concat(this.coasters.filter(c => c.state === 'open')); },
   addObject(o) {
     this.objects.push(o);
@@ -4743,6 +4909,7 @@ const Park = {
     const janitors = this.staff.filter(s => s.role === 'janitor').length;
     const mechanics = this.staff.filter(s => s.role === 'mechanic').length;
     score += Math.min(janitors * 7, 35) + Math.min(mechanics * 6, 30);
+    if (this.gate) score += this.gate.ratingBonus();
     score -= this.needMechanic.length * 18;             // broken rides hurt
     if (!atts.length) score = Math.min(score, 90);
     this.rating = clamp(Math.round(score), 0, 999);
@@ -5557,9 +5724,10 @@ class Guest extends Person {
       Park.earn(s.price, 'shop'); s.revenue += s.price; s.served++;
       Progress.add(1);
       const value = s.def.price > 0 ? clamp(1.2 - s.price / (s.def.price * 2.2), 0, 1) : 1;
+      const sat = s.def.satisfy * (s.satisfyMul || 1) / 100;
       switch (s.def.need) {
-        case 'hunger': this.hunger = clamp(this.hunger - s.def.satisfy / 100, 0, 1); this.litterCarried++; break;
-        case 'thirst': this.thirst = clamp(this.thirst - s.def.satisfy / 100, 0, 1); this.toilet = clamp(this.toilet + .12, 0, 1); this.litterCarried++; break;
+        case 'hunger': this.hunger = clamp(this.hunger - sat, 0, 1); this.litterCarried++; break;
+        case 'thirst': this.thirst = clamp(this.thirst - sat, 0, 1); this.toilet = clamp(this.toilet + .12, 0, 1); this.litterCarried++; break;
         case 'toilet': this.toilet = 0; break;
         case 'nausea': this.nausea = 0; break;
         case 'cash': this.cash += 140; break;
@@ -5634,13 +5802,40 @@ class Staff extends Person {
     this.cleaned = 0; this.repaired = 0;
     this.speed = 3.4;
     this.zone = null;
+    /* Training. A trained member of staff walks faster, works faster and, for
+       mechanics, keeps a ride running longer between failures — which makes
+       "hire another one" and "train the one I have" a real choice. */
+    this.level = 1;
+    this.applyTraining();
+  }
+  applyTraining() {
+    const L = this.level;
+    this.speed = 3.4 * (1 + (L - 1) * .22);
+    this.wage = Math.round(this.def.wage * (1 + (L - 1) * .40));
+    this.workRate = 1 + (L - 1) * .55;      // tasks finish this much faster
+    this.skill = 1 + (L - 1) * .5;
+  }
+  trainCost() { return Math.round(this.def.cost * (this.level === 1 ? 1.6 : 3.2)); }
+  train() {
+    if (this.level >= 3) return false;
+    const c = this.trainCost();
+    if (Park.money < c) { UI.notify('Too expensive', 'Training ' + this.name + ' costs ' + money(c) + '.', 'bad'); return false; }
+    Park.spend(c);
+    this.level++;
+    this.applyTraining();
+    UI.notify('Training complete', this.name + ' is now ' + ['', 'Trained', 'Experienced', 'Expert'][this.level] + '.', 'good');
+    return true;
   }
   update(dt) {
     switch (this.state) {
       case 'idle': this.assign(); break;
       case 'walking': {
         const done = this.followPath(dt);
-        if (done) { this.state = 'working'; this.taskT = this.role === 'mechanic' ? 6 : 1.6; this.moving = false; }
+        if (done) {
+          this.state = 'working';
+          this.taskT = (this.role === 'mechanic' ? 6 : 1.6) / (this.workRate || 1);
+          this.moving = false;
+        }
         break;
       }
       case 'working': {
@@ -5986,6 +6181,7 @@ const UI = {
   manage(id, tab) {
     const o = Park.objects.find(x => x.id === id) || Park.coasters.find(x => x.id === id);
     if (!o) return;
+    if (o.kind === 'gate') return this.entrance(tab);
     if (tab) this.manageTabRide = tab;
     const isC = o.kind === 'coaster', isShop = o.kind === 'shop';
     const T = this.manageTabRide;
@@ -6157,6 +6353,156 @@ const UI = {
     }
 
     this.modal((isC ? 'Coaster' : isShop ? 'Shop' : 'Ride') + ' — ' + o.name, h);
+  },
+
+  /* ------------------------------------------------------------------
+     THE FRONT GATE
+     Admissions, the payroll and every park-wide upgrade in one building.
+     ------------------------------------------------------------------ */
+  entranceTab: 'admissions',
+  entrance(tab) {
+    const gate = Park.gate;
+    if (!gate) return;
+    if (tab) this.entranceTab = tab;
+    const T = this.entranceTab;
+    const kv = (k, v, note) => `<div class="kv"><span class="k">${k}</span><span class="v">${v}${note ? ` <span style="color:var(--dim);font-weight:600">${note}</span>` : ''}</span></div>`;
+    const days = Math.max(1, Park.day - 1 + Park.time / 1440);
+
+    let h = `<div class="btnrow" style="margin-bottom:14px">` +
+      [['admissions', 'Admissions'], ['staff', 'Staff'], ['upgrades', 'Upgrades'], ['estate', 'Buildings']].map(([k, l]) =>
+        `<button class="btn ${T === k ? 'pri' : ''}" style="flex:0 0 auto;padding:6px 16px"
+          onclick="UI.entrance('${k}')">${l}</button>`).join('') + `</div>`;
+    h += `<div style="display:flex;gap:12px;align-items:center;margin-bottom:14px">
+      <input class="nameIn" style="flex:1" value="${(Park.name || 'My Theme Park').replace(/"/g, '&quot;')}"
+        onchange="Park.name=this.value||'My Theme Park'" onkeydown="if(event.key==='Enter')this.blur()">
+      <span class="tag" style="background:#e2f4ff;color:var(--accent-ink)">${gate.tierName()}</span></div>`;
+
+    if (T === 'admissions') {
+      h += `<h3>Ticket price</h3>
+        <div class="row"><label>Entry fee</label>
+          <input type="range" min="0" max="80" value="${Park.entryFee}"
+            oninput="Park.entryFee=+this.value;document.getElementById('efee').textContent='$'+this.value">
+          <span class="num" id="efee">$${Park.entryFee}</span></div>`;
+      const tol = gate.feeTolerance();
+      const fair = Math.round((6 + Park.rating * .045) * tol);
+      h += `<p>Guests weigh the fee against your park rating and how impressive the entrance looks.
+        At rating <b>${Park.rating}</b> with ${gate.tierName().toLowerCase()}, about <b>${money(fair)}</b>
+        feels fair. ${Park.entryFee > fair * 1.35 ? '<b style="color:var(--bad)">You are charging well over that, and it is costing you arrivals.</b>' : Park.entryFee < fair * .6 ? 'You could charge more without losing anyone.' : 'That is roughly where you are.'}</p>`;
+      h += `<h3>Gate figures</h3>`;
+      h += kv('Admissions revenue', money(Park.log.entry || 0), money((Park.log.entry || 0) / days) + ' / day');
+      h += kv('Guests all time', Park.totalGuests);
+      h += kv('In the park now', Park.guests.length + ' / ' + Park.capacity);
+      h += kv('Arriving', Math.round((this._arrRate || 0) * 60) + ' / hour');
+      h += kv('Turned away by price', gate.turnedAway);
+      h += kv('Park rating', Park.rating, '+' + gate.ratingBonus() + ' from the entrance');
+      h += `<h3>Marketing</h3>`;
+      if (!Marketing.active.length) h += `<p>No campaign running. Campaigns pull extra visitors for a fixed run of days.</p>`;
+      else for (const a of Marketing.active) {
+        const c = CAMPAIGNS.find(x => x.id === a.id);
+        h += kv(c ? c.name : a.id, Math.max(0, a.endDay - Park.day) + ' days left');
+      }
+      h += `<div class="btnrow"><button class="btn" style="flex:0 0 auto;padding:9px 20px"
+        onclick="UI.closeModal();UI.finances('marketing')">Marketing campaigns</button>
+        <button class="btn" style="flex:0 0 auto;padding:9px 20px"
+        onclick="UI.closeModal();UI.finances('finance')">Park finances</button></div>`;
+    }
+
+    else if (T === 'staff') {
+      const wages = Park.staff.reduce((a, st) => a + st.wage, 0);
+      h += `<p>You employ <b>${Park.staff.length}</b> people costing <b>${money(wages)}</b> an hour.
+        Training makes someone faster at their job and lets them cover more ground — often cheaper
+        than hiring a second body, and always cheaper than a ride sitting broken.</p>`;
+      h += `<h3>Hire</h3><div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px">`;
+      for (const d of CAT.staff) {
+        const n = Park.staff.filter(st => st.role === d.id).length;
+        h += `<div style="background:var(--panel-sunken);border:2px solid var(--edge-soft);border-radius:12px;padding:9px;text-align:center">
+          <img src="${Thumbs.staff(d)}" style="width:100%;aspect-ratio:1;object-fit:contain" alt="">
+          <div style="font-size:11.5px;font-weight:800;margin-top:4px">${d.name}</div>
+          <div style="font-size:10px;color:var(--dim)">${n} employed</div>
+          <div style="font-size:10px;color:var(--gold);margin-bottom:6px">${money(d.cost)} &middot; ${money(d.wage)}/hr</div>
+          <button class="btn go" style="padding:5px" onclick="Game.hire(CAT.staff.find(x=>x.id==='${d.id}'));UI.entrance('staff')">Hire</button>
+        </div>`;
+      }
+      h += `</div>`;
+      h += `<h3>Payroll</h3>`;
+      if (!Park.staff.length) h += `<p style="color:var(--dim)">Nobody on the payroll yet.</p>`;
+      else {
+        h += `<table class="tb"><tr><th>Name</th><th>Role</th><th>Grade</th><th>Doing</th><th style="text-align:right">Wage</th><th></th></tr>`;
+        for (const st of Park.staff) {
+          const grade = ['', 'Trainee', 'Experienced', 'Expert'][st.level];
+          const done = st.role === 'janitor' ? st.cleaned + ' cleared' : st.role === 'mechanic' ? st.repaired + ' repairs' : '&mdash;';
+          h += `<tr><td>${st.name}</td><td>${st.def.name}</td>
+            <td><span class="tag" style="background:${st.level === 3 ? '#dcf7e5;color:#1d7a42' : st.level === 2 ? '#e2f4ff;color:#0e6ba6' : '#f2f6f9;color:#5d87a4'}">${grade}</span></td>
+            <td style="color:var(--dim)">${st.state}</td>
+            <td style="text-align:right">${money(st.wage)}</td>
+            <td style="text-align:right;white-space:nowrap">
+              ${st.level < 3 ? `<button class="btn go" style="padding:3px 10px;font-size:10.5px;flex:0 0 auto"
+                onclick="Park.staff.find(x=>x.id===${st.id}).train();UI.entrance('staff')">Train ${money(st.trainCost())}</button>` : ''}
+              <button class="btn dan" style="padding:3px 10px;font-size:10.5px;flex:0 0 auto"
+                onclick="Game.fire(${st.id});UI.entrance('staff')">Dismiss</button></td></tr>`;
+        }
+        h += `</table>`;
+      }
+      const need = [];
+      if (!Park.staff.some(x => x.role === 'janitor') && Park.litter.length > 5) need.push('Litter is piling up — hire a janitor.');
+      if (!Park.staff.some(x => x.role === 'mechanic') && Park.attractions().length) need.push('No mechanic: a broken ride stays broken.');
+      if (Park.needMechanic.length) need.push(Park.needMechanic.length + ' ride(s) are waiting for repair right now.');
+      if (need.length) h += `<h3>Attention</h3><ul>${need.map(x => '<li>' + x + '</li>').join('')}</ul>`;
+    }
+
+    else if (T === 'upgrades') {
+      h += `<h3>The entrance itself</h3>`;
+      h += kv('Current', gate.tierName());
+      h += kv('Rating bonus', '+' + gate.ratingBonus());
+      h += kv('Price tolerance', '+' + Math.round((gate.feeTolerance() - 1) * 100) + '%');
+      if (gate.canUpgrade()) {
+        const nxt = ['', 'Simple Gates', 'Themed Gates', 'Grand Entrance', 'Landmark Plaza'][gate.tier + 1];
+        h += `<p>Rebuilding as <b>${nxt}</b> raises the park rating and lets you charge more before
+          people baulk. It is the cheapest rating you can buy once your rides are already good.</p>
+          <div class="btnrow"><button class="btn go" style="flex:0 0 auto;padding:10px 22px"
+            onclick="Park.gate.upgrade();UI.entrance('upgrades')">Rebuild as ${nxt} &middot; ${money(gate.upgradeCost())}</button></div>`;
+      } else h += `<p>The entrance is as grand as it gets.</p>`;
+      h += `<h3>Park-wide</h3>`;
+      const atts = Park.objects.filter(x => x.kind === 'ride' || x.kind === 'shop');
+      const upgradable = atts.filter(x => x.canUpgrade && x.canUpgrade());
+      const total = upgradable.reduce((a, x) => a + x.upgradeCost(), 0);
+      h += kv('Buildings that can be refurbished', upgradable.length);
+      h += kv('Cost to refurbish everything', money(total));
+      if (upgradable.length) h += `<div class="btnrow"><button class="btn ${Park.money >= total ? 'pri' : ''}"
+        style="flex:0 0 auto;padding:10px 22px" ${Park.money < total ? 'disabled' : ''}
+        onclick="UI.upgradeAll();UI.entrance('upgrades')">Refurbish everything &middot; ${money(total)}</button></div>`;
+    }
+
+    else if (T === 'estate') {
+      const list = Park.objects.filter(x => x.kind === 'ride' || x.kind === 'shop').concat(Park.coasters);
+      if (!list.length) h += `<p>Nothing built yet.</p>`;
+      else {
+        h += `<p>Every building in the park. Refurbishing raises capacity and reliability, and for
+          shops how much a purchase actually satisfies.</p>`;
+        h += `<table class="tb"><tr><th>Building</th><th>Grade</th><th>Condition</th><th style="text-align:right">Revenue / day</th><th></th></tr>`;
+        for (const o of list) {
+          const cond = Math.round(clamp((o.reliability || .9) - o.wear, 0, 1) * 100);
+          h += `<tr><td><a style="cursor:pointer;color:var(--accent-ink)" onclick="UI.manage(${o.id})">${o.name}</a></td>
+            <td>${o.tierName ? o.tierName() : 'Standard'}</td>
+            <td style="color:${cond < 45 ? 'var(--bad)' : cond < 75 ? 'var(--warn)' : 'var(--good)'}">${cond}%</td>
+            <td style="text-align:right">${money((o.revenue || 0) / days)}</td>
+            <td style="text-align:right">${o.canUpgrade && o.canUpgrade()
+              ? `<button class="btn go" style="padding:3px 10px;font-size:10.5px;flex:0 0 auto"
+                  onclick="Park.objects.concat(Park.coasters).find(x=>x.id===${o.id}).upgrade();UI.entrance('estate')">Refurbish ${money(o.upgradeCost())}</button>`
+              : '<span style="color:var(--dim)">maxed</span>'}</td></tr>`;
+        }
+        h += `</table>`;
+      }
+    }
+
+    this.modal('Park Entrance', h);
+  },
+  upgradeAll() {
+    let n = 0;
+    for (const o of Park.objects.concat(Park.coasters)) {
+      if (o.canUpgrade && o.canUpgrade() && o.kind !== 'gate' && Park.money >= o.upgradeCost()) { o.upgrade(); n++; }
+    }
+    if (n) UI.notify('Refurbishment complete', n + ' building' + (n === 1 ? '' : 's') + ' brought up a grade.', 'good');
   },
 
   rideReport(id) {
@@ -7790,6 +8136,7 @@ const PF = {
     return entry;
   },
   ride(def) { return this.get('ride_' + def.id, () => Prefab.ride(def.kind, def)); },
+  gate(tier) { return this.get('gate_' + tier, () => Prefab.gate(tier)); },
   scenery(def, seed) { return this.get('sc_' + def.kind, () => Prefab.scenery(def.kind, 3)); },
   sceneryGeo(def, seed) {
     const k = 'scg_' + def.kind + '_' + (seed % 4);
@@ -8352,6 +8699,19 @@ const Game = {
     this.sceneryDirty = true; Park.litterDirty = true;
     Cam.init(0, WORLD.wz((N >> 1) + 14));
     Cam.distT = 128; Cam.dist = 128; Cam.yaw = Cam.yawS = -2.05; Cam.pitch = Cam.pitchS = 0.66;
+    // Every park gets a front gate. It stands on the entry apron the world
+    // generator lays down, and the concourse runs north from it.
+    {
+      const c = N >> 1;
+      const gi = c - 5, gj = c + 22;
+      const gate = new Gate(gi, gj);
+      gate.y = WORLD.tileH(gi, gj);
+      WORLD.flatten(gi, gj, 11, 3, gate.y);
+      gate.updateMatrix();
+      gate.footprint((i, j) => { WORLD.setT(i, j, T_ENTRY); WORLD.setOwn(i, j, gate.id); });
+      Park.objects.push(gate);
+      Park.gate = gate;
+    }
     Goals.start(scenario);
     UI.setTool('select');
     this.setSpeed(1);
@@ -8366,7 +8726,7 @@ const Game = {
     const place = (defId, i, j, rot) => {
       const def = CAT.scenery.find(s => s.id === defId); if (!def) return;
       const o = new ParkObject('scenery', def, i, j, rot || 0);
-      o.y = WORLD.tileH(i, j); o.seed = rndi(0, 3); o.updateMatrix();
+      o.y = WORLD.tileH(i, j); o.seed = rndi(0, 3); o.buildT = 1; o.updateMatrix();
       Park.objects.push(o);
       o.footprint((ii, jj) => WORLD.setOwn(ii, jj, o.id));
     };
@@ -8583,7 +8943,7 @@ const Game = {
           this.select(o);
           // Clicking the building itself is how you manage it: one panel with
           // ratings, engineering, operations and finances all in it.
-          if (o.kind === 'ride' || o.kind === 'coaster' || o.kind === 'shop') UI.manage(o.id);
+          if (o.kind === 'ride' || o.kind === 'coaster' || o.kind === 'shop' || o.kind === 'gate') UI.manage(o.id);
         } else this.select(null);
         break;
       }
@@ -8668,11 +9028,15 @@ const Game = {
     const gw = rotated ? def.d : def.w, gd = rotated ? def.w : def.d;
     const h = this.hoverTile;
     if (!h) return null;
+    // Only trust the continuous hit point when it agrees with the tile the
+    // rest of the code believes is hovered; otherwise fall back to the tile
+    // centre, so the anchor can never disagree with the hover.
     const p = this.hoverPoint;
-    if (!p) return { i: h.i - ((gw - 1) >> 1), j: h.j - ((gd - 1) >> 1), gw, gd };
+    const cx = (p && WORLD.ti(p.x) === h.i && WORLD.tj(p.z) === h.j) ? p.x : WORLD.wx(h.i);
+    const cz = (p && WORLD.ti(p.x) === h.i && WORLD.tj(p.z) === h.j) ? p.z : WORLD.wz(h.j);
     // centre_x = wx(i) + (gw-1)*TILE/2  ->  i = N/2 + x/TILE - gw/2
-    const i = Math.round(N / 2 + p.x / TILE - gw / 2);
-    const j = Math.round(N / 2 + p.z / TILE - gd / 2);
+    const i = Math.round(N / 2 + cx / TILE - gw / 2);
+    const j = Math.round(N / 2 + cz / TILE - gd / 2);
     return { i, j, gw, gd };
   },
   placementDef() {
@@ -8725,7 +9089,7 @@ const Game = {
     let o;
     if (p.kind === 'shop') o = new Shop(p.def, i, j, rot);
     else if (p.kind === 'ride') o = new Ride(p.def, i, j, rot);
-    else { o = new ParkObject('scenery', p.def, i, j, rot); o.seed = rndi(0, 3); }
+    else { o = new ParkObject('scenery', p.def, i, j, rot); o.seed = rndi(0, 3); o.buildT = 1; }
     o.y = WORLD.tileH(i, j);
     if (p.kind !== 'scenery') WORLD.flatten(i, j, gw, gd, o.y);
     o.updateMatrix();
@@ -8820,6 +9184,7 @@ const Game = {
   demolish(id) {
     const o = Park.objects.find(x => x.id === id) || Park.coasters.find(x => x.id === id);
     if (!o) return;
+    if (o.kind === 'gate') { UI.notify('Cannot demolish', 'The park has to have a way in.', 'warn'); return; }
     if (o.kind === 'coaster') { Coaster._rebuildTarget = null; Coaster.active = o; Coaster.demolish(); return; }
     const refund = Math.round((o.def.cost || 0) * .55);
     Park.money += refund;
@@ -8932,6 +9297,21 @@ const Game = {
       if (this.keys['d'] || this.keys['arrowright']) r += 1;
       if (f || r) Cam.moveRelative(f, r, dt);
       Cam.ty = damp(Cam.ty, WORLD.hAt(Cam.dx, Cam.dz), 2.2, dt);
+    }
+    /* Re-resolve what is under the cursor every frame, not only when the
+       pointer moves. The cursor sits at a fixed place on screen but points at
+       a moving world: pan, zoom, orbit or even the camera easing to a stop all
+       change what is beneath it. Recomputing only on pointermove left the
+       highlight pinned to a stale world tile, drifting further from the cursor
+       the further the view travelled — which is exactly what it looked like. */
+    for (const o of Park.objects) if (o.buildT < 1) o.tickBuild(dt);
+    for (const c of Park.coasters) if (c.buildT < 1) c.tickBuild(dt);
+    if (Cam.mode === 'orbit') {
+      const cx = Cam.tx + Cam.tz * 7 + Cam.dist * 13 + Cam.yaw * 101 + Cam.pitch * 57 + Cam.ty * 3;
+      if (this._camKey === undefined || Math.abs(cx - this._camKey) > 1e-4) {
+        this._camKey = cx;
+        this.updateHover();
+      }
     }
     Audio.setCrowd(Math.min(.09, Park.guests.length * .0007));
     {
@@ -9222,9 +9602,11 @@ const Game = {
     if (Park.guests.length >= Park.capacity) return;
     // a brand new park still draws a trickle, and word of mouth compounds
     const attract = 34 + Park.rating * .62 + Park.attractions().length * 6 + Park.marketing * 8 + Marketing.draw() * 42;
-    const feeFactor = clamp(1.45 - Park.entryFee / (26 + Park.rating * .55), .08, 1.7);
+    const tol = Park.gate ? Park.gate.feeTolerance() : 1;
+    const feeFactor = clamp(1.45 - Park.entryFee / ((26 + Park.rating * .55) * tol), .08, 1.7);
     const daily = 0.35 + Math.sin(clamp((hour - 8) / 13, 0, 1) * PI) * 1.5;
     const rate = attract * feeFactor * daily * .019 * Weather.drawFactor();
+    this._arrRate = rate;
     this._spawnAcc = (this._spawnAcc || 0) + rate * dt;
     while (this._spawnAcc >= 1) {
       this._spawnAcc -= 1;
@@ -9246,7 +9628,7 @@ const Game = {
       if (Park.guests.length >= Park.capacity) break;
       const x = WORLD.wx(c + rndi(-2, 2)) + rnd(-1.2, 1.2), z = WORLD.wz(c + 25) + rnd(-1.5, 1.5);
       const g = new Guest(x, z);
-      if (Park.entryFee > g.cash) continue;
+      if (Park.entryFee > g.cash) { if (Park.gate) Park.gate.turnedAway++; continue; }
       g.cash -= Park.entryFee;
       Park.earn(Park.entryFee, 'entry');
       Park.totalGuests++;
@@ -9313,13 +9695,16 @@ const Game = {
         money: Park.money, time: Park.time, day: Park.day, fee: Park.entryFee,
         h: Array.from(WORLD.h).map(x => Math.round(x * 100) / 100),
         t: Array.from(WORLD.type),
-        objs: Park.objects.map(o => ({ k: o.kind, d: o.def.id, i: o.i, j: o.j, r: o.rot, p: o.price, open: o.openR })),
+        objs: Park.objects.filter(o => o.kind !== 'gate').map(o =>
+          ({ k: o.kind, d: o.def.id, i: o.i, j: o.j, r: o.rot, p: o.price, open: o.openR, tier: o.tier })),
+        gate: Park.gate ? { tier: Park.gate.tier, adm: Park.gate.admitted, ta: Park.gate.turnedAway } : null,
+        pname: Park.name,
         cos: Park.coasters.map(c => ({
           t: c.type.id, i: c.i, j: c.j, r: c.rot, pieces: c.track.pieces, custom: c.track.custom, done: c.track.complete,
           pw: c.track.powered,
           price: c.price, open: c.openR, name: c.name, se: c.track.stationEnd, trains: c.trains.length
         })),
-        staff: Park.staff.map(s => ({ r: s.role, x: s.x, z: s.z })),
+        staff: Park.staff.map(s => ({ r: s.role, x: s.x, z: s.z, l: s.level })),
         land: Array.from(Land.ownedPlots), bought: Land.bought,
         loan: Finance.loan, campaigns: Marketing.active,
         log: Park.log
@@ -9336,6 +9721,7 @@ const Game = {
       for (const o of Park.objects) if (o.mesh) o.mesh.dispose();
       for (const c of Park.coasters) { if (c.trackMesh) c.trackMesh.dispose(); if (c.stationMesh) c.stationMesh.dispose(); }
       Park.objects.length = 0; Park.coasters.length = 0; Park.guests.length = 0; Park.staff.length = 0; Park.litter.length = 0;
+      Park.gate = null;
       WORLD.h.set(d.h); WORLD.type.set(d.t); WORLD.own.fill(-1);
       if (d.land && d.land.length === Land.ownedPlots.length) {
         Land.ownedPlots.set(d.land); Land.bought = d.bought || 0;
@@ -9362,7 +9748,8 @@ const Game = {
         else if (s.k === 'ride') { def = CAT.rides.find(x => x.id === s.d); o = new Ride(def, s.i, s.j, s.r); }
         else { def = CAT.scenery.find(x => x.id === s.d); o = new ParkObject('scenery', def, s.i, s.j, s.r); o.seed = 1; }
         if (!def) continue;
-        o.y = WORLD.tileH(s.i, s.j); o.updateMatrix();
+        o.y = WORLD.tileH(s.i, s.j); o.buildT = 1; o.updateMatrix();
+        if (s.tier) { o.tier = clamp(s.tier, 1, 4); o.applyTier(); }
         if (s.p !== undefined) o.price = s.p;
         if (s.open !== undefined) o.openR = s.open;
         if (s.k === 'scenery') { Park.objects.push(o); o.footprint((i, j) => WORLD.setOwn(i, j, o.id)); }
@@ -9393,7 +9780,24 @@ const Game = {
         Park.coasters.push(c);
         c.footprint((i, j) => { WORLD.setT(i, j, T_BUILD); WORLD.setOwn(i, j, c.id); });
       }
-      for (const s of d.staff || []) Park.staff.push(new Staff(s.r, s.x, s.z));
+      {
+        const c = N >> 1, gi = c - 5, gj = c + 22;
+        const gate = new Gate(gi, gj);
+        gate.y = WORLD.tileH(gi, gj); gate.updateMatrix();
+        gate.footprint((i, j) => { WORLD.setT(i, j, T_ENTRY); WORLD.setOwn(i, j, gate.id); });
+        Park.objects.push(gate);
+        Park.gate = gate;
+      }
+      for (const s of d.staff || []) {
+        const st = new Staff(s.r, s.x, s.z);
+        st.level = clamp(s.l || 1, 1, 3); st.applyTraining();
+        Park.staff.push(st);
+      }
+      if (Park.gate && d.gate) {
+        Park.gate.tier = clamp(d.gate.tier || 1, 1, 4);
+        Park.gate.turnedAway = d.gate.ta || 0;
+      }
+      if (d.pname) Park.name = d.pname;
       WORLD.dirty = true; Path.dirty = true; this.sceneryDirty = true; Park.litterDirty = true;
       UI.notify('Loaded', 'Park restored.', 'good');
     } catch (e) { UI.notify('Load failed', String(e), 'bad'); }
@@ -9718,8 +10122,8 @@ Object.assign(Game, {
       if (o.kind === 'shop') {
         const pf = PF.shop(o.def);
         R.draw(pf.mesh, o.matrix, glow ? { emissive: glow * .45 } : null);
-      } else if (o.kind === 'ride') {
-        const pf = PF.ride(o.def);
+      } else if (o.kind === 'ride' || o.kind === 'gate') {
+        const pf = o.kind === 'gate' ? PF.gate(o.tier) : PF.ride(o.def);
         R.draw(pf.mesh, o.matrix, glow ? { emissive: glow * .40 } : null);
         const tmp = M4.create(), out = M4.create();
         for (const part of pf.parts) {
