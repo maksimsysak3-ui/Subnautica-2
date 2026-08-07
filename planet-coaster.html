@@ -78,7 +78,7 @@ body{
   cursor:default;
 }
 button,input,select,textarea{font-family:inherit;font-weight:inherit}
-canvas#gl{position:fixed;inset:0;display:block;touch-action:none;}
+canvas#gl{position:fixed;left:0;top:0;width:100vw;height:100vh;display:block;touch-action:none;}
 #ui{position:fixed;inset:0;pointer-events:none;z-index:10;}
 #ui > *{pointer-events:auto;}
 :focus{outline:none}
@@ -453,29 +453,26 @@ table.tb tr:last-child td{border-bottom:0}
   background:var(--accent);border-color:var(--accent-deep);color:#fff;box-shadow:0 2px 0 var(--accent-deep)}
 
 /* ---------- main menu ---------- */
+/* The menu sits over a live park: a real coaster running, real guests
+   walking, the camera drifting round it. Only a soft scrim separates the
+   two, so the game is the background rather than a picture of one. */
 #menu{position:fixed;inset:0;z-index:90;display:none;align-items:center;justify-content:center;
-  background:linear-gradient(180deg,#bfe6fb 0%,#e2f4ff 45%,#f6fcff 100%);overflow:hidden}
+  background:transparent;overflow:hidden}
 #menu.show{display:flex}
-/* soft cartoon clouds drifting behind the cards */
-#menu .mbg{position:absolute;inset:-10%;
+#menu .mbg{position:absolute;inset:0;pointer-events:none;
   background:
-    radial-gradient(closest-side at 18% 26%,#fff 0 62%,transparent 100%),
-    radial-gradient(closest-side at 26% 22%,#fff 0 58%,transparent 100%),
-    radial-gradient(closest-side at 78% 68%,#fff 0 60%,transparent 100%),
-    radial-gradient(closest-side at 86% 74%,#fff 0 55%,transparent 100%),
-    radial-gradient(closest-side at 62% 14%,#fff 0 52%,transparent 100%);
-  background-size:34% 22%,26% 17%,38% 24%,28% 18%,24% 15%;
-  background-repeat:no-repeat;opacity:.75;
+    radial-gradient(70% 52% at 50% 40%,rgba(246,252,255,.80) 0%,rgba(240,250,255,.44) 55%,rgba(230,246,255,0) 100%),
+    linear-gradient(180deg,rgba(210,236,253,.34) 0%,rgba(255,255,255,0) 22%,rgba(255,255,255,0) 74%,rgba(222,242,255,.40) 100%);
   animation:drift 30s ease-in-out infinite alternate}
-@keyframes drift{to{transform:translate(-4%,2%) scale(1.05)}}
-.mwrap{position:relative;width:min(1040px,92vw);text-align:center;animation:popin .6s cubic-bezier(.18,1.15,.35,1)}
+@keyframes drift{to{opacity:.86}}
+.mwrap{position:relative;width:min(1040px,92vw);text-align:center;animation:popin .6s cubic-bezier(.18,1.15,.35,1);z-index:2}
 .mtitle{font-size:clamp(38px,6vw,76px);font-weight:800;letter-spacing:.05em;text-transform:uppercase;
   color:#fff;-webkit-text-stroke:0;
-  text-shadow:0 3px 0 #7fc8ee,0 6px 0 #5cb2e0,0 12px 24px rgba(28,90,132,.35)}
-.msub{font-size:11.5px;letter-spacing:.5em;text-transform:uppercase;color:var(--accent-ink);
-  margin:14px 0 42px;font-weight:800}
+  text-shadow:0 3px 0 #4ea8d8,0 6px 0 #2b86bb,0 10px 22px rgba(11,55,86,.55),0 2px 30px rgba(11,55,86,.35)}
+.msub{font-size:11.5px;letter-spacing:.5em;text-transform:uppercase;color:#0b5f8f;
+  margin:14px 0 42px;font-weight:800;text-shadow:0 1px 10px rgba(255,255,255,.9),0 0 4px rgba(255,255,255,.9)}
 .mcards{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:18px;text-align:left}
-.mcard{background:#fff;
+.mcard{background:rgba(255,255,255,.94);backdrop-filter:blur(6px) saturate(130%);
   border:3px solid #fff;border-radius:22px;padding:22px;
   cursor:pointer;position:relative;box-shadow:0 8px 0 #b9dff4,0 18px 34px rgba(28,90,132,.20);
   transition:border-color var(--ez),transform var(--sn),box-shadow var(--sn)}
@@ -1324,9 +1321,14 @@ class Renderer {
   }
   resize() {
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    const w = Math.floor(innerWidth * dpr), h = Math.floor(innerHeight * dpr);
+    // Measure the element, not the window: the CSS box is what the pointer
+    // coordinates are relative to, so the backing store and the projection
+    // both have to be derived from it.
+    const r = this.cv.getBoundingClientRect();
+    const cssW = Math.max(1, r.width || innerWidth), cssH = Math.max(1, r.height || innerHeight);
+    const w = Math.max(1, Math.floor(cssW * dpr)), h = Math.max(1, Math.floor(cssH * dpr));
     if (this.cv.width !== w || this.cv.height !== h) { this.cv.width = w; this.cv.height = h; this.resizePost(w, h); }
-    this.aspect = w / h;
+    this.aspect = cssW / cssH;
   }
   /* Offscreen colour target so the frame can be graded before it is shown. */
   initPost() {
@@ -1465,7 +1467,7 @@ class Mesh {
 /* Instance layout: mat4 (16) + colour (3) = 19 floats, padded to 20 */
 const INST_STRIDE = 20;
 /* body parts per person written by Person.writeInstances */
-const BODY_PARTS = 24;
+const BODY_PARTS = 32;   // 24 body blocks + up to 8 of uniform and kit
 /* ============================================================================
    SECTION 4 — DRAW PIPELINE
    ========================================================================== */
@@ -1754,9 +1756,18 @@ const Cam = {
     this.tx = clamp(this.tx + (fx * f + rx * r) * spd, -WORLD.half - 20, WORLD.half + 20);
     this.tz = clamp(this.tz + (fz * f + rz * r) * spd, -WORLD.half - 20, WORLD.half + 20);
   },
+  /* Normalised device coords from a client point, measured against the
+     canvas's actual box rather than the window. Immune to page zoom, device
+     pixel ratio, and the canvas ever being inset or letterboxed. */
+  ndc(R, mx, my) {
+    const r = R.cv.getBoundingClientRect();
+    const w = r.width || innerWidth, h = r.height || innerHeight;
+    return { x: ((mx - r.left) / w) * 2 - 1, y: 1 - ((my - r.top) / h) * 2 };
+  },
   /* screen ray -> ground plane at height h */
   rayToPlane(R, mx, my, h) {
-    const nx = (mx / innerWidth) * 2 - 1, ny = 1 - (my / innerHeight) * 2;
+    const n = this.ndc(R, mx, my);
+    const nx = n.x, ny = n.y;
     const inv = M4.create();
     if (!M4.invert(inv, R.vp)) return null;
     const p0 = M4.xformPoint({}, inv, nx, ny, -1);
@@ -1768,7 +1779,8 @@ const Cam = {
     return { x: p0.x + (p1.x - p0.x) * t, y: h, z: p0.z + (p1.z - p0.z) * t };
   },
   rayDir(R, mx, my) {
-    const nx = (mx / innerWidth) * 2 - 1, ny = 1 - (my / innerHeight) * 2;
+    const n = this.ndc(R, mx, my);
+    const nx = n.x, ny = n.y;
     const inv = M4.create();
     if (!M4.invert(inv, R.vp)) return null;
     const p0 = M4.xformPoint({}, inv, nx, ny, -1);
@@ -5304,6 +5316,9 @@ class Person {
     put(0, headY, -lean * .09, lean * .5, .38, .40, .36, skin);
     put(0, headY + .21, -lean * .09, lean * .5, .41, .16, .39, hair);
     put(0, headY + .05, -.19, lean * .5, .30, .10, .04, hair);
+    /* Anything worn or carried on top of the shared rig. Staff use this for
+       uniform and kit; guests leave it alone. */
+    if (this.gear) this.gear(put, { headY, shoulderY, hipY, chestY, lean, skin, shirt, pants, sw, walking, sitting, elbA, elbB });
     return o;
   }
 }
@@ -5814,6 +5829,70 @@ class Staff extends Person {
     this.wage = Math.round(this.def.wage * (1 + (L - 1) * .40));
     this.workRate = 1 + (L - 1) * .55;      // tasks finish this much faster
     this.skill = 1 + (L - 1) * .5;
+  }
+  /* Uniform and kit, drawn on top of the shared body rig so staff read as
+     staff from across the park without needing a second character system.
+     Grade shows too: an Expert wears a badge and a smarter cap. */
+  gear(put, c) {
+    const col = hex(this.def.color);
+    const dark = shade(col, .62), light = shade(col, 1.28);
+    const L = this.level;
+    const hi = hex(0xf5e04a);
+    const handY = c.elbA.y - .30, handZ = c.elbA.z + (c.walking ? -c.sw * .30 : 0);
+
+    // A high-visibility tabard over the shirt: the single clearest "this
+    // person works here" signal at a distance.
+    put(0, c.chestY + .02, -.02, c.lean, .56, .62, .40, col);
+    put(0, c.chestY + .02, -.215, c.lean, .20, .58, .04, light);
+    // shoulder flashes
+    put(-.26, c.hipY + .70, 0, 0, .30, .12, .30, light);
+    put(.26, c.hipY + .70, 0, 0, .30, .12, .30, light);
+
+    switch (this.role) {
+      case 'janitor': {
+        put(0, c.headY + .26, -.02, c.lean * .5, .46, .16, .44, col);       // soft cap
+        put(0, c.headY + .22, -.24, c.lean * .5, .34, .09, .16, dark);      // peak
+        // a broom held out in front
+        put(.30, handY + .34, handZ + .30, .55, .07, 1.5, .07, hex(0x9a7a4a));
+        put(.30, handY - .40, handZ + .72, .55, .40, .16, .26, hex(0x6f5a3a));
+        break;
+      }
+      case 'mechanic': {
+        put(0, c.headY + .27, -.02, c.lean * .5, .48, .20, .46, hi);        // hard hat
+        put(0, c.headY + .20, -.03, c.lean * .5, .54, .07, .52, shade(hi, .8));
+        put(0, c.chestY - .18, -.24, c.lean, .34, .22, .05, dark);          // tool pouch
+        put(.30, handY, handZ + .12, .25, .12, .46, .12, hex(0xb8c0c8));    // wrench
+        put(.30, handY - .24, handZ + .18, .25, .20, .14, .12, hex(0xb8c0c8));
+        break;
+      }
+      case 'entertainer': {
+        // oversized mascot head and a pair of bright pompoms
+        put(0, c.headY + .30, -.02, c.lean * .4, .74, .70, .70, light);
+        put(-.22, c.headY + .40, -.30, 0, .16, .16, .10, hex(0x1b1424));
+        put(.22, c.headY + .40, -.30, 0, .16, .16, .10, hex(0x1b1424));
+        put(-.30, c.headY + .68, 0, 0, .22, .30, .22, col);
+        put(.30, c.headY + .68, 0, 0, .22, .30, .22, col);
+        put(.32, handY - .10, handZ, 0, .34, .34, .34, hex(0xffd23f));
+        break;
+      }
+      case 'security': {
+        put(0, c.headY + .26, -.02, c.lean * .5, .46, .18, .44, dark);      // peaked cap
+        put(0, c.headY + .21, -.26, c.lean * .5, .38, .07, .18, hex(0x14181f));
+        put(0, c.headY + .27, -.14, c.lean * .5, .16, .10, .06, hi);        // cap badge
+        put(-.17, c.chestY + .16, -.23, c.lean, .13, .16, .04, hi);         // chest badge
+        put(.28, c.hipY + .02, .08, 0, .10, .40, .10, hex(0x2b2b33));       // baton on belt
+        break;
+      }
+      case 'vendor': {
+        put(0, c.headY + .25, -.02, c.lean * .5, .48, .10, .46, light);     // visor
+        put(0, c.headY + .21, -.26, c.lean * .5, .40, .05, .20, hex(0x3ba7d4));
+        put(0, c.hipY + .16, -.20, c.lean, .48, .60, .06, hex(0xf6f1e4));   // apron
+        put(0, c.chestY - .28, -.23, c.lean, .26, .16, .04, col);           // apron pocket
+        break;
+      }
+    }
+    // grade pip on the shoulder
+    if (L > 1) put(-.27, c.hipY + .77, 0, 0, .16, .06, .16, L === 3 ? hex(0xffd23f) : hex(0xd8dde4));
   }
   trainCost() { return Math.round(this.def.cost * (this.level === 1 ? 1.6 : 3.2)); }
   train() {
@@ -8568,6 +8647,90 @@ const Goals = {
 };
 
 const Menu = {
+  showcase: false,
+  /* A real, running park to sit behind the menu: a coaster with trains on it,
+     a handful of rides and shops, scenery, and a crowd walking between them.
+     It is built with the ordinary game code, so the menu background is
+     literally the game rather than a picture of it. */
+  buildShowcase() {
+    const c = N >> 1;
+    Game.newGame('sandbox', null, true);
+    this.showcase = true;
+    Park.money = 9e6;
+    const path = (i, j) => { UI.sub = { id: 'path', cost: 0 }; Game.paintPath(i, j); };
+    const oldTool = UI.tool;
+    UI.tool = 'path';
+    for (let j = c - 20; j <= c + 22; j++) { path(c, j); path(c + 1, j); }
+    for (let i = c - 22; i <= c + 22; i++) { path(i, c - 4); path(i, c - 3); }
+    for (let i = c - 14; i <= c + 14; i++) { path(i, c + 10); }
+    Path.rebuild();
+    UI.tool = oldTool;
+
+    const place = (kind, def, i, j, rot) => {
+      if (!def) return;
+      UI.tool = kind === 'shop' ? 'shop' : kind === 'scenery' ? 'scenery' : 'ride';
+      UI.sub = def; UI.rot = rot || 0;
+      Game.hoverTile = { i, j };
+      Game.hoverPoint = { x: WORLD.wx(i), z: WORLD.wz(j) };
+      Game.tryPlace();
+      const o = Park.objects[Park.objects.length - 1];
+      if (o) o.buildT = 1, o.updateMatrix();
+    };
+    const R = id => CAT.rides.find(x => x.id === id);
+    const S = id => CAT.shops.find(x => x.id === id);
+    const D = id => CAT.scenery.find(x => x.id === id);
+    place('ride', R('ferris'), c - 9, c - 12);
+    place('ride', R('starflyer'), c + 8, c - 14);
+    place('ride', R('carousel'), c - 9, c + 3);
+    place('ride', R('swing'), c + 8, c + 2);
+    place('ride', R('pirate'), c + 8, c + 14);
+    place('ride', R('teacup'), c - 8, c + 14);
+    place('shop', S('burger'), c - 4, c - 8, 2);
+    place('shop', S('drink'), c + 3, c - 8, 2);
+    place('shop', S('icecream'), c + 3, c + 6, 0);
+    place('shop', S('gift'), c - 5, c + 6, 0);
+    for (let k = 0; k < 9; k++) {
+      place('scenery', D('tree'), c - 3 - (k % 2) * 2, c - 18 + k * 2);
+      place('scenery', D('tree'), c + 4 + (k % 2) * 2, c - 18 + k * 2);
+      if (k % 2) { place('scenery', D('lamp'), c - 2, c - 18 + k * 2); place('scenery', D('lamp'), c + 3, c - 18 + k * 2); }
+    }
+    place('scenery', D('fountain'), c - 4, c + 12);
+    place('scenery', D('windmill'), c - 18, c + 4);
+    place('scenery', D('pagoda'), c + 16, c + 8);
+    place('scenery', D('flower'), c - 2, c - 5); place('scenery', D('flower'), c + 3, c - 5);
+    UI.tool = 'select'; UI.sub = null;
+
+    // the headline coaster, built from a blueprint so it genuinely runs
+    const bp = BLUEPRINTS.find(x => x.id === 'thunderbolt') || BLUEPRINTS[0];
+    Coaster.buildBlueprint(bp, c - 20, c - 24, 0);
+    Coaster.exit();
+    for (const o of Park.objects) if (o.kind === 'ride') { o.openR = true; o.state = 'idle'; }
+    for (const o of Park.objects.concat(Park.coasters))
+      if (o.kind === 'ride' || o.kind === 'shop' || o.kind === 'coaster') Game.autoConnect(o, true);
+    Path.rebuild();
+    Game.rebuildScenery();
+
+    Park.entryFee = 0;
+    for (let k = 0; k < 26; k++) Game.spawnGuest();
+    Game.hire(CAT.staff[0]); Game.hire(CAT.staff[2]); Game.hire(CAT.staff[1]);
+    Park.time = 11 * 60;
+    Game.setSpeed(1);
+
+    // slow orbit around the middle of it all
+    Cam.tx = WORLD.wx(c - 6); Cam.tz = WORLD.wz(c - 6);
+    Cam.dist = Cam.distT = 132; Cam.pitch = Cam.pitchS = .34;
+    Cam.yaw = Cam.yawS = -2.1;
+    Game.selected = null;
+  },
+  /* Drift the camera while the menu is up. */
+  tick(dt) {
+    if (!this.showcase) return;
+    Cam.yawS -= dt * .045;
+    Cam.yaw = Cam.yawS;
+    Cam.pitchS = .34 + Math.sin(Park.now * .10) * .06;
+    Cam.pitch = Cam.pitchS;
+    Cam.distT = 126 + Math.sin(Park.now * .07) * 18;
+  },
   show() {
     // Tear down anything that was mid-flight, or the menu comes back with the
     // ride camera still driving and a half-built track holding the input.
@@ -8585,6 +8748,7 @@ const Menu = {
     this.back();
     document.getElementById('menu').classList.add('show');
     document.getElementById('ui').style.display = 'none';
+    this.buildShowcase();
     const raw = localStorage.getItem('planetcoaster_save');
     const card = document.getElementById('mContinue');
     if (raw) {
@@ -8620,11 +8784,13 @@ const Menu = {
     document.getElementById('mBack').style.display = 'none';
   },
   begin(mode, scIndex) {
+    this.showcase = false;
     Game.newGame(mode, scIndex >= 0 ? SCENARIOS[scIndex] : null);
     this.hide();
   },
   continueGame() {
     if (document.getElementById('mContinue').classList.contains('off')) return;
+    this.showcase = false;
     this.hide();
     Game.load();
     Goals.render();
@@ -8674,11 +8840,11 @@ const Game = {
     setTimeout(() => {
       $('#boot').classList.add('gone');
       Menu.show();
-    }, 500);
+    }, 400);
     boot(100, 'ready');
   },
   /* Reset the world and start a fresh park in the chosen mode. */
-  newGame(mode, scenario) {
+  newGame(mode, scenario, quiet) {
     for (const o of Park.objects) if (o.mesh) o.mesh.dispose();
     for (const c of Park.coasters) { if (c.trackMesh) c.trackMesh.dispose(); if (c.stationMesh) c.stationMesh.dispose(); }
     Park.objects.length = 0; Park.coasters.length = 0; Park.guests.length = 0;
@@ -8715,10 +8881,14 @@ const Game = {
     Goals.start(scenario);
     UI.setTool('select');
     this.setSpeed(1);
-    UI.notify(mode === 'sandbox' ? 'Sandbox' : scenario.name,
-      mode === 'sandbox' ? 'Unlimited funds and everything unlocked. Build whatever you like.'
-        : scenario.blurb, 'good');
-    UI.hint('Lay <b>paths</b> from the entrance first — guests can only walk on walkways. The green grid shows where a building will land.');
+    if (!quiet) {
+      UI.notify(mode === 'sandbox' ? 'Sandbox' : scenario.name,
+        mode === 'sandbox' ? 'Unlimited funds and everything unlocked. Build whatever you like.'
+          : scenario.blurb, 'good');
+      UI.hint('Lay <b>paths</b> from the entrance first — guests can only walk on walkways. The green grid shows where a building will land.');
+    } else {
+      document.getElementById('notif').innerHTML = '';
+    }
   },
   seedPark_unused() {
     // a few starter decorations so the entrance doesn't look bare
@@ -8746,6 +8916,17 @@ const Game = {
   bindInput() {
     const cv = $('#gl');
     window.addEventListener('resize', () => this.R.resize());
+    // Moving the window to a monitor with a different scaling factor, or the
+    // user zooming the page, changes devicePixelRatio without necessarily
+    // firing a resize — so watch it directly.
+    if (window.matchMedia) {
+      const watchDpr = () => {
+        this.R.resize();
+        matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`)
+          .addEventListener('change', watchDpr, { once: true });
+      };
+      try { watchDpr(); } catch (e) { /* older engines: the resize handler covers it */ }
+    }
     cv.addEventListener('contextmenu', e => e.preventDefault());
     cv.addEventListener('pointerdown', e => {
       Audio.resume();
@@ -9113,6 +9294,7 @@ const Game = {
   /* Lay a queue from a ride's entrance to the nearest walkway, so a new ride
      is actually reachable the moment it is built. Charged at the normal rate. */
   autoConnect(o, quiet) {
+    if (!o || !o.entrance) return false;
     if (Path.dirty) Path.rebuild();
     Park.mainSpot();
     const e = o.entrance;
@@ -9304,6 +9486,7 @@ const Game = {
        change what is beneath it. Recomputing only on pointermove left the
        highlight pinned to a stale world tile, drifting further from the cursor
        the further the view travelled — which is exactly what it looked like. */
+    Menu.tick(dt);
     for (const o of Park.objects) if (o.buildT < 1) o.tickBuild(dt);
     for (const c of Park.coasters) if (c.buildT < 1) c.tickBuild(dt);
     if (Cam.mode === 'orbit') {
@@ -9855,6 +10038,7 @@ Object.assign(Game, {
   updatePlaceGhost() {
     this.footprintOn = false;
     this.outlineOn = false;
+    if (Menu.showcase) { this.ghostObj = null; return; }
     // the coaster station gets the same preview treatment as everything else
     if (Coaster.placing && this.hoverTile && Cam.mode !== 'ride') {
       const a = this.anchorTile({ w: 4, d: 3 }, UI.rot);
