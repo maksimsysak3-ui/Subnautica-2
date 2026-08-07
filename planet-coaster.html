@@ -392,7 +392,9 @@ body.ridemode #coasterPanel,
 body.ridemode #inspector,
 body.ridemode #toolbar,
 body.ridemode #hint,
-body.ridemode #minimap{display:none!important}
+body.ridemode #minimap,
+body.ridemode #closedBar{display:none!important}
+#menu.show ~ #ui #closedBar{display:none!important}
 /* the inspector steps aside when the coaster editor is open */
 #coasterPanel.show ~ #inspector{right:362px}
 #ridecam{position:absolute;inset:0;display:none;pointer-events:none}
@@ -600,6 +602,13 @@ table.tb tr:last-child td{border-bottom:0}
     <div class="stat"><span class="ico" data-ic="clock"></span><span class="col"><span class="lbl">Park Time</span><span class="val" id="vTime">Day 1 · 09:00</span></span></div>
   </div>
 
+  <div id="closedBar">
+    <span class="cb-dot"></span>
+    <span>Your park is <b>closed</b> &mdash; build in peace, then open the gates when you are ready.</span>
+    <button class="btn go" style="flex:0 0 auto;padding:7px 18px" onclick="Game.setParkOpen(true)">Open the park</button>
+    <button class="btn" style="flex:0 0 auto;padding:7px 14px" onclick="UI.entrance('admissions')">Entrance</button>
+  </div>
+
   <div id="speedbar" class="panel">
     <div class="sbtn" id="spd0" title="Pause (Space)" data-ic="pause"></div>
     <div class="sbtn on" id="spd1" title="Normal speed" data-ic="play"></div>
@@ -614,7 +623,7 @@ table.tb tr:last-child td{border-bottom:0}
     <div class="sbtn" id="btnMap" title="Minimap (M)" data-ic="map"></div>
     <div class="sbtn" id="btnFin" title="Park management (F)" data-ic="stats"></div>
     <div class="sbtn" id="btnGoals" title="Objectives (O)" data-ic="check"></div>
-    <div class="sbtn" id="btnSound" title="Sound" data-ic="sound"></div>
+    <div class="sbtn" id="btnSettings" title="Settings" data-ic="gear"></div>
     <div class="sbtn" id="btnHelp" title="Help (H)" data-ic="help"></div>
     <div class="sbtn" id="btnMenu" title="Main menu" data-ic="home"></div>
   </div>
@@ -1467,7 +1476,7 @@ class Mesh {
 /* Instance layout: mat4 (16) + colour (3) = 19 floats, padded to 20 */
 const INST_STRIDE = 20;
 /* body parts per person written by Person.writeInstances */
-const BODY_PARTS = 32;   // 24 body blocks + up to 8 of uniform and kit
+const BODY_PARTS = 37;   // 24 body blocks, up to 8 of uniform and kit, plus expressions
 /* ============================================================================
    SECTION 4 — DRAW PIPELINE
    ========================================================================== */
@@ -1939,7 +1948,8 @@ const WORLD = {
     this.mesh = R.makeMesh(g);
     this.dirty = false;
     this.buildProps(R);
-    this.buildDetail(R);
+    if (typeof Game === 'undefined' || Game.groundDetail !== false) this.buildDetail(R);
+    else if (this.detailMesh) { this.detailMesh.dispose(); this.detailMesh = null; }
   },
 
   /* Tufts, clover and pebbles scattered over the grass inside the park.
@@ -4501,7 +4511,7 @@ class Ride extends ParkObject {
         }
         if (this.timer <= 0) {
           if (this.riders.length === 0) { this.state = 'idle'; this.timer = 3; break; }
-          if (Math.random() > this.reliability - this.wear) { this.breakDown(); break; }
+          if (Game.breakdowns !== false && Math.random() > this.reliability - this.wear) { this.breakDown(); break; }
           this.state = 'running'; this.timer = this.dur / Park.rideSpeedup;
           this.spinTarget = 1;
           Park.money += this.riders.length * this.price;
@@ -4959,6 +4969,11 @@ const Park = {
   },
   gate: null,
   name: 'My Theme Park',
+  /* A park is closed until its owner opens it. Nothing arrives before then,
+     which is the whole point: you get to lay paths and build without a crowd
+     wandering through the site. */
+  open: false,
+  openedOn: 0,
   attractions() { return this.objects.filter(o => o.kind === 'ride').concat(this.coasters.filter(c => c.state === 'open')); },
   addObject(o) {
     this.objects.push(o);
@@ -5351,23 +5366,35 @@ class Person {
     };
     const joint = (px, py, pz, r, col) => put(px, py, pz, 0, r, r, r, col);
 
-    const skin = hex(this.skin), shirt = hex(this.shirt), pants = hex(this.pants), hair = hex(this.hair);
+    let skin = hex(this.skin);
+    const shirt = hex(this.shirt), pants = hex(this.pants), hair = hex(this.hair);
     const shoe = hex(0x24262b);
-    const lean = sitting ? .20 : (walking ? .05 : 0);
-    const drop = sitting ? -.26 : 0;
+    /* Being sick is a whole pose: doubled over, hands on knees, head down,
+       with a heave every second or so. It reads instantly from across the
+       park, which is the point — you are meant to notice and go and fix it. */
+    const sick = this.state === 'sick' && this.vomitT > 0;
+    const heave = sick ? Math.max(0, Math.sin(this.vomitT * 7.5)) : 0;
+    if (sick) skin = [skin[0] * .80, skin[1] * .96, skin[2] * .80];         // green about the gills
+    else if (this.anger > .45) {
+      // flushed with temper, deepening as it gets worse
+      const a = clamp((this.anger - .45) / .55, 0, 1);
+      skin = [Math.min(1.6, skin[0] * (1 + a * .55)), skin[1] * (1 - a * .30), skin[2] * (1 - a * .34)];
+    }
+    const lean = sick ? 1.02 + heave * .22 : (sitting ? .20 : (walking ? .05 : 0));
+    const drop = sick ? -.18 : (sitting ? -.26 : 0);
 
     /* ---- lower body ---- */
     const hipY = 0.92 + drop;
-    const thighA = sitting ? -1.42 : sw * .40;
-    const thighB = sitting ? -1.42 : -sw * .40;
+    const thighA = sick ? -.42 : (sitting ? -1.42 : sw * .40);
+    const thighB = sick ? -.42 : (sitting ? -1.42 : -sw * .40);
     joint(-.13, hipY, 0, .29, pants);
     joint(.13, hipY, 0, .29, pants);
     const kneeA = bone(-.13, hipY, 0, thighA, .44, .23, .25, pants);
     const kneeB = bone(.13, hipY, 0, thighB, .44, .23, .25, pants);
     joint(-.13, kneeA.y, kneeA.z, .26, pants);
     joint(.13, kneeB.y, kneeB.z, .26, pants);
-    const shinA = sitting ? 0.10 : thighA * .35;
-    const shinB = sitting ? 0.10 : thighB * .35;
+    const shinA = sick ? .40 : (sitting ? 0.10 : thighA * .35);
+    const shinB = sick ? .40 : (sitting ? 0.10 : thighB * .35);
     const ankA = bone(-.13, kneeA.y, kneeA.z, shinA, .42, .20, .22, pants);
     const ankB = bone(.13, kneeB.y, kneeB.z, shinB, .42, .20, .22, pants);
     put(-.13, ankA.y + .04, ankA.z + .07, shinA * .3, .23, .14, .36, shoe);
@@ -5381,8 +5408,8 @@ class Person {
     /* ---- arms, hung from shoulders inside the chest silhouette ---- */
     const shoulderY = hipY + .68;
     const lift = this.armLift || 0;
-    const armA = lerp(-sw * .38, -2.45, lift);
-    const armB = lerp(sw * .38, -2.45, lift);
+    const armA = sick ? -.30 : lerp(-sw * .38, -2.45, lift);
+    const armB = sick ? -.30 : lerp(sw * .38, -2.45, lift);
     joint(-.26, shoulderY, 0, .28, shirt);
     joint(.26, shoulderY, 0, .28, shirt);
     const elbA = bone(-.26, shoulderY, 0, armA, .32, .19, .21, shirt);
@@ -5399,6 +5426,20 @@ class Person {
     put(0, headY, -lean * .09, lean * .5, .38, .40, .36, skin);
     put(0, headY + .21, -lean * .09, lean * .5, .41, .16, .39, hair);
     put(0, headY + .05, -.19, lean * .5, .30, .10, .04, hair);
+    // brows knitted when cross: two dark wedges over the eyes
+    if (!sick && this.anger > .45) {
+      const b = clamp((this.anger - .45) / .55, 0, 1);
+      put(-.13, headY + .09 - b * .02, -.18, lean * .5 + b * .5, .17, .06, .05, [.10, .07, .06]);
+      put(.13, headY + .09 - b * .02, -.18, lean * .5 - b * .5, .17, .06, .05, [.10, .07, .06]);
+    }
+    if (sick && heave > .25) {
+      // the arc itself, three shrinking blobs leaving the mouth
+      for (let k = 0; k < 3; k++) {
+        const t2 = k / 3;
+        put(0, headY - .10 - t2 * .34, -.34 - t2 * .40 - heave * .12, 0,
+          .18 - t2 * .04, .16 - t2 * .04, .18 - t2 * .04, [.62, .68, .24]);
+      }
+    }
     /* Anything worn or carried on top of the shared rig. Staff use this for
        uniform and kit; guests leave it alone. */
     if (this.gear) this.gear(put, { headY, shoulderY, hipY, chestY, lean, skin, shirt, pants, sw, walking, sitting, elbA, elbB });
@@ -5447,6 +5488,13 @@ class Guest extends Person {
     this.thrillSeeker = this.prefIntensity > 7.5;
     this.tidy = Math.random() < .72;          // most people look for a bin
     this.ridesWanted = rndi(3, 9);            // what they came here to do
+    /* --- further needs, and a temper --- */
+    this.fun = rnd(.4, .7);        // wanting something to actually DO
+    this.warmth = .6;              // too cold or too hot is its own misery
+    this.hygiene = 1;              // gets grubby on water rides and in crowds
+    this.anger = 0;                // 0..1, and visible on their face at the top
+    this.vomitT = 0;               // seconds left of being sick
+    this.gripe = null;             // what they are angry about
   }
   /* How this guest currently feels about a specific attraction, blending
      their remembered opinion with what they can see of it right now. */
@@ -5469,7 +5517,36 @@ class Guest extends Person {
     this.toilet = clamp(this.toilet + rate * .125 + (this.state === 'buying' ? rate * .06 : 0), 0, 1);
     this.energy = clamp(this.energy - rate * .090, 0, 1);
     this.nausea = clamp(this.nausea - rate * .60, 0, 1);
+    this.fun = clamp(this.fun - rate * .085, 0, 1);
+    this.hygiene = clamp(this.hygiene - rate * .05, 0, 1);
+    // comfort: 20 degrees is perfect, and it falls away either side
+    const comfort = clamp(1 - Math.abs(Weather.temp - 20) / 18, 0, 1);
+    this.warmth = damp(this.warmth, comfort, .5, rate);
     if (this.thoughtT > 0) this.thoughtT -= dt;
+
+    /* Anger is the accumulation of things going wrong rather than a mood: it
+       builds while needs go unmet and while you stand in a queue that is not
+       moving, and it only comes down once something goes right. */
+    let vex = 0, gripe = null;
+    if (this.toilet > .93) { vex += .055; gripe = 'I have been looking for a toilet for ages!'; }
+    if (this.hunger > .92) { vex += .040; gripe = gripe || 'Is there anywhere to eat around here?'; }
+    if (this.thirst > .92) { vex += .045; gripe = gripe || 'I am parched and there is nowhere to buy a drink.'; }
+    if (this.state === 'queuing' && this.wait > (this.queueGiveUp || this.patience) * .6) { vex += .050; gripe = gripe || 'This queue has not moved in ages!'; }
+    if (this.nausea > .8) { vex += .030; gripe = gripe || 'I feel awful. That last ride was too much.'; }
+    if (this.fun < .12) { vex += .022; gripe = gripe || 'There is nothing to do here.'; }
+    if (this.warmth < .25) { vex += .020; gripe = gripe || (Weather.temp > 20 ? 'It is boiling and there is no shade.' : 'I am freezing out here.'); }
+    if (Park.litter.length > Park.guests.length * .55) vex += .012;
+    this.anger = clamp(this.anger + (vex - (vex > 0 ? 0 : .055)) * rate * 3.2, 0, 1);
+    if (gripe) this.gripe = gripe;
+    if (this.anger > .55 && Math.random() < dt * .04) this.think(this.gripe || 'This park is a shambles.', -1);
+    // being angry makes people mean: they stop caring where the rubbish goes
+    if (this.anger > .6) this.tidy = false;
+
+    if (this.vomitT > 0) {
+      this.vomitT -= dt;
+      this.moving = false;
+      if (this.vomitT <= 0) { this.state = 'idle'; this.nausea = .18; }
+    }
     this.armLift = damp(this.armLift, (this.state === 'riding' && this.riding && this.riding.intensity > 4) ? 1 : 0, 6, dt);
 
     // mood drift from needs and surroundings
@@ -5479,6 +5556,10 @@ class Guest extends Person {
     if (this.toilet > .8) mood -= .035;
     if (this.energy < .18) mood -= .02;
     if (this.nausea > .6) mood -= .03;
+    if (this.fun < .2) mood -= .020;
+    if (this.warmth < .3) mood -= .016;
+    if (this.hygiene < .3) mood -= .010;
+    if (this.anger > .5) mood -= .030;
     if (this.state === 'queuing') mood -= .012;
     mood += Park.beautyAt(this.x, this.z) * .0009;
     mood += Weather.moodFactor();
@@ -5523,6 +5604,10 @@ class Guest extends Person {
         break;
       }
       case 'riding': {
+        this.moving = false;
+        break;
+      }
+      case 'sick': {
         this.moving = false;
         break;
       }
@@ -5596,11 +5681,19 @@ class Guest extends Person {
         if (this.tidy) { this.happy = clamp(this.happy - .03, 0, 1); this.think('There is nowhere to put this.'); }
       }
     }
-    if (this.nausea > .93 && Math.random() < dt * .3) {
-      Park.litter.push({ x: this.x, z: this.z, k: 2, y: this.y });
-      Park.litterDirty = true;
-      this.nausea = .3; this.happy = clamp(this.happy - .12, 0, 1);
-      this.think('Ugh… I feel sick.');
+    if (this.nausea > .93 && this.vomitT <= 0 && this.state !== 'riding' && this.state !== 'leaving'
+      && Math.random() < dt * .35) {
+      this.vomitT = 3.2;
+      this.state = 'sick';
+      this.happy = clamp(this.happy - .12, 0, 1);
+      this.anger = clamp(this.anger + .12, 0, 1);
+      this.think('Ugh… I feel sick.', -1);
+      // the mess lands in front of them, not under them
+      setTimeout(() => {
+        if (this.dead) return;
+        Park.litter.push({ x: this.x + Math.cos(this.yaw) * 1.0, z: this.z + Math.sin(this.yaw) * 1.0, k: 2, y: this.y });
+        Park.litterDirty = true;
+      }, 1100);
     }
   }
 
@@ -5629,6 +5722,7 @@ class Guest extends Person {
     if (this.thirst > .45) wants.push(['thirst', (this.thirst - .34) * (hot ? 6.2 : 4.4)]);
     if (this.hunger > .50) wants.push(['hunger', (this.hunger - .38) * 4.2]);
     if (this.energy < .28) wants.push(['rest', (.34 - this.energy) * 9]);
+    if (this.fun < .35) wants.push(['ride', (.45 - this.fun) * 5.5]);
     // Running low on money is a plan, not a panic: head for a cash machine
     // while there is still enough left to be worth doing something with.
     if (this.cash < 25 && Park.objects.some(o => o.kind === 'shop' && o.def.need === 'cash'))
@@ -5853,6 +5947,8 @@ class Guest extends Person {
         case 'info': this.happy = clamp(this.happy + .02, 0, 1); break;
       }
       this.happy = clamp(this.happy + .04 * value, 0, 1);
+      this.anger = clamp(this.anger - .10 - value * .06, 0, 1);
+      if (s.def.need === 'shop') this.fun = clamp(this.fun + .12, 0, 1);
       if (s.price > s.def.price * 1.8) { this.happy -= .09; this.think('That was a rip-off!'); }
     }
     this.state = 'idle';
@@ -5887,6 +5983,9 @@ class Guest extends Person {
     this.nausea = clamp(this.nausea + ride.nausea * .055 * (1 + Math.max(0, ride.nausea - this.nauseaTol) * .25), 0, 1);
     this.energy = clamp(this.energy - .04, 0, 1);
     this.remember(ride, (rating - 4.5) * .10);
+    this.fun = clamp(this.fun + .22 + rating * .035, 0, 1);
+    this.anger = clamp(this.anger - .18 - rating * .02, 0, 1);
+    if (ride.def && ride.def.water) this.hygiene = 1;
     if (rating > 7) this.think('WOW! ' + ride.name + ' was amazing!', 1);
     else if (rating < 2) this.think(ride.name + ' was not for me…', -1);
     // step off next to the ride
@@ -6145,7 +6244,7 @@ const UI = {
     $('#mBack').onclick = () => Menu.back();
     $('#mHelp').onclick = () => { Menu.hide(); this.help(); };
     $('#btnGoals').onclick = () => $('#goals').classList.toggle('show');
-    $('#btnSound').onclick = () => { Audio.resume(); this.soundDialog(); };
+    $('#btnSettings').onclick = () => { Audio.resume(); this.settings(); };
     $('#btnMenu').onclick = () => UI.confirmMenu();
     // The right-hand control cluster grows with the number of buttons, so the
     // status bar's width is measured from it rather than guessed in CSS.
@@ -6306,29 +6405,194 @@ const UI = {
   refreshBuildPanel() { if ($('#buildPanel').classList.contains('show') && this.tool) this.openBuild(this.tool); },
 
   /* --------- land market --------- */
+  /* ------------------------------------------------------------------
+     THE LAND MARKET
+     A real map of the estate rather than a grid of buttons: terrain shading,
+     your own buildings drawn on it, hover pricing, and click-drag to select a
+     whole block and buy it in one go.
+     ------------------------------------------------------------------ */
+  landSel: null,
   landDialog() {
-    const c = Math.floor(PLOTS / 2);
-    let h = `<p>Your park occupies <b>${Land.areaText()}</b> across ${Land.bought} plots.
-      Buy plots next to the land you already own; flat, usable ground costs more than mountainside.</p>`;
-    h += `<div style="display:grid;grid-template-columns:repeat(${PLOTS},1fr);gap:3px;margin:12px 0">`;
-    for (let pj = 0; pj < PLOTS; pj++) for (let pi = 0; pi < PLOTS; pi++) {
-      const owned = Land.owns(pi, pj);
-      const forSale = !owned && Land.adjacent(pi, pj);
-      const price = forSale ? Land.price(pi, pj) : 0;
-      const afford = forSale && Park.money >= price;
-      const bg = owned ? 'linear-gradient(180deg,#2a6b45,#1d4a30)'
-        : forSale ? (afford ? 'linear-gradient(180deg,#2a5f8a,#1c4160)' : 'linear-gradient(180deg,#5a3030,#3a2020)')
-          : 'var(--panel-sunken)';
-      const title = owned ? 'Owned' : forSale ? 'For sale — ' + money(price) : 'Not adjacent to your park';
-      h += `<div title="${title}" ${forSale ? `onclick="UI.buyPlot(${pi},${pj})"` : ''}
-        style="aspect-ratio:1;border-radius:5px;background:${bg};border:1px solid ${owned ? 'var(--good)' : forSale ? 'var(--accent)' : 'var(--edge)'};
-        cursor:${forSale ? 'pointer' : 'default'};display:flex;align-items:center;justify-content:center;
-        font-size:8px;color:var(--txt);font-variant-numeric:tabular-nums">${forSale ? (price / 1000).toFixed(0) + 'k' : ''}</div>`;
-    }
-    h += `</div>`;
-    h += `<p style="font-size:11px;color:var(--dim)">Green plots are yours. Blue plots are for sale at the price shown in thousands; red means you cannot afford it yet.</p>`;
-    this.modal('Land Market', h);
+    const h = `
+      <div style="display:grid;grid-template-columns:1fr 232px;gap:16px;align-items:start">
+        <div>
+          <canvas id="landMap" width="720" height="720"
+            style="width:100%;aspect-ratio:1;border-radius:14px;border:2px solid var(--edge);
+                   background:#dff1fd;cursor:crosshair;display:block"></canvas>
+          <div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:10px;font-size:11px;color:var(--dim)">
+            <span><span style="display:inline-block;width:11px;height:11px;border-radius:3px;background:#3cc86e;vertical-align:-1px"></span> Yours</span>
+            <span><span style="display:inline-block;width:11px;height:11px;border-radius:3px;background:#2ba6ec;vertical-align:-1px"></span> For sale</span>
+            <span><span style="display:inline-block;width:11px;height:11px;border-radius:3px;background:#c9d6e0;vertical-align:-1px"></span> Not adjacent yet</span>
+            <span>Drag to select a block</span>
+          </div>
+        </div>
+        <div>
+          <h3 style="margin-top:0">Your estate</h3>
+          <div class="kv"><span class="k">Area</span><span class="v">${Land.areaText()}</span></div>
+          <div class="kv"><span class="k">Plots owned</span><span class="v">${Land.ownedPlots.reduce((a, b) => a + b, 0)}</span></div>
+          <div class="kv"><span class="k">Plots bought</span><span class="v">${Land.bought}</span></div>
+          <div class="kv"><span class="k">Funds</span><span class="v" style="color:var(--gold)">${money(Park.money)}</span></div>
+          <h3>Selection</h3>
+          <div id="landInfo" style="font-size:11.5px;color:var(--dim);min-height:96px">
+            Hover a plot for its price, or drag across several to buy a block.
+          </div>
+          <div class="btnrow" style="margin-top:8px">
+            <button class="btn go" id="landBuy" disabled style="flex:1;padding:10px">Buy</button>
+          </div>
+          <p style="font-size:11px;margin-top:10px">Land is priced on what you could actually build on it:
+          flat, low ground near the middle of the map costs the most, mountainside and far corners the least.
+          You can only buy plots touching land you already own.</p>
+        </div>
+      </div>`;
+    this.landSel = null;
+    this.modal('Land Market', h, () => this.wireLandMap());
   },
+
+  wireLandMap() {
+    const cv = document.getElementById('landMap');
+    if (!cv) return;
+    const g = cv.getContext('2d');
+    const S = cv.width / PLOTS;
+    let drag = null, hover = null;
+
+    const plotAt = (ev) => {
+      const r = cv.getBoundingClientRect();
+      const pi = Math.floor((ev.clientX - r.left) / r.width * PLOTS);
+      const pj = Math.floor((ev.clientY - r.top) / r.height * PLOTS);
+      return Land.inb(pi, pj) ? { pi, pj } : null;
+    };
+    const rectOf = (a, b) => ({
+      i0: Math.min(a.pi, b.pi), i1: Math.max(a.pi, b.pi),
+      j0: Math.min(a.pj, b.pj), j1: Math.max(a.pj, b.pj)
+    });
+    /* Buying a block has to be done in an order where each plot is adjacent
+       to something already owned by the time its turn comes, so the cost is
+       evaluated by repeatedly taking whichever selected plot is currently
+       purchasable and cheapest. */
+    const planBlock = (r) => {
+      const owned = new Set();
+      for (let pj = 0; pj < PLOTS; pj++) for (let pi = 0; pi < PLOTS; pi++)
+        if (Land.owns(pi, pj)) owned.add(pj * PLOTS + pi);
+      const want = [];
+      for (let pj = r.j0; pj <= r.j1; pj++) for (let pi = r.i0; pi <= r.i1; pi++)
+        if (!Land.owns(pi, pj)) want.push({ pi, pj });
+      const order = [], adj = (pi, pj) => [[1, 0], [-1, 0], [0, 1], [0, -1]]
+        .some(([a, b]) => owned.has((pj + b) * PLOTS + (pi + a)));
+      let total = 0;
+      for (let guard = 0; guard < want.length + 2; guard++) {
+        let best = -1, bp = Infinity;
+        for (let k = 0; k < want.length; k++) {
+          const w = want[k];
+          if (!adj(w.pi, w.pj)) continue;
+          const price = Land.price(w.pi, w.pj);
+          if (price < bp) { bp = price; best = k; }
+        }
+        if (best < 0) break;
+        const w = want.splice(best, 1)[0];
+        owned.add(w.pj * PLOTS + w.pi);
+        order.push(w); total += bp;
+      }
+      return { order, total, unreachable: want.length };
+    };
+
+    const draw = () => {
+      g.clearRect(0, 0, cv.width, cv.height);
+      const sel = drag ? rectOf(drag.a, drag.b) : null;
+      for (let pj = 0; pj < PLOTS; pj++) for (let pi = 0; pi < PLOTS; pi++) {
+        const owned = Land.owns(pi, pj);
+        const forSale = !owned && Land.adjacent(pi, pj);
+        // average height of the plot gives the map its terrain shading
+        let hs = 0, n = 0;
+        for (let j = pj * PLOT; j < (pj + 1) * PLOT; j += 4)
+          for (let i = pi * PLOT; i < (pi + 1) * PLOT; i += 4) { hs += WORLD.tileH(i, j); n++; }
+        const av = n ? hs / n : 0;
+        const shade = clamp(.72 + av * .012, .5, 1);
+        let col;
+        if (owned) col = `rgb(${Math.round(80 * shade)},${Math.round(200 * shade)},${Math.round(120 * shade)})`;
+        else if (forSale) col = `rgb(${Math.round(70 * shade)},${Math.round(160 * shade)},${Math.round(225 * shade)})`;
+        else col = `rgb(${Math.round(196 * shade)},${Math.round(212 * shade)},${Math.round(226 * shade)})`;
+        g.fillStyle = col;
+        g.fillRect(pi * S, pj * S, S - 1, S - 1);
+        if (forSale) {
+          g.fillStyle = 'rgba(255,255,255,.92)';
+          g.font = '600 ' + Math.round(S * .30) + 'px Nunito, sans-serif';
+          g.textAlign = 'center'; g.textBaseline = 'middle';
+          g.fillText((Land.price(pi, pj) / 1000).toFixed(0) + 'k', pi * S + S / 2, pj * S + S / 2);
+        }
+        if (sel && pi >= sel.i0 && pi <= sel.i1 && pj >= sel.j0 && pj <= sel.j1) {
+          g.fillStyle = 'rgba(255,255,255,.34)';
+          g.fillRect(pi * S, pj * S, S - 1, S - 1);
+        }
+        if (hover && hover.pi === pi && hover.pj === pj) {
+          g.strokeStyle = '#0b5f8f'; g.lineWidth = 3;
+          g.strokeRect(pi * S + 1.5, pj * S + 1.5, S - 4, S - 4);
+        }
+      }
+      // what you have actually built, so the map means something
+      const sc = cv.width / (N * TILE);
+      const half = N * TILE / 2;
+      for (const o of Park.objects.concat(Park.coasters)) {
+        const x = (o.x + half) * sc, z = (o.z + half) * sc;
+        g.fillStyle = o.kind === 'coaster' ? '#c0392b' : o.kind === 'ride' ? '#7b3fd4'
+          : o.kind === 'shop' ? '#e9a319' : o.kind === 'gate' ? '#123a56' : 'rgba(30,90,60,.55)';
+        const r = o.kind === 'scenery' ? 1.4 : 3.2;
+        g.fillRect(x - r, z - r, r * 2, r * 2);
+      }
+      for (const c of Park.coasters) {
+        if (!c.track || !c.track.samples.length) continue;
+        g.strokeStyle = 'rgba(192,57,43,.9)'; g.lineWidth = 1.6; g.beginPath();
+        c.track.samples.forEach((sm, k) => {
+          const x = (sm.p.x + half) * sc, z = (sm.p.z + half) * sc;
+          if (k === 0) g.moveTo(x, z); else if (k % 4 === 0) g.lineTo(x, z);
+        });
+        g.stroke();
+      }
+      g.strokeStyle = 'rgba(18,58,86,.22)'; g.lineWidth = 1;
+      g.strokeRect(.5, .5, cv.width - 1, cv.height - 1);
+    };
+
+    const info = document.getElementById('landInfo');
+    const btn = document.getElementById('landBuy');
+    const update = () => {
+      const sel = drag ? rectOf(drag.a, drag.b) : (hover ? rectOf(hover, hover) : null);
+      if (!sel) { info.innerHTML = 'Hover a plot for its price, or drag across several to buy a block.'; btn.disabled = true; return; }
+      const plan = planBlock(sel);
+      const w = sel.i1 - sel.i0 + 1, hgt = sel.j1 - sel.j0 + 1;
+      if (!plan.order.length) {
+        info.innerHTML = `<b>${w} &times; ${hgt} block</b><br>Nothing here can be bought — either you already
+          own it, or none of it touches your land.`;
+        btn.disabled = true;
+        this.landSel = null;
+        return;
+      }
+      const ha = (plan.order.length * PLOT * TILE * PLOT * TILE / 10000).toFixed(2);
+      info.innerHTML = `<b>${plan.order.length} plot${plan.order.length === 1 ? '' : 's'}</b> &middot; ${ha} ha<br>
+        <span style="font-size:16px;font-weight:800;color:${Park.money >= plan.total ? 'var(--good)' : 'var(--bad)'}">${money(plan.total)}</span><br>
+        ${plan.unreachable ? `<span style="color:var(--warn)">${plan.unreachable} plot(s) in the block are not reachable yet.</span><br>` : ''}
+        <span style="font-size:11px">Leaves ${money(Park.money - plan.total)}</span>`;
+      btn.disabled = Park.money < plan.total;
+      this.landSel = plan;
+    };
+
+    cv.onmousemove = (e) => { hover = plotAt(e); if (drag) drag.b = hover || drag.b; draw(); update(); };
+    cv.onmouseleave = () => { hover = null; draw(); update(); };
+    cv.onmousedown = (e) => { const p = plotAt(e); if (p) { drag = { a: p, b: p }; draw(); update(); } };
+    window.addEventListener('mouseup', () => { if (drag) { drag = null; draw(); update(); } }, { once: true });
+    cv.onmouseup = () => { drag = null; draw(); update(); };
+    btn.onclick = () => {
+      const plan = this.landSel;
+      if (!plan || !plan.order.length) return;
+      let n = 0;
+      for (const w of plan.order) { if (!Land.buy(w.pi, w.pj)) n++; }
+      if (n) {
+        UI.notify('Land bought', n + ' plot' + (n === 1 ? '' : 's') + ' added. Your park is now ' + Land.areaText() + '.', 'money');
+        Audio.play('cash');
+      }
+      this.landDialog();
+    };
+    draw(); update();
+  },
+
   buyPlot(pi, pj) {
     const err = Land.buy(pi, pj);
     if (err) { this.notify('Cannot buy', err, 'warn'); Audio.play('error'); }
@@ -6571,6 +6835,29 @@ const UI = {
       <span class="tag" style="background:#e2f4ff;color:var(--accent-ink)">${gate.tierName()}</span></div>`;
 
     if (T === 'admissions') {
+      h += `<h3>Gates</h3>`;
+      if (Park.open) {
+        h += `<p>The park is <b style="color:var(--good)">open</b>, and has been since day ${gate.openedDay || 1}.</p>
+          <div class="btnrow"><button class="btn dan" style="flex:0 0 auto;padding:10px 24px"
+            onclick="Game.setParkOpen(false);UI.entrance('admissions')">Close the park</button></div>`;
+      } else {
+        const atts = Park.attractions().length;
+        const shops = Park.objects.filter(o => o.kind === 'shop').length;
+        h += `<p>The park is <b style="color:var(--warn)">closed</b>. Nobody arrives until you open the
+          gates, so take as long as you like laying paths and building.</p>`;
+        h += `<table class="tb">
+          <tr><td>Attractions ready</td><td style="text-align:right">${atts}</td></tr>
+          <tr><td>Shops and facilities</td><td style="text-align:right">${shops}</td></tr>
+          <tr><td>Staff employed</td><td style="text-align:right">${Park.staff.length}</td></tr></table>`;
+        const warn = [];
+        if (!atts) warn.push('There is nothing to ride yet.');
+        if (!shops) warn.push('No shops, so guests will get hungry and thirsty with nowhere to go.');
+        else if (!Park.objects.some(o => o.kind === 'shop' && o.def.need === 'toilet')) warn.push('No restrooms.');
+        if (!Park.staff.length) warn.push('Nobody on the payroll.');
+        if (warn.length) h += `<p style="color:var(--warn)">${warn.join(' ')}</p>`;
+        h += `<div class="btnrow"><button class="btn go" style="flex:0 0 auto;padding:11px 28px;font-size:13px"
+          onclick="Game.setParkOpen(true);UI.entrance('admissions')">Open the park</button></div>`;
+      }
       h += `<h3>Ticket price</h3>
         <div class="row"><label>Entry fee</label>
           <input type="range" min="0" max="80" value="${Park.entryFee}"
@@ -7013,6 +7300,108 @@ const UI = {
       h += `<div class="btnrow"><button class="btn dan" onclick="Game.demolish(${o.id})">Demolish</button></div>`;
     }
     b.innerHTML = h;
+  },
+
+  /* --------- settings --------- */
+  settingsTab: 'game',
+  settings(tab) {
+    if (tab) this.settingsTab = tab;
+    const T = this.settingsTab;
+    const row = (label, ctrl, note) => `<div class="row" style="margin:7px 0">
+      <label style="min-width:180px;flex:0 0 auto">${label}</label>${ctrl}</div>
+      ${note ? `<div style="font-size:11px;color:var(--dim);margin:-4px 0 8px 190px">${note}</div>` : ''}`;
+    const slider = (min, max, val, oninput, id, suffix) =>
+      `<input type="range" min="${min}" max="${max}" value="${val}" oninput="${oninput};document.getElementById('${id}').textContent=this.value+'${suffix || ''}'">
+       <span class="num" id="${id}">${val}${suffix || ''}</span>`;
+    const check = (val, onchange) => `<input type="checkbox" ${val ? 'checked' : ''} onchange="${onchange}">`;
+
+    let h = `<div class="btnrow" style="margin-bottom:14px">` +
+      [['game', 'Gameplay'], ['sound', 'Sound'], ['visual', 'Display'], ['controls', 'Controls'], ['data', 'Save Data']].map(([k, l]) =>
+        `<button class="btn ${T === k ? 'pri' : ''}" style="flex:0 0 auto;padding:6px 16px"
+          onclick="UI.settings('${k}')">${l}</button>`).join('') + `</div>`;
+
+    if (T === 'game') {
+      h += `<h3>Building</h3>`;
+      h += row('Auto-connect queues', check(Game.autoQueue, 'Game.autoQueue=this.checked;Game._qmKey=null'),
+        'Off means every queue is yours to run, with a green marker showing the tile to reach.');
+      h += row('Auto-bank track', check(Coaster.autoBank, 'Coaster.autoBank=this.checked;Coaster._ghostKey=null'),
+        'Banks turns for you as they are laid. Off gives you manual control of roll.');
+      h += row('Follow the build head', check(Coaster.followCam, 'Coaster.followCam=this.checked'),
+        'Nudges the camera along as you lay track. Off by default because it gets in the way.');
+      h += row('Grid snapping', check(Game.snapGrid !== false, 'Game.snapGrid=this.checked'),
+        'Buildings land on tile centres.');
+      h += `<h3>Simulation</h3>`;
+      h += row('Ride speed', slider(50, 300, Math.round(Park.rideSpeedup * 100), 'Park.rideSpeedup=this.value/100', 'setRs', '%'),
+        'How fast flat rides run their cycle. Higher means shorter queues.');
+      h += row('Guest limit', slider(200, 2000, Park.maxGuests, 'Park.maxGuests=+this.value', 'setGl'),
+        'Lower this if the park starts to feel sluggish.');
+      h += row('Breakdowns', check(Game.breakdowns !== false, 'Game.breakdowns=this.checked'),
+        'Rides wear out and need a mechanic. Turn off for a quieter build.');
+      h += row('Autosave', check(Game.autosaveOn !== false, 'Game.autosaveOn=this.checked'),
+        'Writes to browser storage every two minutes.');
+    }
+    else if (T === 'sound') {
+      h += `<h3>Volume</h3>`;
+      h += row('Master', slider(0, 100, Math.round(Audio.masterVol * 100), 'Audio.resume();Audio.setMaster(this.value/100)', 'volM', '%'));
+      h += row('Park music', slider(0, 100, Math.round(Audio.musicVol * 100), 'Audio.resume();Audio.setMusic(this.value/100)', 'volS', '%'));
+      h += row('Sound effects', slider(0, 100, Math.round(Audio.sfxVol * 100), 'Audio.sfxVol=this.value/100', 'volF', '%'));
+      h += row('Ambience', check(Audio.ambientOn !== false, 'Audio.ambientOn=this.checked'),
+        'Birdsong through the day, crickets after dark, and wind that rises with the weather.');
+      h += `<p>The park plays a procedural waltz that never repeats a bar exactly and slows after dark.</p>`;
+    }
+    else if (T === 'visual') {
+      h += `<h3>Rendering</h3>`;
+      h += row('Shadows', check(Game.R.shadowOn > .5, 'Game.R.shadowOn=this.checked?1:0'));
+      h += row('Ambient occlusion &amp; outlines', check(Game.R.postOn !== false, 'Game.R.postOn=this.checked'),
+        'The depth-based shading pass. Turning it off is the biggest single speed-up.');
+      h += row('Ground detail', check(Game.groundDetail !== false, 'Game.groundDetail=this.checked;WORLD.dirty=true'),
+        'Grass tufts, clover and pebbles scattered over your land.');
+      h += row('Weather effects', check(Game.weatherFx !== false, 'Game.weatherFx=this.checked'));
+      h += row('Crowd draw distance', slider(60, 400, Math.round(Math.sqrt(Game.crowdRange || 62000)), 'Game.crowdRange=this.value*this.value', 'setCd', ' m'));
+      h += `<h3>Interface</h3>`;
+      h += row('Show frame counter', check(document.getElementById('fps').style.display !== 'none',
+        "document.getElementById('fps').style.display=this.checked?'':'none'"));
+      h += row('Show queue markers', check(Game.showQueueMarkers !== false, 'Game.showQueueMarkers=this.checked;Game._qmKey=null'));
+    }
+    else if (T === 'controls') {
+      h += `<h3>Camera</h3>`;
+      h += row('Invert drag', check(Game.invertDrag === true, 'Game.invertDrag=this.checked'));
+      h += row('Edge scrolling', check(Game.edgeScroll === true, 'Game.edgeScroll=this.checked'));
+      h += row('Camera speed', slider(40, 250, Math.round((Game.camSpeed || 1) * 100), 'Game.camSpeed=this.value/100', 'setCs', '%'));
+      h += `<h3>Keys</h3><table class="tb"><tr><th>Action</th><th>Key</th></tr>` +
+        [['Move the camera', 'W A S D or the arrow keys'], ['Rotate the view', 'Q and E'],
+         ['Overhead view', 'Z'], ['Zoom', 'Mouse wheel'], ['Pan', 'Right-drag'],
+         ['Rotate a building', 'R'], ['Cancel', 'Esc'], ['Pause', 'Space'],
+         ['Lay track', 'Space, or drag on the park'], ['Undo a piece', 'Backspace'],
+         ['Park management', 'F'], ['Objectives', 'O'], ['Land market', 'L'],
+         ['Minimap', 'M'], ['Help', 'H'], ['Save', 'Ctrl+S']]
+          .map(([a, k]) => `<tr><td>${a}</td><td><kbd>${k}</kbd></td></tr>`).join('') + `</table>`;
+    }
+    else if (T === 'data') {
+      const raw = localStorage.getItem('planetcoaster_save');
+      h += `<h3>Saved park</h3>`;
+      if (raw) {
+        try {
+          const d = JSON.parse(raw);
+          h += `<div class="kv"><span class="k">Mode</span><span class="v">${d.mode === 'sandbox' ? 'Sandbox' : 'Career'}</span></div>
+            <div class="kv"><span class="k">Day</span><span class="v">${d.day || 1}</span></div>
+            <div class="kv"><span class="k">Funds</span><span class="v">${money(d.money || 0)}</span></div>
+            <div class="kv"><span class="k">Size on disk</span><span class="v">${(raw.length / 1024).toFixed(0)} KB</span></div>`;
+        } catch (e) { h += `<p>The saved park could not be read.</p>`; }
+      } else h += `<p>Nothing saved yet.</p>`;
+      h += `<div class="btnrow" style="margin-top:10px">
+        <button class="btn go" style="flex:0 0 auto;padding:9px 20px" onclick="Game.save()">Save now</button>
+        <button class="btn" style="flex:0 0 auto;padding:9px 20px" onclick="Game.load();UI.closeModal()">Load</button>
+        <button class="btn dan" style="flex:0 0 auto;padding:9px 20px"
+          onclick="if(confirm('Delete the saved park?')){localStorage.removeItem('planetcoaster_save');UI.settings('data')}">Delete save</button>
+      </div>`;
+      h += `<h3>This park</h3>`;
+      h += `<div class="kv"><span class="k">Objects placed</span><span class="v">${Park.objects.length}</span></div>
+        <div class="kv"><span class="k">Coasters</span><span class="v">${Park.coasters.length}</span></div>
+        <div class="kv"><span class="k">Guests all time</span><span class="v">${Park.totalGuests}</span></div>
+        <div class="kv"><span class="k">Triangles on screen</span><span class="v">${((Game.R.tris || 0) / 1000).toFixed(0)}k</span></div>`;
+    }
+    this.modal('Settings', h);
   },
 
   /* --------- sound settings --------- */
@@ -8759,8 +9148,30 @@ const Thumbs = {
       return g;
     }, { yaw: -2.3, pitch: .38, zoom: 1.08 });
   },
+  /* Rendered from a real Staff instance so the portrait is the same figure,
+     in the same uniform and carrying the same kit, that walks the park. */
   staff(def) {
-    return this.get('staff:' + def.id, () => Prefab.person(def.color, 0x2c3e50, 0xe8b184, 0x4a2c14), { yaw: -1.9, pitch: .18, zoom: 1.12 });
+    return this.get('staff:' + def.id, () => {
+      const st = new Staff(def.id, 0, 0);
+      st.x = 0; st.y = 0; st.z = 0; st.yaw = PI * .78; st.anim = 0; st.moving = false;
+      st.skin = 0xe8b184; st.hair = 0x4a2c14; st.pants = 0x2c3e50;
+      const buf = new Float32Array(BODY_PARTS * INST_STRIDE);
+      const n = st.writeInstances(buf, 0, 0) / INST_STRIDE;
+      // Instances carry their own transform, so bake them into one mesh.
+      const g = new Geo(), unit = Prefab.unitBoxGeo ? Prefab.unitBoxGeo() : null;
+      const box = new Geo(); box.box(0, 0, 0, 1, 1, 1, [1, 1, 1]);
+      const m = M4.create();
+      for (let k = 0; k < n; k++) {
+        const o = k * INST_STRIDE;
+        for (let q = 0; q < 16; q++) m[q] = buf[o + q];
+        const col = [buf[o + 16], buf[o + 17], buf[o + 18]];
+        const tint = new Geo(); tint.box(0, 0, 0, 1, 1, 1, col);
+        g.mergeM(tint, m);
+      }
+      // people are removed from the world again the moment the picture is taken
+      const idx = Park.staff.indexOf(st); if (idx >= 0) Park.staff.splice(idx, 1);
+      return g;
+    }, { yaw: -1.9, pitch: .18, zoom: 1.12 });
   },
   path(kind) { return this.get('path:' + kind, () => Prefab.pathSample(kind), { yaw: -2.3, pitch: .55, zoom: 1.02 }); },
 
@@ -8844,6 +9255,7 @@ const ICON = (() => {
     play3: w('<path d="M1 5.5l6.5 6.5L1 18.5z" fill="currentColor"/><path d="M8.5 5.5L15 12l-6.5 6.5z" fill="currentColor"/><path d="M16 5.5L22.5 12 16 18.5z" fill="currentColor"/>'),
     map: w('<path d="M3 6.5l6-2.5 6 2.5 6-2.5v13l-6 2.5-6-2.5-6 2.5z"/><path d="M9 4v13M15 6.5v13"/>'),
     stats: w('<rect x="3.5" y="3.5" width="17" height="17" rx="2.5"/><path d="M8 16v-4M12 16V8M16 16v-6"/>'),
+    gear: w('<circle cx="12" cy="12" r="3.2"/><path d="M12 3.2v2.1M12 18.7v2.1M20.8 12h-2.1M5.3 12H3.2M18.2 5.8l-1.5 1.5M7.3 16.7l-1.5 1.5M18.2 18.2l-1.5-1.5M7.3 7.3L5.8 5.8"/>'),
     sound: w('<path d="M4 9.5h3.2L12 5.5v13l-4.8-4H4z"/><path d="M16 9.2a4.2 4.2 0 0 1 0 5.6"/><path d="M18.6 6.6a7.8 7.8 0 0 1 0 10.8"/>'),
     help: w('<circle cx="12" cy="12" r="8.5"/><path d="M9.6 9.4c.2-1.4 1.2-2.3 2.6-2.3 1.5 0 2.5 1 2.5 2.3 0 2-2.4 2.1-2.6 4"/><path d="M12 17h.01" stroke-width="2.4"/>'),
     close: w('<path d="M6 6l12 12M18 6L6 18"/>'),
@@ -9275,6 +9687,8 @@ const Game = {
     Finance.reset(); Marketing.active.length = 0; Thoughts.clear();
     Park.totalGuests = 0; Park.coasterCount = 0; Park.rating = 0; Park.happiness = .75;
     Park.time = 9 * 60; Park.day = 1; Park.now = 0;
+    Park.open = false; Park.openedOn = 0;
+    document.body.classList.toggle('parkclosed', !quiet);
     Weather.reset(1);
     Park.mode = mode;
     Park.xp = 0;
@@ -9830,6 +10244,21 @@ const Game = {
     if (!c || !c.track || !c.track.complete) return;
     c.spawnTrains(clamp(+n, 1, 4));
   },
+  setParkOpen(v) {
+    if (v === Park.open) return;
+    Park.open = !!v;
+    document.body.classList.toggle('parkclosed', !Park.open);
+    if (Park.open) {
+      Park.openedOn = Park.day;
+      if (Park.gate) Park.gate.openedDay = Park.day;
+      UI.notify('The park is open', 'The gates are up and the first guests are on their way.', 'good');
+      Audio.play('complete');
+    } else {
+      UI.notify('The park is closed', 'No new guests will arrive, and everyone inside will finish up and leave.', 'warn');
+      for (const g of Park.guests) if (g.state !== 'riding' && g.state !== 'leaving') g.leavePark();
+    }
+    UI.refreshTools();
+  },
   setPrice(id, v) {
     const o = Park.objects.find(x => x.id === id) || Park.coasters.find(x => x.id === id);
     if (!o) return;
@@ -9906,7 +10335,7 @@ const Game = {
       if (this.keys['s'] || this.keys['arrowdown']) f -= 1;
       if (this.keys['a'] || this.keys['arrowleft']) r -= 1;
       if (this.keys['d'] || this.keys['arrowright']) r += 1;
-      if (f || r) Cam.moveRelative(f, r, dt);
+      if (f || r) Cam.moveRelative(f * (Game.camSpeed || 1), r * (Game.camSpeed || 1), dt);
       Cam.ty = damp(Cam.ty, WORLD.hAt(Cam.dx, Cam.dz), 2.2, dt);
     }
     /* Re-resolve what is under the cursor every frame, not only when the
@@ -9937,7 +10366,7 @@ const Game = {
       this._insT = Park.now; UI.inspect(this.selected);
     }
     this.autosaveT += dt;
-    if (this.autosaveT > 120) { this.autosaveT = 0; this.save(true); }
+    if (this.autosaveT > 120) { this.autosaveT = 0; if (this.autosaveOn !== false) this.save(true); }
   },
   updateRiders() {
     for (const c of Park.coasters) {
@@ -10210,6 +10639,7 @@ const Game = {
     if (tr.v > 22 && Math.random() < dt * 1.6) Audio.play('scream');
   },
   spawnGuests(dt) {
+    if (!Park.open) return;
     const hour = Park.time / 60;
     if (hour < 8 || hour > 21) return;
     if (Park.guests.length >= Park.capacity) return;
@@ -10756,7 +11186,7 @@ Object.assign(Game, {
     for (const p of people) {
       if (o + BODY_PARTS * INST_STRIDE > buf.length) break;
       const d2 = dist2(p.x, p.z, cx, cz);
-      if (d2 > 62000) continue;
+      if (d2 > (Game.crowdRange || 62000)) continue;
       o = p.writeInstances(buf, o, t);
     }
     this.crowdCount = o / INST_STRIDE;
@@ -10880,7 +11310,7 @@ Object.assign(Game, {
     }
 
     // placement ghost — drawn solid so complex rides stay readable
-    if (this.queueMarkMesh) {
+    if (this.queueMarkMesh && this.showQueueMarkers !== false) {
       const gl = R.gl;
       gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
       gl.depthMask(false);
