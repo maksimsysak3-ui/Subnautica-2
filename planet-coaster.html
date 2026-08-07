@@ -617,6 +617,7 @@ table.tb tr:last-child td{border-bottom:0}
     <div class="sbtn" id="btnMap" title="Minimap (M)" data-ic="map"></div>
     <div class="sbtn" id="btnFin" title="Park management (F)" data-ic="stats"></div>
     <div class="sbtn" id="btnGoals" title="Objectives (O)" data-ic="check"></div>
+    <div class="sbtn" id="btnSound" title="Sound" data-ic="sound"></div>
     <div class="sbtn" id="btnHelp" title="Help (H)" data-ic="help"></div>
     <div class="sbtn" id="btnMenu" title="Main menu" data-ic="home"></div>
   </div>
@@ -1045,12 +1046,30 @@ void main(){
   }
 
   vec3 base = vC * uTint;
-  vec3 lit = base * (amb + uSunCol * (diff*0.78 + wrap*0.30) * sh);
 
-  // cheap specular sheen on upward faces (paint/metal feel)
+  // Shadows read cool and lit faces read warm — the single biggest thing that
+  // separates a toy-model look from flat vertex colour.
+  vec3 warm = vec3(1.06, 1.01, 0.94);
+  vec3 cool = vec3(0.88, 0.95, 1.12);
+  float sunAmt = clamp(diff*0.78 + wrap*0.30, 0.0, 1.6) * sh;
+  vec3 lit = base * (amb * cool + uSunCol * warm * sunAmt);
+
+  // Bounce: a little of the ground colour thrown back up onto downward faces,
+  // so undersides of track and eaves are not dead black.
+  float down = max(-N.y, 0.0);
+  lit += base * uGndCol * down * 0.30;
+
+  // Rim light from the sky along silhouettes. Cheap, and it is what makes
+  // rounded low-poly shapes read as rounded.
   vec3 V = normalize(uEye - vW);
+  float rim = pow(1.0 - max(dot(N, V), 0.0), 3.5);
+  rim *= 1.0 - max(N.y, 0.0) * 0.80;      // flat ground gets almost none
+  lit += uSkyCol * rim * 0.26;
+
+  // Specular sheen (paint / metal feel), broadened a touch and tinted by sun.
   vec3 H = normalize(V + uSunDir);
-  float spec = pow(max(dot(N,H),0.0), 42.0) * 0.22 * sh;
+  float spec = pow(max(dot(N,H),0.0), 36.0) * 0.26 * sh;
+  spec += pow(max(dot(N,H),0.0), 6.0) * 0.05 * sh;    // broad sheen
   lit += uSunCol * spec;
 
   lit = mix(lit, base, uEmissive);
@@ -1849,9 +1868,15 @@ const WORLD = {
         else {
           const slope = Math.max(Math.abs(y10 - y00), Math.abs(y01 - y00)) / TILE;
           const hh = (y00 + y11) * .5;
-          const n = noise2(i * .31, j * .31), n2 = noise2(i * .09 + 11, j * .09 + 7);
-          c = n > .70 ? grassD : n > .55 ? grassB : n < .32 ? grassC : grassA;
-          c = shade(c, .93 + n2 * .16);
+          // Two octaves: a broad meadow tone plus a fine break-up. The old
+          // single high-frequency octave produced confetti, which is what made
+          // the ground read as a checkerboard rather than as grass.
+          const nBroad = noise2(i * .045 + 3, j * .045 + 9);
+          const nFine = noise2(i * .27, j * .27);
+          const n = nBroad * .68 + nFine * .32;
+          const n2 = noise2(i * .015 + 21, j * .015 + 5);
+          c = n > .62 ? grassD : n > .52 ? grassB : n < .40 ? grassC : grassA;
+          c = shade(c, .90 + n2 * .14 + nFine * .09);
           if (slope > .58) c = shade(n > .5 ? rock2 : rock, .9 + n * .25);
           else if (hh < -1.0) c = shade(sand, .9 + n * .2);
           if (hh > 18) c = shade(rock2, 1.0 + n * .22);
@@ -1859,12 +1884,13 @@ const WORLD = {
         // land the park does not own reads cooler and darker
         if (this.land[j * N + i] !== 1) c = [c[0] * .42 + .06, c[1] * .46 + .07, c[2] * .50 + .10];
         // choose the diagonal that keeps the quad convex-ish
+        const vTri = t === T_GRASS ? .955 + noise2(i * .7 + 31, j * .7 + 17) * .09 : .97;
         if (Math.abs(y00 - y11) < Math.abs(y10 - y01)) {
           g.triV([x0, y00, z0], [x0, y01, z1], [x1, y11, z1], c);
-          g.triV([x0, y00, z0], [x1, y11, z1], [x1, y10, z0], shade(c, .97));
+          g.triV([x0, y00, z0], [x1, y11, z1], [x1, y10, z0], shade(c, vTri));
         } else {
           g.triV([x0, y00, z0], [x0, y01, z1], [x1, y10, z0], c);
-          g.triV([x1, y10, z0], [x0, y01, z1], [x1, y11, z1], shade(c, .97));
+          g.triV([x1, y10, z0], [x0, y01, z1], [x1, y11, z1], shade(c, vTri));
         }
         // path kerbs give the walkways a built look
         if (t === T_PATH || t === T_QUEUE || t === T_PLAZA) {
@@ -1901,6 +1927,48 @@ const WORLD = {
     this.mesh = R.makeMesh(g);
     this.dirty = false;
     this.buildProps(R);
+    this.buildDetail(R);
+  },
+
+  /* Tufts, clover and pebbles scattered over the grass inside the park.
+     Deterministic from the tile index, so they do not crawl around whenever
+     the terrain is rebuilt, and skipped entirely on anything but plain grass. */
+  detailMesh: null,
+  buildDetail(R) {
+    const g = new Geo();
+    const tuftA = hex(0x5daf52), tuftB = hex(0x4f9646);
+    for (let j = 2; j < N - 2; j++) {
+      for (let i = 2; i < N - 2; i++) {
+        if (this.type[j * N + i] !== T_GRASS || this.land[j * N + i] !== 1) continue;
+        const r = noise2(i * 1.7 + 0.3, j * 1.7 + 0.9);
+        if (r < .46) continue;
+        const r2 = noise2(i * 2.3 + 5.1, j * 2.3 + 2.7);
+        const ox = (noise2(i * 3.1, j * 3.1) - .5) * TILE * .7;
+        const oz = (noise2(i * 3.1 + 8, j * 3.1 + 8) - .5) * TILE * .7;
+        const x = this.wx(i) + ox, z = this.wz(j) + oz, y = this.hAt(x, z);
+        if (Math.abs(this.tileH(i, j)) > 14) continue;
+        if (r2 < .30) {
+          // pebble
+          g.sphere(x, y + .12, z, .20 + r2 * .28, 4, shade(hex(0xa8a297), .85 + r2 * .45));
+        } else if (r2 < .52) {
+          // clover / flower dot
+          const col = r < .78 ? hex(0xe8e04a) : r < .90 ? hex(0xef7fae) : hex(0xf2f2f2);
+          g.sphere(x, y + .30, z, .20, 4, col);
+          g.box(x, y + .13, z, .07, .34, .07, hex(0x4a9245));
+        } else {
+          // grass tuft: three splayed blades
+          const col = shade(r2 < .76 ? tuftA : tuftB, 1.02 + r * .28);
+          const n = 4 + (r2 > .8 ? 2 : 0);
+          for (let k = 0; k < n; k++) {
+            const a = (k / n) * TAU + r * 6.2;
+            const hgt = .62 + r2 * .55;
+            g.beam(x, y - .05, z, x + Math.cos(a) * .30, y + hgt, z + Math.sin(a) * .30, .085, .02, col);
+          }
+        }
+      }
+    }
+    if (this.detailMesh) this.detailMesh.dispose();
+    this.detailMesh = R.makeMesh(g);
   },
 
   /* Decorative scenery outside the park: rocks and forest. Generated once. */
@@ -3377,6 +3445,7 @@ class Track {
     this.type = type;
     this.pieces = [];
     this.custom = [];                       // freehand piece definitions, by value
+    this.powered = [];                      // piece indices fitted with drive tyres
     this.start = { x, y, z, yaw };
     this.samples = [];
     this.length = 0;
@@ -3491,12 +3560,24 @@ class Track {
       for (let k = from; k < this.samples.length; k++) this.samples[k].lift = true;
     }
     this.pieces.push(defId);
+    if (this.powered && this.powered.length) this.applyPower();
     if (def.inversion) this.inversions += def.inversion;
     this.length = this.samples.length ? this.samples[this.samples.length - 1].d : 0;
     this.recomputeExtents();
     return this.samples.length - from;
   }
   addPiece(defId) { return this.append(defId); }
+  /* Pieces retrofitted with drive tyres. Kept as piece indices rather than by
+     swapping the piece for a booster, because swapping would change the
+     geometry and a closed circuit would no longer close. */
+  applyPower() {
+    if (!this.powered || !this.powered.length) return;
+    const set = new Set(this.powered);
+    // Just enough push to get round, scaled to the chassis: drive tyres on a
+    // family coaster should not turn it into a launch coaster.
+    const v = clamp((this.type && this.type.maxSpeed ? this.type.maxSpeed : 30) * .55, 9, 21);
+    for (const s of this.samples) if (set.has(s.piece)) s.boost = Math.max(s.boost || 0, v);
+  }
   removeLast() {
     if (!this.pieces.length) return false;
     const id = this.pieces.pop();
@@ -3943,7 +4024,13 @@ class CoasterRide extends ParkObject {
       else {
         v += (-G * Math.sin(s.pitch) - this.type.fric * v * v - 0.07) * dt;
       }
-      if (v < 0.6) { v = 0.6; if (!s.lift && !s.brake && !s.launch && !s.boost && !approach) stall += dt; }
+      if (v < 0.6) {
+        v = 0.6;
+        if (!s.lift && !s.brake && !s.launch && !s.boost && !approach) {
+          if (stall === 0) this.stallAt = d;      // first place it gives up
+          stall += dt;
+        }
+      }
       const c = t.curvatureAt(d);
       const centri = v * v * (c.ver || 0);
       const vertG = Math.cos(s.pitch) * Math.cos(s.bank) + centri / G;
@@ -5189,6 +5276,7 @@ const UI = {
     $('#mBack').onclick = () => Menu.back();
     $('#mHelp').onclick = () => { Menu.hide(); this.help(); };
     $('#btnGoals').onclick = () => $('#goals').classList.toggle('show');
+    $('#btnSound').onclick = () => { Audio.resume(); this.soundDialog(); };
     $('#btnMenu').onclick = () => UI.confirmMenu();
     // The right-hand control cluster grows with the number of buttons, so the
     // status bar's width is measured from it rather than guessed in CSS.
@@ -5474,6 +5562,12 @@ const UI = {
             : ['Solid', 'A respectable ride. More airtime or an inversion would push the excitement higher.', 'var(--accent)'];
     h += `<h3>Verdict</h3><div style="border-left:3px solid ${verdict[2]};padding:8px 12px;background:var(--panel-sunken);border-radius:0 8px 8px 0">
       <b style="color:${verdict[2]}">${verdict[0]}</b><div style="color:var(--dim);margin-top:3px">${verdict[1]}</div></div>`;
+    if (c.stalls) h += `<div class="btnrow" style="margin-top:10px">
+      <button class="btn go" style="flex:0 0 auto;padding:9px 20px"
+        onclick="Coaster.deStall(Park.coasters.find(x=>x.id===${c.id}));UI.rideReport(${c.id})">
+        Fit drive tyres ($900 per section)</button></div>
+      <p style="font-size:11px">Drive tyres push the train through the section that gives out, without
+      changing a single piece of your layout. It is what real parks do when a circuit runs marginal.</p>`;
 
     this.modal('Ride Report', h, () => this.drawProfile(c));
   },
@@ -5708,6 +5802,27 @@ const UI = {
       h += `<div class="btnrow"><button class="btn dan" onclick="Game.demolish(${o.id})">Demolish</button></div>`;
     }
     b.innerHTML = h;
+  },
+
+  /* --------- sound settings --------- */
+  soundDialog() {
+    this.modal('Sound',
+      `<h3>Volume</h3>
+       <div class="row"><label>Master</label>
+         <input type="range" min="0" max="100" value="${Math.round(Audio.masterVol * 100)}"
+           oninput="Audio.resume();Audio.setMaster(this.value/100);document.getElementById('volM').textContent=this.value+'%'">
+         <span class="num" id="volM">${Math.round(Audio.masterVol * 100)}%</span></div>
+       <div class="row"><label>Park music</label>
+         <input type="range" min="0" max="100" value="${Math.round(Audio.musicVol * 100)}"
+           oninput="Audio.resume();Audio.setMusic(this.value/100);document.getElementById('volS').textContent=this.value+'%'">
+         <span class="num" id="volS">${Math.round(Audio.musicVol * 100)}%</span></div>
+       <div class="row"><label>Effects</label>
+         <input type="range" min="0" max="100" value="${Math.round(Audio.sfxVol * 100)}"
+           oninput="Audio.sfxVol=this.value/100;document.getElementById('volF').textContent=this.value+'%'">
+         <span class="num" id="volF">${Math.round(Audio.sfxVol * 100)}%</span></div>
+       <p>The park plays a procedural waltz that never repeats a bar exactly, birdsong through the
+       day and crickets after dark. Wind rises with the weather, and the crowd murmur follows how
+       many guests are actually in the park.</p>`);
   },
 
   /* Leaving to the menu is a real decision, so it gets a real dialog rather
@@ -5993,6 +6108,46 @@ const Coaster = {
     this.placing = CAT.coasterTypes.find(t => t.id === bp.type);
     UI.hint('Click a clear, flat spot to build <b>' + bp.name + '</b> — <kbd>R</kbd> rotates.');
   },
+  /* Fit drive tyres wherever a circuit runs out of energy, until it makes it
+     round. Used on blueprints so a pre-built design always works, and offered
+     to the player from the ride report when their own layout stalls. */
+  deStall(c, quiet) {
+    const t = c.track;
+    if (!t || !t.complete) return false;
+    let added = 0;
+    for (let attempt = 0; attempt < 10; attempt++) {
+      c.computeStats();
+      if (!c.stalls) break;
+      const at = c.stallAt || 0;
+      // sampleAt returns an interpolated frame carrying the SAMPLE index, so
+      // the piece has to be read back off the sample array itself.
+      const sm = t.sampleAt(at);
+      const si = sm && sm.idx !== undefined ? clamp(sm.idx, 0, t.samples.length - 1) : 0;
+      let idx = t.samples[si] ? t.samples[si].piece : 0;
+      // Walk back from the stall for a piece that is not already doing a job.
+      let target = -1;
+      for (let k = 0; k < 14 && idx - k >= 1; k++) {
+        const pi = idx - k;
+        const def = PIECE_BY_ID[t.pieces[pi]] || t.custom[pi];
+        if (!def) continue;
+        if (def.lift || def.brake || def.launch || def.boost) continue;
+        if (t.powered.indexOf(pi) >= 0) continue;
+        target = pi; break;
+      }
+      if (target < 0) break;
+      t.powered.push(target);
+      t.applyPower();
+      added++;
+    }
+    if (added) {
+      Park.spend(added * 900);
+      c.computeStats();
+      if (!quiet) UI.notify('Drive tyres fitted', added + ' section' + (added === 1 ? '' : 's') +
+        ' of ' + c.name + ' now powered, for ' + money(added * 900) + '. The train makes it round.', 'good');
+    }
+    return added > 0;
+  },
+
   buildBlueprint(bp, i, j, rot) {
     const type = CAT.coasterTypes.find(t => t.id === bp.type);
     const est = 6000 + bp.seq.reduce((a, p) => a + (PIECE_BY_ID[p] ? PIECE_BY_ID[p].cost : 0), 0);
@@ -6030,6 +6185,9 @@ const Coaster = {
     c.computeStats();
     c.spawnTrains(2);
     c.tested = true;
+    // A pre-built design is supposed to just work: if the auto-routed return
+    // leg costs it too much speed, power the section that gives out.
+    if (c.stalls) this.deStall(c, true);
     if (!c.stalls) { c.openR = true; c.state = 'open'; }
     Game.autoConnect(c);
     this.blueprint = null;
@@ -6339,32 +6497,51 @@ const Coaster = {
   /* ---- direct manipulation ------------------------------------------
      Press and drag on the park to shape the next piece: sideways bends it,
      up and down climbs and dives, and the piece is laid on release. ---- */
-  dragging: false, dragMoved: 0, dragBase: null,
+  dragging: false, dragMoved: 0, dragBase: null, dragTX: 0, dragTY: 0,
   beginShapeDrag() {
     if (!this.active || this.active.track.complete) return false;
     this.dragging = true; this.dragMoved = 0;
+    this.dragTX = 0; this.dragTY = 0;
     this.dragBase = { turn: this.steer.turn, climb: this.steer.climb, roll: this.steer.roll, len: this.steer.len };
     return true;
   },
+  /* dx/dy arrive as per-frame deltas; the shape has to follow the TOTAL
+     distance dragged from where the press started, or the piece just jitters
+     around whatever the mouse did in the last sixteen milliseconds. */
   shapeDrag(dx, dy, mods) {
     if (!this.dragging) return;
-    this.dragMoved += Math.abs(dx) + Math.abs(dy);
-    const b = this.dragBase;
+    this.dragTX += dx; this.dragTY += dy;
+    this.dragMoved = Math.hypot(this.dragTX, this.dragTY);
+    const b = this.dragBase, tx = this.dragTX, ty = this.dragTY;
     if (mods.shift) {
-      this.steer.roll = clamp(b.roll + dx * .006, -1, 1);
+      this.steer.roll = clamp(b.roll + tx * .0045, -1, 1);
     } else if (mods.ctrl || mods.alt) {
-      this.steer.len = clamp(b.len + dx * .08, 4, 34);
+      // dragging out lengthens the piece, dragging back shortens it
+      this.steer.len = clamp(b.len + tx * .055, 4, 34);
     } else {
-      this.steer.turn = clamp(b.turn + dx * .0055, -1, 1);
-      this.steer.climb = clamp(b.climb - dy * .0055, -1, 1);
+      this.steer.turn = clamp(b.turn + tx * .0050, -1, 1);   // ~200 px = full lock
+      this.steer.climb = clamp(b.climb - ty * .0050, -1, 1);
     }
     this._ghostKey = null;
     this.refreshSteer();
+    this.dragHint(mods);
+  },
+  /* Live read-out while dragging, so the numbers are visible without looking
+     away from the track head. */
+  dragHint(mods) {
+    const st = this.steer;
+    const s = mods.shift ? `Roll <b>${(st.roll * 45).toFixed(0)}&deg;</b>`
+      : (mods.ctrl || mods.alt) ? `Length <b>${st.len.toFixed(1)} m</b>`
+        : `Turn <b>${st.turn === 0 ? 'straight' : (st.turn < 0 ? 'left ' : 'right ') + Math.abs(st.turn * 30).toFixed(0) + '&deg;'}</b>
+           &middot; Slope <b>${(st.climb * 32).toFixed(0)}&deg;</b>`;
+    UI.hint(s + ' &middot; release to lay &middot; <kbd>Shift</kbd> roll &middot; <kbd>Ctrl</kbd> length', true);
   },
   endShapeDrag() {
     if (!this.dragging) return false;
     this.dragging = false;
-    const laid = this.dragMoved > 4;      // a real drag lays the piece; a stray click does not
+    // A real drag lays the piece. A stray click does not — it falls through to
+    // the normal click handler so you can still select things mid-build.
+    const laid = this.dragMoved > 10;
     if (laid) this.add();
     return laid;
   },
@@ -6670,6 +6847,7 @@ const Coaster = {
       for (let s = 0; s < steps; s++) {
         const sm = t.sampleAt(tr.d);
         if (!sm) break;
+        tr.sm = sm;
         if (tr.d > t.length - 30) {
           tr.v = damp(tr.v, 5.0, 3, h);              // powered approach into the station
         } else if (sm.lift) {
@@ -6686,6 +6864,13 @@ const Coaster = {
         }
         if (tr.v < .5) tr.v = .5;
         if (tr.v > T.maxSpeed * 1.25) tr.v = T.maxSpeed * 1.25;
+        // The chain dog catching links, and brake fins biting. Only audible for
+        // the ride you are actually watching — otherwise a busy park is a mess.
+        if (Cam.mode === 'ride' && Game.rideCamTarget === c) {
+          if (sm.lift && Math.random() < h * clamp(tr.v * 2.6, 3, 24)) Audio.play('clack');
+          else if (sm.brake && Math.random() < h * 4) Audio.play('brake');
+          else if (sm.launch && tr.v < 6) Audio.play('launch');
+        }
         tr.d += tr.v * h;
         if (tr.d >= t.length) {
           tr.d -= t.length;
@@ -6757,6 +6942,17 @@ const Audio_ = {
       this.crowdGain = this.ctx.createGain(); this.crowdGain.gain.value = 0;
       src2.connect(lp); lp.connect(this.crowdGain); this.crowdGain.connect(this.master);
       src2.start();
+      // wind bed: the same noise through a slow high-shelf
+      const src3 = this.ctx.createBufferSource(); src3.buffer = buf; src3.loop = true;
+      const wf = this.ctx.createBiquadFilter(); wf.type = 'bandpass'; wf.frequency.value = 480; wf.Q.value = .4;
+      this.windGain = this.ctx.createGain(); this.windGain.gain.value = 0;
+      src3.connect(wf); wf.connect(this.windGain); this.windGain.connect(this.master);
+      src3.start();
+      // music sits on its own bus with a gentle low-pass so it stays behind
+      // the sound effects rather than competing with them
+      this.musicGain = this.ctx.createGain(); this.musicGain.gain.value = this.musicVol * .17;
+      const mf = this.ctx.createBiquadFilter(); mf.type = 'lowpass'; mf.frequency.value = 3200;
+      this.musicGain.connect(mf); mf.connect(this.master);
     } catch (e) { this.ctx = null; }
   },
   resume() { if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume(); },
@@ -6781,10 +6977,116 @@ const Audio_ = {
       case 'complete': [523, 659, 784, 1046].forEach((f, i) => setTimeout(() => this.tone(f, .22, 'triangle', .12), i * 90)); break;
       case 'scream': this.tone(rnd(500, 900), .5, 'sawtooth', .05, rnd(200, 400)); break;
       case 'open': [392, 523, 659].forEach((f, i) => setTimeout(() => this.tone(f, .18, 'sine', .12), i * 80)); break;
+      // the chain dog catching a link — one per lift step, pitched by speed
+      case 'clack': this.tone(rnd(1500, 2100), .022, 'square', .035); break;
+      case 'brake': this.tone(2600, .30, 'sawtooth', .035, 700); break;
+      case 'launch': this.tone(90, .55, 'sawtooth', .16, 640); break;
+      case 'splash': for (let k = 0; k < 5; k++) setTimeout(() => this.tone(rnd(700, 2600), .09, 'triangle', .05, rnd(300, 800)), k * 26); break;
+      case 'demolish': this.tone(110, .34, 'sawtooth', .13, 55); setTimeout(() => this.tone(240, .18, 'square', .06, 90), 60); break;
+      case 'levelup': [523, 659, 784, 1046, 1318].forEach((f, i) => setTimeout(() => this.tone(f, .30, 'triangle', .13), i * 85)); break;
+      case 'notify': this.tone(880, .09, 'sine', .06); setTimeout(() => this.tone(1174, .13, 'sine', .05), 80); break;
     }
   },
-  setRumble(v) { if (this.rumbleGain) this.rumbleGain.gain.value = clamp(v, 0, .5); },
-  setCrowd(v) { if (this.crowdGain) this.crowdGain.gain.value = clamp(v, 0, .12); }
+  setRumble(v) { if (this.rumbleGain) this.rumbleGain.gain.value = clamp(v, 0, .5) * this.sfxVol; },
+  setCrowd(v) { if (this.crowdGain) this.crowdGain.gain.value = clamp(v, 0, .12) * this.sfxVol; },
+
+  /* ---------------- volume ---------------- */
+  masterVol: .35, musicVol: .5, sfxVol: 1,
+  setMaster(v) {
+    this.masterVol = clamp(v, 0, 1);
+    if (this.master) this.master.gain.value = this.masterVol;
+    this.on = this.masterVol > 0.001;
+  },
+  setMusic(v) {
+    this.musicVol = clamp(v, 0, 1);
+    if (this.musicGain) this.musicGain.gain.value = this.musicVol * .17;
+  },
+
+  /* ---------------- park music ----------------
+     A short procedural carousel waltz: a walking bass, a chord pad and a
+     bright melody drawn from a fixed set of phrases. It loops forever without
+     ever being byte-for-byte the same bar twice, which is the point — a real
+     loop gets grating in about four minutes. */
+  music: { on: true, timer: 0, bar: 0, key: 0 },
+  SCALE: [0, 2, 4, 5, 7, 9, 11],
+  PHRASES: [
+    [0, 2, 4, 2, 0, -3, 0, 2],
+    [4, 4, 2, 4, 5, 4, 2, 0],
+    [7, 5, 4, 2, 4, 5, 7, 9],
+    [0, 4, 7, 4, 2, 5, 2, 0],
+    [2, 4, 5, 7, 5, 4, 2, -1],
+  ],
+  CHORDS: [[0, 2, 4], [3, 5, 0], [4, 6, 1], [0, 2, 4], [5, 0, 2], [3, 5, 0], [4, 6, 1], [0, 2, 4]],
+
+  /* Convert a scale degree to Hz in the current key. */
+  hz(deg, oct) {
+    const S = this.SCALE;
+    let d = deg, o = (oct || 0);
+    while (d < 0) { d += 7; o--; }
+    while (d > 6) { d -= 7; o++; }
+    const semis = S[d] + o * 12 + this.music.key;
+    return 261.63 * Math.pow(2, semis / 12);
+  },
+  voice(f, t0, dur, type, vol, dest) {
+    if (!this.ctx) return;
+    const o = this.ctx.createOscillator(), g = this.ctx.createGain();
+    o.type = type; o.frequency.setValueAtTime(f, t0);
+    g.gain.setValueAtTime(0, t0);
+    g.gain.linearRampToValueAtTime(vol, t0 + .02);
+    g.gain.exponentialRampToValueAtTime(.0001, t0 + dur);
+    o.connect(g); g.connect(dest || this.musicGain);
+    o.start(t0); o.stop(t0 + dur + .05);
+  },
+  /* Schedule one bar of music, called about once a bar from the game loop. */
+  musicTick(dt, night) {
+    if (!this.ctx || !this.music.on || this.musicVol <= 0.001) return;
+    this.music.timer -= dt;
+    if (this.music.timer > 0) return;
+    const beat = night ? .62 : .50;          // the park winds down after dark
+    const bar = beat * 3;                    // three-four time: it is a waltz
+    this.music.timer = bar;
+    const t0 = this.ctx.currentTime + .02;
+    const b = this.music.bar++;
+    if (b % 32 === 0) this.music.key = [0, 0, 5, -2, 7][Math.floor(Math.random() * 5)];
+    const chord = this.CHORDS[b % 8];
+    // bass on the down beat, chord stabs on two and three — oom-pah-pah
+    this.voice(this.hz(chord[0], -2), t0, beat * 1.1, 'triangle', .30);
+    for (let k = 1; k < 3; k++)
+      for (const d of chord)
+        this.voice(this.hz(d, -1), t0 + beat * k, beat * .55, 'sine', .10);
+    // melody: two phrases per bar, an octave up, skipped now and then so it breathes
+    if ((b % 4) !== 3) {
+      const ph = this.PHRASES[(b >> 1) % this.PHRASES.length];
+      for (let k = 0; k < 3; k++) {
+        const deg = ph[(b * 3 + k) % ph.length];
+        this.voice(this.hz(deg + chord[0], 1), t0 + beat * k, beat * .8, 'triangle', night ? .07 : .11);
+      }
+    }
+  },
+
+  /* ---------------- ambience ----------------
+     Birds in the daytime, crickets after dark, and the wind picks up with the
+     weather. Scheduled sparsely so it never turns into a drone. */
+  ambTimer: 0,
+  ambientTick(dt, night, wind) {
+    if (!this.ctx || !this.on) return;
+    if (this.windGain) this.windGain.gain.value = clamp(wind, 0, 1) * .05 * this.sfxVol;
+    this.ambTimer -= dt;
+    if (this.ambTimer > 0) return;
+    this.ambTimer = 1.6 + Math.random() * 4.5;
+    if (night) {
+      // cricket: a short burst of high chirps
+      const n = 3 + Math.floor(Math.random() * 3);
+      for (let k = 0; k < n; k++)
+        setTimeout(() => this.tone(rnd(3800, 4600), .035, 'triangle', .012), k * 70);
+    } else {
+      // birdsong: two or three slurred notes
+      const base = rnd(1700, 2900);
+      const n = 2 + Math.floor(Math.random() * 2);
+      for (let k = 0; k < n; k++)
+        setTimeout(() => this.tone(base * (1 + k * .16), .10, 'sine', .020, base * (1 + k * .16) * rnd(1.25, 1.7)), k * 130);
+    }
+  }
 };
 const Audio = Audio_;
 
@@ -7023,6 +7325,7 @@ const ICON = (() => {
     play3: w('<path d="M1 5.5l6.5 6.5L1 18.5z" fill="currentColor"/><path d="M8.5 5.5L15 12l-6.5 6.5z" fill="currentColor"/><path d="M16 5.5L22.5 12 16 18.5z" fill="currentColor"/>'),
     map: w('<path d="M3 6.5l6-2.5 6 2.5 6-2.5v13l-6 2.5-6-2.5-6 2.5z"/><path d="M9 4v13M15 6.5v13"/>'),
     stats: w('<rect x="3.5" y="3.5" width="17" height="17" rx="2.5"/><path d="M8 16v-4M12 16V8M16 16v-6"/>'),
+    sound: w('<path d="M4 9.5h3.2L12 5.5v13l-4.8-4H4z"/><path d="M16 9.2a4.2 4.2 0 0 1 0 5.6"/><path d="M18.6 6.6a7.8 7.8 0 0 1 0 10.8"/>'),
     help: w('<circle cx="12" cy="12" r="8.5"/><path d="M9.6 9.4c.2-1.4 1.2-2.3 2.6-2.3 1.5 0 2.5 1 2.5 2.3 0 2-2.4 2.1-2.6 4"/><path d="M12 17h.01" stroke-width="2.4"/>'),
     close: w('<path d="M6 6l12 12M18 6L6 18"/>'),
     plus: w('<path d="M12 5v14M5 12h14"/>'),
@@ -7940,6 +8243,12 @@ const Game = {
       Cam.ty = damp(Cam.ty, WORLD.hAt(Cam.dx, Cam.dz), 2.2, dt);
     }
     Audio.setCrowd(Math.min(.09, Park.guests.length * .0007));
+    {
+      const hour = Park.time / 60;
+      const night = hour < 6.5 || hour > 19.5;
+      Audio.musicTick(dt, night);
+      Audio.ambientTick(dt, night, Weather.rainIntensity() * .8 + Weather.cloudCover() * .25);
+    }
     if (this.selected && (this.selected instanceof Person) && Park.now - (this._insT || 0) > .4) {
       this._insT = Park.now; UI.inspect(this.selected);
     }
@@ -8218,6 +8527,7 @@ const Game = {
         objs: Park.objects.map(o => ({ k: o.kind, d: o.def.id, i: o.i, j: o.j, r: o.rot, p: o.price, open: o.openR })),
         cos: Park.coasters.map(c => ({
           t: c.type.id, i: c.i, j: c.j, r: c.rot, pieces: c.track.pieces, custom: c.track.custom, done: c.track.complete,
+          pw: c.track.powered,
           price: c.price, open: c.openR, name: c.name, se: c.track.stationEnd, trains: c.trains.length
         })),
         staff: Park.staff.map(s => ({ r: s.role, x: s.x, z: s.z })),
@@ -8277,7 +8587,9 @@ const Game = {
         c.track = new Track(type, c.x - Math.cos(yaw) * 9, c.y + 1.2, c.z - Math.sin(yaw) * 9, yaw);
         (s.custom || []).forEach((d, k) => { PIECE_BY_ID['fh' + k] = Object.assign({}, d, { id: 'fh' + k }); });
         c.track.custom = (s.custom || []).slice();
+        c.track.powered = (s.pw || []).slice();
         for (const p of s.pieces) c.track.addPiece(p);
+        c.track.applyPower();
         c.track.stationEnd = s.se || 24;
         c.track.complete = s.done;
         c.name = s.name; c.price = s.price;
@@ -8554,6 +8866,7 @@ Object.assign(Game, {
   drawScene(R, depthPass) {
     R.draw(WORLD.mesh);
     R.draw(WORLD.propMesh);
+    if (WORLD.detailMesh) R.draw(WORLD.detailMesh);
     if (this.sceneryMesh) R.draw(this.sceneryMesh, null, (!depthPass && this.nightGlow) ? { emissive: this.nightGlow * .30 } : null);
     if (this.queueMesh) R.draw(this.queueMesh);
     if (!depthPass && this.litterMesh) R.draw(this.litterMesh);
