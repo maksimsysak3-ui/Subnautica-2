@@ -178,6 +178,41 @@ canvas#gl{position:fixed;left:0;top:0;width:100vw;height:100vh;display:block;tou
 @keyframes fg{0%{color:var(--good);transform:translateY(-3px) scale(1.06)}100%{}}
 @keyframes fb{0%{color:var(--bad);transform:translateY(3px) scale(.96)}100%{}}
 
+/* ---------- opening titles ----------
+   The game rides its own coaster over the first drop, then cuts to black and
+   the titles come up. The whole thing is one element with a handful of
+   states so the sequence is legible in one place. */
+#intro{position:fixed;inset:0;z-index:120;display:none;pointer-events:none;
+  align-items:center;justify-content:center;color:#eaf6ff}
+#intro.show{display:flex;pointer-events:auto;cursor:pointer}
+#intro .in-scrim{position:absolute;inset:0;background:#050a11;opacity:0;
+  transition:opacity .9s ease}
+#intro.dark .in-scrim{opacity:1}
+#intro .in-stage{position:relative;text-align:center;opacity:0;transition:opacity .8s ease}
+#intro.titles .in-stage{opacity:1}
+#intro .in-studio{transition:opacity .7s ease,transform .7s ease;opacity:0;transform:translateY(10px)}
+#intro.studio .in-studio{opacity:1;transform:none}
+#intro.name .in-studio{opacity:0;transform:translateY(-14px)}
+#intro .in-logo{width:104px;height:104px;color:#7fd6ff;
+  filter:drop-shadow(0 0 26px rgba(90,190,255,.55))}
+#intro .in-studio-name{margin-top:14px;font-size:20px;font-weight:800;letter-spacing:.30em;
+  text-transform:uppercase;color:#eaf6ff}
+#intro .in-presents{margin-top:8px;font-size:11px;letter-spacing:.52em;text-transform:uppercase;
+  color:#7fa8c6;font-weight:700}
+#intro .in-title{position:absolute;left:50%;top:50%;transform:translate(-50%,-38%) scale(.94);
+  white-space:nowrap;opacity:0;transition:opacity 1s ease,transform 1.4s cubic-bezier(.16,1,.3,1)}
+#intro.name .in-title{opacity:1;transform:translate(-50%,-50%) scale(1)}
+#intro .in-t1{font-size:clamp(34px,6.6vw,78px);font-weight:800;letter-spacing:.10em;
+  text-transform:uppercase;color:#fff;
+  text-shadow:0 3px 0 #3f9fd0,0 6px 0 #24709c,0 16px 40px rgba(0,0,0,.7)}
+#intro .in-t2{margin-top:12px;font-size:clamp(10px,1.5vw,14px);font-weight:800;letter-spacing:.58em;
+  text-transform:uppercase;color:#8fd4ff}
+#intro .in-skip{position:absolute;bottom:34px;left:50%;transform:translateX(-50%);
+  font-size:10.5px;letter-spacing:.22em;text-transform:uppercase;color:rgba(220,240,255,.55);
+  font-weight:700;opacity:0;transition:opacity .6s ease}
+#intro.show .in-skip{opacity:1}
+body.introplaying #ui,body.introplaying #menu{display:none!important}
+
 /* ---------- closed-park banner ---------- */
 #closedBar{
   position:absolute;bottom:96px;left:50%;transform:translateX(-50%);
@@ -615,6 +650,29 @@ table.tb tr:last-child td{border-bottom:0}
     <div class="stat"><span class="ico" data-ic="weather"></span><span class="col"><span class="lbl" id="vSeason">Season</span><span class="val" id="vWeather">Fair</span></span></div>
     <div class="sep"></div>
     <div class="stat"><span class="ico" data-ic="clock"></span><span class="col"><span class="lbl">Park Time</span><span class="val" id="vTime">Day 1 · 09:00</span></span></div>
+  </div>
+
+  <div id="intro">
+    <div class="in-scrim"></div>
+    <div class="in-stage">
+      <div class="in-studio">
+        <svg class="in-logo" viewBox="0 0 120 120" fill="none" stroke="currentColor" stroke-width="4"
+             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M8 96 C 8 40, 34 16, 60 16 S 112 40, 112 96"/>
+          <path d="M22 96 C 22 52, 40 32, 60 32 S 98 52, 98 96"/>
+          <path d="M4 96h112"/>
+          <path d="M36 96V78h16v18M68 96V78h16v18"/>
+          <circle cx="60" cy="52" r="7"/>
+        </svg>
+        <div class="in-studio-name">Parkworks Studio</div>
+        <div class="in-presents">presents</div>
+      </div>
+      <div class="in-title">
+        <div class="in-t1">Planet Coaster</div>
+        <div class="in-t2">Park Architect</div>
+      </div>
+    </div>
+    <div class="in-skip">Click anywhere to skip</div>
   </div>
 
   <div id="closedBar">
@@ -5336,7 +5394,15 @@ class Person {
     if (d < 1.0) { this.pi++; return this.pi >= this.path.length; }
     const sp = this.speed * speedMul;
     const nx = dx / d, nz = dz / d;
-    this.x += nx * sp * dt; this.z += nz * sp * dt;
+    /* Offset to one side of the centre line so a crowd following the same
+       route spreads across the width of the path instead of forming a queue
+       of clones down the middle of it. */
+    const off = this.lane || 0;
+    const ox = -nz * off, oz = nx * off;
+    const tx2 = wp.x + ox, tz2 = wp.z + oz;
+    const ex = tx2 - this.x, ez = tz2 - this.z;
+    const el = Math.hypot(ex, ez) || 1;
+    this.x += (ex / el) * sp * dt; this.z += (ez / el) * sp * dt;
     this.yawT = Math.atan2(nz, nx);
     this.anim += dt * sp * 1.75;
     this.moving = true;
@@ -5465,6 +5531,73 @@ class Person {
 }
 
 /* --------------------------------------------------------------------------
+   WHO THESE PEOPLE ARE
+
+   Everybody scoring rides with the same formula is why a crowd behaves like
+   one animal: whatever comes out top comes out top for all of them at once,
+   and twenty people walk to the same ferris wheel in a line. Each party gets
+   an outlook instead, and the outlook changes what they are even looking for
+   — a thrill seeker barely registers a carousel, a family will not go near a
+   dive machine, and a group who came to eat spend most of the day doing that.
+   -------------------------------------------------------------------------- */
+const PERSONAS = [
+  {
+    id: 'thrill', name: 'Thrill seeker', w: .17,
+    coaster: 3.4, flat: .5, water: .2, gentle: -2.6, intense: 1.5,
+    intensity: [7.5, 12], nausea: [7, 12], patience: [90, 220], spend: [140, 420],
+    rides: [5, 12], food: .7, shopping: .5,
+    line: 'We came for the big ones.'
+  },
+  {
+    id: 'family', name: 'Family day out', w: .26,
+    coaster: .7, flat: 2.4, water: 1.4, gentle: 2.2, intense: -2.8,
+    intensity: [1.5, 5.5], nausea: [2, 6], patience: [45, 120], spend: [120, 380],
+    rides: [4, 9], food: 1.5, shopping: 1.3,
+    line: 'Somewhere the little ones can go too.'
+  },
+  {
+    id: 'coasterhead', name: 'Coaster enthusiast', w: .10,
+    coaster: 4.2, flat: -1.2, water: -.6, gentle: -2.0, intense: 1.2,
+    intensity: [6.5, 12], nausea: [6, 12], patience: [140, 300], spend: [90, 260],
+    rides: [6, 14], food: .5, shopping: .4,
+    line: 'How many credits can I get today?'
+  },
+  {
+    id: 'water', name: 'Here for the water', w: .13,
+    coaster: .6, flat: .5, water: 3.8, gentle: .6, intense: -.4,
+    intensity: [3, 9], nausea: [3, 9], patience: [60, 160], spend: [110, 320],
+    rides: [4, 10], food: 1.2, shopping: .8,
+    line: 'Straight to the slides.'
+  },
+  {
+    id: 'foodie', name: 'Came to eat', w: .11,
+    coaster: .8, flat: 1.0, water: .5, gentle: 1.0, intense: -1.0,
+    intensity: [2, 7], nausea: [3, 8], patience: [40, 110], spend: [180, 460],
+    rides: [2, 6], food: 3.0, shopping: 1.6,
+    line: 'What is there to eat around here?'
+  },
+  {
+    id: 'sightseer', name: 'Sightseer', w: .12,
+    coaster: .4, flat: 1.6, water: .4, gentle: 2.6, intense: -2.2,
+    intensity: [1, 4.5], nausea: [1.5, 5], patience: [50, 140], spend: [100, 300],
+    rides: [3, 7], food: 1.1, shopping: 1.8, scenery: 2.2,
+    line: 'Let us just have a wander.'
+  },
+  {
+    id: 'teen', name: 'Teenagers', w: .11,
+    coaster: 2.6, flat: 1.6, water: 1.2, gentle: -1.6, intense: 1.0,
+    intensity: [5.5, 11], nausea: [5, 11], patience: [55, 150], spend: [50, 180],
+    rides: [5, 11], food: 1.4, shopping: 1.2,
+    line: 'Whatever looks fastest.'
+  },
+];
+function pickPersona() {
+  let r = Math.random() * PERSONAS.reduce((a, p) => a + p.w, 0);
+  for (const p of PERSONAS) { r -= p.w; if (r <= 0) return p; }
+  return PERSONAS[0];
+}
+
+/* --------------------------------------------------------------------------
    GUEST — needs, wallet, opinions, memories
    -------------------------------------------------------------------------- */
 class Guest extends Person {
@@ -5512,6 +5645,22 @@ class Guest extends Person {
     this.anger = 0;                // 0..1, and visible on their face at the top
     this.vomitT = 0;               // seconds left of being sick
     this.gripe = null;             // what they are angry about
+    this.setPersona(pickPersona());
+    /* A lane offset so a crowd walking the same route does not form a single
+       file down the middle of the path. */
+    this.lane = rnd(-1.15, 1.15);
+    this.pace = rnd(.86, 1.16);
+    this.speed *= this.pace;
+  }
+  setPersona(p) {
+    this.persona = p;
+    this.prefIntensity = rnd(p.intensity[0], p.intensity[1]);
+    this.nauseaTol = rnd(p.nausea[0], p.nausea[1]);
+    this.patience = rnd(p.patience[0], p.patience[1]);
+    this.cash = rnd(p.spend[0], p.spend[1]);
+    this.budget = this.cash * rnd(.6, .92);
+    this.ridesWanted = rndi(p.rides[0], p.rides[1]);
+    this.thrillSeeker = this.prefIntensity > 7.5;
   }
   /* How this guest currently feels about a specific attraction, blending
      their remembered opinion with what they can see of it right now. */
@@ -5736,8 +5885,9 @@ class Guest extends Person {
     const wants = [];
     if (this.toilet > .52) wants.push(['toilet', (this.toilet - .40) * 5.6]);
     if (this.nausea > .55) wants.push(['nausea', (this.nausea - .42) * 4.6]);
-    if (this.thirst > .45) wants.push(['thirst', (this.thirst - .34) * (hot ? 6.2 : 4.4)]);
-    if (this.hunger > .50) wants.push(['hunger', (this.hunger - .38) * 4.2]);
+    const P = this.persona || PERSONAS[0];
+    if (this.thirst > .45) wants.push(['thirst', (this.thirst - .34) * (hot ? 6.2 : 4.4) * (P.food || 1)]);
+    if (this.hunger > .50) wants.push(['hunger', (this.hunger - .38) * 4.2 * (P.food || 1)]);
     if (this.energy < .28) wants.push(['rest', (.34 - this.energy) * 9]);
     if (this.fun < .35) wants.push(['ride', (.45 - this.fun) * 5.5]);
     // Running low on money is a plan, not a panic: head for a cash machine
@@ -5749,7 +5899,7 @@ class Guest extends Person {
       + (this.ridesWanted - this.ridden.length) * .18
       - (raining ? 1.1 : 0) + (hot ? .3 : 0) - (cold ? .3 : 0);
     wants.push(['ride', rideDrive]);
-    wants.push(['shop', this.happy > .6 && this.cash > 40 ? .9 : .2]);
+    wants.push(['shop', (this.happy > .6 && this.cash > 40 ? .9 : .2) * (P.shopping || 1)]);
     wants.push(['wander', raining ? .8 : .3]);
     wants.sort((a, b) => b[1] - a[1]);
     let want = wants[0][0];
@@ -5884,8 +6034,17 @@ class Guest extends Person {
       const wetBonus = water ? (Weather.waterAppeal() - 1) * 4.5 + (hot ? 2.2 : -1.4) * this.wetTolerance : 0;
       const wait = this.estimatedWait(r, true);
 
-      let s = 2.4 + wetBonus + r.ratingFor(this);
-      s -= seen * 2.2;                                  // novelty matters
+      /* What sort of thing IS this, and does this person care about it?
+         This is the term that stops everyone converging on the same ride. */
+      const P = this.persona;
+      const isCoaster = r.kind === 'coaster';
+      const gentle = (r.intensity || 0) < 4;
+      let taste = isCoaster ? P.coaster : water ? P.water : P.flat;
+      if (gentle) taste += P.gentle * .5;
+      if ((r.intensity || 0) > 7) taste += P.intense;
+
+      let s = 1.6 + wetBonus + r.ratingFor(this) * 1.0 + taste * 1.15;
+      s -= seen * 2.4;                                  // novelty matters
       s += this.opinionOf(r) * 3.0;                     // what they thought last time
       s -= clamp(wait / Math.max(30, this.patience) * 3.4, 0, 7);   // real queue cost
       s -= dist(this.x, this.z, r.x, r.z) * .012;
@@ -5895,7 +6054,10 @@ class Guest extends Person {
       if (this.thrillSeeker && r.excitement > 8) s += 2.0;
       if (!this.thrillSeeker && r.intensity < 5) s += 1.0;
       if (!this.willRide(r)) s -= 8;
-      s += rnd(-.9, .9);
+      /* Real people are not optimisers. Wide noise is what turns a single
+         best answer into a spread of plausible ones, and it is the
+         difference between a crowd and a swarm. */
+      s += rnd(-2.0, 2.0);
       if (s > bs) { bs = s; best = r; }
     }
     return best;
@@ -9498,6 +9660,101 @@ const Goals = {
   }
 };
 
+/* ============================================================================
+   OPENING TITLES
+   The game plays itself in: a train is placed at the top of the biggest drop
+   on the showcase coaster, the front-seat camera rides it down, and as it
+   bottoms out the picture cuts to black and the titles come up.
+   ========================================================================== */
+const Intro = {
+  playing: false, t: 0, phase: '', done: false,
+  el() { return document.getElementById('intro'); },
+
+  start() {
+    if (this.done) { Menu.show(); return; }
+    this.done = true;
+    const el = this.el();
+    Menu.buildShowcase();
+    const c = Park.coasters[0];
+    if (!c || !c.track || !c.track.complete || !c.trains.length) { Menu.show(); return; }
+
+    /* Put the train just before the top of the biggest drop, so the ride
+       starts on the crest rather than halfway down it. */
+    const S = c.track.samples;
+    let best = 0, bestDrop = 0;
+    for (let k = 0; k < S.length; k++) {
+      const a = S[k];
+      let lowest = a.p.y;
+      for (let q = k; q < Math.min(S.length, k + 220); q++) lowest = Math.min(lowest, S[q].p.y);
+      const d = a.p.y - lowest;
+      if (d > bestDrop) { bestDrop = d; best = k; }
+    }
+    const tr = c.trains[0];
+    for (const t2 of c.trains) { t2.state = 'run'; t2.riders.length = 0; }
+    tr.d = Math.max(2, S[best].d - 26);
+    tr.v = 6.5;
+    tr.state = 'run';
+    for (let k = 1; k < c.trains.length; k++) { c.trains[k].d = tr.d - 90 * k; c.trains[k].v = 6; }
+
+    Game.rideCamTarget = c;
+    Game.rideCamMode = 1;              // front seat
+    Game._rcInit = false;
+    Game._rider = null;
+    Cam.mode = 'ride';
+    document.getElementById('ridecam').classList.remove('show');   // no HUD over the titles
+    document.body.classList.add('introplaying', 'ridemode');
+    el.classList.add('show');
+    this.playing = true; this.t = 0; this.t0 = performance.now(); this.phase = 'ride';
+    Game.setSpeed(1);
+    el.onclick = () => this.finish();
+    this._key = (e) => { if (e.key === 'Escape' || e.key === ' ' || e.key === 'Enter') this.finish(); };
+    addEventListener('keydown', this._key);
+  },
+
+  update() {
+    if (!this.playing) return;
+    this.t = (performance.now() - this.t0) / 1000;
+    const el = this.el();
+    // ride the drop, then cut
+    if (this.phase === 'ride' && this.t > 5.4) {
+      this.phase = 'dark';
+      el.classList.add('dark');
+      Audio.setRumble(0);
+    }
+    if (this.phase === 'dark' && this.t > 6.6) {
+      this.phase = 'studio';
+      el.classList.add('titles', 'studio');
+      Game.exitRideCam();
+      document.body.classList.add('introplaying');   // exitRideCam clears ridemode
+    }
+    if (this.phase === 'studio' && this.t > 9.6) {
+      this.phase = 'name';
+      el.classList.remove('studio');
+      el.classList.add('name');
+      Audio.play('complete');
+    }
+    if (this.phase === 'name' && this.t > 13.4) this.finish();
+  },
+
+  finish() {
+    if (!this.playing) return;
+    this.playing = false;
+    removeEventListener('keydown', this._key);
+    const el = this.el();
+    el.onclick = null;
+    if (Cam.mode === 'ride') Game.exitRideCam();
+    el.classList.add('dark');
+    setTimeout(() => {
+      document.body.classList.remove('introplaying', 'ridemode');
+      Menu.show();
+      // fade the black away over the menu
+      el.classList.remove('titles', 'studio', 'name');
+      setTimeout(() => { el.classList.remove('dark'); }, 30);
+      setTimeout(() => { el.classList.remove('show'); }, 1000);
+    }, 420);
+  }
+};
+
 const Menu = {
   showcase: false,
   /* A real, running park to sit behind the menu: a coaster with trains on it,
@@ -9691,7 +9948,7 @@ const Game = {
     this.rebuildScenery();
     setTimeout(() => {
       $('#boot').classList.add('gone');
-      Menu.show();
+      Intro.start();
     }, 400);
     boot(100, 'ready');
   },
@@ -10370,6 +10627,7 @@ const Game = {
        change what is beneath it. Recomputing only on pointermove left the
        highlight pinned to a stale world tile, drifting further from the cursor
        the further the view travelled — which is exactly what it looked like. */
+    Intro.update();
     Menu.tick(dt);
     if (!Menu.showcase && Cam.mode === 'orbit') this.buildQueueMarkers();
     for (const o of Park.objects) if (o.buildT < 1) o.tickBuild(dt);
@@ -10621,12 +10879,83 @@ const Game = {
       upx = 0; upy = 1; upz = 0;
       fov = lerp(46, 62, clamp(tr.v / 45, 0, 1));
     } else if (mode === 1) {
-      // Front seat: fully in the car's frame, rolls with the track
-      px = m[12] + ux * 1.5 + fx * 1.4;
-      py = m[13] + uy * 1.5 + fy * 1.4;
-      pz = m[14] + uz * 1.5 + fz * 1.4;
-      lx = px + fx * 12; ly = py + fy * 12; lz = pz + fz * 12;
-      fov = lerp(58, 82, clamp(tr.v / 45, 0, 1));
+      /* ----------------------------------------------------------------
+         Front seat, as a person rather than as a bracket bolted to the car.
+
+         Three things separate the two. A head sits on a neck, so it lags
+         the car under acceleration and swings out in a turn. Eyes stabilise
+         on the horizon, so a rider does NOT roll a full 360 with the car
+         through a corkscrew — they hold their gaze and let the world turn.
+         And people look where they are going: into the turn, down over the
+         crest before the drop, up on the way out of one.
+         ---------------------------------------------------------------- */
+      const st = this._rider || (this._rider = { bx: 0, by: 0, bz: 0, yaw: 0, pit: 0, roll: 0, lean: 0 });
+      const speed = tr.v;
+      const g = tr.g || 1;
+      const lat = tr.lat || 0;
+
+      // --- neck spring: the head lags what the car is doing ---------------
+      // longitudinal: thrown back under acceleration, forward under braking
+      const accel = (speed - (this._lastRideV || speed)) / Math.max(dt, .001);
+      this._lastRideV = speed;
+      const tgtBz = clamp(-accel * .012, -.34, .34);
+      // vertical: compressed into the seat at high G, floating at low G
+      const tgtBy = clamp((1 - g) * .16, -.30, .34);
+      // lateral: leans out of the turn, then the neck brings it back
+      const tgtBx = clamp(-lat * .22, -.36, .36);
+      const nk = 7.5;
+      st.bx = damp(st.bx, tgtBx, nk, dt);
+      st.by = damp(st.by, tgtBy, nk, dt);
+      st.bz = damp(st.bz, tgtBz, nk, dt);
+
+      // --- gaze: look into the turn and over the crest -------------------
+      // curvature ahead tells us where the track is about to go
+      const ahead = c.track.sampleAt(tr.d + clamp(12 + speed * .55, 12, 40));
+      let wantYaw = 0, wantPit = 0;
+      if (ahead) {
+        const ay = Math.atan2(ahead.f.z, ahead.f.x), cy = Math.atan2(fz, fx);
+        let dy2 = ay - cy; while (dy2 > PI) dy2 -= TAU; while (dy2 < -PI) dy2 += TAU;
+        wantYaw = clamp(dy2 * .55, -.62, .62);
+        wantPit = clamp((ahead.pitch - Math.asin(clamp(fy, -1, 1))) * .70, -.55, .42);
+      }
+      // and a rider braces — head down — when the forces get serious
+      wantPit -= clamp((g - 3.2) * .06, 0, .22);
+      st.yaw = damp(st.yaw, wantYaw, 4.2, dt);
+      st.pit = damp(st.pit, wantPit, 4.6, dt);
+
+      /* --- horizon stabilisation ----------------------------------------
+         A rider keeps their eyes level as far as their neck allows: about
+         forty degrees. Past that the head goes with the car, which is what
+         makes an inversion read as an inversion rather than as the camera
+         calmly ignoring it. */
+      const carRoll = Math.atan2(ux * (hz), 1) * 0 + bankAngle(
+        { x: fx, y: fy, z: fz }, { x: ux, y: uy, z: uz });
+      const NECK = 42 * DEG;
+      const hold = clamp(Math.abs(carRoll) < NECK ? 0.72 : 0.72 * Math.max(0, 1 - (Math.abs(carRoll) - NECK) / (70 * DEG)), 0, .72);
+      st.roll = damp(st.roll, -carRoll * hold, 6, dt);
+
+      // --- build the eye frame from the car frame -------------------------
+      // seat position, then the head offset in the car's own axes
+      const ox = ux * (1.42 + st.by) + rx * st.bx + fx * (1.15 + st.bz);
+      const oy = uy * (1.42 + st.by) + ry * st.bx + fy * (1.15 + st.bz);
+      const oz = uz * (1.42 + st.by) + rz * st.bx + fz * (1.15 + st.bz);
+      px = m[12] + ox; py = m[13] + oy; pz = m[14] + oz;
+
+      // look direction: car forward, turned by the gaze offsets
+      let dx2 = fx, dy3 = fy, dz2 = fz;
+      const gv = { x: dx2, y: dy3, z: dz2 };
+      rotAxis(gv, gv, { x: 0, y: 1, z: 0 }, -st.yaw);
+      const rr = V3.norm({}, V3.cross({}, gv, { x: ux, y: uy, z: uz }));
+      rotAxis(gv, gv, rr, st.pit);
+      lx = px + gv.x * 14; ly = py + gv.y * 14; lz = pz + gv.z * 14;
+
+      // up vector rolled back toward level by the neck
+      const upv = { x: ux, y: uy, z: uz };
+      rotAxis(upv, upv, { x: fx, y: fy, z: fz }, st.roll);
+      upx = upv.x; upy = upv.y; upz = upv.z;
+
+      // eyes widen with speed, and squeeze under heavy G
+      fov = lerp(60, 86, clamp(speed / 45, 0, 1)) - clamp((g - 2.5) * 2.2, 0, 9);
     } else {
       // Side-on: a camera running alongside, level with the horizon
       const side = 12 * dist;
@@ -10637,7 +10966,9 @@ const Game = {
       fov = 48;
     }
     // smooth the whole rig so the picture is watchable instead of jittery
-    const k = mode === 1 ? 26 : 9;
+    // The front seat is already smoothed by the neck model, so it wants far
+    // less rig damping — over-damping it is what made it feel like a drone.
+    const k = mode === 1 ? 60 : 9;
     if (!this._rcInit) {
       V3.set(Cam.ridePos, px, py, pz); V3.set(Cam.rideLook, lx, ly, lz); this._rcInit = true;
     } else {
@@ -10653,7 +10984,13 @@ const Game = {
     Cam.rideUp.z = damp(Cam.rideUp.z, upz, 12, dt);
     V3.norm(Cam.rideUp, Cam.rideUp);
     Cam.fov = fov * DEG;
-    Cam.shake = mode === 1 ? clamp(tr.v / 40, 0, 1) * 1.1 : clamp(tr.v / 60, 0, 1) * .35;
+    // Rattle, not wobble: sharp and speed-dependent, and it eases off on the
+    // lift where a real train is quiet.
+    const smNow = c.track.sampleAt(tr.d);
+    const onLift = smNow && smNow.lift;
+    Cam.shake = mode === 1
+      ? clamp(tr.v / 40, 0, 1) * (onLift ? .35 : .85)
+      : clamp(tr.v / 60, 0, 1) * .30;
     const g = tr.g || 1;
     $('#rcSpd').textContent = Math.round(tr.v * 3.6);
     $('#gLab').textContent = g.toFixed(1) + ' G';
@@ -10681,7 +11018,7 @@ const Game = {
        open and reachable always draws somebody, so "I opened it and nothing
        happened" can never be the outcome. */
     const perParty = 2.5;
-    const rate = Math.max(.06, attract * feeFactor * daily * .019 / perParty * Weather.drawFactor());
+    const rate = Math.max(.30, attract * feeFactor * daily * .034 / perParty * Weather.drawFactor());
     this._arrRate = rate;
     this._spawnAcc = (this._spawnAcc || 0) + rate * dt;
     while (this._spawnAcc >= 1) {
@@ -10696,8 +11033,10 @@ const Game = {
   _groupSeq: 1,
   spawnGuest() {
     const c = N >> 1;
+    /* Smaller parties, more often. Big coach-loads arriving in lumps is what
+       made the gate feel like it was stuttering rather than flowing. */
     const roll = Math.random();
-    const size = roll < .26 ? 1 : roll < .58 ? 2 : roll < .84 ? 3 : roll < .96 ? 4 : 5;
+    const size = roll < .40 ? 1 : roll < .74 ? 2 : roll < .92 ? 3 : roll < .98 ? 4 : 5;
     const gid = this._groupSeq++;
     const members = [];
     for (let k = 0; k < size; k++) {
@@ -10720,6 +11059,10 @@ const Game = {
     if (!members.length) return;
     // The leader picks; everyone else is dragged along, so the party's taste
     // is the gentlest taste in it.
+    /* One outlook for the whole party, with individual variation on top —
+       they came together, so they want roughly the same day out. */
+    const persona = pickPersona();
+    for (const m of members) m.setPersona(persona);
     const leader = members[0];
     const minInt = Math.min(...members.map(m => m.prefIntensity));
     const minNau = Math.min(...members.map(m => m.nauseaTol));
@@ -10728,6 +11071,7 @@ const Game = {
       m.prefIntensity = lerp(m.prefIntensity, minInt, .55);
       m.nauseaTol = lerp(m.nauseaTol, minNau, .55);
     }
+    if (leader) leader.think(persona.line, 0);
   },
   hourTick() {
     const wages = Park.staff.reduce((a, s) => a + s.wage, 0);
