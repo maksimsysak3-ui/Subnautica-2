@@ -1029,7 +1029,7 @@ class Mesh {
 /* Instance layout: mat4 (16) + colour (3) = 19 floats, padded to 20 */
 const INST_STRIDE = 20;
 /* body parts per person written by Person.writeInstances */
-const BODY_PARTS = 15;
+const BODY_PARTS = 24;
 /* ============================================================================
    SECTION 4 — DRAW PIPELINE
    ========================================================================== */
@@ -1343,7 +1343,7 @@ const Cam = {
    footprint) and a height. Terrain is regenerated whenever tiles change.
    ========================================================================== */
 const TILE = 4;                 // world units per tile
-const N = 140;                  // tiles per side (560 m across)
+const N = 182;                  // tiles per side (728 m across)
 const T_GRASS = 0, T_PATH = 1, T_QUEUE = 2, T_BUILD = 3, T_WATER = 4, T_ENTRY = 5, T_PLAZA = 6;
 
 const WORLD = {
@@ -1399,13 +1399,11 @@ const WORLD = {
     this.type.fill(T_GRASS);
     this.own.fill(-1);
     Land.reset();
-    // Entrance plaza & main street
+    // The park starts empty: an entrance gate and a short apron of path to
+    // build from, and nothing else. Everything beyond it is yours to design.
     const c = N >> 1;
-    for (let j = c + 12; j < c + 20; j++) for (let i = c - 3; i <= c + 3; i++) this.type[j * N + i] = T_PATH;
-    for (let j = c + 18; j < c + 21; j++) for (let i = c - 5; i <= c + 5; i++) this.type[j * N + i] = T_ENTRY;
-    for (let j = c - 4; j < c + 13; j++) for (let i = c - 2; i <= c + 2; i++) this.type[j * N + i] = T_PATH;
-    for (let j = c - 4; j <= c; j++) for (let i = c - 12; i <= c + 12; i++) this.type[j * N + i] = T_PATH;
-    for (let j = c - 5; j <= c + 1; j++) for (let i = c - 6; i <= c + 6; i++) if (this.type[j * N + i] === T_PATH) this.type[j * N + i] = T_PLAZA;
+    for (let j = c + 24; j < c + 27; j++) for (let i = c - 5; i <= c + 5; i++) this.type[j * N + i] = T_ENTRY;
+    for (let j = c + 18; j < c + 24; j++) for (let i = c - 2; i <= c + 2; i++) this.type[j * N + i] = T_PATH;
     this.dirty = true;
   },
 
@@ -1563,9 +1561,9 @@ const Land = {
     this.ownedPlots.fill(0);
     this.bought = 0;
     const c = Math.floor(PLOTS / 2);
-    // the starting park is a generous central block — room for several
-    // coasters before anyone needs to think about buying land
-    for (let pj = c - 2; pj <= c + 2; pj++) for (let pi = c - 2; pi <= c + 2; pi++) this.claim(pi, pj);
+    // the starting park is a seven-by-seven block of plots — roughly 390 m
+    // across, enough for a full park before any land needs buying
+    for (let pj = c - 3; pj <= c + 3; pj++) for (let pi = c - 3; pi <= c + 3; pi++) this.claim(pi, pj);
   },
   idx(pi, pj) { return pj * PLOTS + pi; },
   inb(pi, pj) { return pi >= 0 && pj >= 0 && pi < PLOTS && pj < PLOTS; },
@@ -1695,6 +1693,28 @@ const CAT = {
     { id: 'haunted', name: 'Haunted Manor', cost: 10500, up: 96, w: 4, d: 4, cap: 20, dur: 80, exc: 5.4, fear: 4.4, naus: 0.6, price: 8, kind: 'haunted' },
     { id: 'balloonride', name: 'Balloon Race', cost: 4200, up: 48, w: 4, d: 4, cap: 16, dur: 44, exc: 3.0, fear: 0.8, naus: 1.6, price: 4, kind: 'balloonride' },
     { id: 'rapids', name: 'River Rapids', cost: 13500, up: 128, w: 4, d: 4, cap: 24, dur: 72, exc: 6.8, fear: 3.6, naus: 3.4, price: 8, kind: 'rapids' },
+
+    /* ---- water park: pools ---- */
+    { id: 'poolsmall', name: 'Splash Pool', cost: 3200, up: 40, w: 3, d: 3, cap: 18, dur: 90, exc: 3.4, fear: 0.4, naus: 0.2, price: 4, kind: 'pool', water: true, pool: { depth: 1.1 } },
+    { id: 'poolbig', name: 'Main Pool', cost: 7600, up: 82, w: 5, d: 4, cap: 40, dur: 110, exc: 4.6, fear: 0.6, naus: 0.2, price: 5, kind: 'pool', water: true, pool: { depth: 1.5 } },
+    { id: 'wavepool', name: 'Wave Pool', cost: 12800, up: 118, w: 5, d: 5, cap: 46, dur: 100, exc: 6.4, fear: 2.0, naus: 1.2, price: 7, kind: 'wavepool', water: true, pool: { depth: 1.6 } },
+    { id: 'lazyriver', name: 'Lazy River', cost: 9800, up: 96, w: 5, d: 5, cap: 32, dur: 140, exc: 4.2, fear: 0.3, naus: 0.4, price: 5, kind: 'lazyriver', water: true },
+    { id: 'kiddie', name: 'Kids Splash Zone', cost: 4400, up: 52, w: 4, d: 3, cap: 20, dur: 80, exc: 3.0, fear: 0.2, naus: 0.1, price: 3, kind: 'kiddie', water: true },
+    { id: 'hottub', name: 'Hot Tub', cost: 2600, up: 34, w: 2, d: 2, cap: 10, dur: 70, exc: 2.6, fear: 0.2, naus: 0.1, price: 5, kind: 'hottub', water: true },
+
+    /* ---- water park: slides ---- */
+    { id: 'bodyslide', name: 'Body Slide', cost: 8200, up: 84, w: 3, d: 3, cap: 12, dur: 46, exc: 6.0, fear: 4.4, naus: 2.6, price: 6, kind: 'slide', water: true,
+      slide: { h: 15, r: 5.2, turns: 1.6, lanes: 1, tube: false, col: 0x39c0ff } },
+    { id: 'tubeslide', name: 'Tube Slide', cost: 11500, up: 108, w: 4, d: 4, cap: 16, dur: 54, exc: 7.2, fear: 5.0, naus: 3.4, price: 8, kind: 'slide', water: true,
+      slide: { h: 20, r: 6.6, turns: 2.2, lanes: 1, tube: true, col: 0xffd23f } },
+    { id: 'racer', name: 'Racer Slides', cost: 14200, up: 126, w: 5, d: 4, cap: 20, dur: 40, exc: 7.6, fear: 5.4, naus: 2.2, price: 8, kind: 'slide', water: true,
+      slide: { h: 18, r: 7.4, turns: 0.55, lanes: 4, tube: false, col: 0xff6f91 } },
+    { id: 'dropslide', name: 'Drop Capsule', cost: 16800, up: 148, w: 3, d: 3, cap: 8, dur: 34, exc: 8.6, fear: 8.8, naus: 4.0, price: 10, kind: 'slide', water: true,
+      slide: { h: 26, r: 3.4, turns: 0.9, lanes: 2, tube: true, steep: true, col: 0xe74c3c } },
+    { id: 'funnel', name: 'Funnel Slide', cost: 19500, up: 168, w: 5, d: 5, cap: 20, dur: 58, exc: 9.2, fear: 7.2, naus: 5.4, price: 11, kind: 'funnel', water: true,
+      slide: { h: 24, r: 8.0, turns: 1.3, lanes: 1, tube: true, col: 0x7b5bd4 } },
+    { id: 'aqualoop', name: 'Aqua Loop', cost: 17600, up: 152, w: 4, d: 4, cap: 8, dur: 30, exc: 9.0, fear: 9.4, naus: 5.0, price: 11, kind: 'slide', water: true,
+      slide: { h: 23, r: 4.6, turns: 2.6, lanes: 1, tube: true, col: 0x2ecc71 } },
   ],
   /* ---------------- Staff ---------------- */
   staff: [
@@ -2104,9 +2124,240 @@ const Prefab = {
   },
 
   /* ------------------------------------------------------------------
+     WATER PARK
+     A slide is a descending helix. The same parametric path builds the
+     flume geometry and places the guests sliding down it, so what you see
+     riding is exactly the shape that was built.
+     ------------------------------------------------------------------ */
+  slidePoint(cfg, t, lane) {
+    const lanes = cfg.lanes || 1;
+    const laneOff = lanes > 1 ? (lane - (lanes - 1) / 2) * 1.6 : 0;
+    const drop = cfg.h - 1.2;
+    if (t < 0.82) {
+      const u = t / 0.82;
+      const a = cfg.start + u * cfg.turns * TAU;
+      // steep openers plunge before easing out, gentle ones fall evenly
+      const fall = cfg.steep ? Math.pow(u, 0.55) : u * u * (3 - 2 * u);
+      const r = cfg.r + laneOff * (lanes > 1 ? 0 : 1);
+      const rr = lanes > 1 ? cfg.r + laneOff : r;
+      return { x: Math.cos(a) * rr, y: 1.2 + drop * (1 - fall), z: Math.sin(a) * rr, a };
+    }
+    // run-out into the splash pool
+    const u = (t - 0.82) / 0.18;
+    const a = cfg.start + cfg.turns * TAU;
+    const rr = (lanes > 1 ? cfg.r + laneOff : cfg.r);
+    const bx = Math.cos(a) * rr, bz = Math.sin(a) * rr;
+    const dx = -Math.cos(a), dz = -Math.sin(a);
+    return { x: bx + dx * u * (rr - 1.0), y: 1.2 - u * 0.5, z: bz + dz * u * (rr - 1.0), a };
+  },
+
+  waterSlide(def) {
+    const g = new Geo(), parts = [];
+    const cfg = Object.assign({ start: 0, steep: false }, def.slide);
+    const W = def.w * TILE, D = def.d * TILE;
+    const deck = hex(0x8fd3e8), tile = hex(0xd8e8ee);
+    g.box(0, -.2, 0, W, .4, D, tile);
+    // splash pool at the bottom
+    g.cyl(0, 0, 0, cfg.r * .55 + 2.2, .5, 18, hex(0xbfe0ec));
+    g.cyl(0, .5, 0, cfg.r * .55 + 1.9, .12, 18, hex(0x2f9fd4));
+    // tower and stairs up to the launch platform
+    const towerX = Math.cos(cfg.start) * cfg.r, towerZ = Math.sin(cfg.start) * cfg.r;
+    g.box(towerX, 0, towerZ, 2.6, cfg.h, 2.6, hex(0xe8eef2));
+    for (let y = 0; y < cfg.h - 1; y += 1.1) {
+      const a = cfg.start + PI + y * .30;
+      g.box(towerX + Math.cos(a) * 2.2, y, towerZ + Math.sin(a) * 2.2, 1.5, .22, 1.5, hex(0xcfd8de));
+      g.cyl(towerX + Math.cos(a) * 2.9, y, towerZ + Math.sin(a) * 2.9, .07, 1.1, 5, hex(0x9aa4ae));
+    }
+    g.box(towerX, cfg.h, towerZ, 4.2, .3, 4.2, hex(0xf2f6f8));
+    for (const sx of [-1, 1]) for (const sz of [-1, 1])
+      g.cyl(towerX + sx * 1.9, cfg.h + .3, towerZ + sz * 1.9, .08, 1.1, 5, hex(0x9aa4ae));
+    this.stripedRoof(g, towerX, cfg.h + 1.5, towerZ, 3.0, 1.6, 10, hex(cfg.col), hex(0xffffff));
+
+    // the flume itself: floor plus two walls, following the path
+    const lanes = cfg.lanes || 1;
+    const STEPS = 44;
+    for (let lane = 0; lane < lanes; lane++) {
+      const c = shade(hex(cfg.col), 1 - lane * .10);
+      let prev = this.slidePoint(cfg, 0, lane);
+      for (let i = 1; i <= STEPS; i++) {
+        const q = this.slidePoint(cfg, i / STEPS, lane);
+        const dx = q.x - prev.x, dz = q.z - prev.z;
+        const L = Math.hypot(dx, dz) || 1e-4;
+        const nx = -dz / L, nz = dx / L;                  // outward normal
+        const w = cfg.tube ? 1.5 : 1.7;
+        g.beam(prev.x, prev.y, prev.z, q.x, q.y, q.z, w, .26, c);
+        for (const sgn of [-1, 1]) {
+          g.beam(prev.x + nx * sgn * w * .5, prev.y + .12, prev.z + nz * sgn * w * .5,
+            q.x + nx * sgn * w * .5, q.y + .12, q.z + nz * sgn * w * .5,
+            .22, cfg.tube ? 1.5 : 1.0, shade(c, 1.18));
+        }
+        if (cfg.tube && i % 3 === 0) {
+          g.beam(q.x + nx * w * .5, q.y + 1.3, q.z + nz * w * .5,
+            q.x - nx * w * .5, q.y + 1.3, q.z - nz * w * .5, .18, .18, shade(c, .82));
+        }
+        // support leg down to the deck
+        if (i % 5 === 0 && q.y > 2.2) {
+          g.cyl(q.x, .4, q.z, .22, q.y - .5, 6, hex(0xb9c1c9));
+          g.cyl(q.x, .4, q.z, .5, .3, 6, hex(0x9aa4ae));
+        }
+        prev = q;
+      }
+    }
+    // deck furniture
+    for (let k = 0; k < 6; k++) {
+      const a = k / 6 * TAU + .4, rr = cfg.r * .55 + 4.4;
+      if (rr > Math.min(W, D) / 2) break;
+      g.box(Math.cos(a) * rr, 0, Math.sin(a) * rr, 1.9, .35, .8, hex(0xf0e6d2));
+      g.box(Math.cos(a) * rr, .35, Math.sin(a) * rr - .3, 1.7, .12, .5, hex(0x7ed6df));
+    }
+    return { base: g, parts };
+  },
+
+  waterPool(kind, def) {
+    const g = new Geo(), parts = [];
+    const W = def.w * TILE, D = def.d * TILE;
+    const deckC = hex(0xe6ecef), water = hex(0x2f9fd4), deepC = hex(0x1d6f9c), liner = hex(0xbfe6f7);
+    // The terrain cannot be excavated, so a pool is built as a raised deck
+    // with the basin recessed into it. That keeps the water above ground and
+    // always visible, whatever the camera angle.
+    const RIM = 1.7;                       // width of the paved surround
+    const TOP = 0.92;                      // walking height of the deck
+    const FLOOR = 0.06;                    // inside floor of the basin
+    const SURF = 0.66;                     // the water surface
+
+    /* Paved surround drawn as a frame, so it never covers the water. */
+    const deckFrame = (bw, bd) => {
+      const h = TOP + .25;
+      g.box(0, -.25, -(bd / 2 + RIM / 2), bw + RIM * 2, h, RIM, deckC);
+      g.box(0, -.25, (bd / 2 + RIM / 2), bw + RIM * 2, h, RIM, deckC);
+      g.box(-(bw / 2 + RIM / 2), -.25, 0, RIM, h, bd, deckC);
+      g.box((bw / 2 + RIM / 2), -.25, 0, RIM, h, bd, deckC);
+      // coping along the water's edge
+      g.box(0, TOP - .06, -(bd / 2 + .2), bw + .9, .12, .4, shade(deckC, .86));
+      g.box(0, TOP - .06, (bd / 2 + .2), bw + .9, .12, .4, shade(deckC, .86));
+      g.box(-(bw / 2 + .2), TOP - .06, 0, .4, .12, bd, shade(deckC, .86));
+      g.box((bw / 2 + .2), TOP - .06, 0, .4, .12, bd, shade(deckC, .86));
+      // steps up onto the deck
+      for (let k = 0; k < 3; k++)
+        g.box(0, -.25 + k * (TOP / 3), (bd / 2 + RIM + .6 + (2 - k) * .45), 3.4, TOP / 3 + .25, .5, shade(deckC, .94));
+    };
+    /* Sunken basin: liner walls, a floor and a visible surface. */
+    const basin = (bw, bd, depth, surfaceCol) => {
+      g.box(0, -.25, 0, bw, FLOOR + .25, bd, shade(liner, .78));         // basin floor
+      for (const [ox, oz, sx, sz] of [[0, -(bd / 2 - .16), bw, .32], [0, (bd / 2 - .16), bw, .32],
+      [-(bw / 2 - .16), 0, .32, bd], [(bw / 2 - .16), 0, .32, bd]])
+        g.box(ox, FLOOR, oz, sx, TOP - FLOOR, sz, liner);                 // tiled walls
+      g.quadV([-bw / 2 + .3, SURF, bd / 2 - .3], [bw / 2 - .3, SURF, bd / 2 - .3],
+        [bw / 2 - .3, SURF, -bd / 2 + .3], [-bw / 2 + .3, SURF, -bd / 2 + .3], surfaceCol);
+      g.quadV([-bw / 2 + 1.6, SURF + .02, bd / 2 - 1.6], [bw / 2 - 1.6, SURF + .02, bd / 2 - 1.6],
+        [bw / 2 - 1.6, SURF + .02, -bd / 2 + 1.6], [-bw / 2 + 1.6, SURF + .02, -bd / 2 + 1.6], deepC);
+      // lane markings so the surface does not read as flat paint
+      for (let k = -1; k <= 1; k++)
+        g.box(k * bw / 4, SURF + .03, 0, .22, .03, bd - 1.4, shade(surfaceCol, 1.35));
+    };
+    const ladder = (px, pz) => {
+      for (const off of [-.42, .42]) g.cyl(px + off, FLOOR, pz, .06, TOP + .5, 5, hex(0xcfd8de));
+      for (let k = 0; k < 3; k++) g.box(px, FLOOR + .25 + k * .3, pz, .95, .07, .14, hex(0xcfd8de));
+    };
+    const lounger = (px, pz, col) => {
+      g.box(px, TOP, pz, 1.9, .32, .78, hex(0xf5f0e2));
+      g.box(px, TOP + .32, pz - .28, 1.75, .12, .5, hex(col));
+      g.box(px - .8, TOP + .32, pz + .18, .5, .45, .4, hex(0xf5f0e2));
+    };
+    const umbrella = (px, pz, col) => {
+      g.cyl(px, TOP, pz, .09, 2.6, 6, hex(0xcfd8de));
+      this.stripedRoof(g, px, TOP + 2.6, pz, 1.9, .8, 10, hex(col), hex(0xffffff));
+    };
+
+    if (kind === 'pool' || kind === 'wavepool') {
+      const bw = W - RIM * 2, bd = D - RIM * 2;
+      deckFrame(bw, bd);
+      basin(bw, bd, def.pool ? def.pool.depth : 1.3, water);
+      ladder(bw / 2 - 1.4, bd / 2 - .1);
+      ladder(-bw / 2 + 1.4, bd / 2 - .1);
+      if (kind === 'wavepool') {
+        g.box(0, TOP, -(bd / 2 + RIM - .3), bw + .6, 2.4, 1.0, hex(0x4a5462));
+        for (let i = -3; i <= 3; i++) g.box(i * (bw / 7.5), TOP + .15, -(bd / 2 + RIM - .3), .8, 1.7, 1.2, hex(0x7ed6df));
+        const waves = new Geo();
+        for (let k = 0; k < 4; k++)
+          waves.box(0, 0, -bd / 2 + 1.6 + k * (bd / 4.2), bw - .6, .22, .8, shade(water, 1.45));
+        parts.push({ geo: waves, anim: (m, o, t) => M4.compose(m, 0, SURF + .04, ((Math.sin(t * .9) * .5 + .5) * 2.6), 0, 0, 0, 1, 1 + Math.sin(t * 2.4) * .35, 1) });
+      }
+      for (let k = 0; k < 3; k++) lounger(-W / 2 + 2.2 + k * 2.6, D / 2 - .9, k % 2 ? 0x7ed6df : 0xff8fb1);
+      umbrella(W / 2 - 2.0, D / 2 - 1.0, 0xff6f91);
+      umbrella(-W / 2 + 2.0, -D / 2 + 1.0, 0x39c0ff);
+    }
+    else if (kind === 'kiddie') {
+      const bw = W - RIM * 2, bd = D - RIM * 2;
+      deckFrame(bw, bd);
+      basin(bw, bd, 0.45, shade(water, 1.15));
+      for (const [sx, sz] of [[-bw / 4, -bd / 4], [bw / 4, bd / 4], [0, bd / 3]]) {
+        g.cyl(sx, SURF, sz, .28, 2.6, 8, hex(0xffd23f));
+        g.sphere(sx, SURF + 2.9, sz, .85, 7, hex(0xff6f91));
+      }
+      const jet = new Geo();
+      for (let i = 0; i < 8; i++) { const a = i / 8 * TAU; jet.beam(0, 0, 0, Math.cos(a) * 1.1, 1.5, Math.sin(a) * 1.1, .15, .15, hex(0xdff2fb)); }
+      parts.push({ geo: jet, anim: (m, o, t) => M4.compose(m, 0, SURF + .4, 0, 0, t * .9, 0, 1, 1 + Math.sin(t * 4) * .25, 1) });
+      // a small slide for little ones
+      g.box(-bw / 2 + 1.4, SURF, -bd / 2 + 1.4, 1.5, 2.8, 1.5, hex(0xf5f0e2));
+      g.beam(-bw / 2 + 1.4, SURF + 2.8, -bd / 2 + 1.4, -bw / 2 + 1.4, SURF + .3, -bd / 2 + 4.6, 1.3, .25, hex(0x6ac46a));
+      lounger(W / 2 - 2.2, D / 2 - 1.0, 0xffd23f);
+    }
+    else if (kind === 'lazyriver') {
+      const R0 = Math.min(W, D) / 2 - 2.2, half = 1.9, seg = 26;
+      // grassy island in the middle and a paved outer ring, all raised
+      g.cyl(0, -.25, 0, R0 - half - .2, TOP + .25, 20, hex(0x6bbd58));
+      for (let i = 0; i < seg; i++) {
+        const a = i / seg * TAU, a2 = (i + 1) / seg * TAU;
+        const inner = R0 - half, outer = R0 + half;
+        const p = (ang, r, y) => [Math.cos(ang) * r, y, Math.sin(ang) * r];
+        // outer deck
+        g.box(Math.cos(a) * (outer + RIM / 2), -.25, Math.sin(a) * (outer + RIM / 2), RIM + .6, TOP + .25, RIM + .6, deckC);
+        // channel floor, water surface and walls
+        g.quadV(p(a2, outer, FLOOR), p(a, outer, FLOOR), p(a, inner, FLOOR), p(a2, inner, FLOOR), shade(liner, .78));
+        g.quadV(p(a2, outer, SURF), p(a, outer, SURF), p(a, inner, SURF), p(a2, inner, SURF), water);
+        g.beam(Math.cos(a) * outer, FLOOR, Math.sin(a) * outer, Math.cos(a2) * outer, FLOOR, Math.sin(a2) * outer, .34, TOP, liner);
+        g.beam(Math.cos(a) * inner, FLOOR, Math.sin(a) * inner, Math.cos(a2) * inner, FLOOR, Math.sin(a2) * inner, .34, TOP, liner);
+      }
+      for (let k = 0; k < 4; k++) {
+        const a = k / 4 * TAU + .6, rr = R0 - half - 2.0;
+        g.cyl(Math.cos(a) * rr, TOP, Math.sin(a) * rr, .26, 2.6, 6, hex(0x9c7b52));
+        g.sphere(Math.cos(a) * rr, TOP + 3.2, Math.sin(a) * rr, 1.5, 6, hex(0x3fa055));
+      }
+      for (let i = 0; i < 6; i++) {
+        const ring = new Geo(), c2 = hex([0xffd23f, 0xff6f91, 0x7ed6df, 0x6ac46a, 0xff8c42, 0xc77dff][i]);
+        ring.cyl(0, 0, 0, .95, .30, 10, c2);
+        ring.cyl(0, .04, 0, .48, .26, 8, shade(water, 1.2));
+        const ph = i / 6 * TAU;
+        parts.push({ geo: ring, anim: (m, o, t) => { const a = ph + t * .26; return M4.compose(m, Math.cos(a) * R0, SURF - .05, Math.sin(a) * R0, 0, -a, 0, 1, 1, 1); } });
+      }
+    }
+    else if (kind === 'hottub') {
+      g.box(0, -.25, 0, W, .5, D, deckC);
+      g.cyl(0, .25, 0, 2.9, 1.15, 14, hex(0x9a6b42));
+      g.cyl(0, 1.40, 0, 3.05, .22, 14, hex(0xb5804f));
+      g.cyl(0, 1.10, 0, 2.55, .14, 14, shade(water, 1.1));
+      const foam = new Geo();
+      for (let i = 0; i < 10; i++) { const a = i / 10 * TAU; foam.sphere(Math.cos(a) * 1.5, 0, Math.sin(a) * 1.5, .3, 5, hex(0xdff2fb)); }
+      parts.push({ geo: foam, anim: (m, o, t) => M4.compose(m, 0, 1.20, 0, 0, t * 1.4, 0, 1, 1 + Math.sin(t * 6) * .4, 1) });
+    }
+    return { base: g, parts };
+  },
+
+  /* ------------------------------------------------------------------
      FLAT RIDES — base + animated parts
      ------------------------------------------------------------------ */
   ride(kind, def) {
+    if (def.water) {
+      if (kind === 'slide') return this.waterSlide(def);
+      if (kind === 'funnel') {
+        const sl = this.waterSlide(def);
+        sl.base.cone(0, 1.6, 0, 6.2, 5.0, 14, shade(hex(def.slide.col), 1.1));
+        sl.base.cyl(0, 1.4, 0, 6.4, .4, 14, hex(0xe8eef2));
+        return sl;
+      }
+      return this.waterPool(kind, def);
+    }
     const g = new Geo(), parts = [];
     const W = def.w * TILE, D = def.d * TILE;
     // shared foundation
@@ -3128,6 +3379,8 @@ class Ride extends ParkObject {
           this.spin += dt * 1.1 * env;
         } else if (this.def.kind === 'haunted' || this.def.kind === 'rapids') {
           this.spin = 0; this.h = 0;
+        } else if (this.def.water) {
+          this.spin = 0; this.h = 1;
         }
         if (this.timer <= 0) { this.state = 'unloading'; this.timer = 4; }
         break;
@@ -3363,7 +3616,7 @@ const Park = {
   mainSpot() {
     if (this._mainSpot && this._mainSpotV === Path.version) return this._mainSpot;
     const c = N >> 1;
-    const n = Path.nearestWalkable(c, c + 18, 12) || Path.nearestWalkable(c, c, 30);
+    const n = Path.nearestWalkable(c, c + 21, 14) || Path.nearestWalkable(c, c, 40);
     const spot = n ? { x: WORLD.wx(n.i), z: WORLD.wz(n.j) } : { x: 0, z: 0 };
     this.mainComponent = n ? Path.comp[n.j * N + n.i] : -1;
     this._mainSpot = spot; this._mainSpotV = Path.version;
@@ -3602,17 +3855,17 @@ class Person {
     if (!this.moving) this.anim = damp(this.anim, Math.round(this.anim / PI) * PI, 8, dt);
   }
   /* Write this person's body-part instances into the crowd buffer.
-     Limbs pivot at the shoulder/hip: the instanced box is centre-origin, so
-     each limb's centre is derived from its pivot and swing angle. */
+
+     Every segment is drawn slightly longer than the bone it represents and
+     each joint gets its own block, so the limbs overlap where they meet and
+     the figure cannot come apart at any viewing angle. */
   writeInstances(buf, o, t) {
     const H = this.height;
     const walking = this.moving ? 1 : 0;
     const sw = walking ? Math.sin(this.anim) : 0;
-    const bounce = walking ? Math.abs(Math.sin(this.anim * 2)) * .05 : Math.sin(t * 2 + this.phase) * .012;
+    const bounce = walking ? Math.abs(Math.sin(this.anim * 2)) * .045 : Math.sin(t * 2 + this.phase) * .010;
     const sitting = this.state === 'sitting' || this.state === 'riding';
     const root = M4.create();
-    // Height scales the whole figure uniformly: scaling only Y would pull the
-    // limbs (whose positions come from sin/cos of the swing) out of their sockets.
     M4.compose(root, this.x, this.y + bounce * H, this.z, 0, -this.yaw + PI / 2, this.roll || 0, H, H, H);
     const tmp = M4.create(), out = M4.create();
 
@@ -3623,51 +3876,67 @@ class Person {
       buf[o + 16] = col[0]; buf[o + 17] = col[1]; buf[o + 18] = col[2]; buf[o + 19] = 0;
       o += INST_STRIDE;
     };
-    /* a limb hanging from a pivot, swung by `ang` about the X axis */
-    const limb = (px, pivotY, pz, ang, len, w, d, col) => {
-      const cy = pivotY - Math.cos(ang) * len / 2;
-      const cz = pz + Math.sin(ang) * len / 2;
-      put(px, cy, cz, ang, w, len, d, col);
+    /* A bone from a pivot, swung by `ang`. Drawn with `over` of extra length at
+       each end so it buries itself in the joints above and below it. */
+    const bone = (px, pivotY, pz, ang, len, w, d, col, over) => {
+      over = over === undefined ? .14 : over;
+      const L = len + over * 2;
+      const mid = len / 2;
+      const cy = pivotY - Math.cos(ang) * mid;
+      const cz = pz + Math.sin(ang) * mid;
+      put(px, cy, cz, ang, w, L, d, col);
       return { y: pivotY - Math.cos(ang) * len, z: pz + Math.sin(ang) * len };
     };
+    const joint = (px, py, pz, r, col) => put(px, py, pz, 0, r, r, r, col);
 
     const skin = hex(this.skin), shirt = hex(this.shirt), pants = hex(this.pants), hair = hex(this.hair);
-    const lean = sitting ? .18 : (walking ? .06 : 0);
-    const drop = sitting ? -.30 : 0;                       // hips sink when seated
+    const shoe = hex(0x24262b);
+    const lean = sitting ? .20 : (walking ? .05 : 0);
+    const drop = sitting ? -.26 : 0;
 
-    // ---- legs (hip pivot at 0.88) ----
-    const hipY = 0.88 + drop;
-    const thighA = sitting ? -1.45 : sw * .62;
-    const thighB = sitting ? -1.45 : -sw * .62;
-    const kneeA = limb(-.13, hipY, 0, thighA, .46, .20, .22, pants);
-    const kneeB = limb(.13, hipY, 0, thighB, .46, .20, .22, pants);
-    const shinA = sitting ? 0 : thighA * .45;
-    const shinB = sitting ? 0 : thighB * .45;
-    const ankA = limb(-.13, kneeA.y, kneeA.z, shinA, .44, .19, .21, pants);
-    const ankB = limb(.13, kneeB.y, kneeB.z, shinB, .44, .19, .21, pants);
-    put(-.13, ankA.y + .05, ankA.z + .07, 0, .22, .13, .34, hex(0x2b2b2b));
-    put(.13, ankB.y + .05, ankB.z + .07, 0, .22, .13, .34, hex(0x2b2b2b));
+    /* ---- lower body ---- */
+    const hipY = 0.92 + drop;
+    const thighA = sitting ? -1.42 : sw * .40;
+    const thighB = sitting ? -1.42 : -sw * .40;
+    joint(-.13, hipY, 0, .29, pants);
+    joint(.13, hipY, 0, .29, pants);
+    const kneeA = bone(-.13, hipY, 0, thighA, .44, .23, .25, pants);
+    const kneeB = bone(.13, hipY, 0, thighB, .44, .23, .25, pants);
+    joint(-.13, kneeA.y, kneeA.z, .26, pants);
+    joint(.13, kneeB.y, kneeB.z, .26, pants);
+    const shinA = sitting ? 0.10 : thighA * .35;
+    const shinB = sitting ? 0.10 : thighB * .35;
+    const ankA = bone(-.13, kneeA.y, kneeA.z, shinA, .42, .20, .22, pants);
+    const ankB = bone(.13, kneeB.y, kneeB.z, shinB, .42, .20, .22, pants);
+    put(-.13, ankA.y + .04, ankA.z + .07, shinA * .3, .23, .14, .36, shoe);
+    put(.13, ankB.y + .04, ankB.z + .07, shinB * .3, .23, .14, .36, shoe);
 
-    // ---- body ----
-    put(0, hipY + .07, 0, lean, .46, .20, .29, pants);                 // hips
-    put(0, hipY + .40, -lean * .12, lean, .50, .64, .31, shirt);       // torso
-    const shoulderY = hipY + .70;
+    /* ---- torso: pelvis and chest overlap by design ---- */
+    put(0, hipY + .06, 0, lean, .48, .30, .30, pants);
+    const chestY = hipY + .40;
+    put(0, chestY, -lean * .10, lean, .52, .66, .34, shirt);
 
-    // ---- arms (shoulder pivot) ----
-    const lift = this.armLift;
-    const swingA = -sw * .55, swingB = sw * .55;
-    const armA = lerp(swingA, -2.55, lift);
-    const armB = lerp(swingB, -2.55, lift);
-    const elbA = limb(-.32, shoulderY, 0, armA, .34, .17, .18, shirt);
-    const elbB = limb(.32, shoulderY, 0, armB, .34, .17, .18, shirt);
-    limb(-.32, elbA.y, elbA.z, armA * 1.15, .32, .15, .16, skin);
-    limb(.32, elbB.y, elbB.z, armB * 1.15, .32, .15, .16, skin);
+    /* ---- arms, hung from shoulders inside the chest silhouette ---- */
+    const shoulderY = hipY + .68;
+    const lift = this.armLift || 0;
+    const armA = lerp(-sw * .38, -2.45, lift);
+    const armB = lerp(sw * .38, -2.45, lift);
+    joint(-.26, shoulderY, 0, .28, shirt);
+    joint(.26, shoulderY, 0, .28, shirt);
+    const elbA = bone(-.26, shoulderY, 0, armA, .32, .19, .21, shirt);
+    const elbB = bone(.26, shoulderY, 0, armB, .32, .19, .21, shirt);
+    joint(-.26, elbA.y, elbA.z, .22, skin);
+    joint(.26, elbB.y, elbB.z, .22, skin);
+    bone(-.26, elbA.y, elbA.z, armA * 1.05 + (sitting ? .55 : 0), .30, .18, .19, skin);
+    bone(.26, elbB.y, elbB.z, armB * 1.05 + (sitting ? .55 : 0), .30, .18, .19, skin);
 
-    // ---- head ----
-    const headY = shoulderY + .28;
-    put(0, shoulderY + .08, 0, 0, .18, .14, .18, skin);                // neck
-    put(0, headY, -lean * .1, lean * .5, .35, .37, .33, skin);         // head
-    put(0, headY + .22, -lean * .1, lean * .5, .39, .13, .37, hair);   // hair
+    /* ---- neck and head, each sunk into the part below ---- */
+    const neckY = shoulderY + .10;
+    put(0, neckY, 0, lean, .25, .26, .25, skin);
+    const headY = neckY + .26;
+    put(0, headY, -lean * .09, lean * .5, .38, .40, .36, skin);
+    put(0, headY + .21, -lean * .09, lean * .5, .41, .16, .39, hair);
+    put(0, headY + .05, -.19, lean * .5, .30, .10, .04, hair);
     return o;
   }
 }
@@ -4029,7 +4298,7 @@ class Guest extends Person {
   }
   leavePark() {
     this.state = 'leaving';
-    const ex = WORLD.wx(N / 2), ez = WORLD.wz(N / 2 + 20);
+    const ex = WORLD.wx(N / 2), ez = WORLD.wz(N / 2 + 25);
     if (!this.goto(ex, ez)) this.dead = true;
     if (this.happy > .8) Park.happyLeavers++;
     Park.leavers++;
@@ -4144,11 +4413,12 @@ const TOOLS = [
   { id: 'path', ic: 'path', t: 'Paths', k: '2' },
   { id: 'coaster', ic: 'coaster', t: 'Coasters', k: '3' },
   { id: 'ride', ic: 'ride', t: 'Rides', k: '4' },
-  { id: 'shop', ic: 'shop', t: 'Shops', k: '5' },
-  { id: 'scenery', ic: 'tree', t: 'Scenery', k: '6' },
-  { id: 'staff', ic: 'staff', t: 'Staff', k: '7' },
-  { id: 'terrain', ic: 'terrain', t: 'Terrain', k: '8' },
-  { id: 'delete', ic: 'demolish', t: 'Demolish', k: '9' },
+  { id: 'water', ic: 'water', t: 'Water', k: '5' },
+  { id: 'shop', ic: 'shop', t: 'Shops', k: '6' },
+  { id: 'scenery', ic: 'tree', t: 'Scenery', k: '7' },
+  { id: 'staff', ic: 'staff', t: 'Staff', k: '8' },
+  { id: 'terrain', ic: 'terrain', t: 'Terrain', k: '9' },
+  { id: 'delete', ic: 'demolish', t: 'Demolish', k: '0' },
 ];
 
 const UI = {
@@ -4197,7 +4467,7 @@ const UI = {
     const p = $('#buildPanel'), b = $('#bpBody');
     p.classList.add('show');
     b.innerHTML = '';
-    const title = { path: 'Paths & Queues', coaster: 'Roller Coasters', ride: 'Flat Rides', shop: 'Shops & Facilities', scenery: 'Scenery', staff: 'Hire Staff' }[id] || 'Build';
+    const title = { path: 'Paths & Queues', coaster: 'Roller Coasters', ride: 'Flat Rides', water: 'Water Park', shop: 'Shops & Facilities', scenery: 'Scenery', staff: 'Hire Staff' }[id] || 'Build';
     $('#bpTitle').textContent = title;
 
     const addGrid = (label, items, cls, render, onPick) => {
@@ -4251,13 +4521,25 @@ const UI = {
       b.appendChild(list);
     }
     else if (id === 'ride') {
-      const gentle = CAT.rides.filter(r => r.fear < 3.5);
-      const thrill = CAT.rides.filter(r => r.fear >= 3.5 && r.fear < 6.5);
-      const extreme = CAT.rides.filter(r => r.fear >= 6.5);
+      const dry = CAT.rides.filter(r => !r.water);
+      const gentle = dry.filter(r => r.fear < 3.5);
+      const thrill = dry.filter(r => r.fear >= 3.5 && r.fear < 6.5);
+      const extreme = dry.filter(r => r.fear >= 6.5);
       const rr = it => `<img class="th" src="${Thumbs.ride(it)}" alt=""><span class="n">${it.name}</span>${cost(it.cost)}<span class="c" style="color:var(--dim)">exc ${it.exc.toFixed(1)} · int ${it.fear.toFixed(1)}</span>`;
       addGrid('Gentle', gentle, 'grid2', rr, (it, d) => this.pick(it, d));
       addGrid('Thrill', thrill, 'grid2', rr, (it, d) => this.pick(it, d));
       addGrid('Extreme', extreme, 'grid2', rr, (it, d) => this.pick(it, d));
+    }
+    else if (id === 'water') {
+      const wr = it => `<img class="th" src="${Thumbs.ride(it)}" alt=""><span class="n">${it.name}</span>${cost(it.cost)}` +
+        `<span class="c" style="color:var(--dim)">exc ${it.exc.toFixed(1)} &middot; holds ${it.cap}</span>`;
+      const water = CAT.rides.filter(r => r.water);
+      addGrid('Pools', water.filter(r => !r.slide), 'grid2', wr, (it, d) => this.pick(it, d));
+      addGrid('Water Slides', water.filter(r => r.slide), 'grid2', wr, (it, d) => this.pick(it, d));
+      b.appendChild(el('div', 'cat', 'Note'));
+      b.appendChild(el('div', '', `<div style="font-size:11px;color:var(--dim);line-height:1.55;padding:0 3px">
+        Pools take large groups for a long, gentle stay — good for park happiness.
+        Slides are short, intense and thirsty work: put a drink stall nearby.</div>`));
     }
     else if (id === 'shop') {
       const sr = it => `<img class="th" src="${Thumbs.shop(it)}" alt=""><span class="n">${it.name}</span>${cost(it.cost)}`;
@@ -5621,6 +5903,7 @@ const ICON = (() => {
     rotr: w('<path d="M15 5.5L19.5 10 15 14.5"/><path d="M19.5 10h-9a6 6 0 000 12H14"/>'),
     tilt: w('<path d="M3 15l9-5 9 5-9 5z"/><path d="M12 10V4"/><path d="M9.5 6.5L12 4l2.5 2.5"/>'),
     blueprint: w('<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M8 9v11"/><path d="M11.5 13.5c2-2.5 3.5 2 5.5-.5"/>'),
+    water: w('<path d="M3 16.5c2-2 3.4 2 5.4 0s3.4 2 5.4 0 3.4 2 5.4 0"/><path d="M3 20.5c2-2 3.4 2 5.4 0s3.4 2 5.4 0 3.4 2 5.4 0"/><path d="M8 12.5V6a3 3 0 016 0v.5"/><path d="M8 9h4"/>'),
   };
 })();
 
@@ -5655,13 +5938,13 @@ const Game = {
     this.crowdBuf = new Float32Array(340 * BODY_PARTS * INST_STRIDE);
     this.litterGeos = [Prefab.litter(0), Prefab.litter(1), Prefab.litter(2)];
     boot(70, 'opening the gates…');
-    Cam.init(0, -4);
+    Cam.init(0, WORLD.wz((N >> 1) + 14));
     UI.init();
     Minimap.init();
     this.bindInput();
     Park.litterDirty = true;
     Park.happyLeavers = 0; Park.leavers = 0;
-    this.seedPark();
+    // (the park deliberately starts empty)
     boot(90, 'welcoming guests…');
     this.rebuildScenery();
     setTimeout(() => {
@@ -5671,7 +5954,7 @@ const Game = {
     }, 500);
     boot(100, 'ready');
   },
-  seedPark() {
+  seedPark_unused() {
     // a few starter decorations so the entrance doesn't look bare
     const c = N >> 1;
     const place = (defId, i, j, rot) => {
@@ -5754,7 +6037,10 @@ const Game = {
       if (k === ' ') { e.preventDefault(); this.setSpeed(this.speed === 0 ? 1 : 0); return; }
       if (k === 'enter' && Coaster.active) { Coaster.add(); return; }
       if (k === 'backspace' && Coaster.active) { e.preventDefault(); Coaster.undo(); return; }
-      if (k >= '1' && k <= '9' && !Coaster.active) { const t = TOOLS[+k - 1]; if (t) UI.setTool(t.id); }
+      if (k >= '0' && k <= '9' && !Coaster.active) {
+        const idx = k === '0' ? 9 : +k - 1;
+        const t = TOOLS[idx]; if (t) UI.setTool(t.id);
+      }
       if (k === 'q') Cam.rotateBy(-1);
       if (k === 'e') Cam.rotateBy(1);
       if (k === 'z') Cam.pitch = Cam.pitch > 1.0 ? 0.55 : 1.28;
@@ -5828,7 +6114,7 @@ const Game = {
       case 'delete': this.deleteAt(i, j); break;
       case 'path': if (UI.sub) this.paintPath(i, j); break;
       case 'terrain': this.editTerrain(i, j, e.shiftKey ? -1 : 1, e.ctrlKey); break;
-      case 'shop': case 'ride': case 'scenery': if (UI.sub) this.tryPlace(); break;
+      case 'shop': case 'ride': case 'water': case 'scenery': if (UI.sub) this.tryPlace(); break;
     }
   },
   pickPerson() {
@@ -5906,7 +6192,7 @@ const Game = {
   placementDef() {
     if (!UI.sub) return null;
     if (UI.tool === 'shop') return { kind: 'shop', def: UI.sub };
-    if (UI.tool === 'ride') return { kind: 'ride', def: UI.sub };
+    if (UI.tool === 'ride' || UI.tool === 'water') return { kind: 'ride', def: UI.sub };
     if (UI.tool === 'scenery') return { kind: 'scenery', def: UI.sub };
     return null;
   },
@@ -6058,7 +6344,7 @@ const Game = {
   hire(def) {
     if (Park.money < def.cost) { UI.notify('Out of funds', 'Cannot afford to hire.', 'bad'); return; }
     Park.spend(def.cost);
-    const s = new Staff(def.id, WORLD.wx(N / 2), WORLD.wz(N / 2 + 16));
+    const s = new Staff(def.id, WORLD.wx(N / 2), WORLD.wz(N / 2 + 21));
     Park.staff.push(s);
     UI.notify('Hired', s.name + ' joined the team as a ' + def.name.toLowerCase() + '.', 'good');
     if (UI.tool === 'staff') UI.openBuild('staff');
@@ -6216,6 +6502,59 @@ const Game = {
       case 'balloonride': { const ring = 8; a = ((k % ring) / ring) * TAU + spin; rad = 5.2; y = 7.4 - (1 - h) * 1.6 - 5.0 + .6; break; }
       case 'rapids': { const boats = 5, bi = k % boats; a = Park.now * .55 + bi / boats * TAU; rad = 5.2; y = 2.0; break; }
       case 'haunted': { rad = 6; a = Park.now * .5 + (k / n) * TAU; y = 1.2; break; }
+      // ---- water park ----
+      case 'pool': case 'wavepool': {
+        // bob about in the basin, chest-deep
+        const bw = o.gw * TILE - 4, bd = o.gd * TILE - 4;
+        const seed = k * 2.399963;
+        const px = (Math.cos(seed * 3.1) * .5) * bw + Math.sin(Park.now * .4 + k) * .8;
+        const pz = (Math.sin(seed * 2.7) * .5) * bd + Math.cos(Park.now * .35 + k) * .8;
+        g.x = o.x + px; g.z = o.z + pz;
+        g.y = o.y - 0.28 + Math.sin(Park.now * 1.4 + k) * .06;
+        g.yaw = Math.sin(Park.now * .3 + k) * 1.6; g.roll = 0;
+        g.moving = false; g.state = 'riding'; g.armLift = .35 + Math.sin(Park.now * 2 + k) * .25;
+        return;
+      }
+      case 'kiddie': {
+        const seed = k * 1.618;
+        g.x = o.x + Math.cos(seed * 5.3 + Park.now * .5) * (o.gw * TILE / 2 - 2.2);
+        g.z = o.z + Math.sin(seed * 4.1 + Park.now * .5) * (o.gd * TILE / 2 - 2.2);
+        g.y = o.y + .06; g.yaw = Park.now * .5 + seed; g.roll = 0;
+        g.moving = true; g.anim += .12; g.state = 'riding';
+        return;
+      }
+      case 'hottub': {
+        const a2 = (k / n) * TAU;
+        g.x = o.x + Math.cos(a2) * 1.7; g.z = o.z + Math.sin(a2) * 1.7;
+        g.y = o.y + .25; g.yaw = -a2 + PI; g.roll = 0;
+        g.moving = false; g.state = 'sitting';
+        return;
+      }
+      case 'lazyriver': {
+        const R0 = Math.min(o.gw, o.gd) * TILE / 2 - 1.6;
+        const a2 = (k / n) * TAU + Park.now * .26;
+        g.x = o.x + Math.cos(a2) * R0; g.z = o.z + Math.sin(a2) * R0;
+        g.y = o.y + .10; g.yaw = -a2; g.roll = 0;
+        g.moving = false; g.state = 'sitting';
+        return;
+      }
+      case 'slide': case 'funnel': {
+        // spread the riders down the flume so there is always someone sliding
+        const cfg = Object.assign({ start: 0, steep: false }, o.def.slide);
+        const lanes = cfg.lanes || 1;
+        const cycle = (Park.now * 0.42 + k * 0.83) % 1;
+        const p2 = Prefab.slidePoint(cfg, cycle, k % lanes);
+        const ang = -o.rot * PI / 2;
+        const ca = Math.cos(ang), sa = Math.sin(ang);
+        g.x = o.x + p2.x * ca - p2.z * sa;
+        g.z = o.z + p2.x * sa + p2.z * ca;
+        g.y = o.y + p2.y - .1;
+        g.yaw = -(p2.a + ang) + PI / 2;
+        g.roll = 0;
+        g.moving = false; g.state = 'riding';
+        g.armLift = clamp(1.2 - cycle * 1.4, 0, 1);
+        return;
+      }
     }
     const cx = Math.cos(a) * rad, cz = Math.sin(a) * rad;
     g.x = o.x + cx; g.z = o.z + cz;
@@ -6273,13 +6612,13 @@ const Game = {
   },
   spawnGuest() {
     const c = N >> 1;
-    const x = WORLD.wx(c + rndi(-2, 2)), z = WORLD.wz(c + 20);
+    const x = WORLD.wx(c + rndi(-2, 2)), z = WORLD.wz(c + 25);
     const g = new Guest(x, z);
     if (Park.entryFee > g.cash) return;
     g.cash -= Park.entryFee;
     Park.earn(Park.entryFee, 'entry');
     Park.totalGuests++;
-    const tgt = { x: WORLD.wx(c), z: WORLD.wz(c + 8) };
+    const tgt = { x: WORLD.wx(c), z: WORLD.wz(c + 19) };
     g.goto(tgt.x, tgt.z);
     g.state = 'arriving';
     Park.guests.push(g);
