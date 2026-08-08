@@ -543,6 +543,12 @@ table.tb tr:last-child td{border-bottom:0}
 .mfoot{margin-top:34px;display:flex;gap:10px;justify-content:center}
 .mfoot .btn{flex:0 0 auto;padding:12px 30px;font-size:12.5px}
 
+/* ---------- tutorial spotlight ---------- */
+.tut-glow{position:relative;z-index:601;box-shadow:0 0 0 4px var(--accent),0 0 22px 6px rgba(43,166,236,.85)!important;
+  border-radius:10px;animation:tutPulse 1.3s ease-in-out infinite}
+@keyframes tutPulse{0%,100%{box-shadow:0 0 0 4px var(--accent),0 0 14px 4px rgba(43,166,236,.7)}
+  50%{box-shadow:0 0 0 4px var(--accent2),0 0 26px 10px rgba(35,195,168,.9)}}
+
 /* ---------- objectives ---------- */
 #goals{position:absolute;left:12px;top:64px;width:260px;display:none}
 #goals.show{display:block;animation:slideL var(--sp)}
@@ -707,7 +713,7 @@ table.tb tr:last-child td{border-bottom:0}
 
   <div id="goals" class="panel">
     <div class="hdr"><span class="dot"></span><span id="goalTitle">Objectives</span>
-      <span class="x" data-ic="close" onclick="document.getElementById('goals').classList.remove('show')"></span></div>
+      <span class="x" data-ic="close" onclick="UI.toggleGoals(false)"></span></div>
     <div id="goalBody"></div>
   </div>
 
@@ -1092,7 +1098,7 @@ const FS_MAIN = `
 precision highp float;
 varying vec3 vN, vC, vW; varying vec4 vLS;
 uniform vec3 uSunDir, uSunCol, uSkyCol, uGndCol, uFogCol, uTint;
-uniform float uFogDens, uShadowOn, uAlpha, uEmissive, uTexel;
+uniform float uFogDens, uShadowOn, uAlpha, uEmissive, uTexel, uWet;
 uniform sampler2D uShadow;
 uniform vec3 uEye;
 
@@ -1152,6 +1158,18 @@ void main(){
   float spec = pow(max(dot(N,H),0.0), 36.0) * 0.26 * sh;
   spec += pow(max(dot(N,H),0.0), 6.0) * 0.05 * sh;    // broad sheen
   lit += uSunCol * spec;
+
+  // Wet-weather overlay: rain slicks every upward-facing surface with a
+  // darker, glossier film and a faint reflection of the sky, the same way
+  // real puddles and wet paving do. Scales with Weather's ground-wetness
+  // value and fades out on vertical faces (walls don't pool water).
+  float wetUp = clamp(N.y, 0.0, 1.0);
+  float wetF = uWet * (0.35 + 0.65 * wetUp);
+  lit = mix(lit, lit * 0.74, wetF * 0.55);
+  vec3 wetSky = mix(uGndCol, uSkyCol, 0.85);
+  lit = mix(lit, wetSky, wetF * 0.20 * wetUp);
+  float wetSpec = pow(max(dot(N,H),0.0), 90.0) * wetF * 1.6;
+  lit += uSunCol * wetSpec;
 
   lit = mix(lit, base, uEmissive);
 
@@ -1611,6 +1629,7 @@ Renderer.prototype.useProgram = function (p, depthPass) {
     gl.uniform3fv(p.u.uGndCol, this.gnd);
     gl.uniform3fv(p.u.uFogCol, this.fogCol);
     gl.uniform1f(p.u.uFogDens, this.fogDens);
+    if (p.u.uWet) gl.uniform1f(p.u.uWet, depthPass ? 0 : (this.wet || 0));
     gl.uniform1f(p.u.uShadowOn, depthPass ? 0 : this.shadowOn);
     gl.uniform1f(p.u.uTexel, 1 / this.SHADOW);
     gl.uniform3f(p.u.uEye, this.eye.x, this.eye.y, this.eye.z);
@@ -2219,7 +2238,7 @@ const Land = {
         n++; if (Math.abs(WORLD.tileH(i, j)) < 3.2) flat++;
       }
     const usable = n ? flat / n : 0;
-    const base = 5000 + this.bought * 700;
+    const base = 20000 + this.bought * 2500;
     return Math.round((base * (0.35 + usable * 1.15)) / 100) * 100;
   },
   buy(pi, pj) {
@@ -2327,6 +2346,12 @@ const CAT = {
     { id: 'arcade', name: 'Arcade', cost: 3600, up: 44, w: 3, d: 2, need: 'shop', price: 10, satisfy: 74, color: 0x2b2b45, roof: 0x9b30ff },
     { id: 'nurse', name: 'Medical Post', cost: 1800, up: 28, w: 2, d: 2, need: 'nausea', price: 0, satisfy: 100, color: 0xfafafa, roof: 0x2ecc71 },
     { id: 'babycare', name: 'Baby Care Room', cost: 1500, up: 24, w: 2, d: 2, need: 'toilet', price: 0, satisfy: 100, color: 0xffd7e6, roof: 0x7fbfe0 },
+    { id: 'waffle', name: 'Waffle Wagon', cost: 1050, up: 18, w: 1, d: 1, need: 'hunger', price: 7, satisfy: 56, color: 0xf0a63c, roof: 0x8b5a2b },
+    { id: 'churro', name: 'Churro Cart', cost: 820, up: 14, w: 1, d: 1, need: 'hunger', price: 6, satisfy: 42, color: 0xd9a441, roof: 0xd94f3c },
+    { id: 'lemonade', name: 'Lemonade Stand', cost: 700, up: 12, w: 1, d: 1, need: 'thirst', price: 5, satisfy: 58, color: 0xf7e04a, roof: 0xffffff },
+    { id: 'milkshake', name: 'Milkshake Bar', cost: 1550, up: 24, w: 2, d: 1, need: 'thirst', price: 9, satisfy: 82, color: 0xff9ac1, roof: 0x7ed6df },
+    { id: 'toystore', name: 'Toy Chest', cost: 1900, up: 28, w: 2, d: 2, need: 'shop', price: 16, satisfy: 62, color: 0x4ecdc4, roof: 0xffe66d },
+    { id: 'sunscreen', name: 'Sun & Spray Kiosk', cost: 650, up: 10, w: 1, d: 1, need: 'shop', price: 8, satisfy: 44, color: 0xffd76a, roof: 0x3ba7d4 },
   ],
   /* ---------------- Scenery ---------------- */
   scenery: [
@@ -2425,6 +2450,7 @@ const CAT = {
     { id: 'entertainer', name: 'Entertainer', cost: 380, wage: 26, color: 0xe05fa0 },
     { id: 'security', name: 'Security', cost: 350, wage: 25, color: 0x2f3f5c },
     { id: 'vendor', name: 'Vendor', cost: 330, wage: 24, color: 0x8fd06a },
+    { id: 'restocker', name: 'Restocker', cost: 480, wage: 32, color: 0xd9a441 },
   ],
   /* ---------------- Coaster track styles ---------------- */
   coasterTypes: [
@@ -2499,6 +2525,25 @@ const Prefab = {
     // corner posts
     for (const sx of [-1, 1]) for (const sz of [-1, 1])
       g.box(sx * hw, .18, sz * hd, .34, 3.1, .34, shade(body, .8));
+    // side windows — every shop had blank side walls before; a pair of
+    // glazed panels per long side reads much better up close and from
+    // the queue line waiting beside it.
+    const glass = hex(0xcfe9f5);
+    if (W >= D) {
+      for (const sz of [-1, 1]) {
+        for (const fx of [-.62, .62]) {
+          g.box(fx * hw, 1.55, sz * (hd + .01), .86, 1.25, .05, shade(body, .75));
+          g.box(fx * hw, 1.55, sz * (hd + .05), .8, 1.15, .05, glass);
+        }
+      }
+    } else {
+      for (const sx of [-1, 1]) {
+        for (const fz of [-.62, .62]) {
+          g.box(sx * (hw + .01), 1.55, fz * hd, .05, 1.25, .86, shade(body, .75));
+          g.box(sx * (hw + .05), 1.55, fz * hd, .05, 1.15, .8, glass);
+        }
+      }
+    }
     // hipped roof
     const rh = 1.5, ry = 3.1;
     const p = [[-W / 2, ry, -D / 2], [W / 2, ry, -D / 2], [W / 2, ry, D / 2], [-W / 2, ry, D / 2]];
@@ -4140,6 +4185,40 @@ const BLUEPRINTS = [
    transport so loops, corkscrews and banked helices all work naturally.
    ========================================================================== */
 /* Signed roll of a track frame: 0 = level, positive = banked to the right. */
+/* One small hand-drawn icon per food and drink item, used anywhere a shop's
+   stock needs a face rather than a coloured swatch. */
+const FOOD_SVG = {
+  burger: '<circle cx="12" cy="7" r="6" fill="#e8b25a"/><rect x="6" y="11" width="12" height="2.5" fill="#6b8f3a"/><rect x="6" y="14" width="12" height="3" fill="#8b4a2a"/><path d="M6 17a6 6 0 0 0 12 0z" fill="#e8b25a"/>',
+  pizza: '<path d="M12 3 3 20h18z" fill="#e8b25a"/><path d="M12 3 3 20h18z" fill="none" stroke="#b5651d" stroke-width="1.2"/><circle cx="11" cy="13" r="1.3" fill="#c0392b"/><circle cx="14" cy="16" r="1.1" fill="#c0392b"/><circle cx="9" cy="17" r="1" fill="#c0392b"/>',
+  noodle: '<path d="M4 11a8 8 0 0 0 16 0z" fill="#f5f5f5"/><path d="M4 11h16v2H4z" fill="#e8dfc8"/><path d="M8 11c1-3 2 3 3 0M12 11c1-3 2 3 3 0" stroke="#e8b25a" stroke-width="1.2" fill="none"/><rect x="15" y="2" width="1.4" height="9" fill="#8b5a2b"/><rect x="17" y="2" width="1.4" height="9" fill="#8b5a2b"/>',
+  drink: '<path d="M7 7h10l-1.4 13H8.4z" fill="#3ba7d4"/><rect x="6.5" y="5" width="11" height="2" fill="#dfeef7"/><rect x="10.5" y="1" width="1.4" height="5" fill="#eee"/>',
+  coffee: '<path d="M6 8h11v6a5.5 5.5 0 0 1-11 0z" fill="#6b4630"/><path d="M17 9h2a2 2 0 0 1 0 4h-2z" fill="none" stroke="#6b4630" stroke-width="1.4"/><path d="M6 8h11v2H6z" fill="#a97c50"/>',
+  icecream: '<path d="M8 10h8l-4 11z" fill="#e8b25a"/><circle cx="12" cy="8" r="4.2" fill="#f2a0c0"/><circle cx="9" cy="6" r="3" fill="#fff0b0"/>',
+  donut: '<circle cx="12" cy="12" r="8" fill="#c98550"/><circle cx="12" cy="12" r="3" fill="#f7e8d8"/><path d="M6 9c3 2 9 2 12 0" stroke="#e8749b" stroke-width="2" fill="none"/>',
+  popcorn: '<path d="M7 9h10l-1.5 11h-7z" fill="#e8d24a"/><path d="M7 9h10l.4-2H6.6z" fill="#d94f3c"/><circle cx="9" cy="7" r="1.6" fill="#fff8e0"/><circle cx="12" cy="6" r="1.8" fill="#fff8e0"/><circle cx="15" cy="7" r="1.6" fill="#fff8e0"/>',
+  hotdog: '<rect x="3" y="10" width="18" height="5" rx="2.5" fill="#f5e6c8"/><rect x="4.5" y="11.2" width="15" height="2.6" rx="1.3" fill="#c0392b"/><path d="M6 11.5c2 1 3-1 5 0s3-1 5 0 3-1 4 0" stroke="#e8d24a" stroke-width="1" fill="none"/>',
+  taco: '<path d="M3 15a9 9 0 0 1 18 0z" fill="#e8b25a"/><path d="M4 14c3 2 13 2 16 0" stroke="#6b8f3a" stroke-width="2" fill="none"/><path d="M6 15c2 1 10 1 12 0" stroke="#c0392b" stroke-width="1.6" fill="none"/>',
+  sushi: '<rect x="4" y="9" width="16" height="7" rx="2" fill="#f5f5f5"/><rect x="4" y="9" width="16" height="7" rx="2" fill="none" stroke="#2b3a4a" stroke-width="1.4"/><circle cx="12" cy="12.5" r="2.3" fill="#e8749b"/>',
+  bbq: '<path d="M4 6l7 7-3 3-7-7z" fill="#6b3f2a"/><path d="M13 5l6 6-2 2-6-6z" fill="#8b5a2b"/><circle cx="9" cy="9" r="1" fill="#e8d24a"/>',
+  pretzel: '<path d="M12 4c-5 0-8 3-8 6s2 5 4 3-1-4 2-4 0 5 2 6 6 0 6-3-3-8-6-8z" fill="none" stroke="#b5651d" stroke-width="2.4"/>',
+  smoothie: '<path d="M8 7h8l-1 13H9z" fill="#2ecc71"/><rect x="7.5" y="5" width="9" height="2" fill="#e8f5e0"/><rect x="13" y="1" width="1.4" height="6" transform="rotate(20 13 1)" fill="#eee"/>',
+  tea: '<ellipse cx="12" cy="15" rx="7" ry="3" fill="#8fbf6a"/><path d="M6 8h12l-1 7H7z" fill="#a8d47a"/><path d="M18 10h2a2 2 0 0 1 0 3h-2z" fill="none" stroke="#8fbf6a" stroke-width="1.2"/>',
+  ramen: '<ellipse cx="12" cy="14" rx="9" ry="4" fill="#c0453c"/><ellipse cx="12" cy="12.5" rx="7.5" ry="3" fill="#f7e08a"/><path d="M8 12c1-2 2 2 3 0M13 12c1-2 2 2 3 0" stroke="#c0453c" stroke-width="1" fill="none"/>',
+  crepe: '<path d="M4 18 20 6l-2 12z" fill="#f0c060"/><circle cx="10" cy="14" r="1" fill="#c0392b"/><circle cx="13" cy="12" r="1" fill="#fff"/>',
+  juice: '<path d="M8 4h8l-1 16H9z" fill="#f5843c"/><rect x="7.5" y="2" width="9" height="2" fill="#fbd9b8"/>',
+  water: '<path d="M12 2c4 6 7 10 7 13a7 7 0 0 1-14 0c0-3 3-7 7-13z" fill="#9fb6c4"/><path d="M12 2c4 6 7 10 7 13a7 7 0 0 1-14 0c0-3 3-7 7-13z" fill="none" stroke="#5c7f92" stroke-width="1"/>',
+  waffle: '<rect x="4" y="4" width="16" height="16" rx="2" fill="#f0a63c"/><path d="M4 9h16M4 14h16M9 4v16M14 4v16" stroke="#c07a1e" stroke-width="1.4"/>',
+  churro: '<rect x="10.5" y="3" width="3" height="17" rx="1.5" fill="#d9a441" transform="rotate(6 12 12)"/><path d="M9 6l6 1M9 10l6 1M9 14l6 1" stroke="#b5651d" stroke-width="1"/>',
+  lemonade: '<path d="M7 5h10l-1 15H8z" fill="#f7e04a"/><rect x="6.5" y="3" width="11" height="2" fill="#fdf6d0"/><circle cx="11" cy="9" r="1" fill="#fff"/>',
+  milkshake: '<path d="M8 6h8l-1 15H9z" fill="#ff9ac1"/><rect x="7.5" y="4" width="9" height="2" fill="#ffe0ee"/><rect x="13" y="1" width="1.4" height="6" transform="rotate(15 13 1)" fill="#eee"/>',
+  gift: '<rect x="4" y="10" width="16" height="10" fill="#7b5bd4"/><rect x="4" y="7" width="16" height="3.5" fill="#9b7fe0"/><rect x="10.5" y="7" width="3" height="13" fill="#ffd76a"/>',
+};
+function foodSvg(id) {
+  const p2 = FOOD_SVG[id];
+  if (!p2) return '';
+  return `<svg width="18" height="18" viewBox="0 0 24 24" style="vertical-align:-4px">${p2}</svg>`;
+}
+
 function bankAngle(f, u) {
   const d = f.y;                                  // f · worldUp
   let rx = -f.x * d, ry = 1 - f.y * d, rz = -f.z * d;   // worldUp projected ⊥ f
@@ -4746,13 +4825,18 @@ class ParkObject {
     this._qpStamp = Path.stamp;
     return pts;
   }
-  /* Where the idx-th person in the queue should stand. */
+  /* Where the idx-th person in the queue should stand. Bugfix: this used to
+     extrapolate a straight line past the end of the *built* queue tiles
+     (or, with no queue built at all, straight off the entrance) — which let
+     lines spill onto grass or even under the coaster's own track. Guests now
+     never leave physical queue tiles: once the built queue is full, extra
+     people bunch up in a small cluster right at the last queue tile instead
+     of marching off into open ground. */
   queueSlot(idx) {
     const pts = this.queuePath();
     const e = this.entrance;
     const SPACING = 1.5;
     if (pts.length > 1) {
-      // walk `back` metres along the queue centre line from the entrance
       let want = 2.0 + idx * SPACING;
       for (let k = 1; k < pts.length; k++) {
         const seg = dist(pts[k - 1].x, pts[k - 1].z, pts[k].x, pts[k].z);
@@ -4762,16 +4846,18 @@ class ParkObject {
         }
         want -= seg;
       }
-      // past the end of the built queue: trail off behind the last tile
-      const last = pts[pts.length - 1], prev = pts[Math.max(0, pts.length - 2)];
-      const dx = last.x - prev.x, dz = last.z - prev.z;
-      const l = Math.hypot(dx, dz) || 1;
-      return { x: last.x + dx / l * want, z: last.z + dz / l * want };
+      // Past the end of the built queue: cluster in place on the last tile
+      // rather than trailing off across open ground.
+      const last = pts[pts.length - 1];
+      const ang = (idx * 2.39996) % TAU;                  // golden-angle spiral, tight cluster
+      const rad = Math.min(.9, .18 * Math.sqrt(idx % 12));
+      return { x: last.x + Math.cos(ang) * rad, z: last.z + Math.sin(ang) * rad };
     }
-    // no queue path built: fall back to a line straight out of the entrance
-    const a = -this.rot * PI / 2;
-    const back = 2.2 + idx * SPACING;
-    return { x: e.x + Math.sin(a) * back, z: e.z - Math.cos(a) * back };
+    // No queue tiles built at all: everyone bunches right at the entrance
+    // instead of forming an open-air line on grass.
+    const ang = (idx * 2.39996) % TAU;
+    const rad = Math.min(1.1, .2 * Math.sqrt(idx % 12));
+    return { x: e.x + Math.cos(ang) * rad, z: e.z + Math.sin(ang) * rad };
   }
   updateMatrix() {
     /* Buildings rise out of the ground and settle with a small overshoot, so
@@ -4857,7 +4943,7 @@ class Ride extends ParkObject {
   }
   update(dt) {
     if (this.broken) { return; }
-    this.wear += dt * 0.0009 * (1 + this.ridden * 0.0004);
+    this.wear += dt * 0.00025 * (1 + this.ridden * 0.0004);
     switch (this.state) {
       case 'idle':
         if (!this.openR) break;
@@ -4872,12 +4958,13 @@ class Ride extends ParkObject {
         }
         if (this.timer <= 0) {
           if (this.riders.length === 0) { this.state = 'idle'; this.timer = 3; break; }
-          if (Game.breakdowns !== false && Math.random() > this.reliability - this.wear) { this.breakDown(); break; }
+          if (Game.breakdowns !== false && Math.random() > this.reliability - this.wear * 0.35 + 0.05) { this.breakDown(); break; }
           this.state = 'running'; this.timer = this.dur / Park.rideSpeedup;
           this.spinTarget = 1;
-          Park.money += this.riders.length * this.price;
-          this.revenue += this.riders.length * this.price;
-          Park.log.ticket += this.riders.length * this.price;
+          const _rev = this.riders.length * this.price * Park.moneyMult;
+          Park.money += _rev;
+          this.revenue += _rev;
+          Park.log.ticket += _rev;
           Progress.add(this.riders.length * 2);
         }
         break;
@@ -4893,8 +4980,9 @@ class Ride extends ParkObject {
             if (!g || g.dead) continue;
             g.boardRide(this);
             this.riders.push(g);
-            Park.money += this.price; this.revenue += this.price;
-            Park.log.ticket += this.price; Progress.add(2);
+            const _rev = this.price * Park.moneyMult;
+            Park.money += _rev; this.revenue += _rev;
+            Park.log.ticket += _rev; Progress.add(2);
           }
           for (let k = this.riders.length - 1; k >= 0; k--) {
             const g = this.riders[k];
@@ -5205,6 +5293,17 @@ class CoasterRide extends ParkObject {
     return out;
   }
   spawnTrains(n) {
+    /* Bugfix: guests still aboard the old trains must be released
+       properly (finishRide) before we discard the trains, otherwise
+       they're left orphaned mid-ride with no train to render/update
+       them, causing them to sink into the ground and stay stuck
+       there forever. */
+    for (const t of this.trains) {
+      if (t.riders && t.riders.length) {
+        for (const g of t.riders) g.finishRide(this, true);
+        t.riders.length = 0;
+      }
+    }
     this.trains.length = 0;
     const T = this.type;
     const carLen = 4.2;
@@ -5300,6 +5399,12 @@ const Weather = {
       if (this.flashT <= 0) { this.flashT = rnd(3, 11); this.flash = 1; }
     }
     this.flash = Math.max(0, this.flash - dt * 3.2);
+    /* Ground wetness: builds up fast while it's raining, then dries out
+       slowly afterwards, so puddles/wet-sheen linger a while after a storm
+       passes instead of snapping on and off with the rain itself. */
+    const target = this.rainIntensity();
+    const rate = target > (this.groundWet || 0) ? .35 : .045;
+    this.groundWet = clamp((this.groundWet || 0) + (target - (this.groundWet || 0)) * clamp(dt * rate, 0, 1), 0, 1);
   },
   /* how appealing a water attraction is right now */
   waterAppeal() {
@@ -5351,7 +5456,8 @@ const Park = {
     UI.flashMoney(-n);
     return true;
   },
-  earn(n, cat) { this.money += n; if (cat) this.log[cat] = (this.log[cat] || 0) + n; },
+  moneyMult: 1.1,
+  earn(n, cat) { n *= this.moneyMult; this.money += n; if (cat) this.log[cat] = (this.log[cat] || 0) + n; },
 
   objAt(i, j) {
     const id = WORLD.ownerOf(i, j);
@@ -6552,9 +6658,14 @@ class Guest extends Person {
     if (this.wantAction === 'ride' && t) {
       if (t.broken || t.openR === false || t.price > this.cash) { this.state = 'idle'; return; }
       // Balking: judge the wait, not the head count, and walk away if it is
-      // longer than this guest is prepared to stand for.
+      // longer than this guest is prepared to stand for. Also cap on the
+      // *physical* queue — no more people can usefully be in line than
+      // there are built queue tiles (with a little slack for the entrance
+      // cluster), so a line never balloons past what's actually built.
       const est = this.estimatedWait(t);
-      if (est > this.patience * 1.6 || t.queue.length > 60) {
+      const builtLen = t.queuePath().length;
+      const physCap = builtLen > 1 ? builtLen * 1.4 + 4 : 6;
+      if (est > this.patience * 1.6 || t.queue.length > 60 || t.queue.length >= physCap) {
         this.think('That queue is way too long.');
         this.remember(t, -.12);
         this.state = 'idle';
@@ -6580,9 +6691,17 @@ class Guest extends Person {
     const s = this.target;
     if (!s) { this.state = 'idle'; return; }
     const k = s.queue.indexOf(this); if (k >= 0) s.queue.splice(k, 1);
+    if (s.stock <= 1) {
+      this.happy = clamp(this.happy - .06, 0, 1);
+      this.anger = clamp(this.anger + .08, 0, 1);
+      this.think(s.name + ' is out of stock!', -1);
+      this.state = 'idle';
+      return;
+    }
     if (this.cash >= s.price) {
       this.cash -= s.price; this.spent += s.price;
       Park.earn(s.price, 'shop'); s.revenue += s.price; s.served++;
+      s.stock = clamp(s.stock - (100 / (s.def.stockSize || 65)), 0, 100);
       Progress.add(1);
       const value = s.def.price > 0 ? clamp(1.2 - s.price / (s.def.price * 2.2), 0, 1) : 1;
       const sat = s.def.satisfy * (s.satisfyMul || 1) / 100;
@@ -6707,9 +6826,10 @@ class Staff extends Person {
   }
   applyTraining() {
     const L = this.level;
-    this.speed = 3.4 * (1 + (L - 1) * .22);
+    const m = Park.staffEffMult || 1;
+    this.speed = 3.9 * (1 + (L - 1) * .22) * m;
     this.wage = Math.round(this.def.wage * (1 + (L - 1) * .40));
-    this.workRate = 1 + (L - 1) * .55;      // tasks finish this much faster
+    this.workRate = (1.25 + (L - 1) * .55) * m;      // tasks finish this much faster
     this.skill = 1 + (L - 1) * .5;
   }
   /* Uniform and kit, drawn on top of the shared body rig so staff read as
@@ -6794,7 +6914,7 @@ class Staff extends Person {
         const done = this.followPath(dt);
         if (done) {
           this.state = 'working';
-          this.taskT = (this.role === 'mechanic' ? 6 : 1.6) / (this.workRate || 1);
+          this.taskT = (this.role === 'mechanic' ? 4.5 : 1.6) / (this.workRate || 1);
           this.moving = false;
         }
         break;
@@ -6825,15 +6945,37 @@ class Staff extends Person {
         if (this.goto(this.targetLitter.x, this.targetLitter.z)) { this.state = 'walking'; return; }
       }
     } else if (this.role === 'mechanic') {
-      const broken = Park.needMechanic[0];
-      if (broken) {
-        this.targetRide = broken;
-        const e = broken.entrance;
+      // Smarter dispatch: don't let every mechanic swarm the same broken
+      // ride. Each mechanic checks who else is already en route/working on
+      // a repair and picks the nearest *unclaimed* broken ride instead, so
+      // the crew spreads out across the park automatically.
+      const claimed = new Set();
+      for (const s of Park.staff) {
+        if (s !== this && s.role === 'mechanic' && s.targetRide && (s.state === 'walking' || s.state === 'working')) claimed.add(s.targetRide);
+      }
+      let best = null, bd = 1e9;
+      for (const r of Park.needMechanic) {
+        if (claimed.has(r)) continue;
+        const d = dist2(this.x, this.z, r.entrance.x, r.entrance.z);
+        if (d < bd) { bd = d; best = r; }
+      }
+      // If every broken ride already has a mechanic assigned, don't just
+      // idle — pile onto the closest one anyway so repairs never stall.
+      if (!best && Park.needMechanic.length) {
+        bd = 1e9;
+        for (const r of Park.needMechanic) {
+          const d = dist2(this.x, this.z, r.entrance.x, r.entrance.z);
+          if (d < bd) { bd = d; best = r; }
+        }
+      }
+      if (best) {
+        this.targetRide = best;
+        const e = best.entrance;
         if (this.goto(e.x, e.z)) { this.state = 'walking'; return; }
       }
-      // otherwise inspect the most worn ride
+      // otherwise inspect the most worn ride that isn't already being tended
       let worst = null, w = .18;
-      for (const o of Park.objects) if (o.kind === 'ride' && o.wear > w) { w = o.wear; worst = o; }
+      for (const o of Park.objects) if (o.kind === 'ride' && o.wear > w && !claimed.has(o)) { w = o.wear; worst = o; }
       if (worst) { this.targetRide = worst; const e = worst.entrance; if (this.goto(e.x, e.z)) { this.state = 'walking'; return; } }
     } else if (this.role === 'entertainer') {
       // walk to the busiest queue and cheer people up
@@ -6887,6 +7029,7 @@ const TOOLS = [
   { id: 'decor', ic: 'sparkle', t: 'Decor', k: 'y' },
   { id: 'staff', ic: 'staff', t: 'Staff', k: '8' },
   { id: 'terrain', ic: 'terrain', t: 'Terrain', k: '9' },
+  { id: 'research', ic: 'flask', t: 'Research', k: 'r' },
   { id: 'delete', ic: 'demolish', t: 'Demolish', k: '0' },
 ];
 
@@ -6895,11 +7038,19 @@ const UI = {
   sub: null,          // selected catalogue item
   rot: 0,
   notes: [],
+  goalsUserHidden: localStorage.getItem('pc_goalsHidden') === '1',
+
+  toggleGoals(force) {
+    const show = force !== undefined ? force : !$('#goals').classList.contains('show');
+    $('#goals').classList.toggle('show', show);
+    this.goalsUserHidden = !show;
+    localStorage.setItem('pc_goalsHidden', this.goalsUserHidden ? '1' : '0');
+  },
 
   init() {
     const tb = $('#toolbar');
     for (const t of TOOLS) {
-      const d = el('div', 'tool', `${ICON[t.ic]}<span class="t">${t.t}</span><span class="key">${t.k}</span>`);
+      const d = el('div', 'tool', `${ICON[t.ic] || ''}<span class="t">${t.t}</span><span class="key">${t.k}</span>`);
       d.onclick = () => this.setTool(t.id);
       d.dataset.id = t.id;
       tb.appendChild(d);
@@ -6922,7 +7073,7 @@ const UI = {
     $('#mContinue').onclick = () => Menu.continueGame();
     $('#mBack').onclick = () => Menu.back();
     $('#mHelp').onclick = () => { Menu.hide(); this.help(); };
-    $('#btnGoals').onclick = () => $('#goals').classList.toggle('show');
+    $('#btnGoals').onclick = () => this.toggleGoals();
     $('#btnSettings').onclick = () => { Audio.resume(); this.settings(); };
     $('#btnOpen').onclick = () => Game.setParkOpen(!Park.open);
     $('#btnMenu').onclick = () => UI.confirmMenu();
@@ -6939,6 +7090,10 @@ const UI = {
     this.refreshTools();
   },
   setTool(id) {
+    if (id === 'research' && Park.mode === 'career' && Park.level < 5) {
+      UI.notify('Locked', 'The Research tab unlocks at park level 5. Keep growing your park.', 'warn');
+      return;
+    }
     if (Coaster.active && id !== 'coaster') Coaster.exit();
     this.tool = id; this.sub = null;
     this.refreshTools();
@@ -6955,7 +7110,7 @@ const UI = {
     const p = $('#buildPanel'), b = $('#bpBody');
     p.classList.add('show');
     b.innerHTML = '';
-    const title = { path: 'Paths & Queues', coaster: 'Roller Coasters', ride: 'Flat Rides', water: 'Water Park', shop: 'Shops & Facilities', scenery: 'Scenery', staff: 'Hire Staff' }[id] || 'Build';
+    const title = { path: 'Paths & Queues', coaster: 'Roller Coasters', ride: 'Flat Rides', water: 'Water Park', shop: 'Shops & Facilities', scenery: 'Scenery', decor: 'Themed Decor', staff: 'Hire Staff', research: 'Research & Development' }[id] || 'Build';
     $('#bpTitle').textContent = title;
 
     const addGrid = (label, items, cls, render, onPick, lockFn) => {
@@ -7058,6 +7213,15 @@ const UI = {
       addGrid('Park Furniture', CAT.scenery.filter(x => ['bench', 'bin', 'lamp', 'speaker', 'lights', 'banner', 'campfire'].includes(x.kind)), 'grid2', cr, (it, d) => this.pick(it, d));
       addGrid('Feature Pieces', CAT.scenery.filter(x => !['tree', 'pine', 'palm', 'flower', 'hedge', 'maze', 'pond', 'rockarch', 'bench', 'bin', 'lamp', 'speaker', 'lights', 'banner', 'campfire'].includes(x.kind)), 'grid2', cr, (it, d) => this.pick(it, d));
     }
+    else if (id === 'decor') {
+      const cr = it => `<img class="th" src="${Thumbs.scenery(it)}" alt=""><span class="n">${it.name}</span>${cost(it.cost)}`;
+      b.appendChild(el('div', '', `<div style="font-size:11px;color:var(--dim);line-height:1.55;padding:0 3px 6px">
+        Themed sets — towers, archways, statues, signs and more, each restyled to match a park
+        theme. Mix pieces from one set to theme a whole area.</div>`));
+      for (const gk of Object.keys(GENRES)) {
+        addGrid(GENRES[gk].n, CAT.scenery.filter(x => x.decor && x.genre === gk), 'grid2', cr, (it, d) => this.pick(it, d));
+      }
+    }
     else if (id === 'staff') {
       addGrid('Hire', CAT.staff, 'grid2',
         it => `<img class="th" src="${Thumbs.staff(it)}" alt=""><span class="n">${it.name}</span>${cost(it.cost)}<span class="c" style="color:var(--dim)">${money(it.wage)}/hr</span>`,
@@ -7072,6 +7236,31 @@ const UI = {
         list.appendChild(row);
       }
       b.appendChild(list);
+    }
+    else if (id === 'research') {
+      const cats = [...new Set(RESEARCH.map(r => r.cat))];
+      for (const catName of cats) {
+        b.appendChild(el('div', 'cat', catName));
+        const g = el('div', 'grid2');
+        for (const r of RESEARCH.filter(x => x.cat === catName)) {
+          const owned = !!Park.research.unlocked[r.id];
+          const lockedByReq = r.req && !Park.research.unlocked[r.req];
+          const reqName = r.req ? (RESEARCH.find(x => x.id === r.req) || {}).name : null;
+          const d = el('div', 'item' + ((lockedByReq && !owned) ? ' locked' : '') + (owned ? ' on' : ''),
+            `${ICON.flask}<span class="n">${r.name}</span>` +
+            `<span class="c" style="color:var(--dim);font-size:9px;line-height:1.4">${r.desc}</span>` +
+            (owned ? `<span class="c" style="color:var(--good)">Researched</span>`
+              : lockedByReq ? `<span class="c" style="color:var(--warn)">Requires ${reqName}</span>`
+              : `<span class="c">${money(r.cost)}</span>`));
+          d.onclick = () => { if (!owned && !lockedByReq) Research.buy(r.id); };
+          g.appendChild(d);
+        }
+        b.appendChild(g);
+      }
+      b.appendChild(el('div', 'cat', 'About Research'));
+      b.appendChild(el('div', '', `<div style="font-size:11px;color:var(--dim);line-height:1.55;padding:0 3px">
+        Spend cash to permanently improve how your park runs — track engineering, marketing reach,
+        finance and staff training. Some upgrades require an earlier one in the same branch first.</div>`));
     }
   },
   pick(it, d) {
@@ -7389,6 +7578,8 @@ const UI = {
         h += swatch('Spine &amp; supports', 'spine', L.spine !== undefined ? L.spine : o.type.spine);
         h += swatch('Cross ties', 'tie', L.tie !== undefined ? L.tie : o.type.tie);
         h += swatch('Trains', 'car', L.car !== undefined ? L.car : o.type.carColor);
+        h += swatch('Station banner', 'banner', L.banner !== undefined ? L.banner : 0x2f3b52);
+        h += swatch('Banner lettering', 'bannerText', L.bannerText !== undefined ? L.bannerText : 0xffd76a);
         h += `<div class="btnrow"><button class="btn" style="flex:0 0 auto;padding:8px 18px"
           onclick="UI.resetLivery(${id})">Back to the factory colours</button>
           <button class="btn" style="flex:0 0 auto;padding:8px 18px"
@@ -7503,10 +7694,23 @@ const UI = {
       if (!mech) h += `<p style="color:var(--bad)">No mechanic on the payroll. When this breaks down it stays broken.</p>`;
       if (o.broken) h += `<p style="color:var(--bad)">Broken down right now and waiting for a mechanic.</p>`;
       if (isShop) {
-        h += kv('Stock', Math.round(o.stock) + '%');
-        const vend = Park.staff.filter(s => s.role === 'vendor').length;
-        h += kv('Vendors employed', vend);
-        if (!vend) h += `<p>Without a vendor this shop restocks slowly and will run dry at peak times.</p>`;
+        const stockCol = o.stock < 20 ? 'var(--bad)' : o.stock < 50 ? 'var(--warn)' : 'var(--good)';
+        h += `<div class="row"><label>Stock</label>
+          <span class="bar" style="height:9px"><span class="fill" style="width:${o.stock}%;background:${stockCol}"></span></span>
+          <span class="num">${Math.round(o.stock)}%</span></div>`;
+        if (o.truck) {
+          const pct = Math.round(clamp(o.truck.t / o.truck.dur, 0, 1) * 100);
+          h += `<p>${foodSvg(o.def.id)}<b style="margin-left:6px">Truck en route</b> &mdash; ${pct}% of the way.</p>`;
+        } else {
+          h += `<div class="btnrow"><button class="btn go" style="flex:0 0 auto;padding:7px 16px"
+            onclick="Game.orderRestock(${id});UI.manage(${id},'ops')">
+            ${foodSvg(o.def.id)} Order restock &mdash; ${money(Game.restockCost(o))}</button></div>`;
+        }
+        const restockers = Park.staff.filter(s => s.role === 'restocker').length;
+        h += kv('Restockers employed', restockers);
+        if (!restockers) h += `<p>Without a restocker on the payroll you have to reorder every delivery by hand.</p>`;
+        else h += `<p>A restocker watches every shop and reorders automatically once stock drops low, and gets
+          trucks here faster.</p>`;
       }
     }
 
@@ -7716,7 +7920,7 @@ const UI = {
     const o = Park.objects.find(x => x.id === id) || Park.coasters.find(x => x.id === id);
     if (!o) return;
     o.livery = o.kind === 'coaster'
-      ? { rail: o.type.rail, spine: o.type.spine, tie: o.type.tie, car: o.type.carColor }
+      ? { rail: o.type.rail, spine: o.type.spine, tie: o.type.tie, car: o.type.carColor, banner: 0x2f3b52, bannerText: 0xffd76a }
       : {};
     if (o.repaint) o.repaint(); else PF.recolour(o);
     this.manage(id, 'look');
@@ -7725,7 +7929,7 @@ const UI = {
     const o = Park.objects.find(x => x.id === id) || Park.coasters.find(x => x.id === id);
     if (!o) return;
     const r = () => Math.round(Math.random() * 0xffffff);
-    o.livery = o.kind === 'coaster' ? { rail: r(), spine: r(), tie: r(), car: r() } : { main: r(), roof: r() };
+    o.livery = o.kind === 'coaster' ? { rail: r(), spine: r(), tie: r(), car: r(), banner: r(), bannerText: r() } : { main: r(), roof: r() };
     if (o.repaint) o.repaint(); else PF.recolour(o);
     this.manage(id, 'look');
   },
@@ -8103,6 +8307,9 @@ const UI = {
         'Rides wear out and need a mechanic. Turn off for a quieter build.');
       h += row('Autosave', check(Game.autosaveOn !== false, 'Game.autosaveOn=this.checked'),
         'Writes to browser storage every two minutes.');
+      h += `<h3>Help</h3>`;
+      h += row('Tutorial', `<button class="btn" style="flex:0 0 auto;padding:6px 16px" onclick="UI.closeModal();Tutorial.start()">Replay tutorial</button>`,
+        'Walks through paths, rides, staff and the objectives panel again.');
     }
     else if (T === 'sound') {
       h += `<h3>Volume</h3>`;
@@ -8650,9 +8857,12 @@ const Coaster = {
       g.box(0, 5.3, 0, W + 3, .5, D + 2.5, hex(T.rail));
       g.box(0, 5.8, 0, W + 2.4, .3, D + 2.0, hex(0xf0e6d2));
     }
-    // name board, same on every style
-    g.box(0, 6.1, -D / 2 - .8, W, 1.4, .4, hex(0x2f3b52));
-    g.box(0, 6.3, -D / 2 - 1.0, W - 1.4, .9, .12, hex(0xffd76a));
+    // name board, same on every style — colour follows the banner livery
+    const L = c.livery || {};
+    const boardCol = L.banner !== undefined ? L.banner : 0x2f3b52;
+    const lettCol = L.bannerText !== undefined ? L.bannerText : 0xffd76a;
+    g.box(0, 6.1, -D / 2 - .8, W, 1.4, .4, hex(boardCol));
+    g.box(0, 6.3, -D / 2 - 1.0, W - 1.4, .9, .12, hex(lettCol));
     // rails through the station
     for (const sx of [-1.25, 1.25]) g.box(sx, 1.05, 0, .34, .34, D + 2, hex(T.rail));
     g.box(0, .7, 0, .8, .35, D + 2, hex(T.spine));
@@ -9553,7 +9763,24 @@ const Coaster = {
       const h = dt / steps;
       for (let s = 0; s < steps; s++) {
         const sm = t.sampleAt(tr.d);
-        if (!sm) break;
+        if (!sm) {
+          /* Bugfix: track samples can briefly be unavailable (e.g. right
+             after an edit rebuilds the geometry). Previously this just
+             `break`-ed out of the physics step forever with no way to
+             recover, which is what caused trains to freeze in place on
+             the track permanently. Now we count how long we've been
+             stalled and, if it goes on too long, recover the train back
+             into the station instead of leaving it stuck forever. */
+          tr._stallFrames = (tr._stallFrames || 0) + 1;
+          if (tr._stallFrames > 240) {
+            for (const g of tr.riders) g.finishRide(c, true);
+            tr.riders.length = 0;
+            tr.d = 0; tr.v = 0; tr.state = 'station'; tr.timer = 3;
+            tr._stallFrames = 0;
+          }
+          break;
+        }
+        tr._stallFrames = 0;
         tr.sm = sm;
         if (tr.d > t.length - 30) {
           tr.v = damp(tr.v, 5.0, 3, h);              // powered approach into the station
@@ -9585,13 +9812,14 @@ const Coaster = {
           // unload
           for (const g of tr.riders) g.finishRide(c);
           c.ridden += tr.riders.length;
-          Park.money += tr.riders.length * c.price;
-          c.revenue += tr.riders.length * c.price;
-          Park.log.ticket += tr.riders.length * c.price;
+          const _rev = tr.riders.length * c.price * Park.moneyMult;
+          Park.money += _rev;
+          c.revenue += _rev;
+          Park.log.ticket += _rev;
           Progress.add(tr.riders.length * 3);
           tr.riders.length = 0;
-          c.wear += .004;
-          if (c.openR && Math.random() > c.reliability - c.wear) {
+          c.wear += .0015 * (Park.wearMult !== undefined ? Park.wearMult : 1);
+          if (c.openR && Math.random() > c.reliability - c.wear * 0.35 + 0.05 - (Park.relBonus || 0)) {
             c.broken = true; c.state = 'broken';
             Park.needMechanic.push(c);
             UI.notify('Breakdown!', c.name + ' has broken down — send a mechanic.', 'bad');
@@ -10094,6 +10322,7 @@ const ICON = (() => {
     tilt: w('<path d="M3 15l9-5 9 5-9 5z"/><path d="M12 10V4"/><path d="M9.5 6.5L12 4l2.5 2.5"/>'),
     blueprint: w('<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M8 9v11"/><path d="M11.5 13.5c2-2.5 3.5 2 5.5-.5"/>'),
     water: w('<path d="M3 16.5c2-2 3.4 2 5.4 0s3.4 2 5.4 0 3.4 2 5.4 0"/><path d="M3 20.5c2-2 3.4 2 5.4 0s3.4 2 5.4 0 3.4 2 5.4 0"/><path d="M8 12.5V6a3 3 0 016 0v.5"/><path d="M8 9h4"/>'),
+    sparkle: w('<path d="M12 3l1.4 5.6L19 10l-5.6 1.4L12 17l-1.4-5.6L5 10l5.6-1.4z"/><path d="M19 3l.6 2.4L22 6l-2.4.6L19 9l-.6-2.4L16 6l2.4-.6z" opacity=".7"/><path d="M5 15l.5 2 2 .5-2 .5-.5 2-.5-2-2-.5 2-.5z" opacity=".7"/>'),
   };
 })();
 
@@ -10160,6 +10389,60 @@ const SCENARIOS = [
   },
 ];
 
+/* ============================================================================
+   RESEARCH TREE — unlocked once the park reaches level 5. Spend cash to
+   permanently improve how the park runs. Each node can depend on an
+   earlier one (req) so the tree has some shape instead of being a flat list.
+   ========================================================================== */
+const RESEARCH = [
+  { id: 'railAlloys', name: 'Advanced Rail Alloys', cat: 'Engineering', cost: 8000,
+    desc: 'Lighter, tougher track sections wear out 20% slower.',
+    apply: () => { Park.wearMult = (Park.wearMult === undefined ? 1 : Park.wearMult) * .8; } },
+  { id: 'bearings', name: 'Precision Bearings', cat: 'Engineering', cost: 14000, req: 'railAlloys',
+    desc: 'Smoother running gear lifts baseline reliability on every coaster.',
+    apply: () => { Park.relBonus = (Park.relBonus || 0) + .08; } },
+  { id: 'reinforce', name: 'Structural Reinforcement', cat: 'Engineering', cost: 18000, req: 'bearings',
+    desc: 'Reinforced supports cut breakdown chance further still.',
+    apply: () => { Park.wearMult = (Park.wearMult === undefined ? 1 : Park.wearMult) * .85; } },
+  { id: 'targetedAds', name: 'Targeted Marketing', cat: 'Marketing', cost: 9000,
+    desc: 'Every dollar of marketing spend pulls in 10% more visitors.',
+    apply: () => { Park.marketingMult = (Park.marketingMult || 1) * 1.1; } },
+  { id: 'brandDeals', name: 'Brand Partnerships', cat: 'Marketing', cost: 15000, req: 'targetedAds',
+    desc: 'Sponsorships push marketing effectiveness up another 12%.',
+    apply: () => { Park.marketingMult = (Park.marketingMult || 1) * 1.12; } },
+  { id: 'operations', name: 'Efficient Operations', cat: 'Finance', cost: 12000,
+    desc: 'Streamlined bookkeeping raises revenue from every ticket and sale by 5%.',
+    apply: () => { Park.moneyMult *= 1.05; } },
+  { id: 'bulkBuy', name: 'Bulk Purchasing', cat: 'Finance', cost: 16000, req: 'operations',
+    desc: 'Supplier contracts trim running costs, adding another 5% to net revenue.',
+    apply: () => { Park.moneyMult *= 1.05; } },
+  { id: 'training', name: 'Guest Services Training', cat: 'Staff', cost: 10000,
+    desc: 'Better-trained staff clean, fix and serve 15% faster.',
+    apply: () => { Park.staffEffMult = (Park.staffEffMult || 1) * 1.15; } },
+  { id: 'wellness', name: 'Guest Comfort Studies', cat: 'Staff', cost: 13000, req: 'training',
+    desc: 'Small comfort touches raise overall guest happiness a little.',
+    apply: () => { Park.happyBonus = (Park.happyBonus || 0) + .03; } },
+];
+const Research = {
+  canBuy(r) {
+    if (Park.research.unlocked[r.id]) return false;
+    if (r.req && !Park.research.unlocked[r.req]) return false;
+    return true;
+  },
+  buy(id) {
+    const r = RESEARCH.find(x => x.id === id);
+    if (!r || !this.canBuy(r)) return false;
+    if (Park.money < r.cost) { UI.notify('Too expensive', r.name + ' costs ' + money(r.cost) + '.', 'bad'); return false; }
+    Park.spend(r.cost);
+    Park.research.unlocked[id] = true;
+    r.apply();
+    if (Park.staff) for (const s of Park.staff) if (s.applyTraining) s.applyTraining();
+    UI.notify('Research complete', r.name + ' — ' + r.desc, 'good');
+    UI.refreshBuildPanel();
+    return true;
+  },
+};
+
 /* Content is gated by park level in career. Tiers are derived from price so
    every catalogue entry is covered without hand-tagging hundreds of items. */
 const Progress = {
@@ -10205,6 +10488,52 @@ const Progress = {
   pieceUnlocked(def) { return Park.mode === 'sandbox' || this.tierOf(def) <= Park.level + 1; },
 };
 
+const Achievements = {
+  list: [
+    { id: 'firstGuest', label: 'Open for Business', desc: 'Welcome your first guest.', reward: 500, check: () => Park.totalGuests >= 1 },
+    { id: 'guests50', label: 'Growing Crowd', desc: 'Have 50 guests in the park at once.', reward: 1000, check: () => Park.guests.length >= 50 },
+    { id: 'guests150', label: 'Packed Park', desc: 'Have 150 guests in the park at once.', reward: 2500, check: () => Park.guests.length >= 150 },
+    { id: 'guestsAll1000', label: 'Local Legend', desc: '1,000 guests all-time.', reward: 2000, check: () => Park.totalGuests >= 1000 },
+    { id: 'guestsAll5000', label: 'Household Name', desc: '5,000 guests all-time.', reward: 6000, check: () => Park.totalGuests >= 5000 },
+    { id: 'coaster1', label: 'First Coaster', desc: 'Open your first roller coaster.', reward: 750, check: () => Park.coasters.some(c => c.openR) },
+    { id: 'coaster5', label: 'Coaster Collection', desc: 'Have 5 coasters open at once.', reward: 3000, check: () => Park.coasters.filter(c => c.openR).length >= 5 },
+    { id: 'rating400', label: 'Rising Reputation', desc: 'Reach a park rating of 400.', reward: 1500, check: () => Park.rating >= 400 },
+    { id: 'rating700', label: 'Five-Star Park', desc: 'Reach a park rating of 700.', reward: 4000, check: () => Park.rating >= 700 },
+    { id: 'staff8', label: 'Fully Staffed', desc: 'Employ 8 members of staff at once.', reward: 1200, check: () => Park.staff.length >= 8 },
+    { id: 'lifetime25k', label: 'Small Business', desc: 'Earn $25,000 in lifetime revenue.', reward: 1500, check: () => (Park.log.ticket + Park.log.shop + Park.log.entry) >= 25000 },
+    { id: 'lifetime100k', label: 'Big Business', desc: 'Earn $100,000 in lifetime revenue.', reward: 5000, check: () => (Park.log.ticket + Park.log.shop + Park.log.entry) >= 100000 },
+    { id: 'lifetime500k', label: 'Theme Park Tycoon', desc: 'Earn $500,000 in lifetime revenue.', reward: 15000, check: () => (Park.log.ticket + Park.log.shop + Park.log.entry) >= 500000 },
+    { id: 'excitement10', label: 'Thrill Engineer', desc: 'Build a coaster with excitement rated 10 or higher.', reward: 3500, check: () => Park.coasters.some(c => c.excitement >= 10) },
+    { id: 'zeroLitter', label: 'Spotless', desc: 'Have 40+ guests in the park with no litter on the ground.', reward: 1000, check: () => Park.guests.length >= 40 && Park.litter.length === 0 },
+    { id: 'levelMax', label: 'Master Operator', desc: 'Reach the maximum park level.', reward: 8000, check: () => Park.mode === 'career' && Park.level >= Progress.MAXLEVEL },
+    { id: 'shops10', label: 'Retail Row', desc: 'Have 10 shops and facilities open at once.', reward: 2000, check: () => Park.objects.filter(o => o.kind === 'shop').length >= 10 },
+    { id: 'noBreakdowns', label: 'Well Oiled Machine', desc: 'Keep 5+ open rides running with none currently broken.', reward: 1800, check: () => { const r = Park.objects.filter(o => o.kind === 'ride' && o.openR); return r.length >= 5 && r.every(o => !o.broken) && Park.coasters.filter(c => c.openR).every(c => !c.broken); } },
+  ],
+  unlocked: [],
+  update() {
+    for (const a of this.list) {
+      if (this.unlocked.includes(a.id)) continue;
+      if (a.check()) {
+        this.unlocked.push(a.id);
+        Park.money += a.reward;
+        UI.notify('Achievement unlocked', a.label + ' \u2014 bonus ' + money(a.reward) + '.', 'money');
+        if (typeof Audio !== 'undefined' && Audio.play) Audio.play('complete');
+      }
+    }
+  },
+  render() {
+    let h = `<div class="goal" style="border:none;padding-top:10px"><div class="gl"><span><b>Achievements</b></span>
+      <b>${this.unlocked.length}/${this.list.length}</b></div></div>`;
+    for (const a of this.list) {
+      const done = this.unlocked.includes(a.id);
+      h += `<div class="goal ${done ? 'done' : ''}">
+        <div class="gl"><span>${done ? '\u2713 ' : ''}${a.label}</span><b>${money(a.reward)}</b></div>
+        <div style="font-size:11px;color:var(--dim);margin-top:2px">${a.desc}</div></div>`;
+    }
+    return h;
+  }
+};
+
 const Goals = {
   active: null,
   won: false,
@@ -10226,11 +10555,11 @@ const Goals = {
   start(sc) {
     this.active = sc ? JSON.parse(JSON.stringify(sc)) : null;
     this.won = false;
-    if (this.active) this.active.goals.forEach(g => g.done = false);
+    if (this.active) { this.active.goals.forEach(g => g.done = false); UI.goalsUserHidden = false; }
     this.render();
   },
   update() {
-    if (!this.active || this.won) return;
+    if (!this.active || this.won) { this.render(); return; }
     let all = true;
     for (const g of this.active.goals) {
       const v = this.value(g.k);
@@ -10247,11 +10576,10 @@ const Goals = {
   render() {
     const panel = document.getElementById('goals');
     if (!panel) return;
-    if (!this.active) {
-      // sandbox still shows the level bar so the panel is never empty
-      if (Park.mode === 'sandbox') { panel.classList.remove('show'); return; }
-    }
-    panel.classList.add('show');
+    // Only auto-open when the user hasn't deliberately hidden it - the
+    // panel used to force itself back open every few seconds whenever a
+    // scenario was active, which made it impossible to actually dismiss.
+    if (this.active && !UI.goalsUserHidden) panel.classList.add('show');
     document.getElementById('goalTitle').textContent = this.active ? this.active.name : 'Park';
     let h = '';
     if (this.active) {
@@ -10271,6 +10599,7 @@ const Goals = {
       h += `<div class="goal lvlbar"><div class="gl"><span>Park level</span><b>${Park.level}${Park.level >= Progress.MAXLEVEL ? ' (max)' : ''}</b></div>
         <div class="gp"><div class="gf" style="width:${pct}%;background:linear-gradient(90deg,#c99a2a,var(--gold))"></div></div></div>`;
     }
+    h += Achievements.render();
     document.getElementById('goalBody').innerHTML = h;
   },
   victory() {
@@ -10299,6 +10628,68 @@ const Goals = {
    on the showcase coaster, the front-seat camera rides it down, and as it
    bottoms out the picture cuts to black and the titles come up.
    ========================================================================== */
+const Tutorial = {
+  steps: [
+    { title: 'Welcome to your park!', body: `This quick tour covers the essentials in a couple of minutes. Use
+      <b>Next</b> to continue, or <b>Skip Tutorial</b> at any time to jump right in.`, sel: null },
+    { title: 'Lay paths first', body: `Guests can only walk on <b>walkways</b>. Open the <b>Paths</b> tool, drag out a
+      route from the entrance, and branch off toward wherever you plan to build. Queue lines connect a walkway to a
+      ride entrance so guests can line up.`, sel: '.tool[data-id="path"]' },
+    { title: 'Build rides and coasters', body: `The <b>Coasters</b> tool has ready-made blueprints for a one-click
+      build, or you can lay track piece by piece yourself. <b>Rides</b> and <b>Water</b> cover flat rides and water
+      attractions — mix gentle and thrilling ones to please every guest.`, sel: '.tool[data-id="coaster"]' },
+    { title: 'Feed and shelter your guests', body: `<b>Shops</b> sell food, drink and souvenirs — guests get hungry,
+      thirsty and need restrooms, so spread facilities around the park, not just near the entrance.`, sel: '.tool[data-id="shop"]' },
+    { title: 'Theme it with scenery and decor', body: `<b>Scenery</b> covers trees, benches and landmark pieces.
+      <b>Decor</b> has 12 full theme sets — pick one and use it consistently around a ride to make an area feel
+      designed rather than scattered.`, sel: '.tool[data-id="decor"]' },
+    { title: 'Hire staff', body: `<b>Janitors</b> clear litter, <b>mechanics</b> repair breakdowns, <b>entertainers</b>
+      keep queues happy, and <b>security</b> deters trouble. A park with no mechanic stays broken when a ride fails —
+      hire one early.`, sel: '.tool[data-id="staff"]' },
+    { title: 'Watch your finances', body: `The <b>Park Management</b> panel breaks down income, wages and upkeep so
+      you can see whether you're actually profitable. If money runs low, raise ticket prices or trim upkeep before
+      taking a loan.`, sel: '#btnFin' },
+    { title: 'Track your objectives', body: `The <b>Objectives</b> panel shows your current brief's goals, your park
+      level, and an <b>Achievements</b> list that pays out a cash bonus the first time you hit each milestone. Toggle
+      it open or closed any time — your choice is remembered.`, sel: '#btnGoals' },
+    { title: 'You\'re ready', body: `That covers the basics — everything else you'll pick up by building. Have fun!
+      You can replay this tour any time from <b>Settings</b>.`, sel: null },
+  ],
+  idx: 0,
+  active: false,
+  ask() {
+    UI.modal('Start with a tutorial?', `<p>New to the game, or just want a refresher? A short walkthrough can
+      point out the essentials — paths, rides, staff, and where to check on your park.</p>`, [
+      { label: 'Skip Tutorial', cls: '', fn: 'Tutorial.decline()' },
+      { label: 'Yes, show me', cls: 'pri', fn: 'Tutorial.start()' },
+    ]);
+  },
+  decline() { UI.closeModal(); },
+  start() {
+    this.idx = 0; this.active = true;
+    this.render();
+  },
+  render() {
+    this._clearGlow();
+    const s = this.steps[this.idx];
+    if (s.sel) { const e = document.querySelector(s.sel); if (e) e.classList.add('tut-glow'); }
+    const last = this.idx === this.steps.length - 1;
+    const buttons = [];
+    if (this.idx > 0) buttons.push({ label: 'Back', cls: '', fn: 'Tutorial.back()' });
+    buttons.push({ label: 'Skip Tutorial', cls: '', fn: 'Tutorial.finish()' });
+    buttons.push({ label: last ? 'Finish' : 'Next', cls: 'pri', fn: last ? 'Tutorial.finish()' : 'Tutorial.next()' });
+    UI.modal(`${s.title} (${this.idx + 1}/${this.steps.length})`, `<p style="line-height:1.6">${s.body}</p>`, buttons);
+  },
+  next() { if (this.idx < this.steps.length - 1) { this.idx++; this.render(); } else this.finish(); },
+  back() { if (this.idx > 0) { this.idx--; this.render(); } },
+  _clearGlow() { document.querySelectorAll('.tut-glow').forEach(e => e.classList.remove('tut-glow')); },
+  finish() {
+    this.active = false;
+    this._clearGlow();
+    UI.closeModal();
+  },
+};
+
 const Intro = {
   playing: false, t: 0, phase: '', done: false,
   el() { return document.getElementById('intro'); },
@@ -10545,6 +10936,7 @@ const Menu = {
     WORLD.mapKind = this.chosenMap || 'meadow';
     Game.newGame(mode, scIndex >= 0 ? SCENARIOS[scIndex] : null);
     this.hide();
+    setTimeout(() => Tutorial.ask(), 500);
   },
   continueGame() {
     if (document.getElementById('mContinue').classList.contains('off')) return;
@@ -10610,7 +11002,7 @@ const Game = {
     Park.hist.length = 0; Park.awards.length = 0;
     Park.log = { ticket: 0, shop: 0, entry: 0, wage: 0, upkeep: 0, build: 0, marketing: 0, interest: 0 };
     Finance.reset(); Marketing.active.length = 0; Thoughts.clear();
-    Park.totalGuests = 0; Park.coasterCount = 0; Park.rating = 0; Park.happiness = .75;
+    Park.totalGuests = 0; Park.coasterCount = 0; Park.rating = 0; Park.happiness = .75; Achievements.unlocked = [];
     Park.time = 9 * 60; Park.day = 1; Park.now = 0;
     Park.open = false; Park.openedOn = 0;
     document.body.classList.toggle('parkclosed', !quiet);
@@ -10761,7 +11153,7 @@ const Game = {
       if (k === 'l') { UI.landDialog(); return; }
       if (k === 'f') { UI.finances(); return; }
       if (k === 'h') { UI.help(); return; }
-      if (k === 'o') { $('#goals').classList.toggle('show'); return; }
+      if (k === 'o') { this.toggleGoals(); return; }
       if (k === 'c' && Cam.mode === 'ride') {
         this.rideCamMode = ((this.rideCamMode || 0) + 1) % 4;
         this._rcInit = false;
@@ -11164,6 +11556,37 @@ const Game = {
     UI.notify('Demolished', o.def.name + ' — refunded ' + money(refund), '');
     Audio.play('click');
   },
+  restockCost(s) { return Math.round((s.def.price || 8) * (s.def.stockSize || 65) * .34); },
+  orderRestock(id, auto) {
+    const s = Park.objects.find(x => x.id === id);
+    if (!s || s.kind !== 'shop' || s.truck) return false;
+    const cost = this.restockCost(s);
+    if (Park.money < cost) { if (!auto) UI.notify('Too expensive', 'Restocking costs ' + money(cost) + '.', 'bad'); return false; }
+    Park.spend(cost);
+    // trucks arrive from the service road at the edge of the owned land
+    const a = Math.atan2(s.z, s.x);
+    const from = { x: Math.cos(a) * (WORLD.half - 4), z: Math.sin(a) * (WORLD.half - 4) };
+    const dist = Math.hypot(s.x - from.x, s.z - from.z);
+    const speed = Park.staff.some(st => st.role === 'restocker') ? 34 : 20;
+    s.truck = { from, to: { x: s.x, z: s.z }, t: 0, dur: Math.max(6, dist / speed), auto };
+    return true;
+  },
+  updateTrucks(dt) {
+    for (const s of Park.objects) {
+      if (s.kind !== 'shop') continue;
+      if (!s.truck) {
+        // a restocker on the payroll watches every shop and reorders automatically
+        if (s.stock < 22 && Park.staff.some(st => st.role === 'restocker')) this.orderRestock(s.id, true);
+        continue;
+      }
+      s.truck.t += dt;
+      if (s.truck.t >= s.truck.dur) {
+        s.stock = 100;
+        UI.notify('Delivery arrived', s.name + ' has been restocked.', 'good');
+        s.truck = null;
+      }
+    }
+  },
   hire(def) {
     if (Park.money < def.cost) { UI.notify('Out of funds', 'Cannot afford to hire.', 'bad'); return; }
     Park.spend(def.cost);
@@ -11269,16 +11692,17 @@ const Game = {
         if (g.dead) Park.guests.splice(k, 1);
       }
       for (const s of Park.staff) s.update(sdt);
+      this.updateTrucks(sdt);
       for (const o of Park.objects) if (o.kind === 'ride') o.update(sdt);
       for (const c of Park.coasters) Coaster.simulate(c, sdt);
 
       // ambient stats
       let h = 0;
       for (const g of Park.guests) h += g.happy;
-      Park.happiness = Park.guests.length ? h / Park.guests.length : .7;
+      Park.happiness = clamp((Park.guests.length ? h / Park.guests.length : .7) + (Park.happyBonus || 0), 0, 1);
       Park.computeRating();
       this._goalT = (this._goalT || 0) + sdt;
-      if (this._goalT > 3) { this._goalT = 0; Goals.update(); }
+      if (this._goalT > 3) { this._goalT = 0; Goals.update(); Achievements.update(); }
     }
     // riders inherit the car transform
     this.updateRiders();
@@ -11709,7 +12133,7 @@ const Game = {
       return;
     }
     // a brand new park still draws a trickle, and word of mouth compounds
-    const attract = 34 + Park.rating * .62 + Park.attractions().length * 6 + Park.marketing * 8 + Marketing.draw() * 42;
+    const attract = 34 + Park.rating * .62 + Park.attractions().length * 6 + Park.marketing * 8 * (Park.marketingMult || 1) + Marketing.draw() * 42 * (Park.marketingMult || 1);
     const tol = Park.gate ? Park.gate.feeTolerance() : 1;
     const feeFactor = clamp(1.45 - Park.entryFee / ((26 + Park.rating * .55) * tol), .08, 1.7);
     /* A real gate has a shape to its day. A trickle when the doors open, a
@@ -11864,7 +12288,7 @@ const Game = {
         staff: Park.staff.map(s => ({ r: s.role, x: s.x, z: s.z, l: s.level })),
         land: Array.from(Land.ownedPlots), bought: Land.bought,
         loan: Finance.loan, campaigns: Marketing.active,
-        log: Park.log
+        log: Park.log, ach: Achievements.unlocked
       };
       localStorage.setItem('planetcoaster_save', JSON.stringify(d));
       if (!silent) UI.notify('Saved', 'Park written to browser storage.', 'good');
@@ -11896,15 +12320,19 @@ const Game = {
       Goals.start(sc);
       if (sc && d.goalDone && Goals.active) Goals.active.goals.forEach((g, i) => g.done = !!d.goalDone[i]);
       Park.log = d.log || Park.log;
+      Achievements.unlocked = Array.isArray(d.ach) ? d.ach.slice() : [];
       Finance.loan = d.loan || 0;
       Marketing.active = Array.isArray(d.campaigns) ? d.campaigns.slice() : [];
       Thoughts.clear();
       for (const s of d.objs) {
         let def, o;
-        if (s.k === 'shop') { def = CAT.shops.find(x => x.id === s.d); o = new Shop(def, s.i, s.j, s.r); }
-        else if (s.k === 'ride') { def = CAT.rides.find(x => x.id === s.d); o = new Ride(def, s.i, s.j, s.r); }
-        else { def = CAT.scenery.find(x => x.id === s.d); o = new ParkObject('scenery', def, s.i, s.j, s.r); o.seed = 1; }
-        if (!def) continue;
+        if (s.k === 'shop') def = CAT.shops.find(x => x.id === s.d);
+        else if (s.k === 'ride') def = CAT.rides.find(x => x.id === s.d);
+        else def = CAT.scenery.find(x => x.id === s.d);
+        if (!def) continue;   // save references an item that no longer exists — skip it, don't crash the load
+        if (s.k === 'shop') o = new Shop(def, s.i, s.j, s.r);
+        else if (s.k === 'ride') o = new Ride(def, s.i, s.j, s.r);
+        else { o = new ParkObject('scenery', def, s.i, s.j, s.r); o.seed = 1; }
         o.y = WORLD.tileH(s.i, s.j); o.buildT = 1; o.updateMatrix();
         if (s.tier) { o.tier = clamp(s.tier, 1, 4); o.applyTier(); }
         if (s.p !== undefined) o.price = s.p;
@@ -11914,6 +12342,7 @@ const Game = {
       }
       for (const s of d.cos) {
         const type = CAT.coasterTypes.find(x => x.id === s.t);
+        if (!type) continue;   // unknown coaster type in an old/foreign save — skip rather than crash the load
         const c = new CoasterRide(type, s.i, s.j, s.r);
         c.y = WORLD.tileH(s.i, s.j); c.updateMatrix();
         const a = -s.r * PI / 2, yaw = a - PI / 2;
@@ -12015,6 +12444,7 @@ Object.assign(Game, {
     if (Menu.showcase) { this.ghostObj = null; return; }
     // the coaster station gets the same preview treatment as everything else
     if (Coaster.placing && this.hoverTile && Cam.mode !== 'ride') {
+     try {
       const a = this.anchorTile({ w: 4, d: 3 }, UI.rot);
       const why = this.blockReason({ cost: 6000 }, a.i, a.j, a.gw, a.gd, false);
       this.ghostOK = !why;
@@ -12027,15 +12457,55 @@ Object.assign(Game, {
       for (let jj = a.j; jj < a.j + a.gd; jj++) for (let ii = a.i; ii < a.i + a.gw; ii++) if (WORLD.inb(ii, jj)) y = Math.max(y, WORLD.tileH(ii, jj));
       if (y < -1e8) y = 0;
       const x = WORLD.wx(a.i) + (a.gw - 1) * TILE / 2, z = WORLD.wz(a.j) + (a.gd - 1) * TILE / 2;
-      if (!this._stationGhost || this._stationGhostType !== Coaster.placing.id) {
-        this._stationGhostType = Coaster.placing.id;
-        if (this._stationGhost) this._stationGhost.dispose();
-        this._stationGhost = this.R.makeMesh(Coaster.stationGeo({ gw: 4, gd: 3, type: Coaster.placing }));
+      /* Full-layout preview: when placing a ready-made blueprint, show the
+         *entire* coaster — not just the station box — so you can see the
+         whole ride before committing and don't have to demolish and retry
+         if you don't like where it lands. Rebuilt only when the hover tile,
+         rotation or blueprint actually changes, throttled to a few times a
+         second (rebuilding on every mouse-move frame was heavy — a fresh
+         GPU mesh for the whole track each frame — and is what made
+         placement feel laggy/broken while you were still picking a spot). */
+      const bp = Coaster.blueprint;
+      const key = bp ? (bp.id || bp.name) + '|' + a.i + ',' + a.j + ',' + UI.rot : null;
+      const nowMs = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+      if (bp && key !== this._bpGhostKey && nowMs - (this._bpGhostAt || 0) > 90) {
+        this._bpGhostKey = key;
+        this._bpGhostAt = nowMs;
+        try {
+          const ang = -UI.rot * PI / 2;
+          const yaw = ang - PI / 2;
+          const tt = new Track(Coaster.placing, x - Math.cos(yaw) * 9, y + 1.2, z - Math.sin(yaw) * 9, yaw);
+          tt.addPiece('straight'); tt.addPiece('straight'); tt.addPiece('straight');
+          tt.stationEnd = tt.length;
+          for (const pid of bp.seq) { const before = tt.pieces.length; tt.append(pid); if (tt.pieces.length === before) break; }
+          const closes = tt.closeError().ok;
+          const g = Coaster.stationGeo({ gw: 4, gd: 3, type: Coaster.placing });
+          g.merge(buildGhostGeo(tt, tt.samples, closes));
+          const old = this._bpGhostMesh;
+          this._bpGhostMesh = this.R.makeMesh(g);
+          if (old) old.dispose();
+        } catch (e) { /* keep showing the previous ghost rather than nothing */ }
       }
-      this.ghostObj = { pf: { mesh: this._stationGhost }, m: M4.compose(M4.create(), x, y, z, 0, -UI.rot * PI / 2, 0, 1, 1, 1) };
+      if (bp && this._bpGhostMesh) {
+        this.ghostObj = { pf: { mesh: this._bpGhostMesh }, m: M4.compose(M4.create(), x, y, z, 0, -UI.rot * PI / 2, 0, 1, 1, 1) };
+      } else {
+        if (!bp) { this._bpGhostKey = null; if (this._bpGhostMesh) { this._bpGhostMesh.dispose(); this._bpGhostMesh = null; } }
+        if (!this._stationGhost || this._stationGhostType !== Coaster.placing.id) {
+          this._stationGhostType = Coaster.placing.id;
+          if (this._stationGhost) this._stationGhost.dispose();
+          this._stationGhost = this.R.makeMesh(Coaster.stationGeo({ gw: 4, gd: 3, type: Coaster.placing }));
+        }
+        this.ghostObj = { pf: { mesh: this._stationGhost }, m: M4.compose(M4.create(), x, y, z, 0, -UI.rot * PI / 2, 0, 1, 1, 1) };
+      }
       this.buildFootprint(a.i, a.j, a.gw, a.gd, false);
       this.footprintOn = true;
       return;
+     } catch (e) {
+      // Never let a preview glitch break placement itself — fall through
+      // to no ghost this frame rather than throwing out of the render loop.
+      this.ghostObj = null;
+      return;
+     }
     }
     const p = this.placementDef();
     // Paths, terrain and demolish place no object, but they still need to show
@@ -12309,6 +12779,26 @@ Object.assign(Game, {
   },
 
   /* Everything that casts a shadow / is drawn in the main pass */
+  truckMesh() {
+    if (this._truckMesh) return this._truckMesh;
+    const g = new Geo();
+    g.box(0, .55, .1, 1.5, .9, 3.0, hex(0xe8eef2));
+    g.box(0, 1.05, .6, 1.4, .5, 1.6, hex(0xd9a441));
+    g.box(0, .5, -1.7, 1.3, .8, .8, hex(0x3a4250));
+    for (const sx of [-.7, .7]) for (const sz of [-1.6, .2, 1.3])
+      g.cyl(sx, .18, sz, .32, .28, 8, hex(0x1b1e22));
+    return (this._truckMesh = this.R.makeMesh(g));
+  },
+  drawTrucks(R) {
+    for (const s of Park.objects) {
+      if (s.kind !== 'shop' || !s.truck) continue;
+      const tr = s.truck, f = clamp(tr.t / tr.dur, 0, 1);
+      const x = lerp(tr.from.x, tr.to.x, f), z = lerp(tr.from.z, tr.to.z, f);
+      const yaw = Math.atan2(tr.to.z - tr.from.z, tr.to.x - tr.from.x);
+      const m = M4.compose(M4.create(), x, WORLD.hAt(x, z), z, 0, -yaw, 0, 1, 1, 1);
+      R.draw(this.truckMesh(), m);
+    }
+  },
   drawScene(R, depthPass) {
     R.draw(WORLD.mesh);
     R.draw(WORLD.propMesh);
@@ -12316,6 +12806,7 @@ Object.assign(Game, {
     if (this.sceneryMesh) R.draw(this.sceneryMesh, null, (!depthPass && this.nightGlow) ? { emissive: this.nightGlow * .30 } : null);
     if (this.queueMesh) R.draw(this.queueMesh);
     if (!depthPass && this.litterMesh) R.draw(this.litterMesh);
+    if (!depthPass) this.drawTrucks(R);
 
     const t = Park.now;
     const glow = depthPass ? 0 : (this.nightGlow || 0);
@@ -12384,6 +12875,7 @@ Object.assign(Game, {
     const grey = clamp(dull * .65 + wet * .5, 0, 1);
     R.fogCol = [lerp(R.fogCol[0], .60, grey), lerp(R.fogCol[1], .62, grey), lerp(R.fogCol[2], .66, grey)];
     R.fogDens = 0.0022 + night * 0.0016 + wet * 0.0030 + Weather.cloudCover() * 0.0005;
+    R.wet = Weather.groundWet || 0;
     R.quality = { ao: 0.95, outline: 0.7, bloom: 0.45 + night * 0.75 + flashSafe(flash) };
 
     Cam.apply(R);
