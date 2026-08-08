@@ -4213,6 +4213,23 @@ const FOOD_SVG = {
   milkshake: '<path d="M8 6h8l-1 15H9z" fill="#ff9ac1"/><rect x="7.5" y="4" width="9" height="2" fill="#ffe0ee"/><rect x="13" y="1" width="1.4" height="6" transform="rotate(15 13 1)" fill="#eee"/>',
   gift: '<rect x="4" y="10" width="16" height="10" fill="#7b5bd4"/><rect x="4" y="7" width="16" height="3.5" fill="#9b7fe0"/><rect x="10.5" y="7" width="3" height="13" fill="#ffd76a"/>',
 };
+/* Blank merch shapes a custom design is drawn over, in COLOR so the
+   designer can recolour them live. */
+const MERCH_SHAPES = {
+  shirt: '<path d="M8 4 4 7l2 3 2-1v11h8V9l2 1 2-3-4-3-2 2h-4z" fill="COLOR"/>',
+  mug: '<rect x="6" y="6" width="10" height="13" rx="1.5" fill="COLOR"/><path d="M16 9h2a2.5 2.5 0 0 1 0 5h-2" fill="none" stroke="COLOR" stroke-width="2"/>',
+  cap: '<path d="M4 15a8 8 0 0 1 16 0z" fill="COLOR"/><rect x="2" y="14" width="10" height="2.4" rx="1.2" fill="COLOR"/>',
+  keychain: '<circle cx="9" cy="6" r="3" fill="none" stroke="COLOR" stroke-width="2"/><rect x="7.5" y="9" width="3" height="10" rx="1.5" fill="COLOR"/>',
+  plush: '<circle cx="12" cy="9" r="5" fill="COLOR"/><circle cx="8" cy="5" r="2" fill="COLOR"/><circle cx="16" cy="5" r="2" fill="COLOR"/><ellipse cx="12" cy="17" rx="6" ry="4.5" fill="COLOR"/>',
+  poster: '<rect x="4" y="3" width="16" height="18" fill="none" stroke="COLOR" stroke-width="2"/><path d="M6 15l4-5 3 3 3-6 2 8" fill="none" stroke="COLOR" stroke-width="1.6"/>',
+  magnet: '<path d="M8 4h8v9a4 4 0 0 1-8 0z" fill="COLOR"/><rect x="8" y="4" width="3" height="4" fill="#fff"/><rect x="13" y="4" width="3" height="4" fill="#fff"/>',
+  pin: '<circle cx="12" cy="10" r="7" fill="COLOR"/><circle cx="12" cy="10" r="7" fill="none" stroke="#fff" stroke-width="1"/><path d="M12 17l2 4-2-1-2 1z" fill="#999"/>',
+};
+function merchSvg(shape, color) {
+  const p2 = MERCH_SHAPES[shape] || MERCH_SHAPES.shirt;
+  const hexc = '#' + (color >>> 0).toString(16).padStart(6, '0');
+  return `<svg width="20" height="20" viewBox="0 0 24 24" style="vertical-align:-5px">${p2.split('COLOR').join(hexc)}</svg>`;
+}
 function foodSvg(id) {
   const p2 = FOOD_SVG[id];
   if (!p2) return '';
@@ -4897,6 +4914,7 @@ class Shop extends ParkObject {
     this.served = 0; this.revenue = 0;
     this.queue = [];
     this.name = def.name;
+    this.merch = (def.need === 'shop') ? null : undefined;   // designed item, if any
   }
   get frontTile() {
     const dir = [[0, -1], [-1, 0], [0, 1], [1, 0]][this.rot];
@@ -6702,6 +6720,7 @@ class Guest extends Person {
       this.cash -= s.price; this.spent += s.price;
       Park.earn(s.price, 'shop'); s.revenue += s.price; s.served++;
       s.stock = clamp(s.stock - (100 / (s.def.stockSize || 65)), 0, 100);
+      if (s.merch && s.merch.name) this.happy = clamp(this.happy + .015, 0, 1);
       Progress.add(1);
       const value = s.def.price > 0 ? clamp(1.2 - s.price / (s.def.price * 2.2), 0, 1) : 1;
       const sat = s.def.satisfy * (s.satisfyMul || 1) / 100;
@@ -7515,7 +7534,7 @@ const UI = {
     const days = Math.max(1, Park.day - 1 + Park.time / 1440);
 
     const tabs = isC ? [['overview', 'Overview'], ['look', 'Appearance'], ['stats', 'Ratings'], ['eng', 'Engineering'], ['ops', 'Operations'], ['money', 'Finances']]
-      : isShop ? [['overview', 'Overview'], ['look', 'Appearance'], ['money', 'Finances'], ['ops', 'Stock &amp; Staff']]
+      : isShop ? [['overview', 'Overview'], ...(o.def.need === 'shop' ? [['merch', 'Design Merch']] : []), ['look', 'Appearance'], ['money', 'Finances'], ['ops', 'Stock &amp; Staff']]
         : [['overview', 'Overview'], ['look', 'Appearance'], ['stats', 'Ratings'], ['ops', 'Operations'], ['money', 'Finances']];
     if (!tabs.some(t => t[0] === T)) this.manageTabRide = 'overview';
     let h = `<div class="btnrow" style="margin-bottom:14px">` + tabs.map(([k, l]) =>
@@ -7560,6 +7579,31 @@ const UI = {
         <button class="btn" style="flex:0 0 auto;padding:9px 20px" onclick="Cam.tx=${o.x.toFixed(1)};Cam.tz=${o.z.toFixed(1)};UI.closeModal()">Go to it</button>
         <button class="btn dan" style="flex:0 0 auto;padding:9px 20px" onclick="UI.closeModal();Game.demolish(${id})">Demolish</button>
       </div>`;
+    }
+
+    else if (this.manageTabRide === 'merch') {
+      const shapeKeys = Object.keys(MERCH_SHAPES);
+      const cur = o.merch || { shape: 'shirt', color: 0x7b5bd4, name: 'Park Souvenir' };
+      h += `<h3>Design your own merchandise</h3>
+        <p>Guests here still buy at your set ticket price, but a shop selling something you actually
+        designed shows its own name and icon everywhere it appears, and gives the shop a little extra
+        appeal over a generic gift stand.</p>`;
+      h += `<div style="text-align:center;padding:14px;background:var(--panel-sunken);border-radius:10px;margin-bottom:10px">
+        ${merchSvg(cur.shape, cur.color)}<div style="font-weight:700;margin-top:6px">${cur.name || 'Untitled item'}</div></div>`;
+      h += `<div class="row"><label>Item name</label>
+        <input type="text" maxlength="24" value="${(cur.name || '').replace(/"/g, '&quot;')}" style="flex:1"
+          onchange="UI.setMerch(${id},'name',this.value)"></div>`;
+      h += `<div class="row"><label>Colour</label>
+        <input type="color" value="#${(cur.color >>> 0).toString(16).padStart(6, '0')}"
+          onchange="UI.setMerch(${id},'color',parseInt(this.value.slice(1),16))"></div>`;
+      h += `<h3>Shape</h3><div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px">`;
+      for (const k of shapeKeys) h += `<div class="pc ${cur.shape === k ? 'on' : ''}"
+        onclick="UI.setMerch(${id},'shape','${k}')" title="${k}">${merchSvg(k, cur.color)}</div>`;
+      h += `</div>`;
+      if (!o.merch) h += `<div class="btnrow" style="margin-top:12px"><button class="btn go" style="flex:0 0 auto;padding:8px 18px"
+        onclick="UI.setMerch(${id},'name','${cur.name}');UI.manage(${id},'merch')">Put this on sale</button></div>`;
+      else h += `<div class="btnrow" style="margin-top:12px"><button class="btn dan" style="flex:0 0 auto;padding:8px 18px"
+        onclick="Park.objects.find(x=>x.id===${id}).merch=null;UI.manage(${id},'merch')">Go back to generic merchandise</button></div>`;
     }
 
     else if (this.manageTabRide === 'look') {
@@ -7944,6 +7988,13 @@ const UI = {
     if (!c) return;
     c.stationStyle = st; c.repaint();
     this.manage(id, 'look');
+  },
+  setMerch(id, key, val) {
+    const o = Park.objects.find(x => x.id === id);
+    if (!o) return;
+    o.merch = o.merch || { shape: 'shirt', color: 0x7b5bd4, name: 'Park Souvenir' };
+    o.merch[key] = val;
+    this.manage(id, 'merch');
   },
   upgradeAll() {
     let n = 0;
