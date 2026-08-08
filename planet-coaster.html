@@ -11495,12 +11495,13 @@ const Game = {
     }
     Audio.play('build');
     UI.notify('Built', p.def.name + ' — ' + money(p.def.cost), 'money');
-    if (p.kind === 'ride') o.openR = true;
     if (this.autoQueue) {
-      if (p.kind === 'ride') this.autoConnect(o);
+      // auto-connect always lays at least MIN_QUEUE_TILES of queue, so the
+      // ride is genuinely ready to open the moment it is built
+      if (p.kind === 'ride') { this.autoConnect(o); o.openR = true; o.state = 'idle'; }
       if (p.kind === 'shop') this.autoConnect(o, true);
     } else if (p.kind !== 'scenery') {
-      UI.hint('Run a <b>queue line</b> from the green marker back to a walkway.', true);
+      UI.hint('Run a <b>queue line</b> at least ' + this.MIN_QUEUE_TILES + ' tiles long from the green marker back to a walkway, then open it from its panel.', true);
     }
   },
   autoQueue: true,          // whether new rides get a queue run automatically
@@ -11695,12 +11696,20 @@ const Game = {
     o.price = +v;
     const e = document.getElementById('prc' + id); if (e) e.textContent = '$' + v;
   },
+  MIN_QUEUE_TILES: 4,
   toggleOpen(id) {
     const o = Park.objects.find(x => x.id === id) || Park.coasters.find(x => x.id === id);
     if (!o) return;
     if (o.broken) { UI.notify('Broken', 'Needs a mechanic first.', 'warn'); return; }
     if (o.kind === 'coaster' && !o.track.complete) { UI.notify('Incomplete', 'Finish the circuit first.', 'warn'); return; }
     if (o.kind === 'coaster' && !o.openR && o.stalls) { UI.notify('Unsafe', o.name + ' stalls on the circuit and cannot open. Add a lift hill or reduce the height.', 'bad'); return; }
+    if (!o.openR && o.queuePath) {
+      const qlen = o.queuePath().length;
+      if (qlen < this.MIN_QUEUE_TILES) {
+        UI.notify('Queue too short', `Real parks snake the queue back at least ${this.MIN_QUEUE_TILES} tiles before the entrance so a line does not spill onto the walkway. Extend it (currently ${qlen} tile${qlen === 1 ? '' : 's'}).`, 'warn');
+        return;
+      }
+    }
     o.openR = !o.openR;
     if (o.openR) { o.state = o.kind === 'coaster' ? 'open' : 'idle'; Audio.play('open'); }
     UI.inspect(o);
