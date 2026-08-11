@@ -6327,8 +6327,17 @@ const Park = {
     k = this.coasters.indexOf(o); if (k >= 0) this.coasters.splice(k, 1);
     if (o.mesh) o.mesh.dispose();
     if (o.trackMesh) o.trackMesh.dispose();
-    if (typeof Transit !== 'undefined') Transit.forget(o.id);
+    if (typeof Transit !== 'undefined') Transit.onDemolish(o);
     for (const g of this.guests) { if (g.target === o) g.retarget(); }
+    /* A mechanic or janitor already dispatched to this object is left
+       holding a reference to it otherwise — the object itself is never
+       nulled, just spliced out of Park.objects, so they walk to where its
+       entrance used to be and then "repair" or clean something that no
+       longer exists instead of noticing it is gone and picking a new job. */
+    for (const s of this.staff) {
+      if (s.targetRide === o) { s.targetRide = null; if (s.state === 'walking' || s.state === 'working') s.state = 'idle'; }
+      if (s.targetLitter === o) { s.targetLitter = null; if (s.state === 'walking' || s.state === 'working') s.state = 'idle'; }
+    }
     WORLD.dirty = true; Path.dirty = true;
   },
 
@@ -6404,7 +6413,13 @@ const Marketing = {
   start(c) {
     if (Park.money < c.cost) { UI.notify('Too expensive', 'That campaign costs ' + money(c.cost) + '.', 'bad'); return; }
     Park.spend(c.cost, 'marketing');
-    this.active.push({ id: c.id, endDay: Park.day + c.days });
+    /* Buying the same campaign again while it is still running extends it
+       rather than adding a second entry — draw() sums every active entry by
+       id, so stacking duplicates multiplied the same campaign's pull for no
+       extra cost beyond the second purchase. */
+    const existing = this.active.find(a => a.id === c.id);
+    if (existing) existing.endDay = Math.max(existing.endDay, Park.day) + c.days;
+    else this.active.push({ id: c.id, endDay: Park.day + c.days });
     UI.notify('Campaign live', c.name + ' runs for ' + c.days + ' days.', 'money');
     UI.finances('marketing');
   },
@@ -6435,6 +6450,7 @@ const Finance = {
   maxLoan() { return Math.round(clamp(60000 + Park.rating * 220 + Park.totalGuests * 22, 60000, this.limit) / 1000) * 1000; },
   borrow(n) {
     n = Math.round(n);
+    if (!(n > 0)) return;
     if (this.loan + n > this.maxLoan()) { UI.notify('Refused', 'The bank will not lend beyond ' + money(this.maxLoan()) + ' at your park rating.', 'warn'); return; }
     this.loan += n; Park.money += n;
     UI.notify('Loan approved', money(n) + ' borrowed at ' + Math.round(this.rate * 100) + '% a year.', 'money');
@@ -6448,6 +6464,12 @@ const Finance = {
     UI.finances('finance');
   },
   hourInterest() {
+    /* Investment Portfolio (Park.interestMult) was written by research but
+       never read anywhere — buying it had no effect. A small, steady trickle
+       on idle cash is what its own description promises, kept off the loan
+       interest ledger line so it doesn't read as a discount on borrowing. */
+    const im = Park.interestMult || 1;
+    if (im > 1 && Park.money > 0) Park.money += Park.money * (im - 1) * 0.00003;
     if (!this.loan) return 0;
     const i = this.loan * this.rate / (365 * 24);
     Park.money -= i;
@@ -8814,7 +8836,7 @@ const UI = {
       if (!o.merch) h += `<div class="btnrow" style="margin-top:12px"><button class="btn go" style="flex:0 0 auto;padding:8px 18px"
         onclick="UI.setMerch(${id},'name','${cur.name}');UI.manage(${id},'merch')">Put this on sale</button></div>`;
       else h += `<div class="btnrow" style="margin-top:12px"><button class="btn dan" style="flex:0 0 auto;padding:8px 18px"
-        onclick="Park.objects.find(x=>x.id===${id}).merch=null;UI.manage(${id},'merch')">Go back to generic merchandise</button></div>`;
+        onclick="UI.clearMerch(${id})">Go back to generic merchandise</button></div>`;
     }
 
     else if (this.manageTabRide === 'look') {
@@ -9118,7 +9140,7 @@ const UI = {
             <td style="text-align:right">${money(st.wage)}</td>
             <td style="text-align:right;white-space:nowrap">
               ${st.level < 3 ? `<button class="btn go" style="padding:3px 10px;font-size:10.5px;flex:0 0 auto"
-                onclick="Park.staff.find(x=>x.id===${st.id}).train();UI.entrance('staff')">Train ${money(st.trainCost())}</button>` : ''}
+                onclick="Game.trainStaff(${st.id})">Train ${money(st.trainCost())}</button>` : ''}
               <button class="btn dan" style="padding:3px 10px;font-size:10.5px;flex:0 0 auto"
                 onclick="Game.fire(${st.id});UI.entrance('staff')">Dismiss</button></td></tr>`;
         }
@@ -9221,6 +9243,12 @@ const UI = {
     if (!o) return;
     o.merch = o.merch || { shape: 'shirt', color: 0x7b5bd4, name: 'Park Souvenir' };
     o.merch[key] = (key === 'name') ? String(val).slice(0, 34) : val;
+    this.manage(id, 'merch');
+  },
+  clearMerch(id) {
+    const o = Park.objects.find(x => x.id === id);
+    if (!o) return;
+    o.merch = null;
     this.manage(id, 'merch');
   },
   upgradeAll() {
@@ -10080,7 +10108,7 @@ const SlideDesigner = {
       cost, up: Math.round(cost * .01), w: foot, d: foot,
       cap: 6 * c.lanes, dur: Math.round(30 + t.h * 1.1), exc, fear: fear, naus: clamp(fear * .55, 0, 10),
       price: Math.round(6 + t.h * .12), kind: 'slide', water: true,
-      slide: { h: t.h, r, turns: t.turns, lanes: c.lanes, tube: c.tube, steep, col: c.col, segs: c.segs.length ? c.segs.slice() : null }
+      slide: { h: t.h, r, turns: t.turns, lanes: c.lanes, tube: anyTube, steep, col: c.col, segs: c.segs.length ? c.segs.slice() : null }
     };
     UI.closeModal();
     UI.setTool('water');
@@ -10677,7 +10705,7 @@ const Coaster = {
        station it produces a shorter, cleaner route than the search — and it
        arrives exactly on the rails rather than approximately. */
     {
-      const marks = { pieces: c.track.pieces.length, custom: c.track.custom.length, money: Park.money };
+      const marks = { pieces: c.track.pieces.length, custom: c.track.custom.length, money: Park.money, build: Park.log.build };
       const solo = this.dockToStation(c, true);
       if (c.track.closeError().ok) {
         this.rebuild();
@@ -10685,21 +10713,33 @@ const Coaster = {
         this.refresh();
         return;
       }
-      // did not reach: put the track back exactly as it was
+      // did not reach: put the track back exactly as it was, ledger included
+      // — Park.spend() posts every piece to Park.log.build as it goes, and
+      // restoring the raw money without also restoring that left phantom
+      // construction spend in the finance report on a route that never happened.
       while (c.track.pieces.length > marks.pieces) c.track.removeLast();
       c.track.custom.length = marks.custom;
       Park.money = marks.money;
+      Park.log.build = marks.build;
     }
     let plan = this.planRoute(c.track);
     if (!plan) plan = this.planRoute(c.track, 40000);   // one deeper attempt
     if (!plan) {
       // The search failing does not mean the track cannot get home: Dubins
       // reaches anything within its turning radius, so try docking directly.
+      // Same snapshot/rollback as above: a failed attempt here must not
+      // leave spent money or half-laid pieces behind either.
+      const marks2 = { pieces: c.track.pieces.length, custom: c.track.custom.length, money: Park.money, build: Park.log.build };
       const solo = this.dockToStation(c, true);
       this.rebuild();
       if (c.track.closeError().ok) {
         UI.notify('Route home found', solo.laid + ' pieces laid for ' + money(solo.cost) + '. Press Complete Circuit.', 'good');
       } else {
+        while (c.track.pieces.length > marks2.pieces) c.track.removeLast();
+        c.track.custom.length = marks2.custom;
+        Park.money = marks2.money;
+        Park.log.build = marks2.build;
+        this.rebuild();
         UI.notify('No route found', 'The station is boxed in, too close or too far. Steer nearer by hand and try again.', 'warn');
       }
       this.refresh();
@@ -11895,6 +11935,25 @@ const RESEARCH = [
     apply: () => { Park.hotelMult = (Park.hotelMult || 1) * 1.08; } },
 ];
 const Research = {
+  /* Every research effect is written as Park.someMult *= x or Park.someBonus
+     += x, which only produces the right total when it starts from the true
+     base value every time it is (re)applied. Used at the start of a new park
+     and before restoring a save, so loading a park with research already
+     bought doesn't leave its bonuses as inert saved data with no effect. */
+  reset() {
+    Park.research = { unlocked: {} };
+    Park.wearMult = 1; Park.relBonus = 0; Park.trainStylesUnlocked = [];
+    Park.marketingMult = 1; Park.hotelMult = 1; Park.interestMult = 1;
+    Park.staffEffMult = 1; Park.happyBonus = 0;
+    Park.moneyMult = 1.1;
+  },
+  /* Re-run every already-unlocked node's effect. Call after Research.reset()
+     when restoring a save, so multipliers land back where they were instead
+     of the UI showing a node as owned while it does nothing. */
+  reapplyAll() {
+    for (const r of RESEARCH) if (Park.research.unlocked[r.id]) r.apply();
+    if (Park.staff) for (const s of Park.staff) if (s.applyTraining) s.applyTraining();
+  },
   canBuy(r) {
     if (Park.research.unlocked[r.id]) return false;
     if (r.req && !Park.research.unlocked[r.req]) return false;
@@ -12027,6 +12086,7 @@ const Prestige = {
   points: 0,             // points available to spend right now
   totalEarned: 0,
   unlocked: [],           // ids of prestige buildings already bought
+  reset() { this.active = false; this.points = 0; this.totalEarned = 0; this.unlocked = []; },
   isPrestige(def) { return !!(def && def.prestige); },
   isUnlocked(def) { return !def || !def.prestige || this.unlocked.includes(def.id); },
   cost(def) { return def && def.prestigeCost || 0; },
@@ -13344,12 +13404,44 @@ const Transit = {
     if (!q) return;
     const k = q.indexOf(g); if (k >= 0) q.splice(k, 1);
   },
-  /* Called when a stop or tower is demolished under people's feet. */
-  forget(objId) {
+  /* Called whenever ANY object is demolished, so it only has real work to do
+     for transit's own kinds. Demolishing through the generic delete tool
+     used to leave a stop, depot or gondola station fully functional in the
+     simulation after it vanished from the world — routes kept a stale
+     reference to the stop object (never marked dead, only spliced out of
+     Park.objects), a demolished depot's routes ran on forever with buses
+     nobody could reach through any panel, and a demolished gondola tower
+     left its cabins frozen in mid-air permanently. Every removal now closes
+     out whatever it was carrying. */
+  onDemolish(o) {
     for (const g of Park.guests) {
-      if (g.transit && (g.transit.fromId === objId || g.transit.toId === objId)) {
+      if (g.transit && (g.transit.fromId === o.id || g.transit.toId === o.id)) {
         g.transit = null;
         if (g.state === 'waiting' || g.state === 'towait' || g.state === 'onbus') g.state = 'idle';
+      }
+    }
+    if (o.kind === 'tstop') {
+      const r = this.routes.find(rt => rt.stops.some(s => s.id === o.id));
+      if (r) {
+        for (const g of o.waiting) { g.transit = null; g.state = 'idle'; }
+        r.stops = r.stops.filter(s => s.id !== o.id);
+        for (const b of r.buses) b.next = 0;
+        this.measure(r);
+        if (r.stops.length < 2) this.removeRoute(r);
+        this.meshDirty = true;
+      }
+    } else if (o.kind === 'tstation') {
+      // every route this depot ran is now orphaned — close them all, not
+      // just the ones the player happened to have open
+      for (const r of this.routesOf(o)) this.removeRoute(r);
+      if (this.drawing && this.drawing.stationId === o.id) this.cancelRoute();
+    } else if (o.kind === 'gtower') {
+      const l = this.lines.find(ln => ln.a === o.id || ln.b === o.id);
+      if (l) {
+        for (const c of l.cabins) for (const g of c.riders) { g.transit = null; g.state = 'idle'; }
+        if (l.mesh) l.mesh.dispose();
+        const k = this.lines.indexOf(l); if (k >= 0) this.lines.splice(k, 1);
+        this.meshDirty = true;
       }
     }
   },
@@ -13534,10 +13626,12 @@ const Game = {
     Park.objects.length = 0; Park.coasters.length = 0; Park.guests.length = 0;
     Park.staff.length = 0; Park.litter.length = 0; Park.needMechanic.length = 0;
     Park.hist.length = 0; Park.awards.length = 0;
-    Park.log = { ticket: 0, shop: 0, entry: 0, hotel: 0, wage: 0, upkeep: 0, build: 0, marketing: 0, interest: 0 };
+    Park.log = { ticket: 0, shop: 0, entry: 0, hotel: 0, transit: 0, wage: 0, upkeep: 0, build: 0, marketing: 0, interest: 0 };
     Park.dailyLog.length = 0; Park._dayLogSnap = null;
     Finance.reset(); Marketing.active.length = 0; Thoughts.clear();
     Park.totalGuests = 0; Park.coasterCount = 0; Park.rating = 0; Park.happiness = .75; Achievements.unlocked = [];
+    Park.rp = 40; Park.rpTotal = 40; Research.reset(); Prestige.reset();
+    if (typeof Transit !== 'undefined') Transit.reset();
     Park.time = 9 * 60; Park.day = 1; Park.now = 0;
     Park.open = false; Park.openedOn = 0;
     document.body.classList.toggle('parkclosed', !quiet);
@@ -14215,6 +14309,12 @@ const Game = {
       UI.closeInspector();
       if (UI.tool === 'staff') UI.openBuild('staff');
     }
+  },
+  trainStaff(id) {
+    const s = Park.staff.find(x => x.id === id);
+    if (!s) return;
+    s.train();
+    UI.entrance('staff');
   },
   setTrains(id, n) {
     const c = Park.coasters.find(x => x.id === id);
@@ -14983,7 +15083,7 @@ const Game = {
   dayTick() {
     // bank yesterday's takings into the daily ledger before anything else touches Park.log
     const L = Park.log;
-    const prev = Park._dayLogSnap || { ticket: 0, shop: 0, entry: 0, hotel: 0, wage: 0, upkeep: 0, build: 0, marketing: 0, interest: 0 };
+    const prev = Park._dayLogSnap || { ticket: 0, shop: 0, entry: 0, hotel: 0, transit: 0, wage: 0, upkeep: 0, build: 0, marketing: 0, interest: 0 };
     const income = (L.ticket - prev.ticket) + (L.shop - prev.shop) + (L.entry - prev.entry) + ((L.hotel || 0) - (prev.hotel || 0)) + ((L.transit || 0) - (prev.transit || 0));
     const expense = (L.wage - prev.wage) + (L.upkeep - prev.upkeep) + (L.build - prev.build) +
       ((L.marketing || 0) - (prev.marketing || 0)) + ((L.interest || 0) - (prev.interest || 0));
@@ -14996,7 +15096,7 @@ const Game = {
     Park.rp = (Park.rp || 0) + rpGain;
     Park.rpTotal = (Park.rpTotal || 0) + rpGain;
     if (Park.dailyLog.length > 720) Park.dailyLog.shift();
-    Park._dayLogSnap = { ticket: L.ticket, shop: L.shop, entry: L.entry, hotel: L.hotel || 0, wage: L.wage, upkeep: L.upkeep, build: L.build, marketing: L.marketing || 0, interest: L.interest || 0 };
+    Park._dayLogSnap = { ticket: L.ticket, shop: L.shop, entry: L.entry, hotel: L.hotel || 0, transit: L.transit || 0, wage: L.wage, upkeep: L.upkeep, build: L.build, marketing: L.marketing || 0, interest: L.interest || 0 };
 
     // ---- Hotels: settle last night's bookings ----
     const hotels = Park.objects.filter(o => o.kind === 'shop' && o.def.need === 'hotel');
@@ -15008,7 +15108,7 @@ const Game = {
       for (const h of hotels) {
         const occRate = clamp(demand * (0.55 + h.def.quality * .6) + rnd(-.05, .05), .05, .99);
         const occupied = Math.round(h.def.rooms * occRate);
-        const rev = occupied * h.def.nightly;
+        const rev = occupied * h.def.nightly * (Park.hotelMult || 1);
         Park.earn(rev, 'hotel');
         h.occupied = occupied; h.occRate = occRate; h.revenue = (h.revenue || 0) + rev; h.nightsRun = (h.nightsRun || 0) + 1;
         totalOccupiedRooms += occupied;
@@ -15048,7 +15148,12 @@ const Game = {
         t: Array.from(WORLD.type),
         objs: Park.objects.filter(o => o.kind !== 'gate' && o.kind !== 'tstation' && o.kind !== 'tstop' && o.kind !== 'gtower').map(o =>
           ({ k: o.kind, d: o.def.id, i: o.i, j: o.j, r: o.rot, p: o.price, open: o.openR, tier: o.tier,
-            n: o.name, lock: !!o.priceLocked, mer: o.merch || undefined, liv: o.livery || undefined })),
+            n: o.name, lock: !!o.priceLocked, mer: o.merch || undefined, liv: o.livery || undefined,
+            /* Player-designed water slides aren't in any catalogue — the
+               only place their definition exists is the object itself — so
+               it has to be saved whole, or every custom slide reverts to a
+               dangling id that resolves to nothing on load. */
+            cd: o.def.custom ? o.def : undefined })),
         gate: Park.gate ? { tier: Park.gate.tier, adm: Park.gate.admitted, ta: Park.gate.turnedAway } : null,
         pname: Park.name,
         cos: Park.coasters.map(c => ({
@@ -15061,6 +15166,7 @@ const Game = {
         loan: Finance.loan, campaigns: Marketing.active,
         log: Park.log, ach: Achievements.unlocked,
         rp: Park.rp, rpTotal: Park.rpTotal, research: Park.research,
+        prestige: { active: Prestige.active, points: Prestige.points, totalEarned: Prestige.totalEarned, unlocked: Prestige.unlocked.slice() },
         transit: {
           depots: Park.objects.filter(o => o.kind === 'tstation').map(o => ({ i: o.i, j: o.j, r: o.rot, tier: o.tier, name: o.name, riders: o.riders, rev: o.revenue })),
           towers: Park.objects.filter(o => o.kind === 'gtower').map(o => ({ i: o.i, j: o.j, r: o.rot, line: o.lineId })),
@@ -15123,13 +15229,17 @@ const Game = {
     reader.readAsText(file);
   },
   load(key) {
+    /* Returns whether the load actually happened — Franchise.switchTo needs
+       to know before it commits to the slot it was trying to visit, or a
+       missing/corrupt save leaves the OLD park in memory while every future
+       save and snapshot silently starts writing into the NEW slot's key. */
     const raw = localStorage.getItem(key || 'planetcoaster_save');
-    if (!raw) { if (!key) UI.notify('No save', 'Nothing stored yet.', 'warn'); return; }
+    if (!raw) { if (!key) UI.notify('No save', 'Nothing stored yet.', 'warn'); return false; }
     try {
       const d = JSON.parse(raw);
       if (!d.h || !d.t || d.h.length !== WORLD.h.length || d.t.length !== WORLD.type.length) {
         UI.notify('Incompatible save', 'That park was built on a different map size and cannot be loaded.', 'bad');
-        return;
+        return false;
       }
       for (const o of Park.objects) if (o.mesh) o.mesh.dispose();
       for (const c of Park.coasters) { if (c.trackMesh) c.trackMesh.dispose(); if (c.stationMesh) c.stationMesh.dispose(); }
@@ -15152,16 +15262,31 @@ const Game = {
       Goals.start(sc);
       if (sc && d.goalDone && Goals.active) Goals.active.goals.forEach((g, i) => g.done = !!d.goalDone[i]);
       Park.log = d.log || Park.log;
+      Park._dayLogSnap = null;   // the previous park's ledger snapshot does not belong to this one
       if (d.rp !== undefined) Park.rp = d.rp;
       if (d.rpTotal !== undefined) Park.rpTotal = d.rpTotal;
+      /* Restoring the unlocked-node list is only data — every multiplier it
+         is supposed to grant has to be rebuilt from scratch, or a save with
+         research already bought loads with the UI showing it owned while
+         none of it actually does anything. */
+      Research.reset();
       if (d.research && d.research.unlocked) Park.research = d.research;
+      Research.reapplyAll();
+      Prestige.reset();
+      if (d.prestige) {
+        Prestige.active = !!d.prestige.active;
+        Prestige.points = d.prestige.points || 0;
+        Prestige.totalEarned = d.prestige.totalEarned || 0;
+        Prestige.unlocked = Array.isArray(d.prestige.unlocked) ? d.prestige.unlocked.slice() : [];
+      }
       Achievements.unlocked = Array.isArray(d.ach) ? d.ach.slice() : [];
       Finance.loan = d.loan || 0;
       Marketing.active = Array.isArray(d.campaigns) ? d.campaigns.slice() : [];
       Thoughts.clear();
       for (const s of d.objs) {
         let def, o;
-        if (s.k === 'shop') def = CAT.shops.find(x => x.id === s.d);
+        if (s.cd) def = s.cd;   // a player-designed water slide, saved whole
+        else if (s.k === 'shop') def = CAT.shops.find(x => x.id === s.d);
         else if (s.k === 'ride') def = CAT.rides.find(x => x.id === s.d);
         else def = CAT.scenery.find(x => x.id === s.d);
         if (!def) continue;   // save references an item that no longer exists — skip it, don't crash the load
@@ -15280,7 +15405,8 @@ const Game = {
       }
       WORLD.dirty = true; Path.dirty = true; this.sceneryDirty = true; Park.litterDirty = true;
       UI.notify('Loaded', 'Park restored.', 'good');
-    } catch (e) { UI.notify('Load failed', String(e), 'bad'); }
+      return true;
+    } catch (e) { UI.notify('Load failed', String(e), 'bad'); return false; }
   }
 };
 
@@ -15310,7 +15436,9 @@ const Franchise = {
     } catch (e) { /* corrupt index — start fresh */ }
   },
   persist() {
-    localStorage.setItem(this.storageKey, JSON.stringify({ slots: this.slots, current: this.current }));
+    try {
+      localStorage.setItem(this.storageKey, JSON.stringify({ slots: this.slots, current: this.current }));
+    } catch (e) { UI.notify('Save failed', 'Could not write the franchise list: ' + e, 'bad'); }
   },
   eligible() { return Park.money >= this.unlockAt || this.slots.length > 0; },
 
@@ -15325,13 +15453,25 @@ const Franchise = {
     this.slots.forEach((s, i) => {
       if (i === this.current) return;      // this one is live, handled normally
       if (!s.manager) return;               // nobody minding the store
-      s.snapDay = (s.snapDay || 1) + days;
-      // Rough, self-contained economy: bigger parks earn more, with a
-      // little day-to-day variance so it doesn't feel perfectly linear.
-      const base = 350 + (s.snapMoney || 60000) * 0.012;
-      const net = base * days * (0.8 + Math.random() * 0.4);
-      s.snapMoney = Math.max(0, (s.snapMoney || 0) + net);
-      changed = true;
+      /* Earnings have to land in the slot's own saved blob, not just the
+         snapMoney display cache — that cache was the only place this money
+         ever existed, so switching to a managed park overwrote it with the
+         stale figure from whenever you last left, and every day of earnings
+         a manager ever "made" simply evaporated. */
+      try {
+        const raw = localStorage.getItem(s.key);
+        if (!raw) return;               // never actually saved yet — nothing to grow
+        const blob = JSON.parse(raw);
+        // Rough, self-contained economy: bigger parks earn more, with a
+        // little day-to-day variance so it doesn't feel perfectly linear.
+        const base = 350 + (blob.money || 60000) * 0.012;
+        const net = base * days * (0.8 + Math.random() * 0.4);
+        blob.money = Math.max(0, (blob.money || 0) + net);
+        blob.day = (blob.day || 1) + days;
+        localStorage.setItem(s.key, JSON.stringify(blob));
+        s.snapMoney = blob.money; s.snapDay = blob.day;
+        changed = true;
+      } catch (e) { /* corrupt slot save — leave that park alone rather than crash the day tick */ }
     });
     if (changed) this.persist();
   },
@@ -15420,6 +15560,10 @@ const Franchise = {
     UI.closeModal();
     Game.newGame(Park.mode === 'sandbox' ? 'sandbox' : 'career', null, false);
     Park.name = country + ' Park';
+    /* Written to its own slot key immediately — otherwise nothing exists at
+       that key until the next autosave, and reloading the page or switching
+       away before then finds no save for the new park at all. */
+    Game.save(true, key);
     UI.notify('New park opened', `Welcome to ${Park.name} in ${country}. ${managerName} is now running your previous park.`, 'good');
   },
 
@@ -15427,10 +15571,15 @@ const Franchise = {
     if (idx === this.current) { UI.closeModal(); return; }
     this.snapshotCurrent();
     Game.save(true, this.slots[this.current].key);
+    /* current only moves once the target park has actually loaded — moving
+       it first and letting the load fail silently used to leave the OLD
+       park running in memory while every save from then on wrote into the
+       NEW slot's key, quietly overwriting it with the wrong park. */
+    const ok = Game.load(this.slots[idx].key);
+    if (!ok) { UI.notify('Could not visit', 'That park’s save looks to be missing or damaged.', 'bad'); return; }
     this.current = idx;
     this.persist();
     UI.closeModal();
-    Game.load(this.slots[idx].key);
     this.snapshotCurrent();
     this.persist();
     UI.notify('Welcome back', `Now visiting ${this.slots[idx].name} (${this.slots[idx].country}).`, 'good');
@@ -15470,7 +15619,7 @@ Object.assign(UI, {
     }
     h += `<div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">`;
     h += `<button class="btn pri" onclick="UI.closeModal();Transit.beginRoute(Park.objects.find(o=>o.id===${st.id}))">Draw a new route</button>`;
-    if (st.canUpgrade()) h += `<button class="btn" onclick="Park.objects.find(o=>o.id===${st.id}).upgrade();UI.manageTransit(${st.id})">Upgrade — ${money(st.upgradeCost())}</button>`;
+    if (st.canUpgrade()) h += `<button class="btn" onclick="Transit.upgradeStation(${st.id})">Upgrade — ${money(st.upgradeCost())}</button>`;
     h += `</div>`;
     this.modal(st.name, h);
   },
@@ -15497,6 +15646,12 @@ Object.assign(UI, {
 
 Object.assign(Transit, {
   renameRoute(id, v) { const r = this.route(id); if (r) { r.name = String(v).slice(0, 30) || r.name; } },
+  upgradeStation(id) {
+    const st = Park.objects.find(o => o.id === id);
+    if (!st) return;
+    st.upgrade();
+    UI.manageTransit(id);
+  },
   setStopMode(id, m) {
     const s = Park.objects.find(o => o.id === id);
     if (!s) return;
