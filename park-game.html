@@ -2062,7 +2062,7 @@ const TILE = 4;                 // world units per tile
    so the plateau, the rim and the starting park are bit-for-bit what they
    were. Everything past it is new land to buy. */
 const BASE_N = 182;
-const N = 322;                  // 23 * PLOT — 1288 m across, 3.1x the area
+const N = 406;                  // 29 * PLOT — 1624 m across, ~5x the area
 const T_GRASS = 0, T_PATH = 1, T_QUEUE = 2, T_BUILD = 3, T_WATER = 4, T_ENTRY = 5, T_PLAZA = 6;
 
 /* The maps you can start a park on. */
@@ -6648,7 +6648,8 @@ class Person {
     this.moodT = 0;
   }
   canReach(x, z) { return Path.connected(this.x, this.z, x, z); }
-  goto(tx, tz) {
+  goto(tx, tz, tight) {
+    this._arriveTight = !!tight;
     const si = WORLD.ti(this.x), sj = WORLD.tj(this.z);
     const ti = WORLD.ti(tx), tj = WORLD.tj(tz);
     /* Shortest-path routing means everyone heading the same way walks the
@@ -6667,6 +6668,12 @@ class Person {
     if (!p) p = Path.find(si, sj, ti, tj);
     if (!p) { this.path = null; return false; }
     this.pickLane();
+    /* The start of the very first leg, frozen at the moment the trip begins.
+       followPath needs a fixed point behind pi==0 to measure the lane offset
+       against — using the walker's live position instead (as it did before)
+       makes the perpendicular rotate as the walker approaches, which chases
+       a target that circles the true waypoint instead of converging on it. */
+    this._legStart = { x: this.x, z: this.z };
     p.push({ x: tx, z: tz });
     this.path = p; this.pi = 0;
     return true;
@@ -6704,14 +6711,14 @@ class Person {
        from wherever the walker happens to be standing. Taken off the bearing,
        the perpendicular swings round as you close on the waypoint and the
        walker visibly swerves through every corner. */
-    const prev = this.pi > 0 ? this.path[this.pi - 1] : this;
+    const prev = this.pi > 0 ? this.path[this.pi - 1] : (this._legStart || this);
     let sx = wp.x - prev.x, sz = wp.z - prev.z;
     let sl = Math.hypot(sx, sz);
     if (sl < .001) { sx = wp.x - this.x; sz = wp.z - this.z; sl = Math.hypot(sx, sz) || 1; }
     sx /= sl; sz /= sl;
     if (this.lane === undefined) this.lane = 0;
     if (this.laneT === undefined) this.laneT = 0;
-    const last = this.pi >= this.path.length - 1;
+    const last = this.pi >= this.path.length - 1 && this._arriveTight;
     this.lane = damp(this.lane, this.laneT * (last ? .3 : 1), 1.7, dt);   // ease across, never snap
     const tx = wp.x - sz * this.lane, tz = wp.z + sx * this.lane;
     const ex = tx - this.x, ez = tz - this.z;
@@ -7349,7 +7356,7 @@ class Guest extends Person {
         if (r) {
           this.target = r; this.wantAction = 'ride';
           const e = r.entrance;
-          if (this.travelTo(e.x, e.z)) {
+          if (this.travelTo(e.x, e.z, true)) {
             if (this._rode) { this.think('I will get the bus over to ' + r.name + '.'); return; }
             this.claim(r); this.state = 'walking'; this.think('Next up: ' + r.name + '.'); return;
           }
@@ -7434,7 +7441,7 @@ class Guest extends Person {
   }
   /* Would a bus or a cable car beat walking this? Only worth asking for a
      genuinely long trip, and only some people ask at all. */
-  tryTransit(tx, tz) {
+  tryTransit(tx, tz, tight) {
     if (typeof Transit === 'undefined' || !Transit.unlocked()) return false;
     if (!Transit.routes.length && !Transit.lines.length) return false;
     if (this.transit || Park.now < (this.transitCool || 0)) return false;
@@ -7446,17 +7453,17 @@ class Guest extends Person {
     if (Math.random() > appetite) return false;
     const trip = Transit.findTrip(this.x, this.z, tx, tz);
     if (!trip) return false;
-    if (!this.goto(trip.stopX, trip.stopZ)) return false;
+    if (!this.goto(trip.stopX, trip.stopZ, tight)) return false;
     trip.final = { x: tx, z: tz };
     this.transit = trip;
     this.state = 'towait';
     return true;
   }
   /* Walk there, or catch something if that is clearly better. */
-  travelTo(x, z) {
-    if (this.tryTransit(x, z)) { this._rode = true; return true; }
+  travelTo(x, z, tight) {
+    if (this.tryTransit(x, z, tight)) { this._rode = true; return true; }
     this._rode = false;
-    return this.goto(x, z);
+    return this.goto(x, z, tight);
   }
   /* Somewhere to stroll: a walkable tile a short way from where we are.
      Sampling the whole map would almost always miss on a park this size. */
@@ -12825,6 +12832,15 @@ class TransitStation extends ParkObject {
     const off = (this.gd * TILE) / 2 + 1.6;
     return { x: this.x + Math.sin(a) * off, z: this.z - Math.cos(a) * off };
   }
+  /* Where a bus actually pulls in: the covered bay along the building's
+     side, not its front door. Local offset matches Prefab.busStation's own
+     bay markings, so the route line drawn from here lines up with the bay
+     drawn on the model instead of appearing to drive through the building. */
+  get bay() {
+    const a = -this.rot * PI / 2;
+    const lx = 3.2, lz = 2.2;
+    return { x: this.x + lx * Math.cos(a) - lz * Math.sin(a), z: this.z + lx * Math.sin(a) + lz * Math.cos(a) };
+  }
   maxBuses() { return 1 + this.tier; }                 // tier 1 = 2 buses, tier 4 = 5
   upgradeCost() { return [0, 9000, 22000, 48000][this.tier] || 0; }
   canUpgrade() { return this.tier < 4; }
@@ -12937,7 +12953,7 @@ const Transit = {
   beginRoute(station) {
     if (!this.unlocked()) { UI.notify('Locked', this.lockNote(), 'warn'); return; }
     if (this.routesOf(station).length >= 3) { UI.notify('Depot full', 'A depot runs at most three routes. Upgrade or build another depot.', 'warn'); return; }
-    const e = station.entrance;
+    const e = station.bay;
     this.drawing = {
       id: this.nextId++, stationId: station.id,
       name: 'Route ' + (this.routes.length + 1),
@@ -13075,13 +13091,29 @@ const Transit = {
     const st = this.stationOf(r);
     const want = st ? st.maxBuses() : 2;
     while (r.buses.length > want) { const b = r.buses.pop(); for (const g of b.riders) { g.transit = null; g.state = 'idle'; } }
+    /* New buses wait parked at the depot rather than starting spread around
+       the loop — a route that nobody has used yet should look like nobody
+       has used it yet. They pull out once there is actually a passenger. */
     while (r.buses.length < want) {
-      const k = r.buses.length;
-      const d0 = r.len * (k / want);
-      let nx = r.stops.findIndex(st => st.d >= d0);
-      if (nx < 0) nx = 0;
-      r.buses.push({ d: d0, v: 0, state: 'run', timer: 0, riders: [], next: nx, px: 0, pz: 0, py: 0, yaw: 0 });
+      r.buses.push({ d: 0, v: 0, state: 'idle', timer: 0, riders: [], next: 0, px: 0, pz: 0, py: 0, yaw: 0 });
     }
+  },
+  /* Whether this route currently has anyone worth running for: someone
+     waiting to be picked up, or someone still aboard needing to be set down.
+     A route nobody is using stays parked instead of circling empty. */
+  routeDemand(r) {
+    for (const b of r.buses) if (b.riders.length) return true;
+    for (const s of r.stops) {
+      const o = s.obj && !s.obj.dead ? s.obj : (s.obj = this.stopObj(s.id));
+      if (o && o.allowsPick() && o.waiting.length) return true;
+    }
+    return false;
+  },
+  /* The stop index a bus parked/arriving at distance d should head for next. */
+  nextStopFrom(r, d) {
+    if (!r.stops.length) return 0;
+    let nx = r.stops.findIndex(s => s.d >= d);
+    return nx < 0 ? 0 : nx;
   },
   capacity(r) {
     const st = this.stationOf(r);
@@ -13099,11 +13131,29 @@ const Transit = {
     const st = this.stationOf(r);
     const top = st && st.tier >= 3 ? 13 : st && st.tier >= 2 ? 11 : 9.5;   // m/s
     const cap = this.capacity(r);
+    const demand = this.routeDemand(r);
     for (const b of r.buses) {
-      if (b.state === 'dwell') {
+      if (b.state === 'idle') {
+        /* Parked at the depot. Pulls out the moment somebody actually wants
+           the route — not before, so an unused route just sits there. */
+        b.v = 0;
+        if (demand) { b.state = 'run'; b.next = this.nextStopFrom(r, b.d); }
+      } else if (b.state === 'return') {
+        // driving back to the depot with no stops to make on the way
+        b.v = damp(b.v, top, 1.4, dt);
+        const step = b.v * dt;
+        const gap = (((0 - b.d) % r.len) + r.len) % r.len;
+        if (step >= gap) { b.d = 0; b.state = 'idle'; b.v = 0; }
+        else b.d = (b.d + step) % r.len;
+      } else if (b.state === 'dwell') {
         b.timer -= dt;
         b.v = 0;
-        if (b.timer <= 0) { b.state = 'run'; b.next = (b.next + 1) % Math.max(1, r.stops.length); }
+        if (b.timer <= 0) {
+          b.next = (b.next + 1) % Math.max(1, r.stops.length);
+          // empty, and nobody anywhere on the route wants a ride: head home
+          // rather than keep circling for the sake of it.
+          b.state = (!b.riders.length && !demand) ? 'return' : 'run';
+        }
       } else {
         b.v = damp(b.v, top, 1.4, dt);
         const step = b.v * dt;
