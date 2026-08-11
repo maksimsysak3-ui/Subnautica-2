@@ -2196,6 +2196,7 @@ const WORLD = {
       { c: hex(0xa9793f), d: hex(0x8f6533), stripe: true  }, // 2 wood plank
       { c: hex(0xa5432f), d: hex(0x8c3826), stripe: true  }, // 3 brick
       { c: hex(0xb8ae9c), d: hex(0xa79c88), stripe: false }, // 4 gravel
+      { c: hex(0x4a4a4c), d: hex(0x3d3d3f), stripe: false, road: true }, // 5 road (cars)
     ];
     for (let j = 0; j < N; j++) {
       for (let i = 0; i < N; i++) {
@@ -2240,8 +2241,9 @@ const WORLD = {
           g.triV([x1, y10, z0], [x0, y01, z1], [x1, y11, z1], shade(c, vTri));
         }
         // path kerbs give the walkways a built look
+        const isRoad = t === T_PATH && this.mat[j * N + i] === 5;
         if (t === T_PATH || t === T_QUEUE || t === T_PLAZA) {
-          const kc = t === T_QUEUE ? hex(0x8f6fb0) : hex(0xa89478);
+          const kc = t === T_QUEUE ? hex(0x8f6fb0) : isRoad ? hex(0xd7d3c8) : hex(0xa89478);
           const y = Math.max(y00, y10, y01, y11);
           const nb = [[1, 0], [-1, 0], [0, 1], [0, -1]];
           for (const [di, dj] of nb) {
@@ -2250,6 +2252,46 @@ const WORLD = {
             const cx = (i - N / 2) * TILE + TILE / 2 + di * (TILE / 2 - .12);
             const cz = (j - N / 2) * TILE + TILE / 2 + dj * (TILE / 2 - .12);
             g.box(cx, y - .02, cz, di ? .24 : TILE, .16, dj ? .24 : TILE, kc);
+          }
+        }
+        // road markings: a dashed centre line running the long axis of a
+        // straight road run, so painted roads actually read as roads
+        if (isRoad) {
+          const y = Math.max(y00, y10, y01, y11) + .015;
+          const cx = (i - N / 2) * TILE + TILE / 2, cz = (j - N / 2) * TILE + TILE / 2;
+          const roadE = this.t(i + 1, j) === T_PATH && this.mat[j * N + i + 1] === 5;
+          const roadW = this.t(i - 1, j) === T_PATH && this.mat[j * N + i - 1] === 5;
+          const roadN = this.t(i, j - 1) === T_PATH && this.mat[(j - 1) * N + i] === 5;
+          const roadS = this.t(i, j + 1) === T_PATH && this.mat[(j + 1) * N + i] === 5;
+          const horiz = (roadE || roadW) && !(roadN || roadS);
+          const vert = (roadN || roadS) && !(roadE || roadW);
+          const dash = hex(0xdcd6b8);
+          if (horiz && (i % 2 === 0)) g.box(cx, y, cz, TILE * .5, .02, .1, dash);
+          else if (vert && (j % 2 === 0)) g.box(cx, y, cz, .1, .02, TILE * .5, dash);
+        }
+        // dead-end caps: a stub of path/road with only one connected
+        // neighbour gets a rounded end instead of a square-cut edge
+        if (t === T_PATH || t === T_QUEUE || t === T_PLAZA) {
+          const nb2 = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+          let walkDir = null, walkCount = 0;
+          for (const [di, dj] of nb2) {
+            const nt = this.t(i + di, j + dj);
+            if (nt === T_PATH || nt === T_QUEUE || nt === T_PLAZA || nt === T_BUILD || nt === T_ENTRY) { walkCount++; walkDir = [di, dj]; }
+          }
+          if (walkCount === 1) {
+            const capC = t === T_QUEUE ? hex(0x8f6fb0) : isRoad ? hex(0xd7d3c8) : hex(0xa89478);
+            const y = Math.max(y00, y10, y01, y11) + .13;
+            const ex = -walkDir[0], ez = -walkDir[1];
+            const cx = (i - N / 2) * TILE + TILE / 2, cz = (j - N / 2) * TILE + TILE / 2;
+            const edgeCx = cx + ex * (TILE / 2), edgeCz = cz + ez * (TILE / 2);
+            const tx = -ez, tz = ex;
+            const startA = Math.atan2(tz, tx), segs = 8, sweep = Math.PI;
+            for (let k = 0; k < segs; k++) {
+              const a0 = startA + sweep * k / segs, a1 = startA + sweep * (k + 1) / segs;
+              g.triV([edgeCx, y, edgeCz],
+                [edgeCx + Math.cos(a0) * TILE / 2, y, edgeCz + Math.sin(a0) * TILE / 2],
+                [edgeCx + Math.cos(a1) * TILE / 2, y, edgeCz + Math.sin(a1) * TILE / 2], capC);
+            }
           }
         }
       }
@@ -2623,10 +2665,10 @@ const CAT = {
       need: 'hotel', hotelStyle: 'bungalow', tier: 'Boutique', nightly: 62, quality: .72, price: 0, satisfy: 76, color: 0xd98f4e, roof: 0xc79a4b },
     { id: 'hotelluxury', name: 'Grand Resort', cost: 52000, up: 190, w: 5, d: 4, floors: 7, rooms: 84,
       need: 'hotel', hotelStyle: 'modern', tier: 'Luxury', nightly: 180, quality: .93, price: 0, satisfy: 92, color: 0x3c4a5e, roof: 0x2f3b52 },
-    { id: 'hotelvillas', name: 'Sunset Villa Neighborhood', cost: 46000, up: 165, w: 8, d: 8, floors: 1, rooms: 64,
-      need: 'hotel', hotelStyle: 'villadistrict', tier: 'Villas', nightly: 96, quality: .8, price: 0, satisfy: 82, color: 0xe4d2ab, roof: 0x8a4a3a },
-    { id: 'hotelvillasgrand', name: 'Grand Villa Estates', cost: 98000, up: 300, w: 12, d: 10, floors: 1, rooms: 120,
-      need: 'hotel', hotelStyle: 'villadistrict', tier: 'Villas', nightly: 145, quality: .88, price: 0, satisfy: 88, color: 0xefe0bd, roof: 0x5c3a2e },
+    { id: 'hotelvillas', name: 'Airbnb Villa', cost: 9800, up: 34, w: 2, d: 2, floors: 1, rooms: 2,
+      need: 'hotel', hotelStyle: 'villahouse', tier: 'Villas', nightly: 96, quality: .8, price: 0, satisfy: 82, color: 0xe4d2ab, roof: 0x8a4a3a },
+    { id: 'hotelvillasgrand', name: 'Grand Beach Villa', cost: 21000, up: 68, w: 3, d: 3, floors: 1, rooms: 4,
+      need: 'hotel', hotelStyle: 'villahouse', tier: 'Villas', nightly: 145, quality: .88, price: 0, satisfy: 88, color: 0xefe0bd, roof: 0x5c3a2e },
     { id: 'hotelsky', name: 'Sky Suites', cost: 84000, up: 300, w: 5, d: 5, floors: 11, rooms: 120,
       need: 'hotel', hotelStyle: 'modern', tier: 'Ultra Luxury', nightly: 260, quality: .99, price: 0, satisfy: 98, color: 0x1c2530, roof: 0xd4af37 },
     /* ---- Prestige landmarks: legendary resort-style hotels unlocked with
@@ -2985,55 +3027,28 @@ const Prefab = {
         return { base: g, parts: [] };
       }
 
-      if (style === 'villadistrict') {
-        // A genuine little neighborhood: a grid of small, individually
-        // roofed villa cottages along an internal street, each with its
-        // own tiny yard, rather than one big building — this is the
-        // Hershey-Park-style "stay in a neighborhood" lodging tier.
-        g.box(0, -.08, 0, W + .4, .16, D + .4, hex(0xb9ab90));                // plinth
-        const cols = Math.max(2, Math.round(W / 2.6));
-        const rows = Math.max(2, Math.round(D / 2.6));
-        const cellW = W / cols, cellD = D / rows;
-        // internal streets: a cross-shaped paved network
-        g.box(0, .01, 0, W - .3, .03, cellD * .55, hex(0x8a8a86));
-        g.box(0, .01, 0, cellW * .55, .03, D - .3, hex(0x8a8a86));
-        for (let r = 0; r < rows; r++) {
-          const z = -D / 2 + cellD * (r + .5);
-          if (Math.abs(z) < cellD * .4) continue;
-          g.box(0, .012, z, W - .3, .02, .5, shade(hex(0x8a8a86), .95));
+      if (style === 'villahouse') {
+        // A standalone Airbnb-style house, not a hotel tower: its own lawn,
+        // a sidewalk strip along the street edge, and a short driveway —
+        // players plant several of these along paths/roads to build their
+        // own villa neighborhood, one house at a time.
+        const grass = hex(0x5a9450), sidewalk = hex(0xc9c3b4), drive = hex(0x8a8480);
+        g.box(0, -.06, 0, W + .4, .1, D + .4, grass);                          // private lawn
+        g.box(0, -.01, -D / 2 - .12, W * .7, .04, .5, sidewalk);               // street-side sidewalk
+        g.box(W * .28, -.005, -D / 2 - .5, .8, .05, .8, drive);                // driveway apron for drop-off
+        const hw = W * .72, hd = D * .68, hh = 1.7 + (D >= 3 ? .4 : 0);
+        g.box(0, .02, 0, hw, hh, hd, wall);                                    // house body
+        g.box(0, .02, -hd / 2, hw * .28, hh * .55, .12, shade(body, .8));      // front door
+        for (const sx of [-1, 1]) g.box(sx * hw * .28, .02 + hh * .4, -hd / 2 - .02, .5, .5, .08, glass); // windows
+        g.box(0, .02 + hh, 0, hw * 1.12, .18, hd * 1.08, shade(roof, 1.05));   // eave cap
+        g.cone(0, .02 + hh + .18, 0, hw * .74, hw * .62, 4, shade(roof, .92)); // pyramid roof
+        g.box(0, .02, hd * .3, hw * .5, .3, hd * .3, shade(hex(0x3ba7c9), 1.1)); // tiny plunge pool out back
+        g.cyl(-hw * .5 - .3, .02, hd * .42, .1, 1.5, 6, hex(0x8a6a3a));        // palm
+        for (let k = 0; k < 5; k++) {
+          const a = k / 5 * TAU;
+          g.triV([-hw * .5 - .3, .02 + 1.6, hd * .42], [-hw * .5 - .3 + Math.cos(a) * .7, .02 + 1.3, hd * .42 + Math.sin(a) * .7],
+            [-hw * .5 - .3 + Math.cos(a + .5) * .7, .02 + 1.3, hd * .42 + Math.sin(a + .5) * .7], hex(0x3f9e52));
         }
-        for (let c = 0; c < cols; c++) {
-          const x = -W / 2 + cellW * (c + .5);
-          if (Math.abs(x) < cellW * .4) continue;
-          g.box(x, .012, 0, .5, .02, D - .3, shade(hex(0x8a8a86), .95));
-        }
-        let vi = 0;
-        for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
-          const cx = -W / 2 + cellW * (c + .5), cz = -D / 2 + cellD * (r + .5);
-          // skip the very center cell(s) so the crossroads stays open
-          if (Math.abs(cx) < cellW * .4 && Math.abs(cz) < cellD * .4) continue;
-          const jitter = (vi * 37 % 100) / 100 - .5;
-          const vw = Math.min(cellW, cellD) * (.6 + jitter * .08);
-          const vh = 1.15 + (vi % 3) * .1;
-          const vx = cx + jitter * cellW * .12, vz = cz - jitter * cellD * .1;
-          g.box(vx, .02, vz, vw, vh, vw * .92, wall);                        // cottage body
-          g.box(vx, .02, vz - vw * .4, vw * .4, vh * .5, .12, shade(body, .82)); // door
-          g.box(vx - vw * .28, .02 + vh * .42, vz - vw * .48, .38, .34, .06, glass); // window
-          g.box(vx + vw * .28, .02 + vh * .42, vz - vw * .48, .38, .34, .06, glass);
-          g.box(vx, .02 + vh, vz, vw * 1.15, .18, vw * 1.05, shade(roof, 1.05));  // eave
-          g.cone(vx, .02 + vh + .18, vz, vw * .82, vw * .68, 4, shade(roof, .92)); // pyramid roof
-          g.box(vx - vw * .5 - .08, .02, vz + vw * .5 + .05, .16, .55, .16, shade(hex(0x6b5a3f), 1)); // yard post
-          vi++;
-        }
-        // street lamps along the main cross-street
-        for (const lp of [[-W * .35, 0], [W * .35, 0], [0, -D * .35], [0, D * .35]]) {
-          g.cyl(lp[0], .02, lp[1], .06, 1.4, 6, hex(0x40403c));
-          g.sphere(lp[0], .02 + 1.45, lp[1], .16, 6, hex(0xffe9a8));
-        }
-        // entrance arbor
-        g.box(-1.1, .02, -D / 2 - .3, .16, 2.1, .16, shade(hex(0x6b5a3f), 1));
-        g.box(1.1, .02, -D / 2 - .3, .16, 2.1, .16, shade(hex(0x6b5a3f), 1));
-        g.box(0, 2.05, -D / 2 - .3, 2.4, .18, .3, shade(roof, 1.1));
         return { base: g, parts: [] };
       }
 
@@ -6656,6 +6671,15 @@ const Park = {
     if (!atts.length) score = Math.min(score, 90);
     this.rating = clamp(Math.round(score), 0, 999);
   },
+  /* Guests never see a raw 0-999 number — every player-facing rating is a
+     5-star readout. Internal formulas keep using Park.rating unchanged. */
+  ratingStars() { return this.rating / 999 * 5; },
+  ratingStarsHTML() {
+    const v = this.ratingStars(), full = Math.floor(v), half = v - full >= .5;
+    let s = '';
+    for (let i = 0; i < 5; i++) s += i < full ? '★' : (i === full && half) ? '⯰' : '☆';
+    return `<span title="${v.toFixed(1)} / 5">${s}</span> <span style="color:var(--dim);font-weight:400">${v.toFixed(1)}</span>`;
+  },
   get beauty() {
     let b = 0;
     for (const o of this.objects) if (o.kind === 'scenery') b += o.def.beauty;
@@ -6924,6 +6948,32 @@ const HAIR = [0x2b1b0e, 0x4a2c14, 0x7a4a1e, 0xc79a3a, 0x1a1a1a, 0xa03030, 0xd9d9
 
 const FIRST = ['Ava', 'Liam', 'Mia', 'Noah', 'Zoe', 'Kai', 'Elle', 'Finn', 'Ivy', 'Milo', 'Nora', 'Otto', 'Remy', 'Sage', 'Theo', 'Wren', 'Juno', 'Cleo', 'Dax', 'Pip', 'Rosa', 'Hugo', 'Iris', 'Jonas', 'Lena', 'Bruno', 'Suki', 'Tariq', 'Nina', 'Oscar'];
 const LAST = ['Vale', 'Marsh', 'Quill', 'Rook', 'Stone', 'Frost', 'Harlow', 'Bell', 'Crane', 'Doyle', 'Ember', 'Grove', 'Hale', 'Kerr', 'Lark', 'Mint', 'North', 'Pike', 'Ridge', 'Swift'];
+
+/* ---- Reviews: every ride/coaster/shop/hotel keeps a short rolling log of
+   guest write-ups, generated from the same satisfaction number that already
+   drives happiness, so the "reviews" tab in the inspector always agrees
+   with the meters right above it. ---- */
+const Reviews = {
+  BANK: {
+    1: ["Total waste of my day, honestly.", "Would not go back. Not even for free.", "This ruined the whole trip for me.", "Awful. Just awful."],
+    2: ["Pretty disappointing for the price.", "Expected a lot more than this.", "Meh. Wouldn't recommend it.", "Not worth the wait, sadly."],
+    3: ["It was fine, nothing special.", "Decent way to kill some time.", "Okay experience overall.", "Does the job, I guess."],
+    4: ["Really enjoyed this one!", "Great time, would do it again.", "Solid pick, glad we stopped here.", "Better than I expected!"],
+    5: ["Absolutely incredible, best part of the trip!", "WOW. Just wow. 10/10.", "My whole family loved this!", "Already planning to come back just for this."],
+  },
+  add(obj, starsFloat, name) {
+    if (!obj.reviews) obj.reviews = [];
+    const stars = clamp(Math.round(starsFloat), 1, 5);
+    const bank = this.BANK[stars];
+    const text = bank[Math.floor(Math.random() * bank.length)];
+    obj.reviews.unshift({ name, stars, text, day: Park.day || 1 });
+    if (obj.reviews.length > 18) obj.reviews.length = 18;
+  },
+  starsHTML(stars) {
+    let s = ''; for (let i = 1; i <= 5; i++) s += i <= stars ? '★' : '☆';
+    return s;
+  }
+};
 
 class Person {
   constructor(x, z) {
@@ -7966,6 +8016,7 @@ class Guest extends Person {
       if (s.merch && s.merch.name) this.happy = clamp(this.happy + .015, 0, 1);
       Progress.add(1);
       const value = s.def.price > 0 ? clamp(1.2 - s.price / (s.def.price * 2.2), 0, 1) : 1;
+      if (Math.random() < .3) Reviews.add(s, 1 + value * 4, this.name);
       const sat = s.def.satisfy * (s.satisfyMul || 1) / 100;
       switch (s.def.need) {
         case 'hunger': this.hunger = clamp(this.hunger - sat, 0, 1); this.litterCarried++; break;
@@ -8013,6 +8064,7 @@ class Guest extends Person {
     this.ridden.push(ride.id);
     if (aborted) { this.happy = clamp(this.happy - .2, 0, 1); this.think('We got stuck on the ride!'); this.state = 'idle'; return; }
     const rating = ride.ratingFor(this);
+    if (Math.random() < .35) Reviews.add(ride, rating / 12 * 5, this.name);
     this.happy = clamp(this.happy + rating * .022 - .01, 0, 1);
     this.nausea = clamp(this.nausea + ride.nausea * .055 * (1 + Math.max(0, ride.nausea - this.nauseaTol) * .25), 0, 1);
     this.energy = clamp(this.energy - .04, 0, 1);
@@ -8508,6 +8560,7 @@ const UI = {
         { id: 'path', name: 'Wood Deck', cost: 30, mat: 2 },
         { id: 'path', name: 'Brick', cost: 32, mat: 3 },
         { id: 'path', name: 'Gravel', cost: 20, mat: 4 },
+        { id: 'path', name: 'Road', cost: 26, mat: 5 },
       ], 'grid2', it => `<img class="th" src="${Thumbs.path(it.id, it.mat)}" alt=""><span class="n">${it.name}</span>${cost(it.cost)}`,
         (it, d) => this.pick(it, d));
       addGrid('Other tiles', [
@@ -8515,6 +8568,12 @@ const UI = {
         { id: 'plaza', name: 'Plaza Tile', cost: 40 },
         { id: 'erase', name: 'Remove', cost: 0 },
       ], 'grid2', it => `<img class="th" src="${Thumbs.path(it.id)}" alt=""><span class="n">${it.name}</span>${it.cost ? cost(it.cost) : '<span class="c">refund</span>'}`,
+        (it, d) => this.pick(it, d));
+      addGrid('Preset shapes — one click stamps a whole area', [
+        { id: 'path', name: 'Path Circle', cost: 24, mat: 1, circle: true, r: 3 },
+        { id: 'path', name: 'Road Roundabout', cost: 26, mat: 5, circle: true, r: 4 },
+        { id: 'plaza', name: 'Plaza Circle', cost: 40, circle: true, r: 3 },
+      ], 'grid2', it => `<img class="th" src="${Thumbs.path(it.id, it.mat)}" alt=""><span class="n">${it.name}</span>${cost(it.cost)}`,
         (it, d) => this.pick(it, d));
       b.appendChild(el('div', 'cat', 'Queue connection'));
       b.appendChild(el('div', '', `<div class="row" style="padding:2px 3px">
@@ -9408,7 +9467,7 @@ const UI = {
       else h += `<p style="font-size:11px">Arrivals follow the time of day: a trickle at 07:00, the main
         peak around midday, a second one mid afternoon, then a long decline to closing at 22:00.</p>`;
       h += kv('Turned away by price', gate.turnedAway);
-      h += kv('Park rating', Park.rating, '+' + gate.ratingBonus() + ' from the entrance');
+      h += kv('Park rating', Park.ratingStarsHTML(), '+' + gate.ratingBonus() + ' from the entrance');
       h += `<h3>Marketing</h3>`;
       if (!Marketing.active.length) h += `<p>No campaign running. Campaigns pull extra visitors for a fixed run of days.</p>`;
       else for (const a of Marketing.active) {
@@ -9730,7 +9789,7 @@ const UI = {
   updateHUD() {
     $('#vMoney').textContent = money(Park.money);
     $('#vGuests').textContent = (Park.guests.length + (Park.hotelGuestsPresent || 0)) + ' / ' + Park.capacity;
-    $('#vRating').textContent = Park.rating;
+    $('#vRating').innerHTML = Park.ratingStarsHTML();
     $('#vLand').textContent = Land.areaText();
     $('#vHappy').textContent = Math.round(Park.happiness * 100) + '%';
     const pph = Park.profitPerHour || 0;
@@ -9775,6 +9834,22 @@ const UI = {
     const perDay = (total) => {
       const days = Math.max(1, Park.day - 1 + Park.time / 1440);
       return money(total / days) + ' / day';
+    };
+    const reviewsSection = (obj) => {
+      const rv = obj.reviews || [];
+      if (!rv.length) return `<div class="cat">Reviews</div><div style="font-size:10.5px;color:var(--dim)">No reviews yet — check back after guests visit.</div>`;
+      const avg = rv.reduce((a, r) => a + r.stars, 0) / rv.length;
+      let s = `<div class="cat">Reviews &middot; <span style="color:var(--gold)">${Reviews.starsHTML(Math.round(avg))}</span> <span style="color:var(--dim);font-weight:400">${avg.toFixed(1)} avg from ${rv.length}</span></div>`;
+      s += `<div style="display:flex;flex-direction:column;gap:6px;max-height:180px;overflow-y:auto">`;
+      for (const r of rv.slice(0, 8)) {
+        s += `<div style="background:var(--panel-sunken);border-radius:8px;padding:6px 8px">
+          <div style="display:flex;justify-content:space-between;font-size:10.5px"><b>${esc(r.name)}</b><span style="color:var(--gold)">${Reviews.starsHTML(r.stars)}</span></div>
+          <div style="font-size:10.5px;color:var(--txt);margin-top:2px">${esc(r.text)}</div>
+          <div style="font-size:9px;color:var(--dim);margin-top:2px">Day ${r.day}</div>
+        </div>`;
+      }
+      s += `</div>`;
+      return s;
     };
 
     if (o instanceof Guest) {
@@ -9858,6 +9933,7 @@ const UI = {
       h += `<div class="btnrow"><button class="btn" onclick="Game.autoConnect(Park.objects.concat(Park.coasters).find(x=>x.id===${o.id}))">Reconnect queue</button>
         <button class="btn dan" onclick="Game.demolish(${o.id})">Demolish</button></div>`;
       if (o.broken) h += `<div style="color:var(--bad);font-size:11px">A mechanic is needed before this can reopen.</div>`;
+      h += reviewsSection(o);
     }
     else if (o.kind === 'shop' && o.def.need === 'hotel') {
       $('#insTitle').textContent = 'Hotel';
@@ -9876,6 +9952,7 @@ const UI = {
       h += `<div style="font-size:10.5px;color:var(--dim);margin-top:-2px">Guests who stay overnight arrive happier and spend more the next day — bigger, better-rated parks fill hotel rooms faster.</div>`;
       h += `<div class="btnrow"><button class="btn" onclick="Game.autoConnect(Park.objects.find(x=>x.id===${o.id}))">Reconnect path</button>
         <button class="btn dan" onclick="Game.demolish(${o.id})">Demolish</button></div>`;
+      h += reviewsSection(o);
     }
     else if (o.kind === 'shop') {
       $('#insTitle').textContent = 'Shop';
@@ -9901,6 +9978,7 @@ const UI = {
       h += `<div style="font-size:10.5px;color:${verdict[1]}">${verdict[0]}. Guests expect around ${money(fair)}.</div>`;
       h += `<div class="btnrow"><button class="btn" onclick="Game.autoConnect(Park.objects.find(x=>x.id===${o.id}))">Reconnect path</button>
         <button class="btn dan" onclick="Game.demolish(${o.id})">Demolish</button></div>`;
+      h += reviewsSection(o);
     }
     else {
       $('#insTitle').textContent = 'Scenery';
@@ -10105,7 +10183,7 @@ const UI = {
       h += `</table>`;
     }
     h += `<h3>Park</h3><table class="tb">
-      <tr><td>Park rating</td><td style="text-align:right">${Park.rating}</td></tr>
+      <tr><td>Park rating</td><td style="text-align:right">${Park.ratingStarsHTML()}</td></tr>
       <tr><td>Guests in park</td><td style="text-align:right">${Park.guests.length}</td></tr>
       <tr><td>Guests all time</td><td style="text-align:right">${Park.totalGuests}</td></tr>
       <tr><td>Average happiness</td><td style="text-align:right">${Math.round(Park.happiness * 100)}%</td></tr>
@@ -12559,7 +12637,7 @@ const Goals = {
       <table class="tb">
         <tr><td>Guests in the park</td><td style="text-align:right">${Park.guests.length}</td></tr>
         <tr><td>Guests all time</td><td style="text-align:right">${Park.totalGuests}</td></tr>
-        <tr><td>Park rating</td><td style="text-align:right">${Park.rating}</td></tr>
+        <tr><td>Park rating</td><td style="text-align:right">${Park.ratingStarsHTML()}</td></tr>
         <tr><td>Average happiness</td><td style="text-align:right">${Math.round(Park.happiness * 100)}%</td></tr>
         <tr><td>Coasters open</td><td style="text-align:right">${this.value('coasters')}</td></tr>
         <tr><td>Park level</td><td style="text-align:right">${Park.level}</td></tr>
@@ -14344,6 +14422,17 @@ const Game = {
 
   /* ---------------- placement ---------------- */
   paintPath(i, j) {
+    if (UI.sub && UI.sub.circle) {
+      const r = UI.sub.r || 3;
+      for (let dj = -r; dj <= r; dj++) for (let di = -r; di <= r; di++) {
+        if (di * di + dj * dj > r * r + .5) continue;   // filled disc, not a square
+        this.paintPathAt(i + di, j + dj);
+      }
+      return;
+    }
+    this.paintPathAt(i, j);
+  },
+  paintPathAt(i, j) {
     const kind = UI.sub.id;
     const t = WORLD.t(i, j);
     if (t === T_BUILD) return;
@@ -15514,6 +15603,7 @@ const Game = {
         totalOccupiedRooms += occupied;
         // guests who stayed the night arrive happier and earlier next day
         Park.happiness = clamp(Park.happiness + occRate * h.def.quality * .0025, 0, 1);
+        for (let k = 0; k < Math.min(3, occupied); k++) if (Math.random() < .5) Reviews.add(h, 1 + h.def.quality * 4 + rnd(-.5, .5), pick(FIRST) + ' ' + pick(LAST));
       }
       // rooms hold about two guests on average — this is how many extra
       // people are "in the park" overnight tonight, counted in the headcount
@@ -15522,7 +15612,7 @@ const Game = {
       Park.hotelOccupantsTonight = 0;
     }
 
-    UI.notify('A new day', `Day ${Park.day} begins. Rating ${Park.rating}, ${Park.guests.length} guests still in the park.`, 'good');
+    UI.notify('A new day', `Day ${Park.day} begins. Rating ${Park.ratingStars().toFixed(1)}/5, ${Park.guests.length} guests still in the park.`, 'good');
     // rides recover a little, litter accumulates
     for (const o of Park.objects) if (o.kind === 'ride') o.wear = Math.max(0, o.wear - .02);
     Weather.dayTick(Park.day);
