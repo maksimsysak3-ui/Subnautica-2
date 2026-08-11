@@ -13285,6 +13285,99 @@ Prefab.gondolaCabin = function (color) {
   return g;
 };
 
+/* Small ambient sedan used to give painted Roads real traffic. Cosmetic
+   only — Traffic below drives it tile-to-tile along the road graph, no
+   passengers, no collisions, just life on the street. */
+Prefab.car = function (color) {
+  const g = new Geo();
+  const body = hex(color), dark = shade(body, .65), glass = hex(0x8fcdea);
+  g.cbox(0, .42, 0, 1.7, .62, 3.4, body);
+  g.cbox(0, .86, -.2, 1.42, .5, 1.7, shade(body, 1.1));
+  g.cbox(0, .86, -.2, 1.3, .42, 1.55, glass);
+  g.cbox(0, .18, 0, 1.72, .3, 3.44, dark);
+  for (const sx of [-1, 1]) for (const sz of [-1.15, 1.15])
+    g.cyl(sx * .82, .18, sz, .32, .24, 8, hex(0x1c1c1e), 0, true);
+  for (const sx of [-.55, .55]) {
+    g.sphere(sx, .42, -1.68, .1, 6, hex(0xfff3c4));   // headlights
+    g.sphere(sx, .42, 1.68, .1, 6, hex(0xd94f3c));    // taillights
+  }
+  return g;
+};
+
+/* ---------- Traffic: ambient cars driving the painted road network ---- */
+const Traffic = {
+  cars: [], carMesh: {}, roadList: [], roadSet: new Set(), rebuildT: 0,
+  colors: [0xd9432e, 0x2e6fd9, 0xd9c22e, 0x3ba05a, 0xe8e8ec, 0x2b2b30, 0xd98f2e],
+  key(i, j) { return i * 100000 + j; },
+  isRoad(i, j) { return WORLD.t(i, j) === T_PATH && WORLD.mat[j * N + i] === 5; },
+  rebuildRoads() {
+    this.roadList = []; this.roadSet.clear();
+    for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
+      if (this.isRoad(i, j)) { this.roadList.push([i, j]); this.roadSet.add(this.key(i, j)); }
+    }
+  },
+  neighbors(i, j, exclude) {
+    const out = [];
+    for (const [di, dj] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const ni = i + di, nj = j + dj;
+      if (exclude && ni === exclude[0] && nj === exclude[1]) continue;
+      if (this.roadSet.has(this.key(ni, nj))) out.push([ni, nj]);
+    }
+    return out;
+  },
+  meshFor(color) {
+    const k = color;
+    if (!this.carMesh[k]) this.carMesh[k] = Game.R.makeMesh(Prefab.car(color));
+    return this.carMesh[k];
+  },
+  spawnOne() {
+    if (!this.roadList.length) return;
+    const [i, j] = this.roadList[Math.floor(Math.random() * this.roadList.length)];
+    const nbs = this.neighbors(i, j);
+    if (!nbs.length) return;
+    const [ni, nj] = nbs[Math.floor(Math.random() * nbs.length)];
+    this.cars.push({
+      i, j, ni, nj, t: Math.random(), speed: .55 + Math.random() * .35,
+      color: this.colors[Math.floor(Math.random() * this.colors.length)]
+    });
+  },
+  update(dt) {
+    this.rebuildT -= dt;
+    if (this.rebuildT <= 0) { this.rebuildRoads(); this.rebuildT = 5; }
+    const target = clamp(Math.round(this.roadList.length / 7), 0, 22);
+    while (this.cars.length < target) this.spawnOne();
+    while (this.cars.length > target) this.cars.pop();
+    for (const c of this.cars) {
+      if (!this.roadSet.has(this.key(c.i, c.j)) || !this.roadSet.has(this.key(c.ni, c.nj))) {
+        // the road under this car was demolished/repainted — respawn it
+        const idx = this.cars.indexOf(c); if (idx >= 0) this.cars.splice(idx, 1);
+        continue;
+      }
+      c.t += dt * c.speed;
+      if (c.t >= 1) {
+        const from = [c.i, c.j];
+        c.i = c.ni; c.j = c.nj; c.t -= 1;
+        const nbs = this.neighbors(c.i, c.j, from);
+        const pick2 = nbs.length ? nbs[Math.floor(Math.random() * nbs.length)] : from;
+        c.ni = pick2[0]; c.nj = pick2[1];
+      }
+    }
+  },
+  draw(R) {
+    if (!this.cars.length) return;
+    const m = M4.create();
+    for (const c of this.cars) {
+      const x0 = WORLD.wx(c.i), z0 = WORLD.wz(c.j);
+      const x1 = WORLD.wx(c.ni), z1 = WORLD.wz(c.nj);
+      const x = lerp(x0, x1, c.t), z = lerp(z0, z1, c.t);
+      const y = WORLD.hAt(x, z) + .02;
+      const yaw = Math.atan2(x1 - x0, z1 - z0);
+      M4.compose(m, x, y, z, 0, yaw, 0, 1, 1, 1);
+      R.draw(this.meshFor(c.color), m);
+    }
+  }
+};
+
 /* ---------- objects ---------- */
 class TransitStop extends ParkObject {
   constructor(x, z, routeId) {
@@ -14887,6 +14980,7 @@ const Game = {
       for (const s of Park.staff) s.update(sdt);
       this.separateCrowd(sdt);
       Transit.update(sdt);
+      Traffic.update(sdt);
       this.updateTrucks(sdt);
       for (const o of Park.objects) if (o.kind === 'ride') o.update(sdt);
       for (const c of Park.coasters) Coaster.simulate(c, sdt);
@@ -16643,6 +16737,7 @@ Object.assign(Game, {
       }
     }
     TransitView.draw(R, depthPass);
+    if (!depthPass) Traffic.draw(R);
     if (this.animScenery) {
       const tmp = M4.create(), out = M4.create();
       for (const a of this.animScenery) {
