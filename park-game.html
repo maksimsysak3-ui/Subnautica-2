@@ -2708,6 +2708,9 @@ const CAT = {
     { id: 'picnic', name: 'Picnic Table', cost: 190, up: .7, w: 1, d: 1, kind: 'picnic', beauty: 7 },
     { id: 'signpost', name: 'Signpost', cost: 150, up: .5, w: 1, d: 1, kind: 'signpost', beauty: 6 },
     { id: 'rockgarden', name: 'Rock Garden', cost: 640, up: 2, w: 2, d: 2, kind: 'rockgarden', beauty: 30 },
+    { id: 'waterfall', name: 'Rock Waterfall', cost: 2600, up: 9, w: 2, d: 2, kind: 'waterfall', beauty: 68 },
+    { id: 'tikitorch', name: 'Tiki Torch Row', cost: 320, up: 1.2, w: 1, d: 1, kind: 'tikitorch', beauty: 18, light: true },
+    { id: 'koistream', name: 'Koi Stream', cost: 1400, up: 5, w: 2, d: 1, kind: 'koistream', beauty: 42 },
   ],
   /* ---------------- Flat rides ---------------- */
   rides: [
@@ -3698,6 +3701,53 @@ const Prefab = {
         }
         break;
       }
+      case 'waterfall': {
+        const rock = hex(0x8a8378), water = hex(0x2f9fd4);
+        for (let k = 0; k < 6; k++) {
+          const a = k * 2.399963, r = .8 + (k % 3) * .7, sz = .7 + ((k * 7) % 5) * .3;
+          g.sphere(Math.cos(a) * r - 1.2, sz * .35 + k * .18, Math.sin(a) * r, sz, 5, shade(rock, .8 + (k % 4) * .1));
+        }
+        g.box(1.6, 1.9, 0, .3, 3.4, 2.0, rock);
+        g.box(1.9, 2.6, 0, .5, .4, 1.6, shade(rock, 1.1));
+        const cascade = new Geo();
+        for (let k = 0; k < 4; k++) cascade.box(0, -k * .6, 0, .5 + k * .12, .5, 1.7 - k * .1, shade(water, 1.2 + k * .05));
+        parts.push({ geo: cascade, anim: (m, o, t) => M4.compose(m, 1.9, 2.4 - ((t * 1.4) % 2.4), 0, 0, 0, 0, 1, 1, 1) });
+        const pool = new Geo();
+        pool.quadV([1.0, 0, .9], [2.8, 0, .9], [2.8, 0, -.9], [1.0, 0, -.9], shade(water, 1.3));
+        parts.push({ geo: pool, anim: (m, o, t) => M4.compose(m, 0, .32 + Math.sin(t * 1.4) * .02, 0, 0, 0, 0, 1, 1, 1) });
+        break;
+      }
+      case 'tikitorch': {
+        const wood = hex(0x6b4a2f), flame = hex(0xffa63d);
+        for (const sx of [-1.1, 1.1]) {
+          g.cyl(sx, 0, 0, .10, 2.4, 6, wood);
+          g.cyl(sx, 2.4, 0, .22, .5, 6, hex(0x3a2c1e));
+          for (let k = 0; k < 3; k++) g.beam(sx, .3 + k * .55, -.02, sx, .3 + k * .55 + .35, .32, .015, .015, hex(0x2a1f16));
+        }
+        const fire = new Geo();
+        for (const sx of [-1.1, 1.1]) fire.cone(sx, 2.9, 0, .28, .7, 6, flame);
+        parts.push({ geo: fire, anim: (m, o, t) => M4.compose(m, 0, 0, 0, 0, 0, 0, 1, .8 + Math.sin(t * 9) * .18, 1) });
+        break;
+      }
+      case 'koistream': {
+        const rock = hex(0x8a8378), water = hex(0x2f9fd4);
+        g.box(0, .12, 0, 5.6, .24, 1.6, shade(rock, .85));
+        g.quadV([-2.6, .28, .6], [2.6, .28, .6], [2.6, .28, -.6], [-2.6, .28, -.6], shade(water, 1.25));
+        for (let k = 0; k < 3; k++) g.sphere(-2.6 + k * 2.6, .2, k % 2 ? .35 : -.35, .3, 5, shade(rock, .9));
+        for (let i = 0; i < 3; i++) {
+          const c = hex([0xff8c42, 0xf5f5f5, 0xd94f3c][i]);
+          const body = new Geo();
+          body.box(0, 0, 0, .5, .12, .16, c);
+          body.cone(-.28, 0, 0, .16, .3, 4, shade(c, .8));
+          parts.push({
+            geo: body, anim: (m, o, t) => {
+              const ph = i * 2.1, x = Math.sin(t * .5 + ph) * 2.0;
+              return M4.compose(m, x, .3, Math.cos(t * .8 + ph) * .35, 0, t * .5 + ph + PI / 2, 0, 1, 1, 1);
+            }
+          });
+        }
+        break;
+      }
       /* ---- Prestige landmarks: grand non-lodging buildings ---- */
       case 'lmSpire': {
         g.box(0, -.1, 0, 4.4, .3, 4.4, hex(0xc4b79d));
@@ -4002,6 +4052,24 @@ const Prefab = {
         [bw / 2 - .3, SURF, -bd / 2 + .3], [-bw / 2 + .3, SURF, -bd / 2 + .3], surfaceCol);
       g.quadV([-bw / 2 + 1.6, SURF + .02, bd / 2 - 1.6], [bw / 2 - 1.6, SURF + .02, bd / 2 - 1.6],
         [bw / 2 - 1.6, SURF + .02, -bd / 2 + 1.6], [-bw / 2 + 1.6, SURF + .02, -bd / 2 + 1.6], deepC);
+      /* A flat, static water plane reads as paint, not water. A lighter
+         shimmer plane hovering just above it, gently bobbing and catching
+         the light differently from every other pool in the park, is a cheap
+         trick this renderer can actually do — no real-time reflections
+         needed for it to read as living water rather than a floor tile. */
+      {
+        const shimmer = new Geo();
+        shimmer.quadV([-bw / 2 + 2.4, 0, bd / 2 - 2.4], [bw / 2 - 2.4, 0, bd / 2 - 2.4],
+          [bw / 2 - 2.4, 0, -bd / 2 + 2.4], [-bw / 2 + 2.4, 0, -bd / 2 + 2.4], shade(surfaceCol, 1.4));
+        parts.push({
+          geo: shimmer,
+          anim: (m, o, t) => {
+            const ph = o ? o.id * 1.7 : 0;
+            return M4.compose(m, 0, SURF + .05 + Math.sin(t * 1.15 + ph) * .02, 0, 0, 0, 0,
+              .92 + Math.sin(t * .8 + ph) * .05, 1, .92 + Math.cos(t * .8 + ph) * .05);
+          }
+        });
+      }
       // lane markings so the surface does not read as flat paint
       for (let k = -1; k <= 1; k++)
         g.box(k * bw / 4, SURF + .03, 0, .22, .03, bd - 1.4, shade(surfaceCol, 1.35));
@@ -6221,6 +6289,25 @@ class CoasterRide extends ParkObject {
     this.nausea = rate(naus, 13.5);
     /* Only suggest a price while the player has not chosen one themselves. */
     if (!this.priceLocked) this.price = clamp(Math.round(2 + this.excitement * 1.05), 2, 26);
+    /* A water coaster's splashdown is the lowest point on its own track — no
+       need to guess a location, the profile already has it. Built once here,
+       redrawn every frame like the station and track meshes are. */
+    if (this.type.water && this.profile.length) {
+      let low = this.profile[0];
+      for (const p of this.profile) if (p.y < low.y) low = p;
+      const s = this.track.sampleAt(low.d);
+      if (s) {
+        this.splashPoint = { x: s.p.x, y: s.p.y, z: s.p.z };
+        this.splashD = low.d;
+        if (Game.R) {
+          if (this.splashMesh) this.splashMesh.dispose();
+          const g = new Geo();
+          for (let i = 0; i < 10; i++) { const a = i / 10 * TAU; g.beam(0, 0, 0, Math.cos(a) * 1.8, 1.3, Math.sin(a) * 1.8, .12, .12, hex(0xdff2fb)); }
+          g.cyl(0, -.1, 0, 2.4, .2, 14, hex(0x2f9fd4));
+          this.splashMesh = Game.R.makeMesh(g);
+        }
+      }
+    }
   }
   repair() {
     this.broken = false; this.wear = 0;
@@ -6394,7 +6481,7 @@ const Park = {
   mode: 'sandbox', level: 8, xp: 0,
   money: 60000,
   guests: [], staff: [], objects: [], coasters: [], litter: [],
-  rating: 0, happiness: .7, entryFee: 12,
+  rating: 0, happiness: .7, entryFee: 12, waterPassPrice: 18,
   time: 9 * 60, day: 1, hourF: 9,
   now: 0, speed: 1, paused: false,
   rideSpeedup: 1,
@@ -7704,10 +7791,14 @@ class Guest extends Person {
     const raining = Weather.rainIntensity() > .25;
     for (const r of Park.attractions()) {
       if (r.broken || r.openR === false) continue;
-      if (r.price > this.cash) continue;
+      // A day pass makes every water attraction free for the rest of the
+      // visit, so it also has to lift the affordability gate that would
+      // otherwise stop a low-cash guest from even considering one.
+      const passCovers = this.waterPass && r.def && r.def.water;
+      if (!passCovers && r.price > this.cash) continue;
       // Spending is budgeted, not just affordable: nobody blows their last
       // note on a fourth ride when they have not eaten yet.
-      if (r.price > this.budget - this.spent && this.hunger > .5) continue;
+      if (!passCovers && r.price > this.budget - this.spent && this.hunger > .5) continue;
       const e = r.entrance;
       if (!this.canReach(e.x, e.z)) continue;
       // do not walk straight back into the queue you have just come out of
@@ -7856,7 +7947,8 @@ class Guest extends Person {
   }
   boardRide(ride) {
     this.state = 'riding'; this.riding = ride;
-    this.cash -= ride.price; this.spent += ride.price;
+    const free = this.waterPass && ride.def && ride.def.water;
+    if (!free) { this.cash -= ride.price; this.spent += ride.price; }
     this.rideSeat = ride.riders ? ride.riders.length : 0;
   }
   finishRide(ride, aborted) {
@@ -9966,7 +10058,9 @@ const UI = {
       <tr><td>Hourly upkeep</td><td style="text-align:right">${money(Park.upkeepPerHour())}</td></tr>
       </table>`;
     h += `<h3>Admission</h3><div class="row"><label>Entry fee</label><input type="range" min="0" max="80" value="${Park.entryFee}" oninput="Park.entryFee=+this.value;document.getElementById('feeN').textContent='$'+this.value"><span class="num" id="feeN">$${Park.entryFee}</span></div>
-      <p style="font-size:11px">A high fee earns more per guest but fewer arrive. Guests judge the fee against your park rating.</p>`;
+      <p style="font-size:11px">A high fee earns more per guest but fewer arrive. Guests judge the fee against your park rating.</p>
+      <div class="row"><label>Water day pass</label><input type="range" min="0" max="60" value="${Park.waterPassPrice}" oninput="Park.waterPassPrice=+this.value;document.getElementById('wpassN').textContent='$'+this.value"><span class="num" id="wpassN">$${Park.waterPassPrice}</span></div>
+      <p style="font-size:11px">Sold alongside admission, not instead of it. A guest who buys one rides every water attraction free for the rest of the day — set it to $0 to stop offering it.</p>`;
     h += `<h3>Attractions</h3><table class="tb"><tr><th>Name</th><th>Exc</th><th>Int</th><th>Riders</th><th style="text-align:right">Revenue</th></tr>`;
     for (const a of Park.attractions()) h += `<tr><td>${esc(a.name)}</td><td>${a.excitement.toFixed(1)}</td><td>${a.intensity.toFixed(1)}</td><td>${a.ridden}</td><td style="text-align:right">${money(a.revenue)}</td></tr>`;
     h += `</table>`;
@@ -11373,7 +11467,7 @@ const Coaster = {
     const c = this.active; if (!c) return;
     Park.money += Math.round(c.track.pieces.length * 150);
     Park.removeObject(c);
-    if (c.stationMesh) c.stationMesh.dispose();
+    if (c.stationMesh) c.stationMesh.dispose(); if (c.splashMesh) c.splashMesh.dispose();
     this.exit();
     UI.notify('Demolished', c.name + ' has been removed.', '');
   },
@@ -13821,7 +13915,7 @@ const Game = {
   /* Reset the world and start a fresh park in the chosen mode. */
   newGame(mode, scenario, quiet) {
     for (const o of Park.objects) if (o.mesh) o.mesh.dispose();
-    for (const c of Park.coasters) { if (c.trackMesh) c.trackMesh.dispose(); if (c.stationMesh) c.stationMesh.dispose(); }
+    for (const c of Park.coasters) { if (c.trackMesh) c.trackMesh.dispose(); if (c.stationMesh) c.stationMesh.dispose(); if (c.splashMesh) c.splashMesh.dispose(); }
     Park.objects.length = 0; Park.coasters.length = 0; Park.guests.length = 0;
     Park.staff.length = 0; Park.litter.length = 0; Park.needMechanic.length = 0;
     Park.hist.length = 0; Park.awards.length = 0;
@@ -13840,6 +13934,7 @@ const Game = {
     Park.level = mode === 'sandbox' ? Progress.MAXLEVEL : (scenario ? scenario.level : 2);
     Park.money = mode === 'sandbox' ? 5000000 : (scenario ? scenario.money : 60000);
     Park.entryFee = scenario ? scenario.fee : 12;
+    Park.waterPassPrice = 18;
     WORLD.generate();
     WORLD.dirty = true; Path.dirty = true;
     this.sceneryDirty = true; Park.litterDirty = true;
@@ -15258,6 +15353,20 @@ const Game = {
        they came together, so they want roughly the same day out. */
     const persona = pickPersona();
     for (const m of members) m.setPersona(persona);
+    /* A water day pass, sold alongside admission rather than baked into it —
+       only worth offering where there is actually a water attraction to use
+       it on, and only bought by guests who can afford it and lean toward
+       water rides in the first place. */
+    if (Park.waterPassPrice > 0 && Park.attractions().some(a => a.def && a.def.water)) {
+      const buyChance = clamp((persona.water || .3) * .22, 0, .55);
+      for (const m of members) {
+        if (m.cash >= Park.waterPassPrice && Math.random() < buyChance) {
+          m.cash -= Park.waterPassPrice;
+          Park.earn(Park.waterPassPrice, 'entry');
+          m.waterPass = true;
+        }
+      }
+    }
     const leader = members[0];
     const minInt = Math.min(...members.map(m => m.prefIntensity));
     const minNau = Math.min(...members.map(m => m.nauseaTol));
@@ -15378,7 +15487,7 @@ const Game = {
         v: 5, n: N, mode: Park.mode, level: Park.level, xp: Park.xp,
         scenario: Goals.active ? Goals.active.id : null,
         goalDone: Goals.active ? Goals.active.goals.map(g => !!g.done) : null,
-        money: Park.money, time: Park.time, day: Park.day, fee: Park.entryFee,
+        money: Park.money, time: Park.time, day: Park.day, fee: Park.entryFee, wpFee: Park.waterPassPrice,
         h: Array.from(WORLD.h).map(x => Math.round(x * 100) / 100),
         t: Array.from(WORLD.type),
         objs: Park.objects.filter(o => o.kind !== 'gate' && o.kind !== 'tstation' && o.kind !== 'tstop' && o.kind !== 'gtower').map(o =>
@@ -15477,7 +15586,7 @@ const Game = {
         return false;
       }
       for (const o of Park.objects) if (o.mesh) o.mesh.dispose();
-      for (const c of Park.coasters) { if (c.trackMesh) c.trackMesh.dispose(); if (c.stationMesh) c.stationMesh.dispose(); }
+      for (const c of Park.coasters) { if (c.trackMesh) c.trackMesh.dispose(); if (c.stationMesh) c.stationMesh.dispose(); if (c.splashMesh) c.splashMesh.dispose(); }
       Park.objects.length = 0; Park.coasters.length = 0; Park.guests.length = 0; Park.staff.length = 0; Park.litter.length = 0;
       Park.gate = null;
       WORLD.h.set(d.h); WORLD.type.set(d.t); WORLD.own.fill(-1);
@@ -15490,6 +15599,7 @@ const Game = {
               for (let i = pi * PLOT; i < Math.min(N, (pi + 1) * PLOT); i++) WORLD.land[j * N + i] = 1;
       }
       Park.money = d.money; Park.time = d.time; Park.day = d.day; Park.entryFee = d.fee;
+      Park.waterPassPrice = d.wpFee !== undefined ? d.wpFee : 18;
       Park.mode = d.mode || 'sandbox';
       Park.level = d.level !== undefined ? d.level : Progress.MAXLEVEL;
       Park.xp = d.xp || 0;
@@ -16403,6 +16513,19 @@ Object.assign(Game, {
             R.draw(k === 0 ? c.frontMesh : c.carMesh, tr.cars[k].m);
           }
         }
+      }
+      if (c.splashMesh && c.splashPoint) {
+        // a small idle shimmer, and a real burst exactly when a train
+        // passes through the lowest point of its own track
+        let near = 0;
+        const L = c.track.length || 1;
+        for (const tr of c.trains) {
+          const dd = Math.abs(((tr.d - c.splashD + L / 2) % L + L) % L - L / 2);
+          if (dd < 14) near = Math.max(near, 1 - dd / 14);
+        }
+        const scale = .12 + .08 * Math.sin(t * 2.2) + near * 1.7;
+        const sm = M4.compose(M4.create(), c.splashPoint.x, c.splashPoint.y + .1, c.splashPoint.z, 0, t * .6, 0, 1, Math.max(.05, scale), 1);
+        R.draw(c.splashMesh, sm);
       }
     }
   },
