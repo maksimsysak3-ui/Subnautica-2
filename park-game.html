@@ -2623,6 +2623,10 @@ const CAT = {
       need: 'hotel', hotelStyle: 'bungalow', tier: 'Boutique', nightly: 62, quality: .72, price: 0, satisfy: 76, color: 0xd98f4e, roof: 0xc79a4b },
     { id: 'hotelluxury', name: 'Grand Resort', cost: 52000, up: 190, w: 5, d: 4, floors: 7, rooms: 84,
       need: 'hotel', hotelStyle: 'modern', tier: 'Luxury', nightly: 180, quality: .93, price: 0, satisfy: 92, color: 0x3c4a5e, roof: 0x2f3b52 },
+    { id: 'hotelvillas', name: 'Sunset Villa Neighborhood', cost: 46000, up: 165, w: 8, d: 8, floors: 1, rooms: 64,
+      need: 'hotel', hotelStyle: 'villadistrict', tier: 'Villas', nightly: 96, quality: .8, price: 0, satisfy: 82, color: 0xe4d2ab, roof: 0x8a4a3a },
+    { id: 'hotelvillasgrand', name: 'Grand Villa Estates', cost: 98000, up: 300, w: 12, d: 10, floors: 1, rooms: 120,
+      need: 'hotel', hotelStyle: 'villadistrict', tier: 'Villas', nightly: 145, quality: .88, price: 0, satisfy: 88, color: 0xefe0bd, roof: 0x5c3a2e },
     { id: 'hotelsky', name: 'Sky Suites', cost: 84000, up: 300, w: 5, d: 5, floors: 11, rooms: 120,
       need: 'hotel', hotelStyle: 'modern', tier: 'Ultra Luxury', nightly: 260, quality: .99, price: 0, satisfy: 98, color: 0x1c2530, roof: 0xd4af37 },
     /* ---- Prestige landmarks: legendary resort-style hotels unlocked with
@@ -2978,6 +2982,58 @@ const Prefab = {
         }
         // entrance sign
         g.box(0, 1.9, -D / 2 - .35, W * .4, .5, .12, shade(roof, 1.15));
+        return { base: g, parts: [] };
+      }
+
+      if (style === 'villadistrict') {
+        // A genuine little neighborhood: a grid of small, individually
+        // roofed villa cottages along an internal street, each with its
+        // own tiny yard, rather than one big building — this is the
+        // Hershey-Park-style "stay in a neighborhood" lodging tier.
+        g.box(0, -.08, 0, W + .4, .16, D + .4, hex(0xb9ab90));                // plinth
+        const cols = Math.max(2, Math.round(W / 2.6));
+        const rows = Math.max(2, Math.round(D / 2.6));
+        const cellW = W / cols, cellD = D / rows;
+        // internal streets: a cross-shaped paved network
+        g.box(0, .01, 0, W - .3, .03, cellD * .55, hex(0x8a8a86));
+        g.box(0, .01, 0, cellW * .55, .03, D - .3, hex(0x8a8a86));
+        for (let r = 0; r < rows; r++) {
+          const z = -D / 2 + cellD * (r + .5);
+          if (Math.abs(z) < cellD * .4) continue;
+          g.box(0, .012, z, W - .3, .02, .5, shade(hex(0x8a8a86), .95));
+        }
+        for (let c = 0; c < cols; c++) {
+          const x = -W / 2 + cellW * (c + .5);
+          if (Math.abs(x) < cellW * .4) continue;
+          g.box(x, .012, 0, .5, .02, D - .3, shade(hex(0x8a8a86), .95));
+        }
+        let vi = 0;
+        for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
+          const cx = -W / 2 + cellW * (c + .5), cz = -D / 2 + cellD * (r + .5);
+          // skip the very center cell(s) so the crossroads stays open
+          if (Math.abs(cx) < cellW * .4 && Math.abs(cz) < cellD * .4) continue;
+          const jitter = (vi * 37 % 100) / 100 - .5;
+          const vw = Math.min(cellW, cellD) * (.6 + jitter * .08);
+          const vh = 1.15 + (vi % 3) * .1;
+          const vx = cx + jitter * cellW * .12, vz = cz - jitter * cellD * .1;
+          g.box(vx, .02, vz, vw, vh, vw * .92, wall);                        // cottage body
+          g.box(vx, .02, vz - vw * .4, vw * .4, vh * .5, .12, shade(body, .82)); // door
+          g.box(vx - vw * .28, .02 + vh * .42, vz - vw * .48, .38, .34, .06, glass); // window
+          g.box(vx + vw * .28, .02 + vh * .42, vz - vw * .48, .38, .34, .06, glass);
+          g.box(vx, .02 + vh, vz, vw * 1.15, .18, vw * 1.05, shade(roof, 1.05));  // eave
+          g.cone(vx, .02 + vh + .18, vz, vw * .82, vw * .68, 4, shade(roof, .92)); // pyramid roof
+          g.box(vx - vw * .5 - .08, .02, vz + vw * .5 + .05, .16, .55, .16, shade(hex(0x6b5a3f), 1)); // yard post
+          vi++;
+        }
+        // street lamps along the main cross-street
+        for (const lp of [[-W * .35, 0], [W * .35, 0], [0, -D * .35], [0, D * .35]]) {
+          g.cyl(lp[0], .02, lp[1], .06, 1.4, 6, hex(0x40403c));
+          g.sphere(lp[0], .02 + 1.45, lp[1], .16, 6, hex(0xffe9a8));
+        }
+        // entrance arbor
+        g.box(-1.1, .02, -D / 2 - .3, .16, 2.1, .16, shade(hex(0x6b5a3f), 1));
+        g.box(1.1, .02, -D / 2 - .3, .16, 2.1, .16, shade(hex(0x6b5a3f), 1));
+        g.box(0, 2.05, -D / 2 - .3, 2.4, .18, .3, shade(roof, 1.1));
         return { base: g, parts: [] };
       }
 
