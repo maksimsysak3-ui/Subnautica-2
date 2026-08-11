@@ -2746,6 +2746,7 @@ const CAT = {
     { id: 'lazyriver', name: 'Lazy River', cost: 9800, up: 96, w: 5, d: 5, cap: 56, dur: 140, exc: 4.2, fear: 0.3, naus: 0.4, price: 5, kind: 'lazyriver', water: true },
     { id: 'kiddie', name: 'Kids Splash Zone', cost: 4400, up: 52, w: 4, d: 3, cap: 34, dur: 80, exc: 3.0, fear: 0.2, naus: 0.1, price: 3, kind: 'kiddie', water: true },
     { id: 'hottub', name: 'Hot Tub', cost: 2600, up: 34, w: 2, d: 2, cap: 10, dur: 70, exc: 2.6, fear: 0.2, naus: 0.1, price: 5, kind: 'hottub', water: true },
+    { id: 'divingboard', name: 'High Dive Pool', cost: 6800, up: 70, w: 4, d: 4, cap: 14, dur: 60, exc: 6.6, fear: 5.8, naus: 1.6, price: 6, kind: 'divingboard', water: true, pool: { depth: 2.4 } },
 
     /* ---- water park: slides ---- */
     { id: 'bodyslide', name: 'Body Slide', cost: 8200, up: 84, w: 3, d: 3, cap: 12, dur: 46, exc: 6.0, fear: 4.4, naus: 2.6, price: 6, kind: 'slide', water: true,
@@ -4031,7 +4032,12 @@ const Prefab = {
         const waves = new Geo();
         for (let k = 0; k < 4; k++)
           waves.box(0, 0, -bd / 2 + 1.6 + k * (bd / 4.2), bw - .6, .22, .8, shade(water, 1.45));
-        parts.push({ geo: waves, anim: (m, o, t) => M4.compose(m, 0, SURF + .04, ((Math.sin(t * .9) * .5 + .5) * 2.6), 0, 0, 0, 1, 1 + Math.sin(t * 2.4) * .35, 1) });
+        parts.push({
+          geo: waves, anim: (m, o, t) => {
+            const inten = o.waveIntensity === undefined ? 1 : o.waveIntensity;
+            return M4.compose(m, 0, SURF + .04, ((Math.sin(t * .9) * .5 + .5) * 2.6 * inten), 0, 0, 0, 1, 1 + Math.sin(t * 2.4) * .35 * clamp(inten, 0, 1.4), 1);
+          }
+        });
       }
       for (let k = 0; k < 3; k++) lounger(-W / 2 + 2.2 + k * 2.6, D / 2 - .9, k % 2 ? 0x7ed6df : 0xff8fb1);
       umbrella(W / 2 - 2.0, D / 2 - 1.0, 0xff6f91);
@@ -4081,6 +4087,35 @@ const Prefab = {
         const ph = i / 6 * TAU;
         parts.push({ geo: ring, anim: (m, o, t) => { const a = ph + t * .26; return M4.compose(m, Math.cos(a) * R0, SURF - .05, Math.sin(a) * R0, 0, -a, 0, 1, 1, 1); } });
       }
+    }
+    else if (kind === 'divingboard') {
+      const bw = W - RIM * 2, bd = D - RIM * 2;
+      deckFrame(bw, bd);
+      basin(bw, bd, 2.4, shade(water, 1.05));
+      ladder(bw / 2 - 1.4, bd / 2 - .1);
+      // a three-tier diving tower at the deep end
+      const tx = -bw / 2 + 1.8, tz = -bd / 2 + 1.8;
+      g.cyl(tx, 0, tz, 1.0, TOP, 8, hex(0xcfd8de));
+      g.box(tx, TOP + .1, tz, 1.6, .16, 3.2, hex(0xdfe6ee));                 // 1m springboard
+      g.beam(tx, 0, tz - 1.3, tx, TOP, tz - 1.3, .12, .12, hex(0x9aa4ae));
+      g.box(tx, 3.4, tz, 2.0, .16, 3.0, hex(0xdfe6ee));                      // 3m platform
+      for (const s of [-1, 1]) g.beam(tx + s * .9, 0, tz - 1.4, tx + s * .9, 3.4, tz - 1.4, .1, .1, hex(0x9aa4ae));
+      g.box(tx, 6.2, tz, 2.4, .16, 3.4, hex(0xdfe6ee));                      // 5m platform
+      for (const s of [-1, 1]) {
+        g.beam(tx + s * 1.1, 0, tz - 1.5, tx + s * 1.1, 6.2, tz - 1.5, .12, .12, hex(0x9aa4ae));
+        g.beam(tx + s * 1.1, 6.2, tz - 1.5, tx + s * 1.1, 6.2, tz + 1.7, .06, .06, hex(0xdfe6ee));
+      }
+      const splash = new Geo();
+      for (let i = 0; i < 8; i++) { const a = i / 8 * TAU; splash.beam(0, 0, 0, Math.cos(a) * 1.3, 1.0, Math.sin(a) * 1.3, .1, .1, hex(0xdff2fb)); }
+      parts.push({
+        geo: splash,
+        anim: (m, o, t) => {
+          const cyc = (t * .18) % 1;
+          const rise = cyc < .5 ? smoothstep(cyc / .5) : 1 - smoothstep((cyc - .5) / .5);
+          return M4.compose(m, tx, SURF + .05, tz - 3.0, 0, 0, 0, 1, Math.max(.05, rise), 1);
+        }
+      });
+      lounger(bw / 2 - 2.0, bd / 2 - 1.0, 0x39c0ff);
     }
     else if (kind === 'hottub') {
       g.box(0, -.25, 0, W, .5, D, deckC);
@@ -5863,7 +5898,10 @@ class Ride extends ParkObject {
     // Guests prefer rides matching their intensity preference
     const dI = Math.abs(this.intensity - g.prefIntensity);
     const dN = Math.max(0, this.nausea - g.nauseaTol);
-    return clamp(this.excitement * 1.25 - dI * .75 - dN * .7, 0, 12);
+    // A wave pool cranked up reads as more exciting, and turned down as
+    // more of a calm soak — a real knob, not just cosmetic motion.
+    const exc = this.def.kind === 'wavepool' ? this.excitement * (.6 + .4 * (this.waveIntensity === undefined ? 1 : this.waveIntensity)) : this.excitement;
+    return clamp(exc * 1.25 - dI * .75 - dN * .7, 0, 12);
   }
   update(dt) {
     if (this.broken) { return; }
@@ -9655,6 +9693,12 @@ const UI = {
         h += kv('Ride time', (o.rideTime || 0).toFixed(0) + ' s');
       }
       h += `<div class="row"><label>Ticket price</label><input type="range" min="0" max="30" step="1" value="${o.price}" oninput="Game.setPrice(${o.id},this.value)"><span class="num" id="prc${o.id}">$${o.price}</span></div>`;
+      if (o.def.kind === 'wavepool') {
+        const wi = o.waveIntensity || 1;
+        h += `<div class="row"><label>Wave intensity</label><input type="range" min="0" max="200" step="5" value="${Math.round(wi * 100)}"
+          oninput="Game.setWaveIntensity(${o.id},this.value)"><span class="num" id="wint${o.id}">${Math.round(wi * 100)}%</span></div>`;
+        h += `<div style="font-size:10.5px;color:var(--dim);margin-top:-2px">Bigger waves pull in more thrill-minded swimmers, but the machinery works harder for it.</div>`;
+      }
       const dem = (Park.guests.length ? Park.guests.filter(g => g.cash >= o.price).length / Park.guests.length : 1);
       h += `<div style="font-size:10.5px;color:var(--dim);margin-top:-2px">${Math.round(dem * 100)}% of guests can afford this.</div>`;
       h += `<div class="btnrow">
@@ -14544,6 +14588,12 @@ const Game = {
     o.priceLocked = true;          // stop computeStats overwriting a chosen price
     const e = document.getElementById('prc' + id); if (e) e.textContent = '$' + o.price;
   },
+  setWaveIntensity(id, v) {
+    const o = Park.objects.find(x => x.id === id);
+    if (!o || o.def.kind !== 'wavepool') return;
+    o.waveIntensity = clamp(Math.round(+v) / 100, 0, 2);
+    const e = document.getElementById('wint' + id); if (e) e.textContent = Math.round(o.waveIntensity * 100) + '%';
+  },
   toggleOpen(id) {
     const o = Park.objects.find(x => x.id === id) || Park.coasters.find(x => x.id === id);
     if (!o) return;
@@ -14868,7 +14918,7 @@ const Game = {
         g.moving = false; g.state = 'riding'; return;
       }
       // ---- water park ----
-      case 'pool': case 'wavepool': {
+      case 'pool': case 'wavepool': case 'divingboard': {
         // bob about in the basin, chest-deep
         const bw = o.gw * TILE - 4, bd = o.gd * TILE - 4;
         const seed = k * 2.399963;
@@ -15338,7 +15388,7 @@ const Game = {
                only place their definition exists is the object itself — so
                it has to be saved whole, or every custom slide reverts to a
                dangling id that resolves to nothing on load. */
-            cd: o.def.custom ? o.def : undefined })),
+            cd: o.def.custom ? o.def : undefined, wi: o.waveIntensity })),
         gate: Park.gate ? { tier: Park.gate.tier, adm: Park.gate.admitted, ta: Park.gate.turnedAway } : null,
         pname: Park.name,
         cos: Park.coasters.map(c => ({
@@ -15485,6 +15535,7 @@ const Game = {
         if (s.n) o.name = String(s.n).slice(0, 34);
         if (s.mer) o.merch = s.mer;
         if (s.liv) { o.livery = s.liv; if (typeof PF !== 'undefined' && PF.recolour) PF.recolour(o); }
+        if (s.wi !== undefined) o.waveIntensity = s.wi;
         if (s.open !== undefined) o.openR = s.open;
         if (s.k === 'scenery') { Park.objects.push(o); o.footprint((i, j) => WORLD.setOwn(i, j, o.id)); }
         else Park.addObject(o);
