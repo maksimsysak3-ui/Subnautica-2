@@ -2735,6 +2735,9 @@ const CAT = {
     { id: 'chairlift', name: 'Scenic Chairlift', cost: 6600, up: 64, w: 3, d: 3, cap: 16, dur: 96, exc: 3.4, fear: 1.4, naus: 0.3, price: 5, kind: 'chairlift', ph: 22 },
     { id: 'monorail', name: 'Park Monorail', cost: 12400, up: 118, w: 4, d: 4, cap: 30, dur: 110, exc: 4.0, fear: 0.6, naus: 0.2, price: 5, kind: 'monorail', ph: 20 },
     { id: 'minigolf', name: 'Crazy Golf', cost: 3400, up: 38, w: 4, d: 4, cap: 12, dur: 120, exc: 2.8, fear: 0.2, naus: 0.1, price: 4, kind: 'minigolf' },
+    { id: 'zipline', name: 'Zip Line', cost: 9600, up: 92, w: 6, d: 2, cap: 10, dur: 34, exc: 6.4, fear: 6.0, naus: 1.4, price: 7, kind: 'zipline' },
+    { id: 'spindrop', name: 'Vortex Tower', cost: 16400, up: 142, w: 3, d: 3, cap: 8, dur: 40, exc: 8.4, fear: 8.8, naus: 6.6, price: 10, kind: 'spindrop' },
+    { id: 'motiontheatre', name: '4D Motion Theatre', cost: 13200, up: 108, w: 6, d: 5, cap: 24, dur: 95, exc: 5.6, fear: 1.4, naus: 1.8, price: 8, kind: 'motiontheatre' },
 
     /* ---- water park: pools ---- */
     { id: 'poolsmall', name: 'Splash Pool', cost: 3200, up: 40, w: 3, d: 3, cap: 26, dur: 90, exc: 3.4, fear: 0.4, naus: 0.2, price: 4, kind: 'pool', water: true, pool: { depth: 1.1 } },
@@ -2795,6 +2798,7 @@ const CAT = {
     { id: 'shuttle', name: 'Shuttle Loop', rail: 0xf25c05, spine: 0x2e3440, tie: 0x4a5462, cars: 4, seat: 4, mass: .95, fric: .00052, maxSpeed: 56, carColor: 0x1fb6c9, style: 'tube' },
     { id: 'bobsled', name: 'Bobsled Run', rail: 0xe8eef5, spine: 0xa8b4c2, tie: 0x7c8894, cars: 4, seat: 4, mass: 1.1, fric: .00105, maxSpeed: 34, carColor: 0xd94f3c, style: 'tube' },
     { id: 'junior', name: 'Junior Coaster', rail: 0xffb03a, spine: 0xfff2d8, tie: 0xe0cfa8, cars: 4, seat: 4, mass: .9, fric: .00100, maxSpeed: 18, carColor: 0x6ac6f0, style: 'tube' },
+    { id: 'watercoaster', name: 'Water Coaster', rail: 0x2a6fa8, spine: 0xeaf6ff, tie: 0x8a8378, cars: 5, seat: 4, mass: 1.1, fric: .00088, maxSpeed: 28, carColor: 0x39c0ff, style: 'tube', water: true, carStyle: 'boat' },
   ],
 };
 /* ============================================================================
@@ -4750,6 +4754,85 @@ const Prefab = {
         }
         break;
       }
+
+      /* ---- Zip Line: a tall launch tower and a short landing tower, riders
+         glide out on a cable harness and are pulled back for another go ---- */
+      case 'zipline': {
+        const H1 = 15, H2 = 7;
+        const steel = hex(0xb9c1c9), dark = hex(0x5a6472), accent = hex(0xf5c518);
+        g.cyl(0, .2, -D / 2 + 1.4, 2.0, H1, 10, hex(0xd8cdb4));
+        for (let y = 3; y < H1; y += 3) g.cyl(0, y, -D / 2 + 1.4, 2.2, .3, 10, dark);
+        g.box(0, H1, -D / 2 + 1.4, 4.4, .5, 3.0, steel);
+        g.box(0, H1 + .55, -D / 2 + 1.4, 4.0, .18, 2.6, accent);
+        for (const sx of [-1.9, 1.9]) g.beam(sx, H1 - 2, -D / 2 + 1.4, sx, H1 + .3, -D / 2 + 1.4, .1, .1, dark);
+        g.cyl(0, .2, D / 2 - 1.4, 1.4, H2, 8, hex(0xd8cdb4));
+        g.box(0, H2, D / 2 - 1.4, 3.4, .4, 2.4, steel);
+        for (const sx of [-.5, .5]) g.beam(sx, H1 + .3, -D / 2 + 1.4, sx, H2 + .3, D / 2 - 1.4, .08, .08, hex(0x2b2b2b));
+        const span = D - 2.8, n = Math.max(2, Math.min(6, Math.round((def.cap || 6) / 2)));
+        for (let i = 0; i < n; i++) {
+          const seat = new Geo();
+          seat.beam(0, .2, 0, 0, -1.0, 0, .06, .06, hex(0x9aa4ae));
+          seat.cyl(0, -1.15, 0, .18, .16, 8, hex(0x2b2b2b));
+          seat.box(0, -1.75, 0, .58, .55, .42, hex([0xd94f3c, 0x3ba7d4, 0xf5c518, 0x6ac46a, 0xff8c42, 0xc77dff][i % 6]));
+          seat.beam(-.22, -1.5, 0, -.22, -2.0, .18, .05, .05, hex(0x3d444d));
+          seat.beam(.22, -1.5, 0, .22, -2.0, .18, .05, .05, hex(0x3d444d));
+          const ph = i / n;
+          parts.push({
+            geo: seat,
+            seatCount: 1,
+            seat: () => ({ x: 0, y: -1.75, z: 0, yaw: 0 }),
+            anim: (m, o, t) => {
+              const u = ((t * .1 + ph) % 1);
+              const tri = u < .5 ? u * 2 : 2 - u * 2;
+              const z = lerp(-D / 2 + 1.4, D / 2 - 1.4, tri);
+              const y = lerp(H1 + .35, H2 + .35, tri);
+              return M4.compose(m, 0, y, z, 0, 0, 0, 1, 1, 1);
+            }
+          });
+        }
+        break;
+      }
+
+      /* ---- Spin-Drop Tower: a ring of seats climbs the mast spinning, then
+         free-falls still spinning ---- */
+      case 'spindrop': {
+        const H = 26;
+        g.cyl(0, 0, 0, 3.2, 1.0, 12, hex(0xd8cdb4));
+        g.cyl(0, 1.0, 0, 1.6, H, 12, hex(0xe8e8e8));
+        for (let y = 4; y < H; y += 4) g.cyl(0, y, 0, 1.9, .3, 12, hex(0xf25c05));
+        g.cone(0, H + 1, 0, 2.4, 4, 12, hex(0x2b2b2b));
+        g.sphere(0, H + 5.2, 0, .4, 6, hex(0xffd76a));
+        const ring = new Geo();
+        ring.cyl(0, 0, 0, 3.6, .5, 16, hex(0x3a4250));
+        ring.cyl(0, -.4, 0, 1.5, .5, 10, hex(0x2b2b2b), 0, true);
+        for (let i = 0; i < 8; i++) {
+          const a = i / 8 * TAU, cx = Math.cos(a) * 3.0, cz = Math.sin(a) * 3.0;
+          const c = hex([0xd94f3c, 0x3ba7d4, 0xffd23f, 0x6ac46a][i % 4]);
+          ring.box(cx, .5, cz, 1.0, 1.1, 1.0, c);
+          ring.box(cx, 1.15, cz, 1.05, .15, 1.05, shade(c, 1.25));
+        }
+        parts.push({
+          geo: ring,
+          seatCount: 8,
+          seat: (i) => { const a = i / 8 * TAU; return { x: Math.cos(a) * 3.0, y: .35, z: Math.sin(a) * 3.0, yaw: a }; },
+          anim: (m, o) => M4.compose(m, 0, 2 + o.h * (H - 6), 0, 0, o.spin, 0, 1, 1, 1)
+        });
+        break;
+      }
+
+      /* ---- 4D Motion Theatre: a themed marquee, no moving parts — the show
+         happens on a screen guests are seated in front of, out of view ---- */
+      case 'motiontheatre': {
+        const wall = hex(0x2b2f3a), accent = hex(0x7b3fd4), screen = hex(0x0d0f16);
+        g.box(0, 3.2, 0, W - .6, 6.5, D - .6, wall);
+        g.box(0, 6.5, 0, W + .4, .5, D + .4, hex(0x1b1e26));
+        g.box(0, 3.6, -D / 2 - .15, W - 1.2, 5.4, .3, accent);
+        g.box(0, 3.6, -D / 2 - .34, W - 2.0, 4.5, .2, screen);
+        this.lightBulbs(g, 0, 6.1, -D / 2 - .3, (W - 1.6) / 2, 10, hex(0xfff3c4));
+        g.box(0, 7.3, -D / 2 - .2, W * .55, .85, .3, hex(0xffd23f));
+        for (let k = 0; k < 3; k++) g.box(-W / 2 + 2 + k * (W - 4) / 2, 1.0, -D / 2 - .4, .5, 1.9, .2, hex(0x1b1e26));
+        break;
+      }
     }
     // entrance sign for every ride
     g.box(0, 3.4, -D / 2 - .3, W * .6, 1.2, .3, hex(0x2f3b52));
@@ -5438,6 +5521,7 @@ const TRAIN_STYLES = [
   { id: 'armored', n: 'Armored Fortress' },
   { id: 'crystal', n: 'Crystal Glider' },
   { id: 'wingrider', n: 'Wing Rider (side-by-side)' },
+  { id: 'boat', n: 'Splash Boat' },
 ];
 const STATION_STYLES = [
   { id: 'modern', n: 'Modern' },
@@ -5507,6 +5591,13 @@ function buildCarGeo(T, isFront) {
       g.box(sx, yb - .05, 0, 1.15, .5, 3.3, c);
       g.beam(sx, yb + .4, -1.55, sx, yb + .4, 1.55, .1, .1, shade(c, 1.2));
     }
+  } else if (style === 'boat') {
+    // an open hull, high at bow and stern, riders sitting low inside it
+    g.cyl(0, yb - .1, 0, .95, 3.5, 10, c, 0, true);
+    g.box(0, yb + .35, 0, 1.7, .5, 3.3, c);
+    g.box(0, yb + .55, 0, 1.35, .18, 3.0, hex(0xeaf6ff));
+    for (const sz of [-1.55, 1.55]) g.cone(0, yb + .55, sz, .95, .9, 8, shade(c, 1.15));
+    for (const sx of [-.8, .8]) g.beam(sx, yb + .1, -1.6, sx, yb + .1, 1.6, .06, .06, hex(0xeaf6ff));
   } else {
     g.box(0, yb, 0, 1.9, 1.05, 3.5, c);
     g.box(0, yb + 1.05, 0, 1.75, .16, 3.3, shade(c, 1.25));
@@ -5830,6 +5921,10 @@ class Ride extends ParkObject {
         if (this.def.kind === 'drop') {
           const c = (p * 3) % 1;
           this.h = c < .6 ? smoothstep(c / .6) : 1 - smoothstep((c - .6) / .4) ** 0.35;
+        } else if (this.def.kind === 'spindrop') {
+          const c = (p * 3) % 1;
+          this.h = c < .6 ? smoothstep(c / .6) : 1 - smoothstep((c - .6) / .4) ** 0.35;
+          this.spin += dt * (1.1 + this.h * 2.6);
         } else if (this.def.kind === 'tower') {
           this.h = smoothstep(clamp(Math.sin(p * PI) * 1.4, 0, 1));
         } else if (this.def.kind === 'pirate') {
@@ -5841,7 +5936,7 @@ class Ride extends ParkObject {
         } else if (this.def.kind === 'topspin' || this.def.kind === 'frisbee') {
           this.h = env;
           this.spin += dt * 1.1 * env;
-        } else if (this.def.kind === 'haunted' || this.def.kind === 'rapids') {
+        } else if (this.def.kind === 'haunted' || this.def.kind === 'rapids' || this.def.kind === 'motiontheatre' || this.def.kind === 'zipline') {
           this.spin = 0; this.h = 0;
         } else if (this.def.water) {
           this.spin = 0; this.h = 1;
@@ -5912,7 +6007,10 @@ class Gate extends ParkObject {
 
 class CoasterRide extends ParkObject {
   constructor(type, i, j, rot) {
-    super('coaster', { w: 4, d: 3, name: type.name }, i, j, rot);
+    /* A coaster type can flag itself as a water attraction (splashdown boat
+       cars) — threaded onto def.water so it counts the same way a flat water
+       ride does for guest appeal, hygiene reset and the weather bonus. */
+    super('coaster', { w: 4, d: 3, name: type.name, water: !!type.water }, i, j, rot);
     this.type = type;
     this.name = type.name + ' ' + (Park.coasterCount + 1);
     this.track = null;
@@ -5930,6 +6028,9 @@ class CoasterRide extends ParkObject {
     this.maxSpeed = 0; this.maxG = 0; this.minG = 0; this.maxLatG = 0;
     this.openR = false;
     this.cap = type.cars * type.seat;
+    // a type can suggest its own default bodywork — a water coaster looks
+    // wrong in its factory cars until the player happens to repaint it
+    if (type.carStyle) this.trainStyle = type.carStyle;
   }
   get entrance() {
     const a = -this.rot * PI / 2;
@@ -7888,6 +7989,30 @@ class Staff extends Person {
     }
     // grade pip on the shoulder
     if (L > 1) put(-.27, c.hipY + .77, 0, 0, .16, .06, .16, L === 3 ? hex(0xffd23f) : hex(0xd8dde4));
+  }
+  /* A plain-English line for the radio dispatch panel — built entirely from
+     state that already exists, so it can't drift out of sync with what the
+     staff member is actually doing. */
+  taskLabel() {
+    const rideName = (r) => esc((r && (r.name || (r.def && r.def.name))) || 'a ride');
+    switch (this.state) {
+      case 'idle': return 'Standing by';
+      case 'patrol': return 'Patrolling the park';
+      case 'walking':
+        if (this.role === 'janitor' && this.targetLitter) return 'Heading to some litter';
+        if (this.role === 'mechanic' && this.targetRide) return 'Heading to ' + rideName(this.targetRide);
+        if (this.role === 'entertainer') return 'Heading to a queue';
+        if (this.role === 'security') return 'Walking the crowd';
+        return 'On the way';
+      case 'working':
+        if (this.role === 'janitor') return 'Clearing litter';
+        if (this.role === 'mechanic' && this.targetRide) return (this.targetRide.broken ? 'Repairing ' : 'Servicing ') + rideName(this.targetRide);
+        if (this.role === 'mechanic') return 'Servicing a ride';
+        if (this.role === 'entertainer') return 'Cheering up a queue';
+        if (this.role === 'security') return 'Calming the crowd';
+        return 'Working';
+      default: return this.state;
+    }
   }
   trainCost() { return Math.round(this.def.cost * (this.level === 1 ? 1.6 : 3.2)); }
   train() {
@@ -9888,13 +10013,43 @@ const UI = {
   },
 
   /* --------- staff management --------- */
+  /* ---- radio dispatch: live status for everyone on the payroll ---- */
+  dispatch() {
+    let h = `<div style="font-size:11px;color:var(--dim);margin-bottom:10px;display:flex;align-items:center;justify-content:space-between">
+      <span>Who's doing what, right now.</span>
+      <button class="btn" style="padding:4px 12px;font-size:10.5px" onclick="UI.dispatch()">↻ Refresh</button></div>`;
+    if (!Park.staff.length) {
+      h += `<p style="color:var(--dim)">Nobody on the payroll yet — hire from the Staff tab.</p>`;
+      this.modal('Radio Dispatch', h); return;
+    }
+    const roles = CAT.staff.map(d => ({ d, list: Park.staff.filter(s => s.role === d.id) })).filter(r => r.list.length);
+    for (const { d, list } of roles) {
+      h += `<h3 style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+        <span style="width:11px;height:11px;border-radius:50%;background:#${d.color.toString(16).padStart(6, '0')}"></span>
+        ${d.name} <span style="font-weight:400;color:var(--dim);font-size:11px">(${list.length})</span></h3>`;
+      for (const s of list) {
+        const busy = s.state === 'working' || s.state === 'walking';
+        h += `<div style="display:flex;align-items:center;gap:8px;padding:7px 9px;border:1px solid var(--edge);border-radius:8px;margin-bottom:6px">
+          <div style="flex:1;min-width:0">
+            <div style="font-weight:700;font-size:12px">${esc(s.name)}
+              <span style="font-weight:400;color:var(--dim);font-size:10.5px">Lv.${s.level}</span></div>
+            <div style="font-size:10.5px;color:${busy ? 'var(--good)' : 'var(--dim)'}">${s.taskLabel()}</div>
+          </div>
+          <button class="btn" style="padding:4px 9px;font-size:10.5px;flex:0 0 auto" onclick="Game.locateStaff(${s.id})">Locate</button>
+          <button class="btn" style="padding:4px 9px;font-size:10.5px;flex:0 0 auto" onclick="Game.recallStaff(${s.id});UI.dispatch()">Recall</button>
+        </div>`;
+      }
+    }
+    this.modal('Radio Dispatch', h);
+  },
   staffTab() {
     const roles = CAT.staff.map(d => ({ d, list: Park.staff.filter(s => s.role === d.id) }));
     const wages = Park.staff.reduce((a, s) => a + s.wage, 0);
     let h = this.tabBar('staff');
     h += `<p>You employ <b>${Park.staff.length}</b> people costing <b>${money(wages)}</b> an hour.
       Janitors clear litter, mechanics repair breakdowns, entertainers keep queues patient,
-      security calms the crowd and vendors keep shops stocked.</p>`;
+      security calms the crowd and vendors keep shops stocked.
+      <button class="btn" style="padding:4px 12px;font-size:10.5px;margin-left:6px" onclick="UI.dispatch()">📻 Radio Dispatch</button></p>`;
 
     h += `<h3>Hire</h3><div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px">`;
     for (const { d, list } of roles) {
@@ -14316,6 +14471,19 @@ const Game = {
     s.train();
     UI.entrance('staff');
   },
+  locateStaff(id) {
+    const s = Park.staff.find(x => x.id === id);
+    if (!s) return;
+    Cam.tx = s.x; Cam.tz = s.z;
+    this.select(s);
+  },
+  recallStaff(id) {
+    const s = Park.staff.find(x => x.id === id);
+    if (!s) return;
+    s.targetRide = null; s.targetLitter = null; s.path = null;
+    s.state = 'idle'; s.moving = false;
+    UI.notify('Recalled', s.name + ' is standing by for a new job.', '');
+  },
   setTrains(id, n) {
     const c = Park.coasters.find(x => x.id === id);
     if (!c || !c.track || !c.track.complete) return;
@@ -14658,8 +14826,8 @@ const Game = {
         g.y = o.y + ly; g.yaw = -o.rot * PI / 2; g.roll = 0;
         g.moving = false; g.state = 'riding'; g.armLift = t > .55 ? 1 : 0; return;
       }
-      case 'ghosttrain': case 'minigolf': case 'haunted': {
-        // inside the building / walking the course: hidden from view
+      case 'ghosttrain': case 'minigolf': case 'haunted': case 'motiontheatre': {
+        // inside the building / walking the course / watching the show: hidden from view
         g.x = o.x; g.z = o.z; g.y = o.y - 40; g.moving = false; g.state = 'riding'; return;
       }
       case 'chairlift': {
