@@ -9921,7 +9921,7 @@ const UI = {
       <tr><td>Litter on the ground</td><td style="text-align:right">${Park.litter.length}</td></tr>
       <tr><td>Hourly upkeep</td><td style="text-align:right">${money(Park.upkeepPerHour())}</td></tr>
       </table>`;
-    h += `<h3>Admission</h3><div class="row"><label>Entry fee</label><input type="range" min="0" max="60" value="${Park.entryFee}" oninput="Park.entryFee=+this.value;document.getElementById('feeN').textContent='$'+this.value"><span class="num" id="feeN">$${Park.entryFee}</span></div>
+    h += `<h3>Admission</h3><div class="row"><label>Entry fee</label><input type="range" min="0" max="80" value="${Park.entryFee}" oninput="Park.entryFee=+this.value;document.getElementById('feeN').textContent='$'+this.value"><span class="num" id="feeN">$${Park.entryFee}</span></div>
       <p style="font-size:11px">A high fee earns more per guest but fewer arrive. Guests judge the fee against your park rating.</p>`;
     h += `<h3>Attractions</h3><table class="tb"><tr><th>Name</th><th>Exc</th><th>Int</th><th>Riders</th><th style="text-align:right">Revenue</th></tr>`;
     for (const a of Park.attractions()) h += `<tr><td>${esc(a.name)}</td><td>${a.excitement.toFixed(1)}</td><td>${a.intensity.toFixed(1)}</td><td>${a.ridden}</td><td style="text-align:right">${money(a.revenue)}</td></tr>`;
@@ -13913,6 +13913,23 @@ const Game = {
     }, { passive: false });
 
     window.addEventListener('keydown', e => {
+      /* Every shortcut below is a single bare letter or digit — exactly the
+         keys someone types while renaming a ride, setting a price, or naming
+         their park. Without this guard, typing "Loop 10" into a name field
+         opens the land dialog on L, switches tools on the 1 and 0, and
+         Backspace deletes a track piece instead of a character. Save/load
+         stay reachable by their Ctrl/Cmd chord since that never touches the
+         field's text. */
+      const ael = document.activeElement;
+      const typing = ael && (ael.tagName === 'INPUT' || ael.tagName === 'TEXTAREA' || ael.isContentEditable);
+      if (typing) {
+        const k2 = e.key.toLowerCase();
+        if ((e.ctrlKey || e.metaKey) && (k2 === 's' || k2 === 'l')) {
+          e.preventDefault();
+          if (k2 === 's') this.save(); else this.load();
+        }
+        return;
+      }
       this.keys[e.key.toLowerCase()] = true;
       const k = e.key.toLowerCase();
       if (e.ctrlKey || e.metaKey) {
