@@ -13055,6 +13055,50 @@ const SCENARIOS = [
       { k: 'beauty', target: 900, label: 'Scenery beauty' },
     ]
   },
+  {
+    id: 'oldtimer', name: 'Vintage Fairground', tag: 'Retro',
+    blurb: 'Classic flat rides, honest food and a lot of charm. Prove a fairground doesn\'t need thrill rides to earn its keep.',
+    money: 75000, fee: 8, level: 3, days: 0,
+    goals: [
+      { k: 'rides', target: 8, label: 'Flat rides open' },
+      { k: 'guests', target: 250, label: 'Guests in the park' },
+      { k: 'happy', target: 78, label: 'Average happiness (%)' },
+      { k: 'beauty', target: 500, label: 'Scenery beauty' },
+    ]
+  },
+  {
+    id: 'reclaim', name: 'Reclaim the Ruins', tag: 'Disaster',
+    blurb: 'A storm tore through last season and the park never recovered. Money is tight and reputation is worse — turn it around fast.',
+    money: 35000, fee: 9, level: 3, days: 0,
+    goals: [
+      { k: 'rating', target: 400, label: 'Park rating' },
+      { k: 'happy', target: 65, label: 'Average happiness (%)' },
+      { k: 'guests', target: 180, label: 'Guests in the park' },
+      { k: 'profit', target: 60000, label: 'Total earnings ($)' },
+    ]
+  },
+  {
+    id: 'wildtrail', name: 'Wild Trails', tag: 'Nature',
+    blurb: 'A sprawling reserve brief: lush planting, quiet paths and gentle rides that let the scenery do the talking.',
+    money: 130000, fee: 13, level: 4, days: 0,
+    goals: [
+      { k: 'beauty', target: 1400, label: 'Scenery beauty' },
+      { k: 'guests', target: 280, label: 'Guests in the park' },
+      { k: 'happy', target: 80, label: 'Average happiness (%)' },
+      { k: 'shops', target: 6, label: 'Shops and facilities' },
+    ]
+  },
+  {
+    id: 'marathon', name: 'The Marathon', tag: 'Endless',
+    blurb: 'No quick win here — just keep the park thriving, season after season, and see how far you can take it.',
+    money: 200000, fee: 15, level: 5, days: 0,
+    goals: [
+      { k: 'days', target: 60, label: 'Days operated' },
+      { k: 'guests', target: 500, label: 'Guests in the park' },
+      { k: 'rating', target: 700, label: 'Park rating' },
+      { k: 'profit', target: 900000, label: 'Total earnings ($)' },
+    ]
+  },
 ];
 
 /* ============================================================================
@@ -13374,6 +13418,7 @@ const Goals = {
       case 'coasterExc': return Park.coasters.reduce((m, c) => Math.max(m, c.openR ? c.excitement : 0), 0);
       case 'profit': return Math.round(Park.log.ticket + Park.log.shop + Park.log.entry);
       case 'beauty': return Math.round(Park.beauty);
+      case 'days': return Park.day || 0;
     }
     return 0;
   },
