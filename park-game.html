@@ -2618,6 +2618,7 @@ const CAT = {
     { id: 'popcorn', name: 'Popcorn Stand', cost: 850, up: 15, w: 1, d: 1, need: 'hunger', price: 5, satisfy: 34, color: 0xe8d24a, roof: 0xd94f3c },
     { id: 'bikerental', name: 'Bike Rental Stand', cost: 2200, up: 12, w: 2, d: 1, need: 'bike', price: 6, satisfy: 0, color: 0x2e7d46, roof: 0xf2c14e },
     { id: 'parkinglot', name: 'Parking Lot', cost: 8000, up: 20, w: 6, d: 4, need: 'parking', price: 0, satisfy: 0, spaces: 40, color: 0x6b6b6d, roof: 0x3a3a3c },
+    { id: 'breakroom', name: 'Staff Break Room', cost: 3200, up: 14, w: 2, d: 2, need: 'break', price: 0, satisfy: 0, color: 0x6b8f9e, roof: 0x3a3a3c },
     { id: 'toilet', name: 'Restrooms', cost: 900, up: 20, w: 2, d: 2, need: 'toilet', price: 0, satisfy: 100, color: 0x8fa3b8, roof: 0x4d6480 },
     { id: 'gift', name: 'Gift Shop', cost: 2000, up: 30, w: 2, d: 2, need: 'shop', price: 18, satisfy: 55, color: 0x7b5bd4, roof: 0xffd76a },
     { id: 'balloon', name: 'Balloon Stall', cost: 700, up: 12, w: 1, d: 1, need: 'shop', price: 6, satisfy: 40, color: 0xff6f91, roof: 0x69d2f0 },
@@ -3226,6 +3227,31 @@ const Prefab = {
           g.mergeM(Prefab.car(cc), M4.compose(M4.create(), bx, .05, rz, 0, row === 0 ? 0 : PI, 0, .82, .82, .82));
         }
       }
+      return { base: g, parts: [] };
+    }
+
+    if (def.need === 'break') {
+      // A small staff-only cabin: table, chairs, a vending machine and a
+      // coffee pot — somewhere off-shift and idle staff can actually go
+      // to rest, rather than just standing wherever they happened to stop.
+      g.box(0, -.08, 0, W + .2, .16, D + .2, hex(0xb9ab90));                // plinth
+      g.box(0, .02, 0, W - .4, 2.2, D - .4, wall);                          // cabin walls
+      g.box(0, 2.22, 0, W - .1, .2, D - .1, shade(roof, 1.05));             // flat roof
+      const glass = hex(0xcfe9f5);
+      g.box(0, 1.1, -D / 2 + .02, W * .5, .8, .06, glass);                  // front window
+      this.shopEmblem(g, def, 0, 1.9, -D / 2 + .05);
+      // table + two chairs inside
+      g.box(0, .5, .2, .9, .08, .9, shade(hex(0x8b7355), 1));
+      g.cyl(0, .1, .2, .06, .42,6, shade(hex(0x8b7355), .8));
+      for (const [cx, cz] of [[-.7, .2], [.7, .2]]) {
+        g.box(cx, .32, cz, .38, .06, .38, hex(0x3a5a8a));
+        g.box(cx, .32, cz + (cx < 0 ? .18 : -.18), .38, .5, .05, hex(0x3a5a8a));
+      }
+      // vending machine + coffee pot along the back wall
+      g.box(-W / 2 + .6, .7, D / 2 - .3, .7, 1.4, .5, hex(0x2e5a8f));
+      g.box(-W / 2 + .6, 1.1, D / 2 - .06, .5, .8, .06, glass);
+      g.cyl(W / 2 - .5, .5, D / 2 - .3, .18, .5,8, hex(0x2b2b30));
+      g.box(W / 2 - .5, .82, D / 2 - .3, .4, .16, .4, shade(hex(0x8b7355), 1));
       return { base: g, parts: [] };
     }
 
@@ -7090,6 +7116,7 @@ const Path = {
    ========================================================================== */
 const SKIN = [0xf2c9a0, 0xe8b184, 0xc98d5f, 0x8d5a35, 0x5f3a20, 0xf7dcc0];
 const SHIRT = [0xe74c3c, 0x3498db, 0x2ecc71, 0xf1c40f, 0x9b59b6, 0xe67e22, 0x1abc9c, 0xecf0f1, 0x34495e, 0xff6f91, 0x7ed6df, 0xf6b93b];
+const STAFF_UNIFORM_COLORS = [0xd94f3c, 0x3ba7d4, 0x2ecc71, 0xf1c40f, 0x9b59b6, 0xe8749b, 0x34495e, 0xff8c42];
 const PANTS = [0x2c3e50, 0x34495e, 0x7f8c8d, 0x2980b9, 0x8e44ad, 0x27ae60, 0x795548, 0x455a64];
 const HAIR = [0x2b1b0e, 0x4a2c14, 0x7a4a1e, 0xc79a3a, 0x1a1a1a, 0xa03030, 0xd9d9d9, 0x5b3a1a];
 
@@ -8413,6 +8440,8 @@ class Staff extends Person {
     this.zone = null;           // { x, z, r } — patrol area, or null for the whole park
     this.shift = 'always';      // 'always' | 'day' (6-18) | 'night' (18-6)
     this.morale = .8;           // 0..1, drags speed/workRate down when it's been all work no rest
+    this.uniformColor = null;   // null = use the role's default colour
+    this.restT = 0;
     /* Training. A trained member of staff walks faster, works faster and, for
        mechanics, keeps a ride running longer between failures — which makes
        "hire another one" and "train the one I have" a real choice. */
@@ -8431,7 +8460,7 @@ class Staff extends Person {
      staff from across the park without needing a second character system.
      Grade shows too: an Expert wears a badge and a smarter cap. */
   gear(put, c) {
-    const col = hex(this.def.color);
+    const col = hex(this.uniformColor || this.def.color);
     const dark = shade(col, .62), light = shade(col, 1.28);
     const L = this.level;
     const hi = hex(0xf5e04a);
@@ -8514,6 +8543,8 @@ class Staff extends Person {
     switch (this.state) {
       case 'idle': return 'Standing by';
       case 'patrol': return 'Patrolling the park';
+      case 'toBreak': return 'Heading for a break';
+      case 'resting': return 'On a break';
       case 'walking':
         if (this.role === 'janitor' && this.targetLitter) return 'Heading to some litter';
         if (this.role === 'mechanic' && this.targetRide) return 'Heading to ' + rideName(this.targetRide);
@@ -8604,6 +8635,17 @@ class Staff extends Person {
         if (done) this.state = 'idle';
         break;
       }
+      case 'toBreak': {
+        const done = this.followPath(dt, clamp(.7 + this.morale * .3, .7, 1));
+        if (done) { this.state = 'resting'; this.restT = rnd(8, 16); this.moving = false; }
+        break;
+      }
+      case 'resting': {
+        this.restT -= dt;
+        this.morale = clamp(this.morale + dt * .05, 0, 1);   // a real break room beats standing around
+        if (this.restT <= 0 || this.morale >= .98) { this.state = 'idle'; this.idleSince = Park.now; }
+        break;
+      }
     }
     this.physUpdate(dt);
   }
@@ -8663,6 +8705,20 @@ class Staff extends Person {
       let best = null, bl = 2;
       for (const r of Park.attractions()) if (r.queue.length > bl && this.inZone(r.x, r.z)) { bl = r.queue.length; best = r; }
       if (best) { const e = best.entrance; if (this.goto(e.x + rnd(-3, 3), e.z + rnd(-3, 3))) { this.state = 'walking'; return; } }
+    }
+    /* Nothing to do and not feeling great: head for the nearest break
+       room instead of just patrolling — it recovers morale much faster
+       than standing around, so a park with break rooms keeps its crew
+       fresher without more staff or more training. */
+    if (this.morale < .85) {
+      let best = null, bd = 90 * 90;
+      for (const o of Park.objects) {
+        if (o.kind === 'shop' && o.def.need === 'break' && this.inZone(o.x, o.z)) {
+          const d = dist2(this.x, this.z, o.x, o.z);
+          if (d < bd) { bd = d; best = o; }
+        }
+      }
+      if (best) { const e = best.entrance; if (this.goto(e.x, e.z)) { this.state = 'toBreak'; return; } }
     }
     const spot = this.randomSpot();
     if (spot && this.goto(spot.x, spot.z)) { this.state = 'patrol'; }
@@ -10221,6 +10277,12 @@ const UI = {
       if (o.role === 'mechanic') h += kv('Repairs made', o.repaired);
       h += `<div class="meterbox"><div class="meter"><span class="mn">Morale</span><span class="bar"><span class="fill" style="width:${o.morale * 100}%;background:${o.morale < .4 ? 'var(--bad)' : o.morale < .7 ? 'var(--warn)' : 'var(--good)'}"></span></span><span class="mv">${Math.round(o.morale * 100)}</span></div></div>`;
       h += `<div style="font-size:10.5px;color:var(--dim);margin-top:-2px">Morale drops with every finished task and recovers while idle or off shift — low morale means slower work.</div>`;
+      h += `<div class="cat">Uniform</div>`;
+      h += `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px">` +
+        STAFF_UNIFORM_COLORS.map(hx => `<span onclick="Game.setStaffUniform(${o.id},${hx})"
+          style="display:inline-block;width:24px;height:24px;border-radius:6px;cursor:pointer;
+          background:#${hx.toString(16).padStart(6, '0')};border:2px solid ${(o.uniformColor || o.def.color) === hx ? 'var(--accent)' : 'transparent'};box-shadow:0 0 0 1px rgba(0,0,0,.2)"></span>`).join('') +
+        `</div>`;
       h += `<div class="cat">Shift</div>`;
       h += `<div class="btnrow">
         <button class="btn ${o.shift === 'always' ? 'pri' : ''}" onclick="Game.setStaffShift(${o.id},'always')">Always on</button>
@@ -10691,6 +10753,7 @@ const UI = {
     if (s.state === 'idle') return 3 + clamp((Park.now - (s.idleSince || 0)) / 300, 0, .9);
     if (s.state === 'working' || s.state === 'walking') return 2;
     if (s.state === 'patrol') return 1;
+    if (s.state === 'toBreak' || s.state === 'resting') return .5;
     return 0; // offshift
   },
   dispatch() {
@@ -10724,11 +10787,18 @@ const UI = {
       for (const s of list) {
         const busy = s.state === 'working' || s.state === 'walking';
         const urgent = s.role === 'mechanic' && s.targetRide && s.targetRide.broken;
-        h += `<div style="display:flex;align-items:center;gap:8px;padding:7px 9px;border:1px solid ${urgent ? 'var(--bad)' : 'var(--edge)'};border-radius:8px;margin-bottom:6px">
+        const resting = s.state === 'resting' || s.state === 'toBreak';
+        const offshift = s.state === 'offshift';
+        const bg = urgent ? 'rgba(217,79,60,.08)' : resting ? 'rgba(59,167,201,.08)' : offshift ? 'var(--panel-sunken)' : 'transparent';
+        const moraleDot = s.morale < .4 ? 'var(--bad)' : s.morale < .7 ? 'var(--warn)' : 'var(--good)';
+        h += `<div style="display:flex;align-items:center;gap:9px;padding:7px 9px;border:1px solid ${urgent ? 'var(--bad)' : 'var(--edge)'};border-radius:8px;margin-bottom:6px;background:${bg};opacity:${offshift ? .7 : 1}">
+          <img src="${Thumbs.staff(d)}" style="width:34px;height:34px;object-fit:contain;flex:0 0 auto;border-radius:6px;background:var(--panel-sunken)" alt="">
           <div style="flex:1;min-width:0">
-            <div style="font-weight:700;font-size:12px">${esc(s.name)}${s.nickname ? ` <span style="color:var(--gold);font-weight:600">"${esc(s.nickname)}"</span>` : ''}
+            <div style="font-weight:700;font-size:12px;display:flex;align-items:center;gap:5px">
+              <span style="width:7px;height:7px;border-radius:50%;background:${moraleDot};flex:0 0 auto" title="Morale ${Math.round(s.morale * 100)}%"></span>
+              ${esc(s.name)}${s.nickname ? ` <span style="color:var(--gold);font-weight:600">"${esc(s.nickname)}"</span>` : ''}
               <span style="font-weight:400;color:var(--dim);font-size:10.5px">Lv.${s.level} &middot; ${s.careerTitle()}</span></div>
-            <div style="font-size:10.5px;color:${urgent ? 'var(--bad)' : busy ? 'var(--good)' : 'var(--dim)'}">${s.state === 'offshift' ? 'Off shift' : s.taskLabel()}</div>
+            <div style="font-size:10.5px;color:${urgent ? 'var(--bad)' : busy ? 'var(--good)' : resting ? 'var(--accent)' : 'var(--dim)'}">${offshift ? 'Off shift' : s.taskLabel()}</div>
           </div>
           <button class="btn" style="padding:4px 9px;font-size:10.5px;flex:0 0 auto" onclick="Game.locateStaff(${s.id})">Locate</button>
           <button class="btn" style="padding:4px 9px;font-size:10.5px;flex:0 0 auto" onclick="Game.recallStaff(${s.id});UI.dispatch()">Recall</button>
@@ -15485,6 +15555,12 @@ const Game = {
     s.train();
     UI.entrance('staff');
   },
+  setStaffUniform(id, hx) {
+    const s = Park.staff.find(x => x.id === id);
+    if (!s) return;
+    s.uniformColor = hx & 0xffffff;
+    UI.manage(id);
+  },
   setStaffShift(id, shift) {
     const s = Park.staff.find(x => x.id === id);
     if (!s) return;
@@ -16505,7 +16581,7 @@ const Game = {
           pw: c.track.powered,
           price: c.price, open: c.openR, name: c.name, se: c.track.stationEnd, trains: c.trains.length
         })),
-        staff: Park.staff.map(s => ({ r: s.role, x: s.x, z: s.z, l: s.level, n: s.name, shift: s.shift, zone: s.zone, morale: s.morale, td: s.tasksDone, nick: s.nickname })),
+        staff: Park.staff.map(s => ({ r: s.role, x: s.x, z: s.z, l: s.level, n: s.name, shift: s.shift, zone: s.zone, morale: s.morale, td: s.tasksDone, nick: s.nickname, uc: s.uniformColor })),
         land: Array.from(Land.ownedPlots), bought: Land.bought,
         loan: Finance.loan, campaigns: Marketing.active,
         log: Park.log, ach: Achievements.unlocked,
@@ -16706,6 +16782,7 @@ const Game = {
         if (s.morale !== undefined) st.morale = clamp(s.morale, 0, 1);
         if (s.td) st.tasksDone = s.td;
         if (s.nick) st.nickname = s.nick;
+        if (s.uc !== undefined && s.uc !== null) st.uniformColor = s.uc;
         Park.staff.push(st);
       }
       if (Park.gate && d.gate) {
