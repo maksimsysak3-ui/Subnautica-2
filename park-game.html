@@ -2197,6 +2197,7 @@ const WORLD = {
       { c: hex(0xa5432f), d: hex(0x8c3826), stripe: true  }, // 3 brick
       { c: hex(0xb8ae9c), d: hex(0xa79c88), stripe: false }, // 4 gravel
       { c: hex(0x4a4a4c), d: hex(0x3d3d3f), stripe: false, road: true }, // 5 road (cars)
+      { c: hex(0x9c7a4e), d: hex(0x86663f), stripe: true, bridge: true }, // 6 bridge (wood)
     ];
     for (let j = 0; j < N; j++) {
       for (let i = 0; i < N; i++) {
@@ -2213,6 +2214,10 @@ const WORLD = {
         else if (t === T_QUEUE) c = shade(queueC, chk ? 1 : .92);
         else if (t === T_PLAZA) c = ((i + j) % 4 < 2) ? plazaA : plazaB;
         else if (t === T_ENTRY) c = shade(entryC, chk ? 1 : .93);
+        else if (t === T_WATER) {
+          const rn = noise2(i * .12 + 7, j * .12 + 3);
+          c = shade(hex(0x2f9fd4), .88 + rn * .22);
+        }
         else {
           const slope = Math.max(Math.abs(y10 - y00), Math.abs(y01 - y00)) / TILE;
           const hh = (y00 + y11) * .5;
@@ -2291,6 +2296,42 @@ const WORLD = {
               g.triV([edgeCx, y, edgeCz],
                 [edgeCx + Math.cos(a0) * TILE / 2, y, edgeCz + Math.sin(a0) * TILE / 2],
                 [edgeCx + Math.cos(a1) * TILE / 2, y, edgeCz + Math.sin(a1) * TILE / 2], capC);
+            }
+          }
+        }
+        // riverbank: a stone lip where water meets dry land
+        if (t === T_WATER) {
+          const bankC = hex(0x8a8378);
+          const y = Math.max(y00, y10, y01, y11);
+          const nb3 = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+          for (const [di, dj] of nb3) {
+            const nt = this.t(i + di, j + dj);
+            if (nt === T_WATER) continue;
+            const cx = (i - N / 2) * TILE + TILE / 2 + di * (TILE / 2 - .1);
+            const cz = (j - N / 2) * TILE + TILE / 2 + dj * (TILE / 2 - .1);
+            g.box(cx, y - .04, cz, di ? .2 : TILE, .1, dj ? .2 : TILE, bankC);
+          }
+        }
+        // bridge railings: a wood-plank path tile crossing water gets posts
+        // and rails along the two edges that run WITH the water, not across
+        // it, so it reads as a crossing rather than a fenced-in box
+        const isBridge = t === T_PATH && this.mat[j * N + i] === 6;
+        if (isBridge) {
+          const y = Math.max(y00, y10, y01, y11);
+          const wE = this.t(i + 1, j) === T_WATER, wW = this.t(i - 1, j) === T_WATER;
+          const wN = this.t(i, j - 1) === T_WATER, wS = this.t(i, j + 1) === T_WATER;
+          const alongX = wE || wW, alongZ = wN || wS;
+          const cx = (i - N / 2) * TILE + TILE / 2, cz = (j - N / 2) * TILE + TILE / 2;
+          const railC = hex(0x6b4a2f);
+          if (alongX && !alongZ) {
+            for (const s of [-1, 1]) {
+              g.box(cx, y + .5, cz + s * (TILE / 2 - .1), TILE, .1, .1, railC);
+              for (const t2 of [-.4, .4]) g.box(cx + t2 * TILE, y + .25, cz + s * (TILE / 2 - .1), .1, .5, .1, railC);
+            }
+          } else if (alongZ && !alongX) {
+            for (const s of [-1, 1]) {
+              g.box(cx + s * (TILE / 2 - .1), y + .5, cz, .1, .1, TILE, railC);
+              for (const t2 of [-.4, .4]) g.box(cx + s * (TILE / 2 - .1), y + .25, cz + t2 * TILE, .1, .5, .1, railC);
             }
           }
         }
@@ -2562,6 +2603,15 @@ const Land = {
 /* Twelve themes, each with its own palette and its own detailing rules in the
    archetype builders above. Crossed with the archetypes this produces the
    decoration catalogue. */
+/* Themed land packages: one click scatters a small matching cluster of
+   existing scenery kinds around the clicked spot, instead of placing
+   pieces one at a time. Every kind referenced here already exists in
+   CAT.scenery — this is a placement shortcut, not new geometry. */
+const LAND_THEMES = {
+  desert: { name: 'Desert Oasis', items: ['rockgarden', 'planter', 'palm', 'signpost'] },
+  alpine: { name: 'Alpine Grove', items: ['pine', 'rockarch', 'campfire', 'picnic'] },
+  tropical: { name: 'Tropical Lagoon', items: ['palm', 'tikitorch', 'koistream', 'waterfall'] },
+};
 const GENRES = {
   classic:   { n: 'Classic Park', c: [0xe8dfc8, 0xc9bda0, 0x8b7355], acc: 0xd94f3c },
   western:   { n: 'Wild West',    c: [0x9a6b3f, 0x6f4522, 0x3f2d1c], acc: 0xd9a441 },
@@ -5175,8 +5225,8 @@ const Prefab = {
   /* A short sample of path surface for the path catalogue */
   pathSample(kind, mat) {
     const g = new Geo();
-    const matC = [hex(0x6b6b6d), hex(0xcfc2a8), hex(0xa9793f), hex(0xa5432f), hex(0xb8ae9c)];
-    const c = kind === 'queue' ? hex(0xc0a8d8) : kind === 'plaza' ? hex(0xe0d6c0) : (matC[mat || 0] || matC[1]);
+    const matC = [hex(0x6b6b6d), hex(0xcfc2a8), hex(0xa9793f), hex(0xa5432f), hex(0xb8ae9c), hex(0x4a4a4c), hex(0x9c7a4e)];
+    const c = kind === 'queue' ? hex(0xc0a8d8) : kind === 'plaza' ? hex(0xe0d6c0) : kind === 'river' ? hex(0x2f9fd4) : (matC[mat || 0] || matC[1]);
     for (let j = 0; j < 2; j++) for (let i = 0; i < 2; i++) {
       const sh2 = ((i ^ j) & 1) ? .92 : 1;
       g.box((i - .5) * 4, 0, (j - .5) * 4, 4, .3, 4, shade(c, sh2));
@@ -8885,7 +8935,7 @@ const UI = {
     if (Coaster.active && id !== 'coaster') Coaster.exit();
     this.tool = id; this.sub = null;
     this.refreshTools();
-    if (id === 'select' || id === 'delete' || id === 'terrain') { this.closeBuild(); }
+    if (id === 'select' || id === 'delete') { this.closeBuild(); }
     else this.openBuild(id);
     if (id === 'delete') this.hint('Click any object to <b>demolish</b> it and recover part of its value.');
     else if (id === 'terrain') this.hint('Drag to <b>raise</b> land, hold <kbd>Shift</kbd> to lower, <kbd>Ctrl</kbd> to level, <kbd>Alt</kbd> to clear trees &amp; rocks.');
@@ -8963,11 +9013,13 @@ const UI = {
         { id: 'path', name: 'Brick', cost: 32, mat: 3 },
         { id: 'path', name: 'Gravel', cost: 20, mat: 4 },
         { id: 'path', name: 'Road', cost: 26, mat: 5 },
+        { id: 'path', name: 'Bridge', cost: 34, mat: 6 },
       ], 'grid2', it => `<img class="th" src="${Thumbs.path(it.id, it.mat)}" alt=""><span class="n">${it.name}</span>${cost(it.cost)}`,
         (it, d) => this.pick(it, d));
       addGrid('Other tiles', [
         { id: 'queue', name: 'Queue Line', cost: 34 },
         { id: 'plaza', name: 'Plaza Tile', cost: 40 },
+        { id: 'river', name: 'River / Water', cost: 30 },
         { id: 'erase', name: 'Remove', cost: 0 },
       ], 'grid2', it => `<img class="th" src="${Thumbs.path(it.id)}" alt=""><span class="n">${it.name}</span>${it.cost ? cost(it.cost) : '<span class="c">refund</span>'}`,
         (it, d) => this.pick(it, d));
@@ -8975,6 +9027,7 @@ const UI = {
         { id: 'path', name: 'Path Circle', cost: 24, mat: 1, circle: true, r: 3 },
         { id: 'path', name: 'Road Roundabout', cost: 26, mat: 5, circle: true, r: 4 },
         { id: 'plaza', name: 'Plaza Circle', cost: 40, circle: true, r: 3 },
+        { id: 'river', name: 'Lake / Pond', cost: 30, circle: true, r: 5 },
       ], 'grid2', it => `<img class="th" src="${Thumbs.path(it.id, it.mat)}" alt=""><span class="n">${it.name}</span>${cost(it.cost)}`,
         (it, d) => this.pick(it, d));
       b.appendChild(el('div', 'cat', 'Queue connection'));
@@ -8990,7 +9043,23 @@ const UI = {
       b.appendChild(el('div', '', `<div style="font-size:11px;color:var(--dim);line-height:1.55;padding:0 3px">
         Drag to lay a run of path. Guests can only walk on <b style="color:var(--txt)">walkways</b>.
         Connect every ride entrance to the network, and run a <b style="color:#7b5bd4">queue line</b>
-        from the walkway to the ride entrance so guests can line up.</div>`));
+        from the walkway to the ride entrance so guests can line up. <b style="color:#2f9fd4">Rivers</b> block
+        walking entirely — paint a <b style="color:var(--txt)">Bridge</b> across one to let guests cross.</div>`));
+    }
+    else if (id === 'terrain') {
+      addGrid('Presets — one click reshapes a whole area', [
+        { id: 'freehand', name: 'Freehand', desc: 'The classic small brush: drag to raise, Shift to lower, Ctrl to smooth.', cost: 0 },
+        { id: 'flatten', name: 'Flatten Large Area', desc: 'Levels a wide radius to the ground height where you click.', cost: 90 },
+        { id: 'hill', name: 'Rolling Hill', desc: 'Raises a broad, smooth mound in one click.', cost: 90 },
+        { id: 'valley', name: 'Shallow Valley', desc: 'Digs a broad, smooth dip in one click.', cost: 90 },
+        { id: 'smooth', name: 'Smooth Large Area', desc: 'Blends a wide radius toward its average height — good for cleaning up a messy hand-sculpted patch.', cost: 70 },
+      ], 'grid2', it => `<span class="n">${it.name}</span>${it.cost ? cost(it.cost) : '<span class="c">free</span>'}<span class="c" style="color:var(--dim);font-size:9px;line-height:1.4;display:block;margin-top:2px">${it.desc}</span>`,
+        (it, d) => { this.terraPreset = it.id === 'freehand' ? null : it; document.querySelectorAll('#bpBody .item').forEach(x => x.classList.remove('on')); d.classList.add('on'); });
+      b.appendChild(el('div', 'cat', 'How terraforming works'));
+      b.appendChild(el('div', '', `<div style="font-size:11px;color:var(--dim);line-height:1.55;padding:0 3px">
+        Freehand is the original small brush — drag to sculpt tile by tile. A preset above replaces that
+        with one big click: pick one, then click anywhere on your land to stamp it at that spot.
+        <kbd>Alt</kbd>-click still clears trees and rocks regardless of which preset is selected.</div>`));
     }
     else if (id === 'coaster') {
       addGrid('Ready-Made Coasters — one click to build', BLUEPRINTS, 'grid2',
@@ -9056,6 +9125,21 @@ const UI = {
     }
     else if (id === 'scenery') {
       const cr = it => `<img class="th" src="${Thumbs.scenery(it)}" alt=""><span class="n">${it.name}</span>${cost(it.cost)}`;
+      b.appendChild(el('div', 'cat', 'Land Themes — one click plants a whole cluster'));
+      b.appendChild(el('div', '', `<div style="font-size:11px;color:var(--dim);line-height:1.5;padding:0 3px 6px">
+        Click a theme, then click open ground: it scatters a matching set of scenery around that spot
+        in one go, buying and placing whatever fits instead of one piece at a time.</div>`));
+      const themeGrid = el('div', 'grid2');
+      for (const tid of Object.keys(LAND_THEMES)) {
+        const th = LAND_THEMES[tid];
+        const totalCost = th.items.reduce((a, k) => a + (CAT.scenery.find(x => x.kind === k) || { cost: 0 }).cost, 0);
+        const d = el('div', 'item' + (UI.sub && UI.sub.id === 'landtheme' && UI.sub.theme === tid ? ' on' : ''),
+          `<span class="n">${th.name}</span><span class="c">~${money(totalCost)}</span>
+           <span class="c" style="color:var(--dim);font-size:9px;line-height:1.4">${th.items.length} pieces per cluster</span>`);
+        d.onclick = () => { this.pick({ id: 'landtheme', theme: tid, name: th.name }, d); };
+        themeGrid.appendChild(d);
+      }
+      b.appendChild(themeGrid);
       addGrid('Nature', CAT.scenery.filter(x => ['tree', 'pine', 'palm', 'flower', 'hedge', 'maze', 'pond', 'rockarch'].includes(x.kind)), 'grid2', cr, (it, d) => this.pick(it, d));
       addGrid('Park Furniture', CAT.scenery.filter(x => ['bench', 'bin', 'lamp', 'speaker', 'lights', 'banner', 'campfire'].includes(x.kind)), 'grid2', cr, (it, d) => this.pick(it, d));
       addGrid('Feature Pieces', CAT.scenery.filter(x => !['tree', 'pine', 'palm', 'flower', 'hedge', 'maze', 'pond', 'rockarch', 'bench', 'bin', 'lamp', 'speaker', 'lights', 'banner', 'campfire'].includes(x.kind)), 'grid2', cr, (it, d) => this.pick(it, d));
@@ -15182,6 +15266,11 @@ const Game = {
     }
     else if (UI.tool === 'path' && UI.sub) { this.paintPath(this.hoverTile.i, this.hoverTile.j); }
     else if (UI.tool === 'terrain') { this.editTerrain(this.hoverTile.i, this.hoverTile.j, e.shiftKey ? -1 : 1, e.ctrlKey, e.altKey); }
+    else if (UI.tool === 'scenery' && UI.sub && UI.sub.id === 'landtheme') {
+      if (tk === this._lastPlaceTile) return;
+      this._lastPlaceTile = tk;
+      this.stampLandTheme(UI.sub.theme, this.hoverTile.i, this.hoverTile.j);
+    }
     else if ((UI.tool === 'scenery' || UI.tool === 'decor') && UI.sub) {
       if (tk === this._lastPlaceTile) return;
       this._lastPlaceTile = tk;
@@ -15226,7 +15315,8 @@ const Game = {
       case 'deletedrag': break;
       case 'path': if (UI.sub) this.paintPath(i, j); break;
       case 'terrain': this.editTerrain(i, j, e.shiftKey ? -1 : 1, e.ctrlKey, e.altKey); break;
-      case 'shop': case 'ride': case 'water': case 'scenery': case 'decor': case 'lodging': case 'landmark': if (UI.sub) this.tryPlace(); break;
+      case 'scenery': if (UI.sub && UI.sub.id === 'landtheme') { this.stampLandTheme(UI.sub.theme, i, j); break; } if (UI.sub) this.tryPlace(); break;
+      case 'shop': case 'ride': case 'water': case 'decor': case 'lodging': case 'landmark': if (UI.sub) this.tryPlace(); break;
       case 'transit': {
         if (Transit.drawing) {
           // laying the line: every click is a corner in the route
@@ -15297,7 +15387,7 @@ const Game = {
       return;
     }
     const isPathMat = kind.startsWith('path');
-    const target = isPathMat ? T_PATH : kind === 'queue' ? T_QUEUE : T_PLAZA;
+    const target = isPathMat ? T_PATH : kind === 'queue' ? T_QUEUE : kind === 'river' ? T_WATER : T_PLAZA;
     const matId = isPathMat ? (UI.sub.mat || 0) : 0;
     if (t === target && (!isPathMat || WORLD.mat[j * N + i] === matId)) return;
     const cost = UI.sub.cost;
@@ -15317,7 +15407,41 @@ const Game = {
       if (n && Park.money >= 10) Park.money -= 10;
       return;
     }
-    const W = N + 1, r = 2;
+    const preset = UI.terraPreset;
+    const W = N + 1;
+    if (preset) {
+      const cost = preset.cost;
+      if (Park.money < cost) return;
+      const r = preset.id === 'flatten' ? 9 : preset.id === 'smooth' ? 8 : 7;
+      const base = WORLD.h[j * W + i];
+      // running average of the whole stamped disc, used by Flatten/Smooth
+      let avgSum = 0, avgN = 0;
+      if (preset.id === 'smooth') {
+        for (let dj = -r; dj <= r; dj++) for (let di = -r; di <= r; di++) {
+          const ii = i + di, jj = j + dj;
+          if (ii < 0 || jj < 0 || ii > W - 1 || jj > W - 1) continue;
+          if (Math.hypot(di, dj) > r) continue;
+          avgSum += WORLD.h[jj * W + ii]; avgN++;
+        }
+      }
+      const avg = avgN ? avgSum / avgN : base;
+      Park.money -= cost;
+      for (let dj = -r; dj <= r; dj++) for (let di = -r; di <= r; di++) {
+        const ii = i + di, jj = j + dj;
+        if (ii < 0 || jj < 0 || ii > W - 1 || jj > W - 1) continue;
+        const dd = Math.hypot(di, dj);
+        if (dd > r) continue;
+        const f = clamp(1 - dd / (r + .5), 0, 1);
+        const k = jj * W + ii;
+        if (preset.id === 'flatten') WORLD.h[k] = lerp(WORLD.h[k], base, f);
+        else if (preset.id === 'hill') WORLD.h[k] += f * f * 5.5;
+        else if (preset.id === 'valley') WORLD.h[k] -= f * f * 4.5;
+        else if (preset.id === 'smooth') WORLD.h[k] = lerp(WORLD.h[k], avg, f * .7);
+      }
+      WORLD.dirty = true;
+      return;
+    }
+    const r = 2;
     const cost = 30;
     if (Park.money < cost) return;
     Park.money -= cost;
@@ -15380,6 +15504,35 @@ const Game = {
     if (steep) return 'the ground is too steep — level it with the terrain tool';
     if (Park.money < def.cost) return 'you cannot afford this (' + money(def.cost) + ')';
     return null;
+  },
+  /* One click, a whole themed cluster: scatter a handful of scenery
+     pieces from the chosen LAND_THEMES set around the clicked tile,
+     skipping anywhere unowned, already built on, or unaffordable. */
+  stampLandTheme(themeId, ci, cj) {
+    const theme = LAND_THEMES[themeId];
+    if (!theme || !WORLD.ownsTile(ci, cj)) return;
+    let placed = 0;
+    for (let k = 0; k < theme.items.length; k++) {
+      const kind = theme.items[k];
+      const def = CAT.scenery.find(x => x.kind === kind);
+      if (!def) continue;
+      let ok = false;
+      for (let tries = 0; tries < 6 && !ok; tries++) {
+        const a = Math.random() * TAU, r = 2 + Math.random() * 6;
+        const i = ci + Math.round(Math.cos(a) * r), j = cj + Math.round(Math.sin(a) * r);
+        if (!WORLD.ownsTile(i, j) || WORLD.type[j * N + i] !== T_GRASS) continue;
+        if (Park.money < def.cost) continue;
+        const o = new ParkObject('scenery', def, i, j, rndi(0, 3));
+        o.seed = rndi(0, 3); o.buildT = 1;
+        o.y = WORLD.tileH(i, j); o.updateMatrix();
+        Park.spend(def.cost);
+        Park.objects.push(o);
+        o.footprint((ii, jj) => WORLD.setOwn(ii, jj, o.id));
+        ok = true; placed++;
+      }
+    }
+    this.sceneryDirty = true;
+    if (placed) { UI.notify(theme.name, 'Planted ' + placed + ' piece' + (placed === 1 ? '' : 's') + '.', 'good'); Audio.play('build'); }
   },
   tryPlace() {
     const p = this.placementDef(); if (!p || !this.hoverTile) return;
