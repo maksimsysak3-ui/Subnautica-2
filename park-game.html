@@ -424,6 +424,8 @@ input[type=range]::-moz-range-thumb{width:18px;height:18px;border:3px solid var(
 
 /* ---------- notifications ---------- */
 #notif{position:absolute;top:62px;right:12px;width:296px;display:flex;flex-direction:column;gap:8px;pointer-events:none}
+#multiSelBar{position:absolute;left:50%;bottom:88px;transform:translateX(-50%);background:#fff;border:2px solid var(--edge);
+  border-radius:var(--r-sm);padding:8px 12px;font-size:11.5px;box-shadow:var(--e3);display:flex;align-items:center;gap:10px;z-index:20}
 .note{
   background:#fff;border:2px solid var(--edge);border-left:6px solid var(--accent);
   border-radius:var(--r-sm);padding:11px 13px;font-size:11.5px;
@@ -853,6 +855,8 @@ table.tb tr:last-child td{border-bottom:0}
     <div class="sbtn" id="btnMap" title="Minimap (M)" data-ic="map"></div>
     <div class="sbtn" id="btnFin" title="Park management (F)" data-ic="stats"></div>
     <div class="sbtn" id="btnGoals" title="Objectives (O)" data-ic="check"></div>
+    <div class="sbtn" id="btnUndo" title="Undo last scenery change (Ctrl+Z)" data-ic="undo"></div>
+    <div class="sbtn" id="btnNotifLog" title="Notification history" data-ic="clock"></div>
     <div class="sbtn" id="btnAchieve" title="Achievements" data-ic="sparkle"></div>
     <div class="sbtn" id="btnSettings" title="Settings" data-ic="gear"></div>
     <div class="sbtn" id="btnHelp" title="Help (H)" data-ic="help"></div>
@@ -860,6 +864,8 @@ table.tb tr:last-child td{border-bottom:0}
   </div>
 
   <div id="notif"></div>
+
+  <div id="multiSelBar" style="display:none"></div>
 
   <div id="goals" class="panel">
     <div class="hdr"><span class="dot"></span><span id="goalTitle">Objectives</span>
@@ -8980,6 +8986,8 @@ const UI = {
     $('#spd2').onclick = () => Game.setSpeed(3);
     $('#spd3').onclick = () => Game.setSpeed(8);
     $('#btnMap').onclick = () => $('#minimap').classList.toggle('show');
+    $('#btnNotifLog').onclick = () => this.showNotifyLog();
+    $('#btnUndo').onclick = () => Game.undo();
     $('#btnFin').onclick = () => this.finances();
     $('#btnHelp').onclick = () => this.help();
     $('#btnLand').onclick = () => this.landDialog();
@@ -10387,12 +10395,24 @@ const UI = {
     clearTimeout(this._ht);
     if (!sticky) this._ht = setTimeout(() => e.classList.remove('show'), 5200);
   },
+  notifyLog: [],
   notify(title, body, cls) {
     const n = el('div', 'note ' + (cls || ''), `<div class="nt">${esc(title)}</div><div class="nb">${esc(body)}</div>`);
     $('#notif').appendChild(n);
     setTimeout(() => { n.classList.add('out'); setTimeout(() => n.remove(), 320); }, 5200);
     const wrap = $('#notif');
     while (wrap.children.length > 6) wrap.removeChild(wrap.firstChild);
+    this.notifyLog.push({ title, body, cls: cls || '', day: (typeof Park !== 'undefined' ? Park.day : 0), time: (typeof Park !== 'undefined' ? Park.time : 0) });
+    if (this.notifyLog.length > 200) this.notifyLog.shift();
+  },
+  showNotifyLog() {
+    const rows = this.notifyLog.slice().reverse().map(n => `
+      <div class="item" style="flex-direction:column;align-items:flex-start;padding:7px 10px">
+        <span class="n" style="font-weight:700">${esc(n.title)} <span style="font-weight:400;color:var(--dim)">— Day ${n.day}</span></span>
+        <span class="c" style="color:var(--dim)">${esc(n.body)}</span>
+      </div>`).join('');
+    this.modal('Notification History', rows.length ? `<div style="display:flex;flex-direction:column;gap:4px">${rows}</div>`
+      : `<p style="color:var(--dim)">No notifications yet.</p>`);
   },
   flashMoney(delta) {
     const e = $('#vMoney');
@@ -11147,7 +11167,15 @@ const UI = {
    ========================================================================== */
 const Minimap = {
   ctx: null, t: 0,
-  init() { this.ctx = $('#mmc').getContext('2d'); },
+  modes: ['default', 'staff', 'litter'],
+  mode: 'default',
+  init() {
+    this.ctx = $('#mmc').getContext('2d');
+    const c = $('#mmc');
+    c.style.cursor = 'pointer';
+    c.title = 'Click to cycle overlay';
+    c.onclick = () => { this.mode = this.modes[(this.modes.indexOf(this.mode) + 1) % this.modes.length]; this.t = 1; };
+  },
   draw(dt) {
     this.t += dt; if (this.t < .25) return; this.t = 0;
     if (!$('#minimap').classList.contains('show')) return;
@@ -11166,8 +11194,21 @@ const Minimap = {
       const p = co.track.samples[k].p;
       c.fillRect((WORLD.ti(p.x)) * s, (WORLD.tj(p.z)) * s, 2, 2);
     }
-    c.fillStyle = '#ffe066';
-    for (const g of Park.guests) c.fillRect(WORLD.ti(g.x) * s, WORLD.tj(g.z) * s, 2, 2);
+    if (this.mode === 'litter') {
+      // litter overlay: red dots wherever rubbish has piled up, instead of
+      // guests, so a janitor manager can spot problem areas at a glance
+      c.fillStyle = '#ff4d4d';
+      for (const lt of Park.litter) c.fillRect(WORLD.ti(lt.x) * s - 1, WORLD.tj(lt.z) * s - 1, 3, 3);
+    } else {
+      c.fillStyle = '#ffe066';
+      for (const g of Park.guests) c.fillRect(WORLD.ti(g.x) * s, WORLD.tj(g.z) * s, 2, 2);
+    }
+    if (this.mode === 'staff') {
+      // staff overlay: every staff member as a coloured dot by role, so you
+      // can see coverage gaps without opening the dispatch panel
+      const roleColor = { janitor: '#2ecc71', mechanic: '#ff8c42', entertainer: '#ff6f91', security: '#7b5bd4', landscaper: '#8fbf6a', restocker: '#39c0ff' };
+      for (const s2 of Park.staff) { c.fillStyle = roleColor[s2.role] || '#fff'; c.fillRect(WORLD.ti(s2.x) * s - 1.5, WORLD.tj(s2.z) * s - 1.5, 3.5, 3.5); }
+    }
     // transit: depots/stops/gondola towers as small coloured squares so a
     // route network is readable at a glance without opening the full map
     for (const o of Park.objects) {
@@ -11178,6 +11219,8 @@ const Minimap = {
     // camera frustum marker
     c.strokeStyle = '#fff'; c.lineWidth = 1.5;
     c.beginPath(); c.arc(WORLD.ti(Cam.dx) * s, WORLD.tj(Cam.dz) * s, 6, 0, TAU); c.stroke();
+    c.fillStyle = 'rgba(255,255,255,.85)'; c.font = '10px sans-serif';
+    c.fillText(this.mode === 'default' ? 'Guests' : this.mode === 'staff' ? 'Staff' : 'Litter', 6, 12);
   }
 };
 /* ============================================================================
@@ -15235,6 +15278,7 @@ const Game = {
     for (const c of Park.coasters) { if (c.trackMesh) c.trackMesh.dispose(); if (c.stationMesh) c.stationMesh.dispose(); if (c.splashMesh) c.splashMesh.dispose(); }
     HeatMap.close(); Traffic.cars.length = 0;
     if (typeof Fireworks !== 'undefined') { Fireworks.active.length = 0; Fireworks.queue.length = 0; Fireworks.shownTonight = -1; }
+    this.multiSel.length = 0; this.renderMultiSelBar(); this.undoStack.length = 0;
     Park.objects.length = 0; Park.coasters.length = 0; Park.guests.length = 0;
     Park.staff.length = 0; Park.litter.length = 0; Park.needMechanic.length = 0;
     Park.hist.length = 0; Park.awards.length = 0;
@@ -15394,6 +15438,7 @@ const Game = {
       if (e.ctrlKey || e.metaKey) {
         if (k === 's') { e.preventDefault(); this.save(); return; }
         if (k === 'l') { e.preventDefault(); this.load(); return; }
+        if (k === 'z') { e.preventDefault(); this.undo(); return; }
       }
       if (Coaster.active && !Coaster.active.track.complete) {
         const S = 0.1;
@@ -15568,6 +15613,7 @@ const Game = {
         const g = this.pickPerson();
         if (g) { this.select(g); return; }
         const o = this.hoverObj;
+        if (e.shiftKey && o && o.kind === 'scenery') { this.toggleMultiSel(o); return; }
         // Selecting a coaster opens its panel; entering the track editor is a
         // separate, deliberate step so a stray click can never wreck a layout.
         if (o) {
@@ -15623,6 +15669,47 @@ const Game = {
   select(o) {
     this.selected = o; Park.selected = o;
     UI.inspect(o);
+  },
+
+  /* ---------------- multi-select (scenery only) ----------------
+     Shift-click toggles a scenery piece in/out of the selection so a whole
+     cluster of decor can be bulk-demolished in one go — placing and
+     demolishing everything else keeps its normal single-object behaviour. */
+  multiSel: [],
+  toggleMultiSel(o) {
+    const k = this.multiSel.indexOf(o.id);
+    if (k >= 0) this.multiSel.splice(k, 1);
+    else this.multiSel.push(o.id);
+    this.renderMultiSelBar();
+  },
+  clearMultiSel() { this.multiSel.length = 0; this.renderMultiSelBar(); },
+  renderMultiSelBar() {
+    const bar = document.getElementById('multiSelBar');
+    if (!bar) return;
+    if (!this.multiSel.length) { bar.style.display = 'none'; return; }
+    bar.style.display = 'flex';
+    bar.innerHTML = `<b>${this.multiSel.length} selected</b>
+      <button class="btn dan" style="padding:4px 10px" onclick="Game.demolishMultiSel()">Demolish all</button>
+      <button class="btn" style="padding:4px 10px" onclick="Game.clearMultiSel()">Clear</button>`;
+  },
+  demolishMultiSel() {
+    const ids = this.multiSel.slice();
+    this.clearMultiSel();
+    let refundTotal = 0, n = 0;
+    for (const id of ids) {
+      const o = Park.objects.find(x => x.id === id);
+      if (!o || o.kind !== 'scenery') continue;
+      const refund = Math.round((o.def.cost || 0) * .55);
+      refundTotal += refund; n++;
+      Park.money += refund;
+      o.footprint((ii, jj) => WORLD.setOwn(ii, jj, -1));
+      const k = Park.objects.indexOf(o); if (k >= 0) Park.objects.splice(k, 1);
+    }
+    if (n) {
+      this.sceneryDirty = true;
+      UI.notify('Demolished', n + ' pieces removed — refunded ' + money(refundTotal), '');
+      Audio.play('demolish');
+    }
   },
 
   /* ---------------- placement ---------------- */
@@ -15839,6 +15926,7 @@ const Game = {
       Park.objects.push(o);
       o.footprint((ii, jj) => WORLD.setOwn(ii, jj, o.id));
       this.sceneryDirty = true;
+      this.pushUndo({ type: 'place', id: o.id, cost: p.def.cost });
     } else if (p.kind === 'gtower') {
       Park.addObject(o);
       let mate = null, bd = 1e9;
@@ -15978,12 +16066,48 @@ const Game = {
     const refund = Math.round((o.def.cost || 0) * .55);
     Park.money += refund;
     if (o.kind === 'scenery') {
+      this.pushUndo({ type: 'demolish', def: o.def, i: o.i, j: o.j, rot: o.rot, seed: o.seed, refund });
       o.footprint((ii, jj) => WORLD.setOwn(ii, jj, -1));
       const k = Park.objects.indexOf(o); if (k >= 0) Park.objects.splice(k, 1);
       this.sceneryDirty = true;
     } else Park.removeObject(o);
     if (this.selected === o) this.select(null);
     UI.notify('Demolished', o.def.name + ' — refunded ' + money(refund), '');
+    Audio.play('click');
+  },
+
+  /* ---------------- undo (scenery only) ----------------
+     Placing or demolishing anything with side effects — queue lines, auto-
+     connected paths, gondola pairing — is too tangled to safely reverse, so
+     undo is scoped to plain scenery/decor: the common "oops, wrong spot" or
+     "actually I liked that" case. */
+  undoStack: [],
+  pushUndo(entry) {
+    this.undoStack.push(entry);
+    if (this.undoStack.length > 20) this.undoStack.shift();
+  },
+  undo() {
+    const e = this.undoStack.pop();
+    if (!e) { UI.notify('Nothing to undo', 'No recent scenery change to undo.', ''); return; }
+    if (e.type === 'place') {
+      const o = Park.objects.find(x => x.id === e.id);
+      if (!o) { UI.notify('Cannot undo', 'That piece is already gone.', 'warn'); return; }
+      o.footprint((ii, jj) => WORLD.setOwn(ii, jj, -1));
+      const k = Park.objects.indexOf(o); if (k >= 0) Park.objects.splice(k, 1);
+      Park.money += e.cost;
+      this.sceneryDirty = true;
+      if (this.selected === o) this.select(null);
+      UI.notify('Undone', 'Removed ' + o.def.name + ' — refunded ' + money(e.cost), '');
+    } else if (e.type === 'demolish') {
+      Park.money -= e.refund;
+      const o = new ParkObject('scenery', e.def, e.i, e.j, e.rot);
+      o.seed = e.seed; o.buildT = 1;
+      o.y = WORLD.tileH(e.i, e.j); o.updateMatrix();
+      Park.objects.push(o);
+      o.footprint((ii, jj) => WORLD.setOwn(ii, jj, o.id));
+      this.sceneryDirty = true;
+      UI.notify('Undone', e.def.name + ' restored.', '');
+    }
     Audio.play('click');
   },
   restockCost(s) { return Math.round((s.def.price || 8) * (s.def.stockSize || 65) * .34); },
@@ -17157,6 +17281,7 @@ const Game = {
       for (const c of Park.coasters) { if (c.trackMesh) c.trackMesh.dispose(); if (c.stationMesh) c.stationMesh.dispose(); if (c.splashMesh) c.splashMesh.dispose(); }
       HeatMap.close(); Traffic.cars.length = 0;
       if (typeof Fireworks !== 'undefined') { Fireworks.active.length = 0; Fireworks.queue.length = 0; Fireworks.shownTonight = -1; }
+      this.multiSel.length = 0; this.renderMultiSelBar(); this.undoStack.length = 0;
       Park.objects.length = 0; Park.coasters.length = 0; Park.guests.length = 0; Park.staff.length = 0; Park.litter.length = 0;
       Park.gate = null;
       WORLD.h.set(d.h); WORLD.type.set(d.t); WORLD.own.fill(-1);
