@@ -13636,7 +13636,7 @@ const Transit = {
     for (const r of this.routes) if (r.mesh) r.mesh.dispose();
     for (const l of this.lines) if (l.mesh) l.mesh.dispose();
     this.routes.length = 0; this.lines.length = 0;
-    this.nextId = 1; this.drawing = null;
+    this.nextId = 1; this.drawing = null; this.loadView = false;
   },
 
   routesOf(station) { return this.routes.filter(r => r.stationId === station.id); },
@@ -13701,7 +13701,7 @@ const Transit = {
       name: 'Route ' + (this.routes.length + 1),
       color: TRANSIT_COLORS[this.routes.length % TRANSIT_COLORS.length],
       pts: [{ x: e.x, z: e.z }], stops: [], buses: [], cum: [0], len: 0,
-      riders: 0, revenue: 0
+      riders: 0, revenue: 0, fare: this.FARE, headway: 0, schedTimer: 0
     };
     UI.setTool('transit');
     UI.closeBuild();
@@ -13867,6 +13867,10 @@ const Transit = {
   update(dt) {
     for (const r of this.routes) this.updateRoute(r, dt);
     for (const l of this.lines) this.updateLine(l, dt);
+    if (this.loadView) {
+      this._loadRefresh = (this._loadRefresh || 0) - dt;
+      if (this._loadRefresh <= 0) { this._loadRefresh = 1.5; this.meshDirty = true; }
+    }
   },
   updateRoute(r, dt) {
     if (!r.pts.length || r.len <= 0) return;
@@ -13874,12 +13878,22 @@ const Transit = {
     const top = st && st.tier >= 3 ? 13 : st && st.tier >= 2 ? 11 : 9.5;   // m/s
     const cap = this.capacity(r);
     const demand = this.routeDemand(r);
+    /* Timed schedule: a route with r.headway > 0 dispatches a waiting bus
+       every `headway` minutes of park time regardless of demand, like a
+       real timetable, instead of only pulling out once someone is waiting. */
+    let dispatchOne = false;
+    if (r.headway > 0) {
+      r.schedTimer = (r.schedTimer || 0) - dt;
+      if (r.schedTimer <= 0) { r.schedTimer += r.headway; dispatchOne = true; }
+    }
     for (const b of r.buses) {
       if (b.state === 'idle') {
         /* Parked at the depot. Pulls out the moment somebody actually wants
-           the route — not before, so an unused route just sits there. */
+           the route — not before, so an unused route just sits there.
+           On a timed schedule it also pulls out on the clock, empty or not. */
         b.v = 0;
         if (demand) { b.state = 'run'; b.next = this.nextStopFrom(r, b.d); }
+        else if (dispatchOne) { b.state = 'run'; b.next = this.nextStopFrom(r, b.d); dispatchOne = false; }
       } else if (b.state === 'return') {
         // driving back to the depot with no stops to make on the way
         b.v = damp(b.v, top, 1.4, dt);
@@ -13893,8 +13907,9 @@ const Transit = {
         if (b.timer <= 0) {
           b.next = (b.next + 1) % Math.max(1, r.stops.length);
           // empty, and nobody anywhere on the route wants a ride: head home
-          // rather than keep circling for the sake of it.
-          b.state = (!b.riders.length && !demand) ? 'return' : 'run';
+          // rather than keep circling for the sake of it — unless the
+          // route runs on a fixed timetable, which keeps it circulating.
+          b.state = (!b.riders.length && !demand && !r.headway) ? 'return' : 'run';
         }
       } else {
         b.v = damp(b.v, top, 1.4, dt);
@@ -13949,10 +13964,11 @@ const Transit = {
         bus.riders.push(g);
         g.state = 'onbus';
         g.wait = 0;
-        if (g.cash >= this.FARE) { g.cash -= this.FARE; Park.earn(this.FARE, 'transit'); r.revenue += this.FARE; }
+        const fare = r.fare === undefined ? this.FARE : r.fare;
+        if (g.cash >= fare) { g.cash -= fare; Park.earn(fare, 'transit'); r.revenue += fare; }
         r.riders++; stop.boarded++;
         const st = this.stationOf(r);
-        if (st) { st.riders++; st.revenue += this.FARE; }
+        if (st) { st.riders++; st.revenue += fare; }
         Progress.add(1);
       }
     }
@@ -14166,11 +14182,16 @@ const TransitView = {
     g.cyl(x, y + .16, z, r * .55, .10, 10, [1, 1, 1]);
   },
 
+  loadColor(v) {
+    if (v < .5) return [lerp(.15, .95, v * 2), lerp(.65, .85, v * 2), lerp(.25, .25, v * 2)];
+    const t = (v - .5) * 2;
+    return [lerp(.95, .95, t), lerp(.85, .2, t), lerp(.25, .15, t)];
+  },
   rebuild(R) {
     for (const r of Transit.routes) {
       if (r.mesh) r.mesh.dispose();
       const g = new Geo();
-      const col = hex(r.color);
+      const col = Transit.loadView ? this.loadColor(Transit.loadOf(r)) : hex(r.color);
       this.ribbon(g, r.pts, col, 1.7, .06);
       for (const s of r.stops) {
         const o = Transit.stopObj(s.id);
@@ -15920,6 +15941,7 @@ const Game = {
           towers: Park.objects.filter(o => o.kind === 'gtower').map(o => ({ i: o.i, j: o.j, r: o.rot, line: o.lineId })),
           routes: Transit.routes.map(rt => ({
             name: rt.name, color: rt.color, riders: rt.riders, rev: rt.revenue,
+            fare: rt.fare, headway: rt.headway,
             depot: (() => { const d = Park.objects.find(o => o.id === rt.stationId); return d ? { i: d.i, j: d.j } : null; })(),
             pts: rt.pts.map(q => ({ x: +q.x.toFixed(2), z: +q.z.toFixed(2) })),
             stops: rt.stops.map(st => { const o = Transit.stopObj(st.id); return o ? { x: +o.x.toFixed(2), z: +o.z.toFixed(2), mode: o.mode, name: o.name } : null; }).filter(Boolean)
@@ -16136,7 +16158,8 @@ const Game = {
           const r2 = {
             id: Transit.nextId++, stationId: depot.id, name: rt.name || 'Route',
             color: rt.color, pts: rt.pts.slice(), stops: [], buses: [], cum: [0], len: 0,
-            riders: rt.riders || 0, revenue: rt.rev || 0
+            riders: rt.riders || 0, revenue: rt.rev || 0,
+            fare: rt.fare === undefined ? Transit.FARE : rt.fare, headway: rt.headway || 0, schedTimer: rt.headway || 0
           };
           for (const st of rt.stops || []) {
             const so = new TransitStop(st.x, st.z, r2.id);
@@ -16357,6 +16380,9 @@ Object.assign(UI, {
     h += kv('Total riders carried', st.riders.toLocaleString());
     h += kv('Fare income', money(st.revenue));
     h += kv('Routes', routes.length + ' of 3');
+    h += `<div class="row" style="margin-top:6px"><label>Route load heatmap</label>
+      <button class="btn ${Transit.loadView ? 'pri' : ''}" style="padding:5px 12px" onclick="Transit.toggleLoadView();UI.manageTransit(${st.id})">${Transit.loadView ? 'On — showing crowding' : 'Off — showing route colours'}</button></div>
+    <div style="font-size:10.5px;color:var(--dim);margin:-2px 0 4px">Colours every route line by how full its buses are right now — green is quiet, red is packed.</div>`;
     h += `<h3 style="margin-top:14px">Routes</h3>`;
     if (!routes.length) h += `<div style="font-size:11.5px;color:var(--dim);margin-bottom:8px">No routes yet. Draw one and the buses will start running.</div>`;
     for (const r of routes) {
@@ -16373,6 +16399,15 @@ Object.assign(UI, {
           <tr><td>On board</td><td style="text-align:right">${s.riders}</td><td>Waiting</td><td style="text-align:right;color:${s.waiting > s.cap ? 'var(--bad)' : 'inherit'}">${s.waiting}</td></tr>
           <tr><td>Fares taken</td><td style="text-align:right">${money(r.revenue)}</td><td>Trips</td><td style="text-align:right">${r.riders}</td></tr>
         </table>
+        <div class="row" style="margin-top:8px"><label>Fare</label>
+          <input type="range" min="0" max="10" step=".5" value="${r.fare === undefined ? Transit.FARE : r.fare}"
+            oninput="Transit.setFare(${r.id},this.value);this.nextElementSibling.textContent='$'+(+this.value).toFixed(2)">
+          <span class="num">$${(r.fare === undefined ? Transit.FARE : r.fare).toFixed(2)}</span></div>
+        <div style="font-size:10.5px;color:var(--dim);margin:2px 0 8px">Charged per boarding. $0 is a free shuttle.</div>
+        <div class="row"><label>Schedule</label><div style="display:flex;gap:4px;flex:1">
+          ${[0, 5, 10, 15].map(m => `<button class="btn ${((r.headway || 0) === m) ? 'pri' : ''}" style="flex:1;padding:5px 4px;font-size:10.5px" onclick="Transit.setHeadway(${r.id},${m})">${m === 0 ? 'On demand' : 'Every ' + m + 'm'}</button>`).join('')}
+        </div></div>
+        <div style="font-size:10.5px;color:var(--dim);margin-top:2px">${r.headway ? 'Buses depart on the clock even if nobody is waiting.' : 'Buses only pull out once someone actually wants a ride.'}</div>
         ${s.waiting > s.cap ? `<div style="font-size:11px;color:var(--warn);margin-top:6px">More people are waiting than this route can carry — upgrade the depot for more buses.</div>` : ''}
       </div>`;
     }
@@ -16405,6 +16440,17 @@ Object.assign(UI, {
 
 Object.assign(Transit, {
   renameRoute(id, v) { const r = this.route(id); if (r) { r.name = String(v).slice(0, 30) || r.name; } },
+  setFare(id, v) { const r = this.route(id); if (r) r.fare = clamp(+v, 0, 10); },
+  setHeadway(id, m) { const r = this.route(id); if (r) { r.headway = +m; r.schedTimer = +m; } },
+  toggleLoadView() { this.loadView = !this.loadView; this.meshDirty = true; },
+  /* Current crowding on a route, 0-1: riders aboard vs total seats across
+     its buses. Used to colour the route line when the load heatmap is on. */
+  loadOf(r) {
+    if (!r.buses.length) return 0;
+    const cap = this.capacity(r) * r.buses.length;
+    let riders = 0; for (const b of r.buses) riders += b.riders.length;
+    return cap ? clamp(riders / cap, 0, 1) : 0;
+  },
   upgradeStation(id) {
     const st = Park.objects.find(o => o.id === id);
     if (!st) return;
