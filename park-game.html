@@ -12449,7 +12449,10 @@ const Coaster = {
           if (sm.lift && Math.random() < h * clamp(tr.v * 2.6, 3, 24)) Audio.play('clack');
           else if (sm.brake && Math.random() < h * 4) Audio.play('brake');
           else if (sm.launch && tr.v < 6) Audio.play('launch');
+          // ride sting: the moment a lift hill tops out and gravity takes over
+          if (tr._wasLift && !sm.lift) Audio.play('crest');
         }
+        tr._wasLift = !!sm.lift;
         tr.d += tr.v * h;
         if (tr.d >= t.length) {
           tr.d -= t.length;
@@ -12570,6 +12573,9 @@ const Audio_ = {
       case 'demolish': this.tone(110, .34, 'sawtooth', .13, 55); setTimeout(() => this.tone(240, .18, 'square', .06, 90), 60); break;
       case 'levelup': [523, 659, 784, 1046, 1318].forEach((f, i) => setTimeout(() => this.tone(f, .30, 'triangle', .13), i * 85)); break;
       case 'notify': this.tone(880, .09, 'sine', .06); setTimeout(() => this.tone(1174, .13, 'sine', .05), 80); break;
+      // played once as a coaster train crests the top of a lift hill — heard
+      // only by whoever is riding, a little rise-then-release fanfare
+      case 'crest': [440, 587, 740].forEach((f, i) => setTimeout(() => this.tone(f, .16, 'triangle', .10), i * 55)); break;
     }
   },
   /* The continuous beds are ramped rather than assigned: writing straight to
@@ -12610,6 +12616,43 @@ const Audio_ = {
   ],
   CHORDS: [[0, 2, 4], [3, 5, 0], [4, 6, 1], [0, 2, 4], [5, 0, 2], [3, 5, 0], [4, 6, 1], [0, 2, 4]],
 
+  /* Per-land music: the melody/tempo/instrumentation leans toward whichever
+     themed decor genre is thickest around the camera, so walking from one
+     themed area to another gradually changes what the park sounds like. */
+  THEME_MUSIC: {
+    western: { beatMult: 1.12, type: 'triangle', keyBias: -2 },
+    egypt: { beatMult: 1.05, type: 'sine', keyBias: 5 },
+    scifi: { beatMult: .85, type: 'square', keyBias: 0 },
+    pirate: { beatMult: 1.15, type: 'sawtooth', keyBias: -2 },
+    fairytale: { beatMult: .95, type: 'sine', keyBias: 7 },
+    japan: { beatMult: 1.0, type: 'triangle', keyBias: 5 },
+    halloween: { beatMult: 1.2, type: 'sawtooth', keyBias: -3 },
+    circus: { beatMult: .82, type: 'square', keyBias: 0 },
+    desert: { beatMult: 1.08, type: 'triangle', keyBias: -2 },
+    jungle: { beatMult: 1.1, type: 'triangle', keyBias: -2 },
+    winter: { beatMult: 1.05, type: 'sine', keyBias: 7 },
+  },
+  themeScanTimer: 0, nearbyThemeCache: null,
+  nearbyTheme(dt) {
+    // Cheap and re-checked only a few times a second — no need for this to
+    // be exact, just to drift toward whatever area the camera is looking at.
+    this.themeScanTimer -= (dt || 0);
+    if (this.themeScanTimer > 0) return this.nearbyThemeCache;
+    this.themeScanTimer = 2.5;
+    if (typeof Cam === 'undefined' || typeof Park === 'undefined') return this.nearbyThemeCache = null;
+    const cx = Cam.tx, cz = Cam.tz, R2 = 26 * 26;
+    const counts = {};
+    let best = null, bestN = 0;
+    for (const o of Park.objects) {
+      if (!o.def || !o.def.genre) continue;
+      const dx = o.x - cx, dz = o.z - cz;
+      if (dx * dx + dz * dz > R2) continue;
+      const n = (counts[o.def.genre] = (counts[o.def.genre] || 0) + 1);
+      if (n > bestN) { bestN = n; best = o.def.genre; }
+    }
+    return this.nearbyThemeCache = (bestN >= 3 ? best : null);
+  },
+
   /* Convert a scale degree to Hz in the current key. */
   hz(deg, oct) {
     const S = this.SCALE;
@@ -12635,13 +12678,16 @@ const Audio_ = {
     if (!this.ctx || !this.music.on || this.musicVol <= 0.001) return;
     this.music.timer -= dt;
     if (this.music.timer > 0) return;
-    const beat = night ? .62 : .50;          // the park winds down after dark
+    const themeId = this.nearbyTheme(dt);
+    const theme = themeId && this.THEME_MUSIC[themeId];
+    const beat = (night ? .62 : .50) * (theme ? theme.beatMult : 1);   // the park winds down after dark
     const bar = beat * 3;                    // three-four time: it is a waltz
     this.music.timer = bar;
     const t0 = this.ctx.currentTime + .02;
     const b = this.music.bar++;
-    if (b % 32 === 0) this.music.key = [0, 0, 5, -2, 7][Math.floor(Math.random() * 5)];
+    if (b % 32 === 0) this.music.key = (theme ? theme.keyBias : 0) + [0, 0, 5, -2, 7][Math.floor(Math.random() * 5)];
     const chord = this.CHORDS[b % 8];
+    const melodyType = theme ? theme.type : 'triangle';
     // bass on the down beat, chord stabs on two and three — oom-pah-pah
     this.voice(this.hz(chord[0], -2), t0, beat * 1.1, 'triangle', .30);
     for (let k = 1; k < 3; k++)
@@ -12652,7 +12698,7 @@ const Audio_ = {
       const ph = this.PHRASES[(b >> 1) % this.PHRASES.length];
       for (let k = 0; k < 3; k++) {
         const deg = ph[(b * 3 + k) % ph.length];
-        this.voice(this.hz(deg + chord[0], 1), t0 + beat * k, beat * .8, 'triangle', night ? .07 : .11);
+        this.voice(this.hz(deg + chord[0], 1), t0 + beat * k, beat * .8, melodyType, night ? .07 : .11);
       }
     }
   },
@@ -12678,6 +12724,15 @@ const Audio_ = {
       const n = 2 + Math.floor(Math.random() * 2);
       for (let k = 0; k < n; k++)
         setTimeout(() => this.tone(base * (1 + k * .16), .10, 'sine', .020, base * (1 + k * .16) * rnd(1.25, 1.7)), k * 130);
+    }
+    // an occasional themed flourish layered over the usual birds/crickets,
+    // depending on whatever land the camera is currently near
+    const themeId = this.nearbyThemeCache;
+    if (themeId && Math.random() < .4) {
+      if (themeId === 'jungle') { for (let k = 0; k < 3; k++) setTimeout(() => this.tone(rnd(900, 1600), .07, 'sawtooth', .018, rnd(500, 900)), k * 90); }
+      else if (themeId === 'circus') { [660, 880, 1046].forEach((f, i) => setTimeout(() => this.tone(f, .09, 'square', .015), i * 60)); }
+      else if (themeId === 'western') { setTimeout(() => this.tone(rnd(180, 260), .30, 'sawtooth', .02, 140), 40); }
+      else if (themeId === 'pirate') { for (let k = 0; k < 4; k++) setTimeout(() => this.tone(rnd(2000, 3200), .02, 'square', .012), k * 45); }
     }
   }
 };
