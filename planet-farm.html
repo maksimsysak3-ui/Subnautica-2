@@ -1,0 +1,2752 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<title>Planet Farm — Homestead Builder</title>
+<style>
+/* ============================================================
+   PLANET FARM :: HOMESTEAD BUILDER
+   A single-file 3D farm builder. Same low-poly toy-shaded WebGL
+   renderer family as the Planet Coaster game, but the interface
+   is a completely different language: sun-bleached wood, cream
+   paper, hand-painted signpost cards instead of glassy blue
+   tech-chrome. Everything below belongs to one of four layers:
+     surface  — the parchment/plank cards the chrome sits on
+     control  — buttons, sliders, tiles: anything you press
+     data     — numbers, meters, tables: anything you read
+     motion   — the transitions that tie the three together
+   ============================================================ */
+:root{
+  /* --- surface palette: warm cream, sun-bleached plank ---------------- */
+  --bg:#f3e6c8;
+  --panel:linear-gradient(180deg,#fffaf0,#f7ecd4);
+  --panel-flat:#fdf6e6;
+  --panel-solid:#fffaf0;
+  --panel-sunken:#efe0bd;
+  --edge:#d8b978;
+  --edge-soft:#e9d19c;
+  --edge-hot:#c98a2e;
+  --rim:inset 0 1px 0 rgba(255,255,255,.85);
+
+  /* --- ink: dark barnwood brown -------------------------------------- */
+  --txt:#4a3418;
+  --dim:#8a6b3f;
+  --dimmer:#b39664;
+
+  /* --- accents: meadow green + harvest gold --------------------------- */
+  --accent:#5a8f3c;
+  --accent-deep:#436b2b;
+  --accent-ink:#365621;
+  --accent2:#c98a2e;
+  --warn:#d97e1e;
+  --bad:#c2452f;
+  --good:#4c8f3a;
+  --gold:#d9a521;
+
+  /* --- elevation: warm brown shade, plus a solid ledge ---------------- */
+  --e1:0 1px 2px rgba(90,58,15,.16);
+  --e2:0 4px 12px rgba(90,58,15,.18);
+  --e3:0 16px 36px rgba(74,52,24,.24),0 2px 6px rgba(74,52,24,.12);
+  --shadow:var(--e3);
+  --ledge:0 3px 0 #b99552;
+  --ledge-hot:0 3px 0 var(--accent-deep);
+  --glow:0 0 0 4px rgba(90,143,60,.22);
+
+  /* --- geometry: a plank/signboard feel — flatter corners than glass -- */
+  --r:10px; --r-sm:8px; --r-xs:6px; --r-pill:999px;
+
+  /* --- motion ---------------------------------------------------------- */
+  --sn:.12s cubic-bezier(.3,.9,.3,1);
+  --ez:.20s cubic-bezier(.25,.9,.25,1);
+  --sp:.40s cubic-bezier(.18,1.20,.35,1);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);}
+body{
+  font-family:"Nunito","Quicksand","Baloo 2","Segoe UI Variable Text",
+              "Segoe UI",system-ui,-apple-system,"Trebuchet MS",sans-serif;
+  color:var(--txt);
+  font-size:12px;
+  font-weight:600;
+  -webkit-font-smoothing:antialiased;
+  -moz-osx-font-smoothing:grayscale;
+  text-rendering:optimizeLegibility;
+  user-select:none;
+  cursor:default;
+}
+button,input,select,textarea{font-family:inherit;font-weight:inherit}
+canvas#gl{position:fixed;left:0;top:0;width:100vw;height:100vh;display:block;touch-action:none;}
+#ui{position:fixed;inset:0;pointer-events:none;z-index:10;}
+#ui > *{pointer-events:auto;}
+:focus{outline:none}
+:focus-visible{outline:3px solid var(--accent);outline-offset:2px;border-radius:6px}
+
+/* ---------- generic chrome: signboard cards, thicker top edge ---------- */
+.panel{
+  position:relative;
+  background:var(--panel);
+  border:2px solid var(--edge);
+  border-top:5px solid var(--edge-hot);
+  border-radius:var(--r);
+  box-shadow:var(--e3),var(--rim);
+}
+.hdr{
+  display:flex;align-items:center;gap:9px;
+  padding:10px 14px;
+  font-size:11px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;
+  color:var(--accent-ink);
+  border-bottom:2px dashed var(--edge-soft);
+  background:linear-gradient(180deg,#fbf0d6,#fdf7e8);
+}
+.hdr .dot{width:9px;height:9px;border-radius:3px;background:var(--accent);transform:rotate(45deg);
+  box-shadow:0 0 0 3px rgba(90,143,60,.20);
+  animation:pulse 2.8s ease-in-out infinite}
+@keyframes pulse{50%{box-shadow:0 0 0 6px rgba(90,143,60,.08)}}
+.hdr .x{margin-left:auto;cursor:pointer;color:var(--dim);line-height:1;padding:4px;border-radius:var(--r-xs);display:flex;
+  transition:color var(--sn),background var(--sn),transform var(--sn)}
+.hdr .x:hover{color:#fff;background:var(--bad);transform:rotate(90deg)}
+.hdr .x:active{transform:rotate(90deg) scale(.88)}
+.scroll,#bpBody,#insBody,#modalBody{
+  overflow-y:auto;scrollbar-width:thin;scrollbar-color:#d8b978 transparent;
+  overscroll-behavior:contain;
+}
+.scroll::-webkit-scrollbar,#bpBody::-webkit-scrollbar,#insBody::-webkit-scrollbar,#modalBody::-webkit-scrollbar{width:11px}
+.scroll::-webkit-scrollbar-thumb,#bpBody::-webkit-scrollbar-thumb,#insBody::-webkit-scrollbar-thumb,#modalBody::-webkit-scrollbar-thumb{
+  background:#d8b978;border-radius:var(--r-pill);border:3px solid transparent;background-clip:padding-box;
+}
+
+/* ---------- buttons: pressable wooden tokens ---------- */
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:6px;
+  padding:8px 14px;border-radius:var(--r-sm);
+  background:var(--panel-solid);border:2px solid var(--edge);
+  box-shadow:var(--ledge);
+  color:var(--txt);font-size:11.5px;font-weight:800;letter-spacing:.02em;
+  cursor:pointer;transition:transform var(--sn),box-shadow var(--sn),background var(--sn);
+  white-space:nowrap;
+}
+.btn:hover{background:#fffaf0;transform:translateY(-1px)}
+.btn:active{transform:translateY(2px);box-shadow:0 1px 0 #b99552}
+.btn.pri{background:linear-gradient(180deg,#6da24a,var(--accent));color:#fff;border-color:var(--accent-deep);box-shadow:var(--ledge-hot)}
+.btn.pri:active{box-shadow:0 1px 0 var(--accent-ink)}
+.btn.go{background:linear-gradient(180deg,#e8b840,var(--gold));color:#4a3410;border-color:#a97a17;box-shadow:0 3px 0 #a97a17}
+.btn.dan{background:linear-gradient(180deg,#dd6c53,var(--bad));color:#fff;border-color:#93301d;box-shadow:0 3px 0 #93301d}
+.btn:disabled{opacity:.45;cursor:not-allowed;transform:none!important}
+.btnrow{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+
+/* ---------- top HUD: hanging signboard bar ---------- */
+#hud{
+  position:absolute;top:12px;left:50%;transform:translateX(-50%);
+  display:flex;gap:0;background:var(--panel);border:2px solid var(--edge);
+  border-radius:var(--r);box-shadow:var(--e3),var(--rim);overflow:hidden;
+}
+#hud .stat{display:flex;align-items:center;gap:8px;padding:9px 16px;border-right:1px dashed var(--edge-soft)}
+#hud .stat:last-child{border-right:none}
+#hud .stat .ico{width:18px;height:18px;flex:0 0 auto;color:var(--accent-ink)}
+#hud .stat .col{display:flex;flex-direction:column;line-height:1.15}
+#hud .stat .lbl{font-size:8.5px;color:var(--dim);text-transform:uppercase;letter-spacing:.08em}
+#hud .stat .val{font-size:13px;font-weight:800;color:var(--txt)}
+#hud .stat.money .val{color:var(--accent-deep)}
+
+/* ---------- toolbar: a plank rail along the bottom ---------- */
+#toolbar{
+  position:absolute;left:50%;bottom:12px;transform:translateX(-50%);
+  display:flex;gap:3px;padding:6px;background:var(--panel);border:2px solid var(--edge);
+  border-radius:var(--r);box-shadow:var(--e3),var(--rim);
+}
+.tool{
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;
+  width:58px;height:52px;border-radius:var(--r-xs);cursor:pointer;color:var(--dim);
+  transition:background var(--sn),color var(--sn),transform var(--sn);position:relative;
+}
+.tool svg{width:20px;height:20px}
+.tool .t{font-size:8.5px;font-weight:800;text-transform:uppercase;letter-spacing:.02em}
+.tool:hover{background:var(--panel-sunken);color:var(--txt)}
+.tool.on{background:var(--accent);color:#fff;box-shadow:inset 0 -3px 0 var(--accent-deep)}
+.tool .key{position:absolute;top:2px;right:4px;font-size:7.5px;color:var(--dimmer);font-weight:700}
+.tool.on .key{color:rgba(255,255,255,.75)}
+
+/* ---------- notifications: torn-paper notes ---------- */
+#notif{position:absolute;top:78px;right:12px;width:288px;display:flex;flex-direction:column;gap:8px;pointer-events:none;z-index:5}
+.note{
+  background:#fffaf0;border:2px solid var(--edge);border-left:6px solid var(--accent);
+  border-radius:var(--r-sm);padding:10px 13px;font-size:11.5px;box-shadow:var(--e2);
+  animation:slidein var(--sp);
+}
+.note.bad{border-left-color:var(--bad)}
+.note.warn{border-left-color:var(--warn)}
+.note.money{border-left-color:var(--gold)}
+.note.out{animation:slideout .3s ease forwards}
+.note .nt{font-weight:800;margin-bottom:2px}
+.note .nb{color:var(--dim);line-height:1.4}
+@keyframes slidein{from{opacity:0;transform:translateX(40px)}to{opacity:1;transform:translateX(0)}}
+@keyframes slideout{to{opacity:0;transform:translateX(40px) scale(.9)}}
+
+/* ---------- side panels ---------- */
+#buildPanel,#inspector{
+  position:absolute;top:78px;width:320px;max-height:calc(100vh - 160px);display:flex;flex-direction:column;
+}
+#buildPanel{left:12px}
+#inspector{right:12px}
+#bpBody,#insBody{padding:12px;flex:1;min-height:0}
+.cat-tabs{display:flex;gap:4px;padding:8px 12px 0;flex-wrap:wrap}
+.cat-tab{padding:6px 10px;border-radius:var(--r-xs);background:var(--panel-sunken);color:var(--dim);font-size:10px;font-weight:800;cursor:pointer;text-transform:uppercase;letter-spacing:.03em}
+.cat-tab.on{background:var(--accent);color:#fff}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.item{
+  display:flex;align-items:center;gap:9px;padding:8px 9px;border-radius:var(--r-sm);
+  background:var(--panel-sunken);border:2px solid transparent;cursor:pointer;transition:all var(--sn);
+}
+.item:hover{border-color:var(--edge-hot);transform:translateY(-1px)}
+.item.on{border-color:var(--accent-deep);background:#e3f0d9}
+.item.locked{opacity:.5;cursor:not-allowed}
+.item .ic{width:30px;height:30px;border-radius:var(--r-xs);background:var(--panel-solid);display:flex;align-items:center;justify-content:center;flex:0 0 auto;font-size:16px}
+.item .n{font-size:11px;font-weight:800;flex:1;min-width:0}
+.item .c{font-size:10px;color:var(--dim);display:block}
+.kv{display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px dashed var(--edge-soft);font-size:11px}
+.kv .k{color:var(--dim)}
+.kv .v{font-weight:800}
+
+/* ---------- goal/meter bars ---------- */
+.meter{height:9px;border-radius:var(--r-pill);background:var(--panel-sunken);overflow:hidden;margin-top:3px;border:1px solid var(--edge-soft)}
+.meter .f{height:100%;border-radius:var(--r-pill);transition:width .3s ease}
+
+/* ---------- modal ---------- */
+#modalWrap{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(60,40,10,.35);z-index:40}
+#modalWrap.show{display:flex}
+#modal{width:min(560px,92vw);max-height:82vh;display:flex;flex-direction:column}
+#modalBody{padding:16px}
+#modalFoot{padding:12px 16px;border-top:2px dashed var(--edge-soft);display:flex;justify-content:flex-end;gap:8px}
+
+/* ---------- main menu ---------- */
+#menu{position:fixed;inset:0;display:none;z-index:50;
+  background:radial-gradient(ellipse at 50% 0%,#fdf3da,#e9cf8f 70%,#d8b978);
+  align-items:center;justify-content:center;flex-direction:column;gap:0;overflow:auto;padding:40px 20px}
+#menu.show{display:flex}
+.mtitle{font-size:44px;font-weight:800;color:var(--accent-ink);letter-spacing:-.01em;text-shadow:0 2px 0 #fff8;margin-bottom:2px}
+.msub{font-size:13px;color:var(--dim);font-weight:700;margin-bottom:28px}
+.mrow{display:flex;gap:18px;flex-wrap:wrap;justify-content:center;max-width:1000px}
+.mcard{
+  width:260px;background:var(--panel);border:2px solid var(--edge);border-top:6px solid var(--edge-hot);
+  border-radius:var(--r);box-shadow:var(--e3);padding:18px;cursor:pointer;transition:transform var(--ez),box-shadow var(--ez);
+}
+.mcard:hover{transform:translateY(-4px);box-shadow:0 20px 40px rgba(74,52,24,.3)}
+.mcard .mic{font-size:34px;margin-bottom:8px}
+.mcard .mtag{display:inline-block;font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;
+  background:var(--accent);color:#fff;padding:3px 8px;border-radius:var(--r-pill);margin-bottom:8px}
+.mcard .mck{font-size:16px;font-weight:800;margin-bottom:5px}
+.mcard .mcd{font-size:11px;color:var(--dim);line-height:1.5;margin-bottom:8px}
+.mback{margin-top:22px}
+#mSectionDesc{max-width:640px;text-align:center;color:var(--dim);font-size:12px;line-height:1.6;margin-bottom:22px}
+
+/* ---------- goals/almanac panel ---------- */
+#goals{position:absolute;top:78px;left:12px;width:290px;max-height:calc(100vh - 160px);display:none;flex-direction:column}
+#goals.show{display:flex}
+#goalBody{padding:10px;overflow-y:auto}
+.goal{padding:8px 4px;border-bottom:1px dashed var(--edge-soft)}
+.goal.done{opacity:.55}
+.goal .gl{display:flex;justify-content:space-between;font-size:11px;font-weight:800}
+
+/* ---------- hint / help ---------- */
+#hint{position:absolute;left:50%;bottom:78px;transform:translateX(-50%);
+  background:var(--panel-solid);border:2px solid var(--edge);border-radius:var(--r-pill);
+  padding:8px 18px;font-size:11px;font-weight:700;color:var(--txt);box-shadow:var(--e2);
+  opacity:0;pointer-events:none;transition:opacity var(--ez)}
+#hint.show{opacity:1}
+kbd{background:var(--panel-sunken);border:1px solid var(--edge);border-radius:4px;padding:1px 5px;font-size:10px;font-weight:800}
+</style>
+</head>
+<body>
+<canvas id="gl"></canvas>
+<div id="ui">
+  <div id="menu">
+    <div id="mMain">
+      <div class="mtitle">🌾 Planet Farm</div>
+      <div class="msub">Grow it, raise it, sell it.</div>
+      <div class="mrow">
+        <div class="mcard" id="mCareer" onclick="Menu.scenarios()">
+          <div class="mic">📜</div>
+          <div class="mtag">Career</div>
+          <div class="mck">Homestead Briefs</div>
+          <div class="mcd">Start small with a real budget and a brief to work toward — plant, raise stock, and build a farm worth the name.</div>
+        </div>
+        <div class="mcard" id="mSandbox" onclick="Menu.begin('sandbox',-1)">
+          <div class="mic">🌻</div>
+          <div class="mtag">Sandbox</div>
+          <div class="mck">Free Farming</div>
+          <div class="mcd">Unlimited funds, everything unlocked. Build the farm you actually want, no pressure.</div>
+        </div>
+        <div class="mcard" id="mContinue" style="display:none" onclick="Game.load();Menu.hide()">
+          <div class="mic">🚜</div>
+          <div class="mtag">Continue</div>
+          <div class="mck" id="mContinueName">Your Farm</div>
+          <div class="mcd" id="mContinueDesc">Pick up where you left off.</div>
+        </div>
+      </div>
+    </div>
+    <div id="mScenarios" class="mrow" style="display:none"></div>
+    <div id="mBack" class="btn mback" style="display:none" onclick="Menu.back()">← Back</div>
+  </div>
+
+  <div id="hud" style="display:none"></div>
+  <div id="toolbar" style="display:none"></div>
+  <div id="notif"></div>
+  <div id="hint"></div>
+
+  <div id="goals" class="panel">
+    <div class="hdr"><span class="dot"></span><span id="goalTitle">Almanac</span><span class="x" data-ic="close" onclick="UI.toggleGoals(false)">✕</span></div>
+    <div id="goalBody" class="scroll"></div>
+  </div>
+
+  <div id="buildPanel" class="panel" style="display:none">
+    <div class="hdr"><span class="dot"></span><span id="bpTitle">Build</span><span class="x" onclick="UI.closeBuild()">✕</span></div>
+    <div id="bpTabs" class="cat-tabs"></div>
+    <div id="bpBody" class="scroll"></div>
+  </div>
+
+  <div id="inspector" class="panel" style="display:none">
+    <div class="hdr"><span class="dot"></span><span id="insTitle">Inspector</span><span class="x" onclick="UI.closeInspector()">✕</span></div>
+    <div id="insBody" class="scroll"></div>
+  </div>
+
+  <div id="modalWrap"><div id="modal" class="panel">
+    <div class="hdr"><span class="dot"></span><span id="modalTitle">Info</span><span class="x" onclick="UI.closeModal()">✕</span></div>
+    <div id="modalBody" class="scroll"></div>
+    <div id="modalFoot"><button class="btn pri" onclick="UI.closeModal()">Close</button></div>
+  </div></div>
+</div>
+
+<script>
+"use strict";
+/* ============================================================================
+   SECTION 1 — MATH (shared engine core, same as Planet Coaster)
+   ========================================================================== */
+const PI = Math.PI, TAU = PI * 2, DEG = PI / 180;
+const clamp = (v, a, b) => v >= a ? (v <= b ? v : b) : a;
+const lerp = (a, b, t) => a + (b - a) * t;
+const smoothstep = (t) => t * t * (3 - 2 * t);
+const rnd = (a = 1, b) => b === undefined ? Math.random() * a : a + Math.random() * (b - a);
+const rndi = (a, b) => Math.floor(rnd(a, b + 1));
+const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
+const dist2 = (ax, az, bx, bz) => { const dx = ax - bx, dz = az - bz; return dx * dx + dz * dz; };
+const dist = (ax, az, bx, bz) => Math.sqrt(dist2(ax, az, bx, bz));
+const angLerp = (a, b, t) => { let d = ((b - a + PI) % TAU + TAU) % TAU - PI; return a + d * t; };
+const damp = (a, b, l, dt) => lerp(a, b, 1 - Math.exp(-l * dt));
+
+function hash1(n) { const s = Math.sin(n * 127.1) * 43758.5453; return s - Math.floor(s); }
+function noise2(x, y) {
+  const xi = Math.floor(x), yi = Math.floor(y), xf = x - xi, yf = y - yi;
+  const u = smoothstep(xf), v = smoothstep(yf);
+  const h = (a, b) => hash1(a * 157.0 + b * 311.7);
+  return lerp(lerp(h(xi, yi), h(xi + 1, yi), u), lerp(h(xi, yi + 1), h(xi + 1, yi + 1), u), v);
+}
+function fbm(x, y, oct = 4) {
+  let s = 0, a = .5, f = 1;
+  for (let i = 0; i < oct; i++) { s += a * noise2(x * f, y * f); f *= 2; a *= .5; }
+  return s;
+}
+
+const V3 = {
+  make: (x = 0, y = 0, z = 0) => ({ x, y, z }),
+  set: (o, x, y, z) => { o.x = x; o.y = y; o.z = z; return o; },
+  copy: (o, a) => { o.x = a.x; o.y = a.y; o.z = a.z; return o; },
+  add: (o, a, b) => { o.x = a.x + b.x; o.y = a.y + b.y; o.z = a.z + b.z; return o; },
+  sub: (o, a, b) => { o.x = a.x - b.x; o.y = a.y - b.y; o.z = a.z - b.z; return o; },
+  scale: (o, a, s) => { o.x = a.x * s; o.y = a.y * s; o.z = a.z * s; return o; },
+  dot: (a, b) => a.x * b.x + a.y * b.y + a.z * b.z,
+  len: (a) => Math.sqrt(a.x * a.x + a.y * a.y + a.z * a.z),
+  norm: (o, a) => { const l = V3.len(a) || 1; return V3.scale(o, a, 1 / l); },
+  cross: (o, a, b) => {
+    const x = a.y * b.z - a.z * b.y, y = a.z * b.x - a.x * b.z, z = a.x * b.y - a.y * b.x;
+    o.x = x; o.y = y; o.z = z; return o;
+  },
+  lerp: (o, a, b, t) => { o.x = lerp(a.x, b.x, t); o.y = lerp(a.y, b.y, t); o.z = lerp(a.z, b.z, t); return o; },
+  dist: (a, b) => Math.sqrt((a.x - b.x) ** 2 + (a.y - b.y) ** 2 + (a.z - b.z) ** 2),
+};
+
+const M4 = {
+  create: () => new Float32Array([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]),
+  identity(o) { o.set(M4.I); return o; },
+  I: new Float32Array([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]),
+  mul(o, a, b) {
+    const a00 = a[0], a01 = a[1], a02 = a[2], a03 = a[3], a10 = a[4], a11 = a[5], a12 = a[6], a13 = a[7],
+      a20 = a[8], a21 = a[9], a22 = a[10], a23 = a[11], a30 = a[12], a31 = a[13], a32 = a[14], a33 = a[15];
+    for (let i = 0; i < 4; i++) {
+      const b0 = b[i * 4], b1 = b[i * 4 + 1], b2 = b[i * 4 + 2], b3 = b[i * 4 + 3];
+      o[i * 4] = b0 * a00 + b1 * a10 + b2 * a20 + b3 * a30;
+      o[i * 4 + 1] = b0 * a01 + b1 * a11 + b2 * a21 + b3 * a31;
+      o[i * 4 + 2] = b0 * a02 + b1 * a12 + b2 * a22 + b3 * a32;
+      o[i * 4 + 3] = b0 * a03 + b1 * a13 + b2 * a23 + b3 * a33;
+    }
+    return o;
+  },
+  perspective(o, fovy, aspect, near, far) {
+    const f = 1 / Math.tan(fovy / 2), nf = 1 / (near - far);
+    o.fill(0); o[0] = f / aspect; o[5] = f; o[10] = (far + near) * nf; o[11] = -1; o[14] = 2 * far * near * nf;
+    return o;
+  },
+  ortho(o, l, r, b, t, n, f) {
+    o.fill(0);
+    o[0] = 2 / (r - l); o[5] = 2 / (t - b); o[10] = -2 / (f - n); o[15] = 1;
+    o[12] = -(r + l) / (r - l); o[13] = -(t + b) / (t - b); o[14] = -(f + n) / (f - n);
+    return o;
+  },
+  lookAt(o, eye, center, up) {
+    let zx = eye.x - center.x, zy = eye.y - center.y, zz = eye.z - center.z;
+    let l = Math.hypot(zx, zy, zz) || 1; zx /= l; zy /= l; zz /= l;
+    let xx = up.y * zz - up.z * zy, xy = up.z * zx - up.x * zz, xz = up.x * zy - up.y * zx;
+    l = Math.hypot(xx, xy, xz) || 1; xx /= l; xy /= l; xz /= l;
+    const yx = zy * xz - zz * xy, yy = zz * xx - zx * xz, yz = zx * xy - zy * xx;
+    o[0] = xx; o[1] = yx; o[2] = zx; o[3] = 0;
+    o[4] = xy; o[5] = yy; o[6] = zy; o[7] = 0;
+    o[8] = xz; o[9] = yz; o[10] = zz; o[11] = 0;
+    o[12] = -(xx * eye.x + xy * eye.y + xz * eye.z);
+    o[13] = -(yx * eye.x + yy * eye.y + yz * eye.z);
+    o[14] = -(zx * eye.x + zy * eye.y + zz * eye.z);
+    o[15] = 1;
+    return o;
+  },
+  compose(o, px, py, pz, rx, ry, rz, sx, sy, sz) {
+    const cx = Math.cos(rx), sxx = Math.sin(rx), cy = Math.cos(ry), syy = Math.sin(ry), cz = Math.cos(rz), szz = Math.sin(rz);
+    const m00 = cy * cz + syy * sxx * szz, m01 = cx * szz, m02 = -syy * cz + cy * sxx * szz;
+    const m10 = -cy * szz + syy * sxx * cz, m11 = cx * cz, m12 = syy * szz + cy * sxx * cz;
+    const m20 = syy * cx, m21 = -sxx, m22 = cy * cx;
+    o[0] = m00 * sx; o[1] = m01 * sx; o[2] = m02 * sx; o[3] = 0;
+    o[4] = m10 * sy; o[5] = m11 * sy; o[6] = m12 * sy; o[7] = 0;
+    o[8] = m20 * sz; o[9] = m21 * sz; o[10] = m22 * sz; o[11] = 0;
+    o[12] = px; o[13] = py; o[14] = pz; o[15] = 1;
+    return o;
+  },
+  invert(o, m) {
+    const a00 = m[0], a01 = m[1], a02 = m[2], a03 = m[3], a10 = m[4], a11 = m[5], a12 = m[6], a13 = m[7],
+      a20 = m[8], a21 = m[9], a22 = m[10], a23 = m[11], a30 = m[12], a31 = m[13], a32 = m[14], a33 = m[15];
+    const b00 = a00 * a11 - a01 * a10, b01 = a00 * a12 - a02 * a10, b02 = a00 * a13 - a03 * a10,
+      b03 = a01 * a12 - a02 * a11, b04 = a01 * a13 - a03 * a11, b05 = a02 * a13 - a03 * a12,
+      b06 = a20 * a31 - a21 * a30, b07 = a20 * a32 - a22 * a30, b08 = a20 * a33 - a23 * a30,
+      b09 = a21 * a32 - a22 * a31, b10 = a21 * a33 - a23 * a31, b11 = a22 * a33 - a23 * a32;
+    let det = b00 * b11 - b01 * b10 + b02 * b09 + b03 * b08 - b04 * b07 + b05 * b06;
+    if (!det) return null; det = 1 / det;
+    o[0] = (a11 * b11 - a12 * b10 + a13 * b09) * det; o[1] = (a02 * b10 - a01 * b11 - a03 * b09) * det;
+    o[2] = (a31 * b05 - a32 * b04 + a33 * b03) * det; o[3] = (a22 * b04 - a21 * b05 - a23 * b03) * det;
+    o[4] = (a12 * b08 - a10 * b11 - a13 * b07) * det; o[5] = (a00 * b11 - a02 * b08 + a03 * b07) * det;
+    o[6] = (a32 * b02 - a30 * b05 - a33 * b01) * det; o[7] = (a20 * b05 - a22 * b02 + a23 * b01) * det;
+    o[8] = (a10 * b10 - a11 * b08 + a13 * b06) * det; o[9] = (a01 * b08 - a00 * b10 - a03 * b06) * det;
+    o[10] = (a30 * b04 - a31 * b02 + a33 * b00) * det; o[11] = (a21 * b02 - a20 * b04 - a23 * b00) * det;
+    o[12] = (a11 * b07 - a10 * b09 - a12 * b06) * det; o[13] = (a00 * b09 - a01 * b07 + a02 * b06) * det;
+    o[14] = (a31 * b01 - a30 * b03 - a32 * b00) * det; o[15] = (a20 * b03 - a21 * b01 + a22 * b00) * det;
+    return o;
+  },
+  xformPoint(out, m, x, y, z) {
+    const w = m[3] * x + m[7] * y + m[11] * z + m[15] || 1;
+    out.x = (m[0] * x + m[4] * y + m[8] * z + m[12]) / w;
+    out.y = (m[1] * x + m[5] * y + m[9] * z + m[13]) / w;
+    out.z = (m[2] * x + m[6] * y + m[10] * z + m[14]) / w;
+    return out;
+  }
+};
+
+function hex(h) { return [((h >> 16) & 255) / 255, ((h >> 8) & 255) / 255, (h & 255) / 255]; }
+function shade(c, f) { return [clamp(c[0] * f, 0, 1), clamp(c[1] * f, 0, 1), clamp(c[2] * f, 0, 1)]; }
+
+/* ============================================================================
+   SECTION 2 — GEOMETRY BUILDER
+   ========================================================================== */
+class Geo {
+  constructor() { this.pos = []; this.nrm = []; this.col = []; this.idx = []; this.n = 0; }
+  clear() { this.pos.length = 0; this.nrm.length = 0; this.col.length = 0; this.idx.length = 0; this.n = 0; return this; }
+  get count() { return this.idx.length; }
+  vert(x, y, z, nx, ny, nz, c) {
+    this.pos.push(x, y, z); this.nrm.push(nx, ny, nz); this.col.push(c[0], c[1], c[2]);
+    return this.n++;
+  }
+  tri(a, b, c) { this.idx.push(a, b, c); }
+  quadV(p0, p1, p2, p3, c) {
+    const ux = p1[0] - p0[0], uy = p1[1] - p0[1], uz = p1[2] - p0[2];
+    const vx = p3[0] - p0[0], vy = p3[1] - p0[1], vz = p3[2] - p0[2];
+    let nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx;
+    const l = Math.hypot(nx, ny, nz) || 1; nx /= l; ny /= l; nz /= l;
+    const a = this.vert(p0[0], p0[1], p0[2], nx, ny, nz, c);
+    const b = this.vert(p1[0], p1[1], p1[2], nx, ny, nz, c);
+    const d = this.vert(p2[0], p2[1], p2[2], nx, ny, nz, c);
+    const e = this.vert(p3[0], p3[1], p3[2], nx, ny, nz, c);
+    this.tri(a, b, d); this.tri(a, d, e);
+  }
+  triV(p0, p1, p2, c) {
+    const ux = p1[0] - p0[0], uy = p1[1] - p0[1], uz = p1[2] - p0[2];
+    const vx = p2[0] - p0[0], vy = p2[1] - p0[1], vz = p2[2] - p0[2];
+    let nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx;
+    const l = Math.hypot(nx, ny, nz) || 1; nx /= l; ny /= l; nz /= l;
+    const a = this.vert(p0[0], p0[1], p0[2], nx, ny, nz, c);
+    const b = this.vert(p1[0], p1[1], p1[2], nx, ny, nz, c);
+    const d = this.vert(p2[0], p2[1], p2[2], nx, ny, nz, c);
+    this.tri(a, b, d);
+  }
+  box(x, y, z, sx, sy, sz, c, topShade = 1.10, sideShade = .92, endShade = .80) {
+    const hx = sx / 2, hz = sz / 2, x0 = x - hx, x1 = x + hx, y0 = y, y1 = y + sy, z0 = z - hz, z1 = z + hz;
+    const ct = shade(c, topShade), cs = shade(c, sideShade), ce = shade(c, endShade), cb = shade(c, .55);
+    this.quadV([x0, y1, z1], [x1, y1, z1], [x1, y1, z0], [x0, y1, z0], ct);
+    this.quadV([x0, y0, z0], [x1, y0, z0], [x1, y0, z1], [x0, y0, z1], cb);
+    this.quadV([x0, y0, z1], [x1, y0, z1], [x1, y1, z1], [x0, y1, z1], cs);
+    this.quadV([x1, y0, z0], [x0, y0, z0], [x0, y1, z0], [x1, y1, z0], cs);
+    this.quadV([x1, y0, z1], [x1, y0, z0], [x1, y1, z0], [x1, y1, z1], ce);
+    this.quadV([x0, y0, z0], [x0, y0, z1], [x0, y1, z1], [x0, y1, z0], ce);
+    return this;
+  }
+  cbox(x, y, z, sx, sy, sz, c) { return this.box(x, y - sy / 2, z, sx, sy, sz, c); }
+  cyl(x, y, z, r, h, seg, c, taper = 1) {
+    const base = [], top = [];
+    for (let i = 0; i < seg; i++) {
+      const a = i / seg * TAU;
+      base.push([x + Math.cos(a) * r, y, z + Math.sin(a) * r]);
+      top.push([x + Math.cos(a) * r * taper, y + h, z + Math.sin(a) * r * taper]);
+    }
+    for (let i = 0; i < seg; i++) {
+      const j = (i + 1) % seg;
+      const f = .82 + .22 * (0.5 + 0.5 * Math.cos(i / seg * TAU - 0.8));
+      this.quadV(base[i], base[j], top[j], top[i], shade(c, f));
+    }
+    const ct = shade(c, 1.14);
+    for (let i = 1; i < seg - 1; i++) this.triV(top[0], top[i], top[i + 1], ct);
+    const cb = shade(c, .5);
+    for (let i = 1; i < seg - 1; i++) this.triV(base[0], base[i + 1], base[i], cb);
+    return this;
+  }
+  cone(x, y, z, r, h, seg, c) {
+    const base = [];
+    for (let i = 0; i < seg; i++) { const a = i / seg * TAU; base.push([x + Math.cos(a) * r, y, z + Math.sin(a) * r]); }
+    const apex = [x, y + h, z];
+    for (let i = 0; i < seg; i++) {
+      const j = (i + 1) % seg;
+      const f = .8 + .28 * (0.5 + 0.5 * Math.cos(i / seg * TAU - 0.8));
+      this.triV(base[i], base[j], apex, shade(c, f));
+    }
+    const cb = shade(c, .5);
+    for (let i = 1; i < seg - 1; i++) this.triV(base[0], base[i + 1], base[i], cb);
+    return this;
+  }
+  sphere(x, y, z, r, seg, c) {
+    const rings = Math.max(3, seg >> 1);
+    const P = [];
+    for (let i = 0; i <= rings; i++) {
+      const v = i / rings * PI, sy = Math.cos(v) * r, rr = Math.sin(v) * r, row = [];
+      for (let j = 0; j < seg; j++) { const u = j / seg * TAU; row.push([x + Math.cos(u) * rr, y + sy, z + Math.sin(u) * rr]); }
+      P.push(row);
+    }
+    for (let i = 0; i < rings; i++) for (let j = 0; j < seg; j++) {
+      const k = (j + 1) % seg;
+      const f = .82 + .3 * (1 - i / rings);
+      if (i === 0) this.triV(P[i][j], P[i + 1][j], P[i + 1][k], shade(c, f));
+      else if (i === rings - 1) this.triV(P[i][j], P[i + 1][j], P[i][k], shade(c, f));
+      else this.quadV(P[i][j], P[i][k], P[i + 1][k], P[i + 1][j], shade(c, f));
+    }
+    return this;
+  }
+  beam(ax, ay, az, bx, by, bz, w, h, c, upx = 0, upy = 1, upz = 0) {
+    let dx = bx - ax, dy = by - ay, dz = bz - az;
+    const L = Math.hypot(dx, dy, dz); if (L < 1e-5) return this;
+    dx /= L; dy /= L; dz /= L;
+    let rx = dy * upz - dz * upy, ry = dz * upx - dx * upz, rz = dx * upy - dy * upx;
+    let rl = Math.hypot(rx, ry, rz);
+    if (rl < 1e-4) { rx = 1; ry = 0; rz = 0; rl = 1; }
+    rx /= rl; ry /= rl; rz /= rl;
+    const ux = ry * dz - rz * dy, uy = rz * dx - rx * dz, uz = rx * dy - ry * dx;
+    const hw = w / 2, hh = h / 2;
+    const P = (px, py, pz, s, t) => [px + rx * s + ux * t, py + ry * s + uy * t, pz + rz * s + uz * t];
+    const a1 = P(ax, ay, az, -hw, hh), a2 = P(ax, ay, az, hw, hh), a3 = P(ax, ay, az, hw, -hh), a4 = P(ax, ay, az, -hw, -hh);
+    const b1 = P(bx, by, bz, -hw, hh), b2 = P(bx, by, bz, hw, hh), b3 = P(bx, by, bz, hw, -hh), b4 = P(bx, by, bz, -hw, -hh);
+    this.quadV(a1, a2, b2, b1, shade(c, 1.12));
+    this.quadV(b4, b3, a3, a4, shade(c, .6));
+    this.quadV(a2, a3, b3, b2, shade(c, .9));
+    this.quadV(b1, b4, a4, a1, shade(c, .82));
+    return this;
+  }
+  merge(g, ox = 0, oy = 0, oz = 0) {
+    const base = this.n;
+    for (let i = 0; i < g.pos.length; i += 3) this.pos.push(g.pos[i] + ox, g.pos[i + 1] + oy, g.pos[i + 2] + oz);
+    for (let i = 0; i < g.nrm.length; i++) this.nrm.push(g.nrm[i]);
+    for (let i = 0; i < g.col.length; i++) this.col.push(g.col[i]);
+    for (let i = 0; i < g.idx.length; i++) this.idx.push(g.idx[i] + base);
+    this.n += g.n;
+    return this;
+  }
+  mergeM(g, m) {
+    const base = this.n;
+    for (let i = 0; i < g.pos.length; i += 3) {
+      const x = g.pos[i], y = g.pos[i + 1], z = g.pos[i + 2];
+      this.pos.push(m[0] * x + m[4] * y + m[8] * z + m[12], m[1] * x + m[5] * y + m[9] * z + m[13], m[2] * x + m[6] * y + m[10] * z + m[14]);
+      const nx = g.nrm[i], ny = g.nrm[i + 1], nz = g.nrm[i + 2];
+      this.nrm.push(m[0] * nx + m[4] * ny + m[8] * nz, m[1] * nx + m[5] * ny + m[9] * nz, m[2] * nx + m[6] * ny + m[10] * nz);
+    }
+    for (let i = 0; i < g.col.length; i++) this.col.push(g.col[i]);
+    for (let i = 0; i < g.idx.length; i++) this.idx.push(g.idx[i] + base);
+    this.n += g.n;
+    return this;
+  }
+}
+
+/* ============================================================================
+   SECTION 3 — WEBGL RENDERER
+   Same forward renderer as Planet Coaster: sun + hemisphere ambient, packed
+   shadow map, height fog, instanced boxes, sky dome, screen-space AO/outline
+   post pass. This is what gives Planet Farm the same painterly toy-model
+   look — the graphics engine is shared, the game built on top is not.
+   ========================================================================== */
+const VS_COMMON = `
+attribute vec3 aPos; attribute vec3 aNrm; attribute vec3 aCol;
+#ifdef INST
+attribute vec4 iM0; attribute vec4 iM1; attribute vec4 iM2; attribute vec4 iM3; attribute vec3 iCol;
+#endif
+uniform mat4 uVP, uModel, uLightVP;
+varying vec3 vN, vC, vW; varying vec4 vLS;
+void main(){
+#ifdef INST
+  mat4 M = mat4(iM0,iM1,iM2,iM3);
+  vec4 w = M * vec4(aPos,1.0);
+  vN = normalize(mat3(M) * aNrm);
+  vC = aCol * iCol;
+#else
+  vec4 w = uModel * vec4(aPos,1.0);
+  vN = normalize(mat3(uModel) * aNrm);
+  vC = aCol;
+#endif
+  vW = w.xyz;
+  vLS = uLightVP * w;
+  gl_Position = uVP * w;
+}`;
+
+const FS_MAIN = `
+precision highp float;
+varying vec3 vN, vC, vW; varying vec4 vLS;
+uniform vec3 uSunDir, uSunCol, uSkyCol, uGndCol, uFogCol, uTint;
+uniform float uFogDens, uShadowOn, uAlpha, uEmissive, uTexel;
+uniform sampler2D uShadow;
+uniform vec3 uEye;
+
+float unpack(vec4 c){ return dot(c, vec4(1.0, 1.0/255.0, 1.0/65025.0, 1.0/16581375.0)); }
+
+float shadowAt(vec3 sc, float bias){
+  if(sc.x<0.005||sc.x>0.995||sc.y<0.005||sc.y>0.995||sc.z>1.0) return 1.0;
+  float s = 0.0;
+  for(int i=-1;i<=1;i++){
+    for(int j=-1;j<=1;j++){
+      float d = unpack(texture2D(uShadow, sc.xy + vec2(float(i),float(j))*uTexel));
+      s += step(sc.z - bias, d);
+    }
+  }
+  return s/9.0;
+}
+
+void main(){
+  vec3 N = normalize(vN);
+  float ndl = dot(N, uSunDir);
+  float diff = max(ndl, 0.0);
+  float wrap = max((ndl+0.45)/1.45, 0.0);
+  float hemi = 0.5 + 0.5*N.y;
+  vec3 amb = mix(uGndCol, uSkyCol, hemi);
+
+  float sh = 1.0;
+  if(uShadowOn > 0.5){
+    vec3 sc = vLS.xyz/vLS.w * 0.5 + 0.5;
+    float bias = max(0.0016*(1.0-ndl), 0.0006);
+    sh = shadowAt(sc, bias);
+    sh = mix(1.0, sh, clamp(ndl*3.0,0.0,1.0));
+  }
+
+  vec3 base = vC * uTint;
+  vec3 warm = vec3(1.06, 1.01, 0.94);
+  vec3 cool = vec3(0.88, 0.95, 1.12);
+  float sunAmt = clamp(diff*0.78 + wrap*0.30, 0.0, 1.6) * sh;
+  vec3 lit = base * (amb * cool + uSunCol * warm * sunAmt);
+
+  float down = max(-N.y, 0.0);
+  lit += base * uGndCol * down * 0.30;
+
+  vec3 V = normalize(uEye - vW);
+  float rim = pow(1.0 - max(dot(N, V), 0.0), 3.5);
+  rim *= 1.0 - max(N.y, 0.0) * 0.80;
+  lit += uSkyCol * rim * 0.22;
+
+  vec3 H = normalize(V + uSunDir);
+  float spec = pow(max(dot(N,H),0.0), 32.0) * 0.16 * sh;
+  lit += uSunCol * spec;
+
+  lit = mix(lit, base, uEmissive);
+
+  float d = length(uEye - vW);
+  float fog = 1.0 - exp(-pow(d*uFogDens, 2.0));
+  fog *= clamp(1.0 - (vW.y-4.0)*0.012, 0.0, 1.0);
+  lit = mix(lit, uFogCol, clamp(fog,0.0,1.0));
+
+  gl_FragColor = vec4(lit, uAlpha);
+}`;
+
+const FS_DEPTH = `
+precision highp float;
+varying vec3 vN, vC, vW; varying vec4 vLS;
+vec4 pack(float v){
+  vec4 c = fract(v * vec4(1.0,255.0,65025.0,16581375.0));
+  c -= c.yzww * vec4(1.0/255.0,1.0/255.0,1.0/255.0,0.0);
+  return c;
+}
+void main(){ gl_FragColor = pack(gl_FragCoord.z); }`;
+
+const VS_SKY = `
+attribute vec2 aPos; varying vec2 vUv;
+void main(){ vUv = aPos*0.5+0.5; gl_Position = vec4(aPos,0.999,1.0); }`;
+const FS_SKY = `
+precision highp float; varying vec2 vUv;
+uniform vec3 uTop,uMid,uBot,uSunCol; uniform vec2 uSunScreen; uniform float uSunUp,uStars,uAspect,uTime,uCloud;
+float h(vec2 p){ return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5); }
+float vnoise(vec2 p){
+  vec2 i = floor(p), f = fract(p);
+  f = f*f*(3.0-2.0*f);
+  return mix(mix(h(i), h(i+vec2(1,0)), f.x), mix(h(i+vec2(0,1)), h(i+vec2(1,1)), f.x), f.y);
+}
+float fbm2(vec2 p){
+  float v = 0.0, a = 0.5;
+  for(int k=0;k<5;k++){ v += a*vnoise(p); p *= 2.03; a *= 0.5; }
+  return v;
+}
+void main(){
+  float y = vUv.y;
+  vec3 c = y > 0.5 ? mix(uMid,uTop,(y-0.5)*2.0) : mix(uBot,uMid,y*2.0);
+  if(uCloud > 0.001 && y > 0.42){
+    float hz = pow(clamp((y-0.42)/0.58, 0.0, 1.0), 0.55);
+    vec2 cp = vec2((vUv.x - 0.5) * uAspect / max(hz, 0.06), 1.0/max(hz,0.06));
+    cp = cp * 0.55 + vec2(uTime * 0.012, uTime * 0.004);
+    float n = fbm2(cp * 1.7);
+    float cover = smoothstep(0.52 - uCloud * 0.30, 0.78, n);
+    float shade2 = smoothstep(0.45, 0.95, fbm2(cp * 3.1 + 4.0));
+    vec3 cloudCol = mix(vec3(1.0,0.99,0.97), vec3(0.62,0.66,0.74), shade2 * 0.85);
+    cloudCol = mix(cloudCol, cloudCol * (0.42 + 0.58 * uSunUp), 1.0 - uSunUp * 0.5);
+    cloudCol += uSunCol * 0.20 * uSunUp * (1.0 - shade2);
+    c = mix(c, cloudCol, cover * clamp(hz * 1.5, 0.0, 1.0) * 0.92);
+  }
+  if(uStars > 0.01){
+    vec2 g = floor(vUv*vec2(220.0*uAspect,220.0));
+    float r = h(g);
+    if(r > 0.9975){
+      float tw = 0.6+0.4*sin(r*90.0);
+      c += vec3(0.85,0.9,1.0)*uStars*tw*smoothstep(0.15,0.6,y);
+    }
+  }
+  vec2 d = (vUv - uSunScreen); d.x *= uAspect;
+  float r = length(d);
+  c += uSunCol * exp(-r*9.0) * 0.55 * uSunUp;
+  c += uSunCol * exp(-r*140.0) * 1.6 * uSunUp;
+  gl_FragColor = vec4(c,1.0);
+}`;
+
+const FS_POST = `
+precision highp float; varying vec2 vUv;
+uniform sampler2D uScene, uDepth;
+uniform vec2 uPixel;
+uniform float uVignette, uSat, uContrast, uLift, uNight;
+uniform float uNear, uFar, uAO, uOutline, uBloom, uAspect, uTanHalf;
+uniform float uHasDepth;
+
+float linDepth(vec2 uv){
+  float z = texture2D(uDepth, uv).r * 2.0 - 1.0;
+  return (2.0 * uNear * uFar) / (uFar + uNear - z * (uFar - uNear));
+}
+vec3 viewPos(vec2 uv){
+  float d = linDepth(uv);
+  vec2 ndc = uv * 2.0 - 1.0;
+  return vec3(ndc.x * uAspect * uTanHalf * d, ndc.y * uTanHalf * d, -d);
+}
+
+void main(){
+  vec3 c = texture2D(uScene, vUv).rgb;
+  float ao = 1.0, edge = 0.0;
+  if(uHasDepth > 0.5){
+    vec3 P = viewPos(vUv);
+    vec3 dx = viewPos(vUv + vec2(uPixel.x, 0.0)) - P;
+    vec3 dy = viewPos(vUv + vec2(0.0, uPixel.y)) - P;
+    vec3 Nv = normalize(cross(dx, dy));
+    float radius = clamp(2.6 / max(P.z * -1.0, 1.0), 0.0018, 0.045);
+    float occ = 0.0;
+    const int RINGS = 3;
+    for(int r = 1; r <= RINGS; r++){
+      float rr = radius * float(r) / float(RINGS);
+      for(int k = 0; k < 6; k++){
+        float a = (float(k) + float(r) * 0.5) * 1.0472;
+        vec2 off = vec2(cos(a) * rr / uAspect, sin(a) * rr);
+        vec3 S = viewPos(vUv + off);
+        vec3 dv = S - P;
+        float len = length(dv);
+        if(len < 0.0001) continue;
+        float ndv = dot(Nv, dv / len);
+        float atten = 1.0 / (1.0 + len * len * 0.35);
+        occ += max(ndv - 0.12, 0.0) * atten;
+      }
+    }
+    occ = occ / float(RINGS * 6) * 3.4;
+    ao = clamp(1.0 - occ * uAO, 0.25, 1.0);
+
+    float d0 = -P.z;
+    float dl = -viewPos(vUv - vec2(uPixel.x, 0.0)).z;
+    float dr = -viewPos(vUv + vec2(uPixel.x, 0.0)).z;
+    float dd = -viewPos(vUv - vec2(0.0, uPixel.y)).z;
+    float du = -viewPos(vUv + vec2(0.0, uPixel.y)).z;
+    float dGrad = (abs(dl + dr - 2.0 * d0) + abs(dd + du - 2.0 * d0)) / max(d0, 1.0);
+    vec3 nl = normalize(cross(viewPos(vUv + vec2(uPixel.x,0.0)) - viewPos(vUv - vec2(uPixel.x,0.0)),
+                              viewPos(vUv + vec2(0.0,uPixel.y)) - viewPos(vUv - vec2(0.0,uPixel.y))));
+    float nGrad = 1.0 - clamp(dot(nl, Nv), 0.0, 1.0);
+    edge = clamp(dGrad * 15.0 + nGrad * 0.45, 0.0, 1.0);
+    edge = smoothstep(0.36, 0.92, edge);
+    edge *= smoothstep(420.0, 90.0, d0);
+  }
+
+  c *= mix(1.0, ao, 0.72);
+
+  if(uBloom > 0.001){
+    vec3 b = vec3(0.0);
+    for(int k = 0; k < 8; k++){
+      float a = float(k) * 0.7854;
+      vec2 off = vec2(cos(a), sin(a)) * uPixel * 7.0;
+      vec3 t = texture2D(uScene, vUv + off).rgb;
+      b += max(t - 0.72, 0.0);
+    }
+    c += b * (uBloom * 0.42);
+  }
+
+  c = (c * (2.51 * c + 0.03)) / (c * (2.43 * c + 0.59) + 0.14);
+  float l = dot(c, vec3(0.2126, 0.7152, 0.0722));
+  c = mix(vec3(l), c, uSat);
+  c = (c - 0.5) * uContrast + 0.5 + uLift;
+  c = mix(c, c * vec3(0.82, 0.90, 1.12), uNight * 0.5);
+  c = mix(c, c * vec3(0.30, 0.33, 0.40), edge * uOutline);
+
+  vec2 dv2 = vUv - 0.5;
+  c *= 1.0 - dot(dv2, dv2) * uVignette;
+  gl_FragColor = vec4(clamp(c, 0.0, 1.0), 1.0);
+}`;
+
+class Renderer {
+  constructor(canvas, cfg) {
+    this.cv = canvas;
+    this.cfg = cfg || {};
+    const opts = { antialias: true, alpha: !!this.cfg.alpha, premultipliedAlpha: false, powerPreference: 'high-performance', stencil: false };
+    let gl = canvas.getContext('webgl2', opts);
+    this.gl2 = !!gl;
+    if (!gl) gl = canvas.getContext('webgl', opts) || canvas.getContext('experimental-webgl', opts);
+    if (!gl) throw new Error('WebGL unavailable');
+    this.gl = gl;
+    if (!this.gl2) {
+      this.extInst = gl.getExtension('ANGLE_instanced_arrays');
+      if (!this.extInst) throw new Error('Instancing unsupported');
+    }
+    gl.enable(gl.DEPTH_TEST);
+    gl.enable(gl.CULL_FACE);
+    gl.cullFace(gl.BACK);
+    gl.clearColor(.05, .07, .1, 1);
+
+    this.progMain = this.build(VS_COMMON, FS_MAIN, false);
+    this.progMainI = this.build(VS_COMMON, FS_MAIN, true);
+    this.progDep = this.build(VS_COMMON, FS_DEPTH, false);
+    this.progDepI = this.build(VS_COMMON, FS_DEPTH, true);
+    this.progSky = this.rawProg(VS_SKY, FS_SKY);
+    this.skyBuf = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.skyBuf);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
+
+    this.SHADOW = this.cfg.shadowSize || 1536;
+    this.initShadow();
+    if (!this.cfg.alpha) { this.progPost = this.rawProg(VS_SKY, FS_POST); this.initPost(); }
+
+    this.vp = M4.create(); this.lightVP = M4.create();
+    this.proj = M4.create(); this.view = M4.create();
+    this.eye = V3.make();
+    this.sun = { dir: V3.make(.5, .8, .35), col: [1, .96, .88] };
+    this.sky = [.35, .6, .95]; this.gnd = [.22, .2, .18];
+    this.fogCol = [.68, .78, .9]; this.fogDens = 0.0038;
+    this.shadowOn = 1;
+    this.drawCalls = 0; this.tris = 0;
+  }
+  build(vsSrc, fsSrc, inst) {
+    const pre = inst ? '#define INST\n' : '';
+    return this.rawProg(pre + vsSrc, fsSrc, inst);
+  }
+  rawProg(vs, fs, inst) {
+    const gl = this.gl;
+    const c = (t, s) => {
+      const sh = gl.createShader(t); gl.shaderSource(sh, s); gl.compileShader(sh);
+      if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(sh) + '\n' + s);
+      return sh;
+    };
+    const p = gl.createProgram();
+    gl.attachShader(p, c(gl.VERTEX_SHADER, vs)); gl.attachShader(p, c(gl.FRAGMENT_SHADER, fs));
+    gl.linkProgram(p);
+    if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p));
+    p.u = {}; p.a = {};
+    const nu = gl.getProgramParameter(p, gl.ACTIVE_UNIFORMS);
+    for (let i = 0; i < nu; i++) { const info = gl.getActiveUniform(p, i); p.u[info.name] = gl.getUniformLocation(p, info.name); }
+    const na = gl.getProgramParameter(p, gl.ACTIVE_ATTRIBUTES);
+    for (let i = 0; i < na; i++) { const info = gl.getActiveAttrib(p, i); p.a[info.name] = gl.getAttribLocation(p, info.name); }
+    p.inst = !!inst;
+    return p;
+  }
+  initShadow() {
+    const gl = this.gl, S = this.SHADOW;
+    this.shTex = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, this.shTex);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, S, S, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    this.shFbo = gl.createFramebuffer();
+    gl.bindFramebuffer(gl.FRAMEBUFFER, this.shFbo);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.shTex, 0);
+    this.shRb = gl.createRenderbuffer();
+    gl.bindRenderbuffer(gl.RENDERBUFFER, this.shRb);
+    gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT16, S, S);
+    gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, this.shRb);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  }
+  resize() {
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const r = this.cv.getBoundingClientRect();
+    const cssW = Math.max(1, r.width || innerWidth), cssH = Math.max(1, r.height || innerHeight);
+    const w = Math.max(1, Math.floor(cssW * dpr)), h = Math.max(1, Math.floor(cssH * dpr));
+    if (this.cv.width !== w || this.cv.height !== h) { this.cv.width = w; this.cv.height = h; this.resizePost(w, h); }
+    this.aspect = cssW / cssH;
+  }
+  initPost() {
+    const gl = this.gl;
+    this.postTex = gl.createTexture();
+    this.postFbo = gl.createFramebuffer();
+    this.postRb = gl.createRenderbuffer();
+    this.postW = 0; this.postH = 0;
+    this.depthExt = this.gl2 ? true : !!gl.getExtension('WEBGL_depth_texture');
+    if (this.depthExt) this.depthTex = gl.createTexture();
+  }
+  resizePost(w, h) {
+    if (!this.progPost) return;
+    const gl = this.gl;
+    if (this.postW === w && this.postH === h) return;
+    this.postW = w; this.postH = h;
+    gl.bindTexture(gl.TEXTURE_2D, this.postTex);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, this.postFbo);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.postTex, 0);
+    if (this.depthExt) {
+      gl.bindTexture(gl.TEXTURE_2D, this.depthTex);
+      const ifmt = this.gl2 ? gl.DEPTH_COMPONENT24 : gl.DEPTH_COMPONENT;
+      const type = this.gl2 ? gl.UNSIGNED_INT : gl.UNSIGNED_SHORT;
+      gl.texImage2D(gl.TEXTURE_2D, 0, ifmt, w, h, 0, gl.DEPTH_COMPONENT, type, null);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+      gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.TEXTURE_2D, this.depthTex, 0);
+    } else {
+      gl.bindRenderbuffer(gl.RENDERBUFFER, this.postRb);
+      gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT16, w, h);
+      gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, this.postRb);
+    }
+    this.postOk = gl.checkFramebufferStatus(gl.FRAMEBUFFER) === gl.FRAMEBUFFER_COMPLETE;
+    if (!this.postOk && this.depthExt) {
+      this.depthExt = false;
+      gl.bindRenderbuffer(gl.RENDERBUFFER, this.postRb);
+      gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT16, w, h);
+      gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, this.postRb);
+      this.postOk = gl.checkFramebufferStatus(gl.FRAMEBUFFER) === gl.FRAMEBUFFER_COMPLETE;
+    }
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  }
+  beginPost() {
+    if (!this.progPost || !this.postOk) return false;
+    const gl = this.gl;
+    gl.bindFramebuffer(gl.FRAMEBUFFER, this.postFbo);
+    gl.viewport(0, 0, this.postW, this.postH);
+    return true;
+  }
+  endPost(night) {
+    if (!this.progPost || !this.postOk) return;
+    const gl = this.gl, p = this.progPost;
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    gl.viewport(0, 0, this.cv.width, this.cv.height);
+    gl.disable(gl.DEPTH_TEST);
+    gl.useProgram(p);
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.skyBuf);
+    gl.enableVertexAttribArray(p.a.aPos);
+    gl.vertexAttribPointer(p.a.aPos, 2, gl.FLOAT, false, 0, 0);
+    this.divisor(p.a.aPos, 0);
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, this.postTex);
+    gl.uniform1i(p.u.uScene, 0);
+    if (this.depthExt && p.u.uDepth) {
+      gl.activeTexture(gl.TEXTURE1);
+      gl.bindTexture(gl.TEXTURE_2D, this.depthTex);
+      gl.uniform1i(p.u.uDepth, 1);
+    }
+    const q = this.quality || {};
+    gl.uniform2f(p.u.uPixel, 1 / this.postW, 1 / this.postH);
+    gl.uniform1f(p.u.uVignette, 0.36);
+    gl.uniform1f(p.u.uSat, 1.12);
+    gl.uniform1f(p.u.uContrast, 1.05);
+    gl.uniform1f(p.u.uLift, 0.008);
+    gl.uniform1f(p.u.uNight, night || 0);
+    gl.uniform1f(p.u.uHasDepth, this.depthExt ? 1 : 0);
+    gl.uniform1f(p.u.uNear, this.near || 0.25);
+    gl.uniform1f(p.u.uFar, this.far || 1000);
+    gl.uniform1f(p.u.uAspect, this.aspect);
+    gl.uniform1f(p.u.uTanHalf, Math.tan((this.fovY || 38 * DEG) / 2));
+    gl.uniform1f(p.u.uAO, q.ao !== undefined ? q.ao : 1.0);
+    gl.uniform1f(p.u.uOutline, q.outline !== undefined ? q.outline : 0.7);
+    gl.uniform1f(p.u.uBloom, q.bloom !== undefined ? q.bloom : 0.4 + (night || 0) * 0.6);
+    gl.drawArrays(gl.TRIANGLES, 0, 3);
+    gl.activeTexture(gl.TEXTURE0);
+    gl.enable(gl.DEPTH_TEST);
+  }
+  makeMesh(geo) { const m = new Mesh(this.gl, this.gl2, this.extInst); m.upload(geo); return m; }
+}
+
+class Mesh {
+  constructor(gl, gl2, ext) {
+    this.gl = gl; this.gl2 = gl2; this.ext = ext;
+    this.vb = gl.createBuffer(); this.nb = gl.createBuffer(); this.cb = gl.createBuffer(); this.ib = gl.createBuffer();
+    this.count = 0; this.instBuf = null; this.instCount = 0;
+    this.use32 = gl2 || !!gl.getExtension('OES_element_index_uint');
+  }
+  upload(geo, dynamic) {
+    const gl = this.gl, u = dynamic ? gl.DYNAMIC_DRAW : gl.STATIC_DRAW;
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.vb); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(geo.pos), u);
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.nb); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(geo.nrm), u);
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.cb); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(geo.col), u);
+    const big = geo.n > 65535;
+    this.idxType = (big && this.use32) ? gl.UNSIGNED_INT : gl.UNSIGNED_SHORT;
+    const arr = this.idxType === gl.UNSIGNED_INT ? new Uint32Array(geo.idx) : new Uint16Array(geo.idx);
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.ib); gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, arr, u);
+    this.count = geo.idx.length;
+    return this;
+  }
+  setInstances(f32, count) {
+    const gl = this.gl;
+    if (!this.instBuf) this.instBuf = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.instBuf);
+    gl.bufferData(gl.ARRAY_BUFFER, f32, gl.DYNAMIC_DRAW);
+    this.instCount = count;
+  }
+  dispose() {
+    const gl = this.gl;
+    gl.deleteBuffer(this.vb); gl.deleteBuffer(this.nb); gl.deleteBuffer(this.cb); gl.deleteBuffer(this.ib);
+    if (this.instBuf) gl.deleteBuffer(this.instBuf);
+    this.count = 0;
+  }
+}
+
+const INST_STRIDE = 20;
+Renderer.prototype.bindMesh = function (p, mesh) {
+  const gl = this.gl;
+  const bind = (buf, loc, size) => {
+    if (loc === undefined || loc < 0) return;
+    gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+    gl.enableVertexAttribArray(loc);
+    gl.vertexAttribPointer(loc, size, gl.FLOAT, false, 0, 0);
+    this.divisor(loc, 0);
+  };
+  bind(mesh.vb, p.a.aPos, 3);
+  bind(mesh.nb, p.a.aNrm, 3);
+  bind(mesh.cb, p.a.aCol, 3);
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, mesh.ib);
+};
+Renderer.prototype.divisor = function (loc, d) {
+  if (loc < 0) return;
+  if (this.gl2) this.gl.vertexAttribDivisor(loc, d);
+  else this.extInst.vertexAttribDivisorANGLE(loc, d);
+};
+Renderer.prototype.bindInstances = function (p, mesh) {
+  const gl = this.gl, S = INST_STRIDE * 4;
+  gl.bindBuffer(gl.ARRAY_BUFFER, mesh.instBuf);
+  const names = ['iM0', 'iM1', 'iM2', 'iM3'];
+  for (let i = 0; i < 4; i++) {
+    const loc = p.a[names[i]]; if (loc === undefined || loc < 0) continue;
+    gl.enableVertexAttribArray(loc);
+    gl.vertexAttribPointer(loc, 4, gl.FLOAT, false, S, i * 16);
+    this.divisor(loc, 1);
+  }
+  const lc = p.a.iCol;
+  if (lc !== undefined && lc >= 0) {
+    gl.enableVertexAttribArray(lc);
+    gl.vertexAttribPointer(lc, 3, gl.FLOAT, false, S, 64);
+    this.divisor(lc, 1);
+  }
+};
+Renderer.prototype.unbindInstances = function (p) {
+  const gl = this.gl;
+  ['iM0', 'iM1', 'iM2', 'iM3', 'iCol'].forEach(n => {
+    const loc = p.a[n]; if (loc === undefined || loc < 0) return;
+    this.divisor(loc, 0); gl.disableVertexAttribArray(loc);
+  });
+};
+Renderer.prototype.useProgram = function (p, depthPass) {
+  const gl = this.gl;
+  gl.useProgram(p);
+  this.cur = p;
+  gl.uniformMatrix4fv(p.u.uVP, false, depthPass ? this.lightVP : this.vp);
+  if (p.u.uLightVP) gl.uniformMatrix4fv(p.u.uLightVP, false, this.lightVP);
+  if (p.u.uSunDir) {
+    gl.uniform3f(p.u.uSunDir, this.sun.dir.x, this.sun.dir.y, this.sun.dir.z);
+    gl.uniform3fv(p.u.uSunCol, this.sun.col);
+    gl.uniform3fv(p.u.uSkyCol, this.sky);
+    gl.uniform3fv(p.u.uGndCol, this.gnd);
+    gl.uniform3fv(p.u.uFogCol, this.fogCol);
+    gl.uniform1f(p.u.uFogDens, this.fogDens);
+    gl.uniform1f(p.u.uShadowOn, depthPass ? 0 : this.shadowOn);
+    gl.uniform1f(p.u.uTexel, 1 / this.SHADOW);
+    gl.uniform3f(p.u.uEye, this.eye.x, this.eye.y, this.eye.z);
+    gl.uniform1f(p.u.uAlpha, 1);
+    gl.uniform1f(p.u.uEmissive, 0);
+    gl.uniform3f(p.u.uTint, 1, 1, 1);
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, this.shTex);
+    gl.uniform1i(p.u.uShadow, 0);
+  }
+};
+Renderer.prototype.draw = function (mesh, model, opt) {
+  if (!mesh || !mesh.count) return;
+  const gl = this.gl, p = this.cur;
+  gl.uniformMatrix4fv(p.u.uModel, false, model || M4.I);
+  if (p.u.uTint) {
+    const t = opt && opt.tint; gl.uniform3f(p.u.uTint, t ? t[0] : 1, t ? t[1] : 1, t ? t[2] : 1);
+    gl.uniform1f(p.u.uAlpha, opt && opt.alpha !== undefined ? opt.alpha : 1);
+    gl.uniform1f(p.u.uEmissive, opt && opt.emissive || 0);
+  }
+  this.bindMesh(p, mesh);
+  gl.drawElements(gl.TRIANGLES, mesh.count, mesh.idxType, 0);
+  this.drawCalls++; this.tris += mesh.count / 3;
+};
+Renderer.prototype.drawInstanced = function (mesh) {
+  if (!mesh || !mesh.count || !mesh.instCount) return;
+  const gl = this.gl, p = this.cur;
+  this.bindMesh(p, mesh);
+  this.bindInstances(p, mesh);
+  if (this.gl2) gl.drawElementsInstanced(gl.TRIANGLES, mesh.count, mesh.idxType, 0, mesh.instCount);
+  else this.extInst.drawElementsInstancedANGLE(gl.TRIANGLES, mesh.count, mesh.idxType, 0, mesh.instCount);
+  this.unbindInstances(p);
+  this.drawCalls++; this.tris += mesh.count / 3 * mesh.instCount;
+};
+Renderer.prototype.setCamera = function (eye, target, up, fov, near, far) {
+  V3.copy(this.eye, eye);
+  this.near = near; this.far = far; this.fovY = fov;
+  M4.perspective(this.proj, fov, this.aspect, near, far);
+  M4.lookAt(this.view, eye, target, up || WORLD_UP);
+  M4.mul(this.vp, this.proj, this.view);
+};
+Renderer.prototype.setSunMatrix = function (centerX, centerZ, radius) {
+  const d = this.sun.dir;
+  const eye = V3.make(centerX + d.x * 220, d.y * 220, centerZ + d.z * 220);
+  const tgt = V3.make(centerX, 0, centerZ);
+  const up = Math.abs(d.y) > .98 ? V3.make(0, 0, 1) : WORLD_UP;
+  const lp = M4.create(), lv = M4.create();
+  M4.ortho(lp, -radius, radius, -radius, radius, 1, 480);
+  M4.lookAt(lv, eye, tgt, up);
+  M4.mul(this.lightVP, lp, lv);
+};
+Renderer.prototype.beginShadow = function () {
+  const gl = this.gl;
+  gl.bindFramebuffer(gl.FRAMEBUFFER, this.shFbo);
+  gl.viewport(0, 0, this.SHADOW, this.SHADOW);
+  gl.clearColor(1, 1, 1, 1);
+  gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+  gl.cullFace(gl.FRONT);
+};
+Renderer.prototype.endShadow = function () {
+  const gl = this.gl;
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  gl.viewport(0, 0, this.cv.width, this.cv.height);
+  gl.cullFace(gl.BACK);
+};
+Renderer.prototype.clearMain = function () {
+  const gl = this.gl;
+  if (!(this.progPost && this.postOk)) gl.viewport(0, 0, this.cv.width, this.cv.height);
+  gl.clearColor(this.fogCol[0], this.fogCol[1], this.fogCol[2], 1);
+  gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+  this.drawCalls = 0; this.tris = 0;
+};
+Renderer.prototype.drawSky = function (top, mid, bot, sunScreen, sunUp, stars, sunCol) {
+  const gl = this.gl, p = this.progSky;
+  gl.useProgram(p);
+  gl.depthMask(false);
+  gl.bindBuffer(gl.ARRAY_BUFFER, this.skyBuf);
+  gl.enableVertexAttribArray(p.a.aPos);
+  gl.vertexAttribPointer(p.a.aPos, 2, gl.FLOAT, false, 0, 0);
+  this.divisor(p.a.aPos, 0);
+  gl.uniform3fv(p.u.uTop, top); gl.uniform3fv(p.u.uMid, mid); gl.uniform3fv(p.u.uBot, bot);
+  gl.uniform3fv(p.u.uSunCol, sunCol);
+  gl.uniform2f(p.u.uSunScreen, sunScreen[0], sunScreen[1]);
+  gl.uniform1f(p.u.uSunUp, sunUp);
+  gl.uniform1f(p.u.uStars, stars);
+  gl.uniform1f(p.u.uAspect, this.aspect);
+  gl.uniform1f(p.u.uTime, this.skyTime || 0);
+  gl.uniform1f(p.u.uCloud, this.cloud !== undefined ? this.cloud : 0.35);
+  gl.drawArrays(gl.TRIANGLES, 0, 3);
+  gl.depthMask(true);
+};
+Renderer.prototype.projectToScreen = function (x, y, z) {
+  const v = { x: 0, y: 0, z: 0 };
+  const m = this.vp;
+  const w = m[3] * x + m[7] * y + m[11] * z + m[15];
+  v.x = (m[0] * x + m[4] * y + m[8] * z + m[12]) / w;
+  v.y = (m[1] * x + m[5] * y + m[9] * z + m[13]) / w;
+  v.z = w;
+  return v;
+};
+
+const WORLD_UP = V3.make(0, 1, 0);
+
+/* ============================================================================
+   SECTION 4 — CAMERA (RTS-style orbit rig)
+   ========================================================================== */
+const Cam = {
+  tx: 0, ty: 0, tz: 0,
+  dx: 0, dy: 0, dz: 0,
+  yaw: -2.05, pitch: 0.66, distT: 90, dist: 90,
+  yawS: -2.05, pitchS: 0.66,
+  fov: 38 * DEG,
+  mode: 'orbit',
+  eye: V3.make(), look: V3.make(),
+
+  init(x, z) { this.tx = this.dx = x; this.tz = this.dz = z; },
+  update(dt) {
+    this.dx = damp(this.dx, this.tx, 9, dt);
+    this.dy = damp(this.dy, this.ty, 9, dt);
+    this.dz = damp(this.dz, this.tz, 9, dt);
+    this.dist = damp(this.dist, this.distT, 9, dt);
+    this.yawS = damp(this.yawS, this.yaw, 14, dt);
+    this.pitchS = damp(this.pitchS, this.pitch, 14, dt);
+    const cp = Math.cos(this.pitchS), sp = Math.sin(this.pitchS);
+    this.eye.x = this.dx + Math.cos(this.yawS) * cp * this.dist;
+    this.eye.y = this.dy + sp * this.dist;
+    this.eye.z = this.dz + Math.sin(this.yawS) * cp * this.dist;
+    V3.set(this.look, this.dx, this.dy, this.dz);
+  },
+  apply(R) { R.setCamera(this.eye, this.look, WORLD_UP, this.fov, 0.25, 900); },
+  drag: null,
+  beginDrag(R, mx, my, orbit) {
+    if (orbit) { this.drag = { orbit: true }; return; }
+    const y = this.ty;
+    const p = this.rayToPlane(R, mx, my, y);
+    this.drag = p ? { orbit: false, y, ax: p.x, az: p.z } : { orbit: true };
+  },
+  dragTo(R, mx, my, dx, dy) {
+    const d = this.drag;
+    if (!d) return;
+    if (d.orbit) {
+      this.yaw += dx * .0042;
+      this.pitch = clamp(this.pitch - dy * .0038, .34, 1.36);
+      return;
+    }
+    const p = this.rayToPlane(R, mx, my, d.y);
+    if (!p) return;
+    const ox = d.ax - p.x, oz = d.az - p.z;
+    this.tx = clamp(this.tx + ox, -WORLD.half, WORLD.half);
+    this.tz = clamp(this.tz + oz, -WORLD.half, WORLD.half);
+    this.dx = clamp(this.dx + ox, -WORLD.half, WORLD.half);
+    this.dz = clamp(this.dz + oz, -WORLD.half, WORLD.half);
+  },
+  endDrag() { this.drag = null; },
+  rotateBy(steps) { const q = PI / 4; this.yaw = (Math.round(this.yaw / q) + steps) * q; },
+  zoom(d, focus) {
+    const before = this.distT;
+    this.distT = clamp(this.distT * (1 + d * .0013), 10, 220);
+    if (focus) {
+      const f = 1 - this.distT / before;
+      if (f > 0) {
+        this.tx = clamp(lerp(this.tx, focus.x, f * .85), -WORLD.half, WORLD.half);
+        this.tz = clamp(lerp(this.tz, focus.z, f * .85), -WORLD.half, WORLD.half);
+      }
+    }
+  },
+  ndc(R, mx, my) {
+    const r = R.cv.getBoundingClientRect();
+    const w = r.width || innerWidth, h = r.height || innerHeight;
+    return { x: ((mx - r.left) / w) * 2 - 1, y: 1 - ((my - r.top) / h) * 2 };
+  },
+  rayToPlane(R, mx, my, h) {
+    const n = this.ndc(R, mx, my);
+    const nx = n.x, ny = n.y;
+    const inv = M4.create();
+    if (!M4.invert(inv, R.vp)) return null;
+    const p0 = M4.xformPoint({}, inv, nx, ny, -1);
+    const p1 = M4.xformPoint({}, inv, nx, ny, 1);
+    const dy = p1.y - p0.y;
+    if (Math.abs(dy) < 1e-6) return null;
+    const t = (h - p0.y) / dy;
+    if (t < 0) return null;
+    return { x: p0.x + (p1.x - p0.x) * t, y: h, z: p0.z + (p1.z - p0.z) * t };
+  },
+  rayDir(R, mx, my) {
+    const n = this.ndc(R, mx, my);
+    const nx = n.x, ny = n.y;
+    const inv = M4.create();
+    if (!M4.invert(inv, R.vp)) return null;
+    const p0 = M4.xformPoint({}, inv, nx, ny, -1);
+    const p1 = M4.xformPoint({}, inv, nx, ny, 1);
+    const d = V3.norm({}, V3.sub({}, p1, p0));
+    return { o: p0, d };
+  }
+};
+
+/* ============================================================================
+   SECTION 5 — WORLD GRID & TERRAIN
+   A smaller, gentler map than the coaster game's — this is one homestead,
+   not a whole park. Tiles carry a type (wild grass / tilled soil / path /
+   water / farmyard) plus a height field for a bit of rolling ground.
+   ========================================================================== */
+const TILE = 4;
+const N = 110;                      // 440 x 440 world units
+const T_GRASS = 0, T_SOIL = 1, T_PATH = 2, T_WATER = 3, T_YARD = 4;
+
+const FARM_MAPS = [
+  { id: 'meadow', n: 'Green Hollow', blurb: 'Soft rolling grassland with a stream along one edge. Forgiving ground — the place to learn.', freq: .05, amp: 6, base: 0, roll: .5 },
+  { id: 'valley', n: 'River Valley', blurb: 'A wide flat floodplain beside a real river. Flatter, with more water for irrigation.', freq: .04, amp: 4, base: -1, roll: .35, river: true },
+  { id: 'hillside', n: 'Terraced Hillside', blurb: 'A gently sloped hillside with a view. More elevation change, so plan your beds with care.', freq: .06, amp: 12, base: 1, roll: .9 },
+];
+
+const WORLD = {
+  n: N, tile: TILE, half: N * TILE / 2,
+  type: new Uint8Array(N * N),
+  land: new Uint8Array(N * N),
+  own: new Int32Array(N * N),
+  wet: new Float32Array(N * N),      // soil moisture 0..1, only meaningful on T_SOIL
+  tilled: new Uint8Array(N * N),     // 1 = soil has been tilled and can be planted
+  h: new Float32Array((N + 1) * (N + 1)),
+  dirty: true,
+  mesh: null, waterMesh: null,
+  mapKind: 'meadow',
+
+  idx(i, j) { return j * N + i; },
+  inb(i, j) { return i >= 0 && j >= 0 && i < N && j < N; },
+  t(i, j) { return this.inb(i, j) ? this.type[j * N + i] : 255; },
+  setT(i, j, v) { if (this.inb(i, j)) { this.type[j * N + i] = v; this.dirty = true; } },
+  ownerOf(i, j) { return this.inb(i, j) ? this.own[j * N + i] : -1; },
+  setOwn(i, j, v) { if (this.inb(i, j)) this.own[j * N + i] = v; },
+  ownsTile(i, j) { return this.inb(i, j) && this.land[j * N + i] === 1; },
+
+  wx(i) { return (i - N / 2) * TILE + TILE / 2; },
+  wz(j) { return (j - N / 2) * TILE + TILE / 2; },
+  ti(x) { return Math.floor(x / TILE + N / 2); },
+  tj(z) { return Math.floor(z / TILE + N / 2); },
+
+  hAt(x, z) {
+    const fx = clamp(x / TILE + N / 2, 0, N), fz = clamp(z / TILE + N / 2, 0, N);
+    const i = Math.min(N - 1, Math.floor(fx)), j = Math.min(N - 1, Math.floor(fz));
+    const u = fx - i, v = fz - j, W = N + 1;
+    const h00 = this.h[j * W + i], h10 = this.h[j * W + i + 1], h01 = this.h[(j + 1) * W + i], h11 = this.h[(j + 1) * W + i + 1];
+    return lerp(lerp(h00, h10, u), lerp(h01, h11, u), v);
+  },
+  tileH(i, j) {
+    const W = N + 1;
+    return (this.h[j * W + i] + this.h[j * W + i + 1] + this.h[(j + 1) * W + i] + this.h[(j + 1) * W + i + 1]) * .25;
+  },
+
+  generate(kind) {
+    if (kind) this.mapKind = kind;
+    const M = FARM_MAPS.find(m => m.id === this.mapKind) || FARM_MAPS[0];
+    const W = N + 1;
+    for (let j = 0; j <= N; j++) for (let i = 0; i <= N; i++) {
+      const x = i - N / 2, z = j - N / 2;
+      let h = (fbm(x * M.freq, z * M.freq, 4) - .5) * M.amp + M.base;
+      if (M.river) h -= smoothstep(clamp(1 - Math.abs(z - N * 0.3) / 6, 0, 1)) * 3;
+      this.h[j * W + i] = h;
+    }
+    this.type.fill(T_GRASS);
+    this.land.fill(0);
+    this.own.fill(-1);
+    this.wet.fill(0);
+    this.tilled.fill(0);
+    if (M.river) for (let j = Math.floor(N * 0.28); j < Math.floor(N * 0.33); j++) for (let i = 0; i < N; i++) this.type[j * N + i] = T_WATER;
+    Land.reset();
+    // starting home plot: a farmyard apron around the farmhouse site
+    const c = N >> 1;
+    for (let j = c - 4; j <= c + 4; j++) for (let i = c - 4; i <= c + 4; i++) this.type[j * N + i] = T_YARD;
+    this.dirty = true;
+  },
+
+  buildMesh(R) {
+    const g = new Geo(), W = N + 1;
+    const grassA = hex(0x6fa851), grassB = hex(0x7fbf5c), grassC = hex(0x5e9345);
+    const soilA = hex(0x7a5232), soilB = hex(0x6b4527), tilledFurrow = hex(0x5a3a20);
+    const pathC = hex(0xcbb37c), pathD = hex(0xb89e63);
+    const yardC = hex(0xd9c396), yardD = hex(0xc7ae7e);
+    for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
+      const t = this.type[j * N + i];
+      const x0 = (i - N / 2) * TILE, x1 = x0 + TILE, z0 = (j - N / 2) * TILE, z1 = z0 + TILE;
+      const y00 = this.h[j * W + i], y10 = this.h[j * W + i + 1], y01 = this.h[(j + 1) * W + i], y11 = this.h[(j + 1) * W + i + 1];
+      let c;
+      const chk = ((i ^ j) & 1) === 0;
+      if (t === T_PATH) c = chk ? pathC : pathD;
+      else if (t === T_YARD) c = chk ? yardC : yardD;
+      else if (t === T_WATER) { const rn = noise2(i * .12 + 7, j * .12 + 3); c = shade(hex(0x3f92c9), .85 + rn * .25); }
+      else if (t === T_SOIL) {
+        const wetF = this.wet[j * N + i] || 0;
+        c = this.tilled[j * N + i] ? (chk ? soilA : soilB) : (chk ? shade(soilA, 1.1) : shade(soilB, 1.1));
+        c = shade(c, 1 - wetF * .28);
+        if (this.tilled[j * N + i] && (i % 2 === 0)) c = shade(c, .82); // furrow stripes read as tilled rows
+      } else {
+        const n = noise2(i * .08 + 3, j * .08 + 9);
+        c = n > .6 ? grassB : n < .35 ? grassC : grassA;
+      }
+      if (this.land[j * N + i] !== 1) c = [c[0] * .55 + .05, c[1] * .58 + .06, c[2] * .5 + .05];
+      const vTri = .96 + noise2(i * .7 + 31, j * .7 + 17) * .07;
+      if (Math.abs(y00 - y11) < Math.abs(y10 - y01)) {
+        g.triV([x0, y00, z0], [x0, y01, z1], [x1, y11, z1], c);
+        g.triV([x0, y00, z0], [x1, y11, z1], [x1, y10, z0], shade(c, vTri));
+      } else {
+        g.triV([x0, y00, z0], [x0, y01, z1], [x1, y10, z0], c);
+        g.triV([x1, y10, z0], [x0, y01, z1], [x1, y11, z1], shade(c, vTri));
+      }
+    }
+    // fence along the edge of owned land
+    const fenceC = hex(0x8a6a3f);
+    for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
+      if (this.land[j * N + i] !== 1) continue;
+      const cx = this.wx(i), cz = this.wz(j);
+      for (const [di, dj] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        if (this.ownsTile(i + di, j + dj)) continue;
+        const ex = cx + di * TILE / 2, ez = cz + dj * TILE / 2;
+        const ax = ex - dj * TILE / 2, az = ez - di * TILE / 2;
+        const bx = ex + dj * TILE / 2, bz = ez + di * TILE / 2;
+        const ay = this.hAt(ax, az) + 1.0, by = this.hAt(bx, bz) + 1.0;
+        g.beam(ax, ay, az, bx, by, bz, .08, .09, fenceC);
+        g.box(ax, this.hAt(ax, az), az, .14, 1.1, .14, shade(fenceC, .85));
+      }
+    }
+    if (this.mesh) this.mesh.dispose();
+    this.mesh = R.makeMesh(g);
+    this.dirty = false;
+  },
+};
+
+/* ============================================================================
+   SECTION 6 — LAND: buy plots to expand the farm
+   ========================================================================== */
+const PLOT = 5;
+const PLOTS = Math.ceil(N / PLOT);
+const Land = {
+  ownedPlots: new Uint8Array(PLOTS * PLOTS),
+  bought: 0,
+  idx(pi, pj) { return pj * PLOTS + pi; },
+  inb(pi, pj) { return pi >= 0 && pj >= 0 && pi < PLOTS && pj < PLOTS; },
+  owns(pi, pj) { return this.inb(pi, pj) && this.ownedPlots[this.idx(pi, pj)] === 1; },
+  reset() {
+    this.ownedPlots.fill(0);
+    this.bought = 0;
+    const c = Math.floor(PLOTS / 2);
+    for (let pj = c - 1; pj <= c + 1; pj++) for (let pi = c - 1; pi <= c + 1; pi++) this.claim(pi, pj);
+  },
+  claim(pi, pj) {
+    if (!this.inb(pi, pj) || this.owns(pi, pj)) return;
+    this.ownedPlots[this.idx(pi, pj)] = 1;
+    this.bought++;
+    for (let j = pj * PLOT; j < Math.min(N, (pj + 1) * PLOT); j++)
+      for (let i = pi * PLOT; i < Math.min(N, (pi + 1) * PLOT); i++) WORLD.land[j * N + i] = 1;
+  },
+  adjacent(pi, pj) {
+    return this.owns(pi - 1, pj) || this.owns(pi + 1, pj) || this.owns(pi, pj - 1) || this.owns(pi, pj + 1);
+  },
+  price(pi, pj) { return Math.round((900 + this.bought * 220) * (1 + (Farm.rep || 0) * .0006)); },
+  buy(pi, pj) {
+    if (!this.inb(pi, pj)) return 'That plot is off the map.';
+    if (this.owns(pi, pj)) return 'You already own that plot.';
+    if (!this.adjacent(pi, pj)) return 'You can only buy land next to your farm.';
+    const cost = this.price(pi, pj);
+    if (Farm.money < cost) return 'You cannot afford that plot (' + money(cost) + ').';
+    Farm.spend(cost);
+    this.claim(pi, pj);
+    WORLD.dirty = true;
+    return null;
+  },
+};
+
+/* ============================================================================
+   SECTION 7 — TIME, SEASONS & WEATHER
+   ========================================================================== */
+const SEASONS = [
+  { id: 'spring', name: 'Spring', growMult: 1.15, rainChance: .40 },
+  { id: 'summer', name: 'Summer', growMult: 1.30, rainChance: .18 },
+  { id: 'autumn', name: 'Autumn', growMult: 1.0, rainChance: .32 },
+  { id: 'winter', name: 'Winter', growMult: .35, rainChance: .22, frost: true },
+];
+const DAYS_PER_SEASON = 9;
+
+const Time = {
+  day: 1, minute: 8 * 60, seasonIndex: 0, dayOfSeason: 0,
+  weather: 'sunny',                 // sunny | rain | storm
+  get season() { return SEASONS[this.seasonIndex]; },
+  reset(day) {
+    this.day = day || 1;
+    this.seasonIndex = Math.floor(((day || 1) - 1) / DAYS_PER_SEASON) % 4;
+    this.dayOfSeason = ((day || 1) - 1) % DAYS_PER_SEASON;
+    this.minute = 8 * 60;
+    this.weather = 'sunny';
+  },
+  update(dt) {
+    this.minute += dt * (60 / 55);   // roughly a 55-second day
+    if (this.minute >= 1440) { this.minute -= 1440; this.dayTick(); }
+  },
+  dayTick() {
+    this.day++;
+    this.dayOfSeason++;
+    if (this.dayOfSeason >= DAYS_PER_SEASON) {
+      this.dayOfSeason = 0;
+      this.seasonIndex = (this.seasonIndex + 1) % 4;
+      UI.notify(this.season.name + ' begins', this.season.frost
+        ? 'Frost sets in — most crops stop growing, and animals will want their coats and extra feed.'
+        : 'A new season on the farm. Check the Almanac for what grows now.', 'good');
+    }
+    this.weather = Math.random() < this.season.rainChance ? (Math.random() < .18 ? 'storm' : 'rain') : 'sunny';
+    if (this.weather !== 'sunny') UI.notify(this.weather === 'storm' ? 'Storm today' : 'Rain today', 'Soil will stay watered on its own — no need to carry water.', '');
+    Farm.dayTick();
+  },
+  hour() { return Math.floor(this.minute / 60); },
+  isNight() { return this.hour() < 6 || this.hour() >= 20; },
+};
+
+/* ============================================================================
+   SECTION 8 — CONTENT CATALOGUES
+   ========================================================================== */
+const CROPS = [
+  { id: 'wheat', name: 'Wheat', icon: '🌾', seedCost: 8, sell: 8, growDays: 3, seasons: ['spring', 'summer', 'autumn'], color: 0xd9b23c, tall: .9 },
+  { id: 'carrot', name: 'Carrot', icon: '🥕', seedCost: 10, sell: 12, growDays: 3, seasons: ['spring', 'autumn'], color: 0xe8843a, tall: .35 },
+  { id: 'potato', name: 'Potato', icon: '🥔', seedCost: 12, sell: 14, growDays: 4, seasons: ['spring', 'summer'], color: 0xc9a25c, tall: .3 },
+  { id: 'lettuce', name: 'Lettuce', icon: '🥬', seedCost: 9, sell: 10, growDays: 2, seasons: ['spring', 'autumn'], color: 0x7fbf5c, tall: .28 },
+  { id: 'corn', name: 'Corn', icon: '🌽', seedCost: 18, sell: 22, growDays: 5, seasons: ['summer'], color: 0xe8d24a, tall: 1.6 },
+  { id: 'tomato', name: 'Tomato', icon: '🍅', seedCost: 20, sell: 9, growDays: 4, regrowDays: 2, seasons: ['summer'], color: 0xd9432e, tall: .7 },
+  { id: 'pepper', name: 'Pepper', icon: '🌶️', seedCost: 16, sell: 11, growDays: 4, regrowDays: 3, seasons: ['summer'], color: 0xc23a2e, tall: .55 },
+  { id: 'pumpkin', name: 'Pumpkin', icon: '🎃', seedCost: 35, sell: 55, growDays: 7, seasons: ['autumn'], color: 0xe0812e, tall: .7 },
+  { id: 'strawberry', name: 'Strawberry', icon: '🍓', seedCost: 22, sell: 8, growDays: 3, regrowDays: 2, seasons: ['spring'], color: 0xd9364f, tall: .3 },
+  { id: 'sunflower', name: 'Sunflower', icon: '🌻', seedCost: 15, sell: 18, growDays: 4, seasons: ['summer'], color: 0xf2c136, tall: 1.9 },
+  { id: 'cotton', name: 'Cotton', icon: '☁️', seedCost: 20, sell: 24, growDays: 5, seasons: ['summer', 'autumn'], color: 0xf2f2ea, tall: .8 },
+  { id: 'grape', name: 'Grape', icon: '🍇', seedCost: 40, sell: 30, growDays: 6, regrowDays: 3, seasons: ['summer', 'autumn'], color: 0x6b3fa0, tall: 1.1, vine: true },
+];
+
+const ANIMALS = [
+  { id: 'chicken', name: 'Chicken', icon: '🐔', cost: 320, home: 'coop', matureDays: 3, produce: 'egg', produceEvery: 1, sell: 6, color: 0xf2ede0, accent: 0xd94f3c, size: .55 },
+  { id: 'duck', name: 'Duck', icon: '🦆', cost: 380, home: 'coop', matureDays: 3, produce: 'feather', produceEvery: 2, sell: 9, color: 0xf2e070, accent: 0x3ba7d4, size: .55 },
+  { id: 'sheep', name: 'Sheep', icon: '🐑', cost: 650, home: 'barn', matureDays: 5, produce: 'wool', produceEvery: 3, sell: 22, color: 0xf5f1e6, accent: 0x4a3a28, size: .95 },
+  { id: 'goat', name: 'Goat', icon: '🐐', cost: 700, home: 'barn', matureDays: 5, produce: 'goatmilk', produceEvery: 2, sell: 16, color: 0xe3d9c0, accent: 0x8a6a3f, size: .9 },
+  { id: 'cow', name: 'Cow', icon: '🐄', cost: 1400, home: 'barn', matureDays: 7, produce: 'milk', produceEvery: 1, sell: 18, color: 0xf2ede0, accent: 0x3a2c22, size: 1.5 },
+  { id: 'pig', name: 'Pig', icon: '🐖', cost: 900, home: 'barn', matureDays: 6, produce: 'truffle', produceEvery: 4, sell: 45, color: 0xe8a9a0, accent: 0xd98a80, size: 1.1 },
+];
+
+const PRODUCE_NAMES = { egg: 'Eggs', feather: 'Feathers', wool: 'Wool', goatmilk: "Goat's Milk", milk: 'Milk', truffle: 'Truffles', flour: 'Flour', honey: 'Honey' };
+
+const BUILDINGS = [
+  { id: 'barn', name: 'Barn', icon: '🏚️', cost: 2200, w: 4, d: 3, capacity: 8, houses: 'barn', desc: 'Shelter and feed storage for cows, pigs, sheep and goats. Each barn houses up to 8 animals.' },
+  { id: 'coop', name: 'Chicken Coop', icon: '🐓', cost: 900, w: 3, d: 3, capacity: 10, houses: 'coop', desc: 'A roost for chickens and ducks. Each coop houses up to 10 birds.' },
+  { id: 'silo', name: 'Grain Silo', icon: '🌾', cost: 1200, w: 2, d: 2, desc: 'Stores threshed grain as feed for your animals, and quietly boosts crop sale prices nearby.' },
+  { id: 'well', name: 'Water Well', icon: '💧', cost: 600, w: 1, d: 1, desc: 'A source of fresh water. Soil within a short walk of a well dries out more slowly.' },
+  { id: 'market', name: 'Market Stall', icon: '🏪', cost: 1500, w: 3, d: 2, desc: 'Sell produce here — or flip on auto-sell so a full harvest turns into cash on its own.' },
+  { id: 'windmill', name: 'Windmill', icon: '🌬️', cost: 2600, w: 2, d: 2, desc: 'Slowly mills stored wheat into flour, which sells for far more than raw grain.' },
+  { id: 'beehive', name: 'Beehive', icon: '🐝', cost: 950, w: 1, d: 1, desc: 'Produces honey on its own, and speeds up the growth of any crop planted nearby.' },
+  { id: 'scarecrow', name: 'Scarecrow', icon: '🧑‍🌾', cost: 260, w: 1, d: 1, desc: 'Keeps crows off nearby crops, cutting the odds of a ruined harvest.' },
+  { id: 'greenhouse', name: 'Greenhouse', icon: '🏡', cost: 3200, w: 3, d: 3, desc: 'Glass walls mean every crop you own can be planted in any season, anywhere on the farm.' },
+  { id: 'fence', name: 'Fence', icon: '🚧', cost: 20, w: 1, d: 1, path: true, desc: 'Marks a pasture boundary. Cheap, and needed before animals will wander a paddock safely.' },
+  { id: 'path', name: 'Path', icon: '🟫', cost: 6, w: 1, d: 1, path: true, desc: 'A walking path between beds and buildings.' },
+];
+
+const FARM_SCENARIOS = [
+  { id: 'freshstart', name: 'Fresh Start', tag: 'Tutorial', blurb: 'A modest plot and a modest budget. Learn to till, plant and sell before the season turns.',
+    money: 1200, day: 1, goals: [
+      { k: 'crops', target: 20, label: 'Crops harvested' },
+      { k: 'money', target: 3000, label: 'Cash on hand' },
+      { k: 'animals', target: 2, label: 'Animals raised' },
+    ] },
+  { id: 'homestead', name: 'The Homestead', tag: 'Easy', blurb: 'Enough to get a real start: a few animals, a proper barn, and a season to prove the farm can pay for itself.',
+    money: 2200, day: 1, goals: [
+      { k: 'crops', target: 60, label: 'Crops harvested' },
+      { k: 'animals', target: 6, label: 'Animals raised' },
+      { k: 'rep', target: 300, label: 'Farm reputation' },
+      { k: 'money', target: 8000, label: 'Cash on hand' },
+    ] },
+  { id: 'orchard', name: 'The Big Harvest', tag: 'Medium', blurb: 'A serious growing operation — every plot planted, every season worked, a windmill turning day and night.',
+    money: 3500, day: 1, goals: [
+      { k: 'crops', target: 200, label: 'Crops harvested' },
+      { k: 'buildings', target: 6, label: 'Buildings raised' },
+      { k: 'rep', target: 600, label: 'Farm reputation' },
+      { k: 'money', target: 25000, label: 'Cash on hand' },
+    ] },
+  { id: 'ranch', name: 'Full Ranch', tag: 'Hard', blurb: 'Livestock at scale: barns full, coops full, a farm that runs like clockwork whichever season it is.',
+    money: 5000, day: 1, goals: [
+      { k: 'animals', target: 24, label: 'Animals raised' },
+      { k: 'crops', target: 300, label: 'Crops harvested' },
+      { k: 'rep', target: 900, label: 'Farm reputation' },
+      { k: 'money', target: 60000, label: 'Cash on hand' },
+    ] },
+];
+
+/* ============================================================================
+   SECTION 9 — PREFAB MESH BUILDERS
+   ========================================================================== */
+const PF = {
+  cache: {},
+  /* Builds a Geo the first time a key is requested, then uploads it to the
+     GPU as a compiled Mesh and caches THAT — every PF.* builder below hands
+     back a Geo, but R.draw() needs an actual Mesh (vertex/index buffers),
+     not the raw vertex-array intermediate. */
+  get(key, makeFn) {
+    if (!this.cache[key]) this.cache[key] = Game.R.makeMesh(makeFn());
+    return this.cache[key];
+  },
+
+  /* Crop growth has four visual stages: seedling -> sprout -> growing -> ripe.
+     Vine crops (tomato/strawberry/pepper/grape) reuse the ripe stage after
+     every regrow instead of restarting from a seedling. */
+  cropStage(def, stage) {
+    return this.get('crop_' + def.id + '_' + stage, () => {
+      const g = new Geo();
+      const col = hex(def.color);
+      const leaf = hex(0x4f8f3a);
+      const h = def.tall * (0.25 + stage * 0.25);
+      if (stage === 0) {
+        g.cone(0, 0, 0, .08, .12, 5, leaf);
+      } else if (stage === 1) {
+        for (let k = 0; k < 3; k++) {
+          const a = k / 3 * TAU;
+          g.beam(0, 0, 0, Math.cos(a) * .12, h, Math.sin(a) * .12, .035, .05, leaf);
+        }
+      } else if (stage === 2) {
+        for (let k = 0; k < 5; k++) {
+          const a = k / 5 * TAU + .3;
+          g.beam(0, 0, 0, Math.cos(a) * .16, h, Math.sin(a) * .16, .04, .05, leaf);
+        }
+      } else {
+        // ripe: full leaf cluster plus the harvestable fruit/head itself
+        for (let k = 0; k < 5; k++) {
+          const a = k / 5 * TAU + .3;
+          g.beam(0, 0, 0, Math.cos(a) * .18, h * .85, Math.sin(a) * .18, .045, .06, leaf);
+        }
+        if (def.id === 'pumpkin') g.sphere(0, .28, 0, .32, 7, col);
+        else if (def.id === 'sunflower' || def.id === 'corn') { g.cyl(0, 0, 0, .05, h, 6, leaf); g.sphere(0, h, 0, def.id === 'sunflower' ? .22 : .12, 6, col); }
+        else if (def.vine) for (let k = 0; k < 4; k++) g.sphere((Math.random() - .5) * .3, h * .5 + Math.random() * .2, (Math.random() - .5) * .3, .09, 5, col);
+        else for (let k = 0; k < 3; k++) g.sphere((Math.random() - .5) * .22, h * .4, (Math.random() - .5) * .22, .12, 5, col);
+      }
+      return g;
+    });
+  },
+
+  /* Simple blocky quadruped/bird bodies, matched in style to the coaster
+     game's low-poly people — boxes and a sphere head, nothing fancier. */
+  animal(def) {
+    return this.get('animal_' + def.id, () => {
+      const g = new Geo();
+      const body = hex(def.color), accent = hex(def.accent);
+      const s = def.size;
+      if (def.id === 'chicken' || def.id === 'duck') {
+        g.sphere(0, s * .4, 0, s * .32, 6, body);
+        g.sphere(0, s * .62, s * .22, s * .18, 5, body);
+        g.cone(0, s * .62, s * .40, .06, .12, 4, hex(0xe8a23a));
+        g.box(0, s * .95, s * .18, .10, .10, .16, accent);
+        for (const sgn of [-1, 1]) g.beam(sgn * s * .1, s * .12, 0, sgn * s * .1, 0, 0, .04, .04, hex(0xe8a23a));
+      } else {
+        // quadruped: body box, head, four short legs
+        g.box(-s * .28, s * .32, -s * .18, s * .78, s * .42, s * .36, body);
+        g.sphere(s * .5, s * .48, 0, s * .22, 6, body);
+        g.cone(s * .68, s * .5, 0, s * .1, .18, 5, shade(body, .9));
+        for (const sx of [-1, 1]) for (const sz of [-1, 1]) g.box(sx * s * .18 - s * .1, 0, sz * s * .13, s * .12, s * .32, s * .12, shade(body, .8));
+        if (def.id === 'sheep') g.sphere(0, s * .55, 0, s * .34, 5, body);
+        if (def.id === 'cow' || def.id === 'goat') for (const sgn of [-1, 1]) g.beam(s * .5 + sgn * .04, s * .58, 0, s * .5 + sgn * .07, s * .68, 0, .02, .05, hex(0xe8e0d0));
+        g.box(s * .5, s * .34, s * .17, .05, .10, .04, hex(0x2a2a2a));
+        g.box(s * .5, s * .34, -s * .17, .05, .10, .04, hex(0x2a2a2a));
+      }
+      return g;
+    }, { yaw: -2.2 });
+  },
+
+  building(def) {
+    return this.get('bld_' + def.id, () => {
+      const g = new Geo();
+      switch (def.id) {
+        case 'barn': {
+          const wall = hex(0xb03a2e), roof = hex(0x5c4a3a), trim = hex(0xf2ede0);
+          g.box(-def.w / 2 * TILE + .3, 0, -def.d / 2 * TILE + .3, def.w * TILE - .6, 2.6, def.d * TILE - .6, wall);
+          for (let i = 0; i < 8; i++) {
+            const t = i / 7, y0 = 2.6, y1 = 2.6 + (def.d * TILE - .6) * .28;
+            g.triV([-def.w / 2 * TILE + .3, y0, -def.d / 2 * TILE + .3 + t * (def.d * TILE - .6)], [def.w / 2 * TILE - .3, y0, -def.d / 2 * TILE + .3 + t * (def.d * TILE - .6)], [0, y1, 0], roof);
+          }
+          g.box(0, .1, def.d / 2 * TILE - .35, 1.4, 2.2, .1, trim);
+          g.box(0, 2.5, 0, .3, .3, .3, hex(0xe8d24a));
+          break;
+        }
+        case 'coop': {
+          const wall = hex(0xe8dcc0), roof = hex(0xc9834a);
+          g.box(0, 0, 0, def.w * TILE - .6, 1.6, def.d * TILE - .6, wall);
+          g.box(0, 1.6, 0, def.w * TILE - .4, .5, def.d * TILE - .4, roof, 1.1, .9, .8);
+          g.cyl(def.w / 2 * TILE - 1, 0, 0, .15, 1.0, 6, hex(0x8a6a3f));
+          break;
+        }
+        case 'silo': {
+          g.cyl(0, 0, 0, .9, 3.4, 12, hex(0xd8d2c4));
+          g.cone(0, 3.4, 0, .9, .8, 12, hex(0x8a6a3f));
+          break;
+        }
+        case 'well': {
+          g.cyl(0, 0, 0, .55, .7, 10, hex(0x8a8378));
+          for (const sx of [-1, 1]) g.box(sx * .5, .7, 0, .1, .9, .1, hex(0x6b4a2f));
+          g.box(0, 1.5, 0, 1.15, .1, .1, hex(0x6b4a2f));
+          g.cone(0, 1.55, 0, .5, .35, 4, hex(0x9c7a4e));
+          break;
+        }
+        case 'market': {
+          g.box(0, 0, 0, def.w * TILE - .5, .1, def.d * TILE - .5, hex(0x8a6a3f));
+          for (const sx of [-1, 1]) for (const sz of [-1, 1]) g.cyl(sx * (def.w * TILE / 2 - .4), .1, sz * (def.d * TILE / 2 - .4), .08, 2.0, 6, hex(0x6b4a2f));
+          g.box(0, 2.0, 0, def.w * TILE - .3, .12, def.d * TILE - .3, hex(0xd94f3c), 1.05, .9, .8);
+          g.box(0, .5, 0, def.w * TILE - .9, .8, .12, hex(0xf2ede0));
+          break;
+        }
+        case 'windmill': {
+          g.cyl(0, 0, 0, .65, 3.0, 10, hex(0xe8dcc0));
+          g.cone(0, 3.0, 0, .65, .6, 10, hex(0x8a3a2e));
+          for (let k = 0; k < 4; k++) {
+            const a = k / 4 * TAU;
+            g.box(Math.cos(a) * .9, 2.6, Math.sin(a) * .9, .18, 1.6, .06, hex(0xf2ede0));
+          }
+          break;
+        }
+        case 'beehive': {
+          for (let k = 0; k < 3; k++) g.cyl(0, k * .32, 0, .32 - k * .03, .32, 8, hex(0xe8b23a));
+          break;
+        }
+        case 'scarecrow': {
+          g.beam(0, 0, 0, 0, 1.6, 0, .08, .08, hex(0x8a6a3f));
+          g.beam(-.5, 1.1, 0, .5, 1.1, 0, .06, .06, hex(0x8a6a3f));
+          g.sphere(0, 1.7, 0, .22, 6, hex(0xe0c090));
+          g.cone(0, 1.85, 0, .24, .18, 5, hex(0x8a3a2e));
+          break;
+        }
+        case 'greenhouse': {
+          g.box(0, 0, 0, def.w * TILE - .4, 1.8, def.d * TILE - .4, hex(0xbfe0d8), 1.0, .85, .75);
+          g.cone(0, 1.8, 0, def.w * TILE * .4, 1.0, 4, hex(0xe0e8e0), 1.0, .85, .7);
+          break;
+        }
+        default: g.box(0, 0, 0, def.w * TILE - .5, 1.2, def.d * TILE - .5, hex(0x8a6a3f));
+      }
+      return g;
+    });
+  },
+
+  farmhouse() {
+    return this.get('farmhouse', () => {
+      const g = new Geo();
+      const wall = hex(0xf2ede0), roof = hex(0xb03a2e), trim = hex(0x6b4a2f);
+      g.box(-1.9, 0, -1.6, 3.8, 2.6, 3.2, wall);
+      for (let i = 0; i < 10; i++) {
+        const t = i / 9;
+        g.triV([-2.15, 2.6, -1.85 + t * 3.7], [2.15, 2.6, -1.85 + t * 3.7], [0, 4.1, 0], roof);
+      }
+      g.box(0, .1, 1.6, 1.0, 1.8, .12, trim);
+      g.box(-1.15, 1.15, 1.61, .6, .6, .05, hex(0x8fd9f2));
+      g.box(1.15, 1.15, 1.61, .6, .6, .05, hex(0x8fd9f2));
+      g.cyl(1.2, 2.6, -.9, .1, .8, 6, hex(0x6b4a2f));
+      return g;
+    });
+  },
+
+  fenceSeg(ax, az, bx, bz, ay, by) {
+    const g = new Geo();
+    const c = hex(0x8a6a3f);
+    g.beam(ax, ay + .6, az, bx, by + .6, bz, .08, .09, c);
+    g.beam(ax, ay + .25, az, bx, by + .25, bz, .08, .09, c);
+    g.box(ax, ay, az, .13, .95, .13, shade(c, .85));
+    return g;
+  },
+};
+
+/* ============================================================================
+   SECTION 10 — FARM ENTITIES
+   ========================================================================== */
+class CropPlant {
+  constructor(def, i, j) {
+    this.def = def; this.i = i; this.j = j;
+    this.x = WORLD.wx(i); this.z = WORLD.wz(j); this.y = WORLD.tileH(i, j);
+    this.growDays = 0; this.stage = 0; this.ripe = false;
+    this.matrix = M4.create();
+    this.updateMatrix();
+  }
+  updateMatrix() {
+    const jitter = hash1(this.i * 13.7 + this.j * 91.3);
+    M4.compose(this.matrix, this.x + (jitter - .5) * .6, this.y, this.z + (hash1(jitter * 7) - .5) * .6, 0, jitter * TAU, 0, 1, 1, 1);
+  }
+  dayTick() {
+    if (this.ripe) return;
+    const mult = Farm.growMultAt(this.x, this.z);
+    this.growDays += mult;
+    const total = this.def.growDays;
+    this.stage = clamp(Math.floor((this.growDays / total) * 3), 0, 3);
+    if (this.growDays >= total) { this.stage = 3; this.ripe = true; }
+  }
+  harvest() {
+    if (!this.ripe) return false;
+    Farm.addInventory(this.def.id, 1);
+    Farm.stats.cropsHarvested++;
+    if (this.def.regrowDays) { this.ripe = false; this.growDays = this.def.growDays - this.def.regrowDays; this.stage = 2; }
+    else return true; // caller removes the plant and un-tills nothing (soil stays tilled)
+    return false;
+  }
+  mesh() { return PF.cropStage(this.def, this.stage); }
+}
+
+class Animal {
+  constructor(def, x, z, home) {
+    this.def = def; this.x = x; this.z = z; this.y = WORLD.hAt(x, z);
+    this.homeX = x; this.homeZ = z; this.home = home;
+    this.age = 0; this.mature = false;
+    this.fedToday = false; this.happiness = .7;
+    this.yaw = rnd(0, TAU); this.wanderT = rnd(0, 3);
+    this.id = Animal._id = (Animal._id || 0) + 1;
+    this.matrix = M4.create();
+    this.updateMatrix();
+  }
+  updateMatrix() {
+    const s = this.mature ? 1 : .55;
+    M4.compose(this.matrix, this.x, this.y, this.z, 0, this.yaw, 0, s, s, s);
+  }
+  update(dt) {
+    this.wanderT -= dt;
+    if (this.wanderT <= 0) {
+      this.wanderT = rnd(2, 5);
+      const a = rnd(0, TAU), r = rnd(1, 5);
+      this._tx = clamp(this.homeX + Math.cos(a) * r, this.homeX - 6, this.homeX + 6);
+      this._tz = clamp(this.homeZ + Math.sin(a) * r, this.homeZ - 6, this.homeZ + 6);
+    }
+    if (this._tx !== undefined) {
+      const dx = this._tx - this.x, dz = this._tz - this.z, d = Math.hypot(dx, dz);
+      if (d > .1) {
+        const spd = 0.6 * dt;
+        this.x += dx / d * Math.min(spd, d);
+        this.z += dz / d * Math.min(spd, d);
+        this.yaw = angLerp(this.yaw, Math.atan2(dz, dx) === 0 ? this.yaw : Math.atan2(dx, dz), dt * 4);
+        this.y = WORLD.hAt(this.x, this.z);
+      }
+    }
+    this.updateMatrix();
+  }
+  dayTick() {
+    this.age++;
+    if (!this.mature && this.age >= this.def.matureDays) this.mature = true;
+    if (!this.mature) return;
+    this.happiness = clamp(this.happiness + (this.fedToday ? .12 : -.18), .1, 1);
+    this.fedToday = false;
+    const every = this.def.produceEvery;
+    this._sinceProduce = (this._sinceProduce || 0) + 1;
+    if (this._sinceProduce >= every && this.happiness > .35) {
+      this._sinceProduce = 0;
+      const amt = this.happiness > .8 ? 2 : 1;
+      Farm.addInventory(this.def.produce, amt);
+      Farm.stats.animalsProduced = (Farm.stats.animalsProduced || 0) + amt;
+    }
+  }
+  mesh() { return PF.animal(this.def); }
+}
+
+class FarmBuilding {
+  constructor(def, i, j, rot) {
+    this.def = def; this.i = i; this.j = j; this.rot = rot || 0;
+    this.x = WORLD.wx(i) + (def.w % 2 === 0 ? TILE / 2 : 0);
+    this.z = WORLD.wz(j) + (def.d % 2 === 0 ? TILE / 2 : 0);
+    this.y = WORLD.tileH(i, j);
+    this.id = FarmBuilding._id = (FarmBuilding._id || 0) + 1;
+    this.matrix = M4.create();
+    this.animals = [];   // ids of animals housed here (barn/coop only)
+    this.updateMatrix();
+  }
+  updateMatrix() { M4.compose(this.matrix, this.x, this.y, this.z, 0, this.rot * PI / 2, 0, 1, 1, 1); }
+  mesh() { return this.def.id === 'farmhouse' ? PF.farmhouse() : PF.building(this.def); }
+}
+
+/* ============================================================================
+   SECTION 11 — FARM STATE (economy, inventory, day cycle)
+   ========================================================================== */
+const money = (v) => '$' + Math.round(v).toLocaleString();
+const esc = (s) => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+const Farm = {
+  mode: 'sandbox', money: 1200, rep: 0,
+  plots: new Map(),          // key "i,j" -> CropPlant
+  animals: [], buildings: [],
+  inventory: {},             // itemId -> count
+  autoSell: false,
+  stats: { cropsHarvested: 0, animalsProduced: 0 },
+  priceWobble: {},           // itemId -> current multiplier, drifts day to day
+
+  key(i, j) { return i + ',' + j; },
+  plotAt(i, j) { return this.plots.get(this.key(i, j)); },
+
+  spend(n) { this.money -= n; },
+  addInventory(id, n) { this.inventory[id] = (this.inventory[id] || 0) + n; },
+
+  sellPriceFor(id) {
+    const c = CROPS.find(x => x.id === id);
+    const base = c ? c.sell : (id === 'flour' ? 34 : id === 'honey' ? 26 : 12);
+    const wobble = this.priceWobble[id] || 1;
+    return Math.max(1, Math.round(base * wobble));
+  },
+  sellAll(id) {
+    const n = this.inventory[id] || 0;
+    if (!n) return 0;
+    const total = n * this.sellPriceFor(id);
+    this.money += total;
+    this.inventory[id] = 0;
+    this.rep += n * .4;
+    return total;
+  },
+  sellEverything() {
+    let total = 0;
+    for (const id of Object.keys(this.inventory)) total += this.sellAll(id);
+    if (total > 0) UI.notify('Sold', 'Market paid ' + money(total) + ' for the harvest.', 'money');
+    return total;
+  },
+
+  /* Beehives speed nearby crops; greenhouses lift the season restriction
+     entirely once one has been built anywhere on the farm. */
+  hasGreenhouse() { return this.buildings.some(b => b.def.id === 'greenhouse'); },
+  growMultAt(x, z) {
+    let m = Time.season.growMult;
+    for (const b of this.buildings) {
+      if (b.def.id === 'beehive' && dist2(x, z, b.x, b.z) < 8 * 8) m *= 1.25;
+    }
+    return m;
+  },
+  canPlant(cropDef) { return this.mode === 'sandbox' || this.hasGreenhouse() || cropDef.seasons.includes(Time.season.id); },
+
+  till(i, j) {
+    if (!WORLD.ownsTile(i, j)) return 'not-yours';
+    if (WORLD.t(i, j) !== T_GRASS && WORLD.t(i, j) !== T_SOIL) return 'blocked';
+    WORLD.setT(i, j, T_SOIL);
+    WORLD.tilled[j * N + i] = 1;
+    return null;
+  },
+  plant(cropId, i, j) {
+    const def = CROPS.find(c => c.id === cropId); if (!def) return 'unknown crop';
+    if (WORLD.t(i, j) !== T_SOIL || !WORLD.tilled[j * N + i]) return 'Till this tile first.';
+    if (this.plotAt(i, j)) return 'Something is already planted here.';
+    if (!this.canPlant(def)) return def.name + " doesn't grow in " + Time.season.name + ' (build a greenhouse to plant anything, anytime).';
+    if (this.money < def.seedCost) return 'Not enough money for seed (' + money(def.seedCost) + ').';
+    this.spend(def.seedCost);
+    this.plots.set(this.key(i, j), new CropPlant(def, i, j));
+    return null;
+  },
+  harvestAt(i, j) {
+    const p = this.plotAt(i, j);
+    if (!p || !p.ripe) return false;
+    const remove = p.harvest();
+    Audio.play('harvest');
+    if (remove) this.plots.delete(this.key(i, j));
+    return true;
+  },
+  clearPlot(i, j) {
+    const p = this.plotAt(i, j);
+    if (p) this.plots.delete(this.key(i, j));
+    if (WORLD.t(i, j) === T_SOIL) { WORLD.setT(i, j, T_GRASS); WORLD.tilled[j * N + i] = 0; }
+  },
+
+  buyAnimal(typeId, x, z, home) {
+    const def = ANIMALS.find(a => a.id === typeId); if (!def) return 'unknown animal';
+    const capBuildings = this.buildings.filter(b => b.def.houses === home);
+    const total = capBuildings.reduce((s, b) => s + b.def.capacity, 0);
+    const housed = this.animals.filter(a => a.home === home).length;
+    if (housed >= total) return 'Not enough ' + (home === 'barn' ? 'barn' : 'coop') + ' space — build another.';
+    if (this.money < def.cost) return 'Not enough money (' + money(def.cost) + ').';
+    this.spend(def.cost);
+    this.animals.push(new Animal(def, x, z, home));
+    return null;
+  },
+  feedAll() {
+    const feed = this.inventory.grain || 0;
+    let fed = 0;
+    for (const a of this.animals) { if (!a.fedToday && feed - fed > 0) { a.fedToday = true; fed++; } }
+    if (!fed) { UI.notify('No grain', 'Harvest and thresh wheat into grain, or buy feed at the market.', 'warn'); return; }
+    this.inventory.grain -= fed;
+    UI.notify('Fed', 'Fed ' + fed + ' animal' + (fed === 1 ? '' : 's') + '.', 'good');
+  },
+
+  buildAt(defId, i, j, rot) {
+    const def = BUILDINGS.find(b => b.id === defId); if (!def) return 'unknown building';
+    if (this.money < def.cost) return 'Not enough money (' + money(def.cost) + ').';
+    for (let jj = j; jj < j + def.d; jj++) for (let ii = i; ii < i + def.w; ii++) {
+      if (!WORLD.ownsTile(ii, jj)) return 'Outside your land.';
+      if (WORLD.t(ii, jj) !== T_GRASS && WORLD.t(ii, jj) !== T_YARD) return 'Ground is not clear there.';
+      if (WORLD.own[jj * N + ii] >= 0) return 'Something is already built there.';
+    }
+    this.spend(def.cost);
+    const b = new FarmBuilding(def, i, j, rot);
+    this.buildings.push(b);
+    for (let jj = j; jj < j + def.d; jj++) for (let ii = i; ii < i + def.w; ii++) { WORLD.setOwn(ii, jj, b.id); WORLD.setT(ii, jj, T_YARD); }
+    return null;
+  },
+  demolishBuilding(id) {
+    const b = this.buildings.find(x => x.id === id); if (!b) return;
+    const refund = Math.round(b.def.cost * .5);
+    this.money += refund;
+    for (let jj = b.j; jj < b.j + b.def.d; jj++) for (let ii = b.i; ii < b.i + b.def.w; ii++) { WORLD.setOwn(ii, jj, -1); WORLD.setT(ii, jj, T_GRASS); }
+    this.animals = this.animals.filter(a => a.home !== b.def.houses || this.buildings.some(o => o !== b && o.def.houses === b.def.houses));
+    this.buildings = this.buildings.filter(x => x.id !== id);
+    WORLD.dirty = true;
+    UI.notify('Demolished', b.def.name + ' — refunded ' + money(refund), '');
+  },
+
+  dayTick() {
+    // soil dries unless it rained
+    const rained = Time.weather !== 'sunny';
+    for (const p of this.plots.values()) p.dayTick();
+    for (const a of this.animals) a.dayTick();
+    // windmill: mills stored wheat into flour
+    if (this.buildings.some(b => b.def.id === 'windmill')) {
+      const wheat = this.inventory.wheat || 0;
+      const milled = Math.min(wheat, 4);
+      if (milled > 0) { this.inventory.wheat -= milled; this.addInventory('flour', Math.floor(milled * .7)); }
+    }
+    // beehive: passive honey
+    for (const b of this.buildings) if (b.def.id === 'beehive') this.addInventory('honey', 1);
+    // threshing: 1 in 3 harvested wheat auto-converts to grain for animal feed
+    if (this.inventory.wheat > 3) { const take = Math.floor(this.inventory.wheat / 4); this.inventory.wheat -= take; this.addInventory('grain', take * 3); }
+    // price wobble
+    for (const c of CROPS) this.priceWobble[c.id] = clamp((this.priceWobble[c.id] || 1) + rnd(-.06, .06), .7, 1.4);
+    if (this.autoSell) this.sellEverything();
+    this.rep = Math.max(0, this.rep + (this.plots.size + this.animals.length) * .15);
+    Goals.update();
+  },
+
+  reset(mode, scenario) {
+    this.mode = mode;
+    this.money = mode === 'sandbox' ? 200000 : (scenario ? scenario.money : 1200);
+    this.rep = 0;
+    this.plots = new Map();
+    this.animals = [];
+    this.buildings = [];
+    this.inventory = {};
+    this.autoSell = false;
+    this.stats = { cropsHarvested: 0, animalsProduced: 0 };
+    this.priceWobble = {};
+    Time.reset(1);
+  },
+};
+
+/* ============================================================================
+   SECTION 12 — ALMANAC GOALS (career briefs)
+   ========================================================================== */
+const Goals = {
+  active: null, won: false,
+  value(k) {
+    switch (k) {
+      case 'crops': return Farm.stats.cropsHarvested;
+      case 'animals': return Farm.animals.length;
+      case 'rep': return Math.round(Farm.rep);
+      case 'money': return Math.round(Farm.money);
+      case 'buildings': return Farm.buildings.length;
+    }
+    return 0;
+  },
+  start(sc) {
+    this.active = sc ? JSON.parse(JSON.stringify(sc)) : null;
+    this.won = false;
+    if (this.active) this.active.goals.forEach(g => g.done = false);
+    this.render();
+  },
+  update() {
+    if (!this.active || this.won) { this.render(); return; }
+    let all = true;
+    for (const g of this.active.goals) {
+      const v = this.value(g.k);
+      if (!g.done && v >= g.target) { g.done = true; UI.notify('Brief milestone', g.label + ' reached.', 'good'); Audio.play('complete'); }
+      if (!g.done) all = false;
+    }
+    if (all) { this.won = true; this.victory(); }
+    this.render();
+  },
+  render() {
+    const panel = document.getElementById('goals');
+    if (!panel) return;
+    document.getElementById('goalTitle').textContent = this.active ? this.active.name : 'Almanac';
+    let h = '';
+    if (this.active) {
+      for (const g of this.active.goals) {
+        const v = this.value(g.k);
+        const pct = clamp(v / g.target * 100, 0, 100);
+        const shown = g.k === 'money' ? money(v) : v;
+        const tgt = g.k === 'money' ? money(g.target) : g.target;
+        h += `<div class="goal ${g.done ? 'done' : ''}"><div class="gl"><span>${g.label}</span><b>${shown} / ${tgt}</b></div>
+          <div class="meter"><div class="f" style="width:${pct}%;background:var(--accent)"></div></div></div>`;
+      }
+    } else {
+      h += `<div style="font-size:11px;color:var(--dim);line-height:1.6">Sandbox mode — no brief, just your farm. Season: <b>${Time.season.name}</b>. Weather: <b>${Time.weather}</b>.</div>`;
+    }
+    h += `<div style="font-size:10.5px;font-weight:800;color:var(--dim);text-transform:uppercase;letter-spacing:.04em;margin:10px 0 2px">In Storage</div>`;
+    const ids = Object.keys(Farm.inventory).filter(id => Farm.inventory[id] > 0);
+    if (!ids.length) h += `<div style="font-size:11px;color:var(--dim)">Nothing yet.</div>`;
+    for (const id of ids) {
+      const nm = PRODUCE_NAMES[id] || (CROPS.find(c => c.id === id) || {}).name || id;
+      h += `<div class="kv"><span class="k">${nm}</span><span class="v">${Farm.inventory[id]} · ${money(Farm.sellPriceFor(id))} ea</span></div>`;
+    }
+    document.getElementById('goalBody').innerHTML = h;
+  },
+  victory() {
+    const sc = this.active;
+    UI.modal('Brief complete', `<h3 style="margin-bottom:8px">${esc(sc.name)}</h3>
+      <p style="line-height:1.6">Every goal in this brief is met. Your farm has ${Farm.animals.length} animals, ${Farm.plots.size} plots growing, and ${money(Farm.money)} in the bank.</p>
+      <p style="line-height:1.6;margin-top:8px">The farm keeps running — carry on, or start another brief from the main menu.</p>`);
+    Audio.play('complete');
+  },
+};
+
+/* ============================================================================
+   SECTION 13 — AUDIO (simple procedural WebAudio, farm-flavoured cues)
+   ========================================================================== */
+const Audio = {
+  ctx: null, master: null, on: true, masterVol: .4, sfxVol: 1,
+  init() {
+    try {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      this.ctx = new AC();
+      this.master = this.ctx.createGain();
+      this.master.gain.value = this.masterVol;
+      this.master.connect(this.ctx.destination);
+    } catch (e) { this.ctx = null; }
+  },
+  resume() { if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume(); },
+  tone(f, dur, type, vol, slide) {
+    if (!this.ctx || !this.on) return;
+    const lvl = (vol === undefined ? .2 : vol) * clamp(this.sfxVol, 0, 1);
+    if (!(lvl > .0002) || !(f > 0) || !(dur > 0)) return;
+    const t = this.ctx.currentTime;
+    const o = this.ctx.createOscillator(), g = this.ctx.createGain();
+    o.type = type || 'sine'; o.frequency.setValueAtTime(f, t);
+    if (slide) o.frequency.exponentialRampToValueAtTime(Math.max(40, slide), t + dur);
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(lvl, t + .012);
+    g.gain.exponentialRampToValueAtTime(.0001, t + dur);
+    o.connect(g); g.connect(this.master); o.start(t); o.stop(t + dur + .05);
+    o.onended = () => { try { o.disconnect(); g.disconnect(); } catch (_) { } };
+  },
+  play(k) {
+    switch (k) {
+      case 'click': this.tone(560, .05, 'square', .06); break;
+      case 'till': this.tone(160, .12, 'sawtooth', .10, 90); break;
+      case 'plant': this.tone(420, .09, 'triangle', .10, 620); break;
+      case 'harvest': this.tone(700, .07, 'triangle', .09); setTimeout(() => this.tone(920, .09, 'triangle', .07), 55); break;
+      case 'cash': this.tone(880, .08, 'square', .09); setTimeout(() => this.tone(1320, .12, 'square', .07), 70); break;
+      case 'error': this.tone(150, .18, 'sawtooth', .12, 90); break;
+      case 'complete': [523, 659, 784, 1046].forEach((f, i) => setTimeout(() => this.tone(f, .22, 'triangle', .12), i * 90)); break;
+      case 'build': this.tone(180, .18, 'sawtooth', .10, 90); this.tone(520, .1, 'square', .05); break;
+      case 'animal': this.tone(rnd(280, 420), .16, 'triangle', .06, rnd(200, 350)); break;
+      case 'demolish': this.tone(110, .30, 'sawtooth', .12, 55); break;
+    }
+  },
+};
+
+/* ============================================================================
+   SECTION 14 — GAME (state, loop, input)
+   ========================================================================== */
+const TOOLS = [
+  { id: 'select', t: 'Select', k: '1', ic: 'cursor' },
+  { id: 'till', t: 'Till', k: '2', ic: 'till' },
+  { id: 'plant', t: 'Plant', k: '3', ic: 'plant' },
+  { id: 'harvest', t: 'Harvest', k: '4', ic: 'harvest' },
+  { id: 'animal', t: 'Livestock', k: '5', ic: 'animal' },
+  { id: 'build', t: 'Build', k: '6', ic: 'build' },
+  { id: 'land', t: 'Land', k: '7', ic: 'land' },
+  { id: 'clear', t: 'Clear', k: '8', ic: 'clear' },
+];
+
+const ICON = {
+  cursor: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 3l6.5 16 2.2-6.4 6.3-2.3z"/></svg>',
+  till: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 20c4-2 4-7 7-9s6 1 7-3"/><path d="M14 3l7 7"/><path d="M17 3l4 4"/></svg>',
+  plant: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 21V10"/><path d="M12 10C8 10 5 7 5 4c4 0 7 3 7 6z"/><path d="M12 13c4 0 7-3 7-6-4 0-7 3-7 6z"/></svg>',
+  harvest: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="9" cy="9" r="4"/><path d="M12 12l7 7"/></svg>',
+  animal: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="13" r="6"/><path d="M8 8l-1.5-3M16 8l1.5-3M9 12h.01M15 12h.01"/></svg>',
+  build: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 21V10l8-6 8 6v11"/><path d="M9 21v-6h6v6"/></svg>',
+  clear: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4.5 7h15"/><path d="M9 7V4.5h6V7"/><path d="M6.5 7l1 13h9l1-13"/></svg>',
+  land: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 8.5l9-4.5 9 4.5-9 4.5z"/><path d="M3 14l9 4.5 9-4.5"/></svg>',
+  close: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 6l12 12M18 6L6 18"/></svg>',
+};
+
+const Game = {
+  R: null,
+  tool: 'select', sub: null, rot: 0,
+  hoverTile: null, hoverPoint: null, hoverBuilding: null, hoverAnimal: null, hoverPlot: null,
+  selected: null,
+  mouse: { x: 0, y: 0, down: false, btn: 0, moved: 0 },
+  speed: 1,
+  saveKey: 'planetfarm_save',
+
+  init() {
+    const cv = document.getElementById('gl');
+    this.R = new Renderer(cv, {});
+    this.R.resize();
+    window.addEventListener('resize', () => this.R.resize());
+    this.bindInput();
+    UI.init();
+    Menu.show();
+  },
+
+  newFarm(mode, scenario) {
+    WORLD.generate(pick(FARM_MAPS).id);
+    Farm.reset(mode, scenario);
+    Goals.start(scenario);
+    Cam.init(0, 0);
+    Cam.distT = Cam.dist = 70; Cam.yaw = Cam.yawS = -2.05; Cam.pitch = Cam.pitchS = 0.66;
+    const fh = new FarmBuilding({ id: 'farmhouse', name: 'Farmhouse', w: 5, d: 4 }, (N >> 1) - 2, (N >> 1) - 2, 0);
+    fh.x = 0; fh.z = -1 * TILE; fh.y = WORLD.tileH(N >> 1, N >> 1); fh.updateMatrix();
+    Farm.buildings.push(fh);
+    this.tool = 'select'; this.sub = null; this.selected = null;
+    document.getElementById('hud').style.display = 'flex';
+    document.getElementById('toolbar').style.display = 'flex';
+    Game.setTool('select');
+    UI.notify(mode === 'sandbox' ? 'Sandbox' : scenario.name,
+      mode === 'sandbox' ? 'Unlimited funds. Till, plant and build whatever you like.' : scenario.blurb, 'good');
+  },
+
+  update(dt) {
+    Cam.update(dt);
+    Time.update(dt);
+    for (const a of Farm.animals) a.update(dt);
+    if (WORLD.dirty) WORLD.buildMesh(this.R);
+  },
+
+  updateHover() {
+    const ray = Cam.rayDir(this.R, this.mouse.x, this.mouse.y);
+    this.hoverTile = null; this.hoverPoint = null; this.hoverBuilding = null; this.hoverAnimal = null; this.hoverPlot = null;
+    if (!ray) return;
+    // coarse ray march against the height field, then refine with the ground plane
+    let t = 0, found = null;
+    for (let step = 0; step < 260; step++) {
+      t += 2.2;
+      const px = ray.o.x + ray.d.x * t, py = ray.o.y + ray.d.y * t, pz = ray.o.z + ray.d.z * t;
+      if (Math.abs(px) > WORLD.half || Math.abs(pz) > WORLD.half) { if (found) break; else continue; }
+      const gy = WORLD.hAt(px, pz);
+      if (py <= gy + 1) { found = { x: px, y: gy, z: pz }; break; }
+    }
+    if (!found) return;
+    this.hoverPoint = found;
+    this.hoverTile = { i: WORLD.ti(found.x), j: WORLD.tj(found.z) };
+    // nearest building / animal within a small screen-space-ish world radius
+    let bestB = null, bdB = 3.2;
+    for (const b of Farm.buildings) { const d = dist(found.x, found.z, b.x, b.z); if (d < bdB) { bdB = d; bestB = b; } }
+    this.hoverBuilding = bestB;
+    let bestA = null, bdA = 1.6;
+    for (const a of Farm.animals) { const d = dist(found.x, found.z, a.x, a.z); if (d < bdA) { bdA = d; bestA = a; } }
+    this.hoverAnimal = bestA;
+    if (this.hoverTile) this.hoverPlot = Farm.plotAt(this.hoverTile.i, this.hoverTile.j);
+  },
+
+  setTool(id) {
+    this.tool = id; this.sub = null;
+    document.querySelectorAll('.tool').forEach(d => d.classList.toggle('on', d.dataset.id === id));
+    if (id === 'plant') UI.openPlantPicker();
+    else if (id === 'animal') UI.openAnimalPicker();
+    else if (id === 'build') UI.openBuildPicker();
+    else UI.closeBuild();
+  },
+
+  tileLine(i0, j0, i1, j1) {
+    const pts = [];
+    const di = Math.abs(i1 - i0), dj = Math.abs(j1 - j0);
+    const steps = Math.max(di, dj);
+    if (steps === 0) { pts.push([i1, j1]); return pts; }
+    for (let s = 0; s <= steps; s++) { const t = s / steps; pts.push([Math.round(lerp(i0, i1, t)), Math.round(lerp(j0, j1, t))]); }
+    return pts;
+  },
+
+  actOn(i, j) {
+    if (this.tool === 'till') {
+      const err = Farm.till(i, j);
+      if (!err) Audio.play('till'); else if (err === 'not-yours') this.warnOnce('Buy this land first.');
+    } else if (this.tool === 'plant' && this.sub) {
+      const err = Farm.plant(this.sub, i, j);
+      if (!err) Audio.play('plant'); else this.warnOnce(err);
+    } else if (this.tool === 'harvest') {
+      Farm.harvestAt(i, j);
+    } else if (this.tool === 'clear') {
+      Farm.clearPlot(i, j);
+    }
+  },
+  warnOnce(msg) {
+    if (!this._warnT || Date.now() - this._warnT > 1000) { this._warnT = Date.now(); UI.notify('Cannot do that', msg, 'warn'); Audio.play('error'); }
+  },
+
+  pointerAction(isStart) {
+    if (!this.hoverTile) return;
+    const tk = this.hoverTile.i + ',' + this.hoverTile.j;
+    if (['till', 'plant', 'harvest', 'clear'].includes(this.tool)) {
+      const from = this._lastActTile && !isStart ? this._lastActTile.split(',').map(Number) : [this.hoverTile.i, this.hoverTile.j];
+      this._lastActTile = tk;
+      for (const [pi, pj] of this.tileLine(from[0], from[1], this.hoverTile.i, this.hoverTile.j)) this.actOn(pi, pj);
+    }
+  },
+
+  click() {
+    if (!this.hoverTile) return;
+    Audio.resume();
+    if (this.tool === 'select') {
+      if (this.hoverAnimal) { this.selected = this.hoverAnimal; UI.inspect({ kind: 'animal', obj: this.hoverAnimal }); return; }
+      if (this.hoverBuilding) { this.selected = this.hoverBuilding; UI.inspect({ kind: 'building', obj: this.hoverBuilding }); return; }
+      if (this.hoverPlot) { this.selected = this.hoverPlot; UI.inspect({ kind: 'plot', obj: this.hoverPlot }); return; }
+      this.selected = null; UI.closeInspector();
+    } else if (this.tool === 'land') {
+      const pi = Math.floor(this.hoverTile.i / PLOT), pj = Math.floor(this.hoverTile.j / PLOT);
+      const cost = Land.price(pi, pj);
+      const err = Land.buy(pi, pj);
+      if (err) this.warnOnce(err); else { Audio.play('cash'); UI.notify('Land purchased', 'New plot added to the farm — ' + money(cost) + ' well spent.', 'money'); }
+    } else if (this.tool === 'animal' && this.sub) {
+      const def = ANIMALS.find(a => a.id === this.sub);
+      const b = Farm.buildings.find(x => x.def.houses === def.home && dist(this.hoverPoint.x, this.hoverPoint.z, x.x, x.z) < 8);
+      if (!b) { this.warnOnce('Stand near a ' + (def.home === 'barn' ? 'barn' : 'coop') + ' to buy this animal.'); return; }
+      const err = Farm.buyAnimal(this.sub, this.hoverPoint.x + rnd(-2, 2), this.hoverPoint.z + rnd(-2, 2), def.home);
+      if (err) this.warnOnce(err); else { Audio.play('animal'); UI.notify('New arrival', 'Bought a ' + def.name + '.', 'good'); }
+    } else if (this.tool === 'build' && this.sub) {
+      const def = BUILDINGS.find(b => b.id === this.sub);
+      if (def && def.path) {
+        if (WORLD.ownsTile(this.hoverTile.i, this.hoverTile.j) && Farm.money >= def.cost) {
+          Farm.spend(def.cost);
+          WORLD.setT(this.hoverTile.i, this.hoverTile.j, T_PATH);
+          Audio.play('build');
+        } else this.warnOnce('Cannot place there.');
+        return;
+      }
+      const err = Farm.buildAt(this.sub, this.hoverTile.i, this.hoverTile.j, this.rot);
+      if (err) this.warnOnce(err); else { Audio.play('build'); UI.notify('Built', def.name + ' — ' + money(def.cost), 'money'); UI.openBuildPicker(); }
+    } else {
+      this.pointerAction(true);
+    }
+  },
+
+  demolishSelected() {
+    if (!this.selected) return;
+    if (this.selected instanceof FarmBuilding) { if (this.selected.def.id === 'farmhouse') { UI.notify('Cannot demolish', 'The farmhouse stays.', 'warn'); return; } Farm.demolishBuilding(this.selected.id); }
+    else if (this.selected instanceof Animal) { Farm.animals = Farm.animals.filter(a => a !== this.selected); UI.notify('Sold', 'Sold the animal for ' + money(this.selected.def.cost * .4 | 0) + '.', 'money'); Farm.money += this.selected.def.cost * .4 | 0; }
+    else if (this.selected instanceof CropPlant) Farm.clearPlot(this.selected.i, this.selected.j);
+    this.selected = null; UI.closeInspector();
+  },
+
+  save() {
+    try {
+      const d = {
+        v: 1, mode: Farm.mode, money: Farm.money, rep: Farm.rep,
+        day: Time.day, minute: Time.minute, seasonIndex: Time.seasonIndex, dayOfSeason: Time.dayOfSeason, weather: Time.weather,
+        mapKind: WORLD.mapKind, h: Array.from(WORLD.h).map(x => Math.round(x * 100) / 100),
+        t: Array.from(WORLD.type), land: Array.from(WORLD.land), tilled: Array.from(WORLD.tilled),
+        inventory: Farm.inventory, autoSell: Farm.autoSell, stats: Farm.stats,
+        plots: Array.from(Farm.plots.values()).map(p => ({ id: p.def.id, i: p.i, j: p.j, growDays: p.growDays, stage: p.stage, ripe: p.ripe })),
+        animals: Farm.animals.map(a => ({ id: a.def.id, x: a.x, z: a.z, home: a.home, age: a.age, mature: a.mature, happiness: a.happiness })),
+        buildings: Farm.buildings.map(b => ({ id: b.def.id, i: b.i, j: b.j, rot: b.rot })),
+        scenario: Goals.active ? Goals.active.id : null, goalDone: Goals.active ? Goals.active.goals.map(g => !!g.done) : null,
+      };
+      localStorage.setItem(this.saveKey, JSON.stringify(d));
+      UI.notify('Saved', 'Farm written to browser storage.', 'good');
+    } catch (e) { UI.notify('Save failed', String(e), 'bad'); }
+  },
+  load() {
+    try {
+      const raw = localStorage.getItem(this.saveKey);
+      if (!raw) { UI.notify('No save', 'Nothing stored yet.', 'warn'); return false; }
+      const d = JSON.parse(raw);
+      WORLD.generate(d.mapKind || 'meadow');
+      if (d.h && d.h.length === WORLD.h.length) WORLD.h.set(d.h);
+      if (d.t && d.t.length === WORLD.type.length) WORLD.type.set(d.t);
+      if (d.land && d.land.length === WORLD.land.length) WORLD.land.set(d.land);
+      if (d.tilled && d.tilled.length === WORLD.tilled.length) WORLD.tilled.set(d.tilled);
+      Land.ownedPlots.fill(0);
+      for (let pj = 0; pj < PLOTS; pj++) for (let pi = 0; pi < PLOTS; pi++) {
+        let owned = true;
+        for (let jj = pj * PLOT; jj < Math.min(N, (pj + 1) * PLOT) && owned; jj++)
+          for (let ii = pi * PLOT; ii < Math.min(N, (pi + 1) * PLOT) && owned; ii++)
+            if (WORLD.land[jj * N + ii] !== 1) owned = false;
+        if (owned) { Land.ownedPlots[Land.idx(pi, pj)] = 1; Land.bought++; }
+      }
+      Farm.reset(d.mode, null);
+      Farm.money = d.money; Farm.rep = d.rep || 0;
+      Farm.inventory = d.inventory || {}; Farm.autoSell = !!d.autoSell; Farm.stats = d.stats || { cropsHarvested: 0, animalsProduced: 0 };
+      Time.day = d.day || 1; Time.minute = d.minute || 480; Time.seasonIndex = d.seasonIndex || 0; Time.dayOfSeason = d.dayOfSeason || 0; Time.weather = d.weather || 'sunny';
+      Farm.buildings = (d.buildings || []).map(b => {
+        const def = b.id === 'farmhouse' ? { id: 'farmhouse', name: 'Farmhouse', w: 5, d: 4 } : BUILDINGS.find(x => x.id === b.id);
+        const fb = new FarmBuilding(def, b.i, b.j, b.rot);
+        if (b.id === 'farmhouse') { fb.x = 0; fb.z = -TILE; fb.y = WORLD.tileH(N >> 1, N >> 1); fb.updateMatrix(); }
+        for (let jj = b.j; jj < b.j + def.d; jj++) for (let ii = b.i; ii < b.i + def.w; ii++) WORLD.setOwn(ii, jj, fb.id);
+        return fb;
+      });
+      Farm.plots = new Map();
+      for (const p of (d.plots || [])) {
+        const def = CROPS.find(c => c.id === p.id); if (!def) continue;
+        const cp = new CropPlant(def, p.i, p.j);
+        cp.growDays = p.growDays; cp.stage = p.stage; cp.ripe = p.ripe;
+        Farm.plots.set(Farm.key(p.i, p.j), cp);
+      }
+      Farm.animals = (d.animals || []).map(a => {
+        const def = ANIMALS.find(x => x.id === a.id); if (!def) return null;
+        const an = new Animal(def, a.x, a.z, a.home);
+        an.age = a.age; an.mature = a.mature; an.happiness = a.happiness;
+        return an;
+      }).filter(Boolean);
+      const sc = d.scenario ? FARM_SCENARIOS.find(x => x.id === d.scenario) : null;
+      Goals.start(sc);
+      if (sc && d.goalDone && Goals.active) Goals.active.goals.forEach((g, i) => g.done = !!d.goalDone[i]);
+      WORLD.dirty = true;
+      document.getElementById('hud').style.display = 'flex';
+      document.getElementById('toolbar').style.display = 'flex';
+      Game.setTool('select');
+      UI.notify('Loaded', 'Farm restored.', 'good');
+      return true;
+    } catch (e) { UI.notify('Load failed', String(e), 'bad'); return false; }
+  },
+};
+
+Object.assign(Game, {
+  drawScene(R, depthPass) {
+    R.useProgram(depthPass ? R.progDep : R.progMain, depthPass);
+    R.draw(WORLD.mesh);
+    for (const b of Farm.buildings) R.draw(b.mesh(), b.matrix);
+    for (const p of Farm.plots.values()) R.draw(p.mesh(), p.matrix);
+    for (const a of Farm.animals) R.draw(a.mesh(), a.matrix);
+    if (!depthPass && this.selected) {
+      const o = this.selected;
+      const emissive = .35 + Math.sin(performance.now() * .006) * .12;
+      if (o.mesh) R.draw(o.mesh(), o.matrix, { emissive, tint: [1.2, 1.3, 1.1] });
+    }
+  },
+
+  render() {
+    const R = this.R;
+    const hour = Time.hour() + (Time.minute % 60) / 60;
+    const sunAng = (hour / 24) * TAU - PI / 2;
+    const elev = Math.sin((hour - 6) / 12 * PI);
+    const night = clamp(-elev * 2.2, 0, 1);
+    const dawn = clamp(1 - Math.abs(hour - 6.8) / 1.8, 0, 1) + clamp(1 - Math.abs(hour - 18.6) / 2.0, 0, 1);
+    V3.set(R.sun.dir, Math.cos(sunAng) * .55, Math.max(.06, elev), Math.sin(sunAng) * .35);
+    V3.norm(R.sun.dir, R.sun.dir);
+    const warm = clamp(dawn, 0, 1);
+    const overcast = Time.weather !== 'sunny' ? (Time.weather === 'storm' ? .85 : .55) : 0;
+    R.sun.col = [
+      lerp(lerp(1.0, 1.0, warm), 0.30, night) * (1 - overcast * .5),
+      lerp(lerp(0.97, 0.74, warm), 0.34, night) * (1 - overcast * .4),
+      lerp(lerp(0.86, 0.50, warm), 0.52, night) * (1 - overcast * .3)];
+    R.sky = [lerp(.42, .13, night), lerp(.58, .15, night), lerp(.42, .24, night)];
+    R.gnd = [lerp(.24, .09, night), lerp(.22, .08, night), lerp(.15, .10, night)];
+    this.nightGlow = night;
+    const skyTop = [lerp(.20, .02, night), lerp(.48, .04, night), lerp(.82, .12, night)];
+    const skyMid = [lerp(.55, .05, night) + warm * .24, lerp(.75, .07, night) + warm * .12, lerp(.90, .17, night)];
+    const skyBot = [lerp(.80, .09, night) + warm * .16, lerp(.86, .10, night) - warm * .08, lerp(.78, .18, night) - warm * .18];
+    R.fogCol = [lerp(skyBot[0], skyMid[0], .5), lerp(skyBot[1], skyMid[1], .5), lerp(skyBot[2], skyMid[2], .5)];
+    R.fogDens = 0.0026 + night * 0.0016 + overcast * 0.0018;
+    R.quality = { ao: .9, outline: .65, bloom: .35 + night * .6 };
+    R.cloud = overcast > 0 ? .6 : .3;
+
+    Cam.apply(R);
+    R.setSunMatrix(Cam.dx, Cam.dz, clamp(Cam.dist * 1.4, 45, 130));
+    R.beginShadow();
+    this.drawScene(R, true);
+    R.endShadow();
+
+    const posted = R.beginPost();
+    R.clearMain();
+    const sp = R.projectToScreen(Cam.eye.x + R.sun.dir.x * 300, Cam.eye.y + R.sun.dir.y * 300, Cam.eye.z + R.sun.dir.z * 300);
+    const onScreen = sp.z > 0;
+    R.skyTime = performance.now() / 1000;
+    R.drawSky(skyTop, skyMid, skyBot, [onScreen ? sp.x * .5 + .5 : -5, onScreen ? sp.y * .5 + .5 : -5],
+      clamp(elev * 2 + .2, 0, 1), night, night > .5 ? [.7, .78, .95] : [1, .92, .72]);
+
+    this.drawScene(R, false);
+
+    // hover tile highlight
+    if (this.hoverTile && this.tool !== 'select') {
+      const gl = R.gl;
+      gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA); gl.depthMask(false); gl.disable(gl.DEPTH_TEST);
+      const g = new Geo();
+      const okColor = ['till', 'plant', 'harvest', 'clear'].includes(this.tool) ? 0x8fd97a : 0xf2d060;
+      const y = WORLD.tileH(this.hoverTile.i, this.hoverTile.j) + .06;
+      g.box(WORLD.wx(this.hoverTile.i), y, WORLD.wz(this.hoverTile.j), TILE - .3, .05, TILE - .3, hex(okColor));
+      const m = this.R.makeMesh(g);
+      R.draw(m, null, { alpha: .55, emissive: .8 });
+      m.dispose();
+      gl.enable(gl.DEPTH_TEST); gl.depthMask(true); gl.disable(gl.BLEND);
+    }
+    if (posted) R.endPost(night);
+  },
+});
+
+let _last = performance.now();
+function frame(now) {
+  const dt = Math.min(.05, (now - _last) / 1000);
+  _last = now;
+  try { frameBody(dt); }
+  catch (e) {
+    if (!frame._warned) { frame._warned = true; console.error('frame error', e); try { UI.notify('Hiccup', 'Something went wrong on one frame. The game is still running.', 'warn'); } catch (_) { } }
+  }
+  requestAnimationFrame(frame);
+}
+function frameBody(dt) {
+  if (!Menu.active) {
+    Game.update(dt);
+    Game.render();
+    UI.updateHUD();
+  }
+}
+
+Object.assign(Game, {
+  bindInput() {
+    const cv = this.R.cv;
+    cv.addEventListener('contextmenu', e => e.preventDefault());
+    cv.addEventListener('pointerdown', e => {
+      Audio.resume();
+      cv.setPointerCapture(e.pointerId);
+      this.mouse.down = true; this.mouse.btn = e.button;
+      this.mouse.x = e.clientX; this.mouse.y = e.clientY; this.mouse.moved = 0;
+      this._lastActTile = null;
+      this.updateHover();
+      if (e.button !== 0) Cam.beginDrag(this.R, e.clientX, e.clientY, e.button === 1 || e.ctrlKey || e.altKey);
+      if (e.button === 0) this.pointerAction(true);
+    });
+    cv.addEventListener('pointermove', e => {
+      const dx = e.clientX - this.mouse.x, dy = e.clientY - this.mouse.y;
+      this.mouse.x = e.clientX; this.mouse.y = e.clientY;
+      if (this.mouse.down) this.mouse.moved += Math.abs(dx) + Math.abs(dy);
+      this.updateHover();
+      if (this.mouse.down && (this.mouse.btn === 2 || this.mouse.btn === 1)) Cam.dragTo(this.R, e.clientX, e.clientY, dx, dy);
+      else if (this.mouse.down && this.mouse.btn === 0) this.pointerAction(false);
+    });
+    cv.addEventListener('pointerup', e => {
+      if (this.mouse.down && this.mouse.btn === 0 && this.mouse.moved < 6) this.click();
+      this.mouse.down = false; Cam.endDrag();
+    });
+    cv.addEventListener('pointercancel', () => { this.mouse.down = false; Cam.endDrag(); });
+    cv.addEventListener('wheel', e => { e.preventDefault(); Cam.zoom(e.deltaY, this.hoverPoint); }, { passive: false });
+
+    window.addEventListener('keydown', e => {
+      if (Menu.active) return;
+      const tag = document.activeElement && document.activeElement.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+      const k = e.key.toLowerCase();
+      if (e.ctrlKey || e.metaKey) {
+        if (k === 's') { e.preventDefault(); this.save(); return; }
+        if (k === 'l') { e.preventDefault(); this.load(); return; }
+      }
+      if (k === 'escape') { UI.closeModal(); UI.closeBuild(); Game.setTool('select'); this.selected = null; UI.closeInspector(); return; }
+      if (k === 'r') { this.rot = (this.rot + 1) % 4; return; }
+      if (k === 'q') { Cam.rotateBy(-1); return; }
+      if (k === 'e') { Cam.rotateBy(1); return; }
+      if (k === ' ') { e.preventDefault(); this.speed = this.speed ? 0 : 1; return; }
+      const tdef = TOOLS.find(t => t.k === e.key);
+      if (tdef) { Game.setTool(tdef.id); return; }
+    });
+  },
+});
+
+/* ============================================================================
+   SECTION 15 — UI: HUD, panels, notifications, modal
+   ========================================================================== */
+const $ = (s) => document.querySelector(s);
+const el = (tag, cls, html) => { const d = document.createElement(tag); if (cls) d.className = cls; if (html !== undefined) d.innerHTML = html; return d; };
+
+const UI = {
+  goalsUserHidden: false,
+  init() {
+    const tb = $('#toolbar');
+    for (const t of TOOLS) {
+      const d = el('div', 'tool', `${ICON[t.ic] || ''}<span class="t">${t.t}</span><span class="key">${t.k}</span>`);
+      d.onclick = () => Game.setTool(t.id);
+      d.dataset.id = t.id;
+      tb.appendChild(d);
+    }
+    document.getElementById('goals').classList.add('show');
+    window.addEventListener('keydown', e => {
+      if (Menu.active) return;
+      if (e.key.toLowerCase() === 'g') this.toggleGoals();
+      if (e.key.toLowerCase() === 'delete' || e.key.toLowerCase() === 'backspace') Game.demolishSelected();
+    });
+  },
+  toggleGoals(force) {
+    const p = document.getElementById('goals');
+    const show = force !== undefined ? force : !p.classList.contains('show');
+    p.classList.toggle('show', show);
+    this.goalsUserHidden = !show;
+  },
+  notifyLog: [],
+  notify(title, body, cls) {
+    const n = el('div', 'note ' + (cls || ''), `<div class="nt">${esc(title)}</div><div class="nb">${esc(body)}</div>`);
+    $('#notif').appendChild(n);
+    setTimeout(() => { n.classList.add('out'); setTimeout(() => n.remove(), 300); }, 5000);
+    while ($('#notif').children.length > 6) $('#notif').removeChild($('#notif').firstChild);
+    this.notifyLog.push({ title, body, day: Time.day });
+    if (this.notifyLog.length > 150) this.notifyLog.shift();
+  },
+  updateHUD() {
+    const hud = document.getElementById('hud');
+    const hh = String(Time.hour()).padStart(2, '0'), mm = String(Time.minute % 60 | 0).padStart(2, '0');
+    const wIcon = Time.weather === 'sunny' ? '☀️' : Time.weather === 'rain' ? '🌧️' : '⛈️';
+    hud.innerHTML = `
+      <div class="stat money"><span class="ico">💰</span><span class="col"><span class="lbl">Cash</span><span class="val">${money(Farm.money)}</span></span></div>
+      <div class="stat"><span class="ico">📅</span><span class="col"><span class="lbl">${Time.season.name} · Day ${Farm.mode === 'sandbox' ? Time.dayOfSeason + 1 : Time.day}</span><span class="val">${hh}:${mm}</span></span></div>
+      <div class="stat"><span class="ico">${wIcon}</span><span class="col"><span class="lbl">Weather</span><span class="val" style="text-transform:capitalize">${Time.weather}</span></span></div>
+      <div class="stat"><span class="ico">⭐</span><span class="col"><span class="lbl">Reputation</span><span class="val">${Math.round(Farm.rep)}</span></span></div>
+      <div class="stat"><span class="ico">🌱</span><span class="col"><span class="lbl">Plots</span><span class="val">${Farm.plots.size}</span></span></div>
+      <div class="stat"><span class="ico">🐄</span><span class="col"><span class="lbl">Animals</span><span class="val">${Farm.animals.length}</span></span></div>`;
+    if (Math.random() < .05) Goals.render();
+  },
+  modal(title, body) {
+    document.getElementById('modalTitle').textContent = title;
+    document.getElementById('modalBody').innerHTML = body;
+    document.getElementById('modalWrap').classList.add('show');
+  },
+  closeModal() { document.getElementById('modalWrap').classList.remove('show'); },
+
+  openPlantPicker() {
+    const bp = document.getElementById('buildPanel');
+    bp.style.display = 'flex';
+    document.getElementById('bpTitle').textContent = 'Plant a Crop';
+    document.getElementById('bpTabs').innerHTML = '';
+    const rows = CROPS.map(c => {
+      const inSeason = Farm.canPlant(c);
+      return `<div class="item ${!inSeason ? 'locked' : ''} ${Game.sub === c.id ? 'on' : ''}" onclick="UI.pickPlant('${c.id}')">
+        <div class="ic">${c.icon}</div>
+        <div style="flex:1"><span class="n">${c.name}</span><span class="c">${money(c.seedCost)} seed · sells ${money(c.sell)}${!inSeason ? ' · out of season' : ''}</span></div>
+      </div>`;
+    }).join('');
+    document.getElementById('bpBody').innerHTML = `<div style="font-size:10.5px;color:var(--dim);margin-bottom:8px;line-height:1.5">
+      Till the soil first, then click or drag across tilled ground to plant. Only in-season crops will take — build a greenhouse to plant year-round.</div>${rows}`;
+  },
+  pickPlant(id) { Game.sub = id; this.openPlantPicker(); },
+
+  openAnimalPicker() {
+    const bp = document.getElementById('buildPanel');
+    bp.style.display = 'flex';
+    document.getElementById('bpTitle').textContent = 'Buy Livestock';
+    document.getElementById('bpTabs').innerHTML = '';
+    const rows = ANIMALS.map(a => `<div class="item ${Game.sub === a.id ? 'on' : ''}" onclick="UI.pickAnimal('${a.id}')">
+      <div class="ic">${a.icon}</div>
+      <div style="flex:1"><span class="n">${a.name}</span><span class="c">${money(a.cost)} · needs a ${a.home} · gives ${PRODUCE_NAMES[a.produce]}</span></div>
+    </div>`).join('');
+    document.getElementById('bpBody').innerHTML = `<div style="font-size:10.5px;color:var(--dim);margin-bottom:8px;line-height:1.5">
+      Pick an animal, then click near a barn or coop with free space to buy one.</div>${rows}
+      <div class="btnrow"><button class="btn go" onclick="Farm.feedAll()">Feed all animals</button>
+      <button class="btn" onclick="Farm.autoSell=!Farm.autoSell;UI.notify('Auto-sell '+(Farm.autoSell?'on':'off'),'Storage '+(Farm.autoSell?'sells automatically at the end of each day.':'now piles up until you sell it yourself.'),'')">Auto-sell: ${Farm.autoSell ? 'On' : 'Off'}</button></div>`;
+  },
+  pickAnimal(id) { Game.sub = id; this.openAnimalPicker(); },
+
+  openBuildPicker() {
+    const bp = document.getElementById('buildPanel');
+    bp.style.display = 'flex';
+    document.getElementById('bpTitle').textContent = 'Build';
+    document.getElementById('bpTabs').innerHTML = '';
+    const rows = BUILDINGS.map(b => `<div class="item ${Game.sub === b.id ? 'on' : ''}" onclick="UI.pickBuild('${b.id}')">
+      <div class="ic">${b.icon}</div>
+      <div style="flex:1"><span class="n">${b.name}</span><span class="c">${money(b.cost)}${b.capacity ? ' · houses ' + b.capacity : ''}</span></div>
+    </div>`).join('');
+    document.getElementById('bpBody').innerHTML = `<div style="font-size:10.5px;color:var(--dim);margin-bottom:8px;line-height:1.5">
+      Pick a building, then click on clear ground you own. <kbd>R</kbd> rotates.</div>${rows}`;
+  },
+  pickBuild(id) { Game.sub = id; this.openBuildPicker(); },
+
+  closeBuild() { document.getElementById('buildPanel').style.display = 'none'; },
+
+  inspect(sel) {
+    const ins = document.getElementById('inspector');
+    ins.style.display = 'flex';
+    let h = '';
+    if (sel.kind === 'plot') {
+      const p = sel.obj;
+      h += `<div style="font-size:14px;font-weight:800">${p.def.icon} ${p.def.name}</div>`;
+      h += `<div class="kv"><span class="k">Status</span><span class="v">${p.ripe ? 'Ripe — ready to harvest' : 'Growing (' + Math.round(p.growDays) + '/' + p.def.growDays + ' days)'}</span></div>`;
+      h += `<div class="kv"><span class="k">Sells for</span><span class="v">${money(Farm.sellPriceFor(p.def.id))} each</span></div>`;
+      if (p.ripe) h += `<div class="btnrow"><button class="btn go" onclick="Farm.harvestAt(${p.i},${p.j});UI.closeInspector()">Harvest</button></div>`;
+      h += `<div class="btnrow"><button class="btn dan" onclick="Farm.clearPlot(${p.i},${p.j});UI.closeInspector()">Clear plot</button></div>`;
+    } else if (sel.kind === 'animal') {
+      const a = sel.obj;
+      h += `<div style="font-size:14px;font-weight:800">${a.def.icon} ${a.def.name}</div>`;
+      h += `<div class="kv"><span class="k">Age</span><span class="v">${a.mature ? 'Adult' : 'Young (' + a.age + '/' + a.def.matureDays + ' days)'}</span></div>`;
+      h += `<div class="kv"><span class="k">Happiness</span><span class="v">${Math.round(a.happiness * 100)}%</span></div>`;
+      h += `<div class="kv"><span class="k">Fed today</span><span class="v">${a.fedToday ? 'Yes' : 'No'}</span></div>`;
+      if (a.mature) h += `<div class="kv"><span class="k">Produces</span><span class="v">${PRODUCE_NAMES[a.def.produce]} every ${a.def.produceEvery} day(s)</span></div>`;
+      h += `<div class="btnrow"><button class="btn dan" onclick="Game.selected=Game.selected;Farm.animals=Farm.animals.filter(x=>x!==Game.selected);UI.closeInspector()">Sell animal</button></div>`;
+    } else if (sel.kind === 'building') {
+      const b = sel.obj;
+      h += `<div style="font-size:14px;font-weight:800">${b.def.icon || '🏚️'} ${b.def.name}</div>`;
+      if (b.def.desc) h += `<div style="font-size:11px;color:var(--dim);line-height:1.5;margin:4px 0">${b.def.desc}</div>`;
+      if (b.def.houses) {
+        const housed = Farm.animals.filter(a => a.home === b.def.houses).length;
+        h += `<div class="kv"><span class="k">Housing</span><span class="v">shared capacity, see Livestock tool</span></div>`;
+      }
+      if (b.def.id !== 'farmhouse') h += `<div class="btnrow"><button class="btn dan" onclick="Farm.demolishBuilding(${b.id});UI.closeInspector()">Demolish</button></div>`;
+    }
+    document.getElementById('insTitle').textContent = 'Inspector';
+    document.getElementById('insBody').innerHTML = h;
+  },
+  closeInspector() { document.getElementById('inspector').style.display = 'none'; Game.selected = null; },
+};
+
+/* ============================================================================
+   SECTION 16 — MAIN MENU
+   ========================================================================== */
+const Menu = {
+  active: true,
+  show() {
+    this.active = true;
+    document.getElementById('menu').classList.add('show');
+    document.getElementById('hud').style.display = 'none';
+    document.getElementById('toolbar').style.display = 'none';
+    document.getElementById('buildPanel').style.display = 'none';
+    document.getElementById('inspector').style.display = 'none';
+    document.getElementById('goals').classList.remove('show');
+    try {
+      const raw = localStorage.getItem(Game.saveKey);
+      if (raw) {
+        const d = JSON.parse(raw);
+        document.getElementById('mContinue').style.display = '';
+        document.getElementById('mContinueName').textContent = d.mode === 'sandbox' ? 'Sandbox Farm' : (FARM_SCENARIOS.find(s => s.id === d.scenario) || {}).name || 'Your Farm';
+        document.getElementById('mContinueDesc').textContent = 'Day ' + (d.day || 1) + ' · ' + money(d.money || 0) + ' on hand.';
+      }
+    } catch (e) { /* ignore corrupt save for the menu preview */ }
+  },
+  hide() {
+    this.active = false;
+    document.getElementById('menu').classList.remove('show');
+  },
+  scenarios() {
+    document.getElementById('mMain').classList.add('hidden');
+    document.getElementById('mMain').style.display = 'none';
+    document.getElementById('mSectionDesc') || null;
+    const w = document.getElementById('mScenarios');
+    w.style.display = 'flex';
+    w.innerHTML = FARM_SCENARIOS.map((sc, i) => `
+      <div class="mcard" onclick="Menu.begin('career',${i})">
+        <div class="mic">📜</div>
+        <div class="mtag">${sc.tag}</div>
+        <div class="mck">${sc.name}</div>
+        <div class="mcd">${sc.blurb}</div>
+        ${sc.goals.slice(0, 3).map(g => `<div style="font-size:10px;color:var(--dim)">• ${g.label}: ${g.k === 'money' ? money(g.target) : g.target}</div>`).join('')}
+        <div style="margin-top:8px;font-size:11px;font-weight:800;color:var(--accent-ink)">${money(sc.money)} to start</div>
+      </div>`).join('');
+    document.getElementById('mBack').style.display = '';
+  },
+  back() {
+    document.getElementById('mMain').classList.remove('hidden');
+    document.getElementById('mMain').style.display = '';
+    document.getElementById('mScenarios').style.display = 'none';
+    document.getElementById('mBack').style.display = 'none';
+  },
+  begin(mode, scIndex) {
+    const scenario = scIndex >= 0 ? FARM_SCENARIOS[scIndex] : null;
+    this.hide();
+    Game.newFarm(mode, scenario);
+  },
+};
+
+/* ============================================================================
+   SECTION 17 — BOOTSTRAP
+   ========================================================================== */
+window.addEventListener('load', () => {
+  Game.init();
+  Audio.init();
+  requestAnimationFrame(frame);
+  setInterval(() => { if (!Menu.active) Game.save(); }, 90000);
+});
+</script>
+</body>
+</html>
