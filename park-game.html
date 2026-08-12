@@ -2182,12 +2182,46 @@ const WORLD = {
     const c = N >> 1;
     for (let j = c + 24; j < c + 27; j++) for (let i = c - 5; i <= c + 5; i++) this.type[j * N + i] = T_ENTRY;
     for (let j = c + 18; j < c + 24; j++) for (let i = c - 2; i <= c + 2; i++) this.type[j * N + i] = T_PATH;
+    // A brand-new map invalidates every cached chunk — the arrays are the
+    // same size as before but hold completely different terrain, so the
+    // chunk diff in buildMesh must not compare against the old park's data.
+    this.chunkGeoCache = {}; this.fenceGeo = null;
+    this.prevType = null; this.prevMat = null; this.prevLand = null; this.prevH = null;
     this.dirty = true;
   },
 
-  /* Build the terrain mesh: flat-shaded quads with a hand-painted look. */
+  /* Build the terrain mesh: flat-shaded quads with a hand-painted look.
+     Chunked and diffed against the previous tile/height snapshot so an edit
+     to one path tile or one terraform brush stroke only re-generates the
+     handful of chunks it actually touched — at N=406 the naive full-map
+     rebuild ran the whole noise/shading pass (~165k tiles, several trig
+     calls each) on every single edit, which is the "long-flagged
+     performance item". Unaffected chunks keep their cached geometry and are
+     just concatenated back in. */
+  CHUNK: 29,           // 406 / 29 = 14 chunks per side, exactly
+  chunkGeoCache: {},
+  fenceGeo: null,
+  prevType: null, prevMat: null, prevLand: null, prevH: null,
+  /* Mark the chunk containing tile (i,j) dirty — and, only when the tile
+     actually sits on a chunk edge, the one or two chunks next door too.
+     Kerbs, road markings, dead-end caps, riverbanks and bridge rails all
+     read a tile's neighbours, so an edge tile's change can affect the
+     chunk across the boundary, but an edit in the middle of a chunk never
+     touches anything outside it — no reason to invalidate all eight
+     neighbours for every single edit. */
+  markChunkDirtyTile(set, i, j, nc) {
+    const CH = this.CHUNK;
+    const ci = Math.floor(i / CH), cj = Math.floor(j / CH);
+    const li = i - ci * CH, lj = j - cj * CH;
+    const dcis = li === 0 ? [-1, 0] : li === CH - 1 ? [0, 1] : [0];
+    const dcjs = lj === 0 ? [-1, 0] : lj === CH - 1 ? [0, 1] : [0];
+    for (const dci of dcis) for (const dcj of dcjs) {
+      const nci = ci + dci, ncj = cj + dcj;
+      if (nci >= 0 && nci < nc && ncj >= 0 && ncj < nc) set.add(nci + '_' + ncj);
+    }
+  },
   buildMesh(R) {
-    const g = new Geo(), W = N + 1;
+    const W = N + 1;
     const M = MAPS.find(m => m.id === this.mapKind) || MAPS[0];
     let grassA = hex(0x4a8f45), grassB = hex(0x59a04f), grassC = hex(0x3d7f3d), grassD = hex(0x69ab57);
     let rock = hex(0x6f6a62), rock2 = hex(0x857f74);
@@ -2214,8 +2248,7 @@ const WORLD = {
       { c: hex(0x4a4a4c), d: hex(0x3d3d3f), stripe: false, road: true }, // 5 road (cars)
       { c: hex(0x9c7a4e), d: hex(0x86663f), stripe: true, bridge: true }, // 6 bridge (wood)
     ];
-    for (let j = 0; j < N; j++) {
-      for (let i = 0; i < N; i++) {
+    const buildTile = (g, i, j) => {
         const t = this.type[j * N + i];
         const x0 = (i - N / 2) * TILE, x1 = x0 + TILE, z0 = (j - N / 2) * TILE, z1 = z0 + TILE;
         const y00 = this.h[j * W + i], y10 = this.h[j * W + i + 1], y01 = this.h[(j + 1) * W + i], y11 = this.h[(j + 1) * W + i + 1];
@@ -2350,27 +2383,80 @@ const WORLD = {
             }
           }
         }
+    };
+
+    const CH = this.CHUNK, nc = Math.ceil(N / CH);
+    const full = !this.prevType || this.prevType.length !== this.type.length;
+    const dirty = new Set();
+    let landChanged = full;
+    if (full) {
+      for (let cj = 0; cj < nc; cj++) for (let ci = 0; ci < nc; ci++) dirty.add(ci + '_' + cj);
+    } else {
+      for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
+        const k = j * N + i;
+        if (this.type[k] !== this.prevType[k] || this.mat[k] !== this.prevMat[k] || this.land[k] !== this.prevLand[k]) {
+          if (this.land[k] !== this.prevLand[k]) landChanged = true;
+          this.markChunkDirtyTile(dirty, i, j, nc);
+        }
+      }
+      // a height vertex is shared by up to four tiles, so it can dirty tiles
+      // in the chunk to its west/north as well as its own
+      for (let j = 0; j < W; j++) for (let i = 0; i < W; i++) {
+        if (this.h[j * W + i] === this.prevH[j * W + i]) continue;
+        const ti0 = Math.max(0, i - 1), tj0 = Math.max(0, j - 1);
+        const ti1 = Math.min(N - 1, i), tj1 = Math.min(N - 1, j);
+        this.markChunkDirtyTile(dirty, ti0, tj0, nc);
+        this.markChunkDirtyTile(dirty, ti1, tj1, nc);
       }
     }
-    // Fence along the edge of the land the park actually owns
-    const fenceC = hex(0x6c5a47);
-    for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
-      if (this.land[j * N + i] !== 1) continue;
-      const cx = this.wx(i), cz = this.wz(j);
-      for (const [di, dj] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
-        if (this.ownsTile(i + di, j + dj)) continue;
-        const ex = cx + di * TILE / 2, ez = cz + dj * TILE / 2;
-        const ax = ex - dj * TILE / 2, az = ez - di * TILE / 2;
-        const bx = ex + dj * TILE / 2, bz = ez + di * TILE / 2;
-        const ay = this.hAt(ax, az) + 1.25, by = this.hAt(bx, bz) + 1.25;
-        g.beam(ax, ay, az, bx, by, bz, .09, .11, fenceC);
-        g.beam(ax, ay - .5, az, bx, by - .5, bz, .09, .11, fenceC);
-        g.box(ax, this.hAt(ax, az), az, .17, 1.4, .17, shade(fenceC, .85));
-      }
+    if (!dirty.size && this.mesh) { this.dirty = false; return; }
+
+    for (const key of dirty) {
+      const [ci, cj] = key.split('_').map(Number);
+      const i0 = ci * CH, i1 = Math.min(N, i0 + CH);
+      const j0 = cj * CH, j1 = Math.min(N, j0 + CH);
+      const cg = new Geo();
+      for (let j = j0; j < j1; j++) for (let i = i0; i < i1; i++) buildTile(cg, i, j);
+      this.chunkGeoCache[key] = cg;
     }
+
+    const g = new Geo();
+    for (let cj = 0; cj < nc; cj++) for (let ci = 0; ci < nc; ci++) {
+      const cg = this.chunkGeoCache[ci + '_' + cj];
+      if (cg) g.merge(cg);
+    }
+
+    // Fence along the edge of the land the park actually owns — cheap
+    // compared to the terrain pass (only boundary tiles do any work), but
+    // still only recomputed when ownership actually changed.
+    if (landChanged || !this.fenceGeo) {
+      const fenceC = hex(0x6c5a47);
+      const fg = new Geo();
+      for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
+        if (this.land[j * N + i] !== 1) continue;
+        const cx = this.wx(i), cz = this.wz(j);
+        for (const [di, dj] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+          if (this.ownsTile(i + di, j + dj)) continue;
+          const ex = cx + di * TILE / 2, ez = cz + dj * TILE / 2;
+          const ax = ex - dj * TILE / 2, az = ez - di * TILE / 2;
+          const bx = ex + dj * TILE / 2, bz = ez + di * TILE / 2;
+          const ay = this.hAt(ax, az) + 1.25, by = this.hAt(bx, bz) + 1.25;
+          fg.beam(ax, ay, az, bx, by, bz, .09, .11, fenceC);
+          fg.beam(ax, ay - .5, az, bx, by - .5, bz, .09, .11, fenceC);
+          fg.box(ax, this.hAt(ax, az), az, .17, 1.4, .17, shade(fenceC, .85));
+        }
+      }
+      this.fenceGeo = fg;
+    }
+    g.merge(this.fenceGeo);
+
     if (this.mesh) this.mesh.dispose();
     this.mesh = R.makeMesh(g);
     this.dirty = false;
+    this.prevType = this.type.slice();
+    this.prevMat = this.mat.slice();
+    this.prevLand = this.land.slice();
+    this.prevH = this.h.slice();
     this.buildProps(R);
     if (typeof Game === 'undefined' || Game.groundDetail !== false) this.buildDetail(R);
     else if (this.detailMesh) { this.detailMesh.dispose(); this.detailMesh = null; }
@@ -15380,7 +15466,7 @@ const Game = {
       this.mouse.down = true; this.mouse.btn = e.button;
       this.mouse.x = e.clientX; this.mouse.y = e.clientY;
       this.mouse.sx = e.clientX; this.mouse.sy = e.clientY; this.mouse.moved = 0;
-      this._lastDelTile = null; this._lastPlaceTile = null;
+      this._lastDelTile = null; this._lastPlaceTile = null; this._lastPathTile = null;
       // resolve what is under the cursor for THIS position before acting on it
       this.updateHover();
       if (e.button !== 0) Cam.beginDrag(this.R, e.clientX, e.clientY, e.button === 1 || e.ctrlKey || e.altKey);
@@ -15567,16 +15653,36 @@ const Game = {
     }
     return best;
   },
+  /* Every tile between the last painted tile and this one, inclusive — a
+     fast drag can jump several tiles between pointermove events, and
+     without this a quick stroke leaves gaps that look like the tool only
+     half-worked (the classic "why do I have to click one at a time"). */
+  tileLine(i0, j0, i1, j1) {
+    const pts = [];
+    const di = Math.abs(i1 - i0), dj = Math.abs(j1 - j0);
+    const steps = Math.max(di, dj);
+    if (steps === 0) { pts.push([i1, j1]); return pts; }
+    for (let s = 0; s <= steps; s++) {
+      const t = s / steps;
+      pts.push([Math.round(lerp(i0, i1, t)), Math.round(lerp(j0, j1, t))]);
+    }
+    return pts;
+  },
   pointerAction(e, isStart) {
     // continuous painting for paths and terrain
     if (!this.hoverTile) return;
     const tk = this.hoverTile.i + ',' + this.hoverTile.j;
     if (UI.tool === 'delete') {
       if (tk === this._lastDelTile) return;
+      const from = this._lastDelTile && !isStart ? this._lastDelTile.split(',').map(Number) : [this.hoverTile.i, this.hoverTile.j];
       this._lastDelTile = tk;
-      this.deleteAt(this.hoverTile.i, this.hoverTile.j);
+      for (const [pi, pj] of this.tileLine(from[0], from[1], this.hoverTile.i, this.hoverTile.j)) this.deleteAt(pi, pj);
     }
-    else if (UI.tool === 'path' && UI.sub) { this.paintPath(this.hoverTile.i, this.hoverTile.j); }
+    else if (UI.tool === 'path' && UI.sub) {
+      const from = this._lastPathTile && !isStart ? this._lastPathTile.split(',').map(Number) : [this.hoverTile.i, this.hoverTile.j];
+      this._lastPathTile = tk;
+      for (const [pi, pj] of this.tileLine(from[0], from[1], this.hoverTile.i, this.hoverTile.j)) this.paintPath(pi, pj);
+    }
     else if (UI.tool === 'terrain') { this.editTerrain(this.hoverTile.i, this.hoverTile.j, e.shiftKey ? -1 : 1, e.ctrlKey, e.altKey); }
     else if (UI.tool === 'scenery' && UI.sub && UI.sub.id === 'landtheme') {
       if (tk === this._lastPlaceTile) return;
@@ -17285,6 +17391,10 @@ const Game = {
       Park.objects.length = 0; Park.coasters.length = 0; Park.guests.length = 0; Park.staff.length = 0; Park.litter.length = 0;
       Park.gate = null;
       WORLD.h.set(d.h); WORLD.type.set(d.t); WORLD.own.fill(-1);
+      // loaded terrain is a different park's data at the same array size —
+      // the chunked mesh diff must not compare it against whatever was cached
+      WORLD.chunkGeoCache = {}; WORLD.fenceGeo = null;
+      WORLD.prevType = null; WORLD.prevMat = null; WORLD.prevLand = null; WORLD.prevH = null;
       if (d.land && d.land.length === Land.ownedPlots.length) {
         Land.ownedPlots.set(d.land); Land.bought = d.bought || 0;
         WORLD.land.fill(0);
