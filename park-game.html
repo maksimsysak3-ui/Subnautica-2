@@ -15398,6 +15398,8 @@ const Game = {
     HeatMap.close(); Traffic.cars.length = 0;
     if (typeof Fireworks !== 'undefined') { Fireworks.active.length = 0; Fireworks.queue.length = 0; Fireworks.shownTonight = -1; }
     this.multiSel.length = 0; this.renderMultiSelBar(); this.undoStack.length = 0;
+    this.undoCount = 0; this.maxBulkDemolish = 0;
+    if (typeof Fireworks !== 'undefined') Fireworks.showsLaunched = 0;
     Park.objects.length = 0; Park.coasters.length = 0; Park.guests.length = 0;
     Park.staff.length = 0; Park.litter.length = 0; Park.needMechanic.length = 0;
     Park.hist.length = 0; Park.awards.length = 0;
@@ -17424,6 +17426,8 @@ const Game = {
       HeatMap.close(); Traffic.cars.length = 0;
       if (typeof Fireworks !== 'undefined') { Fireworks.active.length = 0; Fireworks.queue.length = 0; Fireworks.shownTonight = -1; }
       this.multiSel.length = 0; this.renderMultiSelBar(); this.undoStack.length = 0;
+      this.undoCount = 0; this.maxBulkDemolish = 0;
+      if (typeof Fireworks !== 'undefined') Fireworks.showsLaunched = 0;
       Park.objects.length = 0; Park.coasters.length = 0; Park.guests.length = 0; Park.staff.length = 0; Park.litter.length = 0;
       Park.gate = null;
       WORLD.h.set(d.h); WORLD.type.set(d.t); WORLD.own.fill(-1);
