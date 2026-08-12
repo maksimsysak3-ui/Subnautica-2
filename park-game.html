@@ -6678,7 +6678,8 @@ const Park = {
   mode: 'sandbox', level: 8, xp: 0,
   money: 60000,
   guests: [], staff: [], objects: [], coasters: [], litter: [],
-  rating: 0, happiness: .7, entryFee: 12, waterPassPrice: 18,
+  rating: 0, happiness: .7, entryFee: 12, waterPassPrice: 18, seasonPassPrice: 240,
+  entryToday: 0, seasonPassHolders: 0,
   time: 9 * 60, day: 1, hourF: 9,
   now: 0, speed: 1, paused: false,
   rideSpeedup: 1,
@@ -6729,6 +6730,21 @@ const Park = {
   moneyMult: 1.1,
   userMoneyMult: 1,   // player-set multiplier from Settings, stacks with research
   earn(n, cat) { n *= this.moneyMult * this.userMoneyMult; this.money += n; if (cat) this.log[cat] = (this.log[cat] || 0) + n; },
+  /* Admission used to charge every guest the same flat fee no matter how
+     many had already come through the gate that day, so a 2,000-guest day
+     at a modest fee still produced six figures of gate revenue alone —
+     a number completely disconnected from anything else in the economy.
+     Real parks that pack this full run on bulk/group pricing and season
+     passes, not one flat rate per head, so admission now softens the same
+     way: full price for the first few hundred arrivals, then a smoothly
+     diminishing effective fee as the day gets busy. It never goes below a
+     floor, so growth still pays — it just stops being unbounded. */
+  entryFeeFactor() {
+    const n = this.entryToday || 0;
+    if (n <= 400) return 1;
+    const over = n - 400;
+    return clamp(1 - Math.log(1 + over / 120) * .30, .28, 1);
+  },
 
   objAt(i, j) {
     const id = WORLD.ownerOf(i, j);
@@ -9712,7 +9728,8 @@ const UI = {
       const fair = Math.round((6 + Park.rating * .045) * tol);
       h += `<p>Guests weigh the fee against your park rating and how impressive the entrance looks.
         At rating <b>${Park.rating}</b> with ${gate.tierName().toLowerCase()}, about <b>${money(fair)}</b>
-        feels fair. ${Park.entryFee > fair * 1.35 ? '<b style="color:var(--bad)">You are charging well over that, and it is costing you arrivals.</b>' : Park.entryFee < fair * .6 ? 'You could charge more without losing anyone.' : 'That is roughly where you are.'}</p>`;
+        feels fair. ${Park.entryFee > fair * 1.35 ? '<b style="color:var(--bad)">You are charging well over that, and it is costing you arrivals.</b>' : Park.entryFee < fair * .6 ? 'You could charge more without losing anyone.' : 'That is roughly where you are.'}
+        On a busy day the effective fee also tapers off with volume — right now it's <b>${Math.round(Park.entryFeeFactor() * 100)}%</b> of sticker after ${Park.entryToday || 0} admissions today.</p>`;
       h += `<h3>Gate figures</h3>`;
       h += kv('Admissions revenue', money(Park.log.entry || 0), money((Park.log.entry || 0) / days) + ' / day');
       h += kv('Guests all time', Park.totalGuests);
@@ -10480,9 +10497,14 @@ const UI = {
       <tr><td>Hourly upkeep</td><td style="text-align:right">${money(Park.upkeepPerHour())}</td></tr>
       </table>`;
     h += `<h3>Admission</h3><div class="row"><label>Entry fee</label><input type="range" min="0" max="80" value="${Park.entryFee}" oninput="Park.entryFee=+this.value;document.getElementById('feeN').textContent='$'+this.value"><span class="num" id="feeN">$${Park.entryFee}</span></div>
-      <p style="font-size:11px">A high fee earns more per guest but fewer arrive. Guests judge the fee against your park rating.</p>
+      <p style="font-size:11px">A high fee earns more per guest but fewer arrive. Guests judge the fee against your park rating.
+      The effective fee also tapers off on a busy day (bulk/group pricing) — today's admissions are at
+      <b>${Math.round(Park.entryFeeFactor() * 100)}%</b> of the sticker price after ${Park.entryToday || 0} guests through the gate,
+      so a packed 2,000-guest day earns a lot less than fee &times; 2,000.</p>
       <div class="row"><label>Water day pass</label><input type="range" min="0" max="60" value="${Park.waterPassPrice}" oninput="Park.waterPassPrice=+this.value;document.getElementById('wpassN').textContent='$'+this.value"><span class="num" id="wpassN">$${Park.waterPassPrice}</span></div>
-      <p style="font-size:11px">Sold alongside admission, not instead of it. A guest who buys one rides every water attraction free for the rest of the day — set it to $0 to stop offering it.</p>`;
+      <p style="font-size:11px">Sold alongside admission, not instead of it. A guest who buys one rides every water attraction free for the rest of the day — set it to $0 to stop offering it.</p>
+      <div class="row"><label>Season pass</label><input type="range" min="0" max="600" step="10" value="${Park.seasonPassPrice}" oninput="Park.seasonPassPrice=+this.value;document.getElementById('spassN').textContent='$'+this.value"><span class="num" id="spassN">$${Park.seasonPassPrice}</span></div>
+      <p style="font-size:11px">A third, pricier option a small fraction of arrivals buy outright instead of a day ticket — one bigger lump sum, no daily fee (and no volume taper) for that guest's visit. Sold ${(Park.seasonPassHolders || 0).toLocaleString()} so far.</p>`;
     h += `<h3>Attractions</h3><table class="tb"><tr><th>Name</th><th>Exc</th><th>Int</th><th>Riders</th><th style="text-align:right">Revenue</th></tr>`;
     for (const a of Park.attractions()) h += `<tr><td>${esc(a.name)}</td><td>${a.excitement.toFixed(1)}</td><td>${a.intensity.toFixed(1)}</td><td>${a.ridden}</td><td style="text-align:right">${money(a.revenue)}</td></tr>`;
     h += `</table>`;
@@ -14633,6 +14655,7 @@ const Game = {
     Park.money = mode === 'sandbox' ? 5000000 : (scenario ? scenario.money : 60000);
     Park.entryFee = scenario ? scenario.fee : 12;
     Park.waterPassPrice = 18;
+    Park.seasonPassPrice = 240; Park.entryToday = 0; Park.seasonPassHolders = 0;
     WORLD.generate();
     WORLD.dirty = true; Path.dirty = true;
     this.sceneryDirty = true; Park.litterDirty = true;
@@ -16046,6 +16069,29 @@ const Game = {
      leave together — and a family's tolerance is set by its least keen
      member, which is why a park of nothing but extreme coasters empties out. */
   _groupSeq: 1,
+  /* Shared admission logic for both a normal spawn and a school-trip wave.
+     A guest either buys a Season Pass outright (a bigger one-time sum,
+     no daily entry fee at all this visit — the second pass tier the
+     admissions panel offers alongside the regular day ticket) or pays the
+     ordinary day fee, softened by Park.entryFeeFactor() so a packed day
+     doesn't scale gate revenue without limit. Returns false if the guest
+     can't afford to get in at all. */
+  admitGuest(g) {
+    if (Park.seasonPassPrice > 0 && g.cash >= Park.seasonPassPrice && Math.random() < .05) {
+      g.cash -= Park.seasonPassPrice;
+      Park.earn(Park.seasonPassPrice, 'entry');
+      g.seasonPass = true;
+      Park.seasonPassHolders = (Park.seasonPassHolders || 0) + 1;
+      Park.entryToday = (Park.entryToday || 0) + 1;
+      return true;
+    }
+    const fee = Park.entryFee * Park.entryFeeFactor();
+    if (fee > g.cash) { if (Park.gate) Park.gate.turnedAway++; return false; }
+    g.cash -= fee;
+    Park.earn(fee, 'entry');
+    Park.entryToday = (Park.entryToday || 0) + 1;
+    return true;
+  },
   spawnGuest() {
     const c = N >> 1;
     /* Smaller parties, more often. Big coach-loads arriving in lumps is what
@@ -16058,9 +16104,7 @@ const Game = {
       if (Park.guests.length >= Park.capacity) break;
       const x = WORLD.wx(c + rndi(-2, 2)) + rnd(-1.2, 1.2), z = WORLD.wz(c + 25) + rnd(-1.5, 1.5);
       const g = new Guest(x, z);
-      if (Park.entryFee > g.cash) { if (Park.gate) Park.gate.turnedAway++; continue; }
-      g.cash -= Park.entryFee;
-      Park.earn(Park.entryFee, 'entry');
+      if (!this.admitGuest(g)) continue;
       Park.totalGuests++;
       Progress.add(2);
       g.groupId = gid;
@@ -16119,9 +16163,7 @@ const Game = {
       if (Park.guests.length >= Park.capacity) break;
       const x = WORLD.wx(c + rndi(-3, 3)) + rnd(-1.5, 1.5), z = WORLD.wz(c + 25) + rnd(-2, 2);
       const g = new Guest(x, z);
-      if (Park.entryFee > g.cash) { if (Park.gate) Park.gate.turnedAway++; continue; }
-      g.cash -= Park.entryFee;
-      Park.earn(Park.entryFee, 'entry');
+      if (!this.admitGuest(g)) continue;
       Park.totalGuests++;
       Progress.add(2);
       g.groupId = gid; g.group = size;
@@ -16196,6 +16238,7 @@ const Game = {
     }
   },
   dayTick() {
+    Park.entryToday = 0;   // the admission volume discount resets every morning
     // bank yesterday's takings into the daily ledger before anything else touches Park.log
     const L = Park.log;
     const prev = Park._dayLogSnap || { ticket: 0, shop: 0, entry: 0, hotel: 0, transit: 0, wage: 0, upkeep: 0, build: 0, marketing: 0, interest: 0 };
@@ -16278,7 +16321,7 @@ const Game = {
         v: 5, n: N, mode: Park.mode, level: Park.level, xp: Park.xp,
         scenario: Goals.active ? Goals.active.id : null,
         goalDone: Goals.active ? Goals.active.goals.map(g => !!g.done) : null,
-        money: Park.money, time: Park.time, day: Park.day, fee: Park.entryFee, wpFee: Park.waterPassPrice,
+        money: Park.money, time: Park.time, day: Park.day, fee: Park.entryFee, wpFee: Park.waterPassPrice, spFee: Park.seasonPassPrice,
         h: Array.from(WORLD.h).map(x => Math.round(x * 100) / 100),
         t: Array.from(WORLD.type),
         objs: Park.objects.filter(o => o.kind !== 'gate' && o.kind !== 'tstation' && o.kind !== 'tstop' && o.kind !== 'gtower').map(o =>
@@ -16393,6 +16436,8 @@ const Game = {
       }
       Park.money = d.money; Park.time = d.time; Park.day = d.day; Park.entryFee = d.fee;
       Park.waterPassPrice = d.wpFee !== undefined ? d.wpFee : 18;
+      Park.seasonPassPrice = d.spFee !== undefined ? d.spFee : 240;
+      Park.entryToday = 0; Park.seasonPassHolders = 0;
       Park.mode = d.mode || 'sandbox';
       Park.level = d.level !== undefined ? d.level : Progress.MAXLEVEL;
       Park.xp = d.xp || 0;
