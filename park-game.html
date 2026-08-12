@@ -5808,6 +5808,16 @@ function buildGhostGeo(track, samples, ok) {
 /* Body shells the cars can wear. The chassis, wheels and restraints are the
    same; the shell over them is not, which is what makes a mine train read as
    a mine train rather than as a repainted steel one. */
+/* One-click coaster livery presets. 'Gold Chrome' is a Prestige sink
+   (def.prestige/prestigeCost work directly with the existing
+   Prestige.buy()/isUnlocked() machinery, same as landmark buildings). */
+const LIVERY_PRESETS = [
+  { id: 'liveryClassic', name: 'Classic Red', vals: { rail: 0xd94f3c, spine: 0x2f3b52, tie: 0x5a6472, car: 0xffd23f, banner: 0x2f3b52, bannerText: 0xffd76a } },
+  { id: 'liveryOcean', name: 'Ocean Blue', vals: { rail: 0x2f9fd4, spine: 0x1c2530, tie: 0x5a6472, car: 0xffffff, banner: 0x1c2530, bannerText: 0x9fd8f5 } },
+  { id: 'liveryForest', name: 'Forest Green', vals: { rail: 0x2f7a44, spine: 0x3a2c1e, tie: 0x6b5a3f, car: 0xd9c22e, banner: 0x2f3b52, bannerText: 0xa8e6a1 } },
+  { id: 'liveryGoldChrome', name: 'Gold Chrome', prestige: true, prestigeCost: 4,
+    vals: { rail: 0xd4af37, spine: 0x2b2b30, tie: 0x8a8a8a, car: 0xf5f0e0, banner: 0x1c1c1e, bannerText: 0xd4af37 } },
+];
 const TRAIN_STYLES = [
   { id: 'classic', n: 'Classic' },
   { id: 'streamlined', n: 'Streamlined' },
@@ -7117,6 +7127,11 @@ const Path = {
 const SKIN = [0xf2c9a0, 0xe8b184, 0xc98d5f, 0x8d5a35, 0x5f3a20, 0xf7dcc0];
 const SHIRT = [0xe74c3c, 0x3498db, 0x2ecc71, 0xf1c40f, 0x9b59b6, 0xe67e22, 0x1abc9c, 0xecf0f1, 0x34495e, 0xff6f91, 0x7ed6df, 0xf6b93b];
 const STAFF_UNIFORM_COLORS = [0xd94f3c, 0x3ba7d4, 0x2ecc71, 0xf1c40f, 0x9b59b6, 0xe8749b, 0x34495e, 0xff8c42];
+/* Unlocked by the Cosmetics research branch. */
+const STAFF_UNIFORM_PREMIUM = [0x1abc9c, 0x7ed6df, 0xff6f91, 0xf6b93b];
+/* A Prestige sink — one exclusive uniform colour for parks that have
+   maxed everything else out. */
+const STAFF_UNIFORM_PRESTIGE = { id: 'uniformObsidian', name: 'Obsidian & Gold', prestige: true, prestigeCost: 2, color: 0x1c1c1e };
 const PANTS = [0x2c3e50, 0x34495e, 0x7f8c8d, 0x2980b9, 0x8e44ad, 0x27ae60, 0x795548, 0x455a64];
 const HAIR = [0x2b1b0e, 0x4a2c14, 0x7a4a1e, 0xc79a3a, 0x1a1a1a, 0xa03030, 0xd9d9d9, 0x5b3a1a];
 
@@ -9610,6 +9625,21 @@ const UI = {
       if (isC) {
         const L = o.livery || {};
         h += `<h3>Livery</h3>`;
+        const cosmeticsUnlocked = !!(Park.cosmeticUnlocked && Park.cosmeticUnlocked.liveryPresets);
+        h += `<div style="font-size:11px;color:var(--dim);margin-bottom:4px">Presets — one click sets every colour below</div>`;
+        h += `<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:7px;margin-bottom:10px">`;
+        for (const p of LIVERY_PRESETS) {
+          if (p.prestige) {
+            const owned = Prestige.isUnlocked(p);
+            h += `<button class="btn" style="padding:8px 4px" onclick="UI.applyLiveryPreset(${id},'${p.id}')">
+              ${owned ? '' : '&#10022; ' + p.prestigeCost + ' Prestige &middot; '}${p.name}</button>`;
+          } else {
+            h += cosmeticsUnlocked
+              ? `<button class="btn" style="padding:8px 4px" onclick="UI.applyLiveryPreset(${id},'${p.id}')">${p.name}</button>`
+              : `<button class="btn" style="padding:8px 4px;opacity:.45" title="Unlock via Research — Cosmetics" disabled>🔒 ${p.name}</button>`;
+          }
+        }
+        h += `</div>`;
         h += swatch('Rails', 'rail', L.rail !== undefined ? L.rail : o.type.rail);
         h += swatch('Spine &amp; supports', 'spine', L.spine !== undefined ? L.spine : o.type.spine);
         h += swatch('Cross ties', 'tie', L.tie !== undefined ? L.tie : o.type.tie);
@@ -9986,6 +10016,18 @@ const UI = {
     if (o.repaint) o.repaint(); else PF.recolour(o);
     this.manage(id, 'look');
   },
+  /* One-click livery presets — same fields setLivery() sets one at a time,
+     applied together. Free ones unlock through Research; Gold Chrome is a
+     Prestige sink instead, since it's meant to be a late-game flex. */
+  applyLiveryPreset(id, presetId) {
+    const o = Park.objects.find(x => x.id === id) || Park.coasters.find(x => x.id === id);
+    const preset = LIVERY_PRESETS.find(p => p.id === presetId);
+    if (!o || !preset) return;
+    if (preset.prestige && !Prestige.isUnlocked(preset)) { if (!Prestige.buy(preset)) return; }
+    o.livery = Object.assign({}, preset.vals);
+    if (o.repaint) o.repaint(); else PF.recolour(o);
+    this.manage(id, 'look');
+  },
   setTrainStyle(id, st) {
     const c = Park.coasters.find(x => x.id === id);
     if (!c) return;
@@ -10278,11 +10320,23 @@ const UI = {
       h += `<div class="meterbox"><div class="meter"><span class="mn">Morale</span><span class="bar"><span class="fill" style="width:${o.morale * 100}%;background:${o.morale < .4 ? 'var(--bad)' : o.morale < .7 ? 'var(--warn)' : 'var(--good)'}"></span></span><span class="mv">${Math.round(o.morale * 100)}</span></div></div>`;
       h += `<div style="font-size:10.5px;color:var(--dim);margin-top:-2px">Morale drops with every finished task and recovers while idle or off shift — low morale means slower work.</div>`;
       h += `<div class="cat">Uniform</div>`;
-      h += `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px">` +
-        STAFF_UNIFORM_COLORS.map(hx => `<span onclick="Game.setStaffUniform(${o.id},${hx})"
+      const uniSwatch = (hx) => `<span onclick="Game.setStaffUniform(${o.id},${hx})"
           style="display:inline-block;width:24px;height:24px;border-radius:6px;cursor:pointer;
-          background:#${hx.toString(16).padStart(6, '0')};border:2px solid ${(o.uniformColor || o.def.color) === hx ? 'var(--accent)' : 'transparent'};box-shadow:0 0 0 1px rgba(0,0,0,.2)"></span>`).join('') +
+          background:#${hx.toString(16).padStart(6, '0')};border:2px solid ${(o.uniformColor || o.def.color) === hx ? 'var(--accent)' : 'transparent'};box-shadow:0 0 0 1px rgba(0,0,0,.2)"></span>`;
+      h += `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px">` + STAFF_UNIFORM_COLORS.map(uniSwatch).join('') + `</div>`;
+      const premiumUnlocked = !!(Park.cosmeticUnlocked && Park.cosmeticUnlocked.uniformPack);
+      h += `<div style="font-size:10.5px;color:var(--dim);margin-bottom:3px">${premiumUnlocked ? 'Premium (Research)' : 'Premium — unlock via Research: Cosmetics'}</div>`;
+      h += `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px">` +
+        (premiumUnlocked ? STAFF_UNIFORM_PREMIUM.map(uniSwatch).join('')
+          : STAFF_UNIFORM_PREMIUM.map(() => `<span style="display:inline-block;width:24px;height:24px;border-radius:6px;background:var(--panel-sunken);opacity:.5"></span>`).join('')) +
         `</div>`;
+      const pu = STAFF_UNIFORM_PRESTIGE, puOwned = Prestige.isUnlocked(pu);
+      h += `<div style="display:flex;align-items:center;gap:8px">
+        <span onclick="${puOwned ? `Game.setStaffUniform(${o.id},${pu.color})` : `Game.buyPrestigeUniform(${o.id})`}"
+          style="display:inline-block;width:24px;height:24px;border-radius:6px;cursor:pointer;
+          background:#${pu.color.toString(16).padStart(6, '0')};border:2px solid ${(o.uniformColor || o.def.color) === pu.color ? 'var(--accent)' : 'gold'};box-shadow:0 0 0 1px rgba(0,0,0,.2)"></span>
+        <span style="font-size:10.5px;color:var(--dim)">${pu.name}${puOwned ? '' : ' — &#10022; ' + pu.prestigeCost + ' Prestige'}</span>
+      </div>`;
       h += `<div class="cat">Shift</div>`;
       h += `<div class="btnrow">
         <button class="btn ${o.shift === 'always' ? 'pri' : ''}" onclick="Game.setStaffShift(${o.id},'always')">Always on</button>
@@ -12888,6 +12942,16 @@ const RESEARCH = [
   { id: 'concierge', name: 'Concierge Program', cat: 'Staff', cost: 26000, rp: 24, req: 'wellness',
     desc: 'Premium guest service lifts hotel satisfaction and nightly rates.',
     apply: () => { Park.hotelMult = (Park.hotelMult || 1) * 1.08; } },
+
+  /* ---- Cosmetics: pure flavour, no stat effect at all. A branch that
+     exists purely so there's something to spend RP and money on besides
+     multipliers — unlocks presentation options, not performance. ---- */
+  { id: 'cosmeticUniforms', name: 'Uniform Variety Pack', cat: 'Cosmetics', cost: 9000, rp: 8,
+    desc: 'Four extra uniform colours to choose from in every staff member’s inspector panel.',
+    apply: () => { Park.cosmeticUnlocked = Park.cosmeticUnlocked || {}; Park.cosmeticUnlocked.uniformPack = true; } },
+  { id: 'cosmeticLiveries', name: 'Livery Preset Pack', cat: 'Cosmetics', cost: 11000, rp: 10, req: 'cosmeticUniforms',
+    desc: 'Three one-click coaster livery presets — Classic Red, Ocean Blue, Forest Green.',
+    apply: () => { Park.cosmeticUnlocked = Park.cosmeticUnlocked || {}; Park.cosmeticUnlocked.liveryPresets = true; } },
 ];
 const Research = {
   /* Every research effect is written as Park.someMult *= x or Park.someBonus
@@ -12901,6 +12965,7 @@ const Research = {
     Park.marketingMult = 1; Park.hotelMult = 1; Park.interestMult = 1;
     Park.staffEffMult = 1; Park.happyBonus = 0;
     Park.moneyMult = 1.1;
+    Park.cosmeticUnlocked = {};
   },
   /* Highest content tier fully researched (0 if somehow none, though tier1
      is always granted). Used to gate the catalogue and preview the next
@@ -15554,6 +15619,10 @@ const Game = {
     if (!s) return;
     s.train();
     UI.entrance('staff');
+  },
+  buyPrestigeUniform(id) {
+    if (!Prestige.buy(STAFF_UNIFORM_PRESTIGE)) return;
+    this.setStaffUniform(id, STAFF_UNIFORM_PRESTIGE.color);
   },
   setStaffUniform(id, hx) {
     const s = Park.staff.find(x => x.id === id);
