@@ -1527,6 +1527,12 @@ const CROPS = [
   { id: 'sunflower', name: 'Sunflower', icon: '🌻', seedCost: 15, sell: 18, growDays: 4, seasons: ['summer'], color: 0xf2c136, tall: 1.9 },
   { id: 'cotton', name: 'Cotton', icon: '☁️', seedCost: 20, sell: 24, growDays: 5, seasons: ['summer', 'autumn'], color: 0xf2f2ea, tall: .8 },
   { id: 'grape', name: 'Grape', icon: '🍇', seedCost: 40, sell: 30, growDays: 6, regrowDays: 3, seasons: ['summer', 'autumn'], color: 0x6b3fa0, tall: 1.1, vine: true },
+  { id: 'onion', name: 'Onion', icon: '🧅', seedCost: 11, sell: 13, growDays: 3, seasons: ['spring', 'autumn'], color: 0xc9834a, tall: .32 },
+  { id: 'garlic', name: 'Garlic', icon: '🧄', seedCost: 13, sell: 16, growDays: 3, seasons: ['spring', 'autumn'], color: 0xefe6d0, tall: .3 },
+  { id: 'cabbage', name: 'Cabbage', icon: '🥦', seedCost: 14, sell: 15, growDays: 4, seasons: ['spring', 'autumn'], color: 0x8fc26a, tall: .34 },
+  { id: 'blueberry', name: 'Blueberry', icon: '🫐', seedCost: 28, sell: 10, growDays: 4, regrowDays: 2, seasons: ['summer'], color: 0x3a4f9c, tall: .5 },
+  { id: 'watermelon', name: 'Watermelon', icon: '🍉', seedCost: 32, sell: 48, growDays: 6, seasons: ['summer'], color: 0x3fa85c, tall: .4 },
+  { id: 'rice', name: 'Rice', icon: '🍚', seedCost: 10, sell: 9, growDays: 4, seasons: ['spring', 'summer'], color: 0xe8e0c8, tall: .8 },
 ];
 
 const ANIMALS = [
@@ -1536,9 +1542,12 @@ const ANIMALS = [
   { id: 'goat', name: 'Goat', icon: '🐐', cost: 700, home: 'barn', matureDays: 5, produce: 'goatmilk', produceEvery: 2, sell: 16, color: 0xe3d9c0, accent: 0x8a6a3f, size: .9 },
   { id: 'cow', name: 'Cow', icon: '🐄', cost: 1400, home: 'barn', matureDays: 7, produce: 'milk', produceEvery: 1, sell: 18, color: 0xf2ede0, accent: 0x3a2c22, size: 1.5 },
   { id: 'pig', name: 'Pig', icon: '🐖', cost: 900, home: 'barn', matureDays: 6, produce: 'truffle', produceEvery: 4, sell: 45, color: 0xe8a9a0, accent: 0xd98a80, size: 1.1 },
+  { id: 'rabbit', name: 'Rabbit', icon: '🐇', cost: 260, home: 'coop', matureDays: 2, produce: 'fur', produceEvery: 2, sell: 10, color: 0xf2ede0, accent: 0xe8a9a0, size: .4 },
+  { id: 'turkey', name: 'Turkey', icon: '🦃', cost: 420, home: 'coop', matureDays: 4, produce: 'feather', produceEvery: 2, sell: 11, color: 0x8a6a3f, accent: 0xd94f3c, size: .7 },
+  { id: 'llama', name: 'Llama', icon: '🦙', cost: 1600, home: 'barn', matureDays: 6, produce: 'finewool', produceEvery: 3, sell: 38, color: 0xe3d9c0, accent: 0x6b4a2f, size: 1.3 },
 ];
 
-const PRODUCE_NAMES = { egg: 'Eggs', feather: 'Feathers', wool: 'Wool', goatmilk: "Goat's Milk", milk: 'Milk', truffle: 'Truffles', flour: 'Flour', honey: 'Honey' };
+const PRODUCE_NAMES = { egg: 'Eggs', feather: 'Feathers', wool: 'Wool', goatmilk: "Goat's Milk", milk: 'Milk', truffle: 'Truffles', flour: 'Flour', honey: 'Honey', fur: 'Fur', finewool: 'Fine Wool', fruit: 'Orchard Fruit' };
 
 const BUILDINGS = [
   { id: 'barn', name: 'Barn', icon: '🏚️', cost: 2200, w: 4, d: 3, capacity: 8, houses: 'barn', desc: 'Shelter and feed storage for cows, pigs, sheep and goats. Each barn houses up to 8 animals.' },
@@ -1552,6 +1561,11 @@ const BUILDINGS = [
   { id: 'greenhouse', name: 'Greenhouse', icon: '🏡', cost: 3200, w: 3, d: 3, desc: 'Glass walls mean every crop you own can be planted in any season, anywhere on the farm.' },
   { id: 'fence', name: 'Fence', icon: '🚧', cost: 20, w: 1, d: 1, path: true, desc: 'Marks a pasture boundary. Cheap, and needed before animals will wander a paddock safely.' },
   { id: 'path', name: 'Path', icon: '🟫', cost: 6, w: 1, d: 1, path: true, desc: 'A walking path between beds and buildings.' },
+  { id: 'orchard', name: 'Orchard Grove', icon: '🌳', cost: 2400, w: 3, d: 3, desc: 'A stand of fruit trees that needs no tilling or replanting — it just quietly drops fruit every few days.' },
+  { id: 'toolshed', name: 'Tool Shed', icon: '🧰', cost: 1800, w: 2, d: 2, desc: 'Keeps every tool sharp and every tractor tuned — every harvest anywhere on the farm yields a little extra.' },
+  { id: 'flowerbed', name: 'Flower Bed', icon: '🌷', cost: 400, w: 2, d: 1, desc: 'Pure curb appeal. Raises farm reputation a little faster, nothing more.' },
+  { id: 'compost', name: 'Compost Bin', icon: '♻️', cost: 700, w: 1, d: 1, desc: 'Turns farm waste into cheap fertiliser — every seed on the farm costs a little less with one running.' },
+  { id: 'coldframe', name: 'Cold Frame', icon: '🧊', cost: 1100, w: 2, d: 2, desc: 'A frost-proof bed. Crops planted here keep growing even through a frost warning.' },
 ];
 
 const FARM_SCENARIOS = [
@@ -1581,6 +1595,13 @@ const FARM_SCENARIOS = [
       { k: 'crops', target: 300, label: 'Crops harvested' },
       { k: 'rep', target: 900, label: 'Farm reputation' },
       { k: 'money', target: 60000, label: 'Cash on hand' },
+    ] },
+  { id: 'wintersteading', name: 'Winter Steading', tag: 'Expert', blurb: "Start deep in a frost warning with almost nothing growing. Survive the cold, keep the animals fed and happy, and build toward a cold frame before the thaw.",
+    money: 2600, day: DAYS_PER_SEASON * 3 + 1, goals: [
+      { k: 'animals', target: 14, label: 'Animals raised' },
+      { k: 'buildings', target: 8, label: 'Buildings raised' },
+      { k: 'rep', target: 700, label: 'Farm reputation' },
+      { k: 'money', target: 35000, label: 'Cash on hand' },
     ] },
 ];
 
@@ -1641,7 +1662,7 @@ const PF = {
       const g = new Geo();
       const body = hex(def.color), accent = hex(def.accent);
       const s = def.size;
-      if (def.id === 'chicken' || def.id === 'duck') {
+      if (def.id === 'chicken' || def.id === 'duck' || def.id === 'turkey') {
         g.sphere(0, s * .4, 0, s * .32, 6, body);
         g.sphere(0, s * .62, s * .22, s * .18, 5, body);
         g.cone(0, s * .62, s * .40, .06, .12, 4, hex(0xe8a23a));
@@ -1728,6 +1749,40 @@ const PF = {
           g.cone(0, 1.8, 0, def.w * TILE * .4, 1.0, 4, hex(0xe0e8e0), 1.0, .85, .7);
           break;
         }
+        case 'orchard': {
+          const trunk = hex(0x6b4a2f), leaf = hex(0x5a9b4a);
+          for (const [ox, oz] of [[-3, -3], [3, -3], [-3, 3], [3, 3], [0, 0]]) {
+            g.cyl(ox, 0, oz, .18, 1.2, 6, trunk);
+            g.sphere(ox, 1.6, oz, .85, 6, leaf);
+          }
+          break;
+        }
+        case 'toolshed': {
+          g.box(0, 0, 0, def.w * TILE - .5, 1.5, def.d * TILE - .5, hex(0x8a8378));
+          g.box(0, 1.5, 0, def.w * TILE - .3, .4, def.d * TILE - .3, hex(0x6b4a2f), 1.05, .9, .8);
+          g.box(0, .1, def.d / 2 * TILE - .3, .9, 1.2, .05, hex(0x4a3418));
+          break;
+        }
+        case 'flowerbed': {
+          g.box(0, 0, 0, def.w * TILE - .4, .15, def.d * TILE - .4, hex(0x5a3a20));
+          for (let k = 0; k < 6; k++) {
+            const fx = (Math.random() - .5) * (def.w * TILE - .8), fz = (Math.random() - .5) * (def.d * TILE - .8);
+            const col = pick([0xd9364f, 0xf2c136, 0xf5f5f5, 0xc23a2e, 0x6b3fa0]);
+            g.sphere(fx, .3, fz, .16, 5, hex(col));
+            g.beam(fx, 0, fz, fx, .3, fz, .03, .03, hex(0x4f8f3a));
+          }
+          break;
+        }
+        case 'compost': {
+          g.cyl(0, 0, 0, .5, .8, 6, hex(0x5a3a20));
+          g.sphere(0, .85, 0, .3, 5, hex(0x4a3418));
+          break;
+        }
+        case 'coldframe': {
+          g.box(0, 0, 0, def.w * TILE - .4, .4, def.d * TILE - .4, hex(0x6b4a2f));
+          g.box(0, .4, 0, def.w * TILE - .5, .15, def.d * TILE - .5, hex(0xcfeaf2), 1.0, .9, .8);
+          break;
+        }
         default: g.box(0, 0, 0, def.w * TILE - .5, 1.2, def.d * TILE - .5, hex(0x8a6a3f));
       }
       return g;
@@ -1759,6 +1814,22 @@ const PF = {
     g.box(ax, ay, az, .13, .95, .13, shade(c, .85));
     return g;
   },
+
+  /* A simple blocky farmhand — denim overalls, a straw hat, matching the
+     low-poly boxes-and-spheres people style the coaster game uses. */
+  farmhand() {
+    return this.get('farmhand', () => {
+      const g = new Geo();
+      const overalls = hex(0x3a5a8a), skin = hex(0xe0a878), hat = hex(0xd9b23c);
+      g.box(-.16, .9, -.11, .32, .55, .22, overalls);
+      g.sphere(0, 1.55, 0, .17, 6, skin);
+      g.cyl(0, 1.62, 0, .22, .07, 8, hat);
+      g.cone(0, 1.68, 0, .16, .12, 8, hat);
+      for (const sx of [-1, 1]) g.box(sx * .12, .3, 0, .12, .6, .13, shade(overalls, .85));
+      for (const sx of [-1, 1]) g.box(sx * .22, .95, 0, .09, .4, .09, skin);
+      return g;
+    });
+  },
 };
 
 /* ============================================================================
@@ -1786,7 +1857,8 @@ class CropPlant {
   }
   harvest() {
     if (!this.ripe) return false;
-    Farm.addInventory(this.def.id, 1);
+    const bonus = Farm.hasToolshed() && Math.random() < .35 ? 1 : 0;
+    Farm.addInventory(this.def.id, 1 + bonus);
     Farm.stats.cropsHarvested++;
     if (this.def.regrowDays) { this.ripe = false; this.growDays = this.def.growDays - this.def.regrowDays; this.stage = 2; }
     else return true; // caller removes the plant and un-tills nothing (soil stays tilled)
@@ -1863,6 +1935,23 @@ class FarmBuilding {
   mesh() { return this.def.id === 'farmhouse' ? PF.farmhouse() : PF.building(this.def); }
 }
 
+/* A hired hand: no pathing AI, just a fixed post on the farm that quietly
+   does its job at the start of every day — harvest what's ripe, feed what's
+   hungry — for a daily wage. Simple by design; the point is to give players
+   with a big farm something better to do than manually click every tile. */
+const STAFF_WAGE = 45;
+class FarmStaff {
+  constructor(x, z) {
+    this.x = x; this.z = z; this.y = WORLD.hAt(x, z);
+    this.id = FarmStaff._id = (FarmStaff._id || 0) + 1;
+    this.matrix = M4.create();
+    this.bob = rnd(0, TAU);
+    this.updateMatrix();
+  }
+  updateMatrix() { M4.compose(this.matrix, this.x, this.y, this.z, 0, 0, 0, 1, 1, 1); }
+  mesh() { return PF.farmhand(); }
+}
+
 /* ============================================================================
    SECTION 11 — FARM STATE (economy, inventory, day cycle)
    ========================================================================== */
@@ -1872,7 +1961,7 @@ const esc = (s) => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt
 const Farm = {
   mode: 'sandbox', money: 1200, rep: 0,
   plots: new Map(),          // key "i,j" -> CropPlant
-  animals: [], buildings: [],
+  animals: [], buildings: [], staff: [],
   inventory: {},             // itemId -> count
   autoSell: false,
   stats: { cropsHarvested: 0, animalsProduced: 0 },
@@ -1897,6 +1986,7 @@ const Farm = {
     this.money += total;
     this.inventory[id] = 0;
     this.rep += n * .4;
+    Achievements._everSold = true;
     return total;
   },
   sellEverything() {
@@ -1909,14 +1999,23 @@ const Farm = {
   /* Beehives speed nearby crops; greenhouses lift the season restriction
      entirely once one has been built anywhere on the farm. */
   hasGreenhouse() { return this.buildings.some(b => b.def.id === 'greenhouse'); },
+  hasToolshed() { return this.buildings.some(b => b.def.id === 'toolshed'); },
+  hasCompost() { return this.buildings.some(b => b.def.id === 'compost'); },
+  nearColdFrame(x, z) { return this.buildings.some(b => b.def.id === 'coldframe' && dist2(x, z, b.x, b.z) < 6 * 6); },
   growMultAt(x, z) {
-    let m = Time.season.growMult;
+    // a cold frame shrugs off winter's frost entirely for anything planted
+    // nearby, instead of just slowing to a crawl like the open ground does
+    let m = (Time.season.frost && this.nearColdFrame(x, z)) ? 1.0 : Time.season.growMult;
     for (const b of this.buildings) {
       if (b.def.id === 'beehive' && dist2(x, z, b.x, b.z) < 8 * 8) m *= 1.25;
     }
     return m;
   },
-  canPlant(cropDef) { return this.mode === 'sandbox' || this.hasGreenhouse() || cropDef.seasons.includes(Time.season.id); },
+  canPlant(cropDef) {
+    if (this.mode === 'sandbox' || this.hasGreenhouse() || cropDef.seasons.includes(Time.season.id)) return true;
+    return false;
+  },
+  seedCostFor(def) { return this.hasCompost() ? Math.round(def.seedCost * .8) : def.seedCost; },
 
   till(i, j) {
     if (!WORLD.ownsTile(i, j)) return 'not-yours';
@@ -1930,8 +2029,9 @@ const Farm = {
     if (WORLD.t(i, j) !== T_SOIL || !WORLD.tilled[j * N + i]) return 'Till this tile first.';
     if (this.plotAt(i, j)) return 'Something is already planted here.';
     if (!this.canPlant(def)) return def.name + " doesn't grow in " + Time.season.name + ' (build a greenhouse to plant anything, anytime).';
-    if (this.money < def.seedCost) return 'Not enough money for seed (' + money(def.seedCost) + ').';
-    this.spend(def.seedCost);
+    const cost = this.seedCostFor(def);
+    if (this.money < cost) return 'Not enough money for seed (' + money(cost) + ').';
+    this.spend(cost);
     this.plots.set(this.key(i, j), new CropPlant(def, i, j));
     return null;
   },
@@ -1969,6 +2069,38 @@ const Farm = {
     UI.notify('Fed', 'Fed ' + fed + ' animal' + (fed === 1 ? '' : 's') + '.', 'good');
   },
 
+  hireCost() { return 400 + this.staff.length * 250; },
+  hireStaff(x, z) {
+    const cost = this.hireCost();
+    if (this.money < cost) return 'Not enough money to hire (' + money(cost) + ').';
+    this.spend(cost);
+    this.staff.push(new FarmStaff(x, z));
+    return null;
+  },
+  fireStaff(id) {
+    const s = this.staff.find(x => x.id === id);
+    if (!s) return;
+    this.staff = this.staff.filter(x => x.id !== id);
+    UI.notify('Let go', 'One fewer wage to pay each day.', '');
+  },
+  /* Run automatically at the start of every day for every hired hand:
+     harvest whatever is ripe, then feed whichever animals are hungriest
+     with whatever grain is on hand. Farmhands don't move or path — they
+     work the whole farm at once, which is the trade-off for not having to
+     babysit every tile yourself once the farm gets big. */
+  staffWork() {
+    if (!this.staff.length) return;
+    let harvested = 0;
+    for (const p of this.plots.values()) { if (p.ripe) { const remove = p.harvest(); if (remove) this.plots.delete(this.key(p.i, p.j)); harvested++; } }
+    let fed = 0;
+    const feed = this.inventory.grain || 0;
+    for (const a of this.animals) { if (!a.fedToday && feed - fed > 0) { a.fedToday = true; fed++; } }
+    if (fed) this.inventory.grain -= fed;
+    const wage = this.staff.length * STAFF_WAGE;
+    this.money -= wage;
+    if (harvested || fed) UI.notify('Farmhands', `Harvested ${harvested}, fed ${fed} animal${fed === 1 ? '' : 's'} — wages cost ${money(wage)}.`, '');
+  },
+
   buildAt(defId, i, j, rot) {
     const def = BUILDINGS.find(b => b.id === defId); if (!def) return 'unknown building';
     if (this.money < def.cost) return 'Not enough money (' + money(def.cost) + ').';
@@ -1997,6 +2129,7 @@ const Farm = {
   dayTick() {
     // soil dries unless it rained
     const rained = Time.weather !== 'sunny';
+    this.staffWork();
     for (const p of this.plots.values()) p.dayTick();
     for (const a of this.animals) a.dayTick();
     // windmill: mills stored wheat into flour
@@ -2007,12 +2140,18 @@ const Farm = {
     }
     // beehive: passive honey
     for (const b of this.buildings) if (b.def.id === 'beehive') this.addInventory('honey', 1);
+    // orchard grove: passive fruit, no tilling or replanting needed
+    for (const b of this.buildings) if (b.def.id === 'orchard') this.addInventory('fruit', 2);
     // threshing: 1 in 3 harvested wheat auto-converts to grain for animal feed
     if (this.inventory.wheat > 3) { const take = Math.floor(this.inventory.wheat / 4); this.inventory.wheat -= take; this.addInventory('grain', take * 3); }
     // price wobble
     for (const c of CROPS) this.priceWobble[c.id] = clamp((this.priceWobble[c.id] || 1) + rnd(-.06, .06), .7, 1.4);
     if (this.autoSell) this.sellEverything();
-    this.rep = Math.max(0, this.rep + (this.plots.size + this.animals.length) * .15);
+    // flower beds are pure curb appeal — a small steady boost on top of the
+    // usual activity-driven reputation gain
+    const flowerBonus = this.buildings.filter(b => b.def.id === 'flowerbed').length * .5;
+    this.rep = Math.max(0, this.rep + (this.plots.size + this.animals.length) * .15 + flowerBonus);
+    Achievements.update();
     Goals.update();
   },
 
@@ -2023,17 +2162,75 @@ const Farm = {
     this.plots = new Map();
     this.animals = [];
     this.buildings = [];
+    this.staff = [];
     this.inventory = {};
     this.autoSell = false;
     this.stats = { cropsHarvested: 0, animalsProduced: 0 };
     this.priceWobble = {};
-    Time.reset(1);
+    Achievements.unlocked = []; Achievements._seasonsSeen = new Set(); Achievements._winterDays = 0; Achievements._everSold = false;
+    Time.reset(scenario && scenario.day ? scenario.day : 1);
   },
 };
 
 /* ============================================================================
    SECTION 12 — ALMANAC GOALS (career briefs)
    ========================================================================== */
+/* ============================================================================
+   SECTION 12b — ACHIEVEMENTS
+   ========================================================================== */
+const Achievements = {
+  list: [
+    { id: 'firstTill', label: 'Breaking Ground', cat: 'Crops', desc: 'Till your first tile of soil.', reward: 100, check: () => WORLD.tilled.some(v => v) },
+    { id: 'firstHarvest', label: 'First Harvest', cat: 'Crops', desc: 'Harvest your first crop.', reward: 150, check: () => Farm.stats.cropsHarvested >= 1 },
+    { id: 'harvest50', label: 'Green Thumb', cat: 'Crops', desc: 'Harvest 50 crops in total.', reward: 800, check: () => Farm.stats.cropsHarvested >= 50 },
+    { id: 'harvest300', label: 'Master Grower', cat: 'Crops', desc: 'Harvest 300 crops in total.', reward: 3000, check: () => Farm.stats.cropsHarvested >= 300 },
+    { id: 'allSeasons', label: 'Four Seasons', cat: 'Crops', desc: 'Have something growing in every season of a full year.', reward: 1200, check: () => (Achievements._seasonsSeen || new Set()).size >= 4 },
+    { id: 'firstAnimal', label: 'New Arrival', cat: 'Livestock', desc: 'Buy your first animal.', reward: 150, check: () => Farm.animals.length >= 1 },
+    { id: 'animals10', label: 'Small Menagerie', cat: 'Livestock', desc: 'Own 10 animals at once.', reward: 1000, check: () => Farm.animals.length >= 10 },
+    { id: 'animals25', label: 'Full Ranch', cat: 'Livestock', desc: 'Own 25 animals at once.', reward: 4000, check: () => Farm.animals.length >= 25 },
+    { id: 'oneOfEach', label: "Noah's Farm", cat: 'Livestock', desc: 'Own at least one of every animal type.', reward: 2500, check: () => ANIMALS.every(a => Farm.animals.some(x => x.def.id === a.id)) },
+    { id: 'happyBarn', label: 'Happy Herd', cat: 'Livestock', desc: 'Get 5 animals to full happiness at once.', reward: 900, check: () => Farm.animals.filter(a => a.happiness >= .99).length >= 5 },
+    { id: 'firstBuild', label: 'Groundbreaking', cat: 'Buildings', desc: 'Put up your first building.', reward: 150, check: () => Farm.buildings.length >= 2 },
+    { id: 'buildings8', label: 'Homestead', cat: 'Buildings', desc: 'Have 8 buildings standing.', reward: 1500, check: () => Farm.buildings.length >= 8 },
+    { id: 'oneOfEachBuilding', label: 'Full Toolkit', cat: 'Buildings', desc: 'Build one of every building type.', reward: 3500, check: () => BUILDINGS.every(b => Farm.buildings.some(x => x.def.id === b.id)) },
+    { id: 'landgrab', label: 'Land Baron', cat: 'Buildings', desc: 'Own 30 land plots.', reward: 1800, check: () => Land.bought >= 30 },
+    { id: 'money10k', label: 'In the Black', cat: 'Economy', desc: 'Have $10,000 cash on hand.', reward: 500, check: () => Farm.money >= 10000 },
+    { id: 'money100k', label: 'Comfortable', cat: 'Economy', desc: 'Have $100,000 cash on hand.', reward: 3000, check: () => Farm.money >= 100000 },
+    { id: 'rep500', label: 'Local Favourite', cat: 'Economy', desc: 'Reach 500 farm reputation.', reward: 1200, check: () => Farm.rep >= 500 },
+    { id: 'rep1000', label: 'Renowned Farm', cat: 'Economy', desc: 'Reach 1,000 farm reputation.', reward: 3500, check: () => Farm.rep >= 1000 },
+    { id: 'firstSell', label: 'Open for Business', cat: 'Economy', desc: 'Sell something at the market.', reward: 100, check: () => Achievements._everSold },
+    { id: 'day30', label: 'A Month In', cat: 'Milestones', desc: 'Run the farm for 30 days.', reward: 1500, check: () => Time.day >= 30 },
+    { id: 'day100', label: 'A Season Veteran', cat: 'Milestones', desc: 'Run the farm for 100 days.', reward: 5000, check: () => Time.day >= 100 },
+    { id: 'wintersurvivor', label: 'Weathered the Frost', cat: 'Milestones', desc: 'Keep the farm running through a full winter.', reward: 2000, check: () => (Achievements._winterDays || 0) >= DAYS_PER_SEASON },
+  ],
+  unlocked: [],
+  _seasonsSeen: null, _winterDays: 0, _everSold: false,
+  update() {
+    if (!this._seasonsSeen) this._seasonsSeen = new Set();
+    if (Farm.plots.size > 0) this._seasonsSeen.add(Time.season.id);
+    if (Time.season.frost) this._winterDays = (this._winterDays || 0) + 1;
+    for (const a of this.list) {
+      if (this.unlocked.includes(a.id)) continue;
+      if (a.check()) {
+        this.unlocked.push(a.id);
+        Farm.money += a.reward;
+        UI.notify('Achievement unlocked', a.label + ' — bonus ' + money(a.reward) + '.', 'money');
+        Audio.play('complete');
+      }
+    }
+  },
+  renderModal() {
+    let lastCat = null, h = '';
+    for (const a of this.list) {
+      if (a.cat !== lastCat) { lastCat = a.cat; h += `<div style="font-size:10.5px;font-weight:800;color:var(--dim);text-transform:uppercase;letter-spacing:.04em;margin:10px 0 2px">${a.cat}</div>`; }
+      const done = this.unlocked.includes(a.id);
+      h += `<div class="goal ${done ? 'done' : ''}"><div class="gl"><span>${done ? '✓ ' : ''}${a.label}</span><b>${money(a.reward)}</b></div>
+        <div style="font-size:11px;color:var(--dim);margin-top:2px">${a.desc}</div></div>`;
+    }
+    UI.modal('Awards (' + this.unlocked.length + '/' + this.list.length + ')', h);
+  },
+};
+
 const Goals = {
   active: null, won: false,
   value(k) {
@@ -2154,7 +2351,8 @@ const TOOLS = [
   { id: 'animal', t: 'Livestock', k: '5', ic: 'animal' },
   { id: 'build', t: 'Build', k: '6', ic: 'build' },
   { id: 'land', t: 'Land', k: '7', ic: 'land' },
-  { id: 'clear', t: 'Clear', k: '8', ic: 'clear' },
+  { id: 'staff', t: 'Hire', k: '8', ic: 'staff' },
+  { id: 'clear', t: 'Clear', k: '9', ic: 'clear' },
 ];
 
 const ICON = {
@@ -2166,6 +2364,7 @@ const ICON = {
   build: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 21V10l8-6 8 6v11"/><path d="M9 21v-6h6v6"/></svg>',
   clear: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4.5 7h15"/><path d="M9 7V4.5h6V7"/><path d="M6.5 7l1 13h9l1-13"/></svg>',
   land: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 8.5l9-4.5 9 4.5-9 4.5z"/><path d="M3 14l9 4.5 9-4.5"/></svg>',
+  staff: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="9" cy="8" r="3"/><path d="M3 20c0-3.4 2.7-5.3 6-5.3s6 1.9 6 5.3"/><path d="M16 5.4a3 3 0 010 5.2M17.5 14.4c2.2.6 3.5 2.3 3.5 5.1"/></svg>',
   close: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 6l12 12M18 6L6 18"/></svg>',
 };
 
@@ -2244,6 +2443,7 @@ const Game = {
     if (id === 'plant') UI.openPlantPicker();
     else if (id === 'animal') UI.openAnimalPicker();
     else if (id === 'build') UI.openBuildPicker();
+    else if (id === 'staff') UI.openStaffPicker();
     else UI.closeBuild();
   },
 
@@ -2296,6 +2496,10 @@ const Game = {
       const cost = Land.price(pi, pj);
       const err = Land.buy(pi, pj);
       if (err) this.warnOnce(err); else { Audio.play('cash'); UI.notify('Land purchased', 'New plot added to the farm — ' + money(cost) + ' well spent.', 'money'); }
+    } else if (this.tool === 'staff') {
+      if (!WORLD.ownsTile(this.hoverTile.i, this.hoverTile.j)) { this.warnOnce('Hire on land you own.'); return; }
+      const err = Farm.hireStaff(this.hoverPoint.x, this.hoverPoint.z);
+      if (err) this.warnOnce(err); else { Audio.play('animal'); UI.notify('Hired', 'A new farmhand starts work tomorrow morning.', 'good'); UI.openStaffPicker(); }
     } else if (this.tool === 'animal' && this.sub) {
       const def = ANIMALS.find(a => a.id === this.sub);
       const b = Farm.buildings.find(x => x.def.houses === def.home && dist(this.hoverPoint.x, this.hoverPoint.z, x.x, x.z) < 8);
@@ -2339,6 +2543,8 @@ const Game = {
         animals: Farm.animals.map(a => ({ id: a.def.id, x: a.x, z: a.z, home: a.home, age: a.age, mature: a.mature, happiness: a.happiness })),
         buildings: Farm.buildings.map(b => ({ id: b.def.id, i: b.i, j: b.j, rot: b.rot })),
         scenario: Goals.active ? Goals.active.id : null, goalDone: Goals.active ? Goals.active.goals.map(g => !!g.done) : null,
+        achUnlocked: Achievements.unlocked, achSeasonsSeen: Array.from(Achievements._seasonsSeen || []), achWinterDays: Achievements._winterDays, achEverSold: Achievements._everSold,
+        staff: Farm.staff.map(s => ({ x: s.x, z: s.z })),
       };
       localStorage.setItem(this.saveKey, JSON.stringify(d));
       UI.notify('Saved', 'Farm written to browser storage.', 'good');
@@ -2386,6 +2592,11 @@ const Game = {
         an.age = a.age; an.mature = a.mature; an.happiness = a.happiness;
         return an;
       }).filter(Boolean);
+      Farm.staff = (d.staff || []).map(s => new FarmStaff(s.x, s.z));
+      Achievements.unlocked = d.achUnlocked || [];
+      Achievements._seasonsSeen = new Set(d.achSeasonsSeen || []);
+      Achievements._winterDays = d.achWinterDays || 0;
+      Achievements._everSold = !!d.achEverSold;
       const sc = d.scenario ? FARM_SCENARIOS.find(x => x.id === d.scenario) : null;
       Goals.start(sc);
       if (sc && d.goalDone && Goals.active) Goals.active.goals.forEach((g, i) => g.done = !!d.goalDone[i]);
@@ -2406,6 +2617,7 @@ Object.assign(Game, {
     for (const b of Farm.buildings) R.draw(b.mesh(), b.matrix);
     for (const p of Farm.plots.values()) R.draw(p.mesh(), p.matrix);
     for (const a of Farm.animals) R.draw(a.mesh(), a.matrix);
+    for (const s of Farm.staff) R.draw(s.mesh(), s.matrix);
     if (!depthPass && this.selected) {
       const o = this.selected;
       const emissive = .35 + Math.sin(performance.now() * .006) * .12;
@@ -2587,7 +2799,8 @@ const UI = {
       <div class="stat"><span class="ico">${wIcon}</span><span class="col"><span class="lbl">Weather</span><span class="val" style="text-transform:capitalize">${Time.weather}</span></span></div>
       <div class="stat"><span class="ico">⭐</span><span class="col"><span class="lbl">Reputation</span><span class="val">${Math.round(Farm.rep)}</span></span></div>
       <div class="stat"><span class="ico">🌱</span><span class="col"><span class="lbl">Plots</span><span class="val">${Farm.plots.size}</span></span></div>
-      <div class="stat"><span class="ico">🐄</span><span class="col"><span class="lbl">Animals</span><span class="val">${Farm.animals.length}</span></span></div>`;
+      <div class="stat"><span class="ico">🐄</span><span class="col"><span class="lbl">Animals</span><span class="val">${Farm.animals.length}</span></span></div>
+      <div class="stat" style="cursor:pointer" onclick="Achievements.renderModal()"><span class="ico">🏆</span><span class="col"><span class="lbl">Awards</span><span class="val">${Achievements.unlocked.length}/${Achievements.list.length}</span></span></div>`;
     if (Math.random() < .05) Goals.render();
   },
   modal(title, body) {
@@ -2645,6 +2858,22 @@ const UI = {
   pickBuild(id) { Game.sub = id; this.openBuildPicker(); },
 
   closeBuild() { document.getElementById('buildPanel').style.display = 'none'; },
+
+  openStaffPicker() {
+    const bp = document.getElementById('buildPanel');
+    bp.style.display = 'flex';
+    document.getElementById('bpTitle').textContent = 'Hire a Farmhand';
+    document.getElementById('bpTabs').innerHTML = '';
+    const rows = Farm.staff.map(s => `<div class="item">
+      <div class="ic">🧑‍🌾</div>
+      <div style="flex:1"><span class="n">Farmhand #${s.id}</span><span class="c">${money(STAFF_WAGE)}/day wage</span></div>
+      <button class="btn dan" style="padding:5px 9px" onclick="Farm.fireStaff(${s.id});UI.openStaffPicker()">Let go</button>
+    </div>`).join('');
+    document.getElementById('bpBody').innerHTML = `<div style="font-size:10.5px;color:var(--dim);margin-bottom:8px;line-height:1.5">
+      Click anywhere on your land to hire a farmhand for ${money(Farm.hireCost())}. Each one harvests ripe crops and feeds animals automatically every morning, for a daily wage. Cost rises with each hire.</div>
+      ${rows || '<div style="font-size:11px;color:var(--dim)">No farmhands yet.</div>'}
+      <div class="kv" style="margin-top:8px"><span class="k">Total daily wages</span><span class="v">${money(Farm.staff.length * STAFF_WAGE)}</span></div>`;
+  },
 
   inspect(sel) {
     const ins = document.getElementById('inspector');
