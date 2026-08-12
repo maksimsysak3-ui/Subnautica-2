@@ -1063,6 +1063,15 @@ function hsl(h, s, l) {
   return [f(h + 1 / 3), f(h), f(h - 1 / 3)];
 }
 function shade(c, f) { return [clamp(c[0] * f, 0, 1), clamp(c[1] * f, 0, 1), clamp(c[2] * f, 0, 1)]; }
+/* Deciduous foliage colour for the current season — evergreens (pine,
+   palm) don't call this, they stay green year round like the real thing. */
+function seasonalFoliage(baseHex) {
+  const s = (typeof Weather !== 'undefined' && Weather.season) ? Weather.season.id : 'summer';
+  if (s === 'autumn') return hex(0xd97a2e);
+  if (s === 'winter') return hex(0x8a8378);
+  if (s === 'spring') return hex(0x8fd97a);
+  return hex(baseHex);
+}
 
 /* ============================================================================
    SECTION 2 — GEOMETRY BUILDER
@@ -2517,6 +2526,7 @@ const Land = {
   reset() {
     this.ownedPlots.fill(0);
     this.bought = 0;
+    this.trendSnap = null; this.trendPrev = null;
     const c = Math.floor(PLOTS / 2);
     // the starting park is a big block of plots — roughly the old, generous
     // footprint — with a ring of unowned land left around the edges so
@@ -2547,7 +2557,11 @@ const Land = {
   adjacent(pi, pj) {
     return this.owns(pi - 1, pj) || this.owns(pi + 1, pj) || this.owns(pi, pj - 1) || this.owns(pi, pj + 1);
   },
-  /* Buildable terrain is worth more; distant, mountainous plots are cheap but useless. */
+  /* Buildable terrain is worth more; distant, mountainous plots are cheap but useless.
+     A successful park also drives its own land value up — the base price
+     tracks Park.rating as well as how much has already been bought, so
+     land gets pricier both as the estate grows AND as the park thrives. */
+  priceBase() { return 20000 + this.bought * 2500 + (typeof Park !== 'undefined' ? Park.rating * 18 : 0); },
   price(pi, pj) {
     let flat = 0, n = 0;
     for (let j = pj * PLOT; j < Math.min(N, (pj + 1) * PLOT); j += 2)
@@ -2555,9 +2569,24 @@ const Land = {
         n++; if (Math.abs(WORLD.tileH(i, j)) < 3.2) flat++;
       }
     const usable = n ? flat / n : 0;
-    const base = 20000 + this.bought * 2500;
+    const base = this.priceBase();
     // 20% cheaper across the board than before
     return Math.round((base * (0.35 + usable * 1.15) * 0.8 * 0.8) / 100) * 100;
+  },
+  /* Trend indicator: how the base price has moved since the last time it
+     was snapshotted (once a day, from Game.dayTick). Purely informational —
+     it never affects the price itself, just tells the player which way
+     it's heading before they commit to a big purchase. */
+  trendSnap: null,
+  snapshotTrend() {
+    const base = this.priceBase();
+    this.trendPrev = this.trendSnap;
+    this.trendSnap = base;
+  },
+  priceTrend() {
+    if (this.trendSnap === null || this.trendPrev === null || this.trendPrev === undefined) return { dir: 'steady', pct: 0 };
+    const pct = this.trendPrev > 0 ? (this.trendSnap - this.trendPrev) / this.trendPrev * 100 : 0;
+    return { dir: pct > 1.5 ? 'rising' : pct < -1.5 ? 'falling' : 'steady', pct };
   },
   buy(pi, pj) {
     if (!this.inb(pi, pj)) return 'That plot is off the map.';
@@ -2880,6 +2909,7 @@ const CAT = {
     { id: 'security', name: 'Security', cost: 350, wage: 25, color: 0x2f3f5c },
     { id: 'vendor', name: 'Vendor', cost: 330, wage: 24, color: 0x8fd06a },
     { id: 'restocker', name: 'Restocker', cost: 480, wage: 32, color: 0xd9a441 },
+    { id: 'landscaper', name: 'Landscaper', cost: 400, wage: 27, color: 0x5fa83f },
   ],
   /* ---------------- Coaster track styles ---------------- */
   coasterTypes: [
@@ -3429,7 +3459,7 @@ const Prefab = {
         // bumping segment counts fixes the "not fully solid" look.
         const h = 2.4 + rr() * 1.4;
         g.cyl(0, 0, 0, .3, h, 8, hex(0x6b4a2f), .8);
-        const lc = shade(hex(0x3e9c4b), .9 + rr() * .3);
+        const lc = shade(seasonalFoliage(0x3e9c4b), .9 + rr() * .3);
         const R0 = 1.9 + rr() * .4;
         g.sphere(0, h + 1.0, 0, R0, 9, lc);
         g.sphere(-R0 * .5, h + .85, .22, R0 * .78, 8, shade(lc, .92));
@@ -3483,8 +3513,9 @@ const Prefab = {
         break;
       }
       case 'hedge': {
-        g.box(0, 0, 0, 3.4, 1.5, 1.4, hex(0x2f7a3f), 1.12, .92, .8);
-        g.box(0, 1.5, 0, 3.0, .22, 1.1, hex(0x3d9450));
+        const hc = seasonalFoliage(0x2f7a3f);
+        g.box(0, 0, 0, 3.4, 1.5, 1.4, hc, 1.12, .92, .8);
+        g.box(0, 1.5, 0, 3.0, .22, 1.1, shade(hc, 1.08));
         break;
       }
       case 'fountain': {
@@ -6733,6 +6764,9 @@ const Weather = {
       UI.notify(this.season.name + ' begins', this.seasonIndex === 1 ? 'The busiest months of the year — expect big crowds.'
         : this.seasonIndex === 3 ? 'Cold and wet. Attendance will drop until spring.'
           : 'A change in the weather is on the way.', '');
+      // deciduous trees and hedges change colour with the season — the
+      // scenery batch has to actually rebuild to pick that up
+      if (typeof Game !== 'undefined') Game.sceneryDirty = true;
     }
   },
   update(dt) {
@@ -6915,7 +6949,7 @@ const Park = {
   },
   get beauty() {
     let b = 0;
-    for (const o of this.objects) if (o.kind === 'scenery') b += o.def.beauty;
+    for (const o of this.objects) if (o.kind === 'scenery') b += o.def.beauty + (o.beautyBonus || 0);
     return b;
   },
   beautyAt(x, z, r = 22) {
@@ -6923,7 +6957,7 @@ const Park = {
     for (const o of this.objects) {
       if (o.kind !== 'scenery') continue;
       const d2 = dist2(x, z, o.x, o.z);
-      if (d2 < r * r) b += o.def.beauty * (1 - Math.sqrt(d2) / r);
+      if (d2 < r * r) b += (o.def.beauty + (o.beautyBonus || 0)) * (1 - Math.sqrt(d2) / r);
     }
     return b;
   },
@@ -8596,6 +8630,17 @@ class Staff extends Person {
         put(0, c.chestY - .28, -.23, c.lean, .26, .16, .04, col);           // apron pocket
         break;
       }
+      case 'landscaper': {
+        put(0, c.headY + .27, -.02, c.lean * .5, .52, .10, .52, hex(0xe8d9a0)); // sun hat brim
+        put(0, c.headY + .32, -.02, c.lean * .5, .30, .16, .30, hex(0xd9c47f)); // hat crown
+        put(0, c.hipY + .16, -.20, c.lean, .48, .55, .06, hex(0x8a6a3a));       // work apron
+        {                                                                       // trowel in the right hand
+          const ta = .5, tl = .4;
+          const tip = held(hR, ta, tl, .1, .1, hex(0x9aa0a6));
+          put(hR.x, tip.y, tip.z, ta, .16, .1, .12, hex(0x6b5a3f));
+        }
+        break;
+      }
     }
     // grade pip on the shoulder
     if (L > 1) put(-.27, c.hipY + .77, 0, 0, .16, .06, .16, L === 3 ? hex(0xffd23f) : hex(0xd8dde4));
@@ -8615,6 +8660,7 @@ class Staff extends Person {
         if (this.role === 'mechanic' && this.targetRide) return 'Heading to ' + rideName(this.targetRide);
         if (this.role === 'entertainer') return 'Heading to a queue';
         if (this.role === 'security') return 'Walking the crowd';
+        if (this.role === 'landscaper' && this.targetScenery) return 'Heading to tend ' + esc(this.targetScenery.def.name);
         return 'On the way';
       case 'working':
         if (this.role === 'janitor') return 'Clearing litter';
@@ -8622,6 +8668,7 @@ class Staff extends Person {
         if (this.role === 'mechanic') return 'Servicing a ride';
         if (this.role === 'entertainer') return 'Cheering up a queue';
         if (this.role === 'security') return 'Calming the crowd';
+        if (this.role === 'landscaper') return 'Tending the scenery';
         return 'Working';
       default: return this.state;
     }
@@ -8770,6 +8817,16 @@ class Staff extends Person {
       let best = null, bl = 2;
       for (const r of Park.attractions()) if (r.queue.length > bl && this.inZone(r.x, r.z)) { bl = r.queue.length; best = r; }
       if (best) { const e = best.entrance; if (this.goto(e.x + rnd(-3, 3), e.z + rnd(-3, 3))) { this.state = 'walking'; return; } }
+    } else if (this.role === 'landscaper') {
+      // tend the scenery piece with the most room left to improve —
+      // caps out per-piece so one landscaper can't inflate beauty forever
+      let best = null, bs = 0;
+      for (const o of Park.objects) {
+        if (o.kind !== 'scenery' || !this.inZone(o.x, o.z)) continue;
+        const room = o.def.beauty * .3 - (o.beautyBonus || 0);
+        if (room > bs) { bs = room; best = o; }
+      }
+      if (best) { this.targetScenery = best; if (this.goto(best.x + rnd(-1.5, 1.5), best.z + rnd(-1.5, 1.5))) { this.state = 'walking'; return; } }
     }
     /* Nothing to do and not feeling great: head for the nearest break
        room instead of just patrolling — it recovers morale much faster
@@ -8816,6 +8873,12 @@ class Staff extends Person {
       for (const g of Park.guests) if (dist2(g.x, g.z, this.x, this.z) < 100) { g.happy = clamp(g.happy + .05, 0, 1); g.patience = Math.min(g.patience + 4, (g.basePatience || (g.basePatience = g.patience)) * 2); }
     } else if (this.role === 'security') {
       for (const g of Park.guests) if (dist2(g.x, g.z, this.x, this.z) < 144) g.happy = clamp(g.happy + .008, 0, 1);
+    } else if (this.role === 'landscaper' && this.targetScenery) {
+      const o = this.targetScenery;
+      const cap = o.def.beauty * .3;
+      o.beautyBonus = clamp((o.beautyBonus || 0) + o.def.beauty * .06, 0, cap);
+      this.tended = (this.tended || 0) + 1;
+      this.targetScenery = null;
     }
     this.tasksDone++;
     this.checkCareer();
@@ -9411,6 +9474,7 @@ const UI = {
           <div class="kv"><span class="k">Plots owned</span><span class="v">${Land.ownedPlots.reduce((a, b) => a + b, 0)}</span></div>
           <div class="kv"><span class="k">Plots bought</span><span class="v">${Land.bought}</span></div>
           <div class="kv"><span class="k">Funds</span><span class="v" style="color:var(--gold)">${money(Park.money)}</span></div>
+          <div class="kv"><span class="k">Price trend</span><span class="v" style="color:${Land.priceTrend().dir === 'rising' ? 'var(--bad)' : Land.priceTrend().dir === 'falling' ? 'var(--good)' : 'var(--dim)'}">${Land.priceTrend().dir === 'rising' ? '↑ Rising' : Land.priceTrend().dir === 'falling' ? '↓ Falling' : '→ Steady'}${Land.priceTrend().pct ? ' (' + (Land.priceTrend().pct > 0 ? '+' : '') + Land.priceTrend().pct.toFixed(1) + '%)' : ''}</span></div>
           <h3>Selection</h3>
           <div id="landInfo" style="font-size:11.5px;color:var(--dim);min-height:96px">
             Hover a plot for its price, or drag across several to buy a block.
@@ -12630,7 +12694,11 @@ const PF = {
   gondolaTower() { return this.get('gtower', () => Prefab.gondolaTower(false)); },
   scenery(def, seed) { return this.get('sc_' + def.kind, () => Prefab.scenery(def.kind, 3)); },
   sceneryGeo(def, seed) {
-    const k = 'scg_' + def.kind + '_' + (seed % 4);
+    // season is folded into the key so autumn/winter/spring foliage tints
+    // (see seasonalFoliage()) actually take effect once the scenery batch
+    // rebuilds, rather than caching stale summer-green trees forever
+    const seasonId = (typeof Weather !== 'undefined' && Weather.season) ? Weather.season.id : 'summer';
+    const k = 'scg_' + def.kind + '_' + (seed % 4) + '_' + seasonId;
     if (!this.cache[k]) this.cache[k] = Prefab.scenery(def.kind, seed % 4);
     return this.cache[k];
   }
@@ -16703,6 +16771,7 @@ const Game = {
   },
   dayTick() {
     Park.entryToday = 0;   // the admission volume discount resets every morning
+    Land.snapshotTrend();
     // bank yesterday's takings into the daily ledger before anything else touches Park.log
     const L = Park.log;
     const prev = Park._dayLogSnap || { ticket: 0, shop: 0, entry: 0, hotel: 0, transit: 0, wage: 0, upkeep: 0, build: 0, marketing: 0, interest: 0 };
@@ -16795,7 +16864,7 @@ const Game = {
                only place their definition exists is the object itself — so
                it has to be saved whole, or every custom slide reverts to a
                dangling id that resolves to nothing on load. */
-            cd: o.def.custom ? o.def : undefined, wi: o.waveIntensity })),
+            cd: o.def.custom ? o.def : undefined, wi: o.waveIntensity, bb: o.beautyBonus })),
         gate: Park.gate ? { tier: Park.gate.tier, adm: Park.gate.admitted, ta: Park.gate.turnedAway } : null,
         pname: Park.name,
         cos: Park.coasters.map(c => ({
@@ -16956,6 +17025,7 @@ const Game = {
         if (s.mer) o.merch = s.mer;
         if (s.liv) { o.livery = s.liv; if (typeof PF !== 'undefined' && PF.recolour) PF.recolour(o); }
         if (s.wi !== undefined) o.waveIntensity = s.wi;
+        if (s.bb) o.beautyBonus = s.bb;
         if (s.open !== undefined) o.openR = s.open;
         if (s.k === 'scenery') { Park.objects.push(o); o.footprint((i, j) => WORLD.setOwn(i, j, o.id)); }
         else Park.addObject(o);
