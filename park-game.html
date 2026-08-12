@@ -2616,6 +2616,7 @@ const CAT = {
     { id: 'icecream', name: 'Gelato Cart', cost: 800, up: 14, w: 1, d: 1, need: 'hunger', price: 6, satisfy: 40, color: 0xf2a0c0, roof: 0xffffff },
     { id: 'donut', name: 'Donut Dome', cost: 1300, up: 20, w: 2, d: 1, need: 'hunger', price: 7, satisfy: 50, color: 0xe8749b, roof: 0x8b5ab8 },
     { id: 'popcorn', name: 'Popcorn Stand', cost: 850, up: 15, w: 1, d: 1, need: 'hunger', price: 5, satisfy: 34, color: 0xe8d24a, roof: 0xd94f3c },
+    { id: 'bikerental', name: 'Bike Rental Stand', cost: 2200, up: 12, w: 2, d: 1, need: 'bike', price: 6, satisfy: 0, color: 0x2e7d46, roof: 0xf2c14e },
     { id: 'toilet', name: 'Restrooms', cost: 900, up: 20, w: 2, d: 2, need: 'toilet', price: 0, satisfy: 100, color: 0x8fa3b8, roof: 0x4d6480 },
     { id: 'gift', name: 'Gift Shop', cost: 2000, up: 30, w: 2, d: 2, need: 'shop', price: 18, satisfy: 55, color: 0x7b5bd4, roof: 0xffd76a },
     { id: 'balloon', name: 'Balloon Stall', cost: 700, up: 12, w: 1, d: 1, need: 'shop', price: 6, satisfy: 40, color: 0xff6f91, roof: 0x69d2f0 },
@@ -3185,6 +3186,26 @@ const Prefab = {
         g.cyl(0, totalH + 1.2, 0, .3, 2.0, 6, shade(hex(0xffffff), 1.2)); // mast
         return { base: g, parts: [] };
       }
+    }
+
+    if (def.need === 'bike') {
+      // A rental kiosk plus a real rack of parked bikes, not a generic
+      // box — this is the "real 3D bikes" ask, visible even before anyone
+      // rents one.
+      g.box(0, -.08, 0, W + .2, .16, D + .2, hex(0xb9ab90));                // plinth
+      g.box(-W * .3, .02, 0, W * .38, 1.9, D - .6, wall);                   // small kiosk
+      g.box(-W * .3, 1.9, 0, W * .44, .3, D - .4, shade(roof, 1.05));
+      g.box(-W * .3, .3, -D / 2 + .1, W * .3, .8, .06, body);
+      this.shopEmblem(g, def, -W * .3, 2.1, 0);
+      // bike rack: a steel rail with several parked bikes hanging off it
+      const rackZ = D * .18, n = Math.max(2, Math.floor((W - W * .5) / .85));
+      g.box(W * .05, .02, rackZ, W * .62, .05, .12, hex(0x8a8f96));
+      for (let k = 0; k < n; k++) {
+        const bx = -W * .22 + k * .85;
+        const bc = [0xd9432e, 0x2e6fd9, 0x3ba05a, 0xd9c22e][k % 4];
+        g.mergeM(Prefab.bike(bc), M4.compose(M4.create(), bx, .05, rackZ, 0, PI / 2, 0, 1.05, 1.05, 1.05));
+      }
+      return { base: g, parts: [] };
     }
 
     // plinth
@@ -7138,7 +7159,7 @@ class Person {
     const d = Math.hypot(ex, ez);
     /* Arrival is judged against the point actually being walked to. */
     if (d < .55) { this.pi++; return this.pi >= this.path.length; }
-    const sp = this.speed * speedMul;
+    const sp = this.speed * speedMul * (this.biking ? 1.75 : 1);
     const step = Math.min(d, sp * dt);
     this.x += (ex / d) * step; this.z += (ez / d) * step;
     this.yawT = Math.atan2(ez, ex);
@@ -7568,8 +7589,9 @@ class Guest extends Person {
         break;
       }
       case 'walking': {
+        if (!this.biking) this.maybeRentBike(dt);
         const done = this.followPath(dt);
-        if (done) { this.arriveAtTarget(); }
+        if (done) { if (this.biking) this.returnBike(); this.arriveAtTarget(); }
         break;
       }
       case 'queuing': {
@@ -7871,6 +7893,34 @@ class Guest extends Person {
     this.transit = trip;
     this.state = 'towait';
     return true;
+  }
+  /* Rent a bike for a long walk if a stand happens to be close by right
+     now. Cheap, opportunistic, and purely a speed/fun perk — it does not
+     touch the pathfinding or destination logic, it just makes the same
+     walk faster and gives the guest something visible to ride. Checked a
+     few times a second rather than every frame. */
+  maybeRentBike(dt) {
+    this._bikeCheckT = (this._bikeCheckT || 0) - dt;
+    if (this._bikeCheckT > 0) return;
+    this._bikeCheckT = 1.4;
+    if (Park.now < (this.bikeCool || 0)) return;
+    if (!this.path || this.pi >= this.path.length) return;
+    let remain = 0;
+    for (let k = this.pi; k < this.path.length - 1; k++) remain += dist(this.path[k].x, this.path[k].z, this.path[k + 1].x, this.path[k + 1].z);
+    if (remain < 60) return;
+    const stand = Park.objects.find(o => o.kind === 'shop' && o.def.need === 'bike' && o.openR && dist(o.x, o.z, this.x, this.z) < 9);
+    if (!stand) return;
+    if (this.cash < stand.price) return;
+    if (Math.random() > .35) return;
+    this.cash -= stand.price; this.spent += stand.price;
+    Park.earn(stand.price, 'shop'); stand.revenue = (stand.revenue || 0) + stand.price; stand.served = (stand.served || 0) + 1;
+    this.biking = true;
+    this.bikeColor = [0xd9432e, 0x2e6fd9, 0x3ba05a, 0xd9c22e][Math.floor(Math.random() * 4)];
+    this.happy = clamp(this.happy + .02, 0, 1);
+  }
+  returnBike() {
+    this.biking = false;
+    this.bikeCool = Park.now + 20;
   }
   /* Walk there, or catch something if that is clearly better. */
   travelTo(x, z, tight) {
@@ -10503,6 +10553,13 @@ const Minimap = {
     }
     c.fillStyle = '#ffe066';
     for (const g of Park.guests) c.fillRect(WORLD.ti(g.x) * s, WORLD.tj(g.z) * s, 2, 2);
+    // transit: depots/stops/gondola towers as small coloured squares so a
+    // route network is readable at a glance without opening the full map
+    for (const o of Park.objects) {
+      if (o.kind === 'tstation') { c.fillStyle = '#2ecc71'; c.fillRect(o.i * s - 2, o.j * s - 2, 5, 5); }
+      else if (o.kind === 'tstop') { c.fillStyle = '#7b5bd4'; c.fillRect(o.i * s - 1.5, o.j * s - 1.5, 3.5, 3.5); }
+      else if (o.kind === 'gtower') { c.fillStyle = '#ff8c42'; c.fillRect(o.i * s - 2, o.j * s - 2, 5, 5); }
+    }
     // camera frustum marker
     c.strokeStyle = '#fff'; c.lineWidth = 1.5;
     c.beginPath(); c.arc(WORLD.ti(Cam.dx) * s, WORLD.tj(Cam.dz) * s, 6, 0, TAU); c.stroke();
@@ -13401,6 +13458,27 @@ Prefab.gondolaCabin = function (color) {
   return g;
 };
 
+/* A simple rental bike — frame, two wheels, handlebar, seat, basket. Used
+   both as static rack decoration on a Bike Rental Stand and, scaled up
+   slightly and following the guest riding it, as the moving prop drawn
+   by BikeRentals below. */
+Prefab.bike = function (color) {
+  const g = new Geo();
+  const frame = hex(color), dark = shade(frame, .55), metal = hex(0xc7ccd1);
+  const wr = .34, wh = .07;
+  for (const wx of [-.62, .62]) g.cyl(wx, wr, 0, wr, wh, 10, dark, 0);
+  for (const wx of [-.62, .62]) g.cyl(wx, wr, 0, wr * .35, wh + .02, 8, hex(0x9aa0a6), 0);
+  g.beam(-.62, wr, 0, 0, .68, 0, .05, .05, frame);           // rear stay
+  g.beam(0, .68, 0, .3, .5, 0, .05, .05, frame);             // seat tube
+  g.beam(0, .68, 0, .62, wr, 0, .05, .05, frame);            // down tube to front wheel
+  g.beam(-.62, wr, 0, .3, .5, 0, .05, .05, shade(frame, .85)); // lower tube
+  g.box(.3, .74, 0, .28, .07, .1, dark);                     // seat
+  g.beam(.62, wr, 0, .62, .78, 0, .04, .04, metal);          // fork/steerer
+  g.box(.62, .8, 0, .06, .06, .34, metal);                   // handlebar
+  g.box(.5, .5, .18, .2, .16, .16, shade(hex(0x8a6a3a), 1)); // front basket
+  return g;
+};
+
 /* Small ambient sedan used to give painted Roads real traffic. Cosmetic
    only — Traffic below drives it tile-to-tile along the road graph, no
    passengers, no collisions, just life on the street. */
@@ -13463,6 +13541,28 @@ const HeatMap = {
     UI.notify(`Track @ ${Math.round(best.d)}m`,
       `Wear ${Math.round(best.wear * 100)}% · Excitement ${Math.round(best.excitement * 100)}% · Fear ${Math.round(best.fear * 100)}% · Fatigue ${Math.round(best.fatigue * 100)}%`,
       best[this.mode] > .66 ? 'bad' : best[this.mode] > .33 ? 'warn' : 'good');
+  }
+};
+
+/* ---------- BikeRentals: draws the bike under any guest currently riding
+   one. The guest's own body is already rendered by the normal crowd
+   system — this only adds the bike prop at their feet, following their
+   position and facing. ---------- */
+const BikeRentals = {
+  mesh: {},
+  meshFor(color) {
+    if (!this.mesh[color]) this.mesh[color] = Game.R.makeMesh(Prefab.bike(color));
+    return this.mesh[color];
+  },
+  draw(R) {
+    if (!Park.guests || !Park.guests.length) return;
+    const m = M4.create();
+    for (const g of Park.guests) {
+      if (!g.biking) continue;
+      const yaw = g.yaw !== undefined ? g.yaw : (g.yawT || 0);
+      M4.compose(m, g.x, g.y, g.z, 0, -yaw + PI / 2, 0, 1.15, 1.15, 1.15);
+      R.draw(this.meshFor(g.bikeColor || 0xd9432e), m);
+    }
   }
 };
 
@@ -13984,9 +14084,9 @@ const Transit = {
     const l = {
       id: this.nextId++, a: a.id, b: b.id,
       color: TRANSIT_COLORS[(this.lines.length + 3) % TRANSIT_COLORS.length],
-      cabins: [], riders: 0, revenue: 0
+      cabins: [], riders: 0, revenue: 0, tier: 1
     };
-    const n = 6;
+    const n = this.gondolaCabins(l);
     for (let k = 0; k < n; k++) l.cabins.push({ u: k / n, riders: [] });
     a.lineId = l.id; b.lineId = l.id;
     this.lines.push(l);
@@ -13998,6 +14098,23 @@ const Transit = {
   lineEnds(l) {
     const a = Park.objects.find(o => o.id === l.a), b = Park.objects.find(o => o.id === l.b);
     return (a && b) ? { a, b } : null;
+  },
+  gondolaCap(l) { const t = l.tier || 1; return t >= 3 ? 16 : t >= 2 ? 12 : 8; },
+  gondolaCabins(l) { const t = l.tier || 1; return t >= 3 ? 10 : t >= 2 ? 8 : 6; },
+  gondolaUpgradeCost(l) { const t = l.tier || 1; return t >= 3 ? 0 : t >= 2 ? 26000 : 14000; },
+  upgradeLine(id) {
+    const l = this.lines.find(x => x.id === id);
+    if (!l) return;
+    const cost = this.gondolaUpgradeCost(l);
+    if (!cost) { UI.notify('Fully upgraded', 'This cable line is already at its largest cabins.', 'warn'); return; }
+    if (Park.money < cost) { UI.notify('Too expensive', 'That upgrade costs ' + money(cost) + '.', 'bad'); return; }
+    Park.spend(cost);
+    l.tier = (l.tier || 1) + 1;
+    const want = this.gondolaCabins(l);
+    while (l.cabins.length < want) { const u = l.cabins.length / want; l.cabins.push({ u, riders: [] }); }
+    UI.notify('Gondola upgraded', 'Bigger cabins now carry up to ' + this.gondolaCap(l) + ' riders each.', 'good');
+    Audio.play('complete');
+    this.meshDirty = true;
   },
   updateLine(l, dt) {
     const e = this.lineEnds(l);
@@ -14027,7 +14144,8 @@ const Transit = {
         c.riders.length = 0;
         // anyone waiting at this end gets on
         const q = from.waitingList || (from.waitingList = []);
-        for (let k = q.length - 1; k >= 0 && c.riders.length < 8; k--) {
+        const cap = this.gondolaCap(l);
+        for (let k = q.length - 1; k >= 0 && c.riders.length < cap; k--) {
           const g = q[k];
           if (!g || g.dead || g.state !== 'waiting' || !g.transit || g.transit.lineId !== l.id) { q.splice(k, 1); continue; }
           q.splice(k, 1);
@@ -14672,7 +14790,12 @@ const Game = {
         const o = this.hoverObj;
         if (o && o.kind === 'tstation') { this.select(o); UI.manageTransit(o.id); break; }
         if (o && o.kind === 'tstop') { this.select(o); UI.transitStop(o.id); break; }
-        if (o && o.kind === 'gtower') { this.select(o); UI.notify(o.name, o.lineId ? 'Running on a cable line.' : 'Build a second gondola station and the cable will be strung between them.', ''); break; }
+        if (o && o.kind === 'gtower') {
+          this.select(o);
+          if (o.lineId) UI.manageGondola(o.lineId);
+          else UI.notify(o.name, 'Build a second gondola station and the cable will be strung between them.', '');
+          break;
+        }
         if (UI.sub) this.tryPlace();
         break;
       }
@@ -15866,6 +15989,25 @@ const Game = {
     if (Park.dailyLog.length > 720) Park.dailyLog.shift();
     Park._dayLogSnap = { ticket: L.ticket, shop: L.shop, entry: L.entry, hotel: L.hotel || 0, transit: L.transit || 0, wage: L.wage, upkeep: L.upkeep, build: L.build, marketing: L.marketing || 0, interest: L.interest || 0 };
 
+    // ---- Transit dead-zone check: attractions far from any stop/tower.
+    // Only worth mentioning once the park actually has a transit network
+    // and has grown big enough that walking there is a real ask — and only
+    // re-warned when the list of offenders actually changes, so it is not
+    // a daily nag. ----
+    if (typeof Transit !== 'undefined' && Transit.unlocked() && (Transit.routes.length || Transit.lines.length)) {
+      const stops = Park.objects.filter(o => o.kind === 'tstop' || o.kind === 'tstation' || o.kind === 'gtower');
+      if (stops.length) {
+        const atts = Park.attractions();
+        const far = atts.filter(a => stops.every(s => dist(s.x, s.z, a.x, a.z) > 140));
+        const key = far.map(a => a.id).sort((x, y) => x - y).join(',');
+        if (far.length >= 2 && key !== this._deadZoneKey) {
+          this._deadZoneKey = key;
+          UI.notify('Transit dead zone', far.length + ' attraction' + (far.length === 1 ? '' : 's') + ' — including ' + far[0].name +
+            ' — ' + (far.length === 1 ? 'is' : 'are') + ' a long walk from any bus stop or gondola. Consider extending a route out that way.', 'warn');
+        } else if (!far.length) this._deadZoneKey = '';
+      }
+    }
+
     // ---- Hotels: settle last night's bookings ----
     const hotels = Park.objects.filter(o => o.kind === 'shop' && o.def.need === 'hotel');
     if (hotels.length) {
@@ -15948,7 +16090,7 @@ const Game = {
           })),
           lines: Transit.lines.map(l => {
             const e = Transit.lineEnds(l);
-            return e ? { color: l.color, a: { i: e.a.i, j: e.a.j }, b: { i: e.b.i, j: e.b.j }, riders: l.riders, rev: l.revenue } : null;
+            return e ? { color: l.color, a: { i: e.a.i, j: e.a.j }, b: { i: e.b.i, j: e.b.j }, riders: l.riders, rev: l.revenue, tier: l.tier || 1 } : null;
           }).filter(Boolean)
         },
         weather: { season: Weather.seasonIndex, dayOfSeason: Weather.dayOfSeason, state: Weather.state }
@@ -16175,7 +16317,11 @@ const Game = {
         for (const l of d.transit.lines || []) {
           const a = towers.find(t => t.key === l.a.i + ',' + l.a.j);
           const b2 = towers.find(t => t.key === l.b.i + ',' + l.b.j);
-          if (a && b2) { const nl = Transit.linkTowers(a.o, b2.o); nl.color = l.color; nl.riders = l.riders || 0; nl.revenue = l.rev || 0; }
+          if (a && b2) {
+            const nl = Transit.linkTowers(a.o, b2.o);
+            nl.color = l.color; nl.riders = l.riders || 0; nl.revenue = l.rev || 0;
+            if (l.tier && l.tier > 1) { nl.tier = l.tier; const want = Transit.gondolaCabins(nl); while (nl.cabins.length < want) { const u = nl.cabins.length / want; nl.cabins.push({ u, riders: [] }); } }
+          }
         }
         Transit.meshDirty = true;
       }
@@ -16416,6 +16562,25 @@ Object.assign(UI, {
     if (st.canUpgrade()) h += `<button class="btn" onclick="Transit.upgradeStation(${st.id})">Upgrade — ${money(st.upgradeCost())}</button>`;
     h += `</div>`;
     this.modal(st.name, h);
+  },
+  manageGondola(lineId) {
+    const l = Transit.lines.find(x => x.id === lineId);
+    if (!l) return;
+    const e = Transit.lineEnds(l);
+    const kv = (k, v) => `<div class="kv"><span class="k">${k}</span><span class="v">${v}</span></div>`;
+    let h = `<div style="font-size:11px;color:var(--dim);margin:0 0 10px">Cable car between ${e ? esc(e.a.name) + ' and ' + esc(e.b.name) : 'two stations'}</div>`;
+    h += kv('Tier', 'Level ' + (l.tier || 1));
+    h += kv('Cabins', l.cabins.length);
+    h += kv('Seats per cabin', Transit.gondolaCap(l));
+    h += kv('Total riders carried', l.riders.toLocaleString());
+    h += kv('Fare income', money(l.revenue));
+    const cost = Transit.gondolaUpgradeCost(l);
+    h += `<div style="margin-top:12px">`;
+    if (cost) h += `<button class="btn pri" onclick="Transit.upgradeLine(${l.id});UI.manageGondola(${l.id})">Upgrade cabins — ${money(cost)}</button>
+      <div style="font-size:10.5px;color:var(--dim);margin-top:6px">Bigger cabins carry more riders each trip and the line adds a couple more of them.</div>`;
+    else h += `<div style="font-size:11px;color:var(--good)">This line already runs the largest cabins.</div>`;
+    h += `</div>`;
+    this.modal('Gondola Line', h);
   },
   transitStop(id) {
     const s = Park.objects.find(o => o.id === id);
@@ -16958,6 +17123,7 @@ Object.assign(Game, {
     TransitView.draw(R, depthPass);
     if (!depthPass) Traffic.draw(R);
     if (!depthPass) HeatMap.draw(R);
+    if (!depthPass) BikeRentals.draw(R);
     if (this.animScenery) {
       const tmp = M4.create(), out = M4.create();
       for (const a of this.animScenery) {
