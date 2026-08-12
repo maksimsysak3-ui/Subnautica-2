@@ -8407,6 +8407,8 @@ class Staff extends Person {
     this.state = 'idle';
     this.taskT = 0;
     this.cleaned = 0; this.repaired = 0;
+    this.tasksDone = 0; this.nickname = null;
+    this.idleSince = Park.now;
     this.speed = 3.4;
     this.zone = null;           // { x, z, r } — patrol area, or null for the whole park
     this.shift = 'always';      // 'always' | 'day' (6-18) | 'night' (18-6)
@@ -8528,6 +8530,28 @@ class Staff extends Person {
       default: return this.state;
     }
   }
+  /* ---- Career ladder: a title earned from experience (tasks actually
+     completed on the job), separate from the paid Level which is bought
+     outright with Training. This is the "did the work" track — it can't
+     be rushed with money, only with time on shift. ---- */
+  careerTitle() {
+    const n = this.tasksDone;
+    return n >= 120 ? 'Legend' : n >= 60 ? 'Veteran' : n >= 20 ? 'Regular' : 'New Hire';
+  }
+  checkCareer() {
+    const NICKNAMES = {
+      janitor: ['Neat Freak', 'The Broom', 'Spotless', 'Tidy'],
+      mechanic: ['Steady Hands', 'The Wrench', 'Grease Monkey', 'Fix-It'],
+      entertainer: ['Life of the Party', 'Crowd Pleaser', 'Star Turn'],
+      security: ['The Wall', 'Old Reliable', 'Big Presence'],
+      vendor: ['Top Seller', 'Fast Hands', 'The Closer'],
+    };
+    if (!this.nickname && this.tasksDone >= 60) {
+      const bank = NICKNAMES[this.role] || ['Veteran'];
+      this.nickname = bank[Math.floor(Math.random() * bank.length)];
+      UI.notify('Earned a reputation', this.name + ' ("' + this.nickname + '") has become a veteran — ' + this.tasksDone + ' jobs done.', 'good');
+    }
+  }
   trainCost() { return Math.round(this.def.cost * (this.level === 1 ? 1.6 : 3.2)); }
   train() {
     if (this.level >= 3) return false;
@@ -8557,7 +8581,7 @@ class Staff extends Person {
       return;
     }
     switch (this.state) {
-      case 'offshift': this.state = 'idle'; break;
+      case 'offshift': this.state = 'idle'; this.idleSince = Park.now; break;
       case 'idle': this.assign(); this.morale = clamp(this.morale + dt * .004, 0, 1); break;
       case 'walking': {
         const done = this.followPath(dt, clamp(.7 + this.morale * .3, .7, 1));
@@ -8672,7 +8696,10 @@ class Staff extends Person {
     } else if (this.role === 'security') {
       for (const g of Park.guests) if (dist2(g.x, g.z, this.x, this.z) < 144) g.happy = clamp(g.happy + .008, 0, 1);
     }
+    this.tasksDone++;
+    this.checkCareer();
     this.state = 'idle';
+    this.idleSince = Park.now;
   }
 }
 /* ============================================================================
@@ -10185,7 +10212,9 @@ const UI = {
     else if (o instanceof Staff) {
       $('#insTitle').textContent = o.def.name;
       h += nameField(o);
+      if (o.nickname) h += `<div style="font-size:11px;color:var(--gold);font-weight:700;margin-top:-6px;margin-bottom:4px">"${esc(o.nickname)}"</div>`;
       h += kv('Role', o.def.name);
+      h += kv('Career', o.careerTitle(), o.tasksDone + ' jobs done');
       h += kv('Currently', o.state === 'offshift' ? 'off shift' : o.state);
       h += kv('Wage', money(o.wage) + ' / hr');
       if (o.role === 'janitor') h += kv('Litter cleared', o.cleaned);
@@ -10276,7 +10305,12 @@ const UI = {
       }
       h += `<div class="btnrow"><button class="btn" onclick="Game.autoConnect(Park.objects.concat(Park.coasters).find(x=>x.id===${o.id}))">Reconnect queue</button>
         <button class="btn dan" onclick="Game.demolish(${o.id})">Demolish</button></div>`;
-      if (o.broken) h += `<div style="color:var(--bad);font-size:11px">A mechanic is needed before this can reopen.</div>`;
+      if (o.broken) {
+        const alreadyOnIt = Park.staff.some(s => s.role === 'mechanic' && s.targetRide === o && (s.state === 'working' || s.state === 'walking'));
+        h += `<div style="color:var(--bad);font-size:11px;margin-bottom:6px">A mechanic is needed before this can reopen.</div>`;
+        if (!alreadyOnIt) h += `<div class="btnrow"><button class="btn go" onclick="Game.callMechanic(${o.id})">Call a mechanic</button></div>`;
+        else h += `<div style="font-size:10.5px;color:var(--good)">A mechanic is already on the way.</div>`;
+      }
       h += reviewsSection(o);
     }
     else if (o.kind === 'shop' && o.def.need === 'parking') {
@@ -10647,26 +10681,54 @@ const UI = {
 
   /* --------- staff management --------- */
   /* ---- radio dispatch: live status for everyone on the payroll ---- */
+  /* Higher score surfaces first: a mechanic mid-repair on a fully broken
+     ride is the most important line on the board, then anyone actually
+     available right now (idle, longest-waiting first — they're the ones
+     you can redirect), then everyone else busy, patrol, and off shift
+     lowest since there's nothing to do about them. */
+  staffUrgency(s) {
+    if (s.role === 'mechanic' && s.targetRide && s.targetRide.broken && (s.state === 'working' || s.state === 'walking')) return 4;
+    if (s.state === 'idle') return 3 + clamp((Park.now - (s.idleSince || 0)) / 300, 0, .9);
+    if (s.state === 'working' || s.state === 'walking') return 2;
+    if (s.state === 'patrol') return 1;
+    return 0; // offshift
+  },
   dispatch() {
     let h = `<div style="font-size:11px;color:var(--dim);margin-bottom:10px;display:flex;align-items:center;justify-content:space-between">
-      <span>Who's doing what, right now.</span>
+      <span>Who's doing what, right now — sorted by what needs your attention.</span>
       <button class="btn" style="padding:4px 12px;font-size:10.5px" onclick="UI.dispatch()">↻ Refresh</button></div>`;
     if (!Park.staff.length) {
       h += `<p style="color:var(--dim)">Nobody on the payroll yet — hire from the Staff tab.</p>`;
       this.modal('Radio Dispatch', h); return;
     }
+    // unclaimed broken rides: the single most actionable thing on this panel
+    const claimed = new Set(Park.staff.filter(s => s.role === 'mechanic' && s.targetRide).map(s => s.targetRide));
+    const unclaimed = Park.needMechanic.filter(r => !claimed.has(r));
+    if (unclaimed.length) {
+      h += `<div style="background:var(--panel-sunken);border-left:3px solid var(--bad);border-radius:6px;padding:8px 10px;margin-bottom:12px">
+        <div style="font-size:11px;font-weight:700;color:var(--bad)">Broken down, nobody on the way</div>`;
+      for (const r of unclaimed) {
+        h += `<div style="display:flex;align-items:center;gap:8px;margin-top:6px">
+          <span style="flex:1;font-size:11.5px">${esc(r.name)}</span>
+          <button class="btn go" style="padding:3px 9px;font-size:10.5px" onclick="Game.callMechanic(${r.id});UI.dispatch()">Call a mechanic</button>
+        </div>`;
+      }
+      h += `</div>`;
+    }
     const roles = CAT.staff.map(d => ({ d, list: Park.staff.filter(s => s.role === d.id) })).filter(r => r.list.length);
     for (const { d, list } of roles) {
+      list.sort((a, b) => this.staffUrgency(b) - this.staffUrgency(a));
       h += `<h3 style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
         <span style="width:11px;height:11px;border-radius:50%;background:#${d.color.toString(16).padStart(6, '0')}"></span>
         ${d.name} <span style="font-weight:400;color:var(--dim);font-size:11px">(${list.length})</span></h3>`;
       for (const s of list) {
         const busy = s.state === 'working' || s.state === 'walking';
-        h += `<div style="display:flex;align-items:center;gap:8px;padding:7px 9px;border:1px solid var(--edge);border-radius:8px;margin-bottom:6px">
+        const urgent = s.role === 'mechanic' && s.targetRide && s.targetRide.broken;
+        h += `<div style="display:flex;align-items:center;gap:8px;padding:7px 9px;border:1px solid ${urgent ? 'var(--bad)' : 'var(--edge)'};border-radius:8px;margin-bottom:6px">
           <div style="flex:1;min-width:0">
-            <div style="font-weight:700;font-size:12px">${esc(s.name)}
-              <span style="font-weight:400;color:var(--dim);font-size:10.5px">Lv.${s.level}</span></div>
-            <div style="font-size:10.5px;color:${busy ? 'var(--good)' : 'var(--dim)'}">${s.taskLabel()}</div>
+            <div style="font-weight:700;font-size:12px">${esc(s.name)}${s.nickname ? ` <span style="color:var(--gold);font-weight:600">"${esc(s.nickname)}"</span>` : ''}
+              <span style="font-weight:400;color:var(--dim);font-size:10.5px">Lv.${s.level} &middot; ${s.careerTitle()}</span></div>
+            <div style="font-size:10.5px;color:${urgent ? 'var(--bad)' : busy ? 'var(--good)' : 'var(--dim)'}">${s.state === 'offshift' ? 'Off shift' : s.taskLabel()}</div>
           </div>
           <button class="btn" style="padding:4px 9px;font-size:10.5px;flex:0 0 auto" onclick="Game.locateStaff(${s.id})">Locate</button>
           <button class="btn" style="padding:4px 9px;font-size:10.5px;flex:0 0 auto" onclick="Game.recallStaff(${s.id});UI.dispatch()">Recall</button>
@@ -15465,6 +15527,23 @@ const Game = {
     s.state = 'idle'; s.moving = false;
     UI.notify('Recalled', s.name + ' is standing by for a new job.', '');
   },
+  /* Assign-to-specific-ride: a deliberate manual override that ignores
+     zone restrictions (the player picked this ride on purpose) and pulls
+     whichever mechanic is best placed to go — idle ones first, otherwise
+     whoever is on the least urgent job, nearest one wins the tie. */
+  callMechanic(rideId) {
+    const ride = Park.objects.find(o => o.id === rideId);
+    if (!ride) return;
+    const mechs = Park.staff.filter(s => s.role === 'mechanic' && s.onShift());
+    if (!mechs.length) { UI.notify('No mechanics available', 'Hire a mechanic, or wait for one to come on shift.', 'warn'); return; }
+    const score = (s) => (s.state === 'idle' ? 0 : s.role === 'mechanic' && s.targetRide && s.targetRide.broken ? 3 : 1)
+      + dist(s.x, s.z, ride.x, ride.z) * .002;
+    mechs.sort((a, b) => score(a) - score(b));
+    const m = mechs[0];
+    m.targetRide = ride;
+    const e = ride.entrance;
+    if (m.goto(e.x, e.z)) { m.state = 'walking'; UI.notify('Mechanic dispatched', m.name + ' is heading to ' + ride.name + '.', 'good'); }
+  },
   setTrains(id, n) {
     const c = Park.coasters.find(x => x.id === id);
     if (!c || !c.track || !c.track.complete) return;
@@ -16426,7 +16505,7 @@ const Game = {
           pw: c.track.powered,
           price: c.price, open: c.openR, name: c.name, se: c.track.stationEnd, trains: c.trains.length
         })),
-        staff: Park.staff.map(s => ({ r: s.role, x: s.x, z: s.z, l: s.level, n: s.name, shift: s.shift, zone: s.zone, morale: s.morale })),
+        staff: Park.staff.map(s => ({ r: s.role, x: s.x, z: s.z, l: s.level, n: s.name, shift: s.shift, zone: s.zone, morale: s.morale, td: s.tasksDone, nick: s.nickname })),
         land: Array.from(Land.ownedPlots), bought: Land.bought,
         loan: Finance.loan, campaigns: Marketing.active,
         log: Park.log, ach: Achievements.unlocked,
@@ -16625,6 +16704,8 @@ const Game = {
         if (s.shift) st.shift = s.shift;
         if (s.zone) st.zone = s.zone;
         if (s.morale !== undefined) st.morale = clamp(s.morale, 0, 1);
+        if (s.td) st.tasksDone = s.td;
+        if (s.nick) st.nickname = s.nick;
         Park.staff.push(st);
       }
       if (Park.gate && d.gate) {
