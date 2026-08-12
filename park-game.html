@@ -15220,9 +15220,9 @@ const Game = {
     UI.setTool('select');
     this.setSpeed(1);
     if (!quiet) {
-      UI.notify(mode === 'sandbox' ? 'Sandbox' : scenario.name,
+      UI.notify(mode === 'sandbox' ? 'Sandbox' : (scenario ? scenario.name : 'New Park'),
         mode === 'sandbox' ? 'Unlimited funds and everything unlocked. Build whatever you like.'
-          : scenario.blurb, 'good');
+          : (scenario ? scenario.blurb : 'A fresh site, ready to build.'), 'good');
       UI.hint('Lay <b>paths</b> from the entrance first — guests can only walk on walkways. The green grid shows where a building will land.');
     } else {
       document.getElementById('notif').innerHTML = '';
@@ -17304,9 +17304,12 @@ const Franchise = {
   current: 0,
   countries: ['United States', 'Japan', 'United Kingdom', 'Germany', 'United Arab Emirates', 'Brazil', 'Australia', 'Canada'],
   managerPool: [
-    { name: 'Alex Rivera', cost: 45000 }, { name: 'Priya Nair', cost: 52000 },
-    { name: 'Tom Becker', cost: 48000 }, { name: 'Lucia Ferrari', cost: 61000 },
-    { name: 'Wei Zhang', cost: 55000 }, { name: 'Sam Okafor', cost: 50000 },
+    { name: 'Alex Rivera', cost: 45000, trait: 'Steady', traitDesc: 'No surprises — reliable, average growth.', mult: 1.00 },
+    { name: 'Priya Nair', cost: 52000, trait: 'Sharp', traitDesc: 'Squeezes more out of every guest. +18% background earnings.', mult: 1.18 },
+    { name: 'Tom Becker', cost: 48000, trait: 'Cautious', traitDesc: 'Plays it safe — a bit less upside, a lot less variance.', mult: 1.05 },
+    { name: 'Lucia Ferrari', cost: 61000, trait: 'Visionary', traitDesc: 'Best long-run growth of the pool. +30% background earnings.', mult: 1.30 },
+    { name: 'Wei Zhang', cost: 55000, trait: 'Efficient', traitDesc: 'Trims costs hard. +15% background earnings.', mult: 1.15 },
+    { name: 'Sam Okafor', cost: 50000, trait: 'Hands-off', traitDesc: 'Cheap and low-effort. Modest but dependable.', mult: 1.08 },
   ],
   storageKey: 'pc_franchise_index',
 
@@ -17346,7 +17349,12 @@ const Franchise = {
         // Rough, self-contained economy: bigger parks earn more, with a
         // little day-to-day variance so it doesn't feel perfectly linear.
         const base = 350 + (blob.money || 60000) * 0.012;
-        const net = base * days * (0.8 + Math.random() * 0.4);
+        const mgr = this.managerPool.find(m => m.name === s.manager);
+        const traitMult = mgr ? mgr.mult : 1;
+        // Head Office synergy: every extra park in the chain shares a little
+        // know-how with the others, so a bigger chain compounds slightly.
+        const synergyMult = 1 + Math.max(0, this.slots.length - 1) * 0.02;
+        const net = base * days * (0.8 + Math.random() * 0.4) * traitMult * synergyMult;
         blob.money = Math.max(0, (blob.money || 0) + net);
         blob.day = (blob.day || 1) + days;
         localStorage.setItem(s.key, JSON.stringify(blob));
@@ -17390,34 +17398,58 @@ const Franchise = {
     h += `<h3>Your Parks</h3><div class="grid2" style="display:grid;gap:8px">`;
     this.slots.forEach((s, i) => {
       const active = i === this.current;
+      const mgr = this.managerPool.find(m => m.name === s.manager);
       h += `<div class="item" style="flex-direction:column;align-items:flex-start;padding:8px 10px;${active ? 'border:2px solid var(--accent-ink)' : ''}">
         <span class="n" style="font-weight:700">${esc(s.name)} <span style="font-weight:400;color:var(--dim)">— ${esc(s.country)}</span></span>
-        <span class="c" style="color:var(--dim)">${money(s.snapMoney || 0)} · Day ${s.snapDay || 1} · Manager: ${s.manager ? s.manager : 'you (on site)'}</span>
+        <span class="c" style="color:var(--dim)">${money(s.snapMoney || 0)} · Day ${s.snapDay || 1} · Manager: ${s.manager ? `${s.manager} (${mgr ? mgr.trait : '—'})` : 'you (on site)'}</span>
         ${active ? '<span class="c" style="color:var(--good)">Currently visiting</span>' :
           `<button class="btn" style="margin-top:6px" onclick="Franchise.switchTo(${i})">Visit this park</button>`}
       </div>`;
     });
     h += `</div>`;
+    if (this.slots.length > 1) {
+      const ranked = this.slots.map((s, i) => ({ s, i })).sort((a, b) => (b.s.snapMoney || 0) - (a.s.snapMoney || 0));
+      const medals = ['🥇', '🥈', '🥉'];
+      h += `<h3>Chain Leaderboard</h3><div class="grid2" style="display:grid;gap:4px;margin-bottom:10px">`;
+      ranked.forEach((r, rank) => {
+        h += `<div class="item" style="padding:5px 10px;${r.i === this.current ? 'border:1px solid var(--accent-ink)' : ''}">
+          <span class="n">${medals[rank] || (rank + 1) + '.'} ${esc(r.s.name)}</span>
+          <span class="c" style="color:var(--dim)">${money(r.s.snapMoney || 0)}</span>
+        </div>`;
+      });
+      h += `</div>`;
+      h += `<div style="font-size:10.5px;color:var(--dim);margin-bottom:10px">Head Office synergy: every extra park in the chain
+        shares know-how, giving managed parks +${Math.round(Math.max(0, this.slots.length - 1) * 2)}% background earnings.</div>`;
+    }
     if (this.slots.length < this.maxParks) {
       const countryOpts = this.countries.filter(c => !this.slots.some(s => s.country === c))
         .map(c => `<option value="${c}">${c}</option>`).join('');
-      const mgrOpts = this.managerPool.map(m => `<option value="${m.name}" data-cost="${m.cost}">${m.name} — ${money(m.cost)}/yr</option>`).join('');
+      const mgrOpts = this.managerPool.map(m => `<option value="${m.name}" data-cost="${m.cost}">${m.name} (${m.trait}) — ${money(m.cost)}/yr</option>`).join('');
       h += `<h3>Open a New Park</h3>
       <div style="font-size:11px;color:var(--dim);margin-bottom:8px">
-        Before you can leave for the new site, hire a manager to run the park you're currently standing in.</div>
+        Before you can leave for the new site, hire a manager to run the park you're currently standing in.
+        Each manager has a trait that affects how fast that park earns while you're away.</div>
       <div class="row" style="gap:8px;margin-bottom:8px">
         <label style="min-width:90px">Country</label>
         <select id="fhCountry" style="flex:1">${countryOpts}</select>
       </div>
-      <div class="row" style="gap:8px;margin-bottom:10px">
+      <div class="row" style="gap:8px;margin-bottom:4px">
         <label style="min-width:90px">Manager</label>
-        <select id="fhManager" style="flex:1">${mgrOpts}</select>
+        <select id="fhManager" style="flex:1" onchange="Franchise.updateManagerDesc()">${mgrOpts}</select>
       </div>
+      <div id="fhManagerDesc" style="font-size:10.5px;color:var(--dim);margin-bottom:10px">${this.managerPool[0].traitDesc}</div>
       <button class="btn pri" onclick="Franchise.confirmOpen()">Hire manager &amp; open new park</button>`;
     } else {
       h += `<div style="font-size:11px;color:var(--dim)">You've reached the maximum of ${this.maxParks} parks.</div>`;
     }
     UI.modal('Franchise Headquarters', h, []);
+  },
+
+  updateManagerDesc() {
+    const sel = $('#fhManager'); if (!sel) return;
+    const mgr = this.managerPool.find(m => m.name === sel.value);
+    const el = $('#fhManagerDesc');
+    if (el && mgr) el.textContent = mgr.traitDesc;
   },
 
   confirmOpen() {
@@ -17429,6 +17461,9 @@ const Franchise = {
     if (Park.money < cost) { UI.notify('Not enough funds', `Hiring ${managerName} costs ${money(cost)}.`, 'bad'); return; }
     Park.money -= cost;
     this.slots[this.current].manager = managerName;
+    // Shared research: head office passes on what the outgoing park already
+    // knows, so a new site doesn't start from zero on tiers already earned.
+    const sharedTiers = Park.research ? Object.keys(Park.research.unlocked || {}).filter(id => /^tier/.test(id)) : [];
     // Save the park you're leaving under its own slot key, then generate a
     // brand-new park abroad and give it the next slot.
     Game.save(true, this.slots[this.current].key);
@@ -17441,11 +17476,16 @@ const Franchise = {
     UI.closeModal();
     Game.newGame(Park.mode === 'sandbox' ? 'sandbox' : 'career', null, false);
     Park.name = country + ' Park';
+    if (sharedTiers.length && Park.research) {
+      sharedTiers.forEach(id => { Park.research.unlocked[id] = true; });
+      if (typeof Research !== 'undefined' && Research.reapplyAll) Research.reapplyAll();
+    }
     /* Written to its own slot key immediately — otherwise nothing exists at
        that key until the next autosave, and reloading the page or switching
        away before then finds no save for the new park at all. */
     Game.save(true, key);
-    UI.notify('New park opened', `Welcome to ${Park.name} in ${country}. ${managerName} is now running your previous park.`, 'good');
+    UI.notify('New park opened', `Welcome to ${Park.name} in ${country}. ${managerName} is now running your previous park.`
+      + (sharedTiers.length > 1 ? ` Head office shared its research tiers with the new site.` : ''), 'good');
   },
 
   switchTo(idx) {
