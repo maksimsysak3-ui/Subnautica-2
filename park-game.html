@@ -13504,6 +13504,31 @@ const Achievements = {
     { id: 'day30', label: 'A Month In', desc: 'Run your park for 30 days.', reward: 2000, check: () => Park.day >= 30 },
     { id: 'landgrab', label: 'Land Baron', desc: 'Own 100 plots of land.', reward: 2500, check: () => Land.bought >= 100 },
     { id: 'beauty500', label: 'Picture Perfect', desc: 'Reach 500 scenery beauty.', reward: 2000, check: () => Park.beauty >= 500 },
+
+    // ---- Weather ----
+    { id: 'stormWatcher', label: 'Storm Chaser', cat: 'Weather', desc: 'Keep the park running through a thunderstorm.', reward: 1200, check: () => Weather.state === 'storm' },
+    { id: 'snowDay', label: 'Snow Day', cat: 'Weather', desc: 'See snow fall in your park.', reward: 1200, check: () => Weather.state === 'snow' },
+    { id: 'heatwaveSurvivor', label: 'Heatwave Survivor', cat: 'Weather', desc: 'Keep the park open through a heatwave.', reward: 1500, check: () => Weather.event === 'heatwave' },
+    { id: 'coldSnapSurvivor', label: 'Cold Snap Survivor', cat: 'Weather', desc: 'Keep the park open through a cold snap.', reward: 1500, check: () => Weather.event === 'coldsnap' },
+    { id: 'grandFinale', label: 'Grand Finale', cat: 'Weather', desc: 'Put on a fireworks show.', reward: 1000, check: () => (typeof Fireworks !== 'undefined') && Fireworks.showsLaunched >= 1 },
+
+    // ---- Franchise ----
+    { id: 'globalChain', label: 'Global Chain', cat: 'Franchise', desc: 'Own 3 parks in your franchise.', reward: 5000, check: () => (typeof Franchise !== 'undefined') && Franchise.slots.length >= 3 },
+    { id: 'headOffice', label: 'Head Office', cat: 'Franchise', desc: 'Hire your first franchise manager.', reward: 1500, check: () => (typeof Franchise !== 'undefined') && Franchise.slots.some(s => s.manager) },
+    { id: 'fullChain', label: 'Empire Builder', cat: 'Franchise', desc: 'Own the maximum of 5 parks.', reward: 12000, check: () => (typeof Franchise !== 'undefined') && Franchise.slots.length >= Franchise.maxParks },
+
+    // ---- Transit ----
+    { id: 'massTransit', label: 'Mass Transit', cat: 'Transit', desc: 'Carry 500 riders across your bus, train and gondola routes.', reward: 2000, check: () => (typeof Transit !== 'undefined') && (Transit.routes.reduce((s, r) => s + (r.riders || 0), 0) + Transit.lines.reduce((s, l) => s + (l.riders || 0), 0)) >= 500 },
+
+    // ---- Quality of life ----
+    { id: 'secondThoughts', label: 'Second Thoughts', cat: 'Park Tools', desc: 'Undo a scenery change.', reward: 300, check: () => Game.undoCount >= 1 },
+    { id: 'cleanSweep', label: 'Clean Sweep', cat: 'Park Tools', desc: 'Bulk-demolish 10 or more scenery pieces at once.', reward: 800, check: () => Game.maxBulkDemolish >= 10 },
+
+    // ---- Scenario briefs ----
+    { id: 'vintageComplete', label: 'Old-Fashioned Fun', cat: 'Briefs', desc: 'Complete the Vintage Fairground brief.', reward: 2000, check: () => Goals.active && Goals.active.id === 'oldtimer' && Goals.won },
+    { id: 'reclaimComplete', label: 'Phoenix Rising', cat: 'Briefs', desc: 'Complete the Reclaim the Ruins brief.', reward: 2000, check: () => Goals.active && Goals.active.id === 'reclaim' && Goals.won },
+    { id: 'wildtrailComplete', label: 'Into the Wild', cat: 'Briefs', desc: 'Complete the Wild Trails brief.', reward: 2000, check: () => Goals.active && Goals.active.id === 'wildtrail' && Goals.won },
+    { id: 'marathonComplete', label: 'Going the Distance', cat: 'Briefs', desc: 'Complete The Marathon brief.', reward: 4000, check: () => Goals.active && Goals.active.id === 'marathon' && Goals.won },
   ],
   unlocked: [],
   update() {
@@ -13520,7 +13545,13 @@ const Achievements = {
   render() {
     let h = `<div class="goal" style="border:none;padding-top:10px"><div class="gl"><span><b>Achievements</b></span>
       <b>${this.unlocked.length}/${this.list.length}</b></div></div>`;
+    let lastCat = null;
     for (const a of this.list) {
+      const cat = a.cat || 'Park';
+      if (cat !== lastCat) {
+        lastCat = cat;
+        h += `<div style="font-size:10.5px;font-weight:700;color:var(--dim);text-transform:uppercase;letter-spacing:.04em;margin:8px 0 2px">${cat}</div>`;
+      }
       const done = this.unlocked.includes(a.id);
       h += `<div class="goal ${done ? 'done' : ''}">
         <div class="gl"><span>${done ? '\u2713 ' : ''}${a.label}</span><b>${money(a.reward)}</b></div>
@@ -14446,9 +14477,11 @@ const Fireworks = {
   /* Queues every mortar in the park to fire in a staggered sequence rather
      than all at once, so a show with several mortars actually reads as a
      show. Safe to call with zero mortars — it just does nothing. */
+  showsLaunched: 0,
   launchShow() {
     const mortars = Park.objects.filter(o => o.kind === 'scenery' && o.def.kind === 'firework');
     if (!mortars.length) { UI.notify('No fireworks', 'Build a Firework Mortar first.', 'warn'); return; }
+    this.showsLaunched++;
     let t = 0;
     for (let round = 0; round < 3; round++) {
       for (const o of mortars) { this.queue.push({ t, x: o.x, y: o.y, z: o.z }); t += .35 + Math.random() * .3; }
@@ -15798,6 +15831,7 @@ const Game = {
       <button class="btn dan" style="padding:4px 10px" onclick="Game.demolishMultiSel()">Demolish all</button>
       <button class="btn" style="padding:4px 10px" onclick="Game.clearMultiSel()">Clear</button>`;
   },
+  maxBulkDemolish: 0,
   demolishMultiSel() {
     const ids = this.multiSel.slice();
     this.clearMultiSel();
@@ -15813,6 +15847,7 @@ const Game = {
     }
     if (n) {
       this.sceneryDirty = true;
+      this.maxBulkDemolish = Math.max(this.maxBulkDemolish, n);
       UI.notify('Demolished', n + ' pieces removed — refunded ' + money(refundTotal), '');
       Audio.play('demolish');
     }
@@ -16187,7 +16222,7 @@ const Game = {
      connected paths, gondola pairing — is too tangled to safely reverse, so
      undo is scoped to plain scenery/decor: the common "oops, wrong spot" or
      "actually I liked that" case. */
-  undoStack: [],
+  undoStack: [], undoCount: 0,
   pushUndo(entry) {
     this.undoStack.push(entry);
     if (this.undoStack.length > 20) this.undoStack.shift();
@@ -16195,6 +16230,7 @@ const Game = {
   undo() {
     const e = this.undoStack.pop();
     if (!e) { UI.notify('Nothing to undo', 'No recent scenery change to undo.', ''); return; }
+    this.undoCount++;
     if (e.type === 'place') {
       const o = Park.objects.find(x => x.id === e.id);
       if (!o) { UI.notify('Cannot undo', 'That piece is already gone.', 'warn'); return; }
