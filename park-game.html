@@ -7092,17 +7092,62 @@ const Reviews = {
     4: ["Really enjoyed this one!", "Great time, would do it again.", "Solid pick, glad we stopped here.", "Better than I expected!"],
     5: ["Absolutely incredible, best part of the trip!", "WOW. Just wow. 10/10.", "My whole family loved this!", "Already planning to come back just for this."],
   },
-  add(obj, starsFloat, name) {
+  /* Complaints that name the actual reason, not just a generic gripe —
+     these tie back to Reviews.FIXES so a bad review tells you what to do
+     about it, not just that someone was unhappy. */
+  TAG_BANK: {
+    price: {
+      1: ["Way too expensive for what it is. Robbery.", "Ripped off — not doing that again."],
+      2: ["A bit pricey for such a short ride.", "Fun, but overpriced."],
+    },
+    nausea: {
+      1: ["Made me feel awful. Do not recommend.", "Way too rough — I felt sick for an hour after."],
+      2: ["A little rough on the stomach.", "Queasy after that one."],
+    },
+    worn: {
+      1: ["This thing feels like it's falling apart.", "Rattled and clunked the whole way round — unsettling."],
+      2: ["Could use some maintenance, it's seen better days.", "A bit run-down honestly."],
+    },
+    boring: {
+      1: ["Nothing to it. Skip this one.", "Fell asleep, basically."],
+      2: ["Pretty forgettable.", "Wouldn't go out of my way for this again."],
+    },
+    thrill: {
+      5: ["Best ride in the whole park, no contest!", "That excitement level is unreal — go again immediately!"],
+      4: ["Genuinely thrilling, loved every second.", "Way more intense than it looks — brilliant."],
+    },
+  },
+  /* What to actually do about a recurring complaint, surfaced in the
+     inspector once a couple of matching low reviews stack up. */
+  FIXES: {
+    price: 'Guests keep saying this is overpriced — try lowering the ticket price.',
+    nausea: 'Guests are feeling sick after riding this — consider advertising the intensity more clearly, or building it somewhere queues form more slowly.',
+    worn: 'Guests are noticing wear and tear — send a mechanic to repair it, or refurbish it for a lasting fix.',
+    boring: 'Guests are underwhelmed — a refurbishment or a fresh paint livery can help it feel new again.',
+  },
+  add(obj, starsFloat, name, tag) {
     if (!obj.reviews) obj.reviews = [];
     const stars = clamp(Math.round(starsFloat), 1, 5);
-    const bank = this.BANK[stars];
+    const tagBank = tag && this.TAG_BANK[tag] && this.TAG_BANK[tag][stars];
+    const bank = tagBank || this.BANK[stars];
     const text = bank[Math.floor(Math.random() * bank.length)];
-    obj.reviews.unshift({ name, stars, text, day: Park.day || 1 });
+    obj.reviews.unshift({ name, stars, text, day: Park.day || 1, tag: tag || null });
     if (obj.reviews.length > 18) obj.reviews.length = 18;
   },
   starsHTML(stars) {
     let s = ''; for (let i = 1; i <= 5; i++) s += i <= stars ? '★' : '☆';
     return s;
+  },
+  /* The single most common reason behind a run of bad reviews, or null if
+     there isn't a clear pattern yet (one bad review is bad luck, three
+     about the same thing is a problem worth fixing). */
+  topComplaint(obj) {
+    const rv = obj.reviews || [];
+    const counts = {};
+    for (const r of rv) if (r.stars <= 2 && r.tag) counts[r.tag] = (counts[r.tag] || 0) + 1;
+    let best = null, bestN = 1;
+    for (const k in counts) if (counts[k] > bestN) { best = k; bestN = counts[k]; }
+    return best;
   }
 };
 
@@ -8226,9 +8271,13 @@ class Guest extends Person {
     this.riding = null;
     this.state = 'idle';
     this.ridden.push(ride.id);
-    if (aborted) { this.happy = clamp(this.happy - .2, 0, 1); this.think('We got stuck on the ride!'); this.state = 'idle'; return; }
+    if (aborted) {
+      this.happy = clamp(this.happy - .2, 0, 1); this.think('We got stuck on the ride!'); this.state = 'idle';
+      if (Math.random() < .6) Reviews.add(ride, 1, this.name, 'worn');
+      return;
+    }
     const rating = ride.ratingFor(this);
-    if (Math.random() < .35) Reviews.add(ride, rating / 12 * 5, this.name);
+    if (Math.random() < .35) Reviews.add(ride, rating / 12 * 5, this.name, this.rideComplaintTag(ride, rating));
     this.happy = clamp(this.happy + rating * .022 - .01, 0, 1);
     this.nausea = clamp(this.nausea + ride.nausea * .055 * (1 + Math.max(0, ride.nausea - this.nauseaTol) * .25), 0, 1);
     this.energy = clamp(this.energy - .04, 0, 1);
@@ -8246,6 +8295,17 @@ class Guest extends Person {
     const off = (ride.gd * TILE) / 2 + 2.4;
     this.x = ride.x + Math.sin(a) * off + rnd(-1.5, 1.5);
     this.z = ride.z - Math.cos(a) * off + rnd(-1.5, 1.5);
+  }
+  /* Turns a numeric rating into a reason, so a bad review names the actual
+     cause instead of just being unhappy about it in the abstract. */
+  rideComplaintTag(ride, rating) {
+    if (rating > 8.5) return 'thrill';
+    if (rating > 2) return null;
+    const fair = clamp(Math.round(2 + (ride.excitement || 0) * 1.05), 2, 26);
+    if (ride.price > fair * 1.4) return 'price';
+    if ((ride.nausea || 0) > this.nauseaTol) return 'nausea';
+    if ((ride.wear || 0) > .55) return 'worn';
+    return 'boring';
   }
   leavePark() {
     this.claim(null);
@@ -10036,6 +10096,10 @@ const UI = {
       if (!rv.length) return `<div class="cat">Reviews</div><div style="font-size:10.5px;color:var(--dim)">No reviews yet — check back after guests visit.</div>`;
       const avg = rv.reduce((a, r) => a + r.stars, 0) / rv.length;
       let s = `<div class="cat">Reviews &middot; <span style="color:var(--gold)">${Reviews.starsHTML(Math.round(avg))}</span> <span style="color:var(--dim);font-weight:400">${avg.toFixed(1)} avg from ${rv.length}</span></div>`;
+      const complaint = Reviews.topComplaint(obj);
+      if (complaint) s += `<div style="background:var(--panel-sunken);border-left:3px solid var(--warn);border-radius:6px;padding:6px 8px;margin-bottom:6px">
+        <div style="font-size:10px;font-weight:700;color:var(--warn)">What guests are asking for</div>
+        <div style="font-size:10.5px;margin-top:2px">${Reviews.FIXES[complaint]}</div></div>`;
       s += `<div style="display:flex;flex-direction:column;gap:6px;max-height:180px;overflow-y:auto">`;
       for (const r of rv.slice(0, 8)) {
         s += `<div style="background:var(--panel-sunken);border-radius:8px;padding:6px 8px">
@@ -10087,6 +10151,10 @@ const UI = {
           : '<span class="tag" style="background:#fdf0d2;color:var(--gold)">CLOSED</span>';
       h += `<div style="display:flex;justify-content:space-between;align-items:center">
         <span style="font-size:10.5px;color:var(--dim)">${isC ? o.type.name : o.def.name} &middot; ${age(o)}</span>${st}</div>`;
+      if (o.reviews && o.reviews.length) {
+        const ravg = o.reviews.reduce((a, r) => a + r.stars, 0) / o.reviews.length;
+        h += `<div style="font-size:13px;color:var(--gold);margin:2px 0">${Reviews.starsHTML(Math.round(ravg))} <span style="color:var(--dim);font-size:10.5px;font-weight:400">${ravg.toFixed(1)} / 5 from guests</span></div>`;
+      }
       h += `<div class="meterbox">
         <div class="meter"><span class="mn">Excitement</span><span class="bar"><span class="fill" style="width:${o.excitement / 14 * 100}%;background:var(--good)"></span></span><span class="mv">${o.excitement.toFixed(1)}</span></div>
         <div class="meter"><span class="mn">Intensity</span><span class="bar"><span class="fill" style="width:${o.intensity / 14 * 100}%;background:var(--warn)"></span></span><span class="mv">${o.intensity.toFixed(1)}</span></div>
