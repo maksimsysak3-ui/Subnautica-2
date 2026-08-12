@@ -2617,6 +2617,7 @@ const CAT = {
     { id: 'donut', name: 'Donut Dome', cost: 1300, up: 20, w: 2, d: 1, need: 'hunger', price: 7, satisfy: 50, color: 0xe8749b, roof: 0x8b5ab8 },
     { id: 'popcorn', name: 'Popcorn Stand', cost: 850, up: 15, w: 1, d: 1, need: 'hunger', price: 5, satisfy: 34, color: 0xe8d24a, roof: 0xd94f3c },
     { id: 'bikerental', name: 'Bike Rental Stand', cost: 2200, up: 12, w: 2, d: 1, need: 'bike', price: 6, satisfy: 0, color: 0x2e7d46, roof: 0xf2c14e },
+    { id: 'parkinglot', name: 'Parking Lot', cost: 8000, up: 20, w: 6, d: 4, need: 'parking', price: 0, satisfy: 0, spaces: 40, color: 0x6b6b6d, roof: 0x3a3a3c },
     { id: 'toilet', name: 'Restrooms', cost: 900, up: 20, w: 2, d: 2, need: 'toilet', price: 0, satisfy: 100, color: 0x8fa3b8, roof: 0x4d6480 },
     { id: 'gift', name: 'Gift Shop', cost: 2000, up: 30, w: 2, d: 2, need: 'shop', price: 18, satisfy: 55, color: 0x7b5bd4, roof: 0xffd76a },
     { id: 'balloon', name: 'Balloon Stall', cost: 700, up: 12, w: 1, d: 1, need: 'shop', price: 6, satisfy: 40, color: 0xff6f91, roof: 0x69d2f0 },
@@ -3186,6 +3187,46 @@ const Prefab = {
         g.cyl(0, totalH + 1.2, 0, .3, 2.0, 6, shade(hex(0xffffff), 1.2)); // mast
         return { base: g, parts: [] };
       }
+    }
+
+    if (def.need === 'parking') {
+      // A real lot: painted bays, a booth, and rows of parked cars — plus a
+      // short access-road stub leading off the back edge toward the map
+      // boundary, since a parking lot with no road in is just a field.
+      const asphalt = hex(0x4a4a4c), line = hex(0xdcd6b8);
+      g.box(0, -.05, 0, W + .3, .12, D + .3, asphalt);
+      const rows = 2, perRow = Math.max(3, Math.floor((W - 1) / 1.4));
+      for (let row = 0; row < rows; row++) {
+        const rz = -D / 2 + D * (row === 0 ? .28 : .72);
+        for (let k = 0; k <= perRow; k++) {
+          const bx = -W / 2 + 1 + k * (W - 2) / perRow;
+          g.box(bx, .02, rz - 1.5, .06, .02, 3, line);
+        }
+      }
+      // access road stub off the far (-Z) edge, styled like the paintable
+      // Road material — this is what a player then extends out to the
+      // park boundary with the Road tool
+      g.box(0, -.02, -D / 2 - 2.5, 3.2, .1, 5, hex(0x4a4a4c));
+      g.box(-1.5, -.005, -D / 2 - 2.5, .1, .05, 5, hex(0xd7d3c8));
+      g.box(1.5, -.005, -D / 2 - 2.5, .1, .05, 5, hex(0xd7d3c8));
+      // small attendant booth by the entrance
+      g.box(W / 2 - 1.2, .3, -D / 2 + .8, 1.1, 1.5, 1.1, wall);
+      g.box(W / 2 - 1.2, 1.05, -D / 2 + .8, 1.3, .18, 1.3, shade(roof, 1.05));
+      this.shopEmblem(g, def, W / 2 - 1.2, 1.4, -D / 2 + .8);
+      // parked cars, one per bay, skipping a few so the lot never looks
+      // perfectly full (reads as "in use", not a car dealership)
+      const colors = [0xd9432e, 0x2e6fd9, 0xd9c22e, 0x3ba05a, 0xe8e8ec, 0x2b2b30];
+      let ci = 0;
+      for (let row = 0; row < rows; row++) {
+        const rz = -D / 2 + D * (row === 0 ? .28 : .72);
+        for (let k = 0; k < perRow; k++) {
+          if ((k + row) % 3 === 2) continue;   // leave some bays empty
+          const bx = -W / 2 + 1 + (k + .5) * (W - 2) / perRow;
+          const cc = colors[ci++ % colors.length];
+          g.mergeM(Prefab.car(cc), M4.compose(M4.create(), bx, .05, rz, 0, row === 0 ? 0 : PI, 0, .82, .82, .82));
+        }
+      }
+      return { base: g, parts: [] };
     }
 
     if (def.need === 'bike') {
@@ -5928,6 +5969,10 @@ class ParkObject {
     } else if (this.kind === 'shop') {
       this.satisfyMul = 1 + (t - 1) * .14;
       this.restockRate = 1 + (t - 1) * .5;
+      if (this.def.need === 'parking') {
+        if (this._baseSpaces === undefined) this._baseSpaces = this.def.spaces || 40;
+        this.spaces = Math.round(this._baseSpaces * (1 + (t - 1) * .65));
+      }
     }
   }
   upgrade() {
@@ -6053,6 +6098,7 @@ class Shop extends ParkObject {
     this.queue = [];
     this.name = def.name;
     this.merch = (def.need === 'shop') ? null : undefined;   // designed item, if any
+    if (def.need === 'parking') this.spaces = def.spaces || 40;
   }
   get frontTile() {
     const dir = [[0, -1], [-1, 0], [0, 1], [1, 0]][this.rot];
@@ -6654,13 +6700,18 @@ const Park = {
     const shops = this.objects.filter(o => o.kind === 'shop').length;
     const hotelRooms = this.objects.filter(o => o.kind === 'shop' && o.def.need === 'hotel')
       .reduce((a, o) => a + (o.def.rooms || 0), 0);
+    const parkingSpaces = this.objects.filter(o => o.kind === 'shop' && o.def.need === 'parking')
+      .reduce((a, o) => a + (o.spaces || 0), 0);
     /* What the park can hold, which is also what caps the crowd. Deliberately
        below what the rides could physically take: a park that is rammed on
        day one has nowhere to grow. Hotel rooms count too — a resort with
        real lodging can plausibly host far more people than day-trippers
        alone, which is what makes the 2,000-guest Prestige milestone a
-       genuine late-game push rather than an impossible number. */
-    return clamp(Math.round(60 + atts * 62 + shops * 20 + hotelRooms * 9 + this.rating * .18), 60, this.maxGuests);
+       genuine late-game push rather than an impossible number. Parking
+       spaces do the same for guests who drive rather than walk or ride
+       transit in — a bigger lot means more cars can actually reach the
+       gate on a busy day. */
+    return clamp(Math.round(60 + atts * 62 + shops * 20 + hotelRooms * 9 + parkingSpaces * 1.6 + this.rating * .18), 60, this.maxGuests);
   },
 
   reset() {
@@ -10053,6 +10104,18 @@ const UI = {
         <button class="btn dan" onclick="Game.demolish(${o.id})">Demolish</button></div>`;
       if (o.broken) h += `<div style="color:var(--bad);font-size:11px">A mechanic is needed before this can reopen.</div>`;
       h += reviewsSection(o);
+    }
+    else if (o.kind === 'shop' && o.def.need === 'parking') {
+      $('#insTitle').textContent = 'Parking Lot';
+      h += nameField(o);
+      h += `<div style="font-size:10.5px;color:var(--dim)">${o.def.name} &middot; ${['', 'Standard', 'Improved', 'Deluxe', 'Flagship'][o.tier] || 'Standard'} &middot; ${age(o)}</div>`;
+      h += kv('Parking spaces', o.spaces || o.def.spaces);
+      h += kv('Adds to park capacity', '+' + Math.round((o.spaces || o.def.spaces) * 1.6) + ' guests');
+      h += kv('Upkeep', money((o.def.up || 0) * .6) + ' / hr');
+      h += `<div style="font-size:10.5px;color:var(--dim);margin-top:-2px">A bigger lot lets more driving guests reach the park on a busy day — connect it to the road network with the Road path material so it actually reads as an access route.</div>`;
+      if (o.canUpgrade()) h += `<div class="btnrow"><button class="btn go" onclick="Park.objects.find(x=>x.id===${o.id}).upgrade();UI.manage(${o.id})">Expand — ${money(o.upgradeCost())}</button></div>`;
+      h += `<div class="btnrow"><button class="btn" onclick="Game.autoConnect(Park.objects.find(x=>x.id===${o.id}))">Reconnect path</button>
+        <button class="btn dan" onclick="Game.demolish(${o.id})">Demolish</button></div>`;
     }
     else if (o.kind === 'shop' && o.def.need === 'hotel') {
       $('#insTitle').textContent = 'Hotel';
