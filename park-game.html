@@ -3263,21 +3263,32 @@ const Prefab = {
         break;
       }
       case 'tree': {
+        // Three overlapping spheres read as one solid canopy only if they
+        // actually overlap by a wide margin — the old offsets (1.0-1.2 units
+        // apart with 1.1-1.7 radii) left visible gaps of open air between
+        // them. Pulling the lobes in tight against the main canopy and
+        // bumping segment counts fixes the "not fully solid" look.
         const h = 2.4 + rr() * 1.4;
-        g.cyl(0, 0, 0, .3, h, 7, hex(0x6b4a2f), .8);
+        g.cyl(0, 0, 0, .3, h, 8, hex(0x6b4a2f), .8);
         const lc = shade(hex(0x3e9c4b), .9 + rr() * .3);
-        g.sphere(0, h + 1.0, 0, 1.7 + rr() * .4, 7, lc);
-        g.sphere(-1.0, h + .5, .4, 1.1, 6, shade(lc, .9));
-        g.sphere(1.0, h + .7, -.4, 1.2, 6, shade(lc, 1.08));
+        const R0 = 1.9 + rr() * .4;
+        g.sphere(0, h + 1.0, 0, R0, 9, lc);
+        g.sphere(-R0 * .5, h + .85, .22, R0 * .78, 8, shade(lc, .92));
+        g.sphere(R0 * .5, h + .95, -.22, R0 * .82, 8, shade(lc, 1.06));
+        g.sphere(0, h + 1.75, .1, R0 * .62, 7, shade(lc, 1.12));
         break;
       }
       case 'pine': {
+        // Same fix as the oak: each tier now starts low enough to bury its
+        // base well inside the tier below, so no ring of background shows
+        // between them no matter the viewing angle.
         const h = 3.2 + rr() * 2;
-        g.cyl(0, 0, 0, .26, h * .4, 6, hex(0x5b4230), .8);
+        g.cyl(0, 0, 0, .26, h * .4, 7, hex(0x5b4230), .8);
         const lc = shade(hex(0x2f7a44), .9 + rr() * .25);
-        g.cone(0, h * .25, 0, 1.7, h * .5, 7, lc);
-        g.cone(0, h * .55, 0, 1.35, h * .45, 7, shade(lc, 1.08));
-        g.cone(0, h * .85, 0, .95, h * .4, 7, shade(lc, 1.16));
+        g.cone(0, h * .16, 0, 1.75, h * .48, 8, lc);
+        g.cone(0, h * .42, 0, 1.4, h * .42, 8, shade(lc, 1.08));
+        g.cone(0, h * .68, 0, 1.0, h * .38, 8, shade(lc, 1.16));
+        g.cone(0, h * .92, 0, .55, h * .28, 7, shade(lc, 1.22));
         break;
       }
       case 'palm': {
@@ -3291,7 +3302,12 @@ const Prefab = {
         for (let i = 0; i < 8; i++) {
           const a = i / 8 * TAU;
           const lc = shade(hex(0x3fa055), .85 + rr() * .3);
-          g.triV([tx, h, 0], [tx + Math.cos(a) * 2.6, h - 1.1, Math.sin(a) * 2.6], [tx + Math.cos(a + .32) * 2.2, h - .6, Math.sin(a + .32) * 2.2], lc);
+          const p0 = [tx, h, 0], p1 = [tx + Math.cos(a) * 2.6, h - 1.1, Math.sin(a) * 2.6], p2 = [tx + Math.cos(a + .32) * 2.2, h - .6, Math.sin(a + .32) * 2.2];
+          // A frond is a single flat triangle — with backface culling on,
+          // that made every other frond invisible depending on which way
+          // the camera happened to be facing. Two-sided leaves fix it.
+          g.triV(p0, p1, p2, lc);
+          g.triV(p0, p2, p1, lc);
         }
         g.sphere(tx, h - .3, 0, .35, 5, hex(0x8b6b3a));
         break;
@@ -8498,10 +8514,6 @@ const UI = {
     this.refreshTools();
   },
   setTool(id) {
-    if (id === 'research' && Park.mode === 'career' && Park.level < 5) {
-      UI.notify('Locked', 'The Research tab unlocks at park level 5. Keep growing your park.', 'warn');
-      return;
-    }
     if (Coaster.active && id !== 'coaster') Coaster.exit();
     this.tool = id; this.sub = null;
     this.refreshTools();
@@ -8562,9 +8574,9 @@ const UI = {
       for (const it of items) {
         const locked = lockFn ? !lockFn(it) : !Progress.unlocked(it);
         const d = el('div', 'item' + (locked ? ' locked' : ''), render(it) +
-          (locked ? `<span class="c" style="color:var(--warn)">Unlocks at level ${lockFn ? Progress.coasterTier(it) : Progress.tierOf(it)}</span>` : ''));
+          (locked ? `<span class="c" style="color:var(--warn)">Needs Tier ${lockFn ? Progress.coasterTier(it) : Progress.tierOf(it)} research</span>` : ''));
         d.onclick = () => {
-          if (locked) { this.notify('Locked', it.name + ' unlocks at park level ' + (lockFn ? Progress.coasterTier(it) : Progress.tierOf(it)) + '. Grow your park to level up.', 'warn'); return; }
+          if (locked) { this.notify('Locked', it.name + ' needs Tier ' + (lockFn ? Progress.coasterTier(it) : Progress.tierOf(it)) + ' research — open the Research tab.', 'warn'); return; }
           onPick(it, d);
         };
         d.dataset.k = it.id;
@@ -8625,7 +8637,7 @@ const UI = {
       addGrid('Build Your Own', CAT.coasterTypes, 'grid2',
         it => `<img class="th" src="${Thumbs.coasterType(it)}" alt=""><span class="n">${it.name}</span><span class="c">${money(6000)} station</span>`,
         (it, d) => { this.pick(it, d); Coaster.beginPlacement(it); },
-        it => Park.mode === 'sandbox' || Progress.coasterTier(it) <= Park.level);
+        it => Park.mode === 'sandbox' || !!(Park.research && Park.research.unlocked['tier' + Progress.coasterTier(it)]));
       b.appendChild(el('div', 'cat', 'Existing Coasters'));
       const list = el('div', '');
       if (!Park.coasters.length) list.innerHTML = `<div style="font-size:11px;color:var(--dim);padding:3px">None yet. Pick a track type, place the station, then lay track piece by piece.</div>`;
@@ -8733,8 +8745,10 @@ const UI = {
       b.appendChild(el('div', '', `<div style="font-size:11px;color:var(--dim);line-height:1.55;padding:0 3px">
         Every upgrade costs both cash and Research Points (RP). RP is earned automatically each day —
         more for a higher-rated, busier park — so growing your park unlocks deeper research faster.
-        The final tier of each branch also unlocks new customization options, like the Armored Fortress,
-        Crystal Glider and side-by-side Wing Rider train styles.</div>`));
+        <b>Attractions</b> is the main ladder: research Tier 1 through Tier 7 in order to unlock every
+        new coaster, water ride, shop and piece of scenery — nothing in career mode is available to build
+        until its tier has been researched. The other branches (Engineering, Marketing, Finance, Staff)
+        are optional upgrades that make what you've already unlocked run better.</div>`));
     }
   },
   /* ---- shared renderer for any grid that can contain Prestige items ---- */
@@ -8831,7 +8845,7 @@ const UI = {
         d.onclick = (e) => {
           e.stopPropagation();
           if (prestigeLocked) { if (!Prestige.buy(it)) return; }
-          else if (levelLocked) { this.notify('Locked', it.name + ' unlocks at park level ' + Progress.tierOf(it) + '.', 'warn'); return; }
+          else if (levelLocked) { this.notify('Locked', it.name + ' needs Tier ' + Progress.tierOf(it) + ' research — open the Research tab.', 'warn'); return; }
           if (Coaster.active && toolId !== 'coaster') Coaster.exit();
           this.tool = toolId; this.sub = it; this.rot = 0;
           this.refreshTools();
@@ -10706,8 +10720,8 @@ const Coaster = {
   placeStation(i, j, rot) {
     const type = this.placing;
     if (!type) return;
-    if (Park.mode === 'career' && Progress.coasterTier(type) > Park.level) {
-      UI.notify('Locked', type.name + ' unlocks at park level ' + Progress.coasterTier(type) + '.', 'warn');
+    if (Park.mode === 'career' && !(Park.research && Park.research.unlocked['tier' + Progress.coasterTier(type)])) {
+      UI.notify('Locked', type.name + ' needs Tier ' + Progress.coasterTier(type) + ' research — open the Research tab.', 'warn');
       return;
     }
     const c = new CoasterRide(type, i, j, rot);
@@ -12353,6 +12367,33 @@ const SCENARIOS = [
    earlier one (req) so the tree has some shape instead of being a flat list.
    ========================================================================== */
 const RESEARCH = [
+  /* ---- Content tiers: what used to unlock automatically at a park level
+     now has to be researched, one tier at a time. Tier 1 is granted for
+     free at the start of every career park (Research.reset()) so a new
+     park is never bricked with nothing buildable, but it still shows up
+     here as "Researched" so the progression reads as one continuous ladder
+     from the very first tier. ---- */
+  { id: 'tier1', name: 'Tier 1 — Park Fundamentals', cat: 'Attractions', cost: 0, rp: 0,
+    desc: 'Basic flat rides, snack & drink stalls, and simple scenery — everything a brand-new park opens with.',
+    apply: () => {} },
+  { id: 'tier2', name: 'Tier 2 — Family Attractions', cat: 'Attractions', cost: 3000, rp: 5, req: 'tier1',
+    desc: 'Family and Mouse coasters, the first water rides, and mid-tier shops.',
+    apply: () => { Progress.announceTier(2); } },
+  { id: 'tier3', name: 'Tier 3 — Steel & Wood', cat: 'Attractions', cost: 8000, rp: 12, req: 'tier2',
+    desc: 'Steel and Wooden coasters, bigger water attractions, and quality retail.',
+    apply: () => { Progress.announceTier(3); } },
+  { id: 'tier4', name: 'Tier 4 — Mine & Spin', cat: 'Attractions', cost: 16000, rp: 20, req: 'tier3',
+    desc: 'Mine Train and Spinning coasters, plus premium facilities and lodging.',
+    apply: () => { Progress.announceTier(4); } },
+  { id: 'tier5', name: 'Tier 5 — Hyper & Inverted', cat: 'Attractions', cost: 28000, rp: 32, req: 'tier4',
+    desc: 'Hyper and Inverted coasters, top-tier lodging, and prestige landmarks.',
+    apply: () => { Progress.announceTier(5); } },
+  { id: 'tier6', name: 'Tier 6 — Launch & Wing', cat: 'Attractions', cost: 45000, rp: 48, req: 'tier5',
+    desc: 'Launch, Wing, and Dive coasters, and the most advanced water parks.',
+    apply: () => { Progress.announceTier(6); } },
+  { id: 'tier7', name: 'Tier 7 — Suspended & Giga', cat: 'Attractions', cost: 70000, rp: 70, req: 'tier6',
+    desc: 'Suspended and Giga coasters — the pinnacle of the catalogue.',
+    apply: () => { Progress.announceTier(7); } },
   { id: 'railAlloys', name: 'Advanced Rail Alloys', cat: 'Engineering', cost: 8000, rp: 6,
     desc: 'Lighter, tougher track sections wear out 20% slower.',
     apply: () => { Park.wearMult = (Park.wearMult === undefined ? 1 : Park.wearMult) * .8; } },
@@ -12403,11 +12444,19 @@ const Research = {
      and before restoring a save, so loading a park with research already
      bought doesn't leave its bonuses as inert saved data with no effect. */
   reset() {
-    Park.research = { unlocked: {} };
+    Park.research = { unlocked: { tier1: true } };
     Park.wearMult = 1; Park.relBonus = 0; Park.trainStylesUnlocked = [];
     Park.marketingMult = 1; Park.hotelMult = 1; Park.interestMult = 1;
     Park.staffEffMult = 1; Park.happyBonus = 0;
     Park.moneyMult = 1.1;
+  },
+  /* Highest content tier fully researched (0 if somehow none, though tier1
+     is always granted). Used to gate the catalogue and preview the next
+     tier's track pieces one step early, same as the old level system did. */
+  highestTier() {
+    let h = 0;
+    for (let n = 1; n <= 7; n++) if (Park.research && Park.research.unlocked['tier' + n]) h = n;
+    return h;
   },
   /* Re-run every already-unlocked node's effect. Call after Research.reset()
      when restoring a save, so multipliers land back where they were instead
@@ -12452,10 +12501,15 @@ const Progress = {
     def._tier = t;
     return t;
   },
+  /* Content is unlocked by RESEARCH tier nodes now, not by park level —
+     see Research.reset()/Research.highestTier() and the tier1-7 entries in
+     RESEARCH. Park level still climbs from XP and still matters for
+     reputation/achievements, it just no longer gates the catalogue. */
   unlocked(def) {
     if (!def) return true;
     if (Park.mode === 'sandbox') return true;
-    return this.tierOf(def) <= Park.level;
+    const t = this.tierOf(def);
+    return !!(Park.research && Park.research.unlocked['tier' + t]);
   },
   xpFor(level) { return Math.round(400 * Math.pow(level, 1.85)); },
   add(n) {
@@ -12467,19 +12521,25 @@ const Progress = {
     }
   },
   announce(level) {
+    UI.notify('Park level ' + level, 'Your reputation is growing. Spend research points in the Research menu to unlock the next tier of coasters, rides and buildings.', 'good');
+    Audio.play('complete');
+  },
+  /* Fired from a tier research node's own apply() once it's bought — this is
+     the actual "you can build this now" announcement players asked for. */
+  announceTier(n) {
     const fresh = [];
-    const scan = (list, kind) => { for (const d of list) if (this.tierOf(d) === level) fresh.push(kind + ': ' + d.name); };
+    const scan = (list, kind) => { for (const d of list) if (this.tierOf(d) === n) fresh.push(kind + ': ' + d.name); };
     scan(CAT.rides.filter(r => !r.water), 'Ride');
     scan(CAT.rides.filter(r => r.water), 'Water');
     scan(CAT.shops, 'Shop');
     scan(CAT.scenery, 'Scenery');
-    for (const t of CAT.coasterTypes) if (this.coasterTier(t) === level) fresh.push('Coaster: ' + t.name);
-    UI.notify('Park level ' + level, fresh.length ? 'Unlocked ' + fresh.slice(0, 4).join(', ') + (fresh.length > 4 ? ' and more' : '') + '.' : 'Your reputation is growing.', 'good');
+    for (const t of CAT.coasterTypes) if (this.coasterTier(t) === n) fresh.push('Coaster: ' + t.name);
+    UI.notify('Tier ' + n + ' researched', fresh.length ? 'Unlocked ' + fresh.slice(0, 5).join(', ') + (fresh.length > 5 ? ' and more' : '') + '.' : 'New content is now available to build.', 'good');
     Audio.play('complete');
     UI.refreshBuildPanel();
   },
   coasterTier(type) { return this.COASTER_TIER[type.id] || 4; },
-  pieceUnlocked(def) { return Park.mode === 'sandbox' || this.tierOf(def) <= Park.level + 1; },
+  pieceUnlocked(def) { return Park.mode === 'sandbox' || this.tierOf(def) <= Research.highestTier() + 1; },
 };
 
 const Achievements = {
@@ -14720,7 +14780,7 @@ const Game = {
       UI.notify('Locked', Transit.lockNote(), 'warn'); Audio.play('error'); return;
     }
     if (!isTransit && !Progress.unlocked(p.def)) {
-      UI.notify('Locked', p.def.name + ' unlocks at park level ' + Progress.tierOf(p.def) + '.', 'warn');
+      UI.notify('Locked', p.def.name + ' needs Tier ' + Progress.tierOf(p.def) + ' research — open the Research tab.', 'warn');
       Audio.play('error');
       return;
     }
@@ -15939,7 +15999,15 @@ const Game = {
          research already bought loads with the UI showing it owned while
          none of it actually does anything. */
       Research.reset();
-      if (d.research && d.research.unlocked) Park.research = d.research;
+      if (d.research && d.research.unlocked) {
+        Park.research = d.research;
+        // Saves from before content tiers existed have no tierN keys at all —
+        // without this they'd suddenly lose access to everything their old
+        // Park.level had already unlocked. Backfill tiers up to that level.
+        const hasAnyTier = [1, 2, 3, 4, 5, 6, 7].some(n => Park.research.unlocked['tier' + n]);
+        if (!hasAnyTier) for (let n = 1; n <= (d.level || Park.level || 1); n++) Park.research.unlocked['tier' + n] = true;
+        Park.research.unlocked.tier1 = true;
+      }
       Research.reapplyAll();
       Prestige.reset();
       if (d.prestige) {
