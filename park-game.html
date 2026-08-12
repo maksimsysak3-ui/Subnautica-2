@@ -6748,6 +6748,7 @@ const Weather = {
     this.dayOfSeason = ((day || 1) - 1) % this.DAYS_PER_SEASON;
     this.state = this.next = 'fair'; this.blend = 1;
     this.temp = this.season.base;
+    this.event = null; this.eventDaysLeft = 0;
   },
   /* A new roll each park hour, weighted by season wetness, easing between. */
   hourTick(hour) {
@@ -15178,6 +15179,7 @@ const Game = {
     for (const o of Park.objects) if (o.mesh) o.mesh.dispose();
     for (const c of Park.coasters) { if (c.trackMesh) c.trackMesh.dispose(); if (c.stationMesh) c.stationMesh.dispose(); if (c.splashMesh) c.splashMesh.dispose(); }
     HeatMap.close(); Traffic.cars.length = 0;
+    if (typeof Fireworks !== 'undefined') { Fireworks.active.length = 0; Fireworks.queue.length = 0; Fireworks.shownTonight = -1; }
     Park.objects.length = 0; Park.coasters.length = 0; Park.guests.length = 0;
     Park.staff.length = 0; Park.litter.length = 0; Park.needMechanic.length = 0;
     Park.hist.length = 0; Park.awards.length = 0;
@@ -17036,7 +17038,7 @@ const Game = {
             return e ? { color: l.color, a: { i: e.a.i, j: e.a.j }, b: { i: e.b.i, j: e.b.j }, riders: l.riders, rev: l.revenue, tier: l.tier || 1 } : null;
           }).filter(Boolean)
         },
-        weather: { season: Weather.seasonIndex, dayOfSeason: Weather.dayOfSeason, state: Weather.state }
+        weather: { season: Weather.seasonIndex, dayOfSeason: Weather.dayOfSeason, state: Weather.state, event: Weather.event, eventDaysLeft: Weather.eventDaysLeft }
       };
       localStorage.setItem(key || 'planetcoaster_save', JSON.stringify(d));
       if (!silent) UI.notify('Saved', 'Park written to browser storage.', 'good');
@@ -17099,6 +17101,7 @@ const Game = {
       for (const o of Park.objects) if (o.mesh) o.mesh.dispose();
       for (const c of Park.coasters) { if (c.trackMesh) c.trackMesh.dispose(); if (c.stationMesh) c.stationMesh.dispose(); if (c.splashMesh) c.splashMesh.dispose(); }
       HeatMap.close(); Traffic.cars.length = 0;
+      if (typeof Fireworks !== 'undefined') { Fireworks.active.length = 0; Fireworks.queue.length = 0; Fireworks.shownTonight = -1; }
       Park.objects.length = 0; Park.coasters.length = 0; Park.guests.length = 0; Park.staff.length = 0; Park.litter.length = 0;
       Park.gate = null;
       WORLD.h.set(d.h); WORLD.type.set(d.t); WORLD.own.fill(-1);
@@ -17283,6 +17286,10 @@ const Game = {
         Weather.seasonIndex = clamp(d.weather.season | 0, 0, 3);
         Weather.dayOfSeason = clamp(d.weather.dayOfSeason | 0, 0, Weather.DAYS_PER_SEASON - 1);
         if (WEATHERS[d.weather.state]) Weather.state = Weather.next = d.weather.state;
+        Weather.event = (d.weather.event === 'heatwave' || d.weather.event === 'coldsnap') ? d.weather.event : null;
+        Weather.eventDaysLeft = clamp(d.weather.eventDaysLeft | 0, 0, 30);
+      } else {
+        Weather.event = null; Weather.eventDaysLeft = 0;
       }
       WORLD.dirty = true; Path.dirty = true; this.sceneryDirty = true; Park.litterDirty = true;
       UI.notify('Loaded', 'Park restored.', 'good');
