@@ -7476,6 +7476,10 @@ class Guest extends Person {
     this.transit = null;
     this.transitCool = 0;
     this.speed *= this.pace;
+    // ---- what this guest is visibly carrying ----
+    this.hasUmbrella = Math.random() < .4;   // only shows up once it actually rains
+    this.bagCarried = 0;                      // souvenirs bought and not yet home
+    this.pushingStroller = false;             // set on one adult per family group
   }
   /* ------------------------------------------------------------------
      THE PLAN
@@ -8184,7 +8188,7 @@ class Guest extends Person {
         case 'toilet': this.toilet = 0; break;
         case 'nausea': this.nausea = 0; break;
         case 'cash': this.cash += 140; break;
-        case 'shop': this.happy = clamp(this.happy + .07, 0, 1); break;
+        case 'shop': this.happy = clamp(this.happy + .07, 0, 1); this.bagCarried = clamp(this.bagCarried + 1, 0, 3); break;
         case 'info': this.happy = clamp(this.happy + .02, 0, 1); break;
       }
       this.happy = clamp(this.happy + .04 * value, 0, 1);
@@ -8251,6 +8255,40 @@ class Guest extends Person {
     if (!this.goto(ex, ez)) this.dead = true;
     if (this.happy > .8) Park.happyLeavers++;
     Park.leavers++;
+  }
+  /* Guests carry what they have actually just done: a drink or a snack
+     fresh off a purchase, a shopping bag once they've bought a souvenir,
+     an umbrella held up the moment it actually starts raining, and — for
+     one adult per family group — a stroller pushed out in front rather
+     than held, since it has wheels of its own. Nothing here changes any
+     stat; it is purely what a guest looks like carrying what they're
+     already carrying in the simulation. */
+  gear(put, c) {
+    const hR = c.handR, hL = c.handL;
+    if (this.litterCarried > 0 && this.state !== 'riding' && this.state !== 'sitting') {
+      const cupC = hex(0xf5f0e0), lidC = hex(0xe8749b);
+      put(hR.x, hR.y + .10, hR.z - .04, 0, .13, .22, .13, cupC);
+      put(hR.x, hR.y + .22, hR.z - .04, 0, .14, .04, .14, lidC);
+    }
+    if (this.bagCarried > 0 && this.state !== 'riding' && this.state !== 'sitting') {
+      const bagC = hex(0x7b5bd4);
+      put(hL.x, hL.y - .06, hL.z + .02, 0, .17, .26, .10, bagC);
+      put(hL.x, hL.y + .10, hL.z + .02, 0, .02, .12, .02, shade(bagC, .6));
+    }
+    if (this.hasUmbrella && typeof Weather !== 'undefined' && Weather.rainIntensity && Weather.rainIntensity() > .15
+      && this.state !== 'riding' && this.state !== 'sitting' && !this.pushingStroller) {
+      const umC = hex([0x2b6fd4, 0xd94f3c, 0x2ecc71, 0x3a3a3c][this.id % 4]);
+      put(hR.x + .02, hR.y + .30, hR.z, 0, .05, .55, .05, hex(0x8a8a8a));   // pole
+      put(hR.x + .02, hR.y + .58, hR.z, 0, .62, .10, .62, umC);            // canopy
+    }
+    if (this.pushingStroller && this.state !== 'riding' && this.state !== 'sitting') {
+      const frameC = hex(0x3a3a3c), seatC = hex(0xe8749b);
+      const sx = 0, sy = c.hipY - .35, sz = -.75;
+      put(sx, sy + .10, sz, 0, .34, .06, .28, frameC);          // handlebar
+      put(sx, sy - .14, sz + .18, .3, .04, .46, .04, frameC);   // frame strut
+      put(sx, sy - .30, sz + .30, 0, .40, .30, .30, seatC);     // seat/basket
+      for (const wz of [sz + .10, sz + .46]) put(sx, sy - .46, wz, 0, .14, .14, .06, frameC); // wheels
+    }
   }
 }
 
@@ -15923,7 +15961,16 @@ const Game = {
     this._spawnAcc = (this._spawnAcc || 0) + rate * dt;
     while (this._spawnAcc >= 1) {
       this._spawnAcc -= 1;
-      this.spawnGuest();
+      /* School-trip wave: a big matching-shirt coach-load, all at once,
+         instead of the usual trickle of small parties. Rare, cooled down
+         so they can't stack, and only once a park has enough going on to
+         be worth a field trip. */
+      if (Park.attractions().length >= 3 && Park.now > (this._nextSchoolTrip || 0) && Math.random() < .035 && hour >= 9 && hour <= 14) {
+        this._nextSchoolTrip = Park.now + 240;
+        this.spawnSchoolTrip();
+      } else {
+        this.spawnGuest();
+      }
     }
   },
   /* People arrive in parties. A lone visitor happens, but most of a real
@@ -15985,7 +16032,53 @@ const Game = {
       m.prefIntensity = lerp(m.prefIntensity, minInt, .55);
       m.nauseaTol = lerp(m.nauseaTol, minNau, .55);
     }
+    /* A family group of two or more pushes a stroller — one adult carries
+       it for the whole visit, purely visible, nothing mechanical rides in it. */
+    if (persona.id === 'family' && members.length >= 2) leader.pushingStroller = true;
     if (leader) leader.think(persona.line, 0);
+  },
+  /* A whole class arriving at once: matching shirts, one or two chaperones
+     out front, otherwise just a big ordinary party — same AI, same needs,
+     it just LOOKS like a field trip instead of the usual trickle of
+     families and couples. */
+  spawnSchoolTrip() {
+    const c = N >> 1;
+    const size = rndi(8, 14);
+    const uniform = pick(SHIRT);
+    const gid = this._groupSeq++;
+    const members = [];
+    for (let k = 0; k < size; k++) {
+      if (Park.guests.length >= Park.capacity) break;
+      const x = WORLD.wx(c + rndi(-3, 3)) + rnd(-1.5, 1.5), z = WORLD.wz(c + 25) + rnd(-2, 2);
+      const g = new Guest(x, z);
+      if (Park.entryFee > g.cash) { if (Park.gate) Park.gate.turnedAway++; continue; }
+      g.cash -= Park.entryFee;
+      Park.earn(Park.entryFee, 'entry');
+      Park.totalGuests++;
+      Progress.add(2);
+      g.groupId = gid; g.group = size;
+      const isChaperone = k < 2;
+      g.shirt = isChaperone ? 0x2b3a55 : uniform;
+      g.isChaperone = isChaperone;
+      const tgt = { x: WORLD.wx(c) + rnd(-3, 3), z: WORLD.wz(c + 19) };
+      g.goto(tgt.x, tgt.z);
+      g.state = 'arriving';
+      Park.guests.push(g);
+      members.push(g);
+    }
+    if (!members.length) return;
+    const persona = PERSONAS.find(p => p.id === 'family') || pickPersona();
+    for (const m of members) m.setPersona(persona);
+    const leader = members.find(m => m.isChaperone) || members[0];
+    const minInt = Math.min(...members.map(m => m.prefIntensity));
+    const minNau = Math.min(...members.map(m => m.nauseaTol));
+    for (const m of members) {
+      m.leader = leader;
+      m.prefIntensity = lerp(m.prefIntensity, minInt, .65);
+      m.nauseaTol = lerp(m.nauseaTol, minNau, .65);
+    }
+    UI.notify('School trip arriving', size + ' students and chaperones have arrived, matching shirts and all.', 'good');
+    if (leader) leader.think('Everybody stay together!', 0);
   },
   /* ---- Hotels: guests who booked a room don't vanish overnight — they
      check in as the evening winds down and are still "in the park" (shown
