@@ -8408,7 +8408,9 @@ class Staff extends Person {
     this.taskT = 0;
     this.cleaned = 0; this.repaired = 0;
     this.speed = 3.4;
-    this.zone = null;
+    this.zone = null;           // { x, z, r } — patrol area, or null for the whole park
+    this.shift = 'always';      // 'always' | 'day' (6-18) | 'night' (18-6)
+    this.morale = .8;           // 0..1, drags speed/workRate down when it's been all work no rest
     /* Training. A trained member of staff walks faster, works faster and, for
        mechanics, keeps a ride running longer between failures — which makes
        "hire another one" and "train the one I have" a real choice. */
@@ -8537,14 +8539,32 @@ class Staff extends Person {
     UI.notify('Training complete', this.name + ' is now ' + ['', 'Trained', 'Experienced', 'Expert'][this.level] + '.', 'good');
     return true;
   }
+  /* Whether the clock currently falls inside this staff member's shift.
+     'always' is always on; day/night split the 24h clock in half so a
+     park can run two crews without either one being idle the other's
+     entire shift. */
+  onShift() {
+    if (this.shift === 'always') return true;
+    const h = Park.time / 60;
+    return this.shift === 'day' ? (h >= 6 && h < 18) : (h < 6 || h >= 18);
+  }
   update(dt) {
+    if (!this.onShift()) {
+      if (this.state !== 'offshift') { this.state = 'offshift'; this.targetLitter = null; this.targetRide = null; }
+      this.moving = false;
+      this.morale = clamp(this.morale + dt * .012, 0, 1);   // off the clock recovers morale
+      this.physUpdate(dt);
+      return;
+    }
     switch (this.state) {
-      case 'idle': this.assign(); break;
+      case 'offshift': this.state = 'idle'; break;
+      case 'idle': this.assign(); this.morale = clamp(this.morale + dt * .004, 0, 1); break;
       case 'walking': {
-        const done = this.followPath(dt);
+        const done = this.followPath(dt, clamp(.7 + this.morale * .3, .7, 1));
         if (done) {
           this.state = 'working';
-          this.taskT = (this.role === 'mechanic' ? 4.5 : 1.6) / (this.workRate || 1);
+          const moraleMul = clamp(1.35 - this.morale * .5, .85, 1.35);
+          this.taskT = (this.role === 'mechanic' ? 4.5 : 1.6) / (this.workRate || 1) * moraleMul;
           this.moving = false;
         }
         break;
@@ -8552,22 +8572,27 @@ class Staff extends Person {
       case 'working': {
         this.taskT -= dt;
         this.armLift = .6 + Math.sin(Park.now * 8) * .35;
-        if (this.taskT <= 0) { this.finishTask(); this.armLift = 0; }
+        if (this.taskT <= 0) { this.finishTask(); this.armLift = 0; this.morale = clamp(this.morale - .015, .15, 1); }
         break;
       }
       case 'patrol': {
-        const done = this.followPath(dt);
+        const done = this.followPath(dt, clamp(.7 + this.morale * .3, .7, 1));
         if (done) this.state = 'idle';
         break;
       }
     }
     this.physUpdate(dt);
   }
+  /* True if a world point falls inside this staff member's patrol zone,
+     or always true if they have none set (the whole park is their beat). */
+  inZone(x, z) { return !this.zone || dist2(x, z, this.zone.x, this.zone.z) <= this.zone.r * this.zone.r; }
   assign() {
     if (this.role === 'janitor') {
       let best = -1, bd = 1e9;
       for (let k = 0; k < Park.litter.length; k++) {
-        const l = Park.litter[k], d = dist2(this.x, this.z, l.x, l.z);
+        const l = Park.litter[k];
+        if (!this.inZone(l.x, l.z)) continue;
+        const d = dist2(this.x, this.z, l.x, l.z);
         if (d < bd) { bd = d; best = k; }
       }
       if (best >= 0 && bd < 200 * 200) {
@@ -8585,15 +8610,17 @@ class Staff extends Person {
       }
       let best = null, bd = 1e9;
       for (const r of Park.needMechanic) {
-        if (claimed.has(r)) continue;
+        if (claimed.has(r) || !this.inZone(r.entrance.x, r.entrance.z)) continue;
         const d = dist2(this.x, this.z, r.entrance.x, r.entrance.z);
         if (d < bd) { bd = d; best = r; }
       }
       // If every broken ride already has a mechanic assigned, don't just
       // idle — pile onto the closest one anyway so repairs never stall.
+      // A zoned mechanic still won't leave their beat for this, though.
       if (!best && Park.needMechanic.length) {
         bd = 1e9;
         for (const r of Park.needMechanic) {
+          if (!this.inZone(r.entrance.x, r.entrance.z)) continue;
           const d = dist2(this.x, this.z, r.entrance.x, r.entrance.z);
           if (d < bd) { bd = d; best = r; }
         }
@@ -8605,12 +8632,12 @@ class Staff extends Person {
       }
       // otherwise inspect the most worn ride that isn't already being tended
       let worst = null, w = .18;
-      for (const o of Park.objects) if (o.kind === 'ride' && o.wear > w && !claimed.has(o)) { w = o.wear; worst = o; }
+      for (const o of Park.objects) if (o.kind === 'ride' && o.wear > w && !claimed.has(o) && this.inZone(o.x, o.z)) { w = o.wear; worst = o; }
       if (worst) { this.targetRide = worst; const e = worst.entrance; if (this.goto(e.x, e.z)) { this.state = 'walking'; return; } }
     } else if (this.role === 'entertainer') {
       // walk to the busiest queue and cheer people up
       let best = null, bl = 2;
-      for (const r of Park.attractions()) if (r.queue.length > bl) { bl = r.queue.length; best = r; }
+      for (const r of Park.attractions()) if (r.queue.length > bl && this.inZone(r.x, r.z)) { bl = r.queue.length; best = r; }
       if (best) { const e = best.entrance; if (this.goto(e.x + rnd(-3, 3), e.z + rnd(-3, 3))) { this.state = 'walking'; return; } }
     }
     const spot = this.randomSpot();
@@ -8619,8 +8646,15 @@ class Staff extends Person {
   }
   randomSpot() {
     for (let k = 0; k < 20; k++) {
-      const i = rndi(0, N - 1), j = rndi(0, N - 1);
-      if (Path.walk[j * N + i] === 1) return { x: WORLD.wx(i), z: WORLD.wz(j) };
+      let x, z;
+      if (this.zone) {
+        const a = Math.random() * TAU, r = Math.random() * this.zone.r;
+        x = this.zone.x + Math.cos(a) * r; z = this.zone.z + Math.sin(a) * r;
+      } else {
+        x = WORLD.wx(rndi(0, N - 1)); z = WORLD.wz(rndi(0, N - 1));
+      }
+      const i = WORLD.ti(x), j = WORLD.tj(z);
+      if (WORLD.inb(i, j) && Path.walk[j * N + i] === 1) return { x: WORLD.wx(i), z: WORLD.wz(j) };
     }
     return null;
   }
@@ -10152,10 +10186,27 @@ const UI = {
       $('#insTitle').textContent = o.def.name;
       h += nameField(o);
       h += kv('Role', o.def.name);
-      h += kv('Currently', o.state);
+      h += kv('Currently', o.state === 'offshift' ? 'off shift' : o.state);
       h += kv('Wage', money(o.wage) + ' / hr');
       if (o.role === 'janitor') h += kv('Litter cleared', o.cleaned);
       if (o.role === 'mechanic') h += kv('Repairs made', o.repaired);
+      h += `<div class="meterbox"><div class="meter"><span class="mn">Morale</span><span class="bar"><span class="fill" style="width:${o.morale * 100}%;background:${o.morale < .4 ? 'var(--bad)' : o.morale < .7 ? 'var(--warn)' : 'var(--good)'}"></span></span><span class="mv">${Math.round(o.morale * 100)}</span></div></div>`;
+      h += `<div style="font-size:10.5px;color:var(--dim);margin-top:-2px">Morale drops with every finished task and recovers while idle or off shift — low morale means slower work.</div>`;
+      h += `<div class="cat">Shift</div>`;
+      h += `<div class="btnrow">
+        <button class="btn ${o.shift === 'always' ? 'pri' : ''}" onclick="Game.setStaffShift(${o.id},'always')">Always on</button>
+        <button class="btn ${o.shift === 'day' ? 'pri' : ''}" onclick="Game.setStaffShift(${o.id},'day')">Day (6-18)</button>
+        <button class="btn ${o.shift === 'night' ? 'pri' : ''}" onclick="Game.setStaffShift(${o.id},'night')">Night (18-6)</button>
+      </div>`;
+      h += `<div class="cat">Patrol zone</div>`;
+      if (o.zone) {
+        h += kv('Radius', Math.round(o.zone.r) + ' m');
+        h += `<div class="row"><label>Zone size</label><input type="range" min="15" max="120" step="5" value="${Math.round(o.zone.r)}" oninput="Game.setStaffZoneRadius(${o.id},this.value)"><span class="num">${Math.round(o.zone.r)}m</span></div>`;
+        h += `<div class="btnrow"><button class="btn dan" onclick="Game.clearStaffZone(${o.id});UI.manage(${o.id})">Clear zone — cover the whole park</button></div>`;
+      } else {
+        h += `<div style="font-size:10.5px;color:var(--dim);margin-bottom:6px">No zone set — ${o.name.split(' ')[0]} covers the entire park right now.</div>`;
+        h += `<div class="btnrow"><button class="btn" onclick="Game.beginStaffZone(${o.id})">Click the map to set a patrol zone</button></div>`;
+      }
       h += `<div class="btnrow"><button class="btn" onclick="Cam.tx=${o.x.toFixed(1)};Cam.tz=${o.z.toFixed(1)}">Find</button>
         <button class="btn dan" onclick="Game.fire(${o.id})">Dismiss</button></div>`;
     }
@@ -14946,6 +14997,13 @@ const Game = {
     Audio.resume();
     const { i, j } = this.hoverTile;
     if (HeatMap.coaster && this.hoverPoint) { HeatMap.inspectAt(this.hoverPoint.x, this.hoverPoint.z); return; }
+    if (this.pendingZoneStaff && this.hoverPoint) {
+      const s = Park.staff.find(x => x.id === this.pendingZoneStaff);
+      this.pendingZoneStaff = null;
+      UI.hint('');
+      if (s) { s.zone = { x: this.hoverPoint.x, z: this.hoverPoint.z, r: 45 }; UI.notify('Zone set', s.name + ' will now stay near there.', 'good'); UI.manage(s.id); }
+      return;
+    }
     if (Coaster.placing) {
       const a = this.anchorTile({ w: 4, d: 3 }, UI.rot);
       if (Coaster.blueprint) Coaster.buildBlueprint(Coaster.blueprint, a.i, a.j, UI.rot);
@@ -15364,6 +15422,35 @@ const Game = {
     if (!s) return;
     s.train();
     UI.entrance('staff');
+  },
+  setStaffShift(id, shift) {
+    const s = Park.staff.find(x => x.id === id);
+    if (!s) return;
+    s.shift = shift;
+    UI.manage(id);
+  },
+  setStaffZoneRadius(id, r) {
+    const s = Park.staff.find(x => x.id === id);
+    if (!s || !s.zone) return;
+    s.zone.r = clamp(+r, 15, 120);
+    const el = document.querySelector('#insBody .row .num');
+    if (el) el.textContent = Math.round(s.zone.r) + 'm';
+  },
+  clearStaffZone(id) {
+    const s = Park.staff.find(x => x.id === id);
+    if (!s) return;
+    s.zone = null;
+    UI.notify('Zone cleared', s.name + ' now covers the whole park.', '');
+  },
+  /* Click-to-place, same pattern as drawing a transit route: the next
+     ground click sets the zone centre, radius starts at a sensible
+     default and the player can fine-tune it from the inspector after. */
+  beginStaffZone(id) {
+    const s = Park.staff.find(x => x.id === id);
+    if (!s) return;
+    this.pendingZoneStaff = id;
+    UI.closeInspector();
+    UI.hint('<b>Click the map</b> to centre ' + s.name.split(' ')[0] + "'s patrol zone.");
   },
   locateStaff(id) {
     const s = Park.staff.find(x => x.id === id);
@@ -16339,7 +16426,7 @@ const Game = {
           pw: c.track.powered,
           price: c.price, open: c.openR, name: c.name, se: c.track.stationEnd, trains: c.trains.length
         })),
-        staff: Park.staff.map(s => ({ r: s.role, x: s.x, z: s.z, l: s.level })),
+        staff: Park.staff.map(s => ({ r: s.role, x: s.x, z: s.z, l: s.level, n: s.name, shift: s.shift, zone: s.zone, morale: s.morale })),
         land: Array.from(Land.ownedPlots), bought: Land.bought,
         loan: Finance.loan, campaigns: Marketing.active,
         log: Park.log, ach: Achievements.unlocked,
@@ -16534,6 +16621,10 @@ const Game = {
       for (const s of d.staff || []) {
         const st = new Staff(s.r, s.x, s.z);
         st.level = clamp(s.l || 1, 1, 3); st.applyTraining();
+        if (s.n) st.name = s.n;
+        if (s.shift) st.shift = s.shift;
+        if (s.zone) st.zone = s.zone;
+        if (s.morale !== undefined) st.morale = clamp(s.morale, 0, 1);
         Park.staff.push(st);
       }
       if (Park.gate && d.gate) {
