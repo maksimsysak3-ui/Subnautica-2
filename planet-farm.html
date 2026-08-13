@@ -2086,9 +2086,14 @@ const Farm = {
   },
   seedCostFor(def) { return this.hasCompost() ? Math.round(def.seedCost * .8) : def.seedCost; },
 
-  till(i, j) {
+  till_wouldFail(i, j) {
     if (!WORLD.ownsTile(i, j)) return 'not-yours';
     if (WORLD.t(i, j) !== T_GRASS && WORLD.t(i, j) !== T_SOIL) return 'blocked';
+    return null;
+  },
+  till(i, j) {
+    const err = this.till_wouldFail(i, j);
+    if (err) return err;
     WORLD.setT(i, j, T_SOIL);
     WORLD.tilled[j * N + i] = 1;
     return null;
@@ -2115,7 +2120,9 @@ const Farm = {
   clearPlot(i, j) {
     const p = this.plotAt(i, j);
     if (p) this.plots.delete(this.key(i, j));
-    if (WORLD.t(i, j) === T_SOIL) { WORLD.setT(i, j, T_GRASS); WORLD.tilled[j * N + i] = 0; }
+    const wasSoil = WORLD.t(i, j) === T_SOIL;
+    if (wasSoil) { WORLD.setT(i, j, T_GRASS); WORLD.tilled[j * N + i] = 0; }
+    return !!p || wasSoil;
   },
 
   buyAnimal(typeId, x, z, home) {
@@ -2170,14 +2177,23 @@ const Farm = {
     if (harvested || fed) UI.notify('Farmhands', `Harvested ${harvested}, fed ${fed} animal${fed === 1 ? '' : 's'} — wages cost ${money(wage)}.`, '');
   },
 
-  buildAt(defId, i, j, rot) {
-    const def = BUILDINGS.find(b => b.id === defId); if (!def) return 'unknown building';
+  /* Shared by the real placement (buildAt) and the placement ghost, so the
+     ghost's red/green tint is never out of sync with what a click would
+     actually do. */
+  canBuildAt(def, i, j) {
+    if (!def) return 'unknown building';
     if (this.money < def.cost) return 'Not enough money (' + money(def.cost) + ').';
     for (let jj = j; jj < j + def.d; jj++) for (let ii = i; ii < i + def.w; ii++) {
       if (!WORLD.ownsTile(ii, jj)) return 'Outside your land.';
       if (WORLD.t(ii, jj) !== T_GRASS && WORLD.t(ii, jj) !== T_YARD) return 'Ground is not clear there.';
       if (WORLD.own[jj * N + ii] >= 0) return 'Something is already built there.';
     }
+    return null;
+  },
+  buildAt(defId, i, j, rot) {
+    const def = BUILDINGS.find(b => b.id === defId); if (!def) return 'unknown building';
+    const err = this.canBuildAt(def, i, j);
+    if (err) return err;
     this.spend(def.cost);
     WORLD.flatten(i, j, def.w, def.d, WORLD.tileH(i + (def.w >> 1), j + (def.d >> 1)));
     const b = new FarmBuilding(def, i, j, rot);
@@ -2541,14 +2557,16 @@ const Game = {
   actOn(i, j) {
     if (this.tool === 'till') {
       const err = Farm.till(i, j);
-      if (!err) Audio.play('till'); else if (err === 'not-yours') this.warnOnce('Buy this land first.');
+      if (!err) Audio.play('till');
+      else if (err === 'not-yours') this.warnOnce('Buy this land first.');
+      else if (err === 'blocked') this.warnOnce("Can't till there — water, a path, or the farmyard lawn.");
     } else if (this.tool === 'plant' && this.sub) {
       const err = Farm.plant(this.sub, i, j);
       if (!err) Audio.play('plant'); else this.warnOnce(err);
     } else if (this.tool === 'harvest') {
-      Farm.harvestAt(i, j);
+      if (!Farm.harvestAt(i, j)) this.warnOnce('Nothing ripe to harvest here.');
     } else if (this.tool === 'clear') {
-      Farm.clearPlot(i, j);
+      if (!Farm.clearPlot(i, j)) this.warnOnce('Nothing here to clear.');
     }
   },
   warnOnce(msg) {
@@ -2748,21 +2766,68 @@ Object.assign(Game, {
       clamp(elev * 2 + .2, 0, 1), night, night > .5 ? [.7, .78, .95] : [1, .92, .72]);
 
     this.drawScene(R, false);
-
-    // hover tile highlight
-    if (this.hoverTile && this.tool !== 'select') {
-      const gl = R.gl;
-      gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA); gl.depthMask(false); gl.disable(gl.DEPTH_TEST);
-      const g = new Geo();
-      const okColor = ['till', 'plant', 'harvest', 'clear'].includes(this.tool) ? 0x8fd97a : 0xf2d060;
-      const y = WORLD.tileH(this.hoverTile.i, this.hoverTile.j) + .06;
-      g.box(WORLD.wx(this.hoverTile.i), y, WORLD.wz(this.hoverTile.j), TILE - .3, .05, TILE - .3, hex(okColor));
-      const m = this.R.makeMesh(g);
-      R.draw(m, null, { alpha: .55, emissive: .8 });
-      m.dispose();
-      gl.enable(gl.DEPTH_TEST); gl.depthMask(true); gl.disable(gl.BLEND);
-    }
+    this.drawGhost(R);
     if (posted) R.endPost(night);
+  },
+
+  /* Placement ghost: a translucent, red/green-tinted preview of whatever is
+     about to be placed, following the cursor — the same mechanic Planet
+     Coaster uses for its build cursor, instead of just a flat tile square. */
+  tileHighlightMesh: null,
+  drawGhost(R) {
+    if (!this.hoverTile) return;
+    const gl = R.gl;
+    gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA); gl.depthMask(false); gl.disable(gl.DEPTH_TEST);
+
+    if (this.tool === 'build' && this.sub) {
+      const def = BUILDINGS.find(b => b.id === this.sub);
+      if (def && !def.path) {
+        const err = Farm.canBuildAt(def, this.hoverTile.i, this.hoverTile.j);
+        const gx = WORLD.wx(this.hoverTile.i) + (def.w % 2 === 0 ? TILE / 2 : 0);
+        const gz = WORLD.wz(this.hoverTile.j) + (def.d % 2 === 0 ? TILE / 2 : 0);
+        const gy = WORLD.tileH(this.hoverTile.i, this.hoverTile.j);
+        const m = M4.create();
+        M4.compose(m, gx, gy, gz, 0, this.rot * PI / 2, 0, 1, 1, 1);
+        R.draw(PF.building(def), m, { alpha: .6, emissive: .55, tint: err ? [1.6, .55, .5] : [.55, 1.5, .7] });
+      } else if (def) {
+        const bad = !WORLD.ownsTile(this.hoverTile.i, this.hoverTile.j) || Farm.money < def.cost;
+        this.drawTileGhost(R, () => bad);
+      }
+    } else if (this.tool === 'plant' && this.sub) {
+      const def = CROPS.find(c => c.id === this.sub);
+      if (def) {
+        const p = Farm.plotAt(this.hoverTile.i, this.hoverTile.j);
+        const tilled = WORLD.t(this.hoverTile.i, this.hoverTile.j) === T_SOIL && WORLD.tilled[this.hoverTile.j * N + this.hoverTile.i];
+        const ok = tilled && !p && Farm.canPlant(def);
+        const m = M4.create();
+        M4.compose(m, WORLD.wx(this.hoverTile.i), WORLD.tileH(this.hoverTile.i, this.hoverTile.j), WORLD.wz(this.hoverTile.j), 0, 0, 0, 1, 1, 1);
+        R.draw(PF.cropStage(def, 3), m, { alpha: .65, emissive: .55, tint: ok ? [.55, 1.5, .7] : [1.6, .55, .5] });
+      }
+    } else if (this.tool === 'animal' && this.sub) {
+      const def = ANIMALS.find(a => a.id === this.sub);
+      if (def && this.hoverPoint) {
+        const m = M4.create();
+        M4.compose(m, this.hoverPoint.x, this.hoverPoint.y, this.hoverPoint.z, 0, 0, 0, 1, 1, 1);
+        const near = Farm.buildings.some(b => b.def.houses === def.home && dist(this.hoverPoint.x, this.hoverPoint.z, b.x, b.z) < 8);
+        R.draw(PF.animal(def), m, { alpha: .7, emissive: .5, tint: near ? [.55, 1.5, .7] : [1.6, .55, .5] });
+      }
+    } else if (this.tool !== 'select') {
+      const invalid = this.tool === 'till' ? !!Farm.till_wouldFail(this.hoverTile.i, this.hoverTile.j) : false;
+      this.drawTileGhost(R, () => invalid);
+    }
+    gl.enable(gl.DEPTH_TEST); gl.depthMask(true); gl.disable(gl.BLEND);
+  },
+  drawTileGhost(R, invalidFn) {
+    if (!this.tileHighlightMesh) {
+      const g = new Geo();
+      g.box(0, 0, 0, TILE - .3, .05, TILE - .3, [1, 1, 1]);
+      this.tileHighlightMesh = this.R.makeMesh(g);
+    }
+    const bad = invalidFn(true);
+    const y = WORLD.tileH(this.hoverTile.i, this.hoverTile.j) + .06;
+    const m = M4.create();
+    M4.compose(m, WORLD.wx(this.hoverTile.i), y, WORLD.wz(this.hoverTile.j), 0, 0, 0, 1, 1, 1);
+    R.draw(this.tileHighlightMesh, m, { alpha: .55, emissive: .8, tint: bad ? [1.6, .55, .5] : [.55, 1.5, .7] });
   },
 });
 
