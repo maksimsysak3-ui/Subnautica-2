@@ -1202,6 +1202,24 @@ Renderer.prototype.projectToScreen = function (x, y, z) {
 
 const WORLD_UP = V3.make(0, 1, 0);
 
+/* Ray/axis-aligned-box intersection — the same test Planet Coaster uses to
+   pick objects under the cursor, so clicking a building or an animal hits
+   its actual footprint instead of guessing from where the ground ray lands. */
+function rayBox(o, d, b) {
+  let tmin = 0, tmax = 1e9;
+  for (const ax of ['x', 'y', 'z']) {
+    const lo = b[ax + '0'], hi = b[ax + '1'];
+    if (Math.abs(d[ax]) < 1e-8) { if (o[ax] < lo || o[ax] > hi) return -1; continue; }
+    const inv = 1 / d[ax];
+    let t1 = (lo - o[ax]) * inv, t2 = (hi - o[ax]) * inv;
+    if (t1 > t2) { const t = t1; t1 = t2; t2 = t; }
+    if (t1 > tmin) tmin = t1;
+    if (t2 < tmax) tmax = t2;
+    if (tmin > tmax) return -1;
+  }
+  return tmin;
+}
+
 /* ============================================================================
    SECTION 4 — CAMERA (RTS-style orbit rig)
    ========================================================================== */
@@ -1368,6 +1386,17 @@ const WORLD = {
     // starting home plot: a farmyard apron around the farmhouse site
     const c = N >> 1;
     for (let j = c - 4; j <= c + 4; j++) for (let i = c - 4; i <= c + 4; i++) this.type[j * N + i] = T_YARD;
+    this.flatten(c - 4, c - 4, 9, 9, this.tileH(c, c));
+    this.dirty = true;
+  },
+
+  /* Level the ground under a building's footprint so it sits flush on the
+     terrain instead of floating over a slope or sinking into one — every
+     footprint tile shares the exact same height afterward. */
+  flatten(i0, j0, w, d, y) {
+    const W = N + 1;
+    for (let j = j0; j <= j0 + d; j++) for (let i = i0; i <= i0 + w; i++)
+      if (i >= 0 && j >= 0 && i <= N && j <= N) this.h[j * W + i] = y;
     this.dirty = true;
   },
 
@@ -1376,7 +1405,7 @@ const WORLD = {
     const grassA = hex(0x6fa851), grassB = hex(0x7fbf5c), grassC = hex(0x5e9345);
     const soilA = hex(0x7a5232), soilB = hex(0x6b4527), tilledFurrow = hex(0x5a3a20);
     const pathC = hex(0xcbb37c), pathD = hex(0xb89e63);
-    const yardC = hex(0xd9c396), yardD = hex(0xc7ae7e);
+    const yardC = hex(0x8fc169), yardD = hex(0x7fb058);
     for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
       const t = this.type[j * N + i];
       const x0 = (i - N / 2) * TILE, x1 = x0 + TILE, z0 = (j - N / 2) * TILE, z1 = z0 + TILE;
@@ -1690,9 +1719,19 @@ const PF = {
         case 'barn': {
           const wall = hex(0xb03a2e), roof = hex(0x5c4a3a), trim = hex(0xf2ede0);
           g.box(-def.w / 2 * TILE + .3, 0, -def.d / 2 * TILE + .3, def.w * TILE - .6, 2.6, def.d * TILE - .6, wall);
-          for (let i = 0; i < 8; i++) {
-            const t = i / 7, y0 = 2.6, y1 = 2.6 + (def.d * TILE - .6) * .28;
-            g.triV([-def.w / 2 * TILE + .3, y0, -def.d / 2 * TILE + .3 + t * (def.d * TILE - .6)], [def.w / 2 * TILE - .3, y0, -def.d / 2 * TILE + .3 + t * (def.d * TILE - .6)], [0, y1, 0], roof);
+          {
+            // gable roof, ridge along the long (width) axis — same correctly
+            // wound construction as the farmhouse, instead of a single-apex
+            // triangle fan that only rendered from one side
+            const halfW = def.w / 2 * TILE - .28, halfD = def.d / 2 * TILE - .28;
+            const y0 = 2.58, y1 = 2.6 + (def.d * TILE - .6) * .28;
+            const rL = [-halfW, y1, 0], rR = [halfW, y1, 0];
+            const fL = [-halfW, y0, halfD], fR = [halfW, y0, halfD];
+            const bL = [-halfW, y0, -halfD], bR = [halfW, y0, -halfD];
+            g.quadV(fL, fR, rR, rL, roof);
+            g.quadV(bR, bL, rL, rR, roof);
+            g.triV(bL, fL, rL, roof);
+            g.triV(fR, bR, rR, roof);
           }
           g.box(0, .1, def.d / 2 * TILE - .35, 1.4, 2.2, .1, trim);
           g.box(0, 2.5, 0, .3, .3, .3, hex(0xe8d24a));
@@ -1792,16 +1831,38 @@ const PF = {
   farmhouse() {
     return this.get('farmhouse', () => {
       const g = new Geo();
-      const wall = hex(0xf2ede0), roof = hex(0xb03a2e), trim = hex(0x6b4a2f);
-      g.box(-1.9, 0, -1.6, 3.8, 2.6, 3.2, wall);
-      for (let i = 0; i < 10; i++) {
-        const t = i / 9;
-        g.triV([-2.15, 2.6, -1.85 + t * 3.7], [2.15, 2.6, -1.85 + t * 3.7], [0, 4.1, 0], roof);
+      const wall = hex(0xf2ede0), roof = hex(0xb03a2e), trim = hex(0x6b4a2f), stone = hex(0x8a8378);
+      // main two-storey block
+      g.box(-3.0, 0, -2.4, 6.0, 4.2, 4.8, wall);
+      // a proper gable roof: ridge line along X, two sloped quads plus two
+      // triangular gable ends, each wound so its outward face actually
+      // survives backface culling (a single-apex triangle fan looked right
+      // from exactly one side and vanished from every other angle)
+      {
+        const eaveY = 4.18, ridgeY = 6.4, ex = 3.02, ez = 2.42;
+        const rL = [-ex, ridgeY, 0], rR = [ex, ridgeY, 0];
+        const fL = [-ex, eaveY, ez], fR = [ex, eaveY, ez];
+        const bL = [-ex, eaveY, -ez], bR = [ex, eaveY, -ez];
+        g.quadV(fL, fR, rR, rL, roof);   // front slope
+        g.quadV(bR, bL, rL, rR, roof);   // back slope
+        g.triV(bL, fL, rL, roof);        // left gable end
+        g.triV(fR, bR, rR, roof);        // right gable end
       }
-      g.box(0, .1, 1.6, 1.0, 1.8, .12, trim);
-      g.box(-1.15, 1.15, 1.61, .6, .6, .05, hex(0x8fd9f2));
-      g.box(1.15, 1.15, 1.61, .6, .6, .05, hex(0x8fd9f2));
-      g.cyl(1.2, 2.6, -.9, .1, .8, 6, hex(0x6b4a2f));
+      // stone foundation course
+      g.box(-3.05, 0, -2.45, 6.1, .5, 4.9, stone, 1.0, .85, .7);
+      // chimney
+      g.box(2.1, 4.0, -.6, .55, 2.2, .55, stone);
+      g.box(2.1, 6.15, -.6, .75, .25, .75, shade(stone, .9));
+      // covered front porch
+      g.box(0, .1, 3.0, 3.2, 2.1, .1, trim);
+      for (const sx of [-1.4, 1.4]) g.cyl(sx, .1, 3.6, .12, 2.3, 6, trim);
+      g.box(0, 2.4, 3.3, 3.6, .16, 1.1, shade(roof, .9), 1.0, .85, .75);
+      g.box(0, .06, 3.3, 3.6, .12, 1.1, hex(0x8a6a3f));
+      // windows, both storeys
+      for (const [wx, wy] of [[-1.9, 1.1], [1.9, 1.1], [-1.9, 2.9], [1.9, 2.9]]) g.box(wx, wy, 2.41, .7, .8, .06, hex(0x8fd9f2));
+      for (const wz of [-2.41]) for (const wx of [-1.9, 1.9]) g.box(wx, 1.9, wz, .7, .8, .06, hex(0x8fd9f2));
+      // wooden porch steps
+      for (let s = 0; s < 2; s++) g.box(0, .1 + s * .18, 3.9 + s * .35, 1.6 - s * .3, .18, .4, hex(0x6b4a2f));
       return g;
     });
   },
@@ -1865,6 +1926,7 @@ class CropPlant {
     return false;
   }
   mesh() { return PF.cropStage(this.def, this.stage); }
+  pickBox() { const h = this.def.tall + .3; return { x0: this.x - .5, x1: this.x + .5, y0: this.y, y1: this.y + h, z0: this.z - .5, z1: this.z + .5 }; }
 }
 
 class Animal {
@@ -1918,6 +1980,7 @@ class Animal {
     }
   }
   mesh() { return PF.animal(this.def); }
+  pickBox() { const s = this.mature ? this.def.size : this.def.size * .55; const r = s * .7; return { x0: this.x - r, x1: this.x + r, y0: this.y, y1: this.y + s * 1.2, z0: this.z - r, z1: this.z + r }; }
 }
 
 class FarmBuilding {
@@ -1933,6 +1996,12 @@ class FarmBuilding {
   }
   updateMatrix() { M4.compose(this.matrix, this.x, this.y, this.z, 0, this.rot * PI / 2, 0, 1, 1, 1); }
   mesh() { return this.def.id === 'farmhouse' ? PF.farmhouse() : PF.building(this.def); }
+  pickBox() {
+    const hw = (this.def.w || 3) * TILE / 2, hd = (this.def.d || 3) * TILE / 2;
+    const h = this.def.id === 'farmhouse' ? 6.5 : 3.6;
+    const w2 = this.def.id === 'farmhouse' ? 3.4 : hw, d2 = this.def.id === 'farmhouse' ? 2.9 : hd;
+    return { x0: this.x - w2, x1: this.x + w2, y0: this.y, y1: this.y + h, z0: this.z - d2, z1: this.z + d2 };
+  }
 }
 
 /* A hired hand: no pathing AI, just a fixed post on the farm that quietly
@@ -2110,9 +2179,13 @@ const Farm = {
       if (WORLD.own[jj * N + ii] >= 0) return 'Something is already built there.';
     }
     this.spend(def.cost);
+    WORLD.flatten(i, j, def.w, def.d, WORLD.tileH(i + (def.w >> 1), j + (def.d >> 1)));
     const b = new FarmBuilding(def, i, j, rot);
     this.buildings.push(b);
-    for (let jj = j; jj < j + def.d; jj++) for (let ii = i; ii < i + def.w; ii++) { WORLD.setOwn(ii, jj, b.id); WORLD.setT(ii, jj, T_YARD); }
+    // buildings sit on their natural green grass, not a beige clearing —
+    // only the farmhouse gets an actual yard apron (painted once at map
+    // generation), everything else just needs level ground underneath
+    for (let jj = j; jj < j + def.d; jj++) for (let ii = i; ii < i + def.w; ii++) WORLD.setOwn(ii, jj, b.id);
     return null;
   },
   demolishBuilding(id) {
@@ -2427,12 +2500,21 @@ const Game = {
     if (!found) return;
     this.hoverPoint = found;
     this.hoverTile = { i: WORLD.ti(found.x), j: WORLD.tj(found.z) };
-    // nearest building / animal within a small screen-space-ish world radius
-    let bestB = null, bdB = 3.2;
-    for (const b of Farm.buildings) { const d = dist(found.x, found.z, b.x, b.z); if (d < bdB) { bdB = d; bestB = b; } }
+    // Real ray-vs-box picking (same test Planet Coaster uses) rather than
+    // guessing from the ground point's XZ distance — a tall building or a
+    // roof clicked at a steep angle used to miss because the ground hit
+    // landed well past its base; this hits the actual footprint volume.
+    let bestB = null, btB = 1e9;
+    for (const b of Farm.buildings) {
+      const t2 = rayBox(ray.o, ray.d, b.pickBox());
+      if (t2 >= 0 && t2 < btB) { btB = t2; bestB = b; }
+    }
     this.hoverBuilding = bestB;
-    let bestA = null, bdA = 1.6;
-    for (const a of Farm.animals) { const d = dist(found.x, found.z, a.x, a.z); if (d < bdA) { bdA = d; bestA = a; } }
+    let bestA = null, btA = 1e9;
+    for (const a of Farm.animals) {
+      const t2 = rayBox(ray.o, ray.d, a.pickBox());
+      if (t2 >= 0 && t2 < btA) { btA = t2; bestA = a; }
+    }
     this.hoverAnimal = bestA;
     if (this.hoverTile) this.hoverPlot = Farm.plotAt(this.hoverTile.i, this.hoverTile.j);
   },
