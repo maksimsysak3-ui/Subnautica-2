@@ -201,7 +201,8 @@ canvas#gl{position:fixed;left:0;top:0;width:100vw;height:100vh;display:block;tou
 .item:hover{border-color:var(--edge-hot);transform:translateY(-1px)}
 .item.on{border-color:var(--accent-deep);background:#e3f0d9}
 .item.locked{opacity:.5;cursor:not-allowed}
-.item .ic{width:30px;height:30px;border-radius:var(--r-xs);background:var(--panel-solid);display:flex;align-items:center;justify-content:center;flex:0 0 auto;font-size:16px}
+.item .ic{width:30px;height:30px;border-radius:50%;background:var(--panel-solid);display:flex;align-items:center;justify-content:center;flex:0 0 auto;font-size:11px;font-weight:800;color:#fff;letter-spacing:-.02em;text-shadow:0 1px 1px rgba(0,0,0,.25)}
+.item .ic svg{width:16px;height:16px}
 .item .n{font-size:11px;font-weight:800;flex:1;min-width:0}
 .item .c{font-size:10px;color:var(--dim);display:block}
 .kv{display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px dashed var(--edge-soft);font-size:11px}
@@ -232,7 +233,8 @@ canvas#gl{position:fixed;left:0;top:0;width:100vw;height:100vh;display:block;tou
   border-radius:var(--r);box-shadow:var(--e3);padding:18px;cursor:pointer;transition:transform var(--ez),box-shadow var(--ez);
 }
 .mcard:hover{transform:translateY(-4px);box-shadow:0 20px 40px rgba(74,52,24,.3)}
-.mcard .mic{font-size:34px;margin-bottom:8px}
+.mcard .mic{margin-bottom:8px}
+.mcard .mic svg{width:34px;height:34px;color:var(--accent-ink)}
 .mcard .mtag{display:inline-block;font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;
   background:var(--accent);color:#fff;padding:3px 8px;border-radius:var(--r-pill);margin-bottom:8px}
 .mcard .mck{font-size:16px;font-weight:800;margin-bottom:5px}
@@ -262,23 +264,23 @@ kbd{background:var(--panel-sunken);border:1px solid var(--edge);border-radius:4p
 <div id="ui">
   <div id="menu">
     <div id="mMain">
-      <div class="mtitle">🌾 Planet Farm</div>
+      <div class="mtitle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" style="width:.75em;height:.75em;vertical-align:-.08em;margin-right:.12em"><path d="M12 21V6"/><path d="M12 6c-2.5 0-4-1.5-4-4 2.5 0 4 1.5 4 4zM12 6c2.5 0 4-1.5 4-4-2.5 0-4 1.5-4 4z"/><path d="M12 11c-2.2 0-3.6-1.3-3.6-3.6 2.2 0 3.6 1.3 3.6 3.6zM12 11c2.2 0 3.6-1.3 3.6-3.6-2.2 0-3.6 1.3-3.6 3.6z"/></svg>Planet Farm</div>
       <div class="msub">Grow it, raise it, sell it.</div>
       <div class="mrow">
         <div class="mcard" id="mCareer" onclick="Menu.scenarios()">
-          <div class="mic">📜</div>
+          <div class="mic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M6 4h13v14a2.5 2.5 0 01-2.5 2.5H8"/><path d="M6 4a2.5 2.5 0 00-2.5 2.5V18a2.5 2.5 0 002.5 2.5"/><path d="M9 8.5h7M9 12h7"/></svg></div>
           <div class="mtag">Career</div>
           <div class="mck">Homestead Briefs</div>
           <div class="mcd">Start small with a real budget and a brief to work toward — plant, raise stock, and build a farm worth the name.</div>
         </div>
         <div class="mcard" id="mSandbox" onclick="Menu.begin('sandbox',-1)">
-          <div class="mic">🌻</div>
+          <div class="mic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="4.3"/><path d="M12 2.5v2.5M12 19v2.5M4.6 4.6l1.8 1.8M17.6 17.6l1.8 1.8M2.5 12H5M19 12h2.5M4.6 19.4l1.8-1.8M17.6 6.4l1.8-1.8"/></svg></div>
           <div class="mtag">Sandbox</div>
           <div class="mck">Free Farming</div>
           <div class="mcd">Unlimited funds, everything unlocked. Build the farm you actually want, no pressure.</div>
         </div>
         <div class="mcard" id="mContinue" style="display:none" onclick="Game.load();Menu.hide()">
-          <div class="mic">🚜</div>
+          <div class="mic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="6.5" cy="17.5" r="3"/><circle cx="17" cy="18" r="2"/><path d="M9 17.5h5.5M3.5 17.5V10h5l3 3h3.5l1.5 3.5"/><path d="M8.5 10V6h4v4"/></svg></div>
           <div class="mtag">Continue</div>
           <div class="mck" id="mContinueName">Your Farm</div>
           <div class="mcd" id="mContinueDesc">Pick up where you left off.</div>
@@ -1544,57 +1546,57 @@ const Time = {
    SECTION 8 — CONTENT CATALOGUES
    ========================================================================== */
 const CROPS = [
-  { id: 'wheat', name: 'Wheat', icon: '🌾', seedCost: 8, sell: 8, growDays: 3, seasons: ['spring', 'summer', 'autumn'], color: 0xd9b23c, tall: .9 },
-  { id: 'carrot', name: 'Carrot', icon: '🥕', seedCost: 10, sell: 12, growDays: 3, seasons: ['spring', 'autumn'], color: 0xe8843a, tall: .35 },
-  { id: 'potato', name: 'Potato', icon: '🥔', seedCost: 12, sell: 14, growDays: 4, seasons: ['spring', 'summer'], color: 0xc9a25c, tall: .3 },
-  { id: 'lettuce', name: 'Lettuce', icon: '🥬', seedCost: 9, sell: 10, growDays: 2, seasons: ['spring', 'autumn'], color: 0x7fbf5c, tall: .28 },
-  { id: 'corn', name: 'Corn', icon: '🌽', seedCost: 18, sell: 22, growDays: 5, seasons: ['summer'], color: 0xe8d24a, tall: 1.6 },
-  { id: 'tomato', name: 'Tomato', icon: '🍅', seedCost: 20, sell: 9, growDays: 4, regrowDays: 2, seasons: ['summer'], color: 0xd9432e, tall: .7 },
-  { id: 'pepper', name: 'Pepper', icon: '🌶️', seedCost: 16, sell: 11, growDays: 4, regrowDays: 3, seasons: ['summer'], color: 0xc23a2e, tall: .55 },
-  { id: 'pumpkin', name: 'Pumpkin', icon: '🎃', seedCost: 35, sell: 55, growDays: 7, seasons: ['autumn'], color: 0xe0812e, tall: .7 },
-  { id: 'strawberry', name: 'Strawberry', icon: '🍓', seedCost: 22, sell: 8, growDays: 3, regrowDays: 2, seasons: ['spring'], color: 0xd9364f, tall: .3 },
-  { id: 'sunflower', name: 'Sunflower', icon: '🌻', seedCost: 15, sell: 18, growDays: 4, seasons: ['summer'], color: 0xf2c136, tall: 1.9 },
-  { id: 'cotton', name: 'Cotton', icon: '☁️', seedCost: 20, sell: 24, growDays: 5, seasons: ['summer', 'autumn'], color: 0xf2f2ea, tall: .8 },
-  { id: 'grape', name: 'Grape', icon: '🍇', seedCost: 40, sell: 30, growDays: 6, regrowDays: 3, seasons: ['summer', 'autumn'], color: 0x6b3fa0, tall: 1.1, vine: true },
-  { id: 'onion', name: 'Onion', icon: '🧅', seedCost: 11, sell: 13, growDays: 3, seasons: ['spring', 'autumn'], color: 0xc9834a, tall: .32 },
-  { id: 'garlic', name: 'Garlic', icon: '🧄', seedCost: 13, sell: 16, growDays: 3, seasons: ['spring', 'autumn'], color: 0xefe6d0, tall: .3 },
-  { id: 'cabbage', name: 'Cabbage', icon: '🥦', seedCost: 14, sell: 15, growDays: 4, seasons: ['spring', 'autumn'], color: 0x8fc26a, tall: .34 },
-  { id: 'blueberry', name: 'Blueberry', icon: '🫐', seedCost: 28, sell: 10, growDays: 4, regrowDays: 2, seasons: ['summer'], color: 0x3a4f9c, tall: .5 },
-  { id: 'watermelon', name: 'Watermelon', icon: '🍉', seedCost: 32, sell: 48, growDays: 6, seasons: ['summer'], color: 0x3fa85c, tall: .4 },
-  { id: 'rice', name: 'Rice', icon: '🍚', seedCost: 10, sell: 9, growDays: 4, seasons: ['spring', 'summer'], color: 0xe8e0c8, tall: .8 },
+  { id: 'wheat', name: 'Wheat', icon: 'Wh', seedCost: 8, sell: 8, growDays: 3, seasons: ['spring', 'summer', 'autumn'], color: 0xd9b23c, tall: .9 },
+  { id: 'carrot', name: 'Carrot', icon: 'Ca', seedCost: 10, sell: 12, growDays: 3, seasons: ['spring', 'autumn'], color: 0xe8843a, tall: .35 },
+  { id: 'potato', name: 'Potato', icon: 'Po', seedCost: 12, sell: 14, growDays: 4, seasons: ['spring', 'summer'], color: 0xc9a25c, tall: .3 },
+  { id: 'lettuce', name: 'Lettuce', icon: 'Le', seedCost: 9, sell: 10, growDays: 2, seasons: ['spring', 'autumn'], color: 0x7fbf5c, tall: .28 },
+  { id: 'corn', name: 'Corn', icon: 'Co', seedCost: 18, sell: 22, growDays: 5, seasons: ['summer'], color: 0xe8d24a, tall: 1.6 },
+  { id: 'tomato', name: 'Tomato', icon: 'To', seedCost: 20, sell: 9, growDays: 4, regrowDays: 2, seasons: ['summer'], color: 0xd9432e, tall: .7 },
+  { id: 'pepper', name: 'Pepper', icon: 'Pe', seedCost: 16, sell: 11, growDays: 4, regrowDays: 3, seasons: ['summer'], color: 0xc23a2e, tall: .55 },
+  { id: 'pumpkin', name: 'Pumpkin', icon: 'Pu', seedCost: 35, sell: 55, growDays: 7, seasons: ['autumn'], color: 0xe0812e, tall: .7 },
+  { id: 'strawberry', name: 'Strawberry', icon: 'St', seedCost: 22, sell: 8, growDays: 3, regrowDays: 2, seasons: ['spring'], color: 0xd9364f, tall: .3 },
+  { id: 'sunflower', name: 'Sunflower', icon: 'Su', seedCost: 15, sell: 18, growDays: 4, seasons: ['summer'], color: 0xf2c136, tall: 1.9 },
+  { id: 'cotton', name: 'Cotton', icon: 'Ct', seedCost: 20, sell: 24, growDays: 5, seasons: ['summer', 'autumn'], color: 0xf2f2ea, tall: .8 },
+  { id: 'grape', name: 'Grape', icon: 'Gr', seedCost: 40, sell: 30, growDays: 6, regrowDays: 3, seasons: ['summer', 'autumn'], color: 0x6b3fa0, tall: 1.1, vine: true },
+  { id: 'onion', name: 'Onion', icon: 'On', seedCost: 11, sell: 13, growDays: 3, seasons: ['spring', 'autumn'], color: 0xc9834a, tall: .32 },
+  { id: 'garlic', name: 'Garlic', icon: 'Ga', seedCost: 13, sell: 16, growDays: 3, seasons: ['spring', 'autumn'], color: 0xefe6d0, tall: .3 },
+  { id: 'cabbage', name: 'Cabbage', icon: 'Cb', seedCost: 14, sell: 15, growDays: 4, seasons: ['spring', 'autumn'], color: 0x8fc26a, tall: .34 },
+  { id: 'blueberry', name: 'Blueberry', icon: 'Bl', seedCost: 28, sell: 10, growDays: 4, regrowDays: 2, seasons: ['summer'], color: 0x3a4f9c, tall: .5 },
+  { id: 'watermelon', name: 'Watermelon', icon: 'Wm', seedCost: 32, sell: 48, growDays: 6, seasons: ['summer'], color: 0x3fa85c, tall: .4 },
+  { id: 'rice', name: 'Rice', icon: 'Ri', seedCost: 10, sell: 9, growDays: 4, seasons: ['spring', 'summer'], color: 0xe8e0c8, tall: .8 },
 ];
 
 const ANIMALS = [
-  { id: 'chicken', name: 'Chicken', icon: '🐔', cost: 320, home: 'coop', matureDays: 3, produce: 'egg', produceEvery: 1, sell: 6, color: 0xf2ede0, accent: 0xd94f3c, size: .55 },
-  { id: 'duck', name: 'Duck', icon: '🦆', cost: 380, home: 'coop', matureDays: 3, produce: 'feather', produceEvery: 2, sell: 9, color: 0xf2e070, accent: 0x3ba7d4, size: .55 },
-  { id: 'sheep', name: 'Sheep', icon: '🐑', cost: 650, home: 'barn', matureDays: 5, produce: 'wool', produceEvery: 3, sell: 22, color: 0xf5f1e6, accent: 0x4a3a28, size: .95 },
-  { id: 'goat', name: 'Goat', icon: '🐐', cost: 700, home: 'barn', matureDays: 5, produce: 'goatmilk', produceEvery: 2, sell: 16, color: 0xe3d9c0, accent: 0x8a6a3f, size: .9 },
-  { id: 'cow', name: 'Cow', icon: '🐄', cost: 1400, home: 'barn', matureDays: 7, produce: 'milk', produceEvery: 1, sell: 18, color: 0xf2ede0, accent: 0x3a2c22, size: 1.5 },
-  { id: 'pig', name: 'Pig', icon: '🐖', cost: 900, home: 'barn', matureDays: 6, produce: 'truffle', produceEvery: 4, sell: 45, color: 0xe8a9a0, accent: 0xd98a80, size: 1.1 },
-  { id: 'rabbit', name: 'Rabbit', icon: '🐇', cost: 260, home: 'coop', matureDays: 2, produce: 'fur', produceEvery: 2, sell: 10, color: 0xf2ede0, accent: 0xe8a9a0, size: .4 },
-  { id: 'turkey', name: 'Turkey', icon: '🦃', cost: 420, home: 'coop', matureDays: 4, produce: 'feather', produceEvery: 2, sell: 11, color: 0x8a6a3f, accent: 0xd94f3c, size: .7 },
-  { id: 'llama', name: 'Llama', icon: '🦙', cost: 1600, home: 'barn', matureDays: 6, produce: 'finewool', produceEvery: 3, sell: 38, color: 0xe3d9c0, accent: 0x6b4a2f, size: 1.3 },
+  { id: 'chicken', name: 'Chicken', icon: 'Ch', cost: 320, home: 'coop', matureDays: 3, produce: 'egg', produceEvery: 1, sell: 6, color: 0xf2ede0, accent: 0xd94f3c, size: .55 },
+  { id: 'duck', name: 'Duck', icon: 'Du', cost: 380, home: 'coop', matureDays: 3, produce: 'feather', produceEvery: 2, sell: 9, color: 0xf2e070, accent: 0x3ba7d4, size: .55 },
+  { id: 'sheep', name: 'Sheep', icon: 'Sh', cost: 650, home: 'barn', matureDays: 5, produce: 'wool', produceEvery: 3, sell: 22, color: 0xf5f1e6, accent: 0x4a3a28, size: .95 },
+  { id: 'goat', name: 'Goat', icon: 'Go', cost: 700, home: 'barn', matureDays: 5, produce: 'goatmilk', produceEvery: 2, sell: 16, color: 0xe3d9c0, accent: 0x8a6a3f, size: .9 },
+  { id: 'cow', name: 'Cow', icon: 'Cw', cost: 1400, home: 'barn', matureDays: 7, produce: 'milk', produceEvery: 1, sell: 18, color: 0xf2ede0, accent: 0x3a2c22, size: 1.5 },
+  { id: 'pig', name: 'Pig', icon: 'Pi', cost: 900, home: 'barn', matureDays: 6, produce: 'truffle', produceEvery: 4, sell: 45, color: 0xe8a9a0, accent: 0xd98a80, size: 1.1 },
+  { id: 'rabbit', name: 'Rabbit', icon: 'Ra', cost: 260, home: 'coop', matureDays: 2, produce: 'fur', produceEvery: 2, sell: 10, color: 0xf2ede0, accent: 0xe8a9a0, size: .4 },
+  { id: 'turkey', name: 'Turkey', icon: 'Tu', cost: 420, home: 'coop', matureDays: 4, produce: 'feather', produceEvery: 2, sell: 11, color: 0x8a6a3f, accent: 0xd94f3c, size: .7 },
+  { id: 'llama', name: 'Llama', icon: 'Ll', cost: 1600, home: 'barn', matureDays: 6, produce: 'finewool', produceEvery: 3, sell: 38, color: 0xe3d9c0, accent: 0x6b4a2f, size: 1.3 },
 ];
 
 const PRODUCE_NAMES = { egg: 'Eggs', feather: 'Feathers', wool: 'Wool', goatmilk: "Goat's Milk", milk: 'Milk', truffle: 'Truffles', flour: 'Flour', honey: 'Honey', fur: 'Fur', finewool: 'Fine Wool', fruit: 'Orchard Fruit' };
 
 const BUILDINGS = [
-  { id: 'barn', name: 'Barn', icon: '🏚️', cost: 2200, w: 4, d: 3, capacity: 8, houses: 'barn', desc: 'Shelter and feed storage for cows, pigs, sheep and goats. Each barn houses up to 8 animals.' },
-  { id: 'coop', name: 'Chicken Coop', icon: '🐓', cost: 900, w: 3, d: 3, capacity: 10, houses: 'coop', desc: 'A roost for chickens and ducks. Each coop houses up to 10 birds.' },
-  { id: 'silo', name: 'Grain Silo', icon: '🌾', cost: 1200, w: 2, d: 2, desc: 'Stores threshed grain as feed for your animals, and quietly boosts crop sale prices nearby.' },
-  { id: 'well', name: 'Water Well', icon: '💧', cost: 600, w: 1, d: 1, desc: 'A source of fresh water. Soil within a short walk of a well dries out more slowly.' },
-  { id: 'market', name: 'Market Stall', icon: '🏪', cost: 1500, w: 3, d: 2, desc: 'Sell produce here — or flip on auto-sell so a full harvest turns into cash on its own.' },
-  { id: 'windmill', name: 'Windmill', icon: '🌬️', cost: 2600, w: 2, d: 2, desc: 'Slowly mills stored wheat into flour, which sells for far more than raw grain.' },
-  { id: 'beehive', name: 'Beehive', icon: '🐝', cost: 950, w: 1, d: 1, desc: 'Produces honey on its own, and speeds up the growth of any crop planted nearby.' },
-  { id: 'scarecrow', name: 'Scarecrow', icon: '🧑‍🌾', cost: 260, w: 1, d: 1, desc: 'Keeps crows off nearby crops, cutting the odds of a ruined harvest.' },
-  { id: 'greenhouse', name: 'Greenhouse', icon: '🏡', cost: 3200, w: 3, d: 3, desc: 'Glass walls mean every crop you own can be planted in any season, anywhere on the farm.' },
-  { id: 'fence', name: 'Fence', icon: '🚧', cost: 20, w: 1, d: 1, path: true, desc: 'Marks a pasture boundary. Cheap, and needed before animals will wander a paddock safely.' },
-  { id: 'path', name: 'Path', icon: '🟫', cost: 6, w: 1, d: 1, path: true, desc: 'A walking path between beds and buildings.' },
-  { id: 'orchard', name: 'Orchard Grove', icon: '🌳', cost: 2400, w: 3, d: 3, desc: 'A stand of fruit trees that needs no tilling or replanting — it just quietly drops fruit every few days.' },
-  { id: 'toolshed', name: 'Tool Shed', icon: '🧰', cost: 1800, w: 2, d: 2, desc: 'Keeps every tool sharp and every tractor tuned — every harvest anywhere on the farm yields a little extra.' },
-  { id: 'flowerbed', name: 'Flower Bed', icon: '🌷', cost: 400, w: 2, d: 1, desc: 'Pure curb appeal. Raises farm reputation a little faster, nothing more.' },
-  { id: 'compost', name: 'Compost Bin', icon: '♻️', cost: 700, w: 1, d: 1, desc: 'Turns farm waste into cheap fertiliser — every seed on the farm costs a little less with one running.' },
-  { id: 'coldframe', name: 'Cold Frame', icon: '🧊', cost: 1100, w: 2, d: 2, desc: 'A frost-proof bed. Crops planted here keep growing even through a frost warning.' },
+  { id: 'barn', name: 'Barn', icon: 'Ba', color: 0xa85c3a, cost: 2200, w: 4, d: 3, capacity: 8, houses: 'barn', desc: 'Shelter and feed storage for cows, pigs, sheep and goats. Each barn houses up to 8 animals.' },
+  { id: 'coop', name: 'Chicken Coop', icon: 'Co', color: 0xc9834a, cost: 900, w: 3, d: 3, capacity: 10, houses: 'coop', desc: 'A roost for chickens and ducks. Each coop houses up to 10 birds.' },
+  { id: 'silo', name: 'Grain Silo', icon: 'Si', color: 0xd9b23c, cost: 1200, w: 2, d: 2, desc: 'Stores threshed grain as feed for your animals, and quietly boosts crop sale prices nearby.' },
+  { id: 'well', name: 'Water Well', icon: 'We', color: 0x3ba7d4, cost: 600, w: 1, d: 1, desc: 'A source of fresh water. Soil within a short walk of a well dries out more slowly.' },
+  { id: 'market', name: 'Market Stall', icon: 'Ma', color: 0xd9432e, cost: 1500, w: 3, d: 2, desc: 'Sell produce here — or flip on auto-sell so a full harvest turns into cash on its own.' },
+  { id: 'windmill', name: 'Windmill', icon: 'Wi', color: 0x8a8a8a, cost: 2600, w: 2, d: 2, desc: 'Slowly mills stored wheat into flour, which sells for far more than raw grain.' },
+  { id: 'beehive', name: 'Beehive', icon: 'Be', color: 0xf2c136, cost: 950, w: 1, d: 1, desc: 'Produces honey on its own, and speeds up the growth of any crop planted nearby.' },
+  { id: 'scarecrow', name: 'Scarecrow', icon: 'Sc', color: 0x8a6a3f, cost: 260, w: 1, d: 1, desc: 'Keeps crows off nearby crops, cutting the odds of a ruined harvest.' },
+  { id: 'greenhouse', name: 'Greenhouse', icon: 'Gh', color: 0x6bb8c9, cost: 3200, w: 3, d: 3, desc: 'Glass walls mean every crop you own can be planted in any season, anywhere on the farm.' },
+  { id: 'fence', name: 'Fence', icon: 'Fe', color: 0x8a6a3f, cost: 20, w: 1, d: 1, path: true, desc: 'Marks a pasture boundary. Cheap, and needed before animals will wander a paddock safely.' },
+  { id: 'path', name: 'Path', icon: 'Pa', color: 0x9c8a6a, cost: 6, w: 1, d: 1, path: true, desc: 'A walking path between beds and buildings.' },
+  { id: 'orchard', name: 'Orchard Grove', icon: 'Or', color: 0x5c8f4a, cost: 2400, w: 3, d: 3, desc: 'A stand of fruit trees that needs no tilling or replanting — it just quietly drops fruit every few days.' },
+  { id: 'toolshed', name: 'Tool Shed', icon: 'Ts', color: 0x6b6b6b, cost: 1800, w: 2, d: 2, desc: 'Keeps every tool sharp and every tractor tuned — every harvest anywhere on the farm yields a little extra.' },
+  { id: 'flowerbed', name: 'Flower Bed', icon: 'Fb', color: 0xd9364f, cost: 400, w: 2, d: 1, desc: 'Pure curb appeal. Raises farm reputation a little faster, nothing more.' },
+  { id: 'compost', name: 'Compost Bin', icon: 'Cp', color: 0x5a4a34, cost: 700, w: 1, d: 1, desc: 'Turns farm waste into cheap fertiliser — every seed on the farm costs a little less with one running.' },
+  { id: 'coldframe', name: 'Cold Frame', icon: 'Cf', color: 0x6bb8c9, cost: 1100, w: 2, d: 2, desc: 'A frost-proof bed. Crops planted here keep growing even through a frost warning.' },
 ];
 
 const FARM_SCENARIOS = [
@@ -2455,7 +2457,25 @@ const ICON = {
   land: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 8.5l9-4.5 9 4.5-9 4.5z"/><path d="M3 14l9 4.5 9-4.5"/></svg>',
   staff: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="9" cy="8" r="3"/><path d="M3 20c0-3.4 2.7-5.3 6-5.3s6 1.9 6 5.3"/><path d="M16 5.4a3 3 0 010 5.2M17.5 14.4c2.2.6 3.5 2.3 3.5 5.1"/></svg>',
   close: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 6l12 12M18 6L6 18"/></svg>',
+  cash: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2.5" y="6" width="19" height="12" rx="2.2"/><circle cx="12" cy="12" r="3"/><path d="M6 9v.01M18 15v.01"/></svg>',
+  calendar: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4.5" width="18" height="16" rx="2"/><path d="M3 9.5h18M8 3v3M16 3v3"/></svg>',
+  star: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M12 3l2.6 5.7 6.1.6-4.6 4.2 1.3 6-5.4-3.2-5.4 3.2 1.3-6-4.6-4.2 6.1-.6z"/></svg>',
+  leaf: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 19c9-1 14-6 14-15C10 5 5 10 5 19z"/><path d="M5 19c2-4 5-7 9-9"/></svg>',
+  cow: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="13.5" r="6"/><path d="M7 8L5 4M17 8l2-4M9 12h.01M15 12h.01"/><path d="M9 16.5c1.6 1 4.4 1 6 0"/></svg>',
+  trophy: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M7 4h10v5a5 5 0 01-10 0z"/><path d="M7 5H4v1.5A3.5 3.5 0 007.5 10M17 5h3v1.5A3.5 3.5 0 0116.5 10"/><path d="M12 14v3M9 20.5h6M9.5 20.5V17h5v3.5"/></svg>',
+  sun: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="4.3"/><path d="M12 2.5v2.5M12 19v2.5M4.6 4.6l1.8 1.8M17.6 17.6l1.8 1.8M2.5 12H5M19 12h2.5M4.6 19.4l1.8-1.8M17.6 6.4l1.8-1.8"/></svg>',
+  rain: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6.5 16a4.2 4.2 0 01.5-8.3 5.5 5.5 0 0110.6 1.6A3.8 3.8 0 0117 16.5H6.5z"/><path d="M8 19l-1 2M12 19l-1 2M16 19l-1 2"/></svg>',
+  storm: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6.5 14.5a4.2 4.2 0 01.5-8.3 5.5 5.5 0 0110.6 1.6A3.8 3.8 0 0117 15H6.5z"/><path d="M13 15l-2.5 4h2.5l-1.5 3.5"/></svg>',
 };
+
+ICON.wheat = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 21V6"/><path d="M12 6c-2.5 0-4-1.5-4-4 2.5 0 4 1.5 4 4zM12 6c2.5 0 4-1.5 4-4-2.5 0-4 1.5-4 4z"/><path d="M12 11c-2.2 0-3.6-1.3-3.6-3.6 2.2 0 3.6 1.3 3.6 3.6zM12 11c2.2 0 3.6-1.3 3.6-3.6-2.2 0-3.6 1.3-3.6 3.6z"/><path d="M12 16c-2.2 0-3.6-1.3-3.6-3.6 2.2 0 3.6 1.3 3.6 3.6zM12 16c2.2 0 3.6-1.3 3.6-3.6-2.2 0-3.6 1.3-3.6 3.6z"/></svg>';
+ICON.scroll = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M6 4h13v14a2.5 2.5 0 01-2.5 2.5H8"/><path d="M6 4a2.5 2.5 0 00-2.5 2.5V18a2.5 2.5 0 002.5 2.5"/><path d="M9 8.5h7M9 12h7"/></svg>';
+ICON.tractor = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="6.5" cy="17.5" r="3"/><circle cx="17" cy="18" r="2"/><path d="M9 17.5h5.5M3.5 17.5V10h5l3 3h3.5l1.5 3.5"/><path d="M8.5 10V6h4v4"/></svg>';
+function cssHex(h) { return '#' + (h >>> 0).toString(16).padStart(6, '0').slice(-6); }
+function iconBadge(def) {
+  const bg = def.color != null ? cssHex(def.color) : '#8a8a8a';
+  return `<div class="ic" style="background:${bg}">${def.icon || ''}</div>`;
+}
 
 const Game = {
   R: null,
@@ -2939,15 +2959,15 @@ const UI = {
   updateHUD() {
     const hud = document.getElementById('hud');
     const hh = String(Time.hour()).padStart(2, '0'), mm = String(Time.minute % 60 | 0).padStart(2, '0');
-    const wIcon = Time.weather === 'sunny' ? '☀️' : Time.weather === 'rain' ? '🌧️' : '⛈️';
+    const wIcon = Time.weather === 'sunny' ? ICON.sun : Time.weather === 'rain' ? ICON.rain : ICON.storm;
     hud.innerHTML = `
-      <div class="stat money"><span class="ico">💰</span><span class="col"><span class="lbl">Cash</span><span class="val">${money(Farm.money)}</span></span></div>
-      <div class="stat"><span class="ico">📅</span><span class="col"><span class="lbl">${Time.season.name} · Day ${Farm.mode === 'sandbox' ? Time.dayOfSeason + 1 : Time.day}</span><span class="val">${hh}:${mm}</span></span></div>
+      <div class="stat money"><span class="ico">${ICON.cash}</span><span class="col"><span class="lbl">Cash</span><span class="val">${money(Farm.money)}</span></span></div>
+      <div class="stat"><span class="ico">${ICON.calendar}</span><span class="col"><span class="lbl">${Time.season.name} · Day ${Farm.mode === 'sandbox' ? Time.dayOfSeason + 1 : Time.day}</span><span class="val">${hh}:${mm}</span></span></div>
       <div class="stat"><span class="ico">${wIcon}</span><span class="col"><span class="lbl">Weather</span><span class="val" style="text-transform:capitalize">${Time.weather}</span></span></div>
-      <div class="stat"><span class="ico">⭐</span><span class="col"><span class="lbl">Reputation</span><span class="val">${Math.round(Farm.rep)}</span></span></div>
-      <div class="stat"><span class="ico">🌱</span><span class="col"><span class="lbl">Plots</span><span class="val">${Farm.plots.size}</span></span></div>
-      <div class="stat"><span class="ico">🐄</span><span class="col"><span class="lbl">Animals</span><span class="val">${Farm.animals.length}</span></span></div>
-      <div class="stat" style="cursor:pointer" onclick="Achievements.renderModal()"><span class="ico">🏆</span><span class="col"><span class="lbl">Awards</span><span class="val">${Achievements.unlocked.length}/${Achievements.list.length}</span></span></div>`;
+      <div class="stat"><span class="ico">${ICON.star}</span><span class="col"><span class="lbl">Reputation</span><span class="val">${Math.round(Farm.rep)}</span></span></div>
+      <div class="stat"><span class="ico">${ICON.leaf}</span><span class="col"><span class="lbl">Plots</span><span class="val">${Farm.plots.size}</span></span></div>
+      <div class="stat"><span class="ico">${ICON.cow}</span><span class="col"><span class="lbl">Animals</span><span class="val">${Farm.animals.length}</span></span></div>
+      <div class="stat" style="cursor:pointer" onclick="Achievements.renderModal()"><span class="ico">${ICON.trophy}</span><span class="col"><span class="lbl">Awards</span><span class="val">${Achievements.unlocked.length}/${Achievements.list.length}</span></span></div>`;
     if (Math.random() < .05) Goals.render();
   },
   modal(title, body) {
@@ -2965,7 +2985,7 @@ const UI = {
     const rows = CROPS.map(c => {
       const inSeason = Farm.canPlant(c);
       return `<div class="item ${!inSeason ? 'locked' : ''} ${Game.sub === c.id ? 'on' : ''}" onclick="UI.pickPlant('${c.id}')">
-        <div class="ic">${c.icon}</div>
+        ${iconBadge(c)}
         <div style="flex:1"><span class="n">${c.name}</span><span class="c">${money(c.seedCost)} seed · sells ${money(c.sell)}${!inSeason ? ' · out of season' : ''}</span></div>
       </div>`;
     }).join('');
@@ -2980,7 +3000,7 @@ const UI = {
     document.getElementById('bpTitle').textContent = 'Buy Livestock';
     document.getElementById('bpTabs').innerHTML = '';
     const rows = ANIMALS.map(a => `<div class="item ${Game.sub === a.id ? 'on' : ''}" onclick="UI.pickAnimal('${a.id}')">
-      <div class="ic">${a.icon}</div>
+      ${iconBadge(a)}
       <div style="flex:1"><span class="n">${a.name}</span><span class="c">${money(a.cost)} · needs a ${a.home} · gives ${PRODUCE_NAMES[a.produce]}</span></div>
     </div>`).join('');
     document.getElementById('bpBody').innerHTML = `<div style="font-size:10.5px;color:var(--dim);margin-bottom:8px;line-height:1.5">
@@ -2996,7 +3016,7 @@ const UI = {
     document.getElementById('bpTitle').textContent = 'Build';
     document.getElementById('bpTabs').innerHTML = '';
     const rows = BUILDINGS.map(b => `<div class="item ${Game.sub === b.id ? 'on' : ''}" onclick="UI.pickBuild('${b.id}')">
-      <div class="ic">${b.icon}</div>
+      ${iconBadge(b)}
       <div style="flex:1"><span class="n">${b.name}</span><span class="c">${money(b.cost)}${b.capacity ? ' · houses ' + b.capacity : ''}</span></div>
     </div>`).join('');
     document.getElementById('bpBody').innerHTML = `<div style="font-size:10.5px;color:var(--dim);margin-bottom:8px;line-height:1.5">
@@ -3012,7 +3032,7 @@ const UI = {
     document.getElementById('bpTitle').textContent = 'Hire a Farmhand';
     document.getElementById('bpTabs').innerHTML = '';
     const rows = Farm.staff.map(s => `<div class="item">
-      <div class="ic">🧑‍🌾</div>
+      <div class="ic" style="background:#8a6a3f">${ICON.staff}</div>
       <div style="flex:1"><span class="n">Farmhand #${s.id}</span><span class="c">${money(STAFF_WAGE)}/day wage</span></div>
       <button class="btn dan" style="padding:5px 9px" onclick="Farm.fireStaff(${s.id});UI.openStaffPicker()">Let go</button>
     </div>`).join('');
@@ -3028,14 +3048,14 @@ const UI = {
     let h = '';
     if (sel.kind === 'plot') {
       const p = sel.obj;
-      h += `<div style="font-size:14px;font-weight:800">${p.def.icon} ${p.def.name}</div>`;
+      h += `<div style="font-size:14px;font-weight:800">${p.def.name}</div>`;
       h += `<div class="kv"><span class="k">Status</span><span class="v">${p.ripe ? 'Ripe — ready to harvest' : 'Growing (' + Math.round(p.growDays) + '/' + p.def.growDays + ' days)'}</span></div>`;
       h += `<div class="kv"><span class="k">Sells for</span><span class="v">${money(Farm.sellPriceFor(p.def.id))} each</span></div>`;
       if (p.ripe) h += `<div class="btnrow"><button class="btn go" onclick="Farm.harvestAt(${p.i},${p.j});UI.closeInspector()">Harvest</button></div>`;
       h += `<div class="btnrow"><button class="btn dan" onclick="Farm.clearPlot(${p.i},${p.j});UI.closeInspector()">Clear plot</button></div>`;
     } else if (sel.kind === 'animal') {
       const a = sel.obj;
-      h += `<div style="font-size:14px;font-weight:800">${a.def.icon} ${a.def.name}</div>`;
+      h += `<div style="font-size:14px;font-weight:800">${a.def.name}</div>`;
       h += `<div class="kv"><span class="k">Age</span><span class="v">${a.mature ? 'Adult' : 'Young (' + a.age + '/' + a.def.matureDays + ' days)'}</span></div>`;
       h += `<div class="kv"><span class="k">Happiness</span><span class="v">${Math.round(a.happiness * 100)}%</span></div>`;
       h += `<div class="kv"><span class="k">Fed today</span><span class="v">${a.fedToday ? 'Yes' : 'No'}</span></div>`;
@@ -3043,7 +3063,7 @@ const UI = {
       h += `<div class="btnrow"><button class="btn dan" onclick="Game.selected=Game.selected;Farm.animals=Farm.animals.filter(x=>x!==Game.selected);UI.closeInspector()">Sell animal</button></div>`;
     } else if (sel.kind === 'building') {
       const b = sel.obj;
-      h += `<div style="font-size:14px;font-weight:800">${b.def.icon || '🏚️'} ${b.def.name}</div>`;
+      h += `<div style="font-size:14px;font-weight:800">${b.def.name}</div>`;
       if (b.def.desc) h += `<div style="font-size:11px;color:var(--dim);line-height:1.5;margin:4px 0">${b.def.desc}</div>`;
       if (b.def.houses) {
         const housed = Farm.animals.filter(a => a.home === b.def.houses).length;
@@ -3092,7 +3112,7 @@ const Menu = {
     w.style.display = 'flex';
     w.innerHTML = FARM_SCENARIOS.map((sc, i) => `
       <div class="mcard" onclick="Menu.begin('career',${i})">
-        <div class="mic">📜</div>
+        <div class="mic">${ICON.scroll}</div>
         <div class="mtag">${sc.tag}</div>
         <div class="mck">${sc.name}</div>
         <div class="mcd">${sc.blurb}</div>
