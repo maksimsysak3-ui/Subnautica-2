@@ -2014,12 +2014,41 @@ const STAFF_WAGE = 45;
 class FarmStaff {
   constructor(x, z) {
     this.x = x; this.z = z; this.y = WORLD.hAt(x, z);
+    this.homeX = x; this.homeZ = z;
     this.id = FarmStaff._id = (FarmStaff._id || 0) + 1;
     this.matrix = M4.create();
     this.bob = rnd(0, TAU);
+    this.yaw = rnd(0, TAU);
+    this.wanderT = rnd(0, 3);
     this.updateMatrix();
   }
-  updateMatrix() { M4.compose(this.matrix, this.x, this.y, this.z, 0, 0, 0, 1, 1, 1); }
+  update(dt) {
+    this.bob += dt * 5;
+    this.wanderT -= dt;
+    if (this.wanderT <= 0) {
+      this.wanderT = rnd(3, 7);
+      const a = rnd(0, TAU), r = rnd(3, 12);
+      this._tx = clamp(this.homeX + Math.cos(a) * r, this.homeX - 16, this.homeX + 16);
+      this._tz = clamp(this.homeZ + Math.sin(a) * r, this.homeZ - 16, this.homeZ + 16);
+    }
+    this.moving = false;
+    if (this._tx !== undefined) {
+      const dx = this._tx - this.x, dz = this._tz - this.z, d = Math.hypot(dx, dz);
+      if (d > .15) {
+        this.moving = true;
+        const spd = 1.4 * dt;
+        this.x += dx / d * Math.min(spd, d);
+        this.z += dz / d * Math.min(spd, d);
+        this.yaw = angLerp(this.yaw, Math.atan2(dx, dz), dt * 5);
+        this.y = WORLD.hAt(this.x, this.z);
+      }
+    }
+    this.updateMatrix();
+  }
+  updateMatrix() {
+    const bobY = this.moving ? Math.abs(Math.sin(this.bob)) * .08 : Math.sin(this.bob * .3) * .015;
+    M4.compose(this.matrix, this.x, this.y + bobY, this.z, 0, this.yaw, 0, 1, 1, 1);
+  }
   mesh() { return PF.farmhand(); }
 }
 
@@ -2517,6 +2546,7 @@ const Game = {
     Cam.update(dt);
     Time.update(dt);
     for (const a of Farm.animals) a.update(dt);
+    for (const s of Farm.staff) s.update(dt);
     if (WORLD.dirty) WORLD.buildMesh(this.R);
   },
 
