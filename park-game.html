@@ -518,6 +518,37 @@ kbd{
 /* ---------- research tree ----------
    Laid out as dependency chains rather than a flat grid of identical boxes,
    so the order things must be bought in is visible at a glance. */
+/* ---------- safety certificate card ---------- */
+.lic{border:2px solid var(--edge);border-radius:var(--r-sm);background:#fff;padding:12px 14px;
+  position:relative;overflow:hidden}
+.lic::before{content:'';position:absolute;left:0;top:0;bottom:0;width:6px}
+.lic.pass::before{background:var(--good)} .lic.cond::before{background:var(--warn)}
+.lic.fail::before{background:var(--bad)} .lic.expired::before{background:#9aa4ae}
+.lic.none::before,.lic.pending::before{background:var(--accent)}
+.lic-hd{display:flex;align-items:center;gap:12px;margin-bottom:9px}
+.lic-grade{width:44px;height:44px;flex:0 0 auto;border-radius:9px;display:flex;align-items:center;
+  justify-content:center;font-size:23px;font-weight:800;color:#fff;background:var(--good);
+  box-shadow:inset 0 -3px 0 rgba(0,0,0,.16)}
+.lic.cond .lic-grade{background:var(--warn)} .lic.fail .lic-grade{background:var(--bad)}
+.lic.expired .lic-grade{background:#9aa4ae}
+.lic-t{font-size:13px;font-weight:800;letter-spacing:.10em}
+.lic.pass .lic-t{color:#1d7a42} .lic.cond .lic-t{color:#8a6410}
+.lic.fail .lic-t{color:#a8322a} .lic.expired .lic-t{color:#5c6672}
+.lic-meta{margin-left:auto;text-align:right;font-size:9.5px;color:var(--dim);
+  font-weight:700;line-height:1.45}
+.lic-figs{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:9px}
+.lic-figs span{font-size:9.5px;font-weight:700;color:var(--dim);background:var(--panel-sunken);
+  border:1.5px solid var(--edge-soft);border-radius:6px;padding:3px 8px}
+.lic-figs i{font-style:normal;font-weight:800;color:var(--txt);font-variant-numeric:tabular-nums}
+.lic-checks{display:flex;flex-direction:column;gap:4px}
+.lic-row{display:flex;gap:8px;align-items:flex-start;font-size:10.5px;line-height:1.45}
+.lic-row .mk{width:16px;height:16px;flex:0 0 auto;border-radius:50%;display:flex;
+  align-items:center;justify-content:center;font-size:9px;font-weight:800;color:#fff}
+.lic-row.ok .mk{background:var(--good)} .lic-row.warn .mk{background:var(--warn)}
+.lic-row.bad .mk{background:var(--bad)}
+.lic-row .tx{color:var(--dim)} .lic-row .tx b{color:var(--txt)}
+.lic-note{font-size:10.5px;color:var(--dim);line-height:1.5}
+
 /* Research gets a wider modal than the default — it is a planning screen. */
 #modal.wide{width:min(1080px,96vw)}
 /* --- research motion ---------------------------------------------------
@@ -3380,6 +3411,10 @@ const CAT = {
     { id: 'vendor', name: 'Vendor', cost: 330, wage: 24, color: 0x8fd06a },
     { id: 'restocker', name: 'Restocker', cost: 480, wage: 32, color: 0xd9a441 },
     { id: 'landscaper', name: 'Landscaper', cost: 400, wage: 27, color: 0x5fa83f },
+    /* Not hireable and never on the payroll — the safety inspector is sent
+       by the licensing authority, walks to the ride, and leaves again.
+       Flagged so every hire list filters it out. */
+    { id: 'inspector', name: 'Safety Inspector', cost: 0, wage: 0, color: 0xf2f2f2, external: true },
   ],
   /* ---------------- Coaster track styles ---------------- */
   coasterTypes: [
@@ -9090,6 +9125,9 @@ class Guest extends Person {
       if (raining && !water) s -= 1.2;
       if (this.thrillSeeker && r.excitement > 8) s += 2.0;
       if (!this.thrillSeeker && r.intensity < 5) s += 1.0;
+      /* A tired old ride is a weaker draw than the same ride was when it
+         opened. Refurbishing it puts the pull back. */
+      s -= (1 - (r.freshness === undefined ? 1 : r.freshness)) * 4.0;
       if (!this.willRide(r)) s -= 8;
       /* Real people are not optimisers. Wide noise is what turns a single
          best answer into a spread of plausible ones, and it is the
@@ -10035,7 +10073,7 @@ const UI = {
       }
     }
     else if (id === 'staff') {
-      addGrid('Hire', CAT.staff, 'grid2',
+      addGrid('Hire', CAT.staff.filter(x => !x.external), 'grid2',
         it => `<img class="th" src="${Thumbs.staff(it)}" alt=""><span class="n">${it.name}</span>${cost(it.cost)}<span class="c" style="color:var(--dim)">${money(it.wage)}/hr</span>`,
         (it) => Game.hire(it));
       b.appendChild(el('div', 'cat', 'Roster'));
@@ -10050,6 +10088,45 @@ const UI = {
       b.appendChild(list);
     }
   },
+  /* The safety certificate as a card: grade stamp, the figures it was
+     issued against, and every check the inspector actually made. Rendered
+     wherever a coaster's details are shown. */
+  licenseCard(c) {
+    const L = c.license;
+    if (c.inspectionPending)
+      return `<div class="lic pending"><div class="lic-hd"><span class="lic-t">Inspection booked</span></div>
+        <div class="lic-note">An inspector is on their way to ${esc(c.name)}. The ride cannot open until they have signed it off.</div></div>`;
+    if (!L)
+      return `<div class="lic none"><div class="lic-hd"><span class="lic-t">Not yet inspected</span></div>
+        <div class="lic-note">${esc(c.name)} has no safety certificate, so it cannot carry guests.</div>
+        <div class="btnrow"><button class="btn go" onclick="Inspection.request(Park.coasters.find(x=>x.id===${c.id}));UI.rideReport(${c.id})">Book an inspection &middot; ${money(Inspection.FEE)}</button></div></div>`;
+    const expired = Inspection.expired(c);
+    const cls = L.status === 'refused' ? 'fail' : expired ? 'expired' : L.status === 'conditional' ? 'cond' : 'pass';
+    const word = L.status === 'refused' ? 'REFUSED' : expired ? 'EXPIRED' : L.status === 'conditional' ? 'CONDITIONAL' : 'PASSED';
+    let s = `<div class="lic ${cls}">
+      <div class="lic-hd">
+        <span class="lic-grade">${L.grade}</span>
+        <span class="lic-t">${word}</span>
+        <span class="lic-meta">Issued day ${L.day} &middot; ${esc(L.inspector)}<br>
+          ${L.status === 'refused' ? 'No expiry — reinspection required' : 'Valid until day ' + L.expires}</span>
+      </div>
+      <div class="lic-figs">
+        <span><i>${L.speed}</i>km/h</span><span><i>${L.maxG}</i>G peak</span>
+        <span><i>${L.minG}</i>G min</span><span><i>${L.latG}</i>G lat</span><span><i>${L.len}</i>m</span>
+      </div>
+      <div class="lic-checks">`;
+    for (const n of L.notes) {
+      const ic = n.ok === true ? '&#10003;' : n.ok === 'warn' ? '!' : '&#10007;';
+      const k = n.ok === true ? 'ok' : n.ok === 'warn' ? 'warn' : 'bad';
+      s += `<div class="lic-row ${k}"><span class="mk">${ic}</span><span class="tx"><b>${n.t}</b> — ${n.d}</span></div>`;
+    }
+    s += `</div>`;
+    if (L.status === 'refused' || expired)
+      s += `<div class="btnrow"><button class="btn go" onclick="Inspection.request(Park.coasters.find(x=>x.id===${c.id}));UI.rideReport(${c.id})">Book re-inspection &middot; ${money(Inspection.FEE)}</button></div>`;
+    s += `</div>`;
+    return s;
+  },
+
   /* ------------------------------------------------------------------
      RESEARCH & DEVELOPMENT
      A full-width screen rather than an entry in the build rail: it is
@@ -10327,7 +10404,7 @@ const UI = {
     section('lodging', 'Lodging', CAT.shops.filter(x => x.need === 'hotel'), 'lodging', it => Thumbs.shop(it));
     section('scenery', 'Scenery', CAT.scenery, 'scenery', it => Thumbs.scenery(it));
     section('landmark', 'Prestige Landmarks', CAT.landmarks, 'landmark', it => Thumbs.scenery(it));
-    section('staff', 'Staff', CAT.staff, 'staff', it => Thumbs.staff(it));
+    section('staff', 'Staff', CAT.staff.filter(x => !x.external), 'staff', it => Thumbs.staff(it));
     if (this.quickCat === 'all' || this.quickCat === 'transit') {
       body.appendChild(el('div', 'cat', 'Transport'));
       const locked = !Transit.unlocked();
@@ -10662,6 +10739,17 @@ const UI = {
       h += kv(isFree ? 'Guests served' : isShop ? 'Items sold' : 'Total riders', isShop ? o.served : o.ridden);
       h += kv('Queue now', (o.queue ? o.queue.length : 0) + ' waiting');
       h += kv('Condition', Math.round(clamp((o.reliability || .9) - o.wear, 0, 1) * 100) + '%');
+      if (!isShop) {
+        /* Age is only interesting once it starts costing appeal, so it is
+           reported as the pull that has been lost rather than a raw day count. */
+        const fr = o.freshness === undefined ? 1 : o.freshness;
+        const lost = Math.round((1 - fr) * 100);
+        h += kv('Age', (o.ageDays || 0) + ' days',
+          lost > 0 ? lost + '% of its original pull lost' : 'still a fresh draw');
+        const rc = Game.refurbCost(o);
+        if (rc > 0) h += `<div class="btnrow"><button class="btn ${lost > 15 ? 'go' : ''}" style="flex:0 0 auto;padding:9px 20px"
+          onclick="Game.refurbish(${id});UI.manage(${id})">Refurbish &middot; ${money(rc)}</button></div>`;
+      }
       if (isFree) {
         h += kv('Upkeep', money((o.def.up || 0) * .6) + ' / hr');
         h += `<p>${o.def.need === 'break'
@@ -11027,7 +11115,7 @@ const UI = {
         Training makes someone faster at their job and lets them cover more ground — often cheaper
         than hiring a second body, and always cheaper than a ride sitting broken.</p>`;
       h += `<h3>Hire</h3><div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px">`;
-      for (const d of CAT.staff) {
+      for (const d of CAT.staff.filter(x => !x.external)) {
         const n = Park.staff.filter(st => st.role === d.id).length;
         h += `<div style="background:var(--panel-sunken);border:2px solid var(--edge-soft);border-radius:12px;padding:9px;text-align:center">
           <img src="${Thumbs.staff(d)}" style="width:100%;aspect-ratio:1;object-fit:contain" alt="">
@@ -11289,6 +11377,10 @@ const UI = {
             : ['Solid', 'A respectable ride. More airtime or an inversion would push the excitement higher.', 'var(--accent)'];
     h += `<h3>Verdict</h3><div style="border-left:3px solid ${verdict[2]};padding:8px 12px;background:var(--panel-sunken);border-radius:0 8px 8px 0">
       <b style="color:${verdict[2]}">${verdict[0]}</b><div style="color:var(--dim);margin-top:3px">${verdict[1]}</div></div>`;
+
+    /* ---- the safety certificate, drawn onto the ride's own card ---- */
+    h += `<h3>Safety Certificate</h3>`;
+    h += UI.licenseCard(c);
     if (c.stalls) h += `<div class="btnrow" style="margin-top:10px">
       <button class="btn go" style="flex:0 0 auto;padding:9px 20px"
         onclick="Coaster.deStall(Park.coasters.find(x=>x.id===${c.id}));UI.rideReport(${c.id})">
@@ -12068,7 +12160,7 @@ const UI = {
       }
       h += `</div>`;
     }
-    const roles = CAT.staff.map(d => ({ d, list: Park.staff.filter(s => s.role === d.id) })).filter(r => r.list.length);
+    const roles = CAT.staff.filter(x => !x.external).map(d => ({ d, list: Park.staff.filter(s => s.role === d.id) })).filter(r => r.list.length);
     for (const { d, list } of roles) {
       list.sort((a, b) => this.staffUrgency(b) - this.staffUrgency(a));
       h += `<h3 style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
@@ -12098,7 +12190,7 @@ const UI = {
     this.modal('Radio Dispatch', h);
   },
   staffTab() {
-    const roles = CAT.staff.map(d => ({ d, list: Park.staff.filter(s => s.role === d.id) }));
+    const roles = CAT.staff.filter(x => !x.external).map(d => ({ d, list: Park.staff.filter(s => s.role === d.id) }));
     const wages = Park.staff.reduce((a, s) => a + s.wage, 0);
     let h = this.tabBar('staff');
     h += `<p>You employ <b>${Park.staff.length}</b> people costing <b>${money(wages)}</b> an hour.
@@ -12467,11 +12559,12 @@ const Coaster = {
     // A pre-built design is supposed to just work: if the auto-routed return
     // leg costs it too much speed, power the section that gives out.
     if (c.stalls) this.deStall(c, true);
-    if (!c.stalls) { c.openR = true; c.state = 'open'; }
+    /* Even a ready-made design has to be signed off before it opens. */
+    if (!c.stalls) Inspection.request(c);
     Game.autoConnect(c);
     this.blueprint = null;
-    UI.notify(bp.name + ' is open', 'Excitement ' + c.excitement.toFixed(1) + ', intensity ' + c.intensity.toFixed(1) +
-      ', top speed ' + Math.round(c.maxSpeed * 3.6) + ' km/h.' + (rejected ? ' ' + rejected + ' pieces did not fit.' : ''), 'good');
+    UI.notify(bp.name + ' is built', 'Excitement ' + c.excitement.toFixed(1) + ', intensity ' + c.intensity.toFixed(1) +
+      ', top speed ' + Math.round(c.maxSpeed * 3.6) + ' km/h. An inspector is on the way.' + (rejected ? ' ' + rejected + ' pieces did not fit.' : ''), 'good');
     Audio.play('complete');
     this.refresh();
     return true;
@@ -12915,7 +13008,10 @@ const Coaster = {
     c.frontMesh = Game.R.makeMesh(buildCarGeo(c.type, true));
     this.rebuild();
     Audio.play('complete');
-    UI.notify('Circuit complete!', c.name + ' — excitement ' + c.excitement.toFixed(1) + ', intensity ' + c.intensity.toFixed(1) + '. Test it before opening.', 'good');
+    UI.notify('Circuit complete!', c.name + ' — excitement ' + c.excitement.toFixed(1) + ', intensity ' + c.intensity.toFixed(1) + '.', 'good');
+    /* Finishing the track books the safety inspection automatically — the
+       ride cannot carry anyone until they have been and signed it off. */
+    Inspection.request(c);
     this.refresh();
   },
   test() {
@@ -13948,7 +14044,7 @@ const Thumbs = {
       for (const d of CAT.rides) this.warmQueue.push(() => this.ride(d));
       for (const d of CAT.shops) this.warmQueue.push(() => this.shop(d));
       for (const d of CAT.scenery) this.warmQueue.push(() => this.scenery(d));
-      for (const d of CAT.staff) this.warmQueue.push(() => this.staff(d));
+      for (const d of CAT.staff.filter(x => !x.external)) this.warmQueue.push(() => this.staff(d));
       for (const k of ['path', 'queue', 'plaza', 'erase']) this.warmQueue.push(() => this.path(k));
     }
     const t0 = performance.now();
@@ -15018,6 +15114,9 @@ const Menu = {
     Coaster.buildBlueprint(bp, c - 20, c - 24, 0);
     Coaster.exit();
     for (const o of Park.objects) if (o.kind === 'ride') { o.openR = true; o.state = 'idle'; }
+    /* The menu backdrop is a running park, not a build session — sign its
+       coasters off immediately rather than waiting on an inspector walk. */
+    for (const c2 of Park.coasters) { Inspection.grant(c2); if (!c2.stalls) { c2.openR = true; c2.state = 'open'; } }
     for (const o of Park.objects.concat(Park.coasters))
       if (o.kind === 'ride' || o.kind === 'shop' || o.kind === 'coaster') Game.autoConnect(o, true);
     Path.rebuild();
@@ -16123,6 +16222,181 @@ const Parking = {
   },
 };
 
+/* ============================================================================
+   SAFETY INSPECTION & LICENSING
+   A finished circuit is not an open ride. The licensing authority sends an
+   inspector, who walks from the front gate to the coaster, spends time going
+   over it, and issues a certificate: a pass, a pass with conditions, or a
+   refusal. Only a valid certificate lets the ride carry guests, and a
+   certificate expires, so a park that keeps running has to keep proving its
+   rides are safe rather than passing once and forgetting.
+
+   The verdict is read off the same numbers the physics sim already produces
+   — peak and negative G, lateral load, whether the train completes the
+   circuit, and how worn the track is — so the inspector can never disagree
+   with what the ride report says about itself.
+   ========================================================================== */
+const Inspection = {
+  active: [],            // inspectors currently in the park
+  VALID_DAYS: 30,        // how long a certificate lasts
+  FEE: 450,              // what the inspection costs the park
+
+  reset() { this.active.length = 0; },
+
+  /* Every limit here is a real-world-ish threshold, and each is reported
+     as its own line on the certificate so a refusal is never a mystery. */
+  assess(c) {
+    const notes = [];
+    let fail = false, warn = false;
+    if (c.stalls) {
+      notes.push({ ok: false, t: 'Completes the circuit',
+        d: 'The train stops ' + Math.round(c.stallAt || 0) + 'm in.' });
+      fail = true;
+    } else notes.push({ ok: true, t: 'Completes the circuit', d: 'Full lap under its own momentum.' });
+
+    const g = c.maxG || 0;
+    if (g > 6.0) { notes.push({ ok: false, t: 'Peak positive G', d: g.toFixed(1) + 'G exceeds the 6.0G limit.' }); fail = true; }
+    else if (g > 4.5) { notes.push({ ok: 'warn', t: 'Peak positive G', d: g.toFixed(1) + 'G is punishing but permitted.' }); warn = true; }
+    else notes.push({ ok: true, t: 'Peak positive G', d: g.toFixed(1) + 'G, within limits.' });
+
+    const ng = c.minG === undefined ? 1 : c.minG;
+    if (ng < -2.0) { notes.push({ ok: false, t: 'Sustained negative G', d: ng.toFixed(1) + 'G exceeds the -2.0G limit.' }); fail = true; }
+    else if (ng < -1.1) { notes.push({ ok: 'warn', t: 'Sustained negative G', d: ng.toFixed(1) + 'G — strong airtime.' }); warn = true; }
+    else notes.push({ ok: true, t: 'Sustained negative G', d: ng.toFixed(1) + 'G, within limits.' });
+
+    const lat = c.maxLatG || 0;
+    if (lat > 3.0) { notes.push({ ok: false, t: 'Lateral load', d: lat.toFixed(1) + 'G sideways exceeds the 3.0G limit — bank the turns.' }); fail = true; }
+    else if (lat > 1.6) { notes.push({ ok: 'warn', t: 'Lateral load', d: lat.toFixed(1) + 'G sideways is uncomfortable.' }); warn = true; }
+    else notes.push({ ok: true, t: 'Lateral load', d: lat.toFixed(1) + 'G sideways, well banked.' });
+
+    const wear = c.wear || 0;
+    if (wear > .7) { notes.push({ ok: false, t: 'Track condition', d: Math.round(wear * 100) + '% worn — refurbish before reopening.' }); fail = true; }
+    else if (wear > .4) { notes.push({ ok: 'warn', t: 'Track condition', d: Math.round(wear * 100) + '% worn.' }); warn = true; }
+    else notes.push({ ok: true, t: 'Track condition', d: 'Good order.' });
+
+    const grade = fail ? 'F' : warn ? (notes.filter(n => n.ok === 'warn').length > 1 ? 'C' : 'B') : 'A';
+    return { status: fail ? 'refused' : warn ? 'conditional' : 'passed', grade, notes };
+  },
+
+  /* Send an inspector. They walk in from the gate; the verdict is issued
+     when they get there, not instantly, so a licence is something you wait
+     for rather than a button that flips a flag. */
+  request(c, silent) {
+    if (!c || !c.track || !c.track.complete) return false;
+    if (this.active.some(i => i.target === c)) return false;
+    if (Park.money < this.FEE) {
+      if (!silent) UI.notify('Cannot book an inspection', 'The fee is ' + money(this.FEE) + '.', 'bad');
+      return false;
+    }
+    Park.spend(this.FEE);
+    const gate = Park.gate;
+    const sx = gate ? gate.x + rnd(-3, 3) : c.x, sz = gate ? gate.z + 2 : c.z + 10;
+    let insp;
+    try { insp = new Staff('inspector', sx, sz); }
+    catch (e) { return false; }
+    insp.name = pick(FIRST) + ' ' + pick(LAST);
+    insp.uniformColor = 0xf2f2f2;
+    insp.target = c;
+    insp.phase = 'walking';
+    insp.workT = 0;
+    this.active.push(insp);
+    c.inspectionPending = true;
+    if (!silent) UI.notify('Inspector on the way', insp.name + ' has been dispatched to ' + c.name + '. Fee ' + money(this.FEE) + '.', 'good');
+    return true;
+  },
+
+  update(dt) {
+    for (let k = this.active.length - 1; k >= 0; k--) {
+      const insp = this.active[k];
+      const c = insp.target;
+      if (!c || !Park.coasters.includes(c)) { this.active.splice(k, 1); continue; }
+      if (insp.phase === 'walking') {
+        const dx = c.x - insp.x, dz = c.z - insp.z, d = Math.hypot(dx, dz);
+        if (d < 5) { insp.phase = 'inspecting'; insp.workT = 6; insp.moving = false; }
+        else {
+          const sp = 4.2 * dt;
+          insp.x += dx / d * Math.min(sp, d); insp.z += dz / d * Math.min(sp, d);
+          insp.y = WORLD.hAt(insp.x, insp.z);
+          insp.yaw = Math.atan2(dx, dz); insp.moving = true;
+        }
+      } else if (insp.phase === 'inspecting') {
+        insp.workT -= dt;
+        insp.moving = false;
+        if (insp.workT <= 0) {
+          c.computeStats();
+          const res = this.assess(c);
+          c.license = {
+            status: res.status, grade: res.grade, notes: res.notes,
+            day: Park.day, expires: Park.day + this.VALID_DAYS,
+            inspector: insp.name,
+            speed: Math.round((c.maxSpeed || 0) * 3.6),
+            maxG: +(c.maxG || 0).toFixed(1), minG: +(c.minG === undefined ? 1 : c.minG).toFixed(1),
+            latG: +(c.maxLatG || 0).toFixed(1), len: Math.round(c.track ? c.track.length : 0),
+          };
+          c.inspectionPending = false;
+          if (res.status === 'refused') { c.openR = false; c.state = 'closed'; }
+          UI.notify(
+            res.status === 'refused' ? 'Inspection failed' : res.status === 'conditional' ? 'Certificate issued — with conditions' : 'Certificate issued',
+            c.name + ' graded ' + res.grade + '. ' + (res.status === 'refused'
+              ? 'It cannot open until the faults are fixed.'
+              : 'Valid until day ' + c.license.expires + '.'),
+            res.status === 'refused' ? 'bad' : res.status === 'conditional' ? 'warn' : 'good');
+          Audio.play(res.status === 'refused' ? 'error' : 'complete');
+          insp.phase = 'leaving';
+        }
+      } else {
+        const gate = Park.gate;
+        const tx = gate ? gate.x : insp.x, tz = gate ? gate.z + 6 : insp.z + 30;
+        const dx = tx - insp.x, dz = tz - insp.z, d = Math.hypot(dx, dz);
+        if (d < 3) { this.active.splice(k, 1); continue; }
+        const sp = 4.2 * dt;
+        insp.x += dx / d * Math.min(sp, d); insp.z += dz / d * Math.min(sp, d);
+        insp.y = WORLD.hAt(insp.x, insp.z);
+        insp.yaw = Math.atan2(dx, dz); insp.moving = true;
+      }
+      if (insp.animate) insp.animate(dt);
+    }
+  },
+
+  /* Issue a certificate on the spot, with no inspector walk and no fee.
+     Used for the menu showcase park, and to grandfather coasters from saves
+     made before licensing existed so an old park does not load with every
+     ride shut. */
+  grant(c) {
+    if (!c || !c.track || !c.track.complete) return;
+    c.computeStats();
+    const res = this.assess(c);
+    c.license = {
+      status: res.status, grade: res.grade, notes: res.notes,
+      day: Park.day, expires: Park.day + this.VALID_DAYS,
+      inspector: 'Park Authority',
+      speed: Math.round((c.maxSpeed || 0) * 3.6),
+      maxG: +(c.maxG || 0).toFixed(1), minG: +(c.minG === undefined ? 1 : c.minG).toFixed(1),
+      latG: +(c.maxLatG || 0).toFixed(1), len: Math.round(c.track ? c.track.length : 0),
+    };
+    c.inspectionPending = false;
+  },
+
+  /* Is this ride allowed to carry guests right now? */
+  licensed(c) {
+    const L = c.license;
+    if (!L) return false;
+    if (L.status === 'refused') return false;
+    return Park.day <= L.expires;
+  },
+  expired(c) { return !!(c.license && c.license.status !== 'refused' && Park.day > c.license.expires); },
+  /* Called on the day tick so lapsed certificates close their ride. */
+  dayTick() {
+    for (const c of Park.coasters) {
+      if (!c.track || !c.track.complete) continue;
+      if (c.openR && !this.licensed(c)) {
+        c.openR = false; c.state = 'closed';
+        UI.notify('Certificate expired', c.name + ' has been closed until it is re-inspected.', 'warn');
+      }
+    }
+  },
+};
+
 const Traffic = {
   cars: [], carMesh: {}, roadList: [], roadSet: new Set(), rebuildT: 0,
   colors: [0xd9432e, 0x2e6fd9, 0xd9c22e, 0x3ba05a, 0xe8e8ec, 0x2b2b30, 0xd98f2e],
@@ -17000,7 +17274,7 @@ const Game = {
   newGame(mode, scenario, quiet) {
     for (const o of Park.objects) if (o.mesh) o.mesh.dispose();
     for (const c of Park.coasters) { if (c.trackMesh) c.trackMesh.dispose(); if (c.stationMesh) c.stationMesh.dispose(); if (c.splashMesh) c.splashMesh.dispose(); }
-    HeatMap.close(); Traffic.cars.length = 0; Parking.reset();
+    HeatMap.close(); Traffic.cars.length = 0; Parking.reset(); Inspection.reset();
     if (typeof Fireworks !== 'undefined') { Fireworks.active.length = 0; Fireworks.queue.length = 0; Fireworks.shownTonight = -1; }
     this.multiSel.length = 0; this.renderMultiSelBar(); this.undoStack.length = 0;
     this.undoCount = 0; this.maxBulkDemolish = 0;
@@ -18050,12 +18324,53 @@ const Game = {
     o.waveIntensity = clamp(Math.round(+v) / 100, 0, 2);
     const e = document.getElementById('wint' + id); if (e) e.textContent = Math.round(o.waveIntensity * 100) + '%';
   },
+  /* Refurbish: strip out the wear and the years, at a price that scales with
+     how far gone it is, so a neglected ride costs more to bring back than one
+     kept on top of. Restores appeal fully — the def figures were never
+     modified, only the freshness multiplier applied on top of them. */
+  refurbish(id) {
+    const o = Park.objects.find(x => x.id === id) || Park.coasters.find(x => x.id === id);
+    if (!o) return false;
+    const cost = this.refurbCost(o);
+    if (cost <= 0) { UI.notify('Nothing to do', o.name + ' is already in as-new condition.', 'warn'); return false; }
+    if (Park.money < cost) { UI.notify('Too expensive', 'Refurbishing ' + o.name + ' costs ' + money(cost) + '.', 'bad'); return false; }
+    Park.spend(cost);
+    o.ageDays = 0; o.freshness = 1; o.wear = 0;
+    o.broken = false;
+    const k = Park.needMechanic.indexOf(o); if (k >= 0) Park.needMechanic.splice(k, 1);
+    /* A refurbished coaster is a changed ride as far as the authority is
+       concerned, so its certificate has to be re-earned. */
+    if (o.kind === 'coaster') { o.openR = false; o.state = 'closed'; Inspection.request(o, true); }
+    UI.notify('Refurbished', o.name + ' has been stripped back and rebuilt for ' + money(cost) + '.'
+      + (o.kind === 'coaster' ? ' An inspector will re-certify it.' : ''), 'good');
+    Audio.play('complete');
+    return true;
+  },
+  refurbCost(o) {
+    const base = o.kind === 'coaster'
+      ? 2500 + (o.track ? o.track.length * 6 : 0)
+      : (o.def.cost || 2000) * .35;
+    const aged = 1 - (o.freshness === undefined ? 1 : o.freshness);   // 0..0.45
+    const worn = clamp(o.wear || 0, 0, 1);
+    const need = aged / .45 * .6 + worn * .4;
+    return need < .05 ? 0 : Math.round(base * (.35 + need));
+  },
   toggleOpen(id) {
     const o = Park.objects.find(x => x.id === id) || Park.coasters.find(x => x.id === id);
     if (!o) return;
     if (o.broken) { UI.notify('Broken', 'Needs a mechanic first.', 'warn'); return; }
     if (o.kind === 'coaster' && !(o.track && o.track.complete)) { UI.notify('Incomplete', 'Finish the circuit first.', 'warn'); return; }
     if (o.kind === 'coaster' && !o.openR && o.stalls) { UI.notify('Unsafe', o.name + ' stalls on the circuit and cannot open. Add a lift hill or reduce the height.', 'bad'); return; }
+    /* A finished circuit is not an open ride — it needs a current safety
+       certificate, and one that has lapsed has to be renewed. */
+    if (o.kind === 'coaster' && !o.openR && !Inspection.licensed(o)) {
+      const L = o.license;
+      if (o.inspectionPending) UI.notify('Inspection under way', 'An inspector is on their way to ' + o.name + '.', 'warn');
+      else if (L && L.status === 'refused') UI.notify('Not licensed', o.name + ' failed its inspection. Fix the faults, then book another.', 'bad');
+      else if (Inspection.expired(o)) UI.notify('Certificate expired', o.name + ' needs re-inspecting before it can reopen.', 'warn');
+      else UI.notify('Not licensed', o.name + ' has never been inspected. Book a safety inspection first.', 'warn');
+      return;
+    }
     o.openR = !o.openR;
     if (o.openR) { o.state = o.kind === 'coaster' ? 'open' : 'idle'; Audio.play('open'); }
     UI.inspect(o);
@@ -18105,6 +18420,7 @@ const Game = {
       Transit.update(sdt);
       Traffic.update(sdt);
       Parking.update(sdt);
+      Inspection.update(sdt);
       Fireworks.update(sdt);
       this.updateTrucks(sdt);
       for (const o of Park.objects) if (o.kind === 'ride') o.update(sdt);
@@ -18934,6 +19250,21 @@ const Game = {
     UI.notify('A new day', `Day ${Park.day} begins. Rating ${Park.ratingStars().toFixed(1)}/5, ${Park.guests.length} guests still in the park.`, 'good');
     // rides recover a little, litter accumulates
     for (const o of Park.objects) if (o.kind === 'ride') o.wear = Math.max(0, o.wear - .02);
+    /* ---- Rides get old ----------------------------------------------
+       A ride that has been standing for years is not the draw it was on
+       opening day: the queue thins, the novelty goes, and guests who have
+       ridden it once are in no hurry to ride it again. Every attraction
+       accumulates days since it was built or last refurbished, and its
+       appeal fades on that clock. Refurbishing resets it — which turns an
+       old park from a finished thing into something you have to keep
+       reinvesting in. The decay is capped so a beloved ride never becomes
+       literally worthless, and the underlying `def` figures are untouched
+       so a refurbishment always restores exactly what was lost. */
+    for (const o of Park.objects.concat(Park.coasters)) {
+      if (o.kind !== 'ride' && o.kind !== 'coaster') continue;
+      o.ageDays = (o.ageDays || 0) + 1;
+      o.freshness = clamp(1 - Math.max(0, o.ageDays - 40) / 400, .55, 1);
+    }
     Weather.dayTick(Park.day);
     Marketing.dayTick();
     if (Park.ratingStars() >= 3.5 && !Park.awards.includes('best')) {
@@ -18941,6 +19272,7 @@ const Game = {
       UI.notify('Award won', 'Your park has been voted Best Theme Park of the Year. Bonus ' + money(25000) + '.', 'money');
       Park.money += 25000;
     }
+    Inspection.dayTick();
     Achievements.update();
     Franchise.advanceBackgroundParks(1);
   },
@@ -18972,13 +19304,15 @@ const Game = {
                only place their definition exists is the object itself — so
                it has to be saved whole, or every custom slide reverts to a
                dangling id that resolves to nothing on load. */
-            cd: o.def.custom ? o.def : undefined, wi: o.waveIntensity, bb: o.beautyBonus })),
+            cd: o.def.custom ? o.def : undefined, wi: o.waveIntensity, bb: o.beautyBonus,
+            ag: o.ageDays || 0 })),
         gate: Park.gate ? { tier: Park.gate.tier, adm: Park.gate.admitted, ta: Park.gate.turnedAway, th: Park.gate.theme } : null,
         pname: Park.name,
         cos: Park.coasters.map(c => ({
           t: c.type.id, i: c.i, j: c.j, r: c.rot, pieces: c.track.pieces, custom: c.track.custom, done: c.track.complete,
           pw: c.track.powered,
-          price: c.price, open: c.openR, name: c.name, se: c.track.stationEnd, trains: c.trains.length
+          price: c.price, open: c.openR, name: c.name, se: c.track.stationEnd, trains: c.trains.length,
+          lic: c.license || null, ag: c.ageDays || 0
         })),
         staff: Park.staff.map(s => ({ r: s.role, x: s.x, z: s.z, l: s.level, n: s.name, shift: s.shift, zone: s.zone, morale: s.morale, td: s.tasksDone, nick: s.nickname, uc: s.uniformColor })),
         land: Array.from(Land.ownedPlots), bought: Land.bought,
@@ -19101,7 +19435,7 @@ const Game = {
       }
       for (const o of Park.objects) if (o.mesh) o.mesh.dispose();
       for (const c of Park.coasters) { if (c.trackMesh) c.trackMesh.dispose(); if (c.stationMesh) c.stationMesh.dispose(); if (c.splashMesh) c.splashMesh.dispose(); }
-      HeatMap.close(); Traffic.cars.length = 0; Parking.reset();
+      HeatMap.close(); Traffic.cars.length = 0; Parking.reset(); Inspection.reset();
       if (typeof Fireworks !== 'undefined') { Fireworks.active.length = 0; Fireworks.queue.length = 0; Fireworks.shownTonight = -1; }
       this.multiSel.length = 0; this.renderMultiSelBar(); this.undoStack.length = 0;
       this.undoCount = 0; this.maxBulkDemolish = 0;
@@ -19189,6 +19523,7 @@ const Game = {
         if (s.liv) { o.livery = s.liv; if (typeof PF !== 'undefined' && PF.recolour) PF.recolour(o); }
         if (s.wi !== undefined) o.waveIntensity = s.wi;
         if (s.bb) o.beautyBonus = s.bb;
+        if (s.ag) { o.ageDays = s.ag; o.freshness = clamp(1 - Math.max(0, s.ag - 40) / 400, .55, 1); }
         if (s.open !== undefined) o.openR = s.open;
         if (s.k === 'scenery') { Park.objects.push(o); o.footprint((i, j) => WORLD.setOwn(i, j, o.id)); }
         else Park.addObject(o);
@@ -19212,6 +19547,12 @@ const Game = {
         c.trackMesh = this.R.makeMesh(buildTrackGeo(c.track));
         if (s.done) {
           c.computeStats(); c.spawnTrains(s.trains || 1);
+          /* Restore the safety certificate. Coasters from saves made before
+             licensing existed have none — those are grandfathered with a
+             fresh one rather than loading a park with every ride shut. */
+          if (s.lic) c.license = s.lic;
+          else if (s.open) Inspection.grant(c);
+          if (s.ag) { c.ageDays = s.ag; c.freshness = clamp(1 - Math.max(0, s.ag - 40) / 400, .55, 1); }
           c.carMesh = this.R.makeMesh(buildCarGeo(type, false));
           c.frontMesh = this.R.makeMesh(buildCarGeo(type, true));
           c.openR = s.open; c.state = s.open ? 'open' : 'closed';
@@ -20121,6 +20462,7 @@ Object.assign(Game, {
     const people = [];
     for (const g of Park.guests) people.push(g);
     for (const s of Park.staff) people.push(s);
+    for (const s of Inspection.active) people.push(s);   // visiting inspectors are people too
     // nearest-first so the cap drops distant people, not random ones
     if (people.length * BODY_PARTS > maxParts) {
       people.sort((a, b) => dist2(a.x, a.z, cx, cz) - dist2(b.x, b.z, cx, cz));
