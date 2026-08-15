@@ -436,6 +436,22 @@ input[type=range]::-moz-range-thumb{width:18px;height:18px;border:3px solid var(
 .note.warn{border-left-color:var(--warn)}
 .note.bad{border-left-color:var(--bad)}
 .note.money{border-left-color:var(--gold)}
+/* unread count on the notification-centre button */
+#btnNotifLog{position:relative}
+#notifBadge{position:absolute;top:-5px;right:-5px;min-width:17px;height:17px;padding:0 4px;
+  border-radius:9px;background:var(--bad);color:#fff;font-size:9.5px;font-weight:800;line-height:17px;
+  text-align:center;box-shadow:0 1px 4px rgba(0,0,0,.28);display:none}
+#notifBadge.show{display:block;animation:slidein var(--sp)}
+#modalBody .nc-row{display:flex;gap:10px;align-items:flex-start;padding:9px 11px;border-radius:var(--r-sm);
+  background:var(--panel-2);border:1.5px solid var(--edge-soft);margin-bottom:5px}
+#modalBody .nc-row.jump{cursor:pointer}
+#modalBody .nc-row.jump:hover{border-color:var(--accent);background:#fff}
+#modalBody .nc-dot{flex:0 0 auto;width:9px;height:9px;border-radius:50%;margin-top:5px;background:var(--accent)}
+#modalBody .nc-dot.good{background:var(--good)}
+#modalBody .nc-dot.warn{background:var(--warn)}
+#modalBody .nc-dot.bad{background:var(--bad)}
+#modalBody .nc-dot.money{background:var(--gold)}
+#modalBody .nc-when{flex:0 0 auto;font-size:10px;color:var(--dim);font-weight:700;text-align:right;min-width:64px}
 .note .nt{font-weight:800;margin-bottom:3px;color:var(--txt)}
 .note .nb{color:var(--dim);font-size:10.5px;line-height:1.45;font-weight:600}
 @keyframes slidein{from{opacity:0;transform:translateX(44px) scale(.94)}to{opacity:1;transform:none}}
@@ -933,6 +949,15 @@ table.tb tr:last-child td{border-bottom:0}
   padding:3px 8px;border-radius:4px;white-space:nowrap;letter-spacing:.02em;
   text-shadow:0 1px 2px rgba(0,0,0,.5);box-shadow:0 1px 4px rgba(0,0,0,.35);
   border:1px solid rgba(0,0,0,.25)}
+/* guest thought bubbles, billboarded over the crowd the same way */
+.thoughtLbl{position:absolute;transform:translate(-50%,-100%);font:600 11px/1.25 system-ui,sans-serif;
+  padding:5px 9px;border-radius:11px;max-width:190px;background:#fff;color:#18384f;
+  box-shadow:0 2px 8px rgba(0,0,0,.28);border:1.5px solid rgba(18,58,86,.18);
+  transition:opacity .18s}
+.thoughtLbl::after{content:'';position:absolute;left:50%;bottom:-7px;margin-left:-5px;
+  width:0;height:0;border:5px solid transparent;border-top-color:#fff}
+.thoughtLbl.sad{border-color:rgba(216,68,52,.5);color:#8c2b21}
+.thoughtLbl.glad{border-color:rgba(38,160,84,.5);color:#1c6b3a}
 </style>
 </head>
 <body>
@@ -1105,7 +1130,7 @@ table.tb tr:last-child td{border-bottom:0}
     <div class="sbtn" id="btnFin" title="Park management (F)" data-ic="stats"></div>
     <div class="sbtn" id="btnGoals" title="Objectives (O)" data-ic="check"></div>
     <div class="sbtn" id="btnUndo" title="Undo last scenery change (Ctrl+Z)" data-ic="undo"></div>
-    <div class="sbtn" id="btnNotifLog" title="Notification history" data-ic="clock"></div>
+    <div class="sbtn" id="btnNotifLog" title="Notifications" data-ic="clock"></div>
     <div class="sbtn" id="btnAchieve" title="Achievements" data-ic="sparkle"></div>
     <div class="sbtn" id="btnSettings" title="Settings" data-ic="gear"></div>
     <div class="sbtn" id="btnHelp" title="Help (H)" data-ic="help"></div>
@@ -3207,6 +3232,71 @@ for (const gk of Object.keys(GENRES)) {
    First Aid's need is 'nausea' and the ATM's is 'cash', so matching on need
    silently misses them. */
 const isFreeFacility = (def) => !!def && !def.price && !def.nightly && def.need !== 'parking';
+
+/* --------------------------------------------------------------------------
+   Per-item menus. Off by default: a shop has one headline price and that is
+   the whole of it, which is how the game has always worked and is what most
+   players want. Switched on in Settings › Gameplay, every stall instead
+   carries a short till list you price line by line, and guests choose the
+   line that suits their wallet and their appetite.
+
+   Each entry is [name, price multiple of the shop's base price, satisfaction
+   multiple]. Anything not listed here falls back to a size ladder for its
+   need, so a new stall never ends up with an empty till.
+   -------------------------------------------------------------------------- */
+const SHOP_MENUS = {
+  burger:    [['Cheeseburger', 1, 1], ['Double Stack', 1.6, 1.34], ['Veggie Burger', .95, .92], ['Fries', .5, .42]],
+  pizza:     [['Margherita Slice', .7, .66], ['Pepperoni Slice', .85, .78], ['Whole Pizza', 2.1, 1.6], ['Garlic Bread', .55, .4]],
+  noodle:    [['House Noodles', 1, 1], ['Spicy Bowl', 1.25, 1.12], ['Small Box', .65, .62]],
+  ramen:     [['Shoyu Ramen', 1, 1], ['Tonkotsu Ramen', 1.3, 1.18], ['Gyoza Plate', .6, .5]],
+  sushi:     [['Six-Piece Roll', 1, 1], ['Chef Selection', 1.75, 1.45], ['Edamame', .4, .32]],
+  bbq:       [['Pulled Pork Bun', 1, 1], ['Full Rack', 2.0, 1.55], ['Burnt Ends', 1.3, 1.15], ['Slaw Pot', .35, .3]],
+  hotdog:    [['Classic Dog', 1, 1], ['Foot Long', 1.5, 1.3], ['Chilli Dog', 1.25, 1.16]],
+  taco:      [['Two Tacos', 1, 1], ['Burrito', 1.4, 1.32], ['Nachos', 1.1, .95]],
+  crepe:     [['Sugar & Lemon', .8, .74], ['Chocolate Crepe', 1, 1], ['Savoury Galette', 1.3, 1.2]],
+  waffle:    [['Plain Waffle', .8, .72], ['Berries & Cream', 1.2, 1.12], ['Waffle Stack', 1.5, 1.3]],
+  donut:     [['Glazed Ring', .8, .74], ['Filled Donut', 1, 1], ['Box of Six', 2.2, 1.7]],
+  churro:    [['Single Churro', .75, .7], ['Churro & Dip', 1, 1], ['Sharing Bag', 1.7, 1.45]],
+  pretzel:   [['Salted Pretzel', 1, 1], ['Cheese Pretzel', 1.3, 1.18]],
+  popcorn:   [['Small Tub', .7, .64], ['Large Tub', 1.2, 1.15], ['Souvenir Bucket', 2.0, 1.5]],
+  icecream:  [['Single Scoop', .8, .74], ['Double Scoop', 1.2, 1.14], ['Sundae', 1.7, 1.45]],
+  drink:     [['Regular Soda', 1, 1], ['Large Soda', 1.45, 1.3], ['Refill Cup', 2.2, 1.9]],
+  coffee:    [['Filter Coffee', .85, .8], ['Latte', 1.1, 1.06], ['Iced Coffee', 1.2, 1.14]],
+  tea:       [['Pot of Tea', 1, 1], ['Iced Tea', 1.1, 1.06], ['Tea & Scone', 1.6, 1.35]],
+  smoothie:  [['Berry Blend', 1, 1], ['Green Blend', 1.1, 1.05], ['Large Blend', 1.5, 1.32]],
+  juice:     [['Orange Juice', 1, 1], ['Mixed Press', 1.2, 1.12], ['Large Press', 1.55, 1.34]],
+  lemonade:  [['Cup', 1, 1], ['Pitcher', 2.0, 1.6], ['Pink Lemonade', 1.15, 1.08]],
+  milkshake: [['Vanilla Shake', 1, 1], ['Loaded Shake', 1.5, 1.32], ['Mini Shake', .65, .6]],
+  gift:      [['Fridge Magnet', .35, .4], ['Park T-Shirt', 1, 1], ['Hoodie', 2.1, 1.6], ['Plush Toy', 1.4, 1.3]],
+  candy:     [['Pick & Mix Bag', 1, 1], ['Rock Stick', .5, .45], ['Gift Tin', 1.9, 1.5]],
+  toystore:  [['Mini Figure', .55, .5], ['Plush Toy', 1, 1], ['Model Coaster', 2.2, 1.65]],
+  hatshop:   [['Cap', 1, 1], ['Sun Hat', 1.2, 1.1], ['Ears Headband', .8, .85]],
+  balloon:   [['Balloon', 1, 1], ['Balloon Bunch', 2.2, 1.6]],
+  photobooth:[['Print Strip', 1, 1], ['Framed Print', 1.8, 1.45], ['Digital Copy', .7, .8]],
+  popup:     [['Enamel Pin', .45, .5], ['Limited Tee', 1, 1], ['Poster Print', .8, .8]],
+  arcade:    [['Five Tokens', .6, .6], ['Token Cup', 1, 1], ['Token Bucket', 2.0, 1.7]],
+  locker:    [['Small Locker', 1, 1], ['Family Locker', 1.7, 1.4]],
+  sunscreen: [['Sunscreen', 1, 1], ['Poncho', .9, .9], ['Cooling Towel', 1.2, 1.1]],
+  bikerental:[['One Hour', 1, 1], ['Half Day', 2.2, 1.7]],
+};
+const MENU_FALLBACK = {
+  hunger: [['Regular', 1, 1], ['Large', 1.5, 1.32], ['Snack Size', .6, .55]],
+  thirst: [['Regular', 1, 1], ['Large', 1.45, 1.3], ['Small', .65, .6]],
+  shop:   [['Standard', 1, 1], ['Deluxe', 1.7, 1.42], ['Souvenir', .5, .5]],
+};
+/* Built once per shop and then owned by it, so the player's prices survive. */
+function buildShopMenu(def) {
+  const rows = SHOP_MENUS[def.id] || MENU_FALLBACK[def.need];
+  if (!rows || !def.price) return null;
+  return rows.map(([name, pm, sm], k) => ({
+    k, name,
+    price: Math.max(1, Math.round(def.price * pm)),
+    base: Math.max(1, Math.round(def.price * pm)),
+    sat: sm,
+    on: true,
+    sold: 0, revenue: 0,
+  }));
+}
 /* Keyed by id, not need, for the same reason. */
 const FACILITY_TITLES = {
   breakroom: 'Staff Break Room', toilet: 'Restrooms',
@@ -4040,7 +4130,74 @@ const Prefab = {
       g.sphere(sx * (W / 2 + .35), .75, -D / 2 + .6, .42, 5, hex(0x4e9b52));
       g.sphere(sx * (W / 2 + .35) + .2, .95, -D / 2 + .5, .12, 4, hex(0xff6f91));
     }
+    this.shopTier(g, def, W, D, ry, rh, body, roof, wall);
     return { base: g, parts: [] };
+  },
+
+  /* Refurbishment made visible. Standard (tier 1) is the plain stall above;
+     each tier after it adds real structure rather than a recolour, so a
+     Flagship stall reads as an investment from across the park. Called with
+     the stall already built, so everything here is additive. */
+  shopTier(g, def, W, D, ry, rh, body, roof, wall) {
+    const t = def.tierLv || 1;
+    if (t < 2) return;
+    const hw = W / 2, hd = D / 2;
+    const stone = hex(0xcfc3ad), dark = shade(body, .62), gold = hex(0xd4af37);
+
+    /* Tier 2 — Improved: a paved forecourt with a low wall, a proper
+       gutter line round the roof, and lanterns either side of the counter. */
+    g.box(0, -.14, -hd - 1.5, W + 1.2, .16, 3.0, stone);                        // apron
+    for (const sx of [-1, 1]) g.box(sx * (hw + .5), .02, -hd - 1.5, .3, .5, 3.0, shade(stone, .86));
+    g.box(0, ry - .16, 0, W + .24, .16, D + .24, shade(roof, .78));             // gutter
+    for (const sx of [-1, 1]) {
+      g.box(sx * (hw - .1), .2, -hd - 1.3, .12, 2.6, .12, dark);                // lantern post
+      g.box(sx * (hw - .1), 2.8, -hd - 1.3, .34, .38, .34, hex(0xfff0b8));      // lamp
+      g.box(sx * (hw - .1), 3.18, -hd - 1.3, .4, .12, .4, dark);                // lamp cap
+    }
+
+    if (t < 3) return;
+    /* Tier 3 — Deluxe: a covered terrace with tables, a clock over the
+       sign, and window boxes down the long sides. */
+    const tz = -hd - 3.2;
+    for (const sx of [-1, 1]) for (const sz of [-1, 1])
+      g.box(sx * (hw - .2), 0, tz + sz * 1.1, .16, 2.7, .16, dark);             // canopy posts
+    g.box(0, 2.7, tz, W + .4, .16, 2.8, shade(roof, 1.1));                      // canopy
+    g.box(0, 2.86, tz, W + .2, .1, 2.6, shade(roof, .9));
+    for (const sx of [-1, 1]) {
+      const cx = sx * Math.max(.9, W * .26);
+      g.cyl(cx, 0, tz, .1, .72, 8, shade(hex(0x6d5a45), .9));                   // table stem
+      g.cyl(cx, .72, tz, .58, .1, 12, shade(hex(0x8b7355), 1.1));               // table top
+      for (const sz of [-1, 1]) {
+        g.box(cx + sz * 1.0, 0, tz, .44, .44, .44, shade(hex(0x6d5a45), 1));    // stools
+        g.cyl(cx, 0, tz + sz * 1.0, .04, .0, 4, dark);
+      }
+    }
+    g.cyl(0, ry + 1.05, -hd - .34, .34, .1, 14, hex(0xfff4d0));                 // clock face
+    g.cyl(0, ry + 1.05, -hd - .42, .38, .08, 14, dark);                         // clock bezel
+    g.box(0, ry + 1.05, -hd - .46, .05, .26, .04, dark);                        // hands
+    for (const sx of [-1, 1]) for (const fz of [-.5, .5]) {
+      g.box(sx * (hw - .32), 1.05, fz * (D - 1.2), .5, .28, .8, hex(0x9c7b5c)); // window box
+      g.sphere(sx * (hw - .32), 1.34, fz * (D - 1.2), .26, 4, hex(0xff9ec4));
+    }
+
+    if (t < 4) return;
+    /* Tier 4 — Flagship: a lantern tower over the roof ridge, a gilded
+       ridge cap, and a banner on each side of the forecourt. */
+    const ty = ry + rh;
+    g.box(0, ty - .1, 0, 1.5, 1.9, 1.5, shade(wall, 1));                        // tower shaft
+    for (const sx of [-1, 1]) for (const sz of [-1, 1])
+      g.box(sx * .68, ty - .1, sz * .68, .2, 1.9, .2, dark);                    // tower posts
+    g.box(0, ty + 1.8, 0, 2.0, .18, 2.0, shade(roof, 1.15));                    // tower eaves
+    g.cone(0, ty + 1.98, 0, 1.05, 1.5, 10, shade(roof, 1.25));                  // tower cap
+    g.sphere(0, ty + 3.5, 0, .26, 6, gold);                                     // finial
+    g.box(0, ty - .05, -.8, 1.0, 1.1, .06, hex(0xfff0b8));                      // lantern glass
+    g.box(0, ty - .05, .8, 1.0, 1.1, .06, hex(0xfff0b8));
+    for (const sx of [-1, 1]) {
+      g.box(sx * (hw + .55), .5, -hd - 2.2, .14, 4.2, .14, dark);               // banner mast
+      g.box(sx * (hw + .55), 2.4, -hd - 2.2, .07, 2.0, .9, shade(body, 1.2));   // banner
+      g.sphere(sx * (hw + .55), 4.8, -hd - 2.2, .16, 6, gold);
+    }
+    g.box(0, ry + rh - .12, 0, W / 3.2, .16, .3, gold);                         // gilded ridge
   },
 
   /* ------------------------------------------------------------------
@@ -6811,6 +6968,13 @@ class ParkObject {
     } else if (this.kind === 'shop') {
       this.satisfyMul = 1 + (t - 1) * .14;
       this.restockRate = 1 + (t - 1) * .5;
+      /* A refurbished stall earns better in three honest ways: guests judge
+         its prices against a nicer building, so the same price reads as
+         better value; a share of them buy a second item at the counter; and
+         a bigger back room means less of each sale walks out as waste. */
+      this.priceTolerance = 1 + (t - 1) * .18;
+      this.upsell = (t - 1) * .13;
+      this.wasteMul = 1 - (t - 1) * .14;
       if (this.def.need === 'parking') {
         if (this._baseSpaces === undefined) this._baseSpaces = this.def.spaces || 40;
         this.spaces = Math.round(this._baseSpaces * (1 + (t - 1) * .65));
@@ -6941,6 +7105,38 @@ class Shop extends ParkObject {
     this.name = def.name;
     this.merch = (def.need === 'shop') ? null : undefined;   // designed item, if any
     if (def.need === 'parking') this.spaces = def.spaces || 40;
+    this.menu = buildShopMenu(def);   // null for free facilities and hotels
+    this.satisfyMul = 1; this.restockRate = 1;
+    this.priceTolerance = 1; this.upsell = 0; this.wasteMul = 1;
+  }
+  /* What a guest actually buys. With per-item menus off this is the shop
+     itself — one price, one satisfaction — which keeps every downstream
+     calculation identical to how it was before the setting existed. */
+  pickItem(g) {
+    if (!Game.perItemMenus || !this.menu) return null;
+    const open = this.menu.filter(m => m.on && g.cash >= m.price);
+    if (!open.length) return null;
+    /* A weighted lottery, not a winner-takes-all comparison. Picking the
+       single best-value line would mean one item on every till accounting
+       for nearly every sale and the rest gathering dust; a lottery gives
+       each line a share of the counter in proportion to how appealing it
+       is, which is both truer to a real queue and far more readable in the
+       sales figures. */
+    const urge = this.def.need === 'hunger' ? g.hunger : this.def.need === 'thirst' ? g.thirst : .5;
+    const base = Math.max(1, this.def.price);
+    let total = 0;
+    const w = open.map(m => {
+      const value = m.sat / (m.price / base);
+      /* Appetite tilts towards the big plate, a thin wallet away from it. */
+      const want = 1 + (m.sat - 1) * (urge - .45) * 1.3;
+      const walletFit = clamp(1 - m.price / Math.max(1, g.cash * .55), .08, 1);
+      const q = Math.max(.02, value * want * walletFit);
+      total += q;
+      return q;
+    });
+    let r = Math.random() * total;
+    for (let k = 0; k < open.length; k++) { r -= w[k]; if (r <= 0) return open[k]; }
+    return open[open.length - 1];
   }
   get frontTile() {
     const dir = [[0, -1], [-1, 0], [0, 1], [1, 0]][this.rot];
@@ -7086,7 +7282,7 @@ class Ride extends ParkObject {
     this.broken = true; this.state = 'broken';
     for (const g of this.riders) g.finishRide(this, true);
     this.riders.length = 0;
-    UI.notify('Breakdown!', this.name + ' has broken down. A mechanic is needed.', 'bad');
+    UI.notify('Breakdown!', this.name + ' has broken down. A mechanic is needed.', 'bad', this.id);
     Park.needMechanic.push(this);
   }
   repair() {
@@ -9253,19 +9449,36 @@ class Guest extends Person {
       this.state = 'idle';
       return;
     }
-    if (this.cash >= s.price) {
+    /* With per-item menus on the guest picks a line off the till; with them
+       off the shop's single price is the only thing on offer. */
+    const item = s.pickItem(this);
+    const askPrice = item ? item.price : s.price;
+    const satScale = item ? item.sat : 1;
+    if (this.cash >= askPrice) {
       /* Park policies nudge what a guest is willing to part with — on-ride
          photos and priority passes lift it, same-day re-entry lowers it
          because they can always come back instead of buying now. */
-      const paid = Math.max(1, Math.round(s.price * ParkRules.spendMult()));
+      let paid = Math.max(1, Math.round(askPrice * ParkRules.spendMult()));
+      /* A refurbished stall sells at the counter: a share of guests are
+         talked into a second, cheaper line on the way out. */
+      let extra = 0;
+      if ((s.upsell || 0) > 0 && Math.random() < s.upsell) {
+        extra = Math.max(1, Math.round(askPrice * .45));
+        if (this.cash >= paid + extra) paid += extra; else extra = 0;
+      }
       this.cash -= paid; this.spent += paid;
       Park.earn(paid, 'shop'); s.revenue += paid; s.served++;
-      s.stock = clamp(s.stock - (100 / (s.def.stockSize || 65)), 0, 100);
+      if (item) { item.sold++; item.revenue += paid; }
+      s.stock = clamp(s.stock - (100 / (s.def.stockSize || 65)) * (s.wasteMul || 1), 0, 100);
       if (s.merch && s.merch.name) this.happy = clamp(this.happy + .015, 0, 1);
       Progress.add(1);
-      const value = s.def.price > 0 ? clamp(1.2 - s.price / (s.def.price * 2.2), 0, 1) : 1;
+      /* Value is judged against what this line ought to cost, softened by
+         how good the building looks — a Flagship stall gets more benefit of
+         the doubt than a shed with the same price list. */
+      const fair = (item ? item.base : s.def.price) * (s.priceTolerance || 1);
+      const value = fair > 0 ? clamp(1.2 - askPrice / (fair * 2.2), 0, 1) : 1;
       if (Math.random() < .3) Reviews.add(s, 1 + value * 4, this.name);
-      const sat = s.def.satisfy * (s.satisfyMul || 1) / 100;
+      const sat = s.def.satisfy * (s.satisfyMul || 1) * satScale / 100;
       switch (s.def.need) {
         case 'hunger': this.hunger = clamp(this.hunger - sat, 0, 1); this.litterCarried++; break;
         case 'thirst': this.thirst = clamp(this.thirst - sat, 0, 1); this.toilet = clamp(this.toilet + .12, 0, 1); this.litterCarried++; break;
@@ -9280,7 +9493,8 @@ class Guest extends Person {
       const st2 = this.planStep();
       if (st2 && st2.kind === 'need' && st2.need === s.def.need) this.finishStep();
       if (s.def.need === 'shop') this.fun = clamp(this.fun + .12, 0, 1);
-      if (s.price > s.def.price * 1.8) { this.happy -= .09; this.think('That was a rip-off!'); }
+      if (askPrice > fair * 1.8) { this.happy -= .09; this.think('That was a rip-off!'); }
+      else if (extra > 0) this.think('Treated myself at ' + s.name + '.');
     }
     this.state = 'idle';
   }
@@ -9852,6 +10066,16 @@ const UI = {
     $('#btnTilt').onclick = () => { Cam.pitch = Cam.pitch > 1.0 ? 0.55 : 1.28; };
     // paint the static SVG icons declared in the markup
     document.querySelectorAll('[data-ic]').forEach(e => { e.innerHTML = ICON[e.dataset.ic] || ''; });
+    /* The line above rewrites innerHTML, so anything nested inside an
+       icon button is destroyed. The unread badge is therefore attached
+       after icons are painted, not written into the markup. */
+    const nb = document.getElementById('btnNotifLog');
+    if (nb && !document.getElementById('notifBadge')) {
+      const badge = document.createElement('span');
+      badge.id = 'notifBadge';
+      nb.appendChild(badge);
+    }
+    UI.paintNotifBadge();
     $('#mCareer').onclick = () => Menu.scenarios();
     $('#mFranchise').onclick = () => Menu.scenarios();
     $('#mSandbox').onclick = () => Menu.maps();
@@ -10771,7 +10995,8 @@ const UI = {
 
     const tabs = isC ? [['overview', 'Overview'], ['look', 'Appearance'], ['stats', 'Ratings'], ['eng', 'Engineering'], ['ops', 'Operations'], ['money', 'Finances']]
       : isFree ? [['overview', 'Overview'], ['look', 'Appearance'], ['money', 'Running Costs']]
-      : isShop ? [['overview', 'Overview'], ...(o.def.need === 'shop' ? [['merch', 'Design Merch']] : []), ['look', 'Appearance'], ['money', 'Finances'], ['ops', 'Stock &amp; Staff']]
+      : isShop ? [['overview', 'Overview'], ...(Game.perItemMenus && o.menu ? [['menu', 'Menu']] : []),
+        ...(o.def.need === 'shop' ? [['merch', 'Design Merch']] : []), ['look', 'Appearance'], ['money', 'Finances'], ['ops', 'Stock &amp; Staff']]
         : [['overview', 'Overview'], ['look', 'Appearance'], ['stats', 'Ratings'], ['ops', 'Operations'], ['money', 'Finances']];
     if (!tabs.some(t => t[0] === T)) this.manageTabRide = 'overview';
     let h = `<div class="btnrow" style="margin-bottom:14px">` + tabs.map(([k, l]) =>
@@ -10840,6 +11065,40 @@ const UI = {
         <button class="btn" style="flex:0 0 auto;padding:9px 20px" onclick="Cam.tx=${o.x.toFixed(1)};Cam.tz=${o.z.toFixed(1)};UI.closeModal()">Go to it</button>
         <button class="btn dan" style="flex:0 0 auto;padding:9px 20px" onclick="UI.closeModal();Game.demolish(${id})">Demolish</button>
       </div>`;
+    }
+
+    else if (this.manageTabRide === 'menu') {
+      const M = o.menu || [];
+      const days2 = Math.max(1, days);
+      const totalSold = M.reduce((a, m) => a + m.sold, 0);
+      h += `<h3>Till list</h3>
+        <p>Price each line on its own. Guests weigh what a line costs against how much of their
+        hunger it settles, so a cheap snack and a big plate can both sell well — and a line you
+        take off sale simply stops being offered.</p>`;
+      for (const m of M) {
+        const share = totalSold ? Math.round(m.sold / totalSold * 100) : 0;
+        const rel = m.price / m.base;
+        const verdict = rel > 1.7 ? ['Steep', 'var(--bad)'] : rel > 1.25 ? ['Pricey', 'var(--warn)']
+          : rel < .7 ? ['A giveaway', 'var(--dim)'] : ['Fair', 'var(--good)'];
+        h += `<div class="lrow" style="margin:6px 0">
+          <div style="flex:1 1 auto;min-width:0">
+            <div style="font-weight:700">${m.name}</div>
+            <div style="font-size:10.5px;color:var(--dim)">
+              ${m.sold} sold &middot; ${share}% of counter &middot; ${money(Math.round(m.revenue / days2))}/day
+              &middot; <span style="color:${verdict[1]};font-weight:700">${verdict[0]}</span></div>
+          </div>
+          <input type="range" style="flex:0 0 140px" min="1" max="${Math.max(4, m.base * 3)}" step="1" value="${m.price}"
+            oninput="UI.setMenuPrice(${id},${m.k},this.value)">
+          <span class="num" id="mi${id}_${m.k}" style="flex:0 0 46px;text-align:right">$${m.price}</span>
+          <button class="btn ${m.on ? '' : 'dan'}" style="flex:0 0 auto;padding:5px 12px"
+            onclick="UI.toggleMenuItem(${id},${m.k})">${m.on ? 'On sale' : 'Off sale'}</button>
+        </div>`;
+      }
+      h += `<div class="btnrow" style="margin-top:12px">
+        <button class="btn" style="flex:0 0 auto;padding:8px 18px" onclick="UI.resetMenu(${id})">Reset to standard prices</button>
+      </div>
+      <p style="font-size:11px;color:var(--dim);margin-top:10px">Per-item menus are a setting — turn them off in
+        Settings › Gameplay and every stall goes back to one price.</p>`;
     }
 
     else if (this.manageTabRide === 'merch') {
@@ -11322,6 +11581,42 @@ const UI = {
     if (o.repaint) o.repaint(); else PF.recolour(o);
     this.manage(id, 'look');
   },
+  /* Per-item menu editing. The slider fires on every pixel of drag, so it
+     writes the value and repaints only the one number beside it rather than
+     rebuilding the whole panel underneath the player's cursor. */
+  setMenuPrice(id, k, v) {
+    const o = Park.objects.find(x => x.id === id);
+    const m = o && o.menu && o.menu.find(x => x.k === k);
+    if (!m) return;
+    m.price = clamp(Math.round(+v), 1, 9999);
+    const el = document.getElementById('mi' + id + '_' + k);
+    if (el) el.textContent = '$' + m.price;
+    /* Keep the headline price in step with the till, so the shop's card,
+       the ledger and the value maths all still mean something. */
+    const on = o.menu.filter(x => x.on);
+    if (on.length) { o.price = Math.max(1, Math.round(on.reduce((a, x) => a + x.price, 0) / on.length)); o.priceLocked = true; }
+  },
+  toggleMenuItem(id, k) {
+    const o = Park.objects.find(x => x.id === id);
+    const m = o && o.menu && o.menu.find(x => x.k === k);
+    if (!m) return;
+    /* Never let the last line go off sale — a shop with nothing on the till
+       would take queues and serve nobody. */
+    if (m.on && o.menu.filter(x => x.on).length <= 1) {
+      this.notify('Keep one line', o.name + ' needs at least one thing on sale.', 'warn');
+      return;
+    }
+    m.on = !m.on;
+    this.setMenuPrice(id, k, m.price);
+    this.manage(id, 'menu');
+  },
+  resetMenu(id) {
+    const o = Park.objects.find(x => x.id === id);
+    if (!o || !o.menu) return;
+    for (const m of o.menu) { m.price = m.base; m.on = true; }
+    this.setMenuPrice(id, o.menu[0].k, o.menu[0].price);
+    this.manage(id, 'menu');
+  },
   setTrainStyle(id, st) {
     const c = Park.coasters.find(x => x.id === id);
     if (!c) return;
@@ -11510,23 +11805,80 @@ const UI = {
     if (!sticky) this._ht = setTimeout(() => e.classList.remove('show'), 5200);
   },
   notifyLog: [],
-  notify(title, body, cls) {
+  notifUnread: 0,
+  notifFilter: 'all',
+  /* `at` is an optional {x,z} or an object id — anything the notification is
+     about — so the centre can take you straight there instead of leaving you
+     to hunt for the ride that just broke down. */
+  notify(title, body, cls, at) {
     const n = el('div', 'note ' + (cls || ''), `<div class="nt">${esc(title)}</div><div class="nb">${esc(body)}</div>`);
     $('#notif').appendChild(n);
     setTimeout(() => { n.classList.add('out'); setTimeout(() => n.remove(), 320); }, 5200);
     const wrap = $('#notif');
     while (wrap.children.length > 6) wrap.removeChild(wrap.firstChild);
-    this.notifyLog.push({ title, body, cls: cls || '', day: (typeof Park !== 'undefined' ? Park.day : 0), time: (typeof Park !== 'undefined' ? Park.time : 0) });
+    this.notifyLog.push({
+      title, body, cls: cls || '',
+      day: (typeof Park !== 'undefined' ? Park.day : 0),
+      time: (typeof Park !== 'undefined' ? Park.time : 0),
+      at: at && at.x !== undefined ? { x: at.x, z: at.z } : undefined,
+      oid: typeof at === 'number' ? at : undefined,
+    });
     if (this.notifyLog.length > 200) this.notifyLog.shift();
+    /* Routine good news does not deserve a red badge; problems do. */
+    if (cls === 'warn' || cls === 'bad') { this.notifUnread++; this.paintNotifBadge(); }
   },
-  showNotifyLog() {
-    const rows = this.notifyLog.slice().reverse().map(n => `
-      <div class="item" style="flex-direction:column;align-items:flex-start;padding:7px 10px">
-        <span class="n" style="font-weight:700">${esc(n.title)} <span style="font-weight:400;color:var(--dim)">— Day ${n.day}</span></span>
-        <span class="c" style="color:var(--dim)">${esc(n.body)}</span>
-      </div>`).join('');
-    this.modal('Notification History', rows.length ? `<div style="display:flex;flex-direction:column;gap:4px">${rows}</div>`
-      : `<p style="color:var(--dim)">No notifications yet.</p>`);
+  paintNotifBadge() {
+    const b = document.getElementById('notifBadge');
+    if (!b) return;
+    b.textContent = this.notifUnread > 9 ? '9+' : String(this.notifUnread);
+    b.classList.toggle('show', this.notifUnread > 0);
+  },
+  NOTIF_FILTERS: [['all', 'Everything'], ['bad', 'Problems'], ['warn', 'Warnings'], ['money', 'Money'], ['good', 'Good news']],
+  showNotifyLog(filter) {
+    if (filter) this.notifFilter = filter;
+    this.notifUnread = 0; this.paintNotifBadge();
+    const F = this.notifFilter;
+    const counts = {};
+    for (const n of this.notifyLog) counts[n.cls || 'info'] = (counts[n.cls || 'info'] || 0) + 1;
+    const list = this.notifyLog.filter(n => F === 'all' || (n.cls || 'info') === F);
+    let h = `<div class="chips">` + this.NOTIF_FILTERS.map(([k, l]) => {
+      const c = k === 'all' ? this.notifyLog.length : (counts[k] || 0);
+      return `<button class="chip ${F === k ? 'on' : ''}" onclick="UI.showNotifyLog('${k}')">${l} ${c}</button>`;
+    }).join('') + `</div>`;
+
+    const clock = (t) => {
+      const m = Math.floor(t) % 1440, hh = Math.floor(m / 60), mm = m % 60;
+      return String(hh).padStart(2, '0') + ':' + String(mm).padStart(2, '0');
+    };
+    h += list.slice().reverse().map((n, k) => {
+      const idx = this.notifyLog.indexOf(n);
+      const canJump = !!(n.at || n.oid !== undefined);
+      return `<div class="nc-row ${canJump ? 'jump' : ''}" ${canJump ? `onclick="UI.notifJump(${idx})"` : ''}>
+        <span class="nc-dot ${n.cls || ''}"></span>
+        <div style="flex:1 1 auto;min-width:0">
+          <div style="font-weight:700">${esc(n.title)}</div>
+          <div style="font-size:10.5px;color:var(--dim);line-height:1.45">${esc(n.body)}</div>
+        </div>
+        <span class="nc-when">Day ${n.day}<br>${clock(n.time)}</span>
+      </div>`;
+    }).join('');
+    if (!list.length) h += `<div class="empty">Nothing here yet.</div>`;
+    this.modal('Notifications', h);
+  },
+  notifJump(idx) {
+    const n = this.notifyLog[idx];
+    if (!n) return;
+    let x = n.at && n.at.x, z = n.at && n.at.z;
+    if (n.oid !== undefined) {
+      const o = Park.objects.find(q => q.id === n.oid) || Park.coasters.find(q => q.id === n.oid);
+      /* The thing may well have been demolished since — say so rather than
+         flying the camera to an empty patch of grass. */
+      if (!o) { this.notify('Gone', 'That has since been removed from the park.', 'warn'); return; }
+      x = o.x; z = o.z;
+    }
+    if (x === undefined) return;
+    Cam.tx = x; Cam.tz = z;
+    this.closeModal();
   },
   flashMoney(delta) {
     const e = $('#vMoney');
@@ -11920,6 +12272,8 @@ const UI = {
         'Lower this if the park starts to feel sluggish.');
       h += row('Breakdowns', check(Game.breakdowns !== false, 'Game.breakdowns=this.checked'),
         'Rides wear out and need a mechanic. Turn off for a quieter build.');
+      h += row('Per-item shop menus', check(Game.perItemMenus === true, 'Game.perItemMenus=this.checked'),
+        'Off, a shop has one price. On, every stall gets a till list you price line by line, and guests choose what suits their wallet — more control, more to manage.');
       h += row('Money multiplier', slider(25, 500, Math.round((Park.userMoneyMult || 1) * 100), 'Park.userMoneyMult=this.value/100', 'setMm', '%'),
         'Scales every ticket, shop and entry-fee payout. 100% is normal earnings.');
       h += row('Rain frequency', slider(25, 400, Math.round((Game.rainFreqMult || 1) * 100), 'Game.rainFreqMult=this.value/100', 'setRf', '%'),
@@ -11952,6 +12306,8 @@ const UI = {
       h += row('Show frame counter', check(document.getElementById('fps').style.display !== 'none',
         "document.getElementById('fps').style.display=this.checked?'':'none'"));
       h += row('Show queue markers', check(Game.showQueueMarkers !== false, 'Game.showQueueMarkers=this.checked;Game._qmKey=null'));
+      h += row('Guest thought bubbles', check(ThoughtBubbles.on !== false, 'ThoughtBubbles.on=this.checked'),
+        'Floats what guests are thinking over their heads. The thought feed in Park Management keeps working either way.');
     }
     else if (T === 'controls') {
       h += `<h3>Camera</h3>`;
@@ -13946,7 +14302,7 @@ const Coaster = {
           if (c.openR && Math.random() > c.reliability - c.wear * 0.35 + 0.05 - (Park.relBonus || 0)) {
             c.broken = true; c.state = 'broken';
             Park.needMechanic.push(c);
-            UI.notify('Breakdown!', c.name + ' has broken down — send a mechanic.', 'bad');
+            UI.notify('Breakdown!', c.name + ' has broken down — send a mechanic.', 'bad', c.id);
           }
           break;
         }
@@ -14249,12 +14605,16 @@ const PF = {
      it has not — a repaint must not recolour every other copy in the park. */
   forObject(o) {
     const L = o.livery;
-    if (!L || (L.main === undefined && L.roof === undefined)) {
+    /* Shops rebuild themselves as they are refurbished, so the tier is part
+       of the cache key exactly like a repaint is. */
+    const tv = (o.kind === 'shop' && o.tier > 1) ? o.tier : 0;
+    if (!tv && (!L || (L.main === undefined && L.roof === undefined))) {
       return o.kind === 'shop' ? this.shop(o.def) : this.ride(o.def);
     }
-    const key = (o.kind === 'shop' ? 'shopL_' : 'rideL_') + o.def.id + '_' + (L.main | 0) + '_' + (L.roof | 0);
+    const key = (o.kind === 'shop' ? 'shopL_' : 'rideL_') + o.def.id + '_' + ((L && L.main) | 0) + '_' + ((L && L.roof) | 0) + '_t' + tv;
     const def = Object.assign({}, o.def,
-      { color: L.main !== undefined ? L.main : o.def.color, roof: L.roof !== undefined ? L.roof : o.def.roof });
+      { tierLv: tv || 1,
+        color: L && L.main !== undefined ? L.main : o.def.color, roof: L && L.roof !== undefined ? L.roof : o.def.roof });
     return this.get(key, () => o.kind === 'shop' ? Prefab.shop(def) : Prefab.ride(def.kind, def));
   },
   recolour(o) { /* the cache key changes with the colours, so nothing to purge */ },
@@ -18524,7 +18884,7 @@ const Game = {
       s.truck.t += dt;
       if (s.truck.t >= s.truck.dur) {
         s.stock = 100;
-        UI.notify('Delivery arrived', s.name + ' has been restocked.', 'good');
+        UI.notify('Delivery arrived', s.name + ' has been restocked.', 'good', s.id);
         s.truck = null;
       }
     }
@@ -19651,6 +20011,10 @@ const Game = {
                it has to be saved whole, or every custom slide reverts to a
                dangling id that resolves to nothing on load. */
             cd: o.def.custom ? o.def : undefined, wi: o.waveIntensity, bb: o.beautyBonus,
+            /* Till lines, only when the player has touched them — an
+               untouched menu is rebuilt from the catalogue on load. */
+            mn: (o.menu && o.menu.some(m => m.price !== m.base || !m.on))
+              ? o.menu.map(m => [m.price, m.on ? 1 : 0]) : undefined,
             ag: o.ageDays || 0 })),
         gate: Park.gate ? { tier: Park.gate.tier, adm: Park.gate.admitted, ta: Park.gate.turnedAway, th: Park.gate.theme } : null,
         pname: Park.name,
@@ -19664,6 +20028,7 @@ const Game = {
         land: Array.from(Land.ownedPlots), bought: Land.bought,
         loan: Finance.loan, campaigns: Marketing.active,
         log: Park.log, ach: Achievements.unlocked, rules: Park.rules || null,
+        perItem: Game.perItemMenus === true,
         rp: Park.rp, rpTotal: Park.rpTotal, research: Park.research,
         prestige: { active: Prestige.active, points: Prestige.points, totalEarned: Prestige.totalEarned, unlocked: Prestige.unlocked.slice() },
         transit: {
@@ -19818,6 +20183,7 @@ const Game = {
       if (sc && d.goalDone && Goals.active) Goals.active.goals.forEach((g, i) => g.done = !!d.goalDone[i]);
       Park.log = d.log || Park.log;
       Park.rules = d.rules || { smoking: true, reentry: true, strollers: true, photos: true, queueJump: false };
+      Game.perItemMenus = d.perItem === true;
       Park._dayLogSnap = null;   // the previous park's ledger snapshot does not belong to this one
       if (d.rp !== undefined) Park.rp = d.rp;
       if (d.rpTotal !== undefined) Park.rpTotal = d.rpTotal;
@@ -19867,6 +20233,10 @@ const Game = {
         if (s.lock) o.priceLocked = true;
         if (s.n) o.name = String(s.n).slice(0, 34);
         if (s.mer) o.merch = s.mer;
+        if (s.mn && o.menu) s.mn.forEach((row, k) => {
+          const m = o.menu[k];
+          if (m) { m.price = clamp(+row[0] || m.base, 1, 9999); m.on = row[1] !== 0; }
+        });
         if (s.liv) { o.livery = s.liv; if (typeof PF !== 'undefined' && PF.recolour) PF.recolour(o); }
         if (s.wi !== undefined) o.waveIntensity = s.wi;
         if (s.bb) o.beautyBonus = s.bb;
@@ -20501,10 +20871,29 @@ Object.assign(Game, {
     const allowPath = p.kind === 'scenery' && ['bench', 'bin', 'lamp', 'speaker', 'statue', 'topiary', 'lights', 'banner'].includes(p.def.kind);
     const why = this.blockReason(p.def, i, j, gw, gd, allowPath);
     this.ghostOK = !why;
-    if (why !== this._lastWhy) {
-      this._lastWhy = why;
-      UI.hint(why ? '<b style="color:var(--bad)">' + why.charAt(0).toUpperCase() + why.slice(1) + '</b>'
-        : 'Click to place <b>' + p.def.name + '</b> &middot; <kbd>R</kbd> rotate &middot; <kbd>Esc</kbd> cancel', true);
+    /* What it costs and what you would be left with, right on the cursor.
+       Having to close the ghost, open the ledger and reopen the build panel
+       to answer "can I afford this" was the single most common reason to
+       cancel a placement. */
+    const cost = p.def.cost || 0;
+    const after = Park.money - cost;
+    /* Bucketed so the hint refreshes when the purse meaningfully moves —
+       ticket income ticking up by a few dollars must not rebuild the DOM
+       every frame while you hold a ghost. */
+    const costKey = why + '|' + cost + '|' + Math.round(after / 250);
+    if (costKey !== this._lastWhy) {
+      this._lastWhy = costKey;
+      if (why) {
+        UI.hint('<b style="color:var(--bad)">' + why.charAt(0).toUpperCase() + why.slice(1) + '</b>', true);
+      } else {
+        /* blockReason already refuses anything you cannot afford, so by here
+           the purchase goes through — the question is only how much it
+           stings, which is what the amber "left" figure is for. */
+        const upkeep = p.def.up ? ' &middot; ' + money(p.def.up) + '/day upkeep' : '';
+        const purse = `<b style="color:${after < cost ? 'var(--warn)' : 'var(--good)'}">${money(cost)}</b>`
+          + `<span style="color:var(--dim)"> &middot; ${money(after)} left${upkeep}</span>`;
+        UI.hint(`Place <b>${p.def.name}</b> &middot; ${purse} &middot; <kbd>R</kbd> rotate &middot; <kbd>Esc</kbd> cancel`, true);
+      }
     }
     const x = WORLD.wx(i) + (gw - 1) * TILE / 2, z = WORLD.wz(j) + (gd - 1) * TILE / 2;
     let y = -1e9;
@@ -21116,6 +21505,79 @@ const SignLabels = {
     for (; n < this.pool.length; n++) this.pool[n].style.opacity = 0;
   }
 };
+
+/* Guest thoughts, floating over the guest who had them. The feed in Park
+   Management tells you what the crowd thinks in aggregate; this tells you
+   who thinks it and where they were standing when they did, which is what
+   actually points you at the broken corner of the park. Same pooled-div
+   billboarding as the shop signs, capped so a packed park cannot bury the
+   view under speech bubbles. */
+const ThoughtBubbles = {
+  el: null, pool: [], on: true, MAX: 14,
+  init() { this.el = document.getElementById('signLabels'); },
+  get(i) {
+    if (!this.pool[i]) {
+      const d = document.createElement('div');
+      d.className = 'thoughtLbl';
+      (this.el || document.body).appendChild(d);
+      this.pool[i] = d;
+    }
+    return this.pool[i];
+  },
+  update(R) {
+    if (!this.el) this.init();
+    if (!this.el) return;
+    if (!this.on) { for (const d of this.pool) d.style.opacity = 0; return; }
+    const cw = R.gl.canvas.clientWidth, ch = R.gl.canvas.clientHeight;
+    let n = 0;
+    /* Nearest first, so when the cap bites it drops the far-away bubbles you
+       could not read anyway rather than whichever guest came first in the
+       array. */
+    const near = [];
+    for (const g of Park.guests) {
+      if (!g.thought || g.thoughtT <= 0) continue;
+      /* Measured from the eye, not the camera target: on this pitched
+         camera the eye sits the better part of a hundred units back from
+         what you are looking at, so a tight radius here hid bubbles on
+         the very guests filling the middle of the screen. Matches the
+         range the shop signs use. */
+      const d2 = (g.x - Cam.eye.x) ** 2 + (g.z - Cam.eye.z) ** 2;
+      if (d2 > 190 * 190) continue;
+      near.push([d2, g]);
+    }
+    near.sort((a, b) => a[0] - b[0]);
+    /* Nothing is less readable than eight speech bubbles piled on the same
+       twenty pixels of queue, so a bubble is dropped when one already sits
+       where it would go. Nearest-first ordering means the one that survives
+       is the guest closest to the camera — the one you were looking at. */
+    const taken = [];
+    for (const [d2, g] of near) {
+      if (n >= this.MAX) break;
+      const sp = R.projectToScreen(g.x, (g.y || 0) + 2.5, g.z);
+      if (sp.z <= 0) continue;
+      const sx = sp.x * .5 + .5, sy = 1 - (sp.y * .5 + .5);
+      if (sx < -.05 || sx > 1.05 || sy < -.05 || sy > 1.05) continue;
+      const px = sx * cw, py = sy * ch;
+      let clash = false;
+      for (const t of taken) if (Math.abs(t[0] - px) < 120 && Math.abs(t[1] - py) < 30) { clash = true; break; }
+      if (clash) continue;
+      taken.push([px, py]);
+      const el = this.get(n++);
+      el.style.left = (sx * cw) + 'px';
+      el.style.top = (sy * ch) + 'px';
+      /* Fade in as it appears and out over its last second, so bubbles
+         drift rather than blink. The distance term fades over the last
+         stretch of the range rather than across the whole of it — falling
+         off with d squared made everything past arm's reach invisible. */
+      const life = clamp(g.thoughtT / 1.2, 0, 1) * clamp((6 - g.thoughtT) / .3, 0, 1);
+      const near2 = clamp((190 - Math.sqrt(d2)) / 45, 0, 1);
+      el.style.opacity = (near2 * life).toFixed(2);
+      el.className = 'thoughtLbl' + (g.happy < .4 ? ' sad' : g.happy > .78 ? ' glad' : '');
+      el.textContent = g.thought;
+    }
+    for (; n < this.pool.length; n++) this.pool[n].style.opacity = 0;
+  }
+};
 function shadeCss(c, m) {
   const r = clamp(((c >> 16 & 255) * m) | 0, 0, 255), g = clamp(((c >> 8 & 255) * m) | 0, 0, 255), b = clamp(((c & 255) * m) | 0, 0, 255);
   return `rgb(${r},${g},${b})`;
@@ -21165,6 +21627,7 @@ function frameBody(dt) {
   Game.buildSnow();
   Game.render();
   SignLabels.update(Game.R);
+  ThoughtBubbles.update(Game.R);
   Minimap.draw(dt);
 
   UI.updateHUD();
