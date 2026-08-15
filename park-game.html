@@ -1267,28 +1267,37 @@ class Geo {
       base.push([x + Math.cos(a) * r, y, z + Math.sin(a) * r]);
       top.push([x + Math.cos(a) * r * taper, y + h, z + Math.sin(a) * r * taper]);
     }
+    /* Winding note: the ring is generated counter-clockwise in the XZ plane,
+       which means walking base[i] -> base[j] -> top[j] -> top[i] traces each
+       side face clockwise as seen from OUTSIDE. quadV/triV derive the normal
+       straight from the vertex order, so listing them that way pointed every
+       normal inward and — with back-face culling on — drew the far interior
+       wall instead of the near exterior one. That is why cylinders and cones
+       looked hollow or half-missing from above. Every face below is wound so
+       the mesh is outward-facing; signed volume is positive. */
     for (let i = 0; i < seg; i++) {
       const j = (i + 1) % seg;
       const f = .82 + .22 * (0.5 + 0.5 * Math.cos(i / seg * TAU - 0.8));
-      this.quadV(base[i], base[j], top[j], top[i], shade(c, f));
+      this.quadV(top[i], top[j], base[j], base[i], shade(c, f));
     }
     const ct = shade(c, 1.14);
-    for (let i = 1; i < seg - 1; i++) this.triV(top[0], top[i], top[i + 1], ct);
+    for (let i = 1; i < seg - 1; i++) this.triV(top[0], top[i + 1], top[i], ct);
     const cb = shade(c, .5);
-    for (let i = 1; i < seg - 1; i++) this.triV(base[0], base[i + 1], base[i], cb);
+    for (let i = 1; i < seg - 1; i++) this.triV(base[0], base[i], base[i + 1], cb);
     return this;
   }
   cone(x, y, z, r, h, seg, c) {
     const base = [];
     for (let i = 0; i < seg; i++) { const a = i / seg * TAU; base.push([x + Math.cos(a) * r, y, z + Math.sin(a) * r]); }
     const apex = [x, y + h, z];
+    // Same outward-winding requirement as cyl above.
     for (let i = 0; i < seg; i++) {
       const j = (i + 1) % seg;
       const f = .8 + .28 * (0.5 + 0.5 * Math.cos(i / seg * TAU - 0.8));
-      this.triV(base[i], base[j], apex, shade(c, f));
+      this.triV(base[j], base[i], apex, shade(c, f));
     }
     const cb = shade(c, .5);
-    for (let i = 1; i < seg - 1; i++) this.triV(base[0], base[i + 1], base[i], cb);
+    for (let i = 1; i < seg - 1; i++) this.triV(base[0], base[i], base[i + 1], cb);
     return this;
   }
   sphere(x, y, z, r, seg, c) {
