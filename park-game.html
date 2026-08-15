@@ -2312,6 +2312,33 @@ const MAPS = [
     flat: .88, freq: .05, amp: 20, base: -4, wall: 14, roll: 1.0, dense: true },
 ];
 
+/* Path surface finishes, indexed by the value stored in WORLD.mat. This is the
+   single source of truth: the terrain mesher builds its shading from it and
+   the build-menu thumbnails render from the same entries, so a new surface
+   cannot end up looking right in the world and wrong in the picker (which is
+   exactly what happened when the thumbnail generator kept its own copy of the
+   list and silently fell back to stone for anything it did not know about).
+   Only `road` and `bridge` mean anything to the simulation; the rest is paint. */
+const PATH_MATS = [
+  { name: 'Asphalt',         c: 0x6b6b6d, d: 0x5a5a5c, stripe: false },  // 0
+  { name: 'Stone',           c: 0xc4b79d, d: 0xb0a288, stripe: false },  // 1  (default)
+  { name: 'Wood Deck',       c: 0xa9793f, d: 0x8f6533, stripe: true  },  // 2
+  { name: 'Brick',           c: 0xa5432f, d: 0x8c3826, stripe: true  },  // 3
+  { name: 'Gravel',          c: 0xb8ae9c, d: 0xa79c88, stripe: false },  // 4
+  { name: 'Road',            c: 0x4a4a4c, d: 0x3d3d3f, stripe: false, road: true },   // 5
+  { name: 'Bridge',          c: 0x9c7a4e, d: 0x86663f, stripe: true, bridge: true },  // 6
+  { name: 'Concrete Pavers', c: 0xe4e0d6, d: 0xd2cdc0, stripe: false },  // 7
+  { name: 'Sand',            c: 0xe8d9a8, d: 0xd8c691, stripe: false },  // 8
+  { name: 'Mown Lawn',       c: 0x6f9c52, d: 0x5f8a46, stripe: false },  // 9
+  { name: 'Cobblestone',     c: 0x8e8b86, d: 0x77746f, stripe: false },  // 10
+  { name: 'Marble',          c: 0xf2f0ea, d: 0xdcd8cf, stripe: false },  // 11
+  { name: 'Boardwalk',       c: 0xc98f5a, d: 0xad7746, stripe: true  },  // 12
+  { name: 'Dirt Trail',      c: 0x8a6f4e, d: 0x755c3f, stripe: false },  // 13
+  { name: 'Blue Mosaic',     c: 0x2f6f8f, d: 0x275c78, stripe: true  },  // 14
+  { name: 'Dark Slate',      c: 0x3d3f47, d: 0x33353c, stripe: true  },  // 15
+  { name: 'Terracotta',      c: 0xd46a6a, d: 0xb95757, stripe: false },  // 16
+];
+
 const WORLD = {
   n: N, tile: TILE, half: N * TILE / 2,
   type: new Uint8Array(N * N),
@@ -2453,15 +2480,8 @@ const WORLD = {
     const pathC = hex(0xc4b79d), pathD = hex(0xb0a288);
     const queueC = hex(0xb59ad0), plazaA = hex(0xd8cdb6), plazaB = hex(0xc2b59a), entryC = hex(0xcfae82);
     // Path material palettes: [light, dark] tone pairs, plus optional plank/brick striping.
-    const PATH_MATS = [
-      { c: hex(0x6b6b6d), d: hex(0x5a5a5c), stripe: false }, // 0 asphalt
-      { c: hex(0xc4b79d), d: hex(0xb0a288), stripe: false }, // 1 stone (default)
-      { c: hex(0xa9793f), d: hex(0x8f6533), stripe: true  }, // 2 wood plank
-      { c: hex(0xa5432f), d: hex(0x8c3826), stripe: true  }, // 3 brick
-      { c: hex(0xb8ae9c), d: hex(0xa79c88), stripe: false }, // 4 gravel
-      { c: hex(0x4a4a4c), d: hex(0x3d3d3f), stripe: false, road: true }, // 5 road (cars)
-      { c: hex(0x9c7a4e), d: hex(0x86663f), stripe: true, bridge: true }, // 6 bridge (wood)
-    ];
+    // Shaded copies of the shared palette, built once per mesh rebuild.
+    const PM = PATH_MATS.map(m => ({ c: hex(m.c), d: hex(m.d), stripe: m.stripe, bridge: m.bridge }));
     const buildTile = (g, i, j) => {
         const t = this.type[j * N + i];
         const x0 = (i - N / 2) * TILE, x1 = x0 + TILE, z0 = (j - N / 2) * TILE, z1 = z0 + TILE;
@@ -2469,8 +2489,8 @@ const WORLD = {
         let c;
         const chk = ((i ^ j) & 1) === 0;
         if (t === T_PATH || t === T_BUILD) {
-          const pm = PATH_MATS[this.mat[j * N + i]] || PATH_MATS[1];
-          const plank = pm.stripe && (((pm === PATH_MATS[2]) ? j : (i + j)) % 2 === 0);
+          const pm = PM[this.mat[j * N + i]] || PM[1];
+          const plank = pm.stripe && (((pm === PM[2]) ? j : (i + j)) % 2 === 0);
           c = (chk || plank) ? pm.c : pm.d;
         }
         else if (t === T_QUEUE) c = shade(queueC, chk ? 1 : .92);
@@ -5673,8 +5693,11 @@ const Prefab = {
   /* A short sample of path surface for the path catalogue */
   pathSample(kind, mat) {
     const g = new Geo();
-    const matC = [hex(0x6b6b6d), hex(0xcfc2a8), hex(0xa9793f), hex(0xa5432f), hex(0xb8ae9c), hex(0x4a4a4c), hex(0x9c7a4e)];
-    const c = kind === 'queue' ? hex(0xc0a8d8) : kind === 'plaza' ? hex(0xe0d6c0) : kind === 'river' ? hex(0x2f9fd4) : (matC[mat || 0] || matC[1]);
+    // Read straight off the shared palette so a new surface always previews
+    // as the colour it will actually be laid in.
+    const pm = PATH_MATS[mat || 0] || PATH_MATS[1];
+    const c = kind === 'queue' ? hex(0xc0a8d8) : kind === 'plaza' ? hex(0xe0d6c0)
+      : kind === 'river' ? hex(0x2f9fd4) : hex(pm.c);
     for (let j = 0; j < 2; j++) for (let i = 0; i < 2; i++) {
       const sh2 = ((i ^ j) & 1) ? .92 : 1;
       g.box((i - .5) * 4, 0, (j - .5) * 4, 4, .3, 4, shade(c, sh2));
@@ -9589,9 +9612,19 @@ const UI = {
       addGrid('Walkway material', [
         { id: 'path', name: 'Stone', cost: 24, mat: 1 },
         { id: 'path', name: 'Asphalt', cost: 22, mat: 0 },
-        { id: 'path', name: 'Wood Deck', cost: 30, mat: 2 },
+        { id: 'path', name: 'Concrete Pavers', cost: 26, mat: 7 },
+        { id: 'path', name: 'Cobblestone', cost: 30, mat: 10 },
         { id: 'path', name: 'Brick', cost: 32, mat: 3 },
+        { id: 'path', name: 'Terracotta', cost: 32, mat: 16 },
+        { id: 'path', name: 'Wood Deck', cost: 30, mat: 2 },
+        { id: 'path', name: 'Boardwalk', cost: 34, mat: 12 },
         { id: 'path', name: 'Gravel', cost: 20, mat: 4 },
+        { id: 'path', name: 'Dirt Trail', cost: 14, mat: 13 },
+        { id: 'path', name: 'Sand', cost: 18, mat: 8 },
+        { id: 'path', name: 'Mown Lawn', cost: 22, mat: 9 },
+        { id: 'path', name: 'Dark Slate', cost: 36, mat: 15 },
+        { id: 'path', name: 'Blue Mosaic', cost: 42, mat: 14 },
+        { id: 'path', name: 'Marble', cost: 54, mat: 11 },
         { id: 'path', name: 'Road', cost: 26, mat: 5 },
         { id: 'path', name: 'Bridge', cost: 34, mat: 6 },
       ], 'grid2', it => `<img class="th" src="${Thumbs.path(it.id, it.mat)}" alt=""><span class="n">${it.name}</span>${cost(it.cost)}`,
@@ -18248,7 +18281,11 @@ const Game = {
            Packed into typed-array bytes and base64'd it's a fraction of
            that size, with no loss (heights keep 1/50 unit precision, well
            past what's visually distinguishable). */
-        hz: packHeights(WORLD.h), tz: packTypes(WORLD.type),
+        /* mz is the per-tile path material. It was never saved, so every
+           surface reverted to plain stone on load — and because a road is
+           just "path with material 5", reloading also erased every road in
+           the park and left the traffic system with nothing to drive on. */
+        hz: packHeights(WORLD.h), tz: packTypes(WORLD.type), mz: packTypes(WORLD.mat),
         objs: Park.objects.filter(o => o.kind !== 'gate' && o.kind !== 'tstation' && o.kind !== 'tstop' && o.kind !== 'gtower').map(o =>
           ({ k: o.kind, d: o.def.id, i: o.i, j: o.j, r: o.rot, p: o.price, open: o.openR, tier: o.tier,
             n: o.name, lock: !!o.priceLocked, mer: o.merch || undefined, liv: o.livery || undefined,
@@ -18393,6 +18430,10 @@ const Game = {
       Park.objects.length = 0; Park.coasters.length = 0; Park.guests.length = 0; Park.staff.length = 0; Park.litter.length = 0;
       Park.gate = null;
       WORLD.h.set(loadedH); WORLD.type.set(loadedT); WORLD.own.fill(-1);
+      /* Older saves have no material layer at all. Default those to stone,
+         the historic fallback, so they load looking exactly as they did. */
+      if (d.mz) WORLD.mat.set(unpackTypes(d.mz, WORLD.mat.length));
+      else WORLD.mat.fill(1);
       // loaded terrain is a different park's data at the same array size —
       // the chunked mesh diff must not compare it against whatever was cached
       WORLD.chunkGeoCache = {}; WORLD.fenceGeo = null;
