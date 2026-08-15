@@ -15285,8 +15285,8 @@ function stepPhysics(dt,inp){
        exactly the "loose, no resistance" feeling. Winding lock ON gets slower
        with speed, and letting it go snaps back faster. */
     const vf=clamp(Math.abs(CAR.v)/85,0,1);
-    const onMul  = 1 - 0.42*vf;                 // heavy rack up top
-    const offMul = 1 + 0.40*vf;                 // and it self-centres harder
+    const onMul  = 1 - 0.25*vf;                 // heavy rack up top, but not mushy
+    const offMul = 1 + 0.70*vf;                 // and it self-centres harder
     const rate=target ? P.steerRate*(0.55+0.45*clamp(remaining,0,1))*onMul
                       : P.steerReturn*offMul;
     CAR.steerCmd=damp(CAR.steerCmd,target,rate,dt); }
@@ -15757,7 +15757,16 @@ function stepPhysics(dt,inp){
      above walking pace and the car weaved just as freely at 300 km/h as at 70.
      It keeps climbing now -- roughly double by top speed -- which is what stops
      the side-to-side without making slow corners sluggish. */
-  yawAcc-=P.yawDamp*CAR.yawRate*clamp(spd/20,0,1)*(1+1.05*clamp(spd/85,0,1));
+  /* MORE DAMPING WHEN YOU ARE NOT ASKING FOR LOCK. Straightening up on the exit
+     was hard work because the yaw the car built in the corner had nothing
+     taking it away once the lock came off -- you had to steer it straight
+     rather than let it come straight. Self-aligning torque and a driver's hands
+     both do this on a real car, and it belongs here for the same reason the
+     base damping does. It is keyed to how much lock is being ASKED for, not to
+     speed, so it is at full strength hands-off and at nothing on the way in --
+     turn-in is untouched. */
+  const relax=1+0.60*(1-clamp(Math.abs(CAR.steerCmd||0),0,1));
+  yawAcc-=P.yawDamp*CAR.yawRate*clamp(spd/20,0,1)*(1+1.05*clamp(spd/85,0,1))*relax;
   /* YAW DAMPING.
      A linear-then-clip tyre gives cornering force but none of the things that
      settle a car — relaxation length, the aligning moment, suspension damping —
