@@ -518,53 +518,74 @@ kbd{
 /* ---------- research tree ----------
    Laid out as dependency chains rather than a flat grid of identical boxes,
    so the order things must be bought in is visible at a glance. */
-#bpBody .rs-top{display:flex;gap:10px;align-items:stretch;margin:2px 3px 14px}
-#bpBody .rs-stat{flex:1;background:#fff;border:2px solid var(--edge);border-radius:var(--r-sm);
-  padding:9px 11px}
-#bpBody .rs-stat .l{font-size:8.5px;letter-spacing:.13em;text-transform:uppercase;
+/* Research gets a wider modal than the default — it is a planning screen. */
+#modal.wide{width:min(1080px,96vw)}
+#modalBody .rs-top{display:flex;gap:10px;align-items:stretch;margin:0 0 14px}
+#modalBody .rs-stat{flex:1;background:#fff;border:2px solid var(--edge);border-radius:var(--r-sm);
+  padding:10px 13px}
+#modalBody .rs-stat .u{font-size:12px;color:var(--dim);font-weight:800}
+/* category tabs */
+#modalBody .rs-tabs{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:14px}
+#modalBody .rs-tab{display:flex;align-items:center;gap:8px;cursor:pointer;font-family:inherit;
+  border:2px solid var(--edge);background:#fff;border-radius:9px;padding:8px 13px;transition:all var(--sn)}
+#modalBody .rs-tab:hover{border-color:var(--accent)}
+#modalBody .rs-tab .tn{font-size:11px;font-weight:800;color:var(--txt);letter-spacing:.02em}
+#modalBody .rs-tab .tc{font-size:9px;font-weight:800;color:var(--dimmer);background:var(--panel-sunken);
+  border:1.5px solid var(--edge-soft);border-radius:20px;padding:1px 7px;font-variant-numeric:tabular-nums}
+#modalBody .rs-tab .tc.full{background:#e6f6ec;border-color:#a9dcbb;color:#1d7a42}
+#modalBody .rs-tab.on{background:var(--accent-ink);border-color:var(--accent-ink)}
+#modalBody .rs-tab.on .tn{color:#fff}
+#modalBody .rs-tab.on .tc{background:rgba(255,255,255,.18);border-color:rgba(255,255,255,.3);color:#fff}
+/* right-hand column of a node: price tags, buy button, or status */
+#modalBody .rs-node .rt{display:flex;align-items:center;gap:6px;flex:0 0 auto;flex-wrap:wrap;
+  justify-content:flex-end;max-width:270px}
+#modalBody .rs-done{font-size:9.5px;font-weight:800;border-radius:6px;padding:4px 10px;
+  background:#e6f6ec;border:1.5px solid #a9dcbb;color:#1d7a42}
+#modalBody .rs-cant{font-size:9px;font-weight:800;color:var(--bad)}
+#modalBody .rs-stat .l{font-size:8.5px;letter-spacing:.13em;text-transform:uppercase;
   color:var(--dimmer);font-weight:800}
-#bpBody .rs-stat .v{font-size:19px;font-weight:800;color:var(--accent-ink);line-height:1.15;
+#modalBody .rs-stat .v{font-size:19px;font-weight:800;color:var(--accent-ink);line-height:1.15;
   font-variant-numeric:tabular-nums}
-#bpBody .rs-stat .s{font-size:9.5px;color:var(--dim);font-weight:700}
-#bpBody .rs-prog{height:7px;border-radius:4px;background:var(--panel-sunken);overflow:hidden;
+#modalBody .rs-stat .s{font-size:9.5px;color:var(--dim);font-weight:700}
+#modalBody .rs-prog{height:7px;border-radius:4px;background:var(--panel-sunken);overflow:hidden;
   margin-top:6px;border:1px solid var(--edge-soft)}
-#bpBody .rs-prog i{display:block;height:100%;background:var(--accent);border-radius:4px}
-#bpBody .rs-cat{display:flex;align-items:center;gap:8px;margin:16px 3px 8px}
-#bpBody .rs-cat .nm{font-size:10px;letter-spacing:.15em;text-transform:uppercase;
+#modalBody .rs-prog i{display:block;height:100%;background:var(--accent);border-radius:4px}
+#modalBody .rs-cat{display:flex;align-items:center;gap:8px;margin:16px 3px 8px}
+#modalBody .rs-cat .nm{font-size:10px;letter-spacing:.15em;text-transform:uppercase;
   font-weight:800;color:var(--accent-ink)}
-#bpBody .rs-cat .ct{font-size:9px;font-weight:800;color:var(--dimmer);
+#modalBody .rs-cat .ct{font-size:9px;font-weight:800;color:var(--dimmer);
   background:var(--panel-sunken);border:1.5px solid var(--edge-soft);border-radius:20px;padding:1px 8px}
-#bpBody .rs-cat .ln{flex:1;height:2px;background:var(--edge-soft);border-radius:2px}
-#bpBody .rs-track{display:flex;flex-direction:column;gap:0;margin:0 3px}
-#bpBody .rs-link{width:2px;height:12px;margin-left:26px;background:var(--edge);flex:0 0 auto}
-#bpBody .rs-link.done{background:var(--good)}
-#bpBody .rs-node{display:flex;gap:11px;align-items:flex-start;padding:10px 12px;
+#modalBody .rs-cat .ln{flex:1;height:2px;background:var(--edge-soft);border-radius:2px}
+#modalBody .rs-track{display:flex;flex-direction:column;gap:0;margin:0}
+#modalBody .rs-link{width:3px;height:14px;margin-left:31px;background:var(--edge);flex:0 0 auto;
+  border-radius:2px}
+#modalBody .rs-link.done{background:var(--good)}
+#modalBody .rs-node{display:flex;gap:14px;align-items:center;padding:13px 15px;
   border:2px solid var(--edge);border-radius:var(--r-sm);background:#fff;transition:all var(--sn)}
-#bpBody .rs-node .pip{width:30px;height:30px;flex:0 0 auto;border-radius:50%;
-  display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;
+#modalBody .rs-node .pip{width:34px;height:34px;flex:0 0 auto;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;font-size:12.5px;font-weight:800;
   border:2px solid var(--edge);background:var(--panel-sunken);color:var(--dim)}
-#bpBody .rs-node .pip svg{width:15px;height:15px}
-#bpBody .rs-node .bd{flex:1;min-width:0}
-#bpBody .rs-node .nm{font-size:11.5px;font-weight:800;line-height:1.3}
-#bpBody .rs-node .ds{font-size:9.5px;color:var(--dim);line-height:1.45;margin-top:2px}
-#bpBody .rs-node .pr{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;align-items:center}
-#bpBody .rs-node .tag2{font-size:9px;font-weight:800;border-radius:5px;padding:2px 7px;
+#modalBody .rs-node .pip svg{width:17px;height:17px}
+#modalBody .rs-node .bd{flex:1;min-width:0}
+#modalBody .rs-node .nm{font-size:13px;font-weight:800;line-height:1.3}
+#modalBody .rs-node .ds{font-size:10.5px;color:var(--dim);line-height:1.5;margin-top:3px;font-weight:600}
+#modalBody .rs-node .tag2{font-size:10px;font-weight:800;border-radius:6px;padding:3px 9px;
   border:1.5px solid var(--edge-soft);background:var(--panel-sunken);color:var(--txt);
   font-variant-numeric:tabular-nums}
-#bpBody .rs-node .tag2.bad{border-color:#f0bcb6;background:#ffecea;color:#a8322a}
-#bpBody .rs-node .go2{margin-left:auto;font-size:9.5px;font-weight:800;padding:5px 13px;
-  border-radius:6px;border:2px solid var(--accent-ink);background:var(--accent-ink);color:#fff;
+#modalBody .rs-node .tag2.bad{border-color:#f0bcb6;background:#ffecea;color:#a8322a}
+#modalBody .rs-node .go2{font-size:10.5px;font-weight:800;padding:7px 17px;
+  border-radius:7px;border:2px solid var(--accent-ink);background:var(--accent-ink);color:#fff;
   cursor:pointer;font-family:inherit;flex:0 0 auto}
-#bpBody .rs-node .go2:hover{filter:brightness(1.12)}
-#bpBody .rs-node.avail{border-color:var(--accent);box-shadow:0 2px 0 rgba(47,128,192,.14)}
-#bpBody .rs-node.avail .pip{border-color:var(--accent);color:var(--accent-ink);background:#eaf6ff}
-#bpBody .rs-node.own{background:#f1faf3;border-color:#a9dcbb}
-#bpBody .rs-node.own .pip{border-color:var(--good);background:var(--good);color:#fff}
-#bpBody .rs-node.own .nm{color:#1d7a42}
-#bpBody .rs-node.lock{opacity:.62}
-#bpBody .rs-node.lock .pip{border-style:dashed}
-#bpBody .rs-node.poor{border-color:#f0d9b6}
-#bpBody .rs-note{font-size:10.5px;color:var(--dim);line-height:1.55;padding:10px 12px;margin:14px 3px 0;
+#modalBody .rs-node .go2:hover{filter:brightness(1.12)}
+#modalBody .rs-node.avail{border-color:var(--accent);box-shadow:0 2px 0 rgba(47,128,192,.14)}
+#modalBody .rs-node.avail .pip{border-color:var(--accent);color:var(--accent-ink);background:#eaf6ff}
+#modalBody .rs-node.own{background:#f1faf3;border-color:#a9dcbb}
+#modalBody .rs-node.own .pip{border-color:var(--good);background:var(--good);color:#fff}
+#modalBody .rs-node.own .nm{color:#1d7a42}
+#modalBody .rs-node.lock{opacity:.62}
+#modalBody .rs-node.lock .pip{border-style:dashed}
+#modalBody .rs-node.poor{border-color:#f0d9b6}
+#modalBody .rs-note{font-size:10.5px;color:var(--dim);line-height:1.55;padding:10px 12px;margin:14px 3px 0;
   background:var(--panel-sunken);border:1.5px solid var(--edge-soft);border-radius:var(--r-sm)}
 
 /* ---------- track heatmap key ----------
@@ -9694,6 +9715,9 @@ const UI = {
     if (Coaster.active && id !== 'coaster') Coaster.exit();
     this.tool = id; this.sub = null;
     this.refreshTools();
+    /* Research is a reading screen, not a palette you drag things out of —
+       it gets the full-width modal rather than the narrow build rail. */
+    if (id === 'research') { this.closeBuild(); this.tool = 'select'; this.refreshTools(); this.openResearch(); return; }
     if (id === 'select' || id === 'delete') { this.closeBuild(); }
     else this.openBuild(id);
     if (id === 'delete') this.hint('Click any object to <b>demolish</b> it and recover part of its value.');
@@ -9940,86 +9964,96 @@ const UI = {
       }
       b.appendChild(list);
     }
-    else if (id === 'research') {
-      /* Drawn as dependency chains instead of a flat grid of identical
-         boxes. Each node is ordered by how deep it sits in its own req
-         chain and joined to the one before it by a rail that turns green
-         once that prerequisite is owned, so the order things have to be
-         bought in — and how far along each branch you are — is readable
-         without opening anything. */
-      const owned = (rid) => !!Park.research.unlocked[rid];
-      const depthOf = (r) => { let n = 0, cur = r;
-        while (cur && cur.req) { cur = RESEARCH.find(x => x.id === cur.req); n++; if (n > 32) break; }
-        return n; };
-      const doneCount = RESEARCH.filter(r => owned(r.id)).length;
-      const rp = Math.floor(Park.rp || 0);
-      const tier = Research.highestTier();
-
-      const top = el('div', 'rs-top', `
-        <div class="rs-stat"><span class="l">Research Points</span>
-          <div class="v">${rp}</div>
-          <div class="s">${Park.rpTotal || 0} earned in total</div></div>
-        <div class="rs-stat"><span class="l">Progress</span>
-          <div class="v">${doneCount}<span style="font-size:12px;color:var(--dim)"> / ${RESEARCH.length}</span></div>
-          <div class="rs-prog"><i style="width:${(doneCount / RESEARCH.length * 100).toFixed(1)}%"></i></div></div>
-        <div class="rs-stat"><span class="l">Content Tier</span>
-          <div class="v">${tier}<span style="font-size:12px;color:var(--dim)"> / 7</span></div>
-          <div class="s">${tier >= 7 ? 'Full catalogue unlocked' : 'Tier ' + (tier + 1) + ' unlocks more to build'}</div></div>`);
-      b.appendChild(top);
-
-      const cats = [...new Set(RESEARCH.map(r => r.cat))];
-      for (const catName of cats) {
-        const inCat = RESEARCH.filter(x => x.cat === catName).sort((a, c) => depthOf(a) - depthOf(c));
-        const doneHere = inCat.filter(x => owned(x.id)).length;
-        b.appendChild(el('div', 'rs-cat',
-          `<span class="nm">${catName}</span><span class="ct">${doneHere}/${inCat.length}</span><span class="ln"></span>`));
-        const track = el('div', 'rs-track');
-        inCat.forEach((r, idx) => {
-          const isOwned = owned(r.id);
-          const reqOwned = !r.req || owned(r.req);
-          const reqName = r.req ? (RESEARCH.find(x => x.id === r.req) || {}).name : null;
-          const poorCash = Park.money < r.cost, poorRp = (Park.rp || 0) < (r.rp || 0);
-          const buyable = !isOwned && reqOwned;
-          const cls = isOwned ? 'own' : !reqOwned ? 'lock' : (poorCash || poorRp) ? 'avail poor' : 'avail';
-          if (idx > 0) track.appendChild(el('div', 'rs-link' + (isOwned || reqOwned ? ' done' : ''), ''));
-          const pip = isOwned
-            ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 12.5l5 5 9-11"/></svg>'
-            : !reqOwned
-              ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="10.5" width="14" height="9.5" rx="2"/><path d="M8.5 10.5V8a3.5 3.5 0 017 0v2.5"/></svg>'
-              : String(idx + 1);
-          const price = isOwned
-            ? `<span class="tag2" style="border-color:#a9dcbb;background:#e6f6ec;color:#1d7a42">Researched</span>`
-            : !reqOwned
-              ? `<span class="tag2">Needs ${esc(reqName || 'an earlier unlock')}</span>`
-              : `<span class="tag2${poorCash ? ' bad' : ''}">${money(r.cost)}</span>`
-                + `<span class="tag2${poorRp ? ' bad' : ''}">${r.rp || 0} RP</span>`;
-          const node = el('div', 'rs-node ' + cls, `
-            <div class="pip">${pip}</div>
-            <div class="bd">
-              <div class="nm">${esc(r.name)}</div>
-              <div class="ds">${r.desc}</div>
-              <div class="pr">${price}${buyable && !poorCash && !poorRp
-                ? `<button class="go2">Research</button>` : ''}</div>
-            </div>`);
-          if (buyable) {
-            // Research.buy() already redraws this panel on success and
-            // explains itself in a notification when it refuses.
-            const fire = () => Research.buy(r.id);
-            const btn = node.querySelector('.go2');
-            if (btn) btn.onclick = (e) => { e.stopPropagation(); fire(); };
-            node.onclick = fire;
-            node.style.cursor = 'pointer';
-          }
-          track.appendChild(node);
-        });
-        b.appendChild(track);
-      }
-      b.appendChild(el('div', 'rs-note', `Every upgrade costs both cash and Research Points. RP accrues
-        each day, faster for a higher-rated, busier park. <b>Attractions</b> is the main ladder — Tier 1
-        through Tier 7 in order — and nothing in career mode is buildable until its tier is researched.
-        The other branches are optional and make what you already own run better.`));
-    }
   },
+  /* ------------------------------------------------------------------
+     RESEARCH & DEVELOPMENT
+     A full-width screen rather than an entry in the build rail: it is
+     something you read and plan against, not a palette you drag from.
+     Categories are laid out as dependency chains so the order things
+     must be bought in is visible without opening anything.
+     ------------------------------------------------------------------ */
+  openResearch(focusCat) {
+    const owned = (rid) => !!Park.research.unlocked[rid];
+    const depthOf = (r) => { let n = 0, cur = r;
+      while (cur && cur.req) { cur = RESEARCH.find(x => x.id === cur.req); n++; if (n > 32) break; }
+      return n; };
+    const doneCount = RESEARCH.filter(r => owned(r.id)).length;
+    const rp = Math.floor(Park.rp || 0);
+    const tier = Research.highestTier();
+    const cats = [...new Set(RESEARCH.map(r => r.cat))];
+    if (focusCat && !cats.includes(focusCat)) focusCat = null;
+    this._resCat = focusCat || this._resCat || cats[0];
+    if (!cats.includes(this._resCat)) this._resCat = cats[0];
+    const activeCat = this._resCat;
+
+    /* --- summary strip --- */
+    let h = `<div class="rs-top">
+      <div class="rs-stat"><span class="l">Research Points</span>
+        <div class="v">${rp}</div>
+        <div class="s">${Park.rpTotal || 0} earned in total</div></div>
+      <div class="rs-stat"><span class="l">Unlocked</span>
+        <div class="v">${doneCount}<span class="u"> / ${RESEARCH.length}</span></div>
+        <div class="rs-prog"><i style="width:${(doneCount / RESEARCH.length * 100).toFixed(1)}%"></i></div></div>
+      <div class="rs-stat"><span class="l">Content Tier</span>
+        <div class="v">${tier}<span class="u"> / 7</span></div>
+        <div class="s">${tier >= 7 ? 'Full catalogue unlocked' : 'Tier ' + (tier + 1) + ' unlocks more to build'}</div></div>
+      <div class="rs-stat"><span class="l">Funds</span>
+        <div class="v">${money(Park.money)}</div>
+        <div class="s">spendable on research</div></div>
+    </div>`;
+
+    /* --- category tabs, each showing its own progress --- */
+    h += `<div class="rs-tabs">`;
+    for (const cn of cats) {
+      const inCat = RESEARCH.filter(x => x.cat === cn);
+      const dn = inCat.filter(x => owned(x.id)).length;
+      const all = dn === inCat.length;
+      h += `<button class="rs-tab ${cn === activeCat ? 'on' : ''}" onclick="UI.openResearch('${cn}')">
+        <span class="tn">${cn}</span>
+        <span class="tc ${all ? 'full' : ''}">${dn}/${inCat.length}</span></button>`;
+    }
+    h += `</div>`;
+
+    /* --- the chain for the selected category --- */
+    const inCat = RESEARCH.filter(x => x.cat === activeCat).sort((a, c) => depthOf(a) - depthOf(c));
+    h += `<div class="rs-track">`;
+    inCat.forEach((r, idx) => {
+      const isOwned = owned(r.id);
+      const reqOwned = !r.req || owned(r.req);
+      const reqName = r.req ? (RESEARCH.find(x => x.id === r.req) || {}).name : null;
+      const poorCash = Park.money < r.cost, poorRp = (Park.rp || 0) < (r.rp || 0);
+      const buyable = !isOwned && reqOwned && !poorCash && !poorRp;
+      const cls = isOwned ? 'own' : !reqOwned ? 'lock' : (poorCash || poorRp) ? 'avail poor' : 'avail';
+      if (idx > 0) h += `<div class="rs-link${reqOwned ? ' done' : ''}"></div>`;
+      const pip = isOwned
+        ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 12.5l5 5 9-11"/></svg>'
+        : !reqOwned
+          ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="10.5" width="14" height="9.5" rx="2"/><path d="M8.5 10.5V8a3.5 3.5 0 017 0v2.5"/></svg>'
+          : String(idx + 1);
+      let right;
+      if (isOwned) right = `<span class="rs-done">Researched</span>`;
+      else if (!reqOwned) right = `<span class="tag2">Needs ${esc(reqName || 'an earlier unlock')}</span>`;
+      else right = `<span class="tag2${poorCash ? ' bad' : ''}">${money(r.cost)}</span>`
+                 + `<span class="tag2${poorRp ? ' bad' : ''}">${r.rp || 0} RP</span>`
+                 + (buyable ? `<button class="go2" onclick="Research.buy('${r.id}')">Research</button>`
+                            : `<span class="rs-cant">${poorCash && poorRp ? 'Need cash &amp; RP' : poorCash ? 'Need more cash' : 'Need more RP'}</span>`);
+      h += `<div class="rs-node ${cls}">
+        <div class="pip">${pip}</div>
+        <div class="bd"><div class="nm">${esc(r.name)}</div><div class="ds">${r.desc}</div></div>
+        <div class="rt">${right}</div>
+      </div>`;
+    });
+    h += `</div>`;
+
+    h += `<div class="rs-note">Every upgrade costs both cash and Research Points. RP accrues each day,
+      faster for a higher-rated, busier park. <b>Attractions</b> is the main ladder — Tier 1 through Tier 7
+      in order — and nothing in career mode is buildable until its tier has been researched. The other
+      branches are optional and make what you already own run better.</div>`;
+
+    this.modal('Research & Development', h);
+    $('#modal').classList.add('wide');
+  },
+
   /* ---- shared renderer for any grid that can contain Prestige items ---- */
   addPrestigeGrid(b, addGrid, cost, label, items, thumbFn) {
     const rr = it => {
@@ -10396,7 +10430,10 @@ const UI = {
     this.landDialog();
   },
   closeInspector() { $('#inspector').classList.remove('show'); Game.selected = null; },
-  closeModal() { $('#modalWrap').classList.remove('show'); },
+  closeModal() {
+    $('#modalWrap').classList.remove('show');
+    $('#modal').classList.remove('wide');   // research widens it; others must not inherit that
+  },
   /* `after` is either a callback to run once the modal is on screen, or an
      array of footer buttons: { label, cls, fn }. */
   modal(title, html, after) {
@@ -14149,7 +14186,9 @@ const Research = {
     r.apply();
     if (Park.staff) for (const s of Park.staff) if (s.applyTraining) s.applyTraining();
     UI.notify('Research complete', r.name + ' — ' + r.desc, 'good');
-    UI.refreshBuildPanel();
+    // the tree lives in the modal now, so redraw that rather than the rail
+    if ($('#modalWrap').classList.contains('show')) UI.openResearch();
+    else UI.refreshBuildPanel();
     return true;
   },
 };
