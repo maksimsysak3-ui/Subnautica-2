@@ -14219,12 +14219,18 @@ const PHYS={
      about a tenth across every setting rather than only at 100%. steerReturn
      goes the other way: lock that falls away the moment you stop asking for it
      is most of what "tight" feels like in the hands. */
-  /* HIGH-SPEED LOCK, CUT HARD. Holding more lock into fast corners is what
-     made the car dart side to side at speed: the input is binary on a keyboard,
-     so a tap at 300 km/h was asking for an angle no driver would ever put in,
-     and the car went where it was told. The curve falls away sooner and further
-     now. Low-speed lock is untouched, so slow corners feel the same. */
-  maxSteerLo:0.34, maxSteerHi:0.056, steerLockCurve:1.85, steerRate:3.42, steerReturn:7.9,
+  /* HIGH-SPEED LOCK. The curve is pow(spd/vMax, steerLockCurve) used as the
+     lerp from the low-speed lock to the high-speed one, so RAISING the exponent
+     keeps the blend near the LOW end for longer -- that is, more lock at speed,
+     not less. A previous attempt to calm the car raised it to 1.85 and made the
+     mid-range worse: measured in degrees of lock, 100 km/h went 17.0 -> 17.9
+     and 180 km/h went 14.0 -> 14.8, and the mid-range is exactly where the
+     darting lives.
+     Below one it falls away immediately instead. With 0.72 and a much smaller
+     top-end figure the car keeps 12.3 deg at 100 km/h, 8.5 at 180, 3.6 at 300
+     and 2.1 at 340 -- which is roughly what a driver actually holds, and a
+     keyboard's binary input can no longer ask for an angle nobody would use. */
+  maxSteerLo:0.34, maxSteerHi:0.028, steerLockCurve:0.72, steerRate:3.42, steerReturn:7.9,
   /* YAW DAMPING. A linear-then-clip tyre gives cornering force but none of the
      things that actually settle a car: tyre relaxation length, the aligning
      moment that tries to straighten the steering, the damping in the
