@@ -9658,14 +9658,14 @@ const TOOLS = [
   { id: 'ride', ic: 'ride', t: 'Rides', k: '4' },
   { id: 'water', ic: 'water', t: 'Water', k: '5' },
   { id: 'shop', ic: 'shop', t: 'Shops', k: '6' },
-  { id: 'lodging', ic: 'shop', t: 'Lodging', k: 'l' },
+  { id: 'lodging', ic: 'shop', t: 'Lodging', k: 'j' },
   { id: 'scenery', ic: 'tree', t: 'Scenery', k: '7' },
   { id: 'decor', ic: 'sparkle', t: 'Decor', k: 'y' },
   { id: 'landmark', ic: 'sparkle', t: 'Landmarks', k: 'g' },
   { id: 'transit', ic: 'path', t: 'Transport', k: 't' },
   { id: 'staff', ic: 'staff', t: 'Staff', k: '8' },
   { id: 'terrain', ic: 'terrain', t: 'Terrain', k: '9' },
-  { id: 'research', ic: 'flask', t: 'Research', k: 'r' },
+  { id: 'research', ic: 'flask', t: 'Research', k: 'k' },
   { id: 'delete', ic: 'demolish', t: 'Demolish', k: '0' },
 ];
 
@@ -11227,7 +11227,14 @@ const UI = {
       </table></div>`;
     h += `</div>`;
 
-    const verdict = c.stalls ? ['Fails safety test', 'The train loses momentum and stops on the circuit. Add a chain lift or launch, or lower the layout.', 'var(--bad)']
+    /* computeStats records the exact distance at which the train first gives
+       up, but nothing ever read it — "it stalls somewhere" is far less useful
+       than "it stalls 214m in", which you can go and look at. */
+    const stallWhere = (c.stalls && c.stallAt !== undefined)
+      ? ' It first runs out of momentum about <b>' + Math.round(c.stallAt) + 'm</b> into the circuit'
+        + (c.track && c.track.length ? ' (' + Math.round(c.stallAt / c.track.length * 100) + '% round)' : '') + '.'
+      : '';
+    const verdict = c.stalls ? ['Fails safety test', 'The train loses momentum and stops on the circuit.' + stallWhere + ' Add a chain lift or launch, or lower the layout.', 'var(--bad)']
       : c.maxG > 6 ? ['Dangerously intense', 'Peak forces above 6 G will frighten almost every guest away. Widen the turns and soften the pull-outs.', 'var(--warn)']
         : c.excitement > 8 && c.intensity < 8 ? ['Outstanding', 'A thrilling ride most guests will queue for. Well balanced forces.', 'var(--good)']
           : c.excitement < 4 ? ['Forgettable', 'Guests will ride it once. More height, speed and airtime would help.', 'var(--warn)']
@@ -17125,9 +17132,18 @@ const Game = {
       if (k === ' ') { e.preventDefault(); this.setSpeed(this.speed === 0 ? 1 : 0); return; }
       if (k === 'enter' && Coaster.active) { Coaster.add(); return; }
       if (k === 'backspace' && Coaster.active) { e.preventDefault(); Coaster.undo(); return; }
-      if (k >= '0' && k <= '9' && !Coaster.active) {
-        const idx = k === '0' ? 9 : +k - 1;
-        const t = TOOLS[idx]; if (t) UI.setTool(t.id);
+      /* Tool shortcuts are matched against each tool's own declared key.
+         They used to be looked up by position in the TOOLS array while the
+         toolbar rendered the declared key as its label, so the two disagreed
+         for every tool after the sixth — the button said Staff was 8, and 8
+         selected Scenery. Binding to the same field that is displayed means
+         the label can no longer lie. Two declared keys collided with global
+         actions that run above this point and could never have fired
+         (Lodging on L, which opens the land market, and Research on R, which
+         rotates); those moved to J and K. */
+      if (!Coaster.active) {
+        const t = TOOLS.find(x => x.k === k);
+        if (t) { UI.setTool(t.id); return; }
       }
       if (k === 'q') Cam.rotateBy(-1);
       if (k === 'e') Cam.rotateBy(1);
@@ -19072,7 +19088,11 @@ const Game = {
       for (const s of d.objs) {
         let def, o;
         if (s.cd) def = s.cd;   // a player-designed water slide, saved whole
-        else if (s.k === 'shop') def = CAT.shops.find(x => x.id === s.d);
+        /* Landmarks are placed as `shop` objects but live in their own
+           catalogue, so looking only in CAT.shops silently dropped every one
+           of them on load — five buildings, among the most expensive in the
+           game, vanishing from a save with no error anywhere. */
+        else if (s.k === 'shop') def = CAT.shops.find(x => x.id === s.d) || CAT.landmarks.find(x => x.id === s.d);
         else if (s.k === 'ride') def = CAT.rides.find(x => x.id === s.d);
         else def = CAT.scenery.find(x => x.id === s.d);
         if (!def) continue;   // save references an item that no longer exists — skip it, don't crash the load
