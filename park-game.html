@@ -520,6 +520,35 @@ kbd{
    so the order things must be bought in is visible at a glance. */
 /* Research gets a wider modal than the default — it is a planning screen. */
 #modal.wide{width:min(1080px,96vw)}
+/* --- research motion ---------------------------------------------------
+   Everything here is entrance/feedback only: rows deal in on open, bars and
+   counters run up to their value, and a bought node flashes once. Nothing
+   loops forever, so the screen settles instead of fidgeting at you. */
+@keyframes rsIn{from{opacity:0;transform:translateY(9px)}to{opacity:1;transform:none}}
+@keyframes rsPop{0%{transform:scale(.6);opacity:0}60%{transform:scale(1.12)}100%{transform:scale(1);opacity:1}}
+@keyframes rsFlash{0%{box-shadow:0 0 0 0 rgba(45,170,95,.55)}70%{box-shadow:0 0 0 14px rgba(45,170,95,0)}100%{box-shadow:0 0 0 0 rgba(45,170,95,0)}}
+@keyframes rsGrow{from{height:0}to{height:14px}}
+@keyframes rsSheen{0%{transform:translateX(-120%)}100%{transform:translateX(320%)}}
+#modalBody .rs-stat{animation:rsIn .34s ease both}
+#modalBody .rs-tabs{animation:rsIn .34s .06s ease both}
+#modalBody .rs-node{animation:rsIn .30s ease both}
+#modalBody .rs-link{animation:rsGrow .22s ease both}
+#modalBody .rs-node .pip{animation:rsPop .34s ease both}
+#modalBody .rs-node.just{animation:rsIn .30s ease both,rsFlash .9s .1s ease-out}
+/* the buyable node gets a slow sheen so the eye lands on it first */
+#modalBody .rs-node.avail:not(.poor){position:relative;overflow:hidden}
+#modalBody .rs-node.avail:not(.poor)::after{content:'';position:absolute;top:0;bottom:0;width:38%;
+  background:linear-gradient(100deg,transparent,rgba(120,200,255,.20),transparent);
+  animation:rsSheen 2.6s ease-in-out 1.1s infinite;pointer-events:none}
+#modalBody .rs-node:hover{transform:translateY(-2px);box-shadow:var(--e2)}
+#modalBody .rs-prog i{transition:width .7s cubic-bezier(.22,1,.36,1)}
+#modalBody .rs-node .go2{transition:transform var(--sn),filter var(--sn)}
+#modalBody .rs-node .go2:active{transform:scale(.94)}
+@media (prefers-reduced-motion:reduce){
+  #modalBody .rs-stat,#modalBody .rs-tabs,#modalBody .rs-node,
+  #modalBody .rs-link,#modalBody .rs-node .pip{animation:none}
+  #modalBody .rs-node.avail:not(.poor)::after{display:none}
+}
 #modalBody .rs-top{display:flex;gap:10px;align-items:stretch;margin:0 0 14px}
 #modalBody .rs-stat{flex:1;background:#fff;border:2px solid var(--edge);border-radius:var(--r-sm);
   padding:10px 13px}
@@ -541,7 +570,15 @@ kbd{
   justify-content:flex-end;max-width:270px}
 #modalBody .rs-done{font-size:9.5px;font-weight:800;border-radius:6px;padding:4px 10px;
   background:#e6f6ec;border:1.5px solid #a9dcbb;color:#1d7a42}
-#modalBody .rs-cant{font-size:9px;font-weight:800;color:var(--bad)}
+#modalBody .rs-cant{font-size:9px;font-weight:800;color:var(--bad);text-align:right}
+/* what finishing the selected branch still costs */
+#modalBody .rs-branch{display:flex;align-items:center;gap:11px;flex-wrap:wrap;
+  font-size:10.5px;font-weight:700;color:var(--dim);margin:0 0 11px;padding:8px 13px;
+  background:var(--panel-sunken);border:1.5px solid var(--edge-soft);border-radius:var(--r-sm);
+  animation:rsIn .34s .1s ease both}
+#modalBody .rs-branch b{color:var(--accent-ink);font-weight:800}
+#modalBody .rs-branch .sep{width:3px;height:3px;border-radius:50%;background:var(--edge);flex:0 0 auto}
+#modalBody .rs-branch.done{background:#e6f6ec;border-color:#a9dcbb;color:#1d7a42;font-weight:800}
 #modalBody .rs-stat .l{font-size:8.5px;letter-spacing:.13em;text-transform:uppercase;
   color:var(--dimmer);font-weight:800}
 #modalBody .rs-stat .v{font-size:19px;font-weight:800;color:var(--accent-ink);line-height:1.15;
@@ -9972,7 +10009,7 @@ const UI = {
      Categories are laid out as dependency chains so the order things
      must be bought in is visible without opening anything.
      ------------------------------------------------------------------ */
-  openResearch(focusCat) {
+  openResearch(focusCat, justId) {
     const owned = (rid) => !!Park.research.unlocked[rid];
     const depthOf = (r) => { let n = 0, cur = r;
       while (cur && cur.req) { cur = RESEARCH.find(x => x.id === cur.req); n++; if (n > 32) break; }
@@ -9986,18 +10023,31 @@ const UI = {
     if (!cats.includes(this._resCat)) this._resCat = cats[0];
     const activeCat = this._resCat;
 
+    /* The same expression the day tick uses to award RP, so the rate shown
+       here is the rate you will actually get rather than a guess. */
+    const rpPerDay = Math.round(1 + Park.rating / 140 + Park.attractions().length * .3);
+    /* Days until a node is affordable, counting whichever of cash or RP is
+       further away. Cash is deliberately not projected — a park's income
+       swings far too much day to day for that to be honest — so only the RP
+       wait is given a number, and a cash shortfall is reported as a shortfall. */
+    const rpWait = (need) => {
+      const short = need - rp;
+      if (short <= 0) return 0;
+      return rpPerDay > 0 ? Math.ceil(short / rpPerDay) : Infinity;
+    };
+
     /* --- summary strip --- */
     let h = `<div class="rs-top">
-      <div class="rs-stat"><span class="l">Research Points</span>
-        <div class="v">${rp}</div>
-        <div class="s">${Park.rpTotal || 0} earned in total</div></div>
-      <div class="rs-stat"><span class="l">Unlocked</span>
-        <div class="v">${doneCount}<span class="u"> / ${RESEARCH.length}</span></div>
-        <div class="rs-prog"><i style="width:${(doneCount / RESEARCH.length * 100).toFixed(1)}%"></i></div></div>
-      <div class="rs-stat"><span class="l">Content Tier</span>
-        <div class="v">${tier}<span class="u"> / 7</span></div>
+      <div class="rs-stat" style="animation-delay:0s"><span class="l">Research Points</span>
+        <div class="v"><span class="rs-num" data-to="${rp}">0</span></div>
+        <div class="s">+${rpPerDay} per day &middot; ${Park.rpTotal || 0} earned in total</div></div>
+      <div class="rs-stat" style="animation-delay:.05s"><span class="l">Unlocked</span>
+        <div class="v"><span class="rs-num" data-to="${doneCount}">0</span><span class="u"> / ${RESEARCH.length}</span></div>
+        <div class="rs-prog"><i data-w="${(doneCount / RESEARCH.length * 100).toFixed(1)}" style="width:0"></i></div></div>
+      <div class="rs-stat" style="animation-delay:.1s"><span class="l">Content Tier</span>
+        <div class="v"><span class="rs-num" data-to="${tier}">0</span><span class="u"> / 7</span></div>
         <div class="s">${tier >= 7 ? 'Full catalogue unlocked' : 'Tier ' + (tier + 1) + ' unlocks more to build'}</div></div>
-      <div class="rs-stat"><span class="l">Funds</span>
+      <div class="rs-stat" style="animation-delay:.15s"><span class="l">Funds</span>
         <div class="v">${money(Park.money)}</div>
         <div class="s">spendable on research</div></div>
     </div>`;
@@ -10010,12 +10060,28 @@ const UI = {
       const all = dn === inCat.length;
       h += `<button class="rs-tab ${cn === activeCat ? 'on' : ''}" onclick="UI.openResearch('${cn}')">
         <span class="tn">${cn}</span>
-        <span class="tc ${all ? 'full' : ''}">${dn}/${inCat.length}</span></button>`;
+        <span class="tc ${all ? 'full' : ''}">${all ? '&#10003; ' : ''}${dn}/${inCat.length}</span></button>`;
     }
     h += `</div>`;
 
-    /* --- the chain for the selected category --- */
+    /* --- what finishing this branch still costs --- */
     const inCat = RESEARCH.filter(x => x.cat === activeCat).sort((a, c) => depthOf(a) - depthOf(c));
+    const left = inCat.filter(x => !owned(x.id));
+    if (left.length) {
+      const cashLeft = left.reduce((a, x) => a + x.cost, 0);
+      const rpLeft = left.reduce((a, x) => a + (x.rp || 0), 0);
+      const days = rpWait(rpLeft);
+      h += `<div class="rs-branch">
+        <span><b>${left.length}</b> left in ${activeCat}</span>
+        <span class="sep"></span>
+        <span>${money(cashLeft)} and ${rpLeft} RP to finish the branch</span>
+        ${days > 0 && days !== Infinity ? `<span class="sep"></span><span>~${days} day${days === 1 ? '' : 's'} of RP</span>` : ''}
+      </div>`;
+    } else {
+      h += `<div class="rs-branch done"><span>&#10003; ${activeCat} fully researched</span></div>`;
+    }
+
+    /* --- the chain for the selected category --- */
     h += `<div class="rs-track">`;
     inCat.forEach((r, idx) => {
       const isOwned = owned(r.id);
@@ -10024,21 +10090,31 @@ const UI = {
       const poorCash = Park.money < r.cost, poorRp = (Park.rp || 0) < (r.rp || 0);
       const buyable = !isOwned && reqOwned && !poorCash && !poorRp;
       const cls = isOwned ? 'own' : !reqOwned ? 'lock' : (poorCash || poorRp) ? 'avail poor' : 'avail';
-      if (idx > 0) h += `<div class="rs-link${reqOwned ? ' done' : ''}"></div>`;
+      const delay = (0.16 + idx * 0.045).toFixed(2);
+      if (idx > 0) h += `<div class="rs-link${reqOwned ? ' done' : ''}" style="animation-delay:${delay}s"></div>`;
       const pip = isOwned
         ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 12.5l5 5 9-11"/></svg>'
         : !reqOwned
           ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="10.5" width="14" height="9.5" rx="2"/><path d="M8.5 10.5V8a3.5 3.5 0 017 0v2.5"/></svg>'
           : String(idx + 1);
       let right;
-      if (isOwned) right = `<span class="rs-done">Researched</span>`;
+      if (isOwned) right = `<span class="rs-done">&#10003; Researched</span>`;
       else if (!reqOwned) right = `<span class="tag2">Needs ${esc(reqName || 'an earlier unlock')}</span>`;
-      else right = `<span class="tag2${poorCash ? ' bad' : ''}">${money(r.cost)}</span>`
-                 + `<span class="tag2${poorRp ? ' bad' : ''}">${r.rp || 0} RP</span>`
-                 + (buyable ? `<button class="go2" onclick="Research.buy('${r.id}')">Research</button>`
-                            : `<span class="rs-cant">${poorCash && poorRp ? 'Need cash &amp; RP' : poorCash ? 'Need more cash' : 'Need more RP'}</span>`);
-      h += `<div class="rs-node ${cls}">
-        <div class="pip">${pip}</div>
+      else {
+        right = `<span class="tag2${poorCash ? ' bad' : ''}">${money(r.cost)}</span>`
+              + `<span class="tag2${poorRp ? ' bad' : ''}">${r.rp || 0} RP</span>`;
+        if (buyable) right += `<button class="go2" onclick="UI.buyResearch('${r.id}')">Research</button>`;
+        else {
+          const w = poorRp ? rpWait(r.rp || 0) : 0;
+          const why = poorCash && poorRp
+            ? `${money(r.cost - Park.money)} + ${(r.rp || 0) - rp} RP short`
+            : poorCash ? `${money(r.cost - Park.money)} short`
+            : `${(r.rp || 0) - rp} RP short${w && w !== Infinity ? ` &middot; ~${w}d` : ''}`;
+          right += `<span class="rs-cant">${why}</span>`;
+        }
+      }
+      h += `<div class="rs-node ${cls}${justId === r.id ? ' just' : ''}" style="animation-delay:${delay}s">
+        <div class="pip" style="animation-delay:${delay}s">${pip}</div>
         <div class="bd"><div class="nm">${esc(r.name)}</div><div class="ds">${r.desc}</div></div>
         <div class="rt">${right}</div>
       </div>`;
@@ -10046,12 +10122,40 @@ const UI = {
     h += `</div>`;
 
     h += `<div class="rs-note">Every upgrade costs both cash and Research Points. RP accrues each day,
-      faster for a higher-rated, busier park. <b>Attractions</b> is the main ladder — Tier 1 through Tier 7
-      in order — and nothing in career mode is buildable until its tier has been researched. The other
-      branches are optional and make what you already own run better.</div>`;
+      faster for a higher-rated, busier park &mdash; yours is earning <b>${rpPerDay} per day</b> right now.
+      <b>Attractions</b> is the main ladder, Tier 1 through Tier 7 in order, and nothing in career mode is
+      buildable until its tier has been researched. The other branches are optional and make what you
+      already own run better.</div>`;
 
     this.modal('Research & Development', h);
     $('#modal').classList.add('wide');
+    this.animateResearch();
+  },
+  /* Run the headline numbers up to their value and fill the progress bars.
+     Purely presentational — the DOM already holds the final figures. */
+  animateResearch() {
+    const bars = document.querySelectorAll('#modalBody .rs-prog i');
+    requestAnimationFrame(() => bars.forEach(b => { b.style.width = b.dataset.w + '%'; }));
+    const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    for (const el2 of document.querySelectorAll('#modalBody .rs-num')) {
+      const to = +el2.dataset.to || 0;
+      if (reduce || to <= 0) { el2.textContent = to; continue; }
+      const dur = 520, t0 = performance.now();
+      const step = (now) => {
+        const t = clamp((now - t0) / dur, 0, 1);
+        const e = 1 - Math.pow(1 - t, 3);
+        el2.textContent = Math.round(to * e);
+        if (t < 1) requestAnimationFrame(step);
+      };
+      requestAnimationFrame(step);
+    }
+  },
+  /* Buy, then redraw with the bought node flagged so it flashes once. */
+  buyResearch(id) {
+    if (Research.buy(id, true)) {
+      Audio.play('complete');
+      this.openResearch(null, id);
+    } else this.openResearch();
   },
 
   /* ---- shared renderer for any grid that can contain Prestige items ---- */
@@ -14175,7 +14279,9 @@ const Research = {
     if (r.req && !Park.research.unlocked[r.req]) return false;
     return true;
   },
-  buy(id) {
+  /* noRefresh: the caller is redrawing itself (and wants to flag which
+     node was just bought so it can flash), so don't redraw over the top. */
+  buy(id, noRefresh) {
     const r = RESEARCH.find(x => x.id === id);
     if (!r || !this.canBuy(r)) return false;
     if (Park.money < r.cost) { UI.notify('Too expensive', r.name + ' costs ' + money(r.cost) + '.', 'bad'); return false; }
@@ -14186,9 +14292,11 @@ const Research = {
     r.apply();
     if (Park.staff) for (const s of Park.staff) if (s.applyTraining) s.applyTraining();
     UI.notify('Research complete', r.name + ' — ' + r.desc, 'good');
-    // the tree lives in the modal now, so redraw that rather than the rail
-    if ($('#modalWrap').classList.contains('show')) UI.openResearch();
-    else UI.refreshBuildPanel();
+    if (!noRefresh) {
+      // the tree lives in the modal now, so redraw that rather than the rail
+      if ($('#modalWrap').classList.contains('show')) UI.openResearch();
+      else UI.refreshBuildPanel();
+    }
     return true;
   },
 };
