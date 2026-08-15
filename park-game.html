@@ -2371,6 +2371,20 @@ const MAPS = [
    exactly what happened when the thumbnail generator kept its own copy of the
    list and silently fell back to stone for anything it did not know about).
    Only `road` and `bridge` mean anything to the simulation; the rest is paint. */
+/* Entrance styles. The tier decides how much entrance there is; the theme
+   decides what it is made of, so a Landmark Plaza can be marble-and-gold or
+   timber-and-copper without needing a separate mesh for each combination. */
+const GATE_THEMES = [
+  { id: 'classic', name: 'Classic Fair', stone: 0xe8dfc8, trim: 0xc0563f, roof: 0x8b3a2b, accent: 0xffd23f },
+  { id: 'seaside', name: 'Seaside Resort', stone: 0xf2f4f0, trim: 0x2f80c0, roof: 0x1f5f8f, accent: 0xffe08a },
+  { id: 'royal',   name: 'Royal Gardens',  stone: 0xefe6f7, trim: 0x7b3fd4, roof: 0x4a2680, accent: 0xf0d060 },
+  { id: 'imperial',name: 'Imperial Gold',  stone: 0xf6f1e4, trim: 0xd4a017, roof: 0x8a6410, accent: 0xffe9a8 },
+  { id: 'timber',  name: 'Timber Lodge',   stone: 0xe0cfae, trim: 0x8a5a32, roof: 0x5c3a22, accent: 0xd9a441 },
+  { id: 'emerald', name: 'Emerald Grove',  stone: 0xe6f0e2, trim: 0x2e8b57, roof: 0x1e5c3a, accent: 0xf2d98a },
+  { id: 'midnight',name: 'Midnight Steel', stone: 0xd8dde3, trim: 0x37414f, roof: 0x232a34, accent: 0x6ac6f0 },
+  { id: 'coral',   name: 'Coral Bay',      stone: 0xfdeee6, trim: 0xe0663f, roof: 0xb84a2c, accent: 0x39c0ff },
+];
+
 const PATH_MATS = [
   { name: 'Asphalt',         c: 0x6b6b6d, d: 0x5a5a5c, stripe: false },  // 0
   { name: 'Stone',           c: 0xc4b79d, d: 0xb0a288, stripe: false },  // 1  (default)
@@ -4580,62 +4594,149 @@ const Prefab = {
      name board. It is the first thing anyone sees, so it scales with how
      grand the park has decided to be.
      ------------------------------------------------------------------ */
-  gate(tier) {
+  gate(tier, themeId) {
     const g = new Geo(), parts = [];
     const T = tier || 1;
-    const W = 11 * TILE, D = 3 * TILE;
-    const stone = hex(0xe8dfc8), trim = hex([0, 0xc0563f, 0x2f80c0, 0x7b3fd4, 0xd4a017][T] || 0xc0563f);
-    const roof = hex([0, 0x8b3a2b, 0x1f5f8f, 0x4a2680, 0x8a6410][T] || 0x8b3a2b);
+    const W = 13 * TILE, D = 4 * TILE;
+    /* The entrance is the first thing anyone sees, so its palette is a
+       player choice rather than a fixed per-tier colour. A theme supplies
+       the stonework, the trim and the roof; the tier decides how much
+       building there is to paint. */
+    const th = GATE_THEMES.find(x => x.id === themeId) || GATE_THEMES[0];
+    const stone = hex(th.stone), trim = hex(th.trim), roof = hex(th.roof);
+    const gold = hex(th.accent);
 
+    // forecourt apron, with a kerb and a paved threshold under the arch
     g.box(0, -.2, 0, W, .5, D, hex(0xc4b79d));
+    g.box(0, .04, 0, W - 1.2, .10, D - 1.2, shade(hex(0xc4b79d), 1.07));
+    g.box(0, .10, -D / 2 + .5, 13.0, .08, 1.6, shade(stone, 1.04));
+
     // two ticket blocks either side of the opening
     for (const sx of [-1, 1]) {
-      const cx = sx * 12.5;
-      g.box(cx, 0, 0, 9, 6.5, D - 1.5, stone);
-      g.box(cx, 6.5, 0, 10, .7, D - .5, roof);
-      g.box(cx, 7.2, 0, 8.4, .5, D - 2.0, trim);
-      // ticket windows facing out
-      for (let k = 0; k < 3; k++) {
-        const wx = cx - 2.8 + k * 2.8;
-        g.box(wx, 2.4, -D / 2 + .55, 1.7, 2.0, .35, hex(0x2b3a4a));
-        g.box(wx, 1.25, -D / 2 + .40, 2.0, .35, .55, hex(0xb8b2a6));
-        g.box(wx, 3.7, -D / 2 + .45, 2.1, .35, .5, trim);
+      const cx = sx * 14.2;
+      g.box(cx, 0, 0, 11, 7.2, D - 1.6, stone);
+      g.box(cx, 7.2, 0, 12, .8, D - .6, roof);
+      g.box(cx, 8.0, 0, 10.2, .55, D - 2.0, trim);
+      g.box(cx, 8.55, 0, 8.8, .28, D - 2.6, shade(roof, 1.12));
+      // ticket windows facing out, with sills, canopies and turnstiles
+      for (let k = 0; k < 4; k++) {
+        const wx = cx - 4.2 + k * 2.8;
+        g.box(wx, 2.5, -D / 2 + .60, 1.8, 2.1, .35, hex(0x2b3a4a));
+        g.box(wx, 2.5, -D / 2 + .44, 1.5, 1.8, .10, hex(0x8fc4e8));
+        g.box(wx, 1.30, -D / 2 + .42, 2.1, .38, .58, hex(0xb8b2a6));
+        g.box(wx, 3.9, -D / 2 + .46, 2.2, .36, .55, trim);
+        g.box(wx, 4.26, -D / 2 + .30, 2.3, .12, .95, shade(trim, 1.15));
+        // turnstile stub on the concourse side
+        g.cyl(wx, .1, D / 2 - .9, .16, 1.05, 8, hex(0x9aa4ae));
+        for (let a2 = 0; a2 < 3; a2++)
+          g.box(wx + Math.cos(a2 / 3 * TAU) * .5, .95, D / 2 - .9 + Math.sin(a2 / 3 * TAU) * .5, 1.0, .07, .12, hex(0xb8c0c8));
       }
-      for (let k = 0; k <= 3; k++) g.cyl(cx - 4.2 + k * 2.8, 0, -D / 2 + .2, .28, 6.5, 8, shade(stone, .92));
+      // colonnade along the front face
+      for (let k = 0; k <= 4; k++) {
+        const px = cx - 5.2 + k * 2.6;
+        g.cyl(px, 0, -D / 2 + .25, .30, 7.2, 8, shade(stone, .92));
+        g.box(px, 7.2, -D / 2 + .25, .86, .26, .86, shade(stone, 1.06));
+        g.box(px, -.02, -D / 2 + .25, .80, .22, .80, shade(stone, .86));
+      }
     }
+
     // the arch across the middle
-    for (const sx of [-1, 1]) g.box(sx * 5.2, 0, 0, 1.6, 9.5, D - 1.0, stone);
-    g.box(0, 9.5, 0, 12.2, 1.5, D - .6, trim);
-    g.box(0, 11.0, 0, 13.0, .6, D, roof);
-    for (let k = 0; k < 9; k++) {
-      const t = k / 8, a = t * PI;
-      g.box(Math.cos(a) * 4.6, 9.5 - Math.sin(a) * 3.2 - .4, 0, 1.0, .8, D - 1.2, shade(stone, .95));
+    for (const sx of [-1, 1]) {
+      g.box(sx * 6.0, 0, 0, 1.9, 10.6, D - 1.0, stone);
+      g.box(sx * 6.0, 10.6, 0, 2.4, .40, D - .7, shade(stone, 1.08));
+      g.box(sx * 6.0, -.02, 0, 2.3, .34, D - .7, shade(stone, .86));
+    }
+    g.box(0, 10.6, 0, 13.9, 1.7, D - .6, trim);
+    g.box(0, 12.3, 0, 14.8, .7, D, roof);
+    g.box(0, 13.0, 0, 13.2, .22, D - .8, shade(roof, 1.14));
+    for (let k = 0; k < 11; k++) {
+      const t = k / 10, a = t * PI;
+      g.box(Math.cos(a) * 5.3, 10.6 - Math.sin(a) * 3.6 - .45, 0, 1.05, .85, D - 1.2, shade(stone, .95));
     }
     // name board and clock
-    g.box(0, 11.6, 0, 10.0, 2.4, .5, hex(0xf6f1e4));
-    g.box(0, 11.6, -.30, 9.0, 1.8, .12, trim);
-    g.cyl(0, 14.2, 0, 1.9, .5, 14, hex(0xf6f1e4), 0, true);
-    g.cyl(0, 14.2, -.31, 1.5, .12, 14, hex(0x2b3a4a), 0, true);
+    g.box(0, 13.0, 0, 11.2, 2.6, .55, hex(0xf6f1e4));
+    g.box(0, 13.0, -.32, 10.1, 2.0, .12, trim);
+    g.box(0, 15.6, 0, 11.6, .26, .70, shade(trim, 1.15));
+    g.cyl(0, 15.9, 0, 2.05, .5, 14, hex(0xf6f1e4), 0, true);
+    g.cyl(0, 15.9, -.31, 1.65, .12, 14, hex(0x2b3a4a), 0, true);
+    for (let k = 0; k < 12; k++) {                       // clock face ticks
+      const a = k / 12 * TAU;
+      g.box(Math.cos(a) * 1.42, 15.9 + Math.sin(a) * 1.42, -.36, .12, .12, .06, hex(0x2b3a4a));
+    }
     if (T >= 2) {
-      for (const sx of [-1, 1]) { g.cyl(sx * 16.6, 0, -D / 2 - 1.6, .22, 8, 6, hex(0xd8d2c4)); g.box(sx * 16.6, 8.2, -D / 2 - 1.6, 1.4, .9, .1, trim); }
+      for (const sx of [-1, 1]) {
+        g.cyl(sx * 18.6, 0, -D / 2 - 1.6, .24, 8.6, 6, hex(0xd8d2c4));
+        g.box(sx * 18.6, 8.8, -D / 2 - 1.6, 1.5, .95, .1, trim);
+        g.sphere(sx * 18.6, 8.7, -D / 2 - 1.6, .22, 6, gold);
+      }
+      // planters flanking the threshold
+      for (const sx of [-1, 1]) {
+        g.box(sx * 8.6, .10, -D / 2 - 1.0, 1.7, .70, 1.7, shade(stone, .90));
+        g.sphere(sx * 8.6, 1.35, -D / 2 - 1.0, .85, 7, hex(0x3f9e52));
+      }
     }
     if (T >= 3) {
-      for (const sx of [-1, 1]) for (let k = 0; k < 4; k++)
-        g.sphere(sx * (7 + k * 2.2), 12.9, 0, .30, 6, hex(0xfff3c4));
-      this.lightBulbs(g, 0, 11.9, -.4, 5.4, 14, hex(0xfff3c4));
+      for (const sx of [-1, 1]) for (let k = 0; k < 5; k++)
+        g.sphere(sx * (7.4 + k * 2.2), 14.4, 0, .30, 6, hex(0xfff3c4));
+      this.lightBulbs(g, 0, 13.3, -.42, 6.0, 16, hex(0xfff3c4));
+      // banner pennants strung between the ticket blocks
+      for (let k = -5; k <= 5; k++)
+        g.box(k * 2.3, 9.3 + Math.abs(k) * .12, -D / 2 - .35, .55, .85, .05,
+              k % 2 ? trim : gold);
     }
     if (T >= 4) {
-      g.cone(0, 14.7, 0, 2.6, 4.0, 10, roof);
-      g.sphere(0, 18.8, 0, .55, 8, hex(0xffd23f));
-      for (const sx of [-1, 1]) { g.cone(sx * 12.5, 7.2, 0, 5.4, 3.4, 8, roof); g.sphere(sx * 12.5, 10.8, 0, .4, 6, hex(0xffd23f)); }
+      /* Landmark Plaza: this is meant to be the money shot, so the top tier
+         gets a real crown rather than one extra cone — a tiered spire on a
+         drum, gilded finials over each ticket hall, corner turrets, a
+         fountain in the forecourt and a colonnade sweeping out to meet the
+         approach. */
+      g.cyl(0, 16.4, 0, 2.9, 1.5, 12, shade(stone, 1.05));
+      g.cyl(0, 17.9, 0, 2.4, .45, 12, trim);
+      for (let k = 0; k < 12; k++) {                     // drum colonnade
+        const a = k / 12 * TAU;
+        g.cyl(Math.cos(a) * 2.35, 18.35, Math.sin(a) * 2.35, .16, 1.5, 6, shade(stone, .96));
+      }
+      g.cyl(0, 19.85, 0, 2.6, .35, 12, shade(roof, 1.05));
+      g.cone(0, 20.2, 0, 2.5, 3.2, 12, roof);
+      g.cone(0, 22.6, 0, 1.5, 2.0, 10, shade(roof, 1.1));
+      g.sphere(0, 24.6, 0, .62, 8, gold);
+      g.cyl(0, 25.2, 0, .09, 1.5, 6, gold);
+      g.sphere(0, 26.7, 0, .28, 6, gold);
+      // gilded roofs and finials over the ticket halls
+      for (const sx of [-1, 1]) {
+        g.cone(sx * 14.2, 8.0, 0, 6.2, 3.6, 8, roof);
+        g.sphere(sx * 14.2, 11.7, 0, .45, 6, gold);
+        g.cyl(sx * 14.2, 12.1, 0, .07, .9, 6, gold);
+        // corner turrets
+        for (const sz of [-1, 1]) {
+          const tx = sx * 19.0, tz = sz * (D / 2 - 1.0);
+          g.cyl(tx, 0, tz, 1.05, 9.0, 10, shade(stone, .97));
+          g.cyl(tx, 9.0, tz, 1.25, .35, 10, trim);
+          g.cone(tx, 9.35, tz, 1.35, 2.3, 10, roof);
+          g.sphere(tx, 11.75, tz, .28, 6, gold);
+        }
+      }
+      // fountain centred on the forecourt
+      g.cyl(0, .10, -D / 2 - 4.6, 3.3, .55, 14, shade(stone, .98));
+      g.cyl(0, .55, -D / 2 - 4.6, 2.9, .30, 14, hex(0x3f97c4));
+      g.cyl(0, .85, -D / 2 - 4.6, .85, 1.5, 10, shade(stone, 1.04));
+      g.cyl(0, 2.35, -D / 2 - 4.6, 1.5, .28, 12, shade(stone, 1.08));
+      g.cyl(0, 2.63, -D / 2 - 4.6, .35, 1.2, 8, shade(stone, 1.02));
+      g.sphere(0, 3.95, -D / 2 - 4.6, .45, 7, gold);
+      // sweeping colonnade arms out toward the approach
+      for (const sx of [-1, 1]) for (let k = 0; k < 5; k++) {
+        const px = sx * (10.5 + k * 2.4), pz = -D / 2 - 1.2 - k * 1.5;
+        g.cyl(px, 0, pz, .26, 5.4, 8, shade(stone, .94));
+        g.box(px, 5.4, pz, .75, .30, .75, trim);
+      }
     }
     // the clock hands actually turn with park time
     const hands = new Geo();
     hands.box(0, .55, 0, .16, 1.1, .10, hex(0x2b3a4a));
-    parts.push({ geo: hands, anim: (m, o, t) => M4.compose(m, 0, 14.2, -.42, 0, 0, -(Park.time / 60 / 12) * TAU, 1, 1, 1) });
+    parts.push({ geo: hands, anim: (m, o, t) => M4.compose(m, 0, 15.9, -.42, 0, 0, -(Park.time / 60 / 12) * TAU, 1, 1, 1) });
     const hands2 = new Geo();
     hands2.box(0, .75, 0, .10, 1.5, .08, hex(0xc0563f));
-    parts.push({ geo: hands2, anim: (m, o, t) => M4.compose(m, 0, 14.2, -.45, 0, 0, -(Park.time % 60) / 60 * TAU, 1, 1, 1) });
+    parts.push({ geo: hands2, anim: (m, o, t) => M4.compose(m, 0, 15.9, -.45, 0, 0, -(Park.time % 60) / 60 * TAU, 1, 1, 1) });
     // a turnstile bar that ticks round as people come in
     for (const sx of [-3.4, 3.4]) {
       const turn = new Geo();
@@ -6861,9 +6962,10 @@ class Ride extends ParkObject {
    the place admissions, staffing and park-wide upgrades are managed from. */
 class Gate extends ParkObject {
   constructor(i, j) {
-    super('gate', { w: 11, d: 3, name: 'Park Entrance', cost: 0, up: 12, ph: 20 }, i, j, 0);
+    super('gate', { w: 13, d: 4, name: 'Park Entrance', cost: 0, up: 14, ph: 20 }, i, j, 0);
     this.name = 'Park Entrance';
     this.tier = 1;
+    this.theme = 'classic';       // palette, chosen by the player
     this.admitted = 0;
     this.revenue = 0;
     this.turnedAway = 0;
@@ -6888,6 +6990,13 @@ class Gate extends ParkObject {
     return true;
   }
   tierName() { return ['', 'Simple Gates', 'Themed Gates', 'Grand Entrance', 'Landmark Plaza'][this.tier]; }
+  themeName() { const t = GATE_THEMES.find(x => x.id === this.theme); return t ? t.name : 'Classic Fair'; }
+  setTheme(id) {
+    if (!GATE_THEMES.some(x => x.id === id)) return false;
+    this.theme = id;
+    this.mesh = null;             // repainted from the new palette next frame
+    return true;
+  }
 }
 
 class CoasterRide extends ParkObject {
@@ -10778,6 +10887,31 @@ const UI = {
           <div class="btnrow"><button class="btn go" style="flex:0 0 auto;padding:10px 22px"
             onclick="Park.gate.upgrade();UI.entrance('upgrades')">Rebuild as ${nxt} &middot; ${money(gate.upgradeCost())}</button></div>`;
       } else h += `<p>The entrance is as grand as it gets.</p>`;
+
+      /* The palette is free and independent of the tier — the tier decides how
+         much entrance there is, this decides what it is made of. */
+      h += `<h3>Entrance style</h3>`;
+      h += `<p style="margin-bottom:8px">Repainting is free and takes effect immediately. Currently
+        <b>${gate.themeName()}</b>.</p>`;
+      h += `<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px">`;
+      for (const t of GATE_THEMES) {
+        const on = gate.theme === t.id;
+        const sw = (v) => '#' + (v >>> 0).toString(16).padStart(6, '0');
+        h += `<div onclick="Park.gate.setTheme('${t.id}');UI.entrance('upgrades')"
+          style="cursor:pointer;border:2.5px solid ${on ? 'var(--accent-ink)' : 'var(--edge)'};
+                 border-radius:10px;padding:7px;background:${on ? '#eaf6ff' : '#fff'};text-align:center">
+          <div style="display:flex;height:26px;border-radius:6px;overflow:hidden;border:1px solid rgba(18,58,86,.16)">
+            <span style="flex:2;background:${sw(t.stone)}"></span>
+            <span style="flex:1;background:${sw(t.trim)}"></span>
+            <span style="flex:1;background:${sw(t.roof)}"></span>
+            <span style="flex:.7;background:${sw(t.accent)}"></span>
+          </div>
+          <div style="font-size:9.5px;font-weight:800;margin-top:5px;line-height:1.2">${t.name}</div>
+          ${on ? '<div style="font-size:8.5px;font-weight:800;color:var(--accent-ink);letter-spacing:.08em">IN USE</div>' : ''}
+        </div>`;
+      }
+      h += `</div>`;
+
       h += `<h3>Park-wide</h3>`;
       const atts = Park.objects.filter(x => x.kind === 'ride' || x.kind === 'shop');
       const upgradable = atts.filter(x => x.canUpgrade && x.canUpgrade());
@@ -13508,7 +13642,8 @@ const PF = {
     return this.get(key, () => o.kind === 'shop' ? Prefab.shop(def) : Prefab.ride(def.kind, def));
   },
   recolour(o) { /* the cache key changes with the colours, so nothing to purge */ },
-  gate(tier) { return this.get('gate_' + tier, () => Prefab.gate(tier)); },
+  /* Keyed by tier AND theme — the same tier in two palettes is two meshes. */
+  gate(tier, theme) { return this.get('gate_' + tier + '_' + (theme || 'classic'), () => Prefab.gate(tier, theme)); },
   busStation(tier) { return this.get('bstation_' + tier, () => Prefab.busStation(tier)); },
   busStop(mode) { return this.get('bstop_' + mode, () => Prefab.busStop(mode)); },
   gondolaTower() { return this.get('gtower', () => Prefab.gondolaTower(false)); },
@@ -16666,10 +16801,10 @@ const Game = {
     // generator lays down, and the concourse runs north from it.
     {
       const c = N >> 1;
-      const gi = c - 5, gj = c + 22;
+      const gi = c - 6, gj = c + 22;
       const gate = new Gate(gi, gj);
       gate.y = WORLD.tileH(gi, gj);
-      WORLD.flatten(gi, gj, 11, 3, gate.y);
+      WORLD.flatten(gi, gj, 13, 4, gate.y);
       gate.updateMatrix();
       gate.footprint((i, j) => { WORLD.setT(i, j, T_ENTRY); WORLD.setOwn(i, j, gate.id); });
       Park.objects.push(gate);
@@ -18353,7 +18488,7 @@ const Game = {
     for (let k = 0; k < size; k++) {
       if (Park.guests.length >= Park.capacity) break;
       const x = origin ? origin.x + rnd(-1.1, 1.1) : WORLD.wx(c + rndi(-2, 2)) + rnd(-1.2, 1.2);
-      const z = origin ? origin.z + rnd(-1.1, 1.1) : WORLD.wz(c + 25) + rnd(-1.5, 1.5);
+      const z = origin ? origin.z + rnd(-1.1, 1.1) : WORLD.wz(c + 27) + rnd(-1.5, 1.5);
       const g = new Guest(x, z);
       if (!this.admitGuest(g)) continue;
       Park.totalGuests++;
@@ -18412,7 +18547,7 @@ const Game = {
     const members = [];
     for (let k = 0; k < size; k++) {
       if (Park.guests.length >= Park.capacity) break;
-      const x = WORLD.wx(c + rndi(-3, 3)) + rnd(-1.5, 1.5), z = WORLD.wz(c + 25) + rnd(-2, 2);
+      const x = WORLD.wx(c + rndi(-3, 3)) + rnd(-1.5, 1.5), z = WORLD.wz(c + 27) + rnd(-2, 2);
       const g = new Guest(x, z);
       if (!this.admitGuest(g)) continue;
       Park.totalGuests++;
@@ -18594,7 +18729,7 @@ const Game = {
                it has to be saved whole, or every custom slide reverts to a
                dangling id that resolves to nothing on load. */
             cd: o.def.custom ? o.def : undefined, wi: o.waveIntensity, bb: o.beautyBonus })),
-        gate: Park.gate ? { tier: Park.gate.tier, adm: Park.gate.admitted, ta: Park.gate.turnedAway } : null,
+        gate: Park.gate ? { tier: Park.gate.tier, adm: Park.gate.admitted, ta: Park.gate.turnedAway, th: Park.gate.theme } : null,
         pname: Park.name,
         cos: Park.coasters.map(c => ({
           t: c.type.id, i: c.i, j: c.j, r: c.rot, pieces: c.track.pieces, custom: c.track.custom, done: c.track.complete,
@@ -18838,7 +18973,7 @@ const Game = {
         c.footprint((i, j) => { WORLD.setT(i, j, T_BUILD); WORLD.setOwn(i, j, c.id); });
       }
       {
-        const c = N >> 1, gi = c - 5, gj = c + 22;
+        const c = N >> 1, gi = c - 6, gj = c + 22;
         const gate = new Gate(gi, gj);
         gate.y = WORLD.tileH(gi, gj); gate.updateMatrix();
         gate.footprint((i, j) => { WORLD.setT(i, j, T_ENTRY); WORLD.setOwn(i, j, gate.id); });
@@ -18861,6 +18996,8 @@ const Game = {
         Park.gate.tier = clamp(d.gate.tier || 1, 1, 4);
         Park.gate.admitted = d.gate.adm || 0;
         Park.gate.turnedAway = d.gate.ta || 0;
+        // saves from before entrance themes existed load as the classic palette
+        Park.gate.theme = GATE_THEMES.some(x => x.id === d.gate.th) ? d.gate.th : 'classic';
       }
       if (d.pname) Park.name = d.pname;
       Transit.reset();
@@ -19794,7 +19931,7 @@ Object.assign(Game, {
       } else if (o.kind === 'gtower') {
         R.draw(PF.gondolaTower().mesh, o.matrix, glow ? { emissive: glow * .40 } : null);
       } else if (o.kind === 'ride' || o.kind === 'gate') {
-        const pf = o.kind === 'gate' ? PF.gate(o.tier) : PF.forObject(o);
+        const pf = o.kind === 'gate' ? PF.gate(o.tier, o.theme) : PF.forObject(o);
         R.draw(pf.mesh, o.matrix, glow ? { emissive: glow * .40 } : null);
         const tmp = M4.create(), out = M4.create();
         for (const part of pf.parts) {
