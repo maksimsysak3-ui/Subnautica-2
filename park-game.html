@@ -518,6 +518,35 @@ kbd{
 /* ---------- research tree ----------
    Laid out as dependency chains rather than a flat grid of identical boxes,
    so the order things must be bought in is visible at a glance. */
+/* ---------- Park Management subtabs, grouped by question ---------- */
+#modalBody .mgt{display:flex;flex-wrap:wrap;gap:7px 16px;margin-bottom:16px;padding-bottom:13px;
+  border-bottom:2px solid var(--edge-soft)}
+#modalBody .mgt-g{display:flex;align-items:center;gap:5px}
+#modalBody .mgt-l{font-size:8.5px;letter-spacing:.14em;text-transform:uppercase;font-weight:800;
+  color:var(--dimmer);margin-right:2px}
+#modalBody .mgt-b{font-size:10.5px;font-weight:800;padding:6px 12px;border-radius:7px;cursor:pointer;
+  border:2px solid var(--edge);background:#fff;color:var(--txt);font-family:inherit;transition:all var(--sn)}
+#modalBody .mgt-b:hover{border-color:var(--accent);transform:translateY(-1px)}
+#modalBody .mgt-b.on{background:var(--accent-ink);border-color:var(--accent-ink);color:#fff}
+
+/* generic list rows used by the new management screens */
+#modalBody .lrow{display:flex;align-items:center;gap:11px;padding:8px 11px;border-radius:var(--r-sm);
+  border:2px solid var(--edge-soft);background:#fff;margin-bottom:6px;transition:all var(--sn)}
+#modalBody .lrow:hover{border-color:var(--accent)}
+#modalBody .lrow .av{width:30px;height:30px;flex:0 0 auto;border-radius:50%;display:flex;
+  align-items:center;justify-content:center;font-size:11px;font-weight:800;color:#fff}
+#modalBody .lrow .m{flex:1;min-width:0}
+#modalBody .lrow .m b{font-size:11.5px}
+#modalBody .lrow .m span{display:block;font-size:9.5px;color:var(--dim);font-weight:600;line-height:1.45}
+#modalBody .lrow .r{flex:0 0 auto;text-align:right;font-size:10.5px;font-weight:800;
+  font-variant-numeric:tabular-nums}
+#modalBody .chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
+#modalBody .chip{font-size:9.5px;font-weight:800;border-radius:20px;padding:4px 11px;
+  border:2px solid var(--edge);background:#fff;cursor:pointer;font-family:inherit;color:var(--txt)}
+#modalBody .chip.on{background:var(--accent-ink);border-color:var(--accent-ink);color:#fff}
+#modalBody .empty{font-size:11px;color:var(--dim);text-align:center;padding:26px 10px;
+  background:var(--panel-sunken);border-radius:var(--r-sm);border:1.5px dashed var(--edge)}
+
 /* ---------- safety certificate card ---------- */
 .lic{border:2px solid var(--edge);border-radius:var(--r-sm);background:#fff;padding:12px 14px;
   position:relative;overflow:hidden}
@@ -7587,6 +7616,18 @@ const Weather = {
 /* ============================================================================
    SECTION 12 — PARK STATE
    ========================================================================== */
+/* Park policies, and the two multipliers they feed. Kept as functions rather
+   than cached numbers so toggling a rule takes effect on the next tick with
+   nothing to invalidate — and so the figures the Rules screen prints are read
+   from the same place the simulation reads them. */
+const ParkRules = {
+  get: () => (Park.rules || (Park.rules = { smoking: true, reentry: true, strollers: true, photos: true, queueJump: false })),
+  spendMult() { const R = this.get();
+    return 1 + (R.photos ? .04 : 0) + (R.queueJump ? .06 : 0) - (R.reentry ? .03 : 0); },
+  moodMult() { const R = this.get();
+    return 1 + (R.smoking ? 0 : .02) + (R.strollers ? .02 : 0) - (R.queueJump ? .04 : 0); },
+};
+
 const Park = {
   mode: 'sandbox', level: 8, xp: 0,
   money: 60000,
@@ -8655,8 +8696,8 @@ class Guest extends Person {
     const ambient = Weather.moodFactor() * 6
       - Math.min(.02, Park.litter.length / Math.max(40, Park.guests.length) * .03) * 6;
     const target = clamp(
-      (this.cComfort * .32 + this.cValue * .22 + this.cExcite * .30 + this.cFresh * .16) + ambient,
-      0, 1);
+      ((this.cComfort * .32 + this.cValue * .22 + this.cExcite * .30 + this.cFresh * .16) + ambient)
+      * ParkRules.moodMult(), 0, 1);
     /* Ease toward the target rather than snapping, on the same park-hour
        scale the needs above use, so a single bad moment does not wreck a
        whole day and a good one has to be sustained to pay off. */
@@ -9213,8 +9254,12 @@ class Guest extends Person {
       return;
     }
     if (this.cash >= s.price) {
-      this.cash -= s.price; this.spent += s.price;
-      Park.earn(s.price, 'shop'); s.revenue += s.price; s.served++;
+      /* Park policies nudge what a guest is willing to part with — on-ride
+         photos and priority passes lift it, same-day re-entry lowers it
+         because they can always come back instead of buying now. */
+      const paid = Math.max(1, Math.round(s.price * ParkRules.spendMult()));
+      this.cash -= paid; this.spent += paid;
+      Park.earn(paid, 'shop'); s.revenue += paid; s.served++;
       s.stock = clamp(s.stock - (100 / (s.def.stockSize || 65)), 0, 100);
       if (s.merch && s.merch.name) this.happy = clamp(this.happy + .015, 0, 1);
       Progress.add(1);
@@ -11998,6 +12043,12 @@ const UI = {
     if (this.manageTab === 'marketing') return this.marketingTab();
     if (this.manageTab === 'finance2') return this.loansTab();
     if (this.manageTab === 'thoughts') return this.thoughtsTab();
+    if (this.manageTab === 'guests') return this.guestsTab();
+    if (this.manageTab === 'reviews') return this.reviewsTab();
+    if (this.manageTab === 'history') return this.historyTab();
+    if (this.manageTab === 'awards') return this.awardsTab();
+    if (this.manageTab === 'transport') return this.transportTab();
+    if (this.manageTab === 'rules') return this.rulesTab();
     const L = Park.log;
     const income = L.ticket + L.shop + L.entry + (L.hotel || 0) + (L.transit || 0);
     const rows = [
@@ -12055,10 +12106,252 @@ const UI = {
     this.modal('Park Management', this.tabBar('finance') + h);
   },
 
+  /* Park Management is the hub for everything you read rather than build,
+     so its subtabs are grouped by what you are actually asking about —
+     money, people, the park itself — instead of one long undifferentiated
+     row that grows every time a screen is added. */
+  MANAGE_GROUPS: [
+    ['Money',  [['finance', 'Ledger'], ['finance2', 'Loans'], ['marketing', 'Marketing'], ['history', 'History']]],
+    ['People', [['guests', 'Guests'], ['thoughts', 'Thoughts'], ['reviews', 'Reviews'], ['staff', 'Staff']]],
+    ['Park',   [['transport', 'Transport'], ['rules', 'Rules'], ['awards', 'Awards']]],
+  ],
   tabBar(active) {
-    const t = (id, label) => `<button class="btn ${active === id ? 'pri' : ''}" style="flex:0 0 auto;padding:6px 16px"
-      onclick="UI.finances('${id}')">${label}</button>`;
-    return `<div class="btnrow" style="margin-bottom:14px">${t('finance', 'Park &amp; Finances')}${t('staff', 'Staff')}${t('marketing', 'Marketing')}${t('finance2', 'Loans')}${t('thoughts', 'Guest Thoughts')}</div>`;
+    let h = `<div class="mgt">`;
+    for (const [group, tabs] of this.MANAGE_GROUPS) {
+      h += `<div class="mgt-g"><span class="mgt-l">${group}</span>`;
+      for (const [id, label] of tabs)
+        h += `<button class="mgt-b ${active === id ? 'on' : ''}" onclick="UI.finances('${id}')">${label}</button>`;
+      h += `</div>`;
+    }
+    return h + `</div>`;
+  },
+
+  /* ================= GUESTS =================
+     A browsable crowd rather than a headcount. Filters key off the same
+     component breakdown the guests themselves use, so "unhappy" here means
+     exactly what it means to the simulation. */
+  guestFilter: 'all',
+  guestsTab() {
+    let h = this.tabBar('guests');
+    const g = Park.guests;
+    if (!g.length) return this.modal('Park Management', h + `<div class="empty">Nobody is in the park yet.</div>`);
+    const avg = (fn) => g.reduce((a, q) => a + (fn(q) || 0), 0) / g.length;
+    const filters = [
+      ['all', 'Everyone', () => true],
+      ['unhappy', 'Unhappy', q => q.happy < .5],
+      ['broke', 'Out of money', q => q.cash < 12],
+      ['hungry', 'Hungry or thirsty', q => q.hunger > .7 || q.thirst > .7],
+      ['queasy', 'Feeling sick', q => q.nausea > .5],
+      ['tired', 'Worn out', q => (q.cFresh === undefined ? 1 : q.cFresh) < .35],
+      ['leaving', 'Heading home', q => q.state === 'leaving'],
+    ];
+    const f = filters.find(x => x[0] === this.guestFilter) || filters[0];
+    const list = g.filter(f[2]);
+    h += `<div class="chips">` + filters.map(([id, label, fn]) =>
+      `<button class="chip ${id === this.guestFilter ? 'on' : ''}" onclick="UI.guestFilter='${id}';UI.finances('guests')">${label} <b>${g.filter(fn).length}</b></button>`).join('') + `</div>`;
+    h += `<div class="rs-top" style="margin-bottom:14px">
+      <div class="rs-stat"><span class="l">In the park</span><div class="v">${g.length.toLocaleString()}</div></div>
+      <div class="rs-stat"><span class="l">Avg happiness</span><div class="v">${Math.round(avg(q => q.happy) * 100)}%</div></div>
+      <div class="rs-stat"><span class="l">Avg spend</span><div class="v">${money(avg(q => q.spent))}</div></div>
+      <div class="rs-stat"><span class="l">Avg rides</span><div class="v">${avg(q => q.ridden ? q.ridden.length : 0).toFixed(1)}</div></div>
+    </div>`;
+    h += `<h3>${f[1]} &middot; ${list.length}</h3>`;
+    if (!list.length) h += `<div class="empty">Nobody matches that right now — which is good news.</div>`;
+    for (const q of list.slice(0, 40)) {
+      const col = q.happy > .7 ? 'var(--good)' : q.happy > .45 ? 'var(--warn)' : 'var(--bad)';
+      const worst = { comfort: 'uncomfortable', value: 'feels ripped off', excitement: 'bored', energy: 'worn out' }[q.moodWorst] || '';
+      h += `<div class="lrow" onclick="Cam.tx=${q.x.toFixed(1)};Cam.tz=${q.z.toFixed(1)};Game.select(Park.guests.find(x=>x.id===${q.id}));UI.closeModal()" style="cursor:pointer">
+        <span class="av" style="background:${col}">${Math.round(q.happy * 100)}</span>
+        <span class="m"><b>${esc(q.name)}</b><span>${q.state} &middot; ${q.ridden ? q.ridden.length : 0} rides &middot; ${worst}</span></span>
+        <span class="r">${money(q.cash)}<br><span style="color:var(--dim);font-weight:600">in pocket</span></span></div>`;
+    }
+    if (list.length > 40) h += `<div style="font-size:10.5px;color:var(--dim);text-align:center">…and ${list.length - 40} more.</div>`;
+    return this.modal('Park Management', h);
+  },
+
+  /* ================= REVIEWS =================
+     Reviews were being generated and thrown away — there was nowhere to read
+     them. This aggregates them and, more usefully, ranks what guests are
+     actually complaining about. */
+  reviewsTab() {
+    let h = this.tabBar('reviews');
+    const all = [];
+    for (const o of Park.objects.concat(Park.coasters))
+      for (const r of (o.reviews || [])) all.push({ r, o });
+    if (!all.length) return this.modal('Park Management', h + `<div class="empty">No reviews yet. Guests write them after riding.</div>`);
+    all.sort((a, b) => b.r.day - a.r.day);
+    const avg = all.reduce((a, x) => a + x.r.stars, 0) / all.length;
+    const dist = [0, 0, 0, 0, 0];
+    for (const x of all) dist[clamp(Math.round(x.r.stars) - 1, 0, 4)]++;
+    h += `<div class="rs-top" style="margin-bottom:14px">
+      <div class="rs-stat"><span class="l">Average</span><div class="v">${avg.toFixed(1)}<span class="u"> / 5</span></div></div>
+      <div class="rs-stat"><span class="l">Reviews</span><div class="v">${all.length.toLocaleString()}</div></div>
+      <div class="rs-stat"><span class="l">Rated 4+</span><div class="v">${Math.round((dist[3] + dist[4]) / all.length * 100)}%</div></div>
+      <div class="rs-stat"><span class="l">Rated 1-2</span><div class="v">${Math.round((dist[0] + dist[1]) / all.length * 100)}%</div></div>
+    </div>`;
+    h += `<h3>Rating spread</h3>`;
+    for (let i = 4; i >= 0; i--) {
+      const pct = all.length ? dist[i] / all.length * 100 : 0;
+      h += `<div style="display:flex;align-items:center;gap:9px;margin-bottom:5px">
+        <span style="width:34px;font-size:10.5px;font-weight:800">${i + 1}&#9733;</span>
+        <span class="rs-prog" style="flex:1;margin:0"><i style="width:${pct.toFixed(1)}%;background:${i >= 3 ? 'var(--good)' : i >= 2 ? 'var(--warn)' : 'var(--bad)'}"></i></span>
+        <span style="width:46px;text-align:right;font-size:10px;font-weight:800">${dist[i]}</span></div>`;
+    }
+    /* What is actually going wrong, counted across every review. */
+    const gripes = {};
+    for (const o of Park.objects.concat(Park.coasters)) {
+      const cmp = Reviews.topComplaint ? Reviews.topComplaint(o) : null;
+      if (cmp) gripes[cmp] = (gripes[cmp] || 0) + 1;
+    }
+    const gl = Object.entries(gripes).sort((a, b) => b[1] - a[1]);
+    if (gl.length) {
+      h += `<h3>What guests keep asking for</h3>`;
+      for (const [k, n] of gl.slice(0, 6))
+        h += `<div class="lrow"><span class="av" style="background:var(--warn)">${n}</span>
+          <span class="m"><b>${(Reviews.FIXES && Reviews.FIXES[k]) || k}</b><span>raised on ${n} attraction${n === 1 ? '' : 's'}</span></span></div>`;
+    }
+    h += `<h3>Latest</h3>`;
+    for (const { r, o } of all.slice(0, 22)) {
+      const stars = '&#9733;'.repeat(Math.round(r.stars)) + '&#9734;'.repeat(5 - Math.round(r.stars));
+      h += `<div class="lrow"><span class="m"><b>${esc(r.name)}</b> <span style="display:inline;color:var(--gold)">${stars}</span>
+        <span>${esc(o.name)} &middot; day ${r.day} — &ldquo;${esc(r.text)}&rdquo;</span></span></div>`;
+    }
+    return this.modal('Park Management', h);
+  },
+
+  /* ================= HISTORY =================
+     Park.hist has been recording money, guests and rating all along and was
+     never once drawn. */
+  histMetric: 'money',
+  historyTab() {
+    let h = this.tabBar('history');
+    const hist = Park.hist || [];
+    if (hist.length < 2) return this.modal('Park Management', h + `<div class="empty">Not enough history yet — check back after a day or two.</div>`);
+    const metrics = [['money', 'Cash', v => money(v), 'var(--good)'],
+                     ['guests', 'Guests in park', v => Math.round(v).toLocaleString(), 'var(--accent)'],
+                     ['rating', 'Rating (stars)', v => (v / 999 * 5).toFixed(1), 'var(--gold)']];
+    const m = metrics.find(x => x[0] === this.histMetric) || metrics[0];
+    h += `<div class="chips">` + metrics.map(([id, label]) =>
+      `<button class="chip ${id === this.histMetric ? 'on' : ''}" onclick="UI.histMetric='${id}';UI.finances('history')">${label}</button>`).join('') + `</div>`;
+    const vals = hist.map(p => p[m[0]] || 0);
+    let lo = Math.min(...vals), hi = Math.max(...vals);
+    if (hi - lo < 1e-6) { hi = lo + 1; }
+    const W = 660, H = 190, pad = 4;
+    let d = '';
+    hist.forEach((p, i) => {
+      const x = pad + i / (hist.length - 1) * (W - pad * 2);
+      const y = H - pad - ((p[m[0]] || 0) - lo) / (hi - lo) * (H - pad * 2);
+      d += (i ? 'L' : 'M') + x.toFixed(1) + ' ' + y.toFixed(1);
+    });
+    const last = vals[vals.length - 1], first = vals[0];
+    const delta = last - first;
+    h += `<h3>${m[1]}</h3>`;
+    h += `<div style="background:#fff;border:2px solid var(--edge);border-radius:var(--r-sm);padding:10px">
+      <svg viewBox="0 0 ${W} ${H}" style="width:100%;height:190px;display:block">
+        <path d="${d} L${W - pad} ${H - pad} L${pad} ${H - pad} Z" fill="${m[3]}" opacity=".13"/>
+        <path d="${d}" fill="none" stroke="${m[3]}" stroke-width="2.5" stroke-linejoin="round"/>
+      </svg>
+      <div style="display:flex;justify-content:space-between;font-size:10px;font-weight:800;color:var(--dim);margin-top:4px">
+        <span>${m[2](lo)}</span><span>over ${hist.length} readings</span><span>${m[2](hi)}</span></div></div>`;
+    h += `<div class="rs-top" style="margin-top:12px">
+      <div class="rs-stat"><span class="l">Now</span><div class="v">${m[2](last)}</div></div>
+      <div class="rs-stat"><span class="l">Change</span><div class="v" style="color:${delta >= 0 ? 'var(--good)' : 'var(--bad)'}">${delta >= 0 ? '+' : ''}${m[2](delta)}</div></div>
+      <div class="rs-stat"><span class="l">Peak</span><div class="v">${m[2](hi)}</div></div>
+      <div class="rs-stat"><span class="l">Low</span><div class="v">${m[2](lo)}</div></div>
+    </div>`;
+    return this.modal('Park Management', h);
+  },
+
+  /* ================= AWARDS ================= */
+  awardsTab() {
+    let h = this.tabBar('awards');
+    const list = Achievements.list || [];
+    const got = Achievements.unlocked || [];
+    h += `<div class="rs-top" style="margin-bottom:14px">
+      <div class="rs-stat"><span class="l">Unlocked</span><div class="v">${got.length}<span class="u"> / ${list.length}</span></div>
+        <div class="rs-prog"><i style="width:${list.length ? got.length / list.length * 100 : 0}%"></i></div></div>
+      <div class="rs-stat"><span class="l">Reward earned</span>
+        <div class="v">${money(list.filter(a => got.includes(a.id)).reduce((x, a) => x + (a.reward || 0), 0))}</div></div>
+      <div class="rs-stat"><span class="l">Still to win</span>
+        <div class="v">${money(list.filter(a => !got.includes(a.id)).reduce((x, a) => x + (a.reward || 0), 0))}</div></div>
+    </div>`;
+    for (const a of list) {
+      const done = got.includes(a.id);
+      h += `<div class="lrow" style="${done ? 'background:#f1faf3;border-color:#a9dcbb' : ''}">
+        <span class="av" style="background:${done ? 'var(--good)' : 'var(--edge)'}">${done ? '&#10003;' : '&#9679;'}</span>
+        <span class="m"><b>${esc(a.label)}</b><span>${esc(a.desc)}</span></span>
+        <span class="r" style="color:${done ? 'var(--good)' : 'var(--dim)'}">${money(a.reward || 0)}</span></div>`;
+    }
+    return this.modal('Park Management', h);
+  },
+
+  /* ================= TRANSPORT ================= */
+  transportTab() {
+    let h = this.tabBar('transport');
+    const routes = (typeof Transit !== 'undefined' && Transit.routes) ? Transit.routes : [];
+    const lines = (typeof Transit !== 'undefined' && Transit.lines) ? Transit.lines : [];
+    const lot = (typeof Parking !== 'undefined') ? Parking.lot : null;
+    h += `<div class="rs-top" style="margin-bottom:14px">
+      <div class="rs-stat"><span class="l">Bus routes</span><div class="v">${routes.length}</div></div>
+      <div class="rs-stat"><span class="l">Cable lines</span><div class="v">${lines.length}</div></div>
+      <div class="rs-stat"><span class="l">Riders carried</span>
+        <div class="v">${(routes.reduce((a, r) => a + (r.riders || 0), 0) + lines.reduce((a, l) => a + (l.riders || 0), 0)).toLocaleString()}</div></div>
+      <div class="rs-stat"><span class="l">Fare income</span>
+        <div class="v">${money(routes.reduce((a, r) => a + (r.revenue || 0), 0) + lines.reduce((a, l) => a + (l.revenue || 0), 0))}</div></div>
+    </div>`;
+    if (lot) {
+      h += `<h3>Car park</h3>`;
+      h += `<div class="lrow"><span class="av" style="background:var(--accent)">P</span>
+        <span class="m"><b>${esc(lot.name)}</b><span>${Parking.occupied()} of ${Parking.capacity()} bays in use &middot;
+          ${Parking.served} cars served &middot; ${Parking.turnedAway} turned away</span></span>
+        <span class="r">${money(Parking.fee())}<br><span style="color:var(--dim);font-weight:600">per car</span></span></div>`;
+    }
+    h += `<h3>Bus routes</h3>`;
+    if (!routes.length) h += `<div class="empty">No routes yet. Place a depot with the Transport tool, then draw a line.</div>`;
+    for (const r of routes)
+      h += `<div class="lrow"><span class="av" style="background:${typeof r.color === 'number' ? '#' + (r.color >>> 0).toString(16).padStart(6, '0') : 'var(--accent)'}">&#9679;</span>
+        <span class="m"><b>${esc(r.name || 'Route')}</b><span>${(r.stops || []).length} stops &middot; ${(r.buses || []).length} buses &middot; ${Math.round(r.len || 0)}m</span></span>
+        <span class="r">${(r.riders || 0).toLocaleString()}<br><span style="color:var(--dim);font-weight:600">riders</span></span></div>`;
+    h += `<h3>Cable cars</h3>`;
+    if (!lines.length) h += `<div class="empty">No cable lines. Place two gondola stations far apart to string one.</div>`;
+    for (const l of lines)
+      h += `<div class="lrow"><span class="av" style="background:var(--accent-ink)">&#8599;</span>
+        <span class="m"><b>Cable line</b><span>tier ${l.tier || 1}</span></span>
+        <span class="r">${(l.riders || 0).toLocaleString()}<br><span style="color:var(--dim);font-weight:600">riders</span></span></div>`;
+    return this.modal('Park Management', h);
+  },
+
+  /* ================= PARK RULES =================
+     Policies that trade one thing off against another, each wired to
+     something the simulation already reacts to. */
+  rulesTab() {
+    let h = this.tabBar('rules');
+    if (!Park.rules) Park.rules = { smoking: true, reentry: true, strollers: true, photos: true, queueJump: false };
+    const R = Park.rules;
+    const row = (key, title, desc, onText, offText) => `
+      <div class="lrow">
+        <span class="m"><b>${title}</b><span>${desc}</span></span>
+        <button class="chip ${R[key] ? 'on' : ''}" style="min-width:74px"
+          onclick="Park.rules.${key}=!Park.rules.${key};UI.finances('rules')">${R[key] ? onText : offText}</button>
+      </div>`;
+    h += `<h3>Policies</h3>`;
+    h += row('smoking', 'Smoking areas', 'Designated areas keep smokers happy; banning it outright pleases everyone else a little more.', 'Allowed', 'Banned');
+    h += row('reentry', 'Same-day re-entry', 'Guests can leave and come back. Convenient for them, but they spend less inside.', 'Allowed', 'No re-entry');
+    h += row('strollers', 'Stroller hire', 'Families stay longer when they can hire one, at the cost of busier paths.', 'Offered', 'Not offered');
+    h += row('photos', 'On-ride photos', 'Sells a souvenir on every big ride. A few guests find it tacky.', 'On sale', 'Off');
+    h += row('queueJump', 'Priority passes', 'Sell a queue-jump pass. Lucrative, and resented by everyone still waiting.', 'On sale', 'Off');
+    h += `<h3>Effect</h3>`;
+    /* Each rule's effect is stated as the number it actually moves, so the
+       screen cannot promise something the simulation does not do. */
+    const spend = ParkRules.spendMult(), mood = ParkRules.moodMult();
+    h += `<table class="tb">
+      <tr><th>Measure</th><th style="text-align:right">Now</th></tr>
+      <tr><td>Guest spending</td><td style="text-align:right;color:${spend >= 1 ? 'var(--good)' : 'var(--bad)'}">${spend >= 1 ? '+' : ''}${Math.round((spend - 1) * 100)}%</td></tr>
+      <tr><td>Guest mood</td><td style="text-align:right;color:${mood >= 1 ? 'var(--good)' : 'var(--bad)'}">${mood >= 1 ? '+' : ''}${Math.round((mood - 1) * 100)}%</td></tr>
+      </table>`;
+    h += `<p style="font-size:10.5px;color:var(--dim);margin-top:8px">These apply live — the figures above are what the
+      simulation is using for spending and mood right now.</p>`;
+    return this.modal('Park Management', h);
   },
 
   /* --------- marketing --------- */
@@ -19370,7 +19663,7 @@ const Game = {
         staff: Park.staff.map(s => ({ r: s.role, x: s.x, z: s.z, l: s.level, n: s.name, shift: s.shift, zone: s.zone, morale: s.morale, td: s.tasksDone, nick: s.nickname, uc: s.uniformColor })),
         land: Array.from(Land.ownedPlots), bought: Land.bought,
         loan: Finance.loan, campaigns: Marketing.active,
-        log: Park.log, ach: Achievements.unlocked,
+        log: Park.log, ach: Achievements.unlocked, rules: Park.rules || null,
         rp: Park.rp, rpTotal: Park.rpTotal, research: Park.research,
         prestige: { active: Prestige.active, points: Prestige.points, totalEarned: Prestige.totalEarned, unlocked: Prestige.unlocked.slice() },
         transit: {
@@ -19524,6 +19817,7 @@ const Game = {
       Goals.start(sc);
       if (sc && d.goalDone && Goals.active) Goals.active.goals.forEach((g, i) => g.done = !!d.goalDone[i]);
       Park.log = d.log || Park.log;
+      Park.rules = d.rules || { smoking: true, reentry: true, strollers: true, photos: true, queueJump: false };
       Park._dayLogSnap = null;   // the previous park's ledger snapshot does not belong to this one
       if (d.rp !== undefined) Park.rp = d.rp;
       if (d.rpTotal !== undefined) Park.rpTotal = d.rpTotal;
