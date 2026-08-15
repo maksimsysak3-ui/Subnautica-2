@@ -6600,12 +6600,22 @@ class CoasterRide extends ParkObject {
   computeStats() {
     const t = this.track; if (!t || !t.complete) return;
     // Simulate a lap to gather speed / G data
-    let v = 4, d = 0, maxV = 0, maxG = -99, minG = 99, maxLat = 0, air = 0, samples = 0, stall = 0;
+    let v = 4, d = 0, maxV = 0, samples = 0, stall = 0;
     const dt = 0.02;
-    const profile = [];
-    let rideTime = 0, vSum = 0, lastProfileD = -99;
+    let rideTime = 0, vSum = 0;
     let dropStartY = null, lastY = null, drops = [], banked = 0, bankSum = 0;
-    let gSum = 0, latSum = 0, jerk = 0, lastVertG = null;
+    let jerk = 0, lastVertG = null;
+    /* Raw per-step force traces. Nothing reads a peak off these directly:
+       curvature is a point measurement and every joint between two track
+       pieces is a small discontinuity in it, which shows up as a one-sample
+       spike of impossible force. A real train is a rigid body 13-38m long
+       spanning many of those joints at once, so what a rider actually feels
+       is the force averaged over the train, not the curvature under one
+       wheel. These get filtered over the train length below, and the peaks
+       are read off the filtered signal. The unfiltered jump between samples
+       is still accumulated as `jerk` — that jolt is exactly what roughness
+       is supposed to measure, so it belongs there and nowhere else. */
+    const rd = [], rv = [], rgv = [], rgl = [], ry = [], rpx = [], rpz = [], rpy = [];
     for (let step = 0; step < 20000 && d < t.length * 1.02; step++) {
       const s = t.sampleAt(d);
       if (!s) break;
@@ -6625,24 +6635,29 @@ class CoasterRide extends ParkObject {
           stall += dt;
         }
       }
+      /* Resolve the forces into the rider's own frame. Banking rotates the
+         centripetal force of a turn out of the rider's sideways axis and
+         into the axis that presses them down into the seat — that rotation
+         is the entire reason banked turns exist and are comfortable. The
+         previous form applied the bank angle as a flat subtraction and left
+         the cos(bank) factor off the turn term, which both over-reported
+         sideways load on a banked curve and lost the extra down-force it
+         should produce. A fully banked turn now reads as positive G, as it
+         does on a real ride, instead of as sideways G nobody would feel. */
       const c = t.curvatureAt(d);
-      const centri = v * v * (c.ver || 0);
-      const vertG = Math.cos(s.pitch) * Math.cos(s.bank) + centri / G;
-      const latG = Math.abs(v * v * (c.lat || 0) / G - Math.sin(s.bank) * 1.0);
-      maxV = Math.max(maxV, v); maxG = Math.max(maxG, vertG); minG = Math.min(minG, vertG);
-      maxLat = Math.max(maxLat, latG);
-      // Sustained load matters more than a single spike, and a jolt between
-      // two samples is what actually makes a ride feel rough.
-      gSum += Math.abs(vertG - 1); latSum += latG;
+      const cb = Math.cos(s.bank), sb = Math.sin(s.bank);
+      const aVer = v * v * (c.ver || 0) / G;      // vertical-plane curvature, in g
+      const aLat = v * v * (c.lat || 0) / G;      // horizontal-plane curvature, in g
+      const vertG = Math.cos(s.pitch) * cb + aVer + Math.abs(aLat * sb);
+      const latG = Math.abs(aLat * cb - sb * Math.cos(s.pitch));
+      maxV = Math.max(maxV, v);
+      // A jolt between two samples is what actually makes a ride feel rough,
+      // so roughness — and only roughness — uses the unfiltered trace.
       if (lastVertG !== null) jerk += Math.abs(vertG - lastVertG);
       lastVertG = vertG;
-      if (vertG < 0.25 && v > 2.5) air += dt;
       samples++; rideTime += dt; vSum += v;
-      // profile sample every couple of metres for the report chart
-      if (d - lastProfileD > 2) {
-        lastProfileD = d;
-        profile.push({ d, y: s.p.y - this.y, v, gv: vertG, gl: latG, px: s.p.x, pz: s.p.z, py: s.p.y });
-      }
+      rd.push(d); rv.push(v); rgv.push(vertG); rgl.push(latG);
+      ry.push(s.p.y - this.y); rpx.push(s.p.x); rpz.push(s.p.z); rpy.push(s.p.y);
       if (Math.abs(s.bank) > 12 * DEG) { banked += dt; bankSum += Math.abs(s.bank); }
       // track descents so we can report the drops like a real ride sheet
       if (lastY !== null) {
@@ -6656,6 +6671,49 @@ class CoasterRide extends ParkObject {
       lastY = s.p.y;
       d += v * dt;
     }
+    /* ------------------------------------------------------------------
+       Filter the force traces over the length of the train before reading
+       any peak off them. Physically this is the difference between the
+       curvature under a single wheel and the path a 13-38m rigid train is
+       actually forced to follow; numerically it is what stops a joint
+       between two track pieces from registering as 6G. Sustained load
+       survives the filter untouched, which is the load that matters —
+       human G tolerance is quoted over roughly a second of exposure, and
+       anything shorter than that is a jolt, already counted as roughness.
+       ------------------------------------------------------------------ */
+    const trainLen = clamp((this.type.cars || 4) * 4.2, 8, 40);
+    const half = trainLen / 2;
+    const n = rd.length;
+    const sgv = new Float64Array(n), sgl = new Float64Array(n);
+    {
+      let lo = 0, hi = 0, sumV = 0, sumL = 0;
+      for (let i = 0; i < n; i++) {
+        while (hi < n && rd[hi] <= rd[i] + half) { sumV += rgv[hi]; sumL += rgl[hi]; hi++; }
+        while (rd[lo] < rd[i] - half) { sumV -= rgv[lo]; sumL -= rgl[lo]; lo++; }
+        const w = Math.max(1, hi - lo);
+        sgv[i] = sumV / w; sgl[i] = sumL / w;
+      }
+    }
+    let maxG = -99, minG = 99, maxLat = 0, air = 0, gSum = 0, latSum = 0;
+    for (let i = 0; i < n; i++) {
+      const gv = sgv[i], gl = sgl[i];
+      if (gv > maxG) maxG = gv;
+      if (gv < minG) minG = gv;
+      if (gl > maxLat) maxLat = gl;
+      gSum += Math.abs(gv - 1); latSum += gl;
+      if (gv < 0.25 && rv[i] > 2.5) air += dt;
+    }
+    if (!n) { maxG = 1; minG = 1; }
+    /* Rebuild the report/heat-map trace from the filtered signal too, so the
+       chart and the headline numbers can never disagree with each other. */
+    const profile = [];
+    let lastProfileD = -99;
+    for (let i = 0; i < n; i++) {
+      if (rd[i] - lastProfileD <= 2) continue;
+      lastProfileD = rd[i];
+      profile.push({ d: rd[i], y: ry[i], v: rv[i], gv: sgv[i], gl: sgl[i], px: rpx[i], pz: rpz[i], py: rpy[i] });
+    }
+
     this.maxSpeed = maxV; this.maxG = maxG; this.minG = minG; this.maxLatG = maxLat;
     this.airtime = air;
     this.stallTime = stall;
