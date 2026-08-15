@@ -924,6 +924,37 @@ table.tb tr:last-child td{border-bottom:0}
    ========================================================================== */
 const PI = Math.PI, TAU = PI * 2, DEG = PI / 180;
 const clamp = (v, a, b) => v >= a ? (v <= b ? v : b) : a;   // NaN-safe: falls through to `a`
+
+/* Compact typed-array <-> base64 packing for the save file — see save(). */
+function u8ToB64(u8) {
+  let s = '';
+  const chunk = 0x8000;
+  for (let i = 0; i < u8.length; i += chunk) s += String.fromCharCode.apply(null, u8.subarray(i, i + chunk));
+  return btoa(s);
+}
+function b64ToU8(b64) {
+  const bin = atob(b64);
+  const u8 = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+  return u8;
+}
+function packHeights(f32) {
+  const i16 = new Int16Array(f32.length);
+  for (let i = 0; i < f32.length; i++) i16[i] = clamp(Math.round(f32[i] * 50), -32768, 32767);
+  return u8ToB64(new Uint8Array(i16.buffer));
+}
+function unpackHeights(b64, len) {
+  const u8 = b64ToU8(b64);
+  const i16 = new Int16Array(u8.buffer, u8.byteOffset, Math.min(len, u8.length >> 1));
+  const f32 = new Float32Array(len);
+  for (let i = 0; i < i16.length; i++) f32[i] = i16[i] / 50;
+  return f32;
+}
+function packTypes(u8) { return u8ToB64(u8); }
+function unpackTypes(b64, len) {
+  const u8 = b64ToU8(b64);
+  return u8.length === len ? u8 : u8.subarray(0, len);
+}
 const lerp = (a, b, t) => a + (b - a) * t;
 const smoothstep = (t) => t * t * (3 - 2 * t);
 const rnd = (a = 1, b) => b === undefined ? Math.random() * a : a + Math.random() * (b - a);
@@ -7069,9 +7100,17 @@ const Park = {
      5-star readout. Internal formulas keep using Park.rating unchanged. */
   ratingStars() { return this.rating / 999 * 5; },
   ratingStarsHTML() {
+    // A half-filled star has no reliably-rendered single Unicode glyph
+    // (U+2BF0 used to sit here, and shows as a stray tally-bar icon on
+    // fonts that lack it) — so build it from an empty star with a filled
+    // one clipped to half width laid on top, which always renders correctly.
     const v = this.ratingStars(), full = Math.floor(v), half = v - full >= .5;
     let s = '';
-    for (let i = 0; i < 5; i++) s += i < full ? '★' : (i === full && half) ? '⯰' : '☆';
+    for (let i = 0; i < 5; i++) {
+      if (i < full) s += '★';
+      else if (i === full && half) s += '<span style="position:relative;display:inline-block"><span style="opacity:.35">☆</span><span style="position:absolute;left:0;top:0;width:50%;overflow:hidden">★</span></span>';
+      else s += '☆';
+    }
     return `<span title="${v.toFixed(1)} / 5">${s}</span> <span style="color:var(--dim);font-weight:400">${v.toFixed(1)}</span>`;
   },
   get beauty() {
@@ -10748,6 +10787,32 @@ const UI = {
       h += `<div class="btnrow"><button class="btn" onclick="Game.autoConnect(Park.objects.find(x=>x.id===${o.id}))">Reconnect path</button>
         <button class="btn dan" onclick="Game.demolish(${o.id})">Demolish</button></div>`;
       h += reviewsSection(o);
+    }
+    else if (o.kind === 'shop' && o.def.need === 'break') {
+      $('#insTitle').textContent = 'Staff Break Room';
+      h += nameField(o);
+      h += `<div style="font-size:10.5px;color:var(--dim)">${o.def.name} &middot; ${age(o)}</div>`;
+      const resting = Park.staff.filter(s => s.state === 'resting' || s.state === 'toBreak');
+      h += `<div class="cat">Staff</div>`;
+      h += kv('Resting or heading to a break', resting.length + ' of ' + Park.staff.length);
+      h += kv('Upkeep', money((o.def.up || 0) * .6) + ' / hr');
+      h += `<div style="font-size:10.5px;color:var(--dim);margin-top:-2px">Off-shift or low-morale staff head here on their own to recover morale faster than standing around. It doesn't sell anything to guests — hire, assign, or dismiss staff from the Staff panel.</div>`;
+      h += `<div class="btnrow"><button class="btn go" onclick="UI.finances('staff')">Manage staff</button></div>`;
+      h += `<div class="btnrow"><button class="btn" onclick="Game.autoConnect(Park.objects.find(x=>x.id===${o.id}))">Reconnect path</button>
+        <button class="btn dan" onclick="Game.demolish(${o.id})">Demolish</button></div>`;
+    }
+    else if (o.kind === 'shop' && (o.def.need === 'toilet' || o.def.need === 'firstaid' || o.def.need === 'atm' || o.def.need === 'info')) {
+      const titles = { toilet: 'Restrooms', firstaid: 'First Aid', atm: 'Cash Machine', info: 'Info Kiosk' };
+      $('#insTitle').textContent = titles[o.def.need];
+      h += nameField(o);
+      h += `<div style="font-size:10.5px;color:var(--dim)">${o.def.name} &middot; ${age(o)}</div>`;
+      h += `<div class="cat">Use</div>`;
+      h += kv('Guests served', o.served);
+      h += kv('Queue now', o.queue.length + ' waiting');
+      h += kv('Upkeep', money((o.def.up || 0) * .6) + ' / hr');
+      h += `<div style="font-size:10.5px;color:var(--dim);margin-top:-2px">Free for guests to use — this doesn't sell anything or take a price.</div>`;
+      h += `<div class="btnrow"><button class="btn" onclick="Game.autoConnect(Park.objects.find(x=>x.id===${o.id}))">Reconnect path</button>
+        <button class="btn dan" onclick="Game.demolish(${o.id})">Demolish</button></div>`;
     }
     else if (o.kind === 'shop') {
       $('#insTitle').textContent = 'Shop';
@@ -17319,12 +17384,18 @@ const Game = {
   save(silent, key) {
     try {
       const d = {
-        v: 5, n: N, mode: Park.mode, level: Park.level, xp: Park.xp,
+        v: 6, n: N, mode: Park.mode, level: Park.level, xp: Park.xp,
         scenario: Goals.active ? Goals.active.id : null,
         goalDone: Goals.active ? Goals.active.goals.map(g => !!g.done) : null,
         money: Park.money, time: Park.time, day: Park.day, fee: Park.entryFee, wpFee: Park.waterPassPrice, spFee: Park.seasonPassPrice,
-        h: Array.from(WORLD.h).map(x => Math.round(x * 100) / 100),
-        t: Array.from(WORLD.type),
+        /* The terrain grid is by far the biggest thing in a save (N=406, so
+           ~165k height samples and ~165k tile types) — stored as plain JSON
+           number arrays it alone ran 1-2MB and was the main reason big
+           parks hit the browser's localStorage quota and failed to save.
+           Packed into typed-array bytes and base64'd it's a fraction of
+           that size, with no loss (heights keep 1/50 unit precision, well
+           past what's visually distinguishable). */
+        hb: packHeights(WORLD.h), tb: packTypes(WORLD.type),
         objs: Park.objects.filter(o => o.kind !== 'gate' && o.kind !== 'tstation' && o.kind !== 'tstop' && o.kind !== 'gtower').map(o =>
           ({ k: o.kind, d: o.def.id, i: o.i, j: o.j, r: o.rot, p: o.price, open: o.openR, tier: o.tier,
             n: o.name, lock: !!o.priceLocked, mer: o.merch || undefined, liv: o.livery || undefined,
@@ -17363,8 +17434,20 @@ const Game = {
         },
         weather: { season: Weather.seasonIndex, dayOfSeason: Weather.dayOfSeason, state: Weather.state, event: Weather.event, eventDaysLeft: Weather.eventDaysLeft }
       };
-      localStorage.setItem(key || 'planetcoaster_save', JSON.stringify(d));
-      if (!silent) UI.notify('Saved', 'Park written to browser storage.', 'good');
+      // Building `d` can't throw QuotaExceededError — only writing it can —
+      // so keep the write in its own try. exportSave() calls save(true) just
+      // to get `d` back; if browser storage is full it still needs that
+      // object so the file-export fallback it points players to actually works.
+      try {
+        localStorage.setItem(key || 'planetcoaster_save', JSON.stringify(d));
+        if (!silent) UI.notify('Saved', 'Park written to browser storage.', 'good');
+      } catch (e) {
+        if (e && e.name === 'QuotaExceededError') {
+          UI.notify('Save failed — storage full', 'This park is too large for the browser\'s storage limit. Use Export to file (Settings > Save & Load) to keep it as a .pcpark file instead.', 'bad');
+        } else {
+          UI.notify('Save failed', String(e), 'bad');
+        }
+      }
       return d;
     } catch (e) { UI.notify('Save failed', String(e), 'bad'); }
   },
@@ -17396,7 +17479,7 @@ const Game = {
     reader.onload = () => {
       try {
         const d = JSON.parse(reader.result);
-        if (!d || typeof d !== 'object' || !d.h || !d.t) throw new Error('not a park file');
+        if (!d || typeof d !== 'object' || !((d.hb && d.tb) || (d.h && d.t))) throw new Error('not a park file');
         const tempKey = '__import_' + Date.now();
         localStorage.setItem(tempKey, JSON.stringify(d));
         this.load(tempKey);
@@ -17417,7 +17500,14 @@ const Game = {
     if (!raw) { if (!key) UI.notify('No save', 'Nothing stored yet.', 'warn'); return false; }
     try {
       const d = JSON.parse(raw);
-      if (!d.h || !d.t || d.h.length !== WORLD.h.length || d.t.length !== WORLD.type.length) {
+      const hasTerrain = (d.hb && d.tb) || (d.h && d.t);
+      if (!hasTerrain || d.n !== N) {
+        UI.notify('Incompatible save', 'That park was built on a different map size and cannot be loaded.', 'bad');
+        return false;
+      }
+      const loadedH = d.hb ? unpackHeights(d.hb, WORLD.h.length) : d.h;
+      const loadedT = d.tb ? unpackTypes(d.tb, WORLD.type.length) : d.t;
+      if (loadedH.length !== WORLD.h.length || loadedT.length !== WORLD.type.length) {
         UI.notify('Incompatible save', 'That park was built on a different map size and cannot be loaded.', 'bad');
         return false;
       }
@@ -17430,7 +17520,7 @@ const Game = {
       if (typeof Fireworks !== 'undefined') Fireworks.showsLaunched = 0;
       Park.objects.length = 0; Park.coasters.length = 0; Park.guests.length = 0; Park.staff.length = 0; Park.litter.length = 0;
       Park.gate = null;
-      WORLD.h.set(d.h); WORLD.type.set(d.t); WORLD.own.fill(-1);
+      WORLD.h.set(loadedH); WORLD.type.set(loadedT); WORLD.own.fill(-1);
       // loaded terrain is a different park's data at the same array size —
       // the chunked mesh diff must not compare it against whatever was cached
       WORLD.chunkGeoCache = {}; WORLD.fenceGeo = null;
