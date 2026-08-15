@@ -8366,7 +8366,14 @@ class Guest extends Person {
     this.nausea = 0;
     this.happy = .78 + rnd(-.1, .2);
     this.cash = rnd(70, 300);
+    /* What they walked in with, so "value for money" can be judged against
+       the day's spending rather than against an absolute wallet size. */
+    this.startCash = this.cash;
     this.spent = 0;
+    /* The four named components of mood. Seeded from the starting mood so
+       they read sensibly before the first update tick fills them in. */
+    this.cComfort = 1; this.cValue = 1; this.cExcite = .5; this.cFresh = 1;
+    this.moodWorst = 'excitement';
     // a real crowd contains thrill-seekers as well as families, so big
     // coasters always have someone willing to queue for them
     this.prefIntensity = rnd(1.0, 11.0);
@@ -8492,6 +8499,7 @@ class Guest extends Person {
     this.nauseaTol = rnd(p.nausea[0], p.nausea[1]);
     this.patience = rnd(p.patience[0], p.patience[1]);
     this.cash = rnd(p.spend[0], p.spend[1]);
+    this.startCash = this.cash;   // persona sets the real wallet, so re-baseline
     this.budget = this.cash * rnd(.6, .92);
     this.ridesWanted = rndi(p.rides[0], p.rides[1]);
     this.thrillSeeker = this.prefIntensity > 7.5;
@@ -8549,24 +8557,64 @@ class Guest extends Person {
     }
     this.armLift = damp(this.armLift, (this.state === 'riding' && this.riding && this.riding.intensity > 4) ? 1 : 0, 6, dt);
 
-    // mood drift from needs and surroundings
-    let mood = 0;
-    if (this.hunger > .75) mood -= .022;
-    if (this.thirst > .75) mood -= .026;
-    if (this.toilet > .8) mood -= .035;
-    if (this.energy < .18) mood -= .02;
-    if (this.nausea > .6) mood -= .03;
-    if (this.fun < .2) mood -= .020;
-    if (this.warmth < .3) mood -= .016;
-    if (this.hygiene < .3) mood -= .010;
-    if (this.anger > .5) mood -= .030;
-    if (this.state === 'queuing') mood -= .012;
-    mood += Park.beautyAt(this.x, this.z) * .0009;
-    mood += Weather.moodFactor();
-    mood -= Math.min(.02, Park.litter.length / Math.max(40, Park.guests.length) * .03);
-    if (this.state === 'walking' || this.state === 'idle') mood += .004;
-    // happiness drifts on the same park-hour scale as the needs above
-    this.happy = clamp(this.happy + mood * rate * 1.5, 0, 1);
+    /* ------------------------------------------------------------------
+       Mood, resolved into four named components rather than one opaque
+       number. `happy` is still the single figure the rest of the sim reads,
+       but it is now the average of four things a player can actually do
+       something about, and each is kept so the guest can say WHY they feel
+       the way they do:
+
+         comfort     bodily state — fed, watered, rested, not queasy
+         value       whether the day feels worth what it cost
+         excitement  are they actually having fun and getting on rides
+         fatigue     worn down by queues, walking and time on their feet
+                     (stored as "freshness": 1 is fresh, 0 is exhausted)
+
+       The old single-number drift hid all of this: a guest starving in a
+       beautiful park and a bored guest in a filthy one both just read
+       "unhappy", and the panel could only ever say so.
+       ------------------------------------------------------------------ */
+    const beauty = Park.beautyAt(this.x, this.z);
+    // --- comfort: the body's needs (note: `comfort` above is thermal only)
+    let bodyOk = 1;
+    bodyOk -= Math.max(0, this.hunger - .55) * .9;
+    bodyOk -= Math.max(0, this.thirst - .55) * 1.0;
+    bodyOk -= Math.max(0, this.toilet - .6) * 1.2;
+    bodyOk -= Math.max(0, this.nausea - .35) * 1.1;
+    bodyOk -= Math.max(0, .35 - this.hygiene) * .7;
+    bodyOk -= Math.max(0, .35 - this.warmth) * .7;
+    this.cComfort = clamp(bodyOk, 0, 1);
+    // --- value: prices paid against what is left in the wallet
+    const spent = Math.max(0, (this.startCash || this.cash) - this.cash);
+    let worth = 1 - clamp(spent / Math.max(60, this.startCash || 140), 0, 1) * .55;
+    if (this.cash < 12) worth -= .25;                       // ran dry
+    worth -= clamp(this.anger, 0, 1) * .35;                 // ripped off / turned away
+    this.cValue = clamp(worth, 0, 1);
+    // --- excitement: are they doing anything?
+    let exc = clamp(this.fun, 0, 1) * .72 + clamp(beauty * .006, 0, .28);
+    if (this.ridden && this.ridden.length === 0 && this.timeInPark > 90) exc -= .25;
+    this.cExcite = clamp(exc, 0, 1);
+    // --- freshness: queues, walking and hours on their feet grind it down
+    let fresh = clamp(this.energy, 0, 1);
+    if (this.state === 'queuing') fresh -= .12;
+    fresh -= clamp(this.timeInPark / (60 * 10), 0, 1) * .25;
+    this.cFresh = clamp(fresh, 0, 1);
+
+    /* The park itself nudges every component a little — litter and weather
+       are felt by everyone regardless of what they personally came for. */
+    const ambient = Weather.moodFactor() * 6
+      - Math.min(.02, Park.litter.length / Math.max(40, Park.guests.length) * .03) * 6;
+    const target = clamp(
+      (this.cComfort * .32 + this.cValue * .22 + this.cExcite * .30 + this.cFresh * .16) + ambient,
+      0, 1);
+    /* Ease toward the target rather than snapping, on the same park-hour
+       scale the needs above use, so a single bad moment does not wreck a
+       whole day and a good one has to be sustained to pay off. */
+    this.happy = clamp(lerp(this.happy, target, clamp(rate * 1.8, 0, 1)), 0, 1);
+    /* The weakest component is what they will complain about. */
+    this.moodWorst = [['comfort', this.cComfort], ['value', this.cValue],
+                      ['excitement', this.cExcite], ['energy', this.cFresh]]
+                     .sort((a, b) => a[1] - b[1])[0][0];
 
     switch (this.state) {
       case 'arriving': {
@@ -10947,7 +10995,7 @@ const UI = {
       const tol = gate.feeTolerance();
       const fair = Math.round((6 + Park.rating * .045) * tol);
       h += `<p>Guests weigh the fee against your park rating and how impressive the entrance looks.
-        At rating <b>${Park.rating}</b> with ${gate.tierName().toLowerCase()}, about <b>${money(fair)}</b>
+        At <b>${Park.ratingStars().toFixed(1)} stars</b> with ${gate.tierName().toLowerCase()}, about <b>${money(fair)}</b>
         feels fair. ${Park.entryFee > fair * 1.35 ? '<b style="color:var(--bad)">You are charging well over that, and it is costing you arrivals.</b>' : Park.entryFee < fair * .6 ? 'You could charge more without losing anyone.' : 'That is roughly where you are.'}
         On a busy day the effective fee also tapers off with volume — right now it's <b>${Math.round(Park.entryFeeFactor() * 100)}%</b> of sticker after ${Park.entryToday || 0} admissions today.</p>`;
       h += `<h3>Gate figures</h3>`;
@@ -11019,7 +11067,7 @@ const UI = {
     else if (T === 'upgrades') {
       h += `<h3>The entrance itself</h3>`;
       h += kv('Current', gate.tierName());
-      h += kv('Rating bonus', '+' + gate.ratingBonus());
+      h += kv('Rating bonus', '+' + (gate.ratingBonus() / 999 * 5).toFixed(2) + ' stars');
       h += kv('Price tolerance', '+' + Math.round((gate.feeTolerance() - 1) * 100) + '%');
       if (gate.canUpgrade()) {
         const nxt = ['', 'Simple Gates', 'Themed Gates', 'Grand Entrance', 'Landmark Plaza'][gate.tier + 1];
@@ -11416,6 +11464,22 @@ const UI = {
       h += kv('Nausea tolerance', o.nauseaTol.toFixed(1));
       h += `<div class="meterbox">`;
       h += meter('Happiness', o.happy, 'linear-gradient(90deg,var(--bad),var(--gold),var(--good))');
+      h += `</div>`;
+      /* The four things happiness is actually made of, so an unhappy guest
+         says which of them is wrong instead of just reading "unhappy". */
+      const worstLabel = { comfort: 'Comfort', value: 'Value for money',
+                           excitement: 'Excitement', energy: 'Energy' }[o.moodWorst] || '';
+      h += `<div class="cat">What is driving that</div>`;
+      h += `<div class="meterbox">`;
+      h += meter('Comfort', o.cComfort === undefined ? 1 : o.cComfort, 'var(--accent)');
+      h += meter('Value for money', o.cValue === undefined ? 1 : o.cValue, 'var(--gold)');
+      h += meter('Excitement', o.cExcite === undefined ? .5 : o.cExcite, 'var(--good)');
+      h += meter('Energy left', o.cFresh === undefined ? 1 : o.cFresh, '#6ac6f0');
+      h += `</div>`;
+      if (worstLabel && o.happy < .7) h += `<div style="font-size:10.5px;color:var(--warn);margin:-4px 0 8px">
+        Weakest right now: <b>${worstLabel}</b>.</div>`;
+      h += `<div class="cat">Needs</div>`;
+      h += `<div class="meterbox">`;
       h += meter('Hunger', o.hunger, 'var(--warn)');
       h += meter('Thirst', o.thirst, 'var(--accent)');
       h += meter('Toilet', o.toilet, '#a06bd4');
@@ -14071,7 +14135,7 @@ const SCENARIOS = [
     money: 60000, fee: 10, level: 2, days: 0,
     goals: [
       { k: 'guests', target: 60, label: 'Guests in the park' },
-      { k: 'rating', target: 300, label: 'Park rating' },
+      { k: 'rating', target: 1.5, label: 'Park rating (stars)' },
       { k: 'rides', target: 3, label: 'Rides open' },
     ]
   },
@@ -14083,7 +14147,7 @@ const SCENARIOS = [
       { k: 'guests', target: 200, label: 'Guests in the park' },
       { k: 'happy', target: 75, label: 'Average happiness (%)' },
       { k: 'shops', target: 5, label: 'Shops and facilities' },
-      { k: 'rating', target: 450, label: 'Park rating' },
+      { k: 'rating', target: 2.3, label: 'Park rating (stars)' },
     ]
   },
   {
@@ -14093,7 +14157,7 @@ const SCENARIOS = [
     goals: [
       { k: 'coasterExc', target: 9, label: 'Coaster excitement rating' },
       { k: 'guests', target: 320, label: 'Guests in the park' },
-      { k: 'rating', target: 600, label: 'Park rating' },
+      { k: 'rating', target: 3.0, label: 'Park rating (stars)' },
       { k: 'coasters', target: 2, label: 'Coasters open' },
     ]
   },
@@ -14114,7 +14178,7 @@ const SCENARIOS = [
     money: 250000, fee: 20, level: 5, days: 0,
     goals: [
       { k: 'guests', target: 650, label: 'Guests in the park' },
-      { k: 'rating', target: 800, label: 'Park rating' },
+      { k: 'rating', target: 4.0, label: 'Park rating (stars)' },
       { k: 'coasters', target: 4, label: 'Coasters open' },
       { k: 'profit', target: 600000, label: 'Total earnings ($)' },
       { k: 'beauty', target: 900, label: 'Scenery beauty' },
@@ -14136,7 +14200,7 @@ const SCENARIOS = [
     blurb: 'A storm tore through last season and the park never recovered. Money is tight and reputation is worse — turn it around fast.',
     money: 35000, fee: 9, level: 3, days: 0,
     goals: [
-      { k: 'rating', target: 400, label: 'Park rating' },
+      { k: 'rating', target: 2.0, label: 'Park rating (stars)' },
       { k: 'happy', target: 65, label: 'Average happiness (%)' },
       { k: 'guests', target: 180, label: 'Guests in the park' },
       { k: 'profit', target: 60000, label: 'Total earnings ($)' },
@@ -14160,7 +14224,7 @@ const SCENARIOS = [
     goals: [
       { k: 'days', target: 60, label: 'Days operated' },
       { k: 'guests', target: 500, label: 'Guests in the park' },
-      { k: 'rating', target: 700, label: 'Park rating' },
+      { k: 'rating', target: 3.5, label: 'Park rating (stars)' },
       { k: 'profit', target: 900000, label: 'Total earnings ($)' },
     ]
   },
@@ -14373,8 +14437,8 @@ const Achievements = {
     { id: 'guestsAll5000', label: 'Household Name', desc: '5,000 guests all-time.', reward: 6000, check: () => Park.totalGuests >= 5000 },
     { id: 'coaster1', label: 'First Coaster', desc: 'Open your first roller coaster.', reward: 750, check: () => Park.coasters.some(c => c.openR) },
     { id: 'coaster5', label: 'Coaster Collection', desc: 'Have 5 coasters open at once.', reward: 3000, check: () => Park.coasters.filter(c => c.openR).length >= 5 },
-    { id: 'rating400', label: 'Rising Reputation', desc: 'Reach a park rating of 400.', reward: 1500, check: () => Park.rating >= 400 },
-    { id: 'rating700', label: 'Five-Star Park', desc: 'Reach a park rating of 700.', reward: 4000, check: () => Park.rating >= 700 },
+    { id: 'rating400', label: 'Rising Reputation', desc: 'Reach a 2-star park rating.', reward: 1500, check: () => Park.ratingStars() >= 2 },
+    { id: 'rating700', label: 'Rave Reviews', desc: 'Reach a 3.5-star park rating.', reward: 4000, check: () => Park.ratingStars() >= 3.5 },
     { id: 'staff8', label: 'Fully Staffed', desc: 'Employ 8 members of staff at once.', reward: 1200, check: () => Park.staff.length >= 8 },
     { id: 'lifetime25k', label: 'Small Business', desc: 'Earn $25,000 in lifetime revenue.', reward: 1500, check: () => (Park.log.ticket + Park.log.shop + Park.log.entry) >= 25000 },
     { id: 'lifetime100k', label: 'Big Business', desc: 'Earn $100,000 in lifetime revenue.', reward: 5000, check: () => (Park.log.ticket + Park.log.shop + Park.log.entry) >= 100000 },
@@ -14511,7 +14575,9 @@ const Goals = {
   value(k) {
     switch (k) {
       case 'guests': return Park.guests.length;
-      case 'rating': return Park.rating;
+      /* Player-facing rating is stars, so the goal is measured in stars
+         too — one decimal place, matching the readout on the HUD. */
+      case 'rating': return Math.round(Park.ratingStars() * 10) / 10;
       case 'happy': return Math.round(Park.happiness * 100);
       case 'rides': return Park.objects.filter(o => o.kind === 'ride' && o.openR && !o.def.water).length;
       case 'water': return Park.objects.filter(o => o.kind === 'ride' && o.openR && o.def.water).length;
@@ -14559,8 +14625,11 @@ const Goals = {
       for (const g of this.active.goals) {
         const v = this.value(g.k);
         const pct = clamp(v / g.target * 100, 0, 100);
-        const shown = g.k === 'profit' ? money(v) : (g.k === 'coasterExc' ? v.toFixed(1) : v);
-        const tgt = g.k === 'profit' ? money(g.target) : g.target;
+        /* Star and excitement goals are fractional, so they print to one
+           decimal; everything else is a whole count. */
+        const dec = g.k === 'coasterExc' || g.k === 'rating';
+        const shown = g.k === 'profit' ? money(v) : (dec ? v.toFixed(1) : v);
+        const tgt = g.k === 'profit' ? money(g.target) : (dec ? g.target.toFixed(1) : g.target);
         h += `<div class="goal ${g.done ? 'done' : ''}">
           <div class="gl"><span>${g.label}</span><b>${shown} / ${tgt}</b></div>
           <div class="gp"><div class="gf" style="width:${pct}%"></div></div></div>`;
@@ -14580,7 +14649,7 @@ const Goals = {
     UI.modal('Objectives complete', `
       <h3>${sc.name}</h3>
       <p>Every objective in this brief has been met. Your park drew <b>${Park.guests.length}</b> guests,
-      reached a rating of <b>${Park.rating}</b> and earned <b>${money(this.value('profit'))}</b>.</p>
+      reached <b>${Park.ratingStars().toFixed(1)} stars</b> and earned <b>${money(this.value('profit'))}</b>.</p>
       <p>The park stays open — keep building, or take on another brief from the main menu.</p>
       <h3>Final standing</h3>
       <table class="tb">
@@ -15333,7 +15402,7 @@ const InfoWheel = {
         let s = `<h4>${esc(Park.name || 'My Theme Park')}</h4>`;
         s += `<div class="ip-sub">Day ${Park.day}, ${String(h).padStart(2, '0')}:${String(mm).padStart(2, '0')} &middot; the park is
           <b>${Park.open ? 'open' : 'closed'}</b>.</div>`;
-        s += InfoWheel.bar(Park.rating / 999, 'var(--accent)');
+        s += InfoWheel.bar(Park.ratingStars() / 5, 'var(--accent)');
         s += InfoWheel.row('Rating', Park.ratingStarsHTML());
         s += InfoWheel.row('Guests in the park', Park.guests.length.toLocaleString());
         s += InfoWheel.row('Average happiness', InfoWheel.pct(Park.happiness),
@@ -15373,6 +15442,18 @@ const InfoWheel = {
         s += `<div class="ip-sub">Averaged across all ${g.length.toLocaleString()} guests currently inside.</div>`;
         s += InfoWheel.row('Happiness', InfoWheel.pct(happy), InfoWheel.verdict(happy > .75, happy > .55, happy <= .55));
         s += InfoWheel.bar(happy, happy > .75 ? 'var(--good)' : happy > .55 ? 'var(--warn)' : 'var(--bad)');
+        /* The four components happiness is built from, and which of them is
+           dragging the park down — the single most actionable line here. */
+        const cComf = InfoWheel.avg(q => q.cComfort === undefined ? 1 : q.cComfort);
+        const cVal = InfoWheel.avg(q => q.cValue === undefined ? 1 : q.cValue);
+        const cExc = InfoWheel.avg(q => q.cExcite === undefined ? .5 : q.cExcite);
+        const cFre = InfoWheel.avg(q => q.cFresh === undefined ? 1 : q.cFresh);
+        const parts = [['Comfort', cComf], ['Value for money', cVal], ['Excitement', cExc], ['Energy left', cFre]];
+        for (const [lbl, v] of parts)
+          s += InfoWheel.row(lbl, InfoWheel.pct(v), InfoWheel.verdict(v > .7, v > .45, v <= .45));
+        const weakest = parts.slice().sort((a, b) => a[1] - b[1])[0];
+        if (weakest[1] < .7) s += `<div class="ip-note" style="margin-top:6px;padding-top:6px">
+          Weakest across the crowd: <b>${weakest[0]}</b>.</div>`;
         /* Needs read as "how badly do they need this", so high is bad. */
         s += InfoWheel.row('Hunger', InfoWheel.pct(hunger), InfoWheel.verdict(hunger < .4, hunger < .65, hunger >= .65));
         s += InfoWheel.row('Thirst', InfoWheel.pct(thirst), InfoWheel.verdict(thirst < .4, thirst < .65, thirst >= .65));
@@ -18855,7 +18936,7 @@ const Game = {
     for (const o of Park.objects) if (o.kind === 'ride') o.wear = Math.max(0, o.wear - .02);
     Weather.dayTick(Park.day);
     Marketing.dayTick();
-    if (Park.rating > 700 && !Park.awards.includes('best')) {
+    if (Park.ratingStars() >= 3.5 && !Park.awards.includes('best')) {
       Park.awards.push('best');
       UI.notify('Award won', 'Your park has been voted Best Theme Park of the Year. Bonus ' + money(25000) + '.', 'money');
       Park.money += 25000;
