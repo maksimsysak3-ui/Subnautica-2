@@ -929,9 +929,18 @@ table.tb tr:last-child td{border-bottom:0}
 #boot .msg{margin-top:15px;font-size:10.5px;color:var(--dim);letter-spacing:.1em;height:14px;font-weight:800}
 
 /* ---------- minimap ---------- */
-#minimap{position:absolute;left:12px;bottom:88px;width:156px;height:156px;padding:0;overflow:hidden;display:none}
+#minimap{position:absolute;left:12px;bottom:88px;width:156px;padding:0;overflow:hidden;display:none}
 #minimap.show{display:block}
-#mmc{width:100%;height:100%;display:block;border-radius:calc(var(--r) - 3px)}
+#mmc{width:100%;height:156px;display:block;border-radius:calc(var(--r) - 3px) calc(var(--r) - 3px) 0 0}
+/* named overlay buttons — cycling blind through a click on the canvas made
+   the extra views effectively undiscoverable */
+#mmModes{display:flex;flex-wrap:wrap;gap:2px;padding:4px;background:var(--panel-2);
+  border-top:1.5px solid var(--edge-soft)}
+#mmModes button{flex:1 1 auto;min-width:0;padding:3px 5px;font:800 8.5px/1.2 inherit;
+  letter-spacing:.04em;text-transform:uppercase;cursor:pointer;color:var(--dim);
+  background:#fff;border:1.5px solid var(--edge-soft);border-radius:var(--r-pill)}
+#mmModes button.on{background:var(--accent);border-color:var(--accent);color:#fff}
+#mmModes button:hover{border-color:var(--accent)}
 
 /* out of the way in the corner — it is diagnostics, not chrome */
 #fps{position:absolute;right:12px;bottom:12px;font-size:10px;color:var(--dim);
@@ -1162,7 +1171,8 @@ table.tb tr:last-child td{border-bottom:0}
     <div id="insBody" class="scroll"></div>
   </div>
 
-  <div id="minimap" class="panel"><canvas id="mmc" width="300" height="300"></canvas></div>
+  <div id="minimap" class="panel"><canvas id="mmc" width="300" height="300"></canvas>
+    <div id="mmModes"></div></div>
 
   <!-- Park info: a small circle bottom-left that flies to the middle of the
        screen and unfolds into a ring of topic dials. -->
@@ -10058,6 +10068,10 @@ const UI = {
     $('#btnMap').onclick = () => $('#minimap').classList.toggle('show');
     $('#btnNotifLog').onclick = () => this.showNotifyLog();
     $('#btnUndo').onclick = () => Game.undo();
+    /* Right-click opens the history rather than stealing the plain click,
+       which has to stay a one-tap undo. */
+    $('#btnUndo').oncontextmenu = (ev) => { ev.preventDefault(); UI.undoHistory(); };
+    $('#btnUndo').title = 'Undo last scenery change (Ctrl+Z) · right-click for history';
     $('#btnFin').onclick = () => this.finances();
     $('#btnHelp').onclick = () => this.help();
     $('#btnLand').onclick = () => this.landDialog();
@@ -10134,6 +10148,34 @@ const UI = {
   refreshTools() {
     document.querySelectorAll('.tool').forEach(d => d.classList.toggle('on', d.dataset.id === this.tool));
   },
+  /* The catalogue tiles show a name and a price. Everything else about a
+     thing — how many it moves an hour, what it does to a queue, what it
+     costs you every day for the rest of the park's life — was only visible
+     after you had bought it. This puts the real numbers on the hover. */
+  itemTooltip(it, locked) {
+    if (!it) return '';
+    const L = [it.name];
+    if (it.cost) L.push(money(it.cost) + ' to build');
+    if (it.up) L.push(money(it.up) + ' a day to run');
+    if (it.w && it.d) L.push(it.w + ' × ' + it.d + ' tiles');
+    if (it.cap && it.dur) {
+      /* Throughput is the number that decides whether a ride can carry your
+         park, and it is nowhere in the catalogue. Load and unload are folded
+         in the same way the ride loop does it. */
+      const cycle = it.dur + 12;
+      L.push('about ' + Math.round(it.cap * 3600 / cycle) + ' riders an hour (' + it.cap + ' per cycle, ' + it.dur + 's ride)');
+    }
+    if (it.exc !== undefined) L.push('Excitement ' + it.exc.toFixed(1) + ' · Intensity ' + (it.fear || 0).toFixed(1) + ' · Nausea ' + (it.naus || 0).toFixed(1));
+    if (it.price) L.push('Sells at ' + money(it.price) + ' by default');
+    if (it.satisfy) L.push('Settles ' + it.satisfy + '% of the need in one go');
+    if (it.nightly) L.push(money(it.nightly) + ' a night · quality ' + Math.round((it.quality || 0) * 100) + '%');
+    if (it.beauty) L.push('Beauty +' + it.beauty + ' to the area around it');
+    if (it.wage) L.push(money(it.wage) + ' a day in wages');
+    if (it.spaces) L.push(it.spaces + ' parking spaces');
+    if (it.desc || it.blurb) L.push('', it.desc || it.blurb);
+    if (locked) L.push('', 'Locked until you research it.');
+    return L.join('\n');
+  },
   openBuild(id) {
     const p = $('#buildPanel'), b = $('#bpBody');
     p.classList.add('show');
@@ -10188,6 +10230,7 @@ const UI = {
           onPick(it, d);
         };
         d.dataset.k = it.id;
+        d.title = this.itemTooltip(it, locked);
         g.appendChild(d);
       }
       b.appendChild(g);
@@ -10669,6 +10712,7 @@ const UI = {
           this.pick(it, d);
         };
         d.dataset.k = it.id;
+        d.title = this.itemTooltip(it, locked);
         g.appendChild(d);
       }
       body.appendChild(g);
@@ -11865,6 +11909,44 @@ const UI = {
     if (!list.length) h += `<div class="empty">Nothing here yet.</div>`;
     this.modal('Notifications', h);
   },
+  /* The undo stack, shown as a list you can read and step back through,
+     rather than a button you press hopefully and watch for a toast. Undo is
+     strictly last-in-first-out, so choosing a row means undoing everything
+     above it — which the panel says plainly instead of pretending each row
+     can be picked out on its own. */
+  undoHistory() {
+    const S = Game.undoStack;
+    const clock = (t) => {
+      const m = Math.floor(t || 0) % 1440;
+      return String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0');
+    };
+    let h = `<p>Undo covers scenery and decor — the pieces you shuffle around while
+      making a corner look right. Rides, shops and track are too tangled up with
+      queues and guests to safely rewind.</p>`;
+    if (!S.length) { this.modal('Undo History', h + `<div class="empty">Nothing to undo yet.</div>`); return; }
+    h += S.slice().reverse().map((e, k) => {
+      const name = e.name || (e.def && e.def.name) || 'A piece of scenery';
+      const what = e.type === 'place' ? 'Placed' : 'Demolished';
+      const cash = e.type === 'place' ? '+' + money(e.cost || 0) + ' back' : '−' + money(e.refund || 0);
+      return `<div class="nc-row jump" onclick="UI.undoTo(${k + 1})">
+        <span class="nc-dot ${e.type === 'place' ? '' : 'warn'}"></span>
+        <div style="flex:1 1 auto;min-width:0">
+          <div style="font-weight:700">${what} ${esc(name)}</div>
+          <div style="font-size:10.5px;color:var(--dim)">Undoing this ${k === 0 ? 'costs' : 'and the ' + k + ' after it costs'} ${cash}</div>
+        </div>
+        <span class="nc-when">Day ${e.day || 1}<br>${clock(e.time)}</span>
+      </div>`;
+    }).join('');
+    h += `<div class="btnrow" style="margin-top:12px">
+      <button class="btn" style="flex:0 0 auto;padding:8px 18px" onclick="UI.undoTo(1)">Undo the last one</button>
+      <button class="btn dan" style="flex:0 0 auto;padding:8px 18px" onclick="UI.undoTo(${S.length})">Undo everything listed</button>
+    </div>`;
+    this.modal('Undo History', h);
+  },
+  undoTo(n) {
+    for (let k = 0; k < n && Game.undoStack.length; k++) Game.undo();
+    this.undoHistory();
+  },
   notifJump(idx) {
     const n = this.notifyLog[idx];
     if (!n) return;
@@ -12405,6 +12487,7 @@ const UI = {
     if (this.manageTab === 'awards') return this.awardsTab();
     if (this.manageTab === 'transport') return this.transportTab();
     if (this.manageTab === 'rules') return this.rulesTab();
+    if (this.manageTab === 'compare') return this.compareTab();
     const L = Park.log;
     const income = L.ticket + L.shop + L.entry + (L.hotel || 0) + (L.transit || 0);
     const rows = [
@@ -12469,7 +12552,7 @@ const UI = {
   MANAGE_GROUPS: [
     ['Money',  [['finance', 'Ledger'], ['finance2', 'Loans'], ['marketing', 'Marketing'], ['history', 'History']]],
     ['People', [['guests', 'Guests'], ['thoughts', 'Thoughts'], ['reviews', 'Reviews'], ['staff', 'Staff']]],
-    ['Park',   [['transport', 'Transport'], ['rules', 'Rules'], ['awards', 'Awards']]],
+    ['Park',   [['transport', 'Transport'], ['rules', 'Rules'], ['awards', 'Awards'], ['compare', 'Compare']]],
   ],
   tabBar(active) {
     let h = `<div class="mgt">`;
@@ -12529,6 +12612,98 @@ const UI = {
      Reviews were being generated and thrown away — there was nowhere to read
      them. This aggregates them and, more usefully, ranks what guests are
      actually complaining about. */
+  /* Side by side. Every other screen shows one attraction at a time, which
+     makes "is the new coaster actually pulling its weight against the old
+     one" a question you answer by writing numbers down. This answers it. */
+  compareKind: 'ride',
+  compareSel: [],
+  COMPARE_ROWS: {
+    ride: [
+      ['Riders today', o => (o.ridden || 0).toLocaleString(), o => o.ridden || 0, 1],
+      ['Revenue', o => money(Math.round(o.revenue || 0)), o => o.revenue || 0, 1],
+      ['Ticket price', o => money(o.price || 0), o => o.price || 0, 0],
+      ['Queue now', o => (o.queue ? o.queue.length : 0) + ' waiting', o => -(o.queue ? o.queue.length : 0), 1],
+      ['Excitement', o => (o.excitement || 0).toFixed(1), o => o.excitement || 0, 1],
+      ['Intensity', o => (o.intensity || 0).toFixed(1), o => o.intensity || 0, 0],
+      ['Nausea', o => (o.nausea || 0).toFixed(1), o => -(o.nausea || 0), 1],
+      ['Capacity', o => (o.cap || 0) + ' per cycle', o => o.cap || 0, 1],
+      ['Reliability', o => Math.round((o.reliability || 0) * 100) + '%', o => o.reliability || 0, 1],
+      ['Wear', o => Math.round((o.wear || 0) * 100) + '%', o => -(o.wear || 0), 1],
+      ['Upkeep', o => money(o.def.up || 0) + '/day', o => -(o.def.up || 0), 1],
+      ['Tier', o => ['', 'Standard', 'Improved', 'Deluxe', 'Flagship'][o.tier] || 'Standard', o => o.tier || 1, 1],
+    ],
+    shop: [
+      ['Served', o => (o.served || 0).toLocaleString(), o => o.served || 0, 1],
+      ['Revenue', o => money(Math.round(o.revenue || 0)), o => o.revenue || 0, 1],
+      ['Price', o => money(o.price || 0), o => o.price || 0, 0],
+      ['Take per sale', o => money(o.served ? Math.round(o.revenue / o.served) : 0), o => o.served ? o.revenue / o.served : 0, 1],
+      ['Stock', o => Math.round(o.stock || 0) + '%', o => o.stock || 0, 1],
+      ['Queue now', o => (o.queue ? o.queue.length : 0) + ' waiting', o => -(o.queue ? o.queue.length : 0), 1],
+      ['Upkeep', o => money(o.def.up || 0) + '/day', o => -(o.def.up || 0), 1],
+      ['Tier', o => ['', 'Standard', 'Improved', 'Deluxe', 'Flagship'][o.tier] || 'Standard', o => o.tier || 1, 1],
+    ],
+  },
+  comparePool() {
+    return this.compareKind === 'shop'
+      ? Park.objects.filter(o => o.kind === 'shop' && !isFreeFacility(o.def) && o.def.need !== 'hotel')
+      : Park.objects.filter(o => o.kind === 'ride').concat(Park.coasters);
+  },
+  compareTab() {
+    let h = this.tabBar('compare');
+    const pool = this.comparePool();
+    /* Drop anything that has since been demolished, and seed the first
+       visit with the two biggest earners rather than an empty table. */
+    this.compareSel = this.compareSel.filter(id => pool.some(o => o.id === id));
+    if (!this.compareSel.length && pool.length) {
+      this.compareSel = pool.slice().sort((a, b) => (b.revenue || 0) - (a.revenue || 0)).slice(0, 2).map(o => o.id);
+    }
+    h += `<div class="chips" style="margin-bottom:10px">
+      <button class="chip ${this.compareKind === 'ride' ? 'on' : ''}" onclick="UI.compareSetKind('ride')">Rides &amp; coasters</button>
+      <button class="chip ${this.compareKind === 'shop' ? 'on' : ''}" onclick="UI.compareSetKind('shop')">Shops</button>
+    </div>`;
+    if (!pool.length) return this.modal('Park Management', h + `<div class="empty">Nothing to compare yet — build a couple first.</div>`);
+
+    h += `<h3>Pick up to four</h3><div class="chips" style="margin-bottom:14px">`;
+    for (const o of pool.slice(0, 40)) {
+      const on = this.compareSel.includes(o.id);
+      h += `<button class="chip ${on ? 'on' : ''}" onclick="UI.compareToggle(${o.id})">${esc(o.name || o.def.name)}</button>`;
+    }
+    h += `</div>`;
+
+    const sel = this.compareSel.map(id => pool.find(o => o.id === id)).filter(Boolean);
+    if (sel.length < 2) return this.modal('Park Management', h + `<div class="empty">Pick at least two to put them side by side.</div>`);
+
+    const rows = this.COMPARE_ROWS[this.compareKind === 'shop' ? 'shop' : 'ride'];
+    h += `<div style="overflow-x:auto"><table class="tb" style="min-width:100%">
+      <tr><th style="text-align:left"></th>${sel.map(o => `<th>${esc(o.name || o.def.name)}</th>`).join('')}</tr>`;
+    for (const [label, fmt, score, higherBetter] of rows) {
+      /* The winner of each row is highlighted, which is the whole point —
+         a grid of numbers you still have to compare by eye is no better
+         than four open panels. Rows where "better" is a matter of taste
+         (price, intensity) are deliberately left unmarked. */
+      let bestVal = -Infinity, bestCount = 0;
+      if (higherBetter) {
+        for (const o of sel) { const v = score(o); if (v > bestVal) { bestVal = v; bestCount = 1; } else if (v === bestVal) bestCount++; }
+      }
+      h += `<tr><td style="font-weight:700">${label}</td>` + sel.map(o => {
+        const win = higherBetter && bestCount < sel.length && score(o) === bestVal;
+        return `<td style="text-align:right${win ? ';color:var(--good);font-weight:800' : ''}">${fmt(o)}</td>`;
+      }).join('') + `</tr>`;
+    }
+    h += `</table></div>`;
+    h += `<div class="btnrow" style="margin-top:12px">` + sel.map(o =>
+      `<button class="btn" style="flex:0 0 auto;padding:7px 15px" onclick="UI.closeModal();UI.manage(${o.id})">Open ${esc(o.name || o.def.name)}</button>`).join('') + `</div>`;
+    this.modal('Park Management', h);
+  },
+  compareSetKind(k) { this.compareKind = k; this.compareSel = []; this.compareTab(); },
+  compareToggle(id) {
+    const k = this.compareSel.indexOf(id);
+    if (k >= 0) this.compareSel.splice(k, 1);
+    else if (this.compareSel.length >= 4) { this.notify('Four is the limit', 'Deselect one before adding another.', 'warn'); return; }
+    else this.compareSel.push(id);
+    this.compareTab();
+  },
+
   reviewsTab() {
     let h = this.tabBar('reviews');
     const all = [];
@@ -12952,14 +13127,43 @@ const UI = {
    ========================================================================== */
 const Minimap = {
   ctx: null, t: 0,
-  modes: ['default', 'staff', 'litter'],
+  MODES: [
+    ['default', 'Guests', 'Where the crowd is right now.'],
+    ['staff', 'Staff', 'Every staff member by role — coverage gaps at a glance.'],
+    ['litter', 'Litter', 'Rubbish that has piled up and not been swept.'],
+    ['mood', 'Mood', 'Guests coloured by happiness: green content, red fed up.'],
+    ['money', 'Takings', 'Rides and shops sized by what they have earned today.'],
+    ['queue', 'Queues', 'Every queue, sized and coloured by how long the wait is.'],
+  ],
   mode: 'default',
   init() {
     this.ctx = $('#mmc').getContext('2d');
     const c = $('#mmc');
-    c.style.cursor = 'pointer';
-    c.title = 'Click to cycle overlay';
-    c.onclick = () => { this.mode = this.modes[(this.modes.indexOf(this.mode) + 1) % this.modes.length]; this.t = 1; };
+    /* Clicking the map itself now moves the camera there — the thing you
+       actually want from a minimap — and the overlays get named buttons
+       instead of a blind cycle nobody could discover. */
+    c.style.cursor = 'crosshair';
+    c.title = 'Click to jump the camera there';
+    c.onclick = (ev) => {
+      const r = c.getBoundingClientRect();
+      const i = clamp(Math.round((ev.clientX - r.left) / r.width * N), 0, N - 1);
+      const j = clamp(Math.round((ev.clientY - r.top) / r.height * N), 0, N - 1);
+      Cam.tx = WORLD.wx(i); Cam.tz = WORLD.wz(j);
+    };
+    this.paintModes();
+  },
+  paintModes() {
+    const wrap = document.getElementById('mmModes');
+    if (!wrap) return;
+    wrap.innerHTML = '';
+    for (const [k, label, tip] of this.MODES) {
+      const b = document.createElement('button');
+      b.textContent = label;
+      b.title = tip;
+      if (k === this.mode) b.className = 'on';
+      b.onclick = () => { this.mode = k; this.t = 1; this.paintModes(); };
+      wrap.appendChild(b);
+    }
   },
   draw(dt) {
     this.t += dt; if (this.t < .25) return; this.t = 0;
@@ -12984,6 +13188,39 @@ const Minimap = {
       // guests, so a janitor manager can spot problem areas at a glance
       c.fillStyle = '#ff4d4d';
       for (const lt of Park.litter) c.fillRect(WORLD.ti(lt.x) * s - 1, WORLD.tj(lt.z) * s - 1, 3, 3);
+    } else if (this.mode === 'mood') {
+      /* One dot per guest, green through amber to red. Where the red
+         clusters is where the park is going wrong, and unlike the ground
+         heat map it needs no extra render pass. */
+      for (const g of Park.guests) {
+        const h = g.happy;
+        c.fillStyle = h > .72 ? '#2ecc71' : h > .55 ? '#a8d84a' : h > .38 ? '#ffc93c' : h > .22 ? '#ff8c42' : '#ff3b30';
+        c.fillRect(WORLD.ti(g.x) * s - .5, WORLD.tj(g.z) * s - .5, 3, 3);
+      }
+    } else if (this.mode === 'money') {
+      /* Earners drawn as discs sized by revenue against the best earner in
+         the park, so the shape of your income is visible as a map rather
+         than a table of numbers. */
+      const earners = Park.objects.concat(Park.coasters).filter(o => o.revenue > 0);
+      const top = earners.reduce((a, o) => Math.max(a, o.revenue), 1);
+      for (const o of earners) {
+        const f = Math.sqrt(o.revenue / top);
+        c.fillStyle = `rgba(255,209,72,${(.35 + f * .6).toFixed(2)})`;
+        c.beginPath();
+        c.arc(WORLD.ti(o.x) * s, WORLD.tj(o.z) * s, 2 + f * 8, 0, TAU);
+        c.fill();
+      }
+    } else if (this.mode === 'queue') {
+      /* Queue length where it stands, so the bottleneck is a place on the
+         map rather than a row you have to go looking for. */
+      for (const o of Park.objects.concat(Park.coasters)) {
+        if (!o.queue || !o.queue.length) continue;
+        const n = o.queue.length;
+        c.fillStyle = n > 40 ? '#ff3b30' : n > 20 ? '#ff8c42' : n > 8 ? '#ffc93c' : '#2ecc71';
+        c.beginPath();
+        c.arc(WORLD.ti(o.x) * s, WORLD.tj(o.z) * s, 2 + Math.min(9, n * .22), 0, TAU);
+        c.fill();
+      }
     } else {
       c.fillStyle = '#ffe066';
       for (const g of Park.guests) c.fillRect(WORLD.ti(g.x) * s, WORLD.tj(g.z) * s, 2, 2);
@@ -13004,8 +13241,18 @@ const Minimap = {
     // camera frustum marker
     c.strokeStyle = '#fff'; c.lineWidth = 1.5;
     c.beginPath(); c.arc(WORLD.ti(Cam.dx) * s, WORLD.tj(Cam.dz) * s, 6, 0, TAU); c.stroke();
-    c.fillStyle = 'rgba(255,255,255,.85)'; c.font = '10px sans-serif';
-    c.fillText(this.mode === 'default' ? 'Guests' : this.mode === 'staff' ? 'Staff' : 'Litter', 6, 12);
+    /* A live figure for whatever the overlay is showing — the label alone
+       said what you were looking at but never how much of it there was. */
+    const M = this.MODES.find(m => m[0] === this.mode);
+    let sub = '';
+    if (this.mode === 'default' || this.mode === 'mood') sub = Park.guests.length + ' in park';
+    else if (this.mode === 'staff') sub = Park.staff.length + ' on shift';
+    else if (this.mode === 'litter') sub = Park.litter.length + ' pieces';
+    else if (this.mode === 'money') sub = money(Math.round(Park.objects.concat(Park.coasters).reduce((a, o) => a + (o.revenue || 0), 0)));
+    else if (this.mode === 'queue') sub = Park.objects.concat(Park.coasters).reduce((a, o) => a + ((o.queue && o.queue.length) || 0), 0) + ' queuing';
+    c.fillStyle = 'rgba(0,0,0,.45)'; c.fillRect(0, 0, 300, 20);
+    c.fillStyle = 'rgba(255,255,255,.92)'; c.font = 'bold 11px sans-serif';
+    c.fillText((M ? M[1] : this.mode) + (sub ? ' · ' + sub : ''), 6, 14);
   }
 };
 /* ============================================================================
@@ -18629,7 +18876,7 @@ const Game = {
       Park.objects.push(o);
       o.footprint((ii, jj) => WORLD.setOwn(ii, jj, o.id));
       this.sceneryDirty = true;
-      this.pushUndo({ type: 'place', id: o.id, cost: p.def.cost });
+      this.pushUndo({ type: 'place', id: o.id, cost: p.def.cost, name: p.def.name, day: Park.day, time: Park.time });
     } else if (p.kind === 'gtower') {
       Park.addObject(o);
       let mate = null, bd = 1e9;
@@ -18775,7 +19022,7 @@ const Game = {
     const refund = Math.round((o.def.cost || 0) * .55);
     Park.money += refund;
     if (o.kind === 'scenery') {
-      this.pushUndo({ type: 'demolish', def: o.def, i: o.i, j: o.j, rot: o.rot, seed: o.seed, refund });
+      this.pushUndo({ type: 'demolish', def: o.def, i: o.i, j: o.j, rot: o.rot, seed: o.seed, refund, name: o.def.name, day: Park.day, time: Park.time });
       o.footprint((ii, jj) => WORLD.setOwn(ii, jj, -1));
       const k = Park.objects.indexOf(o); if (k >= 0) Park.objects.splice(k, 1);
       this.sceneryDirty = true;
