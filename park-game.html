@@ -458,6 +458,28 @@ kbd{
   color:var(--accent-ink);margin:0 2px;
 }
 
+/* ---------- track heatmap key ----------
+   Pinned bottom-left, clear of the toolbar, so the colours always have real
+   numbers next to them instead of being an unlabelled gradient. */
+#heatLegend{position:absolute;left:14px;bottom:104px;width:292px;z-index:40;pointer-events:auto;
+  background:var(--panel);border:2px solid var(--edge);
+  border-radius:var(--r-md);box-shadow:var(--e2);padding:11px 12px 10px}
+#heatLegend .hl-title{font-size:9.5px;letter-spacing:.13em;text-transform:uppercase;
+  color:var(--accent-ink);font-weight:800;margin-bottom:7px}
+#heatLegend .hl-bar{display:flex;height:11px;border-radius:4px;overflow:hidden;
+  border:1px solid rgba(18,58,86,.18)}
+#heatLegend .hl-ticks{display:flex;margin-top:3px;font-size:9px;font-weight:700;
+  color:var(--dim);font-variant-numeric:tabular-nums}
+#heatLegend .hl-note{font-size:9.5px;color:var(--dim);line-height:1.45;margin-top:6px}
+#heatLegend .hl-modes{display:flex;flex-wrap:wrap;gap:4px;margin-top:8px}
+#heatLegend .hl-m{font-size:9px;font-weight:800;padding:4px 7px;border-radius:6px;cursor:pointer;
+  border:2px solid var(--edge);background:#fff;color:var(--txt);font-family:inherit}
+#heatLegend .hl-m:hover{border-color:var(--accent)}
+#heatLegend .hl-m.on{background:var(--accent-ink);color:#fff;border-color:var(--accent-ink)}
+#heatLegend .hl-close{margin-top:8px;width:100%;font-size:9.5px;font-weight:800;padding:5px;
+  border-radius:6px;cursor:pointer;border:2px solid var(--edge);background:#fff;color:var(--txt);font-family:inherit}
+#heatLegend .hl-close:hover{border-color:var(--bad);color:var(--bad)}
+
 /* ---------- ride cam overlay ---------- */
 /* the on-ride camera takes over the screen: hide the builder chrome */
 body.ridemode #buildPanel,
@@ -6835,7 +6857,15 @@ class CoasterRide extends ParkObject {
       const excitement = clamp((maxV ? p.v / maxV : 0) * .45 + gDev * .3 + p.gl * .35, 0, 1);
       const fear = clamp(p.y / 40 * .5 + (p.gv < .3 ? .5 : 0) + gDev * .25, 0, 1);
       const fatigue = clamp(fatigueAcc / 6, 0, 1);
-      pts.push({ d: p.d, x: p.px, y: p.py, z: p.pz, wear, excitement, fear, fatigue });
+      /* The raw physical values ride along with the derived scores so the
+         heat map can be scaled and labelled in units a player can reason
+         about — km/h and G — instead of an unexplained 0-100%. */
+      pts.push({
+        d: p.d, x: p.px, y: p.py, z: p.pz,
+        wear, excitement, fear, fatigue,
+        speed: p.v * 3.6, gv: p.gv, gl: p.gl,
+        height: p.y,
+      });
     }
     this.heatPoints = pts;
   }
@@ -10849,9 +10879,9 @@ const UI = {
       if (isC && o.heatPoints && o.heatPoints.length) {
         const on = HeatMap.coaster === o;
         h += `<div class="cat">Track Heatmap</div>`;
-        h += `<div style="font-size:10.5px;color:var(--dim);margin-top:-4px">Colours the track itself — blue is fine, red needs attention. Click any coloured point in the world to see its exact numbers.</div>`;
+        h += `<div style="font-size:10.5px;color:var(--dim);margin-top:-4px">Colours the track itself and puts a key on screen with the real numbers on it. Click any coloured point in the world for that spot's exact speed and G.</div>`;
         h += `<div class="btnrow" style="flex-wrap:wrap">`;
-        for (const m of ['wear', 'excitement', 'fear', 'fatigue']) {
+        for (const m of Object.keys(HeatMap.MODES)) {
           const active = on && HeatMap.mode === m;
           h += `<button class="btn ${active ? 'go' : ''}" style="flex:1 1 40%" onclick="HeatMap.open(Park.coasters.find(x=>x.id===${o.id}),'${m}')">${HeatMap.LABELS[m]}</button>`;
         }
@@ -14575,31 +14605,124 @@ Prefab.car = function (color) {
 
 /* ---------- HeatMap: 3D wear/excitement/fear/fatigue overlay ---------- */
 const HeatMap = {
-  coaster: null, mode: 'wear', mesh: null,
-  LABELS: { wear: 'Wear', excitement: 'Excitement', fear: 'Fear', fatigue: 'Fatigue' },
+  coaster: null, mode: 'gv', mesh: null,
+  /* Each mode says what it reads, over what range, and in what units, so the
+     colours can be given a legend with real numbers on it. Before this the
+     bar was an unlabelled 0-100% of an undocumented formula, which told a
+     player a stretch of track was "70% fear" without saying 70% of what.
+     `lo`/`hi` are the ends of the colour ramp; `mid` is the value that reads
+     as neutral, which is what makes the diverging G scales legible — 1G is
+     normal, and both hanging weightless and being crushed are departures
+     from it in opposite directions. */
+  MODES: {
+    gv: { label: 'Vertical G', unit: 'G', lo: -1.5, hi: 5, mid: 1, diverging: true, fmt: v => v.toFixed(1) + 'G',
+          note: '1G is normal. Below 0 is airtime, above about 4.5G is punishing.' },
+    gl: { label: 'Lateral G', unit: 'G', lo: 0, hi: 2.5, fmt: v => v.toFixed(1) + 'G',
+          note: 'Sideways load. Real rides stay under about 1.5G — bank the turns to cut it.' },
+    speed: { label: 'Speed', unit: 'km/h', lo: 0, hi: 120, fmt: v => Math.round(v) + ' km/h',
+          note: 'Track speed at each point.' },
+    fear: { label: 'Fear', unit: '%', lo: 0, hi: 1, fmt: v => Math.round(v * 100) + '%',
+          note: 'Height, airtime and G swing combined.' },
+    fatigue: { label: 'Fatigue', unit: '%', lo: 0, hi: 1, fmt: v => Math.round(v * 100) + '%',
+          note: 'How worn out a rider is by this point in the lap.' },
+    wear: { label: 'Wear', unit: '%', lo: 0, hi: 1, fmt: v => Math.round(v * 100) + '%',
+          note: 'Where the track takes the most punishment and needs a mechanic.' },
+    excitement: { label: 'Excitement', unit: '%', lo: 0, hi: 1, fmt: v => Math.round(v * 100) + '%',
+          note: 'Where the ride is actually doing something.' },
+  },
+  get LABELS() { const o = {}; for (const k in this.MODES) o[k] = this.MODES[k].label; return o; },
+  def(mode) { return this.MODES[mode] || this.MODES.gv; },
+  /* Normalise a raw reading to 0..1 across the mode's range. Diverging modes
+     put their neutral value at the middle of the ramp so departures in
+     either direction are visible rather than one end being dead. */
+  norm(mode, raw) {
+    const d = this.def(mode);
+    if (d.diverging) {
+      return raw >= d.mid
+        ? .5 + .5 * clamp((raw - d.mid) / Math.max(1e-6, d.hi - d.mid), 0, 1)
+        : .5 - .5 * clamp((d.mid - raw) / Math.max(1e-6, d.mid - d.lo), 0, 1);
+    }
+    return clamp((raw - d.lo) / Math.max(1e-6, d.hi - d.lo), 0, 1);
+  },
+  /* Ordered light-to-dark as well as hue-shifted, so the ramp still reads
+     correctly in greyscale and for red-green colour blindness — the old
+     blue/yellow/red ramp relied on hue alone. */
+  STOPS: [
+    [0.00, [0.16, 0.30, 0.62]],   // deep blue   — well below neutral
+    [0.25, [0.25, 0.66, 0.85]],   // cyan
+    [0.50, [0.55, 0.82, 0.45]],   // green       — neutral / comfortable
+    [0.72, [0.98, 0.78, 0.22]],   // amber
+    [0.88, [0.95, 0.47, 0.15]],   // orange
+    [1.00, [0.80, 0.13, 0.15]],   // deep red    — beyond real-world limits
+  ],
   colorFor(v) {
-    // blue (low) -> yellow (mid) -> red (high)
-    if (v < .5) return [lerp(.15, .95, v * 2), lerp(.35, .85, v * 2), lerp(.85, .25, v * 2)];
-    const t = (v - .5) * 2;
-    return [lerp(.95, .95, t), lerp(.85, .2, t), lerp(.25, .15, t)];
+    v = clamp(v, 0, 1);
+    const S = this.STOPS;
+    for (let i = 1; i < S.length; i++) {
+      if (v <= S[i][0]) {
+        const t = (v - S[i - 1][0]) / (S[i][0] - S[i - 1][0]);
+        const a = S[i - 1][1], b = S[i][1];
+        return [lerp(a[0], b[0], t), lerp(a[1], b[1], t), lerp(a[2], b[2], t)];
+      }
+    }
+    return S[S.length - 1][1].slice();
   },
   open(coaster, mode) {
     this.coaster = coaster; this.mode = mode || this.mode;
     this.rebuild();
   },
-  close() { this.coaster = null; if (this.mesh) { this.mesh.dispose(); this.mesh = null; } },
+  close() {
+    this.coaster = null;
+    if (this.mesh) { this.mesh.dispose(); this.mesh = null; }
+    this.renderLegend();
+  },
   setMode(mode) { this.mode = mode; this.rebuild(); },
   rebuild() {
     if (this.mesh) { this.mesh.dispose(); this.mesh = null; }
     const c = this.coaster;
-    if (!c || !c.heatPoints || !c.heatPoints.length || !Game.R) return;
+    if (!c || !c.heatPoints || !c.heatPoints.length || !Game.R) { this.renderLegend(); return; }
     const g = new Geo();
     for (const p of c.heatPoints) {
-      const v = p[this.mode] || 0;
-      const col = this.colorFor(v);
-      g.sphere(p.x, p.y + .35, p.z, .45, 5, col);
+      const raw = p[this.mode] || 0;
+      const col = this.colorFor(this.norm(this.mode, raw));
+      // Sat higher above the rails and a touch larger — the old markers sat
+      // half-buried in the track and were hard to pick out against it.
+      g.sphere(p.x, p.y + .75, p.z, .58, 6, col);
     }
     this.mesh = Game.R.makeMesh(g);
+    this.renderLegend();
+  },
+  /* A key with the actual numbers on it, pinned beside the track view. */
+  renderLegend() {
+    let el = document.getElementById('heatLegend');
+    if (!this.coaster) { if (el) el.remove(); return; }
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'heatLegend';
+      document.getElementById('ui').appendChild(el);
+    }
+    const d = this.def(this.mode);
+    const ticks = 5;
+    let swatches = '', labels = '';
+    for (let i = 0; i < 40; i++) {
+      const c = this.colorFor(i / 39).map(x => Math.round(x * 255));
+      swatches += `<span style="flex:1;background:rgb(${c[0]},${c[1]},${c[2]})"></span>`;
+    }
+    for (let i = 0; i < ticks; i++) {
+      const f = i / (ticks - 1);
+      const raw = d.diverging
+        ? (f >= .5 ? d.mid + (f - .5) / .5 * (d.hi - d.mid) : d.lo + f / .5 * (d.mid - d.lo))
+        : d.lo + f * (d.hi - d.lo);
+      labels += `<span style="flex:1;text-align:${i === 0 ? 'left' : i === ticks - 1 ? 'right' : 'center'}">${d.fmt(raw)}</span>`;
+    }
+    el.innerHTML = `
+      <div class="hl-title">${d.label} along the track</div>
+      <div class="hl-bar">${swatches}</div>
+      <div class="hl-ticks">${labels}</div>
+      <div class="hl-note">${d.note}</div>
+      <div class="hl-modes">${Object.keys(this.MODES).map(k =>
+        `<button class="hl-m ${k === this.mode ? 'on' : ''}" onclick="HeatMap.setMode('${k}')">${this.MODES[k].label}</button>`).join('')}</div>
+      <button class="hl-close" onclick="HeatMap.close()">Hide heatmap</button>`;
   },
   draw(R) { if (this.mesh) R.draw(this.mesh); },
   /* click-to-inspect: nearest heat point (in XZ) to the ground point the
@@ -14613,9 +14736,12 @@ const HeatMap = {
       if (dd < bestD) { bestD = dd; best = p; }
     }
     if (!best || bestD > 25) return;
+    // Lead with the physical readings — they are the ones a player can act on.
+    const n = this.norm(this.mode, best[this.mode] || 0);
     UI.notify(`Track @ ${Math.round(best.d)}m`,
-      `Wear ${Math.round(best.wear * 100)}% · Excitement ${Math.round(best.excitement * 100)}% · Fear ${Math.round(best.fear * 100)}% · Fatigue ${Math.round(best.fatigue * 100)}%`,
-      best[this.mode] > .66 ? 'bad' : best[this.mode] > .33 ? 'warn' : 'good');
+      `${Math.round(best.speed)} km/h · ${best.gv.toFixed(1)}G vertical · ${best.gl.toFixed(1)}G lateral · ${Math.round(best.height)}m up`
+      + ` — wear ${Math.round(best.wear * 100)}%, fear ${Math.round(best.fear * 100)}%, fatigue ${Math.round(best.fatigue * 100)}%`,
+      n > .82 ? 'bad' : n > .62 ? 'warn' : 'good');
   }
 };
 
