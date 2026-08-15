@@ -15298,6 +15298,11 @@ function stepPhysics(dt,inp){
      from where the line is going — position plus damping, which is what stops
      the weave — and it FADES OUT as the driver applies lock, so it holds the car
      steady when you leave it alone and gets out of the way when you do not. */
+  /* Bleed the assist's angle away every frame BEFORE deciding whether to add
+     to it. Without this, switching the assist off -- or leaving the track, or
+     entering the pits -- freezes whatever angle it was holding and leaves a
+     permanent offset on the steering. */
+  CAR.assistAng=damp(CAR.assistAng||0, 0, 5.0, dt);
   if(SET.assistSteer && TRACK.line && STATE==='drive' && spd>8 && !CAR.inPit){
     const near=nearestTrack(CAR.pos, CAR.trackIdx, 60);
     if(near){
@@ -15316,12 +15321,30 @@ function stepPhysics(dt,inp){
       const drive=Math.abs(CAR.steerCmd||0);
       const yield_=1-clamp(drive/0.55,0,1);         // full help hands-off, none at lock
       const help=clamp(latErr*0.55 + clamp(hErr,-0.6,0.6)*1.15, -1, 1);
-      CAR.steerCmd=clamp((CAR.steerCmd||0)+help*0.42*yield_, -1, 1);
+      /* THE WEAVE. This line was `steerCmd += help*0.42*yield_`, and it is
+         wrong in two ways that compound into exactly the side-to-side you feel
+         at speed.
+         It is not scaled by dt, so it is a per-FRAME injection: the same assist
+         is nearly three times stronger at 144 fps than at 50, and nothing in
+         the tuning can be right at more than one refresh rate.
+         Worse, it ADDS to the command it just wrote. steerCmd is persistent, so
+         hands-off at speed the assist walks it to the ±1 clamp inside about
+         three frames -- full lock -- the car darts, the error flips sign, and
+         it walks to full lock the other way. That is an oscillator with the
+         gain set to maximum, and it is why the car will not settle.
+         The assist now owns a small, bounded steering angle of its OWN which it
+         approaches at a rate, and that angle is added to the final steer rather
+         than to the command, so nothing accumulates. Its authority falls away
+         with speed, because a fast corner needs a nudge and not a handful. */
+      const auth=0.34*(1-0.55*clamp(spd/85,0,1));
+      CAR.assistAng=damp(CAR.assistAng||0, help*auth*yield_, 5.0, dt);
     }
   }
   const lockT=Math.pow(clamp(spd/PHYS.vMax,0,1),P.steerLockCurve);
   const maxSteer=lerp(P.maxSteerLo,P.maxSteerHi,lockT)*wetLockCut;
-  CAR.steer=CAR.steerCmd*maxSteer;
+  // the assist's own angle rides on the final steer, never on the command, so
+  // it can never wind the command up to the clamp
+  CAR.steer=clamp(CAR.steerCmd+(CAR.assistAng||0),-1,1)*maxSteer;
 
   // longitudinal
   /* DAMAGE THAT MEANS SOMETHING SPECIFIC.
