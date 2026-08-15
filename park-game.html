@@ -458,6 +458,63 @@ kbd{
   color:var(--accent-ink);margin:0 2px;
 }
 
+/* ---------- park info wheel ----------
+   The closed state is a small circle bottom-left. Opening it flies that same
+   circle to the centre of the screen and unfolds a ring of topic dials around
+   it; every dial reads live park state, so nothing here is decorative. */
+#infoOrb{position:absolute;left:18px;bottom:24px;width:46px;height:46px;border-radius:50%;
+  background:var(--panel);border:2.5px solid var(--edge);box-shadow:var(--e2);cursor:pointer;
+  display:none;align-items:center;justify-content:center;z-index:46;
+  transition:transform var(--sn),border-color var(--sn),box-shadow var(--sn)}
+#infoOrb.show{display:flex}
+#infoOrb:hover{transform:scale(1.09);border-color:var(--accent);box-shadow:var(--e3)}
+#infoOrb svg{width:24px;height:24px;color:var(--accent-ink)}
+#infoScrim{position:absolute;inset:0;background:rgba(12,32,48,.42);
+  opacity:0;pointer-events:none;transition:opacity var(--ez);z-index:47}
+#infoScrim.show{opacity:1;pointer-events:auto}
+#infoWheel{position:absolute;left:50%;top:50%;width:0;height:0;z-index:48;
+  pointer-events:none;opacity:0;transform:scale(.35);
+  transition:opacity var(--ez),transform var(--ez)}
+#infoWheel.show{opacity:1;transform:scale(1);pointer-events:auto}
+#infoRing{position:absolute;left:0;top:0}
+#infoRing .seg{position:absolute;width:78px;height:78px;margin:-39px 0 0 -39px;border-radius:50%;
+  background:#fff;border:2.5px solid var(--edge);box-shadow:var(--e2);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;
+  cursor:pointer;transition:transform var(--sn),border-color var(--sn),background var(--sn)}
+#infoRing .seg:hover{transform:scale(1.11);border-color:var(--accent)}
+#infoRing .seg.on{background:var(--accent-ink);border-color:var(--accent-ink)}
+#infoRing .seg.on .sl{color:#fff}
+#infoRing .seg.on svg{color:#fff}
+#infoRing .seg svg{width:22px;height:22px;color:var(--accent-ink)}
+#infoRing .seg .sl{font-size:8px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;
+  color:var(--dim);text-align:center;line-height:1.1;max-width:66px}
+#infoHub{position:absolute;width:104px;height:104px;margin:-52px 0 0 -52px;border-radius:50%;
+  background:#fff;border:3px solid var(--accent-ink);box-shadow:var(--e3);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer}
+#infoHub:hover{border-color:var(--bad)}
+#infoHub .hv{font-size:19px;font-weight:800;color:var(--accent-ink);line-height:1;
+  font-variant-numeric:tabular-nums}
+#infoHub .hl{font-size:7.5px;font-weight:800;letter-spacing:.13em;text-transform:uppercase;
+  color:var(--dimmer);margin-top:3px}
+#infoHub .hx{font-size:8px;font-weight:800;color:var(--dimmer);margin-top:5px;letter-spacing:.08em}
+#infoPanel{position:absolute;left:250px;top:-186px;width:326px;max-height:372px;overflow-y:auto;
+  background:#fff;border:2.5px solid var(--edge);border-radius:var(--r-md);
+  box-shadow:var(--e3);padding:15px 17px}
+#infoPanel h4{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--accent-ink);
+  font-weight:800;margin:0 0 4px}
+#infoPanel .ip-sub{font-size:10px;color:var(--dim);line-height:1.5;margin-bottom:10px}
+#infoPanel .ip-row{display:flex;justify-content:space-between;gap:10px;padding:5px 0;
+  border-bottom:1px dashed var(--edge-soft);font-size:11px}
+#infoPanel .ip-row .k{color:var(--dim)}
+#infoPanel .ip-row .v{font-weight:800;font-variant-numeric:tabular-nums;text-align:right}
+#infoPanel .ip-note{font-size:10px;color:var(--dim);line-height:1.5;margin-top:9px;
+  padding-top:8px;border-top:1px solid var(--edge-soft)}
+#infoPanel .ip-bar{height:7px;border-radius:4px;background:var(--panel-sunken);
+  overflow:hidden;margin:5px 0 9px;border:1px solid var(--edge-soft)}
+#infoPanel .ip-bar i{display:block;height:100%;border-radius:4px}
+#infoPanel .ip-good{color:var(--good)} #infoPanel .ip-warn{color:var(--warn)} #infoPanel .ip-bad{color:var(--bad)}
+@media (max-width:1180px){ #infoPanel{left:auto;right:-330px} }
+
 /* ---------- track heatmap key ----------
    Pinned bottom-left, clear of the toolbar, so the colours always have real
    numbers next to them instead of being an unlabelled gradient. */
@@ -911,6 +968,16 @@ table.tb tr:last-child td{border-bottom:0}
   </div>
 
   <div id="minimap" class="panel"><canvas id="mmc" width="300" height="300"></canvas></div>
+
+  <!-- Park info: a small circle bottom-left that flies to the middle of the
+       screen and unfolds into a ring of topic dials. -->
+  <div id="infoOrb" title="Park info (I)"></div>
+  <div id="infoScrim"></div>
+  <div id="infoWheel">
+    <div id="infoRing"></div>
+    <div id="infoHub"></div>
+    <div id="infoPanel"></div>
+  </div>
 
   <div id="hint"></div>
 
@@ -9272,6 +9339,7 @@ const UI = {
     requestAnimationFrame(fit);
     setTimeout(fit, 200);
     this.refreshTools();
+    InfoWheel.init();
   },
   setTool(id) {
     if (Coaster.active && id !== 'coaster') Coaster.exit();
@@ -14343,6 +14411,10 @@ const Menu = {
     document.body.classList.remove('ridemode');
     for (const id of ['buildPanel', 'coasterPanel', 'inspector', 'goals', 'minimap'])
       document.getElementById(id).classList.remove('show');
+    // the info circle reports on a running park, so it goes away with one
+    if (typeof InfoWheel !== 'undefined') InfoWheel.hide();
+    const orb = document.getElementById('infoOrb');
+    if (orb) orb.classList.remove('show');
     this.back();
     document.getElementById('menu').classList.add('show');
     document.getElementById('ui').style.display = 'none';
@@ -14361,6 +14433,9 @@ const Menu = {
   hide() {
     document.getElementById('menu').classList.remove('show');
     document.getElementById('ui').style.display = '';
+    // the info circle only belongs on screen once there is a park to report on
+    const orb = document.getElementById('infoOrb');
+    if (orb) orb.classList.add('show');
   },
   scenarios() {
     document.getElementById('mMain').classList.add('hidden');
@@ -14604,6 +14679,366 @@ Prefab.car = function (color) {
 };
 
 /* ---------- HeatMap: 3D wear/excitement/fear/fatigue overlay ---------- */
+/* ============================================================================
+   PARK INFO WHEEL
+   A circle in the bottom-left corner that flies to the middle of the screen
+   and opens into a ring of topic dials. Every figure below is read live from
+   the running park — none of it is illustrative filler, and where a number
+   needs a judgement attached ("too few restrooms") that judgement is computed
+   from the same rule the simulation itself uses, so the advice can never
+   contradict what the guests are actually doing.
+   ========================================================================== */
+const InfoWheel = {
+  open: false, tab: 'park', _timer: 0,
+  RADIUS: 168,
+
+  ICONS: {
+    park: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3l9 6v11H3V9z"/><path d="M9 20v-6h6v6"/></svg>',
+    guests: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="9" cy="8" r="3"/><path d="M3 20c0-3.4 2.7-5.3 6-5.3s6 1.9 6 5.3"/><path d="M16 5.4a3 3 0 010 5.2M17.5 14.4c2.2.6 3.5 2.3 3.5 5.1"/></svg>',
+    money: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2.5" y="6" width="19" height="12" rx="2.2"/><circle cx="12" cy="12" r="3"/><path d="M6 9v.01M18 15v.01"/></svg>',
+    rides: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="2"/><path d="M12 3.5v17M3.5 12h17M6 6l12 12M18 6L6 18"/></svg>',
+    shops: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 9h16l-1 11H5z"/><path d="M4 9l1.4-4h13.2L20 9"/><path d="M9.5 13v4M14.5 13v4"/></svg>',
+    staff: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="7.5" r="3.2"/><path d="M5 20c0-3.9 3.1-6 7-6s7 2.1 7 6"/><path d="M9.5 14.5L12 18l2.5-3.5"/></svg>',
+    land: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 8.5l9-4.5 9 4.5-9 4.5z"/><path d="M3 14l9 4.5 9-4.5"/></svg>',
+    weather: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="9" cy="9" r="3.4"/><path d="M9 2.6v1.8M9 13.6v1.8M2.6 9h1.8M13.6 9h1.8M4.5 4.5l1.3 1.3M12.2 12.2l1.3 1.3M4.5 13.5l1.3-1.3M12.2 5.8l1.3-1.3"/><path d="M11 19.5a3.4 3.4 0 01.4-6.7 4.5 4.5 0 018.6 1.3 3.1 3.1 0 01-.5 5.4H11z"/></svg>',
+  },
+
+  /* --- helpers shared by the readouts --- */
+  row(k, v, cls) { return `<div class="ip-row"><span class="k">${k}</span><span class="v ${cls || ''}">${v}</span></div>`; },
+  bar(frac, col) {
+    const f = clamp(frac, 0, 1) * 100;
+    return `<div class="ip-bar"><i style="width:${f.toFixed(1)}%;background:${col}"></i></div>`;
+  },
+  verdict(good, warn, bad) { return good ? 'ip-good' : warn ? 'ip-warn' : bad ? 'ip-bad' : ''; },
+  pct(v) { return Math.round(clamp(v, 0, 1) * 100) + '%'; },
+
+  /* Average of a guest field, guarded for an empty park. */
+  avg(fn) {
+    const g = Park.guests; if (!g.length) return null;
+    let s = 0; for (const q of g) s += fn(q) || 0;
+    return s / g.length;
+  },
+
+  TABS: [
+    {
+      id: 'park', label: 'Park',
+      hub: () => ({ v: Park.ratingStars().toFixed(1), l: 'Rating' }),
+      render() {
+        const days = Math.max(1, Park.day - 1 + Park.time / 1440);
+        const atts = Park.objects.filter(o => o.kind === 'ride').length + Park.coasters.length;
+        const h = Math.floor(Park.time / 60) % 24, mm = Math.floor(Park.time % 60);
+        let s = `<h4>${esc(Park.name || 'My Theme Park')}</h4>`;
+        s += `<div class="ip-sub">Day ${Park.day}, ${String(h).padStart(2, '0')}:${String(mm).padStart(2, '0')} &middot; the park is
+          <b>${Park.open ? 'open' : 'closed'}</b>.</div>`;
+        s += InfoWheel.bar(Park.rating / 999, 'var(--accent)');
+        s += InfoWheel.row('Rating', Park.ratingStarsHTML());
+        s += InfoWheel.row('Guests in the park', Park.guests.length.toLocaleString());
+        s += InfoWheel.row('Average happiness', InfoWheel.pct(Park.happiness),
+          InfoWheel.verdict(Park.happiness > .75, Park.happiness > .55, Park.happiness <= .55));
+        s += InfoWheel.row('Attractions', atts);
+        s += InfoWheel.row('Shops &amp; facilities', Park.objects.filter(o => o.kind === 'shop').length);
+        s += InfoWheel.row('Staff on the payroll', Park.staff.length);
+        s += InfoWheel.row('Days open', Math.floor(days));
+        s += InfoWheel.row('Litter on the ground', Park.litter.length,
+          InfoWheel.verdict(Park.litter.length < 20, Park.litter.length < 60, Park.litter.length >= 60));
+        const broken = Park.needMechanic.length;
+        s += InfoWheel.row('Rides broken down', broken, InfoWheel.verdict(!broken, broken < 3, broken >= 3));
+        /* The advice is derived from the same conditions the sim reacts to,
+           so it cannot drift out of step with what guests actually do. */
+        const tips = [];
+        if (!atts) tips.push('Nothing to ride yet — build an attraction.');
+        if (!Park.objects.some(o => o.def && o.def.need === 'toilet')) tips.push('No restrooms anywhere in the park.');
+        if (broken >= 3) tips.push('Several rides are down; hire more mechanics.');
+        if (Park.litter.length >= 60) tips.push('Litter is piling up — more janitors or more bins.');
+        if (Park.happiness < .55) tips.push('Guests are unhappy; check queues, prices and cleanliness.');
+        if (!Park.open) tips.push('The gates are shut, so nobody is arriving.');
+        s += `<div class="ip-note">${tips.length ? tips.map(t => '&bull; ' + t).join('<br>') : 'Nothing is obviously wrong right now.'}</div>`;
+        return s;
+      }
+    },
+    {
+      id: 'guests', label: 'Guests',
+      hub: () => ({ v: Park.guests.length.toLocaleString(), l: 'In park' }),
+      render() {
+        const g = Park.guests;
+        let s = `<h4>Guests</h4>`;
+        if (!g.length) return s + `<div class="ip-sub">Nobody is in the park yet. Open the gates and build a path from the entrance.</div>`;
+        const hunger = InfoWheel.avg(q => q.hunger), thirst = InfoWheel.avg(q => q.thirst);
+        const toilet = InfoWheel.avg(q => q.toilet), energy = InfoWheel.avg(q => q.energy);
+        const naus = InfoWheel.avg(q => q.nausea), cash = InfoWheel.avg(q => q.cash);
+        const happy = InfoWheel.avg(q => q.happy);
+        s += `<div class="ip-sub">Averaged across all ${g.length.toLocaleString()} guests currently inside.</div>`;
+        s += InfoWheel.row('Happiness', InfoWheel.pct(happy), InfoWheel.verdict(happy > .75, happy > .55, happy <= .55));
+        s += InfoWheel.bar(happy, happy > .75 ? 'var(--good)' : happy > .55 ? 'var(--warn)' : 'var(--bad)');
+        /* Needs read as "how badly do they need this", so high is bad. */
+        s += InfoWheel.row('Hunger', InfoWheel.pct(hunger), InfoWheel.verdict(hunger < .4, hunger < .65, hunger >= .65));
+        s += InfoWheel.row('Thirst', InfoWheel.pct(thirst), InfoWheel.verdict(thirst < .4, thirst < .65, thirst >= .65));
+        s += InfoWheel.row('Needs a restroom', InfoWheel.pct(toilet), InfoWheel.verdict(toilet < .4, toilet < .65, toilet >= .65));
+        s += InfoWheel.row('Nausea', InfoWheel.pct(naus), InfoWheel.verdict(naus < .25, naus < .5, naus >= .5));
+        s += InfoWheel.row('Energy left', InfoWheel.pct(energy), InfoWheel.verdict(energy > .5, energy > .3, energy <= .3));
+        s += InfoWheel.row('Cash in pocket', money(cash));
+        const broke = g.filter(q => q.cash < 12).length;
+        s += InfoWheel.row('Out of money', broke + ' (' + InfoWheel.pct(broke / g.length) + ')',
+          InfoWheel.verdict(broke / g.length < .15, broke / g.length < .35, broke / g.length >= .35));
+        const tips = [];
+        if (hunger >= .65) tips.push('They are hungry — more food stalls, or move them nearer the queues.');
+        if (thirst >= .65) tips.push('They are thirsty — add drink stands.');
+        if (toilet >= .65) tips.push('Not enough restrooms.');
+        if (naus >= .5) tips.push('Rides are making them sick; lower nausea or add first aid.');
+        if (energy <= .3) tips.push('They are worn out — benches let them rest instead of leaving.');
+        if (broke / g.length >= .35) tips.push('Most guests are broke; add cash machines or cut prices.');
+        s += `<div class="ip-note">${tips.length ? tips.map(t => '&bull; ' + t).join('<br>') : 'Guest needs are all being met.'}</div>`;
+        return s;
+      }
+    },
+    {
+      id: 'money', label: 'Finances',
+      hub: () => ({ v: money(Park.money), l: 'Cash' }),
+      render() {
+        const days = Math.max(1, Park.day - 1 + Park.time / 1440);
+        const L = Park.log;
+        const income = (L.ticket || 0) + (L.shop || 0) + (L.entry || 0) + (L.hotel || 0) + (L.transit || 0);
+        const spend = (L.wage || 0) + (L.upkeep || 0) + (L.marketing || 0) + (L.interest || 0);
+        const net = income - spend;
+        let s = `<h4>Finances</h4>`;
+        s += `<div class="ip-sub">Everything earned and spent since the park opened, and the per-day rate that implies.</div>`;
+        s += InfoWheel.row('Cash on hand', money(Park.money), InfoWheel.verdict(Park.money > 20000, Park.money > 0, Park.money <= 0));
+        s += InfoWheel.row('Ride tickets', money(L.ticket || 0), '');
+        s += InfoWheel.row('Shop sales', money(L.shop || 0), '');
+        s += InfoWheel.row('Admissions', money(L.entry || 0), '');
+        if (L.hotel) s += InfoWheel.row('Hotel nights', money(L.hotel), '');
+        if (L.transit) s += InfoWheel.row('Transport fares', money(L.transit), '');
+        s += InfoWheel.row('Total income', money(income), 'ip-good');
+        s += InfoWheel.row('Wages', '-' + money(L.wage || 0), '');
+        s += InfoWheel.row('Upkeep', '-' + money(L.upkeep || 0), '');
+        if (L.marketing) s += InfoWheel.row('Marketing', '-' + money(L.marketing), '');
+        if (L.interest) s += InfoWheel.row('Loan interest', '-' + money(L.interest), '');
+        s += InfoWheel.row('Net so far', money(net), net >= 0 ? 'ip-good' : 'ip-bad');
+        s += InfoWheel.row('Net per day', money(net / days), net >= 0 ? 'ip-good' : 'ip-bad');
+        s += InfoWheel.row('Entry fee', money(Park.entryFee));
+        if (Finance.loan > 0) s += InfoWheel.row('Outstanding loan', money(Finance.loan), 'ip-warn');
+        const tips = [];
+        if (Park.money <= 0) tips.push('You are in the red — take a loan or raise prices.');
+        if (net < 0) tips.push('Running at a loss: upkeep and wages exceed takings.');
+        if ((L.wage || 0) > income * .5 && income > 0) tips.push('Wages are eating over half your income; you may be overstaffed.');
+        s += `<div class="ip-note">${tips.length ? tips.map(t => '&bull; ' + t).join('<br>') : 'The books are healthy.'}</div>`;
+        return s;
+      }
+    },
+    {
+      id: 'rides', label: 'Rides',
+      hub: () => ({ v: String(Park.objects.filter(o => o.kind === 'ride').length + Park.coasters.length), l: 'Rides' }),
+      render() {
+        const rides = Park.objects.filter(o => o.kind === 'ride');
+        const all = rides.concat(Park.coasters);
+        let s = `<h4>Rides &amp; Coasters</h4>`;
+        if (!all.length) return s + `<div class="ip-sub">No attractions built yet.</div>`;
+        const open = all.filter(o => o.openR).length;
+        const queue = all.reduce((a, o) => a + ((o.queue && o.queue.length) || 0), 0);
+        const avgExc = all.reduce((a, o) => a + (o.excitement || 0), 0) / all.length;
+        const avgInt = all.reduce((a, o) => a + (o.intensity || 0), 0) / all.length;
+        const avgNau = all.reduce((a, o) => a + (o.nausea || 0), 0) / all.length;
+        s += `<div class="ip-sub">${all.length} attractions, ${Park.coasters.length} of them coasters.</div>`;
+        s += InfoWheel.row('Open right now', open + ' of ' + all.length, InfoWheel.verdict(open === all.length, open > 0, !open));
+        s += InfoWheel.row('Guests queueing', queue);
+        s += InfoWheel.row('Broken down', Park.needMechanic.length,
+          InfoWheel.verdict(!Park.needMechanic.length, Park.needMechanic.length < 3, Park.needMechanic.length >= 3));
+        s += InfoWheel.row('Average excitement', avgExc.toFixed(1) + ' / 14');
+        s += InfoWheel.row('Average intensity', avgInt.toFixed(1) + ' / 14');
+        s += InfoWheel.row('Average nausea', avgNau.toFixed(1) + ' / 14',
+          InfoWheel.verdict(avgNau < 4, avgNau < 6.5, avgNau >= 6.5));
+        const busiest = all.slice().sort((a, b) => ((b.queue && b.queue.length) || 0) - ((a.queue && a.queue.length) || 0))[0];
+        if (busiest && busiest.queue && busiest.queue.length) {
+          s += InfoWheel.row('Longest queue', esc(busiest.name) + ' (' + busiest.queue.length + ')');
+        }
+        const worn = all.filter(o => (o.wear || 0) > .55).length;
+        s += InfoWheel.row('Needing attention', worn, InfoWheel.verdict(!worn, worn < 3, worn >= 3));
+        const tips = [];
+        if (open < all.length) tips.push((all.length - open) + ' attraction(s) are closed and earning nothing.');
+        if (Park.needMechanic.length) tips.push('Broken rides need a mechanic before they reopen.');
+        if (avgNau >= 6.5) tips.push('Your line-up is very nauseating — bank the turns and smooth the transitions.');
+        if (worn >= 3) tips.push('Several rides are badly worn; more mechanics will keep them running.');
+        s += `<div class="ip-note">${tips.length ? tips.map(t => '&bull; ' + t).join('<br>') : 'The ride line-up is in good shape.'}</div>`;
+        return s;
+      }
+    },
+    {
+      id: 'shops', label: 'Shops',
+      hub: () => ({ v: String(Park.objects.filter(o => o.kind === 'shop').length), l: 'Shops' }),
+      render() {
+        const shops = Park.objects.filter(o => o.kind === 'shop');
+        let s = `<h4>Shops &amp; Facilities</h4>`;
+        if (!shops.length) return s + `<div class="ip-sub">Nothing built yet.</div>`;
+        const selling = shops.filter(o => !isFreeFacility(o.def) && o.def.need !== 'hotel' && o.def.need !== 'parking');
+        const revenue = selling.reduce((a, o) => a + (o.revenue || 0), 0);
+        const served = selling.reduce((a, o) => a + (o.served || 0), 0);
+        const count = (need) => shops.filter(o => o.def.need === need).length;
+        s += `<div class="ip-sub">${shops.length} buildings, of which ${selling.length} actually sell something.</div>`;
+        s += InfoWheel.row('Shop revenue', money(revenue));
+        s += InfoWheel.row('Items sold', served.toLocaleString());
+        s += InfoWheel.row('Food outlets', count('hunger'));
+        s += InfoWheel.row('Drink outlets', count('thirst'));
+        s += InfoWheel.row('Restrooms', count('toilet'), InfoWheel.verdict(count('toilet') > 0, true, false));
+        s += InfoWheel.row('First aid', count('nausea'));
+        s += InfoWheel.row('Cash machines', count('cash'));
+        s += InfoWheel.row('Staff break rooms', count('break'));
+        const best = selling.slice().sort((a, b) => (b.revenue || 0) - (a.revenue || 0))[0];
+        if (best) s += InfoWheel.row('Best earner', esc(best.name) + ' — ' + money(best.revenue || 0));
+        /* One facility per this many guests is the rule of thumb the guest
+           AI's own queueing behaviour makes reasonable. */
+        const per = 220, need = Math.ceil(Park.guests.length / per);
+        const tips = [];
+        if (!count('toilet')) tips.push('There are no restrooms at all.');
+        else if (count('toilet') < need) tips.push(`Only ${count('toilet')} restrooms for ${Park.guests.length} guests — about ${need} would keep up.`);
+        if (!count('hunger')) tips.push('Nowhere to buy food.');
+        if (!count('thirst')) tips.push('Nowhere to buy a drink.');
+        if (!count('break') && Park.staff.length > 4) tips.push('A staff break room would keep your crew fresher.');
+        s += `<div class="ip-note">${tips.length ? tips.map(t => '&bull; ' + t).join('<br>') : 'Facilities are keeping up with demand.'}</div>`;
+        return s;
+      }
+    },
+    {
+      id: 'staff', label: 'Staff',
+      hub: () => ({ v: String(Park.staff.length), l: 'Staff' }),
+      render() {
+        const st = Park.staff;
+        let s = `<h4>Staff</h4>`;
+        if (!st.length) return s + `<div class="ip-sub">Nobody hired yet. Janitors, mechanics and entertainers all pay for themselves quickly.</div>`;
+        const byRole = {};
+        for (const q of st) byRole[q.role] = (byRole[q.role] || 0) + 1;
+        const morale = st.reduce((a, q) => a + (q.morale || 0), 0) / st.length;
+        const resting = st.filter(q => q.state === 'resting' || q.state === 'toBreak').length;
+        s += `<div class="ip-sub">${st.length} on the payroll across ${Object.keys(byRole).length} roles.</div>`;
+        s += InfoWheel.row('Average morale', InfoWheel.pct(morale),
+          InfoWheel.verdict(morale > .7, morale > .45, morale <= .45));
+        s += InfoWheel.bar(morale, morale > .7 ? 'var(--good)' : morale > .45 ? 'var(--warn)' : 'var(--bad)');
+        for (const def of CAT.staff) {
+          const n = byRole[def.id] || 0;
+          if (n) s += InfoWheel.row(def.name, n);
+        }
+        s += InfoWheel.row('On a break', resting);
+        s += InfoWheel.row('Wages paid', money(Park.log.wage || 0));
+        const tips = [];
+        const missing = CAT.staff.filter(d => !byRole[d.id]).map(d => d.name);
+        if (morale <= .45) tips.push('Morale is low — build a break room and avoid overworking them.');
+        if (!byRole.janitor && Park.litter.length > 20) tips.push('No janitors, and litter is building up.');
+        if (!byRole.mechanic && (Park.objects.filter(o => o.kind === 'ride').length + Park.coasters.length) > 2)
+          tips.push('No mechanics — rides will stay broken when they fail.');
+        if (missing.length) tips.push('No ' + missing.join(', ').toLowerCase() + ' hired.');
+        s += `<div class="ip-note">${tips.length ? tips.map(t => '&bull; ' + t).join('<br>') : 'The crew is well balanced and in good spirits.'}</div>`;
+        return s;
+      }
+    },
+    {
+      id: 'land', label: 'Land',
+      hub: () => ({ v: String(Land.bought), l: 'Plots' }),
+      render() {
+        let built = 0, path = 0, water = 0, grass = 0;
+        for (let k = 0; k < WORLD.type.length; k++) {
+          if (WORLD.land[k] !== 1) continue;
+          const t = WORLD.type[k];
+          if (t === T_BUILD) built++;
+          else if (t === T_PATH || t === T_QUEUE || t === T_PLAZA || t === T_ENTRY) path++;
+          else if (t === T_WATER) water++;
+          else grass++;
+        }
+        const owned = built + path + water + grass;
+        let s = `<h4>Land</h4>`;
+        s += `<div class="ip-sub">Your park covers ${Land.areaText()} across ${Land.bought} bought plots.</div>`;
+        s += InfoWheel.row('Owned tiles', owned.toLocaleString());
+        s += InfoWheel.row('Built on', built.toLocaleString() + ' (' + InfoWheel.pct(owned ? built / owned : 0) + ')');
+        s += InfoWheel.bar(owned ? built / owned : 0, 'var(--accent)');
+        s += InfoWheel.row('Paths &amp; queues', path.toLocaleString());
+        s += InfoWheel.row('Water', water.toLocaleString());
+        s += InfoWheel.row('Open ground left', grass.toLocaleString());
+        s += InfoWheel.row('Scenery pieces', Park.objects.filter(o => o.kind === 'scenery').length);
+        s += InfoWheel.row('Beauty here', Math.round(Park.beautyAt(Cam.tx, Cam.tz)));
+        const tips = [];
+        if (owned && grass / owned < .12) tips.push('You are running out of open ground — buy more land (press L).');
+        if (!path) tips.push('No paths yet; guests cannot reach anything without them.');
+        s += `<div class="ip-note">${tips.length ? tips.map(t => '&bull; ' + t).join('<br>') : 'Plenty of room to keep building.'}</div>`;
+        return s;
+      }
+    },
+    {
+      id: 'weather', label: 'Weather',
+      hub: () => ({ v: Weather.season ? Weather.season.name : '—', l: 'Season' }),
+      render() {
+        let s = `<h4>Weather &amp; Season</h4>`;
+        const st = Weather.state || 'clear';
+        s += `<div class="ip-sub">${Weather.season ? Weather.season.name : 'Unknown'}, day ${(Weather.dayOfSeason || 0) + 1} &middot; currently <b>${st}</b>.</div>`;
+        s += InfoWheel.row('Conditions', st);
+        if (Weather.event) s += InfoWheel.row('Event', Weather.event + ' (' + (Weather.eventDaysLeft || 0) + ' days left)', 'ip-warn');
+        if (typeof Weather.rainIntensity === 'function') s += InfoWheel.row('Rain', InfoWheel.pct(Weather.rainIntensity()));
+        if (typeof Weather.snowIntensity === 'function') s += InfoWheel.row('Snow', InfoWheel.pct(Weather.snowIntensity()));
+        s += InfoWheel.row('Guests in the park', Park.guests.length.toLocaleString());
+        s += `<div class="ip-note">Weather drives how many people turn up and how long they stay — wet days
+          thin the crowd and push guests indoors, so covered attractions and shops earn their keep then.</div>`;
+        return s;
+      }
+    },
+  ],
+
+  init() {
+    const orb = document.getElementById('infoOrb');
+    if (!orb) return;
+    orb.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">'
+      + '<circle cx="12" cy="12" r="9.2"/><path d="M12 11v5.5"/><path d="M12 7.6v.01"/></svg>';
+    orb.onclick = () => this.toggle();
+    document.getElementById('infoScrim').onclick = () => this.hide();
+    document.getElementById('infoHub').onclick = () => this.hide();
+  },
+  toggle() { this.open ? this.hide() : this.show(); },
+  show() {
+    this.open = true;
+    document.getElementById('infoScrim').classList.add('show');
+    document.getElementById('infoWheel').classList.add('show');
+    document.getElementById('infoOrb').style.opacity = '0';
+    this.build();
+    this.refresh();
+  },
+  hide() {
+    this.open = false;
+    document.getElementById('infoScrim').classList.remove('show');
+    document.getElementById('infoWheel').classList.remove('show');
+    document.getElementById('infoOrb').style.opacity = '';
+  },
+  select(id) { this.tab = id; this.build(); this.refresh(); },
+  /* Lay the dials out evenly around the hub, starting at the top. */
+  build() {
+    const ring = document.getElementById('infoRing');
+    if (!ring) return;
+    const n = this.TABS.length;
+    ring.innerHTML = this.TABS.map((t, i) => {
+      const a = -PI / 2 + i / n * TAU;
+      const x = Math.cos(a) * this.RADIUS, y = Math.sin(a) * this.RADIUS;
+      return `<div class="seg ${t.id === this.tab ? 'on' : ''}" style="left:${x.toFixed(1)}px;top:${y.toFixed(1)}px"
+        onclick="InfoWheel.select('${t.id}')" title="${t.label}">
+        ${InfoWheel.ICONS[t.id] || ''}<span class="sl">${t.label}</span></div>`;
+    }).join('');
+  },
+  /* Redraw the live numbers. Called on open, on tab change, and on a slow
+     timer while open so the readout tracks the running park. */
+  refresh() {
+    if (!this.open) return;
+    const tab = this.TABS.find(t => t.id === this.tab) || this.TABS[0];
+    const hub = document.getElementById('infoHub');
+    const panel = document.getElementById('infoPanel');
+    try {
+      const hv = tab.hub();
+      hub.innerHTML = `<span class="hv">${hv.v}</span><span class="hl">${hv.l}</span><span class="hx">CLOSE</span>`;
+      panel.innerHTML = tab.render();
+    } catch (e) {
+      panel.innerHTML = `<h4>${tab.label}</h4><div class="ip-sub">Could not read this right now.</div>`;
+    }
+  },
+  tick(dt) {
+    if (!this.open) return;
+    this._timer -= dt;
+    if (this._timer <= 0) { this._timer = 0.5; this.refresh(); }
+  },
+};
+
 const HeatMap = {
   coaster: null, mode: 'gv', mesh: null,
   /* Each mode says what it reads, over what range, and in what units, so the
@@ -15901,6 +16336,7 @@ const Game = {
       }
       if (k === 'r') { UI.rot = (UI.rot + 1) % 4; this.ghostKey = ''; return; }
       if (k === 'm') { $('#minimap').classList.toggle('show'); return; }
+      if (k === 'i') { InfoWheel.toggle(); return; }
       if (k === 'l') { UI.landDialog(); return; }
       if (k === 't') { UI.setTool('transit'); return; }
       if (k === 'f') { UI.finances(); return; }
@@ -16826,6 +17262,7 @@ const Game = {
        the further the view travelled — which is exactly what it looked like. */
     Intro.update();
     Menu.tick(dt);
+    InfoWheel.tick(dt);
     if (!Menu.showcase && Cam.mode === 'orbit') this.buildQueueMarkers();
     for (const o of Park.objects) if (o.buildT < 1) o.tickBuild(dt);
     for (const c of Park.coasters) if (c.buildT < 1) c.tickBuild(dt);
