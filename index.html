@@ -14184,7 +14184,13 @@ const PHYS={
      Both go up by a third, together, so the BALANCE is untouched — the front
      still gives up before the rear — and only the slip angle needed to get
      there comes down. This is the tightness, and it is not a grip cheat. */
-  Cf:210000, Cr:268000,
+  /* TIGHTER AGAIN, GLOBALLY. Both axles up by a fifth, together, so the balance
+     is untouched -- the front still gives up before the rear -- and the only
+     thing that changes is how much the car has to slither to make its cornering
+     force. mu is deliberately NOT touched: peak grip is the same, so this is
+     not a grip cheat and the AI's pace is unaffected. Less slip angle for the
+     same corner is exactly what "less slippery" means. */
+  Cf:252000, Cr:322000,
   /* Back to the original handling. The one change kept from the retune is a
      little more lock and a slightly quicker rack at low speed, because slow
      corners were heavy: 0.30 rad is ~17 deg instead of 15. */
@@ -14208,7 +14214,12 @@ const PHYS={
   /* steerReturn up as well. Self-centring is most of what makes a car feel
      tight in the hands: lock that falls away the instant you stop asking for it
      is the difference between placing the car and wrestling it. */
-  maxSteerLo:0.34, maxSteerHi:0.098, steerLockCurve:1.38, steerRate:3.8, steerReturn:7.4,
+  /* A TAD LESS RESPONSIVE, WHATEVER THE SETTING. steerRate is the BASE the
+     Steering-speed slider multiplies, so dropping it here slows the rack by
+     about a tenth across every setting rather than only at 100%. steerReturn
+     goes the other way: lock that falls away the moment you stop asking for it
+     is most of what "tight" feels like in the hands. */
+  maxSteerLo:0.34, maxSteerHi:0.098, steerLockCurve:1.38, steerRate:3.42, steerReturn:7.9,
   /* YAW DAMPING. A linear-then-clip tyre gives cornering force but none of the
      things that actually settle a car: tyre relaxation length, the aligning
      moment that tries to straighten the steering, the damping in the
@@ -14220,7 +14231,7 @@ const PHYS={
      One explicit damping term fixes it. It is not a fudge — it stands in for
      real physical effects the tyre model omits — and it is scaled out at
      walking pace where the kinematic blend takes over instead. */
-  yawDamp:2.90,   // raised with the stiffnesses: stiff axles without damping ring
+  yawDamp:3.35,   // raised with the stiffnesses: stiff axles without damping ring
   /* How quickly the driver winds lock ON compared with how quickly they take it
      off. Coming off the lock faster than going on is what a real pair of hands
      does and it stops the car carrying rotation out of a corner. */
