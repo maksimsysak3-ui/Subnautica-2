@@ -6177,6 +6177,14 @@ const PIECES = [
   { id: 'bankr', n: 'Bank Right', len: 8, y: 0, p: 0, r: 30, cost: 260, group: 'turn' },
   { id: 'unbank', n: 'Unbank', len: 8, y: 0, p: 0, r: 0, cost: 240, unbank: true, group: 'turn' },
   { id: 'loop', n: 'Vertical Loop', len: 56, y: 0, p: 360, r: 0, cost: 2400, inversion: 1, group: 'special' },
+  /* A real inversion is not a circle. A circular loop has one radius all the
+     way round, so the train meets its tightest curvature at the bottom where
+     it is travelling fastest — which is what produced 8-11G on the shipped
+     designs. Every loop built since the 1970s is a clothoid: wide and gentle
+     where the train is fast, tightening only near the top where it is slow.
+     `clothoid` distributes the same 360 degrees along a sin-squared curvature
+     profile to reproduce that, so entry and exit are almost straight. */
+  { id: 'loopc', n: 'Clothoid Loop', len: 74, y: 0, p: 360, r: 0, cost: 2900, inversion: 1, clothoid: true, group: 'special' },
   { id: 'corkl', n: 'Corkscrew L', len: 28, y: -40, p: 0, r: -360, cost: 2100, inversion: 1, group: 'special' },
   { id: 'corkr', n: 'Corkscrew R', len: 28, y: 40, p: 0, r: 360, cost: 2100, inversion: 1, group: 'special' },
   { id: 'barrel', n: 'Barrel Roll', len: 26, y: 0, p: 0, r: 360, cost: 1900, inversion: 1, group: 'special' },
@@ -6317,6 +6325,13 @@ class Track {
       // camelback: smooth up-then-down hill
       let dp = pTot / steps;
       if (def.camel) dp = (Math.sin(t * TAU) - Math.sin(tp * TAU)) * 19 * DEG;
+      /* Clothoid: curvature follows sin^2, so it is ~0 at entry and exit and
+         peaks at the top. phi(x) = pTot * (x - sin(2*pi*x)/(2*pi)) integrates
+         that exactly, and differencing it gives this step's share. */
+      if (def.clothoid) {
+        const phi = (x) => pTot * (x - Math.sin(x * TAU) / TAU);
+        dp = phi(t) - phi(tp);
+      }
       let dy = yTot / steps;
       // an s-bend swings one way then back, ending on the original heading
       if (def.sbend) dy = (Math.sin(t * TAU) - Math.sin(tp * TAU)) * def.sbend * DEG;
@@ -18159,13 +18174,51 @@ const Game = {
     const cost = this.restockCost(s);
     if (Park.money < cost) { if (!auto) UI.notify('Too expensive', 'Restocking costs ' + money(cost) + '.', 'bad'); return false; }
     Park.spend(cost);
-    // trucks arrive from the service road at the edge of the owned land
-    const a = Math.atan2(s.z, s.x);
-    const from = { x: Math.cos(a) * (WORLD.half - 4), z: Math.sin(a) * (WORLD.half - 4) };
-    const dist = Math.hypot(s.x - from.x, s.z - from.z);
-    const speed = Park.staff.some(st => st.role === 'restocker') ? 34 : 20;
-    s.truck = { from, to: { x: s.x, z: s.z }, t: 0, dur: Math.max(6, dist / speed), auto };
+    /* Trucks used to be interpolated along a straight line from the map
+       edge to the shop, which drove them through buildings, over rides and
+       across open grass — and they were drawn with a different yaw
+       convention from every other vehicle, so they did it sideways.
+       They now drive the actual network: in along the park's access road,
+       then along the paths to the shop, using the same A* the guests walk. */
+    const speed = Park.staff.some(st => st.role === 'restocker') ? 22 : 14;
+    const route = this.truckRoute(s);
+    let len = 0;
+    for (let k = 1; k < route.length; k++) len += Math.hypot(route[k].x - route[k - 1].x, route[k].z - route[k - 1].z);
+    s.truck = { route, t: 0, dur: Math.max(6, len / speed), auto, len };
     return true;
+  },
+  /* Waypoints from the park's road entrance to a shop's door. Prefers the
+     real path network; if the shop simply cannot be reached on foot (no
+     paths laid yet) it falls back to a direct run so a delivery is never
+     silently lost — but that is the exception, not the normal case. */
+  truckRoute(s) {
+    /* Deliveries come in through the service entrance beside the front
+       gate. That has to be a point genuinely joined to the park's path
+       network: the car park's own footprint is unwalkable and cuts the
+       southern road stub off from everything else, so spawning trucks down
+       there left them with no route at all and they fell back to flying
+       straight across the park. */
+    const gate = Park.gate;
+    const entry = gate ? { x: gate.x, z: gate.z + 5 }
+      : (typeof Parking !== 'undefined' && Parking.lot)
+        ? { x: Parking.roadX, z: WORLD.wz(Parking.lot.j - 1) }
+        : { x: 0, z: WORLD.half - 6 };
+    const door = (s.entrance && Number.isFinite(s.entrance.x)) ? s.entrance : { x: s.x, z: s.z };
+    const pts = [entry];
+    const si = WORLD.ti(entry.x), sj = WORLD.tj(entry.z);
+    const ti = WORLD.ti(door.x), tj = WORLD.tj(door.z);
+    const a = Path.nearestWalkable(si, sj, 14), b2 = Path.nearestWalkable(ti, tj, 14);
+    if (a && b2) {
+      /* Path.find already hands back world-space points, not tile indices. */
+      const way = Path.find(a.i, a.j, b2.i, b2.j, 6000);
+      if (way && way.length) {
+        /* Thin it out — a waypoint every few tiles is enough to read as
+           following the road, and keeps the interpolation cheap. */
+        for (let k = 0; k < way.length; k += 3) pts.push({ x: way[k].x, z: way[k].z });
+      }
+    }
+    pts.push({ x: door.x, z: door.z });
+    return pts;
   },
   updateTrucks(dt) {
     for (const s of Park.objects) {
@@ -20493,9 +20546,17 @@ Object.assign(Game, {
     for (const s of Park.objects) {
       if (s.kind !== 'shop' || !s.truck) continue;
       const tr = s.truck, f = clamp(tr.t / tr.dur, 0, 1);
-      const x = lerp(tr.from.x, tr.to.x, f), z = lerp(tr.from.z, tr.to.z, f);
-      const yaw = Math.atan2(tr.to.z - tr.from.z, tr.to.x - tr.from.x);
-      const m = M4.compose(M4.create(), x, WORLD.hAt(x, z), z, 0, -yaw, 0, 1, 1, 1);
+      const rt = tr.route;
+      if (!rt || rt.length < 2) continue;
+      // position along the polyline, and face the leg being driven
+      const fi = f * (rt.length - 1);
+      const i0 = clamp(Math.floor(fi), 0, rt.length - 2), lf = fi - i0;
+      const a2 = rt[i0], b2 = rt[i0 + 1];
+      const x = lerp(a2.x, b2.x, lf), z = lerp(a2.z, b2.z, lf);
+      // atan2(dx, dz) with a positive yaw — the convention every other
+      // vehicle in the game uses. The old form had it a quarter turn out.
+      const yaw = Math.atan2(b2.x - a2.x, b2.z - a2.z);
+      const m = M4.compose(M4.create(), x, WORLD.hAt(x, z), z, 0, yaw, 0, 1, 1, 1);
       R.draw(this.truckMesh(), m);
     }
   },
