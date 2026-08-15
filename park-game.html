@@ -3097,7 +3097,10 @@ const CAT = {
     { id: 'donut', name: 'Donut Dome', cost: 1300, up: 20, w: 2, d: 1, need: 'hunger', price: 7, satisfy: 50, color: 0xe8749b, roof: 0x8b5ab8 },
     { id: 'popcorn', name: 'Popcorn Stand', cost: 850, up: 15, w: 1, d: 1, need: 'hunger', price: 5, satisfy: 34, color: 0xe8d24a, roof: 0xd94f3c },
     { id: 'bikerental', name: 'Bike Rental Stand', cost: 2200, up: 12, w: 2, d: 1, need: 'bike', price: 6, satisfy: 0, color: 0x2e7d46, roof: 0xf2c14e },
-    { id: 'parkinglot', name: 'Parking Lot', cost: 8000, up: 20, w: 6, d: 4, need: 'parking', price: 0, satisfy: 0, spaces: 40, color: 0x6b6b6d, roof: 0x3a3a3c },
+    /* prebuilt: every park starts with this one, standing on the approach
+       road south of the gate. It is not in the build menu — you expand the
+       one you have rather than scattering car parks around the site. */
+    { id: 'parkinglot', name: 'Parking Lot', cost: 8000, up: 20, w: 8, d: 5, need: 'parking', price: 0, satisfy: 0, spaces: 40, prebuilt: true, color: 0x6b6b6d, roof: 0x3a3a3c },
     { id: 'breakroom', name: 'Staff Break Room', cost: 3200, up: 14, w: 2, d: 2, need: 'break', price: 0, satisfy: 0, color: 0x6b8f9e, roof: 0x3a3a3c },
     { id: 'toilet', name: 'Restrooms', cost: 900, up: 20, w: 2, d: 2, need: 'toilet', price: 0, satisfy: 100, color: 0x8fa3b8, roof: 0x4d6480 },
     { id: 'gift', name: 'Gift Shop', cost: 2000, up: 30, w: 2, d: 2, need: 'shop', price: 18, satisfy: 55, color: 0x7b5bd4, roof: 0xffd76a },
@@ -3699,19 +3702,11 @@ const Prefab = {
       g.box(W / 2 - 1.2, .3, -D / 2 + .8, 1.1, 1.5, 1.1, wall);
       g.box(W / 2 - 1.2, 1.05, -D / 2 + .8, 1.3, .18, 1.3, shade(roof, 1.05));
       this.shopEmblem(g, def, W / 2 - 1.2, 1.4, -D / 2 + .8);
-      // parked cars, one per bay, skipping a few so the lot never looks
-      // perfectly full (reads as "in use", not a car dealership)
-      const colors = [0xd9432e, 0x2e6fd9, 0xd9c22e, 0x3ba05a, 0xe8e8ec, 0x2b2b30];
-      let ci = 0;
-      for (let row = 0; row < rows; row++) {
-        const rz = -D / 2 + D * (row === 0 ? .28 : .72);
-        for (let k = 0; k < perRow; k++) {
-          if ((k + row) % 3 === 2) continue;   // leave some bays empty
-          const bx = -W / 2 + 1 + (k + .5) * (W - 2) / perRow;
-          const cc = colors[ci++ % colors.length];
-          g.mergeM(Prefab.car(cc), M4.compose(M4.create(), bx, .05, rz, 0, row === 0 ? 0 : PI, 0, .82, .82, .82));
-        }
-      }
+      /* No cars are baked into the mesh. The lot used to carry a fixed set
+         of parked cars so it never looked empty, but real traffic now drives
+         in, takes a numbered bay and leaves again — painting cars into the
+         surface as well would double them up and show a full lot on a day
+         nobody came. What the lot shows is now what is actually parked. */
       return { base: g, parts: [] };
     }
 
@@ -9783,7 +9778,7 @@ const UI = {
       addGrid('Food', CAT.shops.filter(x => x.need === 'hunger'), 'grid2', sr, (it, d) => this.pick(it, d));
       addGrid('Drink', CAT.shops.filter(x => x.need === 'thirst'), 'grid2', sr, (it, d) => this.pick(it, d));
       addGrid('Retail', CAT.shops.filter(x => x.need === 'shop'), 'grid2', sr, (it, d) => this.pick(it, d));
-      addGrid('Facilities', CAT.shops.filter(x => !['hunger', 'thirst', 'shop', 'hotel'].includes(x.need)), 'grid2', sr, (it, d) => this.pick(it, d));
+      addGrid('Facilities', CAT.shops.filter(x => !['hunger', 'thirst', 'shop', 'hotel'].includes(x.need) && !x.prebuilt), 'grid2', sr, (it, d) => this.pick(it, d));
     }
     else if (id === 'lodging') {
       this.renderLodging(b, addGrid, cost);
@@ -10033,7 +10028,7 @@ const UI = {
       body.appendChild(d);
     }
     section('food', 'Food & Drink', CAT.shops.filter(x => x.need === 'hunger' || x.need === 'thirst'), 'shop', it => Thumbs.shop(it));
-    section('retail', 'Retail & Facilities', CAT.shops.filter(x => x.need !== 'hunger' && x.need !== 'thirst' && x.need !== 'hotel'), 'shop', it => Thumbs.shop(it));
+    section('retail', 'Retail & Facilities', CAT.shops.filter(x => x.need !== 'hunger' && x.need !== 'thirst' && x.need !== 'hotel' && !x.prebuilt), 'shop', it => Thumbs.shop(it));
     section('lodging', 'Lodging', CAT.shops.filter(x => x.need === 'hotel'), 'lodging', it => Thumbs.shop(it));
     section('scenery', 'Scenery', CAT.scenery, 'scenery', it => Thumbs.scenery(it));
     section('landmark', 'Prestige Landmarks', CAT.landmarks, 'landmark', it => Thumbs.scenery(it));
@@ -11273,13 +11268,29 @@ const UI = {
       $('#insTitle').textContent = 'Parking Lot';
       h += nameField(o);
       h += `<div style="font-size:10.5px;color:var(--dim)">${o.def.name} &middot; ${['', 'Standard', 'Improved', 'Deluxe', 'Flagship'][o.tier] || 'Standard'} &middot; ${age(o)}</div>`;
+      const bays = Parking.capacity(), used = Parking.occupied();
+      h += `<div class="cat">Occupancy</div>`;
+      h += `<div class="meterbox"><div class="meter"><span class="mn">Bays in use</span><span class="bar"><span class="fill" style="width:${bays ? used / bays * 100 : 0}%;background:${used >= bays ? 'var(--bad)' : 'var(--good)'}"></span></span><span class="mv">${used}/${bays}</span></div></div>`;
+      h += kv('Cars parked right now', used);
+      h += kv('Cars served today', Parking.served);
+      h += kv('Turned away — lot full', Parking.turnedAway);
       h += kv('Parking spaces', o.spaces || o.def.spaces);
       h += kv('Adds to park capacity', '+' + Math.round((o.spaces || o.def.spaces) * 1.6) + ' guests');
       h += kv('Upkeep', money((o.def.up || 0) * .6) + ' / hr');
-      h += `<div style="font-size:10.5px;color:var(--dim);margin-top:-2px">A bigger lot lets more driving guests reach the park on a busy day — connect it to the road network with the Road path material so it actually reads as an access route.</div>`;
-      if (o.canUpgrade()) h += `<div class="btnrow"><button class="btn go" onclick="Park.objects.find(x=>x.id===${o.id}).upgrade();UI.manage(${o.id})">Expand — ${money(o.upgradeCost())}</button></div>`;
-      h += `<div class="btnrow"><button class="btn" onclick="Game.autoConnect(Park.objects.find(x=>x.id===${o.id}))">Reconnect path</button>
-        <button class="btn dan" onclick="Game.demolish(${o.id})">Demolish</button></div>`;
+      h += `<div class="cat">Charge</div>`;
+      h += `<div class="row"><label>Per car</label>
+        <input type="range" min="0" max="30" step="1" value="${Parking.fee()}"
+          oninput="Park.parkingFee=+this.value;document.getElementById('pkfee').textContent='$'+this.value">
+        <span class="num" id="pkfee">$${Parking.fee()}</span></div>`;
+      h += `<div style="font-size:10.5px;color:var(--dim)">Charged as each car takes a bay. Push it much past
+        ${money(8)} and some drivers turn around rather than pay, so the lot fills more slowly.</div>`;
+      if (Parking.turnedAway > 0) h += `<div style="font-size:10.5px;color:var(--warn);margin-top:4px">
+        <b>${Parking.turnedAway}</b> car(s) have been turned away because every bay was taken — expand the lot to catch them.</div>`;
+      h += `<div style="font-size:10.5px;color:var(--dim);margin-top:4px">This is your park's only car park and it came with the
+        site, already joined to the entrance by the access road. Expanding it adds bays, capacity and kerb space.</div>`;
+      if (o.canUpgrade()) h += `<div class="btnrow"><button class="btn go" onclick="Park.objects.find(x=>x.id===${o.id}).upgrade();Parking.layout();UI.inspect(Park.objects.find(x=>x.id===${o.id}))">Expand — ${money(o.upgradeCost())}</button></div>`;
+      else h += `<div style="font-size:10.5px;color:var(--good);margin-top:4px">Fully expanded.</div>`;
+      h += `<div class="btnrow"><button class="btn" onclick="Game.autoConnect(Park.objects.find(x=>x.id===${o.id}))">Reconnect path</button></div>`;
     }
     else if (o.kind === 'shop' && o.def.need === 'hotel') {
       $('#insTitle').textContent = 'Hotel';
@@ -15567,6 +15578,181 @@ const Fireworks = {
 };
 
 /* ---------- Traffic: ambient cars driving the painted road network ---- */
+/* ============================================================================
+   PARKING
+   Every park starts with one car park on the approach road south of the gate.
+   It is not something you place — you expand the one you have. Cars arrive
+   down the road at a rate set by how busy the park is, take a numbered bay,
+   pay whatever you charge, and their occupants walk from the bay to the
+   entrance. When the lot is full, arriving traffic is turned away, which is
+   what makes expanding it matter rather than being a cosmetic upgrade.
+   ========================================================================== */
+const Parking = {
+  lot: null,
+  cars: [],            // { state, bay, x,z, path[], p, t, wait, color, riders }
+  bays: [],            // world positions of each bay, filled left-to-right
+  roadZ: 0,            // world z of the access road's centre line
+  spawnT: 0,
+  turnedAway: 0, served: 0,
+
+  reset() { this.lot = null; this.cars.length = 0; this.bays.length = 0; this.turnedAway = 0; this.served = 0; },
+
+  /* Lay the lot and the road that feeds it, given the gate's tile origin. */
+  build(gateI, gateJ) {
+    const def = CAT.shops.find(s => s.id === 'parkinglot');
+    if (!def) return;
+    // centred under the gate, a few tiles further from the park
+    const li = gateI + 5 - (def.w >> 1), lj = gateJ + 7;
+    const o = new Shop(def, li, lj, 0);
+    o.y = WORLD.tileH(li, lj);
+    WORLD.flatten(li, lj, def.w, def.d, o.y);
+    o.buildT = 1; o.updateMatrix();
+    Park.addObject(o);
+    this.lot = o;
+
+    /* The access road: north from the lot to the gate apron, so arriving
+       cars have something to drive on and the lot is visibly connected
+       rather than stranded on the grass. */
+    const roadI = gateI + 5;
+    for (let j = lj - 1; j >= gateJ + 3; j--) {
+      for (const di of [-1, 0, 1]) {
+        const i = roadI + di;
+        if (!WORLD.inb(i, j)) continue;
+        if (WORLD.t(i, j) === T_BUILD || WORLD.t(i, j) === T_ENTRY) continue;
+        WORLD.setT(i, j, T_PATH);
+        WORLD.mat[j * N + i] = 5;                 // material 5 is road
+      }
+    }
+    // and southward off the map edge, so traffic reads as coming from outside
+    for (let j = lj + def.d; j < Math.min(N, lj + def.d + 14); j++) {
+      for (const di of [-1, 0, 1]) {
+        const i = roadI + di;
+        if (WORLD.inb(i, j)) { WORLD.setT(i, j, T_PATH); WORLD.mat[j * N + i] = 5; }
+      }
+    }
+    this.roadZ = WORLD.wz(lj + def.d + 12);
+    this.roadX = WORLD.wx(roadI);
+    WORLD.dirty = true; Path.dirty = true;
+    this.layout();
+  },
+
+  /* Recompute bay positions. Called whenever the lot is expanded. */
+  /* Bay centres, matched to the two rows of bay markings the lot's mesh
+     paints so a parked car lands between the lines rather than near them. */
+  layout() {
+    this.bays.length = 0;
+    const o = this.lot; if (!o) return;
+    const W = o.def.w * TILE, D = o.def.d * TILE;
+    const cap = this.capacity();
+    const rows = 2;                                   // the mesh paints two
+    const perRow = Math.ceil(cap / rows);
+    for (let r = 0; r < rows; r++) {
+      const rz = o.z - D / 2 + D * (r === 0 ? .28 : .72);
+      for (let k = 0; k < perRow; k++) {
+        if (this.bays.length >= cap) break;
+        const bx = o.x - W / 2 + 1 + (k + .5) * (W - 2) / perRow;
+        this.bays.push({ x: bx, z: rz, car: null, row: r });
+      }
+    }
+  },
+  capacity() { return this.lot ? Math.max(8, Math.round((this.lot.spaces || 40) / 4)) : 0; },
+  occupied() { return this.cars.filter(c => c.state === 'parked' || c.state === 'arriving').length; },
+  fee() { return Park.parkingFee === undefined ? 6 : Park.parkingFee; },
+
+  freeBay() { for (const b of this.bays) if (!b.car) return b; return null; },
+
+  /* How often cars should be turning up: busier parks pull more traffic,
+     and a fee high enough to sting turns some of them away. */
+  arrivalInterval() {
+    const pull = 1 + Park.rating / 260 + Park.guests.length / 900;
+    const feePenalty = 1 + Math.max(0, this.fee() - 8) * .06;
+    return clamp(7.5 / pull * feePenalty, 1.2, 40);
+  },
+
+  update(dt) {
+    if (!this.lot || !Park.open) { return; }
+    if (this.bays.length !== this.capacity()) this.layout();
+    this.spawnT -= dt;
+    if (this.spawnT <= 0) {
+      this.spawnT = this.arrivalInterval() * rnd(.6, 1.5);
+      this.spawnCar();
+    }
+    const lotZ = this.lot.z, lotY = this.lot.y;
+    for (let k = this.cars.length - 1; k >= 0; k--) {
+      const c = this.cars[k];
+      if (c.state === 'arriving') {
+        // drive up the road, then across to the bay
+        const tgt = c.stage === 0 ? { x: this.roadX, z: lotZ + (this.lot.def.d * TILE) / 2 + 3 } : { x: c.bay.x, z: c.bay.z };
+        const dx = tgt.x - c.x, dz = tgt.z - c.z;
+        const d = Math.hypot(dx, dz);
+        if (d < .6) {
+          if (c.stage === 0) c.stage = 1;
+          else {
+            c.state = 'parked'; c.wait = rnd(1.5, 4);
+            c.yaw = c.bay.row === 0 ? 0 : PI;   // face the aisle it came off
+          }
+        } else {
+          const sp = 11 * dt;
+          c.x += dx / d * Math.min(sp, d); c.z += dz / d * Math.min(sp, d);
+          c.yaw = Math.atan2(dx, dz);
+        }
+      } else if (c.state === 'parked') {
+        c.wait -= dt;
+        if (c.wait <= 0 && !c.unloaded) {
+          c.unloaded = true;
+          // charge for the space and send the occupants to the gate
+          const f = this.fee();
+          if (f > 0) Park.earn(f, 'entry');
+          this.served++;
+          Game.spawnGuest(c.riders, { x: c.x, z: c.z + 2.2 });
+          /* Park.now is elapsed seconds, so this is how long the car holds
+             its bay. It is set against bay throughput deliberately: at the
+             starter size the lot runs just short of demand, so a few cars
+             get turned away and expanding it visibly pays for itself. */
+          c.leaveAt = Park.now + rnd(50, 140);
+        } else if (c.unloaded && Park.now > c.leaveAt) {
+          c.state = 'leaving'; c.stage = 0;
+        }
+      } else if (c.state === 'leaving') {
+        const tgt = c.stage === 0 ? { x: this.roadX, z: lotZ + (this.lot.def.d * TILE) / 2 + 3 } : { x: this.roadX, z: this.roadZ + 40 };
+        const dx = tgt.x - c.x, dz = tgt.z - c.z;
+        const d = Math.hypot(dx, dz);
+        if (d < .8) {
+          if (c.stage === 0) c.stage = 1;
+          else { if (c.bay) c.bay.car = null; this.cars.splice(k, 1); continue; }
+        } else {
+          const sp = 11 * dt;
+          c.x += dx / d * Math.min(sp, d); c.z += dz / d * Math.min(sp, d);
+          c.yaw = Math.atan2(dx, dz);
+        }
+      }
+    }
+  },
+  spawnCar() {
+    if (!this.lot) return;
+    const bay = this.freeBay();
+    if (!bay) { this.turnedAway++; return; }
+    const riders = rndi(1, 4);
+    const c = {
+      state: 'arriving', stage: 0, bay,
+      x: this.roadX + rnd(-.6, .6), z: this.roadZ + 30,
+      yaw: PI, wait: 0, unloaded: false, leaveAt: 0, riders,
+      color: Traffic.colors[rndi(0, Traffic.colors.length - 1)],
+    };
+    bay.car = c;
+    this.cars.push(c);
+  },
+  draw(R) {
+    if (!this.cars.length) return;
+    const m = M4.create();
+    for (const c of this.cars) {
+      const y = WORLD.hAt(c.x, c.z) + .02;
+      M4.compose(m, c.x, y, c.z, 0, c.yaw || 0, 0, 1, 1, 1);
+      R.draw(Traffic.meshFor(c.color), m);
+    }
+  },
+};
+
 const Traffic = {
   cars: [], carMesh: {}, roadList: [], roadSet: new Set(), rebuildT: 0,
   colors: [0xd9432e, 0x2e6fd9, 0xd9c22e, 0x3ba05a, 0xe8e8ec, 0x2b2b30, 0xd98f2e],
@@ -16444,7 +16630,7 @@ const Game = {
   newGame(mode, scenario, quiet) {
     for (const o of Park.objects) if (o.mesh) o.mesh.dispose();
     for (const c of Park.coasters) { if (c.trackMesh) c.trackMesh.dispose(); if (c.stationMesh) c.stationMesh.dispose(); if (c.splashMesh) c.splashMesh.dispose(); }
-    HeatMap.close(); Traffic.cars.length = 0;
+    HeatMap.close(); Traffic.cars.length = 0; Parking.reset();
     if (typeof Fireworks !== 'undefined') { Fireworks.active.length = 0; Fireworks.queue.length = 0; Fireworks.shownTonight = -1; }
     this.multiSel.length = 0; this.renderMultiSelBar(); this.undoStack.length = 0;
     this.undoCount = 0; this.maxBulkDemolish = 0;
@@ -16467,6 +16653,8 @@ const Game = {
     Park.level = mode === 'sandbox' ? Progress.MAXLEVEL : (scenario ? scenario.level : 2);
     Park.money = mode === 'sandbox' ? 5000000 : (scenario ? scenario.money : 60000);
     Park.entryFee = scenario ? scenario.fee : 12;
+    Park.parkingFee = 6;
+    Parking.reset();
     Park.waterPassPrice = 18;
     Park.seasonPassPrice = 240; Park.entryToday = 0; Park.seasonPassHolders = 0;
     WORLD.generate();
@@ -16486,6 +16674,7 @@ const Game = {
       gate.footprint((i, j) => { WORLD.setT(i, j, T_ENTRY); WORLD.setOwn(i, j, gate.id); });
       Park.objects.push(gate);
       Park.gate = gate;
+      Parking.build(gi, gj);
     }
     Goals.start(scenario);
     UI.setTool('select');
@@ -17255,6 +17444,12 @@ const Game = {
     const o = Park.objects.find(x => x.id === id) || Park.coasters.find(x => x.id === id);
     if (!o) return;
     if (o.kind === 'gate') { UI.notify('Cannot demolish', 'The park has to have a way in.', 'warn'); return; }
+    /* The car park came with the site and cannot be rebuilt from the menu, so
+       letting it be bulldozed would strand every arriving car permanently. */
+    if (o.def && o.def.prebuilt) {
+      UI.notify('Cannot demolish', o.def.name + ' came with the site — expand it instead of removing it.', 'warn');
+      return;
+    }
     if (o.kind === 'coaster') { Coaster._rebuildTarget = null; Coaster.active = o; Coaster.demolish(); return; }
     const refund = Math.round((o.def.cost || 0) * .55);
     Park.money += refund;
@@ -17530,6 +17725,7 @@ const Game = {
       this.separateCrowd(sdt);
       Transit.update(sdt);
       Traffic.update(sdt);
+      Parking.update(sdt);
       Fireworks.update(sdt);
       this.updateTrucks(sdt);
       for (const o of Park.objects) if (o.kind === 'ride') o.update(sdt);
@@ -18143,17 +18339,21 @@ const Game = {
     Park.entryToday = (Park.entryToday || 0) + 1;
     return true;
   },
-  spawnGuest() {
+  /* forceSize / origin are supplied when a party is stepping out of a parked
+     car rather than simply appearing at the gate — the group is however many
+     were in the car, and they start beside it and walk in from there. */
+  spawnGuest(forceSize, origin) {
     const c = N >> 1;
     /* Smaller parties, more often. Big coach-loads arriving in lumps is what
        made the gate feel like it was stuttering rather than flowing. */
     const roll = Math.random();
-    const size = roll < .40 ? 1 : roll < .74 ? 2 : roll < .92 ? 3 : roll < .98 ? 4 : 5;
+    const size = forceSize || (roll < .40 ? 1 : roll < .74 ? 2 : roll < .92 ? 3 : roll < .98 ? 4 : 5);
     const gid = this._groupSeq++;
     const members = [];
     for (let k = 0; k < size; k++) {
       if (Park.guests.length >= Park.capacity) break;
-      const x = WORLD.wx(c + rndi(-2, 2)) + rnd(-1.2, 1.2), z = WORLD.wz(c + 25) + rnd(-1.5, 1.5);
+      const x = origin ? origin.x + rnd(-1.1, 1.1) : WORLD.wx(c + rndi(-2, 2)) + rnd(-1.2, 1.2);
+      const z = origin ? origin.z + rnd(-1.1, 1.1) : WORLD.wz(c + 25) + rnd(-1.5, 1.5);
       const g = new Guest(x, z);
       if (!this.admitGuest(g)) continue;
       Park.totalGuests++;
@@ -18373,7 +18573,7 @@ const Game = {
         v: 7, n: N, mode: Park.mode, level: Park.level, xp: Park.xp,
         scenario: Goals.active ? Goals.active.id : null,
         goalDone: Goals.active ? Goals.active.goals.map(g => !!g.done) : null,
-        money: Park.money, time: Park.time, day: Park.day, fee: Park.entryFee, wpFee: Park.waterPassPrice, spFee: Park.seasonPassPrice,
+        money: Park.money, time: Park.time, day: Park.day, fee: Park.entryFee, wpFee: Park.waterPassPrice, spFee: Park.seasonPassPrice, pFee: Park.parkingFee,
         /* The terrain grid is by far the biggest thing in a save (N=406, so
            ~165k height samples and ~165k tile types) — stored as plain JSON
            number arrays it alone ran 1-2MB and was the main reason big
@@ -18522,7 +18722,7 @@ const Game = {
       }
       for (const o of Park.objects) if (o.mesh) o.mesh.dispose();
       for (const c of Park.coasters) { if (c.trackMesh) c.trackMesh.dispose(); if (c.stationMesh) c.stationMesh.dispose(); if (c.splashMesh) c.splashMesh.dispose(); }
-      HeatMap.close(); Traffic.cars.length = 0;
+      HeatMap.close(); Traffic.cars.length = 0; Parking.reset();
       if (typeof Fireworks !== 'undefined') { Fireworks.active.length = 0; Fireworks.queue.length = 0; Fireworks.shownTonight = -1; }
       this.multiSel.length = 0; this.renderMultiSelBar(); this.undoStack.length = 0;
       this.undoCount = 0; this.maxBulkDemolish = 0;
@@ -18547,6 +18747,7 @@ const Game = {
               for (let i = pi * PLOT; i < Math.min(N, (pi + 1) * PLOT); i++) WORLD.land[j * N + i] = 1;
       }
       Park.money = d.money; Park.time = d.time; Park.day = d.day; Park.entryFee = d.fee;
+      Park.parkingFee = d.pFee !== undefined ? d.pFee : 6;
       Park.waterPassPrice = d.wpFee !== undefined ? d.wpFee : 18;
       Park.seasonPassPrice = d.spFee !== undefined ? d.spFee : 240;
       Park.entryToday = 0; Park.seasonPassHolders = 0;
@@ -18725,6 +18926,17 @@ const Game = {
         Weather.event = null; Weather.eventDaysLeft = 0;
       }
       WORLD.dirty = true; Path.dirty = true; this.sceneryDirty = true; Park.litterDirty = true;
+      /* The car park is a normal saved object, but Parking holds a direct
+         reference to it and rebuilds its bays from the restored capacity —
+         without this the lot loads as scenery nothing ever drives into. */
+      Parking.reset();
+      Parking.lot = Park.objects.find(o => o.kind === 'shop' && o.def.need === 'parking') || null;
+      if (Parking.lot) {
+        const roadI = Parking.lot.i + (Parking.lot.def.w >> 1);
+        Parking.roadX = WORLD.wx(roadI);
+        Parking.roadZ = WORLD.wz(Parking.lot.j + Parking.lot.def.d + 12);
+        Parking.layout();
+      }
       UI.notify('Loaded', 'Park restored.', 'good');
       return true;
     } catch (e) { UI.notify('Load failed', String(e), 'bad'); return false; }
@@ -19594,6 +19806,7 @@ Object.assign(Game, {
     }
     TransitView.draw(R, depthPass);
     if (!depthPass) Traffic.draw(R);
+    if (!depthPass) Parking.draw(R);
     if (!depthPass) HeatMap.draw(R);
     if (!depthPass) BikeRentals.draw(R);
     if (!depthPass) Fireworks.draw(R);
