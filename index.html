@@ -14219,7 +14219,12 @@ const PHYS={
      about a tenth across every setting rather than only at 100%. steerReturn
      goes the other way: lock that falls away the moment you stop asking for it
      is most of what "tight" feels like in the hands. */
-  maxSteerLo:0.34, maxSteerHi:0.098, steerLockCurve:1.38, steerRate:3.42, steerReturn:7.9,
+  /* HIGH-SPEED LOCK, CUT HARD. Holding more lock into fast corners is what
+     made the car dart side to side at speed: the input is binary on a keyboard,
+     so a tap at 300 km/h was asking for an angle no driver would ever put in,
+     and the car went where it was told. The curve falls away sooner and further
+     now. Low-speed lock is untouched, so slow corners feel the same. */
+  maxSteerLo:0.34, maxSteerHi:0.056, steerLockCurve:1.85, steerRate:3.42, steerReturn:7.9,
   /* YAW DAMPING. A linear-then-clip tyre gives cornering force but none of the
      things that actually settle a car: tyre relaxation length, the aligning
      moment that tries to straighten the steering, the damping in the
@@ -15257,7 +15262,17 @@ function stepPhysics(dt,inp){
     // easing applies to winding lock ON only. Letting go should be immediate —
     // easing the RETURN as well left the car carrying rotation out of a corner
     // and nearly doubled how long it took to run straight again.
-    const rate=target ? P.steerRate*(0.55+0.45*clamp(remaining,0,1)) : P.steerReturn;
+    /* THE STEERING HAS TO FIGHT BACK, AND MORE SO THE FASTER YOU GO. Aligning
+       torque rises with speed on a real car: the rack gets heavy and the wheel
+       pulls itself straight. Both rates were speed-independent here, so the car
+       was as flickable at 300 km/h as it was in the pit lane -- which is
+       exactly the "loose, no resistance" feeling. Winding lock ON gets slower
+       with speed, and letting it go snaps back faster. */
+    const vf=clamp(Math.abs(CAR.v)/85,0,1);
+    const onMul  = 1 - 0.42*vf;                 // heavy rack up top
+    const offMul = 1 + 0.85*vf;                 // and it self-centres harder
+    const rate=target ? P.steerRate*(0.55+0.45*clamp(remaining,0,1))*onMul
+                      : P.steerReturn*offMul;
     CAR.steerCmd=damp(CAR.steerCmd,target,rate,dt); }
   const spd=Math.abs(CAR.v);
   /* THE LOCK COMES DOWN IN THE WET.
@@ -15697,7 +15712,11 @@ function stepPhysics(dt,inp){
   let Fyr=clamp(P.Cr*wetSoft*ar,-FyrMax,FyrMax);
   const vLatDot=(Fyf+Fyr)/m - CAR.v*CAR.yawRate;
   let yawAcc=(a*Fyf - b*Fyr)/Iz;
-  yawAcc-=P.yawDamp*CAR.yawRate*clamp(spd/20,0,1);
+  /* The old ramp saturated at 20 m/s, so damping was a constant everywhere
+     above walking pace and the car weaved just as freely at 300 km/h as at 70.
+     It keeps climbing now -- roughly double by top speed -- which is what stops
+     the side-to-side without making slow corners sluggish. */
+  yawAcc-=P.yawDamp*CAR.yawRate*clamp(spd/20,0,1)*(1+1.05*clamp(spd/85,0,1));
   /* YAW DAMPING.
      A linear-then-clip tyre gives cornering force but none of the things that
      settle a car — relaxation length, the aligning moment, suspension damping —
