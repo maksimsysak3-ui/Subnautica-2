@@ -938,20 +938,105 @@ function b64ToU8(b64) {
   for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
   return u8;
 }
+/* The terrain grid dwarfs everything else in a save: (N+1)^2 = ~165k height
+   samples plus N^2 = ~165k tile types. Stored as plain JSON arrays that is
+   ~1.2MB, and because localStorage holds strings as UTF-16 it bills roughly
+   double that — so a single park could eat half the ~5MB origin cap on its
+   own, and a franchise of five made saving impossible. Hence the encoding
+   below, which gets a fresh map from ~646KB to under 200KB.
+
+   HEIGHTS_SCALE is the quantisation step: heights are stored as integer
+   multiples of 1/20 of a unit. The pre-existing format already rounded to
+   two decimals, so this loses nothing anyone can see, and coarser steps
+   make the deltas below compress far better. Flatten() sets exactly equal
+   heights and quantising preserves equality, so flat ground stays flat. */
+const HEIGHTS_SCALE = 20;
+/* Heights vary smoothly across the map, so consecutive samples differ by very
+   little — we store the *difference* from the previous sample, zigzagged so
+   small negatives stay small, then as a variable-length integer so a typical
+   delta costs one byte instead of two. About a quarter of samples repeat the
+   previous one exactly (flattened plazas, water, untouched plateaus), so a
+   run of unchanged samples collapses to a 2-byte escape: 0x00 then a count.
+   A lone zero delta also encodes as 0x00,0x01, which keeps the format
+   unambiguous — the decoder never has to guess. */
 function packHeights(f32) {
-  const i16 = new Int16Array(f32.length);
-  for (let i = 0; i < f32.length; i++) i16[i] = clamp(Math.round(f32[i] * 50), -32768, 32767);
-  return u8ToB64(new Uint8Array(i16.buffer));
+  const bytes = [];
+  let prev = 0, i = 0;
+  const n = f32.length;
+  const q = new Int32Array(n);
+  for (let k = 0; k < n; k++) q[k] = Math.round(f32[k] * HEIGHTS_SCALE);
+  while (i < n) {
+    const d = q[i] - prev;
+    if (d === 0) {
+      let run = 0;
+      while (i + run < n && q[i + run] === prev && run < 255) run++;
+      bytes.push(0x00, run);
+      i += run;
+      continue;
+    }
+    prev = q[i];
+    let z = ((d << 1) ^ (d >> 31)) >>> 0;
+    while (z >= 0x80) { bytes.push((z & 0x7f) | 0x80); z >>>= 7; }
+    bytes.push(z);
+    i++;
+  }
+  return u8ToB64(new Uint8Array(bytes));
 }
 function unpackHeights(b64, len) {
+  const u8 = b64ToU8(b64);
+  const f32 = new Float32Array(len);
+  let prev = 0, out = 0, p = 0;
+  while (p < u8.length && out < len) {
+    if (u8[p] === 0x00) {
+      const run = u8[p + 1]; p += 2;
+      for (let k = 0; k < run && out < len; k++) f32[out++] = prev / HEIGHTS_SCALE;
+      continue;
+    }
+    let z = 0, shift = 0, b;
+    do { b = u8[p++]; z |= (b & 0x7f) << shift; shift += 7; } while (b & 0x80);
+    z = z >>> 0;
+    prev += (z >>> 1) ^ -(z & 1);
+    f32[out++] = prev / HEIGHTS_SCALE;
+  }
+  return f32;
+}
+/* Tile types are one of a handful of values and come in long uniform stretches
+   (a whole map of grass, a plaza, a lake), so plain run-length encoding takes
+   them from ~215KB to a few KB. Runs cap at 255 so both halves stay one byte. */
+function packTypes(u8) {
+  const bytes = [];
+  let i = 0;
+  while (i < u8.length) {
+    const v = u8[i];
+    let run = 1;
+    while (i + run < u8.length && u8[i + run] === v && run < 255) run++;
+    bytes.push(v, run);
+    i += run;
+  }
+  return u8ToB64(new Uint8Array(bytes));
+}
+function unpackTypes(b64, len) {
+  const enc = b64ToU8(b64);
+  const out = new Uint8Array(len);
+  let o = 0;
+  for (let p = 0; p + 1 < enc.length && o < len; p += 2) {
+    const v = enc[p], run = enc[p + 1];
+    for (let k = 0; k < run && o < len; k++) out[o++] = v;
+  }
+  return out;
+}
+/* v6 saves stored heights/types as flat little-endian typed-array bytes under
+   the keys `hb`/`tb`. The current encoding reuses neither key, so there is no
+   way for the two to be confused, but a park saved on that build still has to
+   load — hence these. */
+function unpackHeightsV6(b64, len) {
   const u8 = b64ToU8(b64);
   const i16 = new Int16Array(u8.buffer, u8.byteOffset, Math.min(len, u8.length >> 1));
   const f32 = new Float32Array(len);
   for (let i = 0; i < i16.length; i++) f32[i] = i16[i] / 50;
   return f32;
 }
-function packTypes(u8) { return u8ToB64(u8); }
-function unpackTypes(b64, len) {
+function unpackTypesV6(b64, len) {
   const u8 = b64ToU8(b64);
   return u8.length === len ? u8 : u8.subarray(0, len);
 }
@@ -2806,6 +2891,29 @@ for (const gk of Object.keys(GENRES)) {
     });
   }
 }
+
+/* Anything placed as a `shop` object that never charges guests a per-use
+   price: staff-only rooms, free guest facilities and decorative landmarks.
+   They share the shop code path for placement and pathing, but showing them
+   the trade UI (price slider, margin, items sold, "Design Merch") is
+   nonsense — a break room has no menu and a triumphal arch has no till.
+
+   Derived from the def's own numbers rather than a hand-kept id list, so a
+   new free building needs no extra wiring here: a hotel is excluded because
+   it charges a nightly rate, and a car park because its capacity gets its
+   own dedicated panel. NOTE the discriminator is `price`, not `need` —
+   First Aid's need is 'nausea' and the ATM's is 'cash', so matching on need
+   silently misses them. */
+const isFreeFacility = (def) => !!def && !def.price && !def.nightly && def.need !== 'parking';
+/* Keyed by id, not need, for the same reason. */
+const FACILITY_TITLES = {
+  breakroom: 'Staff Break Room', toilet: 'Restrooms',
+  firstaid: 'First Aid', atm: 'Cash Machine', info: 'Info Kiosk',
+};
+const facilityTitle = (def) => FACILITY_TITLES[def.id] || (def.beauty ? 'Landmark' : 'Facility');
+/* The broad category, for use as a "<category> — <name>" heading prefix where
+   the specific name is already shown alongside it. */
+const facilityKind = (def) => def.beauty ? 'Landmark' : def.need === 'break' ? 'Staff Facility' : 'Facility';
 
 const CAT = {
   /* ---------------- Shops & facilities ---------------- */
@@ -9852,11 +9960,13 @@ const UI = {
     if (o.kind === 'gate') return this.entrance(tab);
     if (tab) this.manageTabRide = tab;
     const isC = o.kind === 'coaster', isShop = o.kind === 'shop';
+    const isFree = isShop && isFreeFacility(o.def);
     const T = this.manageTabRide;
     const kv = (k, v, note) => `<div class="kv"><span class="k">${k}</span><span class="v">${v}${note ? ` <span style="color:var(--dim);font-weight:600">${note}</span>` : ''}</span></div>`;
     const days = Math.max(1, Park.day - 1 + Park.time / 1440);
 
     const tabs = isC ? [['overview', 'Overview'], ['look', 'Appearance'], ['stats', 'Ratings'], ['eng', 'Engineering'], ['ops', 'Operations'], ['money', 'Finances']]
+      : isFree ? [['overview', 'Overview'], ['look', 'Appearance'], ['money', 'Running Costs']]
       : isShop ? [['overview', 'Overview'], ...(o.def.need === 'shop' ? [['merch', 'Design Merch']] : []), ['look', 'Appearance'], ['money', 'Finances'], ['ops', 'Stock &amp; Staff']]
         : [['overview', 'Overview'], ['look', 'Appearance'], ['stats', 'Ratings'], ['ops', 'Operations'], ['money', 'Finances']];
     if (!tabs.some(t => t[0] === T)) this.manageTabRide = 'overview';
@@ -9881,17 +9991,30 @@ const UI = {
         h += kv('Intensity', o.intensity.toFixed(1), 'of 14 &middot; ' + this.ratingWord('int', o.intensity));
         h += kv('Nausea', o.nausea.toFixed(1), 'of 14 &middot; ' + this.ratingWord('nau', o.nausea));
       }
-      h += kv('Revenue', money(o.revenue), money(o.revenue / days) + ' / day');
-      h += kv(isShop ? 'Items sold' : 'Total riders', isShop ? o.served : o.ridden);
+      if (!isFree) h += kv('Revenue', money(o.revenue), money(o.revenue / days) + ' / day');
+      h += kv(isFree ? 'Guests served' : isShop ? 'Items sold' : 'Total riders', isShop ? o.served : o.ridden);
       h += kv('Queue now', (o.queue ? o.queue.length : 0) + ' waiting');
       h += kv('Condition', Math.round(clamp((o.reliability || .9) - o.wear, 0, 1) * 100) + '%');
-      h += `<h3>Price</h3>
-        <div class="row"><label>${isShop ? 'Item price' : 'Ticket'}</label>
-          <input type="range" min="0" max="${isShop ? 40 : 30}" step="1" value="${o.price}"
-            oninput="Game.setPrice(${id},this.value);document.getElementById('mp${id}').textContent='$'+this.value">
-          <span class="num" id="mp${id}">$${o.price}</span></div>`;
-      const dem = Park.guests.length ? Park.guests.filter(g => g.cash >= o.price).length / Park.guests.length : 1;
-      h += `<p>${Math.round(dem * 100)}% of guests in the park can afford this right now.</p>`;
+      if (isFree) {
+        h += kv('Upkeep', money((o.def.up || 0) * .6) + ' / hr');
+        h += `<p>${o.def.need === 'break'
+          ? 'Staff use this on their own to recover morale — it is free to them and sells nothing to guests. Hire, assign and dismiss staff from the Staff panel.'
+          : 'Free for guests to use. It has no price and takes no money.'}</p>`;
+        if (o.def.need === 'break') {
+          const resting = Park.staff.filter(s => s.state === 'resting' || s.state === 'toBreak').length;
+          h += kv('Staff resting or on the way', resting + ' of ' + Park.staff.length);
+          h += `<div class="btnrow"><button class="btn go" style="flex:0 0 auto;padding:9px 20px"
+            onclick="UI.closeModal();UI.entrance('staff')">Manage staff</button></div>`;
+        }
+      } else {
+        h += `<h3>Price</h3>
+          <div class="row"><label>${isShop ? 'Item price' : 'Ticket'}</label>
+            <input type="range" min="0" max="${isShop ? 40 : 30}" step="1" value="${o.price}"
+              oninput="Game.setPrice(${id},this.value);document.getElementById('mp${id}').textContent='$'+this.value">
+            <span class="num" id="mp${id}">$${o.price}</span></div>`;
+        const dem = Park.guests.length ? Park.guests.filter(g => g.cash >= o.price).length / Park.guests.length : 1;
+        h += `<p>${Math.round(dem * 100)}% of guests in the park can afford this right now.</p>`;
+      }
       h += `<h3>Actions</h3><div class="btnrow">
         <button class="btn ${o.openR ? 'dan' : 'go'}" style="flex:0 0 auto;padding:9px 20px"
           onclick="Game.toggleOpen(${id});UI.manage(${id})">${o.openR ? 'Close' : 'Open'}</button>
@@ -10111,15 +10234,23 @@ const UI = {
     }
 
     else if (this.manageTabRide === 'money') {
-      const cost = isShop ? o.def.price * .35 : 0;
-      h += `<h3>Takings</h3>`;
-      h += kv('Lifetime revenue', money(o.revenue));
-      h += kv('Per day', money(o.revenue / days));
-      h += kv(isShop ? 'Items sold' : 'Riders carried', isShop ? o.served : o.ridden);
-      h += kv('Average per customer', money(o.revenue / Math.max(1, isShop ? o.served : o.ridden)));
-      if (isShop) {
-        h += kv('Cost per item', money(cost));
-        h += kv('Margin', money(Math.max(0, o.price - cost)), Math.round(Math.max(0, o.price - cost) / Math.max(.01, o.price) * 100) + '%');
+      const cost = isShop && !isFree ? o.def.price * .35 : 0;
+      if (isFree) {
+        // No takings section at all — this building has never earned a penny
+        // and never will, so a "Takings" table of zeroes is just noise.
+        h += `<h3>What this costs you</h3>`;
+        h += `<p>${o.def.name} is free to use, so it only ever costs money. It earns its keep
+          indirectly — by keeping guests${o.def.need === 'break' ? ' and staff' : ''} happy enough to stay longer and spend more elsewhere.</p>`;
+      } else {
+        h += `<h3>Takings</h3>`;
+        h += kv('Lifetime revenue', money(o.revenue));
+        h += kv('Per day', money(o.revenue / days));
+        h += kv(isShop ? 'Items sold' : 'Riders carried', isShop ? o.served : o.ridden);
+        h += kv('Average per customer', money(o.revenue / Math.max(1, isShop ? o.served : o.ridden)));
+        if (isShop) {
+          h += kv('Cost per item', money(cost));
+          h += kv('Margin', money(Math.max(0, o.price - cost)), Math.round(Math.max(0, o.price - cost) / Math.max(.01, o.price) * 100) + '%');
+        }
       }
       h += `<h3>Costs</h3>`;
       const up = isC ? 18 + (o.track ? o.track.length * .04 : 0) : (o.def.up || 0) * .6;
@@ -10127,13 +10258,20 @@ const UI = {
       const built = isC ? Math.round(6000 + (o.track ? o.track.pieces.reduce((a, pid) =>
         a + ((PIECE_BY_ID[pid] || {}).cost || 220), 0) : 0)) : (o.def.cost || 0);
       h += kv('Built for', money(built));
-      const net = o.revenue / days - up * 24;
-      h += kv('Net per day', `<span style="color:${net >= 0 ? 'var(--good)' : 'var(--bad)'}">${money(net)}</span>`);
-      const payback = net > 0 ? Math.ceil(built / net) : null;
-      h += kv('Pays for itself in', payback === null ? 'never at this rate' : payback + ' days');
+      if (isFree) {
+        // "Pays for itself in: never" is a misleading verdict on a building
+        // that was never meant to earn — report the running cost instead.
+        h += kv('Costs you', money(up * 24) + ' / day', 'never earns directly');
+      } else {
+        const net = o.revenue / days - up * 24;
+        h += kv('Net per day', `<span style="color:${net >= 0 ? 'var(--good)' : 'var(--bad)'}">${money(net)}</span>`);
+        const payback = net > 0 ? Math.ceil(built / net) : null;
+        h += kv('Pays for itself in', payback === null ? 'never at this rate' : payback + ' days');
+      }
     }
 
-    this.modal((isC ? 'Coaster' : isShop ? 'Shop' : 'Ride') + ' — ' + o.name, h);
+    const kindWord = isC ? 'Coaster' : isFree ? facilityKind(o.def) : isShop ? 'Shop' : 'Ride';
+    this.modal(kindWord + ' — ' + o.name, h);
   },
 
   /* ------------------------------------------------------------------
@@ -10789,7 +10927,7 @@ const UI = {
       h += reviewsSection(o);
     }
     else if (o.kind === 'shop' && o.def.need === 'break') {
-      $('#insTitle').textContent = 'Staff Break Room';
+      $('#insTitle').textContent = facilityTitle(o.def);
       h += nameField(o);
       h += `<div style="font-size:10.5px;color:var(--dim)">${o.def.name} &middot; ${age(o)}</div>`;
       const resting = Park.staff.filter(s => s.state === 'resting' || s.state === 'toBreak');
@@ -10801,16 +10939,25 @@ const UI = {
       h += `<div class="btnrow"><button class="btn" onclick="Game.autoConnect(Park.objects.find(x=>x.id===${o.id}))">Reconnect path</button>
         <button class="btn dan" onclick="Game.demolish(${o.id})">Demolish</button></div>`;
     }
-    else if (o.kind === 'shop' && (o.def.need === 'toilet' || o.def.need === 'firstaid' || o.def.need === 'atm' || o.def.need === 'info')) {
-      const titles = { toilet: 'Restrooms', firstaid: 'First Aid', atm: 'Cash Machine', info: 'Info Kiosk' };
-      $('#insTitle').textContent = titles[o.def.need];
+    else if (o.kind === 'shop' && isFreeFacility(o.def)) {
+      const isLandmark = !!o.def.beauty;
+      $('#insTitle').textContent = facilityTitle(o.def);
       h += nameField(o);
       h += `<div style="font-size:10.5px;color:var(--dim)">${o.def.name} &middot; ${age(o)}</div>`;
-      h += `<div class="cat">Use</div>`;
-      h += kv('Guests served', o.served);
-      h += kv('Queue now', o.queue.length + ' waiting');
-      h += kv('Upkeep', money((o.def.up || 0) * .6) + ' / hr');
-      h += `<div style="font-size:10.5px;color:var(--dim);margin-top:-2px">Free for guests to use — this doesn't sell anything or take a price.</div>`;
+      if (isLandmark) {
+        h += `<div class="cat">Presence</div>`;
+        h += kv('Beauty', '+' + o.def.beauty);
+        h += kv('Nearby beauty', Math.round(Park.beautyAt(o.x, o.z)));
+        h += kv('Upkeep', money((o.def.up || 0) * .6) + ' / hr');
+        if (o.def.blurb) h += `<div style="font-size:10.5px;color:var(--dim);line-height:1.5;margin:4px 0">${o.def.blurb}</div>`;
+        h += `<div style="font-size:10.5px;color:var(--dim);margin-top:-2px">A landmark sells nothing — it earns its cost back by lifting the beauty, and the rating, of everything around it.</div>`;
+      } else {
+        h += `<div class="cat">Use</div>`;
+        h += kv('Guests served', o.served);
+        h += kv('Queue now', o.queue.length + ' waiting');
+        h += kv('Upkeep', money((o.def.up || 0) * .6) + ' / hr');
+        h += `<div style="font-size:10.5px;color:var(--dim);margin-top:-2px">Free for guests to use — this doesn't sell anything or take a price.</div>`;
+      }
       h += `<div class="btnrow"><button class="btn" onclick="Game.autoConnect(Park.objects.find(x=>x.id===${o.id}))">Reconnect path</button>
         <button class="btn dan" onclick="Game.demolish(${o.id})">Demolish</button></div>`;
     }
@@ -17384,7 +17531,7 @@ const Game = {
   save(silent, key) {
     try {
       const d = {
-        v: 6, n: N, mode: Park.mode, level: Park.level, xp: Park.xp,
+        v: 7, n: N, mode: Park.mode, level: Park.level, xp: Park.xp,
         scenario: Goals.active ? Goals.active.id : null,
         goalDone: Goals.active ? Goals.active.goals.map(g => !!g.done) : null,
         money: Park.money, time: Park.time, day: Park.day, fee: Park.entryFee, wpFee: Park.waterPassPrice, spFee: Park.seasonPassPrice,
@@ -17395,7 +17542,7 @@ const Game = {
            Packed into typed-array bytes and base64'd it's a fraction of
            that size, with no loss (heights keep 1/50 unit precision, well
            past what's visually distinguishable). */
-        hb: packHeights(WORLD.h), tb: packTypes(WORLD.type),
+        hz: packHeights(WORLD.h), tz: packTypes(WORLD.type),
         objs: Park.objects.filter(o => o.kind !== 'gate' && o.kind !== 'tstation' && o.kind !== 'tstop' && o.kind !== 'gtower').map(o =>
           ({ k: o.kind, d: o.def.id, i: o.i, j: o.j, r: o.rot, p: o.price, open: o.openR, tier: o.tier,
             n: o.name, lock: !!o.priceLocked, mer: o.merch || undefined, liv: o.livery || undefined,
@@ -17440,10 +17587,25 @@ const Game = {
       // object so the file-export fallback it points players to actually works.
       try {
         localStorage.setItem(key || 'planetcoaster_save', JSON.stringify(d));
+        this._quotaHit = false;
         if (!silent) UI.notify('Saved', 'Park written to browser storage.', 'good');
       } catch (e) {
         if (e && e.name === 'QuotaExceededError') {
-          UI.notify('Save failed — storage full', 'This park is too large for the browser\'s storage limit. Use Export to file (Settings > Save & Load) to keep it as a .pcpark file instead.', 'bad');
+          /* Autosave retries every couple of minutes, so without this the
+             player would get the same red toast forever. Warn once, turn
+             autosave off so it stops thrashing, and leave manual saves
+             working in case they free space — a manual Ctrl+S always
+             re-reports, because that one they actually asked for. */
+          const first = !this._quotaHit;
+          this._quotaHit = true;
+          if (first || !silent) {
+            if (silent) this.autosaveOn = false;
+            UI.notify('Save failed — storage full',
+              'This park is too big for the browser\'s storage limit'
+              + (silent ? ', so autosave has been turned off. ' : '. ')
+              + 'Use Export to file (Settings › Save & Load) to keep it as a .pcpark file, '
+              + 'or delete an old park from the Franchise list to free space.', 'bad');
+          }
         } else {
           UI.notify('Save failed', String(e), 'bad');
         }
@@ -17479,7 +17641,7 @@ const Game = {
     reader.onload = () => {
       try {
         const d = JSON.parse(reader.result);
-        if (!d || typeof d !== 'object' || !((d.hb && d.tb) || (d.h && d.t))) throw new Error('not a park file');
+        if (!d || typeof d !== 'object' || !((d.hz && d.tz) || (d.hb && d.tb) || (d.h && d.t))) throw new Error('not a park file');
         const tempKey = '__import_' + Date.now();
         localStorage.setItem(tempKey, JSON.stringify(d));
         this.load(tempKey);
@@ -17500,13 +17662,17 @@ const Game = {
     if (!raw) { if (!key) UI.notify('No save', 'Nothing stored yet.', 'warn'); return false; }
     try {
       const d = JSON.parse(raw);
-      const hasTerrain = (d.hb && d.tb) || (d.h && d.t);
+      const hasTerrain = (d.hz && d.tz) || (d.hb && d.tb) || (d.h && d.t);
       if (!hasTerrain || d.n !== N) {
         UI.notify('Incompatible save', 'That park was built on a different map size and cannot be loaded.', 'bad');
         return false;
       }
-      const loadedH = d.hb ? unpackHeights(d.hb, WORLD.h.length) : d.h;
-      const loadedT = d.tb ? unpackTypes(d.tb, WORLD.type.length) : d.t;
+      // Three generations of terrain encoding, newest first — each uses its
+      // own keys, so the right decoder is picked by which keys are present.
+      const loadedH = d.hz ? unpackHeights(d.hz, WORLD.h.length)
+        : d.hb ? unpackHeightsV6(d.hb, WORLD.h.length) : d.h;
+      const loadedT = d.tz ? unpackTypes(d.tz, WORLD.type.length)
+        : d.tb ? unpackTypesV6(d.tb, WORLD.type.length) : d.t;
       if (loadedH.length !== WORLD.h.length || loadedT.length !== WORLD.type.length) {
         UI.notify('Incompatible save', 'That park was built on a different map size and cannot be loaded.', 'bad');
         return false;
