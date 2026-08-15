@@ -14230,7 +14230,7 @@ const PHYS={
      top-end figure the car keeps 12.3 deg at 100 km/h, 8.5 at 180, 3.6 at 300
      and 2.1 at 340 -- which is roughly what a driver actually holds, and a
      keyboard's binary input can no longer ask for an angle nobody would use. */
-  maxSteerLo:0.34, maxSteerHi:0.028, steerLockCurve:0.72, steerRate:3.42, steerReturn:7.9,
+  maxSteerLo:0.34, maxSteerHi:0.017, steerLockCurve:0.62, steerRate:3.42, steerReturn:7.9,
   /* YAW DAMPING. A linear-then-clip tyre gives cornering force but none of the
      things that actually settle a car: tyre relaxation length, the aligning
      moment that tries to straighten the steering, the damping in the
@@ -14243,6 +14243,16 @@ const PHYS={
      real physical effects the tyre model omits — and it is scaled out at
      walking pace where the kinematic blend takes over instead. */
   yawDamp:3.35,   // raised with the stiffnesses: stiff axles without damping ring
+  /* SIDESLIP DAMPING -- why the car glides. A linear bicycle model gives the
+     tyre a cornering force and nothing else. A real tyre standing at a slip
+     angle also scrubs: it drags, it heats, it bleeds the sideways motion away
+     even when the car is pointing straight. Without that term the only thing
+     removing lateral velocity is the cornering force itself, so once the car
+     has any sideways speed it keeps it and carries on crabbing down the road
+     -- which is the sliding-on-ice feeling on a straight, where there is no
+     cornering force to kill it.
+     Scaled in above walking pace so parking and the pit lane are untouched. */
+  slipDamp:3.2,
   /* How quickly the driver winds lock ON compared with how quickly they take it
      off. Coming off the lock faster than going on is what a real pair of hands
      does and it stops the car carrying rotation out of a corner. */
@@ -15276,7 +15286,7 @@ function stepPhysics(dt,inp){
        with speed, and letting it go snaps back faster. */
     const vf=clamp(Math.abs(CAR.v)/85,0,1);
     const onMul  = 1 - 0.42*vf;                 // heavy rack up top
-    const offMul = 1 + 0.85*vf;                 // and it self-centres harder
+    const offMul = 1 + 0.40*vf;                 // and it self-centres harder
     const rate=target ? P.steerRate*(0.55+0.45*clamp(remaining,0,1))*onMul
                       : P.steerReturn*offMul;
     CAR.steerCmd=damp(CAR.steerCmd,target,rate,dt); }
@@ -15739,7 +15749,9 @@ function stepPhysics(dt,inp){
      on gradually enough to see and hold instead of snapping past the clip. */
   let Fyf=clamp(P.Cf*wetSoft*af,-FyfMax,FyfMax);
   let Fyr=clamp(P.Cr*wetSoft*ar,-FyrMax,FyrMax);
-  const vLatDot=(Fyf+Fyr)/m - CAR.v*CAR.yawRate;
+  let vLatDot=(Fyf+Fyr)/m - CAR.v*CAR.yawRate;
+  // the scrub term: sideways motion decays instead of persisting
+  vLatDot -= P.slipDamp*CAR.vLat*clamp(spd/25,0,1);
   let yawAcc=(a*Fyf - b*Fyr)/Iz;
   /* The old ramp saturated at 20 m/s, so damping was a constant everywhere
      above walking pace and the car weaved just as freely at 300 km/h as at 70.
