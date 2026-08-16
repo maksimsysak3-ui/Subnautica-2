@@ -311,6 +311,22 @@ body.parkclosed #hint{display:none}          /* they share this spot */
 .item.on{background:#e2f4ff;border-color:var(--accent);box-shadow:0 3px 0 var(--accent-deep),var(--glow)}
 .item.on::after{content:'';position:absolute;top:7px;left:7px;width:8px;height:8px;border-radius:50%;
   background:var(--accent);box-shadow:0 0 0 3px rgba(43,166,236,.22)}
+/* catalogue search + favourites */
+.bpsearch{position:relative;margin:2px 3px 8px}
+.bpsearch input{width:100%;box-sizing:border-box;padding:8px 30px 8px 11px;font:700 11.5px inherit;
+  color:var(--txt);background:#fff;border:2px solid var(--edge-soft);border-radius:var(--r-pill);
+  outline:none;transition:border-color var(--ez),box-shadow var(--ez)}
+.bpsearch input:focus{border-color:var(--accent);box-shadow:var(--glow)}
+.bpsearch input::placeholder{color:var(--dim);font-weight:600}
+.bpsearch .bpclear{position:absolute;right:6px;top:50%;transform:translateY(-50%);
+  width:20px;height:20px;border:0;border-radius:50%;background:var(--edge-soft);color:var(--txt);
+  font:800 14px/1 inherit;cursor:pointer}
+.bpsearch .bpclear:hover{background:var(--bad);color:#fff}
+.favstar{position:absolute;top:3px;right:4px;font-size:12px;line-height:1;cursor:pointer;
+  color:var(--edge-soft);transition:color var(--ez),transform var(--sn);z-index:2}
+.favstar:hover{transform:scale(1.28);color:var(--gold)}
+.favstar.on{color:var(--gold);text-shadow:0 1px 2px rgba(0,0,0,.18)}
+.item.fav{border-color:#f0d089}
 .item .e{font-size:22px;display:block;line-height:1.15}
 .item .n{display:block;font-size:10.5px;margin-top:4px;font-weight:800;color:var(--txt)}
 .item .c{display:block;font-size:9.5px;color:var(--gold);margin-top:2px;font-variant-numeric:tabular-nums;
@@ -8922,6 +8938,65 @@ function pickPersona() {
 }
 
 /* --------------------------------------------------------------------------
+   DEMOGRAPHICS
+   A persona says what somebody likes. It says nothing about who they are —
+   how old, who they came with, how far they travelled, what they can afford.
+   Those are separate facts, and they drive different things: age gates what
+   somebody will ride, group size sets the pace they move at, distance
+   decides how long they stay, and budget decides what they will part with.
+   Drawn per guest and conditioned on the persona, so a coaster enthusiast is
+   plausibly a young adult travelling alone and a family day out is not.
+   -------------------------------------------------------------------------- */
+const AGE_BANDS = [
+  { id: 'child',  name: 'Children',        min: 4,  max: 11, intensityCap: 5.5, spend: .45, patience: .7 },
+  { id: 'teen',   name: 'Teenagers',       min: 12, max: 17, intensityCap: 12,  spend: .7,  patience: 1.15 },
+  { id: 'young',  name: 'Young adults',    min: 18, max: 29, intensityCap: 12,  spend: 1.15, patience: 1.1 },
+  { id: 'adult',  name: 'Adults',          min: 30, max: 49, intensityCap: 11,  spend: 1.3, patience: .95 },
+  { id: 'older',  name: 'Older visitors',  min: 50, max: 78, intensityCap: 7,   spend: 1.1, patience: .8 },
+];
+const GROUP_KINDS = [
+  { id: 'solo',    name: 'On their own', size: [1, 1], spend: 1.0,  patience: 1.15 },
+  { id: 'couple',  name: 'Couples',      size: [2, 2], spend: 1.15, patience: 1.0 },
+  { id: 'family',  name: 'Families',     size: [3, 5], spend: 1.45, patience: .78 },
+  { id: 'friends', name: 'Friend groups', size: [3, 6], spend: 1.2, patience: .92 },
+  { id: 'school',  name: 'School trips',  size: [6, 12], spend: .55, patience: .7 },
+];
+const ORIGINS = [
+  { id: 'local',    name: 'Local',        w: .46, stay: .78, spend: .9,  fee: .82 },
+  { id: 'regional', name: 'From the region', w: .38, stay: 1.0, spend: 1.1, fee: 1.0 },
+  { id: 'tourist',  name: 'Tourists',     w: .16, stay: 1.35, spend: 1.5, fee: 1.35 },
+];
+/* Which ages and groups each persona plausibly turns up as. */
+const PERSONA_DEMOS = {
+  thrill:      { ages: ['teen', 'young', 'young', 'adult'], groups: ['friends', 'friends', 'couple', 'solo', 'school'] },
+  family:      { ages: ['adult', 'adult', 'child', 'older'], groups: ['family', 'family', 'couple'] },
+  coasterhead: { ages: ['young', 'young', 'adult', 'teen'], groups: ['solo', 'friends', 'couple'] },
+};
+const DEMO_FALLBACK = { ages: ['teen', 'young', 'adult', 'adult', 'older'], groups: ['couple', 'friends', 'family', 'solo', 'friends', 'school'] };
+const pickFrom = (arr) => arr[rndi(0, arr.length - 1)];
+function ageBand(id) { return AGE_BANDS.find(a => a.id === id) || AGE_BANDS[3]; }
+function groupKind(id) { return GROUP_KINDS.find(g => g.id === id) || GROUP_KINDS[1]; }
+function pickOrigin() {
+  let r = Math.random() * ORIGINS.reduce((a, o) => a + o.w, 0);
+  for (const o of ORIGINS) { r -= o.w; if (r <= 0) return o; }
+  return ORIGINS[0];
+}
+function rollDemographics(persona) {
+  const table = PERSONA_DEMOS[persona && persona.id] || DEMO_FALLBACK;
+  const band = ageBand(pickFrom(table.ages));
+  const grp = groupKind(pickFrom(table.groups));
+  const org = pickOrigin();
+  /* A school trip is never one person and a solo visitor is never five, so
+     size comes from the group kind, not the other way round. A child is
+     never here alone. */
+  let size = rndi(grp.size[0], grp.size[1]);
+  if (band.id === 'child' && size < 2) size = rndi(2, 4);
+  return {
+    age: rndi(band.min, band.max), band: band.id, group: grp.id, groupSize: size, origin: org.id,
+  };
+}
+
+/* --------------------------------------------------------------------------
    GUEST — needs, wallet, opinions, memories
    -------------------------------------------------------------------------- */
 class Guest extends Person {
@@ -9072,10 +9147,32 @@ class Guest extends Person {
     this.nauseaTol = rnd(p.nausea[0], p.nausea[1]);
     this.patience = rnd(p.patience[0], p.patience[1]);
     this.cash = rnd(p.spend[0], p.spend[1]);
+
+    /* Who they actually are, on top of what they like. Each fact earns its
+       place by changing something: age caps what they will get on and how
+       deep their pockets are, the group they came with sets their patience
+       and their spending, and how far they travelled decides how long they
+       stay and what they will tolerate at the gate. */
+    this.demo = rollDemographics(p);
+    const band = ageBand(this.demo.band), grp = groupKind(this.demo.group), org = ORIGINS.find(o => o.id === this.demo.origin) || ORIGINS[0];
+    this.prefIntensity = Math.min(this.prefIntensity, band.intensityCap);
+    this.patience *= grp.patience * band.patience;
+    this.cash *= band.spend * grp.spend * org.spend;
+    this.feeTolerance = org.fee;
+    this.stayMult = org.stay;
+
     this.startCash = this.cash;   // persona sets the real wallet, so re-baseline
     this.budget = this.cash * rnd(.6, .92);
-    this.ridesWanted = rndi(p.rides[0], p.rides[1]);
+    this.ridesWanted = Math.max(2, Math.round(rndi(p.rides[0], p.rides[1]) * org.stay));
     this.thrillSeeker = this.prefIntensity > 7.5;
+  }
+  /* A readable one-liner for the panels — "Adult · family of 4 · tourist". */
+  demoLine() {
+    if (!this.demo) return '';
+    const band = ageBand(this.demo.band), grp = groupKind(this.demo.group);
+    const org = ORIGINS.find(o => o.id === this.demo.origin) || ORIGINS[0];
+    const g = this.demo.groupSize > 1 ? grp.name.replace(/s$/, '').toLowerCase() + ' of ' + this.demo.groupSize : 'on their own';
+    return this.demo.age + ' &middot; ' + g + ' &middot; ' + org.name.toLowerCase();
   }
   /* How this guest currently feels about a specific attraction, blending
      their remembered opinion with what they can see of it right now. */
@@ -9593,6 +9690,9 @@ class Guest extends Person {
   /* Would this guest get on it at all? Separated out so the group-follow path
      can ask the question without redoing the whole scoring pass. */
   willRide(r) {
+    /* A hard age gate, not a preference: a seven-year-old is not getting on
+       the launch coaster however much they might want to. */
+    if (this.demo && r.intensity > ageBand(this.demo.band).intensityCap) return false;
     if (r.intensity > this.prefIntensity + 3.2) return false;
     if (r.nausea > this.nauseaTol + 2) return false;
     if (this.nausea > .6 && r.nausea > 4) return false;
@@ -10452,6 +10552,32 @@ const UI = {
     if (locked) L.push('', 'Locked until you research it.');
     return L.join('\n');
   },
+  /* Catalogue filter. Typing narrows every grid in the panel at once, and
+     starring an item pulls it to the top of its own category — with fourteen
+     categories and several hundred pieces, scrolling for the bench you use
+     on every path was the single most repeated action in the game. */
+  bpSearch: '',
+  favs: {},
+  isFav(it) { return !!(it && this.favs[it.id]); },
+  toggleFav(id, ev) {
+    if (ev) { ev.stopPropagation(); ev.preventDefault(); }
+    if (this.favs[id]) delete this.favs[id]; else this.favs[id] = 1;
+    this.refreshBuildPanel();
+  },
+  setBpSearch(v) {
+    this.bpSearch = String(v || '');
+    this.refreshBuildPanel();
+    /* Rebuilding the panel replaces the input, so put the caret back where
+       the player left it or typing a second character loses focus. */
+    const el2 = document.getElementById('bpSearch');
+    if (el2) { el2.focus(); el2.value = this.bpSearch; el2.setSelectionRange(this.bpSearch.length, this.bpSearch.length); }
+  },
+  bpMatches(it) {
+    const q = this.bpSearch.trim().toLowerCase();
+    if (!q) return true;
+    return ((it.name || '') + ' ' + (it.id || '') + ' ' + (it.kind || '') + ' ' + (it.need || '') + ' ' + (it.desc || it.blurb || ''))
+      .toLowerCase().includes(q);
+  },
   openBuild(id) {
     const p = $('#buildPanel'), b = $('#bpBody');
     p.classList.add('show');
@@ -10495,11 +10621,18 @@ const UI = {
       return;
     }
     const addGrid = (label, items, cls, render, onPick, lockFn) => {
+      /* Filter first, then sort favourites to the front. A category with
+         nothing matching the search is dropped entirely rather than left as
+         an empty heading. */
+      let list = items.filter(it => this.bpMatches(it));
+      if (!list.length) return null;
+      list = list.slice().sort((x, y) => (this.isFav(y) ? 1 : 0) - (this.isFav(x) ? 1 : 0));
       if (label) b.appendChild(el('div', 'cat', label));
       const g = el('div', cls);
-      for (const it of items) {
+      for (const it of list) {
         const locked = lockFn ? !lockFn(it) : !Progress.unlocked(it);
-        const d = el('div', 'item' + (locked ? ' locked' : ''), render(it) +
+        const fav = this.isFav(it);
+        const d = el('div', 'item' + (locked ? ' locked' : '') + (fav ? ' fav' : ''), render(it) +
           (locked ? `<span class="c" style="color:var(--warn)">Needs Tier ${lockFn ? Progress.coasterTier(it) : Progress.tierOf(it)} research</span>` : ''));
         d.onclick = () => {
           if (locked) { this.notify('Locked', it.name + ' needs Tier ' + (lockFn ? Progress.coasterTier(it) : Progress.tierOf(it)) + ' research — open the Research tab.', 'warn'); return; }
@@ -10507,11 +10640,26 @@ const UI = {
         };
         d.dataset.k = it.id;
         d.title = this.itemTooltip(it, locked);
+        /* The star is its own click target so tapping it never places. */
+        if (it.id) {
+          const star = el('span', 'favstar' + (fav ? ' on' : ''), '\u2605');
+          star.title = fav ? 'Remove from favourites' : 'Add to favourites';
+          star.onclick = (ev) => this.toggleFav(it.id, ev);
+          d.appendChild(star);
+        }
         g.appendChild(d);
       }
       b.appendChild(g);
       return g;
     };
+    /* The search box, above everything the panel is about to build. */
+    if (id !== 'research') {
+      const bar = el('div', 'bpsearch',
+        `<input id="bpSearch" type="search" placeholder="Search this tab\u2026" value="${esc(this.bpSearch)}"
+           oninput="UI.setBpSearch(this.value)" autocomplete="off">` +
+        (this.bpSearch ? `<button class="bpclear" onclick="UI.setBpSearch('')" title="Clear">\u00d7</button>` : ''));
+      b.appendChild(bar);
+    }
     const cost = (c) => `<span class="c">${money(c)}</span>`;
 
     if (id === 'path') {
@@ -10644,12 +10792,18 @@ const UI = {
     }
     else if (id === 'scenery') {
       const cr = it => `<img class="th" src="${Thumbs.scenery(it)}" alt=""><span class="n">${it.name}</span>${cost(it.cost)}`;
+      /* Land themes are built by hand rather than through addGrid, so they
+         need the search applied explicitly or three cards survive a query
+         that matches nothing. */
+      const themeIds = Object.keys(LAND_THEMES).filter(tid =>
+        this.bpMatches({ id: 'landtheme_' + tid, name: LAND_THEMES[tid].name, desc: LAND_THEMES[tid].items.join(' ') }));
+      if (themeIds.length) {
       b.appendChild(el('div', 'cat', 'Land Themes — one click plants a whole cluster'));
       b.appendChild(el('div', '', `<div style="font-size:11px;color:var(--dim);line-height:1.5;padding:0 3px 6px">
         Click a theme, then click open ground: it scatters a matching set of scenery around that spot
         in one go, buying and placing whatever fits instead of one piece at a time.</div>`));
       const themeGrid = el('div', 'grid2');
-      for (const tid of Object.keys(LAND_THEMES)) {
+      for (const tid of themeIds) {
         const th = LAND_THEMES[tid];
         const totalCost = th.items.reduce((a, k) => a + (CAT.scenery.find(x => x.kind === k) || { cost: 0 }).cost, 0);
         const d = el('div', 'item' + (UI.sub && UI.sub.id === 'landtheme' && UI.sub.theme === tid ? ' on' : ''),
@@ -10659,6 +10813,7 @@ const UI = {
         themeGrid.appendChild(d);
       }
       b.appendChild(themeGrid);
+      }
       addGrid('Nature', CAT.scenery.filter(x => ['tree', 'pine', 'palm', 'flower', 'hedge', 'maze', 'pond', 'rockarch'].includes(x.kind)), 'grid2', cr, (it, d) => this.pick(it, d));
       addGrid('Park Furniture', CAT.scenery.filter(x => ['bench', 'bin', 'lamp', 'speaker', 'lights', 'banner', 'campfire'].includes(x.kind)), 'grid2', cr, (it, d) => this.pick(it, d));
       addGrid('Feature Pieces', CAT.scenery.filter(x => !['tree', 'pine', 'palm', 'flower', 'hedge', 'maze', 'pond', 'rockarch', 'bench', 'bin', 'lamp', 'speaker', 'lights', 'banner', 'campfire'].includes(x.kind)), 'grid2', cr, (it, d) => this.pick(it, d));
@@ -12331,6 +12486,7 @@ const UI = {
          says which of them is wrong instead of just reading "unhappy". */
       const worstLabel = { comfort: 'Comfort', value: 'Value for money',
                            excitement: 'Excitement', energy: 'Energy' }[o.moodWorst] || '';
+      if (o.demo) h += `<div style="font-size:10.5px;color:var(--dim);margin:-2px 0 8px">${o.demoLine()}</div>`;
       h += `<div class="cat">What is driving that</div>`;
       h += `<div class="meterbox">`;
       h += meter('Comfort', o.cComfort === undefined ? 1 : o.cComfort, 'var(--accent)');
@@ -12775,6 +12931,7 @@ const UI = {
     if (this.manageTab === 'compare') return this.compareTab();
     if (this.manageTab === 'events') return this.eventsTab();
     if (this.manageTab === 'rivals') return this.rivalsTab();
+    if (this.manageTab === 'demo') return this.demoTab();
     const L = Park.log;
     const income = L.ticket + L.shop + L.entry + (L.hotel || 0) + (L.transit || 0);
     const rows = [
@@ -12838,7 +12995,7 @@ const UI = {
      row that grows every time a screen is added. */
   MANAGE_GROUPS: [
     ['Money',  [['finance', 'Ledger'], ['finance2', 'Loans'], ['marketing', 'Marketing'], ['history', 'History']]],
-    ['People', [['guests', 'Guests'], ['thoughts', 'Thoughts'], ['reviews', 'Reviews'], ['staff', 'Staff']]],
+    ['People', [['guests', 'Guests'], ['demo', 'Who Comes'], ['thoughts', 'Thoughts'], ['reviews', 'Reviews'], ['staff', 'Staff']]],
     ['Park',   [['transport', 'Transport'], ['rules', 'Rules'], ['awards', 'Awards'], ['compare', 'Compare']]],
     ['Region', [['events', 'Events'], ['rivals', 'Rivals']]],
   ],
@@ -12858,6 +13015,52 @@ const UI = {
      component breakdown the guests themselves use, so "unhappy" here means
      exactly what it means to the simulation. */
   guestFilter: 'all',
+  /* Who is actually in the park, as opposed to what they want. The split
+     is the useful part: a park that is 60% school trips has a spending
+     problem no ride will fix, and one with no children in it is telling you
+     something about the rides you have built. */
+  demoTab() {
+    let h = this.tabBar('demo');
+    const g = Park.guests.filter(q => q.demo);
+    if (!g.length) return this.modal('Park Management', h + `<div class="empty">Nobody is in the park yet.</div>`);
+    const bar = (rows, total, colour) => rows.map(([label, n, extra]) => {
+      const pct = total ? n / total * 100 : 0;
+      return `<div style="display:flex;align-items:center;gap:9px;margin-bottom:5px">
+        <span style="width:112px;font-size:10.5px;font-weight:800;flex:0 0 auto">${label}</span>
+        <span class="rs-prog" style="flex:1;margin:0"><i style="width:${pct.toFixed(1)}%;background:${colour}"></i></span>
+        <span style="width:104px;text-align:right;font-size:10px;font-weight:800;flex:0 0 auto">${n.toLocaleString()} &middot; ${pct.toFixed(0)}%${extra ? ' &middot; ' + extra : ''}</span></div>`;
+    }).join('');
+    const count = (fn, val) => g.filter(q => fn(q) === val).length;
+    const spendOf = (fn, val) => {
+      const sub = g.filter(q => fn(q) === val);
+      return sub.length ? money(Math.round(sub.reduce((a, q) => a + q.spent, 0) / sub.length)) : money(0);
+    };
+    const avgAge = Math.round(g.reduce((a, q) => a + q.demo.age, 0) / g.length);
+    const heads = g.reduce((a, q) => a + q.demo.groupSize, 0) / g.length;
+    const tourists = count(q => q.demo.origin, 'tourist');
+    h += `<div class="rs-top" style="margin-bottom:14px">
+      <div class="rs-stat"><span class="l">Average age</span><div class="v">${avgAge}</div></div>
+      <div class="rs-stat"><span class="l">Typical group</span><div class="v">${heads.toFixed(1)}</div></div>
+      <div class="rs-stat"><span class="l">Tourists</span><div class="v">${Math.round(tourists / g.length * 100)}%</div></div>
+      <div class="rs-stat"><span class="l">Avg spent</span><div class="v">${money(Math.round(g.reduce((a, q) => a + q.spent, 0) / g.length))}</div></div>
+    </div>`;
+    h += `<h3>Age</h3>` + bar(AGE_BANDS.map(b2 =>
+      [b2.name, count(q => q.demo.band, b2.id), spendOf(q => q.demo.band, b2.id)]), g.length, 'var(--accent)');
+    h += `<h3>Who they came with</h3>` + bar(GROUP_KINDS.map(k =>
+      [k.name, count(q => q.demo.group, k.id), spendOf(q => q.demo.group, k.id)]), g.length, '#7b5bd4');
+    h += `<h3>Where they came from</h3>` + bar(ORIGINS.map(o =>
+      [o.name, count(q => q.demo.origin, o.id), spendOf(q => q.demo.origin, o.id)]), g.length, 'var(--good)');
+    /* The one line of advice worth giving: what the mix is costing you. */
+    const kids = count(q => q.demo.band, 'child') + count(q => q.demo.band, 'teen');
+    const notes = [];
+    if (tourists / g.length > .25) notes.push('Tourists are a quarter of your gate and spend the most — they stay longer, so late-closing events pay off here.');
+    if (kids / g.length < .12) notes.push('Barely any children or teenagers. Gentler rides and family facilities would open the park up to them.');
+    if (count(q => q.demo.group, 'school') / g.length > .2) notes.push('A fifth of the park is school groups. They fill queues and spend little — worth pricing for.');
+    if (avgAge > 42) notes.push('An older crowd than most parks. They will not queue for the biggest coasters, but they spend well on food.');
+    if (notes.length) h += `<h3>What that means</h3>` + notes.map(n => `<p style="color:var(--dim)">${n}</p>`).join('');
+    this.modal('Park Management', h);
+  },
+
   guestsTab() {
     let h = this.tabBar('guests');
     const g = Park.guests;
@@ -20444,7 +20647,12 @@ const Game = {
        carry you through a week when a rival has opened something. */
     const attract = (34 + Park.rating * .62 + Park.attractions().length * 6 + Park.marketing * 8 * (Park.marketingMult || 1) + Marketing.draw() * 42 * (Park.marketingMult || 1))
       * Events.drawMult() * Rivals.drawMult();
-    const tol = Park.gate ? Park.gate.feeTolerance() : 1;
+    /* Tourists have travelled to be here and will swallow a higher gate
+       price than somebody who lives down the road and could come any day.
+       Averaged over the origin mix rather than per person, because this is
+       the arrival rate, not an individual decision. */
+    const originTol = ORIGINS.reduce((a, o) => a + o.w * o.fee, 0) / ORIGINS.reduce((a, o) => a + o.w, 0);
+    const tol = (Park.gate ? Park.gate.feeTolerance() : 1) * originTol;
     const feeFactor = clamp(1.45 - Park.entryFee / ((26 + Park.rating * .55) * tol * Events.feeMult()), .08, 1.7);
     /* A real gate has a shape to its day. A trickle when the doors open, a
        hard build through the late morning, the main peak around noon, a dip
@@ -20825,6 +21033,7 @@ const Game = {
         loan: Finance.loan, campaigns: Marketing.active,
         log: Park.log, ach: Achievements.unlocked, rules: Park.rules || null,
         perItem: Game.perItemMenus === true,
+        favs: UI.favs || {},
         ev: Events.active || null, evHist: Events.history.slice(-20),
         riv: Rivals.list.map(r => ({ id: r.id, rating: Math.round(r.rating) })),
         rp: Park.rp, rpTotal: Park.rpTotal, research: Park.research,
@@ -20982,6 +21191,7 @@ const Game = {
       Park.log = d.log || Park.log;
       Park.rules = d.rules || { smoking: true, reentry: true, strollers: true, photos: true, queueJump: false };
       Game.perItemMenus = d.perItem === true;
+      UI.favs = (d.favs && typeof d.favs === 'object') ? d.favs : {};
       /* Only restore an event that still exists in the catalogue, and drop
          one whose end date has already passed. */
       Events.active = (d.ev && Events.def(d.ev.id) && d.ev.endsDay > (d.day || 1)) ? d.ev : null;
