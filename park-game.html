@@ -13589,6 +13589,8 @@ const UI = {
         'Buildings are put up over several seconds behind hoarding and scaffolding, with a crane. Off makes them appear almost at once.');
       h += row('Per-item shop menus', check(Game.perItemMenus === true, 'Game.perItemMenus=this.checked'),
         'Off, a shop has one price. On, every stall gets a till list you price line by line, and guests choose what suits their wallet — more control, more to manage.');
+      h += row('Pre-built car park', check(Game.noParkingLot !== true, 'Game.noParkingLot=!this.checked'),
+        'Off, a new park starts with no car park and no access road eating into the site — every guest simply arrives on foot. Takes effect on your next new park, not the one you are in.');
       h += row('Money multiplier', slider(25, 500, Math.round((Park.userMoneyMult || 1) * 100), 'Park.userMoneyMult=this.value/100', 'setMm', '%'),
         'Scales every ticket, shop and entry-fee payout. 100% is normal earnings.');
       h += row('Rain frequency', slider(25, 400, Math.round((Game.rainFreqMult || 1) * 100), 'Game.rainFreqMult=this.value/100', 'setRf', '%'),
@@ -14243,6 +14245,9 @@ const UI = {
         <span class="m"><b>${esc(lot.name)}</b><span>${Parking.occupied()} of ${Parking.capacity()} bays in use &middot;
           ${Parking.served} cars served &middot; ${Parking.turnedAway} turned away</span></span>
         <span class="r">${money(Parking.fee())}<br><span style="color:var(--dim);font-weight:600">per car</span></span></div>`;
+    } else {
+      h += `<h3>Car park</h3><div class="empty">This park was started with the car park switched off in Settings —
+        every guest arrives on foot.</div>`;
     }
     h += `<h3>Bus routes</h3>`;
     if (!routes.length) h += `<div class="empty">No routes yet. Place a depot with the Transport tool, then draw a line.</div>`;
@@ -19138,7 +19143,15 @@ const Parking = {
   occupied() { return this.cars.filter(c => c.state === 'parked' || c.state === 'arriving').length; },
   fee() { return Park.parkingFee === undefined ? 6 : Park.parkingFee; },
 
-  freeBay() { for (const b of this.bays) if (!b.car) return b; return null; },
+  /* A random free bay rather than the first one in array order. Real
+     drivers do not queue up and fill row one before touching row two —
+     they spread across the whole lot, near the entrance and far from it
+     alike, which is what actually reads as "parked" rather than "aligned". */
+  freeBay() {
+    const open = this.bays.filter(b => !b.car);
+    if (!open.length) return null;
+    return open[rndi(0, open.length - 1)];
+  },
 
   /* How often cars should be turning up: busier parks pull more traffic,
      and a fee high enough to sting turns some of them away. */
@@ -20334,7 +20347,10 @@ const Game = {
       gate.footprint((i, j) => { WORLD.setT(i, j, T_ENTRY); WORLD.setOwn(i, j, gate.id); });
       Park.objects.push(gate);
       Park.gate = gate;
-      Parking.build(gi, gj);
+      /* A setting rather than a hard rule: some players want the walk-up
+         park with no car park or access road eating into their own layout
+         at all, and would rather everyone arrive on foot. */
+      if (Game.noParkingLot !== true) Parking.build(gi, gj);
     }
     Goals.start(scenario);
     UI.setTool('select');
