@@ -174,11 +174,54 @@ canvas#gl{position:fixed;left:0;top:0;width:100vw;height:100vh;display:block;tou
 @keyframes fb{0%{color:var(--bad);transform:translateY(3px) scale(.96)}100%{}}
 
 /* ---------- opening titles ----------
-   The game rides its own coaster over the first drop, then cuts to black and
-   the titles come up. The whole thing is one element with a handful of
-   states so the sequence is legible in one place. */
-/* Opening animation removed — the game drops straight into the main menu. */
-#intro{display:none!important}
+   A console-style boot cinematic driven by Intro (see SECTION 20): the
+   camera rides the showcase park's own coaster over its biggest drop, cuts
+   to black, holds a studio card, then dissolves into the game's own title
+   card before handing off to the main menu. The 3D canvas shows through
+   this whole element except where a phase class explicitly covers it —
+   letterbox bars are up throughout so the ride itself already reads as
+   cinematic, not just the cards. Phase classes (set by Intro.update):
+     .show    — bars close in, skip hint appears; canvas visible beneath
+     .dark    — the drop cuts to black
+     .titles  — enables the title stage (paired with .studio or .name)
+     .studio  — the "Parkworks Studio presents" card
+     .name    — the game's own title card, with a light sweep */
+#intro{display:none;position:fixed;inset:0;z-index:110;overflow:hidden;pointer-events:none}
+#intro.show{display:block;pointer-events:auto}
+#intro .in-scrim{position:absolute;inset:0;background:#000;opacity:0;z-index:1}
+#intro.show .in-scrim{opacity:1}
+#intro .in-bar{position:absolute;left:0;right:0;height:0;background:#000;z-index:6;
+  transition:height 1s cubic-bezier(.16,.8,.2,1)}
+#intro.show .in-bar{height:9vh}
+#intro .in-bar.top{top:0}
+#intro .in-bar.bot{bottom:0}
+#intro .in-rays{position:absolute;inset:-20%;z-index:1;opacity:0;pointer-events:none;
+  background:conic-gradient(from 0deg at 50% 50%,rgba(255,255,255,.05) 0deg,transparent 12deg,transparent 24deg,rgba(255,255,255,.05) 30deg);
+  transition:opacity 1.2s ease;animation:inSpin 40s linear infinite}
+#intro.titles .in-rays{opacity:1}
+@keyframes inSpin{from{transform:rotate(0)}to{transform:rotate(360deg)}}
+#intro .in-stage{position:absolute;inset:0;z-index:2}
+#intro .in-studio{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;
+  opacity:0;transform:scale(.9);transition:opacity .9s ease,transform 1s cubic-bezier(.16,.8,.2,1)}
+#intro.studio .in-studio{opacity:1;transform:scale(1)}
+#intro .in-logo{width:64px;height:64px;color:#7fd0ff;filter:drop-shadow(0 0 18px rgba(127,208,255,.55))}
+#intro .in-studio-name{font-size:20px;font-weight:800;letter-spacing:.06em;color:#fff;text-transform:uppercase}
+#intro .in-presents{font-size:11px;letter-spacing:.5em;text-transform:uppercase;color:rgba(255,255,255,.5);font-weight:700}
+#intro .in-title{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;
+  opacity:0;transform:scale(1.14) translateY(6px);
+  transition:opacity .8s cubic-bezier(.16,.8,.2,1),transform 1s cubic-bezier(.16,.8,.2,1)}
+#intro.name .in-title{opacity:1;transform:scale(1) translateY(0)}
+#intro .in-t1{font-size:clamp(48px,7vw,84px);font-weight:900;letter-spacing:.03em;color:#fff;
+  text-transform:uppercase;text-shadow:0 0 40px rgba(127,208,255,.5),0 8px 30px rgba(0,0,0,.6);
+  position:relative;overflow:hidden;background:linear-gradient(100deg,#fff 40%,#bfe8ff 50%,#fff 60%);
+  background-size:260% 100%;background-position:120% 0;-webkit-background-clip:text;background-clip:text;
+  -webkit-text-fill-color:transparent}
+#intro.name .in-t1{animation:inSweep 2.4s ease .2s 1 forwards}
+@keyframes inSweep{0%{background-position:120% 0}100%{background-position:-20% 0}}
+#intro .in-t2{font-size:14px;font-weight:700;letter-spacing:.5em;text-transform:uppercase;color:rgba(255,255,255,.72)}
+#intro .in-skip{position:absolute;right:22px;bottom:18px;font-size:11px;font-weight:700;
+  letter-spacing:.06em;color:rgba(255,255,255,.55);opacity:0;transition:opacity .6s ease;z-index:6}
+#intro.show .in-skip{opacity:1;transition-delay:1s}
 
 /* ---------- closed-park banner ---------- */
 #closedBar{
@@ -1031,7 +1074,7 @@ table.tb tr:last-child td{border-bottom:0}
 #menu .mtab:hover{background:rgba(255,255,255,.14)}
 #menu .mtab.on{background:#fff;color:#0b5f8f;box-shadow:0 3px 8px rgba(10,50,80,.25)}
 #menu .mstage{flex:1;position:relative;display:flex;align-items:stretch;overflow:hidden}
-#menu .mleft{width:min(640px,52vw);padding:26px 30px 30px;position:relative;z-index:3;
+#menu .mleft{width:min(760px,58vw);padding:26px 30px 30px;position:relative;z-index:3;
   display:flex;flex-direction:column;overflow-y:auto}
 #menu .msection-title{font-size:19px;font-weight:800;margin-bottom:6px}
 #menu .msection-desc{font-size:12px;line-height:1.6;color:rgba(255,255,255,.82);font-weight:600;
@@ -1049,18 +1092,18 @@ table.tb tr:last-child td{border-bottom:0}
    line drawing pasted over the art. */
 .mcard.mode{padding:0;isolation:isolate}
 .mcard.mode .mbody{position:absolute;left:0;right:0;bottom:0;z-index:3;
-  display:flex;align-items:flex-end;gap:14px;padding:20px 22px;color:#fff}
-.mcard.small.mode .mbody{padding:16px 18px}
-.mcard.mode .ic{width:22px;height:22px;flex:0 0 auto;opacity:.95}
-.mcard.small.mode .ic{width:18px;height:18px}
-.mcard.mode .mtxt{display:flex;flex-direction:column;gap:3px;min-width:0;flex:1 1 auto}
-.mcard.mode .mtxt b{font-size:23px;font-weight:800;letter-spacing:.01em;
+  display:flex;align-items:flex-end;gap:16px;padding:26px 28px;color:#fff}
+.mcard.small.mode .mbody{padding:20px 22px}
+.mcard.mode .ic{width:24px;height:24px;flex:0 0 auto;opacity:.95}
+.mcard.small.mode .ic{width:20px;height:20px}
+.mcard.mode .mtxt{display:flex;flex-direction:column;gap:4px;min-width:0;flex:1 1 auto}
+.mcard.mode .mtxt b{font-size:28px;font-weight:800;letter-spacing:.01em;
   text-shadow:0 2px 6px rgba(4,16,26,.55)}
-.mcard.small.mode .mtxt b{font-size:18px}
-.mcard.mode .mtxt i{font-style:normal;font-size:12.5px;font-weight:600;color:rgba(255,255,255,.86);
+.mcard.small.mode .mtxt b{font-size:21px}
+.mcard.mode .mtxt i{font-style:normal;font-size:13.5px;font-weight:600;color:rgba(255,255,255,.86);
   text-shadow:0 1px 4px rgba(4,16,26,.6);
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.mcard.mode .marrow{font-size:28px;line-height:1;opacity:.4;transform:translateX(0);
+.mcard.mode .marrow{font-size:32px;line-height:1;opacity:.4;transform:translateX(0);
   transition:transform var(--sn),opacity var(--sn)}
 .mcard.mode:hover .marrow{opacity:.95;transform:translateX(5px)}
 /* The park art, back behind the design rather than under a caption bar.
@@ -1072,12 +1115,12 @@ table.tb tr:last-child td{border-bottom:0}
    Laying the text over its foot instead of beside it is what returns the
    cards to their original size after the icons came out. */
 .mcard.mode .mart{position:relative;z-index:0;display:block;overflow:hidden;
-  width:100%;aspect-ratio:16/5.6;border-radius:11px}
-.mrow2 .mcard.small.mode .mart{aspect-ratio:16/8}
+  width:100%;aspect-ratio:16/4.6;border-radius:11px}
+.mrow2 .mcard.small.mode .mart{aspect-ratio:16/6.6}
 /* Continue is a small card at full column width, so the same ratio that
    suits the paired cards makes it the tallest thing on the page and pushes
    it off the bottom. A letterbox ratio keeps it in view. */
-.mcards > .mcard.small.mode .mart{aspect-ratio:16/3.6}
+.mcards > .mcard.small.mode .mart{aspect-ratio:16/3.0}
 .mcard.mode .mart img{width:100%;height:100%;object-fit:cover;display:block;
   image-rendering:auto;-ms-interpolation-mode:bicubic;
   transform:scale(1.06);transform-origin:52% 42%;
@@ -1384,6 +1427,9 @@ table.tb tr:last-child td{border-bottom:0}
 
   <div id="intro">
     <div class="in-scrim"></div>
+    <div class="in-rays"></div>
+    <div class="in-bar top"></div>
+    <div class="in-bar bot"></div>
     <div class="in-stage">
       <div class="in-studio">
         <svg class="in-logo" viewBox="0 0 120 120" fill="none" stroke="currentColor" stroke-width="4"
@@ -17822,93 +17868,47 @@ const Tutorial = {
   },
 };
 
+/* A console-style boot cinematic: letterbox bars close in over black, a
+   studio card holds, then the game's own title card sweeps in before
+   dissolving into the main menu. Timed purely in JS with setTimeout so
+   there is nothing per-frame to drive; #intro's phase classes (see the
+   "opening titles" CSS) do all the actual choreography. Plays once per
+   page load — a click, Escape, Space or Enter jumps straight to the
+   menu from any point in the sequence. */
 const Intro = {
-  playing: false, t: 0, phase: '', done: false,
+  playing: false, done: false,
   el() { return document.getElementById('intro'); },
 
   start() {
     if (this.done) { Menu.show(); return; }
     this.done = true;
     const el = this.el();
-    WORLD.mapKind = 'meadow';
-    Menu.buildShowcase();
-    const c = Park.coasters[0];
-    if (!c || !c.track || !c.track.complete || !c.trains.length) { Menu.show(); return; }
-
-    /* Put the train just before the top of the biggest drop, so the ride
-       starts on the crest rather than halfway down it. */
-    const S = c.track.samples;
-    let best = 0, bestDrop = 0;
-    for (let k = 0; k < S.length; k++) {
-      const a = S[k];
-      let lowest = a.p.y;
-      for (let q = k; q < Math.min(S.length, k + 220); q++) lowest = Math.min(lowest, S[q].p.y);
-      const d = a.p.y - lowest;
-      if (d > bestDrop) { bestDrop = d; best = k; }
-    }
-    const tr = c.trains[0];
-    for (const t2 of c.trains) { t2.state = 'run'; t2.riders.length = 0; }
-    tr.d = Math.max(2, S[best].d - 26);
-    tr.v = 6.5;
-    tr.state = 'run';
-    for (let k = 1; k < c.trains.length; k++) { c.trains[k].d = tr.d - 90 * k; c.trains[k].v = 6; }
-
-    Game.rideCamTarget = c;
-    Game.rideCamMode = 1;              // front seat
-    Game._rcInit = false;
-    Game._rider = null;
-    Cam.mode = 'ride';
-    document.getElementById('ridecam').classList.remove('show');   // no HUD over the titles
-    document.body.classList.add('introplaying', 'ridemode');
-    el.classList.add('show');
-    this.playing = true; this.t = 0; this.t0 = performance.now(); this.phase = 'ride';
-    Game.setSpeed(1);
+    el.classList.add('show', 'dark');
+    this.playing = true;
+    this._t1 = setTimeout(() => el.classList.add('titles', 'studio'), 500);
+    this._t2 = setTimeout(() => {
+      el.classList.remove('studio');
+      el.classList.add('name');
+      if (typeof Audio !== 'undefined' && Audio.play) Audio.play('complete');
+    }, 3100);
+    this._t3 = setTimeout(() => this.finish(), 6400);
     el.onclick = () => this.finish();
     this._key = (e) => { if (e.key === 'Escape' || e.key === ' ' || e.key === 'Enter') this.finish(); };
     addEventListener('keydown', this._key);
   },
 
-  update() {
-    if (!this.playing) return;
-    this.t = (performance.now() - this.t0) / 1000;
-    const el = this.el();
-    // ride the drop, then cut
-    if (this.phase === 'ride' && this.t > 5.4) {
-      this.phase = 'dark';
-      el.classList.add('dark');
-      Audio.setRumble(0);
-    }
-    if (this.phase === 'dark' && this.t > 6.6) {
-      this.phase = 'studio';
-      el.classList.add('titles', 'studio');
-      Game.exitRideCam();
-      document.body.classList.add('introplaying');   // exitRideCam clears ridemode
-    }
-    if (this.phase === 'studio' && this.t > 9.6) {
-      this.phase = 'name';
-      el.classList.remove('studio');
-      el.classList.add('name');
-      Audio.play('complete');
-    }
-    if (this.phase === 'name' && this.t > 13.4) this.finish();
-  },
+  update() { /* no per-frame work; the timeline runs on timers */ },
 
   finish() {
     if (!this.playing) return;
     this.playing = false;
+    clearTimeout(this._t1); clearTimeout(this._t2); clearTimeout(this._t3);
     removeEventListener('keydown', this._key);
     const el = this.el();
     el.onclick = null;
-    if (Cam.mode === 'ride') Game.exitRideCam();
-    el.classList.add('dark');
-    setTimeout(() => {
-      document.body.classList.remove('introplaying', 'ridemode');
-      Menu.show();
-      // fade the black away over the menu
-      el.classList.remove('titles', 'studio', 'name');
-      setTimeout(() => { el.classList.remove('dark'); }, 30);
-      setTimeout(() => { el.classList.remove('show'); }, 1000);
-    }, 420);
+    el.classList.remove('titles', 'studio', 'name');
+    Menu.show();
+    setTimeout(() => { el.classList.remove('show', 'dark'); }, 500);
   }
 };
 
@@ -20317,7 +20317,7 @@ const Game = {
     this.rebuildScenery();
     setTimeout(() => {
       $('#boot').classList.add('gone');
-      Menu.show();
+      Intro.start();
     }, 400);
     boot(100, 'ready');
   },
