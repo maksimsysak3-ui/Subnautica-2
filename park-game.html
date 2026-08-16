@@ -3756,6 +3756,8 @@ const GENRES = {
   desert:    { n: 'Desert Oasis', c: [0xd9c08a, 0xb59a63, 0x7a6640], acc: 0x3fb08a },
   jungle:    { n: 'Lost Jungle',  c: [0x4f7a3a, 0x2f5227, 0x6b5a3a], acc: 0xd9a441 },
   winter:    { n: 'Winter Village', c: [0xf2f7fb, 0xc9dced, 0x6f8ba3], acc: 0xd94f3c },
+  retro:     { n: 'Retro Diner',   c: [0xf2d9e0, 0x7ed6df, 0x2f3b52], acc: 0xff6f91 },
+  steampunk: { n: 'Steampunk',     c: [0x8a6a34, 0x4a3a24, 0x2b2018], acc: 0xd4af37 },
 };
 const DECOR_ARCH = [
   { k: 'tower',  n: 'Tower',    w: 2, d: 2, cost: 1400, up: 5, beauty: 62 },
@@ -4001,6 +4003,10 @@ const CAT = {
       need: 'hotel', hotelStyle: 'modern', tier: 'Luxury', nightly: 180, quality: .93, price: 0, satisfy: 92, color: 0x3c4a5e, roof: 0x2f3b52 },
     { id: 'hotelsky', name: 'Sky Suites', cost: 84000, up: 300, w: 5, d: 5, floors: 11, rooms: 120,
       need: 'hotel', hotelStyle: 'modern', tier: 'Ultra Luxury', nightly: 260, quality: .99, price: 0, satisfy: 98, color: 0x1c2530, roof: 0xd4af37 },
+    { id: 'hotelmotor', name: 'Roadside Motor Lodge', cost: 7000, up: 34, w: 3, d: 2, floors: 1, rooms: 14,
+      need: 'hotel', hotelStyle: 'tower', tier: 'Economy', nightly: 24, quality: .32, price: 0, satisfy: 40, color: 0xd9c49a, roof: 0x8b5a2b },
+    { id: 'hotelboutique', name: 'Boutique Courtyard Inn', cost: 38000, up: 150, w: 4, d: 3, floors: 3, rooms: 40,
+      need: 'hotel', hotelStyle: 'modern', tier: 'Deluxe', nightly: 120, quality: .85, price: 0, satisfy: 86, color: 0x6b4a3a, roof: 0x2f3b52 },
     /* ---- Prestige landmarks: legendary resort-style hotels unlocked with
        Prestige Points instead of park level. Each is an original design
        inspired by a famous real-world Strip-style icon (fountain lake,
@@ -4043,6 +4049,12 @@ const CAT = {
     { id: 'lmPagodaTower', name: 'Golden Pagoda Tower', cost: 78000, up: 240, w: 3, d: 3, kind: 'lmPagodaTower',
       beauty: 280, prestige: true, prestigeCost: 10,
       blurb: 'A nine-tier gilded pagoda tower, lit gold from base to spire after dark.' },
+    { id: 'lmColiseum', name: 'Grand Coliseum Plaza', cost: 58000, up: 190, w: 4, d: 2, kind: 'lmArc',
+      beauty: 240, prestige: true, prestigeCost: 1,
+      blurb: 'A ring of tiered stone arches framing a plaza — smaller than the Triumphal Arch but a landmark in its own right.' },
+    { id: 'lmBeacon', name: 'Harbor Beacon Spire', cost: 42000, up: 140, w: 3, d: 3, kind: 'lmSpire',
+      beauty: 200, prestige: true, prestigeCost: 1,
+      blurb: 'A shorter observation spire dressed for a coastal park, priced for parks not ready for the full skyline needle.' },
   ],
   /* ---------------- Scenery ---------------- */
   scenery: [
@@ -4145,6 +4157,11 @@ const CAT = {
     { id: 'twinracer', name: 'Twin Speed Racer', cost: 15200, up: 132, w: 5, d: 4, cap: 16, dur: 36, exc: 7.8, fear: 5.8, naus: 2.4, price: 9, kind: 'slide', water: true,
       slide: { h: 16, r: 6.0, turns: 0.4, lanes: 2, tube: false, col: 0xf5c518 } },
     { id: 'reeflagoon', name: 'Reef Lagoon', cost: 5400, up: 58, w: 4, d: 3, cap: 40, dur: 90, exc: 3.8, fear: 0.4, naus: 0.2, price: 4, kind: 'pool', water: true, pool: { depth: 1.3 } },
+    { id: 'spiralplunge', name: 'Spiral Plunge', cost: 12600, up: 110, w: 4, d: 4, cap: 12, dur: 42, exc: 7.0, fear: 5.2, naus: 4.6, price: 7, kind: 'slide', water: true,
+      slide: { h: 17, r: 5.8, turns: 3.0, lanes: 1, tube: true, col: 0x39c0ff } },
+    { id: 'familyriver', name: 'Family River Run', cost: 8600, up: 84, w: 4, d: 4, cap: 18, dur: 44, exc: 5.4, fear: 1.4, naus: 1.0, price: 6, kind: 'slide', water: true,
+      slide: { h: 10, r: 4.2, turns: 1.2, lanes: 3, tube: false, col: 0x2ecc71 } },
+    { id: 'tidalcove', name: 'Tidal Cove Pool', cost: 9200, up: 92, w: 5, d: 4, cap: 50, dur: 100, exc: 5.0, fear: 0.8, naus: 0.4, price: 6, kind: 'wavepool', water: true, pool: { depth: 1.4 } },
   ],
   /* ---------------- Transport ---------------- */
   transit: [
@@ -7537,6 +7554,11 @@ const LIVERY_PRESETS = [
   { id: 'liveryForest', name: 'Forest Green', vals: { rail: 0x2f7a44, spine: 0x3a2c1e, tie: 0x6b5a3f, car: 0xd9c22e, banner: 0x2f3b52, bannerText: 0xa8e6a1 } },
   { id: 'liveryGoldChrome', name: 'Gold Chrome', prestige: true, prestigeCost: 4,
     vals: { rail: 0xd4af37, spine: 0x2b2b30, tie: 0x8a8a8a, car: 0xf5f0e0, banner: 0x1c1c1e, bannerText: 0xd4af37 } },
+  { id: 'liverySunset', name: 'Sunset Orange', vals: { rail: 0xf07a2e, spine: 0x3a2515, tie: 0x6b4a2f, car: 0xffe066, banner: 0x3a2515, bannerText: 0xffc98a } },
+  { id: 'liveryMidnight', name: 'Midnight Purple', vals: { rail: 0x7b3fd4, spine: 0x1a1425, tie: 0x4a3a5c, car: 0xc9a2ff, banner: 0x1a1425, bannerText: 0xc4a2ff } },
+  { id: 'liveryArctic', name: 'Arctic White', vals: { rail: 0xe8f2f8, spine: 0x3a5c6e, tie: 0x7fa8b8, car: 0x2f80c0, banner: 0x1c3540, bannerText: 0xbfe8ff } },
+  { id: 'liveryInferno', name: 'Inferno', prestige: true, prestigeCost: 4,
+    vals: { rail: 0x2b2b30, spine: 0xd94f1e, tie: 0x8a2f14, car: 0xff6a1e, banner: 0x1c1414, bannerText: 0xff8c42 } },
 ];
 const TRAIN_STYLES = [
   { id: 'classic', n: 'Classic' },
