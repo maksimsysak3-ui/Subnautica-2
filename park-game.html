@@ -198,9 +198,38 @@ body.parkclosed #hint{display:none}          /* they share this spot */
 /* ---------- speed controls ---------- */
 /* Sixteen unlabelled icons in a row meant remembering what each glyph did.
    They are now grouped by what they are for, each group captioned, and each
-   button carries its own word underneath. */
+   button carries its own word underneath.
+
+   Three states, cycled with the tab on its left edge or the Tab key:
+     full     — groups, captions and labels, the default
+     compact  — one row of icons, no captions, for when you know them
+     hidden   — nothing but the tab itself
+   The state is remembered between sessions. */
 #speedbar{position:absolute;top:10px;right:10px;display:flex;flex-direction:column;
-  gap:7px;padding:8px 9px;align-items:flex-end}
+  gap:7px;padding:8px 9px;align-items:flex-end;
+  transition:padding var(--sn),opacity var(--sn)}
+#sbToggle{position:absolute;left:-13px;top:11px;width:22px;height:26px;cursor:pointer;
+  background:#fff;border:2px solid var(--edge);border-radius:7px 0 0 7px;border-right:none;
+  display:flex;align-items:center;justify-content:center;color:var(--dim);
+  box-shadow:-2px 2px 6px rgba(20,70,110,.14);transition:color var(--ez),background var(--ez)}
+#sbToggle:hover{background:#eaf7ff;color:var(--accent-ink)}
+.sbtArrow{font-size:8px;line-height:1;transition:transform var(--sn)}
+/* compact: one row, icons only */
+#speedbar.compact{padding:6px 7px}
+#speedbar.compact .sglabel{display:none}
+#speedbar.compact .sbtn i{display:none}
+#speedbar.compact .sbtn{width:32px;min-height:30px;padding:0}
+#speedbar.compact .sbrow{gap:6px}
+#speedbar.compact .sgroup{gap:0}
+#speedbar.compact .sbtArrow{transform:rotate(90deg)}
+/* hidden: only the tab remains, and it stays reachable */
+/* Named "tucked" rather than "hidden" — a global .hidden{display:none!important}
+   utility class already exists in this stylesheet and collided with it,
+   which made the whole bar (including its own toggle) disappear for good. */
+#speedbar.tucked{padding:0;background:transparent;border-color:transparent;box-shadow:none}
+#speedbar.tucked .sbrow{display:none}
+#speedbar.tucked #sbToggle{left:auto;right:0;top:0;border-radius:7px;border-right:2px solid var(--edge)}
+#speedbar.tucked .sbtArrow{transform:rotate(180deg)}
 .sbrow{display:flex;gap:10px;align-items:flex-start}
 .sgroup{display:flex;flex-direction:column;gap:3px}
 .sglabel{font-size:7.5px;letter-spacing:.15em;text-transform:uppercase;font-weight:800;
@@ -286,8 +315,11 @@ body.parkclosed #hint{display:none}          /* they share this spot */
 }
 .qtab:hover{background:#eaf7ff;border-color:var(--edge-hot);color:var(--accent-ink)}
 .qtab.on{background:linear-gradient(180deg,var(--accent),var(--accent-deep));border-color:var(--accent-deep);color:#fff}
-#quickPopBody .grid3{display:grid;grid-template-columns:repeat(6,1fr);gap:7px;margin-bottom:6px}
-@media (max-width:820px){#quickPopBody .grid3{grid-template-columns:repeat(4,1fr)}}
+/* Sized by the card rather than by a fixed column count, so a wide window
+   adds columns instead of stretching every thumbnail past its native
+   resolution. */
+#quickPopBody .grid3{display:grid;grid-template-columns:repeat(auto-fill,minmax(132px,1fr));
+  gap:8px;margin-bottom:8px}
 .qp-hint{margin-left:auto;font-size:8.5px;letter-spacing:.08em;text-transform:none;color:var(--dimmer);font-weight:700}
 .qp-item{
   background:#fff;border:2px solid var(--edge-soft);border-radius:var(--r-sm);
@@ -1419,6 +1451,7 @@ table.tb tr:last-child td{border-bottom:0}
   </div>
 
   <div id="speedbar" class="panel">
+    <div id="sbToggle" title="Compact / full / hidden (Tab)"><span class="sbtArrow">&#9650;</span></div>
     <div class="sbrow">
       <div class="sgroup"><span class="sglabel">Speed</span><div class="sgbtns">
         <div class="sbtn" id="spd0" title="Pause (Space)" data-ic="pause"><i>Pause</i></div>
@@ -10967,6 +11000,26 @@ const UI = {
     $('#spd3').onclick = () => Game.setSpeed(8);
     $('#btnMap').onclick = () => $('#minimap').classList.toggle('show');
     $('#btnNotifLog').onclick = () => this.showNotifyLog();
+    /* The control bar's three states. Stored under its own key rather than
+       in the park save, because it is a preference about the interface and
+       should follow the player across parks. */
+    const SB_STATES = ['', 'compact', 'tucked'];
+    const sb = $('#speedbar');
+    let sbState = 0;
+    try { sbState = Math.max(0, SB_STATES.indexOf(localStorage.getItem('pc_barState') || '')); } catch (e) { }
+    const paintBar = () => {
+      sb.classList.remove('compact', 'tucked');
+      if (SB_STATES[sbState]) sb.classList.add(SB_STATES[sbState]);
+      const t = $('#sbToggle');
+      if (t) t.title = ['Compact the bar', 'Hide the bar', 'Show the bar'][sbState] + ' (Tab)';
+      try { localStorage.setItem('pc_barState', SB_STATES[sbState]); } catch (e) { }
+      /* The status bar measures its width from this one, so it has to be
+         told when this changes shape. */
+      requestAnimationFrame(() => { const ev = new Event('resize'); addEventListener && dispatchEvent(ev); });
+    };
+    this.cycleBar = () => { sbState = (sbState + 1) % SB_STATES.length; paintBar(); };
+    $('#sbToggle').onclick = (e) => { e.stopPropagation(); this.cycleBar(); };
+    paintBar();
     $('#btnUndo').onclick = () => Game.undo();
     /* Right-click opens the history rather than stealing the plain click,
        which has to stay a one-tap undo. */
@@ -16244,7 +16297,11 @@ const PF = {
    render of its own geometry, produced on a second, offscreen GL context.
    ========================================================================== */
 const Thumbs = {
-  size: 168,
+  /* Rendered at more than any card displays them at. The quick bar shows
+     cards up to about 190px wide, and at the old 168px source every one of
+     them was being upscaled — which is what made the bar look soft next to
+     the build rail, where the same images sit in 140px cards. */
+  size: 288,
   cache: {},
   R: null, cv: null,
 
@@ -20397,6 +20454,13 @@ const Game = {
       }
       this.keys[e.key.toLowerCase()] = true;
       const k = e.key.toLowerCase();
+      /* Tab cycles the control bar between full, compact and hidden. It has
+         to be swallowed or the browser moves focus to the next control. */
+      if (k === 'tab' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault();
+        if (UI.cycleBar) UI.cycleBar();
+        return;
+      }
       if (e.ctrlKey || e.metaKey) {
         if (k === 's') { e.preventDefault(); this.save(); return; }
         if (k === 'l') { e.preventDefault(); this.load(); return; }
