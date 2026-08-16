@@ -9064,7 +9064,11 @@ class Guest extends Person {
   }
   setPersona(p) {
     this.persona = p;
-    this.prefIntensity = rnd(p.intensity[0], p.intensity[1]);
+    /* An event changes who walks through the gate. Fright Nights fills the
+       park with people who want the big coasters; a Family Weekend fills it
+       with people who do not. Shifting the taste of arrivals is what makes
+       an event feel different rather than just busier. */
+    this.prefIntensity = clamp(rnd(p.intensity[0], p.intensity[1]) + Events.intensityShift(), 0, 12);
     this.nauseaTol = rnd(p.nausea[0], p.nausea[1]);
     this.patience = rnd(p.patience[0], p.patience[1]);
     this.cash = rnd(p.spend[0], p.spend[1]);
@@ -9174,7 +9178,7 @@ class Guest extends Person {
     const ambient = Weather.moodFactor() * 6
       - Math.min(.02, Park.litter.length / Math.max(40, Park.guests.length) * .03) * 6;
     const target = clamp(
-      ((this.cComfort * .32 + this.cValue * .22 + this.cExcite * .30 + this.cFresh * .16) + ambient)
+      ((this.cComfort * .32 + this.cValue * .22 + this.cExcite * .30 + this.cFresh * .16) + ambient + Events.moodBonus())
       * ParkRules.moodMult(), 0, 1);
     /* Ease toward the target rather than snapping, on the same park-hour
        scale the needs above use, so a single bad moment does not wreck a
@@ -9740,7 +9744,7 @@ class Guest extends Person {
       /* Park policies nudge what a guest is willing to part with — on-ride
          photos and priority passes lift it, same-day re-entry lowers it
          because they can always come back instead of buying now. */
-      let paid = Math.max(1, Math.round(askPrice * ParkRules.spendMult()));
+      let paid = Math.max(1, Math.round(askPrice * ParkRules.spendMult() * Events.spendMult()));
       /* A refurbished stall sells at the counter: a share of guests are
          talked into a second, cheaper line on the way out. */
       let extra = 0;
@@ -12769,6 +12773,8 @@ const UI = {
     if (this.manageTab === 'transport') return this.transportTab();
     if (this.manageTab === 'rules') return this.rulesTab();
     if (this.manageTab === 'compare') return this.compareTab();
+    if (this.manageTab === 'events') return this.eventsTab();
+    if (this.manageTab === 'rivals') return this.rivalsTab();
     const L = Park.log;
     const income = L.ticket + L.shop + L.entry + (L.hotel || 0) + (L.transit || 0);
     const rows = [
@@ -12834,6 +12840,7 @@ const UI = {
     ['Money',  [['finance', 'Ledger'], ['finance2', 'Loans'], ['marketing', 'Marketing'], ['history', 'History']]],
     ['People', [['guests', 'Guests'], ['thoughts', 'Thoughts'], ['reviews', 'Reviews'], ['staff', 'Staff']]],
     ['Park',   [['transport', 'Transport'], ['rules', 'Rules'], ['awards', 'Awards'], ['compare', 'Compare']]],
+    ['Region', [['events', 'Events'], ['rivals', 'Rivals']]],
   ],
   tabBar(active) {
     let h = `<div class="mgt">`;
@@ -12983,6 +12990,92 @@ const UI = {
     else if (this.compareSel.length >= 4) { this.notify('Four is the limit', 'Deselect one before adding another.', 'warn'); return; }
     else this.compareSel.push(id);
     this.compareTab();
+  },
+
+  eventsTab() {
+    let h = this.tabBar('events');
+    const on = Events.running();
+    if (on) {
+      const left = Events.daysLeft();
+      h += `<div class="rs-top" style="margin-bottom:14px">
+        <div class="rs-stat"><span class="l">Running now</span><div class="v" style="font-size:15px">${esc(on.name)}</div></div>
+        <div class="rs-stat"><span class="l">Days left</span><div class="v">${left}</div></div>
+        <div class="rs-stat"><span class="l">Turnout</span><div class="v">${Math.round((Events.drawMult() - 1) * 100) > 0 ? '+' : ''}${Math.round((Events.drawMult() - 1) * 100)}%</div></div>
+        <div class="rs-stat"><span class="l">Spending</span><div class="v">${Math.round((Events.spendMult() - 1) * 100) > 0 ? '+' : ''}${Math.round((Events.spendMult() - 1) * 100)}%</div></div>
+      </div>`;
+      h += `<p>${esc(on.blurb)} Nothing else can be booked until it finishes.</p>`;
+      if (Events.active.off) h += `<p style="color:var(--warn)"><b>Running out of season.</b> It is pulling well under half of what it would in ${on.season}.</p>`;
+    } else {
+      h += `<p>An event runs for a few days and changes how the park behaves while it lasts —
+        who turns up, what they will pay at the gate, and how much they spend inside. One at a time.</p>`;
+    }
+    h += `<h3>${on ? 'Coming up' : 'Book an event'}</h3>`;
+    for (const def of EVENT_TYPES) {
+      const cost = Events.price(def);
+      const offs = Events.offSeason(def);
+      const afford = Park.money >= cost;
+      const pct = (v) => (v >= 1 ? '+' : '') + Math.round((v - 1) * 100) + '%';
+      h += `<div class="lrow" style="margin:6px 0;align-items:flex-start">
+        <div style="flex:1 1 auto;min-width:0">
+          <div style="font-weight:700">${esc(def.name)}
+            ${def.season ? `<span class="tag" style="background:${offs ? '#ffe9d6' : '#e2f4ff'};color:${offs ? '#8a4a12' : 'var(--accent-ink)'}">${def.season}</span>` : ''}</div>
+          <div style="font-size:10.5px;color:var(--dim);line-height:1.5">${esc(def.blurb)}</div>
+          <div style="font-size:10.5px;color:var(--dim);margin-top:3px">
+            ${def.days} day${def.days === 1 ? '' : 's'} &middot; turnout ${pct(def.draw)} &middot; spending ${pct(def.spend)}
+            &middot; gate tolerance ${pct(def.fee)}${def.intensity ? ` &middot; draws a ${def.intensity > 0 ? 'thrill-seeking' : 'gentler'} crowd` : ''}</div>
+          ${offs ? `<div style="font-size:10.5px;color:var(--warn);margin-top:2px">Out of season — it would pull well under half of the figures above. Wait for ${def.season}.</div>` : ''}
+        </div>
+        <button class="btn ${on || !afford ? '' : 'go'}" style="flex:0 0 auto;padding:7px 15px"
+          ${on || !afford ? 'disabled' : ''} onclick="UI.bookEvent('${def.id}')">${money(cost)}</button>
+      </div>`;
+    }
+    if (Events.history.length) {
+      h += `<h3>Already held</h3>`;
+      for (const e of Events.history.slice().reverse().slice(0, 8)) {
+        const d = Events.def(e.id);
+        h += `<div class="kv"><span class="k">${esc(d ? d.name : e.id)}</span><span class="v">Day ${e.day}</span></div>`;
+      }
+    }
+    this.modal('Park Management', h);
+  },
+  bookEvent(id) { if (Events.book(id)) this.eventsTab(); },
+
+  rivalsTab() {
+    let h = this.tabBar('rivals');
+    if (!Rivals.list.length) Rivals.reset();
+    const mine = Park.ratingStars();
+    const pressure = Rivals.pressure();
+    h += `<div class="rs-top" style="margin-bottom:14px">
+      <div class="rs-stat"><span class="l">Your park</span><div class="v">${mine.toFixed(1)}<span class="u"> / 5</span></div></div>
+      <div class="rs-stat"><span class="l">Best rival</span><div class="v">${Rivals.list.reduce((a, r) => Math.max(a, Rivals.stars(r)), 0).toFixed(1)}<span class="u"> / 5</span></div></div>
+      <div class="rs-stat"><span class="l">Custom lost</span><div class="v" style="color:${pressure > .2 ? 'var(--bad)' : pressure > .08 ? 'var(--warn)' : 'var(--good)'}">${Math.round(pressure * 100)}%</div></div>
+      <div class="rs-stat"><span class="l">Standing</span><div class="v" style="font-size:14px">${pressure < .04 ? 'Leading' : pressure < .18 ? 'Competitive' : 'Losing ground'}</div></div>
+    </div>`;
+    h += `<p>Three parks share your region. Whatever they are rated above you comes off your gate —
+      the way to answer them is to be a better park, not to spend more on posters.</p>`;
+    for (const r of Rivals.list) {
+      const d = Rivals.def(r.id);
+      const st = Rivals.stars(r);
+      const ahead = st > mine;
+      h += `<div class="lrow" style="margin:6px 0;align-items:flex-start">
+        <span class="av" style="background:${ahead ? 'var(--bad)' : 'var(--good)'}">${st.toFixed(1)}</span>
+        <div style="flex:1 1 auto;min-width:0">
+          <div style="font-weight:700">${esc(d.name)}
+            <span class="tag" style="background:#eef3f7;color:var(--dim)">${d.trait === 'thrill' ? 'Thrills' : d.trait === 'family' ? 'Family' : 'Water park'}</span></div>
+          <div style="font-size:10.5px;color:var(--dim);line-height:1.5">${esc(d.blurb)}</div>
+          <div style="font-size:10.5px;color:${ahead ? 'var(--warn)' : 'var(--good)'};margin-top:2px">
+            ${ahead ? 'Rated above you by ' + (st - mine).toFixed(1) + ' stars' : 'You are ahead by ' + (mine - st).toFixed(1) + ' stars'}</div>
+        </div>
+      </div>`;
+    }
+    if (Rivals.news.length) {
+      h += `<h3>Word from the region</h3>`;
+      for (const n of Rivals.news.slice(0, 10))
+        h += `<div class="kv"><span class="k">${esc(n.text)}</span><span class="v">Day ${n.day}</span></div>`;
+    } else {
+      h += `<div class="empty">Nothing has happened next door yet.</div>`;
+    }
+    this.modal('Park Management', h);
   },
 
   reviewsTab() {
@@ -15814,6 +15907,157 @@ const Achievements = {
    how the day went. Points buy the landmark hotels and grand buildings in
    CAT.shops/CAT.landmarks that are flagged `prestige: true`.
    ========================================================================== */
+/* ==========================================================================
+   SPECIAL EVENTS
+   A park is not the same place every day of the year. An event runs for a
+   few days, costs money to put on, and changes how the park behaves while
+   it lasts: who turns up, what they will pay, what they spend inside. They
+   are booked ahead from Park Management, so planning one is a decision with
+   a cost rather than a button that makes numbers go up.
+   ========================================================================== */
+const EVENT_TYPES = [
+  { id: 'fireworks', name: 'Fireworks Night', days: 2, cost: 4200, season: null,
+    blurb: 'An evening show over the lake. People stay late and spend while they wait.',
+    draw: 1.35, spend: 1.22, mood: .05, fee: 1.10 },
+  { id: 'halloween', name: 'Fright Nights', days: 5, cost: 11000, season: 'Autumn',
+    blurb: 'The park after dark, dressed for the season. Draws thrill-seekers in numbers.',
+    draw: 1.65, spend: 1.30, mood: .04, fee: 1.28, intensity: .8 },
+  { id: 'winterfest', name: 'Winter Festival', days: 7, cost: 9500, season: 'Winter',
+    blurb: 'Lights, a market and hot food. Turns the quietest season into a busy one.',
+    draw: 1.85, spend: 1.34, mood: .09, fee: 1.15 },
+  { id: 'foodfest', name: 'Food Festival', days: 4, cost: 6200, season: null,
+    blurb: 'Stalls and tastings across the park. Shops take a great deal more.',
+    draw: 1.20, spend: 1.62, mood: .06, fee: 1.0 },
+  { id: 'coasterday', name: 'Coaster Enthusiast Day', days: 1, cost: 2600, season: null,
+    blurb: 'The club comes to ride everything twice. They will queue happily, and pay for it.',
+    draw: 1.28, spend: 1.10, mood: .02, fee: 1.45, intensity: 1.0 },
+  { id: 'family', name: 'Family Weekend', days: 2, cost: 3400, season: null,
+    blurb: 'Cheap entry aimed at families. Volume rather than margin.',
+    draw: 1.55, spend: 1.05, mood: .07, fee: .72, intensity: -.7 },
+  { id: 'summernights', name: 'Summer Late Nights', days: 6, cost: 8800, season: 'Summer',
+    blurb: 'The gates stay open into the evening through the hottest weeks.',
+    draw: 1.42, spend: 1.28, mood: .05, fee: 1.12 },
+  { id: 'anniversary', name: 'Park Anniversary', days: 3, cost: 7000, season: null,
+    blurb: 'A celebration of your own park. Goodwill, press, and a queue at the gate.',
+    draw: 1.5, spend: 1.18, mood: .12, fee: 1.0 },
+];
+
+const Events = {
+  active: null,        // { id, day, endsDay }
+  history: [],
+  def(id) { return EVENT_TYPES.find(e => e.id === id); },
+  running() { return this.active ? this.def(this.active.id) : null; },
+  /* Multipliers, all safely 1 (or 0) when nothing is on. Every caller reads
+     through these rather than poking at Events.active, so an event that is
+     not running can never leak into the simulation. */
+  /* An event booked out of its season really does under-deliver — the
+     panel warns about it, so the numbers have to back the warning up. The
+     flag is stamped at booking time, because the season can turn while the
+     event is running and a Winter Festival booked in winter should not go
+     sour halfway through. */
+  penalty() { return (this.active && this.active.off) ? .45 : 1; },
+  scale(v) { return 1 + (v - 1) * this.penalty(); },
+  drawMult() { const e = this.running(); return e ? this.scale(e.draw) : 1; },
+  spendMult() { const e = this.running(); return e ? this.scale(e.spend) : 1; },
+  feeMult() { const e = this.running(); return e ? this.scale(e.fee) : 1; },
+  moodBonus() { const e = this.running(); return e ? e.mood * this.penalty() : 0; },
+  intensityShift() { const e = this.running(); return e ? (e.intensity || 0) : 0; },
+  daysLeft() { return this.active ? Math.max(0, this.active.endsDay - Park.day) : 0; },
+  /* Booking one out of season is allowed but poor value — the multipliers
+     are written for the season the event belongs to. */
+  offSeason(def) { return !!(def.season && Weather.season && Weather.season.name !== def.season); },
+  price(def) { return Math.round(def.cost * (1 + Park.attractions().length * .012)); },
+  book(id) {
+    const def = this.def(id);
+    if (!def) return false;
+    if (this.active) { UI.notify('Already running', this.running().name + ' is on until day ' + this.active.endsDay + '.', 'warn'); return false; }
+    const cost = this.price(def);
+    if (Park.money < cost) { UI.notify('Too expensive', def.name + ' costs ' + money(cost) + ' to put on.', 'bad'); return false; }
+    Park.spend(cost, 'marketing');
+    this.active = { id, day: Park.day, endsDay: Park.day + def.days, off: this.offSeason(def) };
+    UI.notify(def.name + ' begins', def.blurb, 'good');
+    if (this.active.off) UI.notify('Out of season', def.name + ' works best in ' + def.season + ' — it will pull less than half the crowd it should.', 'warn');
+    return true;
+  },
+  dayTick() {
+    if (!this.active) return;
+    if (Park.day >= this.active.endsDay) {
+      const def = this.def(this.active.id);
+      this.history.push({ id: this.active.id, day: this.active.day, days: def.days });
+      if (this.history.length > 40) this.history.shift();
+      this.active = null;
+      UI.notify(def.name + ' has ended', 'The park is back to its normal run.', '');
+    }
+  },
+};
+
+/* ==========================================================================
+   RIVAL PARKS
+   Three parks down the road, each with its own character, each quietly
+   getting better while you are busy. They are not simulated in detail —
+   that would be a second game — but their rating moves for reasons you can
+   read, and it decides how much of the region's custom comes to you.
+   ========================================================================== */
+const RIVAL_DEFS = [
+  { id: 'thunder', name: 'Thunder Ridge', trait: 'thrill',
+    blurb: 'All coasters, no comfort. Poaches your thrill-seekers whenever they open something new.' },
+  { id: 'meadow', name: 'Meadowbrook Gardens', trait: 'family',
+    blurb: 'Gentle, pretty and cheap. Takes the family trade if your park gets expensive.' },
+  { id: 'aqua', name: 'Aquaria Bay', trait: 'water',
+    blurb: 'A water park that empties your gate every time the weather turns hot.' },
+];
+
+const Rivals = {
+  list: [],
+  news: [],
+  reset() {
+    this.list = RIVAL_DEFS.map((d, k) => ({
+      id: d.id, rating: 320 + k * 40 + rndi(0, 60), invest: 0, lastMove: '',
+    }));
+    this.news.length = 0;
+  },
+  def(id) { return RIVAL_DEFS.find(d => d.id === id); },
+  /* Rating on the same 0-5 star scale the player's park uses, so the
+     comparison in the panel is like for like. */
+  stars(r) { return clamp(r.rating / 200, 0, 5); },
+  /* How much of the region's custom your park is losing to them. A park
+     clearly better than its rivals loses almost nothing; one clearly worse
+     loses a real slice of its gate. */
+  pressure() {
+    if (!this.list.length) return 0;
+    const mine = Park.ratingStars ? Park.ratingStars() : 0;
+    const best = this.list.reduce((a, r) => Math.max(a, this.stars(r)), 0);
+    return clamp((best - mine) * .17, 0, .42);
+  },
+  drawMult() { return 1 - this.pressure(); },
+  /* Rivals improve on their own, faster when you are far ahead of them —
+     a park being beaten badly invests to catch up, which keeps the pressure
+     from disappearing once you are established. */
+  dayTick() {
+    if (!this.list.length) this.reset();
+    const mine = Park.ratingStars ? Park.ratingStars() : 0;
+    for (const r of this.list) {
+      const d = this.def(r.id);
+      const behind = clamp(mine - this.stars(r), 0, 3);
+      const gain = .6 + behind * 1.5 + Math.random() * 2.2;
+      r.rating = clamp(r.rating + gain, 0, 1000);
+      /* Once in a while they do something worth reporting. Weather and
+         season decide which of them is having a good week. */
+      if (Math.random() < .12) {
+        const hot = Weather.temp > 24, cold = Weather.temp < 8;
+        let move;
+        if (d.trait === 'thrill') move = 'has opened a new coaster';
+        else if (d.trait === 'family') move = hot ? 'has opened a splash park for the summer' : 'has cut its family ticket';
+        else move = hot ? 'is packed out in the heat' : cold ? 'has closed its outdoor pools for the season' : 'has added a new slide';
+        r.lastMove = move;
+        r.rating = clamp(r.rating + 8 + Math.random() * 14, 0, 1000);
+        this.news.unshift({ id: r.id, text: d.name + ' ' + move + '.', day: Park.day });
+        if (this.news.length > 30) this.news.length = 30;
+      }
+    }
+  },
+};
+
 const Prestige = {
   active: false,        // has the 2k-capacity / all-objectives milestone fired?
   points: 0,             // points available to spend right now
@@ -20195,9 +20439,13 @@ const Game = {
       return;
     }
     // a brand new park still draws a trickle, and word of mouth compounds
-    const attract = 34 + Park.rating * .62 + Park.attractions().length * 6 + Park.marketing * 8 * (Park.marketingMult || 1) + Marketing.draw() * 42 * (Park.marketingMult || 1);
+    /* An event pulls a crowd; the parks down the road take a slice of it.
+       Both are multipliers on the same regional demand, so a good event can
+       carry you through a week when a rival has opened something. */
+    const attract = (34 + Park.rating * .62 + Park.attractions().length * 6 + Park.marketing * 8 * (Park.marketingMult || 1) + Marketing.draw() * 42 * (Park.marketingMult || 1))
+      * Events.drawMult() * Rivals.drawMult();
     const tol = Park.gate ? Park.gate.feeTolerance() : 1;
-    const feeFactor = clamp(1.45 - Park.entryFee / ((26 + Park.rating * .55) * tol), .08, 1.7);
+    const feeFactor = clamp(1.45 - Park.entryFee / ((26 + Park.rating * .55) * tol * Events.feeMult()), .08, 1.7);
     /* A real gate has a shape to its day. A trickle when the doors open, a
        hard build through the late morning, the main peak around noon, a dip
        while everybody eats, a second smaller peak mid afternoon, then a long
@@ -20446,6 +20694,8 @@ const Game = {
       ((L.marketing || 0) - (prev.marketing || 0)) + ((L.interest || 0) - (prev.interest || 0));
     Park.dailyLog.push({ day: Park.day - 1, season: Weather.season.name, income, expense, net: income - expense, guests: Park.totalGuests });
     Prestige.awardForDay(income - expense);
+    Events.dayTick();
+    Rivals.dayTick();
     // ---- Research points: a small daily trickle driven by how good a park
     // this actually is, so RP income grows as the park does instead of
     // being a flat tax-free allowance. ----
@@ -20575,6 +20825,8 @@ const Game = {
         loan: Finance.loan, campaigns: Marketing.active,
         log: Park.log, ach: Achievements.unlocked, rules: Park.rules || null,
         perItem: Game.perItemMenus === true,
+        ev: Events.active || null, evHist: Events.history.slice(-20),
+        riv: Rivals.list.map(r => ({ id: r.id, rating: Math.round(r.rating) })),
         rp: Park.rp, rpTotal: Park.rpTotal, research: Park.research,
         prestige: { active: Prestige.active, points: Prestige.points, totalEarned: Prestige.totalEarned, unlocked: Prestige.unlocked.slice() },
         transit: {
@@ -20730,6 +20982,15 @@ const Game = {
       Park.log = d.log || Park.log;
       Park.rules = d.rules || { smoking: true, reentry: true, strollers: true, photos: true, queueJump: false };
       Game.perItemMenus = d.perItem === true;
+      /* Only restore an event that still exists in the catalogue, and drop
+         one whose end date has already passed. */
+      Events.active = (d.ev && Events.def(d.ev.id) && d.ev.endsDay > (d.day || 1)) ? d.ev : null;
+      Events.history = Array.isArray(d.evHist) ? d.evHist : [];
+      Rivals.reset();
+      if (Array.isArray(d.riv)) for (const sv of d.riv) {
+        const r = Rivals.list.find(x => x.id === sv.id);
+        if (r) r.rating = clamp(+sv.rating || 0, 0, 1000);
+      }
       Park._dayLogSnap = null;   // the previous park's ledger snapshot does not belong to this one
       if (d.rp !== undefined) Park.rp = d.rp;
       if (d.rpTotal !== undefined) Park.rpTotal = d.rpTotal;
