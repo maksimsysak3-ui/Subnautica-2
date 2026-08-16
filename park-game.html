@@ -196,14 +196,25 @@ body.parkclosed #hint{display:none}          /* they share this spot */
   box-shadow:0 0 0 4px rgba(245,166,35,.20);animation:pulse 2s ease-in-out infinite}
 
 /* ---------- speed controls ---------- */
-#speedbar{position:absolute;top:10px;right:10px;display:flex;gap:4px;padding:6px;align-items:center}
+/* Sixteen unlabelled icons in a row meant remembering what each glyph did.
+   They are now grouped by what they are for, each group captioned, and each
+   button carries its own word underneath. */
+#speedbar{position:absolute;top:10px;right:10px;display:flex;flex-direction:column;
+  gap:7px;padding:8px 9px;align-items:flex-end}
+.sbrow{display:flex;gap:10px;align-items:flex-start}
+.sgroup{display:flex;flex-direction:column;gap:3px}
+.sglabel{font-size:7.5px;letter-spacing:.15em;text-transform:uppercase;font-weight:800;
+  color:var(--dimmer);padding-left:2px}
+.sgbtns{display:flex;gap:4px}
 .sbtn{
-  width:36px;height:34px;border-radius:var(--r-sm);border:2px solid var(--edge);
+  width:44px;min-height:40px;padding:4px 2px 3px;border-radius:var(--r-sm);border:2px solid var(--edge);
   background:#fff;color:var(--dim);
-  display:flex;align-items:center;justify-content:center;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;
   font-size:13px;font-weight:800;cursor:pointer;box-shadow:var(--ledge);
   transition:background var(--sn),color var(--sn),transform var(--sn),box-shadow var(--sn),border-color var(--sn);
 }
+.sbtn i{font-style:normal;font-size:7.5px;letter-spacing:.02em;font-weight:800;
+  line-height:1;color:inherit;opacity:.85;white-space:nowrap}
 .sbtn:hover{background:#e9f7ff;color:var(--accent-ink);border-color:var(--edge-hot)}
 .sbtn:active{transform:translateY(3px);box-shadow:0 0 0 #b3d9f0}
 .sbtn.on{background:var(--accent);border-color:var(--accent-deep);color:#fff;box-shadow:var(--ledge-hot)}
@@ -244,20 +255,30 @@ body.parkclosed #hint{display:none}          /* they share this spot */
 #quickEdge:hover{opacity:.9;width:420px}
 #quickEdge::after{content:'\25B2';font-size:8px;color:var(--dim);margin-top:1px}
 #quickEdge.open::after{content:'\25BC'}
+/* Anchored to the right of the build rail rather than centred on the
+   screen, because centred it sat on top of the rail and you could not use
+   both. `left` is set from the rail's real width when it is open. */
 #quickPop{
-  position:absolute;left:50%;bottom:22px;transform:translateX(-50%) translateY(14px);
-  width:min(94vw,880px);max-height:min(58vh,480px);
+  position:absolute;left:336px;right:12px;bottom:22px;transform:translateY(14px);
+  max-height:min(58vh,470px);
   display:flex;flex-direction:column;z-index:21;
   opacity:0;pointer-events:none;
+  /* `left` deliberately not transitioned: sliding it makes the bar drift
+     across the rail for a moment every time the rail opens. */
   transition:opacity var(--ez),transform var(--ez);
 }
+#quickPop.wide{left:12px}
 #quickPop.open{
-  opacity:1;pointer-events:auto;transform:translateX(-50%) translateY(0);
+  opacity:1;pointer-events:auto;transform:translateY(0);
 }
+#quickPop .qp-tools{display:flex;flex-wrap:wrap;gap:5px;align-items:center;padding-bottom:7px}
+#quickPop .qp-cats{display:flex;flex-wrap:wrap;gap:4px;padding-bottom:8px}
+#quickPop .qtab.alt{background:var(--panel-2);border-style:dashed}
+#quickPopBody .cat.bpcat{cursor:default}
 #quickPopBody{padding:12px;overflow-y:auto}
 #quickPopBody .cat{margin-top:4px}
 #quickPopBody .cat:first-child{margin-top:0}
-#quickTabs{display:flex;flex-wrap:wrap;gap:4px;padding-bottom:8px}
+#quickTabs{display:flex;flex-direction:column;gap:0;padding-bottom:0}
 .qtab{
   font-size:9.5px;font-weight:800;padding:4px 9px;border-radius:8px;
   border:2px solid var(--edge-soft);background:#fff;color:var(--dim);cursor:pointer;
@@ -996,21 +1017,23 @@ table.tb tr:last-child td{border-bottom:0}
    hover, so they are told apart by design rather than by a picture pasted
    behind the text. */
 .mcard.mode{padding:0;isolation:isolate}
-.mcard.mode .mbody{position:relative;z-index:3;display:flex;align-items:center;gap:12px;
-  padding:30px 20px;color:#fff}
-.mcard.small.mode .mbody{padding:22px 16px}
+.mcard.mode .mbody{position:absolute;left:0;right:0;bottom:0;z-index:3;
+  display:flex;align-items:flex-end;gap:12px;padding:16px 18px;color:#fff}
+.mcard.small.mode .mbody{padding:13px 14px}
 .mcard.mode .ic{width:22px;height:22px;flex:0 0 auto;opacity:.95}
 .mcard.small.mode .ic{width:18px;height:18px}
 .mcard.mode .mtxt{display:flex;flex-direction:column;gap:2px;min-width:0;flex:1 1 auto}
-.mcard.mode .mtxt b{font-size:16px;font-weight:800;letter-spacing:.01em}
-.mcard.small.mode .mtxt b{font-size:13.5px}
-.mcard.mode .mtxt i{font-style:normal;font-size:10.5px;font-weight:600;color:rgba(255,255,255,.72);
+.mcard.mode .mtxt b{font-size:19px;font-weight:800;letter-spacing:.01em;
+  text-shadow:0 2px 6px rgba(4,16,26,.55)}
+.mcard.small.mode .mtxt b{font-size:15px}
+.mcard.mode .mtxt i{font-style:normal;font-size:11px;font-weight:600;color:rgba(255,255,255,.86);
+  text-shadow:0 1px 4px rgba(4,16,26,.6);
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .mcard.mode .marrow{font-size:26px;line-height:1;opacity:.4;transform:translateX(0);
   transition:transform var(--sn),opacity var(--sn)}
 .mcard.mode:hover .marrow{opacity:.95;transform:translateX(5px)}
 /* the motif: a single line drawing bled off the right edge, tinted per mode */
-.mcard.mode .mmotif{position:absolute;inset:0 -4% 0 auto;width:62%;z-index:2;
+.mcard.mode .mmotif{position:absolute;inset:0 -4% 0 auto;width:62%;height:100%;z-index:2;
   display:block;pointer-events:none;opacity:.30;
   transition:opacity var(--sn),transform var(--sn)}
 .mcard.mode .mmotif svg{width:100%;height:100%;display:block}
@@ -1019,7 +1042,17 @@ table.tb tr:last-child td{border-bottom:0}
    It is scaled with high-quality filtering, given a scrim so the text on
    top always has contrast, and pushed a touch on hover — the card reads as
    a window onto a park instead of a photo with words stamped on it. */
-.mcard.mode .mart{position:absolute;inset:0;z-index:0;overflow:hidden;display:block;border-radius:11px}
+/* The art layer sets the card's height, at the proportions the launcher
+   originally used — a wide hero for Career and a shorter one for the rest.
+   Laying the text over its foot instead of beside it is what returns the
+   cards to their original size after the icons came out. */
+.mcard.mode .mart{position:relative;z-index:0;display:block;overflow:hidden;
+  width:100%;aspect-ratio:16/7;border-radius:11px}
+.mrow2 .mcard.small.mode .mart{aspect-ratio:16/10}
+/* Continue is a small card at full column width, so the same 16/10 that
+   suits the paired cards makes it the tallest thing on the page and pushes
+   it off the bottom. A letterbox ratio keeps it in view. */
+.mcards > .mcard.small.mode .mart{aspect-ratio:16/4.4}
 .mcard.mode .mart img{width:100%;height:100%;object-fit:cover;display:block;
   image-rendering:auto;-ms-interpolation-mode:bicubic;
   transform:scale(1.06);transform-origin:52% 42%;
@@ -1032,7 +1065,7 @@ table.tb tr:last-child td{border-bottom:0}
    base and the colour is a wash over it, not a dark slab underneath. */
 .mcard.mode .mart::after{content:'';position:absolute;inset:0;
   background:
-    linear-gradient(90deg,rgba(5,17,28,.86) 0%,rgba(5,17,28,.55) 34%,rgba(5,17,28,.10) 72%,rgba(5,17,28,0) 100%),
+    linear-gradient(0deg,rgba(4,15,25,.92) 0%,rgba(4,15,25,.58) 32%,rgba(4,15,25,.12) 66%,rgba(4,15,25,0) 100%),
     var(--tint,linear-gradient(120deg,rgba(20,70,110,.34),rgba(10,35,60,.10)))}
 .mcard.mode:hover .mart img{transform:scale(1.13) translateX(-1.6%);
   filter:saturate(1.22) contrast(1.07) brightness(1.24)}
@@ -1245,7 +1278,6 @@ table.tb tr:last-child td{border-bottom:0}
             </svg>
           </span>
           <div class="mbody">
-            <span class="ic" data-ic="briefcase"></span>
             <span class="mtxt"><b>Career</b><i>Scenarios with targets to hit</i></span>
             <span class="marrow">&rsaquo;</span>
           </div>
@@ -1263,7 +1295,6 @@ table.tb tr:last-child td{border-bottom:0}
               </svg>
             </span>
             <div class="mbody">
-              <span class="ic" data-ic="gear"></span>
               <span class="mtxt"><b>Franchise</b><i>Run a chain of parks</i></span>
             </div>
           </div>
@@ -1279,7 +1310,6 @@ table.tb tr:last-child td{border-bottom:0}
               </svg>
             </span>
             <div class="mbody">
-              <span class="ic" data-ic="star"></span>
               <span class="mtxt"><b>Sandbox</b><i>No limits, no money</i></span>
             </div>
           </div>
@@ -1294,7 +1324,6 @@ table.tb tr:last-child td{border-bottom:0}
             </svg>
           </span>
           <div class="mbody">
-            <span class="ic" data-ic="clock"></span>
             <span class="mtxt"><b>Continue</b><i id="mContDesc">no saved park found</i></span>
             <span class="marrow">&rsaquo;</span>
           </div>
@@ -1390,27 +1419,38 @@ table.tb tr:last-child td{border-bottom:0}
   </div>
 
   <div id="speedbar" class="panel">
-    <div class="sbtn" id="spd0" title="Pause (Space)" data-ic="pause"></div>
-    <div class="sbtn on" id="spd1" title="Normal speed" data-ic="play"></div>
-    <div class="sbtn" id="spd2" title="Fast" data-ic="play2"></div>
-    <div class="sbtn" id="spd3" title="Very fast" data-ic="play3"></div>
-    <div class="sep"></div>
-    <div class="sbtn" id="btnRotL" title="Rotate view left (Q)" data-ic="rotl"></div>
-    <div class="sbtn" id="btnRotR" title="Rotate view right (E)" data-ic="rotr"></div>
-    <div class="sbtn" id="btnTilt" title="Toggle overhead view (Z)" data-ic="tilt"></div>
-    <div class="sep"></div>
-    <div class="sbtn" id="btnOpen" title="Open / close the park" data-ic="gates"></div>
-    <div class="sep"></div>
-    <div class="sbtn" id="btnLand" title="Buy land (L)" data-ic="land"></div>
-    <div class="sbtn" id="btnMap" title="Minimap (M)" data-ic="map"></div>
-    <div class="sbtn" id="btnFin" title="Park management (F)" data-ic="stats"></div>
-    <div class="sbtn" id="btnGoals" title="Objectives (O)" data-ic="check"></div>
-    <div class="sbtn" id="btnUndo" title="Undo last scenery change (Ctrl+Z)" data-ic="undo"></div>
-    <div class="sbtn" id="btnNotifLog" title="Notifications" data-ic="clock"></div>
-    <div class="sbtn" id="btnAchieve" title="Achievements" data-ic="sparkle"></div>
-    <div class="sbtn" id="btnSettings" title="Settings" data-ic="gear"></div>
-    <div class="sbtn" id="btnHelp" title="Help (H)" data-ic="help"></div>
-    <div class="sbtn" id="btnMenu" title="Main menu" data-ic="home"></div>
+    <div class="sbrow">
+      <div class="sgroup"><span class="sglabel">Speed</span><div class="sgbtns">
+        <div class="sbtn" id="spd0" title="Pause (Space)" data-ic="pause"><i>Pause</i></div>
+        <div class="sbtn on" id="spd1" title="Normal speed" data-ic="play"><i>Play</i></div>
+        <div class="sbtn" id="spd2" title="Fast" data-ic="play2"><i>Fast</i></div>
+        <div class="sbtn" id="spd3" title="Very fast" data-ic="play3"><i>Faster</i></div>
+      </div></div>
+      <div class="sgroup"><span class="sglabel">View</span><div class="sgbtns">
+        <div class="sbtn" id="btnRotL" title="Rotate view left (Q)" data-ic="rotl"><i>Left</i></div>
+        <div class="sbtn" id="btnRotR" title="Rotate view right (E)" data-ic="rotr"><i>Right</i></div>
+        <div class="sbtn" id="btnTilt" title="Toggle overhead view (Z)" data-ic="tilt"><i>Overhead</i></div>
+        <div class="sbtn" id="btnMap" title="Minimap (M)" data-ic="map"><i>Map</i></div>
+      </div></div>
+      <div class="sgroup"><span class="sglabel">Park</span><div class="sgbtns">
+        <div class="sbtn" id="btnOpen" title="Open / close the park" data-ic="gates"><i>Gates</i></div>
+        <div class="sbtn" id="btnLand" title="Buy land (L)" data-ic="land"><i>Land</i></div>
+        <div class="sbtn" id="btnUndo" title="Undo last scenery change (Ctrl+Z) &middot; right-click for history" data-ic="undo"><i>Undo</i></div>
+      </div></div>
+    </div>
+    <div class="sbrow">
+      <div class="sgroup"><span class="sglabel">Reports</span><div class="sgbtns">
+        <div class="sbtn" id="btnFin" title="Park management (F)" data-ic="stats"><i>Manage</i></div>
+        <div class="sbtn" id="btnGoals" title="Objectives (O)" data-ic="check"><i>Goals</i></div>
+        <div class="sbtn" id="btnAchieve" title="Achievements" data-ic="sparkle"><i>Awards</i></div>
+        <div class="sbtn" id="btnNotifLog" title="Notifications" data-ic="clock"><i>Alerts</i></div>
+      </div></div>
+      <div class="sgroup"><span class="sglabel">Game</span><div class="sgbtns">
+        <div class="sbtn" id="btnSettings" title="Settings" data-ic="gear"><i>Settings</i></div>
+        <div class="sbtn" id="btnHelp" title="Help (H)" data-ic="help"><i>Help</i></div>
+        <div class="sbtn" id="btnMenu" title="Main menu" data-ic="home"><i>Menu</i></div>
+      </div></div>
+    </div>
   </div>
 
   <div id="notif"></div>
@@ -10939,10 +10979,17 @@ const UI = {
     $('#btnRotR').onclick = () => Cam.rotateBy(1);
     $('#btnTilt').onclick = () => { Cam.pitch = Cam.pitch > 1.0 ? 0.55 : 1.28; };
     // paint the static SVG icons declared in the markup
-    document.querySelectorAll('[data-ic]').forEach(e => { e.innerHTML = ICON[e.dataset.ic] || ''; });
-    /* The line above rewrites innerHTML, so anything nested inside an
-       icon button is destroyed. The unread badge is therefore attached
-       after icons are painted, not written into the markup. */
+    /* Insert the icon ahead of whatever the element already contains
+       instead of replacing its contents. Overwriting innerHTML here used to
+       destroy anything nested inside an icon button — it silently ate the
+       notification badge once already, and would have eaten every button
+       caption in the control bar. */
+    document.querySelectorAll('[data-ic]').forEach(e => {
+      const svg = ICON[e.dataset.ic] || '';
+      const old = e.querySelector(':scope > svg');
+      if (old) old.remove();
+      if (svg) e.insertAdjacentHTML('afterbegin', svg);
+    });
     const nb = document.getElementById('btnNotifLog');
     if (nb && !document.getElementById('notifBadge')) {
       const badge = document.createElement('span');
@@ -10970,6 +11017,9 @@ const UI = {
       qe.addEventListener('click', () => {
         const opening = !qp.classList.contains('open');
         if (opening) this.renderQuickPop();
+        /* Use the whole width when the build rail is not up, so the bar is
+           not needlessly narrow on its own. */
+        qp.classList.toggle('wide', !$('#buildPanel').classList.contains('show'));
         qp.classList.toggle('open', opening);
         qe.classList.toggle('open', opening);
       });
@@ -11127,6 +11177,28 @@ const UI = {
     d.innerHTML = h;
     d.classList.add('show');
   },
+  /* One card builder for both the build rail and the quick bar. They were
+     drifting apart — the rail had the stage, footprint badge, rating pips
+     and hover detail, the bar had none of it — so everything that decorates
+     an item now lives here and both call it. */
+  decorateItem(d, it, locked, opts) {
+    const o = opts || {};
+    d.dataset.k = it.id;
+    d.title = this.itemTooltip(it, locked);
+    d.onmouseenter = () => this.showDetail(it, locked);
+    if (it.w && it.d && (it.w > 1 || it.d > 1))
+      d.appendChild(el('span', 'fp', it.w + '\u00d7' + it.d));
+    if (it.exc !== undefined && it.fear !== undefined)
+      d.appendChild(el('span', 'pips', this.pips('E', it.exc, 10, false) + this.pips('I', it.fear, 10, true)));
+    if (it.id && !o.noFav) {
+      const fav = this.isFav(it);
+      const star = el('span', 'favstar' + (fav ? ' on' : ''), '\u2605');
+      star.title = fav ? 'Remove from favourites' : 'Add to favourites';
+      star.onclick = (ev) => { this.toggleFav(it.id, ev); if (o.onFav) o.onFav(); };
+      d.appendChild(star);
+    }
+    return d;
+  },
   openBuildHeader(id) {
     const ic = document.getElementById('bpIcon');
     if (ic) ic.innerHTML = ICON[this.BP_ICON[id]] || ICON.cursor || '';
@@ -11162,6 +11234,7 @@ const UI = {
   openBuild(id) {
     const p = $('#buildPanel'), b = $('#bpBody');
     p.classList.add('show');
+    this.reflowQuickPop();
     b.innerHTML = '';
     const title = { path: 'Paths & Queues', coaster: 'Roller Coasters', ride: 'Flat Rides', water: 'Water Park', shop: 'Shops & Facilities', lodging: 'Lodging', scenery: 'Scenery', decor: 'Themed Decor', landmark: 'Prestige Landmarks', staff: 'Hire Staff', transit: 'Transport', terrain: 'Terraforming', research: 'Research & Development' }[id] || 'Build';
     $('#bpTitle').textContent = title;
@@ -11235,25 +11308,7 @@ const UI = {
           this.noteRecent(it);
           onPick(it, d);
         };
-        d.dataset.k = it.id;
-        d.title = this.itemTooltip(it, locked);
-        /* Hovering fills the detail strip, so the numbers are on screen
-           without waiting for a browser tooltip. */
-        d.onmouseenter = () => this.showDetail(it, locked);
-        /* Footprint badge and rating pips, added as elements so the render
-           functions above stay simple. */
-        if (it.w && it.d && (it.w > 1 || it.d > 1))
-          d.appendChild(el('span', 'fp', it.w + '\u00d7' + it.d));
-        if (it.exc !== undefined && it.fear !== undefined) {
-          d.appendChild(el('span', 'pips',
-            this.pips('E', it.exc, 10, false) + this.pips('I', it.fear, 10, true)));
-        }
-        if (it.id) {
-          const star = el('span', 'favstar' + (fav ? ' on' : ''), '\u2605');
-          star.title = fav ? 'Remove from favourites' : 'Add to favourites';
-          star.onclick = (ev) => this.toggleFav(it.id, ev);
-          d.appendChild(star);
-        }
+        this.decorateItem(d, it, locked);
         g.appendChild(d);
       }
       b.appendChild(g);
@@ -11738,54 +11793,79 @@ const UI = {
     const tabsEl = $('#quickTabs');
     if (!body) return;
     body.innerHTML = '';
-    const money2 = money;
     const cats = [
       ['all', 'All'], ['path', 'Paths'], ['coaster', 'Coasters'], ['ride', 'Rides'],
       ['water', 'Water Park'], ['food', 'Food & Drink'], ['retail', 'Retail'],
       ['lodging', 'Lodging'], ['scenery', 'Scenery'], ['landmark', 'Landmarks'],
       ['transit', 'Transport'], ['staff', 'Staff'],
     ];
+    /* The bar is the same catalogue as the build rail, so it gets the same
+       controls: search, ordering and an affordability filter. Before this it
+       was a second, plainer catalogue with none of them, which is what made
+       having both confusing. */
     if (tabsEl) {
       tabsEl.innerHTML = '';
+      const tools = el('div', 'qp-tools');
+      tools.innerHTML =
+        `<div class="bpsearch" style="flex:1 1 190px;margin:0">
+           <input id="qpSearch" type="search" placeholder="Search everything\u2026" value="${esc(this.bpSearch)}"
+             oninput="UI.setQuickSearch(this.value)" autocomplete="off">
+           ${this.bpSearch ? `<button class="bpclear" onclick="UI.setQuickSearch('')" title="Clear">\u00d7</button>` : ''}
+         </div>` +
+        [['default', 'Curated'], ['price', 'Cheapest'], ['pricedesc', 'Dearest'], ['name', 'A\u2013Z'], ['thrill', 'Wildest']]
+          .map(([k, l]) => `<button class="bpchip ${this.bpSort === k ? 'on' : ''}" onclick="UI.setQuickSort('${k}')">${l}</button>`).join('') +
+        `<button class="bpchip ${this.bpAffordOnly ? 'on' : ''}" onclick="UI.toggleQuickAfford()">Affordable only</button>`;
+      tools.onclick = (e) => e.stopPropagation();
+      tabsEl.appendChild(tools);
+      const row = el('div', 'qp-cats');
       for (const [id, label] of cats) {
         const t = el('div', 'qtab' + (this.quickCat === id ? ' on' : ''), label);
         t.onclick = (e) => { e.stopPropagation(); this.quickCat = id; this.renderQuickPop(); };
-        tabsEl.appendChild(t);
+        row.appendChild(t);
       }
       const extras = [['select', 'Select'], ['terrain', 'Terrain'], ['research', 'Research'], ['delete', 'Demolish']];
       for (const [id, label] of extras) {
-        const t = el('div', 'qtab', label);
-        t.onclick = (e) => { e.stopPropagation(); this.setTool(id); $('#quickPop').classList.remove('open'); $('#quickEdge').classList.remove('open'); };
-        tabsEl.appendChild(t);
+        const t = el('div', 'qtab alt', label);
+        t.onclick = (e) => { e.stopPropagation(); this.setTool(id); this.hideQuickPop(); };
+        row.appendChild(t);
       }
+      tabsEl.appendChild(row);
     }
+
+    let shown = 0;
     const section = (catId, label, items, toolId, thumbFn) => {
       if (this.quickCat !== 'all' && this.quickCat !== catId) return;
       if (!items || !items.length) return;
-      body.appendChild(el('div', 'cat', label));
-      const g = el('div', 'grid3');
-      for (const it of items) {
+      let list = items.filter(it => this.bpMatches(it));
+      if (this.bpAffordOnly) list = list.filter(it => !it.cost || Park.money >= it.cost);
+      if (!list.length) return;
+      list = this.bpSortList(list);
+      shown += list.length;
+      body.appendChild(el('div', 'cat bpcat',
+        `<span>${label}</span><span class="cnum">${list.length}</span>`));
+      const g = el('div', 'grid3 bpgrid');
+      for (const it of list) {
         const prestigeLocked = it.prestige && !Prestige.isUnlocked(it);
         const levelLocked = !it.prestige && !Progress.unlocked(it);
+        const locked = prestigeLocked || levelLocked;
+        const poor = !locked && it.cost && Park.money < it.cost;
         const badge = prestigeLocked
-          ? `<span class="pb">\u2726 ${it.prestigeCost} Prestige</span>`
-          : (it.cost ? `<span class="c">${money2(it.cost)}</span>` : '');
-        const d = el('div', 'qp-item' + (levelLocked ? ' locked' : ''),
-          `<img class="e" src="${thumbFn(it)}" style="width:100%;height:26px;object-fit:contain" alt=""><span class="n">${it.name}</span>${badge}`);
+          ? `<span class="c" style="color:#7b5bd4">${it.prestigeCost} Prestige</span>`
+          : (it.cost ? `<span class="c">${money(it.cost)}</span>` : '');
+        const d = el('div', 'item' + (locked ? ' locked' : '') + (poor ? ' poor' : '') + (this.isFav(it) ? ' fav' : ''),
+          `<img class="th" src="${thumbFn(it)}" alt=""><span class="n">${it.name}</span>${badge}`);
         d.onclick = (e) => {
           e.stopPropagation();
           if (prestigeLocked) { if (!Prestige.buy(it)) return; }
           else if (levelLocked) { this.notify('Locked', it.name + ' needs Tier ' + Progress.tierOf(it) + ' research — open the Research tab.', 'warn'); return; }
           if (Coaster.active && toolId !== 'coaster') Coaster.exit();
+          this.noteRecent(it);
           this.tool = toolId; this.sub = it; this.rot = 0;
           this.refreshTools();
           if (toolId === 'coaster') { Coaster.beginPlacement(it); this.hideQuickPop(); return; }
           this.pick(it, d);
         };
-        d.dataset.k = it.id;
-        /* This function's own flags — `locked` belongs to addGrid, and
-           referencing it here threw on every open of the quick bar. */
-        d.title = this.itemTooltip(it, prestigeLocked || levelLocked);
+        this.decorateItem(d, it, locked, { onFav: () => this.renderQuickPop() });
         g.appendChild(d);
       }
       body.appendChild(g);
@@ -11794,12 +11874,6 @@ const UI = {
     section('coaster', 'Coasters', CAT.coasterTypes, 'coaster', it => Thumbs.coasterType(it));
     section('ride', 'Rides', CAT.rides.filter(r => !r.water), 'ride', it => Thumbs.ride(it));
     section('water', 'Water Park', CAT.rides.filter(r => r.water), 'water', it => Thumbs.ride(it));
-    if (this.quickCat === 'all' || this.quickCat === 'water') {
-      body.appendChild(el('div', 'cat', 'Custom Slide'));
-      const d = el('div', 'qp-item', `<span class="e" style="font-size:22px">\ud83c\udfd7\ufe0f</span><span class="n">Design a Water Slide</span>`);
-      d.onclick = (e) => { e.stopPropagation(); this.hideQuickPop(); SlideDesigner.open(); };
-      body.appendChild(d);
-    }
     section('food', 'Food & Drink', CAT.shops.filter(x => x.need === 'hunger' || x.need === 'thirst'), 'shop', it => Thumbs.shop(it));
     section('retail', 'Retail & Facilities', CAT.shops.filter(x => x.need !== 'hunger' && x.need !== 'thirst' && x.need !== 'hotel' && !x.prebuilt), 'shop', it => Thumbs.shop(it));
     section('lodging', 'Lodging', CAT.shops.filter(x => x.need === 'hotel'), 'lodging', it => Thumbs.shop(it));
@@ -11807,44 +11881,29 @@ const UI = {
     section('landmark', 'Prestige Landmarks', CAT.landmarks, 'landmark', it => Thumbs.scenery(it));
     section('staff', 'Staff', CAT.staff.filter(x => !x.external), 'staff', it => Thumbs.staff(it));
     if (this.quickCat === 'all' || this.quickCat === 'transit') {
-      body.appendChild(el('div', 'cat', 'Transport'));
-      const locked = !Transit.unlocked();
-      if (locked) {
-        body.appendChild(el('div', '', `<div style="padding:2px 8px 8px;font-size:11px;color:var(--dim);line-height:1.5">
-          ${Transit.lockNote()} <b style="color:var(--ink)">${Land.extraBought()}/${Transit.UNLOCK_PLOTS}</b> bought.</div>`));
-      }
-      const gt = el('div', 'grid3');
-      for (const it of CAT.transit) {
-        const d = el('div', 'qp-item' + (locked ? ' locked' : ''),
-          `<span class="e" style="font-size:22px">${it.id === 'busdepot' ? '\ud83d\ude8c' : '\ud83d\udea1'}</span><span class="n">${it.name}</span><span class="c">${money2(it.cost)}</span>`);
-        d.onclick = (e) => {
-          e.stopPropagation();
-          if (locked) { this.notify('Locked', Transit.lockNote(), 'warn'); return; }
-          if (Coaster.active) Coaster.exit();
-          this.tool = 'transit'; this.sub = it; this.rot = 0;
-          this.refreshTools();
-          this.pick(it, d);
-        };
-        gt.appendChild(d);
-      }
-      body.appendChild(gt);
-      const depots = Park.objects.filter(o => o.kind === 'tstation');
-      if (depots.length) {
-        body.appendChild(el('div', 'cat', 'Your depots — click to draw a route'));
-        const g2 = el('div', 'grid3');
-        for (const st of depots) {
-          const d = el('div', 'qp-item',
-            `<span class="e" style="font-size:22px">\ud83d\uddfa\ufe0f</span><span class="n">${esc(st.name)}</span><span class="c">${Transit.routesOf(st).length} route(s)</span>`);
-          d.onclick = (e) => { e.stopPropagation(); this.hideQuickPop(); this.manageTransit(st.id); };
-          g2.appendChild(d);
-        }
-        body.appendChild(g2);
+      const tItems = Transit.unlocked() ? CAT.transit : [];
+      if (tItems.length) section('transit', 'Transport', tItems, 'transit', it => Thumbs.shop(it));
+      else if (this.quickCat === 'transit') {
+        body.appendChild(el('div', 'cat bpcat', '<span>Transport</span>'));
+        body.appendChild(el('div', '', `<div style="padding:2px 8px 8px;font-size:11px;color:var(--dim);line-height:1.5">${Transit.lockNote()}</div>`));
       }
     }
+    if (!shown) body.appendChild(el('div', 'empty', this.bpSearch ? 'Nothing matches \u201c' + esc(this.bpSearch) + '\u201d.' : 'Nothing here.'));
   },
+  setQuickSearch(v) {
+    this.bpSearch = String(v || '');
+    this.renderQuickPop();
+    const e2 = document.getElementById('qpSearch');
+    if (e2) { e2.focus(); e2.value = this.bpSearch; e2.setSelectionRange(this.bpSearch.length, this.bpSearch.length); }
+    this.refreshBuildPanel();
+  },
+  setQuickSort(v) { this.bpSort = v; this.renderQuickPop(); this.refreshBuildPanel(); },
+  toggleQuickAfford() { this.bpAffordOnly = !this.bpAffordOnly; this.renderQuickPop(); this.refreshBuildPanel(); },
+  /* Selecting a catalogue item: hold it on the cursor, mark the card, and
+     say how to place it. Every grid in both the rail and the bar ends here. */
   pick(it, d) {
     this.sub = it;
-    document.querySelectorAll('#bpBody .item').forEach(x => x.classList.remove('on'));
+    document.querySelectorAll('#bpBody .item, #quickPopBody .item').forEach(x => x.classList.remove('on'));
     if (d) d.classList.add('on');
     this.hideQuickPop();
     if (it.w > 1 || it.d > 1) this.hint(`Placing <b>${it.name}</b> — <kbd>R</kbd> to rotate, <kbd>Esc</kbd> to cancel.`);
@@ -11861,8 +11920,14 @@ const UI = {
     this.renderQuickPop();
     qp.classList.add('open'); qe.classList.add('open');
   },
-  closeBuild() { $('#buildPanel').classList.remove('show'); this.sub = null; },
-  refreshBuildPanel() { if ($('#buildPanel').classList.contains('show') && this.tool) this.openBuild(this.tool); },
+  closeBuild() { $('#buildPanel').classList.remove('show'); this.sub = null; this.reflowQuickPop(); },
+  refreshBuildPanel() { if ($('#buildPanel').classList.contains('show') && this.tool) this.openBuild(this.tool); this.reflowQuickPop(); },
+  /* The bar sits beside the rail, so it has to know when the rail appears
+     or disappears underneath it. */
+  reflowQuickPop() {
+    const qp = $('#quickPop');
+    if (qp) qp.classList.toggle('wide', !$('#buildPanel').classList.contains('show'));
+  },
 
   /* --------- land market --------- */
   /* ------------------------------------------------------------------
