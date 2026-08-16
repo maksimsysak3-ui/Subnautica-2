@@ -8684,7 +8684,7 @@ class Person {
     this.x = x; this.z = z; this.y = WORLD.hAt(x, z);
     this.yaw = rnd(TAU); this.yawT = this.yaw;
     this.vx = 0; this.vz = 0;
-    this.speed = 3.0 + rnd(-.5, .9);
+    this.speed = (3.0 + rnd(-.5, .9)) * Infra.walkMult();
     this.phase = rnd(TAU);
     this.path = null; this.pi = 0;
     this.height = rnd(.9, 1.12);
@@ -9243,7 +9243,7 @@ class Guest extends Person {
     this.thirst = clamp(this.thirst + rate * .205, 0, 1);
     this.toilet = clamp(this.toilet + rate * .125 + (this.state === 'buying' ? rate * .06 : 0), 0, 1);
     this.energy = clamp(this.energy - rate * .090, 0, 1);
-    this.nausea = clamp(this.nausea - rate * .60, 0, 1);
+    this.nausea = clamp(this.nausea - rate * .60 * Infra.recoverMult(), 0, 1);
     this.fun = clamp(this.fun - rate * .085, 0, 1);
     this.hygiene = clamp(this.hygiene - rate * .05, 0, 1);
     // comfort: 20 degrees is perfect, and it falls away either side
@@ -10096,9 +10096,12 @@ class Staff extends Person {
   applyTraining() {
     const L = this.level;
     const m = Park.staffEffMult || 1;
-    this.speed = 3.9 * (1 + (L - 1) * .22) * m;
+    /* The staff block lifts everybody, trained or not — it is somewhere to
+       change and be taught, not a promotion. */
+    const infra = Infra.staffMult();
+    this.speed = 3.9 * (1 + (L - 1) * .22) * m * infra;
     this.wage = Math.round(this.def.wage * (1 + (L - 1) * .40));
-    this.workRate = (1.25 + (L - 1) * .55) * m;      // tasks finish this much faster
+    this.workRate = (1.25 + (L - 1) * .55) * m * infra;   // tasks finish this much faster
     this.skill = 1 + (L - 1) * .5;
   }
   /* Uniform and kit, drawn on top of the shared body rig so staff read as
@@ -13013,6 +13016,7 @@ const UI = {
     if (this.manageTab === 'events') return this.eventsTab();
     if (this.manageTab === 'rivals') return this.rivalsTab();
     if (this.manageTab === 'demo') return this.demoTab();
+    if (this.manageTab === 'infra') return this.infraTab();
     const L = Park.log;
     const income = L.ticket + L.shop + L.entry + (L.hotel || 0) + (L.transit || 0);
     const rows = [
@@ -13077,7 +13081,7 @@ const UI = {
   MANAGE_GROUPS: [
     ['Money',  [['finance', 'Ledger'], ['finance2', 'Loans'], ['marketing', 'Marketing'], ['history', 'History']]],
     ['People', [['guests', 'Guests'], ['demo', 'Who Comes'], ['thoughts', 'Thoughts'], ['reviews', 'Reviews'], ['staff', 'Staff']]],
-    ['Park',   [['transport', 'Transport'], ['rules', 'Rules'], ['awards', 'Awards'], ['compare', 'Compare']]],
+    ['Park',   [['transport', 'Transport'], ['infra', 'Infrastructure'], ['rules', 'Rules'], ['awards', 'Awards'], ['compare', 'Compare']]],
     ['Region', [['events', 'Events'], ['rivals', 'Rivals']]],
   ],
   tabBar(active) {
@@ -13100,6 +13104,41 @@ const UI = {
      is the useful part: a park that is 60% school trips has a spending
      problem no ride will fix, and one with no children in it is telling you
      something about the rides you have built. */
+  infraTab() {
+    let h = this.tabBar('infra');
+    const e = Infra.eff();
+    const rank = Prestige.rank(), next = Prestige.nextRank();
+    h += `<div class="rs-top" style="margin-bottom:14px">
+      <div class="rs-stat"><span class="l">Standing</span><div class="v" style="font-size:14px">${Prestige.active ? esc(rank.name) : 'Unranked'}</div>
+        <div class="s">${Prestige.active ? (next ? (next.at - Prestige.totalEarned) + ' more prestige to ' + next.name : 'The highest there is') : 'Prestige not unlocked yet'}</div></div>
+      <div class="rs-stat"><span class="l">Upkeep</span><div class="v">${Math.round((e.upkeep - 1) * 100)}%</div></div>
+      <div class="rs-stat"><span class="l">Staff pace</span><div class="v">+${Math.round((e.staff - 1) * 100)}%</div></div>
+      <div class="rs-stat"><span class="l">Guest pace</span><div class="v">+${Math.round((e.walk - 1) * 100)}%</div></div>
+    </div>`;
+    if (Prestige.active) h += `<p>As <b>${esc(rank.name)}</b> the park draws <b>${Math.round((rank.draw - 1) * 100)}%</b> more people
+      and they will pay <b>${Math.round((rank.fee - 1) * 100)}%</b> more at the gate. ${esc(rank.note)}</p>`;
+    h += `<p>Infrastructure is bought once and lasts forever. None of it is something you place —
+      it changes a number the whole park runs on.</p>`;
+    for (const d of INFRA) {
+      const L = Infra.level(d.id), maxed = L >= 3, cost = Infra.nextCost(d.id);
+      const afford = Park.money >= cost;
+      h += `<div class="lrow" style="margin:6px 0;align-items:flex-start">
+        <span class="av" style="background:${L ? 'var(--good)' : 'var(--edge-soft)'};color:${L ? '#fff' : 'var(--dim)'}">${L}/3</span>
+        <div style="flex:1 1 auto;min-width:0">
+          <div style="font-weight:700">${esc(d.name)}</div>
+          <div style="font-size:10.5px;color:var(--dim);line-height:1.5">${esc(d.blurb)}</div>
+          <div style="display:flex;gap:4px;margin-top:5px">${d.levels.map((lv, k) =>
+            `<span class="tag" style="flex:1;text-align:center;background:${k < L ? '#dff5e6' : '#eef3f7'};color:${k < L ? 'var(--good)' : 'var(--dim)'};border-color:${k < L ? '#a9e0bd' : 'var(--edge-soft)'}">${lv.note}</span>`).join('')}</div>
+        </div>
+        ${maxed ? `<span class="tag" style="background:#dff5e6;color:var(--good);flex:0 0 auto">Complete</span>`
+          : `<button class="btn ${afford ? 'go' : ''}" style="flex:0 0 auto;padding:7px 15px" ${afford ? '' : 'disabled'}
+              onclick="UI.buyInfra('${d.id}')">${money(cost)}</button>`}
+      </div>`;
+    }
+    this.modal('Park Management', h);
+  },
+  buyInfra(id) { if (Infra.buy(id)) this.infraTab(); },
+
   demoTab() {
     let h = this.tabBar('demo');
     const g = Park.guests.filter(q => q.demo);
@@ -16460,6 +16499,103 @@ const SiteWorks = {
   },
 };
 
+/* ==========================================================================
+   PARK INFRASTRUCTURE
+   The things a park has that are not attractions: the ring main, the
+   drainage, the staff block, the signage, the waste contract. Each is a
+   permanent, park-wide upgrade bought with money, at three levels, and each
+   one changes a number the whole park runs on rather than adding a building
+   you place. They are the sink for a park that has already built everything
+   it wants and is simply making money.
+   ========================================================================== */
+const INFRA = [
+  { id: 'power', name: 'Power Ring Main', unit: 'Substation',
+    blurb: 'A proper ring main instead of a run of extension leads. Everything in the park costs less to run.',
+    levels: [{ cost: 14000, note: 'Upkeep −10%' }, { cost: 46000, note: 'Upkeep −18%' }, { cost: 130000, note: 'Upkeep −26%' }],
+    effect: (L) => ({ upkeep: 1 - L * .09 }) },
+  { id: 'water', name: 'Water & Drainage', unit: 'Main',
+    blurb: 'Mains water and a drain to every plot, so deliveries are cheaper and stock keeps longer.',
+    levels: [{ cost: 11000, note: 'Restocking −14%' }, { cost: 38000, note: 'Restocking −25%' }, { cost: 104000, note: 'Restocking −34%' }],
+    effect: (L) => ({ restock: 1 - L * .12 }) },
+  { id: 'staffblock', name: 'Staff Block & Training', unit: 'Wing',
+    blurb: 'Somewhere for staff to change, eat and be trained. They cover more ground and tire more slowly.',
+    levels: [{ cost: 16000, note: 'Staff +12% faster' }, { cost: 52000, note: 'Staff +22% faster' }, { cost: 142000, note: 'Staff +32% faster' }],
+    effect: (L) => ({ staff: 1 + L * .11 }) },
+  { id: 'wayfinding', name: 'Signage & Wayfinding', unit: 'Scheme',
+    blurb: 'Maps, signs and numbered gates. People find what they are looking for instead of wandering.',
+    levels: [{ cost: 9000, note: 'Guests walk +8%' }, { cost: 30000, note: 'Guests walk +15%' }, { cost: 82000, note: 'Guests walk +21%' }],
+    effect: (L) => ({ walk: 1 + L * .07 }) },
+  { id: 'waste', name: 'Waste Contract', unit: 'Round',
+    blurb: 'Bins emptied on a round rather than whenever somebody notices. Litter clears itself over time.',
+    levels: [{ cost: 12000, note: '16% cleared hourly' }, { cost: 40000, note: '32% cleared hourly' }, { cost: 110000, note: 'Half cleared hourly' }],
+    effect: (L) => ({ litter: [0, .16, .32, .5][L] || 0 }) },
+  { id: 'medical', name: 'Medical & Welfare', unit: 'Post',
+    blurb: 'A staffed medical post and shade points across the site. People recover faster and complain less.',
+    levels: [{ cost: 13000, note: 'Nausea clears +20%' }, { cost: 44000, note: 'Nausea clears +38%' }, { cost: 118000, note: 'Nausea clears +54%' }],
+    effect: (L) => ({ recover: 1 + L * .18 }) },
+];
+
+const Infra = {
+  levels: {},          // id -> 0..3
+  reset() { this.levels = {}; },
+  def(id) { return INFRA.find(x => x.id === id); },
+  level(id) { return this.levels[id] || 0; },
+  maxed(id) { return this.level(id) >= 3; },
+  nextCost(id) {
+    const d = this.def(id); const L = this.level(id);
+    return (d && L < 3) ? d.levels[L].cost : 0;
+  },
+  /* All effects folded together, cached per level-set so the hot paths that
+     read these every frame are not rebuilding objects. */
+  _key: null, _eff: null,
+  eff() {
+    const k = INFRA.map(d => this.level(d.id)).join(',');
+    if (k !== this._key) {
+      this._key = k;
+      const e = { upkeep: 1, restock: 1, staff: 1, walk: 1, litter: 0, recover: 1 };
+      for (const d of INFRA) {
+        const L = this.level(d.id);
+        if (!L) continue;
+        Object.assign(e, Object.fromEntries(Object.entries(d.effect(L)).map(([kk, v]) => [kk, v])));
+      }
+      this._eff = e;
+    }
+    return this._eff;
+  },
+  upkeepMult() { return this.eff().upkeep; },
+  restockMult() { return this.eff().restock; },
+  staffMult() { return this.eff().staff; },
+  walkMult() { return this.eff().walk; },
+  litterDecay() { return this.eff().litter; },
+  recoverMult() { return this.eff().recover; },
+  buy(id) {
+    const d = this.def(id);
+    if (!d) return false;
+    if (this.maxed(id)) { UI.notify('Already done', d.name + ' is at its highest level.', 'warn'); return false; }
+    const cost = this.nextCost(id);
+    if (Park.money < cost) { UI.notify('Too expensive', d.name + ' costs ' + money(cost) + ' to extend.', 'bad'); return false; }
+    Park.spend(cost, 'build');
+    this.levels[id] = this.level(id) + 1;
+    this._key = null;
+    /* Staff already on the payroll benefit immediately. Baking the multiplier
+       in at hire time meant a staff block only helped people hired after it
+       was built, which is not what "staff facilities" means. */
+    for (const st of Park.staff) if (st.applyTraining) st.applyTraining();
+    UI.notify(d.name + ' extended', d.levels[this.level(id) - 1].note + '.', 'good');
+    return true;
+  },
+  /* Litter that simply goes away, at a rate the waste contract sets. Called
+     once an hour so a level-3 contract clears a busy day without a janitor
+     ever walking to it, which is the whole point of paying for it. */
+  hourTick() {
+    const rate = this.litterDecay();
+    if (rate <= 0 || !Park.litter.length) return;
+    const drop = Math.max(1, Math.round(Park.litter.length * rate));
+    Park.litter.splice(0, drop);
+    Park.litterDirty = true;
+  },
+};
+
 const Prestige = {
   active: false,        // has the 2k-capacity / all-objectives milestone fired?
   points: 0,             // points available to spend right now
@@ -16497,13 +16633,52 @@ const Prestige = {
   /* Called once per day from Game.dayTick. Awards 1 point for an ordinary
      day and 2 for a genuinely good one (the park turned a profit and guests
      were happy), only once the milestone above has fired. */
+  /* ------------------------------------------------------------------
+     RANKS
+     Total prestige earned — not the balance you have left to spend — sets
+     the park's standing in the world, and standing is worth something on
+     its own. Each rank carries a small permanent bonus, so a park that has
+     been great for a long time is measurably easier to run than one that
+     has just arrived. Spending points never costs you a rank.
+     ------------------------------------------------------------------ */
+  RANKS: [
+    { at: 0,   name: 'Local Attraction', draw: 1,    fee: 1,    note: 'People come because it is nearby.' },
+    { at: 12,  name: 'Regional Draw',    draw: 1.06, fee: 1.05, note: 'Worth an hour in the car.' },
+    { at: 35,  name: 'National Name',    draw: 1.13, fee: 1.12, note: 'People plan a weekend around it.' },
+    { at: 80,  name: 'World Famous',     draw: 1.22, fee: 1.20, note: 'They fly in for it.' },
+    { at: 160, name: 'A Wonder',         draw: 1.34, fee: 1.30, note: 'The park is the reason the region exists.' },
+  ],
+  rank() {
+    let r = this.RANKS[0];
+    for (const q of this.RANKS) if (this.totalEarned >= q.at) r = q;
+    return r;
+  },
+  nextRank() { return this.RANKS.find(q => this.totalEarned < q.at) || null; },
+  /* Read by the arrival and gate-price maths the same way events and rivals
+     are, so standing is a real force on the park rather than a label. */
+  drawMult() { return this.active ? this.rank().draw : 1; },
+  feeMult() { return this.active ? this.rank().fee : 1; },
   awardForDay(net) {
     if (!this.active) return;
+    /* A broader set of reasons to earn than "the day went fine": a great
+       day, a licensed coaster, a busy park and a full hotel all count, so
+       the points reflect what the park has actually achieved. */
     const good = net > 0 && Park.happiness > .62 && Park.rating > 400;
-    const gain = good ? 2 : 1;
+    let gain = good ? 2 : 1;
+    const reasons = [good ? 'a great day' : 'a solid day'];
+    if (Park.ratingStars() >= 4.5) { gain += 1; reasons.push('a 4.5 star rating'); }
+    if (Park.guests.length >= 1500) { gain += 1; reasons.push('a packed park'); }
+    if (typeof Events !== 'undefined' && Events.running()) { gain += 1; reasons.push('an event running'); }
+    const before = this.rank();
     this.points += gain;
     this.totalEarned += gain;
-    UI.notify('Prestige earned', `+${gain} Prestige Point${gain > 1 ? 's' : ''} for a ${good ? 'great' : 'solid'} day. You have ${this.points}.`, 'good');
+    const after = this.rank();
+    UI.notify('Prestige earned', `+${gain} for ${reasons.join(', ')}. You have ${this.points}.`, 'good');
+    if (after !== before) {
+      UI.notify('The park is now ' + after.name, after.note + ' Turnout +' + Math.round((after.draw - 1) * 100)
+        + '%, and people will pay ' + Math.round((after.fee - 1) * 100) + '% more at the gate.', 'money');
+      Audio.play('complete');
+    }
     UI.refreshPrestigeBadge();
   },
 };
@@ -19146,7 +19321,7 @@ const Game = {
     Park.dailyLog.length = 0; Park._dayLogSnap = null;
     Finance.reset(); Marketing.active.length = 0; Thoughts.clear();
     Park.totalGuests = 0; Park.coasterCount = 0; Park.rating = 0; Park.happiness = .75; Achievements.unlocked = [];
-    Park.rp = 40; Park.rpTotal = 40; Research.reset(); Prestige.reset();
+    Park.rp = 40; Park.rpTotal = 40; Research.reset(); Prestige.reset(); Infra.reset(); Events.active = null; Events.history.length = 0; Rivals.reset();
     if (typeof Transit !== 'undefined') Transit.reset();
     Park.time = 9 * 60; Park.day = 1; Park.now = 0;
     Park.open = false; Park.openedOn = 0;
@@ -20012,7 +20187,7 @@ const Game = {
     }
     Audio.play('click');
   },
-  restockCost(s) { return Math.round((s.def.price || 8) * (s.def.stockSize || 65) * .34); },
+  restockCost(s) { return Math.round((s.def.price || 8) * (s.def.stockSize || 65) * .34 * Infra.restockMult()); },
   orderRestock(id, auto) {
     const s = Park.objects.find(x => x.id === id);
     if (!s || s.kind !== 'shop' || s.truck) return false;
@@ -20845,13 +21020,13 @@ const Game = {
        Both are multipliers on the same regional demand, so a good event can
        carry you through a week when a rival has opened something. */
     const attract = (34 + Park.rating * .62 + Park.attractions().length * 6 + Park.marketing * 8 * (Park.marketingMult || 1) + Marketing.draw() * 42 * (Park.marketingMult || 1))
-      * Events.drawMult() * Rivals.drawMult();
+      * Events.drawMult() * Rivals.drawMult() * Prestige.drawMult();
     /* Tourists have travelled to be here and will swallow a higher gate
        price than somebody who lives down the road and could come any day.
        Averaged over the origin mix rather than per person, because this is
        the arrival rate, not an individual decision. */
     const originTol = ORIGINS.reduce((a, o) => a + o.w * o.fee, 0) / ORIGINS.reduce((a, o) => a + o.w, 0);
-    const tol = (Park.gate ? Park.gate.feeTolerance() : 1) * originTol;
+    const tol = (Park.gate ? Park.gate.feeTolerance() : 1) * originTol * Prestige.feeMult();
     const feeFactor = clamp(1.45 - Park.entryFee / ((26 + Park.rating * .55) * tol * Events.feeMult()), .08, 1.7);
     /* A real gate has a shape to its day. A trickle when the doors open, a
        hard build through the late morning, the main peak around noon, a dip
@@ -21076,6 +21251,8 @@ const Game = {
     let upkeep = 0;
     for (const o of Park.objects) upkeep += (o.def.up || 0) * .6;
     for (const c of Park.coasters) upkeep += 18 + (c.track ? c.track.length * .04 : 0);
+    upkeep *= Infra.upkeepMult();     // the ring main pays for itself
+    Infra.hourTick();
     Park.money -= wages + upkeep;
     Park.log.wage += wages; Park.log.upkeep += upkeep;
     Finance.hourInterest();
@@ -21233,6 +21410,7 @@ const Game = {
         log: Park.log, ach: Achievements.unlocked, rules: Park.rules || null,
         perItem: Game.perItemMenus === true,
         longB: Game.longBuilds !== false,
+        infra: Infra.levels,
         favs: UI.favs || {},
         ev: Events.active || null, evHist: Events.history.slice(-20),
         riv: Rivals.list.map(r => ({ id: r.id, rating: Math.round(r.rating) })),
@@ -21392,6 +21570,11 @@ const Game = {
       Park.rules = d.rules || { smoking: true, reentry: true, strollers: true, photos: true, queueJump: false };
       Game.perItemMenus = d.perItem === true;
       Game.longBuilds = d.longB !== false;
+      Infra.reset();
+      if (d.infra && typeof d.infra === 'object')
+        for (const k in d.infra) if (Infra.def(k)) Infra.levels[k] = clamp(+d.infra[k] | 0, 0, 3);
+      Infra._key = null;
+      for (const st of Park.staff) if (st.applyTraining) st.applyTraining();
       UI.favs = (d.favs && typeof d.favs === 'object') ? d.favs : {};
       /* Only restore an event that still exists in the catalogue, and drop
          one whose end date has already passed. */
