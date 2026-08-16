@@ -156,11 +156,6 @@ canvas#gl{position:fixed;left:0;top:0;width:100vw;height:100vh;display:block;tou
 .tool .ic{width:24px;height:24px}
 .sbtn .ic{width:17px;height:17px}
 .btn .ic{width:15px;height:15px;display:inline-block;vertical-align:-3px;margin-right:5px}
-.item .th{width:100%;aspect-ratio:1/1;object-fit:contain;display:block;
-  filter:drop-shadow(0 3px 5px rgba(28,90,132,.28));
-  transition:transform var(--sp),filter var(--ez)}
-.item:hover .th{transform:scale(1.12) translateY(-2px);filter:drop-shadow(0 7px 10px rgba(28,90,132,.30))}
-.item.wide .th{aspect-ratio:16/11}
 .pc img{width:100%;height:100%;object-fit:contain;filter:drop-shadow(0 2px 4px rgba(28,90,132,.28));
   transition:transform var(--sp)}
 .pc:hover img{transform:scale(1.10)}
@@ -288,9 +283,100 @@ body.parkclosed #hint{display:none}          /* they share this spot */
 
 /* ---------- side build panel ---------- */
 #buildPanel{
-  position:absolute;left:12px;top:64px;bottom:88px;width:284px;
-  display:none;flex-direction:column;
+  position:absolute;left:12px;top:64px;bottom:88px;width:308px;
+  display:none;flex-direction:column;overflow:hidden;
 }
+/* ---- header: says what you are looking at and what you can spend ---- */
+.bphdr{align-items:center;gap:10px}
+.bpicon{width:26px;height:26px;flex:0 0 auto;border-radius:8px;display:flex;
+  align-items:center;justify-content:center;color:#fff;
+  background:linear-gradient(140deg,var(--accent),var(--accent-deep));
+  box-shadow:0 2px 6px rgba(43,166,236,.35)}
+.bpicon svg{width:15px;height:15px}
+.bphtxt{display:flex;flex-direction:column;gap:1px;min-width:0;flex:1 1 auto;
+  text-transform:none;letter-spacing:0}
+.bphtxt b{font-size:12.5px;font-weight:800;letter-spacing:.02em}
+.bphtxt i{font-style:normal;font-size:9.5px;font-weight:700;color:var(--dim);
+  line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+/* ---- the control strip: search, sort, view, affordability ---- */
+#bpTools{padding:9px 11px 0;display:flex;flex-direction:column;gap:7px;flex:0 0 auto}
+#bpTools .bprow{display:flex;gap:5px;align-items:center;flex-wrap:wrap}
+.bpchip{flex:0 0 auto;padding:4px 9px;font:800 8.5px/1.35 inherit;letter-spacing:.05em;
+  text-transform:uppercase;color:var(--dim);background:#fff;cursor:pointer;
+  border:1.5px solid var(--edge-soft);border-radius:var(--r-pill);
+  transition:background var(--ez),border-color var(--ez),color var(--ez)}
+.bpchip:hover{border-color:var(--accent);color:var(--accent-ink)}
+.bpchip.on{background:var(--accent);border-color:var(--accent);color:#fff}
+.bpchip.wide{flex:1 1 auto;text-align:center}
+.bpspacer{flex:1 1 auto}
+/* ---- category heading, now with a count and a collapse arrow ---- */
+.cat.bpcat{cursor:pointer;user-select:none}
+.cat.bpcat .cnum{flex:0 0 auto;font-size:9px;color:var(--dim);
+  background:var(--panel-2);border:1.5px solid var(--edge-soft);
+  border-radius:var(--r-pill);padding:1px 7px;letter-spacing:.04em}
+.cat.bpcat .carrow{flex:0 0 auto;transition:transform var(--sn);font-size:10px;color:var(--dim)}
+.cat.bpcat.closed .carrow{transform:rotate(-90deg)}
+.bpgrid.closed{display:none}
+/* ---- the item card ---- */
+.item{
+  background:#fff;
+  border:2px solid var(--edge-soft);border-radius:var(--r-sm);
+  padding:0 0 8px;cursor:pointer;text-align:center;position:relative;overflow:hidden;
+  box-shadow:0 2px 0 #d7ecf8;
+  transition:background var(--ez),border-color var(--ez),transform var(--sn),box-shadow var(--sn),color var(--ez);
+}
+/* the thumbnail sits on its own lit stage rather than floating on white */
+.item .th{width:100%;aspect-ratio:1/1;object-fit:contain;display:block;margin:0;
+  transition:filter var(--ez),transform var(--sp);
+  background:linear-gradient(170deg,#eaf6ff 0%,#dceffb 62%,#cfe6f7 100%);
+  border-bottom:1.5px solid var(--edge-soft)}
+.item .n{display:block;font-size:10.5px;margin:6px 6px 0;font-weight:800;color:var(--txt);line-height:1.25}
+.item .c{display:block;font-size:9.5px;color:var(--gold);margin:2px 6px 0;font-variant-numeric:tabular-nums;
+  line-height:1.4;font-weight:800}
+.item:hover{background:#f6fbff;border-color:var(--edge-hot);transform:translateY(-3px);box-shadow:0 6px 14px rgba(30,110,160,.18)}
+.item:hover .th{filter:saturate(1.14) brightness(1.05);transform:scale(1.06)}
+.item.wide .th{aspect-ratio:16/11}
+.item:active{transform:translateY(1px);box-shadow:0 1px 0 #b3d9f0}
+.item.on{background:#e8f6ff;border-color:var(--accent);box-shadow:0 3px 0 var(--accent-deep),var(--glow)}
+/* The selected card is marked by a bar across the top of its stage rather
+   than a corner dot, which the footprint badge already occupies. */
+.item.on::after{content:'';position:absolute;top:0;left:0;right:0;height:4px;z-index:3;
+  background:linear-gradient(90deg,var(--accent),var(--accent-deep))}
+/* footprint badge, bottom-left of the stage */
+.item .fp{position:absolute;left:5px;top:6px;z-index:2;font:800 8px/1 inherit;
+  padding:3px 6px;border-radius:var(--r-pill);color:#fff;background:rgba(20,60,90,.55);
+  letter-spacing:.04em;backdrop-filter:blur(2px)}
+/* stat pips: excitement and intensity read at a glance */
+.item .pips{display:flex;gap:8px;justify-content:center;margin:4px 6px 0}
+.item .pip{display:flex;align-items:center;gap:3px;font:800 8px/1 inherit;
+  letter-spacing:.06em;text-transform:uppercase;color:var(--dim)}
+.item .pipbar{display:flex;gap:1.5px}
+.item .pipbar i{width:4px;height:7px;border-radius:1.5px;background:var(--edge-soft)}
+.item .pipbar i.f{background:var(--accent)}
+.item .pipbar.warm i.f{background:var(--warn)}
+/* what you cannot afford is still legible, but clearly out of reach */
+.item.poor{opacity:.62;filter:grayscale(.35)}
+.item.poor .c{color:var(--bad)}
+.item.poor:hover{opacity:.85}
+/* research-locked */
+.item.locked{opacity:.55}
+/* a ribbon for anything unlocked recently */
+.item .ribbon{position:absolute;right:-24px;top:9px;z-index:2;transform:rotate(38deg);
+  background:var(--good);color:#fff;font:800 7.5px/1 inherit;letter-spacing:.12em;
+  padding:3px 26px;text-transform:uppercase;box-shadow:0 1px 4px rgba(0,0,0,.2)}
+/* ---- the detail strip: the hovered item's real numbers, always visible ---- */
+#bpDetail{flex:0 0 auto;border-top:2px solid var(--edge-soft);background:var(--panel-2);
+  padding:0 11px;max-height:0;overflow:hidden;transition:max-height var(--sn),padding var(--sn)}
+#bpDetail.show{max-height:210px;padding:9px 11px 10px}
+#bpDetail .dt{font-size:11.5px;font-weight:800;color:var(--txt);margin-bottom:1px}
+#bpDetail .dd{font-size:10px;color:var(--dim);line-height:1.5;font-weight:600}
+/* One column, not two: at this width a two-column grid clipped the longer
+   values ("$55/day", "1,067/hr") rather than wrapping them. */
+#bpDetail .dstats{display:flex;flex-direction:column;gap:2px;margin-top:6px}
+#bpDetail .dstat{display:flex;justify-content:space-between;gap:8px;font-size:9.5px;font-weight:700}
+#bpDetail .dstat span:first-child{color:var(--dim)}
+#bpDetail .dstat span:last-child{color:var(--txt);font-variant-numeric:tabular-nums}
+#bpDetail .dwarn{margin-top:5px;font-size:9.5px;font-weight:800;color:var(--bad)}
 #buildPanel.show{display:flex;animation:slideL var(--sp)}
 @keyframes slideL{from{opacity:0;transform:translateX(-18px)}to{opacity:1;transform:none}}
 #bpBody{flex:1;padding:11px;display:flex;flex-direction:column;gap:9px}
@@ -299,18 +385,6 @@ body.parkclosed #hint{display:none}          /* they share this spot */
 .cat::after{content:'';flex:1;height:2px;border-radius:2px;background:var(--edge-soft)}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:7px}
-.item{
-  background:#fff;
-  border:2px solid var(--edge-soft);border-radius:var(--r-sm);
-  padding:9px 7px;cursor:pointer;text-align:center;position:relative;
-  box-shadow:0 2px 0 #d7ecf8;
-  transition:background var(--ez),border-color var(--ez),transform var(--sn),box-shadow var(--sn),color var(--ez);
-}
-.item:hover{background:#eaf7ff;border-color:var(--edge-hot);transform:translateY(-2px);box-shadow:0 4px 0 #b3d9f0}
-.item:active{transform:translateY(2px);box-shadow:0 0 0 #b3d9f0}
-.item.on{background:#e2f4ff;border-color:var(--accent);box-shadow:0 3px 0 var(--accent-deep),var(--glow)}
-.item.on::after{content:'';position:absolute;top:7px;left:7px;width:8px;height:8px;border-radius:50%;
-  background:var(--accent);box-shadow:0 0 0 3px rgba(43,166,236,.22)}
 /* catalogue search + favourites */
 .bpsearch{position:relative;margin:2px 3px 8px}
 .bpsearch input{width:100%;box-sizing:border-box;padding:8px 30px 8px 11px;font:700 11.5px inherit;
@@ -322,15 +396,13 @@ body.parkclosed #hint{display:none}          /* they share this spot */
   width:20px;height:20px;border:0;border-radius:50%;background:var(--edge-soft);color:var(--txt);
   font:800 14px/1 inherit;cursor:pointer}
 .bpsearch .bpclear:hover{background:var(--bad);color:#fff}
-.favstar{position:absolute;top:3px;right:4px;font-size:12px;line-height:1;cursor:pointer;
-  color:var(--edge-soft);transition:color var(--ez),transform var(--sn);z-index:2}
+.favstar{position:absolute;top:5px;right:5px;font-size:13px;line-height:1;cursor:pointer;
+  color:rgba(255,255,255,.85);text-shadow:0 1px 3px rgba(20,60,90,.55);
+  transition:color var(--ez),transform var(--sn);z-index:3}
 .favstar:hover{transform:scale(1.28);color:var(--gold)}
 .favstar.on{color:var(--gold);text-shadow:0 1px 2px rgba(0,0,0,.18)}
 .item.fav{border-color:#f0d089}
 .item .e{font-size:22px;display:block;line-height:1.15}
-.item .n{display:block;font-size:10.5px;margin-top:4px;font-weight:800;color:var(--txt)}
-.item .c{display:block;font-size:9.5px;color:var(--gold);margin-top:2px;font-variant-numeric:tabular-nums;
-  line-height:1.4;font-weight:800}
 .bptag{display:inline-block;font-size:8px;letter-spacing:.1em;text-transform:uppercase;font-weight:800;
   padding:2px 8px;border-radius:var(--r-pill);background:#d9f0ff;color:var(--accent-ink);margin:3px 0 1px;
   border:1.5px solid #a9dcf8}
@@ -1283,8 +1355,14 @@ table.tb tr:last-child td{border-bottom:0}
   </div>
 
   <div id="buildPanel" class="panel">
-    <div class="hdr"><span class="dot"></span><span id="bpTitle">Build</span><span class="x" data-ic="close" onclick="UI.closeBuild()"></span></div>
+    <div class="hdr bphdr">
+      <span class="bpicon" id="bpIcon"></span>
+      <span class="bphtxt"><b id="bpTitle">Build</b><i id="bpSub">&nbsp;</i></span>
+      <span class="x" data-ic="close" onclick="UI.closeBuild()"></span>
+    </div>
+    <div id="bpTools"></div>
     <div id="bpBody" class="scroll"></div>
+    <div id="bpDetail"></div>
   </div>
 
   <div id="coasterPanel" class="panel">
@@ -10893,6 +10971,103 @@ const UI = {
      on every path was the single most repeated action in the game. */
   bpSearch: '',
   favs: {},
+  bpSort: 'default',       // default | price | pricedesc | name | thrill
+  bpAffordOnly: false,
+  bpClosed: {},            // category label -> collapsed
+  bpRecent: [],            // ids, most recent first
+  BP_ICON: { path: 'path', coaster: 'coaster', ride: 'ride', water: 'water', shop: 'shop',
+    lodging: 'home', scenery: 'tree', decor: 'sparkle', landmark: 'star', staff: 'staff',
+    transit: 'map', terrain: 'terrain', research: 'flask' },
+  BP_BLURB: {
+    path: 'Walkways, queues and roads. Everything else needs one of these to reach it.',
+    coaster: 'Lay your own track. Every coaster needs a licence before it can open.',
+    ride: 'Flat rides — quick to build, quick to earn, and the backbone of a young park.',
+    water: 'Pools and slides. They earn best on hot days and empty out in the cold.',
+    shop: 'Food, drink and the facilities that keep people comfortable enough to stay.',
+    lodging: 'Hotels let guests stay the night instead of going home at closing.',
+    scenery: 'Trees, benches and the things that make a path somewhere worth walking.',
+    decor: 'Themed sets — pick a genre and dress a whole corner of the park in it.',
+    landmark: 'The biggest buildings in the game, bought with Prestige rather than cash.',
+    staff: 'Nobody sweeps, mends or entertains unless you hire them.',
+    transit: 'Move people across a big park without making them walk it.',
+    terrain: 'Reshape the ground before you build on it.',
+    research: 'Spend research points to unlock the rest of the catalogue.',
+  },
+  /* Remember what the player actually reaches for. */
+  noteRecent(it) {
+    if (!it || !it.id) return;
+    const k = this.bpRecent.indexOf(it.id);
+    if (k >= 0) this.bpRecent.splice(k, 1);
+    this.bpRecent.unshift(it.id);
+    if (this.bpRecent.length > 8) this.bpRecent.length = 8;
+  },
+  bpSortList(list) {
+    const L = list.slice();
+    const S = this.bpSort;
+    if (S === 'price') L.sort((a, b) => (a.cost || 0) - (b.cost || 0));
+    else if (S === 'pricedesc') L.sort((a, b) => (b.cost || 0) - (a.cost || 0));
+    else if (S === 'name') L.sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
+    else if (S === 'thrill') L.sort((a, b) => (b.exc || 0) - (a.exc || 0));
+    /* Favourites always float regardless of the chosen order — that is the
+       whole point of starring something. */
+    return L.sort((a, b) => (this.isFav(b) ? 1 : 0) - (this.isFav(a) ? 1 : 0));
+  },
+  setBpSort(v) { this.bpSort = v; this.refreshBuildPanel(); },
+  toggleAfford() { this.bpAffordOnly = !this.bpAffordOnly; this.refreshBuildPanel(); },
+  toggleCat(label) { this.bpClosed[label] = !this.bpClosed[label]; this.refreshBuildPanel(); },
+  /* Little bar chart of a 0-10 rating. Reading "exc 4.2" takes a moment;
+     reading four filled pips out of five does not. */
+  pips(label, v, max, warm) {
+    const n = clamp(Math.round((v / max) * 5), 0, 5);
+    let bars = '';
+    for (let k = 0; k < 5; k++) bars += `<i class="${k < n ? 'f' : ''}"></i>`;
+    return `<span class="pip">${label}<span class="pipbar${warm ? ' warm' : ''}">${bars}</span></span>`;
+  },
+  /* The detail strip under the panel. Filled on hover so the numbers a
+     tooltip would hide behind a delay are simply always on screen. */
+  showDetail(it, locked) {
+    const d = document.getElementById('bpDetail');
+    if (!d) return;
+    if (!it) { d.classList.remove('show'); return; }
+    const rows = [];
+    if (it.cost) rows.push(['Cost', money(it.cost)]);
+    if (it.up) rows.push(['Upkeep', money(it.up) + '/day']);
+    if (it.w && it.d) rows.push(['Footprint', it.w + ' × ' + it.d]);
+    if (it.cap && it.dur) rows.push(['Throughput', Math.round(it.cap * 3600 / (it.dur + 12)).toLocaleString() + '/hr']);
+    if (it.cap) rows.push(['Per cycle', it.cap]);
+    if (it.dur) rows.push(['Ride time', it.dur + 's']);
+    if (it.exc !== undefined) rows.push(['Excitement', it.exc.toFixed(1)]);
+    if (it.fear !== undefined) rows.push(['Intensity', it.fear.toFixed(1)]);
+    if (it.naus !== undefined) rows.push(['Nausea', it.naus.toFixed(1)]);
+    if (it.price) rows.push(['Sells at', money(it.price)]);
+    if (it.satisfy) rows.push(['Satisfies', it.satisfy + '%']);
+    if (it.nightly) rows.push(['Per night', money(it.nightly)]);
+    if (it.rooms) rows.push(['Rooms', it.rooms]);
+    if (it.beauty) rows.push(['Beauty', '+' + it.beauty]);
+    if (it.wage) rows.push(['Wages', money(it.wage) + '/day']);
+    if (it.spaces) rows.push(['Spaces', it.spaces]);
+    const short = it.desc || it.blurb || '';
+    let h = `<div class="dt">${esc(it.name || '')}</div>`;
+    if (short) h += `<div class="dd">${esc(short)}</div>`;
+    if (rows.length) h += `<div class="dstats">` + rows.slice(0, 6).map(([k, v]) =>
+      `<div class="dstat"><span>${k}</span><span>${v}</span></div>`).join('') + `</div>`;
+    if (locked) h += `<div class="dwarn">Locked — research it first.</div>`;
+    else if (it.cost && Park.money < it.cost) h += `<div class="dwarn">${money(it.cost - Park.money)} short.</div>`;
+    d.innerHTML = h;
+    d.classList.add('show');
+  },
+  openBuildHeader(id) {
+    const ic = document.getElementById('bpIcon');
+    if (ic) ic.innerHTML = ICON[this.BP_ICON[id]] || ICON.cursor || '';
+    const sub = document.getElementById('bpSub');
+    if (sub) sub.textContent = this.BP_BLURB[id] || '';
+    /* Tabs with a hand-built body and no catalogue to filter get no tools
+       strip at all, rather than a search box that would do nothing. */
+    const tools = document.getElementById('bpTools');
+    if (tools && (id === 'transit' || id === 'terrain' || id === 'research')) {
+      tools.innerHTML = ''; tools.style.display = 'none';
+    }
+  },
   isFav(it) { return !!(it && this.favs[it.id]); },
   toggleFav(id, ev) {
     if (ev) { ev.stopPropagation(); ev.preventDefault(); }
@@ -10917,8 +11092,15 @@ const UI = {
     const p = $('#buildPanel'), b = $('#bpBody');
     p.classList.add('show');
     b.innerHTML = '';
-    const title = { path: 'Paths & Queues', coaster: 'Roller Coasters', ride: 'Flat Rides', water: 'Water Park', shop: 'Shops & Facilities', lodging: 'Lodging', scenery: 'Scenery', decor: 'Themed Decor', landmark: 'Prestige Landmarks', staff: 'Hire Staff', transit: 'Transport', research: 'Research & Development' }[id] || 'Build';
+    const title = { path: 'Paths & Queues', coaster: 'Roller Coasters', ride: 'Flat Rides', water: 'Water Park', shop: 'Shops & Facilities', lodging: 'Lodging', scenery: 'Scenery', decor: 'Themed Decor', landmark: 'Prestige Landmarks', staff: 'Hire Staff', transit: 'Transport', terrain: 'Terraforming', research: 'Research & Development' }[id] || 'Build';
     $('#bpTitle').textContent = title;
+    /* Set the icon and blurb here, at the top, rather than alongside the
+       tools strip further down — several tabs (transport, terraforming,
+       research) build their own body and return before ever reaching it,
+       and were left showing whichever tab's header was last painted. */
+    this.openBuildHeader(id);
+    /* Whatever was last hovered belongs to the tab we are leaving. */
+    this.showDetail(null);
 
     if (id === 'transit') {
       b.appendChild(el('div', 'cat', 'Transport'));
@@ -10956,26 +11138,45 @@ const UI = {
       return;
     }
     const addGrid = (label, items, cls, render, onPick, lockFn) => {
-      /* Filter first, then sort favourites to the front. A category with
-         nothing matching the search is dropped entirely rather than left as
-         an empty heading. */
+      /* Filter, then order, then decorate. A category with nothing matching
+         the search is dropped entirely rather than left as an empty heading. */
       let list = items.filter(it => this.bpMatches(it));
+      if (this.bpAffordOnly) list = list.filter(it => !it.cost || Park.money >= it.cost);
       if (!list.length) return null;
-      list = list.slice().sort((x, y) => (this.isFav(y) ? 1 : 0) - (this.isFav(x) ? 1 : 0));
-      if (label) b.appendChild(el('div', 'cat', label));
-      const g = el('div', cls);
+      list = this.bpSortList(list);
+      const collapsed = label ? !!this.bpClosed[label] : false;
+      if (label) {
+        const head = el('div', 'cat bpcat' + (collapsed ? ' closed' : ''),
+          `<span class="carrow">\u25BC</span><span>${label}</span><span class="cnum">${list.length}</span>`);
+        head.onclick = () => this.toggleCat(label);
+        b.appendChild(head);
+      }
+      const g = el('div', cls + ' bpgrid' + (collapsed ? ' closed' : ''));
       for (const it of list) {
         const locked = lockFn ? !lockFn(it) : !Progress.unlocked(it);
         const fav = this.isFav(it);
-        const d = el('div', 'item' + (locked ? ' locked' : '') + (fav ? ' fav' : ''), render(it) +
+        const poor = !locked && it.cost && Park.money < it.cost;
+        const d = el('div', 'item' + (locked ? ' locked' : '') + (fav ? ' fav' : '') + (poor ? ' poor' : ''),
+          render(it) +
           (locked ? `<span class="c" style="color:var(--warn)">Needs Tier ${lockFn ? Progress.coasterTier(it) : Progress.tierOf(it)} research</span>` : ''));
         d.onclick = () => {
           if (locked) { this.notify('Locked', it.name + ' needs Tier ' + (lockFn ? Progress.coasterTier(it) : Progress.tierOf(it)) + ' research — open the Research tab.', 'warn'); return; }
+          this.noteRecent(it);
           onPick(it, d);
         };
         d.dataset.k = it.id;
         d.title = this.itemTooltip(it, locked);
-        /* The star is its own click target so tapping it never places. */
+        /* Hovering fills the detail strip, so the numbers are on screen
+           without waiting for a browser tooltip. */
+        d.onmouseenter = () => this.showDetail(it, locked);
+        /* Footprint badge and rating pips, added as elements so the render
+           functions above stay simple. */
+        if (it.w && it.d && (it.w > 1 || it.d > 1))
+          d.appendChild(el('span', 'fp', it.w + '\u00d7' + it.d));
+        if (it.exc !== undefined && it.fear !== undefined) {
+          d.appendChild(el('span', 'pips',
+            this.pips('E', it.exc, 10, false) + this.pips('I', it.fear, 10, true)));
+        }
         if (it.id) {
           const star = el('span', 'favstar' + (fav ? ' on' : ''), '\u2605');
           star.title = fav ? 'Remove from favourites' : 'Add to favourites';
@@ -10987,14 +11188,36 @@ const UI = {
       b.appendChild(g);
       return g;
     };
-    /* The search box, above everything the panel is about to build. */
-    if (id !== 'research') {
-      const bar = el('div', 'bpsearch',
-        `<input id="bpSearch" type="search" placeholder="Search this tab\u2026" value="${esc(this.bpSearch)}"
-           oninput="UI.setBpSearch(this.value)" autocomplete="off">` +
-        (this.bpSearch ? `<button class="bpclear" onclick="UI.setBpSearch('')" title="Clear">\u00d7</button>` : ''));
-      b.appendChild(bar);
+    /* The control strip lives in its own element above the scrolling body,
+       so it stays put while the catalogue scrolls under it. */
+    const tools = document.getElementById('bpTools');
+    if (tools) {
+      if (id === 'research') { tools.innerHTML = ''; tools.style.display = 'none'; }
+      else {
+        tools.style.display = '';
+        const SORTS = [['default', 'Curated'], ['price', 'Cheapest'], ['pricedesc', 'Dearest'], ['name', 'A\u2013Z']];
+        const showThrill = id === 'ride' || id === 'water' || id === 'coaster';
+        if (showThrill) SORTS.push(['thrill', 'Wildest']);
+        tools.innerHTML =
+          `<div class="bpsearch">
+             <input id="bpSearch" type="search" placeholder="Search this tab\u2026" value="${esc(this.bpSearch)}"
+               oninput="UI.setBpSearch(this.value)" autocomplete="off">
+             ${this.bpSearch ? `<button class="bpclear" onclick="UI.setBpSearch('')" title="Clear">\u00d7</button>` : ''}
+           </div>
+           <div class="bprow">` +
+             SORTS.map(([k, l]) => `<button class="bpchip ${this.bpSort === k ? 'on' : ''}"
+               onclick="UI.setBpSort('${k}')" title="Order the catalogue by ${l.toLowerCase()}">${l}</button>`).join('') +
+           `</div>
+           <div class="bprow">
+             <button class="bpchip wide ${this.bpAffordOnly ? 'on' : ''}" onclick="UI.toggleAfford()"
+               title="Hide anything you cannot pay for right now">Affordable only</button>
+             <button class="bpchip" onclick="UI.setBpSearch('')" title="Clear the search and show everything">All</button>
+           </div>`;
+      }
     }
+
+    /* Anything reached for lately, pinned at the top of its own tab. */
+    const recentOf = (pool) => this.bpRecent.map(rid => pool.find(x => x.id === rid)).filter(Boolean).slice(0, 4);
     const cost = (c) => `<span class="c">${money(c)}</span>`;
 
     if (id === 'path') {
@@ -11092,7 +11315,10 @@ const UI = {
       const gentle = dry.filter(r => r.fear < 3.5);
       const thrill = dry.filter(r => r.fear >= 3.5 && r.fear < 6.5);
       const extreme = dry.filter(r => r.fear >= 6.5);
-      const rr = it => `<img class="th" src="${Thumbs.ride(it)}" alt=""><span class="n">${it.name}</span>${cost(it.cost)}<span class="c" style="color:var(--dim)">exc ${it.exc.toFixed(1)} · int ${it.fear.toFixed(1)}</span>`;
+      /* No text stat line: the pips below the price carry excitement and
+         intensity, and the exact figures are in the detail strip on hover. */
+      const rr = it => `<img class="th" src="${Thumbs.ride(it)}" alt=""><span class="n">${it.name}</span>${cost(it.cost)}`;
+      addGrid('Recently used', recentOf(dry), 'grid2', rr, (it, d) => this.pick(it, d));
       addGrid('Gentle', gentle, 'grid2', rr, (it, d) => this.pick(it, d));
       addGrid('Thrill', thrill, 'grid2', rr, (it, d) => this.pick(it, d));
       addGrid('Extreme', extreme, 'grid2', rr, (it, d) => this.pick(it, d));
@@ -11116,7 +11342,13 @@ const UI = {
         Slides are short, intense and thirsty work: put a drink stall nearby.</div>`));
     }
     else if (id === 'shop') {
-      const sr = it => `<img class="th" src="${Thumbs.shop(it)}" alt=""><span class="n">${it.name}</span>${cost(it.cost)}`;
+      /* A shop's build cost says little on its own — what it sells for is
+         the number you are actually choosing between. */
+      const sr = it => `<img class="th" src="${Thumbs.shop(it)}" alt=""><span class="n">${it.name}</span>${cost(it.cost)}` +
+        (it.price ? `<span class="c" style="color:var(--dim)">sells at ${money(it.price)}</span>`
+          : it.nightly ? `<span class="c" style="color:var(--dim)">${money(it.nightly)} a night</span>`
+          : `<span class="c" style="color:var(--good)">free to use</span>`);
+      addGrid('Recently used', recentOf(CAT.shops), 'grid2', sr, (it, d) => this.pick(it, d));
       addGrid('Food', CAT.shops.filter(x => x.need === 'hunger'), 'grid2', sr, (it, d) => this.pick(it, d));
       addGrid('Drink', CAT.shops.filter(x => x.need === 'thirst'), 'grid2', sr, (it, d) => this.pick(it, d));
       addGrid('Retail', CAT.shops.filter(x => x.need === 'shop'), 'grid2', sr, (it, d) => this.pick(it, d));
@@ -11127,6 +11359,7 @@ const UI = {
     }
     else if (id === 'scenery') {
       const cr = it => `<img class="th" src="${Thumbs.scenery(it)}" alt=""><span class="n">${it.name}</span>${cost(it.cost)}`;
+      addGrid('Recently used', recentOf(CAT.scenery), 'grid2', cr, (it, d) => this.pick(it, d));
       /* Land themes are built by hand rather than through addGrid, so they
          need the search applied explicitly or three cards survive a query
          that matches nothing. */
@@ -11158,6 +11391,7 @@ const UI = {
     }
     else if (id === 'decor') {
       const cr = it => `<img class="th" src="${Thumbs.scenery(it)}" alt=""><span class="n">${it.name}</span>${cost(it.cost)}`;
+      addGrid('Recently used', recentOf(CAT.scenery), 'grid2', cr, (it, d) => this.pick(it, d));
       b.appendChild(el('div', '', `<div style="font-size:11px;color:var(--dim);line-height:1.55;padding:0 3px 6px">
         Themed sets — towers, archways, statues, signs and more, each restyled to match a park
         theme. Mix pieces from one set to theme a whole area.</div>`));
