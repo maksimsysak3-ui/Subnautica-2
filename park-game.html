@@ -611,6 +611,21 @@ kbd{
   border-bottom:1px dashed var(--edge-soft);font-size:11px}
 #infoPanel .ip-row .k{color:var(--dim)}
 #infoPanel .ip-row .v{font-weight:800;font-variant-numeric:tabular-nums;text-align:right}
+/* Pinned to the bottom of the scrolling readout. Below the fold these were
+   easy to miss entirely, which defeats the point of putting them here. */
+#infoPanel .ip-manage{position:sticky;bottom:-15px;z-index:2;
+  margin:12px -17px -15px;padding:9px 17px 13px;
+  border-top:2px solid var(--edge-soft);
+  background:linear-gradient(180deg,rgba(255,255,255,.86),#fff 32%);
+  backdrop-filter:blur(3px)}
+#infoPanel .ipm-l{display:block;font-size:8.5px;letter-spacing:.13em;text-transform:uppercase;
+  font-weight:800;color:var(--dimmer);margin-bottom:6px}
+#infoPanel .ipm-row{display:flex;flex-wrap:wrap;gap:5px}
+#infoPanel .ipm-btn{flex:0 0 auto;padding:5px 11px;font:800 9.5px/1.3 inherit;cursor:pointer;
+  color:var(--accent-ink);background:#fff;border:1.5px solid #a9dcf8;border-radius:var(--r-pill);
+  transition:background var(--ez),border-color var(--ez),transform var(--sn)}
+#infoPanel .ipm-btn:hover{background:var(--accent);border-color:var(--accent);color:#fff;transform:translateY(-1px)}
+#infoPanel .ipm-btn:active{transform:translateY(1px)}
 #infoPanel .ip-note{font-size:10px;color:var(--dim);line-height:1.5;margin-top:9px;
   padding-top:8px;border-top:1px solid var(--edge-soft)}
 #infoPanel .ip-bar{height:7px;border-radius:4px;background:var(--panel-sunken);
@@ -11712,7 +11727,9 @@ const UI = {
           this.pick(it, d);
         };
         d.dataset.k = it.id;
-        d.title = this.itemTooltip(it, locked);
+        /* This function's own flags — `locked` belongs to addGrid, and
+           referencing it here threw on every open of the quick bar. */
+        d.title = this.itemTooltip(it, prestigeLocked || levelLocked);
         g.appendChild(d);
       }
       body.appendChild(g);
@@ -18349,10 +18366,43 @@ const InfoWheel = {
     try {
       const hv = tab.hub();
       hub.innerHTML = `<span class="hv">${hv.v}</span><span class="hl">${hv.l}</span><span class="hx">CLOSE</span>`;
-      panel.innerHTML = tab.render();
+      panel.innerHTML = tab.render() + this.manageLinks(tab.id);
     } catch (e) {
       panel.innerHTML = `<h4>${tab.label}</h4><div class="ip-sub">Could not read this right now.</div>`;
     }
+  },
+  /* ------------------------------------------------------------------
+     Every readout here is a summary of something Park Management shows in
+     full. Rather than making the player close this, find the management
+     button and hunt for the right subtab, each view ends with a row of
+     links straight to its own screens — the wheel becomes the way in to
+     the detail rather than a dead end beside it.
+     ------------------------------------------------------------------ */
+  MANAGE: {
+    park:    [['awards', 'Awards'], ['infra', 'Infrastructure'], ['rules', 'Park Rules'], ['history', 'History']],
+    guests:  [['guests', 'Guest List'], ['demo', 'Who Comes'], ['thoughts', 'Thoughts'], ['reviews', 'Reviews']],
+    money:   [['finance', 'Ledger'], ['finance2', 'Loans'], ['marketing', 'Marketing'], ['history', 'History']],
+    rides:   [['compare', 'Compare Rides'], ['reviews', 'Reviews']],
+    shops:   [['compare', 'Compare Shops'], ['finance', 'Ledger']],
+    staff:   [['staff', 'Staff List'], ['infra', 'Infrastructure']],
+    land:    [['transport', 'Transport'], ['infra', 'Infrastructure']],
+    weather: [['events', 'Events'], ['rivals', 'Rivals']],
+  },
+  manageLinks(tabId) {
+    const list = this.MANAGE[tabId];
+    if (!list || !list.length) return '';
+    return `<div class="ip-manage"><span class="ipm-l">Open in Park Management</span><div class="ipm-row">` +
+      list.map(([k, label]) => `<button class="ipm-btn" onclick="InfoWheel.goManage('${k}')">${label}</button>`).join('') +
+      `</div></div>`;
+  },
+  /* Closing the wheel first matters: both are overlays, and leaving the
+     wheel up behind the dialog traps the next click. */
+  goManage(tab) {
+    this.hide();
+    /* The Compare screen defaults to whichever kind the view was about, so
+       arriving from Shops does not land you on a list of coasters. */
+    if (tab === 'compare') UI.compareKind = (this.tab === 'shops') ? 'shop' : 'ride';
+    UI.finances(tab);
   },
   tick(dt) {
     if (!this.open) return;
