@@ -3998,6 +3998,22 @@ const CAT = {
     { id: 'milkshake', name: 'Milkshake Bar', cost: 1550, up: 24, w: 2, d: 1, need: 'thirst', price: 9, satisfy: 82, color: 0xff9ac1, roof: 0x7ed6df },
     { id: 'toystore', name: 'Toy Chest', cost: 1900, up: 28, w: 2, d: 2, need: 'shop', price: 16, satisfy: 62, color: 0x4ecdc4, roof: 0xffe66d },
     { id: 'sunscreen', name: 'Sun & Spray Kiosk', cost: 650, up: 10, w: 1, d: 1, need: 'shop', price: 8, satisfy: 44, color: 0xffd76a, roof: 0x3ba7d4 },
+    /* ---- New batch: broadens the catalogue with more building variety
+       rather than more recolours of the same footprint — a sit-down
+       diner, a bakery, a currywurst cart, a fudge shop, a cinnamon roll
+       stand, a bubble tea bar, a book nook, a jewelry stall, a soft-serve
+       stand, and a proper mini-golf course. Each gets its own footprint,
+       colour pairing, and price/satisfy balance so it earns its slot. ---- */
+    { id: 'diner', name: 'Trackside Diner', cost: 3200, up: 40, w: 3, d: 2, need: 'hunger', price: 13, satisfy: 86, color: 0xd94f3c, roof: 0x2c3e50 },
+    { id: 'bakery', name: 'Corner Bakery', cost: 1650, up: 25, w: 2, d: 2, need: 'hunger', price: 9, satisfy: 68, color: 0xf0d9a0, roof: 0xb5651d },
+    { id: 'currywurst', name: 'Currywurst Wagon', cost: 950, up: 16, w: 1, d: 1, need: 'hunger', price: 7, satisfy: 48, color: 0xe8a13c, roof: 0xc0392b },
+    { id: 'fudge', name: 'Fudge Foundry', cost: 1400, up: 22, w: 2, d: 1, need: 'shop', price: 13, satisfy: 58, color: 0x6b3f2a, roof: 0xffd76a },
+    { id: 'cinnamon', name: 'Cinnamon Roll Co.', cost: 1050, up: 18, w: 1, d: 1, need: 'hunger', price: 7, satisfy: 52, color: 0xd9a441, roof: 0x8b5a2b },
+    { id: 'bubbletea', name: 'Bubble Tea Bar', cost: 1500, up: 24, w: 2, d: 1, need: 'thirst', price: 8, satisfy: 80, color: 0x9b59b6, roof: 0x2ecc71 },
+    { id: 'booknook', name: 'Book Nook', cost: 1300, up: 20, w: 2, d: 2, need: 'shop', price: 11, satisfy: 46, color: 0x5c4033, roof: 0x7ed6df },
+    { id: 'jewelry', name: 'Charm & Gem', cost: 2600, up: 34, w: 2, d: 2, need: 'shop', price: 22, satisfy: 64, color: 0x2b2b45, roof: 0xd4af37 },
+    { id: 'softserve', name: 'Soft-Serve Swirl', cost: 900, up: 15, w: 1, d: 1, need: 'hunger', price: 6, satisfy: 44, color: 0xffffff, roof: 0xff6f91 },
+    { id: 'minigolf', name: 'Mini Golf Course', cost: 4200, up: 36, w: 3, d: 3, need: 'shop', price: 12, satisfy: 70, color: 0x2e7d46, roof: 0xf2c14e },
     /* ---- Hotels / lodging: guests can book a room instead of leaving at
        closing time. Modeled at the park level (see Game.dayTick) rather
        than a full per-guest overnight simulation, but the revenue, the
@@ -4254,7 +4270,10 @@ const Prefab = {
     if (id === 'icecream' || id === 'gelato') { g.cyl(x, y - .05, z, .16, .05, 8, hex(0xf7e0c0)); g.sphere(x, y + .12, z, .14, 6, hex(def.color)); return; }
     if (id === 'burger') { g.box(x, y - .1, z, .38, .07, .07, hex(0xd9a441)); g.box(x, y - .02, z, .38, .06, .07, hex(0x4a7c3f)); g.box(x, y + .06, z, .38, .07, .07, hex(0x8b5a2b)); return; }
     if (id === 'donut') { g.cyl(x, y, z, .18, .09, 10, hex(def.color)); g.cyl(x, y, z, .06, .1, 8, dark); return; }
-    if (id === 'gift' || id === 'popup' || id === 'candy' || id === 'toystore' || id === 'hatshop') { g.box(x, y - .08, z, .3, .22, .08, hex(def.color)); g.beam(x - .15, y + .1, z, x, y + .28, z, .04, .04, dark); g.beam(x, y + .28, z, x + .15, y + .1, z, .04, .04, dark); return; }
+    if (id === 'gift' || id === 'popup' || id === 'candy' || id === 'toystore' || id === 'hatshop' || id === 'fudge' || id === 'booknook' || id === 'jewelry') { g.box(x, y - .08, z, .3, .22, .08, hex(def.color)); g.beam(x - .15, y + .1, z, x, y + .28, z, .04, .04, dark); g.beam(x, y + .28, z, x + .15, y + .1, z, .04, .04, dark); return; }
+    if (id === 'softserve') { g.cyl(x, y - .06, z, .15, .06, 8, hex(0xf7e0c0)); g.cone(x, y + .06, z, .12, .18, 8, hex(def.roof)); return; }
+    if (id === 'bubbletea') { g.cyl(x, y - .1, z, .12, .26, 8, hex(0xf0f0f0)); g.sphere(x - .04, y - .16, z, .025, 4, hex(0x3a3a3a)); g.sphere(x + .04, y - .14, z, .025, 4, hex(0x3a3a3a)); return; }
+    if (id === 'minigolf') { g.beam(x - .12, y - .1, z, x + .16, y + .12, z, .02, .02, hex(0xffffff)); g.sphere(x + .18, y + .14, z, .04, 5, hex(0xd94f3c)); return; }
     switch (def.need) {
       case 'hunger': g.sphere(x, y, z, .18, 6, hex(def.color)); g.sphere(x, y + .1, z, .06, 5, hex(0xf5f5f5)); break;
       case 'thirst': g.box(x, y - .1, z, .18, .26, .08, hex(def.color)); g.box(x, y + .08, z, .22, .04, .1, accent); break;
