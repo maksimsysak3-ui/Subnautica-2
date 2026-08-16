@@ -1343,6 +1343,186 @@ table.tb tr:last-child td{border-bottom:0}
    Minimal, allocation-conscious 3D math. Column-major matrices (GL order).
    ========================================================================== */
 const PI = Math.PI, TAU = PI * 2, DEG = PI / 180;
+/* ==========================================================================
+   STORE
+   Parks outgrew localStorage. A large park serialises to a few hundred
+   kilobytes and browsers cap the whole origin at around five megabytes, so
+   a franchise of them hit QuotaExceededError and simply stopped saving.
+
+   IndexedDB has no such cap in practice, but it is asynchronous, and every
+   call site here — the menu's Continue card, the settings panel, load() —
+   reads synchronously. Rather than rewrite all of them into promises, this
+   keeps a synchronous in-memory mirror of every key: the mirror is filled
+   from IndexedDB once at boot, reads come from it, and writes update it
+   immediately and push to IndexedDB in the background.
+
+   localStorage stays as the fallback for browsers where IndexedDB is
+   unavailable or blocked (private windows, some embedded views), and old
+   saves already sitting in it are migrated on first boot rather than lost.
+   ========================================================================== */
+const Store = {
+  DB: 'planetpark', STORE: 'saves',
+  db: null, cache: Object.create(null), ready: false, useIDB: false,
+  /* The fixed keys. Franchise park slots are named pc_franchise_park_N and
+     are discovered from the index once it has been read, since how many
+     there are is not known up front. */
+  KEYS: ['planetcoaster_save', 'pc_franchise_index'],
+  open() {
+    return new Promise((res) => {
+      let idb = null;
+      try { idb = indexedDB; } catch (e) { idb = null; }
+      if (!idb) return res(null);
+      let req;
+      try { req = idb.open(this.DB, 1); } catch (e) { return res(null); }
+      req.onupgradeneeded = () => { try { req.result.createObjectStore(this.STORE); } catch (e) { } };
+      req.onsuccess = () => res(req.result);
+      req.onerror = () => res(null);
+      req.onblocked = () => res(null);
+      /* A private window can leave the request hanging rather than failing,
+         so never let boot wait on it forever. */
+      setTimeout(() => res(req.readyState === 'done' ? req.result : null), 2500);
+    });
+  },
+  tx(mode) {
+    if (!this.db) return null;
+    try { return this.db.transaction(this.STORE, mode).objectStore(this.STORE); } catch (e) { return null; }
+  },
+  /* Fill the mirror. Resolves even on failure — a browser that will not give
+     us IndexedDB falls back to localStorage and the game still runs. */
+  async init() {
+    this.db = await this.open();
+    this.useIDB = !!this.db;
+    if (this.useIDB) {
+      for (const k of this.KEYS) {
+        const v = await new Promise((res) => {
+          const st = this.tx('readonly');
+          if (!st) return res(null);
+          const r = st.get(k);
+          r.onsuccess = () => res(r.result === undefined ? null : r.result);
+          r.onerror = () => res(null);
+        });
+        if (v != null) this.cache[k] = v;
+      }
+      /* Reconcile with localStorage. That covers two cases at once: a save
+         written by an older build that only knew localStorage, and a
+         lifeboat copy written on the way out when an IndexedDB write had
+         not yet completed. The original is left in place either way — if
+         this build is rolled back, the old save is still where the old
+         build looks for it. */
+      for (const k of this.KEYS) {
+        let old = null;
+        try { old = localStorage.getItem(k); } catch (e) { }
+        if (old == null) continue;
+        const best = this.newer(this.cache[k], old);
+        if (best !== this.cache[k]) { this.cache[k] = best; this.write(k, best); }
+        else if (this.cache[k] == null) { this.cache[k] = old; this.write(k, old); }
+      }
+    } else {
+      for (const k of this.KEYS) {
+        try { const v = localStorage.getItem(k); if (v != null) this.cache[k] = v; } catch (e) { }
+      }
+    }
+    /* Now that the franchise index is in the mirror, pull in each park it
+       names — those are the biggest blobs and the ones that broke the
+       localStorage quota in the first place. */
+    await this.loadSlots();
+    this.arm();
+    this.ready = true;
+  },
+  async loadSlots() {
+    let slots = [];
+    try {
+      const idx = this.cache['pc_franchise_index'];
+      if (idx) slots = (JSON.parse(idx).slots || []).map(x => x && x.key).filter(Boolean);
+    } catch (e) { return; }
+    for (const k of slots) {
+      if (this.KEYS.indexOf(k) < 0) this.KEYS.push(k);
+      if (k in this.cache) continue;
+      if (this.useIDB) {
+        const v = await new Promise((res) => {
+          const st = this.tx('readonly');
+          if (!st) return res(null);
+          const r = st.get(k);
+          r.onsuccess = () => res(r.result === undefined ? null : r.result);
+          r.onerror = () => res(null);
+        });
+        if (v != null) { this.cache[k] = v; continue; }
+      }
+      let old = null;
+      try { old = localStorage.getItem(k); } catch (e) { }
+      if (old != null) { this.cache[k] = old; this.write(k, old); }
+    }
+  },
+  /* Wire the lifeboat up once, as early as possible. pagehide is the event
+     that actually fires on mobile; beforeunload is there for desktop. */
+  arm() {
+    if (this._armed) return;
+    this._armed = true;
+    addEventListener('pagehide', () => this.flush());
+    addEventListener('beforeunload', () => this.flush());
+    addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') this.flush(); });
+  },
+  pending: Object.create(null),
+  write(k, v) {
+    if (!this.useIDB) return false;
+    const st = this.tx('readwrite');
+    if (!st) return false;
+    try {
+      const req = st.put(v, k);
+      /* An IndexedDB write is not durable the instant put() returns. If the
+         tab is closed in the moment between the two, the write is lost — so
+         the key is held as pending until its transaction completes, and
+         anything still pending when the page goes away is copied
+         synchronously into localStorage as a lifeboat. */
+      this.pending[k] = v;
+      const done = () => { if (this.pending[k] === v) delete this.pending[k]; };
+      req.onsuccess = done;
+      st.transaction.oncomplete = done;
+      st.transaction.onabort = () => { };
+      return true;
+    } catch (e) { return false; }
+  },
+  /* Called on pagehide. Best effort and deliberately silent: a park too big
+     for localStorage simply cannot have a lifeboat, and that is not an error
+     worth interrupting somebody's exit with. */
+  flush() {
+    for (const k in this.pending) {
+      try { localStorage.setItem(k, this.pending[k]); } catch (e) { }
+    }
+  },
+  /* When both stores hold a key, the newer one wins. Saves carry savedAt for
+     exactly this: after a lifeboat write, localStorage is ahead of
+     IndexedDB, and on an ordinary boot IndexedDB is ahead of a stale
+     localStorage copy left behind by an older build. */
+  stamp(raw) {
+    if (!raw) return -1;
+    try { return +JSON.parse(raw).savedAt || 0; } catch (e) { return 0; }
+  },
+  newer(a, b) {
+    if (a == null) return b;
+    if (b == null) return a;
+    return this.stamp(b) > this.stamp(a) ? b : a;
+  },
+  getItem(k) {
+    if (k in this.cache) return this.cache[k];
+    try { return localStorage.getItem(k); } catch (e) { return null; }
+  },
+  /* Throws QuotaExceededError exactly like localStorage does when it is the
+     only store available, so the existing quota handling still fires. */
+  setItem(k, v) {
+    this.cache[k] = v;
+    if (this.write(k, v)) return;
+    localStorage.setItem(k, v);
+  },
+  removeItem(k) {
+    delete this.cache[k];
+    if (this.useIDB) { const st = this.tx('readwrite'); if (st) { try { st.delete(k); } catch (e) { } } }
+    try { localStorage.removeItem(k); } catch (e) { }
+  },
+  /* Rough size of everything held, for the settings panel. */
+  bytes() { let n = 0; for (const k in this.cache) n += (this.cache[k] || '').length; return n; },
+};
+
 const clamp = (v, a, b) => v >= a ? (v <= b ? v : b) : a;   // NaN-safe: falls through to `a`
 
 /* Compact typed-array <-> base64 packing for the save file — see save(). */
@@ -12931,7 +13111,7 @@ const UI = {
           .map(([a, k]) => `<tr><td>${a}</td><td><kbd>${k}</kbd></td></tr>`).join('') + `</table>`;
     }
     else if (T === 'data') {
-      const raw = localStorage.getItem('planetcoaster_save');
+      const raw = Store.getItem('planetcoaster_save');
       h += `<h3>Saved park</h3>`;
       if (raw) {
         try {
@@ -12939,14 +13119,16 @@ const UI = {
           h += `<div class="kv"><span class="k">Mode</span><span class="v">${d.mode === 'sandbox' ? 'Sandbox' : 'Career'}</span></div>
             <div class="kv"><span class="k">Day</span><span class="v">${d.day || 1}</span></div>
             <div class="kv"><span class="k">Funds</span><span class="v">${money(d.money || 0)}</span></div>
-            <div class="kv"><span class="k">Size on disk</span><span class="v">${(raw.length / 1024).toFixed(0)} KB</span></div>`;
+            <div class="kv"><span class="k">Size on disk</span><span class="v">${(raw.length / 1024).toFixed(0)} KB</span></div>
+            <div class="kv"><span class="k">Stored in</span><span class="v">${Store.useIDB ? 'IndexedDB' : 'Browser storage'}</span></div>
+            <div class="kv"><span class="k">All parks</span><span class="v">${(Store.bytes() / 1024).toFixed(0)} KB</span></div>`;
         } catch (e) { h += `<p>The saved park could not be read.</p>`; }
       } else h += `<p>Nothing saved yet.</p>`;
       h += `<div class="btnrow" style="margin-top:10px">
         <button class="btn go" style="flex:0 0 auto;padding:9px 20px" onclick="Game.save()">Save now</button>
         <button class="btn" style="flex:0 0 auto;padding:9px 20px" onclick="Game.load();UI.closeModal()">Load</button>
         <button class="btn dan" style="flex:0 0 auto;padding:9px 20px"
-          onclick="if(confirm('Delete the saved park?')){localStorage.removeItem('planetcoaster_save');UI.settings('data')}">Delete save</button>
+          onclick="if(confirm('Delete the saved park?')){Store.removeItem('planetcoaster_save');UI.settings('data')}">Delete save</button>
       </div>`;
       h += `<h3>Export &amp; import</h3>
       <p style="font-size:11px;color:var(--dim);line-height:1.5">Export writes your park to a <b>.pcpark</b> file you can keep, back up,
@@ -17210,7 +17392,7 @@ const Menu = {
     document.getElementById('menu').classList.add('show');
     document.getElementById('ui').style.display = 'none';
     this.buildShowcase();
-    const raw = localStorage.getItem('planetcoaster_save');
+    const raw = Store.getItem('planetcoaster_save');
     const card = document.getElementById('mContinue');
     if (raw) {
       try {
@@ -21431,14 +21613,15 @@ const Game = {
             return e ? { color: l.color, a: { i: e.a.i, j: e.a.j }, b: { i: e.b.i, j: e.b.j }, riders: l.riders, rev: l.revenue, tier: l.tier || 1 } : null;
           }).filter(Boolean)
         },
-        weather: { season: Weather.seasonIndex, dayOfSeason: Weather.dayOfSeason, state: Weather.state, event: Weather.event, eventDaysLeft: Weather.eventDaysLeft }
+        weather: { season: Weather.seasonIndex, dayOfSeason: Weather.dayOfSeason, state: Weather.state, event: Weather.event, eventDaysLeft: Weather.eventDaysLeft },
+        savedAt: Date.now()
       };
       // Building `d` can't throw QuotaExceededError — only writing it can —
       // so keep the write in its own try. exportSave() calls save(true) just
       // to get `d` back; if browser storage is full it still needs that
       // object so the file-export fallback it points players to actually works.
       try {
-        localStorage.setItem(key || 'planetcoaster_save', JSON.stringify(d));
+        Store.setItem(key || 'planetcoaster_save', JSON.stringify(d));
         this._quotaHit = false;
         if (!silent) UI.notify('Saved', 'Park written to browser storage.', 'good');
       } catch (e) {
@@ -21495,9 +21678,9 @@ const Game = {
         const d = JSON.parse(reader.result);
         if (!d || typeof d !== 'object' || !((d.hz && d.tz) || (d.hb && d.tb) || (d.h && d.t))) throw new Error('not a park file');
         const tempKey = '__import_' + Date.now();
-        localStorage.setItem(tempKey, JSON.stringify(d));
+        Store.setItem(tempKey, JSON.stringify(d));
         this.load(tempKey);
-        localStorage.removeItem(tempKey);
+        Store.removeItem(tempKey);
         UI.closeModal();
         UI.notify('Imported', 'Park loaded from ' + file.name + '.', 'good');
       } catch (e) { UI.notify('Import failed', 'That did not look like a valid .pcpark file.', 'bad'); }
@@ -21510,7 +21693,7 @@ const Game = {
        to know before it commits to the slot it was trying to visit, or a
        missing/corrupt save leaves the OLD park in memory while every future
        save and snapshot silently starts writing into the NEW slot's key. */
-    const raw = localStorage.getItem(key || 'planetcoaster_save');
+    const raw = Store.getItem(key || 'planetcoaster_save');
     if (!raw) { if (!key) UI.notify('No save', 'Nothing stored yet.', 'warn'); return false; }
     try {
       const d = JSON.parse(raw);
@@ -21811,13 +21994,13 @@ const Franchise = {
 
   init() {
     try {
-      const raw = localStorage.getItem(this.storageKey);
+      const raw = Store.getItem(this.storageKey);
       if (raw) { const d = JSON.parse(raw); this.slots = d.slots || []; this.current = d.current || 0; }
     } catch (e) { /* corrupt index — start fresh */ }
   },
   persist() {
     try {
-      localStorage.setItem(this.storageKey, JSON.stringify({ slots: this.slots, current: this.current }));
+      Store.setItem(this.storageKey, JSON.stringify({ slots: this.slots, current: this.current }));
     } catch (e) { UI.notify('Save failed', 'Could not write the franchise list: ' + e, 'bad'); }
   },
   eligible() { return Park.money >= this.unlockAt || this.slots.length > 0; },
@@ -21839,7 +22022,7 @@ const Franchise = {
          stale figure from whenever you last left, and every day of earnings
          a manager ever "made" simply evaporated. */
       try {
-        const raw = localStorage.getItem(s.key);
+        const raw = Store.getItem(s.key);
         if (!raw) return;               // never actually saved yet — nothing to grow
         const blob = JSON.parse(raw);
         // Rough, self-contained economy: bigger parks earn more, with a
@@ -21853,7 +22036,7 @@ const Franchise = {
         const net = base * days * (0.8 + Math.random() * 0.4) * traitMult * synergyMult;
         blob.money = Math.max(0, (blob.money || 0) + net);
         blob.day = (blob.day || 1) + days;
-        localStorage.setItem(s.key, JSON.stringify(blob));
+        Store.setItem(s.key, JSON.stringify(blob));
         s.snapMoney = blob.money; s.snapDay = blob.day;
         changed = true;
       } catch (e) { /* corrupt slot save — leave that park alone rather than crash the day tick */ }
@@ -23040,8 +23223,12 @@ function frameBody(dt) {
   }
 }
 
-window.addEventListener('load', () => {
+window.addEventListener('load', async () => {
   try {
+    /* Saves live in IndexedDB now, which is asynchronous, so the mirror has
+       to be filled before anything asks whether there is a park to
+       continue. It resolves even when IndexedDB is unavailable. */
+    try { await Store.init(); } catch (e) { console.warn('store init failed, using localStorage', e); }
     Audio.init();
     Franchise.init();
     Game.init();
