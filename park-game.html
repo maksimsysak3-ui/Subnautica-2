@@ -649,6 +649,60 @@ kbd{
 #modalBody .mgt-b.on{background:var(--accent-ink);border-color:var(--accent-ink);color:#fff}
 
 /* generic list rows used by the new management screens */
+/* ---------- achievements ---------- */
+#modalBody .ach-top{display:flex;gap:9px;margin-bottom:10px;flex-wrap:wrap}
+#modalBody .ach-stat{flex:1 1 110px;background:var(--panel-2);border:2px solid var(--edge-soft);
+  border-radius:var(--r-sm);padding:9px 12px}
+#modalBody .ach-stat .l{display:block;font-size:8.5px;letter-spacing:.13em;text-transform:uppercase;
+  font-weight:800;color:var(--dimmer);margin-bottom:2px}
+#modalBody .ach-stat .v{font-size:19px;font-weight:800;color:var(--accent-ink);line-height:1.1}
+#modalBody .ach-stat .u{font-size:11px;color:var(--dim);font-weight:700}
+#modalBody .ach-track{height:8px;border-radius:5px;background:var(--panel-sunken);
+  overflow:hidden;border:1.5px solid var(--edge-soft)}
+#modalBody .ach-track i{display:block;height:100%;border-radius:4px;
+  background:linear-gradient(90deg,var(--accent),var(--good));transition:width var(--sp)}
+#modalBody .ach-track.sm{height:6px;margin-top:8px}
+#modalBody .ach-perks{display:flex;flex-direction:column;gap:5px}
+#modalBody .ach-perk{display:flex;gap:9px;align-items:baseline;padding:7px 11px;border-radius:var(--r-sm);
+  background:linear-gradient(100deg,#fff6e2,#fffdf8);border:2px solid #f0d089}
+#modalBody .ach-perk b{flex:0 0 auto;font-size:11.5px;color:#8a6520}
+#modalBody .ach-perk span{font-size:10.5px;color:var(--dim);line-height:1.45;font-weight:600}
+/* an ordinary achievement */
+#modalBody .ach-row{display:flex;gap:10px;align-items:center;padding:8px 11px;margin-bottom:5px;
+  border-radius:var(--r-sm);background:var(--panel-2);border:1.5px solid var(--edge-soft)}
+#modalBody .ach-row.done{background:#f2fbf5;border-color:#a9e0bd}
+#modalBody .ach-tick{flex:0 0 auto;width:19px;height:19px;border-radius:50%;display:flex;
+  align-items:center;justify-content:center;font-size:11px;font-weight:800;color:#fff;
+  background:var(--edge-soft)}
+#modalBody .ach-row.done .ach-tick{background:var(--good)}
+#modalBody .ach-name{font-size:11.5px;font-weight:800;color:var(--txt)}
+#modalBody .ach-desc{font-size:10px;color:var(--dim);line-height:1.45;font-weight:600}
+#modalBody .ach-rew{flex:0 0 auto;display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end;max-width:44%}
+.ach-chip{display:inline-block;padding:2px 8px;border-radius:var(--r-pill);
+  font:800 9px/1.5 inherit;letter-spacing:.03em;border:1.5px solid transparent;white-space:nowrap}
+.ach-chip.cash{background:#fff4d6;color:#8a6520;border-color:#f0d089}
+.ach-chip.pres{background:#f0e6ff;color:#5b3aa8;border-color:#c9b0f0}
+.ach-chip.rp{background:#e2f4ff;color:var(--accent-ink);border-color:#a9dcf8}
+.ach-chip.perk{background:#dff5e6;color:#1c6b3a;border-color:#a9e0bd}
+/* a Grand Feat gets a card of its own */
+#modalBody .ach-grand{position:relative;overflow:hidden;padding:13px 15px;margin-bottom:9px;
+  border-radius:var(--r-md);border:2.5px solid #e4c98a;
+  background:linear-gradient(135deg,#fffaf0,#fff 46%,#fef6e6)}
+#modalBody .ach-grand::before{content:'';position:absolute;left:0;top:0;bottom:0;width:5px;
+  background:linear-gradient(180deg,#e8b23c,#d4941f)}
+#modalBody .ach-grand.done{border-color:#8fd3a8;background:linear-gradient(135deg,#f2fbf5,#fff 46%,#eaf8ef)}
+#modalBody .ach-grand.done::before{background:linear-gradient(180deg,#3fc27a,#1c9b56)}
+#modalBody .ach-gh{display:flex;gap:10px;align-items:flex-start;justify-content:space-between;margin-bottom:3px}
+#modalBody .ach-gt{font-size:14px;font-weight:800;color:var(--txt);letter-spacing:.01em}
+#modalBody .ach-gr{flex:0 0 auto;display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end;max-width:52%}
+#modalBody .ach-gd{font-size:11px;color:var(--txt);font-weight:700;line-height:1.45}
+#modalBody .ach-gb{font-size:10.5px;color:var(--dim);font-style:italic;line-height:1.5;margin-top:3px}
+#modalBody .ach-gp{margin-top:7px;padding:6px 10px;border-radius:var(--r-sm);
+  background:rgba(255,255,255,.72);border:1.5px solid #efe0bd;font-size:10px;
+  color:var(--dim);line-height:1.45;font-weight:600}
+#modalBody .ach-gp b{color:#8a6520}
+#modalBody .ach-gn{font-size:9.5px;font-weight:800;color:var(--dim);text-align:right;margin-top:3px;
+  font-variant-numeric:tabular-nums}
 #modalBody .lrow{display:flex;align-items:center;gap:11px;padding:8px 11px;border-radius:var(--r-sm);
   border:2px solid var(--edge-soft);background:#fff;margin-bottom:6px;transition:all var(--sn)}
 #modalBody .lrow:hover{border-color:var(--accent)}
@@ -7623,7 +7677,7 @@ class ParkObject {
       if (this._baseCap === undefined) this._baseCap = this.def.cap || this.cap;
       if (this._baseRel === undefined) this._baseRel = this.def.rel || this.reliability || .93;
       this.cap = Math.round(this._baseCap * (1 + (t - 1) * .18));
-      this.reliability = clamp(this._baseRel + (t - 1) * .022, 0, .995);
+      this.reliability = clamp(this._baseRel + (t - 1) * .022 + Perks.reliabilityBonus() * .05, 0, .995);
       if (this.kind === 'ride') {
         this.excitement = (this.def.exc || 0) * (1 + (t - 1) * .10);
         this.nausea = (this.def.naus || 0) * (1 - (t - 1) * .07);
@@ -8585,7 +8639,7 @@ const Park = {
        spaces do the same for guests who drive rather than walk or ride
        transit in — a bigger lot means more cars can actually reach the
        gate on a busy day. */
-    return clamp(Math.round(60 + atts * 62 + shops * 20 + hotelRooms * 9 + parkingSpaces * 1.6 + this.rating * .18), 60, this.maxGuests);
+    return clamp(Math.round((60 + atts * 62 + shops * 20 + hotelRooms * 9 + parkingSpaces * 1.6 + this.rating * .18) * Perks.capacityMult()), 60, this.maxGuests);
   },
 
   reset() {
@@ -8602,7 +8656,9 @@ const Park = {
   },
   moneyMult: 1.1,
   userMoneyMult: 1,   // player-set multiplier from Settings, stacks with research
-  earn(n, cat) { n *= this.moneyMult * this.userMoneyMult; this.money += n; if (cat) this.log[cat] = (this.log[cat] || 0) + n; },
+  /* Every payout in the game goes through here, so a perk that lifts what
+     the park takes belongs in this one line rather than at each till. */
+  earn(n, cat) { n *= this.moneyMult * this.userMoneyMult * Perks.incomeMult(); this.money += n; if (cat) this.log[cat] = (this.log[cat] || 0) + n; },
   /* Admission used to charge every guest the same flat fee no matter how
      many had already come through the gate that day, so a 2,000-guest day
      at a modest fee still produced six figures of gate revenue alone —
@@ -9700,7 +9756,7 @@ class Guest extends Person {
     const ambient = Weather.moodFactor() * 6
       - Math.min(.02, Park.litter.length / Math.max(40, Park.guests.length) * .03) * 6;
     const target = clamp(
-      ((this.cComfort * .32 + this.cValue * .22 + this.cExcite * .30 + this.cFresh * .16) + ambient + Events.moodBonus())
+      ((this.cComfort * .32 + this.cValue * .22 + this.cExcite * .30 + this.cFresh * .16) + ambient + Events.moodBonus() + Perks.moodBonus())
       * ParkRules.moodMult(), 0, 1);
     /* Ease toward the target rather than snapping, on the same park-hour
        scale the needs above use, so a single bad moment does not wreck a
@@ -16674,6 +16730,63 @@ const Progress = {
   pieceUnlocked(def) { return Park.mode === 'sandbox' || this.tierOf(def) <= Research.highestTier() + 1; },
 };
 
+/* ==========================================================================
+   PERKS
+   What a Grand Feat leaves behind. Each is permanent, park-wide, and reads
+   through one of the multiplier funnels the simulation already uses, so a
+   perk is never a special case bolted onto a formula — it joins events,
+   rivals, standing and infrastructure in the same product.
+   ========================================================================== */
+const PERKS = {
+  renown:      { name: 'Renown',            note: 'Word of mouth you cannot buy. +8% turnout, for good.', draw: 1.08 },
+  goodwill:    { name: 'Goodwill',          note: 'A five-star reputation people will pay for. +10% gate tolerance, +3% mood.', fee: 1.10, mood: .03 },
+  engineer:    { name: 'Engineering Pedigree', note: 'Your rides are trusted. −15% breakdowns and −20% ride upkeep.', reliability: .15, upkeep: .92 },
+  margins:     { name: 'Margins',           note: 'Buying power at scale. +6% on everything you take.', income: 1.06 },
+  capacity:    { name: 'Room to Breathe',   note: 'The site is proven at scale. +15% park capacity.', capacity: 1.15 },
+  efficiency:  { name: 'Efficiency',        note: 'Everything runs on rails. −12% upkeep across the park.', upkeep: .88 },
+  inventor:    { name: 'Inventor',          note: 'A research department that pays for itself. +50% research points.', rp: 1.5 },
+  wonder:      { name: 'Wonder',            note: 'A destination in its own right. +12% turnout and +12% gate tolerance.', draw: 1.12, fee: 1.12 },
+  institution: { name: 'Institution',       note: 'A year-round fixture. +2 prestige every day.', prestigeDay: 2 },
+  legend:      { name: 'Legend',            note: 'Nothing left to prove. +10% on everything you take, +10% turnout.', income: 1.10, draw: 1.10 },
+};
+
+const Perks = {
+  held: [],
+  reset() { this.held = []; this._key = null; },
+  has(id) { return this.held.includes(id); },
+  grant(id) {
+    if (!PERKS[id] || this.has(id)) return;
+    this.held.push(id);
+    this._key = null;
+  },
+  /* Folded once and cached — these are read on hot paths. */
+  _key: null, _eff: null,
+  eff() {
+    const k = this.held.join(',');
+    if (k !== this._key) {
+      this._key = k;
+      const e = { draw: 1, fee: 1, income: 1, upkeep: 1, capacity: 1, rp: 1, mood: 0, reliability: 0, prestigeDay: 0 };
+      for (const id of this.held) {
+        const P = PERKS[id];
+        if (!P) continue;
+        for (const f of ['draw', 'fee', 'income', 'upkeep', 'capacity', 'rp']) if (P[f] !== undefined) e[f] *= P[f];
+        for (const f of ['mood', 'reliability', 'prestigeDay']) if (P[f] !== undefined) e[f] += P[f];
+      }
+      this._eff = e;
+    }
+    return this._eff;
+  },
+  drawMult() { return this.eff().draw; },
+  feeMult() { return this.eff().fee; },
+  incomeMult() { return this.eff().income; },
+  upkeepMult() { return this.eff().upkeep; },
+  capacityMult() { return this.eff().capacity; },
+  rpMult() { return this.eff().rp; },
+  moodBonus() { return this.eff().mood; },
+  reliabilityBonus() { return this.eff().reliability; },
+  prestigePerDay() { return this.eff().prestigeDay; },
+};
+
 const Achievements = {
   list: [
     { id: 'firstGuest', label: 'Open for Business', desc: 'Welcome your first guest.', reward: 500, check: () => Park.totalGuests >= 1 },
@@ -16725,7 +16838,82 @@ const Achievements = {
     { id: 'reclaimComplete', label: 'Phoenix Rising', cat: 'Briefs', desc: 'Complete the Reclaim the Ruins brief.', reward: 2000, check: () => Goals.active && Goals.active.id === 'reclaim' && Goals.won },
     { id: 'wildtrailComplete', label: 'Into the Wild', cat: 'Briefs', desc: 'Complete the Wild Trails brief.', reward: 2000, check: () => Goals.active && Goals.active.id === 'wildtrail' && Goals.won },
     { id: 'marathonComplete', label: 'Going the Distance', cat: 'Briefs', desc: 'Complete The Marathon brief.', reward: 4000, check: () => Goals.active && Goals.active.id === 'marathon' && Goals.won },
+
+    /* ---- GRAND FEATS ------------------------------------------------
+       The long game. Each of these is years of park away, pays out on a
+       different scale to everything above, and — the part that matters —
+       leaves something permanent behind. A perk is not a one-off cheque;
+       it changes a number the park runs on for good, so a park that has
+       done these things is measurably easier to run than one that has
+       not. See Perks below for what each one actually does.
+       ------------------------------------------------------------------ */
+    { id: 'grandMillion', label: 'A Million Through the Gates', cat: 'Grand Feats', grand: true,
+      desc: 'Admit one million guests, all-time.',
+      blurb: 'Not a busy season. A decade of them.',
+      reward: 250000, prestige: 25, rp: 120, perk: 'renown',
+      goal: () => [Park.totalGuests, 1000000],
+      check: () => Park.totalGuests >= 1000000 },
+    { id: 'grandFiveStar', label: 'Five Stars', cat: 'Grand Feats', grand: true,
+      desc: 'Hold a full five-star rating for ten days running.',
+      blurb: 'Anyone can have one good day. Ten is a park that works.',
+      reward: 150000, prestige: 20, rp: 80, perk: 'goodwill',
+      goal: () => [Achievements.fiveStarDays || 0, 10],
+      check: () => (Achievements.fiveStarDays || 0) >= 10 },
+    { id: 'grandCoaster', label: 'The Perfect Coaster', cat: 'Grand Feats', grand: true,
+      desc: 'Licence a coaster rated 12+ excitement with intensity under 8 and nausea under 4.',
+      blurb: 'Thrilling without being punishing. Far harder than it sounds.',
+      reward: 120000, prestige: 15, rp: 100, perk: 'engineer',
+      check: () => Park.coasters.some(c => c.excitement >= 12 && c.intensity < 8 && c.nausea < 4
+        && (typeof Inspection === 'undefined' || Inspection.licensed(c))) },
+    { id: 'grandTenMillion', label: 'Ten Million Taken', cat: 'Grand Feats', grand: true,
+      desc: 'Earn ten million in lifetime revenue.',
+      blurb: 'The park has paid for itself many times over.',
+      reward: 400000, prestige: 30, rp: 140, perk: 'margins',
+      goal: () => [(Park.log.ticket || 0) + (Park.log.shop || 0) + (Park.log.entry || 0), 10000000],
+      check: () => ((Park.log.ticket || 0) + (Park.log.shop || 0) + (Park.log.entry || 0)) >= 10000000 },
+    { id: 'grandCrowd', label: 'Wall to Wall', cat: 'Grand Feats', grand: true,
+      desc: 'Have five thousand guests inside at once.',
+      blurb: 'Every path full, every queue moving, nobody turned away.',
+      reward: 300000, prestige: 25, rp: 110, perk: 'capacity',
+      goal: () => [Park.guests.length, 5000],
+      check: () => Park.guests.length >= 5000 },
+    { id: 'grandInfra', label: 'Fully Wired', cat: 'Grand Feats', grand: true,
+      desc: 'Take every piece of park infrastructure to its highest level.',
+      blurb: 'Power, water, staff, signage, waste and welfare — all of it, finished.',
+      reward: 200000, prestige: 20, rp: 90, perk: 'efficiency',
+      goal: () => [INFRA.reduce((a, d) => a + Infra.level(d.id), 0), INFRA.length * 3],
+      check: () => INFRA.every(d => Infra.level(d.id) >= 3) },
+    { id: 'grandResearch', label: 'The Whole Catalogue', cat: 'Grand Feats', grand: true,
+      desc: 'Research every tier there is.',
+      blurb: 'Nothing left in the catalogue you cannot build.',
+      reward: 180000, prestige: 20, rp: 0, perk: 'inventor',
+      goal: () => [Research.highestTier ? Research.highestTier() : 0, 7],
+      check: () => (Research.highestTier ? Research.highestTier() : 0) >= 7 },
+    { id: 'grandWonder', label: 'A Wonder of the Region', cat: 'Grand Feats', grand: true,
+      desc: 'Reach the highest standing a park can hold.',
+      blurb: 'People do not visit the region and see your park. They visit your park.',
+      reward: 500000, prestige: 40, rp: 200, perk: 'wonder',
+      goal: () => [Prestige.totalEarned || 0, 160],
+      check: () => Prestige.active && Prestige.rank().name === 'A Wonder' },
+    { id: 'grandYear', label: 'A Full Year', cat: 'Grand Feats', grand: true,
+      desc: 'Run the park for three hundred and sixty-five days.',
+      blurb: 'Through every season, and out the other side.',
+      reward: 250000, prestige: 25, rp: 120, perk: 'institution',
+      goal: () => [Park.day, 365],
+      check: () => Park.day >= 365 },
+    { id: 'grandCompletionist', label: 'No Stone Unturned', cat: 'Grand Feats', grand: true,
+      desc: 'Unlock every other achievement in the game.',
+      blurb: 'There is nothing left on the list.',
+      reward: 1000000, prestige: 60, rp: 300, perk: 'legend',
+      goal: () => [Achievements.unlocked.length, Achievements.list.length - 1],
+      check: () => Achievements.list.every(a => a.id === 'grandCompletionist' || Achievements.unlocked.includes(a.id)) },
   ],
+  /* Consecutive days at five stars, counted in dayTick — a snapshot check
+     could be satisfied by one lucky afternoon. */
+  fiveStarDays: 0,
+  dayTick() {
+    this.fiveStarDays = Park.ratingStars() >= 4.98 ? (this.fiveStarDays || 0) + 1 : 0;
+  },
   unlocked: [],
   update() {
     for (const a of this.list) {
@@ -16733,25 +16921,126 @@ const Achievements = {
       if (a.check()) {
         this.unlocked.push(a.id);
         Park.money += a.reward;
+        /* Grand Feats pay in more than cash. Everything below is additive
+           on top of the cheque, and the perk is the part that lasts. */
+        const extra = [];
+        if (a.prestige) {
+          Prestige.points += a.prestige; Prestige.totalEarned += a.prestige;
+          Prestige.active = true;
+          extra.push(a.prestige + ' prestige');
+        }
+        if (a.rp) { Park.rp = (Park.rp || 0) + a.rp; Park.rpTotal = (Park.rpTotal || 0) + a.rp; extra.push(a.rp + ' research'); }
+        if (a.perk && PERKS[a.perk]) { Perks.grant(a.perk); extra.push(PERKS[a.perk].name); }
+        if (a.grand) {
+          UI.notify('GRAND FEAT \u2014 ' + a.label,
+            (a.blurb ? a.blurb + ' ' : '') + money(a.reward) + (extra.length ? ', plus ' + extra.join(', ') : '') + '.', 'money');
+          if (a.perk && PERKS[a.perk]) UI.notify(PERKS[a.perk].name + ' unlocked', PERKS[a.perk].note, 'good');
+        } else
         UI.notify('Achievement unlocked', a.label + ' \u2014 bonus ' + money(a.reward) + '.', 'money');
         if (typeof Audio !== 'undefined' && Audio.play) Audio.play('complete');
       }
     }
   },
+  filter: 'all',          // all | todo | done | grand
+  /* How close an achievement is, when it has a number to be close to. */
+  progressOf(a) {
+    if (this.unlocked.includes(a.id)) return 1;
+    if (!a.goal) return null;
+    try { const [have, need] = a.goal(); return need > 0 ? clamp(have / need, 0, 1) : null; }
+    catch (e) { return null; }
+  },
+  progressText(a) {
+    if (!a.goal) return '';
+    try {
+      const [have, need] = a.goal();
+      const fmt = (v) => need >= 10000 ? Math.round(v).toLocaleString() : Math.round(v).toLocaleString();
+      return fmt(have) + ' / ' + fmt(need);
+    } catch (e) { return ''; }
+  },
+  rewardChips(a) {
+    const c = [];
+    if (a.reward) c.push(`<span class="ach-chip cash">${money(a.reward)}</span>`);
+    /* Spelled out rather than glyphed: the star character rendered as
+       something close enough to a plus sign to be misread as "+25 cash". */
+    if (a.prestige) c.push(`<span class="ach-chip pres">${a.prestige} Prestige</span>`);
+    if (a.rp) c.push(`<span class="ach-chip rp">${a.rp} Research</span>`);
+    if (a.perk && PERKS[a.perk]) c.push(`<span class="ach-chip perk">${PERKS[a.perk].name}</span>`);
+    return c.join('');
+  },
+  setFilter(f) { this.filter = f; UI.modal('Achievements', this.render()); },
   render() {
-    let h = `<div class="goal" style="border:none;padding-top:10px"><div class="gl"><span><b>Achievements</b></span>
-      <b>${this.unlocked.length}/${this.list.length}</b></div></div>`;
-    let lastCat = null;
-    for (const a of this.list) {
-      const cat = a.cat || 'Park';
-      if (cat !== lastCat) {
-        lastCat = cat;
-        h += `<div style="font-size:10.5px;font-weight:700;color:var(--dim);text-transform:uppercase;letter-spacing:.04em;margin:8px 0 2px">${cat}</div>`;
+    const total = this.list.length, done = this.unlocked.length;
+    const grand = this.list.filter(a => a.grand);
+    const grandDone = grand.filter(a => this.unlocked.includes(a.id)).length;
+    const cash = this.list.filter(a => this.unlocked.includes(a.id)).reduce((s, a) => s + (a.reward || 0), 0);
+
+    let h = `<div class="ach-top">
+      <div class="ach-stat"><span class="l">Unlocked</span><div class="v">${done}<span class="u"> / ${total}</span></div></div>
+      <div class="ach-stat"><span class="l">Grand Feats</span><div class="v">${grandDone}<span class="u"> / ${grand.length}</span></div></div>
+      <div class="ach-stat"><span class="l">Perks held</span><div class="v">${Perks.held.length}</div></div>
+      <div class="ach-stat"><span class="l">Earned from these</span><div class="v" style="font-size:15px">${money(cash)}</div></div>
+    </div>`;
+    h += `<div class="ach-track"><i style="width:${(done / total * 100).toFixed(1)}%"></i></div>`;
+
+    /* Perks in hand, stated plainly — a permanent bonus you cannot see is
+       the same as no bonus at all. */
+    if (Perks.held.length) {
+      h += `<h3>Perks in effect</h3><div class="ach-perks">`;
+      for (const id of Perks.held) {
+        const P = PERKS[id]; if (!P) continue;
+        h += `<div class="ach-perk"><b>${esc(P.name)}</b><span>${esc(P.note)}</span></div>`;
       }
-      const done = this.unlocked.includes(a.id);
-      h += `<div class="goal ${done ? 'done' : ''}">
-        <div class="gl"><span>${done ? '\u2713 ' : ''}${a.label}</span><b>${money(a.reward)}</b></div>
-        <div style="font-size:11px;color:var(--dim);margin-top:2px">${a.desc}</div></div>`;
+      h += `</div>`;
+    }
+
+    h += `<div class="chips" style="margin:14px 0 6px">` +
+      [['all', 'Everything', total], ['todo', 'Still to do', total - done], ['done', 'Unlocked', done],
+       ['grand', 'Grand Feats', grand.length]].map(([k, l, n]) =>
+        `<button class="chip ${this.filter === k ? 'on' : ''}" onclick="Achievements.setFilter('${k}')">${l} <b>${n}</b></button>`).join('') +
+      `</div>`;
+
+    const shown = this.list.filter(a => {
+      const u = this.unlocked.includes(a.id);
+      return this.filter === 'all' || (this.filter === 'todo' && !u)
+        || (this.filter === 'done' && u) || (this.filter === 'grand' && a.grand);
+    });
+    if (!shown.length) return h + `<div class="empty">Nothing here.</div>`;
+
+    /* Grand Feats get a card each, because they are the reason to keep
+       playing after the ordinary list is finished. */
+    const grandShown = shown.filter(a => a.grand);
+    const normal = shown.filter(a => !a.grand);
+    if (grandShown.length) {
+      h += `<h3>Grand Feats</h3>
+        <p style="margin-top:-4px">The long game. Each one is years of park away, and each leaves
+        something permanent behind rather than a one-off cheque.</p>`;
+      for (const a of grandShown) {
+        const u = this.unlocked.includes(a.id);
+        const pr = this.progressOf(a);
+        h += `<div class="ach-grand ${u ? 'done' : ''}">
+          <div class="ach-gh"><span class="ach-gt">${u ? '\u2713 ' : ''}${esc(a.label)}</span>
+            <span class="ach-gr">${this.rewardChips(a)}</span></div>
+          <div class="ach-gd">${esc(a.desc)}</div>
+          ${a.blurb ? `<div class="ach-gb">${esc(a.blurb)}</div>` : ''}
+          ${a.perk && PERKS[a.perk] ? `<div class="ach-gp"><b>${esc(PERKS[a.perk].name)}</b> \u2014 ${esc(PERKS[a.perk].note)}</div>` : ''}
+          ${(pr !== null && !u) ? `<div class="ach-track sm"><i style="width:${(pr * 100).toFixed(1)}%"></i></div>
+            <div class="ach-gn">${this.progressText(a)}</div>` : ''}
+        </div>`;
+      }
+    }
+    let lastCat = null;
+    for (const a of normal) {
+      const cat = a.cat || 'Park';
+      if (cat !== lastCat) { lastCat = cat; h += `<h3>${esc(cat)}</h3>`; }
+      const u = this.unlocked.includes(a.id);
+      h += `<div class="ach-row ${u ? 'done' : ''}">
+        <span class="ach-tick">${u ? '\u2713' : ''}</span>
+        <div style="flex:1 1 auto;min-width:0">
+          <div class="ach-name">${esc(a.label)}</div>
+          <div class="ach-desc">${esc(a.desc)}</div>
+        </div>
+        <span class="ach-rew">${this.rewardChips(a)}</span>
+      </div>`;
     }
     return h;
   }
@@ -17202,6 +17491,7 @@ const Prestige = {
     const good = net > 0 && Park.happiness > .62 && Park.rating > 400;
     let gain = good ? 2 : 1;
     const reasons = [good ? 'a great day' : 'a solid day'];
+    if (Perks.prestigePerDay()) { gain += Perks.prestigePerDay(); reasons.push('your standing'); }
     if (Park.ratingStars() >= 4.5) { gain += 1; reasons.push('a 4.5 star rating'); }
     if (Park.guests.length >= 1500) { gain += 1; reasons.push('a packed park'); }
     if (typeof Events !== 'undefined' && Events.running()) { gain += 1; reasons.push('an event running'); }
@@ -19890,7 +20180,7 @@ const Game = {
     Park.dailyLog.length = 0; Park._dayLogSnap = null;
     Finance.reset(); Marketing.active.length = 0; Thoughts.clear();
     Park.totalGuests = 0; Park.coasterCount = 0; Park.rating = 0; Park.happiness = .75; Achievements.unlocked = [];
-    Park.rp = 40; Park.rpTotal = 40; Research.reset(); Prestige.reset(); Infra.reset(); Events.active = null; Events.history.length = 0; Rivals.reset();
+    Park.rp = 40; Park.rpTotal = 40; Research.reset(); Prestige.reset(); Infra.reset(); Perks.reset(); Achievements.fiveStarDays = 0; Events.active = null; Events.history.length = 0; Rivals.reset();
     if (typeof Transit !== 'undefined') Transit.reset();
     Park.time = 9 * 60; Park.day = 1; Park.now = 0;
     Park.open = false; Park.openedOn = 0;
@@ -21589,13 +21879,13 @@ const Game = {
        Both are multipliers on the same regional demand, so a good event can
        carry you through a week when a rival has opened something. */
     const attract = (34 + Park.rating * .62 + Park.attractions().length * 6 + Park.marketing * 8 * (Park.marketingMult || 1) + Marketing.draw() * 42 * (Park.marketingMult || 1))
-      * Events.drawMult() * Rivals.drawMult() * Prestige.drawMult();
+      * Events.drawMult() * Rivals.drawMult() * Prestige.drawMult() * Perks.drawMult();
     /* Tourists have travelled to be here and will swallow a higher gate
        price than somebody who lives down the road and could come any day.
        Averaged over the origin mix rather than per person, because this is
        the arrival rate, not an individual decision. */
     const originTol = ORIGINS.reduce((a, o) => a + o.w * o.fee, 0) / ORIGINS.reduce((a, o) => a + o.w, 0);
-    const tol = (Park.gate ? Park.gate.feeTolerance() : 1) * originTol * Prestige.feeMult();
+    const tol = (Park.gate ? Park.gate.feeTolerance() : 1) * originTol * Prestige.feeMult() * Perks.feeMult();
     const feeFactor = clamp(1.45 - Park.entryFee / ((26 + Park.rating * .55) * tol * Events.feeMult()), .08, 1.7);
     /* A real gate has a shape to its day. A trickle when the doors open, a
        hard build through the late morning, the main peak around noon, a dip
@@ -21820,7 +22110,7 @@ const Game = {
     let upkeep = 0;
     for (const o of Park.objects) upkeep += (o.def.up || 0) * .6;
     for (const c of Park.coasters) upkeep += 18 + (c.track ? c.track.length * .04 : 0);
-    upkeep *= Infra.upkeepMult();     // the ring main pays for itself
+    upkeep *= Infra.upkeepMult() * Perks.upkeepMult();   // the ring main pays for itself
     Infra.hourTick();
     Park.money -= wages + upkeep;
     Park.log.wage += wages; Park.log.upkeep += upkeep;
@@ -21849,10 +22139,11 @@ const Game = {
     Prestige.awardForDay(income - expense);
     Events.dayTick();
     Rivals.dayTick();
+    Achievements.dayTick();
     // ---- Research points: a small daily trickle driven by how good a park
     // this actually is, so RP income grows as the park does instead of
     // being a flat tax-free allowance. ----
-    const rpGain = Math.round(1 + Park.rating / 140 + Park.attractions().length * .3);
+    const rpGain = Math.round((1 + Park.rating / 140 + Park.attractions().length * .3) * Perks.rpMult());
     Park.rp = (Park.rp || 0) + rpGain;
     Park.rpTotal = (Park.rpTotal || 0) + rpGain;
     if (Park.dailyLog.length > 720) Park.dailyLog.shift();
@@ -21979,7 +22270,7 @@ const Game = {
         log: Park.log, ach: Achievements.unlocked, rules: Park.rules || null,
         perItem: Game.perItemMenus === true,
         longB: Game.longBuilds !== false,
-        infra: Infra.levels,
+        infra: Infra.levels, perks: Perks.held.slice(), fiveStar: Achievements.fiveStarDays || 0,
         favs: UI.favs || {},
         ev: Events.active || null, evHist: Events.history.slice(-20),
         riv: Rivals.list.map(r => ({ id: r.id, rating: Math.round(r.rating) })),
@@ -22144,6 +22435,9 @@ const Game = {
       if (d.infra && typeof d.infra === 'object')
         for (const k in d.infra) if (Infra.def(k)) Infra.levels[k] = clamp(+d.infra[k] | 0, 0, 3);
       Infra._key = null;
+      Perks.reset();
+      if (Array.isArray(d.perks)) for (const k of d.perks) if (PERKS[k]) Perks.grant(k);
+      Achievements.fiveStarDays = +d.fiveStar || 0;
       for (const st of Park.staff) if (st.applyTraining) st.applyTraining();
       UI.favs = (d.favs && typeof d.favs === 'object') ? d.favs : {};
       /* Only restore an event that still exists in the catalogue, and drop
