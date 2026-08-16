@@ -3,10 +3,10 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
-<title>Planet Coaster — Park Architect</title>
+<title>Planet Park — Park Architect</title>
 <style>
 /* ============================================================
-   PLANET COASTER :: PARK ARCHITECT
+   PLANET PARK :: PARK ARCHITECT
    A single-file 3D theme park builder.
    Custom WebGL renderer, zero dependencies.
 
@@ -834,14 +834,44 @@ table.tb tr:last-child td{border-bottom:0}
 .mcard:active{transform:translateY(1px)}
 .mcard.off{opacity:.5;cursor:not-allowed;filter:grayscale(.5)}
 .mcard.off:hover{border-color:transparent;transform:none}
-.mcard .mart{width:100%;aspect-ratio:16/7;position:relative;overflow:hidden;background:#0f2a3d}
-.mcard .mart img{width:100%;height:100%;object-fit:cover;display:block}
-.mcard.small .mart{aspect-ratio:16/10}
-.mcard .mlabel{position:absolute;left:0;right:0;bottom:0;display:flex;align-items:center;gap:8px;
-  padding:10px 14px;background:linear-gradient(0deg,rgba(6,20,32,.88),rgba(6,20,32,0));
-  font-size:14px;font-weight:800;color:#fff}
-.mcard.small .mlabel{font-size:12.5px;padding:9px 12px}
-.mcard .mlabel .ic{width:15px;height:15px;flex:0 0 auto}
+/* Launcher buttons. No photographs and no screenshots: each mode gets its
+   own colour, its own line motif drawn in SVG, and its own way of moving on
+   hover, so they are told apart by design rather than by a picture pasted
+   behind the text. */
+.mcard.mode{padding:0;isolation:isolate}
+.mcard.mode .mbody{position:relative;z-index:2;display:flex;align-items:center;gap:12px;
+  padding:20px 18px;color:#fff}
+.mcard.small.mode .mbody{padding:15px 15px}
+.mcard.mode .ic{width:22px;height:22px;flex:0 0 auto;opacity:.95}
+.mcard.small.mode .ic{width:18px;height:18px}
+.mcard.mode .mtxt{display:flex;flex-direction:column;gap:2px;min-width:0;flex:1 1 auto}
+.mcard.mode .mtxt b{font-size:16px;font-weight:800;letter-spacing:.01em}
+.mcard.small.mode .mtxt b{font-size:13.5px}
+.mcard.mode .mtxt i{font-style:normal;font-size:10.5px;font-weight:600;color:rgba(255,255,255,.72);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mcard.mode .marrow{font-size:26px;line-height:1;opacity:.4;transform:translateX(0);
+  transition:transform var(--sn),opacity var(--sn)}
+.mcard.mode:hover .marrow{opacity:.95;transform:translateX(5px)}
+/* the motif: a single line drawing bled off the right edge, tinted per mode */
+.mcard.mode .mmotif{position:absolute;inset:0 -4% 0 auto;width:62%;z-index:1;
+  display:block;pointer-events:none;opacity:.30;
+  transition:opacity var(--sn),transform var(--sn)}
+.mcard.mode .mmotif svg{width:100%;height:100%;display:block}
+.mcard.mode:hover .mmotif{opacity:.52;transform:translateX(-5px) scale(1.04)}
+/* the glow: a soft wash that sweeps across on hover */
+.mcard.mode .mglow{position:absolute;inset:0;z-index:0;
+  background:linear-gradient(115deg,rgba(255,255,255,0) 32%,rgba(255,255,255,.16) 48%,rgba(255,255,255,0) 64%);
+  transform:translateX(-105%);transition:transform .62s cubic-bezier(.22,.9,.28,1)}
+.mcard.mode:hover .mglow{transform:translateX(105%)}
+.mcard.mode.career{background:linear-gradient(135deg,#1b4f78,#0e2f4b 62%,#12496e);color:#7fd0ff}
+.mcard.mode.franchise{background:linear-gradient(135deg,#4a2f72,#241540 64%,#3d2a63);color:#c4a2ff}
+.mcard.mode.sandbox{background:linear-gradient(135deg,#1c6b52,#0e3730 62%,#17604c);color:#7fe6b4}
+.mcard.mode.cont{background:linear-gradient(135deg,#7a4a1c,#3d2410 64%,#6b4118);color:#ffc98a}
+.mcard.mode.career:hover{border-color:#7fd0ff;box-shadow:0 12px 30px rgba(20,90,140,.5)}
+.mcard.mode.franchise:hover{border-color:#c4a2ff;box-shadow:0 12px 30px rgba(80,45,140,.5)}
+.mcard.mode.sandbox:hover{border-color:#7fe6b4;box-shadow:0 12px 30px rgba(20,110,80,.5)}
+.mcard.mode.cont:hover{border-color:#ffc98a;box-shadow:0 12px 30px rgba(130,80,25,.5)}
+.mcard.mode.off .mmotif{opacity:.14}
 .mrow2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .mcards.picking{gap:14px}
 .mcard.pickcard{background:rgba(255,255,255,.95);color:var(--txt);padding:20px;border-radius:18px}
@@ -974,7 +1004,7 @@ table.tb tr:last-child td{border-bottom:0}
 <div id="signLabels" style="position:fixed;inset:0;pointer-events:none;z-index:5;overflow:hidden"></div>
 
 <div id="boot">
-  <h1>Planet Coaster</h1>
+  <h1>Planet Park</h1>
   <div class="sub">Park Architect Edition</div>
   <div class="bar"><div class="bfill" id="bootBar"></div></div>
   <div class="msg" id="bootMsg">initialising renderer…</div>
@@ -992,7 +1022,7 @@ table.tb tr:last-child td{border-bottom:0}
         <path d="M8 96 C 8 40, 34 16, 60 16 S 112 40, 112 96"/>
         <path d="M22 96 C 22 52, 40 32, 60 32 S 98 52, 98 96"/>
       </svg>
-      <div class="mbrand-txt">PLANET COASTER <b>2</b></div>
+      <div class="mbrand-txt">PLANET <b>PARK</b></div>
     </div>
     <div class="micons">
       <div class="micon" title="Settings" onclick="UI.toggleSettings && UI.toggleSettings(true)"><span data-ic="gear"></span></div>
@@ -1014,23 +1044,67 @@ table.tb tr:last-child td{border-bottom:0}
       <div class="msection-desc" id="mSectionDesc">Manage an array of unique theme parks and water parks as you dive into increasingly challenging scenarios!</div>
 
       <div id="mMain" class="mcards">
-        <div class="mcard" id="mCareer">
-          <div class="mart"><img id="martCareer" alt=""></div>
-          <div class="mlabel"><span class="ic" data-ic="briefcase"></span>Career</div>
+        <div class="mcard mode career" id="mCareer">
+          <span class="mglow"></span>
+          <span class="mmotif" aria-hidden="true">
+            <svg viewBox="0 0 120 46" preserveAspectRatio="none">
+              <path d="M2 44 C 18 44 20 8 40 8 C 60 8 60 40 78 40 C 94 40 96 18 118 18"
+                    fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round"/>
+              <path d="M12 44 L12 30 M30 44 L30 22 M52 44 L52 24 M74 44 L74 34 M98 44 L98 26"
+                    stroke="currentColor" stroke-width="2" stroke-linecap="round" opacity=".55"/>
+            </svg>
+          </span>
+          <div class="mbody">
+            <span class="ic" data-ic="briefcase"></span>
+            <span class="mtxt"><b>Career</b><i>Scenarios with targets to hit</i></span>
+            <span class="marrow">&rsaquo;</span>
+          </div>
         </div>
         <div class="mrow2">
-          <div class="mcard small" id="mFranchise">
-            <div class="mart"><img id="martFranchise" alt=""></div>
-            <div class="mlabel"><span class="ic" data-ic="gear"></span>Franchise</div>
+          <div class="mcard small mode franchise" id="mFranchise">
+            <span class="mglow"></span>
+            <span class="mmotif" aria-hidden="true">
+              <svg viewBox="0 0 120 46" preserveAspectRatio="none">
+                <circle cx="30" cy="24" r="11" fill="none" stroke="currentColor" stroke-width="3"/>
+                <circle cx="70" cy="16" r="7" fill="none" stroke="currentColor" stroke-width="3" opacity=".7"/>
+                <circle cx="94" cy="32" r="9" fill="none" stroke="currentColor" stroke-width="3" opacity=".5"/>
+                <path d="M41 24 L63 17 M77 19 L88 28" stroke="currentColor" stroke-width="2.4" opacity=".55"/>
+              </svg>
+            </span>
+            <div class="mbody">
+              <span class="ic" data-ic="gear"></span>
+              <span class="mtxt"><b>Franchise</b><i>Run a chain of parks</i></span>
+            </div>
           </div>
-          <div class="mcard small" id="mSandbox">
-            <div class="mart"><img id="martSandbox" alt=""></div>
-            <div class="mlabel"><span class="ic" data-ic="star"></span>Sandbox</div>
+          <div class="mcard small mode sandbox" id="mSandbox">
+            <span class="mglow"></span>
+            <span class="mmotif" aria-hidden="true">
+              <svg viewBox="0 0 120 46" preserveAspectRatio="none">
+                <path d="M60 6 L68 22 L86 24 L72 35 L77 43 L60 34 L43 43 L48 35 L34 24 L52 22 Z"
+                      fill="none" stroke="currentColor" stroke-width="3" stroke-linejoin="round"/>
+                <path d="M14 12 L18 20 M104 14 L100 22" stroke="currentColor" stroke-width="2.4"
+                      stroke-linecap="round" opacity=".6"/>
+              </svg>
+            </span>
+            <div class="mbody">
+              <span class="ic" data-ic="star"></span>
+              <span class="mtxt"><b>Sandbox</b><i>No limits, no money</i></span>
+            </div>
           </div>
         </div>
-        <div class="mcard small" id="mContinue">
-          <div class="mart"><img id="martContinue" alt=""></div>
-          <div class="mlabel"><span class="ic" data-ic="clock"></span>Continue &mdash; <span id="mContDesc">no saved park found</span></div>
+        <div class="mcard small mode cont" id="mContinue">
+          <span class="mglow"></span>
+          <span class="mmotif" aria-hidden="true">
+            <svg viewBox="0 0 120 46" preserveAspectRatio="none">
+              <circle cx="60" cy="23" r="15" fill="none" stroke="currentColor" stroke-width="3"/>
+              <path d="M60 14 L60 23 L67 28" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+            </svg>
+          </span>
+          <div class="mbody">
+            <span class="ic" data-ic="clock"></span>
+            <span class="mtxt"><b>Continue</b><i id="mContDesc">no saved park found</i></span>
+            <span class="marrow">&rsaquo;</span>
+          </div>
         </div>
       </div>
 
@@ -1108,7 +1182,7 @@ table.tb tr:last-child td{border-bottom:0}
         <div class="in-presents">presents</div>
       </div>
       <div class="in-title">
-        <div class="in-t1">Planet Coaster</div>
+        <div class="in-t1">Planet Park</div>
         <div class="in-t2">Park Architect</div>
       </div>
     </div>
@@ -2760,20 +2834,62 @@ const WORLD = {
             g.box(cx, y - .02, cz, di ? .24 : TILE, .16, dj ? .24 : TILE, kc);
           }
         }
-        // road markings: a dashed centre line running the long axis of a
-        // straight road run, so painted roads actually read as roads
+        /* Road markings. The old pass painted one short dash on tiles that
+           had road on exactly one axis, which meant a road more than a
+           single tile wide — every road in the game, including the one the
+           park ships with — got no markings at all and read as grey paving.
+
+           Now each road tile works out which way the carriageway runs by
+           counting road neighbours on each axis, then paints:
+             · a solid white edge line on any side facing off the road,
+             · a dashed white lane line down the middle of the run,
+             · and nothing at all on junction tiles, which is what a real
+               junction looks like from above. */
         if (isRoad) {
-          const y = Math.max(y00, y10, y01, y11) + .015;
+          /* Same clearance as the car-park markings, and for the same
+             reason: paint laid flush with the road stipples away. */
+          const y = Math.max(y00, y10, y01, y11) + .07;
           const cx = (i - N / 2) * TILE + TILE / 2, cz = (j - N / 2) * TILE + TILE / 2;
-          const roadE = this.t(i + 1, j) === T_PATH && this.mat[j * N + i + 1] === 5;
-          const roadW = this.t(i - 1, j) === T_PATH && this.mat[j * N + i - 1] === 5;
-          const roadN = this.t(i, j - 1) === T_PATH && this.mat[(j - 1) * N + i] === 5;
-          const roadS = this.t(i, j + 1) === T_PATH && this.mat[(j + 1) * N + i] === 5;
-          const horiz = (roadE || roadW) && !(roadN || roadS);
-          const vert = (roadN || roadS) && !(roadE || roadW);
-          const dash = hex(0xdcd6b8);
-          if (horiz && (i % 2 === 0)) g.box(cx, y, cz, TILE * .5, .02, .1, dash);
-          else if (vert && (j % 2 === 0)) g.box(cx, y, cz, .1, .02, TILE * .5, dash);
+          const isR = (ii, jj) => WORLD.inb(ii, jj) && this.t(ii, jj) === T_PATH && this.mat[jj * N + ii] === 5;
+          /* How far the road continues each way, capped. A single-tile
+             neighbour test cannot tell a four-lane straight from a
+             crossroads — both have road on all four sides — which is why
+             every road wider than one tile came out unpainted. Measuring the
+             run settles it: the long axis is the carriageway, and only a
+             tile with long runs BOTH ways is really a junction. */
+          const run = (di, dj) => { let n = 0; while (n < 9 && isR(i + di * (n + 1), j + dj * (n + 1))) n++; return n; };
+          const rE = run(1, 0), rW = run(-1, 0), rN = run(0, -1), rS = run(0, 1);
+          const runX = rE + rW, runZ = rN + rS;
+          const paint = hex(0xe8e4d4);
+          const H = TILE / 2, T2 = .2;
+          const junction = runX >= 2 && runZ >= 2 && Math.abs(runX - runZ) <= 1;
+          if (junction) {
+            /* Only the corners facing away from the road get a kerb line, so
+               the box stays open where traffic crosses. */
+            if (!rN && !rW) g.box(cx - H + .8, y, cz - H + .04, 1.6, .04, T2, paint);
+            if (!rN && !rE) g.box(cx + H - .8, y, cz - H + .04, 1.6, .04, T2, paint);
+            if (!rS && !rW) g.box(cx - H + .8, y, cz + H - .04, 1.6, .04, T2, paint);
+            if (!rS && !rE) g.box(cx + H - .8, y, cz + H - .04, 1.6, .04, T2, paint);
+          } else if (runX > runZ) {
+            // carriageway runs east-west; its width is the north-south span
+            if (!rN) g.box(cx, y, cz - H + .04, TILE, .04, T2, paint);
+            if (!rS) g.box(cx, y, cz + H - .04, TILE, .04, T2, paint);
+            /* The centre line goes down the middle of the width: through this
+               tile when the lanes either side are balanced, along its south
+               edge when the carriageway is an even number of tiles wide. */
+            if ((i & 1) === 0) {
+              if (rN === rS) g.box(cx, y, cz, TILE * .55, .04, .16, paint);
+              else if (rS === rN + 1) g.box(cx, y, cz + H, TILE * .55, .04, .16, paint);
+            }
+          } else {
+            // carriageway runs north-south
+            if (!rW) g.box(cx - H + .04, y, cz, T2, .04, TILE, paint);
+            if (!rE) g.box(cx + H - .04, y, cz, T2, .04, TILE, paint);
+            if ((j & 1) === 0) {
+              if (rW === rE) g.box(cx, y, cz, .16, .04, TILE * .55, paint);
+              else if (rE === rW + 1) g.box(cx + H, y, cz, .16, .04, TILE * .55, paint);
+            }
+          }
         }
         // dead-end caps: a stub of path/road with only one connected
         // neighbour gets a rounded end instead of a square-cut edge
@@ -3241,6 +3357,47 @@ for (const gk of Object.keys(GENRES)) {
    own dedicated panel. NOTE the discriminator is `price`, not `need` —
    First Aid's need is 'nausea' and the ATM's is 'cash', so matching on need
    silently misses them. */
+/* Parking expansions. Each step is a visible build-out — more tarmac, more
+   rows, several hundred more bays — because "expand the car park" should
+   feel like the infrastructure project it is, not a +65% multiplier. */
+/* Row centre lines for a lot of depth D, in local z. Rows come in
+   back-to-back pairs with a driving aisle between each pair; the mesh paints
+   the bay lines here and Parking.layout puts cars on the same numbers, so
+   the two can never drift apart. */
+function PARK_ROWS(D) {
+  const pairs = Math.max(1, Math.floor((D - 6) / 11) + 1);
+  const out = [];
+  const span = D - 5;
+  for (let p = 0; p < pairs; p++) {
+    const cz = -span / 2 + span * (pairs === 1 ? .5 : p / (pairs - 1));
+    out.push(cz - 1.7, cz + 1.7);
+  }
+  return out;
+}
+/* Bay width, and the number of bays in a row, for a lot of width W. One
+   definition, used by the mesh that paints the lines and by the simulation
+   that parks cars between them — when these two disagreed, cars sat halfway
+   across the markings with great empty gaps between them. */
+const PARK_BAY_W = 2.6;
+function PARK_PER_ROW(W) { return Math.max(3, Math.floor((W - 2) / PARK_BAY_W)); }
+/* Every painted bay on the lot, in local coordinates, ordered row by row. */
+function PARK_BAYS(W, D) {
+  const rows = PARK_ROWS(D), perRow = PARK_PER_ROW(W), bw = (W - 2) / perRow;
+  const out = [];
+  for (let r = 0; r < rows.length; r++)
+    for (let k = 0; k < perRow; k++)
+      out.push({ x: -W / 2 + 1 + (k + .5) * bw, z: rows[r], row: r });
+  return out;
+}
+
+const PARKING_TIERS = [
+  null,
+  { w: 20, d: 11, spaces: 260 },
+  { w: 28, d: 15, spaces: 620 },
+  { w: 38, d: 19, spaces: 1180 },
+  { w: 48, d: 24, spaces: 2000 },
+];
+
 const isFreeFacility = (def) => !!def && !def.price && !def.nightly && def.need !== 'parking';
 
 /* --------------------------------------------------------------------------
@@ -3332,7 +3489,11 @@ const CAT = {
     /* prebuilt: every park starts with this one, standing on the approach
        road south of the gate. It is not in the build menu — you expand the
        one you have rather than scattering car parks around the site. */
-    { id: 'parkinglot', name: 'Parking Lot', cost: 8000, up: 20, w: 8, d: 5, need: 'parking', price: 0, satisfy: 0, spaces: 40, prebuilt: true, color: 0x6b6b6d, roof: 0x3a3a3c },
+    /* Sized for a real park rather than a token car park: a site expecting
+       thousands of guests a day needs hundreds of bays, not forty. Each
+       expansion grows the tarmac itself (see PARKING_TIERS) rather than
+       quietly raising a number on a panel. */
+    { id: 'parkinglot', name: 'Parking Lot', cost: 8000, up: 20, w: 20, d: 11, need: 'parking', price: 0, satisfy: 0, spaces: 260, prebuilt: true, color: 0x6b6b6d, roof: 0x3a3a3c },
     { id: 'breakroom', name: 'Staff Break Room', cost: 3200, up: 14, w: 2, d: 2, need: 'break', price: 0, satisfy: 0, color: 0x6b8f9e, roof: 0x3a3a3c },
     { id: 'toilet', name: 'Restrooms', cost: 900, up: 20, w: 2, d: 2, need: 'toilet', price: 0, satisfy: 100, color: 0x8fa3b8, roof: 0x4d6480 },
     { id: 'gift', name: 'Gift Shop', cost: 2000, up: 30, w: 2, d: 2, need: 'shop', price: 18, satisfy: 55, color: 0x7b5bd4, roof: 0xffd76a },
@@ -3918,26 +4079,64 @@ const Prefab = {
       // A real lot: painted bays, a booth, and rows of parked cars — plus a
       // short access-road stub leading off the back edge toward the map
       // boundary, since a parking lot with no road in is just a field.
-      const asphalt = hex(0x4a4a4c), line = hex(0xdcd6b8);
+      const asphalt = hex(0x4a4a4c), line = hex(0xdcd6b8), kerb = hex(0xb8b4ac);
       g.box(0, -.05, 0, W + .3, .12, D + .3, asphalt);
-      const rows = 2, perRow = Math.max(3, Math.floor((W - 1) / 1.4));
-      for (let row = 0; row < rows; row++) {
-        const rz = -D / 2 + D * (row === 0 ? .28 : .72);
+      /* Rows scale with the depth of the lot, so an expansion reads as more
+         parking rather than the same two rows stretched thinner. Rows are
+         paired back-to-back with a driving aisle between each pair, which is
+         how a real lot is laid out and what Parking.rowsFor mirrors so cars
+         park between the lines rather than on them. */
+      const rowZ = PARK_ROWS(D);
+      const perRow = PARK_PER_ROW(W);
+      const bayW = (W - 2) / perRow;
+      /* Complete bay markings. Rows come back-to-back in pairs, so each
+         divider is one unbroken line running the full depth of both bays,
+         with a solid line down the join and a head line closing each row —
+         a painted grid you can count, not a scatter of dashes. */
+      for (let r = 0; r < rowZ.length; r += 2) {
+        const zA = rowZ[r], zB = rowZ[Math.min(r + 1, rowZ.length - 1)];
+        const pairMid = (zA + zB) / 2, halfDepth = Math.abs(zB - zA) / 2 + 2.6;
+        /* Markings sit a clear 8cm proud of the tarmac. At 3cm they fought
+           with the surface under the depth-based shading pass and came out
+           as a faint dotted stipple instead of painted lines. */
         for (let k = 0; k <= perRow; k++) {
-          const bx = -W / 2 + 1 + k * (W - 2) / perRow;
-          g.box(bx, .02, rz - 1.5, .06, .02, 3, line);
+          const bx = -W / 2 + 1 + k * bayW;
+          g.box(bx, .08, pairMid, .22, .04, halfDepth * 2, line);
+        }
+        g.box(0, .085, pairMid, W - 2, .045, .26, line);                // the join
+        g.box(0, .08, pairMid - halfDepth, W - 2, .04, .26, line);      // head lines
+        g.box(0, .08, pairMid + halfDepth, W - 2, .04, .26, line);
+      }
+      /* Kerbed islands in the driving aisle between each pair. Lamps are
+         spaced by distance rather than by count — one every twenty metres
+         or so — and only on every second island, which is what stops a big
+         lot turning into a forest of poles. */
+      for (let r = 1, isle = 0; r + 1 < rowZ.length; r += 2, isle++) {
+        const mz = (rowZ[r] + rowZ[r + 1]) / 2;
+        g.box(0, .0, mz, W - 3, .22, .7, kerb);
+        if (isle % 2) continue;
+        const lamps = Math.max(1, Math.round((W - 4) / 20));
+        for (let k = 0; k < lamps; k++) {
+          const lx = -W / 2 + 2 + (k + .5) * (W - 4) / lamps;
+          g.cyl(lx, .2, mz, .12, 5.2, 6, shade(hex(0x5a5f66), 1));
+          g.box(lx, 5.4, mz, 1.0, .24, .34, shade(hex(0x5a5f66), 1.1));
+          g.box(lx, 5.26, mz, .9, .14, .28, hex(0xfff0b8));
         }
       }
       // access road stub off the far (-Z) edge, styled like the paintable
       // Road material — this is what a player then extends out to the
       // park boundary with the Road tool
-      g.box(0, -.02, -D / 2 - 2.5, 3.2, .1, 5, hex(0x4a4a4c));
-      g.box(-1.5, -.005, -D / 2 - 2.5, .1, .05, 5, hex(0xd7d3c8));
-      g.box(1.5, -.005, -D / 2 - 2.5, .1, .05, 5, hex(0xd7d3c8));
-      // small attendant booth by the entrance
-      g.box(W / 2 - 1.2, .3, -D / 2 + .8, 1.1, 1.5, 1.1, wall);
-      g.box(W / 2 - 1.2, 1.05, -D / 2 + .8, 1.3, .18, 1.3, shade(roof, 1.05));
-      this.shopEmblem(g, def, W / 2 - 1.2, 1.4, -D / 2 + .8);
+      g.box(0, -.02, -D / 2 - 2.5, 6.4, .1, 5, hex(0x4a4a4c));
+      g.box(-3.1, -.005, -D / 2 - 2.5, .12, .05, 5, hex(0xd7d3c8));
+      g.box(3.1, -.005, -D / 2 - 2.5, .12, .05, 5, hex(0xd7d3c8));
+      for (let k = -2; k <= 2; k++) g.box(0, -.005, -D / 2 - 2.5 + k * 1.1, .12, .05, .55, hex(0xdcd6b8));
+      // attendant booth with a barrier arm at the entrance
+      g.box(W / 2 - 1.2, .3, -D / 2 + .8, 1.1, 1.8, 1.1, wall);
+      g.box(W / 2 - 1.2, 1.35, -D / 2 + .8, 1.4, .2, 1.4, shade(roof, 1.05));
+      g.box(W / 2 - 1.2, .95, -D / 2 + .26, .9, .55, .06, hex(0xcfe9f5));
+      g.box(W / 2 - 2.0, .55, -D / 2 + .8, 1.6, .12, .12, hex(0xd94f3c));
+      g.box(W / 2 - 2.8, .3, -D / 2 + .8, .16, .7, .16, shade(hex(0x5a5f66), 1));
+      this.shopEmblem(g, def, W / 2 - 1.2, 1.7, -D / 2 + .8);
       /* No cars are baked into the mesh. The lot used to carry a fixed set
          of parked cars so it never looked empty, but real traffic now drives
          in, takes a numbered bay and leaves again — painting cars into the
@@ -6957,6 +7156,32 @@ class ParkObject {
        appeal, for money and a slice of its upkeep. */
     this.tier = 1;
   }
+  /* Grow (or shrink) the tiles a building stands on, keeping its centre put
+     so it expands outward in every direction rather than crawling across the
+     map with each upgrade. Only the car park uses this — everything else has
+     a fixed footprint — but it is written generally because the ownership
+     bookkeeping is the fiddly part and is worth having in one place. */
+  resizeFootprint(nw, nd) {
+    /* Release the old tiles first; a tile still marked as ours would block
+       the very flatten and re-claim we are about to do. */
+    this.footprint((ii, jj) => WORLD.setOwn(ii, jj, -1));
+    const ci = this.i + (this.gw - 1) / 2, cj = this.j + (this.gd - 1) / 2;
+    this.w = nw; this.d = nd;
+    const rotated = (this.rot % 2) === 1;
+    this.gw = rotated ? nd : nw;
+    this.gd = rotated ? nw : nd;
+    /* Keep it inside the world, or the far edge of a big lot walks off the
+       map and its tiles silently vanish. */
+    this.i = clamp(Math.round(ci - (this.gw - 1) / 2), 0, N - this.gw);
+    this.j = clamp(Math.round(cj - (this.gd - 1) / 2), 0, N - this.gd);
+    this.x = WORLD.wx(this.i) + (this.gw - 1) * TILE / 2;
+    this.z = WORLD.wz(this.j) + (this.gd - 1) * TILE / 2;
+    WORLD.flatten(this.i, this.j, this.gw, this.gd, this.y);
+    this.footprint((ii, jj) => { WORLD.setT(ii, jj, T_BUILD); WORLD.setOwn(ii, jj, this.id); });
+    this.updateMatrix();
+    this.mesh = null;                       // rebuilt at the new size
+    WORLD.dirty = true; Path.dirty = true;
+  }
   upgradeCost() { return Math.round((this.def.cost || 1000) * (this.tier === 1 ? .55 : this.tier === 2 ? .95 : 1.7)); }
   /* Only things that are operated can be refurbished. Scenery has no wear,
      no throughput and no reliability, so there is nothing to refurbish. */
@@ -6986,8 +7211,19 @@ class ParkObject {
       this.upsell = (t - 1) * .13;
       this.wasteMul = 1 - (t - 1) * .14;
       if (this.def.need === 'parking') {
-        if (this._baseSpaces === undefined) this._baseSpaces = this.def.spaces || 40;
-        this.spaces = Math.round(this._baseSpaces * (1 + (t - 1) * .65));
+        /* The lot physically grows: the tier table is the authority on both
+           its footprint and its bay count, so an expansion you paid for is
+           an expansion you can see from the gate. */
+        const spec = PARKING_TIERS[clamp(t, 1, 4)];
+        this.spaces = spec.spaces;
+        if (this.w !== spec.w || this.d !== spec.d) {
+          this.resizeFootprint(spec.w, spec.d);
+          /* The access road has to follow the tarmac — a lot that grew ten
+             tiles south would otherwise leave its road hanging in the air
+             short of the new entrance. Re-laying it here covers expansion
+             and loading a save alike. */
+          if (typeof Parking !== 'undefined' && Parking.lot === this) { Parking.layRoads(); Parking.layout(); }
+        }
       }
     }
   }
@@ -11008,7 +11244,7 @@ const UI = {
     if (after) requestAnimationFrame(() => after());
   },
 
-  /* --------- full ride analysis, Planet Coaster style --------- */
+  /* --------- full ride analysis --------- */
   ratingWord(kind, v) {
     const scales = {
       exc: [[2, 'Dull'], [4, 'Mild'], [6, 'Fun'], [8, 'Exciting'], [10, 'Thrilling'], [99, 'Legendary']],
@@ -12206,8 +12442,12 @@ const UI = {
       h += kv('Cars parked right now', used);
       h += kv('Cars served today', Parking.served);
       h += kv('Turned away — lot full', Parking.turnedAway);
-      h += kv('Parking spaces', o.spaces || o.def.spaces);
-      h += kv('Adds to park capacity', '+' + Math.round((o.spaces || o.def.spaces) * 1.6) + ' guests');
+      h += kv('Parking spaces', (o.spaces || o.def.spaces).toLocaleString());
+      h += kv('Size', o.w + ' × ' + o.d + ' tiles');
+      h += kv('Adds to park capacity', '+' + Math.round((o.spaces || o.def.spaces) * 1.6).toLocaleString() + ' guests');
+      h += `<div style="font-size:10.5px;color:var(--dim)">Bays in use counts the marked bays on the tarmac. The
+        ${(o.spaces || o.def.spaces).toLocaleString()} figure above includes coach and overflow parking off to the side, which is what
+        feeds park capacity.</div>`;
       h += kv('Upkeep', money((o.def.up || 0) * .6) + ' / hr');
       h += `<div class="cat">Charge</div>`;
       h += `<div class="row"><label>Per car</label>
@@ -12220,7 +12460,12 @@ const UI = {
         <b>${Parking.turnedAway}</b> car(s) have been turned away because every bay was taken — expand the lot to catch them.</div>`;
       h += `<div style="font-size:10.5px;color:var(--dim);margin-top:4px">This is your park's only car park and it came with the
         site, already joined to the entrance by the access road. Expanding it adds bays, capacity and kerb space.</div>`;
-      if (o.canUpgrade()) h += `<div class="btnrow"><button class="btn go" onclick="Park.objects.find(x=>x.id===${o.id}).upgrade();Parking.layout();UI.inspect(Park.objects.find(x=>x.id===${o.id}))">Expand — ${money(o.upgradeCost())}</button></div>`;
+      if (o.canUpgrade()) {
+        const nxt = PARKING_TIERS[o.tier + 1];
+        h += `<div style="font-size:10.5px;color:var(--dim);margin-top:6px">Next expansion: <b>${nxt.w} × ${nxt.d} tiles</b>,
+          <b>${nxt.spaces.toLocaleString()} spaces</b> — ${(nxt.spaces - (o.spaces || 0)).toLocaleString()} more than now.</div>`;
+        h += `<div class="btnrow"><button class="btn go" onclick="Park.objects.find(x=>x.id===${o.id}).upgrade();Parking.layout();UI.inspect(Park.objects.find(x=>x.id===${o.id}))">Expand — ${money(o.upgradeCost())}</button></div>`;
+      }
       else h += `<div style="font-size:10.5px;color:var(--good);margin-top:4px">Fully expanded.</div>`;
       h += `<div class="btnrow"><button class="btn" onclick="Game.autoConnect(Park.objects.find(x=>x.id===${o.id}))">Reconnect path</button></div>`;
     }
@@ -14859,8 +15104,10 @@ const PF = {
       return o.kind === 'shop' ? this.shop(o.def) : this.ride(o.def);
     }
     const key = (o.kind === 'shop' ? 'shopL_' : 'rideL_') + o.def.id + '_' + ((L && L.main) | 0) + '_' + ((L && L.roof) | 0) + '_t' + tv;
+    /* The car park's footprint grows with its tier, so the mesh is built to
+       the object's live size rather than the catalogue entry's. */
     const def = Object.assign({}, o.def,
-      { tierLv: tv || 1,
+      { tierLv: tv || 1, w: o.w, d: o.d,
         color: L && L.main !== undefined ? L.main : o.def.color, roof: L && L.roof !== undefined ? L.roof : o.def.roof });
     return this.get(key, () => o.kind === 'shop' ? Prefab.shop(def) : Prefab.ride(def.kind, def));
   },
@@ -15871,10 +16118,8 @@ const Menu = {
      running renderer and embedded as data URIs — the launcher art is the
      game, not a mock-up of it. */
   paintArt() {
-    document.getElementById('martCareer').src = CARD_ART.career;
-    document.getElementById('martFranchise').src = CARD_ART.franchise;
-    document.getElementById('martSandbox').src = CARD_ART.sandbox;
-    document.getElementById('martContinue').src = CARD_ART.continue_;
+    /* The launcher buttons are drawn in CSS and SVG now — there are no card
+       images left to fill in. CARD_ART is still used by the update card. */
     this.paintGlobe();
     this.paintUpdateCard();
   },
@@ -16985,21 +17230,34 @@ const Parking = {
   build(gateI, gateJ) {
     const def = CAT.shops.find(s => s.id === 'parkinglot');
     if (!def) return;
-    // centred under the gate, a few tiles further from the park
-    const li = gateI + 5 - (def.w >> 1), lj = gateJ + 7;
+    this.gateI = gateI; this.gateJ = gateJ;
+    /* Set back far enough that the largest expansion still has room between
+       the tarmac and the gate apron — a lot that grows into the entrance
+       plaza would eat the very path it is meant to feed. */
+    const li = gateI - (def.w >> 1), lj = gateJ + 16;
     const o = new Shop(def, li, lj, 0);
     o.y = WORLD.tileH(li, lj);
     WORLD.flatten(li, lj, def.w, def.d, o.y);
     o.buildT = 1; o.updateMatrix();
     Park.addObject(o);
     this.lot = o;
+    this.layRoads();
+    this.layout();
+  },
 
-    /* The access road: north from the lot to the gate apron, so arriving
-       cars have something to drive on and the lot is visibly connected
-       rather than stranded on the grass. */
-    const roadI = gateI + 5;
-    for (let j = lj - 1; j >= gateJ + 3; j--) {
-      for (const di of [-1, 0, 1]) {
+  /* The access road, re-laid whenever the lot changes size: north from the
+     tarmac to the gate apron so arriving cars have something to drive on,
+     and south off the map edge so traffic reads as coming from outside. Four
+     lanes wide, because a single-tile ribbon feeding a lot this size looked
+     like a farm track. */
+  layRoads() {
+    const o = this.lot; if (!o) return;
+    const gateI = this.gateI, gateJ = this.gateJ;
+    if (gateI === undefined) return;
+    const roadI = o.i + (o.gw >> 1);
+    const lanes = [-2, -1, 0, 1];
+    for (let j = o.j - 1; j >= gateJ + 3; j--) {
+      for (const di of lanes) {
         const i = roadI + di;
         if (!WORLD.inb(i, j)) continue;
         if (WORLD.t(i, j) === T_BUILD || WORLD.t(i, j) === T_ENTRY) continue;
@@ -17007,39 +17265,35 @@ const Parking = {
         WORLD.mat[j * N + i] = 5;                 // material 5 is road
       }
     }
-    // and southward off the map edge, so traffic reads as coming from outside
-    for (let j = lj + def.d; j < Math.min(N, lj + def.d + 14); j++) {
-      for (const di of [-1, 0, 1]) {
+    for (let j = o.j + o.gd; j < Math.min(N, o.j + o.gd + 16); j++) {
+      for (const di of lanes) {
         const i = roadI + di;
         if (WORLD.inb(i, j)) { WORLD.setT(i, j, T_PATH); WORLD.mat[j * N + i] = 5; }
       }
     }
-    this.roadZ = WORLD.wz(lj + def.d + 12);
+    this.roadZ = WORLD.wz(o.j + o.gd + 14);
     this.roadX = WORLD.wx(roadI);
     WORLD.dirty = true; Path.dirty = true;
-    this.layout();
   },
 
   /* Recompute bay positions. Called whenever the lot is expanded. */
   /* Bay centres, matched to the two rows of bay markings the lot's mesh
      paints so a parked car lands between the lines rather than near them. */
+  /* Bays are exactly the bays the mesh paints, so a parked car always sits
+     square between two lines. Which of them are occupied is a separate
+     question — see MAX_CARS. */
   layout() {
     this.bays.length = 0;
     const o = this.lot; if (!o) return;
-    const W = o.def.w * TILE, D = o.def.d * TILE;
-    const cap = this.capacity();
-    const rows = 2;                                   // the mesh paints two
-    const perRow = Math.ceil(cap / rows);
-    for (let r = 0; r < rows; r++) {
-      const rz = o.z - D / 2 + D * (r === 0 ? .28 : .72);
-      for (let k = 0; k < perRow; k++) {
-        if (this.bays.length >= cap) break;
-        const bx = o.x - W / 2 + 1 + (k + .5) * (W - 2) / perRow;
-        this.bays.push({ x: bx, z: rz, car: null, row: r });
-      }
-    }
+    for (const b of PARK_BAYS(o.w * TILE, o.d * TILE))
+      this.bays.push({ x: o.x + b.x, z: o.z + b.z, car: null, row: b.row });
   },
-  capacity() { return this.lot ? Math.max(8, Math.round((this.lot.spaces || 40) / 4)) : 0; },
+  capacity() { return this.bays.length; },
+  /* Painted bays are cheap — they are two numbers each. Cars are not: every
+     one is pathed, driven and drawn. So the lot marks out every bay it has
+     and simply never simulates more than this many cars at once, which is
+     far more than are ever on screen at a normal arrival rate. */
+  MAX_CARS: 120,
   occupied() { return this.cars.filter(c => c.state === 'parked' || c.state === 'arriving').length; },
   fee() { return Park.parkingFee === undefined ? 6 : Park.parkingFee; },
 
@@ -17055,7 +17309,9 @@ const Parking = {
 
   update(dt) {
     if (!this.lot || !Park.open) { return; }
-    if (this.bays.length !== this.capacity()) this.layout();
+    /* Re-lay if the lot changed size behind our back (a load, mostly);
+       capacity() is now derived from bays, so it cannot be the trigger. */
+    if (this._laidFor !== this.lot.w + 'x' + this.lot.d) { this.layout(); this._laidFor = this.lot.w + 'x' + this.lot.d; }
     this.spawnT -= dt;
     if (this.spawnT <= 0) {
       this.spawnT = this.arrivalInterval() * rnd(.6, 1.5);
@@ -17114,6 +17370,10 @@ const Parking = {
   },
   spawnCar() {
     if (!this.lot) return;
+    /* Hold the number of simulated cars down without pretending the lot is
+       full: a car that cannot be driven right now simply is not one of the
+       ones we draw, and is not counted as turned away either. */
+    if (this.cars.length >= this.MAX_CARS) return;
     const bay = this.freeBay();
     if (!bay) { this.turnedAway++; return; }
     const riders = rndi(1, 4);
