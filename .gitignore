@@ -2,4 +2,8 @@ node_modules/
 dist/
 .vite/
 *.log
-docs/shots/smoke/
+
+# Scratch captures from in-flight team work. Curated evidence for each review
+# round is committed under docs/shots/round-*/ instead.
+docs/shots/*
+!docs/shots/round-*/

@@ -20,7 +20,7 @@ export interface ShotMeta {
   system: string;
 }
 
-interface ShotDef {
+export interface ShotDef {
   name: string;
   label: string;
   system: string;

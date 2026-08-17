@@ -13,6 +13,7 @@ import { installAutomation } from './core/automation';
 import { RenderSystem } from './render/render-system';
 import { EnvironmentSystem } from './lighting/environment-system';
 import { WorldSystem } from './world/world-system';
+import { ActorRegistry } from './actors/actor-registry';
 import { PlayerSystem } from './player/player-system';
 import { CaptureDirector } from './core/capture-director';
 
@@ -46,6 +47,9 @@ async function boot(): Promise<void> {
 
   progress(0.4, 'generating world');
   engine.add(new WorldSystem());
+
+  progress(0.6, 'registering actors');
+  engine.add(new ActorRegistry());
 
   progress(0.7, 'spawning operator');
   engine.add(new PlayerSystem());
