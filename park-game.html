@@ -299,32 +299,11 @@ body.parkclosed #hint{display:none}          /* they share this spot */
 .sbtn:active{transform:translateY(3px);box-shadow:0 0 0 #b3d9f0}
 .sbtn.on{background:var(--accent);border-color:var(--accent-deep);color:#fff;box-shadow:var(--ledge-hot)}
 
-/* ---------- bottom toolbar ---------- */
-#toolbar{display:none}
-.tool{
-  width:66px;height:64px;border-radius:14px;
-  background:linear-gradient(180deg,#ffffff,#f6fbff);
-  border:2px solid var(--edge-soft);
-  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;
-  cursor:pointer;position:relative;color:var(--dim);
-  box-shadow:var(--ledge);
-  transition:background var(--ez),transform var(--sn),border-color var(--ez),box-shadow var(--sn),color var(--ez);
-}
-.tool:hover{background:#e9f7ff;border-color:var(--edge-hot);color:var(--accent-ink);transform:translateY(-3px);
-  box-shadow:0 6px 0 #b3d9f0,0 10px 18px rgba(28,90,132,.18)}
-.tool:active{transform:translateY(3px);box-shadow:0 0 0 #b3d9f0}
-.tool.on{background:linear-gradient(180deg,var(--accent),var(--accent-deep));border-color:var(--accent-deep);color:#fff;box-shadow:var(--ledge-hot)}
-.tool .e{font-size:22px;line-height:1}
-.tool .t{font-size:8.5px;letter-spacing:.06em;text-transform:uppercase;font-weight:800;color:inherit;opacity:.85}
-.tool.on .t{opacity:1}
-.tool .key{position:absolute;top:4px;right:7px;font-size:8.5px;font-weight:800;opacity:.5}
-
 /* ---------- hidden quick-access hover bar ---------- */
 /* A slim, near-invisible white strip that sits along the very bottom edge
    of the screen. It is easy to miss on purpose — hover it (or the popup
    above it) and a full "everything" catalogue slides up; move away and it
-   tucks back out of sight. This sits beneath #toolbar in the DOM so the
-   toolbar's own buttons remain on top and fully clickable. */
+   tucks back out of sight. */
 #quickEdge{
   position:absolute;left:50%;bottom:0;transform:translateX(-50%);
   width:340px;height:16px;border-radius:6px 6px 0 0;
@@ -989,14 +968,12 @@ kbd{
 body.ridemode #buildPanel,
 body.ridemode #coasterPanel,
 body.ridemode #inspector,
-body.ridemode #toolbar,
 body.ridemode #hint,
 body.ridemode #minimap,
 body.ridemode #closedBar,
 body.followmode #buildPanel,
 body.followmode #coasterPanel,
 body.followmode #inspector,
-body.followmode #toolbar,
 body.followmode #minimap,
 body.followmode #closedBar{display:none!important}
 #menu.show ~ #ui #closedBar{display:none!important}
@@ -1567,7 +1544,6 @@ table.tb tr:last-child td{border-bottom:0}
     <div id="quickPopBody" class="scroll"></div>
   </div>
 
-  <div id="toolbar" class="panel"></div>
 
   <div id="ridecam">
     <div class="vig"></div>
@@ -4055,6 +4031,19 @@ const CAT = {
     { id: 'milkshake', name: 'Milkshake Bar', cost: 1550, up: 24, w: 2, d: 1, need: 'thirst', price: 9, satisfy: 82, color: 0xff9ac1, roof: 0x7ed6df },
     { id: 'toystore', name: 'Toy Chest', cost: 1900, up: 28, w: 2, d: 2, need: 'shop', price: 16, satisfy: 62, color: 0x4ecdc4, roof: 0xffe66d },
     { id: 'sunscreen', name: 'Sun & Spray Kiosk', cost: 650, up: 10, w: 1, d: 1, need: 'shop', price: 8, satisfy: 44, color: 0xffd76a, roof: 0x3ba7d4 },
+    /* ---- Another batch: more footprint variety again — a fish & chip
+       shop, a smoke-BBQ style pretzel wagon's cousin, a cheese shop, a
+       kettle corn stand, a fudge-adjacent chocolatier, a paella stand, a
+       flower stall, and a proper wood-fired pizza oven house distinct
+       from the existing counter pizza stand. ---- */
+    { id: 'fishchips', name: 'Fish & Chips', cost: 1650, up: 26, w: 2, d: 2, need: 'hunger', price: 11, satisfy: 78, color: 0x2f80c0, roof: 0xf5f5f5 },
+    { id: 'cheeseshop', name: 'Cheese Cave', cost: 1900, up: 28, w: 2, d: 2, need: 'shop', price: 14, satisfy: 58, color: 0xf0d060, roof: 0x6b4630 },
+    { id: 'kettlecorn', name: 'Kettle Corn Cart', cost: 800, up: 14, w: 1, d: 1, need: 'hunger', price: 6, satisfy: 38, color: 0xd94f3c, roof: 0xf5e6c8 },
+    { id: 'chocolatier', name: 'The Chocolatier', cost: 2200, up: 32, w: 2, d: 2, need: 'shop', price: 17, satisfy: 68, color: 0x4a2f1e, roof: 0xd4af37 },
+    { id: 'paella', name: 'Paella Stand', cost: 1750, up: 27, w: 2, d: 2, need: 'hunger', price: 12, satisfy: 82, color: 0xe8a13c, roof: 0xc0392b },
+    { id: 'flowerstall', name: 'Flower Stall', cost: 700, up: 11, w: 1, d: 1, need: 'shop', price: 8, satisfy: 46, color: 0xff8fb0, roof: 0x7ed6df },
+    { id: 'woodpizza', name: 'Wood-Fired Pizza House', cost: 2900, up: 38, w: 3, d: 2, need: 'hunger', price: 15, satisfy: 90, color: 0xb5651d, roof: 0x8b3a2b },
+    { id: 'creperieplus', name: 'Grand Creperie', cost: 2000, up: 30, w: 2, d: 2, need: 'hunger', price: 13, satisfy: 80, color: 0xf0c060, roof: 0x2f3b52 },
     /* ---- New batch: broadens the catalogue with more building variety
        rather than more recolours of the same footprint — a sit-down
        diner, a bakery, a currywurst cart, a fudge shop, a cinnamon roll
@@ -4141,6 +4130,12 @@ const CAT = {
     { id: 'lmBeacon', name: 'Harbor Beacon Spire', cost: 42000, up: 140, w: 3, d: 3, kind: 'lmSpire',
       beauty: 200, prestige: true, prestigeCost: 1,
       blurb: 'A shorter observation spire dressed for a coastal park, priced for parks not ready for the full skyline needle.' },
+    { id: 'lmGrandGate', name: 'Grand Processional Arch', cost: 34000, up: 120, w: 5, d: 2, kind: 'lmArc',
+      beauty: 195, prestige: true, prestigeCost: 1,
+      blurb: 'Wider and lower than the Triumphal Arch — a ceremonial gateway meant to frame a long avenue, not stand alone.' },
+    { id: 'lmLantern', name: 'Lantern Belvedere', cost: 26000, up: 100, w: 2, d: 2, kind: 'lmPagodaTower',
+      beauty: 160, prestige: true, prestigeCost: 1,
+      blurb: 'A compact gilded tier tower, the entry-level version of the Golden Pagoda for a park still finding its budget.' },
   ],
   /* ---------------- Power ----------------
      Generators are built like any free facility (need:'power', price:0 —
@@ -11286,13 +11281,6 @@ const UI = {
   },
 
   init() {
-    const tb = $('#toolbar');
-    for (const t of TOOLS) {
-      const d = el('div', 'tool', `${ICON[t.ic] || ''}<span class="t">${t.t}</span><span class="key">${t.k}</span>`);
-      d.onclick = () => this.setTool(t.id);
-      d.dataset.id = t.id;
-      tb.appendChild(d);
-    }
     $('#spd0').onclick = () => Game.setSpeed(0);
     $('#spd1').onclick = () => Game.setSpeed(1);
     $('#spd2').onclick = () => Game.setSpeed(3);
@@ -11748,6 +11736,13 @@ const UI = {
         { id: 'river', name: 'Lake / Pond', cost: 30, circle: true, r: 5 },
       ], 'grid2', it => `<img class="th" src="${Thumbs.path(it.id, it.mat)}" alt=""><span class="n">${it.name}</span>${cost(it.cost)}`,
         (it, d) => this.pick(it, d));
+      addGrid('Curves — a real bend, not a staircase of right angles. Press R to rotate before you click.', [
+        { id: 'path', name: 'Quarter Curve', cost: 30, mat: 1, arc: true, r: 6, arcWidth: 2, sweep: PI / 2 },
+        { id: 'path', name: 'Wide Sweep', cost: 46, mat: 1, arc: true, r: 10, arcWidth: 2, sweep: PI / 2 },
+        { id: 'path', name: 'S-Curve Path', cost: 40, mat: 1, arc: true, r: 5, arcWidth: 2, sweep: PI / 2, sMirror: true },
+        { id: 'path', name: 'Curved Road', cost: 34, mat: 5, arc: true, r: 7, arcWidth: 3, sweep: PI / 2 },
+      ], 'grid2', it => `<span class="n">${it.name}</span>${cost(it.cost)}`,
+        (it, d) => this.pick(it, d));
       b.appendChild(el('div', 'cat', 'Queue connection'));
       b.appendChild(el('div', '', `<div class="row" style="padding:2px 3px">
         <label style="min-width:0;flex:1">Connect new rides automatically</label>
@@ -11773,11 +11768,27 @@ const UI = {
         { id: 'smooth', name: 'Smooth Large Area', desc: 'Blends a wide radius toward its average height — good for cleaning up a messy hand-sculpted patch.', cost: 70 },
       ], 'grid2', it => `<span class="n">${it.name}</span>${it.cost ? cost(it.cost) : '<span class="c">free</span>'}<span class="c" style="color:var(--dim);font-size:9px;line-height:1.4;display:block;margin-top:2px">${it.desc}</span>`,
         (it, d) => { this.terraPreset = it.id === 'freehand' ? null : it; document.querySelectorAll('#bpBody .item').forEach(x => x.classList.remove('on')); d.classList.add('on'); });
+      /* The freehand brush used to be one fixed size and one fixed strength
+         no matter what — every stroke the same tiny nudge. These sliders
+         are read live by editTerrain's freehand branch, so dragging with a
+         bigger/stronger brush actually reshapes more land per pass instead
+         of the player just clicking the same spot fifty times. */
+      const brush = Game.terrainBrush || (Game.terrainBrush = { size: 2, strength: 1 });
+      b.appendChild(el('div', 'cat', 'Freehand brush'));
+      b.appendChild(el('div', '', `
+        <div class="row" style="margin:5px 0"><label style="min-width:80px">Size</label>
+          <input type="range" min="1" max="6" step="1" value="${brush.size}"
+            oninput="Game.terrainBrush.size=+this.value;document.getElementById('brushSizeN').textContent=this.value">
+          <span class="num" id="brushSizeN">${brush.size}</span></div>
+        <div class="row" style="margin:5px 0"><label style="min-width:80px">Strength</label>
+          <input type="range" min="20" max="200" step="10" value="${Math.round(brush.strength * 100)}"
+            oninput="Game.terrainBrush.strength=this.value/100;document.getElementById('brushStrN').textContent=this.value+'%'">
+          <span class="num" id="brushStrN">${Math.round(brush.strength * 100)}%</span></div>`));
       b.appendChild(el('div', 'cat', 'How terraforming works'));
       b.appendChild(el('div', '', `<div style="font-size:11px;color:var(--dim);line-height:1.55;padding:0 3px">
-        Freehand is the original small brush — drag to sculpt tile by tile. A preset above replaces that
-        with one big click: pick one, then click anywhere on your land to stamp it at that spot.
-        <kbd>Alt</kbd>-click still clears trees and rocks regardless of which preset is selected.</div>`));
+        Freehand is the small brush above — drag to sculpt tile by tile, sized and weighted by the sliders.
+        A preset above replaces that with one big click: pick one, then click anywhere on your land to stamp
+        it at that spot. <kbd>Alt</kbd>-click still clears trees and rocks regardless of which preset is selected.</div>`));
     }
     else if (id === 'coaster') {
       addGrid('Ready-Made Coasters — one click to build', BLUEPRINTS, 'grid2',
@@ -21505,6 +21516,35 @@ const Game = {
       }
       return;
     }
+    /* A real curved stamp rather than another straight-edged shape: walks a
+       quarter or S turn point by point along a parametric arc so a path
+       through it reads as a bend, not a staircase of right angles. UI.rot
+       picks which of the four quarter-turn orientations to lay, same as
+       every other rotatable stamp in the game. */
+    if (UI.sub && UI.sub.arc) {
+      const r = UI.sub.r || 6, w = UI.sub.arcWidth || 1;
+      const sweep = UI.sub.sweep || (PI / 2);
+      const rot = (UI.rot || 0) * PI / 2;
+      const steps = Math.max(8, Math.round(r * 3));
+      for (let s = 0; s <= steps; s++) {
+        const t = s / steps;
+        const a = t * sweep;
+        let lx = r * Math.sin(a), lz = r - r * Math.cos(a);
+        if (UI.sub.sMirror && t > .5) {
+          const t2 = t - .5;
+          const a2 = t2 * sweep;
+          lz = r - (r - r * Math.cos(a2));
+          lx = r * Math.sin(sweep) + r * Math.sin(a2);
+        }
+        const cx = Math.cos(rot) * lx - Math.sin(rot) * lz;
+        const cz = Math.sin(rot) * lx + Math.cos(rot) * lz;
+        const ti = Math.round(i + cx), tj = Math.round(j + cz);
+        for (let dw = -Math.floor(w / 2); dw <= Math.floor(w / 2); dw++) {
+          this.paintPathAt(ti + (rot === 0 || Math.abs(rot) === PI ? dw : 0), tj + (Math.abs(rot - PI / 2) < .1 || Math.abs(rot + PI / 2) < .1 ? dw : 0));
+        }
+      }
+      return;
+    }
     this.paintPathAt(i, j);
   },
   paintPathAt(i, j) {
@@ -21578,8 +21618,9 @@ const Game = {
       WORLD.dirty = true;
       return;
     }
-    const r = 2;
-    const cost = 30;
+    const brush = this.terrainBrush || (this.terrainBrush = { size: 2, strength: 1 });
+    const r = brush.size;
+    const cost = Math.round(30 * Math.max(1, r / 2) * brush.strength);
     if (Park.money < cost) return;
     Park.money -= cost;
     const base = WORLD.h[j * W + i];
@@ -21588,8 +21629,8 @@ const Game = {
       if (ii < 0 || jj < 0 || ii > N || jj > N) continue;
       const f = clamp(1 - Math.hypot(di, dj) / (r + .5), 0, 1);
       const k = jj * W + ii;
-      if (level) WORLD.h[k] = lerp(WORLD.h[k], base, f * .5);
-      else WORLD.h[k] += dir * f * .55;
+      if (level) WORLD.h[k] = lerp(WORLD.h[k], base, f * .5 * brush.strength);
+      else WORLD.h[k] += dir * f * .55 * brush.strength;
     }
     WORLD.dirty = true;
   },
