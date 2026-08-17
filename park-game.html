@@ -3119,6 +3119,14 @@ const PATH_MATS = [
   { name: 'Weathered Planks',   c: 0x8a7a63, d: 0x71624e, stripe: true  },  // 21
   { name: 'Slate Flagstone',    c: 0x6d7580, d: 0x5a616a, stripe: false },  // 22
   { name: 'Golden Gravel',      c: 0xd9b96a, d: 0xc2a256, stripe: false },  // 23
+  { name: 'Red Brick Herringbone', c: 0x9c3f2e, d: 0x832f21, stripe: true  },  // 24
+  { name: 'White Marble Tile',  c: 0xfafaf6, d: 0xe4e2da, stripe: true  },  // 25
+  { name: 'Charcoal Pavers',    c: 0x2b2d31, d: 0x212327, stripe: false },  // 26
+  { name: 'Sunset Mosaic',      c: 0xd97a3f, d: 0xb85f2c, stripe: true  },  // 27
+  { name: 'Cracked Earth',      c: 0x9c8158, d: 0x836a45, stripe: false },  // 28
+  { name: 'Turquoise Tile',     c: 0x2fb0a8, d: 0x268f88, stripe: false },  // 29
+  { name: 'Autumn Leaf Path',   c: 0xc47a3a, d: 0xa8632c, stripe: false },  // 30
+  { name: 'Steel Grating',      c: 0x7d848c, d: 0x686e75, stripe: true, bridge: true },  // 31
 ];
 
 const WORLD = {
@@ -11522,6 +11530,14 @@ const UI = {
         { id: 'path', name: 'Weathered Planks', cost: 28, mat: 21 },
         { id: 'path', name: 'Slate Flagstone', cost: 38, mat: 22 },
         { id: 'path', name: 'Golden Gravel', cost: 24, mat: 23 },
+        { id: 'path', name: 'Red Brick Herringbone', cost: 36, mat: 24 },
+        { id: 'path', name: 'White Marble Tile', cost: 58, mat: 25 },
+        { id: 'path', name: 'Charcoal Pavers', cost: 32, mat: 26 },
+        { id: 'path', name: 'Sunset Mosaic', cost: 44, mat: 27 },
+        { id: 'path', name: 'Cracked Earth', cost: 16, mat: 28 },
+        { id: 'path', name: 'Turquoise Tile', cost: 40, mat: 29 },
+        { id: 'path', name: 'Autumn Leaf Path', cost: 26, mat: 30 },
+        { id: 'path', name: 'Steel Grating', cost: 42, mat: 31 },
       ], 'grid2', it => `<img class="th" src="${Thumbs.path(it.id, it.mat)}" alt=""><span class="n">${it.name}</span>${cost(it.cost)}`,
         (it, d) => this.pick(it, d));
       addGrid('Other tiles', [
@@ -11967,7 +11983,7 @@ const UI = {
       ['all', 'All'], ['path', 'Paths'], ['coaster', 'Coasters'], ['ride', 'Rides'],
       ['water', 'Water Park'], ['food', 'Food & Drink'], ['retail', 'Retail'],
       ['lodging', 'Lodging'], ['scenery', 'Scenery'], ['landmark', 'Landmarks'],
-      ['transit', 'Transport'], ['staff', 'Staff'],
+      ['power', 'Power'], ['transit', 'Transport'], ['staff', 'Staff'],
     ];
     /* The bar is the same catalogue as the build rail, so it gets the same
        controls: search, ordering and an affordability filter. Before this it
@@ -20514,7 +20530,7 @@ const Game = {
     this.rebuildScenery();
     setTimeout(() => {
       $('#boot').classList.add('gone');
-      Intro.start();
+      Menu.show();
     }, 400);
     boot(100, 'ready');
   },
