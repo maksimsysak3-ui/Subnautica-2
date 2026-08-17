@@ -4321,26 +4321,44 @@ const CAT = {
     { id: 'inspector', name: 'Safety Inspector', cost: 0, wage: 0, color: 0xf2f2f2, external: true },
   ],
   /* ---------------- Coaster track styles ---------------- */
+  /* Every type used to differ only in rail/spine/tie/car colour and a few
+     physics constants nothing visible at build time ever exercised — a
+     Wild Mouse and a Giga Coaster offered the exact same piece palette, so
+     "choosing a type" only ever changed a paint job. Three real, load-
+     bearing differences now come from the same table:
+       noInvert    — this type's trains are not built to invert; the piece
+                     palette hides every loop/corkscrew/roll while it's the
+                     active coaster, and Coaster.add()/setPiece() refuse
+                     one even if requested another way.
+       launchOnly  — a launched coaster has no chain lift: 'lift'/'liftflat'
+                     are hidden for it, and it must start from a launch
+                     piece instead. Conversely 'launch'/'hydraulic' are
+                     hidden for every OTHER type, so a launched start is
+                     something only these types can do.
+       maxHeight   — a hard ceiling on how high the build head may climb,
+                     replacing the one-size-fits-all 130 m cap every type
+                     shared before; a Junior Coaster physically cannot be
+                     built into a 100 m drop no matter how it's piloted. */
   coasterTypes: [
-    { id: 'steel', name: 'Steel Looper', rail: 0xdb3b3b, spine: 0xf0f0f0, tie: 0xd0d0d0, cars: 5, seat: 4, mass: 1, fric: .00062, maxSpeed: 46, carColor: 0xffd23f, style: 'tube' },
-    { id: 'wooden', name: 'Wooden Classic', rail: 0x8b5a2b, spine: 0xa9713a, tie: 0x6f4522, cars: 6, seat: 4, mass: 1.3, fric: .00115, maxSpeed: 34, carColor: 0xc0392b, style: 'wood' },
-    { id: 'hyper', name: 'Hyper Coaster', rail: 0x2f7fd4, spine: 0xdfe8f2, tie: 0xbfcede, cars: 8, seat: 4, mass: 1.1, fric: .00050, maxSpeed: 58, carColor: 0x24d6a5, style: 'tube' },
-    { id: 'inverted', name: 'Inverted Screamer', rail: 0x7b3fd4, spine: 0xe8e0f5, tie: 0xc9b8e6, cars: 6, seat: 4, mass: 1, fric: .00068, maxSpeed: 44, carColor: 0xffe066, style: 'inverted' },
-    { id: 'mine', name: 'Mine Train', rail: 0x6b6357, spine: 0x8b8172, tie: 0x4f4941, cars: 5, seat: 4, mass: 1.2, fric: .00095, maxSpeed: 32, carColor: 0xb5651d, style: 'wood' },
-    { id: 'launch', name: 'Launch Accelerator', rail: 0x22262e, spine: 0xf5c518, tie: 0x3a3f48, cars: 4, seat: 4, mass: .9, fric: .00046, maxSpeed: 62, carColor: 0xff4d4d, style: 'tube' },
-    { id: 'giga', name: 'Giga Coaster', rail: 0x2b8f5a, spine: 0xe8f0e8, tie: 0xc2d4c8, cars: 9, seat: 4, mass: 1.15, fric: .00044, maxSpeed: 66, carColor: 0xf25c05, style: 'tube' },
-    { id: 'wing', name: 'Wing Rider', rail: 0xe06a1f, spine: 0x2e3440, tie: 0x4a5462, cars: 5, seat: 4, mass: 1.05, fric: .00066, maxSpeed: 42, carColor: 0x1fb6c9, style: 'wing' },
-    { id: 'dive', name: 'Dive Machine', rail: 0x1f6fd4, spine: 0xf0f4f8, tie: 0xb8c6d6, cars: 3, seat: 6, mass: 1.25, fric: .00060, maxSpeed: 48, carColor: 0xffce3d, style: 'tube' },
-    { id: 'spin', name: 'Spinning Coaster', rail: 0x8ac63f, spine: 0x3d4a2a, tie: 0x6b7a4a, cars: 4, seat: 4, mass: .95, fric: .00082, maxSpeed: 30, carColor: 0xc341a0, style: 'tube' },
-    { id: 'family', name: 'Family Coaster', rail: 0x39a0e0, spine: 0xfff0d0, tie: 0xd8c9a8, cars: 5, seat: 4, mass: 1, fric: .00090, maxSpeed: 22, carColor: 0xffd23f, style: 'tube' },
-    { id: 'mouse', name: 'Wild Mouse', rail: 0xf0f0f0, spine: 0xd94f3c, tie: 0xb0b6bd, cars: 1, seat: 4, mass: .8, fric: .00120, maxSpeed: 20, carColor: 0xf5f5f5, style: 'tube' },
-    { id: 'suspend', name: 'Suspended Swinger', rail: 0x9b59b6, spine: 0xe8dff0, tie: 0xc9b8e6, cars: 6, seat: 4, mass: 1.05, fric: .00074, maxSpeed: 38, carColor: 0x2ecc71, style: 'inverted' },
-    { id: 'hyperwood', name: 'Hybrid Hyper', rail: 0xd8d2c4, spine: 0x8b5a2b, tie: 0x6f4522, cars: 7, seat: 4, mass: 1.2, fric: .00058, maxSpeed: 54, carColor: 0x1f6f4a, style: 'wood' },
-    { id: 'flying', name: 'Flying Coaster', rail: 0x2fb0a8, spine: 0xeaf7f6, tie: 0xbfe0dc, cars: 5, seat: 4, mass: 1.0, fric: .00064, maxSpeed: 46, carColor: 0xff8c42, style: 'inverted' },
-    { id: 'shuttle', name: 'Shuttle Loop', rail: 0xf25c05, spine: 0x2e3440, tie: 0x4a5462, cars: 4, seat: 4, mass: .95, fric: .00052, maxSpeed: 56, carColor: 0x1fb6c9, style: 'tube' },
-    { id: 'bobsled', name: 'Bobsled Run', rail: 0xe8eef5, spine: 0xa8b4c2, tie: 0x7c8894, cars: 4, seat: 4, mass: 1.1, fric: .00105, maxSpeed: 34, carColor: 0xd94f3c, style: 'tube' },
-    { id: 'junior', name: 'Junior Coaster', rail: 0xffb03a, spine: 0xfff2d8, tie: 0xe0cfa8, cars: 4, seat: 4, mass: .9, fric: .00100, maxSpeed: 18, carColor: 0x6ac6f0, style: 'tube' },
-    { id: 'watercoaster', name: 'Water Coaster', rail: 0x2a6fa8, spine: 0xeaf6ff, tie: 0x8a8378, cars: 5, seat: 4, mass: 1.1, fric: .00088, maxSpeed: 28, carColor: 0x39c0ff, style: 'tube', water: true, carStyle: 'boat' },
+    { id: 'steel', name: 'Steel Looper', rail: 0xdb3b3b, spine: 0xf0f0f0, tie: 0xd0d0d0, cars: 5, seat: 4, mass: 1, fric: .00062, maxSpeed: 46, carColor: 0xffd23f, style: 'tube', maxHeight: 90 },
+    { id: 'wooden', name: 'Wooden Classic', rail: 0x8b5a2b, spine: 0xa9713a, tie: 0x6f4522, cars: 6, seat: 4, mass: 1.3, fric: .00115, maxSpeed: 34, carColor: 0xc0392b, style: 'wood', noInvert: true, maxHeight: 45 },
+    { id: 'hyper', name: 'Hyper Coaster', rail: 0x2f7fd4, spine: 0xdfe8f2, tie: 0xbfcede, cars: 8, seat: 4, mass: 1.1, fric: .00050, maxSpeed: 58, carColor: 0x24d6a5, style: 'tube', noInvert: true, maxHeight: 130 },
+    { id: 'inverted', name: 'Inverted Screamer', rail: 0x7b3fd4, spine: 0xe8e0f5, tie: 0xc9b8e6, cars: 6, seat: 4, mass: 1, fric: .00068, maxSpeed: 44, carColor: 0xffe066, style: 'inverted', maxHeight: 70 },
+    { id: 'mine', name: 'Mine Train', rail: 0x6b6357, spine: 0x8b8172, tie: 0x4f4941, cars: 5, seat: 4, mass: 1.2, fric: .00095, maxSpeed: 32, carColor: 0xb5651d, style: 'wood', noInvert: true, maxHeight: 35 },
+    { id: 'launch', name: 'Launch Accelerator', rail: 0x22262e, spine: 0xf5c518, tie: 0x3a3f48, cars: 4, seat: 4, mass: .9, fric: .00046, maxSpeed: 62, carColor: 0xff4d4d, style: 'tube', launchOnly: true, maxHeight: 80 },
+    { id: 'giga', name: 'Giga Coaster', rail: 0x2b8f5a, spine: 0xe8f0e8, tie: 0xc2d4c8, cars: 9, seat: 4, mass: 1.15, fric: .00044, maxSpeed: 66, carColor: 0xf25c05, style: 'tube', noInvert: true, maxHeight: 130 },
+    { id: 'wing', name: 'Wing Rider', rail: 0xe06a1f, spine: 0x2e3440, tie: 0x4a5462, cars: 5, seat: 4, mass: 1.05, fric: .00066, maxSpeed: 42, carColor: 0x1fb6c9, style: 'wing', maxHeight: 65 },
+    { id: 'dive', name: 'Dive Machine', rail: 0x1f6fd4, spine: 0xf0f4f8, tie: 0xb8c6d6, cars: 3, seat: 6, mass: 1.25, fric: .00060, maxSpeed: 48, carColor: 0xffce3d, style: 'tube', maxHeight: 95 },
+    { id: 'spin', name: 'Spinning Coaster', rail: 0x8ac63f, spine: 0x3d4a2a, tie: 0x6b7a4a, cars: 4, seat: 4, mass: .95, fric: .00082, maxSpeed: 30, carColor: 0xc341a0, style: 'tube', noInvert: true, maxHeight: 30 },
+    { id: 'family', name: 'Family Coaster', rail: 0x39a0e0, spine: 0xfff0d0, tie: 0xd8c9a8, cars: 5, seat: 4, mass: 1, fric: .00090, maxSpeed: 22, carColor: 0xffd23f, style: 'tube', noInvert: true, maxHeight: 20 },
+    { id: 'mouse', name: 'Wild Mouse', rail: 0xf0f0f0, spine: 0xd94f3c, tie: 0xb0b6bd, cars: 1, seat: 4, mass: .8, fric: .00120, maxSpeed: 20, carColor: 0xf5f5f5, style: 'tube', noInvert: true, maxHeight: 18 },
+    { id: 'suspend', name: 'Suspended Swinger', rail: 0x9b59b6, spine: 0xe8dff0, tie: 0xc9b8e6, cars: 6, seat: 4, mass: 1.05, fric: .00074, maxSpeed: 38, carColor: 0x2ecc71, style: 'inverted', noInvert: true, maxHeight: 30 },
+    { id: 'hyperwood', name: 'Hybrid Hyper', rail: 0xd8d2c4, spine: 0x8b5a2b, tie: 0x6f4522, cars: 7, seat: 4, mass: 1.2, fric: .00058, maxSpeed: 54, carColor: 0x1f6f4a, style: 'wood', maxHeight: 110 },
+    { id: 'flying', name: 'Flying Coaster', rail: 0x2fb0a8, spine: 0xeaf7f6, tie: 0xbfe0dc, cars: 5, seat: 4, mass: 1.0, fric: .00064, maxSpeed: 46, carColor: 0xff8c42, style: 'inverted', maxHeight: 60 },
+    { id: 'shuttle', name: 'Shuttle Loop', rail: 0xf25c05, spine: 0x2e3440, tie: 0x4a5462, cars: 4, seat: 4, mass: .95, fric: .00052, maxSpeed: 56, carColor: 0x1fb6c9, style: 'tube', launchOnly: true, maxHeight: 55 },
+    { id: 'bobsled', name: 'Bobsled Run', rail: 0xe8eef5, spine: 0xa8b4c2, tie: 0x7c8894, cars: 4, seat: 4, mass: 1.1, fric: .00105, maxSpeed: 34, carColor: 0xd94f3c, style: 'tube', noInvert: true, maxHeight: 30 },
+    { id: 'junior', name: 'Junior Coaster', rail: 0xffb03a, spine: 0xfff2d8, tie: 0xe0cfa8, cars: 4, seat: 4, mass: .9, fric: .00100, maxSpeed: 18, carColor: 0x6ac6f0, style: 'tube', noInvert: true, maxHeight: 15 },
+    { id: 'watercoaster', name: 'Water Coaster', rail: 0x2a6fa8, spine: 0xeaf6ff, tie: 0x8a8378, cars: 5, seat: 4, mass: 1.1, fric: .00088, maxSpeed: 28, carColor: 0x39c0ff, style: 'tube', water: true, carStyle: 'boat', noInvert: true, maxHeight: 25 },
   ],
 };
 /* ============================================================================
@@ -7493,9 +7511,9 @@ const BLUEPRINTS = [
   },
   {
     id: 'vortex', name: 'Vortex', type: 'giga', price: 18, tag: 'Giga',
-    desc: 'Giga scale. A vast climb, a near-vertical plunge and a zero-g roll.',
+    desc: 'Giga scale. A vast climb, a near-vertical plunge and a mega airtime hill — real gigas fly too high to invert.',
     seq: ['lift', 'lift', 'lift', 'lift', 'lift', 'lift', 'lift', 'lift', 'lift', 'lift', 'lift', 'level',
-      'steepdn', 'steepdn', 'level', 'right', 'right', 'right', 'camel', 'zerog',
+      'steepdn', 'steepdn', 'level', 'right', 'right', 'right', 'camel', 'megacamel',
       'right', 'right', 'camel', 'obankr', 'camel', 'photo', 'brake']
   },
   {
@@ -15626,6 +15644,31 @@ const Coaster = {
   placing: null,       // track type awaiting station placement
   piece: 'straight',
   autoBank: true,
+  /* This type's hard ceiling on build-head height. Falls back to the old
+     shared 130 m cap for anything loaded without a maxHeight (older saves,
+     or a custom/freehand type). */
+  maxH() { return (this.active && this.active.type && this.active.type.maxHeight) || 130; },
+  /* Whether a catalogue piece is legal on the active coaster's type — the
+     real gate behind noInvert/launchOnly, checked both when the palette
+     decides what to grey out and again in setPiece()/add() so there is
+     no path that sneaks a disallowed piece past it. */
+  pieceAllowed(p) {
+    if (!p) return true;
+    const t = this.active && this.active.type;
+    if (!t) return true;
+    if (t.noInvert && p.inversion) return false;
+    if (p.launch && !t.launchOnly) return false;
+    if (t.launchOnly && (p.id === 'lift' || p.id === 'liftflat')) return false;
+    return true;
+  },
+  pieceBlockedReason(p) {
+    const t = this.active && this.active.type;
+    if (!t || !p) return '';
+    if (t.noInvert && p.inversion) return 'Not on a ' + t.name + ' — this type\'s trains are not built to invert.';
+    if (p.launch && !t.launchOnly) return 'Only a launched type can use a powered start.';
+    if (t.launchOnly && (p.id === 'lift' || p.id === 'liftflat')) return 'A ' + t.name + ' has no chain lift — start it with a launch piece instead.';
+    return '';
+  },
   /* ---- freehand steering ---------------------------------------------
      turn / climb / roll are held between placements, so holding a key and
      tapping space draws a continuous shape instead of stamping fixed
@@ -15892,6 +15935,10 @@ const Coaster = {
     const close = t.closeError();
     let h = `<div style="font-size:12px;font-weight:700">${esc(c.name)}</div>`;
     h += `<div style="font-size:10.5px;color:var(--dim);margin-top:-4px">${c.type.name} · ${t.pieces.length} pieces · ${Math.round(t.length)} m</div>`;
+    h += `<div style="font-size:10px;color:var(--dim);margin:3px 0 2px">
+        ${c.type.noInvert ? 'No inversions' : 'Inversions allowed'} &middot;
+        ${c.type.launchOnly ? 'Launched start only — no chain lift' : 'Chain-lift start'} &middot;
+        Max height ${c.type.maxHeight || 130} m</div>`;
 
     const sl = (k, min, max, step) =>
       `<input type="range" id="sl_${k}" min="${min}" max="${max}" step="${step}" value="${this.steer[k]}"
@@ -15931,9 +15978,11 @@ const Coaster = {
       if (!list.length) continue;
       h += `<div class="cat">${label}</div><div class="piecegrid">`;
       for (const p of list) {
-        const lk = !Progress.pieceUnlocked(p);
+        const notForType = !this.pieceAllowed(p);
+        const lk = !Progress.pieceUnlocked(p) || notForType;
+        const tip = notForType ? this.pieceBlockedReason(p) : (p.n + ' · ' + money(p.cost) + (lk ? ' · locked' : ''));
         h += `<div class="pc ${(!this.freehand && this.piece === p.id) ? 'on' : ''}${lk ? ' locked' : ''}" ${lk ? '' : `onclick="Coaster.setPiece('${p.id}')"`}>` +
-          `<img src="${Thumbs.piece(p)}" alt="" ${lk ? 'style="opacity:.28"' : ''}><span class="tip">${p.n} &middot; ${money(p.cost)}${lk ? ' &middot; locked' : ''}</span></div>`;
+          `<img src="${Thumbs.piece(p)}" alt="" ${lk ? 'style="opacity:.28"' : ''}><span class="tip">${esc(tip)}</span></div>`;
       }
       h += `</div>`;
     }
@@ -15973,7 +16022,12 @@ const Coaster = {
     }
     b.innerHTML = h;
   },
-  setPiece(id) { this.piece = id; this.freehand = false; this._ghostKey = null; this.refresh(); },
+  setPiece(id) {
+    if (!this.pieceAllowed(PIECE_BY_ID[id])) {
+      UI.notify('Not for this type', this.pieceBlockedReason(PIECE_BY_ID[id]), 'warn'); Audio.play('error'); return;
+    }
+    this.piece = id; this.freehand = false; this._ghostKey = null; this.refresh();
+  },
   setTrains(n) {
     const c = this.active; if (!c) return;
     c.spawnTrains(clamp(+n, 1, 4));
@@ -16006,7 +16060,7 @@ const Coaster = {
     for (const p of s) {
       if (p.p.y - WORLD.hAt(p.p.x, p.p.z) < 0.6) ok = false;
       if (!WORLD.ownsWorld(p.p.x, p.p.z)) ok = false;
-      if (p.p.y > 130) ok = false;
+      if (p.p.y > this.maxH()) ok = false;
     }
     if (Park.money < def.cost) ok = false;
     return { samples: s, ok };
@@ -16019,6 +16073,9 @@ const Coaster = {
     if (!def) return;
     if (!def.freehand && !Progress.pieceUnlocked(def)) {
       UI.notify('Locked', def.n + ' unlocks as your park levels up.', 'warn'); Audio.play('error'); return;
+    }
+    if (!def.freehand && !this.pieceAllowed(def)) {
+      UI.notify('Not for this type', this.pieceBlockedReason(def), 'warn'); Audio.play('error'); return;
     }
     const gh = forceId ? { ok: this.validSamples(Track.integrate(c.track.endFrame(), def, null, c.track.length, c.track.pieces.length, { autoBank: this.autoBank })) } : this.currentGhost();
     if (!gh || !gh.ok) {
@@ -16318,7 +16375,7 @@ const Coaster = {
       const nearStation = dist2(q.p.x, q.p.z, sx, sz) < 30 * 30;
       if (q.p.y - WORLD.hAt(q.p.x, q.p.z) < (nearStation ? -0.05 : 0.30)) return false;
       if (!nearStation && !WORLD.ownsWorld(q.p.x, q.p.z)) return false;
-      if (q.p.y > 130) return false;
+      if (q.p.y > this.maxH()) return false;
     }
     return true;
   },
@@ -16571,7 +16628,7 @@ const Coaster = {
     for (const p of samples) {
       if (p.p.y - WORLD.hAt(p.p.x, p.p.z) < 0.7) return false;
       if (!WORLD.ownsWorld(p.p.x, p.p.z)) return false;
-      if (p.p.y > 130) return false;
+      if (p.p.y > this.maxH()) return false;
     }
     return true;
   },
