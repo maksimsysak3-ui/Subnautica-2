@@ -992,7 +992,13 @@ body.ridemode #inspector,
 body.ridemode #toolbar,
 body.ridemode #hint,
 body.ridemode #minimap,
-body.ridemode #closedBar{display:none!important}
+body.ridemode #closedBar,
+body.followmode #buildPanel,
+body.followmode #coasterPanel,
+body.followmode #inspector,
+body.followmode #toolbar,
+body.followmode #minimap,
+body.followmode #closedBar{display:none!important}
 #menu.show ~ #ui #closedBar{display:none!important}
 /* the inspector steps aside when the coaster editor is open */
 #coasterPanel.show ~ #inspector{right:362px}
@@ -1012,6 +1018,18 @@ body.ridemode #closedBar{display:none!important}
 #ridecam .spd .n{font-size:50px;font-weight:800;font-variant-numeric:tabular-nums;line-height:1;letter-spacing:-.03em}
 #ridecam .spd .u{font-size:11px;letter-spacing:.28em;font-weight:800;opacity:.85}
 #ridecam .exit{position:absolute;top:20px;left:50%;transform:translateX(-50%);font-size:11.5px;font-weight:800;
+  color:var(--txt);pointer-events:auto;
+  background:#fff;border:2px solid var(--edge);padding:7px 18px;border-radius:var(--r-pill);
+  box-shadow:var(--e2)}
+/* ---------- guest cam overlay ---------- */
+#followcam{position:absolute;inset:0;display:none;pointer-events:none}
+#followcam.show{display:block;animation:fadein .4s ease}
+#followcam .fc-card{position:absolute;left:50%;bottom:96px;transform:translateX(-50%);
+  background:#fff;border:2px solid var(--edge);border-radius:var(--r);padding:10px 20px;
+  box-shadow:var(--e2);text-align:center}
+#followcam .fc-name{font-size:14px;font-weight:800;color:var(--txt)}
+#followcam .fc-mood{font-size:11px;font-weight:700;color:var(--dim);margin-top:2px}
+#followcam .exit{position:absolute;top:20px;left:50%;transform:translateX(-50%);font-size:11.5px;font-weight:800;
   color:var(--txt);pointer-events:auto;
   background:#fff;border:2px solid var(--edge);padding:7px 18px;border-radius:var(--r-pill);
   box-shadow:var(--e2)}
@@ -1557,6 +1575,14 @@ table.tb tr:last-child td{border-bottom:0}
     <div class="glab" id="gLab">0.0 G</div>
     <div class="spd"><div class="n" id="rcSpd">0</div><div class="u">KM / H</div></div>
     <div class="exit">On-Ride Camera &mdash; <kbd>Esc</kbd> exit &middot; <kbd>C</kbd> chase / front seat / side-on &middot; <kbd>Scroll</kbd> distance</div>
+  </div>
+
+  <div id="followcam">
+    <div class="fc-card">
+      <div class="fc-name" id="fcName">Guest</div>
+      <div class="fc-mood" id="fcMood">— happy</div>
+    </div>
+    <div class="exit">Guest Camera &mdash; <kbd>Esc</kbd> stop following</div>
   </div>
 
   <div id="modalWrap"><div id="modal" class="panel">
@@ -2896,6 +2922,7 @@ const Cam = {
   shake: 0, shakeX: 0, shakeY: 0,
   flyPos: V3.make(0, 20, 0), flyYaw: 0, flyPitch: -0.2,
   ridePos: V3.make(), rideLook: V3.make(), rideUp: V3.make(0, 1, 0),
+  followPos: V3.make(), followLook: V3.make(),
 
   init(x, z) { this.tx = this.dx = x; this.tz = this.dz = z; },
   update(dt) {
@@ -2924,6 +2951,9 @@ const Cam = {
         this.flyPos.x + Math.cos(this.flyYaw) * Math.cos(this.flyPitch),
         this.flyPos.y + Math.sin(this.flyPitch),
         this.flyPos.z + Math.sin(this.flyYaw) * Math.cos(this.flyPitch));
+    } else if (this.mode === 'follow') {
+      V3.copy(this.eye, this.followPos);
+      V3.copy(this.look, this.followLook);
     } else {
       V3.copy(this.eye, this.ridePos);
       V3.copy(this.look, this.rideLook);
@@ -4371,6 +4401,68 @@ const Prefab = {
     const body = hex(def.color), roof = hex(def.roof);
     const wall = shade(hex(0xf5efe2), 1);
     const hw = W / 2 - .35, hd = D / 2 - .35;
+
+    /* ---- Power: five real, purpose-built structures instead of the
+       generic box-and-roof shell every other free facility shares. A
+       generator's whole point in the sim is that it looks like industrial
+       plant a park would want to hide, not a themed kiosk, so it gets its
+       own silhouette per id rather than reusing Prefab.shop's shop-shaped
+       fallback. ---- */
+    if (def.need === 'power') {
+      const metal = shade(body, .8), dark = shade(body, .5), accent = hex(0xd94f3c);
+      if (def.id === 'genDiesel') {
+        // a squat engine housing: vented side panels, a canted exhaust stack
+        g.box(0, 0, 0, W - .6, 2.2, D - .6, body);
+        g.box(0, 2.2, 0, W - .3, .3, D - .3, dark);
+        for (let k = 0; k < 5; k++) g.box(-hw + .3, .5 + k * .35, hd - .05, .5, .12, .1, metal);
+        for (let k = 0; k < 5; k++) g.box(hw - .3, .5 + k * .35, hd - .05, .5, .12, .1, metal);
+        g.cyl(hw - .5, 2.2, -hd + .5, .22, 1.6, 8, metal, .12, true);
+        g.cyl(hw - .5, 3.7, -hd + .5, .26, .3, 8, hex(0x2b2b2b));
+        g.box(-hw + .2, .1, -hd + .2, .8, .4, .8, dark);   // control panel block
+      } else if (def.id === 'genGasTurbine') {
+        // a long low turbine hall with a curved roof, intake louvres and a stack
+        g.box(0, 0, 0, W - .4, .3, D - .4, dark);
+        g.box(0, .3, 0, W - .8, 2.2, D - .8, body);
+        g.box(0, 2.5, 0, W - 1.2, .5, D - 1.2, shade(body, 1.15));   // curved-roof suggestion
+        for (let z = -hd + .8; z < hd - .5; z += 1.1) for (const sx of [-1, 1])
+          g.box(sx * (hw - .1), 1.4, z, .12, 1.6, .6, metal);
+        g.cyl(0, 3.0, -hd + .8, .5, 2.4, 10, metal, .8);
+        g.cyl(0, 5.4, -hd + .8, .55, .25, 10, hex(0x2b2b2b));
+        g.box(0, .2, hd - .3, W - 1.2, .5, .5, accent);   // warning stripe at the loading end
+      } else if (def.id === 'genWind') {
+        // a real turbine tower: tapered mast, nacelle, three blades
+        g.cyl(0, 0, 0, .55, 7.5, 10, hex(0xe4e0d6), .28, true);
+        g.box(0, 7.5, 0, 1.3, .8, 1.9, hex(0xc9c4b6));
+        g.cyl(0, 7.9, 1.0, .28, .5, 8, hex(0xb0aa96));
+        for (let k = 0; k < 3; k++) {
+          const a = k / 3 * TAU;
+          const ex = Math.cos(a) * 3.6, ey = 7.9 + Math.sin(a) * 3.6;
+          g.beam(0, 7.9, 1.2, ex, ey, 1.2, .34, .06, hex(0xf2f2ea));
+        }
+        g.box(0, -.1, 0, 2.0, .2, 2.0, hex(0x8a8f80));   // base pad
+      } else if (def.id === 'genSolar') {
+        // rows of angled panels on a low frame, not a building at all
+        g.box(0, 0, 0, W - .4, .15, D - .4, hex(0x6b6b60));
+        const rows = Math.max(2, Math.round(D / 2));
+        for (let r = 0; r < rows; r++) {
+          const z = -hd + .8 + r * ((D - 1.2) / Math.max(1, rows - 1));
+          g.beam(-hw + .4, .15, z, -hw + .4, 1.5, z - .8, .08, .08, hex(0x3a3a3a));
+          g.beam(hw - .4, .15, z, hw - .4, 1.5, z - .8, .08, .08, hex(0x3a3a3a));
+          g.box(0, 1.15, z - .5, W - 1.0, .08, 1.5, hex(0x1c2b3c));
+          g.box(0, 1.2, z - .5, W - 1.0, .02, 1.5, roof);   // panel sheen
+        }
+      } else {   // genReactor and any future big power id — containment dome + cooling towers
+        g.cyl(0, 0, 0, Math.min(hw, hd) - .3, 3.0, 12, body, .3, true);
+        g.sphere(0, 3.0, 0, Math.min(hw, hd) - .3, 10, shade(body, 1.1));
+        for (const sx of [-1, 1]) {
+          g.cyl(sx * (hw - .6), 0, hd - .6, .8, 4.6, 10, hex(0xd8d8d0), .18, true);
+          g.cyl(sx * (hw - .6), 4.6, hd - .6, .9, .3, 10, hex(0xb8b8b0));
+        }
+        g.box(0, 0, -hd + .3, W - 1.4, .2, .6, accent);
+        g.box(0, .2, -hd + .5, .6, 1.4, .6, dark);   // access hatch block
+      }
+      return { base: g, parts: [] };
+    }
 
     /* ---- Hotels: three distinct architectural styles rather than palette
        swaps of one tower, picked per-building via def.hotelStyle. Every box
@@ -13508,6 +13600,8 @@ const UI = {
       $('#insTitle').textContent = 'Guest';
       h += `<div style="font-size:14px;font-weight:700;margin-bottom:2px">${esc(o.name)}</div>`;
       h += `<div style="font-size:10.5px;color:var(--dim);margin-bottom:6px">${o.state} &middot; in the park ${Math.round(o.timeInPark / 60)}h</div>`;
+      h += `<div class="btnrow" style="margin-bottom:8px"><button class="btn" style="flex:0 0 auto;padding:7px 16px"
+        onclick="Game.followGuest(${o.id})">${ICON.camera}Follow this guest</button></div>`;
       h += kv('Cash left', money(o.cash));
       h += kv('Spent here', money(o.spent));
       h += kv('Rides taken', o.ridden.length);
@@ -13947,6 +14041,94 @@ const UI = {
        <p>The park plays a procedural waltz that never repeats a bar exactly, birdsong through the
        day and crickets after dark. Wind rises with the weather, and the crowd murmur follows how
        many guests are actually in the park.</p>`);
+  },
+
+  /* ---------------- campaign builder ----------------
+     A real "make your own Career scenario" tool: name, brief, map, budget
+     and up to four objectives drawn from the exact same goal kinds the
+     built-in scenarios use, so a player-made mission is checked by the
+     same code and can never silently fail to complete. */
+  scenarioGoalRows: 1,
+  openScenarioBuilder() {
+    this.scenarioGoalRows = 1;
+    this.modal('Create a scenario', this.scenarioBuilderHTML());
+  },
+  scenarioBuilderHTML() {
+    const opts = GOAL_KINDS.map(g => `<option value="${g.k}">${g.label}</option>`).join('');
+    const mapOpts = MAPS.map(m => `<option value="${m.id}">${m.n}</option>`).join('');
+    let rows = '';
+    for (let i = 0; i < this.scenarioGoalRows; i++) {
+      const gk = GOAL_KINDS[i % GOAL_KINDS.length];
+      rows += `<div class="row" style="gap:8px;margin:5px 0">
+        <select id="sgKind${i}" style="flex:1.3" onchange="document.getElementById('sgTarget${i}').value=GOAL_KINDS.find(g=>g.k===this.value).def">${opts}</select>
+        <input id="sgTarget${i}" type="number" min="1" value="${gk.def}" style="flex:1">
+      </div>`;
+    }
+    return `
+      <div class="row"><label style="min-width:110px">Name</label><input id="scName" type="text" maxlength="40" placeholder="My Park Challenge" style="flex:1"></div>
+      <div class="row" style="margin-top:6px"><label style="min-width:110px">Brief</label><input id="scBlurb" type="text" maxlength="160" placeholder="What is the player trying to do?" style="flex:1"></div>
+      <div class="row" style="margin-top:6px"><label style="min-width:110px">Landscape</label><select id="scMap" style="flex:1">${mapOpts}</select></div>
+      <div class="row" style="margin-top:6px"><label style="min-width:110px">Starting funds</label><input id="scMoney" type="number" min="5000" max="2000000" step="5000" value="60000" style="flex:1"></div>
+      <div class="row" style="margin-top:6px"><label style="min-width:110px">Entry fee ($)</label><input id="scFee" type="number" min="0" max="60" value="12" style="flex:1"></div>
+      <div class="row" style="margin-top:6px"><label style="min-width:110px">Park level cap</label><input id="scLevel" type="number" min="1" max="5" value="2" style="flex:1"></div>
+      <h3>Objectives</h3>
+      <div id="scGoalRows">${rows}</div>
+      <div class="btnrow" style="margin:6px 0 14px">
+        <button class="btn" style="flex:0 0 auto;padding:6px 14px" onclick="UI.addScenarioGoalRow()">+ Add objective</button>
+      </div>
+      <div class="btnrow">
+        <button class="btn go" style="flex:0 0 auto;padding:9px 20px" onclick="UI.createScenario()">Create &amp; play</button>
+        <button class="btn" style="flex:0 0 auto;padding:9px 20px" onclick="UI.closeModal()">Cancel</button>
+      </div>`;
+  },
+  addScenarioGoalRow() {
+    if (this.scenarioGoalRows >= 4) return;
+    // preserve whatever the player has already typed before re-rendering
+    const prev = [];
+    for (let i = 0; i < this.scenarioGoalRows; i++) {
+      const k = document.getElementById('sgKind' + i), t = document.getElementById('sgTarget' + i);
+      prev.push({ k: k ? k.value : null, t: t ? t.value : null });
+    }
+    this.scenarioGoalRows++;
+    const nameEl = document.getElementById('scName'), blurbEl = document.getElementById('scBlurb');
+    const savedName = nameEl ? nameEl.value : '', savedBlurb = blurbEl ? blurbEl.value : '';
+    const savedMap = document.getElementById('scMap') ? document.getElementById('scMap').value : '';
+    const savedMoney = document.getElementById('scMoney') ? document.getElementById('scMoney').value : '';
+    const savedFee = document.getElementById('scFee') ? document.getElementById('scFee').value : '';
+    const savedLevel = document.getElementById('scLevel') ? document.getElementById('scLevel').value : '';
+    this.modal('Create a scenario', this.scenarioBuilderHTML());
+    document.getElementById('scName').value = savedName;
+    document.getElementById('scBlurb').value = savedBlurb;
+    if (savedMap) document.getElementById('scMap').value = savedMap;
+    if (savedMoney) document.getElementById('scMoney').value = savedMoney;
+    if (savedFee) document.getElementById('scFee').value = savedFee;
+    if (savedLevel) document.getElementById('scLevel').value = savedLevel;
+    prev.forEach((p, i) => {
+      if (!p.k) return;
+      const k = document.getElementById('sgKind' + i), t = document.getElementById('sgTarget' + i);
+      if (k) k.value = p.k;
+      if (t) t.value = p.t;
+    });
+  },
+  createScenario() {
+    const name = document.getElementById('scName').value.trim();
+    if (!name) { this.notify('Name it first', 'A scenario needs a name before you can play it.', 'warn'); return; }
+    const goals = [];
+    for (let i = 0; i < this.scenarioGoalRows; i++) {
+      const k = document.getElementById('sgKind' + i).value;
+      const target = +document.getElementById('sgTarget' + i).value;
+      if (target > 0) goals.push({ k, target });
+    }
+    const sc = CustomScenarios.create({
+      name, blurb: document.getElementById('scBlurb').value.trim(),
+      map: document.getElementById('scMap').value,
+      money: +document.getElementById('scMoney').value,
+      fee: +document.getElementById('scFee').value,
+      level: +document.getElementById('scLevel').value,
+      goals,
+    });
+    this.closeModal();
+    Menu.beginCustom(sc.id);
   },
 
   /* Leaving to the menu is a real decision, so it gets a real dialog rather
@@ -16982,6 +17164,65 @@ const SCENARIOS = [
   },
 ];
 
+/* Every goal kind Goals.value() actually understands, with a human label
+   and a sane default target — the campaign builder can only ever offer
+   what the objective tracker can really check, so a custom scenario can
+   never define a goal that silently never completes. */
+const GOAL_KINDS = [
+  { k: 'guests', label: 'Guests in the park', def: 200 },
+  { k: 'rating', label: 'Park rating (stars)', def: 3.0, step: .1 },
+  { k: 'happy', label: 'Average happiness (%)', def: 70 },
+  { k: 'rides', label: 'Rides open', def: 4 },
+  { k: 'water', label: 'Water attractions open', def: 3 },
+  { k: 'shops', label: 'Shops and facilities', def: 5 },
+  { k: 'coasters', label: 'Coasters open', def: 1 },
+  { k: 'coasterExc', label: 'Coaster excitement rating', def: 7, step: .1 },
+  { k: 'profit', label: 'Total earnings ($)', def: 100000 },
+  { k: 'beauty', label: 'Park beauty score', def: 500 },
+  { k: 'days', label: 'Days operated', def: 30 },
+];
+
+/* ---------- campaign builder ----------
+   Player-authored scenarios, stored alongside the built-in ones and playable
+   exactly the same way. Deliberately a subset of what a hand-built SCENARIOS
+   entry can do (no custom terrain shape, no scripted events) — the goal is a
+   real, working "make your own Career mission" tool, not a level editor. */
+const CustomScenarios = {
+  list: [],
+  load() {
+    try { this.list = JSON.parse(localStorage.getItem('pc_customScenarios') || '[]'); }
+    catch (e) { this.list = []; }
+  },
+  save() {
+    try { localStorage.setItem('pc_customScenarios', JSON.stringify(this.list)); } catch (e) { }
+  },
+  create(def) {
+    const sc = {
+      id: 'custom_' + Date.now().toString(36) + rndi(100, 999),
+      name: (def.name || 'Untitled Park').slice(0, 40),
+      tag: 'Custom',
+      blurb: (def.blurb || 'A player-made scenario.').slice(0, 160),
+      money: clamp(Math.round(def.money) || 60000, 5000, 2000000),
+      fee: clamp(Math.round(def.fee) || 12, 0, 60),
+      level: clamp(Math.round(def.level) || 2, 1, 5),
+      map: def.map || 'meadow',
+      days: 0,
+      custom: true,
+      goals: (def.goals || []).filter(g => GOAL_KINDS.some(gk => gk.k === g.k) && g.target > 0).slice(0, 6)
+        .map(g => ({ k: g.k, target: g.target, label: GOAL_KINDS.find(gk => gk.k === g.k).label })),
+    };
+    if (!sc.goals.length) sc.goals.push({ k: 'guests', target: 100, label: 'Guests in the park' });
+    this.list.unshift(sc);
+    this.save();
+    return sc;
+  },
+  remove(id) {
+    this.list = this.list.filter(x => x.id !== id);
+    this.save();
+  },
+};
+CustomScenarios.load();
+
 /* ============================================================================
    RESEARCH TREE — unlocked once the park reaches level 5. Spend cash to
    permanently improve how the park runs. Each node can depend on an
@@ -18484,10 +18725,10 @@ const Menu = {
   scenarios() {
     document.getElementById('mMain').classList.add('hidden');
     document.getElementById('mSectionTitle').textContent = 'Choose a park';
-    document.getElementById('mSectionDesc').textContent = 'Pick a scenario to begin your career. Each one starts with its own budget, brief and set of objectives.';
+    document.getElementById('mSectionDesc').textContent = 'Pick a scenario to begin your career. Each one starts with its own budget, brief and set of objectives — including any you have built yourself.';
     const w = document.getElementById('mScenarios');
     w.classList.remove('hidden');
-    w.innerHTML = SCENARIOS.map((sc, i) => `
+    const builtIn = SCENARIOS.map((sc, i) => `
       <div class="mcard pickcard" onclick="Menu.begin('career',${i})">
         <div class="mtag">${sc.tag}</div>
         <div class="mck">${sc.name}</div>
@@ -18495,7 +18736,32 @@ const Menu = {
         ${sc.goals.slice(0, 3).map(g => `<div class="mgoal">&bull; ${g.label}: ${g.k === 'profit' ? money(g.target) : g.target}</div>`).join('')}
         <div class="mcgo">${money(sc.money)} to start</div>
       </div>`).join('');
+    const custom = CustomScenarios.list.map(sc => `
+      <div class="mcard pickcard" onclick="Menu.beginCustom('${sc.id}')">
+        <div class="mtag" style="background:var(--good)">Custom</div>
+        <div class="mck">${esc(sc.name)}</div>
+        <div class="mcd">${esc(sc.blurb)}</div>
+        ${sc.goals.slice(0, 3).map(g => `<div class="mgoal">&bull; ${g.label}: ${g.k === 'profit' ? money(g.target) : g.target}</div>`).join('')}
+        <div class="mcgo">${money(sc.money)} to start</div>
+        <button class="btn dan" style="margin-top:8px;padding:5px 10px;font-size:10px"
+          onclick="event.stopPropagation();if(confirm('Delete this scenario?')){CustomScenarios.remove('${sc.id}');Menu.scenarios();}">Delete</button>
+      </div>`).join('');
+    const createCard = `
+      <div class="mcard pickcard" style="display:flex;align-items:center;justify-content:center;min-height:120px;border:2px dashed var(--edge-hot)"
+        onclick="UI.openScenarioBuilder()">
+        <div style="text-align:center"><div style="font-size:26px;line-height:1">+</div><div class="mck" style="margin-top:4px">Create Scenario</div></div>
+      </div>`;
+    w.innerHTML = createCard + custom + builtIn;
     document.getElementById('mBack').style.display = '';
+  },
+  beginCustom(id) {
+    const sc = CustomScenarios.list.find(x => x.id === id);
+    if (!sc) return;
+    this.showcase = false;
+    WORLD.mapKind = sc.map || 'meadow';
+    Game.newGame('career', sc);
+    this.hide();
+    setTimeout(() => Tutorial.ask(), 500);
   },
   back() {
     document.getElementById('mMain').classList.remove('hidden');
@@ -20945,6 +21211,7 @@ const Game = {
       }
       if (k === 'escape') {
         if (Cam.mode === 'ride') { this.exitRideCam(); return; }
+        if (Cam.mode === 'follow') { this.exitFollowCam(); return; }
         if (Coaster.placing) { Coaster.placing = null; Coaster.blueprint = null; UI.hint('Cancelled.'); return; }
         UI.sub = null; UI.setTool('select'); UI.closeInspector(); UI.closeModal();
         document.querySelectorAll('#bpBody .item').forEach(x => x.classList.remove('on'));
@@ -21915,6 +22182,55 @@ const Game = {
     Audio.setRumble(0);
   },
 
+  /* ---------------- guest camera ----------------
+     A third-person follow rig on a single named guest — not a canned
+     flythrough, the real person the simulation is already tracking, with
+     their real needs, their real destination, and their real reactions
+     to your park. The rig itself is a simplified version of the ride
+     camera's spring-follow: it trails a fixed distance behind and above,
+     eases toward the guest's heading rather than snapping to it, and
+     drops out cleanly (guest leaves the park, dies of old code, etc.)
+     instead of leaving the camera locked to nothing. */
+  followTarget: null,
+  followGuest(id) {
+    const g = Park.guests.find(x => x.id === id);
+    if (!g) return;
+    if (Cam.mode === 'ride') this.exitRideCam();
+    this.followTarget = g;
+    Cam.mode = 'follow';
+    this._followYaw = g.yaw || 0;
+    const back = 4.6, up = 3.1;
+    V3.set(Cam.followPos, g.x - Math.sin(this._followYaw) * back, (g.y || WORLD.hAt(g.x, g.z)) + up, g.z - Math.cos(this._followYaw) * back);
+    V3.set(Cam.followLook, g.x, (g.y || 0) + 1.1, g.z);
+    document.body.classList.add('followmode');
+    $('#followcam').classList.add('show');
+    UI.closeInspector();
+    UI.hint('Following ' + (g.name || 'a guest') + '. Press <kbd>Escape</kbd> to stop.', true);
+  },
+  exitFollowCam() {
+    Cam.mode = 'orbit'; this.followTarget = null;
+    document.body.classList.remove('followmode');
+    $('#followcam').classList.remove('show');
+  },
+  updateFollowCam(dt) {
+    const g = this.followTarget;
+    if (!g || g.dead || !Park.guests.includes(g)) { this.exitFollowCam(); return; }
+    const targetYaw = g.moving ? (g.yaw || 0) : (this._followYaw || 0);
+    let dyaw = targetYaw - this._followYaw;
+    while (dyaw > PI) dyaw -= TAU; while (dyaw < -PI) dyaw += TAU;
+    this._followYaw += dyaw * clamp(dt * 3, 0, 1);
+    const back = 4.6, up = 3.1;
+    const px = g.x - Math.sin(this._followYaw) * back;
+    const pz = g.z - Math.cos(this._followYaw) * back;
+    const py = (g.y || WORLD.hAt(g.x, g.z)) + up;
+    Cam.followPos.x = damp(Cam.followPos.x, px, 6, dt); Cam.followPos.y = damp(Cam.followPos.y, py, 6, dt); Cam.followPos.z = damp(Cam.followPos.z, pz, 6, dt);
+    const lx = g.x, ly = (g.y || 0) + 1.1, lz = g.z;
+    Cam.followLook.x = damp(Cam.followLook.x, lx, 8, dt); Cam.followLook.y = damp(Cam.followLook.y, ly, 8, dt); Cam.followLook.z = damp(Cam.followLook.z, lz, 8, dt);
+    Cam.fov = 42 * DEG;
+    const nm = $('#fcName'); if (nm) nm.textContent = g.name || 'Guest';
+    const md = $('#fcMood'); if (md) md.textContent = Math.round((g.happy || .5) * 100) + '% happy';
+  },
+
   /* ---------------- simulation ---------------- */
   update(dt) {
     const sdt = dt * this.speed;
@@ -21957,6 +22273,7 @@ const Game = {
     this.updateRiders();
     Cam.update(dt);
     if (Cam.mode === 'ride') this.updateRideCam(dt);
+    if (Cam.mode === 'follow') this.updateFollowCam(dt);
     else {
       // keyboard panning
       let f = 0, r = 0;
@@ -23018,7 +23335,7 @@ const Game = {
       Park.mode = d.mode || 'sandbox';
       Park.level = d.level !== undefined ? d.level : Progress.MAXLEVEL;
       Park.xp = d.xp || 0;
-      const sc = d.scenario ? SCENARIOS.find(x => x.id === d.scenario) : null;
+      const sc = d.scenario ? (SCENARIOS.find(x => x.id === d.scenario) || CustomScenarios.list.find(x => x.id === d.scenario)) : null;
       Goals.start(sc);
       if (sc && d.goalDone && Goals.active) Goals.active.goals.forEach((g, i) => g.done = !!d.goalDone[i]);
       Park.log = d.log || Park.log;
