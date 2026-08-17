@@ -3999,13 +3999,13 @@ const CAT = {
   /* ---------------- Shops & facilities ---------------- */
   shops: [
     { id: 'burger', name: 'Burger Barn', cost: 1200, up: 22, w: 2, d: 2, need: 'hunger', price: 8, satisfy: 62, color: 0xd94f3c, roof: 0xf2c14e },
-    { id: 'pizza', name: 'Pizza Palace', cost: 1500, up: 26, w: 2, d: 2, need: 'hunger', price: 10, satisfy: 74, color: 0xe0663f, roof: 0xf7e08a },
-    { id: 'noodle', name: 'Noodle Nook', cost: 1700, up: 28, w: 2, d: 2, need: 'hunger', price: 11, satisfy: 80, color: 0xc0453c, roof: 0x2f3b52 },
-    { id: 'drink', name: 'Soda Stop', cost: 900, up: 16, w: 1, d: 1, need: 'thirst', price: 5, satisfy: 70, color: 0x3ba7d4, roof: 0xffffff },
-    { id: 'coffee', name: 'Coaster Coffee', cost: 1100, up: 18, w: 1, d: 1, need: 'thirst', price: 6, satisfy: 62, color: 0x6b4630, roof: 0xd9c7a5 },
-    { id: 'icecream', name: 'Gelato Cart', cost: 800, up: 14, w: 1, d: 1, need: 'hunger', price: 6, satisfy: 40, color: 0xf2a0c0, roof: 0xffffff },
-    { id: 'donut', name: 'Donut Dome', cost: 1300, up: 20, w: 2, d: 1, need: 'hunger', price: 7, satisfy: 50, color: 0xe8749b, roof: 0x8b5ab8 },
-    { id: 'popcorn', name: 'Popcorn Stand', cost: 850, up: 15, w: 1, d: 1, need: 'hunger', price: 5, satisfy: 34, color: 0xe8d24a, roof: 0xd94f3c },
+    { id: 'pizza', name: 'Pizza Palace', cost: 1500, up: 26, w: 2, d: 2, need: 'hunger', price: 10, satisfy: 74, color: 0xe0663f, roof: 0xf7e08a, facade: 'pavilion'},
+    { id: 'noodle', name: 'Noodle Nook', cost: 1700, up: 28, w: 2, d: 2, need: 'hunger', price: 11, satisfy: 80, color: 0xc0453c, roof: 0x2f3b52, facade: 'pavilion'},
+    { id: 'drink', name: 'Soda Stop', cost: 900, up: 16, w: 1, d: 1, need: 'thirst', price: 5, satisfy: 70, color: 0x3ba7d4, roof: 0xffffff, facade: 'cart'},
+    { id: 'coffee', name: 'Coaster Coffee', cost: 1100, up: 18, w: 1, d: 1, need: 'thirst', price: 6, satisfy: 62, color: 0x6b4630, roof: 0xd9c7a5, facade: 'cart'},
+    { id: 'icecream', name: 'Gelato Cart', cost: 800, up: 14, w: 1, d: 1, need: 'hunger', price: 6, satisfy: 40, color: 0xf2a0c0, roof: 0xffffff, facade: 'cart'},
+    { id: 'donut', name: 'Donut Dome', cost: 1300, up: 20, w: 2, d: 1, need: 'hunger', price: 7, satisfy: 50, color: 0xe8749b, roof: 0x8b5ab8, facade: 'cart'},
+    { id: 'popcorn', name: 'Popcorn Stand', cost: 850, up: 15, w: 1, d: 1, need: 'hunger', price: 5, satisfy: 34, color: 0xe8d24a, roof: 0xd94f3c, facade: 'cart'},
     { id: 'bikerental', name: 'Bike Rental Stand', cost: 2200, up: 12, w: 2, d: 1, need: 'bike', price: 6, satisfy: 0, color: 0x2e7d46, roof: 0xf2c14e },
     /* prebuilt: every park starts with this one, standing on the approach
        road south of the gate. It is not in the build menu — you expand the
@@ -4017,65 +4017,65 @@ const CAT = {
     { id: 'parkinglot', name: 'Parking Lot', cost: 8000, up: 20, w: 20, d: 11, need: 'parking', price: 0, satisfy: 0, spaces: 260, prebuilt: true, color: 0x6b6b6d, roof: 0x3a3a3c },
     { id: 'breakroom', name: 'Staff Break Room', cost: 3200, up: 14, w: 2, d: 2, need: 'break', price: 0, satisfy: 0, color: 0x6b8f9e, roof: 0x3a3a3c },
     { id: 'toilet', name: 'Restrooms', cost: 900, up: 20, w: 2, d: 2, need: 'toilet', price: 0, satisfy: 100, color: 0x8fa3b8, roof: 0x4d6480 },
-    { id: 'gift', name: 'Gift Shop', cost: 2000, up: 30, w: 2, d: 2, need: 'shop', price: 18, satisfy: 55, color: 0x7b5bd4, roof: 0xffd76a },
-    { id: 'balloon', name: 'Balloon Stall', cost: 700, up: 12, w: 1, d: 1, need: 'shop', price: 6, satisfy: 40, color: 0xff6f91, roof: 0x69d2f0 },
+    { id: 'gift', name: 'Gift Shop', cost: 2000, up: 30, w: 2, d: 2, need: 'shop', price: 18, satisfy: 55, color: 0x7b5bd4, roof: 0xffd76a, facade: 'cabin'},
+    { id: 'balloon', name: 'Balloon Stall', cost: 700, up: 12, w: 1, d: 1, need: 'shop', price: 6, satisfy: 40, color: 0xff6f91, roof: 0x69d2f0, facade: 'cart'},
     { id: 'firstaid', name: 'First Aid', cost: 1400, up: 24, w: 2, d: 1, need: 'nausea', price: 0, satisfy: 100, color: 0xf4f4f4, roof: 0xd94f3c },
     { id: 'atm', name: 'Cash Machine', cost: 600, up: 8, w: 1, d: 1, need: 'cash', price: 0, satisfy: 100, color: 0x3c4a5e, roof: 0x2ad07a },
     { id: 'info', name: 'Info Kiosk', cost: 500, up: 8, w: 1, d: 1, need: 'info', price: 0, satisfy: 100, color: 0x2f80c0, roof: 0xffffff },
-    { id: 'hotdog', name: 'Hot Dog Hut', cost: 1150, up: 20, w: 2, d: 1, need: 'hunger', price: 8, satisfy: 58, color: 0xc0392b, roof: 0xf5e6c8 },
-    { id: 'taco', name: 'Taco Cantina', cost: 1600, up: 26, w: 2, d: 2, need: 'hunger', price: 11, satisfy: 76, color: 0xe07a2f, roof: 0x2e8b57 },
-    { id: 'sushi', name: 'Sushi Bar', cost: 2100, up: 32, w: 2, d: 2, need: 'hunger', price: 15, satisfy: 88, color: 0x2b3a4a, roof: 0xd94f3c },
-    { id: 'bbq', name: 'Smokehouse BBQ', cost: 2400, up: 34, w: 3, d: 2, need: 'hunger', price: 16, satisfy: 92, color: 0x6b3f2a, roof: 0x3a3a3a },
-    { id: 'pretzel', name: 'Pretzel Cart', cost: 780, up: 13, w: 1, d: 1, need: 'hunger', price: 5, satisfy: 36, color: 0xb5651d, roof: 0xf0d9a0 },
-    { id: 'smoothie', name: 'Smoothie Shack', cost: 1250, up: 21, w: 2, d: 1, need: 'thirst', price: 8, satisfy: 84, color: 0x2ecc71, roof: 0xffd23f },
-    { id: 'tea', name: 'Tea Garden', cost: 1350, up: 22, w: 2, d: 2, need: 'thirst', price: 7, satisfy: 72, color: 0x8fbf6a, roof: 0x5c4033 },
-    { id: 'candy', name: 'Candy Emporium', cost: 1700, up: 26, w: 2, d: 2, need: 'shop', price: 12, satisfy: 60, color: 0xff7fb0, roof: 0x7ed6df },
-    { id: 'hatshop', name: 'Hat Stand', cost: 900, up: 15, w: 1, d: 1, need: 'shop', price: 9, satisfy: 45, color: 0x4a6fd4, roof: 0xffd76a },
-    { id: 'photobooth', name: 'Photo Booth', cost: 1450, up: 24, w: 1, d: 1, need: 'shop', price: 14, satisfy: 66, color: 0x34495e, roof: 0xe74c3c },
-    { id: 'locker', name: 'Locker Room', cost: 1000, up: 17, w: 2, d: 1, need: 'shop', price: 4, satisfy: 30, color: 0x7f8c8d, roof: 0x2c3e50 },
-    { id: 'ramen', name: 'Ramen House', cost: 2300, up: 33, w: 2, d: 2, need: 'hunger', price: 14, satisfy: 90, color: 0xb03a2e, roof: 0x1b2631 },
-    { id: 'crepe', name: 'Crepe Cabin', cost: 1250, up: 21, w: 2, d: 1, need: 'hunger', price: 8, satisfy: 54, color: 0xf0c060, roof: 0x8b5a2b },
-    { id: 'juice', name: 'Fresh Juice Bar', cost: 1450, up: 24, w: 2, d: 1, need: 'thirst', price: 9, satisfy: 88, color: 0xf5843c, roof: 0x2ecc71 },
+    { id: 'hotdog', name: 'Hot Dog Hut', cost: 1150, up: 20, w: 2, d: 1, need: 'hunger', price: 8, satisfy: 58, color: 0xc0392b, roof: 0xf5e6c8, facade: 'cart'},
+    { id: 'taco', name: 'Taco Cantina', cost: 1600, up: 26, w: 2, d: 2, need: 'hunger', price: 11, satisfy: 76, color: 0xe07a2f, roof: 0x2e8b57, facade: 'pavilion'},
+    { id: 'sushi', name: 'Sushi Bar', cost: 2100, up: 32, w: 2, d: 2, need: 'hunger', price: 15, satisfy: 88, color: 0x2b3a4a, roof: 0xd94f3c, facade: 'pavilion'},
+    { id: 'bbq', name: 'Smokehouse BBQ', cost: 2400, up: 34, w: 3, d: 2, need: 'hunger', price: 16, satisfy: 92, color: 0x6b3f2a, roof: 0x3a3a3a, facade: 'pavilion'},
+    { id: 'pretzel', name: 'Pretzel Cart', cost: 780, up: 13, w: 1, d: 1, need: 'hunger', price: 5, satisfy: 36, color: 0xb5651d, roof: 0xf0d9a0, facade: 'cart'},
+    { id: 'smoothie', name: 'Smoothie Shack', cost: 1250, up: 21, w: 2, d: 1, need: 'thirst', price: 8, satisfy: 84, color: 0x2ecc71, roof: 0xffd23f, facade: 'cart'},
+    { id: 'tea', name: 'Tea Garden', cost: 1350, up: 22, w: 2, d: 2, need: 'thirst', price: 7, satisfy: 72, color: 0x8fbf6a, roof: 0x5c4033, facade: 'cabin'},
+    { id: 'candy', name: 'Candy Emporium', cost: 1700, up: 26, w: 2, d: 2, need: 'shop', price: 12, satisfy: 60, color: 0xff7fb0, roof: 0x7ed6df, facade: 'cabin'},
+    { id: 'hatshop', name: 'Hat Stand', cost: 900, up: 15, w: 1, d: 1, need: 'shop', price: 9, satisfy: 45, color: 0x4a6fd4, roof: 0xffd76a, facade: 'cart'},
+    { id: 'photobooth', name: 'Photo Booth', cost: 1450, up: 24, w: 1, d: 1, need: 'shop', price: 14, satisfy: 66, color: 0x34495e, roof: 0xe74c3c, facade: 'cabin'},
+    { id: 'locker', name: 'Locker Room', cost: 1000, up: 17, w: 2, d: 1, need: 'shop', price: 4, satisfy: 30, color: 0x7f8c8d, roof: 0x2c3e50, facade: 'cabin'},
+    { id: 'ramen', name: 'Ramen House', cost: 2300, up: 33, w: 2, d: 2, need: 'hunger', price: 14, satisfy: 90, color: 0xb03a2e, roof: 0x1b2631, facade: 'pavilion'},
+    { id: 'crepe', name: 'Crepe Cabin', cost: 1250, up: 21, w: 2, d: 1, need: 'hunger', price: 8, satisfy: 54, color: 0xf0c060, roof: 0x8b5a2b, facade: 'cabin'},
+    { id: 'juice', name: 'Fresh Juice Bar', cost: 1450, up: 24, w: 2, d: 1, need: 'thirst', price: 9, satisfy: 88, color: 0xf5843c, roof: 0x2ecc71, facade: 'cart'},
     { id: 'water', name: 'Water Fountain', cost: 380, up: 5, w: 1, d: 1, need: 'thirst', price: 0, satisfy: 46, color: 0x9fb6c4, roof: 0x5c7f92 },
-    { id: 'popup', name: 'Merch Pop-Up', cost: 1150, up: 19, w: 2, d: 1, need: 'shop', price: 15, satisfy: 52, color: 0xd94f7f, roof: 0x33334d },
-    { id: 'arcade', name: 'Arcade', cost: 3600, up: 44, w: 3, d: 2, need: 'shop', price: 10, satisfy: 74, color: 0x2b2b45, roof: 0x9b30ff },
+    { id: 'popup', name: 'Merch Pop-Up', cost: 1150, up: 19, w: 2, d: 1, need: 'shop', price: 15, satisfy: 52, color: 0xd94f7f, roof: 0x33334d, facade: 'cabin'},
+    { id: 'arcade', name: 'Arcade', cost: 3600, up: 44, w: 3, d: 2, need: 'shop', price: 10, satisfy: 74, color: 0x2b2b45, roof: 0x9b30ff, facade: 'kiosk'},
     { id: 'nurse', name: 'Medical Post', cost: 1800, up: 28, w: 2, d: 2, need: 'nausea', price: 0, satisfy: 100, color: 0xfafafa, roof: 0x2ecc71 },
     { id: 'babycare', name: 'Baby Care Room', cost: 1500, up: 24, w: 2, d: 2, need: 'toilet', price: 0, satisfy: 100, color: 0xffd7e6, roof: 0x7fbfe0 },
-    { id: 'waffle', name: 'Waffle Wagon', cost: 1050, up: 18, w: 1, d: 1, need: 'hunger', price: 7, satisfy: 56, color: 0xf0a63c, roof: 0x8b5a2b },
-    { id: 'churro', name: 'Churro Cart', cost: 820, up: 14, w: 1, d: 1, need: 'hunger', price: 6, satisfy: 42, color: 0xd9a441, roof: 0xd94f3c },
-    { id: 'lemonade', name: 'Lemonade Stand', cost: 700, up: 12, w: 1, d: 1, need: 'thirst', price: 5, satisfy: 58, color: 0xf7e04a, roof: 0xffffff },
-    { id: 'milkshake', name: 'Milkshake Bar', cost: 1550, up: 24, w: 2, d: 1, need: 'thirst', price: 9, satisfy: 82, color: 0xff9ac1, roof: 0x7ed6df },
-    { id: 'toystore', name: 'Toy Chest', cost: 1900, up: 28, w: 2, d: 2, need: 'shop', price: 16, satisfy: 62, color: 0x4ecdc4, roof: 0xffe66d },
-    { id: 'sunscreen', name: 'Sun & Spray Kiosk', cost: 650, up: 10, w: 1, d: 1, need: 'shop', price: 8, satisfy: 44, color: 0xffd76a, roof: 0x3ba7d4 },
+    { id: 'waffle', name: 'Waffle Wagon', cost: 1050, up: 18, w: 1, d: 1, need: 'hunger', price: 7, satisfy: 56, color: 0xf0a63c, roof: 0x8b5a2b, facade: 'cart'},
+    { id: 'churro', name: 'Churro Cart', cost: 820, up: 14, w: 1, d: 1, need: 'hunger', price: 6, satisfy: 42, color: 0xd9a441, roof: 0xd94f3c, facade: 'cart'},
+    { id: 'lemonade', name: 'Lemonade Stand', cost: 700, up: 12, w: 1, d: 1, need: 'thirst', price: 5, satisfy: 58, color: 0xf7e04a, roof: 0xffffff, facade: 'cart'},
+    { id: 'milkshake', name: 'Milkshake Bar', cost: 1550, up: 24, w: 2, d: 1, need: 'thirst', price: 9, satisfy: 82, color: 0xff9ac1, roof: 0x7ed6df, facade: 'cart'},
+    { id: 'toystore', name: 'Toy Chest', cost: 1900, up: 28, w: 2, d: 2, need: 'shop', price: 16, satisfy: 62, color: 0x4ecdc4, roof: 0xffe66d, facade: 'cabin'},
+    { id: 'sunscreen', name: 'Sun & Spray Kiosk', cost: 650, up: 10, w: 1, d: 1, need: 'shop', price: 8, satisfy: 44, color: 0xffd76a, roof: 0x3ba7d4, facade: 'cart'},
     /* ---- Another batch: more footprint variety again — a fish & chip
        shop, a smoke-BBQ style pretzel wagon's cousin, a cheese shop, a
        kettle corn stand, a fudge-adjacent chocolatier, a paella stand, a
        flower stall, and a proper wood-fired pizza oven house distinct
        from the existing counter pizza stand. ---- */
-    { id: 'fishchips', name: 'Fish & Chips', cost: 1650, up: 26, w: 2, d: 2, need: 'hunger', price: 11, satisfy: 78, color: 0x2f80c0, roof: 0xf5f5f5 },
-    { id: 'cheeseshop', name: 'Cheese Cave', cost: 1900, up: 28, w: 2, d: 2, need: 'shop', price: 14, satisfy: 58, color: 0xf0d060, roof: 0x6b4630 },
-    { id: 'kettlecorn', name: 'Kettle Corn Cart', cost: 800, up: 14, w: 1, d: 1, need: 'hunger', price: 6, satisfy: 38, color: 0xd94f3c, roof: 0xf5e6c8 },
-    { id: 'chocolatier', name: 'The Chocolatier', cost: 2200, up: 32, w: 2, d: 2, need: 'shop', price: 17, satisfy: 68, color: 0x4a2f1e, roof: 0xd4af37 },
-    { id: 'paella', name: 'Paella Stand', cost: 1750, up: 27, w: 2, d: 2, need: 'hunger', price: 12, satisfy: 82, color: 0xe8a13c, roof: 0xc0392b },
-    { id: 'flowerstall', name: 'Flower Stall', cost: 700, up: 11, w: 1, d: 1, need: 'shop', price: 8, satisfy: 46, color: 0xff8fb0, roof: 0x7ed6df },
-    { id: 'woodpizza', name: 'Wood-Fired Pizza House', cost: 2900, up: 38, w: 3, d: 2, need: 'hunger', price: 15, satisfy: 90, color: 0xb5651d, roof: 0x8b3a2b },
-    { id: 'creperieplus', name: 'Grand Creperie', cost: 2000, up: 30, w: 2, d: 2, need: 'hunger', price: 13, satisfy: 80, color: 0xf0c060, roof: 0x2f3b52 },
+    { id: 'fishchips', name: 'Fish & Chips', cost: 1650, up: 26, w: 2, d: 2, need: 'hunger', price: 11, satisfy: 78, color: 0x2f80c0, roof: 0xf5f5f5, facade: 'pavilion'},
+    { id: 'cheeseshop', name: 'Cheese Cave', cost: 1900, up: 28, w: 2, d: 2, need: 'shop', price: 14, satisfy: 58, color: 0xf0d060, roof: 0x6b4630, facade: 'cabin'},
+    { id: 'kettlecorn', name: 'Kettle Corn Cart', cost: 800, up: 14, w: 1, d: 1, need: 'hunger', price: 6, satisfy: 38, color: 0xd94f3c, roof: 0xf5e6c8, facade: 'cart'},
+    { id: 'chocolatier', name: 'The Chocolatier', cost: 2200, up: 32, w: 2, d: 2, need: 'shop', price: 17, satisfy: 68, color: 0x4a2f1e, roof: 0xd4af37, facade: 'cabin'},
+    { id: 'paella', name: 'Paella Stand', cost: 1750, up: 27, w: 2, d: 2, need: 'hunger', price: 12, satisfy: 82, color: 0xe8a13c, roof: 0xc0392b, facade: 'pavilion'},
+    { id: 'flowerstall', name: 'Flower Stall', cost: 700, up: 11, w: 1, d: 1, need: 'shop', price: 8, satisfy: 46, color: 0xff8fb0, roof: 0x7ed6df, facade: 'cart'},
+    { id: 'woodpizza', name: 'Wood-Fired Pizza House', cost: 2900, up: 38, w: 3, d: 2, need: 'hunger', price: 15, satisfy: 90, color: 0xb5651d, roof: 0x8b3a2b, facade: 'pavilion'},
+    { id: 'creperieplus', name: 'Grand Creperie', cost: 2000, up: 30, w: 2, d: 2, need: 'hunger', price: 13, satisfy: 80, color: 0xf0c060, roof: 0x2f3b52, facade: 'pavilion'},
     /* ---- New batch: broadens the catalogue with more building variety
        rather than more recolours of the same footprint — a sit-down
        diner, a bakery, a currywurst cart, a fudge shop, a cinnamon roll
        stand, a bubble tea bar, a book nook, a jewelry stall, a soft-serve
        stand, and a proper mini-golf course. Each gets its own footprint,
        colour pairing, and price/satisfy balance so it earns its slot. ---- */
-    { id: 'diner', name: 'Trackside Diner', cost: 3200, up: 40, w: 3, d: 2, need: 'hunger', price: 13, satisfy: 86, color: 0xd94f3c, roof: 0x2c3e50 },
-    { id: 'bakery', name: 'Corner Bakery', cost: 1650, up: 25, w: 2, d: 2, need: 'hunger', price: 9, satisfy: 68, color: 0xf0d9a0, roof: 0xb5651d },
-    { id: 'currywurst', name: 'Currywurst Wagon', cost: 950, up: 16, w: 1, d: 1, need: 'hunger', price: 7, satisfy: 48, color: 0xe8a13c, roof: 0xc0392b },
-    { id: 'fudge', name: 'Fudge Foundry', cost: 1400, up: 22, w: 2, d: 1, need: 'shop', price: 13, satisfy: 58, color: 0x6b3f2a, roof: 0xffd76a },
-    { id: 'cinnamon', name: 'Cinnamon Roll Co.', cost: 1050, up: 18, w: 1, d: 1, need: 'hunger', price: 7, satisfy: 52, color: 0xd9a441, roof: 0x8b5a2b },
-    { id: 'bubbletea', name: 'Bubble Tea Bar', cost: 1500, up: 24, w: 2, d: 1, need: 'thirst', price: 8, satisfy: 80, color: 0x9b59b6, roof: 0x2ecc71 },
-    { id: 'booknook', name: 'Book Nook', cost: 1300, up: 20, w: 2, d: 2, need: 'shop', price: 11, satisfy: 46, color: 0x5c4033, roof: 0x7ed6df },
-    { id: 'jewelry', name: 'Charm & Gem', cost: 2600, up: 34, w: 2, d: 2, need: 'shop', price: 22, satisfy: 64, color: 0x2b2b45, roof: 0xd4af37 },
-    { id: 'softserve', name: 'Soft-Serve Swirl', cost: 900, up: 15, w: 1, d: 1, need: 'hunger', price: 6, satisfy: 44, color: 0xffffff, roof: 0xff6f91 },
-    { id: 'minigolf', name: 'Mini Golf Course', cost: 4200, up: 36, w: 3, d: 3, need: 'shop', price: 12, satisfy: 70, color: 0x2e7d46, roof: 0xf2c14e },
+    { id: 'diner', name: 'Trackside Diner', cost: 3200, up: 40, w: 3, d: 2, need: 'hunger', price: 13, satisfy: 86, color: 0xd94f3c, roof: 0x2c3e50, facade: 'pavilion'},
+    { id: 'bakery', name: 'Corner Bakery', cost: 1650, up: 25, w: 2, d: 2, need: 'hunger', price: 9, satisfy: 68, color: 0xf0d9a0, roof: 0xb5651d, facade: 'cabin'},
+    { id: 'currywurst', name: 'Currywurst Wagon', cost: 950, up: 16, w: 1, d: 1, need: 'hunger', price: 7, satisfy: 48, color: 0xe8a13c, roof: 0xc0392b, facade: 'cart'},
+    { id: 'fudge', name: 'Fudge Foundry', cost: 1400, up: 22, w: 2, d: 1, need: 'shop', price: 13, satisfy: 58, color: 0x6b3f2a, roof: 0xffd76a, facade: 'cabin'},
+    { id: 'cinnamon', name: 'Cinnamon Roll Co.', cost: 1050, up: 18, w: 1, d: 1, need: 'hunger', price: 7, satisfy: 52, color: 0xd9a441, roof: 0x8b5a2b, facade: 'cart'},
+    { id: 'bubbletea', name: 'Bubble Tea Bar', cost: 1500, up: 24, w: 2, d: 1, need: 'thirst', price: 8, satisfy: 80, color: 0x9b59b6, roof: 0x2ecc71, facade: 'cart'},
+    { id: 'booknook', name: 'Book Nook', cost: 1300, up: 20, w: 2, d: 2, need: 'shop', price: 11, satisfy: 46, color: 0x5c4033, roof: 0x7ed6df, facade: 'cabin'},
+    { id: 'jewelry', name: 'Charm & Gem', cost: 2600, up: 34, w: 2, d: 2, need: 'shop', price: 22, satisfy: 64, color: 0x2b2b45, roof: 0xd4af37, facade: 'cabin'},
+    { id: 'softserve', name: 'Soft-Serve Swirl', cost: 900, up: 15, w: 1, d: 1, need: 'hunger', price: 6, satisfy: 44, color: 0xffffff, roof: 0xff6f91, facade: 'cart'},
+    { id: 'minigolf', name: 'Mini Golf Course', cost: 4200, up: 36, w: 3, d: 3, need: 'shop', price: 12, satisfy: 70, color: 0x2e7d46, roof: 0xf2c14e, facade: 'pavilion'},
     /* ---- Hotels / lodging: guests can book a room instead of leaving at
        closing time. Modeled at the park level (see Game.dayTick) rather
        than a full per-guest overnight simulation, but the revenue, the
@@ -5085,6 +5085,187 @@ const Prefab = {
         const bc = [0xd9432e, 0x2e6fd9, 0x3ba05a, 0xd9c22e][k % 4];
         g.mergeM(Prefab.bike(bc), M4.compose(M4.create(), bx, .05, rackZ, 0, PI / 2, 0, 1.05, 1.05, 1.05));
       }
+      return { base: g, parts: [] };
+    }
+
+    /* ---- Four more building archetypes on top of the classic stall
+       below, so the ~60 food/retail entries in CAT.shops stop sharing one
+       silhouette with only a palette swap between them. Each catalogue
+       entry picks one via def.facade; anything left unset keeps the
+       original hipped-roof stall as a safe default. Not sixty bespoke
+       meshes — four real ones, assigned so a burger stand, a bakery, a
+       sit-down diner and a gift shop no longer read as the same box. ---- */
+    if (def.facade === 'cart') {
+      /* A hand-cart, not a building: two big wheels, an ice-box body and a
+         scalloped canvas parasol on a single pole — for the smallest,
+         cheapest impulse-buy items. */
+      const canvas = shade(roof, 1.08), canvasD = shade(roof, .8);
+      g.box(0, .35, 0, W - .5, .06, D - .5, hex(0xb9ab90));                     // wood platform
+      g.box(0, .41, 0, W - .7, .95, D - .7, body);                              // cart body
+      g.box(0, 1.02, 0, W - .55, .18, D - .55, shade(body, 1.15));              // lid band
+      g.box(0, .41, -D / 2 + .05, W - .8, .6, .06, shade(body, .8));            // serving hatch shadow
+      g.box(0, .55, -D / 2 - .02, W - 1.0, .3, .1, hex(0xffe9a8));              // hatch glow
+      // wheels
+      for (const sx of [-1, 1]) { g.cyl(sx * (W / 2 - .1), .35, D * .18, .35, .12, 10, hex(0x2b2b2b), 0, true); g.cyl(sx * (W / 2 - .1), .35, D * .18, .14, .14, 8, hex(0x8a8f96)); }
+      // handles
+      for (const sz of [-1, 1]) g.beam(0, .9, sz * (D / 2), 0, .55, sz * (D / 2 + .55), .05, .05, shade(body, .7));
+      // parasol: central pole + a shallow scalloped dome
+      const poleY = 1.2, domeY = 2.55, domeR = Math.max(W, D) * .62;
+      g.cyl(0, poleY, 0, .07, domeY - poleY, 8, hex(0x8a8f96));
+      const seg = 10;
+      for (let k = 0; k < seg; k++) {
+        const a0 = k / seg * TAU, a1 = (k + 1) / seg * TAU;
+        const c = k % 2 ? canvas : canvasD;
+        g.triV([0, domeY + .5, 0], [Math.cos(a0) * domeR, domeY, Math.sin(a0) * domeR], [Math.cos(a1) * domeR, domeY, Math.sin(a1) * domeR], c);
+      }
+      for (let k = 0; k < seg; k++) {
+        const a = k / seg * TAU;
+        g.sphere(Math.cos(a) * domeR, domeY - .1, Math.sin(a) * domeR, .1, 4, hex(0xfff4d0));   // scalloped trim bobbles
+      }
+      this.shopEmblem(g, def, 0, 1.02, -D / 2 - .1);
+      this.lightBulbs(g, 0, domeY - .35, 0, domeR * .82, 8, hex(0xfff3c4));
+      this.shopTier(g, def, W, D, domeY + .5, .8, body, roof, wall);
+      return { base: g, parts: [] };
+    }
+
+    if (def.facade === 'cabin') {
+      /* A timber-framed cabin: board-and-batten walls, a real gable roof
+         with a dormer, a covered porch and flower boxes under the front
+         windows — a sit-in shop, not a serving hatch. */
+      const timber = shade(body, .82), trim = shade(roof, 1.1), sill = shade(timber, .78);
+      g.box(0, -.1, 0, W + .2, .24, D + .2, hex(0xb9ab90));                     // plinth
+      g.box(0, .14, 0, W - .3, 2.5, D - .3, wall);                              // walls
+      for (let y = .5; y < 2.4; y += .5) g.box(0, y, hd + .01, W - .3, .06, .04, timber);       // board lines (front)
+      for (let y = .5; y < 2.4; y += .5) g.box(0, y, -hd - .01, W - .3, .06, .04, timber);
+      for (const sx of [-1, 1]) for (const sz of [-1, 1])
+        g.box(sx * (hw), .14, sz * (hd), .26, 2.6, .26, timber);                // corner posts
+      // shopfront window with a sill and flower box
+      const glass = hex(0xcfe9f5);
+      g.box(0, 1.15, -hd - .02, W - 1.1, 1.15, .08, glass);
+      g.box(0, 1.15, -hd - .1, W - 1.5, 1.0, .04, shade(glass, .9));
+      g.box(0, .58, -hd - .18, W - 1.0, .32, .34, hex(0x9c7b5c));               // flower box
+      for (let k = 0; k < Math.max(2, Math.round(W)); k++) g.sphere(-W / 2 + .6 + k * (W - 1.2) / Math.max(1, Math.round(W) - 1), .82, -hd - .18, .16, 4, [0xff6f91, 0xffd76a, 0x7ed6df][k % 3]);
+      // door
+      g.box(-W * .28, .14, hd - .02, .78, 2.0, .08, timber);
+      g.sphere(-W * .28 + .28, 1.1, hd - .08, .06, 5, hex(0xd8b25a));
+      // gable roof with a small dormer
+      const eave = .3, eaveY = .14 + 2.5, ridgeY = eaveY + 1.25;
+      const ex = hw + eave, ez = hd + eave;
+      const rL = [-ex, ridgeY, 0], rR = [ex, ridgeY, 0];
+      const fL = [-ex, eaveY, ez], fR = [ex, eaveY, ez], bL = [-ex, eaveY, -ez], bR = [ex, eaveY, -ez];
+      g.quadV(fL, fR, rR, rL, shade(roof, 1.05));
+      g.quadV(bR, bL, rL, rR, shade(roof, .88));
+      g.triV(bL, fL, rL, shade(roof, .8));
+      g.triV(fR, bR, rR, shade(roof, .8));
+      g.box(0, ridgeY - .04, 0, ex * 2 - .04, .12, .2, trim);
+      if (D >= 2) {
+        const dY = eaveY + .55, dZ = ez * .35;
+        g.box(0, dY, dZ, 1.1, .8, 1.0, wall);
+        g.box(0, dY + .8, dZ, 1.3, .5, 1.2, shade(roof, 1.1));
+        g.box(0, dY + .3, dZ + .5, .7, .5, .06, glass);
+      }
+      this.shopEmblem(g, def, 0, eaveY + .1, hd + .3);
+      this.bunting(g, 0, eaveY - .2, 0, Math.max(W, D) / 2 + .4, shade(body, 1.2), trim, 12);
+      this.shopTier(g, def, W, D, eaveY, ridgeY - eaveY, body, roof, wall);
+      return { base: g, parts: [] };
+    }
+
+    if (def.facade === 'pavilion') {
+      /* An open-sided pavilion: real corner pillars holding up a big
+         pitched roof over a low perimeter knee-wall, not a solid slab —
+         the whole point of an open building is that you can see into it,
+         so the back half holds a real kitchen line (counter, prep block,
+         hanging pot rack, a stack of shelved goods) instead of empty air
+         under the roof. */
+      const stone = shade(body, .7), timber = shade(roof, .7), counterC = shade(hex(0x8b7355), 1.1);
+      g.box(0, -.06, 0, W + .5, .18, D + .5, hex(0xb9ab90));                    // paved base
+      g.box(0, .18, 0, W - .5, .04, D - .5, shade(stone, 1.15));                // floor tiles, visible through the open sides
+      // knee-wall: a low perimeter rim only, open at the front (-Z) for the counter
+      const kneeH = .55, kneeY = .2;
+      g.box(0, kneeY, hd - .15, W - .4, kneeH, .3, stone);                      // back
+      for (const sx of [-1, 1]) g.box(sx * (hw - .15), kneeY, 0, .3, kneeH, D - .9, stone);  // sides
+      const pillarPositions = [];
+      for (const sx of [-1, 1]) for (const sz of [-1, 1]) pillarPositions.push([sx * (hw - .3), sz * (hd - .3)]);
+      if (W > 2.5) { pillarPositions.push([0, -(hd - .3)]); pillarPositions.push([0, hd - .3]); }
+      for (const [px, pz] of pillarPositions) {
+        g.cyl(px, .6, pz, .22, 2.5, 8, timber, .06, true);
+        g.box(px, 3.1, pz, .55, .16, .55, shade(roof, 1.1));
+      }
+      // big pitched roof
+      const eave = .7, eaveY = 3.2, ridgeY = eaveY + 1.5;
+      const ex = hw + eave, ez = hd + eave;
+      const rL = [-ex, ridgeY, 0], rR = [ex, ridgeY, 0];
+      const fL = [-ex, eaveY, ez], fR = [ex, eaveY, ez], bL = [-ex, eaveY, -ez], bR = [ex, eaveY, -ez];
+      g.quadV(fL, fR, rR, rL, shade(roof, 1.08));
+      g.quadV(bR, bL, rL, rR, shade(roof, .9));
+      g.triV(bL, fL, rL, shade(roof, .82));
+      g.triV(fR, bR, rR, shade(roof, .82));
+      g.box(0, ridgeY - .05, 0, ex * 2 - .05, .16, .28, shade(roof, 1.2));
+      // open counter along the front half-wall, matched by a real service
+      // line against the back wall — the interior a guest actually sees
+      g.box(0, .6, -hd + .3, W - 1.0, .1, .5, counterC);                        // front counter
+      g.box(0, .18, hd - .5, W - 1.1, .95, .45, shade(body, .85));              // back prep counter
+      g.box(0, .68, hd - .5, W - 1.1, .1, .5, counterC);                        // its worktop
+      g.box(0, .35, hd - .28, W * .3, .3, .2, shade(hex(0x3a3a3a), 1.2));       // grill/hot-plate block
+      g.box(-W * .18, .35, hd - .28, .5, .06, .16, hex(0xd94f3c));              // flame glow strip
+      for (let k = 0; k < 3; k++) {
+        const sx = -W * .3 + k * W * .3;
+        g.box(sx, 1.5, hd - .55, .34, .34, .3, [0xd9432e, 0x2e6fd9, 0xe8d24a][k % 3]);  // shelved goods/jars
+      }
+      g.beam(-W * .2, 2.1, hd - .55, W * .2, 2.1, hd - .55, .03, .03, timber);   // hanging rail
+      for (let k = 0; k < 2; k++) g.cyl(-W * .1 + k * W * .2, 1.9, hd - .55, .12, .2, 6, hex(0x8a8f96)); // pots hanging
+      // string lights between the pillars, plus the usual signage
+      for (let k = 0; k < pillarPositions.length; k++) {
+        const a = pillarPositions[k], b = pillarPositions[(k + 1) % pillarPositions.length];
+        this.lightBulbs(g, (a[0] + b[0]) / 2, 2.85, (a[1] + b[1]) / 2, dist(a[0], a[1], b[0], b[1]) / 2, 4, hex(0xfff3c4));
+      }
+      this.shopEmblem(g, def, 0, ridgeY + .3, -ez - .1);
+      this.shopTier(g, def, W, D, eaveY, ridgeY - eaveY, body, roof, wall);
+      return { base: g, parts: [] };
+    }
+
+    if (def.facade === 'kiosk') {
+      /* A boxy, modern kiosk with a slightly canted roof and an illuminated
+         sign box overhead. Solid geometry has no real transparency, so a
+         "glass" pane is really an opaque coloured panel — nothing behind
+         a full wall of it would ever actually be seen. The three sides
+         that stay enclosed keep that convention (matching every other
+         shopfront window in the catalogue), but the service side is a
+         genuine open hatch, not another sealed pane, with the counter and
+         a shelving unit standing right in that gap where they are
+         actually visible instead of hidden behind painted "glass". */
+      const frame = shade(body, .7), glass = hex(0xcfe9f5), gW = .1;
+      g.box(0, -.08, 0, W + .25, .16, D + .25, hex(0xb9ab90));                  // pad
+      g.box(0, .08, 0, W - .3, 2.35, D - .3, shade(hex(0xd6d0c2), 1.02));       // floor slab
+      for (const sx of [-1, 1]) for (const sz of [-1, 1])
+        g.box(sx * (hw - .06), .08, sz * (hd - .06), .18, 2.4, .18, frame);     // corner posts
+      g.box(0, .08, 0, W - .5, .3, D - .5, frame);                              // low kick-panel below the glazing
+      // glazed on the back and both sides — enclosed, matches the sign/roof above
+      g.box(0, 1.35, hd - .05, W - .9, 1.9, gW, glass);
+      for (const sx of [-1, 1]) g.box(sx * (hw - .05), 1.35, 0, gW, 1.9, D - .9, glass);
+      g.box(0, 2.28, 0, W - .4, .1, D - .4, frame);                             // head rail tying the glazing together
+      // open service hatch on the front (-Z): counter across the gap, real
+      // shelving standing behind it, both genuinely visible from outside
+      g.box(0, .38, hd - .55, W - 1.1, .9, .5, shade(body, .85));               // service counter
+      g.box(0, .84, hd - .55, W - 1.0, .1, .55, shade(hex(0x8b7355), 1.1));     // worktop
+      for (let k = 0; k < 3; k++) {
+        const y = 1.05 + k * .5;
+        if (y > 2.1) break;
+        g.box(0, y, hd - .3, W - 1.3, .06, .3, shade(body, 1.2));               // shelf boards behind the counter
+        for (let s = 0; s < Math.max(2, Math.round(W)); s++)
+          g.box(-W / 2 + .6 + s * (W - 1.2) / Math.max(1, Math.round(W) - 1), y + .16, hd - .3, .28, .28, .22, [0xd94f7f, 0x2ecc71, 0xffd76a, 0x3ba7d4][(k + s) % 4]);
+      }
+      g.box(0, 2.1, hd - .04, W - 1.1, .16, .1, frame);                         // lintel over the open hatch
+      // canted roof
+      const roofY = 2.5;
+      g.box(0, roofY, -hd * .1, W - .1, .18, D + .3, shade(roof, 1.1));
+      g.box(0, roofY + .05, hd + .05, W - .1, .08, .1, shade(roof, .85));
+      // illuminated sign box on top
+      g.box(0, roofY + .3, 0, W - .8, .7, .5, shade(body, 1.15));
+      g.box(0, roofY + .3, -.26, W - 1.1, .5, .04, hex(0xfff4d0));
+      this.shopEmblem(g, def, 0, roofY + .3, .27);
+      this.lightBulbs(g, 0, roofY + .05, hd + .1, W / 2 - .1, Math.max(4, Math.round(W * 1.6)), hex(0xfff3c4));
+      this.shopTier(g, def, W, D, roofY, .8, body, roof, wall);
       return { base: g, parts: [] };
     }
 
