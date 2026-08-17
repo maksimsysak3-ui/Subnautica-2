@@ -4209,6 +4209,15 @@ const CAT = {
     { id: 'waterfall', name: 'Rock Waterfall', cost: 2600, up: 9, w: 2, d: 2, kind: 'waterfall', beauty: 68 },
     { id: 'tikitorch', name: 'Tiki Torch Row', cost: 320, up: 1.2, w: 1, d: 1, kind: 'tikitorch', beauty: 18, light: true },
     { id: 'koistream', name: 'Koi Stream', cost: 1400, up: 5, w: 2, d: 1, kind: 'koistream', beauty: 42 },
+    /* ---- Custom Building Kit: single-tile wall/roof/floor pieces meant to
+       be placed edge to edge to assemble a small custom facade, instead
+       of only ever choosing a finished catalogue building. ---- */
+    { id: 'wallPlain', name: 'Wall Segment', cost: 80, up: .3, w: 1, d: 1, kind: 'wallPlain', beauty: 4 },
+    { id: 'wallWindow', name: 'Wall with Window', cost: 110, up: .4, w: 1, d: 1, kind: 'wallWindow', beauty: 6 },
+    { id: 'wallDoor', name: 'Wall with Door', cost: 120, up: .4, w: 1, d: 1, kind: 'wallDoor', beauty: 5 },
+    { id: 'roofFlat', name: 'Flat Roof Cap', cost: 90, up: .3, w: 1, d: 1, kind: 'roofFlat', beauty: 4 },
+    { id: 'roofPeak', name: 'Pitched Roof Cap', cost: 100, up: .3, w: 1, d: 1, kind: 'roofPeak', beauty: 6 },
+    { id: 'floorTile', name: 'Raised Floor Tile', cost: 60, up: .2, w: 1, d: 1, kind: 'floorTile', beauty: 2 },
   ],
   /* ---------------- Flat rides ---------------- */
   rides: [
@@ -5448,6 +5457,55 @@ const Prefab = {
         const c = hex(0x3ba7d4);
         g.box(.9, 3.4, 0, 1.7, 2.4, .08, c);
         g.box(.9, 3.4, 0, 1.5, .5, .12, hex(0xfff4e0));
+        break;
+      }
+      /* ----------------------------------------------------------------
+         CUSTOM BUILDING KIT
+
+         Not a freeform wall tool — a set of single-tile wall, roof and
+         floor pieces placed the same way any other scenery piece is,
+         edge to edge, so a player can assemble a small custom facade or
+         pavilion out of real building blocks instead of only ever
+         choosing a finished catalogue building. A plain wall, a wall
+         with a window, a wall with a door, a flat roof cap, a pitched
+         roof cap and a raised floor/deck tile — recombine them freely.
+         ---------------------------------------------------------------- */
+      case 'wallPlain': {
+        g.box(0, 0, 0, TILE - .1, 3.0, .3, hex(0xe4ddc9));
+        g.box(0, 2.9, 0, TILE - .1, .18, .34, hex(0xc9bfa0));
+        break;
+      }
+      case 'wallWindow': {
+        g.box(0, 0, 0, TILE - .1, 3.0, .3, hex(0xe4ddc9));
+        g.box(0, 2.9, 0, TILE - .1, .18, .34, hex(0xc9bfa0));
+        g.box(0, 1.5, 0, TILE - 1.0, 1.2, .34, hex(0x7fb8d8));
+        g.box(0, 1.5, 0, TILE - .8, 1.4, .1, hex(0x8a7a5f));
+        break;
+      }
+      case 'wallDoor': {
+        g.box(-TILE / 4, 0, 0, TILE / 2 - .1, 3.0, .3, hex(0xe4ddc9));
+        g.box(0, 2.9, 0, TILE - .1, .18, .34, hex(0xc9bfa0));
+        g.box(TILE / 4, 0, 0, TILE / 2 - .1, 3.0, .3, hex(0xe4ddc9));
+        g.box(0, 0, 0, TILE - 1.4, 2.5, .3, hex(0x6b4a2f));
+        g.box(TILE / 2 - .9, 1.3, .18, .1, .12, .06, hex(0xd4af37));
+        break;
+      }
+      case 'roofFlat': {
+        g.box(0, 0, 0, TILE, .3, TILE, hex(0x5c5248));
+        g.box(0, .3, 0, TILE - .3, .1, TILE - .3, hex(0x6b6155));
+        break;
+      }
+      case 'roofPeak': {
+        const c1 = hex(0x8b3a2b), c2 = hex(0xa54a38);
+        g.triV([-TILE / 2, 0, -TILE / 2], [TILE / 2, 0, -TILE / 2], [0, TILE * .55, 0], c1);
+        g.triV([TILE / 2, 0, TILE / 2], [-TILE / 2, 0, TILE / 2], [0, TILE * .55, 0], c1);
+        g.triV([-TILE / 2, 0, -TILE / 2], [0, TILE * .55, 0], [-TILE / 2, 0, TILE / 2], c2);
+        g.triV([TILE / 2, 0, TILE / 2], [0, TILE * .55, 0], [TILE / 2, 0, -TILE / 2], c2);
+        break;
+      }
+      case 'floorTile': {
+        g.box(0, 0, 0, TILE - .05, .3, TILE - .05, hex(0xb0a48c));
+        g.box(0, .3, 0, TILE - .3, .06, TILE - .3, hex(0xc9bfa0));
         break;
       }
       /* ----------------------------------------------------------------
@@ -11106,6 +11164,17 @@ class Staff extends Person {
         break;
       }
     }
+    /* Standing around off the clock or waiting for something to do gets the
+       same small periodic gesture guests get while idle — checking a
+       radio, stretching — instead of staff freezing solid between tasks. */
+    if (this.state === 'idle' || this.state === 'offshift' || this.state === 'resting') {
+      this._gestureT = (this._gestureT === undefined ? rnd(2, 8) : this._gestureT) - dt;
+      if (this._gestureT <= 0) { this._gestureT = rnd(8, 18); this._gesturePulse = 1; }
+    }
+    if (this._gesturePulse) this._gesturePulse = Math.max(0, this._gesturePulse - dt * 1.2);
+    if (!this.moving && (this.state === 'idle' || this.state === 'offshift' || this.state === 'resting')) {
+      this.armLift = damp(this.armLift || 0, (this._gesturePulse || 0) * .45, 6, dt);
+    }
     this.physUpdate(dt);
   }
   /* True if a world point falls inside this staff member's patrol zone,
@@ -14168,6 +14237,7 @@ const UI = {
     if (this.manageTab === 'awards') return this.awardsTab();
     if (this.manageTab === 'transport') return this.transportTab();
     if (this.manageTab === 'power') return this.powerTab();
+    if (this.manageTab === 'hub') return this.hubTab();
     if (this.manageTab === 'rules') return this.rulesTab();
     if (this.manageTab === 'compare') return this.compareTab();
     if (this.manageTab === 'events') return this.eventsTab();
@@ -14240,6 +14310,7 @@ const UI = {
     ['People', [['guests', 'Guests'], ['demo', 'Who Comes'], ['thoughts', 'Thoughts'], ['reviews', 'Reviews'], ['staff', 'Staff']]],
     ['Park',   [['transport', 'Transport'], ['power', 'Power'], ['infra', 'Infrastructure'], ['rules', 'Rules'], ['awards', 'Awards'], ['compare', 'Compare']]],
     ['Region', [['events', 'Events'], ['rivals', 'Rivals']]],
+    ['World',  [['hub', 'Hub']]],
   ],
   tabBar(active) {
     let h = `<div class="mgt">`;
@@ -14714,6 +14785,54 @@ const UI = {
      to the nearest guest right now — the same distance the daily
      malfunction roll actually uses, so "too close" here means something
      real rather than a decorative warning. */
+  /* ================= HUB =================
+     A single "everything about theme parks" dashboard rather than another
+     stats screen: your park against every rival on one leaderboard, the
+     records your own park has actually set, and a merged news feed of
+     what rivals have been doing and what the game itself has changed —
+     the closest thing to a companion-site tab without leaving the game. */
+  hubTab() {
+    let h = this.tabBar('hub');
+    const mine = { name: Park.name || 'Your Park', stars: Park.ratingStars ? Park.ratingStars() : 0, mine: true };
+    const board = [mine, ...Rivals.list.map(r => ({ name: (Rivals.def(r.id) || {}).name || 'Rival', stars: Rivals.stars(r) }))]
+      .sort((a, b) => b.stars - a.stars);
+    h += `<h3>Leaderboard</h3>`;
+    board.forEach((row, i) => {
+      h += `<div class="lrow"${row.mine ? ' style="border-color:var(--accent)"' : ''}>
+        <span class="av" style="background:${row.mine ? 'var(--accent)' : 'var(--dim)'}">${i + 1}</span>
+        <span class="m"><b>${esc(row.name)}${row.mine ? ' (you)' : ''}</b></span>
+        <span class="r">${Math.round(row.stars * 10) / 10}<br><span style="color:var(--dim);font-weight:600">stars</span></span></div>`;
+    });
+
+    const bestDay = Park.dailyLog.reduce((m, d) => Math.max(m, d.net || 0), 0);
+    const bestGuests = Park.dailyLog.reduce((m, d) => Math.max(m, d.guests || 0), Park.guests.length);
+    const tallestCoaster = Park.coasters.reduce((m, c) => Math.max(m, (c.track && c.track.maxH) || 0), 0);
+    const wildestCoaster = Park.coasters.reduce((best, c) => (c.excitement || 0) > (best ? best.excitement : -1) ? c : best, null);
+    h += `<h3>Your records</h3>`;
+    h += `<div class="rs-top" style="margin-bottom:14px">
+      <div class="rs-stat"><span class="l">Best day (net)</span><div class="v">${money(Math.round(bestDay))}</div></div>
+      <div class="rs-stat"><span class="l">Most guests, one day</span><div class="v">${Math.round(bestGuests).toLocaleString()}</div></div>
+      <div class="rs-stat"><span class="l">Tallest coaster</span><div class="v">${Math.round(tallestCoaster)} m</div></div>
+      <div class="rs-stat"><span class="l">Days operated</span><div class="v">${Park.day || 0}</div></div>
+    </div>`;
+    if (wildestCoaster) h += `<div class="empty" style="border-color:var(--good);color:var(--good)">
+      Wildest ride: <b>${esc(wildestCoaster.name)}</b> — excitement ${wildestCoaster.excitement.toFixed(1)}.</div>`;
+    h += `<div class="empty">Achievements: ${Achievements.unlocked.length} / ${Achievements.list.length} unlocked
+      &middot; ${Achievements.list.filter(a => a.grand && Achievements.unlocked.includes(a.id)).length} Grand Feats earned.</div>`;
+
+    const news = [
+      ...Rivals.news.slice(0, 8).map(n => ({ text: n.text, kind: 'rival' })),
+      ...CHANGELOG.notes.map(n => ({ text: n, kind: 'patch' })),
+    ];
+    h += `<h3>News</h3>`;
+    if (!news.length) h += `<div class="empty">Nothing to report yet. Rivals move once your park has been open a few days.</div>`;
+    for (const n of news.slice(0, 14)) {
+      h += `<div class="lrow"><span class="av" style="background:${n.kind === 'rival' ? 'var(--warn)' : 'var(--accent-ink)'}">${n.kind === 'rival' ? '&#9873;' : '&#9998;'}</span>
+        <span class="m">${esc(n.text)}</span></div>`;
+    }
+    return this.modal('Park Management', h);
+  },
+
   powerTab() {
     let h = this.tabBar('power');
     const gens = Power.generators();
