@@ -10032,8 +10032,13 @@ class Person {
     const shoulderY = hipY + .68;
     const lift = this.armLift || 0;
     const swA = .38 * (this.armSwing || 1);
-    const armA = sick ? -.30 : lerp(-sw * swA, -2.45, lift);
-    const armB = sick ? -.30 : lerp(sw * swA, -2.45, lift);
+    /* Same lift magnitude reads two different ways depending on who is
+       riding: arms thrown straight up for someone who loves this, arms
+       pulled in tight and low — gripping the restraint — for someone the
+       ride is scaring. */
+    const liftTarget = this.armScared ? -.12 : -2.45;
+    const armA = sick ? -.30 : lerp(-sw * swA, liftTarget, lift);
+    const armB = sick ? -.30 : lerp(sw * swA, liftTarget, lift);
     joint(-.26, shoulderY, 0, .28, shirt);
     joint(.26, shoulderY, 0, .28, shirt);
     const elbA = bone(-.26, shoulderY, 0, armA, .32, .19, .21, shirt);
@@ -16808,6 +16813,19 @@ const Coaster = {
             const g = c.queue.shift();
             if (!g || g.dead) continue;
             g.boardRide(c); tr.riders.push(g);
+            /* Pull the rest of this guest's group along too, if they are
+               already waiting further back in the same queue — otherwise
+               strict FIFO splits a family across two different dispatches
+               the moment a stranger happens to queue between them. */
+            if (g.groupId) {
+              for (let qi = 0; qi < c.queue.length && tr.riders.length < c.cap;) {
+                const mate = c.queue[qi];
+                if (mate && !mate.dead && mate.groupId === g.groupId) {
+                  c.queue.splice(qi, 1);
+                  mate.boardRide(c); tr.riders.push(mate);
+                } else qi++;
+              }
+            }
           }
         }
         if (tr.timer <= 0) {
@@ -22832,6 +22850,11 @@ const Game = {
           g.moving = false;
           g.state = 'riding';
           g.armLift = clamp((tr.v - 11) / 20, 0, 1);
+          /* Two riders on the same train at the same speed do not feel the
+             same way about it. Someone who came for exactly this throws
+             their arms up; someone whose tolerance the ride has outrun grips
+             the restraint instead — same lift magnitude, opposite pose. */
+          g.armScared = (c.intensity > g.prefIntensity + 1.5) || (c.nausea > g.nauseaTol);
         }
       }
     }
@@ -22879,6 +22902,7 @@ const Game = {
         /* Hands up on the parts of a ride that earn it. */
         const fast = (o.h || 0) > .35 || Math.abs(o.spin || 0) > .01;
         g.armLift = damp(g.armLift || 0, (s.hands !== false && fast && (o.intensity || 0) > 3.5) ? 1 : 0, 5, .05);
+        g.armScared = (o.intensity || 0) > g.prefIntensity + 1.5 || (o.nausea || 0) > g.nauseaTol;
         return;
       }
     }
