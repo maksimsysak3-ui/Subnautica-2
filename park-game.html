@@ -3123,6 +3123,34 @@ const PATH_MATS = [
   { name: 'Steel Grating',      c: 0x7d848c, d: 0x686e75, stripe: true, bridge: true },  // 31
 ];
 
+/* The one path catalogue, shared by the full build-panel tab and the
+   bottom quick-access pop-up. It used to be typed out a second time inside
+   renderQuickPop() with only three entries (Walkway/Queue/Plaza) — every
+   material added to PATH_MATS since then, plus the curve and preset-shape
+   stamps, quietly never made it into the quick bar because nothing kept
+   the two lists in sync. Building both panels off these four arrays means
+   there is now exactly one place a new path item needs to be added. */
+const PATH_MATERIAL_COSTS = [22, 24, 30, 32, 20, 26, 34, 26, 18, 22, 30, 54, 34, 14, 42, 36, 32, 28, 34, 30, 46, 28, 38, 24, 36, 58, 32, 44, 16, 40, 26, 42];
+const PATH_MATERIAL_ITEMS = PATH_MATS.map((m, i) => ({ id: 'path', name: m.name, cost: PATH_MATERIAL_COSTS[i] || 24, mat: i }));
+const PATH_OTHER_ITEMS = [
+  { id: 'queue', name: 'Queue Line', cost: 34 },
+  { id: 'plaza', name: 'Plaza Tile', cost: 40 },
+  { id: 'river', name: 'River / Water', cost: 30 },
+  { id: 'erase', name: 'Remove', cost: 0 },
+];
+const PATH_PRESET_ITEMS = [
+  { id: 'path', name: 'Path Circle', cost: 24, mat: 1, circle: true, r: 3 },
+  { id: 'path', name: 'Road Roundabout', cost: 26, mat: 5, circle: true, r: 4 },
+  { id: 'plaza', name: 'Plaza Circle', cost: 40, circle: true, r: 3 },
+  { id: 'river', name: 'Lake / Pond', cost: 30, circle: true, r: 5 },
+];
+const PATH_CURVE_ITEMS = [
+  { id: 'path', name: 'Quarter Curve', cost: 30, mat: 1, arc: true, r: 6, arcWidth: 2, sweep: PI / 2 },
+  { id: 'path', name: 'Wide Sweep', cost: 46, mat: 1, arc: true, r: 10, arcWidth: 2, sweep: PI / 2 },
+  { id: 'path', name: 'S-Curve Path', cost: 40, mat: 1, arc: true, r: 5, arcWidth: 2, sweep: PI / 2, sMirror: true },
+  { id: 'path', name: 'Curved Road', cost: 34, mat: 5, arc: true, r: 7, arcWidth: 3, sweep: PI / 2 },
+];
+
 const WORLD = {
   n: N, tile: TILE, half: N * TILE / 2,
   type: new Uint8Array(N * N),
@@ -11839,61 +11867,17 @@ const UI = {
     const cost = (c) => `<span class="c">${money(c)}</span>`;
 
     if (id === 'path') {
-      addGrid('Walkway material', [
-        { id: 'path', name: 'Stone', cost: 24, mat: 1 },
-        { id: 'path', name: 'Asphalt', cost: 22, mat: 0 },
-        { id: 'path', name: 'Concrete Pavers', cost: 26, mat: 7 },
-        { id: 'path', name: 'Cobblestone', cost: 30, mat: 10 },
-        { id: 'path', name: 'Brick', cost: 32, mat: 3 },
-        { id: 'path', name: 'Terracotta', cost: 32, mat: 16 },
-        { id: 'path', name: 'Wood Deck', cost: 30, mat: 2 },
-        { id: 'path', name: 'Boardwalk', cost: 34, mat: 12 },
-        { id: 'path', name: 'Gravel', cost: 20, mat: 4 },
-        { id: 'path', name: 'Dirt Trail', cost: 14, mat: 13 },
-        { id: 'path', name: 'Sand', cost: 18, mat: 8 },
-        { id: 'path', name: 'Mown Lawn', cost: 22, mat: 9 },
-        { id: 'path', name: 'Dark Slate', cost: 36, mat: 15 },
-        { id: 'path', name: 'Blue Mosaic', cost: 42, mat: 14 },
-        { id: 'path', name: 'Marble', cost: 54, mat: 11 },
-        { id: 'path', name: 'Road', cost: 26, mat: 5 },
-        { id: 'path', name: 'Bridge', cost: 34, mat: 6 },
-        { id: 'path', name: 'Rubber Safety Tile', cost: 28, mat: 17 },
-        { id: 'path', name: 'Herringbone Brick', cost: 34, mat: 18 },
-        { id: 'path', name: 'Painted Crosswalk', cost: 30, mat: 19 },
-        { id: 'path', name: 'Neon Tile', cost: 46, mat: 20 },
-        { id: 'path', name: 'Weathered Planks', cost: 28, mat: 21 },
-        { id: 'path', name: 'Slate Flagstone', cost: 38, mat: 22 },
-        { id: 'path', name: 'Golden Gravel', cost: 24, mat: 23 },
-        { id: 'path', name: 'Red Brick Herringbone', cost: 36, mat: 24 },
-        { id: 'path', name: 'White Marble Tile', cost: 58, mat: 25 },
-        { id: 'path', name: 'Charcoal Pavers', cost: 32, mat: 26 },
-        { id: 'path', name: 'Sunset Mosaic', cost: 44, mat: 27 },
-        { id: 'path', name: 'Cracked Earth', cost: 16, mat: 28 },
-        { id: 'path', name: 'Turquoise Tile', cost: 40, mat: 29 },
-        { id: 'path', name: 'Autumn Leaf Path', cost: 26, mat: 30 },
-        { id: 'path', name: 'Steel Grating', cost: 42, mat: 31 },
-      ], 'grid2', it => `<img class="th" src="${Thumbs.path(it.id, it.mat)}" alt=""><span class="n">${it.name}</span>${cost(it.cost)}`,
+      addGrid('Walkway material', PATH_MATERIAL_ITEMS,
+        'grid2', it => `<img class="th" src="${Thumbs.path(it.id, it.mat)}" alt=""><span class="n">${it.name}</span>${cost(it.cost)}`,
         (it, d) => this.pick(it, d));
-      addGrid('Other tiles', [
-        { id: 'queue', name: 'Queue Line', cost: 34 },
-        { id: 'plaza', name: 'Plaza Tile', cost: 40 },
-        { id: 'river', name: 'River / Water', cost: 30 },
-        { id: 'erase', name: 'Remove', cost: 0 },
-      ], 'grid2', it => `<img class="th" src="${Thumbs.path(it.id)}" alt=""><span class="n">${it.name}</span>${it.cost ? cost(it.cost) : '<span class="c">refund</span>'}`,
+      addGrid('Other tiles', PATH_OTHER_ITEMS,
+        'grid2', it => `<img class="th" src="${Thumbs.path(it.id)}" alt=""><span class="n">${it.name}</span>${it.cost ? cost(it.cost) : '<span class="c">refund</span>'}`,
         (it, d) => this.pick(it, d));
-      addGrid('Preset shapes — one click stamps a whole area', [
-        { id: 'path', name: 'Path Circle', cost: 24, mat: 1, circle: true, r: 3 },
-        { id: 'path', name: 'Road Roundabout', cost: 26, mat: 5, circle: true, r: 4 },
-        { id: 'plaza', name: 'Plaza Circle', cost: 40, circle: true, r: 3 },
-        { id: 'river', name: 'Lake / Pond', cost: 30, circle: true, r: 5 },
-      ], 'grid2', it => `<img class="th" src="${Thumbs.path(it.id, it.mat)}" alt=""><span class="n">${it.name}</span>${cost(it.cost)}`,
+      addGrid('Preset shapes — one click stamps a whole area', PATH_PRESET_ITEMS,
+        'grid2', it => `<img class="th" src="${Thumbs.path(it.id, it.mat)}" alt=""><span class="n">${it.name}</span>${cost(it.cost)}`,
         (it, d) => this.pick(it, d));
-      addGrid('Curves — a real bend, not a staircase of right angles. Press R to rotate before you click.', [
-        { id: 'path', name: 'Quarter Curve', cost: 30, mat: 1, arc: true, r: 6, arcWidth: 2, sweep: PI / 2 },
-        { id: 'path', name: 'Wide Sweep', cost: 46, mat: 1, arc: true, r: 10, arcWidth: 2, sweep: PI / 2 },
-        { id: 'path', name: 'S-Curve Path', cost: 40, mat: 1, arc: true, r: 5, arcWidth: 2, sweep: PI / 2, sMirror: true },
-        { id: 'path', name: 'Curved Road', cost: 34, mat: 5, arc: true, r: 7, arcWidth: 3, sweep: PI / 2 },
-      ], 'grid2', it => `<span class="n">${it.name}</span>${cost(it.cost)}`,
+      addGrid('Curves — a real bend, not a staircase of right angles. Press R to rotate before you click.', PATH_CURVE_ITEMS,
+        'grid2', it => `<span class="n">${it.name}</span>${cost(it.cost)}`,
         (it, d) => this.pick(it, d));
       b.appendChild(el('div', 'cat', 'Queue connection'));
       b.appendChild(el('div', '', `<div class="row" style="padding:2px 3px">
@@ -12413,7 +12397,10 @@ const UI = {
       }
       body.appendChild(g);
     };
-    section('path', 'Paths', [{ id: 'path', name: 'Walkway', cost: 24 }, { id: 'queue', name: 'Queue Line', cost: 34 }, { id: 'plaza', name: 'Plaza Tile', cost: 40 }], 'path', it => Thumbs.path(it.id));
+    section('path', 'Walkway material', PATH_MATERIAL_ITEMS, 'path', it => Thumbs.path(it.id, it.mat));
+    section('path', 'Other tiles', PATH_OTHER_ITEMS, 'path', it => Thumbs.path(it.id));
+    section('path', 'Preset shapes', PATH_PRESET_ITEMS, 'path', it => Thumbs.path(it.id, it.mat));
+    section('path', 'Curves', PATH_CURVE_ITEMS, 'path', it => Thumbs.path(it.id, it.mat));
     section('coaster', 'Coasters', CAT.coasterTypes, 'coaster', it => Thumbs.coasterType(it));
     section('ride', 'Rides', CAT.rides.filter(r => !r.water), 'ride', it => Thumbs.ride(it));
     section('water', 'Water Park', CAT.rides.filter(r => r.water), 'water', it => Thumbs.ride(it));
