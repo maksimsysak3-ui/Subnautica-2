@@ -23552,11 +23552,12 @@ const Game = {
       for (const s of d.objs) {
         let def, o;
         if (s.cd) def = s.cd;   // a player-designed water slide, saved whole
-        /* Landmarks are placed as `shop` objects but live in their own
-           catalogue, so looking only in CAT.shops silently dropped every one
-           of them on load — five buildings, among the most expensive in the
-           game, vanishing from a save with no error anywhere. */
-        else if (s.k === 'shop') def = CAT.shops.find(x => x.id === s.d) || CAT.landmarks.find(x => x.id === s.d);
+        /* Landmarks and power generators are placed as `shop` objects but
+           live in their own catalogues, so looking only in CAT.shops
+           silently dropped every one of them on load — landmarks and, more
+           recently, every power plant in the park vanishing from a save
+           with no error anywhere. */
+        else if (s.k === 'shop') def = CAT.shops.find(x => x.id === s.d) || CAT.landmarks.find(x => x.id === s.d) || CAT.power.find(x => x.id === s.d);
         else if (s.k === 'ride') def = CAT.rides.find(x => x.id === s.d);
         else def = CAT.scenery.find(x => x.id === s.d);
         if (!def) continue;   // save references an item that no longer exists — skip it, don't crash the load
