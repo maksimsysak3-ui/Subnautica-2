@@ -7658,6 +7658,11 @@ const LIVERY_PRESETS = [
   { id: 'liveryArctic', name: 'Arctic White', vals: { rail: 0xe8f2f8, spine: 0x3a5c6e, tie: 0x7fa8b8, car: 0x2f80c0, banner: 0x1c3540, bannerText: 0xbfe8ff } },
   { id: 'liveryInferno', name: 'Inferno', prestige: true, prestigeCost: 4,
     vals: { rail: 0x2b2b30, spine: 0xd94f1e, tie: 0x8a2f14, car: 0xff6a1e, banner: 0x1c1414, bannerText: 0xff8c42 } },
+  { id: 'liveryMint', name: 'Mint Fleet', vals: { rail: 0x3fc9a4, spine: 0x1c3a33, tie: 0x2f5a4f, car: 0xf5f5f0, banner: 0x1c3a33, bannerText: 0x9fe8d4, seat: 0x1c3a33, restraint: 0xe8f5f0 } },
+  { id: 'liveryCrimson', name: 'Crimson Steel', vals: { rail: 0x8a1a1a, spine: 0x2b2b2b, tie: 0x4a4a4a, car: 0x1c1c1c, banner: 0x1c1c1c, bannerText: 0xd94f3c, seat: 0x2b1414, restraint: 0xb8b8b8 } },
+  { id: 'liveryPastel', name: 'Pastel Carnival', vals: { rail: 0xf2a0c0, spine: 0x7fd8e8, tie: 0xffe066, car: 0xffffff, banner: 0xf2a0c0, bannerText: 0xffffff, seat: 0x7fd8e8, restraint: 0xffffff } },
+  { id: 'liveryObsidian', name: 'Obsidian', prestige: true, prestigeCost: 6,
+    vals: { rail: 0x0c0c0e, spine: 0x1a1a1e, tie: 0x2b2b30, car: 0x0c0c0e, banner: 0x0c0c0e, bannerText: 0x8a4fe0, seat: 0x1a1a1e, restraint: 0x8a4fe0 } },
 ];
 const TRAIN_STYLES = [
   { id: 'classic', n: 'Classic' },
@@ -7675,6 +7680,8 @@ const TRAIN_STYLES = [
   { id: 'convertible', n: 'Convertible Cruiser' },
   { id: 'stealth', n: 'Stealth Fighter' },
   { id: 'royal', n: 'Royal Carriage' },
+  { id: 'submarine', n: 'Submarine' },
+  { id: 'lowrider', n: 'Lowrider' },
 ];
 const STATION_STYLES = [
   { id: 'modern', n: 'Modern' },
@@ -7684,6 +7691,8 @@ const STATION_STYLES = [
   { id: 'hangar', n: 'Steel Hangar' },
   { id: 'glass', n: 'Glass Pavilion' },
   { id: 'industrial', n: 'Industrial Works' },
+  { id: 'oriental', n: 'Oriental Pagoda' },
+  { id: 'crystal', n: 'Crystal Spire' },
 ];
 /* Rail finish is deliberately separate from livery colour: livery picks the
    hue, finish picks what the metal itself looks like made of, by biasing
@@ -7696,6 +7705,8 @@ const RAIL_FINISHES = [
   { id: 'matte', n: 'Matte Black Steel', shade: .55, banded: false, speckle: 0 },
   { id: 'rusted', n: 'Weathered Rust', shade: .8, banded: false, speckle: .35 },
   { id: 'galvanized', n: 'Galvanized', shade: 1.08, banded: true, speckle: .12 },
+  { id: 'brushed', n: 'Brushed Steel', shade: .95, banded: true, speckle: .04 },
+  { id: 'copper', n: 'Weathered Copper', shade: .9, banded: false, speckle: .2 },
 ];
 function buildCarGeo(T, isFront) {
   const g = new Geo();
@@ -7790,6 +7801,20 @@ function buildCarGeo(T, isFront) {
     for (const sx of [-.92, .92]) g.beam(sx, yb + 1.5, -1.5, sx, yb + 1.5, 1.5, .06, .06, gold);
     g.triV([-.6, yb + 1.65, -1.9], [.6, yb + 1.65, -1.9], [0, yb + 1.1, -2.5], gold);
     g.sphere(0, yb + 1.65, -1.9, .16, 6, gold);
+  } else if (style === 'submarine') {
+    // a rounded, riveted hull with a periscope and a viewport band
+    g.cyl(0, yb + .55, 0, .98, 3.4, 12, c, 0, true);
+    g.cyl(0, yb + .55, 0, .7, 3.5, 10, shade(c, .82), 0, true);
+    for (let k = 0; k < 6; k++) g.sphere(0, yb + .55 + (k - 2.5) * .5, -1.7, .07, 5, shade(c, .6));
+    g.cyl(0, yb + 1.5, -.2, .08, .9, 6, hex(0x2b2b2b));
+    g.cbox(0, yb + .55, .1, 1.5, .5, 2.6, hex(0x8fcdea));
+  } else if (style === 'lowrider') {
+    // slammed and wide, barely off the rail, with a big spoiler
+    g.box(0, yb - .15, 0, 2.0, .4, 3.6, c);
+    g.box(0, yb + .2, -.1, 1.5, .5, 2.4, shade(c, 1.15));
+    g.triV([-.7, yb + .55, -.4], [.7, yb + .55, -.4], [0, yb + .95, .1], hex(0xa8d0e8));
+    for (const sx of [-1, 1]) g.beam(sx * .95, yb + .5, 1.5, sx * .95, yb + .95, 1.6, .1, .5, shade(c, .8));
+    g.box(0, yb + .95, 1.55, 1.7, .08, .3, shade(c, .7));
   } else {
     g.box(0, yb, 0, 1.9, 1.05, 3.5, c);
     g.box(0, yb + 1.05, 0, 1.75, .16, 3.3, shade(c, 1.25));
@@ -7802,15 +7827,18 @@ function buildCarGeo(T, isFront) {
     g.triV([.95, yb, -1.75], [0, yb + .45, -2.9], [.95, yb + 1.05, -1.75], shade(c, .9));
     g.sphere(0, yb + .55, -2.5, .18, 6, hex(0xfff0b0));
   }
-  // seats + restraints
+  // seats + restraints — its own colour, not fixed grey, so a livery can
+  // pick real upholstery instead of just the shell around it
+  const seatC = hex(T.seatColor !== undefined ? T.seatColor : 0x2b3138);
+  const restraintC = hex(T.restraintColor !== undefined ? T.restraintColor : 0xd8d8d8);
   for (let i = 0; i < 2; i++) {
     const z = -0.75 + i * 1.5;
-    g.box(0, yb + .35, z + .5, 1.55, .55, .5, hex(0x2b3138));
+    g.box(0, yb + .35, z + .5, 1.55, .55, .5, seatC);
     for (const sx of [-.42, .42]) {
-      g.box(sx, yb + .5, z, .55, .55, .7, hex(0x3d444d));
-      g.beam(sx - .3, yb + 1.35, z - .1, sx + .3, yb + 1.35, z - .1, .1, .1, hex(0xd8d8d8));
-      g.beam(sx - .3, yb + 1.35, z - .1, sx - .3, yb + .75, z + .35, .09, .09, hex(0xd8d8d8));
-      g.beam(sx + .3, yb + 1.35, z - .1, sx + .3, yb + .75, z + .35, .09, .09, hex(0xd8d8d8));
+      g.box(sx, yb + .5, z, .55, .55, .7, shade(seatC, 1.3));
+      g.beam(sx - .3, yb + 1.35, z - .1, sx + .3, yb + 1.35, z - .1, .1, .1, restraintC);
+      g.beam(sx - .3, yb + 1.35, z - .1, sx - .3, yb + .75, z + .35, .09, .09, restraintC);
+      g.beam(sx + .3, yb + 1.35, z - .1, sx + .3, yb + .75, z + .35, .09, .09, restraintC);
     }
   }
   // wheel assemblies gripping the rail
@@ -8644,6 +8672,8 @@ class CoasterRide extends ParkObject {
       tie: L.tie !== undefined ? L.tie : this.type.tie,
       carColor: L.car !== undefined ? L.car : this.type.carColor,
       carStyle: this.trainStyle || 'classic',
+      seatColor: L.seat !== undefined ? L.seat : 0x2b3138,
+      restraintColor: L.restraint !== undefined ? L.restraint : 0xd8d8d8,
     });
   }
   /* Rebuild every mesh that carries the livery. */
@@ -12598,6 +12628,8 @@ const UI = {
         h += swatch('Spine &amp; supports', 'spine', L.spine !== undefined ? L.spine : o.type.spine);
         h += swatch('Cross ties', 'tie', L.tie !== undefined ? L.tie : o.type.tie);
         h += swatch('Trains', 'car', L.car !== undefined ? L.car : o.type.carColor);
+        h += swatch('Seats', 'seat', L.seat !== undefined ? L.seat : 0x2b3138);
+        h += swatch('Restraints', 'restraint', L.restraint !== undefined ? L.restraint : 0xd8d8d8);
         h += swatch('Station banner', 'banner', L.banner !== undefined ? L.banner : 0x2f3b52);
         h += swatch('Banner lettering', 'bannerText', L.bannerText !== undefined ? L.bannerText : 0xffd76a);
         h += `<div class="btnrow"><button class="btn" style="flex:0 0 auto;padding:8px 18px"
@@ -15238,6 +15270,18 @@ const Coaster = {
       for (let k = 0; k < 5; k++) g.cyl(-W / 2 + 1 + k * (W / 4), 6.6, 0, .35, .9, 8, hex(0x2f2b26));
       g.box(0, 6.4, D / 2 + 1, W + 2, .16, .5, hex(0xd9a441));
       for (const sx of [-1, 1]) g.beam(sx * (W / 2 + 1.4), 1.4, -D / 2 - 1, sx * (W / 2 + 1.4), 6.0, -D / 2 - 1, .18, .18, hex(0x3a342c));
+    } else if (style === 'oriental') {
+      for (const sx of [-1, 1]) for (let z = -D / 2; z <= D / 2; z += 2.6) g.box(sx * 4.3, 1.1, z, .3, 4.6, .3, hex(0xb03a2e));
+      g.box(0, 5.7, 0, W + 3, .5, D + 2.4, hex(0xd94f3c));
+      for (let k = 0; k <= 6; k++) { const t = k / 6, y = 6.2 + Math.sin(t * PI) * .5; g.box(-W / 2 - 1 + t * (W + 2), y, 0, (W + 2) / 6, .3, D + 3, hex(0x8a2a20)); }
+      g.box(0, 7.1, 0, W + 1.6, .18, D + 1.4, hex(0xf0c060));
+      for (const sx of [-1, 1]) g.beam(sx * 3, 1.1, 0, sx * 3, 1.1, 0, .1, .1, hex(0xf0c060));
+    } else if (style === 'crystal') {
+      for (const sx of [-1, 1]) for (let z = -D / 2; z <= D / 2; z += 3.0) g.beam(sx * 4.3, 1.1, z, sx * 4.3, 5.6, z, .1, .1, hex(0xbfe8ff));
+      for (let k = 0; k < 8; k++) { const a1 = k / 8 * TAU, a2 = (k + 1) / 8 * TAU;
+        g.triV([0, 8.0, 0], [Math.cos(a1) * (W / 2 + 2), 5.4, Math.sin(a1) * (D / 2 + 2)],
+          [Math.cos(a2) * (W / 2 + 2), 5.4, Math.sin(a2) * (D / 2 + 2)], hex(0xd8f0ff)); }
+      g.sphere(0, 8.3, 0, .5, 8, hex(0x9fe8ff));
     } else {
       for (const sx of [-1, 1]) for (let z = -D / 2; z <= D / 2; z += 2.4) g.cyl(sx * 4.3, 1.1, z, .16, 4.2, 6, hex(0x6d5a45));
       g.box(0, 5.3, 0, W + 3, .5, D + 2.5, hex(T.rail));
