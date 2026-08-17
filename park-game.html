@@ -7315,6 +7315,7 @@ class Track {
     this.complete = false;
     this.inversions = 0;
     this.maxH = 0; this.minH = 0; this.drop = 0;
+    this.finish = 'painted';
   }
   /* Frame at the end of the built track (or at the station exit) */
   endFrame() {
@@ -7522,6 +7523,18 @@ class Track {
 function buildTrackGeo(track, ghostFrom) {
   const g = new Geo();
   const T = track.type;
+  const finish = RAIL_FINISHES.find(f => f.id === track.finish) || RAIL_FINISHES[0];
+  /* Finish biases every segment's shade rather than its hue — a rusted
+     rail is still whatever colour the livery picked, just duller and
+     patchy; chrome is the same colour but alternates a bright pass down
+     every other beam, which is the closest a flat-shaded renderer gets to
+     a polished highlight running the length of the rail. */
+  const finTone = (baseC, i) => {
+    let f = finish.shade;
+    if (finish.banded && i % 2 === 0) f *= 1.18;
+    if (finish.speckle && ((i * 7919) % 100) / 100 < finish.speckle) f *= .55;
+    return shade(baseC, f);
+  };
   const railC = hex(T.rail), spineC = hex(T.spine), tieC = hex(T.tie);
   const S = track.samples;
   if (S.length < 2) return g;
@@ -7538,22 +7551,23 @@ function buildTrackGeo(track, ghostFrom) {
   const step = 1;
   for (let i = 0; i + step < S.length; i += step) {
     const a = S[i], b = S[i + step];
-    const c1 = a.lift ? hex(0xf0c419) : a.brake ? hex(0xff4d4d) : a.launch ? hex(0xf5c518) : a.boost ? hex(0x39c0ff) : railC;
+    const c1raw = a.lift ? hex(0xf0c419) : a.brake ? hex(0xff4d4d) : a.launch ? hex(0xf5c518) : a.boost ? hex(0x39c0ff) : railC;
+    const c1 = (a.lift || a.brake || a.launch || a.boost) ? c1raw : finTone(c1raw, i);
     for (const side of [-1, 1]) {
       const pa = railPt(a, side), pb = railPt(b, side);
       g.beam(pa[0], pa[1], pa[2], pb[0], pb[1], pb[2], .17, .17, c1, a.u.x, a.u.y, a.u.z);
     }
     if (T.style !== 'wood') {
       const sa = spinePt(a), sb = spinePt(b);
-      g.beam(sa[0], sa[1], sa[2], sb[0], sb[1], sb[2], .34, .34, spineC, a.u.x, a.u.y, a.u.z);
+      g.beam(sa[0], sa[1], sa[2], sb[0], sb[1], sb[2], .34, .34, finTone(spineC, i), a.u.x, a.u.y, a.u.z);
     }
     // cross ties
     if (i % 3 === 0) {
       const pa = railPt(a, -1), pb = railPt(a, 1);
-      g.beam(pa[0], pa[1], pa[2], pb[0], pb[1], pb[2], .14, T.style === 'wood' ? .22 : .14, tieC, a.u.x, a.u.y, a.u.z);
+      g.beam(pa[0], pa[1], pa[2], pb[0], pb[1], pb[2], .14, T.style === 'wood' ? .22 : .14, finTone(tieC, i), a.u.x, a.u.y, a.u.z);
       if (T.style !== 'wood') {
         const sp = spinePt(a);
-        g.beam((pa[0] + pb[0]) / 2, (pa[1] + pb[1]) / 2, (pa[2] + pb[2]) / 2, sp[0], sp[1], sp[2], .12, .12, tieC);
+        g.beam((pa[0] + pb[0]) / 2, (pa[1] + pb[1]) / 2, (pa[2] + pb[2]) / 2, sp[0], sp[1], sp[2], .12, .12, finTone(tieC, i));
       }
     }
     // chain lift dogs
@@ -7658,6 +7672,9 @@ const TRAIN_STYLES = [
   { id: 'crystal', n: 'Crystal Glider' },
   { id: 'wingrider', n: 'Wing Rider (side-by-side)' },
   { id: 'boat', n: 'Splash Boat' },
+  { id: 'convertible', n: 'Convertible Cruiser' },
+  { id: 'stealth', n: 'Stealth Fighter' },
+  { id: 'royal', n: 'Royal Carriage' },
 ];
 const STATION_STYLES = [
   { id: 'modern', n: 'Modern' },
@@ -7665,6 +7682,20 @@ const STATION_STYLES = [
   { id: 'tent', n: 'Big Top' },
   { id: 'stone', n: 'Stone Hall' },
   { id: 'hangar', n: 'Steel Hangar' },
+  { id: 'glass', n: 'Glass Pavilion' },
+  { id: 'industrial', n: 'Industrial Works' },
+];
+/* Rail finish is deliberately separate from livery colour: livery picks the
+   hue, finish picks what the metal itself looks like made of, by biasing
+   every rail/spine/tie segment's shade instead of its colour. banded means
+   every other beam is lightened, which is the closest this renderer (no
+   real specular) gets to a highlight running down brushed/polished metal. */
+const RAIL_FINISHES = [
+  { id: 'painted', n: 'Painted', shade: 1, banded: false, speckle: 0 },
+  { id: 'chrome', n: 'Polished Chrome', shade: 1.25, banded: true, speckle: 0 },
+  { id: 'matte', n: 'Matte Black Steel', shade: .55, banded: false, speckle: 0 },
+  { id: 'rusted', n: 'Weathered Rust', shade: .8, banded: false, speckle: .35 },
+  { id: 'galvanized', n: 'Galvanized', shade: 1.08, banded: true, speckle: .12 },
 ];
 function buildCarGeo(T, isFront) {
   const g = new Geo();
@@ -7734,6 +7765,31 @@ function buildCarGeo(T, isFront) {
     g.box(0, yb + .55, 0, 1.35, .18, 3.0, hex(0xeaf6ff));
     for (const sz of [-1.55, 1.55]) g.cone(0, yb + .55, sz, .95, .9, 8, shade(c, 1.15));
     for (const sx of [-.8, .8]) g.beam(sx, yb + .1, -1.6, sx, yb + .1, 1.6, .06, .06, hex(0xeaf6ff));
+  } else if (style === 'convertible') {
+    // a low sports-coupe body with a raked windscreen and no roof at all
+    g.box(0, yb, 0, 1.85, .55, 3.55, c);
+    g.box(0, yb + .5, -.15, 1.5, .35, 2.5, shade(c, 1.15));
+    g.triV([-.72, yb + .5, -1.55], [.72, yb + .5, -1.55], [0, yb + 1.02, -1.05], hex(0xbfe0f2));
+    for (const sx of [-1, 1]) g.beam(sx * .95, yb - .05, -1.7, sx * 1.05, yb + .35, -1.55, .12, .18, shade(c, .8));
+    g.cyl(0, yb + .3, 1.75, .5, .18, 10, hex(0x1c1c1e));
+  } else if (style === 'stealth') {
+    // angular jet-fighter fuselage, faceted rather than curved on purpose
+    g.triV([-.85, yb, -1.9], [.85, yb, -1.9], [0, yb + .95, -.3], shade(c, .82));
+    g.triV([-.85, yb, -1.9], [0, yb + .95, -.3], [-.85, yb, 1.9], shade(c, 1.05));
+    g.triV([.85, yb, -1.9], [.85, yb, 1.9], [0, yb + .95, -.3], shade(c, .92));
+    g.box(0, yb + .35, .3, 1.5, .55, 2.3, c);
+    g.triV([-.55, yb + .85, -.3], [.55, yb + .85, -.3], [0, yb + 1.25, .6], hex(0x2a3038));
+    for (const sx of [-1.5, 1.5]) g.triV([sx * .55, yb + .05, .9], [sx * 1.5, yb - .05, 1.9], [sx * .55, yb + .5, 1.7], shade(c, .78));
+  } else if (style === 'royal') {
+    // an ornate open carriage, gold trim over a deep lacquered shell
+    const gold = hex(0xd4af37);
+    g.box(0, yb, 0, 1.95, .75, 3.5, c);
+    g.box(0, yb + .7, 0, 1.75, .1, 3.3, gold);
+    for (const sx of [-1, 1]) for (const sz of [-1.5, 0, 1.5])
+      g.beam(sx * .92, yb + .82, sz, sx * .92, yb + 1.5, sz, .05, .05, gold);
+    for (const sx of [-.92, .92]) g.beam(sx, yb + 1.5, -1.5, sx, yb + 1.5, 1.5, .06, .06, gold);
+    g.triV([-.6, yb + 1.65, -1.9], [.6, yb + 1.65, -1.9], [0, yb + 1.1, -2.5], gold);
+    g.sphere(0, yb + 1.65, -1.9, .16, 6, gold);
   } else {
     g.box(0, yb, 0, 1.9, 1.05, 3.5, c);
     g.box(0, yb + 1.05, 0, 1.75, .16, 3.3, shade(c, 1.25));
@@ -7820,7 +7876,12 @@ class ParkObject {
     /* Release the old tiles first; a tile still marked as ours would block
        the very flatten and re-claim we are about to do. */
     this.footprint((ii, jj) => WORLD.setOwn(ii, jj, -1));
-    const ci = this.i + (this.gw - 1) / 2, cj = this.j + (this.gd - 1) / 2;
+    const ci = this.i + (this.gw - 1) / 2;
+    /* Depth grows away from the gate only — the near edge (this.j, facing
+       the access road) stays put rather than centring, so an expansion can
+       never eat back into the road that feeds it. Width is still free to
+       grow both ways since nothing else sits alongside it. */
+    const nearJ = this.j;
     this.w = nw; this.d = nd;
     const rotated = (this.rot % 2) === 1;
     this.gw = rotated ? nd : nw;
@@ -7828,7 +7889,7 @@ class ParkObject {
     /* Keep it inside the world, or the far edge of a big lot walks off the
        map and its tiles silently vanish. */
     this.i = clamp(Math.round(ci - (this.gw - 1) / 2), 0, N - this.gw);
-    this.j = clamp(Math.round(cj - (this.gd - 1) / 2), 0, N - this.gd);
+    this.j = clamp(nearJ, 0, N - this.gd);
     this.x = WORLD.wx(this.i) + (this.gw - 1) * TILE / 2;
     this.z = WORLD.wz(this.j) + (this.gd - 1) * TILE / 2;
     WORLD.flatten(this.i, this.j, this.gw, this.gd, this.y);
@@ -8308,6 +8369,7 @@ class CoasterRide extends ParkObject {
     // a type can suggest its own default bodywork — a water coaster looks
     // wrong in its factory cars until the player happens to repaint it
     if (type.carStyle) this.trainStyle = type.carStyle;
+    this.railFinish = 'painted';
   }
   get entrance() {
     const a = -this.rot * PI / 2;
@@ -8591,6 +8653,7 @@ class CoasterRide extends ParkObject {
     const t = this.paintedType();
     if (this.trackMesh) this.trackMesh.dispose();
     const saved = this.track.type; this.track.type = t;
+    this.track.finish = this.railFinish || 'painted';
     this.trackMesh = R.makeMesh(buildTrackGeo(this.track));
     this.track.type = saved;
     if (this.carMesh) this.carMesh.dispose();
@@ -9883,7 +9946,16 @@ class Guest extends Person {
       this.moving = false;
       if (this.vomitT <= 0) { this.state = 'idle'; this.nausea = .18; }
     }
-    this.armLift = damp(this.armLift, (this.state === 'riding' && this.riding && this.riding.intensity > 4) ? 1 : 0, 6, dt);
+    /* Idle guests are not just parked mannequins: every few seconds one
+       checks a phone or shifts a bag — a small armLift pulse timed
+       independently per guest so a standing crowd never moves in unison. */
+    if (this.state === 'idle' && !this.moving) {
+      this._gestureT = (this._gestureT === undefined ? rnd(2, 8) : this._gestureT) - dt;
+      if (this._gestureT <= 0) { this._gestureT = rnd(7, 16); this._gesturePulse = 1; }
+    }
+    if (this._gesturePulse) this._gesturePulse = Math.max(0, this._gesturePulse - dt * 1.3);
+    const idleGesture = (this.state === 'idle' && !this.moving) ? (this._gesturePulse || 0) * .5 : 0;
+    this.armLift = damp(this.armLift, (this.state === 'riding' && this.riding && this.riding.intensity > 4) ? 1 : idleGesture, 6, dt);
 
     /* ------------------------------------------------------------------
        Mood, resolved into four named components rather than one opaque
@@ -12547,6 +12619,13 @@ const UI = {
         for (const st of STATION_STYLES) h += `<button class="btn ${o.stationStyle === st.id ? 'pri' : ''}"
           style="padding:8px 4px" onclick="UI.setStationStyle(${id},'${st.id}')">${st.n}</button>`;
         h += `</div>`;
+        h += `<h3>Rail finish</h3>
+          <div style="font-size:10.5px;color:var(--dim);margin:-4px 0 8px">Not a colour — what the rail itself is
+          made of. Livery still picks the hue; this picks polish, patina and wear.</div>
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:7px">`;
+        for (const fn of RAIL_FINISHES) h += `<button class="btn ${(o.railFinish || 'painted') === fn.id ? 'pri' : ''}"
+          style="padding:8px 4px" onclick="UI.setRailFinish(${id},'${fn.id}')">${fn.n}</button>`;
+        h += `</div>`;
         h += `<p>Repainting is free and instant. The bodywork changes the shell over the chassis, not
           the seats or the restraints, so a mine train still runs on the same running gear.</p>`;
       } else {
@@ -12996,6 +13075,12 @@ const UI = {
     const c = Park.coasters.find(x => x.id === id);
     if (!c) return;
     c.stationStyle = st; c.repaint();
+    this.manage(id, 'look');
+  },
+  setRailFinish(id, fin) {
+    const c = Park.coasters.find(x => x.id === id);
+    if (!c) return;
+    c.railFinish = fin; c.repaint();
     this.manage(id, 'look');
   },
   setMerch(id, key, val) {
@@ -15142,6 +15227,17 @@ const Coaster = {
         g.box(Math.cos(a) * (W / 2 + 1.6), 5.6 + Math.sin(a) * 2.6, 0, .9, .6, D + 2.4, hex(0xdfe8f2));
       }
       for (const sx of [-1, 1]) g.box(sx * (W / 2 + 1.2), 5.4, 0, .3, 1.2, D + 2.4, hex(T.rail));
+    } else if (style === 'glass') {
+      for (const sx of [-1, 1]) for (let z = -D / 2; z <= D / 2; z += 2.6) g.cyl(sx * 4.3, 1.1, z, .12, 5.4, 8, hex(0xdfe8f2));
+      g.box(0, 5.9, 0, W + 3, .18, D + 2.6, hex(0xbfe0f2));
+      g.box(0, 5.7, 0, W + 3, .5, D + 2.6, hex(0xe4eef5));
+      for (let k = 0; k < 6; k++) g.box(-W / 2 - 1 + k * ((W + 2) / 5), 3.6, D / 2 + 1.2, .1, 4.4, .06, hex(0xa8d0e8));
+    } else if (style === 'industrial') {
+      for (const sx of [-1, 1]) for (let z = -D / 2; z <= D / 2; z += 2.2) g.box(sx * 4.3, 1.1, z, .5, 5.0, .5, hex(0x4a4038));
+      g.box(0, 5.8, 0, W + 3.2, .6, D + 2.4, hex(0x5c5248));
+      for (let k = 0; k < 5; k++) g.cyl(-W / 2 + 1 + k * (W / 4), 6.6, 0, .35, .9, 8, hex(0x2f2b26));
+      g.box(0, 6.4, D / 2 + 1, W + 2, .16, .5, hex(0xd9a441));
+      for (const sx of [-1, 1]) g.beam(sx * (W / 2 + 1.4), 1.4, -D / 2 - 1, sx * (W / 2 + 1.4), 6.0, -D / 2 - 1, .18, .18, hex(0x3a342c));
     } else {
       for (const sx of [-1, 1]) for (let z = -D / 2; z <= D / 2; z += 2.4) g.cyl(sx * 4.3, 1.1, z, .16, 4.2, 6, hex(0x6d5a45));
       g.box(0, 5.3, 0, W + 3, .5, D + 2.5, hex(T.rail));
@@ -18553,18 +18649,43 @@ Prefab.bike = function (color) {
 /* Small ambient sedan used to give painted Roads real traffic. Cosmetic
    only — Traffic below drives it tile-to-tile along the road graph, no
    passengers, no collisions, just life on the street. */
+/* A real silhouette instead of a stacked-boxes toy: tapered hood and trunk,
+   a windscreen raked back rather than a vertical glass slab, wheels sunk
+   into visible arches, bumpers, door lines and mirrors. Still cheap — every
+   piece is a primitive the renderer already had — just arranged the way an
+   actual car reads from a moving camera at traffic-scale distance. */
 Prefab.car = function (color) {
   const g = new Geo();
-  const body = hex(color), dark = shade(body, .65), glass = hex(0x8fcdea);
-  g.cbox(0, .42, 0, 1.7, .62, 3.4, body);
-  g.cbox(0, .86, -.2, 1.42, .5, 1.7, shade(body, 1.1));
-  g.cbox(0, .86, -.2, 1.3, .42, 1.55, glass);
-  g.cbox(0, .18, 0, 1.72, .3, 3.44, dark);
-  for (const sx of [-1, 1]) for (const sz of [-1.15, 1.15])
-    g.cyl(sx * .82, .18, sz, .32, .24, 8, hex(0x1c1c1e), 0, true);
-  for (const sx of [-.55, .55]) {
-    g.sphere(sx, .42, -1.68, .1, 6, hex(0xfff3c4));   // headlights
-    g.sphere(sx, .42, 1.68, .1, 6, hex(0xd94f3c));    // taillights
+  const body = hex(color), dark = shade(body, .65), light = shade(body, 1.18);
+  const glass = hex(0x7fb8d8), trim = shade(body, .45), tire = hex(0x1c1c1e);
+  // lower body: hood and trunk taper in from the wider cabin section
+  g.cbox(0, .40, 0, 1.68, .5, 1.5, body);                       // cabin skirt
+  g.cbox(0, .38, -1.35, 1.5, .44, .9, body);                    // hood
+  g.cbox(0, .38, 1.3, 1.52, .46, 1.0, body);                    // trunk
+  g.cbox(0, .17, 0, 1.72, .22, 3.5, dark);                      // rocker/underbody
+  // cabin, narrower than the body and set back off the hood
+  g.cbox(0, .82, -.08, 1.36, .46, 1.9, light);
+  // windscreen raked back, not a flat slab
+  g.triV([-.62, .82, -.85], [.62, .82, -.85], [.58, 1.16, -.15], glass);
+  g.triV([-.62, .82, -.85], [.58, 1.16, -.15], [-.58, 1.16, -.15], glass);
+  g.cbox(0, 1.0, .05, 1.28, .32, 1.5, glass);                   // side glass + rear screen band
+  // door line + wing mirrors
+  for (const sx of [-1, 1]) {
+    g.box(sx * .85, .55, -.05, .02, .3, 1.5, trim);
+    g.box(sx * .82, .92, -.5, .16, .1, .16, trim);
+  }
+  // bumpers
+  g.cbox(0, .30, -1.72, 1.62, .3, .22, dark);
+  g.cbox(0, .30, 1.7, 1.62, .3, .22, dark);
+  // wheel arches (dark recess) with the wheel sunk inside
+  for (const sx of [-1, 1]) for (const sz of [-1.15, 1.15]) {
+    g.cyl(sx * .84, .30, sz, .38, .10, 10, dark, 0, true);
+    g.cyl(sx * .84, .18, sz, .32, .26, 10, tire, 0, true);
+    g.cyl(sx * .84, .18, sz, .16, .28, 8, hex(0x8f96a0), 0, true);   // hubcap
+  }
+  for (const sx of [-.5, .5]) {
+    g.sphere(sx, .38, -1.72, .095, 6, hex(0xfff3c4));   // headlights
+    g.sphere(sx, .38, 1.72, .095, 6, hex(0xd94f3c));    // taillights
   }
   return g;
 };
@@ -22643,7 +22764,9 @@ const Game = {
           t: c.type.id, i: c.i, j: c.j, r: c.rot, pieces: c.track.pieces, custom: c.track.custom, done: c.track.complete,
           pw: c.track.powered,
           price: c.price, open: c.openR, name: c.name, se: c.track.stationEnd, trains: c.trains.length,
-          lic: c.license || null, ag: c.ageDays || 0
+          lic: c.license || null, ag: c.ageDays || 0,
+          liv: c.livery || null, trainStyle: c.trainStyle || null, stationStyle: c.stationStyle || null,
+          railFinish: c.railFinish || 'painted'
         })),
         staff: Park.staff.map(s => ({ r: s.role, x: s.x, z: s.z, l: s.level, n: s.name, shift: s.shift, zone: s.zone, morale: s.morale, td: s.tasksDone, nick: s.nickname, uc: s.uniformColor })),
         land: Array.from(Land.ownedPlots), bought: Land.bought,
@@ -22906,8 +23029,21 @@ const Game = {
         c.track.stationEnd = s.se || 24;
         c.track.complete = s.done;
         c.name = s.name;
+        /* Customization — livery, train bodywork, station style and rail
+           finish — used to be lost on every save/load round trip because
+           none of it was serialized. Restored here, before any mesh gets
+           built, so the very first frame after loading already looks
+           right instead of flashing factory colours for a moment. */
+        if (s.liv) c.livery = s.liv;
+        if (s.trainStyle) c.trainStyle = s.trainStyle;
+        if (s.stationStyle) c.stationStyle = s.stationStyle;
+        c.railFinish = s.railFinish || 'painted';
+        c.track.finish = c.railFinish;
+        const painted = c.paintedType();
         c.stationMesh = this.R.makeMesh(Coaster.stationGeo(c));
+        const baseType = c.track.type; c.track.type = painted;
         c.trackMesh = this.R.makeMesh(buildTrackGeo(c.track));
+        c.track.type = baseType;
         if (s.done) {
           c.computeStats(); c.spawnTrains(s.trains || 1);
           /* Restore the safety certificate. Coasters from saves made before
@@ -22916,8 +23052,8 @@ const Game = {
           if (s.lic) c.license = s.lic;
           else if (s.open) Inspection.grant(c);
           if (s.ag) { c.ageDays = s.ag; c.freshness = clamp(1 - Math.max(0, s.ag - 40) / 400, .55, 1); }
-          c.carMesh = this.R.makeMesh(buildCarGeo(type, false));
-          c.frontMesh = this.R.makeMesh(buildCarGeo(type, true));
+          c.carMesh = this.R.makeMesh(buildCarGeo(painted, false));
+          c.frontMesh = this.R.makeMesh(buildCarGeo(painted, true));
           c.openR = s.open; c.state = s.open ? 'open' : 'closed';
         }
         if (s.price !== undefined) { c.price = s.price; c.priceLocked = true; }
