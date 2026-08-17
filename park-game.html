@@ -16207,6 +16207,12 @@ const Coaster = {
           else if (sm.launch && tr.v < 6) Audio.play('launch');
           // ride sting: the moment a lift hill tops out and gravity takes over
           if (tr._wasLift && !sm.lift) Audio.play('crest');
+          // the structure's own voice, keyed to what it is actually built
+          // of: a wood coaster groans under every car regardless of finish;
+          // a rusted steel one adds its own thin, higher creak on top of
+          // whatever the coaster type itself sounds like.
+          if (T.style === 'wood' && Math.random() < h * clamp(tr.v * .35, .3, 2.2)) Audio.play('creak');
+          if (c.railFinish === 'rusted' && Math.random() < h * clamp(tr.v * .5, .4, 3)) Audio.play('rustcreak');
         }
         tr._wasLift = !!sm.lift;
         tr.d += tr.v * h;
@@ -16332,6 +16338,13 @@ const Audio_ = {
       // played once as a coaster train crests the top of a lift hill — heard
       // only by whoever is riding, a little rise-then-release fanfare
       case 'crest': [440, 587, 740].forEach((f, i) => setTimeout(() => this.tone(f, .16, 'triangle', .10), i * 55)); break;
+      // a wooden structure's own voice — low, irregular, timber flexing
+      // under load. Rusted steel gets the same treatment at a higher,
+      // thinner pitch (metal creak rather than wood groan); anything else
+      // (painted/chrome/galvanized) stays silent, which is the point —
+      // a well-kept steel track should not sound like it is falling apart.
+      case 'creak': this.tone(rnd(70, 130), rnd(.3, .6), 'sawtooth', .05, rnd(50, 90)); break;
+      case 'rustcreak': this.tone(rnd(600, 1100), rnd(.08, .16), 'sawtooth', .04, rnd(300, 500)); break;
     }
   },
   /* The continuous beds are ramped rather than assigned: writing straight to
@@ -18653,39 +18666,65 @@ Prefab.bike = function (color) {
    a windscreen raked back rather than a vertical glass slab, wheels sunk
    into visible arches, bumpers, door lines and mirrors. Still cheap — every
    piece is a primitive the renderer already had — just arranged the way an
-   actual car reads from a moving camera at traffic-scale distance. */
-Prefab.car = function (color) {
+   actual car reads from a moving camera at traffic-scale distance. Three
+   body kinds share this shell language rather than being palette swaps of
+   one shape, so a parking lot or a road actually looks like a mixed fleet. */
+Prefab.car = function (color, kind) {
   const g = new Geo();
   const body = hex(color), dark = shade(body, .65), light = shade(body, 1.18);
   const glass = hex(0x7fb8d8), trim = shade(body, .45), tire = hex(0x1c1c1e);
-  // lower body: hood and trunk taper in from the wider cabin section
-  g.cbox(0, .40, 0, 1.68, .5, 1.5, body);                       // cabin skirt
-  g.cbox(0, .38, -1.35, 1.5, .44, .9, body);                    // hood
-  g.cbox(0, .38, 1.3, 1.52, .46, 1.0, body);                    // trunk
-  g.cbox(0, .17, 0, 1.72, .22, 3.5, dark);                      // rocker/underbody
-  // cabin, narrower than the body and set back off the hood
-  g.cbox(0, .82, -.08, 1.36, .46, 1.9, light);
-  // windscreen raked back, not a flat slab
-  g.triV([-.62, .82, -.85], [.62, .82, -.85], [.58, 1.16, -.15], glass);
-  g.triV([-.62, .82, -.85], [.58, 1.16, -.15], [-.58, 1.16, -.15], glass);
-  g.cbox(0, 1.0, .05, 1.28, .32, 1.5, glass);                   // side glass + rear screen band
-  // door line + wing mirrors
-  for (const sx of [-1, 1]) {
-    g.box(sx * .85, .55, -.05, .02, .3, 1.5, trim);
-    g.box(sx * .82, .92, -.5, .16, .1, .16, trim);
-  }
-  // bumpers
-  g.cbox(0, .30, -1.72, 1.62, .3, .22, dark);
-  g.cbox(0, .30, 1.7, 1.62, .3, .22, dark);
-  // wheel arches (dark recess) with the wheel sunk inside
-  for (const sx of [-1, 1]) for (const sz of [-1.15, 1.15]) {
-    g.cyl(sx * .84, .30, sz, .38, .10, 10, dark, 0, true);
-    g.cyl(sx * .84, .18, sz, .32, .26, 10, tire, 0, true);
-    g.cyl(sx * .84, .18, sz, .16, .28, 8, hex(0x8f96a0), 0, true);   // hubcap
-  }
-  for (const sx of [-.5, .5]) {
-    g.sphere(sx, .38, -1.72, .095, 6, hex(0xfff3c4));   // headlights
-    g.sphere(sx, .38, 1.72, .095, 6, hex(0xd94f3c));    // taillights
+  const lights = () => { for (const sx of [-.5, .5]) { g.sphere(sx, .38, -1.72, .095, 6, hex(0xfff3c4)); g.sphere(sx, .38, 1.72, .095, 6, hex(0xd94f3c)); } };
+  const wheels = (yWell, r, sz) => { for (const sx of [-1, 1]) for (const z of sz) {
+    g.cyl(sx * .84, yWell, z, .38, .10, 10, dark, 0, true);
+    g.cyl(sx * .84, yWell - .12, z, r, .26, 10, tire, 0, true);
+    g.cyl(sx * .84, yWell - .12, z, r * .5, .28, 8, hex(0x8f96a0), 0, true);
+  }; };
+  if (kind === 'suv') {
+    // tall, boxy, one continuous cabin from windscreen to tailgate, roof rails
+    g.cbox(0, .46, 0, 1.74, .78, 3.5, body);
+    g.cbox(0, .40, -1.55, 1.6, .5, .7, body);                     // short snout
+    g.cbox(0, .18, 0, 1.78, .24, 3.6, dark);
+    g.triV([-.68, 1.0, -1.05], [.68, 1.0, -1.05], [.62, 1.3, -.55], glass);
+    g.triV([-.68, 1.0, -1.05], [.62, 1.3, -.55], [-.62, 1.3, -.55], glass);
+    g.cbox(0, 1.14, .1, 1.4, .34, 2.2, glass);
+    g.cbox(0, 1.34, .1, 1.5, .1, 2.3, shade(body, .85));           // roof
+    for (const sx of [-.5, .5]) g.beam(sx, 1.4, -1.0, sx, 1.4, .9, .05, .05, hex(0x2c2c2e)); // roof rails
+    for (const sx of [-1, 1]) g.box(sx * .87, .68, -.05, .02, .4, 1.9, trim);
+    g.cbox(0, .32, -1.72, 1.66, .34, .22, dark);
+    g.cbox(0, .32, 1.72, 1.66, .34, .22, dark);
+    wheels(.36, .42, [-1.2, 1.2]);
+    lights();
+  } else if (kind === 'pickup') {
+    // cab up front, an open bed behind it with visible side rails
+    g.cbox(0, .40, -1.0, 1.66, .5, 1.5, body);                     // cab + hood block
+    g.cbox(0, .40, -1.75, 1.5, .44, .8, body);                     // hood
+    g.cbox(0, .17, 0, 1.72, .22, 3.5, dark);
+    g.triV([-.6, .82, -1.55], [.6, .82, -1.55], [.56, 1.14, -1.0], glass);
+    g.triV([-.6, .82, -1.55], [.56, 1.14, -1.0], [-.56, 1.14, -1.0], glass);
+    g.cbox(0, 1.0, -1.25, 1.3, .3, 1.0, glass);
+    // open bed
+    g.cbox(0, .48, 1.05, 1.6, .1, 1.7, dark);
+    for (const sx of [-1, 1]) g.cbox(sx * .78, .68, 1.05, .12, .4, 1.7, shade(body, .9));
+    g.cbox(0, .68, 1.85, 1.6, .4, .1, shade(body, .9));
+    for (const sx of [-1, 1]) { g.box(sx * .82, .95, -.65, .16, .1, .16, trim); g.box(sx * .84, .55, -.7, .02, .3, 1.3, trim); }
+    g.cbox(0, .30, -1.95, 1.6, .3, .22, dark);
+    wheels(.30, .38, [-1.15, .95]);
+    lights();
+  } else {
+    // sedan (default)
+    g.cbox(0, .40, 0, 1.68, .5, 1.5, body);                       // cabin skirt
+    g.cbox(0, .38, -1.35, 1.5, .44, .9, body);                    // hood
+    g.cbox(0, .38, 1.3, 1.52, .46, 1.0, body);                    // trunk
+    g.cbox(0, .17, 0, 1.72, .22, 3.5, dark);                      // rocker/underbody
+    g.cbox(0, .82, -.08, 1.36, .46, 1.9, light);
+    g.triV([-.62, .82, -.85], [.62, .82, -.85], [.58, 1.16, -.15], glass);
+    g.triV([-.62, .82, -.85], [.58, 1.16, -.15], [-.58, 1.16, -.15], glass);
+    g.cbox(0, 1.0, .05, 1.28, .32, 1.5, glass);
+    for (const sx of [-1, 1]) { g.box(sx * .85, .55, -.05, .02, .3, 1.5, trim); g.box(sx * .82, .92, -.5, .16, .1, .16, trim); }
+    g.cbox(0, .30, -1.72, 1.62, .3, .22, dark);
+    g.cbox(0, .30, 1.7, 1.62, .3, .22, dark);
+    wheels(.30, .32, [-1.15, 1.15]);
+    lights();
   }
   return g;
 };
@@ -19504,6 +19543,7 @@ const Parking = {
       x: this.roadX + rnd(-.6, .6), z: this.roadZ + 30,
       yaw: PI, wait: 0, unloaded: false, leaveAt: 0, riders,
       color: Traffic.colors[rndi(0, Traffic.colors.length - 1)],
+      kind: Traffic.KINDS[rndi(0, Traffic.KINDS.length - 1)],
     };
     bay.car = c;
     this.cars.push(c);
@@ -19514,7 +19554,7 @@ const Parking = {
     for (const c of this.cars) {
       const y = WORLD.hAt(c.x, c.z) + .02;
       M4.compose(m, c.x, y, c.z, 0, c.yaw || 0, 0, 1, 1, 1);
-      R.draw(Traffic.meshFor(c.color), m);
+      R.draw(Traffic.meshFor(c.color, c.kind || 'sedan'), m);
     }
   },
 };
@@ -19714,9 +19754,10 @@ const Traffic = {
     }
     return out;
   },
-  meshFor(color) {
-    const k = color;
-    if (!this.carMesh[k]) this.carMesh[k] = Game.R.makeMesh(Prefab.car(color));
+  KINDS: ['sedan', 'sedan', 'suv', 'pickup'],   // sedans still the majority of any real fleet
+  meshFor(color, kind) {
+    const k = kind + ':' + color;
+    if (!this.carMesh[k]) this.carMesh[k] = Game.R.makeMesh(Prefab.car(color, kind));
     return this.carMesh[k];
   },
   spawnOne() {
@@ -19727,7 +19768,8 @@ const Traffic = {
     const [ni, nj] = nbs[Math.floor(Math.random() * nbs.length)];
     this.cars.push({
       i, j, ni, nj, t: Math.random(), speed: .55 + Math.random() * .35,
-      color: this.colors[Math.floor(Math.random() * this.colors.length)]
+      color: this.colors[Math.floor(Math.random() * this.colors.length)],
+      kind: this.KINDS[Math.floor(Math.random() * this.KINDS.length)]
     });
   },
   update(dt) {
@@ -19762,7 +19804,7 @@ const Traffic = {
       const y = WORLD.hAt(x, z) + .02;
       const yaw = Math.atan2(x1 - x0, z1 - z0);
       M4.compose(m, x, y, z, 0, yaw, 0, 1, 1, 1);
-      R.draw(this.meshFor(c.color), m);
+      R.draw(this.meshFor(c.color, c.kind || 'sedan'), m);
     }
   }
 };
@@ -22346,9 +22388,13 @@ const Game = {
     // lift where a real train is quiet.
     const smNow = c.track.sampleAt(tr.d);
     const onLift = smNow && smNow.lift;
-    Cam.shake = mode === 1
+    /* What the structure is built of shows up in how it rides, not just how
+       it sounds: timber never runs as smooth as steel, and a neglected
+       rusted rail rattles harder than a fresh one regardless of speed. */
+    const material = c.type.style === 'wood' ? 1.35 : c.railFinish === 'rusted' ? 1.18 : 1;
+    Cam.shake = (mode === 1
       ? clamp(tr.v / 40, 0, 1) * (onLift ? .35 : .85)
-      : clamp(tr.v / 60, 0, 1) * .30;
+      : clamp(tr.v / 60, 0, 1) * .30) * material;
     const g = tr.g || 1;
     $('#rcSpd').textContent = Math.round(tr.v * 3.6);
     $('#gLab').textContent = g.toFixed(1) + ' G';
