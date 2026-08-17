@@ -4104,6 +4104,35 @@ const CAT = {
       beauty: 200, prestige: true, prestigeCost: 1,
       blurb: 'A shorter observation spire dressed for a coastal park, priced for parks not ready for the full skyline needle.' },
   ],
+  /* ---------------- Power ----------------
+     Generators are built like any free facility (need:'power', price:0 —
+     they never sell to a guest) but each carries a strongly negative
+     beauty stat, so the existing beautyAt() radius check already makes
+     guests mark a park down for one sitting nearby — no separate "guests
+     hate this" system needed, just real numbers plugged into the real one.
+     output is the power it contributes (see the Power module); efficiency
+     is a running multiplier that degrades with age/overload and is what a
+     Refuel/Service action (see manage()) resets to 1. Bigger, later tiers
+     put out far more power per generator but are also uglier and louder,
+     so stacking them all next to the gate to save cable runs is exactly
+     the mistake the tier ladder is built to punish. */
+  power: [
+    { id: 'genDiesel', name: 'Diesel Generator', cost: 3200, up: 40, w: 2, d: 2, need: 'power', price: 0, satisfy: 0,
+      output: 90, efficiency0: 1, color: 0x5a5a5c, roof: 0x3a3a3c, beauty: -55,
+      blurb: 'Cheap and loud. Guests nearby will smell it before they see it.' },
+    { id: 'genGasTurbine', name: 'Gas Turbine Plant', cost: 9800, up: 90, w: 3, d: 3, need: 'power', price: 0, satisfy: 0,
+      output: 260, efficiency0: 1, color: 0x4a5a68, roof: 0x2f3b47, beauty: -75,
+      blurb: 'Serious output for a serious footprint. Wants distance and its own access road.' },
+    { id: 'genWind', name: 'Wind Turbine', cost: 12000, up: 30, w: 2, d: 2, need: 'power', price: 0, satisfy: 0,
+      output: 130, efficiency0: 1, color: 0xe4e0d6, roof: 0xc9c4b6, beauty: -18,
+      blurb: 'Quiet and clean as generators go — still an industrial silhouette guests would rather not queue under.' },
+    { id: 'genSolar', name: 'Solar Array', cost: 15000, up: 20, w: 4, d: 3, need: 'power', price: 0, satisfy: 0,
+      output: 150, efficiency0: 1, color: 0x1c2b3c, roof: 0x2f80c0, beauty: -8,
+      blurb: 'The least offensive generator by far — flat, silent, and easy to screen with a hedge.' },
+    { id: 'genReactor', name: 'Compact Reactor', cost: 68000, up: 260, w: 4, d: 4, need: 'power', price: 0, satisfy: 0,
+      output: 820, efficiency0: 1, color: 0x3a3a3a, roof: 0xd94f3c, beauty: -140, prestige: true, prestigeCost: 4,
+      blurb: 'Enormous output from one footprint — and an enormous problem if it is ever anywhere near a queue line.' },
+  ],
   /* ---------------- Scenery ---------------- */
   scenery: [
     { id: 'bench', name: 'Bench', cost: 60, up: .4, w: 1, d: 1, kind: 'bench', beauty: 3 },
@@ -8900,15 +8929,19 @@ const Park = {
     }
     return `<span title="${v.toFixed(1)} / 5">${s}</span> <span style="color:var(--dim);font-weight:400">${v.toFixed(1)}</span>`;
   },
+  /* Any object with a beauty stat counts, not just scenery-kind pieces —
+     landmarks and (now) power generators are placed as 'shop' objects but
+     still carry a real def.beauty (positive for landmarks, sharply negative
+     for generators), so it has to be checked instead of gated on kind. */
   get beauty() {
     let b = 0;
-    for (const o of this.objects) if (o.kind === 'scenery') b += o.def.beauty + (o.beautyBonus || 0);
+    for (const o of this.objects) if (o.def.beauty) b += o.def.beauty + (o.beautyBonus || 0);
     return b;
   },
   beautyAt(x, z, r = 22) {
     let b = 0;
     for (const o of this.objects) {
-      if (o.kind !== 'scenery') continue;
+      if (!o.def.beauty) continue;
       const d2 = dist2(x, z, o.x, o.z);
       if (d2 < r * r) b += (o.def.beauty + (o.beautyBonus || 0)) * (1 - Math.sqrt(d2) / r);
     }
@@ -11028,6 +11061,7 @@ const TOOLS = [
   { id: 'scenery', ic: 'tree', t: 'Scenery', k: '7' },
   { id: 'decor', ic: 'sparkle', t: 'Decor', k: 'y' },
   { id: 'landmark', ic: 'sparkle', t: 'Landmarks', k: 'g' },
+  { id: 'power', ic: 'bolt', t: 'Power', k: 'u' },
   { id: 'transit', ic: 'path', t: 'Transport', k: 't' },
   { id: 'staff', ic: 'staff', t: 'Staff', k: '8' },
   { id: 'terrain', ic: 'terrain', t: 'Terrain', k: '9' },
@@ -11638,6 +11672,19 @@ const UI = {
     else if (id === 'landmark') {
       this.renderLandmarks(b, addGrid, cost);
     }
+    else if (id === 'power') {
+      const bal = Power.balance();
+      b.appendChild(el('div', '', `<div style="font-size:11px;line-height:1.6;padding:0 3px 8px">
+        <b>Demand ${Math.round(Power.demand())} kW &middot; Supply ${Math.round(Power.supply())} kW</b>
+        &middot; <span style="color:${bal >= 0 ? 'var(--good)' : 'var(--bad)'}">${bal >= 0 ? '+' + Math.round(bal) + ' kW spare' : Math.round(bal) + ' kW short'}</span><br>
+        <span style="color:var(--dim)">Every generator here drags nearby beauty down hard — guests read them as loud
+        and out of place up close. Build them away from paths and queues, not in the middle of the park to save on
+        cable runs. Left unpowered or overloaded, or crowded too close to guests, a generator can malfunction —
+        the further it is from anyone, the more "under control" that malfunction stays.</span></div>`));
+      const cr = it => `<img class="th" src="${Thumbs.shop(it)}" alt=""><span class="n">${it.name}</span>${cost(it.cost)}
+        <span class="c" style="color:var(--dim)">+${it.output} kW</span>`;
+      addGrid('Generators', CAT.power, 'grid2', cr, (it, d) => this.pick(it, d));
+    }
     else if (id === 'decor') {
       const cr = it => `<img class="th" src="${Thumbs.scenery(it)}" alt=""><span class="n">${it.name}</span>${cost(it.cost)}`;
       addGrid('Recently used', recentOf(CAT.scenery), 'grid2', cr, (it, d) => this.pick(it, d));
@@ -12002,6 +12049,7 @@ const UI = {
     section('lodging', 'Lodging', CAT.shops.filter(x => x.need === 'hotel'), 'lodging', it => Thumbs.shop(it));
     section('scenery', 'Scenery', CAT.scenery, 'scenery', it => Thumbs.scenery(it));
     section('landmark', 'Prestige Landmarks', CAT.landmarks, 'landmark', it => Thumbs.scenery(it));
+    section('power', 'Power', CAT.power, 'power', it => Thumbs.shop(it));
     section('staff', 'Staff', CAT.staff.filter(x => !x.external), 'staff', it => Thumbs.staff(it));
     if (this.quickCat === 'all' || this.quickCat === 'transit') {
       const tItems = Transit.unlocked() ? CAT.transit : [];
@@ -13793,6 +13841,7 @@ const UI = {
     if (this.manageTab === 'history') return this.historyTab();
     if (this.manageTab === 'awards') return this.awardsTab();
     if (this.manageTab === 'transport') return this.transportTab();
+    if (this.manageTab === 'power') return this.powerTab();
     if (this.manageTab === 'rules') return this.rulesTab();
     if (this.manageTab === 'compare') return this.compareTab();
     if (this.manageTab === 'events') return this.eventsTab();
@@ -13863,7 +13912,7 @@ const UI = {
   MANAGE_GROUPS: [
     ['Money',  [['finance', 'Ledger'], ['finance2', 'Loans'], ['marketing', 'Marketing'], ['history', 'History']]],
     ['People', [['guests', 'Guests'], ['demo', 'Who Comes'], ['thoughts', 'Thoughts'], ['reviews', 'Reviews'], ['staff', 'Staff']]],
-    ['Park',   [['transport', 'Transport'], ['infra', 'Infrastructure'], ['rules', 'Rules'], ['awards', 'Awards'], ['compare', 'Compare']]],
+    ['Park',   [['transport', 'Transport'], ['power', 'Power'], ['infra', 'Infrastructure'], ['rules', 'Rules'], ['awards', 'Awards'], ['compare', 'Compare']]],
     ['Region', [['events', 'Events'], ['rivals', 'Rivals']]],
   ],
   tabBar(active) {
@@ -14331,6 +14380,40 @@ const UI = {
       h += `<div class="lrow"><span class="av" style="background:var(--accent-ink)">&#8599;</span>
         <span class="m"><b>Cable line</b><span>tier ${l.tier || 1}</span></span>
         <span class="r">${(l.riders || 0).toLocaleString()}<br><span style="color:var(--dim);font-weight:600">riders</span></span></div>`;
+    return this.modal('Park Management', h);
+  },
+
+  /* ================= POWER =================
+     Demand/supply plus a per-generator readout of how close it is sitting
+     to the nearest guest right now — the same distance the daily
+     malfunction roll actually uses, so "too close" here means something
+     real rather than a decorative warning. */
+  powerTab() {
+    let h = this.tabBar('power');
+    const gens = Power.generators();
+    const demand = Power.demand(), supply = Power.supply(), bal = supply - demand;
+    h += `<div class="rs-top" style="margin-bottom:14px">
+      <div class="rs-stat"><span class="l">Demand</span><div class="v">${Math.round(demand)} kW</div></div>
+      <div class="rs-stat"><span class="l">Supply</span><div class="v">${Math.round(supply)} kW</div></div>
+      <div class="rs-stat"><span class="l">Balance</span><div class="v" style="color:${bal >= 0 ? 'var(--good)' : 'var(--bad)'}">${bal >= 0 ? '+' : ''}${Math.round(bal)} kW</div></div>
+      <div class="rs-stat"><span class="l">Generators</span><div class="v">${gens.length}</div></div>
+    </div>`;
+    if (bal < 0) h += `<div class="empty" style="color:var(--bad);border-color:var(--bad)">Running a deficit — every generator's
+      malfunction risk is higher until supply catches up with demand. Build more capacity or add efficient ones instead of
+      stacking cheap ones.</div>`;
+    h += `<h3>Generators</h3>`;
+    if (!gens.length) h += `<div class="empty">No generators built yet. Every ride and coaster draws power whether one exists
+      or not — an unpowered park runs on borrowed time. Use the Power tool to build one, well clear of any path.</div>`;
+    for (const o of gens) {
+      const d = Math.round(Power.nearestGuestDist(o.x, o.z));
+      const danger = d < 14;
+      const eff = Math.round((o.efficiency === undefined ? 1 : o.efficiency) * 100);
+      const broken = o.openR === false;
+      h += `<div class="lrow"><span class="av" style="background:${broken ? 'var(--bad)' : danger ? 'var(--warn)' : 'var(--good)'}">&#9889;</span>
+        <span class="m"><b>${esc(o.name)}</b><span>${broken ? 'Offline — under repair' : `Efficiency ${eff}% &middot; nearest guest ${d >= 9999 ? 'n/a' : d + 'm'}`}
+          ${danger && !broken ? ' <b style="color:var(--warn)">— too close to guests</b>' : ''}</span></span>
+        <span class="r">${broken ? '&mdash;' : '+' + o.def.output + ' kW'}<br><span style="color:var(--dim);font-weight:600">${o.def.name}</span></span></div>`;
+    }
     return this.modal('Park Management', h);
   },
 
@@ -16594,6 +16677,7 @@ const ICON = (() => {
     stats: w('<rect x="3.5" y="3.5" width="17" height="17" rx="2.5"/><path d="M8 16v-4M12 16V8M16 16v-6"/>'),
     gates: w('<path d="M3 20V8l4-3 4 3v12"/><path d="M13 20V8l4-3 4 3v12"/><path d="M3 20h18"/><path d="M7 20v-5M17 20v-5"/>'),
     gear: w('<circle cx="12" cy="12" r="3.2"/><path d="M12 3.2v2.1M12 18.7v2.1M20.8 12h-2.1M5.3 12H3.2M18.2 5.8l-1.5 1.5M7.3 16.7l-1.5 1.5M18.2 18.2l-1.5-1.5M7.3 7.3L5.8 5.8"/>'),
+    bolt: w('<path d="M13 2.5L4 14h6l-1 7.5L20 10h-6z" fill="currentColor" stroke-linejoin="round"/>'),
     sound: w('<path d="M4 9.5h3.2L12 5.5v13l-4.8-4H4z"/><path d="M16 9.2a4.2 4.2 0 0 1 0 5.6"/><path d="M18.6 6.6a7.8 7.8 0 0 1 0 10.8"/>'),
     help: w('<circle cx="12" cy="12" r="8.5"/><path d="M9.6 9.4c.2-1.4 1.2-2.3 2.6-2.3 1.5 0 2.5 1 2.5 2.3 0 2-2.4 2.1-2.6 4"/><path d="M12 17h.01" stroke-width="2.4"/>'),
     close: w('<path d="M6 6l12 12M18 6L6 18"/>'),
@@ -20299,6 +20383,94 @@ const TransitView = {
   }
 };
 
+/* ---------- power ----------
+   A small optimisation layer sitting on top of the existing shop/beauty
+   machinery rather than a parallel simulation: generators are ordinary
+   Shop objects (need:'power'), so cost/upkeep/placement/demolish are all
+   free. What's new is:
+     - demand/supply, estimated from what's actually built rather than a
+       fixed number, so growing the park raises the bar
+     - a strongly negative def.beauty per generator, which the (now
+       kind-agnostic) Park.beautyAt() already turns into a real guest
+       mood/rating hit for anything built too close to a path
+     - a daily malfunction roll per generator, more likely when the park
+       is running a deficit or the unit's own efficiency has degraded,
+       and much worse in its consequences the closer the nearest guest
+       happens to be — an isolated generator that blows up costs a repair
+       bill; one built by the front gate costs a fine, a rating hit, and
+       guests fleeing. */
+const Power = {
+  rideDraw(def) {
+    if (!def) return 0;
+    return Math.round((def.cap || 10) * 1.1 + (def.exc || 3) * 4 + (def.water ? 15 : 0));
+  },
+  demand() {
+    let d = 0;
+    for (const o of Park.objects) if (o.kind === 'ride') d += this.rideDraw(o.def);
+    for (const c of Park.coasters) d += this.rideDraw(c.type);
+    return d;
+  },
+  generators() { return Park.objects.filter(o => o.kind === 'shop' && o.def.need === 'power'); },
+  supply() {
+    let s = 0;
+    for (const o of this.generators()) {
+      if (o.openR === false) continue;
+      s += o.def.output * (o.efficiency === undefined ? 1 : o.efficiency);
+    }
+    return s;
+  },
+  balance() { return this.supply() - this.demand(); },
+  /* Nearest live guest to a point, sampled rather than scanned in full —
+     this only needs to be roughly right, and running once a day it can
+     afford to check at most a couple hundred guests even in a packed
+     park. */
+  nearestGuestDist(x, z) {
+    const guests = Park.guests;
+    if (!guests.length) return 9999;
+    let best = Infinity;
+    const step = Math.max(1, Math.floor(guests.length / 200));
+    for (let i = 0; i < guests.length; i += step) {
+      const g = guests[i];
+      const d = dist(x, z, g.x, g.z);
+      if (d < best) best = d;
+    }
+    return isFinite(best) ? best : 9999;
+  },
+  dayTick() {
+    if (!Park.objects.length) return;
+    const deficit = this.demand() - this.supply();
+    for (const o of this.generators()) {
+      if (o.openR === false) {
+        // a broken generator gets patched up over the following day or two
+        if (Math.random() < .55) {
+          o.openR = true; o.state = 'idle'; o.efficiency = 1;
+          UI.notify('Back online', o.name + ' has been repaired and is generating power again.', 'good');
+        }
+        continue;
+      }
+      o.efficiency = o.efficiency === undefined ? 1 : clamp(o.efficiency - rnd(0, .015) - (deficit > 0 ? .015 : 0), .3, 1);
+      let risk = .015 + (1 - o.efficiency) * .06 + (deficit > 0 ? .045 : 0);
+      const guestDist = this.nearestGuestDist(o.x, o.z);
+      const danger = guestDist < 14;
+      if (danger) risk *= 2.4;
+      if (Math.random() < risk) {
+        o.openR = false; o.state = 'broken';
+        if (danger) {
+          const fine = Math.round(o.def.cost * .5);
+          Park.money = Math.max(0, Park.money - fine);
+          Park.happiness = clamp(Park.happiness - .08, 0, 1);
+          Park.leavers = (Park.leavers || 0) + Math.min(15, Math.round(20 - guestDist));
+          UI.notify('Accident!', o.name + ' malfunctioned right next to guests — a scare, a fine, and guests fleeing the area. Repair and fine cost ' + money(fine) + '. Keep generators away from paths and queues.', 'bad');
+        } else {
+          const fine = Math.round(o.def.cost * .15);
+          Park.money = Math.max(0, Park.money - fine);
+          UI.notify('Minor malfunction', o.name + ' broke down, but sitting well clear of any guests it was quickly contained. Repair cost ' + money(fine) + '.', 'warn');
+        }
+      }
+    }
+  },
+};
+
 /* ============================================================================
    SECTION 20 — GAME
    ========================================================================== */
@@ -20748,7 +20920,7 @@ const Game = {
       case 'path': if (UI.sub) this.paintPath(i, j); break;
       case 'terrain': this.editTerrain(i, j, e.shiftKey ? -1 : 1, e.ctrlKey, e.altKey); break;
       case 'scenery': if (UI.sub && UI.sub.id === 'landtheme') { this.stampLandTheme(UI.sub.theme, i, j); break; } if (UI.sub) this.tryPlace(); break;
-      case 'shop': case 'ride': case 'water': case 'decor': case 'lodging': case 'landmark': if (UI.sub) this.tryPlace(); break;
+      case 'shop': case 'ride': case 'water': case 'decor': case 'lodging': case 'landmark': case 'power': if (UI.sub) this.tryPlace(); break;
       case 'transit': {
         if (Transit.drawing) {
           // laying the line: every click is a corner in the route
@@ -20955,7 +21127,7 @@ const Game = {
   },
   placementDef() {
     if (!UI.sub) return null;
-    if (UI.tool === 'shop' || UI.tool === 'lodging' || UI.tool === 'landmark') return { kind: 'shop', def: UI.sub };
+    if (UI.tool === 'shop' || UI.tool === 'lodging' || UI.tool === 'landmark' || UI.tool === 'power') return { kind: 'shop', def: UI.sub };
     if (UI.tool === 'ride' || UI.tool === 'water') return { kind: 'ride', def: UI.sub };
     if (UI.tool === 'scenery' || UI.tool === 'decor') return { kind: 'scenery', def: UI.sub };
     if (UI.tool === 'transit') return { kind: UI.sub.kind === 'gondola' ? 'gtower' : 'tstation', def: UI.sub };
@@ -22411,6 +22583,7 @@ const Game = {
       Park.money += 25000;
     }
     Inspection.dayTick();
+    Power.dayTick();
     Achievements.update();
     Franchise.advanceBackgroundParks(1);
   },
