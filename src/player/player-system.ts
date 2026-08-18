@@ -57,11 +57,13 @@ export class PlayerSystem implements System {
 
   readonly input: PlayerInput = emptyInput();
 
-  position = new THREE.Vector3(0, 3, 46);
+  // Spawn on the approach outside the compound wall, facing the gate — the
+  // first thing the player sees should be the objective, not their own back.
+  position = new THREE.Vector3(6, 3, 96);
   velocity = new THREE.Vector3();
-  /** Yaw/pitch in radians. */
-  yaw = Math.PI;
-  pitch = -0.04;
+  /** Yaw/pitch in radians. Yaw 0 looks down -Z, toward the site centre. */
+  yaw = 0.06;
+  pitch = -0.02;
 
   stance: StanceId = 'stand';
   private stanceTarget: StanceId = 'stand';
