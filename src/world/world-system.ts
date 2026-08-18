@@ -36,6 +36,7 @@ import { DoorRegistry } from './doors';
 import { NavGrid } from './navmesh';
 import { Navigation } from './navigation';
 import { buildVilla } from './sites/villa';
+import { buildOutskirts } from './sites/outskirts';
 import { BF } from './types';
 import { SURFACE_TABLE } from './surfaces';
 import { moveCharacter, brickGroundAt, type CharacterShape, type MoveResult } from './collision';
@@ -44,7 +45,7 @@ const TERRAIN_SIZE = 640;
 const TERRAIN_SEGMENTS = 192;
 
 /** Radius of the level pad the site is built on, metres. */
-const PAD_RADIUS = 105;
+const PAD_RADIUS = 118;
 /** Height of the pad above sea level. */
 const PAD_HEIGHT = 2.0;
 
@@ -80,6 +81,8 @@ export class WorldSystem implements System, IWorldQuery {
   private interiors: THREE.Box3[] = [];
   /** Bound once so the collision hot path doesn't allocate a closure per call. */
   private terrainFn = (x: number, z: number): number => this.sampleTerrain(x, z);
+  /** Mission insertion points out in the approach terrain. */
+  insertions: Array<{ id: string; x: number; z: number; label: string }> = [];
 
   buildStats = {
     bricks: 0, drawCalls: 0, triangles: 0, rooms: 0, doors: 0,
@@ -96,6 +99,11 @@ export class WorldSystem implements System, IWorldQuery {
     // --- author the site --------------------------------------------------
     const builder = new SiteBuilder(this.yard, this.rng);
     const result = buildVilla(builder, this.rng);
+    // The surrounding land: access road, checkpoint, terraces, arroyo and
+    // outbuildings. Without it the compound's flanking approaches have nowhere
+    // to start from, and there is no standoff to scout the place.
+    const outskirts = buildOutskirts(builder, this.rng, this.terrainFn);
+    this.insertions = outskirts.insertions;
     this.yard.finalize();
 
     this.root.add(this.yard.buildMeshes());
@@ -105,9 +113,11 @@ export class WorldSystem implements System, IWorldQuery {
     // --- navigation -------------------------------------------------------
     const site = result.site;
     const grid = new NavGrid({
-      minX: site.coreMinX, maxX: site.coreMaxX,
-      minZ: site.coreMinZ, maxZ: site.coreMaxZ,
-      minY: site.minY, maxY: site.maxY,
+      // Extend past the compound so patrols can work the checkpoint and the
+      // orchard rows rather than stopping dead at the wall.
+      minX: site.coreMinX - 30, maxX: site.coreMaxX + 30,
+      minZ: site.coreMinZ - 30, maxZ: site.coreMaxZ + 70,
+      minY: site.minY - 4, maxY: site.maxY,
     });
     grid.build(this.yard, (x, z) => this.sampleTerrain(x, z), result.rooms, result.navLinks);
     this.nav.addGrid(grid);
@@ -170,7 +180,7 @@ export class WorldSystem implements System, IWorldQuery {
     // Blend to the pad with a smooth shoulder so the edge reads as graded
     // ground rather than a cliff.
     const d = Math.hypot(x, z);
-    const t = 1 - clamp((d - PAD_RADIUS) / 70, 0, 1);
+    const t = 1 - clamp((d - PAD_RADIUS) / 110, 0, 1);
     const pad = t * t * (3 - 2 * t);
     return lerp(h, PAD_HEIGHT, pad);
   }

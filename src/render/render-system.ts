@@ -108,7 +108,13 @@ export class RenderSystem implements System, IRenderContext {
     this.renderer.toneMappingExposure = 1.0;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
 
-    this.camera = new THREE.PerspectiveCamera(this.baseFov, 1, 0.05, 4000);
+    // Near/far ratio governs depth-buffer precision, and every pass that
+    // reconstructs world position from depth (fog, SSAO, motion blur) inherits
+    // it. 0.05→4000 is a ratio of 80,000, which quantised distant positions
+    // badly enough to band the aerial perspective across open terrain. The
+    // first-person weapon has its own camera, so the world camera does not
+    // need a near plane measured in centimetres.
+    this.camera = new THREE.PerspectiveCamera(this.baseFov, 1, 0.25, 2400);
     this.camera.position.set(0, 1.7, 0);
 
     // Narrower FOV keeps the weapon proportioned like a real sight picture

@@ -61,20 +61,47 @@ uniform float uSkyAmount;
 uniform float uDesaturation;
 uniform float uDesaturationRange;
 uniform float uMaxFog;
+uniform float uDebug;
 
 /**
  * Closed-form optical depth of an exponentially-stratified medium along a ray.
  *   rho(y) = D * exp(-k * (y - y0))
  *   tau    = integral_0^L rho(C.y + t*dir.y) dt
  */
+/**
+ * Optical depth through an exponentially-stratified medium, integrated between
+ * the ray's start and end heights.
+ *
+ * Written in terms of the density at the two endpoints rather than the raw
+ * closed form. The naive version, baseline * (1 - exp(-k*dir.y*dist)) / (k*dir.y),
+ * has two failure modes that both showed up as horizontal banding across open
+ * terrain: it divides by a quantity that goes to zero for near-horizontal
+ * rays, and for steep *downward* rays the exponent goes large and positive,
+ * so exp() overflows and the result saturates chaotically.
+ *
+ * Clamping the sample heights to the fog base fixes the physical side of that
+ * too — real haze does not keep thickening without limit as you descend.
+ */
 float heightFogOpticalDepth(vec3 origin, vec3 dir, float dist) {
   float k = uHeightFalloff;
-  float baseline = uHeightDensity * exp(-k * (origin.y - uFogBaseHeight));
-  baseline = clamp(baseline, 0.0, 64.0);
-  float dy = dir.y;
-  float kd = k * dy;
-  if (abs(kd) < 1e-4) return baseline * dist;
-  return baseline * (1.0 - exp(-kd * dist)) / kd;
+  float y0 = max(origin.y, uFogBaseHeight);
+  float y1 = max(origin.y + dir.y * dist, uFogBaseHeight);
+
+  float rho0 = uHeightDensity * exp(-k * (y0 - uFogBaseHeight));
+  float rho1 = uHeightDensity * exp(-k * (y1 - uFogBaseHeight));
+
+  float dy = y1 - y0;
+  float tau;
+  if (abs(k * dy) < 1e-3) {
+    // Near-constant density along the ray — the exact integral degenerates to
+    // the average, and this branch avoids the 0/0.
+    tau = 0.5 * (rho0 + rho1) * dist;
+  } else {
+    tau = (rho0 - rho1) * dist / (k * dy);
+  }
+  // Beyond this the medium is opaque anyway; clamping keeps a long ray through
+  // dense fog from producing a meaningless magnitude.
+  return clamp(tau, 0.0, 16.0);
 }
 
 /** Henyey-Greenstein: the forward-scattering lobe that makes haze glow. */
@@ -116,6 +143,12 @@ void main() {
     color = mix(color, vec3(g) * (uFogColor / max(luminance(uFogColor), 1e-4)), t * uDesaturation);
   }
 
+  if (uDebug > 0.5) {
+    if (uDebug < 1.5)      outColor = vec4(vec3(fract(dist / 25.0)), 1.0);       // distance rings
+    else if (uDebug < 2.5) outColor = vec4(vec3(fog), 1.0);                       // fog term
+    else                   outColor = vec4(vec3(fract(world.y / 5.0)), 1.0);      // world height
+    return;
+  }
   outColor = vec4(color, 1.0);
 }
 `;
@@ -148,6 +181,8 @@ export class AtmospherePass implements PostPass {
   desaturation = 0.18;
   desaturationRange = 600;
   maxFog = 0.88;
+  /** 0 off, 1 distance rings, 2 fog term, 3 world height. Diagnostics only. */
+  debug = 0;
 
   private quad: FullScreenQuad;
   private sunLight: THREE.DirectionalLight | null = null;
@@ -174,6 +209,7 @@ export class AtmospherePass implements PostPass {
       uDesaturation: { value: 0.18 },
       uDesaturationRange: { value: 600 },
       uMaxFog: { value: 0.88 },
+      uDebug: { value: 0 },
     });
   }
 
@@ -223,6 +259,7 @@ export class AtmospherePass implements PostPass {
     (u.uCameraPosition.value as THREE.Vector3).copy(frame.cameraPosition);
     u.uNear.value = frame.near;
     u.uFar.value = frame.far;
+    u.uDebug.value = this.debug;
     u.uHeightDensity.value = this.heightDensity;
     u.uHeightFalloff.value = this.heightFalloff;
     u.uFogBaseHeight.value = this.baseHeight;

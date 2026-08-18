@@ -103,7 +103,11 @@ export class EnvironmentSystem implements System, IEnvironment {
 
     this.sun = new THREE.DirectionalLight(0xffe9c9, 3.0);
     this.sun.castShadow = true;
-    this.sun.shadow.mapSize.set(2048, 2048);
+    // Resolution follows the quality preset rather than being fixed — at a
+    // 240 m frustum a 2048 map is only ~12 cm per texel, which is where the
+    // acne banding across open terrain was coming from.
+    const shadowRes = (render as unknown as { preset?: { shadowMapSize: number } }).preset?.shadowMapSize ?? 2048;
+    this.sun.shadow.mapSize.set(shadowRes, shadowRes);
     this.sun.shadow.camera.near = 0.5;
     this.sun.shadow.camera.far = 900;
     const s = SHADOW_EXTENT;
@@ -111,8 +115,11 @@ export class EnvironmentSystem implements System, IEnvironment {
     this.sun.shadow.camera.right = s;
     this.sun.shadow.camera.top = s;
     this.sun.shadow.camera.bottom = -s;
-    this.sun.shadow.bias = -0.0006;
-    this.sun.shadow.normalBias = 0.03;
+    // Normal-offset bias does the heavy lifting: it shifts the sample along
+    // the surface normal, which kills acne on near-flat ground lit at a
+    // grazing angle without the peter-panning that a large depth bias causes.
+    this.sun.shadow.bias = -0.00035;
+    this.sun.shadow.normalBias = 0.09 * (2048 / shadowRes);
     scene.add(this.sun);
     scene.add(this.sun.target);
 

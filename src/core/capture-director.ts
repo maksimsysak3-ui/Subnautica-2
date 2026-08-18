@@ -239,6 +239,20 @@ export class CaptureDirector {
       pos: [38, 8, 40], look: [0, 3, 0],
     });
     this.register({
+      name: 'site-overview',
+      label: 'Casa Verdugo and its approaches, from the south-east',
+      system: 'world',
+      hour: 9.4, weather: 'clear', quality: 3,
+      pos: [210, 118, 250], look: [-10, 0, 10], fov: 52,
+    });
+    this.register({
+      name: 'site-approach',
+      label: 'Access road toward the compound',
+      system: 'world',
+      hour: 7.8, weather: 'clear', quality: 3,
+      pos: [4, 6.5, 170], look: [0, 4, 60], fov: 62,
+    });
+    this.register({
       name: 'env-street-level',
       label: 'Street level, eye height',
       system: 'world',

@@ -93,7 +93,19 @@ void main() {
 
   // World radius projected to pixels, clamped so near-field pixels don't blow
   // the sampling budget and far pixels still get a usable footprint.
-  float pixelRadius = clamp(uRadius * (0.5 * uResolution.y * uProjY) / max(0.05, -P.z), 3.0, uMaxPixels);
+  // Screen-space extent of the world-space sample radius at this depth.
+  float rawPixelRadius = uRadius * (0.5 * uResolution.y * uProjY) / max(0.05, -P.z);
+
+  // Below a few pixels the kernel cannot resolve anything: every sample lands
+  // in the same texel, the depth differences fall under the epsilon, and the
+  // horizon search returns whatever the clamp happened to march over. Hard
+  // clamping there produced distance-dependent rings across open ground —
+  // and because the clamp crossover scales with resolution.y, the rings moved
+  // with window size. Fade the effect out instead, which is both correct and
+  // what the clamp was trying to approximate.
+  float resolveFade = smoothstep(2.5, 7.0, rawPixelRadius);
+
+  float pixelRadius = clamp(rawPixelRadius, 3.0, uMaxPixels);
   float stepPixels = pixelRadius / float(AO_STEPS);
   float radius2 = uRadius * uRadius;
 
@@ -159,7 +171,7 @@ void main() {
 
   float ao = clamp(visibility / float(AO_SLICES), 0.0, 1.0);
   ao = pow(ao, uPower);
-  ao = mix(1.0, ao, uIntensity);
+  ao = mix(1.0, ao, uIntensity * resolveFade);
 
   outColor = vec4(ao, linearDepth(depth, uNear, uFar), 0.0, 1.0);
 }

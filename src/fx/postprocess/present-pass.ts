@@ -193,9 +193,17 @@ void main() {
 
   color = linearToSrgb(max(color, vec3(0.0)));
 
-  // Ordered-ish dither before the 8-bit backbuffer. Without this the sky
-  // gradient bands visibly at any tone curve worth having.
-  color += (hash12(gl_FragCoord.xy + uFrameIndex * 0.017) - 0.5) / 255.0;
+  // Dither before the 8-bit backbuffer.
+  //
+  // Triangular PDF, not uniform. A single uniform sample of one LSB leaves the
+  // quantisation error correlated with the signal, so a very smooth, very flat
+  // gradient — fogged terrain under a graded tone curve is exactly that — still
+  // steps visibly. Summing two independent uniform samples gives a triangular
+  // distribution spanning two LSB peak-to-peak, which decorrelates the error
+  // completely and converts the contour into film-grain-like noise.
+  float d1 = hash12(gl_FragCoord.xy + uFrameIndex * 0.017);
+  float d2 = hash12(gl_FragCoord.xy * 1.61803 + 11.7 + uFrameIndex * 0.023);
+  color += ((d1 + d2) - 1.0) / 255.0;
 
   outColor = vec4(color, 1.0);
 }
