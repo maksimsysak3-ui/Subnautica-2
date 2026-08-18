@@ -108,13 +108,13 @@ export class ExposurePass implements PostPass {
   enabled = true;
 
   /** Middle-grey target. Higher = brighter image. */
-  key = 0.20;
-  minExposure = 0.05;
-  maxExposure = 24.0;
+  key = 0.17;
+  minExposure = 0.06;
+  maxExposure = 5.0;
   /** e-folds per second when the scene brightens / darkens. */
   speedUp = 2.4;
   speedDown = 1.1;
-  centerWeight = 0.75;
+  centerWeight = 0.85;
 
   private lum: THREE.WebGLRenderTarget;
   private reduce16: THREE.WebGLRenderTarget;
@@ -139,8 +139,16 @@ export class ExposurePass implements PostPass {
 
     this.lumQuad = new FullScreenQuad(LUM_FRAG, {
       tColor: { value: null },
-      uMinLum: { value: 0.0008 },
-      uMaxLum: { value: 6000 },
+      // A floor on the metered luminance matters more than it looks: an
+      // unlit wall filling half the frame has a log-luminance of -7, which
+      // would drag a geometric mean into opening the iris four stops and
+      // blowing out everything the sun touches.
+      uMinLum: { value: 0.010 },
+      // Clamp the metering ceiling well below sky luminance. The sky is the
+      // brightest thing in almost every outdoor frame; letting it into the
+      // log-average unclamped drags exposure down until the ground goes black,
+      // which is the classic "correctly exposed sky, silhouetted world" bug.
+      uMaxLum: { value: 6 },
       uCenterWeight: { value: 0.75 },
     });
 
@@ -155,9 +163,9 @@ export class ExposurePass implements PostPass {
       uDt: { value: 1 / 60 },
       uSpeedUp: { value: 2.4 },
       uSpeedDown: { value: 1.1 },
-      uKey: { value: 0.2 },
-      uMinExposure: { value: 0.05 },
-      uMaxExposure: { value: 24 },
+      uKey: { value: 0.10 },
+      uMinExposure: { value: 0.06 },
+      uMaxExposure: { value: 5 },
       uReset: { value: 1 },
     });
   }

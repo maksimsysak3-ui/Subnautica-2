@@ -186,7 +186,7 @@ export class Props {
       const jx = this.rng.range(-0.06, 0.06);
       b.box(x0 + (x1 - x0) * t, y + h / 2 + jx, z0 + (z1 - z0) * t,
         len / (2 * n) + 0.05, h / 2, w / 2, this.rng.bool(0.5) ? M.leafDark : M.leafMid,
-        { yaw, surface: 'foliage', flags: BF.SOFT | BF.NO_SHADOW, tint: b.jitterTint(0.12) });
+        { yaw, surface: 'foliage', flags: BF.SOFT | BF.NO_SHADOW | BF.NO_WALK, tint: b.jitterTint(0.12) });
     }
   }
 
@@ -218,7 +218,7 @@ export class Props {
     for (let i = 0; i < 4; i++) {
       const t = i / 4;
       b.cyl(x, y + height * (0.35 + t * 0.62), z, 0.85 * (1 - t * 0.75), height * 0.16,
-        i % 2 ? M.leafDark : M.leafMid, { surface: 'foliage', flags: BF.SOFT | BF.NO_COVER, tint: b.jitterTint(0.1) });
+        i % 2 ? M.leafDark : M.leafMid, { surface: 'foliage', flags: BF.SOFT | BF.NO_COVER | BF.NO_NAV, tint: b.jitterTint(0.1) });
     }
   }
 
@@ -233,7 +233,7 @@ export class Props {
       b.box(x + Math.cos(a) * r * 0.7, y + height * this.rng.range(0.62, 0.86), z + Math.sin(a) * r * 0.7,
         r, this.rng.range(0.6, 1.0), r * 0.9,
         this.rng.bool(0.6) ? M.leafDark : M.leafMid,
-        { yaw: a, surface: 'foliage', flags: BF.SOFT | BF.NO_COVER, tint: b.jitterTint(0.12) });
+        { yaw: a, surface: 'foliage', flags: BF.SOFT | BF.NO_COVER | BF.NO_NAV, tint: b.jitterTint(0.12) });
     }
   }
 
@@ -278,7 +278,7 @@ export class Props {
   fountain(x: number, y: number, z: number, r = 2.4): void {
     const b = this.b;
     b.cyl(x, y + 0.3, z, r, 0.3, M.stoneTrim, { surface: 'concrete', tint: b.jitterTint(0.04) });
-    b.cyl(x, y + 0.34, z, r - 0.28, 0.22, M.water, { surface: 'water', flags: BF.SOFT | BF.NO_SHADOW | BF.NO_COVER });
+    b.cyl(x, y + 0.34, z, r - 0.28, 0.22, M.water, { surface: 'water', flags: BF.SOFT | BF.NO_SHADOW | BF.NO_COVER | BF.NO_NAV });
     b.cyl(x, y + 0.8, z, 0.3, 0.5, M.stoneTrim, { surface: 'concrete', flags: BF.NO_COVER });
     b.cyl(x, y + 1.25, z, 0.85, 0.09, M.stoneTrim, { surface: 'concrete', flags: BF.NO_COVER });
     b.cyl(x, y + 1.6, z, 0.16, 0.3, M.stoneTrim, { surface: 'concrete', flags: BF.NO_COVER });

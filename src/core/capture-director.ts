@@ -100,6 +100,23 @@ export class CaptureDirector {
     render.quality = tier;
   }
 
+  setPass(id: string, enabled: boolean): boolean {
+    const render = services.get('render') as unknown as {
+      getPass?(id: string): { enabled: boolean } | undefined;
+    };
+    const pass = render.getPass?.(id);
+    if (!pass) return false;
+    pass.enabled = enabled;
+    return true;
+  }
+
+  listPasses(): Array<{ id: string; order: number; enabled: boolean }> {
+    const render = services.get('render') as unknown as {
+      passes?: Array<{ id: string; order: number; enabled: boolean }>;
+    };
+    return (render.passes ?? []).map((p) => ({ id: p.id, order: p.order, enabled: p.enabled }));
+  }
+
   renderStats(): { drawCalls: number; triangles: number } {
     const render = services.get('render') as unknown as {
       stats(): { drawCalls: number; triangles: number };

@@ -147,7 +147,7 @@ export class BloomPass implements PostPass {
   enabled = true;
 
   /** Exposure-relative brightness where bloom starts. 1.0 = diffuse white. */
-  threshold = 1.15;
+  threshold = 1.0;
   knee = 0.6;
   /** Firefly clamp in adapted units. */
   clamp = 40.0;
@@ -169,7 +169,7 @@ export class BloomPass implements PostPass {
       tExposure: { value: null },
       uHasExposure: { value: 0 },
       uTexel: { value: new THREE.Vector2() },
-      uThreshold: { value: 1.15 },
+      uThreshold: { value: 1.0 },
       uKnee: { value: 0.6 },
       uExposure: { value: 1 },
       uClamp: { value: 40 },

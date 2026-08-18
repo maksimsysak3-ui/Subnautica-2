@@ -184,9 +184,11 @@ void main() {
 
   // --- grain: heavier in the dark, where a real sensor's noise floor lives --
   if (uGrain > 0.0001) {
-    float n = igNoise(uv * uTexel.x * 0.0 + gl_FragCoord.xy + uFrameIndex * 13.7) - 0.5;
+    // White noise, not interleaved-gradient: IGN has a strong diagonal
+    // structure that reads as a weave rather than as grain.
+    float n = hash12(gl_FragCoord.xy + uFrameIndex * 37.13) - 0.5;
     float darkness = 1.0 - smoothstep(0.02, 0.55, luminance(color));
-    color += n * uGrain * (0.25 + 0.75 * darkness);
+    color += n * uGrain * (0.35 + 0.65 * darkness);
   }
 
   color = linearToSrgb(max(color, vec3(0.0)));
@@ -220,10 +222,10 @@ export class PresentPass implements PostPass {
   /** Manual exposure multiplier, folded in on top of auto exposure. */
   exposure = 1.0;
   bloomStrength = 1.0;
-  sharpen = 0.6;
-  aberration = 0.0;
-  vignette = 0.34;
-  grain = 0.018;
+  sharpen = 0.65;
+  aberration = 0.35;
+  vignette = 0.30;
+  grain = 0.010;
 
   private quad: FullScreenQuad;
 
@@ -235,8 +237,8 @@ export class PresentPass implements PostPass {
       uTexel: { value: new THREE.Vector2(1 / 1280, 1 / 720) },
       uTime: { value: 0 },
       uFrameIndex: { value: 0 },
-      uSharpen: { value: 0.6 },
-      uAberration: { value: 0 },
+      uSharpen: { value: 0.65 },
+      uAberration: { value: 0.35 },
       uBloomStrength: { value: 1 },
       uHasBloom: { value: 0 },
       uHasExposure: { value: 0 },
@@ -249,15 +251,20 @@ export class PresentPass implements PostPass {
       uHighlightTint: { value: new THREE.Vector3(1.06, 1.005, 0.945) },
       uSplitBalance: { value: 0.22 },
 
-      uLift: { value: new THREE.Vector3(0.012, 0.016, 0.024) },
-      uGamma: { value: new THREE.Vector3(1.0, 1.0, 1.005) },
-      uGain: { value: new THREE.Vector3(1.02, 1.005, 0.99) },
-      uContrast: { value: 1.1 },
-      uSaturation: { value: 0.9 },
+      // Lift is what stops the crushed blacks of an untextured wall from
+      // reading as a hole in the frame; gamma pulls the midtones down a hair so
+      // the lift does not flatten them back out again.
+      uLift: { value: new THREE.Vector3(0.014, 0.018, 0.028) },
+      uGamma: { value: new THREE.Vector3(1.04, 1.035, 1.02) },
+      uGain: { value: new THREE.Vector3(1.03, 1.005, 0.975) },
+      uContrast: { value: 1.16 },
+      // ACES desaturates bright values hard; a touch above 1 puts back what the
+      // tone curve took, and still lands below the raw render.
+      uSaturation: { value: 1.05 },
 
-      uVignette: { value: 0.34 },
+      uVignette: { value: 0.30 },
       uVignetteRound: { value: 0.7 },
-      uGrain: { value: 0.018 },
+      uGrain: { value: 0.010 },
       uAspect: { value: 16 / 9 },
     });
   }

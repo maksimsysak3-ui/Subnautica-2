@@ -114,7 +114,9 @@ async function main() {
     await page.evaluate((ms) => window.__BM.settle(ms), SETTLE_MS);
     await page.waitForTimeout(120);
     const file = path.join(OUT, `${name}.png`);
-    await page.screenshot({ path: file });
+    // SwiftShader renders the full post chain on the CPU; a frame can take
+    // several seconds, so the default 30s screenshot timeout is not enough.
+    await page.screenshot({ path: file, timeout: 180000, animations: 'disabled' });
     manifest.push({ name, file: path.relative(ROOT, file), ...meta });
     console.log(`  ✓ ${name}${meta && meta.label ? ` — ${meta.label}` : ''}`);
   }

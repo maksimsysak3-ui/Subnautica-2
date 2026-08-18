@@ -124,7 +124,10 @@ export class EnvironmentSystem implements System, IEnvironment {
     this.ambient = new THREE.HemisphereLight(0x9dc3e6, 0x3c342c, 0.7);
     scene.add(this.ambient);
 
-    scene.fog = new THREE.FogExp2(0x9fb4c4, this.weather.fogDensity);
+    // No scene.fog. Aerial perspective is owned by the atmosphere post pass,
+    // which does it with real height falloff and sun inscatter. three's
+    // FogExp2 applies in the material shader, so keeping both stacked two
+    // independent fogs and greyed the whole frame out.
 
     this.sky = new Sky();
     scene.add(this.sky.mesh);
@@ -322,22 +325,26 @@ export class EnvironmentSystem implements System, IEnvironment {
       lerp(0.30, 2.15, day) * lerp(1, 1.45, this.weather.cloudCover) +
       this.lightningFlash * 1.5;
 
-    // Fog follows the sky so distant geometry sits in the same light.
-    const scene = services.get('render').scene;
-    if (scene.fog instanceof THREE.FogExp2) {
-      scene.fog.density = damp(scene.fog.density, this.weather.fogDensity, 1.5, dt || 0.016);
-      scene.fog.color.copy(skyTop).lerp(new THREE.Color(0x0a0f16), 1 - day);
+    // Drive the atmosphere pass from weather so fog density, sky colour and
+    // the sky dome's horizon haze all move together.
+    const post = (services.get('render') as unknown as {
+      post?: { atmosphere: { heightDensity: number; distanceDensity: number; skyAmount: number } };
+    }).post;
+    if (post) {
+      const a = post.atmosphere;
+      a.heightDensity = damp(a.heightDensity, this.weather.fogDensity * 0.55, 1.5, dt || 0.016);
+      a.distanceDensity = damp(a.distanceDensity, this.weather.fogDensity * 0.045, 1.5, dt || 0.016);
+      a.skyAmount = lerp(0.06, 0.22, this.weather.cloudCover);
     }
 
-    // Exposure adapts to conditions rather than staying flat. The sky feeds
-    // real HDR values now, so this is a modest trim around a neutral 1.0
-    // rather than the large correction the flat-black placeholder needed.
+    // Exposure is NOT set here any more. The post chain's auto-exposure pass
+    // meters the actual rendered frame and adapts, which handles day/night far
+    // better than a curve fitted to sun elevation — and two systems both
+    // writing exposure fought each other.
     const renderCtx = services.get('render') as unknown as {
       renderer: THREE.WebGLRenderer;
       camera: THREE.Camera;
     };
-    renderCtx.renderer.toneMappingExposure =
-      lerp(2.6, 0.95, day) * lerp(1, 0.88, this.weather.cloudCover);
 
     // --- drive the sky dome ----------------------------------------------
     // Haze colour is the fog colour, so the horizon and the scene agree.

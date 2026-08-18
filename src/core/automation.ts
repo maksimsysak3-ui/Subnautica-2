@@ -16,6 +16,9 @@ export interface AutomationApi {
   settle(ms: number): void;
   perfReport(): { fps: number; frameMs: number; drawCalls: number; triangles: number; systems: Array<{ id: string; avgMs: number }> };
   setQuality(tier: number): void;
+  /** Toggle one post pass by id — lets a capture isolate what a pass costs. */
+  setPass(id: string, enabled: boolean): boolean;
+  listPasses(): Array<{ id: string; order: number; enabled: boolean }>;
 }
 
 declare global {
@@ -33,6 +36,12 @@ export function installAutomation(engine: Engine, director: CaptureDirector): vo
     },
 
     setupShot(name: string): ShotMeta | null {
+      // Hide the boot and click-to-play chrome: a capture is meant to grade
+      // the rendered frame, not the menu sitting on top of it.
+      for (const id of ['boot', 'click-to-play']) {
+        const el = document.getElementById(id);
+        if (el) el.style.display = 'none';
+      }
       return director.setup(name);
     },
 
@@ -64,6 +73,14 @@ export function installAutomation(engine: Engine, director: CaptureDirector): vo
 
     setQuality(tier: number): void {
       director.setQuality(tier);
+    },
+
+    setPass(id: string, enabled: boolean): boolean {
+      return director.setPass(id, enabled);
+    },
+
+    listPasses() {
+      return director.listPasses();
     },
   };
 

@@ -129,20 +129,25 @@ export class AtmospherePass implements PostPass {
   readonly order = 20;
   enabled = true;
 
-  /** Density at `baseHeight`, per metre. */
-  heightDensity = 0.030;
-  /** e-folds per metre of altitude. 1/12m ~= haze thins over a 3-storey block. */
-  heightFalloff = 0.085;
+  /**
+   * Extinction per metre at `baseHeight`. Calibrated so a 60 m street reads at
+   * ~15% haze and a 300 m valley at ~45% — enough to separate depth planes,
+   * nowhere near enough to hide a target.
+   */
+  heightDensity = 0.0035;
+  /** e-folds per metre of altitude — haze halves roughly every 14 m. */
+  heightFalloff = 0.05;
   baseHeight = 0.0;
   /** Extra distance fog on top of the scene's own FogExp2. */
-  distanceDensity = 0.0009;
-  inscatterStrength = 2.2;
-  inscatterAnisotropy = 0.72;
-  skyDistance = 900;
-  skyAmount = 0.55;
-  desaturation = 0.35;
-  desaturationRange = 400;
-  maxFog = 0.94;
+  distanceDensity = 0.0004;
+  inscatterStrength = 1.5;
+  inscatterAnisotropy = 0.70;
+  skyDistance = 500;
+  /** The sky already carries its own haze; this is only the agreeing edge. */
+  skyAmount = 0.12;
+  desaturation = 0.18;
+  desaturationRange = 600;
+  maxFog = 0.88;
 
   private quad: FullScreenQuad;
   private sunLight: THREE.DirectionalLight | null = null;
@@ -158,17 +163,17 @@ export class AtmospherePass implements PostPass {
       uSunFogColor: { value: new THREE.Vector3(1, 0.85, 0.6) },
       uNear: { value: 0.05 },
       uFar: { value: 4000 },
-      uHeightDensity: { value: 0.03 },
-      uHeightFalloff: { value: 0.085 },
+      uHeightDensity: { value: 0.0035 },
+      uHeightFalloff: { value: 0.05 },
       uFogBaseHeight: { value: 0 },
-      uDistanceDensity: { value: 0.0009 },
-      uInscatterStrength: { value: 2.2 },
-      uInscatterAnisotropy: { value: 0.72 },
-      uSkyDistance: { value: 900 },
-      uSkyAmount: { value: 0.55 },
-      uDesaturation: { value: 0.35 },
-      uDesaturationRange: { value: 400 },
-      uMaxFog: { value: 0.94 },
+      uDistanceDensity: { value: 0.0004 },
+      uInscatterStrength: { value: 1.5 },
+      uInscatterAnisotropy: { value: 0.7 },
+      uSkyDistance: { value: 500 },
+      uSkyAmount: { value: 0.12 },
+      uDesaturation: { value: 0.18 },
+      uDesaturationRange: { value: 600 },
+      uMaxFog: { value: 0.88 },
     });
   }
 

@@ -131,7 +131,11 @@ export function buildThreeMaterials(): THREE.MeshStandardMaterial[] {
       roughness: d.roughness,
       metalness: d.metalness,
       flatShading: !d.smooth,
-      vertexColors: true,
+      // NOT vertexColors: brick geometry carries no per-vertex colour
+      // attribute. Setting it defines USE_COLOR, and the missing attribute
+      // then supplies WebGL's default (0,0,0), multiplying every brick to
+      // black. Per-brick tint arrives through instanceColor, which three
+      // applies independently of this flag.
       side: d.double ? THREE.DoubleSide : THREE.FrontSide,
     });
     if (d.opacity !== undefined) {

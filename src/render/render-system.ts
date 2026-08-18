@@ -56,7 +56,7 @@ export class RenderSystem implements System, IRenderContext {
   readonly viewScene = new THREE.Scene();
   readonly viewCamera: THREE.PerspectiveCamera;
 
-  private passes: PostPass[] = [];
+  private chain: PostPass[] = [];
   private _quality = 2;
   private canvas: HTMLCanvasElement;
 
@@ -98,7 +98,13 @@ export class RenderSystem implements System, IRenderContext {
     this.renderer.autoClear = false;
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    // NO tone mapping here. The scene renders to a linear HDR target and the
+    // present pass owns the whole output transform (exposure → ACES → grade).
+    // Leaving three's material-level ACES on applies the curve twice — once
+    // into the scene target and again at present — which crushes everything
+    // except materials flagged toneMapped:false (which is why the sky looked
+    // right while the world went black).
+    this.renderer.toneMapping = THREE.NoToneMapping;
     this.renderer.toneMappingExposure = 1.0;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
 
@@ -186,26 +192,31 @@ export class RenderSystem implements System, IRenderContext {
     frame.resetHistory = true;
     this.historyValid = false;
 
-    for (const p of this.passes) p.resize?.(rw, rh);
+    for (const p of this.chain) p.resize?.(rw, rh);
   }
 
   addPass(pass: PostPass): void {
     this.removePass(pass.id);
-    this.passes.push(pass);
-    this.passes.sort((a, b) => a.order - b.order);
+    this.chain.push(pass);
+    this.chain.sort((a, b) => a.order - b.order);
     pass.resize?.(this.sceneTarget.width, this.sceneTarget.height);
   }
 
   removePass(id: string): void {
-    const i = this.passes.findIndex((p) => p.id === id);
+    const i = this.chain.findIndex((p) => p.id === id);
     if (i >= 0) {
-      this.passes[i].dispose?.();
-      this.passes.splice(i, 1);
+      this.chain[i].dispose?.();
+      this.chain.splice(i, 1);
     }
   }
 
+  /** Read-only view of the chain, for the capture harness and perf overlay. */
+  get passes(): readonly PostPass[] {
+    return this.chain;
+  }
+
   getPass(id: string): PostPass | undefined {
-    return this.passes.find((p) => p.id === id);
+    return this.chain.find((p) => p.id === id);
   }
 
   /** Swap the ping-pong targets — post passes call this after writing. */
@@ -320,13 +331,13 @@ export class RenderSystem implements System, IRenderContext {
     }
 
     // --- post chain -------------------------------------------------------
-    for (const pass of this.passes) {
+    for (const pass of this.chain) {
       if (!pass.enabled) continue;
       pass.render(this, dt);
     }
 
     // If no pass presented to the screen, blit the scene target directly.
-    if (!this.passes.some((p) => p.enabled && p.id === 'present')) {
+    if (!this.chain.some((p) => p.enabled && p.id === 'present')) {
       r.setRenderTarget(null);
       this.blit(frame.current ?? this.sceneTarget.texture);
     }
@@ -400,7 +411,7 @@ export class RenderSystem implements System, IRenderContext {
     this.sceneTarget?.dispose();
     this.postA?.dispose();
     this.postB?.dispose();
-    for (const p of this.passes) p.dispose?.();
+    for (const p of this.chain) p.dispose?.();
     this.renderer.dispose();
   }
 }
