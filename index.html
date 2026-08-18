@@ -4,13 +4,30 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
 <title>BLACK MERIDIAN</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
 <style>
   :root { color-scheme: dark; }
   * { margin: 0; padding: 0; box-sizing: border-box; }
+  :root {
+    /* Committed single-theme palette: this is an instrument panel, not a
+       document, so it holds the same look on any host ground. */
+    --ink:        #05070a;   /* near-black with a blue bias, not neutral grey */
+    --ink-raised: #0d1219;
+    --line:       #1b242e;
+    --text:       #d8e2ea;
+    --text-dim:   #8ea0ae;
+    --text-faint: #55677a;
+    --brass:      #c8a355;   /* the one warm accent; everything else is cold */
+    --danger:     #d4574e;
+    --display: "Chakra Petch", "Oswald", ui-sans-serif, system-ui, sans-serif;
+    --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  }
   html, body {
     width: 100%; height: 100%; overflow: hidden;
-    background: #05070a; color: #d8e2ea;
-    font-family: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
+    background: var(--ink); color: var(--text);
+    font-family: var(--mono);
     -webkit-user-select: none; user-select: none;
     touch-action: none;
   }
@@ -23,14 +40,38 @@
   }
   #boot .inner { text-align: center; }
   #boot h1 {
-    font-size: clamp(28px, 6vw, 64px); letter-spacing: .5em; font-weight: 500;
+    font-family: var(--display);
+    font-size: clamp(28px, 6vw, 64px); letter-spacing: .5em; font-weight: 600;
     text-indent: .5em; color: #e6edf3;
   }
-  #boot .sub { margin-top: 14px; font-size: 12px; letter-spacing: .35em; color: #5d6f7e; }
-  #boot .bar { margin: 34px auto 0; width: min(420px, 70vw); height: 2px; background: #16202a; }
-  #boot .bar > i { display: block; height: 100%; width: 0%; background: #c8a355; transition: width .25s ease; }
-  #boot .status { margin-top: 12px; font-size: 11px; letter-spacing: .2em; color: #46586a; height: 14px; }
+  #boot .sub { margin-top: 14px; font-size: 12px; letter-spacing: .35em; color: var(--text-dim); }
+  #boot .bar { margin: 34px auto 0; width: min(420px, 70vw); height: 2px; background: var(--line); }
+  #boot .bar > i { display: block; height: 100%; width: 0%; background: var(--brass); transition: width .25s ease; }
+  #boot .status { margin-top: 12px; font-size: 11px; letter-spacing: .2em; color: var(--text-faint); height: 14px; }
   #boot.hidden { opacity: 0; pointer-events: none; }
+  #click-to-play {
+    position: fixed; inset: 0; z-index: 900; display: grid; place-items: center;
+    background: rgba(5,7,10,.72); backdrop-filter: blur(3px);
+    cursor: pointer; transition: opacity .25s ease;
+  }
+  #click-to-play.hidden { opacity: 0; pointer-events: none; }
+  #click-to-play .cta { text-align: center; max-width: 560px; padding: 30px; }
+  #click-to-play .title {
+    font-family: var(--display); font-weight: 600;
+    font-size: clamp(22px, 4vw, 40px); letter-spacing: .42em; text-indent: .42em;
+    color: #e6edf3;
+  }
+  #click-to-play .hint {
+    margin-top: 14px; font-size: 11px; letter-spacing: .3em; color: var(--brass);
+  }
+  #click-to-play .controls {
+    margin-top: 26px; display: grid; grid-template-columns: 1fr 1fr;
+    gap: 7px 26px; font-size: 12px; color: var(--text-dim); text-align: left;
+  }
+  #click-to-play .controls b { color: #d8e2ea; font-weight: 600; }
+  #click-to-play .note {
+    margin-top: 22px; font-size: 11px; color: var(--text-faint); line-height: 1.6;
+  }
   #fatal {
     position: fixed; inset: 0; z-index: 1000; display: none; place-items: center;
     background: #0a0406; padding: 40px;
@@ -53,6 +94,22 @@
       <div class="sub">TACTICAL OPERATIONS COMMAND</div>
       <div class="bar"><i id="boot-bar"></i></div>
       <div class="status" id="boot-status">INITIALISING</div>
+    </div>
+  </div>
+
+  <div id="click-to-play">
+    <div class="cta">
+      <div class="title">BLACK MERIDIAN</div>
+      <div class="hint">CLICK TO TAKE CONTROL</div>
+      <div class="controls">
+        <div><b>WASD</b> move</div><div><b>Mouse</b> look</div>
+        <div><b>Shift</b> sprint</div><div><b>Alt</b> walk quietly</div>
+        <div><b>C</b> crouch</div><div><b>Z</b> prone</div>
+        <div><b>Space</b> stand</div><div><b>Q / E</b> lean</div>
+        <div><b>RMB</b> aim</div><div><b>LMB</b> fire</div>
+        <div><b>R</b> reload</div><div><b>Esc</b> release cursor</div>
+      </div>
+      <div class="note">Early build — systems still landing. Press Esc to release the mouse.</div>
     </div>
   </div>
 

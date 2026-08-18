@@ -7,3 +7,4 @@ dist/
 # round is committed under docs/shots/round-*/ instead.
 docs/shots/*
 !docs/shots/round-*/
+dist/

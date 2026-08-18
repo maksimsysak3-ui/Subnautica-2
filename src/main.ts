@@ -15,6 +15,7 @@ import { EnvironmentSystem } from './lighting/environment-system';
 import { WorldSystem } from './world/world-system';
 import { ActorRegistry } from './actors/actor-registry';
 import { PlayerSystem } from './player/player-system';
+import { InputSystem } from './player/input-system';
 import { CaptureDirector } from './core/capture-director';
 
 const bootEl = document.getElementById('boot')!;
@@ -54,6 +55,10 @@ async function boot(): Promise<void> {
   progress(0.7, 'spawning operator');
   engine.add(new PlayerSystem());
 
+  progress(0.8, 'binding controls');
+  const input = new InputSystem(canvas);
+  engine.add(input);
+
   progress(0.85, 'starting systems');
   await engine.init();
 
@@ -69,6 +74,19 @@ async function boot(): Promise<void> {
       bootEl.classList.add('hidden');
       setTimeout(() => bootEl.remove(), 700);
     });
+  });
+
+  // Pointer lock can only be requested from a user gesture.
+  const overlay = document.getElementById('click-to-play');
+  const showOverlay = (show: boolean): void => {
+    if (overlay) overlay.classList.toggle('hidden', !show);
+  };
+  document.addEventListener('pointerlockchange', () => {
+    showOverlay(document.pointerLockElement !== canvas);
+  });
+  overlay?.addEventListener('click', () => input.requestLock());
+  canvas.addEventListener('click', () => {
+    if (document.pointerLockElement !== canvas) input.requestLock();
   });
 
   // Expose for debugging from the devtools console.
