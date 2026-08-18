@@ -16,6 +16,13 @@ export interface AutomationApi {
   settle(ms: number): void;
   perfReport(): { fps: number; frameMs: number; drawCalls: number; triangles: number; systems: Array<{ id: string; avgMs: number }> };
   setQuality(tier: number): void;
+  /** Teleport the player (feet position) and face a yaw, for tests. */
+  placePlayer(x: number, z: number, yaw: number): { x: number; y: number; z: number } | null;
+  /** Drive player input for N fixed steps and return the resulting state. */
+  drivePlayer(
+    input: Partial<Record<'moveX' | 'moveZ' | 'sprint' | 'crouch', number | boolean>>,
+    frames: number,
+  ): { x: number; y: number; z: number; grounded: boolean; insideGeometry: boolean } | null;
   /** Toggle one post pass by id — lets a capture isolate what a pass costs. */
   setPass(id: string, enabled: boolean): boolean;
   listPasses(): Array<{ id: string; order: number; enabled: boolean }>;
@@ -73,6 +80,14 @@ export function installAutomation(engine: Engine, director: CaptureDirector): vo
 
     setQuality(tier: number): void {
       director.setQuality(tier);
+    },
+
+    placePlayer(x: number, z: number, yaw: number) {
+      return director.placePlayer(x, z, yaw);
+    },
+
+    drivePlayer(input, frames) {
+      return director.drivePlayer(input, frames);
     },
 
     setPass(id: string, enabled: boolean): boolean {

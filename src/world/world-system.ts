@@ -38,6 +38,7 @@ import { Navigation } from './navigation';
 import { buildVilla } from './sites/villa';
 import { BF } from './types';
 import { SURFACE_TABLE } from './surfaces';
+import { moveCharacter, brickGroundAt, type CharacterShape, type MoveResult } from './collision';
 
 const TERRAIN_SIZE = 640;
 const TERRAIN_SEGMENTS = 192;
@@ -77,6 +78,8 @@ export class WorldSystem implements System, IWorldQuery {
   private extraColliders: THREE.Mesh[] = [];
   private extraRaycaster = new THREE.Raycaster();
   private interiors: THREE.Box3[] = [];
+  /** Bound once so the collision hot path doesn't allocate a closure per call. */
+  private terrainFn = (x: number, z: number): number => this.sampleTerrain(x, z);
 
   buildStats = {
     bricks: 0, drawCalls: 0, triangles: 0, rooms: 0, doors: 0,
@@ -457,6 +460,26 @@ export class WorldSystem implements System, IWorldQuery {
       if (box.distanceToPoint(center) <= radius) out.push(m);
     }
     return out;
+  }
+
+  /**
+   * Move a character capsule through the world, resolving against bricks and
+   * terrain. This is the only correct way to move an actor: `overlapSphere`
+   * does not see brick geometry, so anything relying on it walks through walls.
+   */
+  moveCharacter(
+    x: number, y: number, z: number,
+    dx: number, dy: number, dz: number,
+    shape: CharacterShape,
+  ): MoveResult {
+    return moveCharacter(this.yard, this.terrainFn, x, y, z, dx, dy, dz, shape);
+  }
+
+  /** Floor height under a point: terrain, or a brick top standing above it. */
+  floorAt(x: number, z: number, fromY: number, searchDown = 3, searchUp = 0.5): number {
+    const terrain = this.sampleTerrain(x, z);
+    const brick = brickGroundAt(this.yard, x, z, fromY - searchDown, fromY + searchUp);
+    return Math.max(terrain, brick === -Infinity ? -Infinity : brick);
   }
 
   /** Brick ids overlapping a sphere — the fast path for movement and blasts. */

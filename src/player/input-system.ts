@@ -77,6 +77,8 @@ export class InputSystem implements System {
    * up front, so we attempt it once and fall back to drag-look if it fails.
    */
   private lockSupported = true;
+  /** Consecutive pointer-lock failures; only a repeat failure means refused. */
+  private lockFailures = 0;
   private dragging = false;
   private lastDragX = 0;
   private lastDragY = 0;
@@ -201,6 +203,7 @@ export class InputSystem implements System {
     this.locked = document.pointerLockElement === this.canvas;
     if (this.locked) {
       this.lockSupported = true;
+      this.lockFailures = 0;
       this.onControlModeChange?.('locked');
     } else if (wasLocked) {
       this.down.clear();
@@ -209,11 +212,22 @@ export class InputSystem implements System {
     }
   };
 
-  /** The embedding refused pointer lock — switch to drag-look for good. */
+  /**
+   * Pointer lock failed. One failure is usually transient — Chrome rejects a
+   * request made too soon after an exit — so only a repeat failure is treated
+   * as the embedding genuinely refusing, at which point we fall back.
+   */
   private onLockError = (): void => {
-    this.lockSupported = false;
-    this.onControlModeChange?.('drag');
+    this.noteLockFailure();
   };
+
+  private noteLockFailure(): void {
+    this.lockFailures++;
+    if (this.lockFailures >= 2) {
+      this.lockSupported = false;
+      this.onControlModeChange?.('drag');
+    }
+  }
 
   requestLock(): void {
     this.engaged = true;
@@ -228,14 +242,10 @@ export class InputSystem implements System {
     try {
       const p = this.canvas.requestPointerLock() as unknown as Promise<void> | undefined;
       if (p && typeof p.catch === 'function') {
-        p.catch(() => {
-          this.lockSupported = false;
-          this.onControlModeChange?.('drag');
-        });
+        p.catch(() => this.noteLockFailure());
       }
     } catch {
-      this.lockSupported = false;
-      this.onControlModeChange?.('drag');
+      this.noteLockFailure();
     }
   }
 
@@ -256,6 +266,9 @@ export class InputSystem implements System {
     inp.walk = this.isDown('walk');
     inp.lean = clamp((this.isDown('leanRight') ? 1 : 0) - (this.isDown('leanLeft') ? 1 : 0), -1, 1);
     inp.reload = this.consumePress('reload');
+    // Latch the press: the controller consumes it on the next fixed step,
+    // which may not happen on this frame.
+    if (this.consumePress('use')) inp.use = true;
 
     // Mouse: left fires, right aims.
     inp.fire = this.mouseButtons.has(0);
@@ -272,12 +285,15 @@ export class InputSystem implements System {
       this.player.requestStance('stand');
     }
 
-    // Keyboard turning: the only look control that works everywhere, and a
-    // genuine accessibility fallback.
-    const turn = (this.isDown('turnRight') ? 1 : 0) - (this.isDown('turnLeft') ? 1 : 0);
-    const pitch = (this.isDown('lookDown') ? 1 : 0) - (this.isDown('lookUp') ? 1 : 0);
-    if (turn !== 0) this.pendingLookX += turn * 1.6 * _dt;
-    if (pitch !== 0) this.pendingLookY += pitch * 1.1 * _dt;
+    // Mouse look is the primary control. Keyboard turning stays only as a
+    // fallback for embeddings that refuse pointer lock, and is suppressed
+    // entirely while the pointer is locked so the two can never fight.
+    if (!this.locked) {
+      const turn = (this.isDown('turnRight') ? 1 : 0) - (this.isDown('turnLeft') ? 1 : 0);
+      const pitch = (this.isDown('lookDown') ? 1 : 0) - (this.isDown('lookUp') ? 1 : 0);
+      if (turn !== 0) this.pendingLookX += turn * 1.6 * _dt;
+      if (pitch !== 0) this.pendingLookY += pitch * 1.1 * _dt;
+    }
 
     // Hand accumulated look deltas to the controller and reset.
     inp.lookX += this.pendingLookX;

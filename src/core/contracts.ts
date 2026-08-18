@@ -60,6 +60,24 @@ export interface RaycastOptions {
   includeSoft?: boolean;
 }
 
+/** Capsule used by character movement. */
+export interface CharacterShape {
+  radius: number;
+  height: number;
+  /** Maximum obstacle height climbed without jumping. */
+  stepHeight: number;
+  /** Steepest walkable slope as a minimum normal.y. */
+  minGroundNormalY: number;
+}
+
+export interface CharacterMove {
+  x: number; y: number; z: number;
+  grounded: boolean;
+  hitWall: boolean;
+  stepped: boolean;
+  groundY: number;
+}
+
 export interface IWorldQuery {
   raycast(origin: Vector3, direction: Vector3, opts?: RaycastOptions): RayHit | null;
   /** All hits along the ray, sorted near→far. Needed for wall penetration. */
@@ -74,6 +92,19 @@ export interface IWorldQuery {
   overlapSphere(center: Vector3, radius: number): Object3D[];
   /** True when the point is inside a building interior (drives reverb + rain). */
   isIndoors(point: Vector3): boolean;
+  /**
+   * Move a character capsule, resolving against level geometry and terrain.
+   * This is the only correct way to move an actor — `overlapSphere` does not
+   * see instanced level geometry, so anything built on it walks through walls.
+   * `y` is at the FEET, not the eye.
+   */
+  moveCharacter(
+    x: number, y: number, z: number,
+    dx: number, dy: number, dz: number,
+    shape: CharacterShape,
+  ): CharacterMove;
+  /** Floor height under a point: terrain, or a surface standing above it. */
+  floorAt(x: number, z: number, fromY: number, searchDown?: number, searchUp?: number): number;
   /** World bounds in metres. */
   readonly extent: { minX: number; maxX: number; minZ: number; maxZ: number };
 }

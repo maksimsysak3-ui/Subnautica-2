@@ -100,6 +100,68 @@ export class CaptureDirector {
     render.quality = tier;
   }
 
+  /** Teleport the player onto the floor at (x,z), facing `yaw`. */
+  placePlayer(x: number, z: number, yaw: number): { x: number; y: number; z: number } | null {
+    const player = this.engine.get('player') as unknown as {
+      position: THREE.Vector3; yaw: number; velocity: THREE.Vector3;
+      setControlsEnabled(v: boolean): void;
+      eyeHeightNow: number;
+    } | undefined;
+    if (!player) return null;
+    const world = services.get('world');
+    const floor = world.floorAt(x, z, 40);
+    player.setControlsEnabled(true);
+    player.position.set(x, (Number.isFinite(floor) ? floor : 0) + 1.68, z);
+    player.velocity.set(0, 0, 0);
+    player.yaw = yaw;
+    return { x: player.position.x, y: player.position.y, z: player.position.z };
+  }
+
+  /**
+   * Runs the player controller for `frames` fixed steps with the given input.
+   * `insideGeometry` is the assertion that matters: a character that ends a
+   * move inside a solid brick means collision is not working.
+   */
+  drivePlayer(
+    input: Partial<Record<'moveX' | 'moveZ' | 'sprint' | 'crouch', number | boolean>>,
+    frames: number,
+  ): { x: number; y: number; z: number; grounded: boolean; insideGeometry: boolean } | null {
+    const player = this.engine.get('player') as unknown as {
+      position: THREE.Vector3; grounded: boolean;
+      input: Record<string, unknown>;
+      fixedUpdate(step: number, ctx: unknown): void;
+    } | undefined;
+    if (!player) return null;
+
+    Object.assign(player.input, input);
+    for (let i = 0; i < frames; i++) {
+      player.fixedUpdate(1 / 60, this.engine.ctx);
+    }
+    Object.assign(player.input, { moveX: 0, moveZ: 0, sprint: false });
+
+    const world = services.get('world') as unknown as {
+      yard?: { count: number; containsPoint(i: number, x: number, y: number, z: number): boolean };
+      overlapBricks?(c: THREE.Vector3, r: number, visit: (b: number) => void): void;
+    };
+    let inside = false;
+    const chest = player.position.clone();
+    chest.y -= 0.6;
+    if (world.overlapBricks && world.yard) {
+      const yard = world.yard;
+      world.overlapBricks(chest, 0.4, (b) => {
+        if (!inside && yard.containsPoint(b, chest.x, chest.y, chest.z)) inside = true;
+      });
+    }
+
+    return {
+      x: +player.position.x.toFixed(3),
+      y: +player.position.y.toFixed(3),
+      z: +player.position.z.toFixed(3),
+      grounded: player.grounded,
+      insideGeometry: inside,
+    };
+  }
+
   setPass(id: string, enabled: boolean): boolean {
     const render = services.get('render') as unknown as {
       getPass?(id: string): { enabled: boolean } | undefined;

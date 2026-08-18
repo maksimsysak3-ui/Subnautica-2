@@ -13,6 +13,7 @@ import * as THREE from 'three';
 import type { System, EngineContext } from '../core/engine';
 import { bus, type StanceId } from '../core/events';
 import { services } from '../core/contracts';
+import type { CharacterShape } from '../core/contracts';
 import { clamp, clamp01, damp, lerp, moveTowards, smoothstep } from '../core/math';
 
 const EYE_HEIGHT: Record<StanceId, number> = { stand: 1.68, crouch: 1.12, prone: 0.36 };
@@ -38,13 +39,15 @@ export interface PlayerInput {
   aim: boolean;
   fire: boolean;
   reload: boolean;
+  /** Edge-triggered: open/close a door, use a switch, pick something up. */
+  use: boolean;
 }
 
 export function emptyInput(): PlayerInput {
   return {
     moveX: 0, moveZ: 0, lookX: 0, lookY: 0,
     sprint: false, walk: false, jump: false, crouch: false, prone: false,
-    lean: 0, aim: false, fire: false, reload: false,
+    lean: 0, aim: false, fire: false, reload: false, use: false,
   };
 }
 
@@ -98,9 +101,16 @@ export class PlayerSystem implements System {
   private controlsEnabled = true;
 
   init(_ctx: EngineContext): void {
-    const world = services.get('world');
-    const g = world.groundHeight(this.position.x, this.position.z);
-    if (g !== null) this.position.y = g + this.eyeHeight;
+    const world = services.get('world') as unknown as {
+      groundHeight(x: number, z: number): number | null;
+      floorAt?(x: number, z: number, fromY: number): number;
+    };
+    const floor = world.floorAt
+      ? world.floorAt(this.position.x, this.position.z, this.position.y)
+      : world.groundHeight(this.position.x, this.position.z);
+    if (floor !== null && floor !== undefined && Number.isFinite(floor)) {
+      this.position.y = floor + this.eyeHeight;
+    }
   }
 
   setControlsEnabled(v: boolean): void {
@@ -170,23 +180,34 @@ export class PlayerSystem implements System {
     this.velocity.x = damp(this.velocity.x, wish.x, accel, step);
     this.velocity.z = damp(this.velocity.z, wish.z, accel, step);
 
-    // Gravity + ground clamp.
+    // --- gravity + collision ---------------------------------------------
     this.velocity.y -= 9.81 * step;
-    const next = this.position.clone().addScaledVector(this.velocity, step);
-    this.resolveCollisions(next, world);
 
-    const ground = world.groundHeight(next.x, next.z);
-    if (ground !== null) {
-      const floor = ground + this.eyeHeight;
-      if (next.y <= floor) {
-        next.y = floor;
-        this.velocity.y = 0;
-        this.grounded = true;
-      } else {
-        this.grounded = false;
-      }
+    // `position.y` is the EYE height; the collider works in feet space.
+    const feetY = this.position.y - this.eyeHeight;
+    const shape: CharacterShape = {
+      radius: this.stanceTarget === 'prone' ? 0.5 : 0.32,
+      height: this.eyeHeight + 0.12,
+      // Prone can't climb; standing clears a stair tread or a kerb.
+      stepHeight: this.stanceTarget === 'prone' ? 0.06 : 0.46,
+      minGroundNormalY: 0.55,
+    };
+
+    const move = world.moveCharacter(
+      this.position.x, feetY, this.position.z,
+      this.velocity.x * step, this.velocity.y * step, this.velocity.z * step,
+      shape,
+    );
+
+    this.position.set(move.x, move.y + this.eyeHeight, move.z);
+    this.grounded = move.grounded;
+    if (move.grounded && this.velocity.y < 0) this.velocity.y = 0;
+    // Running into a wall should bleed speed, not have you slide along at full
+    // pace — that is what makes corners feel solid.
+    if (move.hitWall) {
+      this.velocity.x *= 0.55;
+      this.velocity.z *= 0.55;
     }
-    this.position.copy(next);
 
     // --- stamina ---------------------------------------------------------
     if (wantsSprint) {
@@ -210,35 +231,17 @@ export class PlayerSystem implements System {
     if (this.aiming !== wasAiming) bus.emit('player:adsChanged', { aiming: this.aiming });
     this.adsAmount = damp(this.adsAmount, this.aiming ? 1 : 0, 12, step);
 
+    // --- interaction -----------------------------------------------------
+    if (inp.use) {
+      inp.use = false;
+      this.tryInteract();
+    }
+
     // --- derived ---------------------------------------------------------
     this.speed = Math.hypot(this.velocity.x, this.velocity.z);
     const stanceQuiet = this.stanceTarget === 'prone' ? 0.25 : this.stanceTarget === 'crouch' ? 0.5 : 1;
     const surface = world.surfaceProps(world.surfaceAt(this.position));
     this.noiseLevel = clamp01((this.speed / 6) * stanceQuiet * surface.footstepLoudness * (inp.walk ? 0.4 : 1));
-  }
-
-  /** Cheap capsule-vs-AABB pushout against level geometry. */
-  private resolveCollisions(next: THREE.Vector3, world: ReturnType<typeof services.get<'world'>>): void {
-    const radius = this.stanceTarget === 'prone' ? 0.55 : 0.34;
-    const probeY = next.y - this.eyeHeight + 0.9;
-    const center = new THREE.Vector3(next.x, probeY, next.z);
-    const objs = world.overlapSphere(center, radius + 0.6);
-    const box = new THREE.Box3();
-    const closest = new THREE.Vector3();
-    for (const o of objs) {
-      if (!(o as THREE.Mesh).isMesh) continue;
-      if (o.name === 'terrain') continue;
-      box.setFromObject(o);
-      if (box.max.y < next.y - this.eyeHeight + 0.25) continue; // step over low kerbs
-      closest.copy(center).clamp(box.min, box.max);
-      const d = closest.distanceTo(center);
-      if (d < radius && d > 1e-5) {
-        const push = center.clone().sub(closest).normalize().multiplyScalar(radius - d);
-        next.x += push.x;
-        next.z += push.z;
-        center.set(next.x, probeY, next.z);
-      }
-    }
   }
 
   update(dt: number, _ctx: EngineContext): void {
@@ -274,6 +277,28 @@ export class PlayerSystem implements System {
     // Offsets are per-frame contributions; clear after consuming.
     this.cameraOffset.set(0, 0, 0);
     this.cameraRotOffset.set(0, 0, 0);
+  }
+
+  /**
+   * Reach for whatever is in front of the operator. Doors are the only
+   * interactable so far; the gear team adds the rest through the same hook.
+   */
+  private tryInteract(): void {
+    const world = services.get('world') as unknown as {
+      doors?: {
+        nearest(p: THREE.Vector3, radius?: number): { id: number; locked?: boolean } | null;
+        toggle(id: number, byActorId?: number, fast?: boolean): boolean;
+      };
+    };
+    const doors = world.doors;
+    if (!doors) return;
+    // Reach from a point slightly ahead of the chest, so you open the door you
+    // are facing rather than one behind you.
+    const reach = this.position.clone()
+      .addScaledVector(this.forward, 0.9)
+      .setY(this.position.y - 0.5);
+    const door = doors.nearest(reach, 2.0);
+    if (door) doors.toggle(door.id, 0, false);
   }
 
   get adsProgress(): number {
