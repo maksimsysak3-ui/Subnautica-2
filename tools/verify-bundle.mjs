@@ -47,13 +47,24 @@ if (ok) {
   // produces almost no frames and the fixed step never runs. settle() steps
   // the engine directly, which is what it exists for.
   const yawBefore = await page.evaluate(() => window.engine.get('player').yaw);
-  await page.keyboard.down('ArrowRight');
+  const locked = await page.evaluate(() => window.engine.get('input')?.isLocked ?? false);
+
+  // Check whichever control is actually live. Arrow-key look is deliberately
+  // suppressed while the pointer is locked so the two can't fight, so testing
+  // it unconditionally would fail on exactly the configuration we want.
+  if (locked) {
+    await page.mouse.move(640, 360);
+    await page.mouse.move(760, 360);
+  } else {
+    await page.keyboard.down('ArrowRight');
+  }
   await page.evaluate(() => window.__BM.settle(400));
-  await page.keyboard.up('ArrowRight');
+  if (!locked) await page.keyboard.up('ArrowRight');
+
   const yawAfter = await page.evaluate(() => window.engine.get('player').yaw);
   const turned = Math.abs(yawAfter - yawBefore) > 0.01;
 
-  interaction = `overlay dismissed: ${overlayHidden}, keyboard look: ${turned}`;
+  interaction = `overlay dismissed: ${overlayHidden}, look (${locked ? 'pointer lock' : 'keyboard'}): ${turned}`;
   if (!overlayHidden || !turned) ok = false;
 }
 console.log('[verify] interaction — ' + interaction);
