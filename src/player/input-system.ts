@@ -25,10 +25,10 @@ export interface Binding {
 
 /** Default bindings. The options UI edits this list. */
 export const DEFAULT_BINDINGS: Binding[] = [
-  { action: 'forward',   keys: ['KeyW', 'ArrowUp'],    label: 'Move forward' },
-  { action: 'back',      keys: ['KeyS', 'ArrowDown'],  label: 'Move back' },
-  { action: 'left',      keys: ['KeyA', 'ArrowLeft'],  label: 'Move left' },
-  { action: 'right',     keys: ['KeyD', 'ArrowRight'], label: 'Move right' },
+  { action: 'forward',   keys: ['KeyW'],               label: 'Move forward' },
+  { action: 'back',      keys: ['KeyS'],               label: 'Move back' },
+  { action: 'left',      keys: ['KeyA'],               label: 'Move left' },
+  { action: 'right',     keys: ['KeyD'],               label: 'Move right' },
   { action: 'sprint',    keys: ['ShiftLeft'],          label: 'Sprint' },
   { action: 'walk',      keys: ['AltLeft'],            label: 'Walk (quiet)' },
   { action: 'crouch',    keys: ['KeyC', 'ControlLeft'], label: 'Crouch' },
@@ -43,6 +43,11 @@ export const DEFAULT_BINDINGS: Binding[] = [
   { action: 'nvg',       keys: ['KeyN'],               label: 'Night vision' },
   { action: 'map',       keys: ['KeyM', 'Tab'],        label: 'Tactical map' },
   { action: 'pause',     keys: ['Escape'],             label: 'Pause' },
+  // Keyboard look — works even where pointer lock is unavailable.
+  { action: 'turnLeft',  keys: ['ArrowLeft'],          label: 'Turn left' },
+  { action: 'turnRight', keys: ['ArrowRight'],         label: 'Turn right' },
+  { action: 'lookUp',    keys: ['ArrowUp'],            label: 'Look up' },
+  { action: 'lookDown',  keys: ['ArrowDown'],          label: 'Look down' },
 ];
 
 export class InputSystem implements System {
@@ -66,6 +71,19 @@ export class InputSystem implements System {
   private canvas!: HTMLCanvasElement;
   private locked = false;
   private lastLockRequest = 0;
+  /**
+   * Pointer lock is unavailable in some embeddings — a sandboxed iframe
+   * without allow="pointer-lock" rejects the request. We can't detect that
+   * up front, so we attempt it once and fall back to drag-look if it fails.
+   */
+  private lockSupported = true;
+  private dragging = false;
+  private lastDragX = 0;
+  private lastDragY = 0;
+  /** Fires when control mode changes, so the UI can update its hint. */
+  onControlModeChange: ((mode: 'locked' | 'drag') => void) | null = null;
+  /** Set once the player has dismissed the click-to-play overlay. */
+  engaged = false;
   /** Edge-triggered actions consumed once per press. */
   private pressed = new Set<string>();
 
@@ -88,6 +106,7 @@ export class InputSystem implements System {
     window.addEventListener('mouseup', this.onMouseUp);
     window.addEventListener('mousemove', this.onMouseMove);
     document.addEventListener('pointerlockchange', this.onLockChange);
+    document.addEventListener('pointerlockerror', this.onLockError);
     // Right-click is aim-down-sights, not a context menu.
     this.canvas.addEventListener('contextmenu', (e) => e.preventDefault());
   }
@@ -135,42 +154,93 @@ export class InputSystem implements System {
 
   private onMouseDown = (e: MouseEvent): void => {
     this.mouseButtons.add(e.button);
-    if (!this.locked) this.requestLock();
+    if (this.locked) return;
+    if (this.lockSupported) {
+      this.requestLock();
+      return;
+    }
+    // Drag-look fallback: hold and move to turn.
+    this.dragging = true;
+    this.lastDragX = e.clientX;
+    this.lastDragY = e.clientY;
+    e.preventDefault();
   };
 
   private onMouseUp = (e: MouseEvent): void => {
     this.mouseButtons.delete(e.button);
+    this.dragging = false;
   };
 
   private onMouseMove = (e: MouseEvent): void => {
-    if (!this.locked) return;
     // Accumulate raw deltas; the controller consumes them on the fixed step so
     // look speed doesn't vary with frame rate.
     const scale = this.player.aiming ? this.adsSensitivityScale : 1;
-    this.pendingLookX += e.movementX * this.sensitivity * scale;
-    this.pendingLookY += e.movementY * this.sensitivity * scale * (this.invertY ? -1 : 1);
+
+    let dx = 0;
+    let dy = 0;
+    if (this.locked) {
+      dx = e.movementX;
+      dy = e.movementY;
+    } else if (this.dragging) {
+      // movementX is unreliable outside pointer lock across browsers, so
+      // track the delta ourselves.
+      dx = e.clientX - this.lastDragX;
+      dy = e.clientY - this.lastDragY;
+      this.lastDragX = e.clientX;
+      this.lastDragY = e.clientY;
+    } else {
+      return;
+    }
+
+    this.pendingLookX += dx * this.sensitivity * scale;
+    this.pendingLookY += dy * this.sensitivity * scale * (this.invertY ? -1 : 1);
   };
 
   private onLockChange = (): void => {
+    const wasLocked = this.locked;
     this.locked = document.pointerLockElement === this.canvas;
-    if (!this.locked) {
+    if (this.locked) {
+      this.lockSupported = true;
+      this.onControlModeChange?.('locked');
+    } else if (wasLocked) {
       this.down.clear();
       this.mouseButtons.clear();
       bus.emit('ui:screenChanged', { screen: 'paused' });
     }
   };
 
+  /** The embedding refused pointer lock — switch to drag-look for good. */
+  private onLockError = (): void => {
+    this.lockSupported = false;
+    this.onControlModeChange?.('drag');
+  };
+
   requestLock(): void {
+    this.engaged = true;
+    if (!this.lockSupported) {
+      this.onControlModeChange?.('drag');
+      return;
+    }
     const now = performance.now();
     // Browsers throw if pointer lock is re-requested immediately after an exit.
     if (now - this.lastLockRequest < 1200) return;
     this.lastLockRequest = now;
     try {
       const p = this.canvas.requestPointerLock() as unknown as Promise<void> | undefined;
-      if (p && typeof p.catch === 'function') p.catch(() => { /* user dismissed */ });
+      if (p && typeof p.catch === 'function') {
+        p.catch(() => {
+          this.lockSupported = false;
+          this.onControlModeChange?.('drag');
+        });
+      }
     } catch {
-      /* not supported — the game is still watchable, just not playable */
+      this.lockSupported = false;
+      this.onControlModeChange?.('drag');
     }
+  }
+
+  get usingDragLook(): boolean {
+    return !this.lockSupported;
   }
 
   get isLocked(): boolean {
@@ -202,6 +272,13 @@ export class InputSystem implements System {
       this.player.requestStance('stand');
     }
 
+    // Keyboard turning: the only look control that works everywhere, and a
+    // genuine accessibility fallback.
+    const turn = (this.isDown('turnRight') ? 1 : 0) - (this.isDown('turnLeft') ? 1 : 0);
+    const pitch = (this.isDown('lookDown') ? 1 : 0) - (this.isDown('lookUp') ? 1 : 0);
+    if (turn !== 0) this.pendingLookX += turn * 1.6 * _dt;
+    if (pitch !== 0) this.pendingLookY += pitch * 1.1 * _dt;
+
     // Hand accumulated look deltas to the controller and reset.
     inp.lookX += this.pendingLookX;
     inp.lookY += this.pendingLookY;
@@ -221,5 +298,6 @@ export class InputSystem implements System {
     window.removeEventListener('mouseup', this.onMouseUp);
     window.removeEventListener('mousemove', this.onMouseMove);
     document.removeEventListener('pointerlockchange', this.onLockChange);
+    document.removeEventListener('pointerlockerror', this.onLockError);
   }
 }

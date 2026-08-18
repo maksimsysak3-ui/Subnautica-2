@@ -143,8 +143,8 @@ void main() {
         float c = dot(D, V) * invLen;
 
         // Range check: occluders past the radius fade out instead of popping,
-        // and `uThickness` stops a thin foreground object from occluding as if
-        // it were an infinite slab.
+        // and the thickness heuristic stops a thin foreground object from
+        // occluding as if it were an infinite slab.
         float falloff = clamp((radius2 - dist2) / max(1e-4, radius2 * uThickness), 0.0, 1.0);
         best = max(best, mix(-1.0, c, falloff));
       }

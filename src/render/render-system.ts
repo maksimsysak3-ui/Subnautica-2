@@ -16,7 +16,9 @@
 import * as THREE from 'three';
 import type { System, EngineContext } from '../core/engine';
 import { services, type IRenderContext, type PostPass } from '../core/contracts';
-import { clamp } from '../core/math';
+import { clamp, DEG2RAD } from '../core/math';
+import { frame, JITTER_SEQUENCE } from './frame-state';
+import { createPostChain, type PostChain } from './post-chain';
 
 export interface QualityPreset {
   name: string;
@@ -57,6 +59,17 @@ export class RenderSystem implements System, IRenderContext {
   private passes: PostPass[] = [];
   private _quality = 2;
   private canvas: HTMLCanvasElement;
+
+  /** The graphics team's default post chain, installed during init. */
+  post!: PostChain;
+
+  // Temporal bookkeeping for TAA / motion blur.
+  private prevViewProjection = new THREE.Matrix4();
+  private prevCameraPos = new THREE.Vector3();
+  private prevCameraQuat = new THREE.Quaternion();
+  private jitterSaved = new THREE.Vector2();
+  private tmpMatrix = new THREE.Matrix4();
+  private historyValid = false;
 
   /** Scene render target — post passes read from here. */
   sceneTarget!: THREE.WebGLRenderTarget;
@@ -114,6 +127,13 @@ export class RenderSystem implements System, IRenderContext {
     services.register('render', this);
     this.resize();
     window.addEventListener('resize', () => this.resize());
+
+    // The post chain ships with the renderer rather than being wired in
+    // main.ts: it is not optional dressing, it is the renderer's output
+    // transform. Individual passes stay disableable via `render.post.<id>`.
+    this.post = createPostChain();
+    for (const pass of this.post.all) this.addPass(pass);
+
     this.applyQuality();
   }
 
@@ -121,6 +141,7 @@ export class RenderSystem implements System, IRenderContext {
     const p = this.preset;
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio ?? 1, 1) * p.pixelRatio);
     this.renderer.shadowMap.needsUpdate = true;
+    this.post?.applyQuality(this._quality);
     this.resize();
   }
 
@@ -159,6 +180,12 @@ export class RenderSystem implements System, IRenderContext {
     this.postA = new THREE.WebGLRenderTarget(rw, rh, opts);
     this.postB = new THREE.WebGLRenderTarget(rw, rh, opts);
 
+    frame.width = rw;
+    frame.height = rh;
+    // New targets mean every temporal history is stale.
+    frame.resetHistory = true;
+    this.historyValid = false;
+
     for (const p of this.passes) p.resize?.(rw, rh);
   }
 
@@ -188,8 +215,97 @@ export class RenderSystem implements System, IRenderContext {
     this.postB = t;
   }
 
+  /**
+   * Publish everything the post chain needs about this frame, and bake the TAA
+   * sub-pixel offset into the projection matrix.
+   *
+   * The jitter has to go in *here*, after gameplay has finished moving the
+   * camera and set its FOV, and it has to come back out immediately after the
+   * draw so nothing outside the renderer ever observes a jittered projection.
+   * `frame.invViewProjection` deliberately keeps the jitter — it is the matrix
+   * that matches the depth buffer we just rendered, and unprojecting depth with
+   * an unjittered inverse is a half-pixel error that shows up as TAA shimmer.
+   */
+  private beginFrame(dt: number): void {
+    const cam = this.camera;
+    cam.updateMatrixWorld();
+
+    frame.index++;
+    frame.dt = dt;
+    frame.time += dt;
+    frame.geometry = RenderSystem.fullscreenGeometry();
+    frame.width = this.sceneTarget.width;
+    frame.height = this.sceneTarget.height;
+    frame.near = cam.near;
+    frame.far = cam.far;
+    frame.fovY = cam.fov * DEG2RAD;
+
+    frame.prevCameraPosition.copy(this.prevCameraPos);
+    frame.cameraPosition.copy(cam.position);
+    frame.cameraDelta = this.historyValid ? cam.position.distanceTo(this.prevCameraPos) : 0;
+    frame.cameraTurn = this.historyValid ? cam.quaternion.angleTo(this.prevCameraQuat) : 0;
+
+    // A cut, a teleport or a capture-director camera set invalidates every
+    // temporal buffer. Detect it here rather than making every pass guess.
+    if (!this.historyValid || frame.cameraDelta > 8 || frame.cameraTurn > 0.6) {
+      frame.resetHistory = true;
+    }
+
+    frame.viewMatrix.copy(cam.matrixWorldInverse);
+    frame.prevViewProjection.copy(this.historyValid ? this.prevViewProjection : this.tmpMatrix.multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse));
+    frame.viewProjection.multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse);
+
+    // --- TAA jitter -------------------------------------------------------
+    const taaActive =
+      this.preset.taa && (this.getPass('taa')?.enabled ?? false) && frame.width > 1;
+    this.jitterSaved.set(cam.projectionMatrix.elements[8], cam.projectionMatrix.elements[9]);
+    if (taaActive) {
+      const j = JITTER_SEQUENCE[frame.index % JITTER_SEQUENCE.length];
+      frame.jitter.set(j.x, j.y);
+      frame.jitterClip.set((2 * j.x) / frame.width, (2 * j.y) / frame.height);
+      cam.projectionMatrix.elements[8] += frame.jitterClip.x;
+      cam.projectionMatrix.elements[9] += frame.jitterClip.y;
+      cam.projectionMatrixInverse.copy(cam.projectionMatrix).invert();
+      // The viewmodel shares the screen, so it must share the jitter or it
+      // will crawl against a resolved world.
+      this.viewCamera.projectionMatrix.elements[8] += frame.jitterClip.x;
+      this.viewCamera.projectionMatrix.elements[9] += frame.jitterClip.y;
+      this.viewCamera.projectionMatrixInverse.copy(this.viewCamera.projectionMatrix).invert();
+    } else {
+      frame.jitter.set(0, 0);
+      frame.jitterClip.set(0, 0);
+    }
+
+    frame.invProjection.copy(cam.projectionMatrixInverse);
+    this.tmpMatrix.multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse);
+    frame.invViewProjection.copy(this.tmpMatrix).invert();
+
+    frame.current = this.sceneTarget.texture;
+    frame.bloomTexture = null;
+    frame.aoTexture = null;
+  }
+
+  private endFrame(): void {
+    const cam = this.camera;
+    if (frame.jitterClip.x !== 0 || frame.jitterClip.y !== 0) {
+      cam.projectionMatrix.elements[8] = this.jitterSaved.x;
+      cam.projectionMatrix.elements[9] = this.jitterSaved.y;
+      cam.projectionMatrixInverse.copy(cam.projectionMatrix).invert();
+      this.viewCamera.projectionMatrix.elements[8] -= frame.jitterClip.x;
+      this.viewCamera.projectionMatrix.elements[9] -= frame.jitterClip.y;
+      this.viewCamera.projectionMatrixInverse.copy(this.viewCamera.projectionMatrix).invert();
+    }
+    this.prevViewProjection.copy(frame.viewProjection);
+    this.prevCameraPos.copy(cam.position);
+    this.prevCameraQuat.copy(cam.quaternion);
+    this.historyValid = true;
+    frame.resetHistory = false;
+  }
+
   lateUpdate(dt: number, _ctx: EngineContext): void {
     const r = this.renderer;
+
+    this.beginFrame(dt);
 
     // --- world pass -------------------------------------------------------
     r.setRenderTarget(this.sceneTarget);
@@ -212,8 +328,10 @@ export class RenderSystem implements System, IRenderContext {
     // If no pass presented to the screen, blit the scene target directly.
     if (!this.passes.some((p) => p.enabled && p.id === 'present')) {
       r.setRenderTarget(null);
-      this.blit(this.sceneTarget.texture);
+      this.blit(frame.current ?? this.sceneTarget.texture);
     }
+
+    this.endFrame();
   }
 
   // --- fullscreen blit helper shared by post passes -------------------------

@@ -72,6 +72,13 @@
   #click-to-play .note {
     margin-top: 22px; font-size: 11px; color: var(--text-faint); line-height: 1.6;
   }
+  #mode-hint {
+    position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%);
+    z-index: 800; font-size: 10px; letter-spacing: .22em;
+    color: var(--text-faint); pointer-events: none;
+    background: rgba(5,7,10,.5); padding: 6px 14px; border: 1px solid var(--line);
+  }
+  #mode-hint.hidden { display: none; }
   #fatal {
     position: fixed; inset: 0; z-index: 1000; display: none; place-items: center;
     background: #0a0406; padding: 40px;
@@ -109,9 +116,15 @@
         <div><b>RMB</b> aim</div><div><b>LMB</b> fire</div>
         <div><b>R</b> reload</div><div><b>Esc</b> release cursor</div>
       </div>
-      <div class="note">Early build — systems still landing. Press Esc to release the mouse.</div>
+      <div class="note">
+        Arrow keys also turn the view, so this is playable even where the
+        browser will not capture the cursor.<br>
+        Early build — weapons, enemies and missions are still landing.
+      </div>
     </div>
   </div>
+
+  <div id="mode-hint" class="hidden"></div>
 
   <div id="fatal"><pre id="fatal-msg"></pre></div>
 

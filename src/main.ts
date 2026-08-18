@@ -76,17 +76,37 @@ async function boot(): Promise<void> {
     });
   });
 
-  // Pointer lock can only be requested from a user gesture.
+  // Pointer lock can only be requested from a user gesture — and some
+  // embeddings (a sandboxed iframe without allow="pointer-lock") refuse it
+  // outright. The overlay therefore dismisses on click regardless of whether
+  // the lock succeeds; otherwise a refused lock leaves the player staring at
+  // an overlay that appears to do nothing.
   const overlay = document.getElementById('click-to-play');
-  const showOverlay = (show: boolean): void => {
-    if (overlay) overlay.classList.toggle('hidden', !show);
+  const modeHint = document.getElementById('mode-hint');
+  const engage = (): void => {
+    overlay?.classList.add('hidden');
+    input.requestLock();
   };
-  document.addEventListener('pointerlockchange', () => {
-    showOverlay(document.pointerLockElement !== canvas);
-  });
-  overlay?.addEventListener('click', () => input.requestLock());
+  overlay?.addEventListener('click', engage);
   canvas.addEventListener('click', () => {
-    if (document.pointerLockElement !== canvas) input.requestLock();
+    if (document.pointerLockElement !== canvas) engage();
+  });
+
+  input.onControlModeChange = (mode) => {
+    if (!modeHint) return;
+    modeHint.textContent =
+      mode === 'drag'
+        ? 'DRAG TO LOOK — this view cannot capture the cursor'
+        : 'ESC TO RELEASE CURSOR';
+    modeHint.classList.remove('hidden');
+  };
+
+  // Escape exits pointer lock; bring the overlay back so the player can
+  // re-engage, but only when the lock was actually being used.
+  document.addEventListener('pointerlockchange', () => {
+    if (document.pointerLockElement !== canvas && !input.usingDragLook && input.engaged) {
+      overlay?.classList.remove('hidden');
+    }
   });
 
   // Expose for debugging from the devtools console.

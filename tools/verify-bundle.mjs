@@ -32,6 +32,32 @@ try {
   await page.waitForFunction(() => window.__BM?.ready === true, { timeout: 120000 });
 } catch { ok = false; }
 
+// Interaction regression: pointer lock is refused in many embeddings, so the
+// overlay must dismiss on click anyway and the view must still be steerable.
+// This is the exact failure that shipped once — a click that did nothing.
+let interaction = 'not run';
+if (ok) {
+  await page.mouse.click(640, 360);
+  await page.waitForTimeout(250);
+  const overlayHidden = await page.evaluate(() =>
+    document.getElementById('click-to-play')?.classList.contains('hidden') ?? false);
+
+  // Drive the simulation deterministically rather than waiting on wall clock:
+  // this harness renders through SwiftShader at ~2fps, so a timed key-hold
+  // produces almost no frames and the fixed step never runs. settle() steps
+  // the engine directly, which is what it exists for.
+  const yawBefore = await page.evaluate(() => window.engine.get('player').yaw);
+  await page.keyboard.down('ArrowRight');
+  await page.evaluate(() => window.__BM.settle(400));
+  await page.keyboard.up('ArrowRight');
+  const yawAfter = await page.evaluate(() => window.engine.get('player').yaw);
+  const turned = Math.abs(yawAfter - yawBefore) > 0.01;
+
+  interaction = `overlay dismissed: ${overlayHidden}, keyboard look: ${turned}`;
+  if (!overlayHidden || !turned) ok = false;
+}
+console.log('[verify] interaction — ' + interaction);
+
 await page.screenshot({ path: 'dist/_verify.png' });
 console.log(ok ? '[verify] ✓ bundle boots standalone' : '[verify] ✗ bundle did NOT reach ready');
 if (errors.length) { console.log('[verify] console errors:'); errors.forEach(e => console.log('   ' + e)); }
