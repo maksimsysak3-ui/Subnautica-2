@@ -28,29 +28,38 @@ export const SHAPE_CYL = 2;
 
 export type BrickShape = 0 | 1 | 2;
 
-/** Bit flags on a brick. */
-export const enum BF {
+/**
+ * Bit flags on a brick. A plain const object rather than a `const enum` so the
+ * value survives type-stripping (esbuild/isolatedModules) unchanged.
+ */
+export const BF = {
   /** Does not block line of sight (glass, foliage, chain-link). */
-  SOFT = 1 << 0,
+  SOFT: 1 << 0,
   /** Nav treats it as an obstacle but its top is never a floor. */
-  NO_WALK = 1 << 1,
+  NO_WALK: 1 << 1,
   /** Ignored entirely by the navmesh rasteriser (door leaves, trim). */
-  NO_NAV = 1 << 2,
+  NO_NAV: 1 << 2,
   /** Inside a building volume — drives reverb and rain occlusion. */
-  INDOORS = 1 << 3,
+  INDOORS: 1 << 3,
   /** Excluded from cover analysis (floors, ceilings, decorative trim). */
-  NO_COVER = 1 << 4,
+  NO_COVER: 1 << 4,
   /** Ladder or climbable face; navigation links vertically here. */
-  CLIMB = 1 << 5,
+  CLIMB: 1 << 5,
   /** Rendered with the transparent material queue. */
-  TRANSPARENT = 1 << 6,
+  TRANSPARENT: 1 << 6,
   /** A window opening — vaultable, shootable, and a peek position. */
-  WINDOW = 1 << 7,
+  WINDOW: 1 << 7,
   /** Does not cast shadows (thin trim, glass) — keeps the shadow pass cheap. */
-  NO_SHADOW = 1 << 8,
+  NO_SHADOW: 1 << 8,
   /** Belongs to a door leaf; transform is dynamic. */
-  DOOR = 1 << 9,
-}
+  DOOR: 1 << 9,
+  /** Excluded from the render pass (nav blockers, trigger volumes). */
+  INVISIBLE: 1 << 10,
+  /** Thin/penetrable enough that bullets pass with little loss. */
+  THIN: 1 << 11,
+} as const;
+
+export type BrickFlags = number;
 
 /**
  * A single world box. Stored in parallel typed arrays inside `Brickyard`;
@@ -226,4 +235,21 @@ export interface RoomSpec {
   buildingId: number;
   /** Free-form tag used by mission generation: 'stairwell', 'lab', 'garage'. */
   tag: string;
+}
+
+/** An authored vertical/one-way connection the rasteriser cannot infer: ladders. */
+export interface NavLink {
+  ax: number; ay: number; az: number;
+  bx: number; by: number; bz: number;
+  kind: 'ladder' | 'vault' | 'drop';
+  /** Extra cost in metres so the planner prefers stairs when both exist. */
+  penalty: number;
+  bidirectional: boolean;
+}
+
+/** Everything a site generator hands back to the world system. */
+export interface SiteBuildResult {
+  site: SiteInstance;
+  rooms: RoomSpec[];
+  navLinks: NavLink[];
 }
