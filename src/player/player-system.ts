@@ -240,6 +240,12 @@ export class PlayerSystem implements System {
   }
 
   update(dt: number, _ctx: EngineContext): void {
+    // When controls are disabled the camera belongs to someone else (the
+    // capture director, a cutscene, the planning map). Writing to it here
+    // would silently override them — which is exactly what made every
+    // captured "shot" render from the player spawn instead of its own camera.
+    if (!this.controlsEnabled) return;
+
     const render = services.get('render') as unknown as {
       camera: THREE.PerspectiveCamera;
       baseFov: number;

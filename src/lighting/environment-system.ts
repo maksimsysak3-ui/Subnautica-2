@@ -17,6 +17,12 @@ import {
   type WeatherKind,
 } from '../core/contracts';
 import { clamp01, damp, lerp, smoothstep, TAU, Rng } from '../core/math';
+import { Sky } from '../render/sky';
+
+/** Half-width of the sun's shadow frustum, metres. Covers the playable site. */
+const SHADOW_EXTENT = 120;
+/** How far up the sun light sits from its target. Only affects the frustum. */
+const SUN_DISTANCE = 400;
 
 interface WeatherProfile {
   cloudCover: number;
@@ -84,6 +90,12 @@ export class EnvironmentSystem implements System, IEnvironment {
   private rng = new Rng('weather');
   private lightningCooldown = 6;
   private lightningFlash = 0;
+  private sky!: Sky;
+  /** Scratch vectors — updateCelestial runs every frame. */
+  private sunDir = new THREE.Vector3();
+  private moonDir = new THREE.Vector3();
+  private hazeColor = new THREE.Color();
+  private shadowTarget = new THREE.Vector3();
 
   init(_ctx: EngineContext): void {
     const render = services.get('render');
@@ -93,8 +105,8 @@ export class EnvironmentSystem implements System, IEnvironment {
     this.sun.castShadow = true;
     this.sun.shadow.mapSize.set(2048, 2048);
     this.sun.shadow.camera.near = 0.5;
-    this.sun.shadow.camera.far = 320;
-    const s = 90;
+    this.sun.shadow.camera.far = 900;
+    const s = SHADOW_EXTENT;
     this.sun.shadow.camera.left = -s;
     this.sun.shadow.camera.right = s;
     this.sun.shadow.camera.top = s;
@@ -113,6 +125,9 @@ export class EnvironmentSystem implements System, IEnvironment {
     scene.add(this.ambient);
 
     scene.fog = new THREE.FogExp2(0x9fb4c4, this.weather.fogDensity);
+
+    this.sky = new Sky();
+    scene.add(this.sky.mesh);
 
     services.register('environment', this);
     this.updateCelestial(0);
@@ -245,14 +260,30 @@ export class EnvironmentSystem implements System, IEnvironment {
     const profile = this.targetProfile;
     t.ambientLightLevel = clamp01(day * lerp(0.55, 1, 1 - this.weather.cloudCover) + (t.isNight ? 0.06 + 0.06 * t.moonPhase : 0));
 
-    // Sun position on a large radius so shadows read as directional.
-    const dist = 260;
+    // Sun direction, then place the light relative to a shadow target that
+    // follows the camera. A directional light fixed at the world origin only
+    // shadows a box around the origin — geometry outside it samples past the
+    // edge of the shadow map and comes back fully shadowed, which is why the
+    // buildings were rendering black.
     const cosEl = Math.cos(el);
-    this.sun.position.set(
-      Math.sin(t.sunAzimuth) * cosEl * dist,
-      Math.sin(el) * dist,
-      Math.cos(t.sunAzimuth) * cosEl * dist,
+    this.sunDir.set(
+      Math.sin(t.sunAzimuth) * cosEl,
+      Math.sin(el),
+      Math.cos(t.sunAzimuth) * cosEl,
     );
+
+    const camPos = (services.get('render') as unknown as { camera: THREE.Camera }).camera.position;
+    // Snap the shadow target to the shadow-map texel grid so shadows don't
+    // crawl as the camera moves.
+    const texel = (SHADOW_EXTENT * 2) / this.sun.shadow.mapSize.x;
+    this.shadowTarget.set(
+      Math.round(camPos.x / texel) * texel,
+      Math.round(camPos.y / texel) * texel,
+      Math.round(camPos.z / texel) * texel,
+    );
+    this.sun.target.position.copy(this.shadowTarget);
+    this.sun.target.updateMatrixWorld();
+    this.sun.position.copy(this.shadowTarget).addScaledVector(this.sunDir, SUN_DISTANCE);
 
     // Colour temperature ramps warm at low elevation — the golden-hour look.
     const warm = 1 - smoothstep(-0.05, 0.45, el);
@@ -266,16 +297,30 @@ export class EnvironmentSystem implements System, IEnvironment {
     this.sun.intensity = sunIntensity + this.lightningFlash * 6;
 
     // Moon takes over below the horizon.
-    this.moon.position.set(-this.sun.position.x, Math.abs(this.sun.position.y) * 0.6 + 40, -this.sun.position.z);
+    this.moonDir.copy(this.sunDir).negate();
+    this.moonDir.y = Math.abs(this.moonDir.y) * 0.75 + 0.25;
+    this.moonDir.normalize();
+    this.moon.target.position.copy(this.shadowTarget);
+    this.moon.target.updateMatrixWorld();
+    this.moon.position.copy(this.shadowTarget).addScaledVector(this.moonDir, SUN_DISTANCE);
     this.moon.intensity = t.isNight ? 0.14 + 0.2 * t.moonPhase : 0;
 
     // Hemisphere ambient follows sky colour and weather tint.
     const skyTop = new THREE.Color().setHSL(0.58, lerp(0.15, 0.55, day), lerp(0.06, 0.62, day));
     skyTop.lerp(profile.ambientTint, this.weather.cloudCover * 0.7);
-    const ground = new THREE.Color().setHSL(0.09, 0.22, lerp(0.03, 0.22, day));
+    // Ground bounce is warm and gets stronger over bright terrain — this is the
+    // light that keeps shadowed walls readable.
+    const ground = new THREE.Color().setHSL(0.09, 0.30, lerp(0.04, 0.34, day));
     this.ambient.color.copy(skyTop);
     this.ambient.groundColor.copy(ground);
-    this.ambient.intensity = lerp(0.12, 0.9, day) + this.lightningFlash * 1.5;
+    // Skylight is a *large* fraction of total illumination, especially at low
+    // sun angles and under cloud. The previous value left every surface facing
+    // away from the sun crushed to black, which read as broken rather than
+    // dramatic. Overcast pushes it higher still: the whole sky becomes the
+    // light source.
+    this.ambient.intensity =
+      lerp(0.30, 2.15, day) * lerp(1, 1.45, this.weather.cloudCover) +
+      this.lightningFlash * 1.5;
 
     // Fog follows the sky so distant geometry sits in the same light.
     const scene = services.get('render').scene;
@@ -284,8 +329,32 @@ export class EnvironmentSystem implements System, IEnvironment {
       scene.fog.color.copy(skyTop).lerp(new THREE.Color(0x0a0f16), 1 - day);
     }
 
-    // Exposure adapts to conditions rather than staying flat.
-    const render = services.get('render') as { renderer: THREE.WebGLRenderer };
-    render.renderer.toneMappingExposure = lerp(1.55, 0.95, day) * lerp(1, 0.85, this.weather.cloudCover);
+    // Exposure adapts to conditions rather than staying flat. The sky feeds
+    // real HDR values now, so this is a modest trim around a neutral 1.0
+    // rather than the large correction the flat-black placeholder needed.
+    const renderCtx = services.get('render') as unknown as {
+      renderer: THREE.WebGLRenderer;
+      camera: THREE.Camera;
+    };
+    renderCtx.renderer.toneMappingExposure =
+      lerp(2.6, 0.95, day) * lerp(1, 0.88, this.weather.cloudCover);
+
+    // --- drive the sky dome ----------------------------------------------
+    // Haze colour is the fog colour, so the horizon and the scene agree.
+    this.hazeColor.copy(skyTop).lerp(new THREE.Color(0x0a0f16), 1 - day);
+    this.sky.update(
+      dt || 0.016,
+      renderCtx.camera.position,
+      this.sunDir,
+      this.moonDir,
+      el,
+      {
+        moonPhase: t.moonPhase,
+        cloudCover: this.weather.cloudCover,
+        fogDensity: this.weather.fogDensity,
+        hazeColor: this.hazeColor,
+        lightningFlash: this.lightningFlash,
+      },
+    );
   }
 }
