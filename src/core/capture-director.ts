@@ -384,6 +384,36 @@ export class CaptureDirector {
       pos: [4, 6.5, 170], look: [0, 4, 60], fov: 62 });
     this.register({ name: 'env-street-level', label: 'Street level, eye height', system: 'world',
       hour: 16.4, weather: 'clear', quality: 3, pos: [10, 3.6, 34], look: [-6, 2.4, -10] });
+    // Weapon presentation. Controls stay enabled so the viewmodel keeps its
+    // pose; the camera is placed by moving the player rather than the camera.
+    const gunShot = (name: string, label: string, hour: number, ads: boolean, weapon?: string, att?: Record<string, string>) => {
+      this.register({
+        name, label, system: 'weaponmodels', hour, weather: 'clear', quality: 3,
+        pos: [0, 0, 0], look: [0, 0, -1],
+        apply: () => {
+          const player = this.engine.get('player') as unknown as {
+            setControlsEnabled(v: boolean): void;
+            position: THREE.Vector3; yaw: number; pitch: number;
+            input: Record<string, unknown>;
+          };
+          player.setControlsEnabled(true);
+          player.position.set(6, 4.2, 96);
+          player.yaw = 0.2;
+          player.pitch = -0.05;
+          player.input.aim = ads;
+          if (weapon) this.equipWeapon(weapon, att);
+          // Settle the ADS blend and the viewmodel pose.
+          for (let i = 0; i < 90; i++) this.engine.frame(performance.now() + i * 16.7);
+        },
+      });
+    };
+    gunShot('gun-hip', 'Carbine, hip', 15.0, false, 'ho-mk4c', { optic: 'opt-rds', muzzle: 'muz-a2', underbarrel: 'grip-handstop', handguard: 'hg-mlok-short' });
+    gunShot('gun-ads', 'Carbine, aimed', 15.0, true, 'ho-mk4c', { optic: 'opt-rds', muzzle: 'muz-a2', underbarrel: 'grip-handstop', handguard: 'hg-mlok-short' });
+    gunShot('gun-kitted', 'Carbine, fully kitted', 15.0, false, 'ho-mk4c', { optic: 'opt-lpvo', muzzle: 'muz-supp-heavy', underbarrel: 'grip-vert', handguard: 'hg-mlok-long', magazine: 'mag-ext', laser: 'las-visible' });
+    gunShot('gun-sniper', 'Magnum bolt action', 15.0, false, 'aw-am86', { optic: 'opt-scope-10', stock: 'stock-precision', underbarrel: 'grip-bipod' });
+    gunShot('gun-ak', 'Eastern-pattern rifle', 15.0, false, 'vp-akm', { optic: 'opt-iron' });
+    gunShot('gun-pistol', 'Service pistol', 15.0, false, 'aw-p9', { optic: 'opt-rds', muzzle: 'muz-supp-pistol' });
+
     this.register({ name: 'env-interior', label: 'Building interior', system: 'world',
       hour: 13.0, weather: 'clear', quality: 3, pos: [2, 3.4, 22], look: [-14, 2.2, 6] });
   }

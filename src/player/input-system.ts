@@ -79,6 +79,7 @@ export class InputSystem implements System {
   private lockSupported = true;
   /** Consecutive pointer-lock failures; only a repeat failure means refused. */
   private lockFailures = 0;
+  private lockWatchdog = 0;
   private dragging = false;
   private lastDragX = 0;
   private lastDragY = 0;
@@ -202,6 +203,7 @@ export class InputSystem implements System {
     const wasLocked = this.locked;
     this.locked = document.pointerLockElement === this.canvas;
     if (this.locked) {
+      window.clearTimeout(this.lockWatchdog);
       this.lockSupported = true;
       this.lockFailures = 0;
       this.onControlModeChange?.('locked');
@@ -223,7 +225,7 @@ export class InputSystem implements System {
 
   private noteLockFailure(): void {
     this.lockFailures++;
-    if (this.lockFailures >= 2) {
+    if (this.lockFailures >= 1) {
       this.lockSupported = false;
       this.onControlModeChange?.('drag');
     }
@@ -239,6 +241,17 @@ export class InputSystem implements System {
     // Browsers throw if pointer lock is re-requested immediately after an exit.
     if (now - this.lastLockRequest < 1200) return;
     this.lastLockRequest = now;
+
+    // Some embeddings refuse pointer lock silently: no error event, no promise
+    // rejection, the request simply never takes effect. A sandboxed iframe
+    // without allow="pointer-lock" behaves exactly this way, which is how the
+    // published build ended up with a click that appeared to do nothing.
+    // Fall back on a timer rather than waiting for a signal that never comes.
+    window.clearTimeout(this.lockWatchdog);
+    this.lockWatchdog = window.setTimeout(() => {
+      if (!this.locked) this.noteLockFailure();
+    }, 450);
+
     try {
       const p = this.canvas.requestPointerLock() as unknown as Promise<void> | undefined;
       if (p && typeof p.catch === 'function') {

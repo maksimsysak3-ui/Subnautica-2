@@ -19,6 +19,7 @@ import { InputSystem } from './player/input-system';
 import { Ballistics } from './weapons/ballistics';
 import { WeaponRuntime } from './weapons/weapon-system';
 import { ActorBodies } from './actors/actor-bodies';
+import { Viewmodel } from './weaponmodels/viewmodel';
 import { CaptureDirector } from './core/capture-director';
 
 const bootEl = document.getElementById('boot')!;
@@ -71,6 +72,10 @@ async function boot(): Promise<void> {
   weapons.player = player;
   engine.add(weapons);
   engine.add(new ActorBodies());
+
+  const viewmodel = new Viewmodel();
+  viewmodel.host = player;
+  engine.add(viewmodel);
 
   progress(0.8, 'binding controls');
   const input = new InputSystem(canvas);
