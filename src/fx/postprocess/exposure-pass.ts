@@ -94,7 +94,10 @@ void main() {
   if (uReset > 0.5 || prev <= 0.0) prev = target;
 
   // Asymmetric: opening up (scene got darker) is the slow direction.
-  float rate = target > prev ? uSpeedDown : uSpeedUp;
+  // A brighter scene means the iris must close, which is the fast direction;
+  // adapting to darkness is the slow one. These were swapped, so stepping out
+  // of a building stayed blown out for about two seconds.
+  float rate = target > prev ? uSpeedUp : uSpeedDown;
   float adapted = mix(prev, target, 1.0 - exp(-uDt * rate));
 
   float exposure = clamp(uKey / max(adapted, 1e-4), uMinExposure, uMaxExposure);

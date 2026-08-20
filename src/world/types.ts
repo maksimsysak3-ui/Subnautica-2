@@ -57,6 +57,16 @@ export const BF = {
   INVISIBLE: 1 << 10,
   /** Thin/penetrable enough that bullets pass with little loss. */
   THIN: 1 << 11,
+  /**
+   * Genuinely non-solid: characters pass through it.
+   *
+   * This is deliberately separate from NO_NAV. NO_NAV means only "the navmesh
+   * rasteriser ignores this" — door leaves, railings and door frames all carry
+   * it because they must not become walkable floor spans, and they are all
+   * still solid. Conflating the two made a third of the level's geometry
+   * phantom, including closed and locked doors.
+   */
+  NO_COLLIDE: 1 << 12,
 } as const;
 
 export type BrickFlags = number;

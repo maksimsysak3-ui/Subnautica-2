@@ -329,6 +329,12 @@ export class RenderSystem implements System, IRenderContext {
     r.clear(true, true, true);
     r.render(this.scene, this.camera);
 
+    // Snapshot here. three resets renderer.info at the start of every
+    // render() call, and the final one each frame is a fullscreen post quad,
+    // so reading it afterwards always reported one draw call and one triangle.
+    this.worldStats.drawCalls = r.info.render.calls;
+    this.worldStats.triangles = r.info.render.triangles;
+
     // --- viewmodel pass ---------------------------------------------------
     // Cleared depth so the weapon never intersects world geometry.
     if (this.viewScene.children.length > 0) {
@@ -403,11 +409,14 @@ export class RenderSystem implements System, IRenderContext {
     return RenderSystem.quadGeo;
   }
 
+  /** Draw calls and triangles for the world pass, captured before post. */
+  private worldStats = { drawCalls: 0, triangles: 0 };
+
   stats(): { drawCalls: number; triangles: number; programs: number; textures: number } {
     const info = this.renderer.info;
     return {
-      drawCalls: info.render.calls,
-      triangles: info.render.triangles,
+      drawCalls: this.worldStats.drawCalls,
+      triangles: this.worldStats.triangles,
       programs: info.programs?.length ?? 0,
       textures: info.memory.textures,
     };

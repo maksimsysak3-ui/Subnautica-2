@@ -34,6 +34,8 @@ out vec4 outColor;
 
 uniform sampler2D tColor;
 uniform sampler2D tDepth;
+uniform float uNear;
+uniform float uFar;
 uniform mat4  uInvViewProjection;
 uniform mat4  uPrevViewProjection;
 uniform vec2  uTexel;
@@ -56,7 +58,7 @@ void main() {
   if (speed < 1.5) { outColor = vec4(centre, 1.0); return; }
   if (speed > uMaxVelocity) velocity *= uMaxVelocity / speed;
 
-  float centreDepth = linearDepth(depth, 0.05, 4000.0);
+  float centreDepth = linearDepth(depth, uNear, uFar);
 
   vec3 sum = centre;
   float wsum = 1.0;

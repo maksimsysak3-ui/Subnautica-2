@@ -25,6 +25,23 @@ export interface AutomationApi {
   ): { x: number; y: number; z: number; grounded: boolean; insideGeometry: boolean } | null;
   /** Toggle one post pass by id — lets a capture isolate what a pass costs. */
   setPass(id: string, enabled: boolean): boolean;
+  /** Spawn a test actor. Returns its id. */
+  spawnTarget(x: number, y: number, z: number, faction?: string): number;
+  /** Fire N rounds at a world point and report what actually happened. */
+  fireAt(
+    x: number, y: number, z: number, rounds: number,
+  ): {
+    fired: number; impacts: number; actorHits: number; penetrations: number; ricochets: number;
+    flightSeconds: number; dropMetres: number; impactSpeed: number;
+  };
+  /** Fire one level shot and sample it at `rangeM`. */
+  ballisticProfile(rangeM: number): {
+    muzzle: number; flightSeconds: number; dropMetres: number; impactSpeed: number; reached: boolean;
+  };
+  /** Equip a weapon by spec id with optional attachments. */
+  equipWeapon(specId: string, attachments?: Record<string, string>, ammoId?: string): unknown;
+  /** Current weapon readout. */
+  weaponState(): unknown;
   listPasses(): Array<{ id: string; order: number; enabled: boolean }>;
 }
 
@@ -92,6 +109,26 @@ export function installAutomation(engine: Engine, director: CaptureDirector): vo
 
     setPass(id: string, enabled: boolean): boolean {
       return director.setPass(id, enabled);
+    },
+
+    spawnTarget(x, y, z, faction) {
+      return director.spawnTarget(x, y, z, faction);
+    },
+
+    fireAt(x, y, z, rounds) {
+      return director.fireAt(x, y, z, rounds);
+    },
+
+    ballisticProfile(rangeM) {
+      return director.ballisticProfile(rangeM);
+    },
+
+    equipWeapon(specId, attachments, ammoId) {
+      return director.equipWeapon(specId, attachments, ammoId);
+    },
+
+    weaponState() {
+      return director.weaponState();
     },
 
     listPasses() {

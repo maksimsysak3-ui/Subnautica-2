@@ -41,9 +41,13 @@ let candidateCount = 0;
 function collect(yard: Brickyard, minx: number, miny: number, minz: number, maxx: number, maxy: number, maxz: number): void {
   candidateCount = 0;
   yard.queryBox(minx, miny, minz, maxx, maxy, maxz, (b) => {
-    // Bricks flagged NO_WALK are still solid; only NO_NAV trim is skipped,
-    // and door leaves collide only while shut (their AABB moves when open).
-    if ((yard.flags[b] & BF.NO_NAV) !== 0) return;
+    // Solidity is its own flag. NO_NAV only means the navmesh rasteriser
+    // skips a brick, and door leaves, railings, ladder rungs and door frames
+    // all carry it while remaining very much solid — filtering on it here made
+    // a third of the level walk-through, closed and locked doors included.
+    // INVISIBLE bricks are nav blockers and trigger volumes, which are hints
+    // rather than geometry.
+    if ((yard.flags[b] & (BF.NO_COLLIDE | BF.INVISIBLE)) !== 0) return;
     candidates[candidateCount++] = b;
   });
 }
@@ -116,7 +120,7 @@ export function brickGroundAt(
   let best = -Infinity;
   for (let k = 0; k < candidateCount; k++) {
     const b = candidates[k];
-    if ((yard.flags[b] & BF.NO_WALK) !== 0) continue;
+    if ((yard.flags[b] & (BF.NO_WALK | BF.NO_COLLIDE | BF.INVISIBLE)) !== 0) continue;
     const top = yard.topAt(b, x, z);
     if (top > best && top >= minY && top <= maxY) best = top;
   }
@@ -149,16 +153,27 @@ export function moveCharacter(
   // stepped over rather than collided with.
   const discs = [shape.stepHeight + r * 0.5, h * 0.5, h - r * 0.6];
 
-  // Two relaxation passes: one push can shove a character into a neighbouring
-  // brick, and a second pass resolves the corner cleanly.
-  for (let pass = 0; pass < 2; pass++) {
-    let moved = false;
+  // Iterative depenetration: each pass resolves only the single DEEPEST
+  // overlap, then re-queries.
+  //
+  // Summing a full push for every overlapping brick in one sweep compounds
+  // badly — a doorway puts the capsule against a leaf, two jambs and a lintel
+  // at once, and applying all four pushes in sequence without re-testing
+  // ejected the character metres away instead of stopping it. Resolving one
+  // contact at a time converges to the same place a real solver would, and a
+  // per-pass clamp keeps a bad start position from launching anyone.
+  const MAX_PUSH_PER_PASS = r;
+  for (let pass = 0; pass < 4; pass++) {
     collect(
       yard,
       px - r - 0.5, py - 0.1, pz - r - 0.5,
       px + r + 0.5, py + h + 0.1, pz + r + 0.5,
     );
     if (candidateCount === 0) break;
+
+    let deepest = 0;
+    let bestNx = 0, bestNz = 0;
+    let bestBrick = -1;
 
     for (let d = 0; d < discs.length; d++) {
       const dyLocal = discs[d];
@@ -170,13 +185,14 @@ export function moveCharacter(
         const d2 = closestPoint(yard, b, px, sy, pz);
         if (d2 === Infinity || d2 >= r * r) continue;
 
-        // Horizontal push only: vertical resolution is the ground query's job,
-        // and pushing up here would let characters climb sheer walls.
+        const depth = r - Math.sqrt(d2);
+        if (depth <= deepest) continue;
+
         let nx = px - outX;
         let nz = pz - outZ;
         const len = Math.hypot(nx, nz);
         if (len < 1e-5) {
-          // Dead centre — push back along the incoming motion instead.
+          // Dead centre — back out along the incoming motion instead.
           const mlen = Math.hypot(dx, dz) || 1;
           nx = -dx / mlen;
           nz = -dz / mlen;
@@ -184,31 +200,34 @@ export function moveCharacter(
           nx /= len;
           nz /= len;
         }
-
-        // Try stepping up before treating it as a wall: if this brick's top is
-        // a low ledge and there is headroom, walk onto it.
-        const top = yard.topAt(b, px, pz);
-        if (
-          top !== -Infinity &&
-          top > py &&
-          top - py <= shape.stepHeight &&
-          (yard.flags[b] & BF.NO_WALK) === 0 &&
-          headroom(yard, px, top, pz, h, r)
-        ) {
-          py = top;
-          stepped = true;
-          moved = true;
-          continue;
-        }
-
-        const push = r - Math.sqrt(d2);
-        px += nx * push;
-        pz += nz * push;
-        hitWall = true;
-        moved = true;
+        deepest = depth;
+        bestNx = nx;
+        bestNz = nz;
+        bestBrick = b;
       }
     }
-    if (!moved) break;
+
+    if (bestBrick < 0) break;
+
+    // Step up before treating it as a wall: a low ledge with headroom is a
+    // stair tread, not an obstacle.
+    const top = yard.topAt(bestBrick, px, pz);
+    if (
+      top !== -Infinity &&
+      top > py &&
+      top - py <= shape.stepHeight &&
+      (yard.flags[bestBrick] & BF.NO_WALK) === 0 &&
+      headroom(yard, px, top, pz, h, r)
+    ) {
+      py = top;
+      stepped = true;
+      continue;
+    }
+
+    const push = Math.min(deepest, MAX_PUSH_PER_PASS);
+    px += bestNx * push;
+    pz += bestNz * push;
+    hitWall = true;
   }
 
   // --- ground ------------------------------------------------------------
@@ -240,7 +259,7 @@ function headroom(yard: Brickyard, x: number, footY: number, z: number, h: numbe
   let blocked = false;
   yard.queryBox(x - r * 0.6, lo, z - r * 0.6, x + r * 0.6, hi, z + r * 0.6, (b) => {
     if (blocked) return;
-    if ((yard.flags[b] & BF.NO_NAV) !== 0) return;
+    if ((yard.flags[b] & (BF.NO_COLLIDE | BF.INVISIBLE)) !== 0) return;
     // Sample the column centre; a brick spanning it means no headroom.
     if (yard.containsPoint(b, x, (lo + hi) * 0.5, z)) blocked = true;
   });

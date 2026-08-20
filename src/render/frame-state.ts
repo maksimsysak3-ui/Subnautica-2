@@ -76,6 +76,13 @@ export interface FrameState {
   exposureTexture: THREE.Texture | null;
   /** Scalar mirror of the above for CPU-side decisions (one frame stale). */
   exposure: number;
+  /**
+   * Haze colour for the current conditions, published by the environment.
+   * The atmosphere pass used to read `scene.fog`, but fog was consolidated
+   * into the post chain and `scene.fog` is now never assigned — so the pass
+   * held its initialiser forever and washed night frames daylight blue.
+   */
+  fogColor: THREE.Color;
   /** Bloom result, sampled by the composite pass. */
   bloomTexture: THREE.Texture | null;
   /** Ambient-occlusion factor, sampled by the composite/debug passes. */
@@ -120,6 +127,7 @@ export const frame: FrameState = {
 
   exposureTexture: null,
   exposure: 1,
+  fogColor: new THREE.Color(0.6, 0.7, 0.8),
   bloomTexture: null,
   aoTexture: null,
 

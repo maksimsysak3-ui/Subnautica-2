@@ -246,8 +246,9 @@ export class AtmospherePass implements PostPass {
     const sun = this.findSun(ctx.scene);
     if (sun) _sunColor.copy(sun.color);
 
-    const fog = ctx.scene.fog;
-    if (fog) _fogColor.copy(fog.color);
+    // Driven by the environment through frame state, not scene.fog — that
+    // was removed when fog was consolidated into this pass.
+    _fogColor.copy(frame.fogColor);
 
     (u.uSunDirection.value as THREE.Vector3).copy(_sunDir);
     (u.uFogColor.value as THREE.Vector3).set(_fogColor.r, _fogColor.g, _fogColor.b);

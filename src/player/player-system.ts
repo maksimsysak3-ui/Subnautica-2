@@ -193,6 +193,12 @@ export class PlayerSystem implements System {
       minGroundNormalY: 0.55,
     };
 
+    // Where the move would have ended with nothing in the way. The difference
+    // between this and where it actually ended is the collision push, which is
+    // the only reliable way to recover the contact normal.
+    const wantX = this.position.x + this.velocity.x * step;
+    const wantZ = this.position.z + this.velocity.z * step;
+
     const move = world.moveCharacter(
       this.position.x, feetY, this.position.z,
       this.velocity.x * step, this.velocity.y * step, this.velocity.z * step,
@@ -202,11 +208,25 @@ export class PlayerSystem implements System {
     this.position.set(move.x, move.y + this.eyeHeight, move.z);
     this.grounded = move.grounded;
     if (move.grounded && this.velocity.y < 0) this.velocity.y = 0;
-    // Running into a wall should bleed speed, not have you slide along at full
-    // pace — that is what makes corners feel solid.
+
+    // Cancel only the velocity component driving INTO the surface and keep
+    // what runs along it, so the player slides along a wall instead of being
+    // glued to it. Scaling total velocity on every step of contact compounded
+    // to roughly a quarter of walking speed, which is the opposite of the
+    // corner-slicing the reference titles are built around.
     if (move.hitWall) {
-      this.velocity.x *= 0.55;
-      this.velocity.z *= 0.55;
+      const bx = move.x - wantX;
+      const bz = move.z - wantZ;
+      const blen = Math.hypot(bx, bz);
+      if (blen > 1e-5) {
+        const nx = bx / blen;
+        const nz = bz / blen;
+        const into = this.velocity.x * nx + this.velocity.z * nz;
+        if (into < 0) {
+          this.velocity.x -= nx * into;
+          this.velocity.z -= nz * into;
+        }
+      }
     }
 
     // --- stamina ---------------------------------------------------------

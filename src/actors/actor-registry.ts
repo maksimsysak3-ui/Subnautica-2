@@ -267,8 +267,10 @@ export class ActorRegistry implements System, IActorRegistry {
         return band.region;
       }
     }
-    // Above the head band — grazing shot, treat as a miss on the arm.
-    if (local >= 1.85) return 'head';
+    // Above the crown or below the feet is not a hit on anything vital. This
+    // previously returned 'head', so a round passing over a target's head
+    // scored a 4.2x headshot.
+    if (local >= 1.85 || local < 0) return 'arm_r';
     // Arms sit alongside the thorax; a fraction of torso-height hits catch them.
     if (hitDirection && this.rng.bool(0.18)) {
       const right = new THREE.Vector3().crossVectors(actor.forward, new THREE.Vector3(0, 1, 0));
@@ -321,6 +323,10 @@ export class ActorRegistry implements System, IActorRegistry {
       limb.destroyed = true;
       // Losing a vital region is fatal; losing a limb is survivable but severe.
       if (VITAL_REGIONS.includes(region)) {
+        // Emit the damage before the kill: listeners that track hits (hit
+        // markers, damage numbers, AI reaction) would otherwise never see the
+        // shot that actually mattered.
+        bus.emit('actor:damaged', { actorId, amount: scaled, type, region, sourceId });
         this.kill(a, sourceId, region === 'head');
         return;
       }

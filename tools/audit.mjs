@@ -18,7 +18,7 @@ const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const SRC = path.join(ROOT, 'src');
 
 const TEAM_DIRS = {
-  core: 'Integration', render: 'Graphics', fx: 'VFX', lighting: 'Lighting',
+  core: 'Integration', actors: 'Actors', render: 'Graphics', fx: 'VFX', lighting: 'Lighting',
   weather: 'Weather', world: 'World design', envart: 'Environmental art',
   weapons: 'Weapon systems', weaponmodels: 'Weapon models', anim: 'Animation',
   audio: 'Audio', ai: 'Enemy AI', tactics: 'Tactical behaviour',
@@ -52,6 +52,11 @@ async function main() {
 
   const mainSrc = await readFile(path.join(SRC, 'main.ts'), 'utf8').catch(() => '');
 
+  const allFilePaths = (await walk(SRC)).filter((f) => f.endsWith('.ts'));
+  const allSources = await Promise.all(
+    allFilePaths.map(async (f) => [f, await readFile(f, 'utf8')]),
+  );
+
   for (const [dir, team] of Object.entries(TEAM_DIRS)) {
     const files = (await walk(path.join(SRC, dir))).filter((f) => f.endsWith('.ts'));
     let lines = 0;
@@ -73,6 +78,22 @@ async function main() {
       todos += (src.match(/\b(TODO|FIXME|XXX|placeholder|stub)\b/gi) ?? []).length;
     }
 
+    // Modules nothing imports. The System-name check below only catches
+    // orphaned *systems*; a 500-line module that nothing references is just as
+    // dead and was previously invisible.
+    const unimported = [];
+    for (const f of files) {
+      const base = path.basename(f, '.ts');
+      if (base === 'index' || base === 'shots') continue;
+      const rel = `${dir}/${base}`;
+      const importedAnywhere = allSources.some(
+        ([other, src]) => other !== f &&
+          (src.includes(`/${base}'`) || src.includes(`/${base}"`) ||
+           src.includes(`'./${base}`) || src.includes(`'../${rel}`)),
+      );
+      if (!importedAnywhere) unimported.push(base);
+    }
+
     report.teams[dir] = {
       team,
       files: files.length,
@@ -85,6 +106,7 @@ async function main() {
       // A system that exists but is never registered in main.ts is dead code.
       wiredInMain: systems.filter((s) => mainSrc.includes(s)),
       orphanedSystems: systems.filter((s) => !mainSrc.includes(s)),
+      unimportedModules: unimported,
     };
   }
 
@@ -160,6 +182,10 @@ async function main() {
   const orphans = rows.flatMap(([, t]) => t.orphanedSystems);
   if (orphans.length) {
     console.log(`  ⚠ systems built but not registered in main.ts: ${orphans.join(', ')}`);
+  }
+  const dead = rows.flatMap(([d, t]) => t.unimportedModules.map((m) => `${d}/${m}`));
+  if (dead.length) {
+    console.log(`  ⚠ modules nothing imports (${dead.length}): ${dead.join(', ')}`);
   }
   console.log('');
 }

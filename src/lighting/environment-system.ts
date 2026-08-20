@@ -18,6 +18,7 @@ import {
 } from '../core/contracts';
 import { clamp01, damp, lerp, smoothstep, TAU, Rng } from '../core/math';
 import { Sky } from '../render/sky';
+import { frame } from '../render/frame-state';
 
 /** Half-width of the sun's shadow frustum, metres. Covers the playable site. */
 const SHADOW_EXTENT = 120;
@@ -96,6 +97,7 @@ export class EnvironmentSystem implements System, IEnvironment {
   private moonDir = new THREE.Vector3();
   private hazeColor = new THREE.Color();
   private shadowTarget = new THREE.Vector3();
+  private nightHaze = new THREE.Color(0x0a0f16);
 
   init(_ctx: EngineContext): void {
     const render = services.get('render');
@@ -355,7 +357,15 @@ export class EnvironmentSystem implements System, IEnvironment {
 
     // --- drive the sky dome ----------------------------------------------
     // Haze colour is the fog colour, so the horizon and the scene agree.
-    this.hazeColor.copy(skyTop).lerp(new THREE.Color(0x0a0f16), 1 - day);
+    this.hazeColor.copy(skyTop).lerp(this.nightHaze, 1 - day);
+
+    // Publish it, plus the camera planes every depth-reconstructing pass needs.
+    // The atmosphere pass previously read scene.fog, which no longer exists,
+    // so it held a daylight-blue literal at every hour and washed out night.
+    frame.fogColor.copy(this.hazeColor);
+    const worldCam = renderCtx.camera as unknown as { near?: number; far?: number };
+    if (typeof worldCam.near === 'number') frame.near = worldCam.near;
+    if (typeof worldCam.far === 'number') frame.far = worldCam.far;
     this.sky.update(
       dt || 0.016,
       renderCtx.camera.position,

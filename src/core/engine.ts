@@ -201,15 +201,17 @@ export class Engine {
       } catch (err) {
         console.error(`[Engine] ${s.id}.${phase} threw:`, err);
       }
-      if (phase !== 'fixedUpdate') {
-        const ms = performance.now() - t0;
-        const t = this.timings.get(s.id)!;
-        t.lastMs = ms;
-        t.avgMs += (ms - t.avgMs) * 0.05;
-        if (ms > t.peakMs) t.peakMs = ms;
-        if (ms > t.budgetMs && this.frameCount > 120 && this.frameCount % 60 === 0) {
-          bus.post('perf:budgetExceeded', { system: s.id, ms });
-        }
+      // Measure every phase, fixed step included. Skipping fixedUpdate left
+      // the deterministic sim channel — collision, ballistics, the player
+      // controller — completely invisible to the profiler, which is exactly
+      // where the expensive work lives.
+      const ms = performance.now() - t0;
+      const t = this.timings.get(s.id)!;
+      t.lastMs = ms;
+      t.avgMs += (ms - t.avgMs) * 0.05;
+      if (ms > t.peakMs) t.peakMs = ms;
+      if (ms > t.budgetMs && this.frameCount > 120 && this.frameCount % 60 === 0) {
+        bus.post('perf:budgetExceeded', { system: s.id, ms });
       }
     }
   }

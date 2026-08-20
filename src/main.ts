@@ -16,6 +16,9 @@ import { WorldSystem } from './world/world-system';
 import { ActorRegistry } from './actors/actor-registry';
 import { PlayerSystem } from './player/player-system';
 import { InputSystem } from './player/input-system';
+import { Ballistics } from './weapons/ballistics';
+import { WeaponRuntime } from './weapons/weapon-system';
+import { ActorBodies } from './actors/actor-bodies';
 import { CaptureDirector } from './core/capture-director';
 
 const bootEl = document.getElementById('boot')!;
@@ -52,8 +55,22 @@ async function boot(): Promise<void> {
   progress(0.6, 'registering actors');
   engine.add(new ActorRegistry());
 
+  progress(0.65, 'loading ballistics');
+  engine.add(new Ballistics());
+
   progress(0.7, 'spawning operator');
-  engine.add(new PlayerSystem());
+  const player = new PlayerSystem();
+  engine.add(player);
+
+  progress(0.75, 'issuing weapons');
+  const weapons = new WeaponRuntime();
+  // The runtime reads stance, stamina and ADS from the controller and pushes
+  // recoil back through its additive camera channel, so the controller keeps
+  // sole ownership of the transform. Injected rather than imported to keep the
+  // dependency one-directional.
+  weapons.player = player;
+  engine.add(weapons);
+  engine.add(new ActorBodies());
 
   progress(0.8, 'binding controls');
   const input = new InputSystem(canvas);
