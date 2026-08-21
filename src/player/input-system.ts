@@ -270,6 +270,18 @@ export class InputSystem implements System {
     return this.locked;
   }
 
+  /**
+   * Scripted input, for captures and tests.
+   *
+   * Anything set here wins over the keyboard and mouse for as long as it is
+   * set. Without it a harness that writes to `player.input` directly is
+   * overwritten on the very next frame by the block below, which is why every
+   * aimed capture came back showing a hip carry: the director set `aim = true`
+   * and this method cleared it 16 ms later.
+   */
+  readonly override: Partial<Record<'moveX' | 'moveZ' | 'sprint' | 'walk' | 'lean'
+    | 'fire' | 'aim' | 'use' | 'reload', number | boolean>> = {};
+
   update(_dt: number, _ctx: EngineContext): void {
     const inp = this.player.input;
 
@@ -286,6 +298,11 @@ export class InputSystem implements System {
     // Mouse: left fires, right aims.
     inp.fire = this.mouseButtons.has(0);
     inp.aim = this.mouseButtons.has(2);
+
+    // Scripted input last, so it wins.
+    for (const [k, v] of Object.entries(this.override)) {
+      (inp as unknown as Record<string, unknown>)[k] = v;
+    }
 
     // Stance is a request, not a held state — the controller times transitions.
     if (this.consumePress('crouch')) {

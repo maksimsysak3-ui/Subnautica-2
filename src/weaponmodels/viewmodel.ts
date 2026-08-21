@@ -47,9 +47,9 @@ import { buildWeapon, type WeaponModel } from './weapon-mesh';
 // The distance is the part that is easy to get wrong. The previous pose parked
 // the trigger 34 cm out, which left the buttstock 13 cm from a 55-degree
 // camera — it filled the right third of the frame as an unrecognisable slab.
-const HIP_POS = new THREE.Vector3(0.130, -0.160, -0.500);
+const HIP_POS = new THREE.Vector3(0.122, -0.160, -0.460);
 /** Live-tunable copies, so the headless framing tuner can sweep a pose. */
-export const POSE = { pos: HIP_POS.clone(), rot: new THREE.Euler(0.005, 0.110, 0.020) };
+export const POSE = { pos: HIP_POS.clone(), rot: new THREE.Euler(0.040, 0.080, 0.020) };
 /**
  * Yaw is positive so the muzzle swings slightly LEFT while the stock stays
  * right. Pointed dead ahead the barrel hides behind its own receiver and the
@@ -57,7 +57,7 @@ export const POSE = { pos: HIP_POS.clone(), rot: new THREE.Euler(0.005, 0.110, 0
  * three-quarter view every shooter uses. The tuner enforces it directly, by
  * requiring the optic to project further right than the muzzle.
  */
-const HIP_ROT = new THREE.Euler(0.005, 0.110, 0.020);
+const HIP_ROT = new THREE.Euler(0.040, 0.080, 0.020);
 /** Extra offset while sprinting — weapon carried low and across the body. */
 const SPRINT_POS = new THREE.Vector3(0.13, -0.20, -0.30);
 const SPRINT_ROT = new THREE.Euler(-0.34, -0.62, 0.28);
@@ -110,6 +110,22 @@ export class Viewmodel implements System {
   private pos = new THREE.Vector3();
   private rot = new THREE.Euler();
 
+  /**
+   * The viewmodel light rig, kept so its intensity can track the sky.
+   *
+   * Auto-exposure meters the *world*. In bright daylight it stops down far
+   * enough that a correctly-lit weapon reads as a silhouette — which is what
+   * every capture showed. Every shooter over-lights the viewmodel for this
+   * reason, but a fixed boost breaks the other way: a rig hot enough for noon
+   * makes the weapon glow at midnight.
+   *
+   * So the rig is authored at a daylight-correct level and then scaled by how
+   * much light the sky is actually giving, which is the same quantity
+   * auto-exposure is reacting to. The weapon lands at roughly the same screen
+   * value at noon, at dusk and indoors.
+   */
+  private rig: Array<{ light: THREE.Light; base: number }> = [];
+
   init(_ctx: EngineContext): void {
     const render = services.get('render');
     render.viewScene.add(this.root);
@@ -123,22 +139,58 @@ export class Viewmodel implements System {
     // reflect, no amount of directional light makes it read as metal. Now that
     // the environment map exists these can sit at sane values, which is what
     // lets the key actually shape the receiver instead of flattening it.
-    const key = new THREE.DirectionalLight(0xfff2e2, 2.6);
-    key.position.set(-0.55, 1.0, 0.55);
+    // The key belongs on the side the player can SEE. The hip pose yaws the
+    // muzzle left, which turns the weapon's +X faces toward the camera — and
+    // the key used to sit at (-0.55, 1.0, 0.55), giving N·L = -0.381 against
+    // that face. It was backfacing every surface the player looks at, so the
+    // whole visible flank was lit by a 0.9-intensity blue fill and nothing
+    // else, while the top rail (N·L = 0.784) blazed. That is why every capture
+    // showed one bright ladder on top of a black slab.
+    const key = new THREE.DirectionalLight(0xfff2e2, 6.4);
+    key.position.set(0.85, 0.72, 0.10);
+    key.castShadow = true;
+    // A tight ortho frustum around a 0.9 m object. Self-shadowing is the only
+    // remaining source of internal occlusion on a flat-shaded model under a
+    // near-uniform environment — without it the optic casts nothing on the
+    // rail and the magazine casts nothing into the magwell.
+    key.shadow.mapSize.set(1024, 1024);
+    key.shadow.camera.left = -0.70; key.shadow.camera.right = 0.70;
+    key.shadow.camera.top = 0.70; key.shadow.camera.bottom = -0.70;
+    key.shadow.camera.near = 0.05; key.shadow.camera.far = 3.5;
+    // Aim at where the weapon actually sits, not at the view origin — a
+    // directional light's ortho frustum is centred on its target, and the
+    // weapon lives half a metre down-range of the eye.
+    key.target.position.set(0.13, -0.14, -0.46);
+    key.shadow.bias = -0.0006;
+    key.shadow.normalBias = 0.004;
     render.viewScene.add(key);
+    render.viewScene.add(key.target);
 
-    const fill = new THREE.DirectionalLight(0xa8bed6, 0.9);
-    fill.position.set(1.0, -0.15, 0.35);
+    // Cool fill from the shadow side. Warm key against cool fill is what gives
+    // a metal object its form; blue against blue gives it none.
+    const fill = new THREE.DirectionalLight(0x9db5cf, 2.6);
+    fill.position.set(-0.90, -0.20, 0.25);
     render.viewScene.add(fill);
 
-    // Rim from behind picks the silhouette off a bright background. This is
-    // the one light that still runs hot: the weapon is the object the player
-    // stares at all game, and it must stay legible against a blown-out sky.
-    const rim = new THREE.DirectionalLight(0xcfe0ff, 1.9);
+    // Rim from behind picks the silhouette off a bright background.
+    const rim = new THREE.DirectionalLight(0xcfe0ff, 3.5);
     rim.position.set(0.25, 0.35, -1.0);
     render.viewScene.add(rim);
 
-    render.viewScene.add(new THREE.AmbientLight(0x6a7480, 0.55));
+    const amb = new THREE.AmbientLight(0x6a7480, 0.95);
+    render.viewScene.add(amb);
+
+    // The environment map is shared with the world, where it is scaled for
+    // physical correctness. The viewmodel wants more of it, for the same
+    // reason it wants a hotter key.
+    render.viewScene.environmentIntensity = 2.2;
+
+    this.rig = [
+      { light: key, base: key.intensity },
+      { light: fill, base: fill.intensity },
+      { light: rim, base: rim.intensity },
+      { light: amb, base: amb.intensity },
+    ];
 
     // Rebuild whenever the weapon or its attachments change.
     bus.on('weapon:equipped', () => this.rebuild());
@@ -189,6 +241,15 @@ export class Viewmodel implements System {
 
     this.swayTime += dt;
     this.kick = Math.max(0, this.kick - dt * 7);
+
+    // --- exposure compensation -------------------------------------------
+    // Track the sky. The floor is what keeps the weapon legible at night and
+    // indoors, where the player needs to see it most.
+    const env = services.tryGet('environment') as unknown as
+      { time?: { ambientLightLevel: number } } | undefined;
+    const skyLevel = env?.time?.ambientLightLevel ?? 1;
+    const gain = 0.34 + 0.66 * clamp01(skyLevel);
+    for (const r of this.rig) r.light.intensity = r.base * gain;
 
     // --- lag: the weapon trails the camera, then catches up ---------------
     // This is the single biggest contributor to a weapon feeling heavy.

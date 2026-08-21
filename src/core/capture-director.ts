@@ -495,15 +495,18 @@ export class CaptureDirector {
     // adapts, so two inspection shots of the same model come back at
     // different brightnesses and nothing is comparable.
     if (render.post) {
-      render.post.exposure.minExposure = on ? 1.0 : 0.06;
-      render.post.exposure.maxExposure = on ? 1.0 : 5.0;
+      // Pinned well above unity. Dropping the metals from metalness 0.8 to
+      // 0.35 traded a lot of environment specular for authored albedo, which
+      // is the right trade but leaves the model darker in absolute terms.
+      render.post.exposure.minExposure = on ? 1.35 : 0.06;
+      render.post.exposure.maxExposure = on ? 1.35 : 5.0;
     }
     const id = 'studio:backdrop';
     let bd = render.viewScene.getObjectByName(id) as THREE.Mesh | undefined;
     if (on && !bd) {
       bd = new THREE.Mesh(
         new THREE.PlaneGeometry(24, 24),
-        new THREE.MeshBasicMaterial({ color: 0x6d737a, toneMapped: false, depthWrite: false }),
+        new THREE.MeshBasicMaterial({ color: 0x2a2f35, toneMapped: false, depthWrite: false }),
       );
       bd.name = id;
       bd.position.set(0, 0, -6);
@@ -572,7 +575,17 @@ export class CaptureDirector {
           player.position.set(6, 4.2, 96);
           player.yaw = 0.2;
           player.pitch = -0.05;
-          player.input.aim = ads;
+          // Through the override, not by writing player.input directly:
+          // InputSystem.update() rewrites `aim` from the mouse state every
+          // frame, so a direct write survived exactly zero frames and every
+          // "aimed" capture came back as a hip carry.
+          const input = this.engine.get('input') as unknown as {
+            override: Record<string, unknown>;
+          };
+          if (input) {
+            if (ads) input.override.aim = true;
+            else delete input.override.aim;
+          }
           if (weapon) this.equipWeapon(weapon, att);
           // Settle the ADS blend and the viewmodel pose.
           for (let i = 0; i < 90; i++) this.engine.frame(performance.now() + i * 16.7);

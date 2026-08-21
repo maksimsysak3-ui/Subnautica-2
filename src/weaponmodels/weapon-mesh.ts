@@ -66,45 +66,73 @@ export function buildWeapon(
   // =========================================================================
   // Long gun
   // =========================================================================
-  const recLen = 0.30;
+  // 215 mm, not 300. A real AR receiver set is 197 mm; at 300 it ate 85 mm
+  // that belongs to the barrel and gas system, which is why the weapon read as
+  // a long slab with a stubby nose while still measuring the right overall
+  // length. Five other landmarks derive from this, and all five were wrong in
+  // the same direction: the rail carried 26 slots instead of 19, the forward
+  // assist sat 122 mm from the rear face instead of 42, and the ejection port
+  // sat at 42% along the receiver instead of 58%.
+  const recLen = 0.215;
   const recFront = -0.14;
   const recBack = recFront + recLen;
 
   // --- lower receiver + magwell ------------------------------------------
-  b.box(0.040, 0.052, recLen * 0.62, 'aluDark', 0, BORE - 0.030, recFront + recLen * 0.34);
+  // Widths here were 60-70% oversize across the board. The tell is the rail:
+  // a 21 mm Picatinny on a 42 mm receiver leaves a 10.5 mm deck on each side,
+  // where a real AR leaves 2.1 mm. That is why the rail read as a ladder
+  // sitting on a plinth rather than as the top of the receiver.
+  b.box(0.026, 0.050, recLen * 0.66, 'aluDark', 0, BORE - 0.030, recFront + recLen * 0.34);
   // Flared magwell.
-  b.box(0.044, 0.030, 0.062, 'aluDark', 0, BORE - 0.048, recFront + 0.062);
-  b.box(0.048, 0.010, 0.066, 'alu', 0, BORE - 0.064, recFront + 0.062);
+  b.box(0.032, 0.030, 0.062, 'aluDark', 0, BORE - 0.048, recFront + 0.062);
+  // Magwell lip: aluDark, not alu. A 48 x 66 mm plate of the brightest
+  // material on the model read as a chrome tray bolted under the receiver.
+  b.box(0.036, 0.010, 0.066, 'aluDark', 0, BORE - 0.064, recFront + 0.062);
   // Magazine release and bolt catch — small, but they say "this is a machine".
-  b.box(0.008, 0.012, 0.012, 'parkerised', 0.023, BORE - 0.034, recFront + 0.070);
-  b.box(0.006, 0.018, 0.020, 'parkerised', -0.023, BORE - 0.032, recFront + 0.076);
+  b.box(0.008, 0.012, 0.012, 'parkerised', 0.016, BORE - 0.034, recFront + 0.070);
+  b.box(0.006, 0.018, 0.020, 'parkerised', -0.016, BORE - 0.032, recFront + 0.076);
   // Selector switch on the left.
-  b.cyl(0.008, 0.010, 'parkerised', -0.022, BORE - 0.020, recFront + 0.128, 8, 0, Math.PI / 2, 0);
-  b.box(0.006, 0.020, 0.007, 'parkerised', -0.028, BORE - 0.024, recFront + 0.128, 0, 0, 0.5);
-  // Trigger and guard.
-  b.box(0.030, 0.007, 0.062, 'aluDark', 0, BORE - 0.062, recFront + 0.030);
-  b.box(0.006, 0.020, 0.008, 'blued', 0, BORE - 0.050, recFront + 0.036, 0.25);
+  b.cyl(0.008, 0.010, 'parkerised', -0.015, BORE - 0.020, recFront + 0.118, 8, 0, Math.PI / 2, 0);
+  b.box(0.006, 0.020, 0.007, 'parkerised', -0.021, BORE - 0.024, recFront + 0.118, 0, 0, 0.5);
+  // Trigger guard, as a real loop: front strap, bow and rear post. It was a
+  // flat 30 x 62 mm shelf floating 2.5 mm below the receiver, attached to
+  // nothing along its front third — and the open loop of a trigger guard is a
+  // strong silhouette cue that a shelf does not give you.
+  b.box(0.020, 0.007, 0.054, 'aluDark', 0, BORE - 0.058, recFront + 0.030);
+  b.box(0.020, 0.030, 0.007, 'aluDark', 0, BORE - 0.044, recFront + 0.004);
+  b.box(0.020, 0.020, 0.007, 'aluDark', 0, BORE - 0.038, recFront + 0.056);
+  b.box(0.006, 0.020, 0.008, 'blued', 0, BORE - 0.046, recFront + 0.036, 0.25);
 
   // --- upper receiver -----------------------------------------------------
-  b.box(0.042, 0.046, recLen * 0.94, 'parkerised', 0, BORE + 0.006, recFront + recLen * 0.47);
+  b.box(0.028, 0.042, recLen * 0.94, 'parkerised', 0, BORE + 0.008, recFront + recLen * 0.47);
+  // Upper/lower takedown line. Twelve triangles for a 170-pixel feature — the
+  // single most recognisable thing about an AR receiver group, and previously
+  // absent: the upper's underside sat 13 mm inside the lower with no seam at
+  // all, so the two read as one extruded block.
+  b.box(0.030, 0.003, recLen * 0.90, 'polymerBlack', 0, BORE - 0.013, recFront + recLen * 0.47);
   // Ejection port: a raised lip and a hinged cover, on the right where the
   // player sees it when the weapon is canted.
-  b.box(0.004, 0.026, 0.052, 'aluDark', 0.022, BORE + 0.006, recFront + 0.118);
-  b.box(0.006, 0.024, 0.048, 'parkerised', 0.024, BORE + 0.004, recFront + 0.118, 0, 0, 0.06);
+  b.box(0.004, 0.024, 0.048, 'aluDark', 0.015, BORE + 0.008, recFront + 0.124);
+  b.box(0.006, 0.022, 0.044, 'parkerised', 0.017, BORE + 0.006, recFront + 0.124, 0, 0, 0.06);
   // Brass deflector behind it.
-  b.box(0.010, 0.016, 0.014, 'parkerised', 0.022, BORE + 0.018, recFront + 0.150, 0, 0, -0.4);
+  b.box(0.010, 0.016, 0.014, 'parkerised', 0.015, BORE + 0.020, recFront + 0.152, 0, 0, -0.4);
   // Forward assist.
-  b.cyl(0.008, 0.018, 'parkerised', 0.022, BORE - 0.006, recFront + 0.160, 8, 0, Math.PI / 2, 0);
+  b.cyl(0.008, 0.018, 'parkerised', 0.015, BORE - 0.004, recFront + 0.170, 8, 0, Math.PI / 2, 0);
   // Charging handle at the rear with a latch.
-  b.box(0.052, 0.010, 0.024, 'aluDark', 0, BORE + 0.028, recBack - 0.020);
-  b.box(0.016, 0.008, 0.012, 'alu', -0.026, BORE + 0.028, recBack - 0.016);
+  b.box(0.046, 0.010, 0.024, 'aluDark', 0, BORE + 0.030, recBack - 0.018);
+  b.box(0.016, 0.008, 0.012, 'alu', -0.023, BORE + 0.030, recBack - 0.014);
 
   // --- top rail -----------------------------------------------------------
   const railY = BORE + 0.031;
   rail(b, 0, railY, recFront + recLen * 0.44, recLen * 0.90);
 
   // --- barrel -------------------------------------------------------------
-  const barrelLen = Math.max(0.10, barrelM * 0.78);
+  // 0.92, not 0.78. With the receiver corrected to its real 215 mm the weapon
+  // came out 735 mm overall against a real carbine's 783; the missing length
+  // belongs to the barrel, which had only 95 mm of it exposed forward of the
+  // handguard against a real 175. This puts exposed barrel at 173 mm and total
+  // length at 786 mm.
+  const barrelLen = Math.max(0.10, barrelM * 0.92);
   const barrelStart = recFront;
   b.cyl(0.0098, barrelLen, 'blued', 0, BORE, barrelStart - barrelLen / 2, 10);
   // Barrel nut where it meets the receiver.
@@ -114,26 +142,36 @@ export function buildWeapon(
   const hgAtt = attachments.handguard;
   const longHg = hgAtt?.id === 'hg-mlok-long' || hgAtt?.id === 'hg-quad';
   const hgLen = Math.min(barrelLen - 0.05, longHg ? barrelLen * 0.86 : barrelLen * 0.58);
-  const hgZ = barrelStart - 0.026 - hgLen / 2;
+  // Butted straight against the receiver. The 26 mm setback left the barrel
+  // nut exposed between handguard and receiver — a free-float handguard covers
+  // the nut, and the gap was breaking the weapon's top line in two.
+  const hgZ = barrelStart - hgLen / 2;
   const hgMat: MatKey = hgAtt?.id === 'hg-quad' ? 'aluDark' : furniture;
 
   if (hgLen > 0.04) {
     // Octagonal-ish tube: a box plus two chamfer strips reads far better than
-    // a plain box at almost no cost.
-    b.box(0.040, 0.042, hgLen, hgMat, 0, BORE, hgZ);
-    b.box(0.050, 0.024, hgLen, hgMat, 0, BORE, hgZ);
-    b.box(0.024, 0.050, hgLen, hgMat, 0, BORE, hgZ);
+    // a plain box at almost no cost. Narrowed to match the corrected receiver
+    // — at 50 mm across against a 21 mm rail the handguard was 39% oversize.
+    b.box(0.030, 0.034, hgLen, hgMat, 0, BORE, hgZ);
+    b.box(0.038, 0.020, hgLen, hgMat, 0, BORE, hgZ);
+    // The tall box supports the rail, so its top must reach railY.
+    b.box(0.020, 0.048, hgLen, hgMat, 0, BORE + 0.004, hgZ);
 
     if (hgAtt?.id === 'hg-quad') {
-      rail(b, 0, BORE + 0.026, hgZ, hgLen * 0.94, 0.020);
-      rail(b, 0, BORE - 0.026, hgZ, hgLen * 0.94, 0.020);
+      rail(b, 0, BORE + 0.026, hgZ, hgLen * 0.96, 0.020);
+      rail(b, 0, BORE - 0.026, hgZ, hgLen * 0.96, 0.020);
     } else {
       // M-LOK slots on the sides and underside.
-      mlokRow(b, -0.026, BORE, hgZ - hgLen / 2, hgZ + hgLen / 2, 'polymerBlack', 'x');
-      mlokRow(b, 0.026, BORE, hgZ - hgLen / 2, hgZ + hgLen / 2, 'polymerBlack', 'x');
-      mlokRow(b, 0, BORE - 0.026, hgZ - hgLen / 2, hgZ + hgLen / 2, 'polymerBlack', 'y');
-      // A short rail section at the front of the top face.
-      rail(b, 0, BORE + 0.024, hgZ - hgLen * 0.32, hgLen * 0.30, 0.019);
+      mlokRow(b, -0.0195, BORE, hgZ - hgLen / 2, hgZ + hgLen / 2, 'polymerBlack', 'x');
+      mlokRow(b, 0.0195, BORE, hgZ - hgLen / 2, hgZ + hgLen / 2, 'polymerBlack', 'x');
+      mlokRow(b, 0, BORE - 0.0215, hgZ - hgLen / 2, hgZ + hgLen / 2, 'polymerBlack', 'y');
+      // Full-length top rail, continuous with the receiver's.
+      //
+      // It used to be a 50 mm stub sitting 7 mm below the receiver rail with a
+      // 111 mm bare gap between them, so the weapon's top line went
+      // rail -> gap -> ledge -> rail. On a free-float carbine that line is
+      // unbroken, and the unbroken line IS the modern-carbine silhouette.
+      rail(b, 0, railY, hgZ, hgLen * 0.97, 0.019);
     }
   }
 
@@ -181,16 +219,22 @@ export function buildWeapon(
   // --- magazine -----------------------------------------------------------
   const magId = attachments.magazine?.id ?? 'mag-std';
   const magZ = recFront + 0.062;
-  const magY = BORE - 0.070;
+  // The floorplate used to sit 224 mm below the bore — 63 mm BELOW the pistol
+  // grip — which made the magazine the longest thing on the weapon and turned
+  // grip-plus-magazine into one continuous trapezoid. A real carbine's
+  // floorplate is roughly level with the grip. This also buries ~29 mm of the
+  // magazine inside the magwell, giving the junction line that separates them;
+  // previously every millimetre of it was exposed.
+  const magY = BORE - 0.040;
   if (magId === 'mag-drum') {
-    b.cyl(0.055, 0.034, 'polymerBlack', 0, magY - 0.052, magZ, 14, 0, Math.PI / 2, 0);
+    b.cyl(0.055, 0.034, 'polymerMid', 0, magY - 0.052, magZ, 14, 0, Math.PI / 2, 0);
     b.cyl(0.050, 0.038, 'aluDark', 0, magY - 0.052, magZ, 14, 0, Math.PI / 2, 0);
     b.box(0.028, 0.048, 0.046, 'polymerBlack', 0, magY - 0.020, magZ);
   } else {
-    const magLen = magId === 'mag-ext' ? 0.185 : magId === 'mag-short' ? 0.095 : 0.145;
+    const magLen = magId === 'mag-ext' ? 0.170 : magId === 'mag-short' ? 0.088 : 0.130;
     // Eastern-pattern cartridges use a strongly curved magazine.
     const curve = spec.caliber === '7.62x39' || spec.caliber === '5.45x39' ? 0.42 : 0.12;
-    boxMagazine(b, 0, magY, magZ, magLen, curve, 'polymerBlack');
+    boxMagazine(b, 0, magY, magZ, magLen, curve, 'polymerMid');
   }
 
   // --- optic --------------------------------------------------------------
@@ -208,7 +252,9 @@ export function buildWeapon(
   const ub = attachments.underbarrel;
   if (ub && hgLen > 0.06) {
     const ubZ = hgZ - hgLen * 0.22;
-    const ubY = BORE - 0.030;
+    // Handguard underside is at BORE - 0.022 once the M-LOK recesses are
+    // flush; every accessory was hanging 3-5 mm clear of it.
+    const ubY = BORE - 0.021;
     if (ub.id === 'grip-vert') {
       b.box(0.024, 0.070, 0.028, 'polymerBlack', 0, ubY - 0.035, ubZ, 0.05);
       b.box(0.028, 0.012, 0.032, 'polymerBlack', 0, ubY - 0.072, ubZ);
@@ -235,7 +281,7 @@ export function buildWeapon(
   }
 
   // --- sling points -------------------------------------------------------
-  b.cyl(0.004, 0.014, 'aluDark', -0.022, BORE - 0.020, recBack - 0.010, 6, 0, Math.PI / 2, 0);
+  b.cyl(0.004, 0.014, 'aluDark', -0.015, BORE - 0.020, recBack - 0.030, 6, 0, Math.PI / 2, 0);
 
   // --- hands --------------------------------------------------------------
   // Built last and into their own group so they sit on top of the finished
@@ -247,12 +293,14 @@ export function buildWeapon(
   firingHand(hands, 0, BORE - 0.062, recFront + 0.104, 0.26, recFront + 0.030,
     { glove: gloves, sleeve: 'sleeve', mirror: false });
   if (hgLen > 0.05) {
-    // Sit the support hand at the rear third of the handguard unless an
-    // underbarrel grip is fitted, in which case it belongs behind it.
-    const ubOffset = attachments.underbarrel ? 0.055 : 0.0;
+    // Forward on the handguard — that is what a C-clamp is. It used to land
+    // 11% from the REAR of the handguard with 148 mm of bare tube in front of
+    // it, which is a magwell grip, not a C-clamp; and the underbarrel offset
+    // pushed it further backwards rather than behind the stop.
+    const ubOffset = attachments.underbarrel ? 0.030 : 0.0;
     const supportZ = THREE.MathUtils.clamp(
-      hgZ + hgLen * 0.06 + ubOffset, hgZ - hgLen * 0.42, hgZ + hgLen * 0.42);
-    supportHand(hands, 0, BORE - 0.008, supportZ, 0.026, 0.16,
+      hgZ - hgLen * 0.20 + ubOffset, hgZ - hgLen * 0.42, hgZ + hgLen * 0.42);
+    supportHand(hands, 0, BORE - 0.004, supportZ, 0.019, 0.14,
       { glove: gloves, sleeve: 'sleeve', mirror: true });
   }
   b.group.add(hands.group);
@@ -371,8 +419,15 @@ function buildPistol(
 function finalise(b: PartBuilder): void {
   b.group.traverse((o) => {
     if ((o as THREE.Mesh).isMesh) {
-      o.castShadow = false;
-      o.receiveShadow = false;
+      // Self-shadowing. On a flat-shaded model under a near-uniform
+      // environment, occlusion is the only remaining source of internal
+      // structure — with it off, the optic cast nothing on the rail, the
+      // magazine cast nothing into the magwell and the hands cast nothing on
+      // the handguard, so every internal edge had to be carried by value
+      // alone. The viewmodel key light has a tight 1.1 m ortho frustum, so
+      // this is one small extra pass, not a scene-wide cost.
+      o.castShadow = true;
+      o.receiveShadow = true;
       // Drawn in its own pass with a cleared depth buffer, so it can never be
       // culled against world geometry.
       o.frustumCulled = false;
