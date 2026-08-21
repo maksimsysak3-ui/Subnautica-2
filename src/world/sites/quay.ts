@@ -697,6 +697,187 @@ export function buildQuay(
   }
 
   // =========================================================================
+  // INTERIORS
+  //
+  // An empty room is a corridor with extra walls. Furniture is not decoration
+  // in a tactical shooter — it is what makes a room a *place*: it gives you
+  // waist-high cover, it breaks sightlines, it tells you what the room is for
+  // before you have cleared it, and it is the difference between "a box with
+  // hostiles in it" and somewhere you have to think about.
+  //
+  // Ready or Not runs its interiors at roughly one prop per 3-5 square metres.
+  // This building had ONE prop call in the entire site.
+  // =========================================================================
+
+  // --- office block, ground floor -----------------------------------------
+  // Lobby: a counter you can fight from, seating, and a board.
+  p.counter(OFF.x0 + 3, OFF.z1 - 4.5, OFF.x0 + 11, OFF.z1 - 4.5, PAD, M.steelDark);
+  p.chair(OFF.x0 + 5, PAD, OFF.z1 - 7, 0.2);
+  p.chair(OFF.x0 + 7.4, PAD, OFF.z1 - 7.4, -0.35);
+  p.sofa(OFF.x0 + 13, PAD, OFF.z1 - 3, -Math.PI / 2, 2.4, M.leather);
+  p.table(OFF.x0 + 13, PAD, OFF.z1 - 6, 0, 1.1, 0.7, 0.45, M.steelDark);
+  p.painting(OFF.x0 + 0.4, PAD + 1.8, OFF.z1 - 8, Math.PI / 2, 1.2, 0.9);
+  p.pendant(OFF.x0 + 9, PAD + 3.3, OFF.z1 - 6);
+  for (let i = 0; i < 3; i++) p.crate(OFF.x0 + 15 + i * 1.4, PAD, OFF.z1 - 10.5, i * 0.4, 0.55);
+
+  // Mess: tables in rows, a galley run down one wall.
+  for (let r = 0; r < 3; r++) {
+    for (let c = 0; c < 2; c++) {
+      const tx = OFF.x0 + 5 + c * 8, tz = OFF.z0 + 6 + r * 9;
+      p.table(tx, PAD, tz, 0, 2.0, 0.9, 0.75, M.woodWeathered);
+      p.chair(tx - 1.3, PAD, tz, -Math.PI / 2);
+      p.chair(tx + 1.3, PAD, tz, Math.PI / 2);
+      p.chair(tx, PAD, tz - 0.9, 0);
+      if (rng.next() < 0.6) p.chair(tx, PAD, tz + 0.9, Math.PI);
+    }
+  }
+  p.counter(OFF.x0 + 1.2, OFF.z0 + 3, OFF.x0 + 1.2, OFF.z0 + 13, PAD, M.steelGalv);
+  p.fridge(OFF.x0 + 2.2, PAD, OFF.z0 + 15.5, Math.PI / 2);
+  p.stove(OFF.x0 + 2.2, PAD, OFF.z0 + 17.6, Math.PI / 2);
+  for (let i = 0; i < 4; i++) p.pendant(OFF.x0 + 5 + i * 7, PAD + 3.3, OFF.z0 + 10);
+
+  // Bonded store: racking, crates and a strongbox. This is what the mission
+  // sends you in for, so it has to look like somewhere things are kept.
+  for (let r = 0; r < 3; r++) {
+    const rz = OFF.z0 + 5 + r * 8;
+    for (let lv = 0; lv < 3; lv++) {
+      b.span(OFF.x0 + 20, PAD + lv * 0.9, rz, OFF.x1 - 3, PAD + lv * 0.9 + 0.07, rz + 0.9,
+        M.steelDark, { surface: 'metal' });
+    }
+    for (const ux of [OFF.x0 + 20.2, OFF.x1 - 3.2]) {
+      b.span(ux - 0.05, PAD, rz, ux + 0.05, PAD + 2.7, rz + 0.9, M.steelDark, { surface: 'metal' });
+    }
+    for (let k = 0; k < 7; k++) {
+      if (rng.next() < 0.3) continue;
+      p.crate(OFF.x0 + 22 + k * 3.6, PAD + Math.floor(rng.next() * 3) * 0.9 + 0.07,
+        rz + 0.45, rng.range(-0.2, 0.2), rng.range(0.45, 0.7));
+    }
+  }
+  p.desk(OFF.x0 + 22, PAD, OFF.z1 - 12, 0.4);
+  p.shelf(OFF.x1 - 2, PAD, OFF.z1 - 14, -Math.PI / 2, 2.0, 2.2);
+  // The strongbox — the manifest objective's anchor.
+  b.span(OFF.x0 + 32, PAD, OFF.z1 - 16.4, OFF.x0 + 33.4, PAD + 1.15, OFF.z1 - 15.2,
+    M.steelDark, { surface: 'metal' });
+  b.span(OFF.x0 + 32.1, PAD + 0.35, OFF.z1 - 16.5, OFF.x0 + 33.3, PAD + 0.85, OFF.z1 - 16.42,
+    M.brass, { surface: 'metal', flags: BF.NO_COVER });
+
+  // --- office block, upper floor ------------------------------------------
+  // Four offices, each dressed differently so they are distinguishable while
+  // clearing them — identical rooms are how a player loses track of where
+  // they have been.
+  for (let i = 0; i < 4; i++) {
+    const ox = OFF.x0 + 2 + i * 12;
+    const cz = OFF.z0 + 8;
+    p.desk(ox + 5, OFF1, cz, i % 2 ? 0.2 : Math.PI - 0.2);
+    p.chair(ox + 5, OFF1, cz + 1.2, Math.PI);
+    p.shelf(ox + 1.4, OFF1, cz + 4, Math.PI / 2, 1.6, 2.0);
+    if (i % 2 === 0) {
+      p.table(ox + 8, OFF1, cz + 6, 0.3, 1.4, 0.8, 0.72, M.woodWeathered);
+      p.chair(ox + 8, OFF1, cz + 7.2, Math.PI);
+    } else {
+      p.sofa(ox + 8, OFF1, cz + 6, Math.PI, 2.0, M.fabricTeal);
+      p.rug(ox + 8, OFF1, cz + 7.6, 0, 2.4, 1.6, M.fabricCream);
+    }
+    p.painting(ox + 5.5, OFF1 + 1.9, OFF.z0 + 2.3, 0, 1.0, 0.75);
+    for (let k = 0; k < 3; k++) {
+      p.crate(ox + 1.5 + k * 1.2, OFF1, cz + 12 + rng.range(-0.6, 0.6), rng.range(0, 1), 0.45);
+    }
+  }
+  // Corridor: lockers and a water cooler, which is what a corridor has.
+  for (let x = OFF.x0 + 6; x < OFF.x1 - 6; x += 3.2) {
+    b.span(x, OFF1, OFF.z1 - 6.4, x + 1.1, OFF1 + 1.85, OFF.z1 - 5.8, M.steelDark,
+      { surface: 'metal', tint: b.jitterTint(0.05) });
+    b.span(x + 0.02, OFF1 + 1.0, OFF.z1 - 6.45, x + 0.5, OFF1 + 1.1, OFF.z1 - 6.4, M.steelGalv,
+      { surface: 'metal', flags: BF.NO_COVER });
+  }
+  p.waterTank(OFF.x1 - 4, OFF1, OFF.z1 - 7.4, 0.24, 0.55);
+
+  // --- cold store ----------------------------------------------------------
+  // Lobby: a control panel, a trolley, and hanging strip curtains at each
+  // chamber door — the thing that tells you a room is refrigerated.
+  b.span(COLD.x0 + 3, PAD + 0.9, COLD.z1 - 1.4, COLD.x0 + 4.6, PAD + 1.9, COLD.z1 - 1.1,
+    M.steelGalv, { surface: 'metal' });
+  b.span(COLD.x0 + 3.2, PAD + 1.15, COLD.z1 - 1.45, COLD.x0 + 4.4, PAD + 1.65, COLD.z1 - 1.4,
+    M.lampCold, { surface: 'glass', flags: BF.NO_COVER });
+  for (let i = 0; i < 3; i++) {
+    const cx0 = COLD.x0 + 1.5 + i * 13.2;
+    // Strip curtain in the doorway.
+    for (let k = 0; k < 9; k++) {
+      b.span(cx0 + 5.7 + k * 0.2, PAD + 0.2, COLD.z1 - 8.05, cx0 + 5.86 + k * 0.2, PAD + 2.5,
+        COLD.z1 - 7.99, M.plasticWhite,
+        { surface: 'plastic', flags: BF.SOFT | BF.NO_NAV | BF.NO_COVER });
+    }
+    // Trolleys and stacked crates inside.
+    for (let k = 0; k < 5; k++) {
+      if (rng.next() < 0.25) continue;
+      const tx = cx0 + 2 + rng.range(0, 8);
+      const tz = COLD.z0 + 3 + rng.range(0, 12);
+      b.span(tx - 0.5, PAD + 0.16, tz - 0.35, tx + 0.5, PAD + 0.24, tz + 0.35, M.steelDark,
+        { surface: 'metal' });
+      for (let q = 0; q < 2 + Math.floor(rng.next() * 3); q++) {
+        p.crate(tx, PAD + 0.24 + q * 0.5, tz, rng.range(-0.3, 0.3), 0.48);
+      }
+      for (const wx of [tx - 0.42, tx + 0.42]) {
+        b.cyl(wx, PAD + 0.08, tz, 0.08, 0.08, M.rubber, { surface: 'rubber', flags: BF.NO_COVER });
+      }
+    }
+    // Ceiling rail with hanging stock.
+    b.span(cx0 + 1, PAD + 3.6, COLD.z0 + 4, cx0 + 11, PAD + 3.7, COLD.z0 + 4.12, M.steelGalv,
+      { surface: 'metal', flags: BF.NO_NAV });
+    for (let k = 0; k < 6; k++) {
+      if (rng.next() < 0.4) continue;
+      b.span(cx0 + 1.6 + k * 1.6, PAD + 2.3, COLD.z0 + 3.86, cx0 + 2.2 + k * 1.6, PAD + 3.6,
+        COLD.z0 + 4.26, M.fabricCream, { surface: 'fabric', tint: b.jitterTint(0.10) });
+    }
+  }
+
+  // --- warehouse: a floor office and a break area on the mezzanine ---------
+  // Somewhere on a warehouse floor there is always a glass box with a desk in
+  // it, and it is always the best cover on the floor.
+  const fo = { x0: WH.x1 - 16, x1: WH.x1 - 4, z0: WH.z1 - 14, z1: WH.z1 - 4 };
+  for (const [wx0, wz0, wx1, wz1] of [
+    [fo.x0, fo.z0, fo.x1, fo.z0 + 0.2], [fo.x0, fo.z1 - 0.2, fo.x1, fo.z1],
+    [fo.x0, fo.z0, fo.x0 + 0.2, fo.z1],
+  ] as const) {
+    b.span(wx0, PAD, wz0, wx1, PAD + 1.05, wz1, M.corrugated, { surface: 'metal' });
+    b.span(wx0, PAD + 1.05, wz0, wx1, PAD + 2.6, wz1, M.glass,
+      { surface: 'glass', flags: BF.SOFT });
+  }
+  b.span(fo.x1 - 0.2, PAD, fo.z0, fo.x1, PAD + 2.6, fo.z0 + 4, M.corrugated, { surface: 'metal' });
+  b.span(fo.x0, PAD + 2.6, fo.z0, fo.x1, PAD + 2.8, fo.z1, M.bitumen, { surface: 'metal' });
+  p.desk(fo.x0 + 4, PAD, fo.z0 + 3, 0.1);
+  p.chair(fo.x0 + 4, PAD, fo.z0 + 4.4, Math.PI);
+  p.shelf(fo.x0 + 1.2, PAD, fo.z1 - 3, Math.PI / 2, 1.8, 2.0);
+  p.pendant(fo.x0 + 6, PAD + 2.5, fo.z0 + 5);
+  bulkhead(fo.x0 + 6, PAD + 2.45, fo.z0 + 5, 9, 9);
+
+  // Mezzanine break area.
+  p.table(WH.x0 + 8, MEZZ, WH.z0 + 26, 0, 1.6, 0.9, 0.74, M.woodWeathered);
+  p.chair(WH.x0 + 6.6, MEZZ, WH.z0 + 26, -Math.PI / 2);
+  p.chair(WH.x0 + 9.4, MEZZ, WH.z0 + 26, Math.PI / 2);
+  p.fridge(WH.x0 + 3, MEZZ, WH.z0 + 24, Math.PI / 2);
+  p.shelf(WH.x0 + 3, MEZZ, WH.z0 + 30, Math.PI / 2, 2.0, 2.0);
+  for (let i = 0; i < 8; i++) {
+    p.pallet(WH.x0 + 4 + rng.range(0, 14), MEZZ, WH.z0 + 6 + rng.range(0, 34),
+      rng.range(0, 3.14), 2 + Math.floor(rng.next() * 4));
+  }
+  // Forklift on the floor — one silhouette that says "warehouse" instantly.
+  const fk = { x: WH.x0 + 34, z: WH.z1 - 12 };
+  b.span(fk.x - 0.7, PAD + 0.25, fk.z - 1.1, fk.x + 0.7, PAD + 1.15, fk.z + 0.9, M.paintYellow,
+    { surface: 'metal' });
+  b.span(fk.x - 0.55, PAD + 1.15, fk.z - 0.2, fk.x + 0.55, PAD + 1.85, fk.z + 0.75, M.steelDark,
+    { surface: 'metal' });
+  for (const mx of [-0.5, 0.5]) {
+    b.span(fk.x + mx - 0.05, PAD + 0.3, fk.z - 2.4, fk.x + mx + 0.05, PAD + 2.9, fk.z - 2.3,
+      M.steelDark, { surface: 'metal' });
+  }
+  b.span(fk.x - 0.6, PAD + 0.1, fk.z - 2.5, fk.x + 0.6, PAD + 0.2, fk.z - 1.4, M.steelGalv,
+    { surface: 'metal', flags: BF.NO_COVER });
+  for (const [wx, wz] of [[-0.72, -0.7], [0.72, -0.7], [-0.72, 0.6], [0.72, 0.6]] as const) {
+    b.cyl(fk.x + wx, PAD + 0.26, fk.z + wz, 0.26, 0.11, M.rubber, { surface: 'rubber' });
+  }
+
+  // =========================================================================
   // Yard clutter — the things that make a working terminal read as one.
   // =========================================================================
   for (let i = 0; i < 26; i++) {
