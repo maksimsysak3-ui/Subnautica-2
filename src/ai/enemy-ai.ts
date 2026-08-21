@@ -162,6 +162,21 @@ export class EnemyAi implements System {
     });
   }
 
+  /**
+   * Forget everything — used when the level is torn down.
+   *
+   * Brains live on the actors, so clearing the registry takes them with it;
+   * what has to be cleared here is the path queue, which otherwise still holds
+   * ids that now belong to actors on a different map.
+   */
+  reset(): void {
+    this.pathQueue.length = 0;
+    this.pathMs.length = 0;
+    this.stats.thinking = 0;
+    this.stats.engaging = 0;
+    this.stats.fallbackPaths = 0;
+  }
+
   /** Register an actor with the AI and give it a patrol route. */
   attach(actor: Actor, route: THREE.Vector3[] = []): void {
     actor.brain = newBrain(this.rng, route);

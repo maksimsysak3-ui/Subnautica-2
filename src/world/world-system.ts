@@ -119,8 +119,13 @@ export class WorldSystem implements System, IWorldQuery {
     minZ: -TERRAIN_SIZE / 2, maxZ: TERRAIN_SIZE / 2,
   };
 
-  readonly yard = new Brickyard(8192);
-  readonly nav = new Navigation();
+  // Not readonly: switching maps replaces both wholesale. Resetting a
+  // brickyard and a navmesh in place would mean clearing a dozen typed arrays
+  // and every acceleration structure built over them, and getting one of them
+  // wrong leaves stale geometry that only shows up as a raycast hitting a
+  // building that is no longer there.
+  yard = new Brickyard(8192);
+  nav = new Navigation();
   doors!: DoorRegistry;
 
   root = new THREE.Group();
@@ -153,9 +158,33 @@ export class WorldSystem implements System, IWorldQuery {
   };
 
   init(_ctx: EngineContext): void {
-    const t0 = performance.now();
     const render = services.get('render');
     render.scene.add(this.root);
+    this.buildMap(this.mapId);
+    services.register('world', this);
+    services.register('nav', this.nav);
+  }
+
+  /**
+   * Build (or rebuild) a map.
+   *
+   * Separated from `init` so the map picker can switch without reloading the
+   * page. A reload is the obvious implementation and it does not work: the
+   * published build runs inside an artifact iframe, and reloading that frame
+   * fails outright — the player gets "couldn't load artifact" instead of a
+   * level. So the world tears itself down and builds again in place.
+   */
+  buildMap(mapId: 'villa' | 'quay'): void {
+    const t0 = performance.now();
+    this.mapId = mapId;
+
+    // Reseed. The generator's RNG carries its state forward, so building a
+    // second map and then switching back produced a *different* villa —
+    // measurably: 1985 bricks the first time, 2004 the second. A level that
+    // is not the same level twice cannot be learned, and it makes every
+    // before/after capture a comparison of two different buildings.
+    this.rng = new Rng(`world:${mapId}`);
+    this.noise = new Noise2D('black-meridian-terrain');
 
     this.buildTerrain();
 
@@ -223,22 +252,52 @@ export class WorldSystem implements System, IWorldQuery {
       buildMs: Math.round(performance.now() - t0),
     };
     console.info(
-      `[world] ${this.buildStats.bricks} bricks · ${this.buildStats.drawCalls} draws · ` +
+      `[world] ${this.site.name} — ${this.buildStats.bricks} bricks · ` +
+      `${this.buildStats.drawCalls} draws · ` +
       `${(this.buildStats.triangles / 1000).toFixed(1)}k tris · ${this.buildStats.rooms} rooms · ` +
       `${this.buildStats.doors} doors · ${this.buildStats.navNodes} nav nodes · ` +
       `${this.buildStats.coverPoints} cover · ${this.buildStats.buildMs}ms`,
     );
+  }
 
-    services.register('world', this);
+  /**
+   * Throw the current level away.
+   *
+   * Every GPU resource is disposed by hand. Dropping the references and
+   * trusting the garbage collector does not free VRAM — a few map switches
+   * would accumulate hundreds of megabytes of orphaned buffers, and on a
+   * modest GPU that ends the session with a context loss rather than a leak
+   * anyone notices in time.
+   */
+  teardown(): void {
+    this.root.traverse((o) => {
+      const m = o as THREE.Mesh;
+      if (!m.isMesh) return;
+      m.geometry?.dispose();
+      const mat = m.material as THREE.Material | THREE.Material[];
+      // Palette materials are shared across every brick and belong to the
+      // palette, not to this mesh; disposing them would blank the next map.
+      if (Array.isArray(mat)) return;
+      if (mat && (mat as THREE.Material & { __shared?: boolean }).__shared !== true
+          && m.name === 'terrain') {
+        mat.dispose();
+      }
+    });
+    this.root.clear();
+
+    this.yard = new Brickyard(8192);
+    this.nav = new Navigation();
+    this.doors = undefined as unknown as DoorRegistry;
+    this.interiors.length = 0;
+    this.insertions.length = 0;
+    this.authoredLights = [];
+    this.extraColliders.length = 0;
+
+    // The navigation service is a different object now, so anything holding
+    // the old one — the AI, chiefly — would path against a deleted level.
     services.register('nav', this.nav);
   }
 
-  update(dt: number, _ctx: EngineContext): void {
-    this.doors.update(dt);
-  }
-
-  // ---------------------------------------------------------------------
-  // Terrain
   // ---------------------------------------------------------------------
 
   /**

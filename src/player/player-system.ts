@@ -119,19 +119,36 @@ export class PlayerSystem implements System {
   private controlsEnabled = true;
 
   init(_ctx: EngineContext): void {
+    this.respawn();
+  }
+
+  /**
+   * Place the player at the current site's front approach and register them as
+   * actor 0.
+   *
+   * Also called on a map switch, which is why it is separate from `init`: the
+   * registry has been cleared by then, so the player has to re-register or the
+   * AI has nothing to perceive and enemy fire has nothing to hit.
+   */
+  respawn(): void {
     const world = services.get('world') as unknown as {
       groundHeight(x: number, z: number): number | null;
       floorAt?(x: number, z: number, fromY: number): number;
-    };
-    // Start at the site's front approach, whichever map was built.
-    const site = (world as unknown as {
       site?: { approaches?: Array<{ kind: string; x: number; y: number; z: number; toX: number; toZ: number }> };
-    }).site;
+    };
+
+    // Start at the site's front approach, whichever map was built. A hardcoded
+    // villa spawn on the quay would put the player 90 m outside the fence, in
+    // the water.
+    const site = world.site;
     const front = site?.approaches?.find((a) => a.kind === 'front') ?? site?.approaches?.[0];
     if (front) {
       this.position.set(front.x, front.y + this.eyeHeight, front.z);
       this.yaw = Math.atan2(front.toX - front.x, front.toZ - front.z);
+      this.pitch = -0.02;
     }
+    this.velocity.set(0, 0, 0);
+    this.stance = 'stand';
 
     const floor = world.floorAt
       ? world.floorAt(this.position.x, this.position.z, this.position.y)
@@ -142,14 +159,14 @@ export class PlayerSystem implements System {
 
     // Register the player as actor 0.
     //
-    // This was missing, and it silently disabled the entire opposition: the AI
-    // looks up `actors.get(0)` to find something to perceive, and enemy fire
-    // calls `applyDamage(0, ...)`. With no actor there, enemies could never
-    // see the player, never engage, and never do damage — everything compiled
-    // and ran, and the game had no threat in it at all.
     // Spawning is not on the read-only IActorRegistry contract — that
-    // interface is deliberately a query surface. The concrete registry is what
-    // owns creation, so the cast is where the boundary genuinely is.
+    // interface is deliberately a query surface. The concrete registry owns
+    // creation, so the cast is where the boundary genuinely is.
+    //
+    // Without this the entire opposition is inert: the AI looks up
+    // `actors.get(0)` to find something to perceive, and enemy fire calls
+    // `applyDamage(0, ...)`. With no actor there, everything compiles and runs
+    // and the game has no threat in it at all.
     const actors = services.tryGet('actors') as unknown as {
       spawn(o: Record<string, unknown>): PlayerActorView;
     } | undefined;
@@ -163,6 +180,7 @@ export class PlayerSystem implements System {
         skill: 1,
         isPlayer: true,
       });
+      this.publishActor();
     }
   }
 

@@ -93,6 +93,26 @@ export class InteriorLights implements System {
     }
   }
 
+  /** Re-read the current site's fixtures. Called after a map switch. */
+  reload(): void {
+    this.clear();
+    const world = services.tryGet('world') as unknown as {
+      authoredLights?: Array<{
+        position: { x: number; y: number; z: number };
+        color: number; intensity: number; distance: number; alwaysOn: boolean;
+      }>;
+    } | undefined;
+    for (const f of world?.authoredLights ?? []) {
+      this.add({
+        position: new THREE.Vector3(f.position.x, f.position.y, f.position.z),
+        color: f.color, intensity: f.intensity, distance: f.distance, alwaysOn: f.alwaysOn,
+      });
+    }
+    // Anything still lit from the old level would hang in mid-air over the new
+    // one until the pool happened to reassign it.
+    for (const l of this.pool) { l.visible = false; l.intensity = 0; }
+  }
+
   /** Authored by the site builders. */
   add(f: Fixture): void {
     this.fixtures.push(f);

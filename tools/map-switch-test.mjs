@@ -29,6 +29,12 @@ const check = (name, pass, detail) => {
   console.log(`  ${pass ? '✓' : '✗'} ${name}${detail ? ` — ${detail}` : ''}`);
 };
 
+// Count loads. If the picker ever navigates, this climbs above 1 — and a
+// navigation is precisely what fails inside an artifact iframe.
+await page.addInitScript(() => {
+  window.__NAVCOUNT = (Number(sessionStorage.getItem('nav')) || 0) + 1;
+  try { sessionStorage.setItem('nav', String(window.__NAVCOUNT)); } catch { /* blocked */ }
+});
 await page.goto('file://' + tmp, { waitUntil: 'load', timeout: 120000 });
 await page.waitForFunction(() => window.__BM?.ready === true, { timeout: 180000 });
 
@@ -37,14 +43,18 @@ const first = await page.evaluate(() => ({
   site: window.services.get('world').site.name,
   buttons: Array.from(document.querySelectorAll('.mapbtn')).map((b) => b.dataset.map),
   marked: document.querySelector('.mapbtn.on')?.dataset.map,
+  bricks: window.services.get('world').buildStats.bricks,
 }));
 check('picker is present', first.buttons.length === 2, first.buttons.join(', '));
 check('default map is the villa', first.map === 'villa', first.site);
 check('current map is marked', first.marked === 'villa', String(first.marked));
 
-// Click the quay button. It stores the choice and reloads.
+// Click the quay button. It rebuilds the level IN PLACE — no reload, because
+// reloading an artifact iframe fails outright.
 await page.click('.mapbtn[data-map="quay"]');
-await page.waitForFunction(() => window.__BM?.ready === true, { timeout: 180000 });
+await page.waitForFunction(
+  () => window.services.get('world').mapId === 'quay', { timeout: 60000 });
+await page.evaluate(() => window.__BM.settle(400));
 const second = await page.evaluate(() => ({
   map: window.services.get('world').mapId,
   site: window.services.get('world').site.name,
@@ -59,9 +69,28 @@ check('the quay geometry actually built', second.bricks > 500, `${second.bricks}
 
 // And back again, so the picker is not one-way.
 await page.click('.mapbtn[data-map="villa"]');
-await page.waitForFunction(() => window.__BM?.ready === true, { timeout: 180000 });
-const third = await page.evaluate(() => window.services.get('world').site.name);
-check('switching back works', third.includes('Verdugo'), third);
+await page.waitForFunction(
+  () => window.services.get('world').mapId === 'villa', { timeout: 60000 });
+await page.evaluate(() => window.__BM.settle(400));
+const third = await page.evaluate(() => ({
+  name: window.services.get('world').site.name,
+  hostiles: window.engine.get('actors').all.filter((a) => a.faction !== 'player').length,
+  player: !!window.engine.get('actors').get(0),
+  navOk: !!window.services.get('nav'),
+}));
+check('switching back works', third.name.includes('Verdugo'), third.name);
+check('the villa garrison is back', third.hostiles >= 10, `${third.hostiles} hostiles`);
+check('the player is still actor 0 after two switches', third.player);
+
+// The page must never have navigated — a reload is what broke the artifact.
+const navigated = await page.evaluate(() => window.__NAVCOUNT ?? 1);
+check('no page reload occurred', navigated === 1, `${navigated} load(s)`);
+
+// The same map must build identically every time, or it cannot be learned and
+// no before/after capture compares the same building.
+const rebuilt = await page.evaluate(() => window.services.get('world').buildStats.bricks);
+check('the villa rebuilds identically', rebuilt === first.bricks,
+  `${first.bricks} then ${rebuilt} bricks`);
 
 await browser.close();
 const failed = results.filter((r) => !r.pass).length;

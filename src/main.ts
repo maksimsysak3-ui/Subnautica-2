@@ -160,25 +160,72 @@ async function boot(): Promise<void> {
 
   // --- map picker ---------------------------------------------------------
   //
-  // A reload, not a runtime swap. The level — geometry, navmesh, cover graph,
-  // doors, garrison — is generated at boot, and rebuilding all of it in place
-  // would be far more fragile than starting again. The choice is stored, so
-  // the reload comes back on the chosen map.
-  const currentMap = (services.get('world') as unknown as { mapId: 'villa' | 'quay' }).mapId;
+  // Switches in place. Reloading the page is the obvious implementation and it
+  // does not work here: the published build runs inside an artifact iframe,
+  // and reloading that frame fails outright — the player gets "couldn't load
+  // artifact" where the level should be. So the level is torn down and rebuilt
+  // without any navigation at all.
+  //
+  // Order matters. Actors have to go before the world, because their colliders
+  // live in the world's collider list and disposing that list first would
+  // leave `despawn` unregistering from a list that no longer exists.
+  const worldSys = services.get('world') as unknown as {
+    mapId: 'villa' | 'quay';
+    buildMap(id: 'villa' | 'quay'): void;
+    teardown(): void;
+    floorAt(x: number, z: number, from: number): number;
+    site: { name: string };
+  };
+
+  let switching = false;
+  const switchMap = (id: 'villa' | 'quay'): void => {
+    if (switching || id === worldSys.mapId) return;
+    switching = true;
+    const t0 = performance.now();
+    try {
+      engine.setPaused(true);
+
+      const bodies = engine.get('actorBodies') as unknown as { clearAll(): void } | undefined;
+      const registry = engine.get('actors') as unknown as
+        { clear(): void } & Parameters<typeof garrison>[1];
+      bodies?.clearAll();
+      registry.clear();
+      ai.reset();
+
+      worldSys.teardown();
+      worldSys.buildMap(id);
+      writeMapChoice(id);
+
+      // The player re-registers as actor 0 and lands on the new map's own
+      // insertion point. Doing this through the controller rather than by
+      // writing a position keeps the eye/feet split and the spawn logic in one
+      // place.
+      player.respawn();
+
+      (engine.get('interiorLights') as unknown as { reload(): void } | undefined)?.reload();
+      garrison(id, registry, ai, (x, z) => worldSys.floorAt(x, z, 40));
+
+      console.info(`[map] switched to ${worldSys.site.name} in ${Math.round(performance.now() - t0)}ms`);
+      bus.emit('ui:notify', { text: worldSys.site.name, kind: 'info' });
+    } finally {
+      engine.setPaused(false);
+      switching = false;
+    }
+
+    for (const b of Array.from(document.querySelectorAll<HTMLElement>('.mapbtn'))) {
+      b.classList.toggle('on', b.dataset.map === id);
+    }
+  };
+
   for (const btn of Array.from(document.querySelectorAll<HTMLElement>('.mapbtn'))) {
     const id = btn.dataset.map as 'villa' | 'quay';
-    btn.classList.toggle('on', id === currentMap);
+    btn.classList.toggle('on', id === worldSys.mapId);
     btn.addEventListener('click', (e) => {
-      e.stopPropagation();          // the overlay's own click starts the game
-      if (id === currentMap) return;
-      writeMapChoice(id);
-      btn.textContent = 'LOADING…';
-      // A stale `?map=` in the address would win over the choice just made,
-      // because readMapChoice reads the URL first — that is what the capture
-      // tools drive. Strip it if it is there; otherwise a plain reload, which
-      // is the only thing guaranteed to work in every embedding.
-      if (location.search) location.replace(location.pathname + location.hash);
-      else location.reload();
+      // The overlay's own click handler starts the game; a map button must not
+      // also do that, or picking a map drops you straight into the old level
+      // for the frame before the new one exists.
+      e.stopPropagation();
+      switchMap(id);
     });
   }
 

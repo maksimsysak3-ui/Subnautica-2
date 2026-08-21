@@ -285,8 +285,24 @@ export class ActorBodies implements System {
     this.bodies.delete(actorId);
   }
 
-  dispose(): void {
+  /**
+   * Drop every body, disposing GPU resources.
+   *
+   * `despawn` only unregisters the collider and detaches the group — which is
+   * right for one actor dying mid-mission, because the geometry is about to be
+   * reused. On a map switch nothing is reused, so the merged humanoid
+   * geometries have to be freed by hand or every switch leaks one per actor.
+   */
+  clearAll(): void {
+    for (const [, b] of this.bodies) {
+      b.visual?.geometry.dispose();
+      for (const p of b.parts) p.mesh.geometry.dispose();
+    }
     for (const id of [...this.bodies.keys()]) this.despawn(id);
     this.root.clear();
+  }
+
+  dispose(): void {
+    this.clearAll();
   }
 }
