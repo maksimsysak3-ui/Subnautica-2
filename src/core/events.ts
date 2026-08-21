@@ -107,6 +107,8 @@ export interface GameEvents {
   'mission:objectiveUpdated': { objectiveId: string; state: string; progress: number };
   'mission:objectiveCompleted': { objectiveId: string };
   'mission:phaseChanged': { phase: string };
+  'mission:started': { missionId: string; seed: number; codename: string };
+  'mission:ended': { outcome: string; reason: string };
   'mission:completed': { missionId: string; success: boolean; stats: Record<string, number> };
 
   // --- progression ---------------------------------------------------------

@@ -23,6 +23,7 @@ import { Viewmodel } from './weaponmodels/viewmodel';
 import { CombatFx } from './fx/combat-fx';
 import { Hud } from './ui/hud';
 import { InteriorLights } from './lighting/interior-lights';
+import { MissionSystem } from './missions/mission-system';
 import { EnemyAi } from './ai/enemy-ai';
 import { garrison } from './ai/garrison';
 import { CaptureDirector } from './core/capture-director';
@@ -101,6 +102,10 @@ async function boot(): Promise<void> {
   progress(0.76, 'switching on the lights');
   engine.add(new InteriorLights());
 
+  progress(0.77, 'drafting the tasking');
+  const missions = new MissionSystem();
+  engine.add(missions);
+
   progress(0.78, 'briefing the opposition');
   const ai = new EnemyAi();
   engine.add(ai);
@@ -124,6 +129,14 @@ async function boot(): Promise<void> {
     world.mapId, actorReg, ai, (x, z) => world.floorAt(x, z, 40),
   );
   console.info(`[garrison] ${world.site.name}: ${placed} hostiles on station`);
+
+  // Tasking. A map with people on it and nothing to do is a sandbox.
+  const beginMission = (mapId: 'villa' | 'quay'): void => {
+    const def = missions.generate(Date.now() & 0xffff, { region: mapId });
+    void missions.start(def, 'front');
+    console.info(`[mission] ${def.codename} — ${def.objectives.length} objectives`);
+  };
+  beginMission(world.mapId);
 
   const director = new CaptureDirector(engine);
   installAutomation(engine, director);
@@ -204,6 +217,7 @@ async function boot(): Promise<void> {
 
       (engine.get('interiorLights') as unknown as { reload(): void } | undefined)?.reload();
       garrison(id, registry, ai, (x, z) => worldSys.floorAt(x, z, 40));
+      beginMission(id);
 
       console.info(`[map] switched to ${worldSys.site.name} in ${Math.round(performance.now() - t0)}ms`);
       bus.emit('ui:notify', { text: worldSys.site.name, kind: 'info' });

@@ -19,9 +19,13 @@
  * the spout" is a real distinction that changes how you reload.
  */
 
+import * as THREE from 'three';
 import type { System, EngineContext } from '../core/engine';
 import { bus } from '../core/events';
 import { services } from '../core/contracts';
+
+/** Scratch for marker projection — this runs once per objective per frame. */
+const _mv = new THREE.Vector3();
 
 const CSS = `
 #hud { position: fixed; inset: 0; pointer-events: none; z-index: 400;
@@ -90,6 +94,50 @@ const CSS = `
 #hud .vitals b { color: var(--text, #d8e2ea); }
 #hud .vitals.hurt b { color: #d4884e; }
 #hud .vitals.critical b { color: #d4574e; }
+
+/* Objectives. Top-left, quiet, always there — a tactical shooter's task list
+   is reference material, not a notification. */
+#hud .tasks { position: absolute; left: 30px; top: 26px; max-width: 320px;
+  font-size: 11px; letter-spacing: .09em; line-height: 1.55; }
+#hud .tasks .codename { color: var(--brass, #c8a355); letter-spacing: .26em;
+  font-size: 10px; margin-bottom: 8px; }
+#hud .tasks .task { display: flex; gap: 8px; color: var(--text-dim, #8ea0ae);
+  margin-bottom: 4px; transition: color .3s ease, opacity .3s ease; }
+#hud .tasks .task i { font-style: normal; width: 10px; flex: 0 0 10px; opacity: .8; }
+#hud .tasks .task.done { color: #6f8a6a; opacity: .55; }
+#hud .tasks .task.done span { text-decoration: line-through; }
+#hud .tasks .task.opt { opacity: .68; font-style: italic; }
+#hud .tasks .task.failed { color: #d4574e; }
+
+/* Objective markers, clamped to the screen edge when off-view. A compass you
+   have to interpret is worse than an arrow you do not. */
+#hud .markers { position: absolute; inset: 0; }
+#hud .markers b { position: absolute; transform: translate(-50%, -50%);
+  font-size: 9px; letter-spacing: .16em; font-weight: 400; white-space: nowrap;
+  color: var(--brass, #c8a355); padding: 2px 5px;
+  border: 1px solid rgba(200,163,85,.45); background: rgba(5,7,10,.5); }
+#hud .markers b.edge { opacity: .55; }
+#hud .markers b em { font-style: normal; color: var(--text-dim, #8ea0ae);
+  margin-left: 5px; }
+
+/* Debrief. */
+#hud .debrief { position: absolute; inset: 0; display: none; place-items: center;
+  background: rgba(4,6,9,.86); backdrop-filter: blur(3px); }
+#hud .debrief.on { display: grid; }
+#hud .debrief .card { width: min(560px, 84vw); border: 1px solid rgba(255,255,255,.12);
+  padding: 34px 38px; background: rgba(10,13,17,.9); }
+#hud .debrief h2 { margin: 0 0 4px; font-size: 22px; letter-spacing: .3em; font-weight: 500; }
+#hud .debrief .why { color: var(--text-dim, #8ea0ae); font-size: 12px;
+  letter-spacing: .06em; line-height: 1.7; margin-bottom: 22px; }
+#hud .debrief.success h2 { color: #8fbf7a; }
+#hud .debrief.partial h2 { color: #d4a84e; }
+#hud .debrief.failure h2, #hud .debrief.aborted h2 { color: #d4574e; }
+#hud .debrief dl { display: grid; grid-template-columns: 1fr auto; gap: 7px 20px;
+  margin: 0; font-size: 11px; letter-spacing: .12em; }
+#hud .debrief dt { color: var(--text-faint, #55677a); }
+#hud .debrief dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
+#hud .debrief .again { margin-top: 26px; font-size: 10px; letter-spacing: .22em;
+  color: var(--text-faint, #55677a); }
 `;
 
 export class Hud implements System {
@@ -116,6 +164,12 @@ export class Hud implements System {
   private dirEl!: HTMLElement;
   private vitalsEl!: HTMLElement;
   private hitMarks: Array<{ el: HTMLElement; life: number }> = [];
+  private tasksEl!: HTMLElement;
+  private codenameEl!: HTMLElement;
+  private markersEl!: HTMLElement;
+  private debriefEl!: HTMLElement;
+  private taskKey = '';
+  private markerEls: HTMLElement[] = [];
 
   /** Injected — the HUD reads state, it never reaches into other modules. */
   player: {
@@ -160,6 +214,12 @@ export class Hud implements System {
         <div class="stance">STANCE <b>STANDING</b></div>
         <div class="stamina"><i style="width:100%"></i></div>
       </div>
+      <div class="markers"></div>
+      <div class="tasks"><div class="codename"></div><div class="list"></div></div>
+      <div class="debrief"><div class="card">
+        <h2></h2><div class="why"></div><dl></dl>
+        <div class="again">PRESS <b>ESC</b> AND PICK A MAP TO RUN IT AGAIN</div>
+      </div></div>
       <div class="hurt"></div>
       <div class="damageDir"></div>
       <div class="vitals">CONDITION <b>NOMINAL</b></div>
@@ -183,6 +243,14 @@ export class Hud implements System {
     this.hurtEl = root.querySelector('.hurt')!;
     this.dirEl = root.querySelector('.damageDir')!;
     this.vitalsEl = root.querySelector('.vitals')!;
+    this.tasksEl = root.querySelector('.tasks .list')!;
+    this.codenameEl = root.querySelector('.tasks .codename')!;
+    this.markersEl = root.querySelector('.markers')!;
+    this.debriefEl = root.querySelector('.debrief')!;
+
+    bus.on('mission:started', () => { this.taskKey = ''; this.debriefEl.className = 'debrief'; });
+    bus.on('mission:objectiveCompleted', () => { this.taskKey = ''; });
+    bus.on('mission:ended', () => this.showDebrief());
 
     bus.on('actor:damaged', (e) => { if (e.actorId === 0) this.onHurt(e.sourceId); });
 
@@ -219,6 +287,143 @@ export class Hud implements System {
     el.style.opacity = '1';
     this.dirEl.appendChild(el);
     this.hitMarks.push({ el, life: 1.5 });
+  }
+
+  /**
+   * The task list.
+   *
+   * Rebuilt only when it actually changes — this runs every frame, and the
+   * objective list is the sort of thing that quietly costs a millisecond of
+   * DOM churn per frame if you let it.
+   */
+  private renderTasks(): void {
+    const m = services.tryGet('missions') as unknown as {
+      current: { codename: string } | null;
+      objectives: ReadonlyArray<{
+        id: string; label: string; state: string; optional: boolean;
+        hidden: boolean; progress: number; required: number;
+      }>;
+    } | undefined;
+    if (!m?.current) {
+      if (this.taskKey !== 'none') { this.taskKey = 'none'; this.tasksEl.innerHTML = ''; this.codenameEl.textContent = ''; }
+      return;
+    }
+    const visible = m.objectives.filter((o) => !o.hidden && o.state !== 'pending');
+    const key = m.current.codename + '|' + visible
+      .map((o) => `${o.id}:${o.state}:${o.progress}`).join(',');
+    if (key === this.taskKey) return;
+    this.taskKey = key;
+
+    this.codenameEl.textContent = m.current.codename;
+    this.tasksEl.innerHTML = visible.map((o) => {
+      const done = o.state === 'complete';
+      const cls = `task${done ? ' done' : ''}${o.optional ? ' opt' : ''}` +
+        (o.state === 'failed' ? ' failed' : '');
+      const count = o.required > 1 && !done ? ` <em>${o.progress}/${o.required}</em>` : '';
+      return `<div class="${cls}"><i>${done ? '✓' : o.state === 'failed' ? '✕' : '▸'}</i>` +
+        `<span>${o.label}${count}</span></div>`;
+    }).join('');
+  }
+
+  /**
+   * Objective markers.
+   *
+   * Projected to screen, and clamped to the frame edge when the objective is
+   * behind you or off to one side. An off-screen objective with no indicator
+   * is the single most common way a player gets lost in a level they have
+   * never seen, and a compass rose asks them to do the geometry themselves.
+   */
+  private renderMarkers(): void {
+    const m = services.tryGet('missions') as unknown as {
+      current: unknown;
+      objectives: ReadonlyArray<{
+        label: string; state: string; hidden: boolean;
+        position?: { x: number; y: number; z: number };
+      }>;
+    } | undefined;
+    const render = services.tryGet('render') as unknown as
+      { camera: THREE.PerspectiveCamera } | undefined;
+    if (!m?.current || !render || !this.player) {
+      for (const el of this.markerEls) el.style.display = 'none';
+      return;
+    }
+
+    const cam = render.camera;
+    const live = m.objectives.filter(
+      (o) => o.state === 'active' && !o.hidden && o.position);
+    const w = window.innerWidth, h = window.innerHeight;
+    const pad = 44;
+
+    for (let i = 0; i < Math.max(live.length, this.markerEls.length); i++) {
+      let el = this.markerEls[i];
+      if (!el) {
+        el = document.createElement('b');
+        this.markersEl.appendChild(el);
+        this.markerEls.push(el);
+      }
+      const o = live[i];
+      if (!o?.position) { el.style.display = 'none'; continue; }
+
+      const v = _mv.set(o.position.x, o.position.y + 1.2, o.position.z).project(cam);
+      const behind = v.z > 1;
+      let sx = (v.x * 0.5 + 0.5) * w;
+      let sy = (-v.y * 0.5 + 0.5) * h;
+      if (behind) { sx = w - sx; sy = h - sy; }
+
+      const off = behind || sx < pad || sx > w - pad || sy < pad || sy > h - pad;
+      if (off) {
+        // Push it out along its own direction from centre, then clamp — so an
+        // edge marker still points at where the thing actually is.
+        const dx = sx - w / 2, dy = sy - h / 2;
+        const len = Math.hypot(dx, dy) || 1;
+        const scale = Math.min((w / 2 - pad) / Math.abs(dx || 1e-3),
+                               (h / 2 - pad) / Math.abs(dy || 1e-3));
+        sx = w / 2 + (dx / len) * len * scale;
+        sy = h / 2 + (dy / len) * len * scale;
+      }
+      const dist = Math.hypot(
+        o.position.x - this.player.position.x, o.position.z - this.player.position.z);
+      el.style.display = '';
+      el.className = off ? 'edge' : '';
+      el.style.left = `${Math.round(Math.max(pad, Math.min(w - pad, sx)))}px`;
+      el.style.top = `${Math.round(Math.max(pad, Math.min(h - pad, sy)))}px`;
+      el.innerHTML = `${o.label.toUpperCase()}<em>${Math.round(dist)}m</em>`;
+    }
+  }
+
+  private showDebrief(): void {
+    const m = services.tryGet('missions') as unknown as {
+      result: {
+        outcome: string; reason: string; elapsed: number;
+        objectivesComplete: number; objectivesTotal: number;
+        stats: Record<string, number>;
+      } | null;
+    } | undefined;
+    const r = m?.result;
+    if (!r) return;
+
+    const mins = Math.floor(r.elapsed / 60);
+    const secs = Math.floor(r.elapsed % 60);
+    const acc = r.stats.shotsFired > 0
+      ? `${Math.round((r.stats.shotsHit / r.stats.shotsFired) * 100)}%` : '—';
+    const title = { success: 'MISSION COMPLETE', partial: 'OBJECTIVES MET',
+                    failure: 'MISSION FAILED', aborted: 'MISSION ABORTED' }[r.outcome]
+                  ?? 'DEBRIEF';
+
+    this.debriefEl.className = `debrief on ${r.outcome}`;
+    this.debriefEl.querySelector('h2')!.textContent = title;
+    this.debriefEl.querySelector('.why')!.textContent = r.reason;
+    this.debriefEl.querySelector('dl')!.innerHTML = [
+      ['Objectives', `${r.objectivesComplete} / ${r.objectivesTotal}`],
+      ['Time', `${mins}:${String(secs).padStart(2, '0')}`],
+      ['Hostiles down', String(r.stats.kills)],
+      ['Headshots', String(r.stats.headshots)],
+      ['Surrendered', String(r.stats.surrenders)],
+      ['Accuracy', acc],
+      ['Damage taken', String(Math.round(r.stats.damageTaken))],
+      ['Alarm raised', r.stats.alerts > 0 ? 'YES' : 'no'],
+      ['Non-combatants', String(r.stats.civiliansKilled)],
+    ].map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('');
   }
 
   toast(text: string): void {
@@ -295,6 +500,9 @@ export class Hud implements System {
       this.ammoEl.classList.toggle('warn', total > 0 && total <= 8);
       this.ammoEl.classList.toggle('empty', total === 0);
     }
+
+    this.renderTasks();
+    this.renderMarkers();
 
     // --- hit indicators ---------------------------------------------------
     for (let i = this.hitMarks.length - 1; i >= 0; i--) {
