@@ -523,6 +523,12 @@ export class CaptureDirector {
     POSE.rot.set(rx, ry, rz);
   }
 
+  /** Total rounds the weapon runtime has put downrange this session. */
+  private roundsFired(): number {
+    const rt = this.engine.get('weaponRuntime') as unknown as { shotsFired?: number } | undefined;
+    return rt?.shotsFired ?? 0;
+  }
+
   renderStats(): { drawCalls: number; triangles: number } {
     const render = services.get('render') as unknown as {
       stats?(): { drawCalls: number; triangles: number };
@@ -592,6 +598,48 @@ export class CaptureDirector {
         },
       });
     };
+    // A firing frame. The muzzle flash lives for 55 ms and tracers for a few
+    // hundred, so a capture has to stop the clock inside that window rather
+    // than settling first and photographing the aftermath.
+    const firingShot = (name: string, label: string, weapon: string,
+                        att: Record<string, string>, rounds: number, stepMs: number) => {
+      this.register({
+        name, label, system: 'fx', hour: 15.0, weather: 'clear', quality: 3,
+        pos: [0, 0, 0], look: [0, 0, -1],
+        apply: () => {
+          const player = this.engine.get('player') as unknown as {
+            setControlsEnabled(v: boolean): void;
+            position: THREE.Vector3; yaw: number; pitch: number;
+          };
+          player.setControlsEnabled(true);
+          player.position.set(6, 4.2, 96);
+          player.yaw = 0.2;
+          player.pitch = -0.02;
+          this.equipWeapon(weapon, att);
+          const input = this.engine.get('input') as unknown as { override: Record<string, unknown> };
+          for (let i = 0; i < 40; i++) this.engine.frame(performance.now() + i * 16.7);
+
+          // Hold the trigger, then stop `stepMs` after the last round leaves —
+          // early enough that the flash is still alive and the tracer has not
+          // yet reached the wall.
+          if (input) input.override.fire = true;
+          const t0 = performance.now() + 1000;
+          let fired = 0;
+          for (let i = 0; i < 240 && fired < rounds; i++) {
+            this.engine.frame(t0 + i * 8.34);
+            fired = this.roundsFired();
+          }
+          if (input) delete input.override.fire;
+          const steps = Math.max(1, Math.round(stepMs / 8.34));
+          for (let i = 0; i < steps; i++) this.engine.frame(t0 + (240 + i) * 8.34);
+        },
+      });
+    };
+    firingShot('fx-muzzle', 'Muzzle flash', 'ho-mk4c',
+      { optic: 'opt-rds', muzzle: 'muz-a2', handguard: 'hg-mlok-short' }, 1, 8);
+    firingShot('fx-tracer', 'Tracer in flight', 'ho-mk4c',
+      { optic: 'opt-rds', muzzle: 'muz-a2', handguard: 'hg-mlok-short' }, 3, 55);
+
     gunShot('gun-hip', 'Carbine, hip', 15.0, false, 'ho-mk4c', { optic: 'opt-rds', muzzle: 'muz-a2', underbarrel: 'grip-handstop', handguard: 'hg-mlok-short' });
     gunShot('gun-ads', 'Carbine, aimed', 15.0, true, 'ho-mk4c', { optic: 'opt-rds', muzzle: 'muz-a2', underbarrel: 'grip-handstop', handguard: 'hg-mlok-short' });
     gunShot('gun-kitted', 'Carbine, fully kitted', 15.0, false, 'ho-mk4c', { optic: 'opt-lpvo', muzzle: 'muz-supp-heavy', underbarrel: 'grip-vert', handguard: 'hg-mlok-long', magazine: 'mag-ext', laser: 'las-visible' });

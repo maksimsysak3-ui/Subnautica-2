@@ -180,6 +180,21 @@ export class PlayerSystem implements System {
     this.velocity.x = damp(this.velocity.x, wish.x, accel, step);
     this.velocity.z = damp(this.velocity.z, wish.z, accel, step);
 
+    // --- jump -------------------------------------------------------------
+    // Deliberately modest. This is a tactical shooter, not a movement shooter:
+    // 0.55 m of clearance gets you onto a kerb, a low wall or a truck bed, and
+    // no higher. Standing only — you cannot hop out of a crouch or off your
+    // belly, which keeps stance a real commitment.
+    if (inp.jump) {
+      inp.jump = false;
+      if (this.grounded && this.stanceTarget === 'stand' && this.stamina > 12) {
+        this.velocity.y = 3.3;
+        this.grounded = false;
+        this.stamina -= 9;
+        bus.emit('player:jumped', { noise: 0.35 });
+      }
+    }
+
     // --- gravity + collision ---------------------------------------------
     this.velocity.y -= 9.81 * step;
 

@@ -37,6 +37,17 @@ export interface WeaponModel {
   triangles: number;
 }
 
+/**
+ * Layout overrides, keyed by weapon id.
+ *
+ * The assembler is parametric off the spec, but two things cannot be derived
+ * from statistics: whether the action sits behind the trigger, and whether the
+ * weapon feeds from a tube instead of a box. Both change the silhouette
+ * completely, so they are declared.
+ */
+const BULLPUP = new Set(['md-bp5']);
+const TUBE_FED = new Set(['ho-m590', 'md-b12']);
+
 /** Furniture colour per manufacturer, so weapon families read differently. */
 const MAKE_FURNITURE: Record<string, MatKey> = {
   'Aldbrecht Werke': 'polymerBlack',
@@ -62,6 +73,12 @@ export function buildWeapon(
   if (isPistol) {
     return buildPistol(b, spec, attachments, furniture, BORE);
   }
+
+  // Layout, not class. A bullpup and a pump shotgun differ from a conventional
+  // rifle in where the magazine and the grip sit relative to the action, which
+  // changes the silhouette far more than any statistic does.
+  const bullpup = BULLPUP.has(spec.id);
+  const pumpTube = TUBE_FED.has(spec.id);
 
   // =========================================================================
   // Long gun
@@ -148,7 +165,10 @@ export function buildWeapon(
   const hgZ = barrelStart - hgLen / 2;
   const hgMat: MatKey = hgAtt?.id === 'hg-quad' ? 'aluDark' : furniture;
 
-  if (hgLen > 0.04) {
+  // A pump gun has no free-float handguard and no gas system: the sliding
+  // forend below is the only thing the support hand touches, and the barrel
+  // above it is bare.
+  if (hgLen > 0.04 && !pumpTube) {
     // Octagonal-ish tube: a box plus two chamfer strips reads far better than
     // a plain box at almost no cost. Narrowed to match the corrected receiver
     // — at 50 mm across against a 21 mm rail the handguard was 39% oversize.
@@ -175,10 +195,26 @@ export function buildWeapon(
     }
   }
 
+  if (pumpTube && hgLen > 0.04) {
+    // Ribbed sliding forend, wrapped around the magazine tube rather than
+    // free-floated on the barrel.
+    const fz = barrelStart - 0.055 - 0.055;
+    b.box(0.048, 0.052, 0.130, furniture, 0, BORE - 0.020, fz);
+    for (let i = 0; i < 7; i++) {
+      b.box(0.052, 0.006, 0.008, 'polymerBlack', 0, BORE - 0.020, fz - 0.052 + i * 0.017);
+    }
+  }
+
   // --- gas block + front sight base ---------------------------------------
-  const gasZ = barrelStart - hgLen - 0.040;
-  b.box(0.026, 0.032, 0.030, 'parkerised', 0, BORE + 0.006, gasZ);
-  b.cyl(0.006, hgLen * 0.5, 'blued', 0, BORE + 0.016, gasZ + hgLen * 0.25, 8); // gas tube
+  const gasZ = pumpTube ? barrelStart - barrelLen + 0.05 : barrelStart - hgLen - 0.040;
+  if (pumpTube) {
+    // Bead sight on a ventilated rib, which is what a shotgun has instead.
+    b.box(0.010, 0.008, barrelLen * 0.62, 'parkerised', 0, BORE + 0.014, barrelStart - barrelLen * 0.55);
+    b.cyl(0.004, 0.005, 'alu', 0, BORE + 0.021, gasZ, 8);
+  } else {
+    b.box(0.026, 0.032, 0.030, 'parkerised', 0, BORE + 0.006, gasZ);
+    b.cyl(0.006, hgLen * 0.5, 'blued', 0, BORE + 0.016, gasZ + hgLen * 0.25, 8); // gas tube
+  }
 
   // --- muzzle device ------------------------------------------------------
   const muz = attachments.muzzle;
@@ -199,12 +235,24 @@ export function buildWeapon(
   }
 
   // --- grip ---------------------------------------------------------------
-  pistolGrip(b, 0, BORE - 0.056, recFront + 0.100, furniture, 0.26);
+  // A bullpup's grip is forward of its action, not behind it — that is the
+  // whole layout. It sits just aft of the handguard with the magazine well
+  // behind the shooter's hand.
+  const gripZ = bullpup ? recFront + 0.030 : recFront + 0.100;
+  pistolGrip(b, 0, BORE - 0.056, gripZ, furniture, 0.26);
 
   // --- stock --------------------------------------------------------------
   const stockAtt = attachments.stock;
   const stockId = stockAtt?.id ?? 'stock-collapsible';
-  if (stockId === 'stock-fixed' || stockId === 'stock-precision') {
+  if (bullpup) {
+    // No separate stock: the receiver IS the stock. A butt pad on the back of
+    // the housing and a raised comb along the top is the entire assembly.
+    b.box(0.038, 0.076, 0.062, furniture, 0, BORE - 0.014, recBack - 0.030);
+    b.box(0.046, 0.086, 0.018, 'rubber', 0, BORE - 0.014, recBack + 0.004);
+    b.box(0.030, 0.016, 0.090, furniture, 0, BORE + 0.022, recBack - 0.048);
+    // Sling loop on the toe.
+    b.box(0.006, 0.018, 0.006, 'aluDark', 0.017, BORE - 0.048, recBack - 0.014);
+  } else if (stockId === 'stock-fixed' || stockId === 'stock-precision') {
     fixedStock(b, 0, BORE - 0.006, recBack, 0.24, furniture);
     if (stockId === 'stock-precision') {
       b.box(0.030, 0.030, 0.075, furniture, 0, BORE + 0.040, recBack + 0.10);
@@ -218,7 +266,7 @@ export function buildWeapon(
 
   // --- magazine -----------------------------------------------------------
   const magId = attachments.magazine?.id ?? 'mag-std';
-  const magZ = recFront + 0.062;
+  const magZ = bullpup ? recFront + recLen - 0.030 : recFront + 0.062;
   // The floorplate used to sit 224 mm below the bore — 63 mm BELOW the pistol
   // grip — which made the magazine the longest thing on the weapon and turned
   // grip-plus-magazine into one continuous trapezoid. A real carbine's
@@ -226,7 +274,20 @@ export function buildWeapon(
   // magazine inside the magwell, giving the junction line that separates them;
   // previously every millimetre of it was exposed.
   const magY = BORE - 0.040;
-  if (magId === 'mag-drum') {
+  if (pumpTube) {
+    // Tube magazine slung under the barrel, plus a ribbed sliding forend. A
+    // pump gun has no box magazine at all, and rendering one under a shotgun
+    // was the single most obviously wrong thing about this class.
+    const tubeLen = Math.min(barrelLen - 0.06, 0.30);
+    b.cyl(0.0135, tubeLen, 'blued', 0, BORE - 0.028, barrelStart - 0.02 - tubeLen / 2, 12);
+    b.cyl(0.0155, 0.016, 'parkerised', 0, BORE - 0.028, barrelStart - 0.02 - tubeLen, 12);
+    // Magazine cap and follower spring retainer at the muzzle end.
+    b.box(0.014, 0.010, 0.030, 'parkerised', 0, BORE - 0.014, barrelStart - 0.05);
+    // Loading gate on the underside of the receiver.
+    b.box(0.022, 0.004, 0.052, 'polymerBlack', 0, BORE - 0.042, recFront + 0.050);
+    // Shell carrier lifter, visible through the gate.
+    b.box(0.018, 0.006, 0.040, 'brass', 0, BORE - 0.038, recFront + 0.050);
+  } else if (magId === 'mag-drum') {
     b.cyl(0.055, 0.034, 'polymerMid', 0, magY - 0.052, magZ, 14, 0, Math.PI / 2, 0);
     b.cyl(0.050, 0.038, 'aluDark', 0, magY - 0.052, magZ, 14, 0, Math.PI / 2, 0);
     b.box(0.028, 0.048, 0.046, 'polymerBlack', 0, magY - 0.020, magZ);
@@ -245,7 +306,11 @@ export function buildWeapon(
     const m = optic.optic.magnification;
     sightY = m > 1 ? scope(b, 0, railY + 0.003, opticZ, m) : redDot(b, 0, railY + 0.003, opticZ, optic.id.includes('holo'));
   } else {
-    sightY = ironSights(b, 0, railY + 0.003, gasZ, recBack - 0.045);
+    // Iron sights mount to whatever is actually under them. On a pump gun
+    // that is the barrel rib, 24 mm below the receiver's rail line — posting
+    // the front sight at rail height left it floating over a bare barrel.
+    const ironY = pumpTube ? BORE + 0.018 : railY + 0.003;
+    sightY = ironSights(b, 0, ironY, gasZ, pumpTube ? recFront + 0.030 : recBack - 0.045);
   }
 
   // --- underbarrel --------------------------------------------------------
@@ -290,9 +355,16 @@ export function buildWeapon(
   // assembler actually produced, so a longer handguard moves the support hand.
   const hands = new PartBuilder();
   const gloves: MatKey = furniture === 'polymerFde' ? 'gloveTan' : 'glove';
-  firingHand(hands, 0, BORE - 0.062, recFront + 0.104, 0.26, recFront + 0.030,
+  // Follows the grip the assembler actually placed, so a bullpup's forward
+  // grip carries the hand with it instead of leaving it out over the magwell.
+  firingHand(hands, 0, BORE - 0.062, gripZ + 0.004, 0.26, gripZ - 0.070,
     { glove: gloves, sleeve: 'sleeve', mirror: false });
-  if (hgLen > 0.05) {
+  if (pumpTube) {
+    // On a pump the support hand belongs on the sliding forend, which is a
+    // separate, fatter object further forward than any handguard.
+    supportHand(hands, 0, BORE - 0.020, barrelStart - 0.110, 0.026, 0.10,
+      { glove: gloves, sleeve: 'sleeve', mirror: true });
+  } else if (hgLen > 0.05) {
     // Forward on the handguard — that is what a C-clamp is. It used to land
     // 11% from the REAR of the handguard with 148 mm of bare tube in front of
     // it, which is a magwell grip, not a C-clamp; and the underbarrel offset

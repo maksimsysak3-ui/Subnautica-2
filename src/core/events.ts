@@ -61,6 +61,8 @@ export interface GameEvents {
 
   // --- player --------------------------------------------------------------
   'player:stanceChanged': { from: StanceId; to: StanceId };
+  /** `noise` is 0..1, for whatever ends up listening for footfalls. */
+  'player:jumped': { noise: number };
   'player:leanChanged': { amount: number };
   'player:adsChanged': { aiming: boolean };
   'player:healthChanged': { health: number; max: number };

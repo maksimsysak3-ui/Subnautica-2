@@ -31,11 +31,15 @@ export const DEFAULT_BINDINGS: Binding[] = [
   { action: 'right',     keys: ['KeyD'],               label: 'Move right' },
   { action: 'sprint',    keys: ['ShiftLeft'],          label: 'Sprint' },
   { action: 'walk',      keys: ['AltLeft'],            label: 'Walk (quiet)' },
-  { action: 'crouch',    keys: ['KeyC', 'ControlLeft'], label: 'Crouch' },
+  { action: 'crouch',    keys: ['KeyC', 'ControlLeft'], label: 'Crouch / stand up' },
   { action: 'prone',     keys: ['KeyZ'],               label: 'Prone' },
-  { action: 'stand',     keys: ['Space'],              label: 'Stand' },
+  { action: 'jump',      keys: ['Space'],              label: 'Jump' },
   { action: 'leanLeft',  keys: ['KeyQ'],               label: 'Lean left' },
-  { action: 'leanRight', keys: ['KeyE'],               label: 'Lean right' },
+  { action: 'leanRight', keys: ['KeyX'],               label: 'Lean right' },
+  // Aim is on E as well as the right mouse button. A held right-click is
+  // awkward in an embedded view, and it is the one control the player uses
+  // constantly.
+  { action: 'aim',       keys: ['KeyE'],               label: 'Aim down sights' },
   { action: 'reload',    keys: ['KeyR'],               label: 'Reload' },
   { action: 'use',       keys: ['KeyF'],               label: 'Interact' },
   { action: 'fireMode',  keys: ['KeyB'],               label: 'Cycle fire mode' },
@@ -71,14 +75,10 @@ export class InputSystem implements System {
   private canvas!: HTMLCanvasElement;
   private locked = false;
   private lastLockRequest = 0;
-  /**
-   * Pointer lock is unavailable in some embeddings — a sandboxed iframe
-   * without allow="pointer-lock" rejects the request. We can't detect that
-   * up front, so we attempt it once and fall back to drag-look if it fails.
-   */
-  private lockSupported = true;
-  /** Consecutive pointer-lock failures; only a repeat failure means refused. */
+  /** Pointer-lock failures so far. Informational only — never latched. */
   private lockFailures = 0;
+  /** When the lock was last exited, for the browser's re-request cooldown. */
+  private lastExit = -1e9;
   private lockWatchdog = 0;
   private dragging = false;
   private lastDragX = 0;
@@ -158,14 +158,22 @@ export class InputSystem implements System {
   private onMouseDown = (e: MouseEvent): void => {
     this.mouseButtons.add(e.button);
     if (this.locked) return;
-    if (this.lockSupported) {
-      this.requestLock();
-      return;
-    }
-    // Drag-look fallback: hold and move to turn.
+
+    // Arm drag-look AND request the lock, in that order, every time.
+    //
+    // This used to request the lock and `return`, so dragging was never armed
+    // on the click that triggered the request. In an embedding that refuses
+    // pointer lock silently — no error, no rejection, the request simply never
+    // takes effect — that meant the first click did nothing, and dragging did
+    // nothing either, because the drag state was never set. The player was
+    // left with a view they could not turn.
+    //
+    // Arming both is free: `onMouseMove` checks `this.locked` first, so if the
+    // lock is granted the drag path is never reached.
     this.dragging = true;
     this.lastDragX = e.clientX;
     this.lastDragY = e.clientY;
+    this.requestLock();
     e.preventDefault();
   };
 
@@ -204,7 +212,6 @@ export class InputSystem implements System {
     this.locked = document.pointerLockElement === this.canvas;
     if (this.locked) {
       window.clearTimeout(this.lockWatchdog);
-      this.lockSupported = true;
       this.lockFailures = 0;
       this.onControlModeChange?.('locked');
     } else if (wasLocked) {
@@ -214,56 +221,71 @@ export class InputSystem implements System {
     }
   };
 
-  /**
-   * Pointer lock failed. One failure is usually transient — Chrome rejects a
-   * request made too soon after an exit — so only a repeat failure is treated
-   * as the embedding genuinely refusing, at which point we fall back.
-   */
   private onLockError = (): void => {
     this.noteLockFailure();
   };
 
+  /**
+   * Note a failure — but never latch it.
+   *
+   * The old behaviour set `lockSupported = false` on the *first* failure and
+   * never tried again, so one spurious watchdog trip (a slow frame during
+   * boot is enough) permanently downgraded the session to drag-look. Every
+   * subsequent click then returned early without even attempting a lock,
+   * which is a click that visibly does nothing.
+   *
+   * Failures are now only a hint for which hint text to show. The next click
+   * tries pointer lock again regardless.
+   */
   private noteLockFailure(): void {
     this.lockFailures++;
-    if (this.lockFailures >= 1) {
-      this.lockSupported = false;
-      this.onControlModeChange?.('drag');
-    }
+    this.onControlModeChange?.('drag');
   }
 
+  /**
+   * Ask for pointer lock. Safe to call on every click.
+   *
+   * Must run inside the user-gesture task, so there is no async work before
+   * the request. Drag-look stays live the whole time — if the lock is granted
+   * the drag path simply never sees a mousemove without lock, and if it is
+   * refused the player can still look around. That combination is why this
+   * cannot fail closed any more.
+   */
   requestLock(): void {
     this.engaged = true;
-    if (!this.lockSupported) {
+    if (this.locked) return;
+
+    const now = performance.now();
+    // Chrome throws if a lock is re-requested within ~1s of a user-initiated
+    // exit. Guard only that window, and only after an actual exit — a plain
+    // rate limit swallowed legitimate clicks.
+    if (now - this.lastExit < 1100) {
       this.onControlModeChange?.('drag');
       return;
     }
-    const now = performance.now();
-    // Browsers throw if pointer lock is re-requested immediately after an exit.
-    if (now - this.lastLockRequest < 1200) return;
+    if (now - this.lastLockRequest < 250) return;
     this.lastLockRequest = now;
 
     // Some embeddings refuse pointer lock silently: no error event, no promise
     // rejection, the request simply never takes effect. A sandboxed iframe
-    // without allow="pointer-lock" behaves exactly this way, which is how the
-    // published build ended up with a click that appeared to do nothing.
-    // Fall back on a timer rather than waiting for a signal that never comes.
+    // without allow="pointer-lock" behaves exactly this way. Fall back on a
+    // timer rather than waiting for a signal that never comes.
     window.clearTimeout(this.lockWatchdog);
     this.lockWatchdog = window.setTimeout(() => {
       if (!this.locked) this.noteLockFailure();
-    }, 450);
+    }, 600);
 
     try {
       const p = this.canvas.requestPointerLock() as unknown as Promise<void> | undefined;
-      if (p && typeof p.catch === 'function') {
-        p.catch(() => this.noteLockFailure());
-      }
+      if (p && typeof p.catch === 'function') p.catch(() => this.noteLockFailure());
     } catch {
       this.noteLockFailure();
     }
   }
 
+  /** True when the player is steering by dragging rather than by pointer lock. */
   get usingDragLook(): boolean {
-    return !this.lockSupported;
+    return !this.locked;
   }
 
   get isLocked(): boolean {
@@ -295,9 +317,11 @@ export class InputSystem implements System {
     // which may not happen on this frame.
     if (this.consumePress('use')) inp.use = true;
 
-    // Mouse: left fires, right aims.
+    // Mouse: left fires, right aims. E aims too — a held right-click is
+    // awkward in an embedded view and aiming is the control used most.
     inp.fire = this.mouseButtons.has(0);
-    inp.aim = this.mouseButtons.has(2);
+    inp.aim = this.mouseButtons.has(2) || this.isDown('aim');
+    if (this.consumePress('jump')) inp.jump = true;
 
     // Scripted input last, so it wins.
     for (const [k, v] of Object.entries(this.override)) {

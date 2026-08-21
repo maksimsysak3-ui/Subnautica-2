@@ -227,6 +227,15 @@ export const WEAPONS: WeaponSpec[] = [
   // =========================================================================
   // DMRs and snipers
   // =========================================================================
+  // Bullpup. The action sits behind the trigger, so a 460 mm barrel lives in a
+  // weapon the length of a carbine — the whole point of the layout, and the
+  // reason it handles like a short gun and shoots like a long one.
+  build({ id: 'md-bp5', name: 'Meridian BP-5', make: 'Meridian Defence', cls: 'carbine', caliber: '5.56x45',
+    rpm: 700, mag: 30, massKg: 3.3, barrelMm: 460, spreadMoa: 2.0, erg: 68, adsMs: 275,
+    vRecoil: 0.96, hRecoil: 0.44, recovery: 1.40, modes: ['safe', 'semi', 'auto'],
+    unlock: 3, price: 1620,
+    desc: 'Bullpup. Rifle velocity in a carbine footprint, and a trigger that feels like it is connected by string — because it is.' }),
+
   build({ id: 'ca-dm7', name: 'Cassara DM-7', make: 'Cassara Arms', cls: 'dmr', caliber: '7.62x51',
     rpm: 400, mag: 20, massKg: 4.4, barrelMm: 508, spreadMoa: 1.1, erg: 52, adsMs: 380,
     vRecoil: 1.95, hRecoil: 0.62, recovery: 1.10, modes: ['safe', 'semi'],
@@ -259,6 +268,14 @@ export const WEAPONS: WeaponSpec[] = [
     vRecoil: 3.40, hRecoil: 0.90, recovery: 1.00, modes: ['safe', 'semi'],
     reloadMs: 700, reloadEmptyMs: 700, unlock: 2, price: 760,
     desc: 'Pump gun, tube-fed one shell at a time. Buckshot, slug or a breaching round for a hinge.' }),
+
+  // Pump. Slower than the auto, but it will cycle anything you feed it and
+  // there is no gas system to care what that is.
+  build({ id: 'ho-m590', name: 'Halloran M590', make: 'Halloran Ordnance', cls: 'shotgun', caliber: '18.5x70',
+    rpm: 75, mag: 7, massKg: 3.2, barrelMm: 470, spreadMoa: 26, erg: 60, adsMs: 300,
+    vRecoil: 3.6, hRecoil: 1.5, recovery: 0.95, modes: ['safe', 'semi'],
+    unlock: 1, price: 640,
+    desc: 'Tube-fed pump. Manual of arms is one more step than you want under stress, and it does not care in the slightest.' }),
 
   build({ id: 'ca-as12', name: 'Cassara AS-12', make: 'Cassara Arms', cls: 'shotgun', caliber: '18.5x70',
     rpm: 300, mag: 8, massKg: 4.6, barrelMm: 470, spreadMoa: 24, erg: 52, adsMs: 340,

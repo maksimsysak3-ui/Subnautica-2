@@ -269,6 +269,8 @@ export class WeaponRuntime implements System {
   weapons = new WeaponSystem();
   equipped: WeaponInstance | null = null;
   fireMode: FireMode = 'semi';
+  /** Lifetime round counter, so captures and tests can wait on a real shot. */
+  shotsFired = 0;
 
   private recoil = new RecoilState('none');
   private rng = new Rng('weapon-runtime');
@@ -461,6 +463,7 @@ export class WeaponRuntime implements System {
     const jitter = this.rng.range(-spec.rpmJitter, spec.rpmJitter);
     this.cooldown = 60 / Math.max(30, stats.rpm + jitter);
 
+    this.shotsFired++;
     bus.emit('weapon:fired', {
       weaponId: inst.uid,
       muzzle: _muzzle.clone(),
