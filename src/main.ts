@@ -12,7 +12,7 @@ import { services } from './core/contracts';
 import { installAutomation } from './core/automation';
 import { RenderSystem } from './render/render-system';
 import { EnvironmentSystem } from './lighting/environment-system';
-import { WorldSystem } from './world/world-system';
+import { WorldSystem, writeMapChoice } from './world/world-system';
 import { ActorRegistry } from './actors/actor-registry';
 import { PlayerSystem } from './player/player-system';
 import { InputSystem } from './player/input-system';
@@ -157,6 +157,30 @@ async function boot(): Promise<void> {
   const overlay = document.getElementById('click-to-play');
   const modeHint = document.getElementById('mode-hint');
   const fsButton = document.getElementById('go-fullscreen');
+
+  // --- map picker ---------------------------------------------------------
+  //
+  // A reload, not a runtime swap. The level — geometry, navmesh, cover graph,
+  // doors, garrison — is generated at boot, and rebuilding all of it in place
+  // would be far more fragile than starting again. The choice is stored, so
+  // the reload comes back on the chosen map.
+  const currentMap = (services.get('world') as unknown as { mapId: 'villa' | 'quay' }).mapId;
+  for (const btn of Array.from(document.querySelectorAll<HTMLElement>('.mapbtn'))) {
+    const id = btn.dataset.map as 'villa' | 'quay';
+    btn.classList.toggle('on', id === currentMap);
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();          // the overlay's own click starts the game
+      if (id === currentMap) return;
+      writeMapChoice(id);
+      btn.textContent = 'LOADING…';
+      // A stale `?map=` in the address would win over the choice just made,
+      // because readMapChoice reads the URL first — that is what the capture
+      // tools drive. Strip it if it is there; otherwise a plain reload, which
+      // is the only thing guaranteed to work in every embedding.
+      if (location.search) location.replace(location.pathname + location.hash);
+      else location.reload();
+    });
+  }
 
   const engage = (): void => {
     overlay?.classList.add('hidden');

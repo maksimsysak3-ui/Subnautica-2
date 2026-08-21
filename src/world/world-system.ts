@@ -66,6 +66,49 @@ export interface SurfaceUserData {
   indoors?: boolean;
 }
 
+/** Where the map choice is remembered between loads. */
+const MAP_KEY = 'bm.map';
+
+/**
+ * Which map to build.
+ *
+ * Levels are generated rather than loaded, so switching means rebuilding the
+ * world — the navmesh, cover graph, doors and every actor. That is a page
+ * reload, not a runtime swap, and pretending otherwise would mean tearing all
+ * of it down mid-frame.
+ *
+ * The choice is read from `localStorage` first and `?map=` second. The URL is
+ * what the capture tools use, but a published build runs inside an iframe
+ * whose address bar the player cannot reach, so a query parameter is not a
+ * control anyone can actually operate — the stored value is what the in-game
+ * picker writes.
+ *
+ * Every access is guarded: `localStorage` throws outright in some embeddings
+ * rather than merely returning null.
+ */
+export function readMapChoice(): 'villa' | 'quay' {
+  if (typeof location !== 'undefined') {
+    const q = new URLSearchParams(location.search).get('map');
+    if (q === 'quay' || q === 'villa') return q;
+  }
+  try {
+    const v = localStorage.getItem(MAP_KEY);
+    if (v === 'quay' || v === 'villa') return v;
+  } catch {
+    // Private browsing, blocked site data, or a thumbnail capture.
+  }
+  return 'villa';
+}
+
+/** Remember a map choice for the next load. Safe to call anywhere. */
+export function writeMapChoice(id: 'villa' | 'quay'): void {
+  try {
+    localStorage.setItem(MAP_KEY, id);
+  } catch {
+    // Nothing to do — the reload will simply come back on the default map.
+  }
+}
+
 export class WorldSystem implements System, IWorldQuery {
   readonly id = 'world';
   readonly order = 14;
@@ -86,17 +129,9 @@ export class WorldSystem implements System, IWorldQuery {
   private terrainMesh!: THREE.Mesh;
 
   /**
-   * Which map to build.
-   *
-   * Chosen before init, from `?map=` on the URL. Levels are generated rather
-   * than loaded, so switching means rebuilding the world — which is a page
-   * reload, not a runtime swap. That is an honest constraint of building the
-   * whole level in code, and pretending otherwise would mean tearing down and
-   * rebuilding the navmesh, cover graph, doors and actors mid-frame.
+   * Which map to build. See `readMapChoice`.
    */
-  mapId: 'villa' | 'quay' =
-    (typeof location !== 'undefined' && new URLSearchParams(location.search).get('map') === 'quay')
-      ? 'quay' : 'villa';
+  mapId: 'villa' | 'quay' = readMapChoice();
 
   /** The built site — approaches, landmarks and garrison anchors. */
   site!: SiteInstance;

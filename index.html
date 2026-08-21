@@ -69,6 +69,30 @@
     gap: 7px 26px; font-size: 12px; color: var(--text-dim); text-align: left;
   }
   #click-to-play .controls b { color: #d8e2ea; font-weight: 600; }
+  #click-to-play .maps { margin: 22px auto 6px; }
+  #click-to-play .maps-label {
+    font-size: 10px; letter-spacing: .3em; color: var(--text-faint);
+    margin-bottom: 9px;
+  }
+  #click-to-play .maps-row { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+  #click-to-play .mapbtn {
+    flex: 1 1 220px; max-width: 270px; cursor: pointer; text-align: left;
+    background: rgba(255,255,255,.03); color: var(--text-dim);
+    border: 1px solid rgba(255,255,255,.14); padding: 11px 13px;
+    font: inherit; transition: border-color .15s ease, background .15s ease;
+  }
+  #click-to-play .mapbtn:hover { background: rgba(255,255,255,.07); border-color: rgba(200,163,85,.5); }
+  #click-to-play .mapbtn b {
+    display: block; font-size: 12px; letter-spacing: .16em; color: #d8e2ea; font-weight: 600;
+  }
+  #click-to-play .mapbtn i {
+    display: block; font-style: normal; font-size: 10px; line-height: 1.5;
+    letter-spacing: .04em; color: var(--text-faint); margin-top: 5px;
+  }
+  #click-to-play .mapbtn.on {
+    border-color: var(--brass); background: rgba(200,163,85,.13);
+  }
+  #click-to-play .mapbtn.on b { color: var(--brass); }
   #go-fullscreen {
     margin: 18px auto 4px; display: block; cursor: pointer;
     background: rgba(200,163,85,.14); color: #e8d9b4;
@@ -125,6 +149,19 @@
         <div><b>R</b> reload</div><div><b>F</b> open doors</div>
         <div><b>B</b> fire mode</div><div><b>1-4</b> or wheel — swap weapon</div>
         <div><b>V</b> next weapon</div><div><b>Esc</b> release cursor</div>
+      </div>
+      <div class="maps">
+        <div class="maps-label">DEPLOY TO</div>
+        <div class="maps-row">
+          <button class="mapbtn" data-map="villa" type="button">
+            <b>CASA VERDUGO</b>
+            <i>Cartel villa — walled estate, long sightlines, one hard perimeter</i>
+          </button>
+          <button class="mapbtn" data-map="quay" type="button">
+            <b>MERIDIAN QUAY</b>
+            <i>Cargo terminal — container maze, catwalks, tight interiors</i>
+          </button>
+        </div>
       </div>
       <button id="go-fullscreen" type="button">PLAY FULL SCREEN</button>
       <div class="note">Click anywhere to play. Browsers only allow true cursor lock in some embeddings — full screen is the most reliable. Either way you look around by moving the mouse, with no button held, and <b>Esc</b> gives the cursor back.</div>
