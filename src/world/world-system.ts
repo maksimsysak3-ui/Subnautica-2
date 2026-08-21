@@ -275,19 +275,26 @@ export class WorldSystem implements System, IWorldQuery {
       if (!m.isMesh) return;
       m.geometry?.dispose();
       const mat = m.material as THREE.Material | THREE.Material[];
-      // Palette materials are shared across every brick and belong to the
-      // palette, not to this mesh; disposing them would blank the next map.
+      // Brick materials belong to the brickyard, which disposes them below.
+      // The terrain builds its own each time, so it has to be freed here or it
+      // leaks a material and its compiled program per switch.
       if (Array.isArray(mat)) return;
-      if (mat && (mat as THREE.Material & { __shared?: boolean }).__shared !== true
-          && m.name === 'terrain') {
-        mat.dispose();
-      }
+      if (mat && m.name === 'terrain') mat.dispose();
     });
     this.root.clear();
 
+    // The brickyard owns its InstancedMeshes and its material set, and only it
+    // can free them. Traversing `root` and calling geometry.dispose() misses
+    // InstancedMesh.dispose() — which is what releases instanceMatrix and
+    // instanceColor — and misses the materials entirely. That was roughly
+    // 620 KB of instance attributes plus a whole program set leaked on every
+    // map switch, and the next map then recompiled all of it.
+    this.yard.dispose();
     this.yard = new Brickyard(8192);
     this.nav = new Navigation();
     this.doors = undefined as unknown as DoorRegistry;
+    // Points at a mesh whose geometry has just been freed.
+    this.terrainMesh = undefined as unknown as THREE.Mesh;
     this.interiors.length = 0;
     this.insertions.length = 0;
     this.authoredLights = [];

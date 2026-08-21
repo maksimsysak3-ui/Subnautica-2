@@ -99,7 +99,16 @@ export function buildQuay(
   const lights: Fixture[] = [];
 
   /** A hanging high-bay lamp: the fitting, the lens, and the light itself. */
-  const highBay = (x: number, y: number, z: number, intensity = 26, dist = 22): void => {
+  //
+  // ## On the intensities below
+  // Three.js point lights with `decay = 2` and a `distance` cutoff give
+  // irradiance ~ I/d^2 * (1 - d/distance)^4. A high bay 8.7 m above the floor
+  // at intensity 30 delivers 0.066 there — against a NIGHT ambient of 0.30.
+  // It was four and a half times dimmer than the darkness it was meant to
+  // light. The mistake was scaling intensity with the fitting's importance
+  // instead of with the square of its mounting height: at 8.7 m a fixture
+  // needs (8.7/3.0)^2 = 8.4x a 3 m bulkhead just to match it.
+  const highBay = (x: number, y: number, z: number, intensity = 300, dist = 34): void => {
     b.cyl(x, y + 0.34, z, 0.035, 0.34, M.steelDark, { surface: 'metal', flags: BF.NO_NAV });
     b.cyl(x, y - 0.10, z, 0.30, 0.12, M.steelGalv, { surface: 'metal', flags: BF.NO_NAV | BF.NO_COVER });
     b.cyl(x, y - 0.24, z, 0.24, 0.05, M.lampCold,
@@ -202,11 +211,36 @@ export function buildQuay(
   });
   // Gate booth, built here rather than as a prop — the prop library is
   // furniture, and this is a small building.
-  b.span(-24, PAD, PERIM.z0 + 1, -17, PAD + 3.0, PERIM.z0 + 7, M.concreteRaw, { surface: 'concrete' });
-  b.span(-23.4, PAD + 1.0, PERIM.z0 + 0.9, -17.6, PAD + 2.4, PERIM.z0 + 1.1, M.glass,
-    { surface: 'glass', flags: BF.SOFT });
-  b.span(-24.4, PAD + 3.0, PERIM.z0 + 0.4, -16.6, PAD + 3.3, PERIM.z0 + 7.6, M.corrugated,
-    { surface: 'metal' });
+  // A booth with an inside. It used to be a solid 7 x 6 x 3 m block of
+  // concrete with no door and no interior — and the gate guard's spawn point
+  // was inside it.
+  const booth = (bx: number, bz: number, w: number, d: number, h: number): void => {
+    const t = 0.20;
+    b.span(bx - w / 2, PAD, bz - d / 2, bx + w / 2, PAD + h, bz - d / 2 + t, M.concreteRaw,
+      { surface: 'concrete' });                                   // front, under the glass
+    b.span(bx - w / 2, PAD, bz + d / 2 - t, bx + w / 2, PAD + h, bz + d / 2, M.concreteRaw,
+      { surface: 'concrete' });
+    b.span(bx - w / 2, PAD, bz - d / 2, bx - w / 2 + t, PAD + h, bz + d / 2, M.concreteRaw,
+      { surface: 'concrete' });
+    // Doorway on the far side, left open — a booth is not a fight.
+    b.span(bx + w / 2 - t, PAD, bz - d / 2, bx + w / 2, PAD + h, bz - 0.5, M.concreteRaw,
+      { surface: 'concrete' });
+    b.span(bx + w / 2 - t, PAD, bz + 0.5, bx + w / 2, PAD + h, bz + d / 2, M.concreteRaw,
+      { surface: 'concrete' });
+    // Glazing all round the top, which is the whole point of a guard booth.
+    for (const [gx0, gz0, gx1, gz1] of [
+      [bx - w / 2, bz - d / 2 - 0.02, bx + w / 2, bz - d / 2 + 0.02],
+      [bx - w / 2 - 0.02, bz - d / 2, bx - w / 2 + 0.02, bz + d / 2],
+    ] as const) {
+      b.span(gx0, PAD + 1.05, gz0, gx1, PAD + 2.15, gz1, M.glass,
+        { surface: 'glass', flags: BF.SOFT });
+    }
+    b.span(bx - w / 2 - 0.3, PAD + h, bz - d / 2 - 0.3, bx + w / 2 + 0.3, PAD + h + 0.22,
+      bz + d / 2 + 0.3, M.corrugated, { surface: 'metal' });
+    b.span(bx - w / 2 + t, PAD + 0.85, bz - d / 2 + t, bx + w / 2 - t, PAD + 0.95,
+      bz - d / 2 + t + 0.55, M.woodWeathered, { surface: 'wood' });  // desk
+  };
+  booth(-20.5, PERIM.z0 + 4, 6.0, 5.0, 2.9);
 
   // =========================================================================
   // WAREHOUSE — the centrepiece. One big volume with a mezzanine down one
@@ -249,7 +283,28 @@ export function buildQuay(
     doorOp(8, 1.2, 'Office link', whFloor, -1, 'metal', { locked: true }),
   ]);
 
-  b.slab(WH.x0, WH.z0, WH.x1, WH.z1, ROOF, 0.34, M.bitumen, { surface: 'metal', room: whCat });
+  // Roof, with a hatch and openings under the monitors.
+  //
+  // The hatch did not exist: the ladder ran through 340 mm of solid bitumen
+  // while a navLink and an advertised approach route both claimed it was a way
+  // in. The monitors were four sheets of glass laid ON TOP of an opaque roof,
+  // so "the only daylight on the floor" entered through nothing.
+  b.slab(WH.x0, WH.z0, WH.x1, WH.z1, ROOF, 0.34, M.bitumen, {
+    surface: 'metal', room: whCat,
+    holes: [
+      [WH.x1 - 5.2, WH.z0 + 6.8, WH.x1 - 2.8, WH.z0 + 9.2],
+      ...Array.from({ length: 3 }, (_v, i) => {
+        const z = WH.z0 + 12 + i * 14;
+        return [-56, z, -40, z + 3.2] as [number, number, number, number];
+      }),
+    ],
+  });
+  // Hatch coaming and a hinged cover, so the opening reads as a hatch.
+  for (const [ox, oz, dx, dz] of [[-1.3, 0, 0.12, 1.3], [1.3, 0, 0.12, 1.3],
+                                   [0, -1.3, 1.3, 0.12], [0, 1.3, 1.3, 0.12]] as const) {
+    b.box(WH.x1 - 4 + ox, ROOF + 0.18, WH.z0 + 8 + oz, dx, 0.18, dz, M.steelDark,
+      { surface: 'metal' });
+  }
   // Roof monitors — the only daylight on the floor, and they throw hard shafts
   // straight down the middle of the fight.
   for (let z = WH.z0 + 12; z < WH.z1 - 6; z += 14) {
@@ -258,14 +313,24 @@ export function buildQuay(
   }
 
   // --- mezzanine ----------------------------------------------------------
-  b.slab(WH.x0 + 0.3, WH.z0 + 0.3, WH.x0 + 20, WH.z1 - 0.3, MEZZ, 0.30, M.steelDark,
-    { surface: 'metal', room: whMezz });
-  // Handrail along its open edge.
+  // Mezzanine, with the stair well cut out of it. Without the hole the stair
+  // climbed the last 3.4 m underneath a solid slab: head clearance ran out at
+  // 1.74 m and the player was stopped 1.6 m below the deck.
+  b.slab(WH.x0 + 0.3, WH.z0 + 0.3, WH.x0 + 20, WH.z1 - 0.3, MEZZ, 0.30, M.steelDark, {
+    surface: 'metal', room: whMezz,
+    holes: [[WH.x0 + 15.6, WH.z0 + 4.8, WH.x0 + 20.2, WH.z0 + 7.2]],
+  });
+  // Handrail along its open edge, with a gap at the stair mouth. A continuous
+  // rail across the top of a stair is a wall you have to vault.
+  const railGap = (z: number): boolean => z > WH.z0 + 4.4 && z < WH.z0 + 7.6;
   for (let z = WH.z0 + 1; z < WH.z1 - 1; z += 2.2) {
+    if (railGap(z)) continue;
     b.cyl(WH.x0 + 20, MEZZ + 0.55, z, 0.045, 0.55, M.steelGalv, { surface: 'metal', flags: BF.NO_NAV });
   }
-  b.span(WH.x0 + 19.9, MEZZ + 1.02, WH.z0 + 0.4, WH.x0 + 20.1, MEZZ + 1.12, WH.z1 - 0.4,
-    M.steelGalv, { surface: 'metal', flags: BF.NO_NAV | BF.NO_COVER });
+  for (const [ra, rb] of [[WH.z0 + 0.4, WH.z0 + 4.4], [WH.z0 + 7.6, WH.z1 - 0.4]]) {
+    b.span(WH.x0 + 19.9, MEZZ + 1.02, ra, WH.x0 + 20.1, MEZZ + 1.12, rb,
+      M.steelGalv, { surface: 'metal', flags: BF.NO_NAV | BF.NO_COVER });
+  }
 
   b.stairs({
     x: WH.x0 + 22, z: WH.z0 + 6, dirX: -1, dirZ: 0, width: 1.6,
@@ -281,15 +346,34 @@ export function buildQuay(
     [WH.x1 - 2 - catW, WH.z0 + 2, WH.x1 - 2, WH.z1 - 2],
   ];
   for (const [x0, z0, x1, z1] of ring) {
-    b.slab(x0, z0, x1, z1, CAT, 0.14, M.steelGalv, { surface: 'metal', room: whCat });
-    // Rails on both sides — an unrailed catwalk reads as a plank.
-    for (const rx of [x0, x1]) {
-      b.span(rx - 0.04, CAT + 0.95, z0, rx + 0.04, CAT + 1.05, z1, M.steelGalv,
-        { surface: 'metal', flags: BF.NO_NAV | BF.NO_COVER });
+    const runsAlongX = (x1 - x0) > (z1 - z0);
+    b.slab(x0, z0, x1, z1, CAT, 0.14, M.steelGalv, {
+      surface: 'metal', room: whCat,
+      // The west leg carries the stair up from the mezzanine.
+      holes: !runsAlongX && x0 < WH.x0 + 6
+        ? [[x0 - 0.1, WH.z0 + 2.2, x1 + 0.1, WH.z0 + 5.0]]
+        : undefined,
+    });
+    // Rails on BOTH long edges, along whichever axis the leg actually runs.
+    //
+    // These were always built as spans in Z, so the two 66 m legs that run in
+    // X produced a pair of 1.4 m stubs at their ends and left 132 m of catwalk
+    // edge with no rail at all — and the stubs sat in the corners at hip
+    // height, across the walking line.
+    if (runsAlongX) {
+      for (const rz of [z0, z1]) {
+        b.span(x0, CAT + 0.95, rz - 0.04, x1, CAT + 1.05, rz + 0.04, M.steelGalv,
+          { surface: 'metal', flags: BF.NO_NAV | BF.NO_COVER });
+      }
+    } else {
+      for (const rx of [x0, x1]) {
+        b.span(rx - 0.04, CAT + 0.95, z0, rx + 0.04, CAT + 1.05, z1, M.steelGalv,
+          { surface: 'metal', flags: BF.NO_NAV | BF.NO_COVER });
+      }
     }
   }
   b.stairs({
-    x: WH.x0 + 18, z: WH.z0 + 3, dirX: -1, dirZ: 0, width: 1.2,
+    x: WH.x0 + 8.6, z: WH.z0 + 3.6, dirX: 0, dirZ: -1, width: 1.2,
     fromY: MEZZ, toY: CAT, run: 4.2, mat: M.steelGalv, surface: 'metal', room: whMezz,
   });
 
@@ -341,8 +425,14 @@ export function buildQuay(
       // Beams: 200 mm deep, orange, one pair per level per bay.
       for (let lvl = 1; lvl <= levels; lvl++) {
         const y = PAD + lvl * 2.1;
+        // Front and back beam of each frame. `z0 + dz * 0` multiplied the
+        // offset by zero, so both beams of every pair were drawn at identical
+        // coordinates — 24 duplicate bricks all z-fighting, and a rack with a
+        // single beam plane down its centreline instead of two.
         for (const dz of [-depth / 2 + 0.1, depth / 2 - 0.1]) {
-          b.span(px - 0.09, y, z0 + dz * 0 - 0, px + 0.09, y + 0.20, z1, M.paintRed,
+          b.span(px - 0.09, y, z0, px + 0.09, y + 0.20, z1, M.paintRed,
+            { surface: 'metal', flags: BF.NO_COVER, yaw: 0 });
+          b.span(px + dz - 0.05, y, z0, px + dz + 0.05, y + 0.16, z1, M.paintRed,
             { surface: 'metal', flags: BF.NO_COVER });
         }
       }
@@ -383,7 +473,7 @@ export function buildQuay(
   // High-bay lighting on a grid. This is what turns the warehouse from a fog
   // bank into a space with pools of light and shadow between the racks.
   for (let z = WH.z0 + 8; z < WH.z1 - 4; z += 12) {
-    for (const lx of [-70, -52, -34, -20]) highBay(lx, ROOF - 0.5, z, 30, 24);
+    for (const lx of [-70, -52, -34, -20]) highBay(lx, ROOF - 0.5, z, 300, 34);
   }
   // Mezzanine and catwalk get their own, lower and warmer, so the levels read
   // as different places rather than one volume.
@@ -418,14 +508,23 @@ export function buildQuay(
     }
   };
 
-  const yardX0 = -8, yardZ0 = -16, cols = 7, rows = 5;
+  // Yard rows start clear of the rail corridor.
+  //
+  // At yardZ0 = -16 the first two rows sat at z -9.9 and -3.8, squarely inside
+  // the ballast, with the rails running through the container bodies. The
+  // "quiet rail approach" — one of the map's four advertised entries — was
+  // physically blocked and visually broken along its whole length.
+  const yardX0 = -8, yardZ0 = 0, cols = 7, rows = 5;
   for (let r = 0; r < rows; r++) {
     for (let c = 0; c < cols; c++) {
       // Lanes: 4 m across the stacks, 3.2 m between rows. Tight enough that a
       // corner is always within a second of you.
-      const cx = yardX0 + c * 13.0;
+      // 16.4 m pitch gives a 4.2 m end-to-end slot against a 12.22 m box.
+      // At 13.0 the gap was 0.78 m — the player squeezes through with 70 mm
+      // per side and cannot go prone anywhere in the yard.
+      const cx = yardX0 + c * 16.4;
       const cz = yardZ0 + r * 6.1;
-      if (cx > PERIM.x1 - 12) continue;
+      if (cx > PERIM.x1 - 10) continue;
       // Deliberate gaps — a perfectly full yard is a grid, and a grid is
       // solved once. Holes make it a place.
       if (rng.next() < 0.18) continue;
@@ -591,7 +690,7 @@ export function buildQuay(
     const cx0 = COLD.x0 + 1.5 + i * 13.2;
     lights.push({
       position: vec(cx0 + 6, PAD + 3.9, COLD.z0 + 9),
-      color: 0xcfe4ff, intensity: 9, distance: 12, alwaysOn: true,
+      color: 0xcfe4ff, intensity: 60, distance: 14, alwaysOn: true,
     });
     b.span(cx0 + 5.4, PAD + 3.95, COLD.z0 + 8.6, cx0 + 6.6, PAD + 4.05, COLD.z0 + 9.4,
       M.lampCold, { surface: 'glass', flags: BF.NO_NAV | BF.NO_COVER });
@@ -629,7 +728,7 @@ export function buildQuay(
       // Yard lamps come on at dusk, not at noon.
       lights.push({
         position: vec(x, PAD + 6.4, z), color: 0xdce8ff,
-        intensity: 22, distance: 20, alwaysOn: false,
+        intensity: 180, distance: 26, alwaysOn: false,
       });
     }
   }
@@ -679,7 +778,10 @@ export function buildQuay(
   };
   road(0, PERIM.z0 - 2, 0, PERIM.z0 - 62, 9);
   road(0, PERIM.z0 - 62, 78, PERIM.z0 - 78, 9);
-  road(0, PERIM.z0 - 30, -70, PERIM.z0 - 38, 7);
+  // Stops short of the ditch rather than driving through it. This run used to
+  // cross x = -30 at z = -107, burying the tarmac in the dirt and pushing the
+  // berms 0.6 m up through the road surface.
+  road(0, PERIM.z0 - 30, -23, PERIM.z0 - 33, 7);
 
   // Centre line, dashed, on the straight run only.
   for (let z = PERIM.z0 - 8; z > PERIM.z0 - 58; z -= 5.5) {
@@ -694,12 +796,7 @@ export function buildQuay(
   for (let i = 0; i < 5; i++) {
     p.jerseyBarrier(-9 + i * 4.6, PAD, cpZ + (i % 2 ? 2.4 : -2.4), i % 2 ? 0.06 : -0.06);
   }
-  b.span(-16.5, PAD, cpZ - 2.2, -11.5, PAD + 2.8, cpZ + 2.6, M.corrugated,
-    { surface: 'metal' });
-  b.span(-16.2, PAD + 0.95, cpZ - 2.35, -11.8, PAD + 2.1, cpZ - 2.1, M.glass,
-    { surface: 'glass', flags: BF.SOFT });
-  b.span(-17.2, PAD + 2.8, cpZ - 3.0, -10.8, PAD + 3.1, cpZ + 3.4, M.corrugated,
-    { surface: 'metal' });
+  booth(-14, cpZ, 5.0, 4.6, 2.8);
   lights.push({ position: vec(-14, PAD + 2.5, cpZ), color: 0xffd9a8,
     intensity: 9, distance: 11, alwaysOn: false });
   // Boom barrier across the road, raised — this checkpoint is not the obstacle.
@@ -713,10 +810,16 @@ export function buildQuay(
   // A drainage cut running parallel to the road, deep enough to move along
   // below the checkpoint's sightline and out of the floodlight.
   for (let z = PERIM.z0 - 6; z > PERIM.z0 - 72; z -= 6) {
-    b.span(-34, PAD - 1.5, z - 3, -27, PAD - 0.1, z + 3, M.dirtMat,
+    // 1.5 m of real cut, with berms above it.
+    //
+    // `PAD - 1.5` was the block's BOTTOM, not the ditch floor — the walkable
+    // top was PAD - 0.1, a 100 mm scrape. A standing player was exposed by
+    // 0.98 m over the east berm and a crouching one by 0.42 m, so the "quiet
+    // approach" concealed nobody who was not already prone.
+    b.span(-34, PAD - 3.0, z - 3, -27, PAD - 1.40, z + 3, M.dirtMat,
       { surface: 'dirt', flags: BF.NO_COVER, tint: b.jitterTint(0.09) });
-    b.span(-36, PAD - 0.1, z - 3, -34, PAD + 0.5, z + 3, M.dirtMat, { surface: 'dirt' });
-    b.span(-27, PAD - 0.1, z - 3, -25, PAD + 0.6, z + 3, M.dirtMat, { surface: 'dirt' });
+    b.span(-36.5, PAD - 3.0, z - 3, -34, PAD + 0.42, z + 3, M.dirtMat, { surface: 'dirt' });
+    b.span(-27, PAD - 3.0, z - 3, -24.5, PAD + 0.46, z + 3, M.dirtMat, { surface: 'dirt' });
     if (rng.next() < 0.5) p.hedge(-33 + rng.range(0, 5), z - 2, -31 + rng.range(0, 5), z + 2, PAD + 0.4, 1.3, 0.9);
   }
   // Headwalls where the ditch passes the checkpoint.
@@ -725,8 +828,16 @@ export function buildQuay(
   // rotates about that axis and cannot lay it down. The result was a 12 m
   // concrete column standing in the middle of the approach road. Cylinders in
   // this builder are vertical, full stop; a horizontal one is a long box.
+  // Headwalls, with the channel left OPEN through them. Solid walls here
+  // bracketed the checkpoint and forced the stealth route to vault a 0.8 m
+  // wall four metres from the guard post, inside the floodlight.
   for (const hz of [PERIM.z0 - 30, PERIM.z0 - 44]) {
-    b.span(-35, PAD - 1.6, hz - 0.3, -26, PAD + 0.7, hz + 0.3, M.concreteDark,
+    for (const [wx0, wx1] of [[-35.5, -33.6], [-27.4, -25.5]] as const) {
+      b.span(wx0, PAD - 3.0, hz - 0.35, wx1, PAD + 0.55, hz + 0.35, M.concreteDark,
+        { surface: 'concrete' });
+    }
+    // Lintel above the channel, so it reads as a crossing rather than a gap.
+    b.span(-34, PAD - 0.10, hz - 0.35, -27, PAD + 0.55, hz + 0.35, M.concreteDark,
       { surface: 'concrete' });
   }
 
@@ -759,6 +870,8 @@ export function buildQuay(
   // --- outer scrub, spoil heaps and the treeline ---------------------------
   // Placed by rejection sampling against everything above, so nothing lands in
   // a road, a ditch or the rail bed.
+  // 900 samples over ~105,000 m2 is roughly one object per 120 m2. At 150 it
+  // was one per 700 — an object every 26 metres, which is bare sand.
   const clearOf = (x: number, z: number): boolean => {
     if (x > PERIM.x0 - 4 && x < PERIM.x1 + 4 && z > PERIM.z0 - 4 && z < PERIM.z1 + 4) return false;
     if (Math.abs(x) < 8 && z < PERIM.z0 && z > PERIM.z0 - 66) return false;   // road
@@ -766,7 +879,7 @@ export function buildQuay(
     if (x > PERIM.x1 && Math.abs(z + 3) < 9) return false;                     // rail
     return true;
   };
-  for (let i = 0; i < 150; i++) {
+  for (let i = 0; i < 900; i++) {
     const x = rng.range(PERIM.x0 - 96, PERIM.x1 + 96);
     const z = rng.range(PERIM.z0 - 96, PERIM.z1 + 30);
     if (!clearOf(x, z)) continue;
@@ -818,7 +931,7 @@ export function buildQuay(
     for (const sx of [-6.6, 6.6]) {
       p.streetLamp(sx, PAD, z, 5.5);
       lights.push({ position: vec(sx, PAD + 5.2, z), color: 0xffd0a0,
-        intensity: 16, distance: 17, alwaysOn: false });
+        intensity: 140, distance: 24, alwaysOn: false });
     }
   }
 

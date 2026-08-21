@@ -679,14 +679,16 @@ export class CaptureDirector {
         const reg = this.engine.get('actors') as unknown as {
           all: ReadonlyArray<{ id: number; faction: string; alive: boolean;
                                position: THREE.Vector3; forward: THREE.Vector3;
+                               stance: string;
                                brain?: Record<string, unknown> }>;
         };
-        const posed = reg.all.filter((a) => a.faction !== 'player' && a.alive).slice(0, 3);
+        const posed = reg.all.filter((a) => a.faction !== 'player' && a.alive).slice(0, 4);
         posed.forEach((g, i) => {
-          g.position.set(8.4 + i * 1.9, 2.0, 29.6 - i * 0.6);
-          // Facing the camera, three-quarter, and away — the three reads that
-          // matter, side by side.
-          const yaw = [Math.PI, Math.PI * 0.72, 0][i];
+          g.position.set(7.0 + i * 2.0, 2.0, 29.6 - i * 0.4);
+          // Facing toward, three-quarter, away — plus a crouch and a prone,
+          // because those are the two the renderer used to get wrong.
+          const yaw = [Math.PI, Math.PI * 0.72, Math.PI, Math.PI][i];
+          (g as { stance: string }).stance = ['stand', 'stand', 'crouch', 'prone'][i];
           g.forward.set(Math.sin(yaw), 0, Math.cos(yaw));
           if (g.brain) {
             g.brain.route = []; g.brain.path = []; g.brain.goal = null;

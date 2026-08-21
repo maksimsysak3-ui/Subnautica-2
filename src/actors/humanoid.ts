@@ -100,7 +100,16 @@ const PARTS: BoxSpec[] = [
   { w: 0.042, h: 0.075, d: 0.055, x: 0.155, y: 0.87, z: -0.01, color: 'gear' },
 
   // --- torso ---------------------------------------------------------------
-  { w: 0.175, h: 0.085, d: 0.115, x: 0, y: 1.05, z: 0, color: 'body' },
+  // Abdomen in GEAR, not body.
+  //
+  // This one word is why the legs looked too long. The skeleton is right — the
+  // leg top is at 48.4% of height, if anything slightly short of the real
+  // 52-53% — but the eye chains regions of the same tone, and a body-coloured
+  // abdomen repeated the leg's exact value at 50-57% of the figure. Measured
+  // off the render, the leg READ ran to 56.7% against a true 48.4%: they
+  // looked 17% longer than they are. Dark from the belt to the shoulders makes
+  // the light column stop at 40%.
+  { w: 0.175, h: 0.085, d: 0.115, x: 0, y: 1.05, z: 0, color: 'gear' },
   { w: 0.215, h: 0.175, d: 0.145, x: 0, y: 1.28, z: 0, color: 'gear' },
 
   // --- the asymmetry: plate in front, pouches behind ---------------------
@@ -117,7 +126,13 @@ const PARTS: BoxSpec[] = [
 
   // --- neck, head and FACE ------------------------------------------------
   { w: 0.058, h: 0.045, d: 0.058, x: 0, y: 1.515, z: 0.008, color: 'head' },
-  { w: 0.078, h: 0.095, d: 0.098, x: 0, y: 1.625, z: 0, color: 'head' },
+  // 230 mm chin to crown, not 190.
+  //
+  // The old head made the figure 9.05 heads tall. Real is 7.5, and 8-9 heads
+  // is the fashion-illustration proportion — which is precisely the
+  // "impossibly long legs" look. At 0.115 the figure is 7.48 heads with
+  // nothing else touched.
+  { w: 0.082, h: 0.115, d: 0.102, x: 0, y: 1.615, z: 0, color: 'head' },
   // The face.
   //
   // A featureless skin-coloured cube is the thing that most makes a low-poly
@@ -126,24 +141,54 @@ const PARTS: BoxSpec[] = [
   // 20 m the band is the only facial feature that survives, and it is also a
   // second facing cue — you can see at a glance whether a head is turned
   // toward you.
-  { w: 0.079, h: 0.022, d: 0.012, x: 0, y: 1.655, z: -0.098, color: 'gear' },
-  { w: 0.055, h: 0.038, d: 0.014, x: 0, y: 1.585, z: -0.095, color: 'head' },
+  { w: 0.083, h: 0.024, d: 0.012, x: 0, y: 1.662, z: -0.102, color: 'gear' },
+  // The jaw is GEAR, not skin. As a head-coloured block on a head-coloured
+  // cube it cost twelve triangles and produced no contrast at any range. Dark
+  // makes the head a three-value stack — helmet, skin, chin — and a three-band
+  // head reads as a person far better than a two-band one, right down to the
+  // last pixel, because it is a value cue rather than a shape cue.
+  { w: 0.058, h: 0.030, d: 0.016, x: 0, y: 1.545, z: -0.099, color: 'gear' },
+  // Chin strap, framing the face. The strongest "helmeted soldier" read there
+  // is at 10-20 m, for 24 triangles.
+  { w: 0.010, h: 0.058, d: 0.010, x: -0.076, y: 1.630, z: -0.030, color: 'gear' },
+  { w: 0.010, h: 0.058, d: 0.010, x: 0.076, y: 1.630, z: -0.030, color: 'gear' },
   // Helmet, deeper than it is wide and pushed forward — the brim is a facing
   // cue that survives to the last pixel.
-  { w: 0.105, h: 0.062, d: 0.125, x: 0, y: 1.735, z: -0.018, color: 'gear' },
+  { w: 0.108, h: 0.064, d: 0.128, x: 0, y: 1.762, z: -0.018, color: 'gear' },
 
-  // --- arms, brought forward onto the weapon -----------------------------
-  { w: 0.052, h: 0.145, d: 0.065, x: -0.24, y: 1.305, z: 0, color: 'body' },
-  { w: 0.052, h: 0.145, d: 0.065, x: 0.24, y: 1.305, z: 0, color: 'body' },
-  { w: 0.046, h: 0.145, d: 0.055, x: -0.19, y: 1.255, z: -0.135, color: 'body', pitch: 0.95 },
-  { w: 0.046, h: 0.145, d: 0.055, x: 0.19, y: 1.255, z: -0.135, color: 'body', pitch: 0.95 },
-  // Gloves — dark, and they mark where the hands are on the weapon.
-  { w: 0.042, h: 0.045, d: 0.045, x: -0.165, y: 1.185, z: -0.245, color: 'gear' },
-  { w: 0.042, h: 0.045, d: 0.045, x: 0.165, y: 1.185, z: -0.245, color: 'gear' },
+  // --- arms and weapon ----------------------------------------------------
+  //
+  // Rebuilt because nothing was holding the rifle. The gloves sat 20 mm and
+  // 170 mm from it — the support hand on the opposite side of the centreline —
+  // and 385 mm of the weapon was buried inside the torso with 15 mm of
+  // buttstock protruding out of the actor's spine.
+  //
+  // The forearm pitch was also 30 degrees off: 0.95 rad puts the hand where
+  // the elbow-to-grip line needs 1.47, which left 179 mm of upper arm dangling
+  // below the elbow like a second forearm.
+  //
+  // Now: the weapon runs along x = 0.14 with its stock at the shoulder and its
+  // muzzle forward, the firing hand is at the grip and the support hand is out
+  // on the handguard. Both arms reach the weapon and the two are no longer
+  // mirror images, which is what makes the pose read as "holding" rather than
+  // "praying".
+  { w: 0.052, h: 0.115, d: 0.065, x: -0.235, y: 1.335, z: -0.02, color: 'body' },
+  { w: 0.052, h: 0.115, d: 0.065, x: 0.235, y: 1.335, z: -0.01, color: 'body' },
+  // Support forearm, reaching across and forward to the handguard.
+  { w: 0.046, h: 0.125, d: 0.055, x: -0.185, y: 1.245, z: -0.19, color: 'body', pitch: 1.30 },
+  // Firing forearm, shorter and tucked to the grip.
+  { w: 0.046, h: 0.100, d: 0.055, x: 0.185, y: 1.265, z: -0.06, color: 'body', pitch: 0.85 },
+  // Gloves, ON the weapon.
+  { w: 0.042, h: 0.042, d: 0.048, x: -0.145, y: 1.215, z: -0.315, color: 'gear' },
+  { w: 0.042, h: 0.042, d: 0.048, x: 0.145, y: 1.205, z: -0.075, color: 'gear' },
 
-  // --- weapon: the single strongest facing cue there is ------------------
-  { w: 0.028, h: 0.045, d: 0.34, x: 0.075, y: 1.245, z: -0.10, color: 'gear' },
-  { w: 0.022, h: 0.075, d: 0.05, x: 0.075, y: 1.16, z: -0.02, color: 'gear' },
+  // The weapon. Its stock ends at the shoulder pocket rather than inside the
+  // chest, and the whole thing sits outboard on the firing side.
+  { w: 0.026, h: 0.042, d: 0.300, x: 0.140, y: 1.240, z: -0.185, color: 'gear' },
+  // Magazine, hanging below — a strong profile cue at any range.
+  { w: 0.020, h: 0.070, d: 0.042, x: 0.140, y: 1.150, z: -0.095, color: 'gear' },
+  // Optic, standing proud of the receiver.
+  { w: 0.016, h: 0.028, d: 0.045, x: 0.140, y: 1.300, z: -0.170, color: 'gear' },
 ];
 
 /**
@@ -152,7 +197,10 @@ const PARTS: BoxSpec[] = [
  * Colours are baked as a vertex attribute rather than split across materials,
  * because splitting is what forced one draw call per body part.
  */
-export function buildHumanoid(colors: HumanoidColors): THREE.BufferGeometry {
+export function buildHumanoid(
+  colors: HumanoidColors, stance: StanceKey = 'stand',
+): THREE.BufferGeometry {
+  const parts = posture(stance);
   const positions: number[] = [];
   const normals: number[] = [];
   const colorAttr: number[] = [];
@@ -164,7 +212,7 @@ export function buildHumanoid(colors: HumanoidColors): THREE.BufferGeometry {
   const v = new THREE.Vector3();
   const n = new THREE.Vector3();
 
-  for (const part of PARTS) {
+  for (const part of parts) {
     const geo = new THREE.BoxGeometry(part.w * 2, part.h * 2, part.d * 2);
     m.makeRotationX(part.pitch ?? 0);
     m.setPosition(part.x, part.y, part.z);
@@ -197,31 +245,101 @@ export function buildHumanoid(colors: HumanoidColors): THREE.BufferGeometry {
   return out;
 }
 
-/** Standing height, for stance maths and collider sizing. */
-export const HUMANOID_HEIGHT = 1.80;
+export type StanceKey = 'stand' | 'crouch' | 'prone';
+
+/** Standing height, floor to helmet crown. */
+export const HUMANOID_HEIGHT = 1.826;
+
+/** Top of the thigh — where the leg ends and the belt begins. */
+export const LEG_TOP = 0.92;
 
 /**
- * Stance scale — ONE constant, shared by rendering, hit-region resolution and
- * eye height.
+ * Crown height per stance, and the ONE place anything may ask about it.
  *
- * These were three different numbers in three files: 0.28 for the render, 0.22
- * for `regionForHit` and 0.202 for the eye. The consequence was that a prone
- * actor's rendered crown resolved to a hit region *above* the head band and
- * fell through to 'arm_r' — you could not headshot anything prone, player
- * included.
+ * Four different sets of stance numbers were in circulation: the renderer's,
+ * `regionForHit`'s, the registry's eye height and the AI's perception scaling.
+ * They disagreed, and the disagreement was not cosmetic — you could not
+ * headshot a crouching or prone target, and chest shots on them scored as
+ * headshots, because the hit-region maths and the geometry described different
+ * bodies.
  */
-export const STANCE_SCALE: Record<string, number> = {
-  stand: 1,
-  crouch: 0.66,
-  prone: 0.28,
+export const STANCE_HEIGHT: Record<StanceKey, number> = {
+  stand: HUMANOID_HEIGHT,
+  crouch: 1.33,
+  prone: 0.46,
+};
+
+/** Eye height per stance, derived from the same geometry. */
+export const STANCE_EYE: Record<StanceKey, number> = {
+  stand: 1.66,
+  crouch: 1.19,
+  prone: 0.34,
 };
 
 /**
- * Crouching is a squash of the LEGS, not of the whole figure.
- *
- * Scaling the entire body on Y turns a crouching enemy into a 1.19 m person
- * with full-width shoulders and 26 cm legs — a dwarf, not a crouch. Bending
- * the legs and lowering the intact upper body by the same amount reads
- * correctly and costs nothing.
+ * Legacy ratio, kept only for callers that still want a plain scalar.
+ * Prefer `STANCE_HEIGHT`.
  */
-export const LEG_TOP = 0.92;
+export const STANCE_SCALE: Record<string, number> = {
+  stand: 1,
+  crouch: STANCE_HEIGHT.crouch / HUMANOID_HEIGHT,
+  prone: STANCE_HEIGHT.prone / HUMANOID_HEIGHT,
+};
+
+const postureCache = new Map<StanceKey, BoxSpec[]>();
+
+/**
+ * Pose the standing parts into a stance.
+ *
+ * Crouching is a **leg bend**, not a squash: the legs compress and everything
+ * above the hip travels down intact. Scaling the whole figure on Y turns a
+ * crouching enemy into a full-width-shouldered dwarf; translating it — which
+ * is what the code actually did — turns it into a standing figure sunk 266 mm
+ * into the concrete, with its boots underground and no reduction in height at
+ * all.
+ *
+ * Prone rotates the body about the hip so it lies along its own forward axis.
+ * Squashing it on Y put every vertex of a prone actor below the floor plane,
+ * which made prone actors completely invisible.
+ */
+function posture(stance: StanceKey): BoxSpec[] {
+  const hit = postureCache.get(stance);
+  if (hit) return hit;
+
+  let out: BoxSpec[];
+  if (stance === 'stand') {
+    out = PARTS;
+  } else if (stance === 'crouch') {
+    // Legs fold to 46% of their height; the upper body follows them down.
+    const k = 0.46;
+    const drop = LEG_TOP * (1 - k);
+    out = PARTS.map((p) => {
+      if (p.y - p.h < LEG_TOP) {
+        // In the legs: compress about the ground, and thicken slightly, which
+        // is what a bent knee actually does to the silhouette.
+        return { ...p, y: p.y * k, h: Math.max(0.03, p.h * k), d: p.d * 1.18 };
+      }
+      return { ...p, y: p.y - drop };
+    });
+  } else {
+    // Prone: rotate the whole figure forward about the hip, then set it down.
+    // -Z is forward, so the body ends up lying head-first along -Z.
+    // Rotating -90 degrees about X maps (x, y, z) -> (x, z, -y): what was up
+    // becomes what is behind, and what was in front becomes what is down. So
+    // the figure ends up face-down with its head forward along -Z, which is
+    // the direction it was facing.
+    const pivotY = 0.92;
+    const groundClear = 0.20;
+    out = PARTS.map((p) => ({
+      ...p,
+      y: groundClear + p.z,
+      z: -(p.y - pivotY),
+      // Half-extents swap with the axes they belong to.
+      h: p.d,
+      d: p.h,
+      pitch: 0,
+    }));
+  }
+  postureCache.set(stance, out);
+  return out;
+}

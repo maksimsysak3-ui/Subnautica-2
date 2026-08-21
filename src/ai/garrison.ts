@@ -85,7 +85,10 @@ const VILLA_POSTS: Post[] = [
  */
 const QUAY_POSTS: Post[] = [
   // --- gate: sees the road, and nothing else -----------------------------
-  { at: [-19, -70], watch: [-19, -88], skill: 0.32, archetype: 'sentry' },
+  // Beside the booth, not inside it. This post used to sit at (-19, -70),
+  // which is within the gate booth's footprint — the guard spawned inside a
+  // building.
+  { at: [-16.5, -71], watch: [-16.5, -89], skill: 0.32, archetype: 'sentry' },
   { at: [6, -66], watch: [6, -84], skill: 0.30, archetype: 'sentry',
     route: [[6, -66], [-8, -62], [6, -66], [20, -60]] },
 
@@ -102,7 +105,9 @@ const QUAY_POSTS: Post[] = [
   // These two are ABOVE the floor. Their y comes from the post lookup, so the
   // caller has to resolve height at the catwalk, not on the slab.
   { at: [-72, 20], watch: [-40, 20], skill: 0.68, archetype: 'operator', y: 6.6 },
-  { at: [-40, 40], watch: [-40, 4], skill: 0.72, archetype: 'operator', y: 9.4 },
+  // On the catwalk deck, not 0.6 m past its edge. The north leg ends at
+  // z = 42, and this post was at z = 40 standing on nothing 7.4 m up.
+  { at: [-40, 41.2], watch: [-40, 4], skill: 0.72, archetype: 'operator', y: 9.4 },
 
   // --- office block -------------------------------------------------------
   { at: [-60, -28], watch: [-60, -50], skill: 0.58, archetype: 'operator' },

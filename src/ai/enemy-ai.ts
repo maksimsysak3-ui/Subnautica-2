@@ -39,7 +39,7 @@ import { services, type CoverPoint } from '../core/contracts';
 type Vec3 = { x: number; y: number; z: number };
 import type { Actor, ActorRegistry } from '../actors/actor-registry';
 import { Rng, clamp, clamp01, lerp, damp } from '../core/math';
-import { STANCE_SCALE } from '../actors/humanoid';
+import { STANCE_HEIGHT, type StanceKey } from '../actors/humanoid';
 
 export type AiState =
   | 'idle' | 'patrol' | 'alert' | 'search' | 'engage' | 'reposition' | 'flee' | 'surrender';
@@ -387,7 +387,11 @@ export class EnemyAi implements System {
     // ground with the guard staring right at the player. Sampling the head and
     // the chest also means a target behind a low wall is still spotted by the
     // head, which is the behaviour a player expects when they peek.
-    const stanceScale = player.stance === 'prone' ? 0.32 : player.stance === 'crouch' ? 0.62 : 1;
+    // From the shared table, not a fourth set of hardcoded numbers. This line
+    // used to carry its own 0.32 / 0.62, which agreed with neither the
+    // renderer nor the hit-region maths.
+    const stanceScale = (STANCE_HEIGHT[player.stance as StanceKey] ?? STANCE_HEIGHT.stand)
+      / STANCE_HEIGHT.stand;
     this.tmpA.set(a.position.x, a.position.y + 1.55, a.position.z);
     const head = this.tmpB.set(
       player.position.x, player.position.y + 1.62 * stanceScale, player.position.z,
@@ -591,7 +595,8 @@ export class EnemyAi implements System {
     // player whose chest is at 0.34 m the AI aimed a flat 1.05 m: 0.71 m high,
     // which at 20 m is 1.37 sigma off before dispersion even applies. Lying
     // down made the player effectively immune at every range.
-    const stance = STANCE_SCALE[target.stance] ?? 1;
+    const stance = (STANCE_HEIGHT[target.stance as StanceKey] ?? STANCE_HEIGHT.stand)
+      / STANCE_HEIGHT.stand;
     this.tmpDir.set(
       target.position.x - this.tmpA.x,
       target.position.y + 1.05 * stance - this.tmpA.y,

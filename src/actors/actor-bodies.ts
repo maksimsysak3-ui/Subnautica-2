@@ -20,7 +20,9 @@ import type { System, EngineContext } from '../core/engine';
 import { bus, type Faction } from '../core/events';
 import { services } from '../core/contracts';
 import type { ActorRegistry, Actor } from './actor-registry';
-import { buildHumanoid, STANCE_SCALE, LEG_TOP, type HumanoidColors } from './humanoid';
+import {
+  buildHumanoid, STANCE_HEIGHT, type HumanoidColors, type StanceKey,
+} from './humanoid';
 
 /**
  * Silhouette palette. Civilians must never read as combatants at a glance.
@@ -55,6 +57,8 @@ interface Body {
   actor: Actor;
   /** The merged visible mesh. Absent for the player, who has none. */
   visual?: THREE.Mesh;
+  /** Which stance the current geometry was built for. */
+  stance?: StanceKey;
 }
 
 export class ActorBodies implements System {
@@ -154,7 +158,8 @@ export class ActorBodies implements System {
     // The previous version used six separate meshes per actor, which at
     // thirteen hostiles was 78 draw calls — 31% of the whole frame — for 72
     // triangles each. This is 240 triangles in one draw.
-    const visual = new THREE.Mesh(buildHumanoid(c), this.bodyMaterial());
+    const visual = new THREE.Mesh(
+      this.geometryFor(actor.faction, 'stand'), this.bodyMaterial());
     visual.castShadow = true;
     visual.receiveShadow = true;
     group.add(visual);
@@ -184,7 +189,7 @@ export class ActorBodies implements System {
 
     this.root.add(group);
     actor.view = group;
-    const body: Body = { group, parts, actor, visual };
+    const body: Body = { group, parts, actor, visual, stance: 'stand' };
     this.bodies.set(actorId, body);
     // Place it immediately. Waiting for the next update() left every freshly
     // spawned actor's colliders sitting at the world origin, so shots aimed at
@@ -233,36 +238,54 @@ export class ActorBodies implements System {
 
   private place(b: Body, a: Actor): void {
     b.group.position.copy(a.position);
-    if (a.alive && !a.downed) {
-      b.group.rotation.y = Math.atan2(a.forward.x, a.forward.z);
-      b.group.rotation.x = 0;
-      b.group.rotation.z = 0;
-
-      // Crouching squashes the LEGS and drops the intact upper body by the
-      // same amount. Scaling the whole figure on Y turns a crouching enemy
-      // into a full-width-shouldered dwarf with 26 cm legs, which reads as a
-      // rendering error rather than as a stance.
-      const s = STANCE_SCALE[a.stance] ?? 1;
-      if (b.visual) {
-        b.visual.scale.set(1, 1, 1);
-        b.visual.position.set(0, 0, 0);
-        if (s < 1) {
-          // Everything above the legs keeps its proportions; only the leg
-          // block compresses, so the drop is LEG_TOP * (1 - s).
-          b.visual.scale.y = 1;
-          b.visual.position.y = -LEG_TOP * (1 - s) * 0.85;
-          b.visual.scale.y = s < 0.4 ? s : 1;
-        }
-      }
-      // Colliders follow the same rule, so what you can hit matches what you
-      // can see.
-      for (const p of b.parts) {
-        p.mesh.position.y = (p.y + p.height / 2) - (s < 1 ? LEG_TOP * (1 - s) * 0.85 : 0);
-      }
+    if (!a.alive || a.downed) {
+      b.group.updateMatrixWorld(true);
+      return;
     }
-    // Colliders are raycast in world space, so the transform has to be live
-    // before anything queries them — not at the renderer's convenience.
+
+    b.group.rotation.set(0, Math.atan2(a.forward.x, a.forward.z), 0);
+
+    // Stance swaps GEOMETRY. It does not scale and it does not translate.
+    //
+    // The previous implementation assigned `visual.scale.y` twice and the
+    // second assignment cancelled the first, so crouch applied no squash at
+    // all — only a 266 mm downward translation. A crouching actor was a
+    // full-height standing figure with its boots below the concrete, 20% too
+    // tall for a crouch. Prone scaled to 0.28 and dropped 0.563, which put
+    // every vertex of a prone actor beneath the floor plane: prone actors were
+    // completely invisible.
+    const stance = (a.stance in STANCE_HEIGHT ? a.stance : 'stand') as StanceKey;
+    if (b.visual && b.stance !== stance) {
+      b.stance = stance;
+      // No dispose: geometries are shared out of the cache.
+      b.visual.geometry = this.geometryFor(a.faction, stance);
+    }
+
+    // Colliders track the posed height, so what you can hit is what you see.
+    const h = STANCE_HEIGHT[stance];
+    const f = h / STANCE_HEIGHT.stand;
+    for (const p of b.parts) p.mesh.position.y = (p.y + p.height / 2) * f;
+
     b.group.updateMatrixWorld(true);
+  }
+
+  /**
+   * Geometry cache, keyed by faction and stance.
+   *
+   * `buildHumanoid` was being called once per actor, so thirteen hostiles of
+   * the same faction allocated thirteen byte-identical geometries. There are
+   * seven factions and three stances, so twenty-one is the true upper bound
+   * and most sessions touch four or five.
+   */
+  private geoCache = new Map<string, THREE.BufferGeometry>();
+  private geometryFor(faction: Faction, stance: StanceKey): THREE.BufferGeometry {
+    const key = `${faction}|${stance}`;
+    let g = this.geoCache.get(key);
+    if (!g) {
+      g = buildHumanoid(FACTION_COLORS[faction] ?? FACTION_COLORS.militia, stance);
+      this.geoCache.set(key, g);
+    }
+    return g;
   }
 
   update(_dt: number, _ctx: EngineContext): void {
@@ -295,7 +318,8 @@ export class ActorBodies implements System {
    */
   clearAll(): void {
     for (const [, b] of this.bodies) {
-      b.visual?.geometry.dispose();
+      // Not b.visual.geometry — that is shared out of geoCache and belongs to
+      // it. Disposing it here would blank every other actor of the faction.
       for (const p of b.parts) p.mesh.geometry.dispose();
     }
     for (const id of [...this.bodies.keys()]) this.despawn(id);
