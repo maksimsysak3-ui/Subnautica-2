@@ -51,7 +51,11 @@ check('current map is marked', first.marked === 'villa', String(first.marked));
 
 // Click the quay button. It rebuilds the level IN PLACE — no reload, because
 // reloading an artifact iframe fails outright.
-await page.click('.mapbtn[data-map="quay"]');
+// Click in-page rather than through Playwright's actionability checks. Under
+// SwiftShader the frame rate is ~10 fps and the overlay carries a CSS
+// transition, so "visible, enabled and stable" times out on a button that is
+// perfectly clickable.
+await page.evaluate(() => document.querySelector('.mapbtn[data-map="quay"]').click());
 await page.waitForFunction(
   () => window.services.get('world').mapId === 'quay', { timeout: 60000 });
 await page.evaluate(() => window.__BM.settle(400));
@@ -68,7 +72,7 @@ check('the quay has its own garrison', second.hostiles >= 10, `${second.hostiles
 check('the quay geometry actually built', second.bricks > 500, `${second.bricks} bricks`);
 
 // And back again, so the picker is not one-way.
-await page.click('.mapbtn[data-map="villa"]');
+await page.evaluate(() => document.querySelector('.mapbtn[data-map="villa"]').click());
 await page.waitForFunction(
   () => window.services.get('world').mapId === 'villa', { timeout: 60000 });
 await page.evaluate(() => window.__BM.settle(400));

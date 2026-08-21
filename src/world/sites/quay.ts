@@ -88,7 +88,11 @@ function winOp(at: number, width: number, y0 = WIN_Y0, y1 = WIN_Y1): WallOpening
 
 const vec = (x: number, y: number, z: number): THREE.Vector3 => new THREE.Vector3(x, y, z);
 
-export function buildQuay(b: SiteBuilder, rng: Rng): SiteBuildResult {
+export function buildQuay(
+  b: SiteBuilder, rng: Rng,
+  /** Terrain height, for anything placed outside the levelled pad. */
+  floorAt: (x: number, z: number) => number = () => PAD,
+): SiteBuildResult {
   const p = new Props(b);
   const rooms: RoomSpec[] = [];
   const navLinks: NavLink[] = [];
@@ -179,7 +183,11 @@ export function buildQuay(b: SiteBuilder, rng: Rng): SiteBuildResult {
       surface: 'metal', flags: BF.SOFT, jitter: 0.02,
     });
   };
-  fencePosts(PERIM.x0, PERIM.z0, PERIM.x1, PERIM.z0);          // south
+  // South, in two runs with a gap for the gate. A fence drawn straight across
+  // its own gateway is solid to a body no matter what the gate does, so the
+  // gate would open onto chain link.
+  fencePosts(PERIM.x0, PERIM.z0, -14, PERIM.z0);
+  fencePosts(14, PERIM.z0, PERIM.x1, PERIM.z0);
   fencePosts(PERIM.x0, PERIM.z0, PERIM.x0, 44);                // west
   fencePosts(PERIM.x1, PERIM.z0, PERIM.x1, -16);               // east, lower
   fencePosts(PERIM.x1, -2, PERIM.x1, 44);                      // east, upper
@@ -636,6 +644,182 @@ export function buildQuay(b: SiteBuilder, rng: Rng): SiteBuildResult {
   for (const py of [PAD + 2.6, PAD + 3.4, PAD + 4.0]) {
     b.span(PERIM.x0 + 4.98, py - 0.22, -60, PERIM.x0 + 5.42, py + 0.22, 40, M.rust,
       { surface: 'metal', flags: BF.NO_COVER });
+  }
+
+  // =========================================================================
+  // OUTSIDE THE WIRE
+  //
+  // A terminal with nothing around it is a diorama. The approach is where a
+  // player decides how to do the mission, and it can only be a decision if
+  // there is something out there to read: where the road comes from, what
+  // overlooks the gate, where the fence is weak, and what cover exists between
+  // the treeline and the wire.
+  //
+  // Everything here sits OUTSIDE `PERIM`, so none of it changes the fights
+  // inside — it changes how you arrive at them.
+  // =========================================================================
+
+  // --- the approach road ---------------------------------------------------
+  // Runs south from the gate and bends east, so the last 60 m is a straight
+  // run at the guard booth with nothing on it. That straightness is the point:
+  // it is why the road is the loud way in.
+  const road = (x0: number, z0: number, x1: number, z1: number, w: number): void => {
+    const dx = x1 - x0, dz = z1 - z0;
+    const len = Math.hypot(dx, dz);
+    const yaw = Math.atan2(-dz, dx);
+    b.box((x0 + x1) / 2, PAD - 0.08, (z0 + z1) / 2, len / 2, 0.09, w / 2, M.asphalt,
+      { yaw, surface: 'concrete', flags: BF.NO_COVER, tint: b.jitterTint(0.05) });
+    // Kerbs, which are what actually make a strip of dark ground read as a road.
+    for (const side of [-1, 1]) {
+      b.box((x0 + x1) / 2 + Math.sin(yaw) * side * (w / 2 + 0.16), PAD + 0.02,
+        (z0 + z1) / 2 + Math.cos(yaw) * side * (w / 2 + 0.16),
+        len / 2, 0.12, 0.16, M.concreteRaw,
+        { yaw, surface: 'concrete', flags: BF.NO_COVER });
+    }
+  };
+  road(0, PERIM.z0 - 2, 0, PERIM.z0 - 62, 9);
+  road(0, PERIM.z0 - 62, 78, PERIM.z0 - 78, 9);
+  road(0, PERIM.z0 - 30, -70, PERIM.z0 - 38, 7);
+
+  // Centre line, dashed, on the straight run only.
+  for (let z = PERIM.z0 - 8; z > PERIM.z0 - 58; z -= 5.5) {
+    b.span(-0.16, PAD - 0.04, z, 0.16, PAD + 0.02, z - 2.6, M.plasticWhite,
+      { surface: 'concrete', flags: BF.NO_COVER });
+  }
+
+  // --- outer checkpoint, 40 m short of the gate ---------------------------
+  // Slows a vehicle approach and gives a stealth player their first decision:
+  // the ditch on the west side runs past it.
+  const cpZ = PERIM.z0 - 40;
+  for (let i = 0; i < 5; i++) {
+    p.jerseyBarrier(-9 + i * 4.6, PAD, cpZ + (i % 2 ? 2.4 : -2.4), i % 2 ? 0.06 : -0.06);
+  }
+  b.span(-16.5, PAD, cpZ - 2.2, -11.5, PAD + 2.8, cpZ + 2.6, M.corrugated,
+    { surface: 'metal' });
+  b.span(-16.2, PAD + 0.95, cpZ - 2.35, -11.8, PAD + 2.1, cpZ - 2.1, M.glass,
+    { surface: 'glass', flags: BF.SOFT });
+  b.span(-17.2, PAD + 2.8, cpZ - 3.0, -10.8, PAD + 3.1, cpZ + 3.4, M.corrugated,
+    { surface: 'metal' });
+  lights.push({ position: vec(-14, PAD + 2.5, cpZ), color: 0xffd9a8,
+    intensity: 9, distance: 11, alwaysOn: false });
+  // Boom barrier across the road, raised — this checkpoint is not the obstacle.
+  b.cyl(-9.4, PAD + 1.1, cpZ, 0.11, 1.1, M.steelGalv, { surface: 'metal' });
+  b.span(-9.6, PAD + 1.9, cpZ - 0.09, -9.2, PAD + 4.2, cpZ + 0.09, M.paintRed,
+    { surface: 'metal', flags: BF.NO_COVER });
+  p.floodlight(-18, PAD, cpZ + 5, 0.4);
+  p.sandbags(-22, cpZ - 3, -18, cpZ + 1, PAD, 3);
+
+  // --- the ditch: the quiet approach ---------------------------------------
+  // A drainage cut running parallel to the road, deep enough to move along
+  // below the checkpoint's sightline and out of the floodlight.
+  for (let z = PERIM.z0 - 6; z > PERIM.z0 - 72; z -= 6) {
+    b.span(-34, PAD - 1.5, z - 3, -27, PAD - 0.1, z + 3, M.dirtMat,
+      { surface: 'dirt', flags: BF.NO_COVER, tint: b.jitterTint(0.09) });
+    b.span(-36, PAD - 0.1, z - 3, -34, PAD + 0.5, z + 3, M.dirtMat, { surface: 'dirt' });
+    b.span(-27, PAD - 0.1, z - 3, -25, PAD + 0.6, z + 3, M.dirtMat, { surface: 'dirt' });
+    if (rng.next() < 0.5) p.hedge(-33 + rng.range(0, 5), z - 2, -31 + rng.range(0, 5), z + 2, PAD + 0.4, 1.3, 0.9);
+  }
+  // Headwalls where the ditch passes the checkpoint.
+  //
+  // This was a culvert built with `cyl`, which stands upright along Y — `yaw`
+  // rotates about that axis and cannot lay it down. The result was a 12 m
+  // concrete column standing in the middle of the approach road. Cylinders in
+  // this builder are vertical, full stop; a horizontal one is a long box.
+  for (const hz of [PERIM.z0 - 30, PERIM.z0 - 44]) {
+    b.span(-35, PAD - 1.6, hz - 0.3, -26, PAD + 0.7, hz + 0.3, M.concreteDark,
+      { surface: 'concrete' });
+  }
+
+  // --- rail yard, east ------------------------------------------------------
+  // The spur that comes through the fence gap has to come FROM somewhere, and
+  // a siding with stock parked on it is both the explanation and 120 m of hard
+  // cover on the flanking route.
+  for (const off of [-9, 2]) {
+    for (const rx of [-3.2, 3.2]) {
+      b.span(PERIM.x1 + 2, PAD + 0.10, off + rx - 0.06, PERIM.x1 + 78, PAD + 0.19, off + rx + 0.06,
+        M.steelDark, { surface: 'metal', flags: BF.NO_COVER });
+    }
+    for (let x = PERIM.x1 + 4; x < PERIM.x1 + 76; x += 0.62) {
+      b.span(x, PAD + 0.03, off - 3.6, x + 0.26, PAD + 0.11, off + 3.6, M.woodWeathered,
+        { surface: 'wood', flags: BF.NO_COVER });
+    }
+  }
+  // Parked wagons on the siding.
+  for (let i = 0; i < 5; i++) {
+    const wx = PERIM.x1 + 14 + i * 15.5;
+    b.span(wx - 6.4, PAD + 0.42, 2 - 1.6, wx + 6.4, PAD + 1.1, 2 + 1.6, M.rust, { surface: 'metal' });
+    b.span(wx - 6.0, PAD + 1.1, 2 - 1.5, wx + 6.0, PAD + 3.5, 2 + 1.5,
+      i % 2 ? M.rust : M.paintBlue, { surface: 'metal', tint: b.jitterTint(0.10) });
+    for (const bx of [-4.4, 4.4]) {
+      b.cyl(wx + bx, PAD + 0.42, 0.6, 0.42, 0.09, M.steelDark, { surface: 'metal', yaw: Math.PI / 2 });
+      b.cyl(wx + bx, PAD + 0.42, 3.4, 0.42, 0.09, M.steelDark, { surface: 'metal', yaw: Math.PI / 2 });
+    }
+  }
+
+  // --- outer scrub, spoil heaps and the treeline ---------------------------
+  // Placed by rejection sampling against everything above, so nothing lands in
+  // a road, a ditch or the rail bed.
+  const clearOf = (x: number, z: number): boolean => {
+    if (x > PERIM.x0 - 4 && x < PERIM.x1 + 4 && z > PERIM.z0 - 4 && z < PERIM.z1 + 4) return false;
+    if (Math.abs(x) < 8 && z < PERIM.z0 && z > PERIM.z0 - 66) return false;   // road
+    if (x > -37 && x < -24 && z < PERIM.z0 && z > PERIM.z0 - 76) return false; // ditch
+    if (x > PERIM.x1 && Math.abs(z + 3) < 9) return false;                     // rail
+    return true;
+  };
+  for (let i = 0; i < 150; i++) {
+    const x = rng.range(PERIM.x0 - 96, PERIM.x1 + 96);
+    const z = rng.range(PERIM.z0 - 96, PERIM.z1 + 30);
+    if (!clearOf(x, z)) continue;
+    const y = floorAt(x, z);
+    const k = rng.next();
+    if (k < 0.30) {
+      // Scrub.
+      p.hedge(x - rng.range(0.8, 2.2), z - 1, x + rng.range(0.8, 2.2), z + 1, y, rng.range(0.7, 1.5), 1.0);
+    } else if (k < 0.52) {
+      // Spoil heap — a dirt mound, which is the only cover out here.
+      const r = rng.range(2.2, 5.0);
+      b.span(x - r, y - 0.2, z - r * 0.7, x + r, y + rng.range(0.9, 2.2), z + r * 0.7, M.dirtMat,
+        { surface: 'dirt', tint: b.jitterTint(0.10) });
+    } else if (k < 0.66) {
+      p.cypress(x, y, z, rng.range(5, 9));
+    } else if (k < 0.78) {
+      for (let q = 0; q < 2 + Math.floor(rng.next() * 4); q++) {
+        p.drum(x + rng.range(-1.8, 1.8), y, z + rng.range(-1.8, 1.8));
+      }
+    } else if (k < 0.87) {
+      p.tyreStack(x, y, z, 3 + Math.floor(rng.next() * 3));
+    } else if (k < 0.94) {
+      // Wrecked plant, long abandoned.
+      b.span(x - 2.4, y, z - 1.1, x + 2.4, y + 1.5, z + 1.1, M.rust,
+        { surface: 'metal', yaw: rng.range(0, 3.14), tint: b.jitterTint(0.12) });
+      p.tyreStack(x + 2.8, y, z, 2);
+    } else {
+      b.span(x - 3.2, y, z - 2.4, x + 3.2, y + 2.6, z + 2.4, M.corrugated,
+        { surface: 'metal', yaw: rng.range(-0.4, 0.4), tint: b.jitterTint(0.10) });
+    }
+  }
+
+  // --- vehicles on the approach --------------------------------------------
+  p.pickup(-6.5, PAD, PERIM.z0 - 20, 0.05);
+  p.suv(6.2, PAD, PERIM.z0 - 26, 3.10);
+  p.pickup(-13, PAD, cpZ + 8, 1.55);
+  p.sedan(20, PAD, PERIM.z0 - 58, 2.3);
+  // A truck at the gate, half unloaded — the reason the gate is open at all.
+  b.span(-2.6, PAD, PERIM.z0 - 12, 2.6, PAD + 1.0, PERIM.z0 - 4, M.steelDark, { surface: 'metal' });
+  b.span(-2.9, PAD + 1.0, PERIM.z0 - 12, 2.9, PAD + 3.6, PERIM.z0 - 5.6, M.paintGreen,
+    { surface: 'metal', tint: b.jitterTint(0.06) });
+  b.span(-2.4, PAD + 0.9, PERIM.z0 - 5.4, 2.4, PAD + 3.0, PERIM.z0 - 2.4, M.steelDark, { surface: 'metal' });
+  p.crate(-4.4, PAD, PERIM.z0 - 9, 0.3, 0.7);
+  p.crate(-4.6, PAD, PERIM.z0 - 7, -0.2, 0.7);
+  p.pallet(4.6, PAD, PERIM.z0 - 8, 0.1, 4);
+
+  // Street lighting down the approach.
+  for (let z = PERIM.z0 - 12; z > PERIM.z0 - 66; z -= 18) {
+    for (const sx of [-6.6, 6.6]) {
+      p.streetLamp(sx, PAD, z, 5.5);
+      lights.push({ position: vec(sx, PAD + 5.2, z), color: 0xffd0a0,
+        intensity: 16, distance: 17, alwaysOn: false });
+    }
   }
 
   const site: SiteInstance = {

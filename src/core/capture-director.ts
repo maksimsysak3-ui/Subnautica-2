@@ -657,7 +657,9 @@ export class CaptureDirector {
     quayShot('quay-yard', 'Container yard', [46, 5.0, -34], [10, 4.0, 6]);
     quayShot('quay-warehouse', 'Warehouse interior', [-20, 4.2, 30], [-70, 5.5, 6]);
     quayShot('quay-apron', 'Quay apron and crane', [40, 6.0, 24], [-30, 12, 60]);
-    quayShot('quay-approach', 'Main gate approach', [0, 4.0, -96], [-10, 8, -20]);
+    quayShot('quay-approach', 'Main gate approach', [0, 4.6, -118], [0, 6, -60]);
+    quayShot('quay-checkpoint', 'Outer checkpoint', [-24, 4.4, -128], [4, 4, -104]);
+    quayShot('quay-rail', 'Rail siding, east flank', [138, 6.0, -34], [96, 5, -6]);
 
     // Look at the garrison. A screenshot of an empty compound proves nothing
     // about whether the opposition renders, stands on the floor, or faces

@@ -192,7 +192,7 @@ export class WorldSystem implements System, IWorldQuery {
     const builder = new SiteBuilder(this.yard, this.rng);
     let result: SiteBuildResult;
     if (this.mapId === 'quay') {
-      result = buildQuay(builder, this.rng);
+      result = buildQuay(builder, this.rng, this.terrainFn);
       this.insertions = result.site.approaches.map((a: ApproachRoute) => ({
         id: a.id, x: a.x, z: a.z, label: a.name,
       }));
@@ -299,6 +299,19 @@ export class WorldSystem implements System, IWorldQuery {
   }
 
   // ---------------------------------------------------------------------
+
+  update(dt: number, _ctx: EngineContext): void {
+    // Door animation. This was lost when `init` was refactored into
+    // `buildMap`, and the failure was completely silent: doors still toggled,
+    // still reported themselves open, still emitted their events — the leaf
+    // simply never moved out of the doorway. Every door on both maps was
+    // affected and nothing caught it, because every piece of state a test
+    // would check said the door had opened.
+    // Guarded: `teardown` leaves this undefined until `buildMap` runs, and a
+    // frame slipping between the two would throw here and take the whole
+    // engine loop with it.
+    this.doors?.update(dt);
+  }
 
   /**
    * Analytic terrain. Gameplay and mesh both read this, so they always agree.
