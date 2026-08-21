@@ -11,6 +11,7 @@ import * as THREE from 'three';
 import type { Engine } from './engine';
 import { services } from './contracts';
 import type { WeatherKind } from './contracts';
+import { POSE } from '../weaponmodels/viewmodel';
 
 export interface ShotMeta {
   label: string;
@@ -159,6 +160,41 @@ export class CaptureDirector {
       z: +player.position.z.toFixed(3),
       grounded: player.grounded,
       insideGeometry: inside,
+    };
+  }
+
+  /**
+   * Runs FULL engine frames with input held, rather than stepping one system.
+   *
+   * `drivePlayer` only ticks the controller, which is fine for collision but
+   * misleading for anything that depends on another system advancing — doors
+   * animate in WorldSystem.update, so a test that only stepped the player
+   * concluded the player was stuck at a gate that had in fact opened.
+   */
+  driveGame(input: Record<string, unknown>, frames: number): {
+    x: number; y: number; z: number; grounded: boolean;
+  } | null {
+    const player = this.engine.get('player') as unknown as {
+      position: THREE.Vector3; grounded: boolean; input: Record<string, unknown>;
+    } | undefined;
+    if (!player) return null;
+    // Re-apply before every frame. InputSystem.update() rewrites player.input
+    // from the real device each frame, so setting it once and looping means
+    // only the first fixed step ever sees it.
+    const inputSys = this.engine.get('input') as unknown as { enabled?: boolean } | undefined;
+    let t = performance.now();
+    for (let i = 0; i < frames; i++) {
+      Object.assign(player.input, input);
+      t += 1000 / 60;
+      this.engine.frame(t);
+    }
+    void inputSys;
+    Object.assign(player.input, { moveX: 0, moveZ: 0, sprint: false, fire: false, use: false });
+    return {
+      x: +player.position.x.toFixed(2),
+      y: +player.position.y.toFixed(2),
+      z: +player.position.z.toFixed(2),
+      grounded: player.grounded,
     };
   }
 
@@ -346,6 +382,142 @@ export class CaptureDirector {
       passes?: ReadonlyArray<{ id: string; order: number; enabled: boolean }>;
     };
     return (render.passes ?? []).map((p) => ({ id: p.id, order: p.order, enabled: p.enabled }));
+  }
+
+  /**
+   * Where the weapon actually lands on screen, in NDC.
+   *
+   * Framing a viewmodel by eye across a headless capture loop is guesswork —
+   * a stock that is 13 cm from a 55-degree camera fills the right third of
+   * frame and there is no way to tell that from the numbers in the pose
+   * constants. This reports the projected bounds of the whole weapon plus its
+   * named landmarks, so the pose can be tuned against a target instead of a
+   * screenshot.
+   *
+   * Pass a pose to evaluate a hypothetical one without touching the live
+   * viewmodel. It is pure projection maths — no frame has to be rendered —
+   * which is what makes a few hundred candidate poses cheap enough to sweep.
+   *
+   * NDC: -1 left/bottom, +1 right/top. Anything outside [-1,1] is off-frame.
+   */
+  viewmodelFraming(pose?: [number, number, number, number, number, number]): {
+    bbox: { x0: number; x1: number; y0: number; y1: number };
+    points: Record<string, { x: number; y: number; depth: number }>;
+    offFrame: string[];
+    coverage: number;
+  } | null {
+    const vm = this.engine.get('viewmodel') as unknown as {
+      root?: THREE.Group;
+      model?: { sightPoint: THREE.Vector3; muzzleTip: THREE.Vector3; group: THREE.Group } | null;
+      viewScale?: number;
+    } | undefined;
+    const render = services.get('render') as unknown as { viewCamera: THREE.PerspectiveCamera };
+    if (!vm?.root || !vm.model || !render?.viewCamera) return null;
+
+    const cam = render.viewCamera;
+    cam.updateMatrixWorld(true);
+
+    // Model-local -> view space. Built by hand rather than read off the live
+    // scene graph so a candidate pose costs no frames.
+    const s = vm.viewScale ?? 1;
+    const xf = new THREE.Matrix4();
+    if (pose) {
+      xf.compose(
+        new THREE.Vector3(pose[0], pose[1], pose[2]),
+        new THREE.Quaternion().setFromEuler(new THREE.Euler(pose[3], pose[4], pose[5])),
+        new THREE.Vector3(s, s, s),
+      );
+    } else {
+      vm.root.updateMatrixWorld(true);
+      xf.copy(vm.model.group.matrixWorld);
+    }
+
+    const v = new THREE.Vector3();
+    const project = (local: THREE.Vector3): { x: number; y: number; depth: number } => {
+      v.copy(local).applyMatrix4(xf);
+      const depth = -v.z;
+      v.applyMatrix4(cam.projectionMatrix);
+      return { x: +v.x.toFixed(4), y: +v.y.toFixed(4), depth: +depth.toFixed(4) };
+    };
+
+    // Local-space bounds of the raw geometry, i.e. before scale and pose.
+    const localBox = new THREE.Box3().setFromObject(vm.model.group);
+    const inv = new THREE.Matrix4().copy(vm.model.group.matrixWorld).invert();
+    localBox.applyMatrix4(inv);
+
+    const bbox = { x0: 9, x1: -9, y0: 9, y1: -9 };
+    for (let i = 0; i < 8; i++) {
+      const c = project(new THREE.Vector3(
+        i & 1 ? localBox.max.x : localBox.min.x,
+        i & 2 ? localBox.max.y : localBox.min.y,
+        i & 4 ? localBox.max.z : localBox.min.z,
+      ));
+      bbox.x0 = Math.min(bbox.x0, c.x); bbox.x1 = Math.max(bbox.x1, c.x);
+      bbox.y0 = Math.min(bbox.y0, c.y); bbox.y1 = Math.max(bbox.y1, c.y);
+    }
+    for (const k of Object.keys(bbox) as Array<keyof typeof bbox>) bbox[k] = +bbox[k].toFixed(4);
+
+    const points: Record<string, { x: number; y: number; depth: number }> = {
+      muzzle: project(vm.model.muzzleTip),
+      sight: project(vm.model.sightPoint),
+      trigger: project(new THREE.Vector3(0, 0, 0)),
+      buttstock: project(new THREE.Vector3(0, 0.02, localBox.max.z)),
+      magBottom: project(new THREE.Vector3(0, localBox.min.y, 0.06)),
+    };
+
+    const offFrame: string[] = [];
+    for (const [k, pt] of Object.entries(points)) {
+      if (Math.abs(pt.x) > 1 || Math.abs(pt.y) > 1) offFrame.push(k);
+      if (pt.depth < cam.near) offFrame.push(k + ':clipped');
+    }
+
+    const w = Math.min(1, bbox.x1) - Math.max(-1, bbox.x0);
+    const h = Math.min(1, bbox.y1) - Math.max(-1, bbox.y0);
+    const coverage = +(Math.max(0, w) * Math.max(0, h) / 4).toFixed(4);
+
+    return { bbox, points, offFrame, coverage };
+  }
+
+  /**
+   * Studio mode — hide the level and put the viewmodel on a flat backdrop.
+   *
+   * A weapon photographed against a sunlit desert is a silhouette; you cannot
+   * judge a model you cannot see the form of. This is the model-viewer
+   * equivalent of a lightbox.
+   */
+  setStudio(on: boolean): void {
+    const render = services.get('render') as unknown as {
+      scene: THREE.Scene; viewScene: THREE.Scene;
+      post?: { exposure: { minExposure: number; maxExposure: number } };
+    };
+    render.scene.visible = !on;
+    // Pin auto-exposure. Otherwise the meter reads the flat backdrop and
+    // adapts, so two inspection shots of the same model come back at
+    // different brightnesses and nothing is comparable.
+    if (render.post) {
+      render.post.exposure.minExposure = on ? 1.0 : 0.06;
+      render.post.exposure.maxExposure = on ? 1.0 : 5.0;
+    }
+    const id = 'studio:backdrop';
+    let bd = render.viewScene.getObjectByName(id) as THREE.Mesh | undefined;
+    if (on && !bd) {
+      bd = new THREE.Mesh(
+        new THREE.PlaneGeometry(24, 24),
+        new THREE.MeshBasicMaterial({ color: 0x6d737a, toneMapped: false, depthWrite: false }),
+      );
+      bd.name = id;
+      bd.position.set(0, 0, -6);
+      bd.renderOrder = -1000;
+      bd.frustumCulled = false;
+      render.viewScene.add(bd);
+    }
+    if (bd) bd.visible = on;
+  }
+
+  /** Overwrite the hip pose in place — the framing tuner sweeps through this. */
+  setViewmodelPose(px: number, py: number, pz: number, rx: number, ry: number, rz: number): void {
+    POSE.pos.set(px, py, pz);
+    POSE.rot.set(rx, ry, rz);
   }
 
   renderStats(): { drawCalls: number; triangles: number } {

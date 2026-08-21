@@ -39,17 +39,25 @@ import { buildWeapon, type WeaponModel } from './weapon-mesh';
  * fill half the screen. Real shooters hold the grip roughly 45–55 cm out, and
  * the weapon should occupy the lower-right third of frame, not dominate it.
  */
-// The model's origin is at the trigger, so the receiver and optic sit just
-// behind it — pushing the whole weapon forward keeps the optic off the right
-// edge of frame and puts the barrel where the eye expects it.
-const HIP_POS = new THREE.Vector3(0.098, -0.088, -0.34);
+// Tuned numerically, not by eye — tools/frame-weapon.mjs sweeps candidate
+// poses through the projection maths and scores where each landmark lands in
+// NDC. This one puts the muzzle at (0.13, -0.30), the optic at (0.29, -0.30)
+// and the buttstock just off the bottom edge, for 17.6% screen coverage.
+//
+// The distance is the part that is easy to get wrong. The previous pose parked
+// the trigger 34 cm out, which left the buttstock 13 cm from a 55-degree
+// camera — it filled the right third of the frame as an unrecognisable slab.
+const HIP_POS = new THREE.Vector3(0.130, -0.160, -0.500);
+/** Live-tunable copies, so the headless framing tuner can sweep a pose. */
+export const POSE = { pos: HIP_POS.clone(), rot: new THREE.Euler(0.005, 0.110, 0.020) };
 /**
  * Yaw is positive so the muzzle swings slightly LEFT while the stock stays
  * right. Pointed dead ahead the barrel hides behind its own receiver and the
  * weapon reads as a stubby block; the small angle is what gives the
- * three-quarter view every shooter uses.
+ * three-quarter view every shooter uses. The tuner enforces it directly, by
+ * requiring the optic to project further right than the muzzle.
  */
-const HIP_ROT = new THREE.Euler(0.012, 0.115, 0.018);
+const HIP_ROT = new THREE.Euler(0.005, 0.110, 0.020);
 /** Extra offset while sprinting — weapon carried low and across the body. */
 const SPRINT_POS = new THREE.Vector3(0.13, -0.20, -0.30);
 const SPRINT_ROT = new THREE.Euler(-0.34, -0.62, 0.28);
@@ -84,8 +92,10 @@ export class Viewmodel implements System {
 
   host: ViewmodelHost | null = null;
 
-  private root = new THREE.Group();
-  private model: WeaponModel | null = null;
+  /** Read by the capture director's framing probe. */
+  readonly root = new THREE.Group();
+  model: WeaponModel | null = null;
+  readonly viewScale = VIEW_SCALE;
   private currentKey = '';
 
   private swayTime = 0;
@@ -104,29 +114,31 @@ export class Viewmodel implements System {
     const render = services.get('render');
     render.viewScene.add(this.root);
 
-    // The viewmodel scene has no lights of its own — without these the weapon
-    // renders pure black, exactly as the world geometry did before its
-    // materials were fixed.
+    // The viewmodel scene gets its own three-point rig plus the shared sky
+    // environment (assigned by the environment system, which owns the IBL).
     //
-    // These are deliberately hot. Auto-exposure meters the *world*, and in
-    // bright daylight it stops down far enough that a correctly-lit weapon
-    // reads as a silhouette. Every shooter over-lights the viewmodel for this
-    // reason: the gun is the one object that must stay legible in every
-    // lighting condition, because the player is looking at it constantly.
-    const key = new THREE.DirectionalLight(0xfff2e2, 6.5);
-    key.position.set(-0.5, 1.0, 0.6);
+    // These used to sit at intensity 6.5 because the weapon rendered nearly
+    // black — but the cause was missing image-based lighting, not missing
+    // light. A metal at metalness 0.7 has no diffuse term; with nothing to
+    // reflect, no amount of directional light makes it read as metal. Now that
+    // the environment map exists these can sit at sane values, which is what
+    // lets the key actually shape the receiver instead of flattening it.
+    const key = new THREE.DirectionalLight(0xfff2e2, 2.6);
+    key.position.set(-0.55, 1.0, 0.55);
     render.viewScene.add(key);
 
-    const fill = new THREE.DirectionalLight(0xa8bed6, 3.0);
+    const fill = new THREE.DirectionalLight(0xa8bed6, 0.9);
     fill.position.set(1.0, -0.15, 0.35);
     render.viewScene.add(fill);
 
-    // Rim from behind picks the silhouette off a bright background.
-    const rim = new THREE.DirectionalLight(0xcfe0ff, 3.6);
+    // Rim from behind picks the silhouette off a bright background. This is
+    // the one light that still runs hot: the weapon is the object the player
+    // stares at all game, and it must stay legible against a blown-out sky.
+    const rim = new THREE.DirectionalLight(0xcfe0ff, 1.9);
     rim.position.set(0.25, 0.35, -1.0);
     render.viewScene.add(rim);
 
-    render.viewScene.add(new THREE.AmbientLight(0x6a7480, 2.4));
+    render.viewScene.add(new THREE.AmbientLight(0x6a7480, 0.55));
 
     // Rebuild whenever the weapon or its attachments change.
     bus.on('weapon:equipped', () => this.rebuild());
@@ -205,8 +217,8 @@ export class Viewmodel implements System {
 
     // --- base pose --------------------------------------------------------
     const sprinting = host.speed > 5 && ads < 0.05;
-    const baseP = sprinting ? SPRINT_POS : HIP_POS;
-    const baseR = sprinting ? SPRINT_ROT : HIP_ROT;
+    const baseP = sprinting ? SPRINT_POS : POSE.pos;
+    const baseR = sprinting ? SPRINT_ROT : POSE.rot;
 
     // ADS target: move the weapon so its own sight point sits on the camera
     // axis. Reading the offset off the model is what makes any optic centre
@@ -248,7 +260,18 @@ export class Viewmodel implements System {
     }
   }
 
-  /** World-space muzzle position, for flash and tracer spawning. */
+  /**
+   * Muzzle in the viewmodel scene's own space. The flash is rendered in that
+   * scene, so it must be positioned there — a world-space muzzle would put it
+   * somewhere off in the level.
+   */
+  muzzleLocal(out: THREE.Vector3): THREE.Vector3 {
+    if (!this.model) return out.set(0, 0, 0);
+    out.copy(this.model.muzzleTip).multiplyScalar(VIEW_SCALE);
+    return out.applyEuler(this.root.rotation).add(this.root.position);
+  }
+
+  /** World-space muzzle position, for tracer spawning. */
   muzzleWorld(out: THREE.Vector3): THREE.Vector3 {
     if (!this.model) return out.set(0, 0, 0);
     return out.copy(this.model.muzzleTip).applyMatrix4(this.root.matrixWorld);

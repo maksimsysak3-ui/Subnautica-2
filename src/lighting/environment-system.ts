@@ -18,6 +18,7 @@ import {
 } from '../core/contracts';
 import { clamp01, damp, lerp, smoothstep, TAU, Rng } from '../core/math';
 import { Sky } from '../render/sky';
+import { SkyEnvironment } from './ibl';
 import { frame } from '../render/frame-state';
 
 /** Half-width of the sun's shadow frustum, metres. Covers the playable site. */
@@ -96,6 +97,16 @@ export class EnvironmentSystem implements System, IEnvironment {
   private sunDir = new THREE.Vector3();
   private moonDir = new THREE.Vector3();
   private hazeColor = new THREE.Color();
+  private ibl: SkyEnvironment | null = null;
+  private viewScene: THREE.Scene | null = null;
+  private iblParams = {
+    sunDir: new THREE.Vector3(),
+    zenith: new THREE.Color(),
+    horizon: new THREE.Color(),
+    ground: new THREE.Color(),
+    intensity: 1,
+    cloudCover: 0,
+  };
   private shadowTarget = new THREE.Vector3();
   private nightHaze = new THREE.Color(0x0a0f16);
 
@@ -140,6 +151,13 @@ export class EnvironmentSystem implements System, IEnvironment {
 
     this.sky = new Sky();
     scene.add(this.sky.mesh);
+
+    // Image-based lighting. Every metal in the project was rendering black
+    // without it — a physically-based metal has no diffuse term, so with
+    // nothing to reflect it returns a specular highlight and darkness.
+    const renderer = (services.get('render') as unknown as { renderer: THREE.WebGLRenderer }).renderer;
+    this.ibl = new SkyEnvironment(renderer);
+    this.viewScene = (services.get('render') as unknown as { viewScene: THREE.Scene }).viewScene;
 
     services.register('environment', this);
     this.updateCelestial(0);
@@ -333,6 +351,29 @@ export class EnvironmentSystem implements System, IEnvironment {
     this.ambient.intensity =
       lerp(0.30, 2.15, day) * lerp(1, 1.45, this.weather.cloudCover) +
       this.lightningFlash * 1.5;
+
+    // --- image-based lighting -------------------------------------------
+    // Fed from exactly the colours the hemisphere light uses, so reflections
+    // and ambient agree rather than describing two different skies. The
+    // rebuild is internally throttled — it only runs when the sky has moved.
+    if (this.ibl) {
+      const p = this.iblParams;
+      p.sunDir.copy(t.isNight ? this.moonDir : this.sunDir);
+      p.zenith.copy(skyTop);
+      p.horizon.copy(skyTop).lerp(profile.ambientTint, 0.55).offsetHSL(0, -0.12, 0.10);
+      p.ground.copy(ground);
+      // Reflections must not out-shine the direct lighting they sit next to.
+      p.intensity = (t.isNight ? 0.09 + 0.10 * t.moonPhase : lerp(0.22, 1.0, day))
+        * profile.visibilityFactor;
+      p.cloudCover = this.weather.cloudCover;
+      if (this.ibl.update(p)) {
+        const scene = (services.get('render') as unknown as { scene: THREE.Scene }).scene;
+        scene.environment = this.ibl.texture;
+        // The viewmodel renders in its own scene, so it needs the assignment
+        // too — otherwise the weapon is the one metal object still lit wrong.
+        if (this.viewScene) this.viewScene.environment = this.ibl.texture;
+      }
+    }
 
     // Drive the atmosphere pass from weather so fog density, sky colour and
     // the sky dome's horizon haze all move together.

@@ -25,9 +25,12 @@ import {
   redDot, scope, ironSights, suppressor, flashHider, muzzleBrake,
   type MatKey,
 } from './parts';
+import { firingHand, supportHand } from './hands';
 
 export interface WeaponModel {
   group: THREE.Group;
+  /** Hands, kept separate so a reload animation can move them alone. */
+  hands: THREE.Group;
   sightPoint: THREE.Vector3;
   muzzleTip: THREE.Vector3;
   ejectionPort: THREE.Vector3;
@@ -234,9 +237,31 @@ export function buildWeapon(
   // --- sling points -------------------------------------------------------
   b.cyl(0.004, 0.014, 'aluDark', -0.022, BORE - 0.020, recBack - 0.010, 6, 0, Math.PI / 2, 0);
 
+  // --- hands --------------------------------------------------------------
+  // Built last and into their own group so they sit on top of the finished
+  // weapon and can later be animated (reload, malfunction clearing) without
+  // touching the gun. Their positions are derived from the grip and forend the
+  // assembler actually produced, so a longer handguard moves the support hand.
+  const hands = new PartBuilder();
+  const gloves: MatKey = furniture === 'polymerFde' ? 'gloveTan' : 'glove';
+  firingHand(hands, 0, BORE - 0.062, recFront + 0.104, 0.26, recFront + 0.030,
+    { glove: gloves, sleeve: 'sleeve', mirror: false });
+  if (hgLen > 0.05) {
+    // Sit the support hand at the rear third of the handguard unless an
+    // underbarrel grip is fitted, in which case it belongs behind it.
+    const ubOffset = attachments.underbarrel ? 0.055 : 0.0;
+    const supportZ = THREE.MathUtils.clamp(
+      hgZ + hgLen * 0.06 + ubOffset, hgZ - hgLen * 0.42, hgZ + hgLen * 0.42);
+    supportHand(hands, 0, BORE - 0.008, supportZ, 0.026, 0.16,
+      { glove: gloves, sleeve: 'sleeve', mirror: true });
+  }
+  b.group.add(hands.group);
+  b.triangles += hands.triangles;
+
   finalise(b);
   return {
     group: b.group,
+    hands: hands.group,
     sightPoint: new THREE.Vector3(0, sightY, opticZ),
     muzzleTip: new THREE.Vector3(0, BORE, muzzleZ),
     ejectionPort: new THREE.Vector3(0.026, BORE + 0.006, recFront + 0.118),
@@ -320,9 +345,22 @@ function buildPistol(
     sightY = railY + 0.008;
   }
 
+  // --- hands --------------------------------------------------------------
+  // A pistol is shot with both hands stacked on the grip, so the support hand
+  // wraps the firing hand rather than the weapon.
+  const hands = new PartBuilder();
+  const gloves: MatKey = furniture === 'polymerFde' ? 'gloveTan' : 'glove';
+  firingHand(hands, 0, BORE - 0.050, slideZ + slideLen * 0.36, 0.30, slideZ + 0.030,
+    { glove: gloves, sleeve: 'sleeve', mirror: false });
+  supportHand(hands, -0.004, BORE - 0.078, slideZ + slideLen * 0.34, 0.030, 0.42,
+    { glove: gloves, sleeve: 'sleeve', mirror: true });
+  b.group.add(hands.group);
+  b.triangles += hands.triangles;
+
   finalise(b);
   return {
     group: b.group,
+    hands: hands.group,
     sightPoint: new THREE.Vector3(0, sightY, opticZ),
     muzzleTip: new THREE.Vector3(0, BORE + 0.006, muzzleZ),
     ejectionPort: new THREE.Vector3(0.017, BORE + 0.010, slideZ - 0.010),

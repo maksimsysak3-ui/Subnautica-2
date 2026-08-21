@@ -17,7 +17,8 @@ import * as THREE from 'three';
 
 export type MatKey =
   | 'parkerised' | 'blued' | 'alu' | 'aluDark' | 'polymerBlack' | 'polymerFde'
-  | 'polymerOlive' | 'wood' | 'woodDark' | 'glass' | 'reticle' | 'rubber' | 'brass';
+  | 'polymerOlive' | 'wood' | 'woodDark' | 'glass' | 'reticle' | 'rubber' | 'brass'
+  | 'glove' | 'gloveTan' | 'sleeve' | 'skin';
 
 export const MATERIALS: Record<MatKey, THREE.Material> = {
   // Slightly lifted from true black: a real parkerised finish still shows its
@@ -35,6 +36,13 @@ export const MATERIALS: Record<MatKey, THREE.Material> = {
   reticle:      new THREE.MeshBasicMaterial({ color: 0xff4433, toneMapped: false }),
   rubber:       new THREE.MeshStandardMaterial({ color: 0x26282b, roughness: 0.96, metalness: 0.0, flatShading: true }),
   brass:        new THREE.MeshStandardMaterial({ color: 0xb08d4a, roughness: 0.35, metalness: 0.85, flatShading: true }),
+  // Hands. Kept a touch lighter and much rougher than the weapon so they
+  // separate from it in silhouette instead of merging into one dark mass —
+  // which is what happens when gloves and receiver share a value.
+  glove:        new THREE.MeshStandardMaterial({ color: 0x4a4d52, roughness: 0.94, metalness: 0.0, flatShading: true }),
+  gloveTan:     new THREE.MeshStandardMaterial({ color: 0x8a7a5e, roughness: 0.94, metalness: 0.0, flatShading: true }),
+  sleeve:       new THREE.MeshStandardMaterial({ color: 0x5b6152, roughness: 0.97, metalness: 0.0, flatShading: true }),
+  skin:         new THREE.MeshStandardMaterial({ color: 0xa87d5e, roughness: 0.72, metalness: 0.0, flatShading: true }),
 };
 
 // --- geometry caches -------------------------------------------------------

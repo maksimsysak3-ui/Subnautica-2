@@ -20,6 +20,8 @@ import { Ballistics } from './weapons/ballistics';
 import { WeaponRuntime } from './weapons/weapon-system';
 import { ActorBodies } from './actors/actor-bodies';
 import { Viewmodel } from './weaponmodels/viewmodel';
+import { CombatFx } from './fx/combat-fx';
+import { Hud } from './ui/hud';
 import { CaptureDirector } from './core/capture-director';
 
 const bootEl = document.getElementById('boot')!;
@@ -57,7 +59,8 @@ async function boot(): Promise<void> {
   engine.add(new ActorRegistry());
 
   progress(0.65, 'loading ballistics');
-  engine.add(new Ballistics());
+  const ballistics = new Ballistics();
+  engine.add(ballistics);
 
   progress(0.7, 'spawning operator');
   const player = new PlayerSystem();
@@ -76,6 +79,21 @@ async function boot(): Promise<void> {
   const viewmodel = new Viewmodel();
   viewmodel.host = player;
   engine.add(viewmodel);
+
+  const fx = new CombatFx();
+  // The muzzle flash lives in the viewmodel scene, so it needs the weapon's
+  // own muzzle position rather than a world-space guess.
+  fx.muzzleProvider = (out) => viewmodel.muzzleLocal(out);
+  fx.projectileSource = () => ballistics.active;
+  engine.add(fx);
+
+  // The HUD is the only thing that tells the player a door is a door. It
+  // reads state and never writes any, so injection keeps the dependency
+  // pointing one way.
+  const hud = new Hud();
+  hud.player = player;
+  hud.weapons = weapons;
+  engine.add(hud);
 
   progress(0.8, 'binding controls');
   const input = new InputSystem(canvas);

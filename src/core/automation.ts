@@ -34,6 +34,10 @@ export interface AutomationApi {
     fired: number; impacts: number; actorHits: number; penetrations: number; ricochets: number;
     flightSeconds: number; dropMetres: number; impactSpeed: number;
   };
+  /** Run full engine frames with input held — doors, VFX and all. */
+  driveGame(input: Record<string, unknown>, frames: number): {
+    x: number; y: number; z: number; grounded: boolean;
+  } | null;
   /** Fire one level shot and sample it at `rangeM`. */
   ballisticProfile(rangeM: number): {
     muzzle: number; flightSeconds: number; dropMetres: number; impactSpeed: number; reached: boolean;
@@ -43,6 +47,11 @@ export interface AutomationApi {
   /** Current weapon readout. */
   weaponState(): unknown;
   listPasses(): Array<{ id: string; order: number; enabled: boolean }>;
+  /** Projected NDC bounds of the viewmodel — pose tuning without eyeballing. */
+  viewmodelFraming(pose?: [number, number, number, number, number, number]): unknown;
+  setViewmodelPose(px: number, py: number, pz: number, rx: number, ry: number, rz: number): void;
+  /** Hide the level and put the weapon on a flat backdrop. */
+  setStudio(on: boolean): void;
 }
 
 declare global {
@@ -119,6 +128,10 @@ export function installAutomation(engine: Engine, director: CaptureDirector): vo
       return director.fireAt(x, y, z, rounds);
     },
 
+    driveGame(input, frames) {
+      return director.driveGame(input, frames);
+    },
+
     ballisticProfile(rangeM) {
       return director.ballisticProfile(rangeM);
     },
@@ -133,6 +146,18 @@ export function installAutomation(engine: Engine, director: CaptureDirector): vo
 
     listPasses() {
       return director.listPasses();
+    },
+
+    viewmodelFraming(pose) {
+      return director.viewmodelFraming(pose);
+    },
+
+    setViewmodelPose(px, py, pz, rx, ry, rz) {
+      director.setViewmodelPose(px, py, pz, rx, ry, rz);
+    },
+
+    setStudio(on) {
+      director.setStudio(on);
     },
   };
 
