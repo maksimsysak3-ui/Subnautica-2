@@ -91,13 +91,18 @@ check('E aims down sights', adsHeld > 0.85, `${adsBefore.toFixed(2)} → ${adsHe
 check('releasing E lowers the weapon', adsReleased < 0.15, `→ ${adsReleased.toFixed(2)}`);
 
 // --- 4. jump ----------------------------------------------------------------
+// Sample the whole arc rather than one arbitrary instant: apex is at v/g,
+// about 480 ms in, and a fixed early sample under-reports the jump by half.
 const y0 = await page.evaluate(() => window.engine.get('player').position.y);
 await page.keyboard.press('Space');
-await page.evaluate(() => window.__BM.settle(120));
-const yPeak = await page.evaluate(() => window.engine.get('player').position.y);
-await page.evaluate(() => window.__BM.settle(1400));
+let yPeak = y0;
+for (let i = 0; i < 12; i++) {
+  await page.evaluate(() => window.__BM.settle(70));
+  yPeak = Math.max(yPeak, await page.evaluate(() => window.engine.get('player').position.y));
+}
+await page.evaluate(() => window.__BM.settle(1200));
 const yLand = await page.evaluate(() => window.engine.get('player').position.y);
-check('Space jumps', yPeak - y0 > 0.15, `+${(yPeak - y0).toFixed(3)} m`);
+check('Space jumps clear of a waist-high wall', yPeak - y0 > 0.9, `apex +${(yPeak - y0).toFixed(3)} m`);
 check('lands again', Math.abs(yLand - y0) < 0.08, `${(yLand - y0).toFixed(3)} m from start`);
 
 // --- 5. crouch toggle -------------------------------------------------------

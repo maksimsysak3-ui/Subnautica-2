@@ -43,6 +43,11 @@ export const DEFAULT_BINDINGS: Binding[] = [
   { action: 'reload',    keys: ['KeyR'],               label: 'Reload' },
   { action: 'use',       keys: ['KeyF'],               label: 'Interact' },
   { action: 'fireMode',  keys: ['KeyB'],               label: 'Cycle fire mode' },
+  { action: 'slot1',     keys: ['Digit1'],             label: 'Primary' },
+  { action: 'slot2',     keys: ['Digit2'],             label: 'Secondary' },
+  { action: 'slot3',     keys: ['Digit3'],             label: 'Shotgun' },
+  { action: 'slot4',     keys: ['Digit4'],             label: 'Sidearm' },
+  { action: 'nextSlot',  keys: ['KeyV'],               label: 'Next weapon' },
   { action: 'drone',     keys: ['KeyG'],               label: 'Deploy drone' },
   { action: 'nvg',       keys: ['KeyN'],               label: 'Night vision' },
   { action: 'map',       keys: ['KeyM', 'Tab'],        label: 'Tactical map' },
@@ -80,11 +85,32 @@ export class InputSystem implements System {
   /** When the lock was last exited, for the browser's re-request cooldown. */
   private lastExit = -1e9;
   private lockWatchdog = 0;
-  private dragging = false;
-  private lastDragX = 0;
-  private lastDragY = 0;
+  /**
+   * Capture state when real pointer lock is unavailable.
+   *
+   * Measured: Chromium refuses `requestPointerLock` inside a **cross-origin
+   * iframe**, with or without `allow="pointer-lock"`. Published artifacts run
+   * in exactly that configuration, so a meaningful share of players will never
+   * get the real thing no matter what this code does.
+   *
+   * Requiring a held mouse button in that case is the wrong answer — it is not
+   * how anyone expects to look around. Instead the game captures the cursor
+   * *visually*: hides it, and turns on raw mousemove deltas with no button
+   * held. That is true 1:1 mouse look for as long as the cursor stays inside
+   * the window. The only thing real pointer lock adds is that the cursor never
+   * reaches an edge, which `edgePush` below compensates for.
+   */
+  private softCapture = false;
+  private lastMoveX = 0;
+  private lastMoveY = 0;
+  private haveLastMove = false;
+  /** Turn rate applied while the cursor is pinned against a window edge. */
+  private edgePushX = 0;
+  private edgePushY = 0;
+  /** Accumulated wheel notches, consumed once per frame. */
+  private wheelSteps = 0;
   /** Fires when control mode changes, so the UI can update its hint. */
-  onControlModeChange: ((mode: 'locked' | 'drag') => void) | null = null;
+  onControlModeChange: ((mode: 'locked' | 'soft' | 'released') => void) | null = null;
   /** Set once the player has dismissed the click-to-play overlay. */
   engaged = false;
   /** Edge-triggered actions consumed once per press. */
@@ -94,6 +120,7 @@ export class InputSystem implements System {
 
   init(ctx: EngineContext): void {
     this.player = ctx.engine.require<PlayerSystem>('player');
+    this.engine = ctx.engine as unknown as { get(id: string): unknown };
     this.canvas =
       this.hostCanvas ?? (document.getElementById('game') as HTMLCanvasElement);
     this.rebind(DEFAULT_BINDINGS);
@@ -106,6 +133,7 @@ export class InputSystem implements System {
     window.addEventListener('keyup', this.onKeyUp);
     window.addEventListener('blur', this.onBlur);
     this.canvas.addEventListener('mousedown', this.onMouseDown);
+    this.canvas.addEventListener('wheel', this.onWheel, { passive: false });
     window.addEventListener('mouseup', this.onMouseUp);
     window.addEventListener('mousemove', this.onMouseMove);
     document.addEventListener('pointerlockchange', this.onLockChange);
@@ -113,6 +141,23 @@ export class InputSystem implements System {
     // Right-click is aim-down-sights, not a context menu.
     this.canvas.addEventListener('contextmenu', (e) => e.preventDefault());
   }
+
+  /**
+   * The weapon runtime, looked up lazily.
+   *
+   * Input must not import the weapon system — it translates devices into
+   * intent and owns no gameplay. This is the one place it needs a handle, and
+   * it goes through the engine registry rather than a static import so the
+   * dependency stays one-directional.
+   */
+  private weaponRuntime(): { selectSlot(i: number): boolean; cycleSlot(d: number): void } | null {
+    if (this.runtimeCache === undefined) {
+      this.runtimeCache = (this.engine?.get('weaponRuntime') ?? null) as never;
+    }
+    return this.runtimeCache;
+  }
+  private runtimeCache: { selectSlot(i: number): boolean; cycleSlot(d: number): void } | null | undefined;
+  private engine: { get(id: string): unknown } | null = null;
 
   rebind(bindings: Binding[]): void {
     this.actions.clear();
@@ -158,28 +203,21 @@ export class InputSystem implements System {
   private onMouseDown = (e: MouseEvent): void => {
     this.mouseButtons.add(e.button);
     if (this.locked) return;
-
-    // Arm drag-look AND request the lock, in that order, every time.
-    //
-    // This used to request the lock and `return`, so dragging was never armed
-    // on the click that triggered the request. In an embedding that refuses
-    // pointer lock silently — no error, no rejection, the request simply never
-    // takes effect — that meant the first click did nothing, and dragging did
-    // nothing either, because the drag state was never set. The player was
-    // left with a view they could not turn.
-    //
-    // Arming both is free: `onMouseMove` checks `this.locked` first, so if the
-    // lock is granted the drag path is never reached.
-    this.dragging = true;
-    this.lastDragX = e.clientX;
-    this.lastDragY = e.clientY;
+    // Every click is another chance at the real thing. Nothing latches, so a
+    // transient refusal never costs the player mouse look for the session.
     this.requestLock();
     e.preventDefault();
   };
 
   private onMouseUp = (e: MouseEvent): void => {
     this.mouseButtons.delete(e.button);
-    this.dragging = false;
+  };
+
+  /** Wheel cycles weapons — the gesture every shooter uses for it. */
+  private onWheel = (e: WheelEvent): void => {
+    if (!this.capturing) return;
+    e.preventDefault();
+    this.wheelSteps += e.deltaY > 0 ? 1 : -1;
   };
 
   private onMouseMove = (e: MouseEvent): void => {
@@ -192,13 +230,30 @@ export class InputSystem implements System {
     if (this.locked) {
       dx = e.movementX;
       dy = e.movementY;
-    } else if (this.dragging) {
-      // movementX is unreliable outside pointer lock across browsers, so
-      // track the delta ourselves.
-      dx = e.clientX - this.lastDragX;
-      dy = e.clientY - this.lastDragY;
-      this.lastDragX = e.clientX;
-      this.lastDragY = e.clientY;
+      this.edgePushX = 0;
+      this.edgePushY = 0;
+    } else if (this.softCapture) {
+      // movementX is unreliable outside pointer lock across browsers, so track
+      // the delta ourselves. No button is required — this is look, not drag.
+      if (this.haveLastMove) {
+        dx = e.clientX - this.lastMoveX;
+        dy = e.clientY - this.lastMoveY;
+      }
+      this.lastMoveX = e.clientX;
+      this.lastMoveY = e.clientY;
+      this.haveLastMove = true;
+
+      // Near a window edge the cursor runs out of room, so blend in a steady
+      // turn. Without this the player simply cannot turn past 180 degrees.
+      const w = window.innerWidth, h = window.innerHeight;
+      const margin = Math.min(140, w * 0.12);
+      const push = (v: number, size: number): number => {
+        if (v < margin) return -(1 - v / margin);
+        if (v > size - margin) return (1 - (size - v) / margin);
+        return 0;
+      };
+      this.edgePushX = push(e.clientX, w);
+      this.edgePushY = push(e.clientY, h) * 0.55;
     } else {
       return;
     }
@@ -213,10 +268,20 @@ export class InputSystem implements System {
     if (this.locked) {
       window.clearTimeout(this.lockWatchdog);
       this.lockFailures = 0;
+      // Real lock supersedes the fallback.
+      this.softCapture = false;
+      if (this.canvas) this.canvas.style.cursor = 'none';
       this.onControlModeChange?.('locked');
     } else if (wasLocked) {
+      // Escape released it. Give the cursor back — that is the whole point of
+      // pressing Escape — and do not silently drop into soft capture, which
+      // would look like Escape did nothing.
+      this.lastExit = performance.now();
       this.down.clear();
       this.mouseButtons.clear();
+      this.setSoftCapture(false);
+      if (this.canvas) this.canvas.style.cursor = '';
+      this.onControlModeChange?.('released');
       bus.emit('ui:screenChanged', { screen: 'paused' });
     }
   };
@@ -239,7 +304,9 @@ export class InputSystem implements System {
    */
   private noteLockFailure(): void {
     this.lockFailures++;
-    this.onControlModeChange?.('drag');
+    // Fall straight into soft capture so the player is never left with a view
+    // they cannot turn. A later click still retries the real lock.
+    this.setSoftCapture(true);
   }
 
   /**
@@ -260,7 +327,7 @@ export class InputSystem implements System {
     // exit. Guard only that window, and only after an actual exit — a plain
     // rate limit swallowed legitimate clicks.
     if (now - this.lastExit < 1100) {
-      this.onControlModeChange?.('drag');
+      this.setSoftCapture(true);
       return;
     }
     if (now - this.lastLockRequest < 250) return;
@@ -283,9 +350,29 @@ export class InputSystem implements System {
     }
   }
 
-  /** True when the player is steering by dragging rather than by pointer lock. */
-  get usingDragLook(): boolean {
-    return !this.locked;
+  /** True when the cursor is captured visually rather than by pointer lock. */
+  get usingSoftCapture(): boolean {
+    return this.softCapture && !this.locked;
+  }
+
+  /** True whenever the view is steerable at all. */
+  get capturing(): boolean {
+    return this.locked || this.softCapture;
+  }
+
+  /**
+   * Enter or leave soft capture — the fallback for embeddings that refuse real
+   * pointer lock. Hides the cursor and starts continuous mousemove look.
+   */
+  setSoftCapture(on: boolean): void {
+    if (this.softCapture === on) return;
+    this.softCapture = on;
+    this.haveLastMove = false;
+    this.edgePushX = 0;
+    this.edgePushY = 0;
+    if (this.canvas) this.canvas.style.cursor = on ? 'none' : '';
+    document.body.style.cursor = on ? 'none' : '';
+    this.onControlModeChange?.(on ? 'soft' : 'released');
   }
 
   get isLocked(): boolean {
@@ -323,6 +410,19 @@ export class InputSystem implements System {
     inp.aim = this.mouseButtons.has(2) || this.isDown('aim');
     if (this.consumePress('jump')) inp.jump = true;
 
+    // --- weapon selection --------------------------------------------------
+    const runtime = this.weaponRuntime();
+    if (runtime) {
+      for (let i = 0; i < 4; i++) {
+        if (this.consumePress(`slot${i + 1}`)) runtime.selectSlot(i);
+      }
+      if (this.consumePress('nextSlot')) runtime.cycleSlot(1);
+      if (this.wheelSteps !== 0) {
+        runtime.cycleSlot(this.wheelSteps);
+        this.wheelSteps = 0;
+      }
+    }
+
     // Scripted input last, so it wins.
     for (const [k, v] of Object.entries(this.override)) {
       (inp as unknown as Record<string, unknown>)[k] = v;
@@ -347,6 +447,15 @@ export class InputSystem implements System {
       const pitch = (this.isDown('lookDown') ? 1 : 0) - (this.isDown('lookUp') ? 1 : 0);
       if (turn !== 0) this.pendingLookX += turn * 1.6 * _dt;
       if (pitch !== 0) this.pendingLookY += pitch * 1.1 * _dt;
+    }
+
+    // Edge push. In soft capture the cursor eventually runs into a window
+    // edge and stops producing deltas; without this the player cannot turn
+    // more than one screen-width in either direction. Applied per frame, so it
+    // is a steady turn rate rather than an impulse.
+    if (this.softCapture && !this.locked) {
+      if (this.edgePushX !== 0) this.pendingLookX += this.edgePushX * 2.4 * _dt;
+      if (this.edgePushY !== 0) this.pendingLookY += this.edgePushY * 1.4 * _dt;
     }
 
     // Hand accumulated look deltas to the controller and reset.

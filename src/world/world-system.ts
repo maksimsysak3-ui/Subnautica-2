@@ -20,6 +20,7 @@
  */
 
 import * as THREE from 'three';
+import { surfaceTexture } from './textures';
 import type { System, EngineContext } from '../core/engine';
 import {
   services,
@@ -47,7 +48,14 @@ const TERRAIN_SEGMENTS = 192;
 /** Radius of the level pad the site is built on, metres. */
 const PAD_RADIUS = 118;
 /** Height of the pad above sea level. */
-const PAD_HEIGHT = 2.0;
+// The terrain sits deliberately BELOW the compound's paving.
+//
+// It used to be exactly 2.0, the same as the villa's lawn slab top, which made
+// the two coplanar across the whole compound — textbook z-fighting, and it
+// read in game as the ground flickering between green and sand as the camera
+// moved. 120 mm of clearance also absorbs the difference between the analytic
+// terrain function and the triangulated mesh that approximates it.
+const PAD_HEIGHT = 1.88;
 
 /** Attached to meshes that are not bricks (terrain), so raycasts resolve them. */
 export interface SurfaceUserData {
@@ -221,9 +229,33 @@ export class WorldSystem implements System, IWorldQuery {
     geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
     geo.computeVertexNormals();
 
+    // UVs run 0..1 across 640 m, so the repeat has to do all the work. Two
+    // scales: a coarse map breaking up the large forms and a fine one that
+    // only resolves close to the player.
+    const detail = surfaceTexture('dirt', 1);
     const mat = new THREE.MeshStandardMaterial({
       vertexColors: true, roughness: 0.96, metalness: 0, flatShading: true,
+      map: detail,
     });
+    mat.onBeforeCompile = (shader) => {
+      shader.uniforms.uCoarse = { value: TERRAIN_SIZE / 26 };
+      shader.uniforms.uFine = { value: TERRAIN_SIZE / 2.2 };
+      shader.fragmentShader = shader.fragmentShader
+        .replace('#include <common>', `#include <common>
+          uniform float uCoarse;
+          uniform float uFine;`)
+        .replace('#include <map_fragment>', `
+          #ifdef USE_MAP
+            // Two octaves at very different scales. One alone either tiles
+            // visibly across the whole map or vanishes beyond ten metres.
+            // Doubled so the average texel is a no-op — a greyscale map
+            // averages 0.5 and multiplying by it straight halves the terrain.
+            vec3 coarse = texture2D(map, vMapUv * uCoarse).rgb * 2.0;
+            vec3 fine   = texture2D(map, vMapUv * uFine).rgb * 2.0;
+            diffuseColor.rgb *= mix(vec3(1.0), coarse, 0.34)
+                              * mix(vec3(1.0), fine, 0.20);
+          #endif`);
+    };
     const mesh = new THREE.Mesh(geo, mat);
     mesh.receiveShadow = true;
     mesh.name = 'terrain';

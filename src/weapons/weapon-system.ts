@@ -268,6 +268,12 @@ export class WeaponRuntime implements System {
 
   weapons = new WeaponSystem();
   equipped: WeaponInstance | null = null;
+  /** Everything the operator is carrying, in slot order. */
+  loadout: WeaponInstance[] = [];
+  /** Index into `loadout`. */
+  slot = 0;
+  /** Seconds left on the draw. The weapon is unusable until it reaches zero. */
+  swapTimer = 0;
   fireMode: FireMode = 'semi';
   /** Lifetime round counter, so captures and tests can wait on a real shot. */
   shotsFired = 0;
@@ -295,20 +301,66 @@ export class WeaponRuntime implements System {
     services.register('weapons', this.weapons);
     this.ballistics = ctx.engine.require<Ballistics>('ballistics');
 
-    // Start the player with a serviceable carbine rather than empty hands.
-    this.equip(this.weapons.createInstance('ho-mk4c', {
-      optic: 'opt-rds', muzzle: 'muz-a2', underbarrel: 'grip-handstop',
-      handguard: 'hg-mlok-short',
-    }));
-    this.reserve.set(this.equipped!.ammoId, 210);
+    // A loadout, not a single weapon. Every slot is built up front so
+    // switching is instant and each weapon keeps its own chamber and magazine
+    // state across swaps — putting a carbine away with 12 rounds left and
+    // coming back to find 12 rounds is most of what makes a loadout feel real.
+    this.loadout = [
+      this.weapons.createInstance('ho-mk4c', {
+        optic: 'opt-rds', muzzle: 'muz-a2', underbarrel: 'grip-handstop',
+        handguard: 'hg-mlok-short',
+      }),
+      this.weapons.createInstance('md-bp5', {
+        optic: 'opt-lpvo', muzzle: 'muz-comp', handguard: 'hg-mlok-short',
+      }),
+      this.weapons.createInstance('ho-m590', { optic: 'opt-iron' }),
+      this.weapons.createInstance('aw-p9', { optic: 'opt-rds' }),
+    ];
+    for (const w of this.loadout) {
+      // Reserve is per calibre, so two 5.56 weapons share a pool — which is
+      // how a real load-out works and makes calibre choice a real decision.
+      this.reserve.set(w.ammoId, (this.reserve.get(w.ammoId) ?? 0) + 180);
+    }
+    this.selectSlot(0);
+  }
+
+  /**
+   * Switch to a loadout slot.
+   *
+   * Ignored mid-reload and mid-malfunction: you cannot make a stoppage go away
+   * by swapping weapons, which would otherwise be strictly better than clearing
+   * it and would gut the whole malfunction system.
+   */
+  selectSlot(i: number): boolean {
+    if (i < 0 || i >= this.loadout.length) return false;
+    if (i === this.slot && this.equipped) return false;
+    if (this.reloading) return false;
+    this.slot = i;
+    this.equip(this.loadout[i]);
+    return true;
+  }
+
+  /** Next / previous slot, for the mouse wheel and Q-style quick swap. */
+  cycleSlot(dir: number): void {
+    const n = this.loadout.length;
+    if (n === 0) return;
+    this.selectSlot((this.slot + (dir >= 0 ? 1 : n - 1)) % n);
   }
 
   equip(inst: WeaponInstance): void {
+    const swapping = this.equipped !== null && this.equipped !== inst;
     this.equipped = inst;
     this.recoil.setWeapon(inst.specId);
     this.fireMode = WEAPON_MAP.get(inst.specId)?.fireModes.find((m) => m !== 'safe') ?? 'semi';
     this.cooldown = 0;
     this.reloading = false;
+    // A draw costs time, scaled by how handy the weapon is. A pistol comes up
+    // fast and a machine gun does not, which is the entire reason to carry a
+    // sidearm rather than reload under fire.
+    if (swapping) {
+      const erg = inst.stats.ergonomics;
+      this.swapTimer = lerp(0.95, 0.34, clamp01(erg / 100));
+    }
     bus.emit('weapon:equipped', { weaponId: inst.uid, slot: 'primary' });
   }
 
@@ -332,6 +384,14 @@ export class WeaponRuntime implements System {
     this.cooldown = Math.max(0, this.cooldown - step);
     // Barrel cools slowly, and much faster when you are not shooting.
     inst.heat = Math.max(0, inst.heat - step * 0.06);
+
+    // The weapon is not usable until the draw finishes. Returning early rather
+    // than merely blocking the trigger also means a swap cannot be used to skip
+    // a reload or shortcut a malfunction.
+    if (this.swapTimer > 0) {
+      this.swapTimer = Math.max(0, this.swapTimer - step);
+      return;
+    }
 
     // --- clearing a malfunction ------------------------------------------
     if (this.clearingRemaining > 0) {

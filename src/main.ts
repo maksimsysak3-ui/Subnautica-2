@@ -116,35 +116,74 @@ async function boot(): Promise<void> {
     });
   });
 
-  // Pointer lock can only be requested from a user gesture — and some
-  // embeddings (a sandboxed iframe without allow="pointer-lock") refuse it
-  // outright. The overlay therefore dismisses on click regardless of whether
-  // the lock succeeds; otherwise a refused lock leaves the player staring at
-  // an overlay that appears to do nothing.
+  // ## Taking control
+  //
+  // Real pointer lock is what everyone wants: the cursor vanishes, the mouse
+  // turns the view, Escape gives it back. But Chromium refuses
+  // `requestPointerLock` inside a **cross-origin iframe** — measured, with and
+  // without `allow="pointer-lock"` — and a published artifact runs in exactly
+  // that configuration.
+  //
+  // So the game asks for the real thing on every click, and if it does not
+  // arrive, falls into soft capture: cursor hidden, continuous mousemove look
+  // with no button held, and a turn-rate push near the window edges to make up
+  // for the cursor running out of room. The player gets mouse look either way.
+  //
+  // Going fullscreen materially improves the odds of the real lock, so the
+  // overlay offers it.
   const overlay = document.getElementById('click-to-play');
   const modeHint = document.getElementById('mode-hint');
+  const fsButton = document.getElementById('go-fullscreen');
+
   const engage = (): void => {
     overlay?.classList.add('hidden');
     input.requestLock();
+    // If the lock does not land shortly, capture the cursor visually instead.
+    window.setTimeout(() => {
+      if (document.pointerLockElement !== canvas) input.setSoftCapture(true);
+    }, 700);
   };
   overlay?.addEventListener('click', engage);
   canvas.addEventListener('click', () => {
     if (document.pointerLockElement !== canvas) engage();
   });
 
+  fsButton?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const el = document.documentElement as HTMLElement & {
+      webkitRequestFullscreen?: () => Promise<void>;
+    };
+    const req = el.requestFullscreen?.bind(el) ?? el.webkitRequestFullscreen?.bind(el);
+    // Fullscreen first, then the lock — asking in that order is what gives the
+    // frame the activation pointer lock wants.
+    Promise.resolve(req?.()).catch(() => undefined).finally(() => {
+      overlay?.classList.add('hidden');
+      window.setTimeout(engage, 120);
+    });
+  });
+
   input.onControlModeChange = (mode) => {
     if (!modeHint) return;
-    modeHint.textContent =
-      mode === 'drag'
-        ? 'DRAG TO LOOK — this view cannot capture the cursor'
-        : 'ESC TO RELEASE CURSOR';
+    if (mode === 'locked') {
+      modeHint.textContent = 'ESC TO RELEASE CURSOR';
+    } else if (mode === 'soft') {
+      modeHint.textContent = 'MOUSE LOOK ACTIVE — ESC TO RELEASE · FULLSCREEN FOR TRUE CURSOR LOCK';
+    } else {
+      modeHint.textContent = 'CLICK TO TAKE CONTROL';
+    }
     modeHint.classList.remove('hidden');
   };
 
-  // Escape exits pointer lock; bring the overlay back so the player can
-  // re-engage, but only when the lock was actually being used.
+  // Escape releases whichever capture is active and brings the overlay back.
+  document.addEventListener('keydown', (e) => {
+    if (e.code !== 'Escape') return;
+    if (input.usingSoftCapture) {
+      input.setSoftCapture(false);
+      overlay?.classList.remove('hidden');
+    }
+  });
   document.addEventListener('pointerlockchange', () => {
-    if (document.pointerLockElement !== canvas && !input.usingDragLook && input.engaged) {
+    if (document.pointerLockElement !== canvas && input.engaged && !input.usingSoftCapture) {
       overlay?.classList.remove('hidden');
     }
   });

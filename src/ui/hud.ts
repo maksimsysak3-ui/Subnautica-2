@@ -47,6 +47,10 @@ const CSS = `
 #hud .ammo .mag .chamber { font-size: 15px; color: var(--brass, #c8a355); }
 #hud .ammo .reserve { font-size: 12px; color: var(--text-dim, #8ea0ae); font-variant-numeric: tabular-nums; }
 #hud .ammo .mode { font-size: 11px; letter-spacing: .22em; color: var(--text-faint, #55677a); margin-top: 3px; }
+#hud .ammo .weapon { font-size: 11px; letter-spacing: .16em; color: var(--text-dim, #8ea0ae); margin-bottom: 2px; }
+#hud .slots { position: absolute; right: 30px; bottom: 116px; display: flex; gap: 5px; justify-content: flex-end; }
+#hud .slots i { display: block; width: 20px; height: 2px; background: rgba(255,255,255,.18); }
+#hud .slots i.on { background: var(--brass, #c8a355); }
 #hud .ammo.warn .mag { color: #d4884e; }
 #hud .ammo.empty .mag { color: #d4574e; }
 
@@ -85,6 +89,9 @@ export class Hud implements System {
   private staminaEl!: HTMLElement;
   private toastEl!: HTMLElement;
   private toastTimer = 0;
+  private weaponEl!: HTMLElement;
+  private slotsEl!: HTMLElement;
+  private lastSlotKey = '';
 
   /** Injected — the HUD reads state, it never reaches into other modules. */
   player: {
@@ -100,7 +107,10 @@ export class Hud implements System {
     ammoCount: { loaded: number; chambered: boolean; reserve: number };
     fireMode: string;
     isReloading: boolean;
-    equipped: { malfunction: string | null } | null;
+    equipped: { malfunction: string | null; specId: string } | null;
+    loadout?: Array<{ specId: string }>;
+    slot?: number;
+    swapTimer?: number;
   } | null = null;
 
   init(_ctx: EngineContext): void {
@@ -116,10 +126,12 @@ export class Hud implements System {
       <div class="crosshair"><i class="t"></i><i class="b"></i><i class="l"></i><i class="r"></i></div>
       <div class="prompt hidden"></div>
       <div class="ammo">
+        <div class="weapon">—</div>
         <div class="mag">30<span class="chamber">+1</span></div>
         <div class="reserve">210</div>
         <div class="mode">SEMI</div>
       </div>
+      <div class="slots"></div>
       <div class="state">
         <div class="stance">STANCE <b>STANDING</b></div>
         <div class="stamina"><i style="width:100%"></i></div>
@@ -139,6 +151,8 @@ export class Hud implements System {
     this.stanceEl = root.querySelector('.stance b')!;
     this.staminaEl = root.querySelector('.stamina > i')!;
     this.toastEl = root.querySelector('.toast')!;
+    this.weaponEl = root.querySelector('.weapon')!;
+    this.slotsEl = root.querySelector('.slots')!;
 
     bus.on('ui:notify', ({ text }) => this.toast(text));
     bus.on('weapon:jammed', () => this.toast('WEAPON JAMMED — PULL TRIGGER TO CLEAR'));
@@ -200,7 +214,23 @@ export class Hud implements System {
       const jam = w.equipped?.malfunction;
       this.modeEl.textContent = jam
         ? 'MALFUNCTION'
-        : w.isReloading ? 'RELOADING' : w.fireMode.toUpperCase();
+        : w.isReloading ? 'RELOADING'
+        : (w.swapTimer ?? 0) > 0 ? 'DRAWING'
+        : w.fireMode.toUpperCase();
+
+      // Weapon name and slot pips. Rebuilt only when the loadout or the
+      // selection actually changes — this runs every frame.
+      const key = `${w.slot ?? 0}|${w.loadout?.length ?? 0}|${w.equipped?.specId ?? ''}`;
+      if (key !== this.lastSlotKey) {
+        this.lastSlotKey = key;
+        const spec = w.equipped?.specId
+          ? services.tryGet('weapons')?.specs.get(w.equipped.specId)
+          : undefined;
+        this.weaponEl.textContent = (spec?.name ?? '').toUpperCase();
+        const n = w.loadout?.length ?? 0;
+        this.slotsEl.innerHTML = Array.from({ length: n },
+          (_v, i) => `<i class="${i === (w.slot ?? 0) ? 'on' : ''}"></i>`).join('');
+      }
       const total = a.loaded + (a.chambered ? 1 : 0);
       this.ammoEl.classList.toggle('warn', total > 0 && total <= 8);
       this.ammoEl.classList.toggle('empty', total === 0);

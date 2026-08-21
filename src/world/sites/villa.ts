@@ -85,21 +85,21 @@ export function buildVilla(b: SiteBuilder, rng: Rng): SiteBuildResult {
   // Lawn across the whole compound, then hard surfaces on top of it.
   pave(PERIM.x0, PERIM.z0, PERIM.x1, PERIM.z1, PAD, M.lawn, 'grass');
   // Driveway: gate → motor court → around the fountain.
-  pave(-5, 40, 5, PERIM.z1, PAD + 0.005, M.asphalt, 'concrete');
-  pave(-26, 16, 14, 42, PAD + 0.005, M.asphalt, 'concrete');
+  pave(-5, 40, 5, PERIM.z1, PAD + 0.025, M.asphalt, 'concrete');
+  pave(-26, 16, 14, 42, PAD + 0.025, M.asphalt, 'concrete');
   // Service spur east to the workshop and staff block.
-  pave(14, -34, PERIM.x1 - 1, -26, PAD + 0.005, M.gravelMat, 'gravel');
-  pave(28, -42, 58, -22, PAD + 0.005, M.gravelMat, 'gravel');
-  pave(-32, -56, 14, -42, PAD + 0.005, M.gravelMat, 'gravel');
+  pave(14, -34, PERIM.x1 - 1, -26, PAD + 0.025, M.gravelMat, 'gravel');
+  pave(28, -42, 58, -22, PAD + 0.025, M.gravelMat, 'gravel');
+  pave(-32, -56, 14, -42, PAD + 0.025, M.gravelMat, 'gravel');
   // Service alley behind the staff block — the quiet flanking route.
-  pave(-34, -58, 16, -54, PAD + 0.005, M.concreteRaw, 'concrete');
+  pave(-34, -58, 16, -54, PAD + 0.025, M.concreteRaw, 'concrete');
   // The raised terrace slab that carries house + pool.
   b.span(-60, PAD - 0.2, -12, 14, TER, 24, M.stoneTrim, {
     surface: 'tile', flags: BF.NO_COVER, tint: b.jitterTint(0.04),
   });
   pave(-60, -12, 14, 24, TER + 0.005, M.tileTerra, 'tile');
   // Casita court.
-  pave(22, -8, 48, 36, PAD + 0.005, M.gravelMat, 'gravel');
+  pave(22, -8, 48, 36, PAD + 0.025, M.gravelMat, 'gravel');
 
   // Terrace steps down to the motor court (front) and a ramp on the service side.
   for (let i = 0; i < 5; i++) {
