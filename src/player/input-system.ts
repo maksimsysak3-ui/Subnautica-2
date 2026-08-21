@@ -104,9 +104,23 @@ export class InputSystem implements System {
   private lastMoveX = 0;
   private lastMoveY = 0;
   private haveLastMove = false;
-  /** Turn rate applied while the cursor is pinned against a window edge. */
+  /**
+   * Turn rate applied while the cursor is pinned against a window edge.
+   *
+   * DECAYS. This is the important part: the push is computed inside
+   * `onMouseMove`, so if the cursor stops moving while parked near an edge —
+   * or leaves the window entirely, which fires no further move events — a
+   * latched value keeps turning the view forever. That is the camera spinning
+   * out of control, and it is a spin the player cannot stop by letting go of
+   * anything, because nothing is being held.
+   *
+   * Refreshed on every move and decayed to nothing within about 150 ms of the
+   * last one, so it only ever acts while the player is actively pushing.
+   */
   private edgePushX = 0;
   private edgePushY = 0;
+  /** Timestamp of the last mousemove, for the decay above. */
+  private lastMoveAt = 0;
   /** Accumulated wheel notches, consumed once per frame. */
   private wheelSteps = 0;
   /** Fires when control mode changes, so the UI can update its hint. */
@@ -132,6 +146,10 @@ export class InputSystem implements System {
     window.addEventListener('keydown', this.onKeyDown, { passive: false });
     window.addEventListener('keyup', this.onKeyUp);
     window.addEventListener('blur', this.onBlur);
+    // Leaving the window stops producing move events, so any latched edge push
+    // would run forever. Alt-tabbing away is the same case.
+    document.addEventListener('mouseleave', this.onLeave);
+    window.addEventListener('mouseout', this.onLeave);
     this.canvas.addEventListener('mousedown', this.onMouseDown);
     this.canvas.addEventListener('wheel', this.onWheel, { passive: false });
     window.addEventListener('mouseup', this.onMouseUp);
@@ -198,6 +216,13 @@ export class InputSystem implements System {
   private onBlur = (): void => {
     this.down.clear();
     this.mouseButtons.clear();
+    this.onLeave();
+  };
+
+  private onLeave = (): void => {
+    this.edgePushX = 0;
+    this.edgePushY = 0;
+    this.haveLastMove = false;
   };
 
   private onMouseDown = (e: MouseEvent): void => {
@@ -254,6 +279,7 @@ export class InputSystem implements System {
       };
       this.edgePushX = push(e.clientX, w);
       this.edgePushY = push(e.clientY, h) * 0.55;
+      this.lastMoveAt = performance.now();
     } else {
       return;
     }
@@ -454,9 +480,28 @@ export class InputSystem implements System {
     // more than one screen-width in either direction. Applied per frame, so it
     // is a steady turn rate rather than an impulse.
     if (this.softCapture && !this.locked) {
-      if (this.edgePushX !== 0) this.pendingLookX += this.edgePushX * 2.4 * _dt;
-      if (this.edgePushY !== 0) this.pendingLookY += this.edgePushY * 1.4 * _dt;
+      // Fade the push out if the mouse has gone quiet. A cursor resting near
+      // an edge, or one that has left the window, must not keep turning.
+      const quiet = performance.now() - this.lastMoveAt;
+      if (quiet > 150) {
+        this.edgePushX = 0;
+        this.edgePushY = 0;
+      } else {
+        const fade = 1 - quiet / 150;
+        if (this.edgePushX !== 0) this.pendingLookX += this.edgePushX * fade * 2.4 * _dt;
+        if (this.edgePushY !== 0) this.pendingLookY += this.edgePushY * fade * 1.4 * _dt;
+      }
     }
+
+    // Hard cap on a single frame's look delta.
+    //
+    // A long frame — a GC pause, a tab regaining focus, a shader compile —
+    // can otherwise deliver an enormous accumulated delta in one step and snap
+    // the view through half a turn. 0.35 rad is 20 degrees, far more than any
+    // real flick produces in one frame and far less than a disorienting snap.
+    const MAX_LOOK = 0.35;
+    this.pendingLookX = clamp(this.pendingLookX, -MAX_LOOK, MAX_LOOK);
+    this.pendingLookY = clamp(this.pendingLookY, -MAX_LOOK, MAX_LOOK);
 
     // Hand accumulated look deltas to the controller and reset.
     inp.lookX += this.pendingLookX;

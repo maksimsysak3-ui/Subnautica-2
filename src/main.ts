@@ -22,8 +22,9 @@ import { ActorBodies } from './actors/actor-bodies';
 import { Viewmodel } from './weaponmodels/viewmodel';
 import { CombatFx } from './fx/combat-fx';
 import { Hud } from './ui/hud';
+import { InteriorLights } from './lighting/interior-lights';
 import { EnemyAi } from './ai/enemy-ai';
-import { garrisonVilla } from './ai/garrison';
+import { garrison } from './ai/garrison';
 import { CaptureDirector } from './core/capture-director';
 
 const bootEl = document.getElementById('boot')!;
@@ -97,6 +98,9 @@ async function boot(): Promise<void> {
   hud.weapons = weapons;
   engine.add(hud);
 
+  progress(0.76, 'switching on the lights');
+  engine.add(new InteriorLights());
+
   progress(0.78, 'briefing the opposition');
   const ai = new EnemyAi();
   engine.add(ai);
@@ -110,12 +114,16 @@ async function boot(): Promise<void> {
 
   // After init, because the garrison needs the world's floor query and the
   // actor registry, both of which only exist once their systems are up.
-  const world = services.get('world');
-  const actorReg = engine.get('actors') as unknown as Parameters<typeof garrisonVilla>[0];
-  const placed = garrisonVilla(
-    actorReg, ai, (x, z) => world.floorAt(x, z, 40),
+  const world = services.get('world') as unknown as {
+    floorAt(x: number, z: number, from: number): number;
+    mapId: 'villa' | 'quay';
+    site: { name: string };
+  };
+  const actorReg = engine.get('actors') as unknown as Parameters<typeof garrison>[1];
+  const placed = garrison(
+    world.mapId, actorReg, ai, (x, z) => world.floorAt(x, z, 40),
   );
-  console.info(`[garrison] ${placed} hostiles on station`);
+  console.info(`[garrison] ${world.site.name}: ${placed} hostiles on station`);
 
   const director = new CaptureDirector(engine);
   installAutomation(engine, director);

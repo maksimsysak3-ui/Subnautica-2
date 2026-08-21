@@ -262,4 +262,19 @@ export interface SiteBuildResult {
   site: SiteInstance;
   rooms: RoomSpec[];
   navLinks: NavLink[];
+  /**
+   * Authored light fixtures.
+   *
+   * Data, not lights: the interior lighting system keeps a small pool of real
+   * lights and reassigns them to whichever fixtures are nearest the camera, so
+   * a site can author hundreds without the shader ever seeing more than a
+   * handful.
+   */
+  lights?: Array<{
+    position: { x: number; y: number; z: number };
+    color: number;
+    intensity: number;
+    distance: number;
+    alwaysOn: boolean;
+  }>;
 }

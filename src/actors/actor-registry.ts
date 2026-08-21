@@ -17,6 +17,7 @@ import type { System, EngineContext } from '../core/engine';
 import { bus, type Faction, type HitRegion, type DamageType, type Alertness, type StanceId } from '../core/events';
 import { services, type IActorRegistry, type ActorState } from '../core/contracts';
 import { clamp, clamp01, Rng } from '../core/math';
+import { STANCE_SCALE } from './humanoid';
 
 /** Per-region damage multipliers. Armour is handled separately. */
 const REGION_MULTIPLIER: Record<HitRegion, number> = {
@@ -254,7 +255,14 @@ export class ActorRegistry implements System, IActorRegistry {
 
   /** Resolve a world-space hit point on an actor into a body region. */
   regionForHit(actor: Actor, worldPoint: THREE.Vector3, hitDirection?: THREE.Vector3): HitRegion {
-    const stanceScale = actor.stance === 'crouch' ? 0.66 : actor.stance === 'prone' ? 0.22 : 1;
+    // ONE stance scale, shared with the renderer and with eye height.
+    //
+    // These were three different numbers in three files — 0.28 for the render,
+    // 0.22 here, 0.202 for the eye. A prone actor's rendered crown at 0.504 m
+    // divided by 0.22 gave a local height of 2.29, which is above the head
+    // band's 1.85 ceiling, so it fell through to the catch-all and returned
+    // 'arm_r'. You could not headshot anything prone, the player included.
+    const stanceScale = STANCE_SCALE[actor.stance] ?? 1;
     const local = (worldPoint.y - actor.position.y) / Math.max(0.2, stanceScale);
     for (const band of REGION_BANDS) {
       if (local >= band.minY && local < band.maxY) {

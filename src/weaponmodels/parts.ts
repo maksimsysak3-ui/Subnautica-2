@@ -327,7 +327,13 @@ export function redDot(b: PartBuilder, x: number, y: number, z: number, holo: bo
   b.cyl(0.0065, 0.011, 'alu', x, cy + bodyH / 2 + 0.006, z + 0.008, 8, Math.PI / 2, 0, 0);
 
   // The dot, dead centre of the window and drawn in front of the glass.
-  b.box(0.0042, 0.0042, 0.001, 'reticle', x, cy, z - 0.023);
+  //
+  // 0.6 mm, not 4.2. Measured, the old quad rendered 23 x 23 px at ADS, which
+  // at the aimed field of view works out to a 129 MOA dot — sixty-four times a
+  // real 2 MOA red dot, and physically wider than a man's torso at 40 m. The
+  // sight was decorative: you could not aim with it past about fifteen metres,
+  // because the dot covered whatever you were aiming at.
+  b.box(0.0006, 0.0006, 0.0004, 'reticle', x, cy, z - 0.023);
   return cy;
 }
 
@@ -360,8 +366,9 @@ export function scope(b: PartBuilder, x: number, y: number, z: number, magnifica
   b.cyl(tubeR * 1.18, 0.024, 'aluDark', x, cy, z + tubeLen * 0.28, 12);
   b.box(0.008, 0.026, 0.008, 'alu', x + tubeR * 1.1, cy + 0.014, z + tubeLen * 0.28, 0, 0, -0.5);
   // Reticle.
-  // Reticle at the ocular end, oversized for the same reason as the red dot's.
-  b.box(0.0034, 0.0034, 0.001, 'reticle', x, cy, z + tubeLen / 2 + 0.026);
+  // Reticle at the ocular end. A magnified optic's reticle subtends the same
+  // angle as the dot above, so it is the same size in model space.
+  b.box(0.0006, 0.0006, 0.0004, 'reticle', x, cy, z + tubeLen / 2 + 0.026);
   return cy;
 }
 

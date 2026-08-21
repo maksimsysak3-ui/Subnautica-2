@@ -640,18 +640,57 @@ export class CaptureDirector {
     firingShot('fx-tracer', 'Tracer in flight', 'ho-mk4c',
       { optic: 'opt-rds', muzzle: 'muz-a2', handguard: 'hg-mlok-short' }, 3, 55);
 
+    // The quay, from four places that show what it is for. These only render
+    // when the quay was actually built (?map=quay); on the villa they would
+    // point at empty terrain.
+    const quayShot = (name: string, label: string, pos: [number, number, number],
+                      look: [number, number, number], hour = 15) => {
+      this.register({
+        name, label, system: 'world', hour, weather: 'clear', quality: 3, pos, look,
+        apply: () => {
+          const player = this.engine.get('player') as unknown as { setControlsEnabled(v: boolean): void };
+          player.setControlsEnabled(false);
+          for (let i = 0; i < 40; i++) this.engine.frame(performance.now() + i * 16.7);
+        },
+      });
+    };
+    quayShot('quay-yard', 'Container yard', [46, 5.0, -34], [10, 4.0, 6]);
+    quayShot('quay-warehouse', 'Warehouse interior', [-20, 4.2, 30], [-70, 5.5, 6]);
+    quayShot('quay-apron', 'Quay apron and crane', [40, 6.0, 24], [-30, 12, 60]);
+    quayShot('quay-approach', 'Main gate approach', [0, 4.0, -96], [-10, 8, -20]);
+
     // Look at the garrison. A screenshot of an empty compound proves nothing
     // about whether the opposition renders, stands on the floor, or faces
     // anywhere sensible.
     this.register({
       name: 'ai-garrison', label: 'Hostiles on station', system: 'ai',
       hour: 15.0, weather: 'clear', quality: 3,
-      pos: [14, 4.4, 44], look: [4, 3.0, 16],
+      pos: [10, 3.1, 33], look: [10, 2.7, 30],
       apply: () => {
         const player = this.engine.get('player') as unknown as {
           setControlsEnabled(v: boolean): void; position: THREE.Vector3;
         };
         player.setControlsEnabled(false);
+        // Park one hostile in front of the camera at a known distance and
+        // angle, so the model can actually be judged rather than guessed at
+        // from a 14-pixel figure in the middle distance.
+        const reg = this.engine.get('actors') as unknown as {
+          all: ReadonlyArray<{ id: number; faction: string; alive: boolean;
+                               position: THREE.Vector3; forward: THREE.Vector3;
+                               brain?: Record<string, unknown> }>;
+        };
+        const posed = reg.all.filter((a) => a.faction !== 'player' && a.alive).slice(0, 3);
+        posed.forEach((g, i) => {
+          g.position.set(8.4 + i * 1.9, 2.0, 29.6 - i * 0.6);
+          // Facing the camera, three-quarter, and away — the three reads that
+          // matter, side by side.
+          const yaw = [Math.PI, Math.PI * 0.72, 0][i];
+          g.forward.set(Math.sin(yaw), 0, Math.cos(yaw));
+          if (g.brain) {
+            g.brain.route = []; g.brain.path = []; g.brain.goal = null;
+            g.brain.state = 'idle';
+          }
+        });
         for (let i = 0; i < 60; i++) this.engine.frame(performance.now() + i * 16.7);
       },
     });

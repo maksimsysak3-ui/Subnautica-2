@@ -39,6 +39,7 @@ import { services, type CoverPoint } from '../core/contracts';
 type Vec3 = { x: number; y: number; z: number };
 import type { Actor, ActorRegistry } from '../actors/actor-registry';
 import { Rng, clamp, clamp01, lerp, damp } from '../core/math';
+import { STANCE_SCALE } from '../actors/humanoid';
 
 export type AiState =
   | 'idle' | 'patrol' | 'alert' | 'search' | 'engage' | 'reposition' | 'flee' | 'surrender';
@@ -82,6 +83,8 @@ export interface Brain {
   repathIn: number;
   goal: THREE.Vector3 | null;
   cover: CoverPoint | null;
+  /** Seconds since this cover was claimed — cover goes stale as threats move. */
+  coverAge: number;
   /** Patrol route and current leg. */
   route: THREE.Vector3[];
   routeIndex: number;
@@ -100,7 +103,7 @@ function newBrain(rng: Rng, route: THREE.Vector3[]): Brain {
     alertness: 0, morale: 1, reaction: 0, aimError: 0.16,
     sightTime: 0, lostFor: 99, burst: 0, fireCooldown: 0, burstPause: 0,
     targetId: -1, believedPos: null,
-    path: [], pathIndex: 0, repathIn: 0, goal: null, cover: null,
+    path: [], pathIndex: 0, repathIn: 0, goal: null, cover: null, coverAge: 0,
     route, routeIndex: 0,
     senseIn: rng.range(0, 0.17),
     stateAge: 0, dwell: 0, peeking: false,
@@ -119,6 +122,9 @@ export class EnemyAi implements System {
   private tmpA = new THREE.Vector3();
   private tmpB = new THREE.Vector3();
   private tmpDir = new THREE.Vector3();
+  /** This step's intended horizontal velocity, published to the actor. */
+  private moveX = 0;
+  private moveZ = 0;
 
   /** Diagnostics, read by tests and the capture director. */
   readonly stats = { thinking: 0, engaging: 0, pathsThisFrame: 0, pathMsAvg: 0, fallbackPaths: 0 };
@@ -146,7 +152,10 @@ export class EnemyAi implements System {
       // Losing someone costs everyone nearby their nerve.
       for (const a of this.actors.all) {
         const b = a.brain as Brain | null;
-        if (!b || !a.alive || a.faction === 'player') continue;
+        // Only their OWN side. Iterating everyone demoralised the shooter's
+        // allies too, which is latent today because all AI are one faction and
+        // would be very wrong the moment they are not.
+        if (!b || !a.alive || a.faction !== dead.faction) continue;
         const d = this.dist(a.position, dead.position);
         if (d < 40) b.morale -= lerp(0.34, 0.08, clamp01(d / 40));
       }
@@ -201,6 +210,18 @@ export class EnemyAi implements System {
     }
   }
 
+  /** Is anyone still standing nearby? Being alone is most of losing your nerve. */
+  private hasNearbyAlly(a: Actor, radius: number): boolean {
+    const r2 = radius * radius;
+    for (const o of this.actors.all) {
+      if (o.id === a.id || !o.alive || o.faction !== a.faction) continue;
+      const dx = o.position.x - a.position.x;
+      const dz = o.position.z - a.position.z;
+      if (dx * dx + dz * dz <= r2) return true;
+    }
+    return false;
+  }
+
   private setState(b: Brain, s: AiState): void {
     if (b.state === s) return;
     b.state = s;
@@ -208,6 +229,18 @@ export class EnemyAi implements System {
     // A state change invalidates the plan that belonged to the old state.
     if (s !== 'engage') b.peeking = false;
     b.repathIn = 0;
+    // Release cover on any state change except the move TO it.
+    //
+    // `b.cover` used to be assigned in one place and cleared nowhere, and
+    // doEngage only calls seekCover when it is null — so an actor took cover
+    // exactly once per mission and then fought standing in the open forever,
+    // while permanently reserving that node against everyone else.
+    if (s !== 'reposition' && s !== 'engage') this.releaseCover(b);
+  }
+
+  private releaseCover(b: Brain): void {
+    if (b.cover) b.cover.claimedBy = -1;
+    b.cover = null;
   }
 
   fixedUpdate(step: number, _ctx: EngineContext): void {
@@ -258,6 +291,16 @@ export class EnemyAi implements System {
     // Pain and injury cost nerve continuously.
     b.morale = clamp01(b.morale - step * a.pain * 0.06);
 
+    // ...and nerve comes BACK. Every write to morale used to be a
+    // subtraction, and suppression alone costs 0.10/s, so about nine seconds
+    // of cumulative suppression broke any enemy in the game regardless of
+    // skill or how the fight was going. Spraying at a wall routed the
+    // garrison. Recovery is gated on actually being safe: not suppressed, not
+    // badly hurt, and not alone.
+    if (a.suppressedFor <= 0 && a.pain < 0.35 && this.hasNearbyAlly(a, 15)) {
+      b.morale = clamp01(b.morale + step * 0.035);
+    }
+
     if (b.senseIn <= 0) {
       b.senseIn = 0.17;
       this.sense(a, b, player);
@@ -280,6 +323,13 @@ export class EnemyAi implements System {
       if (b.morale <= 0.12) {
         const surrendered = a.pain > 0.5 || b.morale <= 0.02;
         this.setState(b, surrendered ? 'surrender' : 'flee');
+        if (surrendered) {
+          // The registry has to know, or `hostilesNear` keeps returning this
+          // actor as a live threat and nothing that queries it — targeting,
+          // mission completion, the HUD — ever learns they gave up.
+          this.actors.surrender?.(a);
+          a.velocity.set(0, 0, 0);
+        }
         bus.emit('ai:broke', { actorId: a.id, surrendered });
       }
     }
@@ -447,7 +497,14 @@ export class EnemyAi implements System {
     const floor = lerp(0.055, 0.012, a.skill);
     b.aimError = Math.max(floor, damp(b.aimError, floor, 1.6, step));
 
-    // Take cover if we are in the open and there is something better nearby.
+    // Take cover if we are in the open, and re-evaluate periodically: a
+    // position that was cover when you took it stops being cover the moment
+    // the threat moves, which is exactly what a flanking player is doing.
+    b.coverAge += step;
+    if (b.cover && b.coverAge > 4.5) {
+      this.releaseCover(b);
+      b.coverAge = 0;
+    }
     if (!b.cover && b.stateAge > 0.6) this.seekCover(a, b);
 
     if (b.reaction <= 0 && b.fireCooldown <= 0 && b.burstPause <= 0) {
@@ -476,6 +533,23 @@ export class EnemyAi implements System {
       if (b.goal) this.want(a, b, b.goal);
     }
     if (b.goal && this.dist(a.position, b.goal) < 2) b.goal = null;
+
+    // Fleeing has to END. This state contained no setState at all, and the
+    // morale check that could have escalated it skips actors already fleeing,
+    // so a routed enemy ran in a straight line forever and then stood
+    // motionless once the navmesh ran out.
+    if (b.stateAge > 9) {
+      if (a.pain > 0.4 || b.morale <= 0.02) {
+        this.setState(b, 'surrender');
+        this.actors.surrender?.(a);
+        bus.emit('ai:broke', { actorId: a.id, surrendered: true });
+      } else {
+        // Rallied. Comes back shaken, not restored.
+        b.morale = 0.35;
+        b.believedPos = null;
+        this.setState(b, b.route.length > 1 ? 'patrol' : 'idle');
+      }
+    }
   }
 
   // --- combat ------------------------------------------------------------
@@ -496,10 +570,16 @@ export class EnemyAi implements System {
     if (b.burst <= 0) b.burst = 2 + Math.floor(this.rng.range(0, 3));
 
     this.tmpA.set(a.position.x, a.position.y + 1.5, a.position.z);
-    // Aim centre-of-mass, not at the feet.
+    // Aim centre-of-mass, not at the feet — and account for STANCE.
+    //
+    // `sense()` scaled for stance and `shoot()` did not, so against a prone
+    // player whose chest is at 0.34 m the AI aimed a flat 1.05 m: 0.71 m high,
+    // which at 20 m is 1.37 sigma off before dispersion even applies. Lying
+    // down made the player effectively immune at every range.
+    const stance = STANCE_SCALE[target.stance] ?? 1;
     this.tmpDir.set(
       target.position.x - this.tmpA.x,
-      target.position.y + 1.05 - this.tmpA.y,
+      target.position.y + 1.05 * stance - this.tmpA.y,
       target.position.z - this.tmpA.z,
     );
     const range = this.tmpDir.length();
@@ -524,15 +604,18 @@ export class EnemyAi implements System {
     });
 
     if (hit?.actorId === 0) {
-      const roll = this.rng.next();
+      // The region comes from WHERE THE ROUND LANDED, not from a dice roll.
+      //
+      // This used to trace the ray, confirm the hit, and then roll for the
+      // region independently — so an enemy who hit your boot had an 11% chance
+      // of scoring a headshot, and a head hit is unconditionally lethal
+      // (16-27 damage times the 4.2 head multiplier against a 35 HP head
+      // limb). That was a hidden 8% per-second instant-death roll with no
+      // relationship to the geometry and no way for the player to influence
+      // it by taking cover correctly.
+      const region = this.actors.regionForHit(target, hit.point, this.tmpDir);
       this.actors.applyDamage(
-        0,
-        this.rng.range(16, 27),
-        'ballistic',
-        roll < 0.11 ? 'head' : roll < 0.62 ? 'thorax' : roll < 0.82 ? 'stomach'
-          : roll < 0.91 ? 'arm_r' : 'leg_l',
-        a.id,
-        this.tmpDir.clone(),
+        0, this.rng.range(16, 27), 'ballistic', region, a.id, this.tmpDir.clone(),
       );
     } else {
       // A miss that lands near the player still suppresses. This is what makes
@@ -572,9 +655,10 @@ export class EnemyAi implements System {
       // not cover.
       this.tmpA.set(c.position.x, c.position.y + 1.0, c.position.z);
       if (world.lineOfSight(this.tmpA, this.tmpB, [a.id, 0])) continue;
+      this.releaseCover(b);
       c.claimedBy = a.id;
-      if (b.cover) b.cover.claimedBy = -1;
       b.cover = c;
+      b.coverAge = 0;
       b.goal = new THREE.Vector3(c.position.x, c.position.y, c.position.z);
       this.want(a, b, b.goal);
       this.setState(b, 'reposition');
@@ -587,8 +671,14 @@ export class EnemyAi implements System {
   /** Ask for a path to `to`, subject to the frame budget. */
   private want(a: Actor, b: Brain, to: Vec3): void {
     b.goal = (b.goal ?? new THREE.Vector3()).set(to.x, to.y, to.z);
-    if (b.repathIn > 0) return;
-    this.pathQueue.push(a.id);
+    // Queue whenever there is no usable path, even during the re-path
+    // cooldown. Returning early here set a goal without ever asking for a
+    // route, and doPatrol then saw `dist(goal, target) === 0` and never asked
+    // again — leaving the actor with a goal, an empty path and no way to get
+    // one, standing motionless until the 26-second stuck timer fired.
+    const stranded = b.path.length <= b.pathIndex;
+    if (b.repathIn > 0 && !stranded) return;
+    if (!this.pathQueue.includes(a.id)) this.pathQueue.push(a.id);
   }
 
   private repath(a: Actor, b: Brain): void {
@@ -625,6 +715,8 @@ export class EnemyAi implements System {
     if (!world) return;
 
     let speed = 0;
+    this.moveX = 0;
+    this.moveZ = 0;
     if (b.path.length > b.pathIndex) {
       const node = b.path[b.pathIndex];
       const dx = node.x - a.position.x;
@@ -641,6 +733,9 @@ export class EnemyAi implements System {
         const vx = dx * inv * speed;
         const vz = dz * inv * speed;
 
+        this.moveX = vx;
+        this.moveZ = vz;
+
         const move = world.moveCharacter(
           a.position.x, a.position.y, a.position.z,
           vx * step, -9.81 * step * 0.5, vz * step,
@@ -654,13 +749,25 @@ export class EnemyAi implements System {
         }
       }
     } else {
-      // Not walking — still settle onto the floor.
-      const floor = world.floorAt(a.position.x, a.position.z, a.position.y + 0.4);
+      // Not walking — settle onto whatever is directly underfoot.
+      //
+      // The search starts just below the actor rather than from the ground, so
+      // a guard posted on a catwalk stays on the catwalk. Searching from the
+      // bottom found the slab five metres below and teleported every elevated
+      // post down to the warehouse floor, quietly deleting the vertical layer
+      // the map is built around.
+      const floor = world.floorAt(a.position.x, a.position.z, a.position.y + 0.4, 1.2, 0.5);
       if (Number.isFinite(floor)) a.position.y = floor;
     }
     // Velocity is what the rest of the game reads — footstep noise, the body
     // animator, and suppression all key off it.
-    a.velocity.set(a.velocity.x, 0, a.velocity.z).setLength(speed);
+    //
+    // This used to read x and z from itself and call setLength, and nothing
+    // ever gave an AI actor a direction, so setLength on a zero vector
+    // returned zero: every enemy's velocity was exactly (0,0,0) for the whole
+    // mission no matter how fast it was running. Enemies were completely
+    // silent and the animator saw a map full of statues.
+    a.velocity.set(this.moveX, 0, this.moveZ);
   }
 
   private turnToward(from: number, to: number, maxStep: number): number {

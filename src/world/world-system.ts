@@ -37,8 +37,9 @@ import { DoorRegistry } from './doors';
 import { NavGrid } from './navmesh';
 import { Navigation } from './navigation';
 import { buildVilla } from './sites/villa';
+import { buildQuay } from './sites/quay';
 import { buildOutskirts } from './sites/outskirts';
-import { BF } from './types';
+import { BF, type SiteInstance, type SiteBuildResult, type ApproachRoute } from './types';
 import { SURFACE_TABLE } from './surfaces';
 import { moveCharacter, brickGroundAt, type CharacterShape, type MoveResult } from './collision';
 
@@ -83,6 +84,25 @@ export class WorldSystem implements System, IWorldQuery {
   private noise = new Noise2D('black-meridian-terrain');
   private rng = new Rng('world');
   private terrainMesh!: THREE.Mesh;
+
+  /**
+   * Which map to build.
+   *
+   * Chosen before init, from `?map=` on the URL. Levels are generated rather
+   * than loaded, so switching means rebuilding the world — which is a page
+   * reload, not a runtime swap. That is an honest constraint of building the
+   * whole level in code, and pretending otherwise would mean tearing down and
+   * rebuilding the navmesh, cover graph, doors and actors mid-frame.
+   */
+  mapId: 'villa' | 'quay' =
+    (typeof location !== 'undefined' && new URLSearchParams(location.search).get('map') === 'quay')
+      ? 'quay' : 'villa';
+
+  /** The built site — approaches, landmarks and garrison anchors. */
+  site!: SiteInstance;
+
+  /** Light fixtures authored by the site, read by InteriorLights at its init. */
+  authoredLights: NonNullable<SiteBuildResult['lights']> = [];
   /** Extra meshes (actors, props added by other teams) tested after bricks. */
   private extraColliders: THREE.Mesh[] = [];
   private extraRaycaster = new THREE.Raycaster();
@@ -106,12 +126,23 @@ export class WorldSystem implements System, IWorldQuery {
 
     // --- author the site --------------------------------------------------
     const builder = new SiteBuilder(this.yard, this.rng);
-    const result = buildVilla(builder, this.rng);
-    // The surrounding land: access road, checkpoint, terraces, arroyo and
-    // outbuildings. Without it the compound's flanking approaches have nowhere
-    // to start from, and there is no standoff to scout the place.
-    const outskirts = buildOutskirts(builder, this.rng, this.terrainFn);
-    this.insertions = outskirts.insertions;
+    let result: SiteBuildResult;
+    if (this.mapId === 'quay') {
+      result = buildQuay(builder, this.rng);
+      this.insertions = result.site.approaches.map((a: ApproachRoute) => ({
+        id: a.id, x: a.x, z: a.z, label: a.name,
+      }));
+    } else {
+      result = buildVilla(builder, this.rng);
+      // The surrounding land: access road, checkpoint, terraces, arroyo and
+      // outbuildings. Without it the compound's flanking approaches have
+      // nowhere to start from, and there is no standoff to scout the place.
+      const outskirts = buildOutskirts(builder, this.rng, this.terrainFn);
+      this.insertions = outskirts.insertions;
+    }
+    this.site = result.site;
+    // Authored fixtures, handed to the interior lighting system once it is up.
+    this.authoredLights = result.lights ?? [];
     this.yard.finalize();
 
     this.root.add(this.yard.buildMeshes());

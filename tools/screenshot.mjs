@@ -48,7 +48,10 @@ async function main() {
   });
   await server.listen();
   const addr = server.httpServer.address();
-  const url = `http://127.0.0.1:${addr.port}/`;
+  // `--map quay` builds the second site. Levels are generated at boot, so the
+  // choice has to be made in the URL before the page loads.
+  const mapArg = arg('map', '');
+  const url = `http://127.0.0.1:${addr.port}/${mapArg ? `?map=${mapArg}` : ''}`;
   console.log(`[shot] dev server ${url}`);
 
   // The sandbox ships a pinned Chromium build that may not match the npm

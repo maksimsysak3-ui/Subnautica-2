@@ -20,17 +20,26 @@ import type { System, EngineContext } from '../core/engine';
 import { bus, type Faction } from '../core/events';
 import { services } from '../core/contracts';
 import type { ActorRegistry, Actor } from './actor-registry';
+import { buildHumanoid, STANCE_SCALE, LEG_TOP, type HumanoidColors } from './humanoid';
 
-/** Silhouette palette. Civilians must never read as combatants at a glance. */
-const FACTION_COLORS: Record<Faction, { body: number; gear: number; head: number }> = {
-  player:    { body: 0x3d4a3a, gear: 0x2a2f2c, head: 0xa88b6d },
-  cartel:    { body: 0x6d4a3a, gear: 0x241f1c, head: 0x9c7a58 },
-  insurgent: { body: 0x5a5340, gear: 0x33302a, head: 0x8f7052 },
-  pmc:       { body: 0x39423f, gear: 0x1e2422, head: 0xa38668 },
-  syndicate: { body: 0x2f3644, gear: 0x191d24, head: 0x9d7f60 },
-  militia:   { body: 0x53573c, gear: 0x2c2e22, head: 0x8a6c4f },
+/**
+ * Silhouette palette. Civilians must never read as combatants at a glance.
+ *
+ * Every value here is deliberately lifted. The previous palette rendered
+ * bodies at luma 0.06-0.09 against asphalt at 0.117 — a 1.3:1 contrast ratio,
+ * which is why the lower half of every figure disappeared into the ground.
+ * `accent` is the shoulder band that breaks the figure up horizontally, and it
+ * is the brightest thing on an actor by design.
+ */
+const FACTION_COLORS: Record<Faction, HumanoidColors> = {
+  player:    { body: 0x55634f, gear: 0x3d453f, head: 0xb5987a, accent: 0x77836a },
+  cartel:    { body: 0x8a6250, gear: 0x3b322c, head: 0xac8a66, accent: 0xa87f5e },
+  insurgent: { body: 0x766c53, gear: 0x474338, head: 0x9f7f5e, accent: 0x8f8563 },
+  pmc:       { body: 0x4e5a55, gear: 0x333c39, head: 0xb39a7e, accent: 0x6d7a74 },
+  syndicate: { body: 0x454e60, gear: 0x2b3240, head: 0xad8f6d, accent: 0x5f6b80 },
+  militia:   { body: 0x6d7252, gear: 0x424536, head: 0x9a7c5c, accent: 0x878c63 },
   // Bright, unarmoured, no rig. This is a life-or-death read.
-  civilian:  { body: 0xb9b0a2, gear: 0xc9c2b4, head: 0xa88b6d },
+  civilian:  { body: 0xc6bdaf, gear: 0xd4cdc0, head: 0xb5987a, accent: 0xd8d2c6 },
 };
 
 interface Part {
@@ -44,6 +53,8 @@ interface Body {
   group: THREE.Group;
   parts: Part[];
   actor: Actor;
+  /** The merged visible mesh. Absent for the player, who has none. */
+  visual?: THREE.Mesh;
 }
 
 export class ActorBodies implements System {
@@ -138,40 +149,42 @@ export class ActorBodies implements System {
 
     const c = FACTION_COLORS[actor.faction] ?? FACTION_COLORS.militia;
     const group = new THREE.Group();
-    const parts: Part[] = [];
 
-    const add = (w: number, h: number, d: number, y: number, color: number): void => {
-      const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), this.mat(color));
-      mesh.castShadow = true;
-      mesh.position.y = y + h / 2;
+    // The visible body: one merged, vertex-coloured geometry, one draw call.
+    // The previous version used six separate meshes per actor, which at
+    // thirteen hostiles was 78 draw calls — 31% of the whole frame — for 72
+    // triangles each. This is 240 triangles in one draw.
+    const visual = new THREE.Mesh(buildHumanoid(c), this.bodyMaterial());
+    visual.castShadow = true;
+    visual.receiveShadow = true;
+    group.add(visual);
+
+    // Colliders are SEPARATE from the visible mesh and deliberately coarse.
+    //
+    // Raycasting merged geometry means walking 240 triangles per shot per
+    // actor; three boxes give the same answer for what the damage model
+    // actually asks — which band was hit — at a fortieth of the cost. Their
+    // bands line up with the hit regions in actor-registry so a shot that
+    // looks like a headshot scores as one.
+    const parts: Part[] = [];
+    const collider = (w: number, h: number, d: number, y: number, z = 0): void => {
+      const mesh = new THREE.Mesh(
+        new THREE.BoxGeometry(w, h, d),
+        new THREE.MeshBasicMaterial({ visible: false }),
+      );
+      mesh.visible = false;
+      mesh.position.set(0, y + h / 2, z);
       group.add(mesh);
       parts.push({ mesh, y, height: h });
-      // Tagged with the actor id so a raycast resolves it as a person.
       world.addCollider(mesh, 'flesh', { actorId });
     };
-
-    // Rough human proportions: 1.78 m, shoulders at 1.45, head from 1.58.
-    add(0.34, 0.42, 0.22, 0.02, c.gear);   // hips
-    add(0.44, 0.52, 0.26, 0.90, c.body);   // torso + rig bulk
-    add(0.20, 0.24, 0.22, 1.56, c.head);   // head
-    add(0.13, 0.62, 0.15, 0.02, c.gear);   // legs are one block for now
-    // Arms sit slightly proud of the torso so the silhouette isn't a slab.
-    const armL = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.5, 0.13), this.mat(c.body));
-    armL.position.set(-0.28, 1.16, 0);
-    armL.castShadow = true;
-    group.add(armL);
-    world.addCollider(armL, 'flesh', { actorId });
-    parts.push({ mesh: armL, y: 0.9, height: 0.5 });
-
-    const armR = armL.clone();
-    armR.position.x = 0.28;
-    group.add(armR);
-    world.addCollider(armR, 'flesh', { actorId });
-    parts.push({ mesh: armR, y: 0.9, height: 0.5 });
+    collider(0.26, 0.30, 0.26, 1.49);   // head + helmet + neck
+    collider(0.50, 0.62, 0.34, 0.87);   // torso, shoulders and arms
+    collider(0.30, 0.87, 0.24, 0.00);   // legs and pelvis
 
     this.root.add(group);
     actor.view = group;
-    const body: Body = { group, parts, actor };
+    const body: Body = { group, parts, actor, visual };
     this.bodies.set(actorId, body);
     // Place it immediately. Waiting for the next update() left every freshly
     // spawned actor's colliders sitting at the world origin, so shots aimed at
@@ -179,22 +192,73 @@ export class ActorBodies implements System {
     this.place(body, actor);
   }
 
+  /**
+   * One shared material for every actor.
+   *
+   * Colour is a vertex attribute, so factions differ without differing
+   * materials — which is what lets thirteen actors share one program and, with
+   * merged geometry, one draw call each.
+   */
+  private sharedBody: THREE.MeshStandardMaterial | null = null;
+  private bodyMaterial(): THREE.MeshStandardMaterial {
+    if (!this.sharedBody) {
+      this.sharedBody = new THREE.MeshStandardMaterial({
+        vertexColors: true, roughness: 0.88, metalness: 0.03, flatShading: true,
+      });
+    }
+    return this.sharedBody;
+  }
+
   private onDown(actorId: number): void {
     const b = this.bodies.get(actorId);
     if (!b) return;
-    // Fall over. Crude, but it reads instantly at distance, which is what
-    // matters for confirming a kill.
-    b.group.rotation.x = -Math.PI / 2 + 0.1;
+    // Fall over, hinged at the hip rather than at the ankles.
+    //
+    // Rotating the group — whose origin is at the FEET — swept the whole body
+    // 1.8 m through the air about the ankle line, clipping any wall within
+    // 1.8 m, and because the rotation is about world X every corpse on the map
+    // ended up pointing world -Z regardless of which way it had been facing.
+    // Rotating the visual mesh instead keeps the fall in the actor's own
+    // frame, so a body falls the way it was standing.
+    if (b.visual) {
+      b.visual.rotation.x = -Math.PI / 2 + 0.12;
+      b.visual.position.y = 0.28;
+      b.visual.position.z = -0.55;
+    }
+    // Colliders drop to a prone band so a downed actor can still be shot, and
+    // so nobody is hit by a hitbox standing where the body no longer is.
+    for (const p of b.parts) p.mesh.position.y = 0.22;
+    b.group.updateMatrixWorld(true);
   }
 
   private place(b: Body, a: Actor): void {
     b.group.position.copy(a.position);
     if (a.alive && !a.downed) {
-      // Stance is expressed as a vertical squash, so a crouching enemy is a
-      // genuinely smaller target rather than a shorter-looking one.
-      const scale = a.stance === 'prone' ? 0.28 : a.stance === 'crouch' ? 0.66 : 1;
-      b.group.scale.set(1, scale, 1);
       b.group.rotation.y = Math.atan2(a.forward.x, a.forward.z);
+      b.group.rotation.x = 0;
+      b.group.rotation.z = 0;
+
+      // Crouching squashes the LEGS and drops the intact upper body by the
+      // same amount. Scaling the whole figure on Y turns a crouching enemy
+      // into a full-width-shouldered dwarf with 26 cm legs, which reads as a
+      // rendering error rather than as a stance.
+      const s = STANCE_SCALE[a.stance] ?? 1;
+      if (b.visual) {
+        b.visual.scale.set(1, 1, 1);
+        b.visual.position.set(0, 0, 0);
+        if (s < 1) {
+          // Everything above the legs keeps its proportions; only the leg
+          // block compresses, so the drop is LEG_TOP * (1 - s).
+          b.visual.scale.y = 1;
+          b.visual.position.y = -LEG_TOP * (1 - s) * 0.85;
+          b.visual.scale.y = s < 0.4 ? s : 1;
+        }
+      }
+      // Colliders follow the same rule, so what you can hit matches what you
+      // can see.
+      for (const p of b.parts) {
+        p.mesh.position.y = (p.y + p.height / 2) - (s < 1 ? LEG_TOP * (1 - s) * 0.85 : 0);
+      }
     }
     // Colliders are raycast in world space, so the transform has to be live
     // before anything queries them — not at the renderer's convenience.

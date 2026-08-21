@@ -73,6 +73,13 @@ export class PlayerSystem implements System {
 
   // Spawn on the approach outside the compound wall, facing the gate — the
   // first thing the player sees should be the objective, not their own back.
+  /**
+   * Spawn point.
+   *
+   * Overwritten in init() from the site's own insertion routes, so a new map
+   * does not need this constant edited — a hardcoded villa spawn on the quay
+   * would put the player 90 m outside the fence, in the water.
+   */
   position = new THREE.Vector3(6, 3, 96);
   velocity = new THREE.Vector3();
   /** Yaw/pitch in radians. Yaw 0 looks down -Z, toward the site centre. */
@@ -116,6 +123,16 @@ export class PlayerSystem implements System {
       groundHeight(x: number, z: number): number | null;
       floorAt?(x: number, z: number, fromY: number): number;
     };
+    // Start at the site's front approach, whichever map was built.
+    const site = (world as unknown as {
+      site?: { approaches?: Array<{ kind: string; x: number; y: number; z: number; toX: number; toZ: number }> };
+    }).site;
+    const front = site?.approaches?.find((a) => a.kind === 'front') ?? site?.approaches?.[0];
+    if (front) {
+      this.position.set(front.x, front.y + this.eyeHeight, front.z);
+      this.yaw = Math.atan2(front.toX - front.x, front.toZ - front.z);
+    }
+
     const floor = world.floorAt
       ? world.floorAt(this.position.x, this.position.z, this.position.y)
       : world.groundHeight(this.position.x, this.position.z);
@@ -176,8 +193,17 @@ export class PlayerSystem implements System {
     this.controlsEnabled = v;
   }
 
-  /** Recoil/animation systems push transient camera offsets through here. */
+  /**
+   * Recoil/animation systems push transient camera offsets through here.
+   *
+   * Dropped while controls are disabled. These are cleared at the end of
+   * `update()`, which early-returns when the capture director or a cutscene
+   * owns the camera — so they accumulated as an unbounded random walk and the
+   * first frame after control returned applied the whole sum at once, as a
+   * single-frame snap of arbitrary size.
+   */
   addCameraOffset(pos: THREE.Vector3, rot: THREE.Euler): void {
+    if (!this.controlsEnabled) return;
     this.cameraOffset.add(pos);
     this.cameraRotOffset.x += rot.x;
     this.cameraRotOffset.y += rot.y;
@@ -361,7 +387,15 @@ export class PlayerSystem implements System {
     cam.position.copy(this.position).add(leanOffset).add(this.cameraOffset);
     cam.rotation.set(0, 0, 0);
     cam.rotateY(this.yaw + this.cameraRotOffset.y);
-    cam.rotateX(this.pitch + this.cameraRotOffset.x);
+    // Clamp the RENDERED pitch, not just the aim pitch.
+    //
+    // `fixedUpdate` clamps `this.pitch` to +-1.45 rad, but recoil was added
+    // here afterwards with no limit of its own. Standing hip-fire on full auto
+    // with the starting carbine accumulates about 8 degrees of climb against
+    // 6.9 degrees of headroom — so looking up and holding the trigger pushed
+    // the camera past 90 degrees, at which point the roll below flips the
+    // horizon and yaw inverts.
+    cam.rotateX(clamp(this.pitch + this.cameraRotOffset.x, -1.5, 1.5));
     cam.rotateZ(-this.lean * 0.14 + this.cameraRotOffset.z);
 
     // FOV narrows with magnification when aiming.
