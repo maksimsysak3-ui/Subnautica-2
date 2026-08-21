@@ -69,7 +69,10 @@ if (ok) {
 }
 console.log('[verify] interaction — ' + interaction);
 
-await page.screenshot({ path: 'dist/_verify.png' });
+// SwiftShader renders the full post chain on the CPU, so a single frame can
+// take well over the 30-second default. This is the same allowance the other
+// capture tools use.
+await page.screenshot({ path: 'dist/_verify.png', timeout: 180000, animations: 'disabled' });
 console.log(ok ? '[verify] ✓ bundle boots standalone' : '[verify] ✗ bundle did NOT reach ready');
 if (errors.length) { console.log('[verify] console errors:'); errors.forEach(e => console.log('   ' + e)); }
 await browser.close();
