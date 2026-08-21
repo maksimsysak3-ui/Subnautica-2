@@ -228,6 +228,15 @@ export class CombatFx implements System {
     bus.on('weapon:shellEject', (e) => this.onShell(e.position, e.velocity));
     bus.on('bullet:impact', (e) => this.onImpact(e.position, e.normal, e.surface, e.energyJ));
     bus.on('bullet:hitActor', (e) => this.onFlesh(e.position, e.direction));
+
+    // Incoming fire.
+    //
+    // Enemies shoot hitscan rather than running the full projectile sim, so
+    // they produce nothing for the tracer system to follow. Without this,
+    // being shot at is completely invisible — the player's health drops with
+    // no indication of where it came from, which is the worst possible
+    // feedback in a game about angles.
+    bus.on('ai:fired', (e) => this.onIncoming(e.from, e.dir, e.hit));
   }
 
   // -----------------------------------------------------------------------
@@ -304,6 +313,38 @@ export class CombatFx implements System {
       this.spawnParticle(position, _v, this.rng.range(0.25, 0.6), this.rng.range(0.012, 0.032),
         0x8c1f1f, -7, 2.2);
     }
+  }
+
+  /**
+   * Draw an enemy's shot: a muzzle flash at the shooter, a tracer along the
+   * line, and an impact where it lands.
+   *
+   * Rendered longer-lived than a player tracer on purpose. An outgoing round
+   * is confirmed by the muzzle flash right in front of you; an incoming one is
+   * the only warning you get, and a 55 ms streak on a distant shooter is
+   * invisible in practice.
+   */
+  private onIncoming(
+    from: THREE.Vector3, dir: THREE.Vector3, hit: THREE.Vector3 | null,
+  ): void {
+    const end = hit ?? _v.copy(from).addScaledVector(dir, 60);
+    this.addTracer(from, end, 0.11);
+
+    // Muzzle flash at the shooter — a point light in the world, which is what
+    // makes a hostile firing from a dark window findable.
+    this.worldFlashLight.position.copy(from);
+    this.worldFlashLight.intensity = 6;
+
+    for (let i = 0; i < 2; i++) {
+      this.spawnParticle(
+        from,
+        _v2.copy(dir).multiplyScalar(this.rng.range(0.8, 2.0))
+          .addScaledVector(UP, this.rng.range(0.1, 0.4)),
+        this.rng.range(0.20, 0.40), this.rng.range(0.04, 0.08),
+        0xa39a8c, -0.5, 3.0,
+      );
+    }
+    if (hit) this.onImpact(hit, _v2.copy(dir).negate(), 'concrete', 900);
   }
 
   /** Public so ballistics can draw a tracer for a round in flight. */

@@ -58,6 +58,17 @@ export interface GameEvents {
   'actor:alertnessChanged': { actorId: number; from: Alertness; to: Alertness; cause: string };
   'actor:footstep': { actorId: number; position: Vector3; surface: string; loudnessMeters: number };
   'actor:vocalized': { actorId: number; line: string; category: string };
+  'actor:suppressed': { actorId: number; seconds: number };
+
+  // --- AI ------------------------------------------------------------------
+  'ai:spotted': { actorId: number; targetId: number };
+  'ai:fired': {
+    actorId: number;
+    from: Vector3;
+    dir: Vector3;
+    hit: Vector3 | null;
+  };
+  'ai:broke': { actorId: number; surrendered: boolean };
 
   // --- player --------------------------------------------------------------
   'player:stanceChanged': { from: StanceId; to: StanceId };

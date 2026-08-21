@@ -62,6 +62,16 @@ export class ActorBodies implements System {
 
     // Bodies appear and disappear with actors rather than being polled.
     bus.on('actor:spawned', ({ actorId }) => this.build(actorId));
+
+    // Anything spawned BEFORE this system initialised never fired an event we
+    // were listening for. The player is exactly that case — the controller
+    // registers itself as actor 0 at initOrder 30 and this runs at 50 — and
+    // the consequence was silent and total: no hit volume, so every enemy
+    // raycast passed through the player and the opposition could not do damage
+    // at all. Sweeping the registry at startup makes the wiring independent of
+    // who initialises first.
+    const existing = services.tryGet('actors');
+    if (existing) for (const a of existing.all) this.build(a.id);
     bus.on('actor:killed', ({ actorId }) => this.onDown(actorId));
     bus.on('actor:downed', ({ actorId }) => this.onDown(actorId));
   }
@@ -75,11 +85,51 @@ export class ActorBodies implements System {
     return m;
   }
 
+  /**
+   * An invisible hit volume for the player.
+   *
+   * One box rather than the per-limb rig the AI-visible actors get: incoming
+   * fire picks its hit region statistically anyway, and a first-person player
+   * has no visible limbs for a precise volume to correspond to. It lives in
+   * the world's extra-collider list, which the custom raycaster walks
+   * directly, so `visible = false` costs it nothing.
+   */
+  private buildPlayerHitVolume(actorId: number): void {
+    const world = services.get('world') as unknown as {
+      addCollider(m: THREE.Mesh, s: string, o?: { actorId?: number }): void;
+    };
+    const actors = services.tryGet('actors') as unknown as ActorRegistry | undefined;
+    const actor = actors?.get(actorId) as Actor | undefined;
+    if (!actor) return;
+
+    const group = new THREE.Group();
+    const mesh = new THREE.Mesh(
+      new THREE.BoxGeometry(0.58, 1.75, 0.40),
+      new THREE.MeshBasicMaterial({ visible: false }),
+    );
+    mesh.name = 'player:hitbox';
+    mesh.visible = false;
+    mesh.castShadow = false;
+    mesh.receiveShadow = false;
+    // Registry position is at the feet, so the box is raised to straddle them.
+    mesh.position.y = 0.875;
+    group.add(mesh);
+    world.addCollider(mesh, 'flesh', { actorId });
+
+    const body: Body = { group, parts: [{ mesh, y: 0, height: 1.75 }], actor };
+    this.bodies.set(actorId, body);
+    this.place(body, actor);
+  }
+
   private build(actorId: number): void {
     const actors = services.tryGet('actors') as unknown as ActorRegistry | undefined;
     const actor = actors?.get(actorId);
-    // The player has no visible body; a first-person camera sits inside it.
-    if (!actor || actorId === 0) return;
+    if (!actor) return;
+    // The player gets no visible body — a first-person camera sits inside it —
+    // but it still needs something to be SHOT. Without a collider tagged with
+    // actor 0, every enemy raycast passes straight through the player and the
+    // opposition is harmless no matter how well it aims.
+    if (actorId === 0) { this.buildPlayerHitVolume(actorId); return; }
 
     const world = services.get('world') as unknown as {
       addCollider(m: THREE.Mesh, s: string, o?: { actorId?: number }): void;

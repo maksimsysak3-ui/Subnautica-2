@@ -22,6 +22,8 @@ import { ActorBodies } from './actors/actor-bodies';
 import { Viewmodel } from './weaponmodels/viewmodel';
 import { CombatFx } from './fx/combat-fx';
 import { Hud } from './ui/hud';
+import { EnemyAi } from './ai/enemy-ai';
+import { garrisonVilla } from './ai/garrison';
 import { CaptureDirector } from './core/capture-director';
 
 const bootEl = document.getElementById('boot')!;
@@ -95,12 +97,25 @@ async function boot(): Promise<void> {
   hud.weapons = weapons;
   engine.add(hud);
 
+  progress(0.78, 'briefing the opposition');
+  const ai = new EnemyAi();
+  engine.add(ai);
+
   progress(0.8, 'binding controls');
   const input = new InputSystem(canvas);
   engine.add(input);
 
   progress(0.85, 'starting systems');
   await engine.init();
+
+  // After init, because the garrison needs the world's floor query and the
+  // actor registry, both of which only exist once their systems are up.
+  const world = services.get('world');
+  const actorReg = engine.get('actors') as unknown as Parameters<typeof garrisonVilla>[0];
+  const placed = garrisonVilla(
+    actorReg, ai, (x, z) => world.floorAt(x, z, 40),
+  );
+  console.info(`[garrison] ${placed} hostiles on station`);
 
   const director = new CaptureDirector(engine);
   installAutomation(engine, director);

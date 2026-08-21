@@ -51,6 +51,17 @@ export function emptyInput(): PlayerInput {
   };
 }
 
+/** The slice of the registry's `Actor` the controller writes to. */
+interface PlayerActorView {
+  position: THREE.Vector3;
+  forward: THREE.Vector3;
+  velocity: THREE.Vector3;
+  eye: THREE.Vector3;
+  stance: string;
+  alive: boolean;
+  health: number;
+}
+
 export class PlayerSystem implements System {
   readonly id = 'player';
   readonly order = 10;
@@ -111,6 +122,54 @@ export class PlayerSystem implements System {
     if (floor !== null && floor !== undefined && Number.isFinite(floor)) {
       this.position.y = floor + this.eyeHeight;
     }
+
+    // Register the player as actor 0.
+    //
+    // This was missing, and it silently disabled the entire opposition: the AI
+    // looks up `actors.get(0)` to find something to perceive, and enemy fire
+    // calls `applyDamage(0, ...)`. With no actor there, enemies could never
+    // see the player, never engage, and never do damage — everything compiled
+    // and ran, and the game had no threat in it at all.
+    // Spawning is not on the read-only IActorRegistry contract — that
+    // interface is deliberately a query surface. The concrete registry is what
+    // owns creation, so the cast is where the boundary genuinely is.
+    const actors = services.tryGet('actors') as unknown as {
+      spawn(o: Record<string, unknown>): PlayerActorView;
+    } | undefined;
+    if (actors) {
+      this.actor = actors.spawn({
+        faction: 'player',
+        archetype: 'operator',
+        position: this.position.clone(),
+        facing: this.yaw,
+        health: 100,
+        skill: 1,
+        isPlayer: true,
+      });
+    }
+  }
+
+  /** The registry entry for the player. Damage and perception go through it. */
+  actor: PlayerActorView | null = null;
+
+  /**
+   * Publish the player's transform into the actor registry.
+   *
+   * The controller owns the transform; the registry is a view of it. Copying
+   * rather than sharing keeps that one-directional — if the registry held the
+   * same Vector3 instance, anything that wrote to it would silently teleport
+   * the player.
+   */
+  private publishActor(): void {
+    const a = this.actor;
+    if (!a) return;
+    // Registry position is at the FEET, like every other actor; `position`
+    // here is the eye.
+    a.position.set(this.position.x, this.position.y - this.eyeHeight, this.position.z);
+    a.eye.copy(this.position);
+    a.forward.copy(this.forward);
+    a.velocity.copy(this.velocity);
+    a.stance = this.stance;
   }
 
   setControlsEnabled(v: boolean): void {
@@ -254,6 +313,8 @@ export class PlayerSystem implements System {
     }
 
     // --- lean ------------------------------------------------------------
+    this.publishActor();
+
     this.leanTarget = this.stanceTarget === 'prone' ? 0 : clamp(inp.lean, -1, 1);
     const prevLean = this.lean;
     this.lean = moveTowards(this.lean, this.leanTarget, step * 4.2);

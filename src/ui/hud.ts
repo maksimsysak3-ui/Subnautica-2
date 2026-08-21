@@ -70,6 +70,26 @@ const CSS = `
   background: rgba(5,7,10,.7); border-left: 2px solid var(--brass, #c8a355);
   opacity: 0; transition: opacity .25s ease; white-space: nowrap; }
 #hud .toast.on { opacity: 1; }
+
+/* Damage vignette. Reads as blood in the periphery rather than a health bar —
+   you feel how hurt you are instead of reading a number. */
+#hud .hurt { position: absolute; inset: 0; pointer-events: none; opacity: 0;
+  transition: opacity .35s ease;
+  background: radial-gradient(ellipse at center,
+    rgba(0,0,0,0) 42%, rgba(120,14,10,.30) 78%, rgba(90,8,6,.62) 100%); }
+
+/* Directional hit indicator: which way the round came from. */
+#hud .damageDir { position: absolute; left: 50%; top: 50%; width: 0; height: 0; }
+#hud .damageDir i { position: absolute; left: -13px; top: -96px; width: 26px; height: 13px;
+  opacity: 0; transform-origin: 13px 96px;
+  background: linear-gradient(to bottom, rgba(226,74,58,.92), rgba(226,74,58,0));
+  clip-path: polygon(50% 0, 100% 100%, 0 100%); }
+
+#hud .vitals { position: absolute; left: 30px; bottom: 62px; font-size: 11px;
+  letter-spacing: .2em; color: var(--text-dim, #8ea0ae); }
+#hud .vitals b { color: var(--text, #d8e2ea); }
+#hud .vitals.hurt b { color: #d4884e; }
+#hud .vitals.critical b { color: #d4574e; }
 `;
 
 export class Hud implements System {
@@ -92,6 +112,10 @@ export class Hud implements System {
   private weaponEl!: HTMLElement;
   private slotsEl!: HTMLElement;
   private lastSlotKey = '';
+  private hurtEl!: HTMLElement;
+  private dirEl!: HTMLElement;
+  private vitalsEl!: HTMLElement;
+  private hitMarks: Array<{ el: HTMLElement; life: number }> = [];
 
   /** Injected — the HUD reads state, it never reaches into other modules. */
   player: {
@@ -136,6 +160,9 @@ export class Hud implements System {
         <div class="stance">STANCE <b>STANDING</b></div>
         <div class="stamina"><i style="width:100%"></i></div>
       </div>
+      <div class="hurt"></div>
+      <div class="damageDir"></div>
+      <div class="vitals">CONDITION <b>NOMINAL</b></div>
       <div class="alert">CONTACT</div>
       <div class="toast"></div>
     `;
@@ -153,12 +180,45 @@ export class Hud implements System {
     this.toastEl = root.querySelector('.toast')!;
     this.weaponEl = root.querySelector('.weapon')!;
     this.slotsEl = root.querySelector('.slots')!;
+    this.hurtEl = root.querySelector('.hurt')!;
+    this.dirEl = root.querySelector('.damageDir')!;
+    this.vitalsEl = root.querySelector('.vitals')!;
+
+    bus.on('actor:damaged', (e) => { if (e.actorId === 0) this.onHurt(e.sourceId); });
 
     bus.on('ui:notify', ({ text }) => this.toast(text));
     bus.on('weapon:jammed', () => this.toast('WEAPON JAMMED — PULL TRIGGER TO CLEAR'));
     bus.on('door:locked', () => this.toast('LOCKED'));
     bus.on('weapon:reloadStart', ({ tactical }) =>
       this.toast(tactical ? 'RELOADING' : 'RELOADING — EMPTY'));
+  }
+
+  /**
+   * Register a hit and point at whoever caused it.
+   *
+   * A directional indicator, not a number. Being shot from an angle you cannot
+   * see is the situation that most needs information, and "12 damage" tells
+   * you nothing useful about it while "from your left" tells you everything.
+   */
+  private onHurt(sourceId: number): void {
+    const actors = services.tryGet('actors');
+    const src = actors?.get(sourceId);
+    const p = this.player;
+    if (!src || !p) return;
+
+    const dx = src.position.x - p.position.x;
+    const dz = src.position.z - p.position.z;
+    // Angle of the shooter relative to where the player is looking.
+    const facing = Math.atan2(p.forward.x, p.forward.z);
+    let rel = Math.atan2(dx, dz) - facing;
+    while (rel > Math.PI) rel -= Math.PI * 2;
+    while (rel < -Math.PI) rel += Math.PI * 2;
+
+    const el = document.createElement('i');
+    el.style.transform = `rotate(${rel}rad)`;
+    el.style.opacity = '1';
+    this.dirEl.appendChild(el);
+    this.hitMarks.push({ el, life: 1.5 });
   }
 
   toast(text: string): void {
@@ -234,6 +294,30 @@ export class Hud implements System {
       const total = a.loaded + (a.chambered ? 1 : 0);
       this.ammoEl.classList.toggle('warn', total > 0 && total <= 8);
       this.ammoEl.classList.toggle('empty', total === 0);
+    }
+
+    // --- hit indicators ---------------------------------------------------
+    for (let i = this.hitMarks.length - 1; i >= 0; i--) {
+      const m = this.hitMarks[i];
+      m.life -= dt;
+      if (m.life <= 0) {
+        m.el.remove();
+        this.hitMarks.splice(i, 1);
+      } else {
+        m.el.style.opacity = String(Math.min(1, m.life / 0.6));
+      }
+    }
+
+    // --- condition --------------------------------------------------------
+    const self = services.tryGet('actors')?.get(0);
+    if (self) {
+      const frac = self.health / Math.max(1, self.maxHealth);
+      this.hurtEl.style.opacity = String(Math.min(1, (1 - frac) * 1.5));
+      const label = frac > 0.85 ? 'NOMINAL' : frac > 0.6 ? 'WOUNDED'
+        : frac > 0.3 ? 'SERIOUS' : 'CRITICAL';
+      this.vitalsEl.innerHTML = `CONDITION <b>${label}</b>`;
+      this.vitalsEl.classList.toggle('hurt', frac <= 0.85 && frac > 0.3);
+      this.vitalsEl.classList.toggle('critical', frac <= 0.3);
     }
 
     // --- player state -----------------------------------------------------

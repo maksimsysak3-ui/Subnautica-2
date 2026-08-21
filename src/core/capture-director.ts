@@ -640,6 +640,22 @@ export class CaptureDirector {
     firingShot('fx-tracer', 'Tracer in flight', 'ho-mk4c',
       { optic: 'opt-rds', muzzle: 'muz-a2', handguard: 'hg-mlok-short' }, 3, 55);
 
+    // Look at the garrison. A screenshot of an empty compound proves nothing
+    // about whether the opposition renders, stands on the floor, or faces
+    // anywhere sensible.
+    this.register({
+      name: 'ai-garrison', label: 'Hostiles on station', system: 'ai',
+      hour: 15.0, weather: 'clear', quality: 3,
+      pos: [14, 4.4, 44], look: [4, 3.0, 16],
+      apply: () => {
+        const player = this.engine.get('player') as unknown as {
+          setControlsEnabled(v: boolean): void; position: THREE.Vector3;
+        };
+        player.setControlsEnabled(false);
+        for (let i = 0; i < 60; i++) this.engine.frame(performance.now() + i * 16.7);
+      },
+    });
+
     gunShot('gun-hip', 'Carbine, hip', 15.0, false, 'ho-mk4c', { optic: 'opt-rds', muzzle: 'muz-a2', underbarrel: 'grip-handstop', handguard: 'hg-mlok-short' });
     gunShot('gun-ads', 'Carbine, aimed', 15.0, true, 'ho-mk4c', { optic: 'opt-rds', muzzle: 'muz-a2', underbarrel: 'grip-handstop', handguard: 'hg-mlok-short' });
     gunShot('gun-kitted', 'Carbine, fully kitted', 15.0, false, 'ho-mk4c', { optic: 'opt-lpvo', muzzle: 'muz-supp-heavy', underbarrel: 'grip-vert', handguard: 'hg-mlok-long', magazine: 'mag-ext', laser: 'las-visible' });
