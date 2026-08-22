@@ -10509,11 +10509,11 @@ const AGE_BANDS = [
   { id: 'older',  name: 'Older visitors',  min: 50, max: 78, intensityCap: 7,   spend: 1.1, patience: .8 },
 ];
 const GROUP_KINDS = [
-  { id: 'solo',    name: 'On their own', size: [1, 1], spend: 1.0,  patience: 1.15 },
-  { id: 'couple',  name: 'Couples',      size: [2, 2], spend: 1.15, patience: 1.0 },
-  { id: 'family',  name: 'Families',     size: [3, 5], spend: 1.45, patience: .78 },
-  { id: 'friends', name: 'Friend groups', size: [3, 6], spend: 1.2, patience: .92 },
-  { id: 'school',  name: 'School trips',  size: [6, 12], spend: .55, patience: .7 },
+  { id: 'solo',    name: 'On their own', one: 'on their own', size: [1, 1], spend: 1.0,  patience: 1.15 },
+  { id: 'couple',  name: 'Couples',      one: 'couple',       size: [2, 2], spend: 1.15, patience: 1.0 },
+  { id: 'family',  name: 'Families',     one: 'family',       size: [3, 5], spend: 1.45, patience: .78 },
+  { id: 'friends', name: 'Friend groups',one: 'group of friends', size: [3, 6], spend: 1.2, patience: .92 },
+  { id: 'school',  name: 'School trips', one: 'school party',  size: [6, 12], spend: .55, patience: .7 },
 ];
 const ORIGINS = [
   { id: 'local',    name: 'Local',        w: .46, stay: .78, spend: .9,  fee: .82 },
@@ -10747,8 +10747,10 @@ class Guest extends Person {
     if (!this.demo) return '';
     const band = ageBand(this.demo.band), grp = groupKind(this.demo.group);
     const org = ORIGINS.find(o => o.id === this.demo.origin) || ORIGINS[0];
-    const g = this.demo.groupSize > 1 ? grp.name.replace(/s$/, '').toLowerCase() + ' of ' + this.demo.groupSize : 'on their own';
-    return this.demo.age + ' &middot; ' + g + ' &middot; ' + org.name.toLowerCase();
+    const one = grp.one || grp.name.toLowerCase();
+    const g = this.demo.groupSize > 1 ? one + ' of ' + this.demo.groupSize : 'on their own';
+    const from = org.id === 'local' ? 'lives locally' : org.id === 'tourist' ? 'here on holiday' : 'from the region';
+    return this.demo.age + ' &middot; ' + g + ' &middot; ' + from;
   }
   /* How this guest currently feels about a specific attraction, blending
      their remembered opinion with what they can see of it right now. */
@@ -11627,6 +11629,7 @@ class Guest extends Person {
     if (!this.goto(ex, ez)) this.dead = true;
     if (this.happy > .8) Park.happyLeavers++;
     Park.leavers++;
+    DayReport.capture(this);
   }
   /* Guests carry what they have actually just done: a drink or a snack
      fresh off a purchase, a shopping bag once they've bought a souvenir,
@@ -14250,10 +14253,15 @@ const UI = {
   /* `at` is an optional {x,z} or an object id — anything the notification is
      about — so the centre can take you straight there instead of leaving you
      to hunt for the ride that just broke down. */
-  notify(title, body, cls, at) {
+  notify(title, body, cls, at, onClick) {
     /* Anything worth a banner is worth hearing over the music. */
     if (typeof Audio !== 'undefined' && Audio.duck) Audio.duck(cls === 'bad' ? .6 : .4, cls === 'bad' ? 1.8 : 1.2);
     const n = el('div', 'note ' + (cls || ''), `<div class="nt">${esc(title)}</div><div class="nb">${esc(body)}</div>`);
+    if (typeof onClick === 'function') {
+      n.style.cursor = 'pointer';
+      n.title = 'Open';
+      n.onclick = () => { try { onClick(); } catch (e) { } n.remove(); };
+    }
     $('#notif').appendChild(n);
     setTimeout(() => { n.classList.add('out'); setTimeout(() => n.remove(), 320); }, 5200);
     const wrap = $('#notif');
@@ -17441,6 +17449,170 @@ const Coaster = {
     }
   }
 };
+
+/* ============================================================================
+   THE DAY REPORT
+
+   A park sim's loop needs a full stop. Every night the park closes, the books
+   are ruled off, and this reads them back: how many people came and why, what
+   they queued for, what it earned — and one guest, by name, whose day is
+   worth telling. The crowd is made of individuals with plans and budgets, so
+   the report proves it by following one of them home.
+
+   Deliberately not a blocking modal: it arrives as an alert you can open, and
+   every report is kept so a park has a history you can scroll back through.
+   ========================================================================== */
+const DayReport = {
+  reports: [],
+  stories: [],        // candidate guests captured as they leave
+
+  /* Called from leavePark: keep a handful of the day's most tellable visits
+     rather than every one of them. A story is worth telling if something
+     happened — a great day, an awful one, a big spender, a marathon. */
+  capture(g) {
+    if (!g || !g.name) return;
+    const rides = g.ridden ? g.ridden.length : 0;
+    const spend = Math.max(0, (g.startCash || 0) - (g.cash || 0));
+    const hours = (g.timeInPark || 0) / 60;
+    let score = Math.abs((g.happy || .5) - .5) * 3 + rides * .35 + spend * .012 + hours * .18;
+    if (g.happy < .3) score += 1.6;                     // an unhappy visit is the useful one
+    if (score < .9) return;
+    /* What they actually did, in their own terms. */
+    const fav = (() => {
+      if (!g.opinions) return null;
+      let best = null, bv = 0;
+      for (const id in g.opinions) if (g.opinions[id] > bv) { bv = g.opinions[id]; best = id; }
+      if (!best) return null;
+      const o = Park.objects.concat(Park.coasters).find(x => x.id === +best);
+      return o ? o.name : null;
+    })();
+    this.stories.push({
+      name: g.name, demo: g.demoLine ? g.demoLine().replace(/&middot;/g, '·') : '',
+      persona: g.persona ? g.persona.name : '', rides, spend: Math.round(spend),
+      hours: +hours.toFixed(1), happy: g.happy || .5, fav,
+      thought: g.thought || '', worst: g.moodWorst || '', score
+    });
+    if (this.stories.length > 40) this.stories.shift();
+  },
+
+  /* Rule off the day. Called from dayTick, after Demand has banked it. */
+  build() {
+    /* The day's books are already ruled off into Park.dailyLog by the time
+       this runs — reading Park.log again here would compare today's totals
+       against today's snapshot and report zero. */
+    const day = Park.dailyLog[Park.dailyLog.length - 1] || { income: 0, expense: 0, net: 0 };
+    const inc = day.income, out = day.expense;
+    const atts = Park.attractions();
+    const busiest = atts.slice().sort((a, b) => (b.riddenYesterday || 0) - (a.riddenYesterday || 0))[0];
+    const emptiest = atts.filter(a => (a.riddenYesterday || 0) < 25 && a.openR !== false)
+      .sort((a, b) => (a.riddenYesterday || 0) - (b.riddenYesterday || 0))[0];
+    const turned = atts.slice().sort((a, b) => (b.balkedYesterday || 0) - (a.balkedYesterday || 0))[0];
+    /* Pick the story: the highest-scoring visit of the day, with a bias
+       toward variety so it is not the same archetype every night. */
+    const pool = this.stories.slice(-25).sort((a, b) => b.score - a.score);
+    const story = pool.length ? pool[Math.floor(Math.random() * Math.min(3, pool.length))] : null;
+    this.stories.length = 0;
+
+    const rep = {
+      day: Park.day - 1,
+      season: Weather.season ? Weather.season.name : '',
+      weather: Weather.def ? Weather.def.name : '',
+      visitors: Demand.yesterday, peak: Demand.lastPeak,
+      happy: Park.lastDayHappiness === undefined ? Park.happiness : Park.lastDayHappiness,
+      rating: Park.rating, stars: Park.ratingStars(),
+      income: inc, expense: out, net: inc - out, cash: Park.money,
+      awareness: Demand.awareness,
+      balked: Park.balkedYesterday || 0,
+      capacity: Ops.parkCapacityPerHour(),
+      rides: atts.reduce((a, r) => a + (r.riddenYesterday || 0), 0),
+      busiest: busiest ? { name: busiest.name, n: busiest.riddenYesterday || 0 } : null,
+      emptiest: emptiest ? { name: emptiest.name, n: emptiest.riddenYesterday || 0 } : null,
+      turned: turned && turned.balkedYesterday > 8 ? { name: turned.name, n: turned.balkedYesterday } : null,
+      story
+    };
+    this.reports.push(rep);
+    if (this.reports.length > 60) this.reports.shift();
+
+    const better = this.reports.length > 1 ? rep.visitors - this.reports[this.reports.length - 2].visitors : 0;
+    UI.notify('Day ' + rep.day + ' report',
+      rep.visitors.toLocaleString() + ' visitors' + (better ? (better > 0 ? ' (+' + better + ')' : ' (' + better + ')') : '')
+      + ' · ' + (rep.net >= 0 ? 'cleared ' : 'lost ') + money(Math.abs(rep.net))
+      + '. Click to read the day.', rep.net >= 0 ? 'good' : 'warn', null, () => DayReport.open());
+    /* The notification is clickable through the alerts list; also expose the
+       latest report directly. */
+    this.latest = rep;
+    return rep;
+  },
+
+  /* One line of advice, chosen from what the day actually showed. Never more
+     than one: a report that lists nine problems tells you nothing. */
+  advice(r) {
+    if (!r) return '';
+    if (r.balked > r.visitors * .25) return 'A quarter of your visitors walked away from a queue. Build queue path, add capacity, or open another attraction of that kind.';
+    if (r.net < 0 && r.visitors > 100) return 'Busy but losing money. Check upkeep against ride revenue in the estate list — a ride nobody rides still costs you every hour.';
+    if (r.net < 0) return 'Quiet and losing money. Either cut costs — staff, hours, upkeep — or spend on something that draws people in.';
+    if (r.happy < .55) return 'People are not enjoying themselves. The Guests panel names which of comfort, value, excitement or energy is dragging them down.';
+    if (r.awareness < .25) return 'Hardly anyone knows the park exists yet. Advertising buys awareness outright; a good rating earns it more slowly.';
+    if (r.emptiest) return r.emptiest.name + ' carried ' + r.emptiest.n + ' riders all day. Either put it where people walk, dress it up, or take it out.';
+    if (r.peak > Park.comfortableCrowd * .9) return 'The park is running close to what it can serve. More throughput now, before the queues start costing you reputation.';
+    return 'Steady day. Reinvest: a new headline attraction moves attendance more than another copy of what you already have.';
+  },
+
+  open(i) {
+    const r = i === undefined ? this.latest : this.reports[i];
+    if (!r) { UI.notify('No report yet', 'The first report lands when the park has traded a full day.', 'warn'); return; }
+    const row = (k, v, note) => `<div class="kv"><span class="k">${k}</span><span class="v">${v}${note ? ` <span style="color:var(--dim);font-weight:600">${note}</span>` : ''}</span></div>`;
+    let h = `<div class="ip-sub" style="margin-bottom:10px">${esc(r.season)} · ${esc(r.weather)}</div>`;
+    h += `<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:9px;margin-bottom:14px">
+      ${[['Visitors', r.visitors.toLocaleString()], ['Peak in park', r.peak.toLocaleString()],
+         ['Rides taken', r.rides.toLocaleString()], ['Happiness', Math.round(r.happy * 100) + '%']]
+        .map(([k, v]) => `<div style="background:var(--panel-sunken);border:2px solid var(--edge-soft);border-radius:12px;padding:9px;text-align:center">
+          <div style="font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);font-weight:800">${k}</div>
+          <div style="font-size:19px;font-weight:800;margin-top:2px">${v}</div></div>`).join('')}</div>`;
+    h += `<h3>The books</h3>`;
+    h += row('Took', money(r.income));
+    h += row('Spent', '-' + money(r.expense));
+    h += row('Cleared', `<span style="color:${r.net >= 0 ? 'var(--good)' : 'var(--bad)'}">${money(r.net)}</span>`);
+    h += row('Cash in hand', money(r.cash));
+    h += `<h3>The park</h3>`;
+    h += row('Rating', r.stars.toFixed(1) + ' / 5');
+    h += row('Word of mouth', Math.round(r.awareness * 100) + '%');
+    h += row('Capacity', r.capacity.toLocaleString() + ' guests / hour');
+    if (r.busiest) h += row('Busiest', esc(r.busiest.name), r.busiest.n.toLocaleString() + ' riders');
+    if (r.emptiest) h += row('Quietest', esc(r.emptiest.name), r.emptiest.n.toLocaleString() + ' riders');
+    if (r.turned) h += row('Longest queue', esc(r.turned.name), r.turned.n.toLocaleString() + ' walked away');
+    if (r.balked) h += row('Walked away from queues', r.balked.toLocaleString());
+
+    if (r.story) {
+      const st = r.story;
+      const mood = st.happy > .75 ? 'went home happy' : st.happy > .5 ? 'had a reasonable day' : st.happy > .3 ? 'left a bit flat' : 'left in a mood';
+      h += `<h3>One visitor</h3>
+        <div style="background:var(--panel-sunken);border:2px solid var(--edge-soft);border-radius:14px;padding:12px">
+          <div style="font-weight:800;font-size:14px">${esc(st.name)}</div>
+          <div style="font-size:11px;color:var(--dim);margin-bottom:7px">${esc(st.demo)}${st.persona ? ' · ' + esc(st.persona.toLowerCase()) : ''}</div>
+          <div style="font-size:12.5px;line-height:1.6">
+            Spent <b>${st.hours.toFixed(1)} hours</b> in the park, rode <b>${st.rides}</b> ${st.rides === 1 ? 'attraction' : 'attractions'}
+            and parted with <b>${money(st.spend)}</b>.${st.fav ? ` Favourite: <b>${esc(st.fav)}</b>.` : ''}
+            They ${mood}${st.happy < .5 && st.worst ? `, and what let it down was <b>${esc(st.worst)}</b>` : ''}.
+          </div>
+          ${st.thought ? `<div style="margin-top:8px;font-style:italic;color:var(--dim);font-size:12px">&ldquo;${esc(st.thought)}&rdquo;</div>` : ''}
+        </div>`;
+    }
+    h += `<h3>What to do about it</h3><p>${this.advice(r)}</p>`;
+
+    if (this.reports.length > 1) {
+      h += `<h3>Recent days</h3><div style="display:flex;gap:6px;flex-wrap:wrap">`;
+      for (let k = this.reports.length - 1; k >= Math.max(0, this.reports.length - 12); k--) {
+        const q = this.reports[k];
+        h += `<button class="btn ${q === r ? 'pri' : ''}" style="padding:5px 10px;font-size:11px"
+          onclick="DayReport.open(${k})">Day ${q.day} · ${q.visitors.toLocaleString()}</button>`;
+      }
+      h += `</div>`;
+    }
+    UI.modal('Day ' + r.day + ' report', h);
+  }
+};
+
 /* ============================================================================
    SECTION 18 — PROCEDURAL AUDIO
    Small WebAudio synth: UI clicks, cash, construction, coaster rumble, crowd.
@@ -20412,6 +20584,9 @@ const InfoWheel = {
         else s += `<b>Capacity-limited.</b> More people want to come than the park can comfortably handle. Every new
           ride you open turns directly into attendance.`;
         s += `</div>`;
+
+        if (DayReport.latest) s += `<div style="margin-top:9px"><button class="btn" style="width:100%;padding:8px"
+          onclick="InfoWheel.hide();DayReport.open()">Read the Day ${DayReport.latest.day} report</button></div>`;
 
         /* Where the pressure actually is, ride by ride. */
         const busy = Park.attractions().map(a => ({ a, w: Ops.waitMin(a), t: Ops.throughput(a) }))
@@ -24561,6 +24736,7 @@ const Game = {
     }
     Inspection.dayTick();
     Power.dayTick();
+    DayReport.build();
     Achievements.update();
     Franchise.advanceBackgroundParks(1);
   },
