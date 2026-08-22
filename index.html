@@ -709,6 +709,8 @@ kbd{
   transition:background var(--ez),border-color var(--ez),transform var(--sn)}
 #infoPanel .ipm-btn:hover{background:var(--accent);border-color:var(--accent);color:#fff;transform:translateY(-1px)}
 #infoPanel .ipm-btn:active{transform:translateY(1px)}
+#infoPanel .ip-head{font-size:9.5px;letter-spacing:.13em;text-transform:uppercase;color:var(--dimmer);
+  font-weight:800;margin:11px 0 4px;padding-top:7px;border-top:1.5px solid var(--edge-soft)}
 #infoPanel .ip-note{font-size:10px;color:var(--dim);line-height:1.5;margin-top:9px;
   padding-top:8px;border-top:1px solid var(--edge-soft)}
 #infoPanel .ip-bar{height:7px;border-radius:4px;background:var(--panel-sunken);
@@ -11972,8 +11974,11 @@ const UI = {
       /* Throughput is the number that decides whether a ride can carry your
          park, and it is nowhere in the catalogue. Load and unload are folded
          in the same way the ride loop does it. */
-      const cycle = it.dur + 12;
-      L.push('about ' + Math.round(it.cap * 3600 / cycle) + ' riders an hour (' + it.cap + ' per cycle, ' + it.dur + 's ride)');
+      const tp = Ops.throughput({ kind: 'ride', def: it, cap: it.cap, dur: it.dur });
+      const pool = Ops.isPool({ def: it });
+      L.push('about ' + tp.toLocaleString() + ' guests an hour ('
+        + (pool ? it.cap + ' in the water at once, about ' + Math.round(Ops.stayMin({ def: it, dur: it.dur })) + ' min each'
+                : it.cap + ' per cycle, ' + it.dur + 's ride') + ')');
     }
     if (it.exc !== undefined) L.push('Excitement ' + it.exc.toFixed(1) + ' · Intensity ' + (it.fear || 0).toFixed(1) + ' · Nausea ' + (it.naus || 0).toFixed(1));
     if (it.price) L.push('Sells at ' + money(it.price) + ' by default');
@@ -12054,9 +12059,10 @@ const UI = {
     if (it.cost) rows.push(['Cost', money(it.cost)]);
     if (it.up) rows.push(['Upkeep', money(it.up) + '/day']);
     if (it.w && it.d) rows.push(['Footprint', it.w + ' × ' + it.d]);
-    if (it.cap && it.dur) rows.push(['Throughput', Math.round(it.cap * 3600 / (it.dur + 12)).toLocaleString() + '/hr']);
-    if (it.cap) rows.push(['Per cycle', it.cap]);
-    if (it.dur) rows.push(['Ride time', it.dur + 's']);
+    if (it.cap && it.dur) rows.push(['Throughput', Ops.throughput({ kind: 'ride', def: it, cap: it.cap, dur: it.dur }).toLocaleString() + '/hr']);
+    if (it.cap) rows.push([Ops.isPool({ def: it }) ? 'In the water' : 'Per cycle', it.cap]);
+    if (it.dur) rows.push([Ops.isPool({ def: it }) ? 'Typical swim' : 'Ride time',
+      Ops.isPool({ def: it }) ? Math.round(Ops.stayMin({ def: it, dur: it.dur })) + ' min' : it.dur + 's']);
     if (it.exc !== undefined) rows.push(['Excitement', it.exc.toFixed(1)]);
     if (it.fear !== undefined) rows.push(['Intensity', it.fear.toFixed(1)]);
     if (it.naus !== undefined) rows.push(['Nausea', it.naus.toFixed(1)]);
@@ -13352,10 +13358,14 @@ const UI = {
 
     else if (this.manageTabRide === 'ops') {
       h += `<h3>Throughput</h3>`;
-      h += kv('Capacity', o.cap + ' per cycle');
-      if (o.throughput) h += kv('Theoretical', o.throughput + ' guests / hr');
-      h += kv('Queue right now', (o.queue ? o.queue.length : 0));
-      h += kv('On board', isC ? o.trains.reduce((a, t) => a + t.riders.length, 0) : (o.riders ? o.riders.length : 0));
+      const _tp = Ops.throughput(o), _live = Ops.liveThroughput(o), _wait = Ops.waitMin(o);
+      h += kv('Capacity', o.cap + (Ops.isPool(o) ? ' in the water' : ' per cycle'));
+      h += kv('Throughput', _tp.toLocaleString() + ' guests / hr',
+        _live < _tp ? 'running at ' + Math.round(_live / Math.max(1, _tp) * 100) + '%' : '');
+      h += kv('Queue right now', (o.queue ? o.queue.length : 0) + ' waiting',
+        (o.queue && o.queue.length) ? '\u2248 ' + Math.round(_wait) + ' min' : '');
+      h += kv('On board', (o.riding ? o.riding.length : 0));
+      h += kv('Served today', (o.ridden || 0).toLocaleString());
       if (isC) {
         h += `<h3>Trains</h3>`;
         h += `<div class="row"><label>Trains</label>
@@ -13507,7 +13517,12 @@ const UI = {
       h += `<h3>Gate figures</h3>`;
       h += kv('Admissions revenue', money(Park.log.entry || 0), money((Park.log.entry || 0) / days) + ' / day');
       h += kv('Guests all time', Park.totalGuests);
-      h += kv('In the park now', (Park.guests.length + (Park.hotelGuestsPresent || 0)) + ' / ' + Park.capacity);
+      h += kv('In the park now', (Park.guests.length + (Park.hotelGuestsPresent || 0)).toLocaleString(),
+        'safe limit ' + Park.capacity.toLocaleString());
+      h += kv('Through the gate today', Demand.today.toLocaleString(),
+        Demand.yesterday ? 'yesterday ' + Demand.yesterday.toLocaleString() : '');
+      h += kv('Expected today', Math.round(Demand.cached().target).toLocaleString(),
+        'capacity ' + Ops.parkCapacityPerHour().toLocaleString() + '/hr');
       const perHour = Math.round((Game._arrRate || 0) * 60 * 2.5);   // parties -> people
       h += kv('Arriving now', perHour + ' guests / hour');
       if (Game._arrWhy) h += `<p style="color:var(--warn)"><b>Nobody is arriving.</b> ${Game._arrWhy}</p>`;
@@ -13810,7 +13825,7 @@ const UI = {
     h += `<div><h3>Operations</h3><table class="tb">
       ${row('Trains', c.trains.length)}
       ${row('Capacity', c.cap + ' riders')}
-      ${row('Throughput', (c.throughput || 0) + ' /hr')}
+      ${row('Throughput', Ops.throughput(c).toLocaleString() + ' /hr', (c.trains ? c.trains.length : 1) + ' train' + ((c.trains ? c.trains.length : 1) === 1 ? '' : 's') + ' \u00d7 ' + c.cap + ' seats')}
       ${row('Ticket price', money(c.price))}
       ${row('Total riders', c.ridden)}
       ${row('Revenue', money(c.revenue))}
@@ -14043,7 +14058,12 @@ const UI = {
 
   updateHUD() {
     $('#vMoney').textContent = money(Park.money);
-    $('#vGuests').textContent = (Park.guests.length + (Park.hotelGuestsPresent || 0)) + ' / ' + Park.capacity;
+    /* The headline crowd figure is who is here now and how many have come
+       through the gate today — not a ratio against an abstract cap, which was
+       the number that made a small park look like it was meant to hold a
+       thousand people. */
+    $('#vGuests').textContent = (Park.guests.length + (Park.hotelGuestsPresent || 0)).toLocaleString()
+      + (Demand.today ? '  \u00b7 ' + Demand.today.toLocaleString() + ' today' : '');
     $('#vRating').innerHTML = Park.ratingStarsHTML();
     $('#vLand').textContent = Land.areaText();
     $('#vHappy').textContent = Math.round(Park.happiness * 100) + '%';
@@ -14232,10 +14252,11 @@ const UI = {
       h += `<div class="cat">Business</div>`;
       h += kv('Revenue', money(o.revenue), perDay(o.revenue));
       h += kv('Total riders', o.ridden);
-      h += kv('Queue now', (o.queue ? o.queue.length : 0) + ' waiting');
-      h += kv('Riders on board', isC ? o.trains.reduce((a, t) => a + t.riders.length, 0) : o.riders.length);
-      h += kv('Capacity', o.cap + ' per cycle');
-      if (o.throughput) h += kv('Throughput', o.throughput + ' / hr');
+      h += kv('Queue now', (o.queue ? o.queue.length : 0) + ' waiting',
+        (o.queue && o.queue.length) ? '\u2248 ' + Math.round(Ops.waitMin(o)) + ' min' : '');
+      h += kv('Riders on board', (o.riding ? o.riding.length : 0));
+      h += kv('Capacity', o.cap + (Ops.isPool(o) ? ' in the water' : ' per cycle'));
+      h += kv('Throughput', Ops.throughput(o).toLocaleString() + ' / hr');
       h += kv('Upkeep', money(isC ? 18 + (o.track ? o.track.length * .04 : 0) : (o.def.up || 0) * .6) + ' / hr');
       h += kv('Reliability', Math.round(clamp((o.reliability || .9) - o.wear, 0, 1) * 100) + '%');
       if (isC && o.track) {
@@ -19655,6 +19676,7 @@ const InfoWheel = {
   ICONS: {
     park: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3l9 6v11H3V9z"/><path d="M9 20v-6h6v6"/></svg>',
     guests: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="9" cy="8" r="3"/><path d="M3 20c0-3.4 2.7-5.3 6-5.3s6 1.9 6 5.3"/><path d="M16 5.4a3 3 0 010 5.2M17.5 14.4c2.2.6 3.5 2.3 3.5 5.1"/></svg>',
+    crowd: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 20h18"/><rect x="4" y="12" width="3.4" height="8" rx=".8"/><rect x="10.3" y="7" width="3.4" height="13" rx=".8"/><rect x="16.6" y="3.5" width="3.4" height="16.5" rx=".8"/></svg>',
     money: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2.5" y="6" width="19" height="12" rx="2.2"/><circle cx="12" cy="12" r="3"/><path d="M6 9v.01M18 15v.01"/></svg>',
     rides: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="2"/><path d="M12 3.5v17M3.5 12h17M6 6l12 12M18 6L6 18"/></svg>',
     shops: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 9h16l-1 11H5z"/><path d="M4 9l1.4-4h13.2L20 9"/><path d="M9.5 13v4M14.5 13v4"/></svg>',
@@ -19760,6 +19782,89 @@ const InfoWheel = {
         if (energy <= .3) tips.push('They are worn out — benches let them rest instead of leaving.');
         if (broke / g.length >= .35) tips.push('Most guests are broke; add cash machines or cut prices.');
         s += `<div class="ip-note">${tips.length ? tips.map(t => '&bull; ' + t).join('<br>') : 'Guest needs are all being met.'}</div>`;
+        return s;
+      }
+    },
+    {
+      /* ------------------------------------------------------------------
+         CROWD — the park sim that shows its work.
+
+         Every term that decides how many people turn up today is printed
+         here beside its value, along with the one number that actually binds:
+         either nobody wants to come (build reasons to come) or the park
+         cannot serve the people who do (build throughput). No other panel in
+         the game gets to contradict this one, because the simulation reads
+         these same functions.
+         ------------------------------------------------------------------ */
+      id: 'crowd', label: 'Crowd',
+      hub: () => ({ v: Demand.today.toLocaleString(), l: 'Today' }),
+      render() {
+        const b = Demand.cached();
+        const inPark = Park.guests.length;
+        const cap = b.capacity;
+        const comfy = Park.comfortableCrowd;
+        const wait = Math.round(b.wait);
+        let s = `<h4>Crowd</h4>`;
+        s += `<div class="ip-sub">Attendance is earned, never granted. These are the exact figures the
+          simulation uses to decide who walks through the gate.</div>`;
+        s += InfoWheel.row('In the park now', inPark.toLocaleString());
+        s += InfoWheel.row('Through the gate today', Demand.today.toLocaleString());
+        s += InfoWheel.row('Peak today', Demand.peakToday.toLocaleString());
+        s += InfoWheel.row('Yesterday', Demand.yesterday ? Demand.yesterday.toLocaleString() + ' (peak ' + Demand.lastPeak.toLocaleString() + ')' : '—');
+        s += InfoWheel.row('Expected today', Math.round(b.target).toLocaleString());
+        if (Demand.turnedAwayToday) s += InfoWheel.row('Turned away', Demand.turnedAwayToday.toLocaleString(), 'ip-bad');
+
+        s += `<div class="ip-head">Why they come</div>`;
+        const draw = Demand.drawPoints(true);
+        s += InfoWheel.row('Reasons to visit', Math.round(b.draw).toLocaleString() + ' pts');
+        if (draw.rows.length) {
+          const top = draw.rows.slice(0, 3).map(r => esc(r.name) + ' ' + Math.round(r.pts)).join(' &middot; ');
+          s += `<div class="ip-note" style="margin:2px 0 6px">Biggest draws: ${top}.
+            ${draw.rows.length > 3 ? 'A second and third copy of the same sort of attraction is worth about half, then a quarter, of the first.' : ''}</div>`;
+        }
+        s += InfoWheel.row('Word of mouth', InfoWheel.pct(b.aware),
+          InfoWheel.verdict(b.aware > .5, b.aware > .25, b.aware <= .25));
+        s += InfoWheel.bar(b.aware, 'var(--accent)');
+        s += InfoWheel.row('Gate price', money(Park.entryFee) + ' vs ' + money(b.fair) + ' fair',
+          InfoWheel.verdict(b.price > 1.05, b.price > .7, b.price <= .7));
+        s += InfoWheel.row('Weather', Weather.def.name + ' \u00d7' + b.weather.toFixed(2),
+          InfoWheel.verdict(b.weather > .95, b.weather > .6, b.weather <= .6));
+        s += InfoWheel.row('Day of the week', b.dayName + ' \u00d7' + b.weekend.toFixed(2));
+        s += InfoWheel.row('Season', Weather.season.name + ' \u00d7' + b.season.toFixed(2));
+        if (Math.abs(b.events - 1) > .02) s += InfoWheel.row('Events &amp; rivals', '\u00d7' + b.events.toFixed(2),
+          InfoWheel.verdict(b.events > 1.02, b.events > .9, b.events <= .9));
+        if (b.crowd < .99) s += InfoWheel.row('Queue reputation', '\u00d7' + b.crowd.toFixed(2),
+          InfoWheel.verdict(false, b.crowd > .6, b.crowd <= .6));
+
+        s += `<div class="ip-head">What the park can serve</div>`;
+        s += InfoWheel.row('Capacity', cap.toLocaleString() + ' guests / hour');
+        s += InfoWheel.row('Comfortable crowd', comfy.toLocaleString() + ' at once');
+        s += InfoWheel.row('Average queue', wait ? wait + ' min' : 'no queues',
+          InfoWheel.verdict(wait < 20, wait < 45, wait >= 45));
+        s += InfoWheel.row('Safe site limit', Park.capacity.toLocaleString());
+
+        /* The single most useful line in the game: which wall you are hitting. */
+        const demandLimited = b.raw < b.ceiling * .8;
+        s += `<div class="ip-note" style="margin-top:7px">`;
+        if (!Park.attractions().length) s += `Nothing to ride yet. Build an attraction and lay a path to it.`;
+        else if (b.crowd < .7) s += `<b>Your queues are driving people away.</b> Word has got round that a day here is
+          spent standing still. Add throughput \u2014 more attractions, higher-capacity ones, or more trains \u2014 before
+          spending another penny on advertising.`;
+        else if (demandLimited) s += `<b>Demand-limited.</b> The park can serve ${cap.toLocaleString()} people an hour and only
+          ${Math.round(b.target).toLocaleString()} want to come today. Building more of the same will not fill it \u2014 build
+          <i>reasons to come</i>: a headline attraction, better scenery, a fairer gate price, or advertising.`;
+        else s += `<b>Capacity-limited.</b> More people want to come than the park can comfortably handle. Every new
+          ride you open turns directly into attendance.`;
+        s += `</div>`;
+
+        /* Where the pressure actually is, ride by ride. */
+        const busy = Park.attractions().map(a => ({ a, w: Ops.waitMin(a), t: Ops.throughput(a) }))
+          .filter(x => x.w > 5).sort((x, y) => y.w - x.w).slice(0, 4);
+        if (busy.length) {
+          s += `<div class="ip-head">Longest queues</div>`;
+          for (const x of busy) s += InfoWheel.row(esc(x.a.name), Math.round(x.w) + ' min &middot; ' + x.t.toLocaleString() + '/hr',
+            InfoWheel.verdict(x.w < 20, x.w < 45, x.w >= 45));
+        }
         return s;
       }
     },
@@ -21679,7 +21784,8 @@ const Game = {
     Park.rp = 100; Park.rpTotal = 100; Research.reset(); Prestige.reset(); Infra.reset(); Perks.reset(); Achievements.fiveStarDays = 0; Events.active = null; Events.history.length = 0; Rivals.reset();
     if (typeof Transit !== 'undefined') Transit.reset();
     Park.time = 9 * 60; Park.day = 1; Park.now = 0;
-    Park.open = false; Park.openedOn = 0;
+    Park.open = false; Park.openedOn = 0; Park.closing = false;
+    Park.setHours(9, 22); Demand.reset();
     document.body.classList.toggle('parkclosed', !quiet);
     Weather.reset(1);
     Park.mode = mode;
@@ -23863,6 +23969,12 @@ const Game = {
         scenario: Goals.active ? Goals.active.id : null,
         goalDone: Goals.active ? Goals.active.goals.map(g => !!g.done) : null,
         money: Park.money, time: Park.time, day: Park.day, fee: Park.entryFee, wpFee: Park.waterPassPrice, spFee: Park.seasonPassPrice, pFee: Park.parkingFee,
+        /* Trading hours and the state of the crowd model. Word of mouth is
+           built over days and is the difference between an established park
+           and a brand new one, so reloading has to restore it rather than
+           quietly sending a mature park back to opening week. */
+        hours: { o: Park.hours.open, c: Park.hours.close },
+        dmd: { aw: Demand.awareness, y: Demand.yesterday, lp: Demand.lastPeak, hist: Demand._hist.slice(-40) },
         /* The terrain grid is by far the biggest thing in a save (N=406, so
            ~165k height samples and ~165k tile types) — stored as plain JSON
            number arrays it alone ran 1-2MB and was the main reason big
@@ -24023,6 +24135,13 @@ const Game = {
       if (loadedH.length !== WORLD.h.length || loadedT.length !== WORLD.type.length) {
         UI.notify('Incompatible save', 'That park was built on a different map size and cannot be loaded.', 'bad');
         return false;
+      }
+      if (d.hours) Park.setHours(d.hours.o, d.hours.c); else Park.setHours(9, 22);
+      Demand.reset();
+      if (d.dmd) {
+        Demand.awareness = clamp(d.dmd.aw || .18, .02, 1);
+        Demand.yesterday = d.dmd.y || 0; Demand.lastPeak = d.dmd.lp || 0;
+        if (Array.isArray(d.dmd.hist)) Demand._hist = d.dmd.hist.slice(-40);
       }
       for (const o of Park.objects) if (o.mesh) o.mesh.dispose();
       for (const c of Park.coasters) { if (c.trackMesh) c.trackMesh.dispose(); if (c.stationMesh) c.stationMesh.dispose(); if (c.splashMesh) c.splashMesh.dispose(); }
