@@ -8468,103 +8468,80 @@ class Ride extends ParkObject {
     const exc = this.def.kind === 'wavepool' ? this.excitement * (.6 + .4 * (this.waveIntensity === undefined ? 1 : this.waveIntensity)) : this.excitement;
     return clamp(exc * 1.25 - dI * .75 - dN * .7, 0, 12);
   }
+  /* Operating a ride, in park-minutes.
+
+     Two clocks run here and they are deliberately separate. The SHOW — how
+     fast the carousel turns, when the drop tower falls — is animated against
+     the same stylised seconds it always was, so nothing looks different. The
+     LEDGER — who gets on, how long they are aboard, when the queue moves — is
+     charged in park-minutes through Ops, because the park clock runs sixty
+     times faster than the animation and mixing the two is what made a
+     thousand people queue for a carousel that served twenty an hour. */
   update(dt) {
-    if (this.broken) { return; }
-    this.wear += dt * 0.00025 * (1 + this.ridden * 0.0004);
-    switch (this.state) {
-      case 'idle':
-        if (!this.openR) break;
-        this.state = 'loading'; this.timer = 6; break;
-      case 'loading':
-        this.timer -= dt;
-        while (this.riders.length < this.cap && this.queue.length) {
-          const g = this.queue.shift();
-          if (!g || g.dead) continue;
-          g.boardRide(this);
-          this.riders.push(g);
-        }
-        if (this.timer <= 0) {
-          if (this.riders.length === 0) { this.state = 'idle'; this.timer = 3; break; }
-          if (Game.breakdowns !== false && Math.random() > this.reliability - this.wear * 0.35 + 0.05) { this.breakDown(); break; }
-          this.state = 'running'; this.timer = this.dur / Park.rideSpeedup;
-          this.spinTarget = 1;
-          const _rev = this.riders.length * this.price;
-          Park.earn(_rev, 'ticket');
-          this.revenue += _rev * Park.moneyMult * Park.userMoneyMult * Perks.incomeMult();
-          Progress.add(this.riders.length * 2);
-        }
-        break;
-      case 'running': {
-        this.timer -= dt;
-        /* A pool is not a ride cycle. People get in and out continuously, and
-           making everyone queue for a "next sitting" is why pools looked like
-           they could barely take anyone. Open water keeps admitting while it
-           runs, and lets swimmers leave once they have had their swim. */
-        if (this.def.pool || this.def.kind === 'lazyriver' || this.def.kind === 'kiddie') {
-          while (this.riders.length < this.cap && this.queue.length) {
-            const g = this.queue.shift();
-            if (!g || g.dead) continue;
-            g.boardRide(this);
-            this.riders.push(g);
-            const _rev = this.price;
-            Park.earn(_rev, 'ticket');
-            this.revenue += _rev * Park.moneyMult * Park.userMoneyMult * Perks.incomeMult(); Progress.add(2);
-          }
-          for (let k = this.riders.length - 1; k >= 0; k--) {
-            const g = this.riders[k];
-            g.swimT = (g.swimT || rnd(.6, 1.5) * this.dur) - dt;
-            if (g.swimT <= 0) { g.swimT = 0; g.finishRide(this); this.ridden++; this.riders.splice(k, 1); }
-          }
-          if (this.timer <= 0) this.timer = this.dur / Park.rideSpeedup;
-        }
-        const p = 1 - this.timer / (this.dur / Park.rideSpeedup);
-        const env = Math.min(1, Math.min(p, 1 - p) * 6);
-        this.spin += dt * 1.4 * env * (this.def.kind === 'teacup' ? 2.2 : 1);
-        if (this.def.kind === 'drop') {
-          const c = (p * 3) % 1;
-          this.h = c < .6 ? smoothstep(c / .6) : 1 - smoothstep((c - .6) / .4) ** 0.35;
-        } else if (this.def.kind === 'spindrop') {
-          const c = (p * 3) % 1;
-          this.h = c < .6 ? smoothstep(c / .6) : 1 - smoothstep((c - .6) / .4) ** 0.35;
-          this.spin += dt * (1.1 + this.h * 2.6);
-        } else if (this.def.kind === 'tower') {
-          this.h = smoothstep(clamp(Math.sin(p * PI) * 1.4, 0, 1));
-        } else if (this.def.kind === 'pirate') {
-          this.spin = Math.sin(Park.now * 1.4) * (0.35 + env * 0.75);
-        } else if (this.def.kind === 'swing' || this.def.kind === 'balloonride' || this.def.kind === 'gravitron') {
-          this.h = env;
-        } else if (this.def.kind === 'enterprise') {
-          this.h = smoothstep(clamp((p - .18) / .35, 0, 1)) * (p > .8 ? 1 - smoothstep((p - .8) / .2) : 1);
-        } else if (this.def.kind === 'topspin' || this.def.kind === 'frisbee') {
-          this.h = env;
-          this.spin += dt * 1.1 * env;
-        } else if (this.def.kind === 'haunted' || this.def.kind === 'rapids' || this.def.kind === 'motiontheatre' || this.def.kind === 'zipline') {
-          this.spin = 0; this.h = 0;
-        } else if (this.def.water) {
-          this.spin = 0; this.h = 1;
-        }
-        if (this.timer <= 0) { this.state = 'unloading'; this.timer = 4; }
-        break;
-      }
-      case 'unloading':
-        this.timer -= dt;
-        this.spin *= (1 - dt * 1.2);
-        this.h *= (1 - dt * 1.5);
-        if (this.timer <= 0) {
-          for (const g of this.riders) g.finishRide(this);
-          this.ridden += this.riders.length;
-          this.riders.length = 0;
-          this.state = 'idle';
-        }
-        break;
-      case 'broken':
-        break;
+    if (this.broken) {
+      this.spin *= Math.max(0, 1 - dt * 1.6);
+      this.h *= Math.max(0, 1 - dt * 1.8);
+      this.state = 'broken';
+      return;
     }
+    if (!this.openR) {
+      this.spin *= Math.max(0, 1 - dt * 1.6);
+      this.h *= Math.max(0, 1 - dt * 1.8);
+      this.state = 'closed';
+      return;
+    }
+    /* ---- the ledger ---- */
+    Ops.serve(this, dt);
+    const aboard = this.riding ? this.riding.length : 0;
+    this.riders = this.riding || (this.riding = []);   // renderer reads .riders
+    this.state = aboard ? 'running' : (this.queue.length ? 'loading' : 'idle');
+
+    /* Wear accrues with use, not with wall time: a ride nobody gets on does
+       not shake itself apart. */
+    const load = clamp(aboard / Math.max(1, this.cap), 0, 1.4);
+    this.wear += dt / 60 * .0065 * (.35 + load) * (Park.wearMult !== undefined ? Park.wearMult : 1);
+
+    /* One breakdown roll per operating park-hour rather than per cycle, so
+       reliability means the same thing whatever the ride's cycle length. */
+    if (aboard || this.queue.length) {
+      const perHour = clamp((1 - this.reliability) * .9 + this.wear * .5 - (Park.relBonus || 0), .002, .65);
+      if (Game.breakdowns !== false && Math.random() < perHour * dt / 60) { this.breakDown(); return; }
+    }
+
+    /* ---- the show ---- */
+    const running = aboard > 0 || this.queue.length > 0;
+    const cycle = Math.max(8, this.dur) / Math.max(.25, Park.rideSpeedup);
+    this._anim = ((this._anim || 0) + (running ? dt : 0)) % cycle;
+    const p = this._anim / cycle;
+    const env = running ? Math.min(1, Math.min(p, 1 - p) * 6) : 0;
+    const K = this.def.kind;
+    this.spin += dt * 1.4 * env * (K === 'teacup' ? 2.2 : 1);
+    if (K === 'drop' || K === 'spindrop') {
+      const c = (p * 3) % 1;
+      this.h = c < .6 ? smoothstep(c / .6) : 1 - smoothstep((c - .6) / .4) ** 0.35;
+      if (K === 'spindrop') this.spin += dt * (1.1 + this.h * 2.6);
+    } else if (K === 'tower') {
+      this.h = smoothstep(clamp(Math.sin(p * PI) * 1.4, 0, 1));
+    } else if (K === 'pirate') {
+      this.spin = Math.sin(Park.now * 1.4) * (0.35 + env * 0.75);
+    } else if (K === 'swing' || K === 'balloonride' || K === 'gravitron') {
+      this.h = env;
+    } else if (K === 'enterprise') {
+      this.h = smoothstep(clamp((p - .18) / .35, 0, 1)) * (p > .8 ? 1 - smoothstep((p - .8) / .2) : 1);
+    } else if (K === 'topspin' || K === 'frisbee') {
+      this.h = env; this.spin += dt * 1.1 * env;
+    } else if (K === 'haunted' || K === 'rapids' || K === 'motiontheatre' || K === 'zipline') {
+      this.spin = 0; this.h = 0;
+    } else if (this.def.water) {
+      this.spin = 0; this.h = 1;
+    }
+    if (!running) { this.h *= Math.max(0, 1 - dt * 1.5); }
   }
   breakDown() {
     this.broken = true; this.state = 'broken';
-    for (const g of this.riders) g.finishRide(this, true);
-    this.riders.length = 0;
+    Ops.evacuate(this, true);
+    this.riders = this.riding || [];
+    this._boardAcc = 0;
     UI.notify('Breakdown!', this.name + ' has broken down. A mechanic is needed.', 'bad', this.id);
     Park.needMechanic.push(this);
   }
@@ -9097,6 +9074,334 @@ const Weather = {
 };
 
 /* ============================================================================
+   SECTION 11c — OPERATIONS: honest throughput, dwell and queueing
+
+   The park clock runs at one park-minute per real second, but ride vehicles
+   are animated in real seconds so they look right. Those two facts used to be
+   silently mixed: a 42-second carousel cycle was charged to the park as 42
+   park-MINUTES, so every attraction served roughly a sixtieth of the people
+   it claimed to. Queues therefore never drained, and the park filled up with
+   a thousand people standing still in front of three rides.
+
+   Everything a guest experiences — boarding, dwell, queue drain — is now
+   accounted here in park-minutes from the attraction's real operating
+   figures. The vehicles still animate in real time; they are the show, not
+   the ledger.
+   ========================================================================== */
+const Ops = {
+  /* Seconds to unload and reload one batch. Bigger vehicles take longer. */
+  loadSec(a) {
+    if (a.kind === 'coaster') return a.type && a.type.launch ? 42 : 48;
+    const cap = a.cap || 12;
+    return clamp(14 + cap * 1.1, 18, 78);
+  },
+  /* Open water is not a ride cycle: people get in, swim, and get out when
+     they feel like it. `dur` on a pool def is a soak length in the same
+     stylised seconds every other ride uses, so it converts to a dwell of a
+     realistic handful of park-minutes rather than a fixed sitting. */
+  isPool(a) {
+    const d = a.def;
+    return !!d && (!!d.pool || d.kind === 'lazyriver' || d.kind === 'kiddie' || d.kind === 'wavepool');
+  },
+  stayMin(a) { return clamp((a.dur || 90) / 4, 7, 40); },
+  /* Park-minutes a guest is actually aboard. */
+  rideMin(a) {
+    if (a.kind === 'coaster') return clamp((a.rideTime || 60) / 60, .3, 5);
+    if (this.isPool(a)) return this.stayMin(a);
+    return clamp((a.dur || 45) / 60, .25, 4);
+  },
+  cycleMin(a) { return this.rideMin(a) + this.loadSec(a) / 60; },
+  /* Riders per park-hour, from the same numbers the ride panel prints. */
+  throughput(a) {
+    if (!a) return 0;
+    if (a.kind === 'coaster') {
+      if (!a.track || !a.track.complete) return 0;
+      const trains = Math.max(1, (a.trains && a.trains.length) || 1);
+      const circuit = Math.max(18, a.rideTime || 60);
+      const dispatch = Math.max(this.loadSec(a), circuit / trains);
+      return Math.round((a.cap || 12) * 3600 / dispatch);
+    }
+    if (this.isPool(a)) return Math.round((a.cap || 20) * 60 / this.stayMin(a));
+    return Math.round((a.cap || 12) * 60 / this.cycleMin(a));
+  },
+  /* What the attraction is managing right now, given breakdowns, staffing and
+     how full its queue actually is. This is the number the crowd feels. */
+  liveThroughput(a) {
+    if (!a || a.broken || a.openR === false) return 0;
+    let t = this.throughput(a);
+    if (a.freshness !== undefined) t *= lerp(.82, 1, clamp(a.freshness, 0, 1));
+    return t;
+  },
+  /* Minutes the back of this queue will wait, from real service rate. */
+  waitMin(a, extra) {
+    const t = this.liveThroughput(a);
+    if (t <= 0) return 999;
+    const n = (a.queue ? a.queue.length : 0) + (extra || 0);
+    return n / t * 60;
+  },
+  /* Park-wide serving capacity, guests per hour. The honest headline number:
+     three flat rides and three wave pools is a few thousand people an hour,
+     and no amount of marketing can push more than that through the gates. */
+  parkCapacityPerHour() {
+    let sum = 0;
+    for (const a of Park.attractions()) sum += this.liveThroughput(a);
+    return Math.round(sum);
+  },
+  /* How saturated the park is: 0 = empty queues, 1 = every queue at the
+     limit of what people will tolerate. Drives arrivals and reputation. */
+  saturation() {
+    const atts = Park.attractions();
+    if (!atts.length) return 1;
+    let queued = 0, cap = 0;
+    for (const a of atts) { queued += (a.queue ? a.queue.length : 0); cap += this.liveThroughput(a); }
+    if (cap <= 0) return 1;
+    /* Queue-minutes of work sitting in front of the park, against a 25-minute
+       comfortable average wait. */
+    return clamp(queued / cap * 60 / 25, 0, 3);
+  },
+  avgWaitMin() {
+    const atts = Park.attractions();
+    let n = 0, sum = 0;
+    for (const a of atts) {
+      const q = a.queue ? a.queue.length : 0;
+      if (!q) continue;
+      sum += this.waitMin(a) * q; n += q;
+    }
+    return n ? sum / n : 0;
+  },
+  /* Board whoever the attraction can actually take in this slice of park
+     time, and let aboard guests off when their dwell is up. One code path
+     for pools, flat rides and coasters. */
+  serve(a, dtMin) {
+    if (!a || a.broken || a.openR === false) return;
+    const rate = this.liveThroughput(a);
+    if (rate <= 0) return;
+    a._boardAcc = (a._boardAcc || 0) + rate / 60 * dtMin;
+    const dwell = this.rideMin(a);
+    let boarded = 0;
+    const hold = Math.max(4, (a.cap || 12) * (this.isPool(a) ? 1.15 : 1.3));
+    while (a._boardAcc >= 1 && a.queue.length && (a.riding ? a.riding.length : 0) < hold) {
+      const g = a.queue.shift();
+      a._boardAcc -= 1;
+      if (!g || g.dead) continue;
+      g.boardRide(a);
+      g._offAt = Park.time + dwell * rnd(.9, 1.12);
+      (a.riding || (a.riding = [])).push(g);
+      boarded++;
+      const rev = a.price * ((g.waterPass && a.def && a.def.water) ? 0 : 1);
+      if (rev > 0) { Park.earn(rev, 'ticket'); a.revenue += rev * Park.moneyMult * Park.userMoneyMult * Perks.incomeMult(); }
+      Progress.add(2);
+    }
+    if (a._boardAcc > 4) a._boardAcc = 4;          // no banking capacity while closed
+    if (boarded) a._lastDispatch = Park.time;
+    /* Off again. Park.time wraps at midnight, so compare on elapsed rather
+       than absolute clock where the wrap could strand a rider forever. */
+    const riding = a.riding;
+    if (riding && riding.length) {
+      for (let k = riding.length - 1; k >= 0; k--) {
+        const g = riding[k];
+        let left = g._offAt - Park.time;
+        if (left < -600) left = -1;                 // day rolled over: let them off
+        if (g.dead) { riding.splice(k, 1); continue; }
+        if (left <= 0) {
+          riding.splice(k, 1);
+          g.finishRide(a);
+          a.ridden++;
+        }
+      }
+    }
+  },
+  /* Everyone still aboard when a ride breaks or is demolished. */
+  evacuate(a, aborted) {
+    const riding = a.riding;
+    if (!riding) return;
+    for (const g of riding) { if (!g.dead) g.finishRide(a, aborted !== false); }
+    riding.length = 0;
+  }
+};
+
+/* ============================================================================
+   SECTION 11d — DEMAND: where the crowd comes from
+
+   Attendance is derived, never granted. Four questions decide how many people
+   walk through the gate on a given day, and the Attendance panel shows every
+   one of them:
+
+     1. What is there to do?   Draw is earned per attraction, with heavy
+                               diminishing returns on repeats — a fourth wave
+                               pool pulls a fraction of what the first did.
+     2. Does anyone know?      Awareness builds from reputation and marketing
+                               over days. A brand new park is quiet.
+     3. Is it worth it?        Gate price against what the line-up justifies.
+     4. Can the park cope?     Arrivals throttle against real hourly capacity
+                               and how long the queues already are.
+
+   In-park population is then simply Little's Law: arrivals per hour times how
+   long people stay. A park with eight attractions holds a few hundred people,
+   not a thousand — because eight attractions is a two-hour visit.
+   ========================================================================== */
+const Demand = {
+  awareness: .18,            // 0-1, how many people in the region have it on their list
+  yesterday: 0,              // attendance yesterday
+  lastPeak: 0,               // most people in the park at once yesterday
+  today: 0,                  // arrivals so far today
+  peakToday: 0,
+  turnedAwayToday: 0,
+  _hist: [],
+
+  reset() { this.awareness = .18; this.yesterday = 0; this.today = 0; this.peakToday = 0; this._hist.length = 0; },
+
+  /* --- 1. what there is to do ------------------------------------------- */
+  /* Draw points per attraction. A ride pulls people because of what it is,
+     not because it exists: excitement carries most of it, throughput adds a
+     little (a big-capacity headliner is a reason to come), and every repeat
+     of the same sort of thing is worth sharply less than the one before. */
+  drawPoints(detail) {
+    const seen = {};
+    let total = 0;
+    const rows = [];
+    for (const a of Park.attractions()) {
+      if (a.broken || a.openR === false) continue;
+      const kind = a.kind === 'coaster' ? 'coaster' : (a.def && a.def.water ? (Ops.isPool(a) ? 'pool' : 'waterride') : (a.def && a.def.kind) || 'flat');
+      const n = (seen[kind] = (seen[kind] || 0) + 1);
+      const repeat = Math.pow(.52, n - 1);           // 1, .52, .27, .14 …
+      const exc = a.excitement || 2;
+      const cap = Ops.throughput(a);
+      const quality = 26 + exc * 19 + Math.min(cap, 1600) * .045;
+      const fresh = a.freshness === undefined ? 1 : lerp(.7, 1.06, clamp(a.freshness, 0, 1));
+      const pts = quality * repeat * fresh;
+      total += pts;
+      if (detail) rows.push({ name: a.name, pts, repeat, exc, cap });
+    }
+    /* Scenery and facilities do not pull strangers in on their own, but a
+       park that looks like something is worth a longer drive. */
+    const beauty = Math.min(Park.beauty * .02, 120);
+    const shops = Math.min(Park.objects.filter(o => o.kind === 'shop').length * 4, 60);
+    total += beauty + shops;
+    if (detail) return { rows: rows.sort((a, b) => b.pts - a.pts), beauty, shops, total };
+    return total;
+  },
+  /* --- 2. does anyone know ---------------------------------------------- */
+  /* Awareness is a slow variable. It rises toward what the park deserves
+     (reputation + marketing) and decays if the park stops being talked
+     about. This is what makes opening week quiet and month three busy. */
+  targetAwareness() {
+    const rep = clamp(Park.rating / 999, 0, 1);
+    const mk = clamp(Park.marketing * .09 + Marketing.draw() * .55, 0, .8) * (Park.marketingMult || 1);
+    const word = clamp((Park.happiness - .55) * 1.5, -.25, .35);
+    return clamp(.06 + rep * .62 + mk + word, .04, 1);
+  },
+  /* Called each park-hour: the weather people are reacting to. */
+  hourTick() {
+    const now = Weather.drawFactor();
+    this.weatherDraw = this.weatherDraw === undefined ? now : lerp(this.weatherDraw, now, .45);
+  },
+  dayTick() {
+    const t = this.targetAwareness();
+    this.awareness += (t - this.awareness) * (t > this.awareness ? .22 : .12);
+    this.awareness = clamp(this.awareness, .02, 1);
+    this._hist.push({ day: Park.day, att: this.today, peak: this.peakToday, turned: this.turnedAwayToday });
+    if (this._hist.length > 90) this._hist.shift();
+    this.yesterday = this.today;
+    this.lastPeak = this.peakToday;
+    this.today = 0; this.peakToday = 0; this.turnedAwayToday = 0;
+  },
+  /* --- 3. is it worth it ------------------------------------------------ */
+  /* What a day here is worth, so the gate price can be judged against it
+     rather than against a constant. Also shown to the player verbatim. */
+  fairPrice() {
+    const d = this.drawPoints();
+    return clamp(4 + Math.sqrt(Math.max(0, d)) * 1.45, 4, 120);
+  },
+  priceFactor() {
+    const fair = this.fairPrice() * (Park.gate ? Park.gate.feeTolerance() : 1) * Prestige.feeMult() * Perks.feeMult() * Events.feeMult();
+    const r = Park.entryFee / Math.max(1, fair);
+    /* Free entry is not infinite demand — people still have to want to come. */
+    return clamp(1.35 - Math.pow(r, 1.7) * .62, .05, 1.45);
+  },
+  /* --- 4. can the park cope --------------------------------------------- */
+  /* Physical ceiling for a whole day: capacity per hour, times the open day,
+     divided by how many things an average guest wants to do. Nobody arrives
+     to stand in a queue they can see is hopeless. */
+  dailyCeiling() {
+    const cap = Ops.parkCapacityPerHour();
+    const openHours = 13;
+    const ridesPerGuest = 5.5;
+    return cap * openHours / ridesPerGuest;
+  },
+  crowdFactor() {
+    const s = Ops.saturation();
+    return clamp(1.25 - s * .75, .12, 1);
+  },
+  /* --- the number ------------------------------------------------------- */
+  /* Everybody in the catchment who might come today. Kept as one readable
+     line so the Attendance panel can print each term beside its value. */
+  breakdown() {
+    const draw = this.drawPoints();
+    const base = draw * 1.35;                       // people per draw point per day
+    const aware = this.awareness;
+    const price = this.priceFactor();
+    /* People decide whether to come out over breakfast, not in the instant a
+       shower passes over the car park. Smoothed so a two-minute squall does
+       not switch the gate off and on again. */
+    const weather = this.weatherDraw === undefined ? Weather.drawFactor() : this.weatherDraw;
+    const season = Weather.season ? Weather.season.draw : 1;
+    const dayName = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][(Park.day - 1) % 7];
+    const weekend = [1, .92, .9, .94, 1.15, 1.55, 1.4][(Park.day - 1) % 7];
+    const events = Events.drawMult() * Rivals.drawMult() * Prestige.drawMult() * Perks.drawMult();
+    const crowd = this.crowdFactor();
+    const ceiling = this.dailyCeiling();
+    const raw = base * aware * price * weather * season * weekend * events * crowd;
+    const target = Math.min(raw, ceiling);
+    return { draw, base, aware, price, weather, season, weekend, dayName, events, crowd, ceiling, raw, target,
+      capacity: Ops.parkCapacityPerHour(), fair: this.fairPrice(), sat: Ops.saturation(), wait: Ops.avgWaitMin() };
+  },
+  /* Guests per park-hour arriving right now, from today's target spread over
+     a real gate curve. */
+  /* The shape of a gate day, derived from the park's own opening hours
+     rather than hard-coded: a trickle as the gates open, a hard build through
+     the late morning, the main peak before lunch, a softer afternoon second
+     wind, then a long fade. Last admission is an hour before closing. */
+  curveAt(hour) {
+    const H = Park.hours;
+    const first = H.open - .5, last = H.close - 1;
+    if (hour <= first || hour >= last) return 0;
+    const t = (hour - first) / Math.max(1, last - first);
+    const bump = (c, w, a) => a * Math.exp(-((t - c) / w) * ((t - c) / w));
+    return Math.max(0, bump(.24, .20, 1.55) + bump(.60, .30, .80) + .06);
+  },
+  /* The curve integrates to this many "hour units" across the day, so a
+     day's target divides into an hourly rate that sums back to it. */
+  _curveArea() {
+    const key = Park.hours.open + ':' + Park.hours.close;
+    if (this._area && this._areaKey === key) return this._area;
+    let a = 0;
+    for (let h = 0; h < 26; h += .05) a += this.curveAt(h) * .05;
+    this._areaKey = key;
+    return (this._area = Math.max(.5, a));
+  },
+  arrivalsPerHour(hour) {
+    const b = this.cached();
+    return b.target * this.curveAt(hour) / this._curveArea();
+  },
+  /* breakdown() walks every attraction, and arrivals are evaluated every
+     frame, so the answer is cached for a few park-minutes. Anything that
+     changes the park (building, pricing, opening a ride) can call
+     Demand.invalidate() to see the effect immediately. */
+  cached() {
+    if (this._c && Park.time - this._cT < 3 && this._cDay === Park.day) return this._c;
+    this._cT = Park.time; this._cDay = Park.day;
+    return (this._c = this.breakdown());
+  },
+  invalidate() { this._c = null; },
+  /* Called once per admitted guest. */
+  countArrival() {
+    this.today++;
+    if (Park.guests.length > this.peakToday) this.peakToday = Park.guests.length;
+  }
+};
+
+/* ============================================================================
    SECTION 12 — PARK STATE
    ========================================================================== */
 /* Park policies, and the two multipliers they feed. Kept as functions rather
@@ -9131,25 +9436,32 @@ const Park = {
   awards: [],
   selected: null,
   maxGuests: 16000,
-  /* How many people the park can plausibly hold: word of mouth is limited by
-     how much there actually is to do. */
+  /* A physical ceiling, and nothing more. How many people actually turn up is
+     decided by Demand — appeal, awareness, price, weather and whether the
+     queues are already hopeless — because that is what decides it in real
+     life. This number is only the fire-safety limit: how many bodies fit on
+     the paths and inside the attractions before the site is unsafe. It is
+     deliberately far above a normal day's crowd, so it is a backstop rather
+     than the thing quietly generating a thousand guests for three rides. */
   get capacity() {
-    const atts = this.attractions().length;
-    const shops = this.objects.filter(o => o.kind === 'shop').length;
+    const tiles = Path.walkCount || 0;
+    let inside = 0;
+    for (const a of this.attractions()) inside += (a.cap || 0) * 2;
     const hotelRooms = this.objects.filter(o => o.kind === 'shop' && o.def.need === 'hotel')
       .reduce((a, o) => a + (o.def.rooms || 0), 0);
-    const parkingSpaces = this.objects.filter(o => o.kind === 'shop' && o.def.need === 'parking')
-      .reduce((a, o) => a + (o.spaces || 0), 0);
-    /* What the park can hold, which is also what caps the crowd. Deliberately
-       below what the rides could physically take: a park that is rammed on
-       day one has nowhere to grow. Hotel rooms count too — a resort with
-       real lodging can plausibly host far more people than day-trippers
-       alone, which is what makes the 2,000-guest Prestige milestone a
-       genuine late-game push rather than an impossible number. Parking
-       spaces do the same for guests who drive rather than walk or ride
-       transit in — a bigger lot means more cars can actually reach the
-       gate on a busy day. */
-    return clamp(Math.round((60 + atts * 62 + shops * 20 + hotelRooms * 9 + parkingSpaces * 1.6 + this.rating * .18) * Perks.capacityMult()), 60, this.maxGuests);
+    /* ~4 people per 16 m² tile of open path is a busy but safe midway. */
+    return clamp(Math.round((180 + tiles * 4 + inside + hotelRooms * 2) * Perks.capacityMult()), 120, this.maxGuests);
+  },
+  /* What the park can comfortably serve in an hour, and the crowd it can keep
+     happy at once. Both come straight from ride throughput, so the answer to
+     "why is nobody coming" is always a number the player can act on. */
+  get servingCapacity() { return Ops.parkCapacityPerHour(); },
+  get comfortableCrowd() {
+    /* Little's Law: people in the park = arrivals per hour x hours they stay.
+       A guest doing ~5.5 attractions at 25 minutes of queue apiece is here
+       about four hours, so the crowd a park can carry without the queues
+       turning ugly is roughly two thirds of its hourly capacity. */
+    return Math.round(this.servingCapacity * .66);
   },
 
   reset() {
@@ -9197,6 +9509,23 @@ const Park = {
      wandering through the site. */
   open: false,
   openedOn: 0,
+  /* Trading hours. Longer days sell more tickets and more food, but every
+     hour costs wages and upkeep whether anyone is here or not, so the last
+     two hours of a quiet day lose money. A real decision, and the reason the
+     park empties at night instead of guests wandering it until dawn. */
+  hours: { open: 9, close: 22 },
+  closing: false,
+  tradingNow() {
+    if (!this.open) return false;
+    const h = this.time / 60;
+    return h >= this.hours.open && h < this.hours.close;
+  },
+  hoursLabel() { return String(this.hours.open).padStart(2, '0') + ':00 – ' + String(this.hours.close).padStart(2, '0') + ':00'; },
+  setHours(o, c) {
+    o = clamp(Math.round(o), 5, 12); c = clamp(Math.round(c), o + 4, 26);
+    this.hours.open = o; this.hours.close = c;
+    Demand.invalidate(); Demand._area = null;
+  },
   attractions() { return this.objects.filter(o => o.kind === 'ride').concat(this.coasters.filter(c => c.state === 'open')); },
   addObject(o) {
     this.objects.push(o);
@@ -9431,10 +9760,13 @@ const Path = {
   queueBuf: new Int32Array(N * N),
 
   rebuild() {
+    let walkable = 0;
     for (let k = 0; k < N * N; k++) {
       const t = WORLD.type[k];
-      this.walk[k] = (t === T_PATH || t === T_QUEUE || t === T_PLAZA || t === T_ENTRY) ? 1 : 0;
+      const w = (t === T_PATH || t === T_QUEUE || t === T_PLAZA || t === T_ENTRY) ? 1 : 0;
+      this.walk[k] = w; walkable += w;
     }
+    this.walkCount = walkable;
     // Flood-fill connected components so unreachable targets can be rejected
     // instantly instead of burning a full A* search per guest per decision.
     this.comp.fill(-1);
@@ -10132,6 +10464,14 @@ class Guest extends Person {
     this.planIdx = 0;
     this.planName = shape.n;
   }
+  /* How many different attractions this guest has been on today. A park with
+     three rides runs out of things to do in an afternoon, and that is exactly
+     why its crowd is small — people finish and go home. */
+  uniqueRidden() {
+    if (!this.ridden.length) return 0;
+    const seen = new Set(this.ridden);
+    return seen.size;
+  }
   /* The next thing on the list, or null once the day is done. */
   planStep() {
     while (this.planIdx < this.plan.length && this.plan[this.planIdx].done) this.planIdx++;
@@ -10168,6 +10508,17 @@ class Guest extends Person {
     this.startCash = this.cash;   // persona sets the real wallet, so re-baseline
     this.budget = this.cash * rnd(.6, .92);
     this.ridesWanted = Math.max(2, Math.round(rndi(p.rides[0], p.rides[1]) * org.stay));
+    /* How long this visit is worth, in park-minutes, and the single most
+       important number in the whole attendance model: the crowd in the park
+       at any moment is arrivals per hour times how long people stay. Nobody
+       spends eight hours at a park with three rides and a paddling pool —
+       they do everything twice and drive home by mid-afternoon. So the stay
+       is scaled by how much there is to do, and capped by what this guest
+       came for. */
+    const variety = Park.attractions().length;
+    const depth = clamp(.9 + variety * .19, .9, 3.1);          // hours of content
+    this.stayBudget = 60 * clamp((rnd(1.5, 2.4) + depth) * (this.stayMult || 1) * (1 + (p.stay || 0)), 90 / 60, 9);
+    this.ridesWanted = Math.min(this.ridesWanted, Math.max(2, Math.round(variety * 1.6)));
     this.thrillSeeker = this.prefIntensity > 7.5;
   }
   /* A readable one-liner for the panels — "Adult · family of 4 · tourist". */
@@ -10433,7 +10784,9 @@ class Guest extends Person {
       else if (this.energy < .05) why = 'I am exhausted. What a day.';
       else if (this.ridden.length >= this.ridesWanted && this.happy > .55)
         why = 'What a brilliant day out!';
-      else if (this.timeInPark > 60 * 8 * (0.75 + this.happy)) why = 'Time to head home.';
+      else if (this.timeInPark > (this.stayBudget || 300) * (.8 + this.happy * .45)) why = 'Time to head home.';
+      else if (this.timeInPark > 90 && this.uniqueRidden() >= Math.max(1, Park.attractions().length)
+               && this.happy > .4) why = 'We have done everything there is to do here.';
       if (why) { this.think(why, this.happy > .55 ? 1 : -1); this.leavePark(); }
     }
     // drop litter occasionally
@@ -10478,6 +10831,13 @@ class Guest extends Person {
     // Whatever we were walking towards, we are reconsidering — give the place
     // back before choosing again, or the notional queue never drains.
     this.claim(null);
+    /* The park has shut. Anyone not already in a queue or aboard something
+       heads for the exit; the queues themselves are run down first. */
+    if (!Park.tradingNow() && this.state !== 'queuing' && this.state !== 'riding' && this.state !== 'leaving') {
+      this.think('Time to head home.', 0);
+      this.leavePark();
+      return;
+    }
     /* Needs compete on a single utility scale rather than a fixed ladder, so a
        guest who is a bit hungry AND a bit tired behaves differently from one
        who is desperate for a toilet. Weather and wallet shift the weights. */
@@ -10544,7 +10904,7 @@ class Guest extends Person {
     }
     if (!step) {
       // the day's list is done: another lap if they are still enjoying it
-      if (this.happy > .58 && this.cash > 30 && this.timeInPark < 60 * 6) { this.makePlan(); }
+      if (this.happy > .58 && this.cash > 30 && this.timeInPark < (this.stayBudget || 300) * .72) { this.makePlan(); }
       else { this.think('That was a good day out.', 1); this.leavePark(); return; }
     }
     /* A group does what the group is doing. Splitting a family up across four
@@ -10747,9 +11107,8 @@ class Guest extends Person {
      queue matters; counting walkers there makes everyone balk and turn round,
      and they spend the day walking between rides they never get on. */
   estimatedWait(r, planning) {
-    const perHour = r.throughput || (r.cap ? r.cap * 3600 / Math.max(30, (r.dur || 45) + 20) : 300);
-    const waiting = r.queue.length + (planning ? (r.incoming || 0) * .6 : 0);
-    return waiting / Math.max(1, perHour) * 3600;
+    const waiting = (planning ? (r.incoming || 0) * .6 : 0);
+    return Ops.waitMin(r, waiting) * 60;      // seconds, as callers expect
   }
   chooseRide(tag) {
     let best = null, bs = -2.5;
@@ -16580,30 +16939,60 @@ const Coaster = {
     const t = c.track;
     if (!t || !t.complete) return;
     const T = c.type;
+    /* The ledger: who boards, how long they are aboard and what the queue
+       does are all charged in park-minutes by Ops, exactly as for a flat
+       ride. The trains below are the show — they run on the animation clock,
+       carry whichever riders happen to be aboard right now, and no longer
+       decide anything about capacity. Before this split a train took a real
+       minute to get round, and the park charged that to the clock as a real
+       HOUR, so a coaster that advertised 1,600 riders an hour delivered
+       about twenty-five. */
+    if (c.state === 'open' || c.openR) {
+      Ops.serve(c, dt);
+      const aboard = c.riding ? c.riding.length : 0;
+      const load = clamp(aboard / Math.max(1, c.cap), 0, 1.4);
+      c.wear += dt / 60 * .0075 * (.35 + load) * (Park.wearMult !== undefined ? Park.wearMult : 1);
+      if (!c.broken && (aboard || c.queue.length) && Game.breakdowns !== false) {
+        const perHour = clamp((1 - c.reliability) * .95 + c.wear * .55 - (Park.relBonus || 0), .002, .7);
+        if (Math.random() < perHour * dt / 60) {
+          c.broken = true; c.state = 'broken';
+          Ops.evacuate(c, true);
+          Park.needMechanic.push(c);
+          UI.notify('Breakdown!', c.name + ' has broken down — send a mechanic.', 'bad', c.id);
+        }
+      }
+    }
     for (let ti = 0; ti < c.trains.length; ti++) {
       const tr = c.trains[ti];
+      /* Riders shown on this train are a live sample of the people actually
+         aboard the attraction. Drop anyone the ledger has already let off. */
+      if (tr.riders.length) {
+        for (let k = tr.riders.length - 1; k >= 0; k--) {
+          const g = tr.riders[k];
+          if (!g || g.dead || g.riding !== c) tr.riders.splice(k, 1);
+        }
+      }
       if (tr.state === 'station') {
         tr.d = t.stationEnd * .5;
         tr.v = 0;
         tr.timer -= dt;
-        // load guests
-        if (c.openR && !c.broken) {
-          while (tr.riders.length < c.cap && c.queue.length) {
-            const g = c.queue.shift();
-            if (!g || g.dead) continue;
-            g.boardRide(c); tr.riders.push(g);
-          }
-        }
         if (tr.timer <= 0) {
-          // keep the doors open while there are still guests to load
-          if (c.openR && !c.broken && c.queue.length && tr.riders.length < c.cap) { tr.timer = 1.2; }
-          else {
-            // block safety: don't dispatch if another train is still near the station
-            let clear = true;
-            for (const o of c.trains) if (o !== tr && o.state === 'run' && o.d < t.length * .35) clear = false;
-            if (clear) { tr.state = 'run'; tr.v = 3.2; tr.d = t.stationEnd; }
-            else tr.timer = 1;
-          }
+          // block safety: don't dispatch if another train is still near the station
+          let clear = true;
+          for (const o of c.trains) if (o !== tr && o.state === 'run' && o.d < t.length * .35) clear = false;
+          if (clear && c.openR && !c.broken) {
+            // fill the seats from whoever is aboard the attraction right now
+            const pool = (c.riding || []).filter(g => !tr.riders.includes(g));
+            const taken = new Set();
+            for (const o of c.trains) if (o !== tr) for (const g of o.riders) taken.add(g);
+            tr.riders.length = 0;
+            for (const g of pool) {
+              if (tr.riders.length >= c.cap) break;
+              if (taken.has(g)) continue;
+              tr.riders.push(g);
+            }
+            tr.state = 'run'; tr.v = 3.2; tr.d = t.stationEnd;
+          } else tr.timer = 1;
         }
         continue;
       }
@@ -16667,20 +17056,9 @@ const Coaster = {
         if (tr.d >= t.length) {
           tr.d -= t.length;
           tr.state = 'station'; tr.timer = 5.5;
-          // unload
-          for (const g of tr.riders) g.finishRide(c);
-          c.ridden += tr.riders.length;
-          const _rev = tr.riders.length * c.price;
-          Park.earn(_rev, 'ticket');
-          c.revenue += _rev * Park.moneyMult * Park.userMoneyMult * Perks.incomeMult();
-          Progress.add(tr.riders.length * 3);
+          /* Riders step off the show; the ledger already booked the ride,
+             the money and the wear when they boarded. */
           tr.riders.length = 0;
-          c.wear += .0015 * (Park.wearMult !== undefined ? Park.wearMult : 1);
-          if (c.openR && Math.random() > c.reliability - c.wear * 0.35 + 0.05 - (Park.relBonus || 0)) {
-            c.broken = true; c.state = 'broken';
-            Park.needMechanic.push(c);
-            UI.notify('Breakdown!', c.name + ' has broken down — send a mechanic.', 'bad', c.id);
-          }
           break;
         }
       }
@@ -22682,6 +23060,23 @@ const Game = {
   },
   updateRiders() {
     for (const c of Park.coasters) {
+      /* Anyone the ledger has aboard but who is not in a seat right now is,
+         in the show's terms, still in the station. Stand them on the platform
+         rather than leaving them frozen where they joined the queue. */
+      if (c.riding && c.riding.length) {
+        const e = c.entrance || { x: c.x, z: c.z };
+        for (let k = 0; k < c.riding.length; k++) {
+          const g = c.riding[k];
+          if (!g || g.dead) continue;
+          if (c.trains.some(tr => tr.riders.includes(g))) continue;
+          if (g._stationSpot === undefined) g._stationSpot = rnd(0, TAU);
+          const rr = 1.4 + (k % 5) * .55;
+          g.x = e.x + Math.cos(g._stationSpot) * rr;
+          g.z = e.z + Math.sin(g._stationSpot) * rr;
+          g.y = WORLD.hAt(g.x, g.z);
+          g.moving = false; g.roll = 0; g.pitchRide = 0;
+        }
+      }
       for (const tr of c.trains) {
         if (!tr.riders.length) continue;
         const seatsPerCar = c.type.seat;
@@ -23087,87 +23482,58 @@ const Game = {
     Audio.setRumble(clamp(tr.v / 60, 0, 1) * .28);
     if (tr.v > 22 && Math.random() < dt * 1.6) Audio.play('scream');
   },
+  /* Arrivals.
+
+     Nobody is handed to the park. Demand works out how many people want to
+     come today from what there is to do, who knows about it, what it costs
+     and what the weather is doing; that number is spread across a real gate
+     curve, throttled if the queues are already hopeless, and hard-capped by
+     the site's fire limit. Everything here is reported verbatim in the
+     Attendance panel, so "why is nobody coming" always has an answer. */
   spawnGuests(dt) {
     this._arrWhy = null;
     if (!Park.open) { this._arrRate = 0; this._arrWhy = 'The park is closed — open the gates at the entrance.'; return; }
     const hour = Park.time / 60;
-    // A longer day, and it tapers rather than stopping dead. Nobody arriving
-    // at half past ten at night is correct; being given no idea why is not.
-    if (hour < 7 || hour >= 22.5) {
+    if (Demand.curveAt(hour) <= 0) {
       this._arrRate = 0;
-      this._arrWhy = 'It is the middle of the night — the first guests arrive around 07:00.';
+      this._arrWhy = hour < Park.hours.open
+        ? 'The gates open at ' + String(Park.hours.open).padStart(2, '0') + ':00.'
+        : 'Last admission was an hour before closing. The park shuts at ' + String(Park.hours.close).padStart(2, '0') + ':00.';
       return;
     }
     if (Park.guests.length >= Park.capacity) {
       this._arrRate = 0;
-      this._arrWhy = 'The park is full. More rides and shops raise how many people it can hold.';
+      Demand.turnedAwayToday += 1;
+      this._arrWhy = 'The site is at its safe limit of ' + Park.capacity.toLocaleString() + ' people. More paths and buildings raise it.';
       return;
     }
-    // a brand new park still draws a trickle, and word of mouth compounds
-    /* An event pulls a crowd; the parks down the road take a slice of it.
-       Both are multipliers on the same regional demand, so a good event can
-       carry you through a week when a rival has opened something. */
-    const attract = (34 + Park.rating * .62 + Park.attractions().length * 6 + Park.marketing * 8 * (Park.marketingMult || 1) + Marketing.draw() * 42 * (Park.marketingMult || 1))
-      * Events.drawMult() * Rivals.drawMult() * Prestige.drawMult() * Perks.drawMult();
-    /* Tourists have travelled to be here and will swallow a higher gate
-       price than somebody who lives down the road and could come any day.
-       Averaged over the origin mix rather than per person, because this is
-       the arrival rate, not an individual decision. */
-    const originTol = ORIGINS.reduce((a, o) => a + o.w * o.fee, 0) / ORIGINS.reduce((a, o) => a + o.w, 0);
-    const tol = (Park.gate ? Park.gate.feeTolerance() : 1) * originTol * Prestige.feeMult() * Perks.feeMult();
-    const feeFactor = clamp(1.45 - Park.entryFee / ((26 + Park.rating * .55) * tol * Events.feeMult()), .08, 1.7);
-    /* A real gate has a shape to its day. A trickle when the doors open, a
-       hard build through the late morning, the main peak around noon, a dip
-       while everybody eats, a second smaller peak mid afternoon, then a long
-       decline as families head home and the evening crowd arrives. */
-    const curve = [
-      [7, .12], [8, .40], [9, .80], [10, 1.15], [11, 1.40], [12, 1.55], [13, 1.25],
-      [14, 1.40], [15, 1.45], [16, 1.25], [17, 1.00], [18, .85], [19, .70],
-      [20, .50], [21, .30], [22, .12], [22.5, .04],
-    ];
-    let daily = .10;
-    for (let k = 0; k < curve.length - 1; k++) {
-      if (hour >= curve[k][0] && hour < curve[k + 1][0]) {
-        const f = (hour - curve[k][0]) / (curve[k + 1][0] - curve[k][0]);
-        daily = lerp(curve[k][1], curve[k + 1][1], f);
-        break;
-      }
+    const b = Demand.cached();
+    if (!Park.attractions().length) {
+      this._arrRate = 0;
+      this._arrWhy = 'There is nothing here to ride yet.';
+      return;
     }
-    /* And how many people are out there at all depends on the park itself.
-       A single ride in a field draws almost nobody however long you leave the
-       gates open; word of mouth is earned. */
-    const draw = clamp(
-      Park.attractions().length * .09
-      + Park.objects.filter(o => o.kind === 'shop').length * .03
-      + Park.rating / 620
-      + (Park.gate ? (Park.gate.tier - 1) * .12 : 0), .05, 2.4);
-    /* One call now admits a whole party rather than one person, so the rate
-       is in parties per park-minute and has to be divided by the average
-       party size — but only that. Dividing twice, as an earlier pass did,
-       left the gate barely trickling. There is also a floor: a park that is
-       open and reachable always draws somebody, so "I opened it and nothing
-       happened" can never be the outcome. */
+    /* Guests per park-hour right now. */
+    const perHour = b.target * Demand.curveAt(hour) / Demand._curveArea();
+    this._arrRate = perHour / 60;              // parties handled below
+    this._arrPerHour = perHour;
+    if (perHour < 1) {
+      this._arrWhy = b.aware < .12
+        ? 'Almost nobody knows this park exists yet. Advertise, or give word of mouth time.'
+        : b.price < .35 ? 'The gate price is well above what this line-up is worth.'
+        : b.crowd < .5 ? 'Word has got round that the queues here are hopeless.'
+        : b.weather < .5 ? 'The weather is keeping people at home.'
+        : 'There is very little here to make the trip worth it yet.';
+    }
+    /* One call admits a whole party, so the rate converts from people to
+       parties before it is used. */
     const perParty = 2.5;
-    /* A park that is open, reachable and has something in it always draws
-       somebody. Without a floor a run of small factors multiplies down to
-       nothing and the gate silently stops, which looks exactly like a bug. */
-    let rate = attract * feeFactor * daily * draw * .042 / perParty * Weather.drawFactor();
-    if (!Number.isFinite(rate) || rate < 0) rate = 0;
-    rate = Math.max(rate, Park.attractions().length ? .38 * daily : .08);
-    /* Reputation is built, not switched on. A park in its first week draws a
-       fraction of what the same park draws once word has got round, so the
-       opening days are quiet and the crowd grows with you. */
-    const age = clamp(.42 + (Park.day - 1) * .055 + Park.totalGuests / 9000, .42, 1.0);
-    rate *= age * .85;
-    if (rate <= 0.001) this._arrWhy = 'Nothing here is drawing anybody in yet — build something to ride.';
-    this._arrRate = rate;
+    const rate = Math.max(0, perHour / 60 / perParty);
     this._spawnAcc = (this._spawnAcc || 0) + rate * dt;
     while (this._spawnAcc >= 1) {
       this._spawnAcc -= 1;
       /* School-trip wave: a big matching-shirt coach-load, all at once,
-         instead of the usual trickle of small parties. Rare, cooled down
-         so they can't stack, and only once a park has enough going on to
-         be worth a field trip. */
+         instead of the usual trickle of small parties. */
       if (Park.attractions().length >= 3 && Park.now > (this._nextSchoolTrip || 0) && Math.random() < .035 && hour >= 9 && hour <= 14) {
         this._nextSchoolTrip = Park.now + 240;
         this.spawnSchoolTrip();
@@ -23195,13 +23561,19 @@ const Game = {
       g.seasonPass = true;
       Park.seasonPassHolders = (Park.seasonPassHolders || 0) + 1;
       Park.entryToday = (Park.entryToday || 0) + 1;
+      Demand.countArrival();
       return true;
     }
     const fee = Park.entryFee * Park.entryFeeFactor();
-    if (fee > g.cash) { if (Park.gate) Park.gate.turnedAway++; return false; }
+    if (fee > g.cash) {
+      if (Park.gate) Park.gate.turnedAway++;
+      Demand.turnedAwayToday++;
+      return false;
+    }
     g.cash -= fee;
     Park.earn(fee, 'entry');
     Park.entryToday = (Park.entryToday || 0) + 1;
+    Demand.countArrival();
     return true;
   },
   /* forceSize / origin are supplied when a party is stepping out of a parked
@@ -23344,6 +23716,26 @@ const Game = {
     Park.hotelGuestsPresent = Math.round(target * frac);
   },
   hourTick() {
+    Demand.hourTick();
+    const hour = Math.floor(Park.time / 60);
+    /* Opening and closing the gates for the day. Guests are sent home at
+       closing rather than left to wander the park all night, which is what
+       used to drag the rating down every evening and leave a few hundred
+       exhausted people asleep on the midway at 04:00. */
+    if (Park.open) {
+      if (hour === Park.hours.open) {
+        Park.closing = false;
+        UI.notify('Gates open', 'Day ' + Park.day + ' — the park is open until ' + String(Park.hours.close).padStart(2, '0') + ':00.', 'good');
+      } else if (hour === Park.hours.close) {
+        Park.closing = true;
+        let sent = 0;
+        for (const g of Park.guests) {
+          if (g.state === 'riding' || g.state === 'queuing') continue;
+          g.leavePark(); sent++;
+        }
+        UI.notify('Closing time', 'The park is closed for the day. ' + sent.toLocaleString() + ' guests are heading for the exit; the queues will be run down.', 'good');
+      }
+    }
     const wages = Park.staff.reduce((a, s) => a + s.wage, 0);
     let upkeep = 0;
     for (const o of Park.objects) upkeep += (o.def.up || 0) * .6;
@@ -23365,6 +23757,7 @@ const Game = {
     }
   },
   dayTick() {
+    Demand.dayTick();      // bank yesterday's attendance, age word of mouth
     Park.entryToday = 0;   // the admission volume discount resets every morning
     Land.snapshotTrend();
     // bank yesterday's takings into the daily ledger before anything else touches Park.log
@@ -23431,7 +23824,7 @@ const Game = {
       Park.hotelOccupantsTonight = 0;
     }
 
-    UI.notify('A new day', `Day ${Park.day} begins. Rating ${Park.ratingStars().toFixed(1)}/5, ${Park.guests.length} guests still in the park.`, 'good');
+    UI.notify('A new day', `Day ${Park.day} begins. Yesterday ${Demand.yesterday.toLocaleString()} guests visited, peaking at ${Demand.lastPeak.toLocaleString()} in the park at once. Rating ${Park.ratingStars().toFixed(1)}/5.`, 'good');
     // rides recover a little, litter accumulates
     for (const o of Park.objects) if (o.kind === 'ride') o.wear = Math.max(0, o.wear - .02);
     /* ---- Rides get old ----------------------------------------------
