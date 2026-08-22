@@ -9191,7 +9191,11 @@ const Ops = {
       (a.riding || (a.riding = [])).push(g);
       boarded++;
       const rev = a.price * ((g.waterPass && a.def && a.def.water) ? 0 : 1);
-      if (rev > 0) { Park.earn(rev, 'ticket'); a.revenue += rev * Park.moneyMult * Park.userMoneyMult * Perks.incomeMult(); }
+      if (rev > 0) {
+        Park.earn(rev, 'ticket');
+        const net = rev * Park.moneyMult * Park.userMoneyMult * Perks.incomeMult();
+        a.revenue += net; a.revenueToday = (a.revenueToday || 0) + net;
+      }
       Progress.add(2);
     }
     if (a._boardAcc > 4) a._boardAcc = 4;          // no banking capacity while closed
@@ -9211,7 +9215,7 @@ const Ops = {
         if (left <= 0) {
           riding.splice(k, 1);
           g.finishRide(a);
-          a.ridden++;
+          a.ridden++; a.riddenToday = (a.riddenToday || 0) + 1;
         }
       }
     }
@@ -9254,7 +9258,11 @@ const Demand = {
   turnedAwayToday: 0,
   _hist: [],
 
-  reset() { this.awareness = .18; this.yesterday = 0; this.today = 0; this.peakToday = 0; this._hist.length = 0; },
+  reset() {
+    this.awareness = .18; this.yesterday = 0; this.lastPeak = 0;
+    this.today = 0; this.peakToday = 0; this.turnedAwayToday = 0;
+    this.weatherDraw = undefined; this._c = null; this._area = null; this._hist.length = 0;
+  },
 
   /* --- 1. what there is to do ------------------------------------------- */
   /* Draw points per attraction. A ride pulls people because of what it is,
@@ -9547,7 +9555,7 @@ const Park = {
   },
   hoursLabel() { return String(this.hours.open).padStart(2, '0') + ':00 – ' + String(this.hours.close).padStart(2, '0') + ':00'; },
   setHours(o, c) {
-    o = clamp(Math.round(o), 5, 12); c = clamp(Math.round(c), o + 4, 26);
+    o = clamp(Math.round(o), 5, 12); c = clamp(Math.round(c), o + 4, 24);
     this.hours.open = o; this.hours.close = c;
     Demand.invalidate(); Demand._area = null;
   },
@@ -10045,7 +10053,7 @@ class Person {
        clock rather than the animation: at the old value a guest spent nearly
        nine tenths of their visit walking and managed three rides in four
        hours, which is not a day out, it is a hike. */
-    this.speed = (8.2 + rnd(-1.2, 2.2)) * Infra.walkMult();
+    this.speed = (6.4 + rnd(-.9, 1.7)) * Infra.walkMult();
     this.phase = rnd(TAU);
     this.path = null; this.pi = 0;
     this.height = rnd(.9, 1.12);
@@ -10124,32 +10132,44 @@ class Person {
   }
   followPath(dt, speedMul = 1) {
     if (!this.path || this.pi >= this.path.length) { this.moving = false; return true; }
-    const wp = this.path[this.pi];
-    /* The lane is measured off the SEGMENT being walked, not off the bearing
-       from wherever the walker happens to be standing. Taken off the bearing,
-       the perpendicular swings round as you close on the waypoint and the
-       walker visibly swerves through every corner. */
-    const prev = this.pi > 0 ? this.path[this.pi - 1] : (this._legStart || this);
-    let sx = wp.x - prev.x, sz = wp.z - prev.z;
-    let sl = Math.hypot(sx, sz);
-    if (sl < .001) { sx = wp.x - this.x; sz = wp.z - this.z; sl = Math.hypot(sx, sz) || 1; }
-    sx /= sl; sz /= sl;
+    const sp = this.speed * speedMul * (this.biking ? 1.75 : 1);
+    /* Movement is spent as a BUDGET across as many waypoints as it reaches,
+       not clamped to the next one. Clamping meant a walker threw away
+       whatever was left of their step every time they touched a waypoint —
+       and since the step scales with game speed, they walked at full pace at
+       1x and at less than half that at 8x. The park quietly ran a different
+       simulation at every speed setting, and guests spent two thirds of
+       their visit in transit. */
+    let budget = sp * dt;
     if (this.lane === undefined) this.lane = 0;
     if (this.laneT === undefined) this.laneT = 0;
-    const last = this.pi >= this.path.length - 1 && this._arriveTight;
-    this.lane = damp(this.lane, this.laneT * (last ? .3 : 1), 1.7, dt);   // ease across, never snap
-    const tx = wp.x - sz * this.lane, tz = wp.z + sx * this.lane;
-    const ex = tx - this.x, ez = tz - this.z;
-    const d = Math.hypot(ex, ez);
-    /* Arrival is judged against the point actually being walked to. */
-    if (d < .55) { this.pi++; return this.pi >= this.path.length; }
-    const sp = this.speed * speedMul * (this.biking ? 1.75 : 1);
-    const step = Math.min(d, sp * dt);
-    this.x += (ex / d) * step; this.z += (ez / d) * step;
-    this.yawT = Math.atan2(ez, ex);
+    let guard = 0;
+    while (budget > 0 && this.pi < this.path.length && guard++ < 64) {
+      const wp = this.path[this.pi];
+      /* The lane is measured off the SEGMENT being walked, not off the bearing
+         from wherever the walker happens to be standing. Taken off the bearing,
+         the perpendicular swings round as you close on the waypoint and the
+         walker visibly swerves through every corner. */
+      const prev = this.pi > 0 ? this.path[this.pi - 1] : (this._legStart || this);
+      let sx = wp.x - prev.x, sz = wp.z - prev.z;
+      let sl = Math.hypot(sx, sz);
+      if (sl < .001) { sx = wp.x - this.x; sz = wp.z - this.z; sl = Math.hypot(sx, sz) || 1; }
+      sx /= sl; sz /= sl;
+      const last = this.pi >= this.path.length - 1 && this._arriveTight;
+      this.lane = damp(this.lane, this.laneT * (last ? .3 : 1), 1.7, dt);   // ease across, never snap
+      const tx = wp.x - sz * this.lane, tz = wp.z + sx * this.lane;
+      const ex = tx - this.x, ez = tz - this.z;
+      const d = Math.hypot(ex, ez);
+      if (d < .55) { this.pi++; continue; }
+      const step = Math.min(d, budget);
+      this.x += (ex / d) * step; this.z += (ez / d) * step;
+      this.yawT = Math.atan2(ez, ex);
+      budget -= step;
+      if (step >= d - 1e-4) this.pi++;
+    }
     this.anim += dt * sp * 1.75 * (this.stride || 1);
     this.moving = true;
-    return false;
+    return this.pi >= this.path.length;
   }
   physUpdate(dt) {
     this.yaw = angLerp(this.yaw, this.yawT, 1 - Math.exp(-11 * dt));
@@ -11512,7 +11532,7 @@ class Staff extends Person {
     this.cleaned = 0; this.repaired = 0;
     this.tasksDone = 0; this.nickname = null;
     this.idleSince = Park.now;
-    this.speed = 8.6;
+    this.speed = 6.8;
     this.zone = null;           // { x, z, r } — patrol area, or null for the whole park
     this.shift = 'always';      // 'always' | 'day' (6-18) | 'night' (18-6)
     this.morale = .8;           // 0..1, drags speed/workRate down when it's been all work no rest
@@ -11530,7 +11550,7 @@ class Staff extends Person {
     /* The staff block lifts everybody, trained or not — it is somewhere to
        change and be taught, not a promotion. */
     const infra = Infra.staffMult();
-    this.speed = 9.4 * (1 + (L - 1) * .22) * m * infra;
+    this.speed = 7.4 * (1 + (L - 1) * .22) * m * infra;
     this.wage = Math.round(this.def.wage * (1 + (L - 1) * .40));
     this.workRate = (1.25 + (L - 1) * .55) * m * infra;   // tasks finish this much faster
     this.skill = 1 + (L - 1) * .5;
@@ -13447,7 +13467,8 @@ const UI = {
       h += kv('Queue right now', (o.queue ? o.queue.length : 0) + ' waiting',
         (o.queue && o.queue.length) ? '\u2248 ' + Math.round(_wait) + ' min' : '');
       h += kv('On board', (o.riding ? o.riding.length : 0));
-      h += kv('Served today', (o.ridden || 0).toLocaleString());
+      h += kv('Served today', (o.riddenToday || 0).toLocaleString(),
+        o.riddenYesterday ? 'yesterday ' + o.riddenYesterday.toLocaleString() : 'lifetime ' + (o.ridden || 0).toLocaleString());
       if (isC) {
         h += `<h3>Trains</h3>`;
         h += `<div class="row"><label>Trains</label>
@@ -13585,32 +13606,68 @@ const UI = {
         h += `<div class="btnrow"><button class="btn go" style="flex:0 0 auto;padding:11px 28px;font-size:13px"
           onclick="Game.setParkOpen(true);UI.entrance('admissions')">Open the park</button></div>`;
       }
+      /* ---- opening hours: a real trade, priced in the panel ---- */
+      h += `<h3>Opening hours</h3>`;
+      const H = Park.hours;
+      const wagePerHour = Park.staff.reduce((a, st) => a + st.wage, 0);
+      let upkeepPerHour = 0;
+      for (const o2 of Park.objects) upkeepPerHour += (o2.def.up || 0) * .6;
+      for (const c2 of Park.coasters) upkeepPerHour += 18 + (c2.track ? c2.track.length * .04 : 0);
+      const tailShare = Demand.curveAt(H.close - 1.5) / Math.max(.001, Demand._curveArea());
+      const tailHeads = Math.round(Demand.cached().target * tailShare);
+      h += `<div class="row"><label>Open at</label>
+          <input type="range" min="5" max="12" value="${H.open}"
+            oninput="Park.setHours(+this.value,Park.hours.close);document.getElementById('hopen').textContent=this.value+':00'"
+            onchange="UI.entrance('admissions')">
+          <span class="num" id="hopen">${String(H.open).padStart(2, '0')}:00</span></div>
+        <div class="row"><label>Close at</label>
+          <input type="range" min="${H.open + 4}" max="24" value="${H.close}"
+            oninput="Park.setHours(Park.hours.open,+this.value);document.getElementById('hclose').textContent=this.value+':00'"
+            onchange="UI.entrance('admissions')">
+          <span class="num" id="hclose">${String(H.close).padStart(2, '0')}:00</span></div>`;
+      h += `<p>Open ${H.close - H.open} hours a day. Wages and upkeep run at
+        <b>${money(wagePerHour + upkeepPerHour)}</b> an hour whether anyone is here or not, and the last
+        hour before closing is worth roughly <b>${tailHeads}</b> arrivals. Late closing suits a park with
+        night-time scenery and lighting; a quiet park is cheaper shut.</p>`;
+
+      /* ---- one price model, quoted from the same function the sim uses ---- */
       h += `<h3>Ticket price</h3>
         <div class="row"><label>Entry fee</label>
-          <input type="range" min="0" max="80" value="${Park.entryFee}"
-            oninput="Park.entryFee=+this.value;document.getElementById('efee').textContent='$'+this.value">
+          <input type="range" min="0" max="120" value="${Park.entryFee}"
+            oninput="Park.entryFee=+this.value;Demand.invalidate();document.getElementById('efee').textContent='$'+this.value"
+            onchange="UI.entrance('admissions')">
           <span class="num" id="efee">$${Park.entryFee}</span></div>`;
-      const tol = gate.feeTolerance();
-      const fair = Math.round((6 + Park.rating * .045) * tol);
-      h += `<p>Guests weigh the fee against your park rating and how impressive the entrance looks.
-        At <b>${Park.ratingStars().toFixed(1)} stars</b> with ${gate.tierName().toLowerCase()}, about <b>${money(fair)}</b>
-        feels fair. ${Park.entryFee > fair * 1.35 ? '<b style="color:var(--bad)">You are charging well over that, and it is costing you arrivals.</b>' : Park.entryFee < fair * .6 ? 'You could charge more without losing anyone.' : 'That is roughly where you are.'}
-        On a busy day the effective fee also tapers off with volume — right now it's <b>${Math.round(Park.entryFeeFactor() * 100)}%</b> of sticker after ${Park.entryToday || 0} admissions today.</p>`;
+      const b = Demand.cached();
+      const fair = Math.round(Demand.fairPrice() * gate.feeTolerance());
+      const pf = b.price;
+      h += `<p>A day here is worth about <b>${money(fair)}</b> — that figure comes straight from what
+        there is to do (${Math.round(b.draw).toLocaleString()} draw points), scaled by how impressive the
+        entrance is. You charge <b>${money(Park.entryFee)}</b>, which multiplies demand by
+        <b style="color:${pf > 1 ? 'var(--good)' : pf > .7 ? 'var(--warn)' : 'var(--bad)'}">${pf.toFixed(2)}x</b>.
+        ${Park.entryFee > fair * 1.25 ? '<b style="color:var(--bad)">You are charging over the odds and it is costing you arrivals.</b>'
+          : Park.entryFee < fair * .55 ? 'There is room to charge more without losing anybody.'
+          : 'That is about right for this line-up.'}
+        On a busy day the effective fee tapers with volume — right now it is <b>${Math.round(Park.entryFeeFactor() * 100)}%</b>
+        of sticker after ${Park.entryToday || 0} admissions today.</p>`;
+      if (gate.turnedAway > 0) h += `<p style="font-size:11px">Guests are also turned away when the fee is
+        simply more than they have on them — ${gate.turnedAway.toLocaleString()} so far. Families and pass
+        holders carry the least.</p>`;
+
       h += `<h3>Gate figures</h3>`;
       h += kv('Admissions revenue', money(Park.log.entry || 0), money((Park.log.entry || 0) / days) + ' / day');
-      h += kv('Guests all time', Park.totalGuests);
+      h += kv('Guests all time', Park.totalGuests.toLocaleString());
       h += kv('In the park now', (Park.guests.length + (Park.hotelGuestsPresent || 0)).toLocaleString(),
-        'safe limit ' + Park.capacity.toLocaleString());
+        'comfortable ' + Park.comfortableCrowd.toLocaleString());
       h += kv('Through the gate today', Demand.today.toLocaleString(),
         Demand.yesterday ? 'yesterday ' + Demand.yesterday.toLocaleString() : '');
-      h += kv('Expected today', Math.round(Demand.cached().target).toLocaleString(),
-        'capacity ' + Ops.parkCapacityPerHour().toLocaleString() + '/hr');
-      const perHour = Math.round((Game._arrRate || 0) * 60 * 2.5);   // parties -> people
-      h += kv('Arriving now', perHour + ' guests / hour');
+      h += kv('Expected today', Math.round(b.target).toLocaleString(),
+        'capacity ' + b.capacity.toLocaleString() + '/hr');
+      h += kv('Arriving now', Math.round(Game._arrPerHour || 0).toLocaleString() + ' guests / hour');
       if (Game._arrWhy) h += `<p style="color:var(--warn)"><b>Nobody is arriving.</b> ${Game._arrWhy}</p>`;
-      else h += `<p style="font-size:11px">Arrivals follow the time of day: a trickle at 07:00, the main
-        peak around midday, a second one mid afternoon, then a long decline to closing at 22:00.</p>`;
-      h += kv('Turned away by price', gate.turnedAway);
+      else h += `<p style="font-size:11px">Arrivals follow the shape of a real gate day: a trickle when the
+        gates open at ${String(H.open).padStart(2, '0')}:00, the main peak two to three hours later, a second
+        wind mid afternoon, then a long decline. Last admission is
+        ${String(H.close - 1).padStart(2, '0')}:00.</p>`;
       h += kv('Park rating', Park.ratingStarsHTML(), '+' + gate.ratingBonus() + ' from the entrance');
       h += `<h3>Marketing</h3>`;
       if (!Marketing.active.length) h += `<p>No campaign running. Campaigns pull extra visitors for a fixed run of days.</p>`;
@@ -23927,10 +23984,10 @@ const Game = {
        used to drag the rating down every evening and leave a few hundred
        exhausted people asleep on the midway at 04:00. */
     if (Park.open) {
-      if (hour === Park.hours.open) {
+      if (hour === Park.hours.open && Park.closing !== false) {
         Park.closing = false;
         UI.notify('Gates open', 'Day ' + Park.day + ' — the park is open until ' + String(Park.hours.close).padStart(2, '0') + ':00.', 'good');
-      } else if (hour === Park.hours.close) {
+      } else if (!Park.closing && (hour >= Park.hours.close || hour < Park.hours.open)) {
         Park.closing = true;
         let sent = 0;
         for (const g of Park.guests) {
@@ -24033,6 +24090,14 @@ const Game = {
     UI.notify('A new day', `Day ${Park.day} begins. Yesterday ${Demand.yesterday.toLocaleString()} guests visited, peaking at ${Demand.lastPeak.toLocaleString()} in the park at once. Rating ${Park.ratingStars().toFixed(1)}/5.`, 'good');
     // rides recover a little, litter accumulates
     for (const o of Park.objects) if (o.kind === 'ride') o.wear = Math.max(0, o.wear - .02);
+    /* Daily counters. `ridden` is a lifetime total and reads in the tens of
+       thousands within a week, which is useless for judging whether a ride
+       is pulling its weight today. */
+    for (const o of Park.objects.concat(Park.coasters)) {
+      if (o.kind !== 'ride' && o.kind !== 'coaster') continue;
+      o.riddenYesterday = o.riddenToday || 0; o.riddenToday = 0;
+      o.revenueYesterday = o.revenueToday || 0; o.revenueToday = 0;
+    }
     /* ---- Rides get old ----------------------------------------------
        A ride that has been standing for years is not the draw it was on
        opening day: the queue thins, the novelty goes, and guests who have
@@ -24065,7 +24130,8 @@ const Game = {
   save(silent, key) {
     try {
       const d = {
-        v: 7, n: N, mode: Park.mode, level: Park.level, xp: Park.xp,
+        v: 8, n: N, mode: Park.mode, level: Park.level, xp: Park.xp,
+        open: Park.open, openedOn: Park.openedOn,
         scenario: Goals.active ? Goals.active.id : null,
         goalDone: Goals.active ? Goals.active.goals.map(g => !!g.done) : null,
         money: Park.money, time: Park.time, day: Park.day, fee: Park.entryFee, wpFee: Park.waterPassPrice, spFee: Park.seasonPassPrice, pFee: Park.parkingFee,
@@ -24074,7 +24140,8 @@ const Game = {
            and a brand new one, so reloading has to restore it rather than
            quietly sending a mature park back to opening week. */
         hours: { o: Park.hours.open, c: Park.hours.close },
-        dmd: { aw: Demand.awareness, y: Demand.yesterday, lp: Demand.lastPeak, hist: Demand._hist.slice(-40) },
+        dmd: { aw: Demand.awareness, y: Demand.yesterday, lp: Demand.lastPeak, hist: Demand._hist.slice(-40),
+          today: Demand.today, peak: Demand.peakToday, turned: Demand.turnedAwayToday },
         /* The terrain grid is by far the biggest thing in a save (N=406, so
            ~165k height samples and ~165k tile types) — stored as plain JSON
            number arrays it alone ran 1-2MB and was the main reason big
@@ -24241,8 +24308,18 @@ const Game = {
       if (d.dmd) {
         Demand.awareness = clamp(d.dmd.aw || .18, .02, 1);
         Demand.yesterday = d.dmd.y || 0; Demand.lastPeak = d.dmd.lp || 0;
+        Demand.today = d.dmd.today || 0; Demand.peakToday = d.dmd.peak || 0;
+        Demand.turnedAwayToday = d.dmd.turned || 0;
         if (Array.isArray(d.dmd.hist)) Demand._hist = d.dmd.hist.slice(-40);
       }
+      /* Whether the gates are up is part of the park, not a fresh-game
+         default. Without this every reload silently shut an established park
+         and left the closed-park banner hidden, so the only symptom was that
+         nobody ever arrived again. */
+      Park.open = d.open === undefined ? true : !!d.open;
+      Park.openedOn = d.openedOn || 1;
+      Park.closing = false;
+      document.body.classList.toggle('parkclosed', !Park.open);
       for (const o of Park.objects) if (o.mesh) o.mesh.dispose();
       for (const c of Park.coasters) { if (c.trackMesh) c.trackMesh.dispose(); if (c.stationMesh) c.stationMesh.dispose(); if (c.splashMesh) c.splashMesh.dispose(); }
       HeatMap.close(); Traffic.cars.length = 0; Parking.reset(); Inspection.reset();
