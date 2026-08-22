@@ -22,6 +22,7 @@ import { ActorBodies } from './actors/actor-bodies';
 import { Viewmodel } from './weaponmodels/viewmodel';
 import { CombatFx } from './fx/combat-fx';
 import { Hud } from './ui/hud';
+import { Menu } from './ui/menu';
 import { InteriorLights } from './lighting/interior-lights';
 import { MissionSystem } from './missions/mission-system';
 import { EnemyAi } from './ai/enemy-ai';
@@ -110,6 +111,10 @@ async function boot(): Promise<void> {
   const ai = new EnemyAi();
   engine.add(ai);
 
+  progress(0.79, 'raising the menu');
+  const menu = new Menu();
+  engine.add(menu);
+
   progress(0.8, 'binding controls');
   const input = new InputSystem(canvas);
   engine.add(input);
@@ -131,8 +136,12 @@ async function boot(): Promise<void> {
   console.info(`[garrison] ${world.site.name}: ${placed} hostiles on station`);
 
   // Tasking. A map with people on it and nothing to do is a sandbox.
-  const beginMission = (mapId: 'villa' | 'quay'): void => {
-    const def = missions.generate(Date.now() & 0xffff, { region: mapId });
+  //
+  // `templateId` is what the deploy screen passes: the player read a briefing
+  // and pressed the button under it, so they get that mission. Without one the
+  // seed picks, which is what boot and the tests want.
+  const beginMission = (mapId: 'villa' | 'quay', templateId?: string): void => {
+    const def = missions.generate(Date.now() & 0xffff, { region: mapId, templateId });
     void missions.start(def, 'front');
     console.info(`[mission] ${def.codename} — ${def.objectives.length} objectives`);
   };
@@ -191,8 +200,14 @@ async function boot(): Promise<void> {
   };
 
   let switching = false;
-  const switchMap = (id: 'villa' | 'quay'): void => {
-    if (switching || id === worldSys.mapId) return;
+  const switchMap = (id: 'villa' | 'quay', templateId?: string): void => {
+    if (switching || id === worldSys.mapId) {
+      // Same map, different tasking: no rebuild, just re-brief. Tearing the
+      // level down to change which objectives are on it would throw away a
+      // second of work for nothing.
+      if (!switching && templateId) beginMission(id, templateId);
+      return;
+    }
     switching = true;
     const t0 = performance.now();
     try {
@@ -217,12 +232,15 @@ async function boot(): Promise<void> {
 
       (engine.get('interiorLights') as unknown as { reload(): void } | undefined)?.reload();
       garrison(id, registry, ai, (x, z) => worldSys.floorAt(x, z, 40));
-      beginMission(id);
+      beginMission(id, templateId);
 
       console.info(`[map] switched to ${worldSys.site.name} in ${Math.round(performance.now() - t0)}ms`);
       bus.emit('ui:notify', { text: worldSys.site.name, kind: 'info' });
     } finally {
-      engine.setPaused(false);
+      // Not an unconditional resume: the deploy screen rebuilds the level while
+      // it is still on top, and handing the sim back under an open menu would
+      // let the garrison walk around behind the briefing.
+      engine.setPaused(menu.isOpen);
       switching = false;
     }
 
@@ -270,6 +288,57 @@ async function boot(): Promise<void> {
     });
   });
 
+  // --- the menu ------------------------------------------------------------
+  //
+  // Escape is the only key a browser will not let a game keep to itself: in
+  // real pointer lock the engine never sees it, the lock just drops. So the
+  // menu opens on the *release* rather than on the key — `pointerlockchange`
+  // below routes into `openMenu`, and the keydown path covers soft capture and
+  // the case where control was never taken in the first place.
+  const openMenu = (): void => {
+    if (menu.isOpen) return;
+    input.setSoftCapture(false);
+    if (document.pointerLockElement) document.exitPointerLock();
+    overlay?.classList.add('hidden');
+    engine.setPaused(true);
+    menu.open('deploy');
+  };
+
+  const closeMenu = (): void => {
+    if (!menu.isOpen) return;
+    menu.close();
+  };
+
+  // The menu closing is the resume: unpause, and take the cursor back. The
+  // click that dismissed it is a user activation, which is exactly what
+  // `requestPointerLock` needs, so this is the most reliable moment in the
+  // whole session to get true lock.
+  bus.on('ui:screenChanged', ({ screen }) => {
+    if (screen !== 'game') return;
+    engine.setPaused(false);
+    engage();
+  });
+
+  menu.hooks = {
+    deploy: (site, missionId) => switchMap(site, missionId),
+    setWeapon: (slot, specId) => { weapons.setSlotWeapon(slot, specId); },
+    setSkin: (slot, skinId) => { weapons.setSkin(slot, skinId); },
+    settings: {
+      get sensitivity() { return input.sensitivity; },
+      set sensitivity(v: number) { input.sensitivity = v; },
+      get invertY() { return input.invertY; },
+      set invertY(v: boolean) { input.invertY = v; },
+      get fov() { return render.baseFov; },
+      set fov(v: number) { render.baseFov = v; },
+      apply() { /* every setter writes straight through to a live system. */ },
+    },
+  };
+
+  document.getElementById('open-menu')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    openMenu();
+  });
+
   input.onControlModeChange = (mode) => {
     if (!modeHint) return;
     if (mode === 'locked') {
@@ -282,18 +351,19 @@ async function boot(): Promise<void> {
     modeHint.classList.remove('hidden');
   };
 
-  // Escape releases whichever capture is active and brings the overlay back.
+  // Escape toggles the menu, in both capture modes and in neither.
   document.addEventListener('keydown', (e) => {
     if (e.code !== 'Escape') return;
-    if (input.usingSoftCapture) {
-      input.setSoftCapture(false);
-      overlay?.classList.remove('hidden');
-    }
+    if (menu.isOpen) closeMenu();
+    else openMenu();
   });
   document.addEventListener('pointerlockchange', () => {
-    if (document.pointerLockElement !== canvas && input.engaged && !input.usingSoftCapture) {
-      overlay?.classList.remove('hidden');
-    }
+    // Chromium swallows the Escape that exits pointer lock, so this is the
+    // only signal that the player asked for the cursor back. Ignore the drop
+    // that happens because we ourselves released it to show the menu.
+    if (document.pointerLockElement === canvas) return;
+    if (menu.isOpen || !input.engaged || input.usingSoftCapture) return;
+    openMenu();
   });
 
   // Expose for debugging from the devtools console.

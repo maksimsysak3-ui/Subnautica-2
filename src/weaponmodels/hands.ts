@@ -86,7 +86,7 @@ function forearm(
   // pitch drops the arm toward the shoulder. Negative sent both forearms up
   // and across the receiver, which is exactly what they were doing.
   const g = new THREE.Group();
-  const sub = new PartBuilder();
+  const sub = new PartBuilder(b.materials);
   // Cuff — proud of both the glove and the sleeve, and a different value.
   sub.box(0.050, 0.046, 0.020, 'polymerBlack', 0, 0, 0.005);
   // Sleeve, tapering out toward the elbow. Three short segments rather than a
@@ -122,7 +122,7 @@ export function firingHand(
 ): void {
   const s = opt.mirror ? -1 : 1;
   const g = new THREE.Group();
-  const sub = new PartBuilder();
+  const sub = new PartBuilder(b.materials);
 
   // Palm on the backstrap.
   sub.box(0.034, 0.078, 0.030, opt.glove, s * 0.004, -0.028, 0.020);
@@ -171,7 +171,7 @@ export function supportHand(
 ): void {
   const s = opt.mirror ? -1 : 1;
   const g = new THREE.Group();
-  const sub = new PartBuilder();
+  const sub = new PartBuilder(b.materials);
   // 13 mm of glove between the palm's centre and the forend's face, so the
   // palm's inner surface actually touches it. At 20 mm the hand cleared the
   // handguard by five millimetres and held nothing.

@@ -26,6 +26,7 @@ import {
   type MatKey,
 } from './parts';
 import { firingHand, supportHand } from './hands';
+import { materialsForSkin } from './skins';
 
 export interface WeaponModel {
   group: THREE.Group;
@@ -61,8 +62,10 @@ const MAKE_FURNITURE: Record<string, MatKey> = {
 export function buildWeapon(
   spec: WeaponSpec,
   attachments: Partial<Record<AttachmentSlot, AttachmentSpec | undefined>>,
+  skinId = 'issue',
 ): WeaponModel {
-  const b = new PartBuilder();
+  const mats = materialsForSkin(skinId);
+  const b = new PartBuilder(mats);
   const furniture = MAKE_FURNITURE[spec.make] ?? 'polymerBlack';
   const isPistol = spec.class === 'pistol';
   const barrelM = spec.barrelLengthMm / 1000;
@@ -71,7 +74,7 @@ export function buildWeapon(
   const BORE = 0.055;
 
   if (isPistol) {
-    return buildPistol(b, spec, attachments, furniture, BORE);
+    return buildPistol(b, spec, attachments, furniture, BORE, mats);
   }
 
   // Layout, not class. A bullpup and a pump shotgun differ from a conventional
@@ -353,7 +356,7 @@ export function buildWeapon(
   // weapon and can later be animated (reload, malfunction clearing) without
   // touching the gun. Their positions are derived from the grip and forend the
   // assembler actually produced, so a longer handguard moves the support hand.
-  const hands = new PartBuilder();
+  const hands = new PartBuilder(mats);
   const gloves: MatKey = furniture === 'polymerFde' ? 'gloveTan' : 'glove';
   // Follows the grip the assembler actually placed, so a bullpup's forward
   // grip carries the hand with it instead of leaving it out over the magwell.
@@ -399,6 +402,7 @@ function buildPistol(
   attachments: Partial<Record<AttachmentSlot, AttachmentSpec | undefined>>,
   furniture: MatKey,
   BORE: number,
+  mats: Record<MatKey, THREE.Material>,
 ): WeaponModel {
   const slideLen = 0.185 + spec.barrelLengthMm / 4000;
   const slideZ = -slideLen / 2 + 0.03;
@@ -468,7 +472,7 @@ function buildPistol(
   // --- hands --------------------------------------------------------------
   // A pistol is shot with both hands stacked on the grip, so the support hand
   // wraps the firing hand rather than the weapon.
-  const hands = new PartBuilder();
+  const hands = new PartBuilder(mats);
   const gloves: MatKey = furniture === 'polymerFde' ? 'gloveTan' : 'glove';
   firingHand(hands, 0, BORE - 0.050, slideZ + slideLen * 0.36, 0.30, slideZ + 0.030,
     { glove: gloves, sleeve: 'sleeve', mirror: false });

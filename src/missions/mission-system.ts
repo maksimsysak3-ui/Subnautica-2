@@ -129,11 +129,21 @@ export class MissionSystem implements System, IMissionSystem {
    * the same map is always the same mission — a mission you cannot replay is
    * a mission you cannot learn.
    */
-  generate(seed: number, opts?: { difficulty?: number; region?: string; kind?: ObjectiveKind }): MissionDefinition {
+  generate(
+    seed: number,
+    opts?: { difficulty?: number; region?: string; kind?: ObjectiveKind; templateId?: string },
+  ): MissionDefinition {
     const site = opts?.region ?? 'villa';
     const pool = MISSIONS.filter((m) => m.siteId === site);
+    // An explicitly chosen tasking wins over the seed. The seed path stays for
+    // the boot case and for tests, which want the same map to give the same
+    // mission; the menu path is the player saying which one they want, and a
+    // briefing screen that hands you a different mission than the one you read
+    // is worse than having no briefing screen at all.
+    const picked = opts?.templateId ? pool.find((m) => m.id === opts.templateId) : undefined;
     const rng = new Rng(`mission:${site}:${seed}`);
-    const t = pool.length ? pool[Math.floor(rng.next() * pool.length) % pool.length] : MISSIONS[0];
+    const t = picked
+      ?? (pool.length ? pool[Math.floor(rng.next() * pool.length) % pool.length] : MISSIONS[0]);
     this.template = t;
 
     const objectives: Objective[] = t.objectives.map((o, i) => ({

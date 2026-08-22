@@ -101,6 +101,15 @@
     transition: background .15s ease;
   }
   #go-fullscreen:hover { background: rgba(200,163,85,.28); }
+  #click-to-play .cta-row { display: flex; gap: 10px; justify-content: center; margin: 18px 0 4px; }
+  #click-to-play .cta-row > button { margin: 0; }
+  #open-menu {
+    cursor: pointer; background: none; color: var(--text-dim);
+    border: 1px solid rgba(255,255,255,.2); padding: 11px 26px;
+    font: inherit; font-size: 12px; letter-spacing: .22em;
+    transition: color .15s ease, border-color .15s ease;
+  }
+  #open-menu:hover { color: #e6edf3; border-color: rgba(255,255,255,.42); }
   #click-to-play .note {
     margin-top: 22px; font-size: 11px; color: var(--text-faint); line-height: 1.6;
   }
@@ -148,7 +157,7 @@
         <div><b>Z</b> prone</div><div><b>Q / X</b> lean</div>
         <div><b>R</b> reload</div><div><b>F</b> open doors</div>
         <div><b>B</b> fire mode</div><div><b>1-4</b> or wheel — swap weapon</div>
-        <div><b>V</b> next weapon</div><div><b>Esc</b> release cursor</div>
+        <div><b>V</b> next weapon</div><div><b>Esc</b> menu / release cursor</div>
       </div>
       <div class="maps">
         <div class="maps-label">DEPLOY TO</div>
@@ -163,7 +172,10 @@
           </button>
         </div>
       </div>
-      <button id="go-fullscreen" type="button">PLAY FULL SCREEN</button>
+      <div class="cta-row">
+        <button id="go-fullscreen" type="button">PLAY FULL SCREEN</button>
+        <button id="open-menu" type="button">MISSION MENU</button>
+      </div>
       <div class="note">Click anywhere to play. Browsers only allow true cursor lock in some embeddings — full screen is the most reliable. Either way you look around by moving the mouse, with no button held, and <b>Esc</b> gives the cursor back.</div>
     </div>
   </div>

@@ -202,7 +202,11 @@ export class Viewmodel implements System {
     const runtime = services.tryGet('weapons');
     const engine = (window as unknown as { engine?: { get(id: string): unknown } }).engine;
     const rt = engine?.get('weaponRuntime') as unknown as {
-      equipped: { specId: string; attachments: Partial<Record<AttachmentSlot, string>> } | null;
+      equipped: {
+        specId: string;
+        attachments: Partial<Record<AttachmentSlot, string>>;
+        skinId?: string;
+      } | null;
     } | undefined;
     const inst = rt?.equipped;
     if (!runtime || !inst) return;
@@ -210,8 +214,10 @@ export class Viewmodel implements System {
     const spec = runtime.specs.get(inst.specId);
     if (!spec) return;
 
-    // Cheap identity so a redundant event doesn't rebuild the mesh.
-    const key = inst.specId + '|' + Object.values(inst.attachments).join(',');
+    // Cheap identity so a redundant event doesn't rebuild the mesh. The skin
+    // is part of it: changing a finish has to rebuild, and nothing else does.
+    const skinId = (inst as { skinId?: string }).skinId ?? 'issue';
+    const key = inst.specId + '|' + Object.values(inst.attachments).join(',') + '|' + skinId;
     if (key === this.currentKey) return;
     this.currentKey = key;
 
@@ -222,7 +228,7 @@ export class Viewmodel implements System {
     }
 
     this.root.clear();
-    this.model = buildWeapon(spec, resolved);
+    this.model = buildWeapon(spec, resolved, skinId);
     this.model.group.scale.setScalar(VIEW_SCALE);
     this.root.add(this.model.group);
     console.info(`[viewmodel] ${spec.name} — ${this.model.triangles} tris`);

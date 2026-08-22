@@ -270,6 +270,55 @@ export class WeaponRuntime implements System {
   equipped: WeaponInstance | null = null;
   /** Everything the operator is carrying, in slot order. */
   loadout: WeaponInstance[] = [];
+
+  /**
+   * Apply a finish to a slot. Rebuilds the viewmodel only if it is in hand.
+   */
+  setSkin(slot: number, skinId: string): void {
+    const inst = this.loadout[slot];
+    if (!inst) return;
+    (inst as WeaponInstance & { skinId?: string }).skinId = skinId;
+    if (slot === this.slot) bus.emit('weapon:attachmentChanged', {
+      weaponId: inst.uid, slot: 'optic', attachmentId: skinId,
+    });
+  }
+
+  /**
+   * Put a different weapon in a slot.
+   *
+   * The new instance keeps the slot's finish, because the finish is a property
+   * of how the player wants their kit to look and not of the individual rifle —
+   * picking a different carbine and finding it back in factory black would
+   * make the whole customisation screen feel like it forgot what you did.
+   *
+   * Reserve ammunition is topped up for the calibre if this is the first
+   * weapon carried in it, and never removed for the old one: the previous
+   * calibre may still be in another slot, and quietly deleting a magazine's
+   * worth of reserve because you browsed the loadout screen is the kind of
+   * silent theft that makes players distrust a menu.
+   */
+  setSlotWeapon(slot: number, specId: string): boolean {
+    if (slot < 0 || slot >= this.loadout.length) return false;
+    if (!WEAPON_MAP.has(specId)) return false;
+    const old = this.loadout[slot];
+    if (old && old.specId === specId) return false;
+
+    const skinId = (old as (WeaponInstance & { skinId?: string }) | undefined)?.skinId;
+    const inst = this.weapons.createInstance(specId);
+    if (skinId) (inst as WeaponInstance & { skinId?: string }).skinId = skinId;
+    this.loadout[slot] = inst;
+    if (!this.reserve.has(inst.ammoId)) this.reserve.set(inst.ammoId, 180);
+
+    // If the slot being changed is the one in hand, re-equip so the viewmodel,
+    // the recoil pattern and the fire mode all follow. `selectSlot` short
+    // circuits when the index has not moved, so go through `equip` directly.
+    if (slot === this.slot) {
+      this.equipped = null;
+      this.equip(inst);
+      this.swapTimer = 0;
+    }
+    return true;
+  }
   /** Index into `loadout`. */
   slot = 0;
   /** Seconds left on the draw. The weapon is unusable until it reaches zero. */

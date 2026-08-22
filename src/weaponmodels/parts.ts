@@ -125,9 +125,18 @@ export class PartBuilder {
   readonly group = new THREE.Group();
   triangles = 0;
 
+  /**
+   * Material set. Defaults to the base palette; a skin passes its own.
+   *
+   * Resolving by role rather than by mesh is what lets one skin definition
+   * apply correctly to a bullpup, a pump shotgun and a pistol with no
+   * per-weapon authoring — a skin describes a finish, not a texture placement.
+   */
+  constructor(readonly materials: Record<MatKey, THREE.Material> = MATERIALS) {}
+
   add(geo: THREE.BufferGeometry, mat: MatKey, x: number, y: number, z: number,
       rx = 0, ry = 0, rz = 0): THREE.Mesh {
-    const m = new THREE.Mesh(geo, MATERIALS[mat]);
+    const m = new THREE.Mesh(geo, this.materials[mat]);
     m.position.set(x, y, z);
     if (rx || ry || rz) m.rotation.set(rx, ry, rz);
     this.group.add(m);
@@ -191,7 +200,10 @@ export function mlokRow(b: PartBuilder, x: number, y: number, z0: number, z1: nu
 /** Pistol grip with finger grooves and a palm swell. */
 export function pistolGrip(b: PartBuilder, x: number, y: number, z: number, mat: MatKey, rake = 0.30): void {
   const g = new THREE.Group();
-  const sub = new PartBuilder();
+  // Inherits the caller's material set: a sub-builder constructed with the
+  // default palette renders the grip, the magazine and the hands unskinned
+  // while the rest of the weapon changes colour.
+  const sub = new PartBuilder(b.materials);
   sub.box(0.034, 0.108, 0.046, mat, 0, -0.050, 0.004);
   // Palm swell.
   sub.box(0.039, 0.052, 0.040, mat, 0, -0.038, 0.006);
@@ -214,7 +226,7 @@ export function pistolGrip(b: PartBuilder, x: number, y: number, z: number, mat:
 export function boxMagazine(b: PartBuilder, x: number, y: number, z: number,
                             length: number, curve: number, mat: MatKey): void {
   const g = new THREE.Group();
-  const sub = new PartBuilder();
+  const sub = new PartBuilder(b.materials);
   const segs = 4;
   for (let i = 0; i < segs; i++) {
     const t = i / (segs - 1);
