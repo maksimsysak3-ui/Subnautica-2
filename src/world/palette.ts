@@ -76,6 +76,7 @@ const DEFS = {
   paintGreen:    { color: 0x3f6b53, roughness: 0.62, metalness: 0.40, surface: 'metal', tex: 'metal', texScale: 1.2 },
   paintRed:      { color: 0x8e3a30, roughness: 0.62, metalness: 0.40, surface: 'metal', tex: 'metal', texScale: 1.2 },
   paintYellow:   { color: 0xb99331, roughness: 0.64, metalness: 0.35, surface: 'metal', tex: 'metal', texScale: 1.2 },
+  paintOrange:   { color: 0xc4602a, roughness: 0.66, metalness: 0.20, surface: 'plastic', tex: 'metal', texScale: 1.2 },
   brass:         { color: 0xc8a355, roughness: 0.38, metalness: 0.85, surface: 'metal' },
 
   // --- wood ---------------------------------------------------------------
@@ -118,6 +119,27 @@ const DEFS = {
   lampWarm:      { color: 0xffd9a0, roughness: 0.4, metalness: 0.0, surface: 'glass', emissive: 0xffb35c, emissiveIntensity: 2.2, noShadow: true },
   lampCold:      { color: 0xcfe6ff, roughness: 0.4, metalness: 0.0, surface: 'glass', emissive: 0x9fc8ff, emissiveIntensity: 1.6, noShadow: true },
   neonRed:       { color: 0xff6a5a, roughness: 0.4, metalness: 0.0, surface: 'plastic', emissive: 0xff3b28, emissiveIntensity: 2.6, noShadow: true },
+
+  // --- value anchors ------------------------------------------------------
+  // Deliberately outside the mid-range band the rest of the table lives in.
+  // Not general-purpose surfaces: these are for the darkest recess and the
+  // brightest lit face in a composition, so that a frame has a full value
+  // range instead of eight materials all within 15% of one another.
+  shadowBlack:   { color: 0x121316, roughness: 0.97, metalness: 0.0, surface: 'concrete' },
+  tarBlack:      { color: 0x1a1815, roughness: 0.88, metalness: 0.0, surface: 'concrete', tex: 'concrete', texScale: 0.8 },
+  sootMetal:     { color: 0x232629, roughness: 0.72, metalness: 0.35, surface: 'metal', tex: 'metal', texScale: 1.2 },
+  chalkWhite:    { color: 0xf2efe6, roughness: 0.96, metalness: 0.0, surface: 'concrete', tex: 'stucco', texScale: 1.0 },
+  sunlitPaint:   { color: 0xfdf8ee, roughness: 0.72, metalness: 0.0, surface: 'metal' },
+
+  // --- faded / weathered container paints ---------------------------------
+  // Every container in the yard was one of five saturated colours, which is
+  // why the stacks read as a painted cliff rather than as steel boxes that
+  // have crossed an ocean. Four faded tints for every saturated one.
+  boxOxide:      { color: 0x7a4433, roughness: 0.94, metalness: 0.12, surface: 'metal', tex: 'metal', texScale: 1.1 },
+  boxFadedNavy:  { color: 0x3f4f5e, roughness: 0.92, metalness: 0.12, surface: 'metal', tex: 'metal', texScale: 1.1 },
+  boxFadedGrey:  { color: 0x77787a, roughness: 0.93, metalness: 0.10, surface: 'metal', tex: 'metal', texScale: 1.1 },
+  boxFadedGreen: { color: 0x4d5f4a, roughness: 0.93, metalness: 0.12, surface: 'metal', tex: 'metal', texScale: 1.1 },
+  boxSunbleach:  { color: 0xa8a091, roughness: 0.95, metalness: 0.08, surface: 'metal', tex: 'metal', texScale: 1.1 },
 } satisfies Record<string, MatDef>;
 
 export type MatName = keyof typeof DEFS;

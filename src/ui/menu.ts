@@ -431,7 +431,7 @@ export class Menu implements System {
       </div>
       <div class="row">
         <label>FIELD OF VIEW</label>
-        <input type="range" min="60" max="105" step="1" value="${Math.round(s.fov)}" data-setting="fov">
+        <input type="range" min="52" max="96" step="1" value="${Math.round(s.fov)}" data-setting="fov">
         <span class="val">${Math.round(s.fov)}&deg;</span>
       </div>
       <div class="row">

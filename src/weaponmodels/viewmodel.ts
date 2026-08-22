@@ -259,15 +259,22 @@ export class Viewmodel implements System {
 
     // --- lag: the weapon trails the camera, then catches up ---------------
     // This is the single biggest contributor to a weapon feeling heavy.
-    const dYaw = host.yaw - this.prevYaw;
-    const dPitch = host.pitch - this.prevPitch;
-    this.prevYaw = host.yaw;
-    this.prevPitch = host.pitch;
+    //
+    // Modelled as a low-pass filter on the aim angles rather than by injecting
+    // per-frame deltas into a decaying accumulator. The old form mixed a
+    // per-frame quantity with a per-second decay rate, so the same mouse
+    // movement produced 13% more lag at 30 fps than at 144 — the weapon was
+    // heavier on a slower machine.
+    if (Math.abs(host.yaw - this.prevYaw) > 1.0 || Math.abs(host.pitch - this.prevPitch) > 1.0) {
+      // Respawn or map switch. Snap, or the weapon swings in from off-screen.
+      this.prevYaw = host.yaw;
+      this.prevPitch = host.pitch;
+    }
+    this.prevYaw = damp(this.prevYaw, host.yaw, 9, dt);
+    this.prevPitch = damp(this.prevPitch, host.pitch, 9, dt);
     const lagScale = lerp(1, 0.28, ads);
-    this.lagYaw = damp(this.lagYaw + dYaw * 0.55 * lagScale, 0, 9, dt);
-    this.lagPitch = damp(this.lagPitch + dPitch * 0.45 * lagScale, 0, 9, dt);
-    this.lagYaw = THREE.MathUtils.clamp(this.lagYaw, -0.14, 0.14);
-    this.lagPitch = THREE.MathUtils.clamp(this.lagPitch, -0.11, 0.11);
+    this.lagYaw = THREE.MathUtils.clamp((host.yaw - this.prevYaw) * 3.2 * lagScale, -0.14, 0.14);
+    this.lagPitch = THREE.MathUtils.clamp((host.pitch - this.prevPitch) * 2.6 * lagScale, -0.11, 0.11);
 
     // --- bob: footstep cadence -------------------------------------------
     const moving = clamp01(host.speed / 4);
@@ -277,10 +284,26 @@ export class Viewmodel implements System {
     const bobY = Math.abs(Math.cos(this.bobPhase)) * bobAmt * 0.8;
 
     // --- sway: breathing and tremor --------------------------------------
+    // Translational drift of the whole weapon...
     const exhaustion = 1 - clamp01(host.stamina / Math.max(1, host.maxStamina));
     const swayAmt = lerp(0.010, 0.0022, ads) * (1 + exhaustion * 1.6);
     const swayX = Math.sin(this.swayTime * 0.9) * swayAmt;
     const swayY = Math.cos(this.swayTime * 1.31) * swayAmt * 0.7;
+
+    // ...and the muzzle wander that used to be applied to the camera instead.
+    //
+    // It lives here now. Moving the world because the operator is breathing is
+    // something no reference title does — stand still in Ready or Not and the
+    // horizon is dead still. What breathes is the weapon, and putting the
+    // motion where it belongs is also the only way breath-hold reads as doing
+    // anything, because now you can watch it settle.
+    //
+    // Gained up, because the same angle applied to a weapon half a metre from
+    // the eye covers far less of the frame than it did applied to the view.
+    const rt = (window as unknown as { engine?: { get(id: string): unknown } }).engine
+      ?.get('weaponRuntime') as unknown as { swayPitch: number; swayYaw: number } | undefined;
+    const swayPitch = (rt?.swayPitch ?? 0) * 2.4;
+    const swayYaw = (rt?.swayYaw ?? 0) * 2.4;
 
     // --- base pose --------------------------------------------------------
     const sprinting = host.speed > 5 && ads < 0.05;
@@ -306,9 +329,9 @@ export class Viewmodel implements System {
     );
 
     this.rot.set(
-      lerp(baseR.x, 0, ads) - this.lagPitch * 0.9 + this.kick * 0.05,
-      lerp(baseR.y, 0, ads) + this.lagYaw * 1.1,
-      lerp(baseR.z, 0, ads) + this.lagYaw * 0.5,
+      lerp(baseR.x, 0, ads) - this.lagPitch * 0.9 + this.kick * 0.05 + swayPitch,
+      lerp(baseR.y, 0, ads) + this.lagYaw * 1.1 + swayYaw,
+      lerp(baseR.z, 0, ads) + this.lagYaw * 0.5 + swayYaw * 0.35,
     );
 
     this.root.position.copy(this.pos);
@@ -319,7 +342,15 @@ export class Viewmodel implements System {
     const runtime = (window as unknown as { engine?: { get(id: string): unknown } }).engine
       ?.get('weaponRuntime') as unknown as { equipped: { stats: { magnification: number } } | null } | undefined;
     const mag = runtime?.equipped?.stats.magnification ?? 1;
-    const targetFov = lerp(55, 55 / Math.max(1, mag * 0.55), ads);
+    // Track the world camera's own narrowing, so the weapon and the world do
+    // not disagree about perspective *during* the transition — they used to,
+    // and the gun appeared to shrink as the world zoomed. Square-rooted: the
+    // weapon should follow the world, not match it, or aiming a red dot pulls
+    // the receiver into your face.
+    const worldCam = (services.get('render') as unknown as
+      { camera: THREE.PerspectiveCamera; baseFov: number });
+    const zoom = Math.sqrt(clamp01(worldCam.camera.fov / Math.max(1, worldCam.baseFov)) || 1);
+    const targetFov = lerp(55, 55 / Math.max(1, mag * 0.55), ads) * zoom;
     const cam = render.viewCamera;
     if (Math.abs(cam.fov - targetFov) > 0.05) {
       cam.fov = damp(cam.fov, targetFov, 12, dt);

@@ -15,6 +15,24 @@ import { SiteBuilder } from './builder';
 
 const F_PROP = BF.NO_COVER; // most small props are dressing, not cover
 const F_SOFT = BF.SOFT | BF.NO_SHADOW | BF.NO_NAV;
+/**
+ * Tier-three dressing: visible, but out of every gameplay system.
+ *
+ * A junction box must not become a cover node, must not block the navmesh and
+ * must not cast a shadow map entry — there are going to be thousands of these
+ * and every one that reaches the cover graph makes the AI dumber, not the map
+ * richer.
+ */
+const F_THIN = BF.NO_COVER | BF.NO_NAV | BF.THIN | BF.NO_SHADOW;
+/**
+ * Ground decals: all of the above, plus genuinely non-solid.
+ *
+ * `SOFT` alone would not do it — that flag is about line of sight, not about
+ * bodies, and a millimetre-thick paint stripe that a character can walk into
+ * is the same bug as a strip curtain you cannot walk through. NO_COLLIDE also
+ * keeps several thousand of these out of the collision BVH entirely.
+ */
+const F_DECAL = F_THIN | BF.SOFT | BF.NO_COLLIDE;
 
 export class Props {
   constructor(private b: SiteBuilder) {}
@@ -447,6 +465,290 @@ export class Props {
       const px = x + Math.cos(yaw) * sx * 1.45 + Math.sin(yaw) * sz * 0.85;
       const pz = z - Math.sin(yaw) * sx * 1.45 + Math.cos(yaw) * sz * 0.85;
       b.cyl(px, y + 0.32, pz, 0.32, 0.14, M.rubber, { yaw: yaw + Math.PI / 2, surface: 'rubber', flags: BF.NO_COVER });
+    }
+  }
+
+  // ==== tier three ========================================================
+  //
+  // The size class the whole project was missing.
+  //
+  // A brick census of both maps put objects under 0.4 m at **0.7% of the
+  // villa's exterior geometry and 0.04% of the quay's**, against a reference
+  // distribution where that tier is 55-70%. That is the mechanical definition
+  // of a map reading as "lazy": not too few objects, the wrong SIZE of
+  // objects. There was nothing at the scale your eye lands on when you look at
+  // a wall from four metres — no conduit, no junction box, no downpipe, no
+  // vent, no bracket, no sign, no cable, no cone, no bottle, no litter.
+  //
+  // Everything below is under half a metre, costs one to four bricks, and is
+  // flagged out of the navmesh and the cover graph so a thousand of them
+  // change how the map LOOKS without changing how it plays.
+
+  /** Conduit run down a wall face. `yaw` faces the wall's outward normal. */
+  conduitRun(x: number, y0: number, z: number, yaw: number, h: number, mat = M.steelGalv): void {
+    const b = this.b;
+    b.box(x, y0 + h / 2, z, 0.025, h / 2, 0.025, mat,
+      { yaw, surface: 'metal', flags: F_THIN });
+    // Saddle clips, which is what stops it reading as a floating line.
+    const clips = Math.max(2, Math.round(h / 0.9));
+    for (let i = 1; i < clips; i++) {
+      b.box(x, y0 + (i / clips) * h, z, 0.045, 0.02, 0.045, M.steelDark,
+        { yaw, surface: 'metal', flags: F_THIN });
+    }
+  }
+
+  junctionBox(x: number, y: number, z: number, yaw: number, mat = M.steelGalv): void {
+    const b = this.b;
+    b.box(x, y, z, 0.11, 0.14, 0.055, mat, { yaw, surface: 'metal', flags: F_THIN });
+    b.box(x, y - 0.16, z, 0.02, 0.03, 0.02, M.sootMetal, { yaw, surface: 'metal', flags: F_THIN });
+  }
+
+  downpipe(x: number, y0: number, z: number, yaw: number, h: number): void {
+    const b = this.b;
+    b.cyl(x, y0 + h / 2, z, 0.055, h / 2, M.plasticWhite, { surface: 'plastic', flags: F_THIN });
+    // Shoe at the bottom, and the wet stain under it.
+    b.box(x, y0 + 0.14, z, 0.07, 0.14, 0.10, M.plasticWhite, { yaw, surface: 'plastic', flags: F_THIN });
+    b.box(x, y0 + 0.006, z, 0.34, 0.006, 0.28, M.concreteDark,
+      { yaw, surface: 'concrete', flags: F_DECAL, tint: b.jitterTint(0.10) });
+  }
+
+  wallVent(x: number, y: number, z: number, yaw: number): void {
+    const b = this.b;
+    b.box(x, y, z, 0.21, 0.16, 0.03, M.sootMetal, { yaw, surface: 'metal', flags: F_THIN });
+    for (let i = -2; i <= 2; i++) {
+      b.box(x, y + i * 0.055, z, 0.19, 0.014, 0.045, M.steelDark,
+        { yaw, surface: 'metal', flags: F_THIN });
+    }
+  }
+
+  /** A cable sagging off a wall or a pole. Two segments read as a catenary. */
+  cableDrop(x: number, y: number, z: number, yaw: number, len = 1.6): void {
+    const b = this.b;
+    for (const s of [-1, 1]) {
+      b.box(x + Math.cos(yaw) * s * len * 0.25, y - len * 0.09, z - Math.sin(yaw) * s * len * 0.25,
+        len * 0.25, 0.016, 0.016, M.sootMetal, { yaw, surface: 'plastic', flags: F_THIN });
+    }
+    b.box(x, y - len * 0.17, z, len * 0.2, 0.016, 0.016, M.sootMetal,
+      { yaw, surface: 'plastic', flags: F_THIN });
+  }
+
+  signPlate(x: number, y: number, z: number, yaw: number, w = 0.34, h = 0.24, mat = M.plasticWhite): void {
+    const b = this.b;
+    b.box(x, y, z, w / 2, h / 2, 0.012, mat, { yaw, surface: 'plastic', flags: F_THIN });
+    b.box(x, y, z - 0.004, w / 2 - 0.03, h / 2 - 0.03, 0.014, M.paintRed,
+      { yaw, surface: 'plastic', flags: F_THIN });
+  }
+
+  cone(x: number, y: number, z: number): void {
+    const b = this.b;
+    b.box(x, y + 0.012, z, 0.16, 0.012, 0.16, M.rubber, { surface: 'rubber', flags: F_PROP });
+    b.cyl(x, y + 0.20, z, 0.10, 0.19, M.paintOrange, { surface: 'plastic', flags: F_PROP });
+    b.cyl(x, y + 0.27, z, 0.075, 0.045, M.plasticWhite, { surface: 'plastic', flags: F_THIN });
+  }
+
+  hoseCoil(x: number, y: number, z: number, r = 0.28): void {
+    const b = this.b;
+    for (let i = 0; i < 3; i++) {
+      b.cyl(x, y + 0.04 + i * 0.055, z, r - i * 0.03, 0.028, M.rubber,
+        { surface: 'rubber', flags: F_PROP });
+    }
+  }
+
+  bottleCluster(x: number, y: number, z: number, n = 4): void {
+    const b = this.b;
+    for (let i = 0; i < n; i++) {
+      const a = this.rng.range(0, Math.PI * 2);
+      const d = this.rng.range(0, 0.22);
+      b.cyl(x + Math.cos(a) * d, y + 0.11, z + Math.sin(a) * d, 0.035, 0.11,
+        this.rng.next() < 0.5 ? M.glass : M.plasticWhite,
+        { surface: 'glass', flags: F_THIN, tint: b.jitterTint(0.12) });
+    }
+  }
+
+  rubbishBag(x: number, y: number, z: number): void {
+    const b = this.b;
+    b.box(x, y + 0.19, z, this.rng.range(0.20, 0.28), 0.19, this.rng.range(0.18, 0.26),
+      M.shadowBlack, { yaw: this.rng.range(0, 3.14), surface: 'plastic', flags: F_PROP,
+        tint: b.jitterTint(0.10) });
+  }
+
+  roofAerial(x: number, y: number, z: number, h = 1.9): void {
+    const b = this.b;
+    b.cyl(x, y + h / 2, z, 0.022, h / 2, M.steelGalv, { surface: 'metal', flags: F_THIN });
+    for (let i = 0; i < 4; i++) {
+      b.box(x, y + h * (0.55 + i * 0.11), z, 0.24 - i * 0.04, 0.012, 0.012, M.steelGalv,
+        { surface: 'metal', flags: F_THIN });
+    }
+    b.box(x, y + 0.05, z, 0.13, 0.05, 0.13, M.concreteDark, { surface: 'concrete', flags: F_PROP });
+  }
+
+  // ==== ground decals =====================================================
+  //
+  // Thin slabs, out of the navmesh and the cover graph, sitting a couple of
+  // centimetres above the paving. The bottom 38% of every measured frame had a
+  // row-luminance standard deviation of 0.012-0.025 — a constant grey —
+  // because 20,592 m2 of villa ground was eight bricks and 28,500 m2 of quay
+  // asphalt was ONE. This is the cheapest way to fix a third of the screen.
+
+  /** Painted line, bay marking, hatching. */
+  paintMarking(x0: number, z0: number, x1: number, z1: number, y: number, mat = M.plasterWhite): void {
+    this.b.span(Math.min(x0, x1), y, Math.min(z0, z1), Math.max(x0, x1), y + 0.008, Math.max(z0, z1),
+      mat, { surface: 'concrete', flags: F_DECAL, tint: this.b.jitterTint(0.08) });
+  }
+
+  /** A pair of worn tyre tracks running through a turn. */
+  tyreTrack(x: number, z: number, yaw: number, len = 6, gauge = 1.7): void {
+    const b = this.b;
+    for (const s of [-1, 1]) {
+      b.box(x + Math.sin(yaw) * s * gauge / 2, this.decalY, z + Math.cos(yaw) * s * gauge / 2,
+        0.16, 0.005, len / 2, M.concreteDark,
+        { yaw, surface: 'concrete', flags: F_DECAL, tint: b.jitterTint(0.10) });
+    }
+  }
+
+  oilPatch(x: number, y: number, z: number, r = 0.55): void {
+    const b = this.b;
+    b.box(x, y + 0.005, z, r, 0.005, r * this.rng.range(0.6, 1.0), M.tarBlack,
+      { yaw: this.rng.range(0, 3.14), surface: 'concrete', flags: F_DECAL, tint: b.jitterTint(0.14) });
+  }
+
+  puddle(x: number, y: number, z: number, r = 0.9): void {
+    const b = this.b;
+    b.box(x, y + 0.006, z, r, 0.006, r * this.rng.range(0.5, 0.95), M.water,
+      { yaw: this.rng.range(0, 3.14), surface: 'water', flags: F_DECAL });
+  }
+
+  /** A darker rectangle of newer surfacing — a trench that was dug and filled. */
+  patchRepair(x: number, z: number, y: number, w = 2.2, d = 1.4): void {
+    const b = this.b;
+    b.box(x, y + 0.012, z, w / 2, 0.012, d / 2, M.asphalt,
+      { yaw: this.rng.range(-0.06, 0.06), surface: 'concrete', flags: F_DECAL,
+        tint: b.jitterTint(0.16) });
+  }
+
+  crackLine(x: number, z: number, y: number, yaw: number, len = 3): void {
+    const b = this.b;
+    let cx = x, cz = z, a = yaw;
+    for (let i = 0; i < 3; i++) {
+      const seg = len / 3;
+      b.box(cx + Math.sin(a) * seg / 2, y + 0.004, cz + Math.cos(a) * seg / 2,
+        0.035, 0.004, seg / 2, M.concreteDark,
+        { yaw: a, surface: 'concrete', flags: F_DECAL });
+      cx += Math.sin(a) * seg;
+      cz += Math.cos(a) * seg;
+      a += this.rng.range(-0.5, 0.5);
+    }
+  }
+
+  /** Set by `wash` so the decal helpers know what height to sit at. */
+  private decalY = 0;
+
+  /**
+   * Scatter ground wear across a region.
+   *
+   * `density` is decals per 100 m2. Sixteen is a working yard; six is a lawn
+   * edge or a quiet corner.
+   */
+  wash(x0: number, z0: number, x1: number, z1: number, y: number, density = 12): void {
+    this.decalY = y + 0.004;
+    const area = Math.abs((x1 - x0) * (z1 - z0));
+    const n = Math.max(1, Math.round((area / 100) * density));
+    for (let i = 0; i < n; i++) {
+      const x = this.rng.range(Math.min(x0, x1), Math.max(x0, x1));
+      const z = this.rng.range(Math.min(z0, z1), Math.max(z0, z1));
+      const r = this.rng.next();
+      if (r < 0.26) this.patchRepair(x, z, y, this.rng.range(1.2, 3.4), this.rng.range(0.8, 2.0));
+      else if (r < 0.48) this.crackLine(x, z, y, this.rng.range(0, 3.14), this.rng.range(1.6, 4.5));
+      else if (r < 0.68) this.oilPatch(x, y, z, this.rng.range(0.25, 0.8));
+      else if (r < 0.80) this.tyreTrack(x, z, this.rng.range(0, 3.14), this.rng.range(3, 9));
+      else if (r < 0.90) this.puddle(x, y, z, this.rng.range(0.4, 1.3));
+      else this.litter(x, y, z, this.rng.range(0.6, 1.6));
+    }
+  }
+
+  /**
+   * Grit, chips, a stray bolt, a flattened can.
+   *
+   * The smallest thing in the library and the one there is most of. It exists
+   * because 20,592 m2 of villa ground and 28,500 m2 of quay asphalt were, in
+   * total, nine bricks — and the bottom third of every frame measured out at a
+   * luminance standard deviation of two hundredths.
+   */
+  litter(x: number, y: number, z: number, spread = 1.0): void {
+    const b = this.b;
+    const n = 3 + Math.floor(this.rng.next() * 5);
+    for (let i = 0; i < n; i++) {
+      const a = this.rng.range(0, Math.PI * 2);
+      const d = this.rng.range(0, spread);
+      const r = this.rng.next();
+      const px = x + Math.cos(a) * d, pz = z + Math.sin(a) * d;
+      if (r < 0.55) {
+        b.box(px, y + 0.018, pz, this.rng.range(0.03, 0.09), 0.018, this.rng.range(0.03, 0.09),
+          this.rng.next() < 0.5 ? M.concreteDark : M.sootMetal,
+          { yaw: this.rng.range(0, 3.14), surface: 'gravel', flags: F_DECAL,
+            tint: b.jitterTint(0.16) });
+      } else if (r < 0.8) {
+        b.box(px, y + 0.012, pz, this.rng.range(0.05, 0.11), 0.012, this.rng.range(0.02, 0.05),
+          M.plasticWhite, { yaw: this.rng.range(0, 3.14), surface: 'plastic', flags: F_DECAL,
+            tint: b.jitterTint(0.14) });
+      } else {
+        b.cyl(px, y + 0.035, pz, 0.032, 0.035, M.steelGalv,
+          { surface: 'metal', flags: F_THIN });
+      }
+    }
+  }
+
+  /**
+   * Scatter tier-three clutter across a region.
+   *
+   * `density` is objects per 100 m2. Reference dressing in a working area is
+   * 8-15; a formal terrace or a lawn wants 2-4.
+   */
+  dress(x0: number, z0: number, x1: number, z1: number, y: number, density = 9): void {
+    const area = Math.abs((x1 - x0) * (z1 - z0));
+    const n = Math.max(1, Math.round((area / 100) * density));
+    for (let i = 0; i < n; i++) {
+      const x = this.rng.range(Math.min(x0, x1), Math.max(x0, x1));
+      const z = this.rng.range(Math.min(z0, z1), Math.max(z0, z1));
+      const r = this.rng.next();
+      if (r < 0.20) this.cone(x, y, z);
+      else if (r < 0.38) this.bottleCluster(x, y, z, 2 + Math.floor(this.rng.next() * 4));
+      else if (r < 0.54) this.rubbishBag(x, y, z);
+      else if (r < 0.68) this.hoseCoil(x, y, z, this.rng.range(0.18, 0.34));
+      else if (r < 0.80) this.crate(x, y, z, this.rng.range(0, 3.14), this.rng.range(0.22, 0.38));
+      else if (r < 0.90) this.tyreStack(x, y, z, 1 + Math.floor(this.rng.next() * 3));
+      else this.drum(x, y, z);
+    }
+  }
+
+  /**
+   * Dress a wall FACE with services: conduit, boxes, vents, downpipes, signs.
+   *
+   * `(x0,z0)-(x1,z1)` is the line of the face and `out` is which side the
+   * fittings stand proud on (+1 or -1). This is the pass that makes a wall
+   * read at three metres; without it a wall reads identically at 60 m and at 3.
+   */
+  services(
+    x0: number, z0: number, x1: number, z1: number, y: number, h: number,
+    out = 1, density = 0.10,
+  ): void {
+    const len = Math.hypot(x1 - x0, z1 - z0);
+    if (len < 1e-3) return;
+    const ux = (x1 - x0) / len, uz = (z1 - z0) / len;
+    const yaw = Math.atan2(-uz, ux);
+    const nx = -uz * out, nz = ux * out;
+    const n = Math.max(1, Math.round(len * density));
+    for (let i = 0; i < n; i++) {
+      const d = this.rng.range(0.6, len - 0.6);
+      const px = x0 + ux * d + nx * 0.06;
+      const pz = z0 + uz * d + nz * 0.06;
+      const r = this.rng.next();
+      if (r < 0.26) this.conduitRun(px, y + 0.4, pz, yaw, this.rng.range(1.2, h - 0.6));
+      else if (r < 0.44) this.junctionBox(px, y + this.rng.range(1.1, 1.9), pz, yaw);
+      else if (r < 0.60) this.wallVent(px, y + this.rng.range(1.9, Math.max(2.1, h - 0.5)), pz, yaw);
+      else if (r < 0.76) this.downpipe(px, y, pz, yaw, h - 0.15);
+      else if (r < 0.88) this.signPlate(px, y + this.rng.range(1.3, 2.0), pz, yaw);
+      else this.cableDrop(px, y + this.rng.range(2.2, Math.max(2.4, h - 0.4)), pz, yaw);
     }
   }
 }

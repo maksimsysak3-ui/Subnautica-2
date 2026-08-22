@@ -77,6 +77,22 @@ export function buildPattern(weaponId: string, length = 40): RecoilStep[] {
   return steps;
 }
 
+/**
+ * Two channels, deliberately separated.
+ *
+ * `pitch/yaw/roll/punch` move the **camera**, and the rounds follow the camera.
+ * `swayPitch/swayYaw` move the **weapon only** — breathing and tremor are
+ * something you watch happen to the gun, not something that turns your head.
+ */
+export interface RecoilOutput {
+  pitch: number;
+  yaw: number;
+  roll: number;
+  punch: number;
+  swayPitch: number;
+  swayYaw: number;
+}
+
 export interface RecoilInputs {
   /** 0..1 — aiming down sights steadies the weapon considerably. */
   aiming: number;
@@ -106,6 +122,9 @@ export class RecoilState {
   visualRoll = 0;
   /** Backward push of the weapon, metres. */
   visualPunch = 0;
+  /** Peak displacement of the current burst; recovery settles to a share of it. */
+  private aimFloorPitch = 0;
+  private aimFloorYaw = 0;
 
   private pattern: RecoilStep[];
   private sinceLastShot = 0;
@@ -128,6 +147,15 @@ export class RecoilState {
     this.shotIndex = 0;
     this.aimPitch = 0;
     this.aimYaw = 0;
+    this.aimFloorPitch = 0;
+    this.aimFloorYaw = 0;
+    // The visual channel has to go too. `setWeapon` calls this, so leaving it
+    // behind carried the old weapon's kick onto the new one — you swapped to a
+    // pistol mid-burst and it arrived already climbing.
+    this.visualPitch = 0;
+    this.visualYaw = 0;
+    this.visualRoll = 0;
+    this.visualPunch = 0;
   }
 
   /**
@@ -152,31 +180,51 @@ export class RecoilState {
     // slower and kicks harder for the same cartridge.
     const ergFactor = lerp(1.25, 0.82, clamp01(stats.ergonomics / 100));
 
-    const v = step.vertical * stats.verticalRecoil * control * ergFactor;
-    const h = step.horizontal * stats.horizontalRecoil * control * ergFactor;
+    const v = step.vertical * stats.verticalRecoil * control * ergFactor * SUSTAINED;
+    const h = step.horizontal * stats.horizontalRecoil * control * ergFactor * SUSTAINED;
 
     // Small random component so two magazines are not pixel-identical, but
     // small enough that the pattern still dominates and stays learnable.
     const jitterV = this.rng.gaussian(0, v * 0.11);
     const jitterH = this.rng.gaussian(0, Math.abs(h) * 0.16 + v * 0.05);
 
-    // Aim displacement: what actually moves the point of impact.
+    // Aim displacement: the climb the shooter has to fight. This drives both
+    // the camera and, through it, where the rounds go — they are the same
+    // number, which is the only way a player can learn to compensate.
     this.aimPitch += v + jitterV;
     this.aimYaw += h + jitterH;
+    // Remember the peak so recovery has a fixed floor to aim at.
+    this.aimFloorPitch = this.aimPitch;
+    this.aimFloorYaw = this.aimYaw;
 
-    // Visual kick: larger and fully recovered, so it reads without lying about
-    // where the rounds are going.
-    this.visualPitch += (v + jitterV) * 1.9;
-    this.visualYaw += (h + jitterH) * 1.5;
-    this.visualRoll += (h + jitterH) * 0.8 + this.rng.range(-0.15, 0.15) * v;
-    this.visualPunch += 0.006 * stats.verticalRecoil * control;
+    // Visual kick, on top of the displacement the camera already carries.
+    //
+    // These used to be 1.9 / 1.5 / 0.8, which put a **2.51 degree step into a
+    // single frame** on the first round and left a 1.53 degree oscillation at
+    // the cyclic rate riding on top of the climb. Ready or Not and Ground
+    // Branch step the view 0.3-0.5 degrees per round and show no visible
+    // inter-shot wobble at all; the felt violence there comes from the muzzle
+    // flash, the shell, the audio and the *weapon* moving, not from throwing
+    // the horizon around. So the kick is cut to roughly a fifth and the
+    // recovery is nearly doubled: the total climb over a magazine is unchanged
+    // (that is `aimPitch`, and it is the part you have to fight), but it
+    // arrives as a climb instead of as a vibration.
+    this.visualPitch += (v + jitterV) * 0.24;
+    this.visualYaw += (h + jitterH) * 0.20;
+    this.visualRoll += (h + jitterH) * 0.30 + this.rng.range(-0.05, 0.05) * v;
+    this.visualPunch += 0.0022 * stats.verticalRecoil * control;
   }
 
   /**
    * Advance recovery and sway.
    * Returns the total angular offset to apply to aim this frame, in radians.
    */
-  update(dt: number, stats: ResolvedWeaponStats, inputs: RecoilInputs, out: { pitch: number; yaw: number; roll: number; punch: number }): void {
+  update(
+    dt: number,
+    stats: ResolvedWeaponStats,
+    inputs: RecoilInputs,
+    out: RecoilOutput,
+  ): void {
     this.sinceLastShot += dt;
     this.swayTime += dt;
 
@@ -191,16 +239,40 @@ export class RecoilState {
     const recovery = stats.recoilRecovery * lerp(0.7, 1.3, clamp01(stats.ergonomics / 100));
 
     // Visual kick returns fully — this is the weapon settling in the hands.
-    this.visualPitch = damp(this.visualPitch, 0, recovery * 9, dt);
-    this.visualYaw = damp(this.visualYaw, 0, recovery * 8, dt);
-    this.visualRoll = damp(this.visualRoll, 0, recovery * 7, dt);
-    this.visualPunch = damp(this.visualPunch, 0, recovery * 11, dt);
+    // Faster than it was, so the kick from round N is spent before round N+1
+    // lands rather than stacking into a sawtooth at the cyclic rate.
+    this.visualPitch = damp(this.visualPitch, 0, recovery * 16, dt);
+    this.visualYaw = damp(this.visualYaw, 0, recovery * 14, dt);
+    this.visualRoll = damp(this.visualRoll, 0, recovery * 12, dt);
+    this.visualPunch = damp(this.visualPunch, 0, recovery * 18, dt);
 
     // Aim displacement recovers only PARTWAY. Recovering it fully would mean a
     // held trigger never leaves the target and bursts would have no advantage.
-    const aimRecovery = recovery * 2.6;
-    this.aimPitch = damp(this.aimPitch, this.aimPitch * 0.35, aimRecovery, dt);
-    this.aimYaw = damp(this.aimYaw, this.aimYaw * 0.5, aimRecovery, dt);
+    //
+    // The target has to be a *fixed* fraction of where the climb peaked, not a
+    // fraction of the live value: `damp(x, x * 0.35, …)` moves its own target
+    // every step, which decays to zero rather than to the 35% floor the design
+    // wants, and does it at a rate that depends on the frame time.
+    //
+    // The retained fraction was 0.35, which — combined with the visual kick
+    // being cut back to something sane — left a full magazine climbing only
+    // 2.75 degrees. Reference AR-pattern climb is 8-12 degrees over 30 rounds;
+    // a rifle you can hold on a chest at 40 m through a whole magazine is not
+    // a rifle, it is a laser, and it makes burst discipline pointless.
+    // Retaining more of the climb also cuts the visible wobble, because less
+    // of each round's displacement is given back before the next one lands.
+    //
+    // Recovery is also GATED ON THE TRIGGER BEING OFF. Recovering between
+    // rounds of a burst is what put a visible wobble on the climb: every gap
+    // gave back a share of the accumulated displacement and the next round
+    // took it again, at the cyclic rate, which reads as vibration rather than
+    // as rise. Real shooters recover between bursts, not between rounds, and
+    // every reference title models it that way — the climb during sustained
+    // fire is monotonic, and that is exactly what makes it learnable.
+    const settle = clamp01((this.sinceLastShot - 0.10) / 0.25);
+    const aimRecovery = recovery * 2.2 * settle;
+    this.aimPitch = damp(this.aimPitch, this.aimFloorPitch * 0.78, aimRecovery, dt);
+    this.aimYaw = damp(this.aimYaw, this.aimFloorYaw * 0.66, aimRecovery, dt);
 
     // --- sway -----------------------------------------------------------
     // Breathing and muscle tremor. Amplitude rises as stamina falls and drops
@@ -222,10 +294,21 @@ export class RecoilState {
     const swayPitch = (Math.sin(this.swayTime * f) * 0.6 + Math.sin(this.swayTime * f * 2.31 + 1.1) * 0.4) * swayAmp;
     const swayYaw = (Math.cos(this.swayTime * f * 0.83) * 0.6 + Math.cos(this.swayTime * f * 1.77 + 2.4) * 0.4) * swayAmp;
 
-    out.pitch = (this.aimPitch + this.visualPitch + swayPitch) * DEG;
-    out.yaw = (this.aimYaw + this.visualYaw + swayYaw) * DEG;
+    // Sway does NOT go to the camera.
+    //
+    // It used to, and standing perfectly still with a carbine moved the world
+    // 1.13 degrees peak-to-peak on both axes — 2.53 walking, 7.58 sprinting on
+    // an empty stamina bar. No reference title does this: in Ready or Not and
+    // Ground Branch the horizon is dead still when you are, and the breathing
+    // and the tremor are visible on the *weapon*. That is also the only way
+    // breath-hold can read as doing something, because you can see what it
+    // steadies.
+    out.pitch = (this.aimPitch + this.visualPitch) * DEG;
+    out.yaw = (this.aimYaw + this.visualYaw) * DEG;
     out.roll = this.visualRoll * DEG;
     out.punch = this.visualPunch;
+    out.swayPitch = swayPitch * DEG;
+    out.swayYaw = swayYaw * DEG;
   }
 
   /** Where the shots are actually going right now, in radians. */
@@ -235,6 +318,19 @@ export class RecoilState {
 }
 
 const DEG = Math.PI / 180;
+
+/**
+ * Global trim on how far a round displaces the aim.
+ *
+ * Once recovery stopped happening between rounds of a burst the climb became
+ * monotonic — which is correct, and which also meant a full magazine walked
+ * 17.7 degrees up the wall. Reference AR-pattern climb over 30 rounds is 8-12,
+ * with a first-round step of 0.3-0.5. This is the one number that sets both,
+ * and it is deliberately a single global rather than 24 per-weapon edits: the
+ * per-weapon character lives in `verticalRecoil`, `horizontalRecoil` and the
+ * pattern, and all of it survives a uniform scale.
+ */
+const SUSTAINED = 0.56;
 
 /**
  * Cone of fire in radians, combining mechanical accuracy with everything the

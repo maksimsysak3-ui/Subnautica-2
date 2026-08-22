@@ -31,6 +31,16 @@ const GF = TER;               // ground floor level
 const FF = GF + 3.4;          // first floor level
 const ROOF = FF + 3.2;        // roof deck level
 const WALL_H = 3.3;
+/**
+ * The top of every paved surface on the compound.
+ *
+ * `pave()` places the TOP of the slab at the height it is given, and every
+ * paved area is laid at PAD + 0.025. Ground decals are millimetres thick, so
+ * writing them at PAD put all of them 21 mm UNDER the asphalt — the entire
+ * wear pass was invisible, which is exactly the kind of bug that looks like
+ * "the pass did not work" rather than "the pass is buried".
+ */
+const PAVED = PAD + 0.03;
 
 const HOUSE = { x0: -22, x1: 8, z0: -10, z1: 12 };
 const PERIM = { x0: -78, x1: 78, z0: -58, z1: 74 };
@@ -121,6 +131,17 @@ export function buildVilla(b: SiteBuilder, rng: Rng): SiteBuildResult {
     coping: { mat: M.terracottaOld, height: 0.22, overhang: 0.14 },
     pilaster: { every: 9, mat: M.plasterCream, width: 0.7, depth: 0.16, extra: 0.34 },
     jitter: 0.06,
+    // 4.4 m panels. The perimeter is 576 m and was fourteen bricks; this makes
+    // it about a hundred and thirty, each with its own top height, its own
+    // material and its own coping course, and roughly one in twenty-five
+    // collapsed to a knee-high stub. That last number is what turns the wall
+    // from a boundary into a decision: a collapsed section is a way over.
+    panel: {
+      every: 4.4,
+      jitter: 0.17,
+      variants: [M.plasterOchre, M.stucco, M.plasterCream, M.concreteRaw, M.brickRed],
+      breakChance: 0.04,
+    },
   };
   const gateIds = b.wall({
     ...perimeterOpts, x0: PERIM.x0, z0: PERIM.z1, x1: PERIM.x1, z1: PERIM.z1,
@@ -148,11 +169,27 @@ export function buildVilla(b: SiteBuilder, rng: Rng): SiteBuildResult {
     surface: 'dirt', flags: BF.INVISIBLE | BF.NO_COVER,
   });
 
-  // Razor wire suggestion along the top of the long runs.
-  for (let x = PERIM.x0 + 3; x < PERIM.x1; x += 6) {
-    b.cyl(x, PAD + WALL_H + 0.5, PERIM.z1, 0.22, 0.05, M.steelGalv, {
-      surface: 'metal', flags: BF.NO_COVER | BF.NO_NAV | BF.THIN | BF.NO_SHADOW,
-    });
+  // Razor wire along the long runs.
+  //
+  // Was a coil every 6.00 m dead on, on one wall only. Now it runs the south
+  // and east faces, skips where it has been cut or has simply not been
+  // maintained, and wanders in both spacing and height — the whole point of a
+  // repeated element on a silhouette is that the repeat is not exact.
+  for (const [wx0, wz0, wx1, wz1] of [
+    [PERIM.x0 + 3, PERIM.z1, PERIM.x1 - 3, PERIM.z1],
+    [PERIM.x1, PERIM.z1 - 4, PERIM.x1, PERIM.z0 + 6],
+  ] as const) {
+    const len = Math.hypot(wx1 - wx0, wz1 - wz0);
+    const n = Math.round(len / 5.6);
+    for (let i = 0; i <= n; i++) {
+      if (rng.next() < 0.16) continue;
+      const t = (i + rng.range(-0.16, 0.16)) / n;
+      b.cyl(
+        wx0 + (wx1 - wx0) * t, PAD + WALL_H + rng.range(0.44, 0.60), wz0 + (wz1 - wz0) * t,
+        rng.range(0.19, 0.25), 0.05, M.steelGalv,
+        { surface: 'metal', flags: BF.NO_COVER | BF.NO_NAV | BF.THIN | BF.NO_SHADOW },
+      );
+    }
   }
 
   // =========================================================================
@@ -348,12 +385,237 @@ export function buildVilla(b: SiteBuilder, rng: Rng): SiteBuildResult {
     p.planter(px, TER, pz, 0.6);
   }
 
+  // =========================================================================
+  // Motor court — the map's front door, and it was its emptiest hero space
+  // =========================================================================
+  //
+  // 1,040 m2 at 9.2 bricks per 100 — a third of the density of the compound
+  // average and a fourteenth of the house's. The player's first thirty seconds
+  // are spent here, crossing a flat rectangle of asphalt with nothing on it.
+  //
+  // Three things fix it: a hole in the ground, something to be under, and
+  // enough paint and wear that the surface is not one constant grey.
+  {
+    // A drainage pan sunk 550 mm into the middle of the court, with steps on
+    // both long sides. Cover that is *below* you plays completely differently
+    // from cover you stand behind, and it is the only such thing outside the
+    // pool. It also gives the convoy something to be parked around.
+    b.span(-13, PAD - 0.55, 23, 1, PAD - 0.53, 33, M.concreteDark, { surface: 'concrete' });
+    for (const [sx0, sz0, sx1, sz1] of [
+      [-13, 23, 1, 23.4], [-13, 32.6, 1, 33],
+    ] as const) {
+      b.span(sx0, PAD - 0.55, sz0, sx1, PAD - 0.27, sz1, M.concreteRaw, { surface: 'concrete' });
+    }
+    for (const wz of [22.6, 33.4]) {
+      b.span(-13.4, PAD - 0.55, wz - 0.2, 1.4, PAD + 0.06, wz + 0.2, M.concreteRaw,
+        { surface: 'concrete' });
+    }
+    for (const wx of [-13.4, 1.4]) {
+      b.span(wx - 0.2, PAD - 0.55, 22.6, wx + 0.2, PAD + 0.06, 33.4, M.concreteRaw,
+        { surface: 'concrete' });
+    }
+    // Grating over the sump at one end.
+    for (let i = 0; i < 9; i++) {
+      b.span(-1.4 + i * 0.16, PAD - 0.51, 27.4, -1.32 + i * 0.16, PAD - 0.47, 29.6,
+        M.steelDark, { surface: 'metal', flags: BF.NO_COVER });
+    }
+
+    // Carport over the west bays: posts, a corrugated deck, and shade. Being
+    // *under* something is the cheapest depth cue a wide exterior can have.
+    for (const cx of [-21, -13.6]) for (const cz of [17.4, 25.4]) {
+      b.box(cx, PAD + 1.6, cz, 0.13, 1.6, 0.13, M.steelGalv, { surface: 'metal' });
+    }
+    b.span(-22, PAD + 3.2, 16.6, -12.6, PAD + 3.34, 26.2, M.corrugated,
+      { surface: 'metal', flags: BF.NO_COVER });
+    b.span(-22.2, PAD + 3.06, 16.4, -12.4, PAD + 3.2, 16.9, M.steelGalv,
+      { surface: 'metal', flags: BF.NO_COVER | BF.THIN });
+
+    // Guard shack at the court's east side, watching the drive.
+    b.span(8.4, PAD, 28.4, 12.4, PAD + 2.7, 32.4, M.plasterCream, { surface: 'concrete' });
+    b.span(8.1, PAD + 2.7, 28.1, 12.7, PAD + 2.86, 32.7, M.terracottaOld,
+      { surface: 'concrete', flags: BF.NO_COVER });
+    b.span(8.35, PAD + 0.95, 29.2, 8.45, PAD + 2.15, 31.6, M.glass,
+      { surface: 'glass', flags: BF.SOFT | BF.TRANSPARENT | BF.NO_SHADOW | BF.NO_COVER | BF.THIN });
+    p.sconce(8.3, PAD + 2.3, 30.4, Math.PI / 2);
+
+    // Fuel bowser and a stack of drums on the north-west corner.
+    b.cyl(-22.6, PAD + 0.95, 20.6, 0.85, 0.95, M.paintRed, { surface: 'metal' });
+    b.box(-22.6, PAD + 2.0, 20.6, 0.24, 0.14, 0.24, M.steelDark,
+      { surface: 'metal', flags: BF.NO_COVER });
+    for (let i = 0; i < 5; i++) p.drum(-24.4 + (i % 3) * 0.7, PAD, 18.6 + Math.floor(i / 3) * 0.7);
+    p.hoseCoil(-21.4, PAD, 21.6, 0.32);
+
+    p.shadeTree(-24, PAD, 30, 7.5);
+    p.shadeTree(14, PAD, 20, 6.5);
+
+    // Bay markings at a 2.6 m pitch, an aisle line, and hatching by the pan.
+    for (let i = 0; i < 7; i++) {
+      p.paintMarking(-11 + i * 2.6, 16.6, -10.86 + i * 2.6, 21.4, PAVED);
+    }
+    p.paintMarking(-24, 34.6, 12, 34.78, PAVED, M.plasterWhite);
+    for (let i = 0; i < 8; i++) {
+      p.paintMarking(-13 + i * 1.9, 34.9, -12.2 + i * 1.9, 36.4, PAVED, M.plasterWhite);
+    }
+    // And the wear that goes with a yard vehicles turn in every day.
+    p.wash(-26, 14, 14, 38, PAVED, 22);
+    p.dress(-26, 14, 14, 38, PAVED, 14);
+  }
+
   // Motor court: the boss's convoy.
   p.suv(-18, PAD, 22, 0.1, M.concreteDark);
   p.suv(-13, PAD, 22, 0.06, M.steelDark);
   p.pickup(-6, PAD, 21.5, 0.02, M.plasterWhite);
   p.sedan(2, PAD, 22, -0.05);
   p.pickup(20, PAD, -30, Math.PI / 2, M.rust);
+  for (const [ox, oz] of [[-18, 22], [-13, 22], [-6, 21.5], [2, 22]] as const) {
+    p.oilPatch(ox + rng.range(-0.5, 0.5), PAVED, oz + rng.range(-0.6, 0.6), rng.range(0.4, 0.8));
+  }
+
+  // =========================================================================
+  // The stable block — filling 4,600 m2 of nothing in the east half
+  // =========================================================================
+  //
+  // Three overlapping dead blocks, the largest a 34 x 34 m empty square, with
+  // no reason to go there and nothing to see once you had. It is also where
+  // the service-gate approach arrives, so a player taking the quiet route came
+  // over the wall into a field.
+  //
+  // A stable block gives the east wall a purpose, gives the approach a place
+  // to arrive, and — because it is single-storey with an open gable — puts a
+  // second silhouette on that half of the skyline without competing with the
+  // house.
+  {
+    const stId = b.building('Stable block');
+    const SX0 = 48, SX1 = 70, SZ0 = 6, SZ1 = 28;
+    const SH = 4.6;
+    b.span(SX0, PAD, SZ0, SX1, PAD + 0.12, SZ1, M.dirtMat, { surface: 'dirt', flags: BF.NO_COVER });
+    for (const [wx0, wz0, wx1, wz1] of [
+      [SX0, SZ0, SX1, SZ0], [SX0, SZ1, SX1, SZ1], [SX0, SZ0, SX0, SZ1],
+    ] as const) {
+      b.wall({
+        x0: wx0, z0: wz0, x1: wx1, z1: wz1, y: PAD, height: SH, thickness: 0.3,
+        mat: M.plasterCream, surface: 'concrete', jitter: 0.05, building: stId,
+        panel: { every: 3.6, jitter: 0.09, variants: [M.plasterCream, M.stucco, M.brickRed] },
+      });
+    }
+    // The east side is open bays onto the paddock — posts, no wall.
+    for (let i = 0; i <= 6; i++) {
+      b.box(SX1, PAD + SH / 2, SZ0 + (i / 6) * (SZ1 - SZ0), 0.16, SH / 2, 0.16, M.woodDark,
+        { surface: 'wood' });
+    }
+    // Open gable roof: two pitches faked as stepped courses, which is what the
+    // brick model allows and reads correctly from any distance you see it.
+    for (let i = 0; i < 6; i++) {
+      const inset = i * 1.5;
+      b.span(SX0 + inset, PAD + SH + i * 0.34, SZ0 - 0.4, SX1 + 0.4 - inset,
+        PAD + SH + 0.34 + i * 0.34, SZ1 + 0.4, M.terracottaOld,
+        { surface: 'concrete', flags: i > 0 ? BF.NO_COVER : 0 });
+    }
+    // Stalls, a tack room, a muck heap and a trough.
+    for (let i = 0; i < 5; i++) {
+      const dz = SZ0 + 2.2 + i * 4.2;
+      b.span(SX0 + 0.3, PAD, dz, SX1 - 6, PAD + 1.35, dz + 0.16, M.woodWeathered,
+        { surface: 'wood' });
+      p.crate(SX0 + 1.4, PAD, dz + 1.8, rng.range(0, 3), 0.5);
+      if (rng.next() < 0.6) p.drum(SX0 + 3.2, PAD, dz + 2.6);
+    }
+    b.span(SX1 - 5.4, PAD, SZ0 + 1, SX1 - 0.4, PAD + 0.5, SZ0 + 4, M.concreteRaw,
+      { surface: 'concrete' });
+    p.hedge(SX1 + 3, SZ0, SX1 + 3, SZ1 + 14, PAD, 1.3, 0.5);
+    // Post and rail fencing around the paddock.
+    for (const [fx0, fz0, fx1, fz1] of [
+      [SX1 + 2, SZ0 - 12, SX1 + 2, SZ1 + 14], [SX1 + 2, SZ1 + 14, 74, SZ1 + 14],
+      [SX1 + 2, SZ0 - 12, 74, SZ0 - 12],
+    ] as const) {
+      const flen = Math.hypot(fx1 - fx0, fz1 - fz0);
+      const fn = Math.max(2, Math.round(flen / 2.6));
+      for (let i = 0; i <= fn; i++) {
+        const t = (i + (i === 0 || i === fn ? 0 : rng.range(-0.14, 0.14))) / fn;
+        b.box(fx0 + (fx1 - fx0) * t, PAD + 0.7, fz0 + (fz1 - fz0) * t, 0.07, 0.7, 0.07,
+          M.woodWeathered, { surface: 'wood', tint: b.jitterTint(0.10) });
+      }
+      for (const ry of [0.62, 1.06]) {
+        b.span(Math.min(fx0, fx1) - 0.05, PAD + ry, Math.min(fz0, fz1) - 0.05,
+          Math.max(fx0, fx1) + 0.05, PAD + ry + 0.07, Math.max(fz0, fz1) + 0.05,
+          M.woodWeathered, { surface: 'wood', flags: BF.NO_COVER | BF.THIN });
+      }
+    }
+    // Hay bales, a trough and a muck heap out in the paddock.
+    for (let i = 0; i < 9; i++) {
+      const hx = rng.range(SX1 + 5, 72), hz = rng.range(SZ0 - 9, SZ1 + 11);
+      b.box(hx, PAD + 0.45, hz, 0.62, 0.45, 0.45, M.sandbag,
+        { yaw: rng.range(0, 3.14), surface: 'fabric', tint: b.jitterTint(0.10) });
+    }
+    b.span(SX1 + 5, PAD, SZ1 + 6, SX1 + 8.4, PAD + 0.5, SZ1 + 7.2, M.concreteDark,
+      { surface: 'concrete' });
+    b.cyl(SX1 + 10, PAD + 0.55, SZ0 - 6, 2.2, 0.55, M.dirtMat, { surface: 'dirt' });
+    p.services(SX0, SZ0, SX0, SZ1, PAD, SH, -1, 0.45);
+    p.dress(SX0, SZ0, SX1, SZ1, PAD, 20);
+    p.wash(SX0, SZ0 - 4, SX1 + 6, SZ1 + 4, PAD, 10);
+    b.endBuilding();
+  }
+
+  // =========================================================================
+  // Helipad surroundings — 672 m2 at 2.1 bricks/100, the worst on the map
+  // =========================================================================
+  {
+    const HX = -56, HZ = -40;
+    // A windsock on a mast: the one thing that says "aircraft land here", and
+    // a silhouette on an otherwise perfectly flat quarter of the compound.
+    b.cyl(HX + 12, PAD + 3.2, HZ + 8, 0.09, 3.2, M.steelGalv, { surface: 'metal' });
+    b.box(HX + 12.5, PAD + 6.1, HZ + 8, 0.55, 0.24, 0.24, M.paintOrange,
+      { surface: 'fabric', flags: BF.NO_COVER | BF.NO_SHADOW, yaw: 0.3 });
+    // Fuel point, extinguisher stand and a chained-down cart.
+    for (let i = 0; i < 4; i++) p.drum(HX + 11 + (i % 2) * 0.72, PAD, HZ - 6 + Math.floor(i / 2) * 0.72);
+    b.span(HX + 9.4, PAD, HZ - 7.4, HX + 13.4, PAD + 0.16, HZ - 3.4, M.concreteRaw,
+      { surface: 'concrete', flags: BF.NO_COVER });
+    p.cone(HX + 8.2, PAD, HZ - 8.6);
+    p.cone(HX + 8.9, PAD, HZ + 9.4);
+    // A ground crew shelter — waist-high blocks and a shade sail frame.
+    for (const bx of [HX - 13, HX - 10.4, HX - 7.8]) {
+      b.box(bx, PAD + 0.6, HZ + 2, 1.2, 0.6, 0.5, M.concreteRaw,
+        { surface: 'concrete', tint: b.jitterTint(0.08) });
+    }
+    for (const cx of [HX - 14, HX - 6.6]) for (const cz of [HZ - 1.4, HZ + 4]) {
+      b.box(cx, PAD + 1.35, cz, 0.1, 1.35, 0.1, M.steelGalv, { surface: 'metal' });
+    }
+    b.span(HX - 14.2, PAD + 2.68, HZ - 1.6, HX - 6.4, PAD + 2.76, HZ + 4.2, M.fabricCream,
+      { surface: 'fabric', flags: BF.NO_COVER });
+    for (let i = 0; i < 6; i++) p.cypress(rng.range(HX - 20, HX + 18), PAD, HZ - 16, rng.range(4.5, 7));
+    p.wash(HX - 20, HZ - 16, HX + 18, HZ + 14, PAD, 9);
+    p.dress(HX - 18, HZ - 14, HX + 16, HZ + 12, PAD, 9);
+  }
+
+  // =========================================================================
+  // The dressing pass — the tier the maps did not have
+  // =========================================================================
+  //
+  // Exterior objects under 0.4 m were 0.7% of the villa's geometry against a
+  // reference 55-70%. Below is the pass that closes it: services on the faces
+  // a player actually walks past, wear on every paved surface, and clutter in
+  // the working areas. Densities are deliberately uneven — a formal terrace is
+  // not a service yard, and if they carry the same litter neither reads.
+  {
+    // Wall faces, inside and out, on the runs you can get close to.
+    p.services(PERIM.x0 + 0.3, PERIM.z1 - 0.3, PERIM.x1 - 0.3, PERIM.z1 - 0.3, PAD, WALL_H, -1, 0.30);
+    p.services(PERIM.x1 - 0.3, PERIM.z1 - 0.3, PERIM.x1 - 0.3, PERIM.z0 + 0.3, PAD, WALL_H, -1, 0.30);
+    p.services(HOUSE.x0, HOUSE.z1, HOUSE.x1, HOUSE.z1, TER, 6.4, 1, 0.55);
+    p.services(HOUSE.x1, HOUSE.z1, HOUSE.x1, HOUSE.z0, TER, 6.4, 1, 0.55);
+    p.services(HOUSE.x0, HOUSE.z0, HOUSE.x0, HOUSE.z1, TER, 6.4, -1, 0.55);
+
+    // Ground wear, by how much traffic each surface actually takes.
+    p.wash(-30, 40, 16, PERIM.z1 - 2, PAVED, 16);      // the drive
+    p.wash(-26, -8, 20, 16, TER + 0.01, 7);                 // terrace
+    p.wash(20, -52, 70, -18, PAVED, 14);               // service yard and workshop
+    p.wash(-70, -54, -26, -20, PAVED, 8);              // west service side
+    p.wash(-30, 40, -70, 68, PAD + 0.006, 5);                // garden paths
+
+    // Clutter, heaviest where people work.
+    p.dress(22, -50, 66, -22, PAD, 26);              // service yard
+    p.dress(-30, 42, 14, 66, PAD, 7);                // drive verges
+    p.dress(-26, -6, 18, 14, TER + 0.01, 5);                // terrace
+    p.dress(-72, -54, -30, -24, PAD, 18);             // behind the staff block
+  }
 
   // =========================================================================
   // Site record

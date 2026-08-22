@@ -258,7 +258,24 @@ const _dir = new THREE.Vector3();
 const _shotDir = new THREE.Vector3();
 const _camOffset = new THREE.Vector3();
 const _camRot = new THREE.Euler();
-const recoilOut = { pitch: 0, yaw: 0, roll: 0, punch: 0 };
+const recoilOut = { pitch: 0, yaw: 0, roll: 0, punch: 0, swayPitch: 0, swayYaw: 0 };
+/**
+ * The two fixed-step endpoints the frame phase interpolates between.
+ *
+ * Recoil used to be integrated in `update` at display rate while the shots
+ * that drive it were added in `fixedUpdate` at 60 Hz. Because the two clocks
+ * disagreed, a 30-round burst peaked at 3.67 degrees on a 30 Hz display and
+ * 4.25 on a 144 Hz one — a 16% swing in how hard the gun kicked, decided by
+ * the player's monitor. Integration now happens entirely on the fixed clock,
+ * and the frame phase does nothing but interpolate.
+ */
+const recoilPrev = { pitch: 0, yaw: 0, roll: 0, punch: 0, swayPitch: 0, swayYaw: 0 };
+const recoilCur = { pitch: 0, yaw: 0, roll: 0, punch: 0, swayPitch: 0, swayYaw: 0 };
+type RecoilFrame = typeof recoilCur;
+const copyRecoil = (to: RecoilFrame, from: RecoilFrame): void => {
+  to.pitch = from.pitch; to.yaw = from.yaw; to.roll = from.roll;
+  to.punch = from.punch; to.swayPitch = from.swayPitch; to.swayYaw = from.swayYaw;
+};
 
 export class WeaponRuntime implements System {
   readonly id = 'weaponRuntime';
@@ -346,6 +363,14 @@ export class WeaponRuntime implements System {
 
   holdingBreath = false;
 
+  /**
+   * Breathing and muscle tremor, radians, for the viewmodel to apply.
+   *
+   * Deliberately not part of the camera channel — see RecoilOutput.
+   */
+  swayPitch = 0;
+  swayYaw = 0;
+
   init(ctx: EngineContext): void {
     services.register('weapons', this.weapons);
     this.ballistics = ctx.engine.require<Ballistics>('ballistics');
@@ -429,6 +454,12 @@ export class WeaponRuntime implements System {
     const player = services.tryGet('actors')?.get(0);
     const playerSys = this.playerSystem();
     if (!playerSys) return;
+
+    // Recoil integration, before anything that can return early — a jam, a
+    // reload and an empty magazine must all still let the gun settle.
+    copyRecoil(recoilPrev, recoilCur);
+    this.recoil.update(step, inst.stats, this.recoilInputs(playerSys), recoilOut);
+    copyRecoil(recoilCur, recoilOut);
 
     this.cooldown = Math.max(0, this.cooldown - step);
     // Barrel cools slowly, and much faster when you are not shooting.
@@ -540,22 +571,22 @@ export class WeaponRuntime implements System {
     const woundPenalty = this.woundPenalty(player);
     const spread = currentSpread(stats, inputs, inst.heat, woundPenalty);
 
-    // Recoil already accumulated shifts the actual bore line, so sustained fire
-    // walks off target even though the crosshair has not moved.
-    const aim = this.recoil.aimOffset;
-    _shotDir.copy(_dir);
-    _shotDir.applyAxisAngle(new THREE.Vector3(1, 0, 0), -aim.pitch);
-    _shotDir.applyAxisAngle(new THREE.Vector3(0, 1, 0), -aim.yaw);
-
+    // The rounds go exactly where the camera is pointing, and nowhere else.
+    //
+    // They used to be rotated by the accumulated recoil a second time, on top
+    // of a camera that was already carrying it — so the climb was applied
+    // twice, and the second application was about the WORLD x and y axes while
+    // the camera had pitched about its own. The point of impact was therefore
+    // wrong by an amount that depended on which way you were facing: 0.6 deg
+    // looking north, 2.7 deg looking east, 5.2 deg looking south. At 50 m that
+    // is 2.3 m, and it meant a player who learned to compensate in one
+    // direction was wrong in every other.
+    //
+    // One channel now: recoil moves the camera, the camera aims the weapon.
     const pellets = pelletCount(ammo);
     for (let i = 0; i < pellets; i++) {
-      // Buckshot needs a wider cone than the weapon's mechanical spread.
-      const coneScale = pellets > 1 ? 1 : 1;
-      applyDispersion(_shotDir, spread * coneScale, this.rng, _shotDir);
+      applyDispersion(_dir, spread, this.rng, _shotDir);
       this.ballistics.fire(_muzzle, _shotDir, ammo, stats.muzzleVelocity, 0);
-      _shotDir.copy(_dir)
-        .applyAxisAngle(new THREE.Vector3(1, 0, 0), -aim.pitch)
-        .applyAxisAngle(new THREE.Vector3(0, 1, 0), -aim.yaw);
     }
 
     // --- consume ----------------------------------------------------------
@@ -681,19 +712,29 @@ export class WeaponRuntime implements System {
   // Presentation
   // -----------------------------------------------------------------------
 
-  update(dt: number, _ctx: EngineContext): void {
-    const inst = this.equipped;
-    if (!inst) return;
+  update(_dt: number, ctx: EngineContext): void {
     const playerSys = this.playerSystem();
-    if (!playerSys) return;
+    if (!playerSys || !this.equipped) return;
 
-    this.recoil.update(dt, inst.stats, this.recoilInputs(playerSys), recoilOut);
+    // Interpolate between the last two fixed steps, exactly as the player
+    // controller does for the eye position — so recoil and movement are
+    // sampled on the same clock and neither judders against the other.
+    const t = clamp01(ctx.alpha);
 
-    // Recoil moves the camera through the player's additive offset channel, so
-    // the controller keeps sole ownership of the transform.
-    _camRot.set(recoilOut.pitch, recoilOut.yaw, recoilOut.roll);
-    _camOffset.set(0, 0, recoilOut.punch);
+    _camRot.set(
+      lerp(recoilPrev.pitch, recoilCur.pitch, t),
+      lerp(recoilPrev.yaw, recoilCur.yaw, t),
+      lerp(recoilPrev.roll, recoilCur.roll, t),
+    );
+    // Camera-local: the player system rotates it by the current heading before
+    // it lands, because a punch expressed in world +Z shoved the player north
+    // at the cyclic rate no matter which way they were facing.
+    _camOffset.set(0, 0, lerp(recoilPrev.punch, recoilCur.punch, t));
     playerSys.addCameraOffset(_camOffset, _camRot);
+
+    // Breathing and tremor stay on the weapon. The viewmodel reads these.
+    this.swayPitch = lerp(recoilPrev.swayPitch, recoilCur.swayPitch, t);
+    this.swayYaw = lerp(recoilPrev.swayYaw, recoilCur.swayYaw, t);
   }
 
   // -----------------------------------------------------------------------

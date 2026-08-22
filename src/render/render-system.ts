@@ -80,8 +80,18 @@ export class RenderSystem implements System, IRenderContext {
   width = 1;
   height = 1;
 
-  /** Base FOV in degrees; the player system narrows this when aiming. */
-  baseFov = 74;
+  /**
+   * Base VERTICAL field of view in degrees; the player system narrows it
+   * when aiming.
+   *
+   * 62 vertical is about 97 horizontal at 16:9. It was 74 (106.6 horizontal),
+   * which is outside the band every reference title sits in — Ready or Not,
+   * Ground Branch and Modern Warfare all land near 80-90 horizontal — and a
+   * field that wide magnifies every translation artefact at the screen edges
+   * and makes distant targets tiny. The settings screen exposes it because
+   * this is a genuine matter of taste.
+   */
+  baseFov = 62;
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;

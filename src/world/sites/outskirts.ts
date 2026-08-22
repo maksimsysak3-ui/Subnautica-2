@@ -66,16 +66,24 @@ export function buildOutskirts(
     // Slight lateral wander keeps it from reading as a ruled line.
     const wander = Math.sin(zc * 0.035) * 3.2;
     const y = groundAt(wander, zc);
+    // Deep, and overlapping its neighbours.
+    //
+    // Each slab samples the ground at its own centre, so wherever the terrain
+    // has any slope at all consecutive slabs sit at different heights. At the
+    // original 180 mm depth and a butt joint that showed as a staircase with
+    // gaps you could see the sand through — the road read as a dashed line
+    // floating over the hillside. A 900 mm skirt buries the step and a 0.6 m
+    // overlap closes the joint.
     b.span(
-      wander - ROAD_W / 2, y - 0.16, z, wander + ROAD_W / 2, y + 0.02, z + 6.2,
+      wander - ROAD_W / 2, y - 0.9, z - 0.3, wander + ROAD_W / 2, y + 0.02, z + 6.5,
       M.asphalt,
       { surface: 'concrete', flags: BF.NO_COVER },
     );
     // Gravel shoulders — audibly different underfoot, which matters at night.
     for (const s of [-1, 1]) {
       b.span(
-        wander + s * (ROAD_W / 2), y - 0.14, z,
-        wander + s * (ROAD_W / 2 + 1.6), y - 0.02, z + 6.2,
+        wander + s * (ROAD_W / 2), y - 0.9, z - 0.3,
+        wander + s * (ROAD_W / 2 + 1.6), y - 0.02, z + 6.5,
         M.gravelMat,
         { surface: 'gravel', flags: BF.NO_COVER },
       );

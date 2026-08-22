@@ -62,6 +62,16 @@ interface PlayerActorView {
   health: number;
 }
 
+/**
+ * Scratch vectors for the per-frame camera composition. Allocating three
+ * Vector3s every frame is not the end of the world, but this runs at display
+ * rate on the hottest path in the game and there is no reason to.
+ */
+const _eye = new THREE.Vector3();
+const _lean = new THREE.Vector3();
+const _punch = new THREE.Vector3();
+const UP = new THREE.Vector3(0, 1, 0);
+
 export class PlayerSystem implements System {
   readonly id = 'player';
   readonly order = 10;
@@ -107,9 +117,31 @@ export class PlayerSystem implements System {
   /** Total carried mass in kg — set by the loadout system. */
   carriedMassKg = 12;
 
-  /** Additive camera offsets contributed by recoil, breathing, footstep sway. */
+  /**
+   * Additive camera offsets contributed by recoil.
+   *
+   * The translation is expressed in the camera's own frame and rotated by the
+   * current heading when it is consumed — recoil punch written straight into
+   * world space shoved the player north at the cyclic rate no matter which way
+   * they were facing.
+   */
   private cameraOffset = new THREE.Vector3();
   private cameraRotOffset = new THREE.Euler();
+
+  /**
+   * The eye position as of the *previous* fixed step.
+   *
+   * The simulation advances at 60 Hz and the screen does not. Without this the
+   * camera was sampled raw in `update`, so on a 144 Hz display 59% of rendered
+   * frames showed the player at exactly the same place as the frame before and
+   * the remaining 41% jumped a whole 16.7 ms of movement. That reads as
+   * judder, it makes the motion blur strobe on and off, and it is the single
+   * largest contributor to the camera feeling unstable — it is not shake at
+   * all, it is the same shake being shown at the wrong times.
+   */
+  private prevPosition = new THREE.Vector3();
+  /** Set false for one frame after a teleport so the camera does not lerp across the map. */
+  private warped = true;
 
   /** Speed the player is actually moving, for animation and audio. */
   speed = 0;
@@ -148,7 +180,25 @@ export class PlayerSystem implements System {
       this.pitch = -0.02;
     }
     this.velocity.set(0, 0, 0);
+
+    // Everything transient has to be cleared, not just the stance.
+    //
+    // `stance` alone left `stanceTarget`, `stanceProgress` and `eyeHeight`
+    // holding whatever a half-finished crouch had put there — switch map while
+    // going prone and the camera lerped toward a target that no longer existed
+    // and then snapped. Same for a held lean and a half-raised sight.
     this.stance = 'stand';
+    this.stanceTarget = 'stand';
+    this.stanceProgress = 1;
+    this.stanceDuration = 0.3;
+    this.eyeHeight = EYE_HEIGHT.stand;
+    this.lean = 0;
+    this.leanTarget = 0;
+    this.aiming = false;
+    this.adsAmount = 0;
+    this.cameraOffset.set(0, 0, 0);
+    this.cameraRotOffset.set(0, 0, 0);
+    this.warped = true;
 
     const floor = world.floorAt
       ? world.floorAt(this.position.x, this.position.z, this.position.y)
@@ -209,6 +259,18 @@ export class PlayerSystem implements System {
 
   setControlsEnabled(v: boolean): void {
     this.controlsEnabled = v;
+    // Zero both offsets on either edge. `addCameraOffset` refuses to
+    // accumulate while controls are off, but the *clear* at the end of
+    // `update()` sits behind an early return that fires in the same condition
+    // — so one frame's worth of offset could sit there through an arbitrarily
+    // long capture or cutscene and then snap the view on resume.
+    this.cameraOffset.set(0, 0, 0);
+    this.cameraRotOffset.set(0, 0, 0);
+    this.warped = true;
+    // Mouse movement banked while the camera belonged to someone else is not
+    // a turn the player asked for; applying it on resume is a snap.
+    this.input.lookX = 0;
+    this.input.lookY = 0;
   }
 
   /**
@@ -243,11 +305,15 @@ export class PlayerSystem implements System {
     const world = services.get('world');
     const inp = this.input;
 
-    // --- look ------------------------------------------------------------
-    this.yaw -= inp.lookX;
-    this.pitch = clamp(this.pitch - inp.lookY, -1.45, 1.45);
-    inp.lookX = 0;
-    inp.lookY = 0;
+    // Remember where the eye was before this step so `update` can render
+    // between the two rather than on top of one of them.
+    this.prevPosition.copy(this.position);
+
+    // Look is NOT integrated here. It is produced by the input system in the
+    // frame phase, which runs after this one, so consuming it at the fixed
+    // rate both quantised mouse movement to 60 Hz and added a frame of
+    // latency on top. It moved to `update`, where it belongs: turning your
+    // head is presentation, and it should be as smooth as the display is.
 
     // --- stance ----------------------------------------------------------
     if (this.stanceProgress < 1) {
@@ -385,7 +451,7 @@ export class PlayerSystem implements System {
     this.noiseLevel = clamp01((this.speed / 6) * stanceQuiet * surface.footstepLoudness * (inp.walk ? 0.4 : 1));
   }
 
-  update(dt: number, _ctx: EngineContext): void {
+  update(dt: number, ctx: EngineContext): void {
     // When controls are disabled the camera belongs to someone else (the
     // capture director, a cutscene, the planning map). Writing to it here
     // would silently override them — which is exactly what made every
@@ -398,11 +464,37 @@ export class PlayerSystem implements System {
     };
     const cam = render.camera;
 
-    // Lean translates AND rolls the camera — peeking exposes less of you.
-    const leanOffset = new THREE.Vector3(this.lean * 0.42, -Math.abs(this.lean) * 0.06, 0)
-      .applyAxisAngle(new THREE.Vector3(0, 1, 0), this.yaw);
+    // --- look ---------------------------------------------------------
+    // At frame rate, from input produced earlier in this same phase. The
+    // sensitivity is already radians per pixel, so nothing here scales with
+    // dt: a mouse reports displacement, not velocity.
+    const inp = this.input;
+    if (inp.lookX !== 0 || inp.lookY !== 0) {
+      this.yaw -= inp.lookX;
+      this.pitch = clamp(this.pitch - inp.lookY, -1.45, 1.45);
+      inp.lookX = 0;
+      inp.lookY = 0;
+    }
 
-    cam.position.copy(this.position).add(leanOffset).add(this.cameraOffset);
+    // --- position -----------------------------------------------------
+    // Between the last two fixed steps. `warped` covers the spawn and the map
+    // switch, where the two endpoints are hundreds of metres apart and the
+    // interpolation would be a visible sweep across the level.
+    if (this.warped) {
+      this.prevPosition.copy(this.position);
+      this.warped = false;
+    }
+    _eye.lerpVectors(this.prevPosition, this.position, clamp01(ctx.alpha));
+
+    // Lean translates AND rolls the camera — peeking exposes less of you.
+    const leanOffset = _lean
+      .set(this.lean * 0.42, -Math.abs(this.lean) * 0.06, 0)
+      .applyAxisAngle(UP, this.yaw);
+
+    // The recoil punch arrives in camera space; rotate it onto the heading.
+    const punch = _punch.copy(this.cameraOffset).applyAxisAngle(UP, this.yaw);
+
+    cam.position.copy(_eye).add(leanOffset).add(punch);
     cam.rotation.set(0, 0, 0);
     cam.rotateY(this.yaw + this.cameraRotOffset.y);
     // Clamp the RENDERED pitch, not just the aim pitch.

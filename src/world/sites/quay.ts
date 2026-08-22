@@ -181,15 +181,45 @@ export function buildQuay(
   const fencePosts = (x0: number, z0: number, x1: number, z1: number): void => {
     const len = Math.hypot(x1 - x0, z1 - z0);
     const n = Math.max(2, Math.round(len / 3.4));
+    const ux = (x1 - x0) / len, uz = (z1 - z0) / len;
     for (let i = 0; i <= n; i++) {
-      const t = i / n;
-      b.cyl(x0 + (x1 - x0) * t, PAD + 1.5, z0 + (z1 - z0) * t, 0.07, 1.5, M.steelGalv,
-        { surface: 'metal' });
+      // Post spacing was exactly 3.400 m across 119 posts. Nothing in the
+      // world is that regular, and a hundred and nineteen identical objects on
+      // an exact pitch is the most obvious tell a map has.
+      const t = (i + (i === 0 || i === n ? 0 : rng.range(-0.22, 0.22))) / n;
+      const lean = rng.next() < 0.14 ? rng.range(-0.09, 0.09) : 0;
+      const px = x0 + (x1 - x0) * t, pz = z0 + (z1 - z0) * t;
+      b.cyl(px, PAD + 1.5, pz, 0.07, rng.range(1.42, 1.56), M.steelGalv, { surface: 'metal' });
+      // A leaning post gets a strut, which is what a real one gets.
+      if (lean !== 0) {
+        b.box(px - uz * 0.5, PAD + 0.75, pz + ux * 0.5, 0.05, 0.78, 0.05, M.steelGalv,
+          { surface: 'metal', flags: BF.NO_COVER | BF.THIN, yaw: Math.atan2(-uz, ux) });
+      }
+      // Top rail, per bay, so the fence has a line along it as well as ribs.
+      if (i < n) {
+        const t2 = (i + 1) / n;
+        b.span(
+          Math.min(px, x0 + (x1 - x0) * t2) - 0.03, PAD + 2.82, Math.min(pz, z0 + (z1 - z0) * t2) - 0.03,
+          Math.max(px, x0 + (x1 - x0) * t2) + 0.03, PAD + 2.90, Math.max(pz, z0 + (z1 - z0) * t2) + 0.03,
+          M.steelGalv, { surface: 'metal', flags: BF.NO_COVER | BF.NO_NAV | BF.THIN },
+        );
+      }
     }
     // The mesh itself: thin, see-through, and still solid to a body.
+    //
+    // Panelised at 3.4 m to match the posts. Roughly one panel in twenty is a
+    // sagging or torn section: a body-sized hole in a perimeter is a genuine
+    // route, and the possibility of one is what makes a player walk the wire
+    // instead of driving at the gate.
     b.wall({
       x0, z0, x1, z1, y: PAD, height: 2.9, thickness: 0.05, mat: M.steelGalv,
       surface: 'metal', flags: BF.SOFT, jitter: 0.02,
+      panel: {
+        every: 3.4,
+        jitter: 0.09,
+        variants: [M.steelGalv, M.steelGalv, M.steelGalv, M.rust, M.corrugated],
+        breakChance: 0.05,
+      },
     });
   };
   // South, in two runs with a gap for the gate. A fence drawn straight across
@@ -263,10 +293,21 @@ export function buildQuay(
     });
   };
   // South wall: the dock face, with roller doors onto the yard.
+  //
+  // Plus a ribbon of glazing at 1.4-2.6 m. The whole map had seven windows and
+  // every one of them was above 5.4 m — so not one was a peek position, a
+  // firing port, or a way to see inside a building from outside. Three
+  // buildings that are opaque boxes from every angle is three buildings you
+  // can only learn about by walking into them, which is the opposite of what a
+  // tactical map should reward. Each of these is a new sightline through a
+  // wall, which is the cheapest tactical content there is.
   whWall(WH.x0, WH.z0, WH.x1, WH.z0, [
     doorOp(14, 6, 'Dock door 1', whFloor, -1, 'metal', { height: 4.4 }),
+    winOp(24, 3.2, 1.4, 2.6),
     doorOp(36, 6, 'Dock door 2', whFloor, -1, 'metal', { height: 4.4, locked: true }),
+    winOp(46, 3.2, 1.4, 2.6),
     doorOp(56, 1.1, 'Dock personnel door', whFloor, -1, 'metal'),
+    winOp(64, 3.2, 1.4, 2.6),
   ]);
   // North wall faces the apron.
   whWall(WH.x0, WH.z1, WH.x1, WH.z1, [
@@ -275,7 +316,9 @@ export function buildQuay(
   ]);
   // East wall, onto the container yard.
   whWall(WH.x1, WH.z0, WH.x1, WH.z1, [
+    winOp(11, 2.6, 1.4, 2.5),
     doorOp(22, 1.2, 'Yard door', whFloor, -1, 'metal'),
+    winOp(31, 2.6, 1.4, 2.5),
     winOp(38, 3.4, 5.6, 7.4), winOp(48, 3.4, 5.6, 7.4),
   ]);
   // West wall — blind. Its only opening is the stair to the office link.
@@ -396,7 +439,14 @@ export function buildQuay(
   // with visible end brackets, diagonal bracing between the uprights, and
   // stock that overhangs.
   const rack = (cx: number, z0: number, z1: number): void => {
-    const bays = 3;
+    // Sixteen bays, not three.
+    //
+    // Three bays across 48 m made each bay 16 m long and each beam a single
+    // 48 m brick — so at any distance the rack rendered as five parallel red
+    // wires suspended in nothing, and the warehouse, which is this map's hero
+    // interior, read as a wireframe. Real pallet racking is 2.7-3.6 m per bay
+    // because that is what a pallet is; 3.0 m here.
+    const bays = 16;
     const levels = 3;
     const depth = 2.6;
     const halfW = 6.0;
@@ -422,18 +472,23 @@ export function buildQuay(
         b.span(px - 0.16, PAD, bz - depth / 2 - 0.16, px + 0.16, PAD + 0.08, bz + depth / 2 + 0.16,
           M.steelDark, { surface: 'metal', flags: BF.NO_COVER });
       }
-      // Beams: 200 mm deep, orange, one pair per level per bay.
+      // Beams: 200 mm deep, orange, per BAY rather than one brick per run, so
+      // the joints are visible and the rack has a rhythm to read at distance.
       for (let lvl = 1; lvl <= levels; lvl++) {
         const y = PAD + lvl * 2.1;
-        // Front and back beam of each frame. `z0 + dz * 0` multiplied the
-        // offset by zero, so both beams of every pair were drawn at identical
-        // coordinates — 24 duplicate bricks all z-fighting, and a rack with a
-        // single beam plane down its centreline instead of two.
         for (const dz of [-depth / 2 + 0.1, depth / 2 - 0.1]) {
-          b.span(px - 0.09, y, z0, px + 0.09, y + 0.20, z1, M.paintRed,
-            { surface: 'metal', flags: BF.NO_COVER, yaw: 0 });
-          b.span(px + dz - 0.05, y, z0, px + dz + 0.05, y + 0.16, z1, M.paintRed,
-            { surface: 'metal', flags: BF.NO_COVER });
+          for (let bay = 0; bay < bays; bay++) {
+            const bz0 = z0 + bay * bayLen;
+            b.span(px + dz - 0.06, y, bz0 + 0.09, px + dz + 0.06, y + 0.20, bz0 + bayLen - 0.09,
+              M.paintRed, { surface: 'metal', flags: BF.NO_COVER });
+            // End connector: the little boxed bracket that hooks the beam into
+            // the upright. Two per beam, and the single detail that tells the
+            // eye this is racking and not a painted pipe.
+            for (const ez of [bz0 + 0.05, bz0 + bayLen - 0.15]) {
+              b.span(px + dz - 0.10, y - 0.03, ez, px + dz + 0.10, y + 0.23, ez + 0.10,
+                M.steelDark, { surface: 'metal', flags: BF.NO_COVER });
+            }
+          }
         }
       }
     }
@@ -443,13 +498,16 @@ export function buildQuay(
     for (let bay = 0; bay < bays; bay++) {
       for (let lvl = 0; lvl < levels; lvl++) {
         for (const px of [cx - halfW, cx + halfW]) {
-          if (rng.next() < 0.22) continue;
+          // Emptier per bay than it was, because there are five times as many
+          // bays now: a rack that is full in every bay is a wall, and a wall
+          // has no gaps to see through or shoot along.
+          if (rng.next() < 0.42) continue;
           const y = PAD + (lvl + 1) * 2.1 + 0.20;
           const bz = z0 + bay * bayLen;
           b.span(px - depth / 2, y, bz + 0.3, px + depth / 2, y + 0.06, bz + bayLen - 0.3,
             M.woodWeathered, { surface: 'wood', flags: BF.NO_COVER });
           // One to three pallet loads on the deck.
-          const loads = 1 + Math.floor(rng.next() * 3);
+          const loads = 1 + Math.floor(rng.next() * 2);
           for (let q = 0; q < loads; q++) {
             const lz = bz + 0.6 + (q + rng.range(0, 0.4)) * ((bayLen - 1.4) / loads);
             const h = rng.range(0.9, 1.7);
@@ -489,22 +547,72 @@ export function buildQuay(
   // =========================================================================
   // CONTAINER YARD — the maze. Stacks two and three high with lanes between.
   // =========================================================================
-  const CONT = [M.paintBlue, M.paintRed, M.paintGreen, M.rust, M.paintYellow];
-  const container = (cx: number, cz: number, y: number, yaw: number, mat: number): void => {
-    // 12 x 2.6 x 2.9 — a forty-foot box, which is the unit the whole yard's
-    // spacing is derived from.
-    b.box(cx, y + 1.45, cz, 6.05, 1.45, 1.3, mat, { yaw, surface: 'metal', tint: b.jitterTint(0.10) });
-    // Corrugations: eight shallow ribs down each flank, which is what stops a
+  // Four faded or oxidised tints for every saturated one.
+  //
+  // The yard was five saturated paints and nothing else, which is why it read
+  // as a painted cliff rather than as steel boxes that have crossed an ocean
+  // several times. Real terminal stock is overwhelmingly rust, sun-bleach and
+  // faded corporate livery, with the occasional new box that has not weathered
+  // yet — and it is the *dull* ones that let the bright ones read as accents.
+  const CONT = [
+    M.boxOxide, M.boxOxide, M.rust, M.rust,
+    M.boxFadedNavy, M.boxFadedNavy, M.boxFadedGrey, M.boxFadedGrey,
+    M.boxFadedGreen, M.boxSunbleach, M.boxSunbleach,
+    M.paintBlue, M.paintRed, M.paintGreen,
+  ];
+  /**
+   * One container.
+   *
+   * `len` is the half-length: 6.05 for a forty-foot box, 3.03 for a twenty.
+   * Mixing the two is what breaks the row rhythm — a yard of nothing but 40 ft
+   * boxes on a fixed pitch has one repeating silhouette no matter how it is
+   * coloured.
+   */
+  const container = (
+    cx: number, cz: number, y: number, yaw: number, mat: number, len = 6.05,
+  ): void => {
+    const cos = Math.cos(yaw), sin = Math.sin(yaw);
+    b.box(cx, y + 1.45, cz, len, 1.45, 1.3, mat, { yaw, surface: 'metal', tint: b.jitterTint(0.10) });
+    // Corrugations: shallow ribs down each flank, which is what stops a
     // container reading as a coloured brick.
-    for (let i = -5; i <= 5; i++) {
-      b.box(cx + Math.cos(yaw) * i * 1.05, y + 1.45, cz - Math.sin(yaw) * i * 1.05,
+    const ribs = Math.round(len / 1.05);
+    for (let i = -ribs; i <= ribs; i++) {
+      b.box(cx + cos * i * 1.05, y + 1.45, cz - sin * i * 1.05,
         0.09, 1.28, 1.36, mat, { yaw, surface: 'metal', flags: BF.NO_COVER, tint: b.jitterTint(0.14) });
     }
     // Corner castings.
     for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
-      b.box(cx + Math.cos(yaw) * sx * 5.95 + Math.sin(yaw) * sz * 1.22, y + 1.45,
-        cz - Math.sin(yaw) * sx * 5.95 + Math.cos(yaw) * sz * 1.22,
+      b.box(cx + cos * sx * (len - 0.1) + sin * sz * 1.22, y + 1.45,
+        cz - sin * sx * (len - 0.1) + cos * sz * 1.22,
         0.16, 1.4, 0.16, M.steelDark, { yaw, surface: 'metal', flags: BF.NO_COVER });
+    }
+
+    // --- the door end -----------------------------------------------------
+    // Four locking bars, two cam handles and a hinge column, on the +X face
+    // only. This is the detail that gives a stack a front and a back, which is
+    // most of what lets a player navigate a container maze at all.
+    const ex = cx + cos * len, ez = cz - sin * len;
+    for (const o of [-0.95, -0.32, 0.32, 0.95]) {
+      b.box(ex + sin * o, y + 1.45, ez + cos * o, 0.05, 1.34, 0.055, M.steelDark,
+        { yaw, surface: 'metal', flags: BF.NO_COVER });
+      // Cam handle, at chest height on the outer two bars.
+      if (Math.abs(o) > 0.6) {
+        b.box(ex + sin * o + cos * 0.09, y + 1.05, ez + cos * o - sin * 0.09,
+          0.10, 0.055, 0.05, M.steelGalv, { yaw, surface: 'metal', flags: BF.NO_COVER });
+      }
+    }
+    b.box(ex + cos * 0.03, y + 1.45, ez - sin * 0.03, 0.04, 1.40, 1.26, M.sootMetal,
+      { yaw, surface: 'metal', flags: BF.NO_COVER });
+
+    // --- stencilled ID panel ---------------------------------------------
+    // A pale plate at shoulder height on each long face. No text — at the
+    // distances this is read from, a light rectangle in the right place is
+    // exactly what a container number looks like, and it gives every box a
+    // fixed landmark the eye can use to tell one from the next.
+    for (const sz of [-1, 1]) {
+      b.box(cx + sin * sz * 1.34 - cos * len * 0.45, y + 1.95, cz + cos * sz * 1.34 + sin * len * 0.45,
+        len * 0.28, 0.26, 0.03, M.plasticWhite,
+        { yaw, surface: 'metal', flags: BF.NO_COVER, tint: b.jitterTint(0.06) });
     }
   };
 
@@ -522,20 +630,110 @@ export function buildQuay(
       // 16.4 m pitch gives a 4.2 m end-to-end slot against a 12.22 m box.
       // At 13.0 the gap was 0.78 m — the player squeezes through with 70 mm
       // per side and cannot go prone anywhere in the yard.
-      const cx = yardX0 + c * 16.4;
-      const cz = yardZ0 + r * 6.1;
+      // Jitter the pitch. Every slot used to be at exactly 16.40 x 6.10, and
+      // 58 of 61 boxes sat at exactly yaw 0.000 — so all the near edges of the
+      // stacks aligned into a single plane and the yard read as one flat wall
+      // with no lanes visible in it, which is the opposite of a maze.
+      const cx = yardX0 + c * 16.4 + rng.range(-1.8, 1.8);
+      const cz = yardZ0 + r * 6.1 + rng.range(-0.7, 0.7);
       if (cx > PERIM.x1 - 10) continue;
+
+      // A diagonal lane cut through the grid. A maze needs one route you can
+      // actually run, or it is just an obstruction — and something has to
+      // break a 6 x 5 grid's symmetry.
+      const laneT = (cx - yardX0) / (74 - yardX0);
+      if (Math.abs(cz - (24 - laneT * 24)) < 3.4) continue;
+
       // Deliberate gaps — a perfectly full yard is a grid, and a grid is
       // solved once. Holes make it a place.
       if (rng.next() < 0.18) continue;
       const high = rng.next();
       const stack = high < 0.30 ? 3 : high < 0.72 ? 2 : 1;
-      const yaw = rng.next() < 0.08 ? rng.range(-0.25, 0.25) : 0;
-      for (let s = 0; s < stack; s++) {
-        container(cx, cz, PAD + s * 2.92, yaw, CONT[Math.floor(rng.next() * CONT.length)]);
+      // 40% get a slight skew and 8% are properly askew. Nothing in a working
+      // terminal is placed to the millimetre, and a top box landing crooked is
+      // the single cheapest way to break a stack's silhouette.
+      const yawRoll = rng.next();
+      const baseYaw = yawRoll < 0.08 ? rng.range(0.25, 0.45) * (rng.next() < 0.5 ? -1 : 1)
+        : yawRoll < 0.48 ? rng.range(0.02, 0.09) * (rng.next() < 0.5 ? -1 : 1)
+        : 0;
+      // 30% twenty-foot boxes, so the row rhythm is not one repeated length.
+      const short = rng.next() < 0.30;
+      for (let sIdx = 0; sIdx < stack; sIdx++) {
+        const topAskew = sIdx === stack - 1 && stack > 1 && rng.next() < 0.16;
+        container(
+          cx + (short ? rng.range(-2.4, 2.4) : 0), cz, PAD + sIdx * 2.92,
+          baseYaw + (topAskew ? rng.range(-0.16, 0.16) : 0),
+          CONT[Math.floor(rng.next() * CONT.length)],
+          short ? 3.03 : 6.05,
+        );
       }
     }
   }
+  // =========================================================================
+  // THE CLIMB — making the `stack-climb` approach exist
+  // =========================================================================
+  //
+  // This was an advertised route into the map that could not be walked.
+  //
+  //   nearest container to the warehouse east wall   16.35 m of open ground
+  //   tallest stack top                              PAD + 8.76
+  //   warehouse roof deck                            PAD + 9.20
+  //   first container row                            z = 0
+  //   roof hatch                                     z = -10
+  //
+  // So the route arrived at a patch of tarmac 16 m from a building it could
+  // not have climbed even from touching distance, ten metres from the hatch it
+  // named, with no ladder anywhere. A mission planner offering a door that is
+  // not there is worse than offering three doors.
+  //
+  // Four pieces fix it: a dedicated stack under the hatch, a caged ladder up
+  // the outside of it, a plank across the last half-metre, and the navlink so
+  // the AI understands the connection too.
+  {
+    const sx = WH.x1 + 6.6;          // west face lands 0.45 m off the wall
+    const sz = WH.z0 + 8;            // dead in line with the hatch
+    for (let sIdx = 0; sIdx < 3; sIdx++) {
+      container(sx, sz, PAD + sIdx * 2.92, 0,
+        [M.boxOxide, M.boxFadedNavy, M.rust][sIdx]);
+    }
+    // A second, lower stack alongside, so the climb reads as a route rather
+    // than as one suspicious tower.
+    for (let sIdx = 0; sIdx < 2; sIdx++) {
+      container(sx + 1.2, sz + 6.4, PAD + sIdx * 2.92, 0.04, M.boxFadedGrey);
+    }
+    const top = PAD + 3 * 2.92;      // PAD + 8.76
+
+    // Caged ladder up the east end of the stack.
+    b.ladder(sx + 6.35, sz, Math.PI, PAD, top + 0.4, M.steelGalv);
+    for (let i = 0; i < 5; i++) {
+      // Hoops. Two thin uprights plus a bar reads as a cage at any distance
+      // you would actually see it from.
+      const y = PAD + 1.2 + i * 1.6;
+      b.box(sx + 6.62, y, sz, 0.04, 0.04, 0.44, M.steelGalv,
+        { surface: 'metal', flags: BF.NO_COVER | BF.NO_NAV | BF.THIN });
+    }
+    navLinks.push({
+      ax: sx + 6.35, ay: PAD, az: sz,
+      bx: sx + 6.35, by: top + 0.1, bz: sz,
+      kind: 'ladder', penalty: 6, bidirectional: true,
+    });
+
+    // The plank. 0.44 m of gap between the stack top and the roof deck is
+    // exactly the height a character can step, and exactly the height that
+    // looks like a mistake if you leave it bare.
+    b.span(WH.x1 - 0.9, top + 0.06, sz - 0.62, sx - 5.6, top + 0.14, sz + 0.62,
+      M.woodWeathered, { surface: 'wood' });
+    // A grab rail on one side, because a two-metre plank at nine metres with
+    // nothing to hold is a thing players refuse to walk across.
+    b.span(WH.x1 - 0.9, top + 0.14, sz + 0.60, sx - 5.6, top + 1.02, sz + 0.66,
+      M.steelGalv, { surface: 'metal', flags: BF.NO_COVER | BF.THIN });
+    navLinks.push({
+      ax: sx - 5.9, ay: top + 0.14, az: sz,
+      bx: WH.x1 - 1.4, by: ROOF + 0.02, bz: sz,
+      kind: 'vault', penalty: 3, bidirectional: true,
+    });
+  }
+
   room('Container yard', 'yard', false, -14, -20, PERIM.x1 - 6, 18, PAD, PAD + 9);
 
   // A gantry crane straddling the apron — pure silhouette, and it makes the
@@ -557,13 +755,194 @@ export function buildQuay(
   b.span(-16, PAD + 18.4, craneZ - 3.0, -4, PAD + 22, craneZ + 3.0, M.steelDark, { surface: 'metal' });
 
   // Quay edge: bollards and fenders, and a hard drop to the water.
+  //
+  // The bollards were at exactly 14.000 m. Nothing on a working quay is.
   for (let x = PERIM.x0 + 10; x < PERIM.x1 - 10; x += 14) {
-    b.cyl(x, PAD + 0.45, 70, 0.42, 0.45, M.steelDark, { surface: 'metal' });
-    b.cyl(x, PAD + 0.86, 70, 0.28, 0.12, M.steelDark, { surface: 'metal', flags: BF.NO_COVER });
+    const bx = x + rng.range(-1.4, 1.4);
+    b.cyl(bx, PAD + 0.45, 70, 0.42, 0.45, M.steelDark, { surface: 'metal' });
+    b.cyl(bx, PAD + 0.86, 70, 0.28, 0.12, M.steelDark, { surface: 'metal', flags: BF.NO_COVER });
+    // Tyre fender hung over the edge on a chain.
+    if (rng.next() < 0.55) {
+      b.cyl(bx + rng.range(-2, 2), PAD - 0.5, 71.6, 0.44, 0.16, M.rubber,
+        { surface: 'rubber', flags: BF.NO_COVER });
+    }
   }
   b.span(PERIM.x0, PAD - 4, 72, PERIM.x1, PAD + 0.2, 74, M.concreteDark, { surface: 'concrete' });
   b.span(PERIM.x0, PAD - 5, 74, PERIM.x1, PAD - 1.2, PERIM.z1 + 20, M.water,
     { surface: 'water', flags: BF.SOFT | BF.NO_NAV });
+
+  // =========================================================================
+  // THE APRON — 5,096 m2 at 1.4 bricks per 100, and it is a landing zone
+  // =========================================================================
+  //
+  // The water approach comes ashore here and the map gave it a runway: eight
+  // materials, nothing above chest height for eighty metres, and the largest
+  // fully-empty square on the site a few paces away. A player inserting from
+  // the water crossed it fully exposed with no decision to make.
+  //
+  // The freighter is the fix. It is the map's second landmark, it gives the
+  // apron a wall to work along, it makes the crane's reason for existing
+  // obvious, and it turns the water approach from a walk into a route with
+  // sides to it.
+  {
+    const SHIP_X0 = -42, SHIP_X1 = 30, SHIP_Z = 78;
+    const HULL = PAD + 6.4, DECK = PAD + 7.0;
+    // Hull, stepped in at the bow and stern so it is a ship and not a wall.
+    for (let i = 0; i < 4; i++) {
+      const inset = [0, 4, 8, 13][i];
+      const y0 = PAD - 4 + i * 2.6;
+      b.span(SHIP_X0 + inset, y0, SHIP_Z - 6.5 + i * 0.5, SHIP_X1 - inset, y0 + 2.7,
+        SHIP_Z + 6.5 - i * 0.5, i === 0 ? M.sootMetal : M.boxOxide,
+        { surface: 'metal', tint: b.jitterTint(0.06) });
+    }
+    // Boot topping and a waterline stripe — the value anchors, doing their job.
+    b.span(SHIP_X0 + 1, PAD - 0.2, SHIP_Z - 6.4, SHIP_X1 - 1, PAD + 0.5, SHIP_Z + 6.4,
+      M.tarBlack, { surface: 'metal', flags: BF.NO_COVER });
+    b.span(SHIP_X0 + 6, HULL, SHIP_Z - 5.6, SHIP_X1 - 6, HULL + 0.6, SHIP_Z + 5.6,
+      M.chalkWhite, { surface: 'metal', flags: BF.NO_COVER });
+    // Deck, hatch coamings, cranes and a superstructure aft.
+    b.span(SHIP_X0 + 5, DECK, SHIP_Z - 5.4, SHIP_X1 - 5, DECK + 0.3, SHIP_Z + 5.4,
+      M.steelDark, { surface: 'metal' });
+    for (let i = 0; i < 3; i++) {
+      const hx = SHIP_X0 + 13 + i * 15;
+      b.span(hx - 5, DECK + 0.3, SHIP_Z - 3.6, hx + 5, DECK + 1.1, SHIP_Z + 3.6,
+        M.paintRed, { surface: 'metal' });
+      b.span(hx - 4.6, DECK + 1.1, SHIP_Z - 3.2, hx + 4.6, DECK + 1.3, SHIP_Z + 3.2,
+        M.corrugated, { surface: 'metal', flags: BF.NO_COVER });
+      // Deck crane between the hatches.
+      if (i < 2) {
+        b.cyl(hx + 7.5, DECK + 2.4, SHIP_Z, 0.5, 2.1, M.paintYellow, { surface: 'metal' });
+        b.span(hx + 7, DECK + 4.4, SHIP_Z - 0.35, hx + 15, DECK + 5.4, SHIP_Z + 0.35,
+          M.paintYellow, { surface: 'metal', flags: BF.NO_COVER });
+      }
+    }
+    // Superstructure: five decks of white with dark window bands, and a funnel.
+    b.span(SHIP_X1 - 16, DECK + 0.3, SHIP_Z - 4.6, SHIP_X1 - 6, DECK + 9.5, SHIP_Z + 4.6,
+      M.chalkWhite, { surface: 'metal' });
+    for (let d = 0; d < 4; d++) {
+      b.span(SHIP_X1 - 16.15, DECK + 1.6 + d * 2.1, SHIP_Z - 4.7,
+        SHIP_X1 - 5.85, DECK + 2.5 + d * 2.1, SHIP_Z + 4.7, M.shadowBlack,
+        { surface: 'glass', flags: BF.NO_COVER });
+    }
+    b.cyl(SHIP_X1 - 11, DECK + 11.6, SHIP_Z, 1.5, 2.1, M.boxFadedNavy, { surface: 'metal' });
+    b.cyl(SHIP_X1 - 11, DECK + 13.9, SHIP_Z, 1.55, 0.25, M.tarBlack,
+      { surface: 'metal', flags: BF.NO_COVER });
+    // A gangway down to the quay — a route, not just scenery.
+    b.span(SHIP_X0 + 15, PAD + 0.2, 71.4, SHIP_X0 + 16.6, DECK + 0.3, SHIP_Z - 5.6,
+      M.steelGalv, { surface: 'metal' });
+    for (const gs of [-0.9, 0.9]) {
+      b.span(SHIP_X0 + 15.8 + gs, PAD + 1.1, 71.4, SHIP_X0 + 15.86 + gs, DECK + 1.3, SHIP_Z - 5.6,
+        M.steelGalv, { surface: 'metal', flags: BF.NO_COVER | BF.THIN });
+    }
+    navLinks.push({
+      ax: SHIP_X0 + 15.8, ay: PAD, az: 70.6,
+      bx: SHIP_X0 + 15.8, by: DECK + 0.3, bz: SHIP_Z - 5.2,
+      kind: 'vault', penalty: 5, bidirectional: true,
+    });
+    // Mooring lines from the bollards to the hull.
+    for (const [mx, sx] of [[-46, SHIP_X0 + 3], [-18, SHIP_X0 + 7], [10, SHIP_X1 - 8], [34, SHIP_X1 - 3]] as const) {
+      b.span(Math.min(mx, sx), PAD + 0.55, 70, Math.max(mx, sx), PAD + 0.62, 71.6,
+        M.fabricCream,
+        { surface: 'fabric', flags: BF.NO_COVER | BF.NO_NAV | BF.THIN | BF.NO_COLLIDE });
+    }
+
+    // The apron itself: a raised loading platform with ramps, break-bulk
+    // cargo, and enough marking and wear that the concrete is not one grey.
+    b.span(-92, PAD, 52, 88, PAD + 0.9, 56, M.concreteRaw, { surface: 'concrete' });
+    for (const rx of [-64, 0, 62]) {
+      for (let i = 0; i < 4; i++) {
+        b.span(rx - 3, PAD + i * 0.22, 56 + i * 0.5, rx + 3, PAD + 0.9, 56.5 + i * 0.5,
+          M.concreteRaw, { surface: 'concrete' });
+      }
+    }
+    b.span(-92, PAD + 0.9, 51.7, 88, PAD + 1.02, 52.1, M.paintYellow,
+      { surface: 'metal', flags: BF.NO_COVER | BF.THIN });
+    // Break-bulk: banded steel plate, hatch covers, spools, timber.
+    for (let i = 0; i < 7; i++) {
+      const sx = -80 + i * 12 + rng.range(-3, 3);
+      const h = rng.range(0.4, 1.1);
+      b.span(sx - 2.4, PAD, 60 + rng.range(-2, 2), sx + 2.4, PAD + h, 65 + rng.range(-2, 2),
+        M.steelDark, { surface: 'metal', tint: b.jitterTint(0.08) });
+      for (const by of [h * 0.35, h * 0.75]) {
+        b.span(sx - 2.5, PAD + by, 60.4, sx + 2.5, PAD + by + 0.05, 64.6, M.rust,
+          { surface: 'metal', flags: BF.NO_COVER | BF.THIN });
+      }
+    }
+    for (let i = 0; i < 5; i++) {
+      b.cyl(-70 + i * 26 + rng.range(-4, 4), PAD + 0.9, 46 + rng.range(-3, 3),
+        rng.range(1.1, 1.8), 0.9, M.woodWeathered, { surface: 'wood' });
+    }
+    for (let i = 0; i < 4; i++) {
+      b.span(-30 + i * 9, PAD, 44, -24 + i * 9, PAD + 0.35, 49, M.paintRed,
+        { surface: 'metal', tint: b.jitterTint(0.08) });
+    }
+    // Two mobile harbour cranes, well away from the gantry so the skyline has
+    // more than one event in it.
+    for (const [mcx, mcz] of [[-78, 60], [62, 58]] as const) {
+      b.cyl(mcx, PAD + 1.4, mcz, 2.4, 1.4, M.paintOrange, { surface: 'metal' });
+      b.cyl(mcx, PAD + 5.4, mcz, 1.5, 2.6, M.paintOrange, { surface: 'metal' });
+      b.span(mcx - 0.7, PAD + 7.2, mcz - 0.7, mcx + 13, PAD + 15.6, mcz + 0.7, M.paintYellow,
+        { surface: 'metal', flags: BF.NO_COVER });
+      b.span(mcx + 12, PAD + 14.2, mcz - 0.3, mcx + 12.4, PAD + 15.6, mcz + 0.3, M.steelDark,
+        { surface: 'metal', flags: BF.NO_COVER });
+    }
+    p.paintMarking(-92, 66.8, 88, 67.0, PAD + 0.035, M.paintYellow);
+    for (let i = 0; i < 24; i++) {
+      p.paintMarking(-88 + i * 7.4, 67.6, -85 + i * 7.4, 67.8, PAD + 0.035, M.plasterWhite);
+    }
+    p.wash(-92, 44, 88, 70, PAD + 0.035, 20);
+    p.dress(-92, 44, 88, 70, PAD + 0.035, 12);
+  }
+
+  // =========================================================================
+  // THE TRANSIT SHED — the south-east yard was 3,900 m2 at 0.7 bricks/100
+  // =========================================================================
+  //
+  // 120 m of rail siding arrived at an empty rectangle. A transit shed gives
+  // the rail approach a destination, gives the south-east corner a reason, and
+  // — being open-sided — adds a covered fighting space that is neither an
+  // interior nor open ground, which neither map had.
+  {
+    const TX0 = 38, TX1 = 82, TZ0 = -64, TZ1 = -42;
+    const TH = 6.2;
+    b.span(TX0 - 2, PAD, TZ0 - 2, TX1 + 2, PAD + 0.12, TZ1 + 2, M.concreteRaw,
+      { surface: 'concrete', flags: BF.NO_COVER });
+    for (let i = 0; i <= 8; i++) {
+      const cx = TX0 + (i / 8) * (TX1 - TX0);
+      for (const cz of [TZ0, TZ1]) {
+        b.box(cx, PAD + TH / 2, cz, 0.22, TH / 2, 0.22, M.steelGalv, { surface: 'metal' });
+      }
+      // Roof truss across.
+      b.span(cx - 0.16, PAD + TH, TZ0, cx + 0.16, PAD + TH + 0.5, TZ1, M.steelGalv,
+        { surface: 'metal', flags: BF.NO_COVER });
+    }
+    b.span(TX0 - 1.4, PAD + TH + 0.5, TZ0 - 1.4, TX1 + 1.4, PAD + TH + 0.68, TZ1 + 1.4,
+      M.corrugated, { surface: 'metal', flags: BF.NO_COVER });
+    // A back wall on the east side only, so the shed has a direction.
+    b.wall({
+      x0: TX1, z0: TZ0, x1: TX1, z1: TZ1, y: PAD, height: TH, thickness: 0.24,
+      mat: M.corrugated, surface: 'metal', jitter: 0.05,
+      panel: { every: 3.0, jitter: 0.08, variants: [M.corrugated, M.rust, M.steelGalv], breakChance: 0.06 },
+    });
+    // Stock inside: pallet stacks, drums, a forklift-height crate wall.
+    for (let i = 0; i < 22; i++) {
+      const sx = rng.range(TX0 + 2, TX1 - 2), sz = rng.range(TZ0 + 3, TZ1 - 3);
+      const r = rng.next();
+      if (r < 0.4) p.pallet(sx, PAD, sz, rng.range(0, 3.14), 2 + Math.floor(rng.next() * 3));
+      else if (r < 0.7) p.crate(sx, PAD, sz, rng.range(0, 3.14), rng.range(0.5, 0.95));
+      else p.drum(sx, PAD, sz);
+    }
+    for (let i = 0; i < 4; i++) {
+      b.span(TX0 + 4 + i * 10, PAD, TZ1 - 5, TX0 + 11 + i * 10, PAD + 2.2, TZ1 - 3.2,
+        M.woodWeathered, { surface: 'wood', tint: b.jitterTint(0.08) });
+    }
+    p.floodlight(TX0 - 1, PAD, TZ0 - 3, 0.4, 6);
+    p.floodlight(TX1 + 1, PAD, TZ1 + 3, Math.PI + 0.4, 6);
+    p.services(TX1, TZ0, TX1, TZ1, PAD, TH, -1, 0.5);
+    p.wash(TX0 - 6, TZ0 - 6, TX1 + 6, TZ1 + 8, PAD, 18);
+    p.dress(TX0, TZ0, TX1, TZ1, PAD, 22);
+    room('Transit shed', 'store', false, TX0 - 2, TZ0 - 2, TX1 + 2, TZ1 + 2, PAD, PAD + TH);
+  }
 
   // =========================================================================
   // OFFICE BLOCK — two storeys of small rooms. Pure CQB.
@@ -802,10 +1181,18 @@ export function buildQuay(
   for (let i = 0; i < 3; i++) {
     const cx0 = COLD.x0 + 1.5 + i * 13.2;
     // Strip curtain in the doorway.
+    //
+    // NO_COLLIDE, and that is not cosmetic. `SOFT` only means "does not block
+    // line of sight"; every one of these strips was still solid to a body, so
+    // nine of them hung across a doorway made a wall. All three cold chambers
+    // were sealed behind what looks like a curtain — the player walked up to
+    // an open door and bounced off something they could see straight through.
     for (let k = 0; k < 9; k++) {
       b.span(cx0 + 5.7 + k * 0.2, PAD + 0.2, COLD.z1 - 8.05, cx0 + 5.86 + k * 0.2, PAD + 2.5,
-        COLD.z1 - 7.99, M.plasticWhite,
-        { surface: 'plastic', flags: BF.SOFT | BF.NO_NAV | BF.NO_COVER });
+        COLD.z1 - 7.99, M.plasticWhite, {
+          surface: 'plastic',
+          flags: BF.SOFT | BF.NO_NAV | BF.NO_COVER | BF.NO_COLLIDE | BF.NO_SHADOW,
+        });
     }
     // Trolleys and stacked crates inside.
     for (let k = 0; k < 5; k++) {
@@ -1093,6 +1480,149 @@ export function buildQuay(
     }
   }
 
+  // =========================================================================
+  // WAREHOUSE FLOOR — a second content layer
+  // =========================================================================
+  //
+  // 4,340 m2 holding a desk, a table, a chair and a shelf: 0.001 props per
+  // square metre, in the map's hero interior. The racking is the first layer;
+  // this is the one that makes the floor between the racks a place rather than
+  // a corridor.
+  {
+    // A bonded cage — mesh walls, one gate, high-value stock inside. A room
+    // inside a room, which is the most useful thing a big open interior can
+    // have: it is cover, it is a landmark, and it is somewhere worth clearing.
+    const CG = { x0: -66, x1: -52, z0: 18, z1: 32 };
+    for (const [gx0, gz0, gx1, gz1] of [
+      [CG.x0, CG.z0, CG.x1, CG.z0], [CG.x0, CG.z1, CG.x1, CG.z1],
+      [CG.x0, CG.z0, CG.x0, CG.z1],
+    ] as const) {
+      b.wall({
+        x0: gx0, z0: gz0, x1: gx1, z1: gz1, y: PAD, height: 3.0, thickness: 0.06,
+        mat: M.steelGalv, surface: 'metal', flags: BF.SOFT, jitter: 0.02, room: whFloor,
+        panel: { every: 2.4, jitter: 0.04, variants: [M.steelGalv, M.steelGalv, M.rust] },
+      });
+    }
+    for (let i = 0; i <= 6; i++) {
+      b.box(CG.x0 + (i / 6) * (CG.x1 - CG.x0), PAD + 1.5, CG.z0, 0.05, 1.5, 0.05, M.steelDark,
+        { surface: 'metal', room: whFloor });
+    }
+    for (let i = 0; i < 9; i++) {
+      p.crate(rng.range(CG.x0 + 1, CG.x1 - 1), PAD, rng.range(CG.z0 + 1, CG.z1 - 1),
+        rng.range(0, 3.14), rng.range(0.45, 0.85));
+    }
+    p.pallet(CG.x0 + 3, PAD, CG.z1 - 3, 0.2, 4);
+
+    // Battery charging bay on the blind west side: racked forklift batteries,
+    // a charger cabinet, and the only warm light on this floor.
+    for (let i = 0; i < 4; i++) {
+      b.span(-81, PAD + i * 0.8, -12 + i * 0.02, -76, PAD + 0.7 + i * 0.8, -8,
+        M.steelDark, { surface: 'metal', room: whFloor, flags: i > 0 ? BF.NO_COVER : 0 });
+    }
+    for (let i = 0; i < 6; i++) {
+      b.span(-80.6 + (i % 3) * 1.6, PAD + 0.7 + Math.floor(i / 3) * 1.6, -11.4,
+        -79.4 + (i % 3) * 1.6, PAD + 1.4 + Math.floor(i / 3) * 1.6, -8.6,
+        M.sootMetal, { surface: 'metal', room: whFloor, flags: BF.NO_COVER });
+    }
+    b.span(-83, PAD, -6, -81.2, PAD + 1.8, -3, M.paintYellow, { surface: 'metal', room: whFloor });
+    p.cableDrop(-81.4, PAD + 1.9, -4.5, Math.PI / 2, 1.4);
+
+    // Wrapping station and shipping desk by the dock doors.
+    b.cyl(-58, PAD + 0.55, -13, 0.7, 0.55, M.steelDark, { surface: 'metal', room: whFloor });
+    b.cyl(-58, PAD + 1.6, -13, 0.09, 0.95, M.steelGalv, { surface: 'metal', room: whFloor });
+    b.cyl(-58, PAD + 1.9, -13, 0.34, 0.28, M.plasticWhite,
+      { surface: 'plastic', room: whFloor, flags: BF.NO_COVER });
+    p.desk(-52, PAD, -13, Math.PI);
+    p.chair(-52, PAD, -14.4, 0);
+    p.shelf(-47, PAD, -14.8, Math.PI, 2.0, 2.2);
+    for (let i = 0; i < 4; i++) p.pallet(-70 + i * 4, PAD, -14, rng.range(0, 0.4), 2 + i % 3);
+
+    // Floor-marked staging grid with stock actually standing in it. Paint on
+    // the floor of a warehouse is not decoration, it is how the space is read.
+    for (let i = 0; i < 6; i++) {
+      const gx = -78 + i * 10;
+      p.paintMarking(gx, 2, gx + 7.6, 2.16, PAD + 0.02, M.paintYellow);
+      p.paintMarking(gx, 9.4, gx + 7.6, 9.56, PAD + 0.02, M.paintYellow);
+      p.paintMarking(gx, 2, gx + 0.16, 9.56, PAD + 0.02, M.paintYellow);
+      if (rng.next() < 0.7) {
+        for (let q = 0; q < 1 + Math.floor(rng.next() * 3); q++) {
+          p.pallet(gx + 1.4 + q * 2.2, PAD, rng.range(3.6, 8), rng.range(-0.2, 0.2),
+            2 + Math.floor(rng.next() * 3));
+        }
+      }
+    }
+    // Aisle lines down both sides of the rack run, and a fire-main riser.
+    p.paintMarking(-46, WH.z0 + 4, -45.7, WH.z1 - 6, PAD + 0.02, M.paintYellow);
+    p.paintMarking(-18.6, WH.z0 + 4, -18.3, WH.z1 - 6, PAD + 0.02, M.paintYellow);
+    b.cyl(-15.4, PAD + 2.4, 20, 0.11, 2.4, M.paintRed, { surface: 'metal', room: whFloor });
+    b.box(-15.4, PAD + 1.1, 20.5, 0.2, 0.22, 0.2, M.paintRed,
+      { surface: 'metal', room: whFloor, flags: BF.NO_COVER });
+    p.hoseCoil(-15.4, PAD, 21.4, 0.34);
+
+    // Catwalk: it was 4,340 m2 of ring at 3.2 bricks/100 with rails on both
+    // sides and nothing to break line of sight. Standing on it you were a
+    // target with nowhere to go.
+    for (let i = 0; i < 14; i++) {
+      const side = i % 2 === 0;
+      const cx = side ? WH.x0 + 2.6 : WH.x1 - 2.6;
+      const cz = WH.z0 + 5 + (i / 14) * (WH.z1 - WH.z0 - 10);
+      const r = rng.next();
+      if (r < 0.4) {
+        // Cable tray running along the rail — a low sight-break you can crouch to.
+        b.span(cx - 0.5, CAT + 0.5, cz, cx + 0.5, CAT + 0.72, cz + 4.4, M.steelGalv,
+          { surface: 'metal', flags: BF.NO_COVER });
+      } else if (r < 0.7) {
+        p.crate(cx, CAT, cz, rng.range(0, 3.14), rng.range(0.45, 0.7));
+      } else if (r < 0.88) {
+        // Equipment platform: a genuine full-height blocker on the ring.
+        b.span(cx - 0.6, CAT, cz, cx + 0.6, CAT + 1.9, cz + 1.4, M.sootMetal,
+          { surface: 'metal', tint: b.jitterTint(0.08) });
+      } else {
+        p.drum(cx, CAT, cz);
+      }
+    }
+    p.wash(WH.x0 + 2, WH.z0 + 2, WH.x1 - 2, WH.z1 - 2, PAD, 12);
+    p.dress(WH.x0 + 3, WH.z0 + 3, WH.x1 - 3, WH.z1 - 3, PAD, 9);
+  }
+
+  // =========================================================================
+  // THE QUAY DRESSING PASS
+  // =========================================================================
+  {
+    // Services on the faces you walk past. The warehouse is 70 x 62 m of blank
+    // corrugated sheet; at 3 m it read exactly as it did at 60.
+    p.services(WH.x0, WH.z0, WH.x1, WH.z0, PAD, ROOF - PAD, -1, 0.42);
+    p.services(WH.x1, WH.z0, WH.x1, WH.z1, PAD, ROOF - PAD, 1, 0.42);
+    p.services(WH.x0, WH.z1, WH.x1, WH.z1, PAD, ROOF - PAD, 1, 0.35);
+    p.services(WH.x0, WH.z0, WH.x0, WH.z1, PAD, ROOF - PAD, -1, 0.30);
+    p.services(OFF.x0, OFF.z1, OFF.x1, OFF.z1, PAD, OFF1 + 3.3 - PAD, 1, 0.45);
+    p.services(OFF.x1, OFF.z0, OFF.x1, OFF.z1, PAD, OFF1 + 3.3 - PAD, 1, 0.45);
+    p.services(COLD.x0, COLD.z1, COLD.x1, COLD.z1, PAD, 4.4, 1, 0.40);
+    p.services(COLD.x1, COLD.z0, COLD.x1, COLD.z1, PAD, 4.4, 1, 0.40);
+
+    // Roof aerials and plant, so the skyline is not four flat edges.
+    for (let i = 0; i < 5; i++) {
+      p.roofAerial(rng.range(WH.x0 + 6, WH.x1 - 6), ROOF + 0.34, rng.range(WH.z0 + 6, WH.z1 - 6),
+        rng.range(1.4, 2.8));
+    }
+    for (let i = 0; i < 4; i++) {
+      p.acUnit(rng.range(OFF.x0 + 4, OFF.x1 - 4), OFF1 + 3.3,
+        rng.range(OFF.z0 + 4, OFF.z1 - 4), rng.range(0, 3.14));
+    }
+    p.waterTank(COLD.x1 - 6, 4.4 + PAD, COLD.z0 + 8, 1.3, 2.0);
+
+    // Ground wear, weighted by traffic. 28,500 m2 of asphalt was ONE brick.
+    p.wash(-14, -20, 88, 18, PAD, 20);                // container yard
+    p.wash(-92, -20, -14, 46, PAD, 12);               // west of the warehouse
+    p.wash(-14, -70, 90, -20, PAD, 14);               // cold store / SE approach
+    p.wash(-92, -72, -14, -20, PAD, 10);              // office side
+    p.wash(-18, PERIM.z0 - 46, 18, PERIM.z0, PAD, 16);// the approach road
+    p.dress(-14, -20, 88, 18, PAD, 14);               // yard clutter
+    p.dress(-92, -18, -18, 44, PAD, 10);
+    p.dress(-14, -70, 60, -22, PAD, 9);
+    p.dress(-20, PERIM.z0 - 40, 20, PERIM.z0 - 4, PAD, 6);
+  }
+
   // --- vehicles on the approach --------------------------------------------
   p.pickup(-6.5, PAD, PERIM.z0 - 20, 0.05);
   p.suv(6.2, PAD, PERIM.z0 - 26, 3.10);
@@ -1150,7 +1680,8 @@ export function buildQuay(
       },
       {
         id: 'stack-climb', name: 'Container stack', kind: 'roof',
-        x: WH.x1 + 8, y: PAD, z: WH.z0 + 8, toX: WH.x1 - 4, toZ: WH.z0 + 8,
+        // At the foot of the caged ladder, facing the hatch it leads to.
+        x: WH.x1 + 13.2, y: PAD, z: WH.z0 + 8, toX: WH.x1 - 4, toZ: WH.z0 + 8,
         description: 'Climb the stacks to the warehouse roof and come in through the hatch. Slow, and it puts you above everything.',
         stealth: 0.80, speed: 0.20, risk: 0.35,
       },

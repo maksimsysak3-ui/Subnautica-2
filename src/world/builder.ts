@@ -7,7 +7,7 @@
  */
 
 import type { SurfaceKind } from '../core/contracts';
-import { Rng } from '../core/math';
+import { Rng, clamp01 } from '../core/math';
 import { Brickyard } from './brickyard';
 import { M, packTint } from './palette';
 import {
@@ -57,6 +57,32 @@ export interface WallOpts {
   coping?: { mat: number; height: number; overhang: number };
   /** Adds pilasters every N metres — breaks up long wall runs. */
   pilaster?: { every: number; mat: number; width: number; depth: number; extra: number };
+  /**
+   * Subdivide full-height runs into panels.
+   *
+   * A boundary wall authored as one brick per straight run is the single most
+   * damaging shortcut in the whole project: the villa's 576 m perimeter was
+   * fourteen wall bricks and six coping bricks — **41 metres of wall per
+   * authored brick**, with the longest coping a single 156 m box. The result
+   * is a top edge that does not deviate by one pixel across an entire frame,
+   * which reads as CAD rather than as a place, and no amount of props in front
+   * of it fixes that.
+   *
+   * Reference practice is 3-6 m panels from a small set of variants, then a
+   * dressing pass on top. This does the first half: the run is cut into
+   * panels, each panel picks a material and a top height, and a few of them
+   * are dropped to a collapsed course so the silhouette has events in it.
+   */
+  panel?: {
+    /** Nominal panel length in metres; the run divides evenly around it. */
+    every: number;
+    /** Peak-to-peak top-height variation between panels, metres. */
+    jitter?: number;
+    /** Materials to draw from; the first is the majority. */
+    variants?: number[];
+    /** Probability a panel is a collapsed or unfinished course. */
+    breakChance?: number;
+  };
   /** Value jitter applied per segment so plaster is not one flat colour. */
   jitter?: number;
   /** Building id override. */
@@ -201,12 +227,122 @@ export class SiteBuilder {
       });
     };
 
+    /** A full-height run of wall, panelised if the caller asked for it. */
+    const run = (a: number, b: number): void => {
+      const p = opts.panel;
+      if (!p || b - a < p.every * 1.5) {
+        segment(a, b, y0, y0 + h, opts.mat);
+        if (p) coping(a, b, y0 + h);
+        return;
+      }
+      const L = b - a;
+      const n = Math.max(2, Math.round(L / p.every));
+      const plen = L / n;
+      const vary = p.jitter ?? 0;
+      const variants = p.variants ?? [opts.mat];
+      for (let i = 0; i < n; i++) {
+        const pa = a + i * plen;
+        const pb = pa + plen;
+        // A collapsed or never-finished course. The gap is the point: it is a
+        // silhouette event, a place light gets through, and — since it is a
+        // real 1.2 m wall rather than a 3.3 m one — a place a player can see
+        // over and, from the right side, get over.
+        const broken = this.rng.next() < (p.breakChance ?? 0);
+        const top = broken
+          ? y0 + h * this.rng.range(0.30, 0.46)
+          : y0 + h + this.rng.range(-vary, vary);
+        const mat = variants[Math.min(
+          variants.length - 1,
+          Math.floor(Math.pow(this.rng.next(), 1.7) * variants.length),
+        )];
+        segment(pa, pb, y0, top, mat);
+
+        // Per-panel micro-detail. This is the tier the maps had none of: at
+        // three metres a wall needs something at the scale of a hand, or it
+        // reads exactly the same as it does at sixty. One or two features per
+        // panel is enough — they are cheap, they are flagged out of the
+        // navmesh and the cover graph, and their only job is to give the eye
+        // somewhere to land.
+        const feats = 2 + (this.rng.next() < 0.55 ? 1 : 0) + (this.rng.next() < 0.28 ? 1 : 0);
+        for (let f = 0; f < feats; f++) {
+          const fd = pa + this.rng.range(0.3, plen - 0.3);
+          const [fx, fz] = at(fd);
+          const fy = y0 + this.rng.range(0.3, Math.max(0.5, (top - y0) - 0.4));
+          const r = this.rng.next();
+          if (r < 0.30) {
+            // Render patch: a rectangle of different plaster, the commonest
+            // thing on any real wall and the cheapest material break there is.
+            this.box(fx, fy, fz, this.rng.range(0.25, 0.75), this.rng.range(0.2, 0.6), t / 2 + 0.012,
+              variants[variants.length - 1], {
+                yaw, surface, flags: flags | BF.NO_COVER | BF.NO_NAV | BF.THIN,
+                tint: this.jitterTint(0.10),
+              });
+          } else if (r < 0.52) {
+            // A stain running down from something above.
+            this.box(fx, y0 + (top - y0) * 0.55, fz, this.rng.range(0.06, 0.16),
+              (top - y0) * 0.42, t / 2 + 0.008, M.concreteDark, {
+                yaw, surface, flags: flags | BF.NO_COVER | BF.NO_NAV | BF.THIN | BF.NO_SHADOW,
+                tint: this.jitterTint(0.12),
+              });
+          } else if (r < 0.72) {
+            // Bracket or fixing plate.
+            this.box(fx, fy, fz, 0.07, 0.05, t / 2 + 0.035, M.sootMetal, {
+              yaw, surface: 'metal', flags: flags | BF.NO_COVER | BF.NO_NAV | BF.THIN,
+            });
+          } else if (r < 0.88) {
+            // A short conduit stub with two clips.
+            const ch = this.rng.range(0.5, 1.3);
+            this.box(fx, fy, fz, 0.022, ch / 2, t / 2 + 0.022, M.steelGalv, {
+              yaw, surface: 'metal', flags: flags | BF.NO_COVER | BF.NO_NAV | BF.THIN,
+            });
+            for (const cs of [-1, 1]) {
+              this.box(fx, fy + cs * ch * 0.35, fz, 0.04, 0.018, t / 2 + 0.03, M.steelDark, {
+                yaw, surface: 'metal', flags: flags | BF.NO_COVER | BF.NO_NAV | BF.THIN,
+              });
+            }
+          } else {
+            // A course of exposed block where the render has come off.
+            for (let c = 0; c < 3; c++) {
+              this.box(fx + ux * this.rng.range(-0.3, 0.3), fy + c * 0.19, fz + uz * this.rng.range(-0.3, 0.3),
+                this.rng.range(0.10, 0.20), 0.085, t / 2 + 0.006, M.brickRed, {
+                  yaw, surface, flags: flags | BF.NO_COVER | BF.NO_NAV | BF.THIN,
+                  tint: this.jitterTint(0.12),
+                });
+            }
+          }
+        }
+
+        if (broken) {
+          // Rubble along the base of the gap, so it reads as fallen rather
+          // than as a hole somebody left.
+          const [rx, rz] = at((pa + pb) / 2);
+          this.box(rx, y0 + 0.22, rz, plen * 0.42, 0.22, t * 0.9, M.concreteRaw, {
+            yaw, surface: 'gravel', flags: flags | BF.NO_COVER, tint: this.jitterTint(0.12),
+          });
+        } else {
+          coping(pa, pb, top);
+        }
+      }
+    };
+
+    /** Cap course over a span. Emitted per panel when panelising. */
+    const coping = (a: number, b: number, topY: number): void => {
+      const c = opts.coping;
+      if (!c || b - a < 1e-3) return;
+      const [cx, cz] = at((a + b) / 2);
+      this.box(cx, topY + c.height / 2, cz, (b - a) / 2 + c.overhang, c.height / 2,
+        t / 2 + c.overhang, c.mat, {
+          yaw, surface: 'concrete', flags: flags | BF.NO_COVER,
+          tint: this.jitterTint(0.03), room: opts.room,
+        });
+    };
+
     const ops = [...(opts.openings ?? [])].sort((a, b) => a.at - b.at);
     let cursor = 0;
     for (const op of ops) {
       const a = op.at - op.width / 2;
       const b = op.at + op.width / 2;
-      segment(cursor, Math.max(cursor, a), y0, y0 + h, opts.mat);
+      run(cursor, Math.max(cursor, a));
       cursor = Math.max(cursor, b);
 
       // Sill below and lintel above the opening.
@@ -245,24 +381,25 @@ export class SiteBuilder {
         });
       }
     }
-    segment(cursor, len, y0, y0 + h, opts.mat);
+    run(cursor, len);
 
-    if (opts.coping) {
-      const c = opts.coping;
-      const mid = len / 2;
-      const [cx, cz] = at(mid);
-      this.box(cx, y0 + h + c.height / 2, cz, len / 2 + c.overhang, c.height / 2, t / 2 + c.overhang, c.mat, {
-        yaw, surface: 'concrete', flags: flags | BF.NO_COVER, tint: this.jitterTint(0.03), room: opts.room,
-      });
-    }
+    // Unpanelised walls still get their single cap course. Panelised ones have
+    // already emitted theirs per panel, following each panel's own top.
+    if (opts.coping && !opts.panel) coping(0, len, y0 + h);
 
     if (opts.pilaster) {
       const p = opts.pilaster;
       const n = Math.max(1, Math.round(len / p.every));
       for (let i = 0; i <= n; i++) {
-        const d = (i / n) * len;
+        // Nudge the spacing. Measured across the villa's south run, the
+        // pilasters sat at 9.18 m with a variance of five millimetres over
+        // eighteen bays — a regularity no mason has ever achieved and the eye
+        // reads instantly as a repeat.
+        const wobble = i === 0 || i === n ? 0 : this.rng.range(-0.34, 0.34);
+        const d = clamp01(((i / n) * len + wobble) / len) * len;
         const [cx, cz] = at(d);
-        this.box(cx, y0 + (h + p.extra) / 2, cz, p.width / 2, (h + p.extra) / 2, t / 2 + p.depth, p.mat, {
+        const extra = p.extra + (opts.panel ? this.rng.range(-0.10, 0.16) : 0);
+        this.box(cx, y0 + (h + extra) / 2, cz, p.width / 2, (h + extra) / 2, t / 2 + p.depth, p.mat, {
           yaw, surface: 'concrete', tint: this.jitterTint(0.03), room: opts.room,
         });
       }
@@ -270,6 +407,76 @@ export class SiteBuilder {
 
     this.buildingId = prevBuilding;
     return created;
+  }
+
+  /**
+   * Guarantee every doorway is physically passable.
+   *
+   * A doorway is the one place in a level where a body MUST fit, and it is
+   * also the place authoring mistakes concentrate: a kitchen counter laid four
+   * metres along a wall runs across the door at the end of it, a toilet placed
+   * "against the far wall" of a small bathroom lands 600 mm inside the
+   * entrance, a strip curtain hung in an opening is solid to a body even
+   * though you can see through it. Every one of those is in this project right
+   * now, and each of them silently deletes a room from the map: the player
+   * walks up to an open door and bounces off.
+   *
+   * So this is a backstop, run after the site is authored. It sweeps the walk
+   * volume of every door — the width between the jambs, half a metre either
+   * side of the wall plane, from ankle height to 1.9 m — and removes anything
+   * in it that is not the door leaf. Removal is flag-based (INVISIBLE plus
+   * NO_COLLIDE) because the yard is a struct-of-arrays and compaction is not
+   * worth it for a few dozen bricks.
+   *
+   * It reports what it cleared. A doorway that needs clearing is a bug in the
+   * site file and the log is how it gets found — this is a net, not a licence.
+   */
+  clearDoorways(): number {
+    const yard = this.yard;
+    let cleared = 0;
+    for (const d of this.doors) {
+      // The walk volume, in the doorway's own frame: `d.yaw` is the yaw of the
+      // WALL the door sits in, so the opening runs along (cos, -sin) and the
+      // through-direction is perpendicular to it.
+      const ux = Math.cos(d.yaw), uz = -Math.sin(d.yaw);
+      const nx = Math.sin(d.yaw), nz = Math.cos(d.yaw);
+      const halfW = Math.max(0.3, d.width / 2 - 0.05);
+      const halfD = 0.5;
+      const y0 = d.y + 0.03;
+      const y1 = d.y + 1.9;
+
+      for (let i = 0; i < yard.count; i++) {
+        if (yard.door[i] >= 0) continue;                       // the leaf itself
+        if ((yard.flags[i] & (BF.NO_COLLIDE | BF.INVISIBLE)) !== 0) continue;
+        // Vertical overlap first — cheapest, and it rejects every floor slab.
+        if (yard.py[i] + yard.hy[i] <= y0 || yard.py[i] - yard.hy[i] >= y1) continue;
+
+        // Project the brick's centre into the doorway frame.
+        const dx = yard.px[i] - d.x;
+        const dz = yard.pz[i] - d.z;
+        const along = dx * ux + dz * uz;
+        const through = dx * nx + dz * nz;
+
+        // Conservative extent of the brick along each doorway axis.
+        const c = Math.abs(Math.cos(yard.yaw[i])), sN = Math.abs(Math.sin(yard.yaw[i]));
+        const ex = yard.hx[i] * c + yard.hz[i] * sN;
+        const ez = yard.hx[i] * sN + yard.hz[i] * c;
+        const reach = Math.max(ex, ez);
+
+        if (Math.abs(along) >= halfW + reach) continue;
+        if (Math.abs(through) >= halfD + reach) continue;
+
+        // A wall segment beside the opening will not reach the centre line;
+        // anything that does is in the way. Structural spans that legitimately
+        // pass over a doorway (lintels) were excluded by the height test.
+        yard.flags[i] |= BF.NO_COLLIDE | BF.INVISIBLE | BF.NO_NAV | BF.NO_COVER;
+        cleared++;
+      }
+    }
+    if (cleared > 0) {
+      console.info(`[builder] cleared ${cleared} brick(s) obstructing doorways`);
+    }
+    return cleared;
   }
 
   private makeDoor(

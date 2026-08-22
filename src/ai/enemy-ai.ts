@@ -95,7 +95,20 @@ export interface Brain {
   /** Seconds the actor stays put after arriving at a search point. */
   dwell: number;
   peeking: boolean;
+  /** Current ground speed, m/s. Damped toward the state's target. */
+  speed: number;
+  /** Per-actor speed multiplier, so a squad does not move as one organism. */
+  speedBias: number;
+  /** True once this actor has arrived at cover and gone down behind it. */
+  settled: boolean;
+  /** Seconds of blind fire left at the last known position. */
+  suppressFor: number;
+  /** Seconds before this actor may work another door. */
+  doorCooldown: number;
 }
+
+/** Scratch aim point, so aimed fire and area fire share one code path. */
+const _aimPoint = new THREE.Vector3();
 
 function newBrain(rng: Rng, route: THREE.Vector3[]): Brain {
   return {
@@ -107,6 +120,8 @@ function newBrain(rng: Rng, route: THREE.Vector3[]): Brain {
     route, routeIndex: 0,
     senseIn: rng.range(0, 0.17),
     stateAge: 0, dwell: 0, peeking: false,
+    speed: 0, speedBias: rng.range(0.88, 1.12), settled: false, suppressFor: 0,
+    doorCooldown: 0,
   };
 }
 
@@ -119,9 +134,12 @@ export class EnemyAi implements System {
   private rng = new Rng(0x5eed_a1);
   private actors!: ActorRegistry;
   private pathQueue: number[] = [];
+  /** Path solves left this frame. Refilled in `update`, spent in `fixedUpdate`. */
+  private pathBudget = PATH_BUDGET_PER_FRAME;
   private tmpA = new THREE.Vector3();
   private tmpB = new THREE.Vector3();
   private tmpDir = new THREE.Vector3();
+
   /** This step's intended horizontal velocity, published to the actor. */
   private moveX = 0;
   private moveZ = 0;
@@ -241,6 +259,9 @@ export class EnemyAi implements System {
     if (b.state === s) return;
     b.state = s;
     b.stateAge = 0;
+    // You cannot crouch-walk to the next piece of cover. Leaving `settled`
+    // set would also stop the next arrival from re-crouching.
+    if (s !== 'engage') b.settled = false;
     // A state change invalidates the plan that belonged to the old state.
     if (s !== 'engage') b.peeking = false;
     b.repathIn = 0;
@@ -274,11 +295,38 @@ export class EnemyAi implements System {
     }
 
     // Serve the path queue, closest-need first, up to the frame's budget.
-    for (const id of this.pathQueue.slice(0, PATH_BUDGET_PER_FRAME)) {
+    //
+    // The budget is per rendered FRAME, and this method is a fixed step: the
+    // engine runs up to five of those in one frame, so spending the whole
+    // budget here spent it five times over and a bad frame could pay for ten
+    // path solves at once. `update` refills it, once, per frame.
+    this.pathQueue.sort((x, y) => (this.pathUrgency(y) - this.pathUrgency(x)));
+    for (const id of this.pathQueue) {
+      if (this.pathBudget <= 0) break;
       const a = this.actors.get(id);
       const b = a?.brain as Brain | null;
-      if (a && b && b.goal) this.repath(a, b);
+      if (a && b && b.goal) { this.repath(a, b); this.pathBudget--; }
     }
+  }
+
+  /** Frame phase. Nothing but refilling the path budget. */
+  update(_dt: number, _ctx: EngineContext): void {
+    this.pathBudget = PATH_BUDGET_PER_FRAME;
+  }
+
+  /**
+   * Who gets the path solve when more actors want one than the budget allows.
+   *
+   * The queue used to be served in actor-id order despite a comment claiming
+   * "closest-need first", so low-numbered guards won every contested step and
+   * a high-numbered one under fire could wait indefinitely.
+   */
+  private pathUrgency(id: number): number {
+    const b = this.actors.get(id)?.brain as Brain | null;
+    if (!b) return -1;
+    return b.state === 'engage' || b.state === 'reposition' ? 3
+      : b.state === 'flee' ? 2
+      : b.state === 'search' ? 1 : 0;
   }
 
   // -----------------------------------------------------------------------
@@ -291,6 +339,7 @@ export class EnemyAi implements System {
     b.repathIn = Math.max(0, b.repathIn - step);
     b.fireCooldown = Math.max(0, b.fireCooldown - step);
     b.burstPause = Math.max(0, b.burstPause - step);
+    b.doorCooldown = Math.max(0, b.doorCooldown - step);
     b.lostFor += step;
 
     // Alertness bleeds off, but never all the way back to oblivious once the
@@ -505,23 +554,54 @@ export class EnemyAi implements System {
     }
 
     if (!hasSight) {
-      // Lost them. Hold the angle briefly — enemies that instantly break
-      // contact are exploitable, and ones that never do are unfair.
+      // Lost sight — but not the fight.
+      //
+      // This used to return immediately, so the instant you broke line of
+      // sight every gun on the map went quiet and stayed quiet. That is what
+      // makes peeking free, and free peeking is most of what "the AI is
+      // braindead" actually means. Real opposition keeps rounds going into
+      // the doorway you disappeared through for a few seconds, which is what
+      // makes you pay for the angle you just took.
+      if (b.believedPos && b.suppressFor > 0 && b.reaction <= 0
+        && b.fireCooldown <= 0 && b.burstPause <= 0) {
+        b.suppressFor -= step;
+        // Wide, because they genuinely cannot see the target. This is area
+        // fire, not marksmanship.
+        this.shootAt(a, b, b.believedPos, b.aimError * 3.4 + 0.05);
+      }
       if (b.lostFor > lerp(3.5, 1.4, 1 - b.alertness)) this.setState(b, 'search');
       return;
     }
+    // Sight regained: bank a few seconds of area fire for the next time it
+    // goes away.
+    b.suppressFor = lerp(1.4, 3.2, a.skill);
 
     b.reaction = Math.max(0, b.reaction - step);
     // Aim converges the longer the target is held, down to a skill floor.
     const floor = lerp(0.055, 0.012, a.skill);
     b.aimError = Math.max(floor, damp(b.aimError, floor, 1.6, step));
 
-    // Take cover if we are in the open, and re-evaluate periodically: a
-    // position that was cover when you took it stops being cover the moment
-    // the threat moves, which is exactly what a flanking player is doing.
+    // Get down behind the cover we came here for.
+    //
+    // Cover was verified at 1.0 m and then occupied standing, firing from
+    // 1.5 m — half a metre above the height that qualified it as cover in the
+    // first place, so every enemy "in cover" was fully exposed and the whole
+    // cover system bought them nothing.
+    if (b.cover && !b.settled && this.dist(a.position, b.cover.position) < 1.4) {
+      b.settled = true;
+      this.actors.setStance(a, 'crouch');
+    }
+
+    // Re-evaluate cover when it stops being cover, not on a stopwatch.
+    //
+    // A flat 4.5 s timer meant an actor abandoned perfectly good cover on
+    // schedule, walked to another node, and came back — visibly commuting
+    // rather than fighting, on a cycle you could set a watch by. Now the test
+    // is the thing that actually matters: can the threat see me here?
     b.coverAge += step;
-    if (b.cover && b.coverAge > 4.5) {
+    if (b.cover && b.coverAge > 1.5 && this.coverCompromised(a, b)) {
       this.releaseCover(b);
+      b.settled = false;
       b.coverAge = 0;
     }
     if (!b.cover && b.stateAge > 0.6) this.seekCover(a, b);
@@ -531,7 +611,55 @@ export class EnemyAi implements System {
     }
   }
 
+  /**
+   * Push open an unlocked door directly ahead.
+   *
+   * Deliberately cheap and deliberately dumb: a proximity test and a facing
+   * test, at most one door per actor per step. Anything cleverer (queuing,
+   * stacking, holding a door for the actor behind) belongs in squad
+   * behaviour, and none of that matters while the answer to "can they follow
+   * me through here" is still no.
+   */
+  private tryDoor(a: Actor, b: Brain, sx: number, sz: number): void {
+    if (b.doorCooldown > 0) return;
+    const world = services.tryGet('world') as unknown as {
+      doors?: {
+        nearest(p: THREE.Vector3, r?: number): { id: number; locked?: boolean; openAmount: number } | null;
+        open(id: number, by?: number, fast?: boolean): boolean;
+      };
+    };
+    const doors = world?.doors;
+    if (!doors) return;
+    // Look a stride ahead, not at our own feet.
+    this.tmpB.set(a.position.x + sx * 1.1, a.position.y + 0.9, a.position.z + sz * 1.1);
+    const d = doors.nearest(this.tmpB, 1.5);
+    if (!d || d.locked || d.openAmount > 0.5) return;
+    doors.open(d.id, a.id, b.state === 'engage' || b.state === 'reposition');
+    b.doorCooldown = 1.2;
+  }
+
+  /** True when the believed threat position can see this actor's chest. */
+  private coverCompromised(a: Actor, b: Brain): boolean {
+    const world = services.tryGet('world');
+    if (!world || !b.believedPos) return false;
+    this.tmpA.set(a.position.x, a.position.y + 1.0, a.position.z);
+    this.tmpB.set(b.believedPos.x, b.believedPos.y + 1.5, b.believedPos.z);
+    return world.lineOfSight(this.tmpA, this.tmpB, [a.id, 0]);
+  }
+
   private doReposition(a: Actor, b: Brain, step: number): void {
+    // Shoot on the move.
+    //
+    // This state contained no fire at all, and an engaged actor enters it
+    // within 0.6 s of first contact and stays 1.5-2.5 s — so a third of every
+    // engagement was spent watching enemies jog silently between bits of
+    // cover. Moving fire is inaccurate fire, and it should be: the point is
+    // that the player is under pressure the whole way, not that it hits.
+    if (b.believedPos && b.reaction <= 0 && b.fireCooldown <= 0 && b.burstPause <= 0
+      && b.lostFor < 1.2 && b.speed > 0.5) {
+      this.shootAt(a, b, b.believedPos, b.aimError * 2.6 + 0.03);
+    }
+
     if (!b.goal || this.dist(a.position, b.goal) < 1.2) {
       b.goal = null;
       this.setState(b, b.believedPos ? 'engage' : 'search');
@@ -588,7 +716,6 @@ export class EnemyAi implements System {
     // Fresh burst?
     if (b.burst <= 0) b.burst = 2 + Math.floor(this.rng.range(0, 3));
 
-    this.tmpA.set(a.position.x, a.position.y + 1.5, a.position.z);
     // Aim centre-of-mass, not at the feet — and account for STANCE.
     //
     // `sense()` scaled for stance and `shoot()` did not, so against a prone
@@ -597,16 +724,44 @@ export class EnemyAi implements System {
     // down made the player effectively immune at every range.
     const stance = (STANCE_HEIGHT[target.stance as StanceKey] ?? STANCE_HEIGHT.stand)
       / STANCE_HEIGHT.stand;
-    this.tmpDir.set(
-      target.position.x - this.tmpA.x,
-      target.position.y + 1.05 * stance - this.tmpA.y,
-      target.position.z - this.tmpA.z,
+    _aimPoint.set(
+      target.position.x,
+      target.position.y + 1.05 * stance,
+      target.position.z,
     );
+    this.shootAt(a, b, _aimPoint, null, target);
+  }
+
+  /**
+   * Put rounds through a point in the world.
+   *
+   * Split out of `shoot` so that fire at a *believed* position — moving fire
+   * and area fire into a doorway the target just vanished through — goes
+   * through exactly the same muzzle, the same suppression accounting and the
+   * same burst discipline as aimed fire, rather than being a second
+   * implementation that drifts.
+   */
+  private shootAt(
+    a: Actor, b: Brain, at: THREE.Vector3, spreadOverride: number | null, target?: Actor,
+  ): void {
+    const world = services.tryGet('world');
+    if (!world) return;
+    if (b.burst <= 0) b.burst = 2 + Math.floor(this.rng.range(0, 3));
+
+    // The muzzle sits where THIS actor's shoulder actually is. Firing from a
+    // flat 1.5 m while crouched behind a 1.1 m wall put every round through
+    // the cover the actor was hiding behind — and told the player the cover
+    // was worthless, because from their side it looked like it was.
+    const own = (STANCE_HEIGHT[a.stance as StanceKey] ?? STANCE_HEIGHT.stand)
+      / STANCE_HEIGHT.stand;
+    this.tmpA.set(a.position.x, a.position.y + 1.5 * own, a.position.z);
+
+    this.tmpDir.set(at.x - this.tmpA.x, at.y - this.tmpA.y, at.z - this.tmpA.z);
     const range = this.tmpDir.length();
     this.tmpDir.normalize();
 
     // Error grows with range, with the actor's pain, and while suppressed.
-    const spread = b.aimError
+    const spread = (spreadOverride ?? b.aimError)
       * (1 + a.pain * 1.4)
       * (1 + Math.min(1.5, a.suppressedFor * 0.5))
       * lerp(0.8, 1.5, clamp01(range / 60));
@@ -623,7 +778,7 @@ export class EnemyAi implements System {
       hit: hit ? hit.point.clone() : null,
     });
 
-    if (hit?.actorId === 0) {
+    if (hit?.actorId === 0 && target) {
       // The region comes from WHERE THE ROUND LANDED, not from a dice roll.
       //
       // This used to trace the ray, confirm the hit, and then roll for the
@@ -639,8 +794,10 @@ export class EnemyAi implements System {
       );
     } else {
       // A miss that lands near the player still suppresses. This is what makes
-      // an enemy dangerous even when it cannot shoot straight.
-      const miss = hit ? this.dist(hit.point, target.position) : 99;
+      // an enemy dangerous even when it cannot shoot straight — and it is the
+      // entire point of the area fire that now comes through here.
+      const p = target ?? this.actors.get(0);
+      const miss = hit && p ? this.dist(hit.point, p.position) : 99;
       if (miss < 3.5) bus.emit('actor:suppressed', { actorId: 0, seconds: 0.9 });
     }
 
@@ -734,41 +891,94 @@ export class EnemyAi implements System {
     const world = services.tryGet('world');
     if (!world) return;
 
-    let speed = 0;
     this.moveX = 0;
     this.moveZ = 0;
+
+    // Retire every waypoint we are already past, in one go, and keep moving.
+    //
+    // This used to increment the index and then RETURN without moving, which
+    // put a one-fixed-step dead stop at every single waypoint — and since the
+    // navmesh is a 0.4 m grid, a corner is several waypoints in a row. The
+    // result was exactly the stutter that reads as "braindead movement".
+    while (b.path.length > b.pathIndex
+      && Math.hypot(b.path[b.pathIndex].x - a.position.x, b.path[b.pathIndex].z - a.position.z) < 0.55) {
+      b.pathIndex++;
+    }
+
     if (b.path.length > b.pathIndex) {
       const node = b.path[b.pathIndex];
       const dx = node.x - a.position.x;
       const dz = node.z - a.position.z;
-      const d = Math.hypot(dx, dz);
-      if (d < 0.55) {
-        b.pathIndex++;
-      } else {
-        speed = b.state === 'engage' || b.state === 'reposition' ? 4.4
-          : b.state === 'flee' ? 5.2
-          : b.state === 'search' ? 2.6
-          : 1.5;
-        const inv = 1 / d;
-        const vx = dx * inv * speed;
-        const vz = dz * inv * speed;
+      const d = Math.max(1e-4, Math.hypot(dx, dz));
 
-        this.moveX = vx;
-        this.moveZ = vz;
+      // Steer at a blend of this waypoint and the next, so a corner is taken
+      // as an arc rather than as two straight runs joined by a pivot.
+      let sx = dx / d;
+      let sz = dz / d;
+      const next = b.path[b.pathIndex + 1];
+      if (next) {
+        const nx = next.x - a.position.x;
+        const nz = next.z - a.position.z;
+        const nd = Math.max(1e-4, Math.hypot(nx, nz));
+        // Weight the lookahead in only as the current node gets close.
+        const w = clamp01((2.4 - d) / 2.0) * 0.55;
+        sx = sx * (1 - w) + (nx / nd) * w;
+        sz = sz * (1 - w) + (nz / nd) * w;
+        const sl = Math.max(1e-4, Math.hypot(sx, sz));
+        sx /= sl; sz /= sl;
+      }
 
-        const move = world.moveCharacter(
-          a.position.x, a.position.y, a.position.z,
-          vx * step, -9.81 * step * 0.5, vz * step,
-          { radius: 0.36, height: 1.75, stepHeight: 0.42, minGroundNormalY: 0.55 },
-        );
-        a.position.set(move.x, move.y, move.z);
+      // Target speed for the state, then the actor's own bias, then two
+      // brakes: wounded people are slower, and so is anyone about to arrive.
+      let target = b.state === 'engage' || b.state === 'reposition' ? 4.4
+        : b.state === 'flee' ? 5.2
+        : b.state === 'search' ? 2.6
+        : 1.5;
+      target *= b.speedBias;
+      target *= lerp(1, 0.55, clamp01(a.pain));
+      // Only the LAST leg brakes for arrival; braking at an intermediate
+      // waypoint is what made every path look like a series of hops.
+      if (!next) target *= lerp(0.35, 1, clamp01(d / 2.2));
 
-        // Face the direction of travel unless engaged, where the target wins.
-        if (b.state !== 'engage') {
-          this.setFacing(a, this.turnToward(this.facingOf(a), Math.atan2(dx, dz), step * 5));
-        }
+      // Accelerate and decelerate. Standing starts were instantaneous: 0 to
+      // 4.4 m/s inside one 16 ms step, which no animation can cover and no
+      // human does.
+      const accel = target > b.speed ? 9 : 13;
+      b.speed = damp(b.speed, target, accel, step);
+
+      // Nobody crouch-walks between pieces of cover.
+      if (b.speed > 0.7 && a.stance === 'crouch' && !b.settled) {
+        this.actors.setStance(a, 'stand');
+      }
+
+      // Open the door you are walking into.
+      //
+      // The AI never touched a door. Every interior route it could path along
+      // was one the player could shut behind them, and closing a door
+      // genuinely ended a pursuit — which is a fine tactic in a stealth game
+      // and a terrible bug in a firefight. Locked doors are still locked; this
+      // only pushes open what a person would push open, and only when the
+      // actor is actually moving at it.
+      this.tryDoor(a, b, sx, sz);
+
+      const vx = sx * b.speed;
+      const vz = sz * b.speed;
+      this.moveX = vx;
+      this.moveZ = vz;
+
+      const move = world.moveCharacter(
+        a.position.x, a.position.y, a.position.z,
+        vx * step, -9.81 * step * 0.5, vz * step,
+        { radius: 0.36, height: 1.75, stepHeight: 0.42, minGroundNormalY: 0.55 },
+      );
+      a.position.set(move.x, move.y, move.z);
+
+      // Face the direction of travel unless engaged, where the target wins.
+      if (b.state !== 'engage') {
+        this.setFacing(a, this.turnToward(this.facingOf(a), Math.atan2(sx, sz), step * 5));
       }
     } else {
+      b.speed = damp(b.speed, 0, 13, step);
       // Not walking — settle onto whatever is directly underfoot.
       //
       // The search starts just below the actor rather than from the ground, so

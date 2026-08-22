@@ -44,10 +44,48 @@ import { SURFACE_TABLE } from './surfaces';
 import { moveCharacter, brickGroundAt, type CharacterShape, type MoveResult } from './collision';
 
 const TERRAIN_SIZE = 640;
-const TERRAIN_SEGMENTS = 192;
+/**
+ * 640 m across 384 quads is 1.67 m per quad. It was 192 (3.33 m), which could
+ * not hold a ditch, a berm or a spoil bank even where the terrain existed.
+ */
+const TERRAIN_SEGMENTS = 384;
 
-/** Radius of the level pad the site is built on, metres. */
-const PAD_RADIUS = 118;
+/**
+ * The flat pad each site is built on, as a rectangle rather than a disc.
+ *
+ * This was a circle of radius 118 m, blending to real terrain over a further
+ * 110. The villa's perimeter has a half-diagonal of 107.5 m and the quay's is
+ * 121 — so **both playspaces sat entirely inside the flat pad**, and the 26 m
+ * of fbm plus 9 m of ridged noise underneath them existed nowhere a player
+ * could stand. Every exterior shot had a horizon that was a perfectly straight
+ * line across the whole frame, with more than half the image empty above it.
+ *
+ * A rectangle hugging each site lets the ground start rolling immediately
+ * outside the wire, which is where it does any good: it gives the approach a
+ * ridge to come over, it breaks the horizon, and it means the standoff outside
+ * the compound is terrain rather than a parking lot.
+ */
+type Rect = { x0: number; z0: number; x1: number; z1: number };
+const SITE_PAD: Record<'villa' | 'quay', Rect[]> = {
+  villa: [
+    // The compound. Perimeter is x -78..78, z -58..74.
+    { x0: -88, z0: -70, x1: 88, z1: 96 },
+    // The access road corridor.
+    //
+    // A road is graded, and this one has to be: it is laid as 6 m slabs that
+    // each sample the ground at their own centre, so the moment real terrain
+    // appeared underneath it the road became a staircase with daylight between
+    // the treads. Carrying the pad up the corridor is both the correct answer
+    // visually — roads ARE cut into hillsides — and the one that keeps the
+    // checkpoint, the bus shelter and the culverts sitting flat.
+    { x0: -18, z0: 90, x1: 18, z1: 214 },
+  ],
+  // Perimeter is x -96..94, z -74..76; the outer checkpoint sits at z -114,
+  // and the approach road and rail siding are both inside this rectangle.
+  quay: [{ x0: -106, z0: -122, x1: 104, z1: 88 }],
+};
+/** Metres over which the pad grades into open ground. */
+const PAD_BLEND = 26;
 /** Height of the pad above sea level. */
 // The terrain sits deliberately BELOW the compound's paving.
 //
@@ -207,6 +245,10 @@ export class WorldSystem implements System, IWorldQuery {
     this.site = result.site;
     // Authored fixtures, handed to the interior lighting system once it is up.
     this.authoredLights = result.lights ?? [];
+    // Last chance to notice that something has been built across a doorway.
+    // Runs before `finalize` so the BVH is built from the corrected flags.
+    builder.clearDoorways();
+
     this.yard.finalize();
 
     this.root.add(this.yard.buildMeshes());
@@ -331,9 +373,22 @@ export class WorldSystem implements System, IWorldQuery {
     h += this.noise.ridged(x * s * 2.4 + 100, z * s * 2.4 - 40, 3, 2.3, 0.5) * 9;
 
     // Blend to the pad with a smooth shoulder so the edge reads as graded
-    // ground rather than a cliff.
-    const d = Math.hypot(x, z);
-    const t = 1 - clamp((d - PAD_RADIUS) / 110, 0, 1);
+    // ground rather than a cliff. Distance is to the pad RECTANGLE, so the
+    // shoulder follows the site's own shape instead of bulging into the
+    // approach at the corners and cutting it short along the long axis.
+    // Nearest of the site's pad rectangles wins, so overlapping pads (the
+    // compound and the road corridor that leaves it) join without a seam.
+    const rects = SITE_PAD[this.mapId] ?? SITE_PAD.villa;
+    let d = Infinity;
+    for (let i = 0; i < rects.length; i++) {
+      const r = rects[i];
+      const dx = Math.max(r.x0 - x, 0, x - r.x1);
+      const dz = Math.max(r.z0 - z, 0, z - r.z1);
+      const dd = Math.hypot(dx, dz);
+      if (dd < d) d = dd;
+      if (d === 0) break;
+    }
+    const t = 1 - clamp(d / PAD_BLEND, 0, 1);
     const pad = t * t * (3 - 2 * t);
     return lerp(h, PAD_HEIGHT, pad);
   }
