@@ -209,6 +209,72 @@ const spread = (Math.max(...Object.values(peaks)) - Math.min(...Object.values(pe
 check('same recoil at 30, 60 and 144 Hz', spread < 0.12,
   `${(spread * 100).toFixed(1)}% spread — ${Object.entries(peaks).map(([k, v]) => `${k}Hz ${v.toFixed(2)}°`).join(', ')} (was 16%)`);
 
+console.log('\n— the view returns to level, and the reload does not snap it —');
+// Fire a magazine, stop, let it settle, then reload.
+//
+// Recovery used to damp toward 78% of the burst's PEAK, held forever — so the
+// view sat 7.3 degrees high indefinitely after every magazine, and then the
+// reload called reset() and swung it all back in a single frame. A 7 degree
+// lurch at the end of every magazine change is worse than any of the shake
+// this test set out to measure.
+await page.evaluate(() => {
+  const wr = window.engine.get('weaponRuntime');
+  wr.equipped.loaded = wr.equipped.stats.magazineSize;
+  wr.equipped.chambered = true;
+});
+const settle = await page.evaluate(() => {
+  const e = window.engine;
+  const cam = e.get('render').camera;
+  const wr = e.get('weaponRuntime');
+  const player = e.get('player');
+  const inp = player.input;
+  const dir = cam.position.clone();
+  const pitch = () => { cam.getWorldDirection(dir); return Math.asin(Math.max(-1, Math.min(1, dir.y))) * 180 / Math.PI; };
+
+  e.stop?.();
+  const render = e.get('render');
+  if (!render.__realLate) { render.__realLate = render.lateUpdate; render.lateUpdate = () => {}; }
+  player.setControlsEnabled(true);
+  inp.moveX = 0; inp.moveZ = 0;
+  const modes = wr.weapons.specs.get(wr.equipped.specId).fireModes;
+  wr.fireMode = modes.includes('auto') ? 'auto' : modes[modes.length - 1];
+
+  let t = performance.now();
+  const stepMs = 1000 / 60;
+  // Settle first: the earlier blocks in this file leave the view elevated, and
+  // measuring the baseline against that would compare a climb to a climb.
+  inp.fire = false;
+  for (let i = 0; i < 300; i++) { t += stepMs; e.frame(t); }
+  const level = pitch();
+  // 1.6 s of fire.
+  // Set the trigger EVERY frame: the input system rewrites `input.fire` from
+  // the real mouse state on its own update, so a one-shot assignment before
+  // the loop is erased on the first frame.
+  for (let i = 0; i < 96; i++) { inp.fire = true; t += stepMs; e.frame(t); }
+  inp.fire = false;
+  const peak = pitch();
+  // 4 s to settle.
+  for (let i = 0; i < 240; i++) { inp.fire = false; t += stepMs; e.frame(t); }
+  const rested = pitch();
+  // Now reload, and watch for a single-frame jump.
+  let worstStep = 0;
+  let prev = pitch();
+  for (let i = 0; i < 240; i++) {
+    if (i < 4) inp.reload = true;
+    t += stepMs; e.frame(t);
+    const p = pitch();
+    worstStep = Math.max(worstStep, Math.abs(p - prev));
+    prev = p;
+  }
+  return { level, peak, rested, worstStep, after: pitch() };
+});
+check('the burst climbs', settle.peak - settle.level > 4,
+  `${(settle.peak - settle.level).toFixed(2)}° above level at the end of the magazine`);
+check('and the view comes back down', Math.abs(settle.rested - settle.level) < 0.6,
+  `${(settle.rested - settle.level).toFixed(2)}° residual after 4 s (was 7.34° forever)`);
+check('the reload does not snap the camera', settle.worstStep < 0.35,
+  `worst single frame ${settle.worstStep.toFixed(3)}°`);
+
 console.log('\n— firing does not push the player around the world —');
 await page.evaluate(() => {
   const wr = window.engine.get('weaponRuntime');

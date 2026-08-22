@@ -109,6 +109,8 @@ export class PlayerSystem implements System {
   private adsAmount = 0;
 
   grounded = true;
+  /** True while the player is on a ladder — gravity is suspended. */
+  climbing = false;
   stamina = 100;
   maxStamina = 100;
   health = 100;
@@ -142,6 +144,17 @@ export class PlayerSystem implements System {
   private prevPosition = new THREE.Vector3();
   /** Set false for one frame after a teleport so the camera does not lerp across the map. */
   private warped = true;
+  /**
+   * Bumped on every teleport.
+   *
+   * Anything that smooths against the look angles — the viewmodel's lag
+   * filter, principally — needs to know the difference between "the player
+   * turned very fast" and "the player is somewhere else now". Guessing from
+   * the magnitude of the change cannot tell them apart, and guessing wrong
+   * means the weapon locks rigid during exactly the fast flicks it should
+   * trail through.
+   */
+  warpCount = 0;
 
   /** Speed the player is actually moving, for animation and audio. */
   speed = 0;
@@ -199,6 +212,7 @@ export class PlayerSystem implements System {
     this.cameraOffset.set(0, 0, 0);
     this.cameraRotOffset.set(0, 0, 0);
     this.warped = true;
+    this.warpCount++;
 
     const floor = world.floorAt
       ? world.floorAt(this.position.x, this.position.z, this.position.y)
@@ -267,6 +281,7 @@ export class PlayerSystem implements System {
     this.cameraOffset.set(0, 0, 0);
     this.cameraRotOffset.set(0, 0, 0);
     this.warped = true;
+    this.warpCount++;
     // Mouse movement banked while the camera belonged to someone else is not
     // a turn the player asked for; applying it on resume is a snap.
     this.input.lookX = 0;
@@ -365,8 +380,46 @@ export class PlayerSystem implements System {
       }
     }
 
-    // --- gravity + collision ---------------------------------------------
-    this.velocity.y -= 9.81 * step;
+    // --- ladders ----------------------------------------------------------
+    //
+    // Every ladder in both maps was decoration. `BF.CLIMB` is set on their
+    // stiles and rungs, and nothing in the codebase read it — six ladders on
+    // the villa, one on the quay, and the whole `stack-climb` approach into
+    // the warehouse roof, none of which a player could go up. Driving the
+    // controller into one reached 2.00 m; the container top it was meant to
+    // reach is at 10.62.
+    //
+    // The rule is deliberately forgiving, because a ladder you have to line up
+    // with precisely is a ladder players avoid: touch it, and forward goes up.
+    // Look down and forward goes down. Step away and you drop off.
+    const feetNow = this.position.y - this.eyeHeight;
+    const onLadder = this.stanceTarget === 'stand'
+      && world.climbAt(this.position.x, feetNow, this.position.z, 0.62);
+
+    if (onLadder) {
+      this.climbing = true;
+      // Vertical rate follows the look angle, so pushing forward while looking
+      // up climbs and while looking down descends — the convention every
+      // reference title uses and the only one that needs no extra key.
+      const drive = inp.moveZ;
+      const vy = drive * 2.3 * (this.pitch > 0.1 ? 1 : this.pitch < -0.1 ? -1 : 1);
+      this.velocity.y = drive !== 0 ? vy : 0;
+      // Damp lateral drift so you do not slide off sideways while climbing,
+      // but leave enough that stepping away releases you.
+      this.velocity.x *= 0.35;
+      this.velocity.z *= 0.35;
+      this.grounded = false;
+      if (inp.jump) {
+        // Kick off the ladder.
+        inp.jump = false;
+        this.climbing = false;
+        this.velocity.y = 3.4;
+      }
+    } else {
+      this.climbing = false;
+      // --- gravity ---------------------------------------------------------
+      this.velocity.y -= 9.81 * step;
+    }
 
     // `position.y` is the EYE height; the collider works in feet space.
     const feetY = this.position.y - this.eyeHeight;

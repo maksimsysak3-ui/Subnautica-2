@@ -575,7 +575,10 @@ export function buildQuay(
     b.box(cx, y + 1.45, cz, len, 1.45, 1.3, mat, { yaw, surface: 'metal', tint: b.jitterTint(0.10) });
     // Corrugations: shallow ribs down each flank, which is what stops a
     // container reading as a coloured brick.
-    const ribs = Math.round(len / 1.05);
+    // Ribs must stay INSIDE the box. `round(6.05/1.05)` is 6 and the loop runs
+    // -6..6, so the end ribs sat at +-6.30 — 250 mm past the end of a 6.05
+    // half-length container, floating in the lane and solid to a body.
+    const ribs = Math.floor((len - 0.15) / 1.05);
     for (let i = -ribs; i <= ribs; i++) {
       b.box(cx + cos * i * 1.05, y + 1.45, cz - sin * i * 1.05,
         0.09, 1.28, 1.36, mat, { yaw, surface: 'metal', flags: BF.NO_COVER, tint: b.jitterTint(0.14) });
@@ -712,9 +715,13 @@ export function buildQuay(
       b.box(sx + 6.62, y, sz, 0.04, 0.04, 0.44, M.steelGalv,
         { surface: 'metal', flags: BF.NO_COVER | BF.NO_NAV | BF.THIN });
     }
+    // `b.ladder` already pushes its own navlink for this ladder — a second one
+    // here was a duplicate, and both of them had their top node hanging in
+    // mid-air 0.3-0.85 m off the container's east face rather than on the deck.
+    // Land it on the deck instead.
     navLinks.push({
       ax: sx + 6.35, ay: PAD, az: sz,
-      bx: sx + 6.35, by: top + 0.1, bz: sz,
+      bx: sx + 4.2, by: top + 0.1, bz: sz,
       kind: 'ladder', penalty: 6, bidirectional: true,
     });
 
@@ -938,7 +945,7 @@ export function buildQuay(
     }
     p.floodlight(TX0 - 1, PAD, TZ0 - 3, 0.4, 6);
     p.floodlight(TX1 + 1, PAD, TZ1 + 3, Math.PI + 0.4, 6);
-    p.services(TX1, TZ0, TX1, TZ1, PAD, TH, -1, 0.5);
+    p.services(TX1, TZ0, TX1, TZ1, PAD, TH, -1, 0.5, 0.24);
     p.wash(TX0 - 6, TZ0 - 6, TX1 + 6, TZ1 + 8, PAD, 18);
     p.dress(TX0, TZ0, TX1, TZ1, PAD, 22);
     room('Transit shed', 'store', false, TX0 - 2, TZ0 - 2, TX1 + 2, TZ1 + 2, PAD, PAD + TH);
@@ -1591,14 +1598,14 @@ export function buildQuay(
   {
     // Services on the faces you walk past. The warehouse is 70 x 62 m of blank
     // corrugated sheet; at 3 m it read exactly as it did at 60.
-    p.services(WH.x0, WH.z0, WH.x1, WH.z0, PAD, ROOF - PAD, -1, 0.42);
-    p.services(WH.x1, WH.z0, WH.x1, WH.z1, PAD, ROOF - PAD, 1, 0.42);
-    p.services(WH.x0, WH.z1, WH.x1, WH.z1, PAD, ROOF - PAD, 1, 0.35);
-    p.services(WH.x0, WH.z0, WH.x0, WH.z1, PAD, ROOF - PAD, -1, 0.30);
-    p.services(OFF.x0, OFF.z1, OFF.x1, OFF.z1, PAD, OFF1 + 3.3 - PAD, 1, 0.45);
-    p.services(OFF.x1, OFF.z0, OFF.x1, OFF.z1, PAD, OFF1 + 3.3 - PAD, 1, 0.45);
-    p.services(COLD.x0, COLD.z1, COLD.x1, COLD.z1, PAD, 4.4, 1, 0.40);
-    p.services(COLD.x1, COLD.z0, COLD.x1, COLD.z1, PAD, 4.4, 1, 0.40);
+    p.services(WH.x0, WH.z0, WH.x1, WH.z0, PAD, ROOF - PAD, -1, 0.42, W_EXT);
+    p.services(WH.x1, WH.z0, WH.x1, WH.z1, PAD, ROOF - PAD, 1, 0.42, W_EXT);
+    p.services(WH.x0, WH.z1, WH.x1, WH.z1, PAD, ROOF - PAD, 1, 0.35, W_EXT);
+    p.services(WH.x0, WH.z0, WH.x0, WH.z1, PAD, ROOF - PAD, -1, 0.30, W_EXT);
+    p.services(OFF.x0, OFF.z1, OFF.x1, OFF.z1, PAD, OFF1 + 3.3 - PAD, 1, 0.45, W_EXT);
+    p.services(OFF.x1, OFF.z0, OFF.x1, OFF.z1, PAD, OFF1 + 3.3 - PAD, 1, 0.45, W_EXT);
+    p.services(COLD.x0, COLD.z1, COLD.x1, COLD.z1, PAD, 4.4, 1, 0.40, W_EXT);
+    p.services(COLD.x1, COLD.z0, COLD.x1, COLD.z1, PAD, 4.4, 1, 0.40, W_EXT);
 
     // Roof aerials and plant, so the skyline is not four flat edges.
     for (let i = 0; i < 5; i++) {

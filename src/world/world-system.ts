@@ -41,14 +41,19 @@ import { buildQuay } from './sites/quay';
 import { buildOutskirts } from './sites/outskirts';
 import { BF, type SiteInstance, type SiteBuildResult, type ApproachRoute } from './types';
 import { SURFACE_TABLE } from './surfaces';
-import { moveCharacter, brickGroundAt, type CharacterShape, type MoveResult } from './collision';
+import { moveCharacter, brickGroundAt, climbAt, type CharacterShape, type MoveResult } from './collision';
 
 const TERRAIN_SIZE = 640;
 /**
- * 640 m across 384 quads is 1.67 m per quad. It was 192 (3.33 m), which could
- * not hold a ditch, a berm or a spoil bank even where the terrain existed.
+ * 640 m across 256 quads is 2.5 m per quad.
+ *
+ * It was 192 (3.33 m). 384 was tried and is too expensive: it quadruples the
+ * mesh to 148k vertices and 295k triangles, all of it freshly allocated,
+ * noise-sampled, normal-generated and uploaded on EVERY map switch — about
+ * 10 MB of churn and 75 ms of noise alone, for resolution the player never
+ * sees, because the ground they stand on is the flat pad.
  */
-const TERRAIN_SEGMENTS = 384;
+const TERRAIN_SEGMENTS = 256;
 
 /**
  * The flat pad each site is built on, as a rectangle rather than a disc.
@@ -80,12 +85,25 @@ const SITE_PAD: Record<'villa' | 'quay', Rect[]> = {
     // checkpoint, the bus shelter and the culverts sitting flat.
     { x0: -18, z0: 90, x1: 18, z1: 214 },
   ],
-  // Perimeter is x -96..94, z -74..76; the outer checkpoint sits at z -114,
-  // and the approach road and rail siding are both inside this rectangle.
-  quay: [{ x0: -106, z0: -122, x1: 104, z1: 88 }],
+  quay: [
+    // Perimeter is x -96..94, z -74..76; the outer checkpoint sits at z -114.
+    { x0: -106, z0: -122, x1: 104, z1: 88 },
+    // The rail siding runs to x = 170 and its wagons sit at a fixed height, so
+    // without this the last 66 m of track and five parked wagons vanished into
+    // a hillside — 237 bricks, the worst of them 6.7 m underground.
+    { x0: 96, z0: -30, x1: 184, z1: 2 },
+  ],
 };
-/** Metres over which the pad grades into open ground. */
-const PAD_BLEND = 26;
+/**
+ * Metres over which the pad grades into open ground.
+ *
+ * 26 was too abrupt: the noise is +-35 m, so the shoulder reached a 46% grade
+ * — a 12 m wall of hillside 13 m outside the villa's south wall, overlooking
+ * the whole compound from higher than its own watchtowers, with no navmesh on
+ * it. 72 m is still short enough that the terrain starts working immediately
+ * outside the wire, which was the point of shrinking it in the first place.
+ */
+const PAD_BLEND = 72;
 /** Height of the pad above sea level. */
 // The terrain sits deliberately BELOW the compound's paving.
 //
@@ -709,6 +727,16 @@ export class WorldSystem implements System, IWorldQuery {
    * terrain. This is the only correct way to move an actor: `overlapSphere`
    * does not see brick geometry, so anything relying on it walks through walls.
    */
+  /**
+   * True when a ladder is within arm's reach of this point.
+   *
+   * Exposed on the world rather than on the player because the AI will want it
+   * too the moment it is taught to use the vertical.
+   */
+  climbAt(x: number, y: number, z: number, radius = 0.75): boolean {
+    return climbAt(this.yard, x, y, z, radius);
+  }
+
   moveCharacter(
     x: number, y: number, z: number,
     dx: number, dy: number, dz: number,

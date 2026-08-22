@@ -24,6 +24,7 @@ import { CombatFx } from './fx/combat-fx';
 import { Hud } from './ui/hud';
 import { Menu } from './ui/menu';
 import { InteriorLights } from './lighting/interior-lights';
+import { WeaponLight } from './lighting/weapon-light';
 import { MissionSystem } from './missions/mission-system';
 import { EnemyAi } from './ai/enemy-ai';
 import { garrison } from './ai/garrison';
@@ -102,6 +103,7 @@ async function boot(): Promise<void> {
 
   progress(0.76, 'switching on the lights');
   engine.add(new InteriorLights());
+  engine.add(new WeaponLight());
 
   progress(0.77, 'drafting the tasking');
   const missions = new MissionSystem();
@@ -329,7 +331,18 @@ async function boot(): Promise<void> {
       get invertY() { return input.invertY; },
       set invertY(v: boolean) { input.invertY = v; },
       get fov() { return render.baseFov; },
-      set fov(v: number) { render.baseFov = v; },
+      set fov(v: number) {
+        render.baseFov = v;
+        // Write the camera directly as well.
+        //
+        // The player controller is what normally damps `camera.fov` toward
+        // `baseFov`, and it is order 10 — which the engine does not run while
+        // paused. So dragging the field-of-view slider with the menu open
+        // changed a number and nothing on screen, which reads as a broken
+        // control. This makes it live; the controller takes over on resume.
+        render.camera.fov = v;
+        render.camera.updateProjectionMatrix();
+      },
       apply() { /* every setter writes straight through to a live system. */ },
     },
   };

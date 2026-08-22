@@ -103,6 +103,8 @@ export class Viewmodel implements System {
   private lagYaw = 0;
   private lagPitch = 0;
   private prevYaw = 0;
+  /** Last observed teleport generation from the controller. */
+  private lastWarp = -1;
   private prevPitch = 0;
   private kick = 0;
   private lastAmmo = -1;
@@ -265,8 +267,17 @@ export class Viewmodel implements System {
     // per-frame quantity with a per-second decay rate, so the same mouse
     // movement produced 13% more lag at 30 fps than at 144 — the weapon was
     // heavier on a slower machine.
-    if (Math.abs(host.yaw - this.prevYaw) > 1.0 || Math.abs(host.pitch - this.prevPitch) > 1.0) {
-      // Respawn or map switch. Snap, or the weapon swings in from off-screen.
+    // Teleports are DETECTED, not guessed at from magnitude.
+    //
+    // The old guard snapped whenever the tracking error exceeded 1.0 rad,
+    // which at a filter rate of 9/s means any turn faster than 516 deg/s — so
+    // a 180 degree flick in 150 ms tripped it on every frame of the flick and
+    // welded the weapon rigidly to the view precisely when it should have
+    // trailed furthest. The player controller already knows when it has
+    // teleported; ask it.
+    const gen = (host as unknown as { warpCount?: number }).warpCount ?? 0;
+    if (gen !== this.lastWarp) {
+      this.lastWarp = gen;
       this.prevYaw = host.yaw;
       this.prevPitch = host.pitch;
     }

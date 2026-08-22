@@ -48,6 +48,7 @@ export const DEFAULT_BINDINGS: Binding[] = [
   { action: 'slot3',     keys: ['Digit3'],             label: 'Shotgun' },
   { action: 'slot4',     keys: ['Digit4'],             label: 'Sidearm' },
   { action: 'nextSlot',  keys: ['KeyV'],               label: 'Next weapon' },
+  { action: 'torch',     keys: ['KeyT'],               label: 'Weapon light' },
   { action: 'drone',     keys: ['KeyG'],               label: 'Deploy drone' },
   { action: 'nvg',       keys: ['KeyN'],               label: 'Night vision' },
   { action: 'map',       keys: ['KeyM', 'Tab'],        label: 'Tactical map' },
@@ -452,6 +453,12 @@ export class InputSystem implements System {
     // Scripted input last, so it wins.
     for (const [k, v] of Object.entries(this.override)) {
       (inp as unknown as Record<string, unknown>)[k] = v;
+    }
+
+    // The torch is a latch, not a hold: you switch it on and it stays on, and
+    // deciding to leave it on is the interesting part.
+    if (this.consumePress('torch')) {
+      (this.engine?.get('weaponLight') as { toggle(): void } | undefined)?.toggle();
     }
 
     // Stance is a request, not a held state — the controller times transitions.

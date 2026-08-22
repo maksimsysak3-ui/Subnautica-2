@@ -93,10 +93,35 @@ export function buildVilla(b: SiteBuilder, rng: Rng): SiteBuildResult {
   };
 
   // Lawn across the whole compound, then hard surfaces on top of it.
-  pave(PERIM.x0, PERIM.z0, PERIM.x1, PERIM.z1, PAD, M.lawn, 'grass');
+  // The ground plane, with the drainage pan cut out of it.
+  //
+  // There is no CSG here: a slab is a solid box, so a pit dug into the motor
+  // court was simply underneath the lawn. Sampling the ground over the pan
+  // returned 2.00 everywhere and never the 1.45 the pit floor was written at —
+  // about twenty bricks of "the map's only cover that is below you", invisible
+  // and unreachable. Laying the surrounding ground as four rectangles around
+  // the hole is the whole fix.
+  const PAN = { x0: -13.4, z0: 22.6, x1: 1.4, z1: 33.4 };
+  const paveAround = (
+    x0: number, z0: number, x1: number, z1: number, y: number, mat: number,
+    surface: 'concrete' | 'gravel' | 'grass' | 'tile' | 'dirt' | 'sand',
+  ): void => {
+    // No overlap with the hole at all — lay it whole.
+    if (x1 <= PAN.x0 || x0 >= PAN.x1 || z1 <= PAN.z0 || z0 >= PAN.z1) {
+      pave(x0, z0, x1, z1, y, mat, surface);
+      return;
+    }
+    const cx0 = Math.max(x0, PAN.x0), cx1 = Math.min(x1, PAN.x1);
+    if (x0 < cx0) pave(x0, z0, cx0, z1, y, mat, surface);
+    if (cx1 < x1) pave(cx1, z0, x1, z1, y, mat, surface);
+    if (z0 < PAN.z0) pave(cx0, z0, cx1, PAN.z0, y, mat, surface);
+    if (PAN.z1 < z1) pave(cx0, PAN.z1, cx1, z1, y, mat, surface);
+  };
+
+  paveAround(PERIM.x0, PERIM.z0, PERIM.x1, PERIM.z1, PAD, M.lawn, 'grass');
   // Driveway: gate → motor court → around the fountain.
   pave(-5, 40, 5, PERIM.z1, PAD + 0.025, M.asphalt, 'concrete');
-  pave(-26, 16, 14, 42, PAD + 0.025, M.asphalt, 'concrete');
+  paveAround(-26, 16, 14, 42, PAD + 0.025, M.asphalt, 'concrete');
   // Service spur east to the workshop and staff block.
   pave(14, -34, PERIM.x1 - 1, -26, PAD + 0.025, M.gravelMat, 'gravel');
   pave(28, -42, 58, -22, PAD + 0.025, M.gravelMat, 'gravel');
@@ -400,19 +425,25 @@ export function buildVilla(b: SiteBuilder, rng: Rng): SiteBuildResult {
     // both long sides. Cover that is *below* you plays completely differently
     // from cover you stand behind, and it is the only such thing outside the
     // pool. It also gives the convoy something to be parked around.
-    b.span(-13, PAD - 0.55, 23, 1, PAD - 0.53, 33, M.concreteDark, { surface: 'concrete' });
+    // The floor must cover the WHOLE hole, edge to edge — the ground around it
+    // has been cut away, so any gap is a place to fall out of the level.
+    b.span(PAN.x0, PAD - 0.55, PAN.z0, PAN.x1, PAD - 0.53, PAN.z1, M.concreteDark,
+      { surface: 'concrete' });
     for (const [sx0, sz0, sx1, sz1] of [
       [-13, 23, 1, 23.4], [-13, 32.6, 1, 33],
     ] as const) {
       b.span(sx0, PAD - 0.55, sz0, sx1, PAD - 0.27, sz1, M.concreteRaw, { surface: 'concrete' });
     }
-    for (const wz of [22.6, 33.4]) {
-      b.span(-13.4, PAD - 0.55, wz - 0.2, 1.4, PAD + 0.06, wz + 0.2, M.concreteRaw,
-        { surface: 'concrete' });
+    // Kerbs around the lip. They sit on the pan's own edge line, so they line
+    // the hole rather than covering it, and they stand 180 mm proud — enough
+    // to read as an edge and to trip a sprint, not enough to be cover.
+    for (const wz of [PAN.z0, PAN.z1]) {
+      b.span(PAN.x0 - 0.22, PAD - 0.55, wz - 0.22, PAN.x1 + 0.22, PAD + 0.18, wz + 0.02,
+        M.concreteRaw, { surface: 'concrete' });
     }
-    for (const wx of [-13.4, 1.4]) {
-      b.span(wx - 0.2, PAD - 0.55, 22.6, wx + 0.2, PAD + 0.06, 33.4, M.concreteRaw,
-        { surface: 'concrete' });
+    for (const wx of [PAN.x0, PAN.x1]) {
+      b.span(wx - 0.22, PAD - 0.55, PAN.z0, wx + 0.02, PAD + 0.18, PAN.z1,
+        M.concreteRaw, { surface: 'concrete' });
     }
     // Grating over the sump at one end.
     for (let i = 0; i < 9; i++) {
@@ -431,12 +462,46 @@ export function buildVilla(b: SiteBuilder, rng: Rng): SiteBuildResult {
       { surface: 'metal', flags: BF.NO_COVER | BF.THIN });
 
     // Guard shack at the court's east side, watching the drive.
-    b.span(8.4, PAD, 28.4, 12.4, PAD + 2.7, 32.4, M.plasterCream, { surface: 'concrete' });
-    b.span(8.1, PAD + 2.7, 28.1, 12.7, PAD + 2.86, 32.7, M.terracottaOld,
-      { surface: 'concrete', flags: BF.NO_COVER });
-    b.span(8.35, PAD + 0.95, 29.2, 8.45, PAD + 2.15, 31.6, M.glass,
-      { surface: 'glass', flags: BF.SOFT | BF.TRANSPARENT | BF.NO_SHADOW | BF.NO_COVER | BF.THIN });
-    p.sconce(8.3, PAD + 2.3, 30.4, Math.PI / 2);
+    //
+    // Built as a room, not as a block. The first version was a solid 4 x 4 m
+    // mass of plaster with a glazed window set half inside it and a lamp on
+    // the outside — a lit window into solid stucco, in the first thing the
+    // player looks at.
+    {
+      const gs = { x0: 8.4, z0: 28.4, x1: 12.4, z1: 32.4 };
+      const gh = 2.7;
+      const gid = b.building('Gate post');
+      b.span(gs.x0, PAD, gs.z0, gs.x1, PAD + 0.1, gs.z1, M.concreteRaw,
+        { surface: 'concrete', flags: BF.NO_COVER });
+      // West wall, glazed, facing the drive.
+      b.wall({
+        x0: gs.x0, z0: gs.z0, x1: gs.x0, z1: gs.z1, y: PAD, height: gh, thickness: 0.2,
+        mat: M.plasterCream, surface: 'concrete', jitter: 0.04, building: gid,
+        openings: [winOp(2.0, 2.2, 0.95, 2.15)],
+      });
+      b.wall({
+        x0: gs.x0, z0: gs.z1, x1: gs.x1, z1: gs.z1, y: PAD, height: gh, thickness: 0.2,
+        mat: M.plasterCream, surface: 'concrete', jitter: 0.04, building: gid,
+      });
+      b.wall({
+        x0: gs.x1, z0: gs.z1, x1: gs.x1, z1: gs.z0, y: PAD, height: gh, thickness: 0.2,
+        mat: M.plasterCream, surface: 'concrete', jitter: 0.04, building: gid,
+        openings: [winOp(2.0, 1.4, 0.95, 2.15)],
+      });
+      // South wall with the door in it.
+      b.wall({
+        x0: gs.x1, z0: gs.z0, x1: gs.x0, z1: gs.z0, y: PAD, height: gh, thickness: 0.2,
+        mat: M.plasterCream, surface: 'concrete', jitter: 0.04, building: gid,
+        openings: [doorOp(2.0, 0.95, 'Gate post door', -1, -1, 'wood')],
+      });
+      b.span(gs.x0 - 0.3, PAD + gh, gs.z0 - 0.3, gs.x1 + 0.3, PAD + gh + 0.16, gs.z1 + 0.3,
+        M.terracottaOld, { surface: 'concrete', flags: BF.NO_COVER });
+      b.endBuilding();
+      p.desk(10.4, PAD + 0.1, 29.4, Math.PI);
+      p.chair(10.4, PAD + 0.1, 30.5, 0);
+      p.shelf(11.9, PAD + 0.1, 31.4, Math.PI / 2, 1.1, 1.6);
+      p.sconce(8.6, PAD + 2.3, 30.4, -Math.PI / 2);
+    }
 
     // Fuel bowser and a stack of drums on the north-west corner.
     b.cyl(-22.6, PAD + 0.95, 20.6, 0.85, 0.95, M.paintRed, { surface: 'metal' });
@@ -549,7 +614,7 @@ export function buildVilla(b: SiteBuilder, rng: Rng): SiteBuildResult {
     b.span(SX1 + 5, PAD, SZ1 + 6, SX1 + 8.4, PAD + 0.5, SZ1 + 7.2, M.concreteDark,
       { surface: 'concrete' });
     b.cyl(SX1 + 10, PAD + 0.55, SZ0 - 6, 2.2, 0.55, M.dirtMat, { surface: 'dirt' });
-    p.services(SX0, SZ0, SX0, SZ1, PAD, SH, -1, 0.45);
+    p.services(SX0, SZ0, SX0, SZ1, PAD, SH, -1, 0.45, 0.3);
     p.dress(SX0, SZ0, SX1, SZ1, PAD, 20);
     p.wash(SX0, SZ0 - 4, SX1 + 6, SZ1 + 4, PAD, 10);
     b.endBuilding();
@@ -597,11 +662,12 @@ export function buildVilla(b: SiteBuilder, rng: Rng): SiteBuildResult {
   // not a service yard, and if they carry the same litter neither reads.
   {
     // Wall faces, inside and out, on the runs you can get close to.
-    p.services(PERIM.x0 + 0.3, PERIM.z1 - 0.3, PERIM.x1 - 0.3, PERIM.z1 - 0.3, PAD, WALL_H, -1, 0.30);
-    p.services(PERIM.x1 - 0.3, PERIM.z1 - 0.3, PERIM.x1 - 0.3, PERIM.z0 + 0.3, PAD, WALL_H, -1, 0.30);
-    p.services(HOUSE.x0, HOUSE.z1, HOUSE.x1, HOUSE.z1, TER, 6.4, 1, 0.55);
-    p.services(HOUSE.x1, HOUSE.z1, HOUSE.x1, HOUSE.z0, TER, 6.4, 1, 0.55);
-    p.services(HOUSE.x0, HOUSE.z0, HOUSE.x0, HOUSE.z1, TER, 6.4, -1, 0.55);
+    // Centre lines and real thicknesses, so the fittings land on the face.
+    p.services(PERIM.x0, PERIM.z1, PERIM.x1, PERIM.z1, PAD, WALL_H, -1, 0.30, 0.4);
+    p.services(PERIM.x1, PERIM.z1, PERIM.x1, PERIM.z0, PAD, WALL_H, -1, 0.30, 0.4);
+    p.services(HOUSE.x0, HOUSE.z1, HOUSE.x1, HOUSE.z1, TER, 6.4, 1, 0.55, W_EXT);
+    p.services(HOUSE.x1, HOUSE.z1, HOUSE.x1, HOUSE.z0, TER, 6.4, 1, 0.55, W_EXT);
+    p.services(HOUSE.x0, HOUSE.z0, HOUSE.x0, HOUSE.z1, TER, 6.4, -1, 0.55, W_EXT);
 
     // Ground wear, by how much traffic each surface actually takes.
     p.wash(-30, 40, 16, PERIM.z1 - 2, PAVED, 16);      // the drive
@@ -703,7 +769,161 @@ export function buildVilla(b: SiteBuilder, rng: Rng): SiteBuildResult {
     ],
   };
 
-  return { site, rooms: b.rooms, navLinks: b.navLinks };
+  return { site, rooms: b.rooms, navLinks: b.navLinks, lights: buildLightPlan(b, p, rng) };
+}
+
+// ===========================================================================
+// The light plan
+// ===========================================================================
+
+type Fixture = NonNullable<SiteBuildResult['lights']>[number];
+
+/**
+ * Every light on the compound.
+ *
+ * ## Why this file had none at all
+ * The villa authored *emissive geometry* — lamps that glow — and not a single
+ * actual light. Emissive materials do not illuminate anything: they are bright
+ * pixels, nothing more. So at night the compound was lit by the sky and by
+ * nothing else, every interior was pitch black, and half the mission catalogue
+ * — which is set between dusk and 0400 — was unplayable. The quay had a light
+ * plan and the villa did not, and the difference is very obvious once you look
+ * for it.
+ *
+ * ## Two passes
+ * First, one fixture per interior room, placed automatically at the room's own
+ * centre just under its ceiling. That is a guarantee rather than a design: no
+ * room can be black, ever, including any room a future edit adds.
+ *
+ * Then the hero fixtures by hand — the drive, the gate, the motor court, the
+ * terrace, the pool, the shrine, the helipad — because those are the ones that
+ * do the navigational work. In a night operation the light plan *is* the map:
+ * you read where you are by which pools of light you can see.
+ *
+ * ## Colour as wayfinding
+ * The house, the terrace and the casitas are warm — tungsten, sodium, candle.
+ * The service half of the compound (z < -40: the workshop, the generator
+ * room, the store, the staff block yard) is cold grey-green fluorescent. That
+ * split is doing real work: "I am in the cold half" means "I am behind the
+ * house", and it is legible at a glance from anywhere, at any range, without
+ * a marker or a minimap.
+ */
+function buildLightPlan(b: SiteBuilder, p: Props, rng: Rng): Fixture[] {
+  const lights: Fixture[] = [];
+  const at = (x: number, y: number, z: number, color: number,
+              intensity: number, distance: number, alwaysOn = false): void => {
+    lights.push({ position: { x, y, z }, color, intensity, distance, alwaysOn });
+  };
+
+  // --- one per interior room, automatically -------------------------------
+  //
+  // Intensity scales with the SQUARE of the mounting height. Three.js point
+  // lights with decay 2 fall off as 1/d^2, so a fitting 3 m up needs nine
+  // times the intensity of one 1 m up to put the same light on the floor.
+  // Scaling by "how important the room is" instead is the mistake that left
+  // the quay's high bays four and a half times dimmer than the ambient they
+  // were meant to overcome.
+  for (const r of b.rooms) {
+    if (!r.indoors) continue;
+    const cx = (r.minX + r.maxX) / 2;
+    const cz = (r.minZ + r.maxZ) / 2;
+    const h = Math.max(2.2, r.maxY - r.minY);
+    const y = r.minY + h * 0.82;
+    const mount = y - r.minY;
+    // The service half is fluorescent; everywhere else is domestic tungsten.
+    const cold = cz < -40 || r.tag === 'workshop' || r.tag === 'store' || r.tag === 'plant';
+    const area = (r.maxX - r.minX) * (r.maxZ - r.minZ);
+    // Big rooms get two fittings rather than one very bright one, because a
+    // single point source in a 140 m2 room reads as a spotlight in a cave.
+    const n = area > 90 ? 2 : 1;
+    for (let i = 0; i < n; i++) {
+      const t = n === 1 ? 0.5 : 0.28 + i * 0.44;
+      const wide = (r.maxX - r.minX) > (r.maxZ - r.minZ);
+      at(
+        wide ? r.minX + t * (r.maxX - r.minX) : cx,
+        y,
+        wide ? cz : r.minZ + t * (r.maxZ - r.minZ),
+        cold ? 0xd6e4e0 : 0xffd9a8,
+        mount * mount * (cold ? 3.2 : 2.4) / n,
+        Math.min(26, 5 + Math.sqrt(area) * 1.6),
+        cold,
+      );
+    }
+  }
+
+  // --- the drive ----------------------------------------------------------
+  // Three floodlights walking the approach in from the gate. This is the
+  // sequence a player sees first and it is what makes the compound read as
+  // occupied rather than derelict.
+  for (const dz of [66, 50, 34]) {
+    p.floodlight(-9.5, PAD, dz, 0.35, 5.2);
+    at(-8.6, PAD + 5.0, dz, 0xfff0d2, 150, 30, false);
+  }
+
+  // --- the gate -----------------------------------------------------------
+  // Bright, cold, and pointed outward: a checkpoint lights the ground you are
+  // approaching over, not itself.
+  for (const gx of [-9, 9]) {
+    p.floodlight(gx, PAD, PERIM.z1 - 2.4, gx < 0 ? 0.5 : -0.5, 5.6);
+    at(gx * 0.8, PAD + 5.4, PERIM.z1 - 3.6, 0xe8f0ff, 190, 30, false);
+  }
+  at(0, PAD + 3.0, PERIM.z1 + 1.5, 0xe8f0ff, 60, 18, false);
+
+  // --- motor court and carport -------------------------------------------
+  at(-17.3, PAD + 3.1, 21.4, 0xffe6bc, 42, 16, false);
+  at(10.4, PAD + 2.6, 30.4, 0xffd9a8, 30, 14, true);   // guard shack, always lit
+  at(-6, PAD + 4.4, 27, 0xffe6bc, 110, 26, false);
+
+  // --- terrace, pool and the house's own outside faces --------------------
+  for (const [tx, tz] of [[-18, 14], [-2, 14], [10, 6], [10, -6]] as const) {
+    p.sconce(tx, TER + 2.6, tz, 0);
+    at(tx, TER + 2.5, tz, 0xffd0a0, 26, 12, false);
+  }
+  // The pool itself, lit from under the water. One of the few genuinely
+  // beautiful things a night approach can have, and it silhouettes anyone
+  // walking the terrace edge.
+  for (const px of [-40, -32, -24]) {
+    at(px, TER - 1.2, 2, 0x9fd8ff, 34, 14, false);
+  }
+  // Pergola strings — warm, low, and they stripe the ground.
+  for (let i = 0; i < 5; i++) {
+    at(-30 + i * 6, TER + 2.4, -6, 0xffca88, 12, 8, false);
+  }
+
+  // --- casita court -------------------------------------------------------
+  for (const [cx2, cz2] of [[-52, 34], [-52, 52], [-30, 34], [-30, 52]] as const) {
+    p.sconce(cx2, PAD + 2.7, cz2, 0);
+    at(cx2, PAD + 2.6, cz2, 0xffd9a8, 24, 12, false);
+  }
+
+  // --- the shrine: the north half's focal point ---------------------------
+  at(33.5, PAD + 1.2, 49.5, 0xffb464, 22, 11, true);
+  at(33.5, PAD + 5.4, 49.5, 0xffd9a8, 40, 16, false);
+
+  // --- helipad ------------------------------------------------------------
+  // Cold and hard, and the only cold pool on this side of the compound, so it
+  // reads instantly as somewhere different.
+  at(-56, PAD + 0.9, -40, 0xcfe6ff, 46, 22, false);
+  for (let i = 0; i < 8; i++) {
+    const a = (i / 8) * Math.PI * 2;
+    at(-56 + Math.cos(a) * 9.4, PAD + 0.5, -40 + Math.sin(a) * 9.4, 0xcfe6ff, 5, 6, true);
+  }
+
+  // --- the service half: cold, sparse, and deliberately less pleasant -----
+  for (const [sx, sz] of [[30, -30], [50, -30], [26, -48], [48, -48], [-40, -46]] as const) {
+    p.floodlight(sx, PAD, sz, rng.range(0, 6.2), 4.6);
+    at(sx, PAD + 4.4, sz, 0xd2e2dc, 95, 24, false);
+  }
+  // Workshop roller door, always lit — somebody is working in there.
+  at(44, PAD + 3.4, -40, 0xd2e2dc, 55, 18, true);
+
+  // --- watchtowers --------------------------------------------------------
+  for (const [tx2, tz2] of [[-72, 68], [72, -52]] as const) {
+    at(tx2, PAD + 9.6, tz2, 0xe8f0ff, 90, 26, false);
+  }
+
+  console.info(`[villa] light plan: ${lights.length} fixtures`);
+  return lights;
 }
 
 // ===========================================================================
@@ -930,9 +1150,15 @@ function buildMainHouse(
     b.cyl(px, GF + 1.7, por.z1 - 0.6, 0.34, 1.7, M.plasterWhite, { surface: 'concrete', tint: b.jitterTint(0.03) });
     b.cyl(px, GF + 3.48, por.z1 - 0.6, 0.44, 0.12, M.stoneTrim, { surface: 'concrete', flags: BF.NO_COVER });
   }
-  b.span(por.x0, GF + 3.4, por.z0, por.x1, GF + 3.66, por.z1, M.concreteRaw, { surface: 'concrete', flags: BF.NO_COVER });
+  // Structural slab UNDER the deck, both topping out flush with the first
+  // floor. They were the other way round: the concrete ran 6.30 to 6.56 and
+  // the tile 6.02 to 6.30, so the tile was buried inside the concrete and the
+  // balcony's walking surface finished 260 mm ABOVE the doors that open onto
+  // it. Stepping out of the bedroom meant stepping up into the bottom of the
+  // door frame.
+  b.span(por.x0, GF + 3.14, por.z0, por.x1, GF + 3.4, por.z1, M.concreteRaw, { surface: 'concrete', flags: BF.NO_COVER });
   // Balcony deck + balustrade on top of the portico.
-  b.span(por.x0, FF - 0.28, por.z0, por.x1, FF, por.z1, M.tileTerra, { surface: 'tile', flags: BF.NO_COVER });
+  b.span(por.x0, FF - 0.07, por.z0, por.x1, FF, por.z1, M.tileTerra, { surface: 'tile', flags: BF.NO_COVER });
   for (const [ax, az, bx2, bz2] of [
     [por.x0, por.z1, por.x1, por.z1], [por.x0, por.z0, por.x0, por.z1], [por.x1, por.z0, por.x1, por.z1],
   ] as Array<[number, number, number, number]>) {
@@ -1000,8 +1226,15 @@ function buildMainHouse(
     p.painting(-21.4, GF + 1.9, -1.5, Math.PI / 2, 1.2, 0.9);
   });
   b.inRoom(rKitchen, () => {
-    p.counter(-11.5, -9.2, -4.5, -9.2, GF, M.woodPale);
-    p.counter(-11.5, 0.9, -7.5, 0.9, GF, M.woodPale);
+    // Both of these used to finish inside a doorway.
+    //
+    // A kitchen counter run along a wall is exactly the shape that ends up
+    // across the door at the end of it, and it is waist high — so it is not
+    // something a player steps over, it is a sealed room. Stopped 1.2 m clear
+    // of each opening, which is also how a real kitchen is built.
+    p.counter(-11.5, -9.2, -8.6, -9.2, GF, M.woodPale);
+    p.counter(-5.4, -9.2, -4.5, -9.2, GF, M.woodPale);
+    p.counter(-11.5, 0.9, -9.0, 0.9, GF, M.woodPale);
     p.table(-8.0, GF, -4.5, 0, 2.2, 1.0, 0.92, M.marble);
     p.fridge(-4.2, GF, -8.3, Math.PI);
     p.stove(-6.4, GF, -9.1, Math.PI);
@@ -1297,7 +1530,11 @@ function buildWorkshop(
   b.wall({ ...wo, x0: x1, z0: z1, x1, z1: z0, openings: [winOp(6.0, 2.4, 3.0, 4.4)] });
   doorIds.push(...b.wall({
     ...wo, x0: x1, z0, x1: x0, z1: z0,
-    openings: [doorOp(6.0, 1.1, 'Workshop rear door', rStore, -1, 'metal'), winOp(16.0, 2.4, 3.0, 4.4)],
+    // 1.6 m, not 1.1. This is the back door of a workshop — things go through
+    // it on a trolley — and at 1.1 m with the leaf standing open the clear
+    // width came to about a third of a metre, which a body does not fit
+    // through cleanly enough to rely on.
+    openings: [doorOp(6.0, 1.6, 'Workshop rear door', rStore, -1, 'metal'), winOp(16.0, 2.4, 3.0, 4.4)],
   }));
   b.wall({ ...wo, x0, z0, x1: x0, z1, openings: [winOp(9.0, 3.0, 3.0, 4.4)] });
   doorIds.push(...b.wall({

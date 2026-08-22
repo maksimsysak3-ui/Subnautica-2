@@ -51,7 +51,10 @@ const ALERT_DOOR = 0.45;
 const ALERT_BODY = 0.70;
 
 /** Per-frame ceiling on path requests across ALL actors. */
-const PATH_BUDGET_PER_FRAME = 2;
+/** Path solves per second of simulated time — two per frame at 60 Hz. */
+const PATHS_PER_SECOND = 120;
+/** Never bank more than this, so a long stall cannot buy a burst of solves. */
+const PATH_CREDIT_CAP = 4;
 
 export interface Brain {
   state: AiState;
@@ -105,6 +108,12 @@ export interface Brain {
   suppressFor: number;
   /** Seconds before this actor may work another door. */
   doorCooldown: number;
+  /** Seconds until the next up/down transition behind cover. */
+  peekIn: number;
+  /** A door this actor opened and should shut behind it, or -1. */
+  doorBehind: number;
+  /** Seconds until that happens. */
+  doorCloseIn: number;
 }
 
 /** Scratch aim point, so aimed fire and area fire share one code path. */
@@ -121,7 +130,7 @@ function newBrain(rng: Rng, route: THREE.Vector3[]): Brain {
     senseIn: rng.range(0, 0.17),
     stateAge: 0, dwell: 0, peeking: false,
     speed: 0, speedBias: rng.range(0.88, 1.12), settled: false, suppressFor: 0,
-    doorCooldown: 0,
+    doorCooldown: 0, peekIn: 0, doorBehind: -1, doorCloseIn: 0,
   };
 }
 
@@ -134,8 +143,8 @@ export class EnemyAi implements System {
   private rng = new Rng(0x5eed_a1);
   private actors!: ActorRegistry;
   private pathQueue: number[] = [];
-  /** Path solves left this frame. Refilled in `update`, spent in `fixedUpdate`. */
-  private pathBudget = PATH_BUDGET_PER_FRAME;
+  /** Fractional path-solve credits, accrued at PATHS_PER_SECOND. */
+  private pathCredits = PATH_CREDIT_CAP;
   private tmpA = new THREE.Vector3();
   private tmpB = new THREE.Vector3();
   private tmpDir = new THREE.Vector3();
@@ -300,18 +309,22 @@ export class EnemyAi implements System {
     // engine runs up to five of those in one frame, so spending the whole
     // budget here spent it five times over and a bad frame could pay for ten
     // path solves at once. `update` refills it, once, per frame.
+    // Budget in SOLVES PER SECOND, accrued on the fixed clock.
+    //
+    // Per-fixed-step let a catch-up frame pay for ten solves at once.
+    // Per-rendered-frame fixed that and created the opposite problem: it cut
+    // throughput in half at 30 fps and to a fifth in a five-step frame — the
+    // AI repathed least often exactly when the machine was already struggling
+    // and the actors most needed to keep up. A credit that accrues with time
+    // is independent of both.
+    this.pathCredits = Math.min(PATH_CREDIT_CAP, this.pathCredits + step * PATHS_PER_SECOND);
     this.pathQueue.sort((x, y) => (this.pathUrgency(y) - this.pathUrgency(x)));
     for (const id of this.pathQueue) {
-      if (this.pathBudget <= 0) break;
+      if (this.pathCredits < 1) break;
       const a = this.actors.get(id);
       const b = a?.brain as Brain | null;
-      if (a && b && b.goal) { this.repath(a, b); this.pathBudget--; }
+      if (a && b && b.goal) { this.repath(a, b); this.pathCredits -= 1; }
     }
-  }
-
-  /** Frame phase. Nothing but refilling the path budget. */
-  update(_dt: number, _ctx: EngineContext): void {
-    this.pathBudget = PATH_BUDGET_PER_FRAME;
   }
 
   /**
@@ -341,6 +354,22 @@ export class EnemyAi implements System {
     b.burstPause = Math.max(0, b.burstPause - step);
     b.doorCooldown = Math.max(0, b.doorCooldown - step);
     b.lostFor += step;
+
+    // Shut the door behind you — but only if nothing is happening. Nobody
+    // closes a door in a firefight, and the player has to be able to tell the
+    // difference between "a guard walked through here" and "a guard is coming
+    // back through here".
+    if (b.doorBehind >= 0) {
+      b.doorCloseIn -= step;
+      if (b.state === 'engage' || b.state === 'reposition' || b.state === 'flee') {
+        b.doorBehind = -1;
+      } else if (b.doorCloseIn <= 0) {
+        const w = services.tryGet('world') as unknown as
+          { doors?: { close(id: number, by?: number): boolean } } | undefined;
+        w?.doors?.close(b.doorBehind, a.id);
+        b.doorBehind = -1;
+      }
+    }
 
     // Alertness bleeds off, but never all the way back to oblivious once the
     // actor has real evidence — a guard who saw a body does not forget it.
@@ -417,7 +446,17 @@ export class EnemyAi implements System {
       { time?: { ambientLightLevel: number } } | undefined;
     const light = clamp01(env?.time?.ambientLightLevel ?? 1);
 
-    const maxRange = lerp(26, 95, light) * lerp(0.75, 1.15, a.skill);
+    // A lit weapon torch is the loudest thing the player carries.
+    //
+    // Without this the torch would be free: perfect visibility at night at no
+    // cost, which is not a decision. With it, switching on roughly doubles the
+    // range you can be picked up from in the dark and narrows the reaction
+    // window — and, because it scales with how DARK it is, the same torch
+    // costs you almost nothing at dusk and gives you away completely at 0200.
+    const torch = services.tryGet('weaponLight')?.exposure ?? 0;
+    const lit = light + torch * (1 - light) * 0.85;
+
+    const maxRange = lerp(26, 95, lit) * lerp(0.75, 1.15, a.skill);
     const d = this.dist(a.position, player.position);
     if (d > maxRange) { this.loseSight(b); return; }
 
@@ -463,8 +502,9 @@ export class EnemyAi implements System {
 
     if (b.state !== 'engage') {
       // Reaction time: 0.75 s for a novice caught cold, 0.18 s for a switched-on
-      // veteran. This window is the entire reward for moving first.
-      b.reaction = lerp(0.75, 0.18, a.skill * 0.6 + b.alertness * 0.4);
+      // veteran. This window is the entire reward for moving first — and a
+      // torch beam sweeping a wall hands most of it back.
+      b.reaction = lerp(0.75, 0.18, clamp01(a.skill * 0.6 + b.alertness * 0.4 + torch * 0.35));
       b.aimError = lerp(0.19, 0.07, a.skill);
       this.setState(b, 'engage');
       bus.emit('ai:spotted', { actorId: a.id, targetId: player.id });
@@ -562,9 +602,14 @@ export class EnemyAi implements System {
       // braindead" actually means. Real opposition keeps rounds going into
       // the doorway you disappeared through for a few seconds, which is what
       // makes you pay for the angle you just took.
+      // The budget is in SECONDS OF ELAPSED TIME, so it has to be spent every
+      // step. Decrementing it only on the steps that fired meant a 3-round
+      // burst cost 0.05 s of a 2 s budget per 0.7-2.2 s of real time — the
+      // variable would have taken a minute or two to run out and was doing
+      // nothing at all.
+      b.suppressFor = Math.max(0, b.suppressFor - step);
       if (b.believedPos && b.suppressFor > 0 && b.reaction <= 0
         && b.fireCooldown <= 0 && b.burstPause <= 0) {
-        b.suppressFor -= step;
         // Wide, because they genuinely cannot see the target. This is area
         // fire, not marksmanship.
         this.shootAt(a, b, b.believedPos, b.aimError * 3.4 + 0.05);
@@ -590,6 +635,37 @@ export class EnemyAi implements System {
     if (b.cover && !b.settled && this.dist(a.position, b.cover.position) < 1.4) {
       b.settled = true;
       this.actors.setStance(a, 'crouch');
+      b.peekIn = this.rng.range(0.5, 1.3);
+    }
+
+    // ...and then POP UP TO SHOOT.
+    //
+    // Crouching behind cover fixed being exposed and created something worse:
+    // a crouched muzzle sits at feet + 1.09, cover is only accepted when the
+    // threat cannot see feet + 1.00, and the cover graph actively PREFERS
+    // taller cover — so every round an enemy in good cover fired went into the
+    // crate in front of it. `hit.actorId` was never the player, so no damage,
+    // and the impact was nowhere near them, so not even suppression. Enemies
+    // who successfully took cover became completely harmless, which is exactly
+    // backwards.
+    //
+    // So cover is a cycle, not a posture: down behind it, up to fire a burst,
+    // down again. That is what real fire-and-movement looks like, it gives the
+    // player a rhythm to read and a window to shoot into, and it is the only
+    // way "took cover" and "is dangerous" are both true.
+    if (b.settled) {
+      b.peekIn -= step;
+      if (b.peekIn <= 0) {
+        if (a.stance === 'crouch') {
+          // Up for a burst.
+          this.actors.setStance(a, 'stand');
+          b.peekIn = this.rng.range(0.9, 1.8);
+        } else {
+          this.actors.setStance(a, 'crouch');
+          b.peekIn = this.rng.range(0.7, 1.6);
+        }
+      }
+      b.peeking = a.stance !== 'crouch';
     }
 
     // Re-evaluate cover when it stops being cover, not on a stopwatch.
@@ -606,9 +682,29 @@ export class EnemyAi implements System {
     }
     if (!b.cover && b.stateAge > 0.6) this.seekCover(a, b);
 
-    if (b.reaction <= 0 && b.fireCooldown <= 0 && b.burstPause <= 0) {
+    // Fire only when the MUZZLE has the shot, not when the eyes do.
+    //
+    // Perception looks from feet + 1.55 and the weapon fires from feet +
+    // 1.5 * stance — so a crouched actor could see over its cover and not
+    // shoot over it. Checking the actual firing line means an enemy holds
+    // fire while it is down and takes the shot when it comes up, which is
+    // both correct and what makes the peek cycle above legible.
+    if (b.reaction <= 0 && b.fireCooldown <= 0 && b.burstPause <= 0 && this.muzzleClear(a, player)) {
       this.shoot(a, b, player);
     }
+  }
+
+  /** Can this actor's weapon, at its current stance, actually see the target? */
+  private muzzleClear(a: Actor, target: Actor): boolean {
+    const world = services.tryGet('world');
+    if (!world) return false;
+    const own = (STANCE_HEIGHT[a.stance as StanceKey] ?? STANCE_HEIGHT.stand)
+      / STANCE_HEIGHT.stand;
+    const theirs = (STANCE_HEIGHT[target.stance as StanceKey] ?? STANCE_HEIGHT.stand)
+      / STANCE_HEIGHT.stand;
+    this.tmpA.set(a.position.x, a.position.y + 1.5 * own, a.position.z);
+    this.tmpB.set(target.position.x, target.position.y + 1.05 * theirs, target.position.z);
+    return world.lineOfSight(this.tmpA, this.tmpB, [a.id, 0]);
   }
 
   /**
@@ -624,18 +720,40 @@ export class EnemyAi implements System {
     if (b.doorCooldown > 0) return;
     const world = services.tryGet('world') as unknown as {
       doors?: {
-        nearest(p: THREE.Vector3, r?: number): { id: number; locked?: boolean; openAmount: number } | null;
+        nearest(p: THREE.Vector3, r?: number): {
+          id: number; locked?: boolean; openAmount: number; yaw: number;
+        } | null;
         open(id: number, by?: number, fast?: boolean): boolean;
+        close(id: number, by?: number): boolean;
       };
     };
     const doors = world?.doors;
     if (!doors) return;
     // Look a stride ahead, not at our own feet.
-    this.tmpB.set(a.position.x + sx * 1.1, a.position.y + 0.9, a.position.z + sz * 1.1);
-    const d = doors.nearest(this.tmpB, 1.5);
+    this.tmpB.set(a.position.x + sx * 0.9, a.position.y + 0.9, a.position.z + sz * 0.9);
+    const d = doors.nearest(this.tmpB, 1.0);
     if (!d || d.locked || d.openAmount > 0.5) return;
+
+    // Only a door we are actually going THROUGH.
+    //
+    // A 1.1 m probe with a 1.5 m radius reached 2.6 m and had no facing test,
+    // so a patrolling guard shouldered open every door within two and a half
+    // metres of its route whether or not it was heading for one. Over a few
+    // minutes every unlocked door on the map ended up standing open, which
+    // destroys the player's main stealth tool — and a door the player shut in
+    // a pursuer's face was reopened 1.2 s later, on a loop, forever.
+    //
+    // The test: our travel direction has to be within about 50 degrees of the
+    // doorway's own normal. The stored `yaw` is the WALL's, so the normal is
+    // perpendicular to it.
+    const dnx = Math.sin(d.yaw), dnz = Math.cos(d.yaw);
+    if (Math.abs(sx * dnx + sz * dnz) < 0.64) return;
+
     doors.open(d.id, a.id, b.state === 'engage' || b.state === 'reposition');
-    b.doorCooldown = 1.2;
+    b.doorCooldown = 1.6;
+    // Remember it, so an actor that is not fighting closes it behind itself.
+    b.doorBehind = d.id;
+    b.doorCloseIn = 2.4;
   }
 
   /** True when the believed threat position can see this actor's chest. */
@@ -778,7 +896,13 @@ export class EnemyAi implements System {
       hit: hit ? hit.point.clone() : null,
     });
 
-    if (hit?.actorId === 0 && target) {
+    // `target` is only supplied by aimed fire. Gating the damage on it meant a
+    // round from moving fire or from area fire could strike the player dead
+    // centre and do nothing at all — the tracer hit, the hitmarker did not,
+    // and the two behaviours the last pass added to stop enemies being
+    // harmless were themselves harmless.
+    const victim = target ?? this.actors.get(0);
+    if (hit?.actorId === 0 && victim) {
       // The region comes from WHERE THE ROUND LANDED, not from a dice roll.
       //
       // This used to trace the ray, confirm the hit, and then roll for the
@@ -788,7 +912,7 @@ export class EnemyAi implements System {
       // limb). That was a hidden 8% per-second instant-death roll with no
       // relationship to the geometry and no way for the player to influence
       // it by taking cover correctly.
-      const region = this.actors.regionForHit(target, hit.point, this.tmpDir);
+      const region = this.actors.regionForHit(victim, hit.point, this.tmpDir);
       this.actors.applyDamage(
         0, this.rng.range(16, 27), 'ballistic', region, a.id, this.tmpDir.clone(),
       );
@@ -796,8 +920,7 @@ export class EnemyAi implements System {
       // A miss that lands near the player still suppresses. This is what makes
       // an enemy dangerous even when it cannot shoot straight — and it is the
       // entire point of the area fire that now comes through here.
-      const p = target ?? this.actors.get(0);
-      const miss = hit && p ? this.dist(hit.point, p.position) : 99;
+      const miss = hit && victim ? this.dist(hit.point, victim.position) : 99;
       if (miss < 3.5) bus.emit('actor:suppressed', { actorId: 0, seconds: 0.9 });
     }
 

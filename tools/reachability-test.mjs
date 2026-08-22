@@ -27,7 +27,7 @@ const { Brickyard } = await server.ssrLoadModule('/src/world/brickyard.ts');
 const { SiteBuilder } = await server.ssrLoadModule('/src/world/builder.ts');
 const { NavGrid } = await server.ssrLoadModule('/src/world/navmesh.ts');
 const { DoorRegistry } = await server.ssrLoadModule('/src/world/doors.ts');
-const { moveCharacter } = await server.ssrLoadModule('/src/world/collision.ts');
+const { moveCharacter, brickGroundAt } = await server.ssrLoadModule('/src/world/collision.ts');
 const { Rng, Noise2D } = await server.ssrLoadModule('/src/core/math.ts');
 const { buildVilla } = await server.ssrLoadModule('/src/world/sites/villa.ts');
 const { buildQuay } = await server.ssrLoadModule('/src/world/sites/quay.ts');
@@ -110,10 +110,26 @@ function run(mapId) {
       // depenetration push then reads as a blocked doorway. What is being
       // tested is the OPENING, not the room.
       let px = d.x - nx * 0.9 + ux * lane, pz = d.z - nz * 0.9 + uz * lane;
-      let py = d.y + 0.15;
+      // Stand on the real floor, not on the door's nominal sill.
+      //
+      // `WorldDoor.y` is the base of the WALL the door sits in, and a floor
+      // slab is usually laid on top of that — the villa's first floor is 260 mm
+      // proud of it. Starting the capsule at sill + 0.15 buried it in the
+      // floor, the depenetration push shoved it sideways, and the test called
+      // a perfectly good balcony door blocked.
+      const floor = brickGroundAt(yard, px, pz, d.y - 0.6, d.y + 1.2, 0.2);
+      let py = (Number.isFinite(floor) ? floor : d.y) + 0.12;
       const tx = d.x + nx * 0.9 + ux * lane, tz = d.z + nz * 0.9 + uz * lane;
       let stalled = 0;
       for (let step = 0; step < 400; step++) {
+        // Success is CROSSING THE WALL PLANE, not arriving at a point.
+        //
+        // The question this test asks is "can a body get through this
+        // doorway", and it is answered the moment the capsule is clear on the
+        // far side. Requiring it to reach an exact target 0.9 m beyond made
+        // the result depend on whatever furniture happens to be standing
+        // there, which is a different question.
+        if ((px - d.x) * nx + (pz - d.z) * nz > 0.4) { reached = true; break; }
         const dx = tx - px, dz = tz - pz;
         const dist = Math.hypot(dx, dz);
         if (dist < 0.3) { reached = true; break; }

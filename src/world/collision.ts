@@ -113,6 +113,27 @@ function closestPoint(yard: Brickyard, i: number, x: number, y: number, z: numbe
 }
 
 /** Highest walkable brick top at (x,z) within [minY, maxY]. */
+/**
+ * Is there a climbable surface (a ladder) within reach of this point?
+ *
+ * `BF.CLIMB` was set on the stiles and rungs of every ladder in both maps and
+ * read by absolutely nothing — seven ladders, including the one the quay's
+ * `stack-climb` approach is built around, that no player could ever go up.
+ * This is the query that makes them work.
+ */
+export function climbAt(
+  yard: Brickyard, x: number, y: number, z: number, radius = 0.75,
+): boolean {
+  collect(yard, x - radius, y - 0.6, z - radius, x + radius, y + 1.7, z + radius);
+  for (let k = 0; k < candidateCount; k++) {
+    const b = candidates[k];
+    if ((yard.flags[b] & BF.CLIMB) === 0) continue;
+    if ((yard.flags[b] & BF.INVISIBLE) !== 0) continue;
+    return true;
+  }
+  return false;
+}
+
 export function brickGroundAt(
   yard: Brickyard, x: number, z: number, minY: number, maxY: number, radius = 0.12,
 ): number {

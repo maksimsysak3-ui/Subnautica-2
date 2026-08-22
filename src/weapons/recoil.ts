@@ -274,6 +274,19 @@ export class RecoilState {
     this.aimPitch = damp(this.aimPitch, this.aimFloorPitch * 0.78, aimRecovery, dt);
     this.aimYaw = damp(this.aimYaw, this.aimFloorYaw * 0.66, aimRecovery, dt);
 
+    // The FLOOR has to come down too, once the shooting stops.
+    //
+    // Holding it at the burst's peak meant recovery asymptoted to 78% of the
+    // climb and stayed there forever: after a magazine the view sat 7.3
+    // degrees high permanently, and then the reload — which calls `reset()` —
+    // snapped it all back in a single step. A 7 degree lurch downward at the
+    // end of every magazine change is a far worse camera artefact than
+    // anything this change set out to fix. Decaying the floor on the same
+    // gate keeps the climb monotonic while the trigger is down and returns
+    // the view fully once it is up.
+    this.aimFloorPitch = damp(this.aimFloorPitch, 0, recovery * 1.1 * settle, dt);
+    this.aimFloorYaw = damp(this.aimFloorYaw, 0, recovery * 1.1 * settle, dt);
+
     // --- sway -----------------------------------------------------------
     // Breathing and muscle tremor. Amplitude rises as stamina falls and drops
     // sharply when aiming or braced.

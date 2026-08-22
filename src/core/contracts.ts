@@ -82,6 +82,14 @@ export interface IWorldQuery {
   raycast(origin: Vector3, direction: Vector3, opts?: RaycastOptions): RayHit | null;
   /** All hits along the ray, sorted near→far. Needed for wall penetration. */
   raycastAll(origin: Vector3, direction: Vector3, opts?: RaycastOptions): RayHit[];
+  /**
+   * Is a climbable surface (a ladder) within `radius` of this point?
+   *
+   * On the contract because the AI will need it as soon as it is taught to
+   * use the vertical, and because seven ladders sat in the two maps for weeks
+   * as pure decoration while nothing anywhere read the flag that marks them.
+   */
+  climbAt(x: number, y: number, z: number, radius?: number): boolean;
   /** Cheap boolean visibility test. */
   lineOfSight(from: Vector3, to: Vector3, ignoreActors?: readonly number[]): boolean;
   /** Ground height at an XZ position, or null if outside the world. */
@@ -603,6 +611,22 @@ export interface ServiceMap {
   environment: IEnvironment;
   missions: IMissionSystem;
   progression: IProgression;
+  /**
+   * The weapon torch.
+   *
+   * Registered so that perception can ask how exposed the player is without
+   * the AI having to import anything from the lighting team — a lit torch has
+   * to make you easier to see, or switching it on is not a decision.
+   */
+  weaponLight: IWeaponLight;
+}
+
+export interface IWeaponLight {
+  /** True while the player has it switched on. */
+  readonly on: boolean;
+  /** 0..1 smoothed brightness — what perception actually reads. */
+  readonly exposure: number;
+  toggle(): void;
 }
 
 class ServiceRegistry {

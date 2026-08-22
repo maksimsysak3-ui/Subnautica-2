@@ -113,7 +113,7 @@ export class ExposurePass implements PostPass {
   /** Middle-grey target. Higher = brighter image. */
   key = 0.17;
   minExposure = 0.06;
-  maxExposure = 5.0;
+  maxExposure = 6.5;
   /** e-folds per second when the scene brightens / darkens. */
   speedUp = 2.4;
   speedDown = 1.1;

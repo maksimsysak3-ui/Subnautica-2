@@ -592,7 +592,9 @@ export class Props {
 
   /** Painted line, bay marking, hatching. */
   paintMarking(x0: number, z0: number, x1: number, z1: number, y: number, mat = M.plasterWhite): void {
-    this.b.span(Math.min(x0, x1), y, Math.min(z0, z1), Math.max(x0, x1), y + 0.008, Math.max(z0, z1),
+    const dy = this.decalStep;
+    this.b.span(Math.min(x0, x1), y + dy, Math.min(z0, z1),
+      Math.max(x0, x1), y + dy + 0.008, Math.max(z0, z1),
       mat, { surface: 'concrete', flags: F_DECAL, tint: this.b.jitterTint(0.08) });
   }
 
@@ -600,7 +602,8 @@ export class Props {
   tyreTrack(x: number, z: number, yaw: number, len = 6, gauge = 1.7): void {
     const b = this.b;
     for (const s of [-1, 1]) {
-      b.box(x + Math.sin(yaw) * s * gauge / 2, this.decalY, z + Math.cos(yaw) * s * gauge / 2,
+      b.box(x + Math.sin(yaw) * s * gauge / 2, this.decalY + this.decalStep,
+        z + Math.cos(yaw) * s * gauge / 2,
         0.16, 0.005, len / 2, M.concreteDark,
         { yaw, surface: 'concrete', flags: F_DECAL, tint: b.jitterTint(0.10) });
     }
@@ -608,20 +611,20 @@ export class Props {
 
   oilPatch(x: number, y: number, z: number, r = 0.55): void {
     const b = this.b;
-    b.box(x, y + 0.005, z, r, 0.005, r * this.rng.range(0.6, 1.0), M.tarBlack,
+    b.box(x, y + 0.005 + this.decalStep, z, r, 0.005, r * this.rng.range(0.6, 1.0), M.tarBlack,
       { yaw: this.rng.range(0, 3.14), surface: 'concrete', flags: F_DECAL, tint: b.jitterTint(0.14) });
   }
 
   puddle(x: number, y: number, z: number, r = 0.9): void {
     const b = this.b;
-    b.box(x, y + 0.006, z, r, 0.006, r * this.rng.range(0.5, 0.95), M.water,
+    b.box(x, y + 0.006 + this.decalStep, z, r, 0.006, r * this.rng.range(0.5, 0.95), M.water,
       { yaw: this.rng.range(0, 3.14), surface: 'water', flags: F_DECAL });
   }
 
   /** A darker rectangle of newer surfacing — a trench that was dug and filled. */
   patchRepair(x: number, z: number, y: number, w = 2.2, d = 1.4): void {
     const b = this.b;
-    b.box(x, y + 0.012, z, w / 2, 0.012, d / 2, M.asphalt,
+    b.box(x, y + 0.012 + this.decalStep, z, w / 2, 0.012, d / 2, M.asphalt,
       { yaw: this.rng.range(-0.06, 0.06), surface: 'concrete', flags: F_DECAL,
         tint: b.jitterTint(0.16) });
   }
@@ -629,9 +632,12 @@ export class Props {
   crackLine(x: number, z: number, y: number, yaw: number, len = 3): void {
     const b = this.b;
     let cx = x, cz = z, a = yaw;
+    const dy = this.decalStep;
     for (let i = 0; i < 3; i++) {
       const seg = len / 3;
-      b.box(cx + Math.sin(a) * seg / 2, y + 0.004, cz + Math.cos(a) * seg / 2,
+      // Each segment of a crack gets its own step as well, because the three
+      // of them overlap at their joints by construction.
+      b.box(cx + Math.sin(a) * seg / 2, y + 0.004 + dy + i * 0.0004, cz + Math.cos(a) * seg / 2,
         0.035, 0.004, seg / 2, M.concreteDark,
         { yaw: a, surface: 'concrete', flags: F_DECAL });
       cx += Math.sin(a) * seg;
@@ -642,6 +648,22 @@ export class Props {
 
   /** Set by `wash` so the decal helpers know what height to sit at. */
   private decalY = 0;
+  /**
+   * Rotating micro-offset applied to every decal, in millimetres.
+   *
+   * Each decal helper used to write a fixed height, and `wash` scatters with
+   * no occupancy test — so a census found 7,445 bit-identical coplanar
+   * overlapping pairs on the quay and 1,474 on the villa. Coplanar geometry
+   * z-fights, and z-fighting on a ground plane shimmers as the camera moves,
+   * which looks far worse than having no wear at all. Stepping each successive
+   * decal by 1.5 mm costs nothing, is invisible at any viewing angle, and
+   * guarantees a strict depth order.
+   */
+  private decalSeq = 0;
+  private get decalStep(): number {
+    this.decalSeq = (this.decalSeq + 1) % 24;
+    return this.decalSeq * 0.0015;
+  }
 
   /**
    * Scatter ground wear across a region.
@@ -682,13 +704,14 @@ export class Props {
       const d = this.rng.range(0, spread);
       const r = this.rng.next();
       const px = x + Math.cos(a) * d, pz = z + Math.sin(a) * d;
+      const dy = this.decalStep;
       if (r < 0.55) {
-        b.box(px, y + 0.018, pz, this.rng.range(0.03, 0.09), 0.018, this.rng.range(0.03, 0.09),
+        b.box(px, y + 0.018 + dy, pz, this.rng.range(0.03, 0.09), 0.018, this.rng.range(0.03, 0.09),
           this.rng.next() < 0.5 ? M.concreteDark : M.sootMetal,
           { yaw: this.rng.range(0, 3.14), surface: 'gravel', flags: F_DECAL,
             tint: b.jitterTint(0.16) });
       } else if (r < 0.8) {
-        b.box(px, y + 0.012, pz, this.rng.range(0.05, 0.11), 0.012, this.rng.range(0.02, 0.05),
+        b.box(px, y + 0.012 + dy, pz, this.rng.range(0.05, 0.11), 0.012, this.rng.range(0.02, 0.05),
           M.plasticWhite, { yaw: this.rng.range(0, 3.14), surface: 'plastic', flags: F_DECAL,
             tint: b.jitterTint(0.14) });
       } else {
@@ -710,6 +733,15 @@ export class Props {
     for (let i = 0; i < n; i++) {
       const x = this.rng.range(Math.min(x0, x1), Math.max(x0, x1));
       const z = this.rng.range(Math.min(z0, z1), Math.max(z0, z1));
+      // Never in a doorway, or in front of one.
+      //
+      // Scattering at twenty-odd objects per hundred square metres over a
+      // region that contains doors WILL eventually drop a drum in front of
+      // one, and a drum in a doorway is a sealed room. The doorway sweep
+      // catches what lands inside the opening; this stops the approach being
+      // blocked from a metre and a half out, which the sweep must not touch
+      // because that is where furniture legitimately lives.
+      if (this.nearDoorway(x, z, 2.3)) continue;
       const r = this.rng.next();
       if (r < 0.20) this.cone(x, y, z);
       else if (r < 0.38) this.bottleCluster(x, y, z, 2 + Math.floor(this.rng.next() * 4));
@@ -721,6 +753,16 @@ export class Props {
     }
   }
 
+  /** True if (x, z) is within `r` metres of any doorway authored so far. */
+  private nearDoorway(x: number, z: number, r: number): boolean {
+    const r2 = r * r;
+    for (const d of this.b.doors) {
+      const dx = d.x - x, dz = d.z - z;
+      if (dx * dx + dz * dz < r2) return true;
+    }
+    return false;
+  }
+
   /**
    * Dress a wall FACE with services: conduit, boxes, vents, downpipes, signs.
    *
@@ -730,7 +772,7 @@ export class Props {
    */
   services(
     x0: number, z0: number, x1: number, z1: number, y: number, h: number,
-    out = 1, density = 0.10,
+    out = 1, density = 0.10, thickness = 0.34,
   ): void {
     const len = Math.hypot(x1 - x0, z1 - z0);
     if (len < 1e-3) return;
@@ -738,10 +780,19 @@ export class Props {
     const yaw = Math.atan2(-uz, ux);
     const nx = -uz * out, nz = ux * out;
     const n = Math.max(1, Math.round(len * density));
+    // Stand the fittings off the wall's FACE, not off its centre line.
+    //
+    // A flat 60 mm offset was only ever right if the caller passed the face,
+    // and no caller did: passing the centre line of a 340 mm wall buried 47 of
+    // 55 fittings on the villa's north elevation inside the masonry, and
+    // hand-computed insets left 68 more floating 100-200 mm clear of the
+    // perimeter. Both failures are invisible in a brick count and obvious in
+    // a screenshot, which is the worst combination.
+    const stand = thickness / 2 + 0.05;
     for (let i = 0; i < n; i++) {
       const d = this.rng.range(0.6, len - 0.6);
-      const px = x0 + ux * d + nx * 0.06;
-      const pz = z0 + uz * d + nz * 0.06;
+      const px = x0 + ux * d + nx * stand;
+      const pz = z0 + uz * d + nz * stand;
       const r = this.rng.next();
       if (r < 0.26) this.conduitRun(px, y + 0.4, pz, yaw, this.rng.range(1.2, h - 0.6));
       else if (r < 0.44) this.junctionBox(px, y + this.rng.range(1.1, 1.9), pz, yaw);

@@ -247,9 +247,19 @@ export class SiteBuilder {
         // silhouette event, a place light gets through, and — since it is a
         // real 1.2 m wall rather than a 3.3 m one — a place a player can see
         // over and, from the right side, get over.
-        const broken = this.rng.next() < (p.breakChance ?? 0);
+        // A collapsed panel is a route over the wall, so it must not appear
+        // next to a gate — the villa's shipping seed put one 2 m east of the
+        // main gate, which makes the front-door approach pointless. And its
+        // height must be chosen deliberately: the first version used a
+        // fraction of the wall height and landed at 3.12 against a jump apex
+        // of 3.126, so whether the map's most important shortcut existed at
+        // all came down to six millimetres.
+        const nearOpening = ops.some(
+          (o) => Math.abs((pa + pb) / 2 - o.at) < o.width / 2 + p.every * 1.6,
+        );
+        const broken = !nearOpening && this.rng.next() < (p.breakChance ?? 0);
         const top = broken
-          ? y0 + h * this.rng.range(0.30, 0.46)
+          ? y0 + Math.min(h * 0.55, 1.15)
           : y0 + h + this.rng.range(-vary, vary);
         const mat = variants[Math.min(
           variants.length - 1,
@@ -348,6 +358,12 @@ export class SiteBuilder {
       // Sill below and lintel above the opening.
       if (op.y0 > 0.001) segment(a, b, y0, y0 + op.y0, opts.mat);
       if (op.y1 < h - 0.001) segment(a, b, y0 + op.y1, y0 + h, opts.mat);
+      // ...and the cap course across the top of it. Coping is emitted per
+      // panel inside `run()`, and `run()` only covers the spans BETWEEN
+      // openings — so a panelised wall had a gap in its coping over every door
+      // and window. On the villa's north perimeter that was an 11 m hole in
+      // the top edge, directly over the main gate.
+      if (opts.panel && opts.coping) coping(a, b, y0 + h);
 
       const [ox, oz] = at(op.at);
 
@@ -441,7 +457,14 @@ export class SiteBuilder {
       const ux = Math.cos(d.yaw), uz = -Math.sin(d.yaw);
       const nx = Math.sin(d.yaw), nz = Math.cos(d.yaw);
       const halfW = Math.max(0.3, d.width / 2 - 0.05);
-      const halfD = 0.5;
+      // Half a metre either side of the wall plane was not enough: a stove
+      // 0.58 m clear of the jamb, a mirror hung 0.6 m out into the room and a
+      // toolbox at 0.78 m all still blocked their doorways while sitting
+      // outside the sweep. 0.75 m is roughly the depth a person needs to turn
+      // in — and a doorway in a shooter needs about a metre of clear approach
+      // on each side or you cannot enter it at speed, which is the whole
+      // reason doorways matter.
+      const halfD = 0.9;
       const y0 = d.y + 0.03;
       const y1 = d.y + 1.9;
 
@@ -451,30 +474,51 @@ export class SiteBuilder {
         // Vertical overlap first — cheapest, and it rejects every floor slab.
         if (yard.py[i] + yard.hy[i] <= y0 || yard.py[i] - yard.hy[i] >= y1) continue;
 
+        // Nothing structural is ever removed.
+        //
+        // This guard is the whole safety of the pass. Without it the first
+        // version deleted 94 bricks on the villa and 72 on the quay — and 76
+        // and 39 of those were over a metre long: interior partitions, roof
+        // parapets, six cold-store chamber walls, the quay's entire 190 m
+        // seawall and its 180 m loading platform. The reachability test then
+        // passed *because the walls were gone*. A doorway blocked by something
+        // big is an authoring error that has to be fixed in the site file; a
+        // doorway blocked by a chair is what this pass is for.
+        if (yard.hx[i] > 0.75 || yard.hz[i] > 0.75 || yard.hy[i] > 1.3) continue;
+
         // Project the brick's centre into the doorway frame.
         const dx = yard.px[i] - d.x;
         const dz = yard.pz[i] - d.z;
         const along = dx * ux + dz * uz;
         const through = dx * nx + dz * nz;
 
-        // Conservative extent of the brick along each doorway axis.
-        const c = Math.abs(Math.cos(yard.yaw[i])), sN = Math.abs(Math.sin(yard.yaw[i]));
-        const ex = yard.hx[i] * c + yard.hz[i] * sN;
-        const ez = yard.hx[i] * sN + yard.hz[i] * c;
-        const reach = Math.max(ex, ez);
+        // Extent PER AXIS, not the larger of the two applied to both.
+        //
+        // The first version used `max(ex, ez)` for the through test as well,
+        // so a long thin brick was treated as if it reached half its LENGTH
+        // out of the wall plane — which is how a 190 m seawall qualified as
+        // being in a doorway.
+        const dyaw = yard.yaw[i] - d.yaw;
+        const c = Math.abs(Math.cos(dyaw)), sn = Math.abs(Math.sin(dyaw));
+        const exAlong = yard.hx[i] * c + yard.hz[i] * sn;
+        const ezThrough = yard.hx[i] * sn + yard.hz[i] * c;
 
-        if (Math.abs(along) >= halfW + reach) continue;
-        if (Math.abs(through) >= halfD + reach) continue;
+        if (Math.abs(along) >= halfW + exAlong) continue;
+        if (Math.abs(through) >= halfD + ezThrough) continue;
 
-        // A wall segment beside the opening will not reach the centre line;
-        // anything that does is in the way. Structural spans that legitimately
-        // pass over a doorway (lintels) were excluded by the height test.
         yard.flags[i] |= BF.NO_COLLIDE | BF.INVISIBLE | BF.NO_NAV | BF.NO_COVER;
         cleared++;
+        if (cleared <= 12) {
+          console.warn(
+            `[builder] "${d.name}" obstructed by a brick at `
+            + `(${yard.px[i].toFixed(1)}, ${yard.py[i].toFixed(1)}, ${yard.pz[i].toFixed(1)}) `
+            + `— fix this in the site file`,
+          );
+        }
       }
     }
     if (cleared > 0) {
-      console.info(`[builder] cleared ${cleared} brick(s) obstructing doorways`);
+      console.info(`[builder] cleared ${cleared} small brick(s) obstructing doorways`);
     }
     return cleared;
   }

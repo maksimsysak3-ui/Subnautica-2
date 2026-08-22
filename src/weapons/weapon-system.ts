@@ -35,7 +35,7 @@ import {
   type ResolvedWeaponStats,
   type FireMode,
 } from '../core/contracts';
-import { Rng, clamp01, lerp } from '../core/math';
+import { Rng, clamp, clamp01, lerp } from '../core/math';
 import { WEAPONS, WEAPON_MAP } from './arsenal';
 import { ATTACHMENTS, ATTACHMENT_MAP, attachmentsFor } from './attachments';
 import { AMMO, AMMO_MAP, pelletCount, isSubsonic } from './ammo';
@@ -256,6 +256,8 @@ export class WeaponSystem implements IWeaponSystem {
 const _muzzle = new THREE.Vector3();
 const _dir = new THREE.Vector3();
 const _shotDir = new THREE.Vector3();
+const _axisX = new THREE.Vector3(1, 0, 0);
+const _axisY = new THREE.Vector3(0, 1, 0);
 const _camOffset = new THREE.Vector3();
 const _camRot = new THREE.Euler();
 const recoilOut = { pitch: 0, yaw: 0, roll: 0, punch: 0, swayPitch: 0, swayYaw: 0 };
@@ -564,7 +566,24 @@ export class WeaponRuntime implements System {
     // --- where is the muzzle pointing -------------------------------------
     const render = services.get('render') as unknown as { camera: THREE.PerspectiveCamera };
     const cam = render.camera;
-    cam.getWorldDirection(_dir);
+    // Build the bore line from the LIVE look angles and the LIVE recoil.
+    //
+    // `cam.getWorldDirection` looks correct and is not: the camera transform is
+    // written in the frame phase, which runs after this one, so a shot fired
+    // in frame N reads a camera carrying look from frame N-1 and recoil from
+    // frame N-2. At a 400 deg/s tracking turn that is 6.7 degrees of lead
+    // error at 60 fps and 13.3 at 30 — 3.5 m and 7.1 m at thirty metres, and
+    // frame-rate dependent, which is exactly the class of bug this was
+    // supposed to remove. Composing the direction here costs two rotations and
+    // has no staleness at all.
+    //
+    // Sway is included. It is deliberately NOT in the camera channel (moving
+    // the world because the operator is breathing is what made the game feel
+    // unstable), but the muzzle really does wander, and if it does not the
+    // breath-hold key does nothing mechanical whatsoever.
+    _dir.set(0, 0, -1)
+      .applyAxisAngle(_axisX, clamp(playerSys.pitch + recoilCur.pitch + recoilCur.swayPitch, -1.5, 1.5))
+      .applyAxisAngle(_axisY, playerSys.yaw + recoilCur.yaw + recoilCur.swayYaw);
     _muzzle.copy(cam.position).addScaledVector(_dir, 0.35);
 
     const inputs = this.recoilInputs(playerSys);
@@ -800,6 +819,9 @@ export class WeaponRuntime implements System {
 /** The slice of the player controller the weapon runtime needs. */
 export interface PlayerLike {
   input: { fire: boolean; reload: boolean; aim: boolean };
+  /** Look angles, radians. The bore line is built from these, not from the camera. */
+  yaw: number;
+  pitch: number;
   stance: string;
   adsProgress: number;
   stamina: number;

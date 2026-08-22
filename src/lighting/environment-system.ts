@@ -75,7 +75,7 @@ export class EnvironmentSystem implements System, IEnvironment {
     timeScale: 60,
     sunElevation: 0.5,
     sunAzimuth: 2.1,
-    moonPhase: 0.3,
+    moonPhase: 0.62,
     ambientLightLevel: 1,
     isNight: false,
   };
@@ -288,6 +288,11 @@ export class EnvironmentSystem implements System, IEnvironment {
     // Daylight factor with a soft civil-twilight shoulder.
     const day = smoothstep(-0.18, 0.12, el);
     const profile = this.targetProfile;
+    // NOTE: this is the *gameplay* light level — what perception and the
+    // interior lighting gate read. It is deliberately NOT the same number as
+    // the rendered exposure: the moon has been cheated upward so a night
+    // mission is playable, but being able to see must not make you easier to
+    // see. Detection ranges stay honest to the real darkness.
     t.ambientLightLevel = clamp01(day * lerp(0.55, 1, 1 - this.weather.cloudCover) + (t.isNight ? 0.06 + 0.06 * t.moonPhase : 0));
 
     // Sun direction, then place the light relative to a shadow target that
@@ -333,7 +338,16 @@ export class EnvironmentSystem implements System, IEnvironment {
     this.moon.target.position.copy(this.shadowTarget);
     this.moon.target.updateMatrixWorld();
     this.moon.position.copy(this.shadowTarget).addScaledVector(this.moonDir, SUN_DISTANCE);
-    this.moon.intensity = t.isNight ? 0.14 + 0.2 * t.moonPhase : 0;
+    // Moonlight.
+    //
+    // This was 0.14 + 0.2 * phase — about a fifth of a lux equivalent, which
+    // is roughly physically right for a half moon and completely wrong as a
+    // game. A night mission has to be *readable*: you need silhouettes, a
+    // horizon, and enough shape on a wall to tell a doorway from a shadow.
+    // Every reference title cheats moonlight upward for exactly this reason,
+    // and then makes the darkness feel real with contrast and colour instead
+    // of with absolute level. It is still less than a tenth of daylight.
+    this.moon.intensity = t.isNight ? 0.34 + 0.34 * t.moonPhase : 0;
 
     // Hemisphere ambient follows sky colour and weather tint.
     const skyTop = new THREE.Color().setHSL(0.58, lerp(0.15, 0.55, day), lerp(0.06, 0.62, day));
@@ -348,8 +362,11 @@ export class EnvironmentSystem implements System, IEnvironment {
     // away from the sun crushed to black, which read as broken rather than
     // dramatic. Overcast pushes it higher still: the whole sky becomes the
     // light source.
+    // The night floor was 0.30 against a daylight 2.15 — a 7:1 range, which
+    // sounds generous and is not, because ACES crushes the bottom of it. The
+    // floor is what stops an unlit interior reading as a black rectangle.
     this.ambient.intensity =
-      lerp(0.30, 2.15, day) * lerp(1, 1.45, this.weather.cloudCover) +
+      lerp(0.52, 2.15, day) * lerp(1, 1.45, this.weather.cloudCover) +
       this.lightningFlash * 1.5;
 
     // --- image-based lighting -------------------------------------------

@@ -44,7 +44,16 @@ export interface Fixture {
 }
 
 /** Real lights in the scene. Kept small: every one costs every fragment. */
-const POOL_SIZE = 8;
+/**
+ * How many real lights exist.
+ *
+ * Eight was enough when only the quay authored fixtures. The villa's light
+ * plan adds one per interior room plus the exterior hero fixtures, and a
+ * compound where you can stand and see four rooms and a courtyard at once
+ * needs more than eight of them live. Twelve unshadowed point lights is still
+ * a single forward pass; the cost is uniform slots, not draw calls.
+ */
+const POOL_SIZE = 12;
 
 export class InteriorLights implements System {
   readonly id = 'interiorLights';

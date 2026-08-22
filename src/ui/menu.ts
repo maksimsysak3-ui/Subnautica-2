@@ -69,6 +69,7 @@ const CONTROLS: Array<[string, string[][]]> = [
   ]],
   ['WORLD', [
     ['F', 'Open doors, use things'],
+    ['T', 'Weapon light'],
     ['Mouse', 'Look'],
     ['Esc', 'Menu / release cursor'],
   ]],
