@@ -8932,12 +8932,12 @@ class CoasterRide extends ParkObject {
        they're left orphaned mid-ride with no train to render/update
        them, causing them to sink into the ground and stay stuck
        there forever. */
-    for (const t of this.trains) {
-      if (t.riders && t.riders.length) {
-        for (const g of t.riders) g.finishRide(this, true);
-        t.riders.length = 0;
-      }
-    }
+    /* Everyone aboard is released through the one ledger that owns them, so
+       nobody is finished twice (which used to double-count the ride, post a
+       second review and hand out a second dose of happiness) and nobody is
+       left orphaned on a train that no longer exists. */
+    if (this.riding && this.riding.length) Ops.evacuate(this, true);
+    for (const t of this.trains) if (t.riders) t.riders.length = 0;
     this.trains.length = 0;
     const T = this.type;
     const carLen = 4.2;
@@ -9203,7 +9203,10 @@ const Ops = {
       for (let k = riding.length - 1; k >= 0; k--) {
         const g = riding[k];
         let left = g._offAt - Park.time;
-        if (left < -600) left = -1;                 // day rolled over: let them off
+        /* Park.time drops by 1440 at midnight, so a rider boarded at 23:59
+           suddenly looks like they have a full day left. Anything more than
+           ten hours out is a wrap, not a queue. */
+        if (left > 600) left = -1;
         if (g.dead) { riding.splice(k, 1); continue; }
         if (left <= 0) {
           riding.splice(k, 1);
@@ -9264,12 +9267,19 @@ const Demand = {
     const rows = [];
     for (const a of Park.attractions()) {
       if (a.broken || a.openR === false) continue;
-      const kind = a.kind === 'coaster' ? 'coaster' : (a.def && a.def.water ? (Ops.isPool(a) ? 'pool' : 'waterride') : (a.def && a.def.kind) || 'flat');
-      const n = (seen[kind] = (seen[kind] || 0) + 1);
-      const repeat = Math.pow(.52, n - 1);           // 1, .52, .27, .14 …
+      /* What sort of day out this is, from the guest's point of view — and
+         how good it is at being that. Two coasters are only repeats of each
+         other if they are the same calibre of coaster; a much bigger one is a
+         new reason to visit, which is the whole point of building it.
+         Keying this on the model name instead made every flat ride unique and
+         every coaster a duplicate, so the optimal park was one of each cheap
+         flat ride and the coaster builder was the worst buy in the game. */
       const exc = a.excitement || 2;
+      const kind = Demand.experienceClass(a) + '#' + Math.floor(clamp(exc, 0, 10) / 2.2);
+      const n = (seen[kind] = (seen[kind] || 0) + 1);
+      const repeat = Math.pow(.5, n - 1);            // 1, .5, .25, .12 …
       const cap = Ops.throughput(a);
-      const quality = 26 + exc * 19 + Math.min(cap, 1600) * .045;
+      const quality = 16 + exc * 23 + Math.min(cap, 1600) * .038;
       const fresh = a.freshness === undefined ? 1 : lerp(.7, 1.06, clamp(a.freshness, 0, 1));
       const pts = quality * repeat * fresh;
       total += pts;
@@ -9283,6 +9293,19 @@ const Demand = {
     if (detail) return { rows: rows.sort((a, b) => b.pts - a.pts), beauty, shops, total };
     return total;
   },
+  /* The kind of experience an attraction sells. Deliberately coarse: a park
+     needs a coaster, something for small children, something wet and
+     something gentle — not thirty variations on a spinning platform. */
+  experienceClass(a) {
+    if (Ops.isPool(a)) return 'pool';
+    const d = a.def || {};
+    if (a.kind === 'coaster') return 'coaster';
+    if (d.water) return d.kind === 'slide' || d.kind === 'funnel' ? 'slide' : 'waterride';
+    if (d.kind === 'haunted' || d.kind === 'ghosttrain' || d.kind === 'motiontheatre') return 'dark';
+    if (d.ph || d.kind === 'monorail' || d.kind === 'chairlift') return 'scenic';
+    const i = a.intensity || 0;
+    return i < 3 ? 'gentle' : i < 6.5 ? 'family' : 'thrill';
+  },
   /* --- 2. does anyone know ---------------------------------------------- */
   /* Awareness is a slow variable. It rises toward what the park deserves
      (reputation + marketing) and decays if the park stops being talked
@@ -9290,7 +9313,7 @@ const Demand = {
   targetAwareness() {
     const rep = clamp(Park.rating / 999, 0, 1);
     const mk = clamp(Park.marketing * .09 + Marketing.draw() * .55, 0, .8) * (Park.marketingMult || 1);
-    const word = clamp((Park.happiness - .55) * 1.5, -.25, .35);
+    const word = clamp((Park.dayHappiness() - .58) * 1.9, -.3, .38);
     return clamp(.06 + rep * .62 + mk + word, .04, 1);
   },
   /* Called each park-hour: the weather people are reacting to. */
@@ -9366,7 +9389,7 @@ const Demand = {
      wind, then a long fade. Last admission is an hour before closing. */
   curveAt(hour) {
     const H = Park.hours;
-    const first = H.open - .5, last = H.close - 1;
+    const first = H.open, last = H.close - 1;
     if (hour <= first || hour >= last) return 0;
     const t = (hour - first) / Math.max(1, last - first);
     const bump = (c, w, a) => a * Math.exp(-((t - c) / w) * ((t - c) / w));
@@ -9528,7 +9551,18 @@ const Park = {
     this.hours.open = o; this.hours.close = c;
     Demand.invalidate(); Demand._area = null;
   },
-  attractions() { return this.objects.filter(o => o.kind === 'ride').concat(this.coasters.filter(c => c.state === 'open')); },
+  /* The hottest list in the simulation: every guest decision, the demand
+     model and a dozen panels ask for it. Rebuilt at most a few times a
+     second rather than once per caller. Treat the result as read-only. */
+  attractions() {
+    const n = this.objects.length + this.coasters.length;
+    if (this._attrCache && this._attrN === n && Park.now - this._attrT < .25) return this._attrCache;
+    this._attrT = Park.now; this._attrN = n;
+    const out = [];
+    for (const o of this.objects) if (o.kind === 'ride') out.push(o);
+    for (const c of this.coasters) if (c.state === 'open') out.push(c);
+    return (this._attrCache = out);
+  },
   addObject(o) {
     this.objects.push(o);
     o.footprint((i, j) => { WORLD.setT(i, j, T_BUILD); WORLD.setOwn(i, j, o.id); });
@@ -9536,6 +9570,14 @@ const Park = {
     Path.dirty = true;
   },
   removeObject(o) {
+    /* Anyone aboard or queuing has to be released through the ledger first,
+       or they are left mid-ride on an attraction that no longer exists. */
+    if (o.riding && o.riding.length) Ops.evacuate(o, true);
+    if (o.queue && o.queue.length) {
+      for (const g of o.queue.slice()) if (g && !g.dead && g.leaveQueue) g.leaveQueue('They took the ride away!');
+      o.queue.length = 0;
+    }
+    Demand.invalidate(); this.beautyVersion++;
     o.footprint((i, j) => { WORLD.setT(i, j, T_GRASS); WORLD.setOwn(i, j, -1); });
     let k = this.objects.indexOf(o); if (k >= 0) this.objects.splice(k, 1);
     k = this.coasters.indexOf(o); if (k >= 0) this.coasters.splice(k, 1);
@@ -9614,6 +9656,8 @@ const Park = {
     for (const o of this.objects) if (o.def.beauty) b += o.def.beauty + (o.beautyBonus || 0);
     return b;
   },
+  /* Exact, and O(objects). Called by panels and by ride excitement, both of
+     which happen rarely. Guests go through beautyNear() instead. */
   beautyAt(x, z, r = 22) {
     let b = 0;
     for (const o of this.objects) {
@@ -9622,6 +9666,26 @@ const Park = {
       if (d2 < r * r) b += (o.def.beauty + (o.beautyBonus || 0)) * (1 - Math.sqrt(d2) / r);
     }
     return b;
+  },
+  /* The same figure, memoised on an 8-unit grid and thrown away whenever the
+     park changes. Every guest asked for this every frame, and every answer
+     walked the whole object list — at fifteen hundred guests and three
+     thousand objects that alone was hundreds of millions of distance tests a
+     second, and it hit hardest exactly when the park was doing well. */
+  _beautyCell: new Map(),
+  _beautyVer: -1,
+  beautyVersion: 0,
+  beautyNear(x, z) {
+    if (this._beautyVer !== this.beautyVersion) { this._beautyCell.clear(); this._beautyVer = this.beautyVersion; }
+    const cx = Math.round(x / 8), cz = Math.round(z / 8);
+    const key = cx * 4096 + cz;
+    let v = this._beautyCell.get(key);
+    if (v === undefined) {
+      v = this.beautyAt(cx * 8, cz * 8);
+      if (this._beautyCell.size > 20000) this._beautyCell.clear();
+      this._beautyCell.set(key, v);
+    }
+    return v;
   },
   upkeepPerHour() {
     let u = 0;
@@ -9634,6 +9698,10 @@ const Park = {
      overall, guests stop complaining about that need no matter where in the
      park they happen to be standing (mid-ride, in a pool, wherever). One
      shop per ~70 guests is treated as "enough". */
+  /* The average happiness of everyone who visited today, weighted by how
+     busy the park was at the time. This — not the midnight snapshot — is what
+     word of mouth, prestige and the day's report are judged on. */
+  dayHappiness() { return this.happyW ? clamp(this.happySum / this.happyW, 0, 1) : (this.guests.length ? this.happiness : .62); },
   facilityCount(need) { return this.objects.filter(o => o.kind === 'shop' && o.def.need === need).length; },
   facilityAdequate(need) {
     const need1 = Math.max(1, Math.ceil(this.guests.length / 70));
@@ -9973,7 +10041,11 @@ class Person {
     this.x = x; this.z = z; this.y = WORLD.hAt(x, z);
     this.yaw = rnd(TAU); this.yawT = this.yaw;
     this.vx = 0; this.vz = 0;
-    this.speed = (3.0 + rnd(-.5, .9)) * Infra.walkMult();
+    /* Walking pace, in world units per park-minute. Measured against the
+       clock rather than the animation: at the old value a guest spent nearly
+       nine tenths of their visit walking and managed three rides in four
+       hours, which is not a day out, it is a hike. */
+    this.speed = (8.2 + rnd(-1.2, 2.2)) * Infra.walkMult();
     this.phase = rnd(TAU);
     this.path = null; this.pi = 0;
     this.height = rnd(.9, 1.12);
@@ -10491,7 +10563,10 @@ class Guest extends Person {
        an event feel different rather than just busier. */
     this.prefIntensity = clamp(rnd(p.intensity[0], p.intensity[1]) + Events.intensityShift(), 0, 12);
     this.nauseaTol = rnd(p.nausea[0], p.nausea[1]);
-    this.patience = rnd(p.patience[0], p.patience[1]);
+    /* PERSONAS carry patience on an old arbitrary scale. One quarter of it is
+       a believable wait in park-minutes: a family gives a queue about 11-30
+       minutes, a coaster enthusiast 35-75, a senior 10-27. */
+    this.patience = rnd(p.patience[0], p.patience[1]) * .25;
     this.cash = rnd(p.spend[0], p.spend[1]);
 
     /* Who they actually are, on top of what they like. Each fact earns its
@@ -10610,7 +10685,9 @@ class Guest extends Person {
        beautiful park and a bored guest in a filthy one both just read
        "unhappy", and the panel could only ever say so.
        ------------------------------------------------------------------ */
-    const beauty = Park.beautyAt(this.x, this.z);
+    const beauty = this._beauty === undefined || (this.moodT = (this.moodT || 0) - dt) <= 0
+      ? (this.moodT = rnd(.8, 1.6), this._beauty = Park.beautyNear(this.x, this.z))
+      : this._beauty;
     // --- comfort: the body's needs (note: `comfort` above is thermal only)
     // Softened on purpose: a guest should be able to run a little hungry or
     // thirsty for a while without it being a crisis. Penalties only kick in
@@ -11097,7 +11174,11 @@ class Guest extends Person {
     if (this.nausea > .6 && r.nausea > 4) return false;
     return true;
   }
-  /* Roughly how long the queue at r will take, in seconds. Judging a queue by
+  /* Roughly how long the queue at r will take, in PARK-MINUTES — the same
+     unit as patience, as this.wait, and as everything else a guest counts.
+     It used to be returned in seconds and compared against a patience in
+     minutes, which meant guests balked at four-minute queues and could not
+     tell a six-minute wait from an hour-long one. Judging a queue by
      the number of people in it is wrong — forty people on a coaster with four
      trains move faster than ten on a slow flat ride. */
   /* Two different questions, so two different answers.
@@ -11110,7 +11191,7 @@ class Guest extends Person {
      and they spend the day walking between rides they never get on. */
   estimatedWait(r, planning) {
     const waiting = (planning ? (r.incoming || 0) * .6 : 0);
-    return Ops.waitMin(r, waiting) * 60;      // seconds, as callers expect
+    return Ops.waitMin(r, waiting);
   }
   chooseRide(tag) {
     let best = null, bs = -2.5;
@@ -11154,8 +11235,8 @@ class Guest extends Person {
       let s = 1.6 + match + wetBonus + r.ratingFor(this) * 1.0 + taste * 1.15;
       s -= seen * 2.4;                                  // novelty matters
       s += this.opinionOf(r) * 3.0;                     // what they thought last time
-      s -= clamp(wait / Math.max(30, this.patience) * 3.4, 0, 7);   // real queue cost
-      s -= dist(this.x, this.z, r.x, r.z) * .012;
+      s -= clamp(wait / Math.max(8, this.patience) * 4.2, 0, 9);     // real queue cost, in minutes
+      s -= dist(this.x, this.z, r.x, r.z) * .030;   // the walk is part of the price
       s -= r.price * (this.cash < 60 ? .16 : .07);      // price stings when broke
       if (raining && water) s -= 3.0;                   // nobody queues for a slide in the rain
       if (raining && !water) s -= 1.2;
@@ -11200,7 +11281,7 @@ class Guest extends Person {
       const est = this.estimatedWait(t);
       const builtLen = t.queuePath().length;
       const physCap = builtLen > 1 ? builtLen * 1.4 + 4 : 6;
-      if (est > this.patience * 2.4 || t.queue.length > 60 || t.queue.length >= physCap) {
+      if (est > this.patience * 1.5 || t.queue.length > 90 || t.queue.length >= physCap) {
         this.think('That queue is way too long.');
         this.remember(t, -.12);
         this.state = 'idle';
@@ -11348,6 +11429,7 @@ class Guest extends Person {
     this.claim(null);
     if (this.transit) { Transit.leaveQueue(this); this.transit = null; }
     this.state = 'leaving';
+    this.speed *= 1.35;                 // nobody dawdles on the way out
     const ex = WORLD.wx(N / 2), ez = WORLD.wz(N / 2 + 25);
     if (!this.goto(ex, ez)) this.dead = true;
     if (this.happy > .8) Park.happyLeavers++;
@@ -11430,7 +11512,7 @@ class Staff extends Person {
     this.cleaned = 0; this.repaired = 0;
     this.tasksDone = 0; this.nickname = null;
     this.idleSince = Park.now;
-    this.speed = 3.4;
+    this.speed = 8.6;
     this.zone = null;           // { x, z, r } — patrol area, or null for the whole park
     this.shift = 'always';      // 'always' | 'day' (6-18) | 'night' (18-6)
     this.morale = .8;           // 0..1, drags speed/workRate down when it's been all work no rest
@@ -11448,7 +11530,7 @@ class Staff extends Person {
     /* The staff block lifts everybody, trained or not — it is somewhere to
        change and be taught, not a promotion. */
     const infra = Infra.staffMult();
-    this.speed = 3.9 * (1 + (L - 1) * .22) * m * infra;
+    this.speed = 9.4 * (1 + (L - 1) * .22) * m * infra;
     this.wage = Math.round(this.def.wage * (1 + (L - 1) * .40));
     this.workRate = (1.25 + (L - 1) * .55) * m * infra;   // tasks finish this much faster
     this.skill = 1 + (L - 1) * .5;
@@ -16197,7 +16279,9 @@ const Coaster = {
   setPiece(id) { this.piece = id; this.freehand = false; this._ghostKey = null; this.refresh(); },
   setTrains(n) {
     const c = this.active; if (!c) return;
-    c.spawnTrains(clamp(+n, 1, 4));
+    const want = clamp(+n, 1, 4);
+    if (want === c.trains.length) return;
+    c.spawnTrains(want);
     this.refresh();
   },
   /* The definition of the next piece: either a palette entry or the live
@@ -21838,7 +21922,7 @@ const Game = {
       const def = CAT.scenery.find(s => s.id === defId); if (!def) return;
       const o = new ParkObject('scenery', def, i, j, rot || 0);
       o.y = WORLD.tileH(i, j); o.seed = rndi(0, 3); o.buildT = 1; o.updateMatrix();
-      Park.objects.push(o);
+      Park.objects.push(o); Park.beautyVersion++; Demand.invalidate();
       o.footprint((ii, jj) => WORLD.setOwn(ii, jj, o.id));
     };
     for (let k = 0; k < 8; k++) {
@@ -22452,7 +22536,7 @@ const Game = {
         o.seed = rndi(0, 3); o.buildT = 1;
         o.y = WORLD.tileH(i, j); o.updateMatrix();
         Park.spend(def.cost);
-        Park.objects.push(o);
+        Park.objects.push(o); Park.beautyVersion++; Demand.invalidate();
         o.footprint((ii, jj) => WORLD.setOwn(ii, jj, o.id));
         ok = true; placed++;
       }
@@ -22502,7 +22586,7 @@ const Game = {
     if (p.kind !== 'scenery') WORLD.flatten(i, j, gw, gd, o.y);
     o.updateMatrix();
     if (p.kind === 'scenery') {
-      Park.objects.push(o);
+      Park.objects.push(o); Park.beautyVersion++; Demand.invalidate();
       o.footprint((ii, jj) => WORLD.setOwn(ii, jj, o.id));
       this.sceneryDirty = true;
       this.pushUndo({ type: 'place', id: o.id, cost: p.def.cost, name: p.def.name, day: Park.day, time: Park.time });
@@ -22698,7 +22782,7 @@ const Game = {
       const o = new ParkObject('scenery', e.def, e.i, e.j, e.rot);
       o.seed = e.seed; o.buildT = 1;
       o.y = WORLD.tileH(e.i, e.j); o.updateMatrix();
-      Park.objects.push(o);
+      Park.objects.push(o); Park.beautyVersion++; Demand.invalidate();
       o.footprint((ii, jj) => WORLD.setOwn(ii, jj, o.id));
       this.sceneryDirty = true;
       UI.notify('Undone', e.def.name + ' restored.', '');
@@ -22869,7 +22953,9 @@ const Game = {
   setTrains(id, n) {
     const c = Park.coasters.find(x => x.id === id);
     if (!c || !c.track || !c.track.complete) return;
-    c.spawnTrains(clamp(+n, 1, 4));
+    const want = clamp(+n, 1, 4);
+    if (want === c.trains.length) return;      // dragging past a value must not rebuild
+    c.spawnTrains(want);
   },
   setParkOpen(v) {
     if (v === Park.open) return;
@@ -22882,18 +22968,22 @@ const Game = {
       if (Park.gate) Park.gate.openedDay = Park.day;
       UI.notify('The park is open', 'The gates are up and the first guests are on their way.', 'good');
       Audio.play('complete');
-      // a queue was already waiting outside: opening the gates lets them in
-      // straight away rather than after a minute of nothing happening
+      /* A crowd waiting at the turnstiles when the gates go up — but only
+         once a day, only during trading hours, and only as an advance on the
+         attendance the park has actually earned. Before this it was an
+         unconditional cash injection per click, so closing and reopening the
+         gates was an infinite money button. */
       this._spawnAcc = 0;
-      /* People queue outside before a park opens, and how many depends on how
-         worth queueing for it is. This is parties, not heads — a dozen
-         parties is thirty-odd people through the gate in the first minute. */
-      const worth = Park.attractions().length * 3.2
-        + Park.objects.filter(o => o.kind === 'shop').length * .8
-        + Park.rating * .045
-        + (Park.gate ? (Park.gate.tier - 1) * 4 : 0);
-      const waiting = Math.round(clamp(2 + worth, 2, 70));
-      for (let k = 0; k < waiting; k++) this.spawnGuest();
+      const hour = Park.time / 60;
+      const firstToday = this._gateRushDay !== Park.day;
+      if (firstToday && hour >= Park.hours.open - .5 && hour < Park.hours.close - 1) {
+        this._gateRushDay = Park.day;
+        const b = Demand.cached();
+        /* The first half-hour of the day's expected attendance, in parties. */
+        const heads = clamp(b.target * .06, 0, 90);
+        const waiting = Math.round(heads / 2.5);
+        for (let k = 0; k < waiting; k++) this.spawnGuest();
+      }
     } else {
       UI.notify('The park is closed', 'No new guests will arrive, and everyone inside will finish up and leave.', 'warn');
       for (const g of Park.guests) if (g.state !== 'riding' && g.state !== 'leaving') g.leavePark();
@@ -23070,6 +23160,14 @@ const Game = {
       let h = 0;
       for (const g of Park.guests) h += g.happy;
       Park.happiness = clamp((Park.guests.length ? h / Park.guests.length : .7) + (Park.happyBonus || 0), 0, 1);
+      /* Word of mouth is decided by the day people actually had, not by the
+         empty park at midnight when the books are closed. Weight the running
+         average by how many people were here to feel it. */
+      if (Park.tradingNow() && Park.guests.length > 5) {
+        const w = sdt * Park.guests.length;
+        Park.happySum = (Park.happySum || 0) + Park.happiness * w;
+        Park.happyW = (Park.happyW || 0) + w;
+      }
       Park.computeRating();
       this._goalT = (this._goalT || 0) + sdt;
       if (this._goalT > 3) { this._goalT = 0; Goals.update(); Achievements.update(); }
@@ -23864,6 +23962,8 @@ const Game = {
   },
   dayTick() {
     Demand.dayTick();      // bank yesterday's attendance, age word of mouth
+    Park.lastDayHappiness = Park.dayHappiness();
+    Park.happySum = 0; Park.happyW = 0;
     Park.entryToday = 0;   // the admission volume discount resets every morning
     Land.snapshotTrend();
     // bank yesterday's takings into the daily ledger before anything else touches Park.log
@@ -24261,7 +24361,7 @@ const Game = {
         if (s.bb) o.beautyBonus = s.bb;
         if (s.ag) { o.ageDays = s.ag; o.freshness = clamp(1 - Math.max(0, s.ag - 40) / 400, .55, 1); }
         if (s.open !== undefined) o.openR = s.open;
-        if (s.k === 'scenery') { Park.objects.push(o); o.footprint((i, j) => WORLD.setOwn(i, j, o.id)); }
+        if (s.k === 'scenery') { Park.objects.push(o); Park.beautyVersion++; Demand.invalidate(); o.footprint((i, j) => WORLD.setOwn(i, j, o.id)); }
         else Park.addObject(o);
       }
       for (const s of d.cos) {
