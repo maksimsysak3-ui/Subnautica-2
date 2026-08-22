@@ -8451,6 +8451,10 @@ class Ride extends ParkObject {
     this.ridden = 0; this.revenue = 0;
     this.reliability = 0.92 + Math.random() * 0.07;
     this.wear = 0;
+    this.freshness = 1;        // brand new, and it stays that way until it ages
+    this.ageDays = 0;
+    this.riding = [];
+    this.riddenToday = 0; this.revenueToday = 0;
     this.broken = false;
     this.openR = true;
     this.spin = 0; this.h = 0;
@@ -8611,6 +8615,9 @@ class CoasterRide extends ParkObject {
     this.ridden = 0; this.revenue = 0;
     this.tested = false;
     this.reliability = .95;
+    this.freshness = 1; this.ageDays = 0;
+    this.riding = [];
+    this.riddenToday = 0; this.revenueToday = 0;
     this.wear = 0; this.broken = false;
     this.trackMesh = null; this.carMesh = null; this.frontMesh = null;
     this.stationMesh = null;
@@ -8762,8 +8769,9 @@ class CoasterRide extends ParkObject {
     this.biggestDrop = drops.length ? drops[0] : 0;
     this.bankedFraction = rideTime ? banked / rideTime : 0;
     this.avgBank = banked ? bankSum / (banked / dt) : 0;
-    const dwell = 14;
-    this.throughput = Math.round(this.cap * Math.max(1, this.trains.length || 1) * 3600 / Math.max(20, rideTime + dwell));
+    /* Throughput lives in one place — Ops.throughput, which the queue, the
+       demand model and every panel read. A second formula here disagreed
+       with it by a factor of the train count. */
     this.prestige = Math.round(clamp(this.excitement * 6 + t.inversions * 4 + this.biggestDrop * .7 + t.length * .02, 0, 200));
     const L = t.length, drop = t.drop, inv = t.inversions;
     const avgG = samples ? gSum / samples : 0;          // mean deviation from 1 G
@@ -9181,7 +9189,10 @@ const Ops = {
     a._boardAcc = (a._boardAcc || 0) + rate / 60 * dtMin;
     const dwell = this.rideMin(a);
     let boarded = 0;
-    const hold = Math.max(4, (a.cap || 12) * (this.isPool(a) ? 1.15 : 1.3));
+    /* Never more people aboard than the thing physically seats — the batch
+       maths already keeps the steady state below capacity, and the renderer
+       has exactly `cap` seats to put them in. */
+    const hold = Math.max(4, (a.cap || 12) * (this.isPool(a) ? 1.1 : 1));
     while (a._boardAcc >= 1 && a.queue.length && (a.riding ? a.riding.length : 0) < hold) {
       const g = a.queue.shift();
       a._boardAcc -= 1;
@@ -9190,13 +9201,13 @@ const Ops = {
       g._offAt = Park.time + dwell * rnd(.9, 1.12);
       (a.riding || (a.riding = [])).push(g);
       boarded++;
+      a.riddenToday = a.riddenToday || 0;
       const rev = a.price * ((g.waterPass && a.def && a.def.water) ? 0 : 1);
       if (rev > 0) {
         Park.earn(rev, 'ticket');
         const net = rev * Park.moneyMult * Park.userMoneyMult * Perks.incomeMult();
         a.revenue += net; a.revenueToday = (a.revenueToday || 0) + net;
       }
-      Progress.add(2);
     }
     if (a._boardAcc > 4) a._boardAcc = 4;          // no banking capacity while closed
     if (boarded) a._lastDispatch = Park.time;
@@ -9320,7 +9331,13 @@ const Demand = {
      about. This is what makes opening week quiet and month three busy. */
   targetAwareness() {
     const rep = clamp(Park.rating / 999, 0, 1);
-    const mk = clamp(Park.marketing * .09 + Marketing.draw() * .55, 0, .8) * (Park.marketingMult || 1);
+    /* Advertising has diminishing returns but never a hard ceiling: the
+       second campaign is worth less than the first and the fifth barely
+       moves it, which is the shape real marketing spend has. The old version
+       clamped at .8, which a single campaign already exceeded — so every
+       further pound was spent with no feedback of any kind. */
+    const spend = Marketing.draw() * (Park.marketingMult || 1);
+    const mk = .62 * (1 - Math.exp(-spend * .55));
     const word = clamp((Park.dayHappiness() - .58) * 1.9, -.3, .38);
     return clamp(.06 + rep * .62 + mk + word, .04, 1);
   },
@@ -9730,6 +9747,25 @@ const CAMPAIGNS = [
 
 const Marketing = {
   active: [],
+  /* Who a campaign brings, as a multiplier on the persona weights. A radio
+     ad fills the park with families; an influencer weekend fills it with
+     teenagers who want the big coasters and will queue two hours for them. */
+  SKEW: {
+    flyers:     { family: 1.65, foodie: 1.20 },
+    radio:      { family: 1.35, sightseer: 1.25 },
+    billboard:  { sightseer: 1.45, family: 1.15, water: 1.1 },
+    tv:         { family: 1.3, sightseer: 1.35, water: 1.15 },
+    influencer: { teen: 2.1, coasterhead: 1.9, thrill: 1.6 }
+  },
+  /* Weight for one persona id, given what is currently being advertised. */
+  skewFor(id) {
+    let m = 1;
+    for (const a of this.active) {
+      const sk = this.SKEW[a.id];
+      if (sk && sk[id]) m *= sk[id];
+    }
+    return m;
+  },
   start(c) {
     if (Park.money < c.cost) { UI.notify('Too expensive', 'That campaign costs ' + money(c.cost) + '.', 'bad'); return; }
     Park.spend(c.cost, 'marketing');
@@ -10361,9 +10397,35 @@ const PERSONAS = [
     line: 'Whatever looks fastest.'
   },
 ];
+/* Who walks through the gate. The park itself skews this — a park full of
+   inversions draws thrill seekers, a park of gentle rides and gardens draws
+   families and older visitors — and so does whatever is being advertised, so
+   a campaign is a decision about your audience and not only about volume. */
 function pickPersona() {
-  let r = Math.random() * PERSONAS.reduce((a, p) => a + p.w, 0);
-  for (const p of PERSONAS) { r -= p.w; if (r <= 0) return p; }
+  const atts = Park.attractions();
+  let thrillPull = 1, familyPull = 1, waterPull = 1;
+  if (atts.length) {
+    let big = 0, gentle = 0, wet = 0;
+    for (const a of atts) {
+      if ((a.intensity || 0) > 6.5 || a.kind === 'coaster') big++;
+      if ((a.intensity || 0) < 3.5) gentle++;
+      if (a.def && a.def.water) wet++;
+    }
+    thrillPull = clamp(.55 + big / atts.length * 1.5, .5, 1.9);
+    familyPull = clamp(.60 + gentle / atts.length * 1.4, .5, 1.8);
+    waterPull  = clamp(.45 + wet / atts.length * 2.2, .35, 2.2);
+  }
+  const wOf = p => {
+    let w = p.w;
+    if (p.id === 'thrill' || p.id === 'teen' || p.id === 'coasterhead') w *= thrillPull;
+    if (p.id === 'family' || p.id === 'sightseer') w *= familyPull;
+    if (p.id === 'water') w *= waterPull;
+    return w * (typeof Marketing !== 'undefined' ? Marketing.skewFor(p.id) : 1);
+  };
+  let total = 0;
+  for (const p of PERSONAS) total += wOf(p);
+  let r = Math.random() * total;
+  for (const p of PERSONAS) { r -= wOf(p); if (r <= 0) return p; }
   return PERSONAS[0];
 }
 
@@ -12783,7 +12845,7 @@ const UI = {
     b.appendChild(el('div', '', `<div style="font-size:11px;color:var(--dim);line-height:1.55;padding:0 3px 6px">
       Guests who book a room arrive happier and spend more the next day. The four <b style="color:var(--txt)">Icon</b>
       resorts at the bottom are Prestige Landmarks \u2014 earn Prestige Points by running great days once your park
-      hits a capacity of 2,000, then spend them here.</div>`));
+      has held 1,200 guests at once, then spend them here.</div>`));
     const sr = it => `<img class="th" src="${Thumbs.shop(it)}" alt="">`;
     this.addPrestigeGrid(b, addGrid, cost, 'Everyday Lodging', CAT.shops.filter(x => x.need === 'hotel' && !x.prestige), sr);
     this.addPrestigeGrid(b, addGrid, cost, 'Icon Resorts \u2014 Prestige', CAT.shops.filter(x => x.need === 'hotel' && x.prestige), sr);
@@ -17829,7 +17891,7 @@ const SCENARIOS = [
     blurb: 'A flat plot, a modest budget and a simple brief: build something people want to visit.',
     money: 60000, fee: 10, level: 2, days: 0,
     goals: [
-      { k: 'guests', target: 60, label: 'Guests in the park' },
+      { k: 'attendance', target: 220, label: 'Visitors in one day' },
       { k: 'rating', target: 1.5, label: 'Park rating (stars)' },
       { k: 'rides', target: 3, label: 'Rides open' },
     ]
@@ -17839,7 +17901,7 @@ const SCENARIOS = [
     blurb: 'Families first. Keep everyone fed, watered and smiling while the park pays for itself.',
     money: 90000, fee: 12, level: 3, days: 0,
     goals: [
-      { k: 'guests', target: 200, label: 'Guests in the park' },
+      { k: 'attendance', target: 650, label: 'Visitors in one day' },
       { k: 'happy', target: 75, label: 'Average happiness (%)' },
       { k: 'shops', target: 5, label: 'Shops and facilities' },
       { k: 'rating', target: 2.3, label: 'Park rating (stars)' },
@@ -17851,7 +17913,7 @@ const SCENARIOS = [
     money: 140000, fee: 16, level: 4, days: 0,
     goals: [
       { k: 'coasterExc', target: 9, label: 'Coaster excitement rating' },
-      { k: 'guests', target: 320, label: 'Guests in the park' },
+      { k: 'attendance', target: 1100, label: 'Visitors in one day' },
       { k: 'rating', target: 3.0, label: 'Park rating (stars)' },
       { k: 'coasters', target: 2, label: 'Coasters open' },
     ]
@@ -17862,7 +17924,7 @@ const SCENARIOS = [
     money: 170000, fee: 15, level: 4, days: 0,
     goals: [
       { k: 'water', target: 5, label: 'Water attractions open' },
-      { k: 'guests', target: 300, label: 'Guests in the park' },
+      { k: 'attendance', target: 950, label: 'Visitors in one day' },
       { k: 'happy', target: 70, label: 'Average happiness (%)' },
       { k: 'profit', target: 120000, label: 'Total earnings ($)' },
     ]
@@ -17872,7 +17934,7 @@ const SCENARIOS = [
     blurb: 'Everything you have learned, at scale. Build a park that people talk about.',
     money: 250000, fee: 20, level: 5, days: 0,
     goals: [
-      { k: 'guests', target: 650, label: 'Guests in the park' },
+      { k: 'attendance', target: 2400, label: 'Visitors in one day' },
       { k: 'rating', target: 4.0, label: 'Park rating (stars)' },
       { k: 'coasters', target: 4, label: 'Coasters open' },
       { k: 'profit', target: 600000, label: 'Total earnings ($)' },
@@ -17885,7 +17947,7 @@ const SCENARIOS = [
     money: 75000, fee: 8, level: 3, days: 0,
     goals: [
       { k: 'rides', target: 8, label: 'Flat rides open' },
-      { k: 'guests', target: 250, label: 'Guests in the park' },
+      { k: 'attendance', target: 800, label: 'Visitors in one day' },
       { k: 'happy', target: 78, label: 'Average happiness (%)' },
       { k: 'beauty', target: 500, label: 'Scenery beauty' },
     ]
@@ -17897,7 +17959,7 @@ const SCENARIOS = [
     goals: [
       { k: 'rating', target: 2.0, label: 'Park rating (stars)' },
       { k: 'happy', target: 65, label: 'Average happiness (%)' },
-      { k: 'guests', target: 180, label: 'Guests in the park' },
+      { k: 'attendance', target: 560, label: 'Visitors in one day' },
       { k: 'profit', target: 60000, label: 'Total earnings ($)' },
     ]
   },
@@ -17907,7 +17969,7 @@ const SCENARIOS = [
     money: 130000, fee: 13, level: 4, days: 0,
     goals: [
       { k: 'beauty', target: 1400, label: 'Scenery beauty' },
-      { k: 'guests', target: 280, label: 'Guests in the park' },
+      { k: 'attendance', target: 900, label: 'Visitors in one day' },
       { k: 'happy', target: 80, label: 'Average happiness (%)' },
       { k: 'shops', target: 6, label: 'Shops and facilities' },
     ]
@@ -17918,7 +17980,7 @@ const SCENARIOS = [
     money: 200000, fee: 15, level: 5, days: 0,
     goals: [
       { k: 'days', target: 60, label: 'Days operated' },
-      { k: 'guests', target: 500, label: 'Guests in the park' },
+      { k: 'peak', target: 700, label: 'Guests in the park at once' },
       { k: 'rating', target: 3.5, label: 'Park rating (stars)' },
       { k: 'profit', target: 900000, label: 'Total earnings ($)' },
     ]
@@ -17930,7 +17992,10 @@ const SCENARIOS = [
    what the objective tracker can really check, so a custom scenario can
    never define a goal that silently never completes. */
 const GOAL_KINDS = [
-  { k: 'guests', label: 'Guests in the park', def: 200 },
+  { k: 'attendance', label: 'Visitors in one day', def: 600 },
+  { k: 'peak', label: 'Guests in the park at once', def: 250 },
+  { k: 'guests', label: 'Guests in the park right now', def: 200 },
+  { k: 'capacity', label: 'Park capacity (guests/hour)', def: 3000 },
   { k: 'rating', label: 'Park rating (stars)', def: 3.0, step: .1 },
   { k: 'happy', label: 'Average happiness (%)', def: 70 },
   { k: 'rides', label: 'Rides open', def: 4 },
@@ -17972,7 +18037,7 @@ const CustomScenarios = {
       goals: (def.goals || []).filter(g => GOAL_KINDS.some(gk => gk.k === g.k) && g.target > 0).slice(0, 6)
         .map(g => ({ k: g.k, target: g.target, label: GOAL_KINDS.find(gk => gk.k === g.k).label })),
     };
-    if (!sc.goals.length) sc.goals.push({ k: 'guests', target: 100, label: 'Guests in the park' });
+    if (!sc.goals.length) sc.goals.push({ k: 'attendance', target: 400, label: 'Visitors in one day' });
     this.list.unshift(sc);
     this.save();
     return sc;
@@ -18887,7 +18952,7 @@ const Prestige = {
      usable afterwards, false if the player can't afford it yet. */
   buy(def) {
     if (this.isUnlocked(def)) return true;
-    if (!this.active) { UI.notify('Not yet', 'Prestige Points haven\u2019t been unlocked yet \u2014 finish every objective and grow the park to a capacity of 2,000 guests.', 'warn'); return false; }
+    if (!this.active) { UI.notify('Not yet', 'Prestige Points haven\u2019t been unlocked yet \u2014 finish every objective and get 1,200 guests into the park at once.', 'warn'); return false; }
     if (!this.canAfford(def)) { UI.notify('Not enough Prestige', `${def.name} needs ${this.cost(def)} Prestige Point${this.cost(def) > 1 ? 's' : ''} \u2014 you have ${this.points}.`, 'warn'); return false; }
     this.points -= this.cost(def);
     this.unlocked.push(def.id);
@@ -18900,9 +18965,9 @@ const Prestige = {
   checkMilestone() {
     if (this.active) return;
     const objectivesDone = !Goals.active || Goals.won;
-    if (objectivesDone && Park.capacity >= 2000) {
+    if (objectivesDone && Demand.lastPeak >= 1200) {
       this.active = true;
-      UI.notify('Prestige unlocked!', 'Every objective is complete and the park has grown to a capacity of 2,000 guests. Prestige Points will now be awarded at the end of each good day \u2014 spend them on landmark hotels and grand buildings.', 'money');
+      UI.notify('Prestige unlocked!', 'Every objective is complete and the park has held 1,200 guests at once. Prestige Points will now be awarded at the end of each good day \u2014 spend them on landmark hotels and grand buildings.', 'money');
       Audio.play('complete');
       UI.refreshPrestigeBadge();
     }
@@ -18936,16 +19001,17 @@ const Prestige = {
   drawMult() { return this.active ? this.rank().draw : 1; },
   feeMult() { return this.active ? this.rank().fee : 1; },
   awardForDay(net) {
+    const dayHappy = Park.lastDayHappiness === undefined ? Park.happiness : Park.lastDayHappiness;
     if (!this.active) return;
     /* A broader set of reasons to earn than "the day went fine": a great
        day, a licensed coaster, a busy park and a full hotel all count, so
        the points reflect what the park has actually achieved. */
-    const good = net > 0 && Park.happiness > .62 && Park.rating > 400;
+    const good = net > 0 && dayHappy > .62 && Park.rating > 400;
     let gain = good ? 2 : 1;
     const reasons = [good ? 'a great day' : 'a solid day'];
     if (Perks.prestigePerDay()) { gain += Perks.prestigePerDay(); reasons.push('your standing'); }
     if (Park.ratingStars() >= 4.5) { gain += 1; reasons.push('a 4.5 star rating'); }
-    if (Park.guests.length >= 1500) { gain += 1; reasons.push('a packed park'); }
+    if (Demand.lastPeak >= 1500) { gain += 1; reasons.push('a packed park'); }
     if (typeof Events !== 'undefined' && Events.running()) { gain += 1; reasons.push('an event running'); }
     const before = this.rank();
     this.points += gain;
@@ -18968,16 +19034,27 @@ const Goals = {
   value(k) {
     switch (k) {
       case 'guests': return Park.guests.length;
+      /* Daily attendance is how a real park is judged, and how the demand
+         model produces its results — a park that turns over 900 visitors in
+         a day is doing well whether or not 300 of them are in it at once. */
+      case 'attendance': return Math.max(Demand.today, Demand.yesterday);
+      case 'peak': return Math.max(Demand.peakToday, Demand.lastPeak, Park.guests.length);
+      case 'capacity': return Ops.parkCapacityPerHour();
       /* Player-facing rating is stars, so the goal is measured in stars
          too — one decimal place, matching the readout on the HUD. */
       case 'rating': return Math.round(Park.ratingStars() * 10) / 10;
-      case 'happy': return Math.round(Park.happiness * 100);
+      case 'happy': return Math.round((Park.lastDayHappiness === undefined ? Park.happiness : Math.max(Park.dayHappiness(), Park.lastDayHappiness)) * 100);
       case 'rides': return Park.objects.filter(o => o.kind === 'ride' && o.openR && !o.def.water).length;
       case 'water': return Park.objects.filter(o => o.kind === 'ride' && o.openR && o.def.water).length;
       case 'shops': return Park.objects.filter(o => o.kind === 'shop').length;
       case 'coasters': return Park.coasters.filter(c => c.openR).length;
       case 'coasterExc': return Park.coasters.reduce((m, c) => Math.max(m, c.openR ? c.excitement : 0), 0);
-      case 'profit': return Math.round(Park.log.ticket + Park.log.shop + Park.log.entry);
+      case 'profit': {
+        const L = Park.log;
+        const inc = (L.ticket || 0) + (L.shop || 0) + (L.entry || 0) + (L.hotel || 0) + (L.transit || 0);
+        const out = (L.wage || 0) + (L.upkeep || 0) + (L.marketing || 0) + (L.interest || 0);
+        return Math.round(inc - out);       // what the park actually cleared
+      }
       case 'beauty': return Math.round(Park.beauty);
       case 'days': return Park.day || 0;
     }
@@ -24031,6 +24108,15 @@ const Game = {
       ((L.marketing || 0) - (prev.marketing || 0)) + ((L.interest || 0) - (prev.interest || 0));
     Park.dailyLog.push({ day: Park.day - 1, season: Weather.season.name, income, expense, net: income - expense, guests: Park.totalGuests });
     Prestige.awardForDay(income - expense);
+    /* Experience is a verdict on the day, not a drip per boarding. With
+       honest throughput a park does tens of thousands of boardings a day, so
+       the old two-points-per-rider maxed the level ladder before lunch on
+       opening day. */
+    Progress.add(Math.round(
+      clamp(Demand.yesterday * .10, 0, 260)                    // people who came
+      + clamp((income - expense) / 900, -40, 220)              // and whether it paid
+      + Park.rating * .09                                       // and what they thought
+      + Park.lastDayHappiness * 40));
     Events.dayTick();
     Rivals.dayTick();
     Achievements.dayTick();
