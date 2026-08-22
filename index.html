@@ -2721,6 +2721,7 @@ class Mesh {
 const INST_STRIDE = 20;
 /* body parts per person written by Person.writeInstances */
 const BODY_PARTS = 37;   // 24 body blocks, up to 8 of uniform and kit, plus expressions
+const SIMPLE_PARTS = 7;  // the distant figure: legs, torso, arms, head, hair
 /* ============================================================================
    SECTION 4 — DRAW PIPELINE
    ========================================================================== */
@@ -9381,7 +9382,12 @@ const Demand = {
   },
   crowdFactor() {
     const s = Ops.saturation();
-    return clamp(1.25 - s * .75, .12, 1);
+    /* Two ways a park can be too small for its crowd: queues that take an
+       age, and queues so full that people are turned away at the entrance to
+       them. Both get talked about, and both cost you tomorrow's visitors. */
+    const served = Math.max(1, this.today);
+    const balkRate = clamp((Park.balkedToday || 0) / served, 0, 3);
+    return clamp(1.25 - s * .75 - balkRate * .38, .12, 1);
   },
   /* --- the number ------------------------------------------------------- */
   /* Everybody in the catchment who might come today. Kept as one readable
@@ -10213,6 +10219,37 @@ class Person {
     this.y = damp(this.y, gy, 12, dt);
     if (!this.moving) this.anim = damp(this.anim, Math.round(this.anim / PI) * PI, 8, dt);
   }
+  /* The same person, six boxes instead of twenty-four, for anyone far
+     enough away that the difference is a couple of pixels. This is what lets
+     the crowd cap rise from a few hundred rendered people to a few thousand:
+     the cost of a packed midway is now in the distance, where it belongs. */
+  writeSimple(buf, o, t) {
+    const H = this.height;
+    const walking = this.moving ? 1 : 0;
+    const sw = walking ? Math.sin(this.anim) : 0;
+    const bounce = walking ? Math.abs(Math.sin(this.anim * 2)) * .045 : 0;
+    const skin = hex(this.skin), shirt = hex(this.shirt), pants = hex(this.pants), hair = hex(this.hair);
+    const root = M4.create();
+    M4.compose(root, this.x, this.y + bounce * H, this.z, 0, -this.yaw + PI / 2, this.roll || 0, H, H, H);
+    const tmp = M4.create(), out = M4.create();
+    const put = (px, py, pz, rx, sx, sy, sz, col) => {
+      M4.compose(tmp, px, py, pz, rx, 0, 0, sx, sy, sz);
+      M4.mul(out, root, tmp);
+      for (let k = 0; k < 16; k++) buf[o + k] = out[k];
+      buf[o + 16] = col[0]; buf[o + 17] = col[1]; buf[o + 18] = col[2]; buf[o + 19] = 0;
+      o += INST_STRIDE;
+    };
+    const sitting = this.state === 'sitting' || this.state === 'riding';
+    const hipY = sitting ? .70 : .92;
+    put(-.13, hipY * .5, sw * .10, 0, .24, hipY, .26, pants);
+    put(.13, hipY * .5, -sw * .10, 0, .24, hipY, .26, pants);
+    put(0, hipY + .34, 0, 0, .52, .74, .34, shirt);
+    put(-.28, hipY + .46, -sw * .12, 0, .17, .58, .19, shirt);
+    put(.28, hipY + .46, sw * .12, 0, .17, .58, .19, shirt);
+    put(0, hipY + .92, 0, 0, .38, .40, .36, skin);
+    put(0, hipY + 1.13, 0, 0, .41, .16, .39, hair);
+    return o;
+  }
   /* Write this person's body-part instances into the crowd buffer.
 
      Every segment is drawn slightly longer than the bone it represents and
@@ -10701,8 +10738,9 @@ class Guest extends Person {
     if (this._lastLogged !== msg) { this._lastLogged = msg; Thoughts.add(this, msg, mood === undefined ? (/[!?]$/.test(msg) && !/too|rip|stuck|sick|starv/i.test(msg) ? 1 : -1) : mood); }
   }
 
-  update(dt) {
-    this.timeInPark += dt;
+  /* Needs, mood and the decision to go home. Called on a stagger with the
+     park-minutes elapsed since this guest was last considered. */
+  slowTick(dt) {
     const rate = dt / 60;
     this.hunger = clamp(this.hunger + rate * .155, 0, 1);
     this.thirst = clamp(this.thirst + rate * .205, 0, 1);
@@ -10714,7 +10752,6 @@ class Guest extends Person {
     // comfort: 20 degrees is perfect, and it falls away either side
     const comfort = clamp(1 - Math.abs(Weather.temp - 20) / 18, 0, 1);
     this.warmth = damp(this.warmth, comfort, .5, rate);
-    if (this.thoughtT > 0) this.thoughtT -= dt;
 
     /* Anger is the accumulation of things going wrong rather than a mood: it
        builds while needs go unmet and while you stand in a queue that is not
@@ -10733,22 +10770,6 @@ class Guest extends Person {
     if (this.anger > .55 && Math.random() < dt * .04) this.think(this.gripe || 'This park is a shambles.', -1);
     // being angry makes people mean: they stop caring where the rubbish goes
     if (this.anger > .6) this.tidy = false;
-
-    if (this.vomitT > 0) {
-      this.vomitT -= dt;
-      this.moving = false;
-      if (this.vomitT <= 0) { this.state = 'idle'; this.nausea = .18; }
-    }
-    /* Idle guests are not just parked mannequins: every few seconds one
-       checks a phone or shifts a bag — a small armLift pulse timed
-       independently per guest so a standing crowd never moves in unison. */
-    if (this.state === 'idle' && !this.moving) {
-      this._gestureT = (this._gestureT === undefined ? rnd(2, 8) : this._gestureT) - dt;
-      if (this._gestureT <= 0) { this._gestureT = rnd(7, 16); this._gesturePulse = 1; }
-    }
-    if (this._gesturePulse) this._gesturePulse = Math.max(0, this._gesturePulse - dt * 1.3);
-    const idleGesture = (this.state === 'idle' && !this.moving) ? (this._gesturePulse || 0) * .5 : 0;
-    this.armLift = damp(this.armLift, (this.state === 'riding' && this.riding && this.riding.intensity > 4) ? 1 : idleGesture, 6, dt);
 
     /* ------------------------------------------------------------------
        Mood, resolved into four named components rather than one opaque
@@ -10814,6 +10835,84 @@ class Guest extends Person {
     this.moodWorst = [['comfort', this.cComfort], ['value', this.cValue],
                       ['excitement', this.cExcite], ['energy', this.cFresh]]
                      .sort((a, b) => a[1] - b[1])[0][0];
+
+    /* Leaving: people go home when they have done what they came for, run out
+       of money, run out of energy, or stop enjoying themselves. Each has its
+       own parting thought, which is what makes the thoughts feed useful. */
+    if (this.state !== 'leaving' && this.state !== 'riding' && this.state !== 'queuing' && this.state !== 'onbus') {
+      let why = null;
+      if (this.happy < .10) why = 'I am not enjoying this. I am going home.';
+      else if (this.cash < 6) why = 'I am out of money — time to go.';
+      else if (this.energy < .05) why = 'I am exhausted. What a day.';
+      else if (this.ridden.length >= this.ridesWanted && this.happy > .55)
+        why = 'What a brilliant day out!';
+      else if (this.timeInPark > (this.stayBudget || 300) * (.8 + this.happy * .45)) why = 'Time to head home.';
+      else if (this.timeInPark > 90 && this.uniqueRidden() >= Math.max(1, Park.attractions().length)
+               && this.happy > .4) why = 'We have done everything there is to do here.';
+      if (why) { this.think(why, this.happy > .55 ? 1 : -1); this.leavePark(); }
+    }
+    // drop litter occasionally
+    if (this.litterCarried > 0 && Math.random() < dt * .030) {
+      // A tidy guest will carry rubbish to a bin. An untidy one, or one who
+      // cannot find a bin, drops it — which is why bins are a real decision.
+      const bin = this.nearest(o => o.kind === 'scenery' && o.def.kind === 'bin', this.tidy ? 34 : 12);
+      this.litterCarried--;
+      if (!bin) {
+        Park.litter.push({ x: this.x + rnd(-1, 1), z: this.z + rnd(-1, 1), k: rndi(0, 1), y: this.y });
+        Park.litterDirty = true;
+        if (this.tidy) { this.happy = clamp(this.happy - .03, 0, 1); this.think('There is nowhere to put this.'); }
+      }
+    }
+    if (this.nausea > .93 && this.vomitT <= 0 && this.state !== 'riding' && this.state !== 'leaving'
+      && Math.random() < dt * .35) {
+      this.vomitT = 3.2;
+      this.state = 'sick';
+      this.happy = clamp(this.happy - .12, 0, 1);
+      this.anger = clamp(this.anger + .12, 0, 1);
+      this.think('Ugh… I feel sick.', -1);
+      // the mess lands in front of them, not under them
+      setTimeout(() => {
+        if (this.dead) return;
+        Park.litter.push({ x: this.x + Math.cos(this.yaw) * 1.0, z: this.z + Math.sin(this.yaw) * 1.0, k: 2, y: this.y });
+        Park.litterDirty = true;
+      }, 1100);
+    }
+  }
+  /* Two clocks per guest.
+
+     The cheap half — walking, animation, the state machine — runs every
+     frame because it is what you can see. The expensive half — needs, mood,
+     anger, whether to go home — runs a couple of times a park-minute on a
+     per-guest stagger, because nobody can see the difference and it was
+     costing ten milliseconds a frame at fifteen hundred guests. Rates are
+     applied against the accumulated slice, so behaviour is identical. */
+  update(dt) {
+    this.timeInPark += dt;
+    if (this.thoughtT > 0) this.thoughtT -= dt;
+    this._slowAcc = (this._slowAcc || 0) + dt;
+    this._slowT = (this._slowT === undefined ? rnd(0, .5) : this._slowT) - dt;
+    if (this._slowT <= 0) {
+      const adt = this._slowAcc;
+      this._slowAcc = 0;
+      this._slowT = rnd(.45, .8);
+      this.slowTick(adt);
+    }
+    if (this.vomitT > 0) {
+      this.vomitT -= dt;
+      this.moving = false;
+      if (this.vomitT <= 0) { this.state = 'idle'; this.nausea = .18; }
+    }
+    /* Idle guests are not just parked mannequins: every few seconds one
+       checks a phone or shifts a bag — a small armLift pulse timed
+       independently per guest so a standing crowd never moves in unison. */
+    if (this.state === 'idle' && !this.moving) {
+      this._gestureT = (this._gestureT === undefined ? rnd(2, 8) : this._gestureT) - dt;
+      if (this._gestureT <= 0) { this._gestureT = rnd(7, 16); this._gesturePulse = 1; }
+    }
+    if (this._gesturePulse) this._gesturePulse = Math.max(0, this._gesturePulse - dt * 1.3);
+    const idleGesture = (this.state === 'idle' && !this.moving) ? (this._gesturePulse || 0) * .5 : 0;
+    this.armLift = damp(this.armLift, (this.state === 'riding' && this.riding && this.riding.intensity > 4) ? 1 : idleGesture, 6, dt);
+
 
     switch (this.state) {
       case 'arriving': {
@@ -10935,49 +11034,7 @@ class Guest extends Person {
       }
     }
     this.physUpdate(dt);
-    /* Leaving: people go home when they have done what they came for, run out
-       of money, run out of energy, or stop enjoying themselves. Each has its
-       own parting thought, which is what makes the thoughts feed useful. */
-    if (this.state !== 'leaving' && this.state !== 'riding' && this.state !== 'queuing' && this.state !== 'onbus') {
-      let why = null;
-      if (this.happy < .10) why = 'I am not enjoying this. I am going home.';
-      else if (this.cash < 6) why = 'I am out of money — time to go.';
-      else if (this.energy < .05) why = 'I am exhausted. What a day.';
-      else if (this.ridden.length >= this.ridesWanted && this.happy > .55)
-        why = 'What a brilliant day out!';
-      else if (this.timeInPark > (this.stayBudget || 300) * (.8 + this.happy * .45)) why = 'Time to head home.';
-      else if (this.timeInPark > 90 && this.uniqueRidden() >= Math.max(1, Park.attractions().length)
-               && this.happy > .4) why = 'We have done everything there is to do here.';
-      if (why) { this.think(why, this.happy > .55 ? 1 : -1); this.leavePark(); }
-    }
-    // drop litter occasionally
-    if (this.litterCarried > 0 && Math.random() < dt * .030) {
-      // A tidy guest will carry rubbish to a bin. An untidy one, or one who
-      // cannot find a bin, drops it — which is why bins are a real decision.
-      const bin = this.nearest(o => o.kind === 'scenery' && o.def.kind === 'bin', this.tidy ? 34 : 12);
-      this.litterCarried--;
-      if (!bin) {
-        Park.litter.push({ x: this.x + rnd(-1, 1), z: this.z + rnd(-1, 1), k: rndi(0, 1), y: this.y });
-        Park.litterDirty = true;
-        if (this.tidy) { this.happy = clamp(this.happy - .03, 0, 1); this.think('There is nowhere to put this.'); }
-      }
-    }
-    if (this.nausea > .93 && this.vomitT <= 0 && this.state !== 'riding' && this.state !== 'leaving'
-      && Math.random() < dt * .35) {
-      this.vomitT = 3.2;
-      this.state = 'sick';
-      this.happy = clamp(this.happy - .12, 0, 1);
-      this.anger = clamp(this.anger + .12, 0, 1);
-      this.think('Ugh… I feel sick.', -1);
-      // the mess lands in front of them, not under them
-      setTimeout(() => {
-        if (this.dead) return;
-        Park.litter.push({ x: this.x + Math.cos(this.yaw) * 1.0, z: this.z + Math.sin(this.yaw) * 1.0, k: 2, y: this.y });
-        Park.litterDirty = true;
-      }, 1100);
-    }
   }
-
   nearest(pred, maxD = 1e9) {
     let best = null, bd = maxD * maxD;
     for (const o of Park.objects) {
@@ -11161,12 +11218,19 @@ class Guest extends Person {
     this._bikeCheckT = (this._bikeCheckT || 0) - dt;
     if (this._bikeCheckT > 0) return;
     this._bikeCheckT = 1.4;
+    /* Most parks have no bike stands at all, and every walking guest was
+       scanning the whole object list to rediscover that. */
+    if (Park._bikeVer !== Park.beautyVersion) {
+      Park._bikeVer = Park.beautyVersion;
+      Park._bikeStands = Park.objects.filter(o => o.kind === 'shop' && o.def.need === 'bike');
+    }
+    if (!Park._bikeStands.length) return;
     if (Park.now < (this.bikeCool || 0)) return;
     if (!this.path || this.pi >= this.path.length) return;
     let remain = 0;
     for (let k = this.pi; k < this.path.length - 1; k++) remain += dist(this.path[k].x, this.path[k].z, this.path[k + 1].x, this.path[k + 1].z);
     if (remain < 60) return;
-    const stand = Park.objects.find(o => o.kind === 'shop' && o.def.need === 'bike' && o.openR && dist(o.x, o.z, this.x, this.z) < 9);
+    const stand = Park._bikeStands.find(o => o.openR && dist(o.x, o.z, this.x, this.z) < 9);
     if (!stand) return;
     if (this.cash < stand.price) return;
     if (Math.random() > .35) return;
@@ -11363,8 +11427,16 @@ class Guest extends Person {
       const est = this.estimatedWait(t);
       const builtLen = t.queuePath().length;
       const physCap = builtLen > 1 ? builtLen * 1.4 + 4 : 6;
-      if (est > this.patience * 1.5 || t.queue.length > 90 || t.queue.length >= physCap) {
-        this.think('That queue is way too long.');
+      const full = t.queue.length >= physCap;
+      if (est > this.patience * 1.5 || t.queue.length > 90 || full) {
+        /* Balking is the park's real capacity signal. A queue that is full
+           to the last built tile turns people away just as surely as a
+           two-hour wait does, and both are counted so the panels can say so
+           and so word of mouth can suffer for it. */
+        t.balkedToday = (t.balkedToday || 0) + 1;
+        t.balkedFull = (t.balkedFull || 0) + (full ? 1 : 0);
+        Park.balkedToday = (Park.balkedToday || 0) + 1;
+        this.think(full ? 'The queue is full — the line is out of the entrance.' : 'That queue is way too long.');
         this.remember(t, -.12);
         this.state = 'idle';
         return;
@@ -13531,6 +13603,14 @@ const UI = {
       h += kv('On board', (o.riding ? o.riding.length : 0));
       h += kv('Served today', (o.riddenToday || 0).toLocaleString(),
         o.riddenYesterday ? 'yesterday ' + o.riddenYesterday.toLocaleString() : 'lifetime ' + (o.ridden || 0).toLocaleString());
+      if (o.balkedToday) {
+        const qLen = o.queuePath ? o.queuePath().length : 0;
+        h += kv('Walked away today', (o.balkedToday || 0).toLocaleString(),
+          o.balkedFull > o.balkedToday * .5 ? 'queue full — build more queue path' : 'wait too long for them');
+        h += `<p style="font-size:11px">${o.balkedFull > o.balkedToday * .5
+          ? 'The line is backing up out of the ' + qLen + ' tiles of queue you have built. Extend the queue path, or add capacity.'
+          : 'They judged the wait too long for what this ride is. More throughput, a second train, or an entertainer working the line.'}</p>`;
+      }
       if (isC) {
         h += `<h3>Trains</h3>`;
         h += `<div class="row"><label>Trains</label>
@@ -20060,6 +20140,8 @@ const InfoWheel = {
         s += InfoWheel.row('Average queue', wait ? wait + ' min' : 'no queues',
           InfoWheel.verdict(wait < 20, wait < 45, wait >= 45));
         s += InfoWheel.row('Safe site limit', Park.capacity.toLocaleString());
+        if (Park.balkedToday) s += InfoWheel.row('Walked away from queues', (Park.balkedToday || 0).toLocaleString(),
+          InfoWheel.verdict(false, Park.balkedToday < Demand.today * .3, Park.balkedToday >= Demand.today * .3));
 
         /* The single most useful line in the game: which wall you are hitting. */
         const demandLimited = b.raw < b.ceiling * .8;
@@ -21964,7 +22046,11 @@ const Game = {
     WORLD.buildWater(this.R);
     boot(55, 'assembling props…');
     this.crowdMesh = this.R.makeMesh(Prefab.unitBox());
-    this.crowdBuf = new Float32Array(340 * BODY_PARTS * INST_STRIDE);
+    /* Sized in instances rather than people: a near crowd costs 37 each and
+       a distant one 7, so this holds roughly 350 people up close or 1,850
+       further out — and a packed park reads as packed instead of thinning to
+       three hundred wherever you look. */
+    this.crowdBuf = new Float32Array(13000 * INST_STRIDE);
     this.litterGeos = [Prefab.litter(0), Prefab.litter(1), Prefab.litter(2)];
     boot(70, 'opening the gates…');
     Cam.init(0, WORLD.wz((N >> 1) + 14));
@@ -23375,12 +23461,19 @@ const Game = {
     for (const g of Park.guests) consider(g);
     for (const g of Park.staff) consider(g);
     const rate = Math.min(1, dt * 10);
+    /* Only the forward half of the neighbourhood is visited: every unordered
+       pair is still tested exactly once, at a little over half the hash
+       lookups. At fifteen hundred people the nine-cell version was the
+       second most expensive thing in the frame. */
+    const NB = [[0, 0], [1, 0], [-1, 1], [0, 1], [1, 1]];
     for (const a of act) {
-      for (let di = -1; di <= 1; di++) for (let dj = -1; dj <= 1; dj++) {
+      for (let n = 0; n < 5; n++) {
+        const di = NB[n][0], dj = NB[n][1];
         const b = grid.get((a._ci + di) * 262144 + (a._cj + dj));
         if (!b) continue;
+        const same = di === 0 && dj === 0;
         for (const o of b) {
-          if (o.id <= a.id) continue;                 // handle each pair once
+          if (same ? o.id <= a.id : o === a) continue;   // each pair once
           let dx = o.x - a.x, dz = o.z - a.z;
           const d2 = dx * dx + dz * dz;
           if (d2 >= R2) continue;
@@ -24097,6 +24190,7 @@ const Game = {
   dayTick() {
     Demand.dayTick();      // bank yesterday's attendance, age word of mouth
     Park.lastDayHappiness = Park.dayHappiness();
+    Park.balkedYesterday = Park.balkedToday || 0; Park.balkedToday = 0;
     Park.happySum = 0; Park.happyW = 0;
     Park.entryToday = 0;   // the admission volume discount resets every morning
     Land.snapshotTrend();
@@ -24183,6 +24277,7 @@ const Game = {
       if (o.kind !== 'ride' && o.kind !== 'coaster') continue;
       o.riddenYesterday = o.riddenToday || 0; o.riddenToday = 0;
       o.revenueYesterday = o.revenueToday || 0; o.revenueToday = 0;
+      o.balkedYesterday = o.balkedToday || 0; o.balkedToday = 0; o.balkedFull = 0;
     }
     /* ---- Rides get old ----------------------------------------------
        A ride that has been standing for years is not the draw it was on
@@ -25490,19 +25585,26 @@ Object.assign(Game, {
     const t = Park.now;
     const maxParts = buf.length / INST_STRIDE;
     const cx = Cam.eye.x, cz = Cam.eye.z;
-    const people = [];
-    for (const g of Park.guests) people.push(g);
-    for (const s of Park.staff) people.push(s);
-    for (const s of Inspection.active) people.push(s);   // visiting inspectors are people too
+    /* Cull to what the camera can actually see FIRST, then sort only those.
+       Sorting the whole park every frame — including the fifteen hundred
+       people nowhere near the camera — cost more than drawing them. */
+    const range = Game.crowdRange || 62000;
+    const people = this._crowdList || (this._crowdList = []);
+    people.length = 0;
+    const take = (p) => { if (dist2(p.x, p.z, cx, cz) <= range) people.push(p); };
+    for (const g of Park.guests) take(g);
+    for (const s of Park.staff) take(s);
+    for (const s of Inspection.active) take(s);   // visiting inspectors are people too
     // nearest-first so the cap drops distant people, not random ones
     if (people.length * BODY_PARTS > maxParts) {
       people.sort((a, b) => dist2(a.x, a.z, cx, cz) - dist2(b.x, b.z, cx, cz));
     }
+    const NEAR2 = 2600;                       // ~51 units: full figure inside this
     for (const p of people) {
-      if (o + BODY_PARTS * INST_STRIDE > buf.length) break;
-      const d2 = dist2(p.x, p.z, cx, cz);
-      if (d2 > (Game.crowdRange || 62000)) continue;
-      o = p.writeInstances(buf, o, t);
+      const near = dist2(p.x, p.z, cx, cz) < NEAR2;
+      const parts = near ? BODY_PARTS : SIMPLE_PARTS;
+      if (o + parts * INST_STRIDE > buf.length) break;
+      o = near ? p.writeInstances(buf, o, t) : p.writeSimple(buf, o, t);
     }
     this.crowdCount = o / INST_STRIDE;
     if (this.crowdCount) this.crowdMesh.setInstances(buf.subarray(0, o), this.crowdCount);
