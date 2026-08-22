@@ -8543,6 +8543,31 @@ class Ride extends ParkObject {
       this.spin = 0; this.h = 1;
     }
     if (!running) { this.h *= Math.max(0, 1 - dt * 1.5); }
+
+    /* The ride's own noises, played where the ride is. Cheap, rate-limited,
+       and only audible within earshot of the camera — a park of thirty
+       attractions used to be silent apart from a crowd bed. */
+    if (running && Audio.ctx && Audio.on) {
+      const rk = this.def.kind;
+      if (this.def.water) {
+        if (Math.random() < dt * (Ops.isPool(this) ? .5 : 1.4))
+          Audio.noiseAt(this.x, this.z, rnd(900, 2200), .7, rnd(.18, .45), Ops.isPool(this) ? .05 : .10);
+      } else if (rk === 'drop' || rk === 'spindrop') {
+        if (this._lastH !== undefined && this._lastH - this.h > .22) {
+          Audio.noiseAt(this.x, this.z, 500, .5, .55, .16);          // the drop
+          Audio.at(this.x, this.z, 240, .5, 'sawtooth', .05, 90);
+          if (Math.random() < .7) Audio.at(this.x, this.z, rnd(600, 950), .5, 'sawtooth', .05, rnd(240, 420));
+        }
+      } else if (rk === 'bumper') {
+        if (Math.random() < dt * 2.2) Audio.at(this.x, this.z, rnd(90, 160), .09, 'square', .05, rnd(55, 90));
+      } else if (rk === 'pirate' || rk === 'frisbee' || rk === 'topspin' || rk === 'enterprise' || rk === 'disko') {
+        if (Math.random() < dt * .8 && (this.riding ? this.riding.length : 0) > 2)
+          Audio.at(this.x, this.z, rnd(500, 900), .45, 'sawtooth', .045, rnd(220, 380));   // riders
+      } else if (rk === 'haunted' || rk === 'ghosttrain') {
+        if (Math.random() < dt * .35) Audio.at(this.x, this.z, rnd(150, 320), rnd(.6, 1.3), 'sine', .05, rnd(90, 180));
+      }
+      this._lastH = this.h;
+    }
   }
   breakDown() {
     this.broken = true; this.state = 'broken';
@@ -10733,6 +10758,12 @@ class Guest extends Person {
   }
   think(msg, mood) {
     this.thought = msg; this.thoughtT = 6;
+    /* How much this deserves screen space. A complaint points at something
+       broken; "Next up: Wave Pool" points at nothing. Before this the park
+       was papered over with a dozen identical plan announcements and the one
+       guest telling you the queue was hopeless was lost among them. */
+    this.thoughtPri = mood === undefined ? (/^(Next up|Let’s ride|I will get)/.test(msg) ? .25 : 1)
+      : mood < 0 ? 2.2 : mood > 0 ? 1.2 : .5;
     /* Only log a given guest's thought once in a while: the feed is for
        spotting patterns, not for one loud guest repeating themselves. */
     if (this._lastLogged !== msg) { this._lastLogged = msg; Thoughts.add(this, msg, mood === undefined ? (/[!?]$/.test(msg) && !/too|rip|stuck|sick|starv/i.test(msg) ? 1 : -1) : mood); }
@@ -11099,7 +11130,9 @@ class Guest extends Person {
           const e = r.entrance;
           if (this.travelTo(e.x, e.z, true)) {
             if (this._rode) { this.think('I will get the bus over to ' + r.name + '.'); return; }
-            this.claim(r); this.state = 'walking'; this.think('Next up: ' + r.name + '.'); return;
+            this.claim(r); this.state = 'walking';
+            if (Math.random() < .22) this.think('Next up: ' + r.name + '.');
+            return;
           }
         }
         // nothing of that sort is open or reachable — drop it and move on
@@ -11148,7 +11181,9 @@ class Guest extends Person {
         const e = r.entrance;
         if (this.travelTo(e.x, e.z, true)) {
           if (this._rode) return;
-          this.claim(r); this.state = 'walking'; this.think('Let’s ride ' + r.name + '!'); return;
+          this.claim(r); this.state = 'walking';
+          if (Math.random() < .18) this.think('Let’s ride ' + r.name + '!');
+          return;
         }
       }
     }
@@ -11487,6 +11522,10 @@ class Guest extends Person {
       }
       this.cash -= paid; this.spent += paid;
       Park.earn(paid, 'shop'); s.revenue += paid; s.served++;
+      if (Math.random() < .5) {
+        Audio.at(s.x, s.z, 1180, .05, 'square', .045);
+        setTimeout(() => Audio.at(s.x, s.z, 1560, .07, 'square', .035), 55);
+      }
       if (item) { item.sold++; item.revenue += paid; }
       s.stock = clamp(s.stock - (100 / (s.def.stockSize || 65)) * (s.wasteMul || 1), 0, 100);
       if (s.merch && s.merch.name) this.happy = clamp(this.happy + .015, 0, 1);
@@ -14212,6 +14251,8 @@ const UI = {
      about — so the centre can take you straight there instead of leaving you
      to hunt for the ride that just broke down. */
   notify(title, body, cls, at) {
+    /* Anything worth a banner is worth hearing over the music. */
+    if (typeof Audio !== 'undefined' && Audio.duck) Audio.duck(cls === 'bad' ? .6 : .4, cls === 'bad' ? 1.8 : 1.2);
     const n = el('div', 'note ' + (cls || ''), `<div class="nt">${esc(title)}</div><div class="nb">${esc(body)}</div>`);
     $('#notif').appendChild(n);
     setTimeout(() => { n.classList.add('out'); setTimeout(() => n.remove(), 320); }, 5200);
@@ -17340,6 +17381,18 @@ const Coaster = {
         }
         if (tr.v < .5) tr.v = .5;
         if (tr.v > T.maxSpeed * 1.25) tr.v = T.maxSpeed * 1.25;
+        /* Heard from wherever the train is: the roar of a train going past
+           is the single most recognisable sound a park makes. Rate-limited
+           and distance-attenuated, so a park full of coasters is busy rather
+           than deafening. */
+        if (tr.sm && tr.sm.p) {
+          if (tr.v > 14 && Math.random() < h * clamp(tr.v * .10, .3, 3.2))
+            Audio.noiseAt(tr.sm.p.x, tr.sm.p.z, 140 + tr.v * 8, .6, .35, .085);
+          if (tr.v > 21 && Math.random() < h * 1.1)
+            Audio.at(tr.sm.p.x, tr.sm.p.z, rnd(620, 1150), rnd(.4, .8), 'sawtooth', .055, rnd(260, 480));
+          if (sm.lift && Math.random() < h * clamp(tr.v * 1.6, 2, 14))
+            Audio.at(tr.sm.p.x, tr.sm.p.z, rnd(1500, 2100), .022, 'square', .05);
+        }
         // The chain dog catching links, and brake fins biting. Only audible for
         // the ride you are actually watching — otherwise a busy park is a mess.
         if (Cam.mode === 'ride' && Game.rideCamTarget === c) {
@@ -17426,7 +17479,23 @@ const Audio_ = {
       // the sound effects rather than competing with them
       this.musicGain = this.ctx.createGain(); this.musicGain.gain.value = this.musicVol * .17;
       const mf = this.ctx.createBiquadFilter(); mf.type = 'lowpass'; mf.frequency.value = 3200;
-      this.musicGain.connect(mf); mf.connect(this.master);
+      this.musicDuck = this.ctx.createGain(); this.musicDuck.gain.value = 1;
+      this.musicGain.connect(mf); mf.connect(this.musicDuck); this.musicDuck.connect(this.master);
+      /* Rain: its own bed, because weather you can hear is half of weather
+         you can feel. Two layers — a wide hiss and a lower patter — so a
+         drizzle and a downpour are recognisably different sounds. */
+      const rsrc = this.ctx.createBufferSource(); rsrc.buffer = buf; rsrc.loop = true;
+      const rhp = this.ctx.createBiquadFilter(); rhp.type = 'highpass'; rhp.frequency.value = 1400;
+      this.rainGain = this.ctx.createGain(); this.rainGain.gain.value = 0;
+      rsrc.connect(rhp); rhp.connect(this.rainGain); this.rainGain.connect(this.master);
+      rsrc.start();
+      const psrc = this.ctx.createBufferSource(); psrc.buffer = buf; psrc.loop = true;
+      const pbp = this.ctx.createBiquadFilter(); pbp.type = 'bandpass'; pbp.frequency.value = 620; pbp.Q.value = .7;
+      this.patterGain = this.ctx.createGain(); this.patterGain.gain.value = 0;
+      psrc.connect(pbp); pbp.connect(this.patterGain); this.patterGain.connect(this.master);
+      psrc.start();
+      this.noiseBuf = buf;
+      this.initScene();
     } catch (e) { this.ctx = null; }
   },
   resume() { if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume(); },
@@ -17475,6 +17544,193 @@ const Audio_ = {
       case 'creak': this.tone(rnd(70, 130), rnd(.3, .6), 'sawtooth', .05, rnd(50, 90)); break;
       case 'rustcreak': this.tone(rnd(600, 1100), rnd(.08, .16), 'sawtooth', .04, rnd(300, 500)); break;
     }
+  },
+  /* ------------------------------------------------------------------
+     THE PARK, HEARD FROM WHERE YOU ARE STANDING
+
+     A park should not sound like one crowd bed and a waltz. Every operating
+     attraction near the camera gets its own voice — a motor, a rumble, water
+     — panned and attenuated from the camera's own position, so flying over a
+     packed midway sounds nothing like hovering over an empty corner of the
+     car park, and walking a guest through the plaza is a different soundtrack
+     to watching the whole park from above.
+
+     Six voices, pooled and reassigned to whatever is nearest. Anything past
+     the audible radius is silent rather than mixed down, which keeps a
+     hundred-ride park from turning into porridge.
+     ------------------------------------------------------------------ */
+  AUDIBLE: 120,
+  scene: { voices: [], t: 0 },
+  initScene() {
+    if (!this.ctx) return;
+    for (let k = 0; k < 6; k++) {
+      const g = this.ctx.createGain(); g.gain.value = 0;
+      const pan = this.ctx.createStereoPanner ? this.ctx.createStereoPanner() : null;
+      const osc = this.ctx.createOscillator(); osc.type = 'sawtooth'; osc.frequency.value = 70;
+      const oscG = this.ctx.createGain(); oscG.gain.value = 0;
+      const lp = this.ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 300;
+      const nz = this.ctx.createBufferSource(); nz.buffer = this.noiseBuf; nz.loop = true;
+      const nzF = this.ctx.createBiquadFilter(); nzF.type = 'bandpass'; nzF.frequency.value = 900; nzF.Q.value = .8;
+      const nzG = this.ctx.createGain(); nzG.gain.value = 0;
+      osc.connect(oscG); oscG.connect(lp); lp.connect(g);
+      nz.connect(nzF); nzF.connect(nzG); nzG.connect(g);
+      if (pan) { g.connect(pan); pan.connect(this.master); } else g.connect(this.master);
+      osc.start(); nz.start();
+      this.scene.voices.push({ g, pan, osc, oscG, lp, nzF, nzG, src: null });
+    }
+  },
+  /* Where a world point sits relative to the camera: how loud, and how far
+     left or right. */
+  listen(x, z) {
+    if (typeof Cam === 'undefined') return null;
+    const ex = Cam.eye.x, ez = Cam.eye.z;
+    const d = Math.hypot(x - ex, z - ez);
+    if (d > this.AUDIBLE) return null;
+    const vol = Math.pow(1 - d / this.AUDIBLE, 1.6);
+    /* Pan from the camera's own right vector, so sources swing across the
+       stereo field as you orbit. */
+    let fx = Cam.look.x - ex, fz = Cam.look.z - ez;
+    const fl = Math.hypot(fx, fz) || 1; fx /= fl; fz /= fl;
+    const rx = -fz, rz = fx;
+    const dx = (x - ex) / (d || 1), dz = (z - ez) / (d || 1);
+    return { vol, pan: clamp(dx * rx + dz * rz, -1, 1), d };
+  },
+  /* A one-shot at a place in the park rather than in your head. */
+  at(x, z, f, dur, type, vol, slide) {
+    if (!this.ctx || !this.on) return;
+    const L = this.listen(x, z);
+    if (!L || L.vol < .02) return;
+    const lvl = vol * L.vol * clamp(this.sfxVol, 0, 1);
+    if (!(lvl > .0004)) return;
+    const t = this.ctx.currentTime;
+    const o = this.ctx.createOscillator(), g = this.ctx.createGain();
+    o.type = type || 'sine'; o.frequency.setValueAtTime(f, t);
+    if (slide) o.frequency.exponentialRampToValueAtTime(Math.max(40, slide), t + dur);
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(lvl, t + .012);
+    g.gain.exponentialRampToValueAtTime(.0001, t + dur);
+    let tail = g;
+    if (this.ctx.createStereoPanner) {
+      const p = this.ctx.createStereoPanner(); p.pan.value = L.pan;
+      g.connect(p); tail = p;
+    }
+    o.connect(g); tail.connect(this.master);
+    o.start(t); o.stop(t + dur + .05);
+    o.onended = () => { try { o.disconnect(); g.disconnect(); if (tail !== g) tail.disconnect(); } catch (_) { } };
+  },
+  /* Filtered noise at a place — splashes, water, hiss. */
+  noiseAt(x, z, freq, q, dur, vol) {
+    if (!this.ctx || !this.on || !this.noiseBuf) return;
+    const L = this.listen(x, z);
+    if (!L || L.vol < .02) return;
+    const lvl = vol * L.vol * clamp(this.sfxVol, 0, 1);
+    if (!(lvl > .0004)) return;
+    const t = this.ctx.currentTime;
+    const src = this.ctx.createBufferSource(); src.buffer = this.noiseBuf;
+    const f = this.ctx.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = freq; f.Q.value = q;
+    const g = this.ctx.createGain();
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(lvl, t + .015);
+    g.gain.exponentialRampToValueAtTime(.0001, t + dur);
+    let tail = g;
+    if (this.ctx.createStereoPanner) { const p = this.ctx.createStereoPanner(); p.pan.value = L.pan; g.connect(p); tail = p; }
+    src.connect(f); f.connect(g); tail.connect(this.master);
+    src.start(t); src.stop(t + dur + .05);
+    src.onended = () => { try { src.disconnect(); f.disconnect(); g.disconnect(); if (tail !== g) tail.disconnect(); } catch (_) { } };
+  },
+  /* What each sort of attraction sounds like when it is working. */
+  voiceFor(a) {
+    const k = (a.def && a.def.kind) || (a.kind === 'coaster' ? 'coaster' : 'flat');
+    const busy = clamp(((a.riding ? a.riding.length : 0) + (a.queue ? a.queue.length : 0) * .3) / Math.max(4, a.cap || 12), 0, 1.3);
+    if (a.kind === 'coaster') {
+      let v = 0;
+      for (const tr of a.trains || []) if (tr.state === 'run') v = Math.max(v, tr.v || 0);
+      return { osc: 0, noise: clamp(v / 34, 0, 1) * .10, nf: 120 + v * 5, nq: .5, of: 60 };
+    }
+    if (Ops.isPool(a)) return { osc: 0, noise: .028 + busy * .04, nf: 1500, nq: .5, of: 60 };
+    if (a.def && a.def.water) return { osc: .012, noise: .05 + busy * .03, nf: 1100, nq: .6, of: 74 };
+    if (k === 'haunted' || k === 'ghosttrain') return { osc: .03, noise: .012, nf: 260, nq: 2.4, of: 44 };
+    if (k === 'carousel') return { osc: .022, noise: .006, nf: 700, nq: 1.2, of: 96 };
+    if (k === 'bumper') return { osc: .03, noise: .022, nf: 900, nq: .8, of: 58 };
+    if (k === 'drop' || k === 'spindrop' || k === 'tower') return { osc: .018, noise: .02 + (a.h || 0) * .05, nf: 620, nq: .7, of: 52 };
+    return { osc: .026 * (.4 + busy), noise: .012, nf: 560, nq: 1.0, of: 66 + (a.spin || 0) % 30 };
+  },
+  /* Reassign the voice pool to whatever is worth hearing right now. */
+  sceneTick(dt) {
+    if (!this.ctx || !this.on || !this.scene.voices.length) return;
+    this.scene.t -= dt;
+    if (this.scene.t > 0) return;
+    this.scene.t = .18;
+    const cands = [];
+    for (const a of Park.attractions()) {
+      if (a.broken || a.openR === false) continue;
+      const L = this.listen(a.x, a.z);
+      if (!L) continue;
+      const running = (a.riding && a.riding.length) || (a.trains && a.trains.some(t => t.state === 'run')) || (a.queue && a.queue.length);
+      if (!running) continue;
+      cands.push({ a, L });
+    }
+    cands.sort((p, q) => q.L.vol - p.L.vol);
+    const sfx = clamp(this.sfxVol, 0, 1);
+    for (let k = 0; k < this.scene.voices.length; k++) {
+      const v = this.scene.voices[k], c = cands[k];
+      if (!c) { this.glide(v.oscG, 0); this.glide(v.nzG, 0); continue; }
+      const spec = this.voiceFor(c.a);
+      if (v.pan) { try { v.pan.pan.setTargetAtTime(c.L.pan, this.ctx.currentTime, .12); } catch (_) { v.pan.pan.value = c.L.pan; } }
+      try {
+        v.osc.frequency.setTargetAtTime(spec.of, this.ctx.currentTime, .15);
+        v.nzF.frequency.setTargetAtTime(spec.nf, this.ctx.currentTime, .15);
+        v.nzF.Q.value = spec.nq;
+      } catch (_) { }
+      this.glide(v.g, 1);
+      this.glide(v.oscG, spec.osc * c.L.vol * sfx);
+      this.glide(v.nzG, spec.noise * c.L.vol * sfx);
+    }
+  },
+  /* Weather you can hear, and a crowd that is only as loud as the crowd
+     actually around you. */
+  weatherTick(dt) {
+    if (!this.ctx) return;
+    const sfx = clamp(this.sfxVol, 0, 1);
+    const rain = typeof Weather !== 'undefined' ? Weather.rainIntensity() : 0;
+    this.glide(this.rainGain, clamp(rain, 0, 1) * .045 * sfx);
+    this.glide(this.patterGain, clamp(rain - .35, 0, 1) * .05 * sfx);
+    if (rain > .75 && Math.random() < dt * .06) {
+      // thunder: a low roll that takes its time
+      this.tone(rnd(38, 58), rnd(1.4, 2.6), 'sawtooth', .16, rnd(24, 34));
+      setTimeout(() => this.tone(rnd(70, 110), 1.2, 'triangle', .07, 40), 220);
+    }
+  },
+  /* The murmur is measured around the camera, not across the park: a quiet
+     corner of a busy park should sound quiet. */
+  crowdTick() {
+    if (typeof Cam === 'undefined') return;
+    let near = 0;
+    const cx = Cam.eye.x, cz = Cam.eye.z, R2 = 90 * 90;
+    for (const g of Park.guests) { const dx = g.x - cx, dz = g.z - cz; if (dx * dx + dz * dz < R2) near++; }
+    this._nearCrowd = near;
+    this.setCrowd(Math.min(.10, near * .0016));
+    /* Every so often a burst of laughter or a cheer from wherever the crowd
+       actually is, rather than a flat bed. */
+    if (near > 25 && Math.random() < .012) {
+      const g = Park.guests[Math.floor(Math.random() * Park.guests.length)];
+      if (g) {
+        const happy = g.happy > .7;
+        for (let k = 0; k < 3; k++)
+          setTimeout(() => this.at(g.x, g.z, rnd(happy ? 320 : 200, happy ? 620 : 380), .1, 'triangle', .05, rnd(180, 300)), k * 90);
+      }
+    }
+  },
+  /* Duck the music briefly so an alert or a milestone is audible over it. */
+  duck(amount, secs) {
+    if (!this.musicDuck || !this.ctx) return;
+    const t = this.ctx.currentTime;
+    try {
+      this.musicDuck.gain.cancelScheduledValues(t);
+      this.musicDuck.gain.setValueAtTime(this.musicDuck.gain.value, t);
+      this.musicDuck.gain.linearRampToValueAtTime(clamp(1 - amount, .05, 1), t + .05);
+      this.musicDuck.gain.linearRampToValueAtTime(1, t + (secs || 1.2));
+    } catch (_) { }
   },
   /* The continuous beds are ramped rather than assigned: writing straight to
      .value on a running graph steps the signal and clicks audibly. */
@@ -23426,10 +23682,12 @@ const Game = {
         this.updateHover();
       }
     }
-    Audio.setCrowd(Math.min(.09, Park.guests.length * .0007));
     {
       const hour = Park.time / 60;
       const night = hour < 6.5 || hour > 19.5;
+      Audio.crowdTick();
+      Audio.sceneTick(dt);
+      Audio.weatherTick(dt);
       Audio.musicTick(dt, night);
       Audio.ambientTick(dt, night, Weather.rainIntensity() * .8 + Weather.cloudCover() * .25);
     }
@@ -25911,7 +26169,7 @@ const SignLabels = {
    billboarding as the shop signs, capped so a packed park cannot bury the
    view under speech bubbles. */
 const ThoughtBubbles = {
-  el: null, pool: [], on: true, MAX: 14,
+  el: null, pool: [], on: true, MAX: 9,
   init() { this.el = document.getElementById('signLabels'); },
   get(i) {
     if (!this.pool[i]) {
@@ -25941,7 +26199,9 @@ const ThoughtBubbles = {
          range the shop signs use. */
       const d2 = (g.x - Cam.eye.x) ** 2 + (g.z - Cam.eye.z) ** 2;
       if (d2 > 190 * 190) continue;
-      near.push([d2, g]);
+      /* Rank by what the bubble is worth saying, then by how close it is —
+         a complaint from across the plaza beats a plan from underfoot. */
+      near.push([d2 / Math.max(.2, g.thoughtPri || 1), g, d2]);
     }
     near.sort((a, b) => a[0] - b[0]);
     /* Nothing is less readable than eight speech bubbles piled on the same
@@ -25949,7 +26209,7 @@ const ThoughtBubbles = {
        where it would go. Nearest-first ordering means the one that survives
        is the guest closest to the camera — the one you were looking at. */
     const taken = [];
-    for (const [d2, g] of near) {
+    for (const [, g, d2] of near) {
       if (n >= this.MAX) break;
       const sp = R.projectToScreen(g.x, (g.y || 0) + 2.5, g.z);
       if (sp.z <= 0) continue;
