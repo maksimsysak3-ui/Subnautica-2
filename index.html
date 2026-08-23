@@ -2822,6 +2822,48 @@ Renderer.prototype.setCamera = function (eye, target, up, fov, near, far) {
   M4.perspective(this.proj, fov, this.aspect, near, far);
   M4.lookAt(this.view, eye, target, up || WORLD_UP);
   M4.mul(this.vp, this.proj, this.view);
+  this.camFrustum = this.buildFrustum(this.vp, this.camFrustum || new Float32Array(24));
+  this._frustum = this.camFrustum;
+};
+/* ---------------------------------------------------------------------------
+   CULLING
+
+   Every object in the park used to be submitted twice a frame — once for the
+   shadow map and once for the main pass — whether or not it was anywhere near
+   the screen. On a park with two hundred buildings that is four hundred draw
+   calls of pure waste, and it is why a big park late in the day crawled.
+
+   Planes are pulled straight out of the view-projection matrix (Gribb-Hartmann),
+   so the same code culls against the camera and against the sun.
+   --------------------------------------------------------------------------- */
+Renderer.prototype.buildFrustum = function (m, out) {
+  const f = out || (this._frustum || (this._frustum = new Float32Array(24)));
+  const set = (i, a, b, c, d) => {
+    const l = Math.hypot(a, b, c) || 1;
+    f[i] = a / l; f[i + 1] = b / l; f[i + 2] = c / l; f[i + 3] = d / l;
+  };
+  // column-major m: m[col*4+row]
+  const m0 = m[0], m4 = m[4], m8 = m[8], m12 = m[12];
+  const m1 = m[1], m5 = m[5], m9 = m[9], m13 = m[13];
+  const m2 = m[2], m6 = m[6], m10 = m[10], m14 = m[14];
+  const m3 = m[3], m7 = m[7], m11 = m[11], m15 = m[15];
+  set(0,  m3 + m0,  m7 + m4,  m11 + m8,  m15 + m12);   // left
+  set(4,  m3 - m0,  m7 - m4,  m11 - m8,  m15 - m12);   // right
+  set(8,  m3 + m1,  m7 + m5,  m11 + m9,  m15 + m13);   // bottom
+  set(12, m3 - m1,  m7 - m5,  m11 - m9,  m15 - m13);   // top
+  set(16, m3 + m2,  m7 + m6,  m11 + m10, m15 + m14);   // near
+  set(20, m3 - m2,  m7 - m6,  m11 - m10, m15 - m14);   // far
+  return f;
+};
+/* Is a sphere anywhere inside the current frustum? Generous by design — a
+   false positive costs one draw call, a false negative pops an object out of
+   the world in front of the player. */
+Renderer.prototype.visible = function (x, y, z, r) {
+  const f = this._frustum;
+  if (!f) return true;
+  for (let i = 0; i < 24; i += 4)
+    if (f[i] * x + f[i + 1] * y + f[i + 2] * z + f[i + 3] < -r) return false;
+  return true;
 };
 Renderer.prototype.setSunMatrix = function (centerX, centerZ, radius) {
   const d = this.sun.dir;
@@ -2832,9 +2874,11 @@ Renderer.prototype.setSunMatrix = function (centerX, centerZ, radius) {
   M4.ortho(lp, -radius, radius, -radius, radius, 1, 480);
   M4.lookAt(lv, eye, tgt, up);
   M4.mul(this.lightVP, lp, lv);
+  this.sunFrustum = this.buildFrustum(this.lightVP, this.sunFrustum || new Float32Array(24));
 };
 Renderer.prototype.beginShadow = function () {
   const gl = this.gl;
+  if (this.sunFrustum) this._frustum = this.sunFrustum;
   gl.bindFramebuffer(gl.FRAMEBUFFER, this.shFbo);
   gl.viewport(0, 0, this.SHADOW, this.SHADOW);
   gl.clearColor(1, 1, 1, 1);
@@ -2842,6 +2886,7 @@ Renderer.prototype.beginShadow = function () {
   gl.cullFace(gl.FRONT);
 };
 Renderer.prototype.endShadow = function () {
+  if (this.camFrustum) this._frustum = this.camFrustum;
   const gl = this.gl;
   gl.bindFramebuffer(gl.FRAMEBUFFER, null);
   gl.viewport(0, 0, this.cv.width, this.cv.height);
@@ -10239,6 +10284,14 @@ class Person {
     return this.pi >= this.path.length;
   }
   physUpdate(dt) {
+    /* Turning, ground-following and settling the walk cycle are all things
+       you can only notice up close. Distant people snap to the terrain
+       instead, which is free and looks the same at that range. */
+    if (this._near === false) {
+      this.yaw = this.yawT;
+      this.y = WORLD.hAt(this.x, this.z);
+      return;
+    }
     this.yaw = angLerp(this.yaw, this.yawT, 1 - Math.exp(-11 * dt));
     const gy = WORLD.hAt(this.x, this.z);
     this.y = damp(this.y, gy, 12, dt);
@@ -10250,15 +10303,18 @@ class Person {
      the cost of a packed midway is now in the distance, where it belongs. */
   writeSimple(buf, o, t) {
     const H = this.height;
+    const px = this._dx === undefined ? this.x : this._dx;
+    const pz = this._dz === undefined ? this.z : this._dz;
+    const py = this._dy === undefined ? this.y : this._dy;
     const walking = this.moving ? 1 : 0;
     const sw = walking ? Math.sin(this.anim) : 0;
     const bounce = walking ? Math.abs(Math.sin(this.anim * 2)) * .045 : 0;
     const skin = hex(this.skin), shirt = hex(this.shirt), pants = hex(this.pants), hair = hex(this.hair);
     const root = M4.create();
-    M4.compose(root, this.x, this.y + bounce * H, this.z, 0, -this.yaw + PI / 2, this.roll || 0, H, H, H);
+    M4.compose(root, px, py + bounce * H, pz, 0, -this.yaw + PI / 2, this.roll || 0, H, H, H);
     const tmp = M4.create(), out = M4.create();
-    const put = (px, py, pz, rx, sx, sy, sz, col) => {
-      M4.compose(tmp, px, py, pz, rx, 0, 0, sx, sy, sz);
+    const put = (lx, ly, lz, rx, sx, sy, sz, col) => {
+      M4.compose(tmp, lx, ly, lz, rx, 0, 0, sx, sy, sz);
       M4.mul(out, root, tmp);
       for (let k = 0; k < 16; k++) buf[o + k] = out[k];
       buf[o + 16] = col[0]; buf[o + 17] = col[1]; buf[o + 18] = col[2]; buf[o + 19] = 0;
@@ -10287,7 +10343,13 @@ class Person {
     const bounce = (walking ? Math.abs(Math.sin(this.anim * 2)) * .045 : Math.sin(t * 2 + this.phase) * .010) * (this.bobAmt || 1);
     const sitting = this.state === 'sitting' || this.state === 'riding';
     const root = M4.create();
-    M4.compose(root, this.x, this.y + bounce * H, this.z, 0, -this.yaw + PI / 2, this.roll || 0, H, H, H);
+    /* Drawn at the smoothed display position (see buildCrowd), so a person
+       whose simulation is stepped every few frames still walks smoothly. */
+    M4.compose(root,
+      this._dx === undefined ? this.x : this._dx,
+      (this._dy === undefined ? this.y : this._dy) + bounce * H,
+      this._dz === undefined ? this.z : this._dz,
+      0, -this.yaw + PI / 2, this.roll || 0, H, H, H);
     const tmp = M4.create(), out = M4.create();
 
     const put = (px, py, pz, rx, sx, sy, sz, col) => {
@@ -10927,7 +10989,12 @@ class Guest extends Person {
     if (this._slowT <= 0) {
       const adt = this._slowAcc;
       this._slowAcc = 0;
-      this._slowT = rnd(.45, .8);
+      /* The interval is in park-minutes, and at eight times speed a frame IS
+         most of a park-minute — so it scales with the clock. Every rate in
+         slowTick is applied against the accumulated slice, so a guest
+         considered every two park-minutes behaves exactly like one considered
+         every half a minute; it simply costs a quarter as much. */
+      this._slowT = rnd(.45, .8) * (1 + (Game.speed || 1) * .22);
       this.slowTick(adt);
     }
     if (this.vomitT > 0) {
@@ -10937,14 +11004,18 @@ class Guest extends Person {
     }
     /* Idle guests are not just parked mannequins: every few seconds one
        checks a phone or shifts a bag — a small armLift pulse timed
-       independently per guest so a standing crowd never moves in unison. */
-    if (this.state === 'idle' && !this.moving) {
-      this._gestureT = (this._gestureT === undefined ? rnd(2, 8) : this._gestureT) - dt;
-      if (this._gestureT <= 0) { this._gestureT = rnd(7, 16); this._gesturePulse = 1; }
+       independently per guest so a standing crowd never moves in unison.
+       None of it is computed for people too far away to see it. */
+    const _seen = this._near !== false;
+    if (_seen) {
+      if (this.state === 'idle' && !this.moving) {
+        this._gestureT = (this._gestureT === undefined ? rnd(2, 8) : this._gestureT) - dt;
+        if (this._gestureT <= 0) { this._gestureT = rnd(7, 16); this._gesturePulse = 1; }
+      }
+      if (this._gesturePulse) this._gesturePulse = Math.max(0, this._gesturePulse - dt * 1.3);
+      const idleGesture = (this.state === 'idle' && !this.moving) ? (this._gesturePulse || 0) * .5 : 0;
+      this.armLift = damp(this.armLift, (this.state === 'riding' && this.riding && this.riding.intensity > 4) ? 1 : idleGesture, 6, dt);
     }
-    if (this._gesturePulse) this._gesturePulse = Math.max(0, this._gesturePulse - dt * 1.3);
-    const idleGesture = (this.state === 'idle' && !this.moving) ? (this._gesturePulse || 0) * .5 : 0;
-    this.armLift = damp(this.armLift, (this.state === 'riding' && this.riding && this.riding.intensity > 4) ? 1 : idleGesture, 6, dt);
 
 
     switch (this.state) {
@@ -11079,6 +11150,15 @@ class Guest extends Person {
   }
 
   decide() {
+    /* Deciding is the expensive part of being a guest: it searches the park
+       for somewhere to go and then runs a path search to get there. With
+       thousands of people in the park the arrivals all land in the same
+       frame, so the work is rationed — anyone over the budget simply thinks
+       about it a moment longer. */
+    if (Game._decideLeft !== undefined) {
+      if (Game._decideLeft <= 0) { this.idleT = rnd(.15, .5); return; }
+      Game._decideLeft--;
+    }
     // Whatever we were walking towards, we are reconsidering — give the place
     // back before choosing again, or the notional queue never drains.
     this.claim(null);
@@ -23791,13 +23871,53 @@ const Game = {
 
       this.spawnGuests(sdt);
       this.updateHotelPresence(sdt);
+      /* Level of detail for people, not just for meshes.
+
+         Everyone still gets exactly the same simulation and the same total
+         park-time — but a guest three hundred metres behind the camera does
+         not need their position integrated sixty times a second to look
+         right. Distant guests are stepped every third frame with three
+         frames' worth of time, and very distant ones every sixth. On a
+         packed evening this is the difference between a park that runs and
+         one that crawls. */
+      const _ex = Cam.eye.x, _ez = Cam.eye.z;
+      const MID2 = 150 * 150, FAR2 = 300 * 300;
+      /* Above a couple of thousand people the crowd is stepped in rotation:
+         each frame updates one slice of it with that slice's accumulated
+         park-time. The simulation is unchanged — everyone gets every minute —
+         but the per-frame cost stops growing with the size of the park. The
+         renderer interpolates positions so nothing looks stepped. */
+      const K = clamp(Math.ceil(Park.guests.length / 1500), 1, 4);
+      /* Decisions per frame. Generous enough that nobody visibly dithers,
+         bounded enough that ten thousand people cannot stall a frame. */
+      Game._decideLeft = Math.max(60, Math.round(Park.guests.length * .08));
+      this._lodPhase = ((this._lodPhase || 0) + 1) % 6;
+      const ph = this._lodPhase;
       for (let k = Park.guests.length - 1; k >= 0; k--) {
         const g = Park.guests[k];
-        g.update(sdt);
+        const d2 = (g.x - _ex) * (g.x - _ex) + (g.z - _ez) * (g.z - _ez);
+        g._near = d2 < 12000;                 // ~110 units: close enough to see the detail
+        if (K > 1 && d2 <= MID2 && (g.id % K) !== (ph % K)) { g._lodAcc = (g._lodAcc || 0) + sdt; continue; }
+        if (d2 > FAR2) {
+          g._lodAcc = (g._lodAcc || 0) + sdt;
+          if ((g.id % 6) !== ph) continue;
+          g.update(g._lodAcc); g._lodAcc = 0;
+        } else if (d2 > MID2) {
+          g._lodAcc = (g._lodAcc || 0) + sdt;
+          if ((g.id % 3) !== (ph % 3)) continue;
+          g.update(g._lodAcc); g._lodAcc = 0;
+        } else {
+          if (g._lodAcc) { g.update(g._lodAcc + sdt); g._lodAcc = 0; }
+          else g.update(sdt);
+        }
         if (g.dead) Park.guests.splice(k, 1);
       }
       for (const s of Park.staff) s.update(sdt);
-      this.separateCrowd(sdt);
+      /* Separation is a visual nicety — people not standing inside each
+         other. Half rate with double the step looks identical and costs
+         half as much on a busy midway. */
+      this._sepAcc = (this._sepAcc || 0) + sdt;
+      if (this._lodPhase % 3 === 0) { this.separateCrowd(this._sepAcc); this._sepAcc = 0; }
       Transit.update(sdt);
       Traffic.update(sdt);
       Parking.update(sdt);
@@ -23881,9 +24001,16 @@ const Game = {
     grid.clear();
     const act = this._sepList || (this._sepList = []);
     act.length = 0;
+    /* People standing inside each other is a visual problem, so it is only
+       solved where it can be seen. Past this radius nobody is looking, and on
+       a packed evening the saving is the difference between a smooth frame
+       and a stuttering one. */
+    const sx = Cam.eye.x, sz = Cam.eye.z, SEP2 = 170 * 170;
     const consider = (g) => {
       const st = g.state;
       if (st === 'riding' || st === 'sitting' || st === 'queuing' || st === 'buying' || st === 'sick' || st === 'onbus') return;
+      const ddx = g.x - sx, ddz = g.z - sz;
+      if (ddx * ddx + ddz * ddz > SEP2) return;
       const ci = Math.floor(g.x / CELL), cj = Math.floor(g.z / CELL);
       g._ci = ci; g._cj = cj;
       const key = ci * 262144 + cj;
@@ -23894,6 +24021,7 @@ const Game = {
     for (const g of Park.guests) consider(g);
     for (const g of Park.staff) consider(g);
     const rate = Math.min(1, dt * 10);
+    let pairBudget = 22000;      // a hard ceiling on pair tests per pass
     /* Only the forward half of the neighbourhood is visited: every unordered
        pair is still tested exactly once, at a little over half the hash
        lookups. At fifteen hundred people the nine-cell version was the
@@ -23906,6 +24034,7 @@ const Game = {
         if (!b) continue;
         const same = di === 0 && dj === 0;
         for (const o of b) {
+          if (--pairBudget < 0) return;
           if (same ? o.id <= a.id : o === a) continue;   // each pair once
           let dx = o.x - a.x, dz = o.z - a.z;
           const d2 = dx * dx + dz * dz;
@@ -26017,27 +26146,70 @@ Object.assign(Game, {
     const buf = this.crowdBuf;
     let o = 0;
     const t = Park.now;
-    const maxParts = buf.length / INST_STRIDE;
     const cx = Cam.eye.x, cz = Cam.eye.z;
-    /* Cull to what the camera can actually see FIRST, then sort only those.
-       Sorting the whole park every frame — including the fifteen hundred
-       people nowhere near the camera — cost more than drawing them. */
     const range = Game.crowdRange || 62000;
     const people = this._crowdList || (this._crowdList = []);
-    people.length = 0;
-    const take = (p) => { if (dist2(p.x, p.z, cx, cz) <= range) people.push(p); };
-    for (const g of Park.guests) take(g);
-    for (const s of Park.staff) take(s);
-    for (const s of Inspection.active) take(s);   // visiting inspectors are people too
-    // nearest-first so the cap drops distant people, not random ones
-    if (people.length * BODY_PARTS > maxParts) {
+    const R = this.R;
+
+    /* Display position, eased toward the simulated one. Above a couple of
+       thousand guests the simulation steps the crowd in rotation, so without
+       this a walker updated every third frame would visibly stutter. A big
+       jump — boarding a ride, stepping off one — snaps instead of sliding. */
+    const smooth = clamp((Game.fpsAvgMs || 16) / 55 + .28, .18, 1);
+    const ease = (p) => {
+      if (p._dx === undefined || Math.abs(p.x - p._dx) > 6 || Math.abs(p.z - p._dz) > 6) {
+        p._dx = p.x; p._dz = p.z; p._dy = p.y;
+      } else {
+        p._dx += (p.x - p._dx) * smooth;
+        p._dz += (p.z - p._dz) * smooth;
+        p._dy += ((p.y || 0) - p._dy) * smooth;
+      }
+    };
+
+    /* Who is on screen changes slowly; where they are standing changes every
+       frame. The candidate list is therefore re-gathered a few times a second
+       — or the instant the camera moves — while positions are written fresh
+       every frame. Culling four thousand people against the frustum sixty
+       times a second was itself a chunk of the frame. */
+    const camKey = (cx | 0) * 8192 + (cz | 0) + ((Cam.yawS * 40) | 0) * 977 + (Cam.dist | 0) * 13;
+    const stale = this._crowdKey !== camKey || (this._crowdAge = (this._crowdAge || 0) + 1) > 3
+      || !people.length || Park.guests.length !== this._crowdPop;
+    if (stale) {
+      this._crowdKey = camKey; this._crowdAge = 0; this._crowdPop = Park.guests.length;
+      people.length = 0;
+      const take = (p) => {
+        if (dist2(p.x, p.z, cx, cz) > range) return;
+        if (R && R.visible && !R.visible(p.x, (p.y || 0) + 1, p.z, 2.2)) return;
+        ease(p);
+        people.push(p);
+      };
+      for (const g of Park.guests) take(g);
+      for (const s of Park.staff) take(s);
+      for (const s of Inspection.active) take(s);   // visiting inspectors are people too
+      // nearest first, so every cap below drops distant people rather than random ones
       people.sort((a, b) => dist2(a.x, a.z, cx, cz) - dist2(b.x, b.z, cx, cz));
+    } else {
+      for (let k = people.length - 1; k >= 0; k--) {
+        const p = people[k];
+        if (p.dead) { people.splice(k, 1); continue; }
+        ease(p);
+      }
     }
-    const NEAR2 = 2600;                       // ~51 units: full figure inside this
+    const NEAR2 = 1800;                       // ~42 units: full figure inside this
+    /* The crowd budget breathes with the frame time. A park that is running
+       comfortably draws every person it can; one that is struggling quietly
+       thins the far half of the crowd rather than dropping frames. Nobody
+       near the camera is ever dropped, because the list is sorted by
+       distance before this point. */
+    const fps = Game.fpsAvgMs || 16;
+    let budget = this.crowdBudget === undefined ? 1 : this.crowdBudget;
+    budget += fps > 26 ? -.06 : fps < 15 ? .04 : 0;
+    this.crowdBudget = clamp(budget, .28, 1);
+    const limit = Math.max(80 * INST_STRIDE, Math.floor(buf.length * this.crowdBudget));
     for (const p of people) {
       const near = dist2(p.x, p.z, cx, cz) < NEAR2;
       const parts = near ? BODY_PARTS : SIMPLE_PARTS;
-      if (o + parts * INST_STRIDE > buf.length) break;
+      if (o + parts * INST_STRIDE > limit) break;
       o = near ? p.writeInstances(buf, o, t) : p.writeSimple(buf, o, t);
     }
     this.crowdCount = o / INST_STRIDE;
@@ -26085,7 +26257,15 @@ Object.assign(Game, {
 
     const t = Park.now;
     const glow = depthPass ? 0 : (this.nightGlow || 0);
+    /* Cull against whichever frustum this pass is using. A building that is
+       off-screen costs nothing now; before this every object in the park was
+       submitted twice a frame no matter where the camera was pointing. */
+    const ex = Cam.eye.x, ez = Cam.eye.z;
+    const PART_D2 = 165 * 165;          // beyond this, a ride's moving parts stop being drawn
+    let culled = 0;
     for (const o of Park.objects) {
+      const rad = Math.max(o.gw || 2, o.gd || 2) * TILE * .85 + (o.def && o.def.ph ? o.def.ph : 10);
+      if (!R.visible(o.x, (o.y || 0) + rad * .35, o.z, rad)) { culled++; continue; }
       if (o.kind === 'shop') {
         const pf = PF.forObject(o);
         R.draw(pf.mesh, o.matrix, glow ? { emissive: glow * .45 } : null);
@@ -26098,14 +26278,20 @@ Object.assign(Game, {
       } else if (o.kind === 'ride' || o.kind === 'gate') {
         const pf = o.kind === 'gate' ? PF.gate(o.tier, o.theme) : PF.forObject(o);
         R.draw(pf.mesh, o.matrix, glow ? { emissive: glow * .40 } : null);
-        const tmp = M4.create(), out = M4.create();
-        for (const part of pf.parts) {
-          part.anim(tmp, o, t);
-          M4.mul(out, o.matrix, tmp);
-          R.draw(part.mesh, out);
+        /* Moving parts are a draw call each. Past a couple of hundred metres
+           a spinning carousel and a still one are the same handful of pixels,
+           so distance stops them rather than the frustum. */
+        if (pf.parts.length && dist2(o.x, o.z, ex, ez) < PART_D2) {
+          const tmp = M4.create(), out = M4.create();
+          for (const part of pf.parts) {
+            part.anim(tmp, o, t);
+            M4.mul(out, o.matrix, tmp);
+            R.draw(part.mesh, out);
+          }
         }
       }
     }
+    this.culledObjects = culled;
     TransitView.draw(R, depthPass);
     if (!depthPass) Traffic.draw(R);
     if (!depthPass) Parking.draw(R);
@@ -26115,17 +26301,25 @@ Object.assign(Game, {
     if (this.animScenery) {
       const tmp = M4.create(), out = M4.create();
       for (const a of this.animScenery) {
+        if (dist2(a.o.x, a.o.z, ex, ez) > PART_D2) continue;
+        if (!R.visible(a.o.x, (a.o.y || 0) + 6, a.o.z, 14)) continue;
         const m = M4.compose(M4.create(), a.o.x, a.o.y, a.o.z, 0, -a.o.rot * PI / 2, 0, 1, 1, 1);
         for (const p of a.parts) { p.anim(tmp, a.o, t); M4.mul(out, m, tmp); R.draw(p._mesh, out); }
       }
     }
     for (const c of Park.coasters) {
+      /* A coaster's footprint is its track, not its station tile, so the
+         cull sphere is sized from the layout. */
+      const cr = c.track ? Math.max(40, c.track.length * .18) : 40;
+      if (!R.visible(c.x, (c.y || 0) + cr * .3, c.z, cr)) continue;
       if (c.stationMesh) R.draw(c.stationMesh, c.matrix);
       if (c.trackMesh) R.draw(c.trackMesh);
       if (c.track && c.track.complete && c.carMesh) {
         for (const tr of c.trains) {
           for (let k = 0; k < tr.cars.length; k++) {
-            R.draw(k === 0 ? c.frontMesh : c.carMesh, tr.cars[k].m);
+            const m = tr.cars[k].m;
+            if (!R.visible(m[12], m[13], m[14], 6)) continue;
+            R.draw(k === 0 ? c.frontMesh : c.carMesh, m);
           }
         }
       }
@@ -26366,7 +26560,12 @@ const ThoughtBubbles = {
        could not read anyway rather than whichever guest came first in the
        array. */
     const near = [];
-    for (const g of Park.guests) {
+    /* buildCrowd has already worked out who is on screen this frame; reusing
+       that list means the bubbles do not walk the whole park again. */
+    const pool = (Game._crowdList && Game._crowdList.length) ? Game._crowdList : Park.guests;
+    const scan = Math.min(pool.length, 500);        // nearest first; nobody reads bubble 501
+    for (let pk = 0; pk < scan; pk++) {
+      const g = pool[pk];
       if (!g.thought || g.thoughtT <= 0) continue;
       /* Measured from the eye, not the camera target: on this pitched
          camera the eye sits the better part of a hundred units back from
@@ -26466,6 +26665,9 @@ function frameBody(dt) {
 
   UI.updateHUD();
   Game.fpsN++; Game.fpsT += dt;
+  /* A smoothed frame time in milliseconds, used by the crowd renderer to
+     decide how much of the park it can afford to draw this frame. */
+  Game.fpsAvgMs = Game.fpsAvgMs === undefined ? dt * 1000 : Game.fpsAvgMs + (dt * 1000 - Game.fpsAvgMs) * .1;
   if (Game.fpsT > .5) {
     $('#fps').textContent = `${Math.round(Game.fpsN / Game.fpsT)} fps · ${Game.R.drawCalls} draws · ${(Game.R.tris / 1000).toFixed(0)}k tris · ${Park.guests.length} guests`;
     Game.fpsN = 0; Game.fpsT = 0;
