@@ -2192,6 +2192,34 @@ class Geo {
     return this;
   }
   /* Merge another Geo, offset by a translation */
+  /* Merge with a per-vertex colour multiply — how a scenery piece gets its
+     own tint without needing its own mesh. */
+  mergeTinted(g, m, tint) {
+    if (!tint) return this.mergeM(g, m);
+    const base = this.n;
+    for (let i = 0; i < g.pos.length; i += 3) {
+      const x = g.pos[i], y = g.pos[i + 1], z = g.pos[i + 2];
+      const nx = g.nrm[i], ny = g.nrm[i + 1], nz = g.nrm[i + 2];
+      this.pos.push(
+        m[0] * x + m[4] * y + m[8] * z + m[12],
+        m[1] * x + m[5] * y + m[9] * z + m[13],
+        m[2] * x + m[6] * y + m[10] * z + m[14]);
+      this.nrm.push(
+        m[0] * nx + m[4] * ny + m[8] * nz,
+        m[1] * nx + m[5] * ny + m[9] * nz,
+        m[2] * nx + m[6] * ny + m[10] * nz);
+      /* Blend towards the tint rather than multiplying by it, so a dark
+         piece can be tinted bright and the shading stays readable. */
+      const lum = (g.col[i] + g.col[i + 1] + g.col[i + 2]) / 3;
+      this.col.push(
+        clamp(g.col[i] * (1 - tint[3]) + tint[0] * lum * 1.35 * tint[3], 0, 1),
+        clamp(g.col[i + 1] * (1 - tint[3]) + tint[1] * lum * 1.35 * tint[3], 0, 1),
+        clamp(g.col[i + 2] * (1 - tint[3]) + tint[2] * lum * 1.35 * tint[3], 0, 1));
+      this.n++;
+    }
+    for (let i = 0; i < g.idx.length; i++) this.idx.push(g.idx[i] + base);
+    return this;
+  }
   merge(g, ox = 0, oy = 0, oz = 0) {
     const base = this.n;
     for (let i = 0; i < g.pos.length; i += 3) this.pos.push(g.pos[i] + ox, g.pos[i + 1] + oy, g.pos[i + 2] + oz);
@@ -5038,6 +5066,17 @@ const rideTheme = def => Object.assign({},
    same burger stall in Medieval and in Deep Space Port shares a floor plan
    and nothing else you can see from the path.
    ========================================================================== */
+/* Tints a player can wash over a scenery piece. Blended towards, not
+   multiplied by, so a dark bin can be tinted mint and still read as a bin. */
+const SCENERY_TINTS = [
+  { id: 'ivory', n: 'Ivory', c: 0xf2ead6 }, { id: 'rose', n: 'Rose', c: 0xff8fb1 },
+  { id: 'coral', n: 'Coral', c: 0xff8c42 }, { id: 'gold', n: 'Gold', c: 0xf2c14e },
+  { id: 'lime', n: 'Lime', c: 0x9be08a }, { id: 'jade', n: 'Jade', c: 0x2fa88a },
+  { id: 'sky', n: 'Sky', c: 0x7ed6df }, { id: 'cobalt', n: 'Cobalt', c: 0x3b7bd4 },
+  { id: 'violet', n: 'Violet', c: 0xa87ee0 }, { id: 'crimson', n: 'Crimson', c: 0xd94f3c },
+  { id: 'slate', n: 'Slate', c: 0x6f7a86 }, { id: 'ink', n: 'Ink', c: 0x2b2f3a, a: .8 }
+];
+
 const BUILDING_LIVERIES = [
   { id: 'stock', name: 'House Style', blurb: 'However the building was designed.' },
   { id: 'medieval', name: 'Medieval Keep', wall: 0xd8cfb8, trim: 0x6b4526, roof: 0x6c3b3b, accent: 0x9a7b3f,
@@ -19350,9 +19389,76 @@ const UI = {
         h += `<div style="font-size:10.5px;color:var(--dim);margin:4px 0">Fires automatically every night around 9pm if the park is open. Every mortar in the park launches together.</div>`;
         h += `<div class="btnrow"><button class="btn go" onclick="Fireworks.launchShow()">Launch now</button></div>`;
       }
+      /* ---- customisation: size, spin and tint, per piece ----
+         The catalogue entry is a starting point, not a straitjacket: two
+         oaks in a row that are the same oak at the same angle is what makes
+         planting read as wallpaper. */
+      h += `<div class="cat">Customise</div>`;
+      h += `<div class="row" style="margin:5px 0"><label style="min-width:44px">Size</label>
+        <input type="range" min="55" max="185" step="5" value="${Math.round((o.scl || 1) * 100)}"
+          oninput="UI.setSceneryScale(${o.id}, this.value)">
+        <span class="num">${Math.round((o.scl || 1) * 100)}%</span></div>`;
+      h += `<div class="row" style="margin:5px 0"><label style="min-width:44px">Turn</label>
+        <input type="range" min="0" max="359" step="3" value="${Math.round((o.spin || 0) * 180 / PI)}"
+          oninput="UI.setScenerySpin(${o.id}, this.value)">
+        <span class="num">${Math.round((o.spin || 0) * 180 / PI)}&deg;</span></div>`;
+      h += `<div style="display:flex;flex-wrap:wrap;gap:5px;margin:6px 0 2px">`;
+      h += `<span onclick="UI.setSceneryTint(${o.id},null)" title="No tint"
+        style="width:22px;height:22px;border-radius:6px;cursor:pointer;
+               background:linear-gradient(135deg,#fff 46%,#c33 46%,#c33 54%,#fff 54%);
+               box-shadow:0 0 0 ${o.tint ? 1 : 2}px ${o.tint ? 'rgba(0,0,0,.25)' : 'var(--accent)'}"></span>`;
+      for (const c of SCENERY_TINTS) {
+        const on = o.tint && o.tintId === c.id;
+        h += `<span onclick="UI.setSceneryTint(${o.id},'${c.id}')" title="${c.n}"
+          style="width:22px;height:22px;border-radius:6px;cursor:pointer;background:#${c.c.toString(16).padStart(6, '0')};
+                 box-shadow:0 0 0 ${on ? 2 : 1}px ${on ? 'var(--accent)' : 'rgba(0,0,0,.25)'}"></span>`;
+      }
+      h += `</div>`;
+      h += `<div class="btnrow"><button class="btn" onclick="UI.scatterScenery(${o.id})"
+        title="Give this piece a random size and angle">Vary it</button>
+        <button class="btn" onclick="UI.scatterSceneryAll('${o.def.id}')"
+        title="Give every ${esc(o.def.name)} in the park its own size and angle">Vary all</button></div>`;
       h += `<div class="btnrow"><button class="btn dan" onclick="Game.demolish(${o.id})">Demolish</button></div>`;
     }
     b.innerHTML = h;
+  },
+  /* ---- scenery customisation setters ---- */
+  setSceneryScale(id, v) {
+    const o = Park.objects.find(x => x.id === id); if (!o) return;
+    o.scl = clamp(+v / 100, .55, 1.85);
+    Game.sceneryDirty = true;
+  },
+  setScenerySpin(id, v) {
+    const o = Park.objects.find(x => x.id === id); if (!o) return;
+    o.spin = (+v) * PI / 180;
+    Game.sceneryDirty = true;
+  },
+  setSceneryTint(id, tintId) {
+    const o = Park.objects.find(x => x.id === id); if (!o) return;
+    const t = tintId && SCENERY_TINTS.find(c => c.id === tintId);
+    if (!t) { o.tint = null; o.tintId = null; }
+    else { const c = hex(t.c); o.tint = [c[0], c[1], c[2], t.a === undefined ? .72 : t.a]; o.tintId = t.id; }
+    Game.sceneryDirty = true;
+    Audio.play('click');
+    this.inspect(o);
+  },
+  scatterScenery(id) {
+    const o = Park.objects.find(x => x.id === id); if (!o) return;
+    o.scl = +(0.78 + Math.random() * 0.5).toFixed(2);
+    o.spin = Math.random() * TAU;
+    Game.sceneryDirty = true;
+    this.inspect(o);
+  },
+  scatterSceneryAll(defId) {
+    let n = 0;
+    for (const o of Park.objects) {
+      if (o.kind !== 'scenery' || o.def.id !== defId) continue;
+      o.scl = +(0.78 + Math.random() * 0.5).toFixed(2);
+      o.spin = Math.random() * TAU;
+      n++;
+    }
+    Game.sceneryDirty = true;
+    this.notify('Varied', n + ' pieces given their own size and angle.', 'good');
   },
 
   /* --------- settings --------- */
@@ -29398,6 +29504,9 @@ const Game = {
                it has to be saved whole, or every custom slide reverts to a
                dangling id that resolves to nothing on load. */
             cd: o.def.custom ? o.def : undefined, wi: o.waveIntensity, bb: o.beautyBonus,
+            /* Per-piece scenery customisation: size, free rotation, tint. */
+            sc: o.scl !== undefined && o.scl !== 1 ? +o.scl.toFixed(3) : undefined,
+            sp: o.spin ? +o.spin.toFixed(3) : undefined, tn: o.tintId || undefined,
             /* Till lines, only when the player has touched them — an
                untouched menu is rebuilt from the catalogue on load. */
             mn: (o.menu && o.menu.some(m => m.price !== m.base || !m.on))
@@ -29670,6 +29779,10 @@ const Game = {
           if (m) { m.price = clamp(+row[0] || m.base, 1, 9999); m.on = row[1] !== 0; }
         });
         if (s.liv) { o.livery = s.liv; if (typeof PF !== 'undefined' && PF.recolour) PF.recolour(o); }
+        if (s.sc !== undefined) o.scl = s.sc;
+        if (s.sp !== undefined) o.spin = s.sp;
+        if (s.tn) { const t = SCENERY_TINTS.find(c => c.id === s.tn);
+          if (t) { const c = hex(t.c); o.tint = [c[0], c[1], c[2], t.a === undefined ? .72 : t.a]; o.tintId = t.id; } }
         if (s.wi !== undefined) o.waveIntensity = s.wi;
         if (s.bb) o.beautyBonus = s.bb;
         if (s.ag) { o.ageDays = s.ag; o.freshness = clamp(1 - Math.max(0, s.ag - 40) / 400, .55, 1); }
@@ -30198,9 +30311,14 @@ Object.assign(Game, {
     for (const o of Park.objects) {
       if (o.kind !== 'scenery') continue;
       const pf = PF.sceneryGeo(o.def, o.seed || 0);
-      const m = M4.compose(M4.create(), o.x, o.y, o.z, 0, -o.rot * PI / 2, 0, 1, 1, 1);
-      g.mergeM(pf.base, m);
+      /* Size, spin and tint are per-object: two oaks from the same catalogue
+         entry should not have to be the same oak. */
+      const sc = o.scl || 1;
+      const yaw = -o.rot * PI / 2 - (o.spin || 0);
+      const m = M4.compose(M4.create(), o.x, o.y, o.z, 0, yaw, 0, sc, sc, sc);
+      if (o.tint) g.mergeTinted(pf.base, m, o.tint); else g.mergeM(pf.base, m);
       if (pf.parts.length) anim.push({ o, parts: pf.parts });
+      o._sclCache = sc;
     }
     if (this.sceneryMesh) this.sceneryMesh.dispose();
     this.sceneryMesh = this.R.makeMesh(g);
