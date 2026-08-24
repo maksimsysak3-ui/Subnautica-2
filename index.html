@@ -6865,131 +6865,7 @@ const Prefab = {
       default: {
         if (kind.indexOf('gx:') !== 0) break;
         const [, arch, genre] = kind.split(':');
-        const G = GENRES[genre] || GENRES.classic;
-        const c1 = hex(G.c[0]), c2 = hex(G.c[1]), c3 = hex(G.c[2]), acc = hex(G.acc);
-        const rr = (() => { let x = (seed * 9301 + 49297) % 233280; return () => (x = (x * 9301 + 49297) % 233280) / 233280; })();
-
-        switch (arch) {
-          case 'tower': {
-            const h = 9 + rr() * 4;
-            if (genre === 'egypt') {
-              for (let k = 0; k < 5; k++) { const w = 2.6 - k * .42; g.box(0, k * (h / 5), 0, w, h / 5, w, k % 2 ? c2 : c1); }
-              g.cone(0, h, 0, .9, 2.2, 4, acc);
-            } else if (genre === 'scifi') {
-              g.cyl(0, 0, 0, 1.0, h, 8, c1);
-              for (let k = 1; k < 5; k++) g.cyl(0, k * (h / 5), 0, 1.5 - k * .1, .25, 8, acc);
-              g.sphere(0, h + .8, 0, 1.3, 8, c3);
-            } else if (genre === 'japan') {
-              for (let k = 0; k < 4; k++) {
-                const w = 3.0 - k * .5, y = k * 2.3;
-                g.box(0, y, 0, w, 1.5, w, c1);
-                g.box(0, y + 1.5, 0, w + 1.3, .26, w + 1.3, c2);
-              }
-              g.cyl(0, 9.6, 0, .14, 1.8, 6, acc);
-            } else if (genre === 'western') {
-              g.box(0, 0, 0, 2.2, h * .8, 2.2, c1);
-              for (let k = 0; k < 4; k++) g.box(0, k * 2, 0, 2.4, .18, 2.4, c2);
-              g.cone(0, h * .8, 0, 1.9, 1.8, 4, c3);
-            } else {
-              g.cyl(0, 0, 0, 1.5, h, 10, c1);
-              g.cyl(0, h, 0, 1.9, .5, 10, c2);
-              g.cone(0, h + .5, 0, 2.0, 3.0, 10, acc);
-            }
-            break;
-          }
-          case 'arch': {
-            const w = 5.2, h = 6.4;
-            for (const sx of [-1, 1]) {
-              if (genre === 'egypt') g.box(sx * w / 2, 0, 0, 1.5, h, 1.5, c1);
-              else if (genre === 'scifi') { g.cyl(sx * w / 2, 0, 0, .55, h, 6, c1); g.cyl(sx * w / 2, h * .5, 0, .8, .3, 6, acc); }
-              else g.cyl(sx * w / 2, 0, 0, .70, h, 8, c1);
-            }
-            if (genre === 'japan') { g.box(0, h, 0, w + 2.2, .45, .8, acc); g.box(0, h + .8, 0, w + 1.2, .34, .6, c2); }
-            else if (genre === 'scifi') { g.box(0, h, 0, w + .6, .5, 1.0, acc); g.sphere(0, h + 1.0, 0, .7, 8, c3); }
-            else { for (let k = 0; k <= 8; k++) { const a = k / 8 * PI; g.box(Math.cos(a) * w / 2, h - .3 + Math.sin(a) * 1.9, 0, .9, .8, 1.2, c2); } }
-            break;
-          }
-          case 'statue': {
-            g.box(0, 0, 0, 2.2, .7, 2.2, c2);
-            g.box(0, .7, 0, 1.7, .5, 1.7, c1);
-            if (genre === 'egypt') { g.box(0, 1.2, 0, 1.5, 1.6, 2.6, c1); g.box(0, 2.8, 0, .9, 1.1, 1.0, acc); }
-            else if (genre === 'pirate') { g.cyl(0, 1.2, 0, .45, 2.6, 8, c1); g.sphere(0, 3.9, 0, .6, 7, c3); g.box(0, 2.4, .5, 1.5, .2, .3, acc); }
-            else if (genre === 'scifi') { for (let k = 0; k < 3; k++) g.box(0, 1.2 + k * 1.1, 0, 1.0 - k * .2, 1.0, 1.0 - k * .2, k % 2 ? acc : c1); }
-            else { g.cyl(0, 1.2, 0, .5, 2.4, 8, c1); g.sphere(0, 3.7, 0, .62, 8, c1); for (const sx of [-1, 1]) g.box(sx * .62, 2.6, 0, .3, 1.5, .3, c1); }
-            break;
-          }
-          case 'sign': {
-            for (const sx of [-1, 1]) g.cyl(sx * 1.9, 0, 0, .16, 3.6, 6, c2);
-            g.box(0, 3.0, 0, 4.6, 1.5, .3, c1);
-            g.box(0, 3.0, -.22, 4.0, 1.0, .12, acc);
-            if (genre === 'circus' || genre === 'scifi') this.lightBulbs(g, 0, 3.0, -.3, 2.1, 12, hex(0xfff3c4));
-            break;
-          }
-          case 'lamp': {
-            g.cyl(0, 0, 0, .16, 4.2, 6, c2);
-            if (genre === 'scifi') { g.cyl(0, 4.2, 0, .45, .9, 8, acc); g.sphere(0, 4.5, 0, .55, 7, hex(0xbfe8ff)); }
-            else if (genre === 'halloween') { g.box(0, 4.2, 0, .7, .9, .7, c1); g.sphere(0, 4.5, 0, .38, 6, hex(0xff9a2e)); }
-            else { g.cone(0, 4.9, 0, .55, -.9, 6, c1); g.sphere(0, 4.4, 0, .40, 7, hex(0xfff3c4)); }
-            break;
-          }
-          case 'fence': {
-            for (let k = 0; k < 4; k++) {
-              const x = -1.5 + k;
-              if (genre === 'halloween') g.box(x, 0, 0, .22, 2.0 + rr() * .5, .22, c1);
-              else g.box(x, 0, 0, .20, 1.7, .20, c1);
-            }
-            g.box(0, 1.2, 0, 4.0, .16, .14, c2);
-            g.box(0, .5, 0, 4.0, .16, .14, c2);
-            break;
-          }
-          case 'rock': {
-            const n2 = 3 + Math.floor(rr() * 3);
-            for (let k = 0; k < n2; k++) {
-              const a = k / n2 * TAU, r = .5 + rr() * .9;
-              g.sphere(Math.cos(a) * r, .2 + rr() * .5, Math.sin(a) * r, .7 + rr() * .8, 5, shade(c1, .82 + rr() * .4));
-            }
-            if (genre === 'desert') for (let k = 0; k < 2; k++) g.cyl(rr() * 2 - 1, .6, rr() * 2 - 1, .18, 1.6, 6, c3);
-            break;
-          }
-          case 'plant': {
-            if (genre === 'desert') {
-              g.cyl(0, 0, 0, .42, 3.2, 8, c1);
-              for (const sx of [-1, 1]) { g.cyl(sx * .8, 1.4, 0, .26, 1.3, 6, c1); g.box(sx * .8, 1.4, 0, .5, .26, .5, c1); }
-              g.sphere(0, 3.2, 0, .42, 6, c1);
-            } else if (genre === 'japan') {
-              g.cyl(0, 0, 0, .26, 2.4, 6, c3);
-              for (let k = 0; k < 4; k++) { const a = k / 4 * TAU; g.sphere(Math.cos(a) * .8, 2.6, Math.sin(a) * .8, .95, 6, c1); }
-              g.sphere(0, 3.1, 0, 1.0, 6, c2);
-            } else {
-              g.cyl(0, 0, 0, .3, 2.0, 6, c3);
-              g.sphere(0, 2.6, 0, 1.5, 6, c1);
-              g.sphere(0, 3.4, 0, 1.1, 6, c2);
-            }
-            break;
-          }
-          case 'banner': {
-            g.cyl(0, 0, 0, .14, 5.0, 6, c2);
-            for (let k = 0; k < 4; k++) g.box(.55, 4.4 - k * .8, 0, 1.1, .74, .06, k % 2 ? c1 : acc);
-            g.sphere(0, 5.1, 0, .22, 6, acc);
-            break;
-          }
-          case 'facade': {
-            g.box(0, 0, 0, 6.0, 5.0, 1.2, c1);
-            g.box(0, 5.0, 0, 6.6, .5, 1.6, c2);
-            if (genre === 'western') { g.box(0, 5.5, 0, 6.0, 1.6, .3, c1); g.box(0, 2.6, -.75, 6.4, .25, .9, c3); for (const sx of [-2.4, 2.4]) g.cyl(sx, 0, -1.2, .16, 2.8, 6, c3); }
-            else if (genre === 'fairytale') { g.cone(0, 5.5, 0, 3.6, 3.0, 8, acc); for (const sx of [-2.2, 2.2]) { g.cyl(sx, 0, 0, .9, 6.5, 8, c2); g.cone(sx, 6.5, 0, 1.2, 2.4, 8, acc); } }
-            else { for (let k = 0; k < 3; k++) g.box(-2 + k * 2, 1.6, -.65, 1.2, 1.8, .2, c3); }
-            break;
-          }
-          case 'prop': {
-            if (genre === 'pirate') { g.cyl(0, 0, 0, .9, 1.4, 10, c1); g.cyl(0, 1.4, 0, .95, .2, 10, c2); g.box(0, 1.6, 0, .8, .5, 1.2, acc); }
-            else if (genre === 'halloween') { g.sphere(0, .7, 0, .85, 7, hex(0xf07a1e)); g.cyl(0, 1.4, 0, .12, .5, 5, c3); }
-            else if (genre === 'circus') { for (let k = 0; k < 5; k++) g.sphere(rr() * 1.4 - .7, .5 + k * .7, rr() * 1.4 - .7, .45, 6, hex([0xff6f91, 0xffd23f, 0x69d2f0, 0x8fe37a, 0xc38fe8][k])); }
-            else if (genre === 'scifi') { g.box(0, 0, 0, 1.6, 1.2, 1.6, c1); g.cyl(0, 1.2, 0, .5, 1.4, 8, acc); g.sphere(0, 2.7, 0, .45, 7, c3); }
-            else { g.box(0, 0, 0, 1.5, 1.1, 1.1, c1); g.box(0, 1.1, 0, 1.6, .22, 1.2, c2); }
-            break;
-          }
-        }
+        this.decor(g, parts, arch, genre, seed);
         break;
       }
       case 'maze': {
@@ -7453,6 +7329,1626 @@ const Prefab = {
      agree.
      ------------------------------------------------------------------ */
 
+  /* ------------------------------------------------------------------
+     THEMED DECORATION
+
+     Fourteen genres by eleven archetypes. The archetype fixes the job the
+     piece does — a tower is a landmark, a statue is a focal point at eye
+     level — and the genre decides what it actually IS. A Wild West tower is
+     a water tank on a trestle; an Ancient Egypt tower is a stepped pylon; a
+     Big Top tower is a helter-skelter. None of them is the same mesh in a
+     different colour, which is what the whole set used to be.
+     ------------------------------------------------------------------ */
+  decor(g, parts, arch, genre, seed) {
+    const G = GENRES[genre] || GENRES.classic;
+    const c1 = hex(G.c[0]), c2 = hex(G.c[1]), c3 = hex(G.c[2]), acc = hex(G.acc);
+    const rr = Arch.seed('gx' + arch + genre + seed);
+    const white = hex(0xf5f2ea), iron = hex(0x4a4a52), gold = hex(0xd4af37), glass = hex(0xbfe8ff);
+    /* a small deterministic flicker for anything meant to be lit */
+    const flame = (x, y, z, r, col) => {
+      const f = new Geo();
+      f.cone(0, 0, 0, r, r * 2.6, 6, col || hex(0xff9a3c));
+      f.cone(0, r * .5, 0, r * .58, r * 1.7, 6, hex(0xffe27a));
+      parts.push({ geo: f, anim: (m, o, t) => M4.compose(m, x, y, z, 0, t * 2.4, 0,
+        1 + Math.sin(t * 9 + x) * .14, 1 + Math.cos(t * 11 + z) * .20, 1) });
+    };
+    const blink = (x, y, z, r, col, rate) => {
+      const b2 = new Geo(); b2.sphere(0, 0, 0, r, 6, col);
+      parts.push({ geo: b2, anim: (m, o, t) => {
+        const k = .55 + Math.abs(Math.sin(t * (rate || 1.8))) * .8;
+        return M4.compose(m, x, y, z, 0, 0, 0, k, k, k);
+      } });
+    };
+    const spin = (geo, x, y, z, rate, axis) => parts.push({ geo, anim: (m, o, t) =>
+      axis === 'z' ? M4.compose(m, x, y, z, 0, 0, t * rate, 1, 1, 1) : M4.compose(m, x, y, z, 0, t * rate, 0, 1, 1, 1) });
+    /* a plain stone plinth, used by most of the statues */
+    const plinth = (w, h) => {
+      g.box(0, 0, 0, w + .5, .28, w + .5, shade(c2, .9));
+      g.box(0, .28, 0, w, h, w, c2);
+      g.box(0, .28 + h, 0, w + .35, .22, w + .35, shade(c2, 1.14));
+      return .5 + h;
+    };
+    /* a low-poly humanoid, posed by its arm angles */
+    const figure = (y, s, col, armL, armR) => {
+      g.cyl(0, y, 0, .30 * s, 1.15 * s, 8, col);                  // robe
+      g.cyl(0, y + 1.05 * s, 0, .24 * s, .55 * s, 8, col);        // torso
+      g.sphere(0, y + 1.78 * s, 0, .26 * s, 8, shade(col, 1.08)); // head
+      for (const [sx, ang] of [[-1, armL], [1, armR]])
+        g.beam(sx * .22 * s, y + 1.45 * s, 0,
+          sx * (.22 + Math.cos(ang) * .8) * s, y + (1.45 + Math.sin(ang) * .8) * s, 0, .15 * s, .15 * s, col);
+    };
+
+    switch (arch) {
+      /* =============== TOWERS: the landmark of each land =============== */
+      case 'tower': switch (genre) {
+        case 'classic': {                                   // a municipal clock tower
+          g.box(0, -.2, 0, 4.0, .5, 4.0, shade(c2, .9));
+          g.box(0, .3, 0, 2.8, 8.0, 2.8, c1);
+          for (let k = 0; k < 4; k++) g.box(0, .3 + k * 2.0, 0, 3.0, .22, 3.0, shade(c2, 1.05));
+          g.box(0, 8.3, 0, 3.4, .5, 3.4, shade(c2, 1.1));
+          for (let k = 0; k < 4; k++) {                     // clock faces
+            const a = k / 4 * TAU, cx = Math.cos(a) * 1.45, cz = Math.sin(a) * 1.45;
+            g.cyl(cx, 6.3, cz, .78, .16, 12, white, 1);
+            g.box(cx, 6.3, cz, .10, .60, .10, iron);
+            g.box(cx, 6.3, cz, .50, .09, .09, iron);
+          }
+          g.cone(0, 8.8, 0, 2.2, 3.2, 4, acc);
+          g.cyl(0, 12.0, 0, .09, 1.2, 5, gold); g.sphere(0, 13.2, 0, .26, 7, gold);
+          break;
+        }
+        case 'western': {                                   // water tank on a timber trestle
+          for (const sx of [-1, 1]) for (const sz of [-1, 1])
+            g.beam(sx * 1.9, 0, sz * 1.9, sx * 1.15, 6.0, sz * 1.15, .28, .28, c2);
+          for (let k = 1; k < 3; k++) {
+            const y = k * 2.0, sp = 1.9 - k * .25;
+            for (const sz of [-1, 1]) g.beam(-sp, y, sz * sp, sp, y, sz * sp, .16, .16, shade(c2, 1.1));
+            for (const sx of [-1, 1]) g.beam(sx * sp, y, -sp, sx * sp, y, sp, .16, .16, shade(c2, 1.1));
+          }
+          g.cyl(0, 6.0, 0, 2.0, 3.4, 12, c1);
+          for (let k = 0; k < 5; k++) g.cyl(0, 6.2 + k * .75, 0, 2.08, .13, 12, shade(c2, .95));
+          g.cone(0, 9.4, 0, 2.15, 1.4, 12, c3);
+          g.box(0, 6.6, -2.1, 2.4, 1.0, .10, acc);          // painted name board
+          const vane = new Geo();                            // pump windmill beside it
+          for (let k = 0; k < 8; k++) { const a = k / 8 * TAU; vane.box(Math.cos(a) * .95, Math.sin(a) * .95, 0, .55, .55, .05, shade(white, .95)); }
+          spin(vane, 2.6, 7.4, 0, .9, 'z');
+          g.cyl(2.6, 0, 0, .14, 7.4, 6, c2);
+          break;
+        }
+        case 'egypt': {                                     // stepped pylon under an obelisk
+          for (let k = 0; k < 4; k++) {
+            const w = 4.0 - k * .72;
+            g.box(0, k * 1.7, 0, w, 1.7, w, k % 2 ? shade(c1, 1.06) : c1);
+            g.box(0, k * 1.7 + 1.55, 0, w + .28, .22, w + .28, c2);
+            for (let q = 0; q < 3; q++)                     // carved bands
+              g.box(0, k * 1.7 + .3 + q * .42, -(w / 2) - .05, w * .7, .22, .06, acc);
+          }
+          g.box(0, 6.8, 0, 1.0, 4.2, 1.0, shade(c1, 1.1), 1);
+          g.cone(0, 11.0, 0, .72, 1.3, 4, gold);
+          for (const sx of [-1, 1]) { g.cyl(sx * 2.4, 0, -1.6, .55, 3.4, 10, c2, .82); g.sphere(sx * 2.4, 3.4, -1.6, .55, 7, gold); }
+          break;
+        }
+        case 'scifi': {                                     // launch gantry
+          g.cyl(0, -.2, 0, 3.0, .5, 12, c3);
+          for (let k = 0; k < 4; k++) {
+            const a = k / 4 * TAU + .78;
+            g.beam(Math.cos(a) * 2.2, .3, Math.sin(a) * 2.2, Math.cos(a) * .7, 11.0, Math.sin(a) * .7, .20, .20, c2);
+          }
+          for (let k = 1; k < 7; k++) {
+            const y = k * 1.5, r = 2.2 - (y / 11) * 1.5;
+            for (let q = 0; q < 4; q++) {
+              const a = q / 4 * TAU + .78, a2 = (q + 1) / 4 * TAU + .78;
+              g.beam(Math.cos(a) * r, y, Math.sin(a) * r, Math.cos(a2) * r, y, Math.sin(a2) * r, .12, .12, shade(c2, 1.12));
+            }
+          }
+          g.cyl(0, 11.0, 0, 1.1, 2.4, 10, c1);
+          g.cone(0, 13.4, 0, 1.1, 2.0, 10, acc);
+          for (const sx of [-1, 1]) g.triV([sx * 1.0, 11.0, 0], [sx * 2.0, 11.0, 0], [sx * 1.0, 12.6, 0], shade(c1, .9));
+          blink(0, 15.6, 0, .30, hex(0xff5a4a), 2.2);
+          const dish = new Geo();
+          for (let k = 0; k < 10; k++) { const a1 = k / 10 * TAU, a2 = (k + 1) / 10 * TAU;
+            dish.triV([0, 0, 0], [Math.cos(a1) * 1.1, .45, Math.sin(a1) * 1.1], [Math.cos(a2) * 1.1, .45, Math.sin(a2) * 1.1], glass); }
+          spin(dish, 2.2, 6.4, 0, .3);
+          g.cyl(2.2, .3, 0, .16, 6.1, 6, c2);
+          break;
+        }
+        case 'pirate': {                                    // a mast with a crow's nest
+          g.cyl(0, -.2, 0, 2.6, .6, 10, shade(c3, 1.1));
+          for (let k = 0; k < 8; k++) { const a = k / 8 * TAU; this.rock(g, Math.cos(a) * 2.4, .2, Math.sin(a) * 2.4, .55, k, shade(c3, 1.2)); }
+          g.cyl(0, .4, 0, .34, 9.5, 8, c1, .72);
+          for (const y of [3.2, 6.4]) {
+            g.beam(-2.6, y, 0, 2.6, y, 0, .18, .18, c2);
+            for (const sx of [-1, 1]) g.beam(sx * 2.6, y, 0, 0, y - 2.2, 0, .07, .07, shade(c3, 1.4));
+            g.box(0, y, 0, 3.4, 1.9, .10, shade(white, .95));   // furled sail
+          }
+          g.cyl(0, 7.6, 0, 1.05, 1.1, 10, c2);
+          g.cyl(0, 8.6, 0, 1.12, .16, 10, c1);
+          g.cyl(0, 9.9, 0, .06, 1.0, 5, c2);
+          const jolly = new Geo();
+          jolly.box(.9, -.55, 0, 1.8, 1.1, .05, hex(0x1c1c22));
+          jolly.sphere(.8, -.45, -.04, .26, 7, white);
+          spin(jolly, .0, 10.9, 0, 0);
+          parts[parts.length - 1].anim = (m, o, t) => M4.compose(m, 0, 10.9, 0, 0, Math.sin(t * .7) * .25, 0, 1, 1, 1);
+          break;
+        }
+        case 'fairytale': {                                 // a slender turret
+          g.cyl(0, -.2, 0, 2.2, .5, 12, shade(c2, .92));
+          g.cyl(0, .3, 0, 1.5, 8.4, 12, c1);
+          for (let k = 0; k < 26; k++) {                    // spiral course of stones
+            const a = k * .55, y = .5 + k * .30;
+            g.box(Math.cos(a) * 1.5, y, Math.sin(a) * 1.5, .45, .26, .45, shade(c2, 1.05));
+          }
+          for (let k = 0; k < 3; k++) {
+            const a = k / 3 * TAU + .4;
+            g.box(Math.cos(a) * 1.5, 4.4 + k * .9, Math.sin(a) * 1.5, .55, 1.1, .55, shade(c3, 1.2));
+          }
+          g.cyl(0, 8.7, 0, 1.85, .35, 12, shade(c2, 1.1));
+          g.cone(0, 9.05, 0, 1.9, 4.4, 12, acc);
+          for (let k = 0; k < 4; k++) g.cyl(0, 9.4 + k * 1.0, 0, 1.7 - k * .38, .10, 12, shade(acc, 1.25));
+          g.cyl(0, 13.4, 0, .06, 1.1, 5, gold);
+          const pen = new Geo();
+          pen.triV([0, 0, 0], [1.5, -.28, 0], [0, -.75, 0], hex(0xff8ec4));
+          parts.push({ geo: pen, anim: (m, o, t) => M4.compose(m, 0, 14.4, 0, 0, Math.sin(t * 1.1) * .5, 0, 1, 1, 1) });
+          break;
+        }
+        case 'japan': {                                     // five-tier pagoda
+          g.box(0, -.2, 0, 4.4, .5, 4.4, shade(c2, .9));
+          for (let k = 0; k < 5; k++) {
+            const w = 3.2 - k * .48, y = .3 + k * 2.1;
+            g.box(0, y, 0, w, 1.4, w, k % 2 ? c2 : shade(c2, 1.06));
+            for (let q = 0; q < 4; q++) {                   // posts
+              const a = q / 4 * TAU + .78;
+              g.cyl(Math.cos(a) * w * .48, y, Math.sin(a) * w * .48, .13, 1.4, 6, c1);
+            }
+            const ov = w * .78;
+            for (const [sgn, ax] of [[-1, 'z'], [1, 'z'], [-1, 'x'], [1, 'x']])
+              for (let q = 0; q < 8; q++) {
+                const t2 = (q + .5) / 8, u = -ov + t2 * ov * 2;
+                const lift = Math.pow(Math.abs(t2 - .5) * 2, 2.6) * .55;
+                if (ax === 'z') g.box(u, y + 1.4 + lift, sgn * ov, ov / 4 - .04, .18, .55, c1);
+                else g.box(sgn * ov, y + 1.4 + lift, u, .55, .18, ov / 4 - .04, c1);
+              }
+          }
+          g.cyl(0, 10.8, 0, .11, 2.4, 6, gold);
+          for (let k = 0; k < 5; k++) g.cyl(0, 11.1 + k * .38, 0, .46 - k * .07, .10, 8, gold);
+          g.sphere(0, 13.4, 0, .26, 7, gold);
+          break;
+        }
+        case 'halloween': {                                 // a crooked clock tower
+          g.box(0, -.2, 0, 3.6, .5, 3.6, shade(c3, 1.1));
+          let px = 0, pz = 0;
+          for (let k = 0; k < 6; k++) {
+            const w = 2.6 - k * .22;
+            px += ((k * 37) % 5 - 2) * .13; pz += ((k * 53) % 5 - 2) * .11;
+            g.box(px, .3 + k * 1.35, pz, w, 1.35, w, k % 2 ? c1 : shade(c1, 1.08));
+          }
+          g.cyl(px, 8.4, pz, 1.0, .18, 12, white, 1);       // cracked clock face
+          g.box(px, 8.4, pz, .10, .70, .10, iron);
+          g.box(px + .2, 8.4, pz, .55, .09, .09, iron);
+          g.cone(px, 8.6, pz, 1.9, 3.6, 6, c3);
+          for (let k = 0; k < 3; k++)
+            g.beam(px, 9.4, pz, px + Math.cos(k * 2.1) * 2.3, 10.6 + (k % 2) * .6, pz + Math.sin(k * 2.1) * 2.3, .10, .10, c3);
+          blink(px, 7.0, pz - 1.3, .22, acc, 1.1);
+          for (let i = 0; i < 3; i++) {                     // bats round the spire
+            const bat = new Geo();
+            bat.sphere(0, 0, 0, .14, 5, hex(0x231d2b));
+            for (const sx of [-1, 1]) bat.triV([0, 0, 0], [sx * .5, .16, -.1], [sx * .28, -.02, .28], hex(0x2c2436));
+            const ph = i / 3 * TAU;
+            parts.push({ geo: bat, anim: (m, o, t) => {
+              const a = ph + t * .9;
+              return M4.compose(m, px + Math.cos(a) * 3.0, 11.0 + Math.sin(t * 1.6 + i) * .8, pz + Math.sin(a) * 3.0, 0, -a, Math.sin(t * 9) * .5, 1, 1, 1);
+            } });
+          }
+          break;
+        }
+        case 'circus': {                                    // helter-skelter
+          g.cyl(0, -.2, 0, 3.4, .5, 14, shade(c3, 1.2));
+          g.cyl(0, .3, 0, 1.9, 8.6, 14, c1, .55);
+          for (let k = 0; k < 14; k++) {                    // painted stripes
+            const a = k / 14 * TAU;
+            g.beam(Math.cos(a) * 1.9, .3, Math.sin(a) * 1.9, Math.cos(a) * 1.05, 8.9, Math.sin(a) * 1.05, .40, .10,
+              k % 2 ? c2 : shade(white, 1.02));
+          }
+          for (let k = 0; k < 44; k++) {                    // the slide winding down
+            const t2 = k / 44, a = t2 * TAU * 2.4, r = 1.95 + t2 * 1.5, y = 8.4 - t2 * 7.6;
+            const a2 = (k + 1) / 44 * TAU * 2.4, r2 = 1.95 + (k + 1) / 44 * 1.5, y2 = 8.4 - (k + 1) / 44 * 7.6;
+            g.beam(Math.cos(a) * r, y, Math.sin(a) * r, Math.cos(a2) * r2, y2, Math.sin(a2) * r2, 1.15, .18, acc);
+            g.beam(Math.cos(a) * (r + .6), y + .3, Math.sin(a) * (r + .6), Math.cos(a2) * (r2 + .6), y2 + .3, Math.sin(a2) * (r2 + .6), .18, .6, c2);
+          }
+          g.cone(0, 8.9, 0, 2.3, 2.6, 14, c2);
+          this.lightBulbs(g, 0, 8.9, 0, 2.2, 14, hex(0xfff3c4));
+          g.cyl(0, 11.5, 0, .07, 1.0, 5, gold);
+          const flag = new Geo(); flag.triV([0, 0, 0], [1.3, -.25, 0], [0, -.7, 0], acc);
+          parts.push({ geo: flag, anim: (m, o, t) => M4.compose(m, 0, 12.5, 0, 0, Math.sin(t) * .5, 0, 1, 1, 1) });
+          break;
+        }
+        case 'desert': {                                    // adobe minaret
+          g.cyl(0, -.2, 0, 2.8, .5, 10, shade(c2, .92));
+          g.cyl(0, .3, 0, 2.0, 4.0, 10, c1, .88);
+          g.cyl(0, 4.3, 0, 2.3, .34, 10, c2);
+          g.cyl(0, 4.64, 0, 1.5, 3.6, 10, shade(c1, 1.05), .9);
+          for (let k = 0; k < 10; k++) {                    // pierced screen
+            const a = k / 10 * TAU;
+            g.box(Math.cos(a) * 1.45, 5.4, Math.sin(a) * 1.45, .34, 1.1, .34, shade(c3, 1.15));
+          }
+          g.cyl(0, 8.24, 0, 1.8, .3, 10, c2);
+          g.sphere(0, 8.54, 0, 1.5, 10, acc);
+          g.cyl(0, 9.9, 0, .07, .9, 5, gold);
+          for (let k = 0; k < 5; k++) {                     // palms round the base
+            const a = k / 5 * TAU + .3;
+            g.mergeM(Prefab.scenery('palm', k + 1).base,
+              M4.compose(M4.create(), Math.cos(a) * 3.4, 0, Math.sin(a) * 3.4, 0, a, 0, .55, .6, .55));
+          }
+          break;
+        }
+        case 'jungle': {                                    // a ruined step temple, swallowed by vine
+          for (let k = 0; k < 4; k++) {
+            const w = 5.0 - k * .95;
+            g.box(((k * 31) % 5 - 2) * .10, k * 1.5, 0, w, 1.5, w, k % 2 ? shade(c3, 1.12) : shade(c3, 1.0));
+            for (let q = 0; q < 4; q++) {
+              const a = q / 4 * TAU + .78;
+              g.box(Math.cos(a) * w * .42, k * 1.5 + 1.4, Math.sin(a) * w * .42, .5, .34, .5, shade(c3, .88));
+            }
+          }
+          g.box(0, 6.0, 0, 2.0, 1.8, 2.0, shade(c3, 1.15));
+          g.cone(0, 7.8, 0, 1.3, 1.6, 4, acc);
+          for (let k = 0; k < 9; k++) {                     // creepers
+            const a = k / 9 * TAU;
+            g.beam(Math.cos(a) * 2.4, 6.0, Math.sin(a) * 2.4, Math.cos(a) * 2.9, .5 + (k % 3) * .8, Math.sin(a) * 2.9, .12, .12, c1);
+            g.sphere(Math.cos(a) * 2.8, 2.2 + (k % 4) * 1.1, Math.sin(a) * 2.8, .48, 5, shade(c1, 1.1));
+          }
+          for (let k = 0; k < 4; k++) {
+            const a = k / 4 * TAU + .5;
+            g.box(Math.cos(a) * 2.6, .0, Math.sin(a) * 2.6, .8, 1.6, .8, shade(c3, .9));  // fallen blocks
+          }
+          break;
+        }
+        case 'winter': {                                    // a chalet bell tower with snow on it
+          g.box(0, -.2, 0, 3.4, .5, 3.4, shade(c3, 1.0));
+          g.box(0, .3, 0, 2.4, 3.2, 2.4, shade(c2, 1.02));
+          for (let k = 0; k < 7; k++) g.box(0, .4 + k * .44, 0, 2.5, .12, 2.5, shade(c3, 1.15));   // log courses
+          g.box(0, 3.5, 0, 2.9, .28, 2.9, c3);
+          for (const sx of [-1, 1]) for (const sz of [-1, 1]) g.cyl(sx * 1.05, 3.78, sz * 1.05, .16, 3.2, 6, c3);
+          g.box(0, 6.98, 0, 3.2, .26, 3.2, shade(c3, 1.1));
+          g.cone(0, 7.24, 0, 2.4, 3.0, 4, shade(c3, .85));
+          g.cone(0, 7.30, 0, 2.35, 2.9, 4, hex(0xf5fbff));                                        // snow cap
+          g.cyl(0, 10.3, 0, .06, .9, 5, iron);
+          const bell = new Geo();
+          bell.cyl(0, -.9, 0, .48, .9, 10, gold, .55);
+          bell.sphere(0, -.95, 0, .16, 6, shade(gold, .8));
+          parts.push({ geo: bell, anim: (m, o, t) => M4.compose(m, 0, 6.7, 0, 0, 0, Math.sin(t * 1.6) * .22, 1, 1, 1) });
+          for (let k = 0; k < 8; k++) g.cyl(-1.3 + k * .37, 3.5, -1.45, .06, -.35 - (k % 3) * .18, 5, hex(0xdff2fb));  // icicles
+          break;
+        }
+        case 'retro': {                                     // a roadside neon pylon
+          g.box(0, -.2, 0, 3.0, .5, 3.0, hex(0x2f3b52));
+          g.cyl(0, .3, 0, .55, 8.0, 8, hex(0xe8eef2));
+          for (let k = 0; k < 5; k++) g.cyl(0, 1.2 + k * 1.5, 0, .95 - k * .06, .28, 12, k % 2 ? acc : c2);
+          g.box(0, 5.0, 0, 4.4, 3.4, .35, c1);
+          g.box(0, 5.2, -.26, 3.8, 2.6, .10, c3);
+          this.lightBulbs(g, 0, 5.0, -.36, 2.0, 14, hex(0xfff3c4));
+          for (let k = 0; k < 3; k++) {                     // chevrons pointing up
+            g.triV([-1.4, 8.6 + k * .7, -.3], [1.4, 8.6 + k * .7, -.3], [0, 9.4 + k * .7, -.3], k % 2 ? acc : c2);
+          }
+          const star = new Geo();
+          for (let k = 0; k < 5; k++) {
+            const a = k / 5 * TAU - PI / 2;
+            star.triV([0, 0, 0], [Math.cos(a) * 1.3, Math.sin(a) * 1.3, 0], [Math.cos(a + .63) * .5, Math.sin(a + .63) * .5, 0], acc);
+            star.triV([0, 0, 0], [Math.cos(a - .63) * .5, Math.sin(a - .63) * .5, 0], [Math.cos(a) * 1.3, Math.sin(a) * 1.3, 0], shade(acc, 1.2));
+          }
+          parts.push({ geo: star, anim: (m, o, t) => {
+            const k = .8 + Math.abs(Math.sin(t * 1.4)) * .35;
+            return M4.compose(m, 0, 11.4, -.3, 0, 0, t * .25, k, k, k);
+          } });
+          break;
+        }
+        case 'steampunk': {                                 // a riveted boiler stack
+          g.cyl(0, -.2, 0, 3.0, .5, 12, iron);
+          g.cyl(0, .3, 0, 2.1, 5.0, 12, c1);
+          for (let k = 0; k < 6; k++) {
+            g.cyl(0, .6 + k * .8, 0, 2.2, .18, 12, shade(c2, 1.1));
+            for (let q = 0; q < 12; q++) { const a = q / 12 * TAU; g.sphere(Math.cos(a) * 2.2, .9 + k * .8, Math.sin(a) * 2.2, .08, 4, gold); }
+          }
+          g.cyl(0, 5.3, 0, 1.2, 4.2, 10, shade(c2, 1.05));
+          g.cyl(0, 9.5, 0, 1.5, .5, 10, iron);
+          for (let k = 0; k < 3; k++) {                     // pressure gauges
+            const a = k / 3 * TAU;
+            g.cyl(Math.cos(a) * 2.15, 2.6, Math.sin(a) * 2.15, .40, .18, 10, gold);
+            g.cyl(Math.cos(a) * 2.28, 2.6, Math.sin(a) * 2.28, .30, .08, 10, white);
+          }
+          for (let k = 0; k < 4; k++)                       // pipework
+            g.beam(2.1, 1.0 + k * .9, 0, 3.4, 1.0 + k * .9, 0, .22, .22, shade(c2, 1.15));
+          const cog = new Geo();
+          for (let k = 0; k < 12; k++) { const a = k / 12 * TAU; cog.box(Math.cos(a) * 1.35, Math.sin(a) * 1.35, 0, .42, .42, .28, gold); }
+          cog.cyl(0, 0, -.14, 1.15, .28, 14, shade(gold, .88));
+          spin(cog, 3.4, 4.2, 0, .8, 'z');
+          const steam = new Geo();
+          for (let k = 0; k < 9; k++) steam.sphere(Math.sin(k * 1.7) * (.12 + k * .10), k * .42, Math.cos(k * 1.7) * (.12 + k * .10), .48 + k * .11, 7, shade(hex(0xd8d5cf), 1 - k * .015));
+          parts.push({ geo: steam, anim: (m, o, t) => M4.compose(m, 0, 10.0 + ((t * .4) % 1) * .9, 0, 0, t * .2, 0, 1, 1, 1) });
+          break;
+        }
+      } break;
+
+      /* =============== ARCHES: the gateway into a land =============== */
+      case 'arch': switch (genre) {
+        case 'classic': {                                   // stone triumphal arch
+          for (const sx of [-1, 1]) {
+            g.box(sx * 2.9, 0, 0, 1.6, 5.4, 1.6, c1);
+            for (let k = 0; k < 6; k++) g.box(sx * 2.9, .2 + k * .85, 0, 1.7, .16, 1.7, shade(c2, 1.05));
+          }
+          for (let k = 0; k <= 10; k++) {                   // voussoirs
+            const a = k / 10 * PI;
+            g.box(Math.cos(a) * 2.9, 5.4 - .3 + Math.sin(a) * 2.0, 0, .78, .78, 1.5, k % 2 ? c1 : shade(c1, 1.08));
+          }
+          g.box(0, 7.4, 0, 7.4, .7, 1.9, shade(c2, 1.12));
+          g.box(0, 8.1, 0, 6.2, .9, 1.5, c1);
+          g.box(0, 8.3, -.8, 4.4, .5, .10, acc);
+          for (const sx of [-1, 1]) { g.cyl(sx * 2.4, 9.0, 0, .45, .6, 10, shade(c2, 1.1)); g.sphere(sx * 2.4, 9.6, 0, .42, 8, gold); }
+          break;
+        }
+        case 'western': {                                   // ranch gate with a hanging sign
+          for (const sx of [-1, 1]) {
+            g.cyl(sx * 3.0, 0, 0, .34, 5.6, 8, c2);
+            for (let k = 0; k < 3; k++) g.beam(sx * 3.0, 1.0 + k * 1.5, -.9, sx * 3.0, 1.0 + k * 1.5, .9, .12, .12, shade(c2, 1.15));
+          }
+          g.beam(-3.3, 5.6, 0, 3.3, 5.6, 0, .30, .30, c1);
+          g.beam(-3.3, 6.2, 0, 3.3, 6.2, 0, .18, .18, shade(c1, 1.1));
+          for (const sx of [-1, 1]) g.beam(sx * 3.0, 4.6, 0, sx * 1.9, 5.6, 0, .16, .16, c1);
+          const sign = new Geo();
+          sign.box(0, -1.3, 0, 4.0, 1.3, .12, c1);
+          sign.box(0, -1.2, -.10, 3.4, .8, .05, acc);
+          for (const sx of [-1, 1]) sign.cyl(sx * 1.6, -.05, 0, .04, .55, 5, iron);
+          parts.push({ geo: sign, anim: (m, o, t) => M4.compose(m, 0, 5.5, 0, 0, 0, Math.sin(t * .8) * .09, 1, 1, 1) });
+          g.sphere(0, 6.6, 0, .5, 7, shade(white, .95));    // steer skull
+          for (const sx of [-1, 1]) g.beam(sx * .35, 6.8, 0, sx * 1.3, 7.2, 0, .12, .12, shade(white, .9));
+          break;
+        }
+        case 'egypt': {                                     // pylon gate with a winged disc
+          for (const sx of [-1, 1]) {
+            g.box(sx * 3.2, 0, 0, 2.4, 6.4, 2.2, c1, 1, .95, .88);
+            g.box(sx * 3.2, 6.4, 0, 2.8, .4, 2.6, c2);
+            for (let k = 0; k < 4; k++) g.box(sx * 3.2, .8 + k * 1.4, -1.15, 1.6, .9, .10, k % 2 ? acc : shade(c2, 1.1));
+            g.cyl(sx * 4.5, 0, -1.0, .34, 5.6, 8, c2);
+          }
+          g.box(0, 5.4, 0, 5.0, 1.0, 1.9, c2);
+          g.box(0, 6.4, 0, 5.6, .5, 2.2, shade(c1, 1.08));
+          g.cyl(0, 6.9, -1.0, .85, .28, 12, gold);          // winged sun disc
+          for (const sx of [-1, 1]) for (let k = 0; k < 4; k++)
+            g.box(sx * (1.1 + k * .55), 6.9, -1.0, .55, .16, .55 - k * .09, k % 2 ? acc : gold);
+          break;
+        }
+        case 'scifi': {                                     // an energy gate
+          for (const sx of [-1, 1]) {
+            g.box(sx * 3.0, 0, 0, 1.1, 6.2, 1.6, c1);
+            g.box(sx * 3.0, .4, -.85, .7, 5.2, .10, acc);
+            g.cyl(sx * 3.0, 6.2, 0, .7, .5, 8, c2);
+          }
+          g.box(0, 6.2, 0, 7.2, .7, 1.4, c2);
+          g.box(0, 6.9, 0, 5.4, .35, 1.0, c1);
+          const ring = new Geo();
+          for (let k = 0; k < 26; k++) {
+            const a1 = k / 26 * PI, a2 = (k + 1) / 26 * PI;
+            ring.beam(Math.cos(a1) * 2.7, Math.sin(a1) * 4.4, 0, Math.cos(a2) * 2.7, Math.sin(a2) * 4.4, 0, .22, .22,
+              k % 4 ? acc : glass);
+          }
+          parts.push({ geo: ring, anim: (m, o, t) => {
+            const k = .93 + Math.sin(t * 2.4) * .07;
+            return M4.compose(m, 0, 1.4, 0, 0, 0, 0, k, k, 1);
+          } });
+          blink(0, 7.4, 0, .28, acc, 1.4);
+          break;
+        }
+        case 'pirate': {                                    // two masts and a rope swag
+          for (const sx of [-1, 1]) {
+            g.cyl(sx * 3.0, 0, 0, .38, 6.0, 8, c1, .8);
+            g.beam(sx * 3.0 - 1.2, 4.4, 0, sx * 3.0 + 1.2, 4.4, 0, .16, .16, c2);
+            g.cyl(sx * 3.0, 0, 0, .9, .5, 10, c2);
+            for (let k = 0; k < 4; k++) g.beam(sx * 3.0, 6.0, 0, sx * 3.0 + (k - 1.5) * .9, 3.0, .9, .05, .05, shade(c3, 1.6));
+          }
+          for (let k = 0; k <= 12; k++) {                   // catenary rope
+            const t2 = k / 12, x = -3.0 + t2 * 6.0, y = 6.0 - Math.sin(t2 * PI) * 1.6;
+            const t3 = (k + 1) / 12, x2 = -3.0 + t3 * 6.0, y2 = 6.0 - Math.sin(t3 * PI) * 1.6;
+            if (k < 12) g.beam(x, y, 0, x2, y2, 0, .12, .12, shade(c3, 1.5));
+            if (k % 3 === 0) { g.cyl(x, y - .55, 0, .05, .5, 5, shade(c3, 1.5)); g.box(x, y - 1.05, 0, .45, .55, .18, acc); }
+          }
+          g.sphere(0, 6.9, 0, .62, 8, white);               // skull crest
+          for (const sx of [-1, 1]) g.sphere(sx * .22, 7.0, -.48, .14, 5, hex(0x1c1c22));
+          g.box(0, 6.5, -.5, .5, .22, .1, hex(0x1c1c22));
+          break;
+        }
+        case 'fairytale': {                                 // rose arbour
+          for (const sx of [-1, 1]) {
+            g.cyl(sx * 2.9, 0, 0, .30, 5.0, 8, c2);
+            for (let k = 0; k < 5; k++) {                   // climbing roses
+              const y = .6 + k * .9;
+              g.sphere(sx * 2.9 + Math.sin(k * 2.1) * .38, y, Math.cos(k * 2.1) * .38, .42, 5, hex(0x4e9b52));
+              g.sphere(sx * 2.9 + Math.sin(k * 2.1 + 1) * .42, y + .3, Math.cos(k * 2.1 + 1) * .42, .18, 5, acc);
+            }
+          }
+          for (let k = 0; k <= 14; k++) {                   // the hoop
+            const a = k / 14 * PI, a2 = (k + 1) / 14 * PI;
+            g.beam(Math.cos(a) * 2.9, 5.0 + Math.sin(a) * 2.4, 0, Math.cos(a2) * 2.9, 5.0 + Math.sin(a2) * 2.4, 0, .20, .20, c2);
+            if (k % 2 === 0) {
+              g.sphere(Math.cos(a) * 2.9, 5.0 + Math.sin(a) * 2.4, .30, .34, 5, hex(0x4e9b52));
+              g.sphere(Math.cos(a) * 3.0, 5.1 + Math.sin(a) * 2.4, -.30, .21, 5, acc);
+            }
+          }
+          for (let k = 0; k < 3; k++) {                     // pennants
+            const px = -1.5 + k * 1.5;
+            g.cyl(px, 7.2, 0, .05, .7, 5, c2);
+            g.triV([px, 7.9, 0], [px + .9, 7.75, 0], [px, 7.45, 0], k % 2 ? acc : hex(0xffffff));
+          }
+          break;
+        }
+        case 'japan': {                                     // torii with a double lintel
+          for (const sx of [-1, 1]) {
+            g.cyl(sx * 2.7, 0, 0, .42, 5.4, 10, c1, .84);
+            g.cyl(sx * 2.7, -.15, 0, .62, .35, 10, c3);
+            g.cyl(sx * 2.7, 4.3, 0, .48, .22, 10, c1);
+          }
+          g.box(0, 4.6, 0, 6.2, .38, .70, c1);              // nuki
+          for (let k = 0; k < 15; k++) {                    // kasagi, with the classic upturn
+            const t2 = (k + .5) / 15, u = -3.9 + t2 * 7.8;
+            const lift = Math.pow(Math.abs(t2 - .5) * 2, 2.4) * .75;
+            g.box(u, 5.4 + lift, 0, 7.8 / 15 - .04, .34, .95, c1);
+            g.box(u, 5.74 + lift, 0, 7.8 / 15 - .04, .18, 1.15, c3);
+          }
+          g.box(0, 5.1, 0, .55, .55, .8, gold);             // gakuzuka
+          for (const sx of [-1, 1]) {                       // shimenawa knots
+            g.cyl(sx * 1.5, 4.35, -.45, .22, -.7, 8, shade(white, .96));
+            g.box(sx * 1.5, 3.5, -.45, .34, .55, .06, white);
+          }
+          break;
+        }
+        case 'halloween': {                                 // spiked cemetery gate
+          for (const sx of [-1, 1]) {
+            g.box(sx * 3.0, 0, 0, 1.3, 5.2, 1.3, c1);
+            for (let k = 0; k < 5; k++) g.box(sx * 3.0, .3 + k * 1.0, 0, 1.42, .18, 1.42, shade(c2, 1.1));
+            g.cone(sx * 3.0, 5.2, 0, .95, 1.5, 4, c2);
+            g.sphere(sx * 3.0, 6.7, 0, .28, 6, acc);
+          }
+          for (let k = 0; k < 11; k++) {                    // railing spikes between
+            const x = -2.2 + k * .44;
+            g.cyl(x, 0, 0, .07, 3.4 + (k % 3) * .3, 5, iron);
+            g.cone(x, 3.4 + (k % 3) * .3, 0, .11, .38, 4, iron);
+          }
+          g.beam(-2.4, 3.0, 0, 2.4, 3.0, 0, .09, .09, iron);
+          for (let k = 0; k <= 10; k++) {                   // wrought-iron crest
+            const a = k / 10 * PI;
+            g.beam(Math.cos(a) * 2.4, 5.0 + Math.sin(a) * 1.5, 0, Math.cos((k + 1) / 10 * PI) * 2.4, 5.0 + Math.sin((k + 1) / 10 * PI) * 1.5, 0, .10, .10, iron);
+          }
+          g.sphere(0, 6.5, 0, .34, 6, hex(0x231d2b));
+          for (const sx of [-1, 1]) g.triV([0, 6.6, 0], [sx * 1.1, 6.95, 0], [sx * .6, 6.25, 0], hex(0x2c2436));
+          flame(-3.0, 6.9, 0, .22, acc); flame(3.0, 6.9, 0, .22, acc);
+          break;
+        }
+        case 'circus': {                                    // big-top entrance
+          for (const sx of [-1, 1]) {
+            g.cyl(sx * 3.1, 0, 0, .42, 5.4, 10, white);
+            for (let k = 0; k < 9; k++) g.cyl(sx * 3.1, .2 + k * .58, 0, .46, .28, 10, k % 2 ? c2 : white);
+            g.sphere(sx * 3.1, 5.4, 0, .48, 8, acc);
+          }
+          g.box(0, 5.4, 0, 7.4, 1.5, .6, c2);
+          g.box(0, 5.6, -.4, 6.2, 1.0, .10, white);
+          this.lightBulbs(g, 0, 5.35, -.5, 3.3, 20, hex(0xfff3c4));
+          for (let k = 0; k < 12; k++)                      // scalloped valance
+            g.triV([-3.6 + k * .6, 5.4, .35], [-3.0 + k * .6, 5.4, .35], [-3.3 + k * .6, 4.7, .35],
+              k % 2 ? c2 : white);
+          for (let k = 0; k < 5; k++) {                     // roof pennants
+            const px = -2.4 + k * 1.2;
+            g.cyl(px, 6.9, 0, .05, .8, 5, iron);
+            g.triV([px, 7.7, 0], [px + .8, 7.55, 0], [px, 7.3, 0], [acc, c3, hex(0xff6f91)][k % 3]);
+          }
+          break;
+        }
+        case 'desert': {                                    // mud-brick arch under palm shade
+          for (const sx of [-1, 1]) {
+            g.box(sx * 3.0, 0, 0, 1.8, 4.6, 1.8, c1, 1, .94, .86);
+            for (let k = 0; k < 5; k++) g.box(sx * 3.0, .3 + k * .9, 0, 1.92, .14, 1.92, shade(c2, 1.05));
+          }
+          for (let k = 0; k <= 12; k++) {                   // keyhole arch
+            const a = k / 12 * PI, w = 2.4 + Math.sin(a) * .5;
+            g.box(Math.cos(a) * w, 4.6 - .3 + Math.sin(a) * 2.3, 0, .7, .7, 1.7, k % 2 ? c1 : shade(c1, 1.07));
+          }
+          g.box(0, 7.1, 0, 7.4, .5, 2.0, c2);
+          for (let k = 0; k < 9; k++)                       // crenellated top
+            g.box(-3.2 + k * .8, 7.6, 0, .5, .6, 1.7, shade(c1, 1.08));
+          for (const sx of [-1, 1])
+            g.mergeM(Prefab.scenery('palm', sx + 3).base, M4.compose(M4.create(), sx * 4.6, 0, .8, 0, sx, 0, .8, .85, .8));
+          break;
+        }
+        case 'jungle': {                                    // idol posts under a log lintel
+          for (const sx of [-1, 1]) {
+            g.cyl(sx * 3.0, 0, 0, .85, 5.0, 6, c3);
+            for (let k = 0; k < 3; k++) {                   // stacked carved faces
+              const y = .5 + k * 1.5;
+              g.box(sx * 3.0, y, -.75, 1.2, .5, .25, shade(acc, 1 - k * .06));
+              g.sphere(sx * 3.0 - .3, y + .8, -.7, .18, 5, white);
+              g.sphere(sx * 3.0 + .3, y + .8, -.7, .18, 5, white);
+              g.box(sx * 3.0, y + 1.15, -.72, 1.3, .18, .2, shade(c3, .8));
+            }
+          }
+          g.beam(-3.9, 5.2, 0, 3.9, 5.2, 0, .55, .55, c3);
+          g.beam(-3.6, 5.9, 0, 3.6, 5.9, 0, .34, .34, shade(c3, 1.12));
+          for (let k = 0; k < 10; k++) {                    // hanging creepers
+            const x = -3.4 + k * .76;
+            g.beam(x, 5.2, .1, x + ((k * 7) % 3 - 1) * .3, 5.2 - 1.2 - (k % 4) * .6, .3, .10, .10, c1);
+            g.sphere(x + ((k * 7) % 3 - 1) * .3, 5.2 - 1.3 - (k % 4) * .6, .3, .32, 5, shade(c1, 1.1));
+          }
+          break;
+        }
+        case 'winter': {                                    // an ice arch
+          for (const sx of [-1, 1]) {
+            g.cyl(sx * 2.9, 0, 0, .95, 4.6, 6, shade(c2, 1.06), .8);
+            for (let k = 0; k < 4; k++) g.sphere(sx * 2.9 + Math.sin(k * 2) * .5, .6 + k * 1.1, Math.cos(k * 2) * .5, .55, 5, shade(c1, 1.02));
+          }
+          for (let k = 0; k <= 12; k++) {
+            const a = k / 12 * PI, a2 = (k + 1) / 12 * PI;
+            g.beam(Math.cos(a) * 2.9, 4.6 + Math.sin(a) * 2.2, 0, Math.cos(a2) * 2.9, 4.6 + Math.sin(a2) * 2.2, 0, .75, .55,
+              shade(c1, k % 2 ? 1.05 : .96));
+          }
+          for (let k = 0; k < 11; k++) {                    // icicles hanging off the soffit
+            const a = k / 10 * PI;
+            g.cone(Math.cos(a) * 2.75, 4.4 + Math.sin(a) * 2.0, 0, .16, -(.5 + (k % 3) * .38), 5, hex(0xdff2fb));
+          }
+          for (const sx of [-1, 1]) { g.cone(sx * 2.9, 6.8, 0, .8, 2.2, 6, shade(c1, 1.1)); blink(sx * 2.9, 9.0, 0, .2, acc, .9); }
+          g.box(0, 7.0, 0, 3.2, .8, .28, c3);
+          g.box(0, 7.2, -.2, 2.6, .45, .06, hex(0xf5fbff));
+          break;
+        }
+        case 'retro': {                                     // chrome-and-neon diner arch
+          for (const sx of [-1, 1]) {
+            g.cyl(sx * 3.0, 0, 0, .55, 5.0, 10, hex(0xe8eef2));
+            for (let k = 0; k < 4; k++) g.cyl(sx * 3.0, .5 + k * 1.2, 0, .68, .22, 10, k % 2 ? acc : c2);
+            g.sphere(sx * 3.0, 5.0, 0, .6, 8, hex(0xe8eef2));
+          }
+          for (let k = 0; k <= 16; k++) {                   // twin neon tubes
+            const a = k / 16 * PI, a2 = (k + 1) / 16 * PI;
+            g.beam(Math.cos(a) * 3.0, 5.0 + Math.sin(a) * 2.4, -.2, Math.cos(a2) * 3.0, 5.0 + Math.sin(a2) * 2.4, -.2, .18, .18, acc);
+            g.beam(Math.cos(a) * 2.5, 5.0 + Math.sin(a) * 2.0, -.2, Math.cos(a2) * 2.5, 5.0 + Math.sin(a2) * 2.0, -.2, .14, .14, c2);
+          }
+          g.box(0, 6.9, .1, 4.6, 1.5, .30, c3);
+          g.box(0, 7.1, -.1, 4.0, 1.0, .08, acc);
+          for (let k = 0; k < 3; k++)                       // boomerang fins
+            g.triV([-2.6 - k * .5, 5.6 + k * .5, .2], [-2.0 - k * .5, 5.9 + k * .5, .2], [-2.6 - k * .5, 6.2 + k * .5, .2], acc);
+          break;
+        }
+        case 'steampunk': {                                 // riveted iron arch with cogs
+          for (const sx of [-1, 1]) {
+            g.box(sx * 3.0, 0, 0, 1.3, 5.0, 1.3, c1);
+            for (let k = 0; k < 6; k++) {
+              g.box(sx * 3.0, .3 + k * .8, 0, 1.42, .16, 1.42, shade(c2, 1.1));
+              for (let q = 0; q < 4; q++) { const a = q / 4 * TAU + .78; g.sphere(sx * 3.0 + Math.cos(a) * .65, .6 + k * .8, Math.sin(a) * .65, .08, 4, gold); }
+            }
+            g.cyl(sx * 3.0, 5.0, 0, .8, .6, 8, shade(c2, 1.15));
+          }
+          for (let k = 0; k <= 12; k++) {
+            const a = k / 12 * PI, a2 = (k + 1) / 12 * PI;
+            g.beam(Math.cos(a) * 3.0, 5.0 + Math.sin(a) * 2.0, 0, Math.cos(a2) * 3.0, 5.0 + Math.sin(a2) * 2.0, 0, .45, .45, c1);
+          }
+          g.box(0, 7.2, 0, 3.0, .8, 1.0, shade(c2, 1.1));
+          g.box(0, 7.4, -.55, 2.2, .5, .06, gold);
+          for (const [cx, cy, r, rate] of [[-2.2, 5.6, 1.0, .7], [2.2, 5.6, 1.0, -.7], [0, 8.2, 1.4, .45]]) {
+            const cog = new Geo();
+            const teeth = Math.round(r * 11);
+            for (let k = 0; k < teeth; k++) { const a = k / teeth * TAU; cog.box(Math.cos(a) * r, Math.sin(a) * r, 0, r * .34, r * .34, .26, gold); }
+            cog.cyl(0, 0, -.13, r * .82, .26, 14, shade(gold, .86));
+            cog.cyl(0, 0, -.17, r * .22, .34, 8, iron);
+            spin(cog, cx, cy, .6, rate, 'z');
+          }
+          for (let k = 0; k < 3; k++) g.beam(-3.0, 1.0 + k * 1.2, .8, 3.0, 1.0 + k * 1.2, .8, .18, .18, shade(c2, 1.12));
+          break;
+        }
+      } break;
+
+      /* =============== STATUES: a focal point at eye level =============== */
+      case 'statue': switch (genre) {
+        case 'classic': {                                   // a bronze civic figure
+          const y = plinth(1.7, 1.5);
+          figure(y, 1.15, shade(c3, 1.25), 2.4, .5);
+          g.box(0, y + .1, .3, .9, .12, .5, shade(c3, 1.1));
+          g.box(0, .6, -.92, 1.0, .5, .07, gold);           // dedication plate
+          break;
+        }
+        case 'western': {                                   // rearing horse and rider
+          const y = plinth(1.9, .9);
+          g.beam(-.6, y, -.5, .5, y + 1.5, .3, .55, .95, shade(c3, 1.25));    // body
+          g.beam(.4, y + 1.4, .3, 1.0, y + 2.3, .1, .35, .35, shade(c3, 1.25)); // neck
+          g.box(1.05, y + 2.35, .0, .5, .35, .35, shade(c3, 1.3));            // head
+          for (const [bx, bz, lift] of [[-.55, -.35, 0], [-.55, .35, 0], [.35, -.3, 1], [.35, .3, 1]])
+            g.beam(bx, y + .9, bz, bx - (lift ? .9 : .1), y + (lift ? .9 : 0), bz, .18, .18, shade(c3, 1.15));
+          figure(y + 1.6, .8, shade(c3, 1.35), 2.6, .8);
+          g.cyl(0, y + 3.0, 0, .42, .22, 8, shade(c3, 1.35));                  // hat
+          break;
+        }
+        case 'egypt': {                                     // a seated pharaoh
+          const y = plinth(2.0, .7);
+          g.box(0, y, 0, 1.5, 1.5, 1.3, c1);                // throne
+          g.box(0, y + 1.5, .5, 1.5, 1.6, .35, c1);
+          g.box(0, y + .9, -.35, .9, 1.1, .7, shade(c1, 1.1));   // lap/torso
+          g.sphere(0, y + 2.2, -.3, .42, 8, shade(c1, 1.14));
+          g.box(0, y + 2.25, -.25, 1.0, .95, .75, acc);          // nemes headdress
+          g.cone(0, y + 2.75, -.25, .34, .8, 6, gold);
+          for (const sx of [-1, 1]) g.beam(sx * .5, y + 1.8, -.4, sx * .45, y + 1.0, -.85, .18, .18, shade(c1, 1.05));
+          break;
+        }
+        case 'scifi': {                                     // an astronaut on an orbit ring
+          const y = plinth(1.6, 1.0);
+          g.cyl(0, y, 0, .8, .3, 12, c2);
+          figure(y + .3, 1.05, c1, 2.2, 1.0);
+          g.sphere(0, y + 2.15, 0, .34, 8, glass);
+          const ring = new Geo();
+          for (let k = 0; k < 20; k++) { const a1 = k / 20 * TAU, a2 = (k + 1) / 20 * TAU;
+            ring.beam(Math.cos(a1) * 1.5, 0, Math.sin(a1) * 1.5, Math.cos(a2) * 1.5, 0, Math.sin(a2) * 1.5, .14, .14, acc); }
+          parts.push({ geo: ring, anim: (m, o, t) => M4.compose(m, 0, y + 1.5, 0, .5, t * .5, 0, 1, 1, 1) });
+          break;
+        }
+        case 'pirate': {                                    // a pirate on a barrel
+          g.cyl(0, 0, 0, 1.0, 1.5, 12, c1);
+          for (let k = 0; k < 3; k++) g.cyl(0, .2 + k * .55, 0, 1.06, .16, 12, iron);
+          figure(1.5, 1.05, shade(c3, 1.3), 2.5, .3);
+          g.cyl(0, 3.4, 0, .5, .16, 8, shade(c3, 1.35));    // tricorn
+          g.box(0, 3.5, 0, .9, .22, .5, shade(c3, 1.35));
+          g.beam(.5, 2.6, 0, 1.6, 3.9, 0, .10, .28, shade(white, 1.0));   // cutlass
+          g.cyl(-.55, 1.6, 0, .10, .95, 5, shade(c3, 1.1));                // peg leg
+          break;
+        }
+        case 'fairytale': {                                 // a dancer holding a star
+          const y = plinth(1.5, 1.2);
+          g.cone(0, y, 0, .78, 1.3, 10, c1);                // skirt
+          figure(y + 1.0, .95, c1, 2.5, 2.5);
+          g.sphere(0, y + 2.55, 0, .30, 6, acc);
+          const star = new Geo();
+          for (let k = 0; k < 5; k++) {
+            const a = k / 5 * TAU - PI / 2;
+            star.triV([0, 0, 0], [Math.cos(a) * .55, Math.sin(a) * .55, 0], [Math.cos(a + .63) * .22, Math.sin(a + .63) * .22, 0], gold);
+            star.triV([0, 0, 0], [Math.cos(a - .63) * .22, Math.sin(a - .63) * .22, 0], [Math.cos(a) * .55, Math.sin(a) * .55, 0], shade(gold, 1.2));
+          }
+          parts.push({ geo: star, anim: (m, o, t) => M4.compose(m, 0, y + 3.3, 0, 0, 0, t * .8, 1, 1, 1) });
+          break;
+        }
+        case 'japan': {                                     // stone lantern and a crane
+          g.cyl(0, 0, 0, .95, .35, 8, c2);
+          g.cyl(0, .35, 0, .34, 1.5, 8, c2);
+          g.box(0, 1.85, 0, 1.3, .22, 1.3, shade(c2, 1.1));
+          g.box(0, 2.07, 0, .95, .85, .95, shade(c2, 1.14));
+          for (let k = 0; k < 4; k++) { const a = k / 4 * TAU + .78; g.box(Math.cos(a) * .5, 2.25, Math.sin(a) * .5, .45, .5, .06, hex(0xfff0c8)); }
+          for (let k = 0; k < 10; k++) {                    // flared cap
+            const a = (k + .5) / 10 * TAU;
+            g.box(Math.cos(a) * .95, 2.92, Math.sin(a) * .95, .5, .16, .5, c2);
+          }
+          g.box(0, 2.92, 0, 1.2, .3, 1.2, shade(c2, 1.08));
+          g.sphere(0, 3.25, 0, .26, 7, c2);
+          flame(0, 2.35, 0, .16, hex(0xffd58a));
+          g.cyl(1.5, 0, .3, .07, 1.1, 5, shade(white, .96));   // the crane beside it
+          g.beam(1.5, 1.1, .3, 1.5, 1.7, -.2, .30, .30, white);
+          g.beam(1.5, 1.6, -.2, 1.5, 2.1, -.55, .12, .12, white);
+          g.box(1.5, 2.1, -.7, .12, .1, .34, acc);
+          break;
+        }
+        case 'halloween': {                                 // a gargoyle on a tomb
+          g.box(0, 0, 0, 2.0, .35, 2.0, shade(c2, 1.1));
+          g.box(0, .35, 0, 1.5, 1.5, 1.5, c1);
+          g.box(0, 1.85, 0, 1.8, .28, 1.8, shade(c2, 1.15));
+          g.box(0, .7, -.78, .9, .8, .07, shade(c3, 1.4));  // carved panel
+          g.cyl(0, 2.13, 0, .6, .7, 8, shade(c2, 1.05));    // crouching body
+          g.sphere(0, 2.9, 0, .48, 7, shade(c2, 1.1));
+          for (const sx of [-1, 1]) {
+            g.cone(sx * .22, 3.2, 0, .13, .5, 4, shade(c2, 1.05));            // horns
+            g.triV([sx * .35, 2.9, .2], [sx * 1.4, 3.5, .1], [sx * .45, 2.3, .35], shade(c2, .92));  // wings
+            g.triV([sx * .45, 2.3, .35], [sx * 1.4, 3.5, .1], [sx * 1.2, 2.2, .1], shade(c2, .86));
+          }
+          g.sphere(-.16, 2.92, -.42, .09, 4, acc); g.sphere(.16, 2.92, -.42, .09, 4, acc);
+          break;
+        }
+        case 'circus': {                                    // an elephant on a drum
+          const hide = hex(0x9aa0a8), hide2 = hex(0x8a9098);
+          g.cyl(0, 0, 0, 1.25, 1.0, 14, c2);
+          for (let k = 0; k < 10; k++) { const a = k / 10 * TAU; g.beam(Math.cos(a) * 1.28, .15, Math.sin(a) * 1.28, Math.cos(a) * 1.28, .85, Math.sin(a) * 1.28, .12, .12, acc); }
+          g.cyl(0, 1.0, 0, 1.3, .14, 14, c3);
+          for (const [bx, bz] of [[-.5, -.42], [-.5, .42], [.42, -.42], [.42, .42]])
+            g.cyl(bx, 1.14, bz, .30, .70, 8, hide2);                          // legs
+          g.beam(-.62, 1.84, 0, .52, 2.10, 0, 1.05, 1.05, hide);              // body
+          g.sphere(.85, 2.42, 0, .58, 8, hide);                               // head
+          for (const sz of [-1, 1])                                           // ears
+            g.triV([.72, 2.90, sz * .40], [.42, 2.05, sz * 1.10], [.98, 2.00, sz * .45], hide2);
+          g.beam(1.24, 2.30, 0, 1.52, 1.20, 0, .30, .30, hide);               // trunk
+          g.beam(1.52, 1.20, 0, 1.85, 1.45, 0, .22, .22, hide2);
+          for (const sz of [-1, 1]) g.cone(1.20, 2.20, sz * .30, .11, .55, 5, hex(0xf2ead6));   // tusks
+          g.sphere(1.00, 2.62, -.44, .09, 4, hex(0x2b2f34));
+          g.sphere(1.00, 2.62, .44, .09, 4, hex(0x2b2f34));
+          g.box(-.15, 2.62, 0, 1.00, .18, 1.35, acc);                         // saddle blanket
+          for (let k = 0; k < 7; k++) g.sphere(-.60 + k * .18, 2.60, .68, .09, 4, c2);
+          g.cyl(-.15, 2.80, 0, .30, .34, 8, c2);                              // howdah post
+          break;
+        }
+        case 'desert': {                                    // a camel
+          const y = plinth(1.9, .5);
+          g.beam(-.85, y + 1.1, 0, .75, y + 1.15, 0, .75, .85, c1);
+          g.sphere(-.15, y + 1.85, 0, .5, 7, shade(c1, 1.06));                // humps
+          g.sphere(.4, y + 1.85, 0, .44, 7, shade(c1, 1.06));
+          g.beam(.75, y + 1.3, 0, 1.25, y + 2.3, 0, .3, .3, c1);              // neck
+          g.box(1.45, y + 2.3, 0, .7, .32, .3, shade(c1, 1.1));
+          for (const [bx, bz] of [[-.65, -.35], [-.65, .35], [.5, -.35], [.5, .35]])
+            g.beam(bx, y, bz, bx, y + 1.1, bz, .16, .16, shade(c1, .92));
+          g.box(-.1, y + 2.05, 0, .8, .16, .95, acc);                          // saddle
+          break;
+        }
+        case 'jungle': {                                    // a carved idol head
+          g.box(0, 0, 0, 2.2, .5, 2.2, shade(c3, .9));
+          for (let k = 0; k < 3; k++) {
+            const w = 1.7 - k * .18, y = .5 + k * 1.15;
+            g.box(0, y, 0, w, 1.15, w * .9, shade(c3, 1.0 + k * .07));
+            g.box(0, y + .25, -w * .48, w * .8, .28, .12, shade(acc, 1 - k * .08));    // brow
+            g.sphere(-w * .24, y + .62, -w * .44, .17, 5, hex(0xf2ead6));
+            g.sphere(w * .24, y + .62, -w * .44, .17, 5, hex(0xf2ead6));
+            g.box(0, y + .85, -w * .46, w * .55, .18, .14, shade(c3, .82));
+          }
+          g.box(0, 3.95, 0, 2.0, .38, 1.8, shade(acc, 1.05));
+          for (let k = 0; k < 5; k++) g.cone(-.7 + k * .35, 4.33, 0, .16, .55 + (k % 2) * .3, 4, shade(c1, 1.1));
+          for (let k = 0; k < 4; k++) g.sphere(Math.cos(k * 1.6) * 1.1, .5 + (k % 2) * .3, Math.sin(k * 1.6) * 1.1, .38, 5, c1);
+          break;
+        }
+        case 'winter': {                                    // a snowman
+          g.cyl(0, -.05, 0, 1.5, .18, 12, hex(0xf5fbff));
+          g.sphere(0, .85, 0, .92, 9, hex(0xf5fbff));
+          g.sphere(0, 1.95, 0, .68, 9, hex(0xf8fcff));
+          g.sphere(0, 2.85, 0, .48, 9, hex(0xfbfeff));
+          g.sphere(-.18, 2.95, -.38, .08, 4, iron); g.sphere(.18, 2.95, -.38, .08, 4, iron);
+          g.cone(0, 2.85, -.42, .10, .5, 5, hex(0xf07a2e));
+          for (let k = 0; k < 4; k++) g.sphere(-.24 + k * .16, 2.68, -.42, .05, 4, iron);
+          g.cyl(0, 3.25, 0, .52, .1, 10, c3); g.cyl(0, 3.35, 0, .34, .55, 10, c3);
+          g.box(0, 2.35, 0, 1.25, .30, .34, acc);            // scarf
+          g.box(.5, 2.05, .2, .30, .55, .18, acc);
+          for (const sx of [-1, 1]) g.beam(sx * .6, 2.0, 0, sx * 1.5, 2.6, .1, .10, .10, hex(0x6b4a2f));
+          break;
+        }
+        case 'retro': {                                     // a giant milkshake
+          g.cyl(0, 0, 0, 1.3, .4, 14, c3);
+          for (let k = 0; k < 12; k++) { const a = k / 12 * TAU; g.box(Math.cos(a) * 1.32, .1, Math.sin(a) * 1.32, .3, .22, .3, k % 2 ? acc : white); }
+          g.cyl(0, .4, 0, .55, 2.2, 14, white, 1.5);         // the glass
+          g.cyl(0, 2.6, 0, .95, .22, 14, shade(white, 1.06));
+          g.sphere(0, 2.8, 0, .78, 9, hex(0xfff2f6));        // cream
+          g.sphere(.35, 3.2, .2, .42, 7, hex(0xfff2f6));
+          g.sphere(0, 3.55, 0, .28, 6, hex(0xd94f3c));       // cherry
+          g.cyl(0, 3.8, 0, .04, .4, 5, hex(0x4e9b52));
+          g.beam(.3, 2.7, 0, .95, 4.4, .2, .13, .13, acc);   // straw
+          break;
+        }
+        case 'steampunk': {                                 // a brass automaton
+          const y = plinth(1.7, .8);
+          g.cyl(0, y, 0, .55, 1.4, 10, c1);
+          for (let k = 0; k < 3; k++) g.cyl(0, y + .2 + k * .5, 0, .6, .14, 10, gold);
+          g.cyl(0, y + 1.4, 0, .42, .5, 8, shade(c2, 1.1));
+          g.box(0, y + 1.9, 0, .78, .72, .72, gold);         // head
+          g.cyl(0, y + 2.05, -.4, .22, .12, 8, glass);       // lens eye
+          g.cyl(-.2, y + 2.15, -.4, .13, .1, 6, shade(c2, 1.2));
+          for (const sx of [-1, 1]) g.beam(sx * .5, y + 1.35, 0, sx * .8, y + .4, .1, .2, .2, shade(c2, 1.12));
+          g.cyl(0, y + 2.62, 0, .16, .5, 6, iron);
+          const cog = new Geo();
+          for (let k = 0; k < 9; k++) { const a = k / 9 * TAU; cog.box(Math.cos(a) * .55, Math.sin(a) * .55, 0, .2, .2, .16, gold); }
+          cog.cyl(0, 0, -.08, .44, .16, 12, shade(gold, .86));
+          spin(cog, 0, y + .9, -.6, 1.1, 'z');
+          const steam2 = new Geo();
+          for (let k = 0; k < 6; k++) steam2.sphere(Math.sin(k * 1.9) * .09, k * .21, Math.cos(k * 1.9) * .09, .16 + k * .055, 6, shade(hex(0xd8d5cf), 1 - k * .02));
+          parts.push({ geo: steam2, anim: (m, o, t) => M4.compose(m, 0, y + 3.1 + ((t * .5) % 1) * .5, 0, 0, t * .3, 0, 1, 1, 1) });
+          break;
+        }
+      } break;
+
+      /* =============== SIGNS =============== */
+      case 'sign': {
+        const shield = (col, edge) => { g.box(0, 3.0, 0, 4.6, 1.6, .32, col); g.box(0, 3.05, -.24, 4.0, 1.1, .10, edge); };
+        switch (genre) {
+          case 'western':
+            for (const sx of [-1, 1]) g.cyl(sx * 2.0, 0, 0, .18, 3.9, 6, c2);
+            g.beam(-2.3, 3.9, 0, 2.3, 3.9, 0, .18, .18, c2);
+            { const bd = new Geo();
+              bd.box(0, -1.4, 0, 4.2, 1.4, .14, c1);
+              for (let k = 0; k < 4; k++) bd.box(0, -2.05 + k * .38, -.09, 4.2, .06, .04, shade(c2, .9));
+              bd.box(0, -1.35, -.10, 3.5, .8, .05, acc);
+              for (const sx of [-1, 1]) bd.cyl(sx * 1.7, -.1, 0, .04, .6, 5, iron);
+              parts.push({ geo: bd, anim: (m, o, t) => M4.compose(m, 0, 3.8, 0, 0, 0, Math.sin(t * .9) * .10, 1, 1, 1) }); }
+            break;
+          case 'circus':
+            for (const sx of [-1, 1]) { g.cyl(sx * 2.1, 0, 0, .16, 3.6, 8, white); for (let k = 0; k < 6; k++) g.cyl(sx * 2.1, .2 + k * .55, 0, .2, .26, 8, k % 2 ? c2 : white); }
+            shield(c2, white); this.lightBulbs(g, 0, 3.0, -.35, 2.2, 16, hex(0xfff3c4));
+            for (let k = 0; k < 8; k++) g.triV([-2.2 + k * .55, 2.2, .1], [-1.65 + k * .55, 2.2, .1], [-1.93 + k * .55, 1.7, .1], k % 2 ? acc : white);
+            break;
+          case 'scifi':
+            g.cyl(0, 0, 0, .45, 3.2, 8, c2); g.box(0, 3.2, 0, .9, .5, .9, c1);
+            shield(c1, acc); blink(-2.3, 3.0, -.3, .18, acc, 2.4); blink(2.3, 3.0, -.3, .18, acc, 2.4);
+            for (let k = 0; k < 3; k++) g.box(0, 1.0 + k * .6, -.4, 1.6 - k * .3, .12, .1, acc);
+            break;
+          case 'egypt':
+            for (const sx of [-1, 1]) { g.cyl(sx * 2.1, 0, 0, .32, 3.4, 8, c2, .84); g.cone(sx * 2.1, 3.4, 0, .34, .6, 4, gold); }
+            g.box(0, 2.6, 0, 4.8, 1.8, .38, c1);
+            for (let k = 0; k < 4; k++) g.box(-1.6 + k * 1.05, 2.9, -.25, .7, 1.0, .06, k % 2 ? acc : shade(c2, 1.15));
+            g.box(0, 4.4, 0, 5.2, .34, .5, c2);
+            break;
+          case 'halloween':
+            g.cyl(0, 0, 0, .18, 3.4, 6, iron);
+            g.beam(0, 3.4, 0, 2.2, 3.4, 0, .12, .12, iron);
+            { const bd = new Geo();
+              bd.box(0, -1.1, 0, 3.0, 1.2, .12, c1);
+              bd.box(0, -1.05, -.08, 2.4, .7, .05, acc);
+              parts.push({ geo: bd, anim: (m, o, t) => M4.compose(m, 2.1, 3.3, 0, 0, 0, Math.sin(t * 1.2) * .22, 1, 1, 1) }); }
+            for (let k = 0; k < 3; k++) g.cone(0, 3.5 + k * .3, 0, .16 - k * .04, .3, 4, iron);
+            break;
+          case 'retro':
+            g.cyl(0, 0, 0, .4, 2.6, 10, hex(0xe8eef2));
+            g.box(0, 2.6, 0, 5.0, 2.0, .3, c3);
+            g.box(0, 2.75, -.22, 4.3, 1.4, .08, acc);
+            for (let k = 0; k < 3; k++) g.box(0, 4.6 + k * .28, 0, 4.6 - k * 1.2, .18, .34, k % 2 ? acc : c2);
+            this.lightBulbs(g, 0, 2.6, -.32, 2.3, 18, hex(0xfff3c4));
+            break;
+          case 'steampunk':
+            for (const sx of [-1, 1]) { g.cyl(sx * 2.0, 0, 0, .22, 3.6, 8, c2); for (let k = 0; k < 5; k++) g.sphere(sx * 2.0, .4 + k * .7, -.22, .08, 4, gold); }
+            shield(c1, gold);
+            { const cog = new Geo();
+              for (let k = 0; k < 10; k++) { const a = k / 10 * TAU; cog.box(Math.cos(a) * .7, Math.sin(a) * .7, 0, .24, .24, .2, gold); }
+              cog.cyl(0, 0, -.1, .58, .2, 12, shade(gold, .86));
+              spin(cog, -2.4, 3.0, -.3, .9, 'z'); }
+            break;
+          case 'japan':
+            for (const sx of [-1, 1]) g.cyl(sx * 1.9, 0, 0, .22, 4.0, 8, c1, .88);
+            g.box(0, 4.0, 0, 4.6, .3, .6, c1);
+            for (let k = 0; k < 9; k++) { const t2 = (k + .5) / 9; const lift = Math.pow(Math.abs(t2 - .5) * 2, 2.4) * .35;
+              g.box(-2.3 + t2 * 4.6, 4.3 + lift, 0, 4.6 / 9 - .04, .16, .8, c3); }
+            g.box(0, 1.4, 0, 2.6, 2.4, .16, hex(0xf2ead6));
+            for (let k = 0; k < 3; k++) g.box(0, 1.8 + k * .7, -.12, .8, .5, .05, c1);
+            break;
+          case 'jungle':
+            g.cyl(0, 0, 0, .3, 3.6, 6, c3);
+            for (let k = 0; k < 3; k++) {
+              const y = 1.2 + k * .9, sx = k % 2 ? 1 : -1;
+              g.box(sx * 1.4, y, 0, 2.6, .6, .16, shade(c3, 1.15));
+              g.triV([sx * 2.7, y + .3, 0], [sx * 2.7, y - .3, 0], [sx * 3.3, y, 0], shade(c3, 1.15));
+              g.box(sx * 1.4, y + .06, -.11, 2.0, .3, .04, acc);
+            }
+            for (let k = 0; k < 3; k++) g.sphere(Math.cos(k * 2) * .5, 3.4 + (k % 2) * .3, Math.sin(k * 2) * .5, .36, 5, c1);
+            break;
+          case 'winter':
+            for (const sx of [-1, 1]) g.cyl(sx * 2.0, 0, 0, .20, 3.5, 6, c3);
+            g.box(0, 2.8, 0, 4.6, 1.5, .3, c3);
+            g.box(0, 2.85, -.22, 4.0, 1.0, .08, hex(0xf5fbff));
+            g.box(0, 4.3, 0, 5.0, .28, .55, hex(0xf5fbff));
+            for (let k = 0; k < 7; k++) g.cone(-1.9 + k * .64, 2.75, -.3, .10, -(.3 + (k % 3) * .2), 5, hex(0xdff2fb));
+            break;
+          case 'fairytale':
+            g.cyl(0, 0, 0, .24, 3.2, 8, c2);
+            for (let k = 0; k < 6; k++) g.sphere(Math.sin(k * 1.6) * .3, .5 + k * .5, Math.cos(k * 1.6) * .3, .22, 5, k % 2 ? acc : hex(0x4e9b52));
+            g.box(0, 3.2, 0, 4.0, 1.4, .26, c1);
+            for (let k = 0; k <= 8; k++) { const a = k / 8 * PI; g.box(Math.cos(a) * 2.0, 4.55 + Math.sin(a) * .55, 0, .5, .3, .26, c2); }
+            g.box(0, 3.35, -.2, 3.4, .95, .06, acc);
+            break;
+          case 'pirate':
+            g.cyl(0, 0, 0, .3, 3.8, 8, c1, .8);
+            g.beam(-1.0, 3.4, 0, 2.4, 3.4, 0, .14, .14, c2);
+            { const bd = new Geo();
+              bd.box(0, -1.2, 0, 2.8, 1.3, .12, c1);
+              bd.box(0, -1.15, -.08, 2.2, .8, .05, acc);
+              for (const sx of [-1, 1]) bd.cyl(sx * 1.1, -.1, 0, .04, .55, 5, shade(c3, 1.5));
+              parts.push({ geo: bd, anim: (m, o, t) => M4.compose(m, 1.6, 3.3, 0, 0, 0, Math.sin(t * 1.1) * .16, 1, 1, 1) }); }
+            g.sphere(0, 4.1, 0, .34, 7, white);
+            break;
+          case 'desert':
+            for (const sx of [-1, 1]) g.cyl(sx * 2.0, 0, 0, .30, 3.2, 8, c1, .86);
+            g.box(0, 2.5, 0, 4.6, 1.6, .34, c1);
+            for (let k = 0; k < 5; k++) g.box(-1.8 + k * .9, 2.6, -.22, .6, 1.2, .06, k % 2 ? acc : shade(c2, 1.1));
+            for (let k = 0; k < 7; k++) g.box(-2.1 + k * .7, 4.1, 0, .42, .5, .42, shade(c1, 1.08));
+            break;
+          default:                                          // classic: a painted board on iron posts
+            for (const sx of [-1, 1]) { g.cyl(sx * 2.0, 0, 0, .16, 3.5, 8, c2); g.sphere(sx * 2.0, 3.5, 0, .2, 6, gold); }
+            shield(c1, acc);
+            g.box(0, 4.6, 0, 4.9, .22, .42, shade(c2, 1.12));
+            break;
+        }
+        break;
+      }
+
+      /* =============== LAMPS =============== */
+      case 'lamp': switch (genre) {
+        case 'scifi':
+          g.cyl(0, 0, 0, .45, .3, 10, c2); g.cyl(0, .3, 0, .18, 4.0, 8, c1);
+          for (let k = 0; k < 3; k++) g.cyl(0, 1.2 + k * 1.0, 0, .34, .12, 8, acc);
+          g.cyl(0, 4.3, 0, .55, .8, 8, c2); blink(0, 4.5, 0, .48, glass, 1.2);
+          break;
+        case 'halloween':
+          g.cyl(0, 0, 0, .38, .3, 6, iron); g.cyl(0, .3, 0, .13, 3.6, 6, iron);
+          for (let k = 0; k < 3; k++) g.beam(0, 3.0 + k * .3, 0, Math.cos(k * 2.1) * .55, 3.4 + k * .3, Math.sin(k * 2.1) * .55, .06, .06, iron);
+          g.box(0, 3.9, 0, .62, .85, .62, iron); g.cone(0, 4.75, 0, .48, .45, 4, iron);
+          flame(0, 4.0, 0, .21, acc);
+          break;
+        case 'japan':
+          g.cyl(0, 0, 0, .55, .3, 8, c2); g.cyl(0, .3, 0, .22, 2.4, 8, c2);
+          g.box(0, 2.7, 0, .95, .16, .95, shade(c2, 1.1));
+          g.cyl(0, 2.86, 0, .42, .95, 8, hex(0xfff0c8));
+          for (let k = 0; k < 8; k++) { const a = k / 8 * TAU; g.cyl(Math.cos(a) * .43, 2.9, Math.sin(a) * .43, .04, .85, 4, c1); }
+          for (let k = 0; k < 10; k++) { const a = (k + .5) / 10 * TAU; g.box(Math.cos(a) * .82, 3.81, Math.sin(a) * .82, .42, .14, .42, c2); }
+          g.sphere(0, 4.0, 0, .2, 6, c2); flame(0, 3.1, 0, .13, hex(0xffd58a));
+          break;
+        case 'western':
+          g.cyl(0, 0, 0, .34, .35, 6, c2); g.cyl(0, .35, 0, .14, 3.2, 6, c2);
+          g.beam(0, 3.4, 0, .95, 3.4, 0, .09, .09, c2);
+          g.box(.95, 2.9, 0, .5, .7, .5, iron); g.cone(.95, 3.6, 0, .38, .3, 4, iron);
+          flame(.95, 3.0, 0, .17, hex(0xffc46a));
+          break;
+        case 'circus':
+          g.cyl(0, 0, 0, .42, .35, 10, c2); g.cyl(0, .35, 0, .16, 3.4, 8, white);
+          for (let k = 0; k < 7; k++) g.cyl(0, .5 + k * .45, 0, .2, .22, 8, k % 2 ? c2 : white);
+          g.sphere(0, 3.9, 0, .48, 8, hex(0xfff3c4));
+          this.lightBulbs(g, 0, 3.5, 0, .5, 6, hex(0xfff3c4));
+          break;
+        case 'steampunk':
+          g.cyl(0, 0, 0, .42, .35, 8, iron); g.cyl(0, .35, 0, .17, 3.0, 8, c2);
+          for (let k = 0; k < 4; k++) { g.cyl(0, .7 + k * .6, 0, .24, .12, 8, gold); }
+          g.cyl(0, 3.35, 0, .42, .8, 8, gold, .82);
+          g.sphere(0, 3.7, 0, .34, 7, hex(0xffdca0));
+          g.cone(0, 4.15, 0, .5, .5, 8, c2);
+          { const cog = new Geo();
+            for (let k = 0; k < 8; k++) { const a = k / 8 * TAU; cog.box(Math.cos(a) * .32, Math.sin(a) * .32, 0, .13, .13, .1, gold); }
+            cog.cyl(0, 0, -.05, .26, .1, 10, shade(gold, .86)); spin(cog, .3, 2.2, -.2, 1.4, 'z'); }
+          break;
+        case 'egypt':
+          g.box(0, 0, 0, .8, .35, .8, c2); g.cyl(0, .35, 0, .26, 3.2, 8, c1, .86);
+          for (let k = 0; k < 4; k++) g.cyl(0, .6 + k * .8, 0, .3, .12, 8, acc);
+          g.cyl(0, 3.55, 0, .5, .5, 8, gold, 1.4);
+          flame(0, 3.9, 0, .26, hex(0xffb347));
+          break;
+        case 'fairytale':
+          g.cyl(0, 0, 0, .4, .3, 8, c2); g.cyl(0, .3, 0, .13, 3.2, 8, c2);
+          for (let k = 0; k < 5; k++) { const a = k * 1.3; g.sphere(Math.cos(a) * .22, .6 + k * .55, Math.sin(a) * .22, .16, 5, hex(0x4e9b52)); }
+          g.cone(0, 4.1, 0, .55, -.9, 6, c1);
+          g.sphere(0, 3.6, 0, .34, 7, hex(0xfff3c4));
+          g.sphere(0, 4.25, 0, .16, 6, acc);
+          break;
+        case 'winter':
+          g.cyl(0, 0, 0, .42, .3, 8, c3); g.cyl(0, .3, 0, .14, 3.2, 8, c3);
+          g.box(0, 3.5, 0, .62, .8, .62, c3); g.cone(0, 4.3, 0, .5, .45, 4, hex(0xf5fbff));
+          g.sphere(0, 3.85, 0, .26, 6, hex(0xfff3c4));
+          for (let k = 0; k < 4; k++) g.cone(-.24 + k * .16, 3.48, -.3, .05, -.28, 4, hex(0xdff2fb));
+          break;
+        case 'retro':
+          g.cyl(0, 0, 0, .42, .3, 10, c3); g.cyl(0, .3, 0, .16, 3.0, 10, hex(0xe8eef2));
+          for (let k = 0; k < 3; k++) g.cyl(0, 1.0 + k * .8, 0, .3, .16, 10, k % 2 ? acc : c2);
+          g.cyl(0, 3.3, 0, .75, .34, 12, hex(0xe8eef2), .3);
+          g.sphere(0, 3.3, 0, .38, 7, hex(0xfff3c4));
+          break;
+        case 'jungle':
+          g.cyl(0, 0, 0, .34, 3.0, 6, c3);
+          for (let k = 0; k < 5; k++) g.cyl(0, .3 + k * .58, 0, .38, .1, 6, shade(c3, .86));
+          g.cyl(0, 3.0, 0, .3, .5, 8, shade(c3, 1.2));
+          flame(0, 3.5, 0, .24, hex(0xff9a3c));
+          for (let k = 0; k < 3; k++) g.sphere(Math.cos(k * 2) * .45, .4 + (k % 2) * .5, Math.sin(k * 2) * .45, .3, 5, c1);
+          break;
+        case 'pirate':
+          g.cyl(0, 0, 0, .4, .3, 8, c3); g.cyl(0, .3, 0, .16, 3.0, 6, c1, .85);
+          g.beam(0, 3.2, 0, .8, 3.2, 0, .08, .08, iron);
+          { const lan = new Geo();
+            lan.box(0, -.75, 0, .5, .75, .5, iron); lan.box(0, -.7, 0, .36, .6, .36, hex(0xffdca0));
+            lan.cone(0, .0, 0, .34, .28, 4, iron);
+            parts.push({ geo: lan, anim: (m, o, t) => M4.compose(m, .8, 3.15, 0, 0, 0, Math.sin(t * 1.3) * .22, 1, 1, 1) }); }
+          break;
+        case 'desert':
+          g.box(0, 0, 0, .85, .4, .85, c2); g.cyl(0, .4, 0, .24, 3.0, 8, c1, .88);
+          g.cyl(0, 3.4, 0, .48, .8, 6, acc, .5);
+          g.sphere(0, 3.6, 0, .3, 6, hex(0xffdca0));
+          g.cone(0, 4.2, 0, .34, .45, 6, gold);
+          break;
+        default:                                            // classic gas lamp
+          g.cyl(0, 0, 0, .42, .35, 10, c2); g.cyl(0, .35, 0, .14, 3.2, 8, c2);
+          for (let k = 0; k < 3; k++) g.cyl(0, .6 + k * .9, 0, .2, .12, 8, shade(c2, 1.15));
+          g.cyl(0, 3.55, 0, .34, .85, 6, hex(0xfff3c4), 1.25);
+          g.cone(0, 4.4, 0, .48, .5, 6, c2); g.sphere(0, 4.9, 0, .14, 6, gold);
+          for (const sx of [-1, 1]) g.beam(sx * .14, 3.3, 0, sx * .55, 3.7, 0, .06, .06, c2);
+          break;
+      } break;
+
+      /* =============== FENCING =============== */
+      case 'fence': switch (genre) {
+        case 'halloween':
+          for (let k = 0; k < 5; k++) { const x = -1.6 + k * .8; g.cyl(x, 0, 0, .08, 2.0 + (k % 3) * .35, 5, iron); g.cone(x, 2.0 + (k % 3) * .35, 0, .12, .34, 4, iron); }
+          g.beam(-1.8, 1.3, 0, 1.8, 1.3, 0, .07, .07, iron); g.beam(-1.8, .5, 0, 1.8, .5, 0, .07, .07, iron);
+          break;
+        case 'western':
+          for (const sx of [-1, 1]) g.cyl(sx * 1.7, 0, 0, .16, 1.9, 6, c2);
+          for (let k = 0; k < 3; k++) g.beam(-1.8, .5 + k * .55, 0, 1.8, .5 + k * .55, 0, .16, .12, c1);
+          break;
+        case 'japan':
+          for (let k = 0; k < 7; k++) g.cyl(-1.7 + k * .58, 0, 0, .11, 1.7, 6, shade(c2, 1.06));
+          for (let k = 0; k < 2; k++) g.beam(-1.9, .6 + k * .7, 0, 1.9, .6 + k * .7, 0, .1, .1, c1);
+          for (let k = 0; k < 3; k++) g.box(-1.2 + k * 1.2, 1.75, 0, .3, .1, .3, c1);
+          break;
+        case 'scifi':
+          for (const sx of [-1, 1]) { g.box(sx * 1.7, 0, 0, .34, 1.5, .34, c1); blink(sx * 1.7, 1.6, 0, .12, acc, 2.0); }
+          for (let k = 0; k < 3; k++) g.beam(-1.7, .5 + k * .45, 0, 1.7, .5 + k * .45, 0, .07, .07, acc);
+          break;
+        case 'circus':
+          for (let k = 0; k < 5; k++) { const x = -1.6 + k * .8; g.cyl(x, 0, 0, .11, 1.4, 8, white); for (let q = 0; q < 3; q++) g.cyl(x, .15 + q * .45, 0, .14, .22, 8, q % 2 ? c2 : white); g.sphere(x, 1.4, 0, .17, 6, acc); }
+          for (let k = 0; k < 4; k++) { const x0 = -1.6 + k * .8; for (let q = 0; q <= 4; q++) { const t2 = q / 4; g.sphere(x0 + t2 * .8, 1.15 - Math.sin(t2 * PI) * .35, 0, .07, 4, acc); } }
+          break;
+        case 'pirate':
+          for (const sx of [-1, 1]) g.cyl(sx * 1.7, 0, 0, .2, 1.7, 8, c1, .85);
+          for (let k = 0; k <= 8; k++) { const t2 = k / 8; g.sphere(-1.7 + t2 * 3.4, 1.4 - Math.sin(t2 * PI) * .45, 0, .13, 5, shade(c3, 1.5)); }
+          for (let k = 0; k <= 8; k++) { const t2 = k / 8; g.sphere(-1.7 + t2 * 3.4, .8 - Math.sin(t2 * PI) * .35, 0, .11, 5, shade(c3, 1.4)); }
+          break;
+        case 'winter':
+          for (let k = 0; k < 5; k++) { const x = -1.6 + k * .8; g.cyl(x, 0, 0, .13, 1.5, 6, c3); g.cone(x, 1.5, 0, .18, .3, 5, hex(0xf5fbff)); }
+          for (let k = 0; k < 2; k++) { g.beam(-1.8, .5 + k * .55, 0, 1.8, .5 + k * .55, 0, .13, .11, c3); g.box(0, .62 + k * .55, 0, 3.6, .07, .2, hex(0xf5fbff)); }
+          break;
+        case 'jungle':
+          for (let k = 0; k < 6; k++) { const x = -1.6 + k * .64; g.cyl(x, 0, 0, .13, 1.6 + (k % 3) * .3, 6, c3); }
+          for (let k = 0; k < 2; k++) g.beam(-1.8, .55 + k * .65, 0, 1.8, .55 + k * .65, 0, .09, .09, c1);
+          for (let k = 0; k < 3; k++) g.sphere(-1.1 + k * 1.1, .5, .18, .28, 5, c1);
+          break;
+        case 'steampunk':
+          for (const sx of [-1, 1]) { g.box(sx * 1.7, 0, 0, .3, 1.7, .3, c1); for (let q = 0; q < 4; q++) g.sphere(sx * 1.7, .25 + q * .45, -.16, .06, 4, gold); }
+          for (let k = 0; k < 2; k++) g.beam(-1.8, .55 + k * .7, 0, 1.8, .55 + k * .7, 0, .14, .14, shade(c2, 1.15));
+          for (let k = 0; k < 3; k++) { const cog = new Geo(); for (let q = 0; q < 7; q++) { const a = q / 7 * TAU; cog.box(Math.cos(a) * .26, Math.sin(a) * .26, 0, .12, .12, .1, gold); } cog.cyl(0, 0, -.05, .2, .1, 10, shade(gold, .86)); spin(cog, -1.0 + k * 1.0, 1.25, 0, k % 2 ? .9 : -.9, 'z'); }
+          break;
+        case 'egypt': case 'desert':
+          for (let k = 0; k < 4; k++) g.box(-1.5 + k * 1.0, 0, 0, .95, 1.5 + (k % 2) * .25, .5, k % 2 ? c1 : shade(c1, 1.07));
+          g.box(0, 1.5, 0, 3.8, .18, .6, c2);
+          for (let k = 0; k < 5; k++) g.box(-1.6 + k * .8, 1.68, 0, .4, .38, .55, shade(c1, 1.1));
+          break;
+        case 'fairytale':
+          for (let k = 0; k < 6; k++) { const x = -1.65 + k * .66; g.box(x, 0, 0, .17, 1.4, .17, hex(0xf8f4f8)); g.sphere(x, 1.4, 0, .13, 5, acc); }
+          for (let k = 0; k < 2; k++) g.beam(-1.85, .5 + k * .5, 0, 1.85, .5 + k * .5, 0, .1, .08, hex(0xf8f4f8));
+          for (let k = 0; k < 3; k++) g.sphere(-1.0 + k * 1.0, 1.05, .12, .16, 5, acc);
+          break;
+        case 'retro':
+          for (const sx of [-1, 1]) g.cyl(sx * 1.7, 0, 0, .13, 1.4, 10, hex(0xe8eef2));
+          for (let k = 0; k < 3; k++) g.beam(-1.8, .45 + k * .45, 0, 1.8, .45 + k * .45, 0, .09, .09, k === 1 ? acc : hex(0xe8eef2));
+          for (let k = 0; k < 4; k++) g.sphere(-1.2 + k * .8, 1.5, 0, .12, 5, k % 2 ? acc : c2);
+          break;
+        default:                                            // classic painted railing
+          for (let k = 0; k < 6; k++) { const x = -1.65 + k * .66; g.cyl(x, 0, 0, .1, 1.5, 6, c1); g.cone(x, 1.5, 0, .13, .26, 5, shade(c2, 1.15)); }
+          for (let k = 0; k < 2; k++) g.beam(-1.85, .55 + k * .6, 0, 1.85, .55 + k * .6, 0, .1, .09, c1);
+          break;
+      } break;
+
+      /* =============== ROCKWORK =============== */
+      case 'rock': switch (genre) {
+        case 'desert': case 'egypt': {                      // wind-cut sandstone
+          for (let k = 0; k < 3; k++) {
+            const a = k / 3 * TAU, r = 1.2;
+            const h = 2.6 - k * .5;
+            g.cyl(Math.cos(a) * r, 0, Math.sin(a) * r, 1.1 - k * .12, h, 7, shade(c1, 1 - k * .05), .78);
+            for (let q = 0; q < 4; q++) g.cyl(Math.cos(a) * r, .25 + q * (h / 4), Math.sin(a) * r, 1.15 - k * .12 - q * .05, .13, 7, shade(c2, 1.06));
+          }
+          for (let k = 0; k < 3; k++) g.cyl(rr() * 2.6 - 1.3, .3, rr() * 2.6 - 1.3, .16, 1.5, 6, hex(0x4e8b52));
+          break;
+        }
+        case 'winter': {                                    // an ice floe
+          for (let k = 0; k < 5; k++) {
+            const a = k / 5 * TAU;
+            g.cyl(Math.cos(a) * 1.1, 0, Math.sin(a) * 1.1, .9 + (k % 3) * .3, 1.1 + (k % 4) * .55, 6, shade(c1, .96 + (k % 3) * .06), .72);
+          }
+          for (let k = 0; k < 4; k++) g.cone(Math.cos(k * 1.7) * 1.5, 1.2, Math.sin(k * 1.7) * 1.5, .35, 1.6 + (k % 2) * .7, 5, shade(c2, 1.06));
+          g.cyl(0, -.1, 0, 2.6, .3, 12, hex(0xf5fbff));
+          break;
+        }
+        case 'jungle': {                                    // mossy boulders swallowed by growth
+          for (let k = 0; k < 4; k++) { const a = k / 4 * TAU + .5; this.rock(g, Math.cos(a) * 1.1, 0, Math.sin(a) * 1.1, .95 + (k % 3) * .22, k, shade(c3, 1.05)); }
+          for (let k = 0; k < 7; k++) { const a = k / 7 * TAU; g.sphere(Math.cos(a) * 1.5, 1.0 + (k % 3) * .35, Math.sin(a) * 1.5, .5, 5, shade(c1, .95 + (k % 3) * .08)); }
+          for (let k = 0; k < 4; k++) g.beam(Math.cos(k * 1.6) * 1.3, 1.8, Math.sin(k * 1.6) * 1.3, Math.cos(k * 1.6) * 1.8, .2, Math.sin(k * 1.6) * 1.8, .1, .1, c1);
+          break;
+        }
+        case 'scifi': {                                     // a crashed meteor fragment
+          g.cyl(0, -.15, 0, 2.4, .35, 12, shade(c3, 1.1));
+          for (let k = 0; k < 4; k++) { const a = k / 4 * TAU + .4; g.sphere(Math.cos(a) * .8, .5 + (k % 2) * .5, Math.sin(a) * .8, 1.0 - (k % 3) * .18, 6, shade(c3, .9 + (k % 3) * .1)); }
+          for (let k = 0; k < 5; k++) { const a = k / 5 * TAU; g.box(Math.cos(a) * 1.1, .4 + (k % 3) * .5, Math.sin(a) * 1.1, .28, .28, .28, acc); }
+          blink(0, 1.8, 0, .3, acc, 1.0);
+          break;
+        }
+        case 'pirate': {                                    // rocks, a wreck rib and a chest
+          for (let k = 0; k < 4; k++) { const a = k / 4 * TAU; this.rock(g, Math.cos(a) * 1.2, 0, Math.sin(a) * 1.2, .85 + (k % 3) * .2, k + 9, shade(c3, 1.25)); }
+          for (let k = 0; k < 4; k++) g.beam(-1.4 + k * .55, .1, 1.2, -1.0 + k * .55, 2.2 - (k % 2) * .5, .6, .16, .16, c1);
+          g.box(1.2, .1, -1.0, 1.1, .7, .8, c1); g.cyl(1.2, .8, -1.0, .55, .7, 8, c2, 1);
+          g.box(1.2, .5, -1.42, .3, .3, .1, gold);
+          break;
+        }
+        case 'halloween': {                                 // tombstones among the rocks
+          for (let k = 0; k < 3; k++) { const a = k / 3 * TAU; this.rock(g, Math.cos(a) * 1.3, 0, Math.sin(a) * 1.3, .8, k + 4, shade(c2, 1.4)); }
+          for (let k = 0; k < 2; k++) {
+            const x = -.9 + k * 1.8, lean = (k ? .1 : -.12);
+            g.box(x, .1, .3, .85, 1.3, .2, shade(c2, 1.5));
+            g.cyl(x, 1.4, .3, .43, .18, 8, shade(c2, 1.55));
+            g.box(x, .6, .18, .5, .1, .05, shade(c3, 1.6));
+          }
+          for (let k = 0; k < 3; k++) g.sphere(rr() * 2 - 1, .1, rr() * 2 - 1, .3, 5, shade(c3, 1.3));
+          break;
+        }
+        default: {                                          // a natural outcrop
+          for (let k = 0; k < 5; k++) { const a = k / 5 * TAU + .3; this.rock(g, Math.cos(a) * 1.15, 0, Math.sin(a) * 1.15, .8 + (k % 3) * .25, k, shade(c1, 1.05)); }
+          this.rock(g, 0, .5, 0, 1.0, 7, shade(c2, 1.1));
+          for (let k = 0; k < 3; k++) g.sphere(Math.cos(k * 2.2) * 1.7, .2, Math.sin(k * 2.2) * 1.7, .35, 5, hex(0x5f9b56));
+          break;
+        }
+      } break;
+
+      /* =============== PLANTING =============== */
+      case 'plant': switch (genre) {
+        case 'desert': case 'egypt':
+          g.cyl(0, -.05, 0, 1.1, .2, 10, shade(c2, 1.05));
+          g.cyl(0, .1, 0, .42, 3.0, 8, hex(0x4e8b52));
+          for (const sx of [-1, 1]) {
+            g.cyl(sx * .85, 1.2, 0, .24, 1.4, 6, hex(0x4e8b52));
+            g.beam(sx * .85, 1.2, 0, sx * .3, 1.2, 0, .24, .24, hex(0x4e8b52));
+          }
+          for (let k = 0; k < 4; k++) g.sphere(Math.cos(k * 1.7) * .42, 2.8 + (k % 2) * .3, Math.sin(k * 1.7) * .42, .13, 5, acc);
+          break;
+        case 'japan':
+          g.cyl(0, -.05, 0, 1.2, .25, 10, shade(c2, 1.0));
+          g.cyl(0, .2, 0, .24, 1.4, 6, c3);
+          g.beam(0, 1.4, 0, .8, 2.1, .2, .17, .17, c3);
+          g.beam(.8, 2.1, .2, .3, 2.6, -.3, .13, .13, c3);
+          for (const [px, py, pz, r] of [[.9, 2.3, .3, .85], [.1, 2.9, -.3, .7], [-.6, 2.0, .2, .55]]) {
+            g.cyl(px, py, pz, r, .3, 10, c1); g.cyl(px, py + .3, pz, r * .7, .22, 10, shade(c1, 1.1));
+          }
+          for (let k = 0; k < 5; k++) g.sphere(Math.cos(k * 1.5) * 1.0, .25, Math.sin(k * 1.5) * 1.0, .22, 5, shade(c2, 1.15));
+          break;
+        case 'jungle':
+          g.cyl(0, -.05, 0, 1.2, .25, 10, shade(c3, .95));
+          for (let k = 0; k < 7; k++) {
+            const a = k / 7 * TAU;
+            g.beam(0, .2, 0, Math.cos(a) * 1.7, 1.9 + (k % 3) * .5, Math.sin(a) * 1.7, .55, .10, shade(c1, .92 + (k % 3) * .1));
+            g.beam(Math.cos(a) * 1.7, 1.9 + (k % 3) * .5, Math.sin(a) * 1.7, Math.cos(a) * 2.3, 1.2 + (k % 3) * .4, Math.sin(a) * 2.3, .45, .08, shade(c1, .88));
+          }
+          for (let k = 0; k < 3; k++) g.sphere(Math.cos(k * 2) * .5, .5 + k * .4, Math.sin(k * 2) * .5, .22, 5, acc);
+          break;
+        case 'halloween':
+          g.cyl(0, -.05, 0, 1.1, .25, 8, shade(c3, 1.2));
+          g.cyl(0, .2, 0, .28, 2.2, 6, shade(c3, 1.1), .6);
+          for (let k = 0; k < 5; k++) {
+            const a = k / 5 * TAU;
+            g.beam(0, 2.0, 0, Math.cos(a) * 1.3, 3.0 + (k % 2) * .5, Math.sin(a) * 1.3, .12, .12, shade(c3, 1.05));
+            g.beam(Math.cos(a) * 1.3, 3.0 + (k % 2) * .5, Math.sin(a) * 1.3, Math.cos(a + .5) * 1.8, 3.4 + (k % 2) * .3, Math.sin(a + .5) * 1.8, .07, .07, shade(c3, .95));
+          }
+          g.sphere(.6, .35, .5, .45, 6, hex(0xf07a1e));
+          break;
+        case 'winter':
+          g.cyl(0, -.05, 0, 1.1, .25, 8, shade(c3, 1.0));
+          g.cyl(0, .2, 0, .26, 1.0, 6, hex(0x6b4a2f));
+          for (let k = 0; k < 5; k++) {
+            const y = 1.0 + k * .7, r = 1.5 - k * .26;
+            for (let q = 0; q < 8; q++) { const a = q / 8 * TAU + k * .4; g.beam(0, y, 0, Math.cos(a) * r, y - .35, Math.sin(a) * r, .22, .10, shade(hex(0x2f6b46), 1 + (k % 2) * .1)); }
+            g.cyl(0, y - .1, 0, r * .8, .1, 10, hex(0xf5fbff));
+          }
+          g.cone(0, 4.4, 0, .3, .6, 5, hex(0xf5fbff));
+          break;
+        case 'fairytale':
+          g.cyl(0, -.05, 0, 1.2, .3, 10, hex(0xf8f4f8));
+          for (let k = 0; k < 6; k++) {
+            const a = k / 6 * TAU;
+            g.cyl(Math.cos(a) * .5, .25, Math.sin(a) * .5, .07, 1.3 + (k % 3) * .35, 5, hex(0x4e9b52));
+            g.sphere(Math.cos(a) * .5, 1.6 + (k % 3) * .35, Math.sin(a) * .5, .30, 6, [acc, hex(0xfff0f6), hex(0xd9b8e6)][k % 3]);
+            for (let q = 0; q < 4; q++) { const b2 = q / 4 * TAU; g.sphere(Math.cos(a) * .5 + Math.cos(b2) * .28, 1.6 + (k % 3) * .35, Math.sin(a) * .5 + Math.sin(b2) * .28, .17, 5, [acc, hex(0xfff0f6), hex(0xd9b8e6)][k % 3]); }
+          }
+          break;
+        case 'scifi':
+          g.cyl(0, -.05, 0, 1.1, .3, 10, c2);
+          g.cyl(0, .25, 0, .8, .25, 10, c1);
+          for (let k = 0; k < 5; k++) {
+            const a = k / 5 * TAU;
+            g.beam(0, .5, 0, Math.cos(a) * 1.0, 2.2 + (k % 2) * .5, Math.sin(a) * 1.0, .16, .16, shade(hex(0x3fd8a4), 1 - (k % 2) * .1));
+            g.sphere(Math.cos(a) * 1.0, 2.3 + (k % 2) * .5, Math.sin(a) * 1.0, .28, 6, acc);
+          }
+          blink(0, 1.4, 0, .22, acc, 1.6);
+          break;
+        case 'steampunk':
+          g.cyl(0, -.05, 0, 1.1, .3, 10, iron);
+          for (let k = 0; k < 4; k++) g.cyl(0, .05 + k * .18, 0, 1.12, .1, 10, gold);
+          g.cyl(0, .3, 0, .3, 1.6, 8, c2);
+          for (let k = 0; k < 4; k++) {
+            const a = k / 4 * TAU;
+            g.beam(0, 1.5, 0, Math.cos(a) * 1.1, 2.4, Math.sin(a) * 1.1, .13, .13, shade(c2, 1.12));
+            g.cyl(Math.cos(a) * 1.1, 2.4, Math.sin(a) * 1.1, .34, .3, 8, gold, 1.6);
+          }
+          break;
+        case 'circus': case 'retro':
+          g.cyl(0, -.05, 0, 1.15, .35, 12, c3);
+          for (let k = 0; k < 12; k++) { const a = k / 12 * TAU; g.box(Math.cos(a) * 1.16, .05, Math.sin(a) * 1.16, .3, .28, .3, k % 2 ? acc : hex(0xf5f5f5)); }
+          g.sphere(0, 1.1, 0, .95, 7, hex(0x4e9b52));
+          for (let k = 0; k < 7; k++) { const a = k / 7 * TAU; g.sphere(Math.cos(a) * .7, 1.3 + (k % 3) * .25, Math.sin(a) * .7, .25, 5, [acc, hex(0xffd23f), hex(0xff6f91)][k % 3]); }
+          break;
+        default:                                            // a clipped shrub in an urn
+          g.cyl(0, -.05, 0, 1.05, .3, 10, c2);
+          g.cyl(0, .25, 0, .75, .7, 10, c2, 1.3);
+          g.cyl(0, .95, 0, .95, .16, 10, shade(c2, 1.12));
+          g.sphere(0, 1.75, 0, .95, 7, hex(0x4e9b52));
+          g.sphere(0, 2.55, 0, .62, 7, hex(0x5aa85c));
+          for (let k = 0; k < 5; k++) { const a = k / 5 * TAU; g.sphere(Math.cos(a) * .7, 1.8, Math.sin(a) * .7, .18, 5, acc); }
+          break;
+      } break;
+
+      /* =============== BANNERS =============== */
+      case 'banner': {
+        const pole = (col, h) => { g.cyl(0, 0, 0, .14, h, 8, col); g.cyl(0, -.05, 0, .42, .3, 8, shade(col, .88)); return h; };
+        switch (genre) {
+          case 'japan': {
+            const h = pole(c1, 4.6);
+            for (let k = 0; k < 3; k++) {                    // vertical nobori banner
+              g.box(.55, h - 1.2 - k * 1.1, 0, 1.1, 1.05, .05, k % 2 ? c1 : hex(0xf2ead6));
+            }
+            g.beam(0, h, 0, 1.15, h, 0, .09, .09, c1);
+            g.sphere(0, h + .2, 0, .18, 6, gold);
+            for (let k = 0; k < 2; k++) {                    // paper lanterns
+              const lan = new Geo();
+              lan.cyl(0, -.55, 0, .3, .55, 10, c1); lan.cyl(0, -.6, 0, .2, .08, 10, gold); lan.cyl(0, 0, 0, .2, .08, 10, gold);
+              parts.push({ geo: lan, anim: (m, o, t) => M4.compose(m, .35 + k * .5, h - .3, 0, 0, 0, Math.sin(t + k) * .16, 1, 1, 1) });
+            }
+            break;
+          }
+          case 'circus': {
+            const h = pole(white, 4.4);
+            for (let k = 0; k < 7; k++) g.cyl(0, .2 + k * .6, 0, .17, .3, 8, k % 2 ? c2 : white);
+            const fl = new Geo();
+            for (let k = 0; k < 5; k++) fl.box(.5 + k * .0, -.4 - k * .0, 0, 1.4, .3, .05, [acc, c2, hex(0xff6f91), hex(0x69d2f0), acc][k]);
+            for (let k = 0; k < 5; k++) fl.box(.5, -.3 - k * .34, 0, 1.4 - k * .1, .3, .05, [acc, c2, hex(0xff6f91), hex(0x69d2f0), acc][k]);
+            parts.push({ geo: fl, anim: (m, o, t) => M4.compose(m, .1, h - .3, 0, 0, Math.sin(t * .9) * .3, 0, 1, 1, 1) });
+            g.sphere(0, h + .2, 0, .24, 7, acc);
+            break;
+          }
+          case 'halloween': {
+            const h = pole(iron, 4.2);
+            const fl = new Geo();
+            for (let k = 0; k < 4; k++) fl.box(.7, -.5 - k * .7, 0, 1.4, .65, .05, k % 2 ? c1 : shade(c1, 1.15));
+            for (let k = 0; k < 3; k++) fl.triV([.2 + k * .5, -3.3, 0], [.7 + k * .5, -3.3, 0], [.45 + k * .5, -3.9, 0], c1);
+            parts.push({ geo: fl, anim: (m, o, t) => M4.compose(m, .1, h, 0, 0, Math.sin(t * .8) * .35, 0, 1, 1, 1) });
+            g.sphere(0, h + .25, 0, .2, 6, acc);
+            blink(0, h + .25, 0, .26, acc, 1.1);
+            break;
+          }
+          case 'scifi': {
+            const h = pole(c2, 4.4);
+            const fl = new Geo();
+            for (let k = 0; k < 4; k++) fl.box(.65, -.45 - k * .7, 0, 1.3, .62, .05, k % 2 ? c1 : acc);
+            parts.push({ geo: fl, anim: (m, o, t) => M4.compose(m, .1, h - .1, 0, 0, Math.sin(t * 1.2) * .22, 0, 1, 1, 1) });
+            for (let k = 0; k < 3; k++) g.cyl(0, 1.0 + k * .9, 0, .24, .12, 8, acc);
+            blink(0, h + .3, 0, .22, acc, 2.2);
+            break;
+          }
+          case 'steampunk': {
+            const h = pole(c2, 4.2);
+            for (let k = 0; k < 5; k++) { g.cyl(0, .4 + k * .7, 0, .2, .1, 8, gold); g.sphere(0, .4 + k * .7, -.19, .07, 4, gold); }
+            const fl = new Geo();
+            for (let k = 0; k < 4; k++) fl.box(.7, -.45 - k * .7, 0, 1.4, .62, .05, k % 2 ? c1 : shade(c1, 1.12));
+            fl.box(.7, -3.2, -.03, 1.4, .12, .02, gold);
+            parts.push({ geo: fl, anim: (m, o, t) => M4.compose(m, .1, h, 0, 0, Math.sin(t * .85) * .3, 0, 1, 1, 1) });
+            { const cog = new Geo();
+              for (let k = 0; k < 8; k++) { const a = k / 8 * TAU; cog.box(Math.cos(a) * .3, Math.sin(a) * .3, 0, .12, .12, .1, gold); }
+              cog.cyl(0, 0, -.05, .24, .1, 10, shade(gold, .86)); spin(cog, 0, h + .3, 0, 1.0, 'z'); }
+            break;
+          }
+          case 'pirate': {
+            const h = pole(c1, 4.6);
+            g.beam(0, h, 0, 1.5, h, 0, .1, .1, c2);
+            const fl = new Geo();
+            fl.box(.75, -.75, 0, 1.5, 1.5, .05, hex(0x1c1c22));
+            fl.sphere(.65, -.6, -.04, .3, 7, white);
+            for (const sx of [-1, 1]) fl.beam(.35, -1.15, -.04, 1.15, -.95, -.04, .09, .09, white);
+            parts.push({ geo: fl, anim: (m, o, t) => M4.compose(m, .05, h, 0, 0, Math.sin(t * .9) * .35, 0, 1, 1, 1) });
+            break;
+          }
+          case 'winter': {
+            const h = pole(c3, 4.2);
+            for (let k = 0; k < 3; k++) g.box(0, 1.0 + k * 1.0, 0, .28, .1, .28, hex(0xf5fbff));
+            const fl = new Geo();
+            for (let k = 0; k < 4; k++) fl.box(.65, -.45 - k * .68, 0, 1.3, .6, .05, k % 2 ? c1 : acc);
+            fl.box(.65, -3.1, 0, 1.3, .12, .06, hex(0xf5fbff));
+            parts.push({ geo: fl, anim: (m, o, t) => M4.compose(m, .1, h - .1, 0, 0, Math.sin(t * .7) * .28, 0, 1, 1, 1) });
+            g.cone(0, h + .1, 0, .22, .4, 5, hex(0xf5fbff));
+            break;
+          }
+          default: {                                        // heraldic gonfalon
+            const h = pole(c2, 4.6);
+            g.beam(-.15, h - .1, 0, 1.5, h - .1, 0, .11, .11, gold);
+            for (const sx of [0, 1]) g.sphere(-.15 + sx * 1.65, h - .1, 0, .16, 6, gold);
+            const fl = new Geo();
+            for (let k = 0; k < 4; k++) fl.box(.75, -.5 - k * .72, 0, 1.5, .66, .05, k % 2 ? c1 : acc);
+            fl.triV([0, -3.35, 0], [.75, -4.0, 0], [.75, -3.35, 0], c1);
+            fl.triV([.75, -3.35, 0], [.75, -4.0, 0], [1.5, -3.35, 0], acc);
+            parts.push({ geo: fl, anim: (m, o, t) => M4.compose(m, .05, h - .1, 0, 0, Math.sin(t * .8) * .28, 0, 1, 1, 1) });
+            g.cone(0, h + .05, 0, .18, .5, 6, gold);
+            break;
+          }
+        }
+        break;
+      }
+
+      /* =============== FACADES: a whole street front in one piece ======= */
+      case 'facade': {
+        const W2 = 11.0, H2 = 5.4;
+        g.box(0, -.2, 0, W2 + 1.0, .5, 2.4, shade(c3, 1.0));
+        switch (genre) {
+          case 'western':
+            g.box(0, .3, 0, W2, H2, 1.4, c1);
+            for (let k = 0; k < 16; k++) g.box(-W2 / 2 + k * (W2 / 16) + W2 / 32, .3, -.72, .09, H2, .06, shade(c2, .95));
+            g.box(0, H2 + .3, 0, W2 + .5, 2.0, .5, c1);                 // false front
+            g.box(0, H2 + 2.3, 0, W2 + .9, .35, .8, c2);
+            g.triV([-(W2 + .5) / 2, H2 + 2.65, 0], [(W2 + .5) / 2, H2 + 2.65, 0], [0, H2 + 4.0, 0], c1);
+            g.box(0, H2 + 1.1, -.3, W2 * .6, 1.0, .1, acc);
+            for (let k = 0; k < 3; k++) { const x = -3.4 + k * 3.4; g.box(x, 1.4, -.75, 1.7, 2.0, .12, c3); g.box(x, 1.5, -.82, 1.4, 1.7, .06, glass); }
+            g.box(0, 3.2, -1.9, W2, .2, 2.4, c2);                        // porch roof
+            for (let k = 0; k < 5; k++) g.cyl(-4.4 + k * 2.2, .3, -2.9, .16, 2.9, 6, c2);
+            g.box(0, .3, -2.6, W2, .3, 2.0, shade(c2, 1.1));
+            for (let k = 0; k < 3; k++) g.cyl(3.0 + k * .8, .6, -2.2, .35, .9, 10, c2);
+            break;
+          case 'fairytale':
+            g.box(0, .3, 0, W2 - 2.5, H2, 1.4, c1);
+            for (const sx of [-1, 1]) {                                  // flanking turrets
+              g.cyl(sx * (W2 / 2 - .9), .3, 0, 1.3, H2 + 1.6, 12, c2);
+              g.cyl(sx * (W2 / 2 - .9), H2 + 1.9, 0, 1.55, .3, 12, shade(c2, 1.12));
+              g.cone(sx * (W2 / 2 - .9), H2 + 2.2, 0, 1.6, 3.4, 12, acc);
+              g.cyl(sx * (W2 / 2 - .9), H2 + 5.6, 0, .05, .8, 5, gold);
+              for (let k = 0; k < 3; k++) g.box(sx * (W2 / 2 - .9), 1.5 + k * 1.5, -1.3, .55, 1.0, .12, c3);
+            }
+            for (let k = 0; k <= 10; k++) { const a = k / 10 * PI; g.box(Math.cos(a) * 3.4, H2 + .3 + Math.sin(a) * 1.6, 0, .8, .8, 1.5, k % 2 ? c1 : shade(c1, 1.08)); }
+            g.cone(0, H2 + 2.0, 0, 3.6, 2.8, 8, acc);
+            g.box(0, 1.0, -.78, 2.0, 2.6, .12, c3);
+            for (let k = 0; k <= 6; k++) { const a = k / 6 * PI; g.box(Math.cos(a) * 1.0, 3.6 + Math.sin(a) * .8, -.78, .3, .3, .12, c3); }
+            break;
+          case 'scifi':
+            g.box(0, .3, 0, W2, H2, 1.4, c1);
+            for (let k = 0; k < 5; k++) g.box(-4.4 + k * 2.2, .5, -.76, 1.7, 3.6, .10, glass);
+            g.box(0, H2 + .3, 0, W2 + 1.2, .6, 2.0, c2);
+            for (let k = 0; k < 7; k++) g.box(-4.5 + k * 1.5, H2 + .9, 0, .55, 1.6 + (k % 3) * .8, 1.0, shade(c2, 1.12));
+            g.box(0, H2 + .1, -.9, W2 * .7, .18, .3, acc);
+            g.box(0, 4.4, -1.1, W2 * .5, .8, .3, c3);
+            g.box(0, 4.55, -1.3, W2 * .42, .5, .06, acc);
+            for (const sx of [-1, 1]) { g.cyl(sx * (W2 / 2 + .5), .3, 0, .3, 8.0, 8, c2); blink(sx * (W2 / 2 + .5), 8.5, 0, .26, acc, 1.8); }
+            break;
+          case 'egypt':
+            g.box(0, .3, 0, W2, H2, 1.6, c1, 1, .95, .88);
+            g.box(0, H2 + .3, 0, W2 + .8, .5, 2.0, c2);
+            for (let k = 0; k < 12; k++) g.box(-W2 / 2 + .5 + k * ((W2 - 1) / 11), H2 + .8, 0, .55, .7, 1.8, shade(c1, 1.1));
+            for (let k = 0; k < 4; k++) {
+              const x = -3.9 + k * 2.6;
+              g.cyl(x, .3, -1.0, .55, H2 - .6, 10, shade(c1, 1.06), .88);
+              g.cyl(x, H2 - .3, -1.0, .75, .5, 10, acc);
+              for (let q = 0; q < 4; q++) g.box(x, .8 + q * 1.0, -1.6, .8, .55, .08, q % 2 ? acc : shade(c2, 1.1));
+            }
+            g.box(0, .3, -.85, 2.4, 3.6, .14, c3);
+            break;
+          case 'japan':
+            g.box(0, .3, 0, W2, H2 - 1.2, 1.4, c2);
+            for (let k = 0; k < 6; k++) g.cyl(-4.5 + k * 1.8, .3, -.75, .28, H2 - 1.2, 8, c1);
+            for (let k = 0; k < 5; k++) { g.box(-3.6 + k * 1.8, 1.2, -.8, 1.4, 2.4, .08, hex(0xf2ead6)); }
+            for (const lvl of [0, 1]) {
+              const y = .3 + (H2 - 1.2) + lvl * 1.7, ov = 7.4 - lvl * 1.2;
+              for (let k = 0; k < 16; k++) {
+                const t2 = (k + .5) / 16, u = -ov + t2 * ov * 2;
+                const lift = Math.pow(Math.abs(t2 - .5) * 2, 2.5) * .85;
+                g.box(u, y + lift, -1.4, ov * 2 / 16 - .05, .22, 1.7, c1);
+                g.box(u, y + lift, 1.0, ov * 2 / 16 - .05, .22, 1.4, c1);
+              }
+              g.box(0, y - .3, 0, W2 - lvl * 2, 1.3, 1.2, lvl ? c2 : shade(c2, 1.05));
+            }
+            g.box(0, H2 + 2.4, 0, W2 * .5, .35, .5, gold);
+            break;
+          case 'halloween':
+            g.box(0, .3, 0, W2, H2, 1.4, c1);
+            for (let k = 0; k < 4; k++) { const x = -4.0 + k * 2.7; g.box(x, 1.4, -.75, 1.3, 2.0, .12, c3); g.box(x, 1.5, -.85, 1.0, 1.7, .06, k === 1 ? acc : hex(0x120c1a)); for (let q = 0; q < 3; q++) g.box(x, 1.5 + q * .7, -.9, 1.5, .16, .06, shade(hex(0x6b4a2f), 1)); }
+            for (const sx of [-1, 1]) {
+              g.triV([sx * 1.2, H2 + .3, -.7], [sx * 5.2, H2 + .3, -.7], [sx * 3.2, H2 + 2.6, -.7], shade(c2, 1.12));
+              g.cone(sx * 3.2, H2 + 2.6, -.5, .35, 1.2, 4, c3);
+            }
+            g.box(0, H2 + .3, 0, W2 + .6, .4, 1.8, c2);
+            for (let k = 0; k < 13; k++) g.cyl(-4.8 + k * .8, H2 + .7, 0, .05, .45 + (k % 2) * .2, 5, iron);
+            g.box(0, H2 + 1.1, -.9, W2 * .45, .9, .12, c3);
+            g.box(0, H2 + 1.25, -1.0, W2 * .38, .55, .05, acc);
+            flame(-W2 / 2 + .6, 3.4, -.9, .22, acc); flame(W2 / 2 - .6, 3.4, -.9, .22, acc);
+            break;
+          case 'circus':
+            for (let k = 0; k < 18; k++) {                                // striped big-top wall
+              const x = -W2 / 2 + k * (W2 / 18);
+              g.box(x + W2 / 36, .3, 0, W2 / 18, H2, 1.4, k % 2 ? c2 : white);
+            }
+            for (let k = 0; k <= 18; k++) {                               // scalloped hem
+              const x = -W2 / 2 + k * (W2 / 18);
+              if (k < 18) g.triV([x, H2 + .3, -.72], [x + W2 / 18, H2 + .3, -.72], [x + W2 / 36, H2 - .4, -.72], k % 2 ? white : c2);
+            }
+            g.box(0, H2 + .3, 0, W2 + .8, .5, 1.8, c3);
+            this.lightBulbs(g, 0, H2 + .3, -.95, W2 * .45, 22, hex(0xfff3c4));
+            g.box(0, H2 + .8, -.6, W2 * .5, 1.5, .3, c2);
+            g.box(0, H2 + 1.0, -.8, W2 * .42, 1.0, .06, white);
+            for (let k = 0; k < 5; k++) { const px = -3.6 + k * 1.8; g.cyl(px, H2 + 2.3, 0, .05, .8, 5, iron); g.triV([px, H2 + 3.1, 0], [px + .8, H2 + 2.95, 0], [px, H2 + 2.7, 0], [acc, c2, hex(0xff6f91)][k % 3]); }
+            break;
+          case 'pirate':
+            g.box(0, .3, 0, W2, H2, 1.5, c1);
+            for (let k = 0; k < 9; k++) g.box(0, .4 + k * .6, -.78, W2, .18, .08, shade(c2, 1.1));
+            g.box(0, H2 + .3, 0, W2 + .8, .45, 2.0, c2);
+            for (let k = 0; k < 3; k++) { const x = -3.4 + k * 3.4; g.cyl(x, 1.6, -.8, .75, .16, 10, c2); g.cyl(x, 1.62, -.86, .6, .1, 10, glass); }
+            g.cyl(-W2 / 2 + 1.0, .3, .2, .3, 9.0, 8, c1, .8);            // a mast through the roof
+            g.beam(-W2 / 2 + 1.0 - 2.0, 6.4, .2, -W2 / 2 + 1.0 + 2.0, 6.4, .2, .14, .14, c2);
+            g.box(-W2 / 2 + 1.0, 6.4, .2, 3.2, 2.0, .08, shade(white, .95));
+            g.box(2.0, H2 + .9, -.7, 4.4, 1.2, .14, c1);
+            g.box(2.0, H2 + 1.05, -.8, 3.7, .8, .05, acc);
+            break;
+          case 'jungle':
+            g.box(0, .3, 0, W2, H2, 1.6, shade(c3, 1.05));
+            for (let k = 0; k < 4; k++) { const x = -4.0 + k * 2.7; g.box(x, .3, -.85, 1.6, 3.6, .18, shade(c3, .9)); for (let q = 0; q < 3; q++) { g.sphere(x - .35, 1.0 + q * 1.1, -.95, .16, 5, acc); g.sphere(x + .35, 1.0 + q * 1.1, -.95, .16, 5, acc); } }
+            for (let k = 0; k < 3; k++) g.box(0, H2 + .3 + k * .55, 0, W2 + 1.2 - k * 1.0, .55, 2.0 - k * .3, shade(c3, 1.0 + k * .06));
+            for (let k = 0; k < 22; k++) {                                // thatch course
+              const x = -W2 / 2 - .5 + k * ((W2 + 1) / 22);
+              g.box(x, H2 + 1.9, -.9, (W2 + 1) / 22 - .04, .5, .5, shade(hex(0xc9a86a), 1 - (k % 3) * .07));
+            }
+            for (let k = 0; k < 8; k++) { const x = -4.6 + k * 1.3; g.beam(x, H2 + .3, -.9, x + ((k * 5) % 3 - 1) * .4, H2 - 1.4 - (k % 3) * .7, -.5, .1, .1, c1); g.sphere(x + ((k * 5) % 3 - 1) * .4, H2 - 1.5 - (k % 3) * .7, -.5, .3, 5, c1); }
+            break;
+          case 'winter':
+            g.box(0, .3, 0, W2, H2 - .8, 1.4, c2);
+            for (let k = 0; k < 10; k++) g.box(0, .4 + k * .45, -.72, W2, .2, .1, shade(c3, 1.05));
+            for (let k = 0; k < 4; k++) { const x = -4.0 + k * 2.7; g.box(x, 1.6, -.76, 1.4, 1.6, .1, c3); g.box(x, 1.7, -.84, 1.1, 1.3, .05, glass); for (const sx of [-1, 1]) g.box(x + sx * .85, 1.6, -.84, .34, 1.6, .08, acc); }
+            g.triV([-(W2 + 1.4) / 2, H2 - .5, -1.0], [(W2 + 1.4) / 2, H2 - .5, -1.0], [0, H2 + 2.4, -1.0], c3);
+            g.box(0, H2 - .5, 0, W2 + 1.4, .3, 2.4, c3);
+            for (let k = 0; k < 8; k++) g.cone(-4.5 + k * 1.3, H2 - .6, -1.05, .13, -(.4 + (k % 3) * .3), 5, hex(0xdff2fb));
+            for (let k = 0; k < 5; k++) g.box(-3.6 + k * 1.8, H2 - .35, -.6, 1.6, .18, 1.6, hex(0xf5fbff));
+            g.box(3.6, .3, -1.4, 1.6, 1.4, 1.2, shade(c3, .9));           // log pile
+            for (let k = 0; k < 6; k++) g.cyl(3.1 + (k % 3) * .5, .4 + ((k / 3) | 0) * .5, -1.4, .24, .5, 8, hex(0x8b6239));
+            break;
+          case 'retro':
+            g.box(0, .3, 0, W2, H2 - 1.0, 1.4, c1);
+            for (let k = 0; k < 4; k++) { const x = -4.0 + k * 2.7; g.box(x, .5, -.78, 2.1, 3.0, .1, glass); g.box(x, .5, -.84, 2.2, .2, .06, c3); }
+            g.box(0, H2 - .7, 0, W2 + 1.0, .5, 1.8, c3);
+            g.box(0, H2 - .2, 0, W2 + 1.0, .22, 1.8, acc);
+            g.box(0, H2 + .0, 0, W2 + 1.0, .22, 1.8, c2);
+            for (let k = 0; k < 3; k++) g.box(0, H2 + .3 + k * .35, 0, (W2 + 1.0) - k * 2.4, .3, 1.6, k % 2 ? acc : hex(0xe8eef2));
+            g.box(-3.0, H2 + 1.4, -.5, 5.0, 1.8, .3, c3);
+            g.box(-3.0, H2 + 1.6, -.7, 4.3, 1.2, .06, acc);
+            this.lightBulbs(g, -3.0, H2 + 1.35, -.75, 2.3, 16, hex(0xfff3c4));
+            for (const sx of [-1, 1]) g.cyl(sx * (W2 / 2 + .4), .3, -.4, .22, H2 + 1.2, 10, hex(0xe8eef2));
+            break;
+          case 'steampunk':
+            g.box(0, .3, 0, W2, H2, 1.5, c1);
+            for (let k = 0; k < 6; k++) { g.box(0, .4 + k * .9, -.78, W2, .2, .08, shade(c2, 1.12)); for (let q = 0; q < 14; q++) g.sphere(-5.0 + q * .78, .5 + k * .9, -.85, .07, 4, gold); }
+            for (let k = 0; k < 3; k++) { const x = -3.4 + k * 3.4; g.cyl(x, 1.8, -.8, .85, .2, 12, gold); g.cyl(x, 1.82, -.88, .68, .12, 12, glass); }
+            g.box(0, H2 + .3, 0, W2 + .8, .5, 2.0, shade(c2, 1.05));
+            for (const [cx, cy, r2, rate] of [[-3.2, H2 + 1.9, 1.3, .6], [1.0, H2 + 1.6, .95, -.8]]) {
+              const cog = new Geo(); const teeth = Math.round(r2 * 10);
+              for (let k = 0; k < teeth; k++) { const a = k / teeth * TAU; cog.box(Math.cos(a) * r2, Math.sin(a) * r2, 0, r2 * .34, r2 * .34, .24, gold); }
+              cog.cyl(0, 0, -.12, r2 * .8, .24, 14, shade(gold, .86));
+              spin(cog, cx, cy, -.8, rate, 'z');
+            }
+            g.cyl(4.2, H2 + .8, 0, .75, 3.2, 10, shade(c2, 1.1));
+            { const steam3 = new Geo();
+              for (let k = 0; k < 9; k++) steam3.sphere(Math.sin(k * 1.7) * (.11 + k * .09), k * .40, Math.cos(k * 1.7) * (.11 + k * .09), .42 + k * .10, 7, shade(hex(0xd8d5cf), 1 - k * .015));
+              parts.push({ geo: steam3, anim: (m, o, t) => M4.compose(m, 4.2, H2 + 4.0 + ((t * .4) % 1) * 1.1, 0, 0, t * .2, 0, 1, 1, 1) }); }
+            break;
+          case 'desert':
+            g.box(0, .3, 0, W2, H2, 1.6, c1, 1, .94, .86);
+            for (let k = 0; k < 3; k++) { const x = -3.4 + k * 3.4; for (let q = 0; q <= 6; q++) { const a = q / 6 * PI; g.box(x + Math.cos(a) * 1.0, 2.2 + Math.sin(a) * 1.0, -.82, .4, .4, .1, c2); } g.box(x, .3, -.82, 2.0, 2.2, .1, c3); }
+            g.box(0, H2 + .3, 0, W2 + .8, .45, 2.0, c2);
+            for (let k = 0; k < 13; k++) g.box(-4.8 + k * .8, H2 + .75, 0, .5, .65, 1.8, shade(c1, 1.08));
+            for (const sx of [-1, 1]) { g.cyl(sx * (W2 / 2 - .8), H2 + 1.4, 0, 1.0, .3, 10, c2); g.sphere(sx * (W2 / 2 - .8), H2 + 1.7, 0, .95, 9, acc); }
+            for (const sx of [-1, 1]) g.mergeM(Prefab.scenery('palm', sx + 5).base, M4.compose(M4.create(), sx * (W2 / 2 + 1.2), 0, -1.2, 0, sx, 0, .75, .8, .75));
+            break;
+          default:                                          // classic parade terrace
+            g.box(0, .3, 0, W2, H2, 1.5, c1);
+            g.box(0, .3, -.8, W2, .5, .5, shade(c2, 1.05));
+            for (let k = 0; k < 4; k++) { const x = -4.0 + k * 2.7; g.box(x, 1.3, -.8, 1.6, 2.4, .12, c2); g.box(x, 1.4, -.88, 1.3, 2.0, .06, glass); g.box(x, 3.8, -.9, 1.9, .22, .3, shade(c2, 1.15)); }
+            g.box(0, H2 + .3, 0, W2 + 1.0, .55, 2.0, c2);
+            g.box(0, H2 + .85, 0, W2 + .4, .35, 1.7, shade(c1, 1.08));
+            for (let k = 0; k < 9; k++) g.cyl(-4.4 + k * 1.1, H2 + 1.2, 0, .18, .8, 8, shade(c2, 1.12));
+            g.box(0, H2 + 2.0, 0, W2 * .55, .9, 1.6, c1);
+            g.box(0, H2 + 2.2, -.85, W2 * .45, .55, .06, acc);
+            g.box(0, 4.0, -1.7, W2 * .8, .18, 1.8, acc);    // awning
+            for (let k = 0; k < 5; k++) g.cyl(-4.0 + k * 2.0, .3, -2.4, .14, 3.7, 8, shade(c2, 1.1));
+            break;
+        }
+        break;
+      }
+
+      /* =============== PROPS: the small clutter that sells a land ======= */
+      case 'prop': switch (genre) {
+        case 'pirate':
+          g.cyl(-.5, 0, 0, .55, 1.2, 10, c1);
+          for (let k = 0; k < 3; k++) g.cyl(-.5, .15 + k * .45, 0, .58, .12, 10, iron);
+          g.box(.7, 0, .3, 1.1, .7, .8, c1);
+          g.cyl(.7, .7, .3, .58, .5, 8, c2, 1);
+          g.box(.7, .45, -.05, .3, .3, .1, gold);
+          for (let k = 0; k < 4; k++) g.sphere(.4 + (k % 2) * .5, .95, .3 + ((k / 2) | 0) * .3, .13, 5, gold);
+          break;
+        case 'halloween':
+          for (let k = 0; k < 3; k++) {
+            const px = -.6 + k * .6, py = k === 1 ? .95 : .0, r = .5 - (k === 1 ? .1 : 0);
+            g.sphere(px, py + r, k * .1, r, 8, hex(0xf07a1e));
+            for (let q = 0; q < 5; q++) { const a = q / 5 * TAU; g.beam(px, py + r * .2, k * .1, px + Math.cos(a) * r, py + r, k * .1 + Math.sin(a) * r, .07, .07, shade(hex(0xd9661a), 1)); }
+            g.cyl(px, py + r * 1.9, k * .1, .09, .3, 5, hex(0x4e7a3a));
+            if (k === 1) { g.sphere(px - .17, py + r + .05, -.42, .1, 4, hex(0x120c1a)); g.sphere(px + .17, py + r + .05, -.42, .1, 4, hex(0x120c1a)); g.box(px, py + r - .2, -.42, .3, .1, .06, hex(0x120c1a)); }
+          }
+          break;
+        case 'circus':
+          for (let k = 0; k < 6; k++) {
+            const a = k / 6 * TAU;
+            g.cyl(Math.cos(a) * .3, .05, Math.sin(a) * .3, .04, .9 + (k % 3) * .35, 4, white);
+            g.sphere(Math.cos(a) * .3, .95 + (k % 3) * .35, Math.sin(a) * .3, .38, 7, [hex(0xff6f91), acc, hex(0x69d2f0), hex(0x8fe37a), hex(0xc38fe8), c2][k]);
+          }
+          g.cyl(0, 0, 0, .45, .12, 10, c3);
+          break;
+        case 'scifi':
+          g.box(0, 0, 0, 1.4, 1.0, 1.0, c1);
+          for (let k = 0; k < 3; k++) g.box(0, .15 + k * .3, -.52, 1.2, .12, .06, c2);
+          g.cyl(0, 1.0, 0, .4, 1.1, 8, c2);
+          g.cyl(0, 2.1, 0, .55, .2, 8, c1);
+          blink(0, 2.4, 0, .26, acc, 1.6);
+          for (const sx of [-1, 1]) g.cyl(sx * .55, 1.2, 0, .12, .8, 6, shade(c2, 1.15));
+          break;
+        case 'western':
+          for (let k = 0; k < 3; k++) g.cyl(-.6 + k * .6, 0, (k % 2) * .4, .38, .85, 10, c1);
+          for (let k = 0; k < 3; k++) g.cyl(-.6 + k * .6, .85, (k % 2) * .4, .4, .08, 10, iron);
+          g.beam(-1.1, .05, -.7, 1.1, .05, -.7, .5, .3, c2, 0, 0, 1);   // hay bale
+          for (let k = 0; k < 4; k++) g.beam(-1.1, .1 + k * .0, -.7 + k * .0, 1.1, .1, -.7, .12, .34, shade(acc, 1 - k * .05), 0, 0, 1);
+          break;
+        case 'japan':
+          g.cyl(0, 0, 0, .7, .18, 10, c2);
+          g.cyl(0, .18, 0, .5, .55, 10, shade(c2, 1.1));
+          g.cyl(0, .73, 0, .52, .07, 10, hex(0x2f6b8c));                 // water basin
+          g.beam(-.9, .8, .5, .1, 1.5, .5, .12, .12, hex(0x6b8f4a));     // bamboo spout
+          for (let k = 0; k < 3; k++) g.sphere(Math.cos(k * 2) * .9, .1, Math.sin(k * 2) * .9, .25, 5, shade(c2, .95));
+          g.cyl(.9, 0, -.6, .1, 1.1, 6, hex(0x6b8f4a));
+          break;
+        case 'steampunk':
+          g.cyl(0, 0, 0, .62, 1.3, 10, c1);
+          for (let k = 0; k < 4; k++) { g.cyl(0, .18 + k * .32, 0, .66, .12, 10, gold); for (let q = 0; q < 8; q++) { const a = q / 8 * TAU; g.sphere(Math.cos(a) * .66, .3 + k * .32, Math.sin(a) * .66, .05, 4, gold); } }
+          g.cyl(0, 1.3, 0, .34, .4, 8, shade(c2, 1.1));
+          g.cyl(.75, .5, 0, .3, .12, 10, gold);
+          { const cog = new Geo();
+            for (let k = 0; k < 8; k++) { const a = k / 8 * TAU; cog.box(Math.cos(a) * .35, Math.sin(a) * .35, 0, .14, .14, .12, gold); }
+            cog.cyl(0, 0, -.06, .28, .12, 10, shade(gold, .86)); spin(cog, -.8, .7, 0, 1.2, 'z'); }
+          break;
+        case 'egypt': case 'desert':
+          for (let k = 0; k < 3; k++) {
+            const px = -.55 + k * .55, py = k === 1 ? .0 : .0;
+            g.cyl(px, py, (k % 2) * .35, .34, .75, 10, c1, .72);
+            g.cyl(px, py + .75, (k % 2) * .35, .18, .2, 8, c2);
+            g.cyl(px, py + .1, (k % 2) * .35, .36, .1, 10, acc);
+          }
+          g.box(.8, 0, -.6, .9, .4, .7, c2);
+          for (let k = 0; k < 4; k++) g.sphere(.55 + (k % 2) * .5, .45, -.75 + ((k / 2) | 0) * .3, .16, 5, hex(0xd9a441));
+          break;
+        case 'jungle':
+          for (let k = 0; k < 3; k++) g.beam(-.9, .2 + k * .35, -.4, .9, .2 + k * .35, -.4, .3, .3, shade(c3, 1 - k * .05), 0, 0, 1);
+          g.box(.6, 0, .5, 1.1, .8, .9, shade(c3, 1.1));
+          for (let k = 0; k < 4; k++) g.sphere(.3 + (k % 2) * .55, .85, .3 + ((k / 2) | 0) * .4, .24, 5, [hex(0xf0c419), hex(0xd94f3c), hex(0x6ac46a), acc][k]);
+          for (let k = 0; k < 3; k++) g.beam(-.6 + k * .6, .8, .5, -.4 + k * .6, 1.5, .8, .3, .07, c1);
+          break;
+        case 'winter':
+          for (let k = 0; k < 4; k++) g.beam(-.8, .22 + ((k / 2) | 0) * .45, -.5 + (k % 2) * .5, .8, .22 + ((k / 2) | 0) * .45, -.5 + (k % 2) * .5, .38, .38, hex(0x8b6239), 0, 0, 1);
+          g.box(0, .68, -.25, 1.9, .12, 1.2, hex(0xf5fbff));
+          g.box(.8, 0, .8, .9, .55, .5, c3);                              // a sled
+          for (const sx of [-1, 1]) g.beam(.8 + sx * .0, .0, .55 + sx * .0, .8, .0, 1.05, .1, .1, iron, 0, 0, 1);
+          g.cyl(-.9, 0, .8, .34, .8, 8, c3);
+          g.sphere(-.9, .85, .8, .3, 6, hex(0xf5fbff));
+          break;
+        case 'retro':
+          g.cyl(-.6, 0, 0, .5, 1.6, 12, c3);                              // a jukebox-ish cabinet
+          g.cyl(-.6, 1.6, 0, .52, .3, 12, acc);
+          g.box(-.6, .5, -.45, .7, .7, .1, glass);
+          g.box(.7, 0, .2, 1.0, .9, .8, hex(0xe8eef2));                   // a cooler
+          g.box(.7, .9, .2, 1.05, .12, .85, acc);
+          for (let k = 0; k < 3; k++) g.cyl(.4 + k * .3, 1.02, .2, .12, .35, 8, k % 2 ? c2 : acc);
+          break;
+        case 'fairytale':
+          g.cyl(0, 0, 0, .75, .35, 10, hex(0xf8f4f8));
+          for (let k = 0; k < 10; k++) { const a = k / 10 * TAU; g.box(Math.cos(a) * .78, .05, Math.sin(a) * .78, .22, .3, .22, k % 2 ? acc : hex(0xf8f4f8)); }
+          g.cyl(0, .35, 0, .3, .5, 8, hex(0xd9b8e6));
+          for (let k = 0; k < 8; k++) { const a = k / 8 * TAU; g.sphere(Math.cos(a) * .45, .95 + (k % 3) * .2, Math.sin(a) * .45, .24, 5, [acc, hex(0xfff0f6), hex(0xd9b8e6)][k % 3]); }
+          g.sphere(0, 1.5, 0, .3, 6, gold);
+          break;
+        default:                                            // stacked crates and a barrow
+          for (let k = 0; k < 3; k++) {
+            const px = (k % 2) * .5 - .25, py = k === 2 ? .75 : 0, pz = ((k / 2) | 0) * .4;
+            g.box(px, py, pz, .8, .75, .8, k % 2 ? c1 : shade(c1, 1.08));
+            for (const e of [-1, 1]) g.box(px, py + .35, pz + e * .41, .82, .12, .04, shade(c2, 1.05));
+          }
+          g.box(1.1, .2, -.4, 1.0, .5, .7, c2);
+          g.cyl(1.5, .05, -.4, .3, .12, 10, iron, 1);
+          break;
+      } break;
+    }
+  },
+
   /* Highest vertex inside a footprint — used by the livery kit so it can
      sit a parapet on the eaves and a finial on the ridge without every
      building having to report its own heights. */
@@ -7733,9 +9229,9 @@ const Prefab = {
             g.box(sx2, k * .5, sz2, 1.30, .10, 1.30, shade(hex(0x6f3b2e), 1 + (k % 2) * .12));
           g.box(sx2, sh, sz2, 1.55, .35, 1.55, shade(hex(0x6f3b2e), 1.1));
           const smoke = new Geo();
-          for (let k = 0; k < 7; k++)
-            smoke.sphere(Math.sin(k * 1.7) * (.2 + k * .18), k * .95, Math.cos(k * 1.7) * (.2 + k * .18),
-              .40 + k * .17, 6, shade(hex(0xc9c6c0), 1 - k * .03));
+          for (let k = 0; k < 10; k++)
+            smoke.sphere(Math.sin(k * 1.7) * (.15 + k * .11), k * .48, Math.cos(k * 1.7) * (.15 + k * .11),
+              .46 + k * .12, 7, shade(hex(0xc9c6c0), 1 - k * .02));
           parts.push({ geo: smoke, anim: (m, o, t) => {
             const rise = (t * .35) % 1;
             return M4.compose(m, sx2, sh + .35 + rise * 1.2, sz2, 0, t * .2, 0, 1, 1, 1);
