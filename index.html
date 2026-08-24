@@ -4252,6 +4252,40 @@ const CAT = {
       need: 'hotel', hotelStyle: 'sail', tier: 'Icon', nightly: 420, quality: 1.0, price: 0, satisfy: 99,
       color: 0xf5f7f5, roof: 0xffffff, prestige: true, prestigeCost: 10,
       blurb: 'A billowing sail-shaped super-tower on its own island — the ultra-luxury flagship.' },
+
+    /* ---- new for the buildings overhaul: things a park has that are not
+       another food kiosk. Midway games and a fortune teller give the crowd
+       something to do between rides; the civic buildings (bandstand, picnic
+       shelter, guest services) are places to sit, shelter and ask, which is
+       what a real park puts between its attractions. Everything here is
+       assembled by the architecture kit, so each one arrives as a proper
+       building rather than a recoloured box. ---- */
+    { id: 'gamesstall', name: 'Midway Games', cost: 1900, up: 26, w: 2, d: 2, need: 'shop', price: 6, satisfy: 58,
+      color: 0xe8563f, roof: 0x2f80c0, games: true, beauty: 14 },
+    { id: 'hooplarow', name: 'Hoopla Row', cost: 2600, up: 32, w: 3, d: 2, need: 'shop', price: 7, satisfy: 62,
+      color: 0x2fb3a8, roof: 0xf2c14e, games: true, beauty: 16 },
+    { id: 'fortune', name: 'Fortune Teller', cost: 1600, up: 20, w: 2, d: 2, need: 'shop', price: 9, satisfy: 50,
+      color: 0x6b3fa0, roof: 0xf2c14e, beauty: 12 },
+    { id: 'facepaint', name: 'Face Painting', cost: 700, up: 12, w: 1, d: 1, need: 'shop', price: 5, satisfy: 38,
+      color: 0xff9ecb, roof: 0x7fd4e8 },
+    { id: 'sweetshop', name: 'Sweet Emporium', cost: 2100, up: 30, w: 3, d: 2, need: 'shop', price: 10, satisfy: 62,
+      color: 0xf07ab0, roof: 0xfff0c0, beauty: 10 },
+    { id: 'souvenirhall', name: 'Souvenir Hall', cost: 4200, up: 52, w: 4, d: 3, need: 'shop', price: 16, satisfy: 76,
+      color: 0x3f6fae, roof: 0xd9a441, beauty: 20 },
+    { id: 'pretzelhaus', name: 'Pretzel Haus', cost: 2300, up: 30, w: 3, d: 2, need: 'hunger', price: 10, satisfy: 74,
+      color: 0xc98f43, roof: 0x7a4a2f, beauty: 12 },
+    { id: 'cidergarden', name: 'Cider Garden', cost: 3200, up: 40, w: 4, d: 3, need: 'thirst', price: 9, satisfy: 82,
+      color: 0xb0762f, roof: 0x3f6b4a, beauty: 18 },
+    { id: 'foodcourt', name: 'Food Court', cost: 6200, up: 76, w: 5, d: 4, need: 'hunger', price: 12, satisfy: 94,
+      color: 0xe0a13f, roof: 0x8b4a3f, beauty: 22 },
+    { id: 'bandstand', name: 'Bandstand', cost: 2600, up: 34, w: 3, d: 3, need: 'shop', price: 0, satisfy: 0,
+      color: 0xf5efe2, roof: 0x2f7a5e, civic: true, bandstand: true, beauty: 46 },
+    { id: 'picnic', name: 'Picnic Shelter', cost: 1200, up: 16, w: 3, d: 2, need: 'shop', price: 0, satisfy: 0,
+      color: 0xc9a06a, roof: 0x6b8f4a, civic: true, shelter: true, beauty: 24 },
+    { id: 'guestservices', name: 'Guest Services', cost: 2400, up: 30, w: 3, d: 2, need: 'info', price: 0, satisfy: 100,
+      color: 0x2f80c0, roof: 0xf5efe2, civic: true, beauty: 14 },
+    { id: 'charging', name: 'Charging Point', cost: 500, up: 6, w: 1, d: 1, need: 'info', price: 0, satisfy: 40,
+      color: 0x3c4a5e, roof: 0x2ad07a, civic: true },
   ],
   /* ---------------- Prestige Landmarks ----------------
      Grand non-lodging buildings — atriums, halls, towers — unlocked with
@@ -4475,6 +4509,459 @@ const CAT = {
     { id: 'watercoaster', name: 'Water Coaster', rail: 0x2a6fa8, spine: 0xeaf6ff, tie: 0x8a8378, cars: 5, seat: 4, mass: 1.1, fric: .00088, maxSpeed: 28, carColor: 0x39c0ff, style: 'tube', water: true, carStyle: 'boat' },
   ],
 };
+
+/* ============================================================================
+   SECTION 7c — ARCHITECTURE KIT
+
+   Every building in the park is assembled from this vocabulary rather than
+   from loose boxes: a plinth, a storey, a window with a frame and a sill, a
+   cornice, a roof with an overhang and a fascia, a canopy, a sign. That is
+   what makes a burger stall and a first aid post look like they were designed
+   by the same hand — and it is why detail can be added once here and appear on
+   forty buildings at a time.
+
+   Conventions:
+     - a building is centred on the origin, footprint W x D, +Y is up
+     - the SERVING / ENTRANCE face is -Z, matching ParkObject.entrance
+     - Geo.box takes y as the BASE of the box, so storeys stack cleanly
+   ========================================================================== */
+const Arch = {
+  /* Deterministic per-building variation: two Pretzel Carts should not be
+     identical, but the same one must look the same every time it is drawn. */
+  seed(id) {
+    let h = 2166136261;
+    const str = String(id || 'x');
+    for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); }
+    return () => { h = Math.imul(h ^ (h >>> 15), 2246822507); h ^= h >>> 13; return ((h >>> 0) % 100000) / 100000; };
+  },
+
+
+  /* ---------- poolside ----------
+     A pool is not a blue rectangle. It is paving with a pattern to it, a
+     lifeguard who can see the water, somewhere to leave a towel, a shower on
+     the way in, and a hundred small objects that say people swim here. All of
+     it lives here so every pool in the park is furnished the same way. */
+  tiledDeck(g, W, D, y, col, tile = 2.2) {
+    const nx = Math.max(2, Math.round(W / tile)), nz = Math.max(2, Math.round(D / tile));
+    for (let i = 0; i < nx; i++) for (let j = 0; j < nz; j++) {
+      if ((i + j) % 2) continue;
+      const x = -W / 2 + W * (i + .5) / nx, z = -D / 2 + D * (j + .5) / nz;
+      g.box(x, y, z, W / nx - .12, .03, D / nz - .12, shade(col, .955));
+    }
+  },
+  /* The blue-and-white edging strip every real pool has. */
+  poolEdge(g, bw, bd, y, col) {
+    for (const sz of [-1, 1]) g.box(0, y, sz * (bd / 2 + .30), bw + 1.0, .05, .26, shade(col, .86));
+    for (const sx of [-1, 1]) g.box(sx * (bw / 2 + .30), y, 0, .26, .05, bd + .5, shade(col, .86));
+  },
+  lifeguard(g, x, z, y, col) {
+    for (const sx of [-1, 1]) for (const sz of [-1, 1])
+      g.beam(x + sx * .55, y, z + sz * .55, x + sx * .30, y + 2.6, z + sz * .30, .10, .10, hex(0xdfe6ee));
+    g.box(x, y + 2.6, z, 1.3, .14, 1.3, hex(0xf2f4f6));
+    g.box(x, y + 2.74, z, 1.1, .45, .18, shade(col, 1.05));        // seat back
+    g.box(x, y + 2.74, z, .9, .30, .8, shade(col, .95));
+    g.cyl(x, y + 3.30, z, .07, 1.5, 6, hex(0xdfe6ee));
+    g.box(x, y + 4.55, z, 1.9, .10, 1.9, shade(col, 1.15));        // sun canopy
+    g.cyl(x + .8, y + .1, z, .34, .10, 10, hex(0xff5a4a));         // ring buoy on a post
+    g.cyl(x + .8, y + .1, z, .16, .12, 8, hex(0xf7f2e6));
+    g.box(x - .9, y, z + .2, .12, 1.5, .12, hex(0xdfe6ee));
+    g.box(x - .9, y + 1.5, z + .2, .55, .40, .06, hex(0xff5a4a));  // rescue sign
+  },
+  changingCabins(g, x, z, y, n, col, roofCol) {
+    for (let k = 0; k < n; k++) {
+      const cx = x + k * 1.5;
+      g.box(cx, y, z, 1.35, 2.3, 1.35, k % 2 ? shade(col, 1.06) : shade(col, .92));
+      g.box(cx, y + 2.3, z, 1.55, .18, 1.55, shade(roofCol, 1.05));
+      g.box(cx, y + .25, z - .70, .95, 1.7, .06, shade(roofCol, .72));   // curtain
+      g.box(cx, y + 1.15, z - .74, .10, .10, .06, hex(0xe8c96a));
+    }
+    g.box(x + (n - 1) * .75, y + 2.5, z, n * 1.5 + .3, .14, 1.7, shade(roofCol, .9));
+  },
+  poolShower(g, x, z, y) {
+    g.cyl(x, y, z, .09, 2.5, 8, hex(0xcfd8de));
+    g.beam(x, y + 2.5, z, x, y + 2.5, z - .7, .08, .08, hex(0xcfd8de));
+    g.cyl(x, y + 2.42, z - .7, .22, .12, 8, hex(0xdfe6ee));
+    g.box(x, y, z, 1.5, .04, 1.5, hex(0xb9c6cd));                        // drainage pad
+    for (let k = 0; k < 4; k++) g.box(x, y + .02, z - .55 + k * .35, 1.3, .02, .06, hex(0x9fb0b8));
+  },
+  towelRack(g, x, z, y, col) {
+    for (const sx of [-1, 1]) g.box(x + sx * .8, y, z, .10, 1.5, .10, hex(0xa89078));
+    g.box(x, y + 1.45, z, 1.75, .10, .10, hex(0xa89078));
+    for (let k = 0; k < 3; k++) {
+      const c = [hex(0xff8fb1), hex(0x7ed6df), hex(0xffd166)][k];
+      g.box(x - .55 + k * .55, y + .70, z, .42, .78, .05, c);
+    }
+  },
+  laneRopes(g, bw, bd, y, n) {
+    for (let k = 1; k < n; k++) {
+      const x = -bw / 2 + bw * k / n;
+      for (let q = 0; q < Math.round(bd / .6); q++) {
+        const z = -bd / 2 + .4 + q * .6;
+        g.sphere(x, y + .04, z, .12, 5, q % 2 ? hex(0xff5a4a) : hex(0xf7f2e6));
+      }
+    }
+  },
+  /* A shallow end you can walk into, instead of a wall of tiles. */
+  beachEntry(g, bw, bd, floor, top, surf, liner, water) {
+    const zf = bd / 2;
+    for (let k = 0; k < 5; k++) {
+      const t0 = k / 5, t1 = (k + 1) / 5;
+      const y0 = floor + (top - floor) * t0, y1 = floor + (top - floor) * t1;
+      const z0 = zf - 3.4 * (1 - t0), z1 = zf - 3.4 * (1 - t1);
+      g.box(0, y0, (z0 + z1) / 2, bw - 1.2, y1 - y0 + .04, Math.abs(z1 - z0) + .05, shade(liner, .96 + k * .02));
+      if (y1 < surf) g.box(0, surf - .02, (z0 + z1) / 2, bw - 1.4, .03, Math.abs(z1 - z0), shade(water, 1.3));
+    }
+  }
+,
+
+  /* ---------- hotels ----------
+     Every hotel in the catalogue used to be a well-detailed slab that still
+     looked like an office block: the ground floor said nothing, the roof said
+     nothing, and there was no reason for a car to stop outside. This is the
+     dressing that turns any of them into somewhere people check in — a
+     drive-through canopy, a glazed lobby you can see into, a lit sign, roof
+     plant and a landscaped forecourt. Shared by all ten styles. */
+  hotelEntrance(g, W, D, opts) {
+    const o = opts || {};
+    const body = o.body || hex(0xd8cdb8);
+    const trim = o.trim || shade(body, .78);
+    const glass = o.glass || hex(0xcfe9f5);
+    const metal = hex(0x9aa4ac);
+    const hd = D / 2;
+    /* Porte-cochère: a canopy on four columns with a drop-off apron under
+       it, so the front of the building has somewhere to arrive. */
+    const cw = Math.min(W * .62, 9.5), cd = 4.2, ch = 3.4;
+    g.box(0, -.14, -hd - cd / 2, cw + 2.2, .16, cd + 1.2, shade(hex(0xc9c1b0), .96));   // apron
+    for (let k = 0; k < 6; k++)                                                         // kerb line
+      g.box(-cw / 2 + .4 + k * (cw / 5), -.02, -hd - cd - .5, .5, .06, .16, hex(0xf2f4f6));
+    for (const sx of [-1, 1]) for (const sz of [0, 1]) {
+      const px = sx * (cw / 2 - .35), pz = -hd - .6 - sz * (cd - 1.2);
+      g.box(px, 0, pz, .42, ch, .42, shade(trim, 1.02));
+      g.box(px, ch - .25, pz, .60, .28, .60, shade(trim, .88));                          // capital
+      g.box(px, 0, pz, .60, .30, .60, shade(trim, .88));                                 // base
+    }
+    g.box(0, ch, -hd - cd / 2 + .3, cw + 1.0, .30, cd + .6, shade(body, 1.06));
+    g.box(0, ch + .30, -hd - cd / 2 + .3, cw + .4, .18, cd, shade(trim, 1.1));
+    g.box(0, ch - .18, -hd - cd + .35, cw + .6, .22, .16, shade(o.accent || trim, 1.1));  // canopy fascia
+    /* Lobby: floor-to-ceiling glazing with a warm interior behind it. */
+    const lobbyW = Math.min(W - 1.2, cw + 2.6);
+    g.box(0, .05, -hd - .06, lobbyW, 2.9, .14, shade(trim, .9));
+    g.box(0, .18, -hd - .12, lobbyW - .5, 2.5, .10, glass);
+    g.box(0, .30, -hd + .10, lobbyW - .9, 2.1, .08, hex(0xffdc9a));                       // lit interior
+    for (let k = 0; k < 4; k++)
+      g.box(-lobbyW / 2 + .45 + k * ((lobbyW - .9) / 3), .18, -hd - .16, .10, 2.5, .10, shade(trim, 1.05));
+    g.box(0, .05, -hd - .30, 2.2, .18, .5, shade(o.accent || trim, 1.05));                // entrance mat
+    /* Signage: a lit板 over the canopy and a free-standing marker. */
+    g.box(0, ch + .5, -hd - cd + .5, cw * .7, .95, .18, shade(o.accent || body, 1.12));
+    g.box(0, ch + .62, -hd - cd + .40, cw * .58, .62, .06, hex(0xfff4d0));
+    for (const sx of [-1, 1]) {
+      g.box(sx * (cw / 2 + 1.6), 0, -hd - cd + 1.2, .34, 3.2, .34, shade(trim, .95));
+      g.box(sx * (cw / 2 + 1.6), 3.2, -hd - cd + 1.2, .9, 1.5, .18, shade(o.accent || body, 1.08));
+      g.box(sx * (cw / 2 + 1.6), 3.35, -hd - cd + 1.11, .62, 1.1, .05, hex(0xfff4d0));
+    }
+    /* Forecourt planting and lamps. */
+    for (const sx of [-1, 1]) {
+      g.box(sx * (W / 2 - .6), 0, -hd - 1.4, 1.3, .55, 1.3, hex(0x9c7b5c));
+      g.box(sx * (W / 2 - .6), .55, -hd - 1.4, 1.45, .10, 1.45, shade(hex(0x9c7b5c), 1.15));
+      g.sphere(sx * (W / 2 - .6), .95, -hd - 1.4, .62, 6, hex(0x4e9b52));
+      g.cyl(sx * (W / 2 + .9), 0, -hd - 3.2, .10, 3.4, 8, metal);
+      g.sphere(sx * (W / 2 + .9), 3.5, -hd - 3.2, .26, 6, hex(0xfff0c0));
+    }
+    /* Flags: three poles is the universal shorthand for "hotel". */
+    for (let k = 0; k < 3; k++) {
+      const fx = -1.9 + k * 1.9;
+      g.cyl(fx, 0, -hd - cd - 1.6, .07, 5.2, 6, metal);
+      g.box(fx + .5, 4.2, -hd - cd - 1.6, 1.0, .70, .05,
+        [shade(o.accent || body, 1.15), hex(0xf2f4f6), shade(body, .9)][k]);
+    }
+  },
+  /* Plant, tanks, aerials and a maintenance walkway — the top of a real
+     building is never a clean slab. */
+  hotelRoofKit(g, W, D, y, col, rnd) {
+    const r = rnd || Math.random;
+    const metal = hex(0x9aa4ac);
+    g.box(-W / 5, y, D / 6, W / 4.5, 1.5, D / 4.5, shade(col, .95));            // plant room
+    g.box(-W / 5, y + 1.5, D / 6, W / 4.2, .16, D / 4.2, shade(metal, 1.05));
+    for (let k = 0; k < 3; k++)
+      g.cyl(-W / 5 - .5 + k * .5, y + 1.66, D / 6, .18, .5, 6, shade(metal, .9));
+    g.cyl(W / 4, y, -D / 5, .8, 1.1, 10, shade(metal, 1.02));                    // water tank
+    for (let k = 0; k < 4; k++) {
+      const a = k / 4 * TAU;
+      g.cyl(W / 4 + Math.cos(a) * .6, y, -D / 5 + Math.sin(a) * .6, .07, 1.0, 5, shade(metal, .8));
+    }
+    g.cyl(W / 4 - 1.8, y, D / 4, .06, 2.6, 5, metal);                            // aerial
+    g.sphere(W / 4 - 1.8, y + 2.7, D / 4, .10, 5, hex(0xff5a4a));
+    for (const sx of [-1, 1])                                                    // walkway
+      g.box(sx * (W / 3), y, 0, .8, .06, D * .5, shade(metal, .92));
+    if (r() > .5) {
+      g.box(0, y, D / 3, 1.6, .8, 1.0, shade(col, .9));                          // lift overrun
+      g.box(0, y + .8, D / 3, 1.8, .14, 1.2, shade(metal, 1.0));
+    }
+  }
+,
+  /* ---------- ground ---------- */
+  /* A building that sits directly on the grass looks pasted on. A plinth with
+     a chamfered top edge grounds it and gives the walls somewhere to stand. */
+  plinth(g, W, D, col, h = .30) {
+    g.box(0, -h, 0, W + .34, h + .06, D + .34, shade(col, .86));
+    g.box(0, -.06, 0, W + .16, .10, D + .16, shade(col, 1.0));
+  },
+  /* Paved apron in front of the serving face, so the counter has a forecourt. */
+  apron(g, W, D, col, depth = 1.5) {
+    g.box(0, -.15, -D / 2 - depth / 2, W - .1, .14, depth, shade(col, .80));
+    g.box(0, -.13, -D / 2 - depth + .06, W - .1, .10, .12, shade(col, .68));   // kerb line
+  },
+  /* ---------- walls ---------- */
+  /* One storey of wall with corner pilasters and a base course. */
+  storey(g, W, D, y, h, wall, trim) {
+    g.box(0, y, 0, W, h, D, wall);
+    g.box(0, y, 0, W + .06, .26, D + .06, shade(trim, .96));            // base course
+    for (const sx of [-1, 1]) for (const sz of [-1, 1])
+      g.box(sx * (W / 2 - .12), y, sz * (D / 2 - .12), .30, h, .30, shade(trim, .88));
+  },
+  /* A cornice: the overhanging band that caps a wall. Two steps read as
+     moulding at this scale and cost eight triangles. */
+  cornice(g, W, D, y, col) {
+    g.box(0, y, 0, W + .18, .16, D + .18, shade(col, 1.04));
+    g.box(0, y + .16, 0, W + .34, .14, D + .34, shade(col, .90));
+  },
+  /* ---------- openings ---------- */
+  /* A window: reveal, glass, sill, and (optionally) mullions and shutters.
+     `face` is -1 or +1 along the given axis. */
+  window(g, axis, face, u, y, w, h, wall, opts) {
+    const o = opts || {};
+    const glass = o.glass || hex(0xbfe0f0);
+    const frame = o.frame || shade(wall, .72);
+    const halfW = o.halfW, halfD = o.halfD;
+    const put = (du, dy, dw, dh, dep, off, c) => {
+      if (axis === 'z') g.box(du, dy, face * (halfD + off), dw, dh, dep, c);
+      else g.box(face * (halfW + off), dy, du, dep, dh, dw, c);
+    };
+    put(u, y - .09, w + .30, h + .30, .10, .01, frame);          // reveal
+    put(u, y, w, h, .10, .06, glass);                            // glazing
+    put(u, y - .16, w + .38, .16, .26, .04, shade(frame, 1.12)); // sill
+    if (o.mullion !== false) {
+      put(u, y, .07, h, .12, .08, frame);                        // centre mullion
+      put(u, y + h * .55, w, .07, .12, .08, frame);              // transom
+    }
+    if (o.shutters) for (const s of [-1, 1])
+      put(u + s * (w / 2 + .18), y, .30, h, .10, .04, o.shutters);
+    if (o.box) {                                                  // window box of flowers
+      put(u, y - .34, w * .9, .26, .34, .18, hex(0x8a6a4a));
+      put(u, y - .16, w * .78, .18, .30, .22, hex(0x4f9b52));
+      put(u + w * .22, y - .12, .18, .16, .26, .26, hex(0xff7fa8));
+      put(u - w * .22, y - .12, .18, .16, .26, .26, hex(0xffd166));
+    }
+  },
+  /* A run of evenly spaced windows along one face. */
+  windowRun(g, axis, face, span, y, h, count, wall, opts) {
+    const n = Math.max(1, count);
+    const w = Math.min(1.15, span / n * .62);
+    for (let k = 0; k < n; k++) {
+      const u = -span / 2 + span * (k + .5) / n;
+      this.window(g, axis, face, u, y, w, h, wall, opts);
+    }
+  },
+  /* A door with a frame, a threshold step and a fanlight. */
+  door(g, D, x, wall, col, w = 1.1, h = 2.1) {
+    const hd = D / 2;
+    g.box(x, 0, -(hd + .02), w + .34, h + .40, .12, shade(col, .82));   // surround
+    g.box(x, 0, -(hd + .10), w, h, .10, shade(col, .58));               // leaf
+    g.box(x, h * .42, -(hd + .17), .12, .12, .08, hex(0xe8c96a));       // handle
+    g.box(x, h + .06, -(hd + .12), w * .82, .34, .08, hex(0xcfe9f5));   // fanlight
+    g.box(x, -.16, -(hd + .55), w + .7, .18, 1.0, shade(wall, .92));    // step
+  },
+  /* A roof plane, guaranteed visible.
+
+     Roof slopes were being wound by hand and half of them came out
+     inside-out: with back-face culling on, those faces vanish and you look
+     straight through the roof into the building. Every roof surface now goes
+     through here, which emits the face both ways — the cost is a few extra
+     triangles on a handful of quads, and the benefit is that no roof in the
+     park can ever be see-through again. */
+  face(g, p0, p1, p2, p3, col) {
+    if (p3) { g.quadV(p0, p1, p2, p3, col); g.quadV(p3, p2, p1, p0, shade(col, .82)); }
+    else { g.triV(p0, p1, p2, col); g.triV(p2, p1, p0, shade(col, .82)); }
+  },
+  /* ---------- roofs ----------
+     All four take the wall-top height and return the ridge height, so signs,
+     chimneys and rooftop clutter can be placed against a known number. */
+  roofHip(g, W, D, y, col, rise = 1.4, over = .45) {
+    const w = W / 2 + over, d = D / 2 + over;
+    g.box(0, y, 0, W + over * 2, .16, D + over * 2, shade(col, .82));   // fascia board
+    const yy = y + .16;
+    const p = [[-w, yy, -d], [w, yy, -d], [w, yy, d], [-w, yy, d]];
+    const ax = [-W / 6, yy + rise, 0], bx = [W / 6, yy + rise, 0];
+    this.face(g, p[3], p[2], bx, ax, shade(col, 1.14));
+    this.face(g, p[0], p[3], ax, null, shade(col, .86));
+    this.face(g, p[2], p[1], bx, null, shade(col, .86));
+    this.face(g, p[1], p[0], ax, bx, shade(col, .97));
+    g.beam(ax[0], ax[1], 0, bx[0], bx[1], 0, .16, .12, shade(col, 1.2));  // ridge cap
+    return yy + rise;
+  },
+  roofGable(g, W, D, y, col, rise = 1.7, over = .45, gableCol) {
+    const w = W / 2 + over, d = D / 2 + over;
+    g.box(0, y, 0, W + over * 2, .16, D + over * 2, shade(col, .82));
+    const yy = y + .16, ridge = yy + rise;
+    const a = [0, ridge, -d], b = [0, ridge, d];
+    this.face(g, [-w, yy, d], [-w, yy, -d], a, b, shade(col, 1.10));     // left slope
+    this.face(g, [w, yy, -d], [w, yy, d], b, a, shade(col, .93));        // right slope
+    const gc = gableCol || shade(col, .78);
+    this.face(g, [-w, yy, -d], [w, yy, -d], a, null, gc);                // front gable
+    this.face(g, [w, yy, d], [-w, yy, d], b, null, gc);                  // back gable
+    g.beam(0, ridge, -d, 0, ridge, d, .18, .12, shade(col, 1.22));
+    return ridge;
+  },
+  /* A mansard: steep lower pitch, shallow cap. Reads as "proper architecture"
+     more than any other roof for the same handful of triangles. */
+  roofMansard(g, W, D, y, col, lower = 1.1, upper = .6, over = .4) {
+    const w = W / 2 + over, d = D / 2 + over;
+    g.box(0, y, 0, W + over * 2, .16, D + over * 2, shade(col, .80));
+    const yy = y + .16;
+    const iw = W / 2 - .5, id = D / 2 - .5, my = yy + lower;
+    const P = [[-w, yy, -d], [w, yy, -d], [w, yy, d], [-w, yy, d]];
+    const Q = [[-iw, my, -id], [iw, my, -id], [iw, my, id], [-iw, my, id]];
+    for (let k = 0; k < 4; k++) {
+      const n = (k + 1) % 4;
+      this.face(g, P[k], P[n], Q[n], Q[k], shade(col, k % 2 ? .95 : 1.08));
+    }
+    const top = my + upper;
+    const T = [[-iw * .55, top, -id * .55], [iw * .55, top, -id * .55], [iw * .55, top, id * .55], [-iw * .55, top, id * .55]];
+    for (let k = 0; k < 4; k++) {
+      const n = (k + 1) % 4;
+      this.face(g, Q[k], Q[n], T[n], T[k], shade(col, k % 2 ? 1.0 : 1.12));
+    }
+    this.face(g, T[0], T[1], T[2], T[3], shade(col, 1.2));
+    return top;
+  },
+  roofFlat(g, W, D, y, col, parapet = .5) {
+    g.box(0, y, 0, W + .3, .18, D + .3, shade(col, .95));
+    for (const sx of [-1, 1]) g.box(sx * (W / 2 + .06), y + .18, 0, .18, parapet, D + .3, shade(col, .86));
+    for (const sz of [-1, 1]) g.box(0, y + .18, sz * (D / 2 + .06), W + .3, parapet, .18, shade(col, .86));
+    g.box(0, y + .18 + parapet, 0, W + .34, .10, D + .34, shade(col, 1.1));   // coping
+    return y + .18 + parapet;
+  },
+  /* A dormer window set into a pitched roof. */
+  dormer(g, x, y, z, col, wall) {
+    g.box(x, y, z, .95, .85, .8, wall);
+    g.box(x, y + .18, z - .42, .58, .52, .10, hex(0xcfe9f5));
+    const ridgeY = y + 1.30, zf = z - .46, zb = z + .46;
+    // two slopes and two gable cheeks, all solid from both sides
+    this.face(g, [x - .62, y + .85, zf], [x - .62, y + .85, zb], [x, ridgeY, zb], [x, ridgeY, zf], shade(col, 1.06));
+    this.face(g, [x + .62, y + .85, zb], [x + .62, y + .85, zf], [x, ridgeY, zf], [x, ridgeY, zb], shade(col, .92));
+    this.face(g, [x - .62, y + .85, zf], [x, ridgeY, zf], [x + .62, y + .85, zf], null, shade(col, .84));
+    this.face(g, [x + .62, y + .85, zb], [x, ridgeY, zb], [x - .62, y + .85, zb], null, shade(col, .84));
+  },
+  /* ---------- attachments ---------- */
+  /* A striped awning over the serving face, with a scalloped valance and
+     tie rods. The single most recognisable piece of park architecture. */
+  awning(g, W, D, y, c1, c2, depth = 1.25) {
+    const hd = D / 2;
+    const n = Math.max(4, Math.round(W / .8));
+    const seg = (W - .3) / n;
+    for (let k = 0; k < n; k++) {
+      const x = -W / 2 + .15 + seg * (k + .5);
+      const c = k % 2 ? c1 : c2;
+      g.quadV([x - seg / 2, y + .34, -hd], [x + seg / 2, y + .34, -hd],
+              [x + seg / 2, y, -hd - depth], [x - seg / 2, y, -hd - depth], shade(c, 1.06));
+      g.box(x, y - .30, -hd - depth, seg - .04, .30, .10, shade(c, .92));      // valance
+      g.triV([x - seg / 2, y - .30, -hd - depth - .02], [x + seg / 2, y - .30, -hd - depth - .02],
+             [x, y - .52, -hd - depth - .02], shade(c, .84));                  // scallop
+    }
+    for (const sx of [-1, 1]) g.beam(sx * (W / 2 - .2), y + .34, -hd, sx * (W / 2 - .2), y, -hd - depth, .07, .07, hex(0x6e6a62));
+  },
+  /* A flat canopy on brackets — the calmer alternative to an awning. */
+  canopy(g, W, D, y, col, depth = 1.4) {
+    const hd = D / 2;
+    g.box(0, y, -hd - depth / 2, W + .2, .16, depth, shade(col, 1.06));
+    g.box(0, y - .12, -hd - depth + .08, W + .2, .14, .14, shade(col, .82));   // front edge
+    for (const sx of [-1, 1]) {
+      g.beam(sx * (W / 2 - .3), y, -hd - .05, sx * (W / 2 - .3), y - .9, -hd - depth + .2, .08, .08, hex(0x5e5a52));
+      g.box(sx * (W / 2 - .3), 0, -hd - depth + .25, .14, y - .9, .14, hex(0x5e5a52));   // post to ground
+    }
+  },
+  /* The serving counter itself: worktop, shutter, a till and a menu board. */
+  counter(g, W, D, col, wood) {
+    const hd = D / 2;
+    g.box(0, .0, -hd - .22, W - 1.0, 1.02, .44, shade(wood, .96));
+    g.box(0, 1.02, -hd - .26, W - .8, .12, .58, shade(wood, 1.16));            // worktop
+    g.box(0, 1.14, -hd - .18, W - 1.6, .06, .30, shade(col, 1.1));            // goods on top
+    g.box(W / 2 - .9, 1.14, -hd - .30, .34, .26, .24, hex(0xdfe4e8));         // till
+    g.box(0, 1.62, -hd - .04, W - 1.4, .72, .06, hex(0x2f2a24));              // menu board
+    for (let k = 0; k < 3; k++)
+      g.box(-W / 2 + .9 + k * ((W - 1.8) / 2), 1.76, -hd - .08, (W - 2.2) / 3, .10, .03, hex(0xf6e7b8));
+  },
+  /* A projecting sign on a wrought bracket — reads from down the midway. */
+  hangingSign(g, D, x, y, col, w = 1.0, h = .7) {
+    const hd = D / 2;
+    g.beam(x, y + h * .9, -hd - .02, x, y + h * .9, -hd - .95, .07, .07, hex(0x4a4640));
+    g.beam(x, y + h * .35, -hd - .02, x, y + h * .9, -hd - .60, .05, .05, hex(0x4a4640));
+    g.box(x, y, -hd - .78, w, h, .10, shade(col, 1.12));
+    g.box(x, y + .06, -hd - .84, w - .22, h - .18, .04, hex(0xfff3d0));
+    for (const s of [-1, 1]) g.sphere(x + s * (w / 2 - .04), y + h + .06, -hd - .78, .07, 5, hex(0xe8c96a));
+  },
+  /* A fascia sign board across the front, with a lit face. */
+  signBoard(g, W, D, y, col, h = .8) {
+    const hd = D / 2;
+    g.box(0, y, -hd - .04, W - .5, h, .22, shade(col, 1.16));
+    g.box(0, y + .10, -hd - .17, W - 1.0, h - .26, .06, hex(0xfff4d0));
+    g.box(0, y + h, -hd - .06, W - .4, .10, .30, shade(col, .82));
+  },
+  /* Roof clutter: vents, a flue, an air handling unit, a water tank. The
+     difference between a model and a building. */
+  rooftop(g, W, D, y, col, rnd) {
+    const r = rnd || Math.random;
+    const metal = hex(0x9aa1a8);
+    g.box(-W / 4 + r() * .4, y, D / 4 - r() * .4, .8, .55, .8, shade(metal, .96));
+    g.box(-W / 4 + r() * .4, y + .55, D / 4 - r() * .4, .95, .10, .95, shade(metal, 1.1));
+    for (let k = 0; k < 3; k++) g.cyl(-W / 4 - .2 + k * .22, y + .65, D / 4, .05, .30, 6, shade(metal, .8));
+    g.cyl(W / 4, y, -D / 5, .17, .95, 8, hex(0x6d6862));
+    g.cyl(W / 4, y + .95, -D / 5, .23, .16, 8, hex(0x4a4640));
+    if (r() > .45) { g.cyl(W / 3, y, D / 3, .34, .5, 8, shade(metal, 1.04)); g.box(W / 3, y + .5, D / 3, .8, .06, .8, shade(metal, .9)); }
+  },
+  /* Gutters and a downpipe. Nobody notices them; everybody notices when a
+     building has no edges. */
+  drainage(g, W, D, y, col) {
+    const c = shade(col, .78);
+    for (const sz of [-1, 1]) g.box(0, y - .10, sz * (D / 2 + .30), W + .5, .12, .14, c);
+    g.box(W / 2 + .28, 0, D / 2 + .28, .12, y - .10, .12, c);
+    g.box(-W / 2 - .28, 0, D / 2 + .28, .12, y - .10, .12, c);
+  },
+  /* Bin, crates and a folded parasol beside the back wall — the service
+     clutter every working building accumulates. */
+  serviceClutter(g, W, D, rnd) {
+    const r = rnd || Math.random;
+    const hd = D / 2, hw = W / 2;
+    g.cyl(hw - .5, 0, hd + .45, .28, .8, 8, hex(0x4a5a52));
+    g.cyl(hw - .5, .8, hd + .45, .30, .08, 8, hex(0x2f3a34));
+    for (let k = 0; k < 2 + Math.floor(r() * 2); k++)
+      g.box(-hw + .5 + k * .62, 0, hd + .5, .55, .38, .55, k % 2 ? hex(0xb08a5a) : hex(0x9a7a4a));
+    g.beam(-hw + .2, 0, hd + .35, -hw + .35, 1.7, hd + .5, .07, .07, hex(0x7a6a58));
+  },
+  /* Warm light spilling out of the openings after dark. Emissive geometry,
+     so it lifts under the night glow multiplier the renderer already applies. */
+  interiorGlow(g, W, D, y, h) {
+    g.box(0, y, -D / 2 + .12, W - .9, h, .06, hex(0xffdc9a));
+    g.box(0, y, D / 2 - .12, W - .9, h, .06, hex(0xffd08a));
+  },
+  /* A terrace: decked area with tables and parasols, for anywhere that sells
+     something people sit down to eat. */
+  terrace(g, W, D, side, deck, rnd) {
+    const r = rnd || Math.random;
+    const x0 = side * (W / 2 + 1.6);
+    g.box(x0, -.10, 0, 3.0, .16, D, shade(deck, 1.0));
+    for (let k = 0; k < 2; k++) {
+      const z = -D / 4 + k * (D / 2);
+      g.cyl(x0, .06, z, .48, .06, 10, shade(deck, 1.12));
+      g.cyl(x0, .12, z, .07, .68, 6, hex(0x8d8880));
+      g.cyl(x0, .80, z, .62, .05, 12, hex(0xf2ece0));
+      for (const s of [-1, 1]) g.box(x0 + s * .95, 0, z, .42, .44, .42, shade(deck, .88));
+      g.cyl(x0, .85, z, .05, 1.7, 6, hex(0x8d8880));
+      g.cone(x0, 2.55, z, 1.35, .55, 10, r() > .5 ? hex(0xe8563f) : hex(0x39b3c4));
+    }
+  }
+};
+
 /* ============================================================================
    SECTION 8 — PREFABS
    Every building, prop and flat ride is generated here from primitives.
@@ -4504,12 +4991,18 @@ const Prefab = {
       g.triV([x1, y - .04, z1], [x2, y - .04, z2], [(x1 + x2) / 2, y - .04 - sag * 2, (z1 + z2) / 2], i % 2 ? c1 : c2);
     }
   },
+  /* A striped conical cap. Emitted both ways round: a single-sided cone is
+     invisible from underneath, which is exactly where a guest standing at a
+     kiosk counter is looking. */
   stripedRoof(g, x, y, z, r, h, seg, c1, c2) {
     for (let i = 0; i < seg; i++) {
       const a = i / seg * TAU, a2 = (i + 1) / seg * TAU;
-      g.triV([x + Math.cos(a) * r, y, z + Math.sin(a) * r],
-        [x + Math.cos(a2) * r, y, z + Math.sin(a2) * r],
-        [x, y + h, z], i % 2 ? c1 : c2);
+      const p0 = [x + Math.cos(a) * r, y, z + Math.sin(a) * r];
+      const p1 = [x + Math.cos(a2) * r, y, z + Math.sin(a2) * r];
+      const tip = [x, y + h, z];
+      const c = i % 2 ? c1 : c2;
+      g.triV(p0, p1, tip, c);
+      g.triV(tip, p1, p0, shade(c, .72));      // underside
     }
   },
   lightBulbs(g, x, y, z, r, n, c) {
@@ -4678,10 +5171,10 @@ const Prefab = {
           g.triV(p[2], p[1], bx, shade(roof, .88));
           g.quadV(p[1], p[0], ax, bx, shade(roof, .95));
         }
-        // ground-floor entrance canopy + lit sign
-        g.box(0, 2.1, -D / 2 - .6, Math.min(W * .55, W - .4), .18, 1.3, shade(roof, 1.1));
-        for (const sx of [-1, 1]) g.box(sx * Math.min(W * .2, wallHW - .3), 0, -D / 2 - 1.15, .14, 2.1, .14, shade(body, .68));
-        g.box(0, 2.55, -D / 2 - .1, W * .4, .55, .1, shade(roof, 1.18));
+        /* A hotel arrives at its front door, not at a wall: drive-through
+           canopy, glazed lobby, lit sign, flags and planting. */
+        Arch.hotelEntrance(g, W - .5, D - .5, { body: wall, trim: shade(body, .8), accent: body, glass });
+        Arch.hotelRoofKit(g, W - .5, D - .5, totalH + .32, shade(roof, .95), Arch.seed(def.id));
 
         /* ---- The classic tower was the thinnest model in the catalogue:
            the budget hotel came to 621 triangles for a whole building, which
@@ -5168,70 +5661,425 @@ const Prefab = {
       return { base: g, parts: [] };
     }
 
-    // plinth
-    g.box(0, -.1, 0, W - .2, .28, D - .2, hex(0xb9ab90));
-    // walls
-    g.box(0, .18, 0, W - .7, 2.9, D - .7, wall);
-    // colour band
-    g.box(0, .18, 0, W - .62, .55, D - .62, body);
-    g.box(0, 2.55, 0, W - .62, .55, D - .62, body);
-    // corner posts
-    for (const sx of [-1, 1]) for (const sz of [-1, 1])
-      g.box(sx * hw, .18, sz * hd, .34, 3.1, .34, shade(body, .8));
-    // side windows — every shop had blank side walls before; a pair of
-    // glazed panels per long side reads much better up close and from
-    // the queue line waiting beside it.
+    /* ------------------------------------------------------------------
+       EVERY OTHER BUILDING
+
+       One shell with a different colour on it was doing for a pretzel cart,
+       a pizzeria and a first aid post alike. They are now four different
+       kinds of building, chosen by footprint and by trade, all assembled
+       from the same architecture kit so they still look related:
+
+         cart      1 tile   — a wheeled barrow with a parasol
+         kiosk     2 tiles  — an octagonal booth with a serving hatch
+         stall     3-8      — open-fronted, striped awning, counter
+         shop      9-14     — a proper facade: storey, cornice, pitched roof
+         hall      15+      — two-storey, dormers, terrace, chimney
+
+       Facilities (restrooms, first aid, information) get a civic version of
+       the same vocabulary: brick, tiled roof, no awning, a plaque instead of
+       a menu board — so they read as infrastructure, not another food stall.
+       ------------------------------------------------------------------ */
+    const rnd = Arch.seed(def.id);
+    const area = def.w * def.d;
+    const trim = shade(body, .74);
+    const timber = hex(0x8a6a48);
+    const stone = hex(0xd8cdb8);
     const glass = hex(0xcfe9f5);
-    if (W >= D) {
-      for (const sz of [-1, 1]) {
-        for (const fx of [-.62, .62]) {
-          g.box(fx * hw, 1.55, sz * (hd + .01), .86, 1.25, .05, shade(body, .75));
-          g.box(fx * hw, 1.55, sz * (hd + .05), .8, 1.15, .05, glass);
+    /* Free civic facilities: nobody buys anything, so they get municipal
+       architecture — brick, a tiled roof, a plaque — instead of a menu board
+       and an awning. (`need` values come straight from the catalogue: the
+       first aid post's need is 'nausea', the cash machine's is 'cash'.) */
+    const isFacility = def.civic || (def.price === 0 && !def.nightly &&
+      (def.need === 'toilet' || def.need === 'nausea' || def.need === 'info'
+       || def.need === 'cash' || def.need === 'thirst'));
+    const isFood = !isFacility && (def.need === 'hunger' || def.need === 'thirst');
+    const isRetail = !isFacility && !isFood;
+    let ry, rh = 1.5;
+
+    /* ---------------- bandstand: the park's one piece of civic theatre ---- */
+    if (def.bandstand) {
+      const r0 = Math.min(W, D) / 2 - .55;
+      const deckH = .75;
+      g.cyl(0, -.25, 0, r0 + .55, .25, 10, shade(stone, .82));                 // base
+      g.cyl(0, 0, 0, r0 + .35, deckH, 10, shade(stone, .95));                  // podium
+      g.cyl(0, deckH, 0, r0 + .30, .10, 10, shade(timber, 1.14));              // deck boards
+      for (let k = 0; k < 8; k++) {                                            // columns and rail
+        const a = k / 8 * TAU;
+        const cx = Math.cos(a) * r0, cz = Math.sin(a) * r0;
+        g.cyl(cx, deckH + .1, cz, .13, 2.8, 8, shade(wall, 1.02));
+        g.cyl(cx, deckH + .1, cz, .18, .18, 8, shade(body, .9));               // base moulding
+        g.cyl(cx, deckH + 2.75, cz, .18, .16, 8, shade(body, .9));             // capital
+        const a2 = (k + 1) / 8 * TAU;
+        const nx = Math.cos(a2) * r0, nz = Math.sin(a2) * r0;
+        if (k !== 6) {                                                          // gap for the steps
+          g.beam(cx, deckH + .95, cz, nx, deckH + .95, nz, .07, .07, shade(body, .95));
+          g.beam(cx, deckH + .35, cz, nx, deckH + .35, nz, .06, .06, shade(body, .85));
+          for (let q = 1; q < 4; q++) {                                         // balusters
+            const t = q / 4;
+            g.cyl(cx + (nx - cx) * t, deckH + .35, cz + (nz - cz) * t, .05, .60, 6, shade(wall, .96));
+          }
         }
       }
-    } else {
-      for (const sx of [-1, 1]) {
-        for (const fz of [-.62, .62]) {
-          g.box(sx * (hw + .01), 1.55, fz * hd, .05, 1.25, .86, shade(body, .75));
-          g.box(sx * (hw + .05), 1.55, fz * hd, .05, 1.15, .8, glass);
+      g.cyl(0, deckH + 2.9, 0, r0 + .55, .22, 10, shade(body, .92));           // cornice ring
+      Prefab.stripedRoof(g, 0, deckH + 3.12, 0, r0 + .60, 1.9, 10, shade(roof, 1.1), shade(roof, .84));
+      g.cyl(0, deckH + 5.02, 0, .10, .7, 6, hex(0x8d8880));
+      g.sphere(0, deckH + 5.72, 0, .19, 6, hex(0xe8c96a));                     // finial
+      Prefab.lightBulbs(g, 0, deckH + 3.02, 0, r0 + .5, 12, hex(0xfff3c4));
+      Prefab.bunting(g, 0, deckH + 2.86, 0, r0 + .45, shade(body, 1.2), shade(roof, 1.15), 16);
+      for (let k = 0; k < 3; k++) {                                            // steps at the front
+        const w2 = (r0 + .5) * 1.1 - k * .18;
+        g.box(0, -.25 + k * .27, -(r0 + .55) - .55 + k * .26, w2, .30, .58, shade(stone, .9 + k * .04));
+      }
+      // a band's kit left on the deck: two music stands and a drum
+      for (const sx of [-.7, .7]) {
+        g.cyl(sx, deckH + .1, .3, .05, .95, 6, hex(0x4a4640));
+        g.box(sx, deckH + 1.05, .3, .52, .05, .34, hex(0x2f2a24));
+      }
+      g.cyl(0, deckH + .1, -.5, .48, .55, 12, hex(0xf3efe2));
+      g.cyl(0, deckH + .66, -.5, .50, .06, 12, shade(body, 1.1));
+      ry = deckH + 3.1;
+      this.shopEmblem(g, def, 0, deckH + 2.55, -(r0 + .62));
+      this.shopTier(g, def, W, D, ry, rh, body, roof, wall);
+      return { base: g, parts: [] };
+    }
+
+    /* ---------------- picnic shelter: a roof, tables, nothing else -------- */
+    if (def.shelter) {
+      const bw = W - .8, bd = D - .8;
+      Arch.plinth(g, bw, bd, stone, .22);
+      g.box(0, -.08, 0, bw + .1, .14, bd + .1, shade(hex(0xcfc7b4), 1.0));      // paved slab
+      for (const sx of [-1, 1]) for (const sz of [-1, 1]) {                     // corner posts
+        g.box(sx * (bw / 2 - .25), 0, sz * (bd / 2 - .25), .28, 2.5, .28, shade(timber, .95));
+        g.beam(sx * (bw / 2 - .25), 2.2, sz * (bd / 2 - .25), sx * (bw / 2 - .95), 2.5, sz * (bd / 2 - .25), .12, .12, shade(timber, .85));
+      }
+      for (const sx of [-1, 1])                                                 // eaves beams
+        g.box(sx * (bw / 2 - .25), 2.5, 0, .18, .22, bd - .2, shade(timber, 1.05));
+      const ridge = Arch.roofGable(g, bw, bd, 2.72, roof, Math.max(1.2, bw * .20), .35, shade(timber, .9));
+      for (let k = 0; k < 4; k++)                                               // rafters
+        g.beam(-bw / 2 + .3, 2.75, -bd / 2 + .5 + k * ((bd - 1) / 3), bw / 2 - .3, 2.75, -bd / 2 + .5 + k * ((bd - 1) / 3), .08, .08, shade(timber, .8));
+      const tables = Math.max(1, Math.round(bw / 4));
+      for (let k = 0; k < tables; k++) {
+        const tx = -bw / 2 + bw * (k + .5) / tables;
+        g.box(tx, .70, 0, 1.5, .12, .85, shade(timber, 1.12));                  // table top
+        for (const s2 of [-1, 1]) {
+          g.box(tx, .38, s2 * .78, 1.5, .10, .38, shade(timber, 1.0));          // benches
+          g.box(tx, 0, s2 * .78, .12, .38, .30, shade(timber, .78));
+        }
+        g.box(tx, 0, 0, .18, .70, .55, shade(timber, .82));                     // trestle
+      }
+      Prefab.bunting(g, 0, 2.62, 0, Math.max(bw, bd) / 2 + .2, shade(body, 1.2), shade(roof, 1.1), 12);
+      ry = 2.72;
+      this.shopEmblem(g, def, 0, ridge - .5, -bd / 2 - .5);
+      Arch.serviceClutter(g, W, D, rnd);
+      this.shopTier(g, def, W, D, ry, rh, body, roof, wall);
+      return { base: g, parts: [] };
+    }
+
+    /* ---------------- midway games: prize wall, hoops, a high-score board -- */
+    if (def.games) {
+      const bw = W - .7, bd = D - .7;
+      Arch.plinth(g, bw, bd, stone, .28);
+      Arch.apron(g, bw, bd, shade(stone, .86), 1.5);
+      g.box(0, 0, bd / 2 - .35, bw, 3.2, .7, wall);                             // back wall
+      for (const sx of [-1, 1]) g.box(sx * (bw / 2 - .2), 0, 0, .4, 3.2, bd - .7, shade(body, .92));   // side walls
+      g.box(0, 3.2, 0, bw + .5, .28, bd + .5, shade(body, .86));                // header beam
+      // prize wall: rows of plush toys on shelves
+      for (let r = 0; r < 3; r++) {
+        const y = 1.0 + r * .78;
+        g.box(0, y, bd / 2 - .78, bw - .5, .10, .40, shade(timber, 1.08));
+        const n = Math.max(3, Math.round(bw / .8));
+        for (let k = 0; k < n; k++) {
+          const x = -bw / 2 + .45 + k * ((bw - .9) / Math.max(1, n - 1));
+          const c = [hex(0xff8fb1), hex(0xffd166), hex(0x7fd4e8), hex(0x9be08a), hex(0xd0a0ff)][(k + r) % 5];
+          g.sphere(x, y + .32, bd / 2 - .78, .17, 5, c);
+          g.sphere(x, y + .56, bd / 2 - .78, .12, 5, c);
+          g.sphere(x - .13, y + .64, bd / 2 - .78, .06, 4, shade(c, .85));
+          g.sphere(x + .13, y + .64, bd / 2 - .78, .06, 4, shade(c, .85));
         }
       }
+      // the game itself: a counter with hoops and bottles
+      g.box(0, 0, -bd / 2 + .35, bw - .4, 1.05, .55, shade(body, 1.0));
+      g.box(0, 1.05, -bd / 2 + .35, bw - .2, .12, .70, shade(timber, 1.14));
+      const bn = Math.max(3, Math.round(bw / .9));
+      for (let k = 0; k < bn; k++) {
+        const x = -bw / 2 + .5 + k * ((bw - 1) / Math.max(1, bn - 1));
+        g.cyl(x, 1.17, -bd / 2 + .35, .11, .42, 8, shade(roof, 1.05));          // bottles
+        g.cyl(x, 1.59, -bd / 2 + .35, .05, .16, 6, shade(roof, .8));
+        if (k % 2 === 0) g.cyl(x, 1.20, -bd / 2 + .05, .16, .05, 10, hex(0xf2e2a8));   // hoops
+      }
+      Arch.awning(g, bw, bd, 2.72, shade(body, 1.2), hex(0xf7f2e6), 1.5);
+      g.box(0, 3.48, -bd / 2 - .06, bw - .4, .95, .22, shade(body, 1.16));      // sign
+      g.box(0, 3.58, -bd / 2 - .19, bw - .9, .70, .06, hex(0xfff4d0));
+      this.shopEmblem(g, def, 0, 3.92, -bd / 2 - .26);
+      Prefab.lightBulbs(g, 0, 3.44, -bd / 2 - .06, bw / 2 - .1, Math.max(6, Math.round(W * 2)), hex(0xfff3c4));
+      Prefab.bunting(g, 0, 3.40, 0, Math.max(bw, bd) / 2 + .5, shade(body, 1.25), shade(roof, 1.15), 14);
+      Arch.serviceClutter(g, W, D, rnd);
+      ry = 3.48;
+      this.shopTier(g, def, W, D, ry, rh, body, roof, wall);
+      return { base: g, parts: [] };
     }
-    // hipped roof
-    const rh = 1.5, ry = 3.1;
-    const p = [[-W / 2, ry, -D / 2], [W / 2, ry, -D / 2], [W / 2, ry, D / 2], [-W / 2, ry, D / 2]];
-    const ax = [-W / 6, ry + rh, 0], bx = [W / 6, ry + rh, 0];
-    g.quadV(p[3], p[2], bx, ax, shade(roof, 1.15));
-    g.triV(p[0], p[3], ax, shade(roof, .88));
-    g.triV(p[2], p[1], bx, shade(roof, .88));
-    g.quadV(p[1], p[0], ax, bx, shade(roof, .95));
-    // awning + counter on -Z face
-    g.box(0, 2.35, -D / 2 - .5, W - .9, .18, 1.1, shade(roof, 1.05));
-    for (let i = 0; i < 5; i++) {
-      const x = -W / 2 + .6 + i * (W - 1.2) / 4;
-      g.box(x, 2.2, -D / 2 - .96, (W - 1.2) / 5 - .1, .2, .2, i % 2 ? shade(body, 1.1) : wall);
+
+    /* ---------------- fortune teller: a painted vardo ---------------------- */
+    if (def.id === 'fortune') {
+      const bw = W - 1.2, bd = D - .9;
+      g.box(0, .55, 0, bw, 1.9, bd, shade(body, 1.0));                          // wagon body
+      g.box(0, .40, 0, bw + .18, .30, bd + .18, shade(body, .8));               // chassis rail
+      g.box(0, 2.45, 0, bw + .30, .16, bd + .30, shade(roof, 1.02));            // cornice
+      // barrel roof
+      for (let k = 0; k < 7; k++) {
+        const t0 = k / 7 * PI, t1 = (k + 1) / 7 * PI;
+        const y0 = 2.61 + Math.sin(t0) * .85, y1 = 2.61 + Math.sin(t1) * .85;
+        const x0 = -bw / 2 * Math.cos(t0), x1 = -bw / 2 * Math.cos(t1);
+        Arch.face(g, [x0, y0, -bd / 2 - .15], [x1, y1, -bd / 2 - .15], [x1, y1, bd / 2 + .15], [x0, y0, bd / 2 + .15],
+          k % 2 ? shade(roof, 1.12) : shade(roof, .9));
+      }
+      for (const sz of [-1, 1]) {                                               // painted end panels
+        g.box(0, 2.5, sz * (bd / 2 + .16), bw - .1, .9, .08, shade(body, 1.16));
+        g.sphere(0, 3.1, sz * (bd / 2 + .2), .16, 6, hex(0xffe08a));            // moon
+        for (let k = 0; k < 4; k++) g.sphere(-.7 + k * .45, 2.85 + (k % 2) * .25, sz * (bd / 2 + .22), .07, 4, hex(0xfff3c4));
+      }
+      for (const sx of [-1, 1]) {                                               // wheels
+        g.cyl(sx * (bw / 2 + .12), .30, .55, .55, .14, 12, hex(0x5a3f2a));
+        g.cyl(sx * (bw / 2 + .14), .30, .55, .14, .16, 8, hex(0xd9b26a));
+        for (let k = 0; k < 6; k++) {
+          const a = k / 6 * PI;
+          g.beam(sx * (bw / 2 + .13), .30 + Math.cos(a) * .48, .55 + Math.sin(a) * .48,
+                 sx * (bw / 2 + .13), .30 - Math.cos(a) * .48, .55 - Math.sin(a) * .48, .05, .05, hex(0xd9b26a));
+        }
+        g.cyl(sx * (bw / 2 + .12), .22, -1.05, .34, .12, 10, hex(0x5a3f2a));
+      }
+      g.box(0, .55, -bd / 2 - .04, 1.0, 1.6, .10, shade(roof, .7));             // doorway
+      g.box(0, 1.25, -bd / 2 - .12, .62, .55, .05, hex(0x2b1c3a));
+      g.sphere(0, 1.52, -bd / 2 - .16, .13, 6, hex(0x9be0ff));                  // crystal ball on a shelf
+      for (let k = 0; k < 3; k++) {                                             // steps
+        g.box(0, -.02 + k * .22, -bd / 2 - .5 - k * .22, 1.2 - k * .1, .24, .34, shade(timber, .95 + k * .05));
+      }
+      g.cyl(0, 3.46, 0, .09, .8, 6, hex(0x8d8880));
+      g.sphere(0, 4.26, 0, .17, 6, hex(0xe8c96a));
+      Prefab.lightBulbs(g, 0, 2.62, 0, Math.max(bw, bd) / 2 + .12, 10, hex(0xfff3c4));
+      this.shopEmblem(g, def, 0, 3.0, -bd / 2 - .3);
+      ry = 3.4;
+      this.shopTier(g, def, W, D, ry, rh, body, roof, wall);
+      return { base: g, parts: [] };
     }
-    g.box(-hw + .1, .2, -D / 2 - .95, .16, 2.2, .16, shade(body, .7));
-    g.box(hw - .1, .2, -D / 2 - .95, .16, 2.2, .16, shade(body, .7));
-    g.box(0, .5, -D / 2 - .18, W - 1.4, .95, .36, shade(hex(0x6d5a45), 1));   // counter
-    g.box(0, 1.45, -D / 2 - .18, W - 1.4, .12, .5, shade(hex(0x8b7355), 1.1)); // counter top
-    // sign board
-    g.box(0, ry + .5, -D / 2 - .06, W - 1.0, .95, .22, shade(body, 1.2));
-    g.box(0, ry + .62, -D / 2 - .19, W - 1.5, .6, .06, hex(0xfff4d0));
-    // branded emblem on the sign + marquee bulbs + roofline pennants, so
-    // every stall reads its trade at a glance instead of being a blank box
-    this.shopEmblem(g, def, 0, ry + .62, -D / 2 - .26);
-    this.lightBulbs(g, 0, ry + .5, -D / 2 - .06, W / 2 - .1, Math.max(6, Math.round(W * 2)), hex(0xfff3c4));
-    this.bunting(g, 0, ry + .05, 0, Math.max(W, D) / 2 + .5, shade(body, 1.25), shade(roof, 1.15), 14);
-    // menu window glow
-    g.box(0, 1.7, -D / 2 - .21, W - 1.9, .6, .06, hex(0xffe9a8));
-    // small chimney / vent
-    g.box(hw - .5, 3.0, hd - .5, .5, 1.0, .5, shade(roof, .8));
-    // planters
+
+    /* ---------------- 1x1 facilities: street furniture, not a barrow ----- */
+    if (area <= 1.2 && isFacility) {
+      const post = hex(0x6f7a82);
+      Arch.plinth(g, W - .8, D - .8, stone, .22);
+      if (def.need === 'cash') {
+        g.box(0, 0, .25, 1.5, 2.3, 1.0, shade(body, .95));                    // machine housing
+        g.box(0, 0, .25, 1.62, .26, 1.1, trim);
+        g.box(0, .85, -.28, 1.05, .95, .10, hex(0x1c2228));                    // fascia
+        g.box(0, 1.30, -.34, .62, .34, .05, hex(0x8fd8ff));                    // screen
+        for (let k = 0; k < 4; k++) g.box(-.22 + (k % 2) * .30, 1.02 + ((k / 2) | 0) * .16, -.34, .22, .10, .05, hex(0xdfe6ec));
+        g.box(0, .78, -.34, .40, .06, .06, hex(0xe8c96a));                     // cash slot
+        g.box(0, 2.30, .1, 1.75, .22, 1.35, shade(roof, 1.06));                // hood
+        g.box(0, 2.52, .1, 1.35, .40, .95, shade(body, 1.1));
+        this.shopEmblem(g, def, 0, 2.62, -.45);
+      } else if (def.need === 'info') {
+        for (const sx of [-1, 1]) g.cyl(sx * .55, 0, .2, .09, 2.3, 8, post);   // twin posts
+        g.box(0, 1.05, .2, 1.9, 1.35, .16, shade(body, 1.0));                  // board
+        g.box(0, 1.15, .12, 1.6, 1.05, .05, hex(0xf3efe2));                    // map face
+        g.box(-.35, 1.35, .07, .5, .38, .03, hex(0x8fd8a0));                   // map blobs
+        g.box(.35, 1.15, .07, .55, .30, .03, hex(0x9fc8f0));
+        g.box(0, 2.42, .2, 2.1, .18, .55, shade(roof, 1.08));                  // little roof
+        g.triV([-1.05, 2.60, -.05], [1.05, 2.60, -.05], [0, 3.05, .2], shade(roof, 1.18));
+        this.shopEmblem(g, def, 0, 2.70, -.2);
+      } else {
+        // a drinking fountain / small water point
+        g.cyl(0, 0, 0, .52, .95, 10, stone);
+        g.cyl(0, .95, 0, .60, .16, 10, shade(stone, 1.12));
+        g.cyl(0, 1.02, 0, .42, .12, 10, hex(0x6fb7d8));                        // basin water
+        g.cyl(0, 1.11, -.18, .06, .34, 6, hex(0x9aa4ac));
+        g.box(0, 1.45, -.18, .16, .08, .28, hex(0x9aa4ac));
+        g.box(0, 0, .62, .9, .30, .5, shade(stone, .9));                        // step
+        this.shopEmblem(g, def, 0, 1.75, -.1);
+      }
+      Arch.apron(g, W - 1.6, D - 1.6, shade(stone, .82), .7);
+      ry = 2.4;
+      this.shopTier(g, def, W, D, ry, rh, body, roof, wall);
+      return { base: g, parts: [] };
+    }
+
+    /* ---------------- 1x1: a cart ---------------- */
+    if (area <= 1.2) {
+      const barrow = shade(body, 1.0);
+      g.box(0, .52, 0, W - .9, .78, D - .95, barrow);                       // body
+      g.box(0, 1.30, 0, W - .7, .12, D - .8, shade(timber, 1.1));           // worktop
+      g.box(0, .30, 0, W - .8, .22, D - .85, shade(trim, .9));              // skirt
+      g.box(0, .62, -(D - .95) / 2 - .04, W - 1.3, .5, .06, shade(body, 1.2));  // painted panel
+      for (const sx of [-1, 1])                                              // corner uprights
+        g.box(sx * (W - .9) / 2, 1.42, 0, .10, .10, D - .95, shade(timber, .8));
+      for (const sx of [-1, 1]) {                                            // wheels, proud of the body
+        g.cyl(sx * ((W - .9) / 2 + .10), .38, .35, .38, .14, 12, hex(0x4a4038));
+        g.cyl(sx * ((W - .9) / 2 + .12), .38, .35, .12, .16, 8, hex(0xc9b78a));
+        for (let k = 0; k < 6; k++) {                                        // spokes
+          const a = k / 6 * PI;
+          g.box(sx * ((W - .9) / 2 + .11), .38, .35, .05, .05, .70, hex(0xc9b78a));
+          g.beam(sx * ((W - .9) / 2 + .11), .38 + Math.cos(a) * .34, .35 + Math.sin(a) * .34,
+                 sx * ((W - .9) / 2 + .11), .38 - Math.cos(a) * .34, .35 - Math.sin(a) * .34, .04, .04, hex(0xc9b78a));
+        }
+      }
+      g.beam(-(W - .9) / 2, 1.15, -.6, -(W - .9) / 2 - .55, .78, -1.0, .07, .07, timber);   // handles
+      g.beam((W - .9) / 2, 1.15, -.6, (W - .9) / 2 + .55, .78, -1.0, .07, .07, timber);
+      g.cyl(0, 1.42, .05, .06, 1.35, 6, hex(0x8d8880));                      // parasol mast
+      Prefab.stripedRoof(g, 0, 2.62, .05, 1.65, 1.05, 10, shade(body, 1.25), hex(0xfbf6ea));
+      for (let k = 0; k < 10; k++) {                                          // ribs and fringe
+        const a = k / 10 * TAU;
+        g.beam(0, 3.60, .05, Math.cos(a) * 1.62, 2.66, .05 + Math.sin(a) * 1.62, .05, .04, shade(body, .8));
+        g.box(Math.cos(a) * 1.55, 2.44, .05 + Math.sin(a) * 1.55, .34, .20, .34, shade(body, 1.05));
+      }
+      g.sphere(0, 3.68, .05, .13, 6, hex(0xe8c96a));
+      Prefab.lightBulbs(g, 0, 2.50, .05, 1.40, 8, hex(0xfff3c4));
+      g.box(0, 1.44, -D / 2 - .04, W - .6, .48, .07, shade(body, 1.2));      // little sign
+      this.shopEmblem(g, def, 0, 1.62, -D / 2 - .10);
+      for (let k = 0; k < 3; k++)                                            // goods on the top
+        g.box(-W / 4 + k * (W / 4), 1.42, .1, .22, .18, .22, [hex(0xe8563f), hex(0xf5c451), hex(0xf7f2e6)][k % 3]);
+      ry = 2.4;
+      this.shopTier(g, def, W, D, ry, rh, body, roof, wall);
+      return { base: g, parts: [] };
+    }
+
+    /* ---------------- 2x2-ish: an octagonal kiosk ---------------- */
+    if (area <= 4.5 && !isFacility) {
+      const r0 = Math.min(W, D) / 2 - .55;
+      const capH = Math.max(1.5, r0 * .95);
+      Arch.plinth(g, W - .5, D - .5, stone, .26);
+      g.cyl(0, 0, 0, r0, 2.5, 8, wall);                                     // booth
+      g.cyl(0, 0, 0, r0 + .05, .45, 8, shade(body, .95));                   // base band
+      for (let k = 0; k < 8; k++) {                                          // corner posts
+        const a = (k + .5) / 8 * TAU;
+        g.box(Math.cos(a) * (r0 - .04), .45, Math.sin(a) * (r0 - .04), .16, 1.9, .16, trim);
+      }
+      g.cyl(0, 2.30, 0, r0 + .08, .30, 8, trim);                            // cornice
+      // serving hatch on the -Z face, with a propped shutter
+      g.box(0, .95, -r0 - .02, W * .62, 1.02, .10, hex(0x22262a));
+      g.box(0, 1.97, -r0 - .30, W * .70, .10, .62, shade(roof, 1.1));
+      g.box(0, .60, -r0 - .16, W * .66, .40, .26, shade(timber, 1.05));     // shelf
+      Prefab.stripedRoof(g, 0, 2.60, 0, r0 + .42, capH, 8, shade(roof, 1.12), hex(0xf7f2e6));
+      g.cyl(0, 2.60 + capH, 0, .09, .55, 6, hex(0x8d8880));
+      g.sphere(0, 3.20 + capH, 0, .16, 6, hex(0xe8c96a));
+      Prefab.lightBulbs(g, 0, 2.56, 0, r0 + .34, 10, hex(0xfff3c4));
+      Arch.hangingSign(g, r0 * 2, 0, 2.05, body, Math.min(1.5, r0 * 1.1), .62);
+      g.box(0, 2.62, -r0 - .10, r0 * 1.5, .58, .12, shade(body, 1.16));      // fascia sign
+      g.box(0, 2.70, -r0 - .18, r0 * 1.2, .38, .05, hex(0xfff4d0));
+      this.shopEmblem(g, def, 0, 2.80, -r0 - .24);
+      Arch.serviceClutter(g, W, D, rnd);
+      ry = 2.58;
+      this.shopTier(g, def, W, D, ry, rh, body, roof, wall);
+      return { base: g, parts: [] };
+    }
+
+    /* ---------------- facilities: civic, not commercial ---------------- */
+    if (isFacility) {
+      const brick = def.need === 'firstaid' ? hex(0xf2f0ea) : shade(hex(0xc8a184), .98);
+      const tile = shade(roof, .95);
+      Arch.plinth(g, W - .4, D - .4, stone, .30);
+      Arch.storey(g, W - .6, D - .6, 0, 2.6, brick, trim);
+      // a band of clerestory glazing high up — privacy plus daylight
+      Arch.windowRun(g, 'z', -1, W - 1.6, 1.75, .62, Math.max(2, Math.round(W / 2.2)), brick,
+        { halfD: (D - .6) / 2, glass: hex(0xdff0f6), mullion: true });
+      Arch.windowRun(g, 'z', 1, W - 1.6, 1.75, .62, Math.max(2, Math.round(W / 2.2)), brick,
+        { halfD: (D - .6) / 2, glass: hex(0xdff0f6), mullion: true });
+      // two doorways under a shared canopy, the way real park facilities are
+      if (def.need === 'toilet' && W > 3.4) {
+        for (const sx of [-1, 1]) Arch.door(g, D - .6, sx * (W * .22), brick, shade(body, .9), 1.0, 2.05);
+        for (const sx of [-1, 1]) g.box(sx * (W * .22), 2.18, -(D - .6) / 2 - .16, .44, .44, .05, sx < 0 ? hex(0x3f7fd0) : hex(0xd9558f));
+      } else {
+        Arch.door(g, D - .6, 0, brick, shade(body, .9), 1.15, 2.1);
+      }
+      Arch.cornice(g, W - .6, D - .6, 2.6, trim);
+      ry = 2.9;
+      const fPitch = clamp(Math.min(W - .6, D - .6) * .40, 1.3, 3.2);
+      const ridge = Arch.roofHip(g, W - .6, D - .6, ry, tile, fPitch, .5);
+      Arch.canopy(g, W - 1.2, D - .6, 2.35, shade(tile, 1.06), 1.2);
+      Arch.drainage(g, W - .6, D - .6, 2.6, trim);
+      // a lit plaque instead of a menu board, and a vent stack
+      g.box(0, 2.72, -(D - .6) / 2 - .12, Math.min(W - 1.4, 2.4), .62, .12, shade(body, 1.1));
+      g.box(0, 2.80, -(D - .6) / 2 - .20, Math.min(W - 1.8, 2.0), .40, .05, hex(0xfff4d0));
+      this.shopEmblem(g, def, 0, 2.98, -(D - .6) / 2 - .26);
+      g.cyl(W / 2 - .8, ridge - .1, D / 2 - .8, .16, .8, 6, hex(0x8d8880));
+      g.cyl(W / 2 - .8, ridge + .7, D / 2 - .8, .22, .12, 6, hex(0x6d6862));
+      Arch.serviceClutter(g, W, D, rnd);
+      this.shopTier(g, def, W, D, ry, rh, body, roof, wall);
+      return { base: g, parts: [] };
+    }
+
+    /* ---------------- stalls, shops and halls ---------------- */
+    const big = area >= 15;
+    const mid = area >= 9;
+    const wallH = big ? 5.0 : mid ? 3.3 : 2.9;
+    const bw = W - .7, bd = D - .7;
+    Arch.plinth(g, bw, bd, stone, .32);
+    Arch.apron(g, bw, bd, shade(stone, .86), 1.4);
+    Arch.storey(g, bw, bd, 0, wallH, wall, trim);
+    g.box(0, .18, 0, bw + .05, .62, bd + .05, body);                        // colour band at the base
+    if (big) g.box(0, 2.55, 0, bw + .05, .30, bd + .05, shade(body, 1.05)); // string course
+
+    /* Windows: a rhythm along the sides, and glazing either side of the
+       serving hatch on the front. */
+    const winY = big ? 3.15 : 1.55;
+    const sideN = Math.max(2, Math.round(D / 2.0));
+    for (const sx of [-1, 1])
+      Arch.windowRun(g, 'x', sx, bd - 1.2, winY, big ? 1.25 : 1.15, sideN, wall,
+        { halfW: bw / 2, glass, frame: trim, box: isFood && rnd() > .45, shutters: isRetail && rnd() > .6 ? shade(body, .8) : null });
+    if (big) {
+      for (const sx of [-1, 1])
+        Arch.windowRun(g, 'x', sx, bd - 1.2, 1.35, 1.15, sideN, wall, { halfW: bw / 2, glass, frame: trim });
+      Arch.windowRun(g, 'z', 1, bw - 1.4, 1.35, 1.15, Math.max(2, Math.round(W / 2.2)), wall, { halfD: bd / 2, glass, frame: trim });
+    }
+
+    /* The trading face. */
+    const hatchW = Math.min(bw - 1.2, big ? bw * .55 : bw - 1.0);
+    g.box(0, .95, -bd / 2 - .02, hatchW, 1.35, .12, hex(0x22262a));          // dark opening
+    g.box(0, .95, -bd / 2 - .10, hatchW - .18, 1.35, .06, hex(0xffdc9a));    // lit interior
+    Arch.counter(g, bw, bd, body, timber);
+    if (isFood) Arch.awning(g, bw, bd, 2.42, shade(body, 1.16), hex(0xf7f2e6), 1.35);
+    else Arch.canopy(g, bw, bd, 2.42, shade(roof, 1.08), 1.35);
+
+    Arch.cornice(g, bw, bd, wallH, trim);
+    ry = wallH + .3;
+    let ridge;
+    /* Pitch scales with the footprint: a fixed rise turns a wide building
+       into a flat slab with a lid, which is exactly how the old shell read. */
+    const pitch = clamp(Math.min(bw, bd) * .34, 1.4, 3.4);
+    if (big) ridge = Arch.roofMansard(g, bw, bd, ry, roof, pitch * .62, pitch * .40, .45);
+    else if (mid) ridge = Arch.roofGable(g, bw, bd, ry, roof, pitch * 1.15, .5, shade(wall, .96));
+    else ridge = Arch.roofHip(g, bw, bd, ry, roof, pitch, .45);
+    Arch.drainage(g, bw, bd, wallH, trim);
+
+    /* Roofline detail: dormers on the big halls, a chimney on the shops,
+       plant and vents on everything. */
+    if (big) {
+      const dn = Math.max(2, Math.round(W / 3.5));
+      for (let k = 0; k < dn; k++)
+        Arch.dormer(g, -bw / 2 + bw * (k + .5) / dn, ry + 1.25, -bd / 2 + .55, roof, shade(wall, 1.02));
+      g.box(bw / 2 - 1.0, ridge - .2, bd / 2 - 1.0, .7, 1.5, .7, hex(0xb08060));   // chimney
+      g.box(bw / 2 - 1.0, ridge + 1.3, bd / 2 - 1.0, .9, .18, .9, hex(0x8a6a4a));
+      Arch.terrace(g, bw, bd, rnd() > .5 ? 1 : -1, timber, rnd);
+    } else if (mid) {
+      g.box(bw / 2 - .8, ry + .4, bd / 2 - .8, .55, 1.5, .55, hex(0xb08060));
+      g.box(bw / 2 - .8, ry + 1.9, bd / 2 - .8, .72, .16, .72, hex(0x8a6a4a));
+    }
+    Arch.rooftop(g, bw, bd, wallH + .34, roof, rnd);
+
+    /* Signage: a fascia board, a projecting bracket sign, bulbs and bunting. */
+    Arch.signBoard(g, bw, bd, ry + .18, body, big ? 1.0 : .82);
+    this.shopEmblem(g, def, 0, ry + .46, -bd / 2 - .22);
+    Arch.hangingSign(g, bd, -bw / 2 + .9, 2.05, shade(body, 1.05), 1.0, .66);
+    Prefab.lightBulbs(g, 0, ry + .16, -bd / 2 - .06, bw / 2 - .1, Math.max(6, Math.round(W * 2)), hex(0xfff3c4));
+    Prefab.bunting(g, 0, ry - .05, 0, Math.max(bw, bd) / 2 + .55, shade(body, 1.25), shade(roof, 1.15), 14);
+    Arch.interiorGlow(g, bw, bd, 1.0, 1.1);
+    Arch.serviceClutter(g, W, D, rnd);
+
+    /* Planters flanking the forecourt. */
     for (const sx of [-1, 1]) {
-      g.box(sx * (W / 2 + .35), 0, -D / 2 + .6, .6, .5, .6, hex(0x9c7b5c));
-      g.sphere(sx * (W / 2 + .35), .75, -D / 2 + .6, .42, 5, hex(0x4e9b52));
-      g.sphere(sx * (W / 2 + .35) + .2, .95, -D / 2 + .5, .12, 4, hex(0xff6f91));
+      g.box(sx * (W / 2 + .35), 0, -D / 2 + .6, .62, .52, .62, hex(0x9c7b5c));
+      g.box(sx * (W / 2 + .35), .52, -D / 2 + .6, .70, .10, .70, shade(hex(0x9c7b5c), 1.15));
+      g.sphere(sx * (W / 2 + .35), .78, -D / 2 + .6, .42, 5, hex(0x4e9b52));
+      g.sphere(sx * (W / 2 + .35) + .2, .98, -D / 2 + .5, .12, 4, hex(0xff6f91));
+      g.sphere(sx * (W / 2 + .35) - .18, .94, -D / 2 + .68, .11, 4, hex(0xffd166));
     }
     this.shopTier(g, def, W, D, ry, rh, body, roof, wall);
     return { base: g, parts: [] };
@@ -6250,9 +7098,27 @@ const Prefab = {
     const W = def.w * TILE, D = def.d * TILE;
     const deck = hex(0x8fd3e8), tile = hex(0xd8e8ee);
     g.box(0, -.2, 0, W, .4, D, tile);
-    // splash pool at the bottom
-    g.cyl(0, 0, 0, cfg.r * .55 + 2.2, .5, 18, hex(0xbfe0ec));
-    g.cyl(0, .5, 0, cfg.r * .55 + 1.9, .12, 18, hex(0x2f9fd4));
+    /* Splash-down: a run-out lane with dividers, a foam plume where the
+       flume meets the water, and steps out with a handrail. A slide that
+       ends in a flat blue disc looks unfinished from every angle. */
+    g.cyl(0, 0, 0, cfg.r * .55 + 2.6, .5, 20, hex(0xdfe8ee));
+    g.cyl(0, .5, 0, cfg.r * .55 + 2.3, .10, 20, hex(0xbfe0ec));
+    g.cyl(0, .58, 0, cfg.r * .55 + 1.9, .10, 20, hex(0x2f9fd4));
+    for (let k = 0; k < 8; k++) {
+      const a = k / 8 * TAU;
+      g.box(Math.cos(a) * (cfg.r * .55 + 2.15), .5, Math.sin(a) * (cfg.r * .55 + 2.15), .5, .22, .5, hex(0xf2f4f6));
+    }
+    {
+      const splash = new Geo();
+      for (let k = 0; k < 7; k++) {
+        const a = k / 7 * TAU;
+        splash.beam(0, 0, 0, Math.cos(a) * 1.5, .9, Math.sin(a) * 1.5, .22, .22, hex(0xf4fbff));
+      }
+      parts.push({ geo: splash, anim: (m, o, t) => M4.compose(m, 0, .62, 0, 0, t * .8, 0, 1, .8 + Math.sin(t * 5) * .35, 1) });
+    }
+    for (let k = 0; k < 3; k++)
+      g.box(cfg.r * .55 + 2.0, .1 + k * .22, -1.4 - k * .38, 1.5, .24, .42, shade(hex(0xdfe8ee), 1 - k * .03));
+    for (const s2 of [-1, 1]) g.cyl(cfg.r * .55 + 2.0 + s2 * .6, .5, -1.9, .06, 1.3, 6, hex(0x9aa4ae));
     // tower and stairs up to the launch platform
     const towerX = Math.cos(cfg.start) * cfg.r, towerZ = Math.sin(cfg.start) * cfg.r;
     g.box(towerX, 0, towerZ, 2.6, cfg.h, 2.6, hex(0xe8eef2));
@@ -6262,8 +7128,24 @@ const Prefab = {
       g.cyl(towerX + Math.cos(a) * 2.9, y, towerZ + Math.sin(a) * 2.9, .07, 1.1, 5, hex(0x9aa4ae));
     }
     g.box(towerX, cfg.h, towerZ, 4.2, .3, 4.2, hex(0xf2f6f8));
+    /* Platform railings all the way round, a start gate with a light, and a
+       height-restriction sign at the top of the steps. */
     for (const sx of [-1, 1]) for (const sz of [-1, 1])
       g.cyl(towerX + sx * 1.9, cfg.h + .3, towerZ + sz * 1.9, .08, 1.1, 5, hex(0x9aa4ae));
+    for (let e = 0; e < 4; e++) {
+      const a = e / 4 * TAU + PI / 4;
+      const x1 = towerX + Math.cos(a) * 2.7, z1 = towerZ + Math.sin(a) * 2.7;
+      const a2 = (e + 1) / 4 * TAU + PI / 4;
+      const x2 = towerX + Math.cos(a2) * 2.7, z2 = towerZ + Math.sin(a2) * 2.7;
+      g.beam(x1, cfg.h + 1.25, z1, x2, cfg.h + 1.25, z2, .07, .07, hex(0x9aa4ae));
+      g.beam(x1, cfg.h + .75, z1, x2, cfg.h + .75, z2, .06, .06, hex(0x9aa4ae));
+    }
+    g.box(towerX, cfg.h + .3, towerZ, 1.7, .12, 1.7, shade(hex(cfg.col), 1.1));      // dispatch mat
+    g.box(towerX + 1.0, cfg.h + .3, towerZ, .18, 1.5, .5, hex(0x38414d));            // signal post
+    g.sphere(towerX + 1.0, cfg.h + 1.6, towerZ, .16, 6, hex(0x6ac46a));
+    g.sphere(towerX + 1.0, cfg.h + 1.25, towerZ, .16, 6, hex(0xff5a4a));
+    g.box(towerX - 1.6, cfg.h + .3, towerZ, .10, 1.4, .9, hex(0xf2f4f6));            // height sign
+    g.box(towerX - 1.66, cfg.h + 1.0, towerZ, .04, .5, .7, hex(0xff5a4a));
     this.stripedRoof(g, towerX, cfg.h + 1.5, towerZ, 3.0, 1.6, 10, hex(cfg.col), hex(0xffffff));
 
     // the flume itself: floor plus two walls, following the path
@@ -6326,6 +7208,12 @@ const Prefab = {
       g.box(0, -.25, (bd / 2 + RIM / 2), bw + RIM * 2, h, RIM, deckC);
       g.box(-(bw / 2 + RIM / 2), -.25, 0, RIM, h, bd, deckC);
       g.box((bw / 2 + RIM / 2), -.25, 0, RIM, h, bd, deckC);
+      /* A chequer of slightly darker slabs, so the surround reads as paving
+         rather than as a white shelf, plus the blue edging strip and a
+         drainage channel that every real pool deck has. */
+      for (const sz of [-1, 1]) Arch.tiledDeck(g, bw + RIM * 2, RIM, TOP, deckC, 2.0),
+        g.box(0, TOP - .03, sz * (bd / 2 + RIM - .18), bw + RIM * 2 - .4, .05, .16, shade(deckC, .78));
+      Arch.poolEdge(g, bw, bd, TOP + .01, hex(0x2f7fd0));
       // coping along the water's edge
       g.box(0, TOP - .06, -(bd / 2 + .2), bw + .9, .12, .4, shade(deckC, .86));
       g.box(0, TOP - .06, (bd / 2 + .2), bw + .9, .12, .4, shade(deckC, .86));
@@ -6388,11 +7276,29 @@ const Prefab = {
       ladder(bw / 2 - 1.4, bd / 2 - .1);
       ladder(-bw / 2 + 1.4, bd / 2 - .1);
       if (kind === 'wavepool') {
-        g.box(0, TOP, -(bd / 2 + RIM - .3), bw + .6, 2.4, 1.0, hex(0x4a5462));
-        for (let i = -3; i <= 3; i++) g.box(i * (bw / 7.5), TOP + .15, -(bd / 2 + RIM - .3), .8, 1.7, 1.2, hex(0x7ed6df));
+        /* The wave machine: a bulkhead of caissons with vents, a service
+           gantry over the top and a warning stripe at the waterline. It is
+           the one piece of plant a wave pool has, and it should look like
+           plant. */
+        const mz = -(bd / 2 + RIM - .3);
+        g.box(0, TOP - .2, mz, bw + RIM * 1.6, 3.1, 1.5, hex(0x4a5462));
+        g.box(0, TOP + 2.9, mz, bw + RIM * 1.8, .28, 1.9, hex(0x38414d));
+        for (let i = -3; i <= 3; i++) {
+          const cx = i * (bw / 7.5);
+          g.box(cx, TOP + .15, mz + .35, .86, 1.9, .9, hex(0x7ed6df));       // caisson gate
+          for (let v = 0; v < 4; v++) g.box(cx, TOP + .45 + v * .38, mz + .82, .74, .12, .08, shade(hex(0x38414d), 1.2));
+        }
+        g.box(0, TOP - .05, mz + .95, bw + .6, .22, .12, hex(0xf2c14e));     // warning stripe
+        for (const sx of [-1, 1]) {
+          g.box(sx * (bw / 2 + .5), TOP, mz + .2, .5, 3.2, .5, hex(0x38414d));
+          g.box(sx * (bw / 2 + .5), TOP + 3.2, mz + .2, .8, .18, 2.2, hex(0x4a5462));
+        }
+        g.box(0, TOP + 2.2, mz + 1.0, 2.6, .55, .10, hex(0xf2f4f6));         // sign panel
         const waves = new Geo();
-        for (let k = 0; k < 4; k++)
+        for (let k = 0; k < 4; k++) {
           waves.box(0, 0, -bd / 2 + 1.6 + k * (bd / 4.2), bw - .6, .22, .8, shade(water, 1.45));
+          waves.box(0, .12, -bd / 2 + 1.45 + k * (bd / 4.2), bw - 1.0, .10, .28, hex(0xf4fbff));   // foam crest
+        }
         parts.push({
           geo: waves, anim: (m, o, t) => {
             const inten = o.waveIntensity === undefined ? 1 : o.waveIntensity;
@@ -6400,53 +7306,197 @@ const Prefab = {
           }
         });
       }
-      for (let k = 0; k < 3; k++) lounger(-W / 2 + 2.2 + k * 2.6, D / 2 - .9, k % 2 ? 0x7ed6df : 0xff8fb1);
-      umbrella(W / 2 - 2.0, D / 2 - 1.0, 0xff6f91);
-      umbrella(-W / 2 + 2.0, -D / 2 + 1.0, 0x39c0ff);
+      /* A shallow end you can wade into, and the furniture that makes a
+         pool look like somewhere people spend an afternoon. */
+      Arch.beachEntry(g, bw, bd, FLOOR, TOP, SURF, liner, water);
+      if (kind === 'pool') Arch.laneRopes(g, bw, bd, SURF, Math.max(2, Math.round(bw / 4)));
+      const rows = Math.max(2, Math.floor((bw - 2) / 2.6));
+      const frontZ = bd / 2 + RIM / 2;
+      for (let k = 0; k < rows; k++) {
+        lounger(-bw / 2 + 1.3 + k * 2.6, frontZ, k % 2 ? 0x7ed6df : 0xff8fb1);
+        if (k % 3 === 1) umbrella(-bw / 2 + 1.3 + k * 2.6, frontZ - .35, k % 2 ? 0xff6f91 : 0x39c0ff);
+      }
+      /* Everything on the deck sits on the paved strip around the basin —
+         inside it is water, and a changing cabin standing in the shallow end
+         is not the look. */
+      const deckZ = -(bd / 2 + RIM / 2), deckX = -(bw / 2 + RIM / 2);
+      Arch.lifeguard(g, bw / 2 + RIM / 2, 0, TOP, hex(0xff5a4a));
+      Arch.poolShower(g, deckX, -bd / 4, TOP);
+      Arch.towelRack(g, deckX, bd / 4, TOP, deckC);
+      const cabinN = clamp(Math.floor((bw - 2.5) / 1.5), 1, 4);
+      Arch.changingCabins(g, -bw / 2 + 1.0, deckZ, TOP, cabinN, hex(0xf5f0e2), hex(0x39a7c4));
+      for (const sx of [-1, 1]) {                                            // planters at the corners
+        g.box(sx * (bw / 2 + RIM / 2), TOP, bd / 2 + RIM / 2, .9, .55, .9, hex(0x9c7b5c));
+        g.sphere(sx * (bw / 2 + RIM / 2), TOP + .8, bd / 2 + RIM / 2, .55, 5, hex(0x4e9b52));
+      }
     }
     else if (kind === 'kiddie') {
+      /* A splash zone for small children: ankle-deep water, a tipping
+         bucket, mushroom fountains, a spray arch and a little slide with
+         steps and rails. The old one was three mushrooms and a green ramp. */
       const bw = W - RIM * 2, bd = D - RIM * 2;
       deckFrame(bw, bd);
       basin(bw, bd, 0.45, shade(water, 1.15));
-      for (const [sx, sz] of [[-bw / 4, -bd / 4], [bw / 4, bd / 4], [0, bd / 3]]) {
-        g.cyl(sx, SURF, sz, .28, 2.6, 8, hex(0xffd23f));
-        g.sphere(sx, SURF + 2.9, sz, .85, 7, hex(0xff6f91));
+      /* Soft-play floor: coloured pads under the water. */
+      for (let i = 0; i < 4; i++) for (let j = 0; j < 3; j++) {
+        if ((i + j) % 2) continue;
+        g.box(-bw / 2 + bw * (i + .5) / 4, FLOOR + .02, -bd / 2 + bd * (j + .5) / 3,
+          bw / 4 - .4, .04, bd / 3 - .4, [hex(0x7ed6df), hex(0xffd166), hex(0x9be08a)][(i + j) % 3]);
       }
-      const jet = new Geo();
-      for (let i = 0; i < 8; i++) { const a = i / 8 * TAU; jet.beam(0, 0, 0, Math.cos(a) * 1.1, 1.5, Math.sin(a) * 1.1, .15, .15, hex(0xdff2fb)); }
-      parts.push({ geo: jet, anim: (m, o, t) => M4.compose(m, 0, SURF + .4, 0, 0, t * .9, 0, 1, 1 + Math.sin(t * 4) * .25, 1) });
-      // a small slide for little ones
-      g.box(-bw / 2 + 1.4, SURF, -bd / 2 + 1.4, 1.5, 2.8, 1.5, hex(0xf5f0e2));
-      g.beam(-bw / 2 + 1.4, SURF + 2.8, -bd / 2 + 1.4, -bw / 2 + 1.4, SURF + .3, -bd / 2 + 4.6, 1.3, .25, hex(0x6ac46a));
-      lounger(W / 2 - 2.2, D / 2 - 1.0, 0xffd23f);
+      /* Mushroom fountains: a stem, a cap and a curtain of water. */
+      for (const [sx, sz, cc] of [[-bw / 4, -bd / 5, 0xff8fb1], [bw / 4, bd / 5, 0x7ed6df]]) {
+        g.cyl(sx, SURF - .1, sz, .22, 2.1, 8, hex(0xf2f4f6));
+        g.cyl(sx, SURF + 2.0, sz, 1.25, .28, 12, hex(cc), .35);
+        g.cyl(sx, SURF + 1.98, sz, 1.28, .06, 12, shade(hex(cc), .8));
+        const curtain = new Geo();
+        for (let k = 0; k < 10; k++) {
+          const a = k / 10 * TAU;
+          curtain.beam(Math.cos(a) * 1.15, 0, Math.sin(a) * 1.15, Math.cos(a) * 1.2, -1.85, Math.sin(a) * 1.2, .10, .10, shade(water, 1.5));
+        }
+        parts.push({ geo: curtain, anim: (m, o, t) => M4.compose(m, sx, SURF + 1.95, sz, 0, t * .4, 0, 1, .92 + Math.sin(t * 3 + sx) * .08, 1) });
+      }
+      /* Tipping bucket on a frame — the centrepiece of every splash pad. */
+      {
+        const bx = 0, bz = -bd / 3.2;
+        for (const s2 of [-1, 1]) g.cyl(bx + s2 * 1.5, SURF - .1, bz, .16, 3.6, 8, hex(0xdfe6ee));
+        g.beam(bx - 1.5, SURF + 3.4, bz, bx + 1.5, SURF + 3.4, bz, .16, .16, hex(0xdfe6ee));
+        const bucket = new Geo();
+        bucket.cyl(0, -1.0, 0, .95, 1.0, 12, hex(0xffd23f));
+        bucket.cyl(0, -.05, 0, 1.02, .12, 12, hex(0xe8a13c));
+        parts.push({
+          geo: bucket, anim: (m, o, t) => {
+            const ph = (t * .28) % 1;
+            const tip = ph > .82 ? Math.sin((ph - .82) / .18 * PI) * 2.0 : 0;
+            return M4.compose(m, bx, SURF + 3.3, bz, tip, 0, 0, 1, 1, 1);
+          }
+        });
+        const dump = new Geo();
+        dump.box(0, 0, 0, 1.6, 2.4, 1.6, shade(water, 1.55));
+        parts.push({
+          geo: dump, anim: (m, o, t) => {
+            const ph = (t * .28) % 1;
+            const on = ph > .84 && ph < .95 ? 1 : 0.001;
+            return M4.compose(m, bx, SURF + .2, bz + .8, 0, 0, 0, on, on, on);
+          }
+        });
+      }
+      /* Spray arch you run through. */
+      {
+        const ax = bw / 4.5, az = -bd / 3;
+        for (const s2 of [-1, 1]) g.cyl(ax + s2 * 1.3, SURF - .1, az, .12, 2.4, 8, hex(0x6ac46a));
+        for (let k = 0; k < 7; k++) {
+          const t0 = k / 6, x0 = ax - 1.3 + 2.6 * t0, y0 = SURF + 2.3 + Math.sin(t0 * PI) * .8;
+          g.sphere(x0, y0, az, .16, 5, hex(0x6ac46a));
+          g.beam(x0, y0 - .1, az, x0, y0 - 1.2, az, .05, .05, shade(water, 1.5));
+        }
+      }
+      /* A little slide with steps and handrails. */
+      {
+        const sx2 = -bw / 2 + 1.7, sz2 = bd / 2 - 1.9;
+        g.box(sx2, SURF - .1, sz2, 1.7, 2.4, 1.7, hex(0xf2f4f6));
+        for (let k = 0; k < 4; k++) g.box(sx2 + .95, SURF - .1 + k * .55, sz2 + .1, .5, .16, 1.3, shade(hex(0xdfe6ee), 1 - k * .02));
+        for (const s2 of [-1, 1]) g.cyl(sx2 + .95 + s2 * .3, SURF + .1, sz2 - .6, .06, 2.6, 6, hex(0x9aa4ae));
+        g.beam(sx2, SURF + 2.3, sz2, sx2 + .3, SURF + .18, sz2 - 3.1, 1.25, .22, hex(0x6ac46a));
+        for (const s2 of [-1, 1])
+          g.beam(sx2 + s2 * .62, SURF + 2.5, sz2, sx2 + .3 + s2 * .62, SURF + .5, sz2 - 3.1, .16, .5, shade(hex(0x6ac46a), 1.2));
+      }
+      Arch.lifeguard(g, bw / 2 + RIM / 2, 0, TOP, hex(0xff5a4a));
+      lounger(bw / 4, bd / 2 + RIM / 2, 0xffd23f);
+      lounger(-bw / 4, bd / 2 + RIM / 2, 0x7ed6df);
+      umbrella(0, bd / 2 + RIM / 2, 0xff6f91);
     }
     else if (kind === 'lazyriver') {
-      const R0 = Math.min(W, D) / 2 - 2.2, half = 1.9, seg = 26;
-      // grassy island in the middle and a paved outer ring, all raised
-      g.cyl(0, -.25, 0, R0 - half - .2, TOP + .25, 20, hex(0x6bbd58));
-      for (let i = 0; i < seg; i++) {
-        const a = i / seg * TAU, a2 = (i + 1) / seg * TAU;
-        const inner = R0 - half, outer = R0 + half;
-        const p = (ang, r, y) => [Math.cos(ang) * r, y, Math.sin(ang) * r];
-        // outer deck
-        g.box(Math.cos(a) * (outer + RIM / 2), -.25, Math.sin(a) * (outer + RIM / 2), RIM + .6, TOP + .25, RIM + .6, deckC);
-        // channel floor, water surface and walls
-        g.quadV(p(a2, outer, FLOOR), p(a, outer, FLOOR), p(a, inner, FLOOR), p(a2, inner, FLOOR), shade(liner, .78));
-        g.quadV(p(a2, outer, SURF), p(a, outer, SURF), p(a, inner, SURF), p(a2, inner, SURF), water);
-        g.beam(Math.cos(a) * outer, FLOOR, Math.sin(a) * outer, Math.cos(a2) * outer, FLOOR, Math.sin(a2) * outer, .34, TOP, liner);
-        g.beam(Math.cos(a) * inner, FLOOR, Math.sin(a) * inner, Math.cos(a2) * inner, FLOOR, Math.sin(a2) * inner, .34, TOP, liner);
+      /* A lazy river is a channel, an island and the things you pass on the
+         way round: a boarding platform, a tube stack, a little bridge over
+         the water and a waterfall you drift under. Built as smooth annuli
+         rather than a ring of boxes, which is what made the old one look
+         like a wall of white bricks. */
+      const R0 = Math.min(W, D) / 2 - 2.2, half = 1.9, seg = 40;
+      const inner = R0 - half, outer = R0 + half;
+      const P = (ang, r, y) => [Math.cos(ang) * r, y, Math.sin(ang) * r];
+      const ring = (r1, r2, y, col, shadeStep) => {
+        for (let i = 0; i < seg; i++) {
+          const a = i / seg * TAU, a2 = (i + 1) / seg * TAU;
+          g.quadV(P(a2, r2, y), P(a, r2, y), P(a, r1, y), P(a2, r1, y),
+            shadeStep ? shade(col, i % 2 ? .96 : 1.03) : col);
+        }
+      };
+      /* Island: a grassed mound with a rock edge and real palms. */
+      g.cyl(0, -.25, 0, inner + .1, TOP + .25, 24, shade(deckC, .9));         // island retaining wall
+      g.cyl(0, TOP - .02, 0, inner + .02, .16, 24, hex(0x6bbd58));
+      ring(0, inner - .1, TOP + .14, hex(0x76c962));                          // grass top
+      for (let k = 0; k < 10; k++) {
+        const a = k / 10 * TAU + .2;
+        g.sphere(Math.cos(a) * (inner - .35), TOP + .05, Math.sin(a) * (inner - .35), .42, 5, hex(0xb9ab90));
       }
       for (let k = 0; k < 4; k++) {
-        const a = k / 4 * TAU + .6, rr = R0 - half - 2.0;
-        g.cyl(Math.cos(a) * rr, TOP, Math.sin(a) * rr, .26, 2.6, 6, hex(0x9c7b52));
-        g.sphere(Math.cos(a) * rr, TOP + 3.2, Math.sin(a) * rr, 1.5, 6, hex(0x3fa055));
+        const a = k / 4 * TAU + .6, rr2 = Math.max(1.2, inner - 2.2);
+        g.mergeM(Prefab.scenery('palm', k + 1).base,
+          M4.compose(M4.create(), Math.cos(a) * rr2, TOP + .18, Math.sin(a) * rr2, 0, a, 0, 1.1, 1.15, 1.1));
       }
-      for (let i = 0; i < 6; i++) {
-        const ring = new Geo(), c2 = hex([0xffd23f, 0xff6f91, 0x7ed6df, 0x6ac46a, 0xff8c42, 0xc77dff][i]);
-        ring.cyl(0, 0, 0, .95, .30, 10, c2);
-        ring.cyl(0, .04, 0, .48, .26, 8, shade(water, 1.2));
-        const ph = i / 6 * TAU;
-        parts.push({ geo: ring, anim: (m, o, t) => { const a = ph + t * .26; return M4.compose(m, Math.cos(a) * R0, SURF - .05, Math.sin(a) * R0, 0, -a, 0, 1, 1, 1); } });
+      /* The channel: floor, water, and smooth walls both sides. */
+      ring(inner, outer, FLOOR, shade(liner, .78));                            // channel floor
+      ring(inner + .18, outer - .18, SURF, water, true);                       // water surface
+      for (let i = 0; i < seg; i++) {
+        const a = i / seg * TAU, a2 = (i + 1) / seg * TAU;
+        g.quadV(P(a, inner, TOP), P(a2, inner, TOP), P(a2, inner, FLOOR), P(a, inner, FLOOR), shade(liner, 1.02));
+        g.quadV(P(a2, outer, TOP), P(a, outer, TOP), P(a, outer, FLOOR), P(a2, outer, FLOOR), shade(liner, .94));
+      }
+      /* Paved surround, as one smooth annulus with a chequered tint. */
+      ring(outer, outer + RIM, TOP, deckC, true);
+      for (let i = 0; i < seg; i++) {
+        const a = i / seg * TAU, a2 = (i + 1) / seg * TAU;
+        g.quadV(P(a, outer + RIM, TOP), P(a2, outer + RIM, TOP), P(a2, outer + RIM, -.25), P(a, outer + RIM, -.25), shade(deckC, .84));
+      }
+      g.cyl(0, TOP - .06, 0, outer + .22, .12, 28, shade(deckC, .8));          // coping ring
+      /* Boarding platform with steps and a handrail, at the south edge. */
+      const bz = outer + RIM * .55;
+      g.box(0, TOP - .02, bz, 4.6, .14, RIM * 1.1, shade(deckC, 1.06));
+      for (let k = 0; k < 3; k++) g.box(0, FLOOR + k * ((TOP - FLOOR) / 3), outer - .35 - k * .34, 3.4, (TOP - FLOOR) / 3 + .06, .42, shade(liner, 1.04));
+      for (const sx of [-1, 1]) {
+        g.cyl(sx * 2.0, TOP, bz - .35, .07, 1.05, 6, hex(0xdfe6ee));
+        g.beam(sx * 2.0, TOP + 1.02, bz - .35, sx * 2.0, TOP + 1.02, bz + .55, .06, .06, hex(0xdfe6ee));
+      }
+      /* A stack of tubes waiting to be taken out. */
+      for (let k = 0; k < 5; k++) {
+        g.cyl(3.2, TOP + k * .22, bz, .95, .20, 12, [hex(0xffd23f), hex(0xff6f91), hex(0x7ed6df), hex(0x6ac46a), hex(0xc77dff)][k]);
+        g.cyl(3.2, TOP + k * .22 + .02, bz, .46, .18, 10, shade(deckC, 1.05));
+      }
+      /* A footbridge onto the island, and a waterfall on the far side. */
+      {
+        const a = -PI / 2;
+        const mx = Math.cos(a) * R0, mz = Math.sin(a) * R0;
+        g.box(mx, TOP + .35, mz, 1.6, .16, half * 2 + 1.2, shade(hex(0x9a6b42), 1.05));
+        for (const s2 of [-1, 1]) {
+          g.beam(mx + s2 * .78, TOP + .5, mz - half - .5, mx + s2 * .78, TOP + 1.1, mz - half - .5, .07, .07, hex(0xdfe6ee));
+          g.beam(mx + s2 * .78, TOP + 1.05, mz - half - .5, mx + s2 * .78, TOP + 1.05, mz + half + .5, .06, .06, hex(0xdfe6ee));
+          g.beam(mx + s2 * .78, TOP + .5, mz + half + .5, mx + s2 * .78, TOP + 1.1, mz + half + .5, .07, .07, hex(0xdfe6ee));
+        }
+      }
+      {
+        const a = PI * .35;
+        const fx = Math.cos(a) * (outer + .4), fz = Math.sin(a) * (outer + .4);
+        g.sphere(fx, TOP, fz, 1.5, 6, hex(0x8d8577));                          // rockwork
+        g.sphere(fx + .9, TOP + .5, fz - .5, 1.1, 6, hex(0x9a9284));
+        g.box(fx, TOP + 1.4, fz, 2.2, .3, 1.4, hex(0x7d7568));
+        const fall = new Geo();
+        fall.box(0, 0, 0, 1.8, 1.9, .18, shade(water, 1.5));
+        parts.push({ geo: fall, anim: (m, o, t) => M4.compose(m, fx, TOP + .1, fz - .8, 0, 0, 0, 1, 1 + Math.sin(t * 3.1) * .05, 1) });
+      }
+      /* Rings drifting round the circuit. */
+      for (let i = 0; i < 8; i++) {
+        const rg = new Geo(), c2 = hex([0xffd23f, 0xff6f91, 0x7ed6df, 0x6ac46a, 0xff8c42, 0xc77dff, 0xffffff, 0x9be08a][i]);
+        rg.cyl(0, 0, 0, .95, .30, 10, c2);
+        rg.cyl(0, .04, 0, .48, .26, 8, shade(water, 1.2));
+        const ph = i / 8 * TAU;
+        parts.push({ geo: rg, anim: (m, o, t) => { const a = ph + t * .26; return M4.compose(m, Math.cos(a) * R0, SURF - .05, Math.sin(a) * R0, 0, -a, 0, 1, 1, 1); } });
+      }
+      /* Poolside furniture on the outer deck. */
+      Arch.lifeguard(g, 0, -(outer + RIM * .55), TOP, hex(0xff5a4a));
+      for (let k = 0; k < 6; k++) {
+        const a = k / 6 * TAU + .35;
+        lounger(Math.cos(a) * (outer + RIM * .55), Math.sin(a) * (outer + RIM * .55), k % 2 ? 0x7ed6df : 0xffd166);
+        if (k % 2) umbrella(Math.cos(a + .12) * (outer + RIM * .78), Math.sin(a + .12) * (outer + RIM * .78), k % 4 ? 0xff6f91 : 0x39c0ff);
       }
     }
     else if (kind === 'divingboard') {
@@ -7230,13 +8280,355 @@ const Prefab = {
         break;
       }
     }
-    // entrance sign for every ride
-    g.box(0, 3.4, -D / 2 - .3, W * .6, 1.2, .3, hex(0x2f3b52));
-    g.box(0, 3.55, -D / 2 - .46, W * .5, .8, .1, hex(0xffd76a));
-    g.cyl(-W * .3, 0, -D / 2 - .3, .16, 3.4, 6, hex(0x2f3b52));
-    g.cyl(W * .3, 0, -D / 2 - .3, .16, 3.4, 6, hex(0x2f3b52));
+    /* Per-machine detailing, then the shared show treatment. */
+    this.rideDetail(kind, g, parts, def, W, D);
+
+    /* ---- the show: every ride is finished the same way ----
+       Pad, fence, entrance gate with a lit sign, an operator booth and a
+       lighting rig. Before this each ride was a machine standing on grass
+       with a signpost next to it. */
+    {
+      const rnd = Arch.seed(def.id);
+      const body = hex(def.color !== undefined ? def.color : 0x3ba7d4);
+      const roofC = hex(def.roof !== undefined ? def.roof : 0xf2c14e);
+      const pad = hex(0xc9c1b0);
+      this.ridePad(g, W, D, pad, body);
+      this.rideFence(g, W, D, shade(body, .95));
+      this.rideGate(g, W, D, def.name, body, roofC);
+      /* The booth sits at a front corner, clear of the gate. */
+      this.rideBooth(g, -W / 2 - 1.5, -D / 2 + 1.2, shade(body, .92), roofC);
+      this.rideLights(g, W, D, Math.max(4.2, (def.ph ? def.ph * .32 : 4.6)), shade(body, .85));
+      this.rideProps(g, W, D, rnd);
+      /* Planting either side of the entrance, to soften the pad. */
+      for (const sx of [-1, 1]) {
+        g.box(sx * (W / 2 - .3), .1, -D / 2 - 1.1, .8, .5, .8, hex(0x9c7b5c));
+        g.sphere(sx * (W / 2 - .3), .68, -D / 2 - 1.1, .5, 5, hex(0x4e9b52));
+      }
+    }
     return { base: g, parts };
   },
+
+
+  /* ---------- the show ----------
+     What turns a ride model into an attraction: a paved pad it stands on, a
+     fence you cannot walk through, an entrance with a lit sign and an air
+     gate, an operator booth with someone's mug on the desk, a lighting rig
+     that comes alive after dark, and the working clutter of a machine that
+     gets maintained. Applied to every ride in the park from one place, so
+     the whole line-up reads as one park rather than forty separate models. */
+  ridePad(g, W, D, col, edge) {
+    g.box(0, -.18, 0, W + .5, .34, D + .5, shade(col, .84));                 // slab
+    g.box(0, .12, 0, W + .1, .06, D + .1, shade(col, 1.02));                 // surface
+    /* hatched safety border round the machinery */
+    const n = Math.max(6, Math.round((W + D) / 1.4));
+    for (let k = 0; k < n; k++) {
+      const t = k / n, c = k % 2 ? shade(edge, 1.1) : shade(col, .9);
+      g.box(-W / 2 + W * t + W / (2 * n), .16, -D / 2 - .2, W / n - .05, .04, .28, c);
+      g.box(-W / 2 + W * t + W / (2 * n), .16, D / 2 + .2, W / n - .05, .04, .28, c);
+    }
+    for (let k = 0; k < Math.max(4, Math.round(D / 1.2)); k++) {
+      const m = Math.max(4, Math.round(D / 1.2));
+      const t = k / m, c = k % 2 ? shade(edge, 1.1) : shade(col, .9);
+      g.box(-W / 2 - .2, .16, -D / 2 + D * t + D / (2 * m), .28, .04, D / m - .05, c);
+      g.box(W / 2 + .2, .16, -D / 2 + D * t + D / (2 * m), .28, .04, D / m - .05, c);
+    }
+  },
+  /* Perimeter fence with a gap at the front for the entrance and exit. */
+  rideFence(g, W, D, col, h = 1.15) {
+    const post = shade(col, .8), rail = shade(col, 1.05);
+    const put = (x1, z1, x2, z2) => {
+      const len = Math.hypot(x2 - x1, z2 - z1);
+      const n = Math.max(2, Math.round(len / 2.2));
+      for (let k = 0; k <= n; k++) {
+        const t = k / n;
+        g.box(x1 + (x2 - x1) * t, .1, z1 + (z2 - z1) * t, .14, h, .14, post);
+      }
+      g.beam(x1, .1 + h * .92, z1, x2, .1 + h * .92, z2, .07, .07, rail);
+      g.beam(x1, .1 + h * .48, z1, x2, .1 + h * .48, z2, .06, .06, rail);
+    };
+    const hw = W / 2 + .35, hd = D / 2 + .35;
+    put(-hw, -hd, -hw, hd);
+    put(hw, -hd, hw, hd);
+    put(-hw, hd, hw, hd);
+    // front: two runs with a gap in the middle for the entrance
+    put(-hw, -hd, -W * .18, -hd);
+    put(W * .18, -hd, hw, -hd);
+  },
+  /* The entrance: an air gate with a lit sign, ticket reader and a step. */
+  rideGate(g, W, D, name, body, roof) {
+    const hd = D / 2 + .35;
+    for (const sx of [-1, 1]) {
+      g.box(sx * W * .18, 0, -hd, .34, 3.2, .34, shade(body, .85));
+      g.box(sx * W * .18, 3.2, -hd, .5, .22, .5, shade(body, 1.05));
+    }
+    g.box(0, 3.05, -hd, W * .40, .55, .30, shade(body, 1.0));                 // header beam
+    g.box(0, 3.45, -hd, W * .46, 1.0, .26, shade(roof, 1.08));                // sign board
+    g.box(0, 3.58, -hd - .15, W * .38, .72, .06, hex(0xfff4d0));
+    this.lightBulbs(g, 0, 3.42, -hd - .02, W * .23, Math.max(6, Math.round(W * .8)), hex(0xfff3c4));
+    g.box(-W * .18 + .55, .1, -hd + .05, .34, 1.15, .34, shade(roof, .9));    // ticket reader
+    g.box(-W * .18 + .55, 1.25, -hd + .05, .30, .18, .30, hex(0x1c2228));
+    g.box(0, -.06, -hd - .55, W * .34, .14, 1.0, shade(body, .92));           // threshold
+  },
+  /* Operator booth: control desk, glazing, a roof and a mug. */
+  rideBooth(g, x, z, body, roof) {
+    g.box(x, 0, z, 1.9, 2.35, 1.7, shade(body, 1.0));
+    g.box(x, 0, z, 2.05, .28, 1.85, shade(body, .82));
+    g.box(x, .95, z - .88, 1.5, 1.1, .08, hex(0xcfe9f5));                     // window
+    g.box(x, .78, z - .95, 1.55, .18, .34, shade(roof, 1.05));                // sill / shelf
+    g.box(x, 2.35, z, 2.35, .20, 2.1, shade(roof, 1.06));                     // roof
+    g.box(x, 2.55, z, 1.0, .30, 1.0, shade(roof, .9));
+    g.box(x - .45, .96, z - .55, .62, .18, .5, hex(0x2b3038));                // control desk
+    for (let k = 0; k < 4; k++) g.box(x - .62 + k * .12, 1.14, z - .55, .07, .05, .07, [hex(0x6ac46a), hex(0xff5a4a), hex(0xffd166), hex(0x7ed6df)][k]);
+    g.cyl(x + .55, .96, z - .5, .09, .16, 6, hex(0xf2f4f6));                  // mug
+    g.box(x + .95, .1, z + .7, .5, 1.1, .5, hex(0x3f6b4a));                   // bin
+  },
+  /* Lighting rig: corner towers with lamp heads and a festoon between them. */
+  rideLights(g, W, D, h, col) {
+    const hw = W / 2 + .35, hd = D / 2 + .35;
+    const pts = [[-hw, -hd], [hw, -hd], [hw, hd], [-hw, hd]];
+    for (const [x, z] of pts) {
+      g.cyl(x, .1, z, .12, h, 8, shade(col, .9));
+      g.box(x, h, z, .55, .18, .55, shade(col, 1.05));
+      for (const [dx, dz] of [[.22, 0], [-.22, 0], [0, .22], [0, -.22]])
+        g.sphere(x + dx, h + .12, z + dz, .13, 5, hex(0xfff0c0));
+    }
+    for (let k = 0; k < 4; k++) {
+      const a = pts[k], b = pts[(k + 1) % 4];
+      const n = 7;
+      for (let q = 1; q < n; q++) {
+        const t = q / n;
+        const sag = Math.sin(t * PI) * .5;
+        g.sphere(a[0] + (b[0] - a[0]) * t, h - .1 - sag, a[1] + (b[1] - a[1]) * t, .09, 5,
+          q % 2 ? hex(0xfff3c4) : hex(0xffd166));
+      }
+    }
+  },
+  /* Working clutter: crates, cones, a toolbox, a hose reel, a fire point. */
+  rideProps(g, W, D, rnd) {
+    const r = rnd || Math.random;
+    const hw = W / 2, hd = D / 2;
+    for (let k = 0; k < 3; k++)
+      g.box(-hw + .8 + k * .7, .1, hd - .6, .6, .45, .6, k % 2 ? hex(0xb08a5a) : hex(0x9a7a4a));
+    for (let k = 0; k < 3; k++) {
+      const cx = hw - .7 - k * .8;
+      g.cone(cx, .1, hd - .5, .26, .55, 6, hex(0xf2733c));
+      g.box(cx, .1, hd - .5, .55, .06, .55, hex(0xf2f4f6));
+    }
+    g.box(hw - .9, .1, -hd + 1.2, .7, .45, .45, hex(0xd94f3c));               // toolbox
+    g.cyl(-hw + .6, .1, -hd + 1.4, .34, .5, 8, hex(0xcc3b30));                // hose reel
+    g.cyl(-hw + .6, .6, -hd + 1.4, .30, .08, 8, hex(0x9aa4ac));
+    g.box(hw - .5, .1, .6, .30, 1.5, .30, hex(0xf2f4f6));                     // fire point
+    g.box(hw - .5, 1.0, .6, .40, .45, .10, hex(0xd94f3c));
+  }
+,
+
+
+  /* ---------- ride detailing ----------
+     A second pass over the individual machines: the parts that make a
+     carousel a fairground carousel rather than a turntable with horses, and
+     a drop tower a piece of engineering rather than a pole. Kept separate
+     from the ride bodies above so the moving parts stay simple and this can
+     grow ride by ride without touching them. */
+  rideDetail(kind, g, parts, def, W, D) {
+    const body = hex(def.color !== undefined ? def.color : 0x3ba7d4);
+    const roofC = hex(def.roof !== undefined ? def.roof : 0xf2c14e);
+    const gold = hex(0xd9b45a), cream = hex(0xf7f2e6), iron = hex(0x6d7580);
+    switch (kind) {
+      case 'carousel': {
+        const r = 6.0;
+        /* Rounding boards: the painted panels round the top edge of the
+           canopy, with mirrors and lamps between them — the single most
+           recognisable thing about a carousel. */
+        for (let k = 0; k < 16; k++) {
+          const a = k / 16 * TAU, a2 = (k + .5) / 16 * TAU;
+          const px = Math.cos(a) * (r + .62), pz = Math.sin(a) * (r + .62);
+          g.box(px, 4.55, pz, .92, .85, .18, k % 2 ? shade(roofC, 1.1) : cream);
+          g.box(px, 4.70, pz, .62, .52, .06, k % 2 ? shade(body, 1.15) : shade(gold, 1.1));
+          const mx = Math.cos(a2) * (r + .60), mz = Math.sin(a2) * (r + .60);
+          g.box(mx, 4.62, mz, .34, .62, .10, hex(0xdff0f6));                    // mirror
+          g.sphere(Math.cos(a2) * (r + .52), 5.42, Math.sin(a2) * (r + .52), .11, 5, hex(0xfff3c4));
+        }
+        /* Centre column: mirrored drum with gilded rings. */
+        g.cyl(0, .5, 0, 1.05, 4.6, 12, cream);
+        for (let k = 0; k < 12; k++) {
+          const a = k / 12 * TAU;
+          g.box(Math.cos(a) * 1.06, 1.1, Math.sin(a) * 1.06, .34, 2.4, .06, hex(0xdff0f6));
+        }
+        g.cyl(0, .48, 0, 1.22, .22, 12, gold);
+        g.cyl(0, 4.9, 0, 1.22, .22, 12, gold);
+        /* Band organ at the back — the noise a carousel makes, made visible. */
+        g.box(0, .35, r + 1.25, 4.2, 3.1, 1.0, shade(cream, .98));
+        g.box(0, .35, r + 1.25, 4.5, .32, 1.2, shade(roofC, 1.0));
+        g.triV([-2.25, 3.45, r + .75], [2.25, 3.45, r + .75], [0, 4.55, r + 1.25], shade(roofC, 1.1));
+        for (let k = 0; k < 7; k++)
+          g.cyl(-1.6 + k * .55, 1.5, r + .70, .13, 1.5 + (k % 3) * .35, 8, gold);
+        g.box(0, .8, r + .70, 2.4, .55, .10, shade(body, 1.1));
+        /* Chariot benches replace two of the horses' places. */
+        for (const sgn of [-1, 1]) {
+          const a = sgn > 0 ? PI * .25 : PI * 1.25;
+          const cx = Math.cos(a) * (r - 1.4), cz = Math.sin(a) * (r - 1.4);
+          g.box(cx, .85, cz, 1.9, .55, 1.1, shade(body, 1.05));
+          g.box(cx, 1.40, cz + .42 * (sgn), 1.9, .75, .16, shade(roofC, 1.05));
+          g.box(cx, .70, cz, 2.1, .18, 1.3, shade(gold, 1.05));
+        }
+        break;
+      }
+      case 'ferris': {
+        /* A boarding platform with a canopy, plus counterweight and drive. */
+        g.box(0, .1, -D / 2 + 1.2, W * .55, .7, 2.2, shade(cream, .98));
+        g.box(0, .8, -D / 2 + 1.2, W * .58, .16, 2.4, shade(roofC, 1.05));
+        for (const sx of [-1, 1]) g.cyl(sx * W * .24, .8, -D / 2 + .3, .10, 2.6, 6, iron);
+        g.box(0, 3.4, -D / 2 + 1.2, W * .5, .18, 2.3, shade(roofC, 1.08));
+        g.cyl(0, 1.0, 2.0, .8, 1.6, 10, shade(iron, 1.05));                     // drive motor
+        g.cyl(0, 2.6, 2.0, .5, .4, 10, shade(iron, .9));
+        for (let k = 0; k < 6; k++)
+          g.box(-1.6 + k * .64, .2, 3.2, .5, 1.1, .5, k % 2 ? shade(body, .9) : shade(iron, 1.0));
+        break;
+      }
+      case 'drop': case 'spindrop': {
+        /* Cross-braced lattice, brake fins at the base, cable head and a
+           warning beacon at the top. */
+        const h = def.ph || 26;
+        for (let k = 0; k < Math.floor(h / 2.2); k++) {
+          const y = 1.5 + k * 2.2;
+          for (const [ax, az, bx, bz] of [[-1, -1, 1, -1], [1, -1, 1, 1], [1, 1, -1, 1], [-1, 1, -1, -1]]) {
+            g.beam(ax * 1.15, y, az * 1.15, bx * 1.15, y + 2.2, bz * 1.15, .10, .10, iron);
+            g.beam(ax * 1.15, y, az * 1.15, bx * 1.15, y, bz * 1.15, .09, .09, shade(iron, 1.1));
+          }
+        }
+        for (let k = 0; k < 8; k++) {
+          const a = k / 8 * TAU;
+          g.box(Math.cos(a) * 1.5, 1.0, Math.sin(a) * 1.5, .22, 2.6, .22, shade(body, 1.05));   // brake fins
+        }
+        g.cyl(0, h + .2, 0, 1.5, .5, 10, shade(iron, 1.05));
+        for (const sx of [-1, 1]) g.cyl(sx * .8, h + .7, 0, .55, .22, 10, shade(gold, 1.0));    // cable wheels
+        g.cone(0, h + .9, 0, 1.2, 1.8, 8, shade(roofC, 1.1));
+        g.sphere(0, h + 2.8, 0, .22, 6, hex(0xff5a4a));
+        break;
+      }
+      case 'swing': {
+        /* Scalloped canopy, tilt ring and a crown on top. */
+        for (let k = 0; k < 18; k++) {
+          const a = k / 18 * TAU;
+          g.triV([Math.cos(a) * 5.4, 6.2, Math.sin(a) * 5.4],
+                 [Math.cos((k + 1) / 18 * TAU) * 5.4, 6.2, Math.sin((k + 1) / 18 * TAU) * 5.4],
+                 [Math.cos((k + .5) / 18 * TAU) * 5.9, 5.75, Math.sin((k + .5) / 18 * TAU) * 5.9],
+                 k % 2 ? shade(roofC, 1.12) : cream);
+          g.sphere(Math.cos(a) * 5.55, 5.95, Math.sin(a) * 5.55, .10, 5, hex(0xfff3c4));
+        }
+        g.cyl(0, 6.4, 0, 1.0, .5, 12, shade(gold, 1.05));
+        g.cone(0, 6.9, 0, 1.2, 1.9, 10, shade(body, 1.15));
+        g.sphere(0, 8.9, 0, .28, 6, gold);
+        g.cyl(0, .35, 0, 2.0, .5, 12, shade(body, .95));                        // machinery skirt
+        break;
+      }
+      case 'teacup': {
+        /* Three sub-turntables painted into the floor, and a decorated wall. */
+        for (let k = 0; k < 3; k++) {
+          const a = k / 3 * TAU;
+          g.cyl(Math.cos(a) * 3.0, .32, Math.sin(a) * 3.0, 2.5, .06, 16, shade(cream, .97));
+          g.cyl(Math.cos(a) * 3.0, .38, Math.sin(a) * 3.0, 2.3, .04, 16, shade(body, 1.05));
+        }
+        for (let k = 0; k < 14; k++) {
+          const a = k / 14 * TAU;
+          g.box(Math.cos(a) * 6.4, .3, Math.sin(a) * 6.4, .5, 1.1, .5, k % 2 ? shade(body, 1.1) : cream);
+          g.sphere(Math.cos(a) * 6.4, 1.5, Math.sin(a) * 6.4, .16, 5, shade(roofC, 1.1));
+        }
+        break;
+      }
+      case 'pirate': {
+        /* A-frame gantry with cross ties, a drive wheel and lanterns. */
+        for (const sz of [-1, 1]) {
+          g.beam(-5.2, .3, sz * 2.4, 0, 9.2, sz * 1.0, .34, .34, shade(iron, 1.02));
+          g.beam(5.2, .3, sz * 2.4, 0, 9.2, sz * 1.0, .34, .34, shade(iron, 1.02));
+          g.beam(-3.4, 4.6, sz * 1.9, 3.4, 4.6, sz * 1.9, .18, .18, shade(iron, .92));
+        }
+        g.beam(0, 9.2, -1.0, 0, 9.2, 1.0, .30, .30, shade(gold, 1.0));
+        g.cyl(0, 8.4, 1.4, 1.5, .35, 12, shade(body, 1.05));                    // drive wheel
+        for (let k = 0; k < 8; k++) {
+          const a = k / 8 * TAU;
+          g.beam(0, 8.55, 1.4, Math.cos(a) * 1.4, 8.55 + Math.sin(a) * 1.4, 1.4, .08, .08, shade(gold, .9));
+        }
+        for (const sx of [-1, 1]) {
+          g.cyl(sx * 4.2, 7.2, 0, .07, .8, 5, iron);
+          g.box(sx * 4.2, 6.6, 0, .34, .6, .34, hex(0xffd166));                 // lanterns
+        }
+        break;
+      }
+      case 'bumper': {
+        /* Turn the pad into a proper pavilion: a striped valance round the
+           roof, a mesh ceiling grid, and a ramped entrance. */
+        for (let k = 0; k < 20; k++) {
+          const t = k / 20;
+          g.box(-8 + 16 * t + .4, 6.1, -8, .8, .55, .12, k % 2 ? shade(body, 1.15) : cream);
+          g.box(-8 + 16 * t + .4, 6.1, 8, .8, .55, .12, k % 2 ? cream : shade(body, 1.15));
+          g.box(-8, 6.1, -8 + 16 * t + .4, .12, .55, .8, k % 2 ? shade(roofC, 1.1) : cream);
+          g.box(8, 6.1, -8 + 16 * t + .4, .12, .55, .8, k % 2 ? cream : shade(roofC, 1.1));
+        }
+        for (let k = -3; k <= 3; k++) {
+          g.beam(-7.6, 6.4, k * 2.2, 7.6, 6.4, k * 2.2, .07, .07, shade(iron, 1.05));
+          g.beam(k * 2.2, 6.4, -7.6, k * 2.2, 6.4, 7.6, .07, .07, shade(iron, 1.05));
+        }
+        g.box(0, .1, -8.6, 4.0, .5, 1.6, shade(cream, .96));                    // entry ramp
+        g.box(0, .6, -8.6, 4.4, .12, 1.8, shade(roofC, 1.05));
+        break;
+      }
+      case 'haunted': case 'ghosttrain': {
+        /* A facade worth being frightened of: gothic gables, boarded
+           windows with light behind them, gargoyles and a crooked sign. */
+        const dark = shade(body, .68);
+        for (const sx of [-1, 1]) {
+          g.triV([sx * (W / 2 - .4), 5.4, -D / 2 - .2], [sx * (W / 2 - 3.4), 5.4, -D / 2 - .2],
+                 [sx * (W / 2 - 1.9), 7.6, -D / 2 - .2], shade(dark, 1.1));
+          g.box(sx * (W / 2 - 1.9), 3.0, -D / 2 - .3, 1.1, 1.6, .12, hex(0x2a1f2e));
+          g.box(sx * (W / 2 - 1.9), 3.2, -D / 2 - .38, .78, 1.1, .05, hex(0xa9e08a));   // sickly light
+          for (let k = 0; k < 3; k++)
+            g.box(sx * (W / 2 - 1.9), 3.1 + k * .5, -D / 2 - .42, 1.2, .12, .06, shade(hex(0x6b4a2f), 1.0));  // boards
+          g.sphere(sx * (W / 2 - .8), 5.6, -D / 2 - .35, .34, 5, shade(iron, .9));      // gargoyle
+          g.box(sx * (W / 2 - .8), 5.9, -D / 2 - .35, .5, .18, .5, shade(iron, .8));
+        }
+        g.box(0, 5.9, -D / 2 - .25, W * .5, 1.2, .2, shade(dark, 1.15));
+        g.box(0, 6.05, -D / 2 - .38, W * .42, .8, .06, hex(0xa9e08a));
+        for (let k = 0; k < 5; k++)
+          g.cyl(-W / 2 + 1 + k * (W - 2) / 4, 0, -D / 2 - .9, .10, 2.6, 6, shade(iron, .85));  // iron railings
+        g.beam(-W / 2 + 1, 2.5, -D / 2 - .9, W / 2 - 1, 2.5, -D / 2 - .9, .08, .08, shade(iron, .9));
+        break;
+      }
+      case 'gravitron': case 'disko': case 'troika': {
+        g.cyl(0, .3, 0, Math.min(W, D) / 2 - .6, .5, 16, shade(body, .95));      // machinery ring
+        for (let k = 0; k < 12; k++) {
+          const a = k / 12 * TAU, rr = Math.min(W, D) / 2 - .5;
+          g.box(Math.cos(a) * rr, .8, Math.sin(a) * rr, .3, 1.2, .3, shade(iron, 1.0));
+          g.sphere(Math.cos(a) * rr, 2.1, Math.sin(a) * rr, .16, 5, k % 2 ? hex(0xff5a4a) : hex(0x7ed6df));
+        }
+        break;
+      }
+      case 'logflume': case 'rapids': {
+        /* Rockwork, splash trough and a themed portal at the drop. */
+        for (let k = 0; k < 7; k++) {
+          const a = k / 7 * PI - PI / 2;
+          g.sphere(Math.cos(a) * (W / 2 - 1), .4 + (k % 2) * .5, D / 2 - 1.4 + Math.sin(a) * 1.2, 1.1 + (k % 3) * .3, 6,
+            k % 2 ? hex(0x8d8577) : hex(0x9a9284));
+        }
+        g.box(0, .1, D / 2 - .6, W - 2.0, .3, 1.4, shade(hex(0x2f9fd4), 1.05));  // splash trough
+        for (let k = 0; k < 4; k++)
+          g.cyl(-W / 2 + 1.5 + k * ((W - 3) / 3), .4, D / 2 - .6, .18, 1.4, 6, shade(hex(0x6b4a2f), 1.0));
+        break;
+      }
+      case 'minigolf': {
+        for (let k = 0; k < 6; k++) {
+          const x = -W / 2 + 1.6 + (k % 3) * ((W - 3) / 2), z = -D / 2 + 2 + ((k / 3) | 0) * ((D - 4));
+          g.box(x, .18, z, 2.6, .10, 1.6, hex(0x6ac46a));
+          g.box(x, .22, z, 2.8, .06, 1.8, shade(hex(0x4e9b52), .95));
+          g.cyl(x + .9, .28, z, .16, .04, 8, hex(0x1c2228));                     // hole
+          g.cyl(x + .9, .32, z, .04, .9, 5, cream);
+          g.box(x + 1.0, 1.1, z, .34, .26, .04, k % 2 ? shade(body, 1.1) : shade(roofC, 1.1));
+        }
+        break;
+      }
+    }
+  }
+,
 
   /* Queue line segment mesh (railings) */
   queueRail() {
