@@ -4980,6 +4980,43 @@ const Arch = {
    Every building, prop and flat ride is generated here from primitives.
    A prefab returns { base: Geo, parts: [{ geo, anim(m, ride, t) }] }.
    ========================================================================== */
+/* Which water attractions have a bespoke generator. Everything else with
+   `water: true` is a tracked ride and is built by Prefab.ride's switch. */
+const WATER_BUILT = { pool: 1, wavepool: 1, kiddie: 1, lazyriver: 1, divingboard: 1, hottub: 1, slide: 1, funnel: 1 };
+
+/* ---- ride dressing themes ----------------------------------------------
+   Every ride is finished with the same show kit (pad, fence, gate, booth,
+   lights, props). Running all of them off one grey concrete palette is what
+   made a timber flume, a haunted house and a space-age gravitron all look
+   like the same municipal car park. A theme is four colours and a prop
+   flavour; a ride picks one by kind, or names its own with `theme`, or
+   overrides any single colour on its def. */
+const RIDE_THEME = {
+  classic:  { pad: 0xc9c1b0, edge: 0x8f8877, fence: 0x3ba7d4, light: 0xf2c14e, prop: 'fair' },
+  timber:   { pad: 0xa8916d, edge: 0x6b4526, fence: 0x7c5230, light: 0xe8c27a, prop: 'rustic' },
+  water:    { pad: 0xbcd2d9, edge: 0x2f86c4, fence: 0x39b6d8, light: 0x8fd3e8, prop: 'water' },
+  spooky:   { pad: 0x5a5560, edge: 0x2b2233, fence: 0x4a3d55, light: 0x9de07a, prop: 'spooky' },
+  space:    { pad: 0x9aa3ae, edge: 0x2b3a4a, fence: 0x5b6d80, light: 0x6fe3ff, prop: 'tech' },
+  tropical: { pad: 0xd8c79a, edge: 0x7a6a3c, fence: 0x2fa88a, light: 0xffc857, prop: 'tiki' },
+  garden:   { pad: 0xc7c0a8, edge: 0x6f9a52, fence: 0x4e9b52, light: 0xf6efd0, prop: 'garden' },
+  circus:   { pad: 0xd6ccb6, edge: 0xd94f3c, fence: 0xe04d4d, light: 0xffd23f, prop: 'fair' }
+};
+const KIND_THEME = {
+  logflume: 'timber', rapids: 'timber', chairlift: 'timber', zipline: 'timber',
+  pool: 'water', wavepool: 'water', kiddie: 'water', lazyriver: 'water',
+  divingboard: 'water', hottub: 'water', slide: 'water', funnel: 'water',
+  haunted: 'spooky', ghosttrain: 'spooky',
+  gravitron: 'space', spindrop: 'space', starflyer: 'space', monorail: 'space',
+  motiontheatre: 'space', drop: 'space', tower: 'space',
+  minigolf: 'garden', balloonride: 'garden', teacup: 'garden',
+  carousel: 'circus', ferris: 'circus', bumper: 'circus', swing: 'circus',
+  pirate: 'tropical', carpet: 'tropical', troika: 'circus', disko: 'space',
+  enterprise: 'space', topspin: 'circus', frisbee: 'space', observation: 'garden'
+};
+const rideTheme = def => Object.assign({},
+  RIDE_THEME[def.theme || KIND_THEME[def.kind] || 'classic'] || RIDE_THEME.classic,
+  def.padCol !== undefined ? { pad: def.padCol } : null);
+
 const Prefab = {
   fireworkBurst(color) {
     const g = new Geo();
@@ -7343,6 +7380,111 @@ const Prefab = {
     return { x: bx + dx * u * (rr - 1.0), y: 1.2 - u * 0.5, z: bz + dz * u * (rr - 1.0), a, tube: seg.tube };
   },
 
+  /* ------------------------------------------------------------------
+     WATER CIRCUITS — a spline, a channel and the timber that holds it up.
+
+     A flume or a rapids river is a closed loop of water at varying height.
+     Building that out of axis-aligned boxes is what made the old Log Flume
+     read as a pile of crates, so the loop is a Catmull-Rom spline through
+     hand-placed waypoints and the channel is extruded along it as a real
+     U-section: floor, two walls, capped tops and outer faces. The same
+     spline drives the boats, so the water and the thing riding it always
+     agree.
+     ------------------------------------------------------------------ */
+
+  /* A boulder worth looking at: overlapping faceted lumps with a flat
+     bedding plane at the base and a lighter weathered crown, instead of one
+     grey sphere. Deterministic on `seed`, so a rock never changes shape. */
+  rock(g, x, y, z, r, seed, col) {
+    const rnd = Arch.seed('rock' + (seed || 0));
+    const base = col || hex([0xa08a63, 0xb39c74, 0x8d7a58, 0xc0ab84][((seed || 0) | 0) % 4]);
+    g.cyl(x, y - r * .10, z, r * .96, r * .30, 8, shade(base, 1.0), .74);    // bedded base, tapering in
+    for (let k = 0; k < 4; k++) {
+      const a = k / 4 * TAU + rnd() * 1.2, d = r * (.16 + rnd() * .34);
+      g.sphere(x + Math.cos(a) * d, y + r * (.16 + rnd() * .26), z + Math.sin(a) * d,
+        r * (.52 + rnd() * .34), 7, shade(base, .94 + rnd() * .22));
+    }
+    g.sphere(x, y + r * .60, z, r * .46, 7, shade(base, 1.20));               // weathered crown
+    return g;
+  },
+
+  /* Position on a closed Catmull-Rom spline through pts ([x,y,z] triples). */
+  crPath(pts, u) {
+    const n = pts.length;
+    const f = (((u % 1) + 1) % 1) * n, i = Math.floor(f), t = f - i;
+    const p = k => pts[(((i + k) % n) + n) % n];
+    const a = p(-1), b = p(0), c = p(1), d = p(2);
+    const t2 = t * t, t3 = t2 * t;
+    const s = (w, x, y, z) => .5 * (2 * x + (-w + y) * t + (2 * w - 5 * x + 4 * y - z) * t2 + (-w + 3 * x - 3 * y + z) * t3);
+    return { x: s(a[0], b[0], c[0], d[0]), y: s(a[1], b[1], c[1], d[1]), z: s(a[2], b[2], c[2], d[2]) };
+  },
+  /* Unit heading along the spline at u, in the ground plane. */
+  crHeading(pts, u, eps = .004) {
+    const a = this.crPath(pts, u - eps), b = this.crPath(pts, u + eps);
+    const dx = b.x - a.x, dz = b.z - a.z, l = Math.hypot(dx, dz) || 1e-4;
+    return { x: dx / l, z: dz / l, dy: b.y - a.y, yaw: Math.atan2(dz, dx) };
+  },
+
+  /* Extrude a U-section water channel along a spline.
+     opts: w inner width, wall height, thick wall thickness, col trough
+     colour, water surface colour, steps, depth of water below the wall top,
+     trestle: spacing of the timber supports (0 = none), ground: deck level. */
+  flumeChannel(g, pts, opts) {
+    const o = Object.assign({
+      w: 2.4, wall: .70, thick: .30, steps: 132, col: hex(0x7c5230),
+      water: hex(0x2f86c4), fill: .40, trestle: 8, ground: .2, bent: hex(0x6b4526)
+    }, opts);
+    const N = o.steps, half = o.w / 2, out = half + o.thick;
+    const at = u => {
+      const p = this.crPath(pts, u), h = this.crHeading(pts, u);
+      return { p, nx: -h.z, nz: h.x };
+    };
+    let A = at(0);
+    for (let i = 1; i <= N; i++) {
+      const B = at(i / N);
+      const seam = shade(o.col, 1 - (i % 2) * .05);
+      /* corner points, A-side then B-side, inner and outer, floor and top */
+      const P = (F, r, y) => [F.p.x + F.nx * r, F.p.y + y, F.p.z + F.nz * r];
+      const AiL = P(A, -half, 0), AiR = P(A, half, 0), BiL = P(B, -half, 0), BiR = P(B, half, 0);
+      const AoL = P(A, -out, 0), AoR = P(A, out, 0), BoL = P(B, -out, 0), BoR = P(B, out, 0);
+      const AtL = P(A, -half, o.wall), AtR = P(A, half, o.wall), BtL = P(B, -half, o.wall), BtR = P(B, half, o.wall);
+      const AuL = P(A, -out, o.wall), AuR = P(A, out, o.wall), BuL = P(B, -out, o.wall), BuR = P(B, out, o.wall);
+      g.quadV(AiL, AiR, BiR, BiL, shade(o.col, .80));                 // trough floor
+      g.quadV(AtL, BtL, BiL, AiL, shade(seam, 1.06));                 // left inner face
+      g.quadV(AiR, BiR, BtR, AtR, shade(seam, 1.06));                 // right inner face
+      g.quadV(AuL, BuL, BtL, AtL, shade(seam, 1.14));                 // left coping
+      g.quadV(AtR, BtR, BuR, AuR, shade(seam, 1.14));                 // right coping
+      g.quadV(AuL, AoL, BoL, BuL, shade(seam, .86));                  // left outside
+      g.quadV(BuR, BoR, AoR, AuR, shade(seam, .86));                  // right outside
+      g.quadV(P(A, -out, -.12), P(A, out, -.12), P(B, out, -.12), P(B, -out, -.12), shade(o.col, .68)); // underside
+      /* the water itself, sitting a little below the coping */
+      const wy = o.wall - o.fill;
+      g.quadV(P(A, -half + .08, wy), P(A, half - .08, wy), P(B, half - .08, wy), P(B, -half + .08, wy),
+        shade(o.water, 1 + Math.sin(i * .7) * .05));
+      A = B;
+    }
+    /* Timber bents holding the trough up wherever it runs above the deck. */
+    if (o.trestle) for (let i = 0; i < o.trestle; i++) {
+      const F = at(i / o.trestle);
+      const h = F.p.y - o.ground;
+      if (h < 1.0) continue;
+      for (const s2 of [-1, 1]) {
+        const bx = F.p.x + F.nx * s2 * (out - .12), bz = F.p.z + F.nz * s2 * (out - .12);
+        const fx = F.p.x + F.nx * s2 * (out + h * .16), fz = F.p.z + F.nz * s2 * (out + h * .16);
+        g.beam(fx, o.ground, fz, bx, F.p.y, bz, .30, .30, o.bent);          // splayed leg
+      }
+      /* cross-bracing every other bent, the way a timber trestle is built */
+      const lx = F.p.x - F.nx * out, lz = F.p.z - F.nz * out;
+      const rx = F.p.x + F.nx * out, rz = F.p.z + F.nz * out;
+      g.beam(lx, F.p.y - .18, lz, rx, F.p.y - .18, rz, .22, .22, o.bent);   // header
+      if (h > 2.4) {
+        const my = o.ground + h * .5;
+        g.beam(lx - F.nx * .3, my, lz - F.nz * .3, rx + F.nx * .3, my, rz + F.nz * .3, .16, .16, shade(o.bent, 1.1));
+        g.beam(lx - F.nx * .5, o.ground, lz - F.nz * .5, rx + F.nx * .2, F.p.y - .3, rz + F.nz * .2, .12, .12, shade(o.bent, .9));
+      }
+    }
+  },
+
   waterSlide(def) {
     const g = new Geo(), parts = [];
     const cfg = Object.assign({ start: 0, steep: false }, def.slide);
@@ -7795,7 +7937,11 @@ const Prefab = {
      FLAT RIDES — base + animated parts
      ------------------------------------------------------------------ */
   ride(kind, def) {
-    if (def.water) {
+    /* Pools and slides are built by their own generators. Anything else
+       flagged `water` (the flume, the rapids) is still a flat ride with a
+       station and a circuit, and belongs in the switch below — routing it
+       here is what used to make the Log Flume render as empty ground. */
+    if (def.water && WATER_BUILT[kind]) {
       if (kind === 'slide') return this.waterSlide(def);
       if (kind === 'funnel') {
         const sl = this.waterSlide(def);
@@ -8155,21 +8301,212 @@ const Prefab = {
         });
         break;
       }
+      /* ---- Haunted Mansion ----
+         A gothic house, not a grey box with cones on it: two storeys of
+         rendered stone with pointed windows, a projecting gabled wing, a
+         corner turret under a witch-hat spire, a wrap-around porch, chimney
+         stacks, dormers, and a forecourt of leaning gravestones. */
       case 'haunted': {
-        const wall = hex(0x4a4250), roof = hex(0x2b2530);
-        g.box(0, 0, 0, W - 1, 7, D - 1, wall);
-        for (let i = -1; i <= 1; i++) for (let j = 0; j < 2; j++)
-          g.box(i * 3.2, 1.6 + j * 2.6, -(D - 1) / 2 - .06, 1.2, 1.6, .2, hex(j ? 0xffd76a : 0x6ac46a));
-        g.box(0, 7, 0, W + .6, .5, D + .6, roof);
-        for (const sx of [-1, 1]) { g.cone(sx * (W / 2 - 1.6), 7.5, -(D / 2 - 1.6), 2.0, 4.5, 6, roof); g.cone(sx * (W / 2 - 1.6), 7.5, (D / 2 - 1.6), 2.0, 4.5, 6, roof); }
-        g.cone(0, 7.5, 0, 3.2, 6.5, 8, shade(roof, 1.15));
-        g.box(0, 0, -(D - 1) / 2 - .3, 3.0, 4.4, .5, hex(0x2a1f18));
-        g.box(0, 4.4, -(D - 1) / 2 - .4, 4.0, .5, .8, roof);
-        for (let k = 0; k < 6; k++) g.box(-W / 2 + 1 + k * 2, 0, D / 2 - .4, .5, 1.4, .2, hex(0x6b6357));
-        const ghost = new Geo();
-        ghost.sphere(0, 0, 0, .9, 7, hex(0xe8f0ff));
-        ghost.cone(0, -1.6, 0, .9, 1.6, 7, hex(0xd8e4f5));
-        parts.push({ geo: ghost, anim: (m, o, t) => M4.compose(m, Math.sin(t * .8) * 5, 9.5 + Math.sin(t * 1.6) * .7, Math.cos(t * .8) * 5, 0, -t * .8, 0, 1, 1, 1) });
+        const wall = hex(0x6d6474), stone = hex(0x585062), roof = hex(0x312a3a);
+        const trim = hex(0x3f3648), glow = hex(0x9de07a), amber = hex(0xffb347);
+        const MW = 11.0, MD = 7.6, F1 = 3.4, F2 = 3.1, TOP = F1 + F2;
+
+        /* plinth and the main block */
+        g.box(0, -.25, .4, MW + 1.4, .7, MD + 1.4, shade(stone, .84));
+        g.box(0, .10, .4, MW, TOP, MD, wall);
+        for (let k = 0; k < 8; k++)                                            // rusticated quoins
+          for (const sx of [-1, 1])
+            g.box(sx * (MW / 2 - .18), .2 + k * .8, .4, .5, .6, MD * .02 + .5, shade(stone, k % 2 ? 1.06 : .9));
+        g.box(0, .10 + F1 - .18, .4, MW + .5, .3, MD + .5, shade(stone, 1.05));   // string course
+        Arch.cornice(g, MW, MD, .10 + TOP, shade(stone, 1.1));
+
+        /* pointed-arch window: a reusable little piece */
+        const gothic = (x, y, z, w, h, face, lit) => {
+          const dz = face * .10;
+          g.box(x, y, z + dz, w + .34, h, .16, trim);
+          g.box(x, y, z + dz * 1.9, w, h - .2, .10, lit ? lit : hex(0x1a1622));
+          for (let k = 0; k < 4; k++) {                                        // the arch head
+            const t = k / 4, ww = (w + .34) * Math.cos(t * PI * .42);
+            g.box(x, y + h + t * .5, z + dz, ww, .16, .16, trim);
+          }
+          g.box(x, y, z + dz * 2.2, .10, h - .2, .06, trim);                   // mullion
+          g.box(x, y + (h - .2) * .55, z + dz * 2.2, w, .09, .06, trim);
+          g.box(x, y - .18, z + dz * 1.5, w + .46, .18, .30, shade(stone, 1.14));  // sill
+        };
+        const boarded = (x, y, z, w, h, face) => {
+          const dz = face * .12;
+          g.box(x, y, z + dz, w + .3, h, .14, trim);
+          g.box(x, y, z + dz * 1.7, w, h - .2, .08, hex(0x120f18));
+          for (let k = 0; k < 3; k++)
+            g.box(x, y + .25 + k * (h - .7) / 2, z + dz * 2.3, w + .36, .18, .07,
+              shade(hex(0x6b4a2f), 1 - k * .06));
+        };
+        const FZ = .4 - MD / 2, BZ = .4 + MD / 2;
+        for (let k = 0; k < 3; k++) {
+          const x = -3.4 + k * 3.4;
+          if (k === 1) continue;
+          gothic(x, 1.0, FZ, 1.0, 1.9, -1, k === 0 ? glow : null);
+          gothic(x, 1.0 + F1, FZ, 1.0, 1.7, -1, k === 2 ? amber : null);
+        }
+        for (const sx of [-1, 1]) {
+          gothic(sx * 2.6, 1.0, BZ, 1.0, 1.9, 1, null);
+          boarded(sx * 2.6, 1.0 + F1, BZ, 1.0, 1.7, 1);
+        }
+        for (const sx of [-1, 1]) {
+          Arch.window(g, 'x', sx, .8, 1.2, .9, 1.8, wall, { glass: hex(0x1a1622), frame: trim, halfW: MW / 2 });
+          Arch.window(g, 'x', sx, -1.2, 1.2 + F1, .9, 1.5, wall, { glass: glow, frame: trim, halfW: MW / 2 });
+        }
+
+        /* the front door, under a heavy hood */
+        g.box(0, .10, FZ - .2, 2.6, 3.3, .5, shade(stone, .92));
+        g.box(0, .10, FZ - .42, 1.7, 2.7, .22, hex(0x22161c));
+        for (let k = 0; k < 5; k++) g.box(0, .3 + k * .55, FZ - .54, 1.5, .10, .06, hex(0x3a2a22));
+        g.cyl(.55, 1.5, FZ - .58, .16, .07, 8, hex(0x8c7a4a));                 // ring knocker
+        g.box(0, 3.4, FZ - .6, 3.2, .28, 1.0, shade(roof, 1.1));               // door hood
+        for (const sx of [-1, 1]) g.beam(sx * 1.2, 2.6, FZ - .25, sx * 1.4, 3.4, FZ - .95, .16, .16, shade(roof, .9));
+
+        /* wrap-around porch across the front */
+        g.box(0, -.02, FZ - 1.9, MW - .6, .34, 2.4, shade(hex(0x4b4436), 1.0));
+        for (let k = 0; k < 6; k++) {
+          const px = -MW / 2 + .9 + k * (MW - 1.8) / 5;
+          g.cyl(px, .30, FZ - 2.9, .17, 2.9, 8, shade(trim, 1.1));
+          g.cyl(px, 2.30, FZ - 2.9, .24, .22, 8, shade(trim, .9));
+          for (const s2 of [-1, 1]) g.beam(px, 2.85, FZ - 2.9, px + s2 * .5, 3.1, FZ - 2.9, .12, .12, shade(trim, .95));
+        }
+        g.box(0, 3.1, FZ - 2.35, MW - .4, .22, 3.4, shade(roof, 1.05));
+        for (let k = 0; k < 14; k++)                                            // porch balustrade
+          g.cyl(-MW / 2 + .9 + k * (MW - 1.8) / 13, .34, FZ - 3.05, .07, .85, 6, shade(trim, 1.15));
+        g.beam(-MW / 2 + .8, 1.20, FZ - 3.05, MW / 2 - .8, 1.20, FZ - 3.05, .12, .10, shade(trim, .95));
+        g.box(0, -.18, FZ - 3.7, 3.2, .5, 1.2, shade(stone, .95));              // entrance steps
+
+        /* steep gable roof, dormers and chimneys */
+        const ridge = Arch.roofGable(g, MW, MD, .10 + TOP + .3, roof, 4.2, .7, shade(roof, .7));
+        for (let k = 0; k < 7; k++)                                             // slate courses
+          g.box(0, .10 + TOP + .7 + k * .55, .4, MW + 1.3, .05, .16, shade(roof, 1 + (k % 2) * .18));
+        for (const sx of [-1, 1]) Arch.dormer(g, sx * 2.8, .10 + TOP + 1.6, FZ + .9, roof, wall);
+        for (const [cx2, cz2] of [[-MW / 2 + 1.6, 1.6], [MW / 2 - 1.6, -1.0]]) {
+          g.box(cx2, .10 + TOP, cz2, 1.5, 5.4, 1.2, shade(stone, .92));
+          g.box(cx2, .10 + TOP + 5.4, cz2, 1.8, .35, 1.5, shade(stone, 1.1));
+          for (const o2 of [-.35, .35]) g.cyl(cx2 + o2, .10 + TOP + 5.7, cz2, .22, .55, 8, shade(hex(0x50303a), 1));
+        }
+        g.box(0, ridge + .1, .4, 2.4, .08, .5, shade(trim, 1.2));               // ridge cresting
+        for (let k = 0; k < 9; k++) g.cyl(-1.1 + k * .28, ridge + .1, .4, .05, .40, 5, shade(trim, 1.3));
+
+        /* projecting gabled wing, front left */
+        {
+          const wx = -MW / 2 - 1.6, ww = 4.6, wd = 5.2, wz = FZ + 1.4;
+          g.box(wx, -.2, wz, ww + .8, .6, wd + .8, shade(stone, .86));
+          g.box(wx, .10, wz, ww, F1 + 2.4, wd, shade(wall, .96));
+          gothic(wx, 1.0, wz - wd / 2, .95, 1.9, -1, amber);
+          gothic(wx, 1.0 + F1, wz - wd / 2, .95, 1.5, -1, null);
+          Arch.roofGable(g, ww, wd, .10 + F1 + 2.7, roof, 3.0, .55, shade(roof, .7));
+          g.box(wx, .10 + F1 + 2.9, wz - wd / 2 - .5, .9, .9, .12, shade(trim, 1.1));   // gable vent
+        }
+
+        /* corner turret with a witch-hat spire */
+        {
+          const tx = MW / 2 + 1.1, tz = FZ + 1.2, TR = 2.0, TH = 9.6;
+          g.cyl(tx, -.25, tz, TR + .5, .7, 12, shade(stone, .84));
+          g.cyl(tx, .10, tz, TR, TH, 12, shade(wall, 1.04));
+          for (let k = 0; k < 3; k++) g.cyl(tx, .10 + 2.4 + k * 2.4, tz, TR + .12, .22, 12, shade(stone, 1.08));
+          for (let k = 0; k < 4; k++) {
+            const a = k / 4 * TAU + .4;
+            gothic(tx + Math.cos(a) * TR, 4.6, tz + Math.sin(a) * TR, .7, 1.4, 0, k === 1 ? glow : null);
+          }
+          g.cyl(tx, .10 + TH, tz, TR + .45, .3, 12, shade(stone, 1.12));       // corbel table
+          g.cone(tx, .10 + TH + .3, tz, TR + .55, 4.6, 12, shade(roof, 1.12)); // spire
+          for (let k = 0; k < 4; k++)
+            g.cyl(tx, .10 + TH + .6 + k * 1.0, tz, (TR + .5) * (1 - k * .21), .07, 12, shade(roof, 1.35));
+          g.cyl(tx, .10 + TH + 4.9, tz, .07, 1.5, 5, shade(trim, 1.3));        // weathervane
+          g.box(tx, .10 + TH + 5.9, tz, 1.1, .06, .10, shade(trim, 1.3));
+          g.box(tx, .10 + TH + 5.9, tz, .10, .06, 1.1, shade(trim, 1.3));
+          g.triV([tx + .55, .10 + TH + 6.1, tz], [tx + .55, .10 + TH + 5.7, tz], [tx + 1.2, .10 + TH + 5.9, tz], shade(trim, 1.2));
+        }
+
+        /* the forecourt: railings, a crooked gate, gravestones and a dead tree */
+        for (let k = 0; k < 12; k++) {
+          const rx = -W / 2 + 1.0 + k * (W - 2) / 11;
+          if (Math.abs(rx) < 2.0) continue;
+          g.cyl(rx, .05, -D / 2 + 1.0, .09, 2.3, 6, shade(trim, .95));
+          g.cone(rx, 2.25, -D / 2 + 1.0, .13, .40, 5, shade(trim, 1.15));
+        }
+        g.beam(-W / 2 + 1.0, 1.9, -D / 2 + 1.0, -2.0, 1.9, -D / 2 + 1.0, .08, .08, shade(trim, 1.0));
+        g.beam(2.0, 1.9, -D / 2 + 1.0, W / 2 - 1.0, 1.9, -D / 2 + 1.0, .08, .08, shade(trim, 1.0));
+        for (const sx of [-1, 1]) {
+          g.box(sx * 2.3, .05, -D / 2 + 1.0, .55, 3.1, .55, shade(stone, .9));
+          g.sphere(sx * 2.3, 3.25, -D / 2 + 1.0, .28, 6, shade(stone, 1.15));
+        }
+        for (let k = 0; k < 5; k++) {
+          const gx = (k % 2 ? 1 : -1) * (4.2 + (k % 3) * 1.3), gz = -D / 2 + 2.6 + (k % 3) * 1.1;
+          const lean = ((k * 37) % 7 - 3) * .06;
+          g.box(gx, .05, gz, .9, 1.15 + (k % 2) * .3, .22, shade(hex(0x8f8a94), 1 - (k % 3) * .05));
+          g.cyl(gx, 1.18 + (k % 2) * .3, gz, .45, .18, 8, shade(hex(0x8f8a94), 1.05));
+          g.box(gx, .0, gz + .18, 1.2, .16, .6, shade(hex(0x7e7982), .95));
+          g.box(gx + lean * 2, .55, gz - .13, .5, .12, .05, shade(hex(0x6e6972), .9));
+        }
+        {
+          const dx = -W / 2 + 2.2, dz = D / 2 - 2.4;
+          g.cyl(dx, .05, dz, .38, 4.2, 7, hex(0x4a3f38), .55);
+          for (let k = 0; k < 5; k++) {
+            const a = k / 5 * TAU;
+            g.beam(dx, 3.4, dz, dx + Math.cos(a) * 2.0, 5.2 + (k % 2) * .5, dz + Math.sin(a) * 2.0, .16, .16, hex(0x4a3f38));
+            g.beam(dx + Math.cos(a) * 1.4, 4.5, dz + Math.sin(a) * 1.4,
+              dx + Math.cos(a + .8) * 2.4, 5.6, dz + Math.sin(a + .8) * 2.4, .09, .09, hex(0x413730));
+          }
+        }
+        for (let k = 0; k < 4; k++)                                             // creeping mist bank
+          g.box(-W / 2 + 2 + k * (W - 4) / 3, .02, D / 2 - 1.2, (W - 4) / 3 + .8, .10, 1.6, shade(hex(0xbfc6d4), 1 - (k % 2) * .06));
+
+        /* ---- the moving parts ---- */
+        {   /* a lantern swinging over the porch */
+          const lamp = new Geo();
+          lamp.cyl(0, -.1, 0, .05, 1.0, 5, shade(trim, 1.1));
+          lamp.box(0, -.85, 0, .34, .55, .34, shade(trim, 1.2));
+          lamp.box(0, -.78, 0, .26, .40, .26, amber);
+          lamp.cone(0, -.30, 0, .26, .22, 5, shade(trim, 1.1));
+          parts.push({ geo: lamp, anim: (m, o, t) => M4.compose(m, 0, 3.3, FZ - 1.0, 0, 0, Math.sin(t * 1.4) * .32, 1, 1, 1) });
+        }
+        {   /* a ghost drifting across the upstairs windows */
+          const ghost = new Geo();
+          ghost.sphere(0, 0, 0, .75, 8, hex(0xdfe9ff));
+          for (let k = 0; k < 6; k++)
+            ghost.sphere(Math.sin(k * 1.9) * .38, -.55 - k * .28, Math.cos(k * 1.9) * .38, .62 - k * .07, 7,
+              shade(hex(0xdfe9ff), 1 - k * .03));
+          ghost.sphere(-.26, .12, -.62, .13, 5, hex(0x2b2233));
+          ghost.sphere(.26, .12, -.62, .13, 5, hex(0x2b2233));
+          parts.push({
+            geo: ghost, anim: (m, o, t) => {
+              const u = (t * .13) % 1;
+              return M4.compose(m, -4.4 + u * 8.8, 6.3 + Math.sin(t * 1.3) * .5, FZ + .55, 0, Math.sin(t * .7) * .5, 0,
+                1, 1, 1);
+            }
+          });
+        }
+        for (let i = 0; i < 4; i++) {   /* bats circling the spire */
+          const bat = new Geo();
+          bat.sphere(0, 0, 0, .16, 5, hex(0x231d2b));
+          for (const s2 of [-1, 1]) {
+            bat.triV([0, 0, 0], [s2 * .55, .18, -.12], [s2 * .30, -.02, .30], hex(0x2c2436));
+            bat.triV([s2 * .30, -.02, .30], [s2 * .55, .18, -.12], [s2 * .95, .10, .06], hex(0x241e2e));
+          }
+          const ph = i / 4 * TAU;
+          parts.push({
+            geo: bat, anim: (m, o, t) => {
+              const a = ph + t * .85, rr = 4.0 + Math.sin(t * .6 + i) * .8;
+              return M4.compose(m, MW / 2 + 1.1 + Math.cos(a) * rr, 12.5 + Math.sin(t * 1.7 + i) * 1.1,
+                FZ + 1.2 + Math.sin(a) * rr, 0, -a, Math.sin(t * 8 + i) * .55, 1, 1, 1);
+            }
+          });
+        }
+        {   /* a shutter banging in the wind */
+          const shut = new Geo();
+          shut.box(.28, -.9, 0, .56, 1.8, .10, shade(hex(0x5a4a3a), 1.0));
+          for (let k = 0; k < 4; k++) shut.box(.28, -1.6 + k * .45, -.06, .48, .12, .05, shade(hex(0x4a3c2e), 1.0));
+          parts.push({
+            geo: shut, anim: (m, o, t) => M4.compose(m, -3.4 - .55, 3.9, FZ - .16, 0,
+              -1.1 - Math.abs(Math.sin(t * .9)) * .9, 0, 1, 1, 1)
+          });
+        }
         break;
       }
       case 'balloonride': {
@@ -8193,30 +8530,170 @@ const Prefab = {
         });
         break;
       }
+      /* ---- River Rapids: a rock canyon with rafts spinning down it ----
+         Same spline machinery as the flume, but a wide shallow channel cut
+         through rockwork, with a geyser island, a waterfall the rafts pass
+         under and bank cannons that soak them on the way past. */
       case 'rapids': {
-        g.cyl(0, 0, 0, 7.6, 1.2, 20, hex(0x8a8378));
-        g.cyl(0, 1.2, 0, 7.0, .4, 20, hex(0x2a6fa8));
-        g.cyl(0, 1.2, 0, 3.0, .9, 16, hex(0x6b8f4a));
-        for (let i = 0; i < 10; i++) {
-          const a = i / 10 * TAU;
-          g.sphere(Math.cos(a) * 3.0, 2.1, Math.sin(a) * 3.0, .8 + (i % 3) * .3, 5, hex(0x7b7468));
+        const rockA = hex(0xb59d72), rockB = hex(0xc7b189), rockC = hex(0xa08a61);
+        const water = hex(0x2f86c4), GY = .18;
+        g.box(0, -.15, 0, W, .35, D, hex(0x6f9a52));
+
+        const PATH = [
+          [6.2, 1.30, 4.4], [1.8, 1.25, 5.5], [-3.0, 1.35, 5.1], [-5.9, 1.55, 2.4],
+          [-6.3, 1.80, -1.4], [-4.1, 2.05, -4.7], [-0.5, 2.20, -5.8], [3.5, 2.00, -5.0],
+          [5.9, 1.70, -2.2], [6.5, 1.45, 1.2]
+        ];
+        this.flumeChannel(g, PATH, {
+          w: 4.0, wall: .95, thick: .55, steps: 132, col: hex(0xb2a084), water,
+          fill: .50, trestle: 0, ground: GY
+        });
+        /* Canyon walls: boulders crowding both banks, tallest on the outside. */
+        for (let k = 0; k < 34; k++) {
+          const u = k / 34, p = this.crPath(PATH, u), h = this.crHeading(PATH, u);
+          const nx = -h.z, nz = h.x, s2 = k % 2 ? 1 : -1;
+          const off = 2.75 + (k % 3) * .30;
+          const bx = p.x + nx * s2 * off, bz = p.z + nz * s2 * off;
+          this.rock(g, bx, GY + .05, bz, .62 + ((k * 7) % 5) * .16, k, [rockA, rockB, rockC][k % 3]);
+          if (k % 5 === 2) {                                                   // scrub clinging to the rock
+            g.sphere(bx, GY + .8, bz, .32, 5, hex(0x4e7a44));
+            g.sphere(bx + .24, GY + 1.0, bz - .2, .22, 5, hex(0x5d8c4e));
+          }
         }
-        for (let i = 0; i < 20; i++) { const a = i / 20 * TAU; g.box(Math.cos(a) * 7.4, 1.2, Math.sin(a) * 7.4, .5, 1.0, .5, hex(0x6b5a45)); }
-        for (let i = 0; i < 5; i++) {
-          const boat = new Geo();
-          const c = hex([0xf5d020, 0x2ecc71, 0xe74c3c, 0x3498db, 0xe67e22][i]);
-          boat.cyl(0, 0, 0, 1.5, .9, 10, c);
-          boat.cyl(0, .9, 0, 1.55, .18, 10, shade(c, 1.25));
-          boat.cyl(0, .3, 0, 1.0, .5, 10, hex(0x3d3d3d));
-          const ph = i / 5 * TAU;
+        /* The island the river runs round: rock, pines and a geyser. */
+        g.cyl(0, GY - .1, 0, 2.9, .9, 12, rockA);
+        g.cyl(0, GY + .8, 0, 2.4, .5, 12, shade(rockB, 1.05));
+        g.cyl(0, GY + 1.25, 0, 2.1, .18, 12, hex(0x5f8f4d));
+        for (let k = 0; k < 7; k++) {
+          const a = k / 7 * TAU + .3;
+          this.rock(g, Math.cos(a) * 2.6, GY + .35, Math.sin(a) * 2.6, .55 + (k % 3) * .16, 40 + k, [rockA, rockC, rockB][k % 3]);
+        }
+        for (let k = 0; k < 3; k++) {
+          const a = k / 3 * TAU + .9;
+          g.mergeM(Prefab.scenery('pine', k + 2).base,
+            M4.compose(M4.create(), Math.cos(a) * 1.2, GY + 1.4, Math.sin(a) * 1.2, 0, a, 0, .85, .95, .85));
+        }
+        {
+          const geyser = new Geo();
+          for (let k = 0; k < 16; k++) {
+            const u = k / 16;
+            geyser.sphere((Math.random() * 0 + Math.sin(k * 2.4)) * .35, u * 5.4, Math.cos(k * 2.4) * .35,
+              .40 - u * .18, 5, shade(hex(0xeaf7ff), 1 - u * .04));
+          }
           parts.push({
-            geo: boat,
-            seatCount: 4,
-            seat: (i2) => { const a = i2 / 4 * TAU;
-              return { x: Math.cos(a) * .72, y: .18, z: Math.sin(a) * .72, yaw: a, hands: false }; },
+            geo: geyser, anim: (m, o, t) => {
+              const c = (t * .22) % 1, k = c < .30 ? Math.sin(c / .30 * PI) : .01;
+              return M4.compose(m, 0, GY + 1.4, 0, 0, t * .3, 0, .8 + k * .4, Math.max(.01, k), .8 + k * .4);
+            }
+          });
+          g.cyl(0, GY + 1.3, 0, .85, .3, 10, shade(rockC, 1.1));
+          g.cyl(0, GY + 1.45, 0, .55, .2, 10, shade(water, 1.2));
+        }
+        /* Waterfall off the outer bank, straight into the channel. */
+        {
+          const u = .70, p = this.crPath(PATH, u), h = this.crHeading(PATH, u);
+          const nx = -h.z, nz = h.x;
+          const fx = p.x + nx * 3.1, fz = p.z + nz * 3.1;
+          for (let k = 0; k < 3; k++)
+            this.rock(g, fx + nx * k * .55, GY + k * .78, fz + nz * k * .55, 1.35 - k * .22, 70 + k, [rockA, rockC][k % 2]);
+          g.box(fx - nx * .1, GY + 2.25, fz - nz * .1, 2.0, .28, 1.1, shade(rockC, 1.14));   // the lip
+          const FALL_TOP = GY + 2.3, FALL_H = FALL_TOP - (p.y + .45);
+          const fall = new Geo();
+          for (let k = 0; k < 5; k++)
+            fall.box(-.72 + k * .36, -FALL_H, 0, .30, FALL_H, .20, shade(water, 1.42 + (k % 2) * .08));
+          for (let k = 0; k < 7; k++)
+            fall.sphere(-.75 + k * .25, -FALL_H + .12, 0, .26, 5, hex(0xeaf7ff));
+          parts.push({
+            geo: fall, anim: (m, o, t) => M4.compose(m, fx - nx * .6, FALL_TOP, fz - nz * .6,
+              0, -h.yaw, 0, 1, 1 + Math.sin(t * 5) * .04, 1)
+          });
+        }
+        /* Bank cannons: the things park guests pay to soak riders with. */
+        for (const cu of [.22, .55]) {
+          const p = this.crPath(PATH, cu), h = this.crHeading(PATH, cu);
+          const nx = -h.z, nz = h.x;
+          const cx2 = p.x + nx * 3.6, cz2 = p.z + nz * 3.6;
+          g.cyl(cx2, GY, cz2, .28, 1.3, 8, hex(0x5b6d80));
+          g.beam(cx2, GY + 1.35, cz2, cx2 - nx * 1.1, GY + 1.7, cz2 - nz * 1.1, .28, .28, hex(0x8f9aa6));
+          const jet = new Geo();
+          for (let k = 0; k < 9; k++)
+            jet.sphere(-k * .38, -k * k * .028, 0, .18, 4, shade(hex(0xdff2fb), 1 - k * .02));
+          parts.push({
+            geo: jet, anim: (m, o, t) => {
+              const on = (Math.sin(t * 1.3 + cu * 9) > .3) ? 1 : .01;
+              return M4.compose(m, cx2 - nx * 1.4, GY + 1.75, cz2 - nz * 1.4, 0, -h.yaw, 0, on, on, on);
+            }
+          });
+        }
+        /* Standing white water: foam caps riding the surface. */
+        {
+          const foam = new Geo();
+          for (let k = 0; k < 30; k++) {
+            const u = k / 30, p = this.crPath(PATH, u), h = this.crHeading(PATH, u);
+            const nx = -h.z, nz = h.x, off = ((k * 5) % 7 - 3) * .42;
+            foam.sphere(p.x + nx * off, p.y + .50, p.z + nz * off, .30 + (k % 3) * .10, 5, hex(0xdff2fb));
+          }
+          parts.push({ geo: foam, anim: (m, o, t) => M4.compose(m, 0, Math.sin(t * 3.2) * .06, 0, 0, 0, 0, 1, 1, 1) });
+        }
+        /* Station: a covered timber dock over the front straight. */
+        {
+          const cx = 1.4, cz = 5.4, sw = 5.0, sd = 2.6;
+          for (const s2 of [-1, 1]) for (const s3 of [-1, 1])
+            g.cyl(cx + s2 * (sw / 2 - .3), GY, cz + s3 * (sd / 2 + .4), .24, 3.1, 6, hex(0x7c5230));
+          g.box(cx, GY, cz + sd / 2 + .9, sw, 1.5, 1.2, hex(0x8b6239));
+          for (let k = 0; k < 8; k++)
+            g.box(cx - sw / 2 + .4 + k * (sw - .8) / 7, GY + 1.5, cz + sd / 2 + .9, .62, .06, 1.1, shade(hex(0x8b6239), 1.07));
+          Arch.face(g, [cx - sw / 2 - .6, GY + 3.1, cz - sd / 2 - 1.0], [cx + sw / 2 + .6, GY + 3.1, cz - sd / 2 - 1.0],
+            [cx + sw / 2 + .6, GY + 4.4, cz + .1], [cx - sw / 2 - .6, GY + 4.4, cz + .1], hex(0x5d4a37));
+          Arch.face(g, [cx - sw / 2 - .6, GY + 4.4, cz + .1], [cx + sw / 2 + .6, GY + 4.4, cz + .1],
+            [cx + sw / 2 + .6, GY + 3.1, cz + sd / 2 + 1.2], [cx - sw / 2 - .6, GY + 3.1, cz + sd / 2 + 1.2], hex(0x6b563f));
+          g.box(cx, GY + 4.36, cz + .1, sw + 1.4, .2, .4, hex(0x4c3d2c));
+          for (let k = 1; k <= 4; k++) {                                        // shingle courses
+            const t2 = k / 5, yy = GY + 3.2 + t2 * 1.15;
+            g.box(cx, yy, cz - sd / 2 - 1.0 + t2 * (sd / 2 + 1.1), sw + 1.1, .05, .15, shade(hex(0x4c3d2c), 1 + (k % 2) * .14));
+            g.box(cx, yy, cz + sd / 2 + 1.2 - t2 * (sd / 2 + 1.1), sw + 1.1, .05, .15, shade(hex(0x4c3d2c), 1 + (k % 2) * .14));
+          }
+          /* life-jacket rack and a conveyor feeding rafts back to the dock */
+          g.box(cx + sw / 2 - .9, GY + 1.5, cz + sd / 2 + 1.3, 1.6, 1.5, .3, hex(0x6b563f));
+          for (let k = 0; k < 4; k++)
+            g.box(cx + sw / 2 - 1.5 + k * .42, GY + 2.2, cz + sd / 2 + 1.15, .34, .7, .18, hex(0xff8c42));
+          const belt = new Geo();
+          for (let k = 0; k < 7; k++) belt.box(-1.5 + k * .5, 0, 0, .34, .08, 1.0, shade(hex(0x39414a), 1 + (k % 2) * .12));
+          parts.push({ geo: belt, anim: (m, o, t) => M4.compose(m, cx - 1.4 + ((t * .5) % 1) * .5, GY + 1.60, cz + sd / 2 + .9, 0, 0, 0, 1, 1, 1) });
+        }
+        /* Circular rafts, spinning free as they run the river. */
+        for (let i = 0; i < 6; i++) {
+          const raft = new Geo();
+          const c = hex([0xf5d020, 0x2ecc71, 0xe74c3c, 0x3498db, 0xe67e22, 0x9b59b6][i]);
+          const RR = 1.28;
+          raft.cyl(0, .02, 0, RR * .86, .16, 12, hex(0x33383d));               // floor
+          raft.cyl(0, .16, 0, RR * .82, .06, 12, hex(0x4a5058));               // grating
+          /* the buoyancy tube, built as a ring of segments so the middle of
+             the raft stays open and the riders sit inside it */
+          for (let k = 0; k < 16; k++) {
+            const a = k / 16 * TAU, a2 = (k + 1) / 16 * TAU;
+            raft.beam(Math.cos(a) * RR, .30, Math.sin(a) * RR, Math.cos(a2) * RR, .30, Math.sin(a2) * RR,
+              .62, .58, shade(c, k % 2 ? 1.06 : .94));
+            raft.beam(Math.cos(a) * RR, .56, Math.sin(a) * RR, Math.cos(a2) * RR, .56, Math.sin(a2) * RR,
+              .18, .12, shade(c, 1.3));                                        // rubbing strake
+          }
+          raft.cyl(0, .18, 0, .40, .30, 10, shade(c, .84));                    // centre console
+          raft.cyl(0, .46, 0, .46, .09, 10, shade(c, 1.12));
+          for (let k = 0; k < 6; k++) {                                        // grab handles
+            const a = k / 6 * TAU + .25;
+            raft.beam(Math.cos(a) * (RR + .06), .62, Math.sin(a) * (RR + .06),
+              Math.cos(a + .30) * (RR + .06), .62, Math.sin(a + .30) * (RR + .06), .09, .09, hex(0xf2f4f6));
+          }
+          const ph = i / 6;
+          parts.push({
+            geo: raft, seatCount: 6,
+            seat: (k) => { const a = k / 6 * TAU; return { x: Math.cos(a) * .74, y: .22, z: Math.sin(a) * .74, yaw: a + PI, hands: true }; },
             anim: (m, o, t) => {
-              const a = t * .55 + ph;
-              return M4.compose(m, Math.cos(a) * 5.2, 1.5 + Math.sin(t * 2 + i) * .18, Math.sin(a) * 5.2, 0, -a + Math.sin(t * 1.4 + i) * .6, Math.sin(t * 2.2 + i) * .12, 1, 1, 1);
+              const u = (ph + t * .038) % 1;
+              const p = this.crPath(PATH, u);
+              const spin = t * .55 + i * 1.7;
+              return M4.compose(m, p.x, p.y + .30 + Math.sin(t * 2.6 + i) * .05, p.z,
+                Math.sin(t * 1.9 + i) * .08, spin, Math.cos(t * 2.2 + i) * .08, 1, 1, 1);
             }
           });
         }
@@ -8338,24 +8815,193 @@ const Prefab = {
       }
 
       /* ---- Log Flume: a lift, a channel and a splashdown pool ---- */
+      /* ---- Log Flume: a timber flume ride, built as a real circuit ----
+         Station, chain lift, a long trestled trough round the plot and a
+         drop into a splash pool. The trough and the logs share one spline,
+         so a boat is always in the water and never beside it. */
       case 'logflume': {
-        const water = hex(0x2a6fa8);
-        g.box(0, .2, 0, W - 1, .5, D - 1, hex(0x6b8f4a));
-        // splashdown pool
-        g.box(-W / 2 + 5, .5, D / 2 - 4, 9, .9, 6, hex(0x8a8378));
-        g.box(-W / 2 + 5, 1.2, D / 2 - 4, 8.2, .35, 5.4, water);
-        // lift tower and chute
-        g.box(W / 2 - 3, 0, -D / 2 + 3, 3.2, 13, 3.2, hex(0x8b5a2b));
-        for (let k = 0; k <= 12; k++) {
-          const t = k / 12;
-          const x = lerp(W / 2 - 3, -W / 2 + 5, t);
-          const z = lerp(-D / 2 + 3, D / 2 - 4, t * t);
-          const y = lerp(13, 1.4, t * t * t);
-          g.box(x, y, z, 2.6, .5, 2.6, hex(0x6f4522));
-          g.box(x, y + .5, z, 2.2, .25, 2.2, water);
-          if (y > 2) g.cyl(x, 0, z, .3, y, 6, hex(0x8b5a2b));
+        const timber = hex(0x7c5230), plank = hex(0x8b6239), water = hex(0x2f86c4);
+        const GY = .18;
+        /* landscaped base: grass, a paved apron and a hardstanding for the plant */
+        g.box(0, -.15, 0, W, .35, D, hex(0x6f9a52));
+        g.box(0, GY - .02, D / 2 - 1.5, W - 1.2, .12, 2.6, hex(0xcfc6b4));
+        g.box(-W / 2 + 2.2, GY - .02, -D / 2 + 2.0, 4.0, .12, 3.0, hex(0xb8b2a4));
+
+        /* The circuit. Front straight carries the station, the west side
+           climbs the lift, the back runs high, the east side drops. */
+        const PATH = [
+          [7.0, 1.55, 4.7], [2.4, 1.50, 5.7], [-3.4, 1.50, 5.7], [-6.9, 1.70, 3.4],
+          [-7.5, 1.95, 0.0], [-6.9, 2.60, -2.9], [-4.0, 6.40, -5.3], [0.0, 9.50, -6.0],
+          [4.2, 9.70, -5.2], [7.2, 9.30, -2.4], [7.7, 5.60, 0.4], [7.3, 1.45, 2.7]
+        ];
+        this.flumeChannel(g, PATH, {
+          w: 2.5, wall: .78, thick: .28, steps: 150, col: timber, water,
+          fill: .42, trestle: 26, ground: GY, bent: shade(timber, .88)
+        });
+
+        /* Chain lift: a raised chain race down the middle of the climb with
+           the dogs riding up it, and a motor house at the crest. */
+        {
+          const U0 = .40, U1 = .585;
+          for (let k = 0; k < 12; k++) {
+            const dog = new Geo();
+            dog.box(0, 0, 0, .40, .18, .55, hex(0x3a3f45));
+            dog.box(0, .16, 0, .16, .22, .22, hex(0x565c63));
+            const off = k / 12;
+            parts.push({
+              geo: dog, anim: (m, o, t) => {
+                const u = U0 + ((off + t * .09) % 1) * (U1 - U0);
+                const p = this.crPath(PATH, u), h = this.crHeading(PATH, u);
+                return M4.compose(m, p.x, p.y + .12, p.z, 0, -h.yaw, -Math.atan2(h.dy, .09) * .8, 1, 1, 1);
+              }
+            });
+          }
+          const crest = this.crPath(PATH, .585);
+          g.box(crest.x, crest.y + .55, crest.z, 2.4, 1.9, 3.0, shade(timber, 1.05));
+          Arch.face(g, [crest.x - 1.2, crest.y + 2.45, crest.z - 1.5], [crest.x + 1.2, crest.y + 2.45, crest.z - 1.5],
+            [crest.x + 1.2, crest.y + 3.15, crest.z], [crest.x - 1.2, crest.y + 3.15, crest.z], hex(0x6a4a2c));
+          Arch.face(g, [crest.x - 1.2, crest.y + 3.15, crest.z], [crest.x + 1.2, crest.y + 3.15, crest.z],
+            [crest.x + 1.2, crest.y + 2.45, crest.z + 1.5], [crest.x - 1.2, crest.y + 2.45, crest.z + 1.5], hex(0x74522f));
+          g.cyl(crest.x - 1.4, crest.y + 1.1, crest.z, .55, .35, 10, hex(0x9aa4ae));     // drive sheave
+          for (let k = 0; k < 6; k++) {
+            const a = k / 6 * TAU;
+            g.box(crest.x - 1.4, crest.y + 1.28 + Math.sin(a) * .38, crest.z + Math.cos(a) * .38, .5, .1, .1, hex(0x70797f));
+          }
         }
-        for (let k = 0; k < 7; k++) g.box(-W / 2 + 2 + k * 1.3, 2.0 + Math.random() * .6, D / 2 - 4, .5, 1.2, .5, hex(0xeaf6ff));
+
+        /* Splash-down basin at the foot of the drop, with a foam plume and a
+           standing wake that fires as a boat lands. */
+        {
+          const sx = 7.3, sz = 2.9;
+          g.cyl(sx, GY, sz, 4.4, .55, 18, hex(0x776750));
+          g.cyl(sx, GY + .55, sz, 4.0, .12, 18, hex(0x8a9a8e));
+          g.cyl(sx, GY + .62, sz, 3.5, .12, 18, water);
+          for (let k = 0; k < 14; k++) {
+            const a = k / 14 * TAU;
+            g.sphere(sx + Math.cos(a) * 4.3, GY + .35, sz + Math.sin(a) * 4.3, .52 + (k % 3) * .16, 5,
+              [hex(0x7b6b55), hex(0x8a7862), hex(0x6d5f4c)][k % 3]);
+          }
+          /* Foam, not shards: a burst of droplets on a rising curve, which
+             is what the eye reads as water and a long white beam never is. */
+          const plume = new Geo();
+          for (let k = 0; k < 22; k++) {
+            const a = k / 22 * TAU * 3.1, u = k / 22;
+            const rr = .5 + u * 2.2, yy = Math.sin(u * PI * .85) * 3.0;
+            plume.sphere(Math.cos(a) * rr, yy, Math.sin(a) * rr, .34 - u * .16, 5,
+              shade(hex(0xf1fbff), 1 - u * .06));
+          }
+          for (let k = 0; k < 10; k++) {
+            const a = k / 10 * TAU;
+            plume.sphere(Math.cos(a) * 1.5, .25, Math.sin(a) * 1.5, .52, 5, hex(0xe6f6ff));
+          }
+          parts.push({
+            geo: plume, anim: (m, o, t) => {
+              const c = (t * .30) % 1, k = c < .16 ? Math.sin(c / .16 * PI) : .02;
+              return M4.compose(m, sx, GY + .6, sz, 0, t * .5, 0, .7 + k * .6, Math.max(.02, k), .7 + k * .6);
+            }
+          });
+          const wake = new Geo();
+          for (let k = 0; k < 3; k++) wake.cyl(0, k * .06, 0, 1.4 + k * 1.0, .10, 16, shade(water, 1.5));
+          parts.push({
+            geo: wake, anim: (m, o, t) => {
+              const c = (t * .30) % 1, k = c < .45 ? c / .45 : 0;
+              return M4.compose(m, sx, GY + .66, sz, 0, 0, 0, .3 + k * 1.1, 1, .3 + k * 1.1);
+            }
+          });
+          /* the soaked-guest viewing bridge, right where the wave lands */
+          for (const s2 of [-1, 1]) g.cyl(sx + 4.6, GY, sz + s2 * 1.4, .22, 1.7, 6, shade(timber, .9));
+          g.box(sx + 4.6, GY + 1.7, sz, 1.4, .16, 3.4, plank);
+          for (const s2 of [-1, 1]) {
+            g.beam(sx + 4.1, GY + 2.7, sz + s2 * 1.6, sx + 5.1, GY + 2.7, sz + s2 * 1.6, .08, .08, hex(0x5a4632));
+            for (const s3 of [-1, 1]) g.cyl(sx + 4.6 + s3 * .5, GY + 1.8, sz + s2 * 1.6, .07, .95, 5, hex(0x5a4632));
+          }
+        }
+
+        /* Station: a saw-mill house straddling the front straight. */
+        {
+          const cx = -0.5, cz = 5.7, sw = 7.4, sd = 3.6;
+          for (const s2 of [-1, 1]) for (const s3 of [-1, 1])
+            g.cyl(cx + s2 * (sw / 2 - .3), GY, cz + s3 * (sd / 2 - .2), .26, 3.3, 6, shade(timber, .92));
+          g.box(cx, GY, cz - sd / 2 - .5, sw, 1.35, 1.1, plank);                    // boarding platform
+          for (let k = 0; k < 9; k++)
+            g.box(cx - sw / 2 + .4 + k * (sw - .8) / 8, GY + 1.35, cz - sd / 2 - .5, .62, .06, 1.0, shade(plank, 1.06));
+          Arch.face(g, [cx - sw / 2 - .5, 3.3 + GY, cz - sd / 2 - 1.0], [cx + sw / 2 + .5, 3.3 + GY, cz - sd / 2 - 1.0],
+            [cx + sw / 2 + .5, 5.1 + GY, cz], [cx - sw / 2 - .5, 5.1 + GY, cz], hex(0x5d4a37));
+          Arch.face(g, [cx - sw / 2 - .5, 5.1 + GY, cz], [cx + sw / 2 + .5, 5.1 + GY, cz],
+            [cx + sw / 2 + .5, 3.3 + GY, cz + sd / 2 + 1.0], [cx - sw / 2 - .5, 3.3 + GY, cz + sd / 2 + 1.0], hex(0x6b563f));
+          for (let k = 0; k <= 8; k++)                                              // rafter tails
+            g.box(cx - sw / 2 - .3 + k * (sw + .6) / 8, GY + 3.2, cz - sd / 2 - 1.0, .14, .22, .5, shade(timber, .8));
+          /* Shingle courses, so the roof is not one flat brown plane. */
+          for (let k = 1; k <= 5; k++) {
+            const t = k / 6;
+            const zf = -sd / 2 - 1.0 + t * (sd / 2 + 1.0), zb = sd / 2 + 1.0 - t * (sd / 2 + 1.0);
+            const yy = GY + 3.3 + t * 1.8;
+            g.box(cx, yy, cz + zf, sw + .9, .05, .16, shade(hex(0x4c3d2c), 1 + (k % 2) * .12));
+            g.box(cx, yy, cz + zb, sw + .9, .05, .16, shade(hex(0x4c3d2c), 1 + (k % 2) * .12));
+          }
+          g.box(cx, GY + 5.05, cz, sw + 1.2, .22, .5, hex(0x4c3d2c));               // ridge
+          g.box(cx - sw / 2 + 1.0, GY + 1.35, cz + sd / 2 - .4, 2.2, 2.2, .8, shade(plank, .94));  // operator booth
+          g.box(cx - sw / 2 + 1.0, GY + 2.5, cz + sd / 2 - .78, 1.7, .8, .12, hex(0x8ec7e8));
+          g.box(cx + sw / 2 - 1.4, GY + 1.35, cz + sd / 2 - .4, 1.6, 1.9, .7, shade(plank, .9));   // tool store
+          /* mill wheel on the gable end — the signature of a flume ride */
+          {
+            const wx = cx - sw / 2 - 1.35, wy = GY + 2.9, wz = cz + .3, WR = 1.35;
+            g.cyl(wx + .30, wy, wz, .24, .5, 8, hex(0x59493a));
+            /* Built flat, about its own axis, then tipped a quarter turn so
+               it stands on edge against the gable — much easier to lay out
+               spokes and paddles that way. */
+            const flat = new Geo();
+            for (const off of [-.42, .30]) {
+              flat.cyl(0, off, 0, WR, .10, 16, shade(timber, 1.10));
+              flat.cyl(0, off + .02, 0, WR - .26, .08, 16, shade(timber, .84));
+            }
+            flat.cyl(0, -.30, 0, .30, .62, 8, hex(0x59493a));
+            for (let k = 0; k < 8; k++) {
+              const a = k / 8 * TAU;
+              flat.beam(0, -.06, 0, Math.cos(a) * WR, -.06, Math.sin(a) * WR, .14, .12, shade(plank, 1.04));
+              flat.beam(Math.cos(a) * WR, -.46, Math.sin(a) * WR, Math.cos(a) * WR, .34, Math.sin(a) * WR, .46, .16,
+                shade(plank, .92), -Math.sin(a), 0, Math.cos(a));
+            }
+            const wheel = new Geo();
+            wheel.mergeM(flat, M4.compose(M4.create(), 0, 0, 0, PI / 2, 0, 0, 1, 1, 1));
+            parts.push({ geo: wheel, anim: (m, o, t) => M4.compose(m, wx, wy, wz, 0, 0, -t * .5, 1, 1, 1) });
+            const race = new Geo();
+            race.box(0, -1.2, 0, .42, 2.4, .8, shade(water, 1.35));
+            parts.push({ geo: race, anim: (m, o, t) => M4.compose(m, wx - WR * .5, wy + .5, wz, 0, 0, 0, 1, 1 + Math.sin(t * 4) * .06, 1) });
+            g.box(wx, GY + .3, wz, 1.3, .5, 2.2, hex(0x6f6252));            // tail race trough
+            g.box(wx, GY + .55, wz, 1.1, .10, 2.0, shade(water, 1.1));
+          }
+        }
+
+        /* Hollowed log boats riding the spline, four abreast in a line. */
+        for (let i = 0; i < 5; i++) {
+          const bc = hex([0x8b5a2b, 0x7c5230, 0x96632f, 0x6f4a28, 0x84552c][i]);
+          const hull = new Geo();
+          {   /* a hollowed log: a barrel laid along the direction of travel */
+            const barrel = new Geo();
+            barrel.cyl(0, -1.75, 0, .72, 3.5, 12, bc);
+            barrel.cyl(0, -1.80, 0, .78, .16, 12, shade(bc, .78));                  // stern band
+            barrel.cyl(0, 1.66, 0, .78, .16, 12, shade(bc, .78));                   // bow band
+            hull.mergeM(barrel, M4.compose(M4.create(), 0, .34, 0, 0, 0, PI / 2, 1, 1, 1));
+          }
+          hull.box(0, .30, 0, 2.7, .40, .96, shade(bc, .62));                       // hollowed footwell
+          for (let k = 0; k < 3; k++) hull.box(-.95 + k * .95, .46, 0, .12, .30, .94, shade(bc, .84));  // seat backs
+          hull.box(0, .04, 0, 3.7, .12, 1.42, shade(bc, .92));                      // waterline skirt
+          hull.box(0, .16, .58, 3.0, .22, .10, shade(bc, 1.14));                    // grab rails
+          hull.box(0, .16, -.58, 3.0, .22, .10, shade(bc, 1.14));
+          const ph = i / 5;
+          parts.push({
+            geo: hull, seatCount: 4,
+            seat: (k) => ({ x: 1.15 - k * .78, y: .44, z: 0, yaw: 0, hands: false }),
+            anim: (m, o, t) => {
+              const u = (ph + t * .045) % 1;
+              const p = this.crPath(PATH, u), h = this.crHeading(PATH, u);
+              const pitch = -Math.atan2(h.dy, .09);
+              const bob = Math.sin(t * 3 + i) * .03;
+              return M4.compose(m, p.x, p.y + .36 + bob, p.z, 0, -h.yaw, pitch * .8, 1, 1, 1);
+            }
+          });
+        }
         break;
       }
 
@@ -8540,16 +9186,17 @@ const Prefab = {
        with a signpost next to it. */
     {
       const rnd = Arch.seed(def.id);
-      const body = hex(def.color !== undefined ? def.color : 0x3ba7d4);
-      const roofC = hex(def.roof !== undefined ? def.roof : 0xf2c14e);
-      const pad = hex(0xc9c1b0);
-      this.ridePad(g, W, D, pad, body);
+      const th = rideTheme(def);
+      const body = hex(def.color !== undefined ? def.color : th.fence);
+      const roofC = hex(def.roof !== undefined ? def.roof : th.light);
+      const pad = hex(th.pad);
+      this.ridePad(g, W, D, pad, hex(th.edge));
       this.rideFence(g, W, D, shade(body, .95));
       this.rideGate(g, W, D, def.name, body, roofC);
       /* The booth sits at a front corner, clear of the gate. */
       this.rideBooth(g, -W / 2 - 1.5, -D / 2 + 1.2, shade(body, .92), roofC);
       this.rideLights(g, W, D, Math.max(4.2, (def.ph ? def.ph * .32 : 4.6)), shade(body, .85));
-      this.rideProps(g, W, D, rnd);
+      this.rideProps(g, W, D, rnd, th.prop);
       /* Planting either side of the entrance, to soften the pad. */
       for (const sx of [-1, 1]) {
         g.box(sx * (W / 2 - .3), .1, -D / 2 - 1.1, .8, .5, .8, hex(0x9c7b5c));
@@ -8655,9 +9302,11 @@ const Prefab = {
     }
   },
   /* Working clutter: crates, cones, a toolbox, a hose reel, a fire point. */
-  rideProps(g, W, D, rnd) {
+  rideProps(g, W, D, rnd, flavour) {
     const r = rnd || Math.random;
     const hw = W / 2, hd = D / 2;
+    /* Every ride gets the plant a real one has: crates by the back fence,
+       cones round the machinery, a toolbox, a hose reel and a fire point. */
     for (let k = 0; k < 3; k++)
       g.box(-hw + .8 + k * .7, .1, hd - .6, .6, .45, .6, k % 2 ? hex(0xb08a5a) : hex(0x9a7a4a));
     for (let k = 0; k < 3; k++) {
@@ -8670,9 +9319,104 @@ const Prefab = {
     g.cyl(-hw + .6, .6, -hd + 1.4, .30, .08, 8, hex(0x9aa4ac));
     g.box(hw - .5, .1, .6, .30, 1.5, .30, hex(0xf2f4f6));                     // fire point
     g.box(hw - .5, 1.0, .6, .40, .45, .10, hex(0xd94f3c));
+    /* ...and then the dressing that says what kind of ride it is. */
+    const L = -hw - .9, R = hw + .9;
+    switch (flavour) {
+      case 'rustic': {
+        for (const sx of [L, R]) {                                            // water barrels and a stack of logs
+          g.cyl(sx, .1, -hd + 3.0, .48, 1.0, 10, hex(0x7c5230));
+          g.cyl(sx, 1.06, -hd + 3.0, .50, .10, 10, hex(0x5d3f24));
+        }
+        for (let k = 0; k < 3; k++)
+          g.beam(L - .3, .3 + k * .5, hd - 4.2, L - .3, .3 + k * .5, hd - 1.6, .46, .46, shade(hex(0x8b6239), 1 - k * .04), 0, 0, 1);
+        for (let k = 0; k < 4; k++) {                                         // split-rail fence
+          const z = -hd + 2 + k * (D - 4) / 3;
+          g.cyl(R + .4, .1, z, .13, 1.3, 6, hex(0x6b4526));
+          if (k) g.beam(R + .4, .95, z - (D - 4) / 3, R + .4, .95, z, .10, .10, hex(0x7c5230));
+        }
+        break;
+      }
+      case 'water': {
+        for (const sx of [L, R]) {                                            // lifebuoy on a post
+          g.cyl(sx, .1, -hd + 2.4, .10, 1.5, 6, hex(0xdfe6ee));
+          g.cyl(sx, 1.6, -hd + 2.4, .42, .14, 10, hex(0xff5a4a));
+          g.cyl(sx, 1.62, -hd + 2.4, .22, .12, 8, hex(0xf2f4f6));
+        }
+        for (let k = 0; k < 3; k++)                                           // towel bins and a rinse tap
+          g.box(L, .1, hd - 1.4 - k * 1.1, .8, .8, .8, k % 2 ? hex(0x39b6d8) : hex(0xf2f4f6));
+        g.cyl(R, .1, hd - 2.0, .12, 2.0, 6, hex(0xcfd8de));
+        g.box(R, 2.0, hd - 2.0, .5, .12, .12, hex(0xcfd8de));
+        break;
+      }
+      case 'spooky': {
+        for (const sx of [L, R]) {                                            // leaning gravestones and a dead tree
+          g.box(sx, .1, -hd + 2.6, .8, 1.1, .2, hex(0x8c8a92));
+          g.cyl(sx, 1.15, -hd + 2.6, .4, .16, 8, hex(0x8c8a92));
+        }
+        g.cyl(L, .1, hd - 2.2, .28, 2.6, 7, hex(0x4a3f38));
+        for (let k = 0; k < 4; k++) {
+          const a = k / 4 * TAU;
+          g.beam(L, 2.4, hd - 2.2, L + Math.cos(a) * 1.4, 3.5, hd - 2.2 + Math.sin(a) * 1.4, .13, .13, hex(0x4a3f38));
+        }
+        for (let k = 0; k < 4; k++)                                           // guttering candles
+          g.cyl(R, .1 + (k % 2) * .3, hd - 1.4 - k * .9, .12, .5, 6, hex(0xe6dfc8)),
+          g.sphere(R, .68 + (k % 2) * .3, hd - 1.4 - k * .9, .09, 4, hex(0xffb347));
+        break;
+      }
+      case 'tech': {
+        for (const sx of [L, R]) {                                            // switchgear cabinets and conduit
+          g.box(sx, .1, -hd + 2.8, .9, 1.7, .7, hex(0x5b6d80));
+          g.box(sx, 1.0, -hd + 2.45, .6, .5, .06, hex(0x2b3a4a));
+          g.sphere(sx, 1.75, -hd + 2.8, .10, 5, hex(0x6fe3ff));
+        }
+        for (let k = 0; k < 5; k++)
+          g.cyl(L + .2, .1, hd - 1.2 - k * .8, .09, 1.1, 6, hex(0x9aa3ae));
+        g.beam(L + .2, 1.2, hd - 4.4, L + .2, 1.2, hd - 1.2, .12, .12, hex(0x9aa3ae));
+        g.cyl(R, .1, hd - 2.4, .55, 2.2, 10, hex(0x8f9aa6));                  // gas bottle rack
+        g.cyl(R, 2.3, hd - 2.4, .22, .3, 8, hex(0x6fe3ff));
+        break;
+      }
+      case 'tiki': {
+        for (const sx of [L, R]) {                                            // tiki torches and a bamboo screen
+          g.cyl(sx, .1, -hd + 2.6, .11, 2.1, 6, hex(0x6b4a2f));
+          g.cyl(sx, 2.1, -hd + 2.6, .22, .35, 8, hex(0x3f3128));
+          g.sphere(sx, 2.5, -hd + 2.6, .17, 5, hex(0xff9a3c));
+        }
+        for (let k = 0; k < 7; k++)
+          g.cyl(L, .1, hd - 1.0 - k * .42, .13, 2.2 + (k % 3) * .25, 6, shade(hex(0xc8a86a), 1 - (k % 2) * .06));
+        g.box(R, .1, hd - 2.2, 1.0, .5, 1.0, hex(0x8a6a45));                  // crate of coconuts
+        for (let k = 0; k < 3; k++) g.sphere(R - .25 + k * .25, .68, hd - 2.2, .22, 5, hex(0x6b4a2f));
+        break;
+      }
+      case 'garden': {
+        for (const sx of [L, R]) {                                            // planters and a watering can
+          g.box(sx, .1, -hd + 2.6, 1.0, .55, 1.0, hex(0x9c7b5c));
+          g.sphere(sx, .78, -hd + 2.6, .52, 5, hex(0x4e9b52));
+          g.sphere(sx + .3, .95, -hd + 2.4, .16, 4, hex(0xff8fb1));
+        }
+        for (let k = 0; k < 5; k++)                                           // low box hedge
+          g.box(L, .1, hd - 1.0 - k * .9, .8, .7, .8, shade(hex(0x4e9b52), 1 - (k % 2) * .06));
+        g.cyl(R, .1, hd - 2.0, .28, .45, 8, hex(0x7ea86b));
+        g.beam(R, .5, hd - 2.0, R + .5, .7, hd - 2.0, .1, .1, hex(0x7ea86b));
+        break;
+      }
+      default: {                                                             // 'fair'
+        for (const sx of [L, R]) {                                           // bunting posts and a prize board
+          g.cyl(sx, .1, -hd + 2.6, .10, 2.4, 6, hex(0xf2f4f6));
+          g.sphere(sx, 2.5, -hd + 2.6, .13, 5, hex(0xf2c14e));
+        }
+        for (let k = 0; k < 6; k++) {
+          const t = k / 5, x0 = L + (R - L) * t;
+          g.triV([x0, 2.35, -hd + 2.6], [x0 + (R - L) / 12, 2.35, -hd + 2.6], [x0 + (R - L) / 24, 1.95, -hd + 2.6],
+            [hex(0xff6f91), hex(0x7ed6df), hex(0xffd23f), hex(0x9be08a)][k % 4]);
+        }
+        g.box(L, .1, hd - 2.0, .16, 2.0, 1.6, hex(0xf2f4f6));
+        g.box(L - .1, 1.2, hd - 2.0, .06, 1.0, 1.2, hex(0xd94f3c));
+        break;
+      }
+    }
   }
 ,
-
 
   /* ---------- ride detailing ----------
      A second pass over the individual machines: the parts that make a
@@ -8855,15 +9599,20 @@ const Prefab = {
         break;
       }
       case 'logflume': case 'rapids': {
-        /* Rockwork, splash trough and a themed portal at the drop. */
-        for (let k = 0; k < 7; k++) {
-          const a = k / 7 * PI - PI / 2;
-          g.sphere(Math.cos(a) * (W / 2 - 1), .4 + (k % 2) * .5, D / 2 - 1.4 + Math.sin(a) * 1.2, 1.1 + (k % 3) * .3, 6,
-            k % 2 ? hex(0x8d8577) : hex(0x9a9284));
+        /* A soaked-guest splash zone along the front, the way both of these
+           rides are always fronted in a real park: a low rock kerb, a run of
+           wet paving and a warning sign for the people who wander past. */
+        const rock = [hex(0x7b6b55), hex(0x8a7862), hex(0x6d5f4c)];
+        for (let k = 0; k < 9; k++) {
+          const fx = -W / 2 + 1.2 + k * ((W - 2.4) / 8);
+          g.sphere(fx, .1, D / 2 - .55 + (k % 2) * .3, .48 + (k % 3) * .16, 5, rock[k % 3]);
         }
-        g.box(0, .1, D / 2 - .6, W - 2.0, .3, 1.4, shade(hex(0x2f9fd4), 1.05));  // splash trough
-        for (let k = 0; k < 4; k++)
-          g.cyl(-W / 2 + 1.5 + k * ((W - 3) / 3), .4, D / 2 - .6, .18, 1.4, 6, shade(hex(0x6b4a2f), 1.0));
+        for (let k = 0; k < 6; k++)                                             // wet paving, darker where it splashes
+          g.box(-W / 2 + 1.6 + k * ((W - 3.2) / 5), .04, D / 2 - 1.5, (W - 3.2) / 5 - .18, .06, 1.1,
+            shade(hex(0x9fa7ad), k % 2 ? .92 : 1.02));
+        g.cyl(W / 2 - 1.4, .05, D / 2 - 1.5, .09, 1.7, 6, hex(0x8a939b));       // warning sign
+        g.box(W / 2 - 1.4, 1.5, D / 2 - 1.5, .95, .7, .07, hex(0xf2c14e));
+        g.box(W / 2 - 1.4, 1.62, D / 2 - 1.56, .55, .28, .04, hex(0x2b3138));
         break;
       }
       case 'minigolf': {
