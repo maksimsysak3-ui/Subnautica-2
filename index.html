@@ -4519,6 +4519,18 @@ const CAT = {
     { id: 'shuttle', name: 'Shuttle Loop', rail: 0xf25c05, spine: 0x2e3440, tie: 0x4a5462, cars: 4, seat: 4, mass: .95, fric: .00052, maxSpeed: 56, carColor: 0x1fb6c9, style: 'tube' },
     { id: 'bobsled', name: 'Bobsled Run', rail: 0xe8eef5, spine: 0xa8b4c2, tie: 0x7c8894, cars: 4, seat: 4, mass: 1.1, fric: .00105, maxSpeed: 34, carColor: 0xd94f3c, style: 'tube' },
     { id: 'junior', name: 'Junior Coaster', rail: 0xffb03a, spine: 0xfff2d8, tie: 0xe0cfa8, cars: 4, seat: 4, mass: .9, fric: .00100, maxSpeed: 18, carColor: 0x6ac6f0, style: 'tube' },
+    /* ---- water slides: built piece by piece exactly like a coaster, but
+       the track is a water-filled flume and the vehicle is a tube or a mat.
+       The station is a slide tower with a stair flight and a splash pool. */
+    { id: 'slideopen', name: 'Open Flume Slide', rail: 0x39c0ff, spine: 0xeaf9ff, tie: 0xbfe0ec, cars: 1, seat: 4,
+      mass: .8, fric: .00150, maxSpeed: 20, carColor: 0xffd23f, style: 'flume', water: 0x35a9e0,
+      carStyle: 'ring', chanW: 1.55, chanH: 1.00, slide: true },
+    { id: 'slidetube', name: 'Enclosed Tube Slide', rail: 0x7b5bd4, spine: 0xe6dcff, tie: 0xc9b8e6, cars: 1, seat: 2,
+      mass: .7, fric: .00135, maxSpeed: 24, carColor: 0x2ecc71, style: 'flume', water: 0x2f86c4,
+      carStyle: 'ring', chanW: 1.25, chanH: .90, enclosed: true, slide: true },
+    { id: 'slideracer', name: 'Mat Racer Slide', rail: 0xff8c42, spine: 0xfff0d8, tie: 0xe0cfa8, cars: 1, seat: 2,
+      mass: .65, fric: .00170, maxSpeed: 22, carColor: 0xd94f3c, style: 'flume', water: 0x3fb0e8,
+      carStyle: 'mat', chanW: 1.15, chanH: .70, slide: true },
     { id: 'watercoaster', name: 'Water Coaster', rail: 0x2a6fa8, spine: 0xeaf6ff, tie: 0x8a8378, cars: 5, seat: 4, mass: 1.1, fric: .00088, maxSpeed: 28, carColor: 0x39c0ff, style: 'tube', water: true, carStyle: 'boat' },
   ],
 };
@@ -5017,6 +5029,40 @@ const rideTheme = def => Object.assign({},
   RIDE_THEME[def.theme || KIND_THEME[def.kind] || 'classic'] || RIDE_THEME.classic,
   def.padCol !== undefined ? { pad: def.padCol } : null);
 
+/* ============================================================================
+   BUILDING LIVERIES
+
+   A livery is not a repaint. Each one carries its own palette AND its own
+   kit of parts that gets built on top of whatever the building already is:
+   battlements and banners, or fins and a beacon, or thatch and torches. The
+   same burger stall in Medieval and in Deep Space Port shares a floor plan
+   and nothing else you can see from the path.
+   ========================================================================== */
+const BUILDING_LIVERIES = [
+  { id: 'stock', name: 'House Style', blurb: 'However the building was designed.' },
+  { id: 'medieval', name: 'Medieval Keep', wall: 0xd8cfb8, trim: 0x6b4526, roof: 0x6c3b3b, accent: 0x9a7b3f,
+    blurb: 'Crenellated parapets, buttresses, banners and torches.' },
+  { id: 'futurist', name: 'Neon Futurist', wall: 0xdfe8f2, trim: 0x2b3a4a, roof: 0x9fb2c4, accent: 0x6fe3ff,
+    blurb: 'Light strips, canted fins, a mast beacon and a hovering ring.' },
+  { id: 'tiki', name: 'Tropical Tiki', wall: 0xc8a86a, trim: 0x6b4a2f, roof: 0x8a6a45, accent: 0x2fa88a,
+    blurb: 'Thatch skirt, bamboo posts, carved masks and burning torches.' },
+  { id: 'western', name: 'Frontier Town', wall: 0xbfa276, trim: 0x6f4522, roof: 0x8b5a2b, accent: 0xd9a441,
+    blurb: 'False front, boardwalk, hitching rail and a water tower.' },
+  { id: 'candy', name: 'Candy Kingdom', wall: 0xfff0f5, trim: 0xff6f91, roof: 0xff9ec4, accent: 0x7ed6df,
+    blurb: 'Dripping icing, giant lollipops and a swirl finial.' },
+  { id: 'oriental', name: 'Imperial Garden', wall: 0xf2e4c8, trim: 0xb03a2e, roof: 0xd94f3c, accent: 0xf0c060,
+    blurb: 'Upturned eaves, ridge finials and hanging lanterns.' },
+  { id: 'industrial', name: 'Steam Works', wall: 0x9a9184, trim: 0x4a4038, roof: 0x5c5248, accent: 0xd9a441,
+    blurb: 'Riveted strips, pipework, a stack that smokes and a water tank.' },
+  { id: 'alpine', name: 'Alpine Village', wall: 0xf0e6d2, trim: 0x7a4f2c, roof: 0x6b4526, accent: 0xd94f3c,
+    blurb: 'Deep carved eaves, a fretwork balcony and snow on the roof.' },
+  { id: 'space', name: 'Deep Space Port', wall: 0xaab3be, trim: 0x2b3a4a, roof: 0x6b7a8a, accent: 0x9dff6a,
+    blurb: 'Landing ring, dish antenna, docking clamps and underglow.' },
+  { id: 'gothic', name: 'Midnight Gothic', wall: 0x6d6474, trim: 0x3f3648, roof: 0x312a3a, accent: 0x9de07a,
+    blurb: 'Spires, gargoyles, iron cresting and sickly lit glass.' }
+];
+const liveryDef = id => BUILDING_LIVERIES.find(l => l.id === id) || null;
+
 const Prefab = {
   fireworkBurst(color) {
     const g = new Geo();
@@ -5090,11 +5136,26 @@ const Prefab = {
   /* ------------------------------------------------------------------
      SHOP / FACILITY building
      ------------------------------------------------------------------ */
+  /* Every building goes out through here: the shell is built by shopBody
+     below, then the livery hangs its own kit on whatever came back. Doing it
+     in a wrapper means the dozen early returns inside shopBody — power
+     plant, hotels, carts, civic facilities — all get dressed too. */
   shop(def) {
+    const built = this.shopBody(def);
+    const LIV = def.liveryTheme ? liveryDef(def.liveryTheme) : null;
+    if (LIV && LIV.id !== 'stock')
+      this.liveryDress(built.base, built.parts, def.w * TILE, def.d * TILE, LIV, def);
+    return built;
+  },
+  shopBody(def) {
     const g = new Geo();
     const W = def.w * TILE, D = def.d * TILE;
-    const body = hex(def.color), roof = hex(def.roof);
-    const wall = shade(hex(0xf5efe2), 1);
+    /* A livery repaints the shell before anything is built, then hangs its
+       own kit on the finished building in the wrapper above. */
+    const LIV = def.liveryTheme ? liveryDef(def.liveryTheme) : null;
+    const body = hex(LIV ? LIV.trim : def.color);
+    const roof = hex(LIV ? LIV.roof : def.roof);
+    const wall = LIV ? hex(LIV.wall) : shade(hex(0xf5efe2), 1);
     const hw = W / 2 - .35, hd = D / 2 - .35;
 
     /* ---- Power: five real, purpose-built structures instead of the
@@ -7392,6 +7453,395 @@ const Prefab = {
      agree.
      ------------------------------------------------------------------ */
 
+  /* Highest vertex inside a footprint — used by the livery kit so it can
+     sit a parapet on the eaves and a finial on the ridge without every
+     building having to report its own heights. */
+  bounds(g, W, D) {
+    const p = g.pos;
+    let apex = 0, eaves = 0;
+    const hw = W / 2, hd = D / 2, inner = .55;
+    for (let i = 0; i < p.length; i += 3) {
+      const x = p[i], y = p[i + 1], z = p[i + 2];
+      if (Math.abs(x) > hw + .8 || Math.abs(z) > hd + .8) continue;
+      if (y > apex) apex = y;
+      if (y > eaves && (Math.abs(x) > hw * inner || Math.abs(z) > hd * inner)) eaves = y;
+    }
+    return { apex, eaves: Math.min(eaves, apex) };
+  },
+
+  /* ------------------------------------------------------------------
+     THE LIVERY KIT
+     Everything below is built on top of a finished building. Each case is
+     a different set of real parts, not a different tint: the point is that
+     you can tell two liveries apart in silhouette from across the park.
+     ------------------------------------------------------------------ */
+  liveryDress(g, parts, W, D, liv, def) {
+    if (!liv || liv.id === 'stock') return;
+    const B = this.bounds(g, W, D);
+    const hw = W / 2, hd = D / 2;
+    const eav = Math.max(1.6, B.eaves), apex = Math.max(eav + .4, B.apex);
+    const wall = hex(liv.wall), trim = hex(liv.trim), roofC = hex(liv.roof), acc = hex(liv.accent);
+    const rnd = Arch.seed(liv.id + (def.id || ''));
+    /* Kit pieces scale with the building. A corner drum sized for a hotel
+       swallows a two-tile burger stall whole. */
+    const S = clamp(Math.min(W, D) / 9, .48, 1.25);
+    /* run f along every point of the footprint perimeter, spaced ~step apart */
+    const perim = (step, f) => {
+      const nx = Math.max(2, Math.round(W / step)), nz = Math.max(2, Math.round(D / step));
+      for (let k = 0; k < nx; k++) {
+        const x = -hw + (k + .5) * (W / nx);
+        f(x, -hd, k, 0); f(x, hd, k, 2);
+      }
+      for (let k = 0; k < nz; k++) {
+        const z = -hd + (k + .5) * (D / nz);
+        f(-hw, z, k, 3); f(hw, z, k, 1);
+      }
+    };
+    const corners = [[-hw, -hd], [hw, -hd], [hw, hd], [-hw, hd]];
+
+    switch (liv.id) {
+      case 'medieval': {
+        /* Crenellated parapet: merlons with the embrasures actually cut out. */
+        g.box(0, eav, 0, W + .5, .45, D + .5, shade(trim, 1.0));
+        perim(1.05, (x, z, k) => { if (k % 2) return; g.box(x, eav + .45, z, .74, .70 * S + .22, .52, shade(wall, 1.06)); });
+        for (const [cx, cz] of corners) {                                   // corner drum towers
+          const tr = .95 * S;
+          g.cyl(cx, 0, cz, tr, eav + 1.2 * S, 10, shade(wall, .98));
+          g.cyl(cx, eav + 1.2 * S, cz, tr * 1.14, .28, 10, shade(trim, 1.05));
+          for (let k = 0; k < 6; k++) {
+            const a = k / 6 * TAU;
+            g.box(cx + Math.cos(a) * tr, eav + 1.2 * S + .28, cz + Math.sin(a) * tr, .42 * S, .5 * S, .42 * S, shade(wall, 1.1));
+          }
+          g.cone(cx, eav + 1.2 * S + .8 * S, cz, tr * 1.2, 2.0 * S, 10, shade(roofC, 1.05));
+        }
+        for (const sx of [-1, 1]) {                                         // buttresses on the flanks
+          g.box(sx * (hw + .25), 0, 0, .7, eav * .8, 1.3, shade(wall, .92));
+          g.triV([sx * (hw + .6), eav * .8, -.65], [sx * (hw + .6), eav * .8, .65], [sx * (hw - .1), eav * .5, 0], shade(wall, .86));
+        }
+        for (let k = 0; k < 3; k++)                                         // arrow slits over the door
+          g.box(-1.2 + k * 1.2, eav * .55, -hd - .06, .16, .9, .10, hex(0x241d18));
+        {   /* a banner on a pole, hanging over the entrance */
+          g.cyl(0, eav + 1.2, -hd - .3, .08, 3.2, 6, shade(trim, .9));
+          const flag = new Geo();
+          for (let k = 0; k < 5; k++)
+            flag.box(k * .42, -1.5, 0, .42, 2.6 - k * .10, .06, shade(acc, 1 - (k % 2) * .07));
+          flag.triV([0, -2.9, 0], [2.1, -2.9, 0], [1.05, -3.5, 0], shade(acc, .9));
+          parts.push({ geo: flag, anim: (m, o, t) => M4.compose(m, .1, eav + 4.2, -hd - .3, 0, Math.sin(t * .6) * .18, 0, 1, 1, 1) });
+        }
+        for (const sx of [-1, 1]) {                                         // wall torches
+          g.cyl(sx * (hw - .5), eav * .6, -hd - .12, .08, .55, 5, shade(trim, .9));
+          const fire = new Geo();
+          fire.cone(0, 0, 0, .22, .70, 6, hex(0xffb347));
+          fire.cone(0, .12, 0, .13, .48, 6, hex(0xffe27a));
+          parts.push({ geo: fire, anim: (m, o, t) => M4.compose(m, sx * (hw - .5), eav * .6 + .5, -hd - .12,
+            0, t * 2.2, 0, 1 + Math.sin(t * 9 + sx) * .12, 1 + Math.cos(t * 11) * .18, 1) });
+        }
+        break;
+      }
+      case 'futurist': {
+        g.box(0, eav, 0, W + .8, .22, D + .8, shade(trim, 1.0));            // eaves shelf
+        g.box(0, eav + .22, 0, W + .5, .10, D + .5, acc);                   // light strip
+        perim(1.6, (x, z, k, side) => {                                     // canted fins
+          const ox = side === 1 ? .55 : side === 3 ? -.55 : 0;
+          const oz = side === 0 ? -.55 : side === 2 ? .55 : 0;
+          g.beam(x, eav * .35, z, x + ox, eav + .9, z + oz, .16, .55, shade(trim, 1.12));
+        });
+        for (const [cx, cz] of corners) {                                   // corner glazing columns
+          g.cyl(cx, 0, cz, .34, eav + 1.4, 8, shade(acc, .9));
+          g.cyl(cx, eav + 1.4, cz, .48, .22, 8, shade(trim, 1.15));
+        }
+        g.cyl(0, apex, 0, .18, 4.2, 8, shade(trim, 1.2));                   // mast
+        for (let k = 0; k < 3; k++) g.cyl(0, apex + 1.2 + k * 1.1, 0, .55 - k * .13, .10, 10, shade(acc, 1.1));
+        {
+          const beacon = new Geo();
+          beacon.sphere(0, 0, 0, .28, 7, acc);
+          parts.push({ geo: beacon, anim: (m, o, t) => {
+            const k = .7 + Math.abs(Math.sin(t * 2.2)) * .8;
+            return M4.compose(m, 0, apex + 4.4, 0, 0, 0, 0, k, k, k);
+          } });
+          const ring = new Geo();
+          for (let k = 0; k < 22; k++) {
+            const a1 = k / 22 * TAU, a2 = (k + 1) / 22 * TAU, rr = Math.max(W, D) * .42;
+            ring.beam(Math.cos(a1) * rr, 0, Math.sin(a1) * rr, Math.cos(a2) * rr, 0, Math.sin(a2) * rr, .26, .14,
+              k % 3 ? shade(acc, 1.15) : hex(0xffffff));
+          }
+          parts.push({ geo: ring, anim: (m, o, t) => M4.compose(m, 0, apex + 1.9 + Math.sin(t * .8) * .22, 0, 0, t * .35, 0, 1, 1, 1) });
+        }
+        for (let k = 0; k < 4; k++)                                          // underglow along the base
+          g.box(0, .06, -hd - .35 + k * 0, W - .6, .05, .18, acc);
+        break;
+      }
+      case 'tiki': {
+        /* Thatch: three overlapping skirts of tapered courses. */
+        for (let c2 = 0; c2 < 3; c2++) {
+          const yy = eav + c2 * .55, over = .9 - c2 * .22;
+          for (let k = 0; k < 22; k++) {
+            const t = k / 22;
+            g.box(-hw - over + t * (W + over * 2) + (W + over * 2) / 44, yy, -hd - over, (W + over * 2) / 22 - .04, .42, .35,
+              shade(hex(0xc9a86a), 1 - (k % 3) * .07));
+            g.box(-hw - over + t * (W + over * 2) + (W + over * 2) / 44, yy, hd + over, (W + over * 2) / 22 - .04, .42, .35,
+              shade(hex(0xc9a86a), 1 - ((k + 1) % 3) * .07));
+          }
+          for (let k = 0; k < 16; k++) {
+            const t = k / 16;
+            g.box(-hw - over, yy, -hd - over + t * (D + over * 2) + (D + over * 2) / 32, .35, .42, (D + over * 2) / 16 - .04,
+              shade(hex(0xc9a86a), 1 - (k % 3) * .07));
+            g.box(hw + over, yy, -hd - over + t * (D + over * 2) + (D + over * 2) / 32, .35, .42, (D + over * 2) / 16 - .04,
+              shade(hex(0xc9a86a), 1 - ((k + 2) % 3) * .07));
+          }
+        }
+        for (const [cx, cz] of corners) {                                    // bamboo posts with carved masks
+          g.cyl(cx, 0, cz, .28, eav + 1.6, 8, shade(hex(0xb9a06a), 1.05));
+          for (let k = 0; k < 5; k++) g.cyl(cx, .6 + k * ((eav + .6) / 5), cz, .32, .12, 8, shade(hex(0x8a7444), 1));
+          g.box(cx, eav + 1.6, cz, .70, 1.0, .70, shade(trim, 1.05));
+          g.box(cx, eav + 1.9, cz - .38, .48, .18, .10, hex(0xf2e6c8));       // eyes
+          g.triV([cx - .3, eav + 1.7, cz - .40], [cx + .3, eav + 1.7, cz - .40], [cx, eav + 1.35, cz - .40], hex(0x2b1f18));
+          g.cone(cx, eav + 2.6, cz, .55, .8, 6, shade(acc, 1.05));
+        }
+        for (const sx of [-1, 1]) {                                          // flaming torches at the door
+          g.cyl(sx * (hw - .8), 0, -hd - 1.0, .12, 2.2, 6, hex(0x6b4a2f));
+          g.cyl(sx * (hw - .8), 2.2, -hd - 1.0, .24, .36, 8, hex(0x3f3128));
+          const fire = new Geo();
+          fire.cone(0, 0, 0, .26, .8, 6, hex(0xff9a3c));
+          fire.cone(0, .16, 0, .15, .55, 6, hex(0xffe27a));
+          parts.push({ geo: fire, anim: (m, o, t) => M4.compose(m, sx * (hw - .8), 2.5, -hd - 1.0, 0, t * 2.6, 0,
+            1 + Math.sin(t * 8 + sx) * .16, 1 + Math.cos(t * 10) * .22, 1) });
+        }
+        break;
+      }
+      case 'western': {
+        /* False front: a flat parapet standing proud of the roof line. */
+        const fh = apex + 1.1;
+        g.box(0, 0, -hd - .32, W + .7, fh, .34, shade(wall, 1.02));
+        for (let k = 0; k < 14; k++)                                          // board joints
+          g.box(-hw - .3 + k * ((W + .6) / 14), 0, -hd - .50, .07, fh, .06, shade(trim, .95));
+        g.box(0, fh, -hd - .32, W + 1.1, .30, .55, shade(trim, 1.08));        // cap
+        g.triV([-(W + .7) / 2, fh + .3, -hd - .32], [(W + .7) / 2, fh + .3, -hd - .32], [0, fh + 1.3, -hd - .32], shade(wall, 1.08));
+        g.box(0, fh * .62, -hd - .55, W * .62, 1.1, .10, shade(trim, .9));    // painted board
+        g.box(0, fh * .66, -hd - .62, W * .52, .62, .05, shade(acc, 1.1));
+        /* boardwalk, posts, awning and a hitching rail */
+        g.box(0, 0, -hd - 1.6, W + .6, .34, 2.4, shade(hex(0x8b6239), 1.0));
+        for (let k = 0; k < 9; k++)
+          g.box(0, .34, -hd - 2.7 + k * .28, W + .6, .05, .24, shade(hex(0x8b6239), 1 + (k % 2) * .08));
+        for (let k = 0; k < 4; k++) {
+          const px = -hw + .6 + k * ((W - 1.2) / 3);
+          g.cyl(px, .34, -hd - 2.5, .14, 2.9, 6, shade(trim, 1.05));
+          g.beam(px, 3.24, -hd - 2.5, px, 3.05, -hd - .3, .12, .12, shade(trim, .95));
+        }
+        g.box(0, 3.1, -hd - 1.5, W + .5, .16, 2.3, shade(roofC, 1.05));
+        for (let k = 0; k < 4; k++) {
+          const px = -hw + .9 + k * ((W - 1.8) / 3);
+          g.cyl(px, 0, -hd - 3.4, .12, 1.2, 6, shade(hex(0x6f4522), 1));
+          if (k) g.beam(px - (W - 1.8) / 3, 1.15, -hd - 3.4, px, 1.15, -hd - 3.4, .09, .09, shade(hex(0x6f4522), 1.1));
+        }
+        for (let k = 0; k < 3; k++)                                            // barrels
+          g.cyl(hw - .6 - k * .9, .34, -hd - 2.2, .38, .95, 10, shade(hex(0x8b6239), 1 - k * .05));
+        {   /* a water tower on stilts behind the shop */
+          const tx = hw + 1.6, tz = hd - 1.0;
+          for (const sx of [-1, 1]) for (const sz of [-1, 1])
+            g.beam(tx + sx * .9, 0, tz + sz * .9, tx + sx * .55, 4.2, tz + sz * .55, .16, .16, shade(trim, .95));
+          g.cyl(tx, 4.2, tz, 1.15 * S + .35, 2.3, 10, shade(hex(0x8b6239), 1.02));
+          for (let k = 0; k < 4; k++) g.cyl(tx, 4.4 + k * .58, tz, 1.2 * S + .38, .11, 10, shade(trim, .9));
+          g.cone(tx, 6.5, tz, 1.25 * S + .38, .9, 10, shade(roofC, 1.1));
+        }
+        break;
+      }
+      case 'candy': {
+        /* Dripping icing all the way round the eaves. */
+        perim(.62, (x, z, k) => {
+          const drip = .5 + ((k * 7) % 5) * .26;
+          g.box(x, eav - .1, z, .58, .34, .58, hex(0xfff8fb));
+          g.box(x, eav - .1 - drip, z, .34, drip, .34, hex(0xfff8fb));
+          g.sphere(x, eav - .12 - drip, z, .19, 5, hex(0xfff8fb));
+          if (k % 3 === 0) g.sphere(x, eav + .28, z, .17, 5, [hex(0xff6f91), hex(0x7ed6df), hex(0xffd23f)][k % 3]);
+        });
+        for (const [cx, cz] of corners) {                                     // giant lollipops
+          g.cyl(cx, 0, cz, .11, eav + 1.4, 6, hex(0xffffff));
+          const pop = new Geo();
+          for (let k = 0; k < 5; k++)
+            pop.cyl(0, -.10 + k * .04, 0, 1.05 - k * .18, .12, 14, k % 2 ? hex(0xff6f91) : hex(0xfff2f6));
+          parts.push({ geo: pop, anim: (m, o, t) => M4.compose(m, cx, eav + 1.4, cz, PI / 2, 0, t * .5, 1, 1, 1) });
+        }
+        g.cyl(0, apex, 0, .55, .35, 12, hex(0xfff8fb));                       // swirl finial
+        for (let k = 0; k < 7; k++) {
+          const a = k / 7 * TAU * 1.6;
+          g.sphere(Math.cos(a) * (.45 - k * .05), apex + .35 + k * .28, Math.sin(a) * (.45 - k * .05), .34 - k * .035, 6,
+            k % 2 ? hex(0xff6f91) : hex(0xfff2f6));
+        }
+        for (const sx of [-1, 1]) {                                            // candy canes at the door
+          g.cyl(sx * (hw - .6), 0, -hd - .9, .14, 2.4, 8, hex(0xfff2f6));
+          for (let k = 0; k < 8; k++) g.box(sx * (hw - .6), .15 + k * .28, -hd - .9, .30, .12, .30, hex(0xff6f91));
+          for (let k = 0; k < 5; k++) {
+            const a = k / 5 * PI;
+            g.sphere(sx * (hw - .6) + Math.cos(a) * .5 * -sx, 2.4 + Math.sin(a) * .5, -hd - .9, .16, 5,
+              k % 2 ? hex(0xff6f91) : hex(0xfff2f6));
+          }
+        }
+        break;
+      }
+      case 'oriental': {
+        /* Upturned eaves on all four sides, then a tiled ridge. */
+        for (const [sgn, axis] of [[-1, 'z'], [1, 'z'], [-1, 'x'], [1, 'x']]) {
+          const span = axis === 'z' ? W : D;
+          for (let k = 0; k < 12; k++) {
+            const t = (k + .5) / 12, u = -span / 2 + t * span;
+            const lift = Math.pow(Math.abs(t - .5) * 2, 2.4) * 1.1;
+            if (axis === 'z') {
+              g.box(u, eav + lift, sgn * (hd + .85), span / 12 - .05, .22, 1.5, shade(roofC, 1.06 - (k % 2) * .08));
+              g.box(u, eav + lift + .22, sgn * (hd + 1.5), span / 12 - .05, .16, .28, shade(acc, 1.05));
+            } else {
+              g.box(sgn * (hw + .85), eav + lift, u, 1.5, .22, span / 12 - .05, shade(roofC, 1.06 - (k % 2) * .08));
+              g.box(sgn * (hw + 1.5), eav + lift + .22, u, .28, .16, span / 12 - .05, shade(acc, 1.05));
+            }
+          }
+        }
+        for (const [cx, cz] of corners) {                                      // corner dragon finials
+          g.cyl(cx * 1.06, eav + 1.1, cz * 1.06, .16, .9, 6, shade(trim, 1.05));
+          g.sphere(cx * 1.06, eav + 2.0, cz * 1.06, .26, 6, shade(acc, 1.1));
+          g.cone(cx * 1.06, eav + 2.2, cz * 1.06, .22, .55, 6, shade(trim, 1.1));
+        }
+        g.box(0, apex, 0, W * .5, .30, .55, shade(trim, 1.1));                 // ridge
+        for (const sx of [-1, 1]) {
+          g.triV([sx * W * .25, apex + .3, -.28], [sx * W * .25, apex + .3, .28], [sx * (W * .25 + .8), apex + 1.1, 0], shade(acc, 1.1));
+        }
+        for (const sx of [-1, 1]) {                                            // hanging lanterns
+          const lan = new Geo();
+          lan.cyl(0, -.62, 0, .34, .62, 10, shade(hex(0xd94f3c), 1.1));
+          lan.cyl(0, -.70, 0, .22, .10, 10, shade(acc, 1.05));
+          lan.cyl(0, .0, 0, .22, .10, 10, shade(acc, 1.05));
+          for (let k = 0; k < 4; k++) lan.box(0, -.92 - k * .08, 0, .16 - k * .03, .09, .16 - k * .03, shade(acc, 1.0));
+          parts.push({ geo: lan, anim: (m, o, t) => M4.compose(m, sx * (hw - .5), eav + .1, -hd - 1.1,
+            0, 0, Math.sin(t * .9 + sx) * .17, 1, 1, 1) });
+          g.cyl(sx * (hw - .5), eav + .1, -hd - 1.1, .05, .5, 5, shade(trim, 1.1));
+        }
+        break;
+      }
+      case 'industrial': {
+        for (const [cx, cz] of corners) {                                      // riveted corner strips
+          g.box(cx, 0, cz, .5, eav, .5, shade(trim, 1.06));
+          for (let k = 0; k < Math.floor(eav / .45); k++)
+            g.sphere(cx, .3 + k * .45, cz - Math.sign(cz) * .26, .07, 4, shade(acc, 1.1));
+        }
+        g.box(0, eav, 0, W + .6, .35, D + .6, shade(trim, 1.0));               // capping band
+        for (let k = 0; k < 10; k++)                                           // hazard stripes
+          g.box(-hw + k * (W / 10) + W / 20, eav + .35, -hd - .32, W / 10 - .04, .16, .18,
+            k % 2 ? hex(0xf2c14e) : hex(0x2b2f34));
+        {   /* a brick stack that actually smokes */
+          const sx2 = hw - 1.0, sz2 = hd - 1.0, sh = apex + 2.6;
+          g.box(sx2, 0, sz2, 1.25, sh, 1.25, shade(hex(0x8a4b3a), 1.0));
+          for (let k = 0; k < Math.floor(sh / .5); k++)
+            g.box(sx2, k * .5, sz2, 1.30, .10, 1.30, shade(hex(0x6f3b2e), 1 + (k % 2) * .12));
+          g.box(sx2, sh, sz2, 1.55, .35, 1.55, shade(hex(0x6f3b2e), 1.1));
+          const smoke = new Geo();
+          for (let k = 0; k < 7; k++)
+            smoke.sphere(Math.sin(k * 1.7) * (.2 + k * .18), k * .95, Math.cos(k * 1.7) * (.2 + k * .18),
+              .40 + k * .17, 6, shade(hex(0xc9c6c0), 1 - k * .03));
+          parts.push({ geo: smoke, anim: (m, o, t) => {
+            const rise = (t * .35) % 1;
+            return M4.compose(m, sx2, sh + .35 + rise * 1.2, sz2, 0, t * .2, 0, 1, 1, 1);
+          } });
+        }
+        for (let k = 0; k < 4; k++) {                                          // pipework along one flank
+          const py = 1.0 + k * .85;
+          g.beam(-hw - .45, py, -hd + .5, -hw - .45, py, hd - .5, .18, .18, shade(hex(0x8f9aa6), 1 - (k % 2) * .1));
+          g.cyl(-hw - .45, py - .35, 0, .12, .35, 6, shade(hex(0x8f9aa6), .9));
+        }
+        {   /* rooftop water tank on a frame */
+          const tx = -hw + 1.4, tz = -hd + 1.4;
+          for (const s2 of [-1, 1]) for (const s3 of [-1, 1])
+            g.cyl(tx + s2 * .7, eav + .35, tz + s3 * .7, .12, 1.3, 6, shade(hex(0x8f9aa6), 1));
+          g.cyl(tx, eav + 1.65, tz, 1.05, 1.7, 10, shade(hex(0x6f7a84), 1.05));
+          g.cyl(tx, eav + 3.35, tz, 1.10, .18, 10, shade(acc, 1.0));
+        }
+        break;
+      }
+      case 'alpine': {
+        /* Deep carved eaves and bargeboards. */
+        g.box(0, eav, 0, W + 2.0, .30, D + 2.0, shade(trim, 1.05));
+        perim(.72, (x, z, k) => { if (k % 2) return; g.triV([x - .3, eav, z * 1.16], [x + .3, eav, z * 1.16], [x, eav - .55, z * 1.16], shade(trim, .92)); });
+        for (let k = 0; k < 12; k++)                                           // fretwork bargeboard
+          g.box(-hw - .9 + k * ((W + 1.8) / 12), eav - .55, -hd - 1.0, (W + 1.8) / 24, .45, .12,
+            k % 2 ? shade(acc, 1.0) : shade(trim, 1.15));
+        /* first-floor balcony across the front */
+        const by = Math.max(1.9, eav * .55);
+        g.box(0, by, -hd - .95, W + .6, .22, 1.4, shade(trim, 1.02));
+        for (let k = 0; k < 16; k++)
+          g.cyl(-hw - .2 + k * ((W + .4) / 15), by + .22, -hd - 1.5, .06, .85, 5, shade(hex(0xf2ead6), 1));
+        g.beam(-hw - .3, by + 1.05, -hd - 1.5, hw + .3, by + 1.05, -hd - 1.5, .12, .10, shade(trim, 1.1));
+        for (let k = 0; k < 5; k++)                                            // flower boxes
+          g.box(-hw + .6 + k * ((W - 1.2) / 4), by + .22, -hd - 1.55, .8, .28, .28, shade(hex(0x8a6a4a), 1)),
+          g.sphere(-hw + .6 + k * ((W - 1.2) / 4), by + .56, -hd - 1.55, .24, 5, hex(0xd94f3c));
+        for (let k = 0; k < 6; k++)                                            // snow lying on the roof
+          g.box(0, apex - .05 - k * .0, 0, (W + 1.4) * (1 - k * .13), .12, (D + 1.4) * (1 - k * .13), hex(0xf5fbff));
+        for (let k = 0; k < 4; k++)                                            // stacked firewood
+          g.beam(hw + .55, .25 + k * .42, -hd + 1.2, hw + .55, .25 + k * .42, -hd + 3.4, .40, .40,
+            shade(hex(0x8b6239), 1 - k * .05), 0, 0, 1);
+        break;
+      }
+      case 'space': {
+        g.cyl(0, eav, 0, Math.max(W, D) * .52, .35, 16, shade(trim, 1.05));    // landing collar
+        for (let k = 0; k < 12; k++) {                                         // pad lights
+          const a = k / 12 * TAU, rr = Math.max(W, D) * .50;
+          g.sphere(Math.cos(a) * rr, eav + .42, Math.sin(a) * rr, .13, 5, acc);
+        }
+        for (const [cx, cz] of corners) {                                      // docking clamps
+          g.cyl(cx, 0, cz, .34 * S + .16, eav * .85, 8, shade(trim, 1.1));
+          g.box(cx, eav * .85, cz, .9 * S + .3, .28, .9 * S + .3, shade(hex(0x8f9aa6), 1.05));
+          g.beam(cx, eav * .85, cz, cx * .55, eav * 1.15, cz * .55, .22, .22, shade(hex(0x8f9aa6), .95));
+        }
+        {   /* a dish antenna that sweeps the sky */
+          const dx = hw - .9, dz = hd - .9;
+          g.cyl(dx, eav + .35, dz, .26, 1.6, 8, shade(trim, 1.1));
+          const dish = new Geo();
+          for (let k = 0; k < 12; k++) {
+            const a1 = k / 12 * TAU, a2 = (k + 1) / 12 * TAU;
+            dish.triV([0, 0, 0], [Math.cos(a1) * 1.35, .55, Math.sin(a1) * 1.35], [Math.cos(a2) * 1.35, .55, Math.sin(a2) * 1.35],
+              shade(hex(0xe4eaf0), k % 2 ? 1.05 : .95));
+          }
+          dish.cyl(0, .1, 0, .09, .85, 5, shade(trim, 1.2));
+          dish.sphere(0, .95, 0, .17, 5, acc);
+          parts.push({ geo: dish, anim: (m, o, t) => M4.compose(m, dx, eav + 1.95, dz, -.65, t * .28, 0, 1, 1, 1) });
+        }
+        for (let k = 0; k < 8; k++)                                            // underglow strips
+          g.box(-hw + .4 + k * ((W - .8) / 8), .10, -hd - .38, (W - .8) / 8 - .12, .07, .22, acc);
+        g.cyl(0, apex, 0, .22, 3.4, 8, shade(trim, 1.15));                     // mast
+        {
+          const beacon = new Geo();
+          beacon.sphere(0, 0, 0, .30, 7, hex(0xff5a4a));
+          parts.push({ geo: beacon, anim: (m, o, t) => {
+            const k = .6 + Math.abs(Math.sin(t * 1.7)) * .9;
+            return M4.compose(m, 0, apex + 3.5, 0, 0, 0, 0, k, k, k);
+          } });
+        }
+        break;
+      }
+      case 'gothic': {
+        g.box(0, eav, 0, W + .5, .35, D + .5, shade(trim, 1.0));               // cornice
+        for (const [cx, cz] of corners) {                                      // corner pinnacles
+          g.box(cx, eav + .35, cz, .72 * S + .22, 1.4 * S, .72 * S + .22, shade(wall, 1.02));
+          g.cone(cx, eav + .35 + 1.4 * S, cz, .58 * S + .16, 2.3 * S, 6, shade(roofC, 1.1));
+          g.sphere(cx, eav + .35 + 3.7 * S, cz, .16, 5, shade(acc, 1.1));
+          g.sphere(cx * .82, eav + .55, cz * .82, .30, 5, shade(trim, .9));     // gargoyle
+          g.box(cx * .82, eav + .8, cz * .82, .44, .16, .44, shade(trim, .82));
+        }
+        for (let k = 0; k < 14; k++)                                           // iron cresting along the ridge
+          g.cyl(-W * .3 + k * (W * .6 / 13), apex, 0, .05, .42 + (k % 2) * .18, 5, shade(trim, 1.25));
+        for (let k = 0; k < 3; k++) {                                          // pointed lit windows
+          const x = -1.9 + k * 1.9;
+          g.box(x, eav * .40, -hd - .10, .78, 1.5, .12, shade(trim, 1.05));
+          g.box(x, eav * .42, -hd - .17, .54, 1.2, .06, acc);
+          for (let q = 0; q < 3; q++) g.box(x, eav * .40 + 1.5 + q * .18, -hd - .10, .70 - q * .22, .16, .12, shade(trim, 1.05));
+        }
+        for (const sx of [-1, 1]) {                                            // flying buttress stubs
+          g.beam(sx * (hw + .95), 0, 0, sx * (hw + .12), eav * .85, 0, .28, .28, shade(wall, .92));
+          g.box(sx * (hw + .95), 0, 0, .60, .9, .70, shade(wall, .96));
+          g.cone(sx * (hw + .95), .9, 0, .42, 1.0, 6, shade(roofC, 1.05));
+        }
+        break;
+      }
+    }
+  },
+
   /* A boulder worth looking at: overlapping faceted lumps with a flat
      bedding plane at the base and a lighter weathered crown, instead of one
      grey sphere. Deterministic on `seed`, so a rock never changes shape. */
@@ -9203,6 +9653,10 @@ const Prefab = {
         g.sphere(sx * (W / 2 - .3), .68, -D / 2 - 1.1, .5, 5, hex(0x4e9b52));
       }
     }
+    if (def.liveryTheme) {
+      const LIV = liveryDef(def.liveryTheme);
+      if (LIV) this.liveryDress(g, parts, W, D, LIV, def);
+    }
     return { base: g, parts };
   },
 
@@ -10233,6 +10687,89 @@ function buildTrackGeo(track, ghostFrom) {
   };
   const spinePt = (s) => [s.p.x + s.u.x * (yOff - .38), s.p.y + s.u.y * (yOff - .38), s.p.z + s.u.z * (yOff - .38)];
 
+  /* ---- water slides ----------------------------------------------------
+     A slide is not a pair of rails, so it does not go through the rail loop
+     at all: the track spline is extruded as a U-section flume with water
+     running down the inside of it, and the enclosed types get hoops closing
+     it over. Everything else about the track — the builder, the physics,
+     the supports below — is shared with the coasters. */
+  if (T.style === 'flume') {
+    const half = T.chanW !== undefined ? T.chanW : 1.45;
+    const wallH = T.chanH !== undefined ? T.chanH : .95;
+    const thick = .26, drop = -.55;
+    const shell = hex(T.rail), lip = hex(T.spine), wat = hex(T.water !== undefined && T.water !== true ? T.water : 0x35a9e0);
+    const P = (s, r, up) => {
+      const rt = V3.cross({}, s.f, s.u);
+      return [s.p.x + rt.x * r + s.u.x * (drop + up), s.p.y + rt.y * r + s.u.y * (drop + up), s.p.z + rt.z * r + s.u.z * (drop + up)];
+    };
+    for (let i = 0; i + 1 < S.length; i++) {
+      const a = S[i], b = S[i + 1];
+      const c = shade(a.brake ? hex(0x9fd6ef) : shell, 1 - (i % 2) * .05);
+      const AiL = P(a, -half, 0), AiR = P(a, half, 0), BiL = P(b, -half, 0), BiR = P(b, half, 0);
+      const AtL = P(a, -half, wallH), AtR = P(a, half, wallH), BtL = P(b, -half, wallH), BtR = P(b, half, wallH);
+      const AoL = P(a, -half - thick, 0), AoR = P(a, half + thick, 0);
+      const BoL = P(b, -half - thick, 0), BoR = P(b, half + thick, 0);
+      const AuL = P(a, -half - thick, wallH), AuR = P(a, half + thick, wallH);
+      const BuL = P(b, -half - thick, wallH), BuR = P(b, half + thick, wallH);
+      g.quadV(AiL, AiR, BiR, BiL, shade(c, .78));                   // trough floor
+      g.quadV(AtL, BtL, BiL, AiL, shade(c, 1.06));                  // inner faces
+      g.quadV(AiR, BiR, BtR, AtR, shade(c, 1.06));
+      g.quadV(AuL, BuL, BtL, AtL, shade(lip, 1.06));                // coping
+      g.quadV(AtR, BtR, BuR, AuR, shade(lip, 1.06));
+      g.quadV(AuL, AoL, BoL, BuL, shade(c, .86));                   // outsides
+      g.quadV(BuR, BoR, AoR, AuR, shade(c, .86));
+      g.quadV(P(a, -half - thick, -.16), P(a, half + thick, -.16),
+        P(b, half + thick, -.16), P(b, -half - thick, -.16), shade(c, .64));   // underside
+      /* the water: a sheet a little below the coping, brightening on the
+         steep pieces the way real white water does */
+      const steepness = Math.min(1, Math.abs(b.p.y - a.p.y) * 1.6);
+      const wy = wallH * .42;
+      g.quadV(P(a, -half + .10, wy), P(a, half - .10, wy), P(b, half - .10, wy), P(b, -half + .10, wy),
+        shade(wat, 1 + steepness * .45 + Math.sin(i * .8) * .04));
+      if (steepness > .35 && i % 2 === 0)                            // foam streaks on the drops
+        g.quadV(P(a, -half + .5, wy + .05), P(a, half - .5, wy + .05),
+          P(b, half - .5, wy + .05), P(b, -half + .5, wy + .05), hex(0xeaf9ff));
+      if (a.lift && i % 2 === 0) {                                   // conveyor rollers on the climb
+        const rl = P(a, -half + .12, wallH * .30), rr = P(a, half - .12, wallH * .30);
+        g.beam(rl[0], rl[1], rl[2], rr[0], rr[1], rr[2], .22, .22, shade(hex(0x9aa4ae), 1 - (i % 4) * .08));
+      }
+      if (T.enclosed && i % 2 === 0) {                               // hoops over an enclosed tube
+        const L = P(a, -half - thick, wallH), R2 = P(a, half + thick, wallH);
+        const topY = wallH + half * .95;
+        const TL = P(a, -half * .55, topY), TR = P(a, half * .55, topY), TC = P(a, 0, topY + .18);
+        g.beam(L[0], L[1], L[2], TL[0], TL[1], TL[2], .20, .20, shade(lip, .95));
+        g.beam(TL[0], TL[1], TL[2], TC[0], TC[1], TC[2], .20, .20, shade(lip, 1.05));
+        g.beam(TC[0], TC[1], TC[2], TR[0], TR[1], TR[2], .20, .20, shade(lip, 1.05));
+        g.beam(TR[0], TR[1], TR[2], R2[0], R2[1], R2[2], .20, .20, shade(lip, .95));
+      }
+    }
+    /* Slide towers: a steel leg with splayed feet wherever the flume runs
+       clear of the ground, and a stair flight beside any lift section. */
+    {
+      const supC = hex(0xb9c1c9);
+      let last = -99;
+      for (let i = 0; i < S.length; i += 2) {
+        const sm = S[i];
+        const gy = WORLD.hAt(sm.p.x, sm.p.z);
+        const topY = sm.p.y - .70;
+        if (sm.d - last < 7 || topY - gy < 1.4) continue;
+        last = sm.d;
+        const h = topY - gy;
+        const rt = V3.cross({}, sm.f, sm.u);
+        g.cyl(sm.p.x, gy, sm.p.z, .30, h, 8, supC);
+        g.cyl(sm.p.x, gy, sm.p.z, .70, .40, 8, hex(0x9aa4ae));
+        for (const side of [-1, 1]) {
+          const sp = Math.min(1.1 + h * .13, 3.6);
+          g.beam(sm.p.x, gy + h * .55, sm.p.z, sm.p.x + rt.x * side * sp, gy, sm.p.z + rt.z * side * sp, .17, .17, supC);
+          g.cyl(sm.p.x + rt.x * side * sp, gy, sm.p.z + rt.z * side * sp, .42, .32, 6, hex(0x9aa4ae));
+          g.beam(sm.p.x + rt.x * side * .5, topY, sm.p.z + rt.z * side * .5,
+            sm.p.x + rt.x * side * 1.5, topY - 1.1, sm.p.z + rt.z * side * 1.5, .13, .13, supC);
+        }
+      }
+    }
+    return g;
+  }
+
   const step = 1;
   for (let i = 0; i + step < S.length; i += step) {
     const a = S[i], b = S[i + step];
@@ -10454,6 +10991,29 @@ function buildCarGeo(T, isFront) {
       g.box(sx, yb - .05, 0, 1.15, .5, 3.3, c);
       g.beam(sx, yb + .4, -1.55, sx, yb + .4, 1.55, .1, .1, shade(c, 1.2));
     }
+  } else if (style === 'ring') {
+    /* A rubber tube: an open ring of segments with a mesh floor, riding
+       flat in the flume rather than sitting on a chassis. */
+    const RR = 1.32;
+    g.cyl(0, yb + .04, 0, RR * .80, .10, 12, hex(0x2f3439));
+    for (let k = 0; k < 14; k++) {
+      const a1 = k / 14 * TAU, a2 = (k + 1) / 14 * TAU;
+      g.beam(Math.cos(a1) * RR, yb + .28, Math.sin(a1) * RR, Math.cos(a2) * RR, yb + .28, Math.sin(a2) * RR,
+        .58, .54, shade(c, k % 2 ? 1.06 : .93));
+      g.beam(Math.cos(a1) * RR, yb + .52, Math.sin(a1) * RR, Math.cos(a2) * RR, yb + .52, Math.sin(a2) * RR,
+        .16, .10, shade(c, 1.28));
+    }
+    for (let k = 0; k < 4; k++) {
+      const a = k / 4 * TAU + .4;
+      g.beam(Math.cos(a) * (RR + .05), yb + .56, Math.sin(a) * (RR + .05),
+        Math.cos(a + .34) * (RR + .05), yb + .56, Math.sin(a + .34) * (RR + .05), .09, .09, hex(0xf2f4f6));
+    }
+  } else if (style === 'mat') {
+    /* A racing mat: riders lie head-first on a padded sled. */
+    g.box(0, yb, 0, 1.35, .22, 2.9, c);
+    g.box(0, yb + .22, 0, 1.15, .10, 2.6, shade(c, 1.25));
+    g.box(0, yb + .06, -1.45, 1.20, .16, .5, shade(c, .82));
+    for (const sx of [-1, 1]) g.beam(sx * .60, yb + .30, -1.0, sx * .60, yb + .30, 1.0, .10, .10, hex(0xf2f4f6));
   } else if (style === 'boat') {
     // an open hull, high at bow and stern, riders sitting low inside it
     g.cyl(0, yb - .1, 0, .95, 3.5, 10, c, 0, true);
@@ -15068,7 +15628,7 @@ const UI = {
             `<span class="c">${money(est)}</span><span class="c" style="color:var(--dim);font-size:9px;line-height:1.4">${it.desc}</span>`;
         },
         (it, d) => { this.pick(it, d); Coaster.beginBlueprint(it); });
-      addGrid('Build Your Own', CAT.coasterTypes, 'grid2',
+      addGrid('Build Your Own', CAT.coasterTypes.filter(t => !t.slide), 'grid2',
         it => `<img class="th" src="${Thumbs.coasterType(it)}" alt=""><span class="n">${it.name}</span><span class="c">${money(6000)} station</span>`,
         (it, d) => { this.pick(it, d); Coaster.beginPlacement(it); },
         it => Park.mode === 'sandbox' || !!(Park.research && Park.research.unlocked['tier' + Progress.coasterTier(it)]));
@@ -15101,13 +15661,15 @@ const UI = {
       const water = CAT.rides.filter(r => r.water);
       addGrid('Pools', water.filter(r => !r.slide), 'grid2', wr, (it, d) => this.pick(it, d));
       addGrid('Water Slides', water.filter(r => r.slide), 'grid2', wr, (it, d) => this.pick(it, d));
-      b.appendChild(el('div', 'cat', 'Design Your Own'));
-      b.appendChild(el('div', '', `<div style="padding:0 3px 8px">
-        <button class="btn" style="width:100%" onclick="SlideDesigner.open()">\u270F\uFE0F Design a Water Slide</button>
-        <div style="font-size:11px;color:var(--dim);line-height:1.5;margin-top:6px">
-          Pick a pool size, how tall and twisty the flume is, open or closed tube, and a colour \u2014
-          the slide, its splash pool, and its stairs are all built and placed together.</div>
-      </div>`));
+      b.appendChild(el('div', 'cat', 'Build Your Own \u2014 piece by piece'));
+      const slideTypes = CAT.coasterTypes.filter(t => t.slide);
+      addGrid('Slide types', slideTypes, 'grid2',
+        it => `<img class="th" src="${Thumbs.coasterType(it)}" alt=""><span class="n">${it.name}</span><span class="c">${money(6000)} tower</span>`,
+        (it, d) => { this.pick(it, d); Coaster.beginPlacement(it); });
+      b.appendChild(el('div', '', `<div style="font-size:11px;color:var(--dim);line-height:1.5;padding:0 3px 8px">
+        A slide is built exactly like a coaster: place the tower and its splash pool, then lay the flume
+        piece by piece down to the water. The tower, the stairs and the pool come with it \u2014 you build
+        the ride.</div>`));
       b.appendChild(el('div', 'cat', 'Note'));
       b.appendChild(el('div', '', `<div style="font-size:11px;color:var(--dim);line-height:1.55;padding:0 3px">
         Pools take large groups for a long, gentle stay — good for park happiness.
@@ -16037,6 +16599,28 @@ const UI = {
           the seats or the restraints, so a mine train still runs on the same running gear.</p>`;
       } else {
         const L = o.livery || {};
+        /* A livery is a whole theme, not a tint: picking one rebuilds the
+           building with that theme's palette AND its kit of parts. */
+        h += `<h3>Livery</h3>`;
+        h += `<p>A livery changes the building, not just its colour &mdash; parapets, thatch, fins,
+          balconies, lanterns. Pick one and the whole structure is rebuilt in that style.</p>`;
+        h += `<div class="grid2" style="grid-template-columns:repeat(3,1fr);gap:7px;margin-bottom:12px">`;
+        for (const lv of BUILDING_LIVERIES) {
+          const on = (L.theme || 'stock') === lv.id;
+          const sw = lv.id === 'stock'
+            ? `linear-gradient(135deg,#e8e2d4 50%,#c9c1b0 50%)`
+            : `linear-gradient(135deg,#${(lv.wall).toString(16).padStart(6, '0')} 33%,#${(lv.roof).toString(16).padStart(6, '0')} 33%,#${(lv.roof).toString(16).padStart(6, '0')} 66%,#${(lv.accent).toString(16).padStart(6, '0')} 66%)`;
+          h += `<div onclick="UI.setLiveryTheme(${id},'${lv.id}')" title="${esc(lv.blurb || '')}"
+            style="cursor:pointer;border:2px solid ${on ? 'var(--accent)' : 'var(--edge-soft)'};border-radius:8px;
+                   padding:6px;background:${on ? '#f3f8ff' : '#fff'}">
+            <div style="height:30px;border-radius:5px;background:${sw};box-shadow:inset 0 0 0 1px rgba(0,0,0,.15)"></div>
+            <div style="font-size:9.5px;font-weight:800;margin-top:5px;line-height:1.2">${esc(lv.name)}</div>
+            ${on ? '<div style="font-size:8.5px;font-weight:800;color:var(--accent-ink);letter-spacing:.08em">IN USE</div>' : ''}
+          </div>`;
+        }
+        h += `</div>`;
+        const curLiv = liveryDef(L.theme);
+        if (curLiv && curLiv.id !== 'stock') h += `<p><b>${esc(curLiv.name)}</b> &mdash; ${esc(curLiv.blurb)}</p>`;
         h += `<h3>Colours</h3>`;
         h += swatch('Main colour', 'main', L.main !== undefined ? L.main : (o.def.color || 0xcccccc));
         h += swatch('Roof / trim', 'roof', L.roof !== undefined ? L.roof : (o.def.roof || 0x888888));
@@ -16460,6 +17044,34 @@ const UI = {
     if (!isFinite(col)) return;
     o.livery[key] = col & 0xffffff;
     if (o.repaint) o.repaint(); else { o.mesh = null; Game.sceneryDirty = true; PF.recolour(o); }
+  },
+  /* Apply a whole livery theme. Colour overrides are cleared with it, so the
+     theme's own palette shows through until the player picks their own. */
+  setLiveryTheme(id, themeId) {
+    const o = Park.objects.find(x => x.id === id) || Park.coasters.find(x => x.id === id);
+    if (!o) return;
+    o.livery = o.livery || {};
+    if (themeId === 'stock') delete o.livery.theme; else o.livery.theme = themeId;
+    delete o.livery.main; delete o.livery.roof;
+    if (o.repaint) o.repaint(); else { o.mesh = null; Game.sceneryDirty = true; PF.recolour(o); }
+    Audio.play('place');
+    this.manage(id, 'look');
+  },
+  /* Give every building in the park the same livery in one go — the fastest
+     way to theme a whole land, and how a park stops looking like a catalogue. */
+  setLiveryThemeAll(themeId) {
+    let n = 0;
+    for (const o of Park.objects) {
+      if (o.kind !== 'shop' && o.kind !== 'ride') continue;
+      o.livery = o.livery || {};
+      if (themeId === 'stock') delete o.livery.theme; else o.livery.theme = themeId;
+      delete o.livery.main; delete o.livery.roof;
+      if (o.repaint) o.repaint(); else PF.recolour(o);
+      n++;
+    }
+    Game.sceneryDirty = true;
+    const lv = liveryDef(themeId);
+    this.notify('Livery applied', n + ' buildings rebuilt in ' + (lv ? lv.name : 'house style') + '.', 'good');
   },
   resetLivery(id) {
     const o = Park.objects.find(x => x.id === id) || Park.coasters.find(x => x.id === id);
@@ -18549,101 +19161,6 @@ const Minimap = {
    hands it to the normal ride-placement flow — pool, tower, stairs and flume
    are all generated by Prefab.waterSlide from those numbers already.
    ========================================================================== */
-const SlideDesigner = {
-  cfg: { h: 18, turns: 1.4, lanes: 1, tube: true, steep: false, col: 0x39c0ff, name: 'My Water Slide', segs: [] },
-  colors: [0x39c0ff, 0xffd23f, 0xff6f91, 0x2ecc71, 0x7b5bd4, 0xe74c3c, 0xff8c42, 0xf5f5f5],
-  palette: [
-    { id: 'straight', label: 'Straight', turn: 0, dh: -1.4, len: 1 },
-    { id: 'curveL', label: 'Curve Left', turn: -45, dh: -1.6, len: 1.2 },
-    { id: 'curveR', label: 'Curve Right', turn: 45, dh: -1.6, len: 1.2 },
-    { id: 'spin', label: 'Spin Drop', turn: 110, dh: -3.4, len: 1.7 },
-    { id: 'drop', label: 'Steep Drop', turn: 0, dh: -5.2, len: 1.1 },
-    { id: 'rise', label: 'Rise', turn: 0, dh: 1.6, len: 1 },
-  ],
-  nextTube: true,
-  open() {
-    const c = this.cfg;
-    const swatches = this.colors.map(hx => `<span onclick="SlideDesigner.setColor(${hx})"
-        style="display:inline-block;width:26px;height:26px;border-radius:6px;margin:2px;cursor:pointer;
-        background:#${hx.toString(16).padStart(6, '0')};border:2px solid ${c.col === hx ? '#fff' : 'transparent'};
-        box-shadow:0 0 0 1px rgba(0,0,0,.25)"></span>`).join('');
-    const row = (label, input) => `<div style="margin-bottom:14px"><div style="font-size:11px;color:var(--dim);margin-bottom:4px">${label}</div>${input}</div>`;
-    const totals = this.totals();
-    const pieceBtns = this.palette.map(p => `<button class="btn" style="padding:6px 10px;margin:0 4px 4px 0"
-        onclick="SlideDesigner.addSeg('${p.id}')">${p.label}</button>`).join('');
-    const listRows = c.segs.length
-      ? c.segs.map((sg, i) => `<div class="kv"><span class="k">${i + 1}. ${sg.label}${sg.tube ? ' (tube)' : ' (open)'}</span>
-          <span class="v">${sg.dh > 0 ? '+' : ''}${sg.dh.toFixed(1)}m
-          <span style="cursor:pointer;color:var(--bad);margin-left:8px" onclick="SlideDesigner.removeSeg(${i})">✕</span></span></div>`).join('')
-      : `<p style="color:var(--dim)">No pieces yet — add some below to lay out the slide.</p>`;
-    const html = `
-      <div style="max-width:460px">
-        ${row('Name', `<input id="sdName" value="${esc(c.name)}" style="width:100%" oninput="SlideDesigner.cfg.name=this.value">`)}
-        <div style="margin-bottom:14px"><div style="font-size:11px;color:var(--dim);margin-bottom:4px">Next piece style</div>
-          <div class="btn" style="display:inline-block;padding:6px 14px;margin-right:6px;${this.nextTube ? 'outline:2px solid var(--accent)' : ''}" onclick="SlideDesigner.nextTube=true;SlideDesigner.open()">Closed tube</div>
-          <div class="btn" style="display:inline-block;padding:6px 14px;${!this.nextTube ? 'outline:2px solid var(--accent)' : ''}" onclick="SlideDesigner.nextTube=false;SlideDesigner.open()">Open flume</div>
-        </div>
-        <div style="margin-bottom:8px"><div style="font-size:11px;color:var(--dim);margin-bottom:4px">Add a piece — build the slide down to the pool</div>${pieceBtns}
-          <button class="btn dan" style="padding:6px 10px;margin:0 0 4px 0" onclick="SlideDesigner.clearSegs()">Clear all</button></div>
-        <div style="max-height:160px;overflow-y:auto;margin-bottom:10px;border:1px solid var(--edge-soft);border-radius:8px;padding:6px">${listRows}</div>
-        <div class="kv"><span class="k">Tower height</span><span class="v">${totals.h.toFixed(1)}m</span></div>
-        <div class="kv"><span class="k">Pieces</span><span class="v">${c.segs.length}</span></div>
-        ${row('Lanes / racers', `<select style="width:100%" onchange="SlideDesigner.setNum('lanes',this.value)">
-            ${[1, 2, 4].map(n => `<option value="${n}" ${c.lanes === n ? 'selected' : ''}>${n} lane${n > 1 ? 's' : ''}</option>`).join('')}</select>`)}
-        ${row('Colour', swatches)}
-        <div style="font-size:11px;color:var(--dim);margin-top:6px">
-          The entrance tower, stairs and splash pool are generated automatically to match your pieces —
-          click Build, then click a clear, flat spot with room around it to place it.
-        </div>
-      </div>`;
-    UI.modal('Design a Water Slide', html, [
-      { label: 'Cancel', cls: '', fn: 'UI.closeModal()' },
-      { label: 'Build', cls: 'pri', fn: 'SlideDesigner.build()' }
-    ]);
-  },
-  addSeg(id) {
-    const p = this.palette.find(x => x.id === id); if (!p) return;
-    this.cfg.segs.push({ label: p.label, turn: p.turn, dh: p.dh, len: p.len, tube: this.nextTube });
-    this.open();
-  },
-  removeSeg(i) { this.cfg.segs.splice(i, 1); this.open(); },
-  clearSegs() { this.cfg.segs = []; this.open(); },
-  totals() {
-    const c = this.cfg;
-    if (!c.segs.length) return { h: c.h, turns: c.turns, drop: c.h - 1.2, turnDeg: c.turns * 360 };
-    let drop = 0, turnDeg = 0;
-    for (const sg of c.segs) { drop -= sg.dh; turnDeg += Math.abs(sg.turn); }
-    return { h: Math.max(4, drop + 1.2), turns: turnDeg / 360, drop, turnDeg };
-  },
-  setNum(k, v) { this.cfg[k] = +v; this.open(); },
-  setBool(k, v) { this.cfg[k] = v; },
-  setColor(hx) { this.cfg.col = hx; this.open(); },
-  build() {
-    const c = this.cfg;
-    const t = this.totals();
-    const steep = c.segs.some(s => s.dh <= -4);
-    const anyTube = c.segs.length ? c.segs.some(s => s.tube) : c.tube;
-    // footprint + cost scale with how big a slide the player asked for
-    const r = 4.5 + t.h * .22 + t.turns * 1.6;
-    const foot = Math.max(4, Math.round((r * .55 + 6) / TILE));
-    const pieceCount = c.segs.length || 3;
-    const cost = Math.round(3000 + t.h * 420 + t.turns * 900 + (c.lanes - 1) * 2600 + (anyTube ? 1400 : 0) + pieceCount * 220);
-    const exc = clamp(3.5 + t.h * .18 + t.turns * .7 + (steep ? 1.6 : 0) + (anyTube ? .6 : 0), 1, 10);
-    const fear = clamp(2 + t.h * .16 + (steep ? 2.4 : 0) + t.turns * .4, 0, 10);
-    const def = {
-      id: 'customSlide_' + Date.now(), name: c.name || 'Water Slide', custom: true,
-      cost, up: Math.round(cost * .01), w: foot, d: foot,
-      cap: 6 * c.lanes, dur: Math.round(30 + t.h * 1.1), exc, fear: fear, naus: clamp(fear * .55, 0, 10),
-      price: Math.round(6 + t.h * .12), kind: 'slide', water: true,
-      slide: { h: t.h, r, turns: t.turns, lanes: c.lanes, tube: anyTube, steep, col: c.col, segs: c.segs.length ? c.segs.slice() : null }
-    };
-    UI.closeModal();
-    UI.setTool('water');
-    UI.pick(def);
-    this.cfg.segs = [];
-  }
-};
-
 const Coaster = {
   active: null,        // the Coaster being edited
   placing: null,       // track type awaiting station placement
@@ -18805,11 +19322,97 @@ const Coaster = {
     if (UI.tool === 'coaster') UI.openBuild('coaster');
     UI.notify('Station placed', 'Now lay track from the glowing build head.', 'good');
   },
+  /* The head-house of a water slide: a splash pool with a paved surround,
+     a dispatch tower with a stair flight winding up it, a tube stack, a
+     lifeguard chair and the start gates the flume leaves from. */
+  slideStationGeo(c, W, D, T) {
+    const g = new Geo();
+    const deck = hex(0xdfe8ee), coping = hex(0x2f7fd0), wat = hex(0x35a9e0);
+    const shell = hex(T.rail), lip = hex(T.spine);
+    const TOP = .92, SURF = .60;
+    const bw = W - 1.0, bd = D - 1.6;
+    /* the splash pool: paved frame, tiled basin, run-out lanes */
+    g.box(0, -.45, 0, W + 2.4, .85, D + 2.4, shade(deck, .86));
+    for (const [ox, oz, sx, sz] of [[0, -(bd / 2 + .9), bw + 3.4, 1.8], [0, (bd / 2 + .9), bw + 3.4, 1.8],
+    [-(bw / 2 + .9), 0, 1.8, bd], [(bw / 2 + .9), 0, 1.8, bd]])
+      g.box(ox, -.05, oz, sx, TOP + .05, sz, deck);
+    Arch.tiledDeck(g, W + 2.4, 1.8, TOP, deck, 2.0);
+    Arch.poolEdge(g, bw, bd, TOP + .01, coping);
+    g.box(0, -.05, 0, bw, .30, bd, shade(hex(0xbfe6f7), .8));                 // basin floor
+    for (const [ox, oz, sx, sz] of [[0, -(bd / 2 - .15), bw, .3], [0, (bd / 2 - .15), bw, .3],
+    [-(bw / 2 - .15), 0, .3, bd], [(bw / 2 - .15), 0, .3, bd]])
+      g.box(ox, .05, oz, sx, TOP - .05, sz, hex(0xbfe6f7));
+    g.quadV([-bw / 2 + .3, SURF, bd / 2 - .3], [bw / 2 - .3, SURF, bd / 2 - .3],
+      [bw / 2 - .3, SURF, -bd / 2 + .3], [-bw / 2 + .3, SURF, -bd / 2 + .3], wat);
+    const lanes = Math.max(2, Math.round(bw / 2.6));
+    for (let k = 1; k < lanes; k++)
+      g.box(-bw / 2 + k * (bw / lanes), SURF + .04, 0, .16, .05, bd - .8, shade(wat, 1.5));
+    for (let k = 0; k < 3; k++)                                               // steps out of the pool
+      g.box(0, .05 + k * ((TOP - .05) / 3), bd / 2 - .5 - k * .42, 3.0, (TOP - .05) / 3 + .06, .5, shade(hex(0xbfe6f7), 1.05));
+    Arch.lifeguard(g, bw / 2 + 1.4, 0, TOP, hex(0xff5a4a));
+    Arch.poolShower(g, -(bw / 2 + 1.4), bd / 4, TOP);
+    Arch.towelRack(g, -(bw / 2 + 1.4), -bd / 4, TOP, deck);
+    /* the boarding house: riders take a tube here, at the near end of the
+       pool, and the flume climbs away from it on its conveyor */
+    const tz = -(bd / 2 + 1.5), TH = 3.4;
+    g.box(0, -.05, tz, W - .5, TOP + .05, 2.6, shade(deck, .96));
+    for (let k = 0; k < 8; k++)
+      g.box(-W / 2 + .8 + k * ((W - 1.6) / 7), TOP, tz, (W - 1.6) / 7 - .12, .05, 2.4, shade(deck, 1 - (k % 2) * .05));
+    for (const sx of [-1, 1]) for (const sz of [-1, 1])
+      g.cyl(sx * (W / 2 - 1.0), TOP, tz + sz * 1.1, .17, TH, 8, hex(0xdfe6ee));
+    g.box(0, TOP + TH, tz, W - 1.2, .22, 3.2, shade(lip, 1.02));            // canopy deck
+    g.box(0, TOP + TH + .22, tz, W - 2.0, .18, 2.6, shade(shell, 1.12));
+    for (let k = 0; k < 12; k++)                                            // scalloped valance
+      g.triV([-(W - 1.2) / 2 + k * ((W - 1.2) / 12), TOP + TH, tz - 1.6],
+        [-(W - 1.2) / 2 + (k + 1) * ((W - 1.2) / 12), TOP + TH, tz - 1.6],
+        [-(W - 1.2) / 2 + (k + .5) * ((W - 1.2) / 12), TOP + TH - .45, tz - 1.6],
+        k % 2 ? shade(shell, 1.15) : hex(0xffffff));
+    for (let k = 0; k < 12; k++)
+      g.triV([-(W - 1.2) / 2 + (k + 1) * ((W - 1.2) / 12), TOP + TH, tz + 1.6],
+        [-(W - 1.2) / 2 + k * ((W - 1.2) / 12), TOP + TH, tz + 1.6],
+        [-(W - 1.2) / 2 + (k + .5) * ((W - 1.2) / 12), TOP + TH - .45, tz + 1.6],
+        k % 2 ? hex(0xffffff) : shade(shell, 1.15));
+    g.box(-W / 2 + 1.6, TOP, tz - 1.0, 1.8, 2.0, .7, shade(deck, .9));         // operator desk
+    g.box(-W / 2 + 1.6, TOP + 1.5, tz - 1.35, 1.4, .7, .10, hex(0x8ec7e8));
+    g.box(W / 2 - 1.6, TOP, tz - 1.0, .18, 1.5, .5, hex(0x38414d));            // start signal
+    g.sphere(W / 2 - 1.6, TOP + 1.6, tz - 1.0, .15, 6, hex(0x6ac46a));
+    g.sphere(W / 2 - 1.6, TOP + 1.25, tz - 1.0, .15, 6, hex(0xff5a4a));
+    /* a viewing gallery with steps up, so the queue has somewhere to stand */
+    for (let k = 0; k < 4; k++)
+      g.box(-(bw / 2 + 1.4), -.05 + k * .34, -bd / 4 + k * .5, 2.4, .38, .5, shade(deck, 1 - (k % 2) * .05));
+    g.box(-(bw / 2 + 1.4), 1.25, bd / 4, 2.6, .16, 3.4, shade(deck, 1.06));
+    for (let k = 0; k < 6; k++)
+      g.cyl(-(bw / 2 + 2.5), 1.41, bd / 4 - 1.5 + k * .6, .06, 1.0, 5, hex(0xdfe6ee));
+    g.beam(-(bw / 2 + 2.5), 2.36, bd / 4 - 1.6, -(bw / 2 + 2.5), 2.36, bd / 4 + 1.6, .06, .06, hex(0xdfe6ee));
+    /* tube stack and a height-restriction board at the boarding end */
+    for (let k = 0; k < 5; k++) {
+      g.cyl(W / 2 - 2.4, TOP + k * .22, tz + 1.6, .90, .20, 12,
+        [hex(0xffd23f), hex(0xff6f91), hex(0x7ed6df), hex(0x6ac46a), hex(0xc77dff)][k]);
+      g.cyl(W / 2 - 2.4, TOP + k * .22 + .02, tz + 1.6, .44, .18, 10, shade(deck, 1.05));
+    }
+    g.cyl(-W / 2 + 2.4, TOP, tz + 1.6, .09, 2.0, 6, hex(0x8a939b));
+    g.box(-W / 2 + 2.4, TOP + 1.6, tz + 1.6, .10, 1.2, .9, hex(0xf2f4f6));
+    g.box(-W / 2 + 2.46, TOP + 2.0, tz + 1.6, .05, .5, .7, hex(0xff5a4a));
+    /* name board, in the coaster livery, facing the queue */
+    const L = c.livery || {};
+    for (const sx of [-1, 1]) {
+      g.cyl(sx * W * .38, 0, D / 2 + 1.0, .20, TOP + 2.4, 8, hex(0xdfe6ee));
+      g.box(sx * W * .38, TOP + 2.4, D / 2 + 1.0, .5, .2, .5, hex(0xb9c1c9));
+    }
+    g.box(0, TOP + 2.2, D / 2 + 1.0, W * .8, 1.3, .38, hex(L.banner !== undefined ? L.banner : 0x2f3b52));
+    g.box(0, TOP + 2.35, D / 2 + 1.18, W * .68, .84, .06, hex(L.bannerText !== undefined ? L.bannerText : 0xffd76a));
+    return g;
+  },
+
   stationGeo(c) {
     const g = new Geo();
     const W = (c.gw || 4) * TILE, D = (c.gd || 3) * TILE;
     const T = c.paintedType ? c.paintedType() : c.type;
     const style = c.stationStyle || 'modern';
+    /* A water slide does not board from a platform beside a rail: riders
+       climb a tower, and the flume runs out into a splash pool. That whole
+       structure is the station, so it is built here instead. */
+    if (T.style === 'flume') return this.slideStationGeo(c, W, D, T);
     g.box(0, -.4, 0, W + 2, .8, D + 2, hex(0xb0a48c));
     // platforms either side of the track
     for (const sx of [-1, 1]) g.box(sx * 3.2, .4, 0, 2.6, .7, D + 1, hex(0xd8cdb4));
@@ -20574,14 +21177,15 @@ const PF = {
     /* Shops rebuild themselves as they are refurbished, so the tier is part
        of the cache key exactly like a repaint is. */
     const tv = (o.kind === 'shop' && o.tier > 1) ? o.tier : 0;
-    if (!tv && (!L || (L.main === undefined && L.roof === undefined))) {
+    const th = (L && L.theme && L.theme !== 'stock') ? L.theme : '';
+    if (!tv && !th && (!L || (L.main === undefined && L.roof === undefined))) {
       return o.kind === 'shop' ? this.shop(o.def) : this.ride(o.def);
     }
-    const key = (o.kind === 'shop' ? 'shopL_' : 'rideL_') + o.def.id + '_' + ((L && L.main) | 0) + '_' + ((L && L.roof) | 0) + '_t' + tv;
+    const key = (o.kind === 'shop' ? 'shopL_' : 'rideL_') + o.def.id + '_' + ((L && L.main) | 0) + '_' + ((L && L.roof) | 0) + '_t' + tv + '_' + th;
     /* The car park's footprint grows with its tier, so the mesh is built to
        the object's live size rather than the catalogue entry's. */
     const def = Object.assign({}, o.def,
-      { tierLv: tv || 1, w: o.w, d: o.d,
+      { tierLv: tv || 1, w: o.w, d: o.d, liveryTheme: th || undefined,
         color: L && L.main !== undefined ? L.main : o.def.color, roof: L && L.roof !== undefined ? L.roof : o.def.roof });
     return this.get(key, () => o.kind === 'shop' ? Prefab.shop(def) : Prefab.ride(def.kind, def));
   },
