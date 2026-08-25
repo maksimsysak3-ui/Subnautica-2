@@ -192,7 +192,29 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
   font-family:var(--display);font-size:10px;font-weight:600;letter-spacing:.3em;
   color:var(--dimmer);text-transform:uppercase;
 }
-.load-mid{position:relative;flex:1;display:flex;align-items:flex-end;justify-content:space-between;gap:clamp(24px,5vw,80px)}
+.load-mid{position:relative;flex:1;display:flex;align-items:center;justify-content:center;min-height:0;padding:clamp(12px,2.4vw,30px) 0}
+.load-lower{position:relative;display:flex;align-items:flex-end;justify-content:space-between;gap:clamp(24px,5vw,80px)}
+
+/* live circuit trace — the lap is drawn as the game loads */
+.circuit{position:relative;display:flex;flex-direction:column;align-items:center;gap:clamp(14px,1.8vw,22px);
+  width:min(50vw,600px);max-height:100%}
+.circuit svg{width:100%;height:auto;overflow:visible;display:block}
+.tb{fill:none;stroke:rgba(255,255,255,.08);stroke-width:2.4;stroke-linejoin:round;stroke-linecap:round}
+.tp{fill:none;stroke:var(--red);stroke-width:2.6;stroke-linecap:round;
+  filter:drop-shadow(0 0 5px rgba(225,6,0,.6))}
+.cd{fill:#fff;filter:drop-shadow(0 0 10px rgba(255,255,255,.95))}
+.ch{fill:none;stroke:rgba(255,255,255,.42);stroke-width:1;
+  transform-box:fill-box;transform-origin:center;animation:halo 1.7s ease-out infinite}
+@keyframes halo{0%{transform:scale(.35);opacity:.9}100%{transform:scale(1.9);opacity:0}}
+.tick{stroke:rgba(255,255,255,.2);stroke-width:2}
+.tick.sf{stroke:rgba(255,255,255,.62);stroke-width:2.6}
+.sectors{display:flex;gap:clamp(18px,2.6vw,34px)}
+.sectors span{display:flex;align-items:center;gap:9px;color:#383D45;
+  font-family:var(--display);font-size:10px;font-weight:600;letter-spacing:.3em;
+  transition:color .5s ease}
+.sectors span::before{content:"";width:5px;height:5px;background:currentColor;transform:rotate(45deg)}
+.sectors span.on{color:var(--red)}
+
 .load-tip{max-width:52ch}
 .load-tip .k{
   display:block;font-family:var(--display);font-size:10px;font-weight:700;
@@ -232,12 +254,16 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
   font-variant-numeric:tabular-nums;letter-spacing:.02em;line-height:1;
 }
 .load-pct .s{font-size:.44em;color:var(--dim);margin-left:.16em;letter-spacing:.1em}
-.bar{position:relative;height:3px;background:rgba(255,255,255,.09);overflow:hidden}
-.bar .fill{position:absolute;inset:0 auto 0 0;width:0%;
-  background:linear-gradient(90deg,var(--red-deep),var(--red) 40%,var(--red-hot));
-  box-shadow:0 0 18px rgba(225,6,0,.55)}
-.bar .head{position:absolute;top:-3px;bottom:-3px;width:2px;background:#fff;
-  box-shadow:0 0 14px rgba(255,255,255,.9);transform:translateX(-1px)}
+.meter{display:flex;align-items:flex-end;height:18px;gap:3px}
+.meter i{
+  flex:1 1 0;height:6px;background:rgba(255,255,255,.075);
+  transition:background .2s ease, height .2s ease, box-shadow .25s ease;
+}
+.meter i.maj{height:13px;background:rgba(255,255,255,.13)}
+.meter i.on{background:var(--red);box-shadow:0 0 9px rgba(225,6,0,.45)}
+.meter i.on.maj{height:15px}
+.meter i.hot{background:#fff;height:18px;box-shadow:0 0 16px rgba(255,255,255,.85)}
+.meter i.warm{background:var(--red-hot);height:14px;box-shadow:0 0 12px rgba(255,59,36,.7)}
 .bar-ticks{display:flex;justify-content:space-between;margin-top:10px;
   font-family:var(--display);font-size:9.5px;font-weight:600;letter-spacing:.24em;color:var(--dimmer)}
 
@@ -250,9 +276,14 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
 .topbar{
   display:flex;align-items:center;justify-content:space-between;gap:24px;
   padding:clamp(18px,2.4vw,30px) clamp(24px,3.4vw,52px);
-  border-bottom:1px solid var(--line);
+  border-bottom:1px solid var(--line);position:relative;
 }
+.topbar::after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:1px;
+  background:linear-gradient(90deg,var(--red),rgba(225,6,0,.28) 22%,transparent 52%)}
 .topbar .logo{font-size:clamp(19px,2vw,27px)}
+.brand{display:flex;align-items:center;gap:clamp(12px,1.6vw,20px)}
+.chip{padding:5px 10px;border:1px solid var(--line);color:var(--dimmer);
+  font-family:var(--display);font-size:9px;font-weight:600;letter-spacing:.26em;text-transform:uppercase}
 .profile{display:flex;align-items:center;gap:clamp(14px,1.8vw,26px)}
 .pchip{display:flex;align-items:center;gap:12px}
 .pav{
@@ -279,6 +310,10 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
   border-right:1px solid var(--line);
   overflow-y:auto;
 }
+.nav-head{display:flex;align-items:center;gap:14px;margin-bottom:20px;padding-right:20px;
+  font-family:var(--display);font-size:9.5px;font-weight:700;letter-spacing:.42em;
+  text-transform:uppercase;color:var(--dimmer)}
+.nav-head::after{content:"";flex:1;height:1px;background:var(--line)}
 .nav-item{
   position:relative;display:flex;align-items:center;gap:16px;
   padding:11px 20px 11px 0;text-align:left;width:100%;
@@ -309,7 +344,7 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
 .nav-item.sel{transform:translateX(14px)}
 .nav-item.sel::before{width:calc(100% + 52px)}
 .nav-item.sel::after{height:100%}
-.nav-item.sel .lbl{color:#fff}
+.nav-item.sel .lbl{color:#fff;text-shadow:0 0 22px rgba(255,255,255,.28)}
 .nav-item.sel .idx{color:var(--red)}
 .nav-item.quit .lbl{font-size:clamp(13px,1.35vw,16px)}
 .nav-rule{height:1px;background:var(--line);margin:14px 20px 14px 0}
@@ -326,7 +361,9 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
   font-size:clamp(150px,21vw,300px);line-height:.78;
   color:transparent;-webkit-text-stroke:1px rgba(255,255,255,.05);
   pointer-events:none;transition:opacity .5s ease;
+  animation:ghostDrift 18s ease-in-out infinite;
 }
+@keyframes ghostDrift{50%{transform:translate3d(-14px,-8px,0)}}
 .feat{max-width:60ch;position:relative;transition:opacity .3s ease, transform .42s var(--ease-out)}
 .feat.swap{opacity:0;transform:translateY(12px)}
 .feat-kicker{
@@ -342,6 +379,7 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
 }
 .feat-desc{font-size:clamp(13.5px,1.35vw,16px);line-height:1.7;color:#A9AFB9;max-width:46ch}
 .feat-stats{display:flex;gap:clamp(20px,3vw,48px);margin:clamp(26px,3.4vw,40px) 0}
+.stat{padding-top:13px;border-top:1px solid var(--line)}
 .stat .v{font-family:var(--display);font-weight:700;font-size:clamp(20px,2.4vw,30px);
   font-variant-numeric:tabular-nums;line-height:1}
 .stat .l{font-size:9.5px;letter-spacing:.24em;color:var(--dimmer);text-transform:uppercase;margin-top:9px}
@@ -356,10 +394,23 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
 .cta span{position:relative;z-index:1}
 .cta::before{content:"";position:absolute;inset:0;background:var(--red);
   transform:translateX(-101%);transition:transform .42s var(--ease)}
-.cta:hover{border-color:var(--red);color:#fff}
+.cta::after{content:"";position:absolute;inset:0;pointer-events:none;
+  border-left:2px solid rgba(255,255,255,.85);border-right:2px solid rgba(255,255,255,.85);
+  clip-path:polygon(0 0,100% 0,100% 22%,0 22%,0 78%,100% 78%,100% 100%,0 100%);
+  opacity:0;transition:opacity .32s ease}
+.cta:hover{border-color:var(--red);color:#fff;box-shadow:0 0 34px rgba(225,6,0,.28)}
+.cta:hover::after{opacity:1}
 .cta:hover::before{transform:none}
 .cta .arw{transition:transform .3s var(--ease)}
 .cta:hover .arw{transform:translateX(5px)}
+
+#menu.on .nav-head{animation:navIn .5s var(--ease-out) both}
+#menu.on .nav-item{animation:navIn .48s var(--ease-out) both;
+  animation-delay:calc(var(--i) * 42ms + 90ms)}
+#menu.on .nav-rule{animation:navIn .48s var(--ease-out) both;animation-delay:.36s}
+#menu.on .feature{animation:featIn .6s var(--ease-out) both;animation-delay:.2s}
+@keyframes navIn {from{opacity:0;translate:-22px 0}to{opacity:1;translate:0 0}}
+@keyframes featIn{from{opacity:0;translate:0 16px} to{opacity:1;translate:0 0}}
 
 /* --- bottom bar ------------------------------------------ */
 .botbar{
@@ -388,26 +439,49 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
   transition:border-color .3s ease,color .3s ease}
 .back:hover{border-color:var(--red);color:#fff}
 
-#wipe{
-  position:fixed;inset:0;z-index:60;pointer-events:none;
-  background:linear-gradient(100deg,var(--red-deep),var(--red) 45%,#1A0301);
-  transform:translateX(-130%) skewX(-9deg);transform-origin:left;
+#wipe{position:fixed;inset:0;z-index:60;pointer-events:none;overflow:hidden}
+#wipe .pane{
+  position:absolute;top:-16%;bottom:-16%;left:-60vw;width:220vw;
+  transform:translateX(-135%) skewX(-15deg);
+  will-change:transform;backface-visibility:hidden;
 }
-#wipe.go{animation:wipe .82s var(--ease) forwards}
-@keyframes wipe{
-  0%{transform:translateX(-130%) skewX(-9deg)}
-  46%{transform:translateX(0) skewX(-9deg)}
-  54%{transform:translateX(0) skewX(-9deg)}
-  100%{transform:translateX(135%) skewX(-9deg)}
+/* opaque body — guarantees the screen is covered at the swap */
+#wipe .body{
+  background:linear-gradient(96deg,
+    rgba(4,0,0,0) 0%, rgba(16,1,1,.9) 3%,
+    #1E0201 8%, #4C0201 26%, #8E0400 44%,
+    #A00400 54%, #580201 68%, #1E0201 84%, rgba(4,0,0,.85) 95%, rgba(4,0,0,0) 100%);
+}
+/* hot leading blade — runs slightly ahead of the body */
+#wipe .blade{
+  background:linear-gradient(96deg,
+    rgba(255,59,36,0) 0%, rgba(255,59,36,0) 56%, rgba(170,9,0,.45) 68%,
+    #C60700 80%, #FF3B24 89%, #FFD8CD 95%, rgba(255,255,255,0) 99%);
+  filter:blur(.5px);
+}
+#wipe.go .blade{animation:bladeMove .56s both}
+#wipe.go .body {animation:bodyMove  .62s .04s both}
+@keyframes bladeMove{
+  0%{transform:translateX(-135%) skewX(-15deg);animation-timing-function:cubic-bezier(.17,.84,.28,1)}
+  44%{transform:translateX(5%) skewX(-15deg);animation-timing-function:cubic-bezier(.6,.02,.88,.36)}
+  100%{transform:translateX(136%) skewX(-15deg)}
+}
+@keyframes bodyMove{
+  0%{transform:translateX(-135%) skewX(-15deg);animation-timing-function:cubic-bezier(.17,.84,.28,1)}
+  42%{transform:translateX(0) skewX(-15deg);animation-timing-function:linear}
+  56%{transform:translateX(0) skewX(-15deg);animation-timing-function:cubic-bezier(.62,.02,.88,.36)}
+  100%{transform:translateX(136%) skewX(-15deg)}
 }
 
 /* ---------- responsive ----------------------------------- */
 @media (max-width:900px){
   .load-steps{display:none}
+  .circuit{width:min(76vw,420px)}
   .menu-body{grid-template-columns:1fr;grid-template-rows:auto 1fr}
   .nav{border-right:none;border-bottom:1px solid var(--line);
     flex-direction:row;overflow-x:auto;gap:6px;justify-content:flex-start;
     padding:14px clamp(16px,4vw,24px)}
+  .nav-head{display:none}
   .nav-item{padding:8px 14px;width:auto;flex:none}
   .nav-item::before,.nav-item::after{display:none}
   .nav-item.sel{transform:none;background:var(--panel-2)}
@@ -449,6 +523,21 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
   </div>
 
   <div class="load-mid">
+    <div class="circuit">
+      <svg viewBox="0 0 400 250" aria-hidden="true">
+        <g id="ticks"></g>
+        <path id="trackBase" class="tb" d="M86 215L270 215Q300 215 322.5 199.3L333.6 191.5Q350 180 341.1 162.1L338 156.1Q330 140 312.1 141.8L249.9 148Q230 150 223.7 131L221.8 125.3Q215 105 238.8 102.2L280.1 97.3Q300 95 312 79L316.8 72.6Q330 55 309 48.4L274.8 37.8Q250 30 224.1 32.4L145.9 39.6Q120 42 104.7 63L98 72.2Q85 90 105 99.2L131.8 111.6Q150 120 150 140L150 147.5Q150 170 128.5 180.7L83.3 203.4Q60 215 86 215Z"/>
+        <path id="trackProg" class="tp" d="M86 215L270 215Q300 215 322.5 199.3L333.6 191.5Q350 180 341.1 162.1L338 156.1Q330 140 312.1 141.8L249.9 148Q230 150 223.7 131L221.8 125.3Q215 105 238.8 102.2L280.1 97.3Q300 95 312 79L316.8 72.6Q330 55 309 48.4L274.8 37.8Q250 30 224.1 32.4L145.9 39.6Q120 42 104.7 63L98 72.2Q85 90 105 99.2L131.8 111.6Q150 120 150 140L150 147.5Q150 170 128.5 180.7L83.3 203.4Q60 215 86 215Z"/>
+        <circle id="carHalo" class="ch" r="9" cx="86" cy="215"/>
+        <circle id="carDot" class="cd" r="4" cx="86" cy="215"/>
+      </svg>
+      <div class="sectors">
+        <span>S1</span><span>S2</span><span>S3</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="load-lower">
     <div class="load-tip">
       <span class="k">Driving Note</span>
       <p class="t" id="tip">Trail brake into slow corners — easing off the pedal as you turn keeps load on the front tyres and helps the car rotate.</p>
@@ -461,7 +550,7 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
       <div class="load-stage" id="stage">Loading</div>
       <div class="load-pct"><span id="pct">0</span><span class="s">%</span></div>
     </div>
-    <div class="bar"><div class="fill" id="fill"></div><div class="head" id="head"></div></div>
+    <div class="meter" id="meter"></div>
     <div class="bar-ticks"><span>0</span><span>25</span><span>50</span><span>75</span><span>100</span></div>
   </div>
 </section>
@@ -475,7 +564,10 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
   </div>
 
   <header class="topbar">
-    <div class="logo"><span class="u">U</span><span class="w">Racing</span></div>
+    <div class="brand">
+      <div class="logo"><span class="u">U</span><span class="w">Racing</span></div>
+      <div class="chip">Pre-Alpha</div>
+    </div>
     <div class="profile">
       <div class="pchip">
         <div class="pav">U</div>
@@ -492,7 +584,7 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
   </header>
 
   <div class="menu-body">
-    <nav class="nav" id="nav"></nav>
+    <nav class="nav" id="nav"><div class="nav-head">Main Menu</div></nav>
 
     <section class="feature">
       <div class="ghost" id="ghost">01</div>
@@ -529,7 +621,7 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
   </div>
 </section>
 
-<div id="wipe"></div>
+<div id="wipe"><div class="pane body"></div><div class="pane blade"></div></div>
 
 <script>
 'use strict';
@@ -616,7 +708,39 @@ let tipTimer = null;
 function runLoading() {
   show('loading');
 
-  const fill = $('#fill'), head = $('#head'), pctEl = $('#pct'), stageEl = $('#stage'), tipEl = $('#tip');
+  const pctEl = $('#pct'), stageEl = $('#stage'), tipEl = $('#tip');
+
+  // segmented meter — 48 cells, every 12th a major tick
+  const SEG = 48;
+  const meter = $('#meter');
+  meter.innerHTML = Array.from({ length: SEG },
+    (_, i) => '<i' + (i % 12 === 0 ? ' class="maj"' : '') + '></i>').join('');
+  const cells = [...meter.children];
+  let litTo = -1;
+
+  // circuit trace: the lap draws itself and the car runs it as loading advances
+  const base = $('#trackBase'), prog = $('#trackProg'), dot = $('#carDot'), halo = $('#carHalo');
+  const L = base.getTotalLength() || 0;
+  prog.style.strokeDasharray  = L;
+  prog.style.strokeDashoffset = L;
+
+  const ticks = $('#ticks');
+  ticks.innerHTML = '';
+  [[0, 'sf'], [0.34, ''], [0.67, '']].forEach(([f, cls]) => {
+    if (!L) return;
+    const at = L * f;
+    const a = base.getPointAtLength(Math.max(0, at - 3));
+    const b = base.getPointAtLength(Math.min(L, at + 3));
+    const c = base.getPointAtLength(at);
+    const ang = Math.atan2(b.y - a.y, b.x - a.x) + Math.PI / 2;
+    const r = cls === 'sf' ? 8 : 5.5;
+    const ln = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    ln.setAttribute('class', 'tick ' + cls);
+    ln.setAttribute('x1', c.x - Math.cos(ang) * r); ln.setAttribute('y1', c.y - Math.sin(ang) * r);
+    ln.setAttribute('x2', c.x + Math.cos(ang) * r); ln.setAttribute('y2', c.y + Math.sin(ang) * r);
+    ticks.appendChild(ln);
+  });
+  const sectors = [...document.querySelectorAll('.sectors span')];
   let shown = 0, target = 0, stageIdx = 0, t0 = performance.now();
 
   // rotate driving notes
@@ -660,10 +784,26 @@ function runLoading() {
     const dt = Math.min(0.05, (now - t0) / 1000); t0 = now;
     shown += (target - shown) * Math.min(1, dt * 3.4);
     if (target - shown < 0.15) shown = target;
-    fill.style.width = shown + '%';
-    head.style.left = shown + '%';
-    head.style.opacity = shown >= 100 ? 0 : 1;
     pctEl.textContent = Math.round(shown);
+
+    const lit = Math.round(shown / 100 * SEG);
+    if (lit !== litTo) {
+      litTo = lit;
+      cells.forEach((c, i) => {
+        c.classList.toggle('on',   i < lit);
+        c.classList.toggle('warm', i === lit - 2 && lit < SEG);
+        c.classList.toggle('hot',  i === lit - 1 && lit < SEG);
+      });
+    }
+
+    if (L) {
+      const f = shown / 100;
+      prog.style.strokeDashoffset = L * (1 - f);
+      const pt = base.getPointAtLength(L * f);
+      dot.setAttribute('cx', pt.x);  dot.setAttribute('cy', pt.y);
+      halo.setAttribute('cx', pt.x); halo.setAttribute('cy', pt.y);
+      sectors.forEach((el, i) => el.classList.toggle('on', f > i * 0.34));
+    }
     requestAnimationFrame(tick);
   }
 
@@ -726,6 +866,7 @@ MODES.forEach((m, i) => {
   const b = document.createElement('button');
   b.className = 'nav-item' + (m.quit ? ' quit' : '');
   b.dataset.i = i;
+  b.style.setProperty('--i', i);
   b.innerHTML = '<span class="idx">' + String(i + 1).padStart(2, '0') + '</span>' +
                 '<span class="lbl">' + m.label + '</span>';
   b.addEventListener('mouseenter', () => select(i));
@@ -778,13 +919,13 @@ async function activate(i) {
   show('module');
 }
 
-/* red diagonal wipe — resolves at the moment the screen is covered */
+/* blade sweep — resolves at the moment the body pane covers the screen */
 function wipe() {
   const w = $('#wipe');
   w.classList.remove('go');
   void w.offsetWidth;
   w.classList.add('go');
-  return wait(390);
+  return wait(340);   // mid-hold, ~±45ms of tolerance either side
 }
 
 async function transitionTo(name) {
