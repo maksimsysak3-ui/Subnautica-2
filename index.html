@@ -1885,6 +1885,87 @@ const angLerp = (a, b, t) => { let d = ((b - a + PI) % TAU + TAU) % TAU - PI; re
 const damp = (a, b, l, dt) => lerp(a, b, 1 - Math.exp(-l * dt));
 
 function hash1(n) { const s = Math.sin(n * 127.1) * 43758.5453; return s - Math.floor(s); }
+/* Which surfaces have visible joints between their units. Asphalt, sand,
+   lawn and dirt do not — drawing a mortar grid on them looks wrong. */
+const JOINTED_TEX = { mottle: 1, brick: 1, tile: 1, cobble: 1, vein: 1, grate: 1, glow: 1, grain: 1, crosswalk: 0 };
+/* Per-material surface grain, sampled at a point rather than per tile, so a
+   paved square can be laid as a grid of setts each with its own tone. */
+function pathTex(pm, plank, fi, fj, c) {
+          switch (pm.tex) {
+      case 'fleck': { // asphalt/road: fine dark flecks, no big blotches
+        const f = noise2(fi * 1.7 + 41, fj * 1.7 + 17);
+        c = shade(c, .82 + f * .30);
+        break;
+      }
+      case 'speckle': { // gravel: coarse scattered grain
+        const f = noise2(fi * 2.3 + 3, fj * 2.3 + 88);
+        c = shade(c, .68 + f * .60);
+        break;
+      }
+      case 'mottle': { // stone/terracotta: soft broad blotches
+        const b = noise2(fi * .3 + 5, fj * .3 + 60);
+        c = shade(c, .74 + b * .48);
+        break;
+      }
+      case 'grain': { // wood: streaks running along the planks
+        const along = plank ? fj : (fi + fj);
+        const g2 = noise2(along * 1.6 + 9, (plank ? fi : fi - fj) * .4 + 4);
+        c = shade(c, .76 + g2 * .40);
+        break;
+      }
+      case 'brick': { // brick/herringbone: strong mortar joints
+        c = shade(c, .84 + noise2(fi * .8 + 12, fj * .8 + 7) * .22);
+        if ((fi + fj) % 3 === 0) c = shade(c, .58);
+        break;
+      }
+      case 'tile': { // mosaic/pavers: crisp grout lines every tile
+        c = shade(c, .92 + noise2(fi * .6, fj * .6 + 30) * .12);
+        if (!plank) c = shade(c, .62);
+        break;
+      }
+      case 'cobble': { // cobblestone/flagstone: rounded uneven stones
+        const rn = noise2(fi * 1.2 + 20, fj * 1.2 + 55);
+        c = shade(c, .62 + rn * .62);
+        break;
+      }
+      case 'vein': { // marble: sparse pale veining
+        const v = noise2(fi * .5 + 70, fj * .5 + 2);
+        c = v > .74 ? shade(c, 1.30) : shade(c, .90 + v * .16);
+        break;
+      }
+      case 'dune': { // sand: gentle wind-ripple bands
+        c = shade(c, .78 + noise2(fi * .45 + 8, fj * .18 + 8) * .34);
+        break;
+      }
+      case 'mow': { // mown lawn: alternating cut-grass bands
+        c = shade(c, ((fi + fj) % 4 < 2) ? 1.14 : .80);
+        break;
+      }
+      case 'dirt': { // dirt trail / cracked earth: patchy clumps
+        c = shade(c, .62 + noise2(fi * .5 + 33, fj * .5 + 11) * .58);
+        break;
+      }
+      case 'crosswalk': { // painted stripes on dark tarmac
+        c = ((fi + fj) % 3 === 0) ? shade(hex(0xf2f2ea), .98) : shade(hex(0x2c2c2c), .85);
+        break;
+      }
+      case 'glow': { // neon tile: pulsing inner highlight
+        c = shade(c, .70 + noise2(fi * .7 + 4, fj * .7 + 4) * .60);
+        break;
+      }
+      case 'grate': { // steel grating: regular perforation shadow
+        c = ((fi + fj) % 2 === 0) ? shade(c, 1.05) : shade(c, .52);
+        break;
+      }
+      default: {
+        const speck = noise2(fi * .9 + 41, fj * .9 + 17);
+        const patch = noise2(fi * .22 + 5, fj * .22 + 60);
+        c = shade(c, .90 + speck * .16 + patch * .10);
+      }
+    }
+  return c;
+}
+
 function noise2(x, y) {
   const xi = Math.floor(x), yi = Math.floor(y), xf = x - xi, yf = y - yi;
   const u = smoothstep(xf), v = smoothstep(yf);
@@ -3375,95 +3456,27 @@ const WORLD = {
     const queueC = hex(0xb59ad0), plazaA = hex(0xd8cdb6), plazaB = hex(0xc2b59a), entryC = hex(0xcfae82);
     // Path material palettes: [light, dark] tone pairs, plus optional plank/brick striping.
     // Shaded copies of the shared palette, built once per mesh rebuild.
-    const PM = PATH_MATS.map(m => ({ c: hex(m.c), d: hex(m.d), stripe: m.stripe, bridge: m.bridge }));
+    /* `tex` was never copied onto these, so every material fell through to
+       the default grain and all the per-surface texture below was dead. */
+    const PM = PATH_MATS.map(m => ({ c: hex(m.c), d: hex(m.d), stripe: m.stripe, bridge: m.bridge, tex: m.tex }));
     const buildTile = (g, i, j) => {
         const t = this.type[j * N + i];
         const x0 = (i - N / 2) * TILE, x1 = x0 + TILE, z0 = (j - N / 2) * TILE, z1 = z0 + TILE;
         const y00 = this.h[j * W + i], y10 = this.h[j * W + i + 1], y01 = this.h[(j + 1) * W + i], y11 = this.h[(j + 1) * W + i + 1];
-        let c;
+        let c, pathPM = null, pathPlank = false;
         const chk = ((i ^ j) & 1) === 0;
         if (t === T_PATH || t === T_BUILD) {
           const pm = PM[this.mat[j * N + i]] || PM[1];
           const plank = pm.stripe && (((pm === PM[2]) ? j : (i + j)) % 2 === 0);
           c = (chk || plank) ? pm.c : pm.d;
+          pathPM = pm; pathPlank = plank;
           // Surface texture: fine speckle grain plus a coarser weathering
           // patch so a material reads as a worn surface rather than a flat
           // fill — asphalt gets flecks, stone/gravel/sand get mottling,
           // wood/brick get grain running with the plank direction.
           // Per-material handcrafted texture: each family gets a distinct
           // grain so materials read as different surfaces, not just tints.
-          switch (pm.tex) {
-            case 'fleck': { // asphalt/road: fine dark flecks, no big blotches
-              const f = noise2(i * 1.7 + 41, j * 1.7 + 17);
-              c = shade(c, .82 + f * .30);
-              break;
-            }
-            case 'speckle': { // gravel: coarse scattered grain
-              const f = noise2(i * 2.3 + 3, j * 2.3 + 88);
-              c = shade(c, .68 + f * .60);
-              break;
-            }
-            case 'mottle': { // stone/terracotta: soft broad blotches
-              const b = noise2(i * .3 + 5, j * .3 + 60);
-              c = shade(c, .74 + b * .48);
-              break;
-            }
-            case 'grain': { // wood: streaks running along the planks
-              const along = plank ? j : (i + j);
-              const g2 = noise2(along * 1.6 + 9, (plank ? i : i - j) * .4 + 4);
-              c = shade(c, .76 + g2 * .40);
-              break;
-            }
-            case 'brick': { // brick/herringbone: strong mortar joints
-              c = shade(c, .84 + noise2(i * .8 + 12, j * .8 + 7) * .22);
-              if ((i + j) % 3 === 0) c = shade(c, .58);
-              break;
-            }
-            case 'tile': { // mosaic/pavers: crisp grout lines every tile
-              c = shade(c, .92 + noise2(i * .6, j * .6 + 30) * .12);
-              if (!plank) c = shade(c, .62);
-              break;
-            }
-            case 'cobble': { // cobblestone/flagstone: rounded uneven stones
-              const rn = noise2(i * 1.2 + 20, j * 1.2 + 55);
-              c = shade(c, .62 + rn * .62);
-              break;
-            }
-            case 'vein': { // marble: sparse pale veining
-              const v = noise2(i * .5 + 70, j * .5 + 2);
-              c = v > .74 ? shade(c, 1.30) : shade(c, .90 + v * .16);
-              break;
-            }
-            case 'dune': { // sand: gentle wind-ripple bands
-              c = shade(c, .78 + noise2(i * .45 + 8, j * .18 + 8) * .34);
-              break;
-            }
-            case 'mow': { // mown lawn: alternating cut-grass bands
-              c = shade(c, ((i + j) % 4 < 2) ? 1.14 : .80);
-              break;
-            }
-            case 'dirt': { // dirt trail / cracked earth: patchy clumps
-              c = shade(c, .62 + noise2(i * .5 + 33, j * .5 + 11) * .58);
-              break;
-            }
-            case 'crosswalk': { // painted stripes on dark tarmac
-              c = ((i + j) % 3 === 0) ? shade(hex(0xf2f2ea), .98) : shade(hex(0x2c2c2c), .85);
-              break;
-            }
-            case 'glow': { // neon tile: pulsing inner highlight
-              c = shade(c, .70 + noise2(i * .7 + 4, j * .7 + 4) * .60);
-              break;
-            }
-            case 'grate': { // steel grating: regular perforation shadow
-              c = ((i + j) % 2 === 0) ? shade(c, 1.05) : shade(c, .52);
-              break;
-            }
-            default: {
-              const speck = noise2(i * .9 + 41, j * .9 + 17);
-              const patch = noise2(i * .22 + 5, j * .22 + 60);
-              c = shade(c, .90 + speck * .16 + patch * .10);
-            }
-          }
+          c = pathTex(pm, plank, i, j, c);
         }
         else if (t === T_QUEUE) c = shade(queueC, chk ? 1 : .92);
         else if (t === T_PLAZA) c = ((i + j) % 4 < 2) ? plazaA : plazaB;
@@ -3490,14 +3503,63 @@ const WORLD = {
         }
         // land the park does not own reads cooler and darker
         if (this.land[j * N + i] !== 1) c = [c[0] * .42 + .06, c[1] * .46 + .07, c[2] * .50 + .10];
-        // choose the diagonal that keeps the quad convex-ish
-        const vTri = t === T_GRASS ? .955 + noise2(i * .7 + 31, j * .7 + 17) * .09 : .97;
-        if (Math.abs(y00 - y11) < Math.abs(y10 - y01)) {
-          g.triV([x0, y00, z0], [x0, y01, z1], [x1, y11, z1], c);
-          g.triV([x0, y00, z0], [x1, y11, z1], [x1, y10, z0], shade(c, vTri));
+        /* Paved surfaces are laid as a grid of setts, not as one flat square.
+
+           A whole tile is four world units across — the size of a small
+           room — so painting it one colour is why every walkway in the park
+           read as a plain grey rectangle however much texture code sat
+           behind it. Path, queue, plaza and entry tiles are subdivided, each
+           sub-cell takes its own sample of the material's grain, and the
+           joints between them are darkened. It is the same mesh, built once,
+           and it is the difference between paving and paint. */
+        const paved = t === T_PATH || t === T_BUILD || t === T_QUEUE || t === T_PLAZA || t === T_ENTRY;
+        if (paved) {
+          const SUB = 3, inv = 1 / SUB;
+          const hAt = (u, v) => lerp(lerp(y00, y10, u), lerp(y01, y11, u), v);
+          const own = this.land[j * N + i] === 1;
+          const dim = (col) => own ? col : [col[0] * .42 + .06, col[1] * .46 + .07, col[2] * .50 + .10];
+          /* Jointed materials — anything laid as units — get a mortar bed
+             with each sett set into it, so the joints read as real lines
+             rather than as a slightly darker square. Loose surfaces
+             (asphalt, sand, lawn, dirt) have no joints and get none. */
+          const jointed = pathPM ? !!JOINTED_TEX[pathPM.tex] : (t === T_PLAZA || t === T_ENTRY || t === T_QUEUE);
+          if (jointed) {
+            const mortar = dim(shade(c, .70));
+            g.triV([x0, y00, z0], [x0, y01, z1], [x1, y11, z1], mortar);
+            g.triV([x0, y00, z0], [x1, y11, z1], [x1, y10, z0], shade(mortar, .99));
+          }
+          const gap = jointed ? .085 : 0;      // joint width, as a fraction of a sett
+          const lift = jointed ? .022 : 0;
+          for (let a2 = 0; a2 < SUB; a2++) for (let b2 = 0; b2 < SUB; b2++) {
+            /* running bond: every other row is offset half a sett, which is
+               what stops paving reading as graph paper */
+            const bond = (jointed && pathPM && (pathPM.tex === 'brick' || pathPM.tex === 'cobble')) ? (b2 % 2) * .5 * inv : 0;
+            const u0 = a2 * inv + (gap * inv) + bond, u1 = (a2 + 1) * inv - (gap * inv) + bond;
+            const v0 = b2 * inv + (gap * inv), v1 = (b2 + 1) * inv - (gap * inv);
+            if (u1 > 1.0) continue;
+            const ax0 = x0 + u0 * TILE, ax1 = x0 + u1 * TILE;
+            const az0 = z0 + v0 * TILE, az1 = z0 + v1 * TILE;
+            let cc = c;
+            if (pathPM) cc = pathTex(pathPM, pathPlank, i + u0 + inv * .5, j + v0 + inv * .5, c);
+            /* Every sett takes its own tone from its own coordinates, so a
+               run of paving is never two identical squares side by side. */
+            const si = i * SUB + a2, sj = j * SUB + b2;
+            cc = dim(shade(cc, .90 + hash1(si * 157.3 + sj * 311.7) * .20));
+            const p00 = [ax0, hAt(u0, v0) + lift, az0], p10 = [ax1, hAt(u1, v0) + lift, az0];
+            const p01 = [ax0, hAt(u0, v1) + lift, az1], p11 = [ax1, hAt(u1, v1) + lift, az1];
+            g.triV(p00, p01, p11, cc);
+            g.triV(p00, p11, p10, shade(cc, .985));
+          }
         } else {
-          g.triV([x0, y00, z0], [x0, y01, z1], [x1, y10, z0], c);
-          g.triV([x1, y10, z0], [x0, y01, z1], [x1, y11, z1], shade(c, vTri));
+          // choose the diagonal that keeps the quad convex-ish
+          const vTri = t === T_GRASS ? .955 + noise2(i * .7 + 31, j * .7 + 17) * .09 : .97;
+          if (Math.abs(y00 - y11) < Math.abs(y10 - y01)) {
+            g.triV([x0, y00, z0], [x0, y01, z1], [x1, y11, z1], c);
+            g.triV([x0, y00, z0], [x1, y11, z1], [x1, y10, z0], shade(c, vTri));
+          } else {
+            g.triV([x0, y00, z0], [x0, y01, z1], [x1, y10, z0], c);
+            g.triV([x1, y10, z0], [x0, y01, z1], [x1, y11, z1], shade(c, vTri));
+          }
         }
         // path kerbs give the walkways a built look
         const isRoad = t === T_PATH && this.mat[j * N + i] === 5;
