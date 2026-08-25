@@ -14231,6 +14231,34 @@ const BLUEPRINTS = [
     seq: ['lift', 'lift', 'lift', 'lift', 'lift', 'level', 'left', 'left', 'left', 'right', 'right', 'right',
       'steepdn', 'level', 'left', 'left', 'camel', 'right', 'right', 'camel', 'brake']
   },
+  /* ---- Ready-made water slides. Same one-click build as the coasters, but
+     they come out of the Water tab because that is where a player looking
+     for a slide goes. Nothing here uses a piece a flume cannot take: no
+     inversions, no launches, just tower, drops and turns down to the pool. */
+  {
+    id: 'cascade', name: 'Cascade Falls', type: 'slideopen', price: 6, tag: 'Open Flume', water: true,
+    desc: 'A tall open trough that spirals down the tower and lands flat in the pool.',
+    seq: ['lift', 'lift', 'lift', 'lift', 'lift', 'lift', 'lift', 'lift', 'level',
+      'steepdn', 'down', 'rturn', 'down', 'rturn', 'down', 'rturn', 'level', 'brake']
+  },
+  {
+    id: 'blackhole', name: 'The Black Hole', type: 'slidetube', price: 8, tag: 'Enclosed', water: true,
+    desc: 'Pitch dark the whole way: a closed tube that turns twice before you see daylight.',
+    seq: ['lift', 'lift', 'lift', 'lift', 'lift', 'lift', 'lift', 'lift', 'level',
+      'steepdn', 'steepdn', 'lturn', 'down', 'lturn', 'down', 'rturn', 'level', 'brake']
+  },
+  {
+    id: 'sprintlane', name: 'Sprint Lanes', type: 'slideracer', price: 5, tag: 'Mat Racer', water: true,
+    desc: 'Head first on a mat, straight down the hill. Short, steep and over in seconds.',
+    seq: ['lift', 'lift', 'lift', 'lift', 'lift', 'lift', 'level',
+      'steepdn', 'steepdn', 'down', 'camel', 'down', 'level', 'brake']
+  },
+  {
+    id: 'riptide', name: 'Riptide Run', type: 'watercoaster', price: 9, tag: 'Water Coaster', water: true,
+    desc: 'A raft flume with a lift back out of the valley and a second drop to finish.',
+    seq: ['lift', 'lift', 'lift', 'lift', 'lift', 'lift', 'level', 'steepdn', 'down',
+      'rturn', 'level', 'lift', 'lift', 'lift', 'level', 'steepdn', 'down', 'lturn', 'level', 'brake']
+  },
 ];
 
 /* ============================================================================
@@ -15986,6 +16014,12 @@ class CoasterRide extends ParkObject {
     }
     return out;
   }
+  /* A water slide is not a train on rails: the vehicles are independent
+     boats and tubes in a channel, and a real flume runs six or eight of them
+     at a time. Steel and timber coasters are still limited by the block
+     system to a handful. */
+  maxTrains() { return this.type.style === 'flume' ? 8 : 4; }
+  vehicleWord() { return this.type.style === 'flume' ? (this.type.carStyle === 'mat' ? 'Mats' : 'Boats') : 'Trains'; }
   spawnTrains(n) {
     /* Bugfix: guests still aboard the old trains must be released
        properly (finishRide) before we discard the trains, otherwise
@@ -16001,6 +16035,10 @@ class CoasterRide extends ParkObject {
     this.trains.length = 0;
     const T = this.type;
     const carLen = 4.2;
+    /* Vehicles queue up behind the station at negative distance and are let
+       out one at a time by the block system; spacing them round the circuit
+       here would just push the back of the queue off the end of a short
+       slide. */
     for (let k = 0; k < n; k++) {
       this.trains.push({
         d: -k * (T.cars * carLen + 8), v: 0, riders: [], state: 'station', timer: 3,
@@ -16432,9 +16470,9 @@ const Demand = {
     /* A park runs a little hotter than the pure Little's Law figure: people
        eat, shop, watch and sit as well as ride, and a real operator runs at
        standing-room-only on a good Saturday rather than at the comfortable
-       number. The 1.2 is that headroom, and it is the same 20% the crowd
+       number. The 1.44 is that headroom, and it is the same figure the crowd
        ceiling below carries, so the two never disagree. */
-    return cap * openHours / ridesPerGuest * 1.2;
+    return cap * openHours / ridesPerGuest * 1.44;
   },
   crowdFactor() {
     const s = Ops.saturation();
@@ -16450,7 +16488,7 @@ const Demand = {
      line so the Attendance panel can print each term beside its value. */
   breakdown() {
     const draw = this.drawPoints();
-    const base = draw * 1.62;                       // people per draw point per day
+    const base = draw * 1.94;                       // people per draw point per day
     const aware = this.awareness;
     const price = this.priceFactor();
     /* People decide whether to come out over breakfast, not in the instant a
@@ -16547,7 +16585,7 @@ const Park = {
   research: { unlocked: {} }, rp: 100, rpTotal: 100,
   awards: [],
   selected: null,
-  maxGuests: 16000,
+  maxGuests: 19200,
   /* A physical ceiling, and nothing more. How many people actually turn up is
      decided by Demand — appeal, awareness, price, weather and whether the
      queues are already hopeless — because that is what decides it in real
@@ -16562,7 +16600,7 @@ const Park = {
     const hotelRooms = this.objects.filter(o => o.kind === 'shop' && o.def.need === 'hotel')
       .reduce((a, o) => a + (o.def.rooms || 0), 0);
     /* ~4 people per 16 m² tile of open path is a busy but safe midway. */
-    return clamp(Math.round((180 + tiles * 4 + inside + hotelRooms * 2) * Perks.capacityMult()), 120, this.maxGuests);
+    return clamp(Math.round((220 + tiles * 4.8 + inside * 1.2 + hotelRooms * 2.4) * Perks.capacityMult()), 120, this.maxGuests);
   },
   /* What the park can comfortably serve in an hour, and the crowd it can keep
      happy at once. Both come straight from ride throughput, so the answer to
@@ -16572,13 +16610,14 @@ const Park = {
     /* Little's Law: people in the park = arrivals per hour x hours they stay.
        A guest doing ~5.5 attractions at 25 minutes of queue apiece is here
        about four hours, so the crowd a park can carry without the queues
-       turning ugly is roughly two thirds of its hourly capacity. */
-    return Math.round(this.servingCapacity * .79);
+       turning ugly is a little under its hourly capacity. */
+    return Math.round(this.servingCapacity * .95);
   },
 
   reset() {
     this.money = 60000; this.guests.length = 0; this.staff.length = 0;
     this.hotelOccupantsTonight = 0; this.hotelGuestsPresent = 0;
+    this.hotelToParkPending = 0; this.hotelToParkTotal = 0;
     this.objects.length = 0; this.coasters.length = 0; this.litter.length = 0;
     this.time = 9 * 60; this.day = 1; this.now = 0; this.totalGuests = 0;
   },
@@ -19683,7 +19722,7 @@ const UI = {
         it at that spot. <kbd>Alt</kbd>-click still clears trees and rocks regardless of which preset is selected.</div>`));
     }
     else if (id === 'coaster') {
-      addGrid('Ready-Made Coasters — one click to build', BLUEPRINTS, 'grid2',
+      addGrid('Ready-Made Coasters — one click to build', BLUEPRINTS.filter(b2 => !b2.water), 'grid2',
         it => {
           const type = CAT.coasterTypes.find(t => t.id === it.type);
           const est = 6000 + it.seq.reduce((a, p) => a + (PIECE_BY_ID[p] ? PIECE_BY_ID[p].cost : 0), 0);
@@ -19725,6 +19764,15 @@ const UI = {
       const water = CAT.rides.filter(r => r.water);
       addGrid('Pools', water.filter(r => !r.slide), 'grid2', wr, (it, d) => this.pick(it, d));
       addGrid('Water Slides', water.filter(r => r.slide), 'grid2', wr, (it, d) => this.pick(it, d));
+      addGrid('Ready-Made Slides \u2014 one click to build', BLUEPRINTS.filter(b2 => b2.water), 'grid2',
+        it => {
+          const type = CAT.coasterTypes.find(t => t.id === it.type);
+          const est = 6000 + it.seq.reduce((a, q) => a + (PIECE_BY_ID[q] ? PIECE_BY_ID[q].cost : 0), 0);
+          return `<img class="th" src="${Thumbs.coasterType(type)}" alt=""><span class="n">${it.name}</span>` +
+            `<span class="bptag">${it.tag}</span>` +
+            `<span class="c">${money(est)}</span><span class="c" style="color:var(--dim);font-size:9px;line-height:1.4">${it.desc}</span>`;
+        },
+        (it, d) => { this.pick(it, d); Coaster.beginBlueprint(it); });
       b.appendChild(el('div', 'cat', 'Build Your Own \u2014 piece by piece'));
       const slideTypes = CAT.coasterTypes.filter(t => t.slide);
       addGrid('Slide types', slideTypes, 'grid2',
@@ -20774,9 +20822,10 @@ const UI = {
           : 'They judged the wait too long for what this ride is. More throughput, a second train, or an entertainer working the line.'}</p>`;
       }
       if (isC) {
-        h += `<h3>Trains</h3>`;
-        h += `<div class="row"><label>Trains</label>
-          <input type="range" min="1" max="4" step="1" value="${o.trains.length}"
+        const vw = o.vehicleWord ? o.vehicleWord() : 'Trains';
+        h += `<h3>${vw}</h3>`;
+        h += `<div class="row"><label>${vw}</label>
+          <input type="range" min="1" max="${o.maxTrains ? o.maxTrains() : 4}" step="1" value="${o.trains.length}"
             oninput="Game.setTrains(${id},this.value);document.getElementById('tn${id}').textContent=this.value">
           <span class="num" id="tn${id}">${o.trains.length}</span></div>`;
         h += `<p>More trains means shorter queues, but they have to be spaced far enough apart that
@@ -22066,7 +22115,7 @@ const UI = {
       h += `<h3>Simulation</h3>`;
       h += row('Ride speed', slider(50, 300, Math.round(Park.rideSpeedup * 100), 'Park.rideSpeedup=this.value/100', 'setRs', '%'),
         'How fast flat rides run their cycle. Higher means shorter queues.');
-      h += row('Guest limit', slider(200, 20000, Park.maxGuests, 'Park.maxGuests=+this.value', 'setGl'),
+      h += row('Guest limit', slider(200, 24000, Park.maxGuests, 'Park.maxGuests=+this.value', 'setGl'),
         'Lower this if the park starts to feel sluggish.');
       h += row('Breakdowns', check(Game.breakdowns !== false, 'Game.breakdowns=this.checked'),
         'Rides wear out and need a mechanic. Turn off for a quieter build.');
@@ -23442,7 +23491,7 @@ const Coaster = {
     this.complete();
     c.price = bp.price;
     c.computeStats();
-    c.spawnTrains(2);
+    c.spawnTrains(c.type.style === 'flume' ? Math.min(c.maxTrains(), 4) : 2);
     c.tested = true;
     // A pre-built design is supposed to just work: if the auto-routed return
     // leg costs it too much speed, power the section that gives out.
@@ -23766,7 +23815,7 @@ const Coaster = {
         ${c.stalls ? '<div class="kv"><span class="k" style="color:var(--bad)">Verdict</span><span class="v" style="color:var(--bad)">Train stalls!</span></div>' : ''}
       </div>`;
       h += `<div class="row"><label>Ticket price</label><input type="range" min="0" max="30" value="${c.price}" oninput="Game.setPrice(${c.id},this.value)"><span class="num" id="prc${c.id}">$${c.price}</span></div>`;
-      h += `<div class="row"><label>Trains</label><input type="range" min="1" max="3" value="${c.trains.length || 1}" oninput="Coaster.setTrains(this.value)"><span class="num">${c.trains.length || 1}</span></div>`;
+      h += `<div class="row"><label>${c.vehicleWord()}</label><input type="range" min="1" max="${c.maxTrains()}" value="${c.trains.length || 1}" oninput="Coaster.setTrains(this.value)"><span class="num">${c.trains.length || 1}</span></div>`;
       h += `<div class="btnrow"><button class="btn pri" onclick="Coaster.test()">${ICON.flask}Test Ride</button>
             <button class="btn ${c.openR ? '' : 'go'}" onclick="Game.toggleOpen(${c.id});Coaster.refresh()">${c.openR ? ICON.stop + 'Close' : ICON.open + 'Open'}</button></div>`;
       h += `<div class="btnrow"><button class="btn" onclick="Game.rideCam(${c.id})">${ICON.camera}Ride Cam</button>
@@ -23778,7 +23827,7 @@ const Coaster = {
   setPiece(id) { this.piece = id; this.freehand = false; this._ghostKey = null; this.refresh(); },
   setTrains(n) {
     const c = this.active; if (!c) return;
-    const want = clamp(+n, 1, 4);
+    const want = clamp(+n, 1, c.maxTrains());
     if (want === c.trains.length) return;
     c.spawnTrains(want);
     this.refresh();
@@ -24002,7 +24051,8 @@ const Coaster = {
     c.track.complete = true;
     c.state = 'closed';
     c.computeStats();
-    c.spawnTrains(1);
+    /* A slide opens with a boat pool, not one lonely tube going round. */
+    c.spawnTrains(c.type.style === 'flume' ? Math.min(c.maxTrains(), 4) : 1);
     c.carMesh = Game.R.makeMesh(buildCarGeo(c.type, false));
     c.frontMesh = Game.R.makeMesh(buildCarGeo(c.type, true));
     this.rebuild();
@@ -24622,7 +24672,8 @@ const Coaster = {
         if (tr.timer <= 0) {
           // block safety: don't dispatch if another train is still near the station
           let clear = true;
-          for (const o of c.trains) if (o !== tr && o.state === 'run' && o.d < t.length * .35) clear = false;
+          const block = c.type.style === 'flume' ? .12 : .35;
+          for (const o of c.trains) if (o !== tr && o.state === 'run' && o.d < t.length * block) clear = false;
           if (clear && c.openR && !c.broken) {
             // fill the seats from whoever is aboard the attraction right now
             const pool = (c.riding || []).filter(g => !tr.riders.includes(g));
@@ -29357,6 +29408,28 @@ const Transit = {
       if (this._loadRefresh <= 0) { this._loadRefresh = 1.5; this.meshDirty = true; }
     }
   },
+  /* ---- keeping buses apart ----
+     Every bus on a route starts from the same depot at distance 0, so the
+     moment a route got busy they all pulled out together and then ran round
+     nose to tail for the rest of the day — four buses arriving at a stop at
+     once and then nothing for a full lap. Two rules fix it, and they are the
+     two a real operator uses: don't let a bus leave the depot into the back
+     of the one in front, and hold a bus back when it closes on the one
+     ahead. */
+  minGap(r) {
+    const n = Math.max(1, r.buses.length);
+    return clamp(r.len / n * .62, 16, 240);
+  },
+  /* Distance from b forward round the loop to the next bus in service. */
+  gapAhead(r, b) {
+    let best = r.len;
+    for (const o of r.buses) {
+      if (o === b || o.state === 'idle') continue;
+      const g = (((o.d - b.d) % r.len) + r.len) % r.len;
+      if (g < best) best = g;
+    }
+    return best;
+  },
   updateRoute(r, dt) {
     if (!r.pts.length || r.len <= 0) return;
     const st = this.stationOf(r);
@@ -29377,8 +29450,10 @@ const Transit = {
            the route — not before, so an unused route just sits there.
            On a timed schedule it also pulls out on the clock, empty or not. */
         b.v = 0;
-        if (demand) { b.state = 'run'; b.next = this.nextStopFrom(r, b.d); }
-        else if (dispatchOne) { b.state = 'run'; b.next = this.nextStopFrom(r, b.d); dispatchOne = false; }
+        /* Hold at the depot until there is room on the road for it. */
+        const clear = this.gapAhead(r, b) >= this.minGap(r);
+        if (clear && demand) { b.state = 'run'; b.next = this.nextStopFrom(r, b.d); }
+        else if (clear && dispatchOne) { b.state = 'run'; b.next = this.nextStopFrom(r, b.d); dispatchOne = false; }
       } else if (b.state === 'return') {
         // driving back to the depot with no stops to make on the way
         b.v = damp(b.v, top, 1.4, dt);
@@ -29397,7 +29472,10 @@ const Transit = {
           b.state = (!b.riders.length && !demand && !r.headway) ? 'return' : 'run';
         }
       } else {
-        b.v = damp(b.v, top, 1.4, dt);
+        /* Ease off as the gap to the bus ahead closes, so a route settles
+           into an even headway instead of collapsing into a convoy. */
+        const hold = clamp(this.gapAhead(r, b) / this.minGap(r), .16, 1);
+        b.v = damp(b.v, top * hold, 1.4, dt);
         const step = b.v * dt;
         const target = r.stops.length ? r.stops[b.next % r.stops.length] : null;
         if (target) {
@@ -31044,7 +31122,7 @@ const Game = {
   setTrains(id, n) {
     const c = Park.coasters.find(x => x.id === id);
     if (!c || !c.track || !c.track.complete) return;
-    const want = clamp(+n, 1, 4);
+    const want = clamp(+n, 1, c.maxTrains());
     if (want === c.trains.length) return;      // dragging past a value must not rebuild
     c.spawnTrains(want);
   },
@@ -31925,6 +32003,28 @@ const Game = {
         : b.weather < .5 ? 'The weather is keeping people at home.'
         : 'There is very little here to make the trip worth it yet.';
     }
+    /* Residents walking back in. They are already on site and already sold
+       on the place, so they come through early and steadily, and they do not
+       have to be tempted by the demand model to do it. */
+    if (Park.hotelToParkPending > 0 && hour >= Park.hours.open && Park.guests.length < Park.capacity) {
+      /* In through the gate over the first three hours, not trickling in all
+         afternoon — they are already dressed and already here. */
+      const window = Math.max(.75, (Park.hours.open + 3) - hour);
+      const perMin = Park.hotelToParkPending / (window * 60);
+      this._hotelAcc = (this._hotelAcc || 0) + perMin * dt / 1.8;
+      while (this._hotelAcc >= 1 && Park.hotelToParkPending > 0) {
+        this._hotelAcc -= 1;
+        const party = this.spawnGuest(Math.min(Park.hotelToParkPending, 1 + (Math.random() < .55 ? 1 : 0) + (Math.random() < .25 ? 1 : 0)));
+        const n = party && party.length ? party.length : 2;
+        Park.hotelToParkPending = Math.max(0, Park.hotelToParkPending - n);
+        /* They slept here: rested, well fed, and in no hurry to go home. */
+        for (const g of (party || [])) {
+          g.energy = Math.min(1, (g.energy !== undefined ? g.energy : 1) + .18);
+          g.happy = clamp((g.happy !== undefined ? g.happy : .7) + .08, 0, 1);
+          g.fromHotel = true;
+        }
+      }
+    }
     /* One call admits a whole party, so the rate converts from people to
        parties before it is used. */
     const perParty = 2.5;
@@ -32045,6 +32145,7 @@ const Game = {
        it for the whole visit, purely visible, nothing mechanical rides in it. */
     if (persona.id === 'family' && members.length >= 2) leader.pushingStroller = true;
     if (leader) leader.think(persona.line, 0);
+    return members;                     // callers that need the party get it
   },
   /* A whole class arriving at once: matching shirts, one or two chaperones
      out front, otherwise just a big ordinary party — same AI, same needs,
@@ -32113,7 +32214,10 @@ const Game = {
     } else {
       frac = 0;
     }
-    Park.hotelGuestsPresent = Math.round(target * frac);
+    /* Residents who have already walked back into the park are Guest objects
+       now, and counting them here as well would show them twice. */
+    const walkedIn = (Park.hotelToParkTotal || 0) - (Park.hotelToParkPending || 0);
+    Park.hotelGuestsPresent = Math.max(0, Math.round(target * frac) - Math.round(walkedIn * (1 - frac)));
   },
   hourTick() {
     Demand.hourTick();
@@ -32232,8 +32336,16 @@ const Game = {
       // rooms hold about two guests on average — this is how many extra
       // people are "in the park" overnight tonight, counted in the headcount
       Park.hotelOccupantsTonight = Math.round(totalOccupiedRooms * 1.8);
+      /* Most of a resort hotel's residents are here FOR the park — they check
+         out, leave the bags at the desk and walk straight back through the
+         gate. Around seven in ten normally; more when the park is well liked,
+         fewer when it is not, and never everybody. */
+      const stayRate = clamp(.72 + (Park.ratingStars() - 3.2) * .030 + (Park.happiness - .70) * .10, .60, .90);
+      Park.hotelToParkPending = Math.round(Park.hotelOccupantsTonight * stayRate);
+      Park.hotelToParkTotal = Park.hotelToParkPending;
     } else {
       Park.hotelOccupantsTonight = 0;
+      Park.hotelToParkPending = 0; Park.hotelToParkTotal = 0;
     }
 
     UI.notify('A new day', `Day ${Park.day} begins. Yesterday ${Demand.yesterday.toLocaleString()} guests visited, peaking at ${Demand.lastPeak.toLocaleString()} in the park at once. Rating ${Park.ratingStars().toFixed(1)}/5.`, 'good');
