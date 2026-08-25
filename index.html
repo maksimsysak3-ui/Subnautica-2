@@ -4621,7 +4621,13 @@ const CAT = {
     { id: 'slideracer', name: 'Mat Racer Slide', rail: 0xff8c42, spine: 0xfff0d8, tie: 0xe0cfa8, cars: 1, seat: 2,
       mass: .65, fric: .00170, maxSpeed: 22, carColor: 0xd94f3c, style: 'flume', water: 0x3fb0e8,
       carStyle: 'mat', chanW: 1.15, chanH: .70, slide: true },
-    { id: 'watercoaster', name: 'Water Coaster', rail: 0x2a6fa8, spine: 0xeaf6ff, tie: 0x8a8378, cars: 5, seat: 4, mass: 1.1, fric: .00088, maxSpeed: 28, carColor: 0x39c0ff, style: 'tube', water: true, carStyle: 'boat' },
+    /* A water coaster is a slide, not a train on rails: a thick closed
+       tube with water running through it and rafts riding it. It was built
+       as steel track with a boat sitting on top, which is not a thing that
+       exists in any park. */
+    { id: 'watercoaster', name: 'Water Coaster', rail: 0x2a6fa8, spine: 0xeaf6ff, tie: 0x8a8378, cars: 1, seat: 6,
+      mass: 1.1, fric: .00105, maxSpeed: 26, carColor: 0x39c0ff, style: 'flume', water: 0x2f86c4,
+      carStyle: 'raft', chanW: 1.75, chanH: 1.20, enclosed: true, slide: true },
   ],
 };
 
@@ -5345,144 +5351,171 @@ const Prefab = {
       const glass = hex(0xcfe9f5);
 
       if (style === 'tower' || style === 'modern') {
+        /* ---- Hotels, rebuilt -------------------------------------------
+
+           The old generic tower put its glass in a box straddling the wall
+           face, so every window stood a few centimetres proud of the render;
+           its roof cap sat on top of the wall with a visible seam; and its
+           entrance canopy floated on columns that stopped short of the
+           ground. Read together, that is why they read as blocks with
+           stickers on rather than as buildings.
+
+           Everything here is built the way the real thing goes together: the
+           wall is a solid mass, openings are cut as recessed reveals with a
+           sill and a head, floors are separated by spandrel bands, the roof
+           lands on a cornice with an overhang and a fascia, and anything
+           cantilevered has something holding it up. */
         const floors = def.floors || 3;
-        const floorH = 2.3;
-        const totalH = floors * floorH;
-        const wallHW = (W - .5) / 2, wallHD = (D - .5) / 2;   // true wall face
-        g.box(0, -.12, 0, W + .3, .3, D + .3, hex(0xb9ab90));                 // plinth
-        g.box(0, 0, 0, W - .5, totalH, D - .5, wall);                        // tower body
-        for (const sx of [-1, 1]) for (const sz of [-1, 1])
-          g.box(sx * (wallHW - .18), 0, sz * (wallHD - .18), .34, totalH, .34, shade(body, .78)); // corner posts
-        for (let f = 0; f < floors; f++) {
-          const fy = f * floorH;
-          // colour band marks the floor line
-          g.box(0, fy - .12, 0, W - .3, .3, D - .3, body);
-          const winY = fy + .55, winH = style === 'modern' ? 1.35 : 1.05;
-          const nwin = Math.max(2, Math.round(W / 1.5));
-          for (const sz of [-1, 1]) for (let k = 0; k < nwin; k++) {
-            const x = -W / 2 + .55 + k * (W - 1.1) / Math.max(1, nwin - 1);
-            g.box(x - .34, winY, sz * (wallHD + .04), .68, winH, .08, glass);
-            if (style === 'modern') {
-              // balcony slab + rail under every window on a glass tower
-              g.box(x - .38, winY - .16, sz * (wallHD + .42), .76, .1, .8, shade(hex(0xd8d8d8), 1));
-              g.box(x - .38, winY - .06, sz * (wallHD + .78), .76, .5, .06, shade(hex(0xd8d8d8), .85));
-            }
+        const floorH = style === 'modern' ? 3.0 : 2.75;
+        const GF = style === 'modern' ? 4.2 : 3.6;      // taller public ground floor
+        const totalH = GF + (floors - 1) * floorH;
+        const bw = W - .9, bd = D - .9;                 // the wall face
+        const hw = bw / 2, hd = bd / 2;
+        const render = wall, trim = shade(body, .74), band = shade(body, 1.04);
+        const metal = hex(0x9aa4ac), warm = hex(0xffe9b0), stoneC = shade(hex(0xcfc7b4), 1);
+
+        /* plinth and a rusticated, stone-faced ground floor */
+        Arch.plinth(g, W + .2, D + .2, shade(stoneC, .92), .34);
+        g.box(0, .34, 0, bw, totalH, bd, render);
+        g.box(0, .34, 0, bw + .22, GF - .5, bd + .22, stoneC);          // stone base storey
+        for (let k2 = 0; k2 < 5; k2++)
+          g.box(0, .5 + k2 * ((GF - .9) / 5), 0, bw + .28, .10, bd + .28, shade(stoneC, .9));
+        g.box(0, .34 + GF - .5, 0, bw + .40, .30, bd + .40, shade(stoneC, 1.14));   // string course
+
+        /* A window bay: a recess cut into the wall, glazed at the back of
+           the reveal, with a sill below and a head above. */
+        const bay = (axis, face, u, y, w, h, opts) => {
+          const o = opts || {};
+          const half = axis === 'z' ? hd : hw;
+          const put = (du, dy, dw, dh, dep, off, col) => {
+            if (axis === 'z') g.box(du, dy, face * (half + off), dw, dh, dep, col);
+            else g.box(face * (half + off), dy, du, dep, dh, dw, col);
+          };
+          put(u, y - .04, w + .30, h + .34, .30, -.14, shade(render, .80));   // the reveal, set back
+          put(u, y, w, h, .10, -.05, o.glass || glass);                       // glazing at the back of it
+          put(u, y, .07, h, .12, -.02, trim);                                 // mullion
+          put(u, y + h * .58, w, .07, .12, -.02, trim);                       // transom
+          put(u, y - .16, w + .40, .18, .34, .06, shade(stoneC, 1.10));       // sill, projecting
+          put(u, y + h + .04, w + .40, .20, .30, .04, shade(stoneC, 1.06));   // head
+          if (o.ac) put(u + w * .34, y - .40, .34, .26, .30, .08, metal);      // air-conditioning box
+        };
+        /* A balcony: a slab that is actually attached, on real brackets. */
+        const balcony = (axis, face, u, y, w) => {
+          const half = axis === 'z' ? hd : hw;
+          const put = (du, dy, dw, dh, dep, off, col) => {
+            if (axis === 'z') g.box(du, dy, face * (half + off), dw, dh, dep, col);
+            else g.box(face * (half + off), dy, du, dep, dh, dw, col);
+          };
+          put(u, y, w + .5, .16, .95, .46, shade(stoneC, 1.08));               // slab
+          for (const s2 of [-1, 1]) put(u + s2 * (w * .45), y - .28, .16, .30, .5, .22, shade(stoneC, .9));  // brackets
+          put(u, y + .16, w + .5, .06, .90, .46, shade(metal, 1.1));
+          for (let q = 0; q < 5; q++)
+            put(u - w * .22 + q * (w * .11), y + .16, .06, .58, .82, .46, metal);  // balustrade
+          put(u, y + .74, w + .5, .09, .92, .46, shade(metal, 1.2));            // handrail
+        };
+
+        /* guest floors */
+        const nwin = Math.max(2, Math.round(bw / 2.6));
+        const nwinS = Math.max(2, Math.round(bd / 2.6));
+        for (let f = 1; f < floors; f++) {
+          const fy = .34 + GF + (f - 1) * floorH;
+          g.box(0, fy - .34, 0, bw + .16, .34, bd + .16, band);                // spandrel band at floor level
+          const winY = fy + .55, winH = floorH - 1.5;
+          for (const sz of [-1, 1]) for (let k2 = 0; k2 < nwin; k2++) {
+            const x = -bw / 2 + 1.1 + k2 * (bw - 2.2) / Math.max(1, nwin - 1);
+            bay('z', sz, x, winY, 1.05, winH, { ac: style === 'tower' && f % 2 === 0 });
+            if (style === 'modern' && f % 2 === 1) balcony('z', sz, x, winY - .30, 1.05);
           }
-          // side (left/right) windows — the end walls were blank before;
-          // a matching band of glazing here reads correctly from the paths
-          // that run alongside the tower, not just from the front lawn.
-          const nwinS = Math.max(2, Math.round(D / 1.5));
-          for (const sx of [-1, 1]) for (let k = 0; k < nwinS; k++) {
-            const z = -D / 2 + .55 + k * (D - 1.1) / Math.max(1, nwinS - 1);
-            g.box(sx * (wallHW + .04), winY, z - .34, .08, winH, .68, glass);
-            if (style === 'modern') {
-              g.box(sx * (wallHW + .42), winY - .16, z - .38, .8, .1, .76, shade(hex(0xd8d8d8), 1));
-              g.box(sx * (wallHW + .78), winY - .06, z - .38, .06, .5, .76, shade(hex(0xd8d8d8), .85));
-            }
+          for (const sx of [-1, 1]) for (let k2 = 0; k2 < nwinS; k2++) {
+            const z = -bd / 2 + 1.1 + k2 * (bd - 2.2) / Math.max(1, nwinS - 1);
+            bay('x', sx, z, winY, 1.05, winH, { ac: style === 'tower' && f % 3 === 0 });
           }
         }
-        // roof: flat with plant room + rail for modern, hipped cap for classic tower
+
+        /* ground floor: a glazed lobby you can see into, and shopfronts */
+        for (let k2 = 0; k2 < nwin; k2++) {
+          const x = -bw / 2 + 1.1 + k2 * (bw - 2.2) / Math.max(1, nwin - 1);
+          bay('z', 1, x, 1.5, 1.25, GF - 2.4, { glass: shade(glass, 1.06) });
+        }
+        for (let k2 = 0; k2 < nwinS; k2++) {
+          const z = -bd / 2 + 1.1 + k2 * (bd - 2.2) / Math.max(1, nwinS - 1);
+          bay('x', -1, z, 1.5, 1.25, GF - 2.4, { glass: shade(glass, 1.06) });
+          bay('x', 1, z, 1.5, 1.25, GF - 2.4, { glass: shade(glass, 1.06) });
+        }
+        /* the entrance: doors in a recess, under a canopy on columns that
+           reach the ground, with a lit sign over it */
+        g.box(0, .34, -hd - .10, 3.4, GF - 1.0, .34, shade(stoneC, .84));
+        g.box(0, .34, -hd - .26, 2.6, GF - 1.6, .12, shade(glass, 1.1));
+        for (const s2 of [-1, 1]) g.box(s2 * .68, .34, -hd - .34, .10, GF - 1.7, .06, trim);
+        {
+          const cz = -hd - 2.3, cw = 5.6;
+          for (const s2 of [-1, 1]) {
+            g.cyl(s2 * (cw / 2 - .4), 0, cz, .26, 3.9, 10, shade(stoneC, 1.05));
+            g.cyl(s2 * (cw / 2 - .4), 3.9, cz, .34, .22, 10, shade(stoneC, 1.14));
+            g.cyl(s2 * (cw / 2 - .4), -.06, cz, .40, .22, 10, shade(stoneC, .94));
+          }
+          g.box(0, 4.12, cz + .55, cw, .26, 3.2, shade(roof, 1.06));           // canopy slab
+          g.box(0, 4.38, cz + .55, cw - .5, .12, 2.9, shade(roof, 1.16));
+          for (let k2 = 0; k2 < 8; k2++)                                       // soffit lights
+            g.sphere(-cw / 2 + .6 + k2 * ((cw - 1.2) / 7), 4.10, cz + .55, .11, 5, warm);
+          g.box(0, .02, cz + .55, cw + 1.6, .10, 3.6, shade(hex(0xb8b2a4), 1.02));  // drop-off apron
+        }
+        g.box(0, .34 + GF - .1, -hd - .48, bw * .5, .95, .22, shade(body, .92));    // name band
+        g.box(0, .34 + GF + .05, -hd - .60, bw * .40, .55, .06, warm);
+        this.shopEmblem(g, def, 0, .34 + GF + .32, -hd - .66);
+
+        /* a stair / lift core on one flank, expressed as a slot of glazing */
+        g.box(hw + .30, .34, 0, .60, totalH, 2.6, shade(body, .86));
+        for (let f = 0; f < floors; f++)
+          g.box(hw + .62, .9 + f * ((totalH - 1.2) / floors), 0, .10, ((totalH - 1.2) / floors) * .55, 2.0, glass);
+
+        /* roof: sits on a cornice with a real overhang, no seam */
+        const ry = .34 + totalH;
+        Arch.cornice(g, bw, bd, ry, shade(stoneC, 1.12));
         if (style === 'modern') {
-          g.box(0, totalH, 0, W - .1, .3, D - .1, shade(roof, 1.08));
-          g.box(0, totalH + .3, 0, W * .4, .6, D * .4, shade(roof, .82));
-          for (const sx of [-1, 1]) g.box(sx * (wallHW - .1), totalH, 0, .12, .9, D - .5, shade(hex(0xd8d8d8), 1));
+          Arch.roofFlat(g, bw + .5, bd + .5, ry + .3, shade(roof, 1.04), .75);
+          g.box(0, ry + 1.05, 0, bw * .40, 1.5, bd * .40, shade(roof, .84));   // plant room
+          g.box(0, ry + 2.55, 0, bw * .44, .20, bd * .44, shade(roof, 1.1));
+          for (const s2 of [-1, 1]) g.cyl(s2 * bw * .24, ry + 1.05, bd * .18, .35, 1.9, 8, metal);  // cooling plant
+          g.cyl(0, ry + 2.75, 0, .12, 2.6, 6, metal);
+          g.sphere(0, ry + 5.35, 0, .18, 6, hex(0xff5a4a));
         } else {
-          g.box(0, totalH, 0, W - .2, .32, D - .2, shade(roof, 1.05));
-          const rh = 1.1, ry = totalH + .32;
-          const p = [[-W / 2, ry, -D / 2], [W / 2, ry, -D / 2], [W / 2, ry, D / 2], [-W / 2, ry, D / 2]];
-          const ax = [-W / 6, ry + rh, 0], bx = [W / 6, ry + rh, 0];
-          g.quadV(p[3], p[2], bx, ax, shade(roof, 1.15));
-          g.triV(p[0], p[3], ax, shade(roof, .88));
-          g.triV(p[2], p[1], bx, shade(roof, .88));
-          g.quadV(p[1], p[0], ax, bx, shade(roof, .95));
+          Arch.roofHip(g, bw + .3, bd + .3, ry + .3, shade(roof, 1.02), 1.9, .85);
+          for (let k2 = 0; k2 < 6; k2++)                                        // slate courses
+            g.box(0, ry + .55 + k2 * .28, 0, bw + .9 - k2 * .18, .05, .16, shade(roof, 1 + (k2 % 2) * .16));
+          for (const s2 of [-1, 1]) {                                           // chimney stacks
+            g.box(s2 * bw * .30, ry + .3, bd * .18, 1.0, 2.4, .9, shade(hex(0x8a4b3a), 1.0));
+            g.box(s2 * bw * .30, ry + 2.7, bd * .18, 1.2, .28, 1.1, shade(hex(0x6f3b2e), 1.1));
+            for (const o2 of [-.26, .26]) g.cyl(s2 * bw * .30 + o2, ry + 2.98, bd * .18, .17, .45, 8, hex(0x50303a));
+          }
+          for (let k2 = 0; k2 < 2; k2++)                                        // dormers in the roof
+            Arch.dormer(g, -bw * .22 + k2 * bw * .44, ry + .9, -hd + .5, roof, render);
         }
-        /* A hotel arrives at its front door, not at a wall: drive-through
-           canopy, glazed lobby, lit sign, flags and planting. */
-        Arch.hotelEntrance(g, W - .5, D - .5, { body: wall, trim: shade(body, .8), accent: body, glass });
-        Arch.hotelRoofKit(g, W - .5, D - .5, totalH + .32, shade(roof, .95), Arch.seed(def.id));
+        /* gutter and downpipes, so the roof drains somewhere */
+        Arch.drainage(g, bw + .3, bd + .3, ry + .3, shade(metal, .95));
 
-        /* ---- The classic tower was the thinnest model in the catalogue:
-           the budget hotel came to 621 triangles for a whole building, which
-           is why it read as a painted box rather than somewhere people stay.
-           What follows is the detail a real small hotel has — a plinth and
-           cornice, a glazed ground floor you can see a lobby through, a
-           stair core up one side, balconies, roof plant and a fire escape —
-           none of it changing the silhouette, all of it changing whether the
-           thing bears being looked at. ---- */
-        if (style === 'tower') {
-          const trim = shade(body, .70), metal = hex(0x9aa4ac), warm = hex(0xffe9b0);
-          const plinthH = .34;
-          g.box(0, -plinthH, 0, W + .5, plinthH + .1, D + .5, shade(hex(0xb9ab90), 1.02));  // plinth
-          g.box(0, .18, 0, W - .3, .22, D - .3, trim);                                      // ground band
-
-          /* Ground floor: a glazed frontage with a lit lobby behind it, so
-             the base of the building is not the same blank wall as floor three. */
-          const gfY = .42, gfH = 1.42;
-          g.box(0, gfY, -wallHD - .02, W - 1.1, gfH, .12, glass);
-          g.box(0, gfY + gfH * .5, -wallHD - .06, W - 1.5, gfH * .55, .06, warm);
-          for (let k = -2; k <= 2; k++)
-            g.box(k * (W - 1.3) / 5, gfY, -wallHD - .10, .10, gfH, .10, trim);              // mullions
-          for (const sx of [-1, 1]) {
-            g.box(sx * (wallHW + .02), gfY, 0, .12, gfH, D - 1.2, glass);
-            g.box(sx * (wallHW + .06), gfY + gfH * .5, 0, .06, gfH * .5, D - 1.6, warm);
-          }
-          /* Revolving door in the middle of the frontage. */
-          g.cyl(0, .1, -wallHD - .55, .62, 2.1, 10, shade(glass, 1.04));
-          g.cyl(0, 2.2, -wallHD - .55, .70, .14, 10, metal);
-          for (let k = 0; k < 4; k++) {
-            const a2 = k * PI / 2;
-            g.box(Math.sin(a2) * .3, .1, -wallHD - .55 + Math.cos(a2) * .3, .06, 2.05, .58, metal);
-          }
-
-          /* Stair and lift core running up one flank, expressed as a slim
-             tower with slot windows — the single biggest thing that makes a
-             plain block read as a building. */
-          const coreW = Math.min(1.5, W * .3);
-          g.box(wallHW - coreW * .3, 0, 0, coreW, totalH + .5, D * .42, shade(body, .82));
-          for (let y = 1.6; y < totalH; y += 1.5)
-            g.box(wallHW - coreW * .3, y, -D * .21 - .04, coreW - .5, .8, .08, glass);
-          g.box(wallHW - coreW * .3, totalH + .5, 0, coreW + .3, .26, D * .42 + .3, shade(roof, .95));
-
-          /* Balconies down the front, on alternate floors so the facade has
-             a rhythm rather than a grid. */
-          const bFloors = def.floors || 3;
-          for (let f = 1; f < bFloors; f += 2) {
-            const by = f * 2.3 + .35;
-            for (const sx of [-1, 1]) {
-              const bx = sx * (W * .26);
-              g.box(bx, by, -wallHD - .42, W * .34, .11, .86, shade(metal, 1.05));
-              g.box(bx, by + .11, -wallHD - .82, W * .34, .52, .06, shade(metal, .9));
-              for (const e of [-1, 1]) g.box(bx + e * W * .17, by + .11, -wallHD - .62, .06, .52, .44, shade(metal, .9));
-            }
-          }
-
-          /* Fire escape up the back — cheap geometry, and it says "building"
-             more loudly than another row of windows would. */
-          for (let y = 2.3; y < totalH; y += 2.3) {
-            g.box(-wallHW - .3, y, D * .18, .8, .09, 1.5, metal);
-            g.box(-wallHW - .68, y, D * .18, .06, .5, 1.5, shade(metal, .85));
-            g.beam(-wallHW - .3, y, D * .18 + .7, -wallHW - .3, y + 2.3, D * .18 - .7, .07, .07, shade(metal, .8));
-          }
-          for (const sz of [-1, 1]) g.box(-wallHW - .66, 0, D * .18 + sz * .72, .1, totalH, .1, metal);
-
-          /* Cornice, parapet, and the plant a real roof carries. */
-          g.box(0, totalH - .18, 0, W + .34, .3, D + .34, trim);
-          const rooms = [[W * .22, D * .16, 1.1, .9], [-W * .24, -D * .14, .8, 1.2]];
-          for (const [rx, rz, rw, rd] of rooms) {
-            g.box(rx, totalH + .42, rz, rw, .85, rd, shade(metal, .96));
-            g.box(rx, totalH + 1.27, rz, rw + .16, .12, rd + .16, shade(metal, .8));
-          }
-          for (const sx of [-1, 1]) {                                       // AC condensers
-            g.box(sx * W * .3, totalH + .42, -D * .22, .62, .48, .62, shade(metal, 1.06));
-            g.cyl(sx * W * .3, totalH + .90, -D * .22, .24, .1, 8, shade(metal, .78));
-          }
-          g.cyl(-W * .3, totalH + .42, D * .26, .17, 2.6, 6, metal);        // vent stack
-          g.box(-W * .3, totalH + 3.0, D * .26, .42, .2, .42, shade(metal, .8));
-          /* A name sign standing proud of the parapet, lit from behind. */
-          g.box(0, totalH + .3, -D / 2 + .1, W * .5, .62, .12, shade(roof, 1.15));
-          g.box(0, totalH + .38, -D / 2 + .02, W * .44, .42, .06, warm);
-          this.shopEmblem(g, def, 0, totalH + .58, -D / 2 - .02);
+        /* forecourt: planting, bollards and a flagpole row that stand on the
+           ground rather than hovering over it */
+        for (const s2 of [-1, 1]) {
+          g.box(s2 * (hw - .8), .10, -hd - 3.4, 1.6, .55, 1.2, shade(stoneC, 1.0));
+          g.sphere(s2 * (hw - .8), .70, -hd - 3.4, .62, 6, hex(0x4e9b52));
+          g.sphere(s2 * (hw - .8) + .3, .95, -hd - 3.6, .22, 5, hex(0xff8fb1));
         }
+        for (let k2 = 0; k2 < 3; k2++) {
+          const fx = -bw * .28 + k2 * bw * .28;
+          g.cyl(fx, .10, -hd - 4.2, .10, 5.2, 8, metal);
+          g.sphere(fx, 5.35, -hd - 4.2, .14, 6, hex(0xd4af37));
+          for (let q = 0; q < 4; q++)
+            g.box(fx + .67, 4.78 - q * .62, -hd - 4.2, 1.25, .56, .05, q % 2 ? shade(body, 1.1) : hex(0xf2ead6));
+        }
+        Arch.serviceClutter(g, bw, bd, Arch.seed(def.id));
+        /* Roof plant only belongs on a flat roof; standing a plant room and
+           a water tank on a pitched one puts them through the slates. */
+        if (style === 'modern') Arch.hotelRoofKit(g, bw, bd, ry + .35, shade(roof, .95), Arch.seed(def.id));
+        /* The tower branch never returned, so every ordinary hotel then fell
+           through into the market-stall code below and had a stall roof,
+           counter and awning built through its entrance — which is where the
+           "floating props and disconnected roofs" came from. */
         return { base: g, parts: [] };
       }
 
@@ -13168,6 +13201,26 @@ function buildCarGeo(T, isFront) {
       const a = k / 4 * TAU + .4;
       g.beam(Math.cos(a) * (RR + .05), yb + .56, Math.sin(a) * (RR + .05),
         Math.cos(a + .34) * (RR + .05), yb + .56, Math.sin(a + .34) * (RR + .05), .09, .09, hex(0xf2f4f6));
+    }
+  } else if (style === 'raft') {
+    /* A six-person round raft: an inflatable ring with a mesh floor and a
+       centre console, riding flat in the flume. */
+    const RR = 1.62;
+    g.cyl(0, yb + .02, 0, RR * .84, .16, 14, hex(0x2f3439));
+    g.cyl(0, yb + .18, 0, RR * .80, .07, 14, hex(0x4a5058));
+    for (let k = 0; k < 18; k++) {
+      const a1 = k / 18 * TAU, a2 = (k + 1) / 18 * TAU;
+      g.beam(Math.cos(a1) * RR, yb + .34, Math.sin(a1) * RR, Math.cos(a2) * RR, yb + .34, Math.sin(a2) * RR,
+        .70, .64, shade(c, k % 2 ? 1.05 : .94));
+      g.beam(Math.cos(a1) * RR, yb + .64, Math.sin(a1) * RR, Math.cos(a2) * RR, yb + .64, Math.sin(a2) * RR,
+        .20, .12, shade(c, 1.28));
+    }
+    g.cyl(0, yb + .20, 0, .46, .34, 10, shade(c, .84));
+    g.cyl(0, yb + .52, 0, .52, .09, 10, shade(c, 1.12));
+    for (let k = 0; k < 6; k++) {
+      const a = k / 6 * TAU + .25;
+      g.beam(Math.cos(a) * (RR + .06), yb + .70, Math.sin(a) * (RR + .06),
+        Math.cos(a + .28) * (RR + .06), yb + .70, Math.sin(a + .28) * (RR + .06), .10, .10, hex(0xf2f4f6));
     }
   } else if (style === 'mat') {
     /* A racing mat: riders lie head-first on a padded sled. */
@@ -29447,7 +29500,21 @@ const Game = {
           const si = k % seatsPerCar;
           const m = tr.cars[ci].m;
           const inverted = c.type.style === 'inverted';
-          const lx = (si % 2 ? .42 : -.42), ly = inverted ? -1.62 : .22, lz = (si < 2 ? -.72 : .78);
+          let lx, ly, lz;
+          if (c.type.style === 'flume') {
+            /* Slides and rafts seat riders round the tube, not in rows of
+               two — a six-person raft with everyone sat in pairs facing
+               forward is not what a raft looks like. */
+            const seats = Math.max(1, seatsPerCar);
+            if (c.type.carStyle === 'mat') { lx = 0; ly = .34; lz = .55 - si * .9; }
+            else {
+              const a = si / seats * TAU;
+              const rr2 = c.type.carStyle === 'raft' ? .92 : .74;
+              lx = Math.cos(a) * rr2; ly = .40; lz = Math.sin(a) * rr2;
+            }
+          } else {
+            lx = (si % 2 ? .42 : -.42); ly = inverted ? -1.62 : .22; lz = (si < 2 ? -.72 : .78);
+          }
           g.x = m[0] * lx + m[4] * ly + m[8] * lz + m[12];
           g.y = m[1] * lx + m[5] * ly + m[9] * lz + m[13];
           g.z = m[2] * lx + m[6] * ly + m[10] * lz + m[14];
