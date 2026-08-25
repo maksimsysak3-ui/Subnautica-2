@@ -68,8 +68,10 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
 .logo img{display:block;height:1em;width:auto;transform:skewX(5deg)}
 
 /* ---------- SCREEN SCAFFOLD ------------------------------ */
+#app{position:relative;width:100%;height:100vh;height:100dvh;
+  min-height:520px;overflow:hidden;background:var(--bg)}
 .screen{
-  position:fixed;inset:0;
+  position:absolute;inset:0;
   display:flex;flex-direction:column;
   opacity:0;visibility:hidden;
 }
@@ -437,7 +439,7 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
   transition:border-color .3s ease,color .3s ease}
 .back:hover{border-color:var(--red);color:#fff}
 
-#wipe{position:fixed;inset:0;z-index:60;pointer-events:none;overflow:hidden}
+#wipe{position:absolute;inset:0;z-index:60;pointer-events:none;overflow:hidden}
 #wipe .pane{
   position:absolute;top:-16%;bottom:-16%;left:-60vw;width:220vw;
   transform:translateX(-135%) skewX(-15deg);
@@ -566,6 +568,7 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
 </head>
 <body>
 
+<div id="app">
 <!-- ============================ 1. INTRO ==================== -->
 <section class="screen" id="intro">
   <div class="intro-stack">
@@ -697,7 +700,8 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
     <div id="hFlag">Off Track</div>
 
     <div class="hkeys">
-      <span><b>W S</b>Throttle / Brake</span>
+      <span><b>W</b>Throttle</span>
+      <span><b>Space</b>Brake</span>
       <span><b>A D</b>Steer</span>
       <span><b>C</b>Camera</span>
       <span><b>R</b>Reset</span>
@@ -716,7 +720,7 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
       <div>
         <div class="lbl">Grip</div>
         <div class="hgripwrap"><i id="hGrip"></i></div>
-        <div class="hassist"><span id="hTC">TC</span><span id="hABS">ABS</span></div>
+        <div class="hassist"><span id="hTC">TC</span><span id="hABS">ABS</span><span id="hESC">ESC</span></div>
       </div>
     </div>
 
@@ -737,6 +741,7 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
 </section>
 
 <div id="wipe"><div class="pane body"></div><div class="pane blade"></div></div>
+</div><!-- /#app -->
 
 <script type="importmap">
 {"imports":{
@@ -1124,7 +1129,25 @@ $('#replay').addEventListener('click', () => { clearInterval(tipTimer); runIntro
 
 /* ---------- boot ----------------------------------------- */
 select(0, true);
-document.fonts.ready.then(() => runIntro());
+
+let booted = false;
+function boot() {
+  if (booted) return;
+  booted = true;
+  runIntro();
+}
+// fonts make the intro look right, but they must never gate it
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(boot);
+setTimeout(boot, 1200);
+
+// last resort: if nothing is on screen, go straight to the menu
+setTimeout(() => {
+  if (!document.querySelector('.screen.on')) {
+    console.warn('[URacing] boot stalled — showing menu');
+    show('menu');
+    select(0, true);
+  }
+}, 9000);
 </script>
 <script type="module">
 /* ============================================================
@@ -1388,10 +1411,10 @@ const CAR = {
   brakeMax: 14500, brakeBias: 0.58,
   gears: [4.20, 3.30, 2.75, 2.35, 2.05, 1.82, 1.63, 1.47], final: 4.0, eff: 0.94,
   idle: 4200, redline: 15200, shiftUp: 14500, shiftDown: 9000,
-  kappaPeak: 0.115, alphaPeak: 0.155
+  kappaPeak: 0.20, alphaPeak: 0.26
 };
 const G = 9.81;
-const ASSIST = { tc: true, abs: true };
+const ASSIST = { tc: true, abs: true, esc: true };
 CAR.L = CAR.a + CAR.b;
 
 // power curve, [rpm, kW] — 2026-style hybrid, ~700 kW peak
@@ -1407,7 +1430,7 @@ function powerAt(rpm) {
   return POWER[POWER.length - 1][1] * 1000;
 }
 // Pacejka shape, normalised so it peaks at ~1.0 for combined slip magnitude 1
-const PB = 8.4, PC = 1.62, PE = 0.96;
+const PB = 7.0, PC = 1.55, PE = 0.86;
 function pacejka(s) {
   const bs = PB * s;
   return Math.sin(PC * Math.atan(bs - PE * (bs - Math.atan(bs))));
@@ -1430,7 +1453,7 @@ class Vehicle {
     this.ax = 0; this.ay = 0;
     this.steer = 0; this.throttle = 0; this.brake = 0;
     this.slip = [0, 0, 0, 0]; this.load = [0, 0, 0, 0]; this.kappa = [0, 0, 0, 0];
-    this.tcCut = 0; this.absCut = 0;
+    this.tcCut = 0; this.absCut = 0; this.escCut = 0;
     this.spin = [0, 0, 0, 0];
     this.shiftT = 0; this.offTrack = false; this.grip = 1;
   }
@@ -1439,8 +1462,12 @@ class Vehicle {
     const c = CAR;
     // ---- driver inputs ------------------------------------
     const v = Math.hypot(this.vx, this.vy);
-    const maxSteer = 0.30 * (1 - 0.62 * Math.min(1, v / 78));
-    const rate = 3.6, back = 6.2;
+    const gripNow = this.grip || 1;
+    // the most lateral g available here, and the steer angle that reaches it
+    const maxLatA = c.mu * gripNow * (G + 0.5 * c.rho * v * v * c.ClA / c.m);
+    const maxSteer = Math.max(0.035,
+      Math.min(0.26, maxLatA * c.L / Math.max(v * v, 30) * 1.25));
+    const rate = 3.6, back = 8.0;
     const tgt = input.steer * maxSteer;
     const d = tgt - this.steer;
     const lim = (Math.abs(tgt) > Math.abs(this.steer) ? rate : back) * maxSteer * dt;
@@ -1541,6 +1568,16 @@ class Vehicle {
       Mz += l * fyb - t * fxb;
     }
 
+    // ---- stability control --------------------------------
+    if (ASSIST.esc && Math.abs(this.vx) > 3) {
+      const cap = maxLatA / Math.max(Math.abs(this.vx), 1);
+      const rRef = THREE.MathUtils.clamp(
+        this.vx * Math.tan(this.steer) / c.L, -cap, cap);
+      const err = this.r - rRef;
+      Mz -= err * c.Izz * 4.5;
+      this.escCut = Math.min(1, Math.abs(err) * 2.6);
+    } else this.escCut *= Math.exp(-dt * 6);
+
     // ---- aero, gradient, banking --------------------------
     Fx -= drag * Math.sign(this.vx || 1);
     Fx -= c.m * G * sample.grade;
@@ -1639,7 +1676,7 @@ function skyEnv(renderer) {
   const pmrem = new THREE.PMREMGenerator(renderer);
   pmrem.compileEquirectangularShader();
   const s = new THREE.Scene(); s.add(sky.clone());
-  const env = pmrem.fromScene(s, 0.04).texture;
+  const env = pmrem.fromScene(s, 0.04, 1, 6000).texture;
   pmrem.dispose();
   return { sky, env };
 }
@@ -1790,7 +1827,16 @@ function adoptCar(root) {
   const ws = [];
   let bodyNode = null;
   root.traverse(o => {
-    if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; }
+    if (o.isMesh) {
+      o.castShadow = true; o.receiveShadow = true;
+      const mats = Array.isArray(o.material) ? o.material : [o.material];
+      for (const m of mats) {
+        if (!m) continue;
+        m.envMapIntensity = 1.45;
+        // the source model is near-black carbon; lift it just enough to read
+        if (m.metalness > 0.9 && m.color.r < 0.08) m.color.setRGB(0.075, 0.077, 0.082);
+      }
+    }
     if (/^Wheel_[FR][LR]$/.test(o.name)) ws.push(o);
     if (o.name === 'Body') bodyNode = o;
   });
@@ -1806,7 +1852,7 @@ function adoptCar(root) {
    INPUT / CAMERA / HUD / LOOP
    ============================================================ */
 const KEY = {
-  throttle: ['KeyW', 'ArrowUp'], brake: ['KeyS', 'ArrowDown'],
+  throttle: ['KeyW', 'ArrowUp'], brake: ['Space', 'KeyS', 'ArrowDown'],
   left: ['KeyA', 'ArrowLeft'], right: ['KeyD', 'ArrowRight']
 };
 const held = s => KEY[s].some(k => keys[k]);
@@ -1877,6 +1923,7 @@ function updateHUD(sample) {
   hud.grip.classList.toggle('over', grip > 1.02);
   hud.tc.classList.toggle('on', veh.tcCut > 0.12);
   hud.abs.classList.toggle('on', veh.absCut > 0.12);
+  hud.esc.classList.toggle('on', veh.escCut > 0.15);
   // minimap
   const u = sample.s / track.length;
   const p = hud.mapPath.getPointAtLength(u * hud.mapLen);
@@ -1961,7 +2008,7 @@ function collectHUD() {
   hud = {
     speed: $('#hSpeed'), gear: $('#hGear'), thr: $('#hThr'), brk: $('#hBrk'),
     cur: $('#hCur'), best: $('#hBest'), last: $('#hLast'), lapNo: $('#hLapNo'),
-    flag: $('#hFlag'), grip: $('#hGrip'), tc: $('#hTC'), abs: $('#hABS'),
+    flag: $('#hFlag'), grip: $('#hGrip'), tc: $('#hTC'), abs: $('#hABS'), esc: $('#hESC'),
     mapPath: $('#hMapPath'), mapDot: $('#hMapDot'),
     revCells: [...$('#hRev').children]
   };
