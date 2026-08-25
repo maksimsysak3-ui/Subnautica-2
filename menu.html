@@ -1232,7 +1232,17 @@ function buildTrack() {
     R.push(r);
     NRM.push(new THREE.Vector3().crossVectors(r, T[i]).normalize());
   }
-  return { P, T, R, N: NRM, K: Ks, S, count: N, length: total, curve };
+  // largest offset each side can take before an inside corner folds over
+  const LIM = [];
+  for (let i = 0; i < N; i++) {
+    const a = P[(i - 1 + N) % N], b = P[i], c = P[(i + 1) % N];
+    const accR = (c.x - 2 * b.x + a.x) * R[i].x + (c.z - 2 * b.z + a.z) * R[i].z;
+    const r = Math.abs(Ks[i]) > 1e-6 ? 0.82 / Math.abs(Ks[i]) : 1e9;
+    LIM.push([accR > 0 ? r : 1e9, accR < 0 ? r : 1e9]);   // [+R limit, -R limit]
+  }
+  const clampOff = (j, off) =>
+    off >= 0 ? Math.min(off, LIM[j][0]) : Math.max(off, -LIM[j][1]);
+  return { P, T, R, N: NRM, K: Ks, S, count: N, length: total, curve, clampOff };
 }
 
 /* ---- procedural surfaces --------------------------------- */
@@ -1404,7 +1414,7 @@ function crossBand(track, i0, rows, from, to, lift, uRep, vRep) {
    VEHICLE — four wheels, load transfer, Pacejka combined slip
    ============================================================ */
 const CAR = {
-  m: 798, Izz: 1050, a: 1.98, b: 1.62, tw: 1.62, hcg: 0.30,
+  m: 798, Izz: 1220, a: 1.98, b: 1.62, tw: 1.62, hcg: 0.30,
   Rw: 0.3535, Iw: 1.15,
   rho: 1.225, ClA: 6.0, CdA: 1.32, aeroF: 0.43,
   mu: 1.62, rollF: 0.60,
@@ -1454,6 +1464,7 @@ class Vehicle {
     this.steer = 0; this.throttle = 0; this.brake = 0;
     this.slip = [0, 0, 0, 0]; this.load = [0, 0, 0, 0]; this.kappa = [0, 0, 0, 0];
     this.tcCut = 0; this.absCut = 0; this.escCut = 0;
+    this.alphaLag = [0, 0, 0, 0];
     this.spin = [0, 0, 0, 0];
     this.shiftT = 0; this.offTrack = false; this.grip = 1;
   }
@@ -1467,7 +1478,7 @@ class Vehicle {
     const maxLatA = c.mu * gripNow * (G + 0.5 * c.rho * v * v * c.ClA / c.m);
     const maxSteer = Math.max(0.035,
       Math.min(0.26, maxLatA * c.L / Math.max(v * v, 30) * 1.25));
-    const rate = 3.6, back = 8.0;
+    const rate = 3.6 * (0.42 + 0.58 * Math.max(0, 1 - v / 68)), back = 8.0;
     const tgt = input.steer * maxSteer;
     const d = tgt - this.steer;
     const lim = (Math.abs(tgt) > Math.abs(this.steer) ? rate : back) * maxSteer * dt;
@@ -1533,7 +1544,10 @@ class Vehicle {
 
       const kappa = (this.w[i] * c.Rw - vwx) / ref;
       this.kappa[i] = kappa;
-      const alpha = Math.atan2(vwy, Math.abs(vwx) + 0.6) - dsteer;
+      const alphaRaw = Math.atan2(vwy, Math.abs(vwx) + 0.6) - dsteer;
+      const tau = 0.55 / Math.max(Math.abs(vwx), 4);       // 0.55 m relaxation
+      this.alphaLag[i] += (alphaRaw - this.alphaLag[i]) * Math.min(1, dt / tau);
+      const alpha = this.alphaLag[i];
 
       const sx = kappa / c.kappaPeak;
       const sy = Math.tan(alpha) / c.alphaPeak;
@@ -1574,7 +1588,7 @@ class Vehicle {
       const rRef = THREE.MathUtils.clamp(
         this.vx * Math.tan(this.steer) / c.L, -cap, cap);
       const err = this.r - rRef;
-      Mz -= err * c.Izz * 4.5;
+      Mz -= err * c.Izz * 5.4;
       this.escCut = Math.min(1, Math.abs(err) * 2.6);
     } else this.escCut *= Math.exp(-dt * 6);
 
@@ -1738,21 +1752,19 @@ function buildScene(canvas) {
 
   /* ---- verge, so the road sits in the terrain instead of floating ---- */
   const vergeMat = new THREE.MeshStandardMaterial({
-    color: 0x2b3230, roughness: 0.98, metalness: 0,
-    normalMap: maps.normalMap, normalScale: new THREE.Vector2(0.35, 0.35)
+    color: 0x2f3531, roughness: 1, metalness: 0
   });
+  const EDGE = ROAD_W / 2 + KERB_W - 0.02;
   for (const side of [-1, 1]) {
-    // near verge: flat run-off just off the racing surface
-    const near = new THREE.Mesh(ribbon(track,
-      side * (ROAD_W / 2 + KERB_W - 0.02), side * (ROAD_W / 2 + 34),
-      (j, k) => k ? -1.4 : 0, 9, null, 9), vergeMat);
-    near.receiveShadow = true;
-    scene.add(near);
-    // outer terrain: falls away far enough to hide the ground plane
-    const far = new THREE.Mesh(ribbon(track,
-      side * (ROAD_W / 2 + 33.8), side * (ROAD_W / 2 + 300),
-      (j, k) => k ? -26 : -1.4, 34, null, 34), vergeMat);
-    scene.add(far);
+    const outer = j => track.clampOff(j, side * (ROAD_W / 2 + 300));
+    const m = new THREE.Mesh(ribbon(track,
+      j => track.clampOff(j, side * EDGE),
+      outer,
+      // drop in proportion to how wide the terrain actually got here
+      (j, k) => k ? -Math.min(24, Math.max(0, Math.abs(outer(j)) - EDGE) * 0.085) : 0,
+      26, null, 26), vergeMat);
+    m.receiveShadow = true;
+    scene.add(m);
   }
 
   /* ---- painted edge lines ---- */
@@ -1971,8 +1983,8 @@ function frame(now) {
   // place the car on the road
   carRoot.position.set(veh.x, sample.y, veh.z);
   carRoot.rotation.set(0, veh.yaw + Math.PI, 0);
-  const pitch = Math.asin(THREE.MathUtils.clamp(-sample.grade, -1, 1));
-  const roll = Math.asin(THREE.MathUtils.clamp(-sample.bank, -1, 1));
+  const pitch = Math.asin(THREE.MathUtils.clamp(sample.grade, -1, 1));
+  const roll = Math.asin(THREE.MathUtils.clamp(sample.bank, -1, 1));
   body.rotation.set(
     pitch + THREE.MathUtils.clamp(veh.ax / G, -1, 1) * 0.021,
     0,
