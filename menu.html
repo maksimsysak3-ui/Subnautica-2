@@ -1172,6 +1172,7 @@ const SURVEY = [
   [486,476],[462,462],[409,453],[376,439],[344,420]
 ];
 
+const PLANE_Y  = -0.30;  // ground, just below the racing surface
 const SCALE    = 1.40;   // metres per survey unit -> ~4.4 km lap
 const ROAD_W   = 12.0;   // metres, edge to edge
 const KERB_W   = 1.55;
@@ -1192,9 +1193,7 @@ function buildTrack() {
   const N = Math.max(600, Math.round(flatLen / 2));   // ~2 m spacing
 
   // gentle, closed elevation profile — harmonics of the lap keep it seamless
-  const elev = u => 3.6 * Math.sin(2 * Math.PI * u + 0.4)
-                  + 1.7 * Math.sin(4 * Math.PI * u + 1.9)
-                  + 0.8 * Math.sin(6 * Math.PI * u + 3.1);
+  const elev = () => 0;
 
   const P = [], T = [], R = [], NRM = [], K = [], S = [];
   for (let i = 0; i < N; i++) {
@@ -1226,19 +1225,32 @@ function buildTrack() {
     return s / 13;
   });
   for (let i = 0; i < N; i++) {
-    const bank = THREE.MathUtils.clamp(Ks[i] * 190, -0.075, 0.075);
+    const bank = 0;
     const r = new THREE.Vector3().crossVectors(T[i], up).normalize();
     r.applyAxisAngle(T[i], bank);
     R.push(r);
     NRM.push(new THREE.Vector3().crossVectors(r, T[i]).normalize());
   }
   // largest offset each side can take before an inside corner folds over
+  // how close the lap comes to a different part of itself, per sample
+  const clear = new Float64Array(N).fill(1e9);
+  for (let i = 0; i < N; i++) {
+    for (let j = 0; j < N; j++) {
+      const sep = Math.min(Math.abs(i - j), N - Math.abs(i - j));
+      if (sep < 40) continue;
+      const d = (P[i].x - P[j].x) ** 2 + (P[i].z - P[j].z) ** 2;
+      if (d < clear[i]) clear[i] = d;
+    }
+    clear[i] = Math.sqrt(clear[i]);
+  }
   const LIM = [];
   for (let i = 0; i < N; i++) {
     const a = P[(i - 1 + N) % N], b = P[i], c = P[(i + 1) % N];
     const accR = (c.x - 2 * b.x + a.x) * R[i].x + (c.z - 2 * b.z + a.z) * R[i].z;
     const r = Math.abs(Ks[i]) > 1e-6 ? 0.82 / Math.abs(Ks[i]) : 1e9;
-    LIM.push([accR > 0 ? r : 1e9, accR < 0 ? r : 1e9]);   // [+R limit, -R limit]
+    // stop short of the corner's own centre, and short of the next bit of track
+    const gap = Math.max(2, clear[i] / 2 - ROAD_W / 2 - 1.5);
+    LIM.push([Math.min(accR > 0 ? r : 1e9, gap), Math.min(accR < 0 ? r : 1e9, gap)]);
   }
   const clampOff = (j, off) =>
     off >= 0 ? Math.min(off, LIM[j][0]) : Math.max(off, -LIM[j][1]);
@@ -1635,36 +1647,52 @@ function buildLookup(t) {
   }
 }
 const _v = new THREE.Vector3(), _f = new THREE.Vector3(), _r = new THREE.Vector3();
+const _t = new THREE.Vector3(), _rr = new THREE.Vector3(), _nn = new THREE.Vector3();
+let lastIdx = 0;
+function reseedLookup(x, z) {         // global search, used only when lost
+  const t = track;
+  let bi = 0, bd = Infinity;
+  for (let i = 0; i < t.count; i++) {
+    const d = (t.P[i].x - x) ** 2 + (t.P[i].z - z) ** 2;
+    if (d < bd) { bd = d; bi = i; }
+  }
+  lastIdx = bi;
+  return bi;
+}
 function sampleTrack(x, z, yaw) {
   const t = track;
-  const cx = Math.floor(x / cell), cz = Math.floor(z / cell);
-  let bi = -1, bd = Infinity;
-  for (let dx = -1; dx <= 1; dx++) for (let dz = -1; dz <= 1; dz++) {
-    const l = grid.get((cx + dx) + ',' + (cz + dz));
-    if (!l) continue;
-    for (const i of l) {
-      const d = (t.P[i].x - x) ** 2 + (t.P[i].z - z) ** 2;
-      if (d < bd) { bd = d; bi = i; }
-    }
+  const d2 = i => (t.P[i].x - x) ** 2 + (t.P[i].z - z) ** 2;
+  let bi = lastIdx;
+  for (let k = 0; k < 8; k++) {          // creep downhill, never skipping road
+    const pv = (bi - 1 + t.count) % t.count, nx = (bi + 1) % t.count;
+    const here = d2(bi), dp = d2(pv), dn = d2(nx);
+    if (dn < here && dn <= dp) bi = nx;
+    else if (dp < here) bi = pv;
+    else break;
   }
-  if (bi < 0) {                       // far off — brute force fallback
-    for (let i = 0; i < t.count; i += 4) {
-      const d = (t.P[i].x - x) ** 2 + (t.P[i].z - z) ** 2;
-      if (d < bd) { bd = d; bi = i; }
-    }
-  }
-  const P = t.P[bi], T = t.T[bi], R = t.R[bi], N = t.N[bi];
+  lastIdx = bi;
+  const P = t.P[bi], T0 = t.T[bi], R0 = t.R[bi], N0 = t.N[bi];
   _v.set(x - P.x, 0, z - P.z);
-  const along = _v.dot(T);
-  const off = _v.dot(R);
-  const y = P.y + along * T.y + off * R.y;
+  const along = _v.dot(T0);
+  const off = _v.dot(R0);
+
+  const nb = (bi + (along >= 0 ? 1 : t.count - 1)) % t.count;
+  const seg = t.P[bi].distanceTo(t.P[nb]) || 1;
+  const w = Math.min(1, Math.abs(along) / seg);
+  const y = P.y + (t.P[nb].y - P.y) * w + off * t.R[bi].y;
+  const T = _t.copy(T0).lerp(t.T[nb], w).normalize();
+  const R = _rr.copy(R0).lerp(t.R[nb], w).normalize();
+  const N = _nn.copy(N0).lerp(t.N[nb], w).normalize();
 
   _f.set(Math.sin(yaw), 0, Math.cos(yaw));
   _f.addScaledVector(N, -_f.dot(N)).normalize();
   _r.set(-Math.cos(yaw), 0, Math.sin(yaw));
   _r.addScaledVector(N, -_r.dot(N)).normalize();
 
-  return { i: bi, off, y, s: t.S[bi] + along, grade: _f.y, bank: _r.y, normal: N, tangent: T };
+  const cl = v => v < -0.28 ? -0.28 : v > 0.28 ? 0.28 : v;
+  return { i: bi, off, y, s: t.S[bi] + along,
+           grade: cl(_f.y), bank: cl(_r.y),
+           normal: _nn.clone(), tangent: _t.clone() };
 }
 
 function skyEnv(renderer) {
@@ -1733,7 +1761,7 @@ function buildScene(canvas) {
   const gm = new THREE.Mesh(
     new THREE.PlaneGeometry(9000, 9000),
     new THREE.MeshStandardMaterial({ color: 0x232a24, roughness: 0.97, metalness: 0 }));
-  gm.rotation.x = -Math.PI / 2; gm.position.y = -48; gm.receiveShadow = true;
+  gm.rotation.x = -Math.PI / 2; gm.position.y = PLANE_Y; gm.receiveShadow = true;
   scene.add(gm);
 
   /* ---- asphalt ---- */
@@ -1756,13 +1784,12 @@ function buildScene(canvas) {
   });
   const EDGE = ROAD_W / 2 + KERB_W - 0.02;
   for (const side of [-1, 1]) {
-    const outer = j => track.clampOff(j, side * (ROAD_W / 2 + 300));
     const m = new THREE.Mesh(ribbon(track,
       j => track.clampOff(j, side * EDGE),
-      outer,
-      // drop in proportion to how wide the terrain actually got here
-      (j, k) => k ? -Math.min(24, Math.max(0, Math.abs(outer(j)) - EDGE) * 0.085) : 0,
-      26, null, 26), vergeMat);
+      j => track.clampOff(j, side * (ROAD_W / 2 + 26)),
+      // outer edge lands exactly on the ground plane, whatever the height here
+      (j, k) => k ? PLANE_Y - track.P[j].y : 0,
+      14, null, 14), vergeMat);
     m.receiveShadow = true;
     scene.add(m);
   }
@@ -1792,7 +1819,7 @@ function buildScene(canvas) {
     };
     const g = ribbon(track,
       j => side * (ROAD_W / 2), (j, w) => side * (ROAD_W / 2 + KERB_W * w),
-      (j, k, w) => 0.008 + (k ? 0.055 * w : 0), 1.9, mask);
+      (j, k, w) => 0.008 + (k ? 0.055 * w : 0), 6.4, mask);
     const uvA = g.getAttribute('uv');
     for (let i = 0; i < uvA.count; i++) uvA.setX(i, uvA.getX(i) * 0.5);
     const m = new THREE.Mesh(g, kerbMat);
@@ -2100,7 +2127,8 @@ async function init(onProgress) {
     keys[e.code] = true;
     if (['ArrowUp', 'ArrowDown', 'Space'].includes(e.code)) e.preventDefault();
     if (e.code === 'KeyC') camMode = (camMode + 1) % 3;
-    if (e.code === 'KeyR') { veh.reset(lap.s || 0); lap.t = 0; lap.started = false; }
+    if (e.code === 'KeyR') { veh.reset(lap.s || 0); reseedLookup(veh.x, veh.z);
+                             lap.t = 0; lap.started = false; }
   });
   addEventListener('keyup', e => { keys[e.code] = false; });
 
@@ -2113,6 +2141,7 @@ async function init(onProgress) {
 function start() {
   running = true; lastT = performance.now(); acc = 0;
   veh.reset(0);
+  reseedLookup(veh.x, veh.z);
   lap = { t: 0, best: lap.best, last: null, s: 0, started: false, count: 1 };
   const s = sampleTrack(veh.x, veh.z, veh.yaw);
   camPos.set(veh.x, s.y + 3, veh.z);
