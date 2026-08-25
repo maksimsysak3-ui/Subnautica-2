@@ -2383,6 +2383,12 @@ void main(){
   float wrap = max((ndl+0.45)/1.45, 0.0);       // soft wrap term for toy-like shading
   float hemi = 0.5 + 0.5*N.y;
   vec3 amb = mix(uGndCol, uSkyCol, hemi);
+  /* A floor under the ambient term. Without it a vertical face in full
+     shadow - the counter under a shop awning, the underside of a canopy,
+     anything in a recess - resolves to near black and reads as a hole cut
+     in the building rather than as a surface. Scaled by the sky so night
+     stays night. */
+  amb = max(amb, uSkyCol * 0.42 + vec3(0.035));
 
   float sh = 1.0;
   if(uShadowOn > 0.5){
@@ -5051,13 +5057,23 @@ const Arch = {
   /* The serving counter itself: worktop, shutter, a till and a menu board. */
   counter(g, W, D, col, wood) {
     const hd = D / 2;
-    g.box(0, .0, -hd - .22, W - 1.0, 1.02, .44, shade(wood, .96));
-    g.box(0, 1.02, -hd - .26, W - .8, .12, .58, shade(wood, 1.16));            // worktop
-    g.box(0, 1.14, -hd - .18, W - 1.6, .06, .30, shade(col, 1.1));            // goods on top
-    g.box(W / 2 - .9, 1.14, -hd - .30, .34, .26, .24, hex(0xdfe4e8));         // till
-    g.box(0, 1.62, -hd - .04, W - 1.4, .72, .06, hex(0x2f2a24));              // menu board
-    for (let k = 0; k < 3; k++)
-      g.box(-W / 2 + .9 + k * ((W - 1.8) / 2), 1.76, -hd - .08, (W - 2.2) / 3, .10, .03, hex(0xf6e7b8));
+    /* The counter, and above it a menu board. The board used to be a near
+       black slab the width of the shopfront, which from any distance read as
+       a hole punched through the building. It is now a framed, lit board
+       sized like a menu, with the counter panelled instead of flat. */
+    g.box(0, .0, -hd - .22, W - 1.0, 1.02, .44, shade(wood, 1.02));
+    for (let k = 0; k < 5; k++)                                                // panelled front
+      g.box(-W / 2 + .8 + k * ((W - 1.6) / 4), .12, -hd - .44, (W - 2.2) / 5, .74, .06, shade(wood, .88));
+    g.box(0, 1.02, -hd - .26, W - .8, .12, .58, shade(wood, 1.22));            // worktop
+    g.box(0, 1.14, -hd - .18, W - 1.6, .06, .30, shade(col, 1.12));            // goods on top
+    g.box(W / 2 - .9, 1.14, -hd - .30, .34, .26, .24, hex(0xdfe4e8));          // till
+    const bw2 = Math.min(W - 1.8, 2.6);
+    g.box(0, 1.70, -hd - .04, bw2 + .18, .78, .09, shade(wood, .82));          // board frame
+    g.box(0, 1.76, -hd - .10, bw2, .62, .05, hex(0x3d5a4a));                   // the board itself
+    for (let k = 0; k < 3; k++)                                                // the lines chalked on it
+      g.box(-bw2 * .3 + k * (bw2 * .3), 1.86 + (k % 2) * .18, -hd - .14, bw2 * .24, .07, .03, hex(0xf6e7b8));
+    for (const sx of [-1, 1])                                                  // a light over the board
+      g.box(sx * (bw2 * .34), 2.52, -hd - .16, .22, .10, .22, hex(0xfff3c4));
   },
   /* A projecting sign on a wrought bracket — reads from down the midway. */
   hangingSign(g, D, x, y, col, w = 1.0, h = .7) {
@@ -6258,10 +6274,26 @@ const Prefab = {
         g.box(Math.cos(a) * (r0 - .04), .45, Math.sin(a) * (r0 - .04), .16, 1.9, .16, trim);
       }
       g.cyl(0, 2.30, 0, r0 + .08, .30, 8, trim);                            // cornice
-      // serving hatch on the -Z face, with a propped shutter
-      g.box(0, .95, -r0 - .02, W * .62, 1.02, .10, hex(0x22262a));
-      g.box(0, 1.97, -r0 - .30, W * .70, .10, .62, shade(roof, 1.1));
-      g.box(0, .60, -r0 - .16, W * .66, .40, .26, shade(timber, 1.05));     // shelf
+      /* Serving hatch on the -Z face. It used to be one near-black slab the
+         width of the booth standing proud of the render, which from any
+         angle read as a hole punched through the kiosk. It is now an
+         opening cut into the wall: a lit interior behind it, a timber
+         shelf across the sill, jambs and a head, and a propped shutter. */
+      {
+        const hwid = W * .62, hy2 = .98, hh2 = .96;
+        g.box(0, hy2, -r0 + .16, hwid - .12, hh2, .34, shade(wall, .74));      // the reveal, set back
+        g.box(0, hy2 + .04, -r0 + .34, hwid - .30, hh2 - .10, .10, hex(0xffdc9a));  // lit interior
+        g.box(0, hy2 + hh2 - .18, -r0 + .16, hwid - .12, .18, .34, shade(wall, .56)); // shadow under the head
+        for (const sx of [-1, 1])                                              // jambs
+          g.box(sx * (hwid / 2 - .04), hy2 - .10, -r0 - .04, .24, hh2 + .34, .20, trim);
+        g.box(0, hy2 + hh2 + .06, -r0 - .04, hwid + .3, .20, .22, trim);       // head
+        g.box(0, hy2 - .30, -r0 - .12, hwid + .3, .22, .38, shade(trim, 1.12)); // cill
+        g.box(0, 1.97, -r0 - .30, W * .70, .10, .62, shade(roof, 1.1));        // propped shutter
+        for (const sx of [-1, 1]) g.beam(sx * (W * .30), 1.97, -r0 - .58, sx * (W * .30), 2.28, -r0 - .06, .06, .06, hex(0x8d8880));
+        g.box(0, .60, -r0 - .16, W * .66, .40, .26, shade(timber, 1.05));      // shelf
+        for (let k = 0; k < 3; k++)                                            // goods on the shelf
+          g.box(-W * .18 + k * (W * .18), 1.00, -r0 - .18, .20, .16, .18, [hex(0xe8563f), hex(0xf5c451), hex(0xf7f2e6)][k % 3]);
+      }
       Prefab.stripedRoof(g, 0, 2.60, 0, r0 + .42, capH, 8, shade(roof, 1.12), hex(0xf7f2e6));
       g.cyl(0, 2.60 + capH, 0, .09, .55, 6, hex(0x8d8880));
       g.sphere(0, 3.20 + capH, 0, .16, 6, hex(0xe8c96a));
@@ -6336,9 +6368,22 @@ const Prefab = {
     }
 
     /* The trading face. */
+    /* The serving hatch is a hole cut INTO the wall, not two panels stuck on
+       the front of it. Built the other way round, the dark panel stood proud
+       of the render and you saw its sides from any angle but dead-on —
+       which is what read as a black void hanging off the shopfront. */
     const hatchW = Math.min(bw - 1.2, big ? bw * .55 : bw - 1.0);
-    g.box(0, .95, -bd / 2 - .02, hatchW, 1.35, .12, hex(0x22262a));          // dark opening
-    g.box(0, .95, -bd / 2 - .10, hatchW - .18, 1.35, .06, hex(0xffdc9a));    // lit interior
+    const hz = -bd / 2;
+    const hy = 1.18, hh = 1.30;                    // the opening sits above the counter top
+    g.box(0, hy, hz + .55, hatchW, hh, .10, hex(0xffdc9a));                  // lit back wall of the servery
+    for (const sx of [-1, 1])                                                 // side walls of the recess
+      g.box(sx * (hatchW / 2 - .06), hy, hz + .30, .12, hh, .52, shade(wall, .78));
+    g.box(0, hy + hh - .26, hz + .30, hatchW, .26, .52, shade(wall, .58));    // shadow under the lintel
+    g.box(0, hy - .08, hz + .30, hatchW, .10, .52, shade(wall, .70));         // the shelf inside
+    for (const sx of [-1, 1])                                                 // jambs, head and cill on the face
+      g.box(sx * (hatchW / 2 + .16), hy - .10, hz + .02, .28, hh + .30, .22, trim);
+    g.box(0, hy + hh + .06, hz + .02, hatchW + .6, .22, .26, trim);
+    g.box(0, hy - .24, hz - .02, hatchW + .6, .18, .34, shade(trim, 1.12));
     Arch.counter(g, bw, bd, body, timber);
     if (isFood) Arch.awning(g, bw, bd, 2.42, shade(body, 1.16), hex(0xf7f2e6), 1.35);
     else Arch.canopy(g, bw, bd, 2.42, shade(roof, 1.08), 1.35);
