@@ -12742,6 +12742,30 @@ class Track {
     this.recomputeExtents();
     return true;
   }
+  /* Re-apply a stored end-of-circuit snap. See Coaster.snapHome: the last
+     few metres of a closed circuit are eased onto the station's own start
+     pose, and because samples are replayed from the piece list on load this
+     has to be replayable too. */
+  applySnap() {
+    const sn = this.snap;
+    if (!sn) return;
+    const S = this.samples;
+    if (S.length < 8) return;
+    const RUN = Math.min(S.length - 1, sn.run || 12);
+    const i0 = S.length - RUN;
+    const wantF = V3.make(Math.cos(sn.yaw), 0, Math.sin(sn.yaw));
+    const up = V3.make(0, 1, 0);
+    for (let k = i0; k < S.length; k++) {
+      const w = (k - i0) / (S.length - 1 - i0 || 1);
+      const ease = w * w * (3 - 2 * w);
+      const sm = S[k];
+      sm.p.x += sn.dx * ease; sm.p.y += sn.dy * ease; sm.p.z += sn.dz * ease;
+      sm.f = V3.norm({}, V3.lerp({}, sm.f, wantF, ease));
+      sm.u = V3.norm({}, V3.lerp({}, sm.u, up, ease));
+      sm.bank = lerp(sm.bank, 0, ease);
+    }
+    this.recomputeExtents();
+  }
   recomputeExtents() {
     this.maxH = -1e9; this.minH = 1e9;
     for (const s of this.samples) { if (s.p.y > this.maxH) this.maxH = s.p.y; if (s.p.y < this.minH) this.minH = s.p.y; }
@@ -22133,10 +22157,10 @@ const Coaster = {
     {
       const marks = { pieces: c.track.pieces.length, custom: c.track.custom.length, money: Park.money, build: Park.log.build };
       const solo = this.dockToStation(c, true);
-      if (c.track.closeError().ok) {
+      if (this.snapHome(c)) {
         this.rebuild();
-        UI.notify('Route home found', solo.laid + ' pieces laid for ' + money(solo.cost) + '. Press Complete Circuit.', 'good');
-        this.refresh();
+        UI.notify('Circuit closed', solo.laid + ' pieces laid for ' + money(solo.cost) + ' — the track is joined up.', 'good');
+        this.complete();
         return;
       }
       // did not reach: put the track back exactly as it was, ledger included
@@ -22158,8 +22182,9 @@ const Coaster = {
       const marks2 = { pieces: c.track.pieces.length, custom: c.track.custom.length, money: Park.money, build: Park.log.build };
       const solo = this.dockToStation(c, true);
       this.rebuild();
-      if (c.track.closeError().ok) {
-        UI.notify('Route home found', solo.laid + ' pieces laid for ' + money(solo.cost) + '. Press Complete Circuit.', 'good');
+      if (this.snapHome(c)) {
+        UI.notify('Circuit closed', solo.laid + ' pieces laid for ' + money(solo.cost) + ' — the track is joined up.', 'good');
+        this.complete();
       } else {
         while (c.track.pieces.length > marks2.pieces) c.track.removeLast();
         c.track.custom.length = marks2.custom;
@@ -22182,10 +22207,48 @@ const Coaster = {
     const dock = this.dockToStation(c, true);
     spent += dock.cost; laid += dock.laid;
     this.rebuild();
+    if (this.snapHome(c)) {
+      this.rebuild();
+      UI.notify('Circuit closed', laid + ' pieces laid for ' + money(spent) + ' — the track is joined up.', 'good');
+      this.complete();
+      return;
+    }
     const e = c.track.closeError();
-    if (e.ok) UI.notify('Route home found', laid + ' pieces laid for ' + money(spent) + '. Press Complete Circuit.', 'good');
-    else UI.notify('Nearly there', 'Auto-route got within ' + e.d.toFixed(1) + ' m — finish it by hand.', 'warn');
+    UI.notify('Nearly there', 'Auto-route got within ' + e.d.toFixed(1) + ' m — finish it by hand.', 'warn');
     this.refresh();
+  },
+
+  /* Close the last hand's-breadth of a circuit exactly.
+
+     Auto-route brings the rails home to within a rail's width and then stops,
+     which left the player staring at a track that visibly meets itself but
+     will not complete. This walks the final samples onto the station's own
+     start pose — position, heading and roll — over the last few metres, so
+     the join is exact rather than nearly. It only ever moves the tail of the
+     track, and only when the tail is already close enough that nobody could
+     see it move; anything further out is still the player's problem. */
+  snapHome(c) {
+    const t = c.track;
+    if (!t || t.complete) return false;
+    let e = t.closeError();
+    if (e.ok) return true;
+    /* Beyond this the gap is a real routing failure, not a rounding error,
+       and pulling the rails across it would bend the track visibly. */
+    if (!(e.d < 7.0 && e.dy < 3.0 && e.dot > .80)) return false;
+    const S = t.samples;
+    if (S.length < 8) return false;
+    const start = t.start;
+    const endF = t.endFrame();
+    /* One definition of the correction, applied through Track.applySnap so
+       the live track and a reloaded one are built by the same code. */
+    t.snap = {
+      dx: start.x - endF.p.x, dy: start.y - endF.p.y, dz: start.z - endF.p.z,
+      run: Math.min(S.length - 1, Math.max(12, Math.round(S.length * .12))),
+      yaw: start.yaw
+    };
+    t.applySnap();
+    if (!t.closeError().ok) { t.snap = null; return false; }
+    return true;
   },
 
   /* ------------------------------------------------------------------
@@ -30227,6 +30290,7 @@ const Game = {
           price: c.price, open: c.openR, name: c.name, se: c.track.stationEnd, trains: c.trains.length,
           lic: c.license || null, ag: c.ageDays || 0,
           liv: c.livery || null, trainStyle: c.trainStyle || null, stationStyle: c.stationStyle || null,
+          snap: c.track && c.track.snap ? c.track.snap : undefined,
           railFinish: c.railFinish || 'painted'
         })),
         staff: Park.staff.map(s => ({ r: s.role, x: s.x, z: s.z, l: s.level, n: s.name, shift: s.shift, zone: s.zone, morale: s.morale, td: s.tasksDone, nick: s.nickname, uc: s.uniformColor })),
@@ -30510,6 +30574,7 @@ const Game = {
         for (const p of s.pieces) c.track.addPiece(p);
         c.track.applyPower();
         c.track.stationEnd = s.se || 24;
+        if (s.snap) { c.track.snap = s.snap; c.track.applySnap(); }
         c.track.complete = s.done;
         c.name = s.name;
         /* Customization — livery, train bodywork, station style and rail
