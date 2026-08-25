@@ -1528,6 +1528,7 @@ class Vehicle {
     const [fl, fr] = axle(axleF, dLatF);
     const [rl, rr] = axle(axleR, dLatR);
     const Fz = [fl, fr, rl, rr];
+    const FzTot = fl + fr + rl + rr;
     this.load = Fz;
 
     // ---- gearbox ------------------------------------------
@@ -1577,10 +1578,21 @@ class Vehicle {
       this.slip[i] = s;
 
       // wheel spin
-      const abs = ASSIST.abs ? 1 / (1 + 11 * Math.max(0, -kappa - 0.15)) : 1;
-      if (abs < 0.99) this.absCut = 1;
-      const Tb = c.brakeMax * this.brake * abs *
-                 (i < 2 ? c.brakeBias : 1 - c.brakeBias) / 2;
+      // electronic brake distribution: brake each wheel in proportion to the
+      // load it is carrying, nudged forward, so a light rear is barely braked
+      const share = (Fz[i] / (FzTot || 1)) * (i < 2 ? 1.18 : 0.74);
+      const target = i < 2 ? 0.13 : 0.09;          // rear kept further from lock
+      const abs = ASSIST.abs
+        ? 1 / (1 + 46 * Math.max(0, -kappa - target))
+        : 1;
+      if (abs < 0.985) this.absCut = 1;
+      // never ask for more braking force than this tyre can hold
+      const latCall = Math.min(1, Math.abs(this.steer) / 0.19);
+      const budget = ASSIST.abs ? 0.94 - 0.46 * latCall : 1.35;
+      const Tgrip = c.mu * Fz[i] * this.grip * c.Rw * budget;
+      // ease off the rear brake further while the car is being turned
+      const turnEase = i < 2 ? 1 : 1 - 0.45 * Math.min(1, Math.abs(this.steer) / 0.16);
+      const Tb = Math.min(c.brakeMax * this.brake * abs * share * turnEase * 2, Tgrip);
       const Td = i < 2 ? 0 : Tdrive / 2;
       let dw = (Td - fx * c.Rw) / c.Iw;
       const wNext = this.w[i] + dw * dt;
@@ -1603,8 +1615,10 @@ class Vehicle {
       const rRef = THREE.MathUtils.clamp(
         this.vx * Math.tan(this.steer) / c.L, -cap, cap);
       const err = this.r - rRef;
-      Mz -= err * c.Izz * 5.4;
-      this.escCut = Math.min(1, Math.abs(err) * 2.6);
+      const beta = Math.abs(Math.atan2(this.vy, Math.abs(this.vx) + 2));
+      const gain = 5.4 + 4.2 * this.brake + 11 * Math.min(1, beta / 0.30);
+      Mz -= err * c.Izz * gain;
+      this.escCut = Math.min(1, Math.abs(err) * 2.6 + beta * 2);
     } else this.escCut *= Math.exp(-dt * 6);
 
     // ---- aero, gradient, banking --------------------------
