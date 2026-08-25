@@ -2036,14 +2036,28 @@ async function init(onProgress) {
 
   let car;
   try {
-    const gltf = await new GLTFLoader().loadAsync(CAR_URL, e => {
-      if (e.total) onProgress(0.35 + 0.55 * (e.loaded / e.total), 2);
-    });
+    const loader = new GLTFLoader();
+    let gltf;
+    if (CAR_URL.startsWith('data:')) {
+      // decode in place — never hand a data: URL to the network layer
+      const b64 = CAR_URL.slice(CAR_URL.indexOf(',') + 1);
+      const bin = atob(b64);
+      const buf = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
+      onProgress(0.72, 2);
+      gltf = await new Promise((res, rej) => loader.parse(buf.buffer, '', res, rej));
+    } else {
+      gltf = await loader.loadAsync(CAR_URL, e => {
+        if (e.total) onProgress(0.35 + 0.55 * (e.loaded / e.total), 2);
+      });
+    }
     car = adoptCar(gltf.scene);
     if (car.wheels.length !== 4) throw new Error('wheel nodes missing');
   } catch (err) {
-    console.warn('[URacing] car model unavailable, using placeholder —', err.message);
+    console.error('[URacing] car model failed to load:', err);
     car = placeholderCar();
+    const w = document.getElementById('hFlag');
+    if (w) { w.textContent = 'Car model failed to load'; w.classList.add('on'); }
   }
   const pivot = new THREE.Group();
   car.root.position.z = -(CAR.a - CAR.L / 2);
