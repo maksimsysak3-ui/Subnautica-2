@@ -1890,7 +1890,14 @@ function hash1(n) { const s = Math.sin(n * 127.1) * 43758.5453; return s - Math.
 const JOINTED_TEX = { mottle: 1, brick: 1, tile: 1, cobble: 1, vein: 1, grate: 1, glow: 1, grain: 1, crosswalk: 0 };
 /* Per-material surface grain, sampled at a point rather than per tile, so a
    paved square can be laid as a grid of setts each with its own tone. */
-function pathTex(pm, plank, fi, fj, c) {
+function pathTex(pm, plank, fi, fj, c, si, sj) {
+  /* fi/fj are fractional so the grain varies within a tile, but the parity
+     branches below (mortar joints, crosswalk stripes, grating perforations,
+     mown bands) are about WHICH UNIT this is, so they read integer sett
+     coordinates. Sampled fractionally they either never fired or fired at
+     random, which is why brick had no joints and a crosswalk had no stripes. */
+  const ui = si === undefined ? Math.floor(fi) : si;
+  const uj = sj === undefined ? Math.floor(fj) : sj;
           switch (pm.tex) {
       case 'fleck': { // asphalt/road: fine dark flecks, no big blotches
         const f = noise2(fi * 1.7 + 41, fj * 1.7 + 17);
@@ -1915,7 +1922,7 @@ function pathTex(pm, plank, fi, fj, c) {
       }
       case 'brick': { // brick/herringbone: strong mortar joints
         c = shade(c, .84 + noise2(fi * .8 + 12, fj * .8 + 7) * .22);
-        if ((fi + fj) % 3 === 0) c = shade(c, .58);
+        if ((ui + uj) % 3 === 0) c = shade(c, .58);
         break;
       }
       case 'tile': { // mosaic/pavers: crisp grout lines every tile
@@ -1938,7 +1945,7 @@ function pathTex(pm, plank, fi, fj, c) {
         break;
       }
       case 'mow': { // mown lawn: alternating cut-grass bands
-        c = shade(c, ((fi + fj) % 4 < 2) ? 1.14 : .80);
+        c = shade(c, ((ui + uj) % 4 < 2) ? 1.14 : .80);
         break;
       }
       case 'dirt': { // dirt trail / cracked earth: patchy clumps
@@ -1946,7 +1953,7 @@ function pathTex(pm, plank, fi, fj, c) {
         break;
       }
       case 'crosswalk': { // painted stripes on dark tarmac
-        c = ((fi + fj) % 3 === 0) ? shade(hex(0xf2f2ea), .98) : shade(hex(0x2c2c2c), .85);
+        c = ((ui + uj) % 3 === 0) ? shade(hex(0xf2f2ea), .98) : shade(hex(0x2c2c2c), .85);
         break;
       }
       case 'glow': { // neon tile: pulsing inner highlight
@@ -1954,7 +1961,7 @@ function pathTex(pm, plank, fi, fj, c) {
         break;
       }
       case 'grate': { // steel grating: regular perforation shadow
-        c = ((fi + fj) % 2 === 0) ? shade(c, 1.05) : shade(c, .52);
+        c = ((ui + uj) % 2 === 0) ? shade(c, 1.05) : shade(c, .52);
         break;
       }
       default: {
@@ -3482,7 +3489,7 @@ const WORLD = {
           // wood/brick get grain running with the plank direction.
           // Per-material handcrafted texture: each family gets a distinct
           // grain so materials read as different surfaces, not just tints.
-          c = pathTex(pm, plank, i, j, c);
+          c = pathTex(pm, plank, i, j, c, i, j);
         }
         else if (t === T_QUEUE) c = shade(queueC, chk ? 1 : .92);
         else if (t === T_PLAZA) c = ((i + j) % 4 < 2) ? plazaA : plazaB;
@@ -3540,16 +3547,20 @@ const WORLD = {
             /* running bond: every other row is offset half a sett, which is
                what stops paving reading as graph paper */
             const bond = (jointed && pathPM && (pathPM.tex === 'brick' || pathPM.tex === 'cobble')) ? (b2 % 2) * .5 * inv : 0;
-            const u0 = a2 * inv + (gap * inv) + bond, u1 = (a2 + 1) * inv - (gap * inv) + bond;
+            let u0 = a2 * inv + (gap * inv) + bond, u1 = (a2 + 1) * inv - (gap * inv) + bond;
             const v0 = b2 * inv + (gap * inv), v1 = (b2 + 1) * inv - (gap * inv);
-            if (u1 > 1.0) continue;
+            /* An offset (running-bond) row runs past the tile edge. Clip it
+               rather than dropping it, or every other row of brick ends in a
+               metre-wide hole in the paving. */
+            if (u1 > 1) u1 = 1;
+            if (u0 >= u1 - .01) continue;
             const ax0 = x0 + u0 * TILE, ax1 = x0 + u1 * TILE;
             const az0 = z0 + v0 * TILE, az1 = z0 + v1 * TILE;
             let cc = c;
-            if (pathPM) cc = pathTex(pathPM, pathPlank, i + u0 + inv * .5, j + v0 + inv * .5, c);
+            const si = i * SUB + a2, sj = j * SUB + b2;
+            if (pathPM) cc = pathTex(pathPM, pathPlank, i + u0 + inv * .5, j + v0 + inv * .5, c, si, sj);
             /* Every sett takes its own tone from its own coordinates, so a
                run of paving is never two identical squares side by side. */
-            const si = i * SUB + a2, sj = j * SUB + b2;
             cc = dim(shade(cc, .90 + hash1(si * 157.3 + sj * 311.7) * .20));
             const p00 = [ax0, hAt(u0, v0) + lift, az0], p10 = [ax1, hAt(u1, v0) + lift, az0];
             const p01 = [ax0, hAt(u0, v1) + lift, az1], p11 = [ax1, hAt(u1, v1) + lift, az1];
@@ -10591,8 +10602,10 @@ const Prefab = {
           }
           parts.push({ geo: ring, anim: (m, o, t) => M4.compose(m, 0, apex + 1.9 + Math.sin(t * .8) * .22, 0, 0, t * .35, 0, 1, 1, 1) });
         }
-        for (let k = 0; k < 4; k++)                                          // underglow along the base
-          g.box(0, .06, -hd - .35 + k * 0, W - .6, .05, .18, acc);
+        for (const sz of [-1, 1])                                            // underglow round the base
+          g.box(0, .06, sz * (hd + .35), W - .6, .05, .18, acc);
+        for (const sx of [-1, 1])
+          g.box(sx * (hw + .35), .06, 0, .18, .05, D - .6, acc);
         break;
       }
       case 'tiki': {
@@ -13596,6 +13609,10 @@ class Track {
       for (let k = from; k < this.samples.length; k++) this.samples[k].lift = true;
     }
     this.pieces.push(defId);
+    /* Any change to the piece list invalidates a stored end-of-circuit
+       snap: re-applying it to different samples would drag the tail of the
+       track several metres sideways. */
+    this.snap = null;
     if (this.powered && this.powered.length) this.applyPower();
     if (def.inversion) this.inversions += def.inversion;
     this.length = this.samples.length ? this.samples[this.samples.length - 1].d : 0;
@@ -13626,6 +13643,7 @@ class Track {
     if (this.powered && this.powered.length) this.powered = this.powered.filter(k => k < pi);
     this.length = this.samples.length ? this.samples[this.samples.length - 1].d : 0;
     this.complete = false;
+    this.snap = null;
     this.recomputeExtents();
     return true;
   }
@@ -17553,7 +17571,24 @@ class Guest extends Person {
       const e = r.entrance;
       if (this.canReach(e.x, e.z)) return r;
     }
-    return null;
+    /* If none of the three best can be reached — a closed path, a ride
+       walled off behind a build — fall back to the old exhaustive search
+       rather than returning nothing and leaving the guest standing there.
+       Rare, so it can afford to be the slow version. */
+    let fb = null, fd = 1e9;
+    for (const r of Park.attractions()) {
+      if (r.broken || r.openR === false) continue;
+      if (r === b0 || r === b1 || r === b2) continue;
+      const passCovers = this.waterPass && r.def && r.def.water;
+      if (!passCovers && r.price > this.cash) continue;
+      if (!this.willRide(r)) continue;
+      const d = dist2(this.x, this.z, r.x, r.z);
+      if (d >= fd) continue;
+      const e = r.entrance;
+      if (!this.canReach(e.x, e.z)) continue;
+      fb = r; fd = d;
+    }
+    return fb;
   }
   /* Book a place in the notional queue while walking there, and give it up
      on arrival or if we change our mind. */
@@ -23842,6 +23877,10 @@ const DayReport = {
       turned: turned && turned.balkedYesterday > 8 ? { name: turned.name, n: turned.balkedYesterday } : null,
       story
     };
+    /* How many attractions the average visitor actually got on. It is the
+       number an operator lives by, and the Flow Masters brief is scored on
+       it, so it has to be recorded rather than inferred. */
+    rep.avgRides = rep.visitors > 0 ? rep.rides / rep.visitors : 0;
     this.reports.push(rep);
     if (this.reports.length > 60) this.reports.shift();
 
@@ -25979,7 +26018,12 @@ const Goals = {
          force, but these can only be met by running it well. */
       case 'ridesPerVisit': {
         const r = DayReport.latest;
-        return r && r.avgRides ? Math.round(r.avgRides * 10) / 10 : 0;
+        if (r && r.avgRides) return Math.round(r.avgRides * 10) / 10;
+        /* Before the first day report exists, fall back to today's running
+           figure so the objective reads as something rather than zero. */
+        const atts = Park.attractions();
+        const ridden = atts.reduce((a, x) => a + (x.riddenToday || 0), 0);
+        return Demand.today > 0 ? Math.round(ridden / Demand.today * 10) / 10 : 0;
       }
       case 'shortWaits': {          // inverted: the score is how far BELOW the target the wait is
         const w = Ops.avgWaitMin();
@@ -32624,7 +32668,11 @@ Object.assign(Game, {
          sort of n people is the single most expensive thing in the frame at
          scale. Sixteen rings over the draw range is O(n) and looks the
          same. */
-      const RINGS = 16, ringSpan = range / RINGS;
+      /* `range` is a SQUARED distance, so the ring span has to come from
+         its root — dividing the squared range by the ring count put every
+         person in ring zero and threw away the nearest-first ordering the
+         instance budget depends on. */
+      const RINGS = 16, ringSpan = Math.sqrt(range) / RINGS;
       const rings = this._crowdRings || (this._crowdRings = []);
       for (let k = 0; k < RINGS; k++) { if (!rings[k]) rings[k] = []; else rings[k].length = 0; }
       /* Enough candidates to fill the instance buffer several times over,
@@ -32725,6 +32773,17 @@ Object.assign(Game, {
       if (o.kind === 'shop') {
         const pf = PF.forObject(o);
         R.draw(pf.mesh, o.matrix, glow ? { emissive: glow * .45 } : null);
+        /* Buildings have moving parts too now — a landmark's lift car and
+           sweeping beam, a livery's spinning cog, banner or smoke plume.
+           They were being built and meshed and then never drawn. */
+        if (pf.parts.length && dist2(o.x, o.z, ex, ez) < PART_D2) {
+          const tmp = M4.create(), out = M4.create();
+          for (const part of pf.parts) {
+            part.anim(tmp, o, t);
+            M4.mul(out, o.matrix, tmp);
+            R.draw(part.mesh, out);
+          }
+        }
       } else if (o.kind === 'tstation') {
         R.draw(PF.busStation(o.tier).mesh, o.matrix, glow ? { emissive: glow * .45 } : null);
       } else if (o.kind === 'tstop') {
@@ -32759,7 +32818,11 @@ Object.assign(Game, {
       for (const a of this.animScenery) {
         if (dist2(a.o.x, a.o.z, ex, ez) > PART_D2) continue;
         if (!R.visible(a.o.x, (a.o.y || 0) + 6, a.o.z, 14)) continue;
-        const m = M4.compose(M4.create(), a.o.x, a.o.y, a.o.z, 0, -a.o.rot * PI / 2, 0, 1, 1, 1);
+        /* Same transform the static mesh was baked with, or a resized or
+           turned piece leaves its moving parts behind. */
+        const sc = a.o.scl || 1;
+        const m = M4.compose(M4.create(), a.o.x, a.o.y, a.o.z, 0,
+          -a.o.rot * PI / 2 - (a.o.spin || 0), 0, sc, sc, sc);
         for (const p of a.parts) { p.anim(tmp, a.o, t); M4.mul(out, m, tmp); R.draw(p._mesh, out); }
       }
     }
