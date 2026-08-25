@@ -1192,9 +1192,9 @@ function buildTrack() {
   const N = Math.max(600, Math.round(flatLen / 2));   // ~2 m spacing
 
   // gentle, closed elevation profile — harmonics of the lap keep it seamless
-  const elev = u => 5.2 * Math.sin(2 * Math.PI * u + 0.4)
-                  + 2.6 * Math.sin(4 * Math.PI * u + 1.9)
-                  + 1.4 * Math.sin(6 * Math.PI * u + 3.1);
+  const elev = u => 3.6 * Math.sin(2 * Math.PI * u + 0.4)
+                  + 1.7 * Math.sin(4 * Math.PI * u + 1.9)
+                  + 0.8 * Math.sin(6 * Math.PI * u + 3.1);
 
   const P = [], T = [], R = [], NRM = [], K = [], S = [];
   for (let i = 0; i < N; i++) {
@@ -1406,8 +1406,8 @@ function crossBand(track, i0, rows, from, to, lift, uRep, vRep) {
 const CAR = {
   m: 798, Izz: 1050, a: 1.98, b: 1.62, tw: 1.62, hcg: 0.30,
   Rw: 0.3535, Iw: 1.15,
-  rho: 1.225, ClA: 6.0, CdA: 1.32, aeroF: 0.44,
-  mu: 1.62, rollF: 0.52,
+  rho: 1.225, ClA: 6.0, CdA: 1.32, aeroF: 0.43,
+  mu: 1.62, rollF: 0.60,
   brakeMax: 14500, brakeBias: 0.58,
   gears: [4.20, 3.30, 2.75, 2.35, 2.05, 1.82, 1.63, 1.47], final: 4.0, eff: 0.94,
   idle: 4200, redline: 15200, shiftUp: 14500, shiftDown: 9000,
@@ -1593,10 +1593,12 @@ class Vehicle {
     this.r += Mz / c.Izz * dt;
     if (Math.abs(this.vx) < 0.05 && this.throttle < 0.02) { this.vx *= 0.86; this.vy *= 0.86; }
 
-    this.yaw += this.r * dt;
-    const f = Math.sin(this.yaw), fz = Math.cos(this.yaw);
-    this.x += (this.vx * f + this.vy * fz) * dt;
-    this.z += (this.vx * fz - this.vy * f) * dt;
+    // nose-right (positive r) swings forward toward world -X, so yaw falls
+    this.yaw -= this.r * dt;
+    const sy = Math.sin(this.yaw), cy = Math.cos(this.yaw);
+    // forward (sin,0,cos), right = forward x up = (-cos,0,sin)
+    this.x += (this.vx * sy - this.vy * cy) * dt;
+    this.z += (this.vx * cy + this.vy * sy) * dt;
   }
   get speed() { return Math.hypot(this.vx, this.vy); }
 }
@@ -1645,7 +1647,7 @@ function sampleTrack(x, z, yaw) {
 
   _f.set(Math.sin(yaw), 0, Math.cos(yaw));
   _f.addScaledVector(N, -_f.dot(N)).normalize();
-  _r.set(Math.cos(yaw), 0, -Math.sin(yaw));
+  _r.set(-Math.cos(yaw), 0, Math.sin(yaw));
   _r.addScaledVector(N, -_r.dot(N)).normalize();
 
   return { i: bi, off, y, s: t.S[bi] + along, grade: _f.y, bank: _r.y, normal: N, tangent: T };
@@ -1717,7 +1719,7 @@ function buildScene(canvas) {
   const gm = new THREE.Mesh(
     new THREE.PlaneGeometry(9000, 9000),
     new THREE.MeshStandardMaterial({ color: 0x232a24, roughness: 0.97, metalness: 0 }));
-  gm.rotation.x = -Math.PI / 2; gm.position.y = -1.2; gm.receiveShadow = true;
+  gm.rotation.x = -Math.PI / 2; gm.position.y = -48; gm.receiveShadow = true;
   scene.add(gm);
 
   /* ---- asphalt ---- */
@@ -1740,12 +1742,17 @@ function buildScene(canvas) {
     normalMap: maps.normalMap, normalScale: new THREE.Vector2(0.35, 0.35)
   });
   for (const side of [-1, 1]) {
-    const g = ribbon(track,
-      side * (ROAD_W / 2 + KERB_W - 0.02), side * (ROAD_W / 2 + 26),
-      (j, k) => k ? -1.9 : 0, 9, null, 9);
-    const m = new THREE.Mesh(g, vergeMat);
-    m.receiveShadow = true;
-    scene.add(m);
+    // near verge: flat run-off just off the racing surface
+    const near = new THREE.Mesh(ribbon(track,
+      side * (ROAD_W / 2 + KERB_W - 0.02), side * (ROAD_W / 2 + 34),
+      (j, k) => k ? -1.4 : 0, 9, null, 9), vergeMat);
+    near.receiveShadow = true;
+    scene.add(near);
+    // outer terrain: falls away far enough to hide the ground plane
+    const far = new THREE.Mesh(ribbon(track,
+      side * (ROAD_W / 2 + 33.8), side * (ROAD_W / 2 + 300),
+      (j, k) => k ? -26 : -1.4, 34, null, 34), vergeMat);
+    scene.add(far);
   }
 
   /* ---- painted edge lines ---- */
