@@ -1499,9 +1499,12 @@ class Vehicle {
     this.brake += (input.brake - this.brake) * Math.min(1, dt * 18);
 
     // ---- surface ------------------------------------------
-    this.offTrack = Math.abs(sample.off) > ROAD_W / 2 + 0.3;
-    const onKerb = !this.offTrack && Math.abs(sample.off) > ROAD_W / 2 - 1.1;
-    this.grip = this.offTrack ? 0.52 : (onKerb ? 0.86 : 1);
+    const edge = Math.abs(sample.off) - ROAD_W / 2;
+    this.offTrack = edge > 0.3;
+    // 1.0 on the road, easing to 0.82 over the first few metres of run-off
+    this.grip = edge <= -1.1 ? 1
+      : edge <= 0.3 ? 1 - 0.06 * ((edge + 1.1) / 1.4)
+      : 0.94 - 0.12 * Math.min(1, (edge - 0.3) / 6);
 
     // ---- vertical loads -----------------------------------
     const q = 0.5 * c.rho * v * v;
@@ -1552,11 +1555,11 @@ class Vehicle {
       const dsteer = i < 2 ? this.steer : 0;
       const vwx = this.vx - this.r * t;
       const vwy = this.vy + this.r * l;
-      const ref = Math.max(Math.abs(vwx), 2.2);
+      const ref = Math.max(Math.abs(vwx), 7.0);
 
       const kappa = (this.w[i] * c.Rw - vwx) / ref;
       this.kappa[i] = kappa;
-      const alphaRaw = Math.atan2(vwy, Math.abs(vwx) + 0.6) - dsteer;
+      const alphaRaw = Math.atan2(vwy, Math.abs(vwx) + 3.2) - dsteer;
       const tau = 0.55 / Math.max(Math.abs(vwx), 4);       // 0.55 m relaxation
       this.alphaLag[i] += (alphaRaw - this.alphaLag[i]) * Math.min(1, dt / tau);
       const alpha = this.alphaLag[i];
@@ -1605,10 +1608,11 @@ class Vehicle {
     } else this.escCut *= Math.exp(-dt * 6);
 
     // ---- aero, gradient, banking --------------------------
-    Fx -= drag * Math.sign(this.vx || 1);
+    const vSign = Math.abs(this.vx) < 0.4 ? 0 : Math.sign(this.vx);
+    Fx -= drag * vSign;
     Fx -= c.m * G * sample.grade;
     Fy -= c.m * G * sample.bank;
-    Fx -= 0.014 * (Wt + down) * Math.sign(this.vx || 1);   // rolling resistance
+    Fx -= 0.014 * (Wt + down) * vSign;                     // rolling resistance
 
     // ---- rigid body ---------------------------------------
     const axb = Fx / c.m, ayb = Fy / c.m;
@@ -1617,7 +1621,11 @@ class Vehicle {
     this.vx += (axb + this.r * this.vy) * dt;
     this.vy += (ayb - this.r * this.vx) * dt;
     this.r += Mz / c.Izz * dt;
-    if (Math.abs(this.vx) < 0.05 && this.throttle < 0.02) { this.vx *= 0.86; this.vy *= 0.86; }
+    if (Math.abs(this.vx) < 1.2) {
+      this.vy *= Math.exp(-dt * 9);
+      this.r *= Math.exp(-dt * 5);
+      if (this.throttle < 0.02 && this.brake < 0.02) this.vx *= Math.exp(-dt * 3);
+    }
 
     // nose-right (positive r) swings forward toward world -X, so yaw falls
     this.yaw -= this.r * dt;
