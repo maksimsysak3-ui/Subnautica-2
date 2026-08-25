@@ -24796,6 +24796,93 @@ const SCENARIOS = [
     ]
   },
   {
+    id: 'grandtour', name: 'The Grand Tour', tag: 'Medium',
+    blurb: 'The plot is enormous and the walk from one end to the other is brutal. Build the transport before you build the rides.',
+    money: 160000, fee: 14, level: 4, days: 0,
+    goals: [
+      { k: 'transitRiders', target: 4000, label: 'Riders carried by transport' },
+      { k: 'attendance', target: 1000, label: 'Visitors in one day' },
+      { k: 'happy', target: 74, label: 'Average happiness (%)' },
+      { k: 'shortWaits', target: 42, label: 'Queue headroom (60 minus average wait)' },
+    ]
+  },
+  {
+    id: 'shoestring', name: 'Shoestring', tag: 'Hard',
+    blurb: 'Twenty thousand and a field. No loans, no landmarks, no shortcuts \u2014 make it pay for itself before it pays you.',
+    money: 20000, fee: 8, level: 2, days: 0,
+    goals: [
+      { k: 'cash', target: 220000, label: 'Cash in the bank ($)' },
+      { k: 'attendance', target: 700, label: 'Visitors in one day' },
+      { k: 'rating', target: 2.6, label: 'Park rating (stars)' },
+    ]
+  },
+  {
+    id: 'nightowl', name: 'Night Owl', tag: 'Medium',
+    blurb: 'This park trades late. Lit rides, lamp-lit paths and a crowd that arrives when everyone else is going home.',
+    money: 145000, fee: 14, level: 4, days: 0,
+    goals: [
+      { k: 'beauty', target: 1100, label: 'Park beauty score' },
+      { k: 'peak', target: 520, label: 'Guests in the park at once' },
+      { k: 'happy', target: 76, label: 'Average happiness (%)' },
+      { k: 'profit', target: 260000, label: 'Total earnings ($)' },
+    ]
+  },
+  {
+    id: 'resort', name: 'Full Board', tag: 'Hard',
+    blurb: 'A destination resort, not a day out. People should arrive on Friday and leave on Sunday.',
+    money: 320000, fee: 22, level: 5, days: 0,
+    goals: [
+      { k: 'hotelRooms', target: 180, label: 'Hotel rooms built' },
+      { k: 'attendance', target: 1800, label: 'Visitors in one day' },
+      { k: 'rating', target: 3.6, label: 'Park rating (stars)' },
+      { k: 'profit', target: 700000, label: 'Total earnings ($)' },
+    ]
+  },
+  {
+    id: 'themepark', name: 'Six Lands', tag: 'Hard',
+    blurb: 'One park, six worlds. Every corner should look like it was designed by someone who had never seen the others.',
+    money: 260000, fee: 18, level: 5, days: 0,
+    goals: [
+      { k: 'themedLands', target: 6, label: 'Distinct building liveries in use' },
+      { k: 'scenery', target: 400, label: 'Scenery pieces placed' },
+      { k: 'beauty', target: 2200, label: 'Park beauty score' },
+      { k: 'attendance', target: 1500, label: 'Visitors in one day' },
+    ]
+  },
+  {
+    id: 'engineered', name: 'Engineered to Last', tag: 'Medium',
+    blurb: 'Anyone can open a ride. Keep forty of them running sweetly, all season, without a single day of chaos.',
+    money: 190000, fee: 16, level: 4, days: 0,
+    goals: [
+      { k: 'reliability', target: 88, label: 'Average ride condition (%)' },
+      { k: 'staff', target: 22, label: 'Staff on the payroll' },
+      { k: 'rides', target: 14, label: 'Rides open' },
+      { k: 'days', target: 40, label: 'Days operated' },
+    ]
+  },
+  {
+    id: 'flowmasters', name: 'Flow Masters', tag: 'Hard',
+    blurb: 'Two thousand people a day and nobody waits half an hour for anything. Throughput is the whole brief.',
+    money: 240000, fee: 17, level: 5, days: 0,
+    goals: [
+      { k: 'attendance', target: 2000, label: 'Visitors in one day' },
+      { k: 'shortWaits', target: 48, label: 'Queue headroom (60 minus average wait)' },
+      { k: 'ridesPerVisit', target: 6.5, label: 'Attractions per visitor' },
+      { k: 'happy', target: 80, label: 'Average happiness (%)' },
+    ]
+  },
+  {
+    id: 'monument', name: 'Monuments', tag: 'Expert',
+    blurb: 'A park people photograph. Build the skyline first and let the rides fill in around it.',
+    money: 400000, fee: 24, level: 5, days: 0,
+    goals: [
+      { k: 'landmarks', target: 4, label: 'Prestige landmarks built' },
+      { k: 'beauty', target: 3000, label: 'Park beauty score' },
+      { k: 'rating', target: 4.2, label: 'Park rating (stars)' },
+      { k: 'attendance', target: 2200, label: 'Visitors in one day' },
+    ]
+  },
+  {
     id: 'marathon', name: 'The Marathon', tag: 'Endless',
     blurb: 'No quick win here — just keep the park thriving, season after season, and see how far you can take it.',
     money: 200000, fee: 15, level: 5, days: 0,
@@ -24827,6 +24914,16 @@ const GOAL_KINDS = [
   { k: 'profit', label: 'Total earnings ($)', def: 100000 },
   { k: 'beauty', label: 'Park beauty score', def: 500 },
   { k: 'days', label: 'Days operated', def: 30 },
+  { k: 'ridesPerVisit', label: 'Attractions per visitor', def: 5, step: .1 },
+  { k: 'shortWaits', label: 'Queue headroom (60 minus average wait)', def: 45 },
+  { k: 'reliability', label: 'Average ride condition (%)', def: 80 },
+  { k: 'staff', label: 'Staff on the payroll', def: 12 },
+  { k: 'hotelRooms', label: 'Hotel rooms built', def: 100 },
+  { k: 'transitRiders', label: 'Riders carried by transport', def: 2000 },
+  { k: 'scenery', label: 'Scenery pieces placed', def: 200 },
+  { k: 'cash', label: 'Cash in the bank ($)', def: 250000 },
+  { k: 'landmarks', label: 'Prestige landmarks built', def: 2 },
+  { k: 'themedLands', label: 'Distinct building liveries in use', def: 4 },
 ];
 
 /* ---------- campaign builder ----------
@@ -25878,6 +25975,40 @@ const Goals = {
       }
       case 'beauty': return Math.round(Park.beauty);
       case 'days': return Park.day || 0;
+      /* Operational goals: a park can hit an attendance number by brute
+         force, but these can only be met by running it well. */
+      case 'ridesPerVisit': {
+        const r = DayReport.latest;
+        return r && r.avgRides ? Math.round(r.avgRides * 10) / 10 : 0;
+      }
+      case 'shortWaits': {          // inverted: the score is how far BELOW the target the wait is
+        const w = Ops.avgWaitMin();
+        return w > 0 ? Math.max(0, Math.round(60 - w)) : 60;
+      }
+      case 'reliability': {
+        const list = Park.objects.filter(o => o.kind === 'ride').concat(Park.coasters);
+        if (!list.length) return 0;
+        const avg = list.reduce((a, o) => a + clamp((o.reliability || .9) - (o.wear || 0), 0, 1), 0) / list.length;
+        return Math.round(avg * 100);
+      }
+      case 'staff': return Park.staff.length;
+      case 'hotelRooms': return Park.objects.filter(o => o.kind === 'shop' && o.def.need === 'hotel')
+        .reduce((a, o) => a + (o.def.rooms || 0), 0);
+      case 'transitRiders': {
+        const T = typeof Transit !== 'undefined' ? Transit : null;
+        if (!T) return 0;
+        return (T.routes || []).reduce((a, r) => a + (r.riders || 0), 0) + (T.lines || []).reduce((a, l) => a + (l.riders || 0), 0);
+      }
+      case 'scenery': return Park.objects.filter(o => o.kind === 'scenery').length;
+      case 'cash': return Math.round(Park.money);
+      case 'landmarks': return Park.objects.filter(o => o.kind === 'shop' && o.def.landmark).length;
+      case 'themedLands': {
+        /* How many distinct building liveries are in use across the park —
+           a park with five themed lands has actually been themed. */
+        const set = new Set();
+        for (const o of Park.objects) if (o.livery && o.livery.theme) set.add(o.livery.theme);
+        return set.size;
+      }
     }
     return 0;
   },
