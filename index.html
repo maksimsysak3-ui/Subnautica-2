@@ -4440,6 +4440,53 @@ const CAT = {
   ],
   /* ---------------- Scenery ---------------- */
   scenery: [
+    /* ---- nature: rocks in every size and stone, and the planting that goes
+       with them. A park needs boulders it can build a landscape out of, not
+       one generic grey lump. ---- */
+    { id: 'rockPebbles', name: 'Pebble Scatter', cost: 30, up: .1, w: 1, d: 1, kind: 'rockPebbles', beauty: 2 },
+    { id: 'rockSmallGranite', name: 'Granite Boulder', cost: 60, up: .2, w: 1, d: 1, kind: 'rockSmallGranite', beauty: 4 },
+    { id: 'rockSmallSandstone', name: 'Sandstone Boulder', cost: 60, up: .2, w: 1, d: 1, kind: 'rockSmallSandstone', beauty: 4 },
+    { id: 'rockSmallSlate', name: 'Slate Boulder', cost: 60, up: .2, w: 1, d: 1, kind: 'rockSmallSlate', beauty: 4 },
+    { id: 'rockSmallBasalt', name: 'Basalt Boulder', cost: 65, up: .2, w: 1, d: 1, kind: 'rockSmallBasalt', beauty: 4 },
+    { id: 'rockMedGranite', name: 'Granite Outcrop', cost: 180, up: .5, w: 2, d: 2, kind: 'rockMedGranite', beauty: 12 },
+    { id: 'rockMedSandstone', name: 'Sandstone Outcrop', cost: 180, up: .5, w: 2, d: 2, kind: 'rockMedSandstone', beauty: 12 },
+    { id: 'rockMedLimestone', name: 'Limestone Outcrop', cost: 190, up: .5, w: 2, d: 2, kind: 'rockMedLimestone', beauty: 13 },
+    { id: 'rockMossy', name: 'Mossy Rock Cluster', cost: 210, up: .6, w: 2, d: 2, kind: 'rockMossy', beauty: 15 },
+    { id: 'rockBigGranite', name: 'Granite Crag', cost: 460, up: 1.2, w: 3, d: 3, kind: 'rockBigGranite', beauty: 30 },
+    { id: 'rockBigRedRock', name: 'Red Rock Mesa', cost: 480, up: 1.2, w: 3, d: 3, kind: 'rockBigRedRock', beauty: 32 },
+    { id: 'rockBasaltColumns', name: 'Basalt Columns', cost: 520, up: 1.3, w: 3, d: 3, kind: 'rockBasaltColumns', beauty: 34 },
+    { id: 'rockLimestoneKarst', name: 'Limestone Karst', cost: 540, up: 1.4, w: 3, d: 3, kind: 'rockLimestoneKarst', beauty: 36 },
+    { id: 'rockIceBlock', name: 'Glacier Ice', cost: 500, up: 1.3, w: 2, d: 2, kind: 'rockIceBlock', beauty: 28 },
+    { id: 'rockCrystal', name: 'Crystal Cluster', cost: 620, up: 1.5, w: 2, d: 2, kind: 'rockCrystal', beauty: 40 },
+    { id: 'rockCliff', name: 'Cliff Face', cost: 780, up: 2.0, w: 4, d: 2, kind: 'rockCliff', beauty: 48 },
+    { id: 'rockCave', name: 'Cave Mouth', cost: 860, up: 2.2, w: 3, d: 3, kind: 'rockCave', beauty: 52 },
+    { id: 'rockStack', name: 'Balanced Rock Stack', cost: 340, up: .9, w: 2, d: 2, kind: 'rockStack', beauty: 22 },
+    { id: 'rockScree', name: 'Scree Slope', cost: 260, up: .7, w: 3, d: 2, kind: 'rockScree', beauty: 16 },
+    { id: 'rockDriedRiver', name: 'Dry Riverbed', cost: 300, up: .8, w: 4, d: 2, kind: 'rockDriedRiver', beauty: 18 },
+    { id: 'logFallen', name: 'Fallen Log', cost: 90, up: .3, w: 2, d: 1, kind: 'logFallen', beauty: 6 },
+    { id: 'stumpOld', name: 'Old Stump', cost: 70, up: .2, w: 1, d: 1, kind: 'stumpOld', beauty: 4 },
+    { id: 'grassTussock', name: 'Grass Tussocks', cost: 40, up: .2, w: 1, d: 1, kind: 'grassTussock', beauty: 3 },
+    { id: 'fernBed', name: 'Fern Bed', cost: 80, up: .3, w: 2, d: 1, kind: 'fernBed', beauty: 7 },
+    { id: 'reedBed', name: 'Reed Bed', cost: 90, up: .3, w: 2, d: 2, kind: 'reedBed', beauty: 8 },
+    { id: 'wildflowerMeadow', name: 'Wildflower Meadow', cost: 130, up: .4, w: 3, d: 2, kind: 'wildflowerMeadow', beauty: 14 },
+    { id: 'treeBirch', name: 'Silver Birch', cost: 95, up: .3, w: 1, d: 1, kind: 'treeBirch', beauty: 8 },
+    { id: 'treeWillow', name: 'Weeping Willow', cost: 160, up: .5, w: 2, d: 2, kind: 'treeWillow', beauty: 14 },
+    { id: 'treeCypress', name: 'Cypress', cost: 110, up: .3, w: 1, d: 1, kind: 'treeCypress', beauty: 9 },
+    { id: 'treeMaple', name: 'Japanese Maple', cost: 170, up: .5, w: 1, d: 1, kind: 'treeMaple', beauty: 13 },
+    { id: 'treeDead', name: 'Dead Tree', cost: 70, up: .2, w: 1, d: 1, kind: 'treeDead', beauty: 3 },
+    { id: 'treeCopse', name: 'Mixed Copse', cost: 420, up: 1.1, w: 3, d: 3, kind: 'treeCopse', beauty: 34 },
+    /* ---- real buildings, as scenery: the streetscape a themed land needs
+       between its rides. None of them trade; they are architecture. ---- */
+    { id: 'bldCottage', name: 'Stone Cottage', cost: 900, up: 2.5, w: 2, d: 2, kind: 'bldCottage', beauty: 34 },
+    { id: 'bldTownhouse', name: 'Town House', cost: 1500, up: 4, w: 2, d: 2, kind: 'bldTownhouse', beauty: 46 },
+    { id: 'bldShopRow', name: 'Shop Row Facade', cost: 2400, up: 6, w: 4, d: 2, kind: 'bldShopRow', beauty: 68 },
+    { id: 'bldChurch', name: 'Village Church', cost: 3200, up: 8, w: 3, d: 4, kind: 'bldChurch', beauty: 92 },
+    { id: 'bldBarn', name: 'Timber Barn', cost: 1400, up: 4, w: 3, d: 3, kind: 'bldBarn', beauty: 40 },
+    { id: 'bldWatermill', name: 'Watermill', cost: 2600, up: 7, w: 3, d: 3, kind: 'bldWatermill', beauty: 74 },
+    { id: 'bldClocktower', name: 'Market Clocktower', cost: 2900, up: 7, w: 2, d: 2, kind: 'bldClocktower', beauty: 78 },
+    { id: 'bldStation', name: 'Branch Line Station', cost: 3000, up: 8, w: 4, d: 2, kind: 'bldStation', beauty: 80 },
+    { id: 'bldLighthouseCottage', name: 'Harbour Cottages', cost: 2200, up: 6, w: 4, d: 2, kind: 'bldHarbourCottages', beauty: 62 },
+    { id: 'bldWarehouse', name: 'Brick Warehouse', cost: 2000, up: 5, w: 3, d: 3, kind: 'bldWarehouse', beauty: 54 },
     { id: 'bench', name: 'Bench', cost: 60, up: .4, w: 1, d: 1, kind: 'bench', beauty: 3 },
     { id: 'bin', name: 'Litter Bin', cost: 50, up: .4, w: 1, d: 1, kind: 'bin', beauty: 1 },
     { id: 'lamp', name: 'Lamp Post', cost: 120, up: .8, w: 1, d: 1, kind: 'lamp', beauty: 4, light: true },
@@ -6417,6 +6464,768 @@ const Prefab = {
     const parts = [];
     const rr = (() => { let s = seed * 7919 + 13; return () => { s = (s * 1103515245 + 12345) & 0x7fffffff; return s / 0x7fffffff; }; })();
     switch (kind) {
+      /* ================= NATURE: ROCK, STONE, WOOD, WATER =================
+         Stone is a material, not a colour: granite is speckled and blocky,
+         sandstone is bedded and rounded, slate splits into plates, basalt
+         breaks into columns, limestone weathers into fluted karst. Each one
+         is built differently. */
+      case 'rockPebbles': {
+        for (let k = 0; k < 22; k++) {
+          const a = k / 22 * TAU * 2.7, r = .3 + (k % 7) * .24;
+          const rr2 = .13 + ((k * 5) % 4) * .07;
+          g.sphere(Math.cos(a) * r, .02 + rr2 * .3, Math.sin(a) * r, rr2, 5,
+            shade(hex([0x9a9184, 0xb0a795, 0x827a6d, 0xc0b6a1][k % 4]), .92 + (k % 3) * .1));
+        }
+        for (let k = 0; k < 5; k++) g.sphere(Math.cos(k * 2.1) * 1.3, .04, Math.sin(k * 2.1) * 1.3, .1, 4, hex(0x6f8f4a));
+        break;
+      }
+      case 'rockSmallGranite': case 'rockSmallSandstone': case 'rockSmallSlate': case 'rockSmallBasalt': {
+        const stone = { rockSmallGranite: 0x93908c, rockSmallSandstone: 0xc9ab7c,
+          rockSmallSlate: 0x707680, rockSmallBasalt: 0x62626a }[kind];
+        if (kind === 'rockSmallSlate') {                     // slate splits into flat plates
+          for (let k = 0; k < 7; k++)
+            g.cyl(Math.sin(k * 1.7) * .18, .04 + k * .17, Math.cos(k * 1.7) * .18, 1.15 - k * .13, .17, 7,
+              shade(hex(stone), .9 + (k % 2) * .18), .96);
+        } else if (kind === 'rockSmallBasalt') {             // basalt breaks into columns
+          for (let k = 0; k < 6; k++) {
+            const a = k / 6 * TAU;
+            g.cyl(Math.cos(a) * .55, 0, Math.sin(a) * .55, .34, .9 + (k % 3) * .55, 6, shade(hex(stone), .92 + (k % 3) * .12));
+          }
+          g.cyl(0, 0, 0, .42, 1.5, 6, shade(hex(stone), 1.08));
+        } else {
+          Prefab.rock(g, 0, 0, 0, 1.15, seed + 3, hex(stone));
+          if (kind === 'rockSmallSandstone')
+            for (let k = 0; k < 4; k++) g.cyl(0, .1 + k * .26, 0, 1.12 - k * .12, .10, 8, shade(hex(stone), .86));
+        }
+        break;
+      }
+      case 'rockMedGranite': case 'rockMedSandstone': case 'rockMedLimestone': {
+        const stone = { rockMedGranite: 0x8f8c88, rockMedSandstone: 0xc4a172, rockMedLimestone: 0xcfc6ac }[kind];
+        const n2 = 5;
+        for (let k = 0; k < n2; k++) {
+          const a = k / n2 * TAU + .4, r = 1.0 + (k % 2) * .5;
+          Prefab.rock(g, Math.cos(a) * r, 0, Math.sin(a) * r, .9 + ((k * 3) % 4) * .28, seed * 7 + k, hex(stone));
+        }
+        Prefab.rock(g, 0, .5, 0, 1.5, seed * 7 + 11, shade(hex(stone), 1.06));
+        if (kind === 'rockMedSandstone')                     // bedding planes cut across the lot
+          for (let k = 0; k < 5; k++) g.cyl(0, .25 + k * .42, 0, 2.5 - k * .18, .11, 10, shade(hex(stone), .84));
+        if (kind === 'rockMedLimestone')                     // fluted, water-cut edges
+          for (let k = 0; k < 12; k++) { const a = k / 12 * TAU;
+            g.cyl(Math.cos(a) * 1.9, .1, Math.sin(a) * 1.9, .16, 1.5 + (k % 3) * .4, 6, shade(hex(stone), .9 + (k % 2) * .16)); }
+        for (let k = 0; k < 4; k++) g.sphere(Math.cos(k * 1.9) * 2.2, .1, Math.sin(k * 1.9) * 2.2, .3, 5, hex(0x5f8f4d));
+        break;
+      }
+      case 'rockMossy': {
+        for (let k = 0; k < 5; k++) {
+          const a = k / 5 * TAU + .3, r = .9 + (k % 2) * .6;
+          Prefab.rock(g, Math.cos(a) * r, 0, Math.sin(a) * r, .95 + (k % 3) * .22, seed * 5 + k, hex(0x7f8478));
+        }
+        Prefab.rock(g, 0, .4, 0, 1.3, seed * 5 + 9, hex(0x8b9083));
+        for (let k = 0; k < 14; k++) {                        // moss caps and ferns in the cracks
+          const a = k / 14 * TAU * 1.6, r = .5 + (k % 5) * .38;
+          g.sphere(Math.cos(a) * r, .55 + (k % 3) * .32, Math.sin(a) * r, .38 - (k % 3) * .07, 5,
+            shade(hex(0x4e8a45), .92 + (k % 4) * .1));
+        }
+        for (let k = 0; k < 5; k++) {
+          const a = k / 5 * TAU + .8;
+          for (let q = 0; q < 5; q++) {
+            const b2 = q / 5 * TAU;
+            g.beam(Math.cos(a) * 1.9, .3, Math.sin(a) * 1.9,
+              Math.cos(a) * 1.9 + Math.cos(b2) * .9, 1.0, Math.sin(a) * 1.9 + Math.sin(b2) * .9, .34, .06, hex(0x3f7a3a));
+          }
+        }
+        break;
+      }
+      case 'rockBigGranite': {
+        for (let k = 0; k < 7; k++) {
+          const a = k / 7 * TAU, r = 1.6 + (k % 3) * .6;
+          Prefab.rock(g, Math.cos(a) * r, 0, Math.sin(a) * r, 1.2 + ((k * 5) % 4) * .3, seed * 11 + k, hex(0x8c8985));
+        }
+        for (let k = 0; k < 3; k++)
+          Prefab.rock(g, Math.sin(k * 2.2) * .8, 1.1 + k * 1.2, Math.cos(k * 2.2) * .8, 1.9 - k * .35, seed * 11 + 20 + k, hex(0x969390));
+        for (let k = 0; k < 5; k++)                            // quartz seams
+          g.box(Math.cos(k * 1.4) * 1.4, 1.2 + (k % 3) * .9, Math.sin(k * 1.4) * 1.4, 1.7, .16, .3, hex(0xe0dcd2));
+        for (let k = 0; k < 4; k++)
+          g.mergeM(Prefab.scenery('pine', k + 1).base, M4.compose(M4.create(), Math.cos(k * 1.6) * 3.4, .1, Math.sin(k * 1.6) * 3.4, 0, k, 0, .55, .7, .55));
+        break;
+      }
+      case 'rockBigRedRock': {
+        for (let lvl = 0; lvl < 4; lvl++) {                    // wind-cut mesa, bedded in layers
+          const r = 3.2 - lvl * .55, y = lvl * 1.5;
+          g.cyl(0, y, 0, r, 1.5, 9, shade(hex([0xb5703f, 0xc98550, 0xa9663a, 0xd69a63][lvl % 4]), 1), .92);
+          g.cyl(0, y + 1.4, 0, r + .16, .2, 9, shade(hex(0x9c5c32), 1.05));
+        }
+        for (let k = 0; k < 6; k++) {
+          const a = k / 6 * TAU;
+          Prefab.rock(g, Math.cos(a) * 3.4, 0, Math.sin(a) * 3.4, .8 + (k % 3) * .25, seed * 3 + k, hex(0xb5703f));
+        }
+        for (let k = 0; k < 3; k++) {                           // a lone desert bush on top
+          const a = k / 3 * TAU;
+          g.sphere(Math.cos(a) * .6, 6.1, Math.sin(a) * .6, .42, 5, hex(0x6f8f4a));
+        }
+        break;
+      }
+      case 'rockBasaltColumns': {
+        for (let k = 0; k < 22; k++) {                          // hexagonal columns, all different heights
+          const a = k / 22 * TAU * 1.7, r = .4 + (k % 6) * .48;
+          const h = 1.6 + ((k * 7) % 9) * .62;
+          g.cyl(Math.cos(a) * r, 0, Math.sin(a) * r, .42 + (k % 3) * .07, h, 6,
+            shade(hex(0x6a6a72), .90 + (k % 4) * .14));
+          g.cyl(Math.cos(a) * r, h, Math.sin(a) * r, .44 + (k % 3) * .07, .10, 6, shade(hex(0x82828c), 1.10));
+        }
+        for (let k = 0; k < 5; k++) g.sphere(Math.cos(k * 1.5) * 3.0, .1, Math.sin(k * 1.5) * 3.0, .34, 5, hex(0x4e7a44));
+        break;
+      }
+      case 'rockLimestoneKarst': {
+        for (let k = 0; k < 5; k++) {
+          const a = k / 5 * TAU, r = 1.1 + (k % 2) * .7;
+          const h = 3.4 + (k % 3) * 1.5;
+          g.cyl(Math.cos(a) * r, 0, Math.sin(a) * r, .95 - (k % 3) * .12, h, 8, hex(0xcfc6ac), .52);
+          for (let q = 0; q < 8; q++) {                        // rain-cut flutes
+            const b2 = q / 8 * TAU;
+            g.beam(Math.cos(a) * r + Math.cos(b2) * .9, .1, Math.sin(a) * r + Math.sin(b2) * .9,
+              Math.cos(a) * r + Math.cos(b2) * .45, h - .3, Math.sin(a) * r + Math.sin(b2) * .45, .17, .17, shade(hex(0xb8ae94), .95));
+          }
+          g.sphere(Math.cos(a) * r, h, Math.sin(a) * r, .5, 6, hex(0x5f8f4d));
+        }
+        for (let k = 0; k < 6; k++) Prefab.rock(g, Math.cos(k * 1.05) * 2.9, 0, Math.sin(k * 1.05) * 2.9, .7, seed + k, hex(0xc6bda3));
+        break;
+      }
+      case 'rockIceBlock': {
+        for (let k = 0; k < 6; k++) {
+          const a = k / 6 * TAU;
+          g.cyl(Math.cos(a) * .9, 0, Math.sin(a) * .9, .95 + (k % 3) * .25, 1.2 + (k % 4) * .8, 6,
+            shade(hex(0xd8ecf6), .94 + (k % 3) * .09), .72);
+        }
+        g.cyl(0, 1.4, 0, 1.1, 1.6, 6, hex(0xeaf6fc), .6);
+        for (let k = 0; k < 7; k++)
+          g.cone(Math.cos(k * 1.3) * 1.5, 1.0 + (k % 3) * .6, Math.sin(k * 1.3) * 1.5, .22, 1.4 + (k % 3) * .7, 5, hex(0xc4e4f2));
+        g.cyl(0, -.05, 0, 2.9, .16, 14, hex(0xf2fbff));
+        break;
+      }
+      case 'rockCrystal': {
+        Prefab.rock(g, 0, 0, 0, 1.5, seed + 2, hex(0x6b6470));
+        for (let k = 0; k < 11; k++) {
+          const a = k / 11 * TAU * 1.3, r = .3 + (k % 4) * .38;
+          const h = .9 + ((k * 5) % 5) * .62;
+          const tilt = ((k % 3) - 1) * .3;
+          const cx = Math.cos(a) * r, cz = Math.sin(a) * r;
+          const cc = hex([0x9de0ff, 0xc9a2ff, 0x7ee0d0, 0xa8c8ff][k % 4]);
+          g.beam(cx, .4, cz, cx + tilt, .4 + h, cz + tilt * .6, .30 + (k % 3) * .07, .30 + (k % 3) * .07, cc);
+          g.cone(cx + tilt, .4 + h, cz + tilt * .6, .22 + (k % 3) * .05, .45, 6, shade(cc, 1.3));
+        }
+        break;
+      }
+      case 'rockCliff': {
+        const W2 = 4 * TILE, H = 6.5;
+        for (let k = 0; k < 11; k++) {
+          const x = -W2 / 2 + (k + .5) * (W2 / 11);
+          const h = H - Math.abs(k - 5) * .42 + ((k * 7) % 3) * .5;
+          g.box(x, 0, ((k * 5) % 3 - 1) * .22, W2 / 11 + .14, h, 2.6, shade(hex(0x8f8a80), .9 + (k % 4) * .09));
+          for (let q = 0; q < 5; q++)                            // strata
+            g.box(x, .5 + q * (h / 5), ((k * 5) % 3 - 1) * .22, W2 / 11 + .22, .16, 2.75, shade(hex(0x7a756c), .95 + (q % 2) * .16));
+          if (k % 3 === 0) g.sphere(x, h, ((k * 5) % 3 - 1) * .22, .55, 5, hex(0x5f8f4d));
+        }
+        for (let k = 0; k < 8; k++)                              // talus at the foot
+          Prefab.rock(g, -W2 / 2 + k * (W2 / 8) + .5, 0, -1.9, .55 + (k % 3) * .2, seed + k, hex(0x8f8a80));
+        break;
+      }
+      case 'rockCave': {
+        for (let k = 0; k < 12; k++) {                           // a horseshoe of rock round a dark mouth
+          const a = -PI * .15 + (k / 11) * PI * 1.3;
+          const r = 3.0;
+          Prefab.rock(g, Math.cos(a) * r, 0, Math.sin(a) * r + 1.0, 1.2 + (k % 4) * .3, seed * 3 + k, hex(0x7f7a70));
+        }
+        for (let k = 0; k < 6; k++)
+          Prefab.rock(g, Math.sin(k * 1.9) * 1.4, 1.6 + k * .55, Math.cos(k * 1.9) * 1.0 + 1.4, 1.5 - k * .15, seed * 3 + 30 + k, hex(0x8b867c));
+        g.box(0, .05, -1.1, 3.0, 3.2, 1.6, hex(0x171a1e));       // the dark mouth
+        for (let k = 0; k <= 8; k++) {                           // arched head
+          const a = k / 8 * PI;
+          g.box(Math.cos(a) * 1.6, 3.2 + Math.sin(a) * .9, -1.1, .7, .7, 1.7, shade(hex(0x6f6a62), .95));
+        }
+        for (let k = 0; k < 5; k++) g.cone(-1.1 + k * .55, 3.1, -1.75, .13, -(.4 + (k % 3) * .35), 5, hex(0xa9a49a));  // stalactites
+        for (let k = 0; k < 3; k++) g.cone(-.7 + k * .7, .05, -1.85, .16, .5 + (k % 2) * .3, 5, hex(0xa9a49a));
+        break;
+      }
+      case 'rockStack': {
+        let y = 0;
+        for (let k = 0; k < 5; k++) {
+          const r = 1.5 - k * .22;
+          Prefab.rock(g, Math.sin(k * 2.4) * .18, y, Math.cos(k * 2.4) * .18, r, seed * 9 + k, hex([0x9a9184, 0x827a6d, 0xb0a795][k % 3]));
+          y += r * 1.05;
+        }
+        for (let k = 0; k < 5; k++) Prefab.rock(g, Math.cos(k * 1.3) * 2.4, 0, Math.sin(k * 1.3) * 2.4, .45, seed + k, hex(0x9a9184));
+        break;
+      }
+      case 'rockScree': {
+        for (let k = 0; k < 46; k++) {
+          const u = k / 46, x = (u - .5) * 10, z = ((k * 7) % 5 - 2) * .9;
+          const h = Math.max(.06, 1.4 - Math.abs(u - .5) * 2.6);
+          g.sphere(x, h * .3, z, .26 + ((k * 3) % 4) * .12, 5, shade(hex([0x8f8a80, 0xa39d92, 0x7a756c][k % 3]), .92 + (k % 3) * .1));
+        }
+        for (let k = 0; k < 4; k++) Prefab.rock(g, (k - 1.5) * 2.4, 0, ((k % 2) - .5) * 1.6, .7, seed + k, hex(0x8f8a80));
+        break;
+      }
+      case 'rockDriedRiver': {
+        const W2 = 4 * TILE;
+        g.box(0, .02, 0, W2, .1, 3.4, hex(0xb8ae9c));
+        for (let k = 0; k < 34; k++) {
+          const x = -W2 / 2 + (k / 34) * W2 + ((k * 5) % 3) * .2;
+          const z = Math.sin(k * .9) * 1.1;
+          g.sphere(x, .06, z, .2 + ((k * 7) % 4) * .1, 5, shade(hex([0x9a9184, 0xb0a795, 0x827a6d][k % 3]), .95 + (k % 3) * .1));
+        }
+        for (const sz of [-1, 1]) for (let k = 0; k < 8; k++)
+          Prefab.rock(g, -W2 / 2 + k * (W2 / 8) + .6, 0, sz * 1.9, .45 + (k % 3) * .18, seed + k, hex(0x8f8a80));
+        for (let k = 0; k < 5; k++) {
+          const x = -W2 / 2 + 1.5 + k * (W2 - 3) / 4;
+          for (let q = 0; q < 6; q++) {
+            const a = q / 6 * TAU;
+            g.beam(x, .1, 2.1, x + Math.cos(a) * .55, 1.0, 2.1 + Math.sin(a) * .3, .13, .05, hex(0x8a9a5a));
+          }
+        }
+        break;
+      }
+      case 'logFallen': {
+        const L = 6.0;
+        g.beam(-L / 2, .55, 0, L / 2, .48, .3, 1.05, 1.0, hex(0x6f5a44), 0, 1, 0);
+        for (let k = 0; k < 6; k++)                              // bark ridges
+          g.beam(-L / 2, .55 + .1, ((k % 3) - 1) * .3, L / 2, .48 + .1, .3 + ((k % 3) - 1) * .3, .14, .95, shade(hex(0x5c4a37), 1 + (k % 2) * .12), 0, 1, 0);
+        g.cyl(-L / 2, .05, 0, .55, 1.0, 10, hex(0xa08a6c));      // sawn end
+        g.cyl(-L / 2 - .02, .05, 0, .5, .96, 10, hex(0xbfa886));
+        for (let k = 0; k < 5; k++) {                            // broken branches
+          const a = k * 1.7;
+          g.beam(-1.5 + k * .8, 1.0, .2, -1.2 + k * .8 + Math.cos(a) * 1.1, 1.5 + Math.sin(a) * .5, .2 + Math.sin(a) * .9, .16, .16, hex(0x5c4a37));
+        }
+        for (let k = 0; k < 8; k++)                              // moss and toadstools
+          g.sphere(-2.4 + k * .7, 1.05, ((k % 3) - 1) * .34, .22, 5, hex(0x4e8a45));
+        for (let k = 0; k < 3; k++) { g.cyl(-1.8 + k * 1.7, .05, -.9, .07, .3, 5, hex(0xe8dfc8));
+          g.cyl(-1.8 + k * 1.7, .35, -.9, .24, .12, 8, hex(0xc0503a)); }
+        break;
+      }
+      case 'stumpOld': {
+        g.cyl(0, 0, 0, 1.05, 1.15, 10, hex(0x6f5a44), .88);
+        for (let k = 0; k < 7; k++) {                            // root flare
+          const a = k / 7 * TAU;
+          g.beam(Math.cos(a) * .8, .5, Math.sin(a) * .8, Math.cos(a) * 1.6, 0, Math.sin(a) * 1.6, .34, .34, hex(0x63503c));
+        }
+        g.cyl(0, 1.15, 0, 1.0, .1, 10, hex(0xbfa886));           // sawn top with rings
+        for (let k = 0; k < 4; k++) g.cyl(0, 1.22 + k * .01, 0, .78 - k * .2, .03, 10, shade(hex(0xa08a6c), .94 + k * .05));
+        for (let k = 0; k < 5; k++) g.sphere(Math.cos(k * 1.4) * .9, 1.2, Math.sin(k * 1.4) * .9, .18, 5, hex(0x4e8a45));
+        for (let k = 0; k < 3; k++) { g.cyl(Math.cos(k * 2.2) * 1.3, .05, Math.sin(k * 2.2) * 1.3, .06, .26, 5, hex(0xe8dfc8));
+          g.cyl(Math.cos(k * 2.2) * 1.3, .31, Math.sin(k * 2.2) * 1.3, .2, .1, 8, hex(0xd0a24a)); }
+        break;
+      }
+      case 'grassTussock': {
+        for (let k = 0; k < 9; k++) {
+          const a = k / 9 * TAU, r = .35 + (k % 3) * .28;
+          const cx = Math.cos(a) * r, cz = Math.sin(a) * r;
+          for (let q = 0; q < 7; q++) {
+            const b2 = q / 7 * TAU;
+            g.beam(cx, .02, cz, cx + Math.cos(b2) * .38, .55 + (q % 3) * .35, cz + Math.sin(b2) * .38, .10, .04,
+              shade(hex(0x6f9a52), .88 + (q % 4) * .1));
+          }
+        }
+        break;
+      }
+      case 'fernBed': {
+        for (let k = 0; k < 10; k++) {
+          const cx = -2.4 + (k % 5) * 1.2, cz = ((k / 5) | 0) * 1.1 - .55;
+          for (let q = 0; q < 7; q++) {
+            const a = q / 7 * TAU;
+            g.beam(cx, .05, cz, cx + Math.cos(a) * .85, .95 + (q % 3) * .22, cz + Math.sin(a) * .85, .40, .06, shade(hex(0x3f7a3a), .9 + (q % 3) * .13));
+            g.beam(cx + Math.cos(a) * .85, .95 + (q % 3) * .22, cz + Math.sin(a) * .85,
+              cx + Math.cos(a) * 1.25, .5 + (q % 3) * .18, cz + Math.sin(a) * 1.25, .34, .05, shade(hex(0x357033), .95));
+          }
+        }
+        break;
+      }
+      case 'reedBed': {
+        g.cyl(0, .01, 0, 3.4, .08, 16, hex(0x33608a));           // shallow water
+        g.cyl(0, .06, 0, 3.0, .05, 16, shade(hex(0x2f86c4), 1.1));
+        for (let k = 0; k < 44; k++) {
+          const a = k / 44 * TAU * 3.1, r = .5 + (k % 6) * .46;
+          const cx = Math.cos(a) * r, cz = Math.sin(a) * r;
+          const h = 1.6 + ((k * 5) % 6) * .38;
+          g.beam(cx, .05, cz, cx + Math.sin(k) * .18, h, cz + Math.cos(k) * .18, .09, .09, shade(hex(0x7a9a4a), .88 + (k % 4) * .1));
+          if (k % 4 === 0) g.cyl(cx + Math.sin(k) * .18, h, cz + Math.cos(k) * .18, .09, .40, 6, hex(0x8a6a3a));
+        }
+        for (let k = 0; k < 5; k++) g.cyl(Math.cos(k * 1.3) * 2.0, .07, Math.sin(k * 1.3) * 2.0, .44, .04, 8, hex(0x4e8a45));
+        break;
+      }
+      case 'wildflowerMeadow': {
+        const W2 = 3 * TILE, D2 = 2 * TILE;
+        g.box(0, .02, 0, W2 - .4, .06, D2 - .4, hex(0x6f9a52));
+        const cols = [0xffd23f, 0xff6f91, 0xc77dff, 0xffffff, 0xff8c42, 0x7ed6df];
+        for (let k = 0; k < 90; k++) {
+          const x = ((k * 37) % 100 / 100 - .5) * (W2 - 1.0);
+          const z = ((k * 61) % 100 / 100 - .5) * (D2 - 1.0);
+          const h = .35 + ((k * 7) % 5) * .16;
+          g.beam(x, .05, z, x, .05 + h, z, .05, .05, hex(0x4e8a45));
+          g.sphere(x, .05 + h, z, .11, 4, hex(cols[k % cols.length]));
+        }
+        for (let k = 0; k < 16; k++) {
+          const x = ((k * 23) % 100 / 100 - .5) * (W2 - .8);
+          const z = ((k * 47) % 100 / 100 - .5) * (D2 - .8);
+          for (let q = 0; q < 5; q++) { const a = q / 5 * TAU;
+            g.beam(x, .04, z, x + Math.cos(a) * .3, .55, z + Math.sin(a) * .3, .07, .04, hex(0x6f9a52)); }
+        }
+        break;
+      }
+      case 'treeBirch': {
+        g.cyl(0, 0, 0, .30, 6.2, 8, hex(0xe8e6dc), .72);
+        for (let k = 0; k < 12; k++)                             // the black scars birch bark has
+          g.box(Math.cos(k * 1.9) * .27, .5 + k * .46, Math.sin(k * 1.9) * .27, .34, .16, .10, hex(0x3a3a38));
+        for (let k = 0; k < 5; k++) {
+          const a = k / 5 * TAU + .4;
+          g.beam(0, 4.4 + (k % 2) * .5, 0, Math.cos(a) * 1.7, 6.2 + (k % 3) * .5, Math.sin(a) * 1.7, .13, .13, hex(0xd8d6cc));
+        }
+        for (let k = 0; k < 9; k++) {
+          const a = k / 9 * TAU * 1.4, r = .5 + (k % 4) * .55;
+          g.sphere(Math.cos(a) * r, 6.4 + (k % 4) * .55, Math.sin(a) * r, .95 - (k % 4) * .12, 6, seasonalFoliage(0x8fc45c));
+        }
+        break;
+      }
+      case 'treeWillow': {
+        g.cyl(0, 0, 0, .62, 3.4, 9, hex(0x6b5a44), .74);
+        for (let k = 0; k < 5; k++) {
+          const a = k / 5 * TAU;
+          g.beam(0, 2.6, 0, Math.cos(a) * 1.6, 4.6, Math.sin(a) * 1.6, .26, .26, hex(0x5c4a37));
+        }
+        for (let k = 0; k < 26; k++) {                            // the trailing curtain
+          const a = k / 26 * TAU, r = 2.0 + (k % 3) * .55;
+          const x = Math.cos(a) * r, z = Math.sin(a) * r;
+          g.sphere(x, 4.7, z, .75, 5, seasonalFoliage(0x7fae4e));
+          g.beam(x, 4.4, z, x * 1.1, 1.4 + (k % 4) * .5, z * 1.1, .30, .10, shade(seasonalFoliage(0x6f9a44), .95 + (k % 3) * .1));
+        }
+        g.sphere(0, 5.1, 0, 1.5, 6, seasonalFoliage(0x86b455));
+        break;
+      }
+      case 'treeCypress': {
+        g.cyl(0, 0, 0, .26, 1.4, 7, hex(0x5c4a37));
+        for (let k = 0; k < 7; k++) {
+          const t2 = k / 7;
+          g.cyl(0, 1.0 + k * .95, 0, 1.15 - t2 * .85, 1.1, 8, shade(hex(0x2f6b46), .92 + (k % 2) * .12), .8);
+        }
+        g.cone(0, 7.6, 0, .35, 1.1, 7, hex(0x35734c));
+        break;
+      }
+      case 'treeMaple': {
+        g.cyl(0, 0, 0, .34, 1.5, 8, hex(0x5c4a37), .8);
+        for (let k = 0; k < 4; k++) {
+          const a = k / 4 * TAU + .5;
+          g.beam(0, 1.2, 0, Math.cos(a) * 1.4, 2.6, Math.sin(a) * 1.4, .18, .18, hex(0x5c4a37));
+          g.beam(Math.cos(a) * 1.4, 2.6, Math.sin(a) * 1.4, Math.cos(a + .5) * 2.1, 3.2, Math.sin(a + .5) * 2.1, .11, .11, hex(0x6b5a44));
+        }
+        for (let k = 0; k < 13; k++) {
+          const a = k / 13 * TAU * 1.5, r = .6 + (k % 5) * .42;
+          g.cyl(Math.cos(a) * r, 2.9 + (k % 4) * .34, Math.sin(a) * r, .95 - (k % 4) * .1, .34, 8,
+            shade(hex(0xc0392b), .88 + (k % 4) * .13));
+        }
+        break;
+      }
+      case 'treeDead': {
+        g.cyl(0, 0, 0, .42, 4.6, 7, hex(0x4a3f38), .5);
+        for (let k = 0; k < 7; k++) {
+          const a = k / 7 * TAU, y0 = 2.0 + (k % 4) * .8;
+          g.beam(0, y0, 0, Math.cos(a) * 1.9, y0 + 1.4 + (k % 3) * .5, Math.sin(a) * 1.9, .16, .16, hex(0x4a3f38));
+          g.beam(Math.cos(a) * 1.9, y0 + 1.4 + (k % 3) * .5, Math.sin(a) * 1.9,
+            Math.cos(a + .7) * 2.6, y0 + 2.0 + (k % 3) * .4, Math.sin(a + .7) * 2.6, .09, .09, hex(0x413730));
+        }
+        for (let k = 0; k < 4; k++) g.sphere(Math.cos(k * 1.6) * 1.1, .1, Math.sin(k * 1.6) * 1.1, .3, 5, hex(0x6b6357));
+        break;
+      }
+      case 'treeCopse': {
+        const kinds = ['tree', 'pine', 'treeBirch', 'tree', 'pine'];
+        for (let k = 0; k < 5; k++) {
+          const a = k / 5 * TAU + .6, r = 1.5 + (k % 3) * .8;
+          const sc = .7 + (k % 3) * .2;
+          g.mergeM(Prefab.scenery(kinds[k], seed + k).base,
+            M4.compose(M4.create(), Math.cos(a) * r, 0, Math.sin(a) * r, 0, a * 2, 0, sc, sc + (k % 2) * .15, sc));
+        }
+        for (let k = 0; k < 10; k++) {
+          const a = k / 10 * TAU * 1.3, r = 2.6 + (k % 3) * .6;
+          g.sphere(Math.cos(a) * r, .1, Math.sin(a) * r, .32, 5, hex(0x4e8a45));
+        }
+        for (let k = 0; k < 4; k++) Prefab.rock(g, Math.cos(k * 1.7) * 3.0, 0, Math.sin(k * 1.7) * 3.0, .45, seed + k, hex(0x8f8a80));
+        break;
+      }
+
+      /* ================= REAL BUILDINGS, AS SCENERY =================
+         Architecture between the rides: none of these trade, they just make
+         a land look like a place. */
+      case 'bldCottage': {
+        const w = 6.2, d = 5.4, h = 3.2;
+        Arch.plinth(g, w, d, hex(0x9a9184), .3);
+        g.box(0, .3, 0, w, h, d, hex(0xd9cfb6));
+        for (let k = 0; k < 40; k++) {                            // random rubble stonework
+          const sx = ((k * 37) % 100 / 100 - .5) * (w - .5);
+          const sy = .45 + ((k * 61) % 100 / 100) * (h - .7);
+          g.box(sx, sy, -d / 2 - .03, .5 + ((k * 7) % 3) * .2, .3, .1, shade(hex(0xbfb49a), .88 + (k % 4) * .12));
+        }
+        Arch.window(g, 'z', -1, -1.5, 1.1, .9, 1.2, hex(0xd9cfb6), { glass: hex(0xcfe9f5), frame: hex(0x5c4a37), shutters: hex(0x3f6b4a), halfD: d / 2 });
+        Arch.window(g, 'z', -1, 1.6, 1.1, .9, 1.2, hex(0xd9cfb6), { glass: hex(0xcfe9f5), frame: hex(0x5c4a37), shutters: hex(0x3f6b4a), halfD: d / 2, box: true });
+        Arch.window(g, 'x', 1, 0, 1.4, .8, 1.1, hex(0xd9cfb6), { glass: hex(0xcfe9f5), frame: hex(0x5c4a37), halfW: w / 2 });
+        Arch.door(g, d, .1, hex(0xd9cfb6), hex(0x5c4a37), 1.0, 2.0);
+        const ridge = Arch.roofGable(g, w, d, .3 + h, hex(0x8a6a4a), 1.9, .55, hex(0xcfc4a8));
+        for (let k = 0; k < 7; k++)                               // thatch/tile courses
+          g.box(0, .3 + h + .3 + k * .26, 0, w + 1.0 - k * .1, .06, .18, shade(hex(0x6f5238), 1 + (k % 2) * .16));
+        g.box(w * .28, .3 + h, d * .2, .9, 2.4, .8, hex(0x9a5a4a));   // chimney
+        g.box(w * .28, .3 + h + 2.4, d * .2, 1.1, .25, 1.0, hex(0x7a4438));
+        for (let k = 0; k < 3; k++) g.sphere(-w / 2 + .8 + k * .9, .35, -d / 2 - .9, .42, 5, hex(0x4e9b52));
+        g.cyl(-w / 2 - .6, .3, d * .2, .12, 1.0, 6, hex(0x5c4a37));   // water butt and path
+        g.cyl(-w / 2 - .6, .3, d * .2, .5, 1.0, 10, hex(0x6f5a44));
+        break;
+      }
+      case 'bldTownhouse': {
+        const w = 5.6, d = 5.0, F = 2.9, floors = 3;
+        Arch.plinth(g, w, d, hex(0x8a7a68), .38);
+        g.box(0, .38, 0, w, F * floors, d, hex(0xb5623f));
+        for (let f = 0; f < floors; f++) {                        // brick courses and floor bands
+          for (let k = 0; k < 9; k++)
+            g.box(0, .5 + f * F + k * (F / 9), -d / 2 - .02, w + .04, .10, .06, shade(hex(0x9c5236), .94 + (k % 2) * .14));
+          g.box(0, .38 + (f + 1) * F - .22, 0, w + .3, .26, d + .3, hex(0xe0d8c4));
+        }
+        for (let f = 0; f < floors; f++) {
+          const y = .38 + f * F + .7, hgt = F - 1.5;
+          for (const u of [-1.5, 0, 1.5])
+            Arch.window(g, 'z', -1, u, y, .82, hgt, hex(0xb5623f), { glass: hex(0xcfe9f5), frame: hex(0xf2ead6), halfD: d / 2 });
+          for (const u of [-1.3, 1.3])
+            Arch.window(g, 'x', 1, u, y, .7, hgt, hex(0xb5623f), { glass: hex(0xcfe9f5), frame: hex(0xf2ead6), halfW: w / 2 });
+        }
+        Arch.door(g, d, 0, hex(0xb5623f), hex(0x2f4a3a), 1.15, 2.3);
+        for (const sx of [-1, 1]) {                               // portico
+          g.cyl(sx * .95, .38, -d / 2 - .55, .16, 2.7, 8, hex(0xf2ead6));
+        }
+        g.box(0, 3.08, -d / 2 - .55, 2.6, .28, 1.2, hex(0xf2ead6));
+        g.box(0, .1, -d / 2 - 1.5, 2.4, .3, 1.6, hex(0xa8a094));   // steps
+        Arch.cornice(g, w, d, .38 + F * floors, hex(0xe0d8c4));
+        Arch.roofMansard(g, w, d, .38 + F * floors + .35, hex(0x4a4a52), 1.5, .8, .45);
+        for (const sx of [-1, 1]) {
+          g.box(sx * w * .28, .38 + F * floors + .5, d * .1, .8, 2.0, .7, hex(0x9c5236));
+          g.box(sx * w * .28, .38 + F * floors + 2.5, d * .1, 1.0, .22, .9, hex(0x7a4438));
+          for (const o2 of [-.22, .22]) g.cyl(sx * w * .28 + o2, .38 + F * floors + 2.72, d * .1, .14, .4, 8, hex(0x50303a));
+        }
+        break;
+      }
+      case 'bldShopRow': {
+        const W2 = 4 * TILE - 1.0, d = 5.0, F = 3.0;
+        Arch.plinth(g, W2, d, hex(0x8a7a68), .34);
+        const cols = [0xd9cfb6, 0xb5623f, 0xc9d6c0, 0xe0c98a];
+        const nUnits = 4, uw = W2 / nUnits;
+        for (let u = 0; u < nUnits; u++) {
+          const cx = -W2 / 2 + (u + .5) * uw;
+          const wallC = hex(cols[u % cols.length]);
+          const hgt = F * 2 + (u % 2) * .55;
+          g.box(cx, .34, 0, uw - .12, hgt, d, wallC);
+          g.box(cx, .34 + hgt, 0, uw + .18, .34, d + .3, shade(wallC, .78));      // parapet
+          g.box(cx, .34 + hgt + .34, 0, uw + .28, .22, d + .4, shade(wallC, 1.12));
+          /* shopfront: stallriser, glazing, fascia and an awning */
+          g.box(cx, .34, -d / 2 - .05, uw - .5, .55, .16, shade(wallC, .74));
+          g.box(cx, .89, -d / 2 - .05, uw - .7, 1.9, .12, hex(0xcfe9f5));
+          for (let q = 0; q < 3; q++) g.box(cx - uw * .28 + q * uw * .28, .89, -d / 2 - .12, .09, 1.9, .08, shade(wallC, .7));
+          g.box(cx, 2.85, -d / 2 - .12, uw - .3, .55, .22, shade(wallC, .68));
+          g.box(cx, 2.95, -d / 2 - .22, uw - .8, .34, .06, hex(0xf7f2e6));
+          if (u % 2 === 0) Prefab.stripedRoof(g, cx, 2.8, -d / 2 - .9, uw * .48, .5, 8, shade(wallC, 1.2), hex(0xf7f2e6));
+          else for (let q = 0; q < 6; q++)
+            g.triV([cx - uw * .4 + q * uw * .16, 2.8, -d / 2 - .55], [cx - uw * .4 + (q + 1) * uw * .16, 2.8, -d / 2 - .55],
+              [cx - uw * .4 + (q + .5) * uw * .16, 2.35, -d / 2 - .55], q % 2 ? shade(wallC, 1.2) : hex(0xf7f2e6));
+          /* first floor windows */
+          for (const uu of [-uw * .24, uw * .24])
+            Arch.window(g, 'z', -1, cx + uu, 3.8, .8, 1.5, wallC, { glass: hex(0xcfe9f5), frame: hex(0xf2ead6), halfD: d / 2 });
+          /* a hanging sign on a bracket */
+          g.beam(cx + uw * .34, 3.3, -d / 2 - .1, cx + uw * .34, 3.3, -d / 2 - .95, .07, .07, hex(0x4a4a52));
+          g.box(cx + uw * .34, 2.55, -d / 2 - .85, .7, .7, .07, shade(wallC, .6));
+        }
+        break;
+      }
+      case 'bldChurch': {
+        const w = 6.0, d = 4 * TILE - 1.0, F = 5.2;
+        const stone = hex(0xcfc7b4), stone2 = hex(0xb8b0a0);
+        Arch.plinth(g, w, d, stone2, .4);
+        g.box(0, .4, 0, w, F, d, stone);
+        for (let k = 0; k < 5; k++) {                              // buttresses down the nave
+          const z = -d / 2 + 1.4 + k * ((d - 2.8) / 4);
+          for (const sx of [-1, 1]) {
+            g.box(sx * (w / 2 + .35), .4, z, .8, F - 1.0, .9, stone2);
+            g.triV([sx * (w / 2 + .75), .4 + F - 1.0, z - .45], [sx * (w / 2 + .75), .4 + F - 1.0, z + .45], [sx * (w / 2 - .1), .4 + F - 2.2, z], shade(stone2, .9));
+          }
+        }
+        for (let k = 0; k < 4; k++) {                              // lancet windows
+          const z = -d / 2 + 2.0 + k * ((d - 4.0) / 3);
+          for (const sx of [-1, 1]) {
+            g.box(sx * (w / 2 + .04), 1.6, z, .14, 2.4, .9, hex(0x3a3a44));
+            g.box(sx * (w / 2 + .10), 1.7, z, .06, 2.1, .7, hex(0x6fa8d4));
+            for (let q = 0; q < 4; q++) g.box(sx * (w / 2 + .10), 4.0 + q * .16, z, .06, .18, .7 - q * .16, hex(0x6fa8d4));
+          }
+        }
+        const ridge = Arch.roofGable(g, w, d, .4 + F, hex(0x5a6470), 2.6, .55, stone2);
+        for (let k = 0; k < 9; k++)
+          g.box(0, .4 + F + .35 + k * .29, 0, w + 1.0 - k * .1, .05, .16, shade(hex(0x4a545e), 1 + (k % 2) * .18));
+        /* the tower */
+        {
+          const tw = 3.4, th = 11.0, tz = -d / 2 + tw / 2 - .2;
+          g.box(0, .4, tz, tw, th, tw, stone);
+          for (let k = 0; k < 6; k++) g.box(0, .8 + k * 1.7, tz, tw + .12, .18, tw + .12, shade(stone2, 1.06));
+          for (const [sx, sz] of [[-1, -1], [1, -1], [1, 1], [-1, 1]])
+            g.box(sx * tw / 2, .4, tz + sz * tw / 2, .55, th, .55, stone2);
+          for (let q = 0; q < 4; q++) {                            // belfry openings
+            const a = q / 4 * TAU;
+            g.box(Math.cos(a) * (tw / 2 + .02), .4 + th - 2.6, tz + Math.sin(a) * (tw / 2 + .02), .16, 1.8, 1.0, hex(0x2a2a30));
+            g.box(Math.cos(a) * (tw / 2 + .02), .4 + th - 2.6, tz + Math.sin(a) * (tw / 2 + .02), .90, 1.8, .16, hex(0x2a2a30));
+          }
+          g.cyl(0, .4 + th, tz, .9, .18, 12, hex(0xf2ead6));        // clock
+          g.box(0, .4 + th, tz - tw / 2 - .04, .10, .6, .1, hex(0x3a3a44));
+          g.box(0, .4 + th + .3, tz, tw + .5, .3, tw + .5, shade(stone2, 1.14));
+          for (const [sx, sz] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) {   // corner pinnacles
+            g.box(sx * (tw / 2 + .1), .4 + th + .6, tz + sz * (tw / 2 + .1), .5, .9, .5, stone2);
+            g.cone(sx * (tw / 2 + .1), .4 + th + 1.5, tz + sz * (tw / 2 + .1), .4, 1.4, 5, hex(0x5a6470));
+          }
+          g.cone(0, .4 + th + .6, tz, tw * .72, 5.0, 8, hex(0x5a6470));
+          g.cyl(0, .4 + th + 5.6, tz, .06, 1.2, 5, hex(0xd4af37));
+          g.box(0, .4 + th + 6.4, tz, .55, .09, .09, hex(0xd4af37));
+        }
+        /* porch, gravestones and a yew */
+        g.box(0, .4, d / 2 + .6, 2.4, 2.8, 1.3, stone);
+        Arch.roofGable(g, 2.4, 1.3, .4 + 2.8, hex(0x5a6470), .9, .35, stone2);
+        g.box(0, .4, d / 2 + 1.2, 1.2, 2.1, .12, hex(0x4a3c2e));
+        for (let k = 0; k < 6; k++) {
+          const gx = (k % 2 ? 1 : -1) * (w / 2 + 1.4 + (k % 3) * .7), gz = -d / 4 + (k % 3) * 1.9;
+          g.box(gx, .1, gz, .7, 1.0 + (k % 2) * .3, .18, shade(hex(0x9a9490), .95 + (k % 3) * .06));
+          g.cyl(gx, 1.1 + (k % 2) * .3, gz, .36, .16, 8, shade(hex(0x9a9490), 1.02));
+        }
+        g.mergeM(Prefab.scenery('treeCypress', 2).base, M4.compose(M4.create(), w / 2 + 2.4, .1, d / 2 - 1.0, 0, .7, 0, 1, 1.1, 1));
+        break;
+      }
+      case 'bldBarn': {
+        const w = 8.0, d = 6.4, F = 4.4;
+        g.box(0, -.2, 0, w + 1.2, .45, d + 1.2, hex(0x9a9184));
+        g.box(0, .25, 0, w, F, d, hex(0x9c3f34));
+        for (let k = 0; k < 16; k++)                               // board-and-batten
+          g.box(-w / 2 + .4 + k * ((w - .8) / 15), .25, -d / 2 - .04, .12, F, .1, hex(0x7a2f26));
+        for (let k = 0; k < 16; k++)
+          g.box(-w / 2 + .4 + k * ((w - .8) / 15), .25, d / 2 + .04, .12, F, .1, hex(0x7a2f26));
+        g.box(0, .25, -d / 2 - .06, 3.2, 3.4, .16, hex(0x7a2f26));  // the big doors
+        g.box(0, .25, -d / 2 - .14, 3.0, 3.2, .1, hex(0x8a3a2e));
+        for (const sx of [-1, 1]) g.beam(sx * 1.4, .4, -d / 2 - .2, -sx * 1.4, 3.4, -d / 2 - .2, .16, .16, hex(0xf2ead6));
+        g.beam(-1.5, .4, -d / 2 - .2, 1.5, 3.4, -d / 2 - .2, .0, .0, hex(0xf2ead6));
+        /* gambrel roof */
+        const ry = .25 + F;
+        for (const sx of [-1, 1]) {
+          Arch.face(g, [sx * (w / 2 + .4), ry, -d / 2 - .4], [sx * (w / 2 + .4), ry, d / 2 + .4],
+            [sx * (w * .30), ry + 1.7, d / 2 + .4], [sx * (w * .30), ry + 1.7, -d / 2 - .4], shade(hex(0x8a6a4a), 1.05));
+          Arch.face(g, [sx * (w * .30), ry + 1.7, -d / 2 - .4], [sx * (w * .30), ry + 1.7, d / 2 + .4],
+            [0, ry + 2.9, d / 2 + .4], [0, ry + 2.9, -d / 2 - .4], shade(hex(0x8a6a4a), .93));
+        }
+        for (const sz of [-1, 1]) {
+          Arch.face(g, [-(w / 2 + .4), ry, sz * (d / 2 + .4)], [w / 2 + .4, ry, sz * (d / 2 + .4)], [0, ry + 2.9, sz * (d / 2 + .4)], null, hex(0x8a3a2e));
+        }
+        g.beam(0, ry + 2.95, -d / 2 - .5, 0, ry + 2.95, d / 2 + .5, .22, .16, hex(0x6f5238));
+        g.box(0, ry + 1.9, -d / 2 - .45, 1.4, 1.2, .12, hex(0xf2ead6));   // hayloft door
+        g.beam(0, ry + 3.1, -d / 2 - .45, 0, ry + 3.1, -d / 2 - 1.3, .12, .12, hex(0x4a4a52));
+        g.cyl(0, ry + 3.15, 0, .07, 1.2, 5, hex(0x4a4a52));                // weathervane
+        g.box(0, ry + 4.35, 0, .9, .05, .09, hex(0x4a4a52));
+        g.triV([.45, ry + 4.5, 0], [.45, ry + 4.2, 0], [.95, ry + 4.35, 0], hex(0x4a4a52));
+        for (let k = 0; k < 4; k++)                                        // hay bales
+          g.beam(-w / 2 - 1.6, .3 + ((k / 2) | 0) * .75, -1.2 + (k % 2) * 1.5, -w / 2 - .4, .3 + ((k / 2) | 0) * .75, -1.2 + (k % 2) * 1.5, .7, .7, hex(0xd9c07a));
+        break;
+      }
+      case 'bldWatermill': {
+        const w = 6.0, d = 5.4, F = 4.0;
+        g.box(0, -.2, 0, w + 1.6, .45, d + 1.6, hex(0x8f8a80));
+        for (let k = 0; k < 30; k++) {                              // stone ground floor
+          const sx = ((k * 37) % 100 / 100 - .5) * (w - .4);
+          const sy = .25 + ((k * 61) % 100 / 100) * 2.0;
+          g.box(sx, sy, -d / 2 - .03, .55, .32, .1, shade(hex(0xbfb49a), .88 + (k % 4) * .12));
+        }
+        g.box(0, .25, 0, w, 2.4, d, hex(0xcfc4a8));
+        g.box(0, 2.65, 0, w - .2, F - 2.4, d - .2, hex(0xc9a97a));  // timber upper floor
+        for (let k = 0; k < 10; k++)
+          g.box(-w / 2 + .5 + k * ((w - 1) / 9), 2.65, -d / 2 - .02, .14, F - 2.4, .12, hex(0x6f5238));
+        Arch.window(g, 'z', -1, -1.6, 1.0, .8, 1.1, hex(0xcfc4a8), { glass: hex(0xcfe9f5), frame: hex(0x5c4a37), halfD: d / 2 });
+        Arch.window(g, 'z', -1, 1.6, 3.1, .8, 1.0, hex(0xc9a97a), { glass: hex(0xcfe9f5), frame: hex(0x5c4a37), halfD: d / 2 });
+        Arch.door(g, d, -.2, hex(0xcfc4a8), hex(0x5c4a37), 1.0, 2.0);
+        Arch.roofGable(g, w, d, .25 + F, hex(0x6f5238), 2.0, .6, hex(0xc9a97a));
+        for (let k = 0; k < 7; k++)
+          g.box(0, .25 + F + .35 + k * .27, 0, w + 1.1 - k * .12, .05, .16, shade(hex(0x5c4429), 1 + (k % 2) * .18));
+        /* the leat and the wheel */
+        g.box(w / 2 + 1.5, .0, 0, 2.6, .5, d + 2.0, hex(0x7f7a70));
+        g.box(w / 2 + 1.5, .3, 0, 2.2, .12, d + 1.8, shade(hex(0x2f86c4), 1.05));
+        {
+          const wx = w / 2 + .95, wy = 2.0, wz = 0, WR = 2.0;
+          g.cyl(wx - .35, wy, wz, .22, .7, 8, hex(0x59493a));
+          const flat = new Geo();
+          for (const off of [-.5, .38]) { flat.cyl(0, off, 0, WR, .11, 16, hex(0x8b6239)); flat.cyl(0, off + .02, 0, WR - .3, .09, 16, hex(0x6f5238)); }
+          flat.cyl(0, -.4, 0, .34, .8, 8, hex(0x59493a));
+          for (let k = 0; k < 10; k++) {
+            const a = k / 10 * TAU;
+            flat.beam(0, -.06, 0, Math.cos(a) * WR, -.06, Math.sin(a) * WR, .16, .13, hex(0x8b6239));
+            flat.beam(Math.cos(a) * WR, -.56, Math.sin(a) * WR, Math.cos(a) * WR, .44, Math.sin(a) * WR, .52, .18, hex(0x6f5238), -Math.sin(a), 0, Math.cos(a));
+          }
+          const wheel = new Geo();
+          wheel.mergeM(flat, M4.compose(M4.create(), 0, 0, 0, PI / 2, 0, 0, 1, 1, 1));
+          parts.push({ geo: wheel, anim: (m, o, t) => M4.compose(m, wx, wy, wz, 0, 0, -t * .45, 1, 1, 1) });
+          const race = new Geo();
+          race.box(0, -1.4, 0, .5, 2.6, .8, shade(hex(0x2f86c4), 1.3));
+          parts.push({ geo: race, anim: (m, o, t) => M4.compose(m, wx + WR * .55, wy + 1.2, wz, 0, 0, 0, 1, 1 + Math.sin(t * 4) * .05, 1) });
+        }
+        for (let k = 0; k < 5; k++) Prefab.rock(g, -w / 2 - 1.6, 0, -2.0 + k, .5, seed + k, hex(0x8f8a80));
+        break;
+      }
+      case 'bldClocktower': {
+        const w = 3.6, H = 9.5;
+        const stone = hex(0xd8cfb8), stone2 = hex(0xbfb49a);
+        Arch.plinth(g, w + 1.6, w + 1.6, stone2, .45);
+        for (let k = 0; k < 3; k++)                                 // steps
+          g.box(0, -.1 + k * .22, 0, w + 2.6 - k * .4, .24, w + 2.6 - k * .4, shade(stone2, .96 + k * .04));
+        g.box(0, .45, 0, w, H, w, stone);
+        for (let k = 0; k < 26; k++) {                              // ashlar courses
+          g.box(0, .7 + k * .34, 0, w + .05, .11, w + .05, shade(stone2, .9 + (k % 2) * .16));
+        }
+        for (const [sx, sz] of [[-1, -1], [1, -1], [1, 1], [-1, 1]])
+          g.box(sx * w / 2, .45, sz * w / 2, .6, H, .6, shade(stone2, 1.06));
+        for (let q = 0; q < 4; q++) {                               // an arched opening each side
+          const a = q / 4 * TAU;
+          const nx = Math.cos(a), nz = Math.sin(a);
+          g.box(nx * (w / 2 + .02), .55, nz * (w / 2 + .02), nx ? .16 : 1.5, 2.4, nz ? .16 : 1.5, hex(0x2f2a26));
+          for (let k = 0; k <= 6; k++) {
+            const b2 = k / 6 * PI;
+            g.box(nx * (w / 2 + .04) + (nz ? Math.cos(b2) * .75 : 0), 2.95 + Math.sin(b2) * .7, nz * (w / 2 + .04) + (nx ? Math.cos(b2) * .75 : 0),
+              .32, .32, .32, shade(stone2, 1.1));
+          }
+        }
+        g.box(0, .45 + H - 2.4, 0, w + .7, .34, w + .7, shade(stone2, 1.12));   // clock stage
+        for (let q = 0; q < 4; q++) {
+          const a = q / 4 * TAU, nx = Math.cos(a), nz = Math.sin(a);
+          g.cyl(nx * (w / 2 + .18), .45 + H - 1.3, nz * (w / 2 + .18), 1.05, .14, 14, hex(0xf7f2e6), 1);
+          g.cyl(nx * (w / 2 + .24), .45 + H - 1.3, nz * (w / 2 + .24), .92, .06, 14, hex(0xfffdf4));
+          g.box(nx * (w / 2 + .30), .45 + H - 1.3, nz * (w / 2 + .30), nx ? .06 : .70, .10, nz ? .06 : .70, hex(0x2b2f34));
+          g.box(nx * (w / 2 + .30), .45 + H - 1.05, nz * (w / 2 + .30), nx ? .06 : .10, .55, nz ? .06 : .10, hex(0x2b2f34));
+          for (let k = 0; k < 12; k++) {                            // hour marks
+            const b2 = k / 12 * TAU;
+            g.box(nx * (w / 2 + .28) + (nz ? Math.cos(b2) * .8 : 0), .45 + H - 1.3 + Math.sin(b2) * .8, nz * (w / 2 + .28) + (nx ? Math.cos(b2) * .8 : 0),
+              .1, .1, .1, hex(0x2b2f34));
+          }
+        }
+        g.box(0, .45 + H, 0, w + 1.1, .4, w + 1.1, shade(stone2, 1.16));        // cornice
+        for (let k = 0; k < 12; k++) {                                          // balustrade
+          const a = k / 12 * TAU;
+          g.cyl(Math.cos(a) * (w / 2 + .42), .45 + H + .4, Math.sin(a) * (w / 2 + .42), .11, .6, 6, shade(stone2, 1.04), .74);
+        }
+        g.box(0, .45 + H + 1.0, 0, w + 1.0, .18, w + 1.0, shade(stone2, 1.2));
+        g.cyl(0, .45 + H + 1.18, 0, w * .42, 1.5, 8, stone);                    // lantern
+        for (let q = 0; q < 8; q++) { const a = q / 8 * TAU;
+          g.cyl(Math.cos(a) * w * .42, .45 + H + 1.18, Math.sin(a) * w * .42, .13, 1.5, 6, shade(stone2, 1.1)); }
+        g.cone(0, .45 + H + 2.68, 0, w * .5, 2.2, 8, hex(0x4a545e));
+        g.cyl(0, .45 + H + 4.88, 0, .07, 1.2, 5, hex(0xd4af37));
+        g.sphere(0, .45 + H + 6.08, 0, .22, 7, hex(0xd4af37));
+        break;
+      }
+      case 'bldStation': {
+        const W2 = 4 * TILE - 1.0, d = 5.0, F = 3.6;
+        g.box(0, -.2, 0, W2 + 1.4, .45, d + 5.0, hex(0x9a9184));
+        g.box(0, .25, -1.2, W2, F, d, hex(0xd8cfb8));
+        for (let k = 0; k < 26; k++) {                             // brick banding
+          const sx = ((k * 37) % 100 / 100 - .5) * (W2 - .6);
+          g.box(sx, .4 + ((k * 61) % 100 / 100) * (F - .8), -1.2 - d / 2 - .03, .6, .3, .1, shade(hex(0xb5623f), .9 + (k % 4) * .12));
+        }
+        for (const u of [-W2 * .32, -W2 * .11, W2 * .11, W2 * .32])
+          Arch.window(g, 'z', -1, u, 1.2, .9, 1.7, hex(0xd8cfb8), { glass: hex(0xcfe9f5), frame: hex(0x2f4a3a), halfD: d / 2, halfW: W2 / 2 });
+        g.box(0, .25, -1.2 - d / 2 - .06, 2.2, 2.6, .16, hex(0x2f4a3a));
+        g.box(0, .25, -1.2 - d / 2 - .14, 1.9, 2.4, .08, hex(0xcfe9f5));
+        Arch.roofHip(g, W2, d, .25 + F, hex(0x5a6470), 1.6, .9);
+        g.box(-W2 * .3, .25 + F, -1.2, .9, 2.0, .8, hex(0x9c5236));   // chimney
+        g.box(-W2 * .3, .25 + F + 2.0, -1.2, 1.1, .22, 1.0, hex(0x7a4438));
+        /* platform canopy on iron columns, over a platform with an edge line */
+        g.box(0, .25, 2.4, W2 + 1.0, .55, 3.4, hex(0xb8b2a4));
+        g.box(0, .8, 3.9, W2 + 1.0, .06, .5, hex(0xf2ead6));
+        for (let k = 0; k < 6; k++) {
+          const cx = -W2 / 2 + .8 + k * ((W2 - 1.6) / 5);
+          g.cyl(cx, .8, 3.1, .14, 3.0, 8, hex(0x2f4a3a));
+          for (const s2 of [-1, 1]) g.beam(cx, 3.5, 3.1, cx + s2 * .7, 3.8, 3.1, .1, .1, hex(0x2f4a3a));
+        }
+        g.box(0, 3.8, 2.9, W2 + 1.2, .2, 4.0, hex(0x5a6470));
+        for (let k = 0; k < 18; k++)                                 // valance
+          g.triV([-W2 / 2 - .5 + k * ((W2 + 1) / 18), 3.8, 4.9], [-W2 / 2 - .5 + (k + 1) * ((W2 + 1) / 18), 3.8, 4.9],
+            [-W2 / 2 - .5 + (k + .5) * ((W2 + 1) / 18), 3.35, 4.9], k % 2 ? hex(0x2f4a3a) : hex(0xf2ead6));
+        for (let k = 0; k < 3; k++) {                                // benches and a name board
+          const bx = -W2 * .3 + k * W2 * .3;
+          g.mergeM(Prefab.scenery('bench', k + 1).base, M4.compose(M4.create(), bx, .8, 2.3, 0, PI, 0, 1, 1, 1));
+        }
+        g.box(0, 2.6, 2.7, 3.0, .7, .12, hex(0x2f4a3a));
+        g.box(0, 2.7, 2.6, 2.6, .45, .05, hex(0xf2ead6));
+        g.cyl(W2 * .40, .8, 2.5, .12, 3.2, 8, hex(0x2f4a3a));        // platform lamp
+        g.box(W2 * .40, 4.0, 2.5, .5, .5, .5, hex(0xfff3c4));
+        break;
+      }
+      case 'bldHarbourCottages': {
+        const W2 = 4 * TILE - 1.2, d = 4.6;
+        const cols = [0xe8e2d2, 0xa8c8d8, 0xe0b9a0, 0xc8d8c0];
+        const nU = 4, uw = W2 / nU;
+        g.box(0, -.2, 0, W2 + 1.0, .45, d + 1.0, hex(0x9a9184));
+        for (let u = 0; u < nU; u++) {
+          const cx = -W2 / 2 + (u + .5) * uw;
+          const wallC = hex(cols[u % cols.length]);
+          const hgt = 3.0 + (u % 2) * .5;
+          g.box(cx, .25, 0, uw - .1, hgt, d, wallC);
+          Arch.window(g, 'z', -1, cx, 1.0, .8, 1.1, wallC, { glass: hex(0xcfe9f5), frame: hex(0x3a4a56), shutters: hex(0x3a4a56), halfD: d / 2 });
+          Arch.window(g, 'z', -1, cx, hgt - .8, .7, .8, wallC, { glass: hex(0xcfe9f5), frame: hex(0x3a4a56), halfD: d / 2 });
+          g.box(cx - uw * .3, .25, -d / 2 - .06, .9, 2.0, .14, hex(0x3a4a56));
+          /* a pitched roof per cottage, so the row steps along */
+          Arch.roofGable(g, uw - .1, d, .25 + hgt, hex(0x5a6470), 1.3, .35, shade(wallC, .9));
+          g.box(cx + uw * .25, .25 + hgt, d * .1, .55, 1.5, .5, hex(0x9c5236));
+          g.box(cx + uw * .25, .25 + hgt + 1.5, d * .1, .7, .18, .62, hex(0x7a4438));
+        }
+        /* the quay: bollards, ropes, lobster pots and a moored dinghy */
+        g.box(0, .05, d / 2 + 1.6, W2 + 1.6, .35, 2.2, hex(0xa8a094));
+        for (let k = 0; k < 5; k++) {
+          const bx = -W2 / 2 + k * (W2 / 4);
+          g.cyl(bx, .4, d / 2 + 2.4, .22, .55, 8, hex(0x3a3a44));
+          g.sphere(bx, .95, d / 2 + 2.4, .22, 6, hex(0x3a3a44));
+          if (k) for (let q = 0; q <= 5; q++) { const t2 = q / 5;
+            g.sphere(bx - (W2 / 4) * (1 - t2), .95 - Math.sin(t2 * PI) * .35, d / 2 + 2.4, .07, 4, hex(0xc9b78f)); }
+        }
+        for (let k = 0; k < 3; k++) {
+          g.box(-W2 * .3 + k * 1.1, .4, d / 2 + 1.1, .7, .5, .7, hex(0x6f5a44));
+          for (let q = 0; q < 3; q++) g.box(-W2 * .3 + k * 1.1, .5 + q * .16, d / 2 + 1.1, .78, .05, .78, hex(0x8b6239));
+        }
+        break;
+      }
+      case 'bldWarehouse': {
+        const w = 8.0, d = 6.6, F = 6.0;
+        g.box(0, -.2, 0, w + 1.2, .45, d + 1.2, hex(0x8f8a80));
+        g.box(0, .25, 0, w, F, d, hex(0x8a4b3a));
+        for (let k = 0; k < 20; k++)                                 // brick courses
+          for (const sz of [-1, 1])
+            g.box(0, .45 + k * .28, sz * (d / 2 + .03), w + .06, .10, .08, shade(hex(0x6f3b2e), .92 + (k % 2) * .14));
+        for (const sx of [-1, 1]) for (let k = 0; k < 5; k++)        // pilasters
+          g.box(sx * (w / 2 + .12), .25, -d / 2 + .8 + k * ((d - 1.6) / 4), .3, F, .7, shade(hex(0x6f3b2e), 1.06));
+        for (let f = 0; f < 2; f++) for (let k = 0; k < 4; k++) {    // arched loading windows
+          const x = -w / 2 + 1.3 + k * ((w - 2.6) / 3), y = 1.0 + f * 2.6;
+          g.box(x, y, -d / 2 - .04, 1.1, 1.6, .12, hex(0x2f2a26));
+          g.box(x, y, -d / 2 - .10, .95, 1.4, .06, hex(0x6fa8d4));
+          for (let q = 0; q <= 5; q++) { const a = q / 5 * PI;
+            g.box(x + Math.cos(a) * .58, y + 1.6 + Math.sin(a) * .5, -d / 2 - .04, .26, .26, .14, shade(hex(0xcfc4a8), 1)); }
+        }
+        g.box(0, .25, -d / 2 - .06, 2.6, 3.0, .18, hex(0x3a3a44));    // roller shutter
+        for (let k = 0; k < 9; k++) g.box(0, .4 + k * .3, -d / 2 - .14, 2.4, .16, .06, hex(0x4a4a56));
+        g.box(0, 3.5, -d / 2 - .9, 3.4, .22, 1.8, hex(0x2f4a3a));     // loading canopy
+        for (const sx of [-1, 1]) g.beam(sx * 1.5, 3.5, -d / 2 - 1.7, sx * 1.5, 5.0, -d / 2 - .1, .1, .1, hex(0x2f4a3a));
+        g.box(0, 5.2, -d / 2 - .3, 1.2, .3, .8, hex(0x4a4a52));       // hoist beam
+        g.cyl(0, 4.6, -d / 2 - .8, .07, .6, 5, hex(0x4a4a52));
+        g.box(0, 4.2, -d / 2 - .8, .5, .5, .5, hex(0x6f5a44));
+        Arch.cornice(g, w, d, .25 + F, shade(hex(0xcfc4a8), 1));
+        for (let k = 0; k < 4; k++) {                                 // sawtooth north-light roof
+          const z = -d / 2 + (k + .5) * (d / 4);
+          Arch.face(g, [-w / 2 - .3, .25 + F + .3, z - d / 8], [w / 2 + .3, .25 + F + .3, z - d / 8],
+            [w / 2 + .3, .25 + F + 1.9, z + d / 8], [-w / 2 - .3, .25 + F + 1.9, z + d / 8], hex(0x5a6470));
+          g.box(0, .25 + F + .3, z + d / 8, w + .6, 1.6, .14, hex(0x9fd8f5));
+          for (let q = 0; q < 6; q++) g.box(-w / 2 + q * (w / 5), .25 + F + .3, z + d / 8 - .06, .1, 1.6, .1, hex(0x4a4a52));
+        }
+        for (let k = 0; k < 4; k++)                                   // pallets and crates on the apron
+          g.box(-w / 2 + 1.0 + k * 1.4, .3, d / 2 + 1.2, 1.0, .8, 1.0, k % 2 ? hex(0xb08a5a) : hex(0x9a7a4a));
+        break;
+      }
+
       case 'bench': {
         /* Slatted seat and back, cast-iron ends with a scroll, arm rests
            and a small plaque — park furniture, not two planks. */
