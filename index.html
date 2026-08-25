@@ -4604,7 +4604,7 @@ const CAT = {
     { id: 'musicexpress', name: 'Music Express', cost: 11200, up: 104, w: 5, d: 5, cap: 32, dur: 48, exc: 6.4, fear: 4.0, naus: 4.4, price: 7, kind: 'musicexpress' },
     { id: 'rotor', name: 'The Rotor', cost: 7400, up: 76, w: 3, d: 3, cap: 20, dur: 40, exc: 5.6, fear: 5.4, naus: 6.2, price: 6, kind: 'rotor' },
     { id: 'flyingscooters', name: 'Flying Scooters', cost: 6800, up: 68, w: 4, d: 4, cap: 16, dur: 50, exc: 4.6, fear: 2.6, naus: 2.2, price: 5, kind: 'flyingscooters' },
-    { id: 'bumperboats', name: 'Bumper Boats', cost: 9200, up: 92, w: 5, d: 4, cap: 18, dur: 56, exc: 4.4, fear: 1.4, naus: 1.0, price: 6, kind: 'bumperboats', water: true },
+    { id: 'bumperboats', name: 'Bumper Boats', cost: 9200, up: 92, w: 5, d: 4, cap: 18, dur: 56, exc: 4.4, fear: 1.4, naus: 1.0, price: 6, kind: 'bumperboats' },
     { id: 'antiquecars', name: 'Antique Cars', cost: 10400, up: 96, w: 6, d: 4, cap: 20, dur: 90, exc: 3.8, fear: .8, naus: .4, price: 6, kind: 'antiquecars' },
     { id: 'parkrailroad', name: 'Park Railroad', cost: 15800, up: 140, w: 6, d: 4, cap: 40, dur: 130, exc: 4.4, fear: .6, naus: .2, price: 6, kind: 'parkrailroad', ph: 8 },
     { id: 'gokarts', name: 'Go-Kart Circuit', cost: 13600, up: 126, w: 6, d: 5, cap: 12, dur: 80, exc: 6.2, fear: 3.0, naus: 1.6, price: 9, kind: 'gokarts' },
@@ -5200,7 +5200,7 @@ const RIDE_THEME = {
 };
 const KIND_THEME = {
   logflume: 'timber', rapids: 'timber', chairlift: 'timber', zipline: 'timber',
-  pool: 'water', wavepool: 'water', kiddie: 'water', lazyriver: 'water',
+  pool: 'water', wavepool: 'water', kiddie: 'water', lazyriver: 'water', bumperboats: 'water',
   divingboard: 'water', hottub: 'water', slide: 'water', funnel: 'water',
   haunted: 'spooky', ghosttrain: 'spooky',
   gravitron: 'space', spindrop: 'space', starflyer: 'space', monorail: 'space',
@@ -12703,8 +12703,10 @@ const Prefab = {
           parts.push({
             geo: spider,
             anim: (m, o, t) => {
+              /* compose's yaw turns a local bearing B into world B - yaw, so
+                 the arm this rides on sweeps to A - spin, not A + spin. */
               const sp = o.spin;
-              return M4.compose(m, Math.cos(A + sp) * R0, 3.05, Math.sin(A + sp) * R0,
+              return M4.compose(m, Math.cos(A - sp) * R0, 3.05, Math.sin(A - sp) * R0,
                 0, -sp * 2.1, 0, 1, 1, 1);
             }
           });
@@ -12722,8 +12724,10 @@ const Prefab = {
               seat: (k2) => ({ x: (k2 - .5) * .7, y: .05, z: 0, yaw: 0, hands: true }),
               anim: (m, o, t) => {
                 const sp = o.spin;
-                const ax = Math.cos(A + sp) * R0, az = Math.sin(A + sp) * R0;
-                const b2 = B - sp * 2.1;
+                const ax = Math.cos(A - sp) * R0, az = Math.sin(A - sp) * R0;
+                /* the spider's own yaw of -sp*2.1 carries its local B round to
+                   B + sp*2.1, which is where the car has to be */
+                const b2 = B + sp * 2.1;
                 const bx = ax + Math.cos(b2) * r1, bz = az + Math.sin(b2) * r1;
                 return M4.compose(m, bx, 2.75, bz, 0, -b2, 0, 1, 1, 1);
               }
@@ -12790,9 +12794,12 @@ const Prefab = {
             seat: (k2) => { const a = k2 / 3 * TAU; return { x: Math.cos(a) * .5, y: .1, z: Math.sin(a) * .5, yaw: a + PI, hands: true }; },
             anim: (m, o, t) => {
               const u = (ph + o.spin * .16) % 1, a = u * TAU;
-              const y = 1.0 + Math.max(0, Math.sin(u * TAU - PI * .25)) * 1.9;
-              const bank = Math.max(0, Math.sin(u * TAU - PI * .25)) * .45;
-              return M4.compose(m, Math.cos(a) * R0, y, Math.sin(a) * R0, 0, -a, -bank, 1, 1, 1);
+              const y = 1.05 + Math.max(0, Math.sin(u * TAU - PI * .25)) * 1.9;
+              /* A positive roll leans the car top toward the middle, which is
+                 the way a banked circular track throws it. Negated, the car
+                 leaned out and buried its outer rim in the trough. */
+              const bank = Math.max(0, Math.sin(u * TAU - PI * .25)) * .30;
+              return M4.compose(m, Math.cos(a) * R0, y, Math.sin(a) * R0, 0, -a, bank, 1, 1, 1);
             }
           });
         }
@@ -12812,8 +12819,20 @@ const Prefab = {
           const a = k / 18 * TAU, a2 = (k + 1) / 18 * TAU;
           g.beam(Math.cos(a) * (R0 + 1.7), 5.46, Math.sin(a) * (R0 + 1.7), Math.cos(a2) * (R0 + 1.7), 5.46, Math.sin(a2) * (R0 + 1.7), .09, .09, hex(0xdfe6ee));
         }
-        for (let k = 0; k < 6; k++) {                                          // stairs up to the gallery
-          g.box(R0 + 2.2, .2 + k * .82, -1.4, 1.6, .9, 1.0, shade(hex(0xdfe6ee), 1 - (k % 2) * .05));
+        {   /* Stairs up to the gallery: a flight that actually climbs and
+               travels, tucked inside the plot instead of standing through the
+               ride fence as a stack of boxes in one place. */
+          const N2 = 7, X0 = R0 + .55, Z0 = -R0 - .35, RISE = 5.46 / N2;
+          for (let k = 0; k < N2; k++) {
+            const t2 = k / N2;
+            const x = X0 - t2 * 1.1, z = Z0 + t2 * (R0 * 1.55);
+            g.box(x, .2 + k * RISE, z, 1.5, RISE + .10, (R0 * 1.55) / N2 + .12,
+              shade(hex(0xdfe6ee), 1 - (k % 2) * .05));
+            g.cyl(x + .80, .2 + k * RISE, z, .07, RISE + 1.05, 5, hex(0xb9c1c9));   // handrail post
+            if (k) g.beam(X0 - (k - 1) / N2 * 1.1 + .80, .2 + (k - 1) * RISE + 1.05, Z0 + (k - 1) / N2 * (R0 * 1.55),
+              x + .80, .2 + k * RISE + 1.05, z, .06, .06, hex(0xdfe6ee));
+          }
+          g.box(X0 - 1.2, .2 + N2 * RISE, Z0 + R0 * 1.55, 1.6, .18, 1.4, hex(0xb9c1c9)); // top landing
         }
         const drum = new Geo();
         for (let k = 0; k < 20; k++) {                                         // slatted drum wall
@@ -12829,7 +12848,9 @@ const Prefab = {
         });
         const floor = new Geo();
         floor.cyl(0, 0, 0, R0 - .2, .3, 18, hex(0x4a5058));
-        parts.push({ geo: floor, anim: (m, o, t) => M4.compose(m, 0, .6 - clamp((o.spin % TAU) / TAU, 0, 1) * 1.6, 0, 0, o.spin * 2.2, 0, 1, 1, 1) });
+        /* The floor drops as the drum comes up to speed and comes back when it
+           slows — h, not a sawtooth of the spin accumulator. */
+        parts.push({ geo: floor, anim: (m, o, t) => M4.compose(m, 0, .6 - clamp(o.h, 0, 1) * 1.6, 0, 0, o.spin * 2.2, 0, 1, 1, 1) });
         break;
       }
 
@@ -12893,9 +12914,13 @@ const Prefab = {
             geo: tub, seatCount: 2,
             seat: (k2) => ({ x: (k2 - .5) * .55, y: -3.0, z: .1, yaw: 0, hands: true }),
             anim: (m, o, t) => {
-              const sw = clamp(o.spin * .35, 0, 1);
+              /* h is the ride's envelope: how hard it is turning right now.
+                 spin only ever accumulates, so using it here left every tub
+                 permanently flung out once the ride had run once. */
+              const sw = clamp(o.h, 0, 1);
               const out = (.30 + Math.sin(t * 1.7 + i) * .16) * sw;
-              const a = A + o.spin;
+              /* the spider sweeps its arm i round to A - spin */
+              const a = A - o.spin;
               /* Swing is a roll about the part's own origin — the knuckle —
                  so the tub trails outward from the arm tip it hangs on. */
               return M4.compose(m, Math.cos(a) * R0, ARM - .34, Math.sin(a) * R0,
@@ -12965,14 +12990,17 @@ const Prefab = {
             geo: boat, seatCount: 1,
             seat: () => ({ x: 0, y: .05, z: .28, yaw: 0, hands: true }),
             anim: (m, o, t) => {
-              /* Each boat wanders its own lissajous inside the pond, so they
-                 spread over the whole surface instead of circling the middle. */
-              const a = ph + t * .42;
-              const x = Math.sin(a) * RX;
-              const z = Math.cos(a * 1.37 + i * 2.39) * RZ;
-              const yaw = Math.atan2(Math.cos(a) * RX, -Math.sin(a * 1.37 + i * 2.39) * RZ * 1.37);
-              return M4.compose(m, x, .34 + Math.sin(t * 2.1 + i) * .05, z,
-                Math.sin(t * 1.6 + i) * .05, -yaw, Math.cos(t * 1.3 + i) * .05, 1, 1, 1);
+              /* Each boat runs its own lane round the island, never across it,
+                 and points where it is actually going: compose's yaw already
+                 turns local +Z to (sin y, cos y), so the heading is passed
+                 straight through rather than negated. */
+              const lane = .64 + .36 * (i / 5);
+              const a = ph + t * (.36 + .05 * (i % 3)) + Math.sin(t * .8 + i) * .22;
+              const rx = RX * lane, rz = RZ * lane;
+              const x = Math.cos(a) * rx, z = Math.sin(a) * rz;
+              const yaw = Math.atan2(-Math.sin(a) * rx, Math.cos(a) * rz);
+              return M4.compose(m, x, .54 + Math.sin(t * 2.1 + i) * .05, z,
+                Math.sin(t * 1.6 + i) * .05, yaw, Math.cos(t * 1.3 + i) * .05, 1, 1, 1);
             }
           });
         }
@@ -12981,9 +13009,17 @@ const Prefab = {
 
       /* ---- Antique Cars: a guide-rail road through planting ---- */
       case 'antiquecars': {
+        /* An ellipse, so the outside of the roadway is at a known distance and
+           the barn can stand beside it rather than in it. */
         const PATH = [
-          [7.2, .35, 5.0], [2.0, .35, 6.2], [-4.0, .35, 5.6], [-7.6, .35, 2.0],
-          [-7.2, .35, -3.0], [-2.6, .35, -6.0], [3.0, .35, -5.6], [7.4, .35, -1.6]
+          [7.6, 0.35, 0.0],
+          [5.37, 0.35, 2.69],
+          [0.0, 0.35, 3.8],
+          [-5.37, 0.35, 2.69],
+          [-7.6, 0.35, 0.0],
+          [-5.37, 0.35, -2.69],
+          [-0.0, 0.35, -3.8],
+          [5.37, 0.35, -2.69]
         ];
         g.box(0, -.15, 0, W, .35, D, hex(0x6f9a52));
         this.flumeChannel(g, PATH, {
@@ -12996,10 +13032,10 @@ const Prefab = {
         }
         {   /* Planting sits in the island inside the loop and in the corners
                outside it — never across the roadway. */
-          for (let k = 0; k < 12; k++) {
-            const a = k / 12 * TAU + .25;
+          for (let k = 0; k < 10; k++) {
+            const a = k / 10 * TAU + .25;
             g.mergeM(Prefab.scenery(k % 3 === 0 ? 'tree' : 'hedge', k).base,
-              M4.compose(M4.create(), Math.cos(a) * 2.8, .2, Math.sin(a) * 2.2, 0, a, 0, .55, .6, .55));
+              M4.compose(M4.create(), Math.cos(a) * 3.4, .2, Math.sin(a) * 1.5, 0, a, 0, .5, .55, .5));
           }
           for (const [px, pz] of [[-9.6, -5.4], [9.6, -5.4], [-9.6, 5.4], [9.6, 5.4]])
             g.mergeM(Prefab.scenery('hedge', (px + pz) | 0).base,
@@ -13007,14 +13043,14 @@ const Prefab = {
         }
         {   /* The car barn: a timber shed with real gable ends and side walls,
                open to the road on the running side so the cars drive through. */
-          const cx = -1.0, cz = 5.7, HW = 3.6, HD = 1.9, EAVE = 3.2, RIDGE = 4.4;
+          const cx = -1.0, cz = 6.9, HW = 3.6, HD = 1.0, EAVE = 3.2, RIDGE = 4.4;
           const POST = hex(0x7c5230), SILL = hex(0x8b6239), SHINGLE = hex(0x5d4a37);
           for (const s2 of [-1, 1]) for (const s3 of [-1, 1])
-            g.cyl(cx + s2 * 3.0, .2, cz + s3 * 1.4, .22, EAVE, 6, POST);
-          g.box(cx, .2, cz + 1.9, 7.0, 1.0, 1.2, SILL);                          // back sill wall
+            g.cyl(cx + s2 * 3.0, .2, cz + s3 * .85, .22, EAVE, 6, POST);
+          g.box(cx, .2, cz + 1.0, 7.0, 1.0, .8, SILL);                           // back sill wall
           /* back wall up to the eave, with boarding */
           for (let k = 0; k < 9; k++)
-            g.box(cx - 3.2 + k * .8, 1.2, cz + 1.86, .74, EAVE - 1.2, .16, shade(SILL, 1 - (k % 2) * .07));
+            g.box(cx - 3.2 + k * .8, 1.2, cz + .98, .74, EAVE - 1.2, .16, shade(SILL, 1 - (k % 2) * .07));
           /* gable ends, so the roof lands on something at both sides */
           for (const s2 of [-1, 1]) {
             const gx = cx + s2 * HW;
@@ -13063,9 +13099,19 @@ const Prefab = {
 
       /* ---- Park Railroad: a narrow-gauge loop with a real locomotive ---- */
       case 'parkrailroad': {
+        /* A true ellipse rather than a hand-drawn blob, so the outside of the
+           ballast lands where the depot can be built clear of it: the
+           platform, the ticket office and the water-tower legs all used to
+           stand on the running line. */
         const PATH = [
-          [8.4, .5, 5.4], [2.0, .5, 7.0], [-5.0, .5, 6.2], [-9.0, .5, 2.0],
-          [-8.6, .5, -3.2], [-3.0, .5, -6.6], [4.0, .5, -6.2], [8.8, .5, -1.8]
+          [8.8, 0.5, 0.0],
+          [6.22, 0.5, 2.83],
+          [0.0, 0.5, 4.0],
+          [-6.22, 0.5, 2.83],
+          [-8.8, 0.5, 0.0],
+          [-6.22, 0.5, -2.83],
+          [-0.0, 0.5, -4.0],
+          [6.22, 0.5, -2.83]
         ];
         g.box(0, -.15, 0, W, .35, D, hex(0x6f9a52));
         {   /* Permanent way: a ballast shoulder, sleepers across it, and two
@@ -13097,43 +13143,47 @@ const Prefab = {
             g.mergeM(Prefab.scenery(k % 2 ? 'pine' : 'tree', k).base,
               M4.compose(M4.create(), Math.cos(a) * 3.4, .2, Math.sin(a) * 2.6, 0, a, 0, .5, .55, .5));
           }
-          for (let k = 0; k < 8; k++) {                                          // mileposts and lineside huts
-            const a = k / 8 * TAU + .8, rr = 11.4;
-            const x = Math.cos(a) * rr * .92, z = Math.sin(a) * rr * .62;
-            if (Math.abs(x) > W / 2 - 1.4 || Math.abs(z) > D / 2 - 1.4) continue;
+          for (let k = 0; k < 5; k++) {                                          // mileposts, outside the loop
+            const a = PI * 1.12 + k / 4 * PI * .76;
+            const x = Math.cos(a) * 10.6, z = Math.sin(a) * 6.1;
+            if (Math.abs(x) > W / 2 - 1.2 || Math.abs(z) > D / 2 - 1.2) continue;
             g.cyl(x, .2, z, .09, 1.0, 6, hex(0xf2ead6));
             g.box(x, 1.0, z, .34, .26, .08, hex(0x2f4a3a));
           }
         }
         {   /* the depot: a platform under a canopy carried on real posts, and
                a water tower standing on a braced timber frame */
-          const cx = -1.5, cz = 7.6;
-          g.box(cx, .2, cz, 8.0, 1.0, 2.0, hex(0xb8b2a4));                       // platform
-          g.box(cx, 1.14, cz, 8.1, .10, 2.1, hex(0xcfc7b4));                     // platform surface
-          g.box(cx, 1.20, cz - .95, 8.0, .06, .18, hex(0xf2ead6));               // edge line
+          const cx = -2.5, cz = 6.75;
+          g.box(cx, .2, cz, 8.0, 1.0, 1.8, hex(0xb8b2a4));                       // platform
+          g.box(cx, 1.14, cz, 8.1, .10, 1.9, hex(0xcfc7b4));                     // platform surface
+          g.box(cx, 1.20, cz - .85, 8.0, .06, .18, hex(0xf2ead6));               // edge line
           /* Posts run the full height to the canopy they carry. */
           for (let k = 0; k < 5; k++) {
             const px = cx - 3.2 + k * 1.6;
-            g.cyl(px, 1.24, cz + .6, .13, 2.66, 8, hex(0x2f4a3a));
-            g.box(px, 3.72, cz + .6, .34, .22, .34, hex(0x4a5f4f));              // capital
-            g.beam(px, 3.60, cz + .6, px, 3.90, cz - .5, .07, .07, hex(0x2f4a3a)); // brace out to the eave
+            g.cyl(px, 1.24, cz + .55, .13, 2.66, 8, hex(0x2f4a3a));
+            g.box(px, 3.72, cz + .55, .34, .22, .34, hex(0x4a5f4f));             // capital
+            g.beam(px, 3.60, cz + .55, px, 3.90, cz - .55, .07, .07, hex(0x2f4a3a)); // brace out to the eave
           }
-          g.box(cx, 3.90, cz + .5, 8.6, .20, 3.0, hex(0x5a6470));                // canopy deck
-          g.box(cx, 3.82, cz + .5, 8.7, .10, 3.1, hex(0x49525c));                // fascia under it
+          /* The canopy oversails the platform edge, as a station canopy does —
+             the train runs under its lip, not through its posts. */
+          g.box(cx, 3.90, cz + .15, 8.6, .20, 2.6, hex(0x5a6470));               // canopy deck
+          g.box(cx, 3.82, cz + .15, 8.7, .10, 2.7, hex(0x49525c));               // fascia under it
           for (let k = 0; k < 14; k++)                                           // scalloped valance
-            g.triV([cx - 4.3 + k * .62, 3.82, cz - 1.0], [cx - 4.3 + (k + 1) * .62, 3.82, cz - 1.0],
-              [cx - 4.3 + (k + .5) * .62, 3.42, cz - 1.0], k % 2 ? hex(0x2f4a3a) : hex(0xf2ead6));
+            g.triV([cx - 4.3 + k * .62, 3.82, cz - 1.15], [cx - 4.3 + (k + 1) * .62, 3.82, cz - 1.15],
+              [cx - 4.3 + (k + .5) * .62, 3.42, cz - 1.15], k % 2 ? hex(0x2f4a3a) : hex(0xf2ead6));
           {   /* ticket office on the platform, under its own gable */
-            const ox = cx - 3.6, oz = cz - .5;
-            g.box(ox, 1.20, oz, 2.4, 2.4, 1.6, hex(0xd8cfb8));
-            for (const sx of [-1, 1]) g.box(ox + sx * 1.22, 1.20, oz, .12, 2.4, 1.7, hex(0xb8ae95));
-            g.box(ox, 1.90, oz - .82, 1.3, 1.1, .08, hex(0x3a4a55));             // window
+            const ox = cx - 3.4, oz = cz + .10;
+            g.box(ox, 1.20, oz, 2.4, 2.4, 1.5, hex(0xd8cfb8));
+            for (const sx of [-1, 1]) g.box(ox + sx * 1.22, 1.20, oz, .12, 2.4, 1.6, hex(0xb8ae95));
+            g.box(ox, 1.90, oz - .78, 1.3, 1.1, .08, hex(0x3a4a55));             // window
             const gg = new Geo();
-            Arch.roofGable(gg, 2.7, 1.9, .95, hex(0x5a6470), .35, .22);
+            /* y is the eave height inside the roof's own space; the merge puts
+               it on the walls, so it has to be zero here or the roof floats. */
+            Arch.roofGable(gg, 2.7, 1.8, 0, hex(0x5a6470), .35, .22);
             g.mergeM(gg, M4.compose(M4.create(), ox, 3.60, oz, 0, 0, 0, 1, 1, 1));
           }
           {   /* water tower: tank on four braced legs, with a swing arm */
-            const tx = cx + 4.8, tz = cz - 1.8;
+            const tx = cx + 8.4, tz = cz + .15;
             for (const s2 of [-1, 1]) for (const s3 of [-1, 1])
               g.beam(tx + s2 * 1.05, .2, tz + s3 * 1.05, tx + s2 * .62, 3.9, tz + s3 * .62, .18, .18, hex(0x7c5230));
             for (let k = 0; k < 2; k++) {                                        // cross bracing
@@ -13154,7 +13204,6 @@ const Prefab = {
         {   /* the train: a tank engine and three open coaches */
           const loco = new Geo();
           loco.box(0, .28, 0, 1.9, .5, 4.4, hex(0x2f3439));                     // frames
-          loco.cyl(0, .95, -.6, .95, 3.0, 12, hex(0x1f5e3a), 1);                // boiler, laid along z
           const barrel = new Geo();
           barrel.cyl(0, -1.5, 0, .95, 3.0, 12, hex(0x1f5e3a));
           for (const off of [-1.4, -.2, 1.0]) barrel.cyl(0, off, 0, 1.0, .14, 12, hex(0xd4af37));
@@ -13170,7 +13219,12 @@ const Prefab = {
           }
           loco.box(0, .55, -2.35, 1.6, .22, .5, hex(0x9c2f24));                 // buffer beam
           const smoke = new Geo();
-          for (let k = 0; k < 8; k++) smoke.sphere(Math.sin(k * 1.7) * (.12 + k * .1), k * .42, Math.cos(k * 1.7) * (.12 + k * .1), .30 + k * .11, 6, shade(hex(0xd8d5cf), 1 - k * .02));
+          /* A tank engine's exhaust, not a weather front: the plume used to be
+             two metres across and three tall, and read as a grey blob parked
+             above the trees. */
+          for (let k = 0; k < 7; k++)
+            smoke.sphere(Math.sin(k * 1.7) * (.06 + k * .05), k * .30, Math.cos(k * 1.7) * (.06 + k * .05),
+              .17 + k * .055, 5, shade(hex(0xd8d5cf), 1 - k * .02));
           parts.push({
             geo: loco, seatCount: 0, anim: (m, o, t) => {
               const u = (t * .020) % 1;
@@ -13182,8 +13236,8 @@ const Prefab = {
             geo: smoke, anim: (m, o, t) => {
               const u = (t * .020) % 1;
               const p = this.crPath(PATH, u), h = this.crHeading(PATH, u);
-              const s2 = M4.compose(M4.create(), p.x, p.y + 2.9, p.z, 0, -h.yaw + PI / 2, 0, 1, 1, 1);
-              return M4.mul(m, s2, M4.compose(M4.create(), 0, ((t * .5) % 1) * .8, -1.9, 0, 0, 0, 1, 1, 1));
+              const s2 = M4.compose(M4.create(), p.x, p.y + 3.05, p.z, 0, -h.yaw + PI / 2, 0, 1, 1, 1);
+              return M4.mul(m, s2, M4.compose(M4.create(), 0, ((t * .5) % 1) * .55, -1.9, 0, 0, 0, 1, 1, 1));
             }
           });
           for (let i = 0; i < 3; i++) {
@@ -13193,7 +13247,7 @@ const Prefab = {
             coach.box(0, .70, 0, 2.0, .95, 3.6, c);
             coach.box(0, 1.65, 0, 2.2, .14, 3.8, shade(c, .7));
             for (const sx of [-1, 1]) for (let q = 0; q < 4; q++)
-              coach.cyl(sx * .98, 1.65, -1.35 + q * .9, .09, .0, 5, hex(0xdfe6ee));
+              coach.cyl(sx * .98, .70, -1.35 + q * .9, .07, .95, 5, hex(0xdfe6ee));   // roof stanchions
             for (const sx of [-1, 1]) for (const sz of [-1.2, 1.2])
               coach.cyl(sx * .95, .28, sz, .40, .20, 10, hex(0x1e2228), 1);
             const off = (i + 1) * .055;
@@ -13213,10 +13267,12 @@ const Prefab = {
 
       /* ---- Go-Kart Circuit: tyre-walled track, pit lane, gantry ---- */
       case 'gokarts': {
+        /* A clean oval. The old figure-of-eight crossed itself where the pit
+           lane and the start gantry stood, so karts drove through both. */
         const PATH = [
-          [8.4, .3, 6.0], [1.6, .3, 7.4], [-5.4, .3, 6.4], [-9.2, .3, 1.6],
-          [-6.0, .3, -2.4], [-8.4, .3, -6.0], [-1.0, .3, -7.2], [5.0, .3, -5.4],
-          [4.0, .3, -.6], [9.0, .3, 1.6]
+          [8.6, .3, 0], [7.4, .3, 3.6], [3.6, .3, 5.6], [-1.0, .3, 5.9],
+          [-5.6, .3, 5.0], [-8.4, .3, 1.8], [-8.0, .3, -2.4], [-4.6, .3, -5.4],
+          [0.4, .3, -5.9], [5.2, .3, -4.6], [8.2, .3, -2.2]
         ];
         g.box(0, -.15, 0, W, .35, D, hex(0x6f9a52));
         this.flumeChannel(g, PATH, {
@@ -13231,16 +13287,28 @@ const Prefab = {
             if (k % 5 === 0) g.cyl(p.x + nx * s2 * 2.7, .22, p.z + nz * s2 * 2.7, .42, .34, 10, hex(0x2f3439));
           }
         }
-        {   /* pit lane, gantry and a lap board */
-          const cx = 0, cz = 8.2;
-          g.box(cx, .2, cz, 9.0, .30, 2.2, hex(0x9aa4ae));
-          for (let k = 0; k < 5; k++) g.box(cx - 3.4 + k * 1.7, .5, cz, 1.4, .1, 2.0, k % 2 ? hex(0xf2f4f6) : hex(0x6d7580));
-          for (const sx of [-1, 1]) g.cyl(cx + sx * 4.6, .2, cz - 1.4, .22, 5.0, 8, hex(0xdfe6ee));
-          g.box(cx, 5.2, cz - 1.4, 10.0, .5, .5, hex(0xdfe6ee));
-          g.box(cx, 4.5, cz - 1.5, 4.0, .8, .16, hex(0x2f3439));
-          for (let k = 0; k < 3; k++) g.sphere(cx - 1.0 + k, 4.9, cz - 1.62, .18, 5, [hex(0xd94f3c), hex(0xf2c14e), hex(0x6ac46a)][k]);
-          for (let k = 0; k < 14; k++)                                          // chequered start line
-            g.box(cx - 3.5 + k * .55, .34, cz - 2.6, .5, .04, 1.6, k % 2 ? hex(0xf2f4f6) : hex(0x2f3439));
+        {   /* The paddock lives inside the oval, where a kart circuit's does. */
+          const cx = -.6, cz = .2;
+          g.box(cx, .2, cz, 9.0, .30, 2.2, hex(0x9aa4ae));                       // pit apron
+          for (let k = 0; k < 5; k++)                                            // marked bays
+            g.box(cx - 3.4 + k * 1.7, .5, cz, 1.4, .1, 2.0, k % 2 ? hex(0xf2f4f6) : hex(0x6d7580));
+          g.box(cx - 3.2, .5, cz + 1.9, 2.6, 2.2, 1.4, hex(0xdfe6ee));           // race control hut
+          g.box(cx - 3.2, 2.7, cz + 1.9, 2.9, .16, 1.7, hex(0x6d7580));
+          g.box(cx - 3.2, 1.5, cz + 1.18, 1.8, .9, .08, hex(0x2f3439));          // its window
+          for (let k = 0; k < 4; k++)                                            // tyre stacks in the paddock
+            g.cyl(cx + 2.6 + (k % 2) * .95, .35 + Math.floor(k / 2) * .34, cz + 1.7, .40, .32, 10, hex(0x2f3439));
+        }
+        {   /* Start gantry straddling the front straight, with both legs
+               planted clear of the kerbs rather than one of them on the
+               racing line. */
+          const gz = 5.9, IN = 2.2, OUT = 9.2, gx = 1.0;
+          for (const pz of [IN, OUT]) g.cyl(gx, .2, pz, .24, 5.2, 8, hex(0xdfe6ee));
+          g.beam(gx, 5.42, IN, gx, 5.42, OUT, .50, .50, hex(0xdfe6ee));
+          g.beam(gx + .18, 4.70, gz - 2.0, gx + .18, 4.70, gz + 2.0, .16, .90, hex(0x2f3439)); // lap board
+          for (let k = 0; k < 3; k++)                                            // start lights
+            g.sphere(gx + .30, 5.05, gz - 1.0 + k, .18, 5, [hex(0xd94f3c), hex(0xf2c14e), hex(0x6ac46a)][k]);
+          for (let k = 0; k < 12; k++)                                           // chequered start line
+            g.box(gx - .9, .34, gz - 2.05 + k * .35, 1.6, .04, .33, k % 2 ? hex(0xf2f4f6) : hex(0x2f3439));
         }
         for (let i = 0; i < 6; i++) {
           const kart = new Geo();
@@ -13256,7 +13324,9 @@ const Prefab = {
             geo: kart, seatCount: 1,
             seat: () => ({ x: 0, y: .40, z: .25, yaw: 0, hands: true }),
             anim: (m, o, t) => {
-              const u = (ph * .16 + t * .055 + Math.sin(t * .8 + i) * .004) % 1;
+              /* Spread round the lap rather than packed nose to tail: the old
+                 phase spread covered a seventh of the circuit. */
+              const u = (ph + t * .055 + Math.sin(t * .8 + i) * .004) % 1;
               const p = this.crPath(PATH, u), h = this.crHeading(PATH, u);
               const lane = ((i % 2) - .5) * 1.2;
               return M4.compose(m, p.x - h.z * lane, p.y + .12, p.z + h.x * lane, 0, -h.yaw + PI / 2, 0, 1, 1, 1);
@@ -13344,9 +13414,12 @@ const Prefab = {
           geo: ball, seatCount: 2,
           seat: (k2) => ({ x: (k2 - .5) * .8, y: -.2, z: 0, yaw: 0, hands: true }),
           anim: (m, o, t) => {
-            const c = (o.spin * .18) % 1;
+            /* h is the cycle while the ride is running and zero when it is
+               not, so the ball always comes home to the pad. */
+            const c = clamp(o.h, 0, 1);
             const y = c < .12 ? 1.8 : 1.8 + Math.sin((c - .12) / .88 * PI) * H * .92 * Math.exp(-(c - .12) * 1.4);
-            return M4.compose(m, 0, y + 1.3, 0, 0, o.spin * 1.6, Math.sin(o.spin * 2.2) * .5, 1, 1, 1);
+            const tumble = c < .12 ? 0 : (c - .12) * 9;
+            return M4.compose(m, 0, y + 1.3, 0, 0, tumble * 1.6, Math.sin(tumble * 2.2) * .5, 1, 1, 1);
           }
         });
         for (const sx of [-1, 1]) {                                             // the elastic
@@ -13354,7 +13427,7 @@ const Prefab = {
           cord.beam(0, 0, 0, sx * 3.2, 0, 0, .14, .14, hex(0x2f3439));
           parts.push({
             geo: cord, anim: (m, o, t) => {
-              const c = (o.spin * .18) % 1;
+              const c = clamp(o.h, 0, 1);
               const y = c < .12 ? 1.8 : 1.8 + Math.sin((c - .12) / .88 * PI) * H * .92 * Math.exp(-(c - .12) * 1.4);
               const dy = (.8 + H) - (y + 1.3);
               const len = Math.hypot(3.2, dy);
@@ -15478,6 +15551,18 @@ class Ride extends ParkObject {
       this.h = smoothstep(clamp((p - .18) / .35, 0, 1)) * (p > .8 ? 1 - smoothstep((p - .8) / .2) : 1);
     } else if (K === 'topspin' || K === 'frisbee') {
       this.h = env; this.spin += dt * 1.1 * env;
+    } else if (K === 'screaminswing') {
+      /* Like the pirate ship: spin IS the swing, in -1..1, so the arms come
+         back to rest instead of freezing wherever the cycle stopped. */
+      this.spin = Math.sin(Park.now * 1.15) * env;
+    } else if (K === 'slingshot') {
+      /* One shot per cycle. h is the cycle position while it is running and
+         zero when it is not, so the ball never hangs in the sky. */
+      this.h = running ? p : 0;
+    } else if (K === 'rotor' || K === 'flyingscooters') {
+      /* spin keeps turning; h is how hard it is turning, which is what the
+         dropping floor and the flying tubs are actually driven by. */
+      this.h = env;
     } else if (K === 'haunted' || K === 'rapids' || K === 'motiontheatre' || K === 'zipline') {
       this.spin = 0; this.h = 0;
     } else if (this.def.water) {
