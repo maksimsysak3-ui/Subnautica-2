@@ -1603,11 +1603,13 @@ const PALETTE = ['#E10600','#FF6B00','#FFC400','#3ADB6E','#00B3A4','#0F8BFF',
 /* Kept in step with DEFAULT_SLOT_IDS in the drive module — the two lists
    describe the same fifteen placements from either side of the boundary. */
 const DEFAULT_SPONSORS = {
-  sidepod: 'apex',      sidepodLow: 'none',     barge: 'none',
-  engFlank: 'none',     airbox: 'nova',         wingEnd: 'kerbline',
-  wingEndLow: 'none',   frontWing: 'ferrox',    fwUpper: 'none',
-  floor: 'tessera',     deck: 'vantage',        rearDeck: 'none',
-  wingTop: 'orbita',    noseTop: 'none',        chassis: 'none'
+  sidepod: 'apex',      podFront: 'lumen',      sidepodLow: 'none',
+  barge: 'none',        engFlank: 'none',       airbox: 'nova',
+  halo: 'zenith',       chassis: 'none',        deck: 'vantage',
+  rearDeck: 'none',     wingTop: 'orbita',      wingBack: 'gridwave',
+  wingEnd: 'kerbline',  wingEndLow: 'halden',   fwMain: 'strato',
+  frontWing: 'ferrox',  fwUpper: 'none',        floor: 'tessera',
+  noseTop: 'vertex',    noseTip: 'none',        noseSide: 'redline'
 };
 const ASSIST_PRESET = {
   new:      { tc: true,  abs: true,  esc: true },
@@ -2908,6 +2910,39 @@ function skyEnv(renderer) {
   return { sky, env };
 }
 
+/* A neutral studio dome for the paint shop. A sunset sky throws warm light
+   into everything, so a red wrap photographs orange and a white one cream —
+   fine on track, useless for judging paint. This is deliberately colourless
+   so the livery is the only colour in the frame. */
+function studioEnv(renderer) {
+  const dome = new THREE.Mesh(
+    new THREE.SphereGeometry(600, 32, 24),
+    new THREE.ShaderMaterial({
+      side: THREE.BackSide, depthWrite: false,
+      uniforms: {
+        top: { value: new THREE.Color(0xc9ced6) },
+        mid: { value: new THREE.Color(0x9aa1aa) },
+        low: { value: new THREE.Color(0x30343a) }
+      },
+      vertexShader: `varying vec3 vW; void main(){ vW = normalize(position);
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0);} `,
+      fragmentShader: `varying vec3 vW; uniform vec3 top, mid, low;
+        void main(){ float h = vW.y;
+          vec3 c = mix(mid, top, smoothstep(0.05, 0.85, h));
+          c = mix(low, c, smoothstep(-0.30, 0.02, h));
+          // one soft overhead source, which is what puts a highlight on gloss
+          c += vec3(1.0) * pow(max(0.0, h), 5.0) * 0.62;
+          gl_FragColor = vec4(c, 1.0); }`
+    }));
+  const pmrem = new THREE.PMREMGenerator(renderer);
+  pmrem.compileEquirectangularShader();
+  const sc = new THREE.Scene(); sc.add(dome.clone());
+  const env = pmrem.fromScene(sc, 0.04, 1, 900).texture;
+  pmrem.dispose();
+  dome.visible = false;
+  return { dome, env };
+}
+
 function buildScene(canvas) {
   track = buildTrack();
 
@@ -2924,6 +2959,10 @@ function buildScene(canvas) {
   scene.add(sky);
   scene.environment = env;
   scene.fog = new THREE.FogExp2(0x8a6a63, 0.0012);
+  const studio = studioEnv(renderer);
+  scene.add(studio.dome);
+  scene.userData.track = { sky, env, fog: scene.fog };
+  scene.userData.studio = studio;
 
   camera = new THREE.PerspectiveCamera(62, 1, 0.35, 6000);
 
@@ -3099,6 +3138,27 @@ const fmt = t => {
   return `${m}:${s < 10 ? '0' : ''}${s.toFixed(3)}`;
 };
 
+/* Filtered state for the onboard view. Kept apart from camPos/camAim so
+   switching between the chase cameras and the helmet does not drag one
+   rig's smoothing into the other. */
+const onboard = {
+  live: false, fov: 74,
+  up: new THREE.Vector3(0, 1, 0),
+  fwd: new THREE.Vector3(0, 0, 1),
+  pos: new THREE.Vector3()
+};
+const TMP_A = new THREE.Vector3();
+
+function setStudio(on) {
+  const t = scene.userData.track, st = scene.userData.studio;
+  if (!t || !st) return;
+  t.sky.visible = !on;
+  st.dome.visible = on;
+  st.dome.position.set(veh.x, 0, veh.z);
+  scene.environment = on ? st.env : t.env;
+  scene.fog = on ? null : t.fog;
+}
+
 function updateCamera(dt, sample) {
   const yaw = veh.yaw;
   const f = new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw));
@@ -3106,13 +3166,32 @@ function updateCamera(dt, sample) {
   const v = veh.speed;
 
   if (camMode === 1) {                       // onboard
-    const p = pos.clone().addScaledVector(f, 0.15)
-      .addScaledVector(sample.normal, 1.12);
-    camera.position.copy(p);
-    camAim.copy(pos).addScaledVector(f, 40).addScaledVector(sample.normal, 1.0);
+    /* A helmet cam is rigidly mounted, but feeding it the raw yaw, the raw
+       track normal and the raw speed puts every tyre-model oscillation and
+       every segment-to-segment step in the normal straight into the image.
+       Each input gets its own filter: the mount stays tight enough to feel
+       connected to the car, the horizon stops buzzing. */
+    const k = r => 1 - Math.exp(-dt * r);
+    if (!onboard.live) {                     // snap when the view is selected
+      onboard.up.copy(sample.normal);
+      onboard.fwd.copy(f);
+      onboard.pos.copy(pos).addScaledVector(f, 0.15).addScaledVector(sample.normal, 1.12);
+      onboard.fov = 74;
+      onboard.live = true;
+    }
+    onboard.up.lerp(sample.normal, k(7)).normalize();
+    onboard.fwd.lerp(f, k(16)).normalize();
+    onboard.pos.lerp(
+      TMP_A.copy(pos).addScaledVector(onboard.fwd, 0.15).addScaledVector(onboard.up, 1.12),
+      k(19));
+    camera.position.copy(onboard.pos);
+    camera.up.copy(onboard.up);
+    camAim.copy(pos).addScaledVector(onboard.fwd, 40).addScaledVector(onboard.up, 1.0);
     camera.lookAt(camAim);
-    camera.fov = 74 + Math.min(12, v * 0.16);
+    onboard.fov += ((74 + Math.min(12, v * 0.16)) - onboard.fov) * k(3.5);
+    camera.fov = onboard.fov;
   } else {
+    if (onboard.live) { onboard.live = false; camera.up.set(0, 1, 0); }
     const back = camMode === 2 ? 13.5 : 8.4;
     const high = camMode === 2 ? 4.6 : 3.05;
     const want = pos.clone().addScaledVector(f, -back)
@@ -3581,6 +3660,7 @@ async function init(onProgress) {
     if (e.code === 'KeyC') camMode = (camMode + 1) % 3;
     if (e.code === 'KeyR') {
       veh.reset(lap.s || 0); reseedLookup(veh.x, veh.z);
+      onboard.live = false;            // a respawn teleports; do not sweep to it
       lap.t = 0; lap.started = false;
       splits = [];                                   // the abandoned lap is not a reference
       sectors = { cur: [null, null, null], best: sectors.best,
@@ -3606,9 +3686,10 @@ function startGarage() {
      a highlight down the shoulder line, and a cold rim from behind to pick the
      trailing edge off the background. Gloss needs a light with an edge to it —
      a flat ambient makes clearcoat look like matte plastic. */
-  renderer.toneMappingExposure = 1.34;
+  setStudio(true);
+  renderer.toneMappingExposure = 1.28;
   const sun = scene.userData.sun;
-  sun.intensity = 4.2;
+  sun.intensity = 3.2;
   sun.position.set(veh.x + 26, 21, veh.z - 30);
   sun.target.position.set(veh.x, 0.4, veh.z);
   sun.target.updateMatrixWorld();
@@ -3626,7 +3707,7 @@ function startGarage() {
 }
 
 function start() {
-  running = true; garage.on = false;
+  running = true; garage.on = false; onboard.live = false;
   document.getElementById('drive').classList.remove('garage');
   renderer.toneMappingExposure = 1.18;
   scene.userData.sun.intensity = 3.9;
@@ -3645,6 +3726,7 @@ function start() {
   startCinematic();
   if (!raf) raf = requestAnimationFrame(frame);
   if (garageRim) garageRim.visible = false;
+  setStudio(false);
 }
 function stop() {
   running = false; garage.on = false; garage.drag = false;
@@ -3653,6 +3735,7 @@ function stop() {
   if (camera) camera.clearViewOffset();
   endCinematic();
   if (garageRim) garageRim.visible = false;
+  setStudio(false);
 }
 
 /* ============================================================
@@ -3675,9 +3758,9 @@ uniform sampler2D uAtlas;
 uniform float uAtlasOn;
 uniform float uPattern;
 
-// atlas cells, 2 across and 8 down
+// atlas cells, 4 across and 8 down
 vec4 cellAt(vec2 uv, float col, float row) {
-  vec2 t = vec2((col + uv.x) * 0.5, (row + uv.y) * 0.125);
+  vec2 t = vec2((col + uv.x) * 0.25, (row + uv.y) * 0.125);
   return texture2D(uAtlas, t);
 }
 
@@ -3699,10 +3782,25 @@ void flankMark(inout vec3 col, vec3 P, vec3 N, vec4 box, vec2 cell,
   col = mix(col, t.rgb, t.a * uAtlasOn);
 }
 
-// project a mark onto an upward-facing panel
-void deckMark(inout vec3 col, vec3 P, vec3 N, vec4 box, vec2 cell, float minY) {
+/* Project a mark onto a rearward-facing panel — the back of the rear wing,
+   which is the face a following car reads. u runs across the span, mirrored
+   so it reads left-to-right from behind. */
+void backMark(inout vec3 col, vec3 P, vec3 N, vec4 box, vec2 cell, float minZ) {
+  if (N.z < 0.45) return;
+  if (P.z < minZ) return;
+  float u = (box.y - P.x) / (box.y - box.x);
+  float v = 1.0 - (P.y - box.z) / (box.w - box.z);
+  if (u < 0.0 || u > 1.0 || v < 0.0 || v > 1.0) return;
+  vec4 t = cellAt(vec2(u, v), cell.x, cell.y);
+  col = mix(col, t.rgb, t.a * uAtlasOn);
+}
+
+/* Project a mark onto an upward-facing panel. yr bounds the height band the
+   panel occupies: a floor alone is not enough, because the wing plane and the
+   nose cone above it are both upward-facing inside the same z window. */
+void deckMark(inout vec3 col, vec3 P, vec3 N, vec4 box, vec2 cell, vec2 yr) {
   if (N.y < 0.45) return;
-  if (P.y < minY) return;                 // upper surfaces only
+  if (P.y < yr.x || P.y > yr.y) return;
   float u = (box.y - P.z) / (box.y - box.x);
   float v = (P.x - box.z) / (box.w - box.z);
   if (u < 0.0 || u > 1.0 || v < 0.0 || v > 1.0) return;
@@ -3732,7 +3830,7 @@ const LIVERY_GLSL = `
     float k = 0.150;
     lc = mix(lc, uSec, smoothstep(k + 0.012, k - 0.012, uy));
     edge = abs(uy - k);
-    flash = smoothstep(0.905, 0.930, s);
+    flash = smoothstep(0.905, 0.930, s) * smoothstep(0.20, 0.27, uy);
 
   } else if (uPattern < 1.5) {
     // SHOULDER — the upper body in the second colour, one clean diagonal
@@ -3784,7 +3882,7 @@ const LIVERY_GLSL = `
     // FADE — a long gradient from the base colour at the nose into the second
     // colour over the rear bodywork. No hard edge anywhere.
     lc = mix(lc, uSec, smoothstep(0.62, 0.06, s));
-    flash = smoothstep(0.915, 0.940, s);
+    flash = smoothstep(0.915, 0.940, s) * smoothstep(0.20, 0.27, uy);
 
   } else if (uPattern < 8.5) {
     // CENTRELINE — a broad stripe running the spine from the nose, over the
@@ -3800,7 +3898,7 @@ const LIVERY_GLSL = `
     float k = 0.520 - 0.055 * s;
     lc = mix(lc, uSec, smoothstep(k - 0.012, k + 0.012, uy));
     edge = abs(uy - k);
-    flash = smoothstep(0.905, 0.930, s);
+    flash = smoothstep(0.905, 0.930, s) * smoothstep(0.20, 0.27, uy);
 
   } else if (uPattern < 10.5) {
     // WEDGE — a triangle opening from the nose back across the sidepod.
@@ -3820,7 +3918,7 @@ const LIVERY_GLSL = `
   }
 
   // one thin edge, only where a pattern asked for it
-  if (edge >= 0.0) lc = mix(lc, uAcc, 1.0 - smoothstep(0.006, 0.014, edge));
+  if (edge >= 0.0) lc = mix(lc, uAcc, 1.0 - smoothstep(0.0055, 0.0105, edge));
   lc = mix(lc, uAcc, flash);
 
   /* Exposed carbon: the floor, the wing planes and everything in the shadow
@@ -3829,6 +3927,12 @@ const LIVERY_GLSL = `
      right down to the edge it stops at. */
   vec3 carbon = vec3(0.026, 0.027, 0.030);
   lc = mix(carbon, lc, smoothstep(0.030, 0.115, uy));
+
+  /* A wrap laid over compound curves picks up a little depth where the
+     bodywork turns under. Keying a slight darkening off the downward-facing
+     component reads as form, not as another shape in the livery. */
+  float tuck = clamp(-normalize(vLocalNrm).y, 0.0, 1.0);
+  lc *= 1.0 - 0.16 * tuck * tuck;
 
   // fifteen hand-placed sponsor zones, each measured off the bodywork
   // flip the normal on back faces, or a zero-thickness panel shows the
@@ -3845,11 +3949,18 @@ const LIVERY_GLSL = `
   flankMark(lc, vLocalPos, NL, vec4( 0.10,  1.05,  0.600, 0.720), vec2(0.0, 5.0), 0.40, vec2(0.12, 0.55)); // cockpit shoulder
   flankMark(lc, vLocalPos, NL, vec4( 2.16,  2.60,  0.545, 0.672), vec2(1.0, 5.0), 0.62, vec2(0.30, 0.60)); // endplate lower
   flankMark(lc, vLocalPos, NL, vec4(-3.00, -2.64,  0.215, 0.320), vec2(0.0, 6.0), 0.62, vec2(0.55, 1.10)); // front wing upper
-  deckMark (lc, vLocalPos, NL, vec4( 0.58,  1.70, -0.190, 0.190), vec2(1.0, 0.0), 0.34); // engine cover
-  deckMark (lc, vLocalPos, NL, vec4( 2.18,  2.58, -0.430, 0.430), vec2(1.0, 3.0), 0.34); // rear wing upper
-  deckMark (lc, vLocalPos, NL, vec4(-2.86, -1.94, -0.260, 0.260), vec2(1.0, 6.0), 0.20); // nose top
-  deckMark (lc, vLocalPos, NL, vec4(-1.38, -0.42, -0.400, 0.400), vec2(0.0, 7.0), 0.30); // chassis top
-  deckMark (lc, vLocalPos, NL, vec4( 1.76,  2.10, -0.460, 0.460), vec2(1.0, 7.0), 0.34); // rear deck
+  deckMark (lc, vLocalPos, NL, vec4( 0.58,  1.70, -0.190, 0.190), vec2(1.0, 0.0), vec2(0.34, 1.10)); // engine cover
+  deckMark (lc, vLocalPos, NL, vec4( 2.18,  2.58, -0.430, 0.430), vec2(1.0, 3.0), vec2(0.34, 1.30)); // rear wing upper
+  deckMark (lc, vLocalPos, NL, vec4(-2.86, -1.94, -0.260, 0.260), vec2(1.0, 6.0), vec2(0.20, 0.62)); // nose top
+  deckMark (lc, vLocalPos, NL, vec4(-1.38, -0.42, -0.400, 0.400), vec2(0.0, 7.0), vec2(0.30, 0.82)); // chassis top
+  deckMark (lc, vLocalPos, NL, vec4( 1.76,  2.10, -0.460, 0.460), vec2(1.0, 7.0), vec2(0.34, 1.10)); // rear deck
+  // the front wing plane, the halo blade, the nose and the back of the rear wing
+  deckMark (lc, vLocalPos, NL, vec4(-2.88, -2.32, -0.700, 0.700), vec2(2.0, 0.0), vec2(0.060, 0.215)); // front wing main
+  deckMark (lc, vLocalPos, NL, vec4(-0.56,  0.26, -0.245, 0.245), vec2(2.0, 1.0), vec2(0.800, 0.985)); // halo blade
+  deckMark (lc, vLocalPos, NL, vec4(-3.00, -2.74, -0.205, 0.205), vec2(2.0, 2.0), vec2(0.160, 0.340)); // nose tip
+  flankMark(lc, vLocalPos, NL, vec4(-2.58, -1.98,  0.198, 0.288), vec2(2.0, 3.0), 0.40, vec2(0.14, 0.52)); // nose lower flank
+  flankMark(lc, vLocalPos, NL, vec4(-0.70,  0.00,  0.290, 0.515), vec2(2.0, 4.0), 0.40, vec2(0.30, 0.78)); // sidepod front
+  backMark (lc, vLocalPos, NL, vec4(-0.58,  0.58,  0.672, 0.858), vec2(2.0, 5.0), 2.36); // rear wing face
 
   diffuseColor.rgb = lc;
 `;
@@ -3898,7 +4009,7 @@ const SPONSORS = [
   { id: 'hexon',    name: 'HEXON',    sub: 'H',          mark: null,       style: 'mono' },
   { id: 'none',     name: '',         sub: '',           mark: null,       style: 'lockup' }
 ];
-const ATLAS_W = 2048, ATLAS_H = 2048, CELL_W = 1024, CELL_H = 256;
+const ATLAS_W = 4096, ATLAS_H = 2048, CELL_W = 1024, CELL_H = 256;
 
 function drawMark(c, kind, x, y, r, col) {
   c.fillStyle = col; c.strokeStyle = col; c.lineWidth = r * 0.22;
@@ -4282,9 +4393,11 @@ let tyreCompound = 'soft';
 /* Each placement names a zone on the bodywork and the atlas cell that feeds
    it. The cell coordinates here must match the flankMark/deckMark calls in
    LIVERY_GLSL exactly — they are the two halves of one mapping. */
-const SLOT_KEYS = ['sidepod', 'sidepodLow', 'barge', 'engFlank', 'airbox',
-                   'wingEnd', 'wingEndLow', 'frontWing', 'fwUpper', 'floor',
-                   'deck', 'rearDeck', 'wingTop', 'noseTop', 'chassis'];
+const SLOT_KEYS = ['sidepod', 'podFront', 'sidepodLow', 'barge', 'engFlank',
+                   'airbox', 'halo', 'chassis', 'deck', 'rearDeck',
+                   'wingTop', 'wingBack', 'wingEnd', 'wingEndLow',
+                   'fwMain', 'frontWing', 'fwUpper', 'floor',
+                   'noseTop', 'noseTip', 'noseSide'];
 const SLOT_LABELS = {
   sidepod:    'Sidepod flank',
   sidepodLow: 'Sidepod lower',
@@ -4300,26 +4413,40 @@ const SLOT_LABELS = {
   rearDeck:   'Rear deck',
   wingTop:    'Rear wing upper',
   noseTop:    'Nose top',
-  chassis:    'Chassis top'
+  chassis:    'Chassis top',
+  fwMain:     'Front wing plane',
+  halo:       'Halo blade',
+  noseTip:    'Nose tip',
+  noseSide:   'Nose lower flank',
+  podFront:   'Sidepod front',
+  wingBack:   'Rear wing face'
 };
+/* Cell coordinates must match the flankMark/deckMark/backMark calls in
+   LIVERY_GLSL exactly — they are the two halves of one mapping. Cell (1,1)
+   is reserved for the race number. */
 const SLOT_CELL = {
   sidepod: [0, 0], wingEnd: [0, 1], airbox: [0, 2], frontWing: [1, 2],
   floor: [0, 3], sidepodLow: [0, 4], barge: [1, 4], engFlank: [0, 5],
   wingEndLow: [1, 5], fwUpper: [0, 6], deck: [1, 0], wingTop: [1, 3],
-  noseTop: [1, 6], chassis: [0, 7], rearDeck: [1, 7]
+  noseTop: [1, 6], chassis: [0, 7], rearDeck: [1, 7],
+  fwMain: [2, 0], halo: [2, 1], noseTip: [2, 2], noseSide: [2, 3],
+  podFront: [2, 4], wingBack: [2, 5]
 };
 /* Panels too small to hold a mark and a strapline legibly. Measured off the
    zone boxes: anything under about 0.55 m of run gets the wordmark alone. */
 const SLOT_COMPACT = {
   frontWing: true, fwUpper: true, wingEndLow: true, engFlank: true,
-  rearDeck: true, sidepodLow: true, floor: true, barge: true
+  rearDeck: true, sidepodLow: true, floor: true, barge: true,
+  noseTip: true, noseSide: true, halo: true, podFront: true
 };
 const DEFAULT_SLOT_IDS = {
-  sidepod: 'apex',      sidepodLow: 'none',     barge: 'none',
-  engFlank: 'none',     airbox: 'nova',         wingEnd: 'kerbline',
-  wingEndLow: 'none',   frontWing: 'ferrox',    fwUpper: 'none',
-  floor: 'tessera',     deck: 'vantage',        rearDeck: 'none',
-  wingTop: 'orbita',    noseTop: 'none',        chassis: 'none'
+  sidepod: 'apex',      podFront: 'lumen',      sidepodLow: 'none',
+  barge: 'none',        engFlank: 'none',       airbox: 'nova',
+  halo: 'zenith',       chassis: 'none',        deck: 'vantage',
+  rearDeck: 'none',     wingTop: 'orbita',      wingBack: 'gridwave',
+  wingEnd: 'kerbline',  wingEndLow: 'halden',   fwMain: 'strato',
+  frontWing: 'ferrox',  fwUpper: 'none',        floor: 'tessera',
+  noseTop: 'vertex',    noseTip: 'none',        noseSide: 'redline'
 };
 let sponsorSlots = {};
 for (const k of SLOT_KEYS) {
@@ -4524,6 +4651,7 @@ window.URacingDrive = {
     rebuildAtlas(opts.profile || this.profile);
   },
   debug: { get veh() { return veh; }, get track() { return track; },
+           get atlas() { return atlasTex; },
            snapCam() { const s = sampleTrack(veh.x, veh.z, veh.yaw);
              const f = new THREE.Vector3(Math.sin(veh.yaw), 0, Math.cos(veh.yaw));
              camPos.set(veh.x, s.y, veh.z).addScaledVector(f, -8.4).addScaledVector(s.normal, 3.05);
