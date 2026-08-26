@@ -749,11 +749,38 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
   color:var(--dimmer)}
 
 .htyres{position:absolute;left:34px;top:26px;display:grid;
-  grid-template-columns:auto auto;gap:7px}
-.htyres i{width:19px;height:27px;border-radius:3px;background:#22262c;
-  border:1px solid rgba(255,255,255,.1);transition:background .12s linear}
+  grid-template-columns:auto auto;gap:8px 14px}
+.tyre{display:flex;align-items:center;gap:8px}
+.tyre .car{width:17px;height:30px;border-radius:3px;background:#22262c;
+  border:1px solid rgba(255,255,255,.12);position:relative;overflow:hidden;
+  transition:background .12s linear}
+.tyre .car b{position:absolute;left:0;right:0;bottom:0;height:0%;
+  background:rgba(0,0,0,.55);transition:height .3s linear}
+.tyre .rd{display:flex;flex-direction:column;gap:2px;min-width:44px}
+.tyre .t{font-size:12px;font-weight:700;line-height:1;color:#dfe3e9}
+.tyre .w{font-size:8.5px;font-weight:600;letter-spacing:.12em;color:var(--dimmer)}
 .hlabel{grid-column:1 / -1;font-size:8.5px;font-weight:600;letter-spacing:.26em;
   text-transform:uppercase;color:var(--dimmer);margin-bottom:2px}
+
+/* sector timing */
+.hsectors{position:absolute;right:34px;bottom:132px;display:flex;gap:6px}
+.sec{min-width:74px;padding:7px 10px;border:1px solid var(--line);
+  background:rgba(0,0,0,.35)}
+.sec .k{font-size:8px;font-weight:700;letter-spacing:.24em;color:var(--dimmer)}
+.sec .v{font-size:14px;font-weight:700;margin-top:4px;color:#c9ced6;
+  font-variant-numeric:tabular-nums}
+.sec.live{border-color:var(--line-2)}
+.sec.pb .v{color:#7dffa8}.sec.pb{border-color:rgba(125,255,168,.5)}
+.sec.best .v{color:#c9a6ff}.sec.best{border-color:rgba(201,166,255,.55)}
+.sec.slow .v{color:#ffd479}
+
+/* the live dot: unmistakable */
+#hMapDot{r:5.4;fill:#fff}
+.hmapring{fill:none;stroke:var(--red);stroke-width:2;opacity:.9;
+  transform-box:fill-box;transform-origin:center;animation:mapPulse 1.5s ease-out infinite}
+@keyframes mapPulse{0%{transform:scale(.5);opacity:.95}100%{transform:scale(2.6);opacity:0}}
+.hmaptrail{fill:none;stroke:var(--red);stroke-width:3.4;stroke-linecap:round;
+  filter:drop-shadow(0 0 5px rgba(225,6,0,.9))}
 
 .hdelta{position:absolute;left:50%;bottom:112px;transform:translateX(-50%);
   display:flex;flex-direction:column;align-items:center;gap:7px;
@@ -771,6 +798,51 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
 .hbanner.on{opacity:1;transform:translate(-50%,0)}
 
 @media (max-width:900px){ .htyres,.hdelta{display:none} }
+
+/* ============================================================
+   GARAGE — live paint shop over the 3D car
+   ============================================================ */
+#garageUI{position:absolute;inset:0;pointer-events:none;z-index:8;
+  display:none;font-family:var(--display)}
+#drive.garage #garageUI{display:block}
+#drive.garage .hud{display:none}
+.gpanel{position:absolute;right:0;top:0;bottom:0;width:min(400px,38vw);
+  background:linear-gradient(270deg,rgba(4,6,10,.96),rgba(4,6,10,.86));
+  border-left:1px solid var(--line);pointer-events:auto;
+  display:flex;flex-direction:column}
+.gscroll{flex:1;overflow-y:auto;padding:clamp(20px,2.4vw,30px)}
+.ghead{font-family:var(--display);font-weight:700;font-style:italic;
+  text-transform:uppercase;font-size:clamp(22px,2.6vw,32px);line-height:1;
+  margin-bottom:6px}
+.gsub{font-family:var(--ui);font-size:12.5px;line-height:1.6;color:#8f959f;
+  margin-bottom:24px}
+.gsec{font-size:9.5px;font-weight:700;letter-spacing:.28em;text-transform:uppercase;
+  color:var(--red);margin:24px 0 12px;display:flex;align-items:center;gap:10px}
+.gsec::after{content:"";flex:1;height:1px;background:var(--line)}
+.gsec:first-of-type{margin-top:0}
+.grow{display:flex;align-items:center;justify-content:space-between;gap:12px;
+  padding:9px 0;border-bottom:1px solid rgba(255,255,255,.05)}
+.grow > span{font-size:10.5px;font-weight:600;letter-spacing:.16em;
+  text-transform:uppercase;color:var(--dim)}
+.gsel{background:rgba(255,255,255,.04);border:1px solid var(--line);
+  color:var(--text);padding:8px 10px;font-family:var(--ui);font-size:12.5px;
+  min-width:150px;cursor:pointer}
+.gsel:focus{outline:none;border-color:var(--red)}
+.gsel option{background:#0d0f13}
+.gsw{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}
+.gsw button{width:28px;height:28px;border:1px solid var(--line-2);cursor:pointer;
+  transition:transform .16s ease}
+.gsw button:hover{transform:translateY(-2px)}
+.gsw button.on{box-shadow:0 0 0 2px #04060a,0 0 0 3px #fff}
+.gfoot{padding:16px clamp(20px,2.4vw,30px);border-top:1px solid var(--line);
+  display:flex;gap:10px}
+.gfoot .btn{flex:1;text-align:center;padding:12px 0}
+.ghint{position:absolute;left:32px;bottom:26px;pointer-events:none;
+  font-size:9.5px;font-weight:600;letter-spacing:.24em;text-transform:uppercase;
+  color:var(--dimmer)}
+.ghint b{color:#c2c7cf;margin-right:8px}
+@media (max-width:900px){ .gpanel{width:100%;top:auto;height:62%;border-left:none;
+  border-top:1px solid var(--line)} }
 
 /* ---------- responsive ----------------------------------- */
 @media (max-width:900px){
@@ -1087,6 +1159,47 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
 <!-- ============================ DRIVE ======================= -->
 <section class="screen" id="drive">
   <canvas id="gl"></canvas>
+  <div id="garageUI">
+    <div class="ghint"><b>Drag</b>Rotate &nbsp; <b>Esc</b>Back to menu</div>
+    <aside class="gpanel">
+      <div class="gscroll">
+        <h2 class="ghead">Paint Shop</h2>
+        <p class="gsub">Every change is applied to the car beside you as you make
+          it. The wrap is drawn onto the bodywork, so shapes stay aligned across
+          the nose, sidepods, engine cover and wings.</p>
+
+        <div class="gsec">Colours</div>
+        <div class="grow"><span>Primary</span></div>
+        <div class="gsw" data-slot="primary"></div>
+        <div class="grow"><span>Secondary</span></div>
+        <div class="gsw" data-slot="secondary"></div>
+        <div class="grow"><span>Accent</span></div>
+        <div class="gsw" data-slot="accent"></div>
+
+        <div class="gsec">Sponsors</div>
+        <div class="grow"><span>Sidepod</span>
+          <select class="gsel" data-sp="title"></select></div>
+        <div class="grow"><span>Engine cover</span>
+          <select class="gsel" data-sp="engine"></select></div>
+        <div class="grow"><span>Rear wing</span>
+          <select class="gsel" data-sp="wing"></select></div>
+        <div class="grow"><span>Nose</span>
+          <select class="gsel" data-sp="nose"></select></div>
+
+        <div class="gsec">Identity</div>
+        <div class="grow"><span>Car number</span>
+          <select class="gsel" id="gNum"></select></div>
+        <div class="grow"><span>Abbreviation</span>
+          <input class="gsel" id="gTag" maxlength="3"
+                 style="text-transform:uppercase;letter-spacing:.2em"></div>
+      </div>
+      <div class="gfoot">
+        <button class="btn ghost" id="gCancel"><span>Discard</span></button>
+        <button class="btn" id="gSave"><span>Save livery</span></button>
+      </div>
+    </aside>
+  </div>
+
   <div id="cine">
     <div class="bar top"></div><div class="bar bot"></div>
     <div class="gantry"><i></i><i></i><i></i><i></i><i></i></div>
@@ -1121,14 +1234,29 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
     <svg class="hmap" viewBox="0 0 120 120">
       <path class="hmapline glow" id="hMapGlow"></path>
       <path class="hmapline" id="hMapPath"></path>
+      <path class="hmaptrail" id="hMapTrail"></path>
       <line class="sf" id="hMapSF" x1="0" y1="0" x2="0" y2="0"></line>
+      <circle class="hmapring" id="hMapRing" cx="60" cy="60" r="6"></circle>
       <circle id="hMapDot" cx="60" cy="60"></circle>
     </svg>
     <div class="hmaphead" id="hMapName">Circuit</div>
 
     <div class="htyres">
-      <div class="hlabel">Tyres</div>
-      <i id="tFL"></i><i id="tFR"></i><i id="tRL"></i><i id="tRR"></i>
+      <div class="hlabel">Tyres &mdash; temp &amp; wear</div>
+      <div class="tyre"><div class="car" id="tFL"><b></b></div>
+        <div class="rd"><span class="t" id="tFLt">—</span><span class="w" id="tFLw">FL</span></div></div>
+      <div class="tyre"><div class="car" id="tFR"><b></b></div>
+        <div class="rd"><span class="t" id="tFRt">—</span><span class="w" id="tFRw">FR</span></div></div>
+      <div class="tyre"><div class="car" id="tRL"><b></b></div>
+        <div class="rd"><span class="t" id="tRLt">—</span><span class="w" id="tRLw">RL</span></div></div>
+      <div class="tyre"><div class="car" id="tRR"><b></b></div>
+        <div class="rd"><span class="t" id="tRRt">—</span><span class="w" id="tRRw">RR</span></div></div>
+    </div>
+
+    <div class="hsectors">
+      <div class="sec" id="sec1"><div class="k">S1</div><div class="v">--.---</div></div>
+      <div class="sec" id="sec2"><div class="k">S2</div><div class="v">--.---</div></div>
+      <div class="sec" id="sec3"><div class="k">S3</div><div class="v">--.---</div></div>
     </div>
 
     <div class="hdelta" id="hDeltaWrap">
@@ -1788,6 +1916,7 @@ function move(dir) {
 async function activate(i) {
   select(i);
   const m = MODES[i];
+  if (m.id === 'garage' && window.URacingDrive) { await enterGarage(); return; }
   if (DRIVE_MODES.has(m.id) && window.URacingDrive) { await enterDrive(); return; }
   await wipe();
   if (m.quit) {
@@ -1797,6 +1926,94 @@ async function activate(i) {
   }
   $('#modTitle').textContent = m.label;
   show('module');
+}
+
+/* ---------- garage ---------- */
+let gState = null;
+function buildGarage() {
+  const D = window.URacingDrive;
+  if (!D || !D.SPONSORS) return;
+  gState = {
+    colors: Object.assign({}, profile.colors),
+    sponsors: Object.assign({ title: 'apex', engine: 'vantage', wing: 'kerbline',
+                              nose: 'nova', floor: 'ferrox' }, profile.sponsors || {}),
+    number: profile.number, tag: profile.tag
+  };
+  document.querySelectorAll('.gsw').forEach(row => {
+    const slot = row.dataset.slot;
+    row.innerHTML = PALETTE.map(c =>
+      `<button data-c="${c}" style="background:${c}" aria-label="${c}"></button>`).join('');
+    row.onclick = e => {
+      const b = e.target.closest('button'); if (!b) return;
+      gState.colors[slot] = b.dataset.c;
+      paintGarage(); pushGarage();
+    };
+  });
+  document.querySelectorAll('.gsel[data-sp]').forEach(sel => {
+    sel.innerHTML = D.SPONSORS.map(sp =>
+      `<option value="${sp.id}">${sp.name ? sp.name + ' ' + sp.sub : 'None'}</option>`).join('');
+    sel.value = gState.sponsors[sel.dataset.sp];
+    sel.onchange = () => { gState.sponsors[sel.dataset.sp] = sel.value; pushGarage(); };
+  });
+  const taken = takenNumbers(profile.country);
+  $('#gNum').innerHTML = Array.from({ length: 99 }, (_, i) => i + 1)
+    .filter(n => !taken.has(n) || n === profile.number)
+    .map(n => `<option value="${n}">${n}</option>`).join('');
+  $('#gNum').value = gState.number;
+  $('#gNum').onchange = () => { gState.number = +$('#gNum').value; pushGarage(); };
+  $('#gTag').value = gState.tag;
+  $('#gTag').oninput = () => {
+    gState.tag = $('#gTag').value.toUpperCase().replace(/[^A-Z]/g, '').slice(0, 3);
+    $('#gTag').value = gState.tag; pushGarage();
+  };
+  $('#gSave').onclick = () => {
+    profile.colors = Object.assign({}, gState.colors);
+    profile.sponsors = Object.assign({}, gState.sponsors);
+    profile.number = gState.number;
+    profile.tag = gState.tag || profile.tag;
+    saveProfile(profile);
+    applyProfile();
+    window.URacingDrive.leave();
+    transitionTo('menu');
+  };
+  $('#gCancel').onclick = () => {
+    window.URacingDrive.setLivery(profile.colors, profile.sponsors, profile);
+    window.URacingDrive.leave();
+    transitionTo('menu');
+  };
+  paintGarage();
+}
+function paintGarage() {
+  document.querySelectorAll('.gsw').forEach(row => {
+    const slot = row.dataset.slot;
+    [...row.children].forEach(b => b.classList.toggle('on', b.dataset.c === gState.colors[slot]));
+  });
+}
+function pushGarage() {
+  window.URacingDrive.setLivery(gState.colors, gState.sponsors,
+    Object.assign({}, profile, { number: gState.number, tag: gState.tag }));
+}
+
+async function enterGarage() {
+  applyProfile();
+  const first = !window.URacingDrive.ready;
+  if (first) { await wipe(); runLoading(true); }
+  try {
+    await window.URacingDrive.enterGarage({
+      progress: (p, k) => realLoad && realLoad.set(p, k),
+      reveal: async () => {
+        if (first && realLoad) await realLoad.finish();
+        await wipe();
+        show('drive');
+      }
+    });
+    buildGarage();
+  } catch (err) {
+    console.error('[URacing] could not open the garage —', err);
+    realLoad = null;
+    $('#modTitle').textContent = 'Garage';
+    await wipe(); show('module');
+  }
 }
 
 async function enterDrive() {
@@ -2232,6 +2449,8 @@ class Vehicle {
     this.slip = [0, 0, 0, 0]; this.load = [0, 0, 0, 0]; this.kappa = [0, 0, 0, 0];
     this.tcCut = 0; this.absCut = 0; this.escCut = 0;
     this.alphaLag = [0, 0, 0, 0];
+    this.tyreT = [82, 82, 82, 82];      // core temperature, C
+    this.tyreW = [0, 0, 0, 0];          // wear, 0..1
     this.spin = [0, 0, 0, 0];
     this.shiftT = 0; this.offTrack = false; this.grip = 1;
   }
@@ -2394,6 +2613,16 @@ class Vehicle {
     const axb = Fx / c.m, ayb = Fy / c.m;
     this.ax = axb; this.ay = ayb;
     this.absCut *= Math.exp(-dt * 9);
+
+    // tyres heat with slip and load, and cool with airflow
+    for (let i = 0; i < 4; i++) {
+      const work = this.slip[i] * (this.load[i] / 4200);
+      const air = 0.55 + Math.abs(this.vx) * 0.035;
+      this.tyreT[i] += (work * 38 - (this.tyreT[i] - 26) * air * 0.055) * dt;
+      this.tyreT[i] = Math.max(20, Math.min(165, this.tyreT[i]));
+      this.tyreW[i] = Math.min(1, this.tyreW[i] +
+        Math.max(0, this.slip[i] - 0.55) * (this.load[i] / 5200) * dt * 0.0016);
+    }
     this.vx += (axb + this.r * this.vy) * dt;
     this.vy += (ayb - this.r * this.vx) * dt;
     this.r += Mz / c.Izz * dt;
@@ -2749,12 +2978,47 @@ function updateHUD(sample) {
   hud.lapNo.textContent = String(lap.count).padStart(2, '0');
   hud.flag.classList.toggle('on', veh.offTrack);
 
-  // tyre corners: green while working, red once past the limit
+  // tyres: colour by working temperature, with the numbers alongside
   for (let i = 0; i < 4; i++) {
-    const w = Math.min(1.6, veh.slip[i]) / 1.6;
-    const h = Math.max(0, 105 - w * 105);
-    hud.tyres[i].style.background =
-      `hsl(${h.toFixed(0)} ${(38 + w * 52).toFixed(0)}% ${(30 + w * 18).toFixed(0)}%)`;
+    const T = veh.tyreT[i], t = hud.tyres[i];
+    // cold blue -> in window green -> overheating red
+    let h, sat = 62, li = 34;
+    if (T < 78) { h = 205; li = 26 + (T - 20) / 58 * 10; }
+    else if (T < 108) { h = 205 - (T - 78) / 30 * 100; li = 34; }
+    else { h = Math.max(0, 105 - (T - 108) / 45 * 105); li = 34 + (T - 108) / 45 * 12; }
+    t.box.style.background = `hsl(${h.toFixed(0)} ${sat}% ${li.toFixed(0)}%)`;
+    t.wearBar.style.height = (veh.tyreW[i] * 100).toFixed(0) + '%';
+    t.temp.textContent = Math.round(T) + '°';
+    t.lbl.textContent = t.name + ' ' + (100 - veh.tyreW[i] * 100).toFixed(0) + '%';
+  }
+
+  // live position: dot, pulse ring and the stretch of road just covered
+  const uNow = sample.s / track.length;
+  const pNow = hud.mapPath.getPointAtLength(uNow * hud.mapLen);
+  hud.mapDot.setAttribute('cx', pNow.x); hud.mapDot.setAttribute('cy', pNow.y);
+  hud.mapRing.setAttribute('cx', pNow.x); hud.mapRing.setAttribute('cy', pNow.y);
+  let d = '';
+  for (let k = 0; k <= 14; k++) {
+    const uu = uNow - (14 - k) * 0.006;
+    const q = hud.mapPath.getPointAtLength(((uu % 1) + 1) % 1 * hud.mapLen);
+    d += (k ? 'L' : 'M') + q.x.toFixed(1) + ' ' + q.y.toFixed(1);
+  }
+  hud.mapTrail.setAttribute('d', d);
+
+  // sectors
+  for (let i = 0; i < 3; i++) {
+    const el = hud.secs[i];
+    const cur = sectors.cur[i], bestS = sectors.best[i], ideal = sectors.ideal[i];
+    const live = Math.floor(uNow * 3) === i && lap.started;
+    el.className = 'sec' + (live ? ' live' : '');
+    let v = cur != null ? cur : (bestS != null ? bestS : null);
+    if (live && cur == null) v = lap.t - (i > 0 ? (sectors.cum[i - 1] || 0) : 0);
+    el.children[1].textContent = v == null ? '--.---' : v.toFixed(3);
+    if (cur != null && ideal != null) {
+      if (cur <= ideal + 1e-6) el.classList.add('best');
+      else if (bestS != null && cur <= bestS + 1e-6) el.classList.add('pb');
+      else el.classList.add('slow');
+    }
   }
 
   // delta against the best lap so far
@@ -2798,6 +3062,11 @@ function frame(now) {
   const dt = Math.min(0.05, (now - lastT) / 1000 || 0.016);
   lastT = now;
 
+  if (garage.on) {
+    stepGarage(dt);
+    renderer.render(scene, camera);
+    return;
+  }
   const inp = cine.on ? { throttle: 0, brake: 1, steer: 0 } : input();
   acc += dt;
   const H = 1 / 300;
@@ -2815,6 +3084,19 @@ function frame(now) {
     const prev = lap.s, cur = sample.s;
     const k = Math.min(SPLIT_N - 1, Math.floor(cur / track.length * SPLIT_N));
     if (splits[k] == null) splits[k] = lap.t;
+
+    const secNow = Math.min(2, Math.floor(cur / track.length * 3));
+    if (secNow !== sectors.idx && secNow === sectors.idx + 1) {
+      const prevStart = sectors.idx > 0 ? sectors.cum[sectors.idx - 1] : 0;
+      const st = lap.t - prevStart;
+      sectors.cur[sectors.idx] = st;
+      sectors.cum[sectors.idx] = lap.t;
+      const b = sectors.best[sectors.idx];
+      if (b == null || st < b) sectors.best[sectors.idx] = st;
+      const id = sectors.ideal[sectors.idx];
+      if (id == null || st < id) sectors.ideal[sectors.idx] = st;
+      sectors.idx = secNow;
+    }
     if (prev > track.length * 0.75 && cur < track.length * 0.25) {
       lap.last = lap.t;
       if (lap.best == null || lap.t < lap.best) {
@@ -2824,6 +3106,13 @@ function frame(now) {
         hud.banner.classList.add('on');
         bannerT = 3;
       }
+      // close the final sector, then reset for the next lap
+      const st3 = lap.t - (sectors.cum[1] || 0);
+      sectors.cur[2] = st3;
+      if (sectors.best[2] == null || st3 < sectors.best[2]) sectors.best[2] = st3;
+      if (sectors.ideal[2] == null || st3 < sectors.ideal[2]) sectors.ideal[2] = st3;
+      sectors = { cur: [null, null, null], best: sectors.best,
+                  ideal: sectors.ideal, cum: [0, 0, 0], idx: 0 };
       splits = [];
       lap.t = 0; lap.count++;
     }
@@ -2875,8 +3164,48 @@ function resize() {
    ============================================================ */
 const TRACK_NAME = 'Meridian';
 let cine = { on: false, t: 0, phase: 0, lit: 0, hold: 0, ang: 0 };
+let garage = { on: false, az: 0.85, el: 0.20, drag: false, px: 0, py: 0, spin: true };
+
+function parkForGarage() {
+  const t = track;
+  let i = 0, best = 1e9;                    // straightest stretch, so it sits square
+  for (let n = 0; n < t.count; n++) {
+    let k = 0;
+    for (let d = -25; d <= 25; d++) k += Math.abs(t.K[(n + d + t.count) % t.count]);
+    if (k < best) { best = k; i = n; }
+  }
+  veh.reset(0);
+  veh.x = t.P[i].x; veh.z = t.P[i].z;
+  veh.yaw = Math.atan2(t.T[i].x, t.T[i].z);
+  veh.vx = 0; veh.vy = 0; veh.r = 0; veh.w = [0, 0, 0, 0];
+  reseedLookup(veh.x, veh.z);
+  const sm = sampleTrack(veh.x, veh.z, veh.yaw);
+  carRoot.position.set(veh.x, sm.y, veh.z);
+  carRoot.rotation.set(0, veh.yaw + Math.PI, 0);
+  body.rotation.set(0, 0, 0);
+  for (const w of wheels) { w.rotation.set(0, 0, 0); w.position.y = w.userData.home.y; }
+}
+
+function stepGarage(dt) {
+  if (garage.spin && !garage.drag) garage.az += dt * 0.22;
+  const c = carRoot.position;
+  const d = 7.4;
+  camera.position.set(c.x + Math.sin(garage.az) * d * Math.cos(garage.el),
+                      0.62 + Math.sin(garage.el) * 4.6,
+                      c.z + Math.cos(garage.az) * d * Math.cos(garage.el));
+  camera.lookAt(c.x, 0.50, c.z);
+  camera.fov = 38;
+  // shift the frame so the car clears the panel on the right
+  const el = renderer.domElement;
+  const w = el.clientWidth || 1, h = el.clientHeight || 1;
+  const shift = w > 900 ? w * 0.19 : 0;
+  camera.setViewOffset(w, h, shift, 0, w, h);
+  camera.updateProjectionMatrix();
+}
 let splits = [], bestSplits = null, bannerT = 0;
 const SPLIT_N = 60;
+let sectors = { cur: [null, null, null], best: [null, null, null],
+                ideal: [null, null, null], cum: [0, 0, 0], idx: 0 };
 
 function startCinematic() {
   const el = document.getElementById('cine');
@@ -2951,7 +3280,12 @@ function collectHUD() {
     mapPath: $('#hMapPath'), mapDot: $('#hMapDot'), mapSF: $('#hMapSF'),
     mapName: $('#hMapName'), banner: $('#hBanner'),
     deltaWrap: $('#hDeltaWrap'), delta: $('#hDelta'), deltaMark: $('#hDeltaMark'),
-    tyres: [$('#tFL'), $('#tFR'), $('#tRL'), $('#tRR')],
+    tyres: ['FL', 'FR', 'RL', 'RR'].map(k => ({
+      box: $('#t' + k), wearBar: $('#t' + k).firstElementChild,
+      temp: $('#t' + k + 't'), lbl: $('#t' + k + 'w'), name: k
+    })),
+    mapTrail: $('#hMapTrail'), mapRing: $('#hMapRing'),
+    secs: [$('#sec1'), $('#sec2'), $('#sec3')],
     revCells: [...$('#hRev').children]
   };
   hud.mapLen = hud.mapPath.getTotalLength();
@@ -3025,9 +3359,27 @@ async function init(onProgress) {
   }
   scene.add(carRoot);
   applyLivery();
+  rebuildAtlas(window.URacingDrive.profile);
   onProgress(0.96, 5);
 
   addEventListener('resize', resize);
+  const cv = renderer.domElement;
+  cv.addEventListener('pointerdown', e => {
+    if (!garage.on) return;
+    garage.drag = true; garage.px = e.clientX; garage.py = e.clientY;
+    try { cv.setPointerCapture(e.pointerId); } catch (err) {}
+  });
+  cv.addEventListener('pointermove', e => {
+    if (!garage.on || !garage.drag) return;
+    garage.az -= (e.clientX - garage.px) * 0.008;
+    garage.el = Math.max(-0.05, Math.min(0.62, garage.el + (e.clientY - garage.py) * 0.004));
+    garage.px = e.clientX; garage.py = e.clientY;
+  });
+  cv.addEventListener('pointerup', e => {
+    if (!garage.on) return;
+    garage.drag = false;
+    try { cv.releasePointerCapture(e.pointerId); } catch (err) {}
+  });
   addEventListener('keydown', e => {
     if (!running) return;
     keys[e.code] = true;
@@ -3048,8 +3400,28 @@ async function init(onProgress) {
   onProgress(1, 5);
 }
 
+function startGarage() {
+  running = true; garage.on = true; lastT = performance.now();
+  document.getElementById('drive').classList.add('garage');
+  parkForGarage();
+  // studio light for judging paint
+  renderer.toneMappingExposure = 1.72;
+  const sun = scene.userData.sun;
+  sun.intensity = 4.4;
+  sun.position.set(veh.x + 34, 26, veh.z - 22);
+  sun.target.position.set(veh.x, 0, veh.z);
+  sun.target.updateMatrixWorld();
+  resize();
+  if (!raf) raf = requestAnimationFrame(frame);
+}
+
 function start() {
-  running = true; lastT = performance.now(); acc = 0;
+  running = true; garage.on = false;
+  document.getElementById('drive').classList.remove('garage');
+  renderer.toneMappingExposure = 1.18;
+  scene.userData.sun.intensity = 3.9;
+  camera.clearViewOffset();
+  lastT = performance.now(); acc = 0;
   veh.reset(0);
   reseedLookup(veh.x, veh.z);
   lap = { t: 0, best: lap.best, last: null, s: 0, started: false, count: 1 };
@@ -3057,51 +3429,299 @@ function start() {
   camPos.set(veh.x, s.y + 3, veh.z);
   camAim.set(veh.x, s.y + 1, veh.z);
   splits = [];
+  sectors = { cur: [null, null, null], best: [null, null, null],
+              ideal: [null, null, null], cum: [0, 0, 0], idx: 0 };
   resize();
   startCinematic();
   if (!raf) raf = requestAnimationFrame(frame);
 }
-function stop() { running = false; endCinematic(); }
+function stop() {
+  running = false; garage.on = false;
+  document.getElementById('drive').classList.remove('garage');
+  if (renderer) renderer.toneMappingExposure = 1.18;
+  if (camera) camera.clearViewOffset();
+  endCinematic();
+}
+
+/* ============================================================
+   LIVERY — "MERIDIAN"
+
+   A wrap, not a set of stickers. Every graphic is a function of where
+   it sits on the car, so it crosses panel gaps in register by
+   construction: nose, sidepods, engine cover, floor edge and wings all
+   share one continuous set of boundaries.
+
+     THE SWEEP   one line running the length of the car, dividing the
+                 upper body from the lower flanks, rising toward the nose
+     THE EDGE    an accent hairline sitting exactly on that boundary
+     THE SPINE   a centreline stripe from the nose over the airbox to the
+                 rear wing, flaring where the airbox is widest
+     THE BLADE   the nose tip, picked out in the accent
+   ============================================================ */
+const SPONSOR_GLSL = `
+uniform sampler2D uAtlas;
+uniform float uAtlasOn;
+
+// atlas cells, 2 across and 4 down
+vec4 cellAt(vec2 uv, float col, float row) {
+  vec2 t = vec2((col + uv.x) * 0.5, (row + uv.y) * 0.25);
+  return texture2D(uAtlas, t);
+}
+
+// project a mark onto a flank, mirrored so it reads forwards on both sides
+void flankMark(inout vec3 col, vec3 P, vec3 N, vec4 box, vec2 cell, float minFace) {
+  if (abs(N.x) < minFace) return;
+  float u = N.x > 0.0 ? (box.y - P.z) / (box.y - box.x)
+                      : (P.z - box.x) / (box.y - box.x);
+  float v = 1.0 - (P.y - box.z) / (box.w - box.z);
+  if (u < 0.0 || u > 1.0 || v < 0.0 || v > 1.0) return;
+  vec4 t = cellAt(vec2(u, v), cell.x, cell.y);
+  col = mix(col, t.rgb, t.a * uAtlasOn);
+}
+
+// project a mark onto an upward-facing panel
+void deckMark(inout vec3 col, vec3 P, vec3 N, vec4 box, vec2 cell) {
+  if (N.y < 0.45) return;
+  float u = (box.y - P.z) / (box.y - box.x);
+  float v = (P.x - box.z) / (box.w - box.z);
+  if (u < 0.0 || u > 1.0 || v < 0.0 || v > 1.0) return;
+  vec4 t = cellAt(vec2(u, v), cell.x, cell.y);
+  col = mix(col, t.rgb, t.a * uAtlasOn);
+}
+`;
+
+const LIVERY_GLSL = `
+  float s  = clamp((-vLocalPos.z + 2.95) / 5.90, 0.0, 1.0);   // 0 tail, 1 nose
+  float uy = clamp(vLocalPos.y / 1.10, 0.0, 1.0);
+  float ax = abs(vLocalPos.x);
+
+  // the diagonal: high over the rear, dropping away toward the nose
+  float sweep = 0.655 - 0.500 * pow(s, 1.15);
+  float spine = 0.050 + 0.080 * exp(-pow((s - 0.40) * 4.4, 2.0));
+
+  vec3 lc = uPrim;
+  lc = mix(lc, uSec, smoothstep(sweep - 0.016, sweep + 0.016, uy));  // dark above
+  lc = mix(lc, uAcc, 1.0 - smoothstep(0.010, 0.026, abs(uy - sweep)));
+  lc = mix(lc, uAcc, smoothstep(spine + 0.012, spine - 0.012, ax)
+                     * smoothstep(0.30, 0.36, uy)
+                     * smoothstep(0.10, 0.20, s));
+  lc = mix(lc, uAcc, smoothstep(0.934, 0.960, s));
+  lc *= mix(0.40, 1.0, smoothstep(0.02, 0.13, uy));            // floor stays dark
+
+  // hand-placed sponsor zones — sidepod, nose, engine cover, rear wing
+  vec3 NL = normalize(vLocalNrm);
+  flankMark(lc, vLocalPos, NL, vec4( 0.30, 1.62, 0.290, 0.620), vec2(0.0, 0.0), 0.28);
+  flankMark(lc, vLocalPos, NL, vec4(-2.72, -1.60, 0.300, 0.580), vec2(1.0, 1.0), 0.30);
+  flankMark(lc, vLocalPos, NL, vec4( 2.14, 2.60, 0.700, 0.815), vec2(0.0, 1.0), 0.34);
+  deckMark (lc, vLocalPos, NL, vec4( 0.55, 2.05, -0.190, 0.190), vec2(1.0, 0.0));
+
+  diffuseColor.rgb = lc;
+`;
+
+/* Sponsor marks are drawn into one atlas; the shader projects each cell onto
+   a hand-placed zone on the car, so they sit on the panels the way a real
+   wrap does rather than floating as billboards. */
+const SPONSORS = [
+  { id: 'apex',    name: 'APEX',      sub: 'DYNAMICS',  mark: 'chevron' },
+  { id: 'vantage', name: 'VANTAGE',   sub: 'ENERGY',    mark: 'bolt' },
+  { id: 'kerbline',name: 'KERBLINE',  sub: 'TYRES',     mark: 'ring' },
+  { id: 'nova',    name: 'NOVA',      sub: 'AVIONICS',  mark: 'star' },
+  { id: 'ferrox',  name: 'FERROX',    sub: 'ALLOYS',    mark: 'hex' },
+  { id: 'lumen',   name: 'LUMEN',     sub: 'OPTICS',    mark: 'ring' },
+  { id: 'strato',  name: 'STRATO',    sub: 'FUELS',     mark: 'chevron' },
+  { id: 'none',    name: '',          sub: '',          mark: null }
+];
+const ATLAS_W = 2048, ATLAS_H = 1024, CELL_W = 1024, CELL_H = 256;
+
+function drawMark(c, kind, x, y, r, col) {
+  c.fillStyle = col; c.strokeStyle = col; c.lineWidth = r * 0.26;
+  c.beginPath();
+  if (kind === 'chevron') {
+    c.moveTo(x - r, y + r * .55); c.lineTo(x, y - r * .55); c.lineTo(x + r, y + r * .55);
+    c.lineTo(x + r * .5, y + r * .55); c.lineTo(x, y + r * .05); c.lineTo(x - r * .5, y + r * .55);
+    c.closePath(); c.fill();
+  } else if (kind === 'bolt') {
+    c.moveTo(x + r * .25, y - r); c.lineTo(x - r * .55, y + r * .1);
+    c.lineTo(x - r * .05, y + r * .1); c.lineTo(x - r * .3, y + r);
+    c.lineTo(x + r * .6, y - r * .15); c.lineTo(x + r * .08, y - r * .15);
+    c.closePath(); c.fill();
+  } else if (kind === 'ring') {
+    c.arc(x, y, r * .72, 0, Math.PI * 2); c.stroke();
+    c.beginPath(); c.arc(x, y, r * .26, 0, Math.PI * 2); c.fill();
+  } else if (kind === 'star') {
+    for (let i = 0; i < 8; i++) {
+      const a = i / 8 * Math.PI * 2, rr = i % 2 ? r * .34 : r;
+      c[i ? 'lineTo' : 'moveTo'](x + Math.cos(a) * rr, y + Math.sin(a) * rr);
+    }
+    c.closePath(); c.fill();
+  } else if (kind === 'hex') {
+    for (let i = 0; i < 6; i++) {
+      const a = i / 6 * Math.PI * 2 + Math.PI / 6;
+      c[i ? 'lineTo' : 'moveTo'](x + Math.cos(a) * r, y + Math.sin(a) * r);
+    }
+    c.closePath(); c.stroke();
+  }
+}
+
+function buildAtlas(slots, num, tag, ink) {
+  const cv = document.createElement('canvas');
+  cv.width = ATLAS_W; cv.height = ATLAS_H;
+  const c = cv.getContext('2d');
+  c.clearRect(0, 0, ATLAS_W, ATLAS_H);
+  const cell = (col, row, fn) => {
+    c.save(); c.translate(col * CELL_W, row * CELL_H);
+    c.beginPath(); c.rect(0, 0, CELL_W, CELL_H); c.clip();
+    fn(); c.restore();
+  };
+  const wordmark = (sp) => () => {
+    if (!sp || !sp.name) return;
+    c.fillStyle = ink; c.textBaseline = 'middle';
+    c.font = '700 italic 124px "Chakra Petch", sans-serif';
+    const nameW = c.measureText(sp.name).width;
+    const total = 150 + nameW;                       // mark + gap + wordmark
+    const x0 = (CELL_W - total) / 2;                 // centred in the cell
+    drawMark(c, sp.mark, x0 + 62, CELL_H / 2, 62, ink);
+    c.fillText(sp.name, x0 + 150, CELL_H / 2 - 18);
+    if (sp.sub) {
+      c.font = '600 48px "Chakra Petch", sans-serif';
+      c.globalAlpha = .82;
+      c.fillText(sp.sub, x0 + 152, CELL_H / 2 + 58);
+      c.globalAlpha = 1;
+    }
+  };
+  cell(0, 0, wordmark(slots.title));
+  cell(1, 0, wordmark(slots.engine));
+  cell(0, 1, wordmark(slots.wing));
+  cell(1, 1, () => {                                   // race number, nose
+    c.fillStyle = ink; c.textBaseline = 'middle'; c.textAlign = 'center';
+    c.font = '700 italic 228px "Chakra Petch", sans-serif';
+    c.fillText(String(num), CELL_W * 0.5, CELL_H / 2 - 4);
+    c.textAlign = 'left';
+  });
+  cell(0, 2, wordmark(slots.nose));
+  cell(1, 2, wordmark(slots.floor));
+  const t = new THREE.CanvasTexture(cv);
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.flipY = false;                       // atlas rows read top-down, as drawn
+  t.anisotropy = 8;
+  t.needsUpdate = true;
+  return t;
+}
+
+let liveryShaders = [];
+let atlasTex = null;
+let sponsorSlots = { title: SPONSORS[0], engine: SPONSORS[1], wing: SPONSORS[2],
+                     nose: SPONSORS[3], floor: SPONSORS[4] };
+function rebuildAtlas(prof) {
+  const ink = (livery && livery.accent) || '#F5F5F5';
+  if (atlasTex) atlasTex.dispose();
+  atlasTex = buildAtlas(sponsorSlots, prof ? prof.number : 7, prof ? prof.tag : '', ink);
+  for (const sh of liveryShaders) {
+    if (!sh.uniforms.uAtlas) continue;
+    sh.uniforms.uAtlas.value = atlasTex;
+    sh.uniforms.uAtlasOn.value = 1;
+  }
+}
+function liveryMaterial(m) {
+  m.metalness = 0.30; m.roughness = 0.26;                       // clear-coated paint
+  m.onBeforeCompile = sh => {
+    sh.uniforms.uPrim = { value: new THREE.Color(livery ? livery.primary : '#E10600') };
+    sh.uniforms.uSec  = { value: new THREE.Color(livery ? livery.secondary : '#16181D') };
+    sh.uniforms.uAcc  = { value: new THREE.Color(livery ? livery.accent : '#F5F5F5') };
+    sh.uniforms.uAtlas = { value: atlasTex };
+    sh.uniforms.uAtlasOn = { value: atlasTex ? 1 : 0 };
+    sh.vertexShader = 'varying vec3 vLocalPos;\nvarying vec3 vLocalNrm;\n'
+      + sh.vertexShader
+        .replace('#include <begin_vertex>', '#include <begin_vertex>\n  vLocalPos = position;')
+        .replace('#include <beginnormal_vertex>', '#include <beginnormal_vertex>\n  vLocalNrm = normal;');
+    sh.fragmentShader = 'varying vec3 vLocalPos;\nvarying vec3 vLocalNrm;\n'
+      + 'uniform vec3 uPrim, uSec, uAcc;\n' + SPONSOR_GLSL + '\n'
+      + sh.fragmentShader.replace('#include <color_fragment>',
+        '#include <color_fragment>\n' + LIVERY_GLSL);
+    liveryShaders.push(sh);
+  };
+  m.needsUpdate = true;
+}
+function pushLivery() {
+  if (!livery) return;
+  for (const sh of liveryShaders) {
+    if (!sh.uniforms.uPrim) continue;
+    sh.uniforms.uPrim.value.set(livery.primary);
+    sh.uniforms.uSec.value.set(livery.secondary);
+    sh.uniforms.uAcc.value.set(livery.accent);
+  }
+}
 
 let livery = null;
 function applyLivery() {
   if (!carRoot || !livery) return;
   const seen = new Set();
+  const wheelSet = new Set(wheels);
   carRoot.traverse(o => {
     if (!o.isMesh) return;
+    // wheels keep their rubber and get an accent rim, they are not wrapped
+    let onWheel = false;
+    for (let n = o; n; n = n.parent) if (wheelSet.has(n)) { onWheel = true; break; }
     const mats = Array.isArray(o.material) ? o.material : [o.material];
     for (const m of mats) {
       if (!m || seen.has(m.uuid)) continue;
       seen.add(m.uuid);
       const n = m.name || '';
-      if (n.indexOf('Carbon_Fiber___Plain') === 0) {          // main bodywork
-        m.color.set(livery.primary).multiplyScalar(0.62);
-        m.metalness = 0.38; m.roughness = 0.31;               // read as paint
-      } else if (n.indexOf('Titanium___Satin') === 0) {       // wings, detail
-        m.color.set(livery.accent).multiplyScalar(0.5);
-        m.metalness = 0.55; m.roughness = 0.36;
-      } else if (n.indexOf('Fabric_Black') === 0) {
-        m.color.set(livery.secondary).multiplyScalar(0.5);
+      if (onWheel) {
+        if (n.indexOf('Rubber') !== 0) {
+          m.color.set(livery.accent).multiplyScalar(0.30);
+          m.metalness = 0.62; m.roughness = 0.34; m.needsUpdate = true;
+        }
+        continue;
       }
-      m.needsUpdate = true;
+      liveryMaterial(m);
     }
   });
+  pushLivery();
 }
 
 window.URacingDrive = {
   profile: null,
+  SPONSORS,
+  async enterGarage(shell) {
+    if (!ready) await init(shell.progress);
+    await shell.reveal();
+    startGarage();
+  },
+  get sponsorSlots() { return sponsorSlots; },
   setProfile(p, assists) {
     this.profile = p || null;
     livery = p && p.colors ? p.colors : null;
+    if (p && p.sponsors) {
+      for (const k of Object.keys(sponsorSlots)) {
+        const found = SPONSORS.find(x => x.id === p.sponsors[k]);
+        if (found) sponsorSlots[k] = found;
+      }
+    }
     if (assists) Object.assign(ASSIST, assists);
-    applyLivery();
+    if (liveryShaders.length) pushLivery(); else applyLivery();
+    rebuildAtlas(p);
+  },
+  setLivery(colors, slots, prof) {       // live updates from the customiser
+    if (colors) livery = colors;
+    if (slots) {
+      for (const k of Object.keys(slots)) {
+        const found = SPONSORS.find(x => x.id === slots[k]);
+        if (found) sponsorSlots[k] = found;
+      }
+    }
+    if (liveryShaders.length) pushLivery(); else applyLivery();
+    rebuildAtlas(prof || this.profile);
   },
   debug: { get veh() { return veh; }, get track() { return track; },
            snapCam() { const s = sampleTrack(veh.x, veh.z, veh.yaw);
              const f = new THREE.Vector3(Math.sin(veh.yaw), 0, Math.cos(veh.yaw));
              camPos.set(veh.x, s.y, veh.z).addScaledVector(f, -8.4).addScaledVector(s.normal, 3.05);
              camAim.set(veh.x, s.y + 1, veh.z).addScaledVector(f, 12); },
-           CAR, Vehicle, sampleTrack, G, ASSIST },
+           CAR, Vehicle, sampleTrack, G, ASSIST,
+           get camera() { return camera; }, get scene() { return scene; },
+           get garage() { return garage; },
+           get car() { return carRoot; }, get renderer() { return renderer; } },
   async enter(shell) {
     if (!ready) await init(shell.progress);
     shell.reveal();
