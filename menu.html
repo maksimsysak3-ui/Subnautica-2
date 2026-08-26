@@ -621,7 +621,9 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
 #drive{z-index:15;background:#04060a}
 #gl{position:absolute;inset:0;width:100%;height:100%;display:block}
 .hud{position:absolute;inset:0;pointer-events:none;
-  font-family:var(--display);font-variant-numeric:tabular-nums}
+  font-family:var(--display);font-variant-numeric:tabular-nums;
+  opacity:1;transition:opacity .55s ease}
+#drive.cinema .hud{opacity:0}
 .hud .lbl{font-size:9px;font-weight:600;letter-spacing:.24em;
   text-transform:uppercase;color:var(--dimmer)}
 
@@ -684,6 +686,89 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
   .hgear{font-size:52px}.hspeed b{font-size:30px}
   #hRev i{width:12px}
 }
+
+/* ---- cinematic race intro ---- */
+#cine{position:absolute;inset:0;pointer-events:none;z-index:6;
+  font-family:var(--display);opacity:0;transition:opacity .4s ease}
+#cine.on{opacity:1}
+.bar{position:absolute;left:0;right:0;height:0;background:#000;
+  transition:height .9s var(--ease-out)}
+.bar.top{top:0}.bar.bot{bottom:0}
+#cine.on .bar{height:11%}
+#cine.out .bar{height:0}
+
+.cine-card{position:absolute;left:clamp(30px,5vw,72px);bottom:19%;
+  opacity:0;transform:translateY(14px);
+  transition:opacity .6s ease,transform .7s var(--ease-out)}
+#cine.card .cine-card{opacity:1;transform:none}
+.cine-rule{width:52px;height:2px;background:var(--red);margin-bottom:16px;
+  box-shadow:0 0 14px rgba(225,6,0,.8)}
+.cine-sess{font-size:10px;font-weight:700;letter-spacing:.46em;
+  text-transform:uppercase;color:var(--red);margin-bottom:12px}
+.cine-track{font-size:clamp(30px,4.6vw,62px);font-weight:700;font-style:italic;
+  text-transform:uppercase;line-height:.98;color:#fff;
+  text-shadow:0 6px 34px rgba(0,0,0,.8)}
+.cine-meta{display:flex;gap:clamp(16px,2.4vw,34px);margin-top:18px;flex-wrap:wrap}
+.cine-meta div{display:flex;flex-direction:column;gap:6px}
+.cine-meta .k{font-size:8.5px;font-weight:600;letter-spacing:.28em;
+  text-transform:uppercase;color:var(--dimmer)}
+.cine-meta .v{font-size:14px;font-weight:600;letter-spacing:.08em;color:#dfe3e9}
+
+/* start gantry */
+.gantry{position:absolute;left:50%;top:20%;transform:translateX(-50%);
+  display:flex;gap:clamp(10px,1.5vw,20px);opacity:0;transition:opacity .35s ease}
+#cine.lights .gantry{opacity:1}
+.gantry i{width:clamp(30px,4vw,54px);height:clamp(30px,4vw,54px);border-radius:50%;
+  background:#1a0b0b;border:2px solid #2c1414;transition:none}
+.gantry i.lit{background:#ff1408;border-color:#ff6a5c;
+  box-shadow:0 0 30px rgba(255,20,8,.9),inset 0 0 14px rgba(255,180,170,.5)}
+.cine-go{position:absolute;left:50%;top:44%;transform:translate(-50%,-50%) scale(.75);
+  font-size:clamp(46px,8vw,110px);font-weight:700;font-style:italic;color:#fff;
+  letter-spacing:.06em;opacity:0;text-shadow:0 0 60px rgba(255,255,255,.5)}
+#cine.go .cine-go{animation:goPop .85s var(--ease-out) forwards}
+@keyframes goPop{
+  0%{opacity:0;transform:translate(-50%,-50%) scale(.75)}
+  22%{opacity:1;transform:translate(-50%,-50%) scale(1)}
+  70%{opacity:1}
+  100%{opacity:0;transform:translate(-50%,-50%) scale(1.1)}
+}
+.cine-skip{position:absolute;right:clamp(24px,4vw,54px);bottom:14%;
+  font-size:9.5px;font-weight:600;letter-spacing:.28em;text-transform:uppercase;
+  color:var(--dimmer)}
+
+/* ---- HUD: bigger map, tyres, delta ---- */
+.hmap{right:26px;top:22px;width:clamp(120px,13vw,178px);height:clamp(120px,13vw,178px)}
+.hmapline{stroke-width:2.6}
+.hmap .sf{stroke:#fff;stroke-width:3;opacity:.85}
+#hMapDot{r:4.6}
+.hmaphead{position:absolute;right:26px;top:calc(22px + clamp(120px,13vw,178px));
+  width:clamp(120px,13vw,178px);text-align:center;
+  font-size:9px;font-weight:600;letter-spacing:.26em;text-transform:uppercase;
+  color:var(--dimmer)}
+
+.htyres{position:absolute;left:34px;top:26px;display:grid;
+  grid-template-columns:auto auto;gap:7px}
+.htyres i{width:19px;height:27px;border-radius:3px;background:#22262c;
+  border:1px solid rgba(255,255,255,.1);transition:background .12s linear}
+.hlabel{grid-column:1 / -1;font-size:8.5px;font-weight:600;letter-spacing:.26em;
+  text-transform:uppercase;color:var(--dimmer);margin-bottom:2px}
+
+.hdelta{position:absolute;left:50%;bottom:112px;transform:translateX(-50%);
+  display:flex;flex-direction:column;align-items:center;gap:7px;
+  opacity:0;transition:opacity .3s ease}
+.hdelta.on{opacity:1}
+.hdelta b{font-size:19px;font-weight:700;font-variant-numeric:tabular-nums}
+.hdelta b.up{color:#ff5d6c}.hdelta b.dn{color:#7dffa8}
+.hdbar{width:190px;height:3px;background:rgba(255,255,255,.12);position:relative}
+.hdbar i{position:absolute;top:0;bottom:0;left:50%;width:2px;background:#fff}
+
+.hbanner{position:absolute;left:50%;top:23%;transform:translate(-50%,-8px);
+  padding:10px 26px;border:1px solid var(--red);background:rgba(225,6,0,.15);
+  font-size:12px;font-weight:700;letter-spacing:.34em;text-transform:uppercase;
+  color:#fff;opacity:0;transition:opacity .3s ease,transform .3s ease}
+.hbanner.on{opacity:1;transform:translate(-50%,0)}
+
+@media (max-width:900px){ .htyres,.hdelta{display:none} }
 
 /* ---------- responsive ----------------------------------- */
 @media (max-width:900px){
@@ -999,6 +1084,23 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
 <!-- ============================ DRIVE ======================= -->
 <section class="screen" id="drive">
   <canvas id="gl"></canvas>
+  <div id="cine">
+    <div class="bar top"></div><div class="bar bot"></div>
+    <div class="gantry"><i></i><i></i><i></i><i></i><i></i></div>
+    <div class="cine-go">GO</div>
+    <div class="cine-card">
+      <div class="cine-rule"></div>
+      <div class="cine-sess" id="cineSess">Practice</div>
+      <div class="cine-track" id="cineTrack">Circuit</div>
+      <div class="cine-meta">
+        <div><span class="k">Driver</span><span class="v" id="cineDriver">—</span></div>
+        <div><span class="k">Car</span><span class="v" id="cineNum">—</span></div>
+        <div><span class="k">Length</span><span class="v" id="cineLen">—</span></div>
+        <div><span class="k">Turns</span><span class="v" id="cineTurns">—</span></div>
+      </div>
+    </div>
+    <div class="cine-skip">Any key to skip</div>
+  </div>
   <div class="hud">
     <div id="hRev"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
     <div id="hFlag">Off Track</div>
@@ -1015,8 +1117,22 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
     <svg class="hmap" viewBox="0 0 120 120">
       <path class="hmapline glow" id="hMapGlow"></path>
       <path class="hmapline" id="hMapPath"></path>
+      <line class="sf" id="hMapSF" x1="0" y1="0" x2="0" y2="0"></line>
       <circle id="hMapDot" cx="60" cy="60"></circle>
     </svg>
+    <div class="hmaphead" id="hMapName">Circuit</div>
+
+    <div class="htyres">
+      <div class="hlabel">Tyres</div>
+      <i id="tFL"></i><i id="tFR"></i><i id="tRL"></i><i id="tRR"></i>
+    </div>
+
+    <div class="hdelta" id="hDeltaWrap">
+      <b id="hDelta">+0.000</b>
+      <div class="hdbar"><i id="hDeltaMark"></i></div>
+    </div>
+
+    <div class="hbanner" id="hBanner">Personal Best</div>
 
     <div class="hped">
       <div class="hbar t"><span id="hThr"></span></div>
@@ -1348,7 +1464,7 @@ function clubFor(code) {
 
 function carSVG(p, sec, acc2, num, tag) {
   return `<svg viewBox="0 0 200 430" aria-label="Livery preview">
-    <defs><linearGradient id="gl" x1="0" y1="0" x2="0" y2="1">
+    <defs><linearGradient id="liveryFade" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0" stop-color="${p}"/><stop offset="1" stop-color="${sec}"/>
     </linearGradient></defs>
     <rect x="24" y="18" width="152" height="15" rx="3" fill="${sec}"/>
@@ -1356,7 +1472,7 @@ function carSVG(p, sec, acc2, num, tag) {
     <path d="M92 34 h16 l7 78 h-30 z" fill="${p}"/>
     <rect x="26" y="120" width="34" height="62" rx="7" fill="#0d0e11"/>
     <rect x="140" y="120" width="34" height="62" rx="7" fill="#0d0e11"/>
-    <path d="M78 108 h44 l14 96 q6 30 -6 44 h-60 q-12 -14 -6 -44 z" fill="url(#gl)"/>
+    <path d="M78 108 h44 l14 96 q6 30 -6 44 h-60 q-12 -14 -6 -44 z" fill="url(#liveryFade)"/>
     <path d="M86 128 h28 l5 40 h-38 z" fill="${acc2}" opacity=".85"/>
     <ellipse cx="100" cy="196" rx="15" ry="19" fill="#0a0b0d"/>
     <ellipse cx="100" cy="196" rx="9" ry="13" fill="${acc2}" opacity=".5"/>
@@ -1666,6 +1782,7 @@ async function activate(i) {
 }
 
 async function enterDrive() {
+  applyProfile();                       // module exists by now
   const first = !window.URacingDrive.ready;
   if (first) { await wipe(); runLoading(true); }
   try {
@@ -2613,6 +2730,31 @@ function updateHUD(sample) {
   hud.last.textContent = fmt(lap.last);
   hud.lapNo.textContent = String(lap.count).padStart(2, '0');
   hud.flag.classList.toggle('on', veh.offTrack);
+
+  // tyre corners: green while working, red once past the limit
+  for (let i = 0; i < 4; i++) {
+    const w = Math.min(1.6, veh.slip[i]) / 1.6;
+    const h = Math.max(0, 105 - w * 105);
+    hud.tyres[i].style.background =
+      `hsl(${h.toFixed(0)} ${(38 + w * 52).toFixed(0)}% ${(30 + w * 18).toFixed(0)}%)`;
+  }
+
+  // delta against the best lap so far
+  if (bestSplits && lap.started) {
+    const k = Math.min(SPLIT_N - 1, Math.floor(sample.s / track.length * SPLIT_N));
+    const ref = bestSplits[k];
+    if (ref != null) {
+      const d = lap.t - ref;
+      hud.deltaWrap.classList.add('on');
+      hud.delta.textContent = (d >= 0 ? '+' : '') + d.toFixed(3);
+      hud.delta.className = d >= 0 ? 'up' : 'dn';
+      hud.deltaMark.style.left =
+        (50 + Math.max(-48, Math.min(48, d * 22))) + '%';
+    }
+  } else hud.deltaWrap.classList.remove('on');
+
+  if (bannerT > 0) { bannerT -= 1 / 60; if (bannerT <= 0) hud.banner.classList.remove('on'); }
+
   const grip = Math.max(...veh.slip);
   hud.grip.style.width = Math.min(100, grip * 62) + '%';
   hud.grip.classList.toggle('over', grip > 1.02);
@@ -2633,7 +2775,7 @@ function frame(now) {
   const dt = Math.min(0.05, (now - lastT) / 1000 || 0.016);
   lastT = now;
 
-  const inp = input();
+  const inp = cine.on ? { throttle: 0, brake: 1, steer: 0 } : input();
   acc += dt;
   const H = 1 / 300;
   let n = 0;
@@ -2648,9 +2790,18 @@ function frame(now) {
   if (lap.started) {
     lap.t += dt;
     const prev = lap.s, cur = sample.s;
+    const k = Math.min(SPLIT_N - 1, Math.floor(cur / track.length * SPLIT_N));
+    if (splits[k] == null) splits[k] = lap.t;
     if (prev > track.length * 0.75 && cur < track.length * 0.25) {
       lap.last = lap.t;
-      if (lap.best == null || lap.t < lap.best) lap.best = lap.t;
+      if (lap.best == null || lap.t < lap.best) {
+        lap.best = lap.t;
+        bestSplits = splits.slice();
+        hud.banner.textContent = 'Personal Best';
+        hud.banner.classList.add('on');
+        bannerT = 3;
+      }
+      splits = [];
       lap.t = 0; lap.count++;
     }
     lap.s = cur;
@@ -2681,7 +2832,8 @@ function frame(now) {
   sun.target.position.set(veh.x, 0, veh.z);
   sun.target.updateMatrixWorld();
 
-  updateCamera(dt, sample);
+  if (cine.on) stepCinematic(dt, carRoot.position, sample);
+  else updateCamera(dt, sample);
   updateHUD(sample);
   renderer.render(scene, camera);
 }
@@ -2698,16 +2850,97 @@ function resize() {
 /* ============================================================
    ENTRY POINTS
    ============================================================ */
+const TRACK_NAME = 'Meridian';
+let cine = { on: false, t: 0, phase: 0, lit: 0, hold: 0, ang: 0 };
+let splits = [], bestSplits = null, bannerT = 0;
+const SPLIT_N = 60;
+
+function startCinematic() {
+  const el = document.getElementById('cine');
+  const prof = window.URacingDrive.profile;
+  document.getElementById('cineTrack').textContent = TRACK_NAME;
+  document.getElementById('cineSess').textContent = 'Practice Session';
+  document.getElementById('cineDriver').textContent = prof ? prof.name : 'Privateer';
+  document.getElementById('cineNum').textContent = prof ? '#' + prof.number : '—';
+  document.getElementById('cineLen').textContent = (track.length / 1000).toFixed(2) + ' km';
+  let turns = 0, was = false;
+  for (let i = 0; i < track.count; i++) {
+    const t = Math.abs(track.K[i]) > 0.006;
+    if (t && !was) turns++;
+    was = t;
+  }
+  document.getElementById('cineTurns').textContent = turns;
+
+  cine = { on: true, t: 0, phase: 0, lit: 0, hold: 1.1 + Math.random() * 1.3, ang: 0 };
+  el.className = 'on';
+  document.getElementById('drive').classList.add('cinema');
+  setTimeout(() => { if (cine.on) el.classList.add('card'); }, 500);
+}
+
+function endCinematic() {
+  if (!cine.on) return;
+  cine.on = false;
+  const el = document.getElementById('cine');
+  el.className = 'out';
+  document.getElementById('drive').classList.remove('cinema');
+  setTimeout(() => { el.className = ''; }, 900);
+  lap.t = 0; lap.started = false;
+}
+
+function stepCinematic(dt, pos, sample) {
+  const el = document.getElementById('cine');
+  cine.t += dt;
+  // slow orbit around the car on the grid
+  cine.ang += dt * 0.34;
+  const r = 12.5 - Math.min(4, cine.t * 0.5);
+  camera.position.set(pos.x + Math.sin(cine.ang) * r,
+                      sample.y + 2.4 + Math.sin(cine.t * 0.42) * 0.7,
+                      pos.z + Math.cos(cine.ang) * r);
+  camera.lookAt(pos.x, sample.y + 0.62, pos.z);
+  camera.fov = 42;
+  camera.updateProjectionMatrix();
+
+  if (cine.phase === 0 && cine.t > 5.6) {
+    cine.phase = 1; cine.t = 0;
+    el.classList.remove('card'); el.classList.add('lights');
+  } else if (cine.phase === 1) {
+    const want = Math.min(5, Math.floor(cine.t / 0.85));
+    if (want !== cine.lit) {
+      cine.lit = want;
+      [...el.querySelectorAll('.gantry i')].forEach((n, i) =>
+        n.classList.toggle('lit', i < want));
+    }
+    if (cine.t > 5 * 0.85 + cine.hold) {
+      cine.phase = 2; cine.t = 0;
+      [...el.querySelectorAll('.gantry i')].forEach(n => n.classList.remove('lit'));
+      el.classList.remove('lights'); el.classList.add('go');
+      endCinematic();
+    }
+  }
+}
+
 function collectHUD() {
   const $ = s => document.querySelector(s);
   hud = {
     speed: $('#hSpeed'), gear: $('#hGear'), thr: $('#hThr'), brk: $('#hBrk'),
     cur: $('#hCur'), best: $('#hBest'), last: $('#hLast'), lapNo: $('#hLapNo'),
     flag: $('#hFlag'), grip: $('#hGrip'), tc: $('#hTC'), abs: $('#hABS'), esc: $('#hESC'),
-    mapPath: $('#hMapPath'), mapDot: $('#hMapDot'),
+    mapPath: $('#hMapPath'), mapDot: $('#hMapDot'), mapSF: $('#hMapSF'),
+    mapName: $('#hMapName'), banner: $('#hBanner'),
+    deltaWrap: $('#hDeltaWrap'), delta: $('#hDelta'), deltaMark: $('#hDeltaMark'),
+    tyres: [$('#tFL'), $('#tFR'), $('#tRL'), $('#tRR')],
     revCells: [...$('#hRev').children]
   };
   hud.mapLen = hud.mapPath.getTotalLength();
+  hud.mapName.textContent = TRACK_NAME;
+  // start/finish tick, drawn across the map at the line
+  const a = hud.mapPath.getPointAtLength(0);
+  const b2 = hud.mapPath.getPointAtLength(Math.min(6, hud.mapLen));
+  const ang = Math.atan2(b2.y - a.y, b2.x - a.x) + Math.PI / 2;
+  hud.mapSF.setAttribute('x1', a.x - Math.cos(ang) * 4.5);
+  hud.mapSF.setAttribute('y1', a.y - Math.sin(ang) * 4.5);
+  hud.mapSF.setAttribute('x2', a.x + Math.cos(ang) * 4.5);
+  hud.mapSF.setAttribute('y2', a.y + Math.sin(ang) * 4.5);
 }
 
 function buildMinimap() {
@@ -2776,6 +3009,7 @@ async function init(onProgress) {
     if (!running) return;
     keys[e.code] = true;
     if (['ArrowUp', 'ArrowDown', 'Space'].includes(e.code)) e.preventDefault();
+    if (cine.on) { endCinematic(); return; }
     if (e.code === 'KeyC') camMode = (camMode + 1) % 3;
     if (e.code === 'KeyR') { veh.reset(lap.s || 0); reseedLookup(veh.x, veh.z);
                              lap.t = 0; lap.started = false; }
@@ -2796,10 +3030,12 @@ function start() {
   const s = sampleTrack(veh.x, veh.z, veh.yaw);
   camPos.set(veh.x, s.y + 3, veh.z);
   camAim.set(veh.x, s.y + 1, veh.z);
+  splits = [];
   resize();
+  startCinematic();
   if (!raf) raf = requestAnimationFrame(frame);
 }
-function stop() { running = false; }
+function stop() { running = false; endCinematic(); }
 
 let livery = null;
 function applyLivery() {
@@ -2827,7 +3063,9 @@ function applyLivery() {
 }
 
 window.URacingDrive = {
+  profile: null,
   setProfile(p, assists) {
+    this.profile = p || null;
     livery = p && p.colors ? p.colors : null;
     if (assists) Object.assign(ASSIST, assists);
     applyLivery();
