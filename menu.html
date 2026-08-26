@@ -285,7 +285,9 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
 .chip{padding:5px 10px;border:1px solid var(--line);color:var(--dimmer);
   font-family:var(--display);font-size:9px;font-weight:600;letter-spacing:.26em;text-transform:uppercase}
 .profile{display:flex;align-items:center;gap:clamp(14px,1.8vw,26px)}
-.pchip{display:flex;align-items:center;gap:12px}
+.pchip{display:flex;align-items:center;gap:12px;cursor:pointer;
+  padding:6px 10px 6px 6px;border:1px solid transparent;transition:border-color .25s ease}
+.pchip:hover{border-color:var(--line-2)}
 .pav{
   width:38px;height:38px;flex:none;display:grid;place-items:center;
   border:1px solid var(--line-2);background:var(--panel);
@@ -474,6 +476,146 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
 }
 
 /* ============================================================
+   ACCOUNT — registration
+   ============================================================ */
+#account{z-index:22;overflow:hidden}
+.acc-wrap{position:relative;flex:1;display:grid;
+  grid-template-columns:minmax(230px,26%) 1fr;min-height:0}
+
+/* left rail: the steps */
+.acc-rail{border-right:1px solid var(--line);
+  padding:clamp(20px,3vw,40px) clamp(18px,2.4vw,34px);
+  display:flex;flex-direction:column;gap:clamp(14px,2vw,26px);overflow-y:auto}
+.acc-rail .logo{font-size:clamp(18px,1.9vw,25px);margin-bottom:6px}
+.acc-steps{display:flex;flex-direction:column;gap:2px;margin-top:6px}
+.acc-step{display:flex;align-items:center;gap:14px;padding:11px 0;
+  font-family:var(--display);font-size:11.5px;font-weight:600;
+  letter-spacing:.2em;text-transform:uppercase;color:#4a4f58;
+  transition:color .3s ease}
+.acc-step .n{width:24px;height:24px;flex:none;display:grid;place-items:center;
+  border:1px solid currentColor;font-size:9.5px;letter-spacing:0;
+  transition:background .3s ease,color .3s ease,border-color .3s ease}
+.acc-step.done{color:#7c828c}
+.acc-step.done .n{background:#7c828c;border-color:#7c828c;color:#0a0b0d}
+.acc-step.now{color:#fff}
+.acc-step.now .n{border-color:var(--red);background:var(--red);color:#fff;
+  box-shadow:0 0 16px rgba(225,6,0,.6)}
+.acc-note{margin-top:auto;font-size:11px;line-height:1.7;color:var(--dimmer);
+  font-family:var(--ui);letter-spacing:.02em}
+
+/* right: the form */
+.acc-body{position:relative;display:flex;flex-direction:column;min-height:0}
+.acc-scroll{flex:1;overflow-y:auto;padding:clamp(22px,3.4vw,52px) clamp(22px,3.4vw,54px) 8px}
+.acc-kicker{display:flex;align-items:center;gap:12px;margin-bottom:14px;
+  font-family:var(--display);font-size:10px;font-weight:700;
+  letter-spacing:.4em;text-transform:uppercase;color:var(--red)}
+.acc-kicker::after{content:"";flex:1;height:1px;max-width:110px;
+  background:linear-gradient(90deg,rgba(225,6,0,.5),transparent)}
+.acc-title{font-family:var(--display);font-weight:700;font-style:italic;
+  text-transform:uppercase;font-size:clamp(26px,3.6vw,46px);line-height:1;
+  margin-bottom:10px}
+.acc-lede{font-size:13.5px;line-height:1.65;color:#9aa0aa;max-width:56ch;
+  margin-bottom:clamp(20px,2.6vw,32px)}
+
+.acc-grid{display:grid;gap:clamp(14px,1.8vw,22px);
+  grid-template-columns:repeat(auto-fit,minmax(230px,1fr));max-width:820px}
+.acc-grid.one{grid-template-columns:1fr;max-width:560px}
+.fld{display:flex;flex-direction:column;gap:8px}
+.fld > label{font-family:var(--display);font-size:9.5px;font-weight:600;
+  letter-spacing:.24em;text-transform:uppercase;color:var(--dim)}
+.fld input,.fld select{
+  background:rgba(255,255,255,.035);border:1px solid var(--line);color:var(--text);
+  padding:12px 13px;font-family:var(--ui);font-size:14px;letter-spacing:.01em;
+  transition:border-color .22s ease,background .22s ease}
+.fld input:focus,.fld select:focus{outline:none;border-color:var(--red);
+  background:rgba(255,255,255,.055)}
+.fld input::placeholder{color:#4e535b}
+.fld select{appearance:none;cursor:pointer;
+  background-image:linear-gradient(45deg,transparent 50%,var(--dim) 50%),
+    linear-gradient(135deg,var(--dim) 50%,transparent 50%);
+  background-position:calc(100% - 17px) 20px,calc(100% - 12px) 20px;
+  background-size:5px 5px,5px 5px;background-repeat:no-repeat}
+.fld select option{background:#0d0f13;color:var(--text)}
+.fld .hint{font-size:11px;color:var(--dimmer);letter-spacing:.02em}
+.fld .err{font-size:11px;color:var(--red);letter-spacing:.02em;display:none}
+.fld.bad input,.fld.bad select{border-color:var(--red)}
+.fld.bad .err{display:block}
+.fld.bad .hint{display:none}
+
+/* choice chips */
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip-opt{padding:10px 15px;border:1px solid var(--line);cursor:pointer;
+  font-family:var(--display);font-size:11px;font-weight:600;
+  letter-spacing:.14em;text-transform:uppercase;color:var(--dim);
+  transition:all .22s ease}
+.chip-opt:hover{border-color:var(--line-2);color:#cfd4db}
+.chip-opt.on{border-color:var(--red);color:#fff;background:rgba(225,6,0,.14)}
+
+/* number picker */
+.numgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(46px,1fr));
+  gap:6px;max-width:560px;max-height:196px;overflow-y:auto;padding-right:4px}
+.numgrid button{padding:9px 0;border:1px solid var(--line);color:var(--dim);
+  font-family:var(--display);font-weight:700;font-size:13px;
+  font-variant-numeric:tabular-nums;transition:all .18s ease}
+.numgrid button:hover:not(:disabled){border-color:var(--line-2);color:#fff}
+.numgrid button.on{border-color:var(--red);background:var(--red);color:#fff}
+.numgrid button:disabled{opacity:.22;cursor:not-allowed;text-decoration:line-through}
+
+/* livery */
+.livery{display:grid;grid-template-columns:1fr auto;gap:clamp(20px,3vw,44px);
+  align-items:start;max-width:880px}
+.swatches{display:flex;flex-direction:column;gap:18px}
+.swatch-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.sw{width:34px;height:34px;border:1px solid var(--line-2);cursor:pointer;
+  transition:transform .18s ease,box-shadow .18s ease}
+.sw:hover{transform:translateY(-2px)}
+.sw.on{box-shadow:0 0 0 2px var(--bg),0 0 0 3px #fff;transform:translateY(-2px)}
+.carprev{display:flex;justify-content:center;align-items:flex-start}
+.carprev svg{width:auto;height:min(48vh,340px);max-width:100%;display:block;
+  filter:drop-shadow(0 18px 34px rgba(0,0,0,.6))}
+
+/* summary */
+.sumgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));
+  gap:1px;background:var(--line);border:1px solid var(--line);max-width:840px}
+.sumcell{background:#08090c;padding:16px 18px}
+.sumcell .k{font-family:var(--display);font-size:9px;font-weight:600;
+  letter-spacing:.24em;text-transform:uppercase;color:var(--dimmer)}
+.sumcell .v{font-family:var(--display);font-size:16px;font-weight:600;
+  margin-top:7px;color:#fff;word-break:break-word}
+.sumcell .v.red{color:var(--red)}
+
+/* footer */
+.acc-foot{display:flex;align-items:center;justify-content:space-between;gap:16px;
+  padding:16px clamp(22px,3.4vw,54px);border-top:1px solid var(--line)}
+.acc-foot .prog{font-family:var(--display);font-size:10px;font-weight:600;
+  letter-spacing:.24em;text-transform:uppercase;color:var(--dimmer)}
+.acc-btns{display:flex;gap:10px}
+.btn{padding:13px 24px;border:1px solid var(--line-2);
+  font-family:var(--display);font-weight:600;font-size:11.5px;
+  letter-spacing:.26em;text-transform:uppercase;position:relative;overflow:hidden;
+  transition:color .25s ease,border-color .25s ease,opacity .25s ease}
+.btn::before{content:"";position:absolute;inset:0;background:var(--red);
+  transform:translateX(-101%);transition:transform .36s var(--ease)}
+.btn span{position:relative;z-index:1}
+.btn:hover:not(:disabled){border-color:var(--red);color:#fff}
+.btn:hover:not(:disabled)::before{transform:none}
+.btn:disabled{opacity:.3;cursor:not-allowed}
+.btn.ghost{border-color:var(--line)}
+.btn.ghost::before{background:rgba(255,255,255,.1)}
+
+@media (max-width:900px){
+  .acc-wrap{grid-template-columns:1fr;grid-template-rows:auto 1fr}
+  .acc-rail{border-right:none;border-bottom:1px solid var(--line);
+    flex-direction:row;align-items:center;gap:14px;overflow-x:auto;padding:14px 18px}
+  .acc-rail .logo,.acc-note{display:none}
+  .acc-steps{flex-direction:row;gap:10px}
+  .acc-step{padding:0;white-space:nowrap}
+  .acc-step .lbl{display:none}
+  .livery{grid-template-columns:1fr}
+  .carprev{width:min(70vw,240px);margin:0 auto}
+}
+
+/* ============================================================
    DRIVE  — canvas + HUD
    ============================================================ */
 #drive{z-index:15;background:#04060a}
@@ -640,17 +782,17 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
       <div class="chip">Pre-Alpha</div>
     </div>
     <div class="profile">
-      <div class="pchip">
-        <div class="pav">U</div>
-        <div>
-          <div class="pname">New Driver</div>
-          <div class="psub">Rookie — License D</div>
+      <button class="pchip" id="pChip" title="Edit driver profile">
+        <div class="pav" id="pAv">U</div>
+        <div style="text-align:left">
+          <div class="pname" id="pName">New Driver</div>
+          <div class="psub" id="pSub">Rookie — Unassigned</div>
         </div>
-      </div>
+      </button>
       <div class="psep"></div>
-      <div class="pstat"><div class="v">1350</div><div class="l">Rating</div></div>
+      <div class="pstat"><div class="v" id="pRating">1350</div><div class="l">uRating</div></div>
       <div class="psep"></div>
-      <div class="pstat"><div class="v">25,000</div><div class="l">Credits</div></div>
+      <div class="pstat"><div class="v" id="pCredits">25,000</div><div class="l">Credits</div></div>
     </div>
   </header>
 
@@ -689,6 +831,168 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
     <h2 class="mod-title" id="modTitle">Career</h2>
     <p class="mod-note">Not built yet — this is the front end shell.</p>
     <button class="back" id="modBack">&lsaquo;&nbsp;&nbsp;Back to Menu</button>
+  </div>
+</section>
+
+<!-- ============================ ACCOUNT ===================== -->
+<section class="screen" id="account">
+  <div class="atmos">
+    <div class="glow"></div><div class="grid"></div>
+    <div class="streak"></div><div class="streak b"></div>
+    <div class="vig"></div><div class="grain"></div>
+  </div>
+
+  <div class="acc-wrap">
+    <aside class="acc-rail">
+      <div class="logo"><span class="u">U</span><span class="w">Racing</span></div>
+      <div class="acc-steps" id="accSteps"></div>
+      <p class="acc-note">Your driver profile stays on this device. Nothing is
+        sent anywhere, and you can start over at any time from the main menu.</p>
+    </aside>
+
+    <div class="acc-body">
+      <div class="acc-scroll" id="accScroll">
+
+        <!-- 1 identity -->
+        <section class="acc-pane" data-step="0">
+          <div class="acc-kicker">Step One</div>
+          <h2 class="acc-title">Create your driver</h2>
+          <p class="acc-lede">This is the name that appears on the timing screen,
+            on your car and in every result you set.</p>
+          <div class="acc-grid">
+            <div class="fld" id="f-name">
+              <label for="i-name">Driver name</label>
+              <input id="i-name" maxlength="22" placeholder="e.g. Alex Moreau" autocomplete="off">
+              <span class="hint">Shown in full on results and standings.</span>
+              <span class="err">Enter a name of at least two characters.</span>
+            </div>
+            <div class="fld" id="f-tag">
+              <label for="i-tag">Timing abbreviation</label>
+              <input id="i-tag" maxlength="3" placeholder="MOR" autocomplete="off"
+                     style="text-transform:uppercase;letter-spacing:.22em">
+              <span class="hint">Three letters, as it appears on the tower.</span>
+              <span class="err">Three letters, A to Z.</span>
+            </div>
+            <div class="fld" id="f-email">
+              <label for="i-email">Email</label>
+              <input id="i-email" type="email" placeholder="you@example.com" autocomplete="off">
+              <span class="hint">Used only to label this profile locally.</span>
+              <span class="err">That does not look like an email address.</span>
+            </div>
+            <div class="fld" id="f-dob">
+              <label for="i-dob">Date of birth</label>
+              <input id="i-dob" type="date">
+              <span class="hint">Confirms you meet the minimum age of 13.</span>
+              <span class="err">You must be at least 13 to register.</span>
+            </div>
+          </div>
+        </section>
+
+        <!-- 2 region -->
+        <section class="acc-pane" data-step="1" hidden>
+          <div class="acc-kicker">Step Two</div>
+          <h2 class="acc-title">Region and club</h2>
+          <p class="acc-lede">Your club decides which regional standings you appear
+            in and which league nights are scheduled in your evening.</p>
+          <div class="acc-grid">
+            <div class="fld" id="f-country">
+              <label for="i-country">Country</label>
+              <select id="i-country"></select>
+              <span class="hint">Sets your flag and your club.</span>
+              <span class="err">Choose a country.</span>
+            </div>
+            <div class="fld">
+              <label>Assigned club</label>
+              <input id="i-club" readonly tabindex="-1"
+                     style="color:var(--red);font-family:var(--display);letter-spacing:.1em">
+              <span class="hint">Assigned automatically from your country.</span>
+            </div>
+          </div>
+          <div style="height:26px"></div>
+          <div class="acc-grid one">
+            <div class="fld">
+              <label>Units</label>
+              <div class="chips" id="c-units">
+                <button class="chip-opt on" data-v="metric">km/h &middot; Celsius</button>
+                <button class="chip-opt" data-v="imperial">mph &middot; Fahrenheit</button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- 3 competition -->
+        <section class="acc-pane" data-step="2" hidden>
+          <div class="acc-kicker">Step Three</div>
+          <h2 class="acc-title">Racing number</h2>
+          <p class="acc-lede">Pick a number. Struck-through numbers are already
+            held by another driver in your club.</p>
+          <div class="numgrid" id="numGrid"></div>
+          <div style="height:30px"></div>
+          <div class="acc-grid">
+            <div class="fld">
+              <label>Experience</label>
+              <div class="chips" id="c-exp">
+                <button class="chip-opt on" data-v="new">New to sim racing</button>
+                <button class="chip-opt" data-v="some">Some experience</button>
+                <button class="chip-opt" data-v="veteran">Veteran</button>
+              </div>
+              <span class="hint">Sets your starting assists. Change them any time.</span>
+            </div>
+            <div class="fld">
+              <label>Input device</label>
+              <div class="chips" id="c-input">
+                <button class="chip-opt on" data-v="keyboard">Keyboard</button>
+                <button class="chip-opt" data-v="pad">Controller</button>
+                <button class="chip-opt" data-v="wheel">Wheel &amp; pedals</button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- 4 livery -->
+        <section class="acc-pane" data-step="3" hidden>
+          <div class="acc-kicker">Step Four</div>
+          <h2 class="acc-title">Livery</h2>
+          <p class="acc-lede">Your colours are painted onto the car and follow you
+            into every session.</p>
+          <div class="livery">
+            <div class="swatches">
+              <div class="fld">
+                <label>Primary</label>
+                <div class="swatch-row" data-slot="primary"></div>
+              </div>
+              <div class="fld">
+                <label>Secondary</label>
+                <div class="swatch-row" data-slot="secondary"></div>
+              </div>
+              <div class="fld">
+                <label>Accent</label>
+                <div class="swatch-row" data-slot="accent"></div>
+              </div>
+            </div>
+            <div class="carprev" id="carPrev"></div>
+          </div>
+        </section>
+
+        <!-- 5 confirm -->
+        <section class="acc-pane" data-step="4" hidden>
+          <div class="acc-kicker">Step Five</div>
+          <h2 class="acc-title">Confirm</h2>
+          <p class="acc-lede">Everything below can be changed later from the main
+            menu. Your licence starts at Rookie and climbs with clean laps.</p>
+          <div class="sumgrid" id="sumGrid"></div>
+        </section>
+
+      </div>
+
+      <div class="acc-foot">
+        <div class="prog" id="accProg">Step 1 of 5</div>
+        <div class="acc-btns">
+          <button class="btn ghost" id="accBack"><span>Back</span></button>
+          <button class="btn" id="accNext"><span>Continue</span></button>
+        </div>
+      </div>
+    </div>
   </div>
 </section>
 
@@ -774,6 +1078,7 @@ const screens = {
   loading: $('#loading'),
   menu:    $('#menu'),
   module:  $('#module'),
+  account: $('#account'),
   drive:   $('#drive')
 };
 let realLoad = null;          // set while the drive scene is loading for real
@@ -946,7 +1251,7 @@ function runLoading(real) {
     await wait(560);
     clearInterval(tipTimer);
     screens.loading.dataset.done = '1';
-    transitionTo('menu');
+    transitionTo(profile ? 'menu' : 'account');
   }
 
   screens.loading.dataset.done = '0';
@@ -968,6 +1273,296 @@ function runLoading(real) {
       }
     };
   } else nextStage();
+}
+
+/* ============================================================
+   ACCOUNT
+   ============================================================ */
+const STORE = 'uracing.profile.v1';
+
+const COUNTRIES = [
+  ['GB','United Kingdom','Great Britain & Ireland'],['IE','Ireland','Great Britain & Ireland'],
+  ['US','United States','Americas'],['CA','Canada','Americas'],['BR','Brazil','Americas'],
+  ['MX','Mexico','Americas'],['AR','Argentina','Americas'],
+  ['DE','Germany','DACH'],['AT','Austria','DACH'],['CH','Switzerland','DACH'],
+  ['FR','France','Benelux & France'],['NL','Netherlands','Benelux & France'],
+  ['BE','Belgium','Benelux & France'],['LU','Luxembourg','Benelux & France'],
+  ['IT','Italy','Southern Europe'],['ES','Spain','Southern Europe'],
+  ['PT','Portugal','Southern Europe'],['GR','Greece','Southern Europe'],
+  ['SE','Sweden','Nordic'],['NO','Norway','Nordic'],['FI','Finland','Nordic'],
+  ['DK','Denmark','Nordic'],['IS','Iceland','Nordic'],
+  ['PL','Poland','Central Europe'],['CZ','Czechia','Central Europe'],
+  ['HU','Hungary','Central Europe'],['RO','Romania','Central Europe'],
+  ['AU','Australia','Asia Pacific'],['NZ','New Zealand','Asia Pacific'],
+  ['JP','Japan','Asia Pacific'],['KR','South Korea','Asia Pacific'],
+  ['SG','Singapore','Asia Pacific'],['IN','India','Asia Pacific'],
+  ['ZA','South Africa','Africa & Middle East'],['AE','United Arab Emirates','Africa & Middle East'],
+  ['SA','Saudi Arabia','Africa & Middle East'],['IL','Israel','Africa & Middle East']
+];
+
+const PALETTE = ['#E10600','#FF6B00','#FFC400','#3ADB6E','#00B3A4','#0F8BFF',
+                 '#2A3FD6','#7B3FE4','#E0329B','#F5F5F5','#8A94A6','#16181D'];
+
+const ASSIST_PRESET = {
+  new:      { tc: true,  abs: true,  esc: true },
+  some:     { tc: true,  abs: true,  esc: false },
+  veteran:  { tc: false, abs: false, esc: false }
+};
+
+let profile = null;
+let acc = {
+  step: 0,
+  name: '', tag: '', email: '', dob: '',
+  country: 'GB', units: 'metric',
+  number: 0, exp: 'new', input: 'keyboard',
+  primary: '#E10600', secondary: '#16181D', accent: '#F5F5F5'
+};
+const ACC_STEPS = ['Identity', 'Region', 'Competition', 'Livery', 'Confirm'];
+
+function loadProfile() {
+  try {
+    const raw = localStorage.getItem(STORE);
+    return raw ? JSON.parse(raw) : null;
+  } catch (e) { return null; }
+}
+function saveProfile(p) {
+  try { localStorage.setItem(STORE, JSON.stringify(p)); } catch (e) {}
+}
+
+/* numbers already spoken for — stable per club so it feels like a real roster */
+function takenNumbers(country) {
+  let seed = 0;
+  for (const c of country) seed = (seed * 31 + c.charCodeAt(0)) & 0xffff;
+  const out = new Set();
+  for (let i = 0; i < 26; i++) {
+    seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+    out.add(1 + (seed % 99));
+  }
+  return out;
+}
+
+function clubFor(code) {
+  const row = COUNTRIES.find(c => c[0] === code);
+  return row ? row[2] : 'International';
+}
+
+function carSVG(p, sec, acc2, num, tag) {
+  return `<svg viewBox="0 0 200 430" aria-label="Livery preview">
+    <defs><linearGradient id="gl" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="${p}"/><stop offset="1" stop-color="${sec}"/>
+    </linearGradient></defs>
+    <rect x="24" y="18" width="152" height="15" rx="3" fill="${sec}"/>
+    <rect x="24" y="18" width="152" height="5" rx="2" fill="${acc2}"/>
+    <path d="M92 34 h16 l7 78 h-30 z" fill="${p}"/>
+    <rect x="26" y="120" width="34" height="62" rx="7" fill="#0d0e11"/>
+    <rect x="140" y="120" width="34" height="62" rx="7" fill="#0d0e11"/>
+    <path d="M78 108 h44 l14 96 q6 30 -6 44 h-60 q-12 -14 -6 -44 z" fill="url(#gl)"/>
+    <path d="M86 128 h28 l5 40 h-38 z" fill="${acc2}" opacity=".85"/>
+    <ellipse cx="100" cy="196" rx="15" ry="19" fill="#0a0b0d"/>
+    <ellipse cx="100" cy="196" rx="9" ry="13" fill="${acc2}" opacity=".5"/>
+    <path d="M64 236 h72 l10 74 h-92 z" fill="${p}"/>
+    <rect x="56" y="250" width="16" height="46" rx="4" fill="${sec}"/>
+    <rect x="128" y="250" width="16" height="46" rx="4" fill="${sec}"/>
+    <rect x="24" y="252" width="36" height="70" rx="8" fill="#0d0e11"/>
+    <rect x="140" y="252" width="36" height="70" rx="8" fill="#0d0e11"/>
+    <path d="M74 312 h52 l6 52 h-64 z" fill="${sec}"/>
+    <rect x="30" y="368" width="140" height="17" rx="3" fill="${sec}"/>
+    <rect x="30" y="368" width="140" height="6" rx="2" fill="${acc2}"/>
+    <rect x="86" y="386" width="28" height="26" rx="3" fill="${p}"/>
+    <text x="100" y="290" text-anchor="middle" fill="${acc2}"
+      font-family="Chakra Petch, sans-serif" font-size="34" font-weight="700"
+      font-style="italic">${num || '—'}</text>
+    <text x="100" y="352" text-anchor="middle" fill="${acc2}" opacity=".8"
+      font-family="Chakra Petch, sans-serif" font-size="13" font-weight="600"
+      letter-spacing="3">${tag || ''}</text>
+  </svg>`;
+}
+
+function buildAccount() {
+  // steps rail
+  $('#accSteps').innerHTML = ACC_STEPS.map((l, i) =>
+    `<div class="acc-step" data-i="${i}"><span class="n">${String(i + 1).padStart(2, '0')}</span><span class="lbl">${l}</span></div>`).join('');
+
+  // countries
+  const sel = $('#i-country');
+  sel.innerHTML = COUNTRIES.map(([c, n]) =>
+    `<option value="${c}">${n}</option>`).join('');
+  sel.value = acc.country;
+  $('#i-club').value = clubFor(acc.country);
+  sel.addEventListener('change', () => {
+    acc.country = sel.value;
+    $('#i-club').value = clubFor(acc.country);
+    buildNumbers();
+  });
+
+  // text fields
+  const bind = (id, key, fn) => $(id).addEventListener('input', e => {
+    acc[key] = fn ? fn(e.target.value) : e.target.value;
+    $(id).parentElement.classList.remove('bad');
+  });
+  bind('#i-name', 'name');
+  bind('#i-tag', 'tag', v => v.toUpperCase().replace(/[^A-Z]/g, ''));
+  bind('#i-email', 'email');
+  bind('#i-dob', 'dob');
+  $('#i-tag').addEventListener('input', e => { e.target.value = acc.tag; });
+  // suggest an abbreviation from the name
+  $('#i-name').addEventListener('input', () => {
+    if (!$('#i-tag').dataset.touched) {
+      const parts = acc.name.trim().split(/\s+/);
+      const base = (parts.length > 1 ? parts[parts.length - 1] : parts[0]) || '';
+      acc.tag = base.toUpperCase().replace(/[^A-Z]/g, '').slice(0, 3);
+      $('#i-tag').value = acc.tag;
+    }
+  });
+  $('#i-tag').addEventListener('focus', () => { $('#i-tag').dataset.touched = '1'; });
+
+  // chip groups
+  const chips = (sel2, key, after) => {
+    const wrap = $(sel2);
+    wrap.addEventListener('click', e => {
+      const b = e.target.closest('.chip-opt');
+      if (!b) return;
+      [...wrap.children].forEach(c => c.classList.toggle('on', c === b));
+      acc[key] = b.dataset.v;
+      if (after) after();
+    });
+  };
+  chips('#c-units', 'units');
+  chips('#c-exp', 'exp');
+  chips('#c-input', 'input');
+
+  // livery swatches
+  document.querySelectorAll('.swatch-row').forEach(row => {
+    const slot = row.dataset.slot;
+    row.innerHTML = PALETTE.map(c =>
+      `<button class="sw" data-c="${c}" style="background:${c}" aria-label="${c}"></button>`).join('');
+    row.addEventListener('click', e => {
+      const b = e.target.closest('.sw');
+      if (!b) return;
+      acc[slot] = b.dataset.c;
+      paintLivery();
+    });
+  });
+
+  buildNumbers();
+  paintLivery();
+
+  $('#accBack').addEventListener('click', () => gotoStep(acc.step - 1));
+  $('#accNext').addEventListener('click', () => {
+    if (acc.step === ACC_STEPS.length - 1) return finishAccount();
+    if (validateStep(acc.step)) gotoStep(acc.step + 1);
+  });
+  gotoStep(0);
+}
+
+function buildNumbers() {
+  const taken = takenNumbers(acc.country);
+  if (taken.has(acc.number)) acc.number = 0;
+  $('#numGrid').innerHTML = Array.from({ length: 99 }, (_, i) => i + 1)
+    .map(n => `<button data-n="${n}"${taken.has(n) ? ' disabled' : ''}${n === acc.number ? ' class="on"' : ''}>${n}</button>`).join('');
+  $('#numGrid').onclick = e => {
+    const b = e.target.closest('button');
+    if (!b || b.disabled) return;
+    acc.number = +b.dataset.n;
+    [...$('#numGrid').children].forEach(c => c.classList.toggle('on', c === b));
+    paintLivery();
+  };
+}
+
+function paintLivery() {
+  document.querySelectorAll('.swatch-row').forEach(row => {
+    const slot = row.dataset.slot;
+    [...row.children].forEach(b => b.classList.toggle('on', b.dataset.c === acc[slot]));
+  });
+  $('#carPrev').innerHTML = carSVG(acc.primary, acc.secondary, acc.accent, acc.number, acc.tag);
+}
+
+function validateStep(i) {
+  const fail = (id, cond) => {
+    const el = $(id);
+    el.classList.toggle('bad', !cond);
+    return cond;
+  };
+  if (i === 0) {
+    let ok = true;
+    ok = fail('#f-name', acc.name.trim().length >= 2) && ok;
+    ok = fail('#f-tag', /^[A-Z]{3}$/.test(acc.tag)) && ok;
+    ok = fail('#f-email', /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(acc.email)) && ok;
+    const age = acc.dob ? (Date.now() - new Date(acc.dob)) / 3.15576e10 : 0;
+    ok = fail('#f-dob', acc.dob && age >= 13 && age < 120) && ok;
+    return ok;
+  }
+  if (i === 2) {
+    if (!acc.number) {
+      const g = $('#numGrid');
+      g.style.outline = '1px solid var(--red)';
+      setTimeout(() => { g.style.outline = ''; }, 1200);
+      return false;
+    }
+  }
+  return true;
+}
+
+function gotoStep(i) {
+  acc.step = Math.max(0, Math.min(ACC_STEPS.length - 1, i));
+  document.querySelectorAll('.acc-pane').forEach(p => {
+    p.hidden = +p.dataset.step !== acc.step;
+  });
+  [...$('#accSteps').children].forEach((el, n) => {
+    el.classList.toggle('now', n === acc.step);
+    el.classList.toggle('done', n < acc.step);
+  });
+  $('#accProg').textContent = `Step ${acc.step + 1} of ${ACC_STEPS.length}`;
+  $('#accBack').disabled = acc.step === 0;
+  $('#accNext').querySelector('span').textContent =
+    acc.step === ACC_STEPS.length - 1 ? 'Create driver' : 'Continue';
+  $('#accScroll').scrollTop = 0;
+  if (acc.step === 4) buildSummary();
+}
+
+function buildSummary() {
+  const rows = [
+    ['Driver', acc.name.trim()],
+    ['Abbreviation', acc.tag],
+    ['Number', String(acc.number), true],
+    ['Country', (COUNTRIES.find(c => c[0] === acc.country) || [, '—'])[1]],
+    ['Club', clubFor(acc.country)],
+    ['Licence', 'Rookie'],
+    ['uRating', '1350'],
+    ['Safety rating', '2.50'],
+    ['Units', acc.units === 'metric' ? 'km/h · Celsius' : 'mph · Fahrenheit'],
+    ['Input', { keyboard: 'Keyboard', pad: 'Controller', wheel: 'Wheel & pedals' }[acc.input]],
+    ['Assists', acc.exp === 'veteran' ? 'All off' : acc.exp === 'some' ? 'TC + ABS' : 'TC + ABS + ESC']
+  ];
+  $('#sumGrid').innerHTML = rows.map(([k, v, red]) =>
+    `<div class="sumcell"><div class="k">${k}</div><div class="v${red ? ' red' : ''}">${v}</div></div>`).join('');
+}
+
+function finishAccount() {
+  profile = {
+    name: acc.name.trim(), tag: acc.tag, email: acc.email, dob: acc.dob,
+    country: acc.country, club: clubFor(acc.country), units: acc.units,
+    number: acc.number, exp: acc.exp, input: acc.input,
+    colors: { primary: acc.primary, secondary: acc.secondary, accent: acc.accent },
+    licence: 'Rookie', safety: 2.5, rating: 1350, credits: 25000,
+    created: Date.now()
+  };
+  saveProfile(profile);
+  applyProfile();
+  transitionTo('menu');
+}
+
+function applyProfile() {
+  if (!profile) return;
+  $('#pAv').textContent = profile.number;
+  $('#pAv').style.color = profile.colors.primary;
+  $('#pName').textContent = profile.name;
+  $('#pSub').textContent = `${profile.licence} — ${profile.club}`;
+  $('#pRating').textContent = profile.rating.toLocaleString();
+  $('#pCredits').textContent = profile.credits.toLocaleString();
+  const a = ASSIST_PRESET[profile.exp] || ASSIST_PRESET.new;
+  if (window.URacingDrive && window.URacingDrive.setProfile)
+    window.URacingDrive.setProfile(profile, a);
 }
 
 /* ============================================================
@@ -1114,6 +1709,8 @@ document.addEventListener('keydown', e => {
     if (e.key === 'Enter')                      { e.preventDefault(); activate(sel); }
   } else if (screens.module.classList.contains('on')) {
     if (e.key === 'Escape' || e.key === 'Backspace') { e.preventDefault(); transitionTo('menu'); }
+  } else if (screens.account.classList.contains('on')) {
+    if (e.key === 'Escape' && profile) { e.preventDefault(); transitionTo('menu'); }
   } else if (screens.drive.classList.contains('on')) {
     if (e.key === 'Escape') {
       e.preventDefault();
@@ -1128,6 +1725,29 @@ $('#modBack').addEventListener('click', () => transitionTo('menu'));
 $('#replay').addEventListener('click', () => { clearInterval(tipTimer); runIntro(); });
 
 /* ---------- boot ----------------------------------------- */
+profile = loadProfile();
+buildAccount();
+if (profile) {
+  Object.assign(acc, {
+    name: profile.name, tag: profile.tag, email: profile.email, dob: profile.dob,
+    country: profile.country, units: profile.units, number: profile.number,
+    exp: profile.exp, input: profile.input,
+    primary: profile.colors.primary, secondary: profile.colors.secondary,
+    accent: profile.colors.accent
+  });
+  applyProfile();
+}
+$('#pChip').addEventListener('click', async () => {
+  $('#i-name').value = acc.name; $('#i-tag').value = acc.tag;
+  $('#i-email').value = acc.email; $('#i-dob').value = acc.dob;
+  $('#i-country').value = acc.country; $('#i-club').value = clubFor(acc.country);
+  ['units', 'exp', 'input'].forEach(k => {
+    const wrap = $('#c-' + k);
+    if (wrap) [...wrap.children].forEach(c => c.classList.toggle('on', c.dataset.v === acc[k]));
+  });
+  buildNumbers(); paintLivery(); gotoStep(0);
+  await wipe(); show('account');
+});
 select(0, true);
 
 let booted = false;
@@ -2148,6 +2768,7 @@ async function init(onProgress) {
     w.rotation.order = 'YXZ';
   }
   scene.add(carRoot);
+  applyLivery();
   onProgress(0.96, 5);
 
   addEventListener('resize', resize);
@@ -2180,7 +2801,37 @@ function start() {
 }
 function stop() { running = false; }
 
+let livery = null;
+function applyLivery() {
+  if (!carRoot || !livery) return;
+  const seen = new Set();
+  carRoot.traverse(o => {
+    if (!o.isMesh) return;
+    const mats = Array.isArray(o.material) ? o.material : [o.material];
+    for (const m of mats) {
+      if (!m || seen.has(m.uuid)) continue;
+      seen.add(m.uuid);
+      const n = m.name || '';
+      if (n.indexOf('Carbon_Fiber___Plain') === 0) {          // main bodywork
+        m.color.set(livery.primary).multiplyScalar(0.62);
+        m.metalness = 0.38; m.roughness = 0.31;               // read as paint
+      } else if (n.indexOf('Titanium___Satin') === 0) {       // wings, detail
+        m.color.set(livery.accent).multiplyScalar(0.5);
+        m.metalness = 0.55; m.roughness = 0.36;
+      } else if (n.indexOf('Fabric_Black') === 0) {
+        m.color.set(livery.secondary).multiplyScalar(0.5);
+      }
+      m.needsUpdate = true;
+    }
+  });
+}
+
 window.URacingDrive = {
+  setProfile(p, assists) {
+    livery = p && p.colors ? p.colors : null;
+    if (assists) Object.assign(ASSIST, assists);
+    applyLivery();
+  },
   debug: { get veh() { return veh; }, get track() { return track; },
            snapCam() { const s = sampleTrack(veh.x, veh.z, veh.yaw);
              const f = new THREE.Vector3(Math.sin(veh.yaw), 0, Math.cos(veh.yaw));
