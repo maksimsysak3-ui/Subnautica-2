@@ -1174,7 +1174,7 @@ const SURVEY = [
 
 const PLANE_Y  = -0.30;  // ground, just below the racing surface
 const SCALE    = 1.40;   // metres per survey unit -> ~4.4 km lap
-const ROAD_W   = 12.0;   // metres, edge to edge
+const ROAD_W   = 17.0;   // metres, edge to edge
 const KERB_W   = 1.55;
 const LINE_W   = 0.16;
 
@@ -1429,11 +1429,11 @@ const CAR = {
   m: 798, Izz: 1220, a: 1.98, b: 1.62, tw: 1.62, hcg: 0.30,
   Rw: 0.3535, Iw: 1.15,
   rho: 1.225, ClA: 6.0, CdA: 1.32, aeroF: 0.43,
-  mu: 1.62, rollF: 0.60,
+  mu: 1.76, rollF: 0.62,
   brakeMax: 14500, brakeBias: 0.58,
   gears: [4.20, 3.30, 2.75, 2.35, 2.05, 1.82, 1.63, 1.47], final: 4.0, eff: 0.94,
   idle: 4200, redline: 15200, shiftUp: 14500, shiftDown: 9000,
-  kappaPeak: 0.20, alphaPeak: 0.26
+  kappaPeak: 0.17, alphaPeak: 0.215, alphaPeakR: 0.165
 };
 const G = 9.81;
 const ASSIST = { tc: true, abs: true, esc: true };
@@ -1452,7 +1452,7 @@ function powerAt(rpm) {
   return POWER[POWER.length - 1][1] * 1000;
 }
 // Pacejka shape, normalised so it peaks at ~1.0 for combined slip magnitude 1
-const PB = 7.0, PC = 1.55, PE = 0.86;
+const PB = 9.2, PC = 1.58, PE = 0.90;
 function pacejka(s) {
   const bs = PB * s;
   return Math.sin(PC * Math.atan(bs - PE * (bs - Math.atan(bs))));
@@ -1566,7 +1566,7 @@ class Vehicle {
       const alpha = this.alphaLag[i];
 
       const sx = kappa / c.kappaPeak;
-      const sy = Math.tan(alpha) / c.alphaPeak;
+      const sy = Math.tan(alpha) / (i < 2 ? c.alphaPeak : c.alphaPeakR);
       const s = Math.hypot(sx, sy);
       const D = c.mu * Fz[i] * this.grip;
       let fx = 0, fy = 0;
@@ -1616,8 +1616,15 @@ class Vehicle {
         this.vx * Math.tan(this.steer) / c.L, -cap, cap);
       const err = this.r - rRef;
       const beta = Math.abs(Math.atan2(this.vy, Math.abs(this.vx) + 2));
-      const gain = 5.4 + 4.2 * this.brake + 11 * Math.min(1, beta / 0.30);
+      const gain = 6.2 + 4.2 * this.brake + 13 * Math.min(1, beta / 0.30);
       Mz -= err * c.Izz * gain;
+      // bleed off a slide the way a stability system does, capped so it can
+      // never do more than a fraction of what the tyres are already doing
+      const over = beta - 0.05;
+      if (over > 0) {
+        Fy -= Math.sign(this.vy) * Math.min(over * 30, 4.4) * c.m;
+        this.vy *= Math.exp(-dt * Math.min(6, over * 22));
+      }
       this.escCut = Math.min(1, Math.abs(err) * 2.6 + beta * 2);
     } else this.escCut *= Math.exp(-dt * 6);
 
