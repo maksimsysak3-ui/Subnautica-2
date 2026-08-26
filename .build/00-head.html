@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<title>METROPOLIS — City Engine</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#05080c;
+  --p1:rgba(14,20,28,.90); --p2:rgba(20,28,38,.94); --p3:rgba(10,15,21,.96);
+  --ln:rgba(140,180,220,.10); --ln2:rgba(140,190,235,.20);
+  --tx:#e6eef6; --td:#93a5b8; --tf:#63768a;
+  --ac:#4fd2ff; --ac2:#8affc1; --am:#ffbf4d; --bad:#ff6070; --good:#54e39c;
+  --r:#54e39c; --c:#5fb8ff; --i:#ffbf4d;
+  --sh:0 10px 34px rgba(0,0,0,.62);
+  --ff:'Inter',system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+  --fc:'Barlow Condensed','Inter',sans-serif;
+  --fm:'JetBrains Mono',ui-monospace,Menlo,Consolas,monospace;
+  --bh:76px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(--tx);font-family:var(--ff);
+  -webkit-font-smoothing:antialiased;user-select:none;-webkit-tap-highlight-color:transparent}
+canvas{position:fixed;top:0;left:0;width:100vw;height:100vh;display:block;touch-action:none}
+#ui{position:fixed;inset:0;pointer-events:none;z-index:10;font-size:13px}
+.pe{pointer-events:auto}
+.pnl{background:linear-gradient(180deg,var(--p2),var(--p3));border:1px solid var(--ln);
+  border-radius:10px;box-shadow:var(--sh);backdrop-filter:blur(18px) saturate(1.25)}
+.hd{font:600 9.5px var(--ff);letter-spacing:.16em;color:var(--tf);text-transform:uppercase}
+
+/* ══ BOTTOM BAR — everything lives here, CS2-style ══════════════════════ */
+#bot{position:absolute;left:0;right:0;bottom:0;height:var(--bh);display:flex;align-items:stretch;
+  background:linear-gradient(180deg,rgba(10,16,23,.86),rgba(6,10,15,.97));
+  border-top:1px solid var(--ln2);backdrop-filter:blur(20px) saturate(1.3);
+  box-shadow:0 -8px 30px rgba(0,0,0,.5)}
+#bot .zL{display:flex;align-items:center;gap:16px;padding:0 18px;min-width:296px}
+#bot .zM{flex:1;display:flex;align-items:center;justify-content:center;position:relative}
+#bot .zR{display:flex;align-items:center;gap:16px;padding:0 18px;min-width:420px;justify-content:flex-end}
+.vdiv{width:1px;background:var(--ln);margin:16px 0}
+
+#city{display:flex;flex-direction:column;justify-content:center;min-width:118px}
+#city .n{font:700 19px/1 var(--fc);letter-spacing:.10em;color:var(--tx)}
+#city .t{font:600 8.5px/1.6 var(--ff);letter-spacing:.15em;color:var(--ac);text-transform:uppercase}
+#dt{display:flex;flex-direction:column;justify-content:center;min-width:92px}
+#dt .d{font:600 12.5px/1.25 var(--fc);letter-spacing:.05em;color:var(--tx)}
+#dt .h{font:500 10px/1.2 var(--fm);color:var(--td)}
+#spd{display:flex;gap:3px}
+.sp{width:26px;height:26px;border-radius:6px;border:1px solid transparent;background:rgba(255,255,255,.045);
+  color:var(--tf);font:600 9px var(--fm);cursor:pointer;display:grid;place-items:center;transition:.12s}
+.sp:hover{background:rgba(79,210,255,.14);color:var(--tx)}
+.sp.on{background:rgba(79,210,255,.24);border-color:rgba(79,210,255,.6);color:#fff}
+
+/* tool strip */
+#cats{display:flex;gap:2px}
+.cat{width:62px;height:var(--bh);border:0;background:transparent;cursor:pointer;color:var(--tf);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;transition:.13s;
+  border-top:2px solid transparent;position:relative}
+.cat:hover{background:rgba(255,255,255,.05);color:var(--tx)}
+.cat.on{background:linear-gradient(180deg,rgba(79,210,255,.16),transparent 70%);color:#fff;
+  border-top-color:var(--ac)}
+.cat svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.cat .n{font:600 8.5px var(--ff);letter-spacing:.08em;text-transform:uppercase}
+#sub{position:absolute;bottom:calc(var(--bh) + 8px);left:50%;transform:translateX(-50%) translateY(6px);
+  display:flex;gap:5px;padding:7px;opacity:0;transition:.16s;pointer-events:none;
+  background:linear-gradient(180deg,var(--p2),var(--p3));border:1px solid var(--ln2);border-radius:11px;
+  box-shadow:var(--sh);backdrop-filter:blur(18px)}
+#sub.on{opacity:1;transform:translateX(-50%);pointer-events:auto}
+.itm{min-width:84px;height:56px;border-radius:8px;border:1px solid var(--ln);background:rgba(255,255,255,.035);
+  cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
+  padding:5px 11px;transition:.12s;color:var(--td)}
+.itm:hover{background:rgba(255,255,255,.09);color:var(--tx);border-color:var(--ln2)}
+.itm.on{background:linear-gradient(180deg,rgba(79,210,255,.24),rgba(79,210,255,.07));
+  border-color:var(--ac);color:#fff}
+.itm .sw{width:28px;height:4px;border-radius:2px}
+.itm .n{font:600 10px var(--ff);white-space:nowrap}
+.itm .c{font:500 9px var(--fm);color:var(--am)}
+
+/* right cluster: stat readouts */
+.rs{display:flex;flex-direction:column;justify-content:center;align-items:flex-end;min-width:66px}
+.rs .k{font:600 8px/1 var(--ff);letter-spacing:.13em;color:var(--tf);text-transform:uppercase}
+.rs .v{font:600 16px/1.35 var(--fc);letter-spacing:.02em;font-variant-numeric:tabular-nums;white-space:nowrap}
+.rs .v.up{color:var(--good)} .rs .v.dn{color:var(--bad)}
+#util{display:flex;gap:7px}
+.ub{width:38px;display:flex;flex-direction:column;align-items:center;gap:4px}
+.ub .ic{font-size:12px;line-height:1;opacity:.85}
+.ub .bar{width:100%;height:4px;border-radius:2px;background:rgba(255,255,255,.09);overflow:hidden}
+.ub .bar div{height:100%;border-radius:2px;transition:width .4s}
+.ub .t{font:500 8px var(--fm);color:var(--td)}
+
+/* ══ SIDE PANELS ═══════════════════════════════════════════════════════ */
+#vit{position:absolute;left:14px;top:14px;width:214px;padding:12px 13px;display:flex;flex-direction:column;gap:10px}
+.mtr .r1{display:flex;justify-content:space-between;font:500 10.5px var(--ff);margin-bottom:4px;color:var(--td)}
+.mtr .r1 b{color:var(--tx);font:500 9.5px var(--fm)}
+.trk{height:4px;background:rgba(255,255,255,.08);border-radius:2px;overflow:hidden}
+.trk div{height:100%;border-radius:2px;transition:width .4s,background .3s}
+#hap{display:flex;align-items:center;gap:10px}
+#hapv{font:700 27px/1 var(--fc)}
+.chips{display:flex;flex-wrap:wrap;gap:4px}
+.chip{font:600 8.5px var(--ff);letter-spacing:.06em;padding:3px 7px;border-radius:5px;
+  background:rgba(255,255,255,.055);border:1px solid var(--ln);color:var(--td)}
+.chip.bad{background:rgba(255,96,112,.16);border-color:rgba(255,96,112,.42);color:#ffbcc2}
+
+#insp{position:absolute;right:14px;top:14px;width:246px;overflow:hidden;display:none}
+#insp.on{display:block}
+#ihd{padding:11px 13px;background:linear-gradient(180deg,rgba(79,210,255,.14),transparent);
+  border-bottom:1px solid var(--ln);display:flex;justify-content:space-between;align-items:flex-start}
+#ihd .t{font:600 15px var(--fc);letter-spacing:.03em}
+#ihd .s{font:600 8.5px var(--ff);letter-spacing:.14em;color:var(--ac);text-transform:uppercase;margin-top:3px}
+#ix{width:20px;height:20px;border-radius:5px;border:1px solid var(--ln);background:none;color:var(--tf);
+  cursor:pointer;font:400 12px/1 var(--ff);display:grid;place-items:center}
+#ix:hover{color:var(--bad);border-color:var(--bad)}
+#ibd{padding:11px 13px;display:flex;flex-direction:column;gap:7px;max-height:56vh;overflow-y:auto}
+.row{display:flex;justify-content:space-between;font:500 11px var(--ff);color:var(--td)}
+.row b{font:500 10.5px var(--fm);color:var(--tx)}
+.row b.g{color:var(--good)} .row b.r{color:var(--bad)} .row b.y{color:var(--am)}
+
+/* RCI + overlays sit just above the bar */
+#rci{position:absolute;right:14px;bottom:calc(var(--bh) + 14px);width:64px;padding:9px 8px 7px}
+#rci .t{font:600 8px var(--ff);letter-spacing:.15em;color:var(--tf);text-align:center;margin-bottom:7px}
+.dm{display:flex;justify-content:space-around;align-items:flex-end;height:64px}
+.dcol{width:13px;height:100%;background:rgba(255,255,255,.06);border-radius:2px;position:relative;overflow:hidden}
+.dfill{position:absolute;bottom:0;left:0;right:0;border-radius:2px;transition:height .5s cubic-bezier(.4,0,.2,1)}
+.dlab{display:flex;justify-content:space-around;margin-top:5px;font:700 10px var(--fc)}
+#ovl{position:absolute;left:14px;bottom:calc(var(--bh) + 14px);display:flex;gap:3px;padding:5px}
+.ov{padding:6px 9px;border-radius:6px;border:1px solid transparent;background:none;color:var(--tf);
+  font:600 8.5px var(--ff);letter-spacing:.1em;text-transform:uppercase;cursor:pointer;transition:.12s}
+.ov:hover{color:var(--tx);background:rgba(255,255,255,.06)}
+.ov.on{background:rgba(79,210,255,.2);border-color:rgba(79,210,255,.45);color:#dff6ff}
+
+/* transient */
+#hint{position:absolute;bottom:calc(var(--bh) + 14px);left:50%;transform:translateX(-50%);
+  padding:7px 15px;border-radius:8px;font:500 11px var(--ff);color:var(--td);opacity:0;transition:.2s;white-space:nowrap}
+#hint.on{opacity:1}
+#hint b{color:var(--ac);font-weight:600}
+#hint kbd{font:500 9.5px var(--fm);background:rgba(255,255,255,.1);border:1px solid var(--ln2);
+  border-radius:4px;padding:1px 5px;color:var(--tx);margin:0 1px}
+#toasts{position:absolute;top:14px;left:50%;transform:translateX(-50%);display:flex;flex-direction:column;
+  gap:6px;align-items:center;width:360px}
+.toast{padding:9px 15px;border-radius:8px;font:500 11.5px var(--ff);display:flex;gap:9px;align-items:center;
+  animation:tin .3s cubic-bezier(.2,1.3,.4,1);border-left:3px solid var(--ac);
+  background:linear-gradient(180deg,var(--p2),var(--p3));border-top:1px solid var(--ln);
+  border-right:1px solid var(--ln);border-bottom:1px solid var(--ln);box-shadow:var(--sh)}
+.toast.w{border-left-color:var(--am)} .toast.e{border-left-color:var(--bad)} .toast.g{border-left-color:var(--good)}
+@keyframes tin{from{opacity:0;transform:translateY(-12px) scale(.95)}to{opacity:1;transform:none}}
+#perf{position:absolute;right:14px;top:14px;padding:6px 10px;font:500 9px/1.6 var(--fm);color:var(--tf);
+  text-align:right;border-radius:7px;background:rgba(8,12,18,.6);border:1px solid var(--ln);opacity:.75}
+#perf b{color:var(--ac);font-weight:500}
+#insp.on ~ #perf{top:auto;bottom:calc(var(--bh) + 14px);right:92px}
+
+#load{position:fixed;inset:0;background:radial-gradient(ellipse at 50% 44%,#0d1720,#03060a 74%);z-index:100;
+  display:grid;place-items:center;transition:opacity .7s}
+#load.off{opacity:0;pointer-events:none}
+#load h1{font:700 44px var(--fc);letter-spacing:.34em;color:var(--ac);text-shadow:0 0 42px rgba(79,210,255,.5);
+  margin-bottom:6px}
+#load p{font:500 9.5px var(--ff);letter-spacing:.3em;color:var(--tf);text-transform:uppercase;margin-bottom:26px}
+#lb{width:290px;height:2px;background:rgba(255,255,255,.08);border-radius:2px;overflow:hidden;margin:0 auto}
+#lbf{height:100%;width:0;background:linear-gradient(90deg,var(--ac),#fff);transition:width .3s;
+  box-shadow:0 0 12px var(--ac)}
+#lt{font:500 9.5px var(--fm);color:var(--tf);margin-top:12px;height:12px}
+::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:rgba(140,180,220,.22);border-radius:3px}
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="ui">
+
+  <div id="vit" class="pnl pe">
+    <div class="hd" style="display:flex;justify-content:space-between"><span>City Vitals</span>
+      <span id="unemp" style="color:var(--am)">—</span></div>
+    <div id="hap"><div id="hapv">—</div><div style="flex:1"><div class="mtr">
+      <div class="r1"><span>Happiness</span><b id="hap-t">—</b></div>
+      <div class="trk"><div id="hap-b" style="width:0;background:var(--good)"></div></div></div></div></div>
+    <div id="vitals" style="display:flex;flex-direction:column;gap:7px"></div>
+    <div class="hd">Alerts</div>
+    <div class="chips" id="alerts"><div class="chip">All systems nominal</div></div>
+  </div>
+
+  <div id="insp" class="pnl pe">
+    <div id="ihd"><div><div class="t" id="i-t">—</div><div class="s" id="i-s">—</div></div>
+      <button id="ix">✕</button></div>
+    <div id="ibd"></div>
+  </div>
+
+  <div id="rci" class="pnl pe">
+    <div class="t">DEMAND</div>
+    <div class="dm">
+      <div class="dcol"><div class="dfill" id="d-r" style="background:linear-gradient(180deg,#8dffc4,#2fbf72)"></div></div>
+      <div class="dcol"><div class="dfill" id="d-c" style="background:linear-gradient(180deg,#9adcff,#2b83d6)"></div></div>
+      <div class="dcol"><div class="dfill" id="d-i" style="background:linear-gradient(180deg,#ffdb95,#d08b1c)"></div></div>
+    </div>
+    <div class="dlab"><span style="color:var(--r)">R</span><span style="color:var(--c)">C</span><span style="color:var(--i)">I</span></div>
+  </div>
+
+  <div id="ovl" class="pnl pe">
+    <button class="ov on" data-ov="none">None</button>
+    <button class="ov" data-ov="power">Power</button>
+    <button class="ov" data-ov="water">Water</button>
+    <button class="ov" data-ov="sewage">Sewage</button>
+    <button class="ov" data-ov="traffic">Traffic</button>
+    <button class="ov" data-ov="value">Value</button>
+    <button class="ov" data-ov="pollution">Pollution</button>
+  </div>
+
+  <div id="hint" class="pnl"></div>
+  <div id="toasts"></div>
+  <div id="perf"></div>
+
+  <div id="bot" class="pe">
+    <div class="zL">
+      <div id="city"><div class="n">METROPOLIS</div><div class="t" id="tier">Hamlet</div></div>
+      <div class="vdiv"></div>
+      <div id="dt"><div class="d" id="c-date">Mon 01 Jan</div><div class="h" id="c-time">08:00</div></div>
+      <div id="spd">
+        <button class="sp" data-sp="0" title="Pause (Space)">❚❚</button>
+        <button class="sp on" data-sp="1" title="Normal (1)">▶</button>
+        <button class="sp" data-sp="2" title="Fast (2)">▶▶</button>
+        <button class="sp" data-sp="3" title="Ultra (3)">▶▶▶</button>
+      </div>
+    </div>
+    <div class="vdiv"></div>
+    <div class="zM"><div id="sub"></div><div id="cats"></div></div>
+    <div class="vdiv"></div>
+    <div class="zR">
+      <div id="util">
+        <div class="ub" title="Electricity"><span class="ic">⚡</span><div class="bar"><div id="u-pow"></div></div><span class="t" id="t-pow">—</span></div>
+        <div class="ub" title="Water"><span class="ic">💧</span><div class="bar"><div id="u-wat"></div></div><span class="t" id="t-wat">—</span></div>
+        <div class="ub" title="Sewage"><span class="ic">♻</span><div class="bar"><div id="u-sew"></div></div><span class="t" id="t-sew">—</span></div>
+        <div class="ub" title="Traffic"><span class="ic">🚗</span><div class="bar"><div id="u-tra"></div></div><span class="t" id="t-tra">—</span></div>
+      </div>
+      <div class="vdiv"></div>
+      <div class="rs"><div class="k">Population</div><div class="v" id="s-pop">0</div></div>
+      <div class="rs"><div class="k">Jobs</div><div class="v" id="s-job">0/0</div></div>
+      <div class="rs"><div class="k">Income</div><div class="v" id="s-inc">₡0</div></div>
+      <div class="rs" style="min-width:96px"><div class="k">Funds</div><div class="v" id="s-cash">₡0</div></div>
+    </div>
+  </div>
+</div>
+
+<div id="load"><div style="text-align:center">
+  <h1>METROPOLIS</h1><p>City Engine · WebGL2</p>
+  <div id="lb"><div id="lbf"></div></div><div id="lt">booting…</div>
+</div></div>
+<script>
