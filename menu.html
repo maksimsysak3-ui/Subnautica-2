@@ -654,8 +654,10 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
 .hgripwrap i{display:block;height:100%;width:0;background:#7dffa8;transition:width .07s linear}
 .hassist{display:flex;gap:10px;margin-top:10px}
 .hassist span{font-size:9px;font-weight:700;letter-spacing:.18em;
-  color:#2f343c;transition:color .1s linear,text-shadow .1s linear}
-.hassist span.on{color:var(--amb,#ffc97f);text-shadow:0 0 10px rgba(255,201,127,.7)}
+  color:#2b2f36;transition:color .12s linear,text-shadow .12s linear,opacity .12s linear}
+.hassist span.armed{color:#6a717c}
+.hassist span.off{color:#2b2f36;text-decoration:line-through;opacity:.75}
+.hassist span.on{color:#ffc97f;text-shadow:0 0 10px rgba(255,201,127,.7)}
 .hgripwrap i.over{background:var(--red-hot);box-shadow:0 0 10px rgba(255,59,36,.8)}
 
 /* timing */
@@ -1019,9 +1021,10 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
               <div class="chips" id="c-exp">
                 <button class="chip-opt on" data-v="new">New to sim racing</button>
                 <button class="chip-opt" data-v="some">Some experience</button>
-                <button class="chip-opt" data-v="veteran">Veteran</button>
+                <button class="chip-opt" data-v="veteran">Veteran &mdash; no traction control</button>
               </div>
-              <span class="hint">Sets your starting assists. Change them any time.</span>
+              <span class="hint">Sets your starting assists. Toggle them any time
+                with 1, 2 and 3 while driving.</span>
             </div>
             <div class="fld">
               <label>Input device</label>
@@ -1111,6 +1114,7 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
       <span><b>A D</b>Steer</span>
       <span><b>C</b>Camera</span>
       <span><b>R</b>Reset</span>
+      <span><b>1 2 3</b>TC / ABS / ESC</span>
       <span><b>Esc</b>Menu</span>
     </div>
 
@@ -1421,9 +1425,19 @@ const PALETTE = ['#E10600','#FF6B00','#FFC400','#3ADB6E','#00B3A4','#0F8BFF',
 
 const ASSIST_PRESET = {
   new:      { tc: true,  abs: true,  esc: true },
-  some:     { tc: true,  abs: true,  esc: false },
-  veteran:  { tc: false, abs: false, esc: false }
+  some:     { tc: true,  abs: true,  esc: true },
+  veteran:  { tc: false, abs: true,  esc: true }
 };
+// binary inputs cannot catch a slide, so keep the floor high for them
+const ASSIST_FLOOR = {
+  keyboard: { abs: true, esc: true },
+  pad:      { esc: true },
+  wheel:    {}
+};
+function resolveAssists(p) {
+  const base = Object.assign({}, ASSIST_PRESET[p && p.exp] || ASSIST_PRESET.new);
+  return Object.assign(base, ASSIST_FLOOR[p && p.input] || ASSIST_FLOOR.keyboard);
+}
 
 let profile = null;
 let acc = {
@@ -1648,7 +1662,11 @@ function buildSummary() {
     ['Safety rating', '2.50'],
     ['Units', acc.units === 'metric' ? 'km/h · Celsius' : 'mph · Fahrenheit'],
     ['Input', { keyboard: 'Keyboard', pad: 'Controller', wheel: 'Wheel & pedals' }[acc.input]],
-    ['Assists', acc.exp === 'veteran' ? 'All off' : acc.exp === 'some' ? 'TC + ABS' : 'TC + ABS + ESC']
+    ['Assists', (() => {
+      const a = resolveAssists({ exp: acc.exp, input: acc.input });
+      const on = ['tc', 'abs', 'esc'].filter(k => a[k]).map(k => k.toUpperCase());
+      return on.length ? on.join(' + ') : 'All off';
+    })()]
   ];
   $('#sumGrid').innerHTML = rows.map(([k, v, red]) =>
     `<div class="sumcell"><div class="k">${k}</div><div class="v${red ? ' red' : ''}">${v}</div></div>`).join('');
@@ -1676,7 +1694,7 @@ function applyProfile() {
   $('#pSub').textContent = `${profile.licence} — ${profile.club}`;
   $('#pRating').textContent = profile.rating.toLocaleString();
   $('#pCredits').textContent = profile.credits.toLocaleString();
-  const a = ASSIST_PRESET[profile.exp] || ASSIST_PRESET.new;
+  const a = resolveAssists(profile);
   if (window.URacingDrive && window.URacingDrive.setProfile)
     window.URacingDrive.setProfile(profile, a);
 }
@@ -2325,7 +2343,7 @@ class Vehicle {
       if (abs < 0.985) this.absCut = 1;
       // never ask for more braking force than this tyre can hold
       const latCall = Math.min(1, Math.abs(this.steer) / 0.19);
-      const budget = ASSIST.abs ? 0.94 - 0.46 * latCall : 1.35;
+      const budget = ASSIST.abs ? 0.94 - 0.46 * latCall : 1.06 - 0.14 * latCall;
       const Tgrip = c.mu * Fz[i] * this.grip * c.Rw * budget;
       // ease off the rear brake further while the car is being turned
       const turnEase = i < 2 ? 1 : 1 - 0.45 * Math.min(1, Math.abs(this.steer) / 0.16);
@@ -2758,9 +2776,14 @@ function updateHUD(sample) {
   const grip = Math.max(...veh.slip);
   hud.grip.style.width = Math.min(100, grip * 62) + '%';
   hud.grip.classList.toggle('over', grip > 1.02);
-  hud.tc.classList.toggle('on', veh.tcCut > 0.12);
-  hud.abs.classList.toggle('on', veh.absCut > 0.12);
-  hud.esc.classList.toggle('on', veh.escCut > 0.15);
+  const assistState = [['tc', hud.tc, veh.tcCut > 0.12],
+                       ['abs', hud.abs, veh.absCut > 0.12],
+                       ['esc', hud.esc, veh.escCut > 0.15]];
+  for (const [key, el, active] of assistState) {
+    el.classList.toggle('off', !ASSIST[key]);
+    el.classList.toggle('armed', ASSIST[key] && !active);
+    el.classList.toggle('on', ASSIST[key] && active);
+  }
   // minimap
   const u = sample.s / track.length;
   const p = hud.mapPath.getPointAtLength(u * hud.mapLen);
@@ -3010,6 +3033,9 @@ async function init(onProgress) {
     keys[e.code] = true;
     if (['ArrowUp', 'ArrowDown', 'Space'].includes(e.code)) e.preventDefault();
     if (cine.on) { endCinematic(); return; }
+    if (e.code === 'Digit1') ASSIST.tc = !ASSIST.tc;
+    if (e.code === 'Digit2') ASSIST.abs = !ASSIST.abs;
+    if (e.code === 'Digit3') ASSIST.esc = !ASSIST.esc;
     if (e.code === 'KeyC') camMode = (camMode + 1) % 3;
     if (e.code === 'KeyR') { veh.reset(lap.s || 0); reseedLookup(veh.x, veh.z);
                              lap.t = 0; lap.started = false; }
@@ -3075,7 +3101,7 @@ window.URacingDrive = {
              const f = new THREE.Vector3(Math.sin(veh.yaw), 0, Math.cos(veh.yaw));
              camPos.set(veh.x, s.y, veh.z).addScaledVector(f, -8.4).addScaledVector(s.normal, 3.05);
              camAim.set(veh.x, s.y + 1, veh.z).addScaledVector(f, 12); },
-           CAR, Vehicle, sampleTrack, G },
+           CAR, Vehicle, sampleTrack, G, ASSIST },
   async enter(shell) {
     if (!ready) await init(shell.progress);
     shell.reveal();
