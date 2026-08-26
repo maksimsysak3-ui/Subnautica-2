@@ -682,6 +682,10 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
   font-size:10px;font-weight:700;letter-spacing:.3em;text-transform:uppercase;
   opacity:0;transition:opacity .2s ease}
 #hFlag.on{opacity:1}
+#hModelWarn{position:absolute;left:50%;top:112px;transform:translateX(-50%);
+  display:none;padding:6px 16px;border:1px solid var(--amb,#ffc97f);
+  color:var(--amb,#ffc97f);font-size:9.5px;font-weight:700;letter-spacing:.24em;
+  text-transform:uppercase;background:rgba(0,0,0,.4)}
 
 @media (max-width:900px){
   .hmap,.hkeys{display:none}
@@ -743,12 +747,12 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
 .hmapline{stroke-width:2.6}
 .hmap .sf{stroke:#fff;stroke-width:3;opacity:.85}
 #hMapDot{r:4.6}
-.hmaphead{position:absolute;right:26px;top:calc(22px + clamp(120px,13vw,178px));
+.hmaphead{position:absolute;right:26px;top:calc(24px + clamp(120px,13vw,178px));
   width:clamp(120px,13vw,178px);text-align:center;
   font-size:9px;font-weight:600;letter-spacing:.26em;text-transform:uppercase;
   color:var(--dimmer)}
 
-.htyres{position:absolute;left:34px;top:26px;display:grid;
+.htyres{position:absolute;left:34px;top:170px;display:grid;
   grid-template-columns:auto auto;gap:8px 14px}
 .tyre{display:flex;align-items:center;gap:8px}
 .tyre .car{width:17px;height:30px;border-radius:3px;background:#22262c;
@@ -797,7 +801,14 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
   color:#fff;opacity:0;transition:opacity .3s ease,transform .3s ease}
 .hbanner.on{opacity:1;transform:translate(-50%,0)}
 
-@media (max-width:900px){ .htyres,.hdelta{display:none} }
+@media (max-width:900px){
+  .htyres,.hdelta,.hmaphead,.hsectors{display:none}
+  .hcore{bottom:18px;gap:14px}
+  .htime{right:14px;bottom:14px;gap:4px}
+  .htime .v{font-size:14px}.htime .v.cur{font-size:18px}
+  .hped{left:14px;bottom:14px}
+  .hbar{height:64px}
+}
 
 /* ============================================================
    GARAGE — live paint shop over the 3D car
@@ -834,15 +845,29 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
   transition:transform .16s ease}
 .gsw button:hover{transform:translateY(-2px)}
 .gsw button.on{box-shadow:0 0 0 2px #04060a,0 0 0 3px #fff}
+.gsub.tight{margin-bottom:12px}
+.chips.zones{gap:6px;margin-bottom:14px}
+.chips.zones .chip-opt{padding:7px 10px;font-size:9.5px;letter-spacing:.1em;
+  position:relative}
+/* a filled placement carries a dot, so the car's coverage reads at a glance */
+.chips.zones .chip-opt.has::after{content:"";position:absolute;top:5px;right:5px;
+  width:4px;height:4px;border-radius:50%;background:var(--red)}
+.chips.zones .chip-opt.on.has::after{background:#fff}
+.glink{background:none;border:none;color:var(--red);cursor:pointer;
+  font-family:var(--ui);font-size:10px;font-weight:700;letter-spacing:.16em;
+  text-transform:uppercase;padding:4px 0}
+.glink:hover{color:#ff5f57}
 .gfoot{padding:16px clamp(20px,2.4vw,30px);border-top:1px solid var(--line);
   display:flex;gap:10px}
 .gfoot .btn{flex:1;text-align:center;padding:12px 0}
-.ghint{position:absolute;left:32px;bottom:26px;pointer-events:none;
+.ghint{position:absolute;left:32px;bottom:26px;pointer-events:none;z-index:2;
   font-size:9.5px;font-weight:600;letter-spacing:.24em;text-transform:uppercase;
   color:var(--dimmer)}
 .ghint b{color:#c2c7cf;margin-right:8px}
-@media (max-width:900px){ .gpanel{width:100%;top:auto;height:62%;border-left:none;
-  border-top:1px solid var(--line)} }
+@media (max-width:900px){
+  .gpanel{width:100%;top:auto;height:62%;border-left:none;border-top:1px solid var(--line)}
+  .ghint{bottom:auto;top:14px;left:14px}
+}
 
 /* ---------- responsive ----------------------------------- */
 @media (max-width:900px){
@@ -1176,15 +1201,21 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
         <div class="grow"><span>Accent</span></div>
         <div class="gsw" data-slot="accent"></div>
 
+        <div class="gsec">Pattern</div>
+        <div class="chips" id="gPattern"></div>
+
         <div class="gsec">Sponsors</div>
-        <div class="grow"><span>Sidepod</span>
-          <select class="gsel" data-sp="title"></select></div>
-        <div class="grow"><span>Engine cover</span>
-          <select class="gsel" data-sp="engine"></select></div>
-        <div class="grow"><span>Rear wing</span>
-          <select class="gsel" data-sp="wing"></select></div>
-        <div class="grow"><span>Nose</span>
-          <select class="gsel" data-sp="nose"></select></div>
+        <p class="gsub tight">Pick a placement on the car, then choose the brand
+          that sits there and the colour its text is printed in. Filled
+          placements are marked.</p>
+        <div class="chips zones" id="gZones"></div>
+        <div class="grow"><span>Brand</span>
+          <select class="gsel" id="gBrand"></select></div>
+        <div class="grow"><span>Text colour</span>
+          <button class="glink" id="gInkAll">Apply to all</button></div>
+        <div class="gsw" data-slot="zoneInk"></div>
+        <div class="grow"><span>Default text</span></div>
+        <div class="gsw" data-slot="ink"></div>
 
         <div class="gsec">Identity</div>
         <div class="grow"><span>Car number</span>
@@ -1220,6 +1251,7 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
   <div class="hud">
     <div id="hRev"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
     <div id="hFlag">Off Track</div>
+    <div id="hModelWarn">Car model unavailable &mdash; placeholder shown</div>
 
     <div class="hkeys">
       <span><b>W</b>Throttle</span>
@@ -1330,6 +1362,11 @@ const screens = {
   drive:   $('#drive')
 };
 let realLoad = null;          // set while the drive scene is loading for real
+let stopLoading = null;       // tears down the loading screen's timers
+function abortLoading() {
+  realLoad = null;
+  if (stopLoading) { stopLoading(); stopLoading = null; }
+}
 
 function show(name) {
   Object.entries(screens).forEach(([k, el]) => el.classList.toggle('on', k === name));
@@ -1505,6 +1542,10 @@ function runLoading(real) {
   screens.loading.dataset.done = '0';
   requestAnimationFrame(tick);
 
+  stopLoading = () => {
+    clearInterval(tipTimer);
+    screens.loading.dataset.done = '1';
+  };
   if (real) {
     // driven by the actual asset load rather than a script
     realLoad = {
@@ -1551,6 +1592,15 @@ const COUNTRIES = [
 const PALETTE = ['#E10600','#FF6B00','#FFC400','#3ADB6E','#00B3A4','#0F8BFF',
                  '#2A3FD6','#7B3FE4','#E0329B','#F5F5F5','#8A94A6','#16181D'];
 
+/* Kept in step with DEFAULT_SLOT_IDS in the drive module — the two lists
+   describe the same fifteen placements from either side of the boundary. */
+const DEFAULT_SPONSORS = {
+  sidepod: 'apex',      sidepodLow: 'redline',  barge: 'strato',
+  engFlank: 'lumen',    airbox: 'nova',         wingEnd: 'kerbline',
+  wingEndLow: 'halden', frontWing: 'ferrox',    fwUpper: 'quartz',
+  floor: 'tessera',     deck: 'vantage',        rearDeck: 'ridgeway',
+  wingTop: 'orbita',    noseTop: 'vertex',      chassis: 'cobalt'
+};
 const ASSIST_PRESET = {
   new:      { tc: true,  abs: true,  esc: true },
   some:     { tc: true,  abs: true,  esc: true },
@@ -1577,10 +1627,40 @@ let acc = {
 };
 const ACC_STEPS = ['Identity', 'Region', 'Competition', 'Livery', 'Confirm'];
 
+function normaliseProfile(p) {
+  if (!p || typeof p !== 'object' || typeof p.name !== 'string') return null;
+  const c = p.colors && typeof p.colors === 'object' ? p.colors : {};
+  return {
+    name: p.name || 'Driver',
+    tag: typeof p.tag === 'string' ? p.tag : 'DRV',
+    email: p.email || '', dob: p.dob || '',
+    country: p.country || 'GB', club: p.club || clubFor(p.country || 'GB'),
+    units: p.units === 'imperial' ? 'imperial' : 'metric',
+    number: Number.isFinite(p.number) ? p.number : 7,
+    exp: ASSIST_PRESET[p.exp] ? p.exp : 'new',
+    input: ASSIST_FLOOR[p.input] ? p.input : 'keyboard',
+    colors: {
+      primary: c.primary || '#E10600',
+      secondary: c.secondary || '#16181D',
+      accent: c.accent || '#F5F5F5'
+    },
+    sponsors: Object.assign({}, DEFAULT_SPONSORS,
+      (p.sponsors && typeof p.sponsors === 'object') ? p.sponsors : {}),
+    pattern: Number.isFinite(p.pattern) && p.pattern >= 0 && p.pattern < 12
+      ? p.pattern : 0,
+    ink: p.ink || c.accent || '#F5F5F5',
+    inks: (p.inks && typeof p.inks === 'object') ? Object.assign({}, p.inks) : {},
+    licence: p.licence || 'Rookie',
+    safety: Number.isFinite(p.safety) ? p.safety : 2.5,
+    rating: Number.isFinite(p.rating) ? p.rating : 1350,
+    credits: Number.isFinite(p.credits) ? p.credits : 25000,
+    created: Number.isFinite(p.created) ? p.created : Date.now()
+  };
+}
 function loadProfile() {
   try {
     const raw = localStorage.getItem(STORE);
-    return raw ? JSON.parse(raw) : null;
+    return raw ? normaliseProfile(JSON.parse(raw)) : null;
   } catch (e) { return null; }
 }
 function saveProfile(p) {
@@ -1801,14 +1881,13 @@ function buildSummary() {
 }
 
 function finishAccount() {
-  profile = {
+  const prev = profile || {};                 // keep everything not on this form
+  profile = normaliseProfile(Object.assign({}, prev, {
     name: acc.name.trim(), tag: acc.tag, email: acc.email, dob: acc.dob,
     country: acc.country, club: clubFor(acc.country), units: acc.units,
     number: acc.number, exp: acc.exp, input: acc.input,
-    colors: { primary: acc.primary, secondary: acc.secondary, accent: acc.accent },
-    licence: 'Rookie', safety: 2.5, rating: 1350, credits: 25000,
-    created: Date.now()
-  };
+    colors: { primary: acc.primary, secondary: acc.secondary, accent: acc.accent }
+  }));
   saveProfile(profile);
   applyProfile();
   transitionTo('menu');
@@ -1933,10 +2012,19 @@ let gState = null;
 function buildGarage() {
   const D = window.URacingDrive;
   if (!D || !D.SPONSORS) return;
+  // a profile saved against an older roster can name a brand that no longer
+  // exists; the car would fall back to the default while the panel showed the
+  // stale name, so drop unknown ids here rather than let the two disagree
+  const known = new Set(D.SPONSORS.map(sp => sp.id));
+  const slots = Object.assign({}, DEFAULT_SPONSORS, profile.sponsors || {});
+  for (const k of D.SLOT_KEYS) if (!known.has(slots[k])) slots[k] = 'none';
   gState = {
     colors: Object.assign({}, profile.colors),
-    sponsors: Object.assign({ title: 'apex', engine: 'vantage', wing: 'kerbline',
-                              nose: 'nova', floor: 'ferrox' }, profile.sponsors || {}),
+    sponsors: slots,
+    pattern: profile.pattern || 0,
+    ink: profile.ink || profile.colors.accent,
+    inks: Object.assign({}, profile.inks || {}),
+    zone: D.SLOT_KEYS[0],
     number: profile.number, tag: profile.tag
   };
   document.querySelectorAll('.gsw').forEach(row => {
@@ -1945,16 +2033,43 @@ function buildGarage() {
       `<button data-c="${c}" style="background:${c}" aria-label="${c}"></button>`).join('');
     row.onclick = e => {
       const b = e.target.closest('button'); if (!b) return;
-      gState.colors[slot] = b.dataset.c;
+      if (slot === 'ink') gState.ink = b.dataset.c;
+      else if (slot === 'zoneInk') gState.inks[gState.zone] = b.dataset.c;
+      else gState.colors[slot] = b.dataset.c;
       paintGarage(); pushGarage();
     };
   });
-  document.querySelectorAll('.gsel[data-sp]').forEach(sel => {
-    sel.innerHTML = D.SPONSORS.map(sp =>
-      `<option value="${sp.id}">${sp.name ? sp.name + ' ' + sp.sub : 'None'}</option>`).join('');
-    sel.value = gState.sponsors[sel.dataset.sp];
-    sel.onchange = () => { gState.sponsors[sel.dataset.sp] = sel.value; pushGarage(); };
-  });
+  // pattern chips
+  $('#gPattern').innerHTML = D.PATTERNS.map((n, i) =>
+    `<button class="chip-opt" data-p="${i}">${n}</button>`).join('');
+  $('#gPattern').onclick = e => {
+    const b = e.target.closest('.chip-opt'); if (!b) return;
+    gState.pattern = +b.dataset.p;
+    paintGarage(); pushGarage();
+  };
+
+  // one chip per placement on the car; the two controls below edit the
+  // selected one, so fifteen zones stay readable in a narrow panel
+  $('#gZones').innerHTML = D.SLOT_KEYS.map(k =>
+    `<button class="chip-opt" data-z="${k}">${D.SLOT_LABELS[k]}</button>`).join('');
+  $('#gZones').onclick = e => {
+    const b = e.target.closest('.chip-opt'); if (!b) return;
+    gState.zone = b.dataset.z;
+    paintGarage();
+  };
+  $('#gBrand').innerHTML = D.SPONSORS.map(sp =>
+    `<option value="${sp.id}">${sp.name ? sp.name + ' · ' + sp.sub : '— none —'}</option>`).join('');
+  $('#gBrand').onchange = () => {
+    gState.sponsors[gState.zone] = $('#gBrand').value;
+    paintGarage(); pushGarage();
+  };
+  $('#gInkAll').onclick = () => {
+    const c = gState.inks[gState.zone];
+    if (!c) return;
+    for (const k of D.SLOT_KEYS) gState.inks[k] = c;
+    paintGarage(); pushGarage();
+  };
+
   const taken = takenNumbers(profile.country);
   $('#gNum').innerHTML = Array.from({ length: 99 }, (_, i) => i + 1)
     .filter(n => !taken.has(n) || n === profile.number)
@@ -1969,6 +2084,9 @@ function buildGarage() {
   $('#gSave').onclick = () => {
     profile.colors = Object.assign({}, gState.colors);
     profile.sponsors = Object.assign({}, gState.sponsors);
+    profile.pattern = gState.pattern;
+    profile.ink = gState.ink;
+    profile.inks = Object.assign({}, gState.inks);
     profile.number = gState.number;
     profile.tag = gState.tag || profile.tag;
     saveProfile(profile);
@@ -1977,21 +2095,40 @@ function buildGarage() {
     transitionTo('menu');
   };
   $('#gCancel').onclick = () => {
-    window.URacingDrive.setLivery(profile.colors, profile.sponsors, profile);
+    window.URacingDrive.setLivery({ colors: profile.colors, slots: profile.sponsors,
+      pattern: profile.pattern || 0, ink: profile.ink || profile.colors.accent,
+      inks: profile.inks || {}, profile: profile });
     window.URacingDrive.leave();
     transitionTo('menu');
   };
   paintGarage();
 }
 function paintGarage() {
+  const zoneInk = gState.inks[gState.zone] || gState.ink;
   document.querySelectorAll('.gsw').forEach(row => {
     const slot = row.dataset.slot;
-    [...row.children].forEach(b => b.classList.toggle('on', b.dataset.c === gState.colors[slot]));
+    const want = slot === 'ink' ? gState.ink
+               : slot === 'zoneInk' ? zoneInk
+               : gState.colors[slot];
+    [...row.children].forEach(b => b.classList.toggle('on', b.dataset.c === want));
   });
+  const pat = $('#gPattern');
+  if (pat) [...pat.children].forEach(c => c.classList.toggle('on', +c.dataset.p === gState.pattern));
+  const zn = $('#gZones');
+  if (zn) [...zn.children].forEach(c => {
+    const id = gState.sponsors[c.dataset.z];
+    c.classList.toggle('on', c.dataset.z === gState.zone);
+    c.classList.toggle('has', !!id && id !== 'none');
+  });
+  const br = $('#gBrand');
+  if (br) br.value = gState.sponsors[gState.zone] || 'none';
 }
 function pushGarage() {
-  window.URacingDrive.setLivery(gState.colors, gState.sponsors,
-    Object.assign({}, profile, { number: gState.number, tag: gState.tag }));
+  window.URacingDrive.setLivery({
+    colors: gState.colors, slots: gState.sponsors,
+    pattern: gState.pattern, ink: gState.ink, inks: gState.inks,
+    profile: Object.assign({}, profile, { number: gState.number, tag: gState.tag })
+  });
 }
 
 async function enterGarage() {
@@ -2010,7 +2147,7 @@ async function enterGarage() {
     buildGarage();
   } catch (err) {
     console.error('[URacing] could not open the garage —', err);
-    realLoad = null;
+    abortLoading();
     $('#modTitle').textContent = 'Garage';
     await wipe(); show('module');
   }
@@ -2031,7 +2168,7 @@ async function enterDrive() {
     });
   } catch (err) {
     console.error('[URacing] could not enter drive —', err);
-    realLoad = null;
+    abortLoading();
     $('#modTitle').textContent = 'Track';
     await wipe();
     show('module');
@@ -2062,7 +2199,9 @@ document.addEventListener('keydown', e => {
   } else if (screens.module.classList.contains('on')) {
     if (e.key === 'Escape' || e.key === 'Backspace') { e.preventDefault(); transitionTo('menu'); }
   } else if (screens.account.classList.contains('on')) {
-    if (e.key === 'Escape' && profile) { e.preventDefault(); transitionTo('menu'); }
+    if (e.key === 'Escape' && profile) {
+      e.preventDefault(); seedWizardFromProfile(); transitionTo('menu');
+    }
   } else if (screens.drive.classList.contains('on')) {
     if (e.key === 'Escape') {
       e.preventDefault();
@@ -2089,7 +2228,18 @@ if (profile) {
   });
   applyProfile();
 }
+function seedWizardFromProfile() {
+  if (!profile) return;
+  Object.assign(acc, {
+    name: profile.name, tag: profile.tag, email: profile.email, dob: profile.dob,
+    country: profile.country, units: profile.units, number: profile.number,
+    exp: profile.exp, input: profile.input,
+    primary: profile.colors.primary, secondary: profile.colors.secondary,
+    accent: profile.colors.accent
+  });
+}
 $('#pChip').addEventListener('click', async () => {
+  seedWizardFromProfile();
   $('#i-name').value = acc.name; $('#i-tag').value = acc.tag;
   $('#i-email').value = acc.email; $('#i-dob').value = acc.dob;
   $('#i-country').value = acc.country; $('#i-club').value = clubFor(acc.country);
@@ -2534,7 +2684,9 @@ class Vehicle {
 
       const kappa = (this.w[i] * c.Rw - vwx) / ref;
       this.kappa[i] = kappa;
-      const alphaRaw = Math.atan2(vwy, Math.abs(vwx) + 3.2) - dsteer;
+      const LIM = Math.PI / 2 - 0.06;
+      let alphaRaw = Math.atan2(vwy, Math.abs(vwx) + 3.2) - dsteer;
+      alphaRaw = Math.max(-LIM, Math.min(LIM, alphaRaw));
       const tau = 0.55 / Math.max(Math.abs(vwx), 4);       // 0.55 m relaxation
       this.alphaLag[i] += (alphaRaw - this.alphaLag[i]) * Math.min(1, dt / tau);
       const alpha = this.alphaLag[i];
@@ -2596,8 +2748,9 @@ class Vehicle {
       // never do more than a fraction of what the tyres are already doing
       const over = beta - 0.05;
       if (over > 0) {
-        Fy -= Math.sign(this.vy) * Math.min(over * 30, 4.4) * c.m;
-        this.vy *= Math.exp(-dt * Math.min(6, over * 22));
+        const auth = this.grip * this.grip;       // no free grip off-track
+        Fy -= Math.sign(this.vy) * Math.min(over * 30, 4.4) * c.m * auth;
+        this.vy *= Math.exp(-dt * Math.min(6, over * 22) * auth);
       }
       this.escCut = Math.min(1, Math.abs(err) * 2.6 + beta * 2);
     } else this.escCut *= Math.exp(-dt * 6);
@@ -2650,15 +2803,8 @@ let track, scene, camera, renderer, carRoot, body, wheels = [], veh;
 let hud = {}, keys = {}, ready = false, running = false, raf = 0;
 let camMode = 0, camPos = new THREE.Vector3(), camAim = new THREE.Vector3();
 let lap = { t: 0, best: null, last: null, s: 0, started: false, count: 0 };
-let grid = null, cell = 26;
 
-function buildLookup(t) {
-  grid = new Map();
-  for (let i = 0; i < t.count; i++) {
-    const k = Math.floor(t.P[i].x / cell) + ',' + Math.floor(t.P[i].z / cell);
-    (grid.get(k) || grid.set(k, []).get(k)).push(i);
-  }
-}
+
 const _v = new THREE.Vector3(), _f = new THREE.Vector3(), _r = new THREE.Vector3();
 const _t = new THREE.Vector3(), _rr = new THREE.Vector3(), _nn = new THREE.Vector3();
 let lastIdx = 0;
@@ -2740,7 +2886,6 @@ function skyEnv(renderer) {
 
 function buildScene(canvas) {
   track = buildTrack();
-  buildLookup(track);
 
   renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
   renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
@@ -2960,7 +3105,7 @@ function updateCamera(dt, sample) {
   camera.updateProjectionMatrix();
 }
 
-function updateHUD(sample) {
+function updateHUD(sample, frameDt) {
   const v = veh.speed * 3.6;
   hud.speed.textContent = Math.round(v);
   hud.gear.textContent = veh.gear;
@@ -2997,6 +3142,7 @@ function updateHUD(sample) {
   const pNow = hud.mapPath.getPointAtLength(uNow * hud.mapLen);
   hud.mapDot.setAttribute('cx', pNow.x); hud.mapDot.setAttribute('cy', pNow.y);
   hud.mapRing.setAttribute('cx', pNow.x); hud.mapRing.setAttribute('cy', pNow.y);
+  hud.mapName.textContent = TRACK_NAME;
   let d = '';
   for (let k = 0; k <= 14; k++) {
     const uu = uNow - (14 - k) * 0.006;
@@ -3035,7 +3181,10 @@ function updateHUD(sample) {
     }
   } else hud.deltaWrap.classList.remove('on');
 
-  if (bannerT > 0) { bannerT -= 1 / 60; if (bannerT <= 0) hud.banner.classList.remove('on'); }
+  if (bannerT > 0) {
+    bannerT -= frameDt;
+    if (bannerT <= 0) hud.banner.classList.remove('on');
+  }
 
   const grip = Math.max(...veh.slip);
   hud.grip.style.width = Math.min(100, grip * 62) + '%';
@@ -3049,16 +3198,12 @@ function updateHUD(sample) {
     el.classList.toggle('on', ASSIST[key] && active);
   }
   // minimap
-  const u = sample.s / track.length;
-  const p = hud.mapPath.getPointAtLength(u * hud.mapLen);
-  hud.mapDot.setAttribute('cx', p.x);
-  hud.mapDot.setAttribute('cy', p.y);
 }
 
 let lastT = 0, acc = 0;
 function frame(now) {
+  if (!running) { raf = 0; return; }     // idle instead of spinning on every menu
   raf = requestAnimationFrame(frame);
-  if (!running) return;
   const dt = Math.min(0.05, (now - lastT) / 1000 || 0.016);
   lastT = now;
 
@@ -3134,7 +3279,8 @@ function frame(now) {
   for (const w of wheels) {
     const i = w.userData.idx;
     w.rotation.x = -veh.spin[i];
-    if (w.userData.front) w.rotation.y = veh.steer;
+    // the model faces local -Z, so a positive turn is a negative rotation here
+    if (w.userData.front) w.rotation.y = -veh.steer;
     const t = THREE.MathUtils.clamp((veh.load[i] - ref) / (ref * 3), -1, 1);
     w.position.y = w.userData.home.y - t * 0.022;
   }
@@ -3146,7 +3292,7 @@ function frame(now) {
 
   if (cine.on) stepCinematic(dt, carRoot.position, sample);
   else updateCamera(dt, sample);
-  updateHUD(sample);
+  updateHUD(sample, dt);
   renderer.render(scene, camera);
 }
 
@@ -3164,6 +3310,8 @@ function resize() {
    ============================================================ */
 const TRACK_NAME = 'Meridian';
 let cine = { on: false, t: 0, phase: 0, lit: 0, hold: 0, ang: 0 };
+let cineTimers = [];
+function clearCineTimers() { cineTimers.forEach(clearTimeout); cineTimers = []; }
 let garage = { on: false, az: 0.85, el: 0.20, drag: false, px: 0, py: 0, spin: true };
 
 function parkForGarage() {
@@ -3223,19 +3371,28 @@ function startCinematic() {
   }
   document.getElementById('cineTurns').textContent = turns;
 
+  clearCineTimers();
   cine = { on: true, t: 0, phase: 0, lit: 0, hold: 1.1 + Math.random() * 1.3, ang: 0 };
   el.className = 'on';
   document.getElementById('drive').classList.add('cinema');
-  setTimeout(() => { if (cine.on) el.classList.add('card'); }, 500);
+  cineTimers.push(setTimeout(() => { if (cine.on) el.classList.add('card'); }, 500));
 }
 
-function endCinematic() {
+function endCinematic(withGo) {
   if (!cine.on) return;
   cine.on = false;
+  clearCineTimers();
   const el = document.getElementById('cine');
-  el.className = 'out';
   document.getElementById('drive').classList.remove('cinema');
-  setTimeout(() => { el.className = ''; }, 900);
+  if (withGo) {
+    // hold the overlay long enough for the GO to actually play
+    el.className = 'on go';
+    cineTimers.push(setTimeout(() => { el.className = 'out'; }, 620));
+    cineTimers.push(setTimeout(() => { el.className = ''; }, 1500));
+  } else {
+    el.className = 'out';
+    cineTimers.push(setTimeout(() => { el.className = ''; }, 900));
+  }
   lap.t = 0; lap.started = false;
 }
 
@@ -3265,8 +3422,7 @@ function stepCinematic(dt, pos, sample) {
     if (cine.t > 5 * 0.85 + cine.hold) {
       cine.phase = 2; cine.t = 0;
       [...el.querySelectorAll('.gantry i')].forEach(n => n.classList.remove('lit'));
-      el.classList.remove('lights'); el.classList.add('go');
-      endCinematic();
+      endCinematic(true);
     }
   }
 }
@@ -3312,6 +3468,15 @@ function buildMinimap() {
   document.querySelectorAll('.hmapline').forEach(p => p.setAttribute('d', d));
 }
 
+let initPromise = null;
+function ensureInit(onProgress) {
+  if (ready) return Promise.resolve();
+  if (!initPromise) {
+    initPromise = init(onProgress).catch(err => { initPromise = null; throw err; });
+  }
+  return initPromise;
+}
+
 async function init(onProgress) {
   buildMinimap();
   collectHUD();
@@ -3341,8 +3506,8 @@ async function init(onProgress) {
   } catch (err) {
     console.error('[URacing] car model failed to load:', err);
     car = placeholderCar();
-    const w = document.getElementById('hFlag');
-    if (w) { w.textContent = 'Car model failed to load'; w.classList.add('on'); }
+    const w = document.getElementById('hModelWarn');
+    if (w) w.style.display = 'block';
   }
   const pivot = new THREE.Group();
   car.root.position.z = -(CAR.a - CAR.L / 2);
@@ -3389,10 +3554,18 @@ async function init(onProgress) {
     if (e.code === 'Digit2') ASSIST.abs = !ASSIST.abs;
     if (e.code === 'Digit3') ASSIST.esc = !ASSIST.esc;
     if (e.code === 'KeyC') camMode = (camMode + 1) % 3;
-    if (e.code === 'KeyR') { veh.reset(lap.s || 0); reseedLookup(veh.x, veh.z);
-                             lap.t = 0; lap.started = false; }
+    if (e.code === 'KeyR') {
+      veh.reset(lap.s || 0); reseedLookup(veh.x, veh.z);
+      lap.t = 0; lap.started = false;
+      splits = [];                                   // the abandoned lap is not a reference
+      sectors = { cur: [null, null, null], best: sectors.best,
+                  ideal: sectors.ideal, cum: [0, 0, 0], idx: 0 };
+    }
   });
   addEventListener('keyup', e => { keys[e.code] = false; });
+  // a key held while the window loses focus never sends its keyup
+  addEventListener('blur', () => { keys = {}; });
+  document.addEventListener('visibilitychange', () => { if (document.hidden) keys = {}; });
 
   resize();
   renderer.compile(scene, camera);
@@ -3436,7 +3609,7 @@ function start() {
   if (!raf) raf = requestAnimationFrame(frame);
 }
 function stop() {
-  running = false; garage.on = false;
+  running = false; garage.on = false; garage.drag = false;
   document.getElementById('drive').classList.remove('garage');
   if (renderer) renderer.toneMappingExposure = 1.18;
   if (camera) camera.clearViewOffset();
@@ -3461,16 +3634,24 @@ function stop() {
 const SPONSOR_GLSL = `
 uniform sampler2D uAtlas;
 uniform float uAtlasOn;
+uniform float uPattern;
 
-// atlas cells, 2 across and 4 down
+// atlas cells, 2 across and 8 down
 vec4 cellAt(vec2 uv, float col, float row) {
-  vec2 t = vec2((col + uv.x) * 0.5, (row + uv.y) * 0.25);
+  vec2 t = vec2((col + uv.x) * 0.5, (row + uv.y) * 0.125);
   return texture2D(uAtlas, t);
 }
 
-// project a mark onto a flank, mirrored so it reads forwards on both sides
-void flankMark(inout vec3 col, vec3 P, vec3 N, vec4 box, vec2 cell, float minFace) {
+/* Project a mark onto a flank, mirrored so it reads forwards on both sides.
+   xr is the half-width band the zone's outer skin actually occupies, measured
+   off the mesh: without it a decal also lands on the duct wall or wing element
+   tucked inside the same box, and you get the same wordmark twice. */
+void flankMark(inout vec3 col, vec3 P, vec3 N, vec4 box, vec2 cell,
+               float minFace, vec2 xr) {
+  float ax = abs(P.x);
+  if (ax < xr.x || ax > xr.y) return;     // outer skin only
   if (abs(N.x) < minFace) return;
+  if (N.x * P.x < 0.0) return;            // outward-facing panels only
   float u = N.x > 0.0 ? (box.y - P.z) / (box.y - box.x)
                       : (P.z - box.x) / (box.y - box.x);
   float v = 1.0 - (P.y - box.z) / (box.w - box.z);
@@ -3480,8 +3661,9 @@ void flankMark(inout vec3 col, vec3 P, vec3 N, vec4 box, vec2 cell, float minFac
 }
 
 // project a mark onto an upward-facing panel
-void deckMark(inout vec3 col, vec3 P, vec3 N, vec4 box, vec2 cell) {
+void deckMark(inout vec3 col, vec3 P, vec3 N, vec4 box, vec2 cell, float minY) {
   if (N.y < 0.45) return;
+  if (P.y < minY) return;                 // upper surfaces only
   float u = (box.y - P.z) / (box.y - box.x);
   float v = (P.x - box.z) / (box.w - box.z);
   if (u < 0.0 || u > 1.0 || v < 0.0 || v > 1.0) return;
@@ -3490,30 +3672,131 @@ void deckMark(inout vec3 col, vec3 P, vec3 N, vec4 box, vec2 cell) {
 }
 `;
 
+/* Every pattern is deliberately primary-dominant: the second colour is a
+   shape laid over the car rather than half of it, and the accent is only
+   ever a hairline, the spine and the nose tip. That is what keeps a wrap
+   reading as one car in one colour instead of a two-tone blob. */
 const LIVERY_GLSL = `
   float s  = clamp((-vLocalPos.z + 2.95) / 5.90, 0.0, 1.0);   // 0 tail, 1 nose
   float uy = clamp(vLocalPos.y / 1.10, 0.0, 1.0);
   float ax = abs(vLocalPos.x);
 
-  // the diagonal: high over the rear, dropping away toward the nose
-  float sweep = 0.655 - 0.500 * pow(s, 1.15);
-  float spine = 0.050 + 0.080 * exp(-pow((s - 0.40) * 4.4, 2.0));
-
+  float spine = 0.042 + 0.070 * exp(-pow((s - 0.40) * 4.4, 2.0));
   vec3 lc = uPrim;
-  lc = mix(lc, uSec, smoothstep(sweep - 0.016, sweep + 0.016, uy));  // dark above
-  lc = mix(lc, uAcc, 1.0 - smoothstep(0.010, 0.026, abs(uy - sweep)));
-  lc = mix(lc, uAcc, smoothstep(spine + 0.012, spine - 0.012, ax)
+  float edge = -1.0;                       // where to draw the accent hairline
+
+  if (uPattern < 0.5) {
+    // MERIDIAN — one clean diagonal capping the shoulder line
+    float sweep = 0.585 + 0.400 * pow(s, 0.90);
+    lc = mix(lc, uSec, smoothstep(sweep - 0.016, sweep + 0.016, uy));
+    edge = abs(uy - sweep);
+
+  } else if (uPattern < 1.5) {
+    // VECTOR — a single narrow blade sweeping up and forward
+    float band = uy + (1.0 - s) * 0.92;
+    lc = mix(lc, uSec, smoothstep(0.855, 0.872, band)
+                       * (1.0 - smoothstep(1.013, 1.030, band)));
+    edge = min(abs(band - 0.864), abs(band - 1.021));
+
+  } else if (uPattern < 2.5) {
+    // KEEL — the second colour held low along the floor line
+    float k = 0.175 + 0.045 * sin(s * 3.1);
+    lc = mix(lc, uSec, smoothstep(k + 0.014, k - 0.014, uy));
+    edge = abs(uy - k);
+
+  } else if (uPattern < 3.5) {
+    // DELTA — a narrow wedge over the spine, opening toward the rear
+    float halfW = 0.055 + 0.255 * pow(1.0 - s, 1.7);
+    lc = mix(lc, uSec, smoothstep(halfW + 0.018, halfW - 0.018, ax)
+                       * smoothstep(0.34, 0.40, uy));
+    edge = mix(1.0, abs(ax - halfW), smoothstep(0.34, 0.40, uy));
+
+  } else if (uPattern < 4.5) {
+    // PERIMETER — the second colour only at the extremities
+    lc = mix(lc, uSec, max(smoothstep(0.155, 0.105, uy),
+                           smoothstep(0.800, 0.870, ax)));
+    edge = min(abs(uy - 0.130), abs(ax - 0.835));
+
+  } else if (uPattern < 5.5) {
+    // HALO — a band wrapped around the cockpit and airbox
+    float hb = abs(s - 0.545);
+    lc = mix(lc, uSec, (1.0 - smoothstep(0.055, 0.072, hb))
+                       * smoothstep(0.28, 0.34, uy));
+    edge = mix(1.0, abs(hb - 0.064), smoothstep(0.28, 0.34, uy));
+
+  } else if (uPattern < 6.5) {
+    // CHEVRON — repeating arrows running the length of the flank
+    float cw = fract(s * 5.0 - uy * 0.55);
+    lc = mix(lc, uSec, (1.0 - smoothstep(0.200, 0.222, cw))
+                       * smoothstep(0.16, 0.22, uy));
+    edge = mix(1.0, abs(cw - 0.211), smoothstep(0.16, 0.22, uy));
+
+  } else if (uPattern < 7.5) {
+    // FLUX — three tapering speed lines drawn back from the nose
+    float f1 = abs(uy - (0.32 + 0.28 * s)) - 0.026 * s;
+    float f2 = abs(uy - (0.47 + 0.25 * s)) - 0.019 * s;
+    float f3 = abs(uy - (0.61 + 0.21 * s)) - 0.013 * s;
+    float fm = min(f1, min(f2, f3));
+    lc = mix(lc, uSec, 1.0 - smoothstep(0.000, 0.009, fm));
+    edge = abs(fm);                        // hairline on the line, not around it
+
+  } else if (uPattern < 8.5) {
+    // BOLT — a hard flash zig-zagging along the flank
+    float zz = abs(uy + 0.55 * abs(fract(s * 2.0) - 0.5) - 0.60);
+    lc = mix(lc, uSec, (1.0 - smoothstep(0.060, 0.074, zz))
+                       * smoothstep(0.14, 0.20, uy));
+    edge = mix(1.0, abs(zz - 0.067), smoothstep(0.14, 0.20, uy));
+
+  } else if (uPattern < 9.5) {
+    // TALON — a hooked sweep falling from the airbox to the nose
+    float tk = abs(uy - (0.86 - 0.92 * pow(s, 1.8)));
+    lc = mix(lc, uSec, (1.0 - smoothstep(0.070, 0.084, tk))
+                       * smoothstep(0.10, 0.16, uy));
+    edge = mix(1.0, abs(tk - 0.077), smoothstep(0.10, 0.16, uy));
+
+  } else if (uPattern < 10.5) {
+    // PRISM — angled shards breaking off the rear bodywork
+    float pw = fract(s * 3.0 + uy * 1.15);
+    float rear = smoothstep(0.34, 0.58, 1.0 - s);
+    lc = mix(lc, uSec, (1.0 - smoothstep(0.255, 0.278, pw)) * rear);
+    edge = mix(1.0, abs(pw - 0.266), rear);
+
+  } else {
+    // ECLIPSE — a crescent cut across the sidepod
+    float er  = length(vec2((s - 0.345) * 2.5, uy - 0.500));
+    float er2 = length(vec2((s - 0.405) * 2.5, uy - 0.545));
+    lc = mix(lc, uSec, (1.0 - smoothstep(0.335, 0.350, er))
+                       * smoothstep(0.243, 0.258, er2));
+    edge = min(abs(er - 0.342), abs(er2 - 0.250));
+  }
+
+  if (edge >= 0.0) lc = mix(lc, uAcc, 1.0 - smoothstep(0.008, 0.020, edge));
+  lc = mix(lc, uAcc, smoothstep(spine + 0.010, spine - 0.010, ax)
                      * smoothstep(0.30, 0.36, uy)
                      * smoothstep(0.10, 0.20, s));
-  lc = mix(lc, uAcc, smoothstep(0.934, 0.960, s));
+  lc = mix(lc, uAcc, smoothstep(0.940, 0.964, s));
   lc *= mix(0.40, 1.0, smoothstep(0.02, 0.13, uy));            // floor stays dark
 
-  // hand-placed sponsor zones — sidepod, nose, engine cover, rear wing
-  vec3 NL = normalize(vLocalNrm);
-  flankMark(lc, vLocalPos, NL, vec4( 0.30, 1.62, 0.290, 0.620), vec2(0.0, 0.0), 0.28);
-  flankMark(lc, vLocalPos, NL, vec4(-2.72, -1.60, 0.300, 0.580), vec2(1.0, 1.0), 0.30);
-  flankMark(lc, vLocalPos, NL, vec4( 2.14, 2.60, 0.700, 0.815), vec2(0.0, 1.0), 0.34);
-  deckMark (lc, vLocalPos, NL, vec4( 0.55, 2.05, -0.190, 0.190), vec2(1.0, 0.0));
+  // fifteen hand-placed sponsor zones, each measured off the bodywork
+  // flip the normal on back faces, or a zero-thickness panel shows the
+  // decal in reverse from the far side
+  vec3 NL = normalize(vLocalNrm) * (gl_FrontFacing ? 1.0 : -1.0);
+  flankMark(lc, vLocalPos, NL, vec4( 0.02,  1.32,  0.290, 0.620), vec2(0.0, 0.0), 0.46, vec2(0.40, 0.80)); // sidepod
+  flankMark(lc, vLocalPos, NL, vec4( 2.14,  2.58,  0.700, 0.815), vec2(0.0, 1.0), 0.62, vec2(0.44, 0.72)); // rear endplate
+  flankMark(lc, vLocalPos, NL, vec4(-2.68, -1.82,  0.300, 0.580), vec2(1.0, 1.0), 0.46, vec2(0.42, 0.82)); // race number
+  flankMark(lc, vLocalPos, NL, vec4(-0.34,  0.58,  0.735, 0.895), vec2(0.0, 2.0), 0.40, vec2(0.12, 0.44)); // airbox side
+  flankMark(lc, vLocalPos, NL, vec4(-2.98, -2.62,  0.075, 0.205), vec2(1.0, 2.0), 0.62, vec2(0.55, 1.10)); // front wing
+  flankMark(lc, vLocalPos, NL, vec4( 0.10,  1.42,  0.098, 0.182), vec2(0.0, 3.0), 0.40, vec2(0.34, 0.68)); // floor edge
+  flankMark(lc, vLocalPos, NL, vec4( 0.06,  1.28,  0.192, 0.288), vec2(0.0, 4.0), 0.40, vec2(0.34, 0.68)); // sidepod lower
+  flankMark(lc, vLocalPos, NL, vec4(-1.70, -0.72,  0.300, 0.540), vec2(1.0, 4.0), 0.46, vec2(0.62, 1.10)); // bargeboard
+  flankMark(lc, vLocalPos, NL, vec4( 0.10,  1.05,  0.600, 0.720), vec2(0.0, 5.0), 0.40, vec2(0.12, 0.55)); // cockpit shoulder
+  flankMark(lc, vLocalPos, NL, vec4( 2.16,  2.60,  0.545, 0.672), vec2(1.0, 5.0), 0.62, vec2(0.30, 0.60)); // endplate lower
+  flankMark(lc, vLocalPos, NL, vec4(-3.00, -2.64,  0.215, 0.320), vec2(0.0, 6.0), 0.62, vec2(0.55, 1.10)); // front wing upper
+  deckMark (lc, vLocalPos, NL, vec4( 0.58,  1.70, -0.190, 0.190), vec2(1.0, 0.0), 0.34); // engine cover
+  deckMark (lc, vLocalPos, NL, vec4( 2.18,  2.58, -0.430, 0.430), vec2(1.0, 3.0), 0.34); // rear wing upper
+  deckMark (lc, vLocalPos, NL, vec4(-2.86, -1.94, -0.260, 0.260), vec2(1.0, 6.0), 0.20); // nose top
+  deckMark (lc, vLocalPos, NL, vec4(-1.38, -0.42, -0.400, 0.400), vec2(0.0, 7.0), 0.30); // chassis top
+  deckMark (lc, vLocalPos, NL, vec4( 1.76,  2.10, -0.460, 0.460), vec2(1.0, 7.0), 0.34); // rear deck
 
   diffuseColor.rgb = lc;
 `;
@@ -3522,20 +3805,244 @@ const LIVERY_GLSL = `
    a hand-placed zone on the car, so they sit on the panels the way a real
    wrap does rather than floating as billboards. */
 const SPONSORS = [
-  { id: 'apex',    name: 'APEX',      sub: 'DYNAMICS',  mark: 'chevron' },
-  { id: 'vantage', name: 'VANTAGE',   sub: 'ENERGY',    mark: 'bolt' },
-  { id: 'kerbline',name: 'KERBLINE',  sub: 'TYRES',     mark: 'ring' },
-  { id: 'nova',    name: 'NOVA',      sub: 'AVIONICS',  mark: 'star' },
-  { id: 'ferrox',  name: 'FERROX',    sub: 'ALLOYS',    mark: 'hex' },
-  { id: 'lumen',   name: 'LUMEN',     sub: 'OPTICS',    mark: 'ring' },
-  { id: 'strato',  name: 'STRATO',    sub: 'FUELS',     mark: 'chevron' },
-  { id: 'none',    name: '',          sub: '',          mark: null }
+  // style: lockup = mark + name + strapline, stack = name over strapline,
+  // badge = knocked out of a filled plate, mono = a big letterform block
+  { id: 'apex',     name: 'APEX',     sub: 'DYNAMICS',   mark: 'chevron',  style: 'lockup' },
+  { id: 'vantage',  name: 'VANTAGE',  sub: 'ENERGY',     mark: 'bolt',     style: 'lockup' },
+  { id: 'kerbline', name: 'KERBLINE', sub: 'TYRES',      mark: 'ring',     style: 'lockup' },
+  { id: 'nova',     name: 'NOVA',     sub: 'AVIONICS',   mark: 'star',     style: 'lockup' },
+  { id: 'ferrox',   name: 'FERROX',   sub: 'ALLOYS',     mark: 'hex',      style: 'lockup' },
+  { id: 'lumen',    name: 'LUMEN',    sub: 'OPTICS',     mark: 'aperture', style: 'lockup' },
+  { id: 'strato',   name: 'STRATO',   sub: 'FUELS',      mark: 'delta',    style: 'lockup' },
+  { id: 'meridian', name: 'MERIDIAN', sub: 'BANK',       mark: 'shield',   style: 'lockup' },
+  { id: 'cobalt',   name: 'COBALT',   sub: 'BATTERIES',  mark: 'cell',     style: 'lockup' },
+  { id: 'tessera',  name: 'TESSERA',  sub: 'COMPOSITES', mark: 'weave',    style: 'lockup' },
+  { id: 'halden',   name: 'HALDEN',   sub: 'WATCHES',    mark: 'crown',    style: 'lockup' },
+  { id: 'orbita',   name: 'ORBITA',   sub: 'TELECOM',    mark: 'orbit',    style: 'lockup' },
+  { id: 'vertex',   name: 'VERTEX',   sub: 'SOFTWARE',   mark: 'arrow',    style: 'lockup' },
+  { id: 'ridgeway', name: 'RIDGEWAY', sub: 'LOGISTICS',  mark: 'stack',    style: 'lockup' },
+  { id: 'axiom',    name: 'AXIOM',    sub: 'AEROSPACE',  mark: 'wing',     style: 'lockup' },
+  { id: 'pyra',     name: 'PYRA',     sub: 'THERMAL',    mark: 'flame',    style: 'lockup' },
+  { id: 'solventis',name: 'SOLVENTIS',sub: 'LUBRICANTS', mark: 'drop',     style: 'lockup' },
+  { id: 'kite',     name: 'KITE',     sub: 'AIRWAYS',    mark: 'kite',     style: 'lockup' },
+  { id: 'northgate',name: 'NORTHGATE',sub: 'INSURANCE',  mark: 'gate',     style: 'lockup' },
+  { id: 'volta',    name: 'VOLTA',    sub: 'MOTORS',     mark: 'coil',     style: 'lockup' },
+  { id: 'quartz',   name: 'QUARTZ',   sub: 'INSTRUMENTS',mark: 'prism',    style: 'lockup' },
+  { id: 'basalt',   name: 'BASALT',   sub: 'CARBON',     mark: 'strata',   style: 'lockup' },
+  { id: 'lyra',     name: 'LYRA',     sub: 'AUDIO',      mark: 'wave',     style: 'lockup' },
+  { id: 'atlasco',  name: 'ATLAS',    sub: 'FREIGHT',    mark: 'globe',    style: 'lockup' },
+  // wordmark-only brands, the way a real car mixes decal formats
+  { id: 'redline',  name: 'REDLINE',  sub: 'PERFORMANCE',mark: null,       style: 'stack' },
+  { id: 'castor',   name: 'CASTOR',   sub: 'OILS',       mark: null,       style: 'stack' },
+  { id: 'sable',    name: 'SABLE',    sub: 'APPAREL',    mark: null,       style: 'stack' },
+  { id: 'ninefold', name: 'NINEFOLD', sub: 'CAPITAL',    mark: null,       style: 'stack' },
+  // plate decals, knocked out of a solid block
+  { id: 'gridwave', name: 'GRIDWAVE', sub: 'BROADCAST',  mark: 'wave',     style: 'badge' },
+  { id: 'ironclad', name: 'IRONCLAD', sub: 'SECURITY',   mark: 'shield',   style: 'badge' },
+  { id: 'plexus',   name: 'PLEXUS',   sub: 'DATA',       mark: 'node',     style: 'badge' },
+  // monogram blocks for the small zones
+  { id: 'zenith',   name: 'ZENITH',   sub: 'Z',          mark: null,       style: 'mono' },
+  { id: 'hexon',    name: 'HEXON',    sub: 'H',          mark: null,       style: 'mono' },
+  { id: 'none',     name: '',         sub: '',           mark: null,       style: 'lockup' }
 ];
-const ATLAS_W = 2048, ATLAS_H = 1024, CELL_W = 1024, CELL_H = 256;
+const ATLAS_W = 2048, ATLAS_H = 2048, CELL_W = 1024, CELL_H = 256;
 
 function drawMark(c, kind, x, y, r, col) {
-  c.fillStyle = col; c.strokeStyle = col; c.lineWidth = r * 0.26;
+  c.fillStyle = col; c.strokeStyle = col; c.lineWidth = r * 0.22;
+  c.lineJoin = 'miter';
   c.beginPath();
+  if (kind === 'shield') {
+    c.moveTo(x, y - r); c.lineTo(x + r * .8, y - r * .55);
+    c.lineTo(x + r * .62, y + r * .5); c.lineTo(x, y + r);
+    c.lineTo(x - r * .62, y + r * .5); c.lineTo(x - r * .8, y - r * .55);
+    c.closePath(); c.fill();
+    c.globalCompositeOperation = 'destination-out';
+    c.beginPath(); c.moveTo(x, y - r * .42); c.lineTo(x + r * .34, y + r * .3);
+    c.lineTo(x - r * .34, y + r * .3); c.closePath(); c.fill();
+    c.globalCompositeOperation = 'source-over';
+    return;
+  }
+  if (kind === 'cell') {
+    c.rect(x - r * .78, y - r * .62, r * 1.34, r * 1.24); c.fill();
+    c.beginPath(); c.rect(x + r * .58, y - r * .26, r * .26, r * .52); c.fill();
+    c.globalCompositeOperation = 'destination-out';
+    c.beginPath(); c.rect(x - r * .5, y - r * .3, r * .34, r * .6); c.fill();
+    c.beginPath(); c.rect(x + r * .06, y - r * .3, r * .34, r * .6); c.fill();
+    c.globalCompositeOperation = 'source-over';
+    return;
+  }
+  if (kind === 'weave') {
+    for (let i = -1; i <= 1; i++) {
+      c.beginPath();
+      c.moveTo(x - r, y + i * r * .52 - r * .2); c.lineTo(x + r, y + i * r * .52 + r * .2);
+      c.lineWidth = r * .2; c.stroke();
+    }
+    return;
+  }
+  if (kind === 'crown') {
+    c.moveTo(x - r, y + r * .55); c.lineTo(x - r * .72, y - r * .5);
+    c.lineTo(x - r * .3, y + r * .05); c.lineTo(x, y - r * .78);
+    c.lineTo(x + r * .3, y + r * .05); c.lineTo(x + r * .72, y - r * .5);
+    c.lineTo(x + r, y + r * .55); c.closePath(); c.fill();
+    return;
+  }
+  if (kind === 'orbit') {
+    c.save(); c.translate(x, y); c.rotate(-0.5);
+    c.beginPath(); c.ellipse(0, 0, r, r * .42, 0, 0, Math.PI * 2);
+    c.lineWidth = r * .17; c.stroke();
+    c.beginPath(); c.arc(0, 0, r * .3, 0, Math.PI * 2); c.fill();
+    c.restore(); return;
+  }
+  if (kind === 'arrow') {
+    c.moveTo(x - r * .95, y + r * .6); c.lineTo(x + r * .1, y - r * .85);
+    c.lineTo(x + r * .95, y + r * .6); c.lineTo(x + r * .42, y + r * .6);
+    c.lineTo(x + r * .1, y - r * .08); c.lineTo(x - r * .3, y + r * .6);
+    c.closePath(); c.fill(); return;
+  }
+  if (kind === 'stack') {
+    for (let i = 0; i < 3; i++) {
+      c.beginPath();
+      c.rect(x - r + i * r * .2, y - r * .72 + i * r * .5, r * 1.6 - i * r * .4, r * .3);
+      c.fill();
+    }
+    return;
+  }
+  if (kind === 'aperture') {
+    for (let i = 0; i < 6; i++) {
+      const a = i / 6 * Math.PI * 2;
+      c.beginPath();
+      c.moveTo(x + Math.cos(a) * r * .28, y + Math.sin(a) * r * .28);
+      c.lineTo(x + Math.cos(a) * r, y + Math.sin(a) * r);
+      c.lineTo(x + Math.cos(a + 0.75) * r, y + Math.sin(a + 0.75) * r);
+      c.closePath(); c.fill();
+    }
+    return;
+  }
+  if (kind === 'delta') {
+    c.moveTo(x, y - r); c.lineTo(x + r * .92, y + r * .72); c.lineTo(x - r * .92, y + r * .72);
+    c.closePath(); c.fill();
+    c.globalCompositeOperation = 'destination-out';
+    c.beginPath(); c.moveTo(x, y - r * .3); c.lineTo(x + r * .42, y + r * .42);
+    c.lineTo(x - r * .42, y + r * .42); c.closePath(); c.fill();
+    c.globalCompositeOperation = 'source-over';
+    return;
+  }
+  if (kind === 'wing') {                                   // AXIOM — swept wing
+    c.moveTo(x - r, y + r * .62); c.quadraticCurveTo(x - r * .1, y - r * .95, x + r, y - r * .55);
+    c.lineTo(x + r * .58, y - r * .18); c.quadraticCurveTo(x - r * .1, y - r * .4, x - r * .42, y + r * .62);
+    c.closePath(); c.fill();
+    c.beginPath();
+    c.moveTo(x - r * .28, y + r * .82); c.quadraticCurveTo(x + r * .2, y + r * .1, x + r * .86, y + r * .18);
+    c.lineTo(x + r * .58, y + r * .55); c.quadraticCurveTo(x + r * .1, y + r * .5, x - r * .05, y + r * .82);
+    c.closePath(); c.fill();
+    return;
+  }
+  if (kind === 'flame') {                                  // PYRA — heat plume
+    c.moveTo(x, y - r); c.quadraticCurveTo(x + r * .82, y - r * .1, x + r * .42, y + r * .82);
+    c.quadraticCurveTo(x, y + r * .5, x - r * .42, y + r * .82);
+    c.quadraticCurveTo(x - r * .82, y - r * .1, x, y - r);
+    c.closePath(); c.fill();
+    c.globalCompositeOperation = 'destination-out';
+    c.beginPath(); c.moveTo(x, y - r * .22);
+    c.quadraticCurveTo(x + r * .34, y + r * .18, x, y + r * .58);
+    c.quadraticCurveTo(x - r * .34, y + r * .18, x, y - r * .22);
+    c.closePath(); c.fill();
+    c.globalCompositeOperation = 'source-over';
+    return;
+  }
+  if (kind === 'drop') {                                   // SOLVENTIS — droplet
+    c.moveTo(x, y - r); c.quadraticCurveTo(x + r * .88, y + r * .05, x + r * .62, y + r * .5);
+    c.arc(x, y + r * .38, r * .62, -0.55, Math.PI + 0.55, false);
+    c.quadraticCurveTo(x - r * .88, y + r * .05, x, y - r);
+    c.closePath(); c.fill();
+    c.globalCompositeOperation = 'destination-out';
+    c.beginPath(); c.arc(x - r * .18, y + r * .34, r * .2, 0, Math.PI * 2); c.fill();
+    c.globalCompositeOperation = 'source-over';
+    return;
+  }
+  if (kind === 'kite') {                                   // KITE — folded diamond
+    c.moveTo(x, y - r); c.lineTo(x + r * .82, y); c.lineTo(x, y + r);
+    c.lineTo(x - r * .82, y); c.closePath(); c.fill();
+    c.globalCompositeOperation = 'destination-out';
+    c.beginPath(); c.moveTo(x, y - r * .46); c.lineTo(x + r * .38, y);
+    c.lineTo(x, y + r * .46); c.closePath(); c.fill();
+    c.globalCompositeOperation = 'source-over';
+    return;
+  }
+  if (kind === 'gate') {                                   // NORTHGATE — arch
+    c.moveTo(x - r, y + r * .78); c.lineTo(x - r, y - r * .1);
+    c.arc(x, y - r * .1, r, Math.PI, 0, false);
+    c.lineTo(x + r, y + r * .78); c.lineTo(x + r * .6, y + r * .78);
+    c.lineTo(x + r * .6, y - r * .1); c.arc(x, y - r * .1, r * .6, 0, Math.PI, true);
+    c.lineTo(x - r * .6, y + r * .78); c.closePath(); c.fill();
+    return;
+  }
+  if (kind === 'coil') {                                   // VOLTA — armature
+    c.lineWidth = r * .2; c.lineCap = 'round';
+    for (let i = 0; i < 3; i++) {
+      c.beginPath();
+      c.arc(x, y - r * .5 + i * r * .5, r * .62, Math.PI * 0.15, Math.PI * 0.85, false);
+      c.stroke();
+    }
+    c.lineCap = 'butt';
+    c.beginPath(); c.rect(x - r * .1, y - r, r * .2, r * .5); c.fill();
+    return;
+  }
+  if (kind === 'prism') {                                  // QUARTZ — split beam
+    c.moveTo(x, y - r); c.lineTo(x + r * .9, y + r * .68);
+    c.lineTo(x - r * .9, y + r * .68); c.closePath();
+    c.lineWidth = r * .18; c.stroke();
+    c.beginPath(); c.moveTo(x - r, y + r * .05); c.lineTo(x + r, y + r * .05);
+    c.lineWidth = r * .14; c.stroke();
+    return;
+  }
+  if (kind === 'strata') {                                 // BASALT — layered plies
+    for (let i = 0; i < 4; i++) {
+      c.beginPath();
+      const w = r * (1.0 - i * 0.16);
+      c.moveTo(x - w, y - r * .72 + i * r * .46);
+      c.lineTo(x + w, y - r * .86 + i * r * .46);
+      c.lineTo(x + w, y - r * .58 + i * r * .46);
+      c.lineTo(x - w, y - r * .44 + i * r * .46);
+      c.closePath(); c.fill();
+    }
+    return;
+  }
+  if (kind === 'wave') {                                   // LYRA / GRIDWAVE — signal
+    c.lineWidth = r * .17; c.lineCap = 'round';
+    for (let k = 0; k < 2; k++) {
+      c.beginPath();
+      for (let i = 0; i <= 24; i++) {
+        const t = i / 24, px = x - r + t * r * 2;
+        const py = y + Math.sin(t * Math.PI * 2.2 + k * Math.PI) * r * (0.28 + 0.34 * k);
+        c[i ? 'lineTo' : 'moveTo'](px, py);
+      }
+      c.stroke();
+    }
+    c.lineCap = 'butt';
+    return;
+  }
+  if (kind === 'globe') {                                  // ATLAS — meridians
+    c.lineWidth = r * .15;
+    c.arc(x, y, r * .86, 0, Math.PI * 2); c.stroke();
+    c.beginPath(); c.ellipse(x, y, r * .38, r * .86, 0, 0, Math.PI * 2); c.stroke();
+    c.beginPath(); c.moveTo(x - r * .86, y); c.lineTo(x + r * .86, y); c.stroke();
+    return;
+  }
+  if (kind === 'node') {                                   // PLEXUS — mesh
+    const pts = [[0, -1], [0.87, -0.5], [0.87, 0.5], [0, 1], [-0.87, 0.5], [-0.87, -0.5]];
+    c.lineWidth = r * .12;
+    for (let i = 0; i < pts.length; i++) {
+      c.beginPath();
+      c.moveTo(x + pts[i][0] * r * .8, y + pts[i][1] * r * .8);
+      c.lineTo(x, y); c.stroke();
+    }
+    for (const p of pts) {
+      c.beginPath(); c.arc(x + p[0] * r * .8, y + p[1] * r * .8, r * .17, 0, Math.PI * 2); c.fill();
+    }
+    c.beginPath(); c.arc(x, y, r * .24, 0, Math.PI * 2); c.fill();
+    return;
+  }
   if (kind === 'chevron') {
     c.moveTo(x - r, y + r * .55); c.lineTo(x, y - r * .55); c.lineTo(x + r, y + r * .55);
     c.lineTo(x + r * .5, y + r * .55); c.lineTo(x, y + r * .05); c.lineTo(x - r * .5, y + r * .55);
@@ -3563,7 +4070,7 @@ function drawMark(c, kind, x, y, r, col) {
   }
 }
 
-function buildAtlas(slots, num, tag, ink) {
+function buildAtlas(slots, num, tag, ink, inks) {
   const cv = document.createElement('canvas');
   cv.width = ATLAS_W; cv.height = ATLAS_H;
   const c = cv.getContext('2d');
@@ -3573,33 +4080,117 @@ function buildAtlas(slots, num, tag, ink) {
     c.beginPath(); c.rect(0, 0, CELL_W, CELL_H); c.clip();
     fn(); c.restore();
   };
-  const wordmark = (sp) => () => {
-    if (!sp || !sp.name) return;
-    c.fillStyle = ink; c.textBaseline = 'middle';
+
+  // A lockup: mark, then the name, then the strapline tucked underneath.
+  const lockup = (sp, col) => {
+    c.fillStyle = col; c.textBaseline = 'middle'; c.textAlign = 'left';
     c.font = '700 italic 124px "Chakra Petch", sans-serif';
     const nameW = c.measureText(sp.name).width;
-    const total = 150 + nameW;                       // mark + gap + wordmark
-    const x0 = (CELL_W - total) / 2;                 // centred in the cell
-    drawMark(c, sp.mark, x0 + 62, CELL_H / 2, 62, ink);
-    c.fillText(sp.name, x0 + 150, CELL_H / 2 - 18);
+    const gap = sp.mark ? 150 : 0;
+    const x0 = (CELL_W - (gap + nameW)) / 2;
+    if (sp.mark) drawMark(c, sp.mark, x0 + 62, CELL_H / 2, 62, col);
+    c.fillText(sp.name, x0 + gap, CELL_H / 2 - 18);
     if (sp.sub) {
       c.font = '600 48px "Chakra Petch", sans-serif';
       c.globalAlpha = .82;
-      c.fillText(sp.sub, x0 + 152, CELL_H / 2 + 58);
+      c.fillText(sp.sub, x0 + gap + 2, CELL_H / 2 + 58);
       c.globalAlpha = 1;
     }
   };
-  cell(0, 0, wordmark(slots.title));
-  cell(1, 0, wordmark(slots.engine));
-  cell(0, 1, wordmark(slots.wing));
-  cell(1, 1, () => {                                   // race number, nose
-    c.fillStyle = ink; c.textBaseline = 'middle'; c.textAlign = 'center';
-    c.font = '700 italic 228px "Chakra Petch", sans-serif';
-    c.fillText(String(num), CELL_W * 0.5, CELL_H / 2 - 4);
+
+  // A stacked wordmark: no device, the name carrying the whole decal.
+  const stack = (sp, col) => {
+    c.fillStyle = col; c.textBaseline = 'middle'; c.textAlign = 'center';
+    c.font = '700 italic 146px "Chakra Petch", sans-serif';
+    c.fillText(sp.name, CELL_W / 2, CELL_H / 2 - 26);
+    if (sp.sub) {
+      c.font = '600 46px "Chakra Petch", sans-serif';
+      c.globalAlpha = .8;
+      c.letterSpacing = '14px';
+      c.fillText(sp.sub, CELL_W / 2, CELL_H / 2 + 74);
+      c.letterSpacing = '0px';
+      c.globalAlpha = 1;
+    }
+    c.textAlign = 'left';
+  };
+
+  // A plate decal: solid block with the type knocked straight out of it.
+  const badge = (sp, col) => {
+    c.font = '700 italic 118px "Chakra Petch", sans-serif';
+    const nameW = c.measureText(sp.name).width;
+    const w = Math.min(CELL_W - 24, nameW + 300);
+    const x0 = (CELL_W - w) / 2, y0 = 26, h = CELL_H - 52, rr = 26;
+    c.fillStyle = col;
+    c.beginPath();
+    c.moveTo(x0 + rr, y0); c.lineTo(x0 + w - rr, y0);
+    c.quadraticCurveTo(x0 + w, y0, x0 + w, y0 + rr);
+    c.lineTo(x0 + w, y0 + h - rr);
+    c.quadraticCurveTo(x0 + w, y0 + h, x0 + w - rr, y0 + h);
+    c.lineTo(x0 + rr, y0 + h);
+    c.quadraticCurveTo(x0, y0 + h, x0, y0 + h - rr);
+    c.lineTo(x0, y0 + rr); c.quadraticCurveTo(x0, y0, x0 + rr, y0);
+    c.closePath(); c.fill();
+    c.globalCompositeOperation = 'destination-out';
+    c.textBaseline = 'middle'; c.textAlign = 'left';
+    c.fillStyle = '#000';
+    const gap = sp.mark ? 132 : 0;
+    const ix = x0 + (w - (gap + nameW)) / 2;
+    if (sp.mark) drawMark(c, sp.mark, ix + 54, CELL_H / 2, 54, '#000');
+    c.font = '700 italic 118px "Chakra Petch", sans-serif';
+    c.fillText(sp.name, ix + gap, CELL_H / 2 - 14);
+    if (sp.sub) {
+      c.font = '600 42px "Chakra Petch", sans-serif';
+      c.fillText(sp.sub, ix + gap + 2, CELL_H / 2 + 56);
+    }
+    c.globalCompositeOperation = 'source-over';
+  };
+
+  // A monogram block: one huge letter with the name set small beside it.
+  const mono = (sp, col) => {
+    c.fillStyle = col; c.textBaseline = 'middle'; c.textAlign = 'left';
+    c.font = '700 italic 224px "Chakra Petch", sans-serif';
+    const g = (sp.sub || sp.name.charAt(0)).charAt(0);
+    const gw = c.measureText(g).width;
+    c.font = '700 68px "Chakra Petch", sans-serif';
+    c.letterSpacing = '12px';
+    const nw = c.measureText(sp.name).width;
+    const x0 = (CELL_W - (gw + 34 + nw)) / 2;
+    c.font = '700 italic 224px "Chakra Petch", sans-serif';
+    c.fillText(g, x0, CELL_H / 2 - 8);
+    c.font = '700 68px "Chakra Petch", sans-serif';
+    c.globalAlpha = .9;
+    c.fillText(sp.name, x0 + gw + 34, CELL_H / 2 + 6);
+    c.letterSpacing = '0px';
+    c.globalAlpha = 1;
+  };
+
+  const decal = (sp, key) => () => {
+    if (!sp || !sp.name) return;
+    const col = (inks && inks[key]) || ink;
+    if (sp.style === 'stack') stack(sp, col);
+    else if (sp.style === 'badge') badge(sp, col);
+    else if (sp.style === 'mono') mono(sp, col);
+    else lockup(sp, col);
+  };
+
+  for (const k of SLOT_KEYS) {
+    const cellPos = SLOT_CELL[k];
+    cell(cellPos[0], cellPos[1], decal(slots[k], k));
+  }
+  cell(1, 1, () => {                                   // race number, nose flank
+    c.fillStyle = (inks && inks.number) || ink;
+    c.textBaseline = 'middle'; c.textAlign = 'center';
+    c.font = '700 italic 208px "Chakra Petch", sans-serif';
+    c.fillText(String(num), CELL_W * 0.5, CELL_H / 2 - 16);
+    if (tag) {
+      c.font = '700 46px "Chakra Petch", sans-serif';
+      c.globalAlpha = .9;
+      c.fillText(tag, CELL_W * 0.5, CELL_H - 34);
+      c.globalAlpha = 1;
+    }
     c.textAlign = 'left';
   });
-  cell(0, 2, wordmark(slots.nose));
-  cell(1, 2, wordmark(slots.floor));
+
   const t = new THREE.CanvasTexture(cv);
   t.colorSpace = THREE.SRGBColorSpace;
   t.flipY = false;                       // atlas rows read top-down, as drawn
@@ -3610,12 +4201,55 @@ function buildAtlas(slots, num, tag, ink) {
 
 let liveryShaders = [];
 let atlasTex = null;
-let sponsorSlots = { title: SPONSORS[0], engine: SPONSORS[1], wing: SPONSORS[2],
-                     nose: SPONSORS[3], floor: SPONSORS[4] };
+
+/* Each placement names a zone on the bodywork and the atlas cell that feeds
+   it. The cell coordinates here must match the flankMark/deckMark calls in
+   LIVERY_GLSL exactly — they are the two halves of one mapping. */
+const SLOT_KEYS = ['sidepod', 'sidepodLow', 'barge', 'engFlank', 'airbox',
+                   'wingEnd', 'wingEndLow', 'frontWing', 'fwUpper', 'floor',
+                   'deck', 'rearDeck', 'wingTop', 'noseTop', 'chassis'];
+const SLOT_LABELS = {
+  sidepod:    'Sidepod flank',
+  sidepodLow: 'Sidepod lower',
+  barge:      'Bargeboard',
+  engFlank:   'Cockpit shoulder',
+  airbox:     'Airbox side',
+  wingEnd:    'Rear wing endplate',
+  wingEndLow: 'Endplate lower',
+  frontWing:  'Front wing endplate',
+  fwUpper:    'Front wing upper',
+  floor:      'Floor edge',
+  deck:       'Engine cover',
+  rearDeck:   'Rear deck',
+  wingTop:    'Rear wing upper',
+  noseTop:    'Nose top',
+  chassis:    'Chassis top'
+};
+const SLOT_CELL = {
+  sidepod: [0, 0], wingEnd: [0, 1], airbox: [0, 2], frontWing: [1, 2],
+  floor: [0, 3], sidepodLow: [0, 4], barge: [1, 4], engFlank: [0, 5],
+  wingEndLow: [1, 5], fwUpper: [0, 6], deck: [1, 0], wingTop: [1, 3],
+  noseTop: [1, 6], chassis: [0, 7], rearDeck: [1, 7]
+};
+const DEFAULT_SLOT_IDS = {
+  sidepod: 'apex',      sidepodLow: 'redline',  barge: 'strato',
+  engFlank: 'lumen',    airbox: 'nova',         wingEnd: 'kerbline',
+  wingEndLow: 'halden', frontWing: 'ferrox',    fwUpper: 'quartz',
+  floor: 'tessera',     deck: 'vantage',        rearDeck: 'ridgeway',
+  wingTop: 'orbita',    noseTop: 'vertex',      chassis: 'cobalt'
+};
+let sponsorSlots = {};
+for (const k of SLOT_KEYS) {
+  sponsorSlots[k] = SPONSORS.find(x => x.id === DEFAULT_SLOT_IDS[k]) || SPONSORS[0];
+}
+let liveryInk = null;      // null = use the accent colour
+let liveryInks = {};       // per-placement overrides, keyed by slot
+let liveryPattern = 0;
 function rebuildAtlas(prof) {
-  const ink = (livery && livery.accent) || '#F5F5F5';
+  const ink = liveryInk || (livery && livery.accent) || '#F5F5F5';
   if (atlasTex) atlasTex.dispose();
-  atlasTex = buildAtlas(sponsorSlots, prof ? prof.number : 7, prof ? prof.tag : '', ink);
+  atlasTex = buildAtlas(sponsorSlots, prof ? prof.number : 7,
+                        prof ? prof.tag : '', ink, liveryInks);
   for (const sh of liveryShaders) {
     if (!sh.uniforms.uAtlas) continue;
     sh.uniforms.uAtlas.value = atlasTex;
@@ -3630,6 +4264,7 @@ function liveryMaterial(m) {
     sh.uniforms.uAcc  = { value: new THREE.Color(livery ? livery.accent : '#F5F5F5') };
     sh.uniforms.uAtlas = { value: atlasTex };
     sh.uniforms.uAtlasOn = { value: atlasTex ? 1 : 0 };
+    sh.uniforms.uPattern = { value: liveryPattern };
     sh.vertexShader = 'varying vec3 vLocalPos;\nvarying vec3 vLocalNrm;\n'
       + sh.vertexShader
         .replace('#include <begin_vertex>', '#include <begin_vertex>\n  vLocalPos = position;')
@@ -3649,31 +4284,53 @@ function pushLivery() {
     sh.uniforms.uPrim.value.set(livery.primary);
     sh.uniforms.uSec.value.set(livery.secondary);
     sh.uniforms.uAcc.value.set(livery.accent);
+    if (sh.uniforms.uPattern) sh.uniforms.uPattern.value = liveryPattern;
   }
 }
 
 let livery = null;
 function applyLivery() {
   if (!carRoot || !livery) return;
-  const seen = new Set();
   const wheelSet = new Set(wheels);
+  const onWheel = o => {
+    for (let n = o; n; n = n.parent) if (wheelSet.has(n)) return true;
+    return false;
+  };
+
+  // pass 1 — wheels get their own materials so no body paint can reach a rim
   carRoot.traverse(o => {
-    if (!o.isMesh) return;
-    // wheels keep their rubber and get an accent rim, they are not wrapped
-    let onWheel = false;
-    for (let n = o; n; n = n.parent) if (wheelSet.has(n)) { onWheel = true; break; }
+    if (!o.isMesh || !onWheel(o)) return;
+    const mats = Array.isArray(o.material) ? o.material : [o.material];
+    const out = mats.map(m => {
+      if (!m) return m;
+      let w = m;
+      if (!w.userData.uracingWheel) {
+        w = m.clone();
+        w.userData.uracingWheel = true;
+        w.onBeforeCompile = () => {};     // never wrapped
+        w.customProgramCacheKey = () => 'uracing-wheel';
+      }
+      if ((w.name || '').indexOf('Rubber') === 0) {
+        w.color.setRGB(0.022, 0.022, 0.024);
+        w.metalness = 0.0; w.roughness = 0.82;
+      } else {
+        w.color.set(livery.accent).multiplyScalar(0.34);
+        w.metalness = 0.66; w.roughness = 0.30;
+      }
+      w.needsUpdate = true;
+      return w;
+    });
+    o.material = Array.isArray(o.material) ? out : out[0];
+  });
+
+  // pass 2 — the wrap, body panels only
+  const seen = new Set();
+  carRoot.traverse(o => {
+    if (!o.isMesh || onWheel(o)) return;
     const mats = Array.isArray(o.material) ? o.material : [o.material];
     for (const m of mats) {
       if (!m || seen.has(m.uuid)) continue;
       seen.add(m.uuid);
-      const n = m.name || '';
-      if (onWheel) {
-        if (n.indexOf('Rubber') !== 0) {
-          m.color.set(livery.accent).multiplyScalar(0.30);
-          m.metalness = 0.62; m.roughness = 0.34; m.needsUpdate = true;
-        }
-        continue;
-      }
       liveryMaterial(m);
     }
   });
@@ -3682,9 +4339,11 @@ function applyLivery() {
 
 window.URacingDrive = {
   profile: null,
-  SPONSORS,
+  SPONSORS, SLOT_KEYS, SLOT_LABELS,
+  PATTERNS: ['Meridian', 'Vector', 'Keel', 'Delta', 'Perimeter', 'Halo',
+             'Chevron', 'Flux', 'Bolt', 'Talon', 'Prism', 'Eclipse'],
   async enterGarage(shell) {
-    if (!ready) await init(shell.progress);
+    await ensureInit(shell.progress);
     await shell.reveal();
     startGarage();
   },
@@ -3693,25 +4352,31 @@ window.URacingDrive = {
     this.profile = p || null;
     livery = p && p.colors ? p.colors : null;
     if (p && p.sponsors) {
-      for (const k of Object.keys(sponsorSlots)) {
+      for (const k of SLOT_KEYS) {
         const found = SPONSORS.find(x => x.id === p.sponsors[k]);
         if (found) sponsorSlots[k] = found;
       }
     }
+    if (p && typeof p.pattern === 'number') liveryPattern = p.pattern;
+    if (p && p.ink) liveryInk = p.ink;
+    if (p && p.inks && typeof p.inks === 'object') liveryInks = Object.assign({}, p.inks);
     if (assists) Object.assign(ASSIST, assists);
     if (liveryShaders.length) pushLivery(); else applyLivery();
     rebuildAtlas(p);
   },
-  setLivery(colors, slots, prof) {       // live updates from the customiser
-    if (colors) livery = colors;
-    if (slots) {
-      for (const k of Object.keys(slots)) {
-        const found = SPONSORS.find(x => x.id === slots[k]);
+  setLivery(opts) {                      // live updates from the paint shop
+    if (opts.colors) livery = opts.colors;
+    if (opts.slots) {
+      for (const k of SLOT_KEYS) {
+        const found = SPONSORS.find(x => x.id === opts.slots[k]);
         if (found) sponsorSlots[k] = found;
       }
     }
+    if (typeof opts.pattern === 'number') liveryPattern = opts.pattern;
+    if (opts.ink !== undefined) liveryInk = opts.ink;
+    if (opts.inks) liveryInks = Object.assign({}, opts.inks);
     if (liveryShaders.length) pushLivery(); else applyLivery();
-    rebuildAtlas(prof || this.profile);
+    rebuildAtlas(opts.profile || this.profile);
   },
   debug: { get veh() { return veh; }, get track() { return track; },
            snapCam() { const s = sampleTrack(veh.x, veh.z, veh.yaw);
@@ -3723,8 +4388,8 @@ window.URacingDrive = {
            get garage() { return garage; },
            get car() { return carRoot; }, get renderer() { return renderer; } },
   async enter(shell) {
-    if (!ready) await init(shell.progress);
-    shell.reveal();
+    await ensureInit(shell.progress);
+    await shell.reveal();            // the intro must not start behind the loader
     start();
   },
   leave() { stop(); },
