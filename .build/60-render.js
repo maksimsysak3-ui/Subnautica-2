@@ -5,7 +5,7 @@ let allBatches=[];
 let dynBatches=[];
 function mkBatch(mesh,cap){const b=new Batch(mesh,cap);allBatches.push(b);return b;}
 // dynBatches = everything repopulated every frame (statics are uploaded once)
-function refreshDyn(){dynBatches=allBatches.filter(b=>b!==A.road&&b!==A.util&&b!==A.zone&&A.terr.indexOf(b)<0);}
+function refreshDyn(){dynBatches=allBatches.filter(b=>b!==A.road&&b!==A.util&&b!==A.zone&&b!==A.prop.pool&&A.terr.indexOf(b)<0);}
 
 function buildAssets(step){
   const tasks=[];
@@ -131,15 +131,15 @@ function updateSun(hour){
   const night=sat((0.10-el)*3.4);
   SUN.night=night;
   const dusk=sat(1-Math.abs(el-0.10)*6.5);
-  const day=[2.72,2.55,2.24], gold=[3.10,1.52,0.68], moon=[0.09,0.12,0.24];
+  const day=[2.72,2.55,2.24], gold=[3.10,1.52,0.68], moon=[0.20,0.26,0.46];
   let c=mixc(day,gold,dusk); c=mixc(c,moon,night);
   SUN.col.set(c);
   const zenD=[0.24,0.44,0.86], zenN=[0.020,0.032,0.075];
   const horD=[0.66,0.78,0.93], horN=[0.045,0.060,0.115], horDusk=[0.95,0.55,0.32];
   let z=mixc(zenD,zenN,night), h=mixc(mixc(horD,horDusk,dusk*0.85),horN,night);
   SUN.zen.set(z);SUN.hor.set(h);
-  SUN.sky.set(mixc(mixc([0.34,0.44,0.64],[0.44,0.32,0.28],dusk*0.6),[0.08,0.10,0.17],night));
-  SUN.gnd.set(mixc([0.19,0.18,0.15],[0.05,0.055,0.07],night));
+  SUN.sky.set(mixc(mixc([0.47,0.58,0.78],[0.56,0.40,0.33],dusk*0.6),[0.21,0.25,0.36],night));
+  SUN.gnd.set(mixc([0.27,0.26,0.22],[0.13,0.13,0.15],night));
   SUN.fog.set(mixc(mixc([0.60,0.70,0.85],[0.82,0.56,0.42],dusk*0.7),[0.04,0.05,0.09],night));
 }
 
@@ -253,6 +253,7 @@ function ovValue(kind,o){
 }
 function populate(dt,timeSec){
   for(const b of dynBatches)b.reset();
+  if(A.prop.pool)A.prop.pool.reset();
   const fr=CAM.fr, ex=CAM.ex,ey=CAM.ey,ez=CAM.ez;
   // ── buildings ──
   for(const l of lots.values()){
@@ -295,7 +296,16 @@ function populate(dt,timeSec){
       PED.tint[i*3]/510,PED.tint[i*3+1]/510,PED.tint[i*3+2]/510,0,0);
   }
   // ── props ──
-  const lampOn=SUN.night>0.34?1:0;
+  const lampOn=sat((SUN.night-0.30)*3.0);
+  // warm pools of light under the lamps, drawn additively after the opaque pass
+  if(lampOn>0.01&&A.prop.pool){
+    for(const p of props){
+      if(p.t!==0)continue;
+      const d=Math.hypot(p.x-ex,p.z-ez); if(d>LAMP_D)continue;
+      if(!fr.sphere(p.x,p.y,p.z,11))continue;
+      A.prop.pool.push(p.x,p.y+0.02,p.z,p.yaw,1,1,1,.5,.5,.5,0,lampOn*0.052);
+    }
+  }
   for(const p of props){
     const d=Math.hypot(p.x-ex,p.z-ez);
     if(p.t===4){ if(d>TREE_D)continue; if(!fr.sphere(p.x,p.y+3,p.z,5))continue;
@@ -303,7 +313,7 @@ function populate(dt,timeSec){
     if(d>LAMP_D)continue;
     if(!fr.sphere(p.x,p.y+4,p.z,9))continue;
     const b=p.t===0?A.prop.lamp:p.t===1?A.prop.tl:p.t===2?A.prop.pole:A.prop.hyd;
-    b.push(p.x,p.y,p.z,p.yaw,1,1,1,.5,.5,.5,0,p.t===0?lampOn*0.32:0);
+    b.push(p.x,p.y,p.z,p.yaw,1,1,1,.5,.5,.5,0,0);
   }
   // ── ambient forest ──
   for(let i=0;i<forestN;i++){

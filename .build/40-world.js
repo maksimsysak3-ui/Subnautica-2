@@ -305,7 +305,7 @@ function placeService(kind,x,z,yaw){
   junction polygons are all rebuilt into one mesh whenever the network edits. */
 const ASPH=[.128,.132,.142], ASPH2=[.138,.142,.152], KERB=[.50,.50,.49],
       WALK=[.375,.375,.368], LINE=[.86,.86,.82], LINEY=[.84,.70,.16],
-      VERGE=[.26,.36,.19];
+      VERGE=[.198,.246,.140];
 /* Junction solver.  A junction is not a disc: its corners are where the outer
    edges of neighbouring approaches actually intersect.  Solving those lines
    gives a plate that matches the carriageway exactly — for two perpendicular

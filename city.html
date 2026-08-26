@@ -467,7 +467,7 @@ void main(){
   float win=vM.w;
   float lightsOn=smoothstep(0.35,0.62,uNight);
   float flick=0.55+0.45*step(0.34,fract(sin(dot(floor(vW.xz*2.7),vec2(12.98,78.23)))*43758.5));
-  vec3 winEm=mix(vec3(1.0,0.83,0.55),vec3(0.72,0.86,1.0),step(0.5,flick))*win*lightsOn*flick*1.5;
+  vec3 winEm=mix(vec3(1.0,0.80,0.50),vec3(0.66,0.82,1.0),step(0.5,flick))*win*lightsOn*flick*2.6;
 
   // hemispheric ambient + ground bounce
   float hemi=N.y*0.5+0.5;
@@ -484,7 +484,7 @@ void main(){
   vec3 spec=(F0+(1.0-F0)*f)*d*sh*uSunCol*ndl;
   // sky reflection on shallow-facing surfaces (glass, water-ish roofs)
   float fres=pow(1.0-ndv,4.0)*(1.0-rough)*0.6;
-  vec3 col=mix(diff,vec3(0.0),metal*0.65)+spec+lin(uSkyCol)*fres*(0.55+win*1.6);
+  vec3 col=mix(diff,vec3(0.0),metal*0.55)+spec+lin(uSkyCol)*fres*(0.35+win*1.5);
 
   col+=vM.x*alb*7.0+winEm*3.4+vEmB*alb*9.0;
 
@@ -657,7 +657,7 @@ void main(){
   vec2 d=vUv-0.5; float vig=1.0-dot(d,d)*0.72;
   col*=vig;
   float g=fract(sin(dot(vUv*uRes+uTime,vec2(12.9898,78.233)))*43758.5453);
-  col+=(g-0.5)*0.012;
+  col+=(g-0.5)*0.006*(0.35+dot(col,vec3(.33)));
   o=vec4(pow(col,vec3(1.0/2.2)),1.0);
 }`;
 
@@ -1338,7 +1338,7 @@ function genShop(seed,lvl){
     // rooftop skylights + plant
     for(let i=0;i<2+((r()*3)|0);i++)
       box(mb,(r()-.5)*bw*0.55,H+0.20,bz+(r()-.5)*bd*0.55,1.0,0.24,0.8,
-        [.72,.80,.86],{ao0:1,rg:.12,mt:.4,win:.6});
+        [.72,.80,.86],{ao0:1,rg:.12,mt:.4,win:.22});
     for(let i=0;i<1+((r()*3)|0);i++)acUnit(mb,(r()-.5)*bw*0.6,H+0.36,bz+(r()-.5)*bd*0.6,1.0+r()*0.4,r);
     for(let i=0;i<2;i++)vent(mb,(r()-.5)*bw*0.7,H+0.36,bz+(r()-.5)*bd*0.7,1,r);
     if(lvl>=3)box(mb,bw*0.26,H+0.36,bz+bd*0.22,1.9,2.2,1.9,mixc(body,[0,0,0],.2),{ao0:.7,ao1:1,rg:.9});
@@ -1379,10 +1379,10 @@ function genIndustry(seed,lvl){
   gable(mb,0,H+0.26,bz,bw+0.36,1.2+q*0.5,bd+0.36,roofC,{rg:.62,gableCol:body});
   for(const sx of[-1,1]){const n=Math.max(3,Math.round(bd/2.6));
     for(let i=0;i<n;i++)box(mb,sx*(bw/2+0.03),H-1.35,bz+(i-(n-1)/2)*(bd/n),0.09,1.05,bd/n*0.70,
-      PAL.glassD,{ao0:1,rg:.1,mt:.5,win:.75});}
+      PAL.glassD,{ao0:1,rg:.1,mt:.5,win:.42});}
   const nf=Math.max(2,Math.round(bw/3.6));
   for(let i=0;i<nf;i++)box(mb,(i-(nf-1)/2)*(bw/nf),H-1.35,bz-bd/2-0.03,bw/nf*0.62,1.0,0.09,
-    PAL.glassD,{ao0:1,rg:.1,mt:.5,win:.75});
+    PAL.glassD,{ao0:1,rg:.1,mt:.5,win:.42});
 
   // loading dock: raised platform, roll-up doors, bollards, canopy
   const nd=1+(lvl>=3?1:0);
@@ -1424,7 +1424,7 @@ function genIndustry(seed,lvl){
     const px=sd*(LOT_W/2-0.8);
     cyl(mb,px,0,FRONT+4.2,0.14,7.0,8,[.40,.42,.44],{rg:.6,mt:.4,ao0:.5});
     box(mb,px,7.0,FRONT+4.2,0.8,0.32,0.5,[.46,.48,.50],{rg:.5,mt:.5});
-    box(mb,px,6.84,FRONT+4.4,0.68,0.13,0.4,[1,.94,.72],{em:.8,rg:.2});}
+    box(mb,px,6.84,FRONT+4.4,0.68,0.13,0.4,[1,.94,.72],{em:.42,rg:.2});}
   if(r()<0.6)parkedCar(mb,bw*0.2,FRONT+3.0,0,r);
   fence(mb,0,0,LOT_W-0.5,LOT_D-0.5,0,[.42,.44,.46],r,2.0);
   return mb.build();
@@ -1534,12 +1534,12 @@ function genPed(seed,pose){
 
 /*── PROPS & UTILITY STRUCTURES ─────────────────────────────────────────────*/
 function genStreetlight(){
-  const mb=new MeshBuilder(), m=[.42,.45,.48];
+  const mb=new MeshBuilder(), m=[.46,.46,.45];
   cyl(mb,0,0,0,0.20,0.22,8,[.35,.35,.36],{rg:.9});
-  cyl(mb,0,0.2,0,0.10,7.6,8,m,{r2:0.075,rg:.5,mt:.6,ao0:.5});
-  for(let i=0;i<4;i++)box(mb,i*0.28,7.65+i*0.09,0,0.30,0.10,0.10,m,{rg:.5,mt:.6,ao0:.95});
-  box(mb,1.15,7.86,0,0.72,0.16,0.30,m,{rg:.5,mt:.6,ao0:1});
-  box(mb,1.15,7.74,0,0.60,0.09,0.24,[1,.93,.72],{em:1,rg:.2});
+  cyl(mb,0,0.2,0,0.105,6.6,8,m,{r2:0.08,rg:.55,mt:.5,ao0:.5});
+  for(let i=0;i<4;i++)box(mb,i*0.26,6.66+i*0.085,0,0.28,0.10,0.10,m,{rg:.55,mt:.5,ao0:.95});
+  box(mb,1.06,6.86,0,0.68,0.15,0.28,m,{rg:.55,mt:.5,ao0:1});
+  box(mb,1.06,6.75,0,0.56,0.09,0.22,[1,.93,.72],{em:1,rg:.2});
   return mb.build();
 }
 function genTrafficLight(){
@@ -1606,7 +1606,7 @@ function genPowerPlant(){
   for(let i=0;i<4;i++)box(mb,-16+i*2.6,0,12,4.4,3.0,7,[.24,.24,.25],{ao0:.4,ao1:.8,rg:.95});
   for(const s of[-1,1])for(const t of[-1,1]){
     cyl(mb,s*20,0,t*13,0.18,9,8,[.44,.46,.48],{rg:.6,mt:.4});
-    box(mb,s*20,8.8,t*13,0.9,0.3,0.6,[.9,.88,.6],{em:.7,rg:.2});}
+    box(mb,s*20,8.8,t*13,0.9,0.3,0.6,[.9,.88,.6],{em:.38,rg:.2});}
   fence(mb,0,0,44,32,0,[.44,.46,.48],rng(3),2.2);
   return mb.build();
 }
@@ -1962,7 +1962,7 @@ function placeService(kind,x,z,yaw){
   junction polygons are all rebuilt into one mesh whenever the network edits. */
 const ASPH=[.128,.132,.142], ASPH2=[.138,.142,.152], KERB=[.50,.50,.49],
       WALK=[.375,.375,.368], LINE=[.86,.86,.82], LINEY=[.84,.70,.16],
-      VERGE=[.26,.36,.19];
+      VERGE=[.198,.246,.140];
 /* Junction solver.  A junction is not a disc: its corners are where the outer
    edges of neighbouring approaches actually intersect.  Solving those lines
    gives a plate that matches the carriageway exactly — for two perpendicular
@@ -2574,7 +2574,7 @@ let allBatches=[];
 let dynBatches=[];
 function mkBatch(mesh,cap){const b=new Batch(mesh,cap);allBatches.push(b);return b;}
 // dynBatches = everything repopulated every frame (statics are uploaded once)
-function refreshDyn(){dynBatches=allBatches.filter(b=>b!==A.road&&b!==A.util&&b!==A.zone&&A.terr.indexOf(b)<0);}
+function refreshDyn(){dynBatches=allBatches.filter(b=>b!==A.road&&b!==A.util&&b!==A.zone&&b!==A.prop.pool&&A.terr.indexOf(b)<0);}
 
 function buildAssets(step){
   const tasks=[];
@@ -2700,15 +2700,15 @@ function updateSun(hour){
   const night=sat((0.10-el)*3.4);
   SUN.night=night;
   const dusk=sat(1-Math.abs(el-0.10)*6.5);
-  const day=[2.72,2.55,2.24], gold=[3.10,1.52,0.68], moon=[0.09,0.12,0.24];
+  const day=[2.72,2.55,2.24], gold=[3.10,1.52,0.68], moon=[0.20,0.26,0.46];
   let c=mixc(day,gold,dusk); c=mixc(c,moon,night);
   SUN.col.set(c);
   const zenD=[0.24,0.44,0.86], zenN=[0.020,0.032,0.075];
   const horD=[0.66,0.78,0.93], horN=[0.045,0.060,0.115], horDusk=[0.95,0.55,0.32];
   let z=mixc(zenD,zenN,night), h=mixc(mixc(horD,horDusk,dusk*0.85),horN,night);
   SUN.zen.set(z);SUN.hor.set(h);
-  SUN.sky.set(mixc(mixc([0.34,0.44,0.64],[0.44,0.32,0.28],dusk*0.6),[0.08,0.10,0.17],night));
-  SUN.gnd.set(mixc([0.19,0.18,0.15],[0.05,0.055,0.07],night));
+  SUN.sky.set(mixc(mixc([0.47,0.58,0.78],[0.56,0.40,0.33],dusk*0.6),[0.21,0.25,0.36],night));
+  SUN.gnd.set(mixc([0.27,0.26,0.22],[0.13,0.13,0.15],night));
   SUN.fog.set(mixc(mixc([0.60,0.70,0.85],[0.82,0.56,0.42],dusk*0.7),[0.04,0.05,0.09],night));
 }
 
@@ -2822,6 +2822,7 @@ function ovValue(kind,o){
 }
 function populate(dt,timeSec){
   for(const b of dynBatches)b.reset();
+  if(A.prop.pool)A.prop.pool.reset();
   const fr=CAM.fr, ex=CAM.ex,ey=CAM.ey,ez=CAM.ez;
   // ── buildings ──
   for(const l of lots.values()){
@@ -2864,7 +2865,16 @@ function populate(dt,timeSec){
       PED.tint[i*3]/510,PED.tint[i*3+1]/510,PED.tint[i*3+2]/510,0,0);
   }
   // ── props ──
-  const lampOn=SUN.night>0.34?1:0;
+  const lampOn=sat((SUN.night-0.30)*3.0);
+  // warm pools of light under the lamps, drawn additively after the opaque pass
+  if(lampOn>0.01&&A.prop.pool){
+    for(const p of props){
+      if(p.t!==0)continue;
+      const d=Math.hypot(p.x-ex,p.z-ez); if(d>LAMP_D)continue;
+      if(!fr.sphere(p.x,p.y,p.z,11))continue;
+      A.prop.pool.push(p.x,p.y+0.02,p.z,p.yaw,1,1,1,.5,.5,.5,0,lampOn*0.052);
+    }
+  }
   for(const p of props){
     const d=Math.hypot(p.x-ex,p.z-ez);
     if(p.t===4){ if(d>TREE_D)continue; if(!fr.sphere(p.x,p.y+3,p.z,5))continue;
@@ -2872,7 +2882,7 @@ function populate(dt,timeSec){
     if(d>LAMP_D)continue;
     if(!fr.sphere(p.x,p.y+4,p.z,9))continue;
     const b=p.t===0?A.prop.lamp:p.t===1?A.prop.tl:p.t===2?A.prop.pole:A.prop.hyd;
-    b.push(p.x,p.y,p.z,p.yaw,1,1,1,.5,.5,.5,0,p.t===0?lampOn*0.32:0);
+    b.push(p.x,p.y,p.z,p.yaw,1,1,1,.5,.5,.5,0,0);
   }
   // ── ambient forest ──
   for(let i=0;i<forestN;i++){
@@ -3390,6 +3400,17 @@ function camKeys(dt){
 // aerial perspective: haze grows with camera height so wide shots read deep
 const FOGD=()=>0.00058+SUN.night*0.00026+clamp(CAM.dDist-160,0,600)*0.0000019;
 /*═══════ PREVIEW / GHOSTS ═════════════════════════════════════════════════*/
+function lightPool(){
+  // radial falloff baked into vertex colour so an additive quad reads as a
+  // soft pool of lamplight without any per-pixel light maths.
+  const mb=new MeshBuilder(), R=4.6, seg=18, warm=[1,.82,.52];
+  const c=mb.vert(1.06,0,0,0,1,0,warm,1,0,.9,0,0);
+  const ring=[];
+  for(let i=0;i<seg;i++){const a=i/seg*TAU;
+    ring.push(mb.vert(1.06+Math.cos(a)*R,0,Math.sin(a)*R,0,1,0,[0,0,0],1,0,.9,0,0));}
+  for(let i=0;i<seg;i++)mb.tri(c,ring[(i+1)%seg],ring[i]);
+  return mb.build();
+}
 function unitBox(){const mb=new MeshBuilder();box(mb,0,0,0,1,1,1,[1,1,1],{ao0:1,ao1:1,em:.7,rg:.4});return mb.build();}
 function drawPreview(){
   const M=A.prop.marker; if(!M)return;
@@ -3541,6 +3562,7 @@ function bootStep(){
     lt.textContent='surveying the valley…'; lbf.style.width='90%';
     requestAnimationFrame(()=>{
       A.prop.marker=mkBatch(unitBox(),4200);
+      A.prop.pool=mkBatch(lightPool(),2600);
       starterCity();
       rebuildRoadBatch(); rebuildZoneBatch(false); buildProps(); pruneForest();
       rebuildNetworks(); updateLotUtilities(); refreshLotIndex();
@@ -3627,6 +3649,14 @@ function frame(now){
   drawQuad();
   gl.enable(gl.DEPTH_TEST);gl.depthMask(true);gl.enable(gl.CULL_FACE);
   renderScene('main');
+  // additive light pools (lamps at night)
+  if(A.prop.pool&&A.prop.pool.count){
+    gl.enable(gl.BLEND);gl.blendFunc(gl.ONE,gl.ONE);gl.depthMask(false);
+    gl.useProgram(P.main);
+    gl.uniform1i(P.main.u.uOverlay,0);
+    A.prop.pool.flush();STAT.tris+=A.prop.pool.draw();STAT.draws++;
+    gl.depthMask(true);gl.disable(gl.BLEND);
+  }
   // water
   gl.enable(gl.BLEND);gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);gl.disable(gl.CULL_FACE);
   gl.useProgram(P.water);
@@ -3669,9 +3699,9 @@ function frame(now){
   gl.activeTexture(gl.TEXTURE1);gl.bindTexture(gl.TEXTURE_2D,RT.aoT);gl.uniform1i(P.comp.u.uAO,1);
   gl.activeTexture(gl.TEXTURE2);gl.bindTexture(gl.TEXTURE_2D,RT.b0T);gl.uniform1i(P.comp.u.uBloom,2);
   gl.uniform2f(P.comp.u.uRes,RW,RH);
-  gl.uniform1f(P.comp.u.uExp,0.76+SUN.night*0.52);
+  gl.uniform1f(P.comp.u.uExp,0.80+SUN.night*0.50);
   gl.uniform1f(P.comp.u.uNight,SUN.night);
-  gl.uniform1f(P.comp.u.uAOStr,1.05);
+  gl.uniform1f(P.comp.u.uAOStr,0.80);
   gl.uniform1f(P.comp.u.uBloomStr,0.34+SUN.night*0.62);
   gl.uniform1f(P.comp.u.uTime,STAT.time);
   drawQuad();

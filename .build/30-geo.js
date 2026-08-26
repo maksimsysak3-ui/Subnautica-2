@@ -532,7 +532,7 @@ function genShop(seed,lvl){
     // rooftop skylights + plant
     for(let i=0;i<2+((r()*3)|0);i++)
       box(mb,(r()-.5)*bw*0.55,H+0.20,bz+(r()-.5)*bd*0.55,1.0,0.24,0.8,
-        [.72,.80,.86],{ao0:1,rg:.12,mt:.4,win:.6});
+        [.72,.80,.86],{ao0:1,rg:.12,mt:.4,win:.22});
     for(let i=0;i<1+((r()*3)|0);i++)acUnit(mb,(r()-.5)*bw*0.6,H+0.36,bz+(r()-.5)*bd*0.6,1.0+r()*0.4,r);
     for(let i=0;i<2;i++)vent(mb,(r()-.5)*bw*0.7,H+0.36,bz+(r()-.5)*bd*0.7,1,r);
     if(lvl>=3)box(mb,bw*0.26,H+0.36,bz+bd*0.22,1.9,2.2,1.9,mixc(body,[0,0,0],.2),{ao0:.7,ao1:1,rg:.9});
@@ -573,10 +573,10 @@ function genIndustry(seed,lvl){
   gable(mb,0,H+0.26,bz,bw+0.36,1.2+q*0.5,bd+0.36,roofC,{rg:.62,gableCol:body});
   for(const sx of[-1,1]){const n=Math.max(3,Math.round(bd/2.6));
     for(let i=0;i<n;i++)box(mb,sx*(bw/2+0.03),H-1.35,bz+(i-(n-1)/2)*(bd/n),0.09,1.05,bd/n*0.70,
-      PAL.glassD,{ao0:1,rg:.1,mt:.5,win:.75});}
+      PAL.glassD,{ao0:1,rg:.1,mt:.5,win:.42});}
   const nf=Math.max(2,Math.round(bw/3.6));
   for(let i=0;i<nf;i++)box(mb,(i-(nf-1)/2)*(bw/nf),H-1.35,bz-bd/2-0.03,bw/nf*0.62,1.0,0.09,
-    PAL.glassD,{ao0:1,rg:.1,mt:.5,win:.75});
+    PAL.glassD,{ao0:1,rg:.1,mt:.5,win:.42});
 
   // loading dock: raised platform, roll-up doors, bollards, canopy
   const nd=1+(lvl>=3?1:0);
@@ -618,7 +618,7 @@ function genIndustry(seed,lvl){
     const px=sd*(LOT_W/2-0.8);
     cyl(mb,px,0,FRONT+4.2,0.14,7.0,8,[.40,.42,.44],{rg:.6,mt:.4,ao0:.5});
     box(mb,px,7.0,FRONT+4.2,0.8,0.32,0.5,[.46,.48,.50],{rg:.5,mt:.5});
-    box(mb,px,6.84,FRONT+4.4,0.68,0.13,0.4,[1,.94,.72],{em:.8,rg:.2});}
+    box(mb,px,6.84,FRONT+4.4,0.68,0.13,0.4,[1,.94,.72],{em:.42,rg:.2});}
   if(r()<0.6)parkedCar(mb,bw*0.2,FRONT+3.0,0,r);
   fence(mb,0,0,LOT_W-0.5,LOT_D-0.5,0,[.42,.44,.46],r,2.0);
   return mb.build();
@@ -728,12 +728,12 @@ function genPed(seed,pose){
 
 /*── PROPS & UTILITY STRUCTURES ─────────────────────────────────────────────*/
 function genStreetlight(){
-  const mb=new MeshBuilder(), m=[.42,.45,.48];
+  const mb=new MeshBuilder(), m=[.46,.46,.45];
   cyl(mb,0,0,0,0.20,0.22,8,[.35,.35,.36],{rg:.9});
-  cyl(mb,0,0.2,0,0.10,7.6,8,m,{r2:0.075,rg:.5,mt:.6,ao0:.5});
-  for(let i=0;i<4;i++)box(mb,i*0.28,7.65+i*0.09,0,0.30,0.10,0.10,m,{rg:.5,mt:.6,ao0:.95});
-  box(mb,1.15,7.86,0,0.72,0.16,0.30,m,{rg:.5,mt:.6,ao0:1});
-  box(mb,1.15,7.74,0,0.60,0.09,0.24,[1,.93,.72],{em:1,rg:.2});
+  cyl(mb,0,0.2,0,0.105,6.6,8,m,{r2:0.08,rg:.55,mt:.5,ao0:.5});
+  for(let i=0;i<4;i++)box(mb,i*0.26,6.66+i*0.085,0,0.28,0.10,0.10,m,{rg:.55,mt:.5,ao0:.95});
+  box(mb,1.06,6.86,0,0.68,0.15,0.28,m,{rg:.55,mt:.5,ao0:1});
+  box(mb,1.06,6.75,0,0.56,0.09,0.22,[1,.93,.72],{em:1,rg:.2});
   return mb.build();
 }
 function genTrafficLight(){
@@ -800,7 +800,7 @@ function genPowerPlant(){
   for(let i=0;i<4;i++)box(mb,-16+i*2.6,0,12,4.4,3.0,7,[.24,.24,.25],{ao0:.4,ao1:.8,rg:.95});
   for(const s of[-1,1])for(const t of[-1,1]){
     cyl(mb,s*20,0,t*13,0.18,9,8,[.44,.46,.48],{rg:.6,mt:.4});
-    box(mb,s*20,8.8,t*13,0.9,0.3,0.6,[.9,.88,.6],{em:.7,rg:.2});}
+    box(mb,s*20,8.8,t*13,0.9,0.3,0.6,[.9,.88,.6],{em:.38,rg:.2});}
   fence(mb,0,0,44,32,0,[.44,.46,.48],rng(3),2.2);
   return mb.build();
 }

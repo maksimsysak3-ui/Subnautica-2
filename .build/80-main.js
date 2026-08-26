@@ -1,6 +1,17 @@
 // aerial perspective: haze grows with camera height so wide shots read deep
 const FOGD=()=>0.00058+SUN.night*0.00026+clamp(CAM.dDist-160,0,600)*0.0000019;
 /*═══════ PREVIEW / GHOSTS ═════════════════════════════════════════════════*/
+function lightPool(){
+  // radial falloff baked into vertex colour so an additive quad reads as a
+  // soft pool of lamplight without any per-pixel light maths.
+  const mb=new MeshBuilder(), R=4.6, seg=18, warm=[1,.82,.52];
+  const c=mb.vert(1.06,0,0,0,1,0,warm,1,0,.9,0,0);
+  const ring=[];
+  for(let i=0;i<seg;i++){const a=i/seg*TAU;
+    ring.push(mb.vert(1.06+Math.cos(a)*R,0,Math.sin(a)*R,0,1,0,[0,0,0],1,0,.9,0,0));}
+  for(let i=0;i<seg;i++)mb.tri(c,ring[(i+1)%seg],ring[i]);
+  return mb.build();
+}
 function unitBox(){const mb=new MeshBuilder();box(mb,0,0,0,1,1,1,[1,1,1],{ao0:1,ao1:1,em:.7,rg:.4});return mb.build();}
 function drawPreview(){
   const M=A.prop.marker; if(!M)return;
@@ -152,6 +163,7 @@ function bootStep(){
     lt.textContent='surveying the valley…'; lbf.style.width='90%';
     requestAnimationFrame(()=>{
       A.prop.marker=mkBatch(unitBox(),4200);
+      A.prop.pool=mkBatch(lightPool(),2600);
       starterCity();
       rebuildRoadBatch(); rebuildZoneBatch(false); buildProps(); pruneForest();
       rebuildNetworks(); updateLotUtilities(); refreshLotIndex();
@@ -238,6 +250,14 @@ function frame(now){
   drawQuad();
   gl.enable(gl.DEPTH_TEST);gl.depthMask(true);gl.enable(gl.CULL_FACE);
   renderScene('main');
+  // additive light pools (lamps at night)
+  if(A.prop.pool&&A.prop.pool.count){
+    gl.enable(gl.BLEND);gl.blendFunc(gl.ONE,gl.ONE);gl.depthMask(false);
+    gl.useProgram(P.main);
+    gl.uniform1i(P.main.u.uOverlay,0);
+    A.prop.pool.flush();STAT.tris+=A.prop.pool.draw();STAT.draws++;
+    gl.depthMask(true);gl.disable(gl.BLEND);
+  }
   // water
   gl.enable(gl.BLEND);gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);gl.disable(gl.CULL_FACE);
   gl.useProgram(P.water);
@@ -280,9 +300,9 @@ function frame(now){
   gl.activeTexture(gl.TEXTURE1);gl.bindTexture(gl.TEXTURE_2D,RT.aoT);gl.uniform1i(P.comp.u.uAO,1);
   gl.activeTexture(gl.TEXTURE2);gl.bindTexture(gl.TEXTURE_2D,RT.b0T);gl.uniform1i(P.comp.u.uBloom,2);
   gl.uniform2f(P.comp.u.uRes,RW,RH);
-  gl.uniform1f(P.comp.u.uExp,0.76+SUN.night*0.52);
+  gl.uniform1f(P.comp.u.uExp,0.80+SUN.night*0.50);
   gl.uniform1f(P.comp.u.uNight,SUN.night);
-  gl.uniform1f(P.comp.u.uAOStr,1.05);
+  gl.uniform1f(P.comp.u.uAOStr,0.80);
   gl.uniform1f(P.comp.u.uBloomStr,0.34+SUN.night*0.62);
   gl.uniform1f(P.comp.u.uTime,STAT.time);
   drawQuad();

@@ -121,7 +121,7 @@ void main(){
   float win=vM.w;
   float lightsOn=smoothstep(0.35,0.62,uNight);
   float flick=0.55+0.45*step(0.34,fract(sin(dot(floor(vW.xz*2.7),vec2(12.98,78.23)))*43758.5));
-  vec3 winEm=mix(vec3(1.0,0.83,0.55),vec3(0.72,0.86,1.0),step(0.5,flick))*win*lightsOn*flick*1.5;
+  vec3 winEm=mix(vec3(1.0,0.80,0.50),vec3(0.66,0.82,1.0),step(0.5,flick))*win*lightsOn*flick*2.6;
 
   // hemispheric ambient + ground bounce
   float hemi=N.y*0.5+0.5;
@@ -138,7 +138,7 @@ void main(){
   vec3 spec=(F0+(1.0-F0)*f)*d*sh*uSunCol*ndl;
   // sky reflection on shallow-facing surfaces (glass, water-ish roofs)
   float fres=pow(1.0-ndv,4.0)*(1.0-rough)*0.6;
-  vec3 col=mix(diff,vec3(0.0),metal*0.65)+spec+lin(uSkyCol)*fres*(0.55+win*1.6);
+  vec3 col=mix(diff,vec3(0.0),metal*0.55)+spec+lin(uSkyCol)*fres*(0.35+win*1.5);
 
   col+=vM.x*alb*7.0+winEm*3.4+vEmB*alb*9.0;
 
@@ -311,7 +311,7 @@ void main(){
   vec2 d=vUv-0.5; float vig=1.0-dot(d,d)*0.72;
   col*=vig;
   float g=fract(sin(dot(vUv*uRes+uTime,vec2(12.9898,78.233)))*43758.5453);
-  col+=(g-0.5)*0.012;
+  col+=(g-0.5)*0.006*(0.35+dot(col,vec3(.33)));
   o=vec4(pow(col,vec3(1.0/2.2)),1.0);
 }`;
 
