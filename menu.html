@@ -853,6 +853,11 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
 .chips.zones .chip-opt.has::after{content:"";position:absolute;top:5px;right:5px;
   width:4px;height:4px;border-radius:50%;background:var(--red)}
 .chips.zones .chip-opt.on.has::after{background:#fff}
+.chip-opt.comp::before{content:"";display:inline-block;width:9px;height:9px;
+  border-radius:50%;margin-right:8px;vertical-align:middle}
+.chip-opt.comp.soft::before{background:#E8202A}
+.chip-opt.comp.medium::before{background:#F2C300}
+.chip-opt.comp.hard::before{background:#E8E8E8}
 .glink{background:none;border:none;color:var(--red);cursor:pointer;
   font-family:var(--ui);font-size:10px;font-weight:700;letter-spacing:.16em;
   text-transform:uppercase;padding:4px 0}
@@ -1216,6 +1221,9 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
         <div class="gsw" data-slot="zoneInk"></div>
         <div class="grow"><span>Default text</span></div>
         <div class="gsw" data-slot="ink"></div>
+
+        <div class="gsec">Tyres</div>
+        <div class="chips" id="gComp"></div>
 
         <div class="gsec">Identity</div>
         <div class="grow"><span>Car number</span>
@@ -1595,11 +1603,11 @@ const PALETTE = ['#E10600','#FF6B00','#FFC400','#3ADB6E','#00B3A4','#0F8BFF',
 /* Kept in step with DEFAULT_SLOT_IDS in the drive module — the two lists
    describe the same fifteen placements from either side of the boundary. */
 const DEFAULT_SPONSORS = {
-  sidepod: 'apex',      sidepodLow: 'redline',  barge: 'strato',
-  engFlank: 'lumen',    airbox: 'nova',         wingEnd: 'kerbline',
-  wingEndLow: 'halden', frontWing: 'ferrox',    fwUpper: 'quartz',
-  floor: 'tessera',     deck: 'vantage',        rearDeck: 'ridgeway',
-  wingTop: 'orbita',    noseTop: 'vertex',      chassis: 'cobalt'
+  sidepod: 'apex',      sidepodLow: 'none',     barge: 'none',
+  engFlank: 'none',     airbox: 'nova',         wingEnd: 'kerbline',
+  wingEndLow: 'none',   frontWing: 'ferrox',    fwUpper: 'none',
+  floor: 'tessera',     deck: 'vantage',        rearDeck: 'none',
+  wingTop: 'orbita',    noseTop: 'none',        chassis: 'none'
 };
 const ASSIST_PRESET = {
   new:      { tc: true,  abs: true,  esc: true },
@@ -1650,6 +1658,7 @@ function normaliseProfile(p) {
       ? p.pattern : 0,
     ink: p.ink || c.accent || '#F5F5F5',
     inks: (p.inks && typeof p.inks === 'object') ? Object.assign({}, p.inks) : {},
+    compound: ['soft', 'medium', 'hard'].indexOf(p.compound) >= 0 ? p.compound : 'soft',
     licence: p.licence || 'Rookie',
     safety: Number.isFinite(p.safety) ? p.safety : 2.5,
     rating: Number.isFinite(p.rating) ? p.rating : 1350,
@@ -2024,6 +2033,7 @@ function buildGarage() {
     pattern: profile.pattern || 0,
     ink: profile.ink || profile.colors.accent,
     inks: Object.assign({}, profile.inks || {}),
+    compound: profile.compound || 'soft',
     zone: D.SLOT_KEYS[0],
     number: profile.number, tag: profile.tag
   };
@@ -2045,6 +2055,15 @@ function buildGarage() {
   $('#gPattern').onclick = e => {
     const b = e.target.closest('.chip-opt'); if (!b) return;
     gState.pattern = +b.dataset.p;
+    paintGarage(); pushGarage();
+  };
+
+  const COMP_LABEL = { soft: 'Soft', medium: 'Medium', hard: 'Hard' };
+  $('#gComp').innerHTML = D.COMPOUNDS.map(cd =>
+    `<button class="chip-opt comp ${cd}" data-cd="${cd}">${COMP_LABEL[cd]}</button>`).join('');
+  $('#gComp').onclick = e => {
+    const b = e.target.closest('.chip-opt'); if (!b) return;
+    gState.compound = b.dataset.cd;
     paintGarage(); pushGarage();
   };
 
@@ -2087,6 +2106,7 @@ function buildGarage() {
     profile.pattern = gState.pattern;
     profile.ink = gState.ink;
     profile.inks = Object.assign({}, gState.inks);
+    profile.compound = gState.compound;
     profile.number = gState.number;
     profile.tag = gState.tag || profile.tag;
     saveProfile(profile);
@@ -2097,7 +2117,8 @@ function buildGarage() {
   $('#gCancel').onclick = () => {
     window.URacingDrive.setLivery({ colors: profile.colors, slots: profile.sponsors,
       pattern: profile.pattern || 0, ink: profile.ink || profile.colors.accent,
-      inks: profile.inks || {}, profile: profile });
+      inks: profile.inks || {}, compound: profile.compound || 'soft',
+      profile: profile });
     window.URacingDrive.leave();
     transitionTo('menu');
   };
@@ -2122,11 +2143,14 @@ function paintGarage() {
   });
   const br = $('#gBrand');
   if (br) br.value = gState.sponsors[gState.zone] || 'none';
+  const cp = $('#gComp');
+  if (cp) [...cp.children].forEach(c => c.classList.toggle('on', c.dataset.cd === gState.compound));
 }
 function pushGarage() {
   window.URacingDrive.setLivery({
     colors: gState.colors, slots: gState.sponsors,
     pattern: gState.pattern, ink: gState.ink, inks: gState.inks,
+    compound: gState.compound,
     profile: Object.assign({}, profile, { number: gState.number, tag: gState.tag })
   });
 }
@@ -3313,6 +3337,7 @@ let cine = { on: false, t: 0, phase: 0, lit: 0, hold: 0, ang: 0 };
 let cineTimers = [];
 function clearCineTimers() { cineTimers.forEach(clearTimeout); cineTimers = []; }
 let garage = { on: false, az: 0.85, el: 0.20, drag: false, px: 0, py: 0, spin: true };
+let garageRim = null;                 // studio rim light, garage only
 
 function parkForGarage() {
   const t = track;
@@ -3577,13 +3602,25 @@ function startGarage() {
   running = true; garage.on = true; lastT = performance.now();
   document.getElementById('drive').classList.add('garage');
   parkForGarage();
-  // studio light for judging paint
-  renderer.toneMappingExposure = 1.72;
+  /* Studio light for judging paint: a hard key from the front quarter to put
+     a highlight down the shoulder line, and a cold rim from behind to pick the
+     trailing edge off the background. Gloss needs a light with an edge to it —
+     a flat ambient makes clearcoat look like matte plastic. */
+  renderer.toneMappingExposure = 1.34;
   const sun = scene.userData.sun;
-  sun.intensity = 4.4;
-  sun.position.set(veh.x + 34, 26, veh.z - 22);
-  sun.target.position.set(veh.x, 0, veh.z);
+  sun.intensity = 4.2;
+  sun.position.set(veh.x + 26, 21, veh.z - 30);
+  sun.target.position.set(veh.x, 0.4, veh.z);
   sun.target.updateMatrixWorld();
+  if (!garageRim) {
+    garageRim = new THREE.DirectionalLight(0xcfe2ff, 1.9);
+    garageRim.target = new THREE.Object3D();
+    scene.add(garageRim, garageRim.target);
+  }
+  garageRim.visible = true;
+  garageRim.position.set(veh.x - 30, 13, veh.z + 26);
+  garageRim.target.position.set(veh.x, 0.5, veh.z);
+  garageRim.target.updateMatrixWorld();
   resize();
   if (!raf) raf = requestAnimationFrame(frame);
 }
@@ -3607,6 +3644,7 @@ function start() {
   resize();
   startCinematic();
   if (!raf) raf = requestAnimationFrame(frame);
+  if (garageRim) garageRim.visible = false;
 }
 function stop() {
   running = false; garage.on = false; garage.drag = false;
@@ -3614,6 +3652,7 @@ function stop() {
   if (renderer) renderer.toneMappingExposure = 1.18;
   if (camera) camera.clearViewOffset();
   endCinematic();
+  if (garageRim) garageRim.visible = false;
 }
 
 /* ============================================================
@@ -3672,110 +3711,124 @@ void deckMark(inout vec3 col, vec3 P, vec3 N, vec4 box, vec2 cell, float minY) {
 }
 `;
 
-/* Every pattern is deliberately primary-dominant: the second colour is a
-   shape laid over the car rather than half of it, and the accent is only
-   ever a hairline, the spine and the nose tip. That is what keeps a wrap
-   reading as one car in one colour instead of a two-tone blob. */
+/* The shapes here are drawn from what real teams actually do: one base colour
+   carrying 70-85% of the car, a single large panel or sweep in the second
+   colour that follows the bodywork, and the third colour used only as a thin
+   edge or a small flash. No repeating motifs — a wrap is a few big shapes seen
+   at 300 km/h, not a texture. Exposed carbon along the floor and wings does
+   as much work as the paint. */
 const LIVERY_GLSL = `
   float s  = clamp((-vLocalPos.z + 2.95) / 5.90, 0.0, 1.0);   // 0 tail, 1 nose
   float uy = clamp(vLocalPos.y / 1.10, 0.0, 1.0);
   float ax = abs(vLocalPos.x);
 
-  float spine = 0.042 + 0.070 * exp(-pow((s - 0.40) * 4.4, 2.0));
   vec3 lc = uPrim;
   float edge = -1.0;                       // where to draw the accent hairline
+  float flash = 0.0;                       // small accent shape, drawn last
 
   if (uPattern < 0.5) {
-    // MERIDIAN — one clean diagonal capping the shoulder line
-    float sweep = 0.585 + 0.400 * pow(s, 0.90);
-    lc = mix(lc, uSec, smoothstep(sweep - 0.016, sweep + 0.016, uy));
-    edge = abs(uy - sweep);
+    // SOLIDO — one colour, the way a Ferrari reads. A narrow band low on the
+    // flank and the nose flash are the only breaks.
+    float k = 0.150;
+    lc = mix(lc, uSec, smoothstep(k + 0.012, k - 0.012, uy));
+    edge = abs(uy - k);
+    flash = smoothstep(0.905, 0.930, s);
 
   } else if (uPattern < 1.5) {
-    // VECTOR — a single narrow blade sweeping up and forward
-    float band = uy + (1.0 - s) * 0.92;
-    lc = mix(lc, uSec, smoothstep(0.855, 0.872, band)
-                       * (1.0 - smoothstep(1.013, 1.030, band)));
-    edge = min(abs(band - 0.864), abs(band - 1.021));
+    // SHOULDER — the upper body in the second colour, one clean diagonal
+    // falling toward the nose. Aston Martin's proportions.
+    float sweep = 0.610 + 0.360 * pow(s, 0.85);
+    lc = mix(lc, uSec, smoothstep(sweep - 0.014, sweep + 0.014, uy));
+    edge = abs(uy - sweep);
 
   } else if (uPattern < 2.5) {
-    // KEEL — the second colour held low along the floor line
-    float k = 0.175 + 0.045 * sin(s * 3.1);
-    lc = mix(lc, uSec, smoothstep(k + 0.014, k - 0.014, uy));
-    edge = abs(uy - k);
+    // BLADE — a single large panel across the sidepod, cut on two diagonals.
+    // Haas and VCARB both do a version of this.
+    float lead  = uy * 0.30 + 0.155;       // rear cut, leaning back
+    float trail = uy * 0.30 + 0.585;       // front cut, parallel
+    float panel = smoothstep(lead - 0.012, lead + 0.012, s)
+                * (1.0 - smoothstep(trail - 0.012, trail + 0.012, s))
+                * smoothstep(0.13, 0.19, uy);
+    lc = mix(lc, uSec, panel);
+    edge = mix(1.0, min(abs(s - lead), abs(s - trail)), smoothstep(0.13, 0.19, uy));
 
   } else if (uPattern < 3.5) {
-    // DELTA — a narrow wedge over the spine, opening toward the rear
-    float halfW = 0.055 + 0.255 * pow(1.0 - s, 1.7);
-    lc = mix(lc, uSec, smoothstep(halfW + 0.018, halfW - 0.018, ax)
-                       * smoothstep(0.34, 0.40, uy));
-    edge = mix(1.0, abs(ax - halfW), smoothstep(0.34, 0.40, uy));
+    // SPEAR — nose and airbox picked out and swept back over the shoulder,
+    // the shape Alpine and Williams have both run.
+    float sp = smoothstep(0.60, 0.70, s + uy * 0.30);
+    lc = mix(lc, uSec, sp);
+    edge = abs((s + uy * 0.30) - 0.65);
 
   } else if (uPattern < 4.5) {
-    // PERIMETER — the second colour only at the extremities
-    lc = mix(lc, uSec, max(smoothstep(0.155, 0.105, uy),
-                           smoothstep(0.800, 0.870, ax)));
-    edge = min(abs(uy - 0.130), abs(ax - 0.835));
+    // COCKPIT — the second colour wrapped around the cockpit and engine cover,
+    // leaving the nose and the rear in the base colour.
+    float band = smoothstep(0.44, 0.49, s) * (1.0 - smoothstep(0.66, 0.71, s));
+    lc = mix(lc, uSec, band * smoothstep(0.26, 0.33, uy));
+    edge = mix(1.0, min(abs(s - 0.465), abs(s - 0.685)), smoothstep(0.26, 0.33, uy));
 
   } else if (uPattern < 5.5) {
-    // HALO — a band wrapped around the cockpit and airbox
-    float hb = abs(s - 0.545);
-    lc = mix(lc, uSec, (1.0 - smoothstep(0.055, 0.072, hb))
-                       * smoothstep(0.28, 0.34, uy));
-    edge = mix(1.0, abs(hb - 0.064), smoothstep(0.28, 0.34, uy));
+    // SPLIT — front and rear divided on one long diagonal, the McLaren idea.
+    float cut = 0.30 + uy * 0.30;
+    lc = mix(lc, uSec, 1.0 - smoothstep(cut - 0.014, cut + 0.014, s));
+    edge = abs(s - cut);
 
   } else if (uPattern < 6.5) {
-    // CHEVRON — repeating arrows running the length of the flank
-    float cw = fract(s * 5.0 - uy * 0.55);
-    lc = mix(lc, uSec, (1.0 - smoothstep(0.200, 0.222, cw))
-                       * smoothstep(0.16, 0.22, uy));
-    edge = mix(1.0, abs(cw - 0.211), smoothstep(0.16, 0.22, uy));
+    // UNDERLINE — a broad band held low along the flank, the way Mercedes
+    // carries its sponsor bar.
+    float lo = 0.185, hi = 0.335;
+    lc = mix(lc, uSec, smoothstep(lo - 0.012, lo + 0.012, uy)
+                       * (1.0 - smoothstep(hi - 0.012, hi + 0.012, uy)));
+    edge = min(abs(uy - lo), abs(uy - hi));
 
   } else if (uPattern < 7.5) {
-    // FLUX — three tapering speed lines drawn back from the nose
-    float f1 = abs(uy - (0.32 + 0.28 * s)) - 0.026 * s;
-    float f2 = abs(uy - (0.47 + 0.25 * s)) - 0.019 * s;
-    float f3 = abs(uy - (0.61 + 0.21 * s)) - 0.013 * s;
-    float fm = min(f1, min(f2, f3));
-    lc = mix(lc, uSec, 1.0 - smoothstep(0.000, 0.009, fm));
-    edge = abs(fm);                        // hairline on the line, not around it
+    // FADE — a long gradient from the base colour at the nose into the second
+    // colour over the rear bodywork. No hard edge anywhere.
+    lc = mix(lc, uSec, smoothstep(0.62, 0.06, s));
+    flash = smoothstep(0.915, 0.940, s);
 
   } else if (uPattern < 8.5) {
-    // BOLT — a hard flash zig-zagging along the flank
-    float zz = abs(uy + 0.55 * abs(fract(s * 2.0) - 0.5) - 0.60);
-    lc = mix(lc, uSec, (1.0 - smoothstep(0.060, 0.074, zz))
-                       * smoothstep(0.14, 0.20, uy));
-    edge = mix(1.0, abs(zz - 0.067), smoothstep(0.14, 0.20, uy));
+    // CENTRELINE — a broad stripe running the spine from the nose, over the
+    // airbox, to the rear wing.
+    float w = 0.140 + 0.115 * exp(-pow((s - 0.46) * 3.6, 2.0));
+    lc = mix(lc, uSec, smoothstep(w + 0.014, w - 0.014, ax)
+                       * smoothstep(0.24, 0.31, uy));
+    edge = mix(1.0, abs(ax - w), smoothstep(0.24, 0.31, uy));
 
   } else if (uPattern < 9.5) {
-    // TALON — a hooked sweep falling from the airbox to the nose
-    float tk = abs(uy - (0.86 - 0.92 * pow(s, 1.8)));
-    lc = mix(lc, uSec, (1.0 - smoothstep(0.070, 0.084, tk))
-                       * smoothstep(0.10, 0.16, uy));
-    edge = mix(1.0, abs(tk - 0.077), smoothstep(0.10, 0.16, uy));
+    // TWO-TONE — the flank split by one horizontal line, the upper body in
+    // the second colour and the sidepod left in the base.
+    float k = 0.520 - 0.055 * s;
+    lc = mix(lc, uSec, smoothstep(k - 0.012, k + 0.012, uy));
+    edge = abs(uy - k);
+    flash = smoothstep(0.905, 0.930, s);
 
   } else if (uPattern < 10.5) {
-    // PRISM — angled shards breaking off the rear bodywork
-    float pw = fract(s * 3.0 + uy * 1.15);
-    float rear = smoothstep(0.34, 0.58, 1.0 - s);
-    lc = mix(lc, uSec, (1.0 - smoothstep(0.255, 0.278, pw)) * rear);
-    edge = mix(1.0, abs(pw - 0.266), rear);
+    // WEDGE — a triangle opening from the nose back across the sidepod.
+    float halfW = 0.085 + 0.30 * smoothstep(0.92, 0.30, s);
+    float wd = smoothstep(halfW + 0.016, halfW - 0.016, abs(uy - 0.40))
+             * smoothstep(0.10, 0.22, s) * (1.0 - smoothstep(0.62, 0.78, s));
+    lc = mix(lc, uSec, wd);
+    edge = mix(1.0, abs(abs(uy - 0.40) - halfW),
+               smoothstep(0.10, 0.22, s) * (1.0 - smoothstep(0.62, 0.78, s)));
 
   } else {
-    // ECLIPSE — a crescent cut across the sidepod
-    float er  = length(vec2((s - 0.345) * 2.5, uy - 0.500));
-    float er2 = length(vec2((s - 0.405) * 2.5, uy - 0.545));
-    lc = mix(lc, uSec, (1.0 - smoothstep(0.335, 0.350, er))
-                       * smoothstep(0.243, 0.258, er2));
-    edge = min(abs(er - 0.342), abs(er2 - 0.250));
+    // BOOKEND — nose and tail in the second colour, the middle left clean so
+    // the sidepod sponsor sits on flat paint.
+    float be = max(smoothstep(0.80, 0.86, s), smoothstep(0.26, 0.20, s));
+    lc = mix(lc, uSec, be);
+    edge = min(abs(s - 0.83), abs(s - 0.23));
   }
 
-  if (edge >= 0.0) lc = mix(lc, uAcc, 1.0 - smoothstep(0.008, 0.020, edge));
-  lc = mix(lc, uAcc, smoothstep(spine + 0.010, spine - 0.010, ax)
-                     * smoothstep(0.30, 0.36, uy)
-                     * smoothstep(0.10, 0.20, s));
-  lc = mix(lc, uAcc, smoothstep(0.940, 0.964, s));
-  lc *= mix(0.40, 1.0, smoothstep(0.02, 0.13, uy));            // floor stays dark
+  // one thin edge, only where a pattern asked for it
+  if (edge >= 0.0) lc = mix(lc, uAcc, 1.0 - smoothstep(0.006, 0.014, edge));
+  lc = mix(lc, uAcc, flash);
+
+  /* Exposed carbon: the floor, the wing planes and everything in the shadow
+     under the bodywork are not painted on a real car. Blending toward a fixed
+     dark weave rather than darkening the paint keeps the base colour clean
+     right down to the edge it stops at. */
+  vec3 carbon = vec3(0.026, 0.027, 0.030);
+  lc = mix(carbon, lc, smoothstep(0.030, 0.115, uy));
 
   // fifteen hand-placed sponsor zones, each measured off the bodywork
   // flip the normal on back faces, or a zero-thickness panel shows the
@@ -4164,9 +4217,26 @@ function buildAtlas(slots, num, tag, ink, inks) {
     c.globalAlpha = 1;
   };
 
+  // a wordmark alone, set as large as the cell allows — what a small panel
+  // can actually carry at racing distance
+  const compact = (sp, col) => {
+    c.fillStyle = col; c.textBaseline = 'middle'; c.textAlign = 'center';
+    let px = 190;
+    c.font = '700 italic ' + px + 'px "Chakra Petch", sans-serif';
+    const max = CELL_W * 0.88;
+    const w = c.measureText(sp.name).width;
+    if (w > max) {
+      px = Math.floor(px * max / w);
+      c.font = '700 italic ' + px + 'px "Chakra Petch", sans-serif';
+    }
+    c.fillText(sp.name, CELL_W / 2, CELL_H / 2);
+    c.textAlign = 'left';
+  };
+
   const decal = (sp, key) => () => {
     if (!sp || !sp.name) return;
     const col = (inks && inks[key]) || ink;
+    if (SLOT_COMPACT[key]) { compact(sp, col); return; }
     if (sp.style === 'stack') stack(sp, col);
     else if (sp.style === 'badge') badge(sp, col);
     else if (sp.style === 'mono') mono(sp, col);
@@ -4200,7 +4270,14 @@ function buildAtlas(slots, num, tag, ink, inks) {
 }
 
 let liveryShaders = [];
+let tyreShaders = [];
 let atlasTex = null;
+const TYRE_BAND = {
+  soft:   new THREE.Color('#E8202A'),
+  medium: new THREE.Color('#F2C300'),
+  hard:   new THREE.Color('#E8E8E8')
+};
+let tyreCompound = 'soft';
 
 /* Each placement names a zone on the bodywork and the atlas cell that feeds
    it. The cell coordinates here must match the flankMark/deckMark calls in
@@ -4231,12 +4308,18 @@ const SLOT_CELL = {
   wingEndLow: [1, 5], fwUpper: [0, 6], deck: [1, 0], wingTop: [1, 3],
   noseTop: [1, 6], chassis: [0, 7], rearDeck: [1, 7]
 };
+/* Panels too small to hold a mark and a strapline legibly. Measured off the
+   zone boxes: anything under about 0.55 m of run gets the wordmark alone. */
+const SLOT_COMPACT = {
+  frontWing: true, fwUpper: true, wingEndLow: true, engFlank: true,
+  rearDeck: true, sidepodLow: true, floor: true, barge: true
+};
 const DEFAULT_SLOT_IDS = {
-  sidepod: 'apex',      sidepodLow: 'redline',  barge: 'strato',
-  engFlank: 'lumen',    airbox: 'nova',         wingEnd: 'kerbline',
-  wingEndLow: 'halden', frontWing: 'ferrox',    fwUpper: 'quartz',
-  floor: 'tessera',     deck: 'vantage',        rearDeck: 'ridgeway',
-  wingTop: 'orbita',    noseTop: 'vertex',      chassis: 'cobalt'
+  sidepod: 'apex',      sidepodLow: 'none',     barge: 'none',
+  engFlank: 'none',     airbox: 'nova',         wingEnd: 'kerbline',
+  wingEndLow: 'none',   frontWing: 'ferrox',    fwUpper: 'none',
+  floor: 'tessera',     deck: 'vantage',        rearDeck: 'none',
+  wingTop: 'orbita',    noseTop: 'none',        chassis: 'none'
 };
 let sponsorSlots = {};
 for (const k of SLOT_KEYS) {
@@ -4257,7 +4340,13 @@ function rebuildAtlas(prof) {
   }
 }
 function liveryMaterial(m) {
-  m.metalness = 0.30; m.roughness = 0.26;                       // clear-coated paint
+  /* Car paint is a dielectric pigment under a clear lacquer, not a metal.
+     Painting it as metal is what made the old finish read as plastic: the
+     base goes matte-ish and non-metallic, and the gloss comes from a
+     clearcoat layer on top, which is where the hard highlight lives. */
+  m.metalness = 0.02; m.roughness = 0.36;
+  m.envMapIntensity = 1.42;              // gloss reads off the sky, not the sun
+  if ('clearcoat' in m) { m.clearcoat = 1.0; m.clearcoatRoughness = 0.035; }
   m.onBeforeCompile = sh => {
     sh.uniforms.uPrim = { value: new THREE.Color(livery ? livery.primary : '#E10600') };
     sh.uniforms.uSec  = { value: new THREE.Color(livery ? livery.secondary : '#16181D') };
@@ -4276,6 +4365,10 @@ function liveryMaterial(m) {
     liveryShaders.push(sh);
   };
   m.needsUpdate = true;
+}
+function pushTyres() {
+  const c = TYRE_BAND[tyreCompound] || TYRE_BAND.soft;
+  for (const sh of tyreShaders) if (sh.uniforms.uCompound) sh.uniforms.uCompound.value.copy(c);
 }
 function pushLivery() {
   if (!livery) return;
@@ -4311,11 +4404,41 @@ function applyLivery() {
         w.customProgramCacheKey = () => 'uracing-wheel';
       }
       if ((w.name || '').indexOf('Rubber') === 0) {
-        w.color.setRGB(0.022, 0.022, 0.024);
-        w.metalness = 0.0; w.roughness = 0.82;
+        w.color.setRGB(0.030, 0.030, 0.033);
+        w.metalness = 0.0; w.roughness = 0.74;
+        w.envMapIntensity = 0.55;
+        /* The compound band on the sidewall is one of the strongest reads on
+           a real car — red for soft, yellow for medium, white for hard. The
+           wheels spin about local X, so a sidewall point is one far out on
+           that axis, and the band is an annulus in the other two. */
+        if (!w.userData.uracingBand) {
+          w.userData.uracingBand = true;
+          w.onBeforeCompile = sh => {
+            sh.uniforms.uCompound = { value: TYRE_BAND[tyreCompound] || TYRE_BAND.soft };
+            sh.vertexShader = 'varying vec3 vTyrePos;\n' + sh.vertexShader
+              .replace('#include <begin_vertex>', '#include <begin_vertex>\n  vTyrePos = position;');
+            /* roughnessFactor is declared by <roughnessmap_fragment>, which
+               comes after <color_fragment>, so the band is computed with the
+               colour and the gloss is applied at the later hook. */
+            sh.fragmentShader = 'varying vec3 vTyrePos;\nuniform vec3 uCompound;\n'
+              + sh.fragmentShader
+                .replace('#include <color_fragment>', `#include <color_fragment>
+  float tyreR = length(vTyrePos.yz);
+  float tyreBand = smoothstep(0.246, 0.254, tyreR)
+                 * (1.0 - smoothstep(0.283, 0.291, tyreR))
+                 * smoothstep(0.150, 0.163, abs(vTyrePos.x));
+  diffuseColor.rgb = mix(diffuseColor.rgb, uCompound, tyreBand);`)
+                .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
+  roughnessFactor = mix(roughnessFactor, 0.44, tyreBand);`);
+            tyreShaders.push(sh);
+          };
+          w.customProgramCacheKey = () => 'uracing-tyre';
+        }
       } else {
-        w.color.set(livery.accent).multiplyScalar(0.34);
-        w.metalness = 0.66; w.roughness = 0.30;
+        // machined magnesium rim, tinted a little toward the accent
+        w.color.set(livery.accent).multiplyScalar(0.16).addScalar(0.115);
+        w.metalness = 0.88; w.roughness = 0.215;
+        w.envMapIntensity = 1.6;
       }
       w.needsUpdate = true;
       return w;
@@ -4323,16 +4446,33 @@ function applyLivery() {
     o.material = Array.isArray(o.material) ? out : out[0];
   });
 
-  // pass 2 — the wrap, body panels only
-  const seen = new Set();
+  /* pass 2 — the wrap, body panels only. The glTF ships MeshStandardMaterial,
+     which has no clearcoat, so each painted material is promoted once to
+     MeshPhysicalMaterial and the mesh is repointed at it. Promotions are
+     cached by source uuid so the four body meshes keep sharing one program. */
+  const painted = new Map();
+  const paint = m => {
+    if (!m) return m;
+    if (m.userData.uracingPaint) return m;
+    let out = painted.get(m.uuid);
+    if (!out) {
+      out = new THREE.MeshPhysicalMaterial();
+      /* Not out.copy(m): MeshPhysicalMaterial.copy reads physical-only fields
+         straight off the source, and on a standard material sheenColor and
+         specularColor are undefined, so Color.copy throws. Running the
+         standard copy against the new instance moves exactly the fields the
+         source has and leaves every physical default intact. */
+      THREE.MeshStandardMaterial.prototype.copy.call(out, m);
+      out.name = m.name;
+      out.userData = Object.assign({}, m.userData, { uracingPaint: true });
+      liveryMaterial(out);
+      painted.set(m.uuid, out);
+    }
+    return out;
+  };
   carRoot.traverse(o => {
     if (!o.isMesh || onWheel(o)) return;
-    const mats = Array.isArray(o.material) ? o.material : [o.material];
-    for (const m of mats) {
-      if (!m || seen.has(m.uuid)) continue;
-      seen.add(m.uuid);
-      liveryMaterial(m);
-    }
+    o.material = Array.isArray(o.material) ? o.material.map(paint) : paint(o.material);
   });
   pushLivery();
 }
@@ -4340,8 +4480,9 @@ function applyLivery() {
 window.URacingDrive = {
   profile: null,
   SPONSORS, SLOT_KEYS, SLOT_LABELS,
-  PATTERNS: ['Meridian', 'Vector', 'Keel', 'Delta', 'Perimeter', 'Halo',
-             'Chevron', 'Flux', 'Bolt', 'Talon', 'Prism', 'Eclipse'],
+  COMPOUNDS: ['soft', 'medium', 'hard'],
+  PATTERNS: ['Solido', 'Shoulder', 'Blade', 'Spear', 'Cockpit', 'Split',
+             'Underline', 'Fade', 'Centreline', 'Two-tone', 'Wedge', 'Bookend'],
   async enterGarage(shell) {
     await ensureInit(shell.progress);
     await shell.reveal();
@@ -4360,8 +4501,10 @@ window.URacingDrive = {
     if (p && typeof p.pattern === 'number') liveryPattern = p.pattern;
     if (p && p.ink) liveryInk = p.ink;
     if (p && p.inks && typeof p.inks === 'object') liveryInks = Object.assign({}, p.inks);
+    if (p && TYRE_BAND[p.compound]) tyreCompound = p.compound;
     if (assists) Object.assign(ASSIST, assists);
     if (liveryShaders.length) pushLivery(); else applyLivery();
+    pushTyres();
     rebuildAtlas(p);
   },
   setLivery(opts) {                      // live updates from the paint shop
@@ -4375,7 +4518,9 @@ window.URacingDrive = {
     if (typeof opts.pattern === 'number') liveryPattern = opts.pattern;
     if (opts.ink !== undefined) liveryInk = opts.ink;
     if (opts.inks) liveryInks = Object.assign({}, opts.inks);
+    if (opts.compound && TYRE_BAND[opts.compound]) tyreCompound = opts.compound;
     if (liveryShaders.length) pushLivery(); else applyLivery();
+    pushTyres();
     rebuildAtlas(opts.profile || this.profile);
   },
   debug: { get veh() { return veh; }, get track() { return track; },
