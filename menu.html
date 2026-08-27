@@ -847,6 +847,22 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
 .gsw button.on{box-shadow:0 0 0 2px #04060a,0 0 0 3px #fff}
 .gsub.tight{margin-bottom:12px}
 .glist{display:flex;flex-direction:column;gap:8px}
+.circuits{margin:22px 0 6px}
+.circ-lbl{font-size:9.5px;font-weight:700;letter-spacing:.28em;text-transform:uppercase;
+  color:var(--red);margin-bottom:10px}
+.circ-row{display:flex;gap:10px;flex-wrap:wrap}
+.circ{flex:1 1 190px;min-width:170px;text-align:left;padding:11px 13px;cursor:pointer;
+  border:1px solid var(--line);background:rgba(255,255,255,.025);
+  transition:border-color .16s ease,background .16s ease}
+.circ:hover{border-color:var(--line-2);background:rgba(255,255,255,.05)}
+.circ.on{border-color:var(--red);background:rgba(225,6,0,.10)}
+.circ b{display:block;font-family:var(--display);font-weight:700;font-size:13.5px;
+  letter-spacing:.04em;text-transform:uppercase;color:var(--text)}
+.circ i{display:block;font-style:normal;font-size:10.5px;color:var(--dim);margin-top:3px;
+  letter-spacing:.1em;text-transform:uppercase}
+.circ em{display:inline-block;font-style:normal;margin-top:7px;font-size:9px;font-weight:700;
+  letter-spacing:.16em;text-transform:uppercase;color:#8fb6ff;
+  border:1px solid rgba(143,182,255,.35);padding:2px 6px}
 .psignout{font-family:var(--ui);font-size:10px;font-weight:700;letter-spacing:.16em;
   text-transform:uppercase;color:var(--dim);padding:6px 10px;border:1px solid var(--line)}
 .psignout:hover{color:var(--text);border-color:var(--line-2)}
@@ -1015,6 +1031,10 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
         <h2 class="feat-title" id="fTitle">Career</h2>
         <p class="feat-desc" id="fDesc"></p>
         <div class="feat-stats" id="fStats"></div>
+        <div class="circuits">
+          <div class="circ-lbl">Circuit</div>
+          <div class="circ-row" id="fCircuits"></div>
+        </div>
         <button class="cta" id="fCta"><span id="fCtaLabel">Enter</span><span class="arw">&rsaquo;</span></button>
       </div>
     </section>
@@ -1641,8 +1661,8 @@ let acc = {
   name: '', tag: '', email: '', dob: '',
   country: 'GB', units: 'metric',
   number: 0, exp: 'new', input: 'keyboard',
-  preset: 'scuderia',
-  primary: '#B3060E', secondary: '#7C0409', accent: '#F5F5F5'
+  preset: 'rossa',
+  primary: '#96070F', secondary: '#6E040A', accent: '#F2F2F0'
 };
 const ACC_STEPS = ['Identity', 'Region', 'Competition', 'Livery', 'Confirm'];
 
@@ -1663,7 +1683,8 @@ function normaliseProfile(p) {
       secondary: c.secondary || '#16181D',
       accent: c.accent || '#F5F5F5'
     },
-    preset: typeof p.preset === 'string' ? p.preset : 'scuderia',
+    preset: typeof p.preset === 'string' ? p.preset : 'rossa',
+    circuit: typeof p.circuit === 'string' ? p.circuit : 'aschbach',
     compound: ['soft', 'medium', 'hard'].indexOf(p.compound) >= 0 ? p.compound : 'soft',
     licence: p.licence || 'Rookie',
     safety: Number.isFinite(p.safety) ? p.safety : 2.5,
@@ -2055,6 +2076,35 @@ MODES.forEach((m, i) => {
 const items = [...nav.querySelectorAll('.nav-item')];
 const feat = $('#feat');
 
+/* The circuit strip. Choosing a different one only records the choice — the
+   scene is rebuilt on the next entry, because the track, sky and build-out all
+   change with it. */
+function buildCircuits() {
+  const D = window.URacingDrive;
+  const host = $('#fCircuits');
+  if (!D || !D.CIRCUITS || !host) return false;
+  host.innerHTML = D.CIRCUITS.map(c => `
+    <button class="circ" data-c="${c.id}">
+      <b>${c.name}</b>
+      <i>${c.country}</i>
+      ${c.night ? '<em>Night race</em>' : ''}
+    </button>`).join('');
+  host.onclick = e => {
+    const b = e.target.closest('.circ'); if (!b) return;
+    if (profile) { profile.circuit = b.dataset.c; saveProfile(profile); }
+    D.setCircuit(b.dataset.c);
+    paintCircuits();
+  };
+  paintCircuits();
+  return true;
+}
+function paintCircuits() {
+  const D = window.URacingDrive;
+  const host = $('#fCircuits');
+  if (!host || !D) return;
+  [...host.children].forEach(c => c.classList.toggle('on', c.dataset.c === D.circuit));
+}
+
 function select(i, instant) {
   if (i === sel && !instant) return;
   sel = i;
@@ -2266,8 +2316,8 @@ function resetWizard() {
   Object.assign(acc, {
     step: 0, name: '', tag: '', email: '', dob: '',
     country: 'GB', units: 'metric', number: 0, exp: 'new', input: 'keyboard',
-    preset: 'scuderia',
-    primary: '#B3060E', secondary: '#7C0409', accent: '#F5F5F5'
+    preset: 'rossa',
+    primary: '#96070F', secondary: '#6E040A', accent: '#F2F2F0'
   });
   ['#i-name', '#i-tag', '#i-email', '#i-dob'].forEach(k => { const el = $(k); if (el) el.value = ''; });
   const c = $('#i-country'); if (c) c.value = 'GB';
@@ -2328,6 +2378,20 @@ if (profile) {
   });
   applyProfile();
 }
+{
+  // the drive module owns the circuit list, so wait for it rather than
+  // duplicating the definitions on this side
+  const armCircuits = () => {
+    const D = window.URacingDrive;
+    if (!D || !D.CIRCUITS) return false;
+    if (profile && profile.circuit) D.setCircuit(profile.circuit);
+    return buildCircuits();
+  };
+  if (!armCircuits()) {
+    let tries = 0;
+    const w = setInterval(() => { if (armCircuits() || ++tries > 200) clearInterval(w); }, 100);
+  }
+}
 function seedWizardFromProfile() {
   if (!profile) return;
   Object.assign(acc, {
@@ -2386,23 +2450,65 @@ setTimeout(() => {
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
-/* ---- the 77 survey points, in the order given ------------- */
-const SURVEY = [
-  [304,399],[262,374],[245,360],[234,334],[231,314],[243,293],[261,280],[282,280],
-  [316,284],[345,299],[394,319],[432,334],[463,339],[500,329],[533,327],[564,336],
-  [593,363],[605,395],[620,428],[643,450],[677,467],[726,470],[749,460],[764,445],
-  [760,425],[747,407],[607,341],[449,263],[433,256],[419,263],[409,277],[390,280],
-  [362,277],[330,261],[307,240],[301,218],[311,193],[344,181],[386,138],[406,112],
-  [444,92],[487,96],[546,102],[590,112],[611,133],[619,156],[615,174],[611,188],
-  [603,202],[632,220],[792,307],[863,344],[887,366],[905,397],[918,431],[920,468],
-  [909,496],[889,523],[868,535],[850,557],[844,584],[844,610],[843,638],[831,664],
-  [819,680],[794,694],[750,693],[714,674],[558,586],[487,542],[467,519],[467,497],
-  [486,476],[462,462],[409,453],[376,439],[344,420]
+/* ============================================================
+   CIRCUITS
+   Each entry owns its own survey points, scale, kerb colours and
+   whether it runs in daylight with the full trackside build-out or
+   at night with floodlights only.
+   ============================================================ */
+const CIRCUITS = [
+  {
+    id: 'aschbach',
+    name: 'Aschbach Ring',
+    country: 'Austria', cc: 'AT',
+    blurb: 'Fast, flowing and hemmed in by forest. Long third-gear sweeps '
+         + 'and a lake behind the back straight.',
+    length: '4.37 km', turns: 19,
+    scale: 1.40, width: 17.0,
+    night: false, environment: true,
+    kerbA: '#C8221C', kerbB: '#E8E8E8',
+    points: [
+      [304,399],[262,374],[245,360],[234,334],[231,314],[243,293],[261,280],[282,280],
+      [316,284],[345,299],[394,319],[432,334],[463,339],[500,329],[533,327],[564,336],
+      [593,363],[605,395],[620,428],[643,450],[677,467],[726,470],[749,460],[764,445],
+      [760,425],[747,407],[607,341],[449,263],[433,256],[419,263],[409,277],[390,280],
+      [362,277],[330,261],[307,240],[301,218],[311,193],[344,181],[386,138],[406,112],
+      [444,92],[487,96],[546,102],[590,112],[611,133],[619,156],[615,174],[611,188],
+      [603,202],[632,220],[792,307],[863,344],[887,366],[905,397],[918,431],[920,468],
+      [909,496],[889,523],[868,535],[850,557],[844,584],[844,610],[843,638],[831,664],
+      [819,680],[794,694],[750,693],[714,674],[558,586],[487,542],[467,519],[467,497],
+      [486,476],[462,462],[409,453],[376,439],[344,420]
+    ]
+  },
+  {
+    id: 'alnahda',
+    name: 'Al Nahda Circuit',
+    country: 'United Arab Emirates', cc: 'AE',
+    blurb: 'Run after dark under the lights. Two long straights either side '
+         + 'of a tight, technical middle sector.',
+    length: '—', turns: 16,
+    scale: 1.45, width: 16.0,
+    night: true, environment: false,
+    kerbA: '#1E3FBF', kerbB: '#F2C21A',
+    points: [
+      [540,680],[239,668],[206,670],[183,671],[158,657],[150,642],[160,615],[183,586],
+      [212,568],[239,564],[294,559],[375,562],[423,563],[453,557],[460,542],[462,525],
+      [442,514],[389,503],[331,489],[308,477],[280,436],[268,393],[262,344],[263,305],
+      [279,244],[298,205],[313,192],[338,222],[355,265],[363,281],[354,319],[349,338],
+      [362,367],[376,387],[393,393],[427,392],[441,380],[476,322],[511,257],[587,204],
+      [703,128],[793,77],[847,54],[861,60],[863,78],[856,127],[876,135],[891,235],
+      [894,332],[895,435],[909,465],[943,495],[982,530],[993,564],[996,605],[994,630],
+      [981,649],[957,673],[908,683],[715,685],[622,684]
+    ]
+  }
 ];
 
+// the circuit the scene is currently built around
+let circuit = CIRCUITS[0];
+
 const PLANE_Y  = -0.30;  // ground, just below the racing surface
-const SCALE    = 1.40;   // metres per survey unit -> ~4.4 km lap
-const ROAD_W   = 17.0;   // metres, edge to edge
+let   SCALE    = circuit.scale;   // metres per survey unit
+let   ROAD_W   = circuit.width;   // metres, edge to edge
 const KERB_W   = 1.55;
 const LINE_W   = 0.16;
 
@@ -2410,6 +2516,9 @@ const LINE_W   = 0.16;
    TRACK
    ============================================================ */
 function buildTrack() {
+  const SURVEY = circuit.points;
+  SCALE = circuit.scale;
+  ROAD_W = circuit.width;
   let cx = 0, cy = 0;
   for (const [x, y] of SURVEY) { cx += x; cy += y; }
   cx /= SURVEY.length; cy /= SURVEY.length;
@@ -2564,7 +2673,7 @@ function kerbTexture() {
   c.width = 8; c.height = 64;
   const ctx = c.getContext('2d');
   for (let i = 0; i < 8; i++) {
-    ctx.fillStyle = i % 2 ? '#d8d8d8' : '#c8221c';
+    ctx.fillStyle = i % 2 ? circuit.kerbB : circuit.kerbA;
     ctx.fillRect(0, i * 8, 8, 8);
   }
   const t = new THREE.CanvasTexture(c);
@@ -3073,22 +3182,61 @@ function cTex(w, h, draw, repX, repY) {
 }
 
 function grassTexture() {
-  return cTex(512, 512, (c, w, h) => {
-    c.fillStyle = '#3f6b33'; c.fillRect(0, 0, w, h);
-    for (let i = 0; i < 26000; i++) {
+  /* Real turf is not coloured static. It has patches metres across, clumps
+     within those, and blades on top — three scales, each darker or lighter
+     than the last, plus dry ground showing through the thin spots. */
+  return cTex(1024, 1024, (c, w, h) => {
+    c.fillStyle = '#4a7038'; c.fillRect(0, 0, w, h);
+
+    // large soft patches: growth, moisture, wear
+    for (let i = 0; i < 90; i++) {
       const x = Math.random() * w, y = Math.random() * h;
+      const r = 40 + Math.random() * 170;
+      const g = c.createRadialGradient(x, y, 0, x, y, r);
+      const dark = Math.random() < 0.55;
+      g.addColorStop(0, dark ? 'rgba(38,70,32,0.34)' : 'rgba(126,158,72,0.30)');
+      g.addColorStop(1, 'rgba(0,0,0,0)');
+      c.fillStyle = g;
+      c.beginPath(); c.arc(x, y, r, 0, Math.PI * 2); c.fill();
+    }
+    // clumps
+    for (let i = 0; i < 2600; i++) {
+      const x = Math.random() * w, y = Math.random() * h;
+      const r = 3 + Math.random() * 11;
+      const g = c.createRadialGradient(x, y, 0, x, y, r);
       const v = Math.random();
-      c.fillStyle = v < 0.34 ? 'rgba(96,142,64,0.55)'
-                  : v < 0.68 ? 'rgba(44,86,38,0.55)'
-                             : 'rgba(126,163,78,0.40)';
-      c.fillRect(x, y, 1 + Math.random() * 2, 1 + Math.random() * 3);
+      g.addColorStop(0, v < 0.30 ? 'rgba(150,178,88,0.42)'
+                     : v < 0.62 ? 'rgba(32,62,28,0.40)'
+                                : 'rgba(96,132,58,0.34)');
+      g.addColorStop(1, 'rgba(0,0,0,0)');
+      c.fillStyle = g;
+      c.beginPath(); c.arc(x, y, r, 0, Math.PI * 2); c.fill();
     }
-    // mown banding, the way a circuit's infield reads from the air
-    for (let b = 0; b < 8; b++) {
-      c.fillStyle = b % 2 ? 'rgba(255,255,255,0.030)' : 'rgba(0,0,0,0.030)';
-      c.fillRect(0, b * h / 8, w, h / 8);
+    // blades, leaning with a little drift so it does not look combed
+    for (let i = 0; i < 54000; i++) {
+      const x = Math.random() * w, y = Math.random() * h;
+      const len = 2 + Math.random() * 6;
+      const lean = (Math.random() - 0.5) * 2.6;
+      const v = Math.random();
+      c.strokeStyle = v < 0.30 ? 'rgba(150,182,92,0.50)'
+                    : v < 0.66 ? 'rgba(34,66,30,0.50)'
+                               : 'rgba(88,126,54,0.44)';
+      c.lineWidth = Math.random() < 0.8 ? 1 : 1.6;
+      c.beginPath(); c.moveTo(x, y); c.lineTo(x + lean, y - len); c.stroke();
     }
-  }, 60, 60);
+    // dry earth through the thin patches
+    for (let i = 0; i < 260; i++) {
+      const x = Math.random() * w, y = Math.random() * h;
+      const r = 2 + Math.random() * 7;
+      c.fillStyle = 'rgba(120,104,72,0.16)';
+      c.beginPath(); c.arc(x, y, r, 0, Math.PI * 2); c.fill();
+    }
+    // the mower's stripes, wide and soft
+    for (let b = 0; b < 6; b++) {
+      c.fillStyle = b % 2 ? 'rgba(255,255,255,0.026)' : 'rgba(0,0,0,0.026)';
+      c.fillRect(0, b * h / 6, w, h / 6);
+    }
+  }, 34, 34);
 }
 
 function crowdTexture() {
@@ -3200,7 +3348,7 @@ function buildEnvironment(scene, track) {
   const baseMat = new THREE.MeshStandardMaterial({
     color: 0x8d9298, roughness: 0.9, metalness: 0
   });
-  const WALL_H = 1.20;
+  const WALL_H = 1.42;
   for (const side of [-1, 1]) {
     const pos = [], nrm = [], idx = [];
     let v = 0;
@@ -3350,35 +3498,38 @@ function buildEnvironment(scene, track) {
     const RISE = 0.58, TREAD = 0.90;
     const deckH = ROWS * RISE, deckD = ROWS * TREAD;
 
-    // the rake, as one stepped solid rather than a stack of loose boxes
-    const shape = new THREE.Shape();
-    shape.moveTo(0, 0);
+    /* One box per row. The stepped outline fed to ExtrudeGeometry triangulated
+       into a slab that jutted out across the front of the stand — the triangle
+       that was blocking it. Explicit steps cannot do that. */
     for (let r = 0; r < ROWS; r++) {
-      shape.lineTo(-r * TREAD, r * RISE);
-      shape.lineTo(-r * TREAD - TREAD, r * RISE);
+      const stepH = RISE * (r + 1) + 1.0;
+      const st = new THREE.Mesh(new THREE.BoxGeometry(W, stepH, TREAD), concrete);
+      st.position.set(0, stepH / 2 - 1.0, -r * TREAD - TREAD / 2);
+      st.castShadow = true; st.receiveShadow = true;
+      g.add(st);
     }
-    shape.lineTo(-deckD, deckH);
-    shape.lineTo(-deckD, -1.2);
-    shape.lineTo(0, -1.2);
-    const rake = new THREE.Mesh(
-      new THREE.ExtrudeGeometry(shape, { depth: W, bevelEnabled: false }), concrete);
-    rake.rotation.y = Math.PI / 2;
-    rake.position.set(-W / 2, 0, 0);
-    rake.castShadow = true; rake.receiveShadow = true;
-    g.add(rake);
+    // the vomitory: a stair down the middle so it is not one unbroken block
+    for (const ax of [-W / 4, W / 4]) {
+      const aisle = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.12, deckD), steel);
+      aisle.position.set(ax, deckH / 2 + 0.1, -deckD / 2);
+      aisle.rotation.x = -Math.atan2(deckH, deckD);
+      g.add(aisle);
+    }
 
     // spectators, sitting on the rake at its own angle
     /* The spectators sit on the slope of the rake. The plane is laid along
        that slope and lifted clear of the steps, or it ends up buried inside
        the concrete and the stand reads as empty. */
     const slope = Math.atan2(deckH, deckD);
-    const crowd = new THREE.Mesh(
-      new THREE.PlaneGeometry(W - 2.4, Math.hypot(deckD, deckH) * 0.98), crowdMat);
-    crowd.rotation.x = -(Math.PI / 2) + slope;
-    crowd.position.set(0,
-      deckH / 2 + 0.62 * Math.cos(slope),
-      -deckD / 2 + 0.62 * Math.sin(slope));
-    g.add(crowd);
+    const seatL = Math.hypot(deckD, deckH);
+    for (const [cx, cw] of [[-W * 0.30, W * 0.40], [W * 0.30, W * 0.40], [0, W * 0.34]]) {
+      const crowd = new THREE.Mesh(new THREE.PlaneGeometry(cw, seatL * 0.96), crowdMat);
+      crowd.rotation.x = -(Math.PI / 2) + slope;
+      crowd.position.set(cx,
+        deckH / 2 + 0.70 * Math.cos(slope),
+        -deckD / 2 + 0.70 * Math.sin(slope));
+      g.add(crowd);
+    }
 
     // front safety rail
     for (const y of [0.55, 1.05]) {
@@ -3444,6 +3595,111 @@ function buildEnvironment(scene, track) {
     g.rotation.y = Math.atan2(c.x - p.x, c.z - p.z);
     scene.add(g);
   });
+
+  /* ---- the permanent buildings ----
+     A pit complex on the main straight with a garage row, race control over
+     the start line, and hospitality units behind. All boxes and slabs, which
+     is what these buildings actually are. */
+  const glass = new THREE.MeshPhysicalMaterial({
+    color: 0x2c4356, roughness: 0.10, metalness: 0.0,
+    clearcoat: 1.0, clearcoatRoughness: 0.06, envMapIntensity: 1.5
+  });
+  const panel = new THREE.MeshStandardMaterial({ color: 0xe9ecef, roughness: 0.66 });
+  const trim = new THREE.MeshStandardMaterial({ color: 0x2b313a, roughness: 0.5, metalness: 0.4 });
+  const deckSlab = new THREE.MeshStandardMaterial({ color: 0xcfd4d9, roughness: 0.8 });
+
+  const pitJ = 0;                                    // the main straight
+  const pitT = track.T[pitJ];
+  const pitYaw = Math.atan2(pitT.x, pitT.z);
+  const pitP = ptAt(pitJ, -(OFF + 4));
+  const pit = new THREE.Group();
+  pit.position.set(pitP.x, yAt(pitJ), pitP.z);
+  /* Local X is the garage row, so it has to lie along the track. Aligning the
+     group with the tangent put its 80 m frontage across the road instead. */
+  pit.rotation.y = pitYaw + Math.PI / 2;
+
+  const BAYS = 11, BAY_W = 7.4, PIT_D = 15, PIT_H = 6.4;
+  const PIT_W = BAYS * BAY_W;
+  // ground floor: the garage row, with a dark opening per bay
+  const base = new THREE.Mesh(new THREE.BoxGeometry(PIT_W, PIT_H, PIT_D), panel);
+  base.position.set(0, PIT_H / 2, -PIT_D / 2);
+  base.castShadow = true; base.receiveShadow = true;
+  pit.add(base);
+  for (let i = 0; i < BAYS; i++) {
+    const x = -PIT_W / 2 + BAY_W * (i + 0.5);
+    const door = new THREE.Mesh(new THREE.BoxGeometry(BAY_W - 1.5, 4.3, 0.3), trim);
+    door.position.set(x, 2.25, 0.06);
+    pit.add(door);
+  }
+  // first floor: glazed, set back, with a walkway slab in front
+  const slab = new THREE.Mesh(new THREE.BoxGeometry(PIT_W + 3.5, 0.5, PIT_D + 3.5), deckSlab);
+  slab.position.set(0, PIT_H + 0.25, -PIT_D / 2 + 1.2);
+  slab.castShadow = true;
+  pit.add(slab);
+  const upper = new THREE.Mesh(new THREE.BoxGeometry(PIT_W - 2, 4.6, PIT_D - 2), glass);
+  upper.position.set(0, PIT_H + 2.85, -PIT_D / 2);
+  upper.castShadow = true;
+  pit.add(upper);
+  const roof = new THREE.Mesh(new THREE.BoxGeometry(PIT_W + 4.5, 0.45, PIT_D + 5), deckSlab);
+  roof.position.set(0, PIT_H + 5.3, -PIT_D / 2 + 1.6);
+  roof.castShadow = true;
+  pit.add(roof);
+  // race control, a taller block over the start line end
+  const tower = new THREE.Mesh(new THREE.BoxGeometry(11, 7.5, PIT_D - 1), panel);
+  tower.position.set(PIT_W / 2 - 6, PIT_H + 5.5 + 3.75, -PIT_D / 2);
+  tower.castShadow = true;
+  pit.add(tower);
+  const towerGlass = new THREE.Mesh(new THREE.BoxGeometry(11.3, 3.2, PIT_D - 0.6), glass);
+  towerGlass.position.set(PIT_W / 2 - 6, PIT_H + 5.5 + 5.0, -PIT_D / 2);
+  pit.add(towerGlass);
+  const mastPole = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 9, 6), trim);
+  mastPole.position.set(PIT_W / 2 - 1.5, PIT_H + 9.5, -PIT_D / 2);
+  pit.add(mastPole);
+  scene.add(pit);
+
+  // the gantry over the start line
+  const gantry = new THREE.Group();
+  const gp = ptAt(pitJ, 0);
+  gantry.position.set(gp.x, yAt(pitJ), gp.z);
+  gantry.rotation.y = pitYaw;
+  const span = ROAD_W + 6;
+  const beam = new THREE.Mesh(new THREE.BoxGeometry(span, 0.85, 1.0), trim);
+  beam.position.set(0, 7.4, 0);
+  gantry.add(beam);
+  for (const sx of [-1, 1]) {
+    const leg = new THREE.Mesh(new THREE.BoxGeometry(0.7, 7.4, 0.7), trim);
+    leg.position.set(sx * (span / 2 - 0.4), 3.7, 0);
+    leg.castShadow = true;
+    gantry.add(leg);
+  }
+  for (let i = 0; i < 5; i++) {                      // the light panels
+    const box = new THREE.Mesh(new THREE.BoxGeometry(1.5, 1.5, 0.5), trim);
+    box.position.set(-4.6 + i * 2.3, 6.3, 0.1);
+    gantry.add(box);
+  }
+  scene.add(gantry);
+
+  // hospitality units in a row behind the pits
+  for (let i = 0; i < 5; i++) {
+    const j = (pitJ + Math.round(track.count * (0.02 + i * 0.016))) % track.count;
+    const t2 = track.T[j];
+    const p2 = ptAt(j, -(OFF + 40));
+    const unit = new THREE.Group();
+    unit.position.set(p2.x, yAt(j), p2.z);
+    unit.rotation.y = Math.atan2(t2.x, t2.z) + Math.PI / 2;
+    const bw = 14 + (i % 3) * 5, bh = 5 + (i % 2) * 3.4;
+    const b = new THREE.Mesh(new THREE.BoxGeometry(bw, bh, 11), panel);
+    b.position.set(0, bh / 2, 0);
+    b.castShadow = true;
+    unit.add(b);
+    const gl = new THREE.Mesh(new THREE.BoxGeometry(bw - 1.5, bh * 0.42, 11.3), glass);
+    gl.position.set(0, bh * 0.62, 0);
+    unit.add(gl);
+    const rf = new THREE.Mesh(new THREE.BoxGeometry(bw + 1.6, 0.4, 12.6), deckSlab);
+    rf.position.set(0, bh + 0.2, 0);
+    unit.add(rf);
+    scene.add(unit);
+  }
 
   /* ---- trackside boards, on the fictional brands the cars carry ---- */
   const BOARDS = [
@@ -3678,6 +3934,156 @@ function placeProps(scene, track, treeGltf, standGltf) {
   }
 }
 
+/* ============================================================
+   NIGHT
+   A floodlit circuit: a dark dome with stars and a moon for the
+   reflections, lighting pylons down both sides, and a pool of light
+   under each one laid onto the road. The pools are additive planes
+   rather than real lights — sixty point lights would be correct and
+   unusably slow, and at track level the read is the same.
+   ============================================================ */
+function nightEnv(renderer) {
+  const sky = new THREE.Mesh(
+    new THREE.SphereGeometry(4000, 40, 28),
+    new THREE.ShaderMaterial({
+      side: THREE.BackSide, depthWrite: false,
+      uniforms: {
+        zen: { value: new THREE.Color(0x040711) },
+        hor: { value: new THREE.Color(0x14243f) },
+        glow: { value: new THREE.Color(0x2d3f5e) },
+        gnd: { value: new THREE.Color(0x05070c) }
+      },
+      vertexShader: `varying vec3 vW; void main(){ vW = normalize(position);
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0);} `,
+      fragmentShader: `
+        varying vec3 vW; uniform vec3 zen, hor, glow, gnd;
+        float h21(vec2 p){ return fract(sin(dot(p, vec2(127.1,311.7))) * 43758.5453); }
+        void main(){
+          float h = vW.y;
+          vec3 c = mix(hor, zen, smoothstep(0.0, 0.55, h));
+          // the circuit's own light bouncing off the haze near the horizon
+          c += glow * pow(max(0.0, 1.0 - abs(h) * 3.2), 3.0) * 0.55;
+          // stars, thinning out toward the lit horizon
+          vec2 g = floor(vW.xz * 190.0 / max(0.35, abs(h) + 0.35));
+          float r = h21(g);
+          if (r > 0.9975) {
+            float b = (r - 0.9975) / 0.0025;
+            c += vec3(0.85, 0.90, 1.0) * b * smoothstep(0.05, 0.45, h);
+          }
+          float md = distance(vW, normalize(vec3(-0.45, 0.55, 0.70)));
+          c += vec3(0.95, 0.95, 0.88) * smoothstep(0.045, 0.030, md) * 1.2;
+          c += vec3(0.35, 0.40, 0.55) * pow(max(0.0, 1.0 - md * 2.2), 4.0) * 0.35;
+          c = mix(gnd, c, smoothstep(-0.04, 0.010, h));
+          gl_FragColor = vec4(c, 1.0); }`
+    }));
+  const pmrem = new THREE.PMREMGenerator(renderer);
+  pmrem.compileEquirectangularShader();
+  const sc = new THREE.Scene(); sc.add(sky.clone());
+  const env = pmrem.fromScene(sc, 0.04, 1, 6000).texture;
+  pmrem.dispose();
+  return { sky, env };
+}
+
+function lightPoolTexture() {
+  return cTex(256, 256, (c, w, h) => {
+    const g = c.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, w / 2);
+    g.addColorStop(0.00, 'rgba(255,246,220,0.85)');
+    g.addColorStop(0.35, 'rgba(255,244,214,0.42)');
+    g.addColorStop(0.70, 'rgba(210,225,255,0.12)');
+    g.addColorStop(1.00, 'rgba(160,190,255,0.0)');
+    c.fillStyle = g; c.fillRect(0, 0, w, h);
+  }, 1, 1);
+}
+
+/* The night build-out: barriers, kerb lighting and the pylons. No trees,
+   stands or scenery — this circuit is deliberately bare for now. */
+function buildMinimal(scene, track) {
+  const OFF = ROAD_W / 2 + 9.0;
+  const step = Math.max(1, Math.round(track.count / 900));
+  const yAt = j => track.P[j].y;
+  const ptAt = (j, off) => new THREE.Vector3(
+    track.P[j].x + track.R[j].x * off, track.P[j].y, track.P[j].z + track.R[j].z * off);
+
+  /* ---- concrete barrier both sides ---- */
+  const wallMat = new THREE.MeshStandardMaterial({
+    color: 0xd8dade, roughness: 0.78, metalness: 0, side: THREE.DoubleSide
+  });
+  const WALL_H = 1.35;
+  for (const side of [-1, 1]) {
+    const pos = [], idx = [];
+    let v = 0;
+    for (let t = 0; t <= track.count; t += step) {
+      const j = t % track.count;
+      const p = ptAt(j, side * OFF);
+      pos.push(p.x, yAt(j), p.z, p.x, yAt(j) + WALL_H, p.z);
+      if (t > 0) idx.push(v - 2, v - 1, v + 1, v - 2, v + 1, v);
+      v += 2;
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    g.setIndex(idx);
+    g.computeVertexNormals();
+    const m = new THREE.Mesh(g, wallMat);
+    m.castShadow = true; m.receiveShadow = true;
+    scene.add(m);
+  }
+
+  /* ---- lighting pylons, staggered down both sides ---- */
+  const mastMat = new THREE.MeshStandardMaterial({ color: 0x2a2f36, roughness: 0.6, metalness: 0.5 });
+  const lampMat = new THREE.MeshBasicMaterial({ color: 0xfff3d0 });
+  const MAST_H = 12.5;
+  const spacing = 30;
+  const nMast = Math.max(8, Math.floor(track.length / spacing));
+  const mastG = new THREE.CylinderGeometry(0.14, 0.26, MAST_H, 7);
+  const headG = new THREE.BoxGeometry(2.9, 0.34, 0.85);
+  const lampG = new THREE.BoxGeometry(2.7, 0.12, 0.7);
+  const masts = new THREE.InstancedMesh(mastG, mastMat, nMast);
+  const heads = new THREE.InstancedMesh(headG, mastMat, nMast);
+  const lamps = new THREE.InstancedMesh(lampG, lampMat, nMast);
+  const mtx = new THREE.Matrix4(), q = new THREE.Quaternion(), one = new THREE.Vector3(1, 1, 1);
+  const up = new THREE.Vector3(0, 1, 0);
+
+  const poolMat = new THREE.MeshBasicMaterial({
+    map: lightPoolTexture(), transparent: true, blending: THREE.AdditiveBlending,
+    depthWrite: false, opacity: 0.55
+  });
+  const poolG = new THREE.PlaneGeometry(ROAD_W * 1.7, ROAD_W * 1.7);
+  const pools = new THREE.InstancedMesh(poolG, poolMat, nMast);
+
+  for (let i = 0; i < nMast; i++) {
+    const j = Math.round(i / nMast * track.count) % track.count;
+    const side = i % 2 ? 1 : -1;
+    const t = track.T[j];
+    const yaw = Math.atan2(t.x, t.z);
+    q.setFromAxisAngle(up, yaw);
+    const p = ptAt(j, side * (OFF + 1.6));
+    mtx.compose(new THREE.Vector3(p.x, yAt(j) + MAST_H / 2, p.z), q, one);
+    masts.setMatrixAt(i, mtx);
+    // the head leans in over the circuit
+    const hp = ptAt(j, side * (OFF - 0.6));
+    mtx.compose(new THREE.Vector3(hp.x, yAt(j) + MAST_H, hp.z), q, one);
+    heads.setMatrixAt(i, mtx);
+    mtx.compose(new THREE.Vector3(hp.x, yAt(j) + MAST_H - 0.24, hp.z), q, one);
+    lamps.setMatrixAt(i, mtx);
+    // the pool it throws, laid flat on the road just inboard of the mast
+    const cp = ptAt(j, side * 2.0);
+    q.setFromAxisAngle(new THREE.Vector3(1, 0, 0), -Math.PI / 2);
+    mtx.compose(new THREE.Vector3(cp.x, yAt(j) + 0.02, cp.z), q, one);
+    pools.setMatrixAt(i, mtx);
+  }
+  for (const im of [masts, heads, lamps, pools]) {
+    im.instanceMatrix.needsUpdate = true;
+    im.computeBoundingSphere();
+    scene.add(im);
+  }
+  masts.castShadow = heads.castShadow = true;
+  pools.renderOrder = 2;
+
+  /* ---- a soft wash so the bodywork is not lit by the pools alone ---- */
+  const wash = new THREE.HemisphereLight(0x8ea4c8, 0x1b2230, 1.55);
+  scene.add(wash);
+}
+
 function buildScene(canvas) {
   track = buildTrack();
 
@@ -3690,10 +4096,11 @@ function buildScene(canvas) {
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
   scene = new THREE.Scene();
-  const { sky, env } = skyEnv(renderer);
+  const { sky, env } = circuit.night ? nightEnv(renderer) : skyEnv(renderer);
   scene.add(sky);
   scene.environment = env;
-  scene.fog = new THREE.FogExp2(0xc3daea, 0.00052);
+  scene.fog = circuit.night ? new THREE.FogExp2(0x0a1020, 0.00085)
+                            : new THREE.FogExp2(0xc3daea, 0.00052);
   const studio = studioEnv(renderer);
   scene.add(studio.dome);
   scene.userData.track = { sky, env, fog: scene.fog };
@@ -3701,22 +4108,28 @@ function buildScene(canvas) {
 
   camera = new THREE.PerspectiveCamera(62, 1, 0.35, 6000);
 
-  const sun = new THREE.DirectionalLight(0xfff4e2, 3.5);
-  sun.position.set(340, 230, -360);
+  // at night the key becomes moonlight: cold, dim, and from high up
+  const sun = new THREE.DirectionalLight(
+    circuit.night ? 0xaebfe0 : 0xfff4e2, circuit.night ? 0.55 : 3.5);
+  sun.position.set(circuit.night ? -320 : 340, 300, circuit.night ? 420 : -360);
   sun.castShadow = true;
   sun.shadow.mapSize.set(2048, 2048);
   const sc = sun.shadow.camera;
-  sc.near = 1; sc.far = 260; sc.left = sc.bottom = -60; sc.right = sc.top = 60;
+  sc.near = 180; sc.far = 900; sc.left = sc.bottom = -78; sc.right = sc.top = 78;
   sun.shadow.bias = -0.0007;
   sun.shadow.normalBias = 0.05;
   scene.add(sun, sun.target);
   scene.userData.sun = sun;
-  scene.add(new THREE.HemisphereLight(0x9fc6ee, 0x3d4a32, 1.05));
+  scene.add(circuit.night
+    ? new THREE.HemisphereLight(0x24304a, 0x05070c, 0.35)
+    : new THREE.HemisphereLight(0x9fc6ee, 0x3d4a32, 1.05));
 
   /* ---- ground ---- */
   const gm = new THREE.Mesh(
     new THREE.PlaneGeometry(9000, 9000),
-    new THREE.MeshStandardMaterial({ map: grassTexture(), roughness: 0.97, metalness: 0 }));
+    circuit.night
+      ? new THREE.MeshStandardMaterial({ color: 0x14161b, roughness: 0.95, metalness: 0 })
+      : new THREE.MeshStandardMaterial({ map: grassTexture(), roughness: 0.97, metalness: 0 }));
   gm.rotation.x = -Math.PI / 2; gm.position.y = PLANE_Y; gm.receiveShadow = true;
   scene.add(gm);
 
@@ -3773,14 +4186,24 @@ function buildScene(canvas) {
       if (k < thr) return 0;
       return Math.min(1, (k - thr) / thr);
     };
+    // the top surface, raised enough that you feel it and see it from the car
     const g = ribbon(track,
       j => side * (ROAD_W / 2), (j, w) => side * (ROAD_W / 2 + KERB_W * w),
-      (j, k, w) => 0.008 + (k ? 0.055 * w : 0), 6.4, mask);
+      (j, k, w) => 0.010 + (k ? 0.125 * w : 0), 6.4, mask);
     const uvA = g.getAttribute('uv');
     for (let i = 0; i < uvA.count; i++) uvA.setX(i, uvA.getX(i) * 0.5);
     const m = new THREE.Mesh(g, kerbMat);
     m.receiveShadow = true;
     scene.add(m);
+    // the outer face, so a raised kerb reads as a step rather than a decal
+    const face = ribbon(track,
+      j => side * (ROAD_W / 2 + KERB_W), (j, w) => side * (ROAD_W / 2 + KERB_W),
+      (j, k) => k ? 0.135 : 0.0, 6.4, mask);
+    const fuv = face.getAttribute('uv');
+    for (let i = 0; i < fuv.count; i++) fuv.setX(i, fuv.getX(i) * 0.5);
+    const fm = new THREE.Mesh(face, kerbMat);
+    fm.receiveShadow = true;
+    scene.add(fm);
   }
 
   /* ---- start / finish ---- */
@@ -3803,7 +4226,8 @@ function buildScene(canvas) {
     crossBand(track, track.count - 1, 1, -ROAD_W / 2, ROAD_W / 2, 0.018, 1, 1),
     new THREE.MeshStandardMaterial({ color: 0xf0f0ec, roughness: 0.6, metalness: 0, ...offMat })));
 
-  buildEnvironment(scene, track);
+  if (circuit.environment) buildEnvironment(scene, track);
+  else buildMinimal(scene, track);
 
   veh = new Vehicle(track);
   return { sun };
@@ -3982,7 +4406,7 @@ function updateHUD(sample, frameDt) {
   const pNow = hud.mapPath.getPointAtLength(uNow * hud.mapLen);
   hud.mapDot.setAttribute('cx', pNow.x); hud.mapDot.setAttribute('cy', pNow.y);
   hud.mapRing.setAttribute('cx', pNow.x); hud.mapRing.setAttribute('cy', pNow.y);
-  hud.mapName.textContent = TRACK_NAME;
+  hud.mapName.textContent = trackName();
   let d = '';
   for (let k = 0; k <= 14; k++) {
     const uu = uNow - (14 - k) * 0.006;
@@ -4128,7 +4552,9 @@ function frame(now) {
   }
 
   const sun = scene.userData.sun;
-  sun.position.set(veh.x + 300, 105, veh.z - 60);
+  // keep the light on the same bearing the sky paints its sun on
+  if (circuit.night) sun.position.set(veh.x - 320, 300, veh.z + 420);
+  else sun.position.set(veh.x + 340, 300, veh.z - 360);
   sun.target.position.set(veh.x, 0, veh.z);
   sun.target.updateMatrixWorld();
 
@@ -4150,7 +4576,7 @@ function resize() {
 /* ============================================================
    ENTRY POINTS
    ============================================================ */
-const TRACK_NAME = 'Meridian';
+const trackName = () => circuit.name;
 let cine = { on: false, t: 0, phase: 0, lit: 0, hold: 0, ang: 0 };
 let cineTimers = [];
 function clearCineTimers() { cineTimers.forEach(clearTimeout); cineTimers = []; }
@@ -4201,7 +4627,7 @@ let sectors = { cur: [null, null, null], best: [null, null, null],
 function startCinematic() {
   const el = document.getElementById('cine');
   const prof = window.URacingDrive.profile;
-  document.getElementById('cineTrack').textContent = TRACK_NAME;
+  document.getElementById('cineTrack').textContent = trackName();
   document.getElementById('cineSess').textContent = 'Practice Session';
   document.getElementById('cineDriver').textContent = prof ? prof.name : 'Privateer';
   document.getElementById('cineNum').textContent = prof ? '#' + prof.number : '—';
@@ -4288,7 +4714,7 @@ function collectHUD() {
     revCells: [...$('#hRev').children]
   };
   hud.mapLen = hud.mapPath.getTotalLength();
-  hud.mapName.textContent = TRACK_NAME;
+  hud.mapName.textContent = trackName();
   // start/finish tick, drawn across the map at the line
   const a = hud.mapPath.getPointAtLength(0);
   const b2 = hud.mapPath.getPointAtLength(Math.min(6, hud.mapLen));
@@ -4300,6 +4726,7 @@ function collectHUD() {
 }
 
 function buildMinimap() {
+  const SURVEY = circuit.points;          // the outline follows the live circuit
   let cx = 0, cy = 0;
   for (const [x, y] of SURVEY) { cx += x; cy += y; }
   cx /= SURVEY.length; cy /= SURVEY.length;
@@ -4312,8 +4739,45 @@ function buildMinimap() {
 }
 
 let initPromise = null;
+let cachedCar = null;
+let builtCircuit = null;          // which circuit the live scene was built for
+let cachedTree = null;            // the tree gltf, kept across circuit switches
+
+/* Switching circuit means a new track, a new sky and a new build-out, so the
+   scene is torn down and rebuilt. The car and tree models are the expensive
+   part of a cold start and neither depends on the circuit, so both are kept. */
+function disposeScene() {
+  if (!scene) return;
+  const keep = new Set();
+  scene.traverse(o => {
+    if (o === carRoot) keep.add(o);
+    for (let n = o; n; n = n.parent) if (n === carRoot) keep.add(o);
+  });
+  if (carRoot && carRoot.parent) carRoot.parent.remove(carRoot);
+  scene.traverse(o => {
+    if (keep.has(o)) return;
+    if (o.geometry) o.geometry.dispose();
+    const mats = Array.isArray(o.material) ? o.material : (o.material ? [o.material] : []);
+    for (const m of mats) {
+      for (const k of ['map', 'normalMap', 'roughnessMap', 'alphaMap', 'emissiveMap']) {
+        if (m[k] && m[k].dispose) m[k].dispose();
+      }
+      m.dispose();
+    }
+  });
+  while (scene.children.length) scene.remove(scene.children[0]);
+  liveryShaders = [];
+  tyreShaders = [];
+  garageRim = null;
+  ready = false;
+}
+
 function ensureInit(onProgress) {
-  if (ready) return Promise.resolve();
+  if (ready && builtCircuit === circuit.id) return Promise.resolve();
+  if (ready && builtCircuit !== circuit.id) {
+    initPromise = null;
+    disposeScene();
+  }
   if (!initPromise) {
     initPromise = init(onProgress).catch(err => { initPromise = null; throw err; });
   }
@@ -4329,8 +4793,8 @@ async function init(onProgress) {
 
   let car;
   try {
-    const gltf = await loadGLTF(CAR_URL, f => onProgress(0.35 + 0.45 * f, 2));
-    car = adoptCar(gltf.scene);
+    if (!cachedCar) cachedCar = await loadGLTF(CAR_URL, f => onProgress(0.35 + 0.45 * f, 2));
+    car = adoptCar(cachedCar.scene);
     if (car.wheels.length !== 4) throw new Error('wheel nodes missing');
   } catch (err) {
     console.error('[URacing] car model failed to load:', err);
@@ -4340,9 +4804,13 @@ async function init(onProgress) {
   }
   // trackside props: nice to have, never fatal
   try {
-    const treeG = await loadGLTF(TREE_URL)
-      .catch(e => { console.warn('[URacing] tree model:', e); return null; });
-    placeProps(scene, track, treeG, null);
+    if (circuit.environment) {
+      if (!cachedTree) {
+        cachedTree = await loadGLTF(TREE_URL)
+          .catch(e => { console.warn('[URacing] tree model:', e); return null; });
+      }
+      placeProps(scene, track, cachedTree, null);
+    }
   } catch (err) { console.warn('[URacing] trackside props skipped:', err); }
   onProgress(0.9, 4);
 
@@ -4407,6 +4875,7 @@ async function init(onProgress) {
 
   resize();
   renderer.compile(scene, camera);
+  builtCircuit = circuit.id;
   ready = true;
   onProgress(1, 5);
 }
@@ -5198,114 +5667,125 @@ for (const k of SLOT_KEYS) {
    ============================================================ */
 const PRESETS = [
   {
-    id: 'scuderia', name: 'Scuderia', sub: 'Maranello red, near solid',
-    colors: { primary: '#B3060E', secondary: '#7C0409', accent: '#F5F5F5' },
-    pattern: 0, ink: '#F5F5F5', compound: 'soft',
-    slots: { sidepod: 'apex', deck: 'vantage', airbox: 'nova', wingTop: 'orbita',
-             wingEnd: 'kerbline', wingEndLow: 'halden', fwMain: 'strato',
-             frontWing: 'ferrox', floor: 'tessera', noseTop: 'vertex',
-             podFront: 'lumen', halo: 'zenith', wingBack: 'gridwave',
-             noseSide: 'redline', chassis: 'cobalt' },
-    inks: { floor: '#F5F5F5', fwMain: '#F5F5F5' }
+    id: 'rossa', name: 'Rossa', sub: 'Maranello red, white shoulder flash',
+    colors: { primary: '#96070F', secondary: '#6E040A', accent: '#F2F2F0' },
+    pattern: 0, ink: '#F2F2F0', compound: 'soft',
+    slots: { sidepod: 'apex', podFront: 'lumen', deck: 'vantage', airbox: 'nova',
+             wingTop: 'orbita', wingBack: 'gridwave', wingEnd: 'kerbline',
+             wingEndLow: 'halden', fwMain: 'strato', frontWing: 'ferrox',
+             fwUpper: 'quartz', floor: 'tessera', noseTop: 'vertex',
+             noseSide: 'redline', halo: 'zenith', chassis: 'cobalt',
+             sidepodLow: 'castor', barge: 'sable', engFlank: 'none', rearDeck: 'none' },
+    inks: { floor: '#F2F2F0', fwMain: '#F2F2F0', noseTop: '#F2F2F0' }
   },
   {
-    id: 'silver', name: 'Silver Arrow', sub: 'Anthracite with a teal line',
-    colors: { primary: '#181B20', secondary: '#0C0E12', accent: '#00C9B7' },
-    pattern: 6, ink: '#F0F3F5', compound: 'medium',
-    slots: { sidepod: 'nova', deck: 'cobalt', airbox: 'vertex', wingTop: 'orbita',
-             wingEnd: 'kerbline', wingEndLow: 'halden', fwMain: 'plexus',
-             frontWing: 'ferrox', floor: 'tessera', noseTop: 'apex',
-             podFront: 'lumen', halo: 'zenith', wingBack: 'gridwave',
-             noseSide: 'redline', chassis: 'none' },
-    inks: { sidepod: '#00C9B7', deck: '#00C9B7' }
+    id: 'silver', name: 'Silver Star', sub: 'Anthracite with a teal underline',
+    colors: { primary: '#16191E', secondary: '#0A0C10', accent: '#00C4B4' },
+    pattern: 6, ink: '#EDF1F4', compound: 'medium',
+    slots: { sidepod: 'nova', podFront: 'lumen', deck: 'cobalt', airbox: 'vertex',
+             wingTop: 'orbita', wingBack: 'gridwave', wingEnd: 'kerbline',
+             wingEndLow: 'halden', fwMain: 'plexus', frontWing: 'ferrox',
+             fwUpper: 'quartz', floor: 'tessera', noseTop: 'apex',
+             noseSide: 'redline', halo: 'zenith', chassis: 'none',
+             sidepodLow: 'ninefold', barge: 'none', engFlank: 'none', rearDeck: 'none' },
+    inks: { sidepod: '#00C4B4', deck: '#00C4B4', airbox: '#00C4B4' }
   },
   {
-    id: 'papaya', name: 'Papaya', sub: 'Orange over anthracite, split',
-    colors: { primary: '#E5620B', secondary: '#191C21', accent: '#F2F4F6' },
-    pattern: 5, ink: '#F2F4F6', compound: 'soft',
-    slots: { sidepod: 'apex', deck: 'vantage', airbox: 'nova', wingTop: 'orbita',
-             wingEnd: 'kerbline', wingEndLow: 'halden', fwMain: 'strato',
-             frontWing: 'ferrox', floor: 'tessera', noseTop: 'vertex',
-             podFront: 'lumen', halo: 'hexon', wingBack: 'gridwave',
-             noseSide: 'sable', chassis: 'none' },
-    inks: { noseTop: '#191C21' }
+    id: 'papaya', name: 'Papaya', sub: 'Orange and anthracite, long diagonal',
+    colors: { primary: '#E4650A', secondary: '#15181D', accent: '#EFF2F5' },
+    pattern: 5, ink: '#EFF2F5', compound: 'soft',
+    slots: { sidepod: 'apex', podFront: 'lumen', deck: 'vantage', airbox: 'nova',
+             wingTop: 'orbita', wingBack: 'gridwave', wingEnd: 'kerbline',
+             wingEndLow: 'halden', fwMain: 'strato', frontWing: 'ferrox',
+             fwUpper: 'quartz', floor: 'tessera', noseTop: 'vertex',
+             noseSide: 'sable', halo: 'hexon', chassis: 'none',
+             sidepodLow: 'castor', barge: 'none', engFlank: 'none', rearDeck: 'none' },
+    inks: { noseTop: '#15181D', fwMain: '#15181D' }
   },
   {
-    id: 'brg', name: 'British Racing', sub: 'Deep green, lime edge',
-    colors: { primary: '#0B4A3A', secondary: '#062E24', accent: '#B9F03C' },
-    pattern: 1, ink: '#F0F4F0', compound: 'medium',
-    slots: { sidepod: 'meridian', deck: 'vantage', airbox: 'nova', wingTop: 'orbita',
-             wingEnd: 'kerbline', wingEndLow: 'halden', fwMain: 'basalt',
-             frontWing: 'ferrox', floor: 'tessera', noseTop: 'vertex',
-             podFront: 'lumen', halo: 'zenith', wingBack: 'gridwave',
-             noseSide: 'castor', chassis: 'none' },
-    inks: { sidepod: '#B9F03C' }
+    id: 'brg', name: 'Racing Green', sub: 'Deep green with a lime edge',
+    colors: { primary: '#0A4437', secondary: '#052A21', accent: '#BCEE3C' },
+    pattern: 1, ink: '#EEF3EE', compound: 'medium',
+    slots: { sidepod: 'meridian', podFront: 'lumen', deck: 'vantage', airbox: 'nova',
+             wingTop: 'orbita', wingBack: 'gridwave', wingEnd: 'kerbline',
+             wingEndLow: 'halden', fwMain: 'basalt', frontWing: 'ferrox',
+             fwUpper: 'quartz', floor: 'tessera', noseTop: 'vertex',
+             noseSide: 'castor', halo: 'zenith', chassis: 'cobalt',
+             sidepodLow: 'ninefold', barge: 'none', engFlank: 'none', rearDeck: 'none' },
+    inks: { sidepod: '#BCEE3C', deck: '#BCEE3C' }
   },
   {
-    id: 'energy', name: 'Energy', sub: 'Navy, red spear, gold flash',
-    colors: { primary: '#0C1642', secondary: '#B4132A', accent: '#F2C300' },
+    id: 'energy', name: 'Energy', sub: 'Navy with a red spear and gold flash',
+    colors: { primary: '#0B1235', secondary: '#B00D22', accent: '#F0C200' },
     pattern: 3, ink: '#FFFFFF', compound: 'soft',
-    slots: { sidepod: 'vantage', deck: 'apex', airbox: 'nova', wingTop: 'orbita',
-             wingEnd: 'kerbline', wingEndLow: 'halden', fwMain: 'strato',
-             frontWing: 'ferrox', floor: 'tessera', noseTop: 'vertex',
-             podFront: 'volta', halo: 'zenith', wingBack: 'gridwave',
-             noseSide: 'redline', chassis: 'cobalt' },
-    inks: { deck: '#F2C300' }
+    slots: { sidepod: 'vantage', podFront: 'volta', deck: 'apex', airbox: 'nova',
+             wingTop: 'orbita', wingBack: 'gridwave', wingEnd: 'kerbline',
+             wingEndLow: 'halden', fwMain: 'strato', frontWing: 'ferrox',
+             fwUpper: 'quartz', floor: 'tessera', noseTop: 'vertex',
+             noseSide: 'redline', halo: 'zenith', chassis: 'cobalt',
+             sidepodLow: 'castor', barge: 'sable', engFlank: 'none', rearDeck: 'none' },
+    inks: { deck: '#F0C200', wingTop: '#F0C200' }
   },
   {
     id: 'azure', name: 'Azure', sub: 'French blue with a magenta spine',
-    colors: { primary: '#0C3E93', secondary: '#0A2C6C', accent: '#F45FA0' },
+    colors: { primary: '#0B3E93', secondary: '#0A2A63', accent: '#F2529B' },
     pattern: 8, ink: '#FFFFFF', compound: 'medium',
-    slots: { sidepod: 'kite', deck: 'vantage', airbox: 'nova', wingTop: 'orbita',
-             wingEnd: 'kerbline', wingEndLow: 'halden', fwMain: 'strato',
-             frontWing: 'ferrox', floor: 'tessera', noseTop: 'vertex',
-             podFront: 'lumen', halo: 'hexon', wingBack: 'gridwave',
-             noseSide: 'sable', chassis: 'none' },
-    inks: { airbox: '#F45FA0' }
+    slots: { sidepod: 'kite', podFront: 'lumen', deck: 'vantage', airbox: 'nova',
+             wingTop: 'orbita', wingBack: 'gridwave', wingEnd: 'kerbline',
+             wingEndLow: 'halden', fwMain: 'strato', frontWing: 'ferrox',
+             fwUpper: 'quartz', floor: 'tessera', noseTop: 'vertex',
+             noseSide: 'sable', halo: 'hexon', chassis: 'none',
+             sidepodLow: 'ninefold', barge: 'none', engFlank: 'none', rearDeck: 'none' },
+    inks: { airbox: '#F2529B', sidepod: '#FFFFFF' }
   },
   {
-    id: 'stripes', name: 'Stars & Stripes', sub: 'White, black blade, red edge',
-    colors: { primary: '#F1F3F5', secondary: '#15181D', accent: '#C81E2A' },
-    pattern: 2, ink: '#15181D', compound: 'hard',
-    slots: { sidepod: 'ridgeway', deck: 'vantage', airbox: 'nova', wingTop: 'orbita',
-             wingEnd: 'kerbline', wingEndLow: 'halden', fwMain: 'strato',
-             frontWing: 'ferrox', floor: 'tessera', noseTop: 'vertex',
-             podFront: 'lumen', halo: 'zenith', wingBack: 'gridwave',
-             noseSide: 'redline', chassis: 'cobalt' },
-    inks: { sidepod: '#F1F3F5', deck: '#F1F3F5', floor: '#F1F3F5', noseTop: '#15181D' }
+    id: 'stripes', name: 'Stars & Stripes', sub: 'White with a black blade, red edge',
+    colors: { primary: '#F0F2F4', secondary: '#14171C', accent: '#C41B27' },
+    pattern: 2, ink: '#14171C', compound: 'hard',
+    slots: { sidepod: 'ridgeway', podFront: 'lumen', deck: 'vantage', airbox: 'nova',
+             wingTop: 'orbita', wingBack: 'gridwave', wingEnd: 'kerbline',
+             wingEndLow: 'halden', fwMain: 'strato', frontWing: 'ferrox',
+             fwUpper: 'quartz', floor: 'tessera', noseTop: 'vertex',
+             noseSide: 'redline', halo: 'zenith', chassis: 'cobalt',
+             sidepodLow: 'castor', barge: 'none', engFlank: 'none', rearDeck: 'none' },
+    inks: { sidepod: '#F0F2F4', deck: '#F0F2F4', floor: '#F0F2F4',
+            noseTop: '#14171C', fwMain: '#14171C' }
   },
   {
-    id: 'neon', name: 'Neon', sub: 'Black with a fluoro cockpit wrap',
-    colors: { primary: '#0D1512', secondary: '#3DF05A', accent: '#0A0F0C' },
-    pattern: 4, ink: '#3DF05A', compound: 'soft',
-    slots: { sidepod: 'apex', deck: 'vantage', airbox: 'nova', wingTop: 'orbita',
-             wingEnd: 'kerbline', wingEndLow: 'halden', fwMain: 'strato',
-             frontWing: 'ferrox', floor: 'tessera', noseTop: 'vertex',
-             podFront: 'lumen', halo: 'zenith', wingBack: 'gridwave',
-             noseSide: 'redline', chassis: 'none' },
-    inks: { deck: '#0D1512', sidepod: '#3DF05A' }
+    id: 'neon', name: 'Neon', sub: 'Black with a fluoro green wrap',
+    colors: { primary: '#0B120F', secondary: '#37E256', accent: '#081008' },
+    pattern: 4, ink: '#37E256', compound: 'soft',
+    slots: { sidepod: 'apex', podFront: 'lumen', deck: 'vantage', airbox: 'nova',
+             wingTop: 'orbita', wingBack: 'gridwave', wingEnd: 'kerbline',
+             wingEndLow: 'halden', fwMain: 'strato', frontWing: 'ferrox',
+             fwUpper: 'quartz', floor: 'tessera', noseTop: 'vertex',
+             noseSide: 'redline', halo: 'zenith', chassis: 'none',
+             sidepodLow: 'ninefold', barge: 'none', engFlank: 'none', rearDeck: 'none' },
+    inks: { deck: '#0B120F', sidepod: '#37E256', wingTop: '#37E256' }
   },
   {
-    id: 'cobaltteam', name: 'Cobalt', sub: 'Royal blue, white shoulder',
-    colors: { primary: '#1B34C4', secondary: '#0E1533', accent: '#F2F4F8' },
-    pattern: 9, ink: '#F2F4F8', compound: 'medium',
-    slots: { sidepod: 'northgate', deck: 'vantage', airbox: 'nova', wingTop: 'orbita',
-             wingEnd: 'kerbline', wingEndLow: 'halden', fwMain: 'strato',
-             frontWing: 'ferrox', floor: 'tessera', noseTop: 'vertex',
-             podFront: 'lumen', halo: 'hexon', wingBack: 'gridwave',
-             noseSide: 'ninefold', chassis: 'cobalt' },
+    id: 'cobaltteam', name: 'Cobalt', sub: 'Royal blue over a white shoulder',
+    colors: { primary: '#1B2FC0', secondary: '#0D1330', accent: '#F0F3F8' },
+    pattern: 9, ink: '#F0F3F8', compound: 'medium',
+    slots: { sidepod: 'northgate', podFront: 'lumen', deck: 'vantage', airbox: 'nova',
+             wingTop: 'orbita', wingBack: 'gridwave', wingEnd: 'kerbline',
+             wingEndLow: 'halden', fwMain: 'strato', frontWing: 'ferrox',
+             fwUpper: 'quartz', floor: 'tessera', noseTop: 'vertex',
+             noseSide: 'ninefold', halo: 'hexon', chassis: 'cobalt',
+             sidepodLow: 'castor', barge: 'none', engFlank: 'none', rearDeck: 'none' },
     inks: {}
   },
   {
-    id: 'monaco', name: 'Monaco Gold', sub: 'Ivory and navy with gold',
-    colors: { primary: '#EDEDE6', secondary: '#111F3C', accent: '#D2A24C' },
-    pattern: 11, ink: '#111F3C', compound: 'hard',
-    slots: { sidepod: 'halden', deck: 'meridian', airbox: 'nova', wingTop: 'orbita',
-             wingEnd: 'kerbline', wingEndLow: 'quartz', fwMain: 'strato',
-             frontWing: 'ferrox', floor: 'tessera', noseTop: 'vertex',
-             podFront: 'lumen', halo: 'zenith', wingBack: 'gridwave',
-             noseSide: 'ninefold', chassis: 'none' },
-    inks: { wingTop: '#D2A24C', wingBack: '#EDEDE6', noseTop: '#111F3C' }
+    id: 'monaco', name: 'Ivory & Gold', sub: 'Ivory and navy with a gold line',
+    colors: { primary: '#ECECE4', secondary: '#0F1C38', accent: '#CE9F49' },
+    pattern: 11, ink: '#0F1C38', compound: 'hard',
+    slots: { sidepod: 'halden', podFront: 'lumen', deck: 'meridian', airbox: 'nova',
+             wingTop: 'orbita', wingBack: 'gridwave', wingEnd: 'kerbline',
+             wingEndLow: 'quartz', fwMain: 'strato', frontWing: 'ferrox',
+             fwUpper: 'basalt', floor: 'tessera', noseTop: 'vertex',
+             noseSide: 'ninefold', halo: 'zenith', chassis: 'none',
+             sidepodLow: 'castor', barge: 'none', engFlank: 'none', rearDeck: 'none' },
+    inks: { wingTop: '#CE9F49', wingBack: '#ECECE4', noseTop: '#0F1C38' }
   }
 ];
 
@@ -5464,6 +5944,15 @@ function applyLivery() {
 window.URacingDrive = {
   profile: null,
   SPONSORS, SLOT_KEYS, SLOT_LABELS, PRESETS,
+  CIRCUITS: CIRCUITS.map(c => ({ id: c.id, name: c.name, country: c.country,
+                                 cc: c.cc, blurb: c.blurb, night: c.night })),
+  get circuit() { return circuit.id; },
+  setCircuit(id) {
+    const c = CIRCUITS.find(x => x.id === id);
+    if (!c || c.id === circuit.id) return false;
+    circuit = c;
+    return true;                       // the caller must re-enter to rebuild
+  },
   COMPOUNDS: ['soft', 'medium', 'hard'],
   PATTERNS: ['Solido', 'Shoulder', 'Blade', 'Spear', 'Cockpit', 'Split',
              'Underline', 'Fade', 'Centreline', 'Two-tone', 'Wedge', 'Bookend'],
