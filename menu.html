@@ -846,6 +846,25 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
 .gsw button:hover{transform:translateY(-2px)}
 .gsw button.on{box-shadow:0 0 0 2px #04060a,0 0 0 3px #fff}
 .gsub.tight{margin-bottom:12px}
+.glist{display:flex;flex-direction:column;gap:8px}
+.psignout{font-family:var(--ui);font-size:10px;font-weight:700;letter-spacing:.16em;
+  text-transform:uppercase;color:var(--dim);padding:6px 10px;border:1px solid var(--line)}
+.psignout:hover{color:var(--text);border-color:var(--line-2)}
+.gcard{display:flex;align-items:center;gap:12px;padding:10px 12px;cursor:pointer;
+  border:1px solid var(--line);background:rgba(255,255,255,.02);
+  transition:border-color .16s ease,background .16s ease;text-align:left;width:100%}
+.gcard:hover{border-color:var(--line-2);background:rgba(255,255,255,.045)}
+.gcard.on{border-color:var(--red);background:rgba(225,6,0,.10)}
+/* three stripes of the actual palette read faster than any swatch grid */
+.gchip{display:flex;flex:0 0 auto;width:46px;height:30px;overflow:hidden;
+  border:1px solid rgba(255,255,255,.14)}
+.gchip i{display:block;height:100%}
+.gchip i:nth-child(1){width:62%}
+.gchip i:nth-child(2){width:26%}
+.gchip i:nth-child(3){width:12%}
+.gcard b{display:block;font-family:var(--display);font-weight:700;font-size:14px;
+  letter-spacing:.04em;text-transform:uppercase;color:var(--text)}
+.gcard span{display:block;font-size:11px;color:var(--dim);margin-top:2px}
 .chips.zones{gap:6px;margin-bottom:14px}
 .chips.zones .chip-opt{padding:7px 10px;font-size:9.5px;letter-spacing:.1em;
   position:relative}
@@ -978,6 +997,7 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
           <div class="psub" id="pSub">Rookie — Unassigned</div>
         </div>
       </button>
+      <button class="pchip psignout" id="pSignOut" title="Sign out">Sign out</button>
       <div class="psep"></div>
       <div class="pstat"><div class="v" id="pRating">1350</div><div class="l">uRating</div></div>
       <div class="psep"></div>
@@ -1024,6 +1044,33 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
 </section>
 
 <!-- ============================ ACCOUNT ===================== -->
+<section class="screen" id="signin">
+  <div class="atmos"><div class="glow"></div><div class="grid"></div></div>
+  <div class="acc-wrap">
+    <div class="acc-body">
+      <section class="acc-step on">
+        <div class="acc-kicker">Paddock</div>
+        <h2 class="acc-title">Sign in</h2>
+        <p class="acc-lede">Your car, licence and records are saved against your
+          email on this device. Pick a driver, or register a new one.</p>
+        <div class="fld" style="max-width:420px">
+          <label for="si-email">Email</label>
+          <input id="si-email" type="email" placeholder="you@example.com" autocomplete="email">
+          <span class="err" id="si-err">No driver registered with that email on this device.</span>
+        </div>
+        <div id="si-list" class="glist" style="margin-top:18px;max-width:520px"></div>
+        <p class="gsub" style="margin-top:22px;max-width:520px">Saved in this browser
+          only. There is no server behind it, so it will not follow you to another
+          device — and it is not a password. Do not put anything secret here.</p>
+      </section>
+    </div>
+    <div class="acc-foot">
+      <button class="btn ghost" id="siNew"><span>Register a new driver</span></button>
+      <button class="btn" id="siGo"><span>Sign in</span></button>
+    </div>
+  </div>
+</section>
+
 <section class="screen" id="account">
   <div class="atmos">
     <div class="glow"></div><div class="grid"></div>
@@ -1143,23 +1190,11 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
         <section class="acc-pane" data-step="3" hidden>
           <div class="acc-kicker">Step Four</div>
           <h2 class="acc-title">Livery</h2>
-          <p class="acc-lede">Your colours are painted onto the car and follow you
-            into every session.</p>
+          <p class="acc-lede">Pick the car you will race. Every livery is a
+            finished design — palette, shape and sponsors together. You can
+            change it any time in the garage.</p>
           <div class="livery">
-            <div class="swatches">
-              <div class="fld">
-                <label>Primary</label>
-                <div class="swatch-row" data-slot="primary"></div>
-              </div>
-              <div class="fld">
-                <label>Secondary</label>
-                <div class="swatch-row" data-slot="secondary"></div>
-              </div>
-              <div class="fld">
-                <label>Accent</label>
-                <div class="swatch-row" data-slot="accent"></div>
-              </div>
-            </div>
+            <div class="swatches"><div class="glist" id="accPresets"></div></div>
             <div class="carprev" id="carPrev"></div>
           </div>
         </section>
@@ -1194,33 +1229,12 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
     <aside class="gpanel">
       <div class="gscroll">
         <h2 class="ghead">Paint Shop</h2>
-        <p class="gsub">Every change is applied to the car beside you as you make
-          it. The wrap is drawn onto the bodywork, so shapes stay aligned across
-          the nose, sidepods, engine cover and wings.</p>
+        <p class="gsub">Ten finished cars. Each one sets its own palette, shape
+          and sponsor set together, so every decal lands on a panel that can
+          carry it. Pick one and it goes on the car beside you.</p>
 
-        <div class="gsec">Colours</div>
-        <div class="grow"><span>Primary</span></div>
-        <div class="gsw" data-slot="primary"></div>
-        <div class="grow"><span>Secondary</span></div>
-        <div class="gsw" data-slot="secondary"></div>
-        <div class="grow"><span>Accent</span></div>
-        <div class="gsw" data-slot="accent"></div>
-
-        <div class="gsec">Pattern</div>
-        <div class="chips" id="gPattern"></div>
-
-        <div class="gsec">Sponsors</div>
-        <p class="gsub tight">Pick a placement on the car, then choose the brand
-          that sits there and the colour its text is printed in. Filled
-          placements are marked.</p>
-        <div class="chips zones" id="gZones"></div>
-        <div class="grow"><span>Brand</span>
-          <select class="gsel" id="gBrand"></select></div>
-        <div class="grow"><span>Text colour</span>
-          <button class="glink" id="gInkAll">Apply to all</button></div>
-        <div class="gsw" data-slot="zoneInk"></div>
-        <div class="grow"><span>Default text</span></div>
-        <div class="gsw" data-slot="ink"></div>
+        <div class="gsec">Livery</div>
+        <div class="glist" id="gPresets"></div>
 
         <div class="gsec">Tyres</div>
         <div class="chips" id="gComp"></div>
@@ -1366,6 +1380,7 @@ const screens = {
   loading: $('#loading'),
   menu:    $('#menu'),
   module:  $('#module'),
+  signin:  $('#signin'),
   account: $('#account'),
   drive:   $('#drive')
 };
@@ -1544,7 +1559,11 @@ function runLoading(real) {
     await wait(560);
     clearInterval(tipTimer);
     screens.loading.dataset.done = '1';
-    transitionTo(profile ? 'menu' : 'account');
+    /* signed in -> straight to the menu; drivers on file but none active ->
+       the sign-in gate; nothing at all -> registration */
+    if (profile) transitionTo('menu');
+    else if (rosterList().length) { buildSignIn(); transitionTo('signin'); }
+    else transitionTo('account');
   }
 
   screens.loading.dataset.done = '0';
@@ -1600,17 +1619,6 @@ const COUNTRIES = [
 const PALETTE = ['#E10600','#FF6B00','#FFC400','#3ADB6E','#00B3A4','#0F8BFF',
                  '#2A3FD6','#7B3FE4','#E0329B','#F5F5F5','#8A94A6','#16181D'];
 
-/* Kept in step with DEFAULT_SLOT_IDS in the drive module — the two lists
-   describe the same fifteen placements from either side of the boundary. */
-const DEFAULT_SPONSORS = {
-  sidepod: 'apex',      podFront: 'lumen',      sidepodLow: 'none',
-  barge: 'none',        engFlank: 'none',       airbox: 'nova',
-  halo: 'zenith',       chassis: 'none',        deck: 'vantage',
-  rearDeck: 'none',     wingTop: 'orbita',      wingBack: 'gridwave',
-  wingEnd: 'kerbline',  wingEndLow: 'halden',   fwMain: 'strato',
-  frontWing: 'ferrox',  fwUpper: 'none',        floor: 'tessera',
-  noseTop: 'vertex',    noseTip: 'none',        noseSide: 'redline'
-};
 const ASSIST_PRESET = {
   new:      { tc: true,  abs: true,  esc: true },
   some:     { tc: true,  abs: true,  esc: true },
@@ -1633,7 +1641,8 @@ let acc = {
   name: '', tag: '', email: '', dob: '',
   country: 'GB', units: 'metric',
   number: 0, exp: 'new', input: 'keyboard',
-  primary: '#E10600', secondary: '#16181D', accent: '#F5F5F5'
+  preset: 'scuderia',
+  primary: '#B3060E', secondary: '#7C0409', accent: '#F5F5F5'
 };
 const ACC_STEPS = ['Identity', 'Region', 'Competition', 'Livery', 'Confirm'];
 
@@ -1654,12 +1663,7 @@ function normaliseProfile(p) {
       secondary: c.secondary || '#16181D',
       accent: c.accent || '#F5F5F5'
     },
-    sponsors: Object.assign({}, DEFAULT_SPONSORS,
-      (p.sponsors && typeof p.sponsors === 'object') ? p.sponsors : {}),
-    pattern: Number.isFinite(p.pattern) && p.pattern >= 0 && p.pattern < 12
-      ? p.pattern : 0,
-    ink: p.ink || c.accent || '#F5F5F5',
-    inks: (p.inks && typeof p.inks === 'object') ? Object.assign({}, p.inks) : {},
+    preset: typeof p.preset === 'string' ? p.preset : 'scuderia',
     compound: ['soft', 'medium', 'hard'].indexOf(p.compound) >= 0 ? p.compound : 'soft',
     licence: p.licence || 'Rookie',
     safety: Number.isFinite(p.safety) ? p.safety : 2.5,
@@ -1668,14 +1672,73 @@ function normaliseProfile(p) {
     created: Number.isFinite(p.created) ? p.created : Date.now()
   };
 }
+/* ---------- driver roster ----------------------------------
+   Accounts are keyed by email so more than one driver can share a
+   machine and sign back in to their own car and records. This is
+   browser storage on the device you are sitting at — there is no
+   server behind it, so it does not travel between devices and it is
+   not a credential store. Nothing here is treated as a secret. */
+const ROSTER = 'uracing.drivers.v1';
+const ACTIVE = 'uracing.active.v1';
+const emailKey = e => String(e || '').trim().toLowerCase();
+
+function loadRoster() {
+  try { return JSON.parse(localStorage.getItem(ROSTER)) || {}; }
+  catch (e) { return {}; }
+}
+function saveRoster(r) {
+  try { localStorage.setItem(ROSTER, JSON.stringify(r)); } catch (e) {}
+}
+function rosterList() {
+  const r = loadRoster();
+  return Object.keys(r).map(k => normaliseProfile(r[k])).filter(Boolean)
+    .sort((a, b) => (b.created || 0) - (a.created || 0));
+}
+function findDriver(email) {
+  const k = emailKey(email);
+  if (!k) return null;
+  const r = loadRoster();
+  return r[k] ? normaliseProfile(r[k]) : null;
+}
+function signIn(p) {
+  if (!p) return null;
+  try { localStorage.setItem(ACTIVE, emailKey(p.email)); } catch (e) {}
+  saveProfile(p);
+  return p;
+}
+function signOut() {
+  try { localStorage.removeItem(ACTIVE); localStorage.removeItem(STORE); } catch (e) {}
+  profile = null;
+}
 function loadProfile() {
   try {
+    // prefer whoever was signed in last, then fall back to the legacy slot
+    const active = localStorage.getItem(ACTIVE);
+    if (active) {
+      const r = loadRoster();
+      if (r[active]) return normaliseProfile(r[active]);
+    }
     const raw = localStorage.getItem(STORE);
-    return raw ? normaliseProfile(JSON.parse(raw)) : null;
+    const legacy = raw ? normaliseProfile(JSON.parse(raw)) : null;
+    if (legacy && legacy.email) {           // fold an old single profile in
+      const r = loadRoster();
+      r[emailKey(legacy.email)] = legacy;
+      saveRoster(r);
+      try { localStorage.setItem(ACTIVE, emailKey(legacy.email)); } catch (e) {}
+    }
+    return legacy;
   } catch (e) { return null; }
 }
 function saveProfile(p) {
-  try { localStorage.setItem(STORE, JSON.stringify(p)); } catch (e) {}
+  try {
+    localStorage.setItem(STORE, JSON.stringify(p));
+    if (p && p.email) {
+      const r = loadRoster();
+      r[emailKey(p.email)] = p;
+      saveRoster(r);
+      localStorage.setItem(ACTIVE, emailKey(p.email));
+    }
+  } catch (e) {}
 }
 
 /* numbers already spoken for — stable per club so it feels like a real roster */
@@ -1780,18 +1843,36 @@ function buildAccount() {
   chips('#c-exp', 'exp');
   chips('#c-input', 'input');
 
-  // livery swatches
-  document.querySelectorAll('.swatch-row').forEach(row => {
-    const slot = row.dataset.slot;
-    row.innerHTML = PALETTE.map(c =>
-      `<button class="sw" data-c="${c}" style="background:${c}" aria-label="${c}"></button>`).join('');
-    row.addEventListener('click', e => {
-      const b = e.target.closest('.sw');
-      if (!b) return;
-      acc[slot] = b.dataset.c;
+  // livery presets. The drive module owns the list, so wait for it to load
+  // rather than duplicating ten palettes on this side of the boundary.
+  const fillPresets = () => {
+    const D = window.URacingDrive;
+    const host = $('#accPresets');
+    if (!D || !D.PRESETS || !host) return false;
+    host.innerHTML = D.PRESETS.map(ps => `
+      <button class="gcard" data-p="${ps.id}">
+        <span class="gchip"><i style="background:${ps.colors.primary}"></i><i
+          style="background:${ps.colors.secondary}"></i><i
+          style="background:${ps.colors.accent}"></i></span>
+        <span><b>${ps.name}</b><span>${ps.sub}</span></span>
+      </button>`).join('');
+    host.onclick = e => {
+      const b = e.target.closest('.gcard'); if (!b) return;
+      const ps = D.PRESETS.find(x => x.id === b.dataset.p);
+      if (!ps) return;
+      acc.preset = ps.id;
+      acc.primary = ps.colors.primary;
+      acc.secondary = ps.colors.secondary;
+      acc.accent = ps.colors.accent;
       paintLivery();
-    });
-  });
+    };
+    paintLivery();
+    return true;
+  };
+  if (!fillPresets()) {
+    let tries = 0;
+    const wait = setInterval(() => { if (fillPresets() || ++tries > 200) clearInterval(wait); }, 100);
+  }
 
   buildNumbers();
   paintLivery();
@@ -1819,10 +1900,8 @@ function buildNumbers() {
 }
 
 function paintLivery() {
-  document.querySelectorAll('.swatch-row').forEach(row => {
-    const slot = row.dataset.slot;
-    [...row.children].forEach(b => b.classList.toggle('on', b.dataset.c === acc[slot]));
-  });
+  const host = $('#accPresets');
+  if (host) [...host.children].forEach(b => b.classList.toggle('on', b.dataset.p === acc.preset));
   $('#carPrev').innerHTML = carSVG(acc.primary, acc.secondary, acc.accent, acc.number, acc.tag);
 }
 
@@ -1897,6 +1976,7 @@ function finishAccount() {
     name: acc.name.trim(), tag: acc.tag, email: acc.email, dob: acc.dob,
     country: acc.country, club: clubFor(acc.country), units: acc.units,
     number: acc.number, exp: acc.exp, input: acc.input,
+    preset: acc.preset,
     colors: { primary: acc.primary, secondary: acc.secondary, accent: acc.accent }
   }));
   saveProfile(profile);
@@ -2022,41 +2102,25 @@ async function activate(i) {
 let gState = null;
 function buildGarage() {
   const D = window.URacingDrive;
-  if (!D || !D.SPONSORS) return;
-  // a profile saved against an older roster can name a brand that no longer
-  // exists; the car would fall back to the default while the panel showed the
-  // stale name, so drop unknown ids here rather than let the two disagree
-  const known = new Set(D.SPONSORS.map(sp => sp.id));
-  const slots = Object.assign({}, DEFAULT_SPONSORS, profile.sponsors || {});
-  for (const k of D.SLOT_KEYS) if (!known.has(slots[k])) slots[k] = 'none';
+  if (!D || !D.PRESETS) return;
   gState = {
-    colors: Object.assign({}, profile.colors),
-    sponsors: slots,
-    pattern: profile.pattern || 0,
-    ink: profile.ink || profile.colors.accent,
-    inks: Object.assign({}, profile.inks || {}),
+    preset: profile.preset || D.PRESETS[0].id,
     compound: profile.compound || 'soft',
-    zone: D.SLOT_KEYS[0],
     number: profile.number, tag: profile.tag
   };
-  document.querySelectorAll('.gsw').forEach(row => {
-    const slot = row.dataset.slot;
-    row.innerHTML = PALETTE.map(c =>
-      `<button data-c="${c}" style="background:${c}" aria-label="${c}"></button>`).join('');
-    row.onclick = e => {
-      const b = e.target.closest('button'); if (!b) return;
-      if (slot === 'ink') gState.ink = b.dataset.c;
-      else if (slot === 'zoneInk') gState.inks[gState.zone] = b.dataset.c;
-      else gState.colors[slot] = b.dataset.c;
-      paintGarage(); pushGarage();
-    };
-  });
-  // pattern chips
-  $('#gPattern').innerHTML = D.PATTERNS.map((n, i) =>
-    `<button class="chip-opt" data-p="${i}">${n}</button>`).join('');
-  $('#gPattern').onclick = e => {
-    const b = e.target.closest('.chip-opt'); if (!b) return;
-    gState.pattern = +b.dataset.p;
+
+  $('#gPresets').innerHTML = D.PRESETS.map(ps => `
+    <button class="gcard" data-p="${ps.id}">
+      <span class="gchip"><i style="background:${ps.colors.primary}"></i><i
+        style="background:${ps.colors.secondary}"></i><i
+        style="background:${ps.colors.accent}"></i></span>
+      <span><b>${ps.name}</b><span>${ps.sub}</span></span>
+    </button>`).join('');
+  $('#gPresets').onclick = e => {
+    const b = e.target.closest('.gcard'); if (!b) return;
+    gState.preset = b.dataset.p;
+    const ps = D.PRESETS.find(x => x.id === gState.preset);
+    if (ps && ps.compound) gState.compound = ps.compound;
     paintGarage(); pushGarage();
   };
 
@@ -2066,28 +2130,6 @@ function buildGarage() {
   $('#gComp').onclick = e => {
     const b = e.target.closest('.chip-opt'); if (!b) return;
     gState.compound = b.dataset.cd;
-    paintGarage(); pushGarage();
-  };
-
-  // one chip per placement on the car; the two controls below edit the
-  // selected one, so fifteen zones stay readable in a narrow panel
-  $('#gZones').innerHTML = D.SLOT_KEYS.map(k =>
-    `<button class="chip-opt" data-z="${k}">${D.SLOT_LABELS[k]}</button>`).join('');
-  $('#gZones').onclick = e => {
-    const b = e.target.closest('.chip-opt'); if (!b) return;
-    gState.zone = b.dataset.z;
-    paintGarage();
-  };
-  $('#gBrand').innerHTML = D.SPONSORS.map(sp =>
-    `<option value="${sp.id}">${sp.name ? sp.name + ' · ' + sp.sub : '— none —'}</option>`).join('');
-  $('#gBrand').onchange = () => {
-    gState.sponsors[gState.zone] = $('#gBrand').value;
-    paintGarage(); pushGarage();
-  };
-  $('#gInkAll').onclick = () => {
-    const c = gState.inks[gState.zone];
-    if (!c) return;
-    for (const k of D.SLOT_KEYS) gState.inks[k] = c;
     paintGarage(); pushGarage();
   };
 
@@ -2103,58 +2145,36 @@ function buildGarage() {
     $('#gTag').value = gState.tag; pushGarage();
   };
   $('#gSave').onclick = () => {
-    profile.colors = Object.assign({}, gState.colors);
-    profile.sponsors = Object.assign({}, gState.sponsors);
-    profile.pattern = gState.pattern;
-    profile.ink = gState.ink;
-    profile.inks = Object.assign({}, gState.inks);
+    profile.preset = gState.preset;
     profile.compound = gState.compound;
     profile.number = gState.number;
     profile.tag = gState.tag || profile.tag;
+    const ps = D.PRESETS.find(x => x.id === gState.preset);
+    if (ps) profile.colors = Object.assign({}, ps.colors);   // menus read these
     saveProfile(profile);
     applyProfile();
     window.URacingDrive.leave();
     transitionTo('menu');
   };
   $('#gCancel').onclick = () => {
-    window.URacingDrive.setLivery({ colors: profile.colors, slots: profile.sponsors,
-      pattern: profile.pattern || 0, ink: profile.ink || profile.colors.accent,
-      inks: profile.inks || {}, compound: profile.compound || 'soft',
-      profile: profile });
+    window.URacingDrive.applyPreset(profile.preset || D.PRESETS[0].id, profile);
     window.URacingDrive.leave();
     transitionTo('menu');
   };
   paintGarage();
 }
 function paintGarage() {
-  const zoneInk = gState.inks[gState.zone] || gState.ink;
-  document.querySelectorAll('.gsw').forEach(row => {
-    const slot = row.dataset.slot;
-    const want = slot === 'ink' ? gState.ink
-               : slot === 'zoneInk' ? zoneInk
-               : gState.colors[slot];
-    [...row.children].forEach(b => b.classList.toggle('on', b.dataset.c === want));
-  });
-  const pat = $('#gPattern');
-  if (pat) [...pat.children].forEach(c => c.classList.toggle('on', +c.dataset.p === gState.pattern));
-  const zn = $('#gZones');
-  if (zn) [...zn.children].forEach(c => {
-    const id = gState.sponsors[c.dataset.z];
-    c.classList.toggle('on', c.dataset.z === gState.zone);
-    c.classList.toggle('has', !!id && id !== 'none');
-  });
-  const br = $('#gBrand');
-  if (br) br.value = gState.sponsors[gState.zone] || 'none';
+  const pl = $('#gPresets');
+  if (pl) [...pl.children].forEach(c => c.classList.toggle('on', c.dataset.p === gState.preset));
   const cp = $('#gComp');
   if (cp) [...cp.children].forEach(c => c.classList.toggle('on', c.dataset.cd === gState.compound));
 }
 function pushGarage() {
-  window.URacingDrive.setLivery({
-    colors: gState.colors, slots: gState.sponsors,
-    pattern: gState.pattern, ink: gState.ink, inks: gState.inks,
-    compound: gState.compound,
-    profile: Object.assign({}, profile, { number: gState.number, tag: gState.tag })
-  });
+  const D = window.URacingDrive;
+  D.applyPreset(gState.preset,
+    Object.assign({}, profile, { number: gState.number, tag: gState.tag }));
+  D.setLivery({ compound: gState.compound,
+    profile: Object.assign({}, profile, { number: gState.number, tag: gState.tag }) });
 }
 
 async function enterGarage() {
@@ -2241,6 +2261,60 @@ $('#fCta').addEventListener('click', () => activate(sel));
 $('#modBack').addEventListener('click', () => transitionTo('menu'));
 $('#replay').addEventListener('click', () => { clearInterval(tipTimer); runIntro(); });
 
+/* ---------- sign in --------------------------------------- */
+function resetWizard() {
+  Object.assign(acc, {
+    step: 0, name: '', tag: '', email: '', dob: '',
+    country: 'GB', units: 'metric', number: 0, exp: 'new', input: 'keyboard',
+    preset: 'scuderia',
+    primary: '#B3060E', secondary: '#7C0409', accent: '#F5F5F5'
+  });
+  ['#i-name', '#i-tag', '#i-email', '#i-dob'].forEach(k => { const el = $(k); if (el) el.value = ''; });
+  const c = $('#i-country'); if (c) c.value = 'GB';
+  const cl = $('#i-club'); if (cl) cl.value = clubFor('GB');
+  ['units', 'exp', 'input'].forEach(k => {
+    const wrap = $('#c-' + k);
+    if (wrap) [...wrap.children].forEach(x => x.classList.toggle('on', x.dataset.v === acc[k]));
+  });
+  buildNumbers(); paintLivery(); gotoStep(0);
+}
+function buildSignIn() {
+  const list = $('#si-list');
+  const drivers = rosterList();
+  list.innerHTML = drivers.length ? drivers.map(d => `
+    <button class="gcard" data-e="${d.email}">
+      <span class="gchip"><i style="background:${d.colors.primary}"></i><i
+        style="background:${d.colors.secondary}"></i><i
+        style="background:${d.colors.accent}"></i></span>
+      <span><b>${d.name} &middot; #${d.number}</b><span>${d.email} — ${d.licence}</span></span>
+    </button>`).join('')
+    : '<p class="gsub">No drivers registered on this device yet.</p>';
+  list.onclick = e => {
+    const b = e.target.closest('.gcard'); if (!b) return;
+    $('#si-email').value = b.dataset.e;
+    doSignIn();
+  };
+  $('#si-err').classList.remove('on');
+}
+async function doSignIn() {
+  const found = findDriver($('#si-email').value);
+  if (!found) { $('#si-err').classList.add('on'); return; }
+  profile = signIn(found);
+  seedWizardFromProfile();
+  applyProfile();
+  await wipe();
+  show('menu');
+}
+$('#siGo').addEventListener('click', doSignIn);
+$('#si-email').addEventListener('input', () => $('#si-err').classList.remove('on'));
+$('#si-email').addEventListener('keydown', e => { if (e.key === 'Enter') doSignIn(); });
+$('#siNew').addEventListener('click', async () => {
+  profile = null;
+  resetWizard();
+  await wipe();
+  show('account');
+});
+
 /* ---------- boot ----------------------------------------- */
 profile = loadProfile();
 buildAccount();
@@ -2264,6 +2338,12 @@ function seedWizardFromProfile() {
     accent: profile.colors.accent
   });
 }
+$('#pSignOut').addEventListener('click', async () => {
+  signOut();
+  buildSignIn();
+  await wipe();
+  show('signin');
+});
 $('#pChip').addEventListener('click', async () => {
   seedWizardFromProfile();
   $('#i-name').value = acc.name; $('#i-tag').value = acc.tag;
@@ -2825,6 +2905,7 @@ class Vehicle {
    SCENE
    ============================================================ */
 const CAR_URL = 'assets/car.glb';
+const TREE_URL = 'assets/tree.glb';
 let track, scene, camera, renderer, carRoot, body, wheels = [], veh;
 let hud = {}, keys = {}, ready = false, running = false, raf = 0;
 let camMode = 0, camPos = new THREE.Vector3(), camAim = new THREE.Vector3();
@@ -2881,39 +2962,65 @@ function sampleTrack(x, z, yaw) {
 }
 
 function skyEnv(renderer) {
+  /* A clear race-day sky: deep zenith, pale haze at the horizon, a real sun
+     disc with bloom around it, and a few soft cumulus bands. The bands come
+     from value noise rather than a texture so there is nothing to load. */
   const sky = new THREE.Mesh(
-    new THREE.SphereGeometry(4000, 32, 24),
+    new THREE.SphereGeometry(4000, 48, 32),
     new THREE.ShaderMaterial({
       side: THREE.BackSide, depthWrite: false,
       uniforms: {
-        top: { value: new THREE.Color(0x1d3f6b) },
-        mid: { value: new THREE.Color(0x51799e) },
-        hor: { value: new THREE.Color(0xffa25c) },
-        gnd: { value: new THREE.Color(0x171a20) }
+        zen: { value: new THREE.Color(0x1e5fb4) },
+        mid: { value: new THREE.Color(0x74aee2) },
+        haz: { value: new THREE.Color(0xdcecf7) },
+        gnd: { value: new THREE.Color(0x33532f) },
+        sunDir: { value: new THREE.Vector3(0.62, 0.42, -0.66).normalize() }
       },
       vertexShader: `varying vec3 vW; void main(){ vW = normalize(position);
         gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0);} `,
-      fragmentShader: `varying vec3 vW; uniform vec3 top, mid, hor, gnd;
-        void main(){ float h = vW.y;
-          vec3 c = mix(hor, mid, smoothstep(0.0, 0.28, h));
-          c = mix(c, top, smoothstep(0.22, 0.75, h));
-          c = mix(gnd, c, smoothstep(-0.06, 0.015, h));
-          float glow = pow(max(0.0, 1.0 - abs(h) * 5.5), 3.0) * max(0.0, vW.x * 0.5 + 0.5);
-          c += vec3(0.85, 0.36, 0.12) * glow * 1.15;
+      fragmentShader: `
+        varying vec3 vW; uniform vec3 zen, mid, haz, gnd, sunDir;
+        float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+        float noise(vec2 p){
+          vec2 i = floor(p), f = fract(p);
+          vec2 u = f * f * (3.0 - 2.0 * f);
+          return mix(mix(hash(i), hash(i + vec2(1,0)), u.x),
+                     mix(hash(i + vec2(0,1)), hash(i + vec2(1,1)), u.x), u.y);
+        }
+        float fbm(vec2 p){
+          float v = 0.0, a = 0.5;
+          for (int i = 0; i < 5; i++){ v += a * noise(p); p *= 2.03; a *= 0.5; }
+          return v;
+        }
+        void main(){
+          float h = vW.y;
+          vec3 c = mix(haz, mid, smoothstep(0.00, 0.30, h));
+          c = mix(c, zen, smoothstep(0.22, 0.92, h));
+
+          // cumulus: flatten the dome onto a plane so the bands stay level
+          if (h > 0.015) {
+            vec2 cp = vW.xz / max(h, 0.015) * 0.55;
+            float n = fbm(cp * 0.55);
+            float cov = smoothstep(0.52, 0.78, n) * smoothstep(0.02, 0.20, h);
+            float lit = smoothstep(0.45, 0.85, fbm(cp * 0.55 + sunDir.xz * 0.22));
+            vec3 cloud = mix(vec3(0.72, 0.76, 0.82), vec3(1.0), lit);
+            c = mix(c, cloud, cov * 0.92);
+          }
+
+          float sd = max(0.0, dot(vW, sunDir));
+          c += vec3(1.0, 0.94, 0.82) * pow(sd, 900.0) * 14.0;          // disc
+          c += vec3(1.0, 0.88, 0.70) * pow(sd, 12.0) * 0.30;           // bloom
+          c = mix(gnd, c, smoothstep(-0.05, 0.012, h));
           gl_FragColor = vec4(c, 1.0); }`
     }));
   const pmrem = new THREE.PMREMGenerator(renderer);
   pmrem.compileEquirectangularShader();
-  const s = new THREE.Scene(); s.add(sky.clone());
-  const env = pmrem.fromScene(s, 0.04, 1, 6000).texture;
+  const sc = new THREE.Scene(); sc.add(sky.clone());
+  const env = pmrem.fromScene(sc, 0.04, 1, 6000).texture;
   pmrem.dispose();
   return { sky, env };
 }
 
-/* A neutral studio dome for the paint shop. A sunset sky throws warm light
-   into everything, so a red wrap photographs orange and a white one cream —
-   fine on track, useless for judging paint. This is deliberately colourless
-   so the livery is the only colour in the frame. */
 function studioEnv(renderer) {
   const dome = new THREE.Mesh(
     new THREE.SphereGeometry(600, 32, 24),
@@ -2921,7 +3028,7 @@ function studioEnv(renderer) {
       side: THREE.BackSide, depthWrite: false,
       uniforms: {
         top: { value: new THREE.Color(0xc9ced6) },
-        mid: { value: new THREE.Color(0x9aa1aa) },
+        mid: { value: new THREE.Color(0xaeb6c0) },
         low: { value: new THREE.Color(0x30343a) }
       },
       vertexShader: `varying vec3 vW; void main(){ vW = normalize(position);
@@ -2943,6 +3050,634 @@ function studioEnv(renderer) {
   return { dome, env };
 }
 
+/* ============================================================
+   ENVIRONMENT
+   Everything outside the racing surface: the barrier line, debris
+   fencing, TecPro, grandstands, trees, trackside boards and the
+   lake. All of it is procedural — no image files to fetch, which
+   matters because the published page runs under a CSP that blocks
+   outside requests.
+   ============================================================ */
+
+// --- small canvas texture helpers ---------------------------------
+function cTex(w, h, draw, repX, repY) {
+  const cv = document.createElement('canvas');
+  cv.width = w; cv.height = h;
+  draw(cv.getContext('2d'), w, h);
+  const t = new THREE.CanvasTexture(cv);
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  if (repX || repY) t.repeat.set(repX || 1, repY || 1);
+  t.anisotropy = 8;
+  return t;
+}
+
+function grassTexture() {
+  return cTex(512, 512, (c, w, h) => {
+    c.fillStyle = '#3f6b33'; c.fillRect(0, 0, w, h);
+    for (let i = 0; i < 26000; i++) {
+      const x = Math.random() * w, y = Math.random() * h;
+      const v = Math.random();
+      c.fillStyle = v < 0.34 ? 'rgba(96,142,64,0.55)'
+                  : v < 0.68 ? 'rgba(44,86,38,0.55)'
+                             : 'rgba(126,163,78,0.40)';
+      c.fillRect(x, y, 1 + Math.random() * 2, 1 + Math.random() * 3);
+    }
+    // mown banding, the way a circuit's infield reads from the air
+    for (let b = 0; b < 8; b++) {
+      c.fillStyle = b % 2 ? 'rgba(255,255,255,0.030)' : 'rgba(0,0,0,0.030)';
+      c.fillRect(0, b * h / 8, w, h / 8);
+    }
+  }, 60, 60);
+}
+
+function crowdTexture() {
+  // a packed grandstand: shirts, skin, and the dark gaps between people
+  return cTex(512, 256, (c, w, h) => {
+    c.fillStyle = '#1b1e24'; c.fillRect(0, 0, w, h);
+    const shirts = ['#d8483f','#e8e8ea','#2f5fbf','#e8b533','#3f9e57','#8a45b5',
+                    '#dd7a2a','#25272c','#c8577f','#48b9c4'];
+    for (let row = 0; row < 16; row++) {
+      const y = 6 + row * (h - 12) / 16;
+      for (let i = 0; i < 46; i++) {
+        const x = 4 + i * (w - 8) / 46 + (row % 2 ? 3 : 0);
+        if (Math.random() < 0.08) continue;                 // empty seat
+        c.fillStyle = shirts[(Math.random() * shirts.length) | 0];
+        c.fillRect(x, y + 3, 7, 8);
+        c.fillStyle = Math.random() < 0.5 ? '#c9a184' : '#7a5a44';
+        c.beginPath(); c.arc(x + 3.5, y + 2, 2.6, 0, Math.PI * 2); c.fill();
+      }
+    }
+  }, 1, 1);
+}
+
+function fenceTexture() {
+  /* Debris fencing is a fine diamond mesh with heavier catch cables strung
+     across it. Eight lines a tile read as a garden trellis; this is 24, with
+     every sixth drawn heavy, which is what gives it the right density. */
+  return cTex(256, 256, (c, w, h) => {
+    c.clearRect(0, 0, w, h);
+    c.lineCap = 'square';
+    for (let i = 0; i <= 24; i++) {
+      const p = i * w / 24;
+      const heavy = i % 6 === 0;
+      c.strokeStyle = heavy ? 'rgba(198,206,214,0.62)' : 'rgba(172,182,192,0.40)';
+      c.lineWidth = heavy ? 1.8 : 1.1;
+      c.beginPath(); c.moveTo(p, 0); c.lineTo(p, h); c.stroke();
+      c.beginPath(); c.moveTo(0, p); c.lineTo(w, p); c.stroke();
+    }
+    // the diagonal weave that makes a mesh read as a mesh
+    c.strokeStyle = 'rgba(150,162,174,0.18)'; c.lineWidth = 1.0;
+    for (let i = -24; i <= 24; i += 3) {
+      c.beginPath(); c.moveTo(i * w / 24, 0); c.lineTo(i * w / 24 + w, h); c.stroke();
+    }
+  }, 1, 1);
+}
+
+function barkTexture() {
+  return cTex(64, 256, (c, w, h) => {
+    c.fillStyle = '#4a3728'; c.fillRect(0, 0, w, h);
+    for (let i = 0; i < 900; i++) {
+      c.fillStyle = Math.random() < 0.5 ? 'rgba(30,22,16,0.5)' : 'rgba(112,88,64,0.4)';
+      c.fillRect(Math.random() * w, Math.random() * h, 1 + Math.random() * 2, 4 + Math.random() * 22);
+    }
+  }, 1, 1);
+}
+
+function boardTexture(title, sub, bg, ink) {
+  return cTex(1024, 256, (c, w, h) => {
+    c.fillStyle = bg; c.fillRect(0, 0, w, h);
+    c.fillStyle = 'rgba(255,255,255,0.07)'; c.fillRect(0, 0, w, 10);
+    c.fillStyle = ink; c.textAlign = 'center'; c.textBaseline = 'middle';
+    c.font = '700 italic 118px "Chakra Petch", sans-serif';
+    c.fillText(title, w / 2, h / 2 - 22);
+    c.font = '600 44px "Chakra Petch", sans-serif';
+    c.globalAlpha = 0.86;
+    c.letterSpacing = '10px';
+    c.fillText(sub, w / 2, h / 2 + 62);
+    c.letterSpacing = '0px';
+  }, 1, 1);
+}
+
+/* A coarse mask of where the circuit is, so nothing gets scattered on
+   top of it. 6 m cells, flagged out to `clear` metres from any centre
+   point — cheap to build once and O(1) to query per candidate. */
+function trackMask(track, clear) {
+  const CELL = 6;
+  const set = new Set();
+  const key = (gx, gz) => gx * 100000 + gz;
+  const r = Math.ceil(clear / CELL);
+  for (let i = 0; i < track.count; i += 2) {
+    const gx = Math.round(track.P[i].x / CELL), gz = Math.round(track.P[i].z / CELL);
+    for (let a = -r; a <= r; a++) for (let b = -r; b <= r; b++) {
+      if (a * a + b * b > r * r) continue;
+      set.add(key(gx + a, gz + b));
+    }
+  }
+  return {
+    blocked: (x, z) => set.has(key(Math.round(x / CELL), Math.round(z / CELL))),
+    cell: CELL
+  };
+}
+
+function buildEnvironment(scene, track) {
+  const OFF = ROAD_W / 2 + 13.5;              // the barrier line
+  const step = Math.max(1, Math.round(track.count / 620));
+  const yAt = j => track.P[j].y;
+  /* clampOff returns a clamped lateral offset, not a point — the point is the
+     centreline plus that offset along the track's right vector. */
+  const ptAt = (j, off) => new THREE.Vector3(
+    track.P[j].x + track.R[j].x * off,
+    track.P[j].y,
+    track.P[j].z + track.R[j].z * off);
+
+  /* ---- white concrete wall, both sides, no branding ---- */
+  /* DoubleSide because the two flanks wind in opposite directions around a
+     closed loop — single-sided, one whole wall faced away and disappeared. */
+  const wallMat = new THREE.MeshStandardMaterial({
+    color: 0xf4f5f4, roughness: 0.70, metalness: 0, side: THREE.DoubleSide
+  });
+  const baseMat = new THREE.MeshStandardMaterial({
+    color: 0x8d9298, roughness: 0.9, metalness: 0
+  });
+  const WALL_H = 1.20;
+  for (const side of [-1, 1]) {
+    const pos = [], nrm = [], idx = [];
+    let v = 0;
+    for (let s = 0; s <= track.count; s += step) {
+      const j = s % track.count;
+      const p = ptAt(j, side * OFF);
+      const t = track.T[j];
+      const n = new THREE.Vector3(-t.z * side, 0, t.x * side).normalize();
+      pos.push(p.x, yAt(j), p.z, p.x, yAt(j) + WALL_H, p.z);
+      nrm.push(-n.x, 0, -n.z, -n.x, 0, -n.z);
+      if (s > 0) {
+        idx.push(v - 2, v - 1, v + 1, v - 2, v + 1, v);
+      }
+      v += 2;
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    g.setIndex(idx);
+    g.computeVertexNormals();
+    const m = new THREE.Mesh(g, wallMat);
+    m.castShadow = true; m.receiveShadow = true;
+    scene.add(m);
+
+    /* ---- debris fencing above the wall ---- */
+    const fTex = fenceTexture();
+    fTex.repeat.set(track.length / 2.1, 3.0);
+    const fMat = new THREE.MeshBasicMaterial({
+      map: fTex, transparent: true, opacity: 0.72, alphaTest: 0.06,
+      side: THREE.DoubleSide, depthWrite: false, fog: true
+    });
+    const fpos = [], fuv = [], fidx = [];
+    let fv = 0;
+    const FH = 2.9;
+    for (let s = 0; s <= track.count; s += step) {
+      const j = s % track.count;
+      const p = ptAt(j, side * (OFF + 0.18));
+      const u = s / track.count;
+      fpos.push(p.x, yAt(j) + WALL_H, p.z, p.x, yAt(j) + WALL_H + FH, p.z);
+      fuv.push(u, 0, u, 1);
+      if (s > 0) fidx.push(fv - 2, fv - 1, fv + 1, fv - 2, fv + 1, fv);
+      fv += 2;
+    }
+    const fg = new THREE.BufferGeometry();
+    fg.setAttribute('position', new THREE.Float32BufferAttribute(fpos, 3));
+    fg.setAttribute('uv', new THREE.Float32BufferAttribute(fuv, 2));
+    fg.setIndex(fidx);
+    fg.computeVertexNormals();
+    scene.add(new THREE.Mesh(fg, fMat));
+
+    /* ---- fence posts ---- */
+    const postG = new THREE.BoxGeometry(0.13, FH + WALL_H, 0.13);
+    const postCount = Math.floor(track.length / 9);
+    const posts = new THREE.InstancedMesh(postG, baseMat, postCount);
+    const mtx = new THREE.Matrix4();
+    for (let i = 0; i < postCount; i++) {
+      const j = Math.round(i / postCount * track.count) % track.count;
+      const p = ptAt(j, side * (OFF + 0.18));
+      mtx.makeTranslation(p.x, yAt(j) + (FH + WALL_H) / 2, p.z);
+      posts.setMatrixAt(i, mtx);
+    }
+    posts.instanceMatrix.needsUpdate = true;
+    posts.castShadow = true;
+    scene.add(posts);
+  }
+
+  /* ---- TecPro behind the wall, on the outside of the quick corners ----
+     Real TecPro is a continuous run of tall interlocking blocks, blue with a
+     red cap, bolted end to end. Scattering separate cubes made it read as a
+     row of buns, so this builds contiguous runs and extrudes each as one
+     ribbon: a blue face and a red band along the top. */
+  const tecBlue = new THREE.MeshStandardMaterial({ color: 0x1d4fb8, roughness: 0.52, side: THREE.DoubleSide });
+  const tecRed  = new THREE.MeshStandardMaterial({ color: 0xcc1f2c, roughness: 0.52, side: THREE.DoubleSide });
+  const tecSeam = new THREE.MeshStandardMaterial({ color: 0x14337a, roughness: 0.6 });
+
+  const isFast = j => {
+    let k = 0;
+    for (let d = -12; d <= 12; d++) {
+      const kk = track.K[(j + d + track.count) % track.count];
+      if (Math.abs(kk) > Math.abs(k)) k = kk;
+    }
+    return Math.abs(k) > 0.013 ? (k > 0 ? -1 : 1) : 0;   // sign = outside of the corner
+  };
+  // group the flagged indices into contiguous runs, per side
+  for (const side of [-1, 1]) {
+    const runs = [];
+    let cur = null;
+    for (let j = 0; j < track.count; j++) {
+      if (isFast(j) === side) { if (!cur) { cur = [j, j]; runs.push(cur); } else cur[1] = j; }
+      else cur = null;
+    }
+    const TEC_H = 1.0, TEC_TOP = 0.26, TEC_OUT = OFF + 1.15;
+    for (const [j0, j1] of runs) {
+      if (j1 - j0 < 6) continue;                          // too short to be worth it
+      const mk = (yLo, yHi, mat) => {
+        const pos = [], idx = [];
+        let v = 0;
+        for (let j = j0; j <= j1; j += 2) {
+          const p = ptAt(j, side * TEC_OUT);
+          pos.push(p.x, yAt(j) + yLo, p.z, p.x, yAt(j) + yHi, p.z);
+          if (v > 0) idx.push(v - 2, v - 1, v + 1, v - 2, v + 1, v);
+          v += 2;
+        }
+        if (v < 4) return;
+        const g = new THREE.BufferGeometry();
+        g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+        g.setIndex(idx);
+        g.computeVertexNormals();
+        const m = new THREE.Mesh(g, mat);
+        m.castShadow = true; m.receiveShadow = true;
+        scene.add(m);
+      };
+      mk(0, TEC_H, tecBlue);                              // body
+      mk(TEC_H, TEC_H + TEC_TOP, tecRed);                 // cap
+
+      // the vertical seams between blocks, so the run has a module to it
+      const seamG = new THREE.BoxGeometry(0.09, TEC_H + TEC_TOP, 0.55);
+      const nSeam = Math.max(1, Math.floor((j1 - j0) / 5));
+      const seams = new THREE.InstancedMesh(seamG, tecSeam, nSeam);
+      const mtx = new THREE.Matrix4(), q = new THREE.Quaternion(), one = new THREE.Vector3(1, 1, 1);
+      const up = new THREE.Vector3(0, 1, 0);
+      for (let i = 0; i < nSeam; i++) {
+        const j = Math.min(j1, j0 + i * 5);
+        const t = track.T[j];
+        q.setFromAxisAngle(up, Math.atan2(t.x, t.z));
+        const p = ptAt(j, side * TEC_OUT);
+        mtx.compose(new THREE.Vector3(p.x, yAt(j) + (TEC_H + TEC_TOP) / 2, p.z), q, one);
+        seams.setMatrixAt(i, mtx);
+      }
+      seams.instanceMatrix.needsUpdate = true;
+      scene.add(seams);
+    }
+  }
+
+  /* ---- grandstands ----
+     Built here rather than imported. The supplied model was 661k triangles of
+     warped bars that did not read as a stand at any resolution, and this is
+     both cleaner and about three thousand triangles. */
+  const concrete = new THREE.MeshStandardMaterial({ color: 0xbfc3c6, roughness: 0.92 });
+  const steel = new THREE.MeshStandardMaterial({ color: 0xdfe3e7, roughness: 0.42, metalness: 0.55 });
+  const shade = new THREE.MeshStandardMaterial({ color: 0x2b3038, roughness: 0.72,
+                                                 side: THREE.DoubleSide });
+  const crowdMat = new THREE.MeshStandardMaterial({ map: crowdTexture(), roughness: 0.95 });
+  const railMat = new THREE.MeshStandardMaterial({ color: 0x1d4fb8, roughness: 0.5 });
+
+  const grandstand = (W, ROWS) => {
+    const g = new THREE.Group();
+    const RISE = 0.58, TREAD = 0.90;
+    const deckH = ROWS * RISE, deckD = ROWS * TREAD;
+
+    // the rake, as one stepped solid rather than a stack of loose boxes
+    const shape = new THREE.Shape();
+    shape.moveTo(0, 0);
+    for (let r = 0; r < ROWS; r++) {
+      shape.lineTo(-r * TREAD, r * RISE);
+      shape.lineTo(-r * TREAD - TREAD, r * RISE);
+    }
+    shape.lineTo(-deckD, deckH);
+    shape.lineTo(-deckD, -1.2);
+    shape.lineTo(0, -1.2);
+    const rake = new THREE.Mesh(
+      new THREE.ExtrudeGeometry(shape, { depth: W, bevelEnabled: false }), concrete);
+    rake.rotation.y = Math.PI / 2;
+    rake.position.set(-W / 2, 0, 0);
+    rake.castShadow = true; rake.receiveShadow = true;
+    g.add(rake);
+
+    // spectators, sitting on the rake at its own angle
+    /* The spectators sit on the slope of the rake. The plane is laid along
+       that slope and lifted clear of the steps, or it ends up buried inside
+       the concrete and the stand reads as empty. */
+    const slope = Math.atan2(deckH, deckD);
+    const crowd = new THREE.Mesh(
+      new THREE.PlaneGeometry(W - 2.4, Math.hypot(deckD, deckH) * 0.98), crowdMat);
+    crowd.rotation.x = -(Math.PI / 2) + slope;
+    crowd.position.set(0,
+      deckH / 2 + 0.62 * Math.cos(slope),
+      -deckD / 2 + 0.62 * Math.sin(slope));
+    g.add(crowd);
+
+    // front safety rail
+    for (const y of [0.55, 1.05]) {
+      const bar = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, W, 8), railMat);
+      bar.rotation.z = Math.PI / 2;
+      bar.position.set(0, y, 0.35);
+      g.add(bar);
+    }
+
+    // cantilever roof: two rows of columns, a spine truss, and the canopy
+    const colH = deckH + 6.5;
+    for (const sx of [-1, 1]) {
+      for (const dz of [0.2, -deckD - 1.0]) {
+        const col = new THREE.Mesh(new THREE.BoxGeometry(0.62, colH, 0.62), steel);
+        col.position.set(sx * (W / 2 - 1.0), colH / 2, dz);
+        col.castShadow = true;
+        g.add(col);
+      }
+    }
+    for (let i = 1; i < 4; i++) {                       // intermediate columns
+      const x = -W / 2 + i * W / 4;
+      const col = new THREE.Mesh(new THREE.BoxGeometry(0.45, colH, 0.45), steel);
+      col.position.set(x, colH / 2, -deckD - 1.0);
+      col.castShadow = true;
+      g.add(col);
+    }
+    const roof = new THREE.Mesh(new THREE.BoxGeometry(W + 3, 0.55, deckD + 5.5), shade);
+    roof.position.set(0, colH + 0.3, -deckD / 2 + 0.6);
+    roof.castShadow = true;
+    g.add(roof);
+    for (let i = 0; i <= 6; i++) {                      // roof beams
+      const b2 = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.7, deckD + 5.0), steel);
+      b2.position.set(-W / 2 + i * W / 6, colH - 0.35, -deckD / 2 + 0.6);
+      g.add(b2);
+    }
+    // back and side cladding closes the silhouette
+    const back = new THREE.Mesh(new THREE.BoxGeometry(W + 3, colH, 0.35), concrete);
+    back.position.set(0, colH / 2, -deckD - 1.6);
+    back.castShadow = true;
+    g.add(back);
+    for (const sx of [-1, 1]) {
+      const side = new THREE.Mesh(new THREE.BoxGeometry(0.35, colH * 0.86, deckD + 2.0), concrete);
+      side.position.set(sx * (W / 2 + 1.2), colH * 0.43, -deckD / 2 - 0.4);
+      g.add(side);
+    }
+    return g;
+  };
+
+  const STAND_AT = [0.045, 0.135, 0.30, 0.44, 0.55, 0.70, 0.78, 0.91];
+  STAND_AT.forEach((frac, i) => {
+    const j = Math.round(frac * track.count) % track.count;
+    const t = track.T[j];
+    const side = i % 2 ? 1 : -1;
+    const W = i % 3 === 0 ? 74 : 54;
+    const ROWS = i % 3 === 0 ? 22 : 16;
+    const p = ptAt(j, side * (OFF + 6.0));
+    const g = grandstand(W, ROWS);
+    g.position.set(p.x, yAt(j), p.z);
+    /* The stand's local +z is its open face. Aiming it at the centreline point
+       is side-independent and cannot come out backwards, which deriving it
+       from the track's right vector did. */
+    const c = track.P[j];
+    g.rotation.y = Math.atan2(c.x - p.x, c.z - p.z);
+    scene.add(g);
+  });
+
+  /* ---- trackside boards, on the fictional brands the cars carry ---- */
+  const BOARDS = [
+    ['APEX', 'DYNAMICS', '#12151b', '#ffffff'],
+    ['KERBLINE', 'TYRES', '#c8202a', '#ffffff'],
+    ['VANTAGE', 'ENERGY', '#f2c300', '#12151b'],
+    ['NOVA', 'AVIONICS', '#0d3f8f', '#ffffff'],
+    ['TESSERA', 'COMPOSITES', '#f2f3f5', '#12151b'],
+    ['ORBITA', 'TELECOM', '#1b8f6a', '#ffffff']
+  ];
+  const boardMats = BOARDS.map(b =>
+    new THREE.MeshStandardMaterial({ map: boardTexture(b[0], b[1], b[2], b[3]), roughness: 0.78 }));
+  const boardG = new THREE.PlaneGeometry(14, 3.2);
+  const legMat = new THREE.MeshStandardMaterial({ color: 0x2a2e34, roughness: 0.8 });
+  const legG = new THREE.BoxGeometry(0.18, 3.0, 0.18);
+  let bIdx = 0;
+  for (let s = 0; s < track.count; s += Math.round(track.count / 26)) {
+    const j = s % track.count;
+    const side = (bIdx % 2) ? 1 : -1;
+    const t = track.T[j];
+    const yaw = Math.atan2(t.x, t.z);
+    const p = ptAt(j, side * (OFF + 5.2));
+    const b = new THREE.Mesh(boardG, boardMats[bIdx % boardMats.length]);
+    b.position.set(p.x, yAt(j) + 3.6, p.z);
+    b.rotation.y = yaw + (side > 0 ? Math.PI / 2 : -Math.PI / 2);
+    b.castShadow = true;
+    scene.add(b);
+    for (const dx of [-3.6, 3.6]) {
+      const leg = new THREE.Mesh(legG, legMat);
+      const lp = ptAt((j + Math.round(dx * 1.4) + track.count) % track.count, side * (OFF + 5.2));
+      leg.position.set(lp.x, yAt(j) + 1.5, lp.z);
+      scene.add(leg);
+    }
+    bIdx++;
+  }
+
+  /* ---- the lake ---- */
+  const mask = trackMask(track, 120);          // lake siting only — wide clearance
+  const treeMask = trackMask(track, 34);      // trees come right up to the fence
+  let best = null;
+  for (let a = 0; a < 24; a++) {
+    for (let d = 320; d <= 900; d += 60) {
+      const ang = a / 24 * Math.PI * 2;
+      const x = Math.cos(ang) * d, z = Math.sin(ang) * d;
+      let ok = true;
+      for (let k = 0; k < 12 && ok; k++) {
+        const r = 150 * Math.sqrt(k / 12), th = k * 2.4;
+        if (mask.blocked(x + Math.cos(th) * r, z + Math.sin(th) * r)) ok = false;
+      }
+      if (ok) { best = { x, z }; break; }
+    }
+    if (best) break;
+  }
+  if (best) {
+    // an irregular outline, so it reads as water rather than a swimming pool
+    const shape = new THREE.Shape();
+    const RX = 330, RZ = 215;
+    for (let i = 0; i <= 72; i++) {
+      const a = i / 72 * Math.PI * 2;
+      const w = 1 + 0.20 * Math.sin(a * 3.1 + 0.7) + 0.11 * Math.sin(a * 5.3 + 2.1);
+      const px = Math.cos(a) * RX * w, pz = Math.sin(a) * RZ * w;
+      if (i === 0) shape.moveTo(px, pz); else shape.lineTo(px, pz);
+    }
+    const sand = new THREE.Mesh(
+      new THREE.ShapeGeometry(shape, 40),
+      new THREE.MeshStandardMaterial({ color: 0xa89873, roughness: 1 }));
+    sand.rotation.x = -Math.PI / 2;
+    sand.scale.set(1.06, 1.06, 1.06);
+    sand.position.set(best.x, PLANE_Y + 0.06, best.z);
+    scene.add(sand);
+    const water = new THREE.Mesh(
+      new THREE.ShapeGeometry(shape, 40),
+      new THREE.MeshPhysicalMaterial({
+        color: 0x16455f, roughness: 0.06, metalness: 0.0,
+        clearcoat: 1.0, clearcoatRoughness: 0.04,
+        envMapIntensity: 1.9
+      }));
+    water.rotation.x = -Math.PI / 2;
+    water.position.set(best.x, PLANE_Y + 0.16, best.z);
+    // a gentle swell, so the surface is not a mirror-flat sheet
+    water.material.onBeforeCompile = sh => {
+      sh.uniforms.uT = { value: 0 };
+      sh.vertexShader = 'uniform float uT;\nvarying vec2 vWv;\n' + sh.vertexShader
+        .replace('#include <begin_vertex>', '#include <begin_vertex>\n  vWv = position.xy;');
+      sh.fragmentShader = 'uniform float uT;\nvarying vec2 vWv;\n' + sh.fragmentShader
+        .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
+  vec2 w = vWv * 0.30;
+  float a = sin(w.x * 1.10 + uT * 0.7) + 0.6 * sin(w.y * 2.7 - uT * 1.1)
+          + 0.3 * sin((w.x + w.y) * 4.3 + uT * 1.7);
+  float b = cos(w.y * 1.30 - uT * 0.6) + 0.6 * cos(w.x * 2.3 + uT * 0.9)
+          + 0.3 * cos((w.x - w.y) * 3.9 - uT * 1.5);
+  normal = normalize(normal + vec3(a, 0.0, b) * 0.030);`);
+      scene.userData.waterShader = sh;
+    };
+    scene.add(water);
+    scene.userData.lake = best;
+  }
+
+  /* ---- treeline sites ----
+     A real maple is 12k triangles, so these are placed as a band hugging the
+     circuit rather than scattered over three square kilometres: it both looks
+     like a circuit and keeps the count somewhere a GPU can live with. */
+  const treeMask2 = trackMask(track, 30);
+  const lake2 = scene.userData.lake;
+  const sites = [];
+  const clear = (x, z) => {
+    if (treeMask2.blocked(x, z)) return false;
+    if (lake2 && Math.abs(x - lake2.x) < 380 && Math.abs(z - lake2.z) < 250) return false;
+    return true;
+  };
+  // the avenue: two ragged rows following the lap
+  for (let s2 = 0; s2 < track.count; s2 += 3) {
+    for (const side of [-1, 1]) {
+      if (Math.random() > 0.55) continue;
+      const off = side * (34 + Math.random() * 120);
+      const p = ptAt(s2 % track.count, off);
+      const x = p.x + (Math.random() - 0.5) * 22;
+      const z = p.z + (Math.random() - 0.5) * 22;
+      if (clear(x, z)) sites.push([x, z]);
+    }
+  }
+  // a thinner scatter beyond it, so the treeline does not end in a hard edge
+  for (let i = 0; i < 9000 && sites.length < 1900; i++) {
+    const x = (Math.random() * 2 - 1) * 1300;
+    const z = (Math.random() * 2 - 1) * 1300;
+    if (clear(x, z)) sites.push([x, z]);
+  }
+  scene.userData.treeSites = sites;
+
+  /* ---- distant hills, so the horizon is not a hard line ---- */
+  const hillMat = new THREE.MeshStandardMaterial({ color: 0x4a6a55, roughness: 1, fog: true });
+  for (let i = 0; i < 14; i++) {
+    const ang = i / 14 * Math.PI * 2 + 0.3;
+    const d = 2300 + Math.random() * 700;
+    const h = 120 + Math.random() * 220;
+    const cone = new THREE.Mesh(new THREE.ConeGeometry(360 + Math.random() * 300, h, 7), hillMat);
+    cone.position.set(Math.cos(ang) * d, PLANE_Y + h / 2 - 30, Math.sin(ang) * d);
+    scene.add(cone);
+  }
+}
+
+/* One loader for every model. A data: URL is decoded in place and parsed —
+   handing one to loadAsync goes through connect-src, which the published
+   page's CSP blocks. */
+async function loadGLTF(url, onFrac) {
+  const loader = new GLTFLoader();
+  if (url.startsWith('data:')) {
+    const b64 = url.slice(url.indexOf(',') + 1);
+    const bin = atob(b64);
+    const buf = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
+    if (onFrac) onFrac(0.8);
+    return new Promise((res, rej) => loader.parse(buf.buffer, '', res, rej));
+  }
+  return loader.loadAsync(url, e => { if (e.total && onFrac) onFrac(e.loaded / e.total); });
+}
+
+/* Place the loaded props. One tree and one grandstand are converted, then
+   instanced — the geometry is uploaded once no matter how many appear. Trees
+   are bucketed into chunks so the frustum can reject the ones behind you;
+   a single instanced mesh spanning three kilometres never culls. */
+function placeProps(scene, track, treeGltf, standGltf) {
+  const mtx = new THREE.Matrix4(), q = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0);
+
+  if (treeGltf) {
+    const parts = [];
+    treeGltf.scene.updateMatrixWorld(true);
+    treeGltf.scene.traverse(o => {
+      if (!o.isMesh) return;
+      const g = o.geometry.clone();
+      g.applyMatrix4(o.matrixWorld);
+      const m = Array.isArray(o.material) ? o.material[0] : o.material;
+      m.side = THREE.DoubleSide;              // leaf cards are single-sided sheets
+      m.roughness = 0.94; m.metalness = 0;
+      parts.push({ g, m });
+    });
+    const sites = scene.userData.treeSites || [];
+    const CHUNK = 220;          // small enough that the frustum rejects most
+    const buckets = new Map();
+    for (const sp of sites) {
+      const key = Math.floor(sp[0] / CHUNK) + ':' + Math.floor(sp[1] / CHUNK);
+      let arr = buckets.get(key);
+      if (!arr) buckets.set(key, arr = []);
+      arr.push(sp);
+    }
+    for (const list of buckets.values()) {
+      for (const { g, m } of parts) {
+        const im = new THREE.InstancedMesh(g, m, list.length);
+        list.forEach(([x, z], i) => {
+          q.setFromAxisAngle(up, Math.random() * Math.PI * 2);
+          // the model is unit height, so the scale is the tree's height in metres
+          const h = 12 + Math.random() * 6;
+          mtx.compose(new THREE.Vector3(x, PLANE_Y, z), q,
+                      new THREE.Vector3(h * (0.9 + Math.random() * 0.2), h, h * (0.9 + Math.random() * 0.2)));
+          im.setMatrixAt(i, mtx);
+        });
+        im.instanceMatrix.needsUpdate = true;
+        im.castShadow = true;
+        im.computeBoundingSphere();
+        scene.add(im);
+      }
+    }
+  }
+
+  if (standGltf) {
+    standGltf.scene.updateMatrixWorld(true);
+    const parts = [];
+    standGltf.scene.traverse(o => {
+      if (!o.isMesh) return;
+      const g = o.geometry.clone();
+      g.applyMatrix4(o.matrixWorld);
+      const m = Array.isArray(o.material) ? o.material[0] : o.material;
+      m.side = THREE.DoubleSide;
+      m.roughness = 0.86; m.metalness = 0.04;
+      m.envMapIntensity = 0.9;
+      parts.push({ g, m });
+    });
+    const sites = scene.userData.standSites || [];
+    const H = 26;                             // metres tall; the model is unit height
+    for (const { g, m } of parts) {
+      const im = new THREE.InstancedMesh(g, m, sites.length);
+      sites.forEach((st, i) => {
+        q.setFromAxisAngle(up, st.yaw + Math.PI);   // open face toward the circuit
+        mtx.compose(new THREE.Vector3(st.x, st.y, st.z), q, new THREE.Vector3(H, H, H));
+        im.setMatrixAt(i, mtx);
+      });
+      im.instanceMatrix.needsUpdate = true;
+      im.castShadow = true; im.receiveShadow = true;
+      im.computeBoundingSphere();
+      scene.add(im);
+    }
+  }
+}
+
 function buildScene(canvas) {
   track = buildTrack();
 
@@ -2958,7 +3693,7 @@ function buildScene(canvas) {
   const { sky, env } = skyEnv(renderer);
   scene.add(sky);
   scene.environment = env;
-  scene.fog = new THREE.FogExp2(0x8a6a63, 0.0012);
+  scene.fog = new THREE.FogExp2(0xc3daea, 0.00052);
   const studio = studioEnv(renderer);
   scene.add(studio.dome);
   scene.userData.track = { sky, env, fog: scene.fog };
@@ -2966,8 +3701,8 @@ function buildScene(canvas) {
 
   camera = new THREE.PerspectiveCamera(62, 1, 0.35, 6000);
 
-  const sun = new THREE.DirectionalLight(0xffe1bd, 3.9);
-  sun.position.set(300, 105, -60);
+  const sun = new THREE.DirectionalLight(0xfff4e2, 3.5);
+  sun.position.set(340, 230, -360);
   sun.castShadow = true;
   sun.shadow.mapSize.set(2048, 2048);
   const sc = sun.shadow.camera;
@@ -2976,12 +3711,12 @@ function buildScene(canvas) {
   sun.shadow.normalBias = 0.05;
   scene.add(sun, sun.target);
   scene.userData.sun = sun;
-  scene.add(new THREE.HemisphereLight(0xbcd3e8, 0x3a3026, 1.15));
+  scene.add(new THREE.HemisphereLight(0x9fc6ee, 0x3d4a32, 1.05));
 
   /* ---- ground ---- */
   const gm = new THREE.Mesh(
     new THREE.PlaneGeometry(9000, 9000),
-    new THREE.MeshStandardMaterial({ color: 0x232a24, roughness: 0.97, metalness: 0 }));
+    new THREE.MeshStandardMaterial({ map: grassTexture(), roughness: 0.97, metalness: 0 }));
   gm.rotation.x = -Math.PI / 2; gm.position.y = PLANE_Y; gm.receiveShadow = true;
   scene.add(gm);
 
@@ -3001,7 +3736,7 @@ function buildScene(canvas) {
 
   /* ---- verge, so the road sits in the terrain instead of floating ---- */
   const vergeMat = new THREE.MeshStandardMaterial({
-    color: 0x2f3531, roughness: 1, metalness: 0
+    map: grassTexture(), color: 0xb9c4a8, roughness: 1, metalness: 0
   });
   const EDGE = ROAD_W / 2 + KERB_W - 0.02;
   for (const side of [-1, 1]) {
@@ -3067,6 +3802,8 @@ function buildScene(canvas) {
   scene.add(new THREE.Mesh(
     crossBand(track, track.count - 1, 1, -ROAD_W / 2, ROAD_W / 2, 0.018, 1, 1),
     new THREE.MeshStandardMaterial({ color: 0xf0f0ec, roughness: 0.6, metalness: 0, ...offMat })));
+
+  buildEnvironment(scene, track);
 
   veh = new Vehicle(track);
   return { sun };
@@ -3175,16 +3912,16 @@ function updateCamera(dt, sample) {
     if (!onboard.live) {                     // snap when the view is selected
       onboard.up.copy(sample.normal);
       onboard.fwd.copy(f);
-      onboard.pos.copy(pos).addScaledVector(f, 0.15).addScaledVector(sample.normal, 1.12);
       onboard.fov = 74;
       onboard.live = true;
     }
-    onboard.up.lerp(sample.normal, k(7)).normalize();
-    onboard.fwd.lerp(f, k(16)).normalize();
-    onboard.pos.lerp(
-      TMP_A.copy(pos).addScaledVector(onboard.fwd, 0.15).addScaledVector(onboard.up, 1.12),
-      k(19));
-    camera.position.copy(onboard.pos);
+    onboard.up.lerp(sample.normal, k(9)).normalize();
+    onboard.fwd.lerp(f, k(26)).normalize();
+    /* The mount itself is rigid — it is bolted to the car, so it uses the true
+       position and heading and never lags. Smoothing it in world space made it
+       drift back out of the cockpit under acceleration. Only the aim basis and
+       the field of view are filtered, which is what kills the buzz. */
+    camera.position.copy(pos).addScaledVector(f, 0.15).addScaledVector(onboard.up, 1.12);
     camera.up.copy(onboard.up);
     camAim.copy(pos).addScaledVector(onboard.fwd, 40).addScaledVector(onboard.up, 1.0);
     camera.lookAt(camAim);
@@ -3368,6 +4105,8 @@ function frame(now) {
   } else if (veh.speed > 1) { lap.started = true; lap.s = sample.s; }
 
   // place the car on the road
+  const ws = scene.userData.waterShader;
+  if (ws) ws.uniforms.uT.value += dt;                 // the swell
   carRoot.position.set(veh.x, sample.y, veh.z);
   carRoot.rotation.set(0, veh.yaw + Math.PI, 0);
   const pitch = Math.asin(THREE.MathUtils.clamp(sample.grade, -1, 1));
@@ -3590,21 +4329,7 @@ async function init(onProgress) {
 
   let car;
   try {
-    const loader = new GLTFLoader();
-    let gltf;
-    if (CAR_URL.startsWith('data:')) {
-      // decode in place — never hand a data: URL to the network layer
-      const b64 = CAR_URL.slice(CAR_URL.indexOf(',') + 1);
-      const bin = atob(b64);
-      const buf = new Uint8Array(bin.length);
-      for (let i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
-      onProgress(0.72, 2);
-      gltf = await new Promise((res, rej) => loader.parse(buf.buffer, '', res, rej));
-    } else {
-      gltf = await loader.loadAsync(CAR_URL, e => {
-        if (e.total) onProgress(0.35 + 0.55 * (e.loaded / e.total), 2);
-      });
-    }
+    const gltf = await loadGLTF(CAR_URL, f => onProgress(0.35 + 0.45 * f, 2));
     car = adoptCar(gltf.scene);
     if (car.wheels.length !== 4) throw new Error('wheel nodes missing');
   } catch (err) {
@@ -3613,6 +4338,14 @@ async function init(onProgress) {
     const w = document.getElementById('hModelWarn');
     if (w) w.style.display = 'block';
   }
+  // trackside props: nice to have, never fatal
+  try {
+    const treeG = await loadGLTF(TREE_URL)
+      .catch(e => { console.warn('[URacing] tree model:', e); return null; });
+    placeProps(scene, track, treeG, null);
+  } catch (err) { console.warn('[URacing] trackside props skipped:', err); }
+  onProgress(0.9, 4);
+
   const pivot = new THREE.Group();
   car.root.position.z = -(CAR.a - CAR.L / 2);
   pivot.add(car.root);
@@ -3687,14 +4420,14 @@ function startGarage() {
      trailing edge off the background. Gloss needs a light with an edge to it —
      a flat ambient makes clearcoat look like matte plastic. */
   setStudio(true);
-  renderer.toneMappingExposure = 1.28;
+  renderer.toneMappingExposure = 1.50;
   const sun = scene.userData.sun;
-  sun.intensity = 3.2;
+  sun.intensity = 4.4;
   sun.position.set(veh.x + 26, 21, veh.z - 30);
   sun.target.position.set(veh.x, 0.4, veh.z);
   sun.target.updateMatrixWorld();
   if (!garageRim) {
-    garageRim = new THREE.DirectionalLight(0xcfe2ff, 1.9);
+    garageRim = new THREE.DirectionalLight(0xcfe2ff, 2.5);
     garageRim.target = new THREE.Object3D();
     scene.add(garageRim, garageRim.target);
   }
@@ -3710,7 +4443,7 @@ function start() {
   running = true; garage.on = false; onboard.live = false;
   document.getElementById('drive').classList.remove('garage');
   renderer.toneMappingExposure = 1.18;
-  scene.userData.sun.intensity = 3.9;
+  scene.userData.sun.intensity = 3.5;
   camera.clearViewOffset();
   lastT = performance.now(); acc = 0;
   veh.reset(0);
@@ -4246,11 +4979,22 @@ function buildAtlas(slots, num, tag, ink, inks) {
   };
 
   // A lockup: mark, then the name, then the strapline tucked underneath.
+  // set a font and shrink it until the run fits the cell with a margin
+  const fitFont = (weight, px, name, budget, extra) => {
+    let size = px;
+    for (let i = 0; i < 8; i++) {
+      c.font = weight + ' ' + size + 'px "Chakra Petch", sans-serif';
+      if (c.measureText(name).width + (extra || 0) <= budget) break;
+      size = Math.floor(size * 0.90);
+    }
+    return size;
+  };
+
   const lockup = (sp, col) => {
     c.fillStyle = col; c.textBaseline = 'middle'; c.textAlign = 'left';
-    c.font = '700 italic 124px "Chakra Petch", sans-serif';
-    const nameW = c.measureText(sp.name).width;
     const gap = sp.mark ? 150 : 0;
+    fitFont('700 italic', 124, sp.name, CELL_W * 0.90 - gap, 0);
+    const nameW = c.measureText(sp.name).width;
     const x0 = (CELL_W - (gap + nameW)) / 2;
     if (sp.mark) drawMark(c, sp.mark, x0 + 62, CELL_H / 2, 62, col);
     c.fillText(sp.name, x0 + gap, CELL_H / 2 - 18);
@@ -4265,7 +5009,7 @@ function buildAtlas(slots, num, tag, ink, inks) {
   // A stacked wordmark: no device, the name carrying the whole decal.
   const stack = (sp, col) => {
     c.fillStyle = col; c.textBaseline = 'middle'; c.textAlign = 'center';
-    c.font = '700 italic 146px "Chakra Petch", sans-serif';
+    fitFont('700 italic', 146, sp.name, CELL_W * 0.90, 0);
     c.fillText(sp.name, CELL_W / 2, CELL_H / 2 - 26);
     if (sp.sub) {
       c.font = '600 46px "Chakra Petch", sans-serif';
@@ -4280,7 +5024,7 @@ function buildAtlas(slots, num, tag, ink, inks) {
 
   // A plate decal: solid block with the type knocked straight out of it.
   const badge = (sp, col) => {
-    c.font = '700 italic 118px "Chakra Petch", sans-serif';
+    const badgePx = fitFont('700 italic', 118, sp.name, CELL_W * 0.62, 0);
     const nameW = c.measureText(sp.name).width;
     const w = Math.min(CELL_W - 24, nameW + 300);
     const x0 = (CELL_W - w) / 2, y0 = 26, h = CELL_H - 52, rr = 26;
@@ -4300,7 +5044,7 @@ function buildAtlas(slots, num, tag, ink, inks) {
     const gap = sp.mark ? 132 : 0;
     const ix = x0 + (w - (gap + nameW)) / 2;
     if (sp.mark) drawMark(c, sp.mark, ix + 54, CELL_H / 2, 54, '#000');
-    c.font = '700 italic 118px "Chakra Petch", sans-serif';
+    c.font = '700 italic ' + badgePx + 'px "Chakra Petch", sans-serif';
     c.fillText(sp.name, ix + gap, CELL_H / 2 - 14);
     if (sp.sub) {
       c.font = '600 42px "Chakra Petch", sans-serif';
@@ -4332,14 +5076,7 @@ function buildAtlas(slots, num, tag, ink, inks) {
   // can actually carry at racing distance
   const compact = (sp, col) => {
     c.fillStyle = col; c.textBaseline = 'middle'; c.textAlign = 'center';
-    let px = 190;
-    c.font = '700 italic ' + px + 'px "Chakra Petch", sans-serif';
-    const max = CELL_W * 0.88;
-    const w = c.measureText(sp.name).width;
-    if (w > max) {
-      px = Math.floor(px * max / w);
-      c.font = '700 italic ' + px + 'px "Chakra Petch", sans-serif';
-    }
+    fitFont('700 italic', 190, sp.name, CELL_W * 0.88, 0);
     c.fillText(sp.name, CELL_W / 2, CELL_H / 2);
     c.textAlign = 'left';
   };
@@ -4452,6 +5189,126 @@ let sponsorSlots = {};
 for (const k of SLOT_KEYS) {
   sponsorSlots[k] = SPONSORS.find(x => x.id === DEFAULT_SLOT_IDS[k]) || SPONSORS[0];
 }
+/* ============================================================
+   LIVERY PRESETS
+   Ten finished cars rather than a colour mixer. Each one fixes its
+   own palette, shape, decal set and ink, so every placement is
+   filled with something that reads at the size that panel gives it
+   — which is what a mixer could never guarantee.
+   ============================================================ */
+const PRESETS = [
+  {
+    id: 'scuderia', name: 'Scuderia', sub: 'Maranello red, near solid',
+    colors: { primary: '#B3060E', secondary: '#7C0409', accent: '#F5F5F5' },
+    pattern: 0, ink: '#F5F5F5', compound: 'soft',
+    slots: { sidepod: 'apex', deck: 'vantage', airbox: 'nova', wingTop: 'orbita',
+             wingEnd: 'kerbline', wingEndLow: 'halden', fwMain: 'strato',
+             frontWing: 'ferrox', floor: 'tessera', noseTop: 'vertex',
+             podFront: 'lumen', halo: 'zenith', wingBack: 'gridwave',
+             noseSide: 'redline', chassis: 'cobalt' },
+    inks: { floor: '#F5F5F5', fwMain: '#F5F5F5' }
+  },
+  {
+    id: 'silver', name: 'Silver Arrow', sub: 'Anthracite with a teal line',
+    colors: { primary: '#181B20', secondary: '#0C0E12', accent: '#00C9B7' },
+    pattern: 6, ink: '#F0F3F5', compound: 'medium',
+    slots: { sidepod: 'nova', deck: 'cobalt', airbox: 'vertex', wingTop: 'orbita',
+             wingEnd: 'kerbline', wingEndLow: 'halden', fwMain: 'plexus',
+             frontWing: 'ferrox', floor: 'tessera', noseTop: 'apex',
+             podFront: 'lumen', halo: 'zenith', wingBack: 'gridwave',
+             noseSide: 'redline', chassis: 'none' },
+    inks: { sidepod: '#00C9B7', deck: '#00C9B7' }
+  },
+  {
+    id: 'papaya', name: 'Papaya', sub: 'Orange over anthracite, split',
+    colors: { primary: '#E5620B', secondary: '#191C21', accent: '#F2F4F6' },
+    pattern: 5, ink: '#F2F4F6', compound: 'soft',
+    slots: { sidepod: 'apex', deck: 'vantage', airbox: 'nova', wingTop: 'orbita',
+             wingEnd: 'kerbline', wingEndLow: 'halden', fwMain: 'strato',
+             frontWing: 'ferrox', floor: 'tessera', noseTop: 'vertex',
+             podFront: 'lumen', halo: 'hexon', wingBack: 'gridwave',
+             noseSide: 'sable', chassis: 'none' },
+    inks: { noseTop: '#191C21' }
+  },
+  {
+    id: 'brg', name: 'British Racing', sub: 'Deep green, lime edge',
+    colors: { primary: '#0B4A3A', secondary: '#062E24', accent: '#B9F03C' },
+    pattern: 1, ink: '#F0F4F0', compound: 'medium',
+    slots: { sidepod: 'meridian', deck: 'vantage', airbox: 'nova', wingTop: 'orbita',
+             wingEnd: 'kerbline', wingEndLow: 'halden', fwMain: 'basalt',
+             frontWing: 'ferrox', floor: 'tessera', noseTop: 'vertex',
+             podFront: 'lumen', halo: 'zenith', wingBack: 'gridwave',
+             noseSide: 'castor', chassis: 'none' },
+    inks: { sidepod: '#B9F03C' }
+  },
+  {
+    id: 'energy', name: 'Energy', sub: 'Navy, red spear, gold flash',
+    colors: { primary: '#0C1642', secondary: '#B4132A', accent: '#F2C300' },
+    pattern: 3, ink: '#FFFFFF', compound: 'soft',
+    slots: { sidepod: 'vantage', deck: 'apex', airbox: 'nova', wingTop: 'orbita',
+             wingEnd: 'kerbline', wingEndLow: 'halden', fwMain: 'strato',
+             frontWing: 'ferrox', floor: 'tessera', noseTop: 'vertex',
+             podFront: 'volta', halo: 'zenith', wingBack: 'gridwave',
+             noseSide: 'redline', chassis: 'cobalt' },
+    inks: { deck: '#F2C300' }
+  },
+  {
+    id: 'azure', name: 'Azure', sub: 'French blue with a magenta spine',
+    colors: { primary: '#0C3E93', secondary: '#0A2C6C', accent: '#F45FA0' },
+    pattern: 8, ink: '#FFFFFF', compound: 'medium',
+    slots: { sidepod: 'kite', deck: 'vantage', airbox: 'nova', wingTop: 'orbita',
+             wingEnd: 'kerbline', wingEndLow: 'halden', fwMain: 'strato',
+             frontWing: 'ferrox', floor: 'tessera', noseTop: 'vertex',
+             podFront: 'lumen', halo: 'hexon', wingBack: 'gridwave',
+             noseSide: 'sable', chassis: 'none' },
+    inks: { airbox: '#F45FA0' }
+  },
+  {
+    id: 'stripes', name: 'Stars & Stripes', sub: 'White, black blade, red edge',
+    colors: { primary: '#F1F3F5', secondary: '#15181D', accent: '#C81E2A' },
+    pattern: 2, ink: '#15181D', compound: 'hard',
+    slots: { sidepod: 'ridgeway', deck: 'vantage', airbox: 'nova', wingTop: 'orbita',
+             wingEnd: 'kerbline', wingEndLow: 'halden', fwMain: 'strato',
+             frontWing: 'ferrox', floor: 'tessera', noseTop: 'vertex',
+             podFront: 'lumen', halo: 'zenith', wingBack: 'gridwave',
+             noseSide: 'redline', chassis: 'cobalt' },
+    inks: { sidepod: '#F1F3F5', deck: '#F1F3F5', floor: '#F1F3F5', noseTop: '#15181D' }
+  },
+  {
+    id: 'neon', name: 'Neon', sub: 'Black with a fluoro cockpit wrap',
+    colors: { primary: '#0D1512', secondary: '#3DF05A', accent: '#0A0F0C' },
+    pattern: 4, ink: '#3DF05A', compound: 'soft',
+    slots: { sidepod: 'apex', deck: 'vantage', airbox: 'nova', wingTop: 'orbita',
+             wingEnd: 'kerbline', wingEndLow: 'halden', fwMain: 'strato',
+             frontWing: 'ferrox', floor: 'tessera', noseTop: 'vertex',
+             podFront: 'lumen', halo: 'zenith', wingBack: 'gridwave',
+             noseSide: 'redline', chassis: 'none' },
+    inks: { deck: '#0D1512', sidepod: '#3DF05A' }
+  },
+  {
+    id: 'cobaltteam', name: 'Cobalt', sub: 'Royal blue, white shoulder',
+    colors: { primary: '#1B34C4', secondary: '#0E1533', accent: '#F2F4F8' },
+    pattern: 9, ink: '#F2F4F8', compound: 'medium',
+    slots: { sidepod: 'northgate', deck: 'vantage', airbox: 'nova', wingTop: 'orbita',
+             wingEnd: 'kerbline', wingEndLow: 'halden', fwMain: 'strato',
+             frontWing: 'ferrox', floor: 'tessera', noseTop: 'vertex',
+             podFront: 'lumen', halo: 'hexon', wingBack: 'gridwave',
+             noseSide: 'ninefold', chassis: 'cobalt' },
+    inks: {}
+  },
+  {
+    id: 'monaco', name: 'Monaco Gold', sub: 'Ivory and navy with gold',
+    colors: { primary: '#EDEDE6', secondary: '#111F3C', accent: '#D2A24C' },
+    pattern: 11, ink: '#111F3C', compound: 'hard',
+    slots: { sidepod: 'halden', deck: 'meridian', airbox: 'nova', wingTop: 'orbita',
+             wingEnd: 'kerbline', wingEndLow: 'quartz', fwMain: 'strato',
+             frontWing: 'ferrox', floor: 'tessera', noseTop: 'vertex',
+             podFront: 'lumen', halo: 'zenith', wingBack: 'gridwave',
+             noseSide: 'ninefold', chassis: 'none' },
+    inks: { wingTop: '#D2A24C', wingBack: '#EDEDE6', noseTop: '#111F3C' }
+  }
+];
+
 let liveryInk = null;      // null = use the accent colour
 let liveryInks = {};       // per-placement overrides, keyed by slot
 let liveryPattern = 0;
@@ -4606,7 +5463,7 @@ function applyLivery() {
 
 window.URacingDrive = {
   profile: null,
-  SPONSORS, SLOT_KEYS, SLOT_LABELS,
+  SPONSORS, SLOT_KEYS, SLOT_LABELS, PRESETS,
   COMPOUNDS: ['soft', 'medium', 'hard'],
   PATTERNS: ['Solido', 'Shoulder', 'Blade', 'Spear', 'Cockpit', 'Split',
              'Underline', 'Fade', 'Centreline', 'Two-tone', 'Wedge', 'Bookend'],
@@ -4625,14 +5482,26 @@ window.URacingDrive = {
         if (found) sponsorSlots[k] = found;
       }
     }
-    if (p && typeof p.pattern === 'number') liveryPattern = p.pattern;
-    if (p && p.ink) liveryInk = p.ink;
-    if (p && p.inks && typeof p.inks === 'object') liveryInks = Object.assign({}, p.inks);
-    if (p && TYRE_BAND[p.compound]) tyreCompound = p.compound;
     if (assists) Object.assign(ASSIST, assists);
+    // the preset decides colours, shape, decals, ink and compound together
+    this.applyPreset((p && p.preset) || PRESETS[0].id, p);
+    if (p && TYRE_BAND[p.compound]) { tyreCompound = p.compound; pushTyres(); }
+  },
+  applyPreset(id, prof) {
+    const ps = PRESETS.find(x => x.id === id) || PRESETS[0];
+    livery = Object.assign({}, ps.colors);
+    for (const k of SLOT_KEYS) {
+      const found = SPONSORS.find(x => x.id === (ps.slots[k] || 'none'));
+      sponsorSlots[k] = found || SPONSORS.find(x => x.id === 'none');
+    }
+    liveryPattern = ps.pattern;
+    liveryInk = ps.ink;
+    liveryInks = Object.assign({}, ps.inks || {});
+    tyreCompound = ps.compound || 'soft';
     if (liveryShaders.length) pushLivery(); else applyLivery();
     pushTyres();
-    rebuildAtlas(p);
+    rebuildAtlas(prof || this.profile);
+    return ps;
   },
   setLivery(opts) {                      // live updates from the paint shop
     if (opts.colors) livery = opts.colors;
