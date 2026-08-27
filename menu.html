@@ -636,11 +636,20 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
 #hRev i.on.red{background:var(--red);box-shadow:0 0 14px rgba(225,6,0,.85)}
 
 /* gear + speed */
-.hcore{position:absolute;left:50%;bottom:30px;transform:translateX(-50%);
-  display:flex;align-items:flex-end;gap:26px}
+.hcore{position:absolute;left:50%;bottom:74px;transform:translateX(-50%);
+  display:flex;flex-direction:column;align-items:center;gap:2px}
 .hgear{font-size:76px;font-weight:700;font-style:italic;line-height:.82;color:#fff;
   text-shadow:0 0 34px rgba(0,0,0,.85)}
 .hspeed{display:flex;align-items:baseline;gap:8px}
+.hdial{position:absolute;left:50%;top:50%;width:206px;height:206px;
+  transform:translate(-50%,-52%);pointer-events:none;overflow:visible;z-index:-1}
+.hdial path{fill:none;stroke-linecap:round}
+.hdial .dtrack{stroke:rgba(255,255,255,.10);stroke-width:7}
+.hdial .dfill{stroke:var(--red);stroke-width:7;
+  filter:drop-shadow(0 0 6px rgba(225,6,0,.55));transition:stroke-dashoffset .08s linear}
+.hdial .tk{stroke:rgba(255,255,255,.28);stroke-width:1.6}
+.hdial text{fill:rgba(255,255,255,.34);font-size:11px;font-family:var(--ui);font-weight:600;
+  text-anchor:middle}
 .hspeed b{font-size:42px;font-weight:700;line-height:1;color:#fff;
   text-shadow:0 0 30px rgba(0,0,0,.85)}
 
@@ -752,19 +761,71 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
   font-size:9px;font-weight:600;letter-spacing:.26em;text-transform:uppercase;
   color:var(--dimmer)}
 
-.htyres{position:absolute;left:34px;top:170px;display:grid;
-  grid-template-columns:auto auto;gap:8px 14px}
-.tyre{display:flex;align-items:center;gap:8px}
-.tyre .car{width:17px;height:30px;border-radius:3px;background:#22262c;
-  border:1px solid rgba(255,255,255,.12);position:relative;overflow:hidden;
-  transition:background .12s linear}
-.tyre .car b{position:absolute;left:0;right:0;bottom:0;height:0%;
-  background:rgba(0,0,0,.55);transition:height .3s linear}
-.tyre .rd{display:flex;flex-direction:column;gap:2px;min-width:44px}
-.tyre .t{font-size:12px;font-weight:700;line-height:1;color:#dfe3e9}
-.tyre .w{font-size:8.5px;font-weight:600;letter-spacing:.12em;color:var(--dimmer)}
-.hlabel{grid-column:1 / -1;font-size:8.5px;font-weight:600;letter-spacing:.26em;
-  text-transform:uppercase;color:var(--dimmer);margin-bottom:2px}
+/* ERS: the battery, what is going out, what is coming back, and the
+   per-lap allowance drawn as a mark on the bar. */
+.hers{position:absolute;left:34px;top:172px;width:206px;padding:11px 12px;
+  border:1px solid var(--line);background:rgba(0,0,0,.42);backdrop-filter:blur(5px)}
+.hers-top{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px}
+.hers-top .k{font-size:8.5px;font-weight:700;letter-spacing:.28em;color:var(--dimmer)}
+.hers-top .mode{font-size:10.5px;font-weight:700;letter-spacing:.1em;color:#5fe0c8;
+  text-transform:uppercase}
+.hbatt{position:relative;height:12px;background:rgba(255,255,255,.07);
+  border:1px solid rgba(255,255,255,.12);overflow:hidden}
+.hbatt i{display:block;height:100%;width:0%;
+  background:linear-gradient(90deg,#0f9d7a,#41e6b4);transition:width .12s linear}
+.hbatt u{position:absolute;top:-2px;bottom:-2px;width:2px;background:#ffd23f;
+  box-shadow:0 0 6px rgba(255,210,63,.9)}
+.hers-rows{display:flex;justify-content:space-between;margin-top:8px;gap:6px}
+.hers-rows > div{display:flex;flex-direction:column;gap:2px}
+.hers-rows .k{font-size:7.5px;font-weight:600;letter-spacing:.16em;color:var(--dimmer);
+  text-transform:uppercase}
+.hers-rows .v{font-size:11.5px;font-weight:700;color:#dfe3e9;font-variant-numeric:tabular-nums}
+.hers-rows .v.hv{color:#41e6b4}
+.hot{margin-top:9px;position:relative;height:16px;border:1px solid rgba(255,210,63,.35);
+  display:flex;align-items:center;justify-content:center;overflow:hidden}
+.hot i{position:absolute;left:0;top:0;bottom:0;width:0%;background:rgba(255,210,63,.24);
+  transition:width .1s linear}
+.hot span{position:relative;font-size:8px;font-weight:700;letter-spacing:.22em;
+  text-transform:uppercase;color:#ffd23f}
+.hot.live{border-color:#ffd23f;box-shadow:0 0 12px rgba(255,210,63,.4)}
+
+/* telemetry, on Tab */
+.htel{position:absolute;inset:6% 8%;background:rgba(6,8,12,.93);
+  border:1px solid var(--line-2);backdrop-filter:blur(10px);padding:20px 24px;
+  opacity:0;visibility:hidden;transform:translateY(10px);
+  transition:opacity .18s ease,transform .18s ease,visibility .18s;z-index:8;
+  overflow:auto}
+.htel.on{opacity:1;visibility:visible;transform:none}
+.htel-head{display:flex;justify-content:space-between;align-items:baseline;
+  border-bottom:1px solid var(--line);padding-bottom:10px;margin-bottom:16px}
+.htel-head h3{font-family:var(--display);font-weight:700;font-style:italic;
+  text-transform:uppercase;font-size:22px;letter-spacing:.02em}
+.htel-head .hint{font-size:9px;font-weight:600;letter-spacing:.2em;color:var(--dimmer);
+  text-transform:uppercase}
+.htel-grid{display:grid;grid-template-columns:1.2fr .8fr;gap:22px}
+.htel-grid .wide{grid-column:1 / -1}
+.htel h4{font-size:9px;font-weight:700;letter-spacing:.26em;text-transform:uppercase;
+  color:var(--red);margin-bottom:10px}
+.ttab,.ltab{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
+.ttab th,.ltab th{font-size:8px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;
+  color:var(--dimmer);text-align:right;padding:0 0 7px}
+.ttab th:first-child,.ltab th:first-child{text-align:left}
+.ttab td,.ltab td{font-size:12.5px;padding:5px 0;text-align:right;
+  border-top:1px solid rgba(255,255,255,.06);color:#cfd4db}
+.ttab td:first-child,.ltab td:first-child{text-align:left;font-weight:700;color:var(--dim)}
+.ttab td.cold{color:#6fb4ff}.ttab td.good{color:#41e6b4}.ttab td.hot{color:#ff8a4c}
+.ttab td.over{color:#ff5347}
+.tnote{margin-top:8px;font-size:9.5px;color:var(--dimmer)}
+.dmg{display:flex;flex-direction:column;gap:7px}
+.dmg .row{display:flex;align-items:center;gap:10px}
+.dmg .nm{flex:0 0 92px;font-size:10px;font-weight:600;letter-spacing:.12em;
+  text-transform:uppercase;color:var(--dim)}
+.dmg .bar{flex:1;height:7px;background:rgba(255,255,255,.07)}
+.dmg .bar i{display:block;height:100%;background:#41e6b4}
+.dmg .bar i.warn{background:#ffd23f}.dmg .bar i.bad{background:#ff5347}
+.dmg .pc{flex:0 0 38px;text-align:right;font-size:11px;font-weight:700;
+  font-variant-numeric:tabular-nums;color:#cfd4db}
+.ltab td.best{color:#c77dff}.ltab td.pb{color:#41e6b4}
 
 /* sector timing */
 .hsectors{position:absolute;right:34px;bottom:132px;display:flex;gap:6px}
@@ -802,8 +863,11 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
 .hbanner.on{opacity:1;transform:translate(-50%,0)}
 
 @media (max-width:900px){
-  .htyres,.hdelta,.hmaphead,.hsectors{display:none}
-  .hcore{bottom:18px;gap:14px}
+  .hers,.hdelta,.hmaphead,.hsectors{display:none}
+  .htel{inset:4% 4%;padding:14px}
+  .htel-grid{grid-template-columns:1fr}
+  .hcore{bottom:52px;gap:2px}
+  .hdial{width:150px;height:150px}
   .htime{right:14px;bottom:14px;gap:4px}
   .htime .v{font-size:14px}.htime .v.cur{font-size:18px}
   .hped{left:14px;bottom:14px}
@@ -847,6 +911,35 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
 .gsw button.on{box-shadow:0 0 0 2px #04060a,0 0 0 3px #fff}
 .gsub.tight{margin-bottom:12px}
 .glist{display:flex;flex-direction:column;gap:8px}
+.pick-wrap{position:relative;z-index:1;margin:auto;width:min(1080px,92vw);
+  display:flex;flex-direction:column;gap:26px;padding:40px 0}
+.pick-head{border-bottom:1px solid var(--line);padding-bottom:16px}
+.pick-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px}
+.pcard{position:relative;text-align:left;padding:20px;cursor:pointer;
+  border:1px solid var(--line);background:rgba(255,255,255,.025);
+  transition:border-color .18s ease,background .18s ease,transform .18s ease}
+.pcard:hover{border-color:var(--line-2);background:rgba(255,255,255,.05);transform:translateY(-2px)}
+.pcard.on{border-color:var(--red);background:rgba(225,6,0,.10)}
+.pcard svg{width:100%;height:150px;display:block;margin-bottom:14px}
+.pcard .outline{fill:none;stroke:rgba(255,255,255,.5);stroke-width:2.4;
+  stroke-linejoin:round;stroke-linecap:round}
+.pcard.on .outline{stroke:var(--red)}
+.pcard .sfm{stroke:rgba(255,255,255,.75);stroke-width:2.4}
+.pcard h3{font-family:var(--display);font-weight:700;font-style:italic;
+  text-transform:uppercase;font-size:20px;letter-spacing:.02em}
+.pcard .cty{font-size:10px;font-weight:700;letter-spacing:.22em;text-transform:uppercase;
+  color:var(--dim);margin-top:4px}
+.pcard p{font-family:var(--ui);font-size:12px;line-height:1.6;color:#8f959f;margin-top:10px}
+.pcard .meta{display:flex;gap:18px;margin-top:14px;padding-top:12px;
+  border-top:1px solid rgba(255,255,255,.07)}
+.pcard .meta div{display:flex;flex-direction:column;gap:2px}
+.pcard .meta .v{font-size:14px;font-weight:700;color:var(--text)}
+.pcard .meta .l{font-size:8px;font-weight:600;letter-spacing:.18em;text-transform:uppercase;
+  color:var(--dimmer)}
+.pcard .tag{position:absolute;top:14px;right:14px;font-size:8.5px;font-weight:700;
+  letter-spacing:.18em;text-transform:uppercase;color:#8fb6ff;
+  border:1px solid rgba(143,182,255,.4);padding:3px 8px}
+.pick-foot{display:flex;gap:12px;justify-content:flex-end}
 .circuits{margin:22px 0 6px}
 .circ-lbl{font-size:9.5px;font-weight:700;letter-spacing:.28em;text-transform:uppercase;
   color:var(--red);margin-bottom:10px}
@@ -1064,6 +1157,21 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
 </section>
 
 <!-- ============================ ACCOUNT ===================== -->
+<section class="screen" id="pick">
+  <div class="atmos"><div class="glow"></div><div class="grid"></div></div>
+  <div class="pick-wrap">
+    <div class="pick-head">
+      <div class="acc-kicker" id="pickMode">Time Trial</div>
+      <h2 class="acc-title">Choose a circuit</h2>
+    </div>
+    <div class="pick-grid" id="pickGrid"></div>
+    <div class="pick-foot">
+      <button class="btn ghost" id="pickBack"><span>Back</span></button>
+      <button class="btn" id="pickGo"><span>To the grid</span></button>
+    </div>
+  </div>
+</section>
+
 <section class="screen" id="signin">
   <div class="atmos"><div class="glow"></div><div class="grid"></div></div>
   <div class="acc-wrap">
@@ -1302,6 +1410,9 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
       <span><b>C</b>Camera</span>
       <span><b>R</b>Reset</span>
       <span><b>1 2 3</b>TC / ABS / ESC</span>
+      <span><b>E</b>ERS mode</span>
+      <span><b>Q</b>Overtake</span>
+      <span><b>Tab</b>Telemetry</span>
       <span><b>Esc</b>Menu</span>
     </div>
 
@@ -1315,22 +1426,24 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
     </svg>
     <div class="hmaphead" id="hMapName">Circuit</div>
 
-    <div class="htyres">
-      <div class="hlabel">Tyres &mdash; temp &amp; wear</div>
-      <div class="tyre"><div class="car" id="tFL"><b></b></div>
-        <div class="rd"><span class="t" id="tFLt">—</span><span class="w" id="tFLw">FL</span></div></div>
-      <div class="tyre"><div class="car" id="tFR"><b></b></div>
-        <div class="rd"><span class="t" id="tFRt">—</span><span class="w" id="tFRw">FR</span></div></div>
-      <div class="tyre"><div class="car" id="tRL"><b></b></div>
-        <div class="rd"><span class="t" id="tRLt">—</span><span class="w" id="tRLw">RL</span></div></div>
-      <div class="tyre"><div class="car" id="tRR"><b></b></div>
-        <div class="rd"><span class="t" id="tRRt">—</span><span class="w" id="tRRw">RR</span></div></div>
+    <div class="hers">
+      <div class="hers-top">
+        <span class="k">ERS</span>
+        <span class="mode" id="hErsMode">Balanced</span>
+      </div>
+      <div class="hbatt"><i id="hSoc"></i><u id="hDeployMark"></u></div>
+      <div class="hers-rows">
+        <div><span class="k">Deploy</span><span class="v" id="hDeploy">0 kW</span></div>
+        <div><span class="k">Harvest</span><span class="v hv" id="hHarvest">0 kW</span></div>
+        <div><span class="k">Lap</span><span class="v" id="hLapErs">0%</span></div>
+      </div>
+      <div class="hot" id="hOvertake"><i></i><span>Overtake</span></div>
     </div>
 
     <div class="hsectors">
-      <div class="sec" id="sec1"><div class="k">S1</div><div class="v">--.---</div></div>
-      <div class="sec" id="sec2"><div class="k">S2</div><div class="v">--.---</div></div>
-      <div class="sec" id="sec3"><div class="k">S3</div><div class="v">--.---</div></div>
+      <div class="sec" id="sec1"><div class="k">Sector 1</div><div class="v">--.---</div><i></i></div>
+      <div class="sec" id="sec2"><div class="k">Sector 2</div><div class="v">--.---</div><i></i></div>
+      <div class="sec" id="sec3"><div class="k">Sector 3</div><div class="v">--.---</div><i></i></div>
     </div>
 
     <div class="hdelta" id="hDeltaWrap">
@@ -1351,6 +1464,11 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
     </div>
 
     <div class="hcore">
+      <svg class="hdial" viewBox="0 0 200 200">
+        <path class="dtrack" d="M28 158 A 92 92 0 1 1 172 158"></path>
+        <path class="dfill" id="hDialFill" d="M28 158 A 92 92 0 1 1 172 158"></path>
+        <g id="hDialTicks"></g>
+      </svg>
       <div class="hgear" id="hGear">1</div>
       <div class="hspeed"><b id="hSpeed">0</b><span class="lbl">km/h</span></div>
     </div>
@@ -1362,6 +1480,33 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
         <span class="v best" id="hBest">--:--.---</span></div>
       <div class="row"><span class="lbl">Last</span>
         <span class="v" id="hLast">--:--.---</span></div>
+    </div>
+    <div class="htel" id="hTel">
+      <div class="htel-head">
+        <h3>Telemetry</h3>
+        <span class="hint">Tab to close</span>
+      </div>
+      <div class="htel-grid">
+        <section>
+          <h4>Tyres</h4>
+          <table class="ttab">
+            <thead><tr><th></th><th>Temp</th><th>Wear</th><th>Load</th><th>Slip</th></tr></thead>
+            <tbody id="hTelTyres"></tbody>
+          </table>
+          <div class="tnote">Working window 88&ndash;108&deg;C</div>
+        </section>
+        <section>
+          <h4>Damage</h4>
+          <div id="hTelDmg" class="dmg"></div>
+        </section>
+        <section class="wide">
+          <h4>Lap history</h4>
+          <table class="ltab">
+            <thead><tr><th>Lap</th><th>S1</th><th>S2</th><th>S3</th><th>Time</th></tr></thead>
+            <tbody id="hTelLaps"></tbody>
+          </table>
+        </section>
+      </div>
     </div>
   </div>
 </section>
@@ -1401,6 +1546,7 @@ const screens = {
   menu:    $('#menu'),
   module:  $('#module'),
   signin:  $('#signin'),
+  pick:    $('#pick'),
   account: $('#account'),
   drive:   $('#drive')
 };
@@ -2137,7 +2283,13 @@ async function activate(i) {
   select(i);
   const m = MODES[i];
   if (m.id === 'garage' && window.URacingDrive) { await enterGarage(); return; }
-  if (DRIVE_MODES.has(m.id) && window.URacingDrive) { await enterDrive(); return; }
+  if (DRIVE_MODES.has(m.id) && window.URacingDrive) {
+    // choose the circuit before the session, not after
+    buildPick(m.label);
+    await wipe();
+    show('pick');
+    return;
+  }
   await wipe();
   if (m.quit) {
     $('#modTitle').textContent = 'Goodbye';
@@ -2147,6 +2299,76 @@ async function activate(i) {
   $('#modTitle').textContent = m.label;
   show('module');
 }
+
+/* ---------- circuit picker ---------- */
+function circuitOutline(pts, w, h, pad) {
+  let mnx = 1e9, mny = 1e9, mxx = -1e9, mxy = -1e9;
+  for (const [x, y] of pts) {
+    if (x < mnx) mnx = x; if (x > mxx) mxx = x;
+    if (y < mny) mny = y; if (y > mxy) mxy = y;
+  }
+  const sp = Math.min((w - pad * 2) / (mxx - mnx), (h - pad * 2) / (mxy - mny));
+  const ox = (w - (mxx - mnx) * sp) / 2, oy = (h - (mxy - mny) * sp) / 2;
+  const at = ([x, y]) => [(x - mnx) * sp + ox, (y - mny) * sp + oy];
+  const d = pts.map((p, i) => {
+    const [X, Y] = at(p);
+    return (i ? 'L' : 'M') + X.toFixed(1) + ' ' + Y.toFixed(1);
+  }).join('') + 'Z';
+  // a tick across the line, square to the first segment
+  const [x0, y0] = at(pts[0]), [x1, y1] = at(pts[1 % pts.length]);
+  const a = Math.atan2(y1 - y0, x1 - x0) + Math.PI / 2;
+  const sf = [x0 - Math.cos(a) * 7, y0 - Math.sin(a) * 7,
+              x0 + Math.cos(a) * 7, y0 + Math.sin(a) * 7];
+  return { d, sf };
+}
+
+let pickSel = null;
+function buildPick(modeLabel) {
+  const D = window.URacingDrive;
+  if (!D || !D.CIRCUITS) return;
+  $('#pickMode').textContent = modeLabel || 'Session';
+  pickSel = (profile && profile.circuit) || D.circuit || D.CIRCUITS[0].id;
+  $('#pickGrid').innerHTML = D.CIRCUITS.map(c => {
+    const o = circuitOutline(c.points, 300, 150, 18);
+    return `<button class="pcard" data-c="${c.id}">
+      ${c.night ? '<span class="tag">Night race</span>' : ''}
+      <svg viewBox="0 0 300 150">
+        <path class="outline" d="${o.d}"></path>
+        <line class="sfm" x1="${o.sf[0].toFixed(1)}" y1="${o.sf[1].toFixed(1)}"
+              x2="${o.sf[2].toFixed(1)}" y2="${o.sf[3].toFixed(1)}"></line>
+      </svg>
+      <h3>${c.name}</h3>
+      <div class="cty">${c.country}</div>
+      <p>${c.blurb}</p>
+      <div class="meta">
+        <div><span class="v">${c.length}</span><span class="l">Length</span></div>
+        <div><span class="v">${c.turns}</span><span class="l">Turns</span></div>
+        <div><span class="v">${c.night ? 'Night' : 'Day'}</span><span class="l">Session</span></div>
+      </div>
+    </button>`;
+  }).join('');
+  $('#pickGrid').onclick = e => {
+    const b = e.target.closest('.pcard'); if (!b) return;
+    pickSel = b.dataset.c;
+    paintPick();
+  };
+  paintPick();
+}
+function paintPick() {
+  [...$('#pickGrid').children].forEach(c => c.classList.toggle('on', c.dataset.c === pickSel));
+}
+$('#pickBack').addEventListener('click', async () => { await wipe(); show('menu'); });
+$('#pickGo').addEventListener('keydown', e => {
+  // let Enter work, but never Space — it is the brake
+  if (e.code === 'Space') e.preventDefault();
+});
+$('#pickGo').addEventListener('click', async () => {
+  const D = window.URacingDrive;
+  if (profile) { profile.circuit = pickSel; saveProfile(profile); }
+  D.setCircuit(pickSel);
+  paintCircuits();
+  await enterDrive();
+});
 
 /* ---------- garage ---------- */
 let gState = null;
@@ -2228,6 +2450,7 @@ function pushGarage() {
 }
 
 async function enterGarage() {
+  if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
   applyProfile();
   const first = !window.URacingDrive.ready;
   if (first) { await wipe(); runLoading(true); }
@@ -2249,7 +2472,15 @@ async function enterGarage() {
   }
 }
 
+let enteringDrive = false;
 async function enterDrive() {
+  /* Space is the brake, and it also activates whatever button still has
+     focus — which re-entered the session from under itself and left the loop
+     stopped. Drop focus on the way in, and refuse a second entry while one
+     is already in flight. */
+  if (enteringDrive) return;
+  enteringDrive = true;
+  if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
   applyProfile();                       // module exists by now
   const first = !window.URacingDrive.ready;
   if (first) { await wipe(); runLoading(true); }
@@ -2268,6 +2499,8 @@ async function enterDrive() {
     $('#modTitle').textContent = 'Track';
     await wipe();
     show('module');
+  } finally {
+    enteringDrive = false;
   }
 }
 
@@ -2486,7 +2719,7 @@ const CIRCUITS = [
     country: 'United Arab Emirates', cc: 'AE',
     blurb: 'Run after dark under the lights. Two long straights either side '
          + 'of a tight, technical middle sector.',
-    length: '—', turns: 16,
+    length: '4.64 km', turns: 16,
     scale: 1.45, width: 16.0,
     night: true, environment: false,
     kerbA: '#1E3FBF', kerbB: '#F2C21A',
@@ -2762,6 +2995,21 @@ function crossBand(track, i0, rows, from, to, lift, uRep, vRep) {
 /* ============================================================
    VEHICLE — four wheels, load transfer, Pacejka combined slip
    ============================================================ */
+/* ERS, to the current formula: a 4 MJ store, 120 kW motor, 4 MJ of
+   deployment per lap, and an overtake button that ignores the per-lap
+   allowance for a few seconds at a time. */
+const ERS = {
+  cap: 4.0e6,            // joules in the battery
+  power: 120000,         // watts out
+  lapAllow: 4.0e6,       // joules deployable per lap
+  harvestBrake: 160000,  // watts recovered under braking (MGU-K)
+  harvestCoast: 28000,   // watts trickling in off-throttle (MGU-H analogue)
+  overtakeMax: 12,       // seconds of push per charge
+  overtakeRegen: 0.55    // seconds of push earned per second off it
+};
+const ERS_MODES = ['Off', 'Build', 'Balanced', 'Attack'];
+const ERS_DEPLOY = [0.0, 0.28, 0.62, 1.0];   // fraction of full power by mode
+
 const CAR = {
   m: 798, Izz: 1220, a: 1.98, b: 1.62, tw: 1.62, hcg: 0.30,
   Rw: 0.3535, Iw: 1.15,
@@ -2813,7 +3061,18 @@ class Vehicle {
     this.steer = 0; this.throttle = 0; this.brake = 0;
     this.slip = [0, 0, 0, 0]; this.load = [0, 0, 0, 0]; this.kappa = [0, 0, 0, 0];
     this.tcCut = 0; this.absCut = 0; this.escCut = 0;
+    this.soc = ERS.cap * 0.72; this.lapDeploy = 0;
+    this.ersOut = 0; this.harvest = 0; this.overtake = ERS.overtakeMax;
     this.alphaLag = [0, 0, 0, 0];
+    /* ERS, on the same rules the real thing runs to: a 4 MJ store, 120 kW
+       out, and a deployment allowance that refills every lap. Harvesting
+       under braking is what pays for it. */
+    this.soc = ERS.cap * 0.72;          // joules in the store
+    this.lapDeploy = 0;                 // joules spent this lap
+    this.ersMode = 2;                   // 0 off, 1 build, 2 balanced, 3 attack
+    this.ersOut = 0;                    // watts, positive = deploying
+    this.harvest = 0;                   // watts recovered
+    this.overtake = 0;                  // seconds of push left
     this.tyreT = [82, 82, 82, 82];      // core temperature, C
     this.tyreW = [0, 0, 0, 0];          // wear, 0..1
     this.spin = [0, 0, 0, 0];
@@ -2885,7 +3144,33 @@ class Vehicle {
     const kRear = Math.max(this.kappa[2], this.kappa[3]);
     const tc = ASSIST.tc ? 1 / (1 + 9 * Math.max(0, kRear - 0.14)) : 1;
     this.tcCut = this.tcCut + (1 - tc - this.tcCut) * Math.min(1, dt * 12);
-    const Tdrive = Teng * ratio * c.eff * this.throttle * tc;
+    /* ---- ERS ----------------------------------------------
+       Deploy adds motor torque at the wheels; harvesting under braking and
+       off throttle puts it back. The per-lap allowance is what stops it
+       being free, exactly as it is on a real car. */
+    const wWheel = Math.abs(wRear);
+    const allowLeft = Math.max(0, ERS.lapAllow - this.lapDeploy);
+    const pushing = this.overtake > 0 && this.throttle > 0.5;
+    let deployFrac = ERS_DEPLOY[this.ersMode] * this.throttle;
+    if (pushing) deployFrac = this.throttle;
+    if (this.soc <= 0 || (allowLeft <= 0 && !pushing)) deployFrac = 0;
+    if (this.speed < 6) deployFrac = 0;
+    this.ersOut = ERS.power * deployFrac;
+    const Ters = wWheel > 1 ? this.ersOut / wWheel : 0;
+
+    // recovery: hard under braking, a trickle when coasting
+    const regen = this.brake > 0.05 ? ERS.harvestBrake * this.brake
+                : this.throttle < 0.05 && this.speed > 8 ? ERS.harvestCoast : 0;
+    this.harvest = this.soc < ERS.cap ? regen : 0;
+
+    this.soc = Math.max(0, Math.min(ERS.cap,
+      this.soc + (this.harvest - this.ersOut) * dt));
+    if (this.ersOut > 0) this.lapDeploy += this.ersOut * dt;
+    if (pushing) this.overtake = Math.max(0, this.overtake - dt);
+    else this.overtake = Math.min(ERS.overtakeMax,
+      this.overtake + dt * ERS.overtakeRegen * (this.soc > ERS.cap * 0.25 ? 1 : 0));
+
+    const Tdrive = Teng * ratio * c.eff * this.throttle * tc + Ters * c.eff;
 
     // ---- per-wheel tyre forces ----------------------------
     const geom = [[c.a, -c.tw / 2], [c.a, c.tw / 2], [-c.b, -c.tw / 2], [-c.b, c.tw / 2]];
@@ -2982,14 +3267,23 @@ class Vehicle {
     this.ax = axb; this.ay = ayb;
     this.absCut *= Math.exp(-dt * 9);
 
-    // tyres heat with slip and load, and cool with airflow
+    /* Tyres heat with slip work and load and cool with airflow. The old
+       numbers ran the whole set into the 150s, which is nowhere near real:
+       a slick sits around 90-110 C at racing pace and only touches 130 when
+       it is being abused. The extra term above 112 is the radiative loss
+       that keeps hot excursions bounded instead of running to the clamp. */
     for (let i = 0; i < 4; i++) {
       const work = this.slip[i] * (this.load[i] / 4200);
-      const air = 0.55 + Math.abs(this.vx) * 0.035;
-      this.tyreT[i] += (work * 38 - (this.tyreT[i] - 26) * air * 0.055) * dt;
-      this.tyreT[i] = Math.max(20, Math.min(165, this.tyreT[i]));
+      const air = 0.60 + Math.abs(this.vx) * 0.030;
+      const heat = work * 15 + 2.2;
+      const cool = (this.tyreT[i] - 30) * air * 0.042
+                 + Math.max(0, this.tyreT[i] - 112) * 1.10;
+      this.tyreT[i] += (heat - cool) * dt;
+      this.tyreT[i] = Math.max(20, Math.min(138, this.tyreT[i]));
       this.tyreW[i] = Math.min(1, this.tyreW[i] +
-        Math.max(0, this.slip[i] - 0.55) * (this.load[i] / 5200) * dt * 0.0016);
+        Math.max(0, this.slip[i] - 0.55) * (this.load[i] / 5200) * dt * 0.0016
+        // rubber above its window goes off far faster
+        + Math.max(0, this.tyreT[i] - 116) * dt * 0.00012);
     }
     this.vx += (axb + this.r * this.vy) * dt;
     this.vy += (ayb - this.r * this.vx) * dt;
@@ -3508,13 +3802,10 @@ function buildEnvironment(scene, track) {
       st.castShadow = true; st.receiveShadow = true;
       g.add(st);
     }
-    // the vomitory: a stair down the middle so it is not one unbroken block
-    for (const ax of [-W / 4, W / 4]) {
-      const aisle = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.12, deckD), steel);
-      aisle.position.set(ax, deckH / 2 + 0.1, -deckD / 2);
-      aisle.rotation.x = -Math.atan2(deckH, deckD);
-      g.add(aisle);
-    }
+    /* No aisle slabs. Rotating a long thin box to follow the rake made it
+       poke out past the front row as a wedge, which is the triangle that was
+       sitting in front of every stand. The seating blocks below leave the
+       gaps instead. */
 
     // spectators, sitting on the rake at its own angle
     /* The spectators sit on the slope of the rake. The plane is laid along
@@ -3566,14 +3857,25 @@ function buildEnvironment(scene, track) {
       g.add(b2);
     }
     // back and side cladding closes the silhouette
+    // the back is closed off; the sides are open with a railing, which is
+    // what a real stand looks like from the circuit
     const back = new THREE.Mesh(new THREE.BoxGeometry(W + 3, colH, 0.35), concrete);
     back.position.set(0, colH / 2, -deckD - 1.6);
     back.castShadow = true;
     g.add(back);
     for (const sx of [-1, 1]) {
-      const side = new THREE.Mesh(new THREE.BoxGeometry(0.35, colH * 0.86, deckD + 2.0), concrete);
-      side.position.set(sx * (W / 2 + 1.2), colH * 0.43, -deckD / 2 - 0.4);
-      g.add(side);
+      for (const ry of [deckH * 0.55, deckH * 0.55 + 1.0]) {
+        const rail = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.16, deckD + 1.5), steel);
+        rail.position.set(sx * (W / 2 + 0.4), ry, -deckD / 2 - 0.4);
+        rail.rotation.x = -Math.atan2(deckH * 0.5, deckD);
+        g.add(rail);
+      }
+      for (let k = 0; k <= 5; k++) {
+        const post = new THREE.Mesh(new THREE.BoxGeometry(0.12, 1.3, 0.12), steel);
+        post.position.set(sx * (W / 2 + 0.4),
+          deckH * (0.18 + 0.62 * (1 - k / 5)) + 0.4, -k * deckD / 5);
+        g.add(post);
+      }
     }
     return g;
   };
@@ -3585,7 +3887,7 @@ function buildEnvironment(scene, track) {
     const side = i % 2 ? 1 : -1;
     const W = i % 3 === 0 ? 74 : 54;
     const ROWS = i % 3 === 0 ? 22 : 16;
-    const p = ptAt(j, side * (OFF + 6.0));
+    const p = ptAt(j, side * (OFF + 12.0));
     const g = grandstand(W, ROWS);
     g.position.set(p.x, yAt(j), p.z);
     /* The stand's local +z is its open face. Aiming it at the centreline point
@@ -3611,7 +3913,7 @@ function buildEnvironment(scene, track) {
   const pitJ = 0;                                    // the main straight
   const pitT = track.T[pitJ];
   const pitYaw = Math.atan2(pitT.x, pitT.z);
-  const pitP = ptAt(pitJ, -(OFF + 4));
+  const pitP = ptAt(pitJ, -(OFF + 12));
   const pit = new THREE.Group();
   pit.position.set(pitP.x, yAt(pitJ), pitP.z);
   /* Local X is the garage row, so it has to lie along the track. Aligning the
@@ -3683,7 +3985,7 @@ function buildEnvironment(scene, track) {
   for (let i = 0; i < 5; i++) {
     const j = (pitJ + Math.round(track.count * (0.02 + i * 0.016))) % track.count;
     const t2 = track.T[j];
-    const p2 = ptAt(j, -(OFF + 40));
+    const p2 = ptAt(j, -(OFF + 62));
     const unit = new THREE.Group();
     unit.position.set(p2.x, yAt(j), p2.z);
     unit.rotation.y = Math.atan2(t2.x, t2.z) + Math.PI / 2;
@@ -3813,7 +4115,7 @@ function buildEnvironment(scene, track) {
   // the avenue: two ragged rows following the lap
   for (let s2 = 0; s2 < track.count; s2 += 3) {
     for (const side of [-1, 1]) {
-      if (Math.random() > 0.55) continue;
+      if (Math.random() > 0.42) continue;
       const off = side * (34 + Math.random() * 120);
       const p = ptAt(s2 % track.count, off);
       const x = p.x + (Math.random() - 0.5) * 22;
@@ -3821,10 +4123,15 @@ function buildEnvironment(scene, track) {
       if (clear(x, z)) sites.push([x, z]);
     }
   }
-  // a thinner scatter beyond it, so the treeline does not end in a hard edge
-  for (let i = 0; i < 9000 && sites.length < 1900; i++) {
-    const x = (Math.random() * 2 - 1) * 1300;
-    const z = (Math.random() * 2 - 1) * 1300;
+  /* A thinner band just beyond the avenue. Anything past this is behind the
+     fog and the treeline in front of it, so it is 12k triangles a piece that
+     never reaches the screen — that was most of the cost. */
+  for (let i = 0; i < 6000 && sites.length < 1150; i++) {
+    const a2 = Math.random() * Math.PI * 2;
+    const j = Math.floor(Math.random() * track.count);
+    const off = (Math.random() < 0.5 ? -1 : 1) * (160 + Math.random() * 130);
+    const b2 = ptAt(j, off);
+    const x = b2.x + Math.cos(a2) * 40, z = b2.z + Math.sin(a2) * 40;
     if (clear(x, z)) sites.push([x, z]);
   }
   scene.userData.treeSites = sites;
@@ -3877,7 +4184,7 @@ function placeProps(scene, track, treeGltf, standGltf) {
       parts.push({ g, m });
     });
     const sites = scene.userData.treeSites || [];
-    const CHUNK = 220;          // small enough that the frustum rejects most
+    const CHUNK = 150;          // small enough that the frustum rejects most
     const buckets = new Map();
     for (const sp of sites) {
       const key = Math.floor(sp[0] / CHUNK) + ':' + Math.floor(sp[1] / CHUNK);
@@ -4369,6 +4676,41 @@ function updateCamera(dt, sample) {
   camera.updateProjectionMatrix();
 }
 
+function paintTelemetry() {
+  if (!telOpen) return;
+  const NAMES = ['Front left', 'Front right', 'Rear left', 'Rear right'];
+  hud.telTyres.innerHTML = NAMES.map((n, i) => {
+    const T = veh.tyreT[i];
+    const cls = T < 82 ? 'cold' : T < 108 ? 'good' : T < 120 ? 'hot' : 'over';
+    return `<tr><td>${n}</td><td class="${cls}">${T.toFixed(0)}&deg;C</td>`
+         + `<td>${(100 - veh.tyreW[i] * 100).toFixed(0)}%</td>`
+         + `<td>${(veh.load[i] / 9.81).toFixed(0)} kg</td>`
+         + `<td>${(veh.slip[i] * 100).toFixed(0)}%</td></tr>`;
+  }).join('');
+
+  const rows = [['Front wing', damage.wing], ['Floor', damage.floor],
+                ['Suspension', damage.susp]];
+  hud.telDmg.innerHTML = rows.map(([n, d]) => {
+    const health = Math.max(0, 100 - d * 100);
+    const cls = health > 80 ? '' : health > 45 ? 'warn' : 'bad';
+    return `<div class="row"><span class="nm">${n}</span>`
+         + `<span class="bar"><i class="${cls}" style="width:${health.toFixed(0)}%"></i></span>`
+         + `<span class="pc">${health.toFixed(0)}%</span></div>`;
+  }).join('');
+
+  const cell = (t, best) => t == null ? '<td>—</td>'
+    : `<td class="${best ? 'best' : ''}">${t.toFixed(3)}</td>`;
+  hud.telLaps.innerHTML = lapLog.length
+    ? lapLog.slice().reverse().map(L => {
+        const isBest = lap.best != null && Math.abs(L.time - lap.best) < 1e-6;
+        return `<tr><td>${String(L.n).padStart(2, '0')}</td>`
+             + cell(L.s[0], L.sb[0]) + cell(L.s[1], L.sb[1]) + cell(L.s[2], L.sb[2])
+             + `<td class="${isBest ? 'pb' : ''}">${fmt(L.time)}</td></tr>`;
+      }).join('')
+    : '<tr><td colspan="5" style="text-align:left;color:var(--dimmer)">'
+      + 'No completed laps yet.</td></tr>';
+}
+
 function updateHUD(sample, frameDt) {
   const v = veh.speed * 3.6;
   hud.speed.textContent = Math.round(v);
@@ -4387,18 +4729,25 @@ function updateHUD(sample, frameDt) {
   hud.lapNo.textContent = String(lap.count).padStart(2, '0');
   hud.flag.classList.toggle('on', veh.offTrack);
 
-  // tyres: colour by working temperature, with the numbers alongside
-  for (let i = 0; i < 4; i++) {
-    const T = veh.tyreT[i], t = hud.tyres[i];
-    // cold blue -> in window green -> overheating red
-    let h, sat = 62, li = 34;
-    if (T < 78) { h = 205; li = 26 + (T - 20) / 58 * 10; }
-    else if (T < 108) { h = 205 - (T - 78) / 30 * 100; li = 34; }
-    else { h = Math.max(0, 105 - (T - 108) / 45 * 105); li = 34 + (T - 108) / 45 * 12; }
-    t.box.style.background = `hsl(${h.toFixed(0)} ${sat}% ${li.toFixed(0)}%)`;
-    t.wearBar.style.height = (veh.tyreW[i] * 100).toFixed(0) + '%';
-    t.temp.textContent = Math.round(T) + '°';
-    t.lbl.textContent = t.name + ' ' + (100 - veh.tyreW[i] * 100).toFixed(0) + '%';
+  // speedometer: a 270-degree sweep to 360 km/h
+  const dialF = Math.max(0, Math.min(1, v / 360));
+  hud.dialFill.style.strokeDashoffset = (hud.dialLen * (1 - dialF)).toFixed(1);
+
+  // ERS
+  const soc = veh.soc / ERS.cap;
+  hud.soc.style.width = (soc * 100).toFixed(1) + '%';
+  hud.ersMode.textContent = veh.overtake > 0 && veh.throttle > 0.5 && veh.soc > 0
+    ? 'Overtake' : ERS_MODES[veh.ersMode];
+  hud.deploy.textContent = (veh.ersOut / 1000).toFixed(0) + ' kW';
+  hud.harvestV.textContent = '+' + (veh.harvest / 1000).toFixed(0) + ' kW';
+  const lapLeft = Math.max(0, 1 - veh.lapDeploy / ERS.lapAllow);
+  hud.lapErs.textContent = (lapLeft * 100).toFixed(0) + '%';
+  hud.deployMark.style.left = (lapLeft * 100).toFixed(1) + '%';
+  hud.otFill.style.width = (veh.overtake / ERS.overtakeMax * 100).toFixed(0) + '%';
+  hud.otWrap.classList.toggle('live', veh.overtake > 0 && veh.throttle > 0.5);
+  if (telOpen) {
+    telTick -= frameDt;
+    if (telTick <= 0) { telTick = 0.25; paintTelemetry(); }
   }
 
   // live position: dot, pulse ring and the stretch of road just covered
@@ -4520,13 +4869,32 @@ function frame(now) {
       sectors.cur[2] = st3;
       if (sectors.best[2] == null || st3 < sectors.best[2]) sectors.best[2] = st3;
       if (sectors.ideal[2] == null || st3 < sectors.ideal[2]) sectors.ideal[2] = st3;
+      // keep the lap for the telemetry panel, flagging any sector that was a best
+      lapLog.push({
+        n: lap.count, time: lap.t,
+        s: sectors.cur.slice(),
+        sb: sectors.cur.map((t, k) => t != null && sectors.best[k] != null
+                                   && Math.abs(t - sectors.best[k]) < 1e-6)
+      });
+      if (lapLog.length > 60) lapLog.shift();
+      veh.lapDeploy = 0;                     // the ERS allowance refills each lap
       sectors = { cur: [null, null, null], best: sectors.best,
                   ideal: sectors.ideal, cum: [0, 0, 0], idx: 0 };
       splits = [];
       lap.t = 0; lap.count++;
+      paintTelemetry();
     }
     lap.s = cur;
   } else if (veh.speed > 1) { lap.started = true; lap.s = sample.s; }
+
+  /* Wear and tear, from what the car is actually doing: running wide loads
+     the floor and wing, and big lateral spikes work the suspension. */
+  if (veh.offTrack && veh.speed > 12) {
+    damage.floor = Math.min(1, damage.floor + frameDt * 0.012);
+    damage.wing = Math.min(1, damage.wing + frameDt * 0.006);
+  }
+  const gLat = Math.abs(veh.ay) / 9.81;
+  if (gLat > 4.4) damage.susp = Math.min(1, damage.susp + frameDt * (gLat - 4.4) * 0.004);
 
   // place the car on the road
   const ws = scene.userData.waterShader;
@@ -4620,6 +4988,12 @@ function stepGarage(dt) {
   camera.updateProjectionMatrix();
 }
 let splits = [], bestSplits = null, bannerT = 0;
+let lapLog = [];                 // one row per completed lap, for the panel
+let telOpen = false, telTick = 0;
+/* Damage is not modelled by the physics yet, so the panel reports what the
+   car has actually been through — kerb strikes and off-track excursions —
+   rather than inventing numbers. */
+let damage = { wing: 0, floor: 0, susp: 0 };
 const SPLIT_N = 60;
 let sectors = { cur: [null, null, null], best: [null, null, null],
                 ideal: [null, null, null], cum: [0, 0, 0], idx: 0 };
@@ -4705,15 +5079,37 @@ function collectHUD() {
     mapPath: $('#hMapPath'), mapDot: $('#hMapDot'), mapSF: $('#hMapSF'),
     mapName: $('#hMapName'), banner: $('#hBanner'),
     deltaWrap: $('#hDeltaWrap'), delta: $('#hDelta'), deltaMark: $('#hDeltaMark'),
-    tyres: ['FL', 'FR', 'RL', 'RR'].map(k => ({
-      box: $('#t' + k), wearBar: $('#t' + k).firstElementChild,
-      temp: $('#t' + k + 't'), lbl: $('#t' + k + 'w'), name: k
-    })),
     mapTrail: $('#hMapTrail'), mapRing: $('#hMapRing'),
     secs: [$('#sec1'), $('#sec2'), $('#sec3')],
-    revCells: [...$('#hRev').children]
+    revCells: [...$('#hRev').children],
+    dialFill: $('#hDialFill'), dialTicks: $('#hDialTicks'),
+    ersMode: $('#hErsMode'), soc: $('#hSoc'), deployMark: $('#hDeployMark'),
+    deploy: $('#hDeploy'), harvestV: $('#hHarvest'), lapErs: $('#hLapErs'),
+    otWrap: $('#hOvertake'), otFill: $('#hOvertake').firstElementChild,
+    tel: $('#hTel'), telTyres: $('#hTelTyres'), telDmg: $('#hTelDmg'),
+    telLaps: $('#hTelLaps')
   };
   hud.mapLen = hud.mapPath.getTotalLength();
+
+  // the speedometer arc: one 270-degree sweep, with a tick every 40 km/h
+  hud.dialLen = hud.dialFill.getTotalLength();
+  hud.dialFill.style.strokeDasharray = hud.dialLen;
+  hud.dialFill.style.strokeDashoffset = hud.dialLen;
+  const ticks = [];
+  for (let v = 0; v <= 360; v += 40) {
+    const f = v / 360;
+    const ang = Math.PI * (0.75 + 1.5 * f);           // 135deg round to 405deg
+    const cx = 100, cy = 100;
+    const x1 = cx - Math.cos(ang) * 84, y1 = cy - Math.sin(ang) * 84;
+    const x2 = cx - Math.cos(ang) * 74, y2 = cy - Math.sin(ang) * 74;
+    ticks.push(`<line class="tk" x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" `
+             + `x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}"/>`);
+    if (v % 80 === 0) {
+      const tx = cx - Math.cos(ang) * 62, ty = cy - Math.sin(ang) * 62 + 4;
+      ticks.push(`<text x="${tx.toFixed(1)}" y="${ty.toFixed(1)}">${v}</text>`);
+    }
+  }
+  hud.dialTicks.innerHTML = ticks.join('');
   hud.mapName.textContent = trackName();
   // start/finish tick, drawn across the map at the line
   const a = hud.mapPath.getPointAtLength(0);
@@ -4859,6 +5255,18 @@ async function init(onProgress) {
     if (e.code === 'Digit2') ASSIST.abs = !ASSIST.abs;
     if (e.code === 'Digit3') ASSIST.esc = !ASSIST.esc;
     if (e.code === 'KeyC') camMode = (camMode + 1) % 3;
+    if (e.code === 'KeyE') {                 // cycle the ERS map
+      veh.ersMode = (veh.ersMode + 1) % ERS_MODES.length;
+    }
+    if (e.code === 'KeyQ') {                 // arm overtake
+      if (veh.soc > ERS.cap * 0.08) veh.overtake = Math.max(veh.overtake, 4);
+    }
+    if (e.code === 'Tab') {                  // telemetry
+      e.preventDefault();
+      telOpen = !telOpen;
+      hud.tel.classList.toggle('on', telOpen);
+      paintTelemetry();
+    }
     if (e.code === 'KeyR') {
       veh.reset(lap.s || 0); reseedLookup(veh.x, veh.z);
       onboard.live = false;            // a respawn teleports; do not sweep to it
@@ -4922,6 +5330,10 @@ function start() {
   camPos.set(veh.x, s.y + 3, veh.z);
   camAim.set(veh.x, s.y + 1, veh.z);
   splits = [];
+  lapLog = [];
+  damage = { wing: 0, floor: 0, susp: 0 };
+  telOpen = false;
+  if (hud && hud.tel) hud.tel.classList.remove('on');
   sectors = { cur: [null, null, null], best: [null, null, null],
               ideal: [null, null, null], cum: [0, 0, 0], idx: 0 };
   resize();
@@ -5170,7 +5582,14 @@ const LIVERY_GLSL = `
 /* Sponsor marks are drawn into one atlas; the shader projects each cell onto
    a hand-placed zone on the car, so they sit on the panels the way a real
    wrap does rather than floating as billboards. */
+/* Team emblems ride the same atlas as the sponsors, so a preset can put its
+   own crest on the sidepod alongside the brands. */
 const SPONSORS = [
+  { id: 'tm_rossa',  name: 'ROSSA',   sub: 'CORSE',      mark: 'trident',   style: 'lockup' },
+  { id: 'tm_silver', name: 'ARGENT',  sub: 'WORKS',      mark: 'star3',     style: 'lockup' },
+  { id: 'tm_papaya', name: 'HALDEN',  sub: 'RACING',     mark: 'roundel',   style: 'lockup' },
+  { id: 'tm_brg',    name: 'VERDANT', sub: 'GP',         mark: 'wingcrest', style: 'lockup' },
+  { id: 'tm_energy', name: 'TAURUS',  sub: 'RACING',     mark: 'bull',      style: 'lockup' },
   // style: lockup = mark + name + strapline, stack = name over strapline,
   // badge = knocked out of a filled plate, mono = a big letterform block
   { id: 'apex',     name: 'APEX',     sub: 'DYNAMICS',   mark: 'chevron',  style: 'lockup' },
@@ -5407,6 +5826,69 @@ function drawMark(c, kind, x, y, r, col) {
       c.beginPath(); c.arc(x + p[0] * r * .8, y + p[1] * r * .8, r * .17, 0, Math.PI * 2); c.fill();
     }
     c.beginPath(); c.arc(x, y, r * .24, 0, Math.PI * 2); c.fill();
+    return;
+  }
+  /* ---- team emblems ----
+     Original marks in the same visual families a real grid uses — a charging
+     animal, a star, a shield, a winged crest — so the cars read as a proper
+     paddock. These are drawn, not traced from anyone's logo. */
+  if (kind === 'bull') {                                   // charging silhouette
+    c.save(); c.translate(x, y); c.scale(r / 100, r / 100);
+    c.beginPath();
+    c.moveTo(-96, 6); c.lineTo(-64, -16); c.lineTo(-40, -12);
+    c.lineTo(-30, -34); c.lineTo(-12, -18); c.lineTo(16, -22);
+    c.lineTo(40, -44); c.lineTo(50, -20); c.lineTo(78, -26);
+    c.lineTo(96, -6); c.lineTo(74, 8); c.lineTo(80, 34);
+    c.lineTo(58, 22); c.lineTo(36, 42); c.lineTo(20, 20);
+    c.lineTo(-8, 30); c.lineTo(-22, 12); c.lineTo(-52, 26);
+    c.lineTo(-58, 8); c.closePath(); c.fill();
+    c.beginPath();                                          // horn
+    c.moveTo(-92, -2); c.lineTo(-112, -30); c.lineTo(-84, -18); c.closePath(); c.fill();
+    c.restore(); return;
+  }
+  if (kind === 'trident') {
+    c.moveTo(x - r * .12, y + r); c.lineTo(x + r * .12, y + r);
+    c.lineTo(x + r * .12, y - r * .2); c.lineTo(x - r * .12, y - r * .2);
+    c.closePath(); c.fill();
+    for (const sx of [-1, 0, 1]) {
+      c.beginPath();
+      c.rect(x + sx * r * .62 - r * .11, y - r, r * .22, r * .82); c.fill();
+    }
+    c.beginPath(); c.rect(x - r * .78, y - r * .28, r * 1.56, r * .2); c.fill();
+    return;
+  }
+  if (kind === 'star3') {                                  // three-point star
+    c.save(); c.translate(x, y);
+    c.lineWidth = r * .16;
+    c.beginPath(); c.arc(0, 0, r * .92, 0, Math.PI * 2); c.stroke();
+    for (let i = 0; i < 3; i++) {
+      const a = -Math.PI / 2 + i * Math.PI * 2 / 3;
+      c.beginPath(); c.moveTo(0, 0);
+      c.lineTo(Math.cos(a) * r * .9, Math.sin(a) * r * .9);
+      c.lineWidth = r * .17; c.stroke();
+    }
+    c.restore(); return;
+  }
+  if (kind === 'wingcrest') {                              // winged shield
+    c.beginPath();
+    c.moveTo(x, y - r); c.lineTo(x + r * .62, y - r * .55);
+    c.lineTo(x + r * .5, y + r * .44); c.lineTo(x, y + r);
+    c.lineTo(x - r * .5, y + r * .44); c.lineTo(x - r * .62, y - r * .55);
+    c.closePath(); c.fill();
+    for (const sx of [-1, 1]) {
+      c.beginPath();
+      c.moveTo(x + sx * r * .66, y - r * .34);
+      c.quadraticCurveTo(x + sx * r * 1.5, y - r * .5, x + sx * r * 1.6, y - r * .02);
+      c.quadraticCurveTo(x + sx * r * 1.2, y - r * .14, x + sx * r * .7, y + r * .06);
+      c.closePath(); c.fill();
+    }
+    return;
+  }
+  if (kind === 'roundel') {
+    c.lineWidth = r * .18;
+    c.arc(x, y, r * .84, 0, Math.PI * 2); c.stroke();
+    c.beginPath(); c.arc(x, y, r * .34, 0, Math.PI * 2); c.fill();
+    c.beginPath(); c.rect(x - r * .06, y - r * 1.05, r * .12, r * .4); c.fill();
     return;
   }
   if (kind === 'chevron') {
@@ -5675,7 +6157,7 @@ const PRESETS = [
              wingEndLow: 'halden', fwMain: 'strato', frontWing: 'ferrox',
              fwUpper: 'quartz', floor: 'tessera', noseTop: 'vertex',
              noseSide: 'redline', halo: 'zenith', chassis: 'cobalt',
-             sidepodLow: 'castor', barge: 'sable', engFlank: 'none', rearDeck: 'none' },
+             sidepodLow: 'castor', barge: 'sable', engFlank: 'tm_rossa', rearDeck: 'none' },
     inks: { floor: '#F2F2F0', fwMain: '#F2F2F0', noseTop: '#F2F2F0' }
   },
   {
@@ -5687,7 +6169,7 @@ const PRESETS = [
              wingEndLow: 'halden', fwMain: 'plexus', frontWing: 'ferrox',
              fwUpper: 'quartz', floor: 'tessera', noseTop: 'apex',
              noseSide: 'redline', halo: 'zenith', chassis: 'none',
-             sidepodLow: 'ninefold', barge: 'none', engFlank: 'none', rearDeck: 'none' },
+             sidepodLow: 'ninefold', barge: 'none', engFlank: 'tm_silver', rearDeck: 'none' },
     inks: { sidepod: '#00C4B4', deck: '#00C4B4', airbox: '#00C4B4' }
   },
   {
@@ -5699,7 +6181,7 @@ const PRESETS = [
              wingEndLow: 'halden', fwMain: 'strato', frontWing: 'ferrox',
              fwUpper: 'quartz', floor: 'tessera', noseTop: 'vertex',
              noseSide: 'sable', halo: 'hexon', chassis: 'none',
-             sidepodLow: 'castor', barge: 'none', engFlank: 'none', rearDeck: 'none' },
+             sidepodLow: 'castor', barge: 'none', engFlank: 'tm_papaya', rearDeck: 'none' },
     inks: { noseTop: '#15181D', fwMain: '#15181D' }
   },
   {
@@ -5711,7 +6193,7 @@ const PRESETS = [
              wingEndLow: 'halden', fwMain: 'basalt', frontWing: 'ferrox',
              fwUpper: 'quartz', floor: 'tessera', noseTop: 'vertex',
              noseSide: 'castor', halo: 'zenith', chassis: 'cobalt',
-             sidepodLow: 'ninefold', barge: 'none', engFlank: 'none', rearDeck: 'none' },
+             sidepodLow: 'ninefold', barge: 'none', engFlank: 'tm_brg', rearDeck: 'none' },
     inks: { sidepod: '#BCEE3C', deck: '#BCEE3C' }
   },
   {
@@ -5723,7 +6205,7 @@ const PRESETS = [
              wingEndLow: 'halden', fwMain: 'strato', frontWing: 'ferrox',
              fwUpper: 'quartz', floor: 'tessera', noseTop: 'vertex',
              noseSide: 'redline', halo: 'zenith', chassis: 'cobalt',
-             sidepodLow: 'castor', barge: 'sable', engFlank: 'none', rearDeck: 'none' },
+             sidepodLow: 'castor', barge: 'sable', engFlank: 'tm_energy', rearDeck: 'none' },
     inks: { deck: '#F0C200', wingTop: '#F0C200' }
   },
   {
@@ -5945,7 +6427,9 @@ window.URacingDrive = {
   profile: null,
   SPONSORS, SLOT_KEYS, SLOT_LABELS, PRESETS,
   CIRCUITS: CIRCUITS.map(c => ({ id: c.id, name: c.name, country: c.country,
-                                 cc: c.cc, blurb: c.blurb, night: c.night })),
+                                 cc: c.cc, blurb: c.blurb, night: c.night,
+                                 length: c.length, turns: c.turns,
+                                 points: c.points })),
   get circuit() { return circuit.id; },
   setCircuit(id) {
     const c = CIRCUITS.find(x => x.id === id);
