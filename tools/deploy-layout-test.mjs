@@ -7,7 +7,12 @@
  *
  * Serves each layout from a static server that mimics Pages -- including
  * serving .ts as video/mp2t, which is what breaks the root layout -- and
- * asserts the bundle actually executed in both.
+ * asserts the bundle actually executed in each.
+ *
+ * The third case is the cache one: Pages serves HTML with a ten-minute
+ * max-age, so a visitor can hold a copy from before the last deploy. It serves
+ * an index.html carrying an old build id and requires the page to notice and
+ * replace itself.
  *
  *   node tools/deploy-layout-test.mjs
  */
@@ -18,7 +23,7 @@ import path from 'node:path';
 
 const MIME = { '.html':'text/html', '.js':'text/javascript', '.map':'application/json', '.ts':'video/mp2t', '.json':'application/json' };
 
-function serve(rootDir, port) {
+function serve(rootDir, port, staleHtml = false) {
   const s = http.createServer((req, res) => {
     let p = decodeURIComponent(req.url.split('?')[0]);
     if (p.startsWith('/Subnautica-2')) p = p.slice('/Subnautica-2'.length);
@@ -27,6 +32,14 @@ function serve(rootDir, port) {
     const f = path.join(rootDir, p);
     if (!f.startsWith(rootDir) || !fs.existsSync(f) || fs.statSync(f).isDirectory()) {
       res.writeHead(404); return res.end('not found');
+    }
+    // Simulates a browser holding a cached copy of index.html from before the
+    // current deploy: the HTML carries an old build id, version.json carries
+    // the new one.
+    if (staleHtml && f.endsWith('index.html')) {
+      const html = fs.readFileSync(f, 'utf8').replace(/__BUILD__ = '[^']*'/, "__BUILD__ = 'stale000'");
+      res.writeHead(200, { 'Content-Type': 'text/html' });
+      return res.end(html);
     }
     res.writeHead(200, { 'Content-Type': MIME[path.extname(f)] || 'application/octet-stream' });
     fs.createReadStream(f).pipe(res);
@@ -43,21 +56,22 @@ const REPO = new URL('..', import.meta.url).pathname.replace(/\/$/, '');
 const cases = [
   { name: 'Pages folder = / (repo root)', dir: REPO, port: 4201 },
   { name: 'Pages folder = /docs', dir: REPO + '/docs', port: 4202 },
+  { name: 'stale cached index.html replaces itself', dir: REPO + '/docs', port: 4203, stale: true, expectQuery: true },
 ];
 
 let bad = 0;
 for (const c of cases) {
-  const s = await serve(c.dir, c.port);
+  const s = await serve(c.dir, c.port, c.stale === true);
   const page = await browser.newPage();
   await page.goto(`http://localhost:${c.port}/Subnautica-2/`, { waitUntil: 'domcontentloaded' });
   await page.waitForTimeout(6000);
   const r = await page.evaluate(() => ({
     booted: !!window.__citysimBooted,
-    url: location.pathname,
+    url: location.pathname + location.search,
     status: document.getElementById('boot-status')?.textContent?.trim().slice(0, 90),
     heading: document.querySelector('#boot h1')?.textContent?.trim().slice(0, 60),
   }));
-  const ok = r.booted;
+  const ok = r.booted && (!c.expectQuery || /[?&]b=/.test(r.url));
   if (!ok) bad++;
   console.log(`${ok ? 'PASS' : 'FAIL'}  ${c.name}`);
   console.log(`      bundle ran: ${r.booted}   landed on: ${r.url}`);
@@ -67,5 +81,5 @@ for (const c of cases) {
 }
 
 await browser.close();
-console.log(bad ? `\nFAIL  ${bad} layout(s) did not boot` : '\nPASS  both deployment layouts boot');
+console.log(bad ? `\nFAIL  ${bad} case(s) did not boot` : '\nPASS  every deployment case boots');
 process.exitCode = bad ? 1 : 0;

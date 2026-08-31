@@ -37,7 +37,7 @@ npm run dev        # http://localhost:5173
 | `npm run preview` | serve the production build |
 | `npm run typecheck` | `tsc --noEmit` |
 | `npm run test:gpu` | headless offscreen render test (needs Playwright + Chromium) |
-| `npm run test:deploy` | boots the built site under both Pages layouts |
+| `npm run test:deploy` | boots the built site under both Pages layouts, and from a stale cache |
 
 ### Controls
 
@@ -73,8 +73,17 @@ Note: a repo serves exactly one Pages site. This repo's Pages is currently
 pointed at the `claude/f1-cinematic-menus-uz1gac` branch, so either option
 above replaces what is published there today.
 
-Either way the URL is `https://maksimsysak3-ui.github.io/Subnautica-2/`. If you
-rename the repo, change `BASE` in `vite.config.ts` to match.
+Either way the URL is `https://maksimsysak3-ui.github.io/Subnautica-2/`. Asset
+paths are relative, so renaming the repo needs no config change.
+
+### Cache
+
+GitHub Pages serves HTML with a ten-minute `max-age` and offers no way to
+change it, so a visitor can sit on a copy from before the last deploy — which
+looks exactly like the deploy having failed. Each build stamps an id into
+`index.html` and writes the same id to `version.json`; the page fetches that
+with `no-store` on load and, if the ids disagree, reloads itself once through a
+cache-busting URL. Nobody has to be told to hard-reload.
 
 ### The cross-origin isolation problem (deferred on purpose)
 

@@ -7,6 +7,29 @@
 <title>citysim</title>
 <meta name="description" content="A city simulation engine built on WebGPU.">
 <script>
+/* Replace a stale cached copy of this page.
+ *
+ * The build id below is stamped in at build time; version.json holds the id of
+ * whatever is actually deployed and is fetched with no-store so it is never
+ * itself cached. If they disagree, this page came out of a cache and predates
+ * the current deploy -- reload once through a cache-busting URL to get the
+ * real one. Guarded by build id so it can never become a reload loop.
+ */
+window.__BUILD__ = '__BUILD_ID__';
+(function () {
+  fetch('version.json', { cache: 'no-store' })
+    .then(function (r) { return r.ok ? r.json() : null; })
+    .then(function (v) {
+      if (!v || !v.build || v.build === window.__BUILD__) return;
+      var key = 'rev-' + v.build;
+      if (sessionStorage.getItem(key)) return;
+      sessionStorage.setItem(key, '1');
+      location.replace(location.pathname + '?b=' + encodeURIComponent(v.build));
+    })
+    .catch(function () { /* dev server, or offline: carry on */ });
+})();
+</script>
+<script>
 /* Remove any service worker previously registered on this origin.
  *
  * An earlier build registered public/coi-serviceworker.js to obtain
