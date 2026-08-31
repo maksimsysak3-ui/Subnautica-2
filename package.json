@@ -1,0 +1,19 @@
+{
+  "name": "citysim",
+  "private": true,
+  "version": "0.0.1",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "test:gpu": "node tools/gpu-smoke.mjs"
+  },
+  "devDependencies": {
+    "@webgpu/types": "^0.1.60",
+    "playwright": "^1.49.0",
+    "typescript": "^5.7.2",
+    "vite": "^6.0.7"
+  }
+}
