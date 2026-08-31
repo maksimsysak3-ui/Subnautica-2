@@ -14,8 +14,10 @@
 struct Box {
   // xy = centre on the ground plane, zw = half extents
   ground : vec4f,
-  // x = height, yzw = colour
+  // x = base height (the terrain under it), y = building height
   form   : vec4f,
+  // rgb = colour
+  tint   : vec4f,
 };
 
 @group(1) @binding(0) var<storage, read> boxes : array<Box>;
@@ -60,7 +62,7 @@ fn vs(@builtin(vertex_index) vi : u32,
 
   let world = vec3f(
     box.ground.x + local.x * box.ground.z,
-    local.y * box.form.x,
+    box.form.x + local.y * box.form.y,
     box.ground.y + local.z * box.ground.w,
   );
 
@@ -68,7 +70,7 @@ fn vs(@builtin(vertex_index) vi : u32,
   out.pos = camera.viewProj * vec4f(world, 1.0);
   out.normal = N[vi / 6u];
   out.world = world;
-  out.colour = box.form.yzw;
+  out.colour = box.tint.rgb;
   out.up = local.y;
   return out;
 }

@@ -9,7 +9,9 @@
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "test:gpu": "node tools/gpu-smoke.mjs",
-    "test:deploy": "node tools/deploy-layout-test.mjs"
+    "test:deploy": "node tools/deploy-layout-test.mjs",
+    "test:frustum": "node tools/frustum-test.mjs",
+    "test": "npm run typecheck && npm run test:frustum && npm run test:gpu && npm run test:deploy"
   },
   "devDependencies": {
     "@webgpu/types": "^0.1.60",

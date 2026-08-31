@@ -14,5 +14,5 @@ const SKY = vec3f(0.043, 0.055, 0.075);
 // horizon instead of ending at a visible edge.
 fn horizonFade(worldPos : vec3f) -> f32 {
   let d = length(worldPos.xz - camera.eye.xz);
-  return smoothstep(camera.params.y * 0.45, camera.params.y * 1.05, d);
+  return smoothstep(camera.params.y * 0.75, camera.params.y * 1.75, d);
 }

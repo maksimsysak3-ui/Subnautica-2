@@ -25,16 +25,16 @@ import * as esbuild from 'esbuild';
 const read = (p) => fs.readFileSync(new URL('../src/gfx/shaders/' + p, import.meta.url), 'utf8');
 const common = read('common.wgsl');
 const resolve = (s) => s.replace(/^[ \t]*#include\s+"common\.wgsl"[ \t]*$/m, common);
-const shaders = { ground: resolve(read('ground.wgsl')), box: resolve(read('box.wgsl')) };
+const shaders = { terrain: resolve(read('terrain.wgsl')), box: resolve(read('box.wgsl')) };
 
-// The instance generator, transpiled and evaluated in the page, so the test
-// exercises the same layout the app ships rather than a copy of it.
-const citySrc = (
-  await esbuild.transform(fs.readFileSync(new URL('../src/sim/city.ts', import.meta.url), 'utf8'), {
-    loader: 'ts',
-    format: 'esm',
+// The whole simulation module, bundled and evaluated in the page, so the test
+// exercises the terrain and city the app actually ships rather than a copy.
+const simSrc = (
+  await esbuild.build({
+    entryPoints: [new URL('../src/sim/index.ts', import.meta.url).pathname],
+    bundle: true, format: 'iife', globalName: 'SIM', write: false, target: 'es2022',
   })
-).code.replace(/^export /gm, '');
+).outputFiles[0].text;
 
 // --- camera, computed here so the page gets a fixed, known view -----------
 function perspective(fovy, aspect, near, far) {
@@ -83,15 +83,17 @@ page.on('pageerror', (e) => console.log('[pageerror]', e.message));
 await page.goto('http://localhost:4180/');
 
 const result = await page.evaluate(async (args) => {
-  const { shaders, viewProj, eye, W, H, citySrc } = args;
+  const { shaders, viewProj, eye, W, H, simSrc } = args;
   const adapter = await navigator.gpu.requestAdapter();
   if (!adapter) return { error: 'no adapter' };
   const device = await adapter.requestDevice();
   const errors = [];
   device.addEventListener('uncapturederror', (e) => errors.push(e.error.message));
 
-  const EXTENT = 2600;
-  const city = new Function(citySrc + '; return makeCity();')();
+  const sim = new Function(simSrc + '; return SIM;')();
+  const EXTENT = sim.TERRAIN.size * 0.5;
+  const city = sim.makeCity();
+  const mesh = sim.buildTerrain();
 
   const modules = {};
   const diags = [];
@@ -116,6 +118,11 @@ const result = await page.evaluate(async (args) => {
   device.queue.writeBuffer(camBuf, 0, cam);
   const camBg = device.createBindGroup({ layout: camLayout, entries: [{ binding: 0, resource: { buffer: camBuf } }] });
 
+  const vtxBuf = device.createBuffer({ size: mesh.vertices.byteLength, usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST });
+  device.queue.writeBuffer(vtxBuf, 0, mesh.vertices);
+  const idxBuf = device.createBuffer({ size: mesh.indices.byteLength, usage: GPUBufferUsage.INDEX | GPUBufferUsage.COPY_DST });
+  device.queue.writeBuffer(idxBuf, 0, mesh.indices);
+
   const instBuf = device.createBuffer({ size: city.data.byteLength, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST });
   device.queue.writeBuffer(instBuf, 0, city.data);
   const instBg = device.createBindGroup({ layout: instLayout, entries: [{ binding: 0, resource: { buffer: instBuf } }] });
@@ -129,7 +136,19 @@ const result = await page.evaluate(async (args) => {
       primitive: { topology: 'triangle-list', cullMode: 'none' },
       depthStencil: ds,
     });
-    const groundPipe = mk(modules.ground, [camLayout]);
+    const terrainPipe = device.createRenderPipeline({
+      layout: device.createPipelineLayout({ bindGroupLayouts: [camLayout] }),
+      vertex: {
+        module: modules.terrain, entryPoint: 'vs',
+        buffers: [{ arrayStride: sim.FLOATS_PER_VERTEX * 4, attributes: [
+          { shaderLocation: 0, offset: 0, format: 'float32x3' },
+          { shaderLocation: 1, offset: 12, format: 'float32x3' },
+        ] }],
+      },
+      fragment: { module: modules.terrain, entryPoint: 'fs', targets: [{ format: 'rgba8unorm' }] },
+      primitive: { topology: 'triangle-list', cullMode: 'back', frontFace: 'ccw' },
+      depthStencil: ds,
+    });
     const boxPipe = mk(modules.box, [camLayout, instLayout]);
 
     const color = device.createTexture({ size: [W, H], format: 'rgba8unorm',
@@ -143,7 +162,10 @@ const result = await page.evaluate(async (args) => {
       depthStencilAttachment: { view: depth.createView(), depthClearValue: 1, depthLoadOp: 'clear', depthStoreOp: 'store' },
     });
     pass.setBindGroup(0, camBg);
-    pass.setPipeline(groundPipe); pass.draw(6);
+    pass.setPipeline(terrainPipe);
+    pass.setVertexBuffer(0, vtxBuf);
+    pass.setIndexBuffer(idxBuf, 'uint32');
+    for (const c of mesh.chunks) pass.drawIndexed(sim.INDICES_PER_CHUNK, 1, 0, c.baseVertex);
     pass.setPipeline(boxPipe); pass.setBindGroup(1, instBg); pass.draw(30, city.count);
     pass.end();
 
@@ -172,14 +194,14 @@ const result = await page.evaluate(async (args) => {
   }
 
   return {
-    instances: city.count, errors, diags,
+    instances: city.count, chunks: mesh.chunks.length, errors, diags,
     skyPct: +((sky / (W * H)) * 100).toFixed(1),
     buildingPct: +((lit / (W * H)) * 100).toFixed(1),
     depthChangedPct: +((differing / (W * H)) * 100).toFixed(1),
     topLeft: at(withDepth, 3, 3),
     lowerMiddle: at(withDepth, W >> 1, H - 30),
   };
-}, { shaders, viewProj, eye, W, H, citySrc });
+}, { shaders, viewProj, eye, W, H, simSrc });
 
 console.log(JSON.stringify(result, null, 2));
 
@@ -187,7 +209,8 @@ const fails = [];
 if (result.error) fails.push(result.error);
 if (result.diags?.length) fails.push(`shader errors: ${result.diags.join('; ')}`);
 if (result.errors?.length) fails.push(`uncaptured: ${result.errors.join('; ')}`);
-if (!(result.instances > 3000)) fails.push(`only ${result.instances} instances generated`);
+if (!(result.instances > 2000)) fails.push(`only ${result.instances} instances generated`);
+if (result.chunks !== 256) fails.push(`expected 256 terrain chunks, got ${result.chunks}`);
 if (!result.topLeft?.every((c, i) => Math.abs(c - [11, 14, 19][i]) < 4)) fails.push('top of frame is not sky');
 if (!(result.skyPct > 4 && result.skyPct < 70)) fails.push(`sky covers ${result.skyPct}%, expected 4-70%`);
 if (!(result.buildingPct > 2)) fails.push(`only ${result.buildingPct}% of pixels are lit geometry`);
@@ -197,7 +220,7 @@ if (fails.length) {
   console.error('\nFAIL\n' + fails.map((f) => '  - ' + f).join('\n'));
   process.exitCode = 1;
 } else {
-  console.log('\nPASS  shaders compile, city renders, depth testing is doing work');
+  console.log('\nPASS  shaders compile, terrain and city render, depth testing is doing work');
 }
 
 await browser.close();

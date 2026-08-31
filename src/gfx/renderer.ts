@@ -14,9 +14,14 @@ import { log } from '../util/log';
 import type { Gpu, Viewport } from './device';
 import type { Camera } from './camera';
 import type { Stats } from '../ui/stats';
-import { makeCity, INSTANCE_FLOATS } from '../sim/city';
+import { Frustum } from './frustum';
+import {
+  makeCity, INSTANCE_FLOATS, buildTerrain, heightAt,
+  FLOATS_PER_VERTEX, INDICES_PER_CHUNK, TERRAIN,
+} from '../sim';
+import type { Chunk } from '../sim';
 import commonSrc from './shaders/common.wgsl?raw';
-import groundSrc from './shaders/ground.wgsl?raw';
+import terrainSrc from './shaders/terrain.wgsl?raw';
 import boxSrc from './shaders/box.wgsl?raw';
 
 const DEPTH_FORMAT: GPUTextureFormat = 'depth24plus';
@@ -30,10 +35,13 @@ function resolve(src: string): string {
 }
 
 interface Resources {
-  ground: GPURenderPipeline;
+  terrain: GPURenderPipeline;
   boxes: GPURenderPipeline;
   cameraBuffer: GPUBuffer;
   cameraGroup: GPUBindGroup;
+  vertexBuffer: GPUBuffer;
+  indexBuffer: GPUBuffer;
+  chunks: Chunk[];
   instanceBuffer: GPUBuffer;
   instanceGroup: GPUBindGroup;
   depth: GPUTexture;
@@ -50,6 +58,7 @@ export class Renderer {
   private unsubscribeResize: (() => void) | null = null;
   private running = false;
   private onUpdate: ((dt: number) => void) | null = null;
+  private frustum = new Frustum();
 
   constructor(
     private gpu: Gpu,
@@ -85,13 +94,23 @@ export class Renderer {
       depthCompare: 'less',
     };
 
-    const groundModule = device.createShaderModule({ label: 'ground', code: resolve(groundSrc) });
-    const ground = device.createRenderPipeline({
-      label: 'ground-pipeline',
+    const terrainModule = device.createShaderModule({ label: 'terrain', code: resolve(terrainSrc) });
+    const terrain = device.createRenderPipeline({
+      label: 'terrain-pipeline',
       layout: device.createPipelineLayout({ bindGroupLayouts: [cameraLayout] }),
-      vertex: { module: groundModule, entryPoint: 'vs' },
-      fragment: { module: groundModule, entryPoint: 'fs', targets: [{ format }] },
-      primitive: { topology: 'triangle-list', cullMode: 'none' },
+      vertex: {
+        module: terrainModule,
+        entryPoint: 'vs',
+        buffers: [{
+          arrayStride: FLOATS_PER_VERTEX * 4,
+          attributes: [
+            { shaderLocation: 0, offset: 0, format: 'float32x3' },   // position
+            { shaderLocation: 1, offset: 12, format: 'float32x3' },  // normal
+          ],
+        }],
+      },
+      fragment: { module: terrainModule, entryPoint: 'fs', targets: [{ format }] },
+      primitive: { topology: 'triangle-list', cullMode: 'back', frontFace: 'ccw' },
       depthStencil,
     });
 
@@ -118,6 +137,22 @@ export class Renderer {
       entries: [{ binding: 0, resource: { buffer: cameraBuffer } }],
     });
 
+    // Terrain: one vertex buffer and one index buffer for every chunk. Chunk
+    // topology is identical, so each is drawn with its own baseVertex.
+    const mesh = buildTerrain();
+    const vertexBuffer = device.createBuffer({
+      label: 'terrain-vertices',
+      size: mesh.vertices.byteLength,
+      usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
+    });
+    device.queue.writeBuffer(vertexBuffer, 0, mesh.vertices);
+    const indexBuffer = device.createBuffer({
+      label: 'terrain-indices',
+      size: mesh.indices.byteLength,
+      usage: GPUBufferUsage.INDEX | GPUBufferUsage.COPY_DST,
+    });
+    device.queue.writeBuffer(indexBuffer, 0, mesh.indices);
+
     const city = makeCity();
     const instanceBuffer = device.createBuffer({
       label: 'box-instances',
@@ -134,18 +169,22 @@ export class Renderer {
     const { depth, depthView } = this.createDepth(this.gpu.viewport);
 
     this.res = {
-      ground, boxes, cameraBuffer, cameraGroup,
+      terrain, boxes, cameraBuffer, cameraGroup,
+      vertexBuffer, indexBuffer, chunks: mesh.chunks,
       instanceBuffer, instanceGroup, depth, depthView,
       instanceCount: city.count,
     };
 
     this.unsubscribeResize?.();
     this.unsubscribeResize = this.gpu.onResize((v) => this.onResize(v));
+    this.camera.groundHeight = heightAt;
     this.camera.setViewport(this.gpu.viewport.width, this.gpu.viewport.height);
     this.camera.update();
 
     const kib = (city.count * INSTANCE_FLOATS * 4) / 1024;
-    log.info('render', `${city.count} instances (${kib.toFixed(0)} KiB), 2 pipelines, depth ${DEPTH_FORMAT}`);
+    const mib = mesh.vertices.byteLength / 1024 / 1024;
+    log.info('render', `terrain ${mesh.chunks.length} chunks (${mib.toFixed(1)} MiB), ` +
+      `${city.count} instances (${kib.toFixed(0)} KiB), depth ${DEPTH_FORMAT}`);
   }
 
   private createDepth(v: Viewport): { depth: GPUTexture; depthView: GPUTextureView } {
@@ -208,7 +247,7 @@ export class Renderer {
     this.cameraData[18] = cam.eye[2];
     this.cameraData[19] = cam.far;
     this.cameraData[20] = (now - this.startedAt) / 1000;
-    this.cameraData[21] = GROUND_EXTENT;
+    this.cameraData[21] = TERRAIN.size * 0.5;
     device.queue.writeBuffer(res.cameraBuffer, 0, this.cameraData);
 
     const encoder = device.createCommandEncoder({ label: 'frame' });
@@ -230,8 +269,18 @@ export class Renderer {
 
     pass.setBindGroup(0, res.cameraGroup);
 
-    pass.setPipeline(res.ground);
-    pass.draw(6);
+    // Terrain, one draw per visible chunk. Culling here is what keeps the draw
+    // count flat as the map grows past the view.
+    this.frustum.update(cam.viewProjMatrix);
+    pass.setPipeline(res.terrain);
+    pass.setVertexBuffer(0, res.vertexBuffer);
+    pass.setIndexBuffer(res.indexBuffer, 'uint32');
+    let drawn = 0;
+    for (const chunk of res.chunks) {
+      if (!this.frustum.containsBox(chunk.min, chunk.max)) continue;
+      pass.drawIndexed(INDICES_PER_CHUNK, 1, 0, chunk.baseVertex);
+      drawn++;
+    }
 
     pass.setPipeline(res.boxes);
     pass.setBindGroup(1, res.instanceGroup);
@@ -241,9 +290,10 @@ export class Renderer {
     device.queue.submit([encoder.finish()]);
 
     this.stats.sample(performance.now() - cpuStart);
-    this.stats.set('draws', '2');
+    this.stats.set('draws', String(drawn + 1));
+    this.stats.set('chunks', `${drawn}/${res.chunks.length}`);
     this.stats.set('instances', String(res.instanceCount));
-    this.stats.set('tris', String(10 * res.instanceCount + 2));
+    this.stats.set('tris', String(10 * res.instanceCount + drawn * (INDICES_PER_CHUNK / 3)));
     this.stats.set('zoom', `${cam.distance.toFixed(0)}m`);
     this.stats.set('px', `${viewport.width}×${viewport.height}`);
     this.stats.paint(now);
@@ -255,10 +305,9 @@ export class Renderer {
     if (!this.res) return;
     this.res.depth.destroy();
     this.res.cameraBuffer.destroy();
+    this.res.vertexBuffer.destroy();
+    this.res.indexBuffer.destroy();
     this.res.instanceBuffer.destroy();
     this.res = null;
   }
 }
-
-/** How far the ground plane reaches around the camera, and where fog ends. */
-const GROUND_EXTENT = 2600;

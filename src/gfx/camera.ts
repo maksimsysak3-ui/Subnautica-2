@@ -21,7 +21,7 @@ export const LIMITS = {
   maxDistance: 1200,
   minPitch: (12 * Math.PI) / 180,   // never quite horizontal: the far plane would swallow the world
   maxPitch: (88 * Math.PI) / 180,   // never quite top-down: gimbal-flip territory
-  extent: 2000,                     // focus stays inside +/- this on both ground axes
+  extent: 950,                      // focus stays inside +/- this, just inside the terrain edge
 };
 
 export class Camera {
@@ -32,6 +32,13 @@ export class Camera {
 
   near = 0.5;
   far = 6000;
+
+  /**
+   * Terrain height lookup. Set once terrain exists, so the focus point rides
+   * the ground instead of the y = 0 plane -- without it, orbiting over a hill
+   * swings the view underground.
+   */
+  groundHeight: ((x: number, z: number) => number) | null = null;
 
   readonly view = mat4();
   readonly proj = mat4();
@@ -52,7 +59,7 @@ export class Camera {
     this.distance = clamp(this.distance, LIMITS.minDistance, LIMITS.maxDistance);
     this.focus[0] = clamp(this.focus[0], -LIMITS.extent, LIMITS.extent);
     this.focus[2] = clamp(this.focus[2], -LIMITS.extent, LIMITS.extent);
-    this.focus[1] = 0;
+    this.focus[1] = this.groundHeight ? this.groundHeight(this.focus[0], this.focus[2]) : 0;
 
     const cosPitch = Math.cos(this.pitch);
     this.eye[0] = this.focus[0] + this.distance * cosPitch * Math.sin(this.yaw);
@@ -72,24 +79,29 @@ export class Camera {
   }
 
   /**
-   * Where a screen position lands on the ground plane (y = 0).
+   * Where a screen position lands on the ground.
    *
-   * This is the primitive behind zoom-to-cursor, and later behind every
-   * placement tool: road dragging, zoning, bulldoze. Returns null when the ray
-   * points at the sky.
+   * Intersects the horizontal plane through the focus point rather than the
+   * terrain itself. Marching the ray against the heightfield would be exact,
+   * but this is one intersection instead of dozens per pointer move and the
+   * error is invisible while dragging near what you are looking at. Placement
+   * tools that need the true surface will march; panning and zooming do not.
+   *
+   * Returns null when the ray points at the sky.
    */
   groundPointAt(ndcX: number, ndcY: number, out: Vec3 = [0, 0, 0]): Vec3 | null {
     const nearPt = transformPoint(this.scratch, this.invViewProj, ndcX, ndcY, 0);
     const nx = nearPt[0], ny = nearPt[1], nz = nearPt[2];
     const farPt = transformPoint(this.scratch, this.invViewProj, ndcX, ndcY, 1);
 
+    const planeY = this.focus[1];
     const dy = farPt[1] - ny;
     if (Math.abs(dy) < 1e-6) return null;      // ray parallel to the ground
-    const t = -ny / dy;
+    const t = (planeY - ny) / dy;
     if (t < 0 || t > 1) return null;           // plane is behind the camera
 
     out[0] = nx + (farPt[0] - nx) * t;
-    out[1] = 0;
+    out[1] = planeY;
     out[2] = nz + (farPt[2] - nz) * t;
     return out;
   }

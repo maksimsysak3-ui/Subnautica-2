@@ -8,11 +8,12 @@ graph is the wrong shape for "half a million static instanced objects".
 — performance hard caps, hierarchical pathfinding, agent tiering, the asset
 pack pipeline, and the milestone roadmap.
 
-**Status: M0 step 2 — camera.** There is no game yet. What exists is a device
-that comes up and survives resize and GPU loss, an orbit camera over an
-infinite ground grid, and ~4,500 instanced boxes standing on it in one draw
-call — the draw path the building renderer will use, proved at a scale where
-mistakes are still cheap.
+**Status: M0 step 3 — terrain.** There is no game yet. What exists is a device
+that comes up and survives resize and GPU loss, an orbit camera riding a
+2 km × 2 km heightfield drawn as 256 frustum-culled chunks, and ~4,500
+instanced buildings sitting on the terrain in a single draw call — the draw
+path the real building renderer will use, proved at a scale where mistakes are
+still cheap.
 
 ---
 
@@ -36,6 +37,8 @@ npm run dev        # http://localhost:5173
 | `npm run build` | typecheck + build into `docs/` |
 | `npm run preview` | serve the production build |
 | `npm run typecheck` | `tsc --noEmit` |
+| `npm test` | typecheck, then every test below |
+| `npm run test:frustum` | culling correctness, no GPU needed |
 | `npm run test:gpu` | headless offscreen render test (needs Playwright + Chromium) |
 | `npm run test:deploy` | boots the built site under both Pages layouts, and from a stale cache |
 
@@ -115,11 +118,15 @@ src/
     device.ts          adapter/device, canvas config, resize, loss recovery
     caps.ts            limit negotiation + budget checks
     camera.ts          orbit rig, ray-to-ground unprojection
+    frustum.ts         plane extraction + AABB test
     renderer.ts        frame loop, the single render pass
-    shaders/           common.wgsl, ground.wgsl, box.wgsl
+    shaders/           common.wgsl, terrain.wgsl, box.wgsl
   input/controls.ts    pointer, wheel, touch and keyboard camera control
   math/m4.ts           mat4 / vec3, column-major, allocation-free
-  sim/city.ts          deterministic placeholder city layout
+  sim/
+    hash.ts            deterministic hash, value noise, fBm
+    terrain.ts         heightfield and the chunked mesh built from it
+    city.ts            deterministic placeholder city layout
   ui/
     stats.ts           frame budget overlay
     fatal.ts           "your browser can't run this" screen
@@ -149,14 +156,20 @@ The triangle is throwaway. The other ~600 lines are not:
 - **The grid is procedural, not geometry.** Line width comes from screen-space
   derivatives, so a line stays one pixel wide from 8 m up to 1200 m. Real line
   geometry would be thousands of primitives that alias into moiré on zoom-out.
-- **Panning and zooming share one primitive:** where the cursor ray meets
-  y = 0. That same unprojection becomes road dragging, zoning, and bulldoze.
+- **Panning and zooming share one primitive:** where the cursor ray meets the
+  ground. That same unprojection becomes road dragging, zoning, and bulldoze.
+- **Terrain chunks share one vertex buffer and one index buffer.** Chunk
+  topology is identical, so indices are written once and each chunk draws with
+  its own `baseVertex` — the layout that makes multi-draw indirect possible
+  later without reshuffling anything.
+- **The grid fades by screen density.** Correct lines are not enough: at
+  altitude the 8 m cells are individually right and collectively grey mush, so
+  each spacing fades out as its cells approach pixel size.
 - **One `beginRenderPass` per frame, pipelines built once.** The two rules the
   renderer will be held to forever, established while there is nothing to
   refactor.
 
 ## Next
 
-M0 step 3: chunked heightmap terrain in place of the flat plane. Then step 4,
-the scaling test — 100k instances, which is where the budgets in the design doc
-meet reality.
+M0 step 4, the scaling test: 100k instances with LOD selection, which is where
+the budgets in the design doc meet reality. Then M1 — roads.
