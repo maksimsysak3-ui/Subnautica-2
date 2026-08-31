@@ -51,9 +51,13 @@ Re-run `npm run build` and commit `docs/` whenever you want the live site to
 move.
 
 **B. Via Actions (`.github/workflows/pages.yml`, already committed).**
-Settings → Pages → Source: *GitHub Actions*. Every push to this branch then
-typechecks, builds, and deploys automatically. `docs/` in the repo becomes
-just a convenience copy.
+Settings → Pages → Source: *GitHub Actions*, then run the workflow. It is
+`workflow_dispatch` only right now, because `deploy-pages` fails while the
+source is set to a branch — add a `push:` trigger once you have switched.
+
+Note: a repo serves exactly one Pages site. This repo's Pages is currently
+pointed at the `claude/f1-cinematic-menus-uz1gac` branch, so either option
+above replaces what is published there today.
 
 Either way the URL is `https://maksimsysak3-ui.github.io/Subnautica-2/`. If you
 rename the repo, change `BASE` in `vite.config.ts` to match.

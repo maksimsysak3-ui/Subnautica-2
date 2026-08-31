@@ -1,8 +1,10 @@
 name: Deploy to GitHub Pages
 
+# Manual only. This repo's Pages source is currently "deploy from a branch",
+# and deploy-pages fails while that is the case. Switch Settings -> Pages ->
+# Source to "GitHub Actions" first, then add a push trigger here if you want
+# automatic deploys.
 on:
-  push:
-    branches: [claude/cities-skylines-planning-y2elhr]
   workflow_dispatch:
 
 permissions:
