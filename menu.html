@@ -763,30 +763,46 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
 
 /* ERS: the battery, what is going out, what is coming back, and the
    per-lap allowance drawn as a mark on the bar. */
-.hers{position:absolute;left:34px;top:172px;width:206px;padding:11px 12px;
-  border:1px solid var(--line);background:rgba(0,0,0,.42);backdrop-filter:blur(5px)}
+.hers{position:absolute;left:34px;top:196px;width:236px;padding:13px 14px;
+  border:1px solid var(--line-2);background:rgba(4,6,10,.90);backdrop-filter:blur(6px);
+  box-shadow:0 10px 34px rgba(0,0,0,.6);pointer-events:auto;z-index:6}
 .hers-top{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px}
 .hers-top .k{font-size:8.5px;font-weight:700;letter-spacing:.28em;color:var(--dimmer)}
 .hers-top .mode{font-size:10.5px;font-weight:700;letter-spacing:.1em;color:#5fe0c8;
   text-transform:uppercase}
-.hbatt{position:relative;height:12px;background:rgba(255,255,255,.07);
-  border:1px solid rgba(255,255,255,.12);overflow:hidden}
+.hbatt{position:relative;height:26px;background:#0b1016;
+  border:1px solid rgba(255,255,255,.22);overflow:hidden}
 .hbatt i{display:block;height:100%;width:0%;
   background:linear-gradient(90deg,#0f9d7a,#41e6b4);transition:width .12s linear}
+/* cell separators, so the store reads as a battery and not just a bar */
+.hbatt::after{content:'';position:absolute;inset:0;pointer-events:none;
+  background:repeating-linear-gradient(90deg,transparent 0,transparent 19px,
+    rgba(0,0,0,.55) 19px,rgba(0,0,0,.55) 21px)}
+.hbatt b{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  font-size:10.5px;font-weight:700;letter-spacing:.12em;color:#eaf6f2;
+  text-shadow:0 1px 3px rgba(0,0,0,.9);font-variant-numeric:tabular-nums;z-index:2}
 .hbatt u{position:absolute;top:-2px;bottom:-2px;width:2px;background:#ffd23f;
-  box-shadow:0 0 6px rgba(255,210,63,.9)}
+  box-shadow:0 0 6px rgba(255,210,63,.9);z-index:3}
 .hers-rows{display:flex;justify-content:space-between;margin-top:8px;gap:6px}
 .hers-rows > div{display:flex;flex-direction:column;gap:2px}
 .hers-rows .k{font-size:7.5px;font-weight:600;letter-spacing:.16em;color:var(--dimmer);
   text-transform:uppercase}
 .hers-rows .v{font-size:11.5px;font-weight:700;color:#dfe3e9;font-variant-numeric:tabular-nums}
 .hers-rows .v.hv{color:#41e6b4}
-.hot{margin-top:9px;position:relative;height:16px;border:1px solid rgba(255,210,63,.35);
-  display:flex;align-items:center;justify-content:center;overflow:hidden}
+.hot{margin-top:10px;position:relative;width:100%;height:26px;
+  border:1px solid rgba(255,210,63,.45);background:rgba(255,210,63,.06);
+  display:flex;align-items:center;justify-content:center;overflow:hidden;cursor:pointer}
+.hot:hover{background:rgba(255,210,63,.14)}
 .hot i{position:absolute;left:0;top:0;bottom:0;width:0%;background:rgba(255,210,63,.24);
   transition:width .1s linear}
-.hot span{position:relative;font-size:8px;font-weight:700;letter-spacing:.22em;
+.hot span{position:relative;font-size:9px;font-weight:700;letter-spacing:.2em;
   text-transform:uppercase;color:#ffd23f}
+.hmodes{display:flex;gap:4px;margin-top:8px}
+.hmodes button{flex:1;padding:5px 0;font-family:var(--ui);font-size:8.5px;font-weight:700;
+  letter-spacing:.1em;text-transform:uppercase;color:var(--dim);cursor:pointer;
+  border:1px solid var(--line);background:rgba(255,255,255,.03)}
+.hmodes button:hover{color:var(--text);border-color:var(--line-2)}
+.hmodes button.on{color:#5fe0c8;border-color:#5fe0c8;background:rgba(95,224,200,.12)}
 .hot.live{border-color:#ffd23f;box-shadow:0 0 12px rgba(255,210,63,.4)}
 
 /* telemetry, on Tab */
@@ -863,7 +879,8 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
 .hbanner.on{opacity:1;transform:translate(-50%,0)}
 
 @media (max-width:900px){
-  .hers,.hdelta,.hmaphead,.hsectors{display:none}
+  .hdelta,.hmaphead,.hsectors{display:none}
+  .hers{left:12px;top:auto;bottom:150px;width:180px;padding:9px 10px}
   .htel{inset:4% 4%;padding:14px}
   .htel-grid{grid-template-columns:1fr}
   .hcore{bottom:52px;gap:2px}
@@ -1431,13 +1448,19 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
         <span class="k">ERS</span>
         <span class="mode" id="hErsMode">Balanced</span>
       </div>
-      <div class="hbatt"><i id="hSoc"></i><u id="hDeployMark"></u></div>
+      <div class="hbatt"><i id="hSoc"></i><b id="hSocPct">72%</b><u id="hDeployMark"></u></div>
       <div class="hers-rows">
         <div><span class="k">Deploy</span><span class="v" id="hDeploy">0 kW</span></div>
         <div><span class="k">Harvest</span><span class="v hv" id="hHarvest">0 kW</span></div>
         <div><span class="k">Lap</span><span class="v" id="hLapErs">0%</span></div>
       </div>
-      <div class="hot" id="hOvertake"><i></i><span>Overtake</span></div>
+      <button class="hot" id="hOvertake" type="button"><i></i><span>Overtake &middot; Q</span></button>
+      <div class="hmodes" id="hErsBtns">
+        <button type="button" data-m="0">Off</button>
+        <button type="button" data-m="1">Build</button>
+        <button type="button" data-m="2">Bal</button>
+        <button type="button" data-m="3">Attack</button>
+      </div>
     </div>
 
     <div class="hsectors">
@@ -3534,21 +3557,39 @@ function grassTexture() {
 }
 
 function crowdTexture() {
-  // a packed grandstand: shirts, skin, and the dark gaps between people
+  /* A packed grandstand seen from the circuit: seat rows first, then people on
+     them. Saturated shirts on a flat dark ground read as confetti from any
+     distance, so the palette is muted, a third of the seats show through, and
+     each row sits on its own darker seat band — that banding is what makes it
+     read as a stand rather than noise. */
   return cTex(512, 256, (c, w, h) => {
-    c.fillStyle = '#1b1e24'; c.fillRect(0, 0, w, h);
-    const shirts = ['#d8483f','#e8e8ea','#2f5fbf','#e8b533','#3f9e57','#8a45b5',
-                    '#dd7a2a','#25272c','#c8577f','#48b9c4'];
-    for (let row = 0; row < 16; row++) {
-      const y = 6 + row * (h - 12) / 16;
-      for (let i = 0; i < 46; i++) {
-        const x = 4 + i * (w - 8) / 46 + (row % 2 ? 3 : 0);
-        if (Math.random() < 0.08) continue;                 // empty seat
-        c.fillStyle = shirts[(Math.random() * shirts.length) | 0];
-        c.fillRect(x, y + 3, 7, 8);
-        c.fillStyle = Math.random() < 0.5 ? '#c9a184' : '#7a5a44';
-        c.beginPath(); c.arc(x + 3.5, y + 2, 2.6, 0, Math.PI * 2); c.fill();
+    c.fillStyle = '#232830'; c.fillRect(0, 0, w, h);
+    const ROWS = 18, PER = 52;
+    const rowH = h / ROWS;
+    const shirts = ['#a8443c','#cfd2d6','#39557f','#b9973c','#3f6a4d','#6a4a7a',
+                    '#a86a35','#2b2e34','#8f5566','#3f7d86','#6e7480','#864040'];
+    for (let row = 0; row < ROWS; row++) {
+      const y = row * rowH;
+      // the seat bank the row sits on, and the shadow line under it
+      c.fillStyle = row % 2 ? '#20242b' : '#262b33';
+      c.fillRect(0, y, w, rowH);
+      c.fillStyle = 'rgba(0,0,0,0.34)';
+      c.fillRect(0, y + rowH - 1.5, w, 1.5);
+      for (let i = 0; i < PER; i++) {
+        const x = 2 + i * (w - 4) / PER + (row % 2 ? 2.4 : 0);
+        if (Math.random() < 0.30) continue;                 // empty seat
+        const sh = shirts[(Math.random() * shirts.length) | 0];
+        c.fillStyle = sh;
+        c.fillRect(x, y + rowH * 0.42, 6.2, rowH * 0.52);
+        // heads sit low and small; big bright discs are what looked like sweets
+        c.fillStyle = Math.random() < 0.45 ? '#a9866a' : '#6b4f3d';
+        c.beginPath();
+        c.arc(x + 3.1, y + rowH * 0.34, rowH * 0.15, 0, Math.PI * 2);
+        c.fill();
       }
+      // a wash over the row so the far half of the rake sinks back
+      c.fillStyle = 'rgba(12,15,20,' + (0.22 * (1 - row / ROWS)).toFixed(3) + ')';
+      c.fillRect(0, y, w, rowH);
     }
   }, 1, 1);
 }
@@ -3620,6 +3661,238 @@ function trackMask(track, clear) {
     blocked: (x, z) => set.has(key(Math.round(x / CELL), Math.round(z / CELL))),
     cell: CELL
   };
+}
+
+/* The permanent buildings at the start line: a pit complex with a garage row,
+   a glazed first floor and race control, the gantry over the line, and
+   hospitality behind. Both circuits get them. */
+function buildPitComplex(scene, track, OFF, ptAt, yAt) {
+  /* At a night race the block is lit from inside, or it is a black slab. */
+  const glass = new THREE.MeshPhysicalMaterial({
+    color: circuit.night ? 0x101821 : 0x24384a, roughness: 0.08, metalness: 0.0,
+    clearcoat: 1.0, clearcoatRoughness: 0.05, envMapIntensity: 1.7,
+    emissive: circuit.night ? 0x2c4f6a : 0x000000,
+    emissiveIntensity: circuit.night ? 1.0 : 0.0
+  });
+  const panel = new THREE.MeshStandardMaterial({ color: 0xeceff2, roughness: 0.60 });
+  const panelDk = new THREE.MeshStandardMaterial({ color: 0x9aa2ab, roughness: 0.72 });
+  const trim = new THREE.MeshStandardMaterial({ color: 0x262b33, roughness: 0.45, metalness: 0.5 });
+  const deckSlab = new THREE.MeshStandardMaterial({ color: 0xd4d9de, roughness: 0.78 });
+  const lane = new THREE.MeshStandardMaterial({ color: 0x3a3f46, roughness: 0.94 });
+  const steel = new THREE.MeshStandardMaterial({ color: 0xdfe3e7, roughness: 0.42, metalness: 0.55 });
+  const bayCol = [0x96070f, 0x16191e, 0xe4650a, 0x0a4437, 0x0b1235,
+                  0x0b3e93, 0xc41b27, 0x37e256, 0x1b2fc0, 0xce9f49, 0x555b64];
+
+  const pitJ = 0;                                    // the main straight
+  const pitT = track.T[pitJ];
+  const pitYaw = Math.atan2(pitT.x, pitT.z);
+  const pitP = ptAt(pitJ, -(OFF + 8));
+  const pit = new THREE.Group();
+  pit.position.set(pitP.x, yAt(pitJ), pitP.z);
+  /* Local X is the garage row, so it has to lie along the track; local +Z is
+     the frontage, which has to look at the road. R = T x up = (-Tz, 0, Tx) and
+     the block sits at -R, so the yaw that sends local +Z back along +R is
+     pitYaw - 90 deg. Plus 90 kept the row parallel but had every garage door
+     facing the car park. */
+  pit.rotation.y = pitYaw - Math.PI / 2;
+  /* Nothing is planted over the pit complex or the run up to it — the trees
+     were standing exactly where the buildings are, which is why they could
+     not be seen from the car. */
+  const keep = scene.userData.keepOut || (scene.userData.keepOut = []);
+  keep.push({ x: pitP.x, z: pitP.z, r: 135 });
+  const sfP = ptAt(pitJ, 0);
+  keep.push({ x: sfP.x, z: sfP.z, r: 110 });
+
+  const BAYS = 11, BAY_W = 7.4, PIT_D = 15, PIT_H = 6.6;
+  const PIT_W = BAYS * BAY_W;
+
+  /* ---- pit lane and the wall in front of it ---- */
+  const laneM = new THREE.Mesh(new THREE.PlaneGeometry(PIT_W + 14, 12), lane);
+  laneM.rotation.x = -Math.PI / 2;
+  laneM.position.set(0, 0.02, 7.6);
+  laneM.receiveShadow = true;
+  pit.add(laneM);
+  for (const [z, w, col] of [[1.9, 0.16, 0xf2f3f5], [13.0, 0.16, 0xf2f3f5]]) {
+    const ln = new THREE.Mesh(new THREE.PlaneGeometry(PIT_W + 14, w),
+      new THREE.MeshStandardMaterial({ color: col, roughness: 0.6 }));
+    ln.rotation.x = -Math.PI / 2;
+    ln.position.set(0, 0.04, z);
+    pit.add(ln);
+  }
+  const pitWall = new THREE.Mesh(new THREE.BoxGeometry(PIT_W + 10, 1.05, 0.4), panel);
+  pitWall.position.set(0, 0.52, 13.6);
+  pitWall.castShadow = true;
+  pit.add(pitWall);
+  for (let i = 0; i < 9; i++) {                      // the timing stands on the wall
+    const st = new THREE.Mesh(new THREE.BoxGeometry(2.4, 1.5, 0.9), trim);
+    st.position.set(-PIT_W / 2 + 4 + i * (PIT_W - 8) / 8, 1.8, 13.2);
+    st.castShadow = true;
+    pit.add(st);
+    const scr = new THREE.Mesh(new THREE.BoxGeometry(2.0, 1.0, 0.1), glass);
+    scr.position.set(st.position.x, 1.95, 12.72);
+    pit.add(scr);
+  }
+
+  /* ---- ground floor: eleven garages, each its own bay ---- */
+  const base = new THREE.Mesh(new THREE.BoxGeometry(PIT_W, PIT_H, PIT_D), panel);
+  base.position.set(0, PIT_H / 2, -PIT_D / 2);
+  base.castShadow = true; base.receiveShadow = true;
+  pit.add(base);
+  for (let i = 0; i < BAYS; i++) {
+    const x = -PIT_W / 2 + BAY_W * (i + 0.5);
+    // the recessed opening
+    const mouth = new THREE.Mesh(new THREE.BoxGeometry(BAY_W - 1.4, 4.5, 0.5),
+      circuit.night
+        ? new THREE.MeshStandardMaterial({ color: 0x1a1d22, roughness: 0.7,
+            emissive: 0xffe6b0, emissiveIntensity: 0.55 })
+        : trim);
+    mouth.position.set(x, 2.35, 0.10);
+    pit.add(mouth);
+    // the roller door, half up, in the team's colour
+    const door = new THREE.Mesh(new THREE.BoxGeometry(BAY_W - 1.9, 1.9, 0.22),
+      new THREE.MeshStandardMaterial({ color: bayCol[i % bayCol.length], roughness: 0.5 }));
+    door.position.set(x, 3.55, 0.30);
+    pit.add(door);
+    // the pier between bays, and a bay number band above
+    const pier = new THREE.Mesh(new THREE.BoxGeometry(1.4, PIT_H, 0.5), panelDk);
+    pier.position.set(x + BAY_W / 2, PIT_H / 2, 0.22);
+    pit.add(pier);
+    const band = new THREE.Mesh(new THREE.BoxGeometry(BAY_W - 1.4, 0.5, 0.14), trim);
+    band.position.set(x, 5.4, 0.32);
+    pit.add(band);
+  }
+
+  /* ---- first floor: glazed, set back, with a balcony over the garages ----
+     The slab and the roof used to run PIT_D+6 and PIT_D+7 deep against a
+     PIT_D base, so both cantilevered ten metres past the garage doors and the
+     block read as two flat plates on a box. They now project far enough to
+     shade the pit lane and no further. */
+  const SLAB_D = PIT_D + 3, SLAB_Z = -PIT_D / 2 + 1.0;
+  const slab = new THREE.Mesh(new THREE.BoxGeometry(PIT_W + 2.4, 0.55, SLAB_D), deckSlab);
+  slab.position.set(0, PIT_H + 0.28, SLAB_Z);
+  slab.castShadow = true;
+  pit.add(slab);
+  // the fascia under the slab edge, so the overhang is a canopy and not a shelf
+  const fascia = new THREE.Mesh(new THREE.BoxGeometry(PIT_W + 2.4, 0.42, 0.22), trim);
+  fascia.position.set(0, PIT_H - 0.16, SLAB_Z + SLAB_D / 2 - 0.11);
+  pit.add(fascia);
+
+  const UP_D = PIT_D - 2, UP_Z = -PIT_D / 2 - 0.4;
+  const upper = new THREE.Mesh(new THREE.BoxGeometry(PIT_W - 1.5, 4.8, UP_D), glass);
+  upper.position.set(0, PIT_H + 3.0, UP_Z);
+  upper.castShadow = true;
+  pit.add(upper);
+  const upFront = UP_Z + UP_D / 2;                   // face of the glazing
+  for (let i = 0; i <= BAYS; i++) {                  // mullions, on that face
+    const m = new THREE.Mesh(new THREE.BoxGeometry(0.22, 4.8, 0.22), trim);
+    m.position.set(-PIT_W / 2 + i * BAY_W, PIT_H + 3.0, upFront + 0.06);
+    pit.add(m);
+  }
+  // a spandrel band top and bottom, which is what makes glazing read as glazing
+  for (const by of [PIT_H + 0.75, PIT_H + 5.25]) {
+    const band = new THREE.Mesh(new THREE.BoxGeometry(PIT_W - 1.4, 0.42, 0.18), panelDk);
+    band.position.set(0, by, upFront + 0.05);
+    pit.add(band);
+  }
+
+  // balcony railing along the front of the slab
+  const balcZ = SLAB_Z + SLAB_D / 2 - 0.14;
+  for (const ry of [PIT_H + 1.05, PIT_H + 1.55]) {
+    const r2 = new THREE.Mesh(new THREE.BoxGeometry(PIT_W + 2.4, 0.09, 0.09), steel);
+    r2.position.set(0, ry, balcZ);
+    pit.add(r2);
+  }
+  for (let i = 0; i <= BAYS * 2; i++) {
+    const post = new THREE.Mesh(new THREE.BoxGeometry(0.07, 1.3, 0.07), steel);
+    post.position.set(-PIT_W / 2 - 1.2 + i * (PIT_W + 2.4) / (BAYS * 2), PIT_H + 1.2, balcZ);
+    pit.add(post);
+  }
+
+  // roof, parapet and the plant on top
+  const ROOF_D = PIT_D + 1, ROOF_Z = -PIT_D / 2;
+  const roof = new THREE.Mesh(new THREE.BoxGeometry(PIT_W + 1.0, 0.5, ROOF_D), deckSlab);
+  roof.position.set(0, PIT_H + 5.6, ROOF_Z);
+  roof.castShadow = true;
+  pit.add(roof);
+  const parapetZ = ROOF_Z + ROOF_D / 2 - 0.16;
+  const parapet = new THREE.Mesh(new THREE.BoxGeometry(PIT_W + 1.0, 0.9, 0.28), panelDk);
+  parapet.position.set(0, PIT_H + 6.3, parapetZ);
+  pit.add(parapet);
+  for (let i = 0; i < 5; i++) {                      // rooftop plant, in a line
+    const unitB = new THREE.Mesh(new THREE.BoxGeometry(3.2, 1.4, 2.6), panelDk);
+    unitB.position.set(-PIT_W / 2 + 10 + i * 15, PIT_H + 6.55, ROOF_Z - 2.4);
+    pit.add(unitB);
+    const duct = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.42, 1.1, 10), trim);
+    duct.position.set(unitB.position.x + 2.4, PIT_H + 6.4, ROOF_Z - 2.4);
+    pit.add(duct);
+  }
+
+  /* ---- race control, taller, over the start-line end ---- */
+  const tower = new THREE.Mesh(new THREE.BoxGeometry(12, 8, PIT_D - 1), panel);
+  tower.position.set(PIT_W / 2 - 7, PIT_H + 5.85 + 4, -PIT_D / 2);
+  tower.castShadow = true;
+  pit.add(tower);
+  const towerGlass = new THREE.Mesh(new THREE.BoxGeometry(12.4, 3.4, PIT_D - 0.4), glass);
+  towerGlass.position.set(PIT_W / 2 - 7, PIT_H + 5.85 + 5.4, -PIT_D / 2);
+  pit.add(towerGlass);
+  const towerRoof = new THREE.Mesh(new THREE.BoxGeometry(13.4, 0.45, PIT_D + 0.8), deckSlab);
+  towerRoof.position.set(PIT_W / 2 - 7, PIT_H + 14.1, -PIT_D / 2);
+  pit.add(towerRoof);
+  for (const dx of [-4.5, 4.5]) {                    // masts and a light bar
+    const mastPole = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 7, 6), trim);
+    mastPole.position.set(PIT_W / 2 - 7 + dx, PIT_H + 17.6, -PIT_D / 2);
+    pit.add(mastPole);
+  }
+  const bar = new THREE.Mesh(new THREE.BoxGeometry(9, 0.6, 0.4), trim);
+  bar.position.set(PIT_W / 2 - 7, PIT_H + 15.0, -PIT_D / 2 + (PIT_D - 1) / 2 + 0.2);
+  pit.add(bar);
+  pit.name = 'pitcomplex';
+  scene.add(pit);
+
+  // the gantry over the start line
+  const gantry = new THREE.Group();
+  const gp = ptAt(pitJ, 0);
+  gantry.position.set(gp.x, yAt(pitJ), gp.z);
+  gantry.rotation.y = pitYaw;
+  const span = ROAD_W + 6;
+  const beam = new THREE.Mesh(new THREE.BoxGeometry(span, 0.85, 1.0), trim);
+  beam.position.set(0, 7.4, 0);
+  gantry.add(beam);
+  for (const sx of [-1, 1]) {
+    const leg = new THREE.Mesh(new THREE.BoxGeometry(0.7, 7.4, 0.7), trim);
+    leg.position.set(sx * (span / 2 - 0.4), 3.7, 0);
+    leg.castShadow = true;
+    gantry.add(leg);
+  }
+  for (let i = 0; i < 5; i++) {                      // the light panels
+    const box = new THREE.Mesh(new THREE.BoxGeometry(1.5, 1.5, 0.5), trim);
+    box.position.set(-4.6 + i * 2.3, 6.3, 0.1);
+    gantry.add(box);
+  }
+  scene.add(gantry);
+
+  // hospitality units in a row behind the pits
+  for (let i = 0; i < 5; i++) {
+    const j = (pitJ + Math.round(track.count * (0.02 + i * 0.016))) % track.count;
+    const t2 = track.T[j];
+    const p2 = ptAt(j, -(OFF + 62));
+    const unit = new THREE.Group();
+    unit.position.set(p2.x, yAt(j), p2.z);
+    unit.rotation.y = Math.atan2(t2.x, t2.z) + Math.PI / 2;
+    const bw = 14 + (i % 3) * 5, bh = 5 + (i % 2) * 3.4;
+    const b = new THREE.Mesh(new THREE.BoxGeometry(bw, bh, 11), panel);
+    b.position.set(0, bh / 2, 0);
+    b.castShadow = true;
+    unit.add(b);
+    const gl = new THREE.Mesh(new THREE.BoxGeometry(bw - 1.5, bh * 0.42, 11.3), glass);
+    gl.position.set(0, bh * 0.62, 0);
+    unit.add(gl);
+    const rf = new THREE.Mesh(new THREE.BoxGeometry(bw + 1.6, 0.4, 12.6), deckSlab);
+    rf.position.set(0, bh + 0.2, 0);
+    unit.add(rf);
+    scene.add(unit);
+  }
+
 }
 
 function buildEnvironment(scene, track) {
@@ -3830,33 +4103,11 @@ function buildEnvironment(scene, track) {
       g.add(bar);
     }
 
-    // cantilever roof: two rows of columns, a spine truss, and the canopy
-    const colH = deckH + 6.5;
-    for (const sx of [-1, 1]) {
-      for (const dz of [0.2, -deckD - 1.0]) {
-        const col = new THREE.Mesh(new THREE.BoxGeometry(0.62, colH, 0.62), steel);
-        col.position.set(sx * (W / 2 - 1.0), colH / 2, dz);
-        col.castShadow = true;
-        g.add(col);
-      }
-    }
-    for (let i = 1; i < 4; i++) {                       // intermediate columns
-      const x = -W / 2 + i * W / 4;
-      const col = new THREE.Mesh(new THREE.BoxGeometry(0.45, colH, 0.45), steel);
-      col.position.set(x, colH / 2, -deckD - 1.0);
-      col.castShadow = true;
-      g.add(col);
-    }
-    const roof = new THREE.Mesh(new THREE.BoxGeometry(W + 3, 0.55, deckD + 5.5), shade);
-    roof.position.set(0, colH + 0.3, -deckD / 2 + 0.6);
-    roof.castShadow = true;
-    g.add(roof);
-    for (let i = 0; i <= 6; i++) {                      // roof beams
-      const b2 = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.7, deckD + 5.0), steel);
-      b2.position.set(-W / 2 + i * W / 6, colH - 0.35, -deckD / 2 + 0.6);
-      g.add(b2);
-    }
-    // back and side cladding closes the silhouette
+    /* Open stand: no canopy, no columns. The roof and its supports were the
+       bulk of the silhouette and the user wants the seating readable from the
+       circuit, so the structure stops at the back wall. */
+    const colH = deckH + 2.2;
+
     // the back is closed off; the sides are open with a railing, which is
     // what a real stand looks like from the circuit
     const back = new THREE.Mesh(new THREE.BoxGeometry(W + 3, colH, 0.35), concrete);
@@ -3889,7 +4140,10 @@ function buildEnvironment(scene, track) {
     const ROWS = i % 3 === 0 ? 22 : 16;
     const p = ptAt(j, side * (OFF + 12.0));
     const g = grandstand(W, ROWS);
+    g.name = 'stand' + i;
     g.position.set(p.x, yAt(j), p.z);
+    (scene.userData.keepOut || (scene.userData.keepOut = []))
+      .push({ x: p.x, z: p.z, r: W * 0.65 + 26 });
     /* The stand's local +z is its open face. Aiming it at the centreline point
        is side-independent and cannot come out backwards, which deriving it
        from the track's right vector did. */
@@ -3898,110 +4152,7 @@ function buildEnvironment(scene, track) {
     scene.add(g);
   });
 
-  /* ---- the permanent buildings ----
-     A pit complex on the main straight with a garage row, race control over
-     the start line, and hospitality units behind. All boxes and slabs, which
-     is what these buildings actually are. */
-  const glass = new THREE.MeshPhysicalMaterial({
-    color: 0x2c4356, roughness: 0.10, metalness: 0.0,
-    clearcoat: 1.0, clearcoatRoughness: 0.06, envMapIntensity: 1.5
-  });
-  const panel = new THREE.MeshStandardMaterial({ color: 0xe9ecef, roughness: 0.66 });
-  const trim = new THREE.MeshStandardMaterial({ color: 0x2b313a, roughness: 0.5, metalness: 0.4 });
-  const deckSlab = new THREE.MeshStandardMaterial({ color: 0xcfd4d9, roughness: 0.8 });
-
-  const pitJ = 0;                                    // the main straight
-  const pitT = track.T[pitJ];
-  const pitYaw = Math.atan2(pitT.x, pitT.z);
-  const pitP = ptAt(pitJ, -(OFF + 12));
-  const pit = new THREE.Group();
-  pit.position.set(pitP.x, yAt(pitJ), pitP.z);
-  /* Local X is the garage row, so it has to lie along the track. Aligning the
-     group with the tangent put its 80 m frontage across the road instead. */
-  pit.rotation.y = pitYaw + Math.PI / 2;
-
-  const BAYS = 11, BAY_W = 7.4, PIT_D = 15, PIT_H = 6.4;
-  const PIT_W = BAYS * BAY_W;
-  // ground floor: the garage row, with a dark opening per bay
-  const base = new THREE.Mesh(new THREE.BoxGeometry(PIT_W, PIT_H, PIT_D), panel);
-  base.position.set(0, PIT_H / 2, -PIT_D / 2);
-  base.castShadow = true; base.receiveShadow = true;
-  pit.add(base);
-  for (let i = 0; i < BAYS; i++) {
-    const x = -PIT_W / 2 + BAY_W * (i + 0.5);
-    const door = new THREE.Mesh(new THREE.BoxGeometry(BAY_W - 1.5, 4.3, 0.3), trim);
-    door.position.set(x, 2.25, 0.06);
-    pit.add(door);
-  }
-  // first floor: glazed, set back, with a walkway slab in front
-  const slab = new THREE.Mesh(new THREE.BoxGeometry(PIT_W + 3.5, 0.5, PIT_D + 3.5), deckSlab);
-  slab.position.set(0, PIT_H + 0.25, -PIT_D / 2 + 1.2);
-  slab.castShadow = true;
-  pit.add(slab);
-  const upper = new THREE.Mesh(new THREE.BoxGeometry(PIT_W - 2, 4.6, PIT_D - 2), glass);
-  upper.position.set(0, PIT_H + 2.85, -PIT_D / 2);
-  upper.castShadow = true;
-  pit.add(upper);
-  const roof = new THREE.Mesh(new THREE.BoxGeometry(PIT_W + 4.5, 0.45, PIT_D + 5), deckSlab);
-  roof.position.set(0, PIT_H + 5.3, -PIT_D / 2 + 1.6);
-  roof.castShadow = true;
-  pit.add(roof);
-  // race control, a taller block over the start line end
-  const tower = new THREE.Mesh(new THREE.BoxGeometry(11, 7.5, PIT_D - 1), panel);
-  tower.position.set(PIT_W / 2 - 6, PIT_H + 5.5 + 3.75, -PIT_D / 2);
-  tower.castShadow = true;
-  pit.add(tower);
-  const towerGlass = new THREE.Mesh(new THREE.BoxGeometry(11.3, 3.2, PIT_D - 0.6), glass);
-  towerGlass.position.set(PIT_W / 2 - 6, PIT_H + 5.5 + 5.0, -PIT_D / 2);
-  pit.add(towerGlass);
-  const mastPole = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 9, 6), trim);
-  mastPole.position.set(PIT_W / 2 - 1.5, PIT_H + 9.5, -PIT_D / 2);
-  pit.add(mastPole);
-  scene.add(pit);
-
-  // the gantry over the start line
-  const gantry = new THREE.Group();
-  const gp = ptAt(pitJ, 0);
-  gantry.position.set(gp.x, yAt(pitJ), gp.z);
-  gantry.rotation.y = pitYaw;
-  const span = ROAD_W + 6;
-  const beam = new THREE.Mesh(new THREE.BoxGeometry(span, 0.85, 1.0), trim);
-  beam.position.set(0, 7.4, 0);
-  gantry.add(beam);
-  for (const sx of [-1, 1]) {
-    const leg = new THREE.Mesh(new THREE.BoxGeometry(0.7, 7.4, 0.7), trim);
-    leg.position.set(sx * (span / 2 - 0.4), 3.7, 0);
-    leg.castShadow = true;
-    gantry.add(leg);
-  }
-  for (let i = 0; i < 5; i++) {                      // the light panels
-    const box = new THREE.Mesh(new THREE.BoxGeometry(1.5, 1.5, 0.5), trim);
-    box.position.set(-4.6 + i * 2.3, 6.3, 0.1);
-    gantry.add(box);
-  }
-  scene.add(gantry);
-
-  // hospitality units in a row behind the pits
-  for (let i = 0; i < 5; i++) {
-    const j = (pitJ + Math.round(track.count * (0.02 + i * 0.016))) % track.count;
-    const t2 = track.T[j];
-    const p2 = ptAt(j, -(OFF + 62));
-    const unit = new THREE.Group();
-    unit.position.set(p2.x, yAt(j), p2.z);
-    unit.rotation.y = Math.atan2(t2.x, t2.z) + Math.PI / 2;
-    const bw = 14 + (i % 3) * 5, bh = 5 + (i % 2) * 3.4;
-    const b = new THREE.Mesh(new THREE.BoxGeometry(bw, bh, 11), panel);
-    b.position.set(0, bh / 2, 0);
-    b.castShadow = true;
-    unit.add(b);
-    const gl = new THREE.Mesh(new THREE.BoxGeometry(bw - 1.5, bh * 0.42, 11.3), glass);
-    gl.position.set(0, bh * 0.62, 0);
-    unit.add(gl);
-    const rf = new THREE.Mesh(new THREE.BoxGeometry(bw + 1.6, 0.4, 12.6), deckSlab);
-    rf.position.set(0, bh + 0.2, 0);
-    unit.add(rf);
-    scene.add(unit);
-  }
+  buildPitComplex(scene, track, OFF, ptAt, yAt);
 
   /* ---- trackside boards, on the fictional brands the cars carry ---- */
   const BOARDS = [
@@ -4107,9 +4258,14 @@ function buildEnvironment(scene, track) {
   const treeMask2 = trackMask(track, 30);
   const lake2 = scene.userData.lake;
   const sites = [];
+  const keepOut = scene.userData.keepOut || [];
   const clear = (x, z) => {
     if (treeMask2.blocked(x, z)) return false;
     if (lake2 && Math.abs(x - lake2.x) < 380 && Math.abs(z - lake2.z) < 250) return false;
+    for (const k of keepOut) {
+      const dx = x - k.x, dz = z - k.z;
+      if (dx * dx + dz * dz < k.r * k.r) return false;
+    }
     return true;
   };
   // the avenue: two ragged rows following the lap
@@ -4386,6 +4542,8 @@ function buildMinimal(scene, track) {
   masts.castShadow = heads.castShadow = true;
   pools.renderOrder = 2;
 
+  buildPitComplex(scene, track, OFF, ptAt, yAt);
+
   /* ---- a soft wash so the bodywork is not lit by the pools alone ---- */
   const wash = new THREE.HemisphereLight(0x8ea4c8, 0x1b2230, 1.55);
   scene.add(wash);
@@ -4455,9 +4613,11 @@ function buildScene(canvas) {
   scene.add(asphalt);
 
   /* ---- verge, so the road sits in the terrain instead of floating ---- */
-  const vergeMat = new THREE.MeshStandardMaterial({
-    map: grassTexture(), color: 0xb9c4a8, roughness: 1, metalness: 0
-  });
+  /* Run-off: grass at a permanent circuit, dark asphalt at a street one. */
+  const vergeMat = circuit.night
+    ? new THREE.MeshStandardMaterial({ color: 0x22262c, roughness: 0.92, metalness: 0 })
+    : new THREE.MeshStandardMaterial({ map: grassTexture(), color: 0xb9c4a8,
+                                       roughness: 1, metalness: 0 });
   const EDGE = ROAD_W / 2 + KERB_W - 0.02;
   for (const side of [-1, 1]) {
     const m = new THREE.Mesh(ribbon(track,
@@ -4736,6 +4896,7 @@ function updateHUD(sample, frameDt) {
   // ERS
   const soc = veh.soc / ERS.cap;
   hud.soc.style.width = (soc * 100).toFixed(1) + '%';
+  hud.socPct.textContent = (soc * 100).toFixed(0) + '%';
   hud.ersMode.textContent = veh.overtake > 0 && veh.throttle > 0.5 && veh.soc > 0
     ? 'Overtake' : ERS_MODES[veh.ersMode];
   hud.deploy.textContent = (veh.ersOut / 1000).toFixed(0) + ' kW';
@@ -4745,6 +4906,7 @@ function updateHUD(sample, frameDt) {
   hud.deployMark.style.left = (lapLeft * 100).toFixed(1) + '%';
   hud.otFill.style.width = (veh.overtake / ERS.overtakeMax * 100).toFixed(0) + '%';
   hud.otWrap.classList.toggle('live', veh.overtake > 0 && veh.throttle > 0.5);
+  hud.ersBtns.forEach(b => b.classList.toggle('on', +b.dataset.m === veh.ersMode));
   if (telOpen) {
     telTick -= frameDt;
     if (telTick <= 0) { telTick = 0.25; paintTelemetry(); }
@@ -5083,7 +5245,9 @@ function collectHUD() {
     secs: [$('#sec1'), $('#sec2'), $('#sec3')],
     revCells: [...$('#hRev').children],
     dialFill: $('#hDialFill'), dialTicks: $('#hDialTicks'),
-    ersMode: $('#hErsMode'), soc: $('#hSoc'), deployMark: $('#hDeployMark'),
+    ersMode: $('#hErsMode'), soc: $('#hSoc'), socPct: $('#hSocPct'),
+    deployMark: $('#hDeployMark'),
+    ersBtns: [...$('#hErsBtns').children],
     deploy: $('#hDeploy'), harvestV: $('#hHarvest'), lapErs: $('#hLapErs'),
     otWrap: $('#hOvertake'), otFill: $('#hOvertake').firstElementChild,
     tel: $('#hTel'), telTyres: $('#hTelTyres'), telDmg: $('#hTelDmg'),
@@ -5110,6 +5274,15 @@ function collectHUD() {
     }
   }
   hud.dialTicks.innerHTML = ticks.join('');
+
+  // the ERS controls work by mouse as well as by key
+  hud.otWrap.onclick = () => {
+    if (veh && veh.soc > ERS.cap * 0.08) veh.overtake = Math.max(veh.overtake, 4);
+  };
+  $('#hErsBtns').onclick = e => {
+    const b = e.target.closest('button'); if (!b || !veh) return;
+    veh.ersMode = +b.dataset.m;
+  };
   hud.mapName.textContent = trackName();
   // start/finish tick, drawn across the map at the line
   const a = hud.mapPath.getPointAtLength(0);
@@ -5585,11 +5758,28 @@ const LIVERY_GLSL = `
 /* Team emblems ride the same atlas as the sponsors, so a preset can put its
    own crest on the sidepod alongside the brands. */
 const SPONSORS = [
-  { id: 'tm_rossa',  name: 'ROSSA',   sub: 'CORSE',      mark: 'trident',   style: 'lockup' },
-  { id: 'tm_silver', name: 'ARGENT',  sub: 'WORKS',      mark: 'star3',     style: 'lockup' },
-  { id: 'tm_papaya', name: 'HALDEN',  sub: 'RACING',     mark: 'roundel',   style: 'lockup' },
-  { id: 'tm_brg',    name: 'VERDANT', sub: 'GP',         mark: 'wingcrest', style: 'lockup' },
-  { id: 'tm_energy', name: 'TAURUS',  sub: 'RACING',     mark: 'bull',      style: 'lockup' },
+  { id: 'tm_rossa',   name: 'ROSSA',    sub: 'CORSE',    mark: 'trident',   style: 'lockup' },
+  { id: 'tm_silver',  name: 'ARGENT',   sub: 'WORKS',    mark: 'star3',     style: 'lockup' },
+  { id: 'tm_papaya',  name: 'HALDEN',   sub: 'RACING',   mark: 'roundel',   style: 'lockup' },
+  { id: 'tm_brg',     name: 'VERDANT',  sub: 'GP',       mark: 'wingcrest', style: 'lockup' },
+  { id: 'tm_energy',  name: 'TAURUS',   sub: 'RACING',   mark: 'bull',      style: 'lockup' },
+  { id: 'tm_azure',   name: 'AZUR',     sub: 'F1 TEAM',  mark: 'swift',     style: 'lockup' },
+  { id: 'tm_stripes', name: 'FREEMONT', sub: 'RACING',   mark: 'starsbars', style: 'lockup' },
+  { id: 'tm_neon',    name: 'KELVIN',   sub: 'MOTORS',   mark: 'node',      style: 'lockup' },
+  { id: 'tm_cobalt',  name: 'ALTUS',    sub: 'RACING',   mark: 'chevstack', style: 'lockup' },
+  { id: 'tm_monaco',  name: 'REGENCY',  sub: 'GP',       mark: 'laurel',    style: 'lockup' },
+  /* Title sponsors, set as one huge wordmark. Every car on a real grid carries
+     exactly one of these across the sidepod and it is what you read first. */
+  { id: 'ti_hydro',  name: 'HYDRO',    sub: '',          mark: null, style: 'title' },
+  { id: 'ti_petro',  name: 'PETRONIX', sub: '',          mark: null, style: 'title' },
+  { id: 'ti_okz',    name: 'OKZ',      sub: '',          mark: null, style: 'title' },
+  { id: 'ti_aramo',  name: 'ARAMO',    sub: '',          mark: null, style: 'title' },
+  { id: 'ti_oracle', name: 'ORAKEL',   sub: '',          mark: null, style: 'title' },
+  { id: 'ti_visor',  name: 'VISOR',    sub: '',          mark: null, style: 'title' },
+  { id: 'ti_stakes', name: 'STAKES',   sub: '',          mark: null, style: 'title' },
+  { id: 'ti_haus',   name: 'HAUS',     sub: '',          mark: null, style: 'title' },
+  { id: 'ti_komat',  name: 'KOMATU',   sub: '',          mark: null, style: 'title' },
+  { id: 'ti_chrome', name: 'CHROMA',   sub: '',          mark: null, style: 'title' },
   // style: lockup = mark + name + strapline, stack = name over strapline,
   // badge = knocked out of a filled plate, mono = a big letterform block
   { id: 'apex',     name: 'APEX',     sub: 'DYNAMICS',   mark: 'chevron',  style: 'lockup' },
@@ -5828,68 +6018,204 @@ function drawMark(c, kind, x, y, r, col) {
     c.beginPath(); c.arc(x, y, r * .24, 0, Math.PI * 2); c.fill();
     return;
   }
-  /* ---- team emblems ----
-     Original marks in the same visual families a real grid uses — a charging
-     animal, a star, a shield, a winged crest — so the cars read as a proper
-     paddock. These are drawn, not traced from anyone's logo. */
-  if (kind === 'bull') {                                   // charging silhouette
+  /* ---- team crests ----
+     One per constructor, drawn properly rather than as a glyph: silhouettes
+     with real outlines, shields with knockouts, crests with wings. Every one
+     is original work in the same visual families a Formula One grid uses —
+     a charging animal, a star in a ring, a winged shield, a national bar. */
+  if (kind === 'bull') {                                   // TAURUS — charging left
+    c.save(); c.translate(x, y); c.scale(r / 118, r / 118);
+    c.beginPath();
+    c.moveTo(-118, 10);                                    // muzzle
+    c.lineTo(-104, -14);                                   // face
+    c.lineTo(-86, -22);
+    c.lineTo(-96, -44); c.lineTo(-120, -62);               // near horn
+    c.lineTo(-92, -52); c.lineTo(-74, -36);
+    c.lineTo(-62, -54); c.lineTo(-46, -74);                // off horn
+    c.lineTo(-48, -50); c.lineTo(-56, -34);
+    c.quadraticCurveTo(-40, -54, -16, -62);                // neck into the hump
+    c.quadraticCurveTo(14, -70, 34, -54);                  // shoulder, back
+    c.quadraticCurveTo(58, -50, 72, -40);                  // rump
+    c.lineTo(92, -74); c.lineTo(104, -66);                 // tail, flicked up
+    c.lineTo(90, -30);
+    c.lineTo(96, 6);                                       // hind quarter
+    c.lineTo(116, 74); c.lineTo(96, 76);
+    c.lineTo(76, 10);
+    c.quadraticCurveTo(56, 22, 34, 20);                    // belly
+    c.lineTo(34, 82); c.lineTo(16, 82);
+    c.lineTo(14, 16);
+    c.quadraticCurveTo(-12, 20, -34, 16);                  // fore belly
+    c.lineTo(-42, 86); c.lineTo(-60, 84);
+    c.lineTo(-56, 12);
+    c.quadraticCurveTo(-84, 20, -96, 30);                  // chest and dewlap
+    c.lineTo(-112, 26);
+    c.closePath(); c.fill();
+    c.restore(); return;
+  }
+  if (kind === 'trident') {                                // ROSSA — on a shield
+    c.save(); c.translate(x, y); c.scale(r / 100, r / 100);
+    c.beginPath();                                                 // shield
+    c.moveTo(0, -96); c.lineTo(76, -62); c.lineTo(62, 40);
+    c.quadraticCurveTo(34, 84, 0, 98);
+    c.quadraticCurveTo(-34, 84, -62, 40); c.lineTo(-76, -62);
+    c.closePath(); c.fill();
+    c.globalCompositeOperation = 'destination-out';
+    c.beginPath();                                                 // trident, cut out
+    c.rect(-9, -46, 18, 106);
+    c.rect(-58, -46, 16, 54); c.rect(42, -46, 16, 54);
+    c.rect(-58, 2, 116, 16);
+    c.moveTo(-50, -46); c.lineTo(-34, -78); c.lineTo(-18, -46); c.closePath();
+    c.moveTo(-16, -58); c.lineTo(0, -92); c.lineTo(16, -58); c.closePath();
+    c.moveTo(18, -46); c.lineTo(34, -78); c.lineTo(50, -46); c.closePath();
+    c.fill();
+    c.globalCompositeOperation = 'source-over';
+    c.restore(); return;
+  }
+  if (kind === 'star3') {                                  // ARGENT — compass star
+    c.save(); c.translate(x, y); c.scale(r / 100, r / 100);
+    c.lineWidth = 11;
+    c.beginPath(); c.arc(0, 0, 88, 0, Math.PI * 2); c.stroke();
+    c.beginPath();
+    for (let i = 0; i < 4; i++) {
+      const a2 = -Math.PI / 2 + i * Math.PI / 2;
+      const nx = Math.cos(a2), ny = Math.sin(a2);
+      const px = -ny, py = nx;
+      c.moveTo(nx * 78, ny * 78);
+      c.lineTo(px * 15, py * 15);
+      c.lineTo(-px * 15, -py * 15);
+      c.closePath();
+    }
+    c.fill();
+    c.beginPath(); c.arc(0, 0, 13, 0, Math.PI * 2); c.fill();
+    c.restore(); return;
+  }
+  if (kind === 'wingcrest') {                              // VERDANT — winged shield
+    c.save(); c.translate(x, y); c.scale(r / 100, r / 100);
+    for (const sx of [-1, 1]) {                                    // wings
+      for (let f = 0; f < 3; f++) {
+        c.beginPath();
+        const yy = -34 + f * 24, len = 150 - f * 26;
+        c.moveTo(sx * 52, yy);
+        c.quadraticCurveTo(sx * (len * 0.7), yy - 20, sx * len, yy + 4);
+        c.quadraticCurveTo(sx * (len * 0.6), yy + 14, sx * 52, yy + 16);
+        c.closePath(); c.fill();
+      }
+    }
+    c.beginPath();                                                 // shield
+    c.moveTo(0, -92); c.lineTo(58, -62); c.lineTo(50, 34);
+    c.quadraticCurveTo(28, 76, 0, 92);
+    c.quadraticCurveTo(-28, 76, -50, 34); c.lineTo(-58, -62);
+    c.closePath(); c.fill();
+    c.globalCompositeOperation = 'destination-out';
+    c.beginPath();                                                 // chevron knockout
+    c.moveTo(0, -46); c.lineTo(32, 4); c.lineTo(16, 4);
+    c.lineTo(0, -20); c.lineTo(-16, 4); c.lineTo(-32, 4); c.closePath();
+    c.moveTo(0, 12); c.lineTo(32, 62); c.lineTo(16, 62);
+    c.lineTo(0, 38); c.lineTo(-16, 62); c.lineTo(-32, 62); c.closePath();
+    c.fill();
+    c.globalCompositeOperation = 'source-over';
+    c.restore(); return;
+  }
+  if (kind === 'roundel') {                                // HALDEN — speed roundel
+    c.save(); c.translate(x, y); c.scale(r / 100, r / 100);
+    c.lineWidth = 16;
+    c.beginPath(); c.arc(0, 0, 80, 0, Math.PI * 2); c.stroke();
+    c.beginPath();                                                 // three slashes
+    for (let i = 0; i < 3; i++) {
+      const yy = -30 + i * 30;
+      c.moveTo(-64 + i * 6, yy - 9);
+      c.lineTo(70 - i * 10, yy - 9);
+      c.lineTo(54 - i * 10, yy + 9);
+      c.lineTo(-80 + i * 6, yy + 9);
+      c.closePath();
+    }
+    c.fill();
+    c.restore(); return;
+  }
+  if (kind === 'swift') {                                  // AZURE — bird in flight
     c.save(); c.translate(x, y); c.scale(r / 100, r / 100);
     c.beginPath();
-    c.moveTo(-96, 6); c.lineTo(-64, -16); c.lineTo(-40, -12);
-    c.lineTo(-30, -34); c.lineTo(-12, -18); c.lineTo(16, -22);
-    c.lineTo(40, -44); c.lineTo(50, -20); c.lineTo(78, -26);
-    c.lineTo(96, -6); c.lineTo(74, 8); c.lineTo(80, 34);
-    c.lineTo(58, 22); c.lineTo(36, 42); c.lineTo(20, 20);
-    c.lineTo(-8, 30); c.lineTo(-22, 12); c.lineTo(-52, 26);
-    c.lineTo(-58, 8); c.closePath(); c.fill();
-    c.beginPath();                                          // horn
-    c.moveTo(-92, -2); c.lineTo(-112, -30); c.lineTo(-84, -18); c.closePath(); c.fill();
+    c.moveTo(-110, 22);
+    c.quadraticCurveTo(-40, -6, -8, -44);
+    c.quadraticCurveTo(20, -84, 74, -92);
+    c.quadraticCurveTo(44, -56, 34, -30);
+    c.quadraticCurveTo(74, -40, 106, -22);
+    c.quadraticCurveTo(52, -8, 18, 20);
+    c.quadraticCurveTo(-14, 48, -46, 52);
+    c.quadraticCurveTo(-40, 32, -30, 20);
+    c.closePath(); c.fill();
     c.restore(); return;
   }
-  if (kind === 'trident') {
-    c.moveTo(x - r * .12, y + r); c.lineTo(x + r * .12, y + r);
-    c.lineTo(x + r * .12, y - r * .2); c.lineTo(x - r * .12, y - r * .2);
+  if (kind === 'starsbars') {                              // STRIPES — national bar
+    c.save(); c.translate(x, y); c.scale(r / 100, r / 100);
+    c.beginPath();                                                 // shield
+    c.moveTo(-88, -76); c.lineTo(88, -76); c.lineTo(88, 6);
+    c.quadraticCurveTo(60, 76, 0, 96);
+    c.quadraticCurveTo(-60, 76, -88, 6);
     c.closePath(); c.fill();
-    for (const sx of [-1, 0, 1]) {
-      c.beginPath();
-      c.rect(x + sx * r * .62 - r * .11, y - r, r * .22, r * .82); c.fill();
+    c.globalCompositeOperation = 'destination-out';
+    for (let i = 0; i < 3; i++) {                                  // bars
+      c.beginPath(); c.rect(-10, -46 + i * 34, 92, 18); c.fill();
     }
-    c.beginPath(); c.rect(x - r * .78, y - r * .28, r * 1.56, r * .2); c.fill();
-    return;
-  }
-  if (kind === 'star3') {                                  // three-point star
-    c.save(); c.translate(x, y);
-    c.lineWidth = r * .16;
-    c.beginPath(); c.arc(0, 0, r * .92, 0, Math.PI * 2); c.stroke();
-    for (let i = 0; i < 3; i++) {
-      const a = -Math.PI / 2 + i * Math.PI * 2 / 3;
-      c.beginPath(); c.moveTo(0, 0);
-      c.lineTo(Math.cos(a) * r * .9, Math.sin(a) * r * .9);
-      c.lineWidth = r * .17; c.stroke();
-    }
-    c.restore(); return;
-  }
-  if (kind === 'wingcrest') {                              // winged shield
-    c.beginPath();
-    c.moveTo(x, y - r); c.lineTo(x + r * .62, y - r * .55);
-    c.lineTo(x + r * .5, y + r * .44); c.lineTo(x, y + r);
-    c.lineTo(x - r * .5, y + r * .44); c.lineTo(x - r * .62, y - r * .55);
-    c.closePath(); c.fill();
-    for (const sx of [-1, 1]) {
+    for (let k = 0; k < 3; k++) {                                  // stars
+      const sx = -58 + (k % 2) * 30, sy = -54 + Math.floor(k / 2) * 34 + (k % 2) * 17;
       c.beginPath();
-      c.moveTo(x + sx * r * .66, y - r * .34);
-      c.quadraticCurveTo(x + sx * r * 1.5, y - r * .5, x + sx * r * 1.6, y - r * .02);
-      c.quadraticCurveTo(x + sx * r * 1.2, y - r * .14, x + sx * r * .7, y + r * .06);
+      for (let i = 0; i < 10; i++) {
+        const a2 = -Math.PI / 2 + i * Math.PI / 5, rr = i % 2 ? 7 : 16;
+        c[i ? 'lineTo' : 'moveTo'](sx + Math.cos(a2) * rr, sy + Math.sin(a2) * rr);
+      }
       c.closePath(); c.fill();
     }
-    return;
+    c.globalCompositeOperation = 'source-over';
+    c.restore(); return;
   }
-  if (kind === 'roundel') {
-    c.lineWidth = r * .18;
-    c.arc(x, y, r * .84, 0, Math.PI * 2); c.stroke();
-    c.beginPath(); c.arc(x, y, r * .34, 0, Math.PI * 2); c.fill();
-    c.beginPath(); c.rect(x - r * .06, y - r * 1.05, r * .12, r * .4); c.fill();
-    return;
+  if (kind === 'node') {                                   // NEON — circuit node
+    c.save(); c.translate(x, y); c.scale(r / 100, r / 100);
+    c.lineWidth = 9;
+    c.beginPath();                                                 // hex ring
+    for (let i = 0; i < 6; i++) {
+      const a2 = i * Math.PI / 3 - Math.PI / 6;
+      c[i ? 'lineTo' : 'moveTo'](Math.cos(a2) * 96, Math.sin(a2) * 96);
+    }
+    c.closePath(); c.stroke();
+    for (let i = 0; i < 6; i++) {                                  // spokes and pads
+      const a2 = i * Math.PI / 3 - Math.PI / 6;
+      c.beginPath();
+      c.moveTo(Math.cos(a2) * 26, Math.sin(a2) * 26);
+      c.lineTo(Math.cos(a2) * 74, Math.sin(a2) * 74);
+      c.lineWidth = 11; c.stroke();
+      c.beginPath();
+      c.arc(Math.cos(a2) * 84, Math.sin(a2) * 84, 15, 0, Math.PI * 2); c.fill();
+    }
+    c.beginPath(); c.arc(0, 0, 26, 0, Math.PI * 2); c.fill();
+    c.restore(); return;
+  }
+  if (kind === 'chevstack') {                              // COBALT — stacked chevrons
+    c.save(); c.translate(x, y); c.scale(r / 100, r / 100);
+    for (let i = 0; i < 3; i++) {
+      const yy = -52 + i * 42, w = 92 - i * 8;
+      c.beginPath();
+      c.moveTo(-w, yy + 26); c.lineTo(0, yy - 22); c.lineTo(w, yy + 26);
+      c.lineTo(w - 30, yy + 26); c.lineTo(0, yy + 4); c.lineTo(-w + 30, yy + 26);
+      c.closePath(); c.fill();
+    }
+    c.restore(); return;
+  }
+  if (kind === 'laurel') {                                 // IVORY & GOLD — crown
+    c.save(); c.translate(x, y); c.scale(r / 100, r / 100);
+    c.beginPath();                                                 // crown
+    c.moveTo(-86, 44); c.lineTo(-70, -46); c.lineTo(-30, 6);
+    c.lineTo(0, -70); c.lineTo(30, 6); c.lineTo(70, -46);
+    c.lineTo(86, 44); c.closePath(); c.fill();
+    c.beginPath(); c.rect(-86, 54, 172, 22); c.fill();             // band
+    for (const sx of [-1, 1]) {                                    // laurel
+      for (let i = 0; i < 4; i++) {
+        c.beginPath();
+        c.ellipse(sx * (104 + i * 5), 34 - i * 26, 9, 20, sx * (0.5 - i * 0.14), 0, Math.PI * 2);
+        c.fill();
+      }
+    }
+    c.restore(); return;
   }
   if (kind === 'chevron') {
     c.moveTo(x - r, y + r * .55); c.lineTo(x, y - r * .55); c.lineTo(x + r, y + r * .55);
@@ -6032,9 +6358,18 @@ function buildAtlas(slots, num, tag, ink, inks) {
     c.textAlign = 'left';
   };
 
+  // one word, as large as the panel will carry — the read-it-at-300 mark
+  const title = (sp, col) => {
+    c.fillStyle = col; c.textBaseline = 'middle'; c.textAlign = 'center';
+    fitFont('700 italic', 236, sp.name, CELL_W * 0.94, 0);
+    c.fillText(sp.name, CELL_W / 2, CELL_H / 2);
+    c.textAlign = 'left';
+  };
+
   const decal = (sp, key) => () => {
     if (!sp || !sp.name) return;
     const col = (inks && inks[key]) || ink;
+    if (sp.style === 'title' && !SLOT_COMPACT[key]) { title(sp, col); return; }
     if (SLOT_COMPACT[key]) { compact(sp, col); return; }
     if (sp.style === 'stack') stack(sp, col);
     else if (sp.style === 'badge') badge(sp, col);
@@ -6152,7 +6487,7 @@ const PRESETS = [
     id: 'rossa', name: 'Rossa', sub: 'Maranello red, white shoulder flash',
     colors: { primary: '#96070F', secondary: '#6E040A', accent: '#F2F2F0' },
     pattern: 0, ink: '#F2F2F0', compound: 'soft',
-    slots: { sidepod: 'apex', podFront: 'lumen', deck: 'vantage', airbox: 'nova',
+    slots: { sidepod: 'ti_hydro', podFront: 'lumen', deck: 'vantage', airbox: 'nova',
              wingTop: 'orbita', wingBack: 'gridwave', wingEnd: 'kerbline',
              wingEndLow: 'halden', fwMain: 'strato', frontWing: 'ferrox',
              fwUpper: 'quartz', floor: 'tessera', noseTop: 'vertex',
@@ -6164,7 +6499,7 @@ const PRESETS = [
     id: 'silver', name: 'Silver Star', sub: 'Anthracite with a teal underline',
     colors: { primary: '#16191E', secondary: '#0A0C10', accent: '#00C4B4' },
     pattern: 6, ink: '#EDF1F4', compound: 'medium',
-    slots: { sidepod: 'nova', podFront: 'lumen', deck: 'cobalt', airbox: 'vertex',
+    slots: { sidepod: 'ti_petro', podFront: 'lumen', deck: 'cobalt', airbox: 'vertex',
              wingTop: 'orbita', wingBack: 'gridwave', wingEnd: 'kerbline',
              wingEndLow: 'halden', fwMain: 'plexus', frontWing: 'ferrox',
              fwUpper: 'quartz', floor: 'tessera', noseTop: 'apex',
@@ -6176,7 +6511,7 @@ const PRESETS = [
     id: 'papaya', name: 'Papaya', sub: 'Orange and anthracite, long diagonal',
     colors: { primary: '#E4650A', secondary: '#15181D', accent: '#EFF2F5' },
     pattern: 5, ink: '#EFF2F5', compound: 'soft',
-    slots: { sidepod: 'apex', podFront: 'lumen', deck: 'vantage', airbox: 'nova',
+    slots: { sidepod: 'ti_okz', podFront: 'lumen', deck: 'vantage', airbox: 'nova',
              wingTop: 'orbita', wingBack: 'gridwave', wingEnd: 'kerbline',
              wingEndLow: 'halden', fwMain: 'strato', frontWing: 'ferrox',
              fwUpper: 'quartz', floor: 'tessera', noseTop: 'vertex',
@@ -6188,7 +6523,7 @@ const PRESETS = [
     id: 'brg', name: 'Racing Green', sub: 'Deep green with a lime edge',
     colors: { primary: '#0A4437', secondary: '#052A21', accent: '#BCEE3C' },
     pattern: 1, ink: '#EEF3EE', compound: 'medium',
-    slots: { sidepod: 'meridian', podFront: 'lumen', deck: 'vantage', airbox: 'nova',
+    slots: { sidepod: 'ti_aramo', podFront: 'lumen', deck: 'vantage', airbox: 'nova',
              wingTop: 'orbita', wingBack: 'gridwave', wingEnd: 'kerbline',
              wingEndLow: 'halden', fwMain: 'basalt', frontWing: 'ferrox',
              fwUpper: 'quartz', floor: 'tessera', noseTop: 'vertex',
@@ -6200,7 +6535,7 @@ const PRESETS = [
     id: 'energy', name: 'Energy', sub: 'Navy with a red spear and gold flash',
     colors: { primary: '#0B1235', secondary: '#B00D22', accent: '#F0C200' },
     pattern: 3, ink: '#FFFFFF', compound: 'soft',
-    slots: { sidepod: 'vantage', podFront: 'volta', deck: 'apex', airbox: 'nova',
+    slots: { sidepod: 'ti_oracle', podFront: 'volta', deck: 'apex', airbox: 'nova',
              wingTop: 'orbita', wingBack: 'gridwave', wingEnd: 'kerbline',
              wingEndLow: 'halden', fwMain: 'strato', frontWing: 'ferrox',
              fwUpper: 'quartz', floor: 'tessera', noseTop: 'vertex',
@@ -6212,24 +6547,24 @@ const PRESETS = [
     id: 'azure', name: 'Azure', sub: 'French blue with a magenta spine',
     colors: { primary: '#0B3E93', secondary: '#0A2A63', accent: '#F2529B' },
     pattern: 8, ink: '#FFFFFF', compound: 'medium',
-    slots: { sidepod: 'kite', podFront: 'lumen', deck: 'vantage', airbox: 'nova',
+    slots: { sidepod: 'ti_visor', podFront: 'lumen', deck: 'vantage', airbox: 'nova',
              wingTop: 'orbita', wingBack: 'gridwave', wingEnd: 'kerbline',
              wingEndLow: 'halden', fwMain: 'strato', frontWing: 'ferrox',
              fwUpper: 'quartz', floor: 'tessera', noseTop: 'vertex',
              noseSide: 'sable', halo: 'hexon', chassis: 'none',
-             sidepodLow: 'ninefold', barge: 'none', engFlank: 'none', rearDeck: 'none' },
+             sidepodLow: 'ninefold', barge: 'none', engFlank: 'tm_azure', rearDeck: 'none' },
     inks: { airbox: '#F2529B', sidepod: '#FFFFFF' }
   },
   {
     id: 'stripes', name: 'Stars & Stripes', sub: 'White with a black blade, red edge',
     colors: { primary: '#F0F2F4', secondary: '#14171C', accent: '#C41B27' },
     pattern: 2, ink: '#14171C', compound: 'hard',
-    slots: { sidepod: 'ridgeway', podFront: 'lumen', deck: 'vantage', airbox: 'nova',
+    slots: { sidepod: 'ti_haus', podFront: 'lumen', deck: 'vantage', airbox: 'nova',
              wingTop: 'orbita', wingBack: 'gridwave', wingEnd: 'kerbline',
              wingEndLow: 'halden', fwMain: 'strato', frontWing: 'ferrox',
              fwUpper: 'quartz', floor: 'tessera', noseTop: 'vertex',
              noseSide: 'redline', halo: 'zenith', chassis: 'cobalt',
-             sidepodLow: 'castor', barge: 'none', engFlank: 'none', rearDeck: 'none' },
+             sidepodLow: 'castor', barge: 'none', engFlank: 'tm_stripes', rearDeck: 'none' },
     inks: { sidepod: '#F0F2F4', deck: '#F0F2F4', floor: '#F0F2F4',
             noseTop: '#14171C', fwMain: '#14171C' }
   },
@@ -6237,36 +6572,36 @@ const PRESETS = [
     id: 'neon', name: 'Neon', sub: 'Black with a fluoro green wrap',
     colors: { primary: '#0B120F', secondary: '#37E256', accent: '#081008' },
     pattern: 4, ink: '#37E256', compound: 'soft',
-    slots: { sidepod: 'apex', podFront: 'lumen', deck: 'vantage', airbox: 'nova',
+    slots: { sidepod: 'ti_stakes', podFront: 'lumen', deck: 'vantage', airbox: 'nova',
              wingTop: 'orbita', wingBack: 'gridwave', wingEnd: 'kerbline',
              wingEndLow: 'halden', fwMain: 'strato', frontWing: 'ferrox',
              fwUpper: 'quartz', floor: 'tessera', noseTop: 'vertex',
              noseSide: 'redline', halo: 'zenith', chassis: 'none',
-             sidepodLow: 'ninefold', barge: 'none', engFlank: 'none', rearDeck: 'none' },
+             sidepodLow: 'ninefold', barge: 'none', engFlank: 'tm_neon', rearDeck: 'none' },
     inks: { deck: '#0B120F', sidepod: '#37E256', wingTop: '#37E256' }
   },
   {
     id: 'cobaltteam', name: 'Cobalt', sub: 'Royal blue over a white shoulder',
     colors: { primary: '#1B2FC0', secondary: '#0D1330', accent: '#F0F3F8' },
     pattern: 9, ink: '#F0F3F8', compound: 'medium',
-    slots: { sidepod: 'northgate', podFront: 'lumen', deck: 'vantage', airbox: 'nova',
+    slots: { sidepod: 'ti_komat', podFront: 'lumen', deck: 'vantage', airbox: 'nova',
              wingTop: 'orbita', wingBack: 'gridwave', wingEnd: 'kerbline',
              wingEndLow: 'halden', fwMain: 'strato', frontWing: 'ferrox',
              fwUpper: 'quartz', floor: 'tessera', noseTop: 'vertex',
              noseSide: 'ninefold', halo: 'hexon', chassis: 'cobalt',
-             sidepodLow: 'castor', barge: 'none', engFlank: 'none', rearDeck: 'none' },
+             sidepodLow: 'castor', barge: 'none', engFlank: 'tm_cobalt', rearDeck: 'none' },
     inks: {}
   },
   {
     id: 'monaco', name: 'Ivory & Gold', sub: 'Ivory and navy with a gold line',
     colors: { primary: '#ECECE4', secondary: '#0F1C38', accent: '#CE9F49' },
     pattern: 11, ink: '#0F1C38', compound: 'hard',
-    slots: { sidepod: 'halden', podFront: 'lumen', deck: 'meridian', airbox: 'nova',
+    slots: { sidepod: 'ti_chrome', podFront: 'lumen', deck: 'meridian', airbox: 'nova',
              wingTop: 'orbita', wingBack: 'gridwave', wingEnd: 'kerbline',
              wingEndLow: 'quartz', fwMain: 'strato', frontWing: 'ferrox',
              fwUpper: 'basalt', floor: 'tessera', noseTop: 'vertex',
              noseSide: 'ninefold', halo: 'zenith', chassis: 'none',
-             sidepodLow: 'castor', barge: 'none', engFlank: 'none', rearDeck: 'none' },
+             sidepodLow: 'castor', barge: 'none', engFlank: 'tm_monaco', rearDeck: 'none' },
     inks: { wingTop: '#CE9F49', wingBack: '#ECECE4', noseTop: '#0F1C38' }
   }
 ];
