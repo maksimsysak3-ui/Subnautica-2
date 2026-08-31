@@ -35,6 +35,7 @@ npm run dev        # http://localhost:5173
 | `npm run preview` | serve the production build |
 | `npm run typecheck` | `tsc --noEmit` |
 | `npm run test:gpu` | headless offscreen render test (needs Playwright + Chromium) |
+| `npm run test:deploy` | boots the built site under both Pages layouts |
 
 Press <kbd>`</kbd> in the app for the log console. The overlay top-left is the
 frame budget readout.
@@ -46,9 +47,10 @@ from this branch with no CI involved. Two ways to turn it on, pick one:
 
 **A. From the branch (no Actions needed).**
 Settings → Pages → Source: *Deploy from a branch* → branch
-`claude/cities-skylines-planning-y2elhr`, folder `/docs` → Save.
-Re-run `npm run build` and commit `docs/` whenever you want the live site to
-move.
+`claude/cities-skylines-planning-y2elhr`. Either folder works: `/docs` serves
+the build directly, and `/` lands on the repo root, which detects that it has
+no runnable bundle and forwards to `./docs/`. Re-run `npm run build` and commit
+`docs/` whenever you want the live site to move.
 
 **B. Via Actions (`.github/workflows/pages.yml`, already committed).**
 Settings → Pages → Source: *GitHub Actions*, then run the workflow. It is

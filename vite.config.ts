@@ -1,10 +1,11 @@
 import { defineConfig } from 'vite';
 
-// The repo name — GitHub Pages serves the site from a subpath.
-const BASE = '/Subnautica-2/';
-
+// Relative asset paths, deliberately. GitHub Pages might serve this from the
+// repo root (/Subnautica-2/) or from the /docs folder (/Subnautica-2/docs/),
+// depending on a dropdown in the repo settings. An absolute base only works
+// for one of those; './' works for both, and for file:// and any other host.
 export default defineConfig({
-  base: BASE,
+  base: './',
   build: {
     // Built site is committed so GitHub Pages can serve it straight from
     // the branch ("Deploy from a branch" -> /docs). See README.

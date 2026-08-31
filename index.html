@@ -60,45 +60,76 @@
   <script>
   /* Boot watchdog.
    *
-   * If the module bundle never runs -- 404, wrong MIME type, a syntax error on
-   * an old browser -- the page just sits on "initialising..." forever with no
-   * clue why. Four seconds in, go and find out.
+   * Without this the page sits on "initialising..." forever whenever the
+   * module bundle fails to run, with nothing to go on.
+   *
+   * The case worth knowing about: a static host serving the repository root
+   * hands back index.html pointing at /src/main.ts, and GitHub Pages serves
+   * .ts files as video/mp2t -- HTTP 200, wrong MIME, browser refuses to
+   * execute it as a module. So "did it 404" is not a sufficient test; the
+   * bundle has to actually be JavaScript. Either way the built copy is in
+   * ./docs, so go there rather than asking anyone to change a setting.
    */
   (function () {
-    var SRC = document.querySelector('script[type=module]').src;
-    setTimeout(function () {
-      if (window.__citysimBooted) return;
+    var el = document.querySelector('script[type=module]');
+    var SRC = el.src;
+    var ran = false;
+
+    function say(msg) {
       var box = document.getElementById('boot-status');
       if (!box) return;
-      var say = function (msg) { box.innerHTML = msg; box.style.color = '#ffb454'; };
-      say('the app bundle did not load&hellip;');
-      fetch(SRC, { method: 'GET', cache: 'no-store' })
-        .then(function (r) {
-          var type = r.headers.get('content-type') || 'unknown';
-          if (!r.ok) {
-            say(
-              '<b>' + r.status + '</b> fetching the app bundle<br><br>' +
-              '<span style="color:#5d6b80;font-size:11px">' + SRC + '</span><br><br>' +
-              'If this is GitHub Pages, the source folder is set to <b>/</b>.<br>' +
-              'It needs to be <b>/docs</b> — that is where the built site lives.<br>' +
-              'Settings &rarr; Pages &rarr; Folder &rarr; /docs'
-            );
-          } else if (type.indexOf('javascript') === -1) {
-            say(
-              'the server sent the bundle as <b>' + type + '</b>,<br>' +
-              'so the browser refused to run it as a module.'
-            );
-          } else {
-            say(
-              'the bundle downloaded but never ran.<br>' +
-              '<span style="color:#5d6b80;font-size:11px">press ` for the log, or open the browser console</span>'
-            );
-          }
+      box.innerHTML = msg;
+      box.style.color = '#ffb454';
+    }
+
+    /** True when this page is already the built copy, so we cannot recurse. */
+    function inDocs() {
+      return /\/docs\/?$/.test(location.pathname.replace(/index\.html$/, ''));
+    }
+
+    function fallbackToDocs(reason) {
+      if (inDocs()) return dead(reason);
+      say('looking for the built copy&hellip;');
+      fetch('docs/index.html', { cache: 'no-store' })
+        .then(function (d) {
+          if (d.ok) location.replace('docs/' + location.search + location.hash);
+          else dead(reason);
         })
-        .catch(function (e) {
-          say('could not reach the app bundle:<br><span style="color:#5d6b80;font-size:11px">' + e + '</span>');
-        });
-    }, 4000);
+        .catch(function () { dead(reason); });
+    }
+
+    function dead(reason) {
+      say(reason + '<br><br>' +
+          '<span style="color:#5d6b80;font-size:11px">' + SRC + '</span><br><br>' +
+          'Nothing is built here. Run <b>npm install &amp;&amp; npm run build</b>,<br>' +
+          'or start the dev server with <b>npm run dev</b>.');
+    }
+
+    function diagnose() {
+      if (ran || window.__citysimBooted) return;
+      ran = true;
+
+      fetch(SRC, { cache: 'no-store' }).then(function (r) {
+        var type = (r.headers.get('content-type') || 'unknown').toLowerCase();
+        if (!r.ok) {
+          fallbackToDocs('<b>' + r.status + '</b> fetching the app bundle.');
+        } else if (type.indexOf('javascript') === -1 && type.indexOf('ecmascript') === -1) {
+          fallbackToDocs('The bundle came back as <b>' + type + '</b>, not JavaScript.');
+        } else {
+          say('the bundle downloaded but never ran.<br>' +
+              '<span style="color:#5d6b80;font-size:11px">press ` for the log, ' +
+              'or open the browser console</span>');
+        }
+      }).catch(function (e) {
+        say('could not reach the app bundle:<br>' +
+            '<span style="color:#5d6b80;font-size:11px">' + e + '</span>');
+      });
+    }
+
+    // A 404 or a MIME refusal fires this at once; the timer is the backstop
+    // for a bundle that loads but throws before it signals.
+    el.addEventListener('error', diagnose);
+    setTimeout(diagnose, 4000);
   })();
   </script>
 </body>
