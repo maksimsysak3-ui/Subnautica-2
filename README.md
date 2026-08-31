@@ -8,9 +8,11 @@ graph is the wrong shape for "half a million static instanced objects".
 — performance hard caps, hierarchical pathfinding, agent tiering, the asset
 pack pipeline, and the milestone roadmap.
 
-**Status: M0 step 1 — boot path.** There is no game yet. What exists is a
-device that comes up, survives resize and GPU loss, and draws three instanced
-triangles through a depth buffer to prove the rendering path works.
+**Status: M0 step 2 — camera.** There is no game yet. What exists is a device
+that comes up and survives resize and GPU loss, an orbit camera over an
+infinite ground grid, and ~4,500 instanced boxes standing on it in one draw
+call — the draw path the building renderer will use, proved at a scale where
+mistakes are still cheap.
 
 ---
 
@@ -37,8 +39,18 @@ npm run dev        # http://localhost:5173
 | `npm run test:gpu` | headless offscreen render test (needs Playwright + Chromium) |
 | `npm run test:deploy` | boots the built site under both Pages layouts |
 
-Press <kbd>`</kbd> in the app for the log console. The overlay top-left is the
-frame budget readout.
+### Controls
+
+| | |
+|---|---|
+| drag | pan — the ground stays under the cursor |
+| right-drag / shift-drag | orbit |
+| wheel / pinch | zoom toward the cursor |
+| W A S D / arrows | pan |
+| Q E | rotate · R F pitch · +/− zoom |
+| <kbd>`</kbd> | log console |
+
+The overlay top-left is the frame budget readout.
 
 ## Publishing
 
@@ -93,13 +105,17 @@ src/
   gfx/
     device.ts          adapter/device, canvas config, resize, loss recovery
     caps.ts            limit negotiation + budget checks
+    camera.ts          orbit rig, ray-to-ground unprojection
     renderer.ts        frame loop, the single render pass
-    shaders/tri.wgsl   step-1 proof shader
+    shaders/           common.wgsl, ground.wgsl, box.wgsl
+  input/controls.ts    pointer, wheel, touch and keyboard camera control
+  math/m4.ts           mat4 / vec3, column-major, allocation-free
+  sim/city.ts          deterministic placeholder city layout
   ui/
     stats.ts           frame budget overlay
     fatal.ts           "your browser can't run this" screen
   util/log.ts          leveled log + in-page console
-tools/gpu-smoke.mjs    headless render-and-readback test
+tools/                 headless GPU and deployment tests
 planning/              design docs
 docs/                  built site (committed, served by Pages)
 ```
@@ -118,15 +134,20 @@ The triangle is throwaway. The other ~600 lines are not:
   black canvas is not an acceptable answer.
 - **Resize uses `device-pixel-content-box`.** The difference between a crisp
   canvas and a subtly blurry one under fractional display scaling.
-- **The proof shader uses a storage buffer indexed by `instance_index`.** That
+- **Boxes are drawn from a storage buffer indexed by `instance_index`.** That
   is exactly how buildings get drawn later — one call, N instances. Proving the
-  path now is cheaper than discovering it is broken at 100k instances.
+  path now is cheaper than discovering it is broken at 100k.
+- **The grid is procedural, not geometry.** Line width comes from screen-space
+  derivatives, so a line stays one pixel wide from 8 m up to 1200 m. Real line
+  geometry would be thousands of primitives that alias into moiré on zoom-out.
+- **Panning and zooming share one primitive:** where the cursor ray meets
+  y = 0. That same unprojection becomes road dragging, zoning, and bulldoze.
 - **One `beginRenderPass` per frame, pipelines built once.** The two rules the
   renderer will be held to forever, established while there is nothing to
   refactor.
 
 ## Next
 
-M0 step 2: camera (orbit/pan/zoom with zoom-to-cursor) and a view-projection
-uniform. Then chunked heightmap terrain, then 100k instanced cubes as the
-scaling test.
+M0 step 3: chunked heightmap terrain in place of the flat plane. Then step 4,
+the scaling test — 100k instances, which is where the budgets in the design doc
+meet reality.

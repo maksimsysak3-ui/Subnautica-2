@@ -6,9 +6,13 @@
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "types": ["@webgpu/types", "vite/client"],
     "strict": true,
+    // Deliberately off: this codebase is typed-array maths and struct-of-arrays
+    // ECS, where every read is an indexed one. The flag turns "number" into
+    // "number | undefined" on every matrix element and every entity field, and
+    // the non-null assertions it forces are noise that hides real nullability.
+
     "noUnusedLocals": true,
     "noUnusedParameters": true,
-    "noUncheckedIndexedAccess": true,
     "noImplicitOverride": true,
     "exactOptionalPropertyTypes": true,
     "isolatedModules": true,

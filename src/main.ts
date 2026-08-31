@@ -9,6 +9,8 @@
 
 import { Gpu, GpuInitError } from './gfx/device';
 import { Renderer } from './gfx/renderer';
+import { Camera } from './gfx/camera';
+import { Controls } from './input/controls';
 import { Stats } from './ui/stats';
 import { fatal } from './ui/fatal';
 import { log, mountConsole } from './util/log';
@@ -63,11 +65,13 @@ async function boot(): Promise<void> {
     return;
   }
 
-  status('building pipelines…');
+  status('building the city…');
   const stats = new Stats(overlay);
   stats.set('isolated', crossOriginIsolated ? 'yes' : 'no');
 
-  const renderer = new Renderer(gpu, stats);
+  const camera = new Camera();
+  const controls = new Controls(canvas, camera);
+  const renderer = new Renderer(gpu, camera, stats);
   renderer.build();
 
   // A lost device invalidates every GPU object. Rebuild from scratch rather
@@ -84,7 +88,7 @@ async function boot(): Promise<void> {
     try {
       await gpu.recover();
       renderer.build();
-      renderer.start();
+      renderer.start((dt) => controls.update(dt));
       status('');
       document.getElementById('boot')?.classList.add('done');
     } catch (err) {
@@ -98,9 +102,10 @@ async function boot(): Promise<void> {
     else renderer.start();
   });
 
-  renderer.start();
+  renderer.start((dt) => controls.update(dt));
+  canvas.focus();
   document.getElementById('boot')?.classList.add('done');
-  log.info('boot', 'running');
+  log.info('boot', 'running — drag to pan, right-drag to orbit, wheel to zoom');
 }
 
 addEventListener('error', (e) => log.error('window', `${e.message} @ ${e.filename}:${e.lineno}`));
