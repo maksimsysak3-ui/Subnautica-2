@@ -57,5 +57,49 @@
   </div>
   <noscript>This requires JavaScript and a WebGPU-capable browser.</noscript>
   <script type="module" src="/src/main.ts"></script>
+  <script>
+  /* Boot watchdog.
+   *
+   * If the module bundle never runs -- 404, wrong MIME type, a syntax error on
+   * an old browser -- the page just sits on "initialising..." forever with no
+   * clue why. Four seconds in, go and find out.
+   */
+  (function () {
+    var SRC = document.querySelector('script[type=module]').src;
+    setTimeout(function () {
+      if (window.__citysimBooted) return;
+      var box = document.getElementById('boot-status');
+      if (!box) return;
+      var say = function (msg) { box.innerHTML = msg; box.style.color = '#ffb454'; };
+      say('the app bundle did not load&hellip;');
+      fetch(SRC, { method: 'GET', cache: 'no-store' })
+        .then(function (r) {
+          var type = r.headers.get('content-type') || 'unknown';
+          if (!r.ok) {
+            say(
+              '<b>' + r.status + '</b> fetching the app bundle<br><br>' +
+              '<span style="color:#5d6b80;font-size:11px">' + SRC + '</span><br><br>' +
+              'If this is GitHub Pages, the source folder is set to <b>/</b>.<br>' +
+              'It needs to be <b>/docs</b> — that is where the built site lives.<br>' +
+              'Settings &rarr; Pages &rarr; Folder &rarr; /docs'
+            );
+          } else if (type.indexOf('javascript') === -1) {
+            say(
+              'the server sent the bundle as <b>' + type + '</b>,<br>' +
+              'so the browser refused to run it as a module.'
+            );
+          } else {
+            say(
+              'the bundle downloaded but never ran.<br>' +
+              '<span style="color:#5d6b80;font-size:11px">press ` for the log, or open the browser console</span>'
+            );
+          }
+        })
+        .catch(function (e) {
+          say('could not reach the app bundle:<br><span style="color:#5d6b80;font-size:11px">' + e + '</span>');
+        });
+    }, 4000);
+  })();
+  </script>
 </body>
 </html>

@@ -15,6 +15,13 @@ import { log, mountConsole } from './util/log';
 
 const MAX_RECOVERY_ATTEMPTS = 3;
 
+// Tells the watchdog in index.html that the bundle actually executed. If this
+// never runs, the watchdog goes and works out why.
+declare global {
+  interface Window { __citysimBooted?: boolean }
+}
+window.__citysimBooted = true;
+
 function status(text: string): void {
   const el = document.getElementById('boot-status');
   if (el) el.textContent = text;
