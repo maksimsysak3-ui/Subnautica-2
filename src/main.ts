@@ -42,10 +42,10 @@ async function boot(): Promise<void> {
     `crossOriginIsolated=${crossOriginIsolated} sharedArrayBuffer=${typeof SharedArrayBuffer !== 'undefined'}`,
   );
   if (!crossOriginIsolated) {
-    log.warn(
-      'boot',
-      'not cross-origin isolated: SharedArrayBuffer unavailable, worker threads will fall back to message passing',
-    );
+    // Expected for now. The service worker that grants isolation on GitHub
+    // Pages is parked in src/workers/ until worker threads need it -- see the
+    // note at the top of that file.
+    log.info('boot', 'not cross-origin isolated (expected): SharedArrayBuffer unavailable');
   }
 
   status('requesting GPU…');

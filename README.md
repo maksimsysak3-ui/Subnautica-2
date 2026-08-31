@@ -64,27 +64,26 @@ above replaces what is published there today.
 Either way the URL is `https://maksimsysak3-ui.github.io/Subnautica-2/`. If you
 rename the repo, change `BASE` in `vite.config.ts` to match.
 
-### The cross-origin isolation problem
+### The cross-origin isolation problem (deferred on purpose)
 
-The simulation will share its world state with worker threads through
+The simulation will eventually share world state with worker threads through
 `SharedArrayBuffer`, which browsers only expose on a **cross-origin isolated**
-page. That needs two response headers:
+page — needing `Cross-Origin-Opener-Policy: same-origin` and
+`Cross-Origin-Embedder-Policy: require-corp` response headers that GitHub Pages
+will not let you set. The usual workaround is a service worker that adds them
+itself.
 
-```
-Cross-Origin-Opener-Policy:   same-origin
-Cross-Origin-Embedder-Policy: require-corp
-```
+That worker is written and parked at
+[`src/workers/coi-serviceworker.js.txt`](src/workers/coi-serviceworker.js.txt),
+**not registered**. It was wired up early, before any code needed it, and it
+put a caching layer in front of every request that went on to serve a stale
+copy of the app after a deploy — a live bug in exchange for a feature nothing
+used yet. It comes back at M2 when the pathfinding worker needs it, with a
+version check so a redeploy can't be masked.
 
-GitHub Pages does not let you set response headers. So
-[`public/coi-serviceworker.js`](public/coi-serviceworker.js) installs a service
-worker that adds them to every response. First visit loads unisolated,
-registers the worker, and reloads once; every visit after is isolated from the
-start. The app checks `crossOriginIsolated` at boot and logs loudly if it is
-false.
-
-The cost: with `require-corp`, every cross-origin subresource must send CORP
-headers or be blocked. **Keep everything self-hosted** — no CDN fonts, no
-remote images — and it never comes up.
+Until then `crossOriginIsolated` is false and the app logs that at boot as
+expected, not as a warning. `index.html` also unregisters any service worker
+still lingering on the origin from the earlier build.
 
 ## Layout
 

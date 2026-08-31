@@ -6,8 +6,36 @@
 <meta name="color-scheme" content="dark">
 <title>citysim</title>
 <meta name="description" content="A city simulation engine built on WebGPU.">
-<!-- Adds COOP/COEP so SharedArrayBuffer works on GitHub Pages. Must run before the app. -->
-<script src="./coi-serviceworker.js"></script>
+<script>
+/* Remove any service worker previously registered on this origin.
+ *
+ * An earlier build registered public/coi-serviceworker.js to obtain
+ * cross-origin isolation for SharedArrayBuffer. Nothing uses SharedArrayBuffer
+ * yet, and a service worker in front of every request is an excellent way to
+ * pin visitors to a stale copy of the app -- which is exactly what happened.
+ * It comes back when worker threads actually land; until then, evict it.
+ */
+(function () {
+  if (!('serviceWorker' in navigator)) return;
+  navigator.serviceWorker.getRegistrations().then(function (regs) {
+    if (!regs.length) return;
+    var wasControlled = !!navigator.serviceWorker.controller;
+    Promise.all(regs.map(function (r) { return r.unregister(); })).then(function () {
+      if (window.caches) {
+        caches.keys().then(function (names) {
+          names.forEach(function (n) { caches.delete(n); });
+        });
+      }
+      // One reload to escape the worker that served this page. Guarded so a
+      // failure to unregister cannot become a reload loop.
+      if (wasControlled && !sessionStorage.getItem('sw-evicted')) {
+        sessionStorage.setItem('sw-evicted', '1');
+        location.reload();
+      }
+    });
+  }).catch(function () { /* nothing we can do; carry on booting */ });
+})();
+</script>
 <style>
   :root {
     --bg: #0b0e13;
@@ -47,7 +75,7 @@
   #overlay { position: fixed; inset: 0; pointer-events: none; z-index: 5; }
   noscript { position: fixed; inset: 0; display: grid; place-content: center; }
 </style>
-  <script type="module" crossorigin src="./assets/index-CpdXjxse.js"></script>
+  <script type="module" crossorigin src="./assets/index-3OeKbgtb.js"></script>
 </head>
 <body>
   <canvas id="gpu-canvas" tabindex="0"></canvas>
@@ -129,7 +157,7 @@
     // A 404 or a MIME refusal fires this at once; the timer is the backstop
     // for a bundle that loads but throws before it signals.
     el.addEventListener('error', diagnose);
-    setTimeout(diagnose, 4000);
+    setTimeout(diagnose, 2500);
   })();
   </script>
 </body>

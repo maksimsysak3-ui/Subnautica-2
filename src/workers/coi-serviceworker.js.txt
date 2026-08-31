@@ -1,4 +1,14 @@
 /*
+ * NOT WIRED UP. Parked here deliberately -- this file is outside public/ so it
+ * is not deployed, and index.html no longer registers it.
+ *
+ * It was added ahead of need, for SharedArrayBuffer that no code uses yet, and
+ * it cost a boot-path bug: a service worker in front of every request kept
+ * serving a stale copy of the app after a deploy. Bring it back when worker
+ * threads actually land (M2, the pathfinding service), rename it to .js, move
+ * it to public/, and register it from index.html again -- and add a version
+ * check so a redeploy cannot be masked by it.
+ *
  * Cross-origin isolation via service worker.
  *
  * SharedArrayBuffer -- which the simulation needs to share the world state
