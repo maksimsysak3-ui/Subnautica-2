@@ -57,6 +57,11 @@ const cases = [
   { name: 'Pages folder = / (repo root)', dir: REPO, port: 4201 },
   { name: 'Pages folder = /docs', dir: REPO + '/docs', port: 4202 },
   { name: 'stale cached index.html replaces itself', dir: REPO + '/docs', port: 4203, stale: true, expectQuery: true },
+  // The asset viewer is a second page and had to learn the same lesson: served
+  // from the repo root it is the source file, pointing at unbuilt TypeScript,
+  // and it failed by rendering its chrome with no behaviour behind it.
+  { name: 'asset viewer, Pages folder = / (repo root)', dir: REPO, port: 4204, path: '/asset.html', flag: 'viewer' },
+  { name: 'asset viewer, Pages folder = /docs', dir: REPO + '/docs', port: 4205, path: '/asset.html', flag: 'viewer' },
 ];
 
 let bad = 0;
@@ -68,17 +73,17 @@ let bad = 0;
  * shortly after boot -- neither of which says anything about the deployment
  * layout this test is checking, so both are tolerated as long as boot happened.
  */
-async function waitForBoot(page, done, timeoutMs = 20000) {
+async function waitForBoot(page, done, flag, timeoutMs = 20000) {
   const started = Date.now();
   let last = null;
   while (Date.now() - started < timeoutMs) {
     try {
-      const r = await page.evaluate(() => ({
-        booted: !!window.__citysimBooted,
+      const r = await page.evaluate((flag) => ({
+        booted: flag === 'viewer' ? !!window.__viewerBooted : !!window.__citysimBooted,
         url: location.pathname + location.search,
         status: document.getElementById('boot-status')?.textContent?.trim().slice(0, 90),
         heading: document.querySelector('#boot h1')?.textContent?.trim().slice(0, 60),
-      }));
+      }), flag);
       last = r;
       if (r.booted && done(r)) return r;
     } catch {
@@ -94,13 +99,13 @@ for (const c of cases) {
   const page = await browser.newPage();
   // ?lite keeps the world small enough for a software rasteriser; this test is
   // about deployment layout, not about how much geometry the runner can hold.
-  await page.goto(`http://localhost:${c.port}/Subnautica-2/?lite`, { waitUntil: 'domcontentloaded' });
+  await page.goto(`http://localhost:${c.port}/Subnautica-2${c.path ?? '/'}?lite`, { waitUntil: 'domcontentloaded' });
 
   // The stale case boots twice: once on the cached copy, then again on the
   // replacement. Waiting only for "booted" would catch the first and miss the
   // point of the test.
   const done = c.expectQuery ? (r) => /[?&]b=/.test(r.url ?? '') : () => true;
-  const r = (await waitForBoot(page, done)) ?? {};
+  const r = (await waitForBoot(page, done, c.flag)) ?? {};
   const ok = !!r.booted && done(r);
   if (!ok) bad++;
   console.log(`${ok ? 'PASS' : 'FAIL'}  ${c.name}`);

@@ -585,6 +585,12 @@ function fail(title: string, detail: string): void {
   log.error('viewer', `${title} — ${detail}`);
 }
 
+// Tells the watchdog in asset.html that the bundle actually executed.
+declare global {
+  interface Window { __viewerBooted?: boolean }
+}
+window.__viewerBooted = true;
+
 async function boot(): Promise<void> {
   const canvas = document.getElementById('gpu-canvas');
   if (!(canvas instanceof HTMLCanvasElement)) return;

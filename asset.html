@@ -88,5 +88,64 @@ window.__BUILD__ = '__BUILD_ID__';
     </div>
   </div>
   <script type="module" src="/src/asset-viewer.ts"></script>
+  <script>
+  /* Boot watchdog, same as index.html's and for the same reason.
+   *
+   * When a static host serves the repository root, this file is the source
+   * one: it points at /src/asset-viewer.ts, and GitHub Pages returns .ts as
+   * video/mp2t -- HTTP 200, wrong MIME, and the browser silently refuses to
+   * execute it as a module. The page then renders its static chrome with no
+   * behaviour behind it: buttons that do not respond, an empty asset list,
+   * and a blank canvas. Which is exactly how it failed.
+   *
+   * index.html had this and asset.html did not, which is the whole bug.
+   */
+  (function () {
+    var el = document.querySelector('script[type=module]');
+    var SRC = el.src;
+    var ran = false;
+
+    function say(msg) {
+      var box = document.getElementById('stage');
+      if (!box) return;
+      var d = document.createElement('div');
+      d.id = 'fatal';
+      d.innerHTML = msg;
+      box.appendChild(d);
+    }
+
+    function inDocs() {
+      return /\/docs\//.test(location.pathname);
+    }
+
+    function diagnose() {
+      if (ran || window.__viewerBooted) return;
+      ran = true;
+      fetch(SRC, { cache: 'no-store' }).then(function (r) {
+        var type = (r.headers.get('content-type') || 'unknown').toLowerCase();
+        var ok = r.ok && (type.indexOf('javascript') !== -1 || type.indexOf('ecmascript') !== -1);
+        if (ok) {
+          say('The page loaded but never started.<br>Press ` for the log.');
+          return;
+        }
+        if (!inDocs()) {
+          fetch('docs/asset.html', { cache: 'no-store' })
+            .then(function (d) {
+              if (d.ok) location.replace('docs/asset.html' + location.search + location.hash);
+              else say('Nothing is built here. Run <b>npm run build</b>.');
+            })
+            .catch(function () { say('Nothing is built here. Run <b>npm run build</b>.'); });
+          return;
+        }
+        say('The app bundle came back as <b>' + type + '</b>, not JavaScript.');
+      }).catch(function (e) {
+        say('Could not reach the app bundle:<br>' + e);
+      });
+    }
+
+    el.addEventListener('error', diagnose);
+    setTimeout(diagnose, 2500);
+  })();
+  </script>
 </body>
 </html>
