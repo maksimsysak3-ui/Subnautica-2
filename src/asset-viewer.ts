@@ -26,7 +26,7 @@ const DEPTH: GPUTextureFormat = 'depth24plus';
 // texture is the less-travelled path and Safari is the browser most likely to
 // balk at it. The extra precision buys nothing at these distances.
 const SHADOW_FORMAT: GPUTextureFormat = 'depth24plus';
-const SHADOW_SIZE = 2048;
+const SHADOW_SIZE = 1024;
 /** viewProj + sunViewProj + eye + sunDir + params */
 const SCENE_SIZE = 176;
 
@@ -61,6 +61,15 @@ class Viewer {
   private current: Drawable | null = null;
   /** False while the device is being rebuilt after a loss. */
   private alive = true;
+  /**
+   * Shadows off with ?noshadow. A bisect switch: if the buildings appear with
+   * shadows off, the shadow pipeline is the problem; if they do not, it is
+   * something else. One reload instead of a conversation.
+   */
+  private shadows = true;
+  private dummyShadow: GPUTextureView | null = null;
+  /** Live counters for the readout. Cheap, and the reason this got diagnosed. */
+  readonly debug = { frames: 0, indices: 0, height: 0, radius: 0, distance: 0, error: '' };
 
   private yaw = Math.PI * 0.75;
   private pitch = 0.36;
@@ -79,7 +88,8 @@ class Viewer {
   private sceneData = new Float32Array(SCENE_SIZE / 4);
   private groundRadius = 60;
 
-  constructor(private gpu: Gpu) {
+  constructor(private gpu: Gpu, shadows = true) {
+    this.shadows = shadows;
     this.buildPipelines();
     this.buildGround();
     this.resizeDepth();
@@ -98,6 +108,25 @@ class Viewer {
       usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING,
     });
     this.shadowView = shadow.createView();
+
+    // A 1x1 stand-in, cleared to "nothing occludes", used when shadows are off
+    // so the shader can keep sampling unconditionally.
+    const dummy = device.createTexture({
+      label: 'shadow-off',
+      size: { width: 1, height: 1 },
+      format: SHADOW_FORMAT,
+      usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING,
+    });
+    this.dummyShadow = dummy.createView();
+    const clear = device.createCommandEncoder();
+    clear.beginRenderPass({
+      colorAttachments: [],
+      depthStencilAttachment: {
+        view: this.dummyShadow, depthClearValue: 1,
+        depthLoadOp: 'clear', depthStoreOp: 'store',
+      },
+    }).end();
+    device.queue.submit([clear.finish()]);
 
     const layout = device.createBindGroupLayout({
       entries: [
@@ -167,7 +196,7 @@ class Viewer {
       layout,
       entries: [
         { binding: 0, resource: { buffer: this.sceneBuffer } },
-        { binding: 1, resource: this.shadowView },
+        { binding: 1, resource: this.shadows ? this.shadowView : (this.dummyShadow ?? this.shadowView) },
         { binding: 2, resource: device.createSampler({ compare: 'less' }) },
       ],
     });
@@ -418,6 +447,7 @@ class Viewer {
     const encoder = device.createCommandEncoder();
 
     // Shadow pass: the asset only. The ground receives but does not cast.
+    if (this.shadows) {
     const shadowPass = encoder.beginRenderPass({
       colorAttachments: [],
       depthStencilAttachment: {
@@ -431,6 +461,7 @@ class Viewer {
     shadowPass.setIndexBuffer(cur.indices, 'uint32');
     shadowPass.drawIndexed(cur.indexCount);
     shadowPass.end();
+    }
 
     const pass = encoder.beginRenderPass({
       colorAttachments: [{
@@ -462,6 +493,12 @@ class Viewer {
     }
     pass.end();
     device.queue.submit([encoder.finish()]);
+
+    this.debug.frames++;
+    this.debug.indices = cur.indexCount;
+    this.debug.height = cur.bounds.height;
+    this.debug.radius = cur.bounds.radius;
+    this.debug.distance = this.distance;
   }
 }
 
@@ -581,10 +618,12 @@ async function boot(): Promise<void> {
   // pipeline creation catches nothing. An error scope is the only way to find
   // out that a pipeline was rejected -- and a rejected pipeline draws exactly
   // as much as a working one does on a black canvas.
+  const query = new URLSearchParams(location.search);
+
   gpu.device.pushErrorScope('validation');
   let viewer: Viewer;
   try {
-    viewer = new Viewer(gpu);
+    viewer = new Viewer(gpu, !query.has('noshadow'));
   } catch (err) {
     void gpu.device.popErrorScope();
     fail('Could not build the render pipelines', String(err));
@@ -619,7 +658,7 @@ async function boot(): Promise<void> {
   // URL parameters, so the contact-sheet tool can drive this page rather than
   // reimplementing the renderer. A second renderer is worse than no tool: it
   // tells you an asset looks fine under conditions the game never reproduces.
-  const q = new URLSearchParams(location.search);
+  const q = query;
   const wanted = ASSETS.find((a) => a.id === q.get('asset')) ?? ASSETS[0];
   const wantedLod = Number(q.get('lod') ?? 0);
   if (q.get('spin') === '0') viewer.toggleSpin();
@@ -683,6 +722,28 @@ async function boot(): Promise<void> {
   setTimeout(() => {
     if (frames === 0) fail('Nothing rendered', 'The render loop never completed a frame.');
   }, 2500);
+
+  // Always-on readout. Small, and the difference between "it is blank" and a
+  // diagnosis: if frames climb and indices are non-zero, the geometry is being
+  // submitted and the problem is the camera or the pipeline, not the asset.
+  if (q.get('hud') !== '0') {
+    const el = document.createElement('div');
+    el.style.cssText = [
+      'position:absolute', 'left:14px', 'bottom:34px', 'color:#5d6b80',
+      'font:11px/1.6 var(--mono)', 'pointer-events:none', 'white-space:pre',
+    ].join(';');
+    document.getElementById('stage')?.appendChild(el);
+    setInterval(() => {
+      const d = viewer.debug;
+      const c = gpu.canvas;
+      el.textContent =
+        `frames ${d.frames}   tris ${(d.indices / 3) | 0}   ` +
+        `size ${d.height.toFixed(1)}m r${d.radius.toFixed(1)}   ` +
+        `cam ${d.distance.toFixed(0)}m\n` +
+        `canvas ${c.width}x${c.height}   ${gpu.format}   ` +
+        `shadows ${query.has('noshadow') ? 'off' : 'on'}`;
+    }, 400);
+  }
   log.info('viewer', `${ASSETS.length} assets`);
 }
 
