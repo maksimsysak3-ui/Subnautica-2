@@ -27,6 +27,14 @@ struct Scene {
   sunDir      : vec4f,
   // x = per-building seed, y = shadow map texel size, z = ground fade radius
   params      : vec4f,
+  /** Primary brand colour: fascia signs, awnings, painted trim. */
+  brand       : vec4f,
+  /** Secondary: stripes, doors, sign returns. */
+  accent      : vec4f,
+  /** The brand name, four characters packed per component, 16 max. */
+  signText    : vec4u,
+  /** x = character count. */
+  signInfo    : vec4f,
 };
 
 @group(0) @binding(0) var<uniform> scene : Scene;
@@ -44,6 +52,9 @@ const MAT_TILE      = 7u;
 const MAT_GROUND    = 8u;
 const MAT_HOUSE     = 9u;
 const MAT_SHED      = 10u;
+const MAT_CONCRETE  = 11u;
+const MAT_PLASTER   = 12u;
+const MAT_PANE      = 13u;
 
 struct VSOut {
   @builtin(position) pos      : vec4f,
@@ -51,18 +62,24 @@ struct VSOut {
   @location(1)       normal   : vec3f,
   @location(2)       ao       : f32,
   @location(3) @interpolate(flat) material : u32,
+  @location(4) @interpolate(flat) tint     : u32,
+  @location(5)       local    : vec2f,
 };
 
 @vertex
 fn vs(@location(0) position : vec3f,
       @location(1) normal   : vec3f,
       @location(2) material : f32,
-      @location(3) ao       : f32) -> VSOut {
+      @location(3) ao       : f32,
+      @location(4) tint     : f32,
+      @location(5) local    : vec2f) -> VSOut {
   var out : VSOut;
   out.world = position;
   out.normal = normal;
   out.ao = ao;
   out.material = u32(material + 0.5);
+  out.tint = u32(tint + 0.5);
+  out.local = local;
   out.pos = scene.viewProj * vec4f(position, 1.0);
   return out;
 }
@@ -160,7 +177,7 @@ fn metalColour(seed : f32) -> vec3f {
 
 // ----------------------------------------------------------------- patterns
 
-fn housing(uv : vec2f, mpp : f32, seed : f32) -> vec3f {
+fn housing(uv : vec2f, mpp : f32, seed : f32, par : vec2f) -> vec3f {
   let bay = 3.0;
   let floorH = 3.05;
   let wall = renderColour(seed);
@@ -176,8 +193,9 @@ fn housing(uv : vec2f, mpp : f32, seed : f32) -> vec3f {
   let reveal = inRect(p, centre, vec2f(0.84, 0.84), mpp) - win;
 
   let r = hash21(id + seed);
-  var glass = glassColour(seed) * (0.72 + r * 0.85);
-  if (r > 0.88) { glass = vec3f(0.66, 0.58, 0.38); }     // a lit room
+  // The room behind the opening, mixed with what the pane reflects.
+  let inside = room((p - centre + vec2f(0.72, 0.72)) / 1.44, par, r, r > 0.82);
+  let glass = mix(glassColour(seed) * (0.9 + r * 0.5), inside, 0.72);
 
   var col = mix(wall, wall * 0.62, reveal);
   col = mix(col, glass, win);
@@ -188,21 +206,25 @@ fn housing(uv : vec2f, mpp : f32, seed : f32) -> vec3f {
   return mix(wall, col, resolvable(1.4, mpp));
 }
 
-fn curtainWall(uv : vec2f, mpp : f32, seed : f32) -> vec3f {
+fn curtainWall(uv : vec2f, mpp : f32, seed : f32, par : vec2f) -> vec3f {
   let floorH = 3.6;
   let mullion = 1.5;
   let glass = glassColour(seed);
   let spandrel = mix(renderColour(seed), vec3f(0.2), 0.35);
 
   let band = step(fract(uv.y / floorH), 0.26);
-  var col = mix(glass, spandrel, band);
-
-  // Per-pane variation: reflections of sky and of the building opposite never
-  // match pane to pane, and a curtain wall without that reads as painted-on.
-  let id = floor(vec2f(uv.x / mullion, uv.y / floorH));
+  let cell = vec2f(mullion, floorH);
+  let id = floor(uv / cell);
   let r = hash21(id + seed * 1.7);
-  col = mix(col, col * (0.62 + r * 1.05), 1.0 - band);
-  if (r > 0.94) { col = mix(col, vec3f(0.56, 0.52, 0.40), 0.55 * (1.0 - band)); }
+
+  // The office behind each pane, then the sky reflected off the front of it.
+  // A curtain wall is both at once, which is why a flat blue box never looks
+  // like one.
+  let inside = room(vec2f(fract(uv.x / mullion), fract((uv.y - floorH * 0.26) / (floorH * 0.74))),
+                    par, r, r > 0.72);
+  var col = mix(mix(glass, inside, 0.62), spandrel, band);
+  let sky = clamp((uv.y / max(floorH * 12.0, 1.0)) * 0.5 + 0.25, 0.0, 1.0);
+  col = mix(col, glassColour(seed) * (1.4 + r * 0.6), sky * 0.42 * (1.0 - band));
 
   let bars = max(stripe(uv.x, mullion, 0.035, mpp), stripe(uv.y, floorH, 0.05, mpp));
   col = mix(col, vec3f(0.30, 0.31, 0.33), bars * resolvable(0.8, mpp));
@@ -241,7 +263,7 @@ fn brick(uv : vec2f, mpp : f32, seed : f32) -> vec3f {
  * Sculpted variants model theirs and use plain BRICK instead; drawing both
  * would put a painted window inside a modelled one.
  */
-fn houseWall(uv : vec2f, mpp : f32, seed : f32) -> vec3f {
+fn houseWall(uv : vec2f, mpp : f32, seed : f32, par : vec2f) -> vec3f {
   var col = brick(uv, mpp, seed);
 
   let bay = 3.1;
@@ -260,8 +282,8 @@ fn houseWall(uv : vec2f, mpp : f32, seed : f32) -> vec3f {
   let win = inRect(p, centre, half, mpp);
   let reveal = inRect(p, centre, half + vec2f(0.14), mpp) - win;
 
-  var glass = glassColour(seed) * (0.66 + r * 0.8);
-  if (r > 0.85) { glass = vec3f(0.60, 0.53, 0.35); }
+  let inside = room((p - centre + half) / (half * 2.0), par, r, r > 0.78);
+  let glass = mix(glassColour(seed) * (0.85 + r * 0.4), inside, 0.74);
 
   col = mix(col, col * 0.55, reveal);
   col = mix(col, glass, win);
@@ -297,16 +319,19 @@ fn shedWall(uv : vec2f, mpp : f32, seed : f32) -> vec3f {
   return col;
 }
 
-fn shopfront(uv : vec2f, mpp : f32, seed : f32) -> vec3f {
-  let glass = glassColour(seed) * 0.8;
+fn shopfront(uv : vec2f, mpp : f32, seed : f32, par : vec2f) -> vec3f {
+  let bay = floor(uv.x / 2.6);
+  let rr = hash11(bay * 1.31 + seed);
+  // A shop interior is lit and full, which is what makes a street at dusk
+  // read as open for business.
+  let inside = room(vec2f(fract(uv.x / 2.6), clamp((uv.y - 0.55) / 2.6, 0.0, 1.0)), par, rr, true);
+  let glass = mix(glassColour(seed) * 0.9, inside, 0.8);
   let stall = renderColour(seed) * 0.5;
   var col = mix(glass, stall, step(uv.y, 0.55));
   // Lit interiors and signage: shops are the brightest thing at street level
   // and the main reason a night city reads as inhabited.
-  let bay = floor(uv.x / 2.6);
-  let r = hash11(bay * 1.31 + seed);
-  if (r > 0.45) {
-    col = mix(col, vec3f(0.62, 0.56, 0.42) * (0.6 + r * 0.7), (1.0 - step(uv.y, 0.55)) * 0.6);
+  if (rr > 0.45) {
+    col = mix(col, vec3f(0.62, 0.56, 0.42) * (0.5 + rr * 0.5), (1.0 - step(uv.y, 0.55)) * 0.28);
   }
   col = mix(col, vec3f(0.28, 0.29, 0.30), stripe(uv.x, 2.6, 0.05, mpp) * resolvable(1.4, mpp));
   return col;
@@ -340,20 +365,185 @@ fn ground(uv : vec2f, mpp : f32) -> vec3f {
   return col;
 }
 
-fn albedo(mat : u32, uv : vec2f, mpp : f32, seed : f32) -> vec3f {
+/**
+ * What is behind the glass.
+ *
+ * Windows that are only a frame and a flat blue pane read as stickers. A room
+ * costs nothing to draw: a back wall, a floor, a ceiling with a light on it,
+ * a blind pulled down at a random height, and a block of furniture. The
+ * parallax offset -- computed from the view direction in the fragment entry
+ * point -- is what sells it, because the room shifts as the camera moves the
+ * way a real recess does.
+ */
+fn room(local : vec2f, par : vec2f, r : f32, lit : bool) -> vec3f {
+  // Shift the contents against the view, and keep them inside the opening.
+  let p = clamp(local + par, vec2f(0.0), vec2f(1.0));
+
+  let back = vec3f(0.052, 0.050, 0.056) * (0.7 + r * 0.7);
+  var col = back;
+
+  // Ceiling and floor, seen at an angle through the opening.
+  col = mix(col, vec3f(0.115, 0.112, 0.108), smoothstep(0.72, 0.98, p.y));
+  col = mix(col, vec3f(0.070, 0.062, 0.056), smoothstep(0.30, 0.04, p.y));
+
+  // A block of furniture in the lower half, its width and place from the hash.
+  let fx = 0.12 + fract(r * 7.3) * 0.55;
+  let fw = 0.16 + fract(r * 3.1) * 0.26;
+  let fh = 0.16 + fract(r * 5.7) * 0.22;
+  if (p.x > fx && p.x < fx + fw && p.y < fh + 0.06) {
+    col = vec3f(0.088, 0.078, 0.070) * (0.8 + r * 0.5);
+  }
+
+  if (lit) {
+    // Warm bounce, strongest at the ceiling where the fitting is.
+    let glow = smoothstep(0.15, 1.0, p.y);
+    col = mix(col, vec3f(0.72, 0.60, 0.40), 0.30 + glow * 0.45);
+    if (p.y > 0.86) { col = vec3f(0.88, 0.80, 0.60); }
+  }
+
+  // A blind, pulled down to a height that varies per opening.
+  let blind = 0.30 + fract(r * 11.7) * 0.62;
+  if (fract(r * 2.9) > 0.45 && p.y > 1.0 - blind) {
+    let slat = 0.55 + 0.45 * step(0.5, fract(p.y * 34.0));
+    col = mix(col, vec3f(0.30, 0.29, 0.27) * slat, 0.92);
+  }
+  return col;
+}
+
+fn concrete(uv : vec2f, mpp : f32, seed : f32) -> vec3f {
+  let base = vec3f(0.330, 0.334, 0.336);
+  let r = hash21(floor(uv / vec2f(2.4, 1.2)) + seed);
+  var col = base * (0.90 + r * 0.20);
+  // Panel joints. Precast reads as panels or it reads as nothing.
+  col = mix(col, base * 0.74, max(stripe(uv.x, 2.4, 0.022, mpp), stripe(uv.y, 1.2, 0.022, mpp))
+                              * resolvable(1.2, mpp));
+  return col;
+}
+
+fn plaster(uv : vec2f, mpp : f32, seed : f32) -> vec3f {
+  let base = renderColour(seed) * 1.08;
+  let r = hash21(floor(uv * 3.0) + seed) * 0.06;
+  return base * (0.97 + r);
+}
+
+/**
+ * Brand palette. A tint index paints a surface instead of patterning it, which
+ * is how one shopfront generator makes a green grocer and a red diner.
+ */
+fn palette(i : u32, uv : vec2f, mpp : f32, seed : f32) -> vec3f {
+  let brand = scene.brand.rgb;
+  let accent = scene.accent.rgb;
+  switch (i) {
+    case 1u: { return brand; }
+    case 2u: { return brand * 0.48; }
+    case 3u: { return accent; }
+    // Illuminated fascia: brighter than the paint and lifted towards white,
+    // so a sign reads as lit rather than merely coloured.
+    // Lifted only slightly towards white: pushed further it desaturates into
+    // pink and the brand stops being readable, which is what the first attempt
+    // did to every sign in the city.
+    case 4u: { return mix(brand, vec3f(1.0), 0.16) * 1.18; }
+    case 5u: { return accent * 0.55; }
+    // Awning: alternating bands, the width of real canvas stripes.
+    case 6u: {
+      let band = step(0.5, fract(uv.x / 0.42));
+      return mix(brand, mix(brand, vec3f(0.92), 0.75), band);
+    }
+    case 7u: { return vec3f(0.088, 0.092, 0.098); }
+    case 8u: {
+      let grain = hash21(vec2f(floor(uv.x * 8.0), floor(uv.y * 1.2)) + seed);
+      return vec3f(0.238, 0.170, 0.108) * (0.88 + grain * 0.3);
+    }
+    case 9u: {
+      let leaf = hash21(floor(uv * 5.0) + seed);
+      return vec3f(0.118, 0.212, 0.108) * (0.75 + leaf * 0.6);
+    }
+    default: { return brand; }
+  }
+}
+
+fn albedo(mat : u32, uv : vec2f, mpp : f32, seed : f32, par : vec2f) -> vec3f {
   switch (mat) {
-    case 1u: { return housing(uv, mpp, seed); }
-    case 2u: { return curtainWall(uv, mpp, seed); }
+    case 1u: { return housing(uv, mpp, seed, par); }
+    case 2u: { return curtainWall(uv, mpp, seed, par); }
     case 3u: { return corrugated(uv, mpp, seed); }
     case 4u: { return brick(uv, mpp, seed); }
     case 5u: { return mix(renderColour(seed), vec3f(0.62), 0.55); }
-    case 6u: { return shopfront(uv, mpp, seed); }
+    case 6u: { return shopfront(uv, mpp, seed, par); }
     case 7u: { return tiles(uv, mpp, seed); }
     case 8u: { return ground(uv, mpp); }
-    case 9u: { return houseWall(uv, mpp, seed); }
+    case 9u: { return houseWall(uv, mpp, seed, par); }
     case 10u: { return shedWall(uv, mpp, seed); }
+    case 11u: { return concrete(uv, mpp, seed); }
+    case 12u: { return plaster(uv, mpp, seed); }
+    // Handled in the fragment entry point, where the pane's own coordinates
+    // are available. Never reached.
+    case 13u: { return vec3f(0.0); }
     default: { return roofDeck(uv, mpp, seed); }
   }
+}
+
+// -------------------------------------------------------------------- text
+//
+// A 5x6 pixel font, one glyph per u32, bit = row * 5 + col. Signage without a
+// name on it reads as a coloured panel; with one it reads as a business, and
+// at city-builder distances five pixels of letter is plenty.
+
+const GLYPHS = array<u32, 41>(
+  589284910u, 521715247u, 1007715390u, 521717295u, 1041284159u, 34651199u,
+  1025041470u, 588840497u, 1044517023u, 211034396u, 588553521u, 1041269793u,
+  588830577u, 589092465u, 488162862u, 34651695u, 748340782u, 580042287u,
+  520632382u, 138547359u, 488162865u, 145278513u, 599442993u, 581046609u,
+  138547537u, 1041305887u, 490395438u, 474091716u, 1042424366u, 520632847u,
+  301246856u, 520633407u, 488160302u, 69345823u, 488159790u, 487540270u,
+  748329254u, 207618048u, 31744u, 132u, 0u,
+);
+
+/** Maps an ASCII code to an index into GLYPHS. 40 is the blank. */
+fn glyphIndex(code : u32) -> u32 {
+  if (code >= 65u && code <= 90u) { return code - 65u; }        // A-Z
+  if (code >= 97u && code <= 122u) { return code - 97u; }       // a-z, folded
+  if (code >= 48u && code <= 57u) { return code - 48u + 26u; }  // 0-9
+  if (code == 38u) { return 36u; }                              // &
+  if (code == 46u) { return 37u; }                              // .
+  if (code == 45u) { return 38u; }                              // -
+  if (code == 39u) { return 39u; }                              // '
+  return 40u;
+}
+
+fn charAt(i : u32) -> u32 {
+  let word = scene.signText[i / 4u];
+  return (word >> ((i % 4u) * 8u)) & 255u;
+}
+
+/**
+ * Draws the brand name across a sign face. `p` is 0..1 across the board.
+ * Returns coverage, anti-aliased by the local derivative.
+ */
+fn signLabel(p : vec2f, count : u32, mpp : f32) -> f32 {
+  if (count == 0u) { return 0.0; }
+  // Letters occupy the middle 92% of the board.
+  let cellW = 0.92 / f32(count);
+  let x = (p.x - 0.04) / cellW;
+  if (x < 0.0 || x >= f32(count)) { return 0.0; }
+
+  let index = u32(x);
+  let inCell = vec2f(fract(x), (p.y - 0.20) / 0.60);
+  if (inCell.y < 0.0 || inCell.y > 1.0) { return 0.0; }
+
+  // Glyph is 5 wide and 6 tall inside a 6-wide cell, giving a one-pixel gap.
+  let col = i32(floor(inCell.x * 6.0));
+  let row = i32(floor((1.0 - inCell.y) * 6.0));
+  if (col < 0 || col > 4 || row < 0 || row > 5) { return 0.0; }
+
+  let bits = GLYPHS[glyphIndex(charAt(index))];
+  let on = (bits >> u32(row * 5 + col)) & 1u;
+
+  // Fade out once a glyph pixel is smaller than a screen pixel. `mpp` is
+  // measured in the fragment entry point, because fwidth may only be reached
+  // in uniform control flow and this function is called inside a branch.
+  let px = mpp * 6.0 / cellW;
+  return f32(on) * (1.0 - smoothstep(1.0, 2.6, px));
 }
 
 // ------------------------------------------------------------------ shadows
@@ -395,7 +585,34 @@ fn fs(in : VSOut) -> @location(0) vec4f {
   // Taken here, in uniform control flow, then passed down.
   let mpp = max(max(fwidth(uv.x), fwidth(uv.y)), 1e-6);
   let seed = scene.params.x;
-  var col = albedo(in.material, uv, mpp, seed);
+
+  // Parallax for the interiors: the view direction expressed in the same two
+  // axes the facade coordinate uses, divided by how square-on the surface is.
+  var uDir = vec3f(1.0, 0.0, 0.0);
+  var vDir = vec3f(0.0, 1.0, 0.0);
+  if (abs(n.y) > 0.6) { vDir = vec3f(0.0, 0.0, 1.0); }
+  else if (abs(n.x) > abs(n.z)) { uDir = vec3f(0.0, 0.0, 1.0); }
+  // Derivative of the sign-face coordinate, taken here for the same reason:
+  // uniform control flow.
+  let localMpp = max(max(fwidth(in.local.x), fwidth(in.local.y)), 1e-5);
+  let view = normalize(in.world - scene.eye.xyz);
+  let facing = max(-dot(view, n), 0.12);
+  let par = vec2f(dot(view, uDir), dot(view, vDir)) / facing * 0.26;
+  // A tinted surface is painted, not patterned: the palette wins over the
+  // material entirely.
+  var col = select(albedo(in.material, uv, mpp, seed, par),
+                   palette(in.tint, uv, mpp, seed),
+                   in.tint != 0u);
+
+  // A modelled window: one room mapped across the pane, using the pane's own
+  // coordinates rather than a slice of a world-space grid.
+  if (in.material == MAT_PANE) {
+    let r = hash21(floor(vec2f(uv.x * 0.9, uv.y * 0.7)) + seed);
+    let inside = room(in.local, par, r, r > 0.74);
+    // What the pane reflects, brighter higher up where it sees more sky.
+    let refl = glassColour(seed) * (1.1 + r * 0.5) + vec3f(0.02, 0.03, 0.045) * in.world.y * 0.02;
+    col = mix(inside, refl, 0.26 + 0.2 * (1.0 - clamp(dot(normalize(in.normal), -normalize(in.world - scene.eye.xyz)), 0.0, 1.0)));
+  }
 
   let sun = normalize(scene.sunDir.xyz);
   let ndl = dot(n, sun);
@@ -413,7 +630,8 @@ fn fs(in : VSOut) -> @location(0) vec4f {
 
   // Specular on the smooth materials only. Masonry does not shine.
   if (in.material == MAT_GLASS || in.material == MAT_SHOPFRONT
-      || in.material == MAT_METAL || in.material == MAT_SHED) {
+      || in.material == MAT_METAL || in.material == MAT_SHED
+      || in.material == MAT_PANE) {
     let v = normalize(scene.eye.xyz - in.world);
     let h = normalize(v + sun);
     let spec = pow(max(dot(n, h), 0.0), 64.0) * shadow * in.ao;
@@ -429,8 +647,22 @@ fn fs(in : VSOut) -> @location(0) vec4f {
   // Filmic-ish shoulder: keeps sunlit render and glass highlights from
   // clipping to flat white, which is most of why untonemapped renders look
   // like plastic.
-  col = col / (col + vec3f(0.72)) * 1.42;
-  return vec4f(pow(col, vec3f(0.9)), 1.0);
+  var out = pow(col / (col + vec3f(0.72)) * 1.42, vec3f(0.9));
+
+  // Lit signage bypasses all of it. Run through the tonemap, a saturated brand
+  // colour loses its strongest channel fastest and every sign in the city
+  // desaturates towards pink -- which is exactly what happened. A sign is its
+  // own light source, so it gets its colour, lifted a little, and nothing else.
+  if (in.tint == 4u) {
+    // Scaled, not mixed towards white. Any lift towards white raises the weak
+    // channels and a saturated red becomes salmon -- twice now.
+    out = clamp(scene.brand.rgb * 1.35, vec3f(0.0), vec3f(1.0));
+    // The business name, in the accent colour, on faces that carry sign
+    // coordinates. Faces that do not have local = (0,0) and get nothing.
+    let label = signLabel(in.local, u32(scene.signInfo.x + 0.5), localMpp);
+    out = mix(out, clamp(scene.accent.rgb * 1.5, vec3f(0.0), vec3f(1.0)), label);
+  }
+  return vec4f(out, 1.0);
 }
 
 @fragment

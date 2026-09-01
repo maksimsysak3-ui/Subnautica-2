@@ -11,8 +11,17 @@
  * a building automatically and nothing has to be unwrapped. The cost is that
  * facades are axis-aligned, which is true of the buildings these generate.
  *
- * Vertex layout: position(3), normal(3), material(1), ambient occlusion(1)
- * = 8 floats.
+ * Vertex layout: position(3), normal(3), material(1), ambient occlusion(1),
+ * tint(1), local uv(2) = 11 floats.
+ *
+ * `local` is 0..1 across a face and is only meaningful on sign faces, where it
+ * is what lets the shader lay a name across the board. Everything else leaves
+ * it at zero.
+ *
+ * `tint` indexes a small palette in the shader. It is how a building carries a
+ * brand: the same shopfront generator makes a green grocer and a red diner by
+ * painting the fascia, awning and door from an index rather than by having two
+ * generators. Zero means "use the material's own colour".
  *
  * The occlusion is baked here rather than computed at runtime. Assets are
  * small and built once, so a few milliseconds of ray marching per asset buys
@@ -21,7 +30,7 @@
  * between a building and a box.
  */
 
-export const FLOATS_PER_VERTEX = 8;
+export const FLOATS_PER_VERTEX = 11;
 
 /** Surface kinds the facade shader knows how to draw. */
 export const MAT = {
@@ -51,15 +60,59 @@ export const MAT = {
   HOUSE_WALL: 9,
   /** Corrugated metal with a clerestory band, for shaded industrial. */
   SHED_WALL: 10,
+  /** Precast panels with visible joints. Podiums, slabs, plant. */
+  CONCRETE: 11,
+  /** Painted render, flat. Cheap housing and infill. */
+  PLASTER: 12,
+  /**
+   * A single glazed opening, carrying 0..1 coordinates across the pane.
+   *
+   * Distinct from GLASS because a modelled window needs one room mapped across
+   * the whole pane, while a curtain wall needs a grid of them tiled by world
+   * position. Sharing a material made every window show an arbitrary slice of
+   * somebody's living room.
+   */
+  PANE: 13,
 } as const;
 
 export type Material = (typeof MAT)[keyof typeof MAT];
 
 export type Vec3 = [number, number, number];
 
+/**
+ * Palette slots the shader knows. Index 0 means untinted.
+ *
+ * Kept small and named after what they are for, not after colours, so a brand
+ * can be restyled in one place without every generator needing to change.
+ */
+export const TINT = {
+  NONE: 0,
+  BRAND: 1,        // the building's primary brand colour
+  BRAND_DARK: 2,   // the same, shaded, for reveals and sign returns
+  ACCENT: 3,       // secondary brand colour, for stripes and trim
+  SIGN_LIT: 4,     // illuminated sign face
+  DOOR: 5,         // painted joinery
+  AWNING: 6,       // fabric
+  METAL_DARK: 7,   // dark ironwork, railings, fire escapes
+  WOOD: 8,
+  GREEN: 9,        // planting
+} as const;
+
+export type Tint = (typeof TINT)[keyof typeof TINT];
+
 export class MeshBuilder {
   private verts: number[] = [];
   private idx: number[] = [];
+  /** Applied to everything pushed until it is changed again. */
+  private tint: number = TINT.NONE;
+
+  /** Runs `body` with a tint applied, then restores the previous one. */
+  painted(tint: Tint, body: () => void): void {
+    const prev = this.tint;
+    this.tint = tint;
+    body();
+    this.tint = prev;
+  }
 
   get triangleCount(): number {
     return this.idx.length / 3;
@@ -81,7 +134,7 @@ export class MeshBuilder {
 
     const base = this.vertexCount;
     for (const p of [a, b, c]) {
-      this.verts.push(p[0], p[1], p[2], nx, ny, nz, mat, 1);
+      this.verts.push(p[0], p[1], p[2], nx, ny, nz, mat, 1, this.tint, 0, 0);
     }
     this.idx.push(base, base + 1, base + 2);
   }
@@ -198,16 +251,30 @@ export class MeshBuilder {
 
     // Glass is a single quad, not a box: it sits in a recess and nothing ever
     // sees its edges. Two triangles instead of ten, times every window in the
-    // city.
-    const gd = o.plane - o.sign * inset;
+    // city. Glazing carries pane coordinates so the shader can put one room
+    // behind it; anything else (a door leaf, a shutter) does not.
+    const glazed = o.glass === MAT.GLASS || o.glass === MAT.SHOPFRONT;
+    const mat: Material = glazed ? MAT.PANE : o.glass;
+    // Just in front of the wall, not behind it.
+    //
+    // A real window is recessed, and modelling it that way put the pane inside
+    // the wall box -- where the wall's own front face occluded it, because
+    // these walls have no hole cut in them. Every window in the library was an
+    // empty frame showing brick. The frame stands proud instead, and its
+    // shadow does the work of the reveal.
+    const gd = o.plane + o.sign * 0.012;
     if (o.axis === 'x') {
       const a: Vec3 = [gd, o.y0, o.u0], b: Vec3 = [gd, o.y0, o.u1];
       const c: Vec3 = [gd, o.y1, o.u1], d: Vec3 = [gd, o.y1, o.u0];
-      if (o.sign > 0) this.quad(b, a, d, c, o.glass); else this.quad(a, b, c, d, o.glass);
+      if (o.sign > 0) {
+        if (glazed) this.signFace(b, a, d, c, mat); else this.quad(b, a, d, c, mat);
+      } else if (glazed) this.signFace(a, b, c, d, mat); else this.quad(a, b, c, d, mat);
     } else {
       const a: Vec3 = [o.u0, o.y0, gd], b: Vec3 = [o.u1, o.y0, gd];
       const c: Vec3 = [o.u1, o.y1, gd], d: Vec3 = [o.u0, o.y1, gd];
-      if (o.sign > 0) this.quad(a, b, c, d, o.glass); else this.quad(b, a, d, c, o.glass);
+      if (o.sign > 0) {
+        if (glazed) this.signFace(a, b, c, d, mat); else this.quad(a, b, c, d, mat);
+      } else if (glazed) this.signFace(b, a, d, c, mat); else this.quad(b, a, d, c, mat);
     }
 
     slab(o.u0 - f, o.u1 + f, o.y1, o.y1 + f, -inset, proud, frameMat);
@@ -267,6 +334,50 @@ export class MeshBuilder {
       [Math.max(from[0], to[0]) + radius, Math.max(from[1], to[1]) + radius, Math.max(from[2], to[2]) + radius],
       mat, { skipBottom: false },
     );
+  }
+
+  /**
+   * A quad carrying local 0..1 coordinates, for surfaces the shader needs to
+   * lay something across -- currently sign boards, so a name can be written on
+   * one. Corners are given in the order bottom-left, bottom-right, top-right,
+   * top-left.
+   */
+  signFace(a: Vec3, b: Vec3, c: Vec3, d: Vec3, mat: Material): void {
+    const uv: Array<[number, number]> = [[0, 0], [1, 0], [1, 1], [0, 1]];
+    const emit = (i0: number, i1: number, i2: number): void => {
+      const p = [a, b, c, d];
+      const A = p[i0], B = p[i1], C = p[i2];
+      const ux = B[0] - A[0], uy = B[1] - A[1], uz = B[2] - A[2];
+      const vx = C[0] - A[0], vy = C[1] - A[1], vz = C[2] - A[2];
+      let nx = uy * vz - uz * vy;
+      let ny = uz * vx - ux * vz;
+      let nz = ux * vy - uy * vx;
+      const len = Math.hypot(nx, ny, nz) || 1;
+      nx /= len; ny /= len; nz /= len;
+      const base = this.vertexCount;
+      for (const i of [i0, i1, i2]) {
+        const q = p[i];
+        this.verts.push(q[0], q[1], q[2], nx, ny, nz, mat, 1, this.tint, uv[i][0], uv[i][1]);
+      }
+      this.idx.push(base, base + 1, base + 2);
+    };
+    emit(0, 1, 2);
+    emit(0, 2, 3);
+  }
+
+  /** World-space bounds of everything pushed so far. Cheap: no AO, no copy. */
+  bounds(): { min: Vec3; max: Vec3 } {
+    const min: Vec3 = [Infinity, Infinity, Infinity];
+    const max: Vec3 = [-Infinity, -Infinity, -Infinity];
+    for (let i = 0; i < this.verts.length; i += FLOATS_PER_VERTEX) {
+      for (let k = 0; k < 3; k++) {
+        const v = this.verts[i + k];
+        if (v < min[k]) min[k] = v;
+        if (v > max[k]) max[k] = v;
+      }
+    }
+    if (!Number.isFinite(min[0])) return { min: [0, 0, 0], max: [0, 0, 0] };
+    return { min, max };
   }
 
   build(opts: { occlusion?: boolean } = {}): { vertices: Float32Array<ArrayBuffer>; indices: Uint32Array<ArrayBuffer> } {

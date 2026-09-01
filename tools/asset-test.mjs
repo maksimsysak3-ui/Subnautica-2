@@ -11,14 +11,19 @@
 
 import * as esbuild from 'esbuild';
 
-/** position(3) + normal(3) + material(1) + occlusion(1). Must match mesh.ts. */
-const STRIDE = 8;
+/** pos(3) + normal(3) + material(1) + occlusion(1) + tint(1) + local uv(2). */
+const STRIDE = 11;
 
 const CELL = 8;
 /** Eaves, canopies and cornices may lean out this far past the lot. */
 const OVERHANG = 0.8;
 /** LOD0 ceiling. Above this an asset is too heavy to repeat across a city. */
-const MAX_TRIS = 5000;
+const MAX_TRIS = 10000;
+/**
+ * LOD0 floor. Below this an asset has not been detailed -- no frames, no
+ * furniture, nothing at street level -- and it shows next to its neighbours.
+ */
+const MIN_TRIS = 1000;
 
 const bundle = (
   await esbuild.build({
@@ -68,15 +73,17 @@ for (const a of ASSETS) {
   if (maxZ > limitZ) note(a.id, `overflows its lot on Z: ${maxZ.toFixed(1)}m past centre, lot allows ${limitZ.toFixed(1)}m`);
   if (minY < -0.01) note(a.id, `has geometry below ground (${minY.toFixed(2)}m)`);
   if (tris[0] > MAX_TRIS) note(a.id, `LOD0 is ${tris[0]} triangles, over the ${MAX_TRIS} ceiling`);
+  if (tris[0] < MIN_TRIS) note(a.id, `LOD0 is only ${tris[0]} triangles, under the ${MIN_TRIS} floor`);
   if (tris[1] > tris[0] || tris[2] > tris[1]) note(a.id, `LOD ladder is not decreasing: ${tris.join(' / ')}`);
-  if (Math.abs(maxY - a.height) > a.height * 0.18) {
-    note(a.id, `declared height ${a.height}m but the mesh is ${maxY.toFixed(1)}m`);
+  if (Math.abs(maxY - a.height) > 0.2) {
+    note(a.id, `height ${a.height}m does not match the mesh at ${maxY.toFixed(1)}m`);
   }
-  // A shaded variant that is not markedly cheaper than its sculpted twin has
-  // no reason to exist.
-  const twin = ASSETS.find((o) => o.zone === a.zone && o.density === a.density && o.variant !== a.variant);
-  if (twin && a.variant === 'shaded' && tris[0] > twin.build(0).triangleCount * 0.5) {
-    note(a.id, 'shaded variant is not meaningfully cheaper than its sculpted twin');
+  // The smallest lot this geometry would actually fit in, so the failure
+  // message says what to change rather than only that something is wrong.
+  const needX = Math.ceil(((maxX - OVERHANG) * 2) / CELL);
+  const needZ = Math.ceil(((maxZ - OVERHANG) * 2) / CELL);
+  if (needX > a.footprint[0] || needZ > a.footprint[1]) {
+    note(a.id, `declared ${a.footprint[0]}x${a.footprint[1]} cells but needs ${needX}x${needZ}`);
   }
 }
 

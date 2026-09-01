@@ -13,6 +13,14 @@ import type { AssetDef } from './types';
 
 export const ASSETS: AssetDef[] = [...RESIDENTIAL, ...COMMERCIAL, ...INDUSTRIAL];
 
+// Height is measured from the mesh rather than declared. A hand-written number
+// drifts the moment a generator gains a chimney, and every consumer -- the
+// spawner, the LOD selector, the viewer's framing -- would then be working
+// from a lie. Cheap: bounds() reads the vertex list without baking occlusion.
+for (const a of ASSETS) {
+  a.height = Math.round(a.build(0).bounds().max[1] * 10) / 10;
+}
+
 export function assetById(id: string): AssetDef | undefined {
   return ASSETS.find((a) => a.id === id);
 }

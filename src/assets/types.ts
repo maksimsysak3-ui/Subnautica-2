@@ -37,6 +37,28 @@ export interface SimCosts {
   upkeep: number;
 }
 
+/**
+ * A fictional business identity.
+ *
+ * Fictional on purpose: real chains' names, colours and marks are trademarks,
+ * and a city builder wants a recognisable *kind* of place rather than a
+ * specific one. Each brand is a colour pair plus a sign style, which is enough
+ * for a shopfront generator to make a burger bar and a pharmacy look like
+ * different businesses without a second generator.
+ */
+export interface Brand {
+  name: string;
+  /** Primary colour: fascia, awning, pylon. */
+  colour: [number, number, number];
+  /** Secondary: stripes, doors, sign returns. */
+  accent: [number, number, number];
+  sign: 'fascia' | 'blade' | 'pylon' | 'box' | 'none';
+}
+
+export const DEFAULT_BRAND: Brand = {
+  name: '', colour: [0.42, 0.44, 0.47], accent: [0.30, 0.32, 0.35], sign: 'none',
+};
+
 export interface AssetDef {
   id: string;
   name: string;
@@ -50,6 +72,8 @@ export interface AssetDef {
   sim: SimCosts;
   /** One line on what this asset is demonstrating. */
   note: string;
+  /** Business identity, for anything with a shopfront. */
+  brand?: Brand;
   /**
    * Builds the mesh. lod 0 is full detail, 1 drops small geometry, 2 is bare
    * massing. Everything past 2 is an impostor and needs no mesh at all.

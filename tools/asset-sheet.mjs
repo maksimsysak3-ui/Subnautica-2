@@ -24,9 +24,11 @@ import * as esbuild from 'esbuild';
 
 const OUT = process.argv[2] ?? 'assets.png';
 const LOD = Number(process.argv[3] ?? 0);
+/** Optional id substring filter, so one category can be reviewed at a time. */
+const ONLY = process.argv[4] ?? '';
 const TILE = 512;          // 512 * 4 bytes is a multiple of the 256-byte row alignment
 const TILE_H = 576;
-const COLS = 4;
+const COLS = 6;
 const SHADOW = 1024;
 
 const shader = fs.readFileSync(new URL('../src/gfx/shaders/asset.wgsl', import.meta.url), 'utf8');
@@ -49,8 +51,9 @@ const page = await browser.newPage();
 page.on('pageerror', (e) => console.log('[pageerror]', e.message));
 await page.goto('http://localhost:4181/');
 
-const result = await page.evaluate(async ({ shader, registry, TILE, TILE_H, COLS, LOD, SHADOW }) => {
-  const { ASSETS } = new Function(registry + '; return REG;')();
+const result = await page.evaluate(async ({ shader, registry, TILE, TILE_H, COLS, LOD, SHADOW, ONLY }) => {
+  const all = new Function(registry + '; return REG;')().ASSETS;
+  const ASSETS = ONLY ? all.filter((a) => a.id.includes(ONLY)) : all;
   const adapter = await navigator.gpu.requestAdapter();
   if (!adapter) return { error: 'no adapter' };
   const device = await adapter.requestDevice();
@@ -68,11 +71,13 @@ const result = await page.evaluate(async ({ shader, registry, TILE, TILE_H, COLS
     { binding: 2, visibility: GPUShaderStage.FRAGMENT, sampler: { type: 'comparison' } },
   ] });
   const pipelineLayout = device.createPipelineLayout({ bindGroupLayouts: [layout] });
-  const buffers = [{ arrayStride: 32, attributes: [
+  const buffers = [{ arrayStride: 44, attributes: [
     { shaderLocation: 0, offset: 0, format: 'float32x3' },
     { shaderLocation: 1, offset: 12, format: 'float32x3' },
     { shaderLocation: 2, offset: 24, format: 'float32' },
     { shaderLocation: 3, offset: 28, format: 'float32' },
+    { shaderLocation: 4, offset: 32, format: 'float32' },
+    { shaderLocation: 5, offset: 36, format: 'float32x2' },
   ] }];
 
   const pipeline = device.createRenderPipeline({
@@ -97,7 +102,7 @@ const result = await page.evaluate(async ({ shader, registry, TILE, TILE_H, COLS
 
   const shadowTex = device.createTexture({ size: [SHADOW, SHADOW], format: 'depth32float',
     usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING });
-  const sceneBuf = device.createBuffer({ size: 176, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+  const sceneBuf = device.createBuffer({ size: 240, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
   const shadowBg = device.createBindGroup({ layout: shadowLayout,
     entries: [{ binding: 0, resource: { buffer: sceneBuf } }] });
   const bg = device.createBindGroup({ layout, entries: [
@@ -116,8 +121,8 @@ const result = await page.evaluate(async ({ shader, registry, TILE, TILE_H, COLS
   // Ground plane, material 8, fully unoccluded.
   const G = 400;
   const gv = new Float32Array([
-    -G, 0, -G, 0, 1, 0, 8, 1,  G, 0, -G, 0, 1, 0, 8, 1,
-     G, 0,  G, 0, 1, 0, 8, 1, -G, 0,  G, 0, 1, 0, 8, 1,
+    -G, 0, -G, 0, 1, 0, 8, 1, 0, 0, 0,   G, 0, -G, 0, 1, 0, 8, 1, 0, 0, 0,
+     G, 0,  G, 0, 1, 0, 8, 1, 0, 0, 0,  -G, 0,  G, 0, 1, 0, 8, 1, 0, 0, 0,
   ]);
   const gvb = device.createBuffer({ size: gv.byteLength, usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST });
   device.queue.writeBuffer(gvb, 0, gv);
@@ -157,7 +162,7 @@ const result = await page.evaluate(async ({ shader, registry, TILE, TILE_H, COLS
     const a = ASSETS[i];
     const mesh = a.build(LOD).build();
     let height = 0, radius = 1;
-    for (let v = 0; v < mesh.vertices.length; v += 8) {
+    for (let v = 0; v < mesh.vertices.length; v += 11) {
       height = Math.max(height, mesh.vertices[v + 1]);
       radius = Math.max(radius, Math.hypot(mesh.vertices[v], mesh.vertices[v + 2]));
     }
@@ -175,12 +180,20 @@ const result = await page.evaluate(async ({ shader, registry, TILE, TILE_H, COLS
     const sunEye = [centre[0] + sun[0] * extent * 2.6, centre[1] + sun[1] * extent * 2.6, centre[2] + sun[2] * extent * 2.6];
     const sunViewProj = mul(ortho(-extent, extent, -extent, extent, 0.5, extent * 6), look(sunEye, centre, [0, 1, 0]));
 
-    const scene = new Float32Array(44);
+    const scene = new Float32Array(60);
     scene.set(viewProj, 0);
     scene.set(sunViewProj, 16);
     scene.set([eye[0], eye[1], eye[2], 0], 32);
     scene.set([sun[0], sun[1], sun[2], 0], 36);
     scene.set([a.id.length * 7.3 + a.id.charCodeAt(0), 1 / SHADOW, Math.max(height, radius) * 4.5 + 20, 0], 40);
+    const brand = a.brand ?? { colour: [0.42, 0.44, 0.47], accent: [0.30, 0.32, 0.35] };
+    scene.set([brand.colour[0], brand.colour[1], brand.colour[2], 1], 44);
+    scene.set([brand.accent[0], brand.accent[1], brand.accent[2], 1], 48);
+    const name = ((a.brand && a.brand.name) || '').toUpperCase().slice(0, 16);
+    const words = new Uint32Array(4);
+    for (let i = 0; i < name.length; i++) words[i >> 2] |= (name.charCodeAt(i) & 255) << ((i % 4) * 8);
+    new Uint32Array(scene.buffer, 52 * 4, 4).set(words);
+    scene.set([name.length, 0, 0, 0], 56);
     device.queue.writeBuffer(sceneBuf, 0, scene);
 
     const vb = device.createBuffer({ size: mesh.vertices.byteLength, usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST });
@@ -231,7 +244,7 @@ const result = await page.evaluate(async ({ shader, registry, TILE, TILE_H, COLS
   }
 
   return { png: sheet.toDataURL('image/png'), stats, errors, diags };
-}, { shader, registry, TILE, TILE_H, COLS, LOD, SHADOW });
+}, { shader, registry, TILE, TILE_H, COLS, LOD, SHADOW, ONLY });
 
 if (result.error || result.diags?.length) {
   console.error('FAIL', result.error ?? result.diags.join('; '));

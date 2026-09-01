@@ -15,6 +15,7 @@
 import { Gpu, GpuInitError } from './gfx/device';
 import { ASSETS } from './assets/registry';
 import type { AssetDef } from './assets/types';
+import { DEFAULT_BRAND } from './assets/types';
 import { FLOATS_PER_VERTEX } from './assets/mesh';
 import { mat4, lookAt, perspective, ortho, multiply, clamp } from './math/m4';
 import type { Vec3 } from './math/m4';
@@ -27,8 +28,8 @@ const DEPTH: GPUTextureFormat = 'depth24plus';
 // balk at it. The extra precision buys nothing at these distances.
 const SHADOW_FORMAT: GPUTextureFormat = 'depth24plus';
 const SHADOW_SIZE = 1024;
-/** viewProj + sunViewProj + eye + sunDir + params */
-const SCENE_SIZE = 176;
+/** viewProj + sunViewProj + eye + sunDir + params + brand + accent + sign */
+const SCENE_SIZE = 240;
 
 /** Sun direction, shared by the shadow pass and the shading. */
 const SUN: Vec3 = (() => {
@@ -143,6 +144,8 @@ class Viewer {
         { shaderLocation: 1, offset: 12, format: 'float32x3' },  // normal
         { shaderLocation: 2, offset: 24, format: 'float32' },    // material
         { shaderLocation: 3, offset: 28, format: 'float32' },    // baked occlusion
+        { shaderLocation: 4, offset: 32, format: 'float32' },    // tint palette index
+        { shaderLocation: 5, offset: 36, format: 'float32x2' },  // sign-face coordinates
       ],
     }];
 
@@ -207,10 +210,10 @@ class Viewer {
     const { device } = this.gpu;
     const r = 400;
     const v = new Float32Array([
-      -r, 0, -r, 0, 1, 0, 8, 1,
-       r, 0, -r, 0, 1, 0, 8, 1,
-       r, 0,  r, 0, 1, 0, 8, 1,
-      -r, 0,  r, 0, 1, 0, 8, 1,
+      -r, 0, -r, 0, 1, 0, 8, 1, 0, 0, 0,
+       r, 0, -r, 0, 1, 0, 8, 1, 0, 0, 0,
+       r, 0,  r, 0, 1, 0, 8, 1, 0, 0, 0,
+      -r, 0,  r, 0, 1, 0, 8, 1, 0, 0, 0,
     ]);
     const i = new Uint32Array([0, 2, 1, 0, 3, 2]);
     const vertices = device.createBuffer({ size: v.byteLength, usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST });
@@ -442,6 +445,17 @@ class Viewer {
     // its own but never change between frames.
     this.sceneData.set([this.asset.id.length * 7.3 + this.asset.id.charCodeAt(0),
       1 / SHADOW_SIZE, this.groundRadius, 0], 40);
+    const brand = this.asset.brand ?? DEFAULT_BRAND;
+    this.sceneData.set([brand.colour[0], brand.colour[1], brand.colour[2], 1], 44);
+    this.sceneData.set([brand.accent[0], brand.accent[1], brand.accent[2], 1], 48);
+    // The name, four characters per 32-bit word, as the shader reads it.
+    const name = (brand.name || '').toUpperCase().slice(0, 16);
+    const words = new Uint32Array(4);
+    for (let i = 0; i < name.length; i++) {
+      words[i >> 2] |= (name.charCodeAt(i) & 255) << ((i % 4) * 8);
+    }
+    new Uint32Array(this.sceneData.buffer, 52 * 4, 4).set(words);
+    this.sceneData.set([name.length, 0, 0, 0], 56);
     device.queue.writeBuffer(this.sceneBuffer, 0, this.sceneData);
 
     const encoder = device.createCommandEncoder();
