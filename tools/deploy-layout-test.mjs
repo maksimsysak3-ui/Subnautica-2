@@ -73,7 +73,11 @@ let bad = 0;
  * shortly after boot -- neither of which says anything about the deployment
  * layout this test is checking, so both are tolerated as long as boot happened.
  */
-async function waitForBoot(page, done, flag, timeoutMs = 20000) {
+// Generous, because the pages that forward navigate twice and this runner
+// loses its GPU device every few seconds, which makes evaluate() throw for
+// stretches at a time. The flag itself is set at module scope before any GPU
+// work, so this is only ever waiting on the bundle to execute.
+async function waitForBoot(page, done, flag, timeoutMs = 45000) {
   const started = Date.now();
   let last = null;
   while (Date.now() - started < timeoutMs) {
@@ -104,6 +108,12 @@ for (const c of cases) {
   // The stale case boots twice: once on the cached copy, then again on the
   // replacement. Waiting only for "booted" would catch the first and miss the
   // point of the test.
+  // The stale case loads twice: the cached copy, then the replacement it
+  // navigates to. Waiting on the navigation rather than polling for it keeps
+  // the test from racing that second load.
+  if (c.expectQuery) {
+    await page.waitForURL(/[?&]b=/, { timeout: 25000 }).catch(() => {});
+  }
   const done = c.expectQuery ? (r) => /[?&]b=/.test(r.url ?? '') : () => true;
   const r = (await waitForBoot(page, done, c.flag)) ?? {};
   const ok = !!r.booted && done(r);
