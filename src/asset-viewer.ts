@@ -18,11 +18,14 @@ import type { AssetDef } from './assets/types';
 import { FLOATS_PER_VERTEX } from './assets/mesh';
 import { mat4, lookAt, perspective, ortho, multiply, clamp } from './math/m4';
 import type { Vec3 } from './math/m4';
-import { log } from './util/log';
+import { log, mountConsole } from './util/log';
 import shaderSrc from './gfx/shaders/asset.wgsl?raw';
 
 const DEPTH: GPUTextureFormat = 'depth24plus';
-const SHADOW_FORMAT: GPUTextureFormat = 'depth32float';
+// depth24plus rather than depth32float: comparison sampling of a 32-bit depth
+// texture is the less-travelled path and Safari is the browser most likely to
+// balk at it. The extra precision buys nothing at these distances.
+const SHADOW_FORMAT: GPUTextureFormat = 'depth24plus';
 const SHADOW_SIZE = 2048;
 /** viewProj + sunViewProj + eye + sunDir + params */
 const SCENE_SIZE = 176;
@@ -522,27 +525,76 @@ function buildList(onPick: (a: AssetDef) => void): void {
 
 // ---- boot --------------------------------------------------------------
 
+/**
+ * Puts an error on screen.
+ *
+ * The viewer shipped without this and the first thing it did on someone else's
+ * machine was render black, with nothing to go on. A page that can fail
+ * silently will.
+ */
+function fail(title: string, detail: string): void {
+  const stage = document.getElementById('stage') ?? document.body;
+  let el = document.getElementById('fatal');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'fatal';
+    stage.appendChild(el);
+  }
+  el.innerHTML =
+    `<div style="font-size:15px;margin-bottom:12px">${title}</div>` +
+    `<div style="color:#5d6b80;font-size:11px;white-space:pre-wrap;max-width:60ch;` +
+    `text-align:left;line-height:1.7">${detail.replace(/[<>&]/g, '')}</div>` +
+    `<div style="color:#5d6b80;font-size:11px;margin-top:14px">press \` for the log</div>`;
+  log.error('viewer', `${title} — ${detail}`);
+}
+
 async function boot(): Promise<void> {
   const canvas = document.getElementById('gpu-canvas');
   if (!(canvas instanceof HTMLCanvasElement)) return;
+
+  const stage = document.getElementById('stage');
+  if (stage) mountConsole(stage);
+
+  addEventListener('error', (e) => fail('Something broke', `${e.message} @ ${e.filename}:${e.lineno}`));
+  addEventListener('unhandledrejection', (e) => fail('Something broke', String(e.reason)));
 
   let gpu: Gpu;
   try {
     gpu = await Gpu.create(canvas);
   } catch (err) {
-    const stage = document.getElementById('stage');
-    if (stage) {
-      const p = document.createElement('div');
-      p.id = 'fatal';
-      p.textContent = err instanceof GpuInitError
-        ? 'This browser has no usable WebGPU. Try current Chrome or Edge.'
-        : String(err);
-      stage.appendChild(p);
+    if (err instanceof GpuInitError) {
+      fail('This browser has no usable WebGPU',
+        `${err.kind}: ${err.message}\n\nChrome or Edge 113+, Safari 18+, or Firefox 141+ on Windows.`);
+    } else {
+      fail('Could not start the GPU', String(err));
     }
     return;
   }
 
-  const viewer = new Viewer(gpu);
+  // Anything the device rejects lands here rather than vanishing into the
+  // console, which is what "the viewer is black" looked like from outside.
+  gpu.device.addEventListener('uncapturederror', (e) => {
+    fail('The GPU rejected something', (e as GPUUncapturedErrorEvent).error.message);
+  });
+
+  // WebGPU reports validation failures asynchronously, so a try/catch around
+  // pipeline creation catches nothing. An error scope is the only way to find
+  // out that a pipeline was rejected -- and a rejected pipeline draws exactly
+  // as much as a working one does on a black canvas.
+  gpu.device.pushErrorScope('validation');
+  let viewer: Viewer;
+  try {
+    viewer = new Viewer(gpu);
+  } catch (err) {
+    void gpu.device.popErrorScope();
+    fail('Could not build the render pipelines', String(err));
+    return;
+  }
+  const buildError = await gpu.device.popErrorScope();
+  if (buildError) {
+    fail('The GPU rejected a pipeline', buildError.message);
+    return;
+  }
 
   // The viewer is left open for long stretches while assets are compared, so
   // it needs the same device-loss recovery the game has -- and under a
@@ -575,7 +627,12 @@ async function boot(): Promise<void> {
     for (const id of ['side', 'bar', 'info', 'hint']) document.getElementById(id)?.remove();
     document.getElementById('app')?.style.setProperty('grid-template-columns', '1fr');
   }
-  viewer.select(wanted, wantedLod);
+  try {
+    viewer.select(wanted, wantedLod);
+  } catch (err) {
+    fail('Could not build that asset', String(err));
+    return;
+  }
 
   Object.defineProperty(window, 'viewer', {
     value: {
@@ -606,13 +663,26 @@ async function boot(): Promise<void> {
   });
 
   let last = performance.now();
+  let frames = 0;
   const tick = (now: number): void => {
     const dt = Math.min((now - last) / 1000, 0.1);
     last = now;
-    viewer.frame(dt);
+    try {
+      viewer.frame(dt);
+      frames++;
+    } catch (err) {
+      fail('The render loop threw', String(err));
+      return;
+    }
     requestAnimationFrame(tick);
   };
   requestAnimationFrame(tick);
+
+  // If nothing has drawn after a couple of seconds, say so rather than sitting
+  // on a black canvas.
+  setTimeout(() => {
+    if (frames === 0) fail('Nothing rendered', 'The render loop never completed a frame.');
+  }, 2500);
   log.info('viewer', `${ASSETS.length} assets`);
 }
 

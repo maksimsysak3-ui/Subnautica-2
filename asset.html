@@ -6,6 +6,26 @@
 <meta name="color-scheme" content="dark">
 <title>citysim — asset viewer</title>
 <meta name="description" content="Procedural building assets, previewed one at a time.">
+<script>
+/* Replace a stale cached copy of this page. Same guard as index.html: GitHub
+ * Pages serves HTML with a ten-minute max-age and no way to change it, so a
+ * deploy is invisible to anyone holding a cached copy. */
+window.__BUILD__ = '__BUILD_ID__';
+(function () {
+  fetch('version.json', { cache: 'no-store' })
+    .then(function (r) { return r.ok ? r.json() : null; })
+    .then(function (v) {
+      if (!v || !v.build || v.build === window.__BUILD__) return;
+      var key = 'rev-asset-' + v.build;
+      if (sessionStorage.getItem(key)) return;
+      sessionStorage.setItem(key, '1');
+      var params = new URLSearchParams(location.search);
+      params.set('b', v.build);
+      location.replace(location.pathname + '?' + params.toString() + location.hash);
+    })
+    .catch(function () { /* dev server, or offline: carry on */ });
+})();
+</script>
 <style>
   :root {
     --bg: #0b0e13; --panel: #0e131a; --fg: #c9d4e3; --dim: #5d6b80;
@@ -47,7 +67,8 @@
     color: var(--dim); line-height: 1.6; }
   #hint { position: absolute; left: 14px; bottom: 12px; color: var(--dim); font-size: 11px; }
   #fatal { position: absolute; inset: 0; display: grid; place-content: center;
-    text-align: center; padding: 30px; color: #ff6b7a; }
+    text-align: center; padding: 30px; color: #ff6b7a; background: var(--bg);
+    z-index: 20; font: 13px/1.6 var(--mono); }
 </style>
 </head>
 <body>
