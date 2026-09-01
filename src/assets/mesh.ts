@@ -1,0 +1,402 @@
+/**
+ * Mesh construction for procedural assets.
+ *
+ * Deliberately small: boxes, prisms and cylinders. Almost every building is a
+ * composition of those, and a generator that can only make those stays
+ * readable -- which matters more than expressiveness when there will eventually
+ * be dozens of them.
+ *
+ * No UVs. Facade coordinates are derived in the shader from world position and
+ * face normal (see asset.wgsl), so window rows line up across every surface of
+ * a building automatically and nothing has to be unwrapped. The cost is that
+ * facades are axis-aligned, which is true of the buildings these generate.
+ *
+ * Vertex layout: position(3), normal(3), material(1), ambient occlusion(1)
+ * = 8 floats.
+ *
+ * The occlusion is baked here rather than computed at runtime. Assets are
+ * small and built once, so a few milliseconds of ray marching per asset buys
+ * the contact shading -- dark inside corners, dark where a wall meets the
+ * ground, dark under eaves and balconies -- that is most of the difference
+ * between a building and a box.
+ */
+
+export const FLOATS_PER_VERTEX = 8;
+
+/** Surface kinds the facade shader knows how to draw. */
+export const MAT = {
+  /** Flat roof: gravel and plant, no windows. */
+  ROOF: 0,
+  /** Punched windows in render or brick -- housing. */
+  HOUSING: 1,
+  /** Curtain wall: continuous glass with mullions -- offices. */
+  GLASS: 2,
+  /** Corrugated metal -- industrial. */
+  METAL: 3,
+  /** Brick coursework with small openings -- low-rise. */
+  BRICK: 4,
+  /** Painted trim, cornices, frames. No pattern. */
+  TRIM: 5,
+  /** Shopfront glazing: tall, undivided, at street level. */
+  SHOPFRONT: 6,
+  /** Pitched roof tiles. */
+  TILE: 7,
+  /** The ground the asset stands on. Viewer only, for now. */
+  GROUND: 8,
+  /**
+   * Brick with punched windows drawn into it. For shaded variants, where the
+   * openings are not modelled -- sculpted variants use plain BRICK and model
+   * theirs, or the two would draw on top of each other.
+   */
+  HOUSE_WALL: 9,
+  /** Corrugated metal with a clerestory band, for shaded industrial. */
+  SHED_WALL: 10,
+} as const;
+
+export type Material = (typeof MAT)[keyof typeof MAT];
+
+export type Vec3 = [number, number, number];
+
+export class MeshBuilder {
+  private verts: number[] = [];
+  private idx: number[] = [];
+
+  get triangleCount(): number {
+    return this.idx.length / 3;
+  }
+
+  get vertexCount(): number {
+    return this.verts.length / FLOATS_PER_VERTEX;
+  }
+
+  /** Adds one triangle from explicit positions, with a shared face normal. */
+  tri(a: Vec3, b: Vec3, c: Vec3, mat: Material): void {
+    const ux = b[0] - a[0], uy = b[1] - a[1], uz = b[2] - a[2];
+    const vx = c[0] - a[0], vy = c[1] - a[1], vz = c[2] - a[2];
+    let nx = uy * vz - uz * vy;
+    let ny = uz * vx - ux * vz;
+    let nz = ux * vy - uy * vx;
+    const len = Math.hypot(nx, ny, nz) || 1;
+    nx /= len; ny /= len; nz /= len;
+
+    const base = this.vertexCount;
+    for (const p of [a, b, c]) {
+      this.verts.push(p[0], p[1], p[2], nx, ny, nz, mat, 1);
+    }
+    this.idx.push(base, base + 1, base + 2);
+  }
+
+  /** Adds a quad as two triangles, wound a-b-c-d. */
+  quad(a: Vec3, b: Vec3, c: Vec3, d: Vec3, mat: Material): void {
+    this.tri(a, b, c, mat);
+    this.tri(a, c, d, mat);
+  }
+
+  /**
+   * Axis-aligned box. `skipBottom` defaults true: the underside of anything
+   * standing on the ground is never seen, and it is a sixth of the triangles.
+   */
+  box(min: Vec3, max: Vec3, mat: Material, opts: { skipBottom?: boolean; roof?: Material } = {}): void {
+    const [x0, y0, z0] = min;
+    const [x1, y1, z1] = max;
+    const roof = opts.roof ?? mat;
+
+    this.quad([x1, y0, z1], [x1, y0, z0], [x1, y1, z0], [x1, y1, z1], mat);   // +X
+    this.quad([x0, y0, z0], [x0, y0, z1], [x0, y1, z1], [x0, y1, z0], mat);   // -X
+    this.quad([x0, y0, z1], [x1, y0, z1], [x1, y1, z1], [x0, y1, z1], mat);   // +Z
+    this.quad([x1, y0, z0], [x0, y0, z0], [x0, y1, z0], [x1, y1, z0], mat);   // -Z
+    this.quad([x0, y1, z1], [x1, y1, z1], [x1, y1, z0], [x0, y1, z0], roof);  // +Y
+    if (opts.skipBottom === false) {
+      this.quad([x0, y0, z0], [x1, y0, z0], [x1, y0, z1], [x0, y0, z1], mat);
+    }
+  }
+
+  /**
+   * Gable roof over a footprint. `along` picks the ridge axis: 'x' runs the
+   * ridge east-west, 'z' north-south.
+   */
+  gable(min: Vec3, max: Vec3, height: number, along: 'x' | 'z', mat: Material, gableMat: Material): void {
+    const [x0, y, z0] = min;
+    const [x1, , z1] = max;
+    const peak = y + height;
+
+    if (along === 'x') {
+      const mz = (z0 + z1) / 2;
+      this.quad([x0, y, z1], [x1, y, z1], [x1, peak, mz], [x0, peak, mz], mat);
+      this.quad([x1, y, z0], [x0, y, z0], [x0, peak, mz], [x1, peak, mz], mat);
+      this.tri([x1, y, z1], [x1, y, z0], [x1, peak, mz], gableMat);
+      this.tri([x0, y, z0], [x0, y, z1], [x0, peak, mz], gableMat);
+    } else {
+      const mx = (x0 + x1) / 2;
+      this.quad([x1, y, z1], [x1, y, z0], [mx, peak, z0], [mx, peak, z1], mat);
+      this.quad([x0, y, z0], [x0, y, z1], [mx, peak, z1], [mx, peak, z0], mat);
+      this.tri([x0, y, z1], [x1, y, z1], [mx, peak, z1], gableMat);
+      this.tri([x1, y, z0], [x0, y, z0], [mx, peak, z0], gableMat);
+    }
+  }
+
+  /** Vertical cylinder, for tanks and silos. */
+  cylinder(cx: number, cz: number, r: number, y0: number, y1: number, segments: number, mat: Material, cap = true): void {
+    for (let i = 0; i < segments; i++) {
+      const a0 = (i / segments) * Math.PI * 2;
+      const a1 = ((i + 1) / segments) * Math.PI * 2;
+      const p0: Vec3 = [cx + Math.cos(a0) * r, y0, cz + Math.sin(a0) * r];
+      const p1: Vec3 = [cx + Math.cos(a1) * r, y0, cz + Math.sin(a1) * r];
+      const p2: Vec3 = [cx + Math.cos(a1) * r, y1, cz + Math.sin(a1) * r];
+      const p3: Vec3 = [cx + Math.cos(a0) * r, y1, cz + Math.sin(a0) * r];
+      // Wound p0-p3-p2-p1 so the face normal points out of the cylinder.
+      // The obvious order points it inward, which back-face culls the near
+      // side and leaves the far side lit from behind -- a black tube.
+      this.quad(p0, p3, p2, p1, mat);
+      if (cap) {
+        this.tri([cx, y1, cz],
+                 [cx + Math.cos(a1) * r, y1, cz + Math.sin(a1) * r],
+                 [cx + Math.cos(a0) * r, y1, cz + Math.sin(a0) * r], mat);
+      }
+    }
+  }
+
+  /**
+   * A window: glass set slightly into the wall, with a frame standing proud of
+   * it on all four sides.
+   *
+   * Built from boxes rather than as a hole cut through the wall. Cutting holes
+   * means re-triangulating the wall face for every opening, which is where
+   * procedural building generators usually become unreadable -- and at these
+   * sizes the frame's own shadow reads the same either way.
+   *
+   * `axis` is the wall's normal axis, `sign` which way it faces, `plane` where
+   * that wall is. `u` runs horizontally along the wall: z for an X-facing wall,
+   * x for a Z-facing one.
+   */
+  opening(o: {
+    axis: 'x' | 'z';
+    sign: 1 | -1;
+    plane: number;
+    u0: number; u1: number;
+    y0: number; y1: number;
+    frame?: number;
+    proud?: number;
+    glass: Material;
+    frameMat?: Material;
+  }): void {
+    const f = o.frame ?? 0.11;
+    const proud = o.proud ?? 0.09;
+    const frameMat = o.frameMat ?? MAT.TRIM;
+    const inset = 0.06;
+
+    /** A box spanning [ua,ub] x [ya,yb], between two depths from the wall. */
+    const slab = (ua: number, ub: number, ya: number, yb: number, da: number, db: number, mat: Material): void => {
+      const lo = o.plane + o.sign * Math.min(da, db);
+      const hi = o.plane + o.sign * Math.max(da, db);
+      // Frames are seen from outside and from the sides, never from below, so
+      // the default five faces is right. Over hundreds of windows per building
+      // that sixth face is hundreds of triangles for nothing.
+      if (o.axis === 'x') this.box([lo, ya, ua], [hi, yb, ub], mat);
+      else this.box([ua, ya, lo], [ub, yb, hi], mat);
+    };
+
+    // Glass is a single quad, not a box: it sits in a recess and nothing ever
+    // sees its edges. Two triangles instead of ten, times every window in the
+    // city.
+    const gd = o.plane - o.sign * inset;
+    if (o.axis === 'x') {
+      const a: Vec3 = [gd, o.y0, o.u0], b: Vec3 = [gd, o.y0, o.u1];
+      const c: Vec3 = [gd, o.y1, o.u1], d: Vec3 = [gd, o.y1, o.u0];
+      if (o.sign > 0) this.quad(b, a, d, c, o.glass); else this.quad(a, b, c, d, o.glass);
+    } else {
+      const a: Vec3 = [o.u0, o.y0, gd], b: Vec3 = [o.u1, o.y0, gd];
+      const c: Vec3 = [o.u1, o.y1, gd], d: Vec3 = [o.u0, o.y1, gd];
+      if (o.sign > 0) this.quad(a, b, c, d, o.glass); else this.quad(b, a, d, c, o.glass);
+    }
+
+    slab(o.u0 - f, o.u1 + f, o.y1, o.y1 + f, -inset, proud, frameMat);
+    slab(o.u0 - f, o.u1 + f, o.y0 - f, o.y0, -inset, proud, frameMat);
+    slab(o.u0 - f, o.u0, o.y0, o.y1, -inset, proud, frameMat);
+    slab(o.u1, o.u1 + f, o.y0, o.y1, -inset, proud, frameMat);
+  }
+
+  /** Windows evenly spaced along a wall, one row. */
+  windowRow(o: {
+    axis: 'x' | 'z';
+    sign: 1 | -1;
+    plane: number;
+    from: number; to: number;
+    y0: number; y1: number;
+    count: number;
+    width: number;
+    glass: Material;
+    frame?: number;
+    proud?: number;
+  }): void {
+    const span = o.to - o.from;
+    for (let i = 0; i < o.count; i++) {
+      const c = o.from + ((i + 0.5) / o.count) * span;
+      this.opening({
+        axis: o.axis, sign: o.sign, plane: o.plane,
+        u0: c - o.width / 2, u1: c + o.width / 2,
+        y0: o.y0, y1: o.y1, glass: o.glass,
+        ...(o.frame !== undefined ? { frame: o.frame } : {}),
+        ...(o.proud !== undefined ? { proud: o.proud } : {}),
+      });
+    }
+  }
+
+  /** Cone or truncated cone, for silo tops and hoppers. */
+  cone(cx: number, cz: number, r0: number, r1: number, y0: number, y1: number, segments: number, mat: Material): void {
+    for (let i = 0; i < segments; i++) {
+      const a0 = (i / segments) * Math.PI * 2;
+      const a1 = ((i + 1) / segments) * Math.PI * 2;
+      const p0: Vec3 = [cx + Math.cos(a0) * r0, y0, cz + Math.sin(a0) * r0];
+      const p1: Vec3 = [cx + Math.cos(a1) * r0, y0, cz + Math.sin(a1) * r0];
+      if (r1 < 0.001) {
+        this.tri(p1, p0, [cx, y1, cz], mat);
+      } else {
+        this.quad(p0,
+          [cx + Math.cos(a0) * r1, y1, cz + Math.sin(a0) * r1],
+          [cx + Math.cos(a1) * r1, y1, cz + Math.sin(a1) * r1],
+          p1, mat);
+      }
+    }
+  }
+
+  /** A run of pipe as a box. Cheaper than a cylinder and reads identically. */
+  pipe(from: Vec3, to: Vec3, radius: number, mat: Material): void {
+    this.box(
+      [Math.min(from[0], to[0]) - radius, Math.min(from[1], to[1]) - radius, Math.min(from[2], to[2]) - radius],
+      [Math.max(from[0], to[0]) + radius, Math.max(from[1], to[1]) + radius, Math.max(from[2], to[2]) + radius],
+      mat, { skipBottom: false },
+    );
+  }
+
+  build(opts: { occlusion?: boolean } = {}): { vertices: Float32Array<ArrayBuffer>; indices: Uint32Array<ArrayBuffer> } {
+    const vertices = new Float32Array(this.verts.length);
+    vertices.set(this.verts);
+    const indices = new Uint32Array(this.idx.length);
+    indices.set(this.idx);
+    if (opts.occlusion !== false) bakeOcclusion(vertices, indices);
+    return { vertices, indices };
+  }
+}
+
+// ---------------------------------------------------------------- occlusion
+
+const VOXEL = 0.34;          // metres
+const RAY_STEPS = 9;
+const RAY_LENGTH = 3.4;      // metres
+const STRENGTH = 0.70;
+/**
+ * Rays start this far along the normal. Without it every ray leaving a flat
+ * wall immediately re-enters the wall's own surface voxels and the whole
+ * building bakes out uniformly dark -- which is exactly what the first attempt
+ * did.
+ */
+const ORIGIN_OFFSET = 0.62;
+
+/** Cosine-weighted hemisphere directions, generated once by a spiral. */
+const HEMISPHERE: Vec3[] = (() => {
+  const dirs: Vec3[] = [];
+  const n = 20;
+  for (let i = 0; i < n; i++) {
+    // Fibonacci hemisphere: even coverage without clumping, which matters at
+    // this few samples -- clumped rays produce blotches, not soft corners.
+    const y = Math.sqrt((i + 0.5) / n);
+    const r = Math.sqrt(1 - y * y);
+    const phi = (i + 0.5) * Math.PI * (3 - Math.sqrt(5));
+    dirs.push([Math.cos(phi) * r, y, Math.sin(phi) * r]);
+  }
+  return dirs;
+})();
+
+function voxelKey(x: number, y: number, z: number): number {
+  // 10 bits per axis around the origin: +/-170 m at this voxel size, far more
+  // than any single building needs.
+  return ((x + 512) | ((y + 512) << 10) | ((z + 512) << 20)) >>> 0;
+}
+
+/**
+ * Marks every voxel the surface passes through, by sampling each triangle on a
+ * grid finer than the voxels. Surface-only, not solid -- which is what we want:
+ * a ray that reaches a wall from outside should stop at the wall.
+ */
+function voxelize(vertices: Float32Array, indices: Uint32Array): Set<number> {
+  const grid = new Set<number>();
+  const mark = (x: number, y: number, z: number): void => {
+    grid.add(voxelKey(Math.floor(x / VOXEL), Math.floor(y / VOXEL), Math.floor(z / VOXEL)));
+  };
+
+  for (let t = 0; t < indices.length; t += 3) {
+    const ia = indices[t] * FLOATS_PER_VERTEX;
+    const ib = indices[t + 1] * FLOATS_PER_VERTEX;
+    const ic = indices[t + 2] * FLOATS_PER_VERTEX;
+    const ax = vertices[ia], ay = vertices[ia + 1], az = vertices[ia + 2];
+    const bx = vertices[ib], by = vertices[ib + 1], bz = vertices[ib + 2];
+    const cx = vertices[ic], cy = vertices[ic + 1], cz = vertices[ic + 2];
+
+    // Sample density from the triangle's longest edge, so big faces are not
+    // sampled as coarsely as small ones.
+    const span = Math.max(
+      Math.hypot(bx - ax, by - ay, bz - az),
+      Math.hypot(cx - ax, cy - ay, cz - az),
+      Math.hypot(cx - bx, cy - by, cz - bz),
+    );
+    const n = Math.min(48, Math.max(2, Math.ceil((span / VOXEL) * 1.6)));
+    for (let i = 0; i <= n; i++) {
+      for (let j = 0; j <= n - i; j++) {
+        const u = i / n, v = j / n, w = 1 - u - v;
+        mark(ax * w + bx * u + cx * v, ay * w + by * u + cy * v, az * w + bz * u + cz * v);
+      }
+    }
+  }
+  return grid;
+}
+
+/** Writes an occlusion factor into the 8th float of every vertex. */
+export function bakeOcclusion(vertices: Float32Array, indices: Uint32Array): void {
+  if (indices.length === 0) return;
+  const grid = voxelize(vertices, indices);
+  const step = RAY_LENGTH / RAY_STEPS;
+
+  for (let v = 0; v < vertices.length; v += FLOATS_PER_VERTEX) {
+    const px = vertices[v], py = vertices[v + 1], pz = vertices[v + 2];
+    const nx = vertices[v + 3], ny = vertices[v + 4], nz = vertices[v + 5];
+
+    // Tangent frame around the normal, so rays sample the hemisphere the
+    // surface actually faces.
+    let tx = 0, ty = 0, tz = 0;
+    if (Math.abs(ny) < 0.9) { tx = -nz; tz = nx; } else { tx = 1; }
+    const tl = Math.hypot(tx, ty, tz) || 1;
+    tx /= tl; ty /= tl; tz /= tl;
+    const bx = ny * tz - nz * ty;
+    const by = nz * tx - nx * tz;
+    const bz = nx * ty - ny * tx;
+
+    const ox = px + nx * ORIGIN_OFFSET;
+    const oy = py + ny * ORIGIN_OFFSET;
+    const oz = pz + nz * ORIGIN_OFFSET;
+
+    let hits = 0;
+    for (const [dx, dy, dz] of HEMISPHERE) {
+      // dy is along the normal; dx and dz span the surface.
+      const rx = tx * dx + nx * dy + bx * dz;
+      const ry = ty * dx + ny * dy + by * dz;
+      const rz = tz * dx + nz * dy + bz * dz;
+
+      for (let s = 1; s <= RAY_STEPS; s++) {
+        const d = s * step;
+        const sx = ox + rx * d, sy = oy + ry * d, sz = oz + rz * d;
+        // The ground is solid too: this is what darkens the base of every wall.
+        if (sy < 0) { hits += 1 - (s - 1) / RAY_STEPS; break; }
+        if (grid.has(voxelKey(Math.floor(sx / VOXEL), Math.floor(sy / VOXEL), Math.floor(sz / VOXEL)))) {
+          // Nearer hits occlude more, which is what makes a corner a gradient
+          // rather than a hard band.
+          hits += 1 - (s - 1) / RAY_STEPS;
+          break;
+        }
+      }
+    }
+
+    const ao = 1 - STRENGTH * (hits / HEMISPHERE.length);
+    vertices[v + 7] = Math.max(0.08, Math.min(1, ao));
+  }
+}

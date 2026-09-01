@@ -11,7 +11,9 @@
     "test:gpu": "node tools/gpu-smoke.mjs",
     "test:deploy": "node tools/deploy-layout-test.mjs",
     "test:frustum": "node tools/frustum-test.mjs",
-    "test": "npm run typecheck && npm run test:frustum && npm run test:gpu && npm run test:deploy"
+    "test": "npm run typecheck && npm run test:assets && npm run test:frustum && npm run test:gpu && npm run test:deploy",
+    "test:assets": "node tools/asset-test.mjs",
+    "assets:sheet": "node tools/asset-sheet.mjs"
   },
   "devDependencies": {
     "@webgpu/types": "^0.1.60",

@@ -17,6 +17,12 @@ indirect draws. The CPU never learns how many survived.
 Add `?bench` to the URL to fly a fixed route and print frame times; `?lite`
 builds a small world for weak GPUs and for CI.
 
+**Asset viewer at [`/asset.html`](https://maksimsysak3-ui.github.io/Subnautica-2/asset.html).**
+Ten procedural buildings — low, medium and high density housing, commercial and
+industrial — each in two variants at the same footprint: one where the detail
+is drawn by the facade shader, one where it is modelled. Flip between them to
+see what the geometry actually buys.
+
 ---
 
 ## Play it
@@ -40,7 +46,9 @@ npm run dev        # http://localhost:5173
 | `npm run preview` | serve the production build |
 | `npm run typecheck` | `tsc --noEmit` |
 | `npm test` | typecheck, then every test below |
+| `npm run test:assets` | asset invariants: lot overflow, budget, LOD ladder |
 | `npm run test:frustum` | culling correctness, no GPU needed |
+| `npm run assets:sheet` | render every asset to one contact sheet |
 | `npm run test:gpu` | headless offscreen render test (needs Playwright + Chromium) |
 | `npm run test:deploy` | boots the built site under both Pages layouts, and from a stale cache |
 
@@ -127,6 +135,11 @@ src/
     renderer.ts        frame loop, compute cull, the single render pass
     shaders/           common, terrain, box (two LODs), cull (compute)
   bench.ts             fixed-route benchmark behind ?bench
+  assets/
+    mesh.ts            boxes, gables, cylinders, windows; bakes vertex AO
+    types.ts           asset descriptor: footprint, sim costs, LOD builder
+    generators/        residential, commercial, industrial
+  asset-viewer.ts      the /asset.html preview page
   input/controls.ts    pointer, wheel, touch and keyboard camera control
   math/m4.ts           mat4 / vec3, column-major, allocation-free
   sim/
@@ -176,6 +189,13 @@ The triangle is throwaway. The other ~600 lines are not:
   means walking 100k structs in JavaScript every frame and uploading the
   survivors — megabytes of traffic to save a draw call. A compute pass appends
   survivors to two lists and writes indirect draw args instead.
+- **Assets are generators, not files.** LOD1 is the same generator with the
+  detail flags off, not a decimated copy — the generator knows which geometry
+  is silhouette and which is trim, where a decimator has to guess.
+- **Occlusion is baked per vertex, by ray marching a voxelisation of the asset
+  itself.** Dark inside corners, dark where a wall meets the ground, dark under
+  eaves and balconies. It is most of the difference between a building and a
+  box, and it costs a few milliseconds once at build time.
 - **Buildings are placed largest-footprint-first.** A 150 m tower on one 8 m
   cell is a 1:19 needle; on a 3×3 lot it is 1:6, which is what real towers are.
   Proportion is most of what makes a skyline read as a city.

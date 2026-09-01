@@ -30,6 +30,16 @@ export function perspective(out: Mat4, fovYRadians: number, aspect: number, near
   return out;
 }
 
+/** Orthographic projection with depth in [0, 1], for shadow maps. */
+export function ortho(out: Mat4, l: number, r: number, b: number, t: number, near: number, far: number): Mat4 {
+  const lr = 1 / (l - r), bt = 1 / (b - t), nf = 1 / (near - far);
+  out[0] = -2 * lr; out[1] = 0; out[2] = 0; out[3] = 0;
+  out[4] = 0; out[5] = -2 * bt; out[6] = 0; out[7] = 0;
+  out[8] = 0; out[9] = 0; out[10] = nf; out[11] = 0;
+  out[12] = (l + r) * lr; out[13] = (t + b) * bt; out[14] = near * nf; out[15] = 1;
+  return out;
+}
+
 export function lookAt(out: Mat4, eye: Vec3, target: Vec3, up: Vec3): Mat4 {
   let zx = eye[0] - target[0], zy = eye[1] - target[1], zz = eye[2] - target[2];
   let len = Math.hypot(zx, zy, zz) || 1;

@@ -39,6 +39,10 @@ export default defineConfig({
     emptyOutDir: true,
     target: 'es2022',
     sourcemap: true,
+    rollupOptions: {
+      // Two pages: the game, and the asset viewer at /asset.html.
+      input: { main: 'index.html', asset: 'asset.html' },
+    },
   },
   server: {
     headers: {

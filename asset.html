@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="dark">
+<title>citysim — asset viewer</title>
+<meta name="description" content="Procedural building assets, previewed one at a time.">
+<style>
+  :root {
+    --bg: #0b0e13; --panel: #0e131a; --fg: #c9d4e3; --dim: #5d6b80;
+    --accent: #62d4ff; --line: rgba(98,212,255,.16);
+    --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; overflow: hidden;
+    background: var(--bg); color: var(--fg); font: 12px/1.55 var(--mono); }
+  #app { display: grid; grid-template-columns: 268px 1fr; height: 100%; }
+  #side { background: var(--panel); border-right: 1px solid var(--line);
+    overflow-y: auto; padding: 14px 0 24px; }
+  #stage { position: relative; }
+  canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+
+  h1 { font-size: 10px; letter-spacing: .34em; text-transform: uppercase;
+    color: var(--dim); font-weight: 500; padding: 0 16px 12px; }
+  .group { font-size: 10px; letter-spacing: .18em; text-transform: uppercase;
+    color: var(--dim); padding: 14px 16px 5px; }
+  .item { padding: 7px 16px; cursor: pointer; border-left: 2px solid transparent; }
+  .item:hover { background: rgba(98,212,255,.05); }
+  .item.on { background: rgba(98,212,255,.10); border-left-color: var(--accent); }
+  .item .n { color: var(--fg); }
+  .item .m { color: var(--dim); font-size: 11px; }
+  .item.on .n { color: var(--accent); }
+
+  #bar { position: absolute; top: 12px; left: 14px; display: flex; gap: 6px; }
+  button { font: 11px var(--mono); color: var(--dim); background: rgba(6,9,13,.8);
+    border: 1px solid var(--line); border-radius: 3px; padding: 5px 10px; cursor: pointer; }
+  button:hover { color: var(--fg); }
+  button.on { color: #0b0e13; background: var(--accent); border-color: var(--accent); }
+
+  #info { position: absolute; right: 14px; top: 12px; width: 246px; padding: 12px 14px;
+    background: rgba(6,9,13,.82); border: 1px solid var(--line); border-radius: 3px;
+    color: var(--dim); }
+  #info b { color: var(--fg); font-weight: 500; }
+  #info .row { display: flex; justify-content: space-between; gap: 10px; }
+  #info .note { margin-top: 9px; padding-top: 9px; border-top: 1px solid var(--line);
+    color: var(--dim); line-height: 1.6; }
+  #hint { position: absolute; left: 14px; bottom: 12px; color: var(--dim); font-size: 11px; }
+  #fatal { position: absolute; inset: 0; display: grid; place-content: center;
+    text-align: center; padding: 30px; color: #ff6b7a; }
+</style>
+</head>
+<body>
+  <div id="app">
+    <aside id="side"><h1>assets</h1><div id="list"></div></aside>
+    <div id="stage">
+      <canvas id="gpu-canvas"></canvas>
+      <div id="bar">
+        <button data-lod="0" class="on">LOD 0</button>
+        <button data-lod="1">LOD 1</button>
+        <button data-lod="2">LOD 2</button>
+        <button id="wire">wireframe</button>
+        <button id="spin" class="on">spin</button>
+      </div>
+      <div id="info"></div>
+      <div id="hint">drag to orbit · wheel to zoom</div>
+    </div>
+  </div>
+  <script type="module" src="/src/asset-viewer.ts"></script>
+</body>
+</html>
