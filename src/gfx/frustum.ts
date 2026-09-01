@@ -14,8 +14,9 @@
 import type { Mat4 } from '../math/m4';
 
 export class Frustum {
-  /** Six planes as (nx, ny, nz, d), packed flat. */
-  private planes = new Float32Array(24);
+  /** Six planes as (nx, ny, nz, d), packed flat. Also uploaded to the GPU
+   *  culling pass, which runs the identical test per instance. */
+  readonly planes = new Float32Array(24);
 
   /** Rebuilds from a column-major view-projection matrix. */
   update(m: Mat4): void {

@@ -60,23 +60,53 @@ const cases = [
 ];
 
 let bad = 0;
+
+/**
+ * Waits for the bundle to signal that it ran, polling rather than sleeping a
+ * fixed time. The page may navigate underneath us (the stale-cache case
+ * reloads itself), and under a software rasteriser it can lose the GPU device
+ * shortly after boot -- neither of which says anything about the deployment
+ * layout this test is checking, so both are tolerated as long as boot happened.
+ */
+async function waitForBoot(page, done, timeoutMs = 20000) {
+  const started = Date.now();
+  let last = null;
+  while (Date.now() - started < timeoutMs) {
+    try {
+      const r = await page.evaluate(() => ({
+        booted: !!window.__citysimBooted,
+        url: location.pathname + location.search,
+        status: document.getElementById('boot-status')?.textContent?.trim().slice(0, 90),
+        heading: document.querySelector('#boot h1')?.textContent?.trim().slice(0, 60),
+      }));
+      last = r;
+      if (r.booted && done(r)) return r;
+    } catch {
+      // Navigating, or the page is gone. Try again.
+    }
+    await new Promise((r) => setTimeout(r, 150));
+  }
+  return last;
+}
+
 for (const c of cases) {
   const s = await serve(c.dir, c.port, c.stale === true);
   const page = await browser.newPage();
-  await page.goto(`http://localhost:${c.port}/Subnautica-2/`, { waitUntil: 'domcontentloaded' });
-  await page.waitForTimeout(6000);
-  const r = await page.evaluate(() => ({
-    booted: !!window.__citysimBooted,
-    url: location.pathname + location.search,
-    status: document.getElementById('boot-status')?.textContent?.trim().slice(0, 90),
-    heading: document.querySelector('#boot h1')?.textContent?.trim().slice(0, 60),
-  }));
-  const ok = r.booted && (!c.expectQuery || /[?&]b=/.test(r.url));
+  // ?lite keeps the world small enough for a software rasteriser; this test is
+  // about deployment layout, not about how much geometry the runner can hold.
+  await page.goto(`http://localhost:${c.port}/Subnautica-2/?lite`, { waitUntil: 'domcontentloaded' });
+
+  // The stale case boots twice: once on the cached copy, then again on the
+  // replacement. Waiting only for "booted" would catch the first and miss the
+  // point of the test.
+  const done = c.expectQuery ? (r) => /[?&]b=/.test(r.url ?? '') : () => true;
+  const r = (await waitForBoot(page, done)) ?? {};
+  const ok = !!r.booted && done(r);
   if (!ok) bad++;
   console.log(`${ok ? 'PASS' : 'FAIL'}  ${c.name}`);
-  console.log(`      bundle ran: ${r.booted}   landed on: ${r.url}`);
-  console.log(`      screen: ${r.heading ?? ''} ${r.status ?? ''}`);
-  await page.close();
+  console.log(`      bundle ran: ${!!r.booted}   landed on: ${r.url ?? '(unknown)'}`);
+  if (!ok) console.log(`      screen: ${r.heading ?? ''} ${r.status ?? ''}`);
+  await page.close().catch(() => {});
   s.close();
 }
 

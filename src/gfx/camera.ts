@@ -18,10 +18,10 @@ const UP: Vec3 = [0, 1, 0];
 
 export const LIMITS = {
   minDistance: 8,
-  maxDistance: 1200,
+  maxDistance: 3400,
   minPitch: (12 * Math.PI) / 180,   // never quite horizontal: the far plane would swallow the world
   maxPitch: (88 * Math.PI) / 180,   // never quite top-down: gimbal-flip territory
-  extent: 950,                      // focus stays inside +/- this, just inside the terrain edge
+  extent: 2900,                     // focus stays inside +/- this, just inside the terrain edge
 };
 
 export class Camera {
@@ -40,6 +40,9 @@ export class Camera {
    */
   groundHeight: ((x: number, z: number) => number) | null = null;
 
+  /** How far the focus may travel from the origin. Set from the terrain size. */
+  extent = LIMITS.extent;
+
   readonly view = mat4();
   readonly proj = mat4();
   readonly viewProj = mat4();
@@ -57,8 +60,8 @@ export class Camera {
   update(): void {
     this.pitch = clamp(this.pitch, LIMITS.minPitch, LIMITS.maxPitch);
     this.distance = clamp(this.distance, LIMITS.minDistance, LIMITS.maxDistance);
-    this.focus[0] = clamp(this.focus[0], -LIMITS.extent, LIMITS.extent);
-    this.focus[2] = clamp(this.focus[2], -LIMITS.extent, LIMITS.extent);
+    this.focus[0] = clamp(this.focus[0], -this.extent, this.extent);
+    this.focus[2] = clamp(this.focus[2], -this.extent, this.extent);
     this.focus[1] = this.groundHeight ? this.groundHeight(this.focus[0], this.focus[2]) : 0;
 
     const cosPitch = Math.cos(this.pitch);

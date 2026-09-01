@@ -14,17 +14,16 @@
  */
 
 import { fbm } from './hash';
+import { simConfig } from './config';
 
 export const TERRAIN = {
-  /** Metres across, centred on the origin. */
-  size: 2048,
+  /** Metres across, centred on the origin. Set by configureSim. */
+  get size(): number { return simConfig.terrainSize; },
   /** Metres per chunk. */
-  chunk: 128,
-  /** Quads per chunk edge. 4 m between vertices at 128/32. */
+  chunk: 256,
+  /** Quads per chunk edge. 8 m between vertices at 256/32 -- one zoning cell. */
   res: 32,
 };
-
-const CHUNKS_PER_EDGE = TERRAIN.size / TERRAIN.chunk;      // 16
 export const VERTS_PER_CHUNK_EDGE = TERRAIN.res + 1;       // 33
 export const INDICES_PER_CHUNK = TERRAIN.res * TERRAIN.res * 6;
 /** position(3) + normal(3) */
@@ -38,7 +37,7 @@ export const FLOATS_PER_VERTEX = 6;
  * visible rim around the flat area.
  */
 export function heightAt(x: number, z: number): number {
-  const s = 1 / 640;
+  const s = 1 / 1100;
   const hills = (fbm(x * s, z * s, 5, 101) - 0.5) * 2;      // [-1, 1]
   const ridges = (fbm(x * s * 3.7, z * s * 3.7, 3, 233) - 0.5) * 2;
 
@@ -46,7 +45,13 @@ export function heightAt(x: number, z: number): number {
   const d = Math.min(Math.hypot(x, z) / (TERRAIN.size * 0.5), 1);
   const relief = Math.pow(Math.max(0, (d - 0.05) / 0.95), 1.05);
 
-  return (hills * 98 + ridges * 24) * relief;
+  // Fine undulation everywhere, including under the city. Undamped by the
+  // relief ramp on purpose: without it the buildable centre is a dead-flat
+  // plate that reads as a bug from overhead, and at +/-2 m over a ~90 m
+  // wavelength it is shallow enough to build on and steep enough to shade.
+  const detail = (fbm(x / 90, z / 90, 3, 909) - 0.5) * 2 * 2.1;
+
+  return (hills * 150 + ridges * 34) * relief + detail;
 }
 
 /** Central difference normal. Matches heightAt exactly, so no seams. */
@@ -74,9 +79,10 @@ export interface TerrainMesh {
 }
 
 export function buildTerrain(): TerrainMesh {
+  const chunksPerEdge = Math.max(1, Math.round(TERRAIN.size / TERRAIN.chunk));
   const vpe = VERTS_PER_CHUNK_EDGE;
   const vertsPerChunk = vpe * vpe;
-  const chunkCount = CHUNKS_PER_EDGE * CHUNKS_PER_EDGE;
+  const chunkCount = chunksPerEdge * chunksPerEdge;
   const step = TERRAIN.chunk / TERRAIN.res;
   const half = TERRAIN.size / 2;
 
@@ -85,8 +91,8 @@ export function buildTerrain(): TerrainMesh {
   const n: [number, number, number] = [0, 0, 0];
   let v = 0;
 
-  for (let cz = 0; cz < CHUNKS_PER_EDGE; cz++) {
-    for (let cx = 0; cx < CHUNKS_PER_EDGE; cx++) {
+  for (let cz = 0; cz < chunksPerEdge; cz++) {
+    for (let cx = 0; cx < chunksPerEdge; cx++) {
       const baseVertex = v / FLOATS_PER_VERTEX;
       const originX = cx * TERRAIN.chunk - half;
       const originZ = cz * TERRAIN.chunk - half;

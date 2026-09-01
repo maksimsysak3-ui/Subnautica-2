@@ -63,6 +63,29 @@ instant distribution, zero install friction, and the constraint forces
 better architecture. Accept 20-40k agents as the ceiling and design the
 simulation to *fake* the rest convincingly (see §3.4).
 
+### Measured (M0 step 4)
+
+The table above was written from experience, not measurement. This section is
+where it gets corrected. Run `?bench` on the live build and paste the table.
+
+| | |
+|---|---|
+| Buildings in the world | 102,000 (440 × 440 cells at 8 m, three footprint passes) |
+| Instance data | 4.7 MiB, 48 bytes each |
+| Terrain | 6 km², 576 chunks, 627k vertices, 14.4 MiB |
+| Draw calls | 2 for the whole city, plus one per visible terrain chunk |
+| Culling | compute shader, one thread per building, two indirect draws |
+| Typical survivors | ~20-60k of 102k, depending on altitude |
+
+Frame times: **not yet measured on real hardware.** The only numbers available
+so far come from a software rasteriser in CI, which is not representative of
+anything. Until `?bench` has been run on a real GPU, treat every millisecond
+figure in the budget table as a guess.
+
+What the CI run does establish is correctness rather than speed: the cull pass
+reduces 102k instances to ~22k at a street-level camera, splits them across two
+LODs, and the frame still renders.
+
 ---
 
 ## 1. Architecture

@@ -8,12 +8,14 @@ graph is the wrong shape for "half a million static instanced objects".
 — performance hard caps, hierarchical pathfinding, agent tiering, the asset
 pack pipeline, and the milestone roadmap.
 
-**Status: M0 step 3 — terrain.** There is no game yet. What exists is a device
-that comes up and survives resize and GPU loss, an orbit camera riding a
-2 km × 2 km heightfield drawn as 256 frustum-culled chunks, and ~4,500
-instanced buildings sitting on the terrain in a single draw call — the draw
-path the real building renderer will use, proved at a scale where mistakes are
-still cheap.
+**Status: M0 step 4 — the scaling test.** There is no game yet. What exists is
+a 6 km × 6 km heightfield in 576 frustum-culled chunks, **~102,000 buildings**
+placed on it in three passes by footprint size, and a compute shader that culls
+and picks a level of detail for every one of them each frame, feeding two
+indirect draws. The CPU never learns how many survived.
+
+Add `?bench` to the URL to fly a fixed route and print frame times; `?lite`
+builds a small world for weak GPUs and for CI.
 
 ---
 
@@ -52,6 +54,8 @@ npm run dev        # http://localhost:5173
 | W A S D / arrows | pan |
 | Q E | rotate · R F pitch · +/− zoom |
 | <kbd>`</kbd> | log console |
+
+`?bench` runs the benchmark, `?lite` builds a reduced world.
 
 The overlay top-left is the frame budget readout.
 
@@ -119,11 +123,14 @@ src/
     caps.ts            limit negotiation + budget checks
     camera.ts          orbit rig, ray-to-ground unprojection
     frustum.ts         plane extraction + AABB test
-    renderer.ts        frame loop, the single render pass
-    shaders/           common.wgsl, terrain.wgsl, box.wgsl
+    profiler.ts        GPU timestamp queries
+    renderer.ts        frame loop, compute cull, the single render pass
+    shaders/           common, terrain, box (two LODs), cull (compute)
+  bench.ts             fixed-route benchmark behind ?bench
   input/controls.ts    pointer, wheel, touch and keyboard camera control
   math/m4.ts           mat4 / vec3, column-major, allocation-free
   sim/
+    config.ts          world size; ?lite shrinks it
     hash.ts            deterministic hash, value noise, fBm
     terrain.ts         heightfield and the chunked mesh built from it
     city.ts            deterministic placeholder city layout
@@ -165,11 +172,19 @@ The triangle is throwaway. The other ~600 lines are not:
 - **The grid fades by screen density.** Correct lines are not enough: at
   altitude the 8 m cells are individually right and collectively grey mush, so
   each spacing fades out as its cells approach pixel size.
+- **Culling and LOD run on the GPU.** At 100k instances, culling on the CPU
+  means walking 100k structs in JavaScript every frame and uploading the
+  survivors — megabytes of traffic to save a draw call. A compute pass appends
+  survivors to two lists and writes indirect draw args instead.
+- **Buildings are placed largest-footprint-first.** A 150 m tower on one 8 m
+  cell is a 1:19 needle; on a 3×3 lot it is 1:6, which is what real towers are.
+  Proportion is most of what makes a skyline read as a city.
 - **One `beginRenderPass` per frame, pipelines built once.** The two rules the
   renderer will be held to forever, established while there is nothing to
   refactor.
 
 ## Next
 
-M0 step 4, the scaling test: 100k instances with LOD selection, which is where
-the budgets in the design doc meet reality. Then M1 — roads.
+M1 — roads. Splines, intersections, and the lane graph that pathfinding will
+run on. Per the design doc that is the subsystem most likely to eat the
+schedule, so it gets its own milestone.

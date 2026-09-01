@@ -15,7 +15,7 @@
  * the current deploy -- reload once through a cache-busting URL to get the
  * real one. Guarded by build id so it can never become a reload loop.
  */
-window.__BUILD__ = 'mthud006';
+window.__BUILD__ = 'mti3gtj7';
 (function () {
   fetch('version.json', { cache: 'no-store' })
     .then(function (r) { return r.ok ? r.json() : null; })
@@ -24,7 +24,11 @@ window.__BUILD__ = 'mthud006';
       var key = 'rev-' + v.build;
       if (sessionStorage.getItem(key)) return;
       sessionStorage.setItem(key, '1');
-      location.replace(location.pathname + '?b=' + encodeURIComponent(v.build));
+      // Keep whatever query the visitor arrived with -- dropping it would
+      // break every deep link the moment a deploy went out.
+      var params = new URLSearchParams(location.search);
+      params.set('b', v.build);
+      location.replace(location.pathname + '?' + params.toString() + location.hash);
     })
     .catch(function () { /* dev server, or offline: carry on */ });
 })();
@@ -98,7 +102,7 @@ window.__BUILD__ = 'mthud006';
   #overlay { position: fixed; inset: 0; pointer-events: none; z-index: 5; }
   noscript { position: fixed; inset: 0; display: grid; place-content: center; }
 </style>
-  <script type="module" crossorigin src="./assets/index-C5Mrwjkc.js"></script>
+  <script type="module" crossorigin src="./assets/index-C6hKxqWg.js"></script>
 </head>
 <body>
   <canvas id="gpu-canvas" tabindex="0"></canvas>

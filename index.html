@@ -24,7 +24,11 @@ window.__BUILD__ = '__BUILD_ID__';
       var key = 'rev-' + v.build;
       if (sessionStorage.getItem(key)) return;
       sessionStorage.setItem(key, '1');
-      location.replace(location.pathname + '?b=' + encodeURIComponent(v.build));
+      // Keep whatever query the visitor arrived with -- dropping it would
+      // break every deep link the moment a deploy went out.
+      var params = new URLSearchParams(location.search);
+      params.set('b', v.build);
+      location.replace(location.pathname + '?' + params.toString() + location.hash);
     })
     .catch(function () { /* dev server, or offline: carry on */ });
 })();

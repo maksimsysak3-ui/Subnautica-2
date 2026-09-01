@@ -10,3 +10,5 @@ export { makeCity, INSTANCE_FLOATS } from './city';
 export { buildTerrain, heightAt, TERRAIN, FLOATS_PER_VERTEX, INDICES_PER_CHUNK } from './terrain';
 export type { Chunk, TerrainMesh } from './terrain';
 export { hash2, noise2, fbm } from './hash';
+export { simConfig, configureSim, LITE } from './config';
+export type { SimConfig } from './config';

@@ -1,3 +1,12 @@
+// Instanced buildings, at two levels of detail.
+//
+// vs_solid draws the near ones as five-faced boxes. vs_impostor draws the far
+// ones as a single camera-facing quad: at that distance a building is a few
+// pixels wide and the silhouette is all that survives, so five faces of
+// shading is work thrown away. Which list an instance lands in is decided by
+// the culling pass in cull.wgsl, not here.
+//
+// Original note, still true of the near path:
 // Instanced boxes -- the stand-in for buildings.
 //
 // This is the draw path the real building renderer will use, proved at a
@@ -21,6 +30,9 @@ struct Box {
 };
 
 @group(1) @binding(0) var<storage, read> boxes : array<Box>;
+// Indices chosen by the culling pass. The draw is indirect, so its length is
+// only ever known on the GPU.
+@group(1) @binding(1) var<storage, read> visible : array<u32>;
 
 struct VSOut {
   @builtin(position) pos    : vec4f,
@@ -31,7 +43,7 @@ struct VSOut {
 };
 
 @vertex
-fn vs(@builtin(vertex_index) vi : u32,
+fn vs_solid(@builtin(vertex_index) vi : u32,
       @builtin(instance_index) ii : u32) -> VSOut {
   // Five faces, two triangles each, wound counter-clockwise from outside.
   var P = array<vec3f, 30>(
@@ -57,7 +69,7 @@ fn vs(@builtin(vertex_index) vi : u32,
     vec3f(0.0, 1.0, 0.0),
   );
 
-  let box = boxes[ii];
+  let box = boxes[visible[ii]];
   let local = P[vi];
 
   let world = vec3f(
@@ -72,6 +84,39 @@ fn vs(@builtin(vertex_index) vi : u32,
   out.world = world;
   out.colour = box.tint.rgb;
   out.up = local.y;
+  return out;
+}
+
+// Far LOD: one quad, turned to face the camera about the vertical axis, sized
+// to the building's footprint and height. Six vertices instead of thirty.
+@vertex
+fn vs_impostor(@builtin(vertex_index) vi : u32,
+               @builtin(instance_index) ii : u32) -> VSOut {
+  var Q = array<vec2f, 6>(
+    vec2f(-1.0, 0.0), vec2f(1.0, 0.0), vec2f(1.0, 1.0),
+    vec2f(-1.0, 0.0), vec2f(1.0, 1.0), vec2f(-1.0, 1.0),
+  );
+
+  let box = boxes[visible[ii]];
+  let base = vec3f(box.ground.x, box.form.x, box.ground.y);
+
+  // Yaw-only billboard: keeps verticals vertical, which a fully camera-facing
+  // quad would not, and buildings read wrong the moment their edges lean.
+  let toEye = normalize(vec3f(camera.eye.x - base.x, 0.0, camera.eye.z - base.z));
+  let right = vec3f(-toEye.z, 0.0, toEye.x);
+  let halfW = max(box.ground.z, box.ground.w);
+
+  let q = Q[vi];
+  let world = base + right * (q.x * halfW) + vec3f(0.0, q.y * box.form.y, 0.0);
+
+  var out : VSOut;
+  out.pos = camera.viewProj * vec4f(world, 1.0);
+  // Face the light as an average of the box's sides, so the LOD switch does
+  // not show up as a brightness pop.
+  out.normal = toEye;
+  out.world = world;
+  out.colour = box.tint.rgb;
+  out.up = q.y;
   return out;
 }
 

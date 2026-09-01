@@ -13,6 +13,8 @@ import { Camera } from './gfx/camera';
 import { Controls } from './input/controls';
 import { Stats } from './ui/stats';
 import { fatal } from './ui/fatal';
+import { configureSim, LITE } from './sim';
+import { Benchmark, formatResults } from './bench';
 import { log, mountConsole } from './util/log';
 
 const MAX_RECOVERY_ATTEMPTS = 3;
@@ -38,6 +40,15 @@ async function boot(): Promise<void> {
   }
 
   mountConsole(overlay);
+
+  // ?lite builds a small world. Used by the deployment test, and a way out for
+  // anyone whose machine cannot hold the full one.
+  const query = new URLSearchParams(location.search);
+  if (query.has('lite')) {
+    configureSim(LITE);
+    log.info('boot', 'lite world: reduced city and terrain');
+  }
+
   log.info('boot', `citysim starting, ua=${navigator.userAgent}`);
   log.info(
     'boot',
@@ -102,10 +113,40 @@ async function boot(): Promise<void> {
     else renderer.start();
   });
 
-  renderer.start((dt) => controls.update(dt));
+  // ?bench flies a fixed route and prints a table. See src/bench.ts.
+  const benchmark = new URLSearchParams(location.search).has('bench')
+    ? new Benchmark(camera, renderer, (results) => {
+        const table = formatResults(results, renderer.buildingCount);
+        for (const line of table.split('\n')) log.info('bench', line);
+        showBenchResults(table);
+      })
+    : null;
+
+  renderer.start((dt) => {
+    controls.update(dt);
+    benchmark?.update(dt);
+  });
   canvas.focus();
   document.getElementById('boot')?.classList.add('done');
   log.info('boot', 'running — drag to pan, right-drag to orbit, wheel to zoom');
+}
+
+/** Puts the benchmark table on screen, and one click away from the clipboard. */
+function showBenchResults(table: string): void {
+  const el = document.createElement('pre');
+  el.textContent = table + '\n\n(click to copy)';
+  el.style.cssText = [
+    'position:fixed', 'left:50%', 'top:50%', 'transform:translate(-50%,-50%)',
+    'padding:18px 22px', 'background:rgba(6,9,13,.94)',
+    'border:1px solid rgba(98,212,255,.22)', 'border-radius:4px',
+    'font:12px/1.6 var(--mono)', 'color:#c9d4e3', 'z-index:30',
+    'cursor:pointer', 'white-space:pre', 'max-width:92vw', 'overflow:auto',
+  ].join(';');
+  el.addEventListener('click', () => {
+    void navigator.clipboard?.writeText(table);
+    el.remove();
+  });
+  document.body.appendChild(el);
 }
 
 addEventListener('error', (e) => log.error('window', `${e.message} @ ${e.filename}:${e.lineno}`));

@@ -25,7 +25,11 @@ import * as esbuild from 'esbuild';
 const read = (p) => fs.readFileSync(new URL('../src/gfx/shaders/' + p, import.meta.url), 'utf8');
 const common = read('common.wgsl');
 const resolve = (s) => s.replace(/^[ \t]*#include\s+"common\.wgsl"[ \t]*$/m, common);
-const shaders = { terrain: resolve(read('terrain.wgsl')), box: resolve(read('box.wgsl')) };
+const shaders = {
+  terrain: resolve(read('terrain.wgsl')),
+  box: resolve(read('box.wgsl')),
+  cull: resolve(read('cull.wgsl')),
+};
 
 // The whole simulation module, bundled and evaluated in the page, so the test
 // exercises the terrain and city the app actually ships rather than a copy.
@@ -67,7 +71,29 @@ const W = 320, H = 240;
 // something; at a steeper angle the ground plane fills the view entirely.
 const dist = 420, pitch = (20 * Math.PI) / 180, yaw = Math.PI * 0.25;
 const eye = [dist * Math.cos(pitch) * Math.sin(yaw), dist * Math.sin(pitch), dist * Math.cos(pitch) * Math.cos(yaw)];
-const viewProj = mul(perspective((50 * Math.PI) / 180, W / H, 4, 7000), lookAt(eye, [0, 0, 0], [0, 1, 0]));
+const FOV = (50 * Math.PI) / 180;
+const viewProj = mul(perspective(FOV, W / H, 4, 7000), lookAt(eye, [0, 0, 0], [0, 1, 0]));
+
+// The same six planes the engine extracts, so the compute cull has a real
+// frustum to work against.
+function planesOf(m) {
+  const r = (i, j) => m[j * 4 + i];
+  const out = [];
+  const push = (a, b, c, d) => {
+    const l = Math.hypot(a, b, c) || 1;
+    out.push(a / l, b / l, c / l, d / l);
+  };
+  push(r(3,0)+r(0,0), r(3,1)+r(0,1), r(3,2)+r(0,2), r(3,3)+r(0,3));
+  push(r(3,0)-r(0,0), r(3,1)-r(0,1), r(3,2)-r(0,2), r(3,3)-r(0,3));
+  push(r(3,0)+r(1,0), r(3,1)+r(1,1), r(3,2)+r(1,2), r(3,3)+r(1,3));
+  push(r(3,0)-r(1,0), r(3,1)-r(1,1), r(3,2)-r(1,2), r(3,3)-r(1,3));
+  push(r(2,0), r(2,1), r(2,2), r(2,3));
+  push(r(3,0)-r(2,0), r(3,1)-r(2,1), r(3,2)-r(2,2), r(3,3)-r(2,3));
+  return out;
+}
+const planes = planesOf(viewProj);
+const lodSplit = 420;
+const pixelFactor = H / (2 * Math.tan(FOV / 2));
 
 // --- run -------------------------------------------------------------------
 const server = http.createServer((_q, r) => { r.writeHead(200, { 'Content-Type': 'text/html' }); r.end('<!doctype html><title>t</title>'); });
@@ -84,6 +110,7 @@ await page.goto('http://localhost:4180/');
 
 const result = await page.evaluate(async (args) => {
   const { shaders, viewProj, eye, W, H, simSrc } = args;
+  void args.planes; void args.lodSplit; void args.pixelFactor;
   const adapter = await navigator.gpu.requestAdapter();
   if (!adapter) return { error: 'no adapter' };
   const device = await adapter.requestDevice();
@@ -106,15 +133,26 @@ const result = await page.evaluate(async (args) => {
   if (diags.length) return { diags };
 
   const camLayout = device.createBindGroupLayout({ entries: [{ binding: 0,
-    visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT, buffer: { type: 'uniform' } }] });
-  const instLayout = device.createBindGroupLayout({ entries: [{ binding: 0,
-    visibility: GPUShaderStage.VERTEX, buffer: { type: 'read-only-storage' } }] });
+    visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT | GPUShaderStage.COMPUTE,
+    buffer: { type: 'uniform' } }] });
+  const instLayout = device.createBindGroupLayout({ entries: [
+    { binding: 0, visibility: GPUShaderStage.VERTEX, buffer: { type: 'read-only-storage' } },
+    { binding: 1, visibility: GPUShaderStage.VERTEX, buffer: { type: 'read-only-storage' } },
+  ] });
+  const cullLayout = device.createBindGroupLayout({ entries: [
+    { binding: 0, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'read-only-storage' } },
+    { binding: 1, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'storage' } },
+    { binding: 2, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'storage' } },
+    { binding: 3, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'storage' } },
+  ] });
 
-  const camBuf = device.createBuffer({ size: 96, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
-  const cam = new Float32Array(24);
+  const camBuf = device.createBuffer({ size: 192, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+  const cam = new Float32Array(48);
   cam.set(viewProj, 0);
   cam.set([eye[0], eye[1], eye[2], 7000], 16);
-  cam.set([0, EXTENT, 0, 0], 20);
+  // time, extent, LOD split, pixels-per-metre-at-unit-distance
+  cam.set([0, EXTENT, args.lodSplit, args.pixelFactor], 20);
+  cam.set(args.planes, 24);
   device.queue.writeBuffer(camBuf, 0, cam);
   const camBg = device.createBindGroup({ layout: camLayout, entries: [{ binding: 0, resource: { buffer: camBuf } }] });
 
@@ -125,13 +163,36 @@ const result = await page.evaluate(async (args) => {
 
   const instBuf = device.createBuffer({ size: city.data.byteLength, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST });
   device.queue.writeBuffer(instBuf, 0, city.data);
-  const instBg = device.createBindGroup({ layout: instLayout, entries: [{ binding: 0, resource: { buffer: instBuf } }] });
+  const listSize = city.count * 4;
+  const nearBuf = device.createBuffer({ size: listSize, usage: GPUBufferUsage.STORAGE });
+  const farBuf = device.createBuffer({ size: listSize, usage: GPUBufferUsage.STORAGE });
+  const argsBuf = device.createBuffer({ size: 32,
+    usage: GPUBufferUsage.INDIRECT | GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC });
+  const argsRead = device.createBuffer({ size: 32,
+    usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ });
 
+  const cullBg = device.createBindGroup({ layout: cullLayout, entries: [
+    { binding: 0, resource: { buffer: instBuf } },
+    { binding: 1, resource: { buffer: nearBuf } },
+    { binding: 2, resource: { buffer: farBuf } },
+    { binding: 3, resource: { buffer: argsBuf } },
+  ] });
+  const nearBg = device.createBindGroup({ layout: instLayout, entries: [
+    { binding: 0, resource: { buffer: instBuf } }, { binding: 1, resource: { buffer: nearBuf } } ] });
+  const farBg = device.createBindGroup({ layout: instLayout, entries: [
+    { binding: 0, resource: { buffer: instBuf } }, { binding: 1, resource: { buffer: farBuf } } ] });
+
+  const cullPipe = device.createComputePipeline({
+    layout: device.createPipelineLayout({ bindGroupLayouts: [camLayout, cullLayout] }),
+    compute: { module: modules.cull, entryPoint: 'main' },
+  });
+
+  let lastCounts = [0, 0];
   async function renderWith(depthCompare) {
     const ds = { format: 'depth24plus', depthWriteEnabled: true, depthCompare };
-    const mk = (mod, layouts) => device.createRenderPipeline({
+    const mk = (mod, layouts, entryPoint) => device.createRenderPipeline({
       layout: device.createPipelineLayout({ bindGroupLayouts: layouts }),
-      vertex: { module: mod, entryPoint: 'vs' },
+      vertex: { module: mod, entryPoint },
       fragment: { module: mod, entryPoint: 'fs', targets: [{ format: 'rgba8unorm' }] },
       primitive: { topology: 'triangle-list', cullMode: 'none' },
       depthStencil: ds,
@@ -149,7 +210,8 @@ const result = await page.evaluate(async (args) => {
       primitive: { topology: 'triangle-list', cullMode: 'back', frontFace: 'ccw' },
       depthStencil: ds,
     });
-    const boxPipe = mk(modules.box, [camLayout, instLayout]);
+    const solidPipe = mk(modules.box, [camLayout, instLayout], 'vs_solid');
+    const impostorPipe = mk(modules.box, [camLayout, instLayout], 'vs_impostor');
 
     const color = device.createTexture({ size: [W, H], format: 'rgba8unorm',
       usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_SRC });
@@ -157,6 +219,14 @@ const result = await page.evaluate(async (args) => {
       usage: GPUTextureUsage.RENDER_ATTACHMENT });
 
     const enc = device.createCommandEncoder();
+    device.queue.writeBuffer(argsBuf, 0, new Uint32Array([30, 0, 0, 0, 6, 0, 0, 0]));
+    const cp = enc.beginComputePass();
+    cp.setPipeline(cullPipe);
+    cp.setBindGroup(0, camBg);
+    cp.setBindGroup(1, cullBg);
+    cp.dispatchWorkgroups(Math.ceil(city.count / 64));
+    cp.end();
+
     const pass = enc.beginRenderPass({
       colorAttachments: [{ view: color.createView(), clearValue: { r: 0.043, g: 0.055, b: 0.075, a: 1 }, loadOp: 'clear', storeOp: 'store' }],
       depthStencilAttachment: { view: depth.createView(), depthClearValue: 1, depthLoadOp: 'clear', depthStoreOp: 'store' },
@@ -166,13 +236,19 @@ const result = await page.evaluate(async (args) => {
     pass.setVertexBuffer(0, vtxBuf);
     pass.setIndexBuffer(idxBuf, 'uint32');
     for (const c of mesh.chunks) pass.drawIndexed(sim.INDICES_PER_CHUNK, 1, 0, c.baseVertex);
-    pass.setPipeline(boxPipe); pass.setBindGroup(1, instBg); pass.draw(30, city.count);
+    pass.setPipeline(solidPipe); pass.setBindGroup(1, nearBg); pass.drawIndirect(argsBuf, 0);
+    pass.setPipeline(impostorPipe); pass.setBindGroup(1, farBg); pass.drawIndirect(argsBuf, 16);
     pass.end();
+    enc.copyBufferToBuffer(argsBuf, 0, argsRead, 0, 32);
 
     const bpr = W * 4;
     const out = device.createBuffer({ size: bpr * H, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ });
     enc.copyTextureToBuffer({ texture: color }, { buffer: out, bytesPerRow: bpr }, [W, H]);
     device.queue.submit([enc.finish()]);
+    await argsRead.mapAsync(GPUMapMode.READ);
+    const counts = new Uint32Array(argsRead.getMappedRange().slice(0));
+    argsRead.unmap();
+    lastCounts = [counts[1], counts[5]];
     await out.mapAsync(GPUMapMode.READ);
     const px = new Uint8Array(out.getMappedRange().slice(0));
     out.unmap();
@@ -195,13 +271,14 @@ const result = await page.evaluate(async (args) => {
 
   return {
     instances: city.count, chunks: mesh.chunks.length, errors, diags,
+    nearDrawn: lastCounts[0], farDrawn: lastCounts[1],
     skyPct: +((sky / (W * H)) * 100).toFixed(1),
     buildingPct: +((lit / (W * H)) * 100).toFixed(1),
     depthChangedPct: +((differing / (W * H)) * 100).toFixed(1),
     topLeft: at(withDepth, 3, 3),
     lowerMiddle: at(withDepth, W >> 1, H - 30),
   };
-}, { shaders, viewProj, eye, W, H, simSrc });
+}, { shaders, viewProj, eye, W, H, simSrc, planes, lodSplit, pixelFactor });
 
 console.log(JSON.stringify(result, null, 2));
 
@@ -210,7 +287,13 @@ if (result.error) fails.push(result.error);
 if (result.diags?.length) fails.push(`shader errors: ${result.diags.join('; ')}`);
 if (result.errors?.length) fails.push(`uncaptured: ${result.errors.join('; ')}`);
 if (!(result.instances > 2000)) fails.push(`only ${result.instances} instances generated`);
-if (result.chunks !== 256) fails.push(`expected 256 terrain chunks, got ${result.chunks}`);
+if (result.chunks !== 576) fails.push(`expected 256 terrain chunks, got ${result.chunks}`);
+const drawn = (result.nearDrawn ?? 0) + (result.farDrawn ?? 0);
+if (!(drawn > 0)) fails.push('GPU culling passed nothing through — nothing would be drawn');
+if (!(drawn < result.instances)) fails.push(`GPU culling kept all ${result.instances} instances — is it running?`);
+if (!(result.nearDrawn > 0 && result.farDrawn > 0)) {
+  fails.push(`LOD split degenerate: near=${result.nearDrawn} far=${result.farDrawn}`);
+}
 if (!result.topLeft?.every((c, i) => Math.abs(c - [11, 14, 19][i]) < 4)) fails.push('top of frame is not sky');
 if (!(result.skyPct > 4 && result.skyPct < 70)) fails.push(`sky covers ${result.skyPct}%, expected 4-70%`);
 if (!(result.buildingPct > 2)) fails.push(`only ${result.buildingPct}% of pixels are lit geometry`);
