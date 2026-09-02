@@ -1,29 +1,34 @@
 /**
- * Zone identity: one colour code and one icon per zone.
+ * Zone and service identity: one colour and one icon per thing the player can
+ * place.
  *
  * A city builder is read at a glance -- zoning overlay, minimap, toolbar,
- * budget panel -- so every zone needs a colour that survives being a four
+ * budget panel -- so every category needs a colour that survives being a four
  * pixel dot, and a silhouette that survives being a 16px icon. Defining both
  * in one place means the overlay, the UI and the demand bars can never drift
  * apart.
  *
- * The palette follows the convention players already know (green housing,
- * blue shops, yellow works, teal offices) but pulled towards muted, slightly
- * desaturated tones so a fully zoned map does not turn into a highlighter
- * accident. Each zone carries four steps: `deep` for outlines and text on
- * light ground, `base` for the fill everyone recognises, `light` for hover
- * and low-density variants, and `wash` for large flat overlay areas where a
- * saturated fill would drown the map underneath.
+ * The zone palette follows the convention players already know (green
+ * housing, blue shops, yellow works, teal offices) but pulled towards muted,
+ * slightly desaturated tones so a fully zoned map does not turn into a
+ * highlighter accident. Each entry carries four steps: `deep` for outlines and
+ * text on light ground, `base` for the fill everyone recognises, `light` for
+ * hover and low-density variants, and `wash` for large flat overlay areas
+ * where a saturated fill would drown the map underneath.
+ *
+ * The service branches get their own hues, chosen to be separable from each
+ * other rather than from the zones -- they never appear on the same map layer.
  */
 
-import type { Zone } from '../assets/types';
+import type { Branch, Zone } from '../assets/types';
+import { BRANCHES } from '../assets/types';
 
-export interface ZoneStyle {
+export interface Palette {
   /** Display name, title case, as it appears in UI. */
   label: string;
   /** Darkest step: icon linework, text on a light background. */
   deep: string;
-  /** The zone's identity colour. Toolbar swatch, demand bar, legend chip. */
+  /** The identity colour. Toolbar swatch, demand bar, legend chip. */
   base: string;
   /** Lighter step: hover states, low-density variants, icon highlights. */
   light: string;
@@ -33,7 +38,7 @@ export interface ZoneStyle {
   blurb: string;
 }
 
-export const ZONE_STYLE: Record<Zone, ZoneStyle> = {
+export const ZONE_STYLE: Record<Zone, Palette> = {
   residential: {
     label: 'Residential',
     deep: '#1d4a2b', base: '#3f9a55', light: '#7fc98d', wash: '#c9e8cf',
@@ -54,7 +59,58 @@ export const ZONE_STYLE: Record<Zone, ZoneStyle> = {
     deep: '#0f4a4c', base: '#2a9d9c', light: '#7ecfcd', wash: '#c8e9e8',
     blurb: 'Desk work. Clean, dense, and hungry for transport rather than footfall.',
   },
+  service: {
+    label: 'Services',
+    deep: '#3c4450', base: '#79879a', light: '#b3bfcd', wash: '#dde3ea',
+    blurb: 'What the city provides for itself, and pays for every week.',
+  },
 };
+
+export const BRANCH_STYLE: Record<Branch, Palette> = {
+  fire: {
+    label: 'Fire', deep: '#5e1b16', base: '#c0392b', light: '#e58274', wash: '#f4cec8',
+    blurb: 'Stations, a training tower, and the reach of an appliance in traffic.',
+  },
+  police: {
+    label: 'Police', deep: '#152f5c', base: '#2f5fa8', light: '#7fa4d8', wash: '#cddcf0',
+    blurb: 'Precincts and holding. Coverage buys down crime, slowly.',
+  },
+  health: {
+    label: 'Healthcare', deep: '#5e2130', base: '#d0596e', light: '#eb9dab', wash: '#f7d8de',
+    blurb: 'Clinics up to a general hospital, plus the ambulances they dispatch.',
+  },
+  education: {
+    label: 'Education', deep: '#3a2a58', base: '#7a5ba8', light: '#b39ad4', wash: '#e0d6ef',
+    blurb: 'Primary through university. The slowest investment and the largest.',
+  },
+  water: {
+    label: 'Water & sewage', deep: '#0f4657', base: '#2aa3c4', light: '#84d0e2', wash: '#ccebf3',
+    blurb: 'Pumping, treatment and storage. Nobody notices it until it stops.',
+  },
+  power: {
+    label: 'Electricity', deep: '#6a4a0f', base: '#e0a52c', light: '#f2cf82', wash: '#faecc9',
+    blurb: 'Generation and the substations that get it to the street.',
+  },
+  transport: {
+    label: 'Transport', deep: '#14503c', base: '#2f8f6a', light: '#86c9b0', wash: '#cfe9df',
+    blurb: 'Depots, stations and interchanges. The thing that decides the map.',
+  },
+  government: {
+    label: 'Government', deep: '#4c432c', base: '#96854f', light: '#c9bd96', wash: '#e8e2d1',
+    blurb: 'City hall, courts and the offices that run the rest of it.',
+  },
+  parks: {
+    label: 'Parks', deep: '#2b5719', base: '#6ab04c', light: '#a8d693', wash: '#d9edcd',
+    blurb: 'Squares, playgrounds and green space. Land value, not throughput.',
+  },
+};
+
+/** Every placeable category, in the order the toolbar shows them. */
+export type Category = Zone | Branch;
+
+export function paletteFor(c: Category): Palette {
+  return (ZONE_STYLE as Record<string, Palette>)[c] ?? BRANCH_STYLE[c as Branch];
+}
 
 // ------------------------------------------------------------------- icons
 //
@@ -63,17 +119,24 @@ export const ZONE_STYLE: Record<Zone, ZoneStyle> = {
 // A flat silhouette of a house is fine at 16px and looks like a sticker at 64,
 // which is the size that actually appears in a toolbar. Three shaded faces per
 // box costs nothing, reads at both sizes, and -- more usefully -- means the
-// icon is made of the same thing the game is made of, so a zone's icon and its
-// buildings share a language. Everything below is generated: no hand-authored
-// path data, so a change to the projection or the lighting applies to all four.
+// icon is made of the same thing the game is made of, so a category's icon and
+// its buildings share a language. Everything below is generated: no
+// hand-authored path data, so a change to the projection or the lighting
+// applies to all of them at once.
+//
+// There is no badge behind the model. A rounded square reads as a button
+// chrome that the UI is already drawing, and it fought with the toolbar's own
+// selection state; the model alone, in the category's colour, is the icon.
 
 /** Isometric projection constants. 2:1 would be flatter; 30 degrees reads as depth. */
 const ISO_X = 0.866;
 const ISO_Y = 0.5;
 
+/** Face slots, in the order the shading table below lists them. */
+const TOP = 0, LEFT = 1, RIGHT = 2, BACK = 3, GROUND = 4;
+
 interface Face { d: string; shade: number }
 
-/** Projects a world point to the icon's 2D space. */
 function project(px: number, py: number, pz: number): [number, number] {
   return [(px - pz) * ISO_X, (px + pz) * ISO_Y - py];
 }
@@ -88,175 +151,327 @@ function poly(pts: Array<[number, number, number]>): string {
 /**
  * One box, as its three visible faces.
  *
- * Drawn back to front within the box, and boxes are emitted in the order the
- * caller lists them -- there is no depth sort, because at this scale composing
- * the scene back-to-front by hand is both simpler and more controllable than
- * getting a sort right for touching geometry.
+ * Emitted in the order the caller lists them: at this scale composing the
+ * scene back to front by hand is both simpler and more controllable than
+ * getting a depth sort right for touching geometry.
  */
 function box(x: number, y: number, z: number, w: number, h: number, d: number): Face[] {
   return [
-    // Top, then the two faces that catch the light differently.
-    { d: poly([[x, y + h, z], [x + w, y + h, z], [x + w, y + h, z + d], [x, y + h, z + d]]), shade: 0 },
-    { d: poly([[x, y, z + d], [x + w, y, z + d], [x + w, y + h, z + d], [x, y + h, z + d]]), shade: 1 },
-    { d: poly([[x + w, y, z + d], [x + w, y, z], [x + w, y + h, z], [x + w, y + h, z + d]]), shade: 2 },
+    { d: poly([[x, y + h, z], [x + w, y + h, z], [x + w, y + h, z + d], [x, y + h, z + d]]), shade: TOP },
+    { d: poly([[x, y, z + d], [x + w, y, z + d], [x + w, y + h, z + d], [x, y + h, z + d]]), shade: LEFT },
+    { d: poly([[x + w, y, z + d], [x + w, y, z], [x + w, y + h, z], [x + w, y + h, z + d]]), shade: RIGHT },
   ];
 }
 
-/** A gable-roofed box: walls, then two roof planes and the gable triangles. */
+/** A gable-roofed box: walls, then two roof planes and one gable triangle. */
 function gabled(x: number, y: number, z: number, w: number, h: number, d: number, rise: number): Face[] {
   const mz = z + d / 2;
   return [
     ...box(x, y, z, w, h, d).slice(1),
-    // Front slope catches more light than the back one; the gable ends read
-    // as the darkest plane, which is what gives the roof its form.
-    { d: poly([[x, y + h, z + d], [x + w, y + h, z + d], [x + w, y + h + rise, mz], [x, y + h + rise, mz]]), shade: 0 },
-    { d: poly([[x, y + h, z], [x + w, y + h, z], [x + w, y + h + rise, mz], [x, y + h + rise, mz]]), shade: 3 },
-    { d: poly([[x + w, y + h, z + d], [x + w, y + h, z], [x + w, y + h + rise, mz]]), shade: 2 },
+    { d: poly([[x, y + h, z + d], [x + w, y + h, z + d], [x + w, y + h + rise, mz], [x, y + h + rise, mz]]), shade: TOP },
+    { d: poly([[x, y + h, z], [x + w, y + h, z], [x + w, y + h + rise, mz], [x, y + h + rise, mz]]), shade: BACK },
+    { d: poly([[x + w, y + h, z + d], [x + w, y + h, z], [x + w, y + h + rise, mz]]), shade: RIGHT },
   ];
+}
+
+/** A vertical drum: tanks, cooling towers, silos. Sampled, not approximated. */
+function drum(cx: number, y: number, cz: number, r: number, h: number, taper = 1): Face[] {
+  const n = 14;
+  const ring = (rad: number, py: number): Array<[number, number, number]> =>
+    Array.from({ length: n }, (_, i) => {
+      const a = (i / n) * Math.PI * 2;
+      return [cx + Math.cos(a) * rad, py, cz + Math.sin(a) * rad] as [number, number, number];
+    });
+  const top = ring(r * taper, y + h);
+  const bot = ring(r, y);
+  const faces: Face[] = [];
+  // Only the half of the wall facing the viewer is ever seen.
+  for (let i = 0; i < n; i++) {
+    const j = (i + 1) % n;
+    const [sxA] = project(...bot[i]);
+    const [sxB] = project(...bot[j]);
+    const front = (bot[i][2] - cz) + (bot[i][0] - cx) > -r * 0.2;
+    if (!front) continue;
+    faces.push({ d: poly([bot[i], bot[j], top[j], top[i]]), shade: sxA + sxB > 0 ? RIGHT : LEFT });
+  }
+  faces.push({ d: poly(top), shade: TOP });
+  return faces;
+}
+
+/** A flat plate, for ground, aprons and canopies. */
+function plate(x: number, y: number, z: number, w: number, d: number): Face[] {
+  return [{ d: poly([[x, y, z], [x + w, y, z], [x + w, y, z + d], [x, y, z + d]]), shade: GROUND }];
 }
 
 /**
  * A flat panel lying on one vertical face of a box, at the same plane.
  *
- * Windows and doors were being drawn as thin boxes standing proud, and three
- * shaded faces on a 15cm-deep box reads as a soft lump rather than an opening
- * -- which is what made the icons look inflated. A single quad on the face
- * plane is crisp.
+ * Windows and doors were thin boxes standing proud, and three shaded faces on
+ * a 15cm-deep box reads as a soft lump rather than an opening -- which is what
+ * made the icons look inflated. A single quad on the face plane is crisp.
  */
 function faceZ(x: number, y: number, z: number, w: number, h: number): Face[] {
-  return [{ d: poly([[x, y, z], [x + w, y, z], [x + w, y + h, z], [x, y + h, z]]), shade: 1 }];
+  return [{ d: poly([[x, y, z], [x + w, y, z], [x + w, y + h, z], [x, y + h, z]]), shade: LEFT }];
 }
 
 function faceX(x: number, y: number, z: number, d: number, h: number): Face[] {
-  return [{ d: poly([[x, y, z + d], [x, y, z], [x, y + h, z], [x, y + h, z + d]]), shade: 2 }];
+  return [{ d: poly([[x, y, z + d], [x, y, z], [x, y + h, z], [x, y + h, z + d]]), shade: RIGHT }];
 }
 
-/** A flat plate, for ground, aprons and canopies. */
-function plate(x: number, y: number, z: number, w: number, d: number): Face[] {
-  return [{ d: poly([[x, y, z], [x + w, y, z], [x + w, y, z + d], [x, y, z + d]]), shade: 4 }];
-}
+type Tone = 'body' | 'accent' | 'dark' | 'ground';
+type Scene = Array<{ faces: Face[]; tone?: Tone }>;
 
-type Scene = Array<{ faces: Face[]; tone?: 'body' | 'accent' | 'glass' | 'ground' }>;
-
-const SCENES: Record<Zone, Scene> = {
-  // One house read clearly, with a smaller one behind it for depth. Housing is
-  // recognised by its roof and its openings, so both are drawn hard.
+const SCENES: Record<Category, Scene> = {
+  // ---- zones ----------------------------------------------------------
   residential: [
     { faces: plate(-2.7, 0, -2.7, 5.4, 5.4), tone: 'ground' },
     { faces: gabled(-2.4, 0, -2.1, 1.9, 1.4, 1.9, 0.85), tone: 'body' },
-    { faces: faceZ(-2.3, 0.35, -0.2, 0.55, 0.55), tone: 'glass' },
-    { faces: faceZ(-1.35, 0.35, -0.2, 0.55, 0.55), tone: 'glass' },
+    { faces: faceZ(-2.3, 0.35, -0.2, 0.55, 0.55), tone: 'dark' },
+    { faces: faceZ(-1.35, 0.35, -0.2, 0.55, 0.55), tone: 'dark' },
     { faces: gabled(-0.1, 0, -2.4, 2.3, 2.0, 2.3, 1.15), tone: 'body' },
-    { faces: faceZ(0.2, 1.05, -0.1, 0.6, 0.6), tone: 'glass' },
-    { faces: faceZ(1.25, 1.05, -0.1, 0.6, 0.6), tone: 'glass' },
-    { faces: faceZ(0.2, 0.0, -0.1, 0.6, 0.6), tone: 'glass' },
+    { faces: faceZ(0.2, 1.05, -0.1, 0.6, 0.6), tone: 'dark' },
+    { faces: faceZ(1.25, 1.05, -0.1, 0.6, 0.6), tone: 'dark' },
+    { faces: faceZ(0.2, 0.0, -0.1, 0.6, 0.6), tone: 'dark' },
     { faces: faceZ(1.15, 0.0, -0.1, 0.75, 1.05), tone: 'accent' },
-    { faces: faceX(2.2, 0.9, -2.1, 1.7, 0.7), tone: 'glass' },
+    { faces: faceX(2.2, 0.9, -2.1, 1.7, 0.7), tone: 'dark' },
     { faces: box(1.4, 2.0, -1.75, 0.42, 0.75, 0.42), tone: 'accent' },
   ],
-  // A shopfront: a low unit with a deep fascia band and a projecting sign.
   commercial: [
     { faces: plate(-2.6, 0, -2.6, 5.2, 5.2), tone: 'ground' },
     { faces: box(-2.0, 0, -1.8, 3.8, 3.4, 2.6), tone: 'body' },
     { faces: box(-2.15, 1.55, 0.75, 4.1, 0.55, 0.4), tone: 'accent' },
-    { faces: faceZ(-1.6, 0.15, 0.8, 1.4, 1.25), tone: 'glass' },
-    { faces: faceZ(0.5, 0.15, 0.8, 1.1, 1.25), tone: 'glass' },
+    { faces: faceZ(-1.6, 0.15, 0.8, 1.4, 1.25), tone: 'dark' },
+    { faces: faceZ(0.5, 0.15, 0.8, 1.1, 1.25), tone: 'dark' },
     { faces: faceZ(-0.05, 0.0, 0.8, 0.5, 1.4), tone: 'accent' },
-    { faces: faceZ(-1.5, 2.35, 0.8, 1.1, 0.8), tone: 'glass' },
-    { faces: faceZ(0.4, 2.35, 0.8, 1.1, 0.8), tone: 'glass' },
-    { faces: faceX(1.8, 2.3, -1.7, 2.4, 0.85), tone: 'glass' },
+    { faces: faceZ(-1.5, 2.35, 0.8, 1.1, 0.8), tone: 'dark' },
+    { faces: faceZ(0.4, 2.35, 0.8, 1.1, 0.8), tone: 'dark' },
+    { faces: faceX(1.8, 2.3, -1.7, 2.4, 0.85), tone: 'dark' },
     { faces: box(1.8, 1.0, 0.1, 0.18, 1.2, 0.8), tone: 'accent' },
   ],
-  // A shed with roof monitors and a stack. The roller door is the detail that
-  // makes it industry rather than a bungalow.
   industrial: [
     { faces: plate(-2.8, 0, -2.8, 5.6, 5.6), tone: 'ground' },
     { faces: box(-2.3, 0, -2.2, 3.5, 2.0, 3.2), tone: 'body' },
-    { faces: faceZ(-2.0, 0.0, 1.0, 1.5, 1.45), tone: 'glass' },
+    { faces: faceZ(-2.0, 0.0, 1.0, 1.5, 1.45), tone: 'dark' },
     { faces: faceZ(-0.2, 0.0, 1.0, 1.0, 1.45), tone: 'accent' },
-    { faces: faceX(1.2, 0.55, -2.0, 2.8, 0.8), tone: 'glass' },
-    { faces: box(-2.3, 2.0, -1.9, 1.4, 0.55, 1.0), tone: 'glass' },
-    { faces: box(-0.5, 2.0, -1.9, 1.4, 0.55, 1.0), tone: 'glass' },
+    { faces: faceX(1.2, 0.55, -2.0, 2.8, 0.8), tone: 'dark' },
+    { faces: box(-2.3, 2.0, -1.9, 1.4, 0.55, 1.0), tone: 'dark' },
+    { faces: box(-0.5, 2.0, -1.9, 1.4, 0.55, 1.0), tone: 'dark' },
     { faces: box(1.6, 0, -1.1, 0.7, 4.1, 0.7), tone: 'accent' },
     { faces: box(1.45, 4.1, -1.25, 1.0, 0.3, 1.0), tone: 'accent' },
   ],
-  // A tower beside a lower block. The bands are drawn on the two visible faces
-  // rather than wrapped round as thin boxes, which stacked into a bun.
   office: [
     { faces: plate(-2.6, 0, -2.6, 5.2, 5.2), tone: 'ground' },
     { faces: box(-2.2, 0, -1.1, 1.6, 1.7, 1.9), tone: 'body' },
-    { faces: faceZ(-2.0, 0.35, 0.8, 0.5, 0.5), tone: 'glass' },
-    { faces: faceZ(-1.2, 0.35, 0.8, 0.5, 0.5), tone: 'glass' },
-    { faces: faceZ(-2.0, 1.05, 0.8, 0.5, 0.5), tone: 'glass' },
-    { faces: faceZ(-1.2, 1.05, 0.8, 0.5, 0.5), tone: 'glass' },
+    { faces: faceZ(-2.0, 0.35, 0.8, 0.5, 0.5), tone: 'dark' },
+    { faces: faceZ(-1.2, 0.35, 0.8, 0.5, 0.5), tone: 'dark' },
+    { faces: faceZ(-2.0, 1.05, 0.8, 0.5, 0.5), tone: 'dark' },
+    { faces: faceZ(-1.2, 1.05, 0.8, 0.5, 0.5), tone: 'dark' },
     { faces: box(-0.1, 0, -2.2, 2.1, 4.4, 2.1), tone: 'body' },
-    { faces: faceZ(0.15, 0.5, -0.1, 1.6, 0.55), tone: 'glass' },
-    { faces: faceZ(0.15, 1.55, -0.1, 1.6, 0.55), tone: 'glass' },
-    { faces: faceZ(0.15, 2.6, -0.1, 1.6, 0.55), tone: 'glass' },
-    { faces: faceZ(0.15, 3.65, -0.1, 1.6, 0.55), tone: 'glass' },
-    { faces: faceX(2.0, 0.5, -1.95, 1.6, 0.55), tone: 'glass' },
-    { faces: faceX(2.0, 1.55, -1.95, 1.6, 0.55), tone: 'glass' },
-    { faces: faceX(2.0, 2.6, -1.95, 1.6, 0.55), tone: 'glass' },
-    { faces: faceX(2.0, 3.65, -1.95, 1.6, 0.55), tone: 'glass' },
+    { faces: faceZ(0.15, 0.5, -0.1, 1.6, 0.55), tone: 'dark' },
+    { faces: faceZ(0.15, 1.55, -0.1, 1.6, 0.55), tone: 'dark' },
+    { faces: faceZ(0.15, 2.6, -0.1, 1.6, 0.55), tone: 'dark' },
+    { faces: faceZ(0.15, 3.65, -0.1, 1.6, 0.55), tone: 'dark' },
+    { faces: faceX(2.0, 0.5, -1.95, 1.6, 0.55), tone: 'dark' },
+    { faces: faceX(2.0, 1.55, -1.95, 1.6, 0.55), tone: 'dark' },
+    { faces: faceX(2.0, 2.6, -1.95, 1.6, 0.55), tone: 'dark' },
+    { faces: faceX(2.0, 3.65, -1.95, 1.6, 0.55), tone: 'dark' },
     { faces: box(0.75, 4.4, -1.25, 0.16, 1.1, 0.16), tone: 'accent' },
+  ],
+  // The services tab itself: a civic block with a portico and a mast.
+  service: [
+    { faces: plate(-2.6, 0, -2.6, 5.2, 5.2), tone: 'ground' },
+    { faces: box(-2.0, 0, -2.0, 3.8, 2.6, 3.2), tone: 'body' },
+    { faces: box(-1.0, 0, 1.2, 1.9, 2.2, 0.5), tone: 'accent' },
+    { faces: faceZ(-1.6, 0.3, 1.21, 0.45, 1.0), tone: 'dark' },
+    { faces: faceZ(0.95, 0.3, 1.21, 0.45, 1.0), tone: 'dark' },
+    { faces: faceZ(-0.55, 0.0, 1.71, 1.0, 1.4), tone: 'dark' },
+    { faces: faceX(1.8, 0.6, -1.8, 2.6, 0.9), tone: 'dark' },
+    { faces: box(-0.2, 2.6, -0.6, 0.16, 1.5, 0.16), tone: 'accent' },
+  ],
+
+  // ---- service branches ------------------------------------------------
+  // Three appliance bays and a drill tower. The tower is the silhouette a
+  // player scans for.
+  fire: [
+    { faces: plate(-2.8, 0, -2.8, 5.6, 5.6), tone: 'ground' },
+    { faces: box(-2.4, 0, -1.6, 3.6, 2.4, 2.8), tone: 'body' },
+    { faces: faceZ(-2.2, 0.0, 1.21, 0.9, 1.6), tone: 'dark' },
+    { faces: faceZ(-1.1, 0.0, 1.21, 0.9, 1.6), tone: 'dark' },
+    { faces: faceZ(0.0, 0.0, 1.21, 0.9, 1.6), tone: 'dark' },
+    { faces: faceZ(-2.3, 1.85, 1.21, 3.4, 0.35), tone: 'accent' },
+    { faces: faceX(1.2, 0.5, -1.5, 2.6, 1.1), tone: 'dark' },
+    { faces: box(1.4, 0, -2.0, 1.2, 4.4, 1.2), tone: 'accent' },
+    { faces: box(1.25, 4.4, -2.15, 1.5, 0.3, 1.5), tone: 'body' },
+  ],
+  // A precinct block with a lit mast and a barred ground floor.
+  police: [
+    { faces: plate(-2.7, 0, -2.7, 5.4, 5.4), tone: 'ground' },
+    { faces: box(-2.2, 0, -1.9, 2.4, 3.4, 3.0), tone: 'body' },
+    { faces: box(0.4, 0, -1.4, 1.7, 2.2, 2.4), tone: 'body' },
+    { faces: faceZ(-2.0, 0.5, 1.11, 0.6, 0.7), tone: 'dark' },
+    { faces: faceZ(-1.1, 0.5, 1.11, 0.6, 0.7), tone: 'dark' },
+    { faces: faceZ(-2.0, 1.8, 1.11, 0.6, 0.7), tone: 'dark' },
+    { faces: faceZ(-1.1, 1.8, 1.11, 0.6, 0.7), tone: 'dark' },
+    { faces: faceZ(0.7, 0.0, 1.01, 1.1, 1.4), tone: 'accent' },
+    { faces: faceX(2.1, 0.5, -1.3, 2.2, 1.5), tone: 'dark' },
+    { faces: box(-1.4, 3.4, -0.7, 0.16, 1.6, 0.16), tone: 'accent' },
+    { faces: box(-1.55, 5.0, -0.85, 0.46, 0.3, 0.46), tone: 'accent' },
+  ],
+  // A ward block with a lower entrance wing and a rooftop cross.
+  health: [
+    { faces: plate(-2.7, 0, -2.7, 5.4, 5.4), tone: 'ground' },
+    { faces: box(-2.2, 0, -2.2, 2.6, 4.0, 2.4), tone: 'body' },
+    { faces: box(-0.2, 0, -0.6, 2.2, 1.8, 2.4), tone: 'body' },
+    { faces: faceZ(-2.0, 0.6, 0.21, 0.5, 0.6), tone: 'dark' },
+    { faces: faceZ(-1.2, 0.6, 0.21, 0.5, 0.6), tone: 'dark' },
+    { faces: faceZ(-2.0, 1.8, 0.21, 0.5, 0.6), tone: 'dark' },
+    { faces: faceZ(-1.2, 1.8, 0.21, 0.5, 0.6), tone: 'dark' },
+    { faces: faceZ(-2.0, 3.0, 0.21, 0.5, 0.6), tone: 'dark' },
+    { faces: faceZ(-1.2, 3.0, 0.21, 0.5, 0.6), tone: 'dark' },
+    { faces: faceZ(0.3, 0.0, 1.81, 1.6, 1.3), tone: 'dark' },
+    { faces: box(-0.4, 1.8, -0.8, 2.6, 0.3, 0.5), tone: 'accent' },
+    // The cross, laid flat on the tall block's roof.
+    { faces: box(-1.8, 4.0, -1.55, 1.8, 0.28, 0.55), tone: 'accent' },
+    { faces: box(-1.2, 4.0, -2.05, 0.6, 0.28, 1.55), tone: 'accent' },
+  ],
+  // A long teaching range with a bell cupola and a yard.
+  education: [
+    { faces: plate(-2.9, 0, -2.9, 5.8, 5.8), tone: 'ground' },
+    { faces: box(-2.5, 0, -2.2, 4.6, 2.2, 2.0), tone: 'body' },
+    { faces: box(-2.5, 0, -0.2, 1.8, 2.2, 1.8), tone: 'body' },
+    { faces: faceZ(-2.3, 0.5, -0.19, 0.5, 0.7), tone: 'dark' },
+    { faces: faceZ(-1.5, 0.5, -0.19, 0.5, 0.7), tone: 'dark' },
+    { faces: faceZ(-2.3, 1.4, -0.19, 0.5, 0.6), tone: 'dark' },
+    { faces: faceZ(-1.5, 1.4, -0.19, 0.5, 0.6), tone: 'dark' },
+    { faces: faceZ(-0.5, 0.5, 1.61, 0.5, 0.7), tone: 'dark' },
+    { faces: faceZ(0.4, 0.5, 1.61, 0.5, 0.7), tone: 'dark' },
+    { faces: faceZ(1.3, 0.0, 1.61, 0.7, 1.3), tone: 'accent' },
+    { faces: faceX(2.1, 0.5, -2.1, 1.8, 1.4), tone: 'dark' },
+    { faces: box(-0.5, 2.2, -1.8, 1.0, 0.9, 1.0), tone: 'accent' },
+    { faces: gabled(-0.65, 3.1, -1.95, 1.3, 0.15, 1.3, 0.7), tone: 'body' },
+  ],
+  // Two storage tanks, a filter house and a pipe run.
+  water: [
+    { faces: plate(-2.9, 0, -2.9, 5.8, 5.8), tone: 'ground' },
+    { faces: box(-2.5, 0, 0.4, 2.6, 1.9, 2.0), tone: 'body' },
+    { faces: faceZ(-2.3, 0.5, 2.41, 0.6, 0.8), tone: 'dark' },
+    { faces: faceZ(-1.4, 0.5, 2.41, 0.6, 0.8), tone: 'dark' },
+    { faces: faceZ(-0.5, 0.0, 2.41, 0.6, 1.3), tone: 'accent' },
+    { faces: drum(-1.0, 0, -1.6, 1.35, 2.6), tone: 'body' },
+    { faces: drum(1.7, 0, -0.6, 1.05, 3.4), tone: 'accent' },
+    { faces: box(-1.15, 2.6, -1.75, 0.3, 0.35, 0.3), tone: 'accent' },
+    { faces: box(-0.6, 1.0, -1.7, 2.4, 0.32, 0.32), tone: 'accent' },
+  ],
+  // A substation: transformer drums under a gantry, and a cooling stack.
+  power: [
+    { faces: plate(-2.9, 0, -2.9, 5.8, 5.8), tone: 'ground' },
+    { faces: box(-2.5, 0, 0.6, 2.4, 1.8, 1.8), tone: 'body' },
+    { faces: faceZ(-2.3, 0.4, 2.41, 0.7, 0.9), tone: 'dark' },
+    { faces: faceZ(-1.2, 0.0, 2.41, 0.6, 1.3), tone: 'accent' },
+    { faces: box(-1.9, 0, -1.4, 1.3, 1.6, 1.3), tone: 'body' },
+    { faces: box(-0.2, 0, -1.9, 1.3, 1.6, 1.3), tone: 'body' },
+    // Gantry: two masts and a crossarm, which is what says substation.
+    { faces: box(-2.3, 0, -2.5, 0.22, 4.4, 0.22), tone: 'accent' },
+    { faces: box(1.5, 0, -2.5, 0.22, 4.4, 0.22), tone: 'accent' },
+    { faces: box(-2.4, 4.0, -2.6, 4.1, 0.24, 0.42), tone: 'accent' },
+    { faces: drum(2.0, 0, 1.2, 1.0, 3.6, 0.78), tone: 'accent' },
+  ],
+  // A depot canopy on posts with a vehicle under it, and a platform.
+  transport: [
+    { faces: plate(-2.9, 0, -2.9, 5.8, 5.8), tone: 'ground' },
+    { faces: box(-2.5, 0, -2.2, 2.0, 2.6, 2.2), tone: 'body' },
+    { faces: faceZ(-2.3, 0.6, 0.01, 0.5, 0.8), tone: 'dark' },
+    { faces: faceZ(-1.5, 0.6, 0.01, 0.5, 0.8), tone: 'dark' },
+    { faces: faceZ(-2.3, 1.7, 0.01, 1.3, 0.6), tone: 'accent' },
+    { faces: box(-0.2, 2.4, -2.4, 3.0, 0.3, 4.4), tone: 'accent' },
+    { faces: box(-0.1, 0, -2.3, 0.18, 2.4, 0.18), tone: 'accent' },
+    { faces: box(2.6, 0, -2.3, 0.18, 2.4, 0.18), tone: 'accent' },
+    { faces: box(-0.1, 0, 1.7, 0.18, 2.4, 0.18), tone: 'accent' },
+    { faces: box(2.6, 0, 1.7, 0.18, 2.4, 0.18), tone: 'accent' },
+    { faces: box(0.3, 0.18, -1.8, 2.1, 1.5, 3.2), tone: 'body' },
+    { faces: faceZ(0.5, 0.7, 1.41, 1.7, 0.6), tone: 'dark' },
+  ],
+  // City hall: a stone block, a colonnade and a flag.
+  government: [
+    { faces: plate(-2.8, 0, -2.8, 5.6, 5.6), tone: 'ground' },
+    { faces: box(-2.3, 0, -2.0, 4.2, 2.8, 2.6), tone: 'body' },
+    { faces: box(-1.2, 0, 0.6, 2.2, 3.2, 0.7), tone: 'body' },
+    // Colonnade in front of the centre bay.
+    { faces: box(-1.1, 0.3, 1.3, 0.26, 2.2, 0.26), tone: 'accent' },
+    { faces: box(-0.45, 0.3, 1.3, 0.26, 2.2, 0.26), tone: 'accent' },
+    { faces: box(0.2, 0.3, 1.3, 0.26, 2.2, 0.26), tone: 'accent' },
+    { faces: box(0.85, 0.3, 1.3, 0.26, 2.2, 0.26), tone: 'accent' },
+    { faces: box(-1.3, 2.5, 1.15, 2.5, 0.35, 0.6), tone: 'accent' },
+    { faces: faceZ(-0.9, 0.0, 1.31, 1.6, 1.7), tone: 'dark' },
+    { faces: faceZ(-2.1, 0.6, 0.61, 0.55, 1.5), tone: 'dark' },
+    { faces: faceZ(1.35, 0.6, 0.61, 0.55, 1.5), tone: 'dark' },
+    { faces: faceX(1.9, 0.6, -1.8, 2.2, 1.5), tone: 'dark' },
+    { faces: box(-0.1, 3.2, 0.85, 0.14, 1.7, 0.14), tone: 'accent' },
+    { faces: box(0.04, 4.3, 0.88, 0.9, 0.5, 0.08), tone: 'accent' },
+  ],
+  // A square: lawn, paths, a pavilion and hedges.
+  parks: [
+    { faces: plate(-2.9, 0, -2.9, 5.8, 5.8), tone: 'ground' },
+    { faces: plate(-2.5, 0.06, -2.5, 5.0, 5.0), tone: 'body' },
+    { faces: plate(-0.35, 0.09, -2.5, 0.7, 5.0), tone: 'accent' },
+    { faces: plate(-2.5, 0.09, -0.35, 5.0, 0.7), tone: 'accent' },
+    { faces: box(-2.3, 0.06, -2.3, 1.7, 0.55, 1.7), tone: 'accent' },
+    { faces: box(0.9, 0.06, 0.9, 1.5, 0.55, 1.5), tone: 'accent' },
+    // Pavilion: four posts and a pitched roof.
+    { faces: box(0.7, 0.06, -2.4, 0.18, 1.4, 0.18), tone: 'accent' },
+    { faces: box(2.2, 0.06, -2.4, 0.18, 1.4, 0.18), tone: 'accent' },
+    { faces: box(0.7, 0.06, -1.0, 0.18, 1.4, 0.18), tone: 'accent' },
+    { faces: box(2.2, 0.06, -1.0, 0.18, 1.4, 0.18), tone: 'accent' },
+    { faces: gabled(0.5, 1.46, -2.6, 2.1, 0.16, 2.1, 0.8), tone: 'accent' },
   ],
 };
 
 /**
- * Renders one zone's scene into an SVG document.
+ * Renders one category's scene into an SVG document.
  *
- * The badge behind it is the zone colour; the model on top is drawn in white
- * at four opacities, so the icon reads on any badge and every zone's icon
- * carries exactly the same lighting.
+ * The model is drawn in the category's own colour at four values -- one per
+ * face slot -- so the icon needs no badge behind it to be identifiable, and
+ * carries the same lighting as every other icon in the set.
  */
-function icon(zone: Zone): string {
-  const s = ZONE_STYLE[zone];
-  // Top, left, right, gable-back, ground: one opacity each, and they are the
-  // whole lighting model.
-  const shades = [0.97, 0.80, 0.60, 0.68, 0.30];
-  const accent = [1.0, 0.88, 0.70, 0.78, 0.36];
+/** Escapes text for an XML attribute. "Water & sewage" is not valid SVG. */
+function xml(t: string): string {
+  return t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
 
-  let body = '';
-  for (const part of SCENES[zone]) {
+function icon(c: Category): string {
+  const s = paletteFor(c);
+  const body = [s.light, s.base, s.deep, s.base, s.deep];
+  const accent = [s.base, s.deep, s.deep, s.deep, s.deep];
+  const alphaBody = [1, 1, 1, 0.92, 0.16];
+  const alphaAccent = [1, 0.9, 0.78, 0.85, 0.3];
+
+  let out = '';
+  for (const part of SCENES[c]) {
     for (const f of part.faces) {
-      let fill = '#ffffff';
-      let alpha = shades[f.shade];
-      if (part.tone === 'accent') { alpha = accent[f.shade]; }
-      if (part.tone === 'glass') { fill = s.deep; alpha = f.shade === 0 ? 0.55 : 0.72; }
-      if (part.tone === 'ground') { fill = s.deep; alpha = 0.30; }
-      body += `<path d="${f.d}" fill="${fill}" fill-opacity="${alpha.toFixed(2)}"/>`;
+      let fill = body[f.shade];
+      let alpha = alphaBody[f.shade];
+      if (part.tone === 'accent') { fill = accent[f.shade]; alpha = alphaAccent[f.shade]; }
+      if (part.tone === 'dark') { fill = s.deep; alpha = f.shade === TOP ? 0.75 : 0.95; }
+      if (part.tone === 'ground') { fill = s.deep; alpha = 0.14; }
+      out += `<path d="${f.d}" fill="${fill}" fill-opacity="${alpha}"/>`;
     }
   }
 
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48" role="img" aria-label="${s.label} zone">
-  <defs>
-    <linearGradient id="g-${zone}" x1="0" y1="0" x2="0.35" y2="1">
-      <stop offset="0" stop-color="${s.light}"/>
-      <stop offset="0.5" stop-color="${s.base}"/>
-      <stop offset="1" stop-color="${s.deep}"/>
-    </linearGradient>
-    <clipPath id="c-${zone}"><rect x="2" y="2" width="44" height="44" rx="10"/></clipPath>
-  </defs>
-  <rect x="2" y="2" width="44" height="44" rx="10" fill="url(#g-${zone})"/>
-  <g clip-path="url(#c-${zone})">
-    <g transform="translate(24 30) scale(5.1)" stroke="${s.deep}" stroke-opacity="0.30"
-       stroke-width="0.05" stroke-linejoin="round">${body}</g>
-  </g>
-  <rect x="2.6" y="2.6" width="42.8" height="42.8" rx="9.4" fill="none"
-        stroke="${s.deep}" stroke-width="1.2" opacity=".8"/>
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48" role="img" aria-label="${xml(s.label)}">
+  <g transform="translate(24 32) scale(5.4)" stroke="${s.deep}" stroke-opacity="0.35"
+     stroke-width="0.045" stroke-linejoin="round">${out}</g>
 </svg>`;
 }
 
-/** The four zone icons, as standalone SVG documents keyed by zone. */
-export const ZONE_ICON: Record<Zone, string> = {
-  residential: icon('residential'),
-  commercial: icon('commercial'),
-  industrial: icon('industrial'),
-  office: icon('office'),
-};
+/** Every icon, keyed by category. */
+export const ICON: Record<Category, string> = Object.fromEntries(
+  ([...(Object.keys(ZONE_STYLE) as Zone[]), ...BRANCHES] as Category[]).map((c) => [c, icon(c)]),
+) as Record<Category, string>;
+
+/** Back-compatible alias: the four zone icons. */
+export const ZONE_ICON = ICON;
 
 /** The icon inline, sized for UI. Returns SVG markup, not a data URL. */
-export function zoneIcon(zone: Zone, size = 20): string {
-  return ZONE_ICON[zone]
-    .replace('width="48" height="48"', `width="${size}" height="${size}"`);
+export function zoneIcon(c: Category, size = 20): string {
+  return ICON[c].replace('width="48" height="48"', `width="${size}" height="${size}"`);
 }

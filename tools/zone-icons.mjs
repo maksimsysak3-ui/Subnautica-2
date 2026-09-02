@@ -18,16 +18,17 @@ const bundle = (
   })
 ).outputFiles[0].text;
 
-const { ZONE_ICON, ZONE_STYLE } = await import(
+const { ICON, ZONE_STYLE, BRANCH_STYLE } = await import(
   'data:text/javascript;base64,' + Buffer.from(bundle).toString('base64'));
+const STYLE = { ...ZONE_STYLE, ...BRANCH_STYLE };
 
 const dir = new URL('../public/zones/', import.meta.url);
 mkdirSync(dir, { recursive: true });
 
 const rows = [];
-for (const [zone, svg] of Object.entries(ZONE_ICON)) {
+for (const [zone, svg] of Object.entries(ICON)) {
   writeFileSync(new URL(`${zone}.svg`, dir), svg + '\n');
-  const s = ZONE_STYLE[zone];
+  const s = STYLE[zone];
   rows.push(`  <figure>
     <img src="${zone}.svg" width="72" height="72" alt="${s.label}">
     <figcaption><b>${s.label}</b><span>${s.blurb}</span>
@@ -58,4 +59,4 @@ writeFileSync(new URL('index.html', dir), `<!doctype html>
 ${rows.join('\n')}
 `);
 
-console.log(`\nwrote ${Object.keys(ZONE_ICON).length} icons + index.html to public/zones/`);
+console.log(`\nwrote ${Object.keys(ICON).length} icons + index.html to public/zones/`);

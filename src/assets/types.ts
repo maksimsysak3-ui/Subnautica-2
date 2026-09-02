@@ -14,8 +14,26 @@
 
 import type { MeshBuilder } from './mesh';
 
-export type Zone = 'residential' | 'commercial' | 'industrial' | 'office';
+export type Zone = 'residential' | 'commercial' | 'industrial' | 'office' | 'service';
 export type Density = 'low' | 'medium' | 'high' | 'none';
+
+/**
+ * The service branches a city has to provide for itself.
+ *
+ * These are not zoned -- the player places them one at a time and pays for
+ * them -- so they behave differently from the four zones in every way that
+ * matters: no density ladder, no brand, a coverage radius instead of a
+ * demand curve, and a silhouette that has to be recognisable at a glance
+ * because the player is looking for "the fire station" specifically.
+ */
+export type Branch =
+  | 'fire' | 'police' | 'health' | 'education' | 'water'
+  | 'power' | 'transport' | 'government' | 'parks';
+
+export const BRANCHES: Branch[] = [
+  'fire', 'police', 'health', 'education', 'water',
+  'power', 'transport', 'government', 'parks',
+];
 
 /**
  * The two approaches being compared. Same category, same footprint, so the
@@ -83,6 +101,8 @@ export function idSeed(id: string): number {
 
 export interface AssetDef {
   id: string;
+  /** Service branch, for zone 'service' only. */
+  branch?: Branch;
   name: string;
   zone: Zone;
   density: Density;
