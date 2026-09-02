@@ -17,7 +17,7 @@ import type { AssetDef } from '../types';
 import { BRANDS } from '../brands';
 import {
   awning, balconies, band, bladeSign, bollards, fasciaSign, fireEscape, kerb, parapet, planter,
-  backyard, entrance, frontage, railing, ring, roofClutter, shopfront, windowGrid,
+  backyard, entrance, frontage, railing, ribbon, ring, roofClutter, shopfront, windowGrid,
 } from '../parts';
 
 /** Ridge height for a span, at roughly a 38-degree pitch. */
@@ -1605,7 +1605,436 @@ function almshouses(lod: number): MeshBuilder {
   return m;
 }
 
+
+// ------------------------------------------------------- more low density
+//
+// Six more low-density houses. Low density is what a city is mostly made of
+// by area, so it is where repetition shows first: these six were picked to be
+// different in *plan* rather than in trim, since a street of the same L-plan
+// in six colours still reads as one house six times.
+
+/** Stone farmhouse with a catslide rear roof, a barn and a walled yard. */
+function farmhouse(lod: number): MeshBuilder {
+  const m = new MeshBuilder();
+  const fine = lod < 1;
+  const medium = lod < 2;
+  const x = 15.0, z = 15.0;
+  const wx = 8.0, wz = 5.0, wall = 5.4;
+
+  m.box([-wx, 0, -wz], [wx, wall, wz], MAT.STONE);
+  m.gable([-wx, wall, -wz], [wx, wall, wz], pitch(wz * 2), 'x', MAT.ROOF_TILE, MAT.STONE);
+  // Catslide: the roof carries on down over a single-storey rear outshot.
+  m.box([-wx, 0, wz], [wx, 2.6, wz + 3.4], MAT.STONE);
+  m.quad([-wx - 0.4, wall, wz], [wx + 0.4, wall, wz], [wx + 0.4, 2.7, wz + 3.8], [-wx - 0.4, 2.7, wz + 3.8],
+    MAT.ROOF_TILE);
+  // Barn across the yard: bigger, plainer, and open at one end.
+  m.box([-x + 1.0, 0, -z + 1.0], [-x + 9.0, 4.4, -z + 6.0], MAT.STONE);
+  m.gable([-x + 1.0, 4.4, -z + 1.0], [-x + 9.0, 4.4, -z + 6.0], 2.0, 'x', MAT.ROOF_TILE, MAT.STONE);
+
+  if (medium) {
+    eaves(m, -wx, -wz, wx, wz, wall, 0.42, 0.26);
+    gutters(m, -wx, -wz, wx, wz, wall);
+    eaves(m, -x + 1.0, -z + 1.0, -x + 9.0, -z + 6.0, 4.4, 0.3, 0.2);
+    chimney(m, -wx + 1.4, 0, wall + 2.2, wall + 4.6, 1.3);
+    chimney(m, wx - 1.4, 0, wall + 1.8, wall + 3.8, 1.1);
+    // The yard, and the wall round it: what makes this a farm and not a house.
+    m.box([-x, 0.0005, -z], [x, 0.06, z], MAT.CONCRETE);
+    for (const [a, b, c, d] of [
+      [-x, -z, -x + 0.6, z], [x - 0.6, -z, x, z], [-x, -z, x, -z + 0.6],
+    ] as const) m.box([a, 0, b], [c, 1.7, d], MAT.STONE);
+    m.painted(TINT.GREEN, () => m.box([-x + 1.2, 0.06, wz + 4.4], [x - 1.2, 0.16, z - 1.2], MAT.TRIM));
+  }
+  if (fine) {
+    windowGrid(m, { axis: 'z', sign: -1, plane: -wz }, -wx + 1.2, wx - 1.2,
+      { floors: 2, floorH: 2.7, base: 1.0, count: 3, width: 1.1, height: 1.5 });
+    windowGrid(m, { axis: 'z', sign: 1, plane: wz + 3.4 }, -wx + 1.2, wx - 1.2,
+      { floors: 1, floorH: 2.7, base: 1.0, count: 3, width: 1.1, height: 1.3 });
+    windowGrid(m, { axis: 'x', sign: 1, plane: wx }, -wz + 1.0, wz - 1.0,
+      { floors: 2, floorH: 2.7, base: 1.0, count: 2, width: 1.0, height: 1.4 });
+    windowGrid(m, { axis: 'x', sign: -1, plane: -wx }, -wz + 1.0, wz - 1.0,
+      { floors: 2, floorH: 2.7, base: 1.0, count: 2, width: 1.0, height: 1.4 });
+    entrance(m, { axis: 'z', sign: -1, plane: -wz }, 0,
+      { width: 1.1, height: 2.2, fanlight: true, canopy: 1.2, steps: 1 });
+    // Barn: a cart opening, a hayloft door and slit vents.
+    m.opening({ axis: 'z', sign: 1, plane: -z + 6.0, u0: -x + 3.0, u1: -x + 7.0,
+      y0: 0.24, y1: 3.4, glass: MAT.TIMBER, frame: 0.22, proud: 0.1 });
+    m.painted(TINT.WOOD, () =>
+      m.box([-x + 3.4, 4.4, -z + 5.9], [-x + 6.6, 5.9, -z + 6.1], MAT.TRIM));
+    for (let i = 0; i < 5; i++) {
+      const cx = -x + 1.8 + i * 1.5;
+      m.box([cx - 0.12, 2.6, -z + 0.9], [cx + 0.12, 3.6, -z + 1.05], MAT.GLASS);
+    }
+    // Water trough, gate piers, and a couple of stacked pallets.
+    m.box([x - 5.0, 0.06, -z + 2.0], [x - 1.6, 0.85, -z + 3.2], MAT.STONE);
+    for (const cx of [-2.2, 2.2]) m.box([cx - 0.55, 0, z - 0.7], [cx + 0.55, 2.3, z + 0.1], MAT.STONE);
+    m.painted(TINT.WOOD, () => {
+      for (let i = 0; i < 4; i++) {
+        m.box([-4.0 + (i % 2) * 1.5, 0.06 + Math.floor(i / 2) * 0.7, -z + 2.0],
+              [-2.8 + (i % 2) * 1.5, 0.72 + Math.floor(i / 2) * 0.7, -z + 3.2], MAT.TRIM);
+      }
+    });
+    kerb(m, -x, z, x, z + 0.4);
+  }
+  return m;
+}
+
+/** A flat-roofed house wrapped in an L round its own walled courtyard. */
+function courtyardHouse(lod: number): MeshBuilder {
+  const m = new MeshBuilder();
+  const fine = lod < 1;
+  const medium = lod < 2;
+  const x = 13.0, z = 12.0;
+  const h = 3.4;
+
+  // The L: a long range and a short one, both single storey and flat-roofed.
+  m.box([-x + 1.0, 0, -z + 1.0], [x - 1.0, h, -z + 8.0], MAT.PLASTER, { roof: MAT.ROOF });
+  m.box([-x + 1.0, 0, -z + 8.0], [-x + 8.0, h, z - 1.0], MAT.PLASTER, { roof: MAT.ROOF });
+  // One raised volume for the main bedroom, in timber, to break the flat line.
+  m.box([x - 9.0, h, -z + 1.4], [x - 1.4, h + 3.0, -z + 7.6], MAT.TIMBER, { roof: MAT.ROOF });
+
+  if (medium) {
+    parapet(m, -x + 1.0, -z + 1.0, x - 1.0, -z + 8.0, h, 0.42, 0.16);
+    parapet(m, -x + 1.0, -z + 8.0, -x + 8.0, z - 1.0, h, 0.42, 0.16);
+    parapet(m, x - 9.0, -z + 1.4, x - 1.4, -z + 7.6, h + 3.0, 0.4, 0.16);
+    // The courtyard wall closes the other two sides, so the plan reads as a court.
+    m.box([-x + 1.0, 0, z - 1.6], [x - 1.0, 2.2, z - 1.0], MAT.PLASTER);
+    m.box([x - 1.6, 0, -z + 8.0], [x - 1.0, 2.2, z - 1.0], MAT.PLASTER);
+    m.painted(TINT.GREEN, () =>
+      m.box([-x + 9.0, 0.001, -z + 9.5], [x - 3.0, 0.1, z - 3.0], MAT.TRIM));
+    m.box([-x + 8.0, 0.0005, -z + 8.0], [x - 1.6, 0.06, z - 1.6], MAT.CONCRETE);
+  }
+  if (fine) {
+    // Full-height glazing to the court, small punched openings to the street.
+    ribbon(m, { axis: 'z', sign: 1, plane: -z + 8.0 }, -x + 9.0, x - 2.0, 0.3, h - 0.5, { mullions: 6 });
+    ribbon(m, { axis: 'x', sign: 1, plane: -x + 8.0 }, -z + 9.0, z - 2.0, 0.3, h - 0.5, { mullions: 5 });
+    windowGrid(m, { axis: 'z', sign: -1, plane: -z + 1.0 }, -x + 2.0, x - 2.0,
+      { floors: 1, floorH: 3, base: 1.5, count: 3, width: 1.0, height: 1.0, sill: false });
+    windowGrid(m, { axis: 'x', sign: -1, plane: -x + 1.0 }, -z + 9.0, z - 2.0,
+      { floors: 1, floorH: 3, base: 1.5, count: 2, width: 1.0, height: 1.0, sill: false });
+    ribbon(m, { axis: 'z', sign: -1, plane: -z + 1.4 }, x - 8.4, x - 2.0, h + 0.7, h + 2.4);
+    entrance(m, { axis: 'x', sign: -1, plane: -x + 1.0 }, -z + 5.5,
+      { width: 1.2, height: 2.3, canopy: 1.6 });
+    // Pergola over the terrace: the piece that makes the court usable.
+    m.painted(TINT.WOOD, () => {
+      for (let i = 0; i <= 7; i++) {
+        const px = -x + 9.0 + i * ((x - 12.0) / 7 + 1.0);
+        m.box([px - 0.09, 0, -z + 8.4], [px + 0.09, 2.7, -z + 8.58], MAT.TRIM);
+        m.box([px - 0.09, 2.55, -z + 8.4], [px + 0.09, 2.7, -z + 12.4], MAT.TRIM);
+      }
+      m.box([-x + 8.8, 2.7, -z + 8.4], [x - 2.4, 2.85, -z + 8.6], MAT.TRIM);
+      m.box([-x + 8.8, 2.7, -z + 12.2], [x - 2.4, 2.85, -z + 12.4], MAT.TRIM);
+    });
+    for (const cx of [x - 3.4, x - 6.0, x - 8.6]) planter(m, cx, z - 3.6, 0.9, 0.7);
+    // Brise-soleil over the court glazing, and a coping to the courtyard wall.
+    m.painted(TINT.METAL_DARK, () => {
+      for (let i = 0; i < 9; i++) {
+        const py = 1.1 + i * 0.26;
+        m.box([-x + 9.0, py, -z + 8.0], [x - 2.0, py + 0.07, -z + 8.5], MAT.TRIM);
+      }
+    });
+    m.box([-x + 0.9, 2.2, z - 1.7], [x - 0.9, 2.36, z - 0.9], MAT.CONCRETE);
+    m.box([x - 1.7, 2.2, -z + 8.0], [x - 0.9, 2.36, z - 0.9], MAT.CONCRETE);
+    // Paving joints across the court: a flat plane needs a grain to read.
+    for (let i = 1; i < 6; i++) {
+      const px = -x + 8.0 + i * ((x - 9.6) / 6);
+      m.box([px - 0.04, 0.06, -z + 8.0], [px + 0.04, 0.09, z - 1.6], MAT.STONE);
+    }
+    for (let i = 1; i < 5; i++) {
+      const pz = -z + 8.0 + i * ((2 * z - 9.6) / 5);
+      m.box([-x + 8.0, 0.06, pz - 0.04], [x - 1.6, 0.09, pz + 0.04], MAT.STONE);
+    }
+    backyard(m, -x + 1.0, -z + 1.0, x - 1.0, -z + 1.0, 41);
+    kerb(m, -x, z, x, z + 0.4);
+  }
+  return m;
+}
+
+/** A pair under one mansard roof, with dormers in the steep slope. */
+function mansardPair(lod: number): MeshBuilder {
+  const m = new MeshBuilder();
+  const fine = lod < 1;
+  const medium = lod < 2;
+  const x = 11.0, z = 12.0;
+  const wx = 8.6, wz = 5.4, wall = 6.0;
+
+  m.box([-wx, 0, -wz], [wx, wall, wz], MAT.BRICK);
+  // Mansard: a steep lower slope to a shallow upper one, both in tile.
+  m.quad([-wx - 0.4, wall, wz + 0.4], [wx + 0.4, wall, wz + 0.4],
+         [wx, wall + 2.6, wz - 1.6], [-wx, wall + 2.6, wz - 1.6], MAT.ROOF_TILE);
+  m.quad([wx + 0.4, wall, -wz - 0.4], [-wx - 0.4, wall, -wz - 0.4],
+         [-wx, wall + 2.6, -wz + 1.6], [wx, wall + 2.6, -wz + 1.6], MAT.ROOF_TILE);
+  m.gable([-wx, wall + 2.6, -wz + 1.6], [wx, wall + 2.6, wz - 1.6], 1.0, 'x', MAT.ROOF, MAT.ROOF_TILE);
+  // The two ends of the mansard, as trapezoids between eaves and upper slope.
+  for (const sx of [-1, 1] as const) {
+    const p0: [number, number, number] = [sx * (wx + 0.4), wall, -wz - 0.4];
+    const p1: [number, number, number] = [sx * (wx + 0.4), wall, wz + 0.4];
+    const p2: [number, number, number] = [sx * wx, wall + 2.6, wz - 1.6];
+    const p3: [number, number, number] = [sx * wx, wall + 2.6, -wz + 1.6];
+    if (sx > 0) m.quad(p0, p1, p2, p3, MAT.ROOF_TILE);
+    else m.quad(p3, p2, p1, p0, MAT.ROOF_TILE);
+  }
+
+  if (medium) {
+    eaves(m, -wx, -wz, wx, wz, wall, 0.42, 0.24);
+    gutters(m, -wx, -wz, wx, wz, wall);
+    band(m, -wx, -wz, wx, wz, 3.0, 0.24, 0.09, MAT.STONE);
+    chimney(m, 0, 0, wall + 3.4, wall + 5.4, 1.3);
+    // Dormers, two per side, set into the steep slope.
+    for (const sz of [-1, 1] as const) {
+      for (const cx of [-4.4, 4.4]) {
+        m.box([cx - 1.1, wall + 0.2, sz * (wz - 0.6) - 0.9], [cx + 1.1, wall + 2.1, sz * (wz - 0.6) + 0.9],
+          MAT.PLASTER);
+        m.gable([cx - 1.25, wall + 2.1, sz * (wz - 0.6) - 1.0], [cx + 1.25, wall + 2.1, sz * (wz - 0.6) + 1.0],
+          0.6, 'x', MAT.ROOF_TILE, MAT.PLASTER);
+      }
+    }
+  }
+  if (fine) {
+    for (const sz of [-1, 1] as const) {
+      for (const cx of [-4.4, 4.4]) {
+        m.opening({ axis: 'z', sign: sz, plane: sz * (wz - 0.6) + sz * 0.9,
+          u0: cx - 0.7, u1: cx + 0.7, y0: wall + 0.6, y1: wall + 1.9,
+          glass: MAT.GLASS, frame: 0.1, proud: 0.05 });
+      }
+    }
+    windowGrid(m, { axis: 'z', sign: 1, plane: wz }, -wx + 1.0, wx - 1.0,
+      { floors: 2, floorH: 3.0, base: 0.9, count: 4, width: 1.1, height: 1.6 });
+    windowGrid(m, { axis: 'z', sign: -1, plane: -wz }, -wx + 1.0, wx - 1.0,
+      { floors: 2, floorH: 3.0, base: 0.9, count: 4, width: 1.0, height: 1.5 });
+    windowGrid(m, { axis: 'x', sign: 1, plane: wx }, -wz + 1.2, wz - 1.2,
+      { floors: 2, floorH: 3.0, base: 0.9, count: 1, width: 1.0, height: 1.4 });
+    windowGrid(m, { axis: 'x', sign: -1, plane: -wx }, -wz + 1.2, wz - 1.2,
+      { floors: 2, floorH: 3.0, base: 0.9, count: 1, width: 1.0, height: 1.4 });
+    // Two doors side by side in the middle: the thing that says "a pair".
+    for (const cx of [-1.5, 1.5]) {
+      entrance(m, { axis: 'z', sign: 1, plane: wz }, cx,
+        { width: 1.0, height: 2.2, fanlight: true, steps: 2 });
+    }
+    m.box([-3.4, 0, wz], [3.4, 3.1, wz + 1.5], MAT.BRICK, { roof: MAT.TRIM });
+    m.painted(TINT.WOOD, () => m.box([-3.6, 3.1, wz - 0.1], [3.6, 3.35, wz + 1.7], MAT.TRIM));
+    railing(m, -x + 1.0, x - 1.0, z - 3.0, 0, 1.0, 1.3);
+    frontage(m, -x + 1.0, x - 1.0, z - 3.0, 43, { planters: 2, bollards: 0 });
+    backyard(m, -wx, -z + 1.0, wx, -wz, 44);
+    kerb(m, -x, z, x, z + 0.4);
+  }
+  return m;
+}
+
+/** Split-level: two half-storey-offset boxes on a stepped plot. */
+function splitLevel(lod: number): MeshBuilder {
+  const m = new MeshBuilder();
+  const fine = lod < 1;
+  const medium = lod < 2;
+  const x = 12.0, z = 13.0;
+  const drop = 1.6;
+
+  // Lower wing sits on the low side; the upper one is half a storey above it.
+  m.box([-x + 1.0, 0, -z + 2.0], [-x + 10.0, 3.2, z - 3.0], MAT.PLASTER);
+  m.gable([-x + 1.0, 3.2, -z + 2.0], [-x + 10.0, 3.2, z - 3.0], 1.7, 'z', MAT.ROOF, MAT.PLASTER);
+  m.box([-x + 10.0, drop, -z + 3.5], [x - 1.0, drop + 5.9, z - 4.5], MAT.TIMBER);
+  m.gable([-x + 10.0, drop + 5.9, -z + 3.5], [x - 1.0, drop + 5.9, z - 4.5], 1.9, 'z', MAT.ROOF, MAT.TIMBER);
+  // The ground it steps on, so the offset reads as a slope and not a mistake.
+  m.box([-x + 9.0, 0, -z + 2.0], [x, drop, z - 2.0], MAT.STONE);
+
+  if (medium) {
+    eaves(m, -x + 1.0, -z + 2.0, -x + 10.0, z - 3.0, 3.2, 0.5, 0.24);
+    eaves(m, -x + 10.0, -z + 3.5, x - 1.0, z - 4.5, drop + 5.9, 0.55, 0.26);
+    gutters(m, -x + 10.0, -z + 3.5, x - 1.0, z - 4.5, drop + 5.9, 0.55);
+    chimney(m, x - 3.0, 0, drop + 7.0, drop + 9.0, 1.1);
+    // Deck bridging the level change, on posts off the lower terrace.
+    m.painted(TINT.WOOD, () => {
+      m.box([-x + 9.4, drop - 0.2, z - 4.6], [x - 1.4, drop, z + 0.4], MAT.TRIM);
+      for (const [px, pz] of [[-x + 10.0, z - 0.2], [x - 2.0, z - 0.2], [-x + 10.0, z - 4.2]] as const) {
+        m.box([px - 0.11, 0, pz - 0.11], [px + 0.11, drop - 0.2, pz + 0.11], MAT.TRIM);
+      }
+    });
+    m.painted(TINT.GREEN, () => m.box([-x, 0.001, z - 2.0], [-x + 9.0, 0.09, z], MAT.TRIM));
+  }
+  if (fine) {
+    windowGrid(m, { axis: 'x', sign: -1, plane: -x + 1.0 }, -z + 3.0, z - 4.0,
+      { floors: 1, floorH: 3, base: 1.1, count: 3, width: 1.2, height: 1.5 });
+    ribbon(m, { axis: 'z', sign: 1, plane: z - 3.0 }, -x + 2.0, -x + 9.0, 1.0, 2.6, { mullions: 3 });
+    ribbon(m, { axis: 'z', sign: 1, plane: z - 4.5 }, -x + 11.0, x - 2.0, drop + 0.9, drop + 2.5,
+      { mullions: 4 });
+    ribbon(m, { axis: 'z', sign: 1, plane: z - 4.5 }, -x + 11.0, x - 2.0, drop + 3.9, drop + 5.4,
+      { mullions: 4 });
+    windowGrid(m, { axis: 'x', sign: 1, plane: x - 1.0 }, -z + 4.5, z - 5.5,
+      { floors: 2, floorH: 3.0, base: drop + 1.0, count: 2, width: 1.1, height: 1.5 });
+    windowGrid(m, { axis: 'z', sign: -1, plane: -z + 3.5 }, -x + 11.0, x - 2.0,
+      { floors: 2, floorH: 3.0, base: drop + 1.0, count: 3, width: 1.0, height: 1.4 });
+    entrance(m, { axis: 'z', sign: 1, plane: z - 4.5 }, -x + 12.5,
+      { width: 1.2, height: 2.3, canopy: 1.8, steps: 5 });
+    railing(m, -x + 9.4, x - 1.4, z + 0.4, drop, 1.05, 1.2);
+    // Carport under the upper wing, off the high side.
+    m.painted(TINT.METAL_DARK, () => {
+      for (const pz of [-z + 4.2, -z + 7.4]) {
+        m.box([x - 0.6, 0, pz - 0.12], [x - 0.36, drop + 2.6, pz + 0.12], MAT.TRIM);
+      }
+    });
+    m.box([x - 1.0, drop + 2.6, -z + 3.6], [x + 0.4, drop + 2.85, -z + 8.0], MAT.CONCRETE);
+    backyard(m, -x + 1.0, -z + 1.0, -x + 10.0, -z + 2.0, 45);
+    kerb(m, -x, z, x, z + 0.4);
+  }
+  return m;
+}
+
+/** Half-timbered cottage: a jettied upper floor over a rendered ground floor. */
+function timberCottage(lod: number): MeshBuilder {
+  const m = new MeshBuilder();
+  const fine = lod < 1;
+  const medium = lod < 2;
+  const x = 10.0, z = 11.0;
+  const wx = 7.0, wz = 4.6, ground = 2.8, upper = 2.9;
+
+  m.box([-wx, 0, -wz], [wx, ground, wz], MAT.PLASTER);
+  // The jetty: the upper floor oversails the lower by a third of a metre.
+  const jx = wx + 0.45, jz = wz + 0.45;
+  m.box([-jx, ground, -jz], [jx, ground + upper, jz], MAT.PLASTER);
+  m.gable([-jx, ground + upper, -jz], [jx, ground + upper, jz], pitch(jz * 2), 'x',
+    MAT.ROOF_TILE, MAT.PLASTER);
+  // Rear outshot, lower and plainer.
+  m.box([-wx + 1.0, 0, wz], [wx - 1.0, 2.5, wz + 2.8], MAT.PLASTER);
+  m.gable([-wx + 1.0, 2.5, wz], [wx - 1.0, 2.5, wz + 2.8], 1.1, 'x', MAT.ROOF_TILE, MAT.PLASTER);
+
+  if (medium) {
+    eaves(m, -jx, -jz, jx, jz, ground + upper, 0.5, 0.26);
+    // The frame itself: posts, rails and braces, which is the whole point.
+    // Real TIMBER against PLASTER panels -- painted trim would read as a
+    // white-on-white grid rather than as oak.
+    {
+      // Members are 16cm and stand 16cm proud: a frame flush with the panel
+      // reads as a painted line, and at street distance as nothing at all.
+      const t = 0.16;
+      const face = (a: number, b: number, y0: number, y1: number, sz: 1 | -1, plane: number): void => {
+        const p0 = plane + sz * -0.02, p1 = plane + sz * t;
+        m.box([a, y0, Math.min(p0, p1)], [b, y1, Math.max(p0, p1)], MAT.TIMBER);
+      };
+      const side = (a: number, b: number, y0: number, y1: number, sx: 1 | -1): void => {
+        const p0 = sx * jx + sx * -t, p1 = sx * jx + sx * 0.02;
+        m.box([Math.min(p0, p1), y0, a], [Math.max(p0, p1), y1, b], MAT.TIMBER);
+      };
+      const mid = ground + upper / 2;
+      for (const [sz, plane] of [[1, jz], [-1, -jz]] as const) {
+        for (let i = 0; i <= 6; i++) {
+          const px = -jx + (i / 6) * (2 * jx);
+          face(px - t, px + t, ground, ground + upper, sz, plane);
+        }
+        // Sill, mid rail and wall plate, then a brace in the two end panels.
+        face(-jx, jx, ground, ground + 0.3, sz, plane);
+        face(-jx, jx, mid - 0.13, mid + 0.13, sz, plane);
+        face(-jx, jx, ground + upper - 0.3, ground + upper, sz, plane);
+        for (const sx of [-1, 1] as const) {
+          for (let k = 0; k < 5; k++) {
+            const f = k / 4;
+            face(sx * (jx - t) - f * 1.5 * sx - t, sx * (jx - t) - f * 1.5 * sx + t,
+              ground + 0.3 + f * (mid - ground - 0.4), ground + 0.55 + f * (mid - ground - 0.4), sz, plane);
+          }
+        }
+      }
+      for (const sx of [-1, 1] as const) {
+        for (let i = 0; i <= 3; i++) {
+          const pz = -jz + (i / 3) * (2 * jz);
+          side(pz - t, pz + t, ground, ground + upper, sx);
+        }
+        side(-jz, jz, mid - 0.13, mid + 0.13, sx);
+        side(-jz, jz, ground + upper - 0.3, ground + upper, sx);
+      }
+      // The jetty bressummer, carried on brackets.
+      m.box([-jx, ground - 0.24, -jz], [jx, ground, jz], MAT.TIMBER);
+      for (const cx of [-4.6, 0, 4.6]) {
+        for (const sz of [-1, 1] as const) {
+          m.box([cx - 0.17, ground - 0.95, Math.min(sz * wz - sz * 0.05, sz * jz)],
+                [cx + 0.17, ground - 0.22, Math.max(sz * wz - sz * 0.05, sz * jz)], MAT.TIMBER);
+        }
+      }
+    }
+    chimney(m, -wx + 1.6, 0, ground + upper + 1.4, ground + upper + 4.0, 1.4);
+  }
+  if (fine) {
+    windowGrid(m, { axis: 'z', sign: 1, plane: jz }, -jx + 1.0, jx - 1.0,
+      { floors: 1, floorH: 3, base: ground + 0.7, count: 3, width: 1.2, height: 1.3 });
+    windowGrid(m, { axis: 'z', sign: 1, plane: wz }, -wx + 3.4, wx - 0.8,
+      { floors: 1, floorH: 3, base: 0.9, count: 2, width: 1.3, height: 1.4 });
+    windowGrid(m, { axis: 'z', sign: -1, plane: -jz }, -jx + 1.0, jx - 1.0,
+      { floors: 1, floorH: 3, base: ground + 0.7, count: 3, width: 1.1, height: 1.2 });
+    windowGrid(m, { axis: 'z', sign: -1, plane: -wz }, -wx + 1.0, wx - 1.0,
+      { floors: 1, floorH: 3, base: 0.9, count: 2, width: 1.1, height: 1.3 });
+    windowGrid(m, { axis: 'x', sign: 1, plane: jx }, -jz + 1.0, jz - 1.0,
+      { floors: 1, floorH: 3, base: ground + 0.7, count: 2, width: 0.9, height: 1.2 });
+    entrance(m, { axis: 'z', sign: 1, plane: wz }, -wx + 1.8,
+      { width: 1.0, height: 2.05, canopy: 1.1, steps: 1 });
+    // A low front wall and a gate, the way a cottage meets the pavement.
+    m.box([-x + 0.6, 0, z - 3.2], [-1.4, 0.9, z - 2.8], MAT.STONE);
+    m.box([1.4, 0, z - 3.2], [x - 0.6, 0.9, z - 2.8], MAT.STONE);
+    for (const cx of [-1.4, 1.4]) m.box([cx - 0.22, 0, z - 3.3], [cx + 0.22, 1.5, z - 2.7], MAT.STONE);
+    m.painted(TINT.GREEN, () => {
+      m.box([-x + 0.6, 0.001, wz + 3.2], [x - 0.6, 0.09, z - 3.2], MAT.TRIM);
+    });
+    backyard(m, -wx, -z + 1.0, wx, -wz, 46);
+    kerb(m, -x, z, x, z + 0.4);
+  }
+  return m;
+}
+
+/** Mews: four small two-storey houses with garages under, off a shared lane. */
+function mewsRow(lod: number): MeshBuilder {
+  const m = new MeshBuilder();
+  const fine = lod < 1;
+  const medium = lod < 2;
+  const x = 15.0, z = 10.0;
+  const wz = 5.0, ground = 3.0, upper = 3.0, units = 4;
+  const wall = ground + upper;
+  const unit = (2 * (x - 1.0)) / units;
+
+  m.box([-x + 1.0, 0, -wz], [x - 1.0, wall, wz], MAT.BRICK);
+  m.gable([-x + 1.0, wall, -wz], [x - 1.0, wall, wz], pitch(wz * 2), 'x', MAT.ROOF_TILE, MAT.BRICK);
+
+  if (medium) {
+    eaves(m, -x + 1.0, -wz, x - 1.0, wz, wall, 0.4, 0.24);
+    gutters(m, -x + 1.0, -wz, x - 1.0, wz, wall);
+    // Party walls carried up through the roof: four houses, not one block.
+    for (let i = 1; i < units; i++) {
+      const px = -x + 1.0 + i * unit;
+      m.box([px - 0.22, wall - 0.3, -wz - 0.45], [px + 0.22, wall + pitch(wz * 2) + 0.25, wz + 0.45],
+        MAT.BRICK);
+    }
+    for (let i = 0; i < units; i++) {
+      chimney(m, -x + 1.0 + (i + 0.5) * unit, -wz + 1.2, wall + 1.4, wall + 3.2, 0.85);
+    }
+    // The lane: setts, not a road, which is what makes a mews a mews.
+    m.box([-x, 0.0005, wz], [x, 0.08, z - 0.4], MAT.STONE);
+  }
+  if (fine) {
+    for (let i = 0; i < units; i++) {
+      const c = -x + 1.0 + (i + 0.5) * unit;
+      // Garage below, a pair of windows above, and a door beside the garage.
+      m.opening({ axis: 'z', sign: 1, plane: wz, u0: c - 1.7, u1: c + 0.9,
+        y0: 0.18, y1: 2.3, glass: MAT.TIMBER, frame: 0.16, proud: 0.09 });
+      entrance(m, { axis: 'z', sign: 1, plane: wz }, c + 2.0,
+        { width: 0.95, height: 2.1, fanlight: true, steps: 1 });
+      windowGrid(m, { axis: 'z', sign: 1, plane: wz }, c - 1.9, c + 2.4,
+        { floors: 1, floorH: 3, base: ground + 0.7, count: 2, width: 1.2, height: 1.5 });
+      windowGrid(m, { axis: 'z', sign: -1, plane: -wz }, c - 1.9, c + 2.4,
+        { floors: 2, floorH: 3.0, base: 0.9, count: 2, width: 1.0, height: 1.3 });
+      // A lamp on the wall over each garage: mews have those.
+      m.painted(TINT.METAL_DARK, () =>
+        m.box([c + 1.2, ground - 0.5, wz], [c + 1.44, ground - 0.1, wz + 0.42], MAT.TRIM));
+      m.painted(TINT.SIGN_LIT, () =>
+        m.box([c + 1.16, ground - 0.9, wz + 0.06], [c + 1.48, ground - 0.5, wz + 0.38], MAT.TRIM));
+    }
+    windowGrid(m, { axis: 'x', sign: 1, plane: x - 1.0 }, -wz + 1.2, wz - 1.2,
+      { floors: 2, floorH: 3.0, base: 0.9, count: 1, width: 1.0, height: 1.3 });
+    windowGrid(m, { axis: 'x', sign: -1, plane: -x + 1.0 }, -wz + 1.2, wz - 1.2,
+      { floors: 2, floorH: 3.0, base: 0.9, count: 1, width: 1.0, height: 1.3 });
+    bollards(m, { axis: 'z', sign: 1, plane: wz }, -x + 2.0, x - 2.0, 4.6, 6);
+    backyard(m, -x + 1.0, -z + 1.0, x - 1.0, -wz, 47);
+    kerb(m, -x, z, x, z + 0.4);
+  }
+  return m;
+}
+
 // ==================================================================== table
+
 
 const power = (households: number): number => households * 1.6;
 const home = (h: number): AssetDef['sim'] => ({
@@ -1614,6 +2043,12 @@ const home = (h: number): AssetDef['sim'] => ({
 });
 
 export const RESIDENTIAL: AssetDef[] = [
+  { id: 'res.low.farmhouse', name: 'Farmhouse', zone: 'residential', density: 'low', variant: 'sculpted', footprint: [4, 4], height: 10.0, sim: home(1), note: 'Stone house with a catslide rear roof, a barn across a walled yard, trough and gate piers.', build: farmhouse },
+  { id: 'res.low.courtyard', name: 'Courtyard house', zone: 'residential', density: 'low', variant: 'sculpted', footprint: [4, 3], height: 6.5, sim: home(1), note: 'Single-storey L round a walled court, timber-clad bedroom volume over, pergola to the terrace.', build: courtyardHouse },
+  { id: 'res.low.mansard', name: 'Mansard pair', zone: 'residential', density: 'low', variant: 'sculpted', footprint: [3, 3], height: 11.4, sim: home(2), note: 'Two houses under one mansard, four dormers in the steep slope, shared central stack.', build: mansardPair },
+  { id: 'res.low.split', name: 'Split-level house', zone: 'residential', density: 'low', variant: 'sculpted', footprint: [3, 4], height: 9.4, sim: home(1), note: 'Two wings half a storey apart on a stepped plot, deck bridging the change, carport off the high side.', build: splitLevel },
+  { id: 'res.low.timber', name: 'Half-timbered cottage', zone: 'residential', density: 'low', variant: 'sculpted', footprint: [3, 3], height: 9.4, sim: home(1), note: 'Jettied timber upper floor over render, exposed frame, rear outshot, low front wall and gate.', build: timberCottage },
+  { id: 'res.low.mews', name: 'Mews row', zone: 'residential', density: 'low', variant: 'sculpted', footprint: [4, 3], height: 9.6, sim: home(4), note: 'Four small houses with garages under, party walls through the roof, setted lane and wall lamps.', build: mewsRow },
   { id: 'res.low.detached', name: 'Detached house', zone: 'residential', density: 'low', variant: 'sculpted', footprint: [2, 4], height: 10.4, sim: home(1), note: 'Cross gable, garage wing, dormer, porch with balusters, bay window.', build: detachedHouse },
   { id: 'res.low.bungalow', name: 'Bungalow', zone: 'residential', density: 'low', variant: 'sculpted', footprint: [3, 3], height: 6.2, sim: home(1), note: 'Single storey under a wide low roof, deep eaves, carport on posts.', build: bungalow },
   { id: 'res.low.duplex', name: 'Duplex', zone: 'residential', density: 'low', variant: 'sculpted', footprint: [3, 3], height: 9.0, sim: home(2), note: 'A mirrored pair under one roof, two porches, shared central chimney.', build: duplex },

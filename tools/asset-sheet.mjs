@@ -67,7 +67,10 @@ const result = await page.evaluate(async ({ shader, registry, TILE, TILE_H, COLS
     for (let i = 0; i < id.length; i++) { h ^= id.charCodeAt(i); h = Math.imul(h, 16777619); }
     return ((h >>> 8) % 100000) / 97.0;
   };
-  const ASSETS = ONLY ? all.filter((a) => a.id.includes(ONLY)) : all;
+  // Comma-separated: any of the substrings matches, so an arbitrary handful of
+  // assets can be put side by side rather than only a whole category.
+  const wanted = ONLY.split(',').map((t) => t.trim()).filter(Boolean);
+  const ASSETS = wanted.length ? all.filter((a) => wanted.some((t) => a.id.includes(t))) : all;
   const adapter = await navigator.gpu.requestAdapter();
   if (!adapter) return { error: 'no adapter' };
   const device = await adapter.requestDevice();
