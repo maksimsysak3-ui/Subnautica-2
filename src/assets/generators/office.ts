@@ -33,7 +33,7 @@ function parkUnit(lod: number): MeshBuilder {
   m.box([-x, 0, -z], [x, h, z], MAT.PLASTER, { roof: MAT.ROOF });
   // Brick end bays: the standard business-park move to break up a long block.
   for (const sx of [-1, 1]) {
-    m.box([sx * x - sx * 4.0, 0, -z - 0.3], [sx * x, h + 0.9, z + 0.3], MAT.BRICK, { roof: MAT.ROOF });
+    m.box([sx * x - sx * 4.0, 0, -z - 0.3], [sx * x, h + 0.9, z + 0.3], MAT.CLADDING, { roof: MAT.ROOF });
   }
 
   if (medium) {
@@ -120,7 +120,7 @@ function corporateHQ(lod: number): MeshBuilder {
   const top = podium + floors * floorH;
   const tx = x * 0.72, tz = z * 0.72;
 
-  m.box([-x, 0, -z], [x, podium, z], MAT.CONCRETE, { roof: MAT.ROOF });
+  m.box([-x, 0, -z], [x, podium, z], MAT.STONE, { roof: MAT.ROOF });
   m.box([-tx, podium, -tz], [tx, top, tz], MAT.GLASS, { roof: MAT.ROOF });
 
   if (medium) {
@@ -300,7 +300,7 @@ function decoTower(lod: number): MeshBuilder {
   ];
   const top = stages[2][1];
 
-  m.box([-x, 0, -z], [x, ground, z], MAT.CONCRETE, { roof: MAT.TRIM });
+  m.box([-x, 0, -z], [x, ground, z], MAT.STONE, { roof: MAT.TRIM });
   for (const [y0, y1, sc] of stages) {
     m.box([-x * sc, y0, -z * sc], [x * sc, y1, z * sc], MAT.BRICK, { roof: MAT.ROOF });
   }
@@ -353,7 +353,7 @@ function decoTower(lod: number): MeshBuilder {
       }
     }
     // Deep stone-framed entrance: three storeys of it, as they always were.
-    m.box([-3.6, 0, z], [3.6, ground - 0.4, z + 0.5], MAT.CONCRETE, { roof: MAT.TRIM });
+    m.box([-3.6, 0, z], [3.6, ground - 0.4, z + 0.5], MAT.STONE, { roof: MAT.TRIM });
     m.opening({ axis: 'z', sign: 1, plane: z + 0.5, u0: -2.6, u1: 2.6, y0: 3.4, y1: ground - 0.9,
       glass: MAT.GLASS, frame: 0.14, proud: 0.06 });
     entrance(m, { axis: 'z', sign: 1, plane: z + 0.5 }, 0,

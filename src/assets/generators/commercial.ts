@@ -626,7 +626,7 @@ function bankBranch(lod: number): MeshBuilder {
 
   m.box([-x, 0, -z], [x, h, z], MAT.PLASTER, { roof: MAT.ROOF });
   // Rusticated stone base, stopping short of the corners.
-  m.box([-x - 0.25, 0, -z - 0.25], [x + 0.25, ground, z + 0.25], MAT.CONCRETE);
+  m.box([-x - 0.25, 0, -z - 0.25], [x + 0.25, ground, z + 0.25], MAT.STONE);
 
   if (medium) {
     parapet(m, -x, -z, x, z, h, 1.4, 0.4);
@@ -635,16 +635,16 @@ function bankBranch(lod: number): MeshBuilder {
     // Portico: an entablature carried on columns, so it has to be a beam and
     // a pediment -- not the solid block this was, which just walled off the
     // door it was supposed to shelter.
-    m.box([-3.6, ground + 0.4, z + 0.25], [3.6, ground + 1.0, z + 2.7], MAT.CONCRETE, { roof: MAT.TRIM });
-    m.box([-3.9, ground + 1.0, z + 0.25], [3.9, ground + 1.35, z + 2.9], MAT.CONCRETE, { roof: MAT.TRIM });
+    m.box([-3.6, ground + 0.4, z + 0.25], [3.6, ground + 1.0, z + 2.7], MAT.STONE, { roof: MAT.TRIM });
+    m.box([-3.9, ground + 1.0, z + 0.25], [3.9, ground + 1.35, z + 2.9], MAT.STONE, { roof: MAT.TRIM });
     m.gable([-3.9, ground + 1.35, z + 0.25], [3.9, ground + 1.35, z + 2.9], 1.1, 'z',
-      MAT.ROOF, MAT.CONCRETE);
+      MAT.ROOF_TILE, MAT.STONE);
     roofClutter(m, -x + 2, -z + 2, x - 2, z - 2, h, 401, 0.6);
   }
   if (fine) {
     for (const cx of [-2.9, -1.0, 1.0, 2.9]) {
-      m.cylinder(cx, z + 1.7, 0.34, 0, ground + 0.4, 8, MAT.CONCRETE);
-      m.box([cx - 0.45, ground + 0.4, z + 1.25], [cx + 0.45, ground + 0.9, z + 2.15], MAT.CONCRETE);
+      m.cylinder(cx, z + 1.7, 0.34, 0, ground + 0.4, 8, MAT.STONE);
+      m.box([cx - 0.45, ground + 0.4, z + 1.25], [cx + 0.45, ground + 0.9, z + 2.15], MAT.STONE);
     }
     entrance(m, { axis: 'z', sign: 1, plane: z + 0.25 }, 0, {
       width: 2.2, height: 2.9, double: true, fanlight: true, steps: 3,
@@ -680,14 +680,14 @@ function gym(lod: number): MeshBuilder {
   const x = w / 2, z = d / 2;
   const h = 9.4;
 
-  m.box([-x, 0, -z], [x, h, z], MAT.METAL, { roof: MAT.ROOF });
+  m.box([-x, 0, -z], [x, h, z], MAT.CLADDING, { roof: MAT.ROOF });
   // Brand-coloured blade wall running up one end, the usual gym signature.
   m.painted(TINT.ACCENT, () => m.box([x - 2.2, 0, -z - 0.3], [x + 0.3, h + 1.8, z + 0.3], MAT.TRIM));
 
   if (medium) {
     parapet(m, -x, -z, x, z, h, 1.0, 0.28);
     // Horizontal cladding joints: what stops a big blank wall reading as card.
-    for (const y of [3.0, 5.4, 7.8]) band(m, -x, -z, x, z, y, 0.14, 0.1, MAT.METAL);
+    for (const y of [3.0, 5.4, 7.8]) band(m, -x, -z, x, z, y, 0.14, 0.1, MAT.CLADDING);
     m.box([-x, 4.6, z], [x - 3.2, 5.2, z + 1.6], MAT.CONCRETE);
     roofClutter(m, -x + 2, -z + 2, x - 2, z - 2, h, 411, 1.4);
   }
@@ -826,7 +826,7 @@ function cinema(lod: number): MeshBuilder {
   const hall = 13.0, foyer = 8.4, foyerD = 5.0;
 
   m.box([-x, 0, -z], [x, hall, z - foyerD], MAT.PLASTER, { roof: MAT.ROOF });
-  m.box([-x + 1.0, 0, z - foyerD], [x - 1.0, foyer, z], MAT.CONCRETE, { roof: MAT.ROOF });
+  m.box([-x + 1.0, 0, z - foyerD], [x - 1.0, foyer, z], MAT.CLADDING, { roof: MAT.ROOF });
 
   if (medium) {
     parapet(m, -x, -z, x, z - foyerD, hall, 1.4, 0.35);

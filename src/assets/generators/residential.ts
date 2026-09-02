@@ -120,7 +120,7 @@ function bungalow(lod: number): MeshBuilder {
   const x = w / 2, z = d / 2;
 
   m.box([-x, 0, -z], [x, wall, z], MAT.PLASTER, { roof: MAT.TRIM });
-  m.gable([-x, wall, -z], [x, wall, z], pitch(d), 'x', MAT.ROOF_TILE, MAT.PLASTER);
+  m.gable([-x, wall, -z], [x, wall, z], pitch(d), 'x', MAT.ROOF_TILE, MAT.TIMBER);
 
   if (medium) {
     eaves(m, -x, -z, x, z, wall, 0.55);
@@ -255,7 +255,7 @@ function cottage(lod: number): MeshBuilder {
   const ridge = pitch(w) * 1.25;
 
   m.box([-x, 0, -z], [x, wall, z], MAT.PLASTER, { roof: MAT.TRIM });
-  m.gable([-x, wall, -z], [x, wall, z], ridge, 'z', MAT.ROOF_TILE, MAT.PLASTER);
+  m.gable([-x, wall, -z], [x, wall, z], ridge, 'z', MAT.ROOF_TILE, MAT.TIMBER);
 
   if (medium) {
     eaves(m, -x, -z, x, z, wall, 0.5);
@@ -971,7 +971,7 @@ function decoBlock(lod: number): MeshBuilder {
   for (const sx of [-1, 1] as const) {
     m.box([sx * x - sx * 4.6, 0, z - 0.2], [sx * x, h + 1.4, z + 1.4], MAT.BRICK, { roof: MAT.ROOF });
   }
-  m.box([-3.2, 0, z - 0.2], [3.2, h + 2.6, z + 1.0], MAT.PLASTER, { roof: MAT.ROOF });
+  m.box([-3.2, 0, z - 0.2], [3.2, h + 2.6, z + 1.0], MAT.STONE, { roof: MAT.ROOF });
 
   if (medium) {
     band(m, -x, -z, x, z, ground - 0.3, 0.55, 0.26);
@@ -984,7 +984,7 @@ function decoBlock(lod: number): MeshBuilder {
     // Stepped crown over the centre bay, the deco signature.
     for (let i = 0; i < 3; i++) {
       const t = 3.2 - i * 0.75;
-      m.box([-t, h + 3.5 + i * 0.55, z - 0.1], [t, h + 4.05 + i * 0.55, z + 0.9], MAT.PLASTER);
+      m.box([-t, h + 3.5 + i * 0.55, z - 0.1], [t, h + 4.05 + i * 0.55, z + 0.9], MAT.STONE);
     }
     roofClutter(m, -x + 2, -z + 2, x - 2, z - 3, h, 631, 0.8);
   }

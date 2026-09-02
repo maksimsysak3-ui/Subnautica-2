@@ -59,6 +59,28 @@ export const DEFAULT_BRAND: Brand = {
   name: '', colour: [0.42, 0.44, 0.47], accent: [0.30, 0.32, 0.35], sign: 'none',
 };
 
+/**
+ * Colour seed for an asset, from its id.
+ *
+ * The materials pick their colours from this, so it decides whether a
+ * prototype is red brick or yellow stock, slate or pantile. It was
+ * `id.length * 7.3 + charCodeAt(0)` -- which collides constantly, because most
+ * ids in a category share a prefix and a length, and the result was a whole
+ * roster in the same beige. A real string hash spreads them.
+ *
+ * At runtime the game adds the instance's own seed on top, so two of the same
+ * prototype on one street still differ; this only sets the prototype's
+ * character.
+ */
+export function idSeed(id: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < id.length; i++) {
+    h ^= id.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return ((h >>> 8) % 100000) / 97.0;
+}
+
 export interface AssetDef {
   id: string;
   name: string;

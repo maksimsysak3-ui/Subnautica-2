@@ -61,6 +61,12 @@ await page.goto('http://localhost:4181/');
 
 const result = await page.evaluate(async ({ shader, registry, TILE, TILE_H, COLS, LOD, SHADOW, ONLY, STREET }) => {
   const all = new Function(registry + '; return REG;')().ASSETS;
+  // Same seed the game uses, so the sheet shows the colours the player sees.
+  const idSeed = (id) => {
+    let h = 2166136261;
+    for (let i = 0; i < id.length; i++) { h ^= id.charCodeAt(i); h = Math.imul(h, 16777619); }
+    return ((h >>> 8) % 100000) / 97.0;
+  };
   const ASSETS = ONLY ? all.filter((a) => a.id.includes(ONLY)) : all;
   const adapter = await navigator.gpu.requestAdapter();
   if (!adapter) return { error: 'no adapter' };
@@ -194,7 +200,7 @@ const result = await page.evaluate(async ({ shader, registry, TILE, TILE_H, COLS
     scene.set(sunViewProj, 16);
     scene.set([eye[0], eye[1], eye[2], 0], 32);
     scene.set([sun[0], sun[1], sun[2], 0], 36);
-    scene.set([a.id.length * 7.3 + a.id.charCodeAt(0), 1 / SHADOW, Math.max(height, radius) * 4.5 + 20, 0], 40);
+    scene.set([idSeed(a.id), 1 / SHADOW, Math.max(height, radius) * 4.5 + 20, 0], 40);
     const brand = a.brand ?? { colour: [0.42, 0.44, 0.47], accent: [0.30, 0.32, 0.35] };
     scene.set([brand.colour[0], brand.colour[1], brand.colour[2], 1], 44);
     scene.set([brand.accent[0], brand.accent[1], brand.accent[2], 1], 48);

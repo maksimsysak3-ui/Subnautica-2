@@ -451,7 +451,7 @@ function coldStore(lod: number): MeshBuilder {
   const w = 26.0, d = 18.0, h = 14.5;
   const x = w / 2, z = d / 2, cz = -1.0;
 
-  m.box([-x, 0, cz - z], [x, h, cz + z], MAT.SHED_WALL, { roof: MAT.TRIM });
+  m.box([-x, 0, cz - z], [x, h, cz + z], MAT.CLADDING, { roof: MAT.TRIM });
   // Insulated panels are laid in horizontal courses and it shows.
   if (medium) {
     for (let y = 2.4; y < h - 1.0; y += 2.4) {
@@ -737,7 +737,7 @@ function assemblyPlant(lod: number): MeshBuilder {
   const hallH = 10.0, officeH = 7.4, officeD = 6.0;
 
   m.box([-x, 0, -z], [x, hallH, z - officeD], MAT.SHED_WALL, { roof: MAT.TRIM });
-  m.box([-x + 1.5, 0, z - officeD], [x - 1.5, officeH, z], MAT.PLASTER, { roof: MAT.ROOF });
+  m.box([-x + 1.5, 0, z - officeD], [x - 1.5, officeH, z], MAT.CLADDING, { roof: MAT.ROOF });
 
   if (medium) {
     m.box([-x - 0.4, hallH - 0.4, -z - 0.4], [x + 0.4, hallH, z - officeD + 0.4], MAT.TRIM);

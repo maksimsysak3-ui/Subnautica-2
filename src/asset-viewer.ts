@@ -15,7 +15,7 @@
 import { Gpu, GpuInitError } from './gfx/device';
 import { ASSETS } from './assets/registry';
 import type { AssetDef, Zone } from './assets/types';
-import { DEFAULT_BRAND } from './assets/types';
+import { DEFAULT_BRAND, idSeed } from './assets/types';
 import { FLOATS_PER_VERTEX } from './assets/mesh';
 import { mat4, lookAt, perspective, ortho, multiply, clamp } from './math/m4';
 import type { Vec3 } from './math/m4';
@@ -444,7 +444,7 @@ class Viewer {
     this.sceneData.set([SUN[0], SUN[1], SUN[2], 0], 36);
     // Seed from the asset id, so each asset's colours and window pattern are
     // its own but never change between frames.
-    this.sceneData.set([this.asset.id.length * 7.3 + this.asset.id.charCodeAt(0),
+    this.sceneData.set([idSeed(this.asset.id),
       1 / SHADOW_SIZE, this.groundRadius, 0], 40);
     const brand = this.asset.brand ?? DEFAULT_BRAND;
     this.sceneData.set([brand.colour[0], brand.colour[1], brand.colour[2], 1], 44);
