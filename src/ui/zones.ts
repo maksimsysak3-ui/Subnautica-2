@@ -232,18 +232,17 @@ type Scene = Array<{ faces: Face[]; tone?: Tone }>;
 
 const SCENES: Record<Category, Scene> = {
   // ---- zones ----------------------------------------------------------
+  // One house, not two. The pair overlapped into a single green blob at the
+  // 22px the toolbar actually draws these at; a single mass with a dark roof
+  // plane and one big window is the version that still reads at that size.
   residential: [
     { faces: plate(-2.7, 0, -2.7, 5.4, 5.4), tone: 'ground' },
-    { faces: gabled(-2.4, 0, -2.1, 1.9, 1.4, 1.9, 0.85), tone: 'body' },
-    { faces: faceZ(-2.3, 0.35, -0.2, 0.55, 0.55), tone: 'dark' },
-    { faces: faceZ(-1.35, 0.35, -0.2, 0.55, 0.55), tone: 'dark' },
-    { faces: gabled(-0.1, 0, -2.4, 2.3, 2.0, 2.3, 1.15), tone: 'body' },
-    { faces: faceZ(0.2, 1.05, -0.1, 0.6, 0.6), tone: 'dark' },
-    { faces: faceZ(1.25, 1.05, -0.1, 0.6, 0.6), tone: 'dark' },
-    { faces: faceZ(0.2, 0.0, -0.1, 0.6, 0.6), tone: 'dark' },
-    { faces: faceZ(1.15, 0.0, -0.1, 0.75, 1.05), tone: 'accent' },
-    { faces: faceX(2.2, 0.9, -2.1, 1.7, 0.7), tone: 'dark' },
-    { faces: box(1.4, 2.0, -1.75, 0.42, 0.75, 0.42), tone: 'accent' },
+    { faces: gabled(-1.9, 0, -1.9, 3.6, 2.3, 3.6, 1.7), tone: 'body' },
+    { faces: faceZ(-1.35, 0.75, 1.72, 1.2, 1.1), tone: 'dark' },
+    { faces: faceZ(0.35, 0.75, 1.72, 1.2, 1.1), tone: 'dark' },
+    { faces: faceZ(-0.55, 0.0, 1.72, 1.1, 1.55), tone: 'accent' },
+    { faces: faceX(1.7, 0.75, -1.35, 1.2, 1.1), tone: 'dark' },
+    { faces: box(0.6, 2.9, -1.2, 0.55, 1.15, 0.55), tone: 'accent' },
   ],
   commercial: [
     { faces: plate(-2.6, 0, -2.6, 5.2, 5.2), tone: 'ground' },
@@ -257,16 +256,20 @@ const SCENES: Record<Category, Scene> = {
     { faces: faceX(1.8, 2.3, -1.7, 2.4, 0.85), tone: 'dark' },
     { faces: box(1.8, 1.0, 0.1, 0.18, 1.2, 0.8), tone: 'accent' },
   ],
+  // A shed and two chimneys. The sawtooth version projected as a stack of
+  // horizontal bands and read as a crate; a low mass with two stacks, one
+  // clearly taller, is the factory silhouette that survives at 22 pixels.
   industrial: [
     { faces: plate(-2.8, 0, -2.8, 5.6, 5.6), tone: 'ground' },
-    { faces: box(-2.3, 0, -2.2, 3.5, 2.0, 3.2), tone: 'body' },
-    { faces: faceZ(-2.0, 0.0, 1.0, 1.5, 1.45), tone: 'dark' },
-    { faces: faceZ(-0.2, 0.0, 1.0, 1.0, 1.45), tone: 'accent' },
-    { faces: faceX(1.2, 0.55, -2.0, 2.8, 0.8), tone: 'dark' },
-    { faces: box(-2.3, 2.0, -1.9, 1.4, 0.55, 1.0), tone: 'dark' },
-    { faces: box(-0.5, 2.0, -1.9, 1.4, 0.55, 1.0), tone: 'dark' },
-    { faces: box(1.6, 0, -1.1, 0.7, 4.1, 0.7), tone: 'accent' },
-    { faces: box(1.45, 4.1, -1.25, 1.0, 0.3, 1.0), tone: 'accent' },
+    { faces: box(-2.4, 0, -1.5, 3.1, 1.9, 3.0), tone: 'body' },
+    { faces: box(-2.4, 1.9, -1.5, 3.1, 0.32, 3.0), tone: 'dark' },
+    { faces: faceZ(-2.0, 0.0, 1.52, 1.0, 1.25), tone: 'accent' },
+    { faces: faceZ(-0.6, 0.45, 1.52, 1.0, 0.85), tone: 'dark' },
+    { faces: faceX(0.7, 0.45, -1.1, 2.2, 0.85), tone: 'dark' },
+    { faces: box(1.15, 0, -0.5, 0.85, 5.2, 0.85), tone: 'accent' },
+    { faces: box(1.0, 5.2, -0.65, 1.15, 0.34, 1.15), tone: 'accent' },
+    { faces: box(1.3, 0, -2.1, 0.7, 3.6, 0.7), tone: 'accent' },
+    { faces: box(1.18, 3.6, -2.22, 0.94, 0.28, 0.94), tone: 'accent' },
   ],
   office: [
     { faces: plate(-2.6, 0, -2.6, 5.2, 5.2), tone: 'ground' },
@@ -286,16 +289,23 @@ const SCENES: Record<Category, Scene> = {
     { faces: faceX(2.0, 3.65, -1.95, 1.6, 0.55), tone: 'dark' },
     { faces: box(0.75, 4.4, -1.25, 0.16, 1.1, 0.16), tone: 'accent' },
   ],
-  // The services tab itself: a civic block with a portico and a mast.
+  // Services: a civic block behind a real portico -- four columns carrying a
+  // pedimented entablature. The old one was a grey cube with a slot in it and
+  // could have been anything at all.
   service: [
     { faces: plate(-2.6, 0, -2.6, 5.2, 5.2), tone: 'ground' },
-    { faces: box(-2.0, 0, -2.0, 3.8, 2.6, 3.2), tone: 'body' },
-    { faces: box(-1.0, 0, 1.2, 1.9, 2.2, 0.5), tone: 'accent' },
-    { faces: faceZ(-1.6, 0.3, 1.21, 0.45, 1.0), tone: 'dark' },
-    { faces: faceZ(0.95, 0.3, 1.21, 0.45, 1.0), tone: 'dark' },
-    { faces: faceZ(-0.55, 0.0, 1.71, 1.0, 1.4), tone: 'dark' },
-    { faces: faceX(1.8, 0.6, -1.8, 2.6, 0.9), tone: 'dark' },
-    { faces: box(-0.2, 2.6, -0.6, 0.16, 1.5, 0.16), tone: 'accent' },
+    { faces: box(-2.0, 0, -2.2, 3.9, 3.0, 3.2), tone: 'body' },
+    { faces: faceZ(-1.6, 1.5, 1.02, 0.7, 0.9), tone: 'dark' },
+    { faces: faceZ(0.6, 1.5, 1.02, 0.7, 0.9), tone: 'dark' },
+    { faces: faceX(1.9, 1.5, -1.7, 2.2, 0.9), tone: 'dark' },
+    // Four columns on a stepped plinth, under a deep entablature.
+    { faces: box(-1.9, 0, 1.0, 3.7, 0.35, 1.5), tone: 'accent' },
+    { faces: box(-1.7, 0.35, 1.6, 0.42, 2.0, 0.42), tone: 'accent' },
+    { faces: box(-0.75, 0.35, 1.6, 0.42, 2.0, 0.42), tone: 'accent' },
+    { faces: box(0.2, 0.35, 1.6, 0.42, 2.0, 0.42), tone: 'accent' },
+    { faces: box(1.15, 0.35, 1.6, 0.42, 2.0, 0.42), tone: 'accent' },
+    { faces: box(-1.95, 2.35, 1.35, 3.85, 0.45, 0.95), tone: 'accent' },
+    { faces: gabled(-1.95, 2.8, 1.35, 3.85, 0.05, 0.95, 0.85), tone: 'accent' },
   ],
 
   // ---- service branches ------------------------------------------------
