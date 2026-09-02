@@ -460,21 +460,21 @@ export const COMMERCIAL: AssetDef[] = [
   },
   {
     id: 'com.supermarket', name: 'Supermarket', zone: 'commercial', density: 'medium',
-    variant: 'sculpted', footprint: [5, 6], height: 10.6, brand: BRANDS.grocer,
+    variant: 'sculpted', footprint: [5, 6], height: 10.6, brand: BRANDS.supermarket,
     sim: { jobs: 70, powerKW: 240, waterM3: 26, garbagePerWeek: 700, pollution: 4, upkeep: 130 },
     note: 'Big box done properly: raised brand band, entrance canopy, trolley bay, goods-in dock.',
     build: supermarket,
   },
   {
     id: 'off.retailbase', name: 'Offices over retail', zone: 'office', density: 'high',
-    variant: 'sculpted', footprint: [2, 3], height: 32.6, brand: BRANDS.bank,
+    variant: 'sculpted', footprint: [2, 3], height: 32.6, brand: BRANDS.insurer,
     sim: { jobs: 180, powerKW: 320, waterM3: 30, garbagePerWeek: 620, pollution: 2, upkeep: 210 },
     note: 'Curtain wall on a recessed retail base, spandrel band per floor, cornice, roof plant.',
     build: officeBlock,
   },
   {
     id: 'com.boutique', name: 'Boutique block', zone: 'commercial', density: 'medium',
-    variant: 'sculpted', footprint: [2, 2], height: 15.6, brand: BRANDS.bookshop,
+    variant: 'sculpted', footprint: [2, 2], height: 15.6, brand: BRANDS.clothes,
     sim: { jobs: 20, powerKW: 48, waterM3: 5, garbagePerWeek: 110, pollution: 1, upkeep: 44 },
     note: 'Narrow three-storey with stacked bay windows, heavy cornice and a fire escape.',
     build: boutique,
@@ -595,7 +595,7 @@ function pharmacy(lod: number): MeshBuilder {
 COMMERCIAL.push(
   {
     id: 'com.gas', name: 'Filling station', zone: 'commercial', density: 'low',
-    variant: 'sculpted', footprint: [3, 3], height: 9.0, brand: BRANDS.electronics,
+    variant: 'sculpted', footprint: [3, 3], height: 9.0, brand: BRANDS.motors,
     sim: { jobs: 10, powerKW: 60, waterM3: 3, garbagePerWeek: 90, pollution: 9, upkeep: 44 },
     note: 'Forecourt canopy on columns, two pump islands, kiosk with shopfront, pylon by the road.',
     build: gasStation,
@@ -804,7 +804,7 @@ COMMERCIAL.push(
   },
   {
     id: 'com.market', name: 'Market hall', zone: 'commercial', density: 'medium',
-    variant: 'sculpted', footprint: [3, 4], height: 9.4, brand: BRANDS.grocer,
+    variant: 'sculpted', footprint: [3, 4], height: 9.4, brand: BRANDS.butcher,
     sim: { jobs: 40, powerKW: 70, waterM3: 18, garbagePerWeek: 260, pollution: 3, upkeep: 58 },
     note: 'Brick hall under a pitched roof, tall arched openings between piers, stalls out on the pavement.',
     build: marketHall,
@@ -929,14 +929,14 @@ function hotel(lod: number): MeshBuilder {
 COMMERCIAL.push(
   {
     id: 'com.cinema', name: 'Cinema', zone: 'commercial', density: 'medium',
-    variant: 'sculpted', footprint: [4, 5], height: 16.2, brand: BRANDS.diner,
+    variant: 'sculpted', footprint: [4, 5], height: 16.2, brand: BRANDS.cinema,
     sim: { jobs: 26, powerKW: 130, waterM3: 12, garbagePerWeek: 220, pollution: 2, upkeep: 74 },
     note: 'Blank auditorium behind a two-storey glazed foyer, lit marquee canopy, poster cases.',
     build: cinema,
   },
   {
     id: 'com.hotel', name: 'Hotel', zone: 'commercial', density: 'high',
-    variant: 'sculpted', footprint: [3, 4], height: 34.5, brand: BRANDS.bank,
+    variant: 'sculpted', footprint: [3, 4], height: 34.5, brand: BRANDS.hotel,
     sim: { jobs: 55, powerKW: 210, waterM3: 90, garbagePerWeek: 380, pollution: 2, upkeep: 130 },
     note: 'Banded bedroom floors over a glazed lobby, porte-cochere on columns, blade sign.',
     build: hotel,
@@ -1427,28 +1427,28 @@ function nightclub(lod: number): MeshBuilder {
 COMMERCIAL.push(
   {
     id: 'com.garden', name: 'Garden centre', zone: 'commercial', density: 'low',
-    variant: 'sculpted', footprint: [5, 4], height: 8.2, brand: BRANDS.grocer,
+    variant: 'sculpted', footprint: [5, 4], height: 8.2, brand: BRANDS.garden,
     sim: { jobs: 16, powerKW: 45, waterM3: 30, garbagePerWeek: 120, pollution: 1, upkeep: 38 },
     note: 'Timber sales barn beside a glasshouse, benches of stock in a railed yard.',
     build: gardenCentre,
   },
   {
     id: 'com.pub', name: 'Public house', zone: 'commercial', density: 'low',
-    variant: 'sculpted', footprint: [3, 3], height: 9.8, brand: BRANDS.diner,
+    variant: 'sculpted', footprint: [3, 3], height: 9.8, brand: BRANDS.brewery,
     sim: { jobs: 15, powerKW: 50, waterM3: 24, garbagePerWeek: 200, pollution: 2, upkeep: 42 },
     note: 'Painted brick ground floor, two chimneys, hanging sign, terrace with parasols.',
     build: pub,
   },
   {
     id: 'com.showroom', name: 'Car showroom', zone: 'commercial', density: 'low',
-    variant: 'sculpted', footprint: [4, 4], height: 7.2, brand: BRANDS.electronics,
+    variant: 'sculpted', footprint: [4, 4], height: 7.2, brand: BRANDS.furniture,
     sim: { jobs: 20, powerKW: 80, waterM3: 14, garbagePerWeek: 90, pollution: 3, upkeep: 60 },
     note: 'Glass hall under a deep brand fascia, service bays behind, cars on the apron.',
     build: showroom,
   },
   {
     id: 'com.mall', name: 'Shopping mall', zone: 'commercial', density: 'high',
-    variant: 'sculpted', footprint: [7, 8], height: 15.5, brand: BRANDS.grocer,
+    variant: 'sculpted', footprint: [7, 8], height: 15.5, brand: BRANDS.toyshop,
     sim: { jobs: 180, powerKW: 460, waterM3: 120, garbagePerWeek: 1400, pollution: 5, upkeep: 280 },
     note: 'Clad box with a glazed entrance pavilion, shopfronts to the street, car park and service dock.',
     build: mall,
@@ -1462,7 +1462,7 @@ COMMERCIAL.push(
   },
   {
     id: 'com.clinic', name: 'Health centre', zone: 'commercial', density: 'medium',
-    variant: 'sculpted', footprint: [3, 3], height: 9.0, brand: BRANDS.pharmacy,
+    variant: 'sculpted', footprint: [3, 3], height: 9.0, brand: BRANDS.optician,
     sim: { jobs: 30, powerKW: 90, waterM3: 26, garbagePerWeek: 130, pollution: 1, upkeep: 88 },
     note: 'Brick block with a rendered stair bay, deep entrance canopy on posts.',
     build: clinic,
@@ -1476,7 +1476,7 @@ COMMERCIAL.push(
   },
   {
     id: 'com.club', name: 'Night club', zone: 'commercial', density: 'medium',
-    variant: 'sculpted', footprint: [3, 4], height: 10.2, brand: BRANDS.gym,
+    variant: 'sculpted', footprint: [3, 4], height: 10.2, brand: BRANDS.music,
     sim: { jobs: 24, powerKW: 150, waterM3: 20, garbagePerWeek: 280, pollution: 6, upkeep: 70 },
     note: 'Blank brick walls, high slot windows, lit entrance bay and a queue rail.',
     build: nightclub,
