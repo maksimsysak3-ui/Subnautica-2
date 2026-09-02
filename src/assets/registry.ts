@@ -13,12 +13,13 @@ import { OFFICE } from './generators/office';
 import { SAFETY } from './generators/services-safety';
 import { UTILITY } from './generators/services-utility';
 import { CIVIC } from './generators/services-civic';
+import { EXTRA_SERVICES } from './generators/services-extra';
 import { FLEET } from './generators/vehicles';
 import type { AssetDef } from './types';
 
 export const ASSETS: AssetDef[] = [
   ...RESIDENTIAL, ...COMMERCIAL, ...OFFICE, ...INDUSTRIAL,
-  ...SAFETY, ...UTILITY, ...CIVIC, ...FLEET,
+  ...SAFETY, ...UTILITY, ...CIVIC, ...EXTRA_SERVICES, ...FLEET,
 ];
 
 // Height is measured from the mesh rather than declared. A hand-written number
