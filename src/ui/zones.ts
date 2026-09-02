@@ -438,8 +438,74 @@ function xml(t: string): string {
   return t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
+/**
+ * Service branch pictograms.
+ *
+ * The zones get isometric models because a zone IS its buildings -- the icon
+ * and the thing it places are the same object. A service branch is not: it is
+ * a department, and "fire" covers a station, a tower and a helicopter base.
+ * Modelling one of them makes the button look like that one building instead
+ * of the category, which is exactly the toolbar mistake that makes a player
+ * hunt. So the branches get symbols: a flame, a shield, a cross, a mortar
+ * board, a droplet, a bolt, a bus, a portico, a tree.
+ *
+ * Drawn rather than generated, because a good pictogram is not a projection of
+ * anything -- it is a shape chosen to survive at 20 pixels.
+ */
+const GLYPH: Record<Branch, string> = {
+  // Flame: an asymmetric teardrop with a lick off one side.
+  fire: 'M24 3.5c-1.1 6.2-6.2 9-9 14.2-1.6 3-2.4 6.4-2.4 9.9C12.6 36.2 17.7 43 24 43'
+      + 's11.4-6.8 11.4-15.4c0-4.6-1.5-8.4-4.4-12.1-1.2 2.6-2.6 3.9-4.1 3.9-2.2 0-3-2.7-3-6.2'
+      + '0-3.7.3-7.5.1-9.7z'
+      + 'M24 26.2c-2.9 2.6-4.4 5.4-4.4 8.2 0 3.2 2 5.6 4.4 5.6s4.4-2.4 4.4-5.6c0-2.8-1.5-5.6-4.4-8.2z',
+  // Shield with a five-pointed star cut out of it.
+  police: 'M24 3 7 9v13c0 10.5 7.2 18.7 17 23 9.8-4.3 17-12.5 17-23V9L24 3z'
+        + 'M24 14.5l2.9 6 6.6.9-4.8 4.6 1.2 6.5-5.9-3.2-5.9 3.2 1.2-6.5-4.8-4.6 6.6-.9 2.9-6z',
+  // Cross in a rounded square: the sign, not the building.
+  health: 'M11 6h26a5 5 0 0 1 5 5v26a5 5 0 0 1-5 5H11a5 5 0 0 1-5-5V11a5 5 0 0 1 5-5z'
+        + 'M20.5 13h7v7.5H35v7h-7.5V35h-7v-7.5H13v-7h7.5V13z',
+  // Mortar board over a book edge.
+  education: 'M24 7 3 16.5 24 26l15-6.8v9.1c0 .9.7 1.6 1.6 1.6.9 0 1.6-.7 1.6-1.6v-11L24 7z'
+           + 'M11 22.6v8.1c0 1 .5 1.9 1.4 2.4 3.5 2 7.6 3 11.6 3s8.1-1 11.6-3c.9-.5 1.4-1.4 1.4-2.4v-8.1'
+           + 'L24 29.4 11 22.6z',
+  // Droplet.
+  water: 'M24 4c-.6 0-1.2.3-1.6.8C19.6 8.2 10 20.3 10 28.5 10 36.5 16.3 43 24 43s14-6.5 14-14.5'
+       + 'c0-8.2-9.6-20.3-12.4-23.7A2 2 0 0 0 24 4z'
+       + 'M24 36.5c-3.6 0-6.5-3-6.5-6.7 0-.8.6-1.4 1.4-1.4s1.4.6 1.4 1.4c0 2.1 1.7 3.9 3.7 3.9'
+       + '.8 0 1.4.6 1.4 1.4s-.6 1.4-1.4 1.4z',
+  // Bolt.
+  power: 'M28.5 3 11 26.5h9.6L18 45l18.5-24.5H26.4L28.5 3z',
+  // Bus, seen head-on: roof, screen, windscreen, lights and wheels.
+  transport: 'M13 6h22a6 6 0 0 1 6 6v20a5 5 0 0 1-5 5H12a5 5 0 0 1-5-5V12a6 6 0 0 1 6-6z'
+           + 'M12 12h24v4H12v-4zM12 20h24v9H12v-9zM11 31h5v4h-5v-4zM32 31h5v4h-5v-4z'
+           + 'M9 37h6v5H9v-5zM33 37h6v5h-6v-5z',
+  // Portico: pediment, four columns, a step.
+  government: 'M24 4 4 15v4h40v-4L24 4zM9 22h5v16H9V22zM19 22h5v16h-5V22zM29 22h5v16h-5V22z'
+            + 'M39 22h-5v16h5V22zM4 40h40v4H4v-4z',
+  // Broadleaf tree with a trunk.
+  parks: 'M24 4c-6.6 0-12 5.2-12 11.6 0 1 .1 2 .4 3C9.2 20 7 23.2 7 27c0 5.5 4.6 10 10.2 10'
+       + 'h2.9v4.4c0 .9.8 1.6 1.7 1.6h4.4c.9 0 1.7-.7 1.7-1.6V37h2.9C36.4 37 41 32.5 41 27'
+       + 'c0-3.8-2.2-7-5.4-8.4.3-1 .4-2 .4-3C36 9.2 30.6 4 24 4z',
+};
+
+/**
+ * Renders one category's icon.
+ *
+ * Zones are drawn as shaded isometric models; branches as a single filled
+ * pictogram. Both are drawn in the category's own colour with no badge behind
+ * them, so they sit in a toolbar the same way.
+ */
 function icon(c: Category): string {
   const s = paletteFor(c);
+  const glyph = (GLYPH as Record<string, string | undefined>)[c];
+
+  if (glyph !== undefined) {
+    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48" role="img" aria-label="${xml(s.label)}">
+  <path d="${glyph}" fill="${s.base}" fill-rule="evenodd" stroke="${s.deep}"
+        stroke-width="1.6" stroke-linejoin="round"/>
+</svg>`;
+  }
+
   const body = [s.light, s.base, s.deep, s.base, s.deep];
   const accent = [s.base, s.deep, s.deep, s.deep, s.deep];
   const alphaBody = [1, 1, 1, 0.92, 0.16];

@@ -969,7 +969,12 @@ function decoBlock(lod: number): MeshBuilder {
   m.box([-x, 0, -z], [x, h, z], MAT.BRICK, { roof: MAT.ROOF });
   // Projecting end bays and a taller centre: the composition is the point.
   for (const sx of [-1, 1] as const) {
-    m.box([sx * x - sx * 4.6, 0, z - 0.2], [sx * x, h + 1.4, z + 1.4], MAT.BRICK, { roof: MAT.ROOF });
+    // Math.min/max, not the raw expressions: for sx = -1 these come out with
+    // min greater than max, and a box built that way is inside out -- which is
+    // why this block had one solid end bay and one you could see through.
+    const a = Math.min(sx * x - sx * 4.6, sx * x);
+    const b = Math.max(sx * x - sx * 4.6, sx * x);
+    m.box([a, 0, z - 0.2], [b, h + 1.4, z + 1.4], MAT.BRICK, { roof: MAT.ROOF });
   }
   m.box([-3.2, 0, z - 0.2], [3.2, h + 2.6, z + 1.0], MAT.STONE, { roof: MAT.ROOF });
 
@@ -978,7 +983,8 @@ function decoBlock(lod: number): MeshBuilder {
     for (let f = 1; f <= floors; f++) band(m, -x, -z, x, z, ground + f * floorH - 0.32, 0.32, 0.15);
     parapet(m, -x, -z, x, z, h, 1.0, 0.26);
     for (const sx of [-1, 1] as const) {
-      parapet(m, sx * x - sx * 4.6, z - 0.2, sx * x, z + 1.4, h + 1.4, 0.8, 0.3);
+      parapet(m, Math.min(sx * x - sx * 4.6, sx * x), z - 0.2,
+                 Math.max(sx * x - sx * 4.6, sx * x), z + 1.4, h + 1.4, 0.8, 0.3);
     }
     parapet(m, -3.2, z - 0.2, 3.2, z + 1.0, h + 2.6, 0.9, 0.34);
     // Stepped crown over the centre bay, the deco signature.
@@ -1629,8 +1635,8 @@ export const RESIDENTIAL: AssetDef[] = [
   { id: 'res.mid.deco', name: 'Mansion block', zone: 'residential', density: 'medium', variant: 'sculpted', footprint: [3, 3], height: 25.0, sim: home(24), note: 'Inter-war brick block: projecting end bays, stepped centre crown, stone entrance, tall stair window.', build: decoBlock },
   { id: 'res.mid.maisonette', name: 'Maisonettes', zone: 'residential', density: 'medium', variant: 'sculpted', footprint: [3, 3], height: 11.0, sim: home(12), note: 'Three storeys reached off open stairs at each end, rendered panels between brick bays.', build: maisonettes },
   { id: 'res.mid.gallery', name: 'Gallery access block', zone: 'residential', density: 'medium', variant: 'sculpted', footprint: [4, 3], height: 22.0, sim: home(20), note: 'Clad block with a glazed deck running its length, balconies on the living side.', build: galleryBlock },
-  { id: 'res.mid.shophouse', name: 'Shophouse row', zone: 'residential', density: 'medium', brand: BRANDS.bakery, variant: 'sculpted', footprint: [3, 2], height: 8.9, sim: home(4), note: 'Four shops with a flat over each, party walls carried through the roof.', build: shophouseRow },
-  { id: 'res.mid.almshouse', name: 'Almshouses', zone: 'residential', density: 'medium', variant: 'sculpted', footprint: [4, 3], height: 6.6, sim: home(7), note: 'Stone cottages round three sides of a green, chimney to each, railings to the street.', build: almshouses },
+  { id: 'res.low.shophouse', name: 'Shophouse row', zone: 'residential', density: 'low', brand: BRANDS.bakery, variant: 'sculpted', footprint: [3, 2], height: 8.9, sim: home(4), note: 'Four shops with a flat over each, party walls carried through the roof.', build: shophouseRow },
+  { id: 'res.low.almshouse', name: 'Almshouses', zone: 'residential', density: 'low', variant: 'sculpted', footprint: [4, 3], height: 6.6, sim: home(7), note: 'Stone cottages round three sides of a green, chimney to each, railings to the street.', build: almshouses },
   { id: 'res.high.point', name: 'Point tower', zone: 'residential', density: 'high', variant: 'sculpted', footprint: [3, 3], height: 79, sim: home(180), note: 'Podium and setback, vertical fins full height, balcony band every third floor.', build: pointTower },
   { id: 'res.high.slab', name: 'Slab tower', zone: 'residential', density: 'high', variant: 'sculpted', footprint: [4, 2], height: 55, sim: home(190), note: 'Expressed cores at both ends, solid balconies across the sunny elevation.', build: slabTower },
   { id: 'res.high.glass', name: 'Stepped glass tower', zone: 'residential', density: 'high', variant: 'sculpted', footprint: [3, 3], height: 91, sim: home(210), note: 'Three setbacks with a slab band at each, crown and mast.', build: glassTower },

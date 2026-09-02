@@ -17,7 +17,7 @@ import { MAT, TINT, MeshBuilder } from '../mesh';
 import type { AssetDef } from '../types';
 import type { Tint } from '../mesh';
 import {
-  band, boxSign, chimneyStack, eavesBand, entrance, frontage, kerb, parapet,
+  band, boxSign, entrance, frontage, kerb, parapet,
   bollards, railing, roofClutter, serviceYard, windowGrid,
 } from '../parts';
 
@@ -225,12 +225,14 @@ function fireHouse(lod: number): MeshBuilder {
   const ground = 5.0, upper = 3.6;
   const h = ground + upper;
 
-  m.box([-x, 0, -z], [x, h, z], MAT.BRICK);
-  m.gable([-x, h, -z], [x, h, z], 2.4, 'x', MAT.ROOF_TILE, MAT.BRICK);
+  // Flat roof behind a heavy cornice, not a pitched domestic one: with tiles
+  // and eaves this read as a large house with garage doors in it.
+  m.box([-x, 0, -z], [x, h, z], MAT.BRICK, { roof: MAT.ROOF });
+  m.box([-x - 0.3, 0, -z - 0.3], [x + 0.3, 1.5, z + 0.3], MAT.STONE);
 
   if (medium) {
-    eavesBand(m, -x, -z, x, z, h);
-    chimneyStack(m, -x + 2.0, 0, h + 1.2, h + 3.4, 1.0);
+    band(m, -x, -z, x, z, h - 1.1, 1.1, 0.5, MAT.STONE);
+    parapet(m, -x, -z, x, z, h, 1.3, 0.34);
     band(m, -x, -z, x, z, ground - 0.25, 0.45, 0.26);
     // Hose tower on the back corner, taller than the ridge.
     m.box([x - 3.6, 0, -z - 0.4], [x, h + 5.0, -z + 3.2], MAT.BRICK, { roof: MAT.ROOF });
@@ -265,16 +267,16 @@ function fireHouse(lod: number): MeshBuilder {
       }
     });
     serviceYard(m, -x, x, z + 9.0, 913, { totem: true, flag: true });
-    // Dormers to the upper mess room, and the drying rack in the back yard.
+    // Deep-set mess room windows in a stone surround, and roof plant behind
+    // the cornice.
     for (const dx of [-4.4, 0.0, 4.4]) {
-      // Dormers sit just behind the eaves. Carried back to the ridge they
-      // punch through the roof and the whole thing reads as rubble.
-      m.box([dx - 1.0, h - 0.2, z - 1.7], [dx + 1.0, h + 1.4, z + 0.05], MAT.BRICK);
-      m.gable([dx - 1.2, h + 1.4, z - 1.85], [dx + 1.2, h + 1.4, z + 0.2], 0.5, 'x',
-        MAT.ROOF_TILE, MAT.BRICK);
-      m.opening({ axis: 'z', sign: 1, plane: z + 0.05, u0: dx - 0.65, u1: dx + 0.65,
-        y0: h + 0.1, y1: h + 1.2, glass: MAT.GLASS, frame: 0.09, proud: 0.05 });
+      m.painted(TINT.BRAND_DARK, () => {
+        m.box([dx - 1.15, ground + 0.9, z - 0.05], [dx + 1.15, ground + 3.1, z + 0.22], MAT.STONE);
+      });
+      m.opening({ axis: 'z', sign: 1, plane: z + 0.22, u0: dx - 0.9, u1: dx + 0.9,
+        y0: ground + 1.15, y1: ground + 2.85, glass: MAT.GLASS, frame: 0.1, proud: 0.06 });
     }
+    roofClutter(m, -x + 2, -z + 2, x - 5, z - 2, h, 915, 1.1);
     m.painted(TINT.METAL_DARK, () => {
       for (const px of [-4.0, 4.0]) {
         m.box([px - 0.09, 0, -z - 3.4], [px + 0.09, 4.6, -z - 3.22], MAT.TRIM);
@@ -973,16 +975,19 @@ function careHome(lod: number): MeshBuilder {
   const wall = 6.4, t = 8.0;
 
   // An L of two-storey wings round a sheltered garden.
-  m.box([-x, 0, -z], [x, wall, -z + t], MAT.BRICK);
-  m.gable([-x, wall, -z], [x, wall, -z + t], 2.6, 'x', MAT.ROOF_TILE, MAT.BRICK);
-  m.box([-x, 0, -z + t], [-x + t, wall, z], MAT.BRICK);
-  m.gable([-x, wall, -z + t], [-x + t, wall, z], 2.6, 'z', MAT.ROOF_TILE, MAT.BRICK);
+  m.box([-x, 0, -z], [x, wall, -z + t], MAT.CLADDING, { roof: MAT.ROOF });
+  m.box([-x, 0, -z + t], [-x + t, wall, z], MAT.CLADDING, { roof: MAT.ROOF });
+  // Brick only to the ground storey, clad above: the modern care-home
+  // vocabulary. Pitched tiles and chimneys made this a very large cottage.
+  m.box([-x - 0.15, 0, -z - 0.15], [x + 0.15, 3.4, -z + t + 0.15], MAT.BRICK);
+  m.box([-x - 0.15, 0, -z + t], [-x + t + 0.15, 3.4, z + 0.15], MAT.BRICK);
 
   if (medium) {
-    eavesBand(m, -x, -z, x, -z + t, wall);
-    eavesBand(m, -x, -z + t, -x + t, z, wall);
-    chimneyStack(m, -3.0, 0, wall + 1.6, wall + 3.8, 1.1);
-    chimneyStack(m, x - 4.0, 0, wall + 1.6, wall + 3.6, 1.1);
+    parapet(m, -x, -z, x, -z + t, wall, 0.9, 0.32);
+    parapet(m, -x, -z + t, -x + t, z, wall, 0.9, 0.32);
+    band(m, -x, -z, x, -z + t, 3.4, 0.35, 0.24);
+    band(m, -x, -z + t, -x + t, z, 3.4, 0.35, 0.24);
+    roofClutter(m, -x + 2, -z + 2, x - 2, -z + t - 2, wall, 1013, 1.0);
     // Garden room in the crook of the L: glazed, single storey.
     m.box([-x + t, 0, -z + t], [-x + t + 9.0, 3.4, -z + t + 6.0], MAT.GLASS, { roof: MAT.TRIM });
     m.gable([-x + t, 3.4, -z + t], [-x + t + 9.0, 3.4, -z + t + 6.0], 1.2, 'x', MAT.GLASS, MAT.GLASS);
