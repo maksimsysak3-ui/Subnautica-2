@@ -55,6 +55,10 @@ const MAT_SHED      = 10u;
 const MAT_CONCRETE  = 11u;
 const MAT_PLASTER   = 12u;
 const MAT_PANE      = 13u;
+const MAT_ROOF_TILE = 14u;
+const MAT_STONE     = 15u;
+const MAT_CLADDING  = 16u;
+const MAT_TIMBER    = 17u;
 
 struct VSOut {
   @builtin(position) pos      : vec4f,
@@ -139,26 +143,73 @@ fn stripe(v : f32, spacing : f32, width : f32, mpp : f32) -> f32 {
 
 fn brickColour(seed : f32) -> vec3f {
   let r = hash11(seed * 1.7);
-  if (r < 0.34) { return vec3f(0.372, 0.192, 0.145); }   // red stock
-  if (r < 0.58) { return vec3f(0.404, 0.310, 0.216); }   // buff
-  if (r < 0.80) { return vec3f(0.286, 0.230, 0.208); }   // dark multi
-  return vec3f(0.470, 0.404, 0.348);                     // pale grey
+  if (r < 0.17) { return vec3f(0.372, 0.192, 0.145); }   // red stock
+  if (r < 0.30) { return vec3f(0.456, 0.226, 0.158); }   // orange stock
+  if (r < 0.44) { return vec3f(0.404, 0.310, 0.216); }   // buff
+  if (r < 0.55) { return vec3f(0.452, 0.396, 0.268); }   // yellow london
+  if (r < 0.68) { return vec3f(0.286, 0.230, 0.208); }   // dark multi
+  if (r < 0.78) { return vec3f(0.212, 0.166, 0.166); }   // engineering blue
+  if (r < 0.90) { return vec3f(0.470, 0.404, 0.348); }   // pale grey
+  return vec3f(0.560, 0.520, 0.470);                     // whitewashed
 }
 
 fn renderColour(seed : f32) -> vec3f {
   let r = hash11(seed * 3.1 + 4.0);
-  if (r < 0.26) { return vec3f(0.560, 0.520, 0.440); }   // cream
-  if (r < 0.48) { return vec3f(0.400, 0.412, 0.396); }   // grey-green
-  if (r < 0.68) { return vec3f(0.470, 0.452, 0.428); }   // warm grey
-  if (r < 0.86) { return vec3f(0.352, 0.372, 0.400); }   // cool grey
-  return vec3f(0.520, 0.436, 0.384);                     // sand
+  if (r < 0.13) { return vec3f(0.560, 0.520, 0.440); }   // cream
+  if (r < 0.24) { return vec3f(0.400, 0.412, 0.396); }   // grey-green
+  if (r < 0.36) { return vec3f(0.470, 0.452, 0.428); }   // warm grey
+  if (r < 0.47) { return vec3f(0.352, 0.372, 0.400); }   // cool grey
+  if (r < 0.58) { return vec3f(0.520, 0.436, 0.384); }   // sand
+  if (r < 0.68) { return vec3f(0.604, 0.580, 0.532); }   // off-white
+  if (r < 0.77) { return vec3f(0.446, 0.352, 0.318); }   // clay
+  if (r < 0.86) { return vec3f(0.318, 0.360, 0.372); }   // slate blue
+  if (r < 0.94) { return vec3f(0.396, 0.428, 0.376); }   // sage
+  return vec3f(0.556, 0.446, 0.350);                     // ochre
 }
 
 fn tileColour(seed : f32) -> vec3f {
   let r = hash11(seed * 5.3 + 9.0);
-  if (r < 0.36) { return vec3f(0.318, 0.168, 0.116); }   // terracotta
-  if (r < 0.66) { return vec3f(0.196, 0.200, 0.212); }   // slate
-  return vec3f(0.232, 0.184, 0.152);                     // brown
+  if (r < 0.22) { return vec3f(0.318, 0.168, 0.116); }   // terracotta
+  if (r < 0.38) { return vec3f(0.372, 0.212, 0.130); }   // orange pantile
+  if (r < 0.56) { return vec3f(0.196, 0.200, 0.212); }   // slate
+  if (r < 0.68) { return vec3f(0.146, 0.150, 0.158); }   // dark slate
+  if (r < 0.80) { return vec3f(0.232, 0.184, 0.152); }   // brown
+  if (r < 0.90) { return vec3f(0.268, 0.256, 0.220); }   // weathered grey
+  return vec3f(0.204, 0.226, 0.204);                     // green slate
+}
+
+fn stoneColour(seed : f32) -> vec3f {
+  let r = hash11(seed * 13.7 + 21.0);
+  if (r < 0.30) { return vec3f(0.586, 0.556, 0.482); }   // limestone
+  if (r < 0.55) { return vec3f(0.548, 0.488, 0.404); }   // bath stone
+  if (r < 0.75) { return vec3f(0.470, 0.470, 0.462); }   // granite grey
+  if (r < 0.90) { return vec3f(0.512, 0.428, 0.372); }   // sandstone
+  return vec3f(0.406, 0.400, 0.412);                     // dark granite
+}
+
+/**
+ * Composite cladding panels: the one material in the set allowed a saturated
+ * colour. Modern buildings get most of their identity from these, and without
+ * them every post-1990 asset is another grey box.
+ */
+fn claddingColour(seed : f32) -> vec3f {
+  let r = hash11(seed * 17.1 + 33.0);
+  if (r < 0.16) { return vec3f(0.196, 0.216, 0.230); }   // anthracite
+  if (r < 0.30) { return vec3f(0.622, 0.612, 0.586); }   // white
+  if (r < 0.43) { return vec3f(0.412, 0.184, 0.140); }   // oxide red
+  if (r < 0.56) { return vec3f(0.146, 0.286, 0.316); }   // teal
+  if (r < 0.68) { return vec3f(0.556, 0.436, 0.176); }   // mustard
+  if (r < 0.79) { return vec3f(0.226, 0.310, 0.216); }   // olive
+  if (r < 0.90) { return vec3f(0.174, 0.216, 0.320); }   // navy
+  return vec3f(0.500, 0.352, 0.244);                     // burnt orange
+}
+
+fn timberColour(seed : f32) -> vec3f {
+  let r = hash11(seed * 19.3 + 45.0);
+  if (r < 0.28) { return vec3f(0.372, 0.268, 0.164); }   // larch
+  if (r < 0.52) { return vec3f(0.286, 0.216, 0.150); }   // stained dark
+  if (r < 0.74) { return vec3f(0.436, 0.362, 0.268); }   // weathered silver
+  return vec3f(0.318, 0.180, 0.118);                     // creosote
 }
 
 fn glassColour(seed : f32) -> vec3f {
@@ -345,6 +396,70 @@ fn tiles(uv : vec2f, mpp : f32, seed : f32) -> vec3f {
   return mix(base, mix(col, base * 0.66, stripe(uv.y, course, 0.022, mpp)), resolvable(0.30, mpp));
 }
 
+/**
+ * Pitched roof covering: overlapping courses with a broken vertical joint.
+ *
+ * A pitched roof was using the flat-roof membrane pattern, which is why every
+ * house had a grey lid on it. A roof is a third of a low-density building's
+ * visible surface and it deserves its own material.
+ */
+fn roofTile(uv : vec2f, mpp : f32, seed : f32) -> vec3f {
+  let base = tileColour(seed);
+  let course = 0.26;
+  let width = 0.19;
+  let row = floor(uv.y / course);
+  let offset = fract(row * 0.5) * width;
+  let r = hash21(vec2f(floor((uv.x + offset) / width), row) + seed);
+  var col = base * (0.86 + r * 0.30);
+  // The shadow line under each course is what makes tiles read as overlapping
+  // rather than as a printed grid.
+  let lap = smoothstep(0.0, 0.16, fract(uv.y / course));
+  col = mix(col * 0.62, col, mix(1.0, lap, resolvable(course, mpp)));
+  col = mix(col, col * 0.86, stripe(uv.x + offset, width, 0.008, mpp) * resolvable(width, mpp));
+  return col;
+}
+
+/** Coursed ashlar: big blocks, fine joints, no colour variation to speak of. */
+fn stone(uv : vec2f, mpp : f32, seed : f32) -> vec3f {
+  let base = stoneColour(seed);
+  let course = 0.42;
+  let blockW = 0.86;
+  let row = floor(uv.y / course);
+  let offset = fract(row * 0.5) * blockW;
+  let r = hash21(vec2f(floor((uv.x + offset) / blockW), row) + seed);
+  var col = base * (0.94 + r * 0.12);
+  let joint = max(stripe(uv.y, course, 0.010, mpp), stripe(uv.x + offset, blockW, 0.010, mpp));
+  return mix(col, base * 0.80, joint * resolvable(course, mpp));
+}
+
+/** Rainscreen cladding: large flat panels with a shadow gap between them. */
+fn cladding(uv : vec2f, mpp : f32, seed : f32) -> vec3f {
+  let base = claddingColour(seed);
+  let pw = 1.15;
+  let ph = 0.90;
+  let cell = floor(uv / vec2f(pw, ph));
+  let r = hash21(cell + seed);
+  // Panels of one colour still vary slightly batch to batch, and that tiny
+  // variation is most of what stops a flat plane looking like plastic.
+  var col = base * (0.95 + r * 0.10);
+  let gap = max(stripe(uv.x, pw, 0.014, mpp), stripe(uv.y, ph, 0.014, mpp));
+  return mix(col, base * 0.52, gap * resolvable(ph, mpp));
+}
+
+/** Vertical boarding with battens. */
+fn timber(uv : vec2f, mpp : f32, seed : f32) -> vec3f {
+  let base = timberColour(seed);
+  let board = 0.145;
+  let b = floor(uv.x / board);
+  let r = hash21(vec2f(b, 0.0) + seed);
+  var col = base * (0.86 + r * 0.30);
+  // Grain, then the shadow line at each board edge.
+  let grain = hash21(vec2f(b, floor(uv.y * 6.0)) + seed) * 0.07;
+  col = col * (0.97 + grain);
+  col = mix(col, base * 0.58, stripe(uv.x, board, 0.009, mpp) * resolvable(board, mpp));
+  return col;
+}
+
 fn roofDeck(uv : vec2f, mpp : f32, seed : f32) -> vec3f {
   let base = vec3f(0.168, 0.174, 0.180);
   let r = hash21(floor(uv / 1.1) + seed);
@@ -485,6 +600,10 @@ fn albedo(mat : u32, uv : vec2f, mpp : f32, seed : f32, par : vec2f) -> vec3f {
     // Handled in the fragment entry point, where the pane's own coordinates
     // are available. Never reached.
     case 13u: { return vec3f(0.0); }
+    case 14u: { return roofTile(uv, mpp, seed); }
+    case 15u: { return stone(uv, mpp, seed); }
+    case 16u: { return cladding(uv, mpp, seed); }
+    case 17u: { return timber(uv, mpp, seed); }
     default: { return roofDeck(uv, mpp, seed); }
   }
 }

@@ -367,15 +367,6 @@ export function planter(m: MeshBuilder, cx: number, cz: number, r: number, h = 0
   });
 }
 
-/** A tree: trunk and two stacked cones. Cheap, and a street needs them. */
-export function tree(m: MeshBuilder, cx: number, cz: number, height: number, seed: number): void {
-  const r = 0.9 + hash2(Math.round(cx), Math.round(cz), seed) * 0.5;
-  m.painted(TINT.WOOD, () => m.cylinder(cx, cz, 0.17, 0, height * 0.42, 6, MAT.TRIM, false));
-  m.painted(TINT.GREEN, () => {
-    m.cone(cx, cz, r, r * 0.6, height * 0.36, height * 0.74, 8, MAT.TRIM);
-    m.cone(cx, cz, r * 0.72, 0, height * 0.68, height, 8, MAT.TRIM);
-  });
-}
 
 /** Kerb line and a strip of pavement along one edge of the lot. */
 export function kerb(m: MeshBuilder, x0: number, z0: number, x1: number, z1: number): void {
@@ -383,15 +374,14 @@ export function kerb(m: MeshBuilder, x0: number, z0: number, x1: number, z1: num
 }
 
 /**
- * The ground around a building: kerb, bollards, trees, planters and a bin.
+ * The ground around a building: kerb, bollards, planters and a bin.
  *
  * Every asset gets a version of this. A building that stops at its own wall
  * reads as a model on a table; the thing that makes it read as a place is
  * fifty triangles of pavement furniture that has nothing to do with the
  * building at all.
  */
-export function frontage(m: MeshBuilder, x0: number, x1: number, z: number, seed: number, opts: {
-  trees?: number;
+export function frontage(m: MeshBuilder, x0: number, x1: number, z: number, _seed: number, opts: {
   planters?: number;
   bollards?: number;
   bin?: boolean;
@@ -403,26 +393,12 @@ export function frontage(m: MeshBuilder, x0: number, x1: number, z: number, seed
   const n = opts.bollards ?? 5;
   if (n > 0) bollards(m, { axis: 'z', sign: 1, plane: z }, x0 + 0.6, x1 - 0.6, depth - 0.9, n);
 
-  // Street trees stand at the kerb, and never in the middle third of the
-  // frontage: that is where the door is, and a tree parked in front of it is
-  // why the entrances were so hard to find.
-  const trees = opts.trees ?? 2;
+  // No trees here. Street planting is placed in the game, not baked into the
+  // building -- a tree welded to an asset cannot be moved, cannot be removed,
+  // and repeats identically down a street of the same building.
   const span = x1 - x0;
   const doorFrom = x0 + span * 0.37;
   const doorTo = x0 + span * 0.63;
-  const treeZ = z + depth - 0.55;
-  let placed = 0;
-  for (let i = 0; i < trees * 2 && placed < trees; i++) {
-    const t = trees === 1 ? 0.14 : (i % trees) / Math.max(1, trees - 1);
-    let cx = x0 + 1.2 + t * (span - 2.4);
-    if (cx > doorFrom && cx < doorTo) {
-      // Nudge it clear of the doorway rather than dropping it.
-      cx = cx < (doorFrom + doorTo) / 2 ? doorFrom - 0.9 : doorTo + 0.9;
-      if (cx < x0 + 0.8 || cx > x1 - 0.8) continue;
-    }
-    tree(m, cx, treeZ, 4.4 + hash2(i, 5, seed) * 1.6, seed + i);
-    placed++;
-  }
   for (let i = 0; i < (opts.planters ?? 0); i++) {
     const px = x0 + 1.0 + i * 2.2;
     if (px > doorFrom && px < doorTo) continue;
@@ -534,13 +510,13 @@ export function entrance(m: MeshBuilder, w: Wall, centre: number, opts: {
 }
 
 /**
- * A back garden: fence, lawn, patio, shed, washing line and a tree.
+ * A back garden: fence, lawn, patio, shed and a washing line.
  *
  * Low-density housing looks unfinished without one, because a detached house
  * in the real world is mostly garden. Everything sits inside the lot the
  * caller passes.
  */
-export function backyard(m: MeshBuilder, x0: number, z0: number, x1: number, z1: number, seed: number): void {
+export function backyard(m: MeshBuilder, x0: number, z0: number, x1: number, z1: number, _seed: number): void {
   const w = x1 - x0;
   const d = z1 - z0;
   if (w < 3 || d < 3) return;
@@ -572,16 +548,15 @@ export function backyard(m: MeshBuilder, x0: number, z0: number, x1: number, z1:
   const sx = x0 + 0.7;
   const sz = z0 + 0.7;
   m.painted(TINT.WOOD, () => m.box([sx, 0, sz], [sx + 2.3, 2.0, sz + 1.9], MAT.TRIM));
-  m.gable([sx - 0.12, 2.0, sz - 0.12], [sx + 2.42, 2.0, sz + 2.02], 0.55, 'x', MAT.TILE, MAT.TRIM);
+  m.gable([sx - 0.12, 2.0, sz - 0.12], [sx + 2.42, 2.0, sz + 2.02], 0.55, 'x', MAT.ROOF_TILE, MAT.TRIM);
 
-  // Washing line between two posts, and a tree in the far corner.
+  // Washing line between two posts.
   m.painted(TINT.METAL_DARK, () => {
     for (const px of [x0 + 3.4, x1 - 1.0]) {
       m.box([px - 0.05, 0, z0 + d * 0.55], [px + 0.05, 1.8, z0 + d * 0.55 + 0.1], MAT.TRIM);
     }
     m.box([x0 + 3.4, 1.72, z0 + d * 0.55], [x1 - 1.0, 1.78, z0 + d * 0.55 + 0.06], MAT.TRIM);
   });
-  tree(m, x1 - 1.4, z0 + 1.4, 5.0 + hash2(1, 2, seed) * 1.4, seed);
 
   // A couple of garden chairs on the patio.
   m.painted(TINT.METAL_DARK, () => {

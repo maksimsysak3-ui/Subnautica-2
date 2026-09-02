@@ -175,8 +175,8 @@ const result = await page.evaluate(async ({ shader, registry, TILE, TILE_H, COLS
       radius = Math.max(radius, Math.hypot(mesh.vertices[v], mesh.vertices[v + 2]));
     }
 
-    const dist = STREET ? Math.max(radius * 3.0, 22) : Math.max(height * 1.5, radius * 3.4, 12);
-    const target = STREET ? [0, 4.5, 0] : [0, height * 0.45, 0];
+    const dist = STREET ? Math.max(height * 2.2, radius * 1.15, 16) : Math.max(height * 1.5, radius * 3.4, 12);
+    const target = STREET ? [0, Math.min(4.5, height * 0.42), 0] : [0, height * 0.45, 0];
     const yaw = STREET ? 0.30 : 0.95;
     const pitch = STREET ? 0.12 : 0.30;
     const eye = [target[0] + dist * Math.cos(pitch) * Math.sin(yaw),

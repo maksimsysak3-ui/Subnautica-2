@@ -73,6 +73,21 @@ export const MAT = {
    * somebody's living room.
    */
   PANE: 13,
+  /**
+   * A pitched roof covering: overlapping courses with a shadow line under
+   * each. Distinct from TILE, which is a flat tiled surface -- a pitched roof
+   * drawn with the flat-roof membrane is why every house had a grey lid.
+   */
+  ROOF_TILE: 14,
+  /** Coursed ashlar. Civic frontages, bank plinths, older office bases. */
+  STONE: 15,
+  /**
+   * Rainscreen cladding panels. The one material allowed a saturated colour,
+   * which is where most modern buildings get their identity.
+   */
+  CLADDING: 16,
+  /** Vertical timber boarding with battens. */
+  TIMBER: 17,
 } as const;
 
 export type Material = (typeof MAT)[keyof typeof MAT];

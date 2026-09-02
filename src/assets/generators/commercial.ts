@@ -18,7 +18,7 @@ import { BRANDS } from '../brands';
 import {
   awning, band, bladeSign, bollards, boxSign, fasciaSign, fireEscape,
   entrance, frontage, kerb, parapet, planter, pylonSign, railing, ring, roofClutter, shopfront,
-  tree, windowGrid,
+  windowGrid,
 } from '../parts';
 
 // -------------------------------------------------------------- corner shop
@@ -148,7 +148,7 @@ function driveThru(lod: number): MeshBuilder {
     m.windowRow({ axis: 'x', sign: 1, plane: cx + x / 2, from: -1.2, to: 1.2, y0: 1.5, y1: 2.8,
       count: 1, width: 1.6, glass: MAT.SHOPFRONT, frame: 0.1, proud: 0.07 });
     boxSign(m, lane, -3.6, -1.6, 1.6, 3.2);
-    frontage(m, cx - x / 2, cx + x / 2, z, 4, { trees: 2, planters: 2, bollards: 5 });
+    frontage(m, cx - x / 2, cx + x / 2, z, 4, { planters: 2, bollards: 5 });
     // Order point: speaker post, menu canopy and a bin by the lane.
     m.painted(TINT.METAL_DARK, () => {
       m.box([cx + x / 2 + 5.0, 0, -1.4], [cx + x / 2 + 5.3, 1.5, -1.1], MAT.TRIM);
@@ -209,7 +209,7 @@ function coffeeBar(lod: number): MeshBuilder {
         }
       }
     });
-    frontage(m, -x, x, z + 3.6, 31, { trees: 2, planters: 3, bollards: 5, depth: 1.8 });
+    frontage(m, -x, x, z + 3.6, 31, { planters: 3, bollards: 5, depth: 1.8 });
     railing(m, -x, x, z + 3.5, 0.16, 0.9, 1.1);
     for (const [sign, plane] of [[1, x], [-1, -x]] as const) {
       windowGrid(m, { axis: 'x', sign, plane }, -z + 1.0, z - 1.0,
@@ -265,7 +265,6 @@ function stripMall(lod: number): MeshBuilder {
       m.opening({ axis: 'z', sign: -1, plane: -z, u0: u - 0.55, u1: u + 0.55, y0: 0.1, y1: 2.3,
         glass: MAT.TRIM, frame: 0.1, proud: 0.07 });
     }
-    for (const tx of [-x + 3, 0, x - 3]) tree(m, tx, z + 5.0, 5.0, tx + 7);
   }
   return m;
 }
@@ -316,7 +315,7 @@ function supermarket(lod: number): MeshBuilder {
       m.painted(TINT.METAL_DARK, () =>
         m.box([u - 1.8, 1.2, -z - 0.14], [u + 1.8, 5.0, -z + 0.02], MAT.TRIM));
     }
-    frontage(m, -x, x, z + 6.0, 51, { trees: 4, planters: 4, bollards: 9, depth: 2.4 });
+    frontage(m, -x, x, z + 6.0, 51, { planters: 4, bollards: 9, depth: 2.4 });
     // Parking bays marked out on the forecourt.
     for (let i = 0; i < 10; i++) {
       const px = -x + 1.5 + i * 2.9;
@@ -530,7 +529,7 @@ function gasStation(lod: number): MeshBuilder {
     bollards(m, { axis: 'z', sign: 1, plane: kz + kd / 2 }, -x, x, 1.2, 5);
     // Air-and-water point, and a bin.
     m.painted(TINT.BRAND, () => m.box([x - 1.4, 0, kz + 5.0], [x - 0.6, 1.3, kz + 5.8], MAT.TRIM));
-    frontage(m, -x, x, kz + kd / 2 + 1.0, 81, { trees: 2, planters: 2, bollards: 4, depth: 1.8 });
+    frontage(m, -x, x, kz + kd / 2 + 1.0, 81, { planters: 2, bollards: 4, depth: 1.8 });
     windowGrid(m, { axis: 'x', sign: 1, plane: x }, kz - kd / 2 + 1.0, kz + kd / 2 - 1.0,
       { floors: 1, floorH: 3, base: 1.6, count: 2, width: 1.1, height: 1.5 });
     windowGrid(m, { axis: 'x', sign: -1, plane: -x }, kz - kd / 2 + 1.0, kz + kd / 2 - 1.0,
@@ -582,7 +581,7 @@ function pharmacy(lod: number): MeshBuilder {
     windowGrid(m, { axis: 'x', sign: 1, plane: x }, -z + 1.2, z - 1.2,
       { floors: 1, floorH: 3, base: 2.2, count: 3, width: 1.1, height: 1.5 });
     bollards(m, { axis: 'z', sign: 1, plane: z }, -x + 1, x - 1, 1.7, 7);
-    frontage(m, -x, x, z + 0.5, 91, { trees: 3, planters: 3, bollards: 7, depth: 2.4 });
+    frontage(m, -x, x, z + 0.5, 91, { planters: 3, bollards: 7, depth: 2.4 });
     windowGrid(m, { axis: 'x', sign: -1, plane: -x }, -z + 1.2, z - 1.2,
       { floors: 1, floorH: 3, base: 2.2, count: 3, width: 1.1, height: 1.5 });
     windowGrid(m, { axis: 'z', sign: -1, plane: -z }, -x + 1.5, x - 1.5,
@@ -665,7 +664,7 @@ function bankBranch(lod: number): MeshBuilder {
         { floors: 2, floorH: upper, base: ground + 0.9, count: n, width: 1.3, height: 2.2 });
     }
     boxSign(m, { axis: 'z', sign: 1, plane: z + 0.25 }, -3.2, 3.2, ground + 1.1, ground + 2.3);
-    frontage(m, -x, x, z + 2.5, 403, { trees: 2, planters: 2, bollards: 6, depth: 2.4 });
+    frontage(m, -x, x, z + 2.5, 403, { planters: 2, bollards: 6, depth: 2.4 });
   }
   return m;
 }
@@ -703,7 +702,7 @@ function gym(lod: number): MeshBuilder {
     entrance(m, { axis: 'z', sign: 1, plane: z }, -x + 4.0, { width: 2.4, height: 2.9, double: true, canopy: 1.8 });
     fasciaSign(m, { axis: 'z', sign: 1, plane: z }, x - 12.0, x - 4.0, 6.2, 7.4);
     bladeSign(m, { axis: 'x', sign: 1, plane: x + 0.3 }, 2.0, 5.0, 8.4, 1.5);
-    frontage(m, -x, x, z, 413, { trees: 3, planters: 2, bollards: 8 });
+    frontage(m, -x, x, z, 413, { planters: 2, bollards: 8 });
   }
   return m;
 }
@@ -782,7 +781,7 @@ function marketHall(lod: number): MeshBuilder {
       m.painted(TINT.WOOD, () => m.box([cx - 1.5, 0.85, sz - 0.5], [cx + 1.5, 0.95, sz + 0.7], MAT.TRIM));
       m.box([cx - 1.4, 0, sz - 0.45], [cx + 1.4, 0.85, sz + 0.6], MAT.TRIM);
     }
-    frontage(m, -x, x, z + 4.8, 423, { trees: 3, planters: 2, bollards: 9, depth: 2.2 });
+    frontage(m, -x, x, z + 4.8, 423, { planters: 2, bollards: 9, depth: 2.2 });
   }
   return m;
 }
@@ -865,7 +864,7 @@ function cinema(lod: number): MeshBuilder {
         y0: 1.15, y1: 3.25, glass: MAT.GLASS, frame: 0.07, proud: 0.05 });
     }
     bladeSign(m, { axis: 'x', sign: 1, plane: x }, z - 2.6, foyer - 0.5, hall + 2.4, 1.6);
-    frontage(m, -x, x, z + 3.2, 703, { trees: 3, planters: 2, bollards: 9, depth: 2.6 });
+    frontage(m, -x, x, z + 3.2, 703, { planters: 2, bollards: 9, depth: 2.6 });
   }
   return m;
 }
@@ -921,7 +920,7 @@ function hotel(lod: number): MeshBuilder {
     boxSign(m, { axis: 'z', sign: 1, plane: z }, -3.6, 3.6, ground + 0.3, ground + 1.6);
     bladeSign(m, { axis: 'x', sign: -1, plane: -x }, 3.0, ground + 1.0, ground + 6.0, 1.4);
     for (const px of [-8.0, 8.0]) planter(m, px, z + 2.2, 0.9, 0.65);
-    frontage(m, -x, x, z + 5.6, 713, { trees: 3, planters: 0, bollards: 8, depth: 2.2 });
+    frontage(m, -x, x, z + 5.6, 713, { planters: 0, bollards: 8, depth: 2.2 });
   }
   return m;
 }

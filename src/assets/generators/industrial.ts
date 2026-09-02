@@ -14,7 +14,7 @@
 import { MAT, TINT, MeshBuilder } from '../mesh';
 import { CELL } from '../types';
 import type { AssetDef } from '../types';
-import { band, entrance, frontage, kerb, parapet, ring, roofClutter, tree, windowGrid } from '../parts';
+import { band, entrance, frontage, kerb, parapet, ring, roofClutter, windowGrid } from '../parts';
 
 /** Vertical silo with a plinth, a conical top and a vent. */
 function silo(m: MeshBuilder, cx: number, cz: number, r: number, h: number): void {
@@ -104,8 +104,20 @@ function distributionShed(lod: number): MeshBuilder {
       { floors: 2, floorH: 3.0, base: 2.0, count: 3, width: 1.2, height: 1.4 });
     windowGrid(m, { axis: 'z', sign: 1, plane: cz + z }, x - 8.0, x - 4.0,
       { floors: 1, floorH: 3, base: 5.6, count: 2, width: 1.2, height: 1.3 });
-    tree(m, -x - 2.0, cz + z + 9.0, 5.2, 241);
-    tree(m, x + 2.0, cz + z + 9.0, 5.0, 243);
+    // Personnel door beside the shutters, and the sprinkler tank and caged
+    // ladder every shed of this size carries on its blind end.
+    entrance(m, { axis: 'z', sign: 1, plane: cz + z }, x - 6.0,
+      { width: 1.1, height: 2.2, canopy: 1.3 });
+    m.cylinder(x - 3.4, cz - z - 2.6, 1.9, 0, 7.4, 12, MAT.METAL);
+    m.cone(x - 3.4, cz - z - 2.6, 1.9, 0.4, 7.4, 8.4, 12, MAT.METAL);
+    m.painted(TINT.METAL_DARK, () => {
+      for (let i = 0; i < 16; i++) {
+        m.box([x - 5.6, 0.4 + i * 0.42, cz - z - 2.9], [x - 5.2, 0.47 + i * 0.42, cz - z - 2.3], MAT.TRIM);
+      }
+      m.box([x - 5.65, 0, cz - z - 2.95], [x - 5.55, 7.4, cz - z - 2.85], MAT.TRIM);
+      m.box([x - 5.25, 0, cz - z - 2.35], [x - 5.15, 7.4, cz - z - 2.25], MAT.TRIM);
+      m.pipe([x - 3.4, 0.5, cz - z - 0.7], [x - 3.4, 0.5, cz - z + 0.6], 0.16, MAT.TRIM);
+    });
   }
   return m;
 }
@@ -139,7 +151,7 @@ function workshop(lod: number): MeshBuilder {
     windowGrid(m, { axis: 'z', sign: 1, plane: z }, -x + 0.6, -x + 5.4,
       { floors: 2, floorH: 2.4, base: 1.3, count: 2, width: 1.1, height: 1.4 });
     entrance(m, { axis: 'x', sign: -1, plane: -x }, -0.5, { width: 1.05, steps: 1, canopy: 1.2 });
-    frontage(m, -x, x, z, 251, { trees: 2, planters: 1, bollards: 5, depth: 2.6 });
+    frontage(m, -x, x, z, 251, { planters: 1, bollards: 5, depth: 2.6 });
     windowGrid(m, { axis: 'x', sign: -1, plane: -x }, -z + 1.2, z - 1.2,
       { floors: 2, floorH: 2.4, base: 1.3, count: 2, width: 1.1, height: 1.4 });
     windowGrid(m, { axis: 'z', sign: -1, plane: -z }, -x + 0.8, -x + 5.6,
@@ -371,6 +383,30 @@ function recyclingYard(lod: number): MeshBuilder {
   if (fine) {
     windowGrid(m, { axis: 'z', sign: 1, plane: 8.0 }, -5.0, -2.8,
       { floors: 1, floorH: 3, base: 1.3, count: 1, width: 1.6, height: 1.3 });
+    entrance(m, { axis: 'x', sign: 1, plane: -2.6 }, 6.7, { width: 1.0, height: 2.1, steps: 1 });
+    // Skips waiting to be tipped: a yard's real content, and a shape nothing
+    // else in the set has.
+    for (let i = 0; i < 3; i++) {
+      const sx = -16.0 + i * 4.6;
+      m.painted(TINT.BRAND_DARK, () => {
+        m.quad([sx, 0, -8.0], [sx + 3.8, 0, -8.0], [sx + 3.8, 1.7, -8.9], [sx, 1.7, -8.9], MAT.TRIM);
+        m.quad([sx + 3.8, 0, -5.4], [sx, 0, -5.4], [sx, 1.7, -4.5], [sx + 3.8, 1.7, -4.5], MAT.TRIM);
+        m.box([sx, 0, -8.0], [sx + 0.16, 1.7, -4.5], MAT.TRIM);
+        m.box([sx + 3.64, 0, -8.0], [sx + 3.8, 1.7, -4.5], MAT.TRIM);
+        m.box([sx, 0, -8.0], [sx + 3.8, 0.16, -4.5], MAT.TRIM);
+      });
+    }
+    // Baled material stacked against the shed.
+    for (let i = 0; i < 4; i++) {
+      for (let j = 0; j < 2; j++) {
+        const bx = 5.0 + i * 3.0;
+        m.box([bx, j * 1.35, 5.2], [bx + 2.6, 1.25 + j * 1.35, 7.6], MAT.GROUND);
+        m.painted(TINT.METAL_DARK, () => {
+          m.box([bx + 0.6, j * 1.35, 5.15], [bx + 0.72, 1.25 + j * 1.35, 7.65], MAT.TRIM);
+          m.box([bx + 1.9, j * 1.35, 5.15], [bx + 2.02, 1.25 + j * 1.35, 7.65], MAT.TRIM);
+        });
+      }
+    }
     m.painted(TINT.METAL_DARK, () => {
       m.box([4.0, 0, 3.88], [9.0, 6.0, 4.06], MAT.TRIM);
       // Perimeter fence along two sides.
@@ -380,9 +416,7 @@ function recyclingYard(lod: number): MeshBuilder {
       }
       m.box([-17.2, 2.2, 10.4], [18.4, 2.35, 10.56], MAT.TRIM);
     });
-    tree(m, -16.5, -8.0, 5.0, 231);
-    tree(m, 18.5, 8.0, 4.6, 233);
-    frontage(m, -17.0, 2.0, 10.6, 261, { trees: 3, planters: 2, bollards: 6, depth: 2.2 });
+    frontage(m, -17.0, 2.0, 10.6, 261, { planters: 2, bollards: 6, depth: 2.2 });
     // Skips waiting to be emptied, and a stack of baled material.
     m.painted(TINT.METAL_DARK, () => {
       for (let i = 0; i < 3; i++) {
@@ -544,7 +578,6 @@ function batchingPlant(lod: number): MeshBuilder {
       m.box([tx - 4.35, 0, tz + 0.32], [tx - 4.25, 15.5, tz + 0.42], MAT.TRIM);
     });
     kerb(m, -x, z - 0.4, x, z);
-    for (const px of [-x + 3.0, x - 3.0]) tree(m, px, z - 1.6, 4.6, px + 90);
   }
   return m;
 }
@@ -740,7 +773,7 @@ function assemblyPlant(lod: number): MeshBuilder {
     }
     entrance(m, { axis: 'z', sign: 1, plane: z }, 0,
       { width: 3.0, height: 3.0, double: true, glazed: true, canopy: 2.6 });
-    frontage(m, -x + 1.5, x - 1.5, z, 533, { trees: 4, planters: 2, bollards: 8, depth: 2.6 });
+    frontage(m, -x + 1.5, x - 1.5, z, 533, { planters: 2, bollards: 8, depth: 2.6 });
   }
   return m;
 }

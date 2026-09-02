@@ -27,6 +27,16 @@ export const BRANDS: Record<string, Brand> = {
   electronics: { name: 'Cobalt Electric', colour: [0.13, 0.34, 0.46], accent: [0.66, 0.68, 0.70], sign: 'fascia' },
   bakery: { name: 'Fenn Bakehouse', colour: [0.50, 0.34, 0.16], accent: [0.68, 0.62, 0.48], sign: 'fascia' },
   gym: { name: 'Ironworks Gym', colour: [0.20, 0.21, 0.23], accent: [0.64, 0.38, 0.12], sign: 'box' },
+  // Industry signs itself too: a name board on the office end is the one thing
+  // that tells you a shed belongs to somebody.
+  logistics: { name: 'Vance Logistics', colour: [0.16, 0.30, 0.44], accent: [0.72, 0.60, 0.20], sign: 'fascia' },
+  works: { name: 'Marlow Works', colour: [0.42, 0.24, 0.12], accent: [0.68, 0.66, 0.62], sign: 'fascia' },
+  aggregate: { name: 'Stonefield', colour: [0.36, 0.34, 0.30], accent: [0.72, 0.56, 0.14], sign: 'box' },
+  recycle: { name: 'Greenline', colour: [0.16, 0.36, 0.22], accent: [0.70, 0.68, 0.44], sign: 'fascia' },
+  timber: { name: 'Ashcroft Timber', colour: [0.34, 0.22, 0.12], accent: [0.64, 0.56, 0.36], sign: 'fascia' },
+  // Residential landlords and letting agents put their name on a block too.
+  estate: { name: 'Kingsmere', colour: [0.22, 0.26, 0.34], accent: [0.66, 0.58, 0.34], sign: 'box' },
+  hotel: { name: 'The Aldermoor', colour: [0.20, 0.16, 0.24], accent: [0.68, 0.58, 0.30], sign: 'box' },
 };
 
 export const brandList = Object.values(BRANDS);

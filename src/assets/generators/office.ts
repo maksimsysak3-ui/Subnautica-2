@@ -16,7 +16,7 @@ import type { AssetDef } from '../types';
 import { BRANDS } from '../brands';
 import {
   band, boxSign, entrance, fasciaSign, frontage, kerb, parapet, planter,
-  railing, ring, roofClutter, tree, windowGrid,
+  railing, ring, roofClutter, windowGrid,
 } from '../parts';
 
 // ------------------------------------------------------------- park unit
@@ -56,7 +56,7 @@ function parkUnit(lod: number): MeshBuilder {
     }
     entrance(m, { axis: 'z', sign: 1, plane: z + 2.2 }, 0, { width: 2.0, double: true, canopy: 1.4 });
     fasciaSign(m, { axis: 'z', sign: 1, plane: z + 0.3 }, -x + 4.6, -x + 10.0, 4.9, 5.7);
-    frontage(m, -x, x, z + 2.4, 303, { trees: 3, planters: 2, bollards: 6, depth: 2.6 });
+    frontage(m, -x, x, z + 2.4, 303, { planters: 2, bollards: 6, depth: 2.6 });
     // Car park bays down one side.
     for (let i = 0; i < 6; i++) {
       const pz = -z + 1.5 + i * 2.4;
@@ -103,7 +103,7 @@ function midRise(lod: number): MeshBuilder {
     }
     entrance(m, { axis: 'z', sign: 1, plane: z }, 0, { width: 2.4, double: true, canopy: 2.0 });
     boxSign(m, { axis: 'z', sign: 1, plane: z }, -2.2, 2.2, ground + 0.5, ground + 1.5);
-    frontage(m, -x, x, z, 313, { trees: 3, planters: 3, bollards: 7 });
+    frontage(m, -x, x, z, 313, { planters: 3, bollards: 7 });
   }
   return m;
 }
@@ -165,7 +165,6 @@ function corporateHQ(lod: number): MeshBuilder {
     entrance(m, { axis: 'z', sign: 1, plane: z }, 0, { width: 3.2, height: 3.2, double: true, canopy: 3.0 });
     boxSign(m, { axis: 'z', sign: 1, plane: z }, -3.4, 3.4, podium + 0.2, podium + 1.3);
     for (const px of [-8.0, 8.0]) planter(m, px, z + 3.0, 1.1, 0.7);
-    for (const px of [-4.0, 4.0]) tree(m, px, z + 3.2, 6.4, px + 40);
     railing(m, -x, x, z + 6.0, 0.12, 1.0, 1.6);
   }
   return m;
@@ -214,7 +213,7 @@ function officeTower(lod: number): MeshBuilder {
     m.windowRow({ axis: 'z', sign: 1, plane: z, from: -x + 1.0, to: x - 1.0, y0: 0.9, y1: 7.0,
       count: 5, width: 3.0, glass: MAT.SHOPFRONT, frame: 0.12, proud: 0.08 });
     entrance(m, { axis: 'z', sign: 1, plane: z }, 0, { width: 3.6, height: 3.6, double: true, canopy: 3.4 });
-    frontage(m, -x, x, z, 333, { trees: 4, planters: 3, bollards: 9, depth: 3.0 });
+    frontage(m, -x, x, z, 333, { planters: 3, bollards: 9, depth: 3.0 });
   }
   return m;
 }
@@ -258,7 +257,7 @@ function conversion(lod: number): MeshBuilder {
     }
     entrance(m, { axis: 'z', sign: 1, plane: z }, 0, { width: 2.6, height: 3.0, double: true });
     fasciaSign(m, { axis: 'z', sign: 1, plane: z }, -5.5, -1.5, 4.8, 5.6);
-    frontage(m, -x, x, z + 2.4, 343, { trees: 3, planters: 2, bollards: 7 });
+    frontage(m, -x, x, z + 2.4, 343, { planters: 2, bollards: 7 });
     // Fire escape on the flank, kept from the warehouse.
     m.painted(TINT.METAL_DARK, () => {
       for (let f = 1; f < floors; f++) {
@@ -364,7 +363,7 @@ function decoTower(lod: number): MeshBuilder {
     m.windowRow({ axis: 'z', sign: 1, plane: z, from: 4.2, to: x - 1.0, y0: 1.2, y1: 4.6,
       count: 2, width: 2.0, glass: MAT.SHOPFRONT, frame: 0.12, proud: 0.07 });
     boxSign(m, { axis: 'z', sign: 1, plane: z + 0.5 }, -2.4, 2.4, ground - 0.85, ground - 0.1);
-    frontage(m, -x, x, z + 0.5, 343, { trees: 3, planters: 2, bollards: 8, depth: 2.4 });
+    frontage(m, -x, x, z + 0.5, 343, { planters: 2, bollards: 8, depth: 2.4 });
   }
   return m;
 }
@@ -427,7 +426,6 @@ function techCampus(lod: number): MeshBuilder {
             y0: y, y1: y + 2.2, glass: MAT.GLASS, frame: 0.1, proud: 0.06 });
         }
       }
-      tree(m, sx * 6.0, z - 4.0, 6.2, 355 + sx);
       planter(m, sx * 3.0, z - 7.5, 1.1, 0.6);
     }
     windowGrid(m, { axis: 'z', sign: -1, plane: -z }, -x + wing + 0.8, x - wing - 0.8,
@@ -438,7 +436,7 @@ function techCampus(lod: number): MeshBuilder {
         { width: 2.4, height: 3.0, double: true, glazed: true, canopy: 2.2 });
     }
     fasciaSign(m, { axis: 'z', sign: 1, plane: z }, -x + 1.2, -x + 7.0, h - 1.6, h - 0.5);
-    frontage(m, -x, x, z, 357, { trees: 2, planters: 0, bollards: 10, depth: 2.4 });
+    frontage(m, -x, x, z, 357, { planters: 0, bollards: 10, depth: 2.4 });
   }
   return m;
 }
