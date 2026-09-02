@@ -167,10 +167,15 @@ export function shopfront(m: MeshBuilder, w: Wall, u0: number, u1: number, opts:
     const a = u0 + (i / bays) * span + 0.09;
     const b = u0 + ((i + 1) / bays) * span - 0.09;
     if (i === doorBay) {
-      // Door bay: glazed over, with a painted leaf and a frame standing proud.
-      slab(m, w, a, b, 0, head - 0.75, 0.01, 0.06, MAT.SHOPFRONT);
-      m.painted(TINT.DOOR, () => {
-        slab(m, w, a + 0.12, b - 0.12, 0, 2.25, 0.06, 0.13, MAT.TRIM);
+      // Door bay: transom light over a real door. This used to be a painted
+      // rectangle on the glass, which at any distance read as one more pane
+      // -- shops looked like they had no way in.
+      slab(m, w, a, b, 2.45, head - 0.75, 0.01, 0.06, MAT.SHOPFRONT);
+      entrance(m, w, (a + b) / 2, {
+        width: Math.min(b - a - 0.24, 1.9), height: 2.3, double: b - a > 2.2,
+        glazed: true, fanlight: false,
+      });
+      m.painted(TINT.BRAND_DARK, () => {
         slab(m, w, a - 0.06, a + 0.12, 0, head - 0.75, 0.0, 0.17, MAT.TRIM);
         slab(m, w, b - 0.12, b + 0.06, 0, head - 0.75, 0.0, 0.17, MAT.TRIM);
       });
@@ -398,13 +403,30 @@ export function frontage(m: MeshBuilder, x0: number, x1: number, z: number, seed
   const n = opts.bollards ?? 5;
   if (n > 0) bollards(m, { axis: 'z', sign: 1, plane: z }, x0 + 0.6, x1 - 0.6, depth - 0.9, n);
 
+  // Street trees stand at the kerb, and never in the middle third of the
+  // frontage: that is where the door is, and a tree parked in front of it is
+  // why the entrances were so hard to find.
   const trees = opts.trees ?? 2;
-  for (let i = 0; i < trees; i++) {
-    const t = trees === 1 ? 0.5 : i / (trees - 1);
-    tree(m, x0 + 1.2 + t * (x1 - x0 - 2.4), z + depth - 1.2, 4.4 + hash2(i, 5, seed) * 1.6, seed + i);
+  const span = x1 - x0;
+  const doorFrom = x0 + span * 0.37;
+  const doorTo = x0 + span * 0.63;
+  const treeZ = z + depth - 0.55;
+  let placed = 0;
+  for (let i = 0; i < trees * 2 && placed < trees; i++) {
+    const t = trees === 1 ? 0.14 : (i % trees) / Math.max(1, trees - 1);
+    let cx = x0 + 1.2 + t * (span - 2.4);
+    if (cx > doorFrom && cx < doorTo) {
+      // Nudge it clear of the doorway rather than dropping it.
+      cx = cx < (doorFrom + doorTo) / 2 ? doorFrom - 0.9 : doorTo + 0.9;
+      if (cx < x0 + 0.8 || cx > x1 - 0.8) continue;
+    }
+    tree(m, cx, treeZ, 4.4 + hash2(i, 5, seed) * 1.6, seed + i);
+    placed++;
   }
   for (let i = 0; i < (opts.planters ?? 0); i++) {
-    planter(m, x0 + 1.0 + i * 2.2, z + 1.0, 0.55);
+    const px = x0 + 1.0 + i * 2.2;
+    if (px > doorFrom && px < doorTo) continue;
+    planter(m, px, z + 1.0, 0.55);
   }
   if (opts.bin !== false) {
     // A bin: body, lid and two wheels. Twenty triangles, and it is the sort of
@@ -449,6 +471,8 @@ export function entrance(m: MeshBuilder, w: Wall, centre: number, opts: {
   fanlight?: boolean;
   canopy?: number;
   steps?: number;
+  /** Shop door: a glazed leaf in a painted frame rather than a solid one. */
+  glazed?: boolean;
 } = {}): void {
   const halfW = (opts.width ?? 1.1) / 2;
   const h = opts.height ?? 2.25;
@@ -466,14 +490,29 @@ export function entrance(m: MeshBuilder, w: Wall, centre: number, opts: {
     slab(m, w, u0 - 0.14, u0, sill, sill + h + 0.14, 0.0, 0.12, MAT.TRIM);
     slab(m, w, u1, u1 + 0.14, sill, sill + h + 0.14, 0.0, 0.12, MAT.TRIM);
     slab(m, w, u0 - 0.14, u1 + 0.14, sill + h, sill + h + 0.14, 0.0, 0.12, MAT.TRIM);
-    // Leaf, or two of them.
-    if (opts.double === true) {
-      slab(m, w, u0, centre - 0.03, sill, sill + h, 0.01, 0.08, MAT.TRIM);
-      slab(m, w, centre + 0.03, u1, sill, sill + h, 0.01, 0.08, MAT.TRIM);
-    } else {
-      slab(m, w, u0, u1, sill, sill + h, 0.01, 0.08, MAT.TRIM);
+    // Leaf, or two of them. A glazed leaf is a frame around glass: rails top
+    // and bottom, a stile each side, and the glass added after this block.
+    const leaves: Array<[number, number]> = opts.double === true
+      ? [[u0, centre - 0.03], [centre + 0.03, u1]]
+      : [[u0, u1]];
+    for (const [a, b] of leaves) {
+      if (opts.glazed === true) {
+        slab(m, w, a, b, sill, sill + 0.34, 0.01, 0.08, MAT.TRIM);
+        slab(m, w, a, b, sill + h - 0.22, sill + h, 0.01, 0.08, MAT.TRIM);
+        slab(m, w, a, a + 0.09, sill, sill + h, 0.01, 0.08, MAT.TRIM);
+        slab(m, w, b - 0.09, b, sill, sill + h, 0.01, 0.08, MAT.TRIM);
+      } else {
+        slab(m, w, a, b, sill, sill + h, 0.01, 0.08, MAT.TRIM);
+      }
     }
   });
+  if (opts.glazed === true) {
+    for (const [a, b] of (opts.double === true
+      ? [[u0, centre - 0.03], [centre + 0.03, u1]]
+      : [[u0, u1]]) as Array<[number, number]>) {
+      slab(m, w, a + 0.09, b - 0.09, sill + 0.34, sill + h - 0.22, 0.02, 0.05, MAT.SHOPFRONT);
+    }
+  }
 
   // Handle: two centimetres of geometry that makes the leaf read as a door.
   m.painted(TINT.METAL_DARK, () => {

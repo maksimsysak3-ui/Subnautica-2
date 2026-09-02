@@ -1,5 +1,5 @@
 /**
- * Commercial: eight businesses, not two buildings.
+ * Commercial: fourteen businesses, not two buildings.
  *
  * The point of the category is variety at street level. A city where every
  * shop is the same shop is the thing that makes a builder look cheap, and the
@@ -81,17 +81,27 @@ function diner(lod: number): MeshBuilder {
     pylonSign(m, x - 2.2, z + 4.4, 8.5, 2.4);
   }
   if (fine) {
-    // Continuous glazing, which is what you look through from a booth.
-    for (const [sign, plane] of [[1, z], [-1, -z]] as const) {
-      m.windowRow({ axis: 'z', sign, plane, from: -x + 0.8, to: x - 0.8, y0: 1.05, y1: 3.5,
-        count: 7, width: 1.55, glass: MAT.SHOPFRONT, frame: 0.09, proud: 0.07 });
+    // Continuous glazing, which is what you look through from a booth, broken
+    // in the middle for the way in.
+    for (const [from, to, n] of [[-x + 0.8, -1.5, 3], [1.5, x - 0.8, 3]] as const) {
+      m.windowRow({ axis: 'z', sign: 1, plane: z, from, to, y0: 1.05, y1: 3.5,
+        count: n, width: 1.55, glass: MAT.SHOPFRONT, frame: 0.09, proud: 0.07 });
     }
+    m.windowRow({ axis: 'z', sign: -1, plane: -z, from: -x + 0.8, to: x - 0.8, y0: 1.05, y1: 3.5,
+      count: 7, width: 1.55, glass: MAT.SHOPFRONT, frame: 0.09, proud: 0.07 });
     m.windowRow({ axis: 'x', sign: 1, plane: x, from: -z + 0.8, to: z - 0.8, y0: 1.05, y1: 3.5,
       count: 3, width: 1.5, glass: MAT.SHOPFRONT, frame: 0.09, proud: 0.07 });
     fasciaSign(m, { axis: 'z', sign: 1, plane: z }, -4.5, 4.5, h - 0.45, h - 0.05);
-    // Entrance porch.
-    m.painted(TINT.BRAND, () => m.box([-2.2, 0, z + 1.0], [2.2, 3.3, z + 1.3], MAT.TRIM));
-    m.box([-2.0, 0, z + 0.1], [2.0, 0.14, z + 1.2], MAT.CONCRETE);
+    // Entrance: a glazed door under a canopy on two posts. This was a solid
+    // brand-coloured slab across the front, which read as a wall, not a porch.
+    entrance(m, { axis: 'z', sign: 1, plane: z }, 0,
+      { width: 2.2, height: 2.5, double: true, glazed: true, canopy: 1.9 });
+    m.painted(TINT.METAL_DARK, () => {
+      for (const px of [-1.7, 1.7]) {
+        m.box([px - 0.07, 0, z + 1.7], [px + 0.07, 3.45, z + 1.84], MAT.TRIM);
+      }
+    });
+    m.box([-2.0, 0, z + 0.1], [2.0, 0.14, z + 1.9], MAT.CONCRETE);
     bladeSign(m, { axis: 'x', sign: 1, plane: x }, 0, 2.4, 4.2, 1.5);
     bollards(m, { axis: 'z', sign: 1, plane: z }, -x + 1, x - 1, 2.4, 6);
   }
@@ -623,8 +633,13 @@ function bankBranch(lod: number): MeshBuilder {
     parapet(m, -x, -z, x, z, h, 1.4, 0.4);
     band(m, -x, -z, x, z, ground, 0.5, 0.35);
     band(m, -x, -z, x, z, h - 1.5, 0.45, 0.3);
-    // Portico: a slab on four columns over the door.
-    m.box([-3.4, 0, z + 0.25], [3.4, ground + 0.9, z + 2.5], MAT.CONCRETE, { roof: MAT.TRIM });
+    // Portico: an entablature carried on columns, so it has to be a beam and
+    // a pediment -- not the solid block this was, which just walled off the
+    // door it was supposed to shelter.
+    m.box([-3.6, ground + 0.4, z + 0.25], [3.6, ground + 1.0, z + 2.7], MAT.CONCRETE, { roof: MAT.TRIM });
+    m.box([-3.9, ground + 1.0, z + 0.25], [3.9, ground + 1.35, z + 2.9], MAT.CONCRETE, { roof: MAT.TRIM });
+    m.gable([-3.9, ground + 1.35, z + 0.25], [3.9, ground + 1.35, z + 2.9], 1.1, 'z',
+      MAT.ROOF, MAT.CONCRETE);
     roofClutter(m, -x + 2, -z + 2, x - 2, z - 2, h, 401, 0.6);
   }
   if (fine) {
@@ -793,5 +808,137 @@ COMMERCIAL.push(
     sim: { jobs: 40, powerKW: 70, waterM3: 18, garbagePerWeek: 260, pollution: 3, upkeep: 58 },
     note: 'Brick hall under a pitched roof, tall arched openings between piers, stalls out on the pavement.',
     build: marketHall,
+  },
+);
+
+// ------------------------------------------------------------------ cinema
+
+/**
+ * A cinema: a blank auditorium box behind a tall glazed foyer with a canopy
+ * and a poster wall. Almost all of the type's character is in the front three
+ * metres, which is exactly where a city builder's camera spends its time.
+ */
+function cinema(lod: number): MeshBuilder {
+  const m = new MeshBuilder();
+  const fine = lod < 1;
+  const medium = lod < 2;
+  const w = 26.0, d = 22.0;
+  const x = w / 2, z = d / 2;
+  const hall = 13.0, foyer = 8.4, foyerD = 5.0;
+
+  m.box([-x, 0, -z], [x, hall, z - foyerD], MAT.PLASTER, { roof: MAT.ROOF });
+  m.box([-x + 1.0, 0, z - foyerD], [x - 1.0, foyer, z], MAT.CONCRETE, { roof: MAT.ROOF });
+
+  if (medium) {
+    parapet(m, -x, -z, x, z - foyerD, hall, 1.4, 0.35);
+    parapet(m, -x + 1.0, z - foyerD, x - 1.0, z, foyer, 1.0, 0.3);
+    // Fly-tower fin over the middle of the auditorium.
+    m.box([-4.0, hall, -z + 4.0], [4.0, hall + 3.2, z - foyerD - 4.0], MAT.PLASTER, { roof: MAT.ROOF });
+    // Marquee canopy: deep, lit underneath, the single thing that says cinema.
+    m.painted(TINT.BRAND, () => {
+      m.box([-x + 0.6, foyer - 2.6, z], [x - 0.6, foyer - 1.9, z + 3.2], MAT.TRIM);
+    });
+    m.painted(TINT.SIGN_LIT, () => {
+      m.box([-x + 0.8, foyer - 2.75, z + 0.2], [x - 0.8, foyer - 2.6, z + 3.0], MAT.TRIM);
+    });
+    roofClutter(m, -x + 2, -z + 2, -4.6, z - foyerD - 2, hall, 701, 0.7);
+  }
+  if (fine) {
+    // Full-height glazed foyer.
+    for (let f = 0; f < 2; f++) {
+      m.windowRow({ axis: 'z', sign: 1, plane: z, from: -x + 2.0, to: -2.6,
+        y0: 0.7 + f * 3.5, y1: 3.4 + f * 3.5, count: 3, width: 2.4,
+        glass: f === 0 ? MAT.SHOPFRONT : MAT.GLASS, frame: 0.1, proud: 0.06 });
+      m.windowRow({ axis: 'z', sign: 1, plane: z, from: 2.6, to: x - 2.0,
+        y0: 0.7 + f * 3.5, y1: 3.4 + f * 3.5, count: 3, width: 2.4,
+        glass: f === 0 ? MAT.SHOPFRONT : MAT.GLASS, frame: 0.1, proud: 0.06 });
+    }
+    entrance(m, { axis: 'z', sign: 1, plane: z }, 0,
+      { width: 3.4, height: 3.0, double: true, glazed: true });
+    fasciaSign(m, { axis: 'z', sign: 1, plane: z }, -6.0, 6.0, foyer - 1.7, foyer - 0.4);
+    // Poster cases either side of the doors, and a vertical blade up the flank.
+    for (const px of [-4.6, 4.6]) {
+      m.painted(TINT.BRAND_DARK, () => {
+        m.box([px - 0.9, 1.0, z + 0.02], [px + 0.9, 3.4, z + 0.16], MAT.TRIM);
+      });
+      m.opening({ axis: 'z', sign: 1, plane: z + 0.16, u0: px - 0.75, u1: px + 0.75,
+        y0: 1.15, y1: 3.25, glass: MAT.GLASS, frame: 0.07, proud: 0.05 });
+    }
+    bladeSign(m, { axis: 'x', sign: 1, plane: x }, z - 2.6, foyer - 0.5, hall + 2.4, 1.6);
+    frontage(m, -x, x, z + 3.2, 703, { trees: 3, planters: 2, bollards: 9, depth: 2.6 });
+  }
+  return m;
+}
+
+// ------------------------------------------------------------------- hotel
+
+/** A city hotel: glazed lobby under a porte-cochere, banded bedroom floors. */
+function hotel(lod: number): MeshBuilder {
+  const m = new MeshBuilder();
+  const fine = lod < 1;
+  const medium = lod < 2;
+  const w = 22.0, d = 15.0;
+  const ground = 5.4;
+  const floors = 8, floorH = 3.15;
+  const top = ground + floors * floorH;
+  const x = w / 2, z = d / 2;
+
+  m.box([-x, 0, -z], [x, ground, z], MAT.CONCRETE, { roof: MAT.TRIM });
+  m.box([-x + 0.8, ground, -z + 0.6], [x - 0.8, top, z - 0.6], MAT.PLASTER, { roof: MAT.ROOF });
+
+  if (medium) {
+    band(m, -x, -z, x, z, ground, 0.8, 0.45);
+    // Bedroom floors expressed as bands, with a recessed spandrel between.
+    for (let f = 1; f <= floors; f++) {
+      band(m, -x + 0.8, -z + 0.6, x - 0.8, z - 0.6, ground + f * floorH - 0.45, 0.45, 0.25);
+    }
+    parapet(m, -x + 0.8, -z + 0.6, x - 0.8, z - 0.6, top, 1.3, 0.34);
+    // Porte-cochere: a canopy on two columns over the drop-off.
+    m.box([-5.4, ground - 1.6, z], [5.4, ground - 1.0, z + 5.0], MAT.CONCRETE);
+    m.painted(TINT.METAL_DARK, () => {
+      for (const px of [-4.6, 4.6]) {
+        m.box([px - 0.28, 0, z + 3.9], [px + 0.28, ground - 1.6, z + 4.5], MAT.TRIM);
+      }
+    });
+    m.box([-x, 0.001, z], [x, 0.1, z + 5.6], MAT.CONCRETE);
+    roofClutter(m, -x + 2, -z + 2, x - 2, z - 2, top, 711, 1.0);
+  }
+  if (fine) {
+    for (const [axis, sign, plane, half, n] of [
+      ['z', 1, z - 0.6, x - 0.8, 6], ['z', -1, -z + 0.6, x - 0.8, 6],
+      ['x', 1, x - 0.8, z - 0.6, 4], ['x', -1, -x + 0.8, z - 0.6, 4],
+    ] as const) {
+      windowGrid(m, { axis, sign, plane }, -half + 1.0, half - 1.0,
+        { floors, floorH, base: ground + 0.9, count: n, width: 1.6, height: 1.9, sill: false });
+    }
+    // Lobby glazing, broken for the revolving-door bay.
+    for (const [from, to] of [[-x + 1.2, -2.4], [2.4, x - 1.2]] as const) {
+      m.windowRow({ axis: 'z', sign: 1, plane: z, from, to, y0: 0.6, y1: 4.6,
+        count: 3, width: 2.4, glass: MAT.SHOPFRONT, frame: 0.11, proud: 0.07 });
+    }
+    entrance(m, { axis: 'z', sign: 1, plane: z }, 0,
+      { width: 2.8, height: 3.2, double: true, glazed: true });
+    boxSign(m, { axis: 'z', sign: 1, plane: z }, -3.6, 3.6, ground + 0.3, ground + 1.6);
+    bladeSign(m, { axis: 'x', sign: -1, plane: -x }, 3.0, ground + 1.0, ground + 6.0, 1.4);
+    for (const px of [-8.0, 8.0]) planter(m, px, z + 2.2, 0.9, 0.65);
+    frontage(m, -x, x, z + 5.6, 713, { trees: 3, planters: 0, bollards: 8, depth: 2.2 });
+  }
+  return m;
+}
+
+COMMERCIAL.push(
+  {
+    id: 'com.cinema', name: 'Cinema', zone: 'commercial', density: 'medium',
+    variant: 'sculpted', footprint: [4, 5], height: 16.2, brand: BRANDS.diner,
+    sim: { jobs: 26, powerKW: 130, waterM3: 12, garbagePerWeek: 220, pollution: 2, upkeep: 74 },
+    note: 'Blank auditorium behind a two-storey glazed foyer, lit marquee canopy, poster cases.',
+    build: cinema,
+  },
+  {
+    id: 'com.hotel', name: 'Hotel', zone: 'commercial', density: 'high',
+    variant: 'sculpted', footprint: [3, 4], height: 34.5, brand: BRANDS.bank,
+    sim: { jobs: 55, powerKW: 210, waterM3: 90, garbagePerWeek: 380, pollution: 2, upkeep: 130 },
+    note: 'Banded bedroom floors over a glazed lobby, porte-cochere on columns, blade sign.',
+    build: hotel,
   },
 );

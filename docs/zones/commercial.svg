@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48" role="img" aria-label="Commercial zone">
+  <defs>
+    <linearGradient id="g-commercial" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#79b7e2"/>
+      <stop offset="0.55" stop-color="#2f7fc1"/>
+      <stop offset="1" stop-color="#123a63"/>
+    </linearGradient>
+    <clipPath id="c-commercial"><rect x="2" y="2" width="44" height="44" rx="10"/></clipPath>
+  </defs>
+  <rect x="2" y="2" width="44" height="44" rx="10" fill="url(#g-commercial)"/>
+  <g clip-path="url(#c-commercial)">
+    <path d="M6 38h36v4H6z" fill="#79b7e2" opacity=".55"/>
+    <!-- shopfront: fascia sign, striped awning, glazing, door -->
+    <path d="M12 16h24v6H12z" fill="#fff"/>
+    <path d="M15 18.2h13v1.7H15z" fill="#123a63" opacity=".8"/>
+    <path d="M12 22h24v4H12z" fill="#123a63" opacity=".45"/>
+    <path d="M14 22h3v4h-3zM20 22h3v4h-3zM26 22h3v4h-3zM32 22h3v4h-3z" fill="#fff" opacity=".9"/>
+    <path d="M12 26h24v12H12z" fill="#fff" opacity=".92"/>
+    <path d="M15 29h7v6h-7zM26 29h7v6h-7z" fill="#123a63"/>
+    <path d="M22.6 29h2.8v9h-2.8z" fill="#123a63" opacity=".65"/>
+    <!-- blade sign standing off the corner -->
+    <path d="M36 17h5v8h-5z" fill="#123a63"/>
+    <circle cx="38.5" cy="21" r="1.5" fill="#79b7e2"/>
+  </g>
+  <rect x="2.6" y="2.6" width="42.8" height="42.8" rx="9.4" fill="none"
+        stroke="#123a63" stroke-width="1.2" opacity=".75"/>
+</svg>

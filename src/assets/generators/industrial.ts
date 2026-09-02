@@ -1,12 +1,12 @@
 /**
- * Industry: six sites.
+ * Industry: eleven sites.
  *
  * Industrial buildings are silhouette more than facade -- silos, stacks,
  * gantries, sawtooth glazing. Where a house is judged on its front door, a
  * plant is judged from three hundred metres away, so the triangles go into
  * things that break the outline rather than into window frames.
  *
- * All six sit on a lot with the building to one side and a yard beside it,
+ * They all sit on a lot with the building to one side and a yard beside it,
  * which is what an industrial plot looks like and what leaves room for the
  * equipment that makes the type readable.
  */
@@ -403,6 +403,348 @@ function recyclingYard(lod: number): MeshBuilder {
   return m;
 }
 
+// ------------------------------------------------------------- cold storage
+
+/**
+ * Cold store. A near-windowless insulated box, which sounds like nothing to
+ * model until you notice what makes one recognisable: the refrigeration deck
+ * on the roof, the insulated dock seals, and the trailers waiting at them.
+ */
+function coldStore(lod: number): MeshBuilder {
+  const m = new MeshBuilder();
+  const fine = lod < 1;
+  const medium = lod < 2;
+  const w = 26.0, d = 18.0, h = 14.5;
+  const x = w / 2, z = d / 2, cz = -1.0;
+
+  m.box([-x, 0, cz - z], [x, h, cz + z], MAT.SHED_WALL, { roof: MAT.TRIM });
+  // Insulated panels are laid in horizontal courses and it shows.
+  if (medium) {
+    for (let y = 2.4; y < h - 1.0; y += 2.4) {
+      band(m, -x, cz - z, x, cz + z, y, 0.1, 0.08, MAT.METAL);
+    }
+    m.box([-x - 0.4, h - 0.5, cz - z - 0.4], [x + 0.4, h, cz + z + 0.4], MAT.TRIM);
+    // Refrigeration deck: condensers in a row behind a screen.
+    m.box([-x + 2.0, h, cz - 5.0], [x - 2.0, h + 0.35, cz + 3.0], MAT.CONCRETE);
+    for (let i = 0; i < 5; i++) {
+      const px = -x + 3.2 + i * 4.2;
+      m.box([px, h + 0.35, cz - 4.2], [px + 3.0, h + 2.1, cz + 2.0], MAT.METAL);
+      m.painted(TINT.METAL_DARK, () => {
+        m.box([px + 0.2, h + 2.1, cz - 4.0], [px + 2.8, h + 2.3, cz + 1.8], MAT.TRIM);
+      });
+    }
+    m.painted(TINT.METAL_DARK, () => {
+      m.box([-x + 1.6, h + 0.35, cz - 5.2], [x - 1.6, h + 2.6, cz - 5.05], MAT.TRIM);
+    });
+    dock(m, -x + 2.0, x - 6.0, cz + z, 4, 5.4);
+    roofClutter(m, -x + 3, cz + 4, x - 3, cz + z - 2, h, 511, 0.5);
+  }
+  if (fine) {
+    // Office corner: the only part of a cold store with any glass in it.
+    m.box([x - 6.5, 0, cz + z - 0.2], [x, 6.6, cz + z + 5.2], MAT.PLASTER, { roof: MAT.ROOF });
+    parapet(m, x - 6.5, cz + z - 0.2, x, cz + z + 5.2, 6.6, 0.7, 0.2);
+    windowGrid(m, { axis: 'z', sign: 1, plane: cz + z + 5.2 }, x - 5.9, x - 0.6,
+      { floors: 2, floorH: 3.2, base: 1.3, count: 3, width: 1.3, height: 1.7 });
+    windowGrid(m, { axis: 'x', sign: 1, plane: x }, cz + z + 0.4, cz + z + 4.6,
+      { floors: 2, floorH: 3.2, base: 1.3, count: 2, width: 1.3, height: 1.7 });
+    entrance(m, { axis: 'z', sign: 1, plane: cz + z + 5.2 }, x - 3.2,
+      { width: 1.8, height: 2.4, double: true, glazed: true, canopy: 1.6 });
+    // Trailers parked on the apron, which is half of what the site looks like.
+    for (const tx of [-x + 5.0, -x + 11.5]) {
+      m.box([tx - 1.3, 1.15, cz + z + 2.6], [tx + 1.3, 4.4, cz + z + 11.0], MAT.SHED_WALL);
+      m.painted(TINT.METAL_DARK, () => {
+        m.box([tx - 1.2, 0.45, cz + z + 9.6], [tx + 1.2, 1.15, cz + z + 10.6], MAT.TRIM);
+        for (const wz of [cz + z + 4.0, cz + z + 5.2]) {
+          m.box([tx - 1.35, 0.0, wz], [tx + 1.35, 0.95, wz + 0.5], MAT.TRIM);
+        }
+      });
+    }
+    kerb(m, -x, cz + z + 12.0, x, cz + z + 12.4);
+  }
+  return m;
+}
+
+// ---------------------------------------------------------- batching plant
+
+/** Concrete batching plant: aggregate bays, a hopper tower, a mixer bay. */
+function batchingPlant(lod: number): MeshBuilder {
+  const m = new MeshBuilder();
+  const fine = lod < 1;
+  const medium = lod < 2;
+  const x = 19.0, z = 14.0;
+
+  // Aggregate bays: three-sided concrete pens with heaps in them.
+  for (let i = 0; i < 3; i++) {
+    const bx = -x + 1.5 + i * 6.4;
+    m.box([bx, 0, -z + 1.5], [bx + 0.5, 3.4, -z + 8.5], MAT.CONCRETE);
+    m.box([bx, 0, -z + 1.5], [bx + 5.9, 3.4, -z + 2.0], MAT.CONCRETE);
+    if (medium) {
+      m.cone(bx + 3.0, -z + 5.4, 2.6, 0.2, 0.02, 2.6 + i * 0.3, 10, MAT.GROUND);
+    }
+  }
+  m.box([x - 6.5, 0, -z + 1.5], [x - 0.5, 3.4, -z + 2.0], MAT.CONCRETE);
+
+  // Hopper tower: the silhouette of the whole type.
+  const tx = 5.0, tz = 2.0;
+  m.painted(TINT.METAL_DARK, () => {
+    for (const dx of [-3.2, 3.2]) {
+      for (const dz of [-3.0, 3.0]) {
+        m.box([tx + dx - 0.22, 0, tz + dz - 0.22], [tx + dx + 0.22, 15.5, tz + dz + 0.22], MAT.TRIM);
+      }
+    }
+  });
+  m.box([tx - 3.6, 9.0, tz - 3.4], [tx + 3.6, 15.5, tz + 3.4], MAT.METAL, { roof: MAT.TRIM });
+  m.cone(tx, tz, 3.4, 1.2, 6.4, 9.0, 12, MAT.METAL);
+  m.cylinder(tx, tz, 1.2, 4.6, 6.4, 10, MAT.METAL, false);
+
+  if (medium) {
+    silo(m, tx + 7.6, tz - 1.0, 2.2, 14.0);
+    silo(m, tx + 12.2, tz - 1.0, 2.2, 14.0);
+    // Conveyor from the bays up to the hopper: the diagonal that ties it all
+    // together, and the reason the plant reads as machinery not sheds.
+    m.painted(TINT.METAL_DARK, () => {
+      m.pipe([-x + 4.0, 1.2, -z + 5.4], [tx - 2.4, 12.2, tz - 1.0], 0.75, MAT.TRIM);
+      m.pipe([tx + 7.6, 14.6, tz - 1.0], [tx + 1.6, 15.8, tz], 0.4, MAT.TRIM);
+      m.pipe([tx + 12.2, 14.6, tz - 1.0], [tx + 2.0, 15.6, tz + 0.6], 0.4, MAT.TRIM);
+    });
+    m.box([tx - 4.4, 0.001, tz - 5.0], [tx + 4.4, 0.12, tz + 5.0], MAT.CONCRETE);
+    parapet(m, tx - 3.6, tz - 3.4, tx + 3.6, tz + 3.4, 15.5, 0.9, 0.25);
+  }
+  if (fine) {
+    // Site office in a portacabin, and the weighbridge every plant has.
+    m.box([-x + 1.0, 0.25, z - 7.5], [-x + 8.0, 3.4, z - 4.0], MAT.SHED_WALL, { roof: MAT.TRIM });
+    m.box([-x + 0.7, 0, z - 7.8], [-x + 8.3, 0.25, z - 3.7], MAT.CONCRETE);
+    windowGrid(m, { axis: 'z', sign: 1, plane: z - 4.0 }, -x + 1.6, -x + 7.4,
+      { floors: 1, floorH: 3, base: 1.35, count: 3, width: 1.1, height: 1.3 });
+    entrance(m, { axis: 'x', sign: 1, plane: -x + 8.0 }, z - 6.6,
+      { width: 1.0, height: 2.1, steps: 2 });
+    m.box([2.0, 0.001, z - 6.0], [12.0, 0.16, z - 2.4], MAT.CONCRETE);
+    m.painted(TINT.METAL_DARK, () => {
+      m.box([1.8, 0, z - 6.2], [2.0, 1.1, z - 2.2], MAT.TRIM);
+      m.box([12.0, 0, z - 6.2], [12.2, 1.1, z - 2.2], MAT.TRIM);
+    });
+    // Access platform and ladder up the tower: the detail that makes a
+    // hopper frame look climbable rather than extruded.
+    m.painted(TINT.METAL_DARK, () => {
+      for (const py of [9.0, 12.2]) {
+        m.box([tx - 4.0, py, tz - 3.8], [tx + 4.0, py + 0.1, tz + 3.8], MAT.TRIM);
+        for (let i = 0; i <= 8; i++) {
+          const rx = tx - 4.0 + (i / 8) * 8.0;
+          m.box([rx - 0.05, py, tz + 3.7], [rx + 0.05, py + 1.05, tz + 3.8], MAT.TRIM);
+          m.box([rx - 0.05, py, tz - 3.8], [rx + 0.05, py + 1.05, tz - 3.7], MAT.TRIM);
+        }
+        m.box([tx - 4.0, py + 1.0, tz + 3.7], [tx + 4.0, py + 1.08, tz + 3.8], MAT.TRIM);
+        m.box([tx - 4.0, py + 1.0, tz - 3.8], [tx + 4.0, py + 1.08, tz - 3.7], MAT.TRIM);
+      }
+      for (let i = 0; i < 18; i++) {
+        const ry = 0.6 + i * 0.8;
+        m.box([tx - 4.3, ry, tz - 0.35], [tx - 3.9, ry + 0.07, tz + 0.35], MAT.TRIM);
+      }
+      m.box([tx - 4.35, 0, tz - 0.42], [tx - 4.25, 15.5, tz - 0.32], MAT.TRIM);
+      m.box([tx - 4.35, 0, tz + 0.32], [tx - 4.25, 15.5, tz + 0.42], MAT.TRIM);
+    });
+    kerb(m, -x, z - 0.4, x, z);
+    for (const px of [-x + 3.0, x - 3.0]) tree(m, px, z - 1.6, 4.6, px + 90);
+  }
+  return m;
+}
+
+// --------------------------------------------------------------- bus depot
+
+/** Vehicle depot: an open-fronted maintenance shed, fuel island and offices. */
+function depot(lod: number): MeshBuilder {
+  const m = new MeshBuilder();
+  const fine = lod < 1;
+  const medium = lod < 2;
+  const w = 30.0, d = 14.0, wall = 8.0;
+  const x = w / 2, z = d / 2, cz = -4.0;
+  const bays = 4;
+
+  m.box([-x, 0, cz - z], [x, wall, cz + z], MAT.SHED_WALL, { roof: MAT.TRIM });
+  m.gable([-x, wall, cz - z], [x, wall, cz + z], 2.0, 'x', MAT.METAL, MAT.SHED_WALL);
+
+  if (medium) {
+    m.box([-x - 0.4, wall - 0.3, cz - z - 0.4], [x + 0.4, wall, cz + z + 0.4], MAT.TRIM);
+    // Open bays: piers between full-height doors, so it reads as a workshop
+    // rather than a warehouse.
+    for (let i = 0; i <= bays; i++) {
+      const px = -x + (i / bays) * w;
+      m.box([px - 0.6, 0, cz + z - 0.1], [px + 0.6, wall, cz + z + 0.5], MAT.CONCRETE);
+    }
+    m.painted(TINT.METAL_DARK, () => {
+      for (let i = 0; i < bays; i++) {
+        const a = -x + (i / bays) * w + 0.7;
+        const b = -x + ((i + 1) / bays) * w - 0.7;
+        m.box([a, 0, cz + z - 0.02], [b, 5.6, cz + z + 0.14], MAT.TRIM);
+        for (let g = 1; g < 6; g++) {
+          m.box([a, g * 0.92, cz + z + 0.14], [b, g * 0.92 + 0.09, cz + z + 0.2], MAT.TRIM);
+        }
+      }
+    });
+    roofClutter(m, -x + 3, cz - z + 2, x - 3, cz + z - 2, wall + 2.0, 521, 0.5);
+  }
+  if (fine) {
+    // Fuel island under a canopy, and the apron the buses stand on.
+    m.box([-x, 0.001, cz + z + 0.5], [x, 0.1, z], MAT.CONCRETE);
+    m.box([-x + 3.0, 4.6, z - 6.6], [-x + 12.0, 5.0, z - 2.0], MAT.CONCRETE);
+    m.painted(TINT.METAL_DARK, () => {
+      for (const px of [-x + 4.2, -x + 10.8]) {
+        m.box([px - 0.2, 0, z - 4.6], [px + 0.2, 4.6, z - 4.2], MAT.TRIM);
+      }
+      for (const px of [-x + 5.6, -x + 9.4]) {
+        m.box([px - 0.5, 0.2, z - 4.9], [px + 0.5, 1.9, z - 4.1], MAT.TRIM);
+      }
+    });
+    m.box([-x + 3.4, 0.1, z - 5.2], [-x + 11.6, 0.32, z - 3.6], MAT.CONCRETE);
+    // Two-storey office block on the end, with a stair door.
+    m.box([x - 9.0, 0, cz - z], [x, 7.2, cz - z + 8.0], MAT.PLASTER, { roof: MAT.ROOF });
+    parapet(m, x - 9.0, cz - z, x, cz - z + 8.0, 7.2, 0.8, 0.22);
+    for (const [axis, sign, plane, u0, u1, n] of [
+      ['x', 1, x, cz - z + 0.7, cz - z + 7.3, 3],
+      ['z', -1, cz - z, x - 8.4, x - 0.6, 4],
+    ] as const) {
+      windowGrid(m, { axis, sign, plane }, u0, u1,
+        { floors: 2, floorH: 3.3, base: 1.2, count: n, width: 1.3, height: 1.8 });
+    }
+    entrance(m, { axis: 'x', sign: 1, plane: x }, cz - z + 4.0,
+      { width: 1.6, height: 2.4, double: true, glazed: true, canopy: 1.5 });
+    kerb(m, -x, z - 0.4, x, z);
+  }
+  return m;
+}
+
+// -------------------------------------------------------------- timber yard
+
+/** Sawmill: open-sided drying sheds, stacked timber, a cyclone and a log deck. */
+function timberYard(lod: number): MeshBuilder {
+  const m = new MeshBuilder();
+  const fine = lod < 1;
+  const medium = lod < 2;
+  const x = 19.0, z = 15.0;
+  const millW = 15.0, millD = 12.0, millH = 8.5;
+  const mx = -x + millW / 2 + 1.5, mz = -z + millD / 2 + 1.5;
+
+  m.box([mx - millW / 2, 0, mz - millD / 2], [mx + millW / 2, millH, mz + millD / 2],
+    MAT.SHED_WALL, { roof: MAT.TRIM });
+  m.gable([mx - millW / 2, millH, mz - millD / 2], [mx + millW / 2, millH, mz + millD / 2],
+    2.2, 'x', MAT.METAL, MAT.SHED_WALL);
+
+  if (medium) {
+    // Cyclone and ducting: what a sawmill has instead of a chimney.
+    m.cylinder(mx + millW / 2 + 2.2, mz, 1.5, 0, 9.5, 12, MAT.METAL, false);
+    m.cone(mx + millW / 2 + 2.2, mz, 1.5, 0.5, 9.5, 12.5, 12, MAT.METAL);
+    m.cylinder(mx + millW / 2 + 2.2, mz, 0.5, 12.5, 13.4, 8, MAT.TRIM);
+    m.painted(TINT.METAL_DARK, () => {
+      m.pipe([mx + millW / 2, 7.4, mz], [mx + millW / 2 + 2.2, 8.6, mz], 0.55, MAT.TRIM);
+    });
+    m.box([mx - millW / 2 - 0.35, millH - 0.3, mz - millD / 2 - 0.35],
+      [mx + millW / 2 + 0.35, millH, mz + millD / 2 + 0.35], MAT.TRIM);
+    // Open drying sheds: a roof on posts over stacked boards.
+    for (let s = 0; s < 2; s++) {
+      const sz0 = z - 11.0 + s * 5.6;
+      m.box([-x + 2.0, 5.0, sz0], [x - 2.0, 5.4, sz0 + 4.4], MAT.METAL);
+      m.painted(TINT.METAL_DARK, () => {
+        for (let i = 0; i <= 5; i++) {
+          const px = -x + 2.4 + (i / 5) * (2 * x - 5.2);
+          m.box([px - 0.16, 0, sz0 + 0.3], [px + 0.16, 5.0, sz0 + 0.62], MAT.TRIM);
+          m.box([px - 0.16, 0, sz0 + 3.8], [px + 0.16, 5.0, sz0 + 4.12], MAT.TRIM);
+        }
+      });
+    }
+  }
+  if (fine) {
+    // Timber stacks: banded boxes with a gap between courses.
+    for (let s = 0; s < 2; s++) {
+      const sz0 = z - 10.6 + s * 5.6;
+      for (let i = 0; i < 5; i++) {
+        const px = -x + 3.4 + i * 6.6;
+        m.painted(TINT.WOOD, () => {
+          for (let c = 0; c < 4; c++) {
+            m.box([px, 0.2 + c * 1.05, sz0 + 0.4], [px + 5.2, 1.1 + c * 1.05, sz0 + 3.4], MAT.TRIM);
+          }
+        });
+      }
+    }
+    // Log deck beside the mill.
+    for (let i = 0; i < 3; i++) {
+      const ly = 0.55 + i * 0.95;
+      const off = i * 0.55;
+      for (let j = 0; j < 4 - i; j++) {
+        m.painted(TINT.WOOD, () => {
+          m.pipe([mx + millW / 2 + 5.0, ly, -z + 2.4 + off + j * 1.1],
+            [mx + millW / 2 + 12.5, ly, -z + 2.4 + off + j * 1.1], 0.5, MAT.TRIM);
+        });
+      }
+    }
+    windowGrid(m, { axis: 'z', sign: 1, plane: mz + millD / 2 }, mx - millW / 2 + 1.0, mx + millW / 2 - 1.0,
+      { floors: 1, floorH: 3, base: 5.2, count: 5, width: 1.4, height: 1.6 });
+    entrance(m, { axis: 'z', sign: 1, plane: mz + millD / 2 }, mx - 3.0,
+      { width: 1.2, height: 2.3, canopy: 1.3 });
+    m.painted(TINT.METAL_DARK, () => {
+      m.box([mx + 1.0, 0, mz + millD / 2 - 0.02], [mx + 6.4, 5.2, mz + millD / 2 + 0.14], MAT.TRIM);
+    });
+    kerb(m, -x, z - 0.4, x, z);
+  }
+  return m;
+}
+
+// ------------------------------------------------------------ clean assembly
+
+/**
+ * A modern assembly plant: the tidy end of industry. Glazed office frontage,
+ * a long production hall behind, and none of the smoke -- a city needs one of
+ * these to zone next to housing without the neighbours rioting.
+ */
+function assemblyPlant(lod: number): MeshBuilder {
+  const m = new MeshBuilder();
+  const fine = lod < 1;
+  const medium = lod < 2;
+  const w = 30.0, d = 20.0;
+  const x = w / 2, z = d / 2;
+  const hallH = 10.0, officeH = 7.4, officeD = 6.0;
+
+  m.box([-x, 0, -z], [x, hallH, z - officeD], MAT.SHED_WALL, { roof: MAT.TRIM });
+  m.box([-x + 1.5, 0, z - officeD], [x - 1.5, officeH, z], MAT.PLASTER, { roof: MAT.ROOF });
+
+  if (medium) {
+    m.box([-x - 0.4, hallH - 0.4, -z - 0.4], [x + 0.4, hallH, z - officeD + 0.4], MAT.TRIM);
+    parapet(m, -x + 1.5, z - officeD, x - 1.5, z, officeH, 0.9, 0.26);
+    // Roof monitors down the hall: north light, and a strong silhouette.
+    for (let i = 0; i < 3; i++) {
+      const cx = -x + 5.0 + i * 8.0;
+      m.box([cx, hallH, -z + 2.5], [cx + 5.0, hallH + 1.8, z - officeD - 2.5], MAT.METAL);
+      m.box([cx - 0.3, hallH + 1.8, -z + 2.2], [cx + 5.3, hallH + 2.05, z - officeD - 2.2], MAT.TRIM);
+    }
+    band(m, -x + 1.5, z - officeD, x - 1.5, z, officeH - 3.7, 0.3, 0.18);
+    roofClutter(m, -x + 2, -z + 1.5, x - 2, -z + 4.0, hallH, 531, 0.7);
+    dock(m, -x + 2.0, -x + 11.0, -z, 2, 5.2);
+  }
+  if (fine) {
+    // Continuous glazing to the office, plus the ribbon on the hall's flank.
+    for (let f = 0; f < 2; f++) {
+      m.windowRow({ axis: 'z', sign: 1, plane: z, from: -x + 2.4, to: x - 2.4,
+        y0: 1.0 + f * 3.7, y1: 3.3 + f * 3.7, count: 7, width: 2.6,
+        glass: f === 0 ? MAT.SHOPFRONT : MAT.GLASS, frame: 0.1, proud: 0.06 });
+    }
+    for (const sx of [-1, 1] as const) {
+      m.opening({ axis: 'x', sign: sx, plane: sx * x, u0: -z + 2.0, u1: z - officeD - 2.0,
+        y0: 6.4, y1: 8.4, glass: MAT.GLASS, frame: 0.12, proud: 0.06 });
+    }
+    for (let i = 0; i < 3; i++) {
+      const cx = -x + 5.0 + i * 8.0;
+      for (const sz of [1, -1] as const) {
+        m.opening({ axis: 'z', sign: sz, plane: sz === 1 ? z - officeD - 2.5 : -z + 2.5,
+          u0: cx + 0.4, u1: cx + 4.6, y0: hallH + 0.35, y1: hallH + 1.6,
+          glass: MAT.GLASS, frame: 0.1, proud: 0.06 });
+      }
+    }
+    entrance(m, { axis: 'z', sign: 1, plane: z }, 0,
+      { width: 3.0, height: 3.0, double: true, glazed: true, canopy: 2.6 });
+    frontage(m, -x + 1.5, x - 1.5, z, 533, { trees: 4, planters: 2, bollards: 8, depth: 2.6 });
+  }
+  return m;
+}
+
 // -------------------------------------------------------------------- table
 
 const job = (jobs: number, pollution: number, upkeep: number): AssetDef['sim'] => ({
@@ -415,6 +757,11 @@ export const INDUSTRIAL: AssetDef[] = [
   { id: 'ind.plant', name: 'Processing plant', zone: 'industrial', density: 'none', variant: 'sculpted', footprint: [4, 3], height: 23, sim: job(40, 14, 105), note: 'Sawtooth shed, process block, three silos, banded stack, pipe rack, dock.', build: processingPlant },
   { id: 'ind.tanks', name: 'Tank farm', zone: 'industrial', density: 'none', variant: 'sculpted', footprint: [5, 4], height: 16, sim: job(12, 18, 80), note: 'Four tanks in a bund with spiral stairs, pump house, stack, pipe rack.', build: tankFarm },
   { id: 'ind.foundry', name: 'Heavy works', zone: 'industrial', density: 'none', variant: 'sculpted', footprint: [5, 4], height: 32, sim: job(60, 22, 150), note: 'One tall bay with a crane rail and roof monitor, two stacks, annexe, dock.', build: foundry },
+  { id: 'ind.cold', name: 'Cold store', zone: 'industrial', density: 'none', variant: 'sculpted', footprint: [4, 6], height: 16.9, sim: job(30, 6, 110), note: 'Insulated box, condenser deck on the roof, four dock seals, trailers on the apron.', build: coldStore },
+  { id: 'ind.batching', name: 'Batching plant', zone: 'industrial', density: 'none', variant: 'sculpted', footprint: [5, 4], height: 16.4, sim: job(16, 16, 85), note: 'Aggregate bays, hopper tower on a frame, two cement silos, conveyor, weighbridge.', build: batchingPlant },
+  { id: 'ind.depot', name: 'Vehicle depot', zone: 'industrial', density: 'none', variant: 'sculpted', footprint: [4, 4], height: 10.0, sim: job(34, 9, 95), note: 'Four-bay maintenance shed with roller doors, fuel island, two-storey office.', build: depot },
+  { id: 'ind.timber', name: 'Timber yard', zone: 'industrial', density: 'none', variant: 'sculpted', footprint: [5, 4], height: 13.4, sim: job(26, 11, 78), note: 'Sawmill with a cyclone, open drying sheds, stacked boards and a log deck.', build: timberYard },
+  { id: 'ind.assembly', name: 'Assembly plant', zone: 'industrial', density: 'none', variant: 'sculpted', footprint: [4, 4], height: 12.1, sim: job(70, 4, 130), note: 'Glazed office frontage, production hall with roof monitors, two loading bays.', build: assemblyPlant },
   { id: 'ind.recycling', name: 'Recycling yard', zone: 'industrial', density: 'none', variant: 'sculpted', footprint: [5, 4], height: 10, sim: job(24, 12, 70), note: 'Open yard: storage bays with heaps, sorting shed, conveyor, weighbridge.', build: recyclingYard },
 ];
 

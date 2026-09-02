@@ -26,6 +26,14 @@ const OUT = process.argv[2] ?? 'assets.png';
 const LOD = Number(process.argv[3] ?? 0);
 /** Optional id substring filter, so one category can be reviewed at a time. */
 const ONLY = process.argv[4] ?? '';
+/**
+ * Street-level framing. Doors, shopfronts and window frames are the details
+ * players complain about, and the whole-building shot is too far away to
+ * judge any of them -- so this drops the camera to eye height at the kerb.
+ *
+ *   node tools/asset-sheet.mjs doors.png 0 com. street
+ */
+const STREET = (process.argv[5] ?? '') === 'street';
 const TILE = 512;          // 512 * 4 bytes is a multiple of the 256-byte row alignment
 const TILE_H = 576;
 const COLS = 6;
@@ -51,7 +59,7 @@ const page = await browser.newPage();
 page.on('pageerror', (e) => console.log('[pageerror]', e.message));
 await page.goto('http://localhost:4181/');
 
-const result = await page.evaluate(async ({ shader, registry, TILE, TILE_H, COLS, LOD, SHADOW, ONLY }) => {
+const result = await page.evaluate(async ({ shader, registry, TILE, TILE_H, COLS, LOD, SHADOW, ONLY, STREET }) => {
   const all = new Function(registry + '; return REG;')().ASSETS;
   const ASSETS = ONLY ? all.filter((a) => a.id.includes(ONLY)) : all;
   const adapter = await navigator.gpu.requestAdapter();
@@ -167,11 +175,12 @@ const result = await page.evaluate(async ({ shader, registry, TILE, TILE_H, COLS
       radius = Math.max(radius, Math.hypot(mesh.vertices[v], mesh.vertices[v + 2]));
     }
 
-    const dist = Math.max(height * 1.5, radius * 3.4, 12);
-    const target = [0, height * 0.45, 0];
-    const yaw = 0.95, pitch = 0.30;
+    const dist = STREET ? Math.max(radius * 3.0, 22) : Math.max(height * 1.5, radius * 3.4, 12);
+    const target = STREET ? [0, 4.5, 0] : [0, height * 0.45, 0];
+    const yaw = STREET ? 0.30 : 0.95;
+    const pitch = STREET ? 0.12 : 0.30;
     const eye = [target[0] + dist * Math.cos(pitch) * Math.sin(yaw),
-                 target[1] + dist * Math.sin(pitch) + height * 0.1,
+                 target[1] + dist * Math.sin(pitch) + (STREET ? 0 : height * 0.1),
                  target[2] + dist * Math.cos(pitch) * Math.cos(yaw)];
     const viewProj = mul(persp((42 * Math.PI) / 180, TILE / TILE_H, 0.2, 2000), look(eye, target, [0, 1, 0]));
 
@@ -244,7 +253,7 @@ const result = await page.evaluate(async ({ shader, registry, TILE, TILE_H, COLS
   }
 
   return { png: sheet.toDataURL('image/png'), stats, errors, diags };
-}, { shader, registry, TILE, TILE_H, COLS, LOD, SHADOW, ONLY });
+}, { shader, registry, TILE, TILE_H, COLS, LOD, SHADOW, ONLY, STREET });
 
 if (result.error || result.diags?.length) {
   console.error('FAIL', result.error ?? result.diags.join('; '));

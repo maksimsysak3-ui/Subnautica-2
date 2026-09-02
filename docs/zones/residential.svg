@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48" role="img" aria-label="Residential zone">
+  <defs>
+    <linearGradient id="g-residential" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#7fc98d"/>
+      <stop offset="0.55" stop-color="#3f9a55"/>
+      <stop offset="1" stop-color="#1d4a2b"/>
+    </linearGradient>
+    <clipPath id="c-residential"><rect x="2" y="2" width="44" height="44" rx="10"/></clipPath>
+  </defs>
+  <rect x="2" y="2" width="44" height="44" rx="10" fill="url(#g-residential)"/>
+  <g clip-path="url(#c-residential)">
+    <!-- garden strip and a tree, so the low-density read is immediate -->
+    <path d="M6 38h36v4H6z" fill="#7fc98d" opacity=".55"/>
+    <path d="M11.5 38v-5" stroke="#1d4a2b" stroke-width="1.6" stroke-linecap="round"/>
+    <circle cx="11.5" cy="30" r="3.6" fill="#1d4a2b" opacity=".85"/>
+    <!-- terrace behind, main house in front: two depths in one silhouette -->
+    <path d="M28 20h13v18H28z" fill="#1d4a2b" opacity=".35"/>
+    <path d="M28 20l6.5-5 6.5 5" fill="none" stroke="#1d4a2b" stroke-width="2"
+          stroke-linejoin="round" opacity=".45"/>
+    <path d="M16 24h16v14H16z" fill="#fff"/>
+    <path d="M14 24.5L24 16l10 8.5" fill="none" stroke="#fff" stroke-width="3"
+          stroke-linejoin="round" stroke-linecap="round"/>
+    <path d="M19 28h4v4h-4zM26 28h4v4h-4z" fill="#1d4a2b"/>
+    <path d="M22.2 34h3.6v4h-3.6z" fill="#1d4a2b" opacity=".7"/>
+  </g>
+  <rect x="2.6" y="2.6" width="42.8" height="42.8" rx="9.4" fill="none"
+        stroke="#1d4a2b" stroke-width="1.2" opacity=".75"/>
+</svg>

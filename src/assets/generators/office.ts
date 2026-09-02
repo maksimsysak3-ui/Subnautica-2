@@ -280,12 +280,177 @@ const desk = (jobs: number, upkeep: number): AssetDef['sim'] => ({
   pollution: 1, upkeep,
 });
 
+// -------------------------------------------------------------- deco tower
+
+/**
+ * A pre-war office tower: masonry, setbacks, and vertical piers running the
+ * full height. The office set was otherwise all post-1960 glass, and a
+ * downtown with no older stock in it looks like a business park.
+ */
+function decoTower(lod: number): MeshBuilder {
+  const m = new MeshBuilder();
+  const fine = lod < 1;
+  const medium = lod < 2;
+  const x = 11.0, z = 10.0;
+  const ground = 6.2, floorH = 3.5;
+  // Three stages, each stepping in: the massing rule these were designed to.
+  const stages: Array<[number, number, number]> = [
+    [ground, ground + 8 * floorH, 1.0],
+    [ground + 8 * floorH, ground + 14 * floorH, 0.78],
+    [ground + 14 * floorH, ground + 18 * floorH, 0.56],
+  ];
+  const top = stages[2][1];
+
+  m.box([-x, 0, -z], [x, ground, z], MAT.CONCRETE, { roof: MAT.TRIM });
+  for (const [y0, y1, sc] of stages) {
+    m.box([-x * sc, y0, -z * sc], [x * sc, y1, z * sc], MAT.BRICK, { roof: MAT.ROOF });
+  }
+
+  if (medium) {
+    band(m, -x, -z, x, z, ground, 0.7, 0.4);
+    for (const [, y1, sc] of stages) {
+      band(m, -x * sc, -z * sc, x * sc, z * sc, y1, 1.0, 0.42);
+      parapet(m, -x * sc, -z * sc, x * sc, z * sc, y1 + 1.0, 0.7, 0.2);
+    }
+    // Piers between every window bay, run the full height of each stage.
+    for (const [y0, y1, sc] of stages) {
+      const bays = Math.max(3, Math.round((x * sc * 2) / 2.6));
+      for (let i = 0; i <= bays; i++) {
+        const px = -x * sc + (i / bays) * x * sc * 2;
+        for (const sz of [-1, 1] as const) {
+          m.box([px - 0.2, y0, sz * z * sc], [px + 0.2, y1, sz * z * sc + sz * 0.3], MAT.CONCRETE);
+        }
+      }
+      const dbays = Math.max(3, Math.round((z * sc * 2) / 2.6));
+      for (let i = 0; i <= dbays; i++) {
+        const pz = -z * sc + (i / dbays) * z * sc * 2;
+        for (const sx of [-1, 1] as const) {
+          m.box([Math.min(sx * x * sc, sx * x * sc + sx * 0.3), y0, pz - 0.2],
+                [Math.max(sx * x * sc, sx * x * sc + sx * 0.3), y1, pz + 0.2], MAT.CONCRETE);
+        }
+      }
+    }
+    // Stepped crown and a mast, the reason anyone looks up at one of these.
+    for (let i = 0; i < 3; i++) {
+      const sc = 0.4 - i * 0.1;
+      m.box([-x * sc, top + 1.7 + i * 1.4, -z * sc], [x * sc, top + 3.1 + i * 1.4, z * sc],
+        MAT.CONCRETE, { roof: MAT.ROOF });
+    }
+    m.box([-0.18, top + 7.3, -0.18], [0.18, top + 13.5, 0.18], MAT.TRIM);
+    roofClutter(m, -x * 0.5, -z * 0.5, x * 0.5, z * 0.5, top + 1.0, 341, 0.5);
+  }
+  if (fine) {
+    for (const [y0, y1, sc] of stages) {
+      const n = Math.round((y1 - y0) / floorH);
+      for (let f = 0; f < n; f++) {
+        const y = y0 + f * floorH + 0.75;
+        for (const [axis, sign, plane, half] of [
+          ['z', 1, z * sc, x * sc], ['z', -1, -z * sc, x * sc],
+          ['x', 1, x * sc, z * sc], ['x', -1, -x * sc, z * sc],
+        ] as const) {
+          m.opening({ axis, sign, plane, u0: -half + 0.6, u1: half - 0.6, y0: y, y1: y + 2.0,
+            glass: MAT.GLASS, frame: 0.1, proud: 0.05 });
+        }
+      }
+    }
+    // Deep stone-framed entrance: three storeys of it, as they always were.
+    m.box([-3.6, 0, z], [3.6, ground - 0.4, z + 0.5], MAT.CONCRETE, { roof: MAT.TRIM });
+    m.opening({ axis: 'z', sign: 1, plane: z + 0.5, u0: -2.6, u1: 2.6, y0: 3.4, y1: ground - 0.9,
+      glass: MAT.GLASS, frame: 0.14, proud: 0.06 });
+    entrance(m, { axis: 'z', sign: 1, plane: z + 0.5 }, 0,
+      { width: 2.6, height: 3.0, double: true, steps: 2 });
+    m.windowRow({ axis: 'z', sign: 1, plane: z, from: -x + 1.0, to: -4.2, y0: 1.2, y1: 4.6,
+      count: 2, width: 2.0, glass: MAT.SHOPFRONT, frame: 0.12, proud: 0.07 });
+    m.windowRow({ axis: 'z', sign: 1, plane: z, from: 4.2, to: x - 1.0, y0: 1.2, y1: 4.6,
+      count: 2, width: 2.0, glass: MAT.SHOPFRONT, frame: 0.12, proud: 0.07 });
+    boxSign(m, { axis: 'z', sign: 1, plane: z + 0.5 }, -2.4, 2.4, ground - 0.85, ground - 0.1);
+    frontage(m, -x, x, z + 0.5, 343, { trees: 3, planters: 2, bollards: 8, depth: 2.4 });
+  }
+  return m;
+}
+
+// ------------------------------------------------------------- tech campus
+
+/**
+ * A low, wide campus building: two glazed wings around a planted courtyard,
+ * with a bridge between them. Offices need a low-density option that is not
+ * just a smaller tower -- this is where a city puts the jobs it zoned on the
+ * edge of town.
+ */
+function techCampus(lod: number): MeshBuilder {
+  const m = new MeshBuilder();
+  const fine = lod < 1;
+  const medium = lod < 2;
+  const x = 17.0, z = 13.0;
+  const floors = 3, floorH = 3.8;
+  const h = floors * floorH;
+  const wing = 9.0;
+
+  // Two wings joined by a link block at the back.
+  for (const sx of [-1, 1] as const) {
+    m.box([Math.min(sx * x, sx * x - sx * wing), 0, -z],
+          [Math.max(sx * x, sx * x - sx * wing), h, z], MAT.GLASS, { roof: MAT.ROOF });
+  }
+  m.box([-x + wing, 0, -z], [x - wing, h, -z + 7.0], MAT.PLASTER, { roof: MAT.ROOF });
+
+  if (medium) {
+    for (const sx of [-1, 1] as const) {
+      const a = Math.min(sx * x, sx * x - sx * wing);
+      const b = Math.max(sx * x, sx * x - sx * wing);
+      for (let f = 1; f <= floors; f++) band(m, a, -z, b, z, f * floorH - 0.5, 0.5, 0.28);
+      parapet(m, a, -z, b, z, h, 1.0, 0.3);
+    }
+    parapet(m, -x + wing, -z, x - wing, -z + 7.0, h, 1.0, 0.3);
+    // Bridge across the court at first floor: the campus signature.
+    m.box([-x + wing, floorH + 0.4, 1.5], [x - wing, floorH + 3.6, 5.0], MAT.GLASS, { roof: MAT.TRIM });
+    m.box([-x + wing - 0.3, floorH + 0.1, 1.2], [x - wing + 0.3, floorH + 0.5, 5.3], MAT.CONCRETE);
+    roofClutter(m, -x + 1.5, -z + 1.5, -x + wing - 1.5, z - 1.5, h, 351, 1.0);
+    roofClutter(m, x - wing + 1.5, -z + 1.5, x - 1.5, z - 1.5, h, 353, 1.0);
+    // Planted courtyard between the wings.
+    m.painted(TINT.GREEN, () => {
+      m.box([-x + wing + 0.5, 0.001, -z + 7.5], [x - wing - 0.5, 0.14, z - 1.0], MAT.TRIM);
+    });
+  }
+  if (fine) {
+    for (const sx of [-1, 1] as const) {
+      const outer = sx * x;
+      const inner = sx * x - sx * wing;
+      for (let f = 0; f < floors; f++) {
+        const y = f * floorH + 0.9;
+        m.opening({ axis: 'x', sign: sx, plane: outer, u0: -z + 0.9, u1: z - 0.9, y0: y, y1: y + 2.2,
+          glass: MAT.GLASS, frame: 0.1, proud: 0.06 });
+        m.opening({ axis: 'x', sign: (-sx) as 1 | -1, plane: inner, u0: -z + 7.6, u1: z - 0.9,
+          y0: y, y1: y + 2.2, glass: MAT.GLASS, frame: 0.1, proud: 0.06 });
+        for (const sz of [1, -1] as const) {
+          m.opening({ axis: 'z', sign: sz, plane: sz * z,
+            u0: Math.min(outer, inner) + 0.9, u1: Math.max(outer, inner) - 0.9,
+            y0: y, y1: y + 2.2, glass: MAT.GLASS, frame: 0.1, proud: 0.06 });
+        }
+      }
+      tree(m, sx * 6.0, z - 4.0, 6.2, 355 + sx);
+      planter(m, sx * 3.0, z - 7.5, 1.1, 0.6);
+    }
+    windowGrid(m, { axis: 'z', sign: -1, plane: -z }, -x + wing + 0.8, x - wing - 0.8,
+      { floors, floorH, base: 1.1, count: 4, width: 1.8, height: 2.0, sill: false });
+    // Two entrances, one per wing, facing the court.
+    for (const sx of [-1, 1] as const) {
+      entrance(m, { axis: 'z', sign: 1, plane: z }, sx * (x - wing / 2),
+        { width: 2.4, height: 3.0, double: true, glazed: true, canopy: 2.2 });
+    }
+    fasciaSign(m, { axis: 'z', sign: 1, plane: z }, -x + 1.2, -x + 7.0, h - 1.6, h - 0.5);
+    frontage(m, -x, x, z, 357, { trees: 2, planters: 0, bollards: 10, depth: 2.4 });
+  }
+  return m;
+}
+
 export const OFFICE: AssetDef[] = [
   { id: 'off.park', name: 'Business park unit', zone: 'office', density: 'low', variant: 'sculpted', footprint: [4, 3], height: 8.5, brand: BRANDS.electronics, sim: desk(45, 70), note: 'Two storeys with brick end bays, glazed entrance box, car park bays.', build: parkUnit },
   { id: 'off.midrise', name: 'Mid-rise offices', zone: 'office', density: 'medium', variant: 'sculpted', footprint: [2, 3], height: 28, brand: BRANDS.bank, sim: desk(160, 190), note: 'Expressed floor bands, glazed lobby, canopy over a double entrance.', build: midRise },
   { id: 'off.hq', name: 'Corporate headquarters', zone: 'office', density: 'high', variant: 'sculpted', footprint: [4, 5], height: 51, brand: BRANDS.bank, sim: desk(420, 430), note: 'Glass slab between two solid cores, podium, forecourt with planting.', build: corporateHQ },
   { id: 'off.tower', name: 'Office tower', zone: 'office', density: 'high', variant: 'sculpted', footprint: [3, 4], height: 112, brand: BRANDS.electronics, sim: desk(900, 820), note: 'Full-height corner mullions, crown and mast, deep glazed base.', build: officeTower },
   { id: 'off.conversion', name: 'Warehouse conversion', zone: 'office', density: 'medium', variant: 'sculpted', footprint: [3, 3], height: 20, brand: BRANDS.bookshop, sim: desk(110, 130), note: 'Old brick warehouse, tall industrial openings, glazed rooftop extension.', build: conversion },
+  { id: 'off.deco', name: 'Deco office tower', zone: 'office', density: 'high', variant: 'sculpted', footprint: [3, 4], height: 87.0, brand: BRANDS.bank, sim: desk(560, 520), note: 'Masonry tower in three setback stages, piers the full height, stepped crown and mast.', build: decoTower },
+  { id: 'off.campus', name: 'Tech campus', zone: 'office', density: 'low', variant: 'sculpted', footprint: [5, 4], height: 12.4, brand: BRANDS.electronics, sim: desk(180, 210), note: 'Two glazed wings around a planted court, linked by a first-floor bridge.', build: techCampus },
 ];
 
 void ring;
