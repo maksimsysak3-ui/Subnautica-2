@@ -45,7 +45,7 @@ export interface Palette {
  * asset viewer, not something the player paints on the map, and giving them a
  * zone icon would put them in the toolbar as if they were.
  */
-export type IconZone = Exclude<Zone, 'fleet'>;
+export type IconZone = Exclude<Zone, 'fleet' | 'road'>;
 
 export const ZONE_STYLE: Record<IconZone, Palette> = {
   residential: {

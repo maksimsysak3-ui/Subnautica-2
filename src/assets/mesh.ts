@@ -469,13 +469,49 @@ export class MeshBuilder {
   }
 
   /** A run of pipe as a box. Cheaper than a cylinder and reads identically. */
-  pipe(from: Vec3, to: Vec3, radius: number, mat: Material): void {
-    this.box(
-      [Math.min(from[0], to[0]) - radius, Math.min(from[1], to[1]) - radius, Math.min(from[2], to[2]) - radius],
-      [Math.max(from[0], to[0]) + radius, Math.max(from[1], to[1]) + radius, Math.max(from[2], to[2]) + radius],
-      mat, { skipBottom: false },
-    );
+  pipe(from: Vec3, to: Vec3, radius: number, mat: Material, sides = 6): void {
+    // A real prism along the axis, not the bounding box of the two ends. It
+    // was the bounding box, which is identical for an axis-aligned run and
+    // catastrophic for a diagonal one: the cable-stayed bridge's twelve stays
+    // came out as twelve solids the size of the bridge, and every bicycle
+    // frame in the library was a stack of blocks.
+    const ax = to[0] - from[0], ay = to[1] - from[1], az = to[2] - from[2];
+    const len = Math.hypot(ax, ay, az);
+    if (len < 1e-6) return;
+    const dx = ax / len, dy = ay / len, dz = az / len;
+    // Any vector not parallel to the axis gives a starting perpendicular.
+    const ref: Vec3 = Math.abs(dy) < 0.9 ? [0, 1, 0] : [1, 0, 0];
+    let ux = ref[1] * dz - ref[2] * dy;
+    let uy = ref[2] * dx - ref[0] * dz;
+    let uz = ref[0] * dy - ref[1] * dx;
+    const ul = Math.hypot(ux, uy, uz) || 1;
+    ux /= ul; uy /= ul; uz /= ul;
+    const vx = dy * uz - dz * uy;
+    const vy = dz * ux - dx * uz;
+    const vz = dx * uy - dy * ux;
+
+    const ring = (p: Vec3): Vec3[] => {
+      const out: Vec3[] = [];
+      for (let i = 0; i < sides; i++) {
+        const a = (i / sides) * Math.PI * 2;
+        const c = Math.cos(a) * radius, s2 = Math.sin(a) * radius;
+        out.push([p[0] + ux * c + vx * s2, p[1] + uy * c + vy * s2, p[2] + uz * c + vz * s2]);
+      }
+      return out;
+    };
+    const A = ring(from), B = ring(to);
+    for (let i = 0; i < sides; i++) {
+      const j = (i + 1) % sides;
+      this.quad(A[i], A[j], B[j], B[i], mat);
+    }
+    // Caps, as fans from each end point.
+    for (let i = 0; i < sides; i++) {
+      const j = (i + 1) % sides;
+      this.tri(A[j], A[i], from, mat);
+      this.tri(B[i], B[j], to, mat);
+    }
   }
+
 
   /**
    * A quad carrying local 0..1 coordinates, for surfaces the shader needs to

@@ -585,8 +585,9 @@ part-time work. To something people would pay for: 3-4 years or a team.
 
 ## 10. Asset library, as built
 
-The library is 151 procedural assets: 95 zoned buildings, 44 service
-buildings across nine branches, and 12 vehicles and crowds. Everything below is
+The library is 158 procedural assets: 95 zoned buildings, 44 service
+buildings across nine branches, 12 vehicles and crowds, and 7 road and
+bridge sections. Everything below is
 generated from code in `src/assets/generators/` — no modelling package, no
 textures, no UV unwrapping. `asset.html` is the viewer; `node
 tools/asset-sheet.mjs out.png 0 <filter> [street]` renders a contact sheet
@@ -601,6 +602,7 @@ with no GPU.
 | industrial | 20 | craft units → chemical works |
 | service | 44 | nine branches, below |
 | fleet | 12 | ten road vehicles, pedestrians, cyclists |
+| road | 7 | street and avenue, junctions, three bridges |
 
 Services are the nine branches a city builder needs: fire, police, health,
 education, water, power, transport, government and parks, four to five
