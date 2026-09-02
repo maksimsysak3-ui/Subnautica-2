@@ -1,5 +1,5 @@
 /**
- * Housing: twenty buildings across three densities.
+ * Housing: thirty-five buildings across three densities.
  *
  * Variety here matters more than in any other category, because housing is
  * most of a city by area. Two prototypes repeated across a district is the

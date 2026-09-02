@@ -15,8 +15,8 @@ import { CELL } from '../types';
 import type { AssetDef } from '../types';
 import { BRANDS } from '../brands';
 import {
-  band, boxSign, entrance, fasciaSign, frontage, kerb, parapet, planter,
-  railing, ring, roofClutter, windowGrid,
+  band, boxSign, entrance, fasciaSign, fins, frontage, kerb, louvres, parapet, planter,
+  railing, ribbon, ring, roofClutter, windowGrid,
 } from '../parts';
 
 // ------------------------------------------------------------- park unit
@@ -765,7 +765,152 @@ function dataCentre(lod: number): MeshBuilder {
   return m;
 }
 
+
+// ------------------------------------------------------------- two more
+
+/** Co-working: an old block re-clad, with an external stair and a roof terrace. */
+function coworking(lod: number): MeshBuilder {
+  const m = new MeshBuilder();
+  const fine = lod < 1;
+  const medium = lod < 2;
+  const w = 26.0, d = 18.0;
+  const x = w / 2, z = d / 2;
+  const floors = 4, floorH = 3.8, base = 4.4;
+  const h = base + floors * floorH;
+
+  m.box([-x, 0, -z], [x, base, z], MAT.BRICK);
+  m.box([-x, base, -z], [x, h, z], MAT.CLADDING, { roof: MAT.ROOF });
+  // The roof terrace is a real volume: a set-back pavilion with a pergola.
+  m.box([-x + 4.0, h, -z + 3.0], [x - 9.0, h + 3.2, z - 3.0], MAT.GLASS, { roof: MAT.ROOF });
+
+  if (medium) {
+    parapet(m, -x, -z, x, z, h, 1.2, 0.34);
+    parapet(m, -x + 4.0, -z + 3.0, x - 9.0, z - 3.0, h + 3.2, 0.6, 0.24);
+    band(m, -x, -z, x, z, base - 0.4, 0.5, 0.24, MAT.STONE);
+    for (let f = 1; f <= floors; f++) {
+      band(m, -x, -z, x, z, base + f * floorH - 0.55, 0.55, 0.26);
+    }
+    // External stair on the flank: the piece that says this is a conversion.
+    // Landings at each floor with a switchback flight between them, all inside
+    // the same 4.4m bay -- a flight that runs past its own landing reads as a
+    // loose ramp bolted to the wall.
+    for (let f = 0; f <= floors; f++) {
+      const y = base + f * floorH;
+      m.box([x, y - 0.24, -z + 2.0], [x + 3.4, y, -z + 6.4], MAT.METAL);
+      if (f < floors) {
+        for (const [a, b, y0, y1] of [
+          [-z + 6.2, -z + 4.3, y, y + floorH / 2],
+          [-z + 4.1, -z + 2.2, y + floorH / 2, y + floorH],
+        ] as const) {
+          m.quad([x + 0.2, y0, a], [x + 3.2, y0, a], [x + 3.2, y1, b], [x + 0.2, y1, b], MAT.METAL);
+          for (const px of [x + 0.2, x + 3.2]) {
+            m.quad([px, y0, a], [px, y1, b], [px, y1 + 1.0, b], [px, y0 + 1.0, a], MAT.METAL);
+          }
+        }
+        m.box([x, y + floorH / 2 - 0.24, -z + 4.3], [x + 3.4, y + floorH / 2, -z + 4.1], MAT.METAL);
+      }
+      m.painted(TINT.METAL_DARK, () => {
+        m.box([x + 3.28, y, -z + 2.0], [x + 3.4, y + 1.05, -z + 6.4], MAT.TRIM);
+      });
+    }
+    m.painted(TINT.METAL_DARK, () => {
+      for (const pz of [-z + 2.2, -z + 6.2, -z + 10.2]) {
+        m.box([x + 3.0, 0, pz - 0.12], [x + 3.24, h, pz + 0.12], MAT.TRIM);
+      }
+    });
+    roofClutter(m, x - 8.0, -z + 2, x - 1.0, z - 2, h, 611, 1.0);
+  }
+  if (fine) {
+    for (const [wall, u0, u1] of [
+      [{ axis: 'z', sign: 1, plane: z } as const, -x + 1.0, x - 1.0],
+      [{ axis: 'z', sign: -1, plane: -z } as const, -x + 1.0, x - 1.0],
+      [{ axis: 'x', sign: -1, plane: -x } as const, -z + 1.0, z - 1.0],
+    ] as const) {
+      for (let f = 0; f < floors; f++) {
+        ribbon(m, wall, u0, u1, base + f * floorH + 0.9, base + f * floorH + 3.1, { mullions: 8 });
+      }
+    }
+    fins(m, { axis: 'z', sign: 1, plane: z }, -x + 1.0, x - 1.0, base, h - 0.6, 9, 0.4);
+    // Tall arched-head openings in the old brick base.
+    windowGrid(m, { axis: 'z', sign: 1, plane: z }, -x + 1.2, x - 9.0,
+      { floors: 1, floorH: 4, base: 1.0, count: 4, width: 2.4, height: 2.6 });
+    entrance(m, { axis: 'z', sign: 1, plane: z }, x - 5.0,
+      { width: 3.0, height: 3.4, double: true, glazed: true, canopy: 2.6 });
+    boxSign(m, { axis: 'z', sign: 1, plane: z }, x - 8.4, x - 1.6, base + 0.3, base + 1.5);
+    ribbon(m, { axis: 'z', sign: 1, plane: z - 3.0 }, -x + 5.0, x - 10.0, h + 0.5, h + 2.7,
+      { mullions: 5 });
+    // Pergola and planting on the terrace, off the pavilion.
+    m.painted(TINT.WOOD, () => {
+      for (let i = 0; i <= 5; i++) {
+        const px = x - 8.6 + i * 1.3;
+        m.box([px - 0.08, h + 0.2, -z + 3.4], [px + 0.08, h + 2.6, -z + 3.56], MAT.TRIM);
+        m.box([px - 0.08, h + 2.45, -z + 3.4], [px + 0.08, h + 2.6, z - 3.4], MAT.TRIM);
+      }
+    });
+    for (const cx of [x - 3.0, x - 5.4]) planter(m, cx, z - 5.0, 0.9, 0.7);
+    frontage(m, -x, x, z, 613, { planters: 3, bollards: 7 });
+  }
+  return m;
+}
+
+/** Office pavilion: two low glazed storeys in a landscaped plot. */
+function pavilion(lod: number): MeshBuilder {
+  const m = new MeshBuilder();
+  const fine = lod < 1;
+  const medium = lod < 2;
+  const x = 20.0, z = 16.0;
+  const w = 30.0, d = 18.0;
+  const floors = 2, floorH = 4.0;
+  const h = floors * floorH;
+
+  m.box([-w / 2, 0, -d / 2], [w / 2, h, d / 2], MAT.GLASS);
+  // Solid end cores in stone, so a small glass box still has a structure.
+  for (const sx of [-1, 1] as const) {
+    m.box([Math.min(sx * (w / 2), sx * (w / 2 - 5.0)), 0, -d / 2 - 0.5],
+          [Math.max(sx * (w / 2), sx * (w / 2 - 5.0)), h + 1.2, d / 2 + 0.5], MAT.STONE);
+  }
+
+  if (medium) {
+    // The roof oversails as a deep brim on slender columns: the pavilion move.
+    m.box([-w / 2 - 2.4, h, -d / 2 - 2.4], [w / 2 + 2.4, h + 0.7, d / 2 + 2.4], MAT.CONCRETE);
+    m.painted(TINT.METAL_DARK, () => {
+      for (let i = 0; i <= 6; i++) {
+        const px = -w / 2 + 1.0 + i * ((w - 2.0) / 6);
+        for (const pz of [-d / 2 - 1.6, d / 2 + 1.6]) {
+          m.box([px - 0.13, 0, pz - 0.13], [px + 0.13, h, pz + 0.13], MAT.TRIM);
+        }
+      }
+    });
+    band(m, -w / 2, -d / 2, w / 2, d / 2, floorH - 0.4, 0.7, 0.22, MAT.CONCRETE);
+    // A pond and a lawn: the landscape is half of what a pavilion is for.
+    m.painted(TINT.GREEN, () =>
+      m.box([-x + 1.0, 0.001, d / 2 + 3.0], [x - 1.0, 0.1, z - 1.0], MAT.TRIM));
+    m.box([-8.0, 0.0005, d / 2 + 4.0], [8.0, 0.16, z - 3.0], MAT.GLASS);
+  }
+  if (fine) {
+    for (let f = 0; f < floors; f++) {
+      for (const [sign, plane] of [[1, d / 2], [-1, -d / 2]] as const) {
+        ribbon(m, { axis: 'z', sign, plane }, -w / 2 + 5.4, w / 2 - 5.4,
+          f * floorH + 0.6, f * floorH + 3.4, { mullions: 10 });
+      }
+    }
+    louvres(m, { axis: 'x', sign: 1, plane: w / 2 }, -d / 2 + 1.0, d / 2 - 1.0, 1.0, h, 0.5);
+    louvres(m, { axis: 'x', sign: -1, plane: -w / 2 }, -d / 2 + 1.0, d / 2 - 1.0, 1.0, h, 0.5);
+    entrance(m, { axis: 'z', sign: 1, plane: d / 2 }, 0,
+      { width: 3.2, height: 3.4, double: true, glazed: true, canopy: 3.0 });
+    boxSign(m, { axis: 'x', sign: 1, plane: w / 2 }, -3.0, 3.0, h - 2.2, h - 0.6);
+    // A footbridge over the pond to the door.
+    m.box([-1.8, 0.16, d / 2 + 3.6], [1.8, 0.34, z - 2.6], MAT.TIMBER);
+    railing(m, -1.8, 1.8, z - 2.6, 0.34, 0.95, 1.2);
+    for (const cx of [-11.0, 11.0]) planter(m, cx, d / 2 + 4.6, 1.1, 0.7);
+    frontage(m, -x + 1.0, x - 1.0, z - 1.0, 615, { planters: 0, bollards: 6 });
+  }
+  return m;
+}
+
 export const OFFICE: AssetDef[] = [
+  { id: 'off.coworking', name: 'Co-working block', zone: 'office', density: 'medium', variant: 'sculpted', footprint: [4, 3], height: 24.4, brand: BRANDS.media, sim: desk(210, 180), note: 'Re-clad over an old brick base, external stair on the flank, roof pavilion and pergola terrace.', build: coworking },
+  { id: 'off.pavilion', name: 'Office pavilion', zone: 'office', density: 'low', variant: 'sculpted', footprint: [5, 5], height: 8.7, brand: BRANDS.architects, sim: desk(90, 110), note: 'Two glazed storeys between stone end cores under a deep oversailing roof, pond and footbridge.', build: pavilion },
   { id: 'off.park', name: 'Business park unit', zone: 'office', density: 'low', variant: 'sculpted', footprint: [4, 3], height: 8.5, brand: BRANDS.engineering, sim: desk(45, 70), note: 'Two storeys with brick end bays, glazed entrance box, car park bays.', build: parkUnit },
   { id: 'off.midrise', name: 'Mid-rise offices', zone: 'office', density: 'medium', variant: 'sculpted', footprint: [2, 3], height: 28, brand: BRANDS.legal, sim: desk(160, 190), note: 'Expressed floor bands, glazed lobby, canopy over a double entrance.', build: midRise },
   { id: 'off.hq', name: 'Corporate headquarters', zone: 'office', density: 'high', variant: 'sculpted', footprint: [4, 5], height: 51, brand: BRANDS.consultancy, sim: desk(420, 430), note: 'Glass slab between two solid cores, podium, forecourt with planting.', build: corporateHQ },

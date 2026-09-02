@@ -1,5 +1,5 @@
 /**
- * Commercial: fourteen businesses, not two buildings.
+ * Commercial: twenty-five businesses, not two buildings.
  *
  * The point of the category is variety at street level. A city where every
  * shop is the same shop is the thing that makes a builder look cheap, and the
@@ -420,9 +420,224 @@ function boutique(lod: number): MeshBuilder {
   return m;
 }
 
+
+// ------------------------------------------------------------ three more
+
+/** Department store: a masonry block with a splayed corner entrance. */
+function departmentStore(lod: number): MeshBuilder {
+  const m = new MeshBuilder();
+  const fine = lod < 1;
+  const medium = lod < 2;
+  const w = 34.0, d = 26.0;
+  const x = w / 2, z = d / 2;
+  const ground = 5.6, floors = 3, floorH = 4.2;
+  const top = ground + floors * floorH;
+
+  m.box([-x, 0, -z], [x, top, z], MAT.STONE, { roof: MAT.ROOF });
+  // The splayed corner: a chamfer with the entrance in it, which is what a
+  // department store on a junction always does.
+  m.box([x - 7.4, 0, z - 7.4], [x + 0.6, top, z + 0.6], MAT.STONE, { roof: MAT.ROOF });
+
+  if (medium) {
+    parapet(m, -x, -z, x, z, top, 1.6, 0.4);
+    parapet(m, x - 7.4, z - 7.4, x + 0.6, z + 0.6, top, 2.2, 0.5);
+    band(m, -x, -z, x, z, ground - 0.3, 0.7, 0.28, MAT.STONE);
+    for (let f = 1; f < floors; f++) {
+      band(m, -x, -z, x, z, ground + f * floorH - 0.5, 0.4, 0.18, MAT.STONE);
+    }
+    // Pilasters the full height of the upper floors.
+    for (let i = 0; i <= 8; i++) {
+      const px = -x + (i / 8) * w;
+      m.box([px - 0.6, ground, z - 0.35], [px + 0.6, top, z + 0.35], MAT.STONE);
+    }
+    // Continuous canopy over the pavement, on tie rods.
+    m.box([-x - 1.6, ground - 0.9, -z], [x + 0.6, ground - 0.5, z + 1.6], MAT.CONCRETE);
+    roofClutter(m, -x + 3, -z + 3, x - 3, z - 3, top, 903, 1.0);
+    // Corner dome-ish lantern: the store's landmark.
+    m.cylinder(x - 3.4, z - 3.4, 3.0, top + 2.2, top + 5.4, 12, MAT.STONE, false);
+    m.cone(x - 3.4, z - 3.4, 3.2, 0.4, top + 5.4, top + 9.0, 12, MAT.METAL);
+  }
+  if (fine) {
+    // Deep shopfront windows all round the ground floor, between the piers.
+    for (const [wall, u0, u1, n] of [
+      [{ axis: 'z', sign: 1, plane: z } as const, -x + 1.4, x - 8.0, 5],
+      [{ axis: 'x', sign: 1, plane: x } as const, -z + 1.4, z - 8.0, 4],
+      [{ axis: 'z', sign: -1, plane: -z } as const, -x + 1.4, x - 1.4, 6],
+    ] as const) {
+      shopfront(m, wall, u0, u1, { bays: n, doorBay: -1, head: ground - 1.2, brandFascia: false });
+      windowGrid(m, wall, u0, u1,
+        { floors, floorH, base: ground + 1.0, count: n, width: 2.6, height: 2.6 });
+    }
+    // The entrance itself, in the chamfer, under a lit fascia.
+    entrance(m, { axis: 'z', sign: 1, plane: z + 0.6 }, x - 3.4,
+      { width: 4.0, height: 3.8, double: true, glazed: true, steps: 1 });
+    fasciaSign(m, { axis: 'z', sign: 1, plane: z + 0.6 }, x - 7.0, x + 0.2, ground - 0.4, ground + 1.4);
+    boxSign(m, { axis: 'x', sign: 1, plane: x + 0.6 }, z - 7.0, z + 0.2, ground - 0.4, ground + 1.4);
+    windowGrid(m, { axis: 'z', sign: 1, plane: z + 0.6 }, x - 7.0, x + 0.2,
+      { floors, floorH, base: ground + 2.2, count: 2, width: 2.2, height: 2.4 });
+    frontage(m, -x, x, z + 1.6, 905, { planters: 3, bollards: 8 });
+  }
+  return m;
+}
+
+/** Multi-storey car park with a retail base: half the ground floor is shops. */
+function carPark(lod: number): MeshBuilder {
+  const m = new MeshBuilder();
+  const fine = lod < 1;
+  const medium = lod < 2;
+  const w = 30.0, d = 24.0;
+  const x = w / 2, z = d / 2;
+  const ground = 5.0, decks = 4, deckH = 2.9;
+  const top = ground + decks * deckH;
+
+  m.box([-x, 0, -z], [x, ground, z], MAT.CONCRETE);
+  // Decks: slabs and edge upstands, open in between. A car park is mostly air,
+  // and modelling it as a solid box is what makes one look like a warehouse.
+  for (let i = 1; i <= decks; i++) {
+    const y = ground + i * deckH;
+    m.box([-x, y - 0.35, -z], [x, y, z], MAT.CONCRETE);
+    m.box([-x - 0.3, y - 1.35, -z - 0.3], [x + 0.3, y - 0.35, z + 0.3], MAT.CONCRETE);
+  }
+
+  if (medium) {
+    // Corner columns and an internal grid, visible through the open sides.
+    for (let i = 0; i <= 6; i++) {
+      for (const pz of [-z + 0.4, 0, z - 0.4]) {
+        const px = -x + (i / 6) * w;
+        m.box([px - 0.35, ground, pz - 0.35], [px + 0.35, top, pz + 0.35], MAT.CONCRETE);
+      }
+    }
+    parapet(m, -x, -z, x, z, top, 1.1, 0.3);
+    // Stair and lift core on one end, expressed as a solid tower.
+    m.box([-x - 1.4, 0, -z + 3.0], [-x + 3.0, top + 3.4, -z + 10.0], MAT.CLADDING, { roof: MAT.ROOF });
+    parapet(m, -x - 1.4, -z + 3.0, -x + 3.0, -z + 10.0, top + 3.4, 0.9, 0.3);
+    // Ramp between the lowest two decks, as a visible incline.
+    m.quad([x - 9.0, ground, -z + 1.0], [x - 1.0, ground, -z + 1.0],
+           [x - 1.0, ground + deckH, -z + 8.0], [x - 9.0, ground + deckH, -z + 8.0], MAT.CONCRETE);
+  }
+  if (fine) {
+    // The retail base: shopfronts along the street side.
+    shopfront(m, { axis: 'z', sign: 1, plane: z }, -x + 1.5, x - 8.0,
+      { bays: 4, doorBay: 1, head: ground - 0.9, brandFascia: true });
+    entrance(m, { axis: 'z', sign: 1, plane: z }, x - 12.0,
+      { width: 2.4, height: 3.0, double: true, glazed: true });
+    // Vehicle entry and exit, with a barrier and a height bar.
+    m.opening({ axis: 'z', sign: 1, plane: z, u0: x - 7.0, u1: x - 1.0, y0: 0.32, y1: 3.4,
+      glass: MAT.TRIM, frame: 0.3, proud: 0.14 });
+    m.painted(TINT.ACCENT, () => {
+      m.box([x - 7.4, 3.5, z - 0.1], [x - 0.6, 3.75, z + 0.25], MAT.TRIM);
+      m.box([x - 4.2, 0.2, z + 0.9], [x - 1.2, 0.32, z + 1.02], MAT.TRIM);
+    });
+    m.painted(TINT.METAL_DARK, () => {
+      m.box([x - 4.4, 0.2, z + 0.8], [x - 4.1, 1.1, z + 1.1], MAT.TRIM);
+      // Deck edge signage numbers are beyond the font here; use a lit band.
+      for (let i = 1; i <= decks; i++) {
+        m.box([-x + 1.0, ground + i * deckH - 1.15, z + 0.32],
+              [-x + 3.4, ground + i * deckH - 0.55, z + 0.42], MAT.TRIM);
+      }
+    });
+    // Stair core glazing and its sign.
+    windowGrid(m, { axis: 'z', sign: 1, plane: -z + 10.0 }, -x - 0.6, -x + 2.2,
+      { floors: decks + 1, floorH: deckH, base: 1.2, count: 1, width: 2.2, height: 1.8 });
+    boxSign(m, { axis: 'x', sign: -1, plane: -x - 1.4 }, -z + 3.8, -z + 9.2, top + 0.4, top + 2.6);
+    frontage(m, -x, x, z + 0.4, 907, { planters: 2, bollards: 6 });
+  }
+  return m;
+}
+
+/** Restaurant: a low dining room with a covered terrace along the front. */
+function restaurant(lod: number): MeshBuilder {
+  const m = new MeshBuilder();
+  const fine = lod < 1;
+  const medium = lod < 2;
+  const w = 20.0, d = 16.0;
+  const x = w / 2, z = d / 2;
+  const wall = 4.6;
+
+  m.box([-x, 0, -z], [x, wall, z - 4.0], MAT.BRICK);
+  // A raised roof lantern over the middle of the room.
+  m.box([-5.0, wall, -z + 3.0], [5.0, wall + 1.8, z - 7.0], MAT.CLADDING, { roof: MAT.ROOF });
+
+  if (medium) {
+    parapet(m, -x, -z, x, z - 4.0, wall, 0.7, 0.24);
+    band(m, -x, -z, x, z - 4.0, wall - 1.3, 0.5, 0.2);
+    // Terrace: a pergola on posts, which is the whole front of the building.
+    m.box([-x + 0.4, 3.5, z - 4.0], [x - 0.4, 3.85, z - 0.2], MAT.TIMBER);
+    m.painted(TINT.WOOD, () => {
+      for (let i = 0; i <= 5; i++) {
+        const px = -x + 0.8 + i * ((w - 1.6) / 5);
+        m.box([px - 0.13, 0, z - 0.7], [px + 0.13, 3.5, z - 0.44], MAT.TRIM);
+      }
+      for (let i = 0; i <= 8; i++) {
+        const px = -x + 0.6 + i * ((w - 1.2) / 8);
+        m.box([px - 0.07, 3.85, z - 4.0], [px + 0.07, 3.98, z - 0.2], MAT.TRIM);
+      }
+    });
+    m.box([-x, 0.0005, z - 4.0], [x, 0.12, z - 0.2], MAT.STONE);
+    roofClutter(m, -x + 2, -z + 2, x - 2, z - 6, wall, 909, 0.7);
+  }
+  if (fine) {
+    // Tall glazing to the terrace, and small square windows to the sides.
+    shopfront(m, { axis: 'z', sign: 1, plane: z - 4.0 }, -x + 1.2, x - 1.2,
+      { bays: 5, doorBay: 2, head: wall - 1.5, brandFascia: false });
+    fasciaSign(m, { axis: 'z', sign: 1, plane: z - 4.0 }, -6.0, 6.0, wall - 1.4, wall - 0.4);
+    bladeSign(m, { axis: 'x', sign: 1, plane: x }, z - 6.0, wall - 2.6, wall - 0.6);
+    windowGrid(m, { axis: 'x', sign: 1, plane: x }, -z + 1.4, z - 5.4,
+      { floors: 1, floorH: 3, base: 1.9, count: 3, width: 1.1, height: 1.1, sill: false });
+    windowGrid(m, { axis: 'x', sign: -1, plane: -x }, -z + 1.4, z - 5.4,
+      { floors: 1, floorH: 3, base: 1.9, count: 3, width: 1.1, height: 1.1, sill: false });
+    // Tables and chairs under the pergola: the reason the terrace exists.
+    for (let i = 0; i < 4; i++) {
+      const cx = -x + 3.0 + i * 4.4;
+      m.painted(TINT.WOOD, () => {
+        m.box([cx - 0.75, 0.72, z - 2.9], [cx + 0.75, 0.84, z - 1.4], MAT.TRIM);
+        m.box([cx - 0.09, 0.12, z - 2.3], [cx + 0.09, 0.72, z - 2.1], MAT.TRIM);
+      });
+      m.painted(TINT.METAL_DARK, () => {
+        for (const pz of [z - 3.4, z - 0.95]) {
+          m.box([cx - 0.55, 0.12, pz - 0.24], [cx - 0.05, 0.46, pz + 0.24], MAT.TRIM);
+          m.box([cx - 0.55, 0.46, pz - (pz > z - 2 ? -0.16 : 0.24)],
+                [cx - 0.05, 0.98, pz - (pz > z - 2 ? -0.24 : 0.16)], MAT.TRIM);
+        }
+      });
+    }
+    // Kitchen extract and a bin store round the back.
+    m.painted(TINT.METAL_DARK, () => {
+      m.box([-x + 2.0, wall, -z + 1.0], [-x + 3.6, wall + 3.2, -z + 2.6], MAT.TRIM);
+      m.box([-x + 1.7, wall + 3.2, -z + 0.7], [-x + 3.9, wall + 3.6, -z + 2.9], MAT.TRIM);
+    });
+    entrance(m, { axis: 'z', sign: -1, plane: -z }, x - 4.0, { width: 1.2, height: 2.3 });
+    railing(m, -x, x, z - 0.2, 0.12, 0.95, 1.3);
+    frontage(m, -x, x, z - 0.2, 911, { planters: 3, bollards: 0 });
+  }
+  return m;
+}
+
 // -------------------------------------------------------------------- table
 
+
 export const COMMERCIAL: AssetDef[] = [
+  {
+    id: 'com.department', name: 'Department store', zone: 'commercial', density: 'high',
+    variant: 'sculpted', footprint: [5, 5], height: 27.0, brand: BRANDS.clothes,
+    sim: { jobs: 190, powerKW: 420, waterM3: 90, garbagePerWeek: 1400, pollution: 2, upkeep: 260 },
+    note: 'Stone block with a splayed corner entrance under a lantern, pilastered upper floors, pavement canopy.',
+    build: departmentStore,
+  },
+  {
+    id: 'com.carpark', name: 'Multi-storey car park', zone: 'commercial', density: 'medium',
+    variant: 'sculpted', footprint: [4, 4], height: 20.0, brand: BRANDS.travel,
+    sim: { jobs: 8, powerKW: 120, waterM3: 10, garbagePerWeek: 120, pollution: 4, upkeep: 90 },
+    note: 'Four open decks on a column grid over a retail base, expressed stair core, entry ramp and barrier.',
+    build: carPark,
+  },
+  {
+    id: 'com.restaurant', name: 'Restaurant', zone: 'commercial', density: 'low',
+    variant: 'sculpted', footprint: [3, 3], height: 6.4, brand: BRANDS.deli,
+    sim: { jobs: 26, powerKW: 110, waterM3: 70, garbagePerWeek: 420, pollution: 3, upkeep: 65 },
+    note: 'Low dining room under a roof lantern, pergola terrace with tables along the whole front.',
+    build: restaurant,
+  },
   {
     id: 'com.corner_shop', name: 'Corner shop', zone: 'commercial', density: 'low',
     variant: 'sculpted', footprint: [2, 2], height: 11.7, brand: BRANDS.grocer,

@@ -1274,7 +1274,158 @@ const job = (jobs: number, pollution: number, upkeep: number): AssetDef['sim'] =
   jobs, powerKW: jobs * 3.2, waterM3: jobs * 0.2, garbagePerWeek: jobs * 7.5, pollution, upkeep,
 });
 
+
+// ------------------------------------------------------------- two more
+
+/** Chemical works: process columns in a pipe-racked yard, and a flare. */
+function chemicalWorks(lod: number): MeshBuilder {
+  const m = new MeshBuilder();
+  const fine = lod < 1;
+  const medium = lod < 2;
+  const x = 24.0, z = 19.0;
+
+  m.box([-x, 0.0005, -z], [x, 0.1, z], MAT.CONCRETE);
+  // Four distillation columns of different heights on a common plinth. Height
+  // variation is the whole silhouette here -- four equal columns read as silos.
+  const cols: Array<[number, number, number]> = [
+    [-14.0, 2.1, 26.0], [-8.0, 1.6, 19.0], [-1.5, 2.4, 31.0], [4.5, 1.4, 15.0],
+  ];
+  m.box([-17.0, 0.1, -6.0], [7.5, 1.5, 2.0], MAT.CONCRETE);
+  for (const [cx, r, h] of cols) {
+    m.cylinder(cx, -2.0, r, 1.5, h, 14, MAT.METAL, false);
+    m.cone(cx, -2.0, r, 0.0, h, h + r * 0.9, 14, MAT.METAL);
+  }
+
+  if (medium) {
+    // Ring beams and platforms up each column, plus a caged ladder.
+    m.painted(TINT.METAL_DARK, () => {
+      for (const [cx, r, h] of cols) {
+        for (let y = 6.0; y < h; y += 6.0) {
+          m.cylinder(cx, -2.0, r + 0.9, y, y + 0.16, 14, MAT.TRIM, true);
+          m.cylinder(cx, -2.0, r + 0.9, y + 0.16, y + 1.15, 14, MAT.TRIM, false);
+        }
+        m.box([cx - 0.4, 1.5, -2.0 - r - 0.55], [cx + 0.4, h, -2.0 - r - 0.15], MAT.TRIM);
+      }
+    });
+    // The rack that ties it together, and a reactor block behind.
+    pipeRack(m, -18.0, 12.0, 3.0, 6.4, 6.0, 4);
+    m.box([9.0, 0.1, -8.0], [x - 2.0, 11.0, 0.0], MAT.CLADDING, { roof: MAT.ROOF });
+    parapet(m, 9.0, -8.0, x - 2.0, 0.0, 11.0, 0.9, 0.3);
+    // Flare stack: a works like this always has one, and it reads at any range.
+    stack(m, x - 5.0, z - 5.0, 1.0, 30.0);
+    m.painted(TINT.ACCENT, () =>
+      m.cone(x - 5.0, z - 5.0, 1.3, 0.3, 30.0, 33.0, 10, MAT.TRIM));
+    m.box([-x + 2.0, 0.1, z - 9.0], [-x + 12.0, 7.4, z - 1.0], MAT.SHED_WALL, { roof: MAT.TRIM });
+  }
+  if (fine) {
+    // Pipe runs down from the columns into the rack.
+    for (const [cx, r] of cols) {
+      m.pipe([cx + r, 5.4, -2.0], [cx + r, 5.4, 4.4], 0.24, MAT.METAL);
+      m.pipe([cx, 1.6, -2.0 - r], [cx, 1.6, -5.6], 0.2, MAT.METAL);
+    }
+    m.pipe([-18.0, 6.5, 4.0], [-18.0, 2.0, 4.0], 0.24, MAT.METAL);
+    // Bunded storage: two horizontal bullets on saddles.
+    for (const pz of [-z + 4.0, -z + 9.0]) {
+      m.pipe([-x + 4.0, 2.6, pz], [-x + 16.0, 2.6, pz], 1.7, MAT.METAL);
+      for (const px of [-x + 6.0, -x + 14.0]) {
+        m.box([px - 0.7, 0.1, pz - 1.6], [px + 0.7, 2.6, pz + 1.6], MAT.CONCRETE);
+      }
+    }
+    m.box([-x + 2.0, 0.1, -z + 1.5], [-x + 18.0, 1.1, -z + 11.5], MAT.CONCRETE);
+    // Control room, and the fence that a plant like this is always inside.
+    windowGrid(m, { axis: 'z', sign: 1, plane: z - 1.0 }, -x + 3.0, -x + 11.0,
+      { floors: 2, floorH: 3.4, base: 1.4, count: 3, width: 1.4, height: 1.5 });
+    entrance(m, { axis: 'z', sign: 1, plane: z - 1.0 }, -x + 3.4,
+      { width: 1.4, height: 2.4, double: true, steps: 1 });
+    m.painted(TINT.METAL_DARK, () => {
+      for (let i = 0; i <= 26; i++) {
+        const t = i / 26;
+        m.box([-x + t * 2 * x - 0.06, 0.1, z - 0.5], [-x + t * 2 * x + 0.06, 2.4, z - 0.38], MAT.TRIM);
+      }
+      m.box([-x, 2.25, z - 0.52], [x, 2.35, z - 0.36], MAT.TRIM);
+    });
+    kerb(m, -x, z, x, z + 0.4);
+  }
+  return m;
+}
+
+/** Machine shop: a tall bay under an external gantry crane, and a steel yard. */
+function machineShop(lod: number): MeshBuilder {
+  const m = new MeshBuilder();
+  const fine = lod < 1;
+  const medium = lod < 2;
+  const x = 22.0, z = 18.0;
+  const w = 26.0, d = 18.0, wall = 12.0;
+
+  m.box([-x, 0.0005, -z], [x, 0.1, z], MAT.CONCRETE);
+  m.box([-w / 2, 0.1, -z + 2.0], [w / 2, wall, -z + 2.0 + d], MAT.SHED_WALL, { roof: MAT.TRIM });
+  m.gable([-w / 2, wall, -z + 2.0], [w / 2, wall, -z + 2.0 + d], 2.4, 'x', MAT.METAL, MAT.SHED_WALL);
+
+  if (medium) {
+    eavesBand(m, -w / 2, -z + 2.0, w / 2, -z + 2.0 + d, wall, 0.45, 0.32);
+    // Roof monitor: a machine shop needs its light from above.
+    m.box([-w / 2 + 3.0, wall + 1.5, -z + 6.0], [w / 2 - 3.0, wall + 3.0, -z + 14.0], MAT.GLASS);
+    m.box([-w / 2 + 2.6, wall + 3.0, -z + 5.6], [w / 2 - 2.6, wall + 3.4, -z + 14.4], MAT.METAL);
+    // The gantry: a portal crane on rails across the open yard, which is the
+    // one silhouette no other industrial asset in the set has.
+    const gy = 10.0;
+    m.painted(TINT.METAL_DARK, () => {
+      for (const px of [-14.0, 10.0]) {
+        for (const pz of [z - 12.0, z - 4.0]) {
+          m.box([px - 0.55, 0.1, pz - 0.55], [px + 0.55, gy, pz + 0.55], MAT.TRIM);
+        }
+        // Braced legs.
+        m.quad([px - 0.5, 1.0, z - 11.5], [px + 0.5, 1.0, z - 11.5],
+               [px + 0.5, gy - 1.0, z - 4.5], [px - 0.5, gy - 1.0, z - 4.5], MAT.TRIM);
+      }
+      m.box([-15.4, gy, z - 12.6], [11.4, gy + 1.5, z - 11.4], MAT.TRIM);
+      m.box([-15.4, gy, z - 4.6], [11.4, gy + 1.5, z - 3.4], MAT.TRIM);
+      // Rails on the ground under it.
+      for (const pz of [z - 12.0, z - 4.0]) {
+        m.box([-x + 1.0, 0.1, pz - 0.2], [x - 1.0, 0.24, pz + 0.2], MAT.TRIM);
+      }
+      // The trolley and hook block.
+      m.box([-4.0, gy + 1.5, z - 12.8], [0.4, gy + 2.6, z - 3.2], MAT.TRIM);
+      m.box([-2.6, gy - 3.4, z - 8.6], [-1.0, gy, z - 7.0], MAT.TRIM);
+    });
+  }
+  if (fine) {
+    // A very tall door: the shop is sized by what has to come through it.
+    m.opening({ axis: 'z', sign: 1, plane: -z + 2.0 + d, u0: -6.0, u1: 2.0,
+      y0: 0.3, y1: 8.0, glass: MAT.METAL, frame: 0.28, proud: 0.14 });
+    windowGrid(m, { axis: 'z', sign: 1, plane: -z + 2.0 + d }, 3.0, w / 2 - 1.0,
+      { floors: 2, floorH: 4.0, base: 2.2, count: 3, width: 1.6, height: 1.8 });
+    windowGrid(m, { axis: 'x', sign: 1, plane: w / 2 }, -z + 3.5, -z + 16.5,
+      { floors: 1, floorH: 4, base: 8.4, count: 6, width: 1.5, height: 2.2 });
+    windowGrid(m, { axis: 'x', sign: -1, plane: -w / 2 }, -z + 3.5, -z + 16.5,
+      { floors: 1, floorH: 4, base: 8.4, count: 6, width: 1.5, height: 2.2 });
+    entrance(m, { axis: 'z', sign: 1, plane: -z + 2.0 + d }, w / 2 - 3.0,
+      { width: 1.3, height: 2.4, double: true, canopy: 1.6, steps: 1 });
+    // Steel stock in the yard, racked and stacked: what the crane is lifting.
+    m.painted(TINT.METAL_DARK, () => {
+      for (let r = 0; r < 4; r++) {
+        for (let i = 0; i < 4 - r; i++) {
+          const px = -12.0 + r * 0.85 + i * 1.7;
+          m.pipe([px, 0.9 + r * 1.5, z - 11.0], [px, 0.9 + r * 1.5, z - 5.0], 0.8, MAT.METAL);
+        }
+      }
+      for (const pz of [z - 11.4, z - 4.6]) {
+        m.box([-13.4, 0.1, pz - 0.3], [-3.0, 0.4, pz + 0.3], MAT.TRIM);
+      }
+      // Plate stacks on timbers.
+      for (let i = 0; i < 3; i++) {
+        m.box([2.0, 0.1 + i * 0.5, z - 11.0], [9.0, 0.5 + i * 0.5, z - 6.0], MAT.TRIM);
+      }
+    });
+    frontage(m, -x, x, z, 727, { planters: 0, bollards: 6, depth: 0.6 });
+    kerb(m, -x, z, x, z + 0.4);
+  }
+  return m;
+}
+
 export const INDUSTRIAL: AssetDef[] = [
+  { id: 'ind.chemical', name: 'Chemical works', zone: 'industrial', density: 'none', variant: 'sculpted', footprint: [6, 5], height: 33.0, sim: job(45, 26, 190), note: 'Four distillation columns of unequal height with ring platforms, pipe rack, bullet tanks, flare.', build: chemicalWorks },
+  { id: 'ind.machine', name: 'Machine shop', zone: 'industrial', density: 'none', variant: 'sculpted', footprint: [6, 5], height: 15.4, sim: job(55, 12, 130), note: 'Tall bay with a roof monitor and an eight-metre door, external gantry crane on rails over a steel yard.', build: machineShop },
   { id: 'ind.shed', name: 'Distribution shed', zone: 'industrial', density: 'none', variant: 'sculpted', footprint: [4, 5], height: 13.1, sim: job(40, 8, 90), note: 'Shed, three shutters, canopy and loading apron. Corrugation is shader.', build: distributionShed },
   { id: 'ind.workshop', name: 'Workshop unit', zone: 'industrial', density: 'none', variant: 'sculpted', footprint: [3, 4], height: 9.5, sim: job(18, 5, 44), note: 'Brick office end against a metal workshop, two roller doors, canopy.', build: workshop },
   { id: 'ind.plant', name: 'Processing plant', zone: 'industrial', density: 'none', variant: 'sculpted', footprint: [4, 3], height: 23, sim: job(40, 14, 105), note: 'Sawtooth shed, process block, three silos, banded stack, pipe rack, dock.', build: processingPlant },
