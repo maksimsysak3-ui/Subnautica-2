@@ -32,6 +32,9 @@
 
 export const FLOATS_PER_VERTEX = 11;
 
+/** Which face of a box to leave out. Used where one is buried in another solid. */
+export type Face = '+x' | '-x' | '+z' | '-z' | '+y';
+
 /** Surface kinds the facade shader knows how to draw. */
 export const MAT = {
   /** Flat roof: gravel and plant, no windows. */
@@ -164,16 +167,22 @@ export class MeshBuilder {
    * Axis-aligned box. `skipBottom` defaults true: the underside of anything
    * standing on the ground is never seen, and it is a sixth of the triangles.
    */
-  box(min: Vec3, max: Vec3, mat: Material, opts: { skipBottom?: boolean; roof?: Material } = {}): void {
+  box(min: Vec3, max: Vec3, mat: Material,
+      opts: { skipBottom?: boolean; roof?: Material; skip?: Face } = {}): void {
     const [x0, y0, z0] = min;
     const [x1, y1, z1] = max;
     const roof = opts.roof ?? mat;
+    const skip = opts.skip;
 
-    this.quad([x1, y0, z1], [x1, y0, z0], [x1, y1, z0], [x1, y1, z1], mat);   // +X
-    this.quad([x0, y0, z0], [x0, y0, z1], [x0, y1, z1], [x0, y1, z0], mat);   // -X
-    this.quad([x0, y0, z1], [x1, y0, z1], [x1, y1, z1], [x0, y1, z1], mat);   // +Z
-    this.quad([x1, y0, z0], [x0, y0, z0], [x0, y1, z0], [x1, y1, z0], mat);   // -Z
-    this.quad([x0, y1, z1], [x1, y1, z1], [x1, y1, z0], [x0, y1, z0], roof);  // +Y
+    // `skip` drops the one face a caller knows is buried in another solid.
+    // Window frames are the case that pays for this: four boxes per opening,
+    // each with a face pressed flat against the wall behind it, times a few
+    // hundred openings on a tower.
+    if (skip !== '+x') this.quad([x1, y0, z1], [x1, y0, z0], [x1, y1, z0], [x1, y1, z1], mat);
+    if (skip !== '-x') this.quad([x0, y0, z0], [x0, y0, z1], [x0, y1, z1], [x0, y1, z0], mat);
+    if (skip !== '+z') this.quad([x0, y0, z1], [x1, y0, z1], [x1, y1, z1], [x0, y1, z1], mat);
+    if (skip !== '-z') this.quad([x1, y0, z0], [x0, y0, z0], [x0, y1, z0], [x1, y1, z0], mat);
+    if (skip !== '+y') this.quad([x0, y1, z1], [x1, y1, z1], [x1, y1, z0], [x0, y1, z0], roof);
     if (opts.skipBottom === false) {
       this.quad([x0, y0, z0], [x1, y0, z0], [x1, y0, z1], [x0, y0, z1], mat);
     }
@@ -260,8 +269,10 @@ export class MeshBuilder {
       // Frames are seen from outside and from the sides, never from below, so
       // the default five faces is right. Over hundreds of windows per building
       // that sixth face is hundreds of triangles for nothing.
-      if (o.axis === 'x') this.box([lo, ya, ua], [hi, yb, ub], mat);
-      else this.box([ua, ya, lo], [ub, yb, hi], mat);
+      // The face pointing back into the wall is never seen: skip it.
+      const back: Face = o.axis === 'x' ? (o.sign > 0 ? '-x' : '+x') : (o.sign > 0 ? '-z' : '+z');
+      if (o.axis === 'x') this.box([lo, ya, ua], [hi, yb, ub], mat, { skip: back });
+      else this.box([ua, ya, lo], [ub, yb, hi], mat, { skip: back });
     };
 
     // Glass is a single quad, not a box: it sits in a recess and nothing ever

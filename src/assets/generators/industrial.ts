@@ -153,6 +153,22 @@ function workshop(lod: number): MeshBuilder {
     windowGrid(m, { axis: 'z', sign: 1, plane: z }, -x + 0.6, -x + 5.4,
       { floors: 2, floorH: 2.4, base: 1.3, count: 2, width: 1.1, height: 1.4 });
     entrance(m, { axis: 'x', sign: -1, plane: -x }, -0.5, { width: 1.05, steps: 1, canopy: 1.2 });
+    // Pallets and a stillage stacked against the yard wall: what a workshop
+    // actually has outside it.
+    m.painted(TINT.WOOD, () => {
+      for (let i = 0; i < 3; i++) {
+        for (let k = 0; k < 4; k++) {
+          m.box([-x + 2.0 + i * 1.5, k * 0.16, z + 1.0], [-x + 3.2 + i * 1.5, 0.1 + k * 0.16, z + 2.2], MAT.TRIM);
+        }
+      }
+    });
+    m.painted(TINT.METAL_DARK, () => {
+      m.box([-x + 6.4, 0, z + 1.0], [-x + 8.4, 1.5, z + 2.4], MAT.TRIM);
+      for (const px of [-x + 6.5, -x + 8.3]) {
+        m.box([px - 0.05, 1.5, z + 1.05], [px + 0.05, 2.3, z + 2.35], MAT.TRIM);
+      }
+      m.box([-x + 6.4, 2.25, z + 1.0], [-x + 8.4, 2.35, z + 2.4], MAT.TRIM);
+    });
     frontage(m, -x, x, z, 251, { planters: 1, bollards: 5, depth: 2.6 });
     windowGrid(m, { axis: 'x', sign: -1, plane: -x }, -z + 1.2, z - 1.2,
       { floors: 2, floorH: 2.4, base: 1.3, count: 2, width: 1.1, height: 1.4 });
@@ -495,6 +511,19 @@ function coldStore(lod: number): MeshBuilder {
         }
       });
     }
+    // Dock bumpers and wheel stops: small, and their absence is what makes an
+    // apron look like a car park.
+    m.painted(TINT.METAL_DARK, () => {
+      for (let i = 0; i < 4; i++) {
+        const bx = -x + 3.4 + i * ((x - 6.0) - (-x + 2.0)) / 4;
+        for (const dx of [-1.9, 1.9]) {
+          m.box([bx + dx - 0.16, 0.75, cz + z], [bx + dx + 0.16, 1.15, cz + z + 0.22], MAT.TRIM);
+        }
+      }
+      for (const tx of [-x + 5.0, -x + 11.5]) {
+        m.box([tx - 1.4, 0, cz + z + 11.4], [tx + 1.4, 0.22, cz + z + 11.7], MAT.TRIM);
+      }
+    });
     kerb(m, -x, cz + z + 12.0, x, cz + z + 12.4);
   }
   return m;

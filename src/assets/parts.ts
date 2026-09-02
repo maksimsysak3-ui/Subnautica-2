@@ -12,7 +12,7 @@
  */
 
 import { MAT, TINT, MeshBuilder } from './mesh';
-import type { Material, Tint, Vec3 } from './mesh';
+import type { Face, Material, Tint, Vec3 } from './mesh';
 import { hash2 } from '../sim/hash';
 
 export type Axis = 'x' | 'z';
@@ -37,7 +37,14 @@ function place(w: Wall, u0: number, u1: number, y0: number, y1: number, d0: numb
 
 function slab(m: MeshBuilder, w: Wall, u0: number, u1: number, y0: number, y1: number, d0: number, d1: number, mat: Material): void {
   const [a, b] = place(w, u0, u1, y0, y1, d0, d1);
-  m.box(a, b, mat, { skipBottom: false });
+  // Slabs are mostly seen from below -- fascias, canopies, awnings, stallrisers
+  // -- so unlike a plain box they keep their underside. What they never need is
+  // the face pressed against the wall, and almost all of them start flush with
+  // it. Anything standing off the wall (a blade sign, a bracket) is untouched.
+  const flush = Math.min(d0, d1) <= 0.02;
+  const back: Face = w.axis === 'x' ? (w.sign > 0 ? '-x' : '+x') : (w.sign > 0 ? '-z' : '+z');
+  if (flush) m.box(a, b, mat, { skipBottom: false, skip: back });
+  else m.box(a, b, mat, { skipBottom: false });
 }
 
 /**

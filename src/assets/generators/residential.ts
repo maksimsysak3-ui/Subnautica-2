@@ -1134,6 +1134,22 @@ function chalet(lod: number): MeshBuilder {
       for (const px of [-1.1, 1.1]) m.box([px - 0.09, 0, z + 1.25], [px + 0.09, 2.5, z + 1.43], MAT.TRIM);
     });
     m.box([-1.6, 0.001, z], [1.6, 0.08, z + 1.9], MAT.CONCRETE);
+    // Window boxes under the front windows, a path to the pavement and a
+    // low picket fence: a chalet is a small house and reads by its garden.
+    m.painted(TINT.GREEN, () => {
+      for (const cx of [-x + 2.4, x - 2.4]) {
+        m.box([cx - 0.75, 0.85, z + 0.02], [cx + 0.75, 1.12, z + 0.34], MAT.TRIM);
+      }
+    });
+    m.box([-0.7, 0.002, z + 1.9], [0.7, 0.06, z + 5.2], MAT.CONCRETE);
+    m.painted(TINT.WOOD, () => {
+      for (let i = 0; i <= 12; i++) {
+        const px = -x + i * (2 * x / 12);
+        if (Math.abs(px) < 0.9) continue;
+        m.box([px - 0.05, 0, z + 5.0], [px + 0.05, 0.95, z + 5.12], MAT.TRIM);
+      }
+      m.box([-x, 0.72, z + 4.98], [x, 0.8, z + 5.14], MAT.TRIM);
+    });
     backyard(m, -x, -z - 8.0, x, -z - 0.2, 651);
   }
   return m;
