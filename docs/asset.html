@@ -10,7 +10,7 @@
 /* Replace a stale cached copy of this page. Same guard as index.html: GitHub
  * Pages serves HTML with a ten-minute max-age and no way to change it, so a
  * deploy is invisible to anyone holding a cached copy. */
-window.__BUILD__ = 'mtjn6xpr';
+window.__BUILD__ = 'mtk0r1l2';
 (function () {
   fetch('version.json', { cache: 'no-store' })
     .then(function (r) { return r.ok ? r.json() : null; })
@@ -47,14 +47,21 @@ window.__BUILD__ = 'mtjn6xpr';
     color: var(--dim); padding: 14px 16px 5px;
     display: flex; align-items: center; gap: 8px; }
   .group svg { flex: none; border-radius: 4px; }
-  #legend { display: grid; grid-template-columns: 1fr 1fr; gap: 6px;
-    padding: 0 12px 12px; }
-  .zone { display: flex; align-items: center; gap: 8px; padding: 5px 6px;
-    border-radius: 7px; background: rgba(255,255,255,.03); }
-  .zone svg { flex: none; }
-  .zn { font-size: 11px; color: #dfe7ef; }
-  .zc { font-size: 9px; letter-spacing: .08em; color: var(--dim);
-    font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  /* The category bar: a grid of icon tiles, the toolbar the game will use. */
+  #legend { display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px;
+    padding: 0 12px 14px; margin-bottom: 4px;
+    border-bottom: 1px solid var(--line); }
+  .cat { position: relative; display: grid; place-items: center; gap: 0;
+    padding: 6px 0 3px; border-radius: 8px; background: rgba(255,255,255,.03);
+    border: 1px solid transparent; cursor: pointer; }
+  .cat svg { display: block; }
+  .cat span { font-size: 9px; color: var(--dim); letter-spacing: .06em; }
+  .cat .allx { font-size: 10px; letter-spacing: .14em; color: #dfe7ef;
+    line-height: 26px; text-transform: uppercase; }
+  .cat:hover { background: rgba(255,255,255,.07); }
+  .cat.on { background: color-mix(in srgb, var(--c) 22%, transparent);
+    border-color: var(--c); }
+  .cat.on span { color: #eef4fb; }
   .item { padding: 7px 16px; cursor: pointer; border-left: 2px solid transparent; }
   .item:hover { background: rgba(98,212,255,.05); }
   .item.on { background: rgba(98,212,255,.10); border-left-color: var(--accent); }
@@ -80,7 +87,7 @@ window.__BUILD__ = 'mtjn6xpr';
     text-align: center; padding: 30px; color: #ff6b7a; background: var(--bg);
     z-index: 20; font: 13px/1.6 var(--mono); }
 </style>
-  <script type="module" crossorigin src="./assets/asset-C8F83W4W.js"></script>
+  <script type="module" crossorigin src="./assets/asset-C5BTbwWL.js"></script>
   <link rel="modulepreload" crossorigin href="./assets/m4-DvGWrzTh.js">
 </head>
 <body>

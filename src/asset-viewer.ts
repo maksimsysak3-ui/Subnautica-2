@@ -20,7 +20,9 @@ import { FLOATS_PER_VERTEX } from './assets/mesh';
 import { mat4, lookAt, perspective, ortho, multiply, clamp } from './math/m4';
 import type { Vec3 } from './math/m4';
 import { log, mountConsole } from './util/log';
-import { ZONE_STYLE, zoneIcon } from './ui/zones';
+import { BRANCH_STYLE, paletteFor, zoneIcon } from './ui/zones';
+import type { Category } from './ui/zones';
+import { BRANCHES } from './assets/types';
 import shaderSrc from './gfx/shaders/asset.wgsl?raw';
 
 const DEPTH: GPUTextureFormat = 'depth24plus';
@@ -528,18 +530,54 @@ const GROUPS: Array<[string, Zone, (a: AssetDef) => boolean]> = [
   ['industrial', 'industrial', (a) => a.zone === 'industrial'],
 ];
 
+/** Every category the bar offers, in the order it shows them. */
+const CATEGORIES: Category[] = [
+  'residential', 'commercial', 'office', 'industrial', ...BRANCHES,
+];
+
+/** Which assets belong to a category. Zones go by zone, branches by branch. */
+function inCategory(a: AssetDef, c: Category): boolean {
+  return a.zone === 'service' ? a.branch === c : a.zone === c;
+}
+
+/** The category currently on show. Null means everything. */
+let current: Category | null = null;
+
 /**
- * The zone legend at the top of the list: icon, name and hex, so the colour
- * code is something you can read off the screen rather than out of a file.
+ * The category bar: one button per zone and per service branch.
+ *
+ * This is the toolbar the game itself will have, so the viewer uses the same
+ * one -- picking a category here filters the list to that category's
+ * buildings, which is the only tractable way to browse a hundred-odd assets.
+ * The button carries the category colour, so the bar doubles as the colour
+ * code that the old legend used to spell out.
  */
-function buildLegend(): void {
+function buildBar(onPick: (a: AssetDef) => void): void {
   const el = document.getElementById('legend');
   if (!el) return;
-  el.innerHTML = (Object.keys(ZONE_STYLE) as Zone[]).map((z) => {
-    const s = ZONE_STYLE[z];
-    return `<div class="zone" title="${s.blurb}">${zoneIcon(z, 30)}` +
-      `<div><div class="zn">${s.label}</div><div class="zc">${s.base}</div></div></div>`;
-  }).join('');
+  const cell = (c: Category | null, label: string, svg: string, n: number): string => {
+    const tone = c ? paletteFor(c) : { base: '#7c8798', deep: '#3d4655' };
+    return `<button class="cat" data-cat="${c ?? ''}" title="${label} (${n})"
+      style="--c:${tone.base};--d:${tone.deep}">${svg}<span>${n}</span></button>`;
+  };
+  el.innerHTML =
+    cell(null, 'all', zoneIcon('residential', 26), ASSETS.length) +
+    CATEGORIES.map((c) => cell(c, paletteFor(c).label, zoneIcon(c, 26),
+      ASSETS.filter((a) => inCategory(a, c)).length)).join('');
+  // "All" borrows the residential icon, which would be confusing; blank it.
+  const all = el.querySelector('.cat') as HTMLElement | null;
+  if (all) all.innerHTML = `<span class="allx">all</span><span>${ASSETS.length}</span>`;
+
+  for (const b of el.querySelectorAll('.cat')) {
+    b.addEventListener('click', () => {
+      const v = (b as HTMLElement).dataset.cat ?? '';
+      current = v === '' ? null : (v as Category);
+      for (const o of el.querySelectorAll('.cat')) o.classList.remove('on');
+      b.classList.add('on');
+      buildList(onPick);
+    });
+  }
+  (el.querySelector('.cat') as HTMLElement | null)?.classList.add('on');
 }
 
 function highlight(id: string): void {
@@ -571,12 +609,25 @@ function renderInfo(a: AssetDef, tris: number, lod: number): void {
 function buildList(onPick: (a: AssetDef) => void): void {
   const list = document.getElementById('list');
   if (!list) return;
-  for (const [label, zone, match] of GROUPS) {
+  list.innerHTML = '';
+
+  // Zone groups keep their density split; service branches are one group each,
+  // since nine branches of two or three is already the right granularity.
+  const groups: Array<[string, Category, (a: AssetDef) => boolean]> = [
+    ...GROUPS,
+    ...BRANCHES.map((b) => [
+      BRANCH_STYLE[b].label.toLowerCase(), b as Category,
+      (a: AssetDef) => a.zone === 'service' && a.branch === b,
+    ] as [string, Category, (a: AssetDef) => boolean]),
+  ];
+
+  for (const [label, cat, match] of groups) {
+    if (current !== null && cat !== current) continue;
     const assets = ASSETS.filter(match);
     if (!assets.length) continue;
     const h = document.createElement('div');
     h.className = 'group';
-    h.innerHTML = `${zoneIcon(zone, 16)}<span>${label} (${assets.length})</span>`;
+    h.innerHTML = `${zoneIcon(cat, 16)}<span>${label} (${assets.length})</span>`;
     list.appendChild(h);
     for (const a of assets) {
       const el = document.createElement('div');
@@ -630,6 +681,13 @@ async function boot(): Promise<void> {
 
   addEventListener('error', (e) => fail('Something broke', `${e.message} @ ${e.filename}:${e.lineno}`));
   addEventListener('unhandledrejection', (e) => fail('Something broke', String(e.reason)));
+
+  // The browsing UI is built before the device is asked for. A machine with
+  // no WebGPU still gets the library -- names, counts, categories -- instead
+  // of an error page and nothing else.
+  let onPick: (a: AssetDef) => void = () => {};
+  buildBar((a) => onPick(a));
+  buildList((a) => onPick(a));
 
   let gpu: Gpu;
   try {
@@ -689,8 +747,7 @@ async function boot(): Promise<void> {
     recovering = false;
   });
 
-  buildLegend();
-  buildList((a) => viewer.select(a));
+  onPick = (a) => viewer.select(a);
 
   // URL parameters, so the contact-sheet tool can drive this page rather than
   // reimplementing the renderer. A second renderer is worse than no tool: it
