@@ -16,12 +16,30 @@
 import { MAT, TINT, MeshBuilder } from '../mesh';
 import type { AssetDef } from '../types';
 import type { Tint } from '../mesh';
+import type { Wall } from '../parts';
 import {
-  band, boxSign, entrance, frontage, kerb, parapet,
-  bollards, railing, roofClutter, serviceYard, windowGrid,
+  band, bollards, boxSign, entrance, fins, frontage, kerb, parapet,
+  louvres, portal, railing, ribbon, roofClutter, serviceYard,
 } from '../parts';
 
 // -------------------------------------------------------------- shared parts
+
+/**
+ * A stack of ribbon windows, one per floor.
+ *
+ * The service equivalent of windowGrid. Same floors and the same head height,
+ * but each floor is one continuous run of glass with mullions across it rather
+ * than a row of separate holes -- which is the single strongest signal that a
+ * building is civic and not domestic.
+ */
+function ribbonStack(m: MeshBuilder, w: Wall, u0: number, u1: number, o: {
+  floors: number; floorH: number; base: number; height: number;
+}): void {
+  for (let f = 0; f < o.floors; f++) {
+    const y = o.base + f * o.floorH;
+    ribbon(m, w, u0, u1, y, y + o.height, { head: f === o.floors - 1 });
+  }
+}
 
 /**
  * A run of appliance bay doors: piers, shutters with their ribs, and a lintel.
@@ -176,7 +194,7 @@ function fireStation(lod: number): MeshBuilder {
   const x = w / 2, z = d / 2;
   const bayH = 5.6, officeH = 7.2;
 
-  m.box([-x, 0, -z], [x - 6.0, bayH, z], MAT.BRICK, { roof: MAT.TRIM });
+  m.box([-x, 0, -z], [x - 6.0, bayH, z], MAT.CONCRETE, { roof: MAT.TRIM });
   m.box([x - 6.0, 0, -z], [x, officeH, z], MAT.CLADDING, { roof: MAT.ROOF });
 
   if (medium) {
@@ -194,10 +212,10 @@ function fireStation(lod: number): MeshBuilder {
         y0: 1.1 + f * 3.6, y1: 3.0 + f * 3.6, count: 2, width: 1.7,
         glass: MAT.GLASS, frame: 0.11, proud: 0.06 });
     }
-    windowGrid(m, { axis: 'x', sign: 1, plane: x }, -z + 1.2, z - 1.2,
-      { floors: 2, floorH: 3.6, base: 1.1, count: 3, width: 1.4, height: 1.9 });
-    windowGrid(m, { axis: 'z', sign: -1, plane: -z }, -x + 1.2, x - 1.2,
-      { floors: 1, floorH: 3.2, base: 2.4, count: 6, width: 1.4, height: 1.5 });
+    ribbonStack(m, { axis: 'x', sign: 1, plane: x }, -z + 1.2, z - 1.2,
+      { floors: 2, floorH: 3.6, base: 1.1, height: 1.9 });
+    ribbonStack(m, { axis: 'z', sign: -1, plane: -z }, -x + 1.2, x - 1.2,
+      { floors: 1, floorH: 3.2, base: 2.4, height: 1.5 });
     entrance(m, { axis: 'z', sign: 1, plane: z }, x - 3.0,
       { width: 1.9, height: 2.6, double: true, glazed: true, canopy: 1.8 });
     boxSign(m, { axis: 'z', sign: 1, plane: z }, x - 5.4, x - 0.6, officeH - 1.5, officeH - 0.4);
@@ -227,7 +245,7 @@ function fireHouse(lod: number): MeshBuilder {
 
   // Flat roof behind a heavy cornice, not a pitched domestic one: with tiles
   // and eaves this read as a large house with garage doors in it.
-  m.box([-x, 0, -z], [x, h, z], MAT.BRICK, { roof: MAT.ROOF });
+  m.box([-x, 0, -z], [x, h, z], MAT.CLADDING, { roof: MAT.ROOF });
   m.box([-x - 0.3, 0, -z - 0.3], [x + 0.3, 1.5, z + 0.3], MAT.STONE);
 
   if (medium) {
@@ -235,19 +253,19 @@ function fireHouse(lod: number): MeshBuilder {
     parapet(m, -x, -z, x, z, h, 1.3, 0.34);
     band(m, -x, -z, x, z, ground - 0.25, 0.45, 0.26);
     // Hose tower on the back corner, taller than the ridge.
-    m.box([x - 3.6, 0, -z - 0.4], [x, h + 5.0, -z + 3.2], MAT.BRICK, { roof: MAT.ROOF });
+    m.box([x - 3.6, 0, -z - 0.4], [x, h + 5.0, -z + 3.2], MAT.CONCRETE, { roof: MAT.ROOF });
     parapet(m, x - 3.6, -z - 0.4, x, -z + 3.2, h + 5.0, 0.8, 0.26);
     roofClutter(m, -x + 2, -z + 4, x - 5, z - 2, h + 2.4, 911, 0.4);
   }
   if (fine) {
     bayDoors(m, -x + 1.0, x - 1.0, z, 2, 4.2);
-    windowGrid(m, { axis: 'z', sign: 1, plane: z }, -x + 1.0, x - 1.0,
-      { floors: 1, floorH: upper, base: ground + 1.2, count: 3, width: 1.2, height: 1.8 });
-    windowGrid(m, { axis: 'z', sign: -1, plane: -z }, -x + 1.0, x - 4.4,
-      { floors: 2, floorH: 4.2, base: 1.2, count: 3, width: 1.2, height: 1.6 });
+    ribbonStack(m, { axis: 'z', sign: 1, plane: z }, -x + 1.0, x - 1.0,
+      { floors: 1, floorH: upper, base: ground + 1.2, height: 1.8 });
+    ribbonStack(m, { axis: 'z', sign: -1, plane: -z }, -x + 1.0, x - 4.4,
+      { floors: 2, floorH: 4.2, base: 1.2, height: 1.6 });
     for (const sx of [-1, 1] as const) {
-      windowGrid(m, { axis: 'x', sign: sx, plane: sx * x }, -z + 1.4, z - 1.4,
-        { floors: 2, floorH: 4.2, base: 1.2, count: 3, width: 1.1, height: 1.6 });
+      ribbonStack(m, { axis: 'x', sign: sx, plane: sx * x }, -z + 1.4, z - 1.4,
+      { floors: 2, floorH: 4.2, base: 1.2, height: 1.6 });
     }
     // Stair lights up the hose tower.
     for (let f = 0; f < 4; f++) {
@@ -301,7 +319,7 @@ function fireHQ(lod: number): MeshBuilder {
 
   m.box([-x, 0, -z], [x, bayH, z], MAT.CONCRETE, { roof: MAT.TRIM });
   m.box([-x, bayH, -z], [x - 10.0, officeH, z - 2.0], MAT.CLADDING, { roof: MAT.ROOF });
-  m.box([x - 10.0, 0, -z], [x, officeH + 3.0, z], MAT.BRICK, { roof: MAT.ROOF });
+  m.box([x - 10.0, 0, -z], [x, officeH + 3.0, z], MAT.CONCRETE, { roof: MAT.ROOF });
 
   if (medium) {
     parapet(m, -x, -z, x - 10.0, z - 2.0, officeH, 1.0, 0.32);
@@ -319,12 +337,12 @@ function fireHQ(lod: number): MeshBuilder {
         y0: bayH + 0.9 + f * 2.6, y1: bayH + 2.6 + f * 2.6,
         glass: MAT.GLASS, frame: 0.12, proud: 0.06 });
     }
-    windowGrid(m, { axis: 'z', sign: 1, plane: z }, x - 9.2, x - 0.8,
-      { floors: 4, floorH: 3.4, base: 1.2, count: 3, width: 1.5, height: 2.0 });
-    windowGrid(m, { axis: 'x', sign: 1, plane: x }, -z + 1.2, z - 1.2,
-      { floors: 4, floorH: 3.4, base: 1.2, count: 5, width: 1.4, height: 2.0 });
-    windowGrid(m, { axis: 'z', sign: -1, plane: -z }, -x + 1.5, x - 11.5,
-      { floors: 1, floorH: 3, base: 3.0, count: 8, width: 1.3, height: 1.5 });
+    ribbonStack(m, { axis: 'z', sign: 1, plane: z }, x - 9.2, x - 0.8,
+      { floors: 4, floorH: 3.4, base: 1.2, height: 2.0 });
+    ribbonStack(m, { axis: 'x', sign: 1, plane: x }, -z + 1.2, z - 1.2,
+      { floors: 4, floorH: 3.4, base: 1.2, height: 2.0 });
+    ribbonStack(m, { axis: 'z', sign: -1, plane: -z }, -x + 1.5, x - 11.5,
+      { floors: 1, floorH: 3, base: 3.0, height: 1.5 });
     entrance(m, { axis: 'z', sign: 1, plane: z }, x - 5.0,
       { width: 2.6, height: 3.2, double: true, glazed: true, canopy: 2.4 });
     boxSign(m, { axis: 'z', sign: 1, plane: z }, x - 8.4, x - 1.6, officeH + 1.0, officeH + 2.4);
@@ -364,7 +382,7 @@ function airRescue(lod: number): MeshBuilder {
              [a, hangarH + y0, hz - hangarD / 2], [b, hangarH + y1, hz - hangarD / 2], MAT.METAL);
     }
     // Crew block on the end.
-    m.box([hx + hangarW / 2, 0, hz - hangarD / 2], [x - 0.5, 6.6, hz + 2.0], MAT.BRICK, { roof: MAT.ROOF });
+    m.box([hx + hangarW / 2, 0, hz - hangarD / 2], [x - 0.5, 6.6, hz + 2.0], MAT.CLADDING, { roof: MAT.ROOF });
     parapet(m, hx + hangarW / 2, hz - hangarD / 2, x - 0.5, hz + 2.0, 6.6, 0.7, 0.24);
     roofClutter(m, hx + hangarW / 2 + 1, hz - hangarD / 2 + 1, x - 1.5, hz + 1, 6.6, 931, 0.6);
   }
@@ -399,8 +417,8 @@ function airRescue(lod: number): MeshBuilder {
     m.painted(TINT.BRAND, () => {
       m.cone(-x + 1.65, z - 1.85, 0.7, 0.3, 7.0, 8.0, 8, MAT.TRIM);
     });
-    windowGrid(m, { axis: 'z', sign: 1, plane: hz + 2.0 }, hx + hangarW / 2 + 0.6, x - 1.1,
-      { floors: 2, floorH: 3.2, base: 1.0, count: 3, width: 1.3, height: 1.6 });
+    ribbonStack(m, { axis: 'z', sign: 1, plane: hz + 2.0 }, hx + hangarW / 2 + 0.6, x - 1.1,
+      { floors: 2, floorH: 3.2, base: 1.0, height: 1.6 });
     entrance(m, { axis: 'z', sign: 1, plane: hz + 2.0 }, hx + hangarW / 2 + 2.0,
       { width: 1.4, height: 2.4, double: true, glazed: true, canopy: 1.4 });
     // Fuel bowser, a ground-power unit and the fence round the pad.
@@ -492,7 +510,7 @@ function policePost(lod: number): MeshBuilder {
   const w = 13.0, d = 10.0, h = 4.4;
   const x = w / 2, z = d / 2;
 
-  m.box([-x, 0, -z], [x, h, z], MAT.BRICK, { roof: MAT.ROOF });
+  m.box([-x, 0, -z], [x, h, z], MAT.STONE, { roof: MAT.ROOF });
   m.box([-x + 2.0, 0, z - 0.2], [x - 2.0, h + 1.2, z + 1.6], MAT.CLADDING, { roof: MAT.TRIM });
 
   if (medium) {
@@ -509,10 +527,10 @@ function policePost(lod: number): MeshBuilder {
     entrance(m, { axis: 'z', sign: 1, plane: z + 1.6 }, -x + 3.6,
       { width: 1.4, height: 2.4, double: true, glazed: true, steps: 1 });
     policeLamp(m, -x + 3.6, 2.7, z + 1.62);
-    windowGrid(m, { axis: 'x', sign: 1, plane: x }, -z + 1.2, z - 1.2,
-      { floors: 1, floorH: 3, base: 1.6, count: 3, width: 1.2, height: 1.5 });
-    windowGrid(m, { axis: 'z', sign: -1, plane: -z }, -x + 1.2, x - 1.2,
-      { floors: 1, floorH: 3, base: 1.6, count: 4, width: 1.2, height: 1.5 });
+    ribbonStack(m, { axis: 'x', sign: 1, plane: x }, -z + 1.2, z - 1.2,
+      { floors: 1, floorH: 3, base: 1.6, height: 1.5 });
+    ribbonStack(m, { axis: 'z', sign: -1, plane: -z }, -x + 1.2, x - 1.2,
+      { floors: 1, floorH: 3, base: 1.6, height: 1.5 });
     boxSign(m, { axis: 'z', sign: 1, plane: z + 1.6 }, -2.4, 2.4, 3.6, 4.7);
     // Bars on the rear windows: the detail that says this is not an office.
     m.painted(TINT.METAL_DARK, () => {
@@ -540,7 +558,7 @@ function policePost(lod: number): MeshBuilder {
     vehicle(m, -x - 4.4, -4.4, 4.4, 1.9, TINT.METAL_DARK, false);
     vehicle(m, -x - 2.2, -0.6, 4.4, 1.9, TINT.WOOD, false);
     // Single-storey custody wing at the back, and the fence round the bays.
-    m.box([-x + 1.0, 0, -z - 5.0], [x - 3.0, 3.4, -z], MAT.BRICK, { roof: MAT.ROOF });
+    m.box([-x + 1.0, 0, -z - 5.0], [x - 3.0, 3.4, -z], MAT.CONCRETE, { roof: MAT.ROOF });
     parapet(m, -x + 1.0, -z - 5.0, x - 3.0, -z, 3.4, 0.55, 0.24);
     m.painted(TINT.METAL_DARK, () => {
       for (let i = 0; i < 4; i++) {
@@ -608,15 +626,36 @@ function policeStation(lod: number): MeshBuilder {
       ['x', 1, x, -z + 1.0, z - 1.0, 4],
       ['x', -1, -x, -z + 1.0, z - 1.0, 4],
     ] as const) {
-      windowGrid(m, { axis, sign, plane }, u0, u1,
-        { floors: floors - 1, floorH, base: ground + 0.9, count: n, width: 1.5, height: 2.0 });
+      ribbonStack(m, { axis, sign, plane }, u0, u1,
+        { floors: floors - 1, floorH, base: ground + 0.9, height: 2.0 });
+      void n;
     }
-    windowGrid(m, { axis: 'z', sign: 1, plane: z }, -x + 1.0, -5.6,
-      { floors: floors - 1, floorH, base: ground + 0.9, count: 2, width: 1.5, height: 2.0 });
+    ribbonStack(m, { axis: 'z', sign: 1, plane: z }, -x + 1.0, -5.6,
+      { floors: floors - 1, floorH, base: ground + 0.9, height: 2.0 });
     for (let f = 0; f < floors; f++) {
       m.opening({ axis: 'z', sign: 1, plane: z + 2.0, u0: -4.4, u1: 0.4,
         y0: 0.9 + f * 3.7, y1: 3.1 + f * 3.7, glass: MAT.GLASS, frame: 0.13, proud: 0.07 });
     }
+    // Fins across the front, and a portal frame over the entrance bay: the
+    // two gestures a civic building makes that a house never does.
+    fins(m, { axis: 'z', sign: 1, plane: z }, 1.6, x - 1.0, ground, h - 0.2, 7, 0.5);
+    portal(m, -5.0, 1.0, z + 2.0, h + 2.0, 2.0, 2);
+    // Horizontal brise-soleil over each ribbon, and the stair expressed as a
+    // half-drum on the flank -- civic massing, not a bigger house.
+    m.painted(TINT.METAL_DARK, () => {
+      for (let f = 1; f < floors; f++) {
+        const y = ground + (f - 1) * floorH + 2.4;
+        for (let i = 0; i < 4; i++) {
+          m.box([1.6, y + i * 0.16, z + 0.5], [x - 1.0, y + i * 0.16 + 0.07, z + 1.1], MAT.TRIM);
+        }
+      }
+    });
+    m.cylinder(-x, 0, 2.6, 0, h + 1.6, 14, MAT.CONCRETE, false);
+    for (let f = 0; f < floors; f++) {
+      m.opening({ axis: 'x', sign: -1, plane: -x - 2.6, u0: -1.6, u1: 1.6,
+        y0: 1.0 + f * floorH, y1: 2.9 + f * floorH, glass: MAT.GLASS, frame: 0.12, proud: 0.06 });
+    }
+    parapet(m, -x - 2.6, -2.6, -x + 2.6, 2.6, h + 1.6, 0.9, 0.3);
     entrance(m, { axis: 'z', sign: 1, plane: z + 2.0 }, -2.0,
       { width: 2.4, height: 3.0, double: true, glazed: true, steps: 2, canopy: 2.2 });
     policeLamp(m, -2.0, 3.5, z + 2.02);
@@ -744,12 +783,12 @@ function detention(lod: number): MeshBuilder {
       }
     });
     // Entrance block outside the wall.
-    m.box([-6.0, 0, z + 0.35], [-2.0, 4.0, z + 5.0], MAT.BRICK, { roof: MAT.ROOF });
+    m.box([-6.0, 0, z + 0.35], [-2.0, 4.0, z + 5.0], MAT.CONCRETE, { roof: MAT.ROOF });
     parapet(m, -6.0, z + 0.35, -2.0, z + 5.0, 4.0, 0.6, 0.24);
     entrance(m, { axis: 'z', sign: 1, plane: z + 5.0 }, -4.0,
       { width: 1.6, height: 2.5, double: true, glazed: true, canopy: 1.5 });
-    windowGrid(m, { axis: 'x', sign: -1, plane: -6.0 }, z + 1.0, z + 4.4,
-      { floors: 1, floorH: 3, base: 1.4, count: 2, width: 1.1, height: 1.4 });
+    ribbonStack(m, { axis: 'x', sign: -1, plane: -6.0 }, z + 1.0, z + 4.4,
+      { floors: 1, floorH: 3, base: 1.4, height: 1.4 });
     boxSign(m, { axis: 'z', sign: 1, plane: z + 5.0 }, -5.4, -2.6, 2.9, 3.8);
     for (const sx of [-1, 1] as const) mast(m, sx * (x - 1.2), 11.1, z - 1.5, 3.0);
     kerb(m, -x - 1.0, z + 5.0, x + 1.0, z + 5.4);
@@ -797,9 +836,31 @@ function clinic(lod: number): MeshBuilder {
       ['x', 1, x, -z + 1.0, z - 1.0, 4],
       ['x', -1, -x, -z + 1.0, z - 1.0, 4],
     ] as const) {
-      windowGrid(m, { axis, sign, plane }, u0, u1,
-        { floors, floorH, base: 1.1, count: n, width: 1.6, height: 2.0 });
+      ribbonStack(m, { axis, sign, plane }, u0, u1,
+        { floors, floorH, base: 1.1, height: 2.0 });
+      void n;
     }
+    fins(m, { axis: 'z', sign: 1, plane: z }, -x + 10.0, x - 1.0, 0.6, h - 0.3, 6, 0.42);
+    // Louvred plant screen on the roof and a glazed link to the ambulance bay:
+    // the two things a clinic has that a house does not.
+    louvres(m, { axis: 'z', sign: 1, plane: z }, -x + 11.0, x - 2.0, h + 0.2, h + 1.9);
+    louvres(m, { axis: 'x', sign: 1, plane: x }, -z + 2.0, z - 2.0, h + 0.2, h + 1.9);
+    m.box([-x + 10.8, h, -z + 1.6], [x - 1.8, h + 0.2, z - 1.6], MAT.CONCRETE);
+    m.box([x - 10.6, 0, z + 0.2], [x - 9.4, 4.2, z + 5.0], MAT.CLADDING, { roof: MAT.TRIM });
+    m.box([x - 9.4, 2.4, z + 0.6], [x - 0.6, 4.2, z + 4.6], MAT.GLASS, { roof: MAT.TRIM });
+    ribbon(m, { axis: 'z', sign: 1, plane: z + 4.6 }, x - 9.0, x - 1.0, 2.8, 3.9,
+      { sill: false, head: false });
+    // Waiting-room seating behind the glass, and a triage bay marking.
+    m.painted(TINT.METAL_DARK, () => {
+      for (let r = 0; r < 3; r++) {
+        const rz = z + 0.9 + r * 0.9;
+        m.box([-x + 2.6, 0.42, rz], [-x + 7.6, 0.52, rz + 0.5], MAT.TRIM);
+        m.box([-x + 2.6, 0.52, rz], [-x + 7.6, 1.15, rz + 0.12], MAT.TRIM);
+        for (const px of [-x + 2.8, -x + 7.3]) {
+          m.box([px, 0, rz + 0.05], [px + 0.1, 0.42, rz + 0.4], MAT.TRIM);
+        }
+      }
+    });
     entrance(m, { axis: 'z', sign: 1, plane: z + 3.0 }, -x + 5.2,
       { width: 2.4, height: 2.9, double: true, glazed: true, canopy: 2.0 });
     // The cross, on the parapet where it can be seen from the road.
@@ -886,8 +947,8 @@ function hospital(lod: number): MeshBuilder {
         y0: 1.0 + f * 3.4, y1: 3.4 + f * 3.4, count: 8, width: 2.6,
         glass: f === 0 ? MAT.SHOPFRONT : MAT.GLASS, frame: 0.12, proud: 0.07 });
     }
-    windowGrid(m, { axis: 'x', sign: 1, plane: x }, -z + 1.5, z - 1.5,
-      { floors: 2, floorH: 3.6, base: 1.2, count: 5, width: 1.6, height: 2.0 });
+    ribbonStack(m, { axis: 'x', sign: 1, plane: x }, -z + 1.5, z - 1.5,
+      { floors: 2, floorH: 3.6, base: 1.2, height: 2.0 });
     entrance(m, { axis: 'z', sign: 1, plane: z }, 0,
       { width: 4.0, height: 3.4, double: true, glazed: true, canopy: 3.2 });
     boxSign(m, { axis: 'z', sign: 1, plane: z }, -5.0, 5.0, podium - 1.6, podium - 0.3);
@@ -918,7 +979,7 @@ function ambulanceDepot(lod: number): MeshBuilder {
   const bayH = 5.0, blockH = 7.0;
 
   m.box([-x, 0, -z], [x - 7.0, bayH, z], MAT.CLADDING, { roof: MAT.TRIM });
-  m.box([x - 7.0, 0, -z], [x, blockH, z], MAT.BRICK, { roof: MAT.ROOF });
+  m.box([x - 7.0, 0, -z], [x, blockH, z], MAT.CLADDING, { roof: MAT.ROOF });
 
   if (medium) {
     parapet(m, -x, -z, x - 7.0, z, bayH, 0.8, 0.28);
@@ -936,10 +997,10 @@ function ambulanceDepot(lod: number): MeshBuilder {
         y0: 1.1 + f * 3.5, y1: 3.0 + f * 3.5, count: 2, width: 1.9,
         glass: MAT.GLASS, frame: 0.11, proud: 0.06 });
     }
-    windowGrid(m, { axis: 'x', sign: 1, plane: x }, -z + 1.2, z - 1.2,
-      { floors: 2, floorH: 3.5, base: 1.1, count: 3, width: 1.4, height: 1.8 });
-    windowGrid(m, { axis: 'z', sign: -1, plane: -z }, -x + 1.2, x - 1.2,
-      { floors: 1, floorH: 3, base: 2.6, count: 7, width: 1.3, height: 1.4 });
+    ribbonStack(m, { axis: 'x', sign: 1, plane: x }, -z + 1.2, z - 1.2,
+      { floors: 2, floorH: 3.5, base: 1.1, height: 1.8 });
+    ribbonStack(m, { axis: 'z', sign: -1, plane: -z }, -x + 1.2, x - 1.2,
+      { floors: 1, floorH: 3, base: 2.6, height: 1.4 });
     entrance(m, { axis: 'z', sign: 1, plane: z }, x - 3.5,
       { width: 1.6, height: 2.5, double: true, glazed: true, canopy: 1.6 });
     boxSign(m, { axis: 'z', sign: 1, plane: z }, x - 6.4, x - 0.6, blockH - 1.6, blockH - 0.5);
@@ -977,10 +1038,10 @@ function careHome(lod: number): MeshBuilder {
   // An L of two-storey wings round a sheltered garden.
   m.box([-x, 0, -z], [x, wall, -z + t], MAT.CLADDING, { roof: MAT.ROOF });
   m.box([-x, 0, -z + t], [-x + t, wall, z], MAT.CLADDING, { roof: MAT.ROOF });
-  // Brick only to the ground storey, clad above: the modern care-home
+  // Stone only to the ground storey, clad above: the modern care-home
   // vocabulary. Pitched tiles and chimneys made this a very large cottage.
-  m.box([-x - 0.15, 0, -z - 0.15], [x + 0.15, 3.4, -z + t + 0.15], MAT.BRICK);
-  m.box([-x - 0.15, 0, -z + t], [-x + t + 0.15, 3.4, z + 0.15], MAT.BRICK);
+  m.box([-x - 0.15, 0, -z - 0.15], [x + 0.15, 3.4, -z + t + 0.15], MAT.STONE);
+  m.box([-x - 0.15, 0, -z + t], [-x + t + 0.15, 3.4, z + 0.15], MAT.STONE);
 
   if (medium) {
     parapet(m, -x, -z, x, -z + t, wall, 0.9, 0.32);
@@ -996,15 +1057,15 @@ function careHome(lod: number): MeshBuilder {
     });
   }
   if (fine) {
-    for (const [axis, sign, plane, u0, u1, n] of [
+    for (const [axis, sign, plane, u0, u1] of [
       ['z', 1, -z + t, -x + t + 9.5, x - 0.9, 4],
       ['z', -1, -z, -x + 0.9, x - 0.9, 8],
       ['x', 1, x, -z + 0.9, -z + t - 0.9, 3],
       ['x', 1, -x + t, -z + t + 6.5, z - 0.9, 2],
       ['x', -1, -x, -z + 0.9, z - 0.9, 8],
     ] as const) {
-      windowGrid(m, { axis, sign, plane }, u0, u1,
-        { floors: 2, floorH: 3.2, base: 1.0, count: n, width: 1.3, height: 1.7 });
+      ribbonStack(m, { axis, sign, plane }, u0, u1,
+      { floors: 2, floorH: 3.2, base: 1.0, height: 1.7 });
     }
     m.windowRow({ axis: 'z', sign: 1, plane: -z + t + 6.0, from: -x + t + 0.8, to: -x + t + 8.2,
       y0: 0.7, y1: 2.9, count: 4, width: 1.5, glass: MAT.GLASS, frame: 0.11, proud: 0.06 });
@@ -1012,6 +1073,31 @@ function careHome(lod: number): MeshBuilder {
       { width: 1.8, height: 2.5, double: true, glazed: true, steps: 1, canopy: 2.0 });
     boxSign(m, { axis: 'z', sign: 1, plane: -z + t }, x - 6.6, x - 1.4, 3.2, 4.1);
     // Handrail down the ramp to the door.
+    // Stair drum in the crook of the L, and a covered walk to the garden -- a
+    // care home is circulation before it is anything else.
+    m.cylinder(-x + t, -z + t, 3.2, 0, wall + 1.8, 14, MAT.CLADDING, false);
+    for (let f = 0; f < 2; f++) {
+      m.opening({ axis: 'x', sign: 1, plane: -x + t + 3.2, u0: -z + t - 2.2, u1: -z + t + 2.2,
+        y0: 1.0 + f * 3.2, y1: 2.9 + f * 3.2, glass: MAT.GLASS, frame: 0.12, proud: 0.06 });
+    }
+    parapet(m, -x + t - 3.2, -z + t - 3.2, -x + t + 3.2, -z + t + 3.2, wall + 1.8, 0.8, 0.3);
+    m.painted(TINT.METAL_DARK, () => {
+      m.box([-x + t + 3.4, 2.9, -z + t + 6.4], [x - 6.0, 3.1, -z + t + 8.2], MAT.TRIM);
+      // Balconies to the upper rooms on the garden side.
+      for (let i = 0; i < 4; i++) {
+        const px = -x + t + 10.0 + i * 5.0;
+        m.box([px - 1.8, 3.3, -z + t], [px + 1.8, 3.45, -z + t + 1.5], MAT.TRIM);
+        m.box([px - 1.85, 3.45, -z + t + 1.35], [px + 1.85, 4.35, -z + t + 1.5], MAT.TRIM);
+        for (let k = 0; k < 6; k++) {
+          const bx = px - 1.7 + k * 0.68;
+          m.box([bx - 0.04, 3.45, -z + t + 1.38], [bx + 0.04, 4.35, -z + t + 1.47], MAT.TRIM);
+        }
+      }
+      for (let i = 0; i < 5; i++) {
+        const px = -x + t + 4.4 + i * 4.0;
+        m.box([px - 0.09, 0, -z + t + 7.9], [px + 0.09, 2.9, -z + t + 8.1], MAT.TRIM);
+      }
+    });
     railing(m, x - 8.0, x - 2.0, -z + t + 2.4, 0, 0.95, 1.2);
     m.box([x - 8.4, 0.002, -z + t], [x - 1.6, 0.08, -z + t + 2.6], MAT.CONCRETE);
     frontage(m, -x + t + 10.0, x, -z + t + 2.6, 1011, { planters: 3, bollards: 6, depth: 2.2 });

@@ -27,6 +27,17 @@ const MAX_TRIS = 10000;
  */
 const SERVICE_MIN = 2400;
 const SERVICE_MAX = 12000;
+
+/**
+ * Materials a service building may not use.
+ *
+ * BRICK, TILE, HOUSE_WALL and ROOF_TILE are the housing vocabulary. A fire
+ * station in brick under a tiled pitch reads as a large house with garage
+ * doors in it, which is the opposite of what a civic building is for: the
+ * player is scanning for it specifically and it has to announce itself.
+ * Enforced here rather than left to discipline, because it drifted back twice.
+ */
+const DOMESTIC = new Map([[4, 'BRICK'], [7, 'TILE'], [9, 'HOUSE_WALL'], [14, 'ROOF_TILE']]);
 /**
  * LOD0 floor. Below this an asset has not been detailed -- no frames, no
  * furniture, nothing at street level -- and it shows next to its neighbours.
@@ -81,6 +92,14 @@ for (const a of ASSETS) {
   if (maxZ > limitZ) note(a.id, `overflows its lot on Z: ${maxZ.toFixed(1)}m past centre, lot allows ${limitZ.toFixed(1)}m`);
   if (minY < -0.01) note(a.id, `has geometry below ground (${minY.toFixed(2)}m)`);
   const service = a.zone === 'service';
+  if (service) {
+    const used = new Set();
+    const v = meshes[0].vertices;
+    for (let i = 6; i < v.length; i += STRIDE) used.add(v[i]);
+    for (const [id, name] of DOMESTIC) {
+      if (used.has(id)) note(a.id, `uses the domestic material ${name}; services must not read as housing`);
+    }
+  }
   const ceiling = service ? SERVICE_MAX : MAX_TRIS;
   const floor = service ? SERVICE_MIN : MIN_TRIS;
   if (tris[0] > ceiling) note(a.id, `LOD0 is ${tris[0]} triangles, over the ${ceiling} ceiling`);

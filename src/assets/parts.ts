@@ -18,7 +18,7 @@ import { hash2 } from '../sim/hash';
 export type Axis = 'x' | 'z';
 export type Facing = 1 | -1;
 
-interface Wall {
+export interface Wall {
   axis: Axis;
   sign: Facing;
   plane: number;
@@ -455,6 +455,75 @@ export function serviceYard(m: MeshBuilder, x0: number, x1: number, z: number, s
         m.box([bx - 1.5, 0.3 + i * 0.2, z + 3.0], [bx + 1.5, 0.38 + i * 0.2, z + 3.06], MAT.TRIM);
       }
     });
+  }
+}
+
+// -------------------------------------------------------- civic vocabulary
+//
+// Services are read by a different grammar from housing. A house is punched
+// windows in a wall under a pitch; a civic building is a continuous ribbon of
+// glass, a shading fin, a louvre bank, an exposed frame, a deep canopy. These
+// are the parts that say "not a house" before anything else is drawn.
+
+/**
+ * A ribbon window: one continuous run of glazing with mullions across it,
+ * rather than a row of separate holes.
+ *
+ * This single part does more than any other to stop a service building
+ * reading as a large house, because punched openings in a wall are the
+ * domestic signal and a horizontal band is the civic one.
+ */
+export function ribbon(m: MeshBuilder, w: Wall, u0: number, u1: number, y0: number, y1: number,
+                       opts: { mullions?: number; sill?: boolean; head?: boolean } = {}): void {
+  m.opening({
+    axis: w.axis, sign: w.sign, plane: w.plane,
+    u0, u1, y0, y1, glass: MAT.GLASS, frame: 0.13, proud: 0.07,
+  });
+  const n = opts.mullions ?? Math.max(1, Math.round((u1 - u0) / 1.8));
+  m.painted(TINT.METAL_DARK, () => {
+    for (let i = 1; i < n; i++) {
+      const px = u0 + (i / n) * (u1 - u0);
+      slab(m, w, px - 0.055, px + 0.055, y0, y1, 0.02, 0.11, MAT.TRIM);
+    }
+  });
+  // A continuous cill and head, which is what carries the horizontal.
+  if (opts.sill !== false) slab(m, w, u0 - 0.2, u1 + 0.2, y0 - 0.22, y0, -0.02, 0.24, MAT.CONCRETE);
+  if (opts.head !== false) slab(m, w, u0 - 0.2, u1 + 0.2, y1, y1 + 0.24, -0.02, 0.24, MAT.CONCRETE);
+}
+
+/** Vertical shading fins across an elevation. Cheap, and unmistakably civic. */
+export function fins(m: MeshBuilder, w: Wall, u0: number, u1: number, y0: number, y1: number,
+                     count: number, depth = 0.45): void {
+  for (let i = 0; i <= count; i++) {
+    const px = u0 + (i / count) * (u1 - u0);
+    slab(m, w, px - 0.11, px + 0.11, y0, y1, 0.0, depth, MAT.CONCRETE);
+  }
+}
+
+/** A bank of louvres: plant rooms, substations, anything that has to breathe. */
+export function louvres(m: MeshBuilder, w: Wall, u0: number, u1: number, y0: number, y1: number,
+                        pitch = 0.3): void {
+  m.painted(TINT.METAL_DARK, () => {
+    slab(m, w, u0 - 0.1, u1 + 0.1, y0 - 0.1, y1 + 0.1, 0.0, 0.1, MAT.TRIM);
+    const n = Math.max(2, Math.floor((y1 - y0) / pitch));
+    for (let i = 0; i < n; i++) {
+      const y = y0 + i * ((y1 - y0) / n);
+      slab(m, w, u0, u1, y, y + pitch * 0.55, 0.06, 0.22, MAT.TRIM);
+    }
+  });
+}
+
+/**
+ * An exposed portal frame standing off a facade: columns and a beam.
+ *
+ * The structural gesture a civic building makes and a house never does.
+ */
+export function portal(m: MeshBuilder, x0: number, x1: number, z: number, height: number,
+                       reach = 2.4, legs = 2): void {
+  m.box([x0 - 0.3, height, z], [x1 + 0.3, height + 0.5, z + reach + 0.3], MAT.CONCRETE);
+  for (let i = 0; i < legs; i++) {
+    const px = legs === 1 ? (x0 + x1) / 2 : x0 + (i / (legs - 1)) * (x1 - x0);
+    m.box([px - 0.24, 0, z + reach - 0.24], [px + 0.24, height, z + reach + 0.24], MAT.CONCRETE);
   }
 }
 
